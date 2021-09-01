@@ -1,0 +1,26 @@
+# styles - set the folder for your theme defination file
+set $config_path $HOME/.config/sway/
+
+include $config_path/definitions.d/*.conf
+include $config_path/theme.d/*.conf
+
+# keyboard, touchpad
+include $config_path/inputs/*
+# display dpi etc
+include $config_path/outputs/*
+
+# enable modes
+include $config_path/modes/*
+
+# only enable this if every app you use is compatible with wayland
+# xwayland disable
+
+# include additional configs e.g. to autostart applications
+include $config_path/config.d/*
+
+# user config
+include $config_path/config.d/*.conf
+
+floating_modifier $mod normal
+
+focus_follows_mouse no
