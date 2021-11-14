@@ -1,0 +1,3 @@
+brew "ranger"
+brew "gotop"
+
