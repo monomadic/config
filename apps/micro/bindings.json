@@ -1,4 +1,23 @@
 {
+    "Ctrl-p": "CursorUp",
+    "Ctrl-n": "CursorDown",
+    "Ctrl-b": "CursorLeft",
+    "Ctrl-f": "CursorRight",
+    "Ctrl-e": "EndOfLine",
+    "Ctrl-u": "DeleteLine",
+    "Ctrl-a": "StartOfLine",
+    "Ctrl-v": "Paste",
+    "Ctrl-s": "Save",
+    "Ctrl-j": "ShellMode",
+    "Ctrl-w": "Quit",
+    "Ctrl-q": "QuitAll",
+    "Alt-p": "CommandMode",
+    "Alt-a": "SelectAll",
+    "Ctrl-]": "IndentLine",
+    "Ctrl-[": "OutdentLine",
+    "Alt-]": "NextTab",
+    "Alt-[": "PreviousTab",
+    "Ctrl-/": "Find",
     "Alt-/": "lua:comment.comment",
     "CtrlUnderscore": "lua:comment.comment"
 }
