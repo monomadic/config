@@ -8,3 +8,4 @@
 
 # Default wallpaper
 #output * bg $background fill
+output * bg #111111 solid_color

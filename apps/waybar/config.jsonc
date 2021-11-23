@@ -18,7 +18,7 @@
     "position": "top",
 
     "modules-left": [
-        "custom/menu",
+        // "custom/menu",
         "sway/workspaces",
         "custom/scratchpad"
     ],
