@@ -10,6 +10,7 @@ $bindsym $mod+q kill
 
 ## Launch // Launcher ##
 $bindsym $mod+Space exec $menu
+$bindsym $mod+o exec /home/nom/Config/apps/fzfmenu
 
 # Drag floating windows by holding down $mod and left mouse button.
 # Resize them with right mouse button + $mod.
