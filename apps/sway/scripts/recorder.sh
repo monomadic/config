@@ -26,8 +26,8 @@ then
     target_path=$(xdg-user-dir VIDEOS)
     timestamp=$(date +'recording_%Y%m%d-%H%M%S')
 
-    notify "Select a region to record" -t 1000
-    area=$(swaymsg -t get_tree | jq -r '.. | select(.pid? and .visible?) | .rect | "\(.x),\(.y) \(.width)x\(.height)"' | slurp)
+    # notify "Select a region to record" -t 1000
+    # area=$(swaymsg -t get_tree | jq -r '.. | select(.pid? and .visible?) | .rect | "\(.x),\(.y) \(.width)x\(.height)"' | slurp)
 
     #countdown
     (sleep 0.5 && pkill -RTMIN+8 waybar) &
