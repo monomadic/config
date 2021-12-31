@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-
-foot -e "fzf $* < /proc/$$/fd/0 > /proc/$$/fd/1"
