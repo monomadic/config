@@ -1,0 +1,27 @@
+[options]
+    colorscheme = "darkblue"
+    colorscheme_bg = "dark"
+    enable_guicolors = true
+    statusline_separator = "nil"
+    statusline_iseparator = "arrow"
+    buffer_index_type = 4
+    enable_tabline_filetype_icon = true
+    enable_statusline_mode = false
+    relativenumber = false
+    bootstrap_after = 'customconfig#after'
+
+[[layers]]
+name = 'autocomplete'
+auto_completion_return_key_behavior = "complete"
+auto_completion_tab_key_behavior = "smart"
+
+[[layers]]
+name = 'shell'
+default_position = 'top'
+default_height = 30
+
+[[layers]]
+name = "fzf"
+
+[[layers]]
+name = "lang#rust"
