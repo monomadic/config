@@ -8,7 +8,7 @@ $bindsym $mod+Space exec $menu
 $bindsym $mod+o exec /home/nom/Config/apps/fzfmenu
 
 $bindsym $mod+b exec $firefox
-$bindsym $mod+shift+enter exec $term_float ranger ~
+$bindsym $mod+Shift+Return exec $term_float ranger ~
 
 # Drag floating windows by holding down $mod and left mouse button.
 # Resize them with right mouse button + $mod.
