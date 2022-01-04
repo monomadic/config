@@ -2,18 +2,13 @@
 #
 # Basics:
 #
-## Launch // Terminal ##
 $bindsym $mod+Return exec $term
-
-# Action // Kill focused window ##
 $bindsym $mod+q kill
-
-# Launch // Launcher ##
 $bindsym $mod+Space exec $menu
 $bindsym $mod+o exec /home/nom/Config/apps/fzfmenu
 
-# Launch Browser
 $bindsym $mod+b exec $firefox
+$bindsym $mod+shift+enter exec $term_float ranger ~
 
 # Drag floating windows by holding down $mod and left mouse button.
 # Resize them with right mouse button + $mod.
@@ -79,8 +74,8 @@ $bindsym $mod+7 workspace $ws7
 $bindsym $mod+8 workspace $ws8
 $bindsym $mod+9 workspace $ws9
 $bindsym $mod+0 workspace $ws10
-$bindsym $mod+"]" workspace next
-$bindsym $mod+"[" workspace prev
+$bindsym $mod+bracketright workspace next
+$bindsym $mod+bracketleft workspace prev
 
 set $focus_ws [ $focus_after_move == 'true' ] && swaymsg workspace
 
@@ -100,9 +95,9 @@ $bindsym $mod+Shift+0 move container to workspace $ws10, exec $focus_ws $ws10
 # Layout stuff:
 #
 ## Setting // Split windows horizontally ##
-$bindsym $mod+h splith
+#$bindsym $mod+h splith
 ## Setting // Split windows vertically ##
-$bindsym $mod+v splitv
+#$bindsym $mod+v splitv
 
 ## Action // Switch to window stacking ##
 $bindsym $mod+s layout stacking
