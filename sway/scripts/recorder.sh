@@ -37,8 +37,8 @@ then
         wf-recorder --audio -g "$area" --file="$file"
     else
         file="$target_path/$timestamp.mp4"
-        # wf-recorder -g "$area" -c libvpx --codec-param="qmin=0" --codec-param="qmax=25" --codec-param="crf=4" --codec-param="b:v=1M" --file="$file" 
-	wf-recorder --file "$file" --codec hevc_nvenc --device /dev/dri/renderD129 --codec-param="qmin=0" --codec-param="qmax=1" --codec-param="crf=0" --opencl
+        wf-recorder -c libx265 --codec-param="qmin=0" --codec-param="qmax=25" --codec-param="crf=4" --codec-param="b:v=1M" --file="$file" 
+	# wf-recorder --file "$file" --codec hevc_nvenc --device /dev/dri/renderD129 --codec-param="qmin=0" --codec-param="qmax=1" --codec-param="crf=0" --opencl
     fi
 
     pkill -RTMIN+8 waybar && notify "Finished recording ${file}"
