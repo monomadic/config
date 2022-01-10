@@ -1,4 +1,5 @@
 [options]
+
     colorscheme = "darkblue"
     colorscheme_bg = "dark"
     enable_guicolors = true
@@ -9,7 +10,15 @@
     enable_statusline_mode = false
     relativenumber = false
     bootstrap_after = 'customconfig#after'
+    filemanager = "nerdtree"
+    enable_filetree_status = true
+    enable_vimfiler_welcome = false
 
+[[layers]]
+name = "lsp"
+enabled_clients = ["rustup", "typescript-language-server"]
+filetypes = ["rust", "javascript"]
+    
 [[layers]]
 name = 'autocomplete'
 auto_completion_return_key_behavior = "complete"
@@ -25,3 +34,19 @@ name = "fzf"
 
 [[layers]]
 name = "lang#rust"
+
+[[layers]]
+name = "lang#javascript"
+
+[[layers]]
+name = "lang#typescript"
+
+[[custom_plugins]]
+name = 'lilydjwg/colorizer'
+merged = 0
+
+
+#[[custom_plugins]]
+#name = 'simrat39/symbols-outline'
+#merged = 0
+

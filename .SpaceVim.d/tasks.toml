@@ -1,0 +1,3 @@
+[my-task]
+    command = 'echo'
+    args = ['hello world']
