@@ -1,4 +1,4 @@
-VERSION = "3.5.0"
+VcloseERSION = "3.5.0"
 
 local micro = import("micro")
 local config = import("micro/config")
