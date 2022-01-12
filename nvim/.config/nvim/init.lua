@@ -28,9 +28,23 @@ Plug 'ryanoasis/vim-devicons' -- icons
 Plug 'vim-airline/vim-airline' -- status bar
 Plug 'ervandew/supertab' -- tab complete? check this more
 Plug 'terryma/vim-multiple-cursors'
+Plug 'jose-elias-alvarez/null-ls.nvim'
+Plug 'nvim-lua/plenary.nvim'
+Plug 'MunifTanjim/prettier.nvim'
+Plug 'evanleck/vim-svelte'
 -- Plug 'vim-airline/vim-airline-themes' -- status bar themes
 Plug 'kyazdani42/nvim-web-devicons'
 vim.call('plug#end')
+
+require('null-ls').setup({
+				on_attach = function(client, bufnr)
+				end
+})
+
+require('prettier').setup({
+				bin = 'prettier',
+				filetypes = { "javascript", "json" }
+})
 
 -- globals
 --
@@ -49,6 +63,10 @@ vim.cmd [[colorscheme torte]]
 vim.cmd [[hi Normal guibg=none ctermbg=none]]
 vim.cmd [[hi VertSplit cterm=none gui=none]]
 vim.cmd [[hi LineNr ctermfg=darkgrey]]
+
+require('prettier').setup {
+				filetypes = {"javascript", "typescript"}
+}
 
 -- file tree
 --
