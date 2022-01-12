@@ -2,6 +2,7 @@
 # make default editor Neovim
 export EDITOR=nvim
 export FZF_DEFAULT_COMMAND='rg --files --hidden --glob \!.git --glob \!.cache --glob \!.local --glob \!.nvm --glob \!.npm --glob \!.mozilla'
+export FZF_DIR_JUMP='fd --hidden --max-depth 2 --type d'
 
 echo "loaded .profile"
 
@@ -27,6 +28,7 @@ alias g=git
 alias r=ranger
 alias f=fzf
 alias v=nvim
+alias vim=nvim
 
 # prompt
 # source /usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme

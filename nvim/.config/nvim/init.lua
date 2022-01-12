@@ -1,5 +1,5 @@
 -- keys
--- see modes here https://github.com/nanotee/nvim-lua-guide#defining-mappings
+-- modes https://github.com/nanotee/nvim-lua-guide#defining-mappings
 vim.api.nvim_set_keymap('', '<C-s>', ':write<CR>', {noremap = true})
 vim.api.nvim_set_keymap('', '<C-w>', ':quit<CR>', {noremap = true})
 vim.api.nvim_set_keymap('', '<C-q>', ':quit!<CR>', {noremap = true})
@@ -10,15 +10,16 @@ vim.api.nvim_set_keymap('n', '<C-j>', '<Plug>(easymotion-bd-w)', {})
 -- plugins
 --
 local Plug = vim.fn['plug#']
- vim.call('plug#begin', '~/.config/nvim/plugged')
- --Plug('roxma/nvim-completion-manager')
- Plug('junegunn/fzf')
- Plug('scrooloose/nerdtree', {on = 'NERDTreeToggle'})
- Plug('easymotion/vim-easymotion')
- Plug('neovim/nvim-lspconfig')
- Plug('Shougo/deoplete.nvim')
- Plug('ternjs/tern_for_vim')
- Plug('carlitux/deoplete-ternjs')
+vim.call('plug#begin', '~/.config/nvim/plugged')
+--Plug('roxma/nvim-completion-manager')
+Plug('junegunn/fzf', {['do'] = vim.fn['fzf#install']}) -- fuzzy find
+Plug('scrooloose/nerdtree', {on = 'NERDTreeToggle'}) -- file tree
+Plug('easymotion/vim-easymotion') -- fast jump
+--Plug('brooth/far.zim') -- find and replace
+Plug('neovim/nvim-lspconfig') -- language server
+Plug('Shougo/deoplete.nvim') -- autocomplete
+Plug('ternjs/tern_for_vim')
+Plug('carlitux/deoplete-ternjs', {['for'] = 'javascript'})
 vim.call('plug#end')
 
 -- globals
