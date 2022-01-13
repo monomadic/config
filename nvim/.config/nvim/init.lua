@@ -5,10 +5,16 @@
 vim.api.nvim_set_keymap('', '<C-s>', ':write<CR>', {noremap = true})
 vim.api.nvim_set_keymap('', '<C-w>', ':tabclose<CR>', {noremap = true})
 vim.api.nvim_set_keymap('', '<C-q>', ':quit!<CR>', {noremap = true})
-vim.api.nvim_set_keymap('', '<C-p>', ':FZF<CR>', {})
+--vim.api.nvim_set_keymap('', '<C-p>', ':FZF<CR>', {})
 vim.api.nvim_set_keymap('', '<C-[>', ':bprev<CR>', {})
 vim.api.nvim_set_keymap('', '<C-]>', ':bnext<CR>', {})
 vim.api.nvim_set_keymap('n', '<C-j>', '<Plug>(easymotion-bd-w)', {})
+vim.api.nvim_set_keymap('', '<C-p>', ":Telescope find_files<cr>", {noremap = true})
+vim.api.nvim_set_keymap('', '<C-t>', ":Telescope<cr>", {noremap = true})
+
+--nnoremap <leader>fg <cmd>lua require('telescope.builtin').live_grep()<cr>
+--nnoremap <leader>fb <cmd>lua require('telescope.builtin').buffers()<cr>
+--nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags()<cr>
 
 -- plugins
 --
@@ -34,6 +40,7 @@ Plug 'MunifTanjim/prettier.nvim'
 Plug 'evanleck/vim-svelte'
 -- Plug 'vim-airline/vim-airline-themes' -- status bar themes
 Plug 'kyazdani42/nvim-web-devicons'
+Plug 'nvim-telescope/telescope.nvim'
 vim.call('plug#end')
 
 require('null-ls').setup({
