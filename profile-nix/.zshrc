@@ -28,7 +28,8 @@ USE_POWERLINE="false"
 source $HOME/config/scripts/fzy.zsh
 # CTRL-o: cd into the selected directory
 bindkey '^o' fzy-cd-widget
-zstyle :fzy:cd command fd --hidden --max-depth 4 --type d
+zstyle :fzy:cd command fd --hidden --max-depth 8 --type d
+
 # CTRL-T: Place the selected file path in the command line
 bindkey '^T'  fzy-file-widget
 # CTRL-h: Place the selected command from history in the command line
