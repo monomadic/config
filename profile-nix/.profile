@@ -1,10 +1,11 @@
 #!/bin/sh
+echo "loaded .profile"
+
 # make default editor Neovim
 export EDITOR=nvim
-export FZF_DEFAULT_COMMAND='rg --files --hidden --glob \!.git --glob \!.cache --glob \!.local --glob \!.nvm --glob \!.npm --glob \!.mozilla'
-export FZF_DIR_JUMP='fd --hidden --max-depth 2 --type d'
-
-echo "loaded .profile"
+#export FZF_DEFAULT_COMMAND='rg --files --hidden --glob \!.git --glob \!.cache --glob \!.local --glob \!.nvm --glob \!.npm --glob \!.mozilla'
+export FZF_DIR_JUMP='fd --hidden --max-depth 4 --type d'
+export FZF_DEFAULT_COMMAND='fd --hidden --max-depth 4 --type f'
 
 # Most pure GTK3 apps use wayland by default, but some,
 # like Firefox, need the backend to be explicitely selected.
