@@ -17,11 +17,24 @@ USE_POWERLINE="false"
 # FZF
 #
 # jump etc
-source $HOME/config/scripts/key-bindings.zsh
+# source $HOME/config/scripts/key-bindings.zsh
 # path complete eg cd <tab>
-source $HOME/config/scripts/completion.zsh
+# source $HOME/config/scripts/completion.zsh
 # zsh complete eg git <tab>
-source $HOME/config/scripts/tab-completion.zsh
+# source $HOME/config/scripts/tab-completion.zsh
+
+# FZY
+#
+source $HOME/config/scripts/fzy.zsh
+# CTRL-o: cd into the selected directory
+bindkey '^o' fzy-cd-widget
+zstyle :fzy:cd command fd --hidden --max-depth 4 --type d
+# CTRL-T: Place the selected file path in the command line
+bindkey '^T'  fzy-file-widget
+# CTRL-h: Place the selected command from history in the command line
+bindkey '^h'  fzy-history-widget
+# CTRL-P: Place the selected process ID in the command line
+# bindkey '^P'  fzy-proc-widget
 
 source $HOME/.profile
 

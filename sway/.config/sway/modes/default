@@ -7,7 +7,7 @@ $bindsym $mod+q kill
 $bindsym $mod+Space exec $menu
 $bindsym $mod+o exec /home/nom/Config/apps/fzfmenu
 
-$bindsym $mod+b exec $firefox
+$bindsym $mod+b exec firefox
 $bindsym $mod+Shift+Return exec $term_float ranger ~
 
 # Drag floating windows by holding down $mod and left mouse button.
