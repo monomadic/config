@@ -40,3 +40,6 @@ bindkey '^h'  fzy-history-widget
 source $HOME/.profile
 
 #source /usr/share/nvm/init-nvm.sh
+#
+
+eval "$(starship init zsh)"
