@@ -26,6 +26,8 @@ export SHELL=/usr/bin/zsh
 export TERMINAL_COMMAND=/usr/share/sway/scripts/foot.sh
 
 alias g=git
+alias gp=git pull
+alias gs=git status
 alias r=ranger
 alias f=fzf
 alias v=nvim

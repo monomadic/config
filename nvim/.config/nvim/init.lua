@@ -82,20 +82,19 @@ vim.opt.wildignore = {'*/cache/*', '*/tmp/*'}
 vim.opt.number = true
 -- vim.g['ctrlp_prompt_mappings'] = {['AcceptSelection("t")'] = '<cr>'}
 
--- colors
+-- Colors
 --
 vim.opt.termguicolors = false
 vim.cmd [[colorscheme torte]]
--- vim.cmd [[hi Normal guibg=none ctermbg=none]]
+vim.cmd [[hi Normal guibg=none ctermbg=none]]
 vim.cmd [[hi VertSplit cterm=none gui=none]]
 vim.cmd [[hi LineNr ctermfg=darkgrey]]
-
 
 require('prettier').setup {
 				filetypes = {"javascript", "typescript"}
 }
 
--- file tree
+-- FileTree
 --
 vim.api.nvim_set_keymap('', '<C-b>', ':NERDTreeToggle<CR>', {})
 vim.g['NERDTreeMapActivateNode'] = 'l' -- note: vim.g are globals
