@@ -13,6 +13,7 @@ Plug('junegunn/fzf', {['do'] = vim.fn['fzf#install']}) -- fuzzy find
 Plug 'easymotion/vim-easymotion' -- fast jumplocal nvim_lsp = require('lspconfig')
 Plug 'brooth/far.vim' -- find and replace
 Plug 'neovim/nvim-lspconfig' -- language server
+Plug 'simrat39/symbols-outline.nvim'
 --Plug('Shougo/deoplete.nvim') -- autocomplete
 Plug 'ternjs/tern_for_vim'
 Plug('carlitux/deoplete-ternjs', {['for'] = 'javascript'})
@@ -37,10 +38,8 @@ vim.call('plug#end')
 
 -- keymaps
 --  see: https://github.com/nanotee/nvim-lua-guide#defining-mappings
-
 local function keymap(...) vim.api.nvim_buf_set_keymap(bufnr, ...) end
 local opts = { noremap=true, silent=true }
-
 keymap('', '<C-s>', ':write<CR>', {noremap = true})
 --vim.api.nvim_set_keymap('', '<C-w>', ':tabclose<CR>', {noremap = true})
 vim.api.nvim_set_keymap('', '<C-q>', ':quit!<CR>', {noremap = true})
@@ -56,17 +55,17 @@ vim.api.nvim_set_keymap('n', '<Esc>', ':noh<cr>', {noremap = true}) -- fix ESC c
 --nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags()<cr>
 
 -- LSP
-
 local nvim_lsp = require('lspconfig')
 
+-- svelte
 nvim_lsp.svelte.setup{
   cmd = { "/home/nom/.nvm/versions/node/v17.3.1/bin/svelteserver", "--stdio" }
 }
 
+-- golang
 local attach_go = function()
 	print "attached go"
 end
-
 nvim_lsp.gopls.setup{
   on_attach = attach_go(),
   cmd = { "gopls" },
@@ -101,7 +100,64 @@ local on_attach = function(client, bufnr)
 
   -- Enable completion triggered by <c-x><c-o>
   --vim.api.nvim_buf_set_option('omnifunc', 'v:lua.vim.lsp.omnifunc', opts)
+
+  -- symbols outline:
+  vim.api.nvim_set_keymap('n', '<C-i>', ':SymbolsOutline<CR>', {})
 end
+
+vim.g.symbols_outline = {
+    highlight_hovered_item = true,
+    show_guides = true,
+    auto_preview = true,
+    position = 'right',
+    relative_width = true,
+    width = 64,
+    auto_close = false,
+    show_numbers = false,
+    show_relative_numbers = false,
+    show_symbol_details = true,
+    preview_bg_highlight = 'Pmenu',
+    keymaps = { -- These keymaps can be a string or a table for multiple keys
+        close = {"<Esc>", "q"},
+        goto_location = "<Cr>",
+        focus_location = "o",
+        hover_symbol = "<C-space>",
+        toggle_preview = "K",
+        rename_symbol = "r",
+        code_actions = "a",
+    },
+    lsp_blacklist = {},
+    symbol_blacklist = {},
+    symbols = {
+        File = {icon = "", hl = "TSURI"},
+        Module = {icon = "", hl = "TSNamespace"},
+        Namespace = {icon = "", hl = "TSNamespace"},
+        Package = {icon = "", hl = "TSNamespace"},
+        Class = {icon = "𝓒", hl = "TSType"},
+        Method = {icon = "ƒ", hl = "TSMethod"},
+        Property = {icon = "", hl = "TSMethod"},
+        Field = {icon = "", hl = "TSField"},
+        Constructor = {icon = "", hl = "TSConstructor"},
+        Enum = {icon = "ℰ", hl = "TSType"},
+        Interface = {icon = "ﰮ", hl = "TSType"},
+        Function = {icon = "", hl = "TSFunction"},
+        Variable = {icon = "", hl = "TSConstant"},
+        Constant = {icon = "", hl = "TSConstant"},
+        String = {icon = "𝓐", hl = "TSString"},
+        Number = {icon = "#", hl = "TSNumber"},
+        Boolean = {icon = "⊨", hl = "TSBoolean"},
+        Array = {icon = "", hl = "TSConstant"},
+        Object = {icon = "⦿", hl = "TSType"},
+        Key = {icon = "🔐", hl = "TSType"},
+        Null = {icon = "NULL", hl = "TSType"},
+        EnumMember = {icon = "", hl = "TSField"},
+        Struct = {icon = "𝓢", hl = "TSType"},
+        Event = {icon = "🗲", hl = "TSType"},
+        Operator = {icon = "+", hl = "TSOperator"},
+        TypeParameter = {icon = "𝙏", hl = "TSParameter"}
+    }
+}
+
 
 -- loop servers
 local servers = { 'rust_analyzer', 'gopls' }
@@ -166,16 +222,6 @@ vim.opt.shiftwidth = 2 -- spaces to shift when using << and >>
 vim.opt.expandtab = true -- spaces when using tab
 -- vim.g['ctrlp_prompt_mappings'] = {['AcceptSelection("t")'] = '<cr>'}
 
--- Colors
---
-vim.opt.termguicolors = false
-vim.cmd [[colorscheme cosmic-barf]]
-vim.cmd [[hi Normal guibg=none ctermbg=none]]
-vim.cmd [[hi VertSplit cterm=none gui=none]]
-vim.cmd [[hi LineNr ctermfg=darkgrey]]
-vim.cmd [[hi Cursor ctermbg=darkgrey ctermfg=white]]
-vim.cmd [[hi Comment ctermfg=darkgrey]]
-
 require('prettier').setup {
 				filetypes = {"javascript", "typescript"}
 }
@@ -199,3 +245,17 @@ vim.g['noswapfile'] = true
 vim.opt.mouse = 'a' -- basic obvious mouse behavior. wtf
 vim.opt.cursorline = true
 vim.opt.relativenumber = true
+
+-- Colors
+--
+vim.opt.termguicolors = false
+vim.cmd [[colorscheme cosmic-barf]]
+vim.cmd [[hi Normal guibg=none ctermbg=none]]
+vim.cmd [[hi VertSplit cterm=none gui=none]]
+vim.cmd [[hi LineNr ctermfg=darkgrey]]
+vim.cmd [[hi CursorLineNr ctermfg=white ctermbg=0]]
+vim.cmd [[hi Comment ctermfg=darkgrey]]
+-- cursor line bar
+vim.cmd [[hi Cursor ctermbg=0 ctermfg=none]]
+vim.cmd [[hi Comment ctermfg=darkgrey]]
+

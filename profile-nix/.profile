@@ -44,4 +44,8 @@ alias vim=nvim
 #source $HOME/Config/scripts/completion.zsh
 #source $HOME/Config/scripts/tab-completion.zsh
 
+# rust
+source $HOME/.cargo/env
+
 #source /usr/share/nvm/init-nvm.sh
+. "$HOME/.cargo/env"
