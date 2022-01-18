@@ -25,9 +25,12 @@ export _JAVA_AWT_WM_NONREPARENTING=1
 export SHELL=/usr/bin/zsh
 export TERMINAL_COMMAND=/usr/share/sway/scripts/foot.sh
 
+# go
+export PATH=$PATH:~/go/bin
+
 alias g=git
 alias gp=git pull
-alias gs=git status
+alias gs="git status"
 alias r=ranger
 alias f=fzf
 alias v=nvim
@@ -41,3 +44,4 @@ alias vim=nvim
 #source $HOME/Config/scripts/completion.zsh
 #source $HOME/Config/scripts/tab-completion.zsh
 
+#source /usr/share/nvm/init-nvm.sh
