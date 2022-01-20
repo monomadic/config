@@ -11,4 +11,4 @@ alias lite="/Applications/lite-xl.app/Contents/MacOS/lite-xl"
 alias enc="gpg --symmetric --cipher-algo AES256 "
 alias code=code-insiders
 alias r=ranger
-
+alias code=code-insiders
