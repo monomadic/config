@@ -46,13 +46,20 @@ vim.api.nvim_set_keymap('', '<C-q>', ':quit!<CR>', {noremap = true})
 vim.api.nvim_set_keymap('', '<C-[>', ':bprev<CR>', {})
 vim.api.nvim_set_keymap('', '<C-]>', ':bnext<CR>', {})
 vim.api.nvim_set_keymap('n', '<C-f>', '<Plug>(easymotion-bd-w)', {})
-vim.api.nvim_set_keymap('', '<C-p>', ":Telescope find_files<cr>", {noremap = true})
+vim.api.nvim_set_keymap('n', '<C-p>', ":Telescope find_files<cr>", {noremap = true})
 vim.api.nvim_set_keymap('', '<C-t>', ":Telescope<cr>", {noremap = true})
 vim.api.nvim_set_keymap('n', '<C-o>', ':FZF<CR>', {})
 vim.api.nvim_set_keymap('n', '<Esc>', ':noh<cr>', {noremap = true}) -- fix ESC confusion in normal mode
 --nnoremap <leader>fg <cmd>lua require('telescope.builtin').live_grep()<cr>
 --nnoremap <leader>fb <cmd>lua require('telescope.builtin').buffers()<cr>
 --nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags()<cr>
+-- emacs style shortcuts in insert mode (yes, I am like that)
+vim.api.nvim_set_keymap('i', '<C-n>', '<Down>', {noremap = true})
+vim.api.nvim_set_keymap('i', '<C-p>', '<Up>', {noremap = true})
+vim.api.nvim_set_keymap('i', '<C-b>', '<Left>', {noremap = true})
+vim.api.nvim_set_keymap('i', '<C-f>', '<Right>', {noremap = true})
+vim.api.nvim_set_keymap('i', '<C-e>', '<End>', {noremap = true})
+vim.api.nvim_set_keymap('i', '<C-a>', '<Home>', {noremap = true})
 
 -- LSP
 local nvim_lsp = require('lspconfig')
@@ -241,6 +248,9 @@ vim.g['airline#extensions#tabline#buffer_nr_show'] = 1
 --vim.g['airline#extensions#tabline#left_alt_sep'] = ' '
 vim.g['airline#extensions#tabline#left_sep'] = ' '
 vim.g['noswapfile'] = true
+vim.g['nocompatible'] = true
+-- syntax enable
+-- filetype plugin on
 
 vim.opt.mouse = 'a' -- basic obvious mouse behavior. wtf
 vim.opt.cursorline = true
