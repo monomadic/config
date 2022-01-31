@@ -1,0 +1,10 @@
+bat
+starship
+procs
+joshuto
+termusic
+cargo-make
+xplr
+dua
+cargo install --git https://github.com/IEEE-VIT/Templa-rs.git
+
