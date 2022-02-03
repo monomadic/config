@@ -12,7 +12,8 @@ Plug('scrooloose/nerdtree', {on = 'NERDTreeToggle'}) -- file tree
 Plug('junegunn/fzf', {['do'] = vim.fn['fzf#install']}) -- fuzzy find
 Plug 'easymotion/vim-easymotion' -- fast jumplocal nvim_lsp = require('lspconfig')
 Plug 'brooth/far.vim' -- find and replace
-Plug 'neovim/nvim-lspconfig' -- language server
+Plug 'neovim/nvim-lspconfig' -- language server protocol
+Plug 'mfussenegger/nvim-dap' -- debugging protocol
 Plug 'simrat39/symbols-outline.nvim'
 --Plug('Shougo/deoplete.nvim') -- autocomplete
 Plug 'ternjs/tern_for_vim'
@@ -34,6 +35,15 @@ Plug 'nvim-telescope/telescope.nvim'
 Plug 'nvim-treesitter/nvim-treesitter'
 Plug 'akinsho/toggleterm.nvim'
 Plug('fatih/vim-go', {['do'] = ':GoUpdateBinaries' })
+Plug 'RishabhRD/popfix' -- popup ui (required by popui)
+Plug 'hood/popui.nvim' -- popups to replace vim-ui selects
+
+-- rust
+Plug 'simrat39/rust-tools.nvim'
+-- rust (debugging)
+Plug 'nvim-lua/plenary.nvim'
+Plug 'mfussenegger/nvim-dap'
+
 vim.call('plug#end')
 
 -- keymaps
@@ -45,11 +55,11 @@ keymap('', '<C-s>', ':write<CR>', {noremap = true})
 vim.api.nvim_set_keymap('', '<C-q>', ':quit!<CR>', {noremap = true})
 vim.api.nvim_set_keymap('', '<C-[>', ':bprev<CR>', {})
 vim.api.nvim_set_keymap('', '<C-]>', ':bnext<CR>', {})
-vim.api.nvim_set_keymap('n', '<C-f>', '<Plug>(easymotion-bd-w)', {})
-vim.api.nvim_set_keymap('n', '<C-p>', ":Telescope find_files<cr>", {noremap = true})
 vim.api.nvim_set_keymap('', '<C-t>', ":Telescope<cr>", {noremap = true})
 vim.api.nvim_set_keymap('n', '<C-o>', ':FZF<CR>', {})
 vim.api.nvim_set_keymap('n', '<Esc>', ':noh<cr>', {noremap = true}) -- fix ESC confusion in normal mode
+vim.api.nvim_set_keymap('n', '<C-f>', '<Plug>(easymotion-bd-w)', {})
+vim.api.nvim_set_keymap('n', '<C-p>', ":Telescope find_files<cr>", {noremap = true})
 --nnoremap <leader>fg <cmd>lua require('telescope.builtin').live_grep()<cr>
 --nnoremap <leader>fb <cmd>lua require('telescope.builtin').buffers()<cr>
 --nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags()<cr>
@@ -64,32 +74,17 @@ vim.api.nvim_set_keymap('i', '<C-a>', '<Home>', {noremap = true})
 -- LSP
 local nvim_lsp = require('lspconfig')
 
--- svelte
-nvim_lsp.svelte.setup{
-  cmd = { "/home/nom/.nvm/versions/node/v17.3.1/bin/svelteserver", "--stdio" }
-}
-
--- golang
-local attach_go = function()
-	print "attached go"
-end
-nvim_lsp.gopls.setup{
-  on_attach = attach_go(),
-  cmd = { "gopls" },
-  filetypes = { "go", "gomod", "gotmpl" },
-  --root_dir = root_pattern("go.mod", ".git"),
-}
-
 
 --nvim_lsp.typescript.setup {}
 
 -- LSP keymaps
 --   only map these keys if an lsp client is attached
-local on_attach = function(client, bufnr)
+local attach_lsp_keymaps = function(client, bufnr)
+  print("attaching LSP keymaps") 
   -- See `:help vim.lsp.*` for documentation on any of the below functions
   keymap('n', 'gD', '<cmd>lua vim.lsp.buf.declaration()<CR>', opts)
   keymap('n', 'gd', '<cmd>lua vim.lsp.buf.definition()<CR>', opts)
-  --keymap('n', 'K', '<cmd>lua vim.lsp.buf.hover()<CR>', opts)
+  keymap('n', 'K', '<cmd>lua vim.lsp.buf.hover()<CR>', opts)
   keymap('n', 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>', opts)
   keymap('n', 'gr', '<cmd>lua vim.lsp.buf.references()<CR>', opts)
   keymap('n', '<C-k>', '<cmd>lua vim.lsp.buf.signature_help()<CR>', opts)
@@ -98,7 +93,7 @@ local on_attach = function(client, bufnr)
   keymap('n', '<space>wl', '<cmd>lua print(vim.inspect(vim.lsp.buf.list_workspace_folders()))<CR>', opts)
   keymap('n', 'td', '<cmd>lua vim.lsp.brf.type_definition()<CR>', opts)
   keymap('n', 'tr', '<cmd>lua vim.lsp.buf.rename()<CR>', opts)
-  keymap('n', 'ta', '<cmd>lua vim.lsp.buf.code_action()<CR>', opts)
+  keymap('n', 'ga', '<cmd>lua vim.lsp.buf.code_action()<CR>', opts)
   keymap('n', 'te', '<cmd>lua vim.diagnostic.open_float()<CR>', opts)
   keymap('n', '[d', '<cmd>lua vim.diagnostic.goto_prev()<CR>', opts)
   keymap('n', ']d', '<cmd>lua vim.diagnostic.goto_next()<CR>', opts)
@@ -165,16 +160,141 @@ vim.g.symbols_outline = {
     }
 }
 
+-- svelte
+nvim_lsp.svelte.setup{
+  cmd = { "/home/nom/.nvm/versions/node/v17.3.1/bin/svelteserver", "--stdio" }
+}
+
+nvim_lsp.rust_analyzer.setup {
+  on_attach = attach_lsp_keymaps,
+}
+
+  require('rust-tools').setup({
+    tools = { -- rust-tools options
+        -- Automatically set inlay hints (type hints)
+        autoSetHints = true,
+
+        -- Whether to show hover actions inside the hover window
+        -- This overrides the default hover handler 
+        hover_with_actions = true,
+
+		-- how to execute terminal commands
+		-- options right now: termopen / quickfix
+		executor = require("rust-tools/executors").termopen,
+
+        runnables = {
+            -- whether to use telescope for selection menu or not
+            use_telescope = true
+
+            -- rest of the opts are forwarded to telescope
+        },
+
+        debuggables = {
+            -- whether to use telescope for selection menu or not
+            use_telescope = true
+
+            -- rest of the opts are forwarded to telescope
+        },
+
+        -- These apply to the default RustSetInlayHints command
+        inlay_hints = {
+
+            -- Only show inlay hints for the current line
+            only_current_line = false,
+
+            -- Event which triggers a refersh of the inlay hints.
+            -- You can make this "CursorMoved" or "CursorMoved,CursorMovedI" but
+            -- not that this may cause  higher CPU usage.
+            -- This option is only respected when only_current_line and
+            -- autoSetHints both are true.
+            only_current_line_autocmd = "CursorHold",
+
+            -- wheter to show parameter hints with the inlay hints or not
+            show_parameter_hints = true,
+
+            -- prefix for parameter hints
+            parameter_hints_prefix = "<- ",
+
+            -- prefix for all the other hints (type, chaining)
+            other_hints_prefix = "=> ",
+
+            -- whether to align to the length of the longest line in the file
+            max_len_align = false,
+
+            -- padding from the left if max_len_align is true
+            max_len_align_padding = 1,
+
+            -- whether to align to the extreme right or not
+            right_align = false,
+
+            -- padding from the right if right_align is true
+            right_align_padding = 7,
+
+            -- The color of the hints
+            highlight = "Comment",
+        },
+
+        hover_actions = {
+            -- the border that is used for the hover window
+            -- see vim.api.nvim_open_win()
+            border = {
+                {"╭", "FloatBorder"}, {"─", "FloatBorder"},
+                {"╮", "FloatBorder"}, {"│", "FloatBorder"},
+                {"╯", "FloatBorder"}, {"─", "FloatBorder"},
+                {"╰", "FloatBorder"}, {"│", "FloatBorder"}
+            },
+
+            -- whether the hover action window gets automatically focused
+            auto_focus = false
+        },
+
+        -- settings for showing the crate graph based on graphviz and the dot
+        -- command
+        crate_graph = {
+            -- Backend used for displaying the graph
+            -- see: https://graphviz.org/docs/outputs/
+            -- default: x11
+            backend = "x11",
+            -- where to store the output, nil for no output stored (relative
+            -- path from pwd)
+            -- default: nil
+            output = nil,
+            -- true for all crates.io and external crates, false only the local
+            -- crates
+            -- default: true
+            full = true,
+        }
+    },
+
+    -- all the opts to send to nvim-lspconfig
+    -- these override the defaults set by rust-tools.nvim
+    -- see https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#rust_analyzer
+	server = {
+		-- standalone file support
+		-- setting it to false may improve startup time
+		standalone = true,
+	}, -- rust-analyer options
+
+    -- debugging stuff
+    dap = {
+        adapter = {
+            type = 'executable',
+            command = 'lldb-vscode',
+            name = "rt_lldb"
+        }
+    }
+  })
 
 -- loop servers
 local servers = { 'rust_analyzer', 'gopls' }
 for _, lsp in ipairs(servers) do
   nvim_lsp[lsp].setup {
-    on_attach = on_attach,
+    on_attach = attach_lsp_keymaps,
     flags = {
       debounce_text_changes = 150,
     }
   }
+
 end
 
 LaunchLuaLSP = function()
@@ -255,6 +375,8 @@ vim.g['nocompatible'] = true
 vim.opt.mouse = 'a' -- basic obvious mouse behavior. wtf
 vim.opt.cursorline = true
 vim.opt.relativenumber = true
+
+vim.ui.select = require("popui.ui-overrider")
 
 -- Colors
 --
