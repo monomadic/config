@@ -40,6 +40,9 @@ Plug("RishabhRD/popfix") -- popup ui (required by popui)
 Plug("hood/popui.nvim") -- popups to replace vim-ui selects
 Plug("catppuccin/nvim", { ["as"] = "catppuccin" }) -- themes?
 Plug("norcalli/nvim-colorizer.lua") -- inline colors
+Plug 'justinmk/vim-sneak' -- fast jump
+--Plug('mj-hd/vim-picomap', {["do"] = "bash install.sh" }) -- minimap
+--Plug 'hisaknown/nanomap.vim' -- minimap
 
 -- rust
 Plug("simrat39/rust-tools.nvim")
@@ -335,9 +338,9 @@ require("prettier").setup({
 	filetypes = { "javascript", "json" },
 })
 
--- globals
---
--- see: :h lua-vim-variables and :h lua-vim-options
+-- Globals
+--   see :h lua-vim-variables and :h lua-vim-options
+-- {{{
 vim.env.FZF_DEFAULT_OPTS = "--layout=reverse"
 vim.env.FZF_DEFAULT_COMMAND = "rg --files --hidden --glob !.git"
 vim.opt.wildignore = { "*/cache/*", "*/tmp/*" }
@@ -347,10 +350,30 @@ vim.opt.tabstop = 2 -- size of each tab
 vim.opt.shiftwidth = 2 -- spaces to shift when using << and >>
 vim.opt.expandtab = true -- spaces when using tab
 -- vim.g['ctrlp_prompt_mappings'] = {['AcceptSelection("t")'] = '<cr>'}
+vim.g["airline#extensions#tabline#show_devicons"] = "true"
+vim.g["airline#extensions#tabline#enabled"] = 1
+vim.g["airline#extensions#tabline#buffer_nr_show"] = 1
+--vim.g['airline#extensions#tabline#left_alt_sep'] = ' '
+vim.g["airline#extensions#tabline#left_sep"] = " "
+vim.g["noswapfile"] = true
+vim.g["nocompatible"] = true
+vim.g["hidden"] = true -- so buffers can hide
+-- syntax enable
+-- filetype plugin on
+
+vim.opt.mouse = "a" -- basic obvious mouse behavior. wtf
+vim.opt.cursorline = true
+vim.opt.relativenumber = true
+-- }}}
+
+local popui = require("popui.ui-overrider");
+vim.ui.select = popui;
 
 require("prettier").setup({
 	filetypes = { "javascript", "typescript" },
 })
+
+vim.cmd([[let loaded_netrwPlugin = 1]])
 
 -- NERDTree
 -- {{{
@@ -363,32 +386,24 @@ vim.g["NERDTreeShowHidden"] = 1
 --vim.g['NERDTreeMapOpenInTab'] = '<ENTER>'
 -- }}}
 
-vim.g["airline#extensions#tabline#show_devicons"] = "true"
-vim.g["airline#extensions#tabline#enabled"] = 1
-vim.g["airline#extensions#tabline#buffer_nr_show"] = 1
---vim.g['airline#extensions#tabline#left_alt_sep'] = ' '
-vim.g["airline#extensions#tabline#left_sep"] = " "
-vim.g["noswapfile"] = true
-vim.g["nocompatible"] = true
--- syntax enable
--- filetype plugin on
-
-vim.opt.mouse = "a" -- basic obvious mouse behavior. wtf
-vim.opt.cursorline = true
-vim.opt.relativenumber = true
-
-vim.ui.select = require("popui.ui-overrider")
 
 -- Colors
 -- {{{
+-- 36 forest green
+-- 46 bright green
+-- 62 purple
+-- 120 pale neon green
+-- 234 dark grey
 vim.opt.termguicolors = false
 vim.api.nvim_exec(
 	[[
   colorscheme cosmic-barf
   hi Normal guibg=none ctermbg=none
-  hi VertSplit ctermfg=none gui=none
-  hi Pmenu ctermfg=white guibg=#222222
+  hi VertSplit ctermfg=234 gui=none
+  hi Pmenu ctermfg=white guibg=#222222 ctermbg=234 ctermfg=246
   hi Folded ctermbg=DarkGrey ctermfg=White
+  hi NERDTREEDir gui=none ctermfg=120 cterm=none
+  hi NERDTreeCWD cterm=none ctermfg=62
 ]],
 	false
 )
@@ -403,7 +418,11 @@ vim.cmd([[hi Cursor ctermbg=0 ctermfg=none]])
 vim.cmd([[hi Comment ctermfg=darkgrey]])
 
 local catppuccin = require("catppuccin")
-catppuccin.setup({ transparent_background = true })
+catppuccin.setup({
+  term_colors = false,
+  transparent_background = true,
+  colorscheme = "neon_latte"
+})
 
 -- }}}
 
