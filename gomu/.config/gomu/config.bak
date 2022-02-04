@@ -1,0 +1,43 @@
+
+general:
+  # confirmation popup to add the whole playlist to the queue
+  confirm_bulk_add:   true
+  confirm_on_exit:    true
+  load_prev_queue:    true
+  queue_loop:         true
+  # change this to directory that contains mp3 files
+  music_dir:          ~/music
+  # url history of downloaded audio will be saved here
+  history_path:       ~/.local/share/gomu/urls
+  popup_timeout:      5s
+  # initial volume when gomu starts up
+  volume:             100
+  # some of the terminal supports unicode character
+  # you can set this to true to enable emojis
+  emoji:              false
+  # if you experiencing error using this invidious instance, you can change it
+  # to another instance from this list:
+  # https://github.com/iv-org/documentation/blob/master/Invidious-Instances.md
+  invidious_instance: "https://vid.puffyan.us"
+
+# not all colors can be reproducible in terminal
+# changing hex colors may or may not produce expected result
+color:
+  accent:            "#008B8B"
+  # none is transparent
+  # only background has none attribute
+  background:        none
+  foreground:        "#FFFFFF"
+  now_playing_title: "#017702"
+  playlist:          "#008B8B"
+  popup:             "#0A0F14"
+
+# default emoji here is using awesome-terminal-fonts
+# you can change these to your liking
+emoji:
+  playlist:          
+  file:              
+  loop:              ﯩ
+  noloop:            
+ 
+# vi:ft=yaml
