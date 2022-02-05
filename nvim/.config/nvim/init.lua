@@ -40,6 +40,7 @@ Plug("MunifTanjim/prettier.nvim")
 Plug("evanleck/vim-svelte")
 Plug("sumneko/lua-language-server")
 -- Plug 'vim-airline/vim-airline-themes' -- status bar themes
+<<<<<<< HEAD
 Plug("kyazdani42/nvim-web-devicons")
 Plug("nvim-telescope/telescope.nvim")
 Plug("nvim-telescope/telescope-symbols.nvim")
@@ -53,6 +54,18 @@ Plug("norcalli/nvim-colorizer.lua") -- inline colors
 Plug("justinmk/vim-sneak") -- fast jump
 --Plug('mj-hd/vim-picomap', {["do"] = "bash install.sh" }) -- minimap
 --Plug 'hisaknown/nanomap.vim' -- minimap
+=======
+Plug 'liuchengxu/vista.vim' -- symbols, again
+Plug 'kyazdani42/nvim-web-devicons'
+Plug 'nvim-telescope/telescope.nvim'
+Plug 'nvim-treesitter/nvim-treesitter'
+Plug 'akinsho/toggleterm.nvim'
+Plug('fatih/vim-go', {['do'] = ':GoUpdateBinaries' })
+Plug 'RishabhRD/popfix' -- popup ui (required by popui)
+Plug 'hood/popui.nvim' -- popups to replace vim-ui selects
+
+Plug 'norcalli/nvim-colorizer.lua' -- inline colors
+>>>>>>> f9212e3 (nvim)
 
 -- rust
 Plug("simrat39/rust-tools.nvim")
@@ -542,18 +555,13 @@ vim.api.nvim_exec(
   hi Folded ctermbg=DarkGrey ctermfg=White
   hi NERDTREEDir gui=none ctermfg=120 cterm=none
   hi NERDTreeCWD cterm=none ctermfg=62
-]],
-  false
-)
+  hi VertSplit ctermfg=none gui=none guibg=none
+  hi Comment guifg=#666666 ctermfg=grey
+  hi Cursor ctermbg=0 ctermfg=none guibg=0 guibg=none
+]], false)
 
 -- inline colors
 --require'colorizer'.setup()
-
---highlight LineNr ctermfg=darkgrey
---vim.cmd [[hi Comment ctermfg=darkgrey]]
--- cursor line bar
-vim.cmd([[hi Cursor ctermbg=0 ctermfg=none]])
-vim.cmd([[hi Comment ctermfg=darkgrey]])
 
 local catppuccin = require("catppuccin")
 catppuccin.setup({
