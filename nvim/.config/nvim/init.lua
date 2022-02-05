@@ -40,7 +40,6 @@ Plug("MunifTanjim/prettier.nvim")
 Plug("evanleck/vim-svelte")
 Plug("sumneko/lua-language-server")
 -- Plug 'vim-airline/vim-airline-themes' -- status bar themes
-<<<<<<< HEAD
 Plug("kyazdani42/nvim-web-devicons")
 Plug("nvim-telescope/telescope.nvim")
 Plug("nvim-telescope/telescope-symbols.nvim")
@@ -54,18 +53,9 @@ Plug("norcalli/nvim-colorizer.lua") -- inline colors
 Plug("justinmk/vim-sneak") -- fast jump
 --Plug('mj-hd/vim-picomap', {["do"] = "bash install.sh" }) -- minimap
 --Plug 'hisaknown/nanomap.vim' -- minimap
-=======
 Plug 'liuchengxu/vista.vim' -- symbols, again
 Plug 'kyazdani42/nvim-web-devicons'
-Plug 'nvim-telescope/telescope.nvim'
-Plug 'nvim-treesitter/nvim-treesitter'
-Plug 'akinsho/toggleterm.nvim'
-Plug('fatih/vim-go', {['do'] = ':GoUpdateBinaries' })
-Plug 'RishabhRD/popfix' -- popup ui (required by popui)
-Plug 'hood/popui.nvim' -- popups to replace vim-ui selects
-
 Plug 'norcalli/nvim-colorizer.lua' -- inline colors
->>>>>>> f9212e3 (nvim)
 
 -- rust
 Plug("simrat39/rust-tools.nvim")
