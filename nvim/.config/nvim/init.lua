@@ -79,6 +79,7 @@ vim.api.nvim_set_keymap("", "<C-q>", ":quit!<CR>", { noremap = true })
 vim.api.nvim_set_keymap("", "<C-[>", ":bprev<CR>", {})
 vim.api.nvim_set_keymap("", "<C-]>", ":bnext<CR>", {})
 vim.api.nvim_set_keymap("", "<C-t>", ":Telescope<cr>", { noremap = true })
+vim.api.nvim_set_keymap("n", "w", ":w<CR>", {})
 vim.api.nvim_set_keymap("n", "<C-o>", ":FZF<CR>", {})
 vim.api.nvim_set_keymap("n", "<Esc>", ":noh<cr>", { noremap = true }) -- fix ESC confusion in normal mode
 vim.api.nvim_set_keymap("n", "<C-f>", "<Plug>(easymotion-bd-w)", {})
@@ -177,7 +178,7 @@ local attach_lsp_keymaps = function(client, bufnr)
   keymap("n", "[d", "<cmd>lua vim.diagnostic.goto_prev()<CR>", opts)
   keymap("n", "]d", "<cmd>lua vim.diagnostic.goto_next()<CR>", opts)
   keymap("n", "<space>q", "<cmd>lua vim.diagnostic.setloclist()<CR>", opts)
-  keymap("n", "<C-f>", "<cmd>lua vim.lsp.buf.formatting()<CR>", opts)
+  keymap("n", "gf", "<cmd>lua vim.lsp.buf.formatting()<CR>", opts)
 
   -- Enable completion triggered by <c-x><c-o>
   --vim.api.nvim_buf_set_option('omnifunc', 'v:lua.vim.lsp.omnifunc', opts)
