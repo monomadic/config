@@ -37,8 +37,8 @@ Plug("terryma/vim-multiple-cursors")
 Plug("jose-elias-alvarez/null-ls.nvim")
 Plug("nvim-lua/plenary.nvim")
 Plug("MunifTanjim/prettier.nvim")
-Plug("evanleck/vim-svelte")
-Plug("sumneko/lua-language-server")
+-- Plug("evanleck/vim-svelte")
+-- Plug("sumneko/lua-language-server")
 -- Plug 'vim-airline/vim-airline-themes' -- status bar themes
 Plug("kyazdani42/nvim-web-devicons")
 Plug("nvim-telescope/telescope.nvim")
@@ -58,6 +58,9 @@ Plug 'liuchengxu/vista.vim' -- symbols, again
 Plug 'kyazdani42/nvim-web-devicons'
 Plug 'norcalli/nvim-colorizer.lua' -- inline colors
 --Plug 'ahmedkhalf/project.nvim' -- project manager
+Plug 'preservim/tagbar' -- class tag outline
+Plug 'neovim/nvim-lspconfig'
+Plug 'williamboman/nvim-lsp-installer'
 
 -- rust
 Plug("simrat39/rust-tools.nvim")
@@ -76,7 +79,7 @@ local function keymap(...)
 end
 local opts = { noremap = true, silent = true }
 keymap("", "<C-s>", ":write<CR>", { noremap = true })
-keymap("n", "<C-i>", "<cmd>lua require'telescope'.extensions.project.project{display_type='full'}<cr>", { noremap = true }) -- find projects
+keymap("n", "gp", "<cmd>lua require'telescope'.extensions.project.project{display_type='full'}<cr>", { noremap = true }) -- find projects
 --vim.api.nvim_set_keymap('', '<c-w>', ':tabclose<cr>', {noremap = true})
 vim.api.nvim_set_keymap("", "<c-q>", ":quit!<cr>", { noremap = true })
 vim.api.nvim_set_keymap("", "<c-[>", ":bprev<cr>", {})
@@ -157,6 +160,24 @@ require("nvim-treesitter.configs").setup({
 -- {{{
 local nvim_lsp = require("lspconfig")
 
+local lsp_installer = require("nvim-lsp-installer")
+
+-- Register a handler that will be called for each installed server when it's ready (i.e. when installation is finished
+-- or if the server is already installed).
+lsp_installer.on_server_ready(function(server)
+    -- local opts = {}
+
+    -- (optional) Customize the options passed to the server
+    -- if server.name == "tsserver" then
+    --     opts.root_dir = function() ... end
+    -- end
+
+    -- This setup() function will take the provided server configuration and decorate it with the necessary properties
+    -- before passing it onwards to lspconfig.
+    -- Refer to https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md
+    server:setup(opts)
+end)
+
 --nvim_lsp.typescript.setup {}
 vim.cmd([[set foldmethod=marker]])
 
@@ -180,14 +201,15 @@ local attach_lsp_keymaps = function(client, bufnr)
   keymap("n", "te", "<cmd>lua vim.diagnostic.open_float()<CR>", opts)
   keymap("n", "[d", "<cmd>lua vim.diagnostic.goto_prev()<CR>", opts)
   keymap("n", "]d", "<cmd>lua vim.diagnostic.goto_next()<CR>", opts)
-  keymap("n", "<space>q", "<cmd>lua vim.diagnostic.setloclist()<CR>", opts)
+  --keymap("n", "gl", "<cmd>lua vim.diagnostic.setloclist()<CR>", opts)
   keymap("n", "gf", "<cmd>lua vim.lsp.buf.formatting()<CR>", opts)
 
   -- Enable completion triggered by <c-x><c-o>
   --vim.api.nvim_buf_set_option('omnifunc', 'v:lua.vim.lsp.omnifunc', opts)
 
   -- symbols outline:
-  vim.api.nvim_set_keymap("n", "<C-i>", ":SymbolsOutline<CR>", {})
+  vim.api.nvim_set_keymap("n", "go", ":SymbolsOutline<CR>", opts)
+  vim.api.nvim_set_keymap("n", "<C-i>", ":TagbarOpenAutoClose<CR>", {})
 end
 
 vim.g.symbols_outline = {
@@ -415,7 +437,7 @@ require("rust-tools").setup({
 -- }}}
 
 -- loop servers
-local servers = { "rust_analyzer", "gopls" }
+local servers = { "rust_analyzer", "gopls", "elmls" }
 local capabilities = require("cmp_nvim_lsp").update_capabilities(vim.lsp.protocol.make_client_capabilities())
 for _, lsp in ipairs(servers) do
   nvim_lsp[lsp].setup({
