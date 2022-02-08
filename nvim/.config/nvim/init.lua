@@ -43,6 +43,7 @@ Plug("sumneko/lua-language-server")
 Plug("kyazdani42/nvim-web-devicons")
 Plug("nvim-telescope/telescope.nvim")
 Plug("nvim-telescope/telescope-symbols.nvim")
+Plug("nvim-telescope/telescope-project.nvim")
 Plug("nvim-treesitter/nvim-treesitter")
 Plug("akinsho/toggleterm.nvim")
 Plug("fatih/vim-go", { ["do"] = ":GoUpdateBinaries" })
@@ -56,6 +57,7 @@ Plug("justinmk/vim-sneak") -- fast jump
 Plug 'liuchengxu/vista.vim' -- symbols, again
 Plug 'kyazdani42/nvim-web-devicons'
 Plug 'norcalli/nvim-colorizer.lua' -- inline colors
+--Plug 'ahmedkhalf/project.nvim' -- project manager
 
 -- rust
 Plug("simrat39/rust-tools.nvim")
@@ -74,20 +76,21 @@ local function keymap(...)
 end
 local opts = { noremap = true, silent = true }
 keymap("", "<C-s>", ":write<CR>", { noremap = true })
---vim.api.nvim_set_keymap('', '<C-w>', ':tabclose<CR>', {noremap = true})
-vim.api.nvim_set_keymap("", "<C-q>", ":quit!<CR>", { noremap = true })
-vim.api.nvim_set_keymap("", "<C-[>", ":bprev<CR>", {})
-vim.api.nvim_set_keymap("", "<C-]>", ":bnext<CR>", {})
-vim.api.nvim_set_keymap("", "<C-t>", ":Telescope<cr>", { noremap = true })
-vim.api.nvim_set_keymap("n", "w", ":w<CR>", {})
-vim.api.nvim_set_keymap("n", "<C-o>", ":FZF<CR>", {})
-vim.api.nvim_set_keymap("n", "<Esc>", ":noh<cr>", { noremap = true }) -- fix ESC confusion in normal mode
-vim.api.nvim_set_keymap("n", "<C-f>", "<Plug>(easymotion-bd-w)", {})
-vim.api.nvim_set_keymap("n", "<C-p>", ":Telescope find_files<cr>", { noremap = true })
+keymap("n", "<C-i>", "<cmd>lua require'telescope'.extensions.project.project{display_type='full'}<cr>", { noremap = true }) -- find projects
+--vim.api.nvim_set_keymap('', '<c-w>', ':tabclose<cr>', {noremap = true})
+vim.api.nvim_set_keymap("", "<c-q>", ":quit!<cr>", { noremap = true })
+vim.api.nvim_set_keymap("", "<c-[>", ":bprev<cr>", {})
+vim.api.nvim_set_keymap("", "<c-]>", ":bnext<cr>", {})
+vim.api.nvim_set_keymap("", "<c-t>", ":telescope<cr>", { noremap = true })
+vim.api.nvim_set_keymap("n", "w", ":w<cr>", {})
+vim.api.nvim_set_keymap("n", "<c-o>", ":FZF<cr>", {})
+vim.api.nvim_set_keymap("n", "<esc>", ":noh<cr>", { noremap = true }) -- fix esc confusion in normal mode
+vim.api.nvim_set_keymap("n", "<c-f>", "<plug>(easymotion-bd-w)", {})
+vim.api.nvim_set_keymap("n", "<c-p>", ":Telescope find_files<cr>", { noremap = true })
 --nnoremap <leader>fg <cmd>lua require('telescope.builtin').live_grep()<cr>
 --nnoremap <leader>fb <cmd>lua require('telescope.builtin').buffers()<cr>
 --nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags()<cr>
--- emacs style shortcuts in insert mode (yes, I am like that)
+-- emacs style shortcuts in insert mode (yes, i am like that)
 vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-p>", "<Up>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-b>", "<Left>", { noremap = true })
