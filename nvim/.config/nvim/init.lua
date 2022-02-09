@@ -62,6 +62,8 @@ Plug 'preservim/tagbar' -- class tag outline
 Plug 'neovim/nvim-lspconfig'
 Plug 'williamboman/nvim-lsp-installer'
 
+Plug 'rinx/nvim-ripgrep' -- grep
+
 -- rust
 Plug("simrat39/rust-tools.nvim")
 -- rust (debugging)
@@ -80,16 +82,16 @@ end
 local opts = { noremap = true, silent = true }
 keymap("", "<C-s>", ":write<CR>", { noremap = true })
 keymap("n", "gp", "<cmd>lua require'telescope'.extensions.project.project{display_type='full'}<cr>", { noremap = true }) -- find projects
---vim.api.nvim_set_keymap('', '<c-w>', ':tabclose<cr>', {noremap = true})
-vim.api.nvim_set_keymap("", "<c-q>", ":quit!<cr>", { noremap = true })
-vim.api.nvim_set_keymap("", "<c-[>", ":bprev<cr>", {})
-vim.api.nvim_set_keymap("", "<c-]>", ":bnext<cr>", {})
-vim.api.nvim_set_keymap("", "<c-t>", ":telescope<cr>", { noremap = true })
-vim.api.nvim_set_keymap("n", "w", ":w<cr>", {})
-vim.api.nvim_set_keymap("n", "<c-o>", ":FZF<cr>", {})
-vim.api.nvim_set_keymap("n", "<esc>", ":noh<cr>", { noremap = true }) -- fix esc confusion in normal mode
-vim.api.nvim_set_keymap("n", "<c-f>", "<plug>(easymotion-bd-w)", {})
-vim.api.nvim_set_keymap("n", "<c-p>", ":Telescope find_files<cr>", { noremap = true })
+--vim.api.nvim_set_keymap('', '<C-w>', ':tabclose<CR>', {noremap = true})
+vim.api.nvim_set_keymap("", "<C-q>", ":quit!<CR>", { noremap = true })
+vim.api.nvim_set_keymap("", "<C-[>", ":bprev<CR>", {})
+vim.api.nvim_set_keymap("", "<C-]>", ":bnext<CR>", {})
+vim.api.nvim_set_keymap("", "<C-t>", ":Telescope<cr>", { noremap = true })
+vim.api.nvim_set_keymap("n", "<C-o>", ":FZF<CR>", {})
+vim.api.nvim_set_keymap("n", "<Esc>", ":noh<cr>", { noremap = true }) -- fix ESC confusion in normal mode
+vim.api.nvim_set_keymap("n", "gf", "<Plug>(easymotion-bd-w)", {})
+vim.api.nvim_set_keymap("n", "<C-f>", ":Rg<cr>", {})
+vim.api.nvim_set_keymap("n", "<C-p>", ":Telescope find_files<cr>", { noremap = true })
 --nnoremap <leader>fg <cmd>lua require('telescope.builtin').live_grep()<cr>
 --nnoremap <leader>fb <cmd>lua require('telescope.builtin').buffers()<cr>
 --nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags()<cr>
@@ -100,6 +102,8 @@ vim.api.nvim_set_keymap("i", "<C-b>", "<Left>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-f>", "<Right>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-e>", "<End>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
+
+
 -- }}}
 
 -- Treesitter
@@ -321,7 +325,7 @@ cmp.setup.cmdline(":", {
 
 -- LSP: Svelte
 nvim_lsp.svelte.setup({
-  cmd = { "/home/nom/.nvm/versions/node/v17.3.1/bin/svelteserver", "--stdio" },
+  cmd = { "svelteserver", "--stdio" },
 })
 
 nvim_lsp.rust_analyzer.setup({
@@ -510,6 +514,9 @@ vim.g["nocompatible"] = true
 -- filetype plugin on
 vim.g["hidden"] = true -- so buffers can hide
 
+-- nvim-ripgrep
+vim.cmd([[command! Rg lua require'nvim-ripgrep'.grep()]])
+
 -- wordwrap
 --vim.api.nvim_set_keymap('n', 'k', "v:count == 0 ? 'gk' : 'k'", { noremap = true, expr = true, silent = true })
 --vim.api.nvim_set_keymap('n', 'j', "v:count == 0 ? 'gj' : 'j'", { noremap = true, expr = true, silent = true })
@@ -536,6 +543,7 @@ vim.opt.relativenumber = true
 
 local popui = require("popui.ui-overrider")
 vim.ui.select = popui
+
 
 require("prettier").setup({
   filetypes = { "javascript", "typescript" },
@@ -574,6 +582,7 @@ vim.api.nvim_exec(
   hi VertSplit ctermfg=none gui=none guibg=none
   hi Comment guifg=#666666 ctermfg=grey
   hi Cursor ctermbg=0 ctermfg=none guibg=0 guibg=none
+  hi Special ctermfg=white
 ]], false)
 
 -- inline colors
