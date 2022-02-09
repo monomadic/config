@@ -1,3 +1,11 @@
+require 'packer'
+
+local cmd = vim.cmd
+local call = vim.call
+
+-- Plugins
+-- Plugins: Load Packer
+
 -- Plugins
 -- {{{
 --   see https://github.com/junegunn/vim-plug
@@ -7,7 +15,7 @@
 --   `for`:
 --
 local Plug = vim.fn["plug#"]
-vim.call("plug#begin", "~/.config/nvim/plugged")
+call("plug#begin", "~/.config/nvim/plugged")
 Plug("scrooloose/nerdtree", { on = "NERDTreeToggle" }) -- file tree
 --Plug('roxma/nvim-completion-manager')
 Plug("junegunn/fzf", { ["do"] = vim.fn["fzf#install"] }) -- fuzzy find
@@ -213,7 +221,8 @@ local attach_lsp_keymaps = function(client, bufnr)
 
   -- symbols outline:
   vim.api.nvim_set_keymap("n", "go", ":SymbolsOutline<CR>", opts)
-  vim.api.nvim_set_keymap("n", "<C-i>", ":TagbarOpenAutoClose<CR>", {})
+  -- vim.api.nvim_set_keymap("n", "<C-i>", ":TagbarOpenAutoClose<CR>", {})
+  keymap("n", "<C-i>", [[:lua require'telescope.builtin'.lsp_document_symbols({previewer = false, show_line = false})<CR>]], opts)
 end
 
 vim.g.symbols_outline = {
