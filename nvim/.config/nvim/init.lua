@@ -52,6 +52,7 @@ Plug("kyazdani42/nvim-web-devicons")
 Plug("nvim-telescope/telescope.nvim")
 Plug("nvim-telescope/telescope-symbols.nvim")
 Plug("nvim-telescope/telescope-project.nvim")
+
 Plug("nvim-treesitter/nvim-treesitter")
 Plug("akinsho/toggleterm.nvim")
 Plug("fatih/vim-go", { ["do"] = ":GoUpdateBinaries" })
@@ -81,6 +82,24 @@ Plug("mfussenegger/nvim-dap")
 vim.call("plug#end")
 -- }}}
 
+FindFiles = function()
+  local builtin = require('telescope.builtin')
+  local themes = require('telescope.themes')
+  local dropdown_theme = themes.get_dropdown({
+    previewer = false,
+    prompt_title = "",
+    results_height = 16,
+    width = 0.6,
+    borderchars = {
+      {"─", "│", "─", "│", "╭", "╮", "╯", "╰"},
+      prompt = {"─", "│", " ", "│", "╭", "╮", "│", "│"},
+      results = {"─", "│", "─", "│", "├", "┤", "╯", "╰"},
+      preview = {"─", "│", "─", "│", "╭", "╮", "╯", "╰"}
+    },
+  })
+  builtin.find_files(dropdown_theme)
+end
+
 -- Keymaps
 -- {{{
 --  see: https://github.com/nanotee/nvim-lua-guide#defining-mappings
@@ -95,7 +114,11 @@ vim.api.nvim_set_keymap("", "<C-q>", ":quit!<CR>", { noremap = true })
 vim.api.nvim_set_keymap("", "<C-[>", ":bprev<CR>", {})
 vim.api.nvim_set_keymap("", "<C-]>", ":bnext<CR>", {})
 vim.api.nvim_set_keymap("", "<C-t>", ":Telescope<cr>", { noremap = true })
-vim.api.nvim_set_keymap("n", "<C-o>", ":FZF<CR>", {})
+--vim.api.nvim_set_keymap("n", "<C-o>", ":FZF<CR>", {})
+keymap("", "<C-o>", "<cmd>lua FindFiles()<CR>", opts)
+
+
+
 vim.api.nvim_set_keymap("n", "<Esc>", ":noh<cr>", { noremap = true }) -- fix ESC confusion in normal mode
 vim.api.nvim_set_keymap("n", "gf", "<Plug>(easymotion-bd-w)", {})
 vim.api.nvim_set_keymap("n", "<C-f>", ":Rg<cr>", {})
@@ -111,8 +134,8 @@ vim.api.nvim_set_keymap("i", "<C-f>", "<Right>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-e>", "<End>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
 
-
 -- }}}
+--
 
 -- Treesitter
 -- {{{
