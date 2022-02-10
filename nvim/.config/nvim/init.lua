@@ -1,4 +1,4 @@
-require 'packer'
+-- require 'packer'
 
 local cmd = vim.cmd
 local call = vim.call
@@ -16,7 +16,7 @@ local call = vim.call
 --
 local Plug = vim.fn["plug#"]
 call("plug#begin", "~/.config/nvim/plugged")
-Plug("scrooloose/nerdtree", { on = "NERDTreeToggle" }) -- file tree
+Plug("kyazdani42/nvim-tree.lua")
 --Plug('roxma/nvim-completion-manager')
 Plug("junegunn/fzf", { ["do"] = vim.fn["fzf#install"] }) -- fuzzy find
 Plug("easymotion/vim-easymotion") -- fast jumplocal nvim_lsp = require('lspconfig')
@@ -38,7 +38,7 @@ Plug("ternjs/tern_for_vim")
 --Plug("carlitux/deoplete-ternjs", { ["for"] = "javascript" })
 --Plug 'dracula/vim' -- colorscheme
 Plug("evturn/cosmic-barf") -- colorscheme
-Plug("ryanoasis/vim-devicons") -- icons
+--Plug("ryanoasis/vim-devicons") -- icons
 Plug("vim-airline/vim-airline") -- status bar
 Plug("ervandew/supertab") -- tab complete? check this more
 Plug("terryma/vim-multiple-cursors")
@@ -48,10 +48,12 @@ Plug("MunifTanjim/prettier.nvim")
 -- Plug("evanleck/vim-svelte")
 -- Plug("sumneko/lua-language-server")
 -- Plug 'vim-airline/vim-airline-themes' -- status bar themes
-Plug("kyazdani42/nvim-web-devicons")
 Plug("nvim-telescope/telescope.nvim")
 Plug("nvim-telescope/telescope-symbols.nvim")
 Plug("nvim-telescope/telescope-project.nvim")
+Plug 'akinsho/bufferline.nvim'
+
+Plug("numToStr/Comment.nvim")
 
 Plug("nvim-treesitter/nvim-treesitter")
 Plug("akinsho/toggleterm.nvim")
@@ -63,42 +65,45 @@ Plug("norcalli/nvim-colorizer.lua") -- inline colors
 Plug("justinmk/vim-sneak") -- fast jump
 --Plug('mj-hd/vim-picomap', {["do"] = "bash install.sh" }) -- minimap
 --Plug 'hisaknown/nanomap.vim' -- minimap
-Plug 'liuchengxu/vista.vim' -- symbols, again
-Plug 'kyazdani42/nvim-web-devicons'
-Plug 'norcalli/nvim-colorizer.lua' -- inline colors
+Plug("liuchengxu/vista.vim") -- symbols, again
+Plug("norcalli/nvim-colorizer.lua") -- inline colors
 --Plug 'ahmedkhalf/project.nvim' -- project manager
-Plug 'preservim/tagbar' -- class tag outline
-Plug 'neovim/nvim-lspconfig'
-Plug 'williamboman/nvim-lsp-installer'
+Plug("preservim/tagbar") -- class tag outline
+Plug("neovim/nvim-lspconfig")
+Plug("williamboman/nvim-lsp-installer")
 
-Plug 'rinx/nvim-ripgrep' -- grep
+Plug("rinx/nvim-ripgrep") -- grep
+Plug("joshdick/onedark.vim")
 
 -- rust
 Plug("simrat39/rust-tools.nvim")
 -- rust (debugging)
 Plug("nvim-lua/plenary.nvim")
 Plug("mfussenegger/nvim-dap")
+Plug("kyazdani42/nvim-web-devicons")
 
 vim.call("plug#end")
 -- }}}
 
 FindFiles = function()
-  local builtin = require('telescope.builtin')
-  local themes = require('telescope.themes')
+  local builtin = require("telescope.builtin")
+  local themes = require("telescope.themes")
   local dropdown_theme = themes.get_dropdown({
     previewer = false,
     prompt_title = "",
     results_height = 16,
     width = 0.6,
     borderchars = {
-      {"─", "│", "─", "│", "╭", "╮", "╯", "╰"},
-      prompt = {"─", "│", " ", "│", "╭", "╮", "│", "│"},
-      results = {"─", "│", "─", "│", "├", "┤", "╯", "╰"},
-      preview = {"─", "│", "─", "│", "╭", "╮", "╯", "╰"}
+      { "─", "│", "─", "│", "╭", "╮", "╯", "╰" },
+      prompt = { "─", "│", " ", "│", "╭", "╮", "│", "│" },
+      results = { "─", "│", "─", "│", "├", "┤", "╯", "╰" },
+      preview = { "─", "│", "─", "│", "╭", "╮", "╯", "╰" },
     },
   })
   builtin.find_files(dropdown_theme)
 end
+
+require("Comment").setup()
 
 -- Keymaps
 -- {{{
@@ -111,13 +116,11 @@ keymap("", "<C-s>", ":write<CR>", { noremap = true })
 keymap("n", "gp", "<cmd>lua require'telescope'.extensions.project.project{display_type='full'}<cr>", { noremap = true }) -- find projects
 --vim.api.nvim_set_keymap('', '<C-w>', ':tabclose<CR>', {noremap = true})
 vim.api.nvim_set_keymap("", "<C-q>", ":quit!<CR>", { noremap = true })
-vim.api.nvim_set_keymap("", "<C-[>", ":bprev<CR>", {})
-vim.api.nvim_set_keymap("", "<C-]>", ":bnext<CR>", {})
+vim.api.nvim_set_keymap("", "<C-[>", ":BufferLineCyclePrev<CR>", {})
+vim.api.nvim_set_keymap("", "<C-]>", ":BufferLineCycleNext<CR>", {})
 vim.api.nvim_set_keymap("", "<C-t>", ":Telescope<cr>", { noremap = true })
 --vim.api.nvim_set_keymap("n", "<C-o>", ":FZF<CR>", {})
 keymap("", "<C-o>", "<cmd>lua FindFiles()<CR>", opts)
-
-
 
 vim.api.nvim_set_keymap("n", "<Esc>", ":noh<cr>", { noremap = true }) -- fix ESC confusion in normal mode
 vim.api.nvim_set_keymap("n", "gf", "<Plug>(easymotion-bd-w)", {})
@@ -200,17 +203,17 @@ local lsp_installer = require("nvim-lsp-installer")
 -- Register a handler that will be called for each installed server when it's ready (i.e. when installation is finished
 -- or if the server is already installed).
 lsp_installer.on_server_ready(function(server)
-    -- local opts = {}
+  -- local opts = {}
 
-    -- (optional) Customize the options passed to the server
-    -- if server.name == "tsserver" then
-    --     opts.root_dir = function() ... end
-    -- end
+  -- (optional) Customize the options passed to the server
+  -- if server.name == "tsserver" then
+  --     opts.root_dir = function() ... end
+  -- end
 
-    -- This setup() function will take the provided server configuration and decorate it with the necessary properties
-    -- before passing it onwards to lspconfig.
-    -- Refer to https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md
-    server:setup(opts)
+  -- This setup() function will take the provided server configuration and decorate it with the necessary properties
+  -- before passing it onwards to lspconfig.
+  -- Refer to https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md
+  server:setup(opts)
 end)
 
 --nvim_lsp.typescript.setup {}
@@ -245,7 +248,12 @@ local attach_lsp_keymaps = function(client, bufnr)
   -- symbols outline:
   vim.api.nvim_set_keymap("n", "go", ":SymbolsOutline<CR>", opts)
   -- vim.api.nvim_set_keymap("n", "<C-i>", ":TagbarOpenAutoClose<CR>", {})
-  keymap("n", "<C-i>", [[:lua require'telescope.builtin'.lsp_document_symbols({previewer = false, show_line = false})<CR>]], opts)
+  keymap(
+    "n",
+    "<C-i>",
+    [[:lua require'telescope.builtin'.lsp_document_symbols({previewer = false, show_line = false})<CR>]],
+    opts
+  )
 end
 
 vim.g.symbols_outline = {
@@ -535,11 +543,11 @@ vim.opt.tabstop = 2 -- size of each tab
 vim.opt.shiftwidth = 2 -- spaces to shift when using << and >>
 vim.opt.expandtab = true -- spaces when using tab
 -- vim.g['ctrlp_prompt_mappings'] = {['AcceptSelection("t")'] = '<cr>'}
-vim.g["airline#extensions#tabline#show_devicons"] = "true"
-vim.g["airline#extensions#tabline#enabled"] = 1
-vim.g["airline#extensions#tabline#buffer_nr_show"] = 1
+--vim.g["airline#extensions#tabline#show_devicons"] = "true"
+--vim.g["airline#extensions#tabline#enabled"] = 1
+--vim.g["airline#extensions#tabline#buffer_nr_show"] = 1
 --vim.g['airline#extensions#tabline#left_alt_sep'] = ' '
-vim.g["airline#extensions#tabline#left_sep"] = " "
+--vim.g["airline#extensions#tabline#left_sep"] = " "
 vim.g["noswapfile"] = true
 vim.g["nocompatible"] = true
 -- syntax enable
@@ -576,22 +584,92 @@ vim.opt.relativenumber = true
 local popui = require("popui.ui-overrider")
 vim.ui.select = popui
 
-
 require("prettier").setup({
   filetypes = { "javascript", "typescript" },
 })
 
 vim.cmd([[let loaded_netrwPlugin = 1]])
 
--- NERDTree
+-- NVIMTree
 -- {{{
-vim.api.nvim_set_keymap("", "<C-b>", ":NERDTreeToggle<CR>", {})
-vim.g["NERDTreeMapActivateNode"] = "l" -- note: vim.g are globals
-vim.g["NERDTreeWinPos"] = "left"
-vim.g["NERDTreeMinimalUI"] = 1
+vim.api.nvim_set_keymap("", "<C-b>", ":NvimTreeToggle<CR>", {})
+vim.g["NvimTreeMapActivateNode"] = "l" -- note: vim.g are globals
+vim.g["NvimTreeWinPos"] = "left"
+vim.g["NvimTreeMinimalUI"] = 1
 -- vim.g['NERDTreeIgnore'] = ['^\.DS_Store$', '^tags$', '\.git$[[dir]]']
-vim.g["NERDTreeShowHidden"] = 1
+vim.g["NvimTreeShowHidden"] = 1
 --vim.g['NERDTreeMapOpenInTab'] = '<ENTER>'
+
+require("nvim-tree").setup({
+  disable_netrw = true,
+  hijack_netrw = true,
+  open_on_setup = false,
+  ignore_ft_on_setup = {},
+  auto_close = false,
+  auto_reload_on_write = true,
+  open_on_tab = false,
+  hijack_cursor = false,
+  update_cwd = false,
+  update_to_buf_dir = {
+    enable = true,
+    auto_open = true,
+  },
+  diagnostics = {
+    enable = true,
+    icons = {
+      hint = "",
+      info = "",
+      warning = "",
+      error = "",
+    },
+  },
+  update_focused_file = {
+    enable = false,
+    update_cwd = false,
+    ignore_list = {},
+  },
+  system_open = {
+    cmd = nil,
+    args = {},
+  },
+  filters = {
+    dotfiles = false,
+    custom = {},
+  },
+  git = {
+    enable = true,
+    ignore = true,
+    timeout = 500,
+  },
+  view = {
+    width = 30,
+    height = 30,
+    hide_root_folder = true,
+    side = "left",
+    auto_resize = false,
+    mappings = {
+      custom_only = false,
+      list = {
+        { key = { "l", "o" }, action = "edit", mode = "n" },
+      },
+    },
+    number = false,
+    relativenumber = false,
+    signcolumn = "yes",
+  },
+  trash = {
+    cmd = "trash",
+    require_confirm = true,
+  },
+  actions = {
+    change_dir = {
+      global = false,
+    },
+    open_file = {
+      quit_on_open = false,
+    },
+  },
+})
 -- }}}
 
 -- Colors
@@ -601,30 +679,95 @@ vim.g["NERDTreeShowHidden"] = 1
 -- 62 purple
 -- 120 pale neon green
 -- 234 dark grey
-vim.opt.termguicolors = false
-vim.api.nvim_exec(
-  [[
-  colorscheme cosmic-barf
-  hi Normal guibg=none ctermbg=none
-  hi VertSplit ctermfg=234 gui=none
-  hi Pmenu ctermfg=white guibg=#222222 ctermbg=234 ctermfg=246
-  hi Folded ctermbg=DarkGrey ctermfg=White
-  hi NERDTREEDir gui=none ctermfg=120 cterm=none
-  hi NERDTreeCWD cterm=none ctermfg=62
-  hi VertSplit ctermfg=none gui=none guibg=none
-  hi Comment guifg=#666666 ctermfg=grey
-  hi Cursor ctermbg=0 ctermfg=none guibg=0 guibg=none
-  hi Special ctermfg=white
-]], false)
-
--- inline colors
---require'colorizer'.setup()
 
 local catppuccin = require("catppuccin")
 catppuccin.setup({
   term_colors = false,
   transparent_background = true,
   colorscheme = "neon_latte",
+  styles = {
+    comments = "NONE",
+    functions = "italic",
+    keywords = "NONE",
+    strings = "NONE",
+    variables = "NONE",
+  },
+  integrations = {
+    treesitter = true,
+    native_lsp = {
+      enabled = true,
+      virtual_text = {
+        errors = "italic",
+        hints = "italic",
+        warnings = "italic",
+        information = "italic",
+      },
+      underlines = {
+        errors = "underline",
+        hints = "underline",
+        warnings = "underline",
+        information = "underline",
+      },
+    },
+    lsp_trouble = false,
+    cmp = true,
+    lsp_saga = false,
+    gitgutter = false,
+    gitsigns = true,
+    telescope = true,
+    nvimtree = {
+      enabled = true,
+      show_root = false,
+      transparent_panel = true,
+    },
+    which_key = false,
+    indent_blankline = {
+      enabled = true,
+      colored_indent_levels = false,
+    },
+    dashboard = true,
+    neogit = false,
+    vim_sneak = false,
+    fern = false,
+    barbar = false,
+    bufferline = true,
+    markdown = true,
+    lightspeed = false,
+    ts_rainbow = false,
+    hop = false,
+    notify = true,
+    telekasten = true,
+  },
 })
+cmd([[colorscheme catppuccin]])
 
+vim.opt.termguicolors = true
+-- vim.api.nvim_exec(
+--   [[
+--   hi Normal guibg=none ctermbg=none
+--   hi Pmenu ctermfg=white guibg=#222222 ctermbg=234 ctermfg=246
+--   hi Folded ctermbg=DarkGrey ctermfg=White guibg=#222222 guifg=#FFFFFF
+--   hi NERDTREEDir gui=none ctermfg=120 cterm=none
+--   hi NERDTreeCWD cterm=none gui=none ctermfg=62
+--   hi VertSplit ctermfg=none gui=none guibg=none
+--   hi Comment guifg=#666666 ctermfg=grey
+--   hi Cursor ctermbg=0 ctermfg=none guibg=0 guibg=none guifg=#FFFFFF
+--   hi Special ctermfg=white
+-- ]], false)
+--
+-- inline colors
+--require'colorizer'.setup()
 -- }}}
+
+require('bufferline').setup {
+  options = {
+    show_buffer_icons = true,
+    show_close_icon = true,
+    tab_size = 22,
+
+    indicator_icon = '',
+    separator_style = { '', '' },
+  }
+}
+
+require("nvim-web-devicons").setup()
