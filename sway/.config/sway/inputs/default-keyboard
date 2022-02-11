@@ -2,8 +2,9 @@
 #
 # You can get the names of your inputs by running: swaymsg -t get_inputs
 # Read `man 5 sway-input` for more information about this section.
-input type:keyboard xkb_layout "us" {
+input type:keyboard {
   xkb_options caps:escape
+  xkb_layout "us"
   repeat_delay 300
-  repeat_rate 4
+  repeat_rate 20
 }
