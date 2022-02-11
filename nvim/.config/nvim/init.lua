@@ -1,7 +1,15 @@
--- require 'packer'
-
 local cmd = vim.cmd
 local call = vim.call
+
+vim.g["dashboard_custom_header"] = {
+"██▄   ▄███▄   ██     ▄▄▄▄▀ ▄  █ ██▄   ▄█    ▄▄▄▄▄   ▄█▄    ████▄ ",
+"█  █  █▀   ▀  █ █ ▀▀▀ █   █   █ █  █  ██   █     ▀▄ █▀ ▀▄  █   █ ",
+"█   █ ██▄▄    █▄▄█    █   ██▀▀█ █   █ ██ ▄  ▀▀▀▀▄   █   ▀  █   █ ",
+"█  █  █▄   ▄▀ █  █   █    █   █ █  █  ▐█  ▀▄▄▄▄▀    █▄  ▄▀ ▀████ ",
+"███▀  ▀███▀      █  ▀        █  ███▀   ▐            ▀███▀        ",
+"                █           ▀                                    ",
+"               ▀                                   ",
+}
 
 -- Plugins
 -- Plugins: Load Packer
@@ -24,19 +32,21 @@ Plug("brooth/far.vim") -- find and replace
 
 -- LSP stuff
 Plug("neovim/nvim-lspconfig") -- language server protocol
+Plug("williamboman/nvim-lsp-installer") -- autoinstaller and lsp manager
 Plug("hrsh7th/cmp-nvim-lsp") -- completion for lsp
-Plug("hrsh7th/cmp-vsnip") -- completion vsnip
 Plug("hrsh7th/vim-vsnip") -- snippets (vsnip)
+Plug("hrsh7th/cmp-vsnip") -- completion vsnip
 Plug("hrsh7th/cmp-buffer")
 Plug("hrsh7th/cmp-path")
 Plug("hrsh7th/cmp-cmdline")
 Plug("hrsh7th/nvim-cmp")
 Plug("mfussenegger/nvim-dap") -- debugging protocol
 Plug("simrat39/symbols-outline.nvim")
---Plug('Shougo/deoplete.nvim') -- autocomplete
+Plug("numToStr/Comment.nvim") -- commenting
+
 Plug("ternjs/tern_for_vim")
 --Plug("carlitux/deoplete-ternjs", { ["for"] = "javascript" })
---Plug 'dracula/vim' -- colorscheme
+Plug 'dracula/vim' -- colorscheme
 Plug("evturn/cosmic-barf") -- colorscheme
 --Plug("ryanoasis/vim-devicons") -- icons
 Plug("vim-airline/vim-airline") -- status bar
@@ -45,15 +55,10 @@ Plug("terryma/vim-multiple-cursors")
 Plug("jose-elias-alvarez/null-ls.nvim")
 Plug("nvim-lua/plenary.nvim")
 Plug("MunifTanjim/prettier.nvim")
--- Plug("evanleck/vim-svelte")
--- Plug("sumneko/lua-language-server")
--- Plug 'vim-airline/vim-airline-themes' -- status bar themes
 Plug("nvim-telescope/telescope.nvim")
 Plug("nvim-telescope/telescope-symbols.nvim")
 Plug("nvim-telescope/telescope-project.nvim")
 Plug 'akinsho/bufferline.nvim'
-
-Plug("numToStr/Comment.nvim")
 
 Plug("nvim-treesitter/nvim-treesitter")
 Plug("akinsho/toggleterm.nvim")
@@ -69,8 +74,6 @@ Plug("liuchengxu/vista.vim") -- symbols, again
 Plug("norcalli/nvim-colorizer.lua") -- inline colors
 --Plug 'ahmedkhalf/project.nvim' -- project manager
 Plug("preservim/tagbar") -- class tag outline
-Plug("neovim/nvim-lspconfig")
-Plug("williamboman/nvim-lsp-installer")
 
 Plug("rinx/nvim-ripgrep") -- grep
 Plug("joshdick/onedark.vim")
@@ -88,15 +91,6 @@ vim.call("plug#end")
 
 -- Dashboard
 vim.g["dashboard_default_executive"] = "telescope"
-vim.g["dashboard_custom_header"] = {
-"██▄   ▄███▄   ██     ▄▄▄▄▀ ▄  █ ██▄   ▄█    ▄▄▄▄▄   ▄█▄    ████▄ ",
-"█  █  █▀   ▀  █ █ ▀▀▀ █   █   █ █  █  ██   █     ▀▄ █▀ ▀▄  █   █ ",
-"█   █ ██▄▄    █▄▄█    █   ██▀▀█ █   █ ██ ▄  ▀▀▀▀▄   █   ▀  █   █ ",
-"█  █  █▄   ▄▀ █  █   █    █   █ █  █  ▐█  ▀▄▄▄▄▀    █▄  ▄▀ ▀████ ",
-"███▀  ▀███▀      █  ▀        █  ███▀   ▐            ▀███▀        ",
-"                █           ▀                                    ",
-"               ▀                                   ",
-}
 
 FindFiles = function()
   local builtin = require("telescope.builtin")
@@ -116,60 +110,12 @@ FindFiles = function()
   builtin.find_files(dropdown_theme)
 end
 
+ReloadConfig = function()
+  cmd [[:source ~/.config/nvim/init.lua]]
+end
+
 require("Comment").setup()
 
--- Keymaps
--- {{{
---  see: https://github.com/nanotee/nvim-lua-guide#defining-mappings
-local function keymap(...)
-  vim.api.nvim_buf_set_keymap(bufnr, ...)
-end
-local opts = { noremap = true, silent = true }
-keymap("", "<C-s>", ":write<CR>", { noremap = true })
-keymap("n", "gp", "<cmd>lua require'telescope'.extensions.project.project{display_type='full'}<cr>", { noremap = true }) -- find projects
---vim.api.nvim_set_keymap('', '<C-w>', ':tabclose<CR>', {noremap = true})
-vim.api.nvim_set_keymap("", "<C-q>", ":quit!<CR>", { noremap = true })
-vim.api.nvim_set_keymap("", "<C-[>", ":BufferLineCyclePrev<CR>", {})
-vim.api.nvim_set_keymap("", "<C-]>", ":BufferLineCycleNext<CR>", {})
-vim.api.nvim_set_keymap("", "<C-t>", ":Telescope<cr>", { noremap = true })
---vim.api.nvim_set_keymap("n", "<C-o>", ":FZF<CR>", {})
-keymap("", "<C-o>", "<cmd>lua FindFiles()<CR>", opts)
-
-vim.api.nvim_set_keymap("n", "<Esc>", ":noh<cr>", { noremap = true }) -- fix ESC confusion in normal mode
-vim.api.nvim_set_keymap("n", "gf", "<Plug>(easymotion-bd-w)", {})
-vim.api.nvim_set_keymap("n", "<C-f>", ":Rg<cr>", {})
-vim.api.nvim_set_keymap("n", "<C-p>", ":Telescope find_files<cr>", { noremap = true })
---nnoremap <leader>fg <cmd>lua require('telescope.builtin').live_grep()<cr>
---nnoremap <leader>fb <cmd>lua require('telescope.builtin').buffers()<cr>
---nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags()<cr>
-
--- emacs style shortcuts in insert mode (yes, i am like that)
-vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-p>", "<Up>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-b>", "<Left>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-f>", "<Right>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-e>", "<End>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
-
--- move page with cursor
-keymap("n", "k", "kzz", opts)
-keymap("n", "j", "jzz", opts)
-keymap("n", "p", "pzz", opts)
-keymap("n", "P", "Pzz", opts)
-keymap("n", "{", "{zz", opts)
-keymap("n", "}", "}zz", opts)
-keymap("n", "G", "Gzz", opts)
-keymap("n", "n", "nzz", opts)
-keymap("n", "N", "Nzz", opts)
-keymap("n", "o", "o<ESC>zza", opts)
-keymap("n", "O", "o<ESC>zza", opts)
-keymap("n", "a", "a<ESC>zza", opts)
-keymap("n", "<ENTER>", "<ENTER>zz", opts)
-keymap("i", "<ESC>", "<ESC>zz", opts)
-keymap("i", "<ENTER>", "<ENTER><ESC>zzi", opts)
-
---vim.opt.scrolloff = 0
--- }}}
 --
 
 -- Treesitter
@@ -229,12 +175,35 @@ require("nvim-treesitter.configs").setup({
 -- LSP
 -- {{{
 local nvim_lsp = require("lspconfig")
-
 local lsp_installer = require("nvim-lsp-installer")
 
--- Register a handler that will be called for each installed server when it's ready (i.e. when installation is finished
--- or if the server is already installed).
 lsp_installer.on_server_ready(function(server)
+  local keymap = vim.api.nvim_set_keymap
+
+  -- LSP Keymaps
+  keymap("n", "gD", "<cmd>lua vim.lsp.buf.declaration()<CR>", { noremap = true, silent = true})
+  keymap("n", "gd", "<cmd>lua vim.lsp.buf.definition()<CR>", { noremap = true, silent = true})
+  keymap("n", "K", "<cmd>lua vim.lsp.buf.hover()<CR>", { noremap = true, silent = true})
+  keymap("n", "gi", "<cmd>lua vim.lsp.buf.implementation()<CR>", { noremap = true, silent = true})
+  keymap("n", "gr", "<cmd>lua vim.lsp.buf.references()<CR>", { noremap = true, silent = true})
+  keymap("n", "<C-k>", "<cmd>lua vim.lsp.buf.signature_help()<CR>", { noremap = true, silent = true})
+  keymap("n", "<space>wa", "<cmd>lua vim.lsp.buf.add_workspace_folder()<CR>", { noremap = true, silent = true})
+  keymap("n", "<space>wr", "<cmd>lua vim.lsp.buf.remove_workspace_folder()<CR>", { noremap = true, silent = true})
+  keymap("n", "<space>wl", "<cmd>lua print(vim.inspect(vim.lsp.buf.list_workspace_folders()))<CR>", { noremap = true, silent = true})
+  keymap("n", "td", "<cmd>lua vim.lsp.brf.type_definition()<CR>", { noremap = true, silent = true})
+  keymap("n", "tr", "<cmd>lua vim.lsp.buf.rename()<CR>", { noremap = true, silent = true})
+  keymap("n", "ga", "<cmd>lua vim.lsp.buf.code_action()<CR>", { noremap = true, silent = true})
+  keymap("n", "te", "<cmd>lua vim.diagnostic.open_float()<CR>", { noremap = true, silent = true})
+  keymap("n", "[d", "<cmd>lua vim.diagnostic.goto_prev()<CR>", { noremap = true, silent = true})
+  keymap("n", "]d", "<cmd>lua vim.diagnostic.goto_next()<CR>", { noremap = true, silent = true})
+  --keymap("n", "gl", "<cmd>lua vim.diagnostic.setloclist()<CR>", { noremap = true, silent = true})
+  keymap("n", "gf", "<cmd>lua vim.lsp.buf.formatting()<CR>", { noremap = true, silent = true})
+  keymap("n", "<C-i>", "<cmd>:SymbolsOutline<CR>", { noremap = true, silent = true})
+  -- vim.api.nvim_set_keymap("n", "<C-i>", ":TagbarOpenAutoClose<CR>", {})
+
+  -- Enable completion triggered by <c-x><c-o>
+
+  -- symbols outline:
   -- local opts = {}
 
   -- (optional) Customize the options passed to the server
@@ -245,48 +214,10 @@ lsp_installer.on_server_ready(function(server)
   -- This setup() function will take the provided server configuration and decorate it with the necessary properties
   -- before passing it onwards to lspconfig.
   -- Refer to https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md
-  server:setup(opts)
+  server:setup({ noremap = true, silent = true})
 end)
 
---nvim_lsp.typescript.setup {}
 vim.cmd([[set foldmethod=marker]])
-
--- LSP keymaps
---   only map these keys if an lsp client is attached
-local attach_lsp_keymaps = function(client, bufnr)
-  print("attaching LSP keymaps")
-  -- See `:help vim.lsp.*` for documentation on any of the below functions
-  keymap("n", "gD", "<cmd>lua vim.lsp.buf.declaration()<CR>", opts)
-  keymap("n", "gd", "<cmd>lua vim.lsp.buf.definition()<CR>", opts)
-  keymap("n", "K", "<cmd>lua vim.lsp.buf.hover()<CR>", opts)
-  keymap("n", "gi", "<cmd>lua vim.lsp.buf.implementation()<CR>", opts)
-  keymap("n", "gr", "<cmd>lua vim.lsp.buf.references()<CR>", opts)
-  keymap("n", "<C-k>", "<cmd>lua vim.lsp.buf.signature_help()<CR>", opts)
-  keymap("n", "<space>wa", "<cmd>lua vim.lsp.buf.add_workspace_folder()<CR>", opts)
-  keymap("n", "<space>wr", "<cmd>lua vim.lsp.buf.remove_workspace_folder()<CR>", opts)
-  keymap("n", "<space>wl", "<cmd>lua print(vim.inspect(vim.lsp.buf.list_workspace_folders()))<CR>", opts)
-  keymap("n", "td", "<cmd>lua vim.lsp.brf.type_definition()<CR>", opts)
-  keymap("n", "tr", "<cmd>lua vim.lsp.buf.rename()<CR>", opts)
-  keymap("n", "ga", "<cmd>lua vim.lsp.buf.code_action()<CR>", opts)
-  keymap("n", "te", "<cmd>lua vim.diagnostic.open_float()<CR>", opts)
-  keymap("n", "[d", "<cmd>lua vim.diagnostic.goto_prev()<CR>", opts)
-  keymap("n", "]d", "<cmd>lua vim.diagnostic.goto_next()<CR>", opts)
-  --keymap("n", "gl", "<cmd>lua vim.diagnostic.setloclist()<CR>", opts)
-  keymap("n", "gf", "<cmd>lua vim.lsp.buf.formatting()<CR>", opts)
-
-  -- Enable completion triggered by <c-x><c-o>
-  --vim.api.nvim_buf_set_option('omnifunc', 'v:lua.vim.lsp.omnifunc', opts)
-
-  -- symbols outline:
-  vim.api.nvim_set_keymap("n", "go", ":SymbolsOutline<CR>", opts)
-  -- vim.api.nvim_set_keymap("n", "<C-i>", ":TagbarOpenAutoClose<CR>", {})
-  keymap(
-    "n",
-    "<C-i>",
-    [[:lua require'telescope.builtin'.lsp_document_symbols({previewer = false, show_line = false})<CR>]],
-    opts
-  )
-end
 
 vim.g.symbols_outline = {
   highlight_hovered_item = true,
@@ -299,7 +230,7 @@ vim.g.symbols_outline = {
   show_numbers = false,
   show_relative_numbers = false,
   show_symbol_details = true,
-  preview_bg_highlight = "Pmenu",
+  preview_bg_highlight = "Normal",
   keymaps = { -- These keymaps can be a string or a table for multiple keys
     close = { "<Esc>", "q" },
     goto_location = "<Cr>",
@@ -364,7 +295,7 @@ cmp.setup({
       i = cmp.mapping.abort(),
       c = cmp.mapping.close(),
     }),
-    ["<CR>"] = cmp.mapping.confirm({ select = true }), -- Accept currently selected item. Set `select` to `false` to only confirm explicitly selected items.
+    ["<Cr>"] = cmp.mapping.confirm({ select = false }), -- Accept currently selected item. Set `select` to `false` to only confirm explicitly selected items.
   },
   sources = cmp.config.sources({
     { name = "nvim_lsp" },
@@ -400,9 +331,6 @@ nvim_lsp.svelte.setup({
   cmd = { "svelteserver", "--stdio" },
 })
 
-nvim_lsp.rust_analyzer.setup({
-  on_attach = attach_lsp_keymaps,
-})
 -- }}}
 
 -- LSP: Rust
@@ -525,15 +453,15 @@ for _, lsp in ipairs(servers) do
   })
 end
 
-LaunchLuaLSP = function()
-  local client_id = vim.lsp.start_client({ cmd = { "lua-language-server", "--stdio" } })
-  vim.lsp = require("vim.lsp")
-  vim.lsp.buf_attach_client(0, client_id)
-end
-
-vim.cmd([[
-  command! -range LaunchLuaLSP  execute 'lua LaunchLuaLSP()'
-]])
+-- LaunchLuaLSP = function()
+--   local client_id = vim.lsp.start_client({ cmd = { "lua-language-server", "--stdio" } })
+--   vim.lsp = require("vim.lsp")
+--   vim.lsp.buf_attach_client(0, client_id)
+-- end
+--
+-- vim.cmd([[
+--   command! -range LaunchLuaLSP  execute 'lua LaunchLuaLSP()'
+-- ]])
 
 -- Terminal
 require("toggleterm").setup({
@@ -606,7 +534,7 @@ vim.o.ignorecase = true -- case insensitive searching,
 vim.o.smartcase = true -- unless a capital is used
 -- vim.o.hlsearch = false -- highlight on search
 
-vim.o.completeopt = "menu,menuone,noselect" -- completion
+--vim.o.completeopt = "menu,menuone,noselect" -- completion
 
 vim.opt.mouse = "a" -- basic obvious mouse behavior. wtf
 vim.opt.cursorline = true
@@ -773,6 +701,8 @@ catppuccin.setup({
 })
 cmd([[colorscheme catppuccin]])
 
+cmd([[hi NvimTreeVertSplit guibg=none]])
+
 vim.opt.termguicolors = true
 -- vim.api.nvim_exec(
 --   [[
@@ -803,3 +733,56 @@ require('bufferline').setup {
 }
 
 require("nvim-web-devicons").setup()
+
+-- Keymaps
+-- {{{
+--  see: https://github.com/nanotee/nvim-lua-guide#defining-mappings
+local function keymap(...)
+  vim.api.nvim_buf_set_keymap(bufnr, ...)
+end
+local opts = { noremap = true, silent = true }
+keymap("", "<C-s>", ":write<CR>", { noremap = true })
+keymap("n", "gp", "<cmd>lua require'telescope'.extensions.project.project{display_type='full'}<cr>", { noremap = true }) -- find projects
+--vim.api.nvim_set_keymap('', '<C-w>', ':tabclose<CR>', {noremap = true})
+vim.api.nvim_set_keymap("", "<C-q>", ":quit!<CR>", { noremap = true })
+vim.api.nvim_set_keymap("", "<C-[>", ":BufferLineCyclePrev<CR>", {})
+vim.api.nvim_set_keymap("", "<C-]>", ":BufferLineCycleNext<CR>", {})
+vim.api.nvim_set_keymap("", "<C-t>", ":Telescope<cr>", { noremap = true })
+--vim.api.nvim_set_keymap("n", "<C-o>", ":FZF<CR>", {})
+keymap("", "<C-o>", "<cmd>lua FindFiles()<CR>", { noremap = true, silent = true})
+
+vim.api.nvim_set_keymap("n", "<Esc>", ":noh<cr>", { noremap = true }) -- fix ESC confusion in normal mode
+vim.api.nvim_set_keymap("n", "gf", "<Plug>(easymotion-bd-w)", {})
+vim.api.nvim_set_keymap("n", "<C-f>", ":Rg<cr>", { noremap = true, silent = true })
+vim.api.nvim_set_keymap("n", "<C-p>", ":Telescope find_files<cr>", { noremap = true })
+--nnoremap <leader>fg <cmd>lua require('telescope.builtin').live_grep()<cr>
+--nnoremap <leader>fb <cmd>lua require('telescope.builtin').buffers()<cr>
+--nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags()<cr>
+
+-- emacs style shortcuts in insert mode (yes, i am like that)
+vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
+vim.api.nvim_set_keymap("i", "<C-p>", "<Up>", { noremap = true })
+vim.api.nvim_set_keymap("i", "<C-b>", "<Left>", { noremap = true })
+vim.api.nvim_set_keymap("i", "<C-f>", "<Right>", { noremap = true })
+vim.api.nvim_set_keymap("i", "<C-e>", "<End>", { noremap = true })
+vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
+
+-- move page with cursor
+-- keymap("n", "k", "kzz", { noremap = true, silent = true })
+-- keymap("n", "j", "jzz", { noremap = true, silent = true })
+-- keymap("n", "p", "pzz", { noremap = true, silent = true })
+-- keymap("n", "P", "Pzz", { noremap = true, silent = true })
+-- keymap("n", "{", "{zz", { noremap = true, silent = true})
+-- keymap("n", "}", "}zz", { noremap = true, silent = true})
+-- keymap("n", "G", "Gzz", { noremap = true, silent = true})
+-- keymap("n", "n", "nzz", { noremap = true, silent = true})
+-- keymap("n", "N", "Nzz", { noremap = true, silent = true})
+-- keymap("n", "o", "o<ESC>zza", { noremap = true, silent = true})
+-- keymap("n", "O", "O<ESC>zza", { noremap = true, silent = true})
+-- keymap("n", "a", "a<ESC>zza", { noremap = true, silent = true})
+-- keymap("n", "<ENTER>", "<ENTER>zz", { noremap = true, silent = true})
+-- keymap("i", "<ESC>", "<ESC>zz", { noremap = true, silent = true})
+-- keymap("i", "<ENTER>", "<ENTER><ESC>zzi", { noremap = true, silent = true})
+
+vim.opt.scrolloff = 100
+-- }}}
