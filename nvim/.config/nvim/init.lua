@@ -2,13 +2,13 @@ local cmd = vim.cmd
 local call = vim.call
 
 vim.g["dashboard_custom_header"] = {
-"██▄   ▄███▄   ██     ▄▄▄▄▀ ▄  █ ██▄   ▄█    ▄▄▄▄▄   ▄█▄    ████▄ ",
-"█  █  █▀   ▀  █ █ ▀▀▀ █   █   █ █  █  ██   █     ▀▄ █▀ ▀▄  █   █ ",
-"█   █ ██▄▄    █▄▄█    █   ██▀▀█ █   █ ██ ▄  ▀▀▀▀▄   █   ▀  █   █ ",
-"█  █  █▄   ▄▀ █  █   █    █   █ █  █  ▐█  ▀▄▄▄▄▀    █▄  ▄▀ ▀████ ",
-"███▀  ▀███▀      █  ▀        █  ███▀   ▐            ▀███▀        ",
-"                █           ▀                                    ",
-"               ▀                                   ",
+  "██▄   ▄███▄   ██     ▄▄▄▄▀ ▄  █ ██▄   ▄█    ▄▄▄▄▄   ▄█▄    ████▄ ",
+  "█  █  █▀   ▀  █ █ ▀▀▀ █   █   █ █  █  ██   █     ▀▄ █▀ ▀▄  █   █ ",
+  "█   █ ██▄▄    █▄▄█    █   ██▀▀█ █   █ ██ ▄  ▀▀▀▀▄   █   ▀  █   █ ",
+  "█  █  █▄   ▄▀ █  █   █    █   █ █  █  ▐█  ▀▄▄▄▄▀    █▄  ▄▀ ▀████ ",
+  "███▀  ▀███▀      █  ▀        █  ███▀   ▐            ▀███▀        ",
+  "                █           ▀                                    ",
+  "               ▀                                   ",
 }
 
 -- Plugins
@@ -40,16 +40,16 @@ Plug("hrsh7th/nvim-cmp")
 Plug("mfussenegger/nvim-dap") -- debugging protocol
 Plug("simrat39/symbols-outline.nvim")
 Plug("numToStr/Comment.nvim") -- commenting
-Plug 'ray-x/lsp_signature.nvim'
+Plug("ray-x/lsp_signature.nvim")
 -- Plug 'ttys3/nvim-blamer.lua' -- git blame
 
 Plug("ternjs/tern_for_vim")
 --Plug("carlitux/deoplete-ternjs", { ["for"] = "javascript" })
-Plug 'dracula/vim' -- colorscheme
+Plug("dracula/vim") -- colorscheme
 Plug("evturn/cosmic-barf") -- colorscheme
 --Plug("ryanoasis/vim-devicons") -- icons
 --Plug("vim-airline/vim-airline") -- status bar
-Plug 'nvim-lualine/lualine.nvim' -- status bar
+Plug("nvim-lualine/lualine.nvim") -- status bar
 Plug("ervandew/supertab") -- tab complete? check this more
 Plug("terryma/vim-multiple-cursors")
 Plug("jose-elias-alvarez/null-ls.nvim")
@@ -58,7 +58,8 @@ Plug("MunifTanjim/prettier.nvim")
 Plug("nvim-telescope/telescope.nvim")
 Plug("nvim-telescope/telescope-symbols.nvim")
 Plug("nvim-telescope/telescope-project.nvim")
-Plug 'akinsho/bufferline.nvim'
+Plug("akinsho/bufferline.nvim")
+Plug("petertriho/nvim-scrollbar") -- scrollbar
 
 Plug("nvim-treesitter/nvim-treesitter")
 Plug("akinsho/toggleterm.nvim")
@@ -83,18 +84,21 @@ Plug("simrat39/rust-tools.nvim")
 Plug("nvim-lua/plenary.nvim")
 Plug("mfussenegger/nvim-dap")
 Plug("kyazdani42/nvim-web-devicons")
-Plug 'glepnir/dashboard-nvim'
+Plug("glepnir/dashboard-nvim")
 
 -- colorschemes
-Plug 'marko-cerovac/material.nvim'
-Plug 'folke/tokyonight.nvim'
-Plug 'sainnhe/sonokai'
+Plug("marko-cerovac/material.nvim")
+Plug("folke/tokyonight.nvim")
+Plug("sainnhe/sonokai")
 
 call("plug#end")
 -- }}}
 
 -- Dashboard
 vim.g["dashboard_default_executive"] = "telescope"
+
+-- Scrollbar
+require("scrollbar").setup()
 
 FindFiles = function()
   local builtin = require("telescope.builtin")
@@ -115,7 +119,7 @@ FindFiles = function()
 end
 
 ReloadConfig = function()
-  cmd [[:source ~/.config/nvim/init.lua]]
+  cmd([[:source ~/.config/nvim/init.lua]])
 end
 
 NoBackground = function()
@@ -190,24 +194,29 @@ lsp_installer.on_server_ready(function(server)
   local keymap = vim.api.nvim_set_keymap
 
   -- LSP Keymaps
-  keymap("n", "gD", "<cmd>lua vim.lsp.buf.declaration()<CR>", { noremap = true, silent = true})
-  keymap("n", "gd", "<cmd>lua vim.lsp.buf.definition()<CR>", { noremap = true, silent = true})
-  keymap("n", "K", "<cmd>lua vim.lsp.buf.hover()<CR>", { noremap = true, silent = true})
-  keymap("n", "gi", "<cmd>lua vim.lsp.buf.implementation()<CR>", { noremap = true, silent = true})
-  keymap("n", "gr", "<cmd>lua vim.lsp.buf.references()<CR>", { noremap = true, silent = true})
-  keymap("n", "<C-k>", "<cmd>lua vim.lsp.buf.signature_help()<CR>", { noremap = true, silent = true})
-  keymap("n", "<space>wa", "<cmd>lua vim.lsp.buf.add_workspace_folder()<CR>", { noremap = true, silent = true})
-  keymap("n", "<space>wr", "<cmd>lua vim.lsp.buf.remove_workspace_folder()<CR>", { noremap = true, silent = true})
-  keymap("n", "<space>wl", "<cmd>lua print(vim.inspect(vim.lsp.buf.list_workspace_folders()))<CR>", { noremap = true, silent = true})
-  keymap("n", "td", "<cmd>lua vim.lsp.brf.type_definition()<CR>", { noremap = true, silent = true})
-  keymap("n", "tr", "<cmd>lua vim.lsp.buf.rename()<CR>", { noremap = true, silent = true})
-  keymap("n", "ga", "<cmd>lua vim.lsp.buf.code_action()<CR>", { noremap = true, silent = true})
-  keymap("n", "te", "<cmd>lua vim.diagnostic.open_float()<CR>", { noremap = true, silent = true})
-  keymap("n", "[d", "<cmd>lua vim.diagnostic.goto_prev()<CR>", { noremap = true, silent = true})
-  keymap("n", "]d", "<cmd>lua vim.diagnostic.goto_next()<CR>", { noremap = true, silent = true})
+  keymap("n", "gD", "<cmd>lua vim.lsp.buf.declaration()<CR>", { noremap = true, silent = true })
+  keymap("n", "gd", "<cmd>lua vim.lsp.buf.definition()<CR>", { noremap = true, silent = true })
+  keymap("n", "K", "<cmd>lua vim.lsp.buf.hover()<CR>", { noremap = true, silent = true })
+  keymap("n", "gi", "<cmd>lua vim.lsp.buf.implementation()<CR>", { noremap = true, silent = true })
+  keymap("n", "gr", "<cmd>lua vim.lsp.buf.references()<CR>", { noremap = true, silent = true })
+  keymap("n", "<C-k>", "<cmd>lua vim.lsp.buf.signature_help()<CR>", { noremap = true, silent = true })
+  keymap("n", "<space>wa", "<cmd>lua vim.lsp.buf.add_workspace_folder()<CR>", { noremap = true, silent = true })
+  keymap("n", "<space>wr", "<cmd>lua vim.lsp.buf.remove_workspace_folder()<CR>", { noremap = true, silent = true })
+  keymap(
+    "n",
+    "<space>wl",
+    "<cmd>lua print(vim.inspect(vim.lsp.buf.list_workspace_folders()))<CR>",
+    { noremap = true, silent = true }
+  )
+  keymap("n", "td", "<cmd>lua vim.lsp.brf.type_definition()<CR>", { noremap = true, silent = true })
+  keymap("n", "tr", "<cmd>lua vim.lsp.buf.rename()<CR>", { noremap = true, silent = true })
+  keymap("n", "ga", "<cmd>lua vim.lsp.buf.code_action()<CR>", { noremap = true, silent = true })
+  keymap("n", "te", "<cmd>lua vim.diagnostic.open_float()<CR>", { noremap = true, silent = true })
+  keymap("n", "[d", "<cmd>lua vim.diagnostic.goto_prev()<CR>", { noremap = true, silent = true })
+  keymap("n", "]d", "<cmd>lua vim.diagnostic.goto_next()<CR>", { noremap = true, silent = true })
   --keymap("n", "gl", "<cmd>lua vim.diagnostic.setloclist()<CR>", { noremap = true, silent = true})
-  keymap("n", "gf", "<cmd>lua vim.lsp.buf.formatting()<CR>", { noremap = true, silent = true})
-  keymap("n", "<C-i>", "<cmd>:SymbolsOutline<CR>", { noremap = true, silent = true})
+  keymap("n", "gf", "<cmd>lua vim.lsp.buf.formatting()<CR>", { noremap = true, silent = true })
+  keymap("n", "<C-i>", "<cmd>:SymbolsOutline<CR>", { noremap = true, silent = true })
   -- vim.api.nvim_set_keymap("n", "<C-i>", ":TagbarOpenAutoClose<CR>", {})
 
   -- Enable completion triggered by <c-x><c-o>
@@ -217,7 +226,7 @@ lsp_installer.on_server_ready(function(server)
   --
 
   -- signatures (eg function completion etc)
-  require "lsp_signature".setup({})
+  require("lsp_signature").setup({})
 
   -- (optional) Customize the options passed to the server
   -- if server.name == "tsserver" then
@@ -227,11 +236,10 @@ lsp_installer.on_server_ready(function(server)
   -- This setup() function will take the provided server configuration and decorate it with the necessary properties
   -- before passing it onwards to lspconfig.
   -- Refer to https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md
-  server:setup({ noremap = true, silent = true})
+  server:setup({ noremap = true, silent = true })
 end)
 
 vim.cmd([[set foldmethod=marker]])
-
 
 vim.g.symbols_outline = {
   highlight_hovered_item = true,
@@ -468,7 +476,7 @@ require("rust-tools").setup({
 require("toggleterm").setup({
   open_mapping = [[<C-j>]],
   shading_factor = "1",
-  --shell = "bash",
+  shell = "bash",
 })
 
 -- Fuzzy Find
@@ -558,10 +566,10 @@ vim.api.nvim_set_keymap("", "<C-b>", ":NvimTreeToggle<CR>", {})
 vim.g["NvimTreeMapActivateNode"] = "l" -- note: vim.g are globals
 vim.g["nvim_tree_git_hl"] = 1
 vim.g["nvim_tree_show_icons"] = {
-  ['git'] = 0,
-  ['folders'] = 1,
-  ['files'] = 1,
-  ['folder_arrows'] = 1,
+  ["git"] = 0,
+  ["folders"] = 1,
+  ["files"] = 1,
+  ["folder_arrows"] = 1,
 }
 
 vim.g["NvimTreeWinPos"] = "left"
@@ -604,7 +612,7 @@ require("nvim-tree").setup({
   },
   filters = {
     dotfiles = false,
-    custom = {},
+    custom = { '.git' },
   },
   git = {
     enable = true,
@@ -614,7 +622,7 @@ require("nvim-tree").setup({
   view = {
     width = 30,
     height = 30,
-    hide_root_folder = true,
+    hide_root_folder = false,
     side = "left",
     auto_resize = true,
     mappings = {
@@ -744,48 +752,48 @@ vim.opt.termguicolors = true
 cmd([[colorscheme tokyonight]])
 -- }}}
 
-require('bufferline').setup {
+require("bufferline").setup({
   options = {
     show_buffer_icons = true,
     show_close_icon = true,
     tab_size = 22,
 
-    indicator_icon = '',
-    separator_style = { '', '' },
-  }
-}
+    indicator_icon = "",
+    separator_style = { "", "" },
+  },
+})
 
 require("nvim-web-devicons").setup()
 
 -- StatusBar
-require('lualine').setup {
+require("lualine").setup({
   options = {
     icons_enabled = true,
-    theme = 'auto',
-    component_separators = { left = '', right = ''},
-    section_separators = { left = '', right = ''},
+    theme = "auto",
+    component_separators = { left = "", right = "" },
+    section_separators = { left = "", right = "" },
     disabled_filetypes = {},
     always_divide_middle = true,
   },
   sections = {
-    lualine_a = {'mode'},
-    lualine_b = {'branch', 'diff', 'diagnostics'},
-    lualine_c = {'filename'},
-    lualine_x = {'encoding', 'fileformat', 'filetype'},
-    lualine_y = {'progress'},
-    lualine_z = {'location'}
+    lualine_a = { "mode" },
+    lualine_b = { "branch", "diff", "diagnostics" },
+    lualine_c = { "filename" },
+    lualine_x = { "encoding", "fileformat", "filetype" },
+    lualine_y = { "progress" },
+    lualine_z = { "location" },
   },
   inactive_sections = {
     lualine_a = {},
     lualine_b = {},
-    lualine_c = {'filename'},
-    lualine_x = {'location'},
+    lualine_c = { "filename" },
+    lualine_x = { "location" },
     lualine_y = {},
-    lualine_z = {}
+    lualine_z = {},
   },
   tabline = {},
-  extensions = {}
-}
+  extensions = {},
+})
 
 -- Keymaps
 -- {{{
@@ -802,7 +810,7 @@ vim.api.nvim_set_keymap("", "<C-[>", ":BufferLineCyclePrev<CR>", {})
 vim.api.nvim_set_keymap("", "<C-]>", ":BufferLineCycleNext<CR>", {})
 vim.api.nvim_set_keymap("", "<C-t>", ":Telescope<cr>", { noremap = true })
 --vim.api.nvim_set_keymap("n", "<C-o>", ":FZF<CR>", {})
-keymap("", "<C-o>", "<cmd>lua FindFiles()<CR>", { noremap = true, silent = true})
+keymap("", "<C-o>", "<cmd>lua FindFiles()<CR>", { noremap = true, silent = true })
 
 vim.api.nvim_set_keymap("n", "<Esc>", ":noh<cr>", { noremap = true }) -- fix ESC confusion in normal mode
 vim.api.nvim_set_keymap("n", "gf", "<Plug>(easymotion-bd-w)", {})
