@@ -129,6 +129,7 @@ vim.api.nvim_set_keymap("n", "<C-p>", ":Telescope find_files<cr>", { noremap = t
 --nnoremap <leader>fg <cmd>lua require('telescope.builtin').live_grep()<cr>
 --nnoremap <leader>fb <cmd>lua require('telescope.builtin').buffers()<cr>
 --nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags()<cr>
+
 -- emacs style shortcuts in insert mode (yes, i am like that)
 vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-p>", "<Up>", { noremap = true })
@@ -136,6 +137,23 @@ vim.api.nvim_set_keymap("i", "<C-b>", "<Left>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-f>", "<Right>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-e>", "<End>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
+
+-- move page with cursor
+keymap("n", "k", "kzz", opts)
+keymap("n", "j", "jzz", opts)
+keymap("n", "p", "pzz", opts)
+keymap("n", "P", "Pzz", opts)
+keymap("n", "{", "{zz", opts)
+keymap("n", "}", "}zz", opts)
+keymap("n", "G", "Gzz", opts)
+keymap("n", "n", "nzz", opts)
+keymap("n", "N", "Nzz", opts)
+keymap("n", "o", "o<ESC>zza", opts)
+keymap("n", "O", "o<ESC>zza", opts)
+keymap("n", "a", "a<ESC>zza", opts)
+keymap("n", "<ENTER>", "<ENTER>zz", opts)
+keymap("i", "<ESC>", "<ESC>zz", opts)
+keymap("i", "<ENTER>", "<ENTER><ESC>zzi", opts)
 
 -- }}}
 --
@@ -507,7 +525,7 @@ vim.cmd([[
 require("toggleterm").setup({
   open_mapping = [[<C-j>]],
   shading_factor = "1",
-  shell = "bash",
+  --shell = "bash",
 })
 
 -- Fuzzy Find
@@ -727,7 +745,7 @@ catppuccin.setup({
     },
     dashboard = true,
     neogit = false,
-    vim_sneak = false,
+    vim_sneak = true,
     fern = false,
     barbar = false,
     bufferline = true,
