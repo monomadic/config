@@ -517,6 +517,7 @@ vim.g["hidden"] = true -- so buffers can hide
 
 -- nvim-ripgrep
 vim.cmd([[command! Rg lua require'nvim-ripgrep'.grep()]])
+vim.cmd([[:set nowrap]])
 
 -- wordwrap
 --vim.api.nvim_set_keymap('n', 'k', "v:count == 0 ? 'gk' : 'k'", { noremap = true, expr = true, silent = true })
