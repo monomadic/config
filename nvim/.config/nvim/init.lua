@@ -12,9 +12,6 @@ vim.g["dashboard_custom_header"] = {
 }
 
 -- Plugins
--- Plugins: Load Packer
-
--- Plugins
 -- {{{
 --   see https://github.com/junegunn/vim-plug
 --
@@ -43,13 +40,16 @@ Plug("hrsh7th/nvim-cmp")
 Plug("mfussenegger/nvim-dap") -- debugging protocol
 Plug("simrat39/symbols-outline.nvim")
 Plug("numToStr/Comment.nvim") -- commenting
+Plug 'ray-x/lsp_signature.nvim'
+-- Plug 'ttys3/nvim-blamer.lua' -- git blame
 
 Plug("ternjs/tern_for_vim")
 --Plug("carlitux/deoplete-ternjs", { ["for"] = "javascript" })
 Plug 'dracula/vim' -- colorscheme
 Plug("evturn/cosmic-barf") -- colorscheme
 --Plug("ryanoasis/vim-devicons") -- icons
-Plug("vim-airline/vim-airline") -- status bar
+--Plug("vim-airline/vim-airline") -- status bar
+Plug 'nvim-lualine/lualine.nvim' -- status bar
 Plug("ervandew/supertab") -- tab complete? check this more
 Plug("terryma/vim-multiple-cursors")
 Plug("jose-elias-alvarez/null-ls.nvim")
@@ -62,7 +62,6 @@ Plug 'akinsho/bufferline.nvim'
 
 Plug("nvim-treesitter/nvim-treesitter")
 Plug("akinsho/toggleterm.nvim")
-Plug("fatih/vim-go", { ["do"] = ":GoUpdateBinaries" })
 Plug("RishabhRD/popfix") -- popup ui (required by popui)
 Plug("hood/popui.nvim") -- popups to replace vim-ui selects
 Plug("catppuccin/nvim", { ["as"] = "catppuccin" }) -- themes?
@@ -86,7 +85,12 @@ Plug("mfussenegger/nvim-dap")
 Plug("kyazdani42/nvim-web-devicons")
 Plug 'glepnir/dashboard-nvim'
 
-vim.call("plug#end")
+-- colorschemes
+Plug 'marko-cerovac/material.nvim'
+Plug 'folke/tokyonight.nvim'
+Plug 'sainnhe/sonokai'
+
+call("plug#end")
 -- }}}
 
 -- Dashboard
@@ -112,6 +116,11 @@ end
 
 ReloadConfig = function()
   cmd [[:source ~/.config/nvim/init.lua]]
+end
+
+NoBackground = function()
+  vim.api.nvim_exec([[hi Normal guibg=none]], false)
+  -- vim.api.nvim_exec([[hi VertSplit gui=none guibg=none]], false)
 end
 
 require("Comment").setup()
@@ -205,6 +214,10 @@ lsp_installer.on_server_ready(function(server)
 
   -- symbols outline:
   -- local opts = {}
+  --
+
+  -- signatures (eg function completion etc)
+  require "lsp_signature".setup({})
 
   -- (optional) Customize the options passed to the server
   -- if server.name == "tsserver" then
@@ -218,6 +231,7 @@ lsp_installer.on_server_ready(function(server)
 end)
 
 vim.cmd([[set foldmethod=marker]])
+
 
 vim.g.symbols_outline = {
   highlight_hovered_item = true,
@@ -440,19 +454,6 @@ require("rust-tools").setup({
 })
 -- }}}
 
--- loop servers
-local servers = { "rust_analyzer", "gopls", "elmls" }
-local capabilities = require("cmp_nvim_lsp").update_capabilities(vim.lsp.protocol.make_client_capabilities())
-for _, lsp in ipairs(servers) do
-  nvim_lsp[lsp].setup({
-    on_attach = attach_lsp_keymaps,
-    capabilities = capabilities,
-    flags = {
-      debounce_text_changes = 150,
-    },
-  })
-end
-
 -- LaunchLuaLSP = function()
 --   local client_id = vim.lsp.start_client({ cmd = { "lua-language-server", "--stdio" } })
 --   vim.lsp = require("vim.lsp")
@@ -554,6 +555,14 @@ vim.cmd([[let loaded_netrwPlugin = 1]])
 -- {{{
 vim.api.nvim_set_keymap("", "<C-b>", ":NvimTreeToggle<CR>", {})
 vim.g["NvimTreeMapActivateNode"] = "l" -- note: vim.g are globals
+vim.g["nvim_tree_git_hl"] = 1
+vim.g["nvim_tree_show_icons"] = {
+  ['git'] = 0,
+  ['folders'] = 1,
+  ['files'] = 1,
+  ['folder_arrows'] = 1,
+}
+
 vim.g["NvimTreeWinPos"] = "left"
 vim.g["NvimTreeMinimalUI"] = 1
 -- vim.g['NERDTreeIgnore'] = ['^\.DS_Store$', '^tags$', '\.git$[[dir]]']
@@ -606,11 +615,11 @@ require("nvim-tree").setup({
     height = 30,
     hide_root_folder = true,
     side = "left",
-    auto_resize = false,
+    auto_resize = true,
     mappings = {
       custom_only = false,
       list = {
-        { key = { "l", "o" }, action = "edit", mode = "n" },
+        { key = { "l", "o", "<1-LeftMouse>" }, action = "edit", mode = "n" },
       },
     },
     number = false,
@@ -639,6 +648,18 @@ require("nvim-tree").setup({
 -- 62 purple
 -- 120 pale neon green
 -- 234 dark grey
+vim.g.material_style = "deep ocean"
+
+vim.g.sonokai_style = "espresso"
+
+vim.g.tokyonight_style = "night"
+-- vim.g.tokyonight_terminal_colors = true
+-- vim.g.tokyonight_transparent = true
+-- vim.g.transparent_sidebar = true
+-- vim.g.dark_sidebar = true
+
+-- vim.g.tokyonight_sidebars = { "terminal" }
+vim.g.tokyonight_day_brightness = 1
 
 local catppuccin = require("catppuccin")
 catppuccin.setup({
@@ -699,9 +720,8 @@ catppuccin.setup({
     telekasten = true,
   },
 })
-cmd([[colorscheme catppuccin]])
 
-cmd([[hi NvimTreeVertSplit guibg=none]])
+-- cmd([[hi NvimTreeVertSplit guibg=none]])
 
 vim.opt.termguicolors = true
 -- vim.api.nvim_exec(
@@ -719,6 +739,8 @@ vim.opt.termguicolors = true
 --
 -- inline colors
 --require'colorizer'.setup()
+
+cmd([[colorscheme tokyonight]])
 -- }}}
 
 require('bufferline').setup {
@@ -733,6 +755,36 @@ require('bufferline').setup {
 }
 
 require("nvim-web-devicons").setup()
+
+-- StatusBar
+require('lualine').setup {
+  options = {
+    icons_enabled = true,
+    theme = 'auto',
+    component_separators = { left = '', right = ''},
+    section_separators = { left = '', right = ''},
+    disabled_filetypes = {},
+    always_divide_middle = true,
+  },
+  sections = {
+    lualine_a = {'mode'},
+    lualine_b = {'branch', 'diff', 'diagnostics'},
+    lualine_c = {'filename'},
+    lualine_x = {'encoding', 'fileformat', 'filetype'},
+    lualine_y = {'progress'},
+    lualine_z = {'location'}
+  },
+  inactive_sections = {
+    lualine_a = {},
+    lualine_b = {},
+    lualine_c = {'filename'},
+    lualine_x = {'location'},
+    lualine_y = {},
+    lualine_z = {}
+  },
+  tabline = {},
+  extensions = {}
+}
 
 -- Keymaps
 -- {{{
