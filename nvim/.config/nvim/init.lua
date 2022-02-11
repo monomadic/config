@@ -81,9 +81,22 @@ Plug("simrat39/rust-tools.nvim")
 Plug("nvim-lua/plenary.nvim")
 Plug("mfussenegger/nvim-dap")
 Plug("kyazdani42/nvim-web-devicons")
+Plug 'glepnir/dashboard-nvim'
 
 vim.call("plug#end")
 -- }}}
+
+-- Dashboard
+vim.g["dashboard_default_executive"] = "telescope"
+vim.g["dashboard_custom_header"] = {
+"██▄   ▄███▄   ██     ▄▄▄▄▀ ▄  █ ██▄   ▄█    ▄▄▄▄▄   ▄█▄    ████▄ ",
+"█  █  █▀   ▀  █ █ ▀▀▀ █   █   █ █  █  ██   █     ▀▄ █▀ ▀▄  █   █ ",
+"█   █ ██▄▄    █▄▄█    █   ██▀▀█ █   █ ██ ▄  ▀▀▀▀▄   █   ▀  █   █ ",
+"█  █  █▄   ▄▀ █  █   █    █   █ █  █  ▐█  ▀▄▄▄▄▀    █▄  ▄▀ ▀████ ",
+"███▀  ▀███▀      █  ▀        █  ███▀   ▐            ▀███▀        ",
+"                █           ▀                                    ",
+"               ▀                                   ",
+}
 
 FindFiles = function()
   local builtin = require("telescope.builtin")
@@ -139,23 +152,23 @@ vim.api.nvim_set_keymap("i", "<C-e>", "<End>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
 
 -- move page with cursor
--- keymap("n", "k", "kzz", opts)
--- keymap("n", "j", "jzz", opts)
--- keymap("n", "p", "pzz", opts)
--- keymap("n", "P", "Pzz", opts)
--- keymap("n", "{", "{zz", opts)
--- keymap("n", "}", "}zz", opts)
--- keymap("n", "G", "Gzz", opts)
--- keymap("n", "n", "nzz", opts)
--- keymap("n", "N", "Nzz", opts)
--- keymap("n", "o", "o<ESC>zza", opts)
--- keymap("n", "O", "o<ESC>zza", opts)
--- keymap("n", "a", "a<ESC>zza", opts)
--- keymap("n", "<ENTER>", "<ENTER>zz", opts)
--- keymap("i", "<ESC>", "<ESC>zz", opts)
--- keymap("i", "<ENTER>", "<ENTER><ESC>zzi", opts)
+keymap("n", "k", "kzz", opts)
+keymap("n", "j", "jzz", opts)
+keymap("n", "p", "pzz", opts)
+keymap("n", "P", "Pzz", opts)
+keymap("n", "{", "{zz", opts)
+keymap("n", "}", "}zz", opts)
+keymap("n", "G", "Gzz", opts)
+keymap("n", "n", "nzz", opts)
+keymap("n", "N", "Nzz", opts)
+keymap("n", "o", "o<ESC>zza", opts)
+keymap("n", "O", "o<ESC>zza", opts)
+keymap("n", "a", "a<ESC>zza", opts)
+keymap("n", "<ENTER>", "<ENTER>zz", opts)
+keymap("i", "<ESC>", "<ESC>zz", opts)
+keymap("i", "<ENTER>", "<ENTER><ESC>zzi", opts)
 
-vim.opt.scrolloff = 0
+--vim.opt.scrolloff = 0
 -- }}}
 --
 
