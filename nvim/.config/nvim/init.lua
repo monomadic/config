@@ -11,88 +11,14 @@ vim.g["dashboard_custom_header"] = {
   "               ▀                                   ",
 }
 
--- Plugins
--- {{{
---   see https://github.com/junegunn/vim-plug
---
---   `do`: executed on plugin install or update.
---   `on`: executed on-demand when another function is called
---   `for`:
---
-local Plug = vim.fn["plug#"]
-call("plug#begin", "~/.config/nvim/plugged")
-Plug("kyazdani42/nvim-tree.lua")
---Plug('roxma/nvim-completion-manager')
-Plug("junegunn/fzf", { ["do"] = vim.fn["fzf#install"] }) -- fuzzy find
-Plug("easymotion/vim-easymotion") -- fast jumplocal nvim_lsp = require('lspconfig')
-Plug("brooth/far.vim") -- find and replace
+require 'user.options'
+require 'user.keymaps'
+require 'user.packer'
+require 'user.whichkey'
+require 'user.comment'
+require 'user.nvimtree'
 
--- LSP stuff
-Plug("neovim/nvim-lspconfig") -- language server protocol
-Plug("williamboman/nvim-lsp-installer") -- autoinstaller and lsp manager
-Plug("hrsh7th/cmp-nvim-lsp") -- completion for lsp
-Plug("hrsh7th/vim-vsnip") -- snippets (vsnip)
-Plug("hrsh7th/cmp-vsnip") -- completion vsnip
-Plug("hrsh7th/cmp-buffer")
-Plug("hrsh7th/cmp-path")
-Plug("hrsh7th/cmp-cmdline")
-Plug("hrsh7th/nvim-cmp")
-Plug("mfussenegger/nvim-dap") -- debugging protocol
-Plug("simrat39/symbols-outline.nvim")
-Plug("numToStr/Comment.nvim") -- commenting
-Plug("ray-x/lsp_signature.nvim")
--- Plug 'ttys3/nvim-blamer.lua' -- git blame
-
-Plug("ternjs/tern_for_vim")
---Plug("carlitux/deoplete-ternjs", { ["for"] = "javascript" })
-Plug("dracula/vim") -- colorscheme
-Plug("evturn/cosmic-barf") -- colorscheme
---Plug("ryanoasis/vim-devicons") -- icons
---Plug("vim-airline/vim-airline") -- status bar
-Plug("nvim-lualine/lualine.nvim") -- status bar
-Plug("ervandew/supertab") -- tab complete? check this more
-Plug("terryma/vim-multiple-cursors")
-Plug("jose-elias-alvarez/null-ls.nvim")
-Plug("nvim-lua/plenary.nvim")
-Plug("MunifTanjim/prettier.nvim")
-Plug("nvim-telescope/telescope.nvim")
-Plug("nvim-telescope/telescope-symbols.nvim")
-Plug("nvim-telescope/telescope-project.nvim")
-Plug("akinsho/bufferline.nvim")
-Plug("petertriho/nvim-scrollbar") -- scrollbar
-
-Plug("nvim-treesitter/nvim-treesitter")
-Plug("akinsho/toggleterm.nvim")
-Plug("RishabhRD/popfix") -- popup ui (required by popui)
-Plug("hood/popui.nvim") -- popups to replace vim-ui selects
-Plug("catppuccin/nvim", { ["as"] = "catppuccin" }) -- themes?
-Plug("norcalli/nvim-colorizer.lua") -- inline colors
-Plug("justinmk/vim-sneak") -- fast jump
---Plug('mj-hd/vim-picomap', {["do"] = "bash install.sh" }) -- minimap
---Plug 'hisaknown/nanomap.vim' -- minimap
-Plug("liuchengxu/vista.vim") -- symbols, again
-Plug("norcalli/nvim-colorizer.lua") -- inline colors
---Plug 'ahmedkhalf/project.nvim' -- project manager
-Plug("preservim/tagbar") -- class tag outline
-
-Plug("rinx/nvim-ripgrep") -- grep
-Plug("joshdick/onedark.vim")
-
--- rust
-Plug("simrat39/rust-tools.nvim")
--- rust (debugging)
-Plug("nvim-lua/plenary.nvim")
-Plug("mfussenegger/nvim-dap")
-Plug("kyazdani42/nvim-web-devicons")
-Plug("glepnir/dashboard-nvim")
-
--- colorschemes
-Plug("marko-cerovac/material.nvim")
-Plug("folke/tokyonight.nvim")
-Plug("sainnhe/sonokai")
-
-call("plug#end")
--- }}}
+-- https://github.com/LunarVim/Neovim-from-scratch
 
 -- Dashboard
 vim.g["dashboard_default_executive"] = "telescope"
@@ -127,9 +53,7 @@ NoBackground = function()
   -- vim.api.nvim_exec([[hi VertSplit gui=none guibg=none]], false)
 end
 
-require("Comment").setup()
-
---
+--require("Comment").setup()
 
 -- Treesitter
 -- {{{
@@ -357,120 +281,110 @@ nvim_lsp.svelte.setup({
 
 -- LSP: Rust
 -- {{{
-require("rust-tools").setup({
-
-  tools = { -- rust-tools options
-    -- Automatically set inlay hints (type hints)
-    autoSetHints = true,
-    -- Whether to show hover actions inside the hover window
-    -- This overrides the default hover handler
-    hover_with_actions = true,
-
-    -- how to execute terminal commands
-    -- options right now: termopen / quickfix
-    executor = require("rust-tools/executors").termopen,
-    runnables = {
-      -- whether to use telescope for selection menu or not
-      use_telescope = true,
-      -- rest of the opts are forwarded to telescope
-    },
-    debuggables = {
-      -- whether to use telescope for selection menu or not
-      use_telescope = true,
-      -- rest of the opts are forwarded to telescope
-    },
-
-    -- These apply to the default RustSetInlayHints command
-    inlay_hints = {
-      -- Only show inlay hints for the current line
-      only_current_line = false,
-      -- Event which triggers a refersh of the inlay hints.
-      -- You can make this "CursorMoved" or "CursorMoved,CursorMovedI" but
-      -- not that this may cause  higher CPU usage.
-      -- This option is only respected when only_current_line and
-      -- autoSetHints both are true.
-      only_current_line_autocmd = "CursorHold",
-      -- wheter to show parameter hints with the inlay hints or not
-      show_parameter_hints = true,
-      -- prefix for parameter hints
-      parameter_hints_prefix = "<- ",
-      -- prefix for all the other hints (type, chaining)
-      other_hints_prefix = "=> ",
-      -- whether to align to the length of the longest line in the file
-      max_len_align = false,
-      -- padding from the left if max_len_align is true
-      max_len_align_padding = 1,
-      -- whether to align to the extreme right or not
-      right_align = false,
-      -- padding from the right if right_align is true
-      right_align_padding = 7,
-      -- The color of the hints
-      highlight = "Comment",
-    },
-
-    hover_actions = {
-      -- the border that is used for the hover window
-      -- see vim.api.nvim_open_win()
-      border = {
-        { "╭", "FloatBorder" },
-        { "─", "FloatBorder" },
-        { "╮", "FloatBorder" },
-        { "│", "FloatBorder" },
-        { "╯", "FloatBorder" },
-        { "─", "FloatBorder" },
-        { "╰", "FloatBorder" },
-        { "│", "FloatBorder" },
-      },
-      -- whether the hover action window gets automatically focused
-      auto_focus = false,
-    },
-    -- settings for showing the crate graph based on graphviz and the dot
-    -- command
-    crate_graph = {
-      -- Backend used for displaying the graph
-      -- see: https://graphviz.org/docs/outputs/
-      -- default: x11
-      backend = "x11",
-      -- where to store the output, nil for no output stored (relative
-      -- path from pwd)
-      -- default: nil
-      output = nil,
-      -- true for all crates.io and external crates, false only the local
-      -- crates
-      -- default: true
-      full = true,
-    },
-  },
-
+-- require("rust-tools").setup({
+--
+--   tools = { -- rust-tools options
+--     -- Automatically set inlay hints (type hints)
+--     autoSetHints = true,
+--     -- Whether to show hover actions inside the hover window
+--     -- This overrides the default hover handler
+--     hover_with_actions = true,
+--
+--     -- how to execute terminal commands
+--     -- options right now: termopen / quickfix
+--     executor = require("rust-tools/executors").termopen,
+--     runnables = {
+--       -- whether to use telescope for selection menu or not
+--       use_telescope = true,
+--       -- rest of the opts are forwarded to telescope
+--     },
+--     debuggables = {
+--       -- whether to use telescope for selection menu or not
+--       use_telescope = true,
+--       -- rest of the opts are forwarded to telescope
+--     },
+--
+--     -- These apply to the default RustSetInlayHints command
+--     inlay_hints = {
+--       -- Only show inlay hints for the current line
+--       only_current_line = false,
+--       -- Event which triggers a refersh of the inlay hints.
+--       -- You can make this "CursorMoved" or "CursorMoved,CursorMovedI" but
+--       -- not that this may cause  higher CPU usage.
+--       -- This option is only respected when only_current_line and
+--       -- autoSetHints both are true.
+--       only_current_line_autocmd = "CursorHold",
+--       -- wheter to show parameter hints with the inlay hints or not
+--       show_parameter_hints = true,
+--       -- prefix for parameter hints
+--       parameter_hints_prefix = "<- ",
+--       -- prefix for all the other hints (type, chaining)
+--       other_hints_prefix = "=> ",
+--       -- whether to align to the length of the longest line in the file
+--       max_len_align = false,
+--       -- padding from the left if max_len_align is true
+--       max_len_align_padding = 1,
+--       -- whether to align to the extreme right or not
+--       right_align = false,
+--       -- padding from the right if right_align is true
+--       right_align_padding = 7,
+--       -- The color of the hints
+--       highlight = "Comment",
+--     },
+--
+--     hover_actions = {
+--       -- the border that is used for the hover window
+--       -- see vim.api.nvim_open_win()
+--       border = {
+--         { "╭", "FloatBorder" },
+--         { "─", "FloatBorder" },
+--         { "╮", "FloatBorder" },
+--         { "│", "FloatBorder" },
+--         { "╯", "FloatBorder" },
+--         { "─", "FloatBorder" },
+--         { "╰", "FloatBorder" },
+--         { "│", "FloatBorder" },
+--       },
+--       -- whether the hover action window gets automatically focused
+--       auto_focus = false,
+--     },
+--     -- settings for showing the crate graph based on graphviz and the dot
+--     -- command
+--     crate_graph = {
+--       -- Backend used for displaying the graph
+--       -- see: https://graphviz.org/docs/outputs/
+--       -- default: x11
+--       backend = "x11",
+--       -- where to store the output, nil for no output stored (relative
+--       -- path from pwd)
+--       -- default: nil
+--       output = nil,
+--       -- true for all crates.io and external crates, false only the local
+--       -- crates
+--       -- default: true
+--       full = true,
+--     },
+--   },
+--
   -- all the opts to send to nvim-lspconfig
   -- these override the defaults set by rust-tools.nvim
   -- see https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#rust_analyzer
-  server = {
-    -- standalone file support
-    -- setting it to false may improve startup time
-    standalone = true,
-  }, -- rust-analyer options
+--  server = {
+--    -- standalone file support
+--    -- setting it to false may improve startup time
+--    standalone = true,
+--  }, -- rust-analyer options
 
   -- debugging stuff
-  dap = {
-    adapter = {
-      type = "executable",
-      command = "lldb-vscode",
-      name = "rt_lldb",
-    },
-  },
-})
+--  dap = {
+--    adapter = {
+--      type = "executable",
+--      command = "lldb-vscode",
+--      name = "rt_lldb",
+--    },
+--  },
+--})
 -- }}}
-
--- LaunchLuaLSP = function()
---   local client_id = vim.lsp.start_client({ cmd = { "lua-language-server", "--stdio" } })
---   vim.lsp = require("vim.lsp")
---   vim.lsp.buf_attach_client(0, client_id)
--- end
---
--- vim.cmd([[
---   command! -range LaunchLuaLSP  execute 'lua LaunchLuaLSP()'
--- ]])
 
 -- Terminal
 require("toggleterm").setup({
@@ -527,10 +441,6 @@ vim.g["hidden"] = true -- so buffers can hide
 vim.cmd([[command! Rg lua require'nvim-ripgrep'.grep()]])
 vim.cmd([[:set nowrap]])
 
--- wordwrap
---vim.api.nvim_set_keymap('n', 'k', "v:count == 0 ? 'gk' : 'k'", { noremap = true, expr = true, silent = true })
---vim.api.nvim_set_keymap('n', 'j', "v:count == 0 ? 'gj' : 'j'", { noremap = true, expr = true, silent = true })
-
 -- Highlight on yank
 vim.cmd([[
   augroup YankHighlight
@@ -539,16 +449,8 @@ vim.cmd([[
   augroup end
 ]])
 
--- searching
-vim.o.ignorecase = true -- case insensitive searching,
-vim.o.smartcase = true -- unless a capital is used
--- vim.o.hlsearch = false -- highlight on search
-
 --vim.o.completeopt = "menu,menuone,noselect" -- completion
 
-vim.opt.mouse = "a" -- basic obvious mouse behavior. wtf
-vim.opt.cursorline = true
-vim.opt.relativenumber = true
 -- }}}
 
 local popui = require("popui.ui-overrider")
@@ -562,93 +464,90 @@ vim.cmd([[let loaded_netrwPlugin = 1]])
 
 -- NVIMTree
 -- {{{
-vim.api.nvim_set_keymap("", "<C-b>", ":NvimTreeToggle<CR>", {})
-vim.g["NvimTreeMapActivateNode"] = "l" -- note: vim.g are globals
-vim.g["nvim_tree_git_hl"] = 1
-vim.g["nvim_tree_show_icons"] = {
-  ["git"] = 0,
-  ["folders"] = 1,
-  ["files"] = 1,
-  ["folder_arrows"] = 1,
-}
-
-vim.g["NvimTreeWinPos"] = "left"
-vim.g["NvimTreeMinimalUI"] = 1
--- vim.g['NERDTreeIgnore'] = ['^\.DS_Store$', '^tags$', '\.git$[[dir]]']
-vim.g["NvimTreeShowHidden"] = 1
---vim.g['NERDTreeMapOpenInTab'] = '<ENTER>'
-
-require("nvim-tree").setup({
-  disable_netrw = true,
-  hijack_netrw = true,
-  open_on_setup = false,
-  ignore_ft_on_setup = {},
-  auto_close = false,
-  auto_reload_on_write = true,
-  open_on_tab = false,
-  hijack_cursor = false,
-  update_cwd = false,
-  update_to_buf_dir = {
-    enable = true,
-    auto_open = true,
-  },
-  diagnostics = {
-    enable = true,
-    icons = {
-      hint = "",
-      info = "",
-      warning = "",
-      error = "",
-    },
-  },
-  update_focused_file = {
-    enable = false,
-    update_cwd = false,
-    ignore_list = {},
-  },
-  system_open = {
-    cmd = nil,
-    args = {},
-  },
-  filters = {
-    dotfiles = false,
-    custom = { '.git' },
-  },
-  git = {
-    enable = true,
-    ignore = true,
-    timeout = 500,
-  },
-  view = {
-    width = 30,
-    height = 30,
-    hide_root_folder = false,
-    side = "left",
-    auto_resize = true,
-    mappings = {
-      custom_only = false,
-      list = {
-        { key = { "l", "o", "<1-LeftMouse>" }, action = "edit", mode = "n" },
-      },
-    },
-    number = false,
-    relativenumber = false,
-    signcolumn = "yes",
-  },
-  trash = {
-    cmd = "trash",
-    require_confirm = true,
-  },
-  actions = {
-    change_dir = {
-      global = false,
-    },
-    open_file = {
-      quit_on_open = false,
-    },
-  },
-})
--- }}}
+-- vim.api.nvim_set_keymap("", "<C-b>", ":NvimTreeToggle<CR>", {})
+-- vim.g["NvimTreeMapActivateNode"] = "l" -- note: vim.g are globals
+-- vim.g["nvim_tree_git_hl"] = 1
+-- vim.g["nvim_tree_show_icons"] = {
+--   ["git"] = 0,
+--   ["folders"] = 1,
+--   ["files"] = 1,
+--   ["folder_arrows"] = 1,
+-- }
+-- vim.g["NvimTreeWinPos"] = "left"
+-- vim.g["NvimTreeMinimalUI"] = 1
+-- vim.g["NvimTreeShowHidden"] = 1
+--
+-- require("nvim-tree").setup({
+--   disable_netrw = true,
+--   hijack_netrw = true,
+--   open_on_setup = false,
+--   ignore_ft_on_setup = {},
+--   auto_close = false,
+--   auto_reload_on_write = true,
+--   open_on_tab = false,
+--   hijack_cursor = false,
+--   update_cwd = false,
+--   update_to_buf_dir = {
+--     enable = true,
+--     auto_open = true,
+--   },
+--   diagnostics = {
+--     enable = true,
+--     icons = {
+--       hint = "",
+--       info = "",
+--       warning = "",
+--       error = "",
+--     },
+--   },
+--   update_focused_file = {
+--     enable = false,
+--     update_cwd = false,
+--     ignore_list = {},
+--   },
+--   system_open = {
+--     cmd = nil,
+--     args = {},
+--   },
+--   filters = {
+--     dotfiles = false,
+--     custom = { '.git' },
+--   },
+--   git = {
+--     enable = true,
+--     ignore = true,
+--     timeout = 500,
+--   },
+--   view = {
+--     width = 30,
+--     height = 30,
+--     hide_root_folder = false,
+--     side = "left",
+--     auto_resize = true,
+--     mappings = {
+--       custom_only = false,
+--       list = {
+--         { key = { "l", "o", "<1-LeftMouse>" }, action = "edit", mode = "n" },
+--       },
+--     },
+--     number = false,
+--     relativenumber = false,
+--     signcolumn = "yes",
+--   },
+--   trash = {
+--     cmd = "trash",
+--     require_confirm = true,
+--   },
+--   actions = {
+--     change_dir = {
+--       global = false,
+--     },
+--     open_file = {
+--       quit_on_open = false,
+--     },
+--   },
+-- })
+-- -- }}}
 
 -- Colors
 -- {{{
@@ -752,16 +651,16 @@ vim.opt.termguicolors = true
 cmd([[colorscheme tokyonight]])
 -- }}}
 
-require("bufferline").setup({
-  options = {
-    show_buffer_icons = true,
-    show_close_icon = true,
-    tab_size = 22,
-
-    indicator_icon = "",
-    separator_style = { "", "" },
-  },
-})
+-- require("bufferline").setup({
+--   options = {
+--     show_buffer_icons = true,
+--     show_close_icon = true,
+--     tab_size = 22,
+--
+--     indicator_icon = "",
+--     separator_style = { "", "" },
+--   },
+-- })
 
 require("nvim-web-devicons").setup()
 
@@ -847,3 +746,5 @@ vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
 
 vim.opt.scrolloff = 100
 -- }}}
+
+
