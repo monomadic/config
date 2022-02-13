@@ -22,12 +22,10 @@ require("packer").startup(function(use)
       "kyazdani42/nvim-web-devicons",
       "MunifTanjim/nui.nvim",
     },
-    config = require("user.neotree"),
+    --config = require("user.neotree"),
   })
-  -- use({"kyazdani42/nvim-tree.lua",
-  --   config = require("user.nvimtree"),
-  -- })
-  use("MunifTanjim/nui.nvim") -- neotree dep
+  --use("kyazdani42/nvim-tree.lua")
+  --use("MunifTanjim/nui.nvim") -- neotree dep
 
   -- UI
   -- use "nvim-lua/popup.nvim" -- An implementation of the Popup API from vim in Neovim
@@ -39,7 +37,7 @@ require("packer").startup(function(use)
   use("numToStr/Comment.nvim") -- commenting
   use("kyazdani42/nvim-web-devicons") -- colored icons in tree and status bar
   use({"akinsho/bufferline.nvim",
-    config = require("user.bufferline"),
+    --config = require("user.bufferline"),
   })
   -- use "moll/vim-bbye"
   -- use "nvim-lualine/lualine.nvim"

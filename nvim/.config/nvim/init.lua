@@ -17,15 +17,18 @@ require("user.plugins")
 require("user.whichkey")
 require("user.comment")
 --require 'user.nvimtree'
---require("user.neotree")
---require("user.bufferline")
+require("user.neotree")
+require("user.bufferline")
 
 -- https://github.com/LunarVim/Neovim-from-scratch
+
+
 
 -- Dashboard
 -- vim.g["dashboard_default_executive"] = "telescope"
 
 -- Scrollbar
+
 require("scrollbar").setup()
 
 FindFiles = function()
@@ -521,11 +524,6 @@ catppuccin.setup({
     gitgutter = false,
     gitsigns = true,
     telescope = true,
-    nvimtree = {
-      enabled = true,
-      show_root = false,
-      transparent_panel = true,
-    },
     which_key = false,
     indent_blankline = {
       enabled = true,
@@ -706,3 +704,6 @@ vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
 
 vim.opt.scrolloff = 100
 -- }}}
+--
+--
+
