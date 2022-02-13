@@ -35,7 +35,7 @@ require('packer').startup(function(use)
   use "petertriho/nvim-scrollbar" -- side scrollbar with git support
   use "norcalli/nvim-colorizer.lua" -- inline colors
   use "liuchengxu/vista.vim" -- symbols again?
-  use "glepnir/dashboard-nvim" -- dashboard
+  --use "glepnir/dashboard-nvim" -- dashboard
 
   -- Navigation
   use "justinmk/vim-sneak" -- 'S' followed by two characters to jump in line

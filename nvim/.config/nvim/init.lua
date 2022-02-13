@@ -21,7 +21,7 @@ require 'user.nvimtree'
 -- https://github.com/LunarVim/Neovim-from-scratch
 
 -- Dashboard
-vim.g["dashboard_default_executive"] = "telescope"
+-- vim.g["dashboard_default_executive"] = "telescope"
 
 -- Scrollbar
 require("scrollbar").setup()
@@ -527,7 +527,7 @@ catppuccin.setup({
       enabled = true,
       colored_indent_levels = false,
     },
-    dashboard = true,
+    dashboard = false,
     neogit = false,
     vim_sneak = true,
     fern = false,
