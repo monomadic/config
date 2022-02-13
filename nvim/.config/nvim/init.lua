@@ -13,7 +13,7 @@ vim.g["dashboard_custom_header"] = {
 
 require 'user.options'
 require 'user.keymaps'
-require 'user.packer'
+require 'user.plugins'
 require 'user.whichkey'
 require 'user.comment'
 require 'user.nvimtree'
