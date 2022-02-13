@@ -6,5 +6,5 @@ input type:keyboard {
   xkb_options caps:escape
   xkb_layout "us"
   repeat_delay 300
-  repeat_rate 20
+  repeat_rate 30
 }

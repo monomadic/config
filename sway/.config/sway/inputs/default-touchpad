@@ -9,9 +9,9 @@ input type:touchpad {
 }
 
 input type:mouse {
-      accel_profile adaptive
+      accel_profile flat # adaptive|flat
       pointer_accel 0
-      dwt disabled
+      dwt disabled # disable-while-typing
       tap enabled
-      natural_scroll enabled
+      natural_scroll enabled # inverted scroll
 }
