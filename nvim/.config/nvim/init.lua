@@ -390,7 +390,7 @@ nvim_lsp.svelte.setup({
 require("toggleterm").setup({
   open_mapping = [[<C-j>]],
   shading_factor = "1",
-  shell = "bash",
+  -- shell = "bash",
 })
 
 -- Fuzzy Find
