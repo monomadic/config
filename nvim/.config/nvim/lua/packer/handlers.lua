@@ -1,11 +1,11 @@
 local config = nil
 
 local function cfg(_config)
-  config = _config
+	config = _config
 end
 
 local handlers = {
-  cfg = cfg,
+	cfg = cfg,
 }
 
 return handlers

@@ -11,12 +11,13 @@ vim.g["dashboard_custom_header"] = {
   "               ▀                                   ",
 }
 
-require 'user.options'
-require 'user.keymaps'
-require 'user.plugins'
-require 'user.whichkey'
-require 'user.comment'
-require 'user.nvimtree'
+require("user.options")
+require("user.keymaps")
+require("user.plugins")
+require("user.whichkey")
+require("user.comment")
+--require 'user.nvimtree'
+require("user.neotree")
 
 -- https://github.com/LunarVim/Neovim-from-scratch
 
@@ -366,16 +367,16 @@ nvim_lsp.svelte.setup({
 --     },
 --   },
 --
-  -- all the opts to send to nvim-lspconfig
-  -- these override the defaults set by rust-tools.nvim
-  -- see https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#rust_analyzer
+-- all the opts to send to nvim-lspconfig
+-- these override the defaults set by rust-tools.nvim
+-- see https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#rust_analyzer
 --  server = {
 --    -- standalone file support
 --    -- setting it to false may improve startup time
 --    standalone = true,
 --  }, -- rust-analyer options
 
-  -- debugging stuff
+-- debugging stuff
 --  dap = {
 --    adapter = {
 --      type = "executable",
@@ -542,49 +543,49 @@ catppuccin.setup({
   },
 })
 
-require('material').setup({
+require("material").setup({
 
-	contrast = {
-		sidebars = false, -- Enable contrast for sidebar-like windows ( for example Nvim-Tree )
-		floating_windows = false, -- Enable contrast for floating windows
-		line_numbers = false, -- Enable contrast background for line numbers
-		sign_column = false, -- Enable contrast background for the sign column
-		cursor_line = false, -- Enable darker background for the cursor line
-		non_current_windows = false, -- Enable darker background for non-current windows
-		popup_menu = true, -- Enable lighter background for the popup menu
-	},
+  contrast = {
+    sidebars = false, -- Enable contrast for sidebar-like windows ( for example Nvim-Tree )
+    floating_windows = false, -- Enable contrast for floating windows
+    line_numbers = false, -- Enable contrast background for line numbers
+    sign_column = false, -- Enable contrast background for the sign column
+    cursor_line = false, -- Enable darker background for the cursor line
+    non_current_windows = false, -- Enable darker background for non-current windows
+    popup_menu = true, -- Enable lighter background for the popup menu
+  },
 
-	italics = {
-		comments = false, -- Enable italic comments
-		keywords = false, -- Enable italic keywords
-		functions = false, -- Enable italic functions
-		strings = false, -- Enable italic strings
-		variables = false -- Enable italic variables
-	},
+  italics = {
+    comments = false, -- Enable italic comments
+    keywords = false, -- Enable italic keywords
+    functions = false, -- Enable italic functions
+    strings = false, -- Enable italic strings
+    variables = false, -- Enable italic variables
+  },
 
-	contrast_filetypes = { -- Specify which filetypes get the contrasted (darker) background
-		"terminal", -- Darker terminal background
-		"packer", -- Darker packer background
-		"qf" -- Darker qf list background
-	},
+  contrast_filetypes = { -- Specify which filetypes get the contrasted (darker) background
+    "terminal", -- Darker terminal background
+    "packer", -- Darker packer background
+    "qf", -- Darker qf list background
+  },
 
-	high_visibility = {
-		lighter = false, -- Enable higher contrast text for lighter style
-		darker = false -- Enable higher contrast text for darker style
-	},
+  high_visibility = {
+    lighter = false, -- Enable higher contrast text for lighter style
+    darker = false, -- Enable higher contrast text for darker style
+  },
 
-	disable = {
-		borders = false, -- Disable borders between verticaly split windows
-		background = false, -- Prevent the theme from setting the background (NeoVim then uses your teminal background)
-		term_colors = false, -- Prevent the theme from setting terminal colors
-		eob_lines = false -- Hide the end-of-buffer lines
-	},
+  disable = {
+    borders = false, -- Disable borders between verticaly split windows
+    background = false, -- Prevent the theme from setting the background (NeoVim then uses your teminal background)
+    term_colors = false, -- Prevent the theme from setting terminal colors
+    eob_lines = false, -- Hide the end-of-buffer lines
+  },
 
-	lualine_style = "default", -- Lualine style ( can be 'stealth' or 'default' )
+  lualine_style = "default", -- Lualine style ( can be 'stealth' or 'default' )
 
-	async_loading = true, -- Load parts of the theme asyncronously for faster startup (turned on by default)
+  async_loading = true, -- Load parts of the theme asyncronously for faster startup (turned on by default)
 
-	custom_highlights = {} -- Overwrite highlights with your own
+  custom_highlights = {}, -- Overwrite highlights with your own
 })
 
 -- cmd([[hi NvimTreeVertSplit guibg=none]])
@@ -702,5 +703,3 @@ vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
 
 vim.opt.scrolloff = 100
 -- }}}
-
-
