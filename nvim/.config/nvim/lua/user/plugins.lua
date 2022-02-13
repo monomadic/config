@@ -24,6 +24,9 @@ require("packer").startup(function(use)
     },
     config = require("user.neotree"),
   })
+  -- use({"kyazdani42/nvim-tree.lua",
+  --   config = require("user.nvimtree"),
+  -- })
   use("MunifTanjim/nui.nvim") -- neotree dep
 
   -- UI
@@ -35,7 +38,6 @@ require("packer").startup(function(use)
   -- use "windwp/nvim-autopairs" -- Autopairs, integrates with both cmp and treesitter
   use("numToStr/Comment.nvim") -- commenting
   use("kyazdani42/nvim-web-devicons") -- colored icons in tree and status bar
-  use("kyazdani42/nvim-tree.lua") -- directory structure tree
   use({"akinsho/bufferline.nvim",
     config = require("user.bufferline"),
   })
