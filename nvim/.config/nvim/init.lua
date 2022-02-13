@@ -17,7 +17,8 @@ require("user.plugins")
 require("user.whichkey")
 require("user.comment")
 --require 'user.nvimtree'
-require("user.neotree")
+--require("user.neotree")
+--require("user.bufferline")
 
 -- https://github.com/LunarVim/Neovim-from-scratch
 
@@ -154,9 +155,11 @@ lsp_installer.on_server_ready(function(server)
   require("lsp_signature").setup({})
 
   -- (optional) Customize the options passed to the server
-  -- if server.name == "tsserver" then
-  --     opts.root_dir = function() ... end
-  -- end
+  if server.name == "rust_analyer" then
+      opts.root_dir = function()
+        cmd([[colorscheme sonokai]])
+      end
+  end
 
   -- This setup() function will take the provided server configuration and decorate it with the necessary properties
   -- before passing it onwards to lspconfig.
@@ -533,7 +536,7 @@ catppuccin.setup({
     vim_sneak = true,
     fern = false,
     barbar = false,
-    bufferline = true,
+    bufferline = false,
     markdown = true,
     lightspeed = false,
     ts_rainbow = false,

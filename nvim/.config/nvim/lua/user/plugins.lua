@@ -13,6 +13,8 @@ end
 
 require("packer").startup(function(use)
   use("wbthomason/packer.nvim") -- Have packer manage itself
+
+  -- Tree
   use({
     "nvim-neo-tree/neo-tree.nvim",
     requires = {
@@ -34,7 +36,9 @@ require("packer").startup(function(use)
   use("numToStr/Comment.nvim") -- commenting
   use("kyazdani42/nvim-web-devicons") -- colored icons in tree and status bar
   use("kyazdani42/nvim-tree.lua") -- directory structure tree
-  -- use "akinsho/bufferline.nvim"
+  use({"akinsho/bufferline.nvim",
+    config = require("user.bufferline"),
+  })
   -- use "moll/vim-bbye"
   -- use "nvim-lualine/lualine.nvim"
   use("akinsho/toggleterm.nvim")
