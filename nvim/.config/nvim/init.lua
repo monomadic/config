@@ -22,11 +22,9 @@ require("user.comment")
 --require 'user.nvimtree'
 require("user.neotree")
 require("user.bufferline")
+require("user.telescope")
 
 -- https://github.com/LunarVim/Neovim-from-scratch
-
--- Dashboard
--- vim.g["dashboard_default_executive"] = "telescope"
 
 -- Scrollbar
 
@@ -44,35 +42,6 @@ dropdown_theme = require'telescope.themes'.get_dropdown({
     preview = { "─", "│", "─", "│", "╭", "╮", "╯", "╰" },
   },
 })
-
--- FindFiles = function()
---   builtin = require("telescope.builtin")
---   themes = require("telescope.themes")
---   dropdown_theme = themes.get_dropdown({
---     previewer = false,
---     prompt_title = "",
---     results_height = 16,
---     width = 0.6,
---     borderchars = {
---       { "─", "│", "─", "│", "╭", "╮", "╯", "╰" },
---       prompt = { "─", "│", " ", "│", "╭", "╮", "│", "│" },
---       results = { "─", "│", "─", "│", "├", "┤", "╯", "╰" },
---       preview = { "─", "│", "─", "│", "╭", "╮", "╯", "╰" },
---     },
---   })
---   builtin.find_files(dropdown_theme)
--- end
-
-ReloadConfig = function()
-  cmd([[:source ~/.config/nvim/init.lua]])
-end
-
-NoBackground = function()
-  vim.api.nvim_exec([[hi Normal guibg=none]], false)
-  -- vim.api.nvim_exec([[hi VertSplit gui=none guibg=none]], false)
-end
-
---require("Comment").setup()
 
 -- Treesitter
 -- {{{
@@ -161,6 +130,9 @@ lsp_installer.on_server_ready(function(server)
   keymap("n", "gf", "<cmd>lua vim.lsp.buf.formatting()<CR>", { noremap = true, silent = true })
   keymap("n", "gs", "<cmd>:SymbolsOutline<CR>", { noremap = true, silent = true })
   -- vim.api.nvim_set_keymap("n", "<C-i>", ":TagbarOpenAutoClose<CR>", {})
+
+  keymap("n", "gw", "<cmd>lua require('telescope.builtin').lsp_workspace_symbols(require('telescope.themes').get_dropdown{previewer = false})<cr>", { noremap = true })
+  keymap("n", "gd", "<cmd>lua require('telescope.builtin').lsp_document_symbols(require('telescope.themes').get_dropdown{previewer = false})<cr>", { noremap = true })
 
   -- Enable completion triggered by <c-x><c-o>
 
@@ -415,24 +387,9 @@ require("toggleterm").setup({
 })
 
 -- Fuzzy Find
-require("telescope").setup({
-  defaults = {
-    mappings = {
-      i = {
-        ["<esc>"] = "close",
-      },
-    },
-  },
-})
 
 require("null-ls").setup({
   on_attach = function(client, bufnr) end,
-})
-
--- Formatting
-require("prettier").setup({
-  bin = "prettier",
-  filetypes = { "javascript", "json" },
 })
 
 -- Globals
@@ -478,7 +435,8 @@ local popui = require("popui.ui-overrider")
 vim.ui.select = popui
 
 require("prettier").setup({
-  filetypes = { "javascript", "typescript" },
+  bin = "prettier",
+  filetypes = { "javascript", "typescript", "json", "lua" },
 })
 
 vim.cmd([[let loaded_netrwPlugin = 1]])
@@ -615,17 +573,6 @@ vim.opt.termguicolors = true
 --require'colorizer'.setup()
 
 -- }}}
-
--- require("bufferline").setup({
---   options = {
---     show_buffer_icons = true,
---     show_close_icon = true,
---     tab_size = 22,
---
---     indicator_icon = "",
---     separator_style = { "", "" },
---   },
--- })
 
 require("nvim-web-devicons").setup()
 
