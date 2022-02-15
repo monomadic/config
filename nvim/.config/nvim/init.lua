@@ -9,14 +9,15 @@ vim.g["dashboard_custom_header"] = {
   "               ▀                                   ",
 }
 
+require("user.options")
+require("user.keymaps")
+require("user.plugins")
+
 vim.g.material_style = "deep ocean"
 vim.g.sonokai_style = "espresso"
 vim.g.tokyonight_style = "night"
 cmd([[colorscheme material]])
 
-require("user.options")
-require("user.keymaps")
-require("user.plugins")
 require("user.whichkey")
 require("user.comment")
 --require 'user.nvimtree'
