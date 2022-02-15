@@ -1,6 +1,4 @@
-local cmd = vim.cmd
-local call = vim.call
-
+local cmd = vim.cmd local call = vim.call
 vim.g["dashboard_custom_header"] = {
   "██▄   ▄███▄   ██     ▄▄▄▄▀ ▄  █ ██▄   ▄█    ▄▄▄▄▄   ▄█▄    ████▄ ",
   "█  █  █▀   ▀  █ █ ▀▀▀ █   █   █ █  █  ██   █     ▀▄ █▀ ▀▄  █   █ ",
@@ -10,6 +8,11 @@ vim.g["dashboard_custom_header"] = {
   "                █           ▀                                    ",
   "               ▀                                   ",
 }
+
+vim.g.material_style = "deep ocean"
+vim.g.sonokai_style = "espresso"
+vim.g.tokyonight_style = "night"
+cmd([[colorscheme material]])
 
 require("user.options")
 require("user.keymaps")
@@ -22,8 +25,6 @@ require("user.bufferline")
 
 -- https://github.com/LunarVim/Neovim-from-scratch
 
-
-
 -- Dashboard
 -- vim.g["dashboard_default_executive"] = "telescope"
 
@@ -31,23 +32,36 @@ require("user.bufferline")
 
 require("scrollbar").setup()
 
-FindFiles = function()
-  local builtin = require("telescope.builtin")
-  local themes = require("telescope.themes")
-  local dropdown_theme = themes.get_dropdown({
-    previewer = false,
-    prompt_title = "",
-    results_height = 16,
-    width = 0.6,
-    borderchars = {
-      { "─", "│", "─", "│", "╭", "╮", "╯", "╰" },
-      prompt = { "─", "│", " ", "│", "╭", "╮", "│", "│" },
-      results = { "─", "│", "─", "│", "├", "┤", "╯", "╰" },
-      preview = { "─", "│", "─", "│", "╭", "╮", "╯", "╰" },
-    },
-  })
-  builtin.find_files(dropdown_theme)
-end
+dropdown_theme = require'telescope.themes'.get_dropdown({
+  previewer = false,
+  prompt_title = "",
+  results_height = 16,
+  width = 0.6,
+  borderchars = {
+    { "─", "│", "─", "│", "╭", "╮", "╯", "╰" },
+    prompt = { "─", "│", " ", "│", "╭", "╮", "│", "│" },
+    results = { "─", "│", "─", "│", "├", "┤", "╯", "╰" },
+    preview = { "─", "│", "─", "│", "╭", "╮", "╯", "╰" },
+  },
+})
+
+-- FindFiles = function()
+--   builtin = require("telescope.builtin")
+--   themes = require("telescope.themes")
+--   dropdown_theme = themes.get_dropdown({
+--     previewer = false,
+--     prompt_title = "",
+--     results_height = 16,
+--     width = 0.6,
+--     borderchars = {
+--       { "─", "│", "─", "│", "╭", "╮", "╯", "╰" },
+--       prompt = { "─", "│", " ", "│", "╭", "╮", "│", "│" },
+--       results = { "─", "│", "─", "│", "├", "┤", "╯", "╰" },
+--       preview = { "─", "│", "─", "│", "╭", "╮", "╯", "╰" },
+--     },
+--   })
+--   builtin.find_files(dropdown_theme)
+-- end
 
 ReloadConfig = function()
   cmd([[:source ~/.config/nvim/init.lua]])
@@ -145,7 +159,7 @@ lsp_installer.on_server_ready(function(server)
   keymap("n", "]d", "<cmd>lua vim.diagnostic.goto_next()<CR>", { noremap = true, silent = true })
   --keymap("n", "gl", "<cmd>lua vim.diagnostic.setloclist()<CR>", { noremap = true, silent = true})
   keymap("n", "gf", "<cmd>lua vim.lsp.buf.formatting()<CR>", { noremap = true, silent = true })
-  keymap("n", "<C-i>", "<cmd>:SymbolsOutline<CR>", { noremap = true, silent = true })
+  keymap("n", "gs", "<cmd>:SymbolsOutline<CR>", { noremap = true, silent = true })
   -- vim.api.nvim_set_keymap("n", "<C-i>", ":TagbarOpenAutoClose<CR>", {})
 
   -- Enable completion triggered by <c-x><c-o>
@@ -476,18 +490,13 @@ vim.cmd([[let loaded_netrwPlugin = 1]])
 -- 62 purple
 -- 120 pale neon green
 -- 234 dark grey
-vim.g.material_style = "deep ocean"
-
-vim.g.sonokai_style = "espresso"
-
-vim.g.tokyonight_style = "night"
 -- vim.g.tokyonight_terminal_colors = true
 -- vim.g.tokyonight_transparent = true
 -- vim.g.transparent_sidebar = true
 -- vim.g.dark_sidebar = true
 
 -- vim.g.tokyonight_sidebars = { "terminal" }
-vim.g.tokyonight_day_brightness = 1
+--vim.g.tokyonight_day_brightness = 1
 
 local catppuccin = require("catppuccin")
 catppuccin.setup({
@@ -545,7 +554,6 @@ catppuccin.setup({
 })
 
 require("material").setup({
-
   contrast = {
     sidebars = false, -- Enable contrast for sidebar-like windows ( for example Nvim-Tree )
     floating_windows = false, -- Enable contrast for floating windows
@@ -606,7 +614,6 @@ vim.opt.termguicolors = true
 -- inline colors
 --require'colorizer'.setup()
 
-cmd([[colorscheme material]])
 -- }}}
 
 -- require("bufferline").setup({
@@ -623,56 +630,56 @@ cmd([[colorscheme material]])
 require("nvim-web-devicons").setup()
 
 -- StatusBar
-require("lualine").setup({
-  options = {
-    icons_enabled = true,
-    theme = "auto",
-    component_separators = { left = "", right = "" },
-    section_separators = { left = "", right = "" },
-    disabled_filetypes = {},
-    always_divide_middle = true,
-  },
-  sections = {
-    lualine_a = { "mode" },
-    lualine_b = { "branch", "diff", "diagnostics" },
-    lualine_c = { "filename" },
-    lualine_x = { "encoding", "fileformat", "filetype" },
-    lualine_y = { "progress" },
-    lualine_z = { "location" },
-  },
-  inactive_sections = {
-    lualine_a = {},
-    lualine_b = {},
-    lualine_c = { "filename" },
-    lualine_x = { "location" },
-    lualine_y = {},
-    lualine_z = {},
-  },
-  tabline = {},
-  extensions = {},
-})
+-- require("lualine").setup({
+--   options = {
+--     icons_enabled = true,
+--     theme = "auto",
+--     component_separators = { left = "", right = "" },
+--     section_separators = { left = "", right = "" },
+--     disabled_filetypes = {},
+--     always_divide_middle = true,
+--   },
+--   sections = {
+--     lualine_a = { "mode" },
+--     lualine_b = { "branch", "diff", "diagnostics" },
+--     lualine_c = { "filename" },
+--     lualine_x = { "encoding", "fileformat", "filetype" },
+--     lualine_y = { "progress" },
+--     lualine_z = { "location" },
+--   },
+--   inactive_sections = {
+--     lualine_a = {},
+--     lualine_b = {},
+--     lualine_c = { "filename" },
+--     lualine_x = { "location" },
+--     lualine_y = {},
+--     lualine_z = {},
+--   },
+--   tabline = {},
+--   extensions = {},
+-- })
 
 -- Keymaps
 -- {{{
 --  see: https://github.com/nanotee/nvim-lua-guide#defining-mappings
-local function keymap(...)
-  vim.api.nvim_buf_set_keymap(bufnr, ...)
-end
+local keymap = vim.api.nvim_set_keymap
 local opts = { noremap = true, silent = true }
-keymap("", "<C-s>", ":write<CR>", { noremap = true })
-keymap("n", "gp", "<cmd>lua require'telescope'.extensions.project.project{display_type='full'}<cr>", { noremap = true }) -- find projects
---vim.api.nvim_set_keymap('', '<C-w>', ':tabclose<CR>', {noremap = true})
+
+vim.api.nvim_set_keymap("", "S", ":write<CR>", { noremap = true })
+--vim.api.nvim_set_keymap("", "<", ":write<CR>", { noremap = true })
+--vim.api.nvim_set_keymap('', '', ':tabclose<CR>', {noremap = true})
 vim.api.nvim_set_keymap("", "<C-q>", ":quit!<CR>", { noremap = true })
 vim.api.nvim_set_keymap("", "<C-[>", ":BufferLineCyclePrev<CR>", {})
 vim.api.nvim_set_keymap("", "<C-]>", ":BufferLineCycleNext<CR>", {})
 vim.api.nvim_set_keymap("", "<C-t>", ":Telescope<cr>", { noremap = true })
---vim.api.nvim_set_keymap("n", "<C-o>", ":FZF<CR>", {})
-keymap("", "<C-o>", "<cmd>lua FindFiles()<CR>", { noremap = true, silent = true })
+
+keymap("n", "rr", "<Cmd>lua require'telescope'.extensions.project.project{display_type='full'}<cr>", opts) -- find projects
+keymap("n", "<C-i>", "<cmd>lua require('telescope.builtin').find_files(require('telescope.themes').get_dropdown{previewer = false})<cr>", { noremap = true })
+keymap("n", "<C-o>", "<cmd>:Telescope find_files<CR>", { noremap = true, silent = true })
 
 vim.api.nvim_set_keymap("n", "<Esc>", ":noh<cr>", { noremap = true }) -- fix ESC confusion in normal mode
 vim.api.nvim_set_keymap("n", "gf", "<Plug>(easymotion-bd-w)", {})
 vim.api.nvim_set_keymap("n", "<C-f>", ":Rg<cr>", { noremap = true, silent = true })
-vim.api.nvim_set_keymap("n", "<C-p>", ":Telescope find_files<cr>", { noremap = true })
 --nnoremap <leader>fg <cmd>lua require('telescope.builtin').live_grep()<cr>
 --nnoremap <leader>fb <cmd>lua require('telescope.builtin').buffers()<cr>
 --nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags()<cr>
@@ -704,6 +711,4 @@ vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
 
 vim.opt.scrolloff = 100
 -- }}}
---
---
 

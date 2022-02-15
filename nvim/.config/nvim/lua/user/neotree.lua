@@ -1,7 +1,11 @@
 vim.cmd([[
-        hi link NeoTreeDirectoryName Directory
-        hi link NeoTreeDirectoryIcon NeoTreeDirectoryName
+        hi link NeoTreeDirectoryName Normal
+        hi link NeoTreeDirectoryIcon Comment
+        hi link NeoTreeIndentMarket Comment
       ]])
+
+vim.api.nvim_set_keymap("", "<C-p>", ":NeoTreeFloat<CR>", { noremap = true, silent = true })
+vim.api.nvim_set_keymap("", "<C-b>", ":NeoTreeShowToggle<CR>", { noremap = true, silent = true })
 
 require("neo-tree").setup({
   close_if_last_window = true, -- Close Neo-tree if it is the last window left in the tab
@@ -28,7 +32,7 @@ require("neo-tree").setup({
       use_git_status_colors = true,
     },
     git_status = {
-      --highlight = "NeoTreeDimText", -- if you remove this the status will be colorful
+      highlight = "NeoTreeDimText", -- if you remove this the status will be colorful
     },
   },
 
@@ -129,8 +133,3 @@ require("neo-tree").setup({
     },
   },
 })
---vim.cmd([[nnoremap \ :NeoTreeReveal<cr>]])
-local keymap = vim.api.nvim_set_keymap
-local opts = { noremap = true, silent = true }
-keymap("", "<C-e>", ":NeoTreeFloat<CR>", opts)
-keymap("", "<C-b>", ":NeoTreeFocusToggle<CR>", opts)
