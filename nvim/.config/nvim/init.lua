@@ -22,10 +22,6 @@ require("user.telescope")
 
 -- https://github.com/LunarVim/Neovim-from-scratch
 
--- Scrollbar
-
-require("scrollbar").setup()
-
 dropdown_theme = require'telescope.themes'.get_dropdown({
   previewer = false,
   prompt_title = "",
@@ -98,46 +94,48 @@ require("nvim-treesitter.configs").setup({
 local nvim_lsp = require("lspconfig")
 local lsp_installer = require("nvim-lsp-installer")
 
-lsp_installer.on_server_ready(function(server)
-  local keymap = vim.api.nvim_set_keymap
+  lsp_installer.on_server_ready(function(server)
+    local keymap = vim.api.nvim_set_keymap
 
-  -- LSP Keymaps
-  keymap("n", "gD", "<cmd>lua vim.lsp.buf.declaration()<CR>", { noremap = true, silent = true })
-  keymap("n", "gd", "<cmd>lua vim.lsp.buf.definition()<CR>", { noremap = true, silent = true })
-  keymap("n", "K", "<cmd>lua vim.lsp.buf.hover()<CR>", { noremap = true, silent = true })
-  keymap("n", "gi", "<cmd>lua vim.lsp.buf.implementation()<CR>", { noremap = true, silent = true })
-  keymap("n", "gr", "<cmd>lua vim.lsp.buf.references()<CR>", { noremap = true, silent = true })
-  keymap("n", "<C-k>", "<cmd>lua vim.lsp.buf.signature_help()<CR>", { noremap = true, silent = true })
-  keymap("n", "<space>wa", "<cmd>lua vim.lsp.buf.add_workspace_folder()<CR>", { noremap = true, silent = true })
-  keymap("n", "<space>wr", "<cmd>lua vim.lsp.buf.remove_workspace_folder()<CR>", { noremap = true, silent = true })
-  keymap(
-    "n",
-    "<space>wl",
-    "<cmd>lua print(vim.inspect(vim.lsp.buf.list_workspace_folders()))<CR>",
-    { noremap = true, silent = true }
-  )
-  keymap("n", "td", "<cmd>lua vim.lsp.brf.type_definition()<CR>", { noremap = true, silent = true })
-  keymap("n", "tr", "<cmd>lua vim.lsp.buf.rename()<CR>", { noremap = true, silent = true })
-  keymap("n", "ga", "<cmd>lua vim.lsp.buf.code_action()<CR>", { noremap = true, silent = true })
-  keymap("n", "te", "<cmd>lua vim.diagnostic.open_float()<CR>", { noremap = true, silent = true })
-  keymap("n", "[d", "<cmd>lua vim.diagnostic.goto_prev()<CR>", { noremap = true, silent = true })
-  keymap("n", "]d", "<cmd>lua vim.diagnostic.goto_next()<CR>", { noremap = true, silent = true })
-  --keymap("n", "gl", "<cmd>lua vim.diagnostic.setloclist()<CR>", { noremap = true, silent = true})
-  keymap("n", "gf", "<cmd>lua vim.lsp.buf.formatting()<CR>", { noremap = true, silent = true })
-  keymap("n", "gs", "<cmd>:SymbolsOutline<CR>", { noremap = true, silent = true })
-  -- vim.api.nvim_set_keymap("n", "<C-i>", ":TagbarOpenAutoClose<CR>", {})
+    -- LSP Keymaps
+    keymap("n", "gD", "<cmd>lua vim.lsp.buf.declaration()<CR>", { noremap = true, silent = true })
+    keymap("n", "gd", "<cmd>lua vim.lsp.buf.definition()<CR>", { noremap = true, silent = true })
+    keymap("n", "K", "<cmd>lua vim.lsp.buf.hover()<CR>", { noremap = true, silent = true })
+    keymap("n", "gi", "<cmd>lua vim.lsp.buf.implementation()<CR>", { noremap = true, silent = true })
+    keymap("n", "gr", "<cmd>lua vim.lsp.buf.references()<CR>", { noremap = true, silent = true })
+    keymap("n", "<C-k>", "<cmd>lua vim.lsp.buf.signature_help()<CR>", { noremap = true, silent = true })
+    keymap("n", "<space>wa", "<cmd>lua vim.lsp.buf.add_workspace_folder()<CR>", { noremap = true, silent = true })
+    keymap("n", "<space>wr", "<cmd>lua vim.lsp.buf.remove_workspace_folder()<CR>", { noremap = true, silent = true })
+    keymap(
+      "n",
+      "<space>wl",
+      "<cmd>lua print(vim.inspect(vim.lsp.buf.list_workspace_folders()))<CR>",
+      { noremap = true, silent = true }
+    )
+    keymap("n", "td", "<cmd>lua vim.lsp.brf.type_definition()<CR>", { noremap = true, silent = true })
+    keymap("n", "tr", "<cmd>lua vim.lsp.buf.rename()<CR>", { noremap = true, silent = true })
+    keymap("n", "ga", "<cmd>lua vim.lsp.buf.code_action()<CR>", { noremap = true, silent = true })
+    keymap("n", "te", "<cmd>lua vim.diagnostic.open_float()<CR>", { noremap = true, silent = true })
+    keymap("n", "[d", "<cmd>lua vim.diagnostic.goto_prev()<CR>", { noremap = true, silent = true })
+    keymap("n", "]d", "<cmd>lua vim.diagnostic.goto_next()<CR>", { noremap = true, silent = true })
+    --keymap("n", "gl", "<cmd>lua vim.diagnostic.setloclist()<CR>", { noremap = true, silent = true})
+    keymap("n", "gf", "<cmd>lua vim.lsp.buf.formatting()<CR>", { noremap = true, silent = true })
+    keymap("n", "gs", "<cmd>:SymbolsOutline<CR>", { noremap = true, silent = true })
+    -- vim.api.nvim_set_keymap("n", "<C-i>", ":TagbarOpenAutoClose<CR>", {})
 
-  keymap("n", "gw", "<cmd>lua require('telescope.builtin').lsp_workspace_symbols(require('telescope.themes').get_dropdown{previewer = false})<cr>", { noremap = true })
-  keymap("n", "gd", "<cmd>lua require('telescope.builtin').lsp_document_symbols(require('telescope.themes').get_dropdown{previewer = false})<cr>", { noremap = true })
+    keymap("n", "gw", "<cmd>lua require('telescope.builtin').lsp_workspace_symbols(require('telescope.themes').get_dropdown{previewer = false})<cr>", { noremap = true })
+    keymap("n", "gd", "<cmd>lua require('telescope.builtin').lsp_document_symbols(require('telescope.themes').get_dropdown{previewer = false})<cr>", { noremap = true })
 
-  -- Enable completion triggered by <c-x><c-o>
+    -- Enable completion triggered by <c-x><c-o>
 
-  -- symbols outline:
-  -- local opts = {}
-  --
+    -- symbols outline:
+    -- local opts = {}
+    --
 
-  -- signatures (eg function completion etc)
-  require("lsp_signature").setup({})
+    -- signatures (eg function completion etc)
+    require("lsp_signature").setup({})
+    --require('user.autocomplete')
+ 
 
   -- (optional) Customize the options passed to the server
   if server.name == "rust_analyer" then
