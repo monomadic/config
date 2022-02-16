@@ -12,12 +12,7 @@ vim.g["dashboard_custom_header"] = {
 require("user.options")
 require("user.keymaps")
 require("user.plugins")
-
-vim.g.material_style = "deep ocean"
-vim.g.sonokai_style = "espresso"
-vim.g.tokyonight_style = "night"
-cmd([[colorscheme material]])
-
+require("user.colors")
 require("user.whichkey")
 require("user.comment")
 --require 'user.nvimtree'
@@ -266,13 +261,6 @@ cmp.setup.cmdline(":", {
 
 -- }}}
 
--- LSP: Svelte
-nvim_lsp.svelte.setup({
-  cmd = { "svelteserver", "--stdio" },
-})
-
--- }}}
-
 -- LSP: Rust
 -- {{{
 -- require("rust-tools").setup({
@@ -396,8 +384,6 @@ require("null-ls").setup({
 -- Globals
 --   see :h lua-vim-variables and :h lua-vim-options
 -- {{{
-vim.env.FZF_DEFAULT_OPTS = "--layout=reverse"
-vim.env.FZF_DEFAULT_COMMAND = "rg --files --hidden --glob !.git"
 vim.opt.wildignore = { "*/cache/*", "*/tmp/*" }
 vim.opt.number = true
 -- tabs and spaces

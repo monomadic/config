@@ -97,6 +97,15 @@ require("packer").startup(function(use)
   -- use "mfussenegger/nvim-dap" -- debugging protocol
   use("MunifTanjim/prettier.nvim") -- formatting with Prettier
 
+  use {
+    'saecki/crates.nvim',
+    event = { "BufRead Cargo.toml" },
+    requires = { { 'nvim-lua/plenary.nvim' } },
+    config = function()
+        require('user.cargo')
+    end,
+  }
+
   -- Telescope
   use("nvim-telescope/telescope.nvim")
   use("nvim-telescope/telescope-symbols.nvim")
