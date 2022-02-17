@@ -36,9 +36,20 @@ require("packer").startup(function(use)
   -- use "windwp/nvim-autopairs" -- Autopairs, integrates with both cmp and treesitter
   use("numToStr/Comment.nvim") -- commenting
   use("kyazdani42/nvim-web-devicons") -- colored icons in tree and status bar
-  use({"akinsho/bufferline.nvim",
-    --config = require("user.bufferline"),
-  })
+  -- use({"akinsho/bufferline.nvim",
+  --   config = require("user.bufferline"),
+  -- })
+
+  -- use({'noib3/nvim-cokeline',
+  --   config = require('user.coke')
+  -- })
+
+ use {
+   'noib3/nvim-cokeline', -- because bufferline sucks to configure
+   requires = 'kyazdani42/nvim-web-devicons',
+   config = require('user.coke'),
+ }
+
   -- use "moll/vim-bbye"
   -- use "nvim-lualine/lualine.nvim"
   use("akinsho/toggleterm.nvim")
@@ -126,6 +137,7 @@ require("packer").startup(function(use)
   use({
     "nvim-treesitter/nvim-treesitter",
     run = ":TSUpdate",
+    config = require('user.treesitter')
   })
   use("JoosepAlviste/nvim-ts-context-commentstring")
 

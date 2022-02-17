@@ -71,7 +71,7 @@ local opts = {
             },
 
             -- whether the hover action window gets automatically focused
-            auto_focus = false
+            auto_focus = true
         },
 
         -- settings for showing the crate graph based on graphviz and the dot
@@ -80,13 +80,13 @@ local opts = {
             -- Backend used for displaying the graph
             -- see: https://graphviz.org/docs/outputs/
             -- default: x11
-            backend = "x11",
+            backend = "png",
             -- where to store the output, nil for no output stored (relative
             -- path from pwd)
             -- default: nil
-            output = nil,
+            output = "graph.png",
             -- command to pipe the output to, nil for no piping
-            pipe = nil,
+            --pipe = "display", -- imagemagic
             -- NOTE: Be careful when using pipe and output together
             -- true for all crates.io and external crates, false only the local
             -- crates

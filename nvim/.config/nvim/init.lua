@@ -1,4 +1,5 @@
-local cmd = vim.cmd local call = vim.call
+local cmd = vim.cmd
+local call = vim.call
 vim.g["dashboard_custom_header"] = {
   "██▄   ▄███▄   ██     ▄▄▄▄▀ ▄  █ ██▄   ▄█    ▄▄▄▄▄   ▄█▄    ████▄ ",
   "█  █  █▀   ▀  █ █ ▀▀▀ █   █   █ █  █  ██   █     ▀▄ █▀ ▀▄  █   █ ",
@@ -17,12 +18,11 @@ require("user.whichkey")
 require("user.comment")
 --require 'user.nvimtree'
 require("user.neotree")
-require("user.bufferline")
 require("user.telescope")
 
 -- https://github.com/LunarVim/Neovim-from-scratch
 
-dropdown_theme = require'telescope.themes'.get_dropdown({
+dropdown_theme = require("telescope.themes").get_dropdown({
   previewer = false,
   prompt_title = "",
   results_height = 16,
@@ -35,122 +35,75 @@ dropdown_theme = require'telescope.themes'.get_dropdown({
   },
 })
 
--- Treesitter
--- {{{
-require("nvim-treesitter.configs").setup({
-  highlight = {
-    enable = true, -- false will disable the whole extension
-  },
-  incremental_selection = {
-    enable = true,
-    keymaps = {
-      init_selection = "gnn",
-      node_incremental = "grn",
-      scope_incremental = "grc",
-      node_decremental = "grm",
-    },
-  },
-  indent = {
-    enable = true,
-  },
-  textobjects = {
-    select = {
-      enable = true,
-      lookahead = true, -- Automatically jump forward to textobj, similar to targets.vim
-      keymaps = {
-        -- You can use the capture groups defined in textobjects.scm
-        ["af"] = "@function.outer",
-        ["if"] = "@function.inner",
-        ["ac"] = "@class.outer",
-        ["ic"] = "@class.inner",
-      },
-    },
-    move = {
-      enable = true,
-      set_jumps = true, -- whether to set jumps in the jumplist
-      goto_next_start = {
-        ["]m"] = "@function.outer",
-        ["]]"] = "@class.outer",
-      },
-      goto_next_end = {
-        ["]M"] = "@function.outer",
-        ["]["] = "@class.outer",
-      },
-      goto_previous_start = {
-        ["[m"] = "@function.outer",
-        ["[["] = "@class.outer",
-      },
-      goto_previous_end = {
-        ["[M"] = "@function.outer",
-        ["[]"] = "@class.outer",
-      },
-    },
-  },
-})
--- }}}
-
 -- LSP
--- {{{
 local nvim_lsp = require("lspconfig")
 local lsp_installer = require("nvim-lsp-installer")
 
-  lsp_installer.on_server_ready(function(server)
-    local keymap = vim.api.nvim_set_keymap
+lsp_installer.on_server_ready(function(server)
+  local keymap = vim.api.nvim_set_keymap
 
-    -- LSP Keymaps
-    keymap("n", "gD", "<cmd>lua vim.lsp.buf.declaration()<CR>", { noremap = true, silent = true })
-    keymap("n", "gd", "<cmd>lua vim.lsp.buf.definition()<CR>", { noremap = true, silent = true })
-    keymap("n", "K", "<cmd>lua vim.lsp.buf.hover()<CR>", { noremap = true, silent = true })
-    keymap("n", "gi", "<cmd>lua vim.lsp.buf.implementation()<CR>", { noremap = true, silent = true })
-    keymap("n", "gr", "<cmd>lua vim.lsp.buf.references()<CR>", { noremap = true, silent = true })
-    keymap("n", "<C-k>", "<cmd>lua vim.lsp.buf.signature_help()<CR>", { noremap = true, silent = true })
-    keymap("n", "<space>wa", "<cmd>lua vim.lsp.buf.add_workspace_folder()<CR>", { noremap = true, silent = true })
-    keymap("n", "<space>wr", "<cmd>lua vim.lsp.buf.remove_workspace_folder()<CR>", { noremap = true, silent = true })
-    keymap(
-      "n",
-      "<space>wl",
-      "<cmd>lua print(vim.inspect(vim.lsp.buf.list_workspace_folders()))<CR>",
-      { noremap = true, silent = true }
-    )
-    keymap("n", "td", "<cmd>lua vim.lsp.brf.type_definition()<CR>", { noremap = true, silent = true })
-    keymap("n", "tr", "<cmd>lua vim.lsp.buf.rename()<CR>", { noremap = true, silent = true })
-    keymap("n", "ga", "<cmd>lua vim.lsp.buf.code_action()<CR>", { noremap = true, silent = true })
-    keymap("n", "te", "<cmd>lua vim.diagnostic.open_float()<CR>", { noremap = true, silent = true })
-    keymap("n", "[d", "<cmd>lua vim.diagnostic.goto_prev()<CR>", { noremap = true, silent = true })
-    keymap("n", "]d", "<cmd>lua vim.diagnostic.goto_next()<CR>", { noremap = true, silent = true })
-    --keymap("n", "gl", "<cmd>lua vim.diagnostic.setloclist()<CR>", { noremap = true, silent = true})
-    keymap("n", "gf", "<cmd>lua vim.lsp.buf.formatting()<CR>", { noremap = true, silent = true })
-    keymap("n", "gs", "<cmd>:SymbolsOutline<CR>", { noremap = true, silent = true })
-    -- vim.api.nvim_set_keymap("n", "<C-i>", ":TagbarOpenAutoClose<CR>", {})
+  -- LSP Keymaps
+  keymap("n", "gD", "<cmd>lua vim.lsp.buf.declaration()<CR>", { noremap = true, silent = true })
+  keymap("n", "gd", "<cmd>lua vim.lsp.buf.definition()<CR>", { noremap = true, silent = true })
+  keymap("n", "K", "<cmd>lua vim.lsp.buf.hover()<CR>", { noremap = true, silent = true })
+  keymap("n", "gi", "<cmd>lua vim.lsp.buf.implementation()<CR>", { noremap = true, silent = true })
+  keymap("n", "gr", "<cmd>lua vim.lsp.buf.references()<CR>", { noremap = true, silent = true })
+  keymap("n", "<C-k>", "<cmd>lua vim.lsp.buf.signature_help()<CR>", { noremap = true, silent = true })
+  keymap("n", "<space>wa", "<cmd>lua vim.lsp.buf.add_workspace_folder()<CR>", { noremap = true, silent = true })
+  keymap("n", "<space>wr", "<cmd>lua vim.lsp.buf.remove_workspace_folder()<CR>", { noremap = true, silent = true })
+  keymap(
+    "n",
+    "<space>wl",
+    "<cmd>lua print(vim.inspect(vim.lsp.buf.list_workspace_folders()))<CR>",
+    { noremap = true, silent = true }
+  )
+  keymap("n", "td", "<cmd>lua vim.lsp.brf.type_definition()<CR>", { noremap = true, silent = true })
+  keymap("n", "tr", "<cmd>lua vim.lsp.buf.rename()<CR>", { noremap = true, silent = true })
+  keymap("n", "ga", "<cmd>lua vim.lsp.buf.code_action()<CR>", { noremap = true, silent = true })
+  keymap("n", "te", "<cmd>lua vim.diagnostic.open_float()<CR>", { noremap = true, silent = true })
+  keymap("n", "[d", "<cmd>lua vim.diagnostic.goto_prev()<CR>", { noremap = true, silent = true })
+  keymap("n", "]d", "<cmd>lua vim.diagnostic.goto_next()<CR>", { noremap = true, silent = true })
+  --keymap("n", "gl", "<cmd>lua vim.diagnostic.setloclist()<CR>", { noremap = true, silent = true})
+  keymap("n", "gf", "<cmd>lua vim.lsp.buf.formatting()<CR>", { noremap = true, silent = true })
+  keymap("n", "gs", "<cmd>:SymbolsOutline<CR>", { noremap = true, silent = true })
+  -- vim.api.nvim_set_keymap("n", "<C-i>", ":TagbarOpenAutoClose<CR>", {})
 
-    keymap("n", "gw", "<cmd>lua require('telescope.builtin').lsp_workspace_symbols(require('telescope.themes').get_dropdown{previewer = false})<cr>", { noremap = true })
-    keymap("n", "gd", "<cmd>lua require('telescope.builtin').lsp_document_symbols(require('telescope.themes').get_dropdown{previewer = false})<cr>", { noremap = true })
+  keymap(
+    "n",
+    "gw",
+    "<cmd>lua require('telescope.builtin').lsp_workspace_symbols(require('telescope.themes').get_dropdown{previewer = false})<cr>",
+    { noremap = true }
+  )
+  keymap(
+    "n",
+    "gd",
+    "<cmd>lua require('telescope.builtin').lsp_document_symbols(require('telescope.themes').get_dropdown{previewer = false})<cr>",
+    { noremap = true }
+  )
 
-    -- Enable completion triggered by <c-x><c-o>
+  -- Enable completion triggered by <c-x><c-o>
 
-    -- symbols outline:
-    -- local opts = {}
-    --
+  local opts = {}
 
-    -- signatures (eg function completion etc)
-    require("lsp_signature").setup({})
-    --require('user.autocomplete')
- 
+  -- signatures (eg function completion etc)
+  require("lsp_signature").setup({})
+  --require('user.autocomplete')
 
   -- (optional) Customize the options passed to the server
-  if server.name == "rust_analyer" then
-      opts.root_dir = function()
-        cmd([[colorscheme sonokai]])
-      end
-  end
+  -- if server.name == "rust_analyzer" then
+  --     -- opts.root_dir = function()
+  --     --   cmd([[colorscheme sonokai]])
+  --     -- end
+  -- end
 
   -- This setup() function will take the provided server configuration and decorate it with the necessary properties
   -- before passing it onwards to lspconfig.
   -- Refer to https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md
-  server:setup({ noremap = true, silent = true })
+  --server:setup(opts)
+  --vim.cmd [[ do User LspAttach Buffers ]]
 end)
 
-vim.cmd([[set foldmethod=marker]])
+vim.cmd([[set foldmethod=syntax]]) -- marker | syntax
 
 vim.g.symbols_outline = {
   highlight_hovered_item = true,
@@ -257,123 +210,12 @@ cmp.setup.cmdline(":", {
   }),
 })
 
--- }}}
-
--- LSP: Rust
--- {{{
--- require("rust-tools").setup({
---
---   tools = { -- rust-tools options
---     -- Automatically set inlay hints (type hints)
---     autoSetHints = true,
---     -- Whether to show hover actions inside the hover window
---     -- This overrides the default hover handler
---     hover_with_actions = true,
---
---     -- how to execute terminal commands
---     -- options right now: termopen / quickfix
---     executor = require("rust-tools/executors").termopen,
---     runnables = {
---       -- whether to use telescope for selection menu or not
---       use_telescope = true,
---       -- rest of the opts are forwarded to telescope
---     },
---     debuggables = {
---       -- whether to use telescope for selection menu or not
---       use_telescope = true,
---       -- rest of the opts are forwarded to telescope
---     },
---
---     -- These apply to the default RustSetInlayHints command
---     inlay_hints = {
---       -- Only show inlay hints for the current line
---       only_current_line = false,
---       -- Event which triggers a refersh of the inlay hints.
---       -- You can make this "CursorMoved" or "CursorMoved,CursorMovedI" but
---       -- not that this may cause  higher CPU usage.
---       -- This option is only respected when only_current_line and
---       -- autoSetHints both are true.
---       only_current_line_autocmd = "CursorHold",
---       -- wheter to show parameter hints with the inlay hints or not
---       show_parameter_hints = true,
---       -- prefix for parameter hints
---       parameter_hints_prefix = "<- ",
---       -- prefix for all the other hints (type, chaining)
---       other_hints_prefix = "=> ",
---       -- whether to align to the length of the longest line in the file
---       max_len_align = false,
---       -- padding from the left if max_len_align is true
---       max_len_align_padding = 1,
---       -- whether to align to the extreme right or not
---       right_align = false,
---       -- padding from the right if right_align is true
---       right_align_padding = 7,
---       -- The color of the hints
---       highlight = "Comment",
---     },
---
---     hover_actions = {
---       -- the border that is used for the hover window
---       -- see vim.api.nvim_open_win()
---       border = {
---         { "╭", "FloatBorder" },
---         { "─", "FloatBorder" },
---         { "╮", "FloatBorder" },
---         { "│", "FloatBorder" },
---         { "╯", "FloatBorder" },
---         { "─", "FloatBorder" },
---         { "╰", "FloatBorder" },
---         { "│", "FloatBorder" },
---       },
---       -- whether the hover action window gets automatically focused
---       auto_focus = false,
---     },
---     -- settings for showing the crate graph based on graphviz and the dot
---     -- command
---     crate_graph = {
---       -- Backend used for displaying the graph
---       -- see: https://graphviz.org/docs/outputs/
---       -- default: x11
---       backend = "x11",
---       -- where to store the output, nil for no output stored (relative
---       -- path from pwd)
---       -- default: nil
---       output = nil,
---       -- true for all crates.io and external crates, false only the local
---       -- crates
---       -- default: true
---       full = true,
---     },
---   },
---
--- all the opts to send to nvim-lspconfig
--- these override the defaults set by rust-tools.nvim
--- see https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md#rust_analyzer
---  server = {
---    -- standalone file support
---    -- setting it to false may improve startup time
---    standalone = true,
---  }, -- rust-analyer options
-
--- debugging stuff
---  dap = {
---    adapter = {
---      type = "executable",
---      command = "lldb-vscode",
---      name = "rt_lldb",
---    },
---  },
---})
--- }}}
-
 -- Terminal
 require("toggleterm").setup({
   open_mapping = [[<C-j>]],
   shading_factor = "1",
   -- shell = "bash",
 })
-
--- Fuzzy Find
 
 require("null-ls").setup({
   on_attach = function(client, bufnr) end,
@@ -388,16 +230,8 @@ vim.opt.number = true
 vim.opt.tabstop = 2 -- size of each tab
 vim.opt.shiftwidth = 2 -- spaces to shift when using << and >>
 vim.opt.expandtab = true -- spaces when using tab
--- vim.g['ctrlp_prompt_mappings'] = {['AcceptSelection("t")'] = '<cr>'}
---vim.g["airline#extensions#tabline#show_devicons"] = "true"
---vim.g["airline#extensions#tabline#enabled"] = 1
---vim.g["airline#extensions#tabline#buffer_nr_show"] = 1
---vim.g['airline#extensions#tabline#left_alt_sep'] = ' '
---vim.g["airline#extensions#tabline#left_sep"] = " "
 vim.g["noswapfile"] = true
 vim.g["nocompatible"] = true
--- syntax enable
--- filetype plugin on
 vim.g["hidden"] = true -- so buffers can hide
 
 -- nvim-ripgrep
@@ -413,8 +247,6 @@ vim.cmd([[
 ]])
 
 --vim.o.completeopt = "menu,menuone,noselect" -- completion
-
--- }}}
 
 local popui = require("popui.ui-overrider")
 vim.ui.select = popui
@@ -542,7 +374,6 @@ require("material").setup({
 
 -- cmd([[hi NvimTreeVertSplit guibg=none]])
 
-vim.opt.termguicolors = true
 -- vim.api.nvim_exec(
 --   [[
 --   hi Normal guibg=none ctermbg=none
@@ -556,8 +387,6 @@ vim.opt.termguicolors = true
 --
 -- inline colors
 --require'colorizer'.setup()
-
--- }}}
 
 require("nvim-web-devicons").setup()
 
@@ -600,13 +429,16 @@ local opts = { noremap = true, silent = true }
 vim.api.nvim_set_keymap("", "S", ":write<CR>", { noremap = true })
 --vim.api.nvim_set_keymap("", "<", ":write<CR>", { noremap = true })
 --vim.api.nvim_set_keymap('', '', ':tabclose<CR>', {noremap = true})
-vim.api.nvim_set_keymap("", "<C-q>", ":quit!<CR>", { noremap = true })
-vim.api.nvim_set_keymap("", "<C-[>", ":BufferLineCyclePrev<CR>", {})
-vim.api.nvim_set_keymap("", "<C-]>", ":BufferLineCycleNext<CR>", {})
+vim.api.nvim_set_keymap("", "<C-q>", ":bdelete<CR>", { noremap = true })
 vim.api.nvim_set_keymap("", "<C-t>", ":Telescope<cr>", { noremap = true })
 
 keymap("n", "rr", "<Cmd>lua require'telescope'.extensions.project.project{display_type='full'}<cr>", opts) -- find projects
-keymap("n", "<C-i>", "<cmd>lua require('telescope.builtin').find_files(require('telescope.themes').get_dropdown{previewer = false})<cr>", { noremap = true })
+keymap(
+  "n",
+  "<C-i>",
+  "<cmd>lua require('telescope.builtin').find_files(require('telescope.themes').get_dropdown{previewer = false})<cr>",
+  { noremap = true }
+)
 keymap("n", "<C-o>", "<cmd>:Telescope find_files<CR>", { noremap = true, silent = true })
 
 vim.api.nvim_set_keymap("n", "<Esc>", ":noh<cr>", { noremap = true }) -- fix ESC confusion in normal mode
@@ -642,5 +474,3 @@ vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
 -- keymap("i", "<ENTER>", "<ENTER><ESC>zzi", { noremap = true, silent = true})
 
 vim.opt.scrolloff = 100
--- }}}
-
