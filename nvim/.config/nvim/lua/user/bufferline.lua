@@ -93,7 +93,7 @@ require('bufferline').setup {
         filetype = "neo-tree", -- use :echo &filetype
         text = function()
           local pwd = vim.fn.fnamemodify(vim.fn.getcwd(), ":t")
-          return '  ' .. pwd
+          return '   ' .. pwd
         end,
         highlight = "BufferLineCWD",
         text_align = "left"

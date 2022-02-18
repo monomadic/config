@@ -1,7 +1,7 @@
 local cmp = require'cmp'
-local luasnip = require('luasnip')
+--local luasnip = require('luasnip')
 
-require("luasnip/loaders/from_vscode").lazy_load()
+--require("luasnip/loaders/from_vscode").lazy_load()
 
 local check_backspace = function()
   local col = vim.fn.col "." - 1
@@ -9,6 +9,7 @@ local check_backspace = function()
 end
 
 --   פּ ﯟ   some other good icons
+-- find more here: https://www.nerdfonts.com/cheat-sheet
 local kind_icons = {
   Text = "",
   Method = "m",
@@ -37,18 +38,16 @@ local kind_icons = {
   TypeParameter = "",
 }
 
--- find more here: https://www.nerdfonts.com/cheat-sheet
---
-cmp.setup({
+cmp.setup {
   formatting = {
-    fields = { "kind", "abbr", "menu" },
+    fields = { "abbr", "kind", "menu" },
     format = function(entry, vim_item)
       -- Kind icons
       --vim_item.kind = string.format("%s", kind_icons[vim_item.kind])
       vim_item.kind = string.format('%s %s', kind_icons[vim_item.kind], vim_item.kind) -- This concatonates the icons with the name of the item kind
       vim_item.menu = ({
         nvim_lsp = "LSP",
-        luasnip = "Snippet",
+        --luasnip = "Snippet",
         buffer = "Buffer",
         path = "Path",
       })[entry.source.name]
@@ -56,7 +55,8 @@ cmp.setup({
     end,
   },
   documentation = {
-    border = { "╭", "─", "╮", "│", "╯", "─", "╰", "│" },
+    --border = { "╭", "─", "╮", "│", "╯", "─", "╰", "│" },
+    border = { "╭─", "─", "─╮", "│ ", "─╯", "─", "╰─", " │" },
   },
 
   snippet = {
@@ -81,10 +81,10 @@ cmp.setup({
     ["<Tab>"] = cmp.mapping(function(fallback)
       if cmp.visible() then
         cmp.select_next_item()
-      elseif luasnip.expandable() then
-        luasnip.expand()
-      elseif luasnip.expand_or_jumpable() then
-        luasnip.expand_or_jump()
+      -- elseif luasnip.expandable() then
+      --   luasnip.expand()
+      -- elseif luasnip.expand_or_jumpable() then
+      --   luasnip.expand_or_jump()
       elseif check_backspace() then
         fallback()
       else
@@ -97,8 +97,8 @@ cmp.setup({
     ["<S-Tab>"] = cmp.mapping(function(fallback)
       if cmp.visible() then
         cmp.select_prev_item()
-      elseif luasnip.jumpable(-1) then
-        luasnip.jump(-1)
+      -- elseif luasnip.jumpable(-1) then
+      --   luasnip.jump(-1)
       else
         fallback()
       end
@@ -107,53 +107,50 @@ cmp.setup({
       "s",
     }),
   },
-  sources = cmp.config.sources({
-    { name = 'nvim_lsp' },
-    --{ name = 'vsnip' }, -- For vsnip users.
-    -- { name = 'ultisnips' }, -- For ultisnips users.
-    -- { name = 'snippy' }, -- For snippy users.
-    { name = "luasnip" },
+
+  sources = {
+    { name = "nvim_lsp" },
+    --{ name = "luasnip" },
     { name = "buffer" },
     { name = "path" },
-  }, {
-    { name = 'buffer' },
-  }),
+  },
 
   confirm_opts = {
     behavior = cmp.ConfirmBehavior.Replace,
     select = false,
   },
+
   experimental = {
     ghost_text = false,
     native_menu = false,
   },
-})
+}
 
--- Set configuration for specific filetype.
-cmp.setup.filetype('gitcommit', {
-  sources = cmp.config.sources({
-    { name = 'cmp_git' }, -- You can specify the `cmp_git` source if you were installed it. 
-  }, {
-    { name = 'buffer' },
-  })
-})
-
--- Use buffer source for `/` (if you enabled `native_menu`, this won't work anymore).
-cmp.setup.cmdline('/', {
-  sources = {
-    { name = 'buffer' }
-  }
-})
-
--- Use cmdline & path source for ':' (if you enabled `native_menu`, this won't work anymore).
-cmp.setup.cmdline(':', {
-  sources = cmp.config.sources({
-    { name = 'path' }
-  }, {
-    { name = 'cmdline' }
-  })
-})
-
+-- -- Set configuration for specific filetype.
+-- cmp.setup.filetype('gitcommit', {
+--   sources = cmp.config.sources({
+--     { name = 'cmp_git' }, -- You can specify the `cmp_git` source if you were installed it. 
+--   }, {
+--     { name = 'buffer' },
+--   })
+-- })
+--
+-- -- Use buffer source for `/` (if you enabled `native_menu`, this won't work anymore).
+-- cmp.setup.cmdline('/', {
+--   sources = {
+--     { name = 'buffer' }
+--   }
+-- })
+--
+-- -- Use cmdline & path source for ':' (if you enabled `native_menu`, this won't work anymore).
+-- cmp.setup.cmdline(':', {
+--   sources = cmp.config.sources({
+--     { name = 'path' }
+--   }, {
+--     { name = 'cmdline' }
+--   })
+-- })
+--
 -- Setup lspconfig.
 -- local capabilities = require('cmp_nvim_lsp').update_capabilities(vim.lsp.protocol.make_client_capabilities())
 -- -- Replace <YOUR_LSP_SERVER> with each lsp server you've enabled.

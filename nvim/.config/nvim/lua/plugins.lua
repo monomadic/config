@@ -1,18 +1,19 @@
 local fn = vim.fn
-local install_path = fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
+local install_path = fn.stdpath('data')..'/site/pack/packer/start/packer.nvim'
 if fn.empty(fn.glob(install_path)) > 0 then
-  PACKER_BOOTSTRAP = fn.system({
-    "git",
-    "clone",
-    "--depth",
-    "1",
-    "https://github.com/wbthomason/packer.nvim",
-    install_path,
-  })
+    fn.system({'git', 'clone', '--depth', '1',
+        'https://github.com/wbthomason/packer.nvim', install_path})
+    vim.cmd 'packadd packer.nvim'
 end
 
-require("packer").startup(function(use)
-  use("wbthomason/packer.nvim") -- Have packer manage itself
+require("packer").startup(
+function(use)
+
+    -- Theme
+    use 'folke/tokyonight.nvim'
+
+    -- Status line
+    use { 'glepnir/galaxyline.nvim', requires = 'kyazdani42/nvim-web-devicons' }
 
   -- Tree
   use({
@@ -79,7 +80,6 @@ require("packer").startup(function(use)
   use("sainnhe/sonokai")
   use("lunarvim/colorschemes") -- collection of colorschemes
   use("lunarvim/darkplus.nvim")
-  use("folke/tokyonight.nvim")
   use("marko-cerovac/material.nvim")
   use("joshdick/onedark.vim")
   use("catppuccin/nvim")
@@ -152,3 +152,4 @@ require("packer").startup(function(use)
     require("packer").sync()
   end
 end)
+

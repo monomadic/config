@@ -1,6 +1,4 @@
-local cmd = vim.cmd
-local call = vim.call
-vim.g["dashboard_custom_header"] = {
+banner = {
   "██▄   ▄███▄   ██     ▄▄▄▄▀ ▄  █ ██▄   ▄█    ▄▄▄▄▄   ▄█▄    ████▄ ",
   "█  █  █▀   ▀  █ █ ▀▀▀ █   █   █ █  █  ██   █     ▀▄ █▀ ▀▄  █   █ ",
   "█   █ ██▄▄    █▄▄█    █   ██▀▀█ █   █ ██ ▄  ▀▀▀▀▄   █   ▀  █   █ ",
@@ -10,9 +8,16 @@ vim.g["dashboard_custom_header"] = {
   "               ▀                                   ",
 }
 
-require("user.options")
-require("user.keymaps")
-require("user.plugins")
+require 'settings'
+require 'keymaps'
+require 'plugins'
+
+require 'nv-galaxyline'
+
+local cmd = vim.cmd
+local call = vim.call
+
+--require("user.plugins")
 require("user.colors")
 require("user.whichkey")
 require("user.comment")
@@ -65,7 +70,7 @@ lsp_installer.on_server_ready(function(server)
   keymap("n", "]d", "<cmd>lua vim.diagnostic.goto_next()<CR>", { noremap = true, silent = true })
   --keymap("n", "gl", "<cmd>lua vim.diagnostic.setloclist()<CR>", { noremap = true, silent = true})
   keymap("n", "gf", "<cmd>lua vim.lsp.buf.formatting()<CR>", { noremap = true, silent = true })
-  keymap("n", "gs", "<cmd>:SymbolsOutline<CR>", { noremap = true, silent = true })
+  keymap("n", "gS", "<cmd>:SymbolsOutline<CR>", { noremap = true, silent = true })
   -- vim.api.nvim_set_keymap("n", "<C-i>", ":TagbarOpenAutoClose<CR>", {})
 
   keymap(
@@ -76,7 +81,7 @@ lsp_installer.on_server_ready(function(server)
   )
   keymap(
     "n",
-    "gd",
+    "gs",
     "<cmd>lua require('telescope.builtin').lsp_document_symbols(require('telescope.themes').get_dropdown{previewer = false})<cr>",
     { noremap = true }
   )
@@ -158,58 +163,6 @@ vim.g.symbols_outline = {
   },
 }
 
--- LSP: Completion
--- {{{
-local cmp = require("cmp")
-
-cmp.setup({
-  snippet = {
-    -- REQUIRED - you must specify a snippet engine
-    expand = function(args)
-      vim.fn["vsnip#anonymous"](args.body) -- For `vsnip` users.
-      -- require('luasnip').lsp_expand(args.body) -- For `luasnip` users.
-      -- require('snippy').expand_snippet(args.body) -- For `snippy` users.
-      -- vim.fn["UltiSnips#Anon"](args.body) -- For `ultisnips` users.
-    end,
-  },
-  mapping = {
-    ["<C-b>"] = cmp.mapping(cmp.mapping.scroll_docs(-4), { "i", "c" }),
-    ["<C-f>"] = cmp.mapping(cmp.mapping.scroll_docs(4), { "i", "c" }),
-    ["<C-Space>"] = cmp.mapping(cmp.mapping.complete(), { "i", "c" }),
-    ["<C-y>"] = cmp.config.disable, -- Specify `cmp.config.disable` if you want to remove the default `<C-y>` mapping.
-    ["<C-e>"] = cmp.mapping({
-      i = cmp.mapping.abort(),
-      c = cmp.mapping.close(),
-    }),
-    ["<Cr>"] = cmp.mapping.confirm({ select = false }), -- Accept currently selected item. Set `select` to `false` to only confirm explicitly selected items.
-  },
-  sources = cmp.config.sources({
-    { name = "nvim_lsp" },
-    { name = "vsnip" }, -- For vsnip users.
-    -- { name = 'luasnip' }, -- For luasnip users.
-    -- { name = 'ultisnips' }, -- For ultisnips users.
-    -- { name = 'snippy' }, -- For snippy users.
-  }, {
-    { name = "buffer" },
-  }),
-})
-
--- Use buffer source for `/` (if you enabled `native_menu`, this won't work anymore).
-cmp.setup.cmdline("/", {
-  sources = {
-    { name = "buffer" },
-  },
-})
-
--- Use cmdline & path source for ':' (if you enabled `native_menu`, this won't work anymore).
-cmp.setup.cmdline(":", {
-  sources = cmp.config.sources({
-    { name = "path" },
-  }, {
-    { name = "cmdline" },
-  }),
-})
-
 -- Terminal
 require("toggleterm").setup({
   open_mapping = [[<C-j>]],
@@ -236,7 +189,7 @@ vim.g["hidden"] = true -- so buffers can hide
 
 -- nvim-ripgrep
 vim.cmd([[command! Rg lua require'nvim-ripgrep'.grep()]])
-vim.cmd([[:set nowrap]])
+--vim.cmd([[:set nowrap]])
 
 -- Highlight on yank
 vim.cmd([[
@@ -303,7 +256,7 @@ catppuccin.setup({
       },
     },
     lsp_trouble = false,
-    cmp = true,
+    cmp = false,
     lsp_saga = false,
     gitgutter = false,
     gitsigns = true,
@@ -372,53 +325,10 @@ require("material").setup({
   custom_highlights = {}, -- Overwrite highlights with your own
 })
 
--- cmd([[hi NvimTreeVertSplit guibg=none]])
-
--- vim.api.nvim_exec(
---   [[
---   hi Normal guibg=none ctermbg=none
---   hi Pmenu ctermfg=white guibg=#222222 ctermbg=234 ctermfg=246
---   hi Folded ctermbg=DarkGrey ctermfg=White guibg=#222222 guifg=#FFFFFF
---   hi VertSplit ctermfg=none gui=none guibg=none
---   hi Comment guifg=#666666 ctermfg=grey
---   hi Cursor ctermbg=0 ctermfg=none guibg=0 guibg=none guifg=#FFFFFF
---   hi Special ctermfg=white
--- ]], false)
---
 -- inline colors
 --require'colorizer'.setup()
 
 require("nvim-web-devicons").setup()
-
--- StatusBar
--- require("lualine").setup({
---   options = {
---     icons_enabled = true,
---     theme = "auto",
---     component_separators = { left = "", right = "" },
---     section_separators = { left = "", right = "" },
---     disabled_filetypes = {},
---     always_divide_middle = true,
---   },
---   sections = {
---     lualine_a = { "mode" },
---     lualine_b = { "branch", "diff", "diagnostics" },
---     lualine_c = { "filename" },
---     lualine_x = { "encoding", "fileformat", "filetype" },
---     lualine_y = { "progress" },
---     lualine_z = { "location" },
---   },
---   inactive_sections = {
---     lualine_a = {},
---     lualine_b = {},
---     lualine_c = { "filename" },
---     lualine_x = { "location" },
---     lualine_y = {},
---     lualine_z = {},
---   },
---   tabline = {},
---   extensions = {},
--- })
 
 -- Keymaps
 -- {{{
@@ -426,7 +336,7 @@ require("nvim-web-devicons").setup()
 local keymap = vim.api.nvim_set_keymap
 local opts = { noremap = true, silent = true }
 
-vim.api.nvim_set_keymap("", "S", ":write<CR>", { noremap = true })
+vim.api.nvim_set_keymap("", "<C-s>", ":write<CR>", { noremap = true })
 --vim.api.nvim_set_keymap("", "<", ":write<CR>", { noremap = true })
 --vim.api.nvim_set_keymap('', '', ':tabclose<CR>', {noremap = true})
 vim.api.nvim_set_keymap("", "<C-q>", ":bdelete<CR>", { noremap = true })
@@ -474,3 +384,6 @@ vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
 -- keymap("i", "<ENTER>", "<ENTER><ESC>zzi", { noremap = true, silent = true})
 
 vim.opt.scrolloff = 100
+
+require('user.autocomplete')
+

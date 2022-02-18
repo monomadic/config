@@ -31,7 +31,7 @@ require('cokeline').setup({
       filetype = 'neo-tree',
       components = {
         {
-          text = '  ' .. vim.fn.fnamemodify(vim.fn.getcwd(), ":t"),
+          text = '   ' .. vim.fn.fnamemodify(vim.fn.getcwd(), ":t"),
           hl = {
             --fg = "white",
             bg = get_hex('NeoTreeNormal', 'bg'),
