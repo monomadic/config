@@ -103,7 +103,7 @@ lsp_installer.on_server_ready(function(server)
   --vim.cmd [[ do User LspAttach Buffers ]]
 end)
 
-vim.cmd([[set foldmethod=syntax]]) -- marker | syntax
+vim.cmd([[set foldmethod=marker]]) -- marker | syntax
 
 vim.g.symbols_outline = {
   highlight_hovered_item = true,
