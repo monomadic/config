@@ -1,3 +1,6 @@
+local map = vim.api.nvim_set_keymap
+map('n', 'gn', ':RustRunnables<cr>', { silent = true })
+
 local opts = {
     tools = { -- rust-tools options
         -- Automatically set inlay hints (type hints)
@@ -101,7 +104,7 @@ local opts = {
     server = {
         -- standalone file support
         -- setting it to false may improve startup time
-        standalone = true,
+        standalone = false,
     }, -- rust-analyer options
 
     -- debugging stuff

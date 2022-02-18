@@ -79,11 +79,6 @@ _G.packer_plugins = {
     path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/LuaSnip",
     url = "https://github.com/L3MON4D3/LuaSnip"
   },
-  ["bufferline.nvim"] = {
-    loaded = true,
-    path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/bufferline.nvim",
-    url = "https://github.com/akinsho/bufferline.nvim"
-  },
   ["cmp-buffer"] = {
     loaded = true,
     path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/cmp-buffer",
@@ -173,10 +168,23 @@ _G.packer_plugins = {
     path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/nvim",
     url = "https://github.com/catppuccin/nvim"
   },
+  ["nvim-autopairs"] = {
+    config = { "require('nvim-autopairs').setup{}" },
+    loaded = true,
+    path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/nvim-autopairs",
+    url = "https://github.com/windwp/nvim-autopairs"
+  },
   ["nvim-cmp"] = {
+    config = { "require'user.autocomplete'" },
     loaded = true,
     path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/nvim-cmp",
     url = "https://github.com/hrsh7th/nvim-cmp"
+  },
+  ["nvim-cokeline"] = {
+    config = { "require('user.coke')" },
+    loaded = true,
+    path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/nvim-cokeline",
+    url = "https://github.com/noib3/nvim-cokeline"
   },
   ["nvim-colorizer.lua"] = {
     loaded = true,
@@ -204,6 +212,7 @@ _G.packer_plugins = {
     url = "https://github.com/petertriho/nvim-scrollbar"
   },
   ["nvim-treesitter"] = {
+    config = { "require('user.treesitter')" },
     loaded = true,
     path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/nvim-treesitter",
     url = "https://github.com/nvim-treesitter/nvim-treesitter"
@@ -252,6 +261,12 @@ _G.packer_plugins = {
     loaded = true,
     path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/prettier.nvim",
     url = "https://github.com/MunifTanjim/prettier.nvim"
+  },
+  ["rust-tools.nvim"] = {
+    config = { "require 'user.rust-tools'" },
+    loaded = true,
+    path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/rust-tools.nvim",
+    url = "https://github.com/simrat39/rust-tools.nvim"
   },
   sonokai = {
     loaded = true,
@@ -316,6 +331,26 @@ _G.packer_plugins = {
 }
 
 time([[Defining packer_plugins]], false)
+-- Config for: nvim-treesitter
+time([[Config for nvim-treesitter]], true)
+require('user.treesitter')
+time([[Config for nvim-treesitter]], false)
+-- Config for: nvim-cokeline
+time([[Config for nvim-cokeline]], true)
+require('user.coke')
+time([[Config for nvim-cokeline]], false)
+-- Config for: rust-tools.nvim
+time([[Config for rust-tools.nvim]], true)
+require 'user.rust-tools'
+time([[Config for rust-tools.nvim]], false)
+-- Config for: nvim-autopairs
+time([[Config for nvim-autopairs]], true)
+require('nvim-autopairs').setup{}
+time([[Config for nvim-autopairs]], false)
+-- Config for: nvim-cmp
+time([[Config for nvim-cmp]], true)
+require'user.autocomplete'
+time([[Config for nvim-cmp]], false)
 vim.cmd [[augroup packer_load_aucmds]]
 vim.cmd [[au!]]
   -- Event lazy-loads

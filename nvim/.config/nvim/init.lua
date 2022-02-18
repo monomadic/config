@@ -18,7 +18,7 @@ require("user.whichkey")
 require("user.comment")
 --require 'user.nvimtree'
 require("user.neotree")
-require("user.telescope")
+--require("user.telescope")
 
 -- https://github.com/LunarVim/Neovim-from-scratch
 

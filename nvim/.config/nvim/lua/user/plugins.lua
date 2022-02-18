@@ -33,21 +33,17 @@ require("packer").startup(function(use)
   use("hood/popui.nvim")
 
   use("nvim-lua/plenary.nvim") -- useful lua functions used ny lots of plugins
-  -- use "windwp/nvim-autopairs" -- Autopairs, integrates with both cmp and treesitter
+  use {"windwp/nvim-autopairs",
+    config = "require('nvim-autopairs').setup{}"
+  } -- Autopairs, integrates with both cmp and treesitter
+  
   use("numToStr/Comment.nvim") -- commenting
   use("kyazdani42/nvim-web-devicons") -- colored icons in tree and status bar
-  -- use({"akinsho/bufferline.nvim",
-  --   config = require("user.bufferline"),
-  -- })
-
-  -- use({'noib3/nvim-cokeline',
-  --   config = require('user.coke')
-  -- })
 
  use {
-   'noib3/nvim-cokeline', -- because bufferline sucks to configure
-   requires = 'kyazdani42/nvim-web-devicons',
-   config = require('user.coke'),
+  'noib3/nvim-cokeline', -- because bufferline sucks to configure
+  requires = 'kyazdani42/nvim-web-devicons',
+  config = "require('user.coke')",
  }
 
   -- use "moll/vim-bbye"
@@ -65,7 +61,7 @@ require("packer").startup(function(use)
   use("terryma/vim-multiple-cursors") -- coule replace with visual x mode?
   -- use "akinsho/bufferline.nvim" -- not used?
   use({"petertriho/nvim-scrollbar",
-    config = require'scrollbar'.setup()
+  --  config = require'scrollbar'.setup()
   }) -- side scrollbar with git support
   use("norcalli/nvim-colorizer.lua") -- inline colors
   use("liuchengxu/vista.vim") -- symbols again?
@@ -99,7 +95,7 @@ require("packer").startup(function(use)
 
   -- Completion
   use({"hrsh7th/nvim-cmp",
-    config = require'user.autocomplete'
+    config = "require'user.autocomplete'"
   }) -- The completion plugin
   use("hrsh7th/cmp-buffer") -- buffer completions
   use({"hrsh7th/cmp-path",
@@ -112,7 +108,7 @@ require("packer").startup(function(use)
   use("saadparwaiz1/cmp_luasnip") -- snippet completions
   use("hrsh7th/cmp-nvim-lsp") -- lsp completions
   use {"simrat39/rust-tools.nvim",
-    config = require 'user.rust-tools'
+    config = "require 'user.rust-tools'"
   } -- extensions in addition to rust-analyzer
 
   -- snippets
@@ -124,7 +120,7 @@ require("packer").startup(function(use)
     event = { "BufRead Cargo.toml" },
     requires = { { 'nvim-lua/plenary.nvim' } },
     config = function()
-        require('user.cargo')
+      require('user.cargo')
     end,
   }
 
@@ -137,7 +133,7 @@ require("packer").startup(function(use)
   use({
     "nvim-treesitter/nvim-treesitter",
     run = ":TSUpdate",
-    config = require('user.treesitter')
+    config = "require('user.treesitter')"
   })
   use("JoosepAlviste/nvim-ts-context-commentstring")
 

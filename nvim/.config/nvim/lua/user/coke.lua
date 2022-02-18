@@ -1,9 +1,8 @@
 local get_hex = require('cokeline/utils').get_hex
 
 local map = vim.api.nvim_set_keymap
-
-map('n', 'H',   '<Plug>(cokeline-focus-prev)',  { silent = true })
-map('n', 'L',     '<Plug>(cokeline-focus-next)',  { silent = true })
+map('n', 'H', '<Plug>(cokeline-focus-prev)', { silent = true })
+map('n', 'L', '<Plug>(cokeline-focus-next)', { silent = true })
 -- map('n', '<Leader>p', '<Plug>(cokeline-switch-prev)', { silent = true })
 -- map('n', '<Leader>n', '<Plug>(cokeline-switch-next)', { silent = true })
 
