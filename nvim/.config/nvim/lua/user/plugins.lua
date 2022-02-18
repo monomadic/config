@@ -40,11 +40,13 @@ require("packer").startup(function(use)
   use("numToStr/Comment.nvim") -- commenting
   use("kyazdani42/nvim-web-devicons") -- colored icons in tree and status bar
 
- use {
-  'noib3/nvim-cokeline', -- because bufferline sucks to configure
-  requires = 'kyazdani42/nvim-web-devicons',
-  config = "require('user.coke')",
- }
+  use { 'camspiers/lens.vim' } -- buffer autoresizing
+
+  use {
+    'noib3/nvim-cokeline', -- because bufferline sucks to configure
+    requires = 'kyazdani42/nvim-web-devicons',
+    config = "require('user.coke')",
+  }
 
   -- use "moll/vim-bbye"
   -- use "nvim-lualine/lualine.nvim"
@@ -61,7 +63,7 @@ require("packer").startup(function(use)
   use("terryma/vim-multiple-cursors") -- coule replace with visual x mode?
   -- use "akinsho/bufferline.nvim" -- not used?
   use({"petertriho/nvim-scrollbar",
-  --  config = require'scrollbar'.setup()
+    config = "require'scrollbar'.setup()"
   }) -- side scrollbar with git support
   use("norcalli/nvim-colorizer.lua") -- inline colors
   use("liuchengxu/vista.vim") -- symbols again?
