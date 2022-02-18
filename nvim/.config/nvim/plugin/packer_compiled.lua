@@ -74,11 +74,6 @@ _G.packer_plugins = {
     path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/Comment.nvim",
     url = "https://github.com/numToStr/Comment.nvim"
   },
-  LuaSnip = {
-    loaded = true,
-    path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/LuaSnip",
-    url = "https://github.com/L3MON4D3/LuaSnip"
-  },
   ["cmp-buffer"] = {
     loaded = true,
     path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/cmp-buffer",
@@ -99,10 +94,10 @@ _G.packer_plugins = {
     path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/cmp-path",
     url = "https://github.com/hrsh7th/cmp-path"
   },
-  cmp_luasnip = {
+  ["cmp-vsnip"] = {
     loaded = true,
-    path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/cmp_luasnip",
-    url = "https://github.com/saadparwaiz1/cmp_luasnip"
+    path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/cmp-vsnip",
+    url = "https://github.com/hrsh7th/cmp-vsnip"
   },
   colorschemes = {
     loaded = true,
@@ -122,11 +117,6 @@ _G.packer_plugins = {
     loaded = true,
     path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/darkplus.nvim",
     url = "https://github.com/lunarvim/darkplus.nvim"
-  },
-  ["friendly-snippets"] = {
-    loaded = true,
-    path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/friendly-snippets",
-    url = "https://github.com/rafamadriz/friendly-snippets"
   },
   ["galaxyline.nvim"] = {
     loaded = true,
@@ -247,6 +237,11 @@ _G.packer_plugins = {
     path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/opener.nvim",
     url = "https://github.com/willthbill/opener.nvim"
   },
+  ["packer.nvim"] = {
+    loaded = true,
+    path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/packer.nvim",
+    url = "https://github.com/wbthomason/packer.nvim"
+  },
   ["plenary.nvim"] = {
     loaded = true,
     path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/plenary.nvim",
@@ -268,7 +263,6 @@ _G.packer_plugins = {
     url = "https://github.com/MunifTanjim/prettier.nvim"
   },
   ["rust-tools.nvim"] = {
-    config = { "require 'user.rust-tools'" },
     loaded = true,
     path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/rust-tools.nvim",
     url = "https://github.com/simrat39/rust-tools.nvim"
@@ -323,6 +317,11 @@ _G.packer_plugins = {
     path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/vim-sneak",
     url = "https://github.com/justinmk/vim-sneak"
   },
+  ["vim-vsnip"] = {
+    loaded = true,
+    path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/vim-vsnip",
+    url = "https://github.com/hrsh7th/vim-vsnip"
+  },
   ["vista.vim"] = {
     loaded = true,
     path = "/Users/monomadic/.local/share/nvim/site/pack/packer/start/vista.vim",
@@ -336,10 +335,6 @@ _G.packer_plugins = {
 }
 
 time([[Defining packer_plugins]], false)
--- Config for: nvim-scrollbar
-time([[Config for nvim-scrollbar]], true)
-require'scrollbar'.setup()
-time([[Config for nvim-scrollbar]], false)
 -- Config for: nvim-cokeline
 time([[Config for nvim-cokeline]], true)
 require('user.coke')
@@ -352,10 +347,10 @@ time([[Config for nvim-treesitter]], false)
 time([[Config for nvim-autopairs]], true)
 require('nvim-autopairs').setup{}
 time([[Config for nvim-autopairs]], false)
--- Config for: rust-tools.nvim
-time([[Config for rust-tools.nvim]], true)
-require 'user.rust-tools'
-time([[Config for rust-tools.nvim]], false)
+-- Config for: nvim-scrollbar
+time([[Config for nvim-scrollbar]], true)
+require'scrollbar'.setup()
+time([[Config for nvim-scrollbar]], false)
 vim.cmd [[augroup packer_load_aucmds]]
 vim.cmd [[au!]]
   -- Event lazy-loads
@@ -368,5 +363,6 @@ if should_profile then save_profiles() end
 end)
 
 if not no_errors then
+  error_msg = error_msg:gsub('"', '\\"')
   vim.api.nvim_command('echohl ErrorMsg | echom "Error in packer_compiled: '..error_msg..'" | echom "Please check your config for correctness" | echohl None')
 end

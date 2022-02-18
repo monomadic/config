@@ -12,7 +12,9 @@ require 'settings'
 require 'keymaps'
 require 'plugins'
 
+
 require 'nv-galaxyline'
+require 'nv-vsnip'
 
 local cmd = vim.cmd
 local call = vim.call
@@ -24,7 +26,11 @@ require("user.comment")
 --require 'user.nvimtree'
 require("user.neotree")
 --require("user.telescope")
+require 'user.rust-tools'
+require('user.autocomplete')
 
+require 'nv-lspconfig'
+--
 -- https://github.com/LunarVim/Neovim-from-scratch
 
 dropdown_theme = require("telescope.themes").get_dropdown({
@@ -39,74 +45,6 @@ dropdown_theme = require("telescope.themes").get_dropdown({
     preview = { "─", "│", "─", "│", "╭", "╮", "╯", "╰" },
   },
 })
-
--- LSP
-local nvim_lsp = require("lspconfig")
-local lsp_installer = require("nvim-lsp-installer")
-
-lsp_installer.on_server_ready(function(server)
-  local keymap = vim.api.nvim_set_keymap
-
-  -- LSP Keymaps
-  keymap("n", "gD", "<cmd>lua vim.lsp.buf.declaration()<CR>", { noremap = true, silent = true })
-  keymap("n", "gd", "<cmd>lua vim.lsp.buf.definition()<CR>", { noremap = true, silent = true })
-  keymap("n", "K", "<cmd>lua vim.lsp.buf.hover()<CR>", { noremap = true, silent = true })
-  keymap("n", "gi", "<cmd>lua vim.lsp.buf.implementation()<CR>", { noremap = true, silent = true })
-  keymap("n", "gr", "<cmd>lua vim.lsp.buf.references()<CR>", { noremap = true, silent = true })
-  keymap("n", "<C-k>", "<cmd>lua vim.lsp.buf.signature_help()<CR>", { noremap = true, silent = true })
-  keymap("n", "<space>wa", "<cmd>lua vim.lsp.buf.add_workspace_folder()<CR>", { noremap = true, silent = true })
-  keymap("n", "<space>wr", "<cmd>lua vim.lsp.buf.remove_workspace_folder()<CR>", { noremap = true, silent = true })
-  keymap(
-    "n",
-    "<space>wl",
-    "<cmd>lua print(vim.inspect(vim.lsp.buf.list_workspace_folders()))<CR>",
-    { noremap = true, silent = true }
-  )
-  keymap("n", "td", "<cmd>lua vim.lsp.brf.type_definition()<CR>", { noremap = true, silent = true })
-  keymap("n", "tr", "<cmd>lua vim.lsp.buf.rename()<CR>", { noremap = true, silent = true })
-  keymap("n", "ga", "<cmd>lua vim.lsp.buf.code_action()<CR>", { noremap = true, silent = true })
-  keymap("n", "te", "<cmd>lua vim.diagnostic.open_float()<CR>", { noremap = true, silent = true })
-  keymap("n", "[d", "<cmd>lua vim.diagnostic.goto_prev()<CR>", { noremap = true, silent = true })
-  keymap("n", "]d", "<cmd>lua vim.diagnostic.goto_next()<CR>", { noremap = true, silent = true })
-  --keymap("n", "gl", "<cmd>lua vim.diagnostic.setloclist()<CR>", { noremap = true, silent = true})
-  keymap("n", "gf", "<cmd>lua vim.lsp.buf.formatting()<CR>", { noremap = true, silent = true })
-  keymap("n", "gS", "<cmd>:SymbolsOutline<CR>", { noremap = true, silent = true })
-  -- vim.api.nvim_set_keymap("n", "<C-i>", ":TagbarOpenAutoClose<CR>", {})
-
-  keymap(
-    "n",
-    "gw",
-    "<cmd>lua require('telescope.builtin').lsp_workspace_symbols(require('telescope.themes').get_dropdown{previewer = false})<cr>",
-    { noremap = true }
-  )
-  keymap(
-    "n",
-    "gs",
-    "<cmd>lua require('telescope.builtin').lsp_document_symbols(require('telescope.themes').get_dropdown{previewer = false})<cr>",
-    { noremap = true }
-  )
-
-  -- Enable completion triggered by <c-x><c-o>
-
-  local opts = {}
-
-  -- signatures (eg function completion etc)
-  require("lsp_signature").setup({})
-  --require('user.autocomplete')
-
-  -- (optional) Customize the options passed to the server
-  -- if server.name == "rust_analyzer" then
-  --     -- opts.root_dir = function()
-  --     --   cmd([[colorscheme sonokai]])
-  --     -- end
-  -- end
-
-  -- This setup() function will take the provided server configuration and decorate it with the necessary properties
-  -- before passing it onwards to lspconfig.
-  -- Refer to https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md
-  --server:setup(opts)
-  --vim.cmd [[ do User LspAttach Buffers ]]
-end)
 
 vim.cmd([[set foldmethod=marker]]) -- marker | syntax
 
@@ -226,104 +164,104 @@ vim.cmd([[let loaded_netrwPlugin = 1]])
 -- vim.g.tokyonight_sidebars = { "terminal" }
 --vim.g.tokyonight_day_brightness = 1
 
-local catppuccin = require("catppuccin")
-catppuccin.setup({
-  term_colors = false,
-  transparent_background = true,
-  colorscheme = "neon_latte",
-  styles = {
-    comments = "NONE",
-    functions = "italic",
-    keywords = "NONE",
-    strings = "NONE",
-    variables = "NONE",
-  },
-  integrations = {
-    treesitter = true,
-    native_lsp = {
-      enabled = true,
-      virtual_text = {
-        errors = "italic",
-        hints = "italic",
-        warnings = "italic",
-        information = "italic",
-      },
-      underlines = {
-        errors = "underline",
-        hints = "underline",
-        warnings = "underline",
-        information = "underline",
-      },
-    },
-    lsp_trouble = false,
-    cmp = false,
-    lsp_saga = false,
-    gitgutter = false,
-    gitsigns = true,
-    telescope = true,
-    which_key = false,
-    indent_blankline = {
-      enabled = true,
-      colored_indent_levels = false,
-    },
-    dashboard = false,
-    neogit = false,
-    vim_sneak = true,
-    fern = false,
-    barbar = false,
-    bufferline = false,
-    markdown = true,
-    lightspeed = false,
-    ts_rainbow = false,
-    hop = false,
-    notify = true,
-    telekasten = true,
-  },
-})
+-- local catppuccin = require("catppuccin")
+-- catppuccin.setup({
+--   term_colors = false,
+--   transparent_background = true,
+--   colorscheme = "neon_latte",
+--   styles = {
+--     comments = "NONE",
+--     functions = "italic",
+--     keywords = "NONE",
+--     strings = "NONE",
+--     variables = "NONE",
+--   },
+--   integrations = {
+--     treesitter = true,
+--     native_lsp = {
+--       enabled = true,
+--       virtual_text = {
+--         errors = "italic",
+--         hints = "italic",
+--         warnings = "italic",
+--         information = "italic",
+--       },
+--       underlines = {
+--         errors = "underline",
+--         hints = "underline",
+--         warnings = "underline",
+--         information = "underline",
+--       },
+--     },
+--     lsp_trouble = false,
+--     cmp = false,
+--     lsp_saga = false,
+--     gitgutter = false,
+--     gitsigns = true,
+--     telescope = true,
+--     which_key = false,
+--     indent_blankline = {
+--       enabled = true,
+--       colored_indent_levels = false,
+--     },
+--     dashboard = false,
+--     neogit = false,
+--     vim_sneak = true,
+--     fern = false,
+--     barbar = false,
+--     bufferline = false,
+--     markdown = true,
+--     lightspeed = false,
+--     ts_rainbow = false,
+--     hop = false,
+--     notify = true,
+--     telekasten = true,
+--   },
+-- })
 
-require("material").setup({
-  contrast = {
-    sidebars = false, -- Enable contrast for sidebar-like windows ( for example Nvim-Tree )
-    floating_windows = false, -- Enable contrast for floating windows
-    line_numbers = false, -- Enable contrast background for line numbers
-    sign_column = false, -- Enable contrast background for the sign column
-    cursor_line = false, -- Enable darker background for the cursor line
-    non_current_windows = false, -- Enable darker background for non-current windows
-    popup_menu = true, -- Enable lighter background for the popup menu
-  },
-
-  italics = {
-    comments = false, -- Enable italic comments
-    keywords = false, -- Enable italic keywords
-    functions = false, -- Enable italic functions
-    strings = false, -- Enable italic strings
-    variables = false, -- Enable italic variables
-  },
-
-  contrast_filetypes = { -- Specify which filetypes get the contrasted (darker) background
-    "terminal", -- Darker terminal background
-    "packer", -- Darker packer background
-    "qf", -- Darker qf list background
-  },
-
-  high_visibility = {
-    lighter = false, -- Enable higher contrast text for lighter style
-    darker = false, -- Enable higher contrast text for darker style
-  },
-
-  disable = {
-    borders = false, -- Disable borders between verticaly split windows
-    background = false, -- Prevent the theme from setting the background (NeoVim then uses your teminal background)
-    term_colors = false, -- Prevent the theme from setting terminal colors
-    eob_lines = false, -- Hide the end-of-buffer lines
-  },
-
-  lualine_style = "default", -- Lualine style ( can be 'stealth' or 'default' )
-
-  async_loading = true, -- Load parts of the theme asyncronously for faster startup (turned on by default)
-
-  custom_highlights = {}, -- Overwrite highlights with your own
-})
+-- require("material").setup({
+--   contrast = {
+--     sidebars = false, -- Enable contrast for sidebar-like windows ( for example Nvim-Tree )
+--     floating_windows = false, -- Enable contrast for floating windows
+--     line_numbers = false, -- Enable contrast background for line numbers
+--     sign_column = false, -- Enable contrast background for the sign column
+--     cursor_line = false, -- Enable darker background for the cursor line
+--     non_current_windows = false, -- Enable darker background for non-current windows
+--     popup_menu = true, -- Enable lighter background for the popup menu
+--   },
+--
+--   italics = {
+--     comments = false, -- Enable italic comments
+--     keywords = false, -- Enable italic keywords
+--     functions = false, -- Enable italic functions
+--     strings = false, -- Enable italic strings
+--     variables = false, -- Enable italic variables
+--   },
+--
+--   contrast_filetypes = { -- Specify which filetypes get the contrasted (darker) background
+--     "terminal", -- Darker terminal background
+--     "packer", -- Darker packer background
+--     "qf", -- Darker qf list background
+--   },
+--
+--   high_visibility = {
+--     lighter = false, -- Enable higher contrast text for lighter style
+--     darker = false, -- Enable higher contrast text for darker style
+--   },
+--
+--   disable = {
+--     borders = false, -- Disable borders between verticaly split windows
+--     background = false, -- Prevent the theme from setting the background (NeoVim then uses your teminal background)
+--     term_colors = false, -- Prevent the theme from setting terminal colors
+--     eob_lines = false, -- Hide the end-of-buffer lines
+--   },
+--
+--   lualine_style = "default", -- Lualine style ( can be 'stealth' or 'default' )
+--
+--   async_loading = true, -- Load parts of the theme asyncronously for faster startup (turned on by default)
+--
+--   custom_highlights = {}, -- Overwrite highlights with your own
+-- })
 
 -- inline colors
 --require'colorizer'.setup()
@@ -385,5 +323,4 @@ vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
 
 vim.opt.scrolloff = 100
 
-require('user.autocomplete')
 

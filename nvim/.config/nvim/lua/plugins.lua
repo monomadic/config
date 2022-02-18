@@ -8,6 +8,7 @@ end
 
 require("packer").startup(
 function(use)
+    use 'wbthomason/packer.nvim'
 
     -- Theme
     use 'folke/tokyonight.nvim'
@@ -94,6 +95,10 @@ function(use)
   use("simrat39/symbols-outline.nvim") -- symbol outline sidebar
   -- use "mfussenegger/nvim-dap" -- debugging protocol
   use("MunifTanjim/prettier.nvim") -- formatting with Prettier
+  
+  use {"simrat39/rust-tools.nvim",
+    --config = "require 'user.rust-tools'"
+  } -- extensions in addition to rust-analyzer
 
   -- Completion
   use({"hrsh7th/nvim-cmp",
@@ -110,15 +115,14 @@ function(use)
     }
   }}) -- path completions for filesystem
   use("hrsh7th/cmp-cmdline") -- cmdline completions
-  use("saadparwaiz1/cmp_luasnip") -- snippet completions
+  --use("saadparwaiz1/cmp_luasnip") -- snippet completions
   use("hrsh7th/cmp-nvim-lsp") -- lsp completions
-  use {"simrat39/rust-tools.nvim",
-    config = "require 'user.rust-tools'"
-  } -- extensions in addition to rust-analyzer
+  use 'hrsh7th/cmp-vsnip'
+  use 'hrsh7th/vim-vsnip'
 
   -- snippets
-  use("L3MON4D3/LuaSnip") --snippet engine
-  use("rafamadriz/friendly-snippets") -- a bunch of snippets to use
+  --use("L3MON4D3/LuaSnip") --snippet engine
+  --use("rafamadriz/friendly-snippets") -- a bunch of snippets to use
 
   use {
     'saecki/crates.nvim',
