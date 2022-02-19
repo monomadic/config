@@ -1,20 +1,18 @@
 local fn = vim.fn
-local install_path = fn.stdpath('data')..'/site/pack/packer/start/packer.nvim'
+local install_path = fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
 if fn.empty(fn.glob(install_path)) > 0 then
-    fn.system({'git', 'clone', '--depth', '1',
-        'https://github.com/wbthomason/packer.nvim', install_path})
-    vim.cmd 'packadd packer.nvim'
+  fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
+  vim.cmd("packadd packer.nvim")
 end
 
-require("packer").startup(
-function(use)
-    use 'wbthomason/packer.nvim'
+require("packer").startup(function(use)
+  use("wbthomason/packer.nvim")
 
-    -- Theme
-    use 'folke/tokyonight.nvim'
+  -- Theme
+  use("folke/tokyonight.nvim")
 
-    -- Status line
-    use { 'glepnir/galaxyline.nvim', requires = 'kyazdani42/nvim-web-devicons' }
+  -- Status line
+  use({ "glepnir/galaxyline.nvim", requires = "kyazdani42/nvim-web-devicons" })
 
   -- Tree
   use({
@@ -35,20 +33,18 @@ function(use)
   use("hood/popui.nvim")
 
   use("nvim-lua/plenary.nvim") -- useful lua functions used ny lots of plugins
-  use {"windwp/nvim-autopairs",
-    config = "require('nvim-autopairs').setup{}"
-  } -- Autopairs, integrates with both cmp and treesitter
-  
+  use({ "windwp/nvim-autopairs", config = "require('nvim-autopairs').setup{}" }) -- Autopairs, integrates with both cmp and treesitter
+
   use("numToStr/Comment.nvim") -- commenting
   use("kyazdani42/nvim-web-devicons") -- colored icons in tree and status bar
 
-  use { 'camspiers/lens.vim' } -- buffer autoresizing
+  use({ "camspiers/lens.vim" }) -- buffer autoresizing
 
-  use {
-    'noib3/nvim-cokeline', -- because bufferline sucks to configure
-    requires = 'kyazdani42/nvim-web-devicons',
+  use({
+    "noib3/nvim-cokeline", -- because bufferline sucks to configure
+    requires = "kyazdani42/nvim-web-devicons",
     config = "require('user.coke')",
-  }
+  })
 
   -- use "moll/vim-bbye"
   -- use "nvim-lualine/lualine.nvim"
@@ -64,9 +60,7 @@ function(use)
   --use "ervandew/supertab" -- unknown... ?
   use("terryma/vim-multiple-cursors") -- coule replace with visual x mode?
   -- use "akinsho/bufferline.nvim" -- not used?
-  use({"petertriho/nvim-scrollbar",
-    config = "require'scrollbar'.setup()"
-  }) -- side scrollbar with git support
+  use({ "petertriho/nvim-scrollbar", config = "require'scrollbar'.setup()" }) -- side scrollbar with git support
   use("norcalli/nvim-colorizer.lua") -- inline colors
   use("liuchengxu/vista.vim") -- symbols again?
   --use "glepnir/dashboard-nvim" -- dashboard
@@ -88,50 +82,78 @@ function(use)
 
   -- LSP
   use("neovim/nvim-lspconfig") -- enable LSP
-  use("williamboman/nvim-lsp-installer") -- simple to use language server installer
-  use("tamago324/nlsp-settings.nvim") -- language server settings defined in json for
+  --use("williamboman/nvim-lsp-installer") -- simple to use language server installer
+    --   use 'glepnir/lspsaga.nvim'
+    -- use 'onsails/lspkind-nvim'
+    -- use 'kosayoda/nvim-lightbulb'
+    -- use 'mfussenegger/nvim-jdtls'
+
+
+  --use("tamago324/nlsp-settings.nvim") -- language server settings defined in json for
+
   use("jose-elias-alvarez/null-ls.nvim") -- for formatters and linters
   use("ray-x/lsp_signature.nvim") -- signatures (functions etc)
   use("simrat39/symbols-outline.nvim") -- symbol outline sidebar
   -- use "mfussenegger/nvim-dap" -- debugging protocol
   use("MunifTanjim/prettier.nvim") -- formatting with Prettier
-  
+
   use {"simrat39/rust-tools.nvim",
-    --config = "require 'user.rust-tools'"
+    config = "require 'user.rust-tools'"
   } -- extensions in addition to rust-analyzer
 
-  -- Completion
-  use({"hrsh7th/nvim-cmp",
-    requires = {
-      "hrsh7th/cmp-buffer" 
-    },
-    --config = "require('user.autocomplete')"
-  }) -- The completion plugin
-  --use("hrsh7th/cmp-buffer") -- buffer completions
-  use({"hrsh7th/cmp-path",
-    config = require'cmp'.setup {
-    sources = {
-      { name = 'path' }
-    }
-  }}) -- path completions for filesystem
-  use("hrsh7th/cmp-cmdline") -- cmdline completions
-  --use("saadparwaiz1/cmp_luasnip") -- snippet completions
-  use("hrsh7th/cmp-nvim-lsp") -- lsp completions
-  use 'hrsh7th/cmp-vsnip'
+  -- Autocomplete
+  use 'hrsh7th/nvim-compe'
+  use 'mattn/emmet-vim'
   use 'hrsh7th/vim-vsnip'
+  use 'xabikos/vscode-javascript'
+  use 'dsznajder/vscode-es7-javascript-react-snippets'
+  use 'golang/vscode-go'
+  use 'rust-lang/vscode-rust'
+  use 'ChristianChiarulli/html-snippets'
+  use 'ChristianChiarulli/java-snippets'
+  use 'ChristianChiarulli/python-snippets'
+
+  -- use({
+  --   "hrsh7th/nvim-cmp",
+  --   requires = {
+  --     "hrsh7th/cmp-buffer",
+  --     "hrsh7th/cmp-vsnip",
+  --     "hrsh7th/cmp-cmdline",
+  --     "hrsh7th/cmp-nvim-lsp",
+  --   },
+  --   config = "require('user.autocomplete')"
+  -- }) -- The completion plugin
+  --use("hrsh7th/cmp-buffer") -- buffer completions
+  -- use({"hrsh7th/cmp-path",
+  --   config = require'cmp'.setup {
+  --   sources = {
+  --     { name = 'path' }
+  --   }
+  -- }}) -- path completions for filesystem
+  --use("hrsh7th/cmp-cmdline") -- cmdline completions
+  --use("saadparwaiz1/cmp_luasnip") -- snippet completions
+  --use("hrsh7th/cmp-nvim-lsp") -- lsp completions
+  --use("hrsh7th/cmp-vsnip")
+
+  -- use({
+  --   "simrat39/rust-tools.nvim",
+  --   --config = "require 'user.rust-tools'"
+  -- }) -- extensions in addition to rust-analyzer
+
+  --use("hrsh7th/vim-vsnip")
 
   -- snippets
   --use("L3MON4D3/LuaSnip") --snippet engine
   --use("rafamadriz/friendly-snippets") -- a bunch of snippets to use
 
-  use {
-    'saecki/crates.nvim',
+  use({
+    "saecki/crates.nvim",
     event = { "BufRead Cargo.toml" },
-    requires = { { 'nvim-lua/plenary.nvim' } },
+    requires = { { "nvim-lua/plenary.nvim" } },
     config = function()
-      require('user.cargo')
+      require("user.cargo")
     end,
-  }
+  })
 
   -- Telescope
   use("nvim-telescope/telescope.nvim")
@@ -142,7 +164,7 @@ function(use)
   use({
     "nvim-treesitter/nvim-treesitter",
     run = ":TSUpdate",
-    config = "require('user.treesitter')"
+    config = "require('user.treesitter')",
   })
   use("JoosepAlviste/nvim-ts-context-commentstring")
 
@@ -156,4 +178,3 @@ function(use)
     require("packer").sync()
   end
 end)
-

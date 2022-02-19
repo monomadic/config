@@ -1,6 +1,19 @@
 local map = vim.api.nvim_set_keymap
 map('n', 'gn', ':RustRunnables<cr>', { silent = true })
 
+local capabilities = vim.lsp.protocol.make_client_capabilities()
+capabilities.textDocument.completion.completionItem.snippetSupport = false
+capabilities.textDocument.completion.completionItem.resolveSupport = {
+  properties = {
+    'documentation',
+    'detail',
+    'additionalTextEdits',
+  }
+}
+--capabilities = vim.tbl_extend('keep', capabilities or {}, lsp_status.capabilities)
+
+capabilities.experimental = {}
+capabilities.experimental.hoverActions = true
 local opts = {
     tools = { -- rust-tools options
         -- Automatically set inlay hints (type hints)

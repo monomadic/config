@@ -8,10 +8,12 @@ banner = {
   "               ▀                                   ",
 }
 
+require 'plugins'
 require 'settings'
 require 'keymaps'
-require 'plugins'
 
+-- plugins
+require 'nv-compe'
 
 require 'nv-galaxyline'
 require 'nv-vsnip'
@@ -26,11 +28,16 @@ require("user.comment")
 --require 'user.nvimtree'
 require("user.neotree")
 --require("user.telescope")
-require 'user.rust-tools'
-require('user.autocomplete')
+--require('user.autocomplete')
 
 require 'nv-lspconfig'
---
+
+-- LSP
+require 'lsp'
+require 'lsp.lsp-javascript'
+require 'lsp.lsp-rust'
+require 'user.rust-tools'
+
 -- https://github.com/LunarVim/Neovim-from-scratch
 
 dropdown_theme = require("telescope.themes").get_dropdown({

@@ -113,7 +113,7 @@ gls.mid[1] = {
       return true
     end,
     icon = '',
-    highlight = {colors.cyan,colors.bg,'bold'}
+    highlight = {colors.blue,colors.bg,'bold'}
   }
 }
 

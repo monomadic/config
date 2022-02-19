@@ -7,7 +7,7 @@ local on_attach = function(client, bufnr)
     local function buf_set_option(...) vim.api.nvim_buf_set_option(bufnr, ...) end
     
     -- Enable completion triggered by <c-x><c-o>
-    buf_set_option('omnifunc', 'v:lua.vim.lsp.omnifunc')
+    --buf_set_option('omnifunc', 'v:lua.vim.lsp.omnifunc')
     
     -- Mappings.
     local opts = { noremap=true, silent=true }
@@ -38,10 +38,10 @@ end
 
 -- Add additional capabilities supported by nvim-cmp
 local capabilities = vim.lsp.protocol.make_client_capabilities()
-capabilities = require('cmp_nvim_lsp').update_capabilities(capabilities)
+--capabilities = require('cmp_nvim_lsp').update_capabilities(capabilities)
 
 -- Enable some language servers with the additional completion capabilities offered by nvim-cmp
-local servers = { 'clangd', 'pyright', 'bashls' }
+local servers = { 'rust_analyzer' }
 for _, lsp in ipairs(servers) do
     nvim_lsp[lsp].setup {
         on_attach = on_attach,
@@ -52,61 +52,68 @@ end
 -- require("lsp_signature").setup({})
 
 -- Set completeopt to have a better completion experience
-vim.o.completeopt = 'menuone,noselect'
-
--- nvim-cmp setup
-local cmp = require 'cmp'
-cmp.setup {
-    snippet = {
-        expand = function(args)
-            vim.fn["vsnip#anonymous"](args.body)
-        end,
-    },
-    mapping = {
-        ['<C-p>'] = cmp.mapping.select_prev_item(),
-        ['<C-n>'] = cmp.mapping.select_next_item(),
-        ['<C-d>'] = cmp.mapping.scroll_docs(-4),
-        ['<C-f>'] = cmp.mapping.scroll_docs(4),
-        ['<C-Space>'] = cmp.mapping.complete(),
-        ['<C-e>'] = cmp.mapping.close(),
-        ['<CR>'] = cmp.mapping.confirm {
-            behavior = cmp.ConfirmBehavior.Replace,
-            select = true,
-        },
-        ['<Tab>'] = function(fallback)
-            if cmp.visible() then
-                cmp.select_next_item()
-            else
-                fallback()
-            end
-        end,
-        ['<S-Tab>'] = function(fallback)
-            if cmp.visible() then
-                cmp.select_prev_item()
-            else
-                fallback()
-            end
-        end,
-    },
-    sources = {
-        { name = 'nvim_lsp' },
-        { name = 'vsnip' },
-        { name = 'buffer' },
-        { name = 'path' }
-    },
-}
-
--- Diagnostic symbols in the sign column
-local signs = { Error = '', Warn = '', Hint = '', Info = '' }
-for type, icon in pairs(signs) do
-  local hl = "DiagnosticSign" .. type
-  vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = hl })
-end
-
--- Prefix/character preceding the diagnostics' virtual text
-vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(vim.lsp.diagnostic.on_publish_diagnostics, {
-  virtual_text = {
-    prefix = '● ',
-  }
-})
-
+-- vim.o.completeopt = 'menuone'
+--
+-- -- nvim-cmp setup
+-- local cmp = require 'cmp'
+-- cmp.setup {
+--     snippet = {
+--         expand = function(args)
+--             vim.fn["vsnip#anonymous"](args.body)
+--         end,
+--     },
+--     mapping = {
+--         ['<C-p>'] = cmp.mapping.select_prev_item(),
+--         ['<C-n>'] = cmp.mapping.select_next_item(),
+--         ['<C-d>'] = cmp.mapping.scroll_docs(-4),
+--         ['<C-f>'] = cmp.mapping.scroll_docs(4),
+--         ['<C-Space>'] = cmp.mapping.complete(),
+--         ['<C-e>'] = cmp.mapping.close(),
+--         ['<CR>'] = cmp.mapping.confirm {
+--             behavior = cmp.ConfirmBehavior.Replace,
+--             select = true,
+--         },
+--         ['<Tab>'] = function(fallback)
+--             if cmp.visible() then
+--                 cmp.select_next_item()
+--             else
+--                 fallback()
+--             end
+--         end,
+--         ['<S-Tab>'] = function(fallback)
+--             if cmp.visible() then
+--                 cmp.select_prev_item()
+--             else
+--                 fallback()
+--             end
+--         end,
+--     },
+--     sources = {
+--         { name = 'nvim_lsp', group_index = 1 },
+--         --{ name = 'vsnip' },
+--         { name = 'buffer', group_index = 2 },
+--         { name = 'path' }
+--     },
+--
+--   experimental = {
+--     ghost_text = true,
+--     native_menu = false,
+--   },
+--
+--     
+-- }
+--
+-- -- Diagnostic symbols in the sign column
+-- local signs = { Error = '', Warn = '', Hint = '', Info = '' }
+-- for type, icon in pairs(signs) do
+--   local hl = "DiagnosticSign" .. type
+--   vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = hl })
+-- end
+--
+-- -- Prefix/character preceding the diagnostics' virtual text
+-- vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(vim.lsp.diagnostic.on_publish_diagnostics, {
+--   virtual_text = {
+--     prefix = '● ',
+--   }
+-- })
+--
