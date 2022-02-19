@@ -77,6 +77,10 @@ $bindsym $mod+9 workspace $ws9
 $bindsym $mod+0 workspace $ws10
 $bindsym $mod+bracketright workspace next
 $bindsym $mod+bracketleft workspace prev
+$bindsym $win+l workspace next
+$bindsym $win+h workspace prev
+$bindsym $mod+Shift+l workspace next
+$bindsym $mod+Shift+h workspace prev
 
 set $focus_ws [ $focus_after_move == 'true' ] && swaymsg workspace
 

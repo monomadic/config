@@ -13,6 +13,7 @@ require 'settings'
 require 'keymaps'
 
 -- plugins
+require "plugins.whichkey"
 require 'plugins.cmp'
 require 'plugins.telescope'
 require 'plugins.vsnip'
@@ -23,7 +24,6 @@ local call = vim.call
 
 --require("user.plugins")
 require("user.colors")
-require("user.whichkey")
 require("user.comment")
 --require 'user.nvimtree'
 require("user.neotree")
@@ -110,7 +110,6 @@ require("null-ls").setup({
 
 -- Globals
 --   see :h lua-vim-variables and :h lua-vim-options
--- {{{
 vim.opt.wildignore = { "*/cache/*", "*/tmp/*" }
 vim.opt.number = true
 -- tabs and spaces
@@ -149,7 +148,6 @@ vim.cmd([[let loaded_netrwPlugin = 1]])
 require("nvim-web-devicons").setup()
 
 -- Keymaps
--- {{{
 --  see: https://github.com/nanotee/nvim-lua-guide#defining-mappings
 local keymap = vim.api.nvim_set_keymap
 local opts = { noremap = true, silent = true }
