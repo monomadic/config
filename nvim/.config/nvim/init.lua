@@ -22,27 +22,17 @@ require 'plugins.galaxyline'
 local cmd = vim.cmd
 local call = vim.call
 
---require("user.plugins")
 require("user.colors")
 require("user.comment")
---require 'user.nvimtree'
 require("user.neotree")
---require("user.telescope")
---require('user.autocomplete')
---require 'nv-lspconfig'
 
 -- LSP
 require 'lsp.lsp-javascript'
---require 'lsp.lsp-rust'
 require 'lsp.lsp-rust-tools' -- provides type-hints, rust-runnables
-
 require 'lsp.keymaps'()
 --require 'lsp'
 
 -- https://github.com/LunarVim/Neovim-from-scratch
-
-
-vim.cmd([[set foldmethod=marker]]) -- marker | syntax
 
 vim.g.symbols_outline = {
   highlight_hovered_item = true,

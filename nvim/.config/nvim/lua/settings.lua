@@ -37,3 +37,5 @@ options.wrap = false -- display lines as one long line
 options.scrolloff = 100 -- is one of my fav
 options.sidescrolloff = 8
 -- options.guifont = "monospace:h17"               -- the font used in graphical neovim applicationi
+
+vim.cmd([[set foldmethod=marker]]) -- marker | syntax
