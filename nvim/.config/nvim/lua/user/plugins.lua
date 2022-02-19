@@ -113,7 +113,7 @@ require("packer").startup(function(use)
   use("saadparwaiz1/cmp_luasnip") -- snippet completions
   use("hrsh7th/cmp-nvim-lsp") -- lsp completions
   use {"simrat39/rust-tools.nvim",
-    config = "require 'user.rust-tools'"
+    config = "require 'plugins.rust-tools'"
   } -- extensions in addition to rust-analyzer
 
   -- snippets
@@ -125,7 +125,7 @@ require("packer").startup(function(use)
     event = { "BufRead Cargo.toml" },
     requires = { { 'nvim-lua/plenary.nvim' } },
     config = function()
-      require('user.cargo')
+      require('plugins.cargo')
     end,
   }
 

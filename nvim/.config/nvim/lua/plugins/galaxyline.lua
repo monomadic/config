@@ -1,4 +1,5 @@
 local gl = require('galaxyline')
+local diagnostic = require('galaxyline.provider_diagnostic')
 local colors = require('galaxyline.theme').default
 local condition = require('galaxyline.condition')
 local gls = gl.section
@@ -72,39 +73,36 @@ gls.left[7] = {
 }
 
 gls.left[8] = {
-  DiagnosticError = {
-    provider = 'DiagnosticError',
-    icon = '  ',
-    highlight = {colors.red,colors.bg}
-  }
+  DiagnosticError
 }
-gls.left[9] = {
-  DiagnosticWarn = {
-    provider = 'DiagnosticWarn',
-    icon = '  ',
-    highlight = {colors.yellow,colors.bg},
-  }
-}
+-- gls.left[9] = {
+--   DiagnosticWarn = {
+--     provider = 'DiagnosticWarn',
+--     icon = '  ',
+--     highlight = {colors.yellow,colors.bg},
+--   }
+-- }
+--
+-- gls.left[10] = {
+--   DiagnosticHint = {
+--     provider = 'DiagnosticHint',
+--     icon = '  ',
+--     highlight = {colors.cyan,colors.bg},
+--   }
+-- }
+--
+-- gls.left[11] = {
+--   DiagnosticInfo = {
+--     provider = 'DiagnosticInfo',
+--     icon = '  ',
+--     highlight = {colors.blue,colors.bg},
+--   }
+-- }
 
-gls.left[10] = {
-  DiagnosticHint = {
-    provider = 'DiagnosticHint',
-    icon = '  ',
-    highlight = {colors.cyan,colors.bg},
-  }
-}
-
-gls.left[11] = {
-  DiagnosticInfo = {
-    provider = 'DiagnosticInfo',
-    icon = '  ',
-    highlight = {colors.blue,colors.bg},
-  }
-}
-
-gls.mid[1] = {
+gls.right[1] = {
   ShowLspClient = {
     provider = 'GetLspClient',
+    --separator = ' ',
     condition = function ()
       local tbl = {['dashboard'] = true,['']=true}
       if tbl[vim.bo.filetype] then
@@ -112,30 +110,30 @@ gls.mid[1] = {
       end
       return true
     end,
-    icon = '',
-    highlight = {colors.blue,colors.bg,'bold'}
+    icon = ' ',
+    highlight = {colors.blue,colors.bg}
   }
 }
 
-gls.right[1] = {
-  FileEncode = {
-    provider = 'FileEncode',
-    condition = condition.hide_in_width,
-    separator = ' ',
-    separator_highlight = {'NONE',colors.bg},
-    highlight = {colors.green,colors.bg,'bold'}
-  }
-}
+-- gls.right[9] = {
+--   FileEncode = {
+--     provider = 'FileEncode',
+--     condition = condition.hide_in_width,
+--     separator = ' ',
+--     separator_highlight = {'NONE',colors.bg},
+--     highlight = {colors.green,colors.bg,'bold'}
+--   }
+-- }
 
-gls.right[2] = {
-  FileFormat = {
-    provider = 'FileFormat',
-    condition = condition.hide_in_width,
-    separator = ' ',
-    separator_highlight = {'NONE',colors.bg},
-    highlight = {colors.green,colors.bg,'bold'}
-  }
-}
+-- gls.right[2] = {
+--   FileFormat = {
+--     provider = 'FileFormat',
+--     condition = condition.hide_in_width,
+--     separator = ' ',
+--     separator_highlight = {'NONE',colors.bg},
+--     highlight = {colors.green,colors.bg,'bold'}
+--   }
+-- }
 
 gls.right[3] = {
   GitIcon = {

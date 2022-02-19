@@ -1,4 +1,5 @@
 local cmp = require'cmp'
+local compare = require('cmp.config.compare')
 --local luasnip = require('luasnip')
 
 --require("luasnip/loaders/from_vscode").lazy_load()
@@ -63,13 +64,31 @@ cmp.setup {
   },
   documentation = {
     border = { "╭", "─", "╮", "│", "╯", "─", "╰", "│" },
+    -- border = { '', '', '', ' ', '', '', '', ' ' },
   },
 
-  -- snippet = {
-  --   expand = function(args)
-  --     luasnip.lsp_expand(args.body) -- For `luasnip` users.
-  --   end,
-  -- },
+  snippet = {
+    expand = function(args)
+      --luasnip.lsp_expand(args.body) -- For `luasnip` users.
+      vim.fn["vsnip#anonymous"](args.body) -- For `vsnip` users.
+    end,
+  },
+
+
+  sorting = {
+      --priority_weight = 2,
+      comparators = {
+        -- compare.offset,
+        -- compare.exact,
+        compare.score,
+        compare.recently_used,
+        -- compare.kind,
+        -- compare.sort_text,
+        -- compare.length,
+        -- compare.order,
+      },
+    },
+
 
     mapping = {
         ['<C-p>'] = cmp.mapping.select_prev_item(),
@@ -137,8 +156,8 @@ cmp.setup {
 -- })
 --
 -- Setup lspconfig.
--- local capabilities = require('cmp_nvim_lsp').update_capabilities(vim.lsp.protocol.make_client_capabilities())
--- -- Replace <YOUR_LSP_SERVER> with each lsp server you've enabled.
--- require('lspconfig')['<YOUR_LSP_SERVER>'].setup {
+--local capabilities = require'cmp'.update_capabilities(vim.lsp.protocol.make_client_capabilities())
+-- require('lspconfig')['rust_analyzer'].setup {
 --   capabilities = capabilities
 -- }
+

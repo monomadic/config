@@ -13,10 +13,10 @@ require 'settings'
 require 'keymaps'
 
 -- plugins
-require 'nv-compe'
-
-require 'nv-galaxyline'
-require 'nv-vsnip'
+require 'plugins.cmp'
+require 'plugins.telescope'
+require 'plugins.vsnip'
+require 'plugins.galaxyline'
 
 local cmd = vim.cmd
 local call = vim.call
@@ -29,29 +29,18 @@ require("user.comment")
 require("user.neotree")
 --require("user.telescope")
 --require('user.autocomplete')
-
-require 'nv-lspconfig'
+--require 'nv-lspconfig'
 
 -- LSP
-require 'lsp'
 require 'lsp.lsp-javascript'
-require 'lsp.lsp-rust'
-require 'user.rust-tools'
+--require 'lsp.lsp-rust'
+require 'lsp.lsp-rust-tools' -- provides type-hints, rust-runnables
+
+require 'lsp.keymaps'()
+--require 'lsp'
 
 -- https://github.com/LunarVim/Neovim-from-scratch
 
-dropdown_theme = require("telescope.themes").get_dropdown({
-  previewer = false,
-  prompt_title = "",
-  results_height = 16,
-  width = 0.6,
-  borderchars = {
-    { "─", "│", "─", "│", "╭", "╮", "╯", "╰" },
-    prompt = { "─", "│", " ", "│", "╭", "╮", "│", "│" },
-    results = { "─", "│", "─", "│", "├", "┤", "╯", "╰" },
-    preview = { "─", "│", "─", "│", "╭", "╮", "╯", "╰" },
-  },
-})
 
 vim.cmd([[set foldmethod=marker]]) -- marker | syntax
 
@@ -144,8 +133,6 @@ vim.cmd([[
   augroup end
 ]])
 
---vim.o.completeopt = "menu,menuone,noselect" -- completion
-
 local popui = require("popui.ui-overrider")
 vim.ui.select = popui
 
@@ -155,120 +142,6 @@ require("prettier").setup({
 })
 
 vim.cmd([[let loaded_netrwPlugin = 1]])
-
--- Colors
--- {{{
--- 36 forest green
--- 46 bright green
--- 62 purple
--- 120 pale neon green
--- 234 dark grey
--- vim.g.tokyonight_terminal_colors = true
--- vim.g.tokyonight_transparent = true
--- vim.g.transparent_sidebar = true
--- vim.g.dark_sidebar = true
-
--- vim.g.tokyonight_sidebars = { "terminal" }
---vim.g.tokyonight_day_brightness = 1
-
--- local catppuccin = require("catppuccin")
--- catppuccin.setup({
---   term_colors = false,
---   transparent_background = true,
---   colorscheme = "neon_latte",
---   styles = {
---     comments = "NONE",
---     functions = "italic",
---     keywords = "NONE",
---     strings = "NONE",
---     variables = "NONE",
---   },
---   integrations = {
---     treesitter = true,
---     native_lsp = {
---       enabled = true,
---       virtual_text = {
---         errors = "italic",
---         hints = "italic",
---         warnings = "italic",
---         information = "italic",
---       },
---       underlines = {
---         errors = "underline",
---         hints = "underline",
---         warnings = "underline",
---         information = "underline",
---       },
---     },
---     lsp_trouble = false,
---     cmp = false,
---     lsp_saga = false,
---     gitgutter = false,
---     gitsigns = true,
---     telescope = true,
---     which_key = false,
---     indent_blankline = {
---       enabled = true,
---       colored_indent_levels = false,
---     },
---     dashboard = false,
---     neogit = false,
---     vim_sneak = true,
---     fern = false,
---     barbar = false,
---     bufferline = false,
---     markdown = true,
---     lightspeed = false,
---     ts_rainbow = false,
---     hop = false,
---     notify = true,
---     telekasten = true,
---   },
--- })
-
--- require("material").setup({
---   contrast = {
---     sidebars = false, -- Enable contrast for sidebar-like windows ( for example Nvim-Tree )
---     floating_windows = false, -- Enable contrast for floating windows
---     line_numbers = false, -- Enable contrast background for line numbers
---     sign_column = false, -- Enable contrast background for the sign column
---     cursor_line = false, -- Enable darker background for the cursor line
---     non_current_windows = false, -- Enable darker background for non-current windows
---     popup_menu = true, -- Enable lighter background for the popup menu
---   },
---
---   italics = {
---     comments = false, -- Enable italic comments
---     keywords = false, -- Enable italic keywords
---     functions = false, -- Enable italic functions
---     strings = false, -- Enable italic strings
---     variables = false, -- Enable italic variables
---   },
---
---   contrast_filetypes = { -- Specify which filetypes get the contrasted (darker) background
---     "terminal", -- Darker terminal background
---     "packer", -- Darker packer background
---     "qf", -- Darker qf list background
---   },
---
---   high_visibility = {
---     lighter = false, -- Enable higher contrast text for lighter style
---     darker = false, -- Enable higher contrast text for darker style
---   },
---
---   disable = {
---     borders = false, -- Disable borders between verticaly split windows
---     background = false, -- Prevent the theme from setting the background (NeoVim then uses your teminal background)
---     term_colors = false, -- Prevent the theme from setting terminal colors
---     eob_lines = false, -- Hide the end-of-buffer lines
---   },
---
---   lualine_style = "default", -- Lualine style ( can be 'stealth' or 'default' )
---
---   async_loading = true, -- Load parts of the theme asyncronously for faster startup (turned on by default)
---
---   custom_highlights = {}, -- Overwrite highlights with your own
--- })
 
 -- inline colors
 --require'colorizer'.setup()
@@ -285,7 +158,6 @@ vim.api.nvim_set_keymap("", "<C-s>", ":write<CR>", { noremap = true })
 --vim.api.nvim_set_keymap("", "<", ":write<CR>", { noremap = true })
 --vim.api.nvim_set_keymap('', '', ':tabclose<CR>', {noremap = true})
 vim.api.nvim_set_keymap("", "<C-q>", ":bdelete<CR>", { noremap = true })
-vim.api.nvim_set_keymap("", "<C-t>", ":Telescope<cr>", { noremap = true })
 
 keymap("n", "rr", "<Cmd>lua require'telescope'.extensions.project.project{display_type='full'}<cr>", opts) -- find projects
 keymap(
@@ -302,32 +174,4 @@ vim.api.nvim_set_keymap("n", "<C-f>", ":Rg<cr>", { noremap = true, silent = true
 --nnoremap <leader>fg <cmd>lua require('telescope.builtin').live_grep()<cr>
 --nnoremap <leader>fb <cmd>lua require('telescope.builtin').buffers()<cr>
 --nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags()<cr>
-
--- emacs style shortcuts in insert mode (yes, i am like that)
-vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-p>", "<Up>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-b>", "<Left>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-f>", "<Right>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-e>", "<End>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
-
--- move page with cursor
--- keymap("n", "k", "kzz", { noremap = true, silent = true })
--- keymap("n", "j", "jzz", { noremap = true, silent = true })
--- keymap("n", "p", "pzz", { noremap = true, silent = true })
--- keymap("n", "P", "Pzz", { noremap = true, silent = true })
--- keymap("n", "{", "{zz", { noremap = true, silent = true})
--- keymap("n", "}", "}zz", { noremap = true, silent = true})
--- keymap("n", "G", "Gzz", { noremap = true, silent = true})
--- keymap("n", "n", "nzz", { noremap = true, silent = true})
--- keymap("n", "N", "Nzz", { noremap = true, silent = true})
--- keymap("n", "o", "o<ESC>zza", { noremap = true, silent = true})
--- keymap("n", "O", "O<ESC>zza", { noremap = true, silent = true})
--- keymap("n", "a", "a<ESC>zza", { noremap = true, silent = true})
--- keymap("n", "<ENTER>", "<ENTER>zz", { noremap = true, silent = true})
--- keymap("i", "<ESC>", "<ESC>zz", { noremap = true, silent = true})
--- keymap("i", "<ENTER>", "<ENTER><ESC>zzi", { noremap = true, silent = true})
-
-vim.opt.scrolloff = 100
-
 

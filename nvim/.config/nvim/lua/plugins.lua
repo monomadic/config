@@ -43,7 +43,7 @@ require("packer").startup(function(use)
   use({
     "noib3/nvim-cokeline", -- because bufferline sucks to configure
     requires = "kyazdani42/nvim-web-devicons",
-    config = "require('user.coke')",
+    config = "require('plugins.cokeline')",
   })
 
   -- use "moll/vim-bbye"
@@ -98,10 +98,12 @@ require("packer").startup(function(use)
   use("MunifTanjim/prettier.nvim") -- formatting with Prettier
 
   use {"simrat39/rust-tools.nvim",
-    config = "require 'user.rust-tools'"
+    --config = "require 'plugins.rust-tools'"
   } -- extensions in addition to rust-analyzer
 
   -- Autocomplete
+  use 'hrsh7th/nvim-cmp'
+  use 'hrsh7th/cmp-nvim-lsp'
   use 'hrsh7th/nvim-compe'
   use 'mattn/emmet-vim'
   use 'hrsh7th/vim-vsnip'
@@ -151,7 +153,7 @@ require("packer").startup(function(use)
     event = { "BufRead Cargo.toml" },
     requires = { { "nvim-lua/plenary.nvim" } },
     config = function()
-      require("user.cargo")
+      require("plugins.cargo")
     end,
   })
 
