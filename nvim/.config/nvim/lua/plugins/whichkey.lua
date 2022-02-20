@@ -96,6 +96,7 @@ local mappings = {
 
   o = {
     name = "Open",
+    n = { "<cmd>Open ~/config/nvim/.config/nvim/<cr>", "Nvim Config" },
     o = { "<cmd>lua require('telescope').extensions.opener.opener()<cr>", "Opener" },
     w = { "<cmd>lua require('telescope').extensions.opener.opener({hidden=false,respect_gitignore=true,root_dir='~/Workspaces'})<cr>", "Workspace" },
   },

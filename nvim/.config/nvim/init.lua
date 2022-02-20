@@ -28,6 +28,7 @@ require("user.neotree")
 
 -- LSP
 require 'lsp.lsp-javascript'
+require 'lsp.lsp-svelte'
 require 'lsp.lsp-rust-tools' -- provides type-hints, rust-runnables
 require 'lsp.keymaps'()
 --require 'lsp'

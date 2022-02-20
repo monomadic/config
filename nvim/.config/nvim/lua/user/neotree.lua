@@ -1,10 +1,11 @@
 vim.cmd([[
-        hi link NeoTreeDirectoryName Normal
-        hi link NeoTreeDirectoryIcon Comment
-        hi link NeoTreeIndentMarket Comment
-        hi NeoTreeGitModified guifg=#c8fc0c
-        hi NeoTreeGitUntracked guifg=#fcc205
-      ]])
+  hi link NeoTreeDirectoryName Normal
+  hi link NeoTreeDirectoryIcon Comment
+  hi link NeoTreeIndentMarket Comment
+  hi NeoTreeGitModified guifg=#02f9d0
+  hi NeoTreeGitAdded guifg=#2bf902
+  hi NeoTreeGitUntracked guifg=#02f954
+]])
 
 vim.api.nvim_set_keymap("", "<C-p>", ":NeoTreeFloat<CR>", { noremap = true, silent = true })
 vim.api.nvim_set_keymap("", "<C-b>", ":NeoTreeShowToggle<CR>", { noremap = true, silent = true })
