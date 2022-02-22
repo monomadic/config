@@ -11,7 +11,7 @@ vim.api.nvim_set_keymap("", "<C-p>", ":NeoTreeFloat<CR>", { noremap = true, sile
 vim.api.nvim_set_keymap("", "<C-b>", ":NeoTreeShowToggle<CR>", { noremap = true, silent = true })
 
 require("neo-tree").setup({
-  close_if_last_window = true, -- Close Neo-tree if it is the last window left in the tab
+  close_if_last_window = false, -- Close Neo-tree if it is the last window left in the tab
   popup_border_style = "rounded",
   enable_git_status = true,
   enable_diagnostics = true,

@@ -37,6 +37,9 @@ require 'lsp.keymaps'()
 
 -- https://github.com/LunarVim/Neovim-from-scratch
 
+-- Lightbulb
+vim.cmd [[autocmd CursorHold,CursorHoldI * lua require'nvim-lightbulb'.update_lightbulb()]]
+
 -- Terminal
 require("toggleterm").setup({
   open_mapping = [[<C-j>]],

@@ -17,6 +17,7 @@ require("packer").startup(function(use)
   -- Tree
   use({
     "nvim-neo-tree/neo-tree.nvim",
+    branch = "v1.x",
     requires = {
       "nvim-lua/plenary.nvim",
       "kyazdani42/nvim-web-devicons",
@@ -31,7 +32,6 @@ require("packer").startup(function(use)
   -- use "nvim-lua/popup.nvim" -- An implementation of the Popup API from vim in Neovim
   use("RishabhRD/popfix") -- popupui (required by popui)
   use("hood/popui.nvim")
-  use "willthbill/opener.nvim"
 
   use("nvim-lua/plenary.nvim") -- useful lua functions used ny lots of plugins
   use({ "windwp/nvim-autopairs", config = "require('nvim-autopairs').setup{}" }) -- Autopairs, integrates with both cmp and treesitter
@@ -84,9 +84,9 @@ require("packer").startup(function(use)
   -- LSP
   use("neovim/nvim-lspconfig") -- enable LSP
   use("williamboman/nvim-lsp-installer") -- simple to use language server installer
-    --   use 'glepnir/lspsaga.nvim'
-    -- use 'onsails/lspkind-nvim'
-    -- use 'kosayoda/nvim-lightbulb'
+  use 'glepnir/lspsaga.nvim'
+    -- use 'onsails/lspkind-nvim' -- icons for lsp complete
+  use 'kosayoda/nvim-lightbulb'
     -- use 'mfussenegger/nvim-jdtls'
 
 
@@ -102,6 +102,9 @@ require("packer").startup(function(use)
     --config = "require 'plugins.rust-tools'"
   } -- extensions in addition to rust-analyzer
 
+  use {
+    "appelgriebsch/surround.nvim",
+  }
   -- Autocomplete
   use 'hrsh7th/nvim-cmp'
   use 'hrsh7th/cmp-nvim-lsp'
