@@ -81,7 +81,7 @@ require("packer").startup(function(use)
   use("lunarvim/darkplus.nvim")
   use("marko-cerovac/material.nvim")
   use("joshdick/onedark.vim")
-  use("catppuccin/nvim")
+  --use("catppuccin/nvim")
   -- use "dracula/vim"
 
   -- LSP
@@ -177,8 +177,13 @@ require("packer").startup(function(use)
   use("JoosepAlviste/nvim-ts-context-commentstring")
 
   -- -- Git
-  -- use "lewis6991/gitsigns.nvim"
-  -- use "ttys3/nvim-blamer.lua" -- git blame
+  use {"lewis6991/gitsigns.nvim",
+    requires = {
+      'nvim-lua/plenary.nvim'
+    }
+  }
+  -- airblade/vim-gitgutter
+  use "ttys3/nvim-blamer.lua" -- git blame
   --
   -- Automatically set up your configuration after cloning packer.nvim
   -- Put this at the end after all plugins

@@ -82,7 +82,7 @@ require("packer").startup(function(use)
   use("folke/tokyonight.nvim")
   use("marko-cerovac/material.nvim")
   use("joshdick/onedark.vim")
-  use("catppuccin/nvim")
+  --use("catppuccin/nvim")
   -- use "dracula/vim"
 
   -- LSP
