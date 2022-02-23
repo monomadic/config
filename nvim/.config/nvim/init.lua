@@ -20,6 +20,7 @@ require 'plugins.vsnip'
 require 'plugins.galaxyline'
 require 'plugins.symbols_outline'
 require 'plugins.colorizer' -- inline colors
+require 'plugins.neoformat' -- code formatting
 
 local cmd = vim.cmd
 local call = vim.call

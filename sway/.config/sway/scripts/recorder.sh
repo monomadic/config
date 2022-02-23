@@ -6,15 +6,6 @@ status=$?
 
 gif=false
 
-countdown() {
-  notify "Recording in 3 seconds" -t 1000
-  sleep 1
-  notify "Recording in 2 seconds" -t 1000
-  sleep 1
-  notify "Recording in 1 seconds" -t 1000
-  sleep 1
-}
-
 notify() {
     line=$1
     shift

@@ -28,6 +28,8 @@ require("packer").startup(function(use)
   --use("kyazdani42/nvim-tree.lua")
   --use("MunifTanjim/nui.nvim") -- neotree dep
 
+  use 'sbdchd/neoformat'
+
   -- UI
   -- use "nvim-lua/popup.nvim" -- An implementation of the Popup API from vim in Neovim
   use("RishabhRD/popfix") -- popupui (required by popui)
@@ -50,6 +52,7 @@ require("packer").startup(function(use)
   -- use "moll/vim-bbye"
   -- use "nvim-lualine/lualine.nvim"
   use("akinsho/toggleterm.nvim")
+  use 'vimlab/split-term.vim'
   use("ternjs/tern_for_vim")
   -- use "ahmedkhalf/project.nvim"
   -- use "lewis6991/impatient.nvim"
@@ -84,7 +87,6 @@ require("packer").startup(function(use)
   -- LSP
   use("neovim/nvim-lspconfig") -- enable LSP
   use("williamboman/nvim-lsp-installer") -- simple to use language server installer
-  use 'glepnir/lspsaga.nvim'
     -- use 'onsails/lspkind-nvim' -- icons for lsp complete
   use 'kosayoda/nvim-lightbulb'
     -- use 'mfussenegger/nvim-jdtls'

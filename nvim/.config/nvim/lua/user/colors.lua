@@ -10,6 +10,6 @@ vim.cmd([[
   hi Function guifg=#0cb0fc
   hi Type guifg=#0cfcd0
   hi Conditional guifg=#0c84fc
-  hi Keyword guifg=#78b0e8
+  hi Keyword guifg=#99CCCC
 ]])
 
