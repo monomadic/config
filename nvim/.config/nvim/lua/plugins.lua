@@ -121,39 +121,6 @@ require("packer").startup(function(use)
   use 'ChristianChiarulli/java-snippets'
   use 'ChristianChiarulli/python-snippets'
 
-  -- use({
-  --   "hrsh7th/nvim-cmp",
-  --   requires = {
-  --     "hrsh7th/cmp-buffer",
-  --     "hrsh7th/cmp-vsnip",
-  --     "hrsh7th/cmp-cmdline",
-  --     "hrsh7th/cmp-nvim-lsp",
-  --   },
-  --   config = "require('user.autocomplete')"
-  -- }) -- The completion plugin
-  --use("hrsh7th/cmp-buffer") -- buffer completions
-  -- use({"hrsh7th/cmp-path",
-  --   config = require'cmp'.setup {
-  --   sources = {
-  --     { name = 'path' }
-  --   }
-  -- }}) -- path completions for filesystem
-  --use("hrsh7th/cmp-cmdline") -- cmdline completions
-  --use("saadparwaiz1/cmp_luasnip") -- snippet completions
-  --use("hrsh7th/cmp-nvim-lsp") -- lsp completions
-  --use("hrsh7th/cmp-vsnip")
-
-  -- use({
-  --   "simrat39/rust-tools.nvim",
-  --   --config = "require 'user.rust-tools'"
-  -- }) -- extensions in addition to rust-analyzer
-
-  --use("hrsh7th/vim-vsnip")
-
-  -- snippets
-  --use("L3MON4D3/LuaSnip") --snippet engine
-  --use("rafamadriz/friendly-snippets") -- a bunch of snippets to use
-
   use({
     "saecki/crates.nvim",
     event = { "BufRead Cargo.toml" },

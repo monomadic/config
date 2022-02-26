@@ -55,6 +55,10 @@
   font-size: 14px;
 }
 
+#custom-btc-price {
+  color: #ff88ff;
+}
+
 /* Each module */
 #custom-pacman,
 #custom-menu,
@@ -131,7 +135,6 @@
   background-color: rgb(0, 255, 136);
   padding-left: 10px;
   padding-right: 14px;
-  color: #111;
 }
 
 #memory {
