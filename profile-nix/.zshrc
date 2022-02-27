@@ -42,6 +42,8 @@ source $HOME/.profile
 #source /usr/share/nvm/init-nvm.sh
 #
 
+source .config/scripts/rclone.zsh 
+
 eval "$(starship init zsh)"
 
 export NVM_DIR="$HOME/.nvm"

@@ -13,7 +13,7 @@ include $config_path/outputs/*
 include $config_path/modes/*
 
 # only enable this if every app you use is compatible with wayland
-# xwayland disable
+xwayland disable
 
 # include additional configs e.g. to autostart applications
 include $config_path/config.d/*

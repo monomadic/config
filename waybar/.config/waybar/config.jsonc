@@ -14,7 +14,7 @@
   "layer": "top",
 
   // If height property would be not present, it'd be calculated dynamically
-  "height": 30,
+  "height": 25,
   "position": "top",
 
   "modules-left": [
@@ -25,7 +25,7 @@
   "modules-center": ["custom/wf-recorder", "sway/mode"],
   "modules-right": [
     "custom/portfolio-in-btc",
-
+    "custom/portfolio-change",
     // informational
     // "sway/language",
     "custom/github",
@@ -160,15 +160,21 @@
   "custom/btc-price": {
     "format": " {} ",
     "interval": 300,
-    "on-click": "alacritty --exec cointop",
-    "exec": "cointop price --coin BTC"
+    "on-click": "swaymsg exec \"\\$term_float cointop\""
   },
 
   "custom/portfolio-in-btc": {
     "format": "{} ",
     "interval": 300,
     "exec": "cointop holdings --total --convert BTC",
-    "on-click": "alacritty --exec cointop"
+    "on-click": "swaymsg exec \"\\$term_float cointop\""
+  },
+
+  "custom/portfolio-change": {
+    "format": "{} ",
+    "interval": 300,
+    "exec": "cointop holdings --24h --human",
+    "on-click": "swaymsg exec \"\\$term_float cointop\""
   },
 
   "custom/pacman": {
