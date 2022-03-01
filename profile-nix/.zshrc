@@ -42,10 +42,12 @@ source $HOME/.profile
 #source /usr/share/nvm/init-nvm.sh
 #
 
-source .config/scripts/rclone.zsh 
+source $HOME/.config/scripts/rclone.zsh 
 
 eval "$(starship init zsh)"
 
 export NVM_DIR="$HOME/.nvm"
 #[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 # [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+source /home/nom/.config/broot/launcher/bash/br

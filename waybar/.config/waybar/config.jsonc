@@ -160,6 +160,7 @@
   "custom/btc-price": {
     "format": " {} ",
     "interval": 300,
+    "exec": "cointop price --coin btc",
     "on-click": "swaymsg exec \"\\$term_float cointop\""
   },
 

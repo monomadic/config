@@ -28,7 +28,7 @@ require("packer").startup(function(use)
   --use("kyazdani42/nvim-tree.lua")
   --use("MunifTanjim/nui.nvim") -- neotree dep
 
-  use 'sbdchd/neoformat'
+  use("sbdchd/neoformat")
 
   -- UI
   -- use "nvim-lua/popup.nvim" -- An implementation of the Popup API from vim in Neovim
@@ -51,9 +51,15 @@ require("packer").startup(function(use)
 
   -- use "moll/vim-bbye"
   -- use "nvim-lualine/lualine.nvim"
-  use("akinsho/toggleterm.nvim")
-  use 'vimlab/split-term.vim'
+
+  use({ "kevinhwang91/nvim-bqf", ft = "qf" })
+
+  -- Terminal
+  -- use("akinsho/toggleterm.nvim")
+  use("voldikss/vim-floaterm")
+  use("vimlab/split-term.vim")
   use("ternjs/tern_for_vim")
+
   -- use "ahmedkhalf/project.nvim"
   -- use "lewis6991/impatient.nvim"
   -- use "lukas-reineke/indent-blankline.nvim"
@@ -65,6 +71,7 @@ require("packer").startup(function(use)
   use("terryma/vim-multiple-cursors") -- coule replace with visual x mode?
   -- use "akinsho/bufferline.nvim" -- not used?
   use({ "petertriho/nvim-scrollbar", config = "require'scrollbar'.setup()" }) -- side scrollbar with git support
+  use({ "karb94/neoscroll.nvim", config = "require'neoscroll'.setup()" })
   use("norcalli/nvim-colorizer.lua") -- inline colors
   use("liuchengxu/vista.vim") -- symbols again?
   --use "glepnir/dashboard-nvim" -- dashboard
@@ -87,11 +94,10 @@ require("packer").startup(function(use)
   -- LSP
   use("neovim/nvim-lspconfig") -- enable LSP
   use("williamboman/nvim-lsp-installer") -- simple to use language server installer
-    -- use 'onsails/lspkind-nvim' -- icons for lsp complete
-  use 'kosayoda/nvim-lightbulb'
-    -- use 'mfussenegger/nvim-jdtls'
-
-
+  -- use 'onsails/lspkind-nvim' -- icons for lsp complete
+  use("kosayoda/nvim-lightbulb")
+  -- use 'mfussenegger/nvim-jdtls'
+  use("tomlion/vim-solidity")
   --use("tamago324/nlsp-settings.nvim") -- language server settings defined in json for
 
   use("jose-elias-alvarez/null-ls.nvim") -- for formatters and linters
@@ -100,26 +106,27 @@ require("packer").startup(function(use)
   -- use "mfussenegger/nvim-dap" -- debugging protocol
   use("MunifTanjim/prettier.nvim") -- formatting with Prettier
 
-  use {"simrat39/rust-tools.nvim",
+  use({
+    "simrat39/rust-tools.nvim",
     --config = "require 'plugins.rust-tools'"
-  } -- extensions in addition to rust-analyzer
+  }) -- extensions in addition to rust-analyzer
 
-  use {
+  use({
     "appelgriebsch/surround.nvim",
-  }
+  })
   -- Autocomplete
-  use 'hrsh7th/nvim-cmp'
-  use 'hrsh7th/cmp-nvim-lsp'
-  use 'hrsh7th/nvim-compe'
-  use 'mattn/emmet-vim'
-  use 'hrsh7th/vim-vsnip'
-  use 'xabikos/vscode-javascript'
-  use 'dsznajder/vscode-es7-javascript-react-snippets'
-  use 'golang/vscode-go'
-  use 'rust-lang/vscode-rust'
-  use 'ChristianChiarulli/html-snippets'
-  use 'ChristianChiarulli/java-snippets'
-  use 'ChristianChiarulli/python-snippets'
+  use("hrsh7th/nvim-cmp")
+  use("hrsh7th/cmp-nvim-lsp")
+  use("hrsh7th/nvim-compe")
+  use("mattn/emmet-vim")
+  use("hrsh7th/vim-vsnip")
+  use("xabikos/vscode-javascript")
+  use("dsznajder/vscode-es7-javascript-react-snippets")
+  use("golang/vscode-go")
+  use("rust-lang/vscode-rust")
+  use("ChristianChiarulli/html-snippets")
+  use("ChristianChiarulli/java-snippets")
+  use("ChristianChiarulli/python-snippets")
 
   use({
     "saecki/crates.nvim",
@@ -139,18 +146,22 @@ require("packer").startup(function(use)
   use({
     "nvim-treesitter/nvim-treesitter",
     run = ":TSUpdate",
+    requires = {
+      { "p00f/nvim-ts-rainbow" },
+      { "mfussenegger/nvim-treehopper" },
+      { "folke/twilight.nvim" },
+      { "folke/zen-mode.nvim" },
+    },
     config = "require('user.treesitter')",
   })
   use("JoosepAlviste/nvim-ts-context-commentstring")
 
   -- -- Git
-  use {"lewis6991/gitsigns.nvim",
-    requires = {
-      'nvim-lua/plenary.nvim'
-    }
-  }
+  use({ "lewis6991/gitsigns.nvim", requires = {
+    "nvim-lua/plenary.nvim",
+  } })
   -- airblade/vim-gitgutter
-  use "ttys3/nvim-blamer.lua" -- git blame
+  use("ttys3/nvim-blamer.lua") -- git blame
   --
   -- Automatically set up your configuration after cloning packer.nvim
   -- Put this at the end after all plugins

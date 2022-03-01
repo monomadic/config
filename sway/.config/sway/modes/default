@@ -107,9 +107,9 @@ $bindsym $mod+Shift+0 move container to workspace $ws10, exec $focus_ws $ws10
 ## Action // Switch to window stacking ##
 $bindsym $mod+s layout stacking
 ## Action // Switch to window tabbing ##
-$bindsym $mod+w layout tabbed
+$bindsym $mod+t layout tabbed
 ## Action // Toggle window splitting ##
-$bindsym $mod+e layout toggle split
+$bindsym $mod+v layout toggle split
 
 ## Action // Toggle fullscreen ##
 $bindsym $mod+f fullscreen

@@ -3,7 +3,7 @@ vim.api.nvim_exec(
   [[
 augroup FormatAutogroup
   autocmd!
-  autocmd BufWritePre * undojoin | Prettier
+  autocmd BufWritePre * undojoin | Neoformat
 augroup END
 ]],
   true

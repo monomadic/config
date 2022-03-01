@@ -7,7 +7,7 @@ vim.cmd([[
   hi NeoTreeGitUntracked guifg=#02f954
 ]])
 
-vim.api.nvim_set_keymap("", "<C-p>", ":NeoTreeFloat<CR>", { noremap = true, silent = true })
+vim.api.nvim_set_keymap("", "<C-p>", ":NeoTreeFloatToggle<CR>", { noremap = true, silent = true })
 vim.api.nvim_set_keymap("", "<C-b>", ":NeoTreeShowToggle<CR>", { noremap = true, silent = true })
 
 require("neo-tree").setup({
@@ -57,13 +57,13 @@ require("neo-tree").setup({
 
     window = {
       position = "left",
-      width = 40,
+      -- width = 40,
       mappings = {
         ["<1-LeftMouse>"] = "open",
         ["<cr>"] = "open",
         ["l"] = "open",
-        ["h"] = "open_split",
-        ["v"] = "open_vsplit",
+        ["<C-h>"] = "open_split",
+        ["<C-v>"] = "open_vsplit",
         -- ["<C-\->"] = "open_split",
         -- ["<C-\\>"] = "open_vsplit",
         ["C"] = "close_node",

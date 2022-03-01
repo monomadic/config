@@ -36,7 +36,7 @@ local setup = {
   icons = {
     breadcrumb = "»", -- symbol used in the command line area that shows your active key combo
     separator = "➜", -- symbol used between a key and it's label
-    group = "+", -- symbol prepended to a group
+    group = " ", -- symbol prepended to a group
   },
   popup_mappings = {
     scroll_down = "<c-d>", -- binding to scroll down inside the popup
@@ -83,7 +83,7 @@ local mappings = {
     "<cmd>lua require('telescope.builtin').buffers(require('telescope.themes').get_dropdown{previewer = false})<cr>",
     "Buffers",
   },
-  ["w"] = { "<cmd>w!<CR>", "Save" },
+  ["w"] = { "<cmd>wall<CR>", "Save All" },
   ["q"] = { "<cmd>q!<CR>", "Quit" },
   ["c"] = { "<cmd>Bdelete!<CR>", "Close Buffer" },
   ["h"] = { "<cmd>nohlsearch<CR>", "No Highlight" },
@@ -98,7 +98,10 @@ local mappings = {
     name = "Open",
     n = { "<cmd>Open ~/config/nvim/.config/nvim/<cr>", "Nvim Config" },
     o = { "<cmd>lua require('telescope').extensions.opener.opener()<cr>", "Opener" },
-    w = { "<cmd>lua require('telescope').extensions.opener.opener({hidden=false,respect_gitignore=true,root_dir='~/Workspaces'})<cr>", "Workspace" },
+    w = {
+      "<cmd>lua require('telescope').extensions.opener.opener({hidden=false,respect_gitignore=true,root_dir='~/Workspaces'})<cr>",
+      "Workspace",
+    },
   },
 
   p = {
@@ -195,7 +198,7 @@ local mappings = {
   t = {
     name = "Terminal",
     n = { "<cmd>lua _NODE_TOGGLE()<cr>", "Node" },
-    u = { "<cmd>lua _NCDU_TOGGLE()<cr>", "NCDU" },
+    u = { "<cmd>FloatermNew ncdu<cr>", "NCDU" },
     t = { "<cmd>lua _HTOP_TOGGLE()<cr>", "Htop" },
     p = { "<cmd>lua _PYTHON_TOGGLE()<cr>", "Python" },
     f = { "<cmd>ToggleTerm direction=float<cr>", "Float" },
