@@ -13,6 +13,8 @@ require("packer").startup(function(use)
 
   -- Status line
   use({ "glepnir/galaxyline.nvim", requires = "kyazdani42/nvim-web-devicons" })
+  --use({ "feline-nvim/feline.nvim", requires = "kyazdani42/nvim-web-devicons" })
+  --use("yamatsum/nvim-nonicons")
 
   -- Tree
   use({
@@ -66,7 +68,7 @@ require("packer").startup(function(use)
   -- use "goolord/alpha-nvim"
   -- use "antoinemadec/FixCursorHold.nvim" -- This is needed to fix lsp doc highlight
   use("folke/which-key.nvim") -- shows keymaps in a popup
-  use("nvim-lualine/lualine.nvim") -- status bar
+  --use("nvim-lualine/lualine.nvim") -- status bar
   --use "ervandew/supertab" -- unknown... ?
   use("terryma/vim-multiple-cursors") -- coule replace with visual x mode?
   -- use "akinsho/bufferline.nvim" -- not used?
@@ -149,7 +151,7 @@ require("packer").startup(function(use)
     requires = {
       { "p00f/nvim-ts-rainbow" },
       { "mfussenegger/nvim-treehopper" },
-      { "folke/twilight.nvim" },
+      -- { "folke/twilight.nvim" },
       { "folke/zen-mode.nvim" },
     },
     config = "require('user.treesitter')",

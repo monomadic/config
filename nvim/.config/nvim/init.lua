@@ -89,3 +89,4 @@ require("prettier").setup({
 vim.cmd([[let loaded_netrwPlugin = 1]])
 
 require("plugins.gitsigns")
+--require("plugins.line") -- statusbar (doesn't work?)

@@ -1,8 +1,8 @@
-local get_hex = require('cokeline/utils').get_hex
+local get_hex = require("cokeline/utils").get_hex
 
 local map = vim.api.nvim_set_keymap
-map('n', 'H', '<Plug>(cokeline-focus-prev)', { silent = true })
-map('n', 'L', '<Plug>(cokeline-focus-next)', { silent = true })
+map("n", "H", "<Plug>(cokeline-focus-prev)", { silent = true })
+map("n", "L", "<Plug>(cokeline-focus-next)", { silent = true })
 -- map('n', '<Leader>p', '<Plug>(cokeline-switch-prev)', { silent = true })
 -- map('n', '<Leader>n', '<Plug>(cokeline-switch-next)', { silent = true })
 
@@ -11,7 +11,9 @@ map('n', 'L', '<Plug>(cokeline-focus-next)', { silent = true })
 --   map('n', ('<Leader>%s'):format(i), ('<Plug>(cokeline-switch-%s)'):format(i), { silent = true })
 -- end
 
-require('cokeline').setup({
+require("cokeline").setup({
+  show_if_buffers_are_at_least = 1,
+
   default_hl = {
     focused = {
       -- fg = get_hex("Normal", "fg"),
@@ -28,32 +30,33 @@ require('cokeline').setup({
 
   rendering = {
     left_sidebar = {
-      filetype = 'neo-tree',
+      filetype = "neo-tree",
       components = {
         {
-          text = '   ' .. vim.fn.fnamemodify(vim.fn.getcwd(), ":t"),
+          text = "   " .. vim.fn.fnamemodify(vim.fn.getcwd(), ":t"),
           hl = {
             fg = "#c8fc0c",
-            bg = get_hex('NeoTreeNormal', 'bg'),
-            style = 'bold'
-          }
+            bg = get_hex("NeoTreeNormal", "bg"),
+            style = "bold",
+          },
         },
-      }
+      },
     },
   },
 
   components = {
     {
-      text = ' ',
+      text = " ",
       hl = {
         fg = function(buffer)
-          return
-            buffer.is_modified and yellow or green
-        end
+          return buffer.is_modified and yellow or green
+        end,
       },
     },
     {
-      text = function(buffer) return ' ' .. buffer.devicon.icon end,
+      text = function(buffer)
+        return " " .. buffer.devicon.icon
+      end,
       -- hl = {
       --   fg = function(buffer) return buffer.devicon.color end,
       -- },
@@ -69,13 +72,17 @@ require('cokeline').setup({
     --   },
     -- },
     {
-      text = function(buffer) return buffer.filename .. ' ' end,
+      text = function(buffer)
+        return buffer.filename .. " "
+      end,
       hl = {
-        style = function(buffer) return buffer.is_focused and 'bold' or nil end,
+        style = function(buffer)
+          return buffer.is_focused and "bold" or nil
+        end,
       },
     },
     {
-      text = ' ',
+      text = " ",
     },
   },
 })
