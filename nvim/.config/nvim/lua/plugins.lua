@@ -27,6 +27,7 @@ require("packer").startup(function(use)
   use({ "glepnir/galaxyline.nvim", requires = "kyazdani42/nvim-web-devicons" })
   --use({ "feline-nvim/feline.nvim", requires = "kyazdani42/nvim-web-devicons" })
   --use("yamatsum/nvim-nonicons")
+  use("lukas-reineke/indent-blankline.nvim")
 
   -- Tree
   use({

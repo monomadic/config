@@ -70,7 +70,6 @@ gls.left[3] = {
     end,
     separator = " ",
     separator_highlight = { "NONE", colors.bg },
-    condition = condition.buffer_not_empty,
     highlight = { colors.bg, colors.magenta, "bold" },
   },
 }
