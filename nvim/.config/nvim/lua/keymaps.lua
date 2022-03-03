@@ -14,7 +14,9 @@ vim.api.nvim_set_keymap("i", "<C-b>", "<Left>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-f>", "<Right>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-e>", "<End>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
-vim.api.nvim_set_keymap("", "<C-s>", ":write<CR>", { noremap = true })
+vim.api.nvim_set_keymap("i", "<C-s>", ":write<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "<C-s>", ":write<CR>", { noremap = true })
+
 --vim.api.nvim_set_keymap("", "<", ":write<CR>", { noremap = true })
 --vim.api.nvim_set_keymap('', '', ':tabclose<CR>', {noremap = true})
 
@@ -25,7 +27,7 @@ keymap(
   "<cmd>lua require('telescope.builtin').find_files(require('telescope.themes').get_dropdown{previewer = false})<cr>",
   { noremap = true }
 )
-keymap("n", "<C-o>", "<cmd>:Telescope find_files<CR>", { noremap = true, silent = true })
+keymap("n", "<C-o>", "<cmd>:Telescope find_files hidden=true no_ignore=true<CR>", { noremap = true, silent = true })
 
 vim.api.nvim_set_keymap("n", "<Esc>", ":noh<cr>", { noremap = true }) -- fix ESC confusion in normal mode
 vim.api.nvim_set_keymap("n", "gf", "<Plug>(easymotion-bd-w)", {})

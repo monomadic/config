@@ -10,6 +10,18 @@ require("packer").startup(function(use)
 
   -- Theme
   use("folke/tokyonight.nvim")
+  use("bluz71/vim-nightfly-guicolors")
+  use("kaicataldo/material.vim")
+  use("rockerBOO/boo-colorscheme-nvim")
+  use("sainnhe/sonokai")
+  use("lunarvim/colorschemes") -- collection of colorschemes
+  use("lunarvim/darkplus.nvim")
+  --use("marko-cerovac/material.nvim")
+  use("joshdick/onedark.vim")
+  --use("catppuccin/nvim")
+  -- use "dracula/vim"
+  use({ "srcery-colors/srcery-vim", as = "srcery" })
+  use("bluz71/vim-moonfly-colors")
 
   -- Status line
   use({ "glepnir/galaxyline.nvim", requires = "kyazdani42/nvim-web-devicons" })
@@ -31,6 +43,8 @@ require("packer").startup(function(use)
   --use("MunifTanjim/nui.nvim") -- neotree dep
 
   use("sbdchd/neoformat")
+
+  use({ "liuchengxu/vim-clap" })
 
   -- UI
   -- use "nvim-lua/popup.nvim" -- An implementation of the Popup API from vim in Neovim
@@ -83,15 +97,6 @@ require("packer").startup(function(use)
   use("rinx/nvim-ripgrep") -- grep
   use("willthbill/opener.nvim") -- project manager
   -- use "brooth/far.vim" -- find and replace
-
-  -- Colorschemes
-  use("sainnhe/sonokai")
-  use("lunarvim/colorschemes") -- collection of colorschemes
-  use("lunarvim/darkplus.nvim")
-  use("marko-cerovac/material.nvim")
-  use("joshdick/onedark.vim")
-  --use("catppuccin/nvim")
-  -- use "dracula/vim"
 
   -- LSP
   use("neovim/nvim-lspconfig") -- enable LSP

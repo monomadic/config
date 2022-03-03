@@ -2,7 +2,7 @@ vim.g.material_style = "deep ocean"
 vim.g.sonokai_style = "espresso"
 vim.g.tokyonight_style = "night"
 
-vim.cmd([[colorscheme material]])
+vim.cmd([[colorscheme moonfly]])
 vim.cmd([[
   hi Visual guibg=#c8fc0c guifg=#555555
   hi String guifg=#50fc0c
@@ -12,4 +12,3 @@ vim.cmd([[
   hi Conditional guifg=#0c84fc
   hi Keyword guifg=#99CCCC
 ]])
-

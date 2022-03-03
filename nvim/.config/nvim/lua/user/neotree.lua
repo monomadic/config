@@ -26,9 +26,11 @@ require("neo-tree").setup({
       -- highlight = "NeoTreeIndentMarker",
     },
     icon = {
-      folder_closed = "",
-      folder_open = "",
-      folder_empty = "ﰊ",
+      folder_closed = "",
+      folder_open = "",
+      folder_empty = "",
+      -- folder_closed = "",
+      -- folder_open = "",
       default = "*",
     },
     name = {

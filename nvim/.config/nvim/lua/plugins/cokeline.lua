@@ -36,7 +36,7 @@ require("cokeline").setup({
           text = "   " .. vim.fn.fnamemodify(vim.fn.getcwd(), ":t"),
           hl = {
             fg = "#c8fc0c",
-            bg = get_hex("NeoTreeNormal", "bg"),
+            -- bg = get_hex("NeoTreeNormal", "bg"),
             style = "bold",
           },
         },

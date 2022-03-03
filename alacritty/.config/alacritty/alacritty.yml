@@ -104,8 +104,8 @@ window:
 # Font configuration
 font:
   # Normal (roman) font face
-  #normal:
-  # Font family
+  normal:
+    family: Iosevka
   #
   # Default:
   #   - (macOS) Menlo

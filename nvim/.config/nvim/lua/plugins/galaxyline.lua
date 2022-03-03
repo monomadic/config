@@ -27,7 +27,7 @@ local colors = {
 --   },
 -- }
 
-gls.left[2] = {
+gls.left[1] = {
   ViMode = {
     provider = function()
       -- auto change color according the vim mode
@@ -54,21 +54,36 @@ gls.left[2] = {
         t = colors.red,
       }
       if mode_color[vim.fn.mode()] ~= nil then
-        vim.api.nvim_command("hi GalaxyViMode guifg=" .. mode_color[vim.fn.mode()])
+        vim.api.nvim_command("hi GalaxyViMode guibg=" .. mode_color[vim.fn.mode()])
       end
       return "  " .. vim.fn.mode() .. " "
     end,
-    highlight = { colors.red, colors.bg, "bold" },
+    highlight = { colors.bg, colors.bg, "bold" },
   },
 }
 
+-- PWD
 gls.left[3] = {
-  FileSize = {
-    provider = "FileSize",
+  ProjectDir = {
+    provider = function()
+      return "   " .. vim.fn.fnamemodify(vim.fn.getcwd(), ":t") .. " "
+    end,
+    separator = " ",
+    separator_highlight = { "NONE", colors.bg },
     condition = condition.buffer_not_empty,
-    highlight = { colors.fg, colors.bg },
+    highlight = { colors.bg, colors.magenta, "bold" },
   },
 }
+
+-- gls.left[2] = {
+--   FileSize = {
+--     provider = "FileSize",
+--     condition = condition.buffer_not_empty,
+--     highlight = { colors.fg, colors.bg },
+--   },
+-- }
+
+-- icon
 gls.left[4] = {
   FileIcon = {
     provider = "FileIcon",
@@ -77,33 +92,34 @@ gls.left[4] = {
   },
 }
 
+-- filename
 gls.left[5] = {
   FileName = {
     provider = function()
-      return vim.fn.fnamemodify(vim.fn.expand("%"), ":~:.")
+      return vim.fn.fnamemodify(vim.fn.expand("%"), ":~:.") .. " "
     end,
     condition = condition.buffer_not_empty,
-    highlight = { colors.magenta, colors.bg, "bold" },
+    highlight = { require("galaxyline.provider_fileinfo").get_file_icon_color, colors.bg },
   },
 }
 
-gls.left[6] = {
-  LineInfo = {
-    provider = "LineColumn",
-    separator = " ",
-    separator_highlight = { "NONE", colors.bg },
-    highlight = { colors.fg, colors.bg },
-  },
-}
+-- gls.left[6] = {
+--   LineInfo = {
+--     provider = "LineColumn",
+--     separator = " ",
+--     separator_highlight = { "NONE", colors.bg },
+--     highlight = { colors.fg, colors.bg },
+--   },
+-- }
 
-gls.left[7] = {
-  PerCent = {
-    provider = "LinePercent",
-    separator = " ",
-    separator_highlight = { "NONE", colors.bg },
-    highlight = { colors.fg, colors.bg, "bold" },
-  },
-}
+-- gls.left[7] = {
+--   PerCent = {
+--     provider = "LinePercent",
+--     separator = " ",
+--     separator_highlight = { "NONE", colors.bg },
+--     highlight = { colors.fg, colors.bg, "bold" },
+--   },
+-- }
 
 gls.left[8] = {
   DiagnosticError,
