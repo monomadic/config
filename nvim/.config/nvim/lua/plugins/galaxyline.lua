@@ -16,7 +16,7 @@ local colors = {
   magenta = "#31Fd9e",
   grey = "#c0c0c0",
   blue = "#008AFF",
-  red = "#cc4fF7",
+  red = "#Fc4f97",
 }
 -- gls.left[1] = {
 --   RainbowRed = {

@@ -2,6 +2,10 @@ vim.api.nvim_set_keymap("", "<C-t>", ":Telescope<cr>", { noremap = true })
 local action_layout = require("telescope.actions.layout")
 local previewers = require("telescope.previewers")
 
+vim.cmd([[
+  hi TelescopePromptPrefix guifg=None
+]])
+
 local small_file_preview_only = function(filepath, bufnr, opts)
   opts = opts or {}
 
@@ -32,6 +36,7 @@ dropdown_theme = require("telescope.themes").get_dropdown({
 
 require("telescope").setup({
   defaults = {
+    prompt_prefix = " ",
     buffer_previewer_maker = small_file_preview_only,
     mappings = {
       i = {

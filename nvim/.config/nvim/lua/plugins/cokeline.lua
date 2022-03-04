@@ -10,6 +10,11 @@ map("n", "L", "<Plug>(cokeline-focus-next)", { silent = true })
 --   map('n', ('<F%s>'):format(i),      ('<Plug>(cokeline-focus-%s)'):format(i),  { silent = true })
 --   map('n', ('<Leader>%s'):format(i), ('<Plug>(cokeline-switch-%s)'):format(i), { silent = true })
 -- end
+--
+
+vim.cmd([[
+  hi TabLineFill guibg=#111111
+]])
 
 require("cokeline").setup({
   show_if_buffers_are_at_least = 1,
@@ -23,8 +28,8 @@ require("cokeline").setup({
       bg = "#c8fc0c",
     },
     unfocused = {
-      fg = get_hex("Normal", "fg"),
-      bg = get_hex("Normal", "bg"),
+      fg = "#999999",
+      bg = "#111111",
     },
   },
 
