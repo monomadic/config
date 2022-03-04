@@ -98,7 +98,7 @@ gls.left[5] = {
       return vim.fn.fnamemodify(vim.fn.expand("%"), ":~:.") .. " "
     end,
     condition = condition.buffer_not_empty,
-    highlight = { require("galaxyline.provider_fileinfo").get_file_icon_color, colors.bg },
+    highlight = { colors.fg, colors.bg },
   },
 }
 
@@ -149,8 +149,22 @@ gls.left[8] = {
 
 gls.right[1] = {
   ShowLspClient = {
-    provider = "GetLspClient",
-    --separator = ' ',
+    provider = function(msg)
+      msg = msg or ""
+      local buf_ft = vim.api.nvim_buf_get_option(0, "filetype")
+      local clients = vim.lsp.get_active_clients()
+      if next(clients) == nil then
+        return msg
+      end
+
+      for _, client in ipairs(clients) do
+        local filetypes = client.config.filetypes
+        if filetypes and vim.fn.index(filetypes, buf_ft) ~= -1 then
+          return client.name
+        end
+      end
+      return msg
+    end,
     condition = function()
       local tbl = { ["dashboard"] = true, [""] = true }
       if tbl[vim.bo.filetype] then
@@ -158,8 +172,9 @@ gls.right[1] = {
       end
       return true
     end,
-    icon = " ",
-    highlight = { colors.blue, colors.bg },
+    highlight = { require("galaxyline.provider_fileinfo").get_file_icon_color, colors.bg, "bold" },
+    separator = " ",
+    separator_highlight = { "NONE", colors.bg },
   },
 }
 
@@ -188,52 +203,53 @@ gls.right[3] = {
     provider = function()
       return "  "
     end,
-    condition = condition.check_git_workspace,
+    condition = condition.check_git_workspace and condition.hide_in_width,
+    highlight = { colors.violet, colors.bg, "bold" },
     separator = " ",
     separator_highlight = { "NONE", colors.bg },
-    highlight = { colors.violet, colors.bg, "bold" },
   },
 }
 
 gls.right[4] = {
   GitBranch = {
     provider = "GitBranch",
-    condition = condition.check_git_workspace,
+    condition = condition.check_git_workspace and condition.hide_in_width,
     highlight = { colors.violet, colors.bg, "bold" },
   },
 }
 
 gls.right[5] = {
+  RainbowBlue = {
+    provider = function()
+      return "   "
+    end,
+    highlight = { colors.blue, colors.bg },
+  },
+}
+
+gls.right[6] = {
   DiffAdd = {
     provider = "DiffAdd",
     condition = condition.hide_in_width,
-    icon = "  ",
+    icon = " ",
     highlight = { colors.green, colors.bg },
   },
 }
-gls.right[6] = {
+gls.right[7] = {
   DiffModified = {
     provider = "DiffModified",
     condition = condition.hide_in_width,
-    icon = " 柳",
+    icon = " ",
     highlight = { colors.orange, colors.bg },
-  },
-}
-gls.right[7] = {
-  DiffRemove = {
-    provider = "DiffRemove",
-    condition = condition.hide_in_width,
-    icon = "  ",
-    highlight = { colors.red, colors.bg },
   },
 }
 
 gls.right[8] = {
-  RainbowBlue = {
-    provider = function()
-      return "  "
-    end,
-    highlight = { colors.blue, colors.bg },
+  DiffRemove = {
+    provider = "DiffRemove",
+    condition = condition.hide_in_width,
+    icon = " ",
+    highlight = { colors.red, colors.bg },
   },
 }
 

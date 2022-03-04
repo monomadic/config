@@ -11,6 +11,22 @@ local on_attach = function(client, bufnr)
   vim.api.nvim_buf_set_keymap(bufnr, "n", "gd", "<cmd>lua vim.lsp.buf.definition()<CR>", opts)
   vim.api.nvim_buf_set_keymap(bufnr, "n", "K", "<cmd>lua vim.lsp.buf.hover()<CR>", opts)
   vim.api.nvim_buf_set_keymap(bufnr, "n", "gi", "<cmd>lua vim.lsp.buf.implementation()<CR>", opts)
+  --vim.api.nvim_buf_set_keymap(bufnr, "n", "gW", "<cmd>Rg <cexpr><cr>", opts)
+  vim.api.nvim_buf_set_keymap(bufnr, "n", "gW", "<cmd>Telescope grep_string<cr>", opts)
+  -- vim.api.nvim_buf_set_keymap(
+  --   bufnr,
+  --   "n",
+  --   "gW",
+  --   "<cmd>lua require('telescope.builtin').grep_string({search = vim.fn.expand(\"<cword>\")})<cr>",
+  --   opts
+  -- )
+  vim.api.nvim_buf_set_keymap(
+    bufnr,
+    "n",
+    "gL",
+    "<cmd>lua require('telescope.builtin').live_grep({default_text = vim.fn.expand(\"<cword>\")})<cr>",
+    opts
+  )
   vim.api.nvim_buf_set_keymap(bufnr, "n", "gr", "<cmd>lua vim.lsp.buf.references()<CR>", opts)
   vim.api.nvim_buf_set_keymap(bufnr, "n", "<C-k>", "<cmd>lua vim.lsp.buf.signature_help()<CR>", opts)
   vim.api.nvim_buf_set_keymap(bufnr, "n", "<space>wa", "<cmd>lua vim.lsp.buf.add_workspace_folder()<CR>", opts)
