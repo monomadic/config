@@ -293,8 +293,8 @@ gls.short_line_left[1] = {
       return "  "
     end,
     separator = " ",
-    separator_highlight = { "NONE", colors.bg },
-    highlight = { colors.blue, colors.bg, "bold" },
+    separator_highlight = { "NONE", "#111111" },
+    highlight = { colors.blue, "#111111", "bold" },
   },
 }
 
@@ -302,13 +302,13 @@ gls.short_line_left[2] = {
   SFileName = {
     provider = "SFileName",
     condition = condition.buffer_not_empty,
-    highlight = { colors.fg, colors.bg, "bold" },
+    highlight = { colors.fg, "#111111", "bold" },
   },
 }
 
-gls.short_line_right[1] = {
+gls.short_line_right[3] = {
   BufferIcon = {
     provider = "BufferIcon",
-    highlight = { colors.fg, colors.bg },
+    highlight = { colors.fg, "#111111" },
   },
 }

@@ -13,4 +13,7 @@ vim.cmd([[
   hi Keyword guifg=#99CCCC
   hi LineNr guifg=#444444
   hi CursorLineNr guifg=#AAAAAA gui=bold
+
+  hi ActiveWindow guibg=#000000 | hi InactiveWindow guibg=#090909
+  set winhighlight=Normal:ActiveWindow,NormalNC:InactiveWindow
 ]])

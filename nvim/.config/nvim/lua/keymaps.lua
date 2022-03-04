@@ -27,6 +27,7 @@ vim.api.nvim_set_keymap("n", "<C-k>", "<C-w><C-k>", opts)
 vim.api.nvim_set_keymap("n", "<C-l>", "<C-w><C-l>", opts)
 vim.api.nvim_set_keymap("n", "<C-h>", "<C-w><C-h>", opts)
 vim.api.nvim_set_keymap("n", "<C-n>", ":vsplit<CR>", opts)
+vim.api.nvim_set_keymap("n", "<C-w><C-d>", ":vsplit<CR>", opts)
 
 --vim.api.nvim_buf_set_keymap(bufnr, "n", "gW", "<cmd>Rg <cexpr><cr>", opts)
 vim.api.nvim_set_keymap("n", "gW", "<cmd>Telescope grep_string<cr>", opts)
