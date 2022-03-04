@@ -4,7 +4,7 @@
 require("plugins")
 require("settings")
 require("keymaps")
-require("user.colors")
+require("colors")
 
 -- plugins
 require("plugins.whichkey")
@@ -17,16 +17,17 @@ require("plugins.colorizer") -- inline colors
 require("plugins.neoformat") -- code formatting
 require("plugins.floaterm") -- floating term
 require("plugins.devicons")
-require("plugins.blankline") -- indentation
-require("user.comment")
-require("user.neotree")
+require("plugins.indent-blankline") -- indentation
+require("plugins.comment")
+require("plugins.neotree")
+require("plugins.neoscroll")
 
 -- LSP
 require("lsp.lsp-javascript")
 require("lsp.lsp-svelte")
 require("lsp.lsp-rust-tools") -- provides type-hints, rust-runnables
 --require("lsp.lsp-solidity")
-require("lsp.keymaps")()
+require("lsp.lsp-keymaps")()
 --require 'lsp'
 
 local cmd = vim.cmd
@@ -34,13 +35,6 @@ local call = vim.call
 
 -- Lightbulb
 vim.cmd([[autocmd CursorHold,CursorHoldI * lua require'nvim-lightbulb'.update_lightbulb()]])
-
--- Terminal
--- require("toggleterm").setup({
---   open_mapping = [[<C-j>]],
---   shading_factor = "1",
---   -- shell = "bash",
--- })
 
 require("null-ls").setup({
   on_attach = function(client, bufnr) end,

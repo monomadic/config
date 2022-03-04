@@ -38,10 +38,8 @@ require("packer").startup(function(use)
       "kyazdani42/nvim-web-devicons",
       "MunifTanjim/nui.nvim",
     },
-    --config = require("user.neotree"),
   })
-  --use("kyazdani42/nvim-tree.lua")
-  --use("MunifTanjim/nui.nvim") -- neotree dep
+  use("ms-jpq/chadtree")
 
   use("sbdchd/neoformat")
 
@@ -85,7 +83,7 @@ require("packer").startup(function(use)
   use("folke/which-key.nvim") -- shows keymaps in a popup
   --use("nvim-lualine/lualine.nvim") -- status bar
   --use "ervandew/supertab" -- unknown... ?
-  use("terryma/vim-multiple-cursors") -- coule replace with visual x mode?
+  --use("terryma/vim-multiple-cursors") -- coule replace with visual x mode?
   -- use "akinsho/bufferline.nvim" -- not used?
   use({ "petertriho/nvim-scrollbar", config = "require'scrollbar'.setup()" }) -- side scrollbar with git support
   use({ "karb94/neoscroll.nvim", config = "require'neoscroll'.setup()" })
@@ -160,7 +158,7 @@ require("packer").startup(function(use)
       -- { "folke/twilight.nvim" },
       { "folke/zen-mode.nvim" },
     },
-    config = "require('user.treesitter')",
+    config = "require('plugins.treesitter')",
   })
   use("JoosepAlviste/nvim-ts-context-commentstring")
 

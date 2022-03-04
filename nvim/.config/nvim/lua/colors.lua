@@ -11,4 +11,6 @@ vim.cmd([[
   hi Type guifg=#0cfcd0
   hi Conditional guifg=#0c84fc
   hi Keyword guifg=#99CCCC
+  hi LineNr guifg=#444444
+  hi CursorLineNr guifg=#AAAAAA gui=bold
 ]])

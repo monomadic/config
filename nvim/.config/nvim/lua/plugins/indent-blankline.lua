@@ -8,7 +8,7 @@ vim.cmd([[highlight IndentBlanklineIndent1 guibg=#111111 gui=nocombine]])
 vim.cmd([[highlight IndentBlanklineIndent2 guibg=#000000 gui=nocombine]])
 
 require("indent_blankline").setup({
-  filetype_exclude = { "neo-tree" },
+  filetype_exclude = { "neo-tree", "help" },
   char = "",
   char_highlight_list = {
     "IndentBlanklineIndent1",

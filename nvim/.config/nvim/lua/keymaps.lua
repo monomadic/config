@@ -1,5 +1,7 @@
 -- Keymaps
 --  see: https://github.com/nanotee/nvim-lua-guide#defining-mappings
+--  find a binding with :verbose nmap <C-]>
+--
 local opts = { noremap = true, silent = true }
 local term_opts = { silent = true }
 
@@ -14,8 +16,33 @@ vim.api.nvim_set_keymap("i", "<C-b>", "<Left>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-f>", "<Right>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-e>", "<End>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-s>", ":write<CR>", { noremap = true })
+vim.api.nvim_set_keymap("i", "<C-s>", "<Esc>:write<CR>", { noremap = true })
+
 vim.api.nvim_set_keymap("n", "<C-s>", ":write<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "<C-a>", "ggVG", { noremap = true })
+
+-- split navigation
+vim.api.nvim_set_keymap("n", "<C-j>", "<C-w><C-j>", opts)
+vim.api.nvim_set_keymap("n", "<C-k>", "<C-w><C-k>", opts)
+vim.api.nvim_set_keymap("n", "<C-l>", "<C-w><C-l>", opts)
+vim.api.nvim_set_keymap("n", "<C-h>", "<C-w><C-h>", opts)
+vim.api.nvim_set_keymap("n", "<C-n>", ":vsplit<CR>", opts)
+
+--vim.api.nvim_buf_set_keymap(bufnr, "n", "gW", "<cmd>Rg <cexpr><cr>", opts)
+vim.api.nvim_set_keymap("n", "gW", "<cmd>Telescope grep_string<cr>", opts)
+-- vim.api.nvim_buf_set_keymap(
+--   bufnr,
+--   "n",
+--   "gW",
+--   "<cmd>lua require('telescope.builtin').grep_string({search = vim.fn.expand(\"<cword>\")})<cr>",
+--   opts
+-- )
+vim.api.nvim_set_keymap(
+  "n",
+  "gL",
+  "<cmd>lua require('telescope.builtin').live_grep({default_text = vim.fn.expand(\"<cword>\")})<cr>",
+  opts
+)
 
 --vim.api.nvim_set_keymap("", "<", ":write<CR>", { noremap = true })
 --vim.api.nvim_set_keymap('', '', ':tabclose<CR>', {noremap = true})

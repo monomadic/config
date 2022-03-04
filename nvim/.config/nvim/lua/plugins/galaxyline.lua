@@ -18,12 +18,33 @@ local colors = {
   blue = "#008AFF",
   red = "#Fc4f97",
 }
--- gls.left[1] = {
---   RainbowRed = {
+
+-- gls.short_line_left[0] = {
+--   ProjectDir = {
 --     provider = function()
---       return ""
+--       return "   " .. vim.fn.fnamemodify(vim.fn.getcwd(), ":t") .. " "
 --     end,
---     highlight = { colors.blue, colors.bg },
+--     separator = " ",
+--     separator_highlight = { "NONE", colors.bg },
+--     highlight = { colors.green, colors.green, "bold" },
+--   },
+-- }
+--
+-- gls.short_line_left[1] = {
+--   FileIcon = {
+--     provider = "FileIcon",
+--     condition = condition.buffer_not_empty,
+--     highlight = { require("galaxyline.provider_fileinfo").get_file_icon_color, colors.bg },
+--   },
+-- }
+--
+-- gls.short_line_left[2] = {
+--   FileName = {
+--     provider = function()
+--       return vim.fn.fnamemodify(vim.fn.expand("%"), ":~:.") .. " "
+--     end,
+--     condition = condition.buffer_not_empty,
+--     highlight = { colors.fg, colors.bg },
 --   },
 -- }
 
@@ -95,9 +116,21 @@ gls.left[4] = {
 gls.left[5] = {
   FileName = {
     provider = function()
-      return vim.fn.fnamemodify(vim.fn.expand("%"), ":~:.") .. " "
+      local file = vim.fn.fnamemodify(vim.fn.expand("%"), ":~:.") .. " "
+      if vim.bo.modifiable then
+        return file .. ""
+      else
+        return file
+      end
     end,
     condition = condition.buffer_not_empty,
+    highlight = { colors.fg, colors.bg },
+  },
+}
+
+gls.left[6] = {
+  BufferIcon = {
+    provider = "BufferIcon",
     highlight = { colors.fg, colors.bg },
   },
 }
@@ -123,6 +156,7 @@ gls.left[5] = {
 gls.left[8] = {
   DiagnosticError,
 }
+
 -- gls.left[9] = {
 --   DiagnosticWarn = {
 --     provider = 'DiagnosticWarn',
@@ -156,7 +190,6 @@ gls.right[1] = {
       if next(clients) == nil then
         return msg
       end
-
       for _, client in ipairs(clients) do
         local filetypes = client.config.filetypes
         if filetypes and vim.fn.index(filetypes, buf_ft) ~= -1 then
