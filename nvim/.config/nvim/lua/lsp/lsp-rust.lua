@@ -1,9 +1,9 @@
-require'lspconfig'.rust_analyzer.setup {
+require("lspconfig").rust_analyzer.setup({
   on_attach = function()
     print("attached rust_analyzer lsp")
-    require'lsp.keymaps'()
+    require("lsp.lsp-keymaps")()
   end,
-  capabilites = require'cmp_nvim_lsp'.update_capabilities(vim.lsp.protocol.make_client_capabilities()),
+  capabilites = require("cmp_nvim_lsp").update_capabilities(vim.lsp.protocol.make_client_capabilities()),
   settings = {
     ["rust-analyzer"] = {
       assist = {
@@ -11,17 +11,17 @@ require'lspconfig'.rust_analyzer.setup {
         importPrefix = "by_self",
       },
       diagnostics = {
-        disabled = { "unresolved-import" }
+        disabled = { "unresolved-import" },
       },
       cargo = {
-        loadOutDirsFromCheck = true
+        loadOutDirsFromCheck = true,
       },
       procMacro = {
-        enable = true
+        enable = true,
       },
       checkOnSave = {
-        command = "clippy"
+        command = "clippy",
       },
-    }
+    },
   },
-}
+})

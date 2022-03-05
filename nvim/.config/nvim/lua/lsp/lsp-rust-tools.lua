@@ -87,31 +87,30 @@ local opts = {
     -- setting it to false may improve startup time
     standalone = false,
     on_attach = function()
-      require("lsp.keymaps")()
+      require("lsp.lsp-keymaps")()
 
       local map = vim.api.nvim_set_keymap
       map("n", "gn", ":RustRunnables<cr>", { silent = true })
     end,
 
-  capabilites = function()
-    local capabilities = require'cmp_nvim_lsp'.update_capabilities(vim.lsp.protocol.make_client_capabilities())
-    --local capabilities = vim.lsp.protocol.make_client_capabilities()
-    capabilities.textDocument.completion.completionItem.snippetSupport = false
-    capabilities.textDocument.completion.completionItem.resolveSupport = {
-      properties = {
-        'documentation',
-        'detail',
-        'additionalTextEdits',
+    capabilites = function()
+      local capabilities = require("cmp_nvim_lsp").update_capabilities(vim.lsp.protocol.make_client_capabilities())
+      --local capabilities = vim.lsp.protocol.make_client_capabilities()
+      capabilities.textDocument.completion.completionItem.snippetSupport = false
+      capabilities.textDocument.completion.completionItem.resolveSupport = {
+        properties = {
+          "documentation",
+          "detail",
+          "additionalTextEdits",
+        },
       }
-    }
-    --capabilities = vim.tbl_extend('keep', capabilities or {}, lsp_status.capabilities)
+      --capabilities = vim.tbl_extend('keep', capabilities or {}, lsp_status.capabilities)
 
-    capabilities.experimental = {}
-    capabilities.experimental.hoverActions = true
+      capabilities.experimental = {}
+      capabilities.experimental.hoverActions = true
 
-    return capabilities
-  end,
-
+      return capabilities
+    end,
 
     settings = {
       -- to enable rust-analyzer settings visit:
@@ -138,7 +137,7 @@ local opts = {
 -- require'lspconfig'.rust_analyzer.setup {
 --   on_attach = function()
 --     print("attached rust_analyzer lsp")
---     require'lsp.keymaps'()
+--     require'lsp.lsp-keymaps'()
 --
 --     local map = vim.api.nvim_set_keymap
 --     map('n', 'gn', ':RustRunnables<cr>', { silent = true })
