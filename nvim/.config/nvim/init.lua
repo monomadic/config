@@ -28,6 +28,7 @@ require("lsp.lsp-svelte")
 require("lsp.lsp-rust-tools") -- provides type-hints, rust-runnables
 --require("lsp.lsp-solidity")
 require("lsp.lsp-keymaps")()
+require("lsp.trouble")
 --require 'lsp'
 
 local cmd = vim.cmd

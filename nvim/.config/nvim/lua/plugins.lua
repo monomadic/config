@@ -120,6 +120,12 @@ require("packer").startup(function(use)
   use({
     "appelgriebsch/surround.nvim",
   })
+
+  use({
+    "folke/trouble.nvim",
+    requires = "kyazdani42/nvim-web-devicons",
+  })
+
   -- Autocomplete
   use("hrsh7th/nvim-cmp")
   use("hrsh7th/cmp-nvim-lsp")

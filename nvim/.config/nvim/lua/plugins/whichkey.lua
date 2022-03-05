@@ -164,6 +164,7 @@ local mappings = {
       "Workspace Diagnostics",
     },
     f = { "<cmd>lua vim.lsp.buf.formatting()<cr>", "Format" },
+    F = { "<cmd>Telescope lsp_dynamic_workspace_symbols symbols=function<cr>", "Workspace Functions" },
     i = { "<cmd>LspInfo<cr>", "Info" },
     I = { "<cmd>LspInstallInfo<cr>", "Installer Info" },
     j = {
@@ -211,6 +212,15 @@ local mappings = {
     f = { "<cmd>ToggleTerm direction=float<cr>", "Float" },
     h = { "<cmd>ToggleTerm size=10 direction=horizontal<cr>", "Horizontal" },
     v = { "<cmd>ToggleTerm size=80 direction=vertical<cr>", "Vertical" },
+  },
+
+  x = {
+    name = "TroubleToggle",
+    x = { ":TroubleToggle<CR>", "TroubleToggle" },
+    w = { ":TroubleToggle workspace_diagnostics<CR>", "Workspace Diagnostics" },
+    q = { ":TroubleToggle quickfix<CR>", "QuickFix" },
+    l = { ":TroubleToggle loclist<CR>", "Location List" },
+    r = { ":TroubleToggle lsp_references<CR>", "LSP References" },
   },
 }
 
