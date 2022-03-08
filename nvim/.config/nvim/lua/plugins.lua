@@ -39,7 +39,7 @@ require("packer").startup(function(use)
       "MunifTanjim/nui.nvim",
     },
   })
-  use("ms-jpq/chadtree")
+  -- use("ms-jpq/chadtree")
 
   use("sbdchd/neoformat")
 
@@ -173,6 +173,13 @@ require("packer").startup(function(use)
   use({ "lewis6991/gitsigns.nvim", requires = {
     "nvim-lua/plenary.nvim",
   } })
+
+  -- use({
+  --   "tanvirtin/vgit.nvim",
+  --   requires = {
+  --     "nvim-lua/plenary.nvim",
+  --   },
+  -- })
   -- airblade/vim-gitgutter
   use("ttys3/nvim-blamer.lua") -- git blame
   --

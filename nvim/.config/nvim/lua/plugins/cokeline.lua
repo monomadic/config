@@ -19,44 +19,34 @@ vim.cmd([[
 require("cokeline").setup({
   show_if_buffers_are_at_least = 1,
 
-  default_hl = {
-    focused = {
-      -- fg = get_hex("Normal", "fg"),
-      -- bg = get_hex("Normal", "bg"),
-      -- style = "none",
-      fg = "#0F111A",
-      bg = "#c8fc0c",
-    },
-    unfocused = {
-      fg = "#999999",
-      bg = "#111111",
-    },
-  },
-
-  rendering = {
-    left_sidebar = {
-      filetype = "neo-tree",
-      components = {
-        {
-          text = "   " .. vim.fn.fnamemodify(vim.fn.getcwd(), ":t"),
-          hl = {
-            fg = "#c8fc0c",
-            -- bg = get_hex("NeoTreeNormal", "bg"),
-            style = "bold",
-          },
-        },
-      },
-    },
-  },
+  -- default_hl = {
+  --   fg = "#0F111A",
+  --   bg = "#c8fc0c",
+  -- },
+  -- rendering = {
+  --   left_sidebar = {
+  --     filetype = "neo-tree",
+  --     components = {
+  --       {
+  --         text = "   " .. vim.fn.fnamemodify(vim.fn.getcwd(), ":t"),
+  --         hl = {
+  --           fg = "#c8fc0c",
+  --           -- bg = get_hex("NeoTreeNormal", "bg"),
+  --           style = "bold",
+  --         },
+  --       },
+  --     },
+  --   },
+  -- },
 
   components = {
     {
       text = " ",
-      hl = {
-        fg = function(buffer)
-          return buffer.is_modified and yellow or green
-        end,
-      },
+      -- hl = {
+      --   fg = function(buffer)
+      --     return buffer.is_modified and yellow or green
+      --   end,
+      -- },
     },
     {
       text = function(buffer)
@@ -80,11 +70,11 @@ require("cokeline").setup({
       text = function(buffer)
         return buffer.filename .. " "
       end,
-      hl = {
-        style = function(buffer)
-          return buffer.is_focused and "bold" or nil
-        end,
-      },
+      -- hl = {
+      --   style = function(buffer)
+      --     return buffer.is_focused and "bold" or nil
+      --   end,
+      -- },
     },
     {
       text = " ",

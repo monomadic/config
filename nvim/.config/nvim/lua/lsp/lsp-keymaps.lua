@@ -26,15 +26,14 @@ local on_attach = function(client, bufnr)
   vim.api.nvim_buf_set_keymap(bufnr, "n", "gr", "<cmd>lua vim.lsp.buf.rename()<CR>", opts)
   vim.api.nvim_buf_set_keymap(bufnr, "n", "ga", "<cmd>lua vim.lsp.buf.code_action()<CR>", opts)
   vim.api.nvim_buf_set_keymap(bufnr, "n", "gx", "<cmd>lua vim.lsp.diagnostic.show_line_diagnostics()<CR>", opts)
-  vim.api.nvim_buf_set_keymap(bufnr, "n", "te", "<cmd>lua vim.lsp.diagnostic.open_float()<CR>", opts)
-  vim.api.nvim_buf_set_keymap(bufnr, "n", "[d", "<cmd>lua vim.lsp.diagnostic.goto_prev()<CR>", opts)
-  vim.api.nvim_buf_set_keymap(bufnr, "n", "]d", "<cmd>lua vim.lsp.diagnostic.goto_next()<CR>", opts)
-  vim.api.nvim_buf_set_keymap(bufnr, "n", "J", "<cmd>lua vim.lsp.diagnostic.goto_prev()<CR>", opts)
-  vim.api.nvim_buf_set_keymap(bufnr, "n", "K", "<cmd>lua vim.lsp.diagnostic.goto_next()<CR>", opts)
+  vim.api.nvim_buf_set_keymap(bufnr, "n", "te", "<cmd>lua vim.diagnostic.open_float()<CR>", opts)
+  vim.api.nvim_buf_set_keymap(bufnr, "n", "[d", "<cmd>lua vim.diagnostic.goto_prev()<CR>", opts)
+  vim.api.nvim_buf_set_keymap(bufnr, "n", "]d", "<cmd>lua vim.diagnostic.goto_next()<CR>", opts)
+  vim.api.nvim_buf_set_keymap(bufnr, "n", "J", "<cmd>lua vim.diagnostic.goto_next()<CR>", opts)
   vim.api.nvim_buf_set_keymap(bufnr, "n", "<space>xx", "<cmd>lua vim.lsp.diagnostic.set_loclist()<CR>", opts)
   vim.api.nvim_buf_set_keymap(bufnr, "n", "<space>f", "<cmd>lua vim.lsp.buf.formatting()<CR>", opts)
   vim.api.nvim_buf_set_keymap(bufnr, "n", "<space>s", "<cmd>SymbolsOutline<CR>", opts)
-  vim.api.nvim_buf_set_keymap(bufnr, "n", "gw", ":Telescope lsp_dynamic_workspace_symbols", opts)
+  vim.api.nvim_buf_set_keymap(bufnr, "n", "gw", ":Telescope lsp_dynamic_workspace_symbols<CR>", opts)
   vim.api.nvim_buf_set_keymap(
     bufnr,
     "n",
@@ -42,11 +41,11 @@ local on_attach = function(client, bufnr)
     "<cmd>lua require('telescope.builtin').lsp_document_symbols(require('telescope.themes').get_dropdown{previewer = false})<cr>",
     opts
   )
-  vim.api.nvim_buf_set_keymap(bufnr, "n", "xx", ":TroubleToggle", opts)
-  vim.api.nvim_buf_set_keymap(bufnr, "n", "xw", ":TroubleToggle workspace_diagnostics", opts)
-  vim.api.nvim_buf_set_keymap(bufnr, "n", "xq", ":TroubleToggle quickfix", opts)
-  vim.api.nvim_buf_set_keymap(bufnr, "n", "xl", ":TroubleToggle loclist", opts)
-  vim.api.nvim_buf_set_keymap(bufnr, "n", "xr", ":TroubleToggle lsp_references", opts)
+  vim.api.nvim_buf_set_keymap(bufnr, "n", "xx", ":TroubleToggle<CR>", opts)
+  vim.api.nvim_buf_set_keymap(bufnr, "n", "xw", ":TroubleToggle workspace_diagnostics<CR>", opts)
+  vim.api.nvim_buf_set_keymap(bufnr, "n", "xq", ":TroubleToggle quickfix<CR>", opts)
+  vim.api.nvim_buf_set_keymap(bufnr, "n", "xl", ":TroubleToggle loclist<CR>", opts)
+  vim.api.nvim_buf_set_keymap(bufnr, "n", "xr", ":TroubleToggle lsp_references<CR>", opts)
 end
 
 return on_attach

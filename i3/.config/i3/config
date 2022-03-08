@@ -12,7 +12,7 @@
 set $mod Mod1
 
 # make capslock esc
-exec setxkbmap -option caps:escape
+exec --no-startup-id setxkbmap -option caps:escape
 
 set $gtk-theme Matcha-dark-sea
 set $icon-theme Papirus-Dark-Maia
@@ -26,10 +26,10 @@ set $kvantum-theme Matchama-Dark
 # font pango:monospace 12
 font Roboto 11
 
-exec gsettings set org.gnome.desktop.interface gtk-theme $gtk-theme
-exec gsettings set org.gnome.desktop.interface icon-theme $icon-theme
-exec gsettings set org.gnome.desktop.interface cursor-theme $cursor-theme
-exec gsettings set org.gnome.desktop.interface font-name $gui-font
+exec --no-startup-id gsettings set org.gnome.desktop.interface gtk-theme $gtk-theme
+exec --no-startup-id gsettings set org.gnome.desktop.interface icon-theme $icon-theme
+exec --no-startup-id gsettings set org.gnome.desktop.interface cursor-theme $cursor-theme
+exec --no-startup-id gsettings set org.gnome.desktop.interface font-name $gui-font
 
 # exec_always {
 #   gsettings set org.gnome.desktop.interface gtk-theme $gtk-theme
@@ -255,7 +255,6 @@ for_window [window_role="pop-up"] floating enable
 for_window [title="pop-up"] floating enable
 for_window [window_role="task_dialog"] floating enable
 
-#Sem borda
 for_window [class="^.*"] border pixel 3
 for_window [title="pop-up"] border pixel 6
 new_window 1pixel
