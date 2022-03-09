@@ -18,6 +18,7 @@ require("packer").startup(function(use)
   use("lunarvim/darkplus.nvim")
   --use("marko-cerovac/material.nvim")
   use("joshdick/onedark.vim")
+  use("romgrk/doom-one.vim")
   --use("catppuccin/nvim")
   -- use "dracula/vim"
   use({ "srcery-colors/srcery-vim", as = "srcery" })
@@ -28,6 +29,9 @@ require("packer").startup(function(use)
   --use({ "feline-nvim/feline.nvim", requires = "kyazdani42/nvim-web-devicons" })
   --use("yamatsum/nvim-nonicons")
   use("lukas-reineke/indent-blankline.nvim")
+
+  -- Numi-style inline calc
+  use("metakirby5/codi.vim")
 
   -- Tree
   use({
@@ -58,10 +62,15 @@ require("packer").startup(function(use)
 
   use({ "camspiers/lens.vim" }) -- buffer autoresizing
 
+  -- use({
+  --   "noib3/nvim-cokeline", -- because bufferline sucks to configure
+  --   requires = "kyazdani42/nvim-web-devicons",
+  --   config = "require('plugins.cokeline')",
+  -- })
+
   use({
-    "noib3/nvim-cokeline", -- because bufferline sucks to configure
-    requires = "kyazdani42/nvim-web-devicons",
-    config = "require('plugins.cokeline')",
+    "romgrk/barbar.nvim",
+    requires = { "kyazdani42/nvim-web-devicons" },
   })
 
   -- use "moll/vim-bbye"
@@ -92,7 +101,11 @@ require("packer").startup(function(use)
   --use "glepnir/dashboard-nvim" -- dashboard
 
   -- Navigation
-  use("justinmk/vim-sneak") -- 'S' followed by two characters to jump in line
+  -- use("justinmk/vim-sneak") -- 'S' followed by two characters to jump in line
+  use({
+    "phaazon/hop.nvim", -- alternative to sneak
+    branch = "v1", -- optional but strongly recommended
+  })
   use("rinx/nvim-ripgrep") -- grep
   use("willthbill/opener.nvim") -- project manager
   -- use "brooth/far.vim" -- find and replace

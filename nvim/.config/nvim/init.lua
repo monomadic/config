@@ -21,6 +21,8 @@ require("plugins.indent-blankline") -- indentation
 require("plugins.comment")
 require("plugins.neotree")
 require("plugins.neoscroll")
+require("plugins.hop")
+require("plugins.barbar")
 -- require("plugins.vgit")
 
 -- LSP

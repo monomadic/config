@@ -5,9 +5,12 @@
 local opts = { noremap = true, silent = true }
 local term_opts = { silent = true }
 
+-- leader key
+vim.g.mapleader = ","
+
 -- Shorten function name
 local keymap = vim.api.nvim_set_keymap
-vim.api.nvim_set_keymap("", "<C-q>", ":bd<CR>", { noremap = true })
+--vim.api.nvim_set_keymap("", "<C-q>", ":bd<CR>", { noremap = true })
 
 -- emacs style shortcuts in insert mode (yes, i am like that)
 vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
@@ -28,6 +31,10 @@ vim.api.nvim_set_keymap("n", "<C-l>", "<C-w><C-l>", opts)
 vim.api.nvim_set_keymap("n", "<C-h>", "<C-w><C-h>", opts)
 vim.api.nvim_set_keymap("n", "<C-n>", ":vsplit<CR>", opts)
 vim.api.nvim_set_keymap("n", "<C-w><C-d>", ":vsplit<CR>", opts)
+vim.api.nvim_set_keymap("i", "<C-j>", "<Esc><C-w><C-j>", opts)
+vim.api.nvim_set_keymap("i", "<C-k>", "<Esc><C-w><C-k>", opts)
+vim.api.nvim_set_keymap("i", "<C-l>", "<Esc><C-w><C-l>", opts)
+vim.api.nvim_set_keymap("i", "<C-h>", "<Esc><C-w><C-h>", opts)
 
 --vim.api.nvim_buf_set_keymap(bufnr, "n", "gW", "<cmd>Rg <cexpr><cr>", opts)
 vim.api.nvim_set_keymap("n", "gW", "<cmd>Telescope grep_string<cr>", opts)
@@ -51,10 +58,12 @@ vim.api.nvim_set_keymap(
 keymap("n", "rr", "<Cmd>lua require'telescope'.extensions.project.project{display_type='full'}<cr>", opts) -- find projects
 keymap(
   "n",
-  "<C-i>",
+  "<Tab>",
   "<cmd>lua require('telescope.builtin').find_files(require('telescope.themes').get_dropdown{previewer = false})<cr>",
   { noremap = true }
 )
+keymap("n", "\\", "<cmd>:Telescope buffers<CR>", { noremap = true, silent = true })
+keymap("n", "<C-Tab>", "<cmd>:Term<CR>", { noremap = true, silent = true })
 keymap("n", "<C-o>", "<cmd>:Telescope find_files hidden=true no_ignore=true<CR>", { noremap = true, silent = true })
 
 vim.api.nvim_set_keymap("n", "<Esc>", ":noh<cr>", { noremap = true }) -- fix ESC confusion in normal mode
