@@ -1,3 +1,4 @@
+vim.cmd([[
 " File:         scrollfix.vim
 " Author:       Yakov Lerner <iler.ml@gmail.com>
 " Last changed: 2006-09-10
@@ -116,3 +117,4 @@ endfunction
 
 " Changes
 " 060910 lerner  initial (beta) version
+]])

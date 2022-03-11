@@ -25,9 +25,7 @@ require("plugins.hop")
 require("plugins.barbar")
 -- require("plugins.vgit")
 
-vim.cmd([[
-  source scrollfix.vim
-]])
+require("scrollfix")
 
 -- LSP
 require("lsp.lsp-javascript")

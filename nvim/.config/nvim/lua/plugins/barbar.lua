@@ -2,12 +2,12 @@ local map = vim.api.nvim_set_keymap
 local opts = { noremap = true, silent = true }
 
 vim.cmd([[
-  hi BufferCurrent guibg=#c8fc0c guifg=black
+  hi BufferCurrent guibg=#c8fc0c guifg=black gui=bold
   hi BufferCurrentSign guibg=#c8fc0c
   hi BufferCurrentMod guibg=#c8fc0c guifg=#FF00CC
-  hi BufferVisible guifg=#AAAAAA guibg=none
+  hi BufferVisible guifg=#AAAAAA guibg=none gui=bold
   hi BufferVisibleSign guibg=none
-  hi BufferInactive guifg=#555555 guibg=none
+  hi BufferInactive guifg=#555555 guibg=none gui=bold
   hi BufferInactiveSign guibg=none
   hi BufferInactiveMod guibg=none guifg=#FF00CC
   hi BufferTabpageFill guibg=none
