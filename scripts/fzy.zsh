@@ -108,7 +108,8 @@ function fzy-cd-widget
 {
 	emulate -L zsh
 	zle -I
-	cd "${$(__fzy_cmd cd):-.}"
+	cd "${$(__fzy_cmd cd):-$HOME}"
+	#cd "${$(__fzy_cmd cd):-.}"
 	zle reset-prompt
 }
 

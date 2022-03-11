@@ -2,7 +2,8 @@ local options = vim.opt
 
 options.termguicolors = true -- 24-bit color
 options.backup = false -- creates a backup file
-options.clipboard = "unnamed" -- allows neovim to access the system clipboard
+--options.clipboard = "unnamed" -- allows neovim to access the system clipboard (wayland)
+options.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (x11)
 options.cmdheight = 2 -- more space in the neovim command line for displaying messages
 --options.completeopt = { "menuone", "noselect" } -- mostly just for cmp
 options.conceallevel = 0 -- so that `` is visible in markdown files
@@ -34,8 +35,12 @@ options.signcolumn = "yes" -- always show the sign column, otherwise it would sh
 -- options.colorcolumn = "80"
 options.inccommand = "split"
 options.wrap = false -- display lines as one long line
-options.scrolloff = 100 -- is one of my fav
+options.scrolloff = 1000 -- keep line centered (disable if scrolling past eof is enabled)
 options.sidescrolloff = 8
 -- options.guifont = "monospace:h17"               -- the font used in graphical neovim applicationi
 
 vim.cmd([[set foldmethod=marker]]) -- marker | syntax
+-- vim.cmd([[
+--   set title
+--   set titlestring=%{expand(\"%:p:h\")}
+-- ]])

@@ -20,10 +20,14 @@ require("plugins.devicons")
 require("plugins.indent-blankline") -- indentation
 require("plugins.comment")
 require("plugins.neotree")
-require("plugins.neoscroll")
+require("plugins.neoscroll") -- smooth animations on scroll
 require("plugins.hop")
 require("plugins.barbar")
 -- require("plugins.vgit")
+
+vim.cmd([[
+  source scrollfix.vim
+]])
 
 -- LSP
 require("lsp.lsp-javascript")
@@ -36,6 +40,8 @@ require("lsp.trouble")
 
 local cmd = vim.cmd
 local call = vim.call
+
+require("todo-comments").setup({})
 
 -- Lightbulb
 vim.cmd([[autocmd CursorHold,CursorHoldI * lua require'nvim-lightbulb'.update_lightbulb()]])

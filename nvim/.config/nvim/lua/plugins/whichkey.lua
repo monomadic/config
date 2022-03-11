@@ -79,6 +79,17 @@ local opts = {
 }
 
 local mappings = {
+  a = {
+    name = "Apps",
+    n = { "<cmd>lua _NODE_TOGGLE()<cr>", "Node" },
+    u = { "<cmd>FloatermNew ncdu<cr>", "NCDU" },
+    t = { "<cmd>lua _HTOP_TOGGLE()<cr>", "Htop" },
+    p = { "<cmd>lua _PYTHON_TOGGLE()<cr>", "Python" },
+    f = { "<cmd>ToggleTerm direction=float<cr>", "Float" },
+    h = { "<cmd>ToggleTerm size=10 direction=horizontal<cr>", "Horizontal" },
+    v = { "<cmd>ToggleTerm size=80 direction=vertical<cr>", "Vertical" },
+  },
+
   ["b"] = {
     "<cmd>lua require('telescope.builtin').buffers(require('telescope.themes').get_dropdown{previewer = false})<cr>",
     "Buffers",
@@ -204,14 +215,11 @@ local mappings = {
   },
 
   t = {
-    name = "Terminal",
-    n = { "<cmd>lua _NODE_TOGGLE()<cr>", "Node" },
-    u = { "<cmd>FloatermNew ncdu<cr>", "NCDU" },
-    t = { "<cmd>lua _HTOP_TOGGLE()<cr>", "Htop" },
-    p = { "<cmd>lua _PYTHON_TOGGLE()<cr>", "Python" },
-    f = { "<cmd>ToggleTerm direction=float<cr>", "Float" },
-    h = { "<cmd>ToggleTerm size=10 direction=horizontal<cr>", "Horizontal" },
-    v = { "<cmd>ToggleTerm size=80 direction=vertical<cr>", "Vertical" },
+    name = "TODO Comments",
+    l = { ":TodoLocList<CR>", "TodoLocList" },
+    q = { ":TodoQuickFix<CR>", "TodoQuickFix" },
+    t = { ":TodoTelescope<CR>", "TodoTelescope" },
+    T = { ":TodoTrouble<CR>", "TodoTrouble" },
   },
 
   x = {

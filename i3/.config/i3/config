@@ -31,6 +31,8 @@ exec --no-startup-id gsettings set org.gnome.desktop.interface icon-theme $icon-
 exec --no-startup-id gsettings set org.gnome.desktop.interface cursor-theme $cursor-theme
 exec --no-startup-id gsettings set org.gnome.desktop.interface font-name $gui-font
 
+# exec --no-startup-id autotiling
+
 # exec_always {
 #   gsettings set org.gnome.desktop.interface gtk-theme $gtk-theme
 #   gsettings set org.gnome.desktop.interface icon-theme $icon-theme
@@ -68,7 +70,7 @@ bindsym XF86AudioMicMute exec --no-startup-id pactl set-source-mute @DEFAULT_SOU
 floating_modifier $mod
 
 # start a terminal
-bindsym $mod+Return exec alacritty
+bindsym $mod+Return exec --no-startup-id alacritty
 # kill focused window
 bindsym $mod+q kill
 
@@ -212,7 +214,7 @@ bindsym $mod+r mode "resize"
 exec --no-startup-id nitrogen --restore
 
 #Polybar
-#exec --no-startup-id polybar -r mybar
+exec --no-startup-id polybar --reload --config=$HOME/.config/polybar/grayblocks/config.ini main
 
 #Polybar Sh
 #exec_always --no-startup-id $HOME/.config/polybar/launch.sh
@@ -230,26 +232,26 @@ bindsym XF86MonBrightnessDown exec xbacklight -dec 20
 
 # Start i3bar to display a workspace bar (plus the system information i3st>
 # finds out, if available)
-bar {
-  status_command i3status
-#mode hide
-#output primary
-#tray_output none
-  font pango:RobotoMono Nerd Font Bold 10
-  separator_symbol ⁞
-  colors {
-    background #000000
-    statusline #ffffff
-    separator #333333
-
-    focused_workspace  #10F9FC #10F9FC #000000
-    active_workspace   #333333 #5f676a #ffffff
-    inactive_workspace #000000 #000000 #10F9FC
-    urgent_workspace   #2f343a #900000 #ffffff
-    binding_mode       #2f343a #900000 #ffffff
-  }
-}
-
+# bar {
+#   status_command i3status
+# #mode hide
+# #output primary
+# #tray_output none
+#   font pango:RobotoMono Nerd Font Bold 10
+#   separator_symbol ⁞
+#   colors {
+#     background #000000
+#     statusline #ffffff
+#     separator #333333
+#
+#     focused_workspace  #10F9FC #10F9FC #000000
+#     active_workspace   #333333 #5f676a #ffffff
+#     inactive_workspace #000000 #000000 #10F9FC
+#     urgent_workspace   #2f343a #900000 #ffffff
+#     binding_mode       #2f343a #900000 #ffffff
+#   }
+# }
+#
 #Pop up
 for_window [window_role="pop-up"] floating enable
 for_window [title="pop-up"] floating enable

@@ -36,6 +36,13 @@ vim.api.nvim_set_keymap("i", "<C-k>", "<Esc><C-w><C-k>", opts)
 vim.api.nvim_set_keymap("i", "<C-l>", "<Esc><C-w><C-l>", opts)
 vim.api.nvim_set_keymap("i", "<C-h>", "<Esc><C-w><C-h>", opts)
 
+-- center oriented nav
+-- vim.api.nvim_set_keymap("n", "j", "jzz", opts)
+-- vim.api.nvim_set_keymap("n", "k", "kzz", opts)
+-- vim.api.nvim_set_keymap("n", "G", "Gzz", opts)
+-- vim.api.nvim_set_keymap("n", "<C-d>", "11kzz", opts)
+-- vim.api.nvim_set_keymap("n", "<C-u>", "11jzz", opts)
+
 --vim.api.nvim_buf_set_keymap(bufnr, "n", "gW", "<cmd>Rg <cexpr><cr>", opts)
 vim.api.nvim_set_keymap("n", "gW", "<cmd>Telescope grep_string<cr>", opts)
 -- vim.api.nvim_buf_set_keymap(

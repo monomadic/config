@@ -33,6 +33,12 @@ require("packer").startup(function(use)
   -- Numi-style inline calc
   use("metakirby5/codi.vim")
 
+  -- Todo
+  use({
+    "folke/todo-comments.nvim",
+    requires = "nvim-lua/plenary.nvim",
+  })
+
   -- Tree
   use({
     "nvim-neo-tree/neo-tree.nvim",
@@ -95,7 +101,7 @@ require("packer").startup(function(use)
   --use("terryma/vim-multiple-cursors") -- coule replace with visual x mode?
   -- use "akinsho/bufferline.nvim" -- not used?
   use({ "petertriho/nvim-scrollbar", config = "require'scrollbar'.setup()" }) -- side scrollbar with git support
-  use({ "karb94/neoscroll.nvim", config = "require'neoscroll'.setup()" })
+  use({ "karb94/neoscroll.nvim" })
   use("norcalli/nvim-colorizer.lua") -- inline colors
   use("liuchengxu/vista.vim") -- symbols again?
   --use "glepnir/dashboard-nvim" -- dashboard
