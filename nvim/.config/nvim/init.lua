@@ -25,7 +25,7 @@ require("plugins.hop")
 require("plugins.barbar")
 -- require("plugins.vgit")
 
-require("scrollfix")
+--require("scrollfix")
 
 -- LSP
 require("lsp.lsp-javascript")
