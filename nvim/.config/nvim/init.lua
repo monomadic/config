@@ -23,6 +23,7 @@ require("plugins.neotree")
 require("plugins.neoscroll") -- smooth animations on scroll
 require("plugins.hop")
 require("plugins.barbar")
+require("plugins.wilder")
 -- require("plugins.vgit")
 
 --require("scrollfix")

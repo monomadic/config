@@ -12,6 +12,9 @@ vim.g.mapleader = ","
 local keymap = vim.api.nvim_set_keymap
 --vim.api.nvim_set_keymap("", "<C-q>", ":bd<CR>", { noremap = true })
 
+-- terminal
+vim.api.nvim_set_keymap("t", "<Esc>", "<C-\\><C-n>", { noremap = true })
+
 -- emacs style shortcuts in insert mode (yes, i am like that)
 vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-p>", "<Up>", { noremap = true })
@@ -29,12 +32,16 @@ vim.api.nvim_set_keymap("n", "<C-j>", "<C-w><C-j>", opts)
 vim.api.nvim_set_keymap("n", "<C-k>", "<C-w><C-k>", opts)
 vim.api.nvim_set_keymap("n", "<C-l>", "<C-w><C-l>", opts)
 vim.api.nvim_set_keymap("n", "<C-h>", "<C-w><C-h>", opts)
-vim.api.nvim_set_keymap("n", "<C-n>", ":vsplit<CR>", opts)
+--vim.api.nvim_set_keymap("n", "<C-n>", ":vsplit<CR>", opts)
 vim.api.nvim_set_keymap("n", "<C-w><C-d>", ":vsplit<CR>", opts)
 vim.api.nvim_set_keymap("i", "<C-j>", "<Esc><C-w><C-j>", opts)
 vim.api.nvim_set_keymap("i", "<C-k>", "<Esc><C-w><C-k>", opts)
 vim.api.nvim_set_keymap("i", "<C-l>", "<Esc><C-w><C-l>", opts)
 vim.api.nvim_set_keymap("i", "<C-h>", "<Esc><C-w><C-h>", opts)
+
+--vim.api.nvim_set_keymap("", "<C-m>", "<Esc>:FloatermToggle<CR>", { silent = true })
+vim.api.nvim_set_keymap("n", "<C-g>", ":FloatermNew --title=ranger ranger<CR>", { silent = true })
+-- map("n", "<C-m>", ":FloatermNew --title=broot broot<CR>", { silent = true })
 
 -- center oriented nav
 -- vim.api.nvim_set_keymap("n", "j", "jzz", opts)

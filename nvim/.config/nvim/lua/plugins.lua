@@ -1,3 +1,6 @@
+-- see:
+-- https://github.com/bennypowers/nvim-regexplainer
+
 local fn = vim.fn
 local install_path = fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
 if fn.empty(fn.glob(install_path)) > 0 then
@@ -32,6 +35,9 @@ require("packer").startup(function(use)
 
   -- Numi-style inline calc
   use("metakirby5/codi.vim")
+
+  -- Wildmenu
+  use("gelguy/wilder.nvim")
 
   -- Todo
   use({
