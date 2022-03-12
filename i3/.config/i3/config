@@ -59,7 +59,7 @@ bindsym XF86AudioMicMute exec --no-startup-id pactl set-source-mute @DEFAULT_SOU
 floating_modifier $mod
 
 # start a terminal
-bindsym $mod+Return exec --no-startup-id alacritty
+bindsym $mod+Return exec --no-startup-id kitty
 bindsym $mod+Shift+Return exec --no-startup-id alacritty --title='pop-up'
 # kill focused window
 bindsym $mod+q kill
@@ -70,7 +70,7 @@ focus_follows_mouse no
 # bindsym $mod+d exec --no-startup-id dmenu_run
 # A more modern dmenu replacement is rofi:
 #bindcode $mod+space exec "rofi -modi drun,run -show drun"
-bindsym $mod+space exec alacritty --title "pop-up" --config-file=$HOME/.config/alacritty/popup.yml --command sway-launcher-desktop
+bindsym $mod+space exec kitty --title "pop-up" --execute sway-launcher-desktop
 # There also is i3-dmenu-desktop which only displays applications shipping a
 # .desktop file. It is a wrapper around dmenu, so you need that installed.
 # bindcode $mod+40 exec --no-startup-id i3-dmenu-desktop

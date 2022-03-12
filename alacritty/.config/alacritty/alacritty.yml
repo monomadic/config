@@ -106,6 +106,9 @@ font:
   # Normal (roman) font face
   normal:
     family: Iosevka
+  bold:
+    family: Iosevka
+  family: Iosevka
   #
   # Default:
   #   - (macOS) Menlo
