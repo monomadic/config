@@ -45,7 +45,7 @@ alias r=ranger
 alias f=fzf
 alias v=nvim
 alias vim=nvim
-
+alias xc="xclip -sel clip"
 # prompt
 # source /usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme
 
