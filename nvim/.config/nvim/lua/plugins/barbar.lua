@@ -64,8 +64,8 @@ vim.g.bufferline = {
   clickable = true,
 
   -- Excludes buffers from the tabline
-  exclude_ft = { "javascript" },
-  exclude_name = { "package.json" },
+  -- exclude_ft = { "javascript" },
+  -- exclude_name = { "package.json" },
 
   -- Enable/disable icons
   -- if set to 'numbers', will show buffer index in the tabline
@@ -76,7 +76,7 @@ vim.g.bufferline = {
   -- highlight group. By default, the Buffer*Icon group is linked to the
   -- Buffer* group (see Highlighting below). Otherwise, it will take its
   -- default value as defined by devicons.
-  icon_custom_colors = false,
+  icon_custom_colors = true,
 
   -- Configure icons on the bufferline.
   icon_separator_active = " ",
@@ -91,7 +91,7 @@ vim.g.bufferline = {
   insert_at_start = false,
 
   -- Sets the maximum padding width with which to surround each tab
-  maximum_padding = 1,
+  maximum_padding = 2,
 
   -- Sets the maximum buffer name length.
   maximum_length = 30,
