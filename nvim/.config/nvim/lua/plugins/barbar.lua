@@ -14,6 +14,8 @@ vim.cmd([[
 ]])
 
 -- Move to previous/next
+map("n", "gz", ":BufferMove 0<CR>", opts)
+map("n", "<C-0>", ":BufferMove 0<CR>", opts)
 map("n", "H", ":BufferPrevious<CR>", opts)
 map("n", "L", ":BufferNext<CR>", opts)
 -- Re-order to previous/next

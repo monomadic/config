@@ -73,7 +73,7 @@ keymap("n", "rr", "<Cmd>lua require'telescope'.extensions.project.project{displa
 keymap(
   "n",
   "<Tab>",
-  "<cmd>lua require('telescope.builtin').find_files(require('telescope.themes').get_dropdown{previewer = false})<cr>",
+  "<cmd>lua require('telescope.builtin').find_files(require('telescope.themes').get_dropdown{previewer = false})<CR>",
   { noremap = true }
 )
 keymap("n", "\\", "<cmd>:Telescope buffers<CR>", { noremap = true, silent = true })

@@ -1,4 +1,4 @@
-require("lspconfig").svelte.setup({
+require("lspconfig").rnix.setup({
   on_attach = function(client, bufnr)
     require("lsp.lsp-keymaps")()
     require("aerial").setup({

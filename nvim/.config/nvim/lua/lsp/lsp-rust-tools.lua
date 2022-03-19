@@ -86,8 +86,13 @@ local opts = {
     -- standalone file support
     -- setting it to false may improve startup time
     standalone = false,
-    on_attach = function()
+    on_attach = function(client, bufnr)
       require("lsp.lsp-keymaps")()
+      require("aerial").setup({
+        backends = { "lsp", "treesitter", "markdown" },
+      })
+      require("aerial").on_attach(client, bufnr)
+      require('telescope').load_extension('aerial')
 
       local map = vim.api.nvim_set_keymap
       map("n", "gn", ":RustRunnables<cr>", { silent = true })

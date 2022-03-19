@@ -37,7 +37,8 @@ dropdown_theme = require("telescope.themes").get_dropdown({
 require("telescope").setup({
   defaults = {
     prompt_prefix = " ",
-    buffer_previewer_maker = small_file_preview_only,
+ file_ignore_patterns = {".git/", ".cache", "%.o", "%.a", "%.out", "%.class", "%.pdf", "%.mkv", "%.mp4", "%.zip", "*.lock"},
+ buffer_previewer_maker = small_file_preview_only,
     mappings = {
       i = {
         ["<esc>"] = "close",

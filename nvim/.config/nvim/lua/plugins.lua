@@ -130,6 +130,7 @@ require("packer").startup(function(use)
   -- use 'mfussenegger/nvim-jdtls'
   use("tomlion/vim-solidity")
   --use("tamago324/nlsp-settings.nvim") -- language server settings defined in json for
+  use 'stevearc/aerial.nvim' -- aerial view / overview of lsp structure
 
   use("jose-elias-alvarez/null-ls.nvim") -- for formatters and linters
   use("ray-x/lsp_signature.nvim") -- signatures (functions etc)

@@ -14,7 +14,12 @@ vim.cmd([[
   hi LineNr guifg=#444444
   hi CursorLineNr guifg=#AAAAAA gui=bold
   hi NeoTreeDirectoryName guibg=none
+  hi LineNr guibg=none
+  hi SignColumn guibg=none
+  hi VertSplit guibg=none
+  hi EndOfBuffer guifg=#222222
 
-  hi ActiveWindow guibg=#000000 | hi InactiveWindow guibg=#111111
+  hi ActiveWindow guibg=#000001
+  hi InactiveWindow guibg=#090909
   set winhighlight=Normal:ActiveWindow,NormalNC:InactiveWindow
 ]])
