@@ -328,6 +328,11 @@ _G.packer_plugins = {
     path = "/home/mono/.local/share/nvim/site/pack/packer/start/rust-tools.nvim",
     url = "https://github.com/simrat39/rust-tools.nvim"
   },
+  ["sidebar.nvim"] = {
+    loaded = true,
+    path = "/home/mono/.local/share/nvim/site/pack/packer/start/sidebar.nvim",
+    url = "https://github.com/sidebar-nvim/sidebar.nvim"
+  },
   sonokai = {
     loaded = true,
     path = "/home/mono/.local/share/nvim/site/pack/packer/start/sonokai",
@@ -461,10 +466,6 @@ _G.packer_plugins = {
 }
 
 time([[Defining packer_plugins]], false)
--- Config for: nvim-autopairs
-time([[Config for nvim-autopairs]], true)
-require('nvim-autopairs').setup{}
-time([[Config for nvim-autopairs]], false)
 -- Config for: nvim-scrollbar
 time([[Config for nvim-scrollbar]], true)
 require'scrollbar'.setup()
@@ -473,6 +474,10 @@ time([[Config for nvim-scrollbar]], false)
 time([[Config for nvim-treesitter]], true)
 require('plugins.treesitter')
 time([[Config for nvim-treesitter]], false)
+-- Config for: nvim-autopairs
+time([[Config for nvim-autopairs]], true)
+require('nvim-autopairs').setup{}
+time([[Config for nvim-autopairs]], false)
 vim.cmd [[augroup packer_load_aucmds]]
 vim.cmd [[au!]]
   -- Filetype lazy-loads

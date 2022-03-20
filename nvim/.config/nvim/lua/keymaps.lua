@@ -76,7 +76,8 @@ keymap(
   "<cmd>lua require('telescope.builtin').find_files(require('telescope.themes').get_dropdown{previewer = false})<CR>",
   { noremap = true }
 )
-keymap("n", "\\", "<cmd>:Telescope buffers<CR>", { noremap = true, silent = true })
+-- keymap("n", "\\", "<cmd>:Telescope buffers<CR>", { noremap = true, silent = true })
+keymap("n", "\\", "<cmd>:Telescope git_status<CR>", { noremap = true, silent = true })
 keymap("n", "<C-Tab>", "<cmd>:Term<CR>", { noremap = true, silent = true })
 keymap("n", "<C-o>", "<cmd>:Telescope find_files hidden=true no_ignore=true<CR>", { noremap = true, silent = true })
 

@@ -56,6 +56,7 @@ require("packer").startup(function(use)
     },
   })
   -- use("ms-jpq/chadtree")
+use 'sidebar-nvim/sidebar.nvim'
 
   use("sbdchd/neoformat")
 

@@ -3,7 +3,7 @@ local diagnostic = require("galaxyline.provider_diagnostic")
 --local colors = require("galaxyline.theme").default
 local condition = require("galaxyline.condition")
 local gls = gl.section
-gl.short_line_list = { "neo-tree", "vista", "dbui", "packer" }
+gl.short_line_list = { "neo-tree", "vista", "dbui", "packer", "SidebarNvim" }
 
 local colors = {
   bg = "#282c34",

@@ -25,7 +25,7 @@ require("plugins.hop")
 require("plugins.barbar")
 require("plugins.wilder")
 -- require("plugins.vgit")
-
+require("plugins.sidebar")
 --require("scrollfix")
 
 -- LSP

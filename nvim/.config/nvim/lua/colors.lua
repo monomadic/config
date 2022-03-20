@@ -19,7 +19,7 @@ vim.cmd([[
   hi VertSplit guibg=none
   hi EndOfBuffer guifg=#222222
 
-  hi ActiveWindow guibg=#000001
-  hi InactiveWindow guibg=#090909
+  hi ActiveWindow guibg=#101010
+  hi InactiveWindow guibg=#000001
   set winhighlight=Normal:ActiveWindow,NormalNC:InactiveWindow
 ]])
