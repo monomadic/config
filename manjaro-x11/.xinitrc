@@ -11,6 +11,6 @@ if [ -d /etc/X11/init/xinitrc.d ]; then
   done
   unset f
 fi
-
+#nvidia-settings --load-config-only
 xrdb -merge ~/.Xresources
 picom & exec i3

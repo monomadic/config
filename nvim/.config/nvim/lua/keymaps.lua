@@ -51,7 +51,7 @@ vim.api.nvim_set_keymap("n", "<C-g>", ":FloatermNew --title=ranger ranger<CR>", 
 -- vim.api.nvim_set_keymap("n", "<C-u>", "11jzz", opts)
 
 --vim.api.nvim_buf_set_keymap(bufnr, "n", "gW", "<cmd>Rg <cexpr><cr>", opts)
-vim.api.nvim_set_keymap("n", "gW", "<cmd>Telescope grep_string<cr>", opts)
+--vim.api.nvim_set_keymap("n", "gW", "<cmd>Telescope grep_string<cr>", opts)
 -- vim.api.nvim_buf_set_keymap(
 --   bufnr,
 --   "n",

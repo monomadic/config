@@ -30,7 +30,7 @@ require("plugins.sidebar")
 
 -- LSP
 require("lsp.lsp-javascript")
-require("lsp.lsp-svelte")
+--require("lsp.lsp-svelte")
 require("lsp.lsp-rust-tools") -- provides type-hints, rust-runnables
 require("lsp.lsp-nix")
 --require("lsp.lsp-solidity")
