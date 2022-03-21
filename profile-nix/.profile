@@ -7,6 +7,8 @@ export EDITOR=nvim
 export FZF_DIR_JUMP='fd --hidden --max-depth 4 --type d'
 export FZF_DEFAULT_COMMAND='fd --hidden --max-depth 4 --type f'
 
+export WLR_DRM_DEVICES=/dev/dri/card0
+
 # # Most pure GTK3 apps use wayland by default, but some,
 # # like Firefox, need the backend to be explicitely selected.
 # export MOZ_ENABLE_WAYLAND=1
