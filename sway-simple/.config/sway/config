@@ -1,14 +1,37 @@
 # Sway Configuration
 
-# Polybar
-# exec --no-startup-id polybar --reload --config=$HOME/.config/polybar/grayblocks/config.ini main
+set $config_path $HOME/.config/sway
 
-### Keymaps
+### Themes and Fonts
+set $gtk-theme Matcha-dark-sea
+set $icon-theme Papirus-Dark-Maia
+set $cursor-theme xcursor-breeze
+set $gui-font Roboto 11
+set $term-font RobotoMono Nerd Font 14
+set $kvantum-theme Matchama-Dark
+
+### Modkeys
 set $win Mod4
 set $alt Mod1
 set $mod $alt
-
 floating_modifier $mod normal
+
+# Colors
+set $black #000000
+set $white #FFFFFF
+set $turquoise #00FFA3
+#set $neonGreen #10f90c
+set $neonGreen #00FFFF
+set $neonYellow #e3fc02
+set $red #FF0000
+set $barColor #FF00AA
+
+client.focused          $neonGreen $neonGreen $black $neonGreen $neonGreen
+client.focused_inactive $black $black $neonGreen  $black $black
+client.unfocused        $black $black $white  $black $black
+client.urgent           $black $red   $black  $black $black
+client.placeholder      $black  $black $color5 $black $black
+client.background       $neonGreen
 
 ### Inputs
 #
@@ -36,6 +59,9 @@ input type:keyboard {
   repeat_rate 30
 }
 
+
+include $config_path/autostart/*
+
 ### Outputs
 #
 # eg. output HDMI-A-1 resolution 1920x1080 position 1920,0
@@ -44,13 +70,36 @@ input type:keyboard {
 #output * bg $background fill
 output * bg #111111 solid_color
 
-# enable modes
+# sway modes
 include modes/*
 
 # only enable this if every app you use is compatible with wayland
-xwayland disable
+#xwayland disable
 
-include $config_path/autostart/*
-
+include $config_path/definitions.d/*
 
 focus_follows_mouse no
+
+### Bar
+# bar {
+#     id main
+#     swaybar_command "waybar -c $HOME/.config/sway/apps/waybar/config.jsonc -s $HOME/.config/sway/apps/waybar/style.css"
+#     position top
+# }
+
+bar {
+  id main
+  position bottom
+  mode hide
+  modifier Mod1
+  font $term-font
+  height 30
+  # status_command waybar 
+  colors {
+    background #00000022
+    focused_workspace $barColor $barColor #111111
+    inactive_workspace #000000 #000000 $barColor
+    active_workspace #111111 #111111 #888888
+  }
+}
+

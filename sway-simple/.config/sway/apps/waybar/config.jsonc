@@ -11,11 +11,12 @@
   // Global configuration
   // -------------------------------------------------------------------------
 
-  "layer": "top",
+  "layer": "bottom",
 
   // If height property would be not present, it'd be calculated dynamically
   "height": 25,
   "position": "top",
+  "mode": "hidden",
 
   "modules-left": [
     // "custom/menu",
