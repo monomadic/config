@@ -12,10 +12,11 @@
   // -------------------------------------------------------------------------
 
   "layer": "top",
-
-  // If height property would be not present, it'd be calculated dynamically
-  "height": 25,
+  "height": 35,
   "position": "top",
+  "mode": "hide",
+  "bar_id": "bar-0",
+  "ipc": true,
 
   "modules-left": [
     // "custom/menu",
@@ -24,8 +25,8 @@
   ],
   "modules-center": ["custom/wf-recorder", "sway/mode"],
   "modules-right": [
-    "custom/portfolio-in-btc",
-    "custom/portfolio-change",
+    //"custom/portfolio-in-btc",
+    //"custom/portfolio-change",
     // informational
     // "sway/language",
     "custom/github",
@@ -48,7 +49,7 @@
     // "custom/sunset",
     "custom/pacman",
 
-    "custom/btc-price",
+    //"custom/btc-price",
 
     "tray",
     "clock"

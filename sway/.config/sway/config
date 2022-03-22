@@ -4,26 +4,38 @@ set $config_path $HOME/.config/sway/
 include $config_path/definitions.d/*.conf
 include $config_path/theme.d/*.conf
 
-exec --no-startup-id waybar
+# Colors
+set $black #000000
+set $white #FFFFFF
+set $turquoise #00FFA3
+#set $neonGreen #10f90c
+set $neonGreen #00FFFF
+set $neonYellow #e3fc02
+set $red #FF0000
+set $barColor #FF00AA
 
 bar {
-    mode hide
+  id main
+  position bottom
+  mode hide
+  modifier Mod1
+  font $term-font
+  height 30
+  status_command i3status-rs $config_path/apps/i3status/config.toml
+  colors {
+    background #00000022
+    focused_workspace $barColor $barColor #111111
+    inactive_workspace #000000 #000000 $barColor
+    active_workspace #111111 #111111 #888888
+  }
+}
+
+bar {
+    swaybar_command waybar
+    position top
     hidden_state hide
-    modifier $mod
-    font $uifont
-
-    # When the status_command prints a new line to stdout, swaybar updates.
-    # The default just shows the current date and time.
-    # status_command while date +'%-d.%-m.%Y. %H:%M:%S %p'; do sleep 1; done
-
-    colors {
-        statusline #ffffff
-        background #121212
-        #background #00000000
-        focused_workspace #121212 #18b218 #232627
-        active_workspace #121212 #121212 #232627
-        inactive_workspace #121212 #7f8c8d #232627
-    }
+    mode hide
+    modifier Mod1
 }
 
 # keyboard, touchpad
