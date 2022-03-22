@@ -4,7 +4,30 @@ set $config_path $HOME/.config/sway/
 include $config_path/definitions.d/*.conf
 include $config_path/theme.d/*.conf
 
+exec --no-startup-id waybar
+
+bar {
+    mode hide
+    hidden_state hide
+    modifier $mod
+    font $uifont
+
+    # When the status_command prints a new line to stdout, swaybar updates.
+    # The default just shows the current date and time.
+    status_command while date +'%-d.%-m.%Y. %H:%M:%S %p'; do sleep 1; done
+
+    colors {
+        statusline #ffffff
+        background #121212
+        #background #00000000
+        focused_workspace #121212 #18b218 #232627
+        active_workspace #121212 #121212 #232627
+        inactive_workspace #121212 #7f8c8d #232627
+    }
+}
+
 # keyboard, touchpad
+
 include $config_path/inputs/*
 # display dpi etc
 include $config_path/outputs/*
@@ -16,7 +39,7 @@ include $config_path/modes/*
 xwayland disable
 
 # include additional configs e.g. to autostart applications
-include $config_path/config.d/*
+include $config_path/config.d/*.conf
 
 # user config
 include $config_path/config.d/*.conf
