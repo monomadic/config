@@ -34,7 +34,7 @@ bar {
   id bar-0
   swaybar_command waybar
   position bottom
-  hidden_state hide
+  # hidden_state hide
   mode hide
   modifier Mod1
 

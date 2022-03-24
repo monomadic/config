@@ -19,6 +19,7 @@ require("plugins.floaterm") -- floating term
 require("plugins.devicons")
 require("plugins.indent-blankline") -- indentation
 require("plugins.comment")
+require("plugins.harpoon") -- marks
 require("plugins.neotree")
 require("plugins.neoscroll") -- smooth animations on scroll
 require("plugins.hop")

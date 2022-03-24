@@ -1,0 +1,27 @@
+
+vim.api.nvim_set_keymap("n", "gm", ":lua require('harpoon.ui').toggle_quick_menu()<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "ml", ":lua require('harpoon.ui').toggle_quick_menu()<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "mm", ":lua require('harpoon.mark').add_file()<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "mt", ":Telescope harpoon marks<CR>", { noremap = true })
+
+vim.api.nvim_set_keymap("n", "m]", ":lua require('harpoon.ui').nav_next()<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "<C-]>", ":lua require('harpoon.ui').nav_next()<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "m[", ":lua require('harpoon.ui').nav_prev()<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "<C-[>", ":lua require('harpoon.ui').nav_prev()<CR>", { noremap = true })
+
+vim.api.nvim_set_keymap("n", "m1", ":lua require('harpoon.ui').nav_file(1)<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "m2", ":lua require('harpoon.ui').nav_file(2)<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "m3", ":lua require('harpoon.ui').nav_file(3)<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "m4", ":lua require('harpoon.ui').nav_file(4)<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "m5", ":lua require('harpoon.ui').nav_file(5)<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "m6", ":lua require('harpoon.ui').nav_file(6)<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "m7", ":lua require('harpoon.ui').nav_file(7)<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "m8", ":lua require('harpoon.ui').nav_file(8)<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "m9", ":lua require('harpoon.ui').nav_file(9)<CR>", { noremap = true })
+
+vim.api.nvim_set_keymap("n", "t1", ":lua require('harpoon.term').gotoTerminal(1)<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "t2", ":lua require('harpoon.term').gotoTerminal(2)<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "t3", ":lua require('harpoon.term').gotoTerminal(3)<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "t4", ":lua require('harpoon.term').gotoTerminal(4)<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "t5", ":lua require('harpoon.term').gotoTerminal(5)<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "t6", ":lua require('harpoon.term').gotoTerminal(6)<CR>", { noremap = true })

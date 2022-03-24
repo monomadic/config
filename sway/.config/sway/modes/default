@@ -12,6 +12,8 @@ $bindsym $mod+b exec firefox
 $bindsym $mod+o exec killall -SIGUSR1 waybar
 #$bindsym $mod+Shift+Return exec $term_float ranger ~
 
+bindsym $mod+s sticky toggle
+
 # Drag floating windows by holding down $mod and left mouse button.
 # Resize them with right mouse button + $mod.
 # Despite the name, also works for non-floating windows.
@@ -99,7 +101,7 @@ $bindsym $mod+Shift+0 move container to workspace $ws10, exec $focus_ws $ws10
 #$bindsym $mod+v splitv
 
 ## Action // Switch to window stacking ##
-$bindsym $mod+s layout stacking
+#$bindsym $mod+s layout stacking
 ## Action // Switch to window tabbing ##
 $bindsym $mod+t layout tabbed
 ## Action // Toggle window splitting ##

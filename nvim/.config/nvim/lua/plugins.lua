@@ -45,6 +45,9 @@ require("packer").startup(function(use)
     requires = "nvim-lua/plenary.nvim",
   })
 
+  -- Marks
+  use({ "ThePrimeagen/harpoon", requires = "nvim-lua/plenary.nvim" })
+
   -- Tree
   use({
     "nvim-neo-tree/neo-tree.nvim",
