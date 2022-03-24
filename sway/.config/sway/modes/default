@@ -2,7 +2,7 @@
 #
 # Basics:
 #
-$bindsym $mod+Return exec alacritty
+$bindsym $mod+Return exec $term
 #$bindsym $mod+Shift+Return exec kitty
 bindsym $mod+Shift+Return exec alacritty --class floating_shell
 $bindsym $mod+q kill

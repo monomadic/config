@@ -2,7 +2,7 @@ require("indent_blankline").setup({
   -- for example, context is off by default, use this to turn it on
   show_current_context = true,
   show_current_context_start = true,
-  filetype_exclude = { "neo-tree", "help", "floaterm", "SidebarNvim" },
+  filetype_exclude = { "neo-tree", "help", "floaterm", "SidebarNvim", "" },
 })
 -- vim.opt.termguicolors = true
 -- vim.cmd([[highlight IndentBlanklineIndent1 guibg=#111111 gui=nocombine]])
