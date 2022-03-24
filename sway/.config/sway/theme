@@ -1,4 +1,4 @@
-# some global theme specific variables
+# Fonts
 set $gtk-theme Matcha-dark-sea
 set $icon-theme Papirus-Dark-Maia
 set $cursor-theme xcursor-breeze
@@ -6,36 +6,28 @@ set $gui-font pango:Roboto 11
 set $term-font pango:RobotoMono Nerd Font 14
 set $kvantum-theme Matchama-Dark
 
-# set $color0  #141a1b
-# set $color1  #282a2b
-# set $color2  #3B758C
-# set $color3  #41535B
-# set $color4  #43a5d5
-# set $color5  #d6d6d6
-# set $color6  #eeeeee
-# set $color7  #ffffff
-# set $color8  #Cd3f45
-# set $color9  #db7b55
-# set $color10 #e6cd69
-# set $color11 #9fca56
-# set $color12 #0000FF
-# set $color13 #55b5db
-# set $color14 #a074c4
-# set $color15 #8a553f
+font pango:RobotoMono Nerd Font 10
 
+# Colors
 set $black #000000
 set $white #FFFFFF
-set $neonBlue #00FFFF
+set $turquoise #00FFA3
 set $neonGreen #10f90c
-set $neonYellow #DDFF00
+set $neonBlue #00FFFF
+set $neonYellow #C8FC0C
 set $red #FF0000
+set $neonPink #FF00AA
 set $grey #282a2b
 set $lightGrey #AAAAAA
 
-set $selectedTabBackground $grey
-set $selectedTabText $white
+# Colors: Tabs
+set $selectedTabBackground $neonBlue
+set $selectedTabText $black
 set $tabText $lightGrey
 set $selectedBorder $neonBlue
+
+# Colors: Bar
+set $barColor $neonPink
 
 # Property Name         Border  BG     Text    Indicator  Child Border
 client.focused          $black $selectedTabBackground $selectedTabText $black $selectedBorder

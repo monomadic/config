@@ -6,8 +6,6 @@ local opts = { noremap = true, silent = true }
 -- vim.api.nvim_set_keymap("n", "F", ":HopChar2<CR>", opts)
 vim.api.nvim_set_keymap("n", "s", ":HopWord<CR>", opts)
 vim.api.nvim_set_keymap("n", "S", ":HopPattern<CR>", {})
-vim.api.nvim_set_keymap("n", "<C-f>", "<cmd>HopWord<CR>", opts)
-vim.api.nvim_set_keymap("i", "<C-f>", "<cmd>HopWord<CR>", opts)
 
 vim.api.nvim_set_keymap(
   "n",

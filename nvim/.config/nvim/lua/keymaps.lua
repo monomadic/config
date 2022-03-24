@@ -66,6 +66,9 @@ vim.api.nvim_set_keymap(
   opts
 )
 
+vim.api.nvim_set_keymap("n", "<C-r>", ":Telescope live_grep<cr>", { noremap=true, silent=true })
+vim.api.nvim_set_keymap("n", "<C-f>", ":Telescope live_grep<cr>", { noremap=true, silent=true })
+
 --vim.api.nvim_set_keymap("", "<", ":write<CR>", { noremap = true })
 --vim.api.nvim_set_keymap('', '', ':tabclose<CR>', {noremap = true})
 
@@ -83,7 +86,7 @@ keymap("n", "<C-o>", "<cmd>:Telescope find_files hidden=true no_ignore=true<CR>"
 
 vim.api.nvim_set_keymap("n", "<Esc>", ":noh<cr>", { noremap = true }) -- fix ESC confusion in normal mode
 vim.api.nvim_set_keymap("n", "gf", "<Plug>(easymotion-bd-w)", {})
-vim.api.nvim_set_keymap("n", "<C-f>", ":Rg<cr>", { noremap = true, silent = true })
+--vim.api.nvim_set_keymap("n", "<C-f>", ":Rg<cr>", { noremap = true, silent = true })
 --nnoremap <leader>fg <cmd>lua require('telescope.builtin').live_grep()<cr>
 --nnoremap <leader>fb <cmd>lua require('telescope.builtin').buffers()<cr>
 --nnoremap <leader>fh <cmd>lua require('telescope.builtin').help_tags()<cr>

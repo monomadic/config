@@ -11,6 +11,18 @@ USE_POWERLINE="false"
 #  source /usr/share/zsh/manjaro-zsh-prompt
 #fi
 
+# set title (foot needs this)
+# Called before prompt(?)
+function precmd {
+    # Set window title
+    print -Pn "\e]0;zsh%L %(1j,%j job%(2j|s|); ,)%~\e\\"
+}
+# Called when executing a command
+function preexec {
+    print -Pn "\e]0;${(q)1}\e\\"
+}
+
+
 # prompt
 #source /usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme
 

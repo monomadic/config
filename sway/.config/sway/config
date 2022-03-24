@@ -1,18 +1,8 @@
 # styles - set the folder for your theme defination file
 set $config_path $HOME/.config/sway/
 
+include $config_path/theme
 include $config_path/definitions.d/*.conf
-include $config_path/theme.d/*.conf
-
-# Colors
-set $black #000000
-set $white #FFFFFF
-set $turquoise #00FFA3
-set $neonGreen #10f90c
-set $neonBlue #00FFFF
-set $neonYellow #e3fc02
-set $red #FF0000
-set $barColor #FF00AA
 
 # bar {
 #   id main

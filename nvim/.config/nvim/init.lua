@@ -5,6 +5,7 @@ require("plugins")
 require("settings")
 require("keymaps")
 require("colors")
+require("lsp.lsp-keymaps")()
 
 -- plugins
 require("plugins.whichkey")
@@ -35,7 +36,6 @@ require("lsp.lsp-javascript")
 require("lsp.lsp-rust-tools") -- provides type-hints, rust-runnables
 require("lsp.lsp-nix")
 --require("lsp.lsp-solidity")
-require("lsp.lsp-keymaps")()
 require("lsp.trouble")
 --require 'lsp'
 
@@ -64,7 +64,7 @@ require("nvim-blamer").setup({
 -- auto BufEnter * let &titlestring = " " .. expand("%:p")
 -- auto BufEnter * let &titlestring = "nvim:  " .. fnamemodify(getcwd(), ":t") .. " " .. expand("%:t")
 vim.cmd([[
-  auto BufEnter * let &titlestring = " " .. fnamemodify(getcwd(), ":t") .. " [nvim]"
+  auto BufEnter * let &titlestring = " " .. fnamemodify(getcwd(), ":t")
   set title
 ]])
 
