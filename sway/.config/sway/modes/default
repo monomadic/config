@@ -3,11 +3,12 @@
 # Basics:
 #
 $bindsym $mod+Return exec $term
+#$bindsym $mod+Shift+Return exec kitty
+bindsym $mod+Shift+Return exec alacritty --class floating_shell
 $bindsym $mod+q kill
 $bindsym $mod+Space exec $menu
 # $bindsym $mod+o exec /home/nom/Config/apps/fzfmenu
 $bindsym $mod+b exec firefox
-$bindsym $mod+Shift+Return exec alacritty
 $bindsym $mod+o exec killall -SIGUSR1 waybar
 #$bindsym $mod+Shift+Return exec $term_float ranger ~
 
@@ -38,16 +39,21 @@ $bindsym XF86TouchpadToggle input type:touchpad events toggle enabled disabled
 #
 # Move your focus around
 ## Navigation // Move focus // $mod + ↑ ↓ ← → ##
+$bindsym $win+H focus left
+$bindsym $win+J focus down
+$bindsym $win+K focus up
+$bindsym $win+L focus right
+
 $bindsym $mod+H focus left
 $bindsym $mod+J focus down
 $bindsym $mod+K focus up
 $bindsym $mod+L focus right
 
 ## Navigation // Move focussed window // $mod + Shift + ↑ ↓ ← → ##
-$bindsym $mod+Shift+Left move left
-$bindsym $mod+Shift+Down move down
-$bindsym $mod+Shift+Up move up
-$bindsym $mod+Shift+Right move right
+$bindsym $win+Shift+Left move left
+$bindsym $win+Shift+Down move down
+$bindsym $win+Shift+Up move up
+$bindsym $win+Shift+Right move right
 
 #
 # Workspaces:
@@ -65,8 +71,8 @@ $bindsym $mod+9 workspace $ws9
 $bindsym $mod+0 workspace $ws10
 $bindsym $mod+bracketright workspace next
 $bindsym $mod+bracketleft workspace prev
-$bindsym $win+l workspace next
-$bindsym $win+h workspace prev
+# $bindsym $mod+l workspace next
+# $bindsym $mod+h workspace prev
 $bindsym $mod+Shift+l workspace next
 $bindsym $mod+Shift+h workspace prev
 

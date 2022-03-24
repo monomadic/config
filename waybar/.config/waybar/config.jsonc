@@ -12,8 +12,8 @@
   // -------------------------------------------------------------------------
 
   "layer": "top",
-  "height": 35,
-  "position": "top",
+  "height": 25,
+  "position": "bottom",
   "mode": "hide",
   "bar_id": "bar-0",
   "ipc": true,

@@ -8,34 +8,42 @@ include $config_path/theme.d/*.conf
 set $black #000000
 set $white #FFFFFF
 set $turquoise #00FFA3
-#set $neonGreen #10f90c
-set $neonGreen #00FFFF
+set $neonGreen #10f90c
+set $neonBlue #00FFFF
 set $neonYellow #e3fc02
 set $red #FF0000
 set $barColor #FF00AA
 
+# bar {
+#   id main
+#   position bottom
+#   mode hide
+#   modifier Mod1
+#   font $gui-font
+#   height 25
+#   status_command i3status-rs $config_path/apps/i3status/config.toml
+#   colors {
+#     background #000000AA
+#     focused_workspace $barColor $barColor #111111
+#     inactive_workspace #000000 #000000 $barColor
+#     active_workspace #111111 #111111 #888888
+#   }
+# }
+
 bar {
-  id main
+  id bar-0
+  swaybar_command waybar
   position bottom
+  hidden_state hide
   mode hide
   modifier Mod1
-  font $term-font
-  height 30
-  status_command i3status-rs $config_path/apps/i3status/config.toml
+
   colors {
-    background #00000022
+    background #000000AA
     focused_workspace $barColor $barColor #111111
     inactive_workspace #000000 #000000 $barColor
     active_workspace #111111 #111111 #888888
   }
-}
-
-bar {
-    swaybar_command waybar
-    position top
-    hidden_state hide
-    mode hide
-    modifier Mod1
 }
 
 # keyboard, touchpad
@@ -59,3 +67,4 @@ include $config_path/config.d/*.conf
 floating_modifier $mod normal
 
 focus_follows_mouse no
+

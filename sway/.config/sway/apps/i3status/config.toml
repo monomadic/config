@@ -1,4 +1,5 @@
 icons = "awesome"
+colors = true
 
 [[block]]
 block = "disk_space"

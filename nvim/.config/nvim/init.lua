@@ -59,6 +59,14 @@ require("nvim-blamer").setup({
   show_error = false, -- set to true to show any possible error (just for debug problems)
 })
 
+-- Set title to PWD
+-- auto BufEnter * let &titlestring = " " .. expand("%:p")
+-- auto BufEnter * let &titlestring = "nvim:  " .. fnamemodify(getcwd(), ":t") .. " " .. expand("%:t")
+vim.cmd([[
+  auto BufEnter * let &titlestring = " " .. fnamemodify(getcwd(), ":t") .. " [nvim]"
+  set title
+]])
+
 -- Globals
 --   see :h lua-vim-variables and :h lua-vim-options
 vim.opt.wildignore = { "*/cache/*", "*/tmp/*" }
