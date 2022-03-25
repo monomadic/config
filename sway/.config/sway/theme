@@ -30,7 +30,7 @@ set $selectedBorder $neonBlue
 set $barColor $neonPink
 
 # Property Name         Border  BG     Text    Indicator  Child Border
-client.focused          $black $selectedTabBackground $selectedTabText $black $selectedBorder
+client.focused          $selectedBorder $selectedTabBackground $selectedTabText $selectedBorder $selectedBorder
 client.focused_inactive $black $black $neonGreen  $black $black
 client.unfocused        $black $black $tabText  $black $black
 client.urgent           $black $red   $black  $black $black
