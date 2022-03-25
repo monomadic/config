@@ -65,6 +65,7 @@ require("nvim-blamer").setup({
 -- auto BufEnter * let &titlestring = "nvim:  " .. fnamemodify(getcwd(), ":t") .. " " .. expand("%:t")
 vim.cmd([[
   auto BufEnter * let &titlestring = " " .. fnamemodify(getcwd(), ":t")
+  autocmd BufReadPost,FileReadPost,BufNewFile * call system("tmux rename-window %")
   set title
 ]])
 

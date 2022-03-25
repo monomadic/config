@@ -8,9 +8,18 @@ local term_opts = { silent = true }
 -- leader key
 vim.g.mapleader = ","
 
--- Shorten function name
 local keymap = vim.api.nvim_set_keymap
 --vim.api.nvim_set_keymap("", "<C-q>", ":bd<CR>", { noremap = true })
+
+-- undo breakpoints (avoids large destructive undo sequences)
+keymap("i", ",", ",<c-g>u", opts)
+keymap("i", ".", ".<c-g>u", opts)
+keymap("i", "!", "!<c-g>u", opts)
+keymap("i", "(", "(<c-g>u", opts)
+
+-- move selected text up or down lines
+keymap("v", "<Down>", ":m '>+1<CR>gv=gv", opts)
+keymap("v", "<Up>", ":m '<-2<CR>gv=gv", opts)
 
 -- terminal
 vim.api.nvim_set_keymap("t", "<Esc>", "<C-\\><C-n>", { noremap = true })

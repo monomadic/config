@@ -27,7 +27,6 @@ bar {
   # hidden_state hide
   mode hide
   modifier Mod1
-
   colors {
     background #000000AA
     focused_workspace $barColor $barColor #111111
@@ -37,8 +36,8 @@ bar {
 }
 
 # keyboard, touchpad
-
 include $config_path/inputs/*
+
 # display dpi etc
 include $config_path/outputs/*
 

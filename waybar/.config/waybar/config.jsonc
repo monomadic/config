@@ -21,7 +21,8 @@
   "modules-left": [
     // "custom/menu",
     "sway/workspaces",
-    "custom/scratchpad"
+    "custom/scratchpad",
+    "custom/workspace-name"
   ],
   "modules-center": ["custom/wf-recorder", "sway/mode"],
   "modules-right": [
@@ -156,6 +157,10 @@
   "tray": {
     "icon-size": 21,
     "spacing": 5
+  },
+
+  "custom/workspace-name": {
+    "exec": "workspace-name"
   },
 
   "custom/btc-price": {
