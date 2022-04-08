@@ -17,7 +17,6 @@ import sys
 WINDOW_ICONS = {
     "firefox": "",
 }
-
 DEFAULT_ICON = "󰀏"
 
 
@@ -51,7 +50,7 @@ def rename_workspaces(ipc):
                 if not ARGUMENTS.duplicates and icon in icon_tuple:
                     continue
                 icon_tuple += (icon,)
-        name_parts["icons"] = "  ".join(icon_tuple) + " "
+        name_parts["icons"] = "x".join(icon_tuple) + " "
         new_name = construct_workspace_name(name_parts)
         ipc.command('rename workspace "%s" to "%s"' % (workspace.name, new_name))
 
@@ -76,6 +75,8 @@ def construct_workspace_name(parts):
     new_name = str(parts["num"])
     if parts["shortname"] or parts["icons"]:
         new_name += ":"
+        
+        new_name += "[work]"
 
         if parts["shortname"]:
             new_name += parts["shortname"]

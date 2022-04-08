@@ -160,7 +160,7 @@
   },
 
   "custom/workspace-name": {
-    "exec": "workspace-name"
+    "exec": "echo $WS_NAME"
   },
 
   "custom/btc-price": {

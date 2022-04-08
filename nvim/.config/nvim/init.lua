@@ -31,9 +31,9 @@ require("plugins.sidebar")
 --require("scrollfix")
 
 -- LSP
+require("lsp.lsp-installer")
 require("lsp.lsp-javascript")
 --require("lsp.lsp-svelte")
-require("lsp.lsp-rust-tools") -- provides type-hints, rust-runnables
 require("lsp.lsp-nix")
 --require("lsp.lsp-solidity")
 require("lsp.trouble")
@@ -100,7 +100,7 @@ require("prettier").setup({
   filetypes = { "javascript", "typescript", "json", "lua" },
 })
 
-vim.cmd([[let loaded_netrwPlugin = 1]])
+-- vim.cmd([[let loaded_netrwPlugin = 1]])
 
 require("plugins.gitsigns")
 --require("plugins.line") -- statusbar (doesn't work?)

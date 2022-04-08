@@ -104,10 +104,10 @@ window:
 # Font configuration
 font:
   # Normal (roman) font face
-  normal:
-    family: Iosevka
-  bold:
-    family: Iosevka
+  # normal:
+  #   family: Iosevka
+  # bold:
+  #   family: Iosevka
   family: Iosevka
   #
   # Default:

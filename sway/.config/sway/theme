@@ -23,7 +23,8 @@ set $lightGrey #AAAAAA
 # Colors: Tabs
 set $selectedTabBackground $neonBlue
 set $selectedTabText $black
-set $tabText $lightGrey
+set $deselectedTabBackground $grey
+set $deselectedTabText $lightGrey
 set $selectedBorder $neonBlue
 
 # Colors: Bar
@@ -31,8 +32,8 @@ set $barColor $neonPink
 
 # Property Name         Border  BG     Text    Indicator  Child Border
 client.focused          $selectedBorder $selectedTabBackground $selectedTabText $selectedBorder $selectedBorder
-client.focused_inactive $black $black $neonGreen  $black $black
-client.unfocused        $black $black $tabText  $black $black
-client.urgent           $black $red   $black  $black $black
-client.placeholder      $black  $black $color5 $black $black
+client.focused_inactive $deselectedTabBackground $deselectedTabBackground $selectedTabBackground $deselectedTabBackground $deselectedTabBackground
+client.unfocused        $deselectedTabBackground $deselectedTabBackground $deselectedTabText $black $black
+client.urgent           $black $red $black $black $black
+client.placeholder      $black $black $color5 $black $black
 #client.background       #333333

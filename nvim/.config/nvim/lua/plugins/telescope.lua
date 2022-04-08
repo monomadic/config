@@ -47,10 +47,12 @@ require("telescope").setup({
       },
     },
   },
-  pickers = {
-    find_files = {
-      hidden = true,
-      find_command = { "fd", "--type", "f", "--strip-cwd-prefix" },
-    },
-  },
+  -- pickers = {
+  --   find_files = {
+  --     hidden = true,
+  --     find_command = { "fd", "--type", "f", "--strip-cwd-prefix" },
+  --   },
+  -- },
 })
+
+-- require('telescope').load_extension('fzf')

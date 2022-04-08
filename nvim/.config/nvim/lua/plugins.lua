@@ -61,6 +61,9 @@ require("packer").startup(function(use)
   -- use("ms-jpq/chadtree")
 use 'sidebar-nvim/sidebar.nvim'
 
+  -- git
+  use("tpope/vim-fugitive")
+
   use("sbdchd/neoformat")
 
   use({ "liuchengxu/vim-clap" })
@@ -179,6 +182,8 @@ use 'sidebar-nvim/sidebar.nvim'
     end,
   })
 
+  use { 'nvim-telescope/telescope-fzf-native.nvim', run = "make" }
+
   -- Telescope
   use("nvim-telescope/telescope.nvim")
   use("nvim-telescope/telescope-symbols.nvim")
@@ -200,9 +205,7 @@ use 'sidebar-nvim/sidebar.nvim'
   use("JoosepAlviste/nvim-ts-context-commentstring")
 
   -- -- Git
-  use({ "lewis6991/gitsigns.nvim", requires = {
-    "nvim-lua/plenary.nvim",
-  } })
+  use({ "lewis6991/gitsigns.nvim", requires = {"nvim-lua/plenary.nvim"} })
 
   -- use({
   --   "tanvirtin/vgit.nvim",

@@ -4,9 +4,10 @@
 #
 $bindsym $mod+Return exec $term
 #$bindsym $mod+Shift+Return exec kitty
-bindsym $mod+Shift+Return exec alacritty --class floating_shell
+bindsym $mod+Shift+Return exec $term_float
 $bindsym $mod+q kill
-$bindsym $mod+Space exec $menu
+#$bindsym $mod+Space exec $menu
+$bindsym $mod+Space exec ulauncher-toggle
 # $bindsym $mod+o exec /home/nom/Config/apps/fzfmenu
 $bindsym $mod+b exec firefox
 $bindsym $mod+o exec killall -SIGUSR1 waybar
