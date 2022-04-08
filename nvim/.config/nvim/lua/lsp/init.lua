@@ -20,7 +20,6 @@ end
 local lsp_config = {}
 
 function lsp_config.common_on_attach(client, bufnr)
-  require("lsp.lsp-keymaps")()
   documentHighlight(client, bufnr)
 end
 
@@ -33,13 +32,5 @@ function lsp_config.rust_analyzer_on_attach(client, bufnr)
   lsp_config.common_on_attach(client, bufnr)
   client.resolved_capabilities.document_formatting = false
 end
-
--- Use a loop to conveniently both setup defined servers
--- and map buffer local keybindings when the language server attaches
---local nvim_lsp = require'lspconfig'
---local servers = {"rust_analyzer", "tsserver"}
--- for _, lsp in ipairs(servers) do nvim_lsp[lsp].setup {on_attach = function()
---   require'lsp.lsp-keymaps'()
--- end} end
 
 return lsp_config

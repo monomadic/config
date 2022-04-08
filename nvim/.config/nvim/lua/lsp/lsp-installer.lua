@@ -2,7 +2,10 @@ local lsp_installer = require("nvim-lsp-installer")
 
 lsp_installer.on_server_ready(function(server)
   if server.name == "rust_analyzer" then
-    require("lsp.lsp-rust-tools") -- provides type-hints, rust-runnables
+    --require("lsp.lsp-rust-tools") -- provides type-hints, rust-runnables
+    require("rust-tools").setup({
+      server = { cmd = server._default_options.cmd },
+    })
     server:attach_buffers()
     server:setup({})
   else

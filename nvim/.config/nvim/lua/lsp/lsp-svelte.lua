@@ -1,6 +1,5 @@
 require("lspconfig").svelte.setup({
   on_attach = function(client, bufnr)
-    require("lsp.lsp-keymaps")()
     require("aerial").setup({
       backends = { "lsp", "treesitter", "markdown" },
     })

@@ -1,7 +1,6 @@
 require("lspconfig").rust_analyzer.setup({
   on_attach = function()
-    print("attached rust_analyzer lsp")
-    require("lsp.lsp-keymaps")()
+    require("lsp.lsp-rust-tools") -- provides type-hints, rust-runnables
   end,
   capabilites = require("cmp_nvim_lsp").update_capabilities(vim.lsp.protocol.make_client_capabilities()),
   settings = {

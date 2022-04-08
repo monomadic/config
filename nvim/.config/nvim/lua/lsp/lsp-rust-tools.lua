@@ -87,7 +87,6 @@ local opts = {
     -- setting it to false may improve startup time
     standalone = false,
     on_attach = function(client, bufnr)
-      require("lsp.lsp-keymaps")()
       require("aerial").setup({
         backends = { "lsp", "treesitter", "markdown" },
       })
@@ -142,7 +141,6 @@ local opts = {
 -- require'lspconfig'.rust_analyzer.setup {
 --   on_attach = function()
 --     print("attached rust_analyzer lsp")
---     require'lsp.lsp-keymaps'()
 --
 --     local map = vim.api.nvim_set_keymap
 --     map('n', 'gn', ':RustRunnables<cr>', { silent = true })

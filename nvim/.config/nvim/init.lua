@@ -5,7 +5,6 @@ require("plugins")
 require("settings")
 require("keymaps")
 require("colors")
-require("lsp.lsp-keymaps")()
 
 -- plugins
 require("plugins.whichkey")
@@ -32,9 +31,10 @@ require("plugins.sidebar")
 
 -- LSP
 require("lsp.lsp-installer")
-require("lsp.lsp-javascript")
+--require("lsp.lsp-javascript")
+--require("lsp.lsp-rust")
 --require("lsp.lsp-svelte")
-require("lsp.lsp-nix")
+--require("lsp.lsp-nix")
 --require("lsp.lsp-solidity")
 require("lsp.trouble")
 --require 'lsp'
