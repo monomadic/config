@@ -10,6 +10,8 @@ $bindsym $mod+q kill
 $bindsym $mod+Space exec ulauncher-toggle
 # $bindsym $mod+o exec /home/nom/Config/apps/fzfmenu
 $bindsym $mod+b exec firefox
+$bindsym $mod+Shift+b exec iridium-browser
+
 $bindsym $mod+o exec killall -SIGUSR1 waybar
 #$bindsym $mod+Shift+Return exec $term_float ranger ~
 

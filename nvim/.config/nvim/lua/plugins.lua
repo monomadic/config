@@ -58,15 +58,48 @@ require("packer").startup(function(use)
       "MunifTanjim/nui.nvim",
     },
   })
+
   -- use("ms-jpq/chadtree")
-use 'sidebar-nvim/sidebar.nvim'
+  use "sidebar-nvim/sidebar.nvim"
+
+  -- zettelkasten
+  -- use "mickael-menu/zk-nvim"
+  use "renerocksai/telekasten.nvim"
+
+  -- neorg
+  -- use {
+vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
+  --   "nvim-neorg/neorg",
+  --   config = function()
+  --       require('neorg').setup {
+  --         load = {
+  --             ["core.defaults"] = {},
+  --             ["core.norg.dirman"] = {
+  --                 config = {
+  --                     workspaces = {
+  --                         work = "~/notes/work",
+  --                         home = "~/notes/home",
+  --                     }
+  --                 }
+  --             }
+  --         }
+  --       }
+  --   end,
+  --   requires = "nvim-lua/plenary.nvim"
+  -- }
+
+  -- annotation generator for various languages
+  use 'danymat/neogen'
+
+  -- ranger
+  use { "francoiscabrol/ranger.vim", requires = 'rbgrouleff/bclose.vim' }
 
   -- git
   use("tpope/vim-fugitive")
 
   use("sbdchd/neoformat")
 
-  use({ "liuchengxu/vim-clap" })
+  use("liuchengxu/vim-clap")
 
   -- UI
   -- use "nvim-lua/popup.nvim" -- An implementation of the Popup API from vim in Neovim
@@ -76,16 +109,17 @@ use 'sidebar-nvim/sidebar.nvim'
   use("nvim-lua/plenary.nvim") -- useful lua functions used ny lots of plugins
   use({ "windwp/nvim-autopairs", config = "require('nvim-autopairs').setup{}" }) -- Autopairs, integrates with both cmp and treesitter
 
-  use("numToStr/Comment.nvim") -- commenting
+  -- commenting
+  use { "numToStr/Comment.nvim",
+    tag = "v0.6",
+    config = function()
+        require('Comment').setup()
+    end
+  }
+
   use("kyazdani42/nvim-web-devicons") -- colored icons in tree and status bar
 
-  use({ "camspiers/lens.vim" }) -- buffer autoresizing
-
-  -- use({
-  --   "noib3/nvim-cokeline", -- because bufferline sucks to configure
-  --   requires = "kyazdani42/nvim-web-devicons",
-  --   config = "require('plugins.cokeline')",
-  -- })
+  use("camspiers/lens.vim") -- buffer autoresizing
 
   use({
     "romgrk/barbar.nvim",
@@ -95,7 +129,8 @@ use 'sidebar-nvim/sidebar.nvim'
   -- use "moll/vim-bbye"
   -- use "nvim-lualine/lualine.nvim"
 
-  use({ "kevinhwang91/nvim-bqf", ft = "qf" })
+  -- better quick fix
+  -- use("kevinhwang91/nvim-bqf")
 
   -- Terminal
   -- use("akinsho/toggleterm.nvim")
@@ -128,6 +163,10 @@ use 'sidebar-nvim/sidebar.nvim'
   use("rinx/nvim-ripgrep") -- grep
   use("willthbill/opener.nvim") -- project manager
   -- use "brooth/far.vim" -- find and replace
+vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
+
+  -- markdown
+  -- use 'plasticboy/vim-markdown'
 
   -- LSP
   use("neovim/nvim-lspconfig") -- enable LSP
@@ -137,7 +176,7 @@ use 'sidebar-nvim/sidebar.nvim'
   -- use 'mfussenegger/nvim-jdtls'
   use("tomlion/vim-solidity")
   --use("tamago324/nlsp-settings.nvim") -- language server settings defined in json for
-  use 'stevearc/aerial.nvim' -- aerial view / overview of lsp structure
+  -- use 'stevearc/aerial.nvim' -- aerial view / overview of lsp structure
 
   use("jose-elias-alvarez/null-ls.nvim") -- for formatters and linters
   use("ray-x/lsp_signature.nvim") -- signatures (functions etc)
@@ -145,14 +184,24 @@ use 'sidebar-nvim/sidebar.nvim'
   -- use "mfussenegger/nvim-dap" -- debugging protocol
   use("MunifTanjim/prettier.nvim") -- formatting with Prettier
 
+  -- jump around syntax tree
+  use 'ziontee113/syntax-tree-surfer'
+  use 'mfussenegger/nvim-treehopper'
+
   use({
     "simrat39/rust-tools.nvim",
     --config = "require 'plugins.rust-tools'"
   }) -- extensions in addition to rust-analyzer
 
-  use({
+  use {
+    -- surround completion
     "appelgriebsch/surround.nvim",
-  })
+    -- surround inline change
+    "tpope/vim-surround"
+  }
+
+  -- various [] mappings
+  use "tpope/vim-unimpaired"
 
   use({
     "folke/trouble.nvim",
@@ -165,13 +214,13 @@ use 'sidebar-nvim/sidebar.nvim'
   use("hrsh7th/nvim-compe")
   use("mattn/emmet-vim")
   use("hrsh7th/vim-vsnip")
-  use("xabikos/vscode-javascript")
-  use("dsznajder/vscode-es7-javascript-react-snippets")
-  use("golang/vscode-go")
-  use("rust-lang/vscode-rust")
-  use("ChristianChiarulli/html-snippets")
-  use("ChristianChiarulli/java-snippets")
-  use("ChristianChiarulli/python-snippets")
+  -- use("xabikos/vscode-javascript")
+  -- use("dsznajder/vscode-es7-javascript-react-snippets")
+  -- use("golang/vscode-go")
+  -- use("rust-lang/vscode-rust")
+  -- use("ChristianChiarulli/html-snippets")
+  -- use("ChristianChiarulli/java-snippets")
+  -- use("ChristianChiarulli/python-snippets")
 
   use({
     "saecki/crates.nvim",
@@ -205,7 +254,7 @@ use 'sidebar-nvim/sidebar.nvim'
   use("JoosepAlviste/nvim-ts-context-commentstring")
 
   -- -- Git
-  use({ "lewis6991/gitsigns.nvim", requires = {"nvim-lua/plenary.nvim"} })
+  use { "lewis6991/gitsigns.nvim", requires = {"nvim-lua/plenary.nvim"} }
 
   -- use({
   --   "tanvirtin/vgit.nvim",
@@ -214,7 +263,7 @@ use 'sidebar-nvim/sidebar.nvim'
   --   },
   -- })
   -- airblade/vim-gitgutter
-  use("ttys3/nvim-blamer.lua") -- git blame
+  -- use("ttys3/nvim-blamer.lua") -- git blame
   --
   -- Automatically set up your configuration after cloning packer.nvim
   -- Put this at the end after all plugins

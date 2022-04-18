@@ -18,7 +18,6 @@ require("plugins.neoformat") -- code formatting
 require("plugins.floaterm") -- floating term
 require("plugins.devicons")
 require("plugins.indent-blankline") -- indentation
-require("plugins.comment")
 require("plugins.harpoon") -- marks
 require("plugins.neotree")
 require("plugins.neoscroll") -- smooth animations on scroll
@@ -28,6 +27,7 @@ require("plugins.wilder")
 -- require("plugins.vgit")
 require("plugins.sidebar")
 --require("scrollfix")
+require 'plugins.telekasten'
 
 -- LSP
 require("lsp.lsp-installer")
@@ -51,14 +51,41 @@ require("null-ls").setup({
   on_attach = function(client, bufnr) end,
 })
 
-require("nvim-blamer").setup({
-  enable = false, -- you must set this to true in order to show the blame info
-  prefix = "  ", -- you can cusomize it to any thing, unicode emoji, even disable it, just set to empty lua string
-  format = "%committer │ %committer-time %committer-tz │ %summary",
-  auto_hide = false, -- set this to true will enable delay hide even you do not have the cursor moved
-  hide_delay = 3000, -- this is the delay time in milliseconds for delay auto hide
-  show_error = false, -- set to true to show any possible error (just for debug problems)
-})
+-- treehopper
+require("tsht").config.hint_keys = { "h", "j", "f", "d", "n", "v", "s", "l", "a" }
+vim.api.nvim_set_keymap("n", "<C-u>", ":lua require('tsht').nodes()<CR>", { noremap = true })
+
+-- require("zk").setup({
+--   -- can be "telescope", "fzf" or "select" (`vim.ui.select`)
+--   -- it's recommended to use "telescope" or "fzf"
+--   picker = "select",
+--
+--   lsp = {
+--     -- `config` is passed to `vim.lsp.start_client(config)`
+--     config = {
+--       cmd = { "zk", "lsp" },
+--       name = "zk",
+-- vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
+--       -- on_attach = ...
+--       -- etc, see `:h vim.lsp.start_client()`
+--     },
+--
+--     -- automatically attach buffers in a zk notebook that match the given filetypes
+--     auto_attach = {
+--       enabled = true,
+--       filetypes = { "markdown" },
+--     },
+--   },
+-- })
+
+-- require("nvim-blamer").setup({
+--   enable = false, -- you must set this to true in order to show the blame info
+--   prefix = "  ", -- you can cusomize it to any thing, unicode emoji, even disable it, just set to empty lua string
+--   format = "%committer │ %committer-time %committer-tz │ %summary",
+--   auto_hide = false, -- set this to true will enable delay hide even you do not have the cursor moved
+--   hide_delay = 3000, -- this is the delay time in milliseconds for delay auto hide
+--   show_error = false, -- set to true to show any possible error (just for debug problems)
+-- })
 
 -- Set title to PWD
 -- auto BufEnter * let &titlestring = " " .. expand("%:p")

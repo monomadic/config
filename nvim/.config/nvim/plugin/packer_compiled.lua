@@ -70,19 +70,20 @@ time([[try_loadstring definition]], false)
 time([[Defining packer_plugins]], true)
 _G.packer_plugins = {
   ["Comment.nvim"] = {
+    config = { "\27LJ\2\n5\0\0\3\0\3\0\0066\0\0\0'\2\1\0B\0\2\0029\0\2\0B\0\1\1K\0\1\0\nsetup\fComment\frequire\0" },
     loaded = true,
     path = "/home/nom/.local/share/nvim/site/pack/packer/start/Comment.nvim",
     url = "https://github.com/numToStr/Comment.nvim"
-  },
-  ["aerial.nvim"] = {
-    loaded = true,
-    path = "/home/nom/.local/share/nvim/site/pack/packer/start/aerial.nvim",
-    url = "https://github.com/stevearc/aerial.nvim"
   },
   ["barbar.nvim"] = {
     loaded = true,
     path = "/home/nom/.local/share/nvim/site/pack/packer/start/barbar.nvim",
     url = "https://github.com/romgrk/barbar.nvim"
+  },
+  ["bclose.vim"] = {
+    loaded = true,
+    path = "/home/nom/.local/share/nvim/site/pack/packer/start/bclose.vim",
+    url = "https://github.com/rbgrouleff/bclose.vim"
   },
   ["boo-colorscheme-nvim"] = {
     loaded = true,
@@ -148,20 +149,10 @@ _G.packer_plugins = {
     path = "/home/nom/.local/share/nvim/site/pack/packer/start/hop.nvim",
     url = "https://github.com/phaazon/hop.nvim"
   },
-  ["html-snippets"] = {
-    loaded = true,
-    path = "/home/nom/.local/share/nvim/site/pack/packer/start/html-snippets",
-    url = "https://github.com/ChristianChiarulli/html-snippets"
-  },
   ["indent-blankline.nvim"] = {
     loaded = true,
     path = "/home/nom/.local/share/nvim/site/pack/packer/start/indent-blankline.nvim",
     url = "https://github.com/lukas-reineke/indent-blankline.nvim"
-  },
-  ["java-snippets"] = {
-    loaded = true,
-    path = "/home/nom/.local/share/nvim/site/pack/packer/start/java-snippets",
-    url = "https://github.com/ChristianChiarulli/java-snippets"
   },
   ["lens.vim"] = {
     loaded = true,
@@ -188,6 +179,11 @@ _G.packer_plugins = {
     path = "/home/nom/.local/share/nvim/site/pack/packer/start/neoformat",
     url = "https://github.com/sbdchd/neoformat"
   },
+  neogen = {
+    loaded = true,
+    path = "/home/nom/.local/share/nvim/site/pack/packer/start/neogen",
+    url = "https://github.com/danymat/neogen"
+  },
   ["neoscroll.nvim"] = {
     loaded = true,
     path = "/home/nom/.local/share/nvim/site/pack/packer/start/neoscroll.nvim",
@@ -208,18 +204,6 @@ _G.packer_plugins = {
     loaded = true,
     path = "/home/nom/.local/share/nvim/site/pack/packer/start/nvim-autopairs",
     url = "https://github.com/windwp/nvim-autopairs"
-  },
-  ["nvim-blamer.lua"] = {
-    loaded = true,
-    path = "/home/nom/.local/share/nvim/site/pack/packer/start/nvim-blamer.lua",
-    url = "https://github.com/ttys3/nvim-blamer.lua"
-  },
-  ["nvim-bqf"] = {
-    loaded = false,
-    needs_bufread = true,
-    only_cond = false,
-    path = "/home/nom/.local/share/nvim/site/pack/packer/opt/nvim-bqf",
-    url = "https://github.com/kevinhwang91/nvim-bqf"
   },
   ["nvim-cmp"] = {
     loaded = true,
@@ -323,10 +307,10 @@ _G.packer_plugins = {
     path = "/home/nom/.local/share/nvim/site/pack/packer/start/prettier.nvim",
     url = "https://github.com/MunifTanjim/prettier.nvim"
   },
-  ["python-snippets"] = {
+  ["ranger.vim"] = {
     loaded = true,
-    path = "/home/nom/.local/share/nvim/site/pack/packer/start/python-snippets",
-    url = "https://github.com/ChristianChiarulli/python-snippets"
+    path = "/home/nom/.local/share/nvim/site/pack/packer/start/ranger.vim",
+    url = "https://github.com/francoiscabrol/ranger.vim"
   },
   ["rust-tools.nvim"] = {
     loaded = true,
@@ -362,6 +346,16 @@ _G.packer_plugins = {
     loaded = true,
     path = "/home/nom/.local/share/nvim/site/pack/packer/start/symbols-outline.nvim",
     url = "https://github.com/simrat39/symbols-outline.nvim"
+  },
+  ["syntax-tree-surfer"] = {
+    loaded = true,
+    path = "/home/nom/.local/share/nvim/site/pack/packer/start/syntax-tree-surfer",
+    url = "https://github.com/ziontee113/syntax-tree-surfer"
+  },
+  ["telekasten.nvim"] = {
+    loaded = true,
+    path = "/home/nom/.local/share/nvim/site/pack/packer/start/telekasten.nvim",
+    url = "https://github.com/renerocksai/telekasten.nvim"
   },
   ["telescope-fzf-native.nvim"] = {
     loaded = true,
@@ -433,6 +427,16 @@ _G.packer_plugins = {
     path = "/home/nom/.local/share/nvim/site/pack/packer/start/vim-solidity",
     url = "https://github.com/tomlion/vim-solidity"
   },
+  ["vim-surround"] = {
+    loaded = true,
+    path = "/home/nom/.local/share/nvim/site/pack/packer/start/vim-surround",
+    url = "https://github.com/tpope/vim-surround"
+  },
+  ["vim-unimpaired"] = {
+    loaded = true,
+    path = "/home/nom/.local/share/nvim/site/pack/packer/start/vim-unimpaired",
+    url = "https://github.com/tpope/vim-unimpaired"
+  },
   ["vim-vsnip"] = {
     loaded = true,
     path = "/home/nom/.local/share/nvim/site/pack/packer/start/vim-vsnip",
@@ -442,26 +446,6 @@ _G.packer_plugins = {
     loaded = true,
     path = "/home/nom/.local/share/nvim/site/pack/packer/start/vista.vim",
     url = "https://github.com/liuchengxu/vista.vim"
-  },
-  ["vscode-es7-javascript-react-snippets"] = {
-    loaded = true,
-    path = "/home/nom/.local/share/nvim/site/pack/packer/start/vscode-es7-javascript-react-snippets",
-    url = "https://github.com/dsznajder/vscode-es7-javascript-react-snippets"
-  },
-  ["vscode-go"] = {
-    loaded = true,
-    path = "/home/nom/.local/share/nvim/site/pack/packer/start/vscode-go",
-    url = "https://github.com/golang/vscode-go"
-  },
-  ["vscode-javascript"] = {
-    loaded = true,
-    path = "/home/nom/.local/share/nvim/site/pack/packer/start/vscode-javascript",
-    url = "https://github.com/xabikos/vscode-javascript"
-  },
-  ["vscode-rust"] = {
-    loaded = true,
-    path = "/home/nom/.local/share/nvim/site/pack/packer/start/vscode-rust",
-    url = "https://github.com/rust-lang/vscode-rust"
   },
   ["which-key.nvim"] = {
     loaded = true,
@@ -485,20 +469,20 @@ time([[Defining packer_plugins]], false)
 time([[Config for nvim-autopairs]], true)
 require('nvim-autopairs').setup{}
 time([[Config for nvim-autopairs]], false)
--- Config for: nvim-scrollbar
-time([[Config for nvim-scrollbar]], true)
-require'scrollbar'.setup()
-time([[Config for nvim-scrollbar]], false)
 -- Config for: nvim-treesitter
 time([[Config for nvim-treesitter]], true)
 require('plugins.treesitter')
 time([[Config for nvim-treesitter]], false)
+-- Config for: nvim-scrollbar
+time([[Config for nvim-scrollbar]], true)
+require'scrollbar'.setup()
+time([[Config for nvim-scrollbar]], false)
+-- Config for: Comment.nvim
+time([[Config for Comment.nvim]], true)
+try_loadstring("\27LJ\2\n5\0\0\3\0\3\0\0066\0\0\0'\2\1\0B\0\2\0029\0\2\0B\0\1\1K\0\1\0\nsetup\fComment\frequire\0", "config", "Comment.nvim")
+time([[Config for Comment.nvim]], false)
 vim.cmd [[augroup packer_load_aucmds]]
 vim.cmd [[au!]]
-  -- Filetype lazy-loads
-time([[Defining lazy-load filetype autocommands]], true)
-vim.cmd [[au FileType qf ++once lua require("packer.load")({'nvim-bqf'}, { ft = "qf" }, _G.packer_plugins)]]
-time([[Defining lazy-load filetype autocommands]], false)
   -- Event lazy-loads
 time([[Defining lazy-load event autocommands]], true)
 vim.cmd [[au BufRead Cargo.toml ++once lua require("packer.load")({'crates.nvim'}, { event = "BufRead Cargo.toml" }, _G.packer_plugins)]]
