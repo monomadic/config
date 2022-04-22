@@ -44,7 +44,10 @@ cmp.setup({
     { name = "nvim_lsp" },
     { name = "buffer" },
     { name = "path" },
+    { name = "vsnip" },
+    { name = "crates" },
   },
+  preselect = cmp.PreselectMode.None,
   snippet = {
     expand = function(args)
       --luasnip.lsp_expand(args.body) -- For `luasnip` users.
@@ -52,10 +55,10 @@ cmp.setup({
     end,
   },
   mapping = {
-  ['<CR>'] = cmp.mapping.confirm({
-    behavior = cmp.ConfirmBehavior.Replace,
-    select = false, -- only complete if an item is actually selected
-  }),
+    ['<CR>'] = cmp.mapping.confirm({
+      behavior = cmp.ConfirmBehavior.Replace,
+      select = false, -- false = only complete if an item is actually selected
+    }),
     -- ['<CR>'] = function(fallback)
     --   -- if cmp.visible() then
     --     cmp.mapping.confirm({

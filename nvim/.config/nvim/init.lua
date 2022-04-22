@@ -8,10 +8,12 @@ require("colors")
 
 -- plugins
 require("plugins.whichkey")
-require("plugins.cmp")
+require("plugins.neotree")
+require("plugins.barbar") -- top/tab bar
+require("plugins.galaxyline") -- statusline
 require("plugins.telescope")
+require("plugins.cmp")
 require("plugins.vsnip")
-require("plugins.galaxyline")
 require("plugins.symbols_outline")
 require("plugins.colorizer") -- inline colors
 require("plugins.neoformat") -- code formatting
@@ -19,13 +21,11 @@ require("plugins.floaterm") -- floating term
 require("plugins.devicons")
 require("plugins.indent-blankline") -- indentation
 require("plugins.harpoon") -- marks
-require("plugins.neotree")
 require("plugins.neoscroll") -- smooth animations on scroll
 require("plugins.hop")
-require("plugins.barbar")
 require("plugins.wilder")
 -- require("plugins.vgit")
-require("plugins.sidebar")
+--require("plugins.sidebar")
 --require("scrollfix")
 require 'plugins.telekasten'
 

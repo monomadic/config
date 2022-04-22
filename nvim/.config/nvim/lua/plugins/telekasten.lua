@@ -1,4 +1,13 @@
 local home = vim.fn.expand("~/data/zettelkasten")
+
+vim.api.nvim_set_keymap("n", "z", ":lua require('telekasten').panel()<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "zf", ":lua require('telekasten').find_notes()<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "zn", ":lua require('telekasten').new_note()<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "zN", ":lua require('telekasten').new_templated_note()<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "zt", ":lua require('telekasten').show_tags()<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "zo", ":lua require('telekasten').toggle_todo()<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "zT", ":lua require('telekasten').find_weekly_notes()<CR>", { noremap = true })
+
 -- NOTE for Windows users:
 -- - don't use Windows
 -- - try WSL2 on Windows and pretend you're on Linux

@@ -79,6 +79,49 @@ local opts = {
 }
 
 local mappings = {
+  o = {
+    name = "open...",
+    b = {
+      "<cmd>lua require('telescope.builtin').buffers(require('telescope.themes').get_dropdown{previewer = false})<cr>",
+      "buffers"
+    },
+    f = {
+      "<cmd>Telescope find_files<CR>",
+      "files"
+    },
+    g = {
+      "<cmd>Telescope git_status<CR>",
+      "git"
+    },
+    p = {
+      "<cmd>lua require('telescope').extensions.projects.projects()<cr>", "projects"
+    },
+    t = {
+      "<cmd>Telescope loclist<CR>",
+      "todo",
+    },
+  },
+  s = {
+    name = "search...",
+    g = {
+      "<cmd>Telescope live_grep theme=ivy<cr>", "grep"
+    },
+  },
+  t = {
+    name = "tabs",
+    a = {
+      "<cmd>BufferMove 0<CR>",
+      "move current tab to start",
+    },
+  },
+  d = {
+    name = "diagnostics",
+    t = {
+      "<cmd>TodoTrouble<CR>",
+      "todos"
+    },
+  },
+
   a = {
     name = "Apps",
     n = { "<cmd>lua _NODE_TOGGLE()<cr>", "Node" },
@@ -98,22 +141,17 @@ local mappings = {
   ["q"] = { "<cmd>q!<CR>", "Quit" },
   ["c"] = { "<cmd>Bdelete!<CR>", "Close Buffer" },
   ["h"] = { "<cmd>nohlsearch<CR>", "No Highlight" },
-  ["f"] = {
-    "<cmd>lua require('telescope.builtin').find_files(require('telescope.themes').get_dropdown{previewer = false})<cr>",
-    "Find files",
-  },
-  ["F"] = { "<cmd>Telescope live_grep theme=ivy<cr>", "Find Text" },
   ["P"] = { "<cmd>lua require('telescope').extensions.projects.projects()<cr>", "Projects" },
 
-  o = {
-    name = "Open",
-    n = { "<cmd>Open ~/config/nvim/.config/nvim/<cr>", "Nvim Config" },
-    o = { "<cmd>lua require('telescope').extensions.opener.opener()<cr>", "Opener" },
-    w = {
-      "<cmd>lua require('telescope').extensions.opener.opener({hidden=false,respect_gitignore=true,root_dir='~/Workspaces'})<cr>",
-      "Workspace",
-    },
-  },
+  -- o = {
+  --   name = "Open",
+  --   n = { "<cmd>Open ~/config/nvim/.config/nvim/<cr>", "Nvim Config" },
+  --   o = { "<cmd>lua require('telescope').extensions.opener.opener()<cr>", "Opener" },
+  --   w = {
+  --     "<cmd>lua require('telescope').extensions.opener.opener({hidden=false,respect_gitignore=true,root_dir='~/Workspaces'})<cr>",
+  --     "Workspace",
+  --   },
+  -- },
 
   p = {
     name = "Packer",
@@ -214,13 +252,13 @@ local mappings = {
     C = { "<cmd>Telescope commands<cr>", "Commands" },
   },
 
-  t = {
-    name = "TODO Comments",
-    l = { ":TodoLocList<CR>", "TodoLocList" },
-    q = { ":TodoQuickFix<CR>", "TodoQuickFix" },
-    t = { ":TodoTelescope<CR>", "TodoTelescope" },
-    T = { ":TodoTrouble<CR>", "TodoTrouble" },
-  },
+  -- t = {
+  --   name = "TODO Comments",
+  --   l = { ":TodoLocList<CR>", "TodoLocList" },
+  --   q = { ":TodoQuickFix<CR>", "TodoQuickFix" },
+  --   t = { ":TodoTelescope<CR>", "TodoTelescope" },
+  --   T = { ":TodoTrouble<CR>", "TodoTrouble" },
+  -- },
 
   x = {
     name = "TroubleToggle",

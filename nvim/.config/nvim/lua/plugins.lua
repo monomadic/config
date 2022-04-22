@@ -92,7 +92,7 @@ vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
   use 'danymat/neogen'
 
   -- ranger
-  use { "francoiscabrol/ranger.vim", requires = 'rbgrouleff/bclose.vim' }
+  -- use { "francoiscabrol/ranger.vim", requires = 'rbgrouleff/bclose.vim' }
 
   -- git
   use("tpope/vim-fugitive")
@@ -151,7 +151,6 @@ vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
   use({ "petertriho/nvim-scrollbar", config = "require'scrollbar'.setup()" }) -- side scrollbar with git support
   use({ "karb94/neoscroll.nvim" })
   use("norcalli/nvim-colorizer.lua") -- inline colors
-  use("liuchengxu/vista.vim") -- symbols again?
   --use "glepnir/dashboard-nvim" -- dashboard
 
   -- Navigation
@@ -177,6 +176,9 @@ vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
   use("tomlion/vim-solidity")
   --use("tamago324/nlsp-settings.nvim") -- language server settings defined in json for
   -- use 'stevearc/aerial.nvim' -- aerial view / overview of lsp structure
+
+  -- view and search lsp symbols
+  use 'liuchengxu/vista.vim'
 
   use("jose-elias-alvarez/null-ls.nvim") -- for formatters and linters
   use("ray-x/lsp_signature.nvim") -- signatures (functions etc)
@@ -214,6 +216,7 @@ vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
   use("hrsh7th/nvim-compe")
   use("mattn/emmet-vim")
   use("hrsh7th/vim-vsnip")
+  use "rafamadriz/friendly-snippets" -- vsnip defaults
   -- use("xabikos/vscode-javascript")
   -- use("dsznajder/vscode-es7-javascript-react-snippets")
   -- use("golang/vscode-go")

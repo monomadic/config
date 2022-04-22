@@ -2,8 +2,8 @@ local options = vim.opt
 
 options.termguicolors = true -- 24-bit color
 options.backup = false -- creates a backup file
---options.clipboard = "unnamed" -- allows neovim to access the system clipboard (wayland)
-options.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (x11)
+options.clipboard = "unnamed" -- allows neovim to access the system clipboard (sway)
+--options.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (gnome)
 options.cmdheight = 2 -- more space in the neovim command line for displaying messages
 --options.completeopt = { "menuone", "noselect" } -- mostly just for cmp
 options.conceallevel = 0 -- so that `` is visible in markdown files
