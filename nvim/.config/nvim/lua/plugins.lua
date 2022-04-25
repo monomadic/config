@@ -11,6 +11,9 @@ end
 require("packer").startup(function(use)
   use("wbthomason/packer.nvim")
 
+  -- nnn
+  use 'mcchrish/nnn.vim'
+
   -- Theme
   use("folke/tokyonight.nvim")
   use("bluz71/vim-nightfly-guicolors")

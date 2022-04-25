@@ -32,16 +32,15 @@ map("n", "g7", ":BufferGoto 7<CR>", opts)
 map("n", "g8", ":BufferGoto 8<CR>", opts)
 map("n", "g9", ":BufferGoto 9<CR>", opts)
 
-
-map("n", "m1", ":BufferMove 1<CR>", opts)
-map("n", "m2", ":BufferMove 2<CR>", opts)
-map("n", "m3", ":BufferMove 3<CR>", opts)
-map("n", "m4", ":BufferMove 4<CR>", opts)
-map("n", "m5", ":BufferMove 5<CR>", opts)
-map("n", "m6", ":BufferMove 6<CR>", opts)
-map("n", "m7", ":BufferMove 7<CR>", opts)
-map("n", "m8", ":BufferMove 8<CR>", opts)
-map("n", "m9", ":BufferMove 9<CR>", opts)
+-- map("n", "m1", ":BufferMove 1<CR>", opts)
+-- map("n", "m2", ":BufferMove 2<CR>", opts)
+-- map("n", "m3", ":BufferMove 3<CR>", opts)
+-- map("n", "m4", ":BufferMove 4<CR>", opts)
+-- map("n", "m5", ":BufferMove 5<CR>", opts)
+-- map("n", "m6", ":BufferMove 6<CR>", opts)
+-- map("n", "m7", ":BufferMove 7<CR>", opts)
+-- map("n", "m8", ":BufferMove 8<CR>", opts)
+-- map("n", "m9", ":BufferMove 9<CR>", opts)
 
 map("n", "<A-0>", ":BufferLast<CR>", opts)
 -- Close buffer
@@ -55,9 +54,9 @@ map("n", "<C-q>", ":BufferClose<CR>", opts)
 -- Magic buffer-picking mode
 --map('n', '<C-p>', ':BufferPick<CR>', opts)
 -- Sort automatically by...
-map("n", "<Space>bb", ":BufferOrderByBufferNumber<CR>", opts)
-map("n", "<Space>bd", ":BufferOrderByDirectory<CR>", opts)
-map("n", "<Space>bl", ":BufferOrderByLanguage<CR>", opts)
+-- map("n", "<Space>bb", ":BufferOrderByBufferNumber<CR>", opts)
+-- map("n", "<Space>bd", ":BufferOrderByDirectory<CR>", opts)
+-- map("n", "<Space>bl", ":BufferOrderByLanguage<CR>", opts)
 
 vim.g.bufferline = {
   -- Enable/disable animations

@@ -10,6 +10,6 @@ require"surround".setup {
     nestable = { b = { "(", ")" }, s = { "[", "]" }, B = { "{", "}" }, a = { "<", ">" } },
     linear = { q = { "'", "'" }, t = { "`", "`" }, d = { '"', '"' }
   },
-  prefix = "m"
+  -- prefix = "s"
 }
 

@@ -93,6 +93,10 @@ local mappings = {
       "<cmd>Telescope git_status<CR>",
       "git"
     },
+    m = {
+      "<cmd>Telescope marks<CR>",
+      "marks"
+    },
     p = {
       "<cmd>lua require('telescope').extensions.projects.projects()<cr>", "projects"
     },
@@ -179,7 +183,7 @@ local mappings = {
   },
 
   g = {
-    name = "Git",
+    name = "git...",
     g = { "<cmd>lua _LAZYGIT_TOGGLE()<CR>", "Lazygit" },
     j = { "<cmd>lua require 'gitsigns'.next_hunk()<cr>", "Next Hunk" },
     k = { "<cmd>lua require 'gitsigns'.prev_hunk()<cr>", "Prev Hunk" },
@@ -193,8 +197,8 @@ local mappings = {
       "Undo Stage Hunk",
     },
     o = { "<cmd>Telescope git_status<cr>", "Open changed file" },
-    b = { "<cmd>Telescope git_branches<cr>", "Checkout branch" },
-    c = { "<cmd>Telescope git_commits<cr>", "Checkout commit" },
+    b = { "<cmd>Telescope git_branches<cr>", "branches" },
+    c = { "<cmd>Telescope git_commits<cr>", "commits" },
     d = {
       "<cmd>Gitsigns diffthis HEAD<cr>",
       "Diff",
@@ -234,7 +238,7 @@ local mappings = {
       "Workspace Symbols",
     },
   },
-  s = {
+  z = {
     name = "Search",
     b = { "<cmd>Telescope git_branches<cr>", "Checkout branch" },
     c = { "<cmd>Telescope colorscheme<cr>", "Colorscheme" },

@@ -5,6 +5,13 @@
 input type:touchpad {
       dwt enabled
       tap enabled
+      drag enabled
+      accel_profile adaptive
+      scroll_method two_finger
+      # pointer_accel 0.3
+      click_method clickfinger # disables right click
+      events disabled_on_external_mouse
+      middle_emulation enabled
       natural_scroll enabled
 }
 
