@@ -1,5 +1,6 @@
 local options = vim.opt
 
+options.laststatus = 3 -- global statusline (neovim 0.7+)
 options.termguicolors = true -- 24-bit color
 options.backup = false -- creates a backup file
 --options.clipboard = "unnamed" -- allows neovim to access the system clipboard (sway)

@@ -28,6 +28,7 @@ require("plugins.wilder")
 --require("plugins.sidebar")
 --require("scrollfix")
 require 'plugins.telekasten'
+require 'plugins.mkdnflow'
 
 -- LSP
 require("lsp.lsp-installer")
@@ -45,7 +46,12 @@ local call = vim.call
 require("todo-comments").setup({})
 
 -- Lightbulb
-vim.cmd([[autocmd CursorHold,CursorHoldI * lua require'nvim-lightbulb'.update_lightbulb()]])
+vim.api.nvim_create_autocmd("CursorHold,CursorHoldI", {
+  pattern = "*",
+  callback = function()
+    require('nvim-lightbulb').update_lightbulb();
+  end
+})
 
 require("null-ls").setup({
   on_attach = function(client, bufnr) end,

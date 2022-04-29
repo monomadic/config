@@ -36,6 +36,9 @@ require("packer").startup(function(use)
   --use("yamatsum/nvim-nonicons")
   use("lukas-reineke/indent-blankline.nvim")
 
+  -- markdown flow (nav, wiki-like management)
+  use("jakewvincent/mkdnflow.nvim")
+
   -- Numi-style inline calc
   use("metakirby5/codi.vim")
 

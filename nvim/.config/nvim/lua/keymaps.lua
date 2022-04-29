@@ -25,8 +25,8 @@ keymap("v", "<Up>", ":m '<-2<CR>gv=gv", opts)
 vim.api.nvim_set_keymap("t", "<Esc>", "<C-\\><C-n>", { noremap = true })
 
 -- emacs style shortcuts in insert mode (yes, i am like that)
-vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-p>", "<Up>", { noremap = true })
+vim.keymap.set("i", "<C-n>", "<Down>");
+vim.keymap.set("i", "<C-p>", "<Up>");
 vim.api.nvim_set_keymap("i", "<C-b>", "<Left>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-f>", "<Right>", { noremap = true })
 vim.api.nvim_set_keymap("i", "<C-e>", "<End>", { noremap = true })
@@ -59,35 +59,25 @@ vim.api.nvim_set_keymap("i", "<C-h>", "<Esc><C-w><C-h>", opts)
 -- vim.api.nvim_set_keymap("n", "<C-d>", "11kzz", opts)
 -- vim.api.nvim_set_keymap("n", "<C-u>", "11jzz", opts)
 
---keymap("n", "gW", "<cmd>Rg <cexpr><cr>", opts)
---vim.api.nvim_set_keymap("n", "gW", "<cmd>Telescope grep_string<cr>", opts)
--- keymap(
---   "n",
---   "gW",
---   "<cmd>lua require('telescope.builtin').grep_string({search = vim.fn.expand(\"<cword>\")})<cr>",
---   opts
--- )
-vim.api.nvim_set_keymap(
-  "n",
-  "gL",
-  "<cmd>lua require('telescope.builtin').live_grep({default_text = vim.fn.expand(\"<cword>\")})<cr>",
-  opts
-)
+-- grep entire project with word under cursor
+vim.keymap.set("n", "gF", function()
+  require('telescope.builtin').live_grep({
+    default_text = vim.fn.expand("<cword>")
+  })
+end)
 
-vim.api.nvim_set_keymap("n", "<C-r>", ":Telescope live_grep<cr>", { noremap=true, silent=true })
-vim.api.nvim_set_keymap("n", "<C-f>", ":Telescope live_grep<cr>", { noremap=true, silent=true })
+-- grep entire project
+vim.keymap.set("n", "<C-f>", function()
+  require('telescope.builtin').live_grep()
+end)
 
---vim.api.nvim_set_keymap("", "<", ":write<CR>", { noremap = true })
---vim.api.nvim_set_keymap('', '', ':tabclose<CR>', {noremap = true})
+-- fuzzy file open
+vim.keymap.set("n", "<Tab>", function()
+  require('telescope.builtin').find_files(
+    require('telescope.themes').get_dropdown({ previewer = false })
+  )
+end)
 
-keymap("n", "rr", "<Cmd>lua require'telescope'.extensions.project.project{display_type='full'}<cr>", opts) -- find projects
-keymap(
-  "n",
-  "<Tab>",
-  "<cmd>lua require('telescope.builtin').find_files(require('telescope.themes').get_dropdown{previewer = false})<CR>",
-  { noremap = true }
-)
--- keymap("n", "\\", "<cmd>:Telescope buffers<CR>", { noremap = true, silent = true })
 keymap("n", "\\", "<cmd>:Telescope git_status<CR>", { noremap = true, silent = true })
 keymap("n", "<C-Tab>", "<cmd>:Term<CR>", { noremap = true, silent = true })
 keymap("n", "<C-o>", "<cmd>:Telescope find_files hidden=true no_ignore=true<CR>", { noremap = true, silent = true })
