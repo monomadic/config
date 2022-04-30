@@ -1,4 +1,4 @@
-local home = vim.fn.expand("~/data/zettelkasten")
+local home = vim.fn.expand("/mnt/data/notes/zk")
 -- NOTE for Windows users:
 -- - don't use Windows
 -- - try WSL2 on Windows and pretend you're on Linux

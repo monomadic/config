@@ -1,4 +1,4 @@
-local home = vim.fn.expand("~/data/zettelkasten")
+local home = vim.fn.expand("/mnt/data/notes/zk")
 
 vim.api.nvim_set_keymap("n", "z", ":lua require('telekasten').panel()<CR>", { noremap = true })
 vim.api.nvim_set_keymap("n", "zf", ":lua require('telekasten').find_notes()<CR>", { noremap = true })
