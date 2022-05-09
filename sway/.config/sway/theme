@@ -1,10 +1,11 @@
 # Fonts
-set $gtk-theme Matcha-dark-sea
-set $icon-theme Papirus-Dark-Maia
-set $cursor-theme xcursor-breeze
+#set $gtk-theme Matcha-dark-sea
+#set $icon-theme Papirus-Dark-Maia
+#set $icon-theme Phinger
+set $cursor-theme Vanilla-DMZ
 set $gui-font pango:Roboto 11
 set $term-font pango:RobotoMono Nerd Font 14
-set $kvantum-theme Matchama-Dark
+#set $kvantum-theme Matchama-Dark
 
 font pango:RobotoMono Nerd Font 10
 

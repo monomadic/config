@@ -2,7 +2,7 @@ vim.g.material_style = "deep ocean"
 vim.g.sonokai_style = "espresso"
 vim.g.tokyonight_style = "night"
 
-vim.cmd([[colorscheme moonfly]])
+vim.cmd([[colorscheme darkplus]])
 vim.cmd([[
   hi Visual guibg=#c8fc0c guifg=#555555
   hi String guifg=#50fc0c
@@ -18,6 +18,8 @@ vim.cmd([[
   hi SignColumn guibg=none
   hi VertSplit guibg=none
   hi EndOfBuffer guifg=#222222
+
+  hi IndentBlanklineSpaceChar guifg=background
 
   hi ActiveWindow guibg=#101010
   hi InactiveWindow guibg=#000001

@@ -66,7 +66,7 @@ require("packer").startup(function(use)
   })
 
   -- use("ms-jpq/chadtree")
-  use "sidebar-nvim/sidebar.nvim"
+  -- use "sidebar-nvim/sidebar.nvim"
 
   -- zettelkasten
   -- use "mickael-menu/zk-nvim"
