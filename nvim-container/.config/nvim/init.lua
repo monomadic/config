@@ -1,50 +1,24 @@
--- packer autoinstall (requires git)
+-- note:
+-- packer
 local execute = vim.api.nvim_command
+
 local install_path = vim.fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
 if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
   vim.fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
   vim.cmd("packadd packer.nvim")
 end
+
 if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
   execute('!git clone https://github.com/wbthomason/packer.nvim '..install_path)
 end
 
--- settings
---
-vim.g.mapleader = ',' -- leader key
-vim.o.formatoptions = vim.o.formatoptions:gsub("r", ""):gsub("o", "")
-vim.opt.cursorline = true -- highlight the current line
-vim.opt.expandtab = true -- convert tabs to spaces
-vim.opt.foldlevelstart = 99
-vim.opt.hidden = false -- switch buffer without unloading+saving them
-vim.opt.hlsearch = false -- highlight all matches on previous search pattern
-vim.opt.ignorecase = true -- ignore case when searching
-vim.opt.laststatus = 2 -- 3 = global statusline (neovim 0.7+)
-vim.opt.lazyredraw = true -- faster macros (force update with :redraw)
-vim.opt.mouse = "a" -- allow the mouse to be used in neovim
-vim.opt.number = true -- set numbered lines
-vim.opt.relativenumber = true -- set relative numbered lines
-vim.opt.shiftwidth = 2 -- the number of spaces inserted for each indentation
-vim.opt.showmatch = true -- matching parenthesis
-vim.opt.smartcase = true -- searches are case insensitive unless a capital is used
-vim.opt.smartindent = true -- make indenting smarter again
-vim.opt.softtabstop = 2 -- number of spaces to convert a tab to
-vim.opt.splitbelow = true -- force all horizontal splits to go below current window
-vim.opt.splitright = true -- force all vertical splits to go to the right of current window
-vim.opt.swapfile = false -- creates a swapfile
-vim.opt.tabstop = 2 -- insert 2 spaces for a tab
-vim.wo.foldexpr = 'nvim_treesitter#foldexpr()' -- use treesitter for folding
-vim.wo.foldmethod = 'expr' -- fold method (market | syntax)
-
 -- keymaps
---
 -- split navigation
 vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
 vim.keymap.set("n", "<C-k>", "<C-w><C-k>")
 vim.keymap.set("n", "<C-l>", "<C-w><C-l>")
 vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
 vim.keymap.set("n", "<C-w><C-d>", "<cmd>vsplit<CR>")
-vim.keymap.set("i", "<C-s>", "<Esc><cmd>write<CR>")
 
 -- mapping and settings helpers
 local utils = {}
@@ -104,6 +78,41 @@ end
 local g = vim.g
 local o = vim.o
 
+g.mapleader = ','
+g.tex_flavor = "latex"
+
+vim.opt.number = true -- set numbered lines
+vim.opt.relativenumber = true -- set relative numbered lines
+
+-- faster macros
+utils.opt('o', 'lazyredraw', true)
+-- matching parenthesis
+utils.opt('o', 'showmatch', true)
+-- switch buffer without saving them
+utils.opt('o', 'hidden', true)
+-- better searching
+utils.opt('o', 'ignorecase', true)
+utils.opt('o', 'smartcase', true)
+utils.opt('o', 'hlsearch', false)
+-- show lines bellow cursor
+utils.opt('o', 'scrolloff', 5)
+utils.opt('o', 'sidescrolloff', 5)
+-- tab config
+utils.opt('b', 'expandtab', true)
+utils.opt('b', 'shiftwidth', 2)
+utils.opt('b', 'tabstop', 2)
+utils.opt('b', 'softtabstop', 2)
+-- split in reasonable positions
+utils.opt('o', 'splitright', true)
+utils.opt('o', 'splitbelow', true)
+--folds
+utils.opt('w', 'foldmethod', 'expr')
+utils.opt('w', 'foldexpr', 'nvim_treesitter#foldexpr()')
+utils.opt('o', 'foldlevelstart', 99)
+o.formatoptions = o.formatoptions:gsub("r", ""):gsub("o", "")
+
+vim.opt.laststatus = 2 -- 3 = global statusline (neovim 0.7+)
+
 -- ===== plugins =====
 vim.cmd [[packadd packer.nvim]]
 require('packer').startup(function(use)
@@ -122,6 +131,8 @@ require('packer').startup(function(use)
   use {'numToStr/Comment.nvim'}
   use {'nvim-telescope/telescope-bibtex.nvim', config = [[require"telescope".load_extension("bibtex")]], ft = 'tex'}
 end)
+-- update plugins
+vim.cmd([[autocmd BufWritePost plugins.lua PackerCompile]])
 
 -- ===== colorsheme settings =====
 vim.cmd('syntax on')
@@ -145,6 +156,24 @@ utils.nnoremap("<leader>-", "<cmd>vertical resize -10<CR>")
 utils.nnoremap("<leader>+", "<cmd>vertical resize +10<CR>")
 utils.nnoremap("<leader>_", "<cmd>resize -10<CR>")
 utils.nnoremap("<leader>*", "<cmd>resize +10<CR>")
+
+-- split navigation
+vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
+vim.keymap.set("n", "<C-k>", "<C-w><C-k>")
+vim.keymap.set("n", "<C-l>", "<C-w><C-l>")
+vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
+
+-- grep entire project
+vim.keymap.set("n", "<C-f>", function()
+  require('telescope.builtin').live_grep()
+end)
+
+-- fuzzy file open
+vim.keymap.set("n", "<Tab>", function()
+  require('telescope.builtin').find_files(
+    require('telescope.themes').get_dropdown({ previewer = false })
+  )
+end)
 
 -- run command in current line and paste stout into current buffer
 utils.nnoremap("Q", "!!$SHELL<CR>")
@@ -237,6 +266,13 @@ vim.g.completion_matching_strategy_list = {'exact', 'substring', 'fuzzy'}
 vim.g.completion_matching_ignore_case = 1
 vim.g.completion_trigger_keyword_length = 3
 
+-- ===== snippets =====
+--vim.g.UltiSnipsExpandTrigger='<leader>s'
+--vim.g.UltiSnipsListSnippets='<c-l>'
+vim.g.UltiSnipsJumpForwardTrigger='<c-b>'
+vim.g.UltiSnipsJumpBackwardTrigger='<c-z>'
+vim.g.UltiSnipsEditSplit='vertical'
+
 -- ===== lsp setup =====
 local custom_attach = function(client)
 	print("LSP started.");
@@ -264,29 +300,7 @@ end
 local nvim_lsp = require'lspconfig'
 nvim_lsp.bashls.setup{on_attach=custom_attach}
 nvim_lsp.rnix.setup{on_attach=custom_attach}
-nvim_lsp.sumneko_lua.setup{
-  cmd = {'lua-language-server'},
-  on_attach=custom_attach,
-  settings = {
-    Lua = {
-      runtime = { version = "LuaJIT", path = { vim.split(package.path, ';') },
-      },
-      completion = { keywordSnippet = "Disable", },
-      diagnostics = {enable = true, globals = {"vim","describe","it","before_each","after_each"}
-      },
-      workspace = {
-        library = { [vim.fn.expand("$VIMRUNTIME/lua")] = true,
-          [vim.fn.expand("$VIMRUNTIME/lua/vim/lsp")] = true},
-        maxPreload = 1000,
-        preloadFileSize = 1000,
-      }
-    }
-  }
-}
-
--- treesitter
---
 require'nvim-treesitter.configs'.setup {
-  ensure_installed = {"markdown", "nix", "lua", "bash", "yaml", "typescript", "javascript"},
+  ensure_installed = {"rust", "bash", "yaml", "typescript", "javascript"},
   highlight = { enable = true },
 }

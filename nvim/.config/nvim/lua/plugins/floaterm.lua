@@ -1,19 +1,12 @@
-vim.g.floaterm_width = 0.8
-vim.g.floaterm_height = 0.8
--- vim.g.floaterm_position = 'topright'
-vim.g.floaterm_keymap_new = "<F7>"
-vim.g.floaterm_keymap_prev = "<F8>"
-vim.g.floaterm_keymap_next = "<F9>"
-vim.g.floaterm_keymap_toggle = "<C-Space>"
-vim.g.floaterm_autoclose = 1
-vim.g.floaterm_opener = "edit" -- edit | split | vsplit | tabe | drop
-
-local map = vim.api.nvim_set_keymap
-
-vim.cmd([[command! -nargs=1 Rg :FloatermNew rg <args>]])
-vim.cmd([[command! Broot :FloatermNew broot]])
-
 vim.cmd([[
   hi Floaterm guibg=black
   hi FloatermBorder guifg=cyan
 ]])
+
+require('floaterm').setup({
+  keymaps = {
+    exit = '<C-q>',
+    normal = '<Esc>',
+    name = 'terminal'
+  },
+})

@@ -25,13 +25,13 @@ keymap("v", "<Up>", ":m '<-2<CR>gv=gv", opts)
 vim.api.nvim_set_keymap("t", "<Esc>", "<C-\\><C-n>", { noremap = true })
 
 -- emacs style shortcuts in insert mode (yes, i am like that)
-vim.keymap.set("i", "<C-n>", "<Down>");
-vim.keymap.set("i", "<C-p>", "<Up>");
-vim.api.nvim_set_keymap("i", "<C-b>", "<Left>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-f>", "<Right>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-e>", "<End>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-a>", "<Home>", { noremap = true })
-vim.api.nvim_set_keymap("i", "<C-s>", "<Esc>:write<CR>", { noremap = true })
+vim.keymap.set("i", "<C-n>", "<Down>")
+vim.keymap.set("i", "<C-p>", "<Up>")
+vim.keymap.set("i", "<C-b>", "<Left>")
+vim.keymap.set("i", "<C-f>", "<Right>")
+vim.keymap.set("i", "<C-e>", "<End>")
+vim.keymap.set("i", "<C-a>", "<Home>")
+vim.keymap.set("i", "<C-s>", "<Esc>:write<CR>")
 
 vim.api.nvim_set_keymap("n", "<C-s>", ":write<CR>", { noremap = true })
 vim.api.nvim_set_keymap("n", "<C-a>", "ggVG", { noremap = true })

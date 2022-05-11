@@ -11,6 +11,37 @@ end
 require("packer").startup(function(use)
   use("wbthomason/packer.nvim")
 
+  -- commenting
+  use { "numToStr/Comment.nvim",
+    tag = "v0.6",
+    config = function()
+      -- `gcc` line comment
+      -- `gcA` line comment at eol
+      -- `gc0` line comment at bol
+      -- `gco` line comment at line-open
+      -- `gbc` block comment
+      require('Comment').setup()
+    end
+  }
+
+  -- terminal
+  use { "doums/floaterm.nvim",
+    config = function()
+      require('floaterm').setup({
+        keymaps = {
+          exit = '<C-Space>',
+          normal = '<Esc>',
+          name = 'terminal'
+        },
+      })
+      vim.keymap.set("n", "<C-Space>", ":Fterm<CR>")
+      vim.keymap.set("i", "<C-Space>", ":Fterm<CR>")
+    end
+  }
+  use("vimlab/split-term.vim")
+  use("ternjs/tern_for_vim")
+  -- use("akinsho/toggleterm.nvim")
+
   -- nnn
   use 'mcchrish/nnn.vim'
 
@@ -115,17 +146,9 @@ vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
   use("nvim-lua/plenary.nvim") -- useful lua functions used ny lots of plugins
   use({ "windwp/nvim-autopairs", config = "require('nvim-autopairs').setup{}" }) -- Autopairs, integrates with both cmp and treesitter
 
-  -- commenting
-  use { "numToStr/Comment.nvim",
-    tag = "v0.6",
-    config = function()
-        require('Comment').setup()
-    end
-  }
-
   use("kyazdani42/nvim-web-devicons") -- colored icons in tree and status bar
 
-  use("camspiers/lens.vim") -- buffer autoresizing
+--  use("camspiers/lens.vim") -- buffer autoresizing
 
   use({
     "romgrk/barbar.nvim",
@@ -137,12 +160,6 @@ vim.api.nvim_set_keymap("i", "<C-n>", "<Down>", { noremap = true })
 
   -- better quick fix
   -- use("kevinhwang91/nvim-bqf")
-
-  -- Terminal
-  -- use("akinsho/toggleterm.nvim")
-  use("voldikss/vim-floaterm")
-  use("vimlab/split-term.vim")
-  use("ternjs/tern_for_vim")
 
   -- use "ahmedkhalf/project.nvim"
   -- use "lewis6991/impatient.nvim"

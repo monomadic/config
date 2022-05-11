@@ -17,7 +17,7 @@ require("plugins.vsnip")
 require("plugins.symbols_outline")
 require("plugins.colorizer") -- inline colors
 require("plugins.neoformat") -- code formatting
-require("plugins.floaterm") -- floating term
+-- require("plugins.floaterm") -- floating term
 require("plugins.devicons")
 require("plugins.indent-blankline") -- indentation
 require("plugins.harpoon") -- marks
