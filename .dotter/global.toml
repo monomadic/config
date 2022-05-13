@@ -1,0 +1,16 @@
+[helpers]
+
+[default]
+depends = []
+
+[default.files]
+
+[default.variables]
+
+[nvim-container]
+[nvim-container.files]
+nvim-container = "~/.config/nvim"
+
+[bash]
+files = { "bash/rc.bash" = "~/.bashrc", "bash/fzm.bash" = "~/.bash/fzm.bash" }
+

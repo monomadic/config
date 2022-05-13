@@ -7,18 +7,18 @@ local opts = { noremap = true, silent = true }
 vim.api.nvim_set_keymap("n", "s", ":HopWord<CR>", opts)
 vim.api.nvim_set_keymap("n", "S", ":HopPattern<CR>", {})
 
-vim.api.nvim_set_keymap(
-  "n",
-  "f",
-  "<cmd>lua require'hop'.hint_char1({ direction = require'hop.hint'.HintDirection.AFTER_CURSOR, current_line_only = true })<cr>",
-  opts
-)
-vim.api.nvim_set_keymap(
-  "n",
-  "F",
-  "<cmd>lua require'hop'.hint_char1({ direction = require'hop.hint'.HintDirection.BEFORE_CURSOR, current_line_only = true })<cr>",
-  opts
-)
+-- vim.api.nvim_set_keymap(
+--   "n",
+--   "f",
+--   "<cmd>lua require'hop'.hint_char1({ direction = require'hop.hint'.HintDirection.AFTER_CURSOR, current_line_only = true })<cr>",
+--   opts
+-- )
+-- vim.api.nvim_set_keymap(
+--   "n",
+--   "F",
+--   "<cmd>lua require'hop'.hint_char1({ direction = require'hop.hint'.HintDirection.BEFORE_CURSOR, current_line_only = true })<cr>",
+--   opts
+-- )
 -- vim.api.nvim_set_keymap(
 --   "o",
 --   "f",

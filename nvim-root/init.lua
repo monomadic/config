@@ -199,8 +199,20 @@ end
 utils.nnoremap("cf", "<cmd>cd %:p:h | pwd<cr>")
 utils.nnoremap("cr", "<cmd>lua find_project_root()<cr>")
 -- tab for completion menu
-utils.inoremap("<Tab>", 'pumvisible() ? "\\<C-n>" : "\\<Tab>"', {expr = true})
-utils.inoremap("<S-Tab>", 'pumvisible() ? "\\<C-p>" : "\\<Tab>"', {expr = true})
+-- utils.inoremap("<Tab>", 'pumvisible() ? "\\<C-n>" : "\\<Tab>"', {expr = true})
+-- utils.inoremap("<S-Tab>", 'pumvisible() ? "\\<C-p>" : "\\<Tab>"', {expr = true})
+
+-- grep entire project
+vim.keymap.set("n", "<C-f>", function()
+  require('telescope.builtin').live_grep()
+end)
+
+-- fuzzy file open
+vim.keymap.set("n", "<Tab>", function()
+  require('telescope.builtin').find_files(
+    require('telescope.themes').get_dropdown({ previewer = false })
+  )
+end)
 
 -- ===== statusline =====
 local stl = {

@@ -1,9 +1,7 @@
 # Config
 
-Don't use this.
+## Installing
 
-## MacOS Homebrew Installation
-
-```bash
-brew bundle --no-lock --file Brewfile
+```
+dotter deploy --local-config nixos.toml
 ```

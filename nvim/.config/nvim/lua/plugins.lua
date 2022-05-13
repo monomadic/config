@@ -39,7 +39,7 @@ require("packer").startup(function(use)
     end
   }
   use("vimlab/split-term.vim")
-  use("ternjs/tern_for_vim")
+  -- use("ternjs/tern_for_vim")
   -- use("akinsho/toggleterm.nvim")
 
   -- nnn
