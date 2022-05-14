@@ -8,9 +8,14 @@ depends = []
 [default.variables]
 
 [nvim-container]
-[nvim-container.files]
-nvim-container = "~/.config/nvim"
+files = { nvim-container = "~/.config/nvim" }
+
+[nvim-root]
+files = { "nvim/root.lua" = "/root/.config/nvim/init.lua", "nvim/shared.lua" = "/root/.config/nvim/lua/shared.lua" }
 
 [bash]
 files = { "bash/rc.bash" = "~/.bashrc", "bash/fzm.bash" = "~/.bash/fzm.bash" }
+
+[sway]
+files = { "sway" = "~/.config/sway" }
 

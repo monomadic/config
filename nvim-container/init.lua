@@ -1,15 +1,11 @@
 -- note:
 -- packer
-local execute = vim.api.nvim_command
+--local execute = vim.api.nvim_command
 
 local install_path = vim.fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
 if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
   vim.fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
   vim.cmd("packadd packer.nvim")
-end
-
-if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
-  execute('!git clone https://github.com/wbthomason/packer.nvim '..install_path)
 end
 
 -- keymaps
@@ -116,7 +112,7 @@ vim.opt.laststatus = 2 -- 3 = global statusline (neovim 0.7+)
 -- ===== plugins =====
 vim.cmd [[packadd packer.nvim]]
 require('packer').startup(function(use)
-  use {'wbthomason/packer.nvim', opt = true}
+  use {'wbthomason/packer.nvim' }
   use {'tpope/vim-fugitive'}
   use {'dylanaraps/wal.vim'}
   use {'morhetz/gruvbox'} -- theme
@@ -128,11 +124,48 @@ require('packer').startup(function(use)
   use {'nvim-telescope/telescope.nvim'}
   use {'honza/vim-snippets'}
   use {'norcalli/nvim-colorizer.lua', config = [[require"colorizer".setup()]]}
-  use {'numToStr/Comment.nvim'}
+  use {'numToStr/Comment.nvim',
+    config = function()
+      require('Comment').setup()
+    end
+  }
   use {'nvim-telescope/telescope-bibtex.nvim', config = [[require"telescope".load_extension("bibtex")]], ft = 'tex'}
+  use {'nvim-neo-tree/neo-tree.nvim',
+    requires = {
+      "nvim-lua/plenary.nvim",
+      "kyazdani42/nvim-web-devicons",
+      "MunifTanjim/nui.nvim",
+    },
+  }
+  use {'doums/floaterm.nvim',
+    config = function()
+      require('floaterm').setup({
+        keymaps = {
+          exit = "<C-Space>",
+          normal = "<Esc>",
+          name = 'terminal',
+        }
+      })
+    end
+  }
 end)
 -- update plugins
 vim.cmd([[autocmd BufWritePost plugins.lua PackerCompile]])
+
+vim.keymap.set("n", "<C-Space>", "<Cmd>Fterm<CR>")
+vim.keymap.set("i", "<C-Space>", "<Cmd>Fterm<CR>")
+
+-- tree
+--
+require('neo-tree').setup({
+  popup_border_style = "solid",
+  window = {
+    mappings = {
+      ["l"] = "open",
+      ["<C-l>"] = "open_vsplit",
+    }
+  }
+})
 
 -- ===== colorsheme settings =====
 vim.cmd('syntax on')
@@ -162,6 +195,11 @@ vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
 vim.keymap.set("n", "<C-k>", "<C-w><C-k>")
 vim.keymap.set("n", "<C-l>", "<C-w><C-l>")
 vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
+
+vim.keymap.set("", "<C-p>", "<Cmd>NeoTreeFloatToggle<CR>")
+
+vim.keymap.set("n", "<C-s>", "<Cmd>write<CR>");
+vim.keymap.set("i", "<C-s>", "<Esc><Cmd>write<CR>");
 
 -- grep entire project
 vim.keymap.set("n", "<C-f>", function()

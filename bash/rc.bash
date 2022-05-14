@@ -1,3 +1,5 @@
+echo ".bashrc loaded"
+
 source $HOME/.bash/fzm.bash
 bind '"\C-o":"fzm\n"'
 

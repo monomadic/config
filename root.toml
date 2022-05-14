@@ -1,0 +1,6 @@
+includes = []
+packages = ["bash", "nvim-root"]
+
+[files]
+
+[variables]
