@@ -5,3 +5,4 @@ bind '"\C-o":"fzm\n"'
 
 # ssh
 export TERM=vt100
+. "$HOME/.cargo/env"
