@@ -63,13 +63,15 @@ require('packer').startup(function(use)
   use {'morhetz/gruvbox'} -- theme
   use {'neovim/nvim-lspconfig'}
   use {'nvim-treesitter/nvim-treesitter'}
-  use {'nvim-lua/completion-nvim'}
   use {'nvim-lua/popup.nvim'}
   use {'nvim-lua/plenary.nvim'}
   use {'nvim-telescope/telescope.nvim', config = function()
     require('telescope').setup{}
   end}
+  use {'hrsh7th/nvim-cmp'} -- completion
+  use {'hrsh7th/cmp-nvim-lsp'}
   use {'honza/vim-snippets'}
+  use {'L3MON4D3/LuaSnip'}
   use {'norcalli/nvim-colorizer.lua', config = [[require"colorizer".setup()]]}
 
   use {
@@ -83,6 +85,11 @@ require('packer').startup(function(use)
 
   use {'numToStr/Comment.nvim',
     config = function()
+      -- `gcc` line comment
+      -- `gcA` line comment at eol
+      -- `gc0` line comment at bol
+      -- `gco` line comment at line-open
+      -- `gbc` block comment
       require('Comment').setup()
     end
   }
@@ -94,6 +101,23 @@ require('packer').startup(function(use)
       "MunifTanjim/nui.nvim",
     },
   }
+
+  use {
+    -- surround completion
+    "appelgriebsch/surround.nvim",
+    -- surround inline change
+    "tpope/vim-surround",
+    config = function()
+      require('surround').setup {}
+    end
+  }
+
+  -- git
+  use { "lewis6991/gitsigns.nvim", requires = {"nvim-lua/plenary.nvim"}, config = function()
+    require('gitsigns').setup {}
+  end}
+
+
   use {'doums/floaterm.nvim',
     config = function()
       require('floaterm').setup({
@@ -105,12 +129,34 @@ require('packer').startup(function(use)
       })
     end
   }
+
+  use({
+    "saecki/crates.nvim",
+    event = { "BufRead Cargo.toml" },
+    requires = { { "nvim-lua/plenary.nvim" } },
+    config = function()
+      require("plugins.cargo")
+    end,
+  })
+
+
+  use({ "petertriho/nvim-scrollbar", config = "require'scrollbar'.setup()" }) -- side scrollbar with git support
+  
+  use { "lukas-reineke/indent-blankline.nvim", config = function()
+    require("indent_blankline").setup({
+      show_current_context = true,
+      show_current_context_start = true,
+      filetype_exclude = { "neo-tree", "help", "floaterm", "SidebarNvim", "" },
+    })
+  end}
 end)
 -- compile packer plugins on plugins.lua change
 vim.cmd([[autocmd BufWritePost plugins.lua PackerCompile]])
 
 vim.keymap.set("n", "<C-Space>", "<Cmd>Fterm<CR>")
 vim.keymap.set("i", "<C-Space>", "<Cmd>Fterm<CR>")
+
+vim.cmd("highlight NormalFloat guibg=black")
 
 -- tree
 --
@@ -150,7 +196,6 @@ vim.keymap.set("n", "<C-l>", "<C-w><C-l>")
 vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
 
 vim.keymap.set("", "<C-p>", "<Cmd>NeoTreeFloatToggle<CR>")
-
 vim.keymap.set("n", "<C-s>", "<Cmd>write<CR>");
 vim.keymap.set("i", "<C-s>", "<Esc><Cmd>write<CR>");
 
@@ -255,7 +300,6 @@ vim.keymap.set("n", '<leader>sr', ':%bd | so ' .. session_dir)
 -- ===== completion settings =====
 vim.o.completeopt="menuone,noinsert,noselect"
 vim.g.completion_matching_strategy_list = {'exact', 'substring', 'fuzzy'}
---vim.g.completion_enable_snippet = 'UltiSnips'
 vim.g.completion_matching_ignore_case = 1
 vim.g.completion_trigger_keyword_length = 3
 
@@ -263,14 +307,46 @@ vim.g.completion_trigger_keyword_length = 3
 --
 local custom_attach = function(client)
 	print("LSP started.");
-	require'completion'.on_attach(client)
+	--require('cmp-lsp').on_attach(client);
   vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(
     vim.lsp.diagnostic.on_publish_diagnostics, { virtual_text = false, update_in_insert = false }
   )
   -- automatic diagnostics popup
   vim.api.nvim_command('autocmd CursorHold <buffer> lua vim.diagnostic.show()')
   -- speedup diagnostics popup
-  vim.o.updatetime=1000
+  vim.o.updatetime=500
+  -- diagnostic settings
+  vim.diagnostic.config({
+    virtual_text = false,
+    signs = true, -- sidebar signs
+    underline = true,
+    severity_sort = true,
+  })
+
+  -- diagnostics icon
+  local signs = { Error = "┃ ", Warn = "┃ ", Hint = "┃ ", Info = "┃ " }
+  for type, icon in pairs(signs) do
+    local hl = "DiagnosticSign" .. type
+    -- vim.cmd("hi " .. hl .. " guibg=none")
+    vim.fn.sign_define(hl, { text = icon, texthl = hl })
+  end
+  
+  -- diagnostics float on hover
+  vim.api.nvim_create_autocmd("CursorHold", {
+    buffer = bufnr,
+    callback = function()
+      local opts = {
+        focusable = false,
+        close_events = { "BufLeave", "CursorMoved", "InsertEnter", "FocusLost" },
+        border = 'rounded',
+        source = 'always',
+        prefix = ' ',
+        scope = 'cursor',
+      }
+      vim.diagnostic.open_float(nil, opts)
+    end
+  })
+
   vim.keymap.set("n", 'gD','<cmd>lua vim.lsp.buf.declaration()<CR>')
   vim.keymap.set("n", '<c-]>','<cmd>lua vim.lsp.buf.definition()<CR>')
   vim.keymap.set("n", 'K','<cmd>lua vim.lsp.buf.hover()<CR>')
@@ -287,7 +363,12 @@ end
 local nvim_lsp = require'lspconfig'
 nvim_lsp.bashls.setup{on_attach=custom_attach}
 nvim_lsp.rnix.setup{on_attach=custom_attach}
-nvim_lsp.rust_analyzer.setup{on_attach=custom_attach}
+nvim_lsp.rust_analyzer.setup{
+  capabilities = require('cmp_nvim_lsp').update_capabilities(
+    vim.lsp.protocol.make_client_capabilities()
+  ),
+  on_attach = custom_attach
+}
 
 -- treesitter
 --
@@ -295,3 +376,44 @@ require'nvim-treesitter.configs'.setup {
   ensure_installed = {"rust", "bash", "yaml", "typescript", "javascript"},
   highlight = { enable = true },
 }
+
+local cmp = require('cmp')
+cmp.setup {
+  sources = {
+    { name = 'nvim_lsp' }
+  },
+  preselect = cmp.PreselectMode.None,
+  snippet = {
+    expand = function(args)
+      require('luasnip').lsp_expand(args.body) -- For `luasnip` users.
+    end,
+  },
+  mapping = {
+    ['<CR>'] = cmp.mapping.confirm({
+      behavior = cmp.ConfirmBehavior.Replace,
+      select = false, -- false = only complete if an item is actually selected
+    }),
+    ['<Tab>'] = function(fallback)
+        if cmp.visible() then
+            cmp.select_next_item()
+        else
+            fallback()
+        end
+    end,
+    ['<S-Tab>'] = function(fallback)
+        if cmp.visible() then
+            cmp.select_prev_item()
+        else
+            fallback()
+        end
+    end,
+  },
+}
+
+-- local capabilities = vim.lsp.protocol.make_client_capabilities()
+-- capabilities = require('cmp_nvim_lsp').update_capabilities(capabilities)
+--
+-- -- The following example advertise capabilities to `clangd`.
+-- require'lspconfig'.rust_analyzer.setup {
+--   capabilities = capabilities,
+-- }
