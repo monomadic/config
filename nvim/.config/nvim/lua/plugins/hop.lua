@@ -1,11 +1,10 @@
 -- you can configure Hop the way you like here; see :h hop-config
 require("hop").setup({ keys = "etovxqpdygfblzhckisuran" })
-local opts = { noremap = true, silent = true }
-
+      vim.keymap.set("n", "s", "<Cmd>HopWord<CR>")
+      vim.keymap.set("n", "S", "<Cmd>HopPattern<CR>")
+--
 -- vim.api.nvim_set_keymap("n", "f", ":HopChar1<CR>", opts)
 -- vim.api.nvim_set_keymap("n", "F", ":HopChar2<CR>", opts)
-vim.api.nvim_set_keymap("n", "s", ":HopWord<CR>", opts)
-vim.api.nvim_set_keymap("n", "S", ":HopPattern<CR>", {})
 
 -- vim.api.nvim_set_keymap(
 --   "n",

@@ -87,7 +87,6 @@ require('bufferline').setup {
     --     return true
     --   end
     -- end,
-    --offsets = {{filetype = "NvimTree", text = "File Explorer" | function , text_align = "left" | "center" | "right"}},
     offsets = {
       {
         filetype = "neo-tree", -- use :echo &filetype

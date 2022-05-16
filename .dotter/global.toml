@@ -17,5 +17,10 @@ files = { "nvim/root.lua" = "/root/.config/nvim/init.lua", "nvim/shared.lua" = "
 files = { "bash/rc.bash" = "~/.bashrc", "bash/fzm.bash" = "~/.bash/fzm.bash" }
 
 [sway]
-files = { "sway" = "~/.config/sway" }
+[sway.files]
+"sway" = "~/.config/sway"
+"fuzzel/fuzzel.ini" = "~/.config/fuzzel/fuzzel.ini"
+
+[nvim]
+files = { "nvim" = "~/.config/nvim" }
 

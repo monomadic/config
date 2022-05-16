@@ -35,6 +35,14 @@ vim.opt.swapfile = false -- creates a swapfile
 vim.opt.tabstop = 2 -- insert 2 spaces for a tab
 vim.wo.foldexpr = 'nvim_treesitter#foldexpr()' -- use treesitter for folding
 vim.wo.foldmethod = 'expr' -- fold method (market | syntax)
+vim.g.mapleader = ','
+vim.g.tex_flavor = "latex"
+vim.opt.number = true -- set numbered lines
+vim.opt.relativenumber = true -- set relative numbered lines
+vim.opt.laststatus = 2 -- 3 = global statusline (neovim 0.7+)
+vim.opt.scrolloff = 1000 -- keep line centered (disable if scrolling past eof is enabled)
+vim.opt.signcolumn = "yes" -- always show the sign column, otherwise it would shift the text each time
+vim.o.termguicolors = true
 
 -- keymaps
 --
@@ -45,14 +53,6 @@ vim.keymap.set("n", "<C-l>", "<C-w><C-l>")
 vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
 vim.keymap.set("n", "<C-w><C-d>", "<cmd>vsplit<CR>")
 
--- P = function(stuff) return print(vim.inspect(stuff)) end
-
-vim.g.mapleader = ','
-vim.g.tex_flavor = "latex"
-vim.opt.number = true -- set numbered lines
-vim.opt.relativenumber = true -- set relative numbered lines
-vim.opt.laststatus = 2 -- 3 = global statusline (neovim 0.7+)
-
 -- plugins
 --
 vim.cmd [[packadd packer.nvim]]
@@ -61,6 +61,8 @@ require('packer').startup(function(use)
   use {'tpope/vim-fugitive'}
   use {'dylanaraps/wal.vim'}
   use {'morhetz/gruvbox'} -- theme
+  use {'bluz71/vim-nightfly-guicolors'}
+  use {'lunarvim/darkplus.nvim'}
   use {'neovim/nvim-lspconfig'}
   use {'nvim-treesitter/nvim-treesitter'}
   use {'nvim-lua/popup.nvim'}
@@ -73,6 +75,17 @@ require('packer').startup(function(use)
   use {'honza/vim-snippets'}
   use {'L3MON4D3/LuaSnip'}
   use {'norcalli/nvim-colorizer.lua', config = [[require"colorizer".setup()]]}
+
+  -- jump/sneak
+  use({
+    "phaazon/hop.nvim", -- alternative to sneak
+    branch = "v1", -- optional but strongly recommended
+    config = function()
+      require("hop").setup({ keys = "etovxqpdygfblzhckisuran" })
+      vim.keymap.set("n", "s", "<Cmd>HopWord<CR>")
+      vim.keymap.set("n", "S", "<Cmd>HopPattern<CR>")
+    end
+  })
 
   use {
     "folke/trouble.nvim",
@@ -117,7 +130,6 @@ require('packer').startup(function(use)
     require('gitsigns').setup {}
   end}
 
-
   use {'doums/floaterm.nvim',
     config = function()
       require('floaterm').setup({
@@ -153,10 +165,26 @@ end)
 -- compile packer plugins on plugins.lua change
 vim.cmd([[autocmd BufWritePost plugins.lua PackerCompile]])
 
+require('telescope').setup{
+  defaults = {
+    prompt_prefix = " ",
+    file_ignore_patterns = {".git/", ".cache", "%.o", "%.a", "%.out", "%.class", "%.pdf", "%.mkv", "%.mp4", "%.zip", "*.lock"},
+    buffer_previewer_maker = small_file_preview_only,
+    mappings = {
+      i = {
+        ["<Esc>"] = "close",
+        ["<Tab>"] = "close",
+        ["<C-l>"] = require("telescope.actions.layout").toggle_preview,
+        ["<C-u>"] = false,
+      },
+    },
+  }
+};
+
 vim.keymap.set("n", "<C-Space>", "<Cmd>Fterm<CR>")
 vim.keymap.set("i", "<C-Space>", "<Cmd>Fterm<CR>")
 
-vim.cmd("highlight NormalFloat guibg=black")
+vim.cmd("hi NormalFloat guibg=black")
 
 -- tree
 --
@@ -170,35 +198,48 @@ require('neo-tree').setup({
   }
 })
 
--- ===== colorsheme settings =====
+-- colorscheme
+--
 vim.cmd('syntax on')
-vim.o.termguicolors = true
 vim.g.gruvbox_contrast_dark="hard"
-vim.cmd("colorscheme gruvbox")
+vim.cmd("colorscheme nightfly")
 vim.cmd("highlight WinSeparator guifg=none")
 
+vim.cmd([[set fillchars+=vert:\ ]]) -- remove awful vertical split character
+--
 -- remove trailing whitespaces on save
 vim.cmd([[autocmd BufWritePre * %s/\s\+$//e]])
+--
 -- remove trailing newline on save
 vim.cmd([[autocmd BufWritePre * %s/\n\+\%$//e]])
 
--- ===== mappings =====
+-- hide line-bar in insert-mode
+vim.api.nvim_create_autocmd("InsertEnter", { pattern = "*", callback = function()
+  vim.o.cursorline = false
+end})
+vim.api.nvim_create_autocmd("InsertLeave", { pattern = "*", callback = function()
+  vim.o.cursorline = true
+end})
+
+-- keymaps
+--
 -- split resize
+--
 vim.keymap.set("n", "<leader>-", "<cmd>vertical resize -10<CR>")
 vim.keymap.set("n", "<leader>+", "<cmd>vertical resize +10<CR>")
 vim.keymap.set("n", "<leader>_", "<cmd>resize -10<CR>")
 vim.keymap.set("n", "<leader>*", "<cmd>resize +10<CR>")
-
+--
 -- split navigation
+--
 vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
 vim.keymap.set("n", "<C-k>", "<C-w><C-k>")
 vim.keymap.set("n", "<C-l>", "<C-w><C-l>")
 vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
-
 vim.keymap.set("", "<C-p>", "<Cmd>NeoTreeFloatToggle<CR>")
 vim.keymap.set("n", "<C-s>", "<Cmd>write<CR>");
 vim.keymap.set("i", "<C-s>", "<Esc><Cmd>write<CR>");
-
+--
 -- grep entire project
 vim.keymap.set("n", "<C-f>", function()
   require('telescope.builtin').live_grep()
@@ -272,7 +313,8 @@ vim.keymap.set("n", "cr", "<cmd>lua find_project_root()<cr>")
 vim.keymap.set("i", "<Tab>", 'pumvisible() ? "\\<C-n>" : "\\<Tab>"', {expr = true})
 vim.keymap.set("i", "<S-Tab>", 'pumvisible() ? "\\<C-p>" : "\\<Tab>"', {expr = true})
 
--- ===== statusline =====
+-- statusline
+--
 local stl = {
   ' %{fnamemodify(getcwd(), ":t")}',
   ' %{pathshorten(expand("%:p"))}',
@@ -353,11 +395,12 @@ local custom_attach = function(client)
   vim.keymap.set("n", 'gr','<cmd>lua vim.lsp.buf.references()<CR>')
   vim.keymap.set("n", 'gs','<cmd>lua vim.lsp.buf.signature_help()<CR>')
   vim.keymap.set("n", 'gi','<cmd>lua vim.lsp.buf.implementation()<CR>')
-  vim.keymap.set("n", '<F5>','<cmd>lua vim.lsp.buf.code_action()<CR>')
+  vim.keymap.set("n", 'ga','<cmd>lua vim.lsp.buf.code_action()<CR>')
   vim.keymap.set("n", '<leader>r','<cmd>lua vim.lsp.buf.rename()<CR>')
   vim.keymap.set("n", '<leader>=', '<cmd>lua vim.lsp.buf.formatting()<CR>')
-  vim.keymap.set("n", '<leader>d', '<cmd>lua vim.lsp.diagnostic.goto_next()<CR>')
-  vim.keymap.set("n", '<leader>D', '<cmd>lua vim.lsp.diagnostic.goto_prev()<CR>')
+  vim.keymap.set("n", '<C-]>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
+  vim.keymap.set("n", '<C-[>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
+  vim.keymap.set("n", '\\', '<cmd>TroubleToggle<CR>')
 end
 -- setup all lsp servers here
 local nvim_lsp = require'lspconfig'
