@@ -34,7 +34,7 @@
     "cpu",
     "memory",
     "battery",
-    "temperature",
+    // "temperature",
 
     // connecting
     "network",

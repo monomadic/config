@@ -77,6 +77,9 @@ require('packer').startup(function(use)
   use {'L3MON4D3/LuaSnip'}
   use {'norcalli/nvim-colorizer.lua', config = [[require"colorizer".setup()]]}
 
+  -- custom tabline framework
+  use { "rafcamlet/tabline-framework.nvim",  requires = "kyazdani42/nvim-web-devicons" }
+
   -- jump/sneak
   use({
     "phaazon/hop.nvim", -- alternative to sneak
@@ -135,7 +138,7 @@ require('packer').startup(function(use)
 
   use { 'numToStr/FTerm.nvim', config = function()
     require'FTerm'.setup({
-        border = 'single',
+        border = 'none',
         hl = "Term",
     })
   end}
@@ -193,10 +196,19 @@ vim.keymap.set('t', '<C-Space>', '<C-\\><C-n><CMD>lua require("FTerm").toggle()<
 
 vim.cmd("hi Term guibg=black")
 
+-- #tabline
+require('tabline_framework').setup {
+  render = function(f)
+    f.add(' %{fnamemodify(getcwd(), ":t")}')
+  end
+}
+vim.opt.showtabline=2
+vim.cmd("hi TablineFramework_1 gui=bold")
+
 -- tree
 --
 require('neo-tree').setup({
-  popup_border_style = "solid",
+  popup_border_style = "none",
   window = {
     mappings = {
       ["l"] = "open",
@@ -222,6 +234,11 @@ vim.cmd("colorscheme nightfly");
 vim.cmd("highlight WinSeparator guifg=none");
 vim.cmd("hi TodoBgTODO guibg=#FFFF00 guifg=black");
 vim.cmd("hi TodoFgTODO guifg=#FFFF00");
+
+-- active window
+-- vim.cmd("set winhighlight=Normal:ActiveWindow,NormalNC:InactiveWindow");
+-- vim.cmd("hi ActiveWindow guibg=#092236");
+-- vim.cmd("hi InactiveWindow guibg=#000001");
 
 vim.cmd([[set fillchars+=vert:\ ]]) -- remove awful vertical split character
 --
@@ -349,16 +366,20 @@ vim.keymap.set("n", "cr", "<cmd>lua find_project_root()<cr>")
 vim.keymap.set("i", "<Tab>", 'pumvisible() ? "\\<C-n>" : "\\<Tab>"', {expr = true})
 vim.keymap.set("i", "<S-Tab>", 'pumvisible() ? "\\<C-p>" : "\\<Tab>"', {expr = true})
 
--- statusline
+-- #statusline
 --
 local stl = {
-  ' %{fnamemodify(getcwd(), ":t")}',
-  ' %{pathshorten(expand("%:p"))}',
-  ' %{FugitiveStatusline()}',
+  -- ' %{fnamemodify(getcwd(), ":t")}',
+  -- ' %{pathshorten(expand("%:p"))}',
+  ' %{fnamemodify(expand("%"), ":~:.")}',
+  -- ' %{pathshorten(expand("%"), ":~:.")}',
   '%=',
+  -- '  %{FugitiveStatusline()}',
   ' %M', ' %y', ' %r'
 }
 vim.o.statusline = table.concat(stl)
+vim.cmd("hi StatusLine guibg=#002233 guifg=#00FFAA"); --active
+vim.cmd("hi StatusLineNC guibg=none"); --inactive
 
 -- ===== telescope setup =====
 vim.keymap.set("n", '<leader>b', '<cmd>Telescope buffers<cr>')
