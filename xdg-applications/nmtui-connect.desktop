@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=nmtui-connect
+Comment=Launches NetworkManager TUI Connect
+Icon=utilities-terminal
+Terminal=true
+Exec=nmtui-connect
+Categories=ConsoleOnly;System;FileTools;FileManager
+MimeType=inode/directory;

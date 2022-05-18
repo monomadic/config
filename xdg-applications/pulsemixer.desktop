@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=pulsemixer
+Comment=Audio Mixer
+Icon=utilities-terminal
+Terminal=true
+Exec=pulsemixer
+Categories=ConsoleOnly;System;FileTools;FileManager
+MimeType=inode/directory;

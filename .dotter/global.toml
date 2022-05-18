@@ -29,3 +29,5 @@ files = { "nvim" = "~/.config/nvim" }
 [foot]
 files = { "foot/foot.ini" = "~/.config/foot/foot.ini" }
 
+[xdg]
+files = { "xdg-applications" = "~/.local/share/applications" }

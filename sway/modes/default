@@ -7,7 +7,7 @@ $bindsym $mod+Return exec $term
 bindsym $mod+Shift+Return exec $term_float
 $bindsym $mod+q kill
 #$bindsym $mod+Space exec $menu
-$bindsym $mod+Space exec fuzzel --background-color=111111EE --text=FFFFFFFF --border-color=00000000 --no-icons --selection-color=C8FC0CFF --selection-text=000000FF --match-color=00FF00FF --inner-pad=15 --vertical-pad=20 --letter-spacing=0.5 --line-height=20 --terminal=foot
+$bindsym $mod+Space exec fuzzel --background-color=111111EE --text=FFFFFFFF --border-color=00000000 --no-icons --selection-color=C8FC0CFF --selection-text=000000FF --match-color=00FF00FF --inner-pad=15 --vertical-pad=20 --letter-spacing=0.5 --line-height=20 --terminal=\"foot --app-id=floating_shell\"
 # $bindsym $mod+o exec /home/nom/Config/apps/fzfmenu
 $bindsym $mod+b exec firefox
 $bindsym $mod+Shift+b exec brave

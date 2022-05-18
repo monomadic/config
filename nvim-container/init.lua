@@ -44,7 +44,6 @@ vim.opt.tabstop = 2 -- insert 2 spaces for a tab
 vim.opt.wrap = false -- display lines as one long line
 vim.wo.foldexpr = 'nvim_treesitter#foldexpr()' -- use treesitter for folding
 vim.wo.foldmethod = 'expr' -- fold method (market | syntax)
--- vim.opt.guicursor=""
 
 -- keymaps
 --
@@ -55,7 +54,7 @@ vim.keymap.set("n", "<C-l>", "<C-w><C-l>")
 vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
 vim.keymap.set("n", "<C-w><C-d>", "<cmd>vsplit<CR>")
 
--- plugins
+-- #plugins
 --
 vim.cmd [[packadd packer.nvim]]
 require('packer').startup(function(use)
@@ -117,6 +116,8 @@ require('packer').startup(function(use)
     },
   }
 
+  use {'renerocksai/telekasten.nvim'}
+
   use {
     -- surround completion
     "appelgriebsch/surround.nvim",
@@ -144,12 +145,12 @@ require('packer').startup(function(use)
     event = { "BufRead Cargo.toml" },
     requires = { { "nvim-lua/plenary.nvim" } },
     config = function()
-      require("plugins.cargo")
+      require('crates').setup {}
     end,
   })
 
 
-  use({ "petertriho/nvim-scrollbar", config = "require'scrollbar'.setup()" }) -- side scrollbar with git support
+  use { "petertriho/nvim-scrollbar", config = "require'scrollbar'.setup()" } -- side scrollbar with git support
   
   use { "lukas-reineke/indent-blankline.nvim", config = function()
     require("indent_blankline").setup({
@@ -158,6 +159,15 @@ require('packer').startup(function(use)
       filetype_exclude = { "neo-tree", "help", "floaterm", "SidebarNvim", "" },
     })
   end}
+
+  -- Todo
+  use {
+    "folke/todo-comments.nvim",
+    requires = "nvim-lua/plenary.nvim",
+    config = function()
+      require('todo-comments').setup {}
+    end
+  }
 end)
 -- compile packer plugins on plugins.lua change
 vim.cmd([[autocmd BufWritePost plugins.lua PackerCompile]])
@@ -195,13 +205,23 @@ require('neo-tree').setup({
   }
 })
 
+local home = vim.fn.expand("/mnt/data/notes/zk")
+require('telekasten').setup {
+  home = home,
+  dailies      = home .. '/' .. 'daily',
+  weeklies     = home .. '/' .. 'weekly',
+  templates    = home .. '/' .. 'templates',
+}
+
 -- #colors
 -- #00FF99 #FF00CC #FFFF00 #00CCFF
 --
 vim.cmd('syntax on')
 vim.g.gruvbox_contrast_dark="hard"
-vim.cmd("colorscheme nightfly")
-vim.cmd("highlight WinSeparator guifg=none")
+vim.cmd("colorscheme nightfly");
+vim.cmd("highlight WinSeparator guifg=none");
+vim.cmd("hi TodoBgTODO guibg=#FFFF00 guifg=black");
+vim.cmd("hi TodoFgTODO guifg=#FFFF00");
 
 vim.cmd([[set fillchars+=vert:\ ]]) -- remove awful vertical split character
 --
@@ -318,6 +338,10 @@ function find_project_root()
     print("No repo found.")
   end
 end
+
+-- I always type :Qa accidentally... should be using ZZ
+vim.keymap.set("n", "Qa", "<cmd>qa<cr>");
+
 -- smart cwd
 vim.keymap.set("n", "cf", "<cmd>cd %:p:h | pwd<cr>")
 vim.keymap.set("n", "cr", "<cmd>lua find_project_root()<cr>")
@@ -345,6 +369,18 @@ vim.keymap.set("n", '<leader>ch', '<cmd>Telescope command_history<cr>')
 vim.keymap.set("n", '<leader>f', '<cmd>Telescope live_grep<cr>')
 vim.keymap.set("n", '<leader>z', '<cmd>Telescope spell_suggest<cr>')
 vim.keymap.set('','<F1>', '<cmd>Telescope help_tags<cr>')
+
+vim.keymap.set('n', 'td', '<Cmd>Telescope diagnostics<cr>')
+vim.keymap.set('n', 'tgb', '<Cmd>Telescope git_branches<cr>')
+vim.keymap.set('n', 'tgc', '<Cmd>Telescope git_bcommits<cr>')
+vim.keymap.set('n', 'tgd', '<Cmd>Telescope git_status<cr>')
+vim.keymap.set('n', 'ti', '<Cmd>Telescope lsp_implementations<cr>')
+vim.keymap.set('n', 'tk', '<Cmd>Telescope keymaps<cr>')
+vim.keymap.set('n', 'tld', '<Cmd>Telescope lsp_definitions<cr>')
+vim.keymap.set('n', 'tr', '<Cmd>Telescope live_grep<cr>')
+vim.keymap.set('n', 'tt', '<Cmd>TodoTelescope<cr>')
+vim.keymap.set('n', 'tw', '<Cmd>Telescope lsp_workspace_symbols<cr>')
+vim.keymap.set('n', 'tz', '<Cmd>Telekasten find_notes<cr>')
 
 -- ===== simple session management =====
 local session_dir = vim.fn.stdpath('data') .. '/sessions/'
