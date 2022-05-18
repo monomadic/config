@@ -1,0 +1,12 @@
+bar:
+  height: 48
+  location: top
+  background: 000000ff
+
+  right:
+    - clock:
+        content:
+          - string: {text: , font: "Font Awesome 5 Free:style=solid:size=22"}
+          - string: {text: "{date}", right-margin: 5}
+          - string: {text: , font: "Font Awesome 5 Free:style=solid:size=22"}
+          - string: {text: "{time}"}

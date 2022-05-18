@@ -20,7 +20,12 @@ files = { "bash/rc.bash" = "~/.bashrc", "bash/fzm.bash" = "~/.bash/fzm.bash" }
 [sway.files]
 "sway" = "~/.config/sway"
 "fuzzel/fuzzel.ini" = "~/.config/fuzzel/fuzzel.ini"
+"yambar" = "~/.config/yambar"
+"waybar" = "~/.config/waybar"
 
 [nvim]
 files = { "nvim" = "~/.config/nvim" }
+
+[foot]
+files = { "foot/foot.ini" = "~/.config/foot/foot.ini" }
 

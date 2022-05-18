@@ -52,7 +52,7 @@
 #waybar {
   background: black;
   color: white;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 #custom-btc-price {
@@ -179,16 +179,16 @@
 #workspaces button {
   /* border-top: 2px solid transparent; */
   /* To compensate for the top border and still have vertical centering */
-  padding-bottom: 2px;
-  padding-left: 10px;
-  padding-right: 10px;
-  color: #FF00CC;
+  /* padding-bottom: 2px; */
+  /* padding-left: 10px; */
+  /* padding-right: 10px; */
+  padding: 2px 10px;
+  color: white;
 }
 
 #workspaces button.focused {
-  border-color: rgb(0, 255, 136);
   background-color: rgb(0, 255, 136);
-  color: #111;
+  color: black;
 }
 
 #workspaces button.urgent {

@@ -23,9 +23,9 @@ include $config_path/definitions.d/*.conf
 bar {
   id bar-0
   swaybar_command waybar
-  position bottom
+  position top
   # hidden_state hide
-  mode hide
+  # mode hide
   modifier Mod1
   colors {
     background #000000AA
