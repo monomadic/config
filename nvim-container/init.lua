@@ -91,6 +91,12 @@ require('packer').startup(function(use)
     end
   })
 
+  use {'chentoast/marks.nvim', config = function()
+    require'marks'.setup {
+      sign_priority = { lower=10, upper=15, builtin=8, bookmark=20 },
+    }
+  end}
+
   use {
     "folke/trouble.nvim",
     requires = "kyazdani42/nvim-web-devicons",
@@ -208,7 +214,7 @@ vim.cmd("hi TablineFramework_1 gui=bold")
 -- tree
 --
 require('neo-tree').setup({
-  popup_border_style = "none",
+  popup_border_style = "single",
   window = {
     mappings = {
       ["l"] = "open",
@@ -395,12 +401,14 @@ vim.keymap.set('n', 'td', '<Cmd>Telescope diagnostics<cr>')
 vim.keymap.set('n', 'tgb', '<Cmd>Telescope git_branches<cr>')
 vim.keymap.set('n', 'tgc', '<Cmd>Telescope git_bcommits<cr>')
 vim.keymap.set('n', 'tgd', '<Cmd>Telescope git_status<cr>')
-vim.keymap.set('n', 'ti', '<Cmd>Telescope lsp_implementations<cr>')
 vim.keymap.set('n', 'tk', '<Cmd>Telescope keymaps<cr>')
 vim.keymap.set('n', 'tld', '<Cmd>Telescope lsp_definitions<cr>')
+vim.keymap.set('n', 'tli', '<Cmd>Telescope lsp_implementations<cr>')
+vim.keymap.set('n', 'tls', '<Cmd>Telescope lsp_document_symbols<cr>')
+vim.keymap.set('n', 'tlw', '<Cmd>Telescope lsp_workspace_symbols<cr>')
+vim.keymap.set('n', 'tm', '<Cmd>Telescope marks<cr>')
 vim.keymap.set('n', 'tr', '<Cmd>Telescope live_grep<cr>')
 vim.keymap.set('n', 'tt', '<Cmd>TodoTelescope<cr>')
-vim.keymap.set('n', 'tw', '<Cmd>Telescope lsp_workspace_symbols<cr>')
 vim.keymap.set('n', 'tz', '<Cmd>Telekasten find_notes<cr>')
 
 -- ===== simple session management =====
@@ -472,9 +480,12 @@ local custom_attach = function(client)
   vim.keymap.set("n", '\\', '<cmd>TroubleToggle<CR>')
 end
 -- setup all lsp servers here
+-- https://github.com/neovim/nvim-lspconfig/blob/master/doc/server_configurations.md
 local nvim_lsp = require'lspconfig'
 nvim_lsp.bashls.setup{on_attach=custom_attach}
 nvim_lsp.rnix.setup{on_attach=custom_attach}
+-- npm install -g typescript typescript-language-server
+nvim_lsp.tsserver.setup{on_attach=custom_attach}
 nvim_lsp.rust_analyzer.setup{
   capabilities = require('cmp_nvim_lsp').update_capabilities(
     vim.lsp.protocol.make_client_capabilities()

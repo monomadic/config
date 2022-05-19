@@ -5,4 +5,7 @@ bind '"\C-o":"fzm\n"'
 
 # ssh likes this
 # export TERM=vt100
-. "$HOME/.cargo/env"
+if command -v cargo &> /dev/null
+then
+  . "$HOME/.cargo/env"
+fi

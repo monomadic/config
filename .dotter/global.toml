@@ -31,3 +31,8 @@ files = { "foot/foot.ini" = "~/.config/foot/foot.ini" }
 
 [xdg]
 files = { "xdg-applications" = "~/.local/share/applications" }
+
+[lf]
+[lf.files]
+"lf/lfrc.conf" = { target = "~/.config/lf/lfrc", type = "symbolic" }
+"lf/pv.sh" = "~/.config/lf/pv.sh"

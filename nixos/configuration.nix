@@ -84,7 +84,7 @@
     XCURSOR_THEME = "Vanilla-DMZ";
     EDITOR = "nvim";
   };
-  services.xserver.dpi = 227;
+  #services.xserver.dpi = 227;
 
   programs.waybar.enable = true;
 
@@ -152,10 +152,12 @@ services.pipewire = {
      htop
      btop # all the tops
      protonvpn-cli
+     highlight # syntax highlight for lf
      rnix-lsp # lsp language server for nix (rust)
      rclone
      zig # needed for nvim lsp
     sumneko-lua-language-server
+    viu # image preview for lf
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
