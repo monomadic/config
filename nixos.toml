@@ -1,6 +1,0 @@
-includes = []
-packages = ["default", "bash", "sway", "nvim-container", "lf", "foot"]
-
-[files]
-
-[variables]

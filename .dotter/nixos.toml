@@ -1,0 +1,12 @@
+packages = [
+  "default",
+  "bash",
+  "sway",
+  "lf",
+  "foot",
+  "xdg",
+  "nvim"
+]
+
+[variables]
+colorscheme = "gruvbox"

@@ -1,6 +1,10 @@
 includes = []
-packages = ["bash", "nvim-root"]
+packages = ["bash", "nvim", "lf"]
 
 [files]
 
 [variables]
+name = "root"
+
+[variables.nvim]
+colorscheme = "gruvbox"

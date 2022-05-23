@@ -261,7 +261,7 @@ require('telekasten').setup {
 --
 vim.cmd('syntax on')
 vim.g.gruvbox_contrast_dark="hard"
-vim.cmd("colorscheme nightfly");
+vim.cmd("colorscheme {{colorscheme}}");
 vim.cmd("highlight WinSeparator guifg=none");
 vim.cmd("hi TodoBgTODO guibg=#FFFF00 guifg=black");
 vim.cmd("hi TodoFgTODO guifg=#FFFF00");

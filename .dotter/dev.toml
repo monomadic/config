@@ -1,0 +1,7 @@
+includes = []
+packages = ["default", "nvim", "bash", "sway", "foot", "xdg", "lf"]
+
+[files]
+
+[variables]
+colorscheme = "moonfly"
