@@ -13,12 +13,12 @@ end
 --
 vim.g.mapleader = ',' -- leader key
 vim.g.tex_flavor = "latex"
-vim.o.formatoptions = vim.o.formatoptions:gsub("r", ""):gsub("o", "")
-vim.o.termguicolors = true
 vim.opt.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (gnome)
+vim.opt.conceallevel = 0 -- so that `` is visible in markdown files
 vim.opt.cursorline = true -- highlight the current line
 vim.opt.expandtab = true -- convert tabs to spaces
 vim.opt.foldlevelstart = 99
+vim.opt.formatoptions = vim.o.formatoptions:gsub("r", ""):gsub("o", "")
 vim.opt.hidden = false -- switch buffer without unloading+saving them
 vim.opt.hlsearch = false -- highlight all matches on previous search pattern
 vim.opt.ignorecase = true -- ignore case when searching
@@ -40,6 +40,7 @@ vim.opt.splitbelow = true -- force all horizontal splits to go below current win
 vim.opt.splitright = true -- force all vertical splits to go to the right of current window
 vim.opt.swapfile = false -- creates a swapfile
 vim.opt.tabstop = 2 -- insert 2 spaces for a tab
+vim.opt.termguicolors = true -- 24-bit color
 vim.opt.wrap = false -- display lines as one long line
 vim.wo.foldexpr = 'nvim_treesitter#foldexpr()' -- use treesitter for folding
 vim.wo.foldmethod = 'expr' -- fold method (market | syntax)

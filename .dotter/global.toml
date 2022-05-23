@@ -19,8 +19,7 @@ files = { "bash/rc.bash" = "~/.bashrc", "bash/fzm.bash" = "~/.bash/fzm.bash" }
 
 [sway]
 [sway.files]
-"sway" = "~/.config/sway"
-"fuzzel/fuzzel.ini" = "~/.config/fuzzel/fuzzel.ini"
+"sway.conf" = "~/.config/sway/config"
 "yambar" = "~/.config/yambar"
 "waybar" = "~/.config/waybar"
 

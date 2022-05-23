@@ -1,7 +1,4 @@
-includes = []
 packages = ["default", "nvim", "bash", "lf"]
-
-[files]
 
 [variables]
 colorscheme = "nightfly"
