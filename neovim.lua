@@ -11,7 +11,6 @@ end
 
 -- settings
 --
-vim.g.mapleader = ','
 vim.g.mapleader = ',' -- leader key
 vim.g.tex_flavor = "latex"
 vim.o.formatoptions = vim.o.formatoptions:gsub("r", ""):gsub("o", "")
@@ -343,7 +342,8 @@ vim.keymap.set("n", "zf", "<Cmd>Telekasten find_notes<CR>")
 vim.keymap.set("n", "zr", "<Cmd>Telekasten rename_note<CR>")
 vim.keymap.set("n", "zg", "<Cmd>Telekasten follow_link<CR>")
 vim.keymap.set("n", "zr", "<Cmd>Telekasten show_backlinks<CR>")
-vim.cmd("hi tkLink ctermfg=Blue cterm=bold,underline guifg=blue gui=bold,underline")
+vim.keymap.set("n", "gz", "<Cmd>Telekasten follow_link<CR>")
+vim.cmd("hi tkLink ctermfg=Magenta cterm=bold,underline guifg=#FF00DF gui=bold,underline")
 vim.cmd("hi tkBrackets ctermfg=gray guifg=gray")
 
 -- run command in current line and paste stout into current buffer
@@ -582,6 +582,7 @@ require'nvim-treesitter.configs'.setup {
   highlight = { enable = true },
 }
 
+-- cmp
 local cmp = require('cmp')
 cmp.setup {
   sources = {
@@ -614,11 +615,3 @@ cmp.setup {
     end,
   },
 }
-
--- local capabilities = vim.lsp.protocol.make_client_capabilities()
--- capabilities = require('cmp_nvim_lsp').update_capabilities(capabilities)
---
--- -- The following example advertise capabilities to `clangd`.
--- require'lspconfig'.rust_analyzer.setup {
---   capabilities = capabilities,
--- }

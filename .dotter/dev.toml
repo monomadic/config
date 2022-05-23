@@ -1,7 +1,7 @@
 includes = []
-packages = ["default", "nvim", "bash", "sway", "foot", "xdg", "lf"]
+packages = ["default", "nvim", "bash", "lf"]
 
 [files]
 
 [variables]
-colorscheme = "moonfly"
+colorscheme = "nightfly"
