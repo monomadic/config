@@ -104,6 +104,8 @@ require('packer').startup(function(use)
     }
   end}
 
+  use { 'junegunn/goyo.vim' } -- distraction-free
+
   use {
     "folke/trouble.nvim",
     requires = "kyazdani42/nvim-web-devicons",
@@ -133,6 +135,7 @@ require('packer').startup(function(use)
   }
 
   use {'renerocksai/telekasten.nvim'}
+  use {'preservim/vim-markdown'}
 
   use {
     -- surround completion
