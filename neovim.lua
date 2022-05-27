@@ -257,6 +257,7 @@ require('telekasten').setup {
   weeklies     = home .. '/' .. 'weekly',
   templates    = home .. '/' .. 'templates',
   new_note_filename = "title",
+  auto_set_filetype = false,
 }
 
 -- #colors

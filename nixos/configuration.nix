@@ -128,6 +128,8 @@ services.pipewire = {
   environment.systemPackages = with pkgs; [
      vim
      neovim
+     helix # neovim alternative in rust
+     lazygit # git tui
      wget
      firefox
      qutebrowser
@@ -152,12 +154,14 @@ services.pipewire = {
      htop
      btop # all the tops
      protonvpn-cli
-     highlight # syntax highlight for lf
+     bat # syntax highlight for lf
      rnix-lsp # lsp language server for nix (rust)
      rclone
      zig # needed for nvim lsp
     sumneko-lua-language-server
     viu # image preview for lf
+    radare2
+    unzip
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
