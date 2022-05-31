@@ -13,6 +13,8 @@ end
 --
 vim.g.mapleader = ',' -- leader key
 vim.g.tex_flavor = "latex"
+vim.g.vim_markdown_edit_url_in = 'vsplit' -- open md links as
+vim.g.vim_markdown_new_list_item_indent = 2 -- markdown list indent
 vim.opt.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (gnome)
 vim.opt.conceallevel = 0 -- so that `` is visible in markdown files
 vim.opt.cursorline = true -- highlight the current line

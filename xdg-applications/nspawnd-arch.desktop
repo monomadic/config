@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=archlinux
+Comment=Launches nSpawn-Container
+Icon=utilities-terminal
+Terminal=true
+Exec=sudo systemd-nspawn -b -D /mnt/data/containers/fs/arch-solana/ --bind /mnt/data
+Categories=ConsoleOnly;System;FileTools;FileManager
+MimeType=inode/directory;

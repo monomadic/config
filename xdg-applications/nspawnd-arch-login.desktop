@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=archlinux (login)
+Comment=Launches nSpawn-Container
+Icon=utilities-terminal
+Terminal=true
+Exec=machinectl login arch-solana
+Categories=ConsoleOnly;System;FileTools;FileManager
+MimeType=inode/directory;
