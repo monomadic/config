@@ -20,7 +20,7 @@ files = { "bash/rc.bash" = "~/.bashrc", "bash/fzm.bash" = "~/.bash/fzm.bash" }
 [sway]
 [sway.files]
 "sway.conf" = "~/.config/sway/config"
-"yambar" = "~/.config/yambar"
+"yambar.yml" = "~/.config/yambar/config.yml"
 "waybar" = "~/.config/waybar"
 
 [nvim]
