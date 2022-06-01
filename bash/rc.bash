@@ -3,7 +3,7 @@ echo ".bashrc loaded"
 # aliases
 #
 alias lg=lazygit
-alias gs=git status
+alias gs="git status"
 
 # fuzzy marks (fzm)
 #
