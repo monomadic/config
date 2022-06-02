@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=notes
+Comment=Notes in neovim
+Icon=utilities-terminal
+Terminal=true
+Exec=nvim /mnt/data/notes
+Categories=ConsoleOnly;System;FileTools;FileManager
+MimeType=inode/directory;

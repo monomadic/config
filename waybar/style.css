@@ -153,10 +153,6 @@
   animation-duration: 2s;
 }
 
-#mode {
-  background: @background_color;
-}
-
 #network.disconnected {
   color: @warning_color;
 }
