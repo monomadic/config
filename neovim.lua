@@ -11,7 +11,7 @@ end
 
 -- settings
 --
-vim.g.mapleader = ',' -- leader key
+vim.g.mapleader = '\\' -- leader key
 vim.g.tex_flavor = "latex"
 vim.g.vim_markdown_edit_url_in = 'vsplit' -- open md links as
 vim.g.vim_markdown_new_list_item_indent = 2 -- markdown list indent
@@ -355,7 +355,7 @@ vim.cmd("hi tkBrackets ctermfg=gray guifg=gray")
 
 -- run command in current line and paste stout into current buffer
 vim.keymap.set("n", "Q", "!!$SHELL<CR>")
---
+
 -- move lines up and down in visual mode
 vim.keymap.set("x", "K", ":move '<-2<CR>gv-gv")
 vim.keymap.set("x", "J", ":move '>+1<CR>gv-gv")

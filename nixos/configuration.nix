@@ -2,13 +2,14 @@
 
 {
   nix = {
-  	package = pkgs.nixUnstable;
-	extraOptions = ''
-		experimental-features = nix-command flakes
-	'';
+    package = pkgs.nixUnstable;
+    extraOptions = ''
+      		experimental-features = nix-command flakes
+      	'';
   };
   imports =
-    [ # Include the results of the hardware scan.
+    [
+      # Include the results of the hardware scan.
       ./hardware-configuration.nix
     ];
 
@@ -22,7 +23,7 @@
   # networking.hostName = "nixos"; # Define your hostname.
   # Pick only one of the below networking options.
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
-  networking.networkmanager.enable = true;  # Easiest to use and most distros use this by default.
+  networking.networkmanager.enable = true; # Easiest to use and most distros use this by default.
 
   # Set your time zone.
   time.timeZone = "Asia/Bangkok";
@@ -46,26 +47,26 @@
   programs.sway = {
     enable = true;
     wrapperFeatures.gtk = true; # so that gtk works properly
-	  extraPackages = with pkgs; [
-	    brightnessctl
-	    swaylock
-	    swayidle
-	    wl-clipboard
-	    wf-recorder # screen recording
-	    mako # notification daemon
-	    alacritty # Alacritty is the default terminal in the config
-	    foot # daemon terminal
-	    # dmenu
+    extraPackages = with pkgs; [
+      brightnessctl
+      swaylock
+      swayidle
+      wl-clipboard
+      wf-recorder # screen recording
+      mako # notification daemon
+      alacritty # Alacritty is the default terminal in the config
+      foot # daemon terminal
+      # dmenu
       fuzzel # launcher
-	    phinger-cursors
-	    # sirula # rust launcher
-	    glib # for gsettings (get rid of this?)
-	    vanilla-dmz
+      phinger-cursors
+      # sirula # rust launcher
+      glib # for gsettings (get rid of this?)
+      vanilla-dmz
       waybar
       light # brightness
       wob # overlay bar (for volume etc)
-	  ];
-   extraSessionCommands = ''
+    ];
+    extraSessionCommands = ''
       export SDL_VIDEODRIVER=wayland
       export QT_QPA_PLATFORM=wayland
       export QT_WAYLAND_DISABLE_WINDOWDECORATION="1"
@@ -77,9 +78,9 @@
   # hidpi
   hardware.video.hidpi.enable = true;
   environment.variables = {
-  #  GDK_SCALE = "2";
-  #  GDK_DPI_SCALE = "2.0";
-  #  QT_AUTO_SCREEN_SCALE_FACTOR = "1";
+    #  GDK_SCALE = "2";
+    #  GDK_DPI_SCALE = "2.0";
+    #  QT_AUTO_SCREEN_SCALE_FACTOR = "1";
     XCURSOR_SIZE = "48";
     XCURSOR_THEME = "Vanilla-DMZ";
     EDITOR = "nvim";
@@ -88,9 +89,9 @@
 
   programs.waybar.enable = true;
 
-	fonts.fonts = with pkgs; [
-	  (nerdfonts.override { fonts = [ "DejaVuSansMono" ]; })
-	];
+  fonts.fonts = with pkgs; [
+    (nerdfonts.override { fonts = [ "DejaVuSansMono" ]; })
+  ];
 
   # Enable the GNOME Desktop Environment.
   #services.xserver.displayManager.gdm.enable = true;
@@ -105,16 +106,16 @@
   #   "caps:escape" # map caps to escape.
   # };
 
- # sound.enable = true;
-hardware.pulseaudio.enable = false;
-security.rtkit.enable = true;
-services.pipewire = {
-  enable = true;
-  alsa.enable = true;
-  alsa.support32Bit = true;
-  pulse.enable = true;
-  #jack.enable = true;
-};
+  # sound.enable = true;
+  hardware.pulseaudio.enable = false;
+  security.rtkit.enable = true;
+  services.pipewire = {
+    enable = true;
+    alsa.enable = true;
+    alsa.support32Bit = true;
+    pulse.enable = true;
+    #jack.enable = true;
+  };
 
   # Enable touchpad support (enabled default in most desktopManager).
   services.xserver.libinput.enable = true;
@@ -126,42 +127,45 @@ services.pipewire = {
   };
 
   environment.systemPackages = with pkgs; [
-     vim
-     neovim
-     helix # neovim alternative in rust
-     lazygit # git tui
-     wget
-     firefox
-     qutebrowser
-     git
-     zellij
-     fd
-     nnn
-     lf # linux filemanager (go)
-     gnupg
-     pulsemixer
-     acpi # battery
-     ncdu # disk usage
-     fzf
-     ripgrep
-     zip
-     dotter # rust dotfiles manager
-     # ytfzf # youtube fzf
-     file # filetype identification
-     #radare2 # reverse engineering debugger for badasses
-     #cutter # gui for radare2
-     killall
-     htop
-     btop # all the tops
-     protonvpn-cli
-     bat # syntax highlight for lf
-     rnix-lsp # lsp language server for nix (rust)
-     rclone
-     zig # needed for nvim lsp
+    vim
+    neovim
+    helix # neovim alternative in rust
+    lazygit # git tui
+    wget
+    firefox
+    qutebrowser
+    git
+    zellij
+    fd
+    nnn
+    lf # linux filemanager (go)
+    gnupg
+    pulsemixer
+    acpi # battery
+    ncdu # disk usage
+    fzf
+    ripgrep
+    zip
+    dotter # rust dotfiles manager
+    # ytfzf # youtube fzf
+    file # filetype identification
+    #radare2 # reverse engineering debugger for badasses
+    #cutter # gui for radare2
+    killall
+    htop
+    btop # all the tops
+    protonvpn-cli
+    bat # syntax highlight for lf
+    rnix-lsp # lsp language server for nix (rust)
+    nixfmt
+    rclone
+    zig # needed for nvim lsp
+    #wish # ssh keys to mnemonics
     sumneko-lua-language-server
     viu # image preview for lf
     radare2
     unzip
+    mpv
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
@@ -174,6 +178,31 @@ services.pipewire = {
 
   # List services that you want to enable:
   services.tlp.enable = true;
+
+  services.yggdrasil = {
+    enable = true;
+    persistentKeys = false; # generate new ipv6 address each load
+    config = {
+      Peers = [
+        "tcp://sin.yuetau.net:6642" # sg
+        "tls://sin.yuetau.net:6643" # sg
+        # https://github.com/yggdrasil-network/public-peers
+      ];
+    };
+  };
+
+  systemd.targets.machines.enable = true;
+  systemd.nspawn."arch" = {
+    enable = true;
+    execConfig = {
+      Boot = true;
+    };
+  };
+  systemd.services."systemd-nspawn@arch" = {
+    enable = true;
+    wantedBy = [ "machines.target" ];
+  };
+
 
   # Enable the OpenSSH daemon.
   # services.openssh.enable = true;
