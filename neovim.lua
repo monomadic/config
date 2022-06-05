@@ -142,7 +142,7 @@ require('packer').startup(function(use)
 
   use {
     -- surround completion
-    "appelgriebsch/surround.nvim"
+    "numToStr/Surround.nvim"
   }
 
   use{
