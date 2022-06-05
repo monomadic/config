@@ -64,6 +64,7 @@ vim.keymap.set("n", "<C-w><C-d>", "<cmd>vsplit<CR>")
 --
 vim.cmd [[packadd packer.nvim]]
 require('packer').startup(function(use)
+  use {'lambdalisue/suda.vim'} -- sudo
   use {'wbthomason/packer.nvim' }
   use {'tpope/vim-fugitive'}
   use {'dylanaraps/wal.vim'}
@@ -141,7 +142,10 @@ require('packer').startup(function(use)
 
   use {
     -- surround completion
-    "appelgriebsch/surround.nvim",
+    "appelgriebsch/surround.nvim"
+  }
+
+  use{
     -- surround inline change
     "tpope/vim-surround",
     config = function()
