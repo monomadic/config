@@ -27,7 +27,7 @@
   # };
 
   # services.xserver.enable = true; # enable X11
-  services.xserver.windowManager.stumpwm.enable = true;
+  #services.xserver.windowManager.stumpwm.enable = true;
 
   programs.sway = {
     enable = true;
@@ -67,7 +67,7 @@
     XCURSOR_THEME = "Vanilla-DMZ";
     EDITOR = "nvim";
   };
-  services.xserver.dpi = 227;
+  # services.xserver.dpi = 97; # this does nothing for wayland
 
   programs.waybar.enable = true;
 
@@ -78,7 +78,6 @@
   # services.xserver.displayManager.gdm.enable = true;
   # services.xserver.desktopManager.gnome.enable = true;
   # services.xserver.videoDrivers = [ "nvidia" ];
-
   # services.xserver.layout = "us";
   # services.xserver.xkbOptions = {
   #   "eurosign:e",
@@ -96,8 +95,7 @@
     #jack.enable = true;
   };
 
-  # Enable touchpad support (enabled default in most desktopManager).
-  services.xserver.libinput.enable = true;
+  services.xserver.libinput.enable = true; # touchpad support (default true)
 
   users.users.nom = {
     isNormalUser = true;
@@ -153,6 +151,8 @@
     viu # image preview for lf
     unzip
     mpv
+    cardboard
+    dwl # wm
   ];
 
   # services.openssh.enable = true;
