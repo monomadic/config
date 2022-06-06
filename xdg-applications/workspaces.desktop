@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=workspaces (lf)
+Comment=Open workspaces in lf
+Icon=utilities-terminal
+Terminal=true
+Exec=lf /mnt/data/workspaces
+Categories=ConsoleOnly;System;FileTools;FileManager
+MimeType=inode/directory;

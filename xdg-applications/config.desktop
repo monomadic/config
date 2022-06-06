@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=config (neovim)
+Comment=Edit system config in neovim
+Icon=utilities-terminal
+Terminal=true
+Exec=nvim /mnt/data/config
+Categories=ConsoleOnly;System;FileTools;FileManager
+MimeType=inode/directory;
