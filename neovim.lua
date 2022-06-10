@@ -139,19 +139,22 @@ require('packer').startup(function(use)
 
   use {'renerocksai/telekasten.nvim'}
   use {'preservim/vim-markdown'}
+  --use {'jghauser/follow-md-links.nvim'}
 
-  use {
-    -- surround completion
-    "numToStr/Surround.nvim"
-  }
+  use({'jakewvincent/mkdnflow.nvim'})
 
-  use{
-    -- surround inline change
-    "tpope/vim-surround",
-    config = function()
-      require('surround').setup {}
-    end
-  }
+  -- use {
+  --   -- surround completion
+  --   "numToStr/Surround.nvim"
+  -- }
+  --
+  -- use{
+  --   -- surround inline change
+  --   "tpope/vim-surround",
+  --   config = function()
+  --     require('surround').setup {}
+  --   end
+  -- }
 
   use {'tamago324/nlsp-settings.nvim'}
 
@@ -232,6 +235,9 @@ require('telescope').setup{
 
 vim.keymap.set('n', '<C-Space>', '<CMD>lua require("FTerm").toggle()<CR>')
 vim.keymap.set('t', '<C-Space>', '<C-\\><C-n><CMD>lua require("FTerm").toggle()<CR>')
+
+-- go back
+vim.keymap.set('n', '<bs>', ':edit #<cr>', { silent = true })
 
 vim.cmd("hi Term guibg=black")
 
@@ -341,7 +347,24 @@ vim.keymap.set("n", "<Tab>", function()
     require('telescope.themes').get_dropdown({ previewer = false })
   )
 end)
---
+
+vim.keymap.set("n", "<C-o>", function()
+  require('telescope.builtin').find_files(
+    require('telescope.themes').get_dropdown()
+  )
+end)
+
+-- markdown
+require('mkdnflow').setup({
+  mappings = {
+    MkdnToggleToDo = {'n', '<C-d>'},
+    MkdnNextHeading = {'n', '<C-]>'},
+    MkdnPrevHeading = {'n', '<C-[>'},
+    -- MkdnNextLink = {'n', '<C-\'>'},
+    -- MkdnPrevLink = {'n', '<C-;>'},
+  }
+})
+
 --telekasten
 vim.keymap.set("n", "z", "<Cmd>Telekasten panel<CR>")
 vim.keymap.set("n", "zn", "<Cmd>Telekasten new_note<CR>")
@@ -438,15 +461,14 @@ vim.cmd("hi StatusLine guibg=#002233 guifg=#00FFAA"); --active
 vim.cmd("hi StatusLineNC guibg=none"); --inactive
 
 -- ===== telescope setup =====
-vim.keymap.set("n", '<leader>b', '<cmd>Telescope buffers<cr>')
-vim.keymap.set("n", '<leader>o', '<cmd>Telescope find_files<cr>')
+vim.keymap.set("n", 'tb', '<cmd>Telescope buffers<cr>')
+-- vim.keymap.set("n", '<C-o>', '<cmd>Telescope find_files<cr>')
 vim.keymap.set("n", '<leader>h', '<cmd>Telescope oldfiles<cr>')
 vim.keymap.set("n", '<leader>c', '<cmd>Telescope commands<cr>')
 vim.keymap.set("n", '<leader>ch', '<cmd>Telescope command_history<cr>')
 vim.keymap.set("n", '<leader>f', '<cmd>Telescope live_grep<cr>')
-vim.keymap.set("n", '<leader>z', '<cmd>Telescope spell_suggest<cr>')
+vim.keymap.set("n", 'ts', '<cmd>Telescope spell_suggest<cr>')
 vim.keymap.set('','<F1>', '<cmd>Telescope help_tags<cr>')
-
 vim.keymap.set('n', 'td', '<Cmd>Telescope diagnostics<cr>')
 vim.keymap.set('n', 'tgb', '<Cmd>Telescope git_branches<cr>')
 vim.keymap.set('n', 'tgc', '<Cmd>Telescope git_bcommits<cr>')
@@ -592,6 +614,10 @@ require'nvim-treesitter.configs'.setup {
   ensure_installed = {"rust", "bash", "yaml", "typescript", "javascript", "markdown"},
   highlight = { enable = true },
 }
+
+-- markdown
+--
+vim.cmd('autocmd FileType markdown set autowriteall') -- ensure write upon leaving a page
 
 -- cmp
 local cmp = require('cmp')

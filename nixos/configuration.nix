@@ -12,22 +12,46 @@
 
   nixpkgs.config.allowUnfree = true; # nvidia etc
 
-  boot.loader = {
-    systemd-boot.enable = true;
-    efi.canTouchEfiVariables = true;
-  };
-
-  time.timeZone = "Asia/Bangkok";
-
-  # i18n.defaultLocale = "en_US.UTF-8";
-  # console = {
-  #   font = "Lat2-Terminus16";
-  #   keyMap = "us";
-  #   useXkbConfig = true; # use xkbOptions in tty.
-  # };
-
-  # services.xserver.enable = true; # enable X11
-  #services.xserver.windowManager.stumpwm.enable = true;
+  environment.systemPackages = with pkgs; [
+    neovim
+    helix # neovim alternative in rust
+    lazygit # git tui
+    wget
+    firefox
+    qutebrowser
+    git
+    zellij
+    fd
+    nnn
+    lf # linux filemanager (go)
+    gnupg
+    pulsemixer
+    acpi # battery
+    ncdu # disk usage
+    fzf
+    ripgrep
+    zip
+    dotter # rust dotfiles manager
+    file # filetype identification
+    radare2 # reverse engineering debugger for badasses
+    #cutter # gui for radare2
+    killall
+    htop
+    btop # all the tops
+    protonvpn-cli
+    bat # syntax highlight for lf
+    rnix-lsp # lsp language server for nix (rust)
+    nixfmt
+    rclone
+    zig # needed for nvim lsp
+    # wish # ssh keys to mnemonics
+    sumneko-lua-language-server
+    viu # image preview for lf
+    unzip
+    mpv
+    cardboard
+    dwl # wm
+  ];
 
   programs.sway = {
     enable = true;
@@ -55,8 +79,17 @@
       export QT_WAYLAND_DISABLE_WINDOWDECORATION="1"
       export _JAVA_AWT_WM_NONREPARENTING=1
       export MOZ_ENABLE_WAYLAND=1
+      export XCURSOR_SIZE=48
     '';
   };
+
+  boot.loader = {
+    systemd-boot.enable = true;
+    efi.canTouchEfiVariables = true;
+  };
+
+  # services.xserver.enable = true; # enable X11
+  #services.xserver.windowManager.stumpwm.enable = true;
 
   hardware.video.hidpi.enable = true;
   environment.variables = {
@@ -114,46 +147,6 @@
     ]; # Enable ‘sudo’ for the user.
   };
 
-  environment.systemPackages = with pkgs; [
-    neovim
-    helix # neovim alternative in rust
-    lazygit # git tui
-    wget
-    firefox
-    qutebrowser
-    git
-    zellij
-    fd
-    nnn
-    lf # linux filemanager (go)
-    gnupg
-    pulsemixer
-    acpi # battery
-    ncdu # disk usage
-    fzf
-    ripgrep
-    zip
-    dotter # rust dotfiles manager
-    file # filetype identification
-    radare2 # reverse engineering debugger for badasses
-    #cutter # gui for radare2
-    killall
-    htop
-    btop # all the tops
-    protonvpn-cli
-    bat # syntax highlight for lf
-    rnix-lsp # lsp language server for nix (rust)
-    nixfmt
-    rclone
-    zig # needed for nvim lsp
-    # wish # ssh keys to mnemonics
-    sumneko-lua-language-server
-    viu # image preview for lf
-    unzip
-    mpv
-    cardboard
-    dwl # wm
-  ];
 
   # services.openssh.enable = true;
   services.tlp.enable = true;
@@ -169,16 +162,18 @@
     };
   };
 
-  systemd.targets.machines.enable = true;
-  systemd.nspawn."arch" = {
-    enable = true;
-    execConfig = {
-      Boot = true;
+  systemd = {
+    targets.machines.enable = true;
+    nspawn."arch" = {
+      enable = true;
+      execConfig = {
+        Boot = true;
+      };
     };
-  };
-  systemd.services."systemd-nspawn@arch" = {
-    enable = true;
-    wantedBy = [ "machines.target" ];
+    services."systemd-nspawn@arch" = {
+      enable = true;
+      wantedBy = [ "machines.target" ];
+    };
   };
 
   networking = {
@@ -191,6 +186,14 @@
     # proxy.default = "http://user:password@proxy:port/";
     # proxy.noProxy = "127.0.0.1,localhost,internal.domain";
   };
+
+  time.timeZone = "Asia/Bangkok";
+  i18n.defaultLocale = "en_US.UTF-8";
+  # console = {
+  #   font = "Lat2-Terminus16";
+  #   keyMap = "us";
+  #   useXkbConfig = true; # use xkbOptions in tty.
+  # };
 
   system.stateVersion = "22.05"; # determines system config state
 }

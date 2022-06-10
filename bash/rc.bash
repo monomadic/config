@@ -20,6 +20,10 @@ export EDITOR=nvim
 # foundry
 export PATH="$PATH:/home/dev/.foundry/bin"
 
+# deno
+export DENO_INSTALL="/home/dev/.deno"
+export PATH="$DENO_INSTALL/bin:$PATH"
+
 # ssh
 # export TERM=vt100
 
