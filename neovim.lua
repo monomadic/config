@@ -246,7 +246,7 @@ vim.cmd([[autocmd BufWritePost plugins.lua PackerCompile]])
 require('snippy').setup({
     mappings = {
         is = {
-            ['<C-i>'] = 'expand_or_advance',
+            ['<Tab>'] = 'expand_or_advance',
             ['<S-Tab>'] = 'previous',
         },
         nx = {
@@ -254,6 +254,12 @@ require('snippy').setup({
         },
     },
 })
+local mappings = require('snippy.mapping')
+vim.keymap.set('i', '<Tab>', mappings.expand_or_advance('<Tab>'))
+vim.keymap.set('s', '<Tab>', mappings.next('<Tab>'))
+vim.keymap.set({ 'i', 's' }, '<S-Tab>', mappings.previous('<S-Tab>'))
+vim.keymap.set('x', '<Tab>', mappings.cut_text, { remap = true })
+vim.keymap.set('n', 'g<Tab>', mappings.cut_text, { remap = true })
 
 require('telescope').setup{
   defaults = {
@@ -620,8 +626,8 @@ local custom_attach = function(client, bufnr)
   vim.keymap.set("n", '<leader>=', '<cmd>lua vim.lsp.buf.formatting()<CR>')
   vim.keymap.set("n", '<C-]>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
   vim.keymap.set("n", '<C-[>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
-  vim.keymap.set("n", '<Tab>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
-  vim.keymap.set("n", '<S-Tab>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
+  -- vim.keymap.set("n", '<Tab>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
+  -- vim.keymap.set("n", '<S-Tab>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
   vim.keymap.set("n", '\\', '<cmd>TroubleToggle<CR>')
 end
 

@@ -1,11 +1,11 @@
-snippet bevy-main "bevy main()"
+snippet bevy-main "bevy main() template"
   use bevy::prelude::*;
 
   fn main() {
       App::new().run();
   }
 
-snippet structopt "structopt args"
+snippet structopt "structopt template"
   use std::path::PathBuf;
   use structopt::StructOpt;
 
@@ -15,16 +15,18 @@ snippet structopt "structopt args"
   }
 
   #[derive(StructOpt)]
-  #[structopt(name = "${1}")]
+  #[structopt(name = "${1:name}")]
   struct Args {
       #[structopt(parse(from_os_str))]
       input: PathBuf,
   }
 
+snippet choices
+	print('My favorite language is: ${1|JavaScript,Lua,Rust|}')
 
 # Functions
 snippet fn "function"
-	fn ${1:function_name}(${2})${3} {
+	${1|fn,pub fn,async pub fn|} ${2:function_name}(${3})${4} {
 		${0}
 	}
 snippet pfn "pub function"
