@@ -1,9 +1,11 @@
 packages = [
   "default",
+  "helix",
   "bash",
   "lf",
-  "nvim"
+  "nvim",
 ]
 
 [variables]
-colorscheme = "gruvbox"
+colorscheme = "nightfly"
+zk_path = "~/workspaces/notes/zk"

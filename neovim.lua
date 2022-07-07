@@ -60,6 +60,9 @@ vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
 vim.keymap.set("i", "<C-h>", "<Esc><C-w><C-h>")
 vim.keymap.set("n", "<C-w><C-d>", "<cmd>vsplit<CR>")
 
+vim.keymap.set("n", "}", "}j")
+vim.keymap.set("n", "{", "{k")
+
 -- #plugins
 --
 vim.cmd [[packadd packer.nvim]]
@@ -79,10 +82,15 @@ require('packer').startup(function(use)
   use {'nvim-telescope/telescope.nvim', config = function()
     require('telescope').setup{}
   end}
-  use {'hrsh7th/nvim-cmp'} -- completion
+
+  -- cmp
+  use {
+    'hrsh7th/nvim-cmp',
+    wants = { "LuaSnip" },
+    requires = { "L3MON4D3/LuaSnip" }
+  }
   use {'hrsh7th/cmp-nvim-lsp'}
-  use {'honza/vim-snippets'}
-  use {'L3MON4D3/LuaSnip'}
+
   use {'norcalli/nvim-colorizer.lua', config = [[require"colorizer".setup()]]}
 
   -- custom tabline framework
@@ -205,6 +213,24 @@ require('packer').startup(function(use)
     })
   end}
 
+  -- snippets
+  use {
+      'L3MON4D3/LuaSnip',
+  }
+
+  -- nvim-snippy
+  use { 'dcampos/nvim-snippy' }
+  use { 'honza/vim-snippets' }
+  use { 'dcampos/cmp-snippy' }
+
+  -- for luasnip and cmp
+  use { 'saadparwaiz1/cmp_luasnip' }
+
+  use {
+    "benfowler/telescope-luasnip.nvim",
+    module = "telescope._extensions.luasnip",
+  }
+
   -- Todo
   use {
     "folke/todo-comments.nvim",
@@ -217,10 +243,22 @@ end)
 -- compile packer plugins on plugins.lua change
 vim.cmd([[autocmd BufWritePost plugins.lua PackerCompile]])
 
+require('snippy').setup({
+    mappings = {
+        is = {
+            ['<C-i>'] = 'expand_or_advance',
+            ['<S-Tab>'] = 'previous',
+        },
+        nx = {
+            ['<leader>x'] = 'cut_text',
+        },
+    },
+})
+
 require('telescope').setup{
   defaults = {
     prompt_prefix = " ",
-    file_ignore_patterns = {".git/", ".cache", "%.o", "%.a", "%.out", "%.class", "%.pdf", "%.mkv", "%.mp4", "%.zip", "*.lock"},
+    file_ignore_patterns = {".git/", ".cache", "%.o", "%.a", "%.out", "%.class", "%.pdf", "%.mkv", "%.mp4", "%.zip", "*.lock", "node_modules", "target"},
     buffer_previewer_maker = small_file_preview_only,
     mappings = {
       i = {
@@ -233,8 +271,17 @@ require('telescope').setup{
   }
 };
 
-vim.keymap.set('n', '<C-Space>', '<CMD>lua require("FTerm").toggle()<CR>')
-vim.keymap.set('t', '<C-Space>', '<C-\\><C-n><CMD>lua require("FTerm").toggle()<CR>')
+--vim.keymap.set('n', '<C-Space>', '<Esc><CMD>lua require("FTerm").toggle()<CR>')
+--vim.keymap.set('t', '<C-Space>', '<C-\\><C-n><CMD>lua require("FTerm").toggle()<CR>')
+vim.keymap.set({'n', 't'}, '<C-Space>', function ()
+  if (vim.api.nvim_win_get_config(0).relative ~= '') then
+    vim.api.nvim_input('<ESC>')
+  end
+  require('FTerm').toggle()
+end, NOREF_NOERR_TRUNC)
+
+-- luasnip
+
 
 -- go back
 vim.keymap.set('n', '<bs>', ':edit #<cr>', { silent = true })
@@ -262,7 +309,7 @@ require('neo-tree').setup({
   }
 })
 
-local home = vim.fn.expand("/mnt/data/notes/zk")
+local home = vim.fn.expand("{{zk_path}}")
 require('telekasten').setup {
   home = home,
   dailies      = home .. '/' .. 'daily',
@@ -342,11 +389,20 @@ vim.keymap.set("n", "<C-f>", function()
 end)
 --
 -- fuzzy file open
-vim.keymap.set("n", "<Tab>", function()
-  require('telescope.builtin').find_files(
-    require('telescope.themes').get_dropdown({ previewer = false })
-  )
-end)
+-- vim.keymap.set("n", "<Tab>", function()
+--   require('telescope.builtin').find_files(
+--     require('telescope.themes').get_dropdown({ previewer = false })
+--   )
+-- end)
+--
+-- emacs style shortcuts in insert mode (yes, i am like that)
+vim.keymap.set("i", "<C-n>", "<Down>")
+vim.keymap.set("i", "<C-p>", "<Up>")
+vim.keymap.set("i", "<C-b>", "<Left>")
+vim.keymap.set("i", "<C-f>", "<Right>")
+vim.keymap.set("i", "<C-e>", "<End>")
+vim.keymap.set("i", "<C-a>", "<Home>")
+vim.keymap.set("i", "<C-s>", "<Esc>:write<CR>")
 
 vim.keymap.set("n", "<C-o>", function()
   require('telescope.builtin').find_files(
@@ -358,8 +414,8 @@ end)
 require('mkdnflow').setup({
   mappings = {
     MkdnToggleToDo = {'n', '<C-d>'},
-    MkdnNextHeading = {'n', '<C-]>'},
-    MkdnPrevHeading = {'n', '<C-[>'},
+    MkdnNextHeading = {'n', '<}>'},
+    MkdnPrevHeading = {'n', '<{>'},
     -- MkdnNextLink = {'n', '<C-\'>'},
     -- MkdnPrevLink = {'n', '<C-;>'},
   }
@@ -442,8 +498,8 @@ vim.keymap.set("n", "Qa", "<cmd>qa<cr>");
 vim.keymap.set("n", "cf", "<cmd>cd %:p:h | pwd<cr>")
 vim.keymap.set("n", "cr", "<cmd>lua find_project_root()<cr>")
 -- tab for completion menu
-vim.keymap.set("i", "<Tab>", 'pumvisible() ? "\\<C-n>" : "\\<Tab>"', {expr = true})
-vim.keymap.set("i", "<S-Tab>", 'pumvisible() ? "\\<C-p>" : "\\<Tab>"', {expr = true})
+-- vim.keymap.set("i", "<Tab>", 'pumvisible() ? "\\<C-n>" : "\\<Tab>"', {expr = true})
+-- vim.keymap.set("i", "<S-Tab>", 'pumvisible() ? "\\<C-p>" : "\\<Tab>"', {expr = true})
 
 -- #statusline
 --
@@ -482,6 +538,12 @@ vim.keymap.set('n', 'tm', '<Cmd>Telescope marks<cr>')
 vim.keymap.set('n', 'tr', '<Cmd>Telescope live_grep<cr>')
 vim.keymap.set('n', 'tt', '<Cmd>TodoTelescope<cr>')
 vim.keymap.set('n', 'tz', '<Cmd>Telekasten find_notes<cr>')
+vim.keymap.set("n", "ts", function()
+  require("luasnip.loaders.from_snipmate").lazy_load()
+  require('telescope').load_extension('luasnip')
+  vim.api.nvim_command('Telescope luasnip')
+end)
+
 
 -- ===== simple session management =====
 local session_dir = vim.fn.stdpath('data') .. '/sessions/'
@@ -558,6 +620,8 @@ local custom_attach = function(client, bufnr)
   vim.keymap.set("n", '<leader>=', '<cmd>lua vim.lsp.buf.formatting()<CR>')
   vim.keymap.set("n", '<C-]>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
   vim.keymap.set("n", '<C-[>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
+  vim.keymap.set("n", '<Tab>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
+  vim.keymap.set("n", '<S-Tab>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
   vim.keymap.set("n", '\\', '<cmd>TroubleToggle<CR>')
 end
 
@@ -623,12 +687,14 @@ vim.cmd('autocmd FileType markdown set autowriteall') -- ensure write upon leavi
 local cmp = require('cmp')
 cmp.setup {
   sources = {
-    { name = 'nvim_lsp' }
+    { name = 'nvim_lsp' },
+    --{ name = "luasnip" },
+    { name = 'snippy' },
   },
   preselect = cmp.PreselectMode.None,
   snippet = {
     expand = function(args)
-      require('luasnip').lsp_expand(args.body) -- For `luasnip` users.
+      require('luasnip').lsp_expand(args.body)
     end,
   },
   mapping = {

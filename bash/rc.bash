@@ -1,5 +1,7 @@
 echo ".bashrc loaded"
 
+eval "$(/opt/homebrew/bin/brew shellenv)"
+
 # aliases
 #
 alias lg=lazygit

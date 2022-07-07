@@ -7,6 +7,7 @@ depends = []
 
 [default.variables]
 "colorscheme" = "zellner"
+"zk_path" = "/mnt/data/notes/zk"
 
 [nvim-container]
 files = { nvim-container = "~/.config/nvim" }
@@ -24,7 +25,7 @@ files = { "bash/rc.bash" = "~/.bashrc", "bash/fzm.bash" = "~/.bash/fzm.bash" }
 "waybar" = "~/.config/waybar"
 
 [nvim]
-files = { "neovim.lua" = "~/.config/nvim/init.lua" }
+files = { "neovim.lua" = "~/.config/nvim/init.lua", "snippets" = "~/.config/nvim/snippets" }
 # variables = { "colorscheme" = "darkblue" }
 
 [foot]
@@ -32,6 +33,9 @@ files = { "foot/foot.ini" = "~/.config/foot/foot.ini" }
 
 [xdg]
 files = { "xdg-applications" = "~/.local/share/applications" }
+
+[helix]
+files = { "helix" = "~/.config/helix" }
 
 [lf]
 [lf.files]
