@@ -1,17 +1,41 @@
+snippet bevy-main "bevy main()"
+  use bevy::prelude::*;
+
+  fn main() {
+      App::new().run();
+  }
+
+snippet structopt "structopt args"
+  use std::path::PathBuf;
+  use structopt::StructOpt;
+
+  pub(crate) fn run() -> Result<(), Box<dyn std::error::Error>> {
+      let args = Args::from_args();
+      let buffer = std::fs::read(args.input)?;
+  }
+
+  #[derive(StructOpt)]
+  #[structopt(name = "${1}")]
+  struct Args {
+      #[structopt(parse(from_os_str))]
+      input: PathBuf,
+  }
+
+
 # Functions
-snippet fn "Function definition"
+snippet fn "function"
 	fn ${1:function_name}(${2})${3} {
 		${0}
 	}
-snippet pfn "Function definition"
+snippet pfn "pub function"
 	pub fn ${1:function_name}(${2})${3} {
 		${0}
 	}
-snippet afn "Async function definition"
+snippet afn "async function"
 	async fn ${1:function_name}(${2})${3} {
 		${0}
 	}
-snippet pafn "Async function definition"
+snippet pafn "pub async function"
 	pub async fn ${1:function_name}(${2})${3} {
 		${0}
 	}
@@ -30,16 +54,8 @@ snippet main "Main function"
 	pub fn main() {
 		${0}
 	}
-snippet let "let variable declaration with type inference"
-	let ${1} = ${2};
-snippet lett "let variable declaration with explicit type annotation"
-	let ${1}: ${2} = ${3};
-snippet letm "let mut variable declaration with type inference"
-	let mut ${1} = ${2};
-snippet lettm "let mut variable declaration with explicit type annotation"
-	let mut ${1}: ${2} = ${3};
-snippet pri "print!"
-	print!("${1}");
+snippet prd "print debug"
+	print!("{:?}", ${1});
 snippet pri, "print! with format param"
 	print!("${1}{${2}}", ${3});
 snippet pln "println!"
