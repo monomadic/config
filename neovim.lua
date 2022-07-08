@@ -504,8 +504,6 @@ vim.keymap.set("n", "Qa", "<cmd>qa<cr>");
 vim.keymap.set("n", "cf", "<cmd>cd %:p:h | pwd<cr>")
 vim.keymap.set("n", "cr", "<cmd>lua find_project_root()<cr>")
 -- tab for completion menu
--- vim.keymap.set("i", "<Tab>", 'pumvisible() ? "\\<C-n>" : "\\<Tab>"', {expr = true})
--- vim.keymap.set("i", "<S-Tab>", 'pumvisible() ? "\\<C-p>" : "\\<Tab>"', {expr = true})
 
 -- #statusline
 --
@@ -626,9 +624,21 @@ local custom_attach = function(client, bufnr)
   vim.keymap.set("n", '<leader>=', '<cmd>lua vim.lsp.buf.formatting()<CR>')
   vim.keymap.set("n", '<C-]>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
   vim.keymap.set("n", '<C-[>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
-  -- vim.keymap.set("n", '<Tab>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
-  -- vim.keymap.set("n", '<S-Tab>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
+  vim.keymap.set("n", ']d', '<cmd>lua vim.diagnostic.goto_next()<CR>')
+  vim.keymap.set("n", '[d', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
   vim.keymap.set("n", '\\', '<cmd>TroubleToggle<CR>')
+
+  vim.keymap.set("n", ']e', function()
+    vim.diagnostic.goto_next({
+      severity = vim.diagnostic.severity.ERROR,
+    })
+  end)
+
+  vim.keymap.set("n", '[e', function()
+    vim.diagnostic.goto_prev({
+      severity = vim.diagnostic.severity.ERROR,
+    })
+  end)
 end
 
 -- cmp/lsp config
