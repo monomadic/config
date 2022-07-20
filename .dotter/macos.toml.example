@@ -8,4 +8,4 @@ packages = [
 
 [variables]
 colorscheme = "nightfly"
-zk_path = "~/workspaces/notes/zk"
+zk_path = "~/workspaces/notes"

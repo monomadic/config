@@ -11,7 +11,7 @@ end
 
 -- settings
 --
-vim.g.mapleader = '\\' -- leader key
+vim.g.mapleader = ' ' -- leader key
 vim.g.tex_flavor = "latex"
 vim.g.vim_markdown_edit_url_in = 'current' -- open md links as (vplit | current)
 vim.g.vim_markdown_new_list_item_indent = 2 -- markdown list indent
@@ -63,10 +63,16 @@ vim.keymap.set("n", "<C-w><C-d>", "<cmd>vsplit<CR>")
 vim.keymap.set("n", "}", "}j")
 vim.keymap.set("n", "{", "{k")
 
+vim.keymap.set("n", "gd", function() vim.lsp.buf.definition() end)
+vim.keymap.set("n", "gD", function() vim.lsp.buf.declaration() end)
+vim.keymap.set("n", "gr", function() vim.lsp.buf.references() end)
+
 -- #plugins
 --
 vim.cmd [[packadd packer.nvim]]
 require('packer').startup(function(use)
+  use {'ptzz/lf.vim', requires = {'voldikss/vim-floaterm'}}
+  use {'kdheepak/lazygit.nvim'}
   use {'lambdalisue/suda.vim'} -- sudo
   use {'wbthomason/packer.nvim' }
   use {'tpope/vim-fugitive'}
@@ -96,7 +102,7 @@ require('packer').startup(function(use)
   -- custom tabline framework
   use { "rafcamlet/tabline-framework.nvim",  requires = "kyazdani42/nvim-web-devicons" }
 
-  use 'stevearc/aerial.nvim' -- aerial view / overview of lsp structure
+  use 'stevearc/aerial.nvim' -- aerial view / overview of lsp structureneo
 
   -- jump/sneak
   use({
@@ -239,9 +245,19 @@ require('packer').startup(function(use)
       require('todo-comments').setup {}
     end
   }
+
+  -- better lsp ui
+  use { "glepnir/lspsaga.nvim" }
 end)
 -- compile packer plugins on plugins.lua change
 vim.cmd([[autocmd BufWritePost plugins.lua PackerCompile]])
+
+-- lazygit
+-- let g:lazygit_floating_window_winblend = 0.1 -- transparency of floating window
+-- let g:lazygit_floating_window_scaling_factor = 0.9 -- scaling factor for floating window
+-- --let g:lazygit_floating_window_corner_chars = ['╭', '╮', '╰', '╯'] " customize lazygit popup window corner characters
+-- let g:lazygit_floating_window_use_plenary = 0 " use plenary.nvim to manage floating window if available
+-- let g:lazygit_use_neovim_remote = 1 " fallback to 0 if neovim-remote is not installed
 
 require('snippy').setup({
     mappings = {
@@ -260,6 +276,8 @@ vim.keymap.set('s', '<Tab>', mappings.next('<Tab>'))
 vim.keymap.set({ 'i', 's' }, '<S-Tab>', mappings.previous('<S-Tab>'))
 vim.keymap.set('x', '<Tab>', mappings.cut_text, { remap = true })
 vim.keymap.set('n', 'g<Tab>', mappings.cut_text, { remap = true })
+
+vim.keymap.set('n', '<leader>g', ':LazyGit<CR>')
 
 require('telescope').setup{
   defaults = {

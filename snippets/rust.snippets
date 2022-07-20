@@ -1,11 +1,84 @@
-snippet bevy-main "bevy main() template"
+snippet docstring "docstring"
+	//! ${0}
+
+snippet yew-cargo "yew cargo include"
+	yew = { git = "https://github.com/yewstack/yew", features=["csr"] }
+
+snippet yew-prelude "use yew"
+	use yew::prelude::*;
+
+snippet yew-main "yew main()"
+	use yew::prelude::*;
+
+	fn main() {
+		yew::Renderer::<App>::new().render();
+	}
+
+snippet yew-functional-component "yew functional component"
+	use yew::prelude::*;
+
+	#[derive(Properties, PartialEq)]
+	pub struct Props {
+			children: Children,
+	}
+
+	#[function_component]
+	pub fn ${1}(props: &Props) -> Html {
+		html! {
+			<div>
+				${0}
+			</div>
+		}
+	}
+
+snippet yew-struct-component "yew struct component"
+	use yew::{Component, Context, html, Html, Properties};
+
+	#[derive(Default, PartialEq, Properties)]
+	pub struct Props;
+
+	pub struct ${1};
+
+	impl Component for ${1} {
+		type Message = ();
+		type Properties = Props;
+
+		fn create(_ctx: &Context<Self>) -> Self {
+			${1}
+		}
+
+		fn view(&self, _ctx: &Context<Self>) -> Html {
+			html! {
+			}
+		}
+	}
+
+snippet tokio-main "tokio main()"
+	use anyhow::Result;
+	#[tokio::main]
+	async fn main() -> Result<()> {
+			Ok(())
+	}
+
+snippet main-bevy "bevy main() template"
   use bevy::prelude::*;
 
   fn main() {
-		App::new().run();
+		App::new().add_plugins(DefaultPlugins).run();
   }
 
-snippet structopt "structopt template"
+snippet bevy-cargo "bevy Cargo.toml"
+	[profile.dev]
+	opt-level = 1
+
+	[profile.dev.package."*"]
+	opt-level = 3
+
+	[dependencies]
+	bevy = { version = "0.7", features = ["dynamic"] }
+
+snippet args-structopt "structopt template"
+	// clap = { version = "3.2.8", features = ["derive"] }
   use std::path::PathBuf;
   use structopt::StructOpt;
 
@@ -21,6 +94,54 @@ snippet structopt "structopt template"
 		#[structopt(parse(from_os_str))]
 		input: PathBuf,
   }
+
+snippet args "env::args template"
+	use std::env;
+	fn main() {
+			let arguments: Vec<String> = env::args().collect();
+			${0}
+	}
+
+snippet main-clap "clap main()"
+	use anyhow::Result;
+	use clap::Parser;
+
+	#[derive(Parser, Debug)]
+	#[clap(author, version, about, long_about = None)]
+	struct Args {
+			/// Input file
+			#[clap(short, long, value_parser)]
+			input: std::path::PathBuf,
+
+			/// Number of times to greet
+			#[clap(short, long, value_parser, default_value_t = 1)]
+			count: u8,
+	}
+
+	fn main() -> Result<()> {
+			let args = Args::parse();
+
+			for _ in 0..args.count {
+					println!("Hello {:?}!", args.input)
+			}
+
+			Ok(())
+	}
+
+
+snippet fncmd "fncmd main()"
+	#[fncmd::fncmd]
+	pub fn main(
+		/// Argument foo
+		#[opt(short, long)]
+		foo: String,
+		/// Argument bar
+		#[opt(short, long)]
+		bar: Option<String>,
+	) {
+		println!("{:?} {:?}", foo, bar);
+		${0}
+	}
 
 snippet tokio-main "tokyo main() template"
 	#[tokio::main]
