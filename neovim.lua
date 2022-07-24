@@ -99,9 +99,7 @@ require('packer').startup(function(use)
   use {'nvim-telescope/telescope.nvim', config = function()
     require('telescope').setup{}
   end}
-
   --use { 'vijaymarupudi/nvim-fzf' }
-
   -- cmp
   use {
     'hrsh7th/nvim-cmp',
@@ -109,14 +107,10 @@ require('packer').startup(function(use)
     requires = { "L3MON4D3/LuaSnip" }
   }
   use {'hrsh7th/cmp-nvim-lsp'}
-
   use {'norcalli/nvim-colorizer.lua', config = [[require"colorizer".setup()]]}
-
   -- custom tabline framework
   use { "rafcamlet/tabline-framework.nvim",  requires = "kyazdani42/nvim-web-devicons" }
-
   use 'stevearc/aerial.nvim' -- aerial view / overview of lsp structureneo
-
   -- jump/sneak
   use({
     "phaazon/hop.nvim", -- alternative to sneak
@@ -127,15 +121,12 @@ require('packer').startup(function(use)
       vim.keymap.set("n", "S", "<Cmd>HopPattern<CR>")
     end
   })
-
   use {'chentoast/marks.nvim', config = function()
     require'marks'.setup {
       sign_priority = { lower=10, upper=15, builtin=8, bookmark=20 },
     }
   end}
-
   use { 'junegunn/goyo.vim' } -- distraction-free
-
   use {
     "folke/trouble.nvim",
     requires = "kyazdani42/nvim-web-devicons",
@@ -144,7 +135,6 @@ require('packer').startup(function(use)
       }
     end
   }
-
   use {'numToStr/Comment.nvim',
     config = function()
       -- `gcc` line comment
@@ -163,13 +153,10 @@ require('packer').startup(function(use)
       "MunifTanjim/nui.nvim",
     },
   }
-
   use {'renerocksai/telekasten.nvim'}
   use {'preservim/vim-markdown'}
   --use {'jghauser/follow-md-links.nvim'}
-
   use({'jakewvincent/mkdnflow.nvim'})
-
   -- use {
   --   -- surround completion
   --   "numToStr/Surround.nvim"
@@ -182,21 +169,18 @@ require('packer').startup(function(use)
   --     require('surround').setup {}
   --   end
   -- }
-
   use {'tamago324/nlsp-settings.nvim'}
-
   -- git
   use { "lewis6991/gitsigns.nvim", requires = {"nvim-lua/plenary.nvim"}, config = function()
     require('gitsigns').setup {}
   end}
-
   use { 'numToStr/FTerm.nvim', config = function()
     require'FTerm'.setup({
         border = 'none',
         hl = "Term",
     })
   end}
-
+  use { 'vimwiki/vimwiki' }
   -- #lsp
   -- cargo
   use({
@@ -216,14 +200,11 @@ require('packer').startup(function(use)
       requires = { "nvim-lua/plenary.nvim" },
   })
   use { 'simrat39/rust-tools.nvim' } -- rust lsp
-
   -- formatting
   use { 'lukas-reineke/lsp-format.nvim', config = function()
     require("lsp-format").setup {}
   end}
-
   use { "petertriho/nvim-scrollbar", config = "require'scrollbar'.setup()" } -- side scrollbar with git support
-
   use { "lukas-reineke/indent-blankline.nvim", config = function()
     require("indent_blankline").setup({
       show_current_context = true,
@@ -231,25 +212,20 @@ require('packer').startup(function(use)
       filetype_exclude = { "neo-tree", "help", "floaterm", "SidebarNvim", "" },
     })
   end}
-
   -- snippets
   use {
       'L3MON4D3/LuaSnip',
   }
-
   -- nvim-snippy
   use { 'dcampos/nvim-snippy' }
   use { 'honza/vim-snippets' }
   use { 'dcampos/cmp-snippy' }
-
   -- for luasnip and cmp
   use { 'saadparwaiz1/cmp_luasnip' }
-
   use {
     "benfowler/telescope-luasnip.nvim",
     module = "telescope._extensions.luasnip",
   }
-
   -- Todo
   use {
     "folke/todo-comments.nvim",
@@ -258,10 +234,10 @@ require('packer').startup(function(use)
       require('todo-comments').setup {}
     end
   }
-
   -- better lsp ui
   use { "glepnir/lspsaga.nvim" }
 end)
+
 -- compile packer plugins on plugins.lua change
 vim.cmd([[autocmd BufWritePost plugins.lua PackerCompile]])
 
@@ -271,6 +247,14 @@ vim.cmd([[autocmd BufWritePost plugins.lua PackerCompile]])
 -- --let g:lazygit_floating_window_corner_chars = ['╭', '╮', '╰', '╯'] " customize lazygit popup window corner characters
 -- let g:lazygit_floating_window_use_plenary = 0 " use plenary.nvim to manage floating window if available
 -- let g:lazygit_use_neovim_remote = 1 " fallback to 0 if neovim-remote is not installed
+
+-- vimwiki
+--
+vim.g.vimwiki_list = \{{
+  path = '~/wiki/',
+  syntax = 'markdown',
+  ext = '.md'
+}}
 
 require('snippy').setup({
     mappings = {
@@ -448,18 +432,18 @@ vim.keymap.set("n", "<C-o>", function()
   )
 end)
 
-vim.keymap.set("n", "<C-p>", ":Lf<CR>")
+vim.keymap.set("n", "<C-p>", "<Cmd>Lf<CR>")
 
 -- markdown
-require('mkdnflow').setup({
-  mappings = {
-    MkdnToggleToDo = {'n', '<C-d>'},
-    MkdnNextHeading = {'n', '<}>'},
-    MkdnPrevHeading = {'n', '<{>'},
-    -- MkdnNextLink = {'n', '<C-\'>'},
-    -- MkdnPrevLink = {'n', '<C-;>'},
-  }
-})
+-- require('mkdnflow').setup({
+--   mappings = {
+--     MkdnToggleToDo = {'n', '<C-d>'},
+--     MkdnNextHeading = {'n', '<}>'},
+--     MkdnPrevHeading = {'n', '<{>'},
+--     -- MkdnNextLink = {'n', '<C-\'>'},
+--     -- MkdnPrevLink = {'n', '<C-;>'},
+--   }
+-- })
 
 --telekasten
 vim.keymap.set("n", "z", "<Cmd>Telekasten panel<CR>")
@@ -510,7 +494,7 @@ vim.keymap.set("v", "<leader>x", "<cmd>MultiCommenterToggle<cr>")
 vim.keymap.set("n", "<leader>x", "<cmd>SingleCommenterToggle<cr>")
 
 -- terminal mappings
-vim.keymap.set("t", "<Esc>", "<C-\\><C-n>")
+--vim.keymap.set("t", "<Esc>", "<C-\\><C-n>")
 
 vim.keymap.set("n", "<leader>t", "<cmd>sp | term<cr>")
 -- termdebugger
