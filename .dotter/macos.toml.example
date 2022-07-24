@@ -5,6 +5,8 @@ packages = [
   "helix",
   "lf",
   "nvim",
+  "skhd",
+  "kitty",
 ]
 
 [variables]

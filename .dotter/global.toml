@@ -12,6 +12,12 @@ depends = []
 [alacritty]
 files = { "alacritty" = "~/.config/alacritty" }
 
+[kitty]
+files = { "kitty.conf" = "~/.config/kitty/kitty.conf" }
+
+[skhd]
+files = { "skhd.conf" = "~/.config/skhd/skhdrc" }
+
 [nvim-container]
 files = { nvim-container = "~/.config/nvim" }
 
