@@ -9,6 +9,9 @@ depends = []
 "colorscheme" = "zellner"
 "zk_path" = "/mnt/data/notes/zk"
 
+[alacritty]
+files = { "alacritty" = "~/.config/alacritty" }
+
 [nvim-container]
 files = { nvim-container = "~/.config/nvim" }
 

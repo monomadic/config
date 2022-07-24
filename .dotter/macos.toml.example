@@ -1,7 +1,8 @@
 packages = [
+  "alacritty",
+  "bash",
   "default",
   "helix",
-  "bash",
   "lf",
   "nvim",
 ]

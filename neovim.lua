@@ -1,3 +1,4 @@
+
 -- @monomadic neovim 0.7+ compatible config
 -- requires: git
 
@@ -11,7 +12,7 @@ end
 
 -- settings
 --
-vim.g.mapleader = ' ' -- leader key
+vim.g.mapleader = "\\" -- leader key
 vim.g.tex_flavor = "latex"
 vim.g.vim_markdown_edit_url_in = 'current' -- open md links as (vplit | current)
 vim.g.vim_markdown_new_list_item_indent = 2 -- markdown list indent
@@ -47,6 +48,15 @@ vim.opt.wrap = false -- display lines as one long line
 vim.wo.foldexpr = 'nvim_treesitter#foldexpr()' -- use treesitter for folding
 vim.wo.foldmethod = 'expr' -- fold method (market | syntax)
 
+-- lf
+vim.g.lf_width = 0.8
+vim.g.lf_height = 0.8
+
+--vim.g.floaterm_borderchars = '        '
+vim.g.floaterm_title = ''
+vim.cmd("hi FloatermBorder guibg=black guifg=black")
+vim.cmd("hi Floaterm guibg=black")
+
 -- #keymaps
 --
 -- split navigation
@@ -71,6 +81,7 @@ vim.keymap.set("n", "gr", function() vim.lsp.buf.references() end)
 --
 vim.cmd [[packadd packer.nvim]]
 require('packer').startup(function(use)
+  use {'voldikss/vim-floaterm'}
   use {'ptzz/lf.vim', requires = {'voldikss/vim-floaterm'}}
   use {'kdheepak/lazygit.nvim'}
   use {'lambdalisue/suda.vim'} -- sudo
@@ -88,6 +99,8 @@ require('packer').startup(function(use)
   use {'nvim-telescope/telescope.nvim', config = function()
     require('telescope').setup{}
   end}
+
+  --use { 'vijaymarupudi/nvim-fzf' }
 
   -- cmp
   use {
@@ -277,7 +290,7 @@ vim.keymap.set({ 'i', 's' }, '<S-Tab>', mappings.previous('<S-Tab>'))
 vim.keymap.set('x', '<Tab>', mappings.cut_text, { remap = true })
 vim.keymap.set('n', 'g<Tab>', mappings.cut_text, { remap = true })
 
-vim.keymap.set('n', '<leader>g', ':LazyGit<CR>')
+vim.keymap.set('n', '<C-g>', '<Cmd>LazyGit<CR>')
 
 require('telescope').setup{
   defaults = {
@@ -329,6 +342,7 @@ require('neo-tree').setup({
     mappings = {
       ["l"] = "open",
       ["<C-l>"] = "open_vsplit",
+      ["<C-t>"] = "close",
     }
   }
 })
@@ -403,7 +417,7 @@ vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
 vim.keymap.set("n", "<C-k>", "<C-w><C-k>")
 vim.keymap.set("n", "<C-l>", "<C-w><C-l>")
 vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
-vim.keymap.set("", "<C-p>", "<Cmd>NeoTreeFloatToggle<CR>")
+vim.keymap.set("", "<C-b>", "<Cmd>NeoTreeFloatToggle<CR>")
 vim.keymap.set("n", "<C-s>", "<Cmd>write<CR>");
 vim.keymap.set("i", "<C-s>", "<Esc><Cmd>write<CR>");
 --
@@ -433,6 +447,8 @@ vim.keymap.set("n", "<C-o>", function()
     require('telescope.themes').get_dropdown()
   )
 end)
+
+vim.keymap.set("n", "<C-p>", ":Lf<CR>")
 
 -- markdown
 require('mkdnflow').setup({
@@ -474,7 +490,7 @@ vim.keymap.set("n", "<leader>ev", "<cmd>vs $MYVIMRC<CR>")
 vim.keymap.set("n", "<leader>sv", "<cmd>source $MYVIMRC<CR>")
 --
 -- quote quickly
-vim.keymap.set("i", '<leader>"', '<Esc>viw<Esc>a"<Esc>bi"<Esc>leli')
+--vim.keymap.set("i", '<leader>"', '<Esc>viw<Esc>a"<Esc>bi"<Esc>leli')
 vim.keymap.set("v", '<leader>"', '<Esc>`<i"<Esc>`>ea"<Esc>')
 -- substitute shortcut
 vim.keymap.set("n", "S", ":%s//g<Left><Left>")
@@ -566,6 +582,24 @@ vim.keymap.set("n", "ts", function()
   vim.api.nvim_command('Telescope luasnip')
 end)
 
+vim.api.nvim_create_user_command('Tig', function()
+  require('FTerm').scratch({
+    cmd = {'tig'},
+    -- autoclose = true,
+    -- on_stdout = function()
+    --   print("ko")
+    -- end
+  })
+end
+, { bang = true })
+
+-- vim.api.nvim_create_user_command('CargoBuild', function()
+--     require('FTerm').scratch({ cmd = {'cargo', 'build', '--target', os.getenv("RUST_TARGET")} })
+-- end, { bang = true })
+
+-- vim.keymap.set('n', '<C-t>', function()
+--   let cmd = 'lf -last-dir-path="' . lastdir_tmpfile . '" -selection-path="' . lf_tmpfile . '"'
+-- end)
 
 -- ===== simple session management =====
 local session_dir = vim.fn.stdpath('data') .. '/sessions/'
@@ -663,7 +697,10 @@ end
 --
 -- tsserver: npm install -g typescript typescript-language-server
 local lspconfig = require('lspconfig')
-local servers = { 'bashls', 'rnix', 'zk', 'tsserver' }
+local servers = { 'bashls', 'rnix', 'zk', 'tsserver', 'denols' }
+
+lspconfig.denols.setup{}
+
 local capabilities = require('cmp_nvim_lsp').update_capabilities(
   vim.lsp.protocol.make_client_capabilities()
 );
