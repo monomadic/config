@@ -50,3 +50,6 @@ files = { "helix" = "~/.config/helix" }
 [lf.files]
 "lf/lfrc.conf" = { target = "~/.config/lf/lfrc", type = "symbolic" }
 "lf/pv.sh" = "~/.config/lf/pv.sh"
+
+[zsh]
+files = { "zshrc.conf" = "~/.zshrc" }

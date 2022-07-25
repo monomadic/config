@@ -26,7 +26,6 @@ vim.opt.hidden = false -- switch buffer without unloading+saving them
 vim.opt.hlsearch = false -- highlight all matches on previous search pattern
 vim.opt.ignorecase = true -- ignore case when searching
 vim.opt.laststatus = 2 -- 3 = global statusline (neovim 0.7+)
-vim.opt.laststatus = 2 -- 3 = global statusline (neovim 0.7+)
 vim.opt.lazyredraw = true -- faster macros (force update with :redraw)
 vim.opt.mouse = "a" -- allow the mouse to be used in neovim
 vim.opt.number = true -- set numbered lines
@@ -49,6 +48,8 @@ vim.wo.foldexpr = 'nvim_treesitter#foldexpr()' -- use treesitter for folding
 vim.wo.foldmethod = 'expr' -- fold method (market | syntax)
 
 -- lf
+vim.g.floaterm_width = 0.8
+vim.g.floaterm_height = 0.8
 vim.g.lf_width = 0.8
 vim.g.lf_height = 0.8
 
@@ -84,7 +85,7 @@ vim.keymap.set("n", "gw", ":VimwikiGoto ")
 --
 vim.cmd [[packadd packer.nvim]]
 require('packer').startup(function(use)
-  use {'voldikss/vim-floaterm'}
+  --use {'voldikss/vim-floaterm'}
   use {'ptzz/lf.vim', requires = {'voldikss/vim-floaterm'}}
   use {'kdheepak/lazygit.nvim'}
   use {'lambdalisue/suda.vim'} -- sudo
@@ -177,12 +178,12 @@ require('packer').startup(function(use)
   use { "lewis6991/gitsigns.nvim", requires = {"nvim-lua/plenary.nvim"}, config = function()
     require('gitsigns').setup {}
   end}
-  use { 'numToStr/FTerm.nvim', config = function()
-    require'FTerm'.setup({
-        border = 'none',
-        hl = "Term",
-    })
-  end}
+  -- use { 'numToStr/FTerm.nvim', config = function()
+  --   require'FTerm'.setup({
+  --       border = 'none',
+  --       hl = "Term",
+  --   })
+  -- end}
   use { 'vimwiki/vimwiki' }
   -- #lsp
   -- cargo
@@ -301,8 +302,11 @@ vim.keymap.set({'n', 't'}, '<C-Space>', function ()
   if (vim.api.nvim_win_get_config(0).relative ~= '') then
     vim.api.nvim_input('<ESC>')
   end
-  require('FTerm').toggle()
+  --require('FTerm').toggle()
+  vim.cmd("FloatermToggle")
 end, NOREF_NOERR_TRUNC)
+--vim.keymap.set({'n', 't'}, '<C-Space>', ':FloatermToggle<CR>')
+
 
 -- luasnip
 
@@ -569,16 +573,16 @@ vim.keymap.set("n", "ts", function()
   vim.api.nvim_command('Telescope luasnip')
 end)
 
-vim.api.nvim_create_user_command('Tig', function()
-  require('FTerm').scratch({
-    cmd = {'tig'},
-    -- autoclose = true,
-    -- on_stdout = function()
-    --   print("ko")
-    -- end
-  })
-end
-, { bang = true })
+-- vim.api.nvim_create_user_command('Tig', function()
+--   require('FTerm').scratch({
+--     cmd = {'tig'},
+--     -- autoclose = true,
+--     -- on_stdout = function()
+--     --   print("ko")
+--     -- end
+--   })
+-- end
+-- , { bang = true })
 
 -- vim.api.nvim_create_user_command('CargoBuild', function()
 --     require('FTerm').scratch({ cmd = {'cargo', 'build', '--target', os.getenv("RUST_TARGET")} })
