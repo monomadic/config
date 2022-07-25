@@ -19,7 +19,7 @@ vim.g.vim_markdown_new_list_item_indent = 2 -- markdown list indent
 vim.opt.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (gnome)
 vim.opt.conceallevel = 0 -- so that `` is visible in markdown files
 vim.opt.cursorline = true -- highlight the current line
-vim.opt.expandtab = true -- convert tabs to spaces
+vim.opt.expandtab = false -- insert spaces when tab is pressed
 vim.opt.foldlevelstart = 99
 vim.opt.formatoptions = vim.o.formatoptions:gsub("r", ""):gsub("o", "")
 vim.opt.hidden = false -- switch buffer without unloading+saving them
@@ -46,6 +46,8 @@ vim.opt.termguicolors = true -- 24-bit color
 vim.opt.wrap = false -- display lines as one long line
 vim.wo.foldexpr = 'nvim_treesitter#foldexpr()' -- use treesitter for folding
 vim.wo.foldmethod = 'expr' -- fold method (market | syntax)
+
+vim.api.nvim_set_option('tabstop', 2)
 
 -- lf
 vim.g.floaterm_width = 0.8
@@ -733,6 +735,12 @@ require('rust-tools').setup({
         }
     },
 })
+
+vim.g.rust_recommended_style = 0 -- don't use default rust styles (causes indent problems)
+vim.g.rust_fold = 2
+vim.g.rustfmt_autosave = true
+vim.g.rust_conceal_mod_path = true
+vim.g.rust_conceal = true
 
 -- treesitter
 --
