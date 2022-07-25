@@ -78,7 +78,7 @@ vim.keymap.set("n", "gD", function() vim.lsp.buf.declaration() end)
 vim.keymap.set("n", "gr", function() vim.lsp.buf.references() end)
 
 vim.keymap.set("n", "gi", "<Cmd>VimwikiIndex<CR>")
-vim.keymap.set("n", "gg", ":VimwikiGoto ")
+vim.keymap.set("n", "gw", ":VimwikiGoto ")
 
 -- #plugins
 --
