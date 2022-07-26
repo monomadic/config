@@ -1,4 +1,3 @@
-
 -- @monomadic neovim 0.7+ compatible config
 -- requires: git
 
@@ -132,7 +131,7 @@ require('packer').startup(function(use)
       sign_priority = { lower=10, upper=15, builtin=8, bookmark=20 },
     }
   end}
-  use { 'junegunn/goyo.vim' } -- distraction-free
+  use { 'junegunn/goyo.vim' } -- distraction-free / zen mode
   use {
     "folke/trouble.nvim",
     requires = "kyazdani42/nvim-web-devicons",
@@ -175,6 +174,12 @@ require('packer').startup(function(use)
   --     require('surround').setup {}
   --   end
   -- }
+	use({
+		"https://git.sr.ht/~whynothugo/lsp_lines.nvim",
+		config = function()
+			require("lsp_lines").setup()
+		end,
+	})
   use {'tamago324/nlsp-settings.nvim'}
   -- git
   use { "lewis6991/gitsigns.nvim", requires = {"nvim-lua/plenary.nvim"}, config = function()
@@ -752,6 +757,7 @@ require'nvim-treesitter.configs'.setup {
 -- markdown
 --
 vim.cmd('autocmd FileType markdown set autowriteall') -- ensure write upon leaving a page
+vim.cmd('autocmd FileType markdown set wrap') -- wrap only markdown
 
 -- cmp
 local cmp = require('cmp')
