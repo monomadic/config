@@ -340,13 +340,9 @@ require('neo-tree').setup({
     mappings = {
       ["l"] = "open",
       ["<C-l>"] = "open_vsplit",
-      ["<C-t>"] = "close",
     }
   }
 })
-vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
-vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
-vim.cmd("hi NeoTreeFloatTitle guifg=bg guibg=bg");
 
 local home = vim.fn.expand("{{zk_path}}")
 require('telekasten').setup {
@@ -367,6 +363,9 @@ vim.cmd("colorscheme {{colorscheme}}");
 vim.cmd("highlight WinSeparator guifg=none");
 vim.cmd("hi TodoBgTODO guibg=#FFFF00 guifg=black");
 vim.cmd("hi TodoFgTODO guifg=#FFFF00");
+vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
+vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
+vim.cmd("hi NeoTreeFloatTitle guifg=bg guibg=bg");
 
 -- active window
 -- vim.cmd("set winhighlight=Normal:ActiveWindow,NormalNC:InactiveWindow");
