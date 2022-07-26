@@ -11,7 +11,7 @@ end
 
 -- settings
 --
-vim.g.mapleader = "\\" -- leader key
+vim.g.mapleader = " " -- leader key
 vim.g.tex_flavor = "latex"
 vim.g.vim_markdown_edit_url_in = 'current' -- open md links as (vplit | current)
 vim.g.vim_markdown_new_list_item_indent = 2 -- markdown list indent
@@ -53,6 +53,8 @@ vim.g.floaterm_width = 0.8
 vim.g.floaterm_height = 0.8
 vim.g.lf_width = 0.8
 vim.g.lf_height = 0.8
+vim.g.lf_map_keys = 0 -- disable default keymaps
+vim.g.lf_replace_netrw = 1 -- replace lf
 
 --vim.g.floaterm_borderchars = '        '
 vim.g.floaterm_title = ''
@@ -81,6 +83,10 @@ vim.keymap.set("n", "gr", function() vim.lsp.buf.references() end)
 
 vim.keymap.set("n", "gi", "<Cmd>VimwikiIndex<CR>")
 vim.keymap.set("n", "gw", ":VimwikiGoto ")
+
+-- use ; for commands instead of :
+vim.keymap.set("n", ";", ":")
+-- vim.keymap.set("n", "<Space>", ":")
 
 -- #plugins
 --
@@ -404,10 +410,16 @@ end})
 --
 -- split resize
 --
-vim.keymap.set("n", "<leader>-", "<cmd>vertical resize -10<CR>")
-vim.keymap.set("n", "<leader>+", "<cmd>vertical resize +10<CR>")
-vim.keymap.set("n", "<leader>_", "<cmd>resize -10<CR>")
-vim.keymap.set("n", "<leader>*", "<cmd>resize +10<CR>")
+-- vim.keymap.set("n", "<leader>-", "<cmd>vertical resize -10<CR>")
+-- vim.keymap.set("n", "<leader>+", "<cmd>vertical resize +10<CR>")
+-- vim.keymap.set("n", "<leader>_", "<cmd>resize -10<CR>")
+-- vim.keymap.set("n", "<leader>*", "<cmd>resize +10<CR>")
+vim.keymap.set("n", "<leader>ss", "<cmd>write<CR>")
+vim.keymap.set("n", "<leader>qq", "<cmd>quit<CR>")
+vim.keymap.set("n", "<leader>q!", "<cmd>quit!<CR>")
+vim.keymap.set("n", "<leader>wq", "<cmd>wq<CR>")
+vim.keymap.set("n", "<leader>sq", "<cmd>wq<CR>")
+--vim.keymap.set("n", "<leader>wq!", "<cmd>wq!<CR>")
 --
 -- split navigation
 --
@@ -483,7 +495,6 @@ vim.keymap.set("x", "J", ":move '>+1<CR>gv-gv")
 --
 -- useful bindings
 -- vim.keymap.set("i", "kj", "<Esc>")
--- vim.keymap.set("", "<Space>", ":")
 vim.keymap.set("n", "<leader>ev", "<cmd>vs $MYVIMRC<CR>")
 vim.keymap.set("n", "<leader>sv", "<cmd>source $MYVIMRC<CR>")
 --
@@ -554,11 +565,11 @@ vim.cmd("hi StatusLineNC guibg=none"); --inactive
 
 -- ===== telescope setup =====
 vim.keymap.set("n", 'tb', '<cmd>Telescope buffers<cr>')
--- vim.keymap.set("n", '<C-o>', '<cmd>Telescope find_files<cr>')
+vim.keymap.set("n", '<leader>f', '<cmd>Telescope find_files<cr>')
 vim.keymap.set("n", '<leader>h', '<cmd>Telescope oldfiles<cr>')
 vim.keymap.set("n", '<leader>c', '<cmd>Telescope commands<cr>')
 vim.keymap.set("n", '<leader>ch', '<cmd>Telescope command_history<cr>')
-vim.keymap.set("n", '<leader>f', '<cmd>Telescope live_grep<cr>')
+--vim.keymap.set("n", '<leader>f', '<cmd>Telescope live_grep<cr>')
 vim.keymap.set("n", 'ts', '<cmd>Telescope spell_suggest<cr>')
 vim.keymap.set('','<F1>', '<cmd>Telescope help_tags<cr>')
 vim.keymap.set('n', 'td', '<Cmd>Telescope diagnostics<cr>')
@@ -601,8 +612,8 @@ end)
 
 -- ===== simple session management =====
 local session_dir = vim.fn.stdpath('data') .. '/sessions/'
-vim.keymap.set("n", '<leader>ss', ':mks! ' .. session_dir)
-vim.keymap.set("n", '<leader>sr', ':%bd | so ' .. session_dir)
+vim.keymap.set("n", '<leader>mks', ':mks! ' .. session_dir)
+vim.keymap.set("n", '<leader>lds', ':%bd | so ' .. session_dir)
 
 -- ===== completion settings =====
 vim.o.completeopt="menuone,noinsert,noselect"
