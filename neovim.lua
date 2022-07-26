@@ -103,8 +103,16 @@ require('packer').startup(function(use)
   use {'morhetz/gruvbox'} -- theme
   use {'bluz71/vim-nightfly-guicolors'}
   use {'lunarvim/darkplus.nvim'}
-  use {'neovim/nvim-lspconfig'}
-  use {'williamboman/nvim-lsp-installer'} -- install lsp clients
+
+	-- lspconfig (with mason)
+	use {
+    "williamboman/mason.nvim",
+    "williamboman/mason-lspconfig.nvim",
+    "neovim/nvim-lspconfig",
+	}
+	require("mason").setup()
+	require("mason-lspconfig").setup()
+
   use {'nvim-treesitter/nvim-treesitter'}
   use {'nvim-lua/popup.nvim'}
   use {'nvim-lua/plenary.nvim'}
@@ -119,12 +127,14 @@ require('packer').startup(function(use)
     requires = { "L3MON4D3/LuaSnip" }
   }
   use {'hrsh7th/cmp-nvim-lsp'}
-  use {'norcalli/nvim-colorizer.lua', config = [[require"colorizer".setup()]]}
+  use {'norcalli/nvim-colorizer.lua', config = function()
+		require"colorizer".setup()
+	end}
   -- custom tabline framework
   use { "rafcamlet/tabline-framework.nvim",  requires = "kyazdani42/nvim-web-devicons" }
   use 'stevearc/aerial.nvim' -- aerial view / overview of lsp structureneo
   -- jump/sneak
-  use({
+  use {
     "phaazon/hop.nvim", -- alternative to sneak
     branch = "v1", -- optional but strongly recommended
     config = function()
@@ -132,7 +142,7 @@ require('packer').startup(function(use)
       vim.keymap.set("n", "s", "<Cmd>HopWord<CR>")
       vim.keymap.set("n", "S", "<Cmd>HopPattern<CR>")
     end
-  })
+  }
   use {'chentoast/marks.nvim', config = function()
     require'marks'.setup {
       sign_priority = { lower=10, upper=15, builtin=8, bookmark=20 },
@@ -187,7 +197,7 @@ require('packer').startup(function(use)
 			require("lsp_lines").setup()
 		end,
 	})
-  use {'tamago324/nlsp-settings.nvim'}
+  --use {'tamago324/nlsp-settings.nvim'} -- not sure
   -- git
   use { "lewis6991/gitsigns.nvim", requires = {"nvim-lua/plenary.nvim"}, config = function()
     require('gitsigns').setup {}
@@ -256,8 +266,10 @@ require('packer').startup(function(use)
   use { "glepnir/lspsaga.nvim" }
 end)
 
+-- end packer, start setup
+
 -- compile packer plugins on plugins.lua change
-vim.cmd([[autocmd BufWritePost plugins.lua PackerCompile]])
+-- vim.cmd([[autocmd BufWritePost plugins.lua PackerCompile]])
 
 -- lazygit
 -- let g:lazygit_floating_window_winblend = 0.1 -- transparency of floating window
@@ -298,7 +310,6 @@ require('telescope').setup{
   defaults = {
     prompt_prefix = " ",
     file_ignore_patterns = {".git/", ".cache", "%.o", "%.a", "%.out", "%.class", "%.pdf", "%.mkv", "%.mp4", "%.zip", "*.lock", "node_modules", "target"},
-    buffer_previewer_maker = small_file_preview_only,
     mappings = {
       i = {
         ["<Esc>"] = "close",
@@ -315,7 +326,7 @@ vim.keymap.set({'n', 't'}, '<C-Space>', function ()
     vim.api.nvim_input('<ESC>')
   end
   vim.cmd("FloatermToggle")
-end, NOREF_NOERR_TRUNC)
+end)
 
 -- go back
 vim.keymap.set('n', '<bs>', ':edit #<cr>', { silent = true })
@@ -518,24 +529,20 @@ vim.keymap.set("v", "<leader>x", "<cmd>MultiCommenterToggle<cr>")
 vim.keymap.set("n", "<leader>x", "<cmd>SingleCommenterToggle<cr>")
 
 -- ===== find project root for quick cd =====
-local api = vim.api
-function find_project_root()
-  local id = [[.git]]
-  local file = api.nvim_buf_get_name(0)
-  local root = vim.fn.finddir(id, file .. ';')
-  if root ~= "" then
-    root = root:gsub(id, '')
-    print(root)
-    vim.api.nvim_set_current_dir(root)
-  else
-    print("No repo found.")
-  end
-end
+-- function find_project_root()
+--   local id = [[.git]]
+--   local file = api.nvim_buf_get_name(0)
+--   local root = vim.fn.finddir(id, file .. ';')
+--   if root ~= "" then
+--     root = root:gsub(id, '')
+--     print(root)
+--     vim.api.nvim_set_current_dir(root)
+--   else
+--     print("No repo found.")
+--   end
+-- end
 
--- smart cwd
 vim.keymap.set("n", "cf", "<cmd>cd %:p:h | pwd<cr>")
-vim.keymap.set("n", "cr", "<cmd>lua find_project_root()<cr>")
--- tab for completion menu
 
 -- #statusline
 --
@@ -694,14 +701,15 @@ end
 -- cmp/lsp config
 --
 -- tsserver: npm install -g typescript typescript-language-server
-local lspconfig = require('lspconfig')
-local servers = { 'bashls', 'rnix', 'zk', 'tsserver', 'denols' }
 
-lspconfig.denols.setup{}
+-- lspconfig.denols.setup{}
 
 local capabilities = require('cmp_nvim_lsp').update_capabilities(
   vim.lsp.protocol.make_client_capabilities()
 );
+local lspconfig = require('lspconfig')
+local servers = { 'bashls', 'denols', 'rnix', 'zk', 'tsserver', 'denols' }
+--local servers = require('mason').installed_servers()
 for _, lsp in ipairs(servers) do
   lspconfig[lsp].setup {
     on_attach = custom_attach,
@@ -709,8 +717,21 @@ for _, lsp in ipairs(servers) do
   }
 end
 
+lspconfig.sumneko_lua.setup{
+    on_attach = custom_attach,
+    capabilities = capabilities,
+    settings = {
+        Lua = {
+            diagnostics = {
+                globals = { 'vim' }
+            }
+        }
+    }
+}
+
 -- #rust-tools
 --
+require('rust-tools').setup({})
 require('rust-tools').setup({
     tools = {
         autoSetHints = true,
