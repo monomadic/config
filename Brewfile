@@ -9,6 +9,8 @@ tap "koekeishiya/formulae"
 
 cask_args appdir: "/Applications"
 
+brew "bk" # ebook reader
+brew "duf" # disk usage go
 brew "fzf"
 brew "git"
 brew "gzip"

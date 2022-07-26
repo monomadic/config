@@ -14,13 +14,14 @@ end
 vim.g.mapleader = " " -- leader key
 vim.g.tex_flavor = "latex"
 vim.g.vim_markdown_edit_url_in = 'current' -- open md links as (vplit | current)
-vim.g.vim_markdown_new_list_item_indent = 2 -- markdown list indent
+--vim.g.vim_markdown_new_list_item_indent = 2 -- markdown list indent
+vim.g.vim_markdown_new_list_item_indent = 1 -- indent new items on 'o' from n mode
 vim.opt.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (gnome)
 vim.opt.conceallevel = 0 -- so that `` is visible in markdown files
 vim.opt.cursorline = true -- highlight the current line
 vim.opt.expandtab = false -- insert spaces when tab is pressed
 vim.opt.foldlevelstart = 99
-vim.opt.formatoptions = vim.o.formatoptions:gsub("r", ""):gsub("o", "")
+--vim.opt.formatoptions = vim.o.formatoptions:gsub("r", ""):gsub("o", "")
 vim.opt.hidden = false -- switch buffer without unloading+saving them
 vim.opt.hlsearch = false -- highlight all matches on previous search pattern
 vim.opt.ignorecase = true -- ignore case when searching
@@ -333,7 +334,8 @@ vim.cmd("hi TablineFramework_1 gui=bold")
 -- tree
 --
 require('neo-tree').setup({
-  popup_border_style = "single",
+	close_if_last_window = true,
+  popup_border_style = "solid",
   window = {
     mappings = {
       ["l"] = "open",
@@ -342,6 +344,9 @@ require('neo-tree').setup({
     }
   }
 })
+vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
+vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
+vim.cmd("hi NeoTreeFloatTitle guifg=bg guibg=bg");
 
 local home = vim.fn.expand("{{zk_path}}")
 require('telekasten').setup {
@@ -408,13 +413,13 @@ end})
 --
 -- leader keys
 --
-vim.keymap.set("n", "<leader>ss", "<cmd>write<CR>")
-vim.keymap.set("n", "<leader>sq", "<cmd>wq<CR>")
+vim.keymap.set("n", "<leader>s", "<cmd>write<CR>")
+vim.keymap.set("n", "<leader>ww", "<cmd>wq!<CR>")
 vim.keymap.set("n", "<leader>wq", "<cmd>wq<CR>")
-vim.keymap.set("n", "<leader>qq", "<cmd>quit<CR>")
+vim.keymap.set("n", "<leader>q", "<cmd>quit<CR>")
+vim.keymap.set("n", "<leader>!", "<cmd>quit!<CR>")
 vim.keymap.set("n", "Q", "<cmd>quit<CR>")
 vim.keymap.set("n", "WQ", "<cmd>wq<CR>")
-vim.keymap.set("n", "<leader>q!", "<cmd>quit!<CR>")
 --vim.keymap.set("n", "<leader>wq!", "<cmd>wq!<CR>")
 vim.keymap.set("n", "<leader>lf", "<cmd>Lf<CR>")
 vim.keymap.set("n", "<leader>lg", "<cmd>LazyGit<CR>")
@@ -450,7 +455,7 @@ vim.keymap.set("i", "<C-e>", "<End>")
 vim.keymap.set("i", "<C-a>", "<Home>")
 vim.keymap.set("i", "<C-s>", "<Esc>:write<CR>")
 
-vim.keymap.set("n", "<C-o>", function()
+vim.keymap.set("n", "<leader>o", function()
   require('telescope.builtin').find_files(
     require('telescope.themes').get_dropdown()
   )
@@ -527,9 +532,6 @@ function find_project_root()
     print("No repo found.")
   end
 end
-
--- I always type :Qa accidentally... should be using ZZ
-vim.keymap.set("n", "Qa", "<cmd>qa<cr>");
 
 -- smart cwd
 vim.keymap.set("n", "cf", "<cmd>cd %:p:h | pwd<cr>")
