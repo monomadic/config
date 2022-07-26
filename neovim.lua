@@ -1,4 +1,4 @@
--- @monomadic neovim 0.7+ compatible config
+-- @monomadic neovim 0.7+
 -- requires: git
 
 -- packer
@@ -54,7 +54,7 @@ vim.g.floaterm_height = 0.8
 vim.g.lf_width = 0.8
 vim.g.lf_height = 0.8
 vim.g.lf_map_keys = 0 -- disable default keymaps
-vim.g.lf_replace_netrw = 1 -- replace lf
+--vim.g.lf_replace_netrw = 1 -- open when dir is opened from shell
 
 --vim.g.floaterm_borderchars = '        '
 vim.g.floaterm_title = ''
@@ -309,20 +309,12 @@ require('telescope').setup{
   }
 };
 
---vim.keymap.set('n', '<C-Space>', '<Esc><CMD>lua require("FTerm").toggle()<CR>')
---vim.keymap.set('t', '<C-Space>', '<C-\\><C-n><CMD>lua require("FTerm").toggle()<CR>')
 vim.keymap.set({'n', 't'}, '<C-Space>', function ()
   if (vim.api.nvim_win_get_config(0).relative ~= '') then
     vim.api.nvim_input('<ESC>')
   end
-  --require('FTerm').toggle()
   vim.cmd("FloatermToggle")
 end, NOREF_NOERR_TRUNC)
---vim.keymap.set({'n', 't'}, '<C-Space>', ':FloatermToggle<CR>')
-
-
--- luasnip
-
 
 -- go back
 vim.keymap.set('n', '<bs>', ':edit #<cr>', { silent = true })
@@ -409,17 +401,23 @@ end})
 -- keymaps
 --
 -- split resize
---
 -- vim.keymap.set("n", "<leader>-", "<cmd>vertical resize -10<CR>")
 -- vim.keymap.set("n", "<leader>+", "<cmd>vertical resize +10<CR>")
 -- vim.keymap.set("n", "<leader>_", "<cmd>resize -10<CR>")
 -- vim.keymap.set("n", "<leader>*", "<cmd>resize +10<CR>")
+--
+-- leader keys
+--
 vim.keymap.set("n", "<leader>ss", "<cmd>write<CR>")
-vim.keymap.set("n", "<leader>qq", "<cmd>quit<CR>")
-vim.keymap.set("n", "<leader>q!", "<cmd>quit!<CR>")
-vim.keymap.set("n", "<leader>wq", "<cmd>wq<CR>")
 vim.keymap.set("n", "<leader>sq", "<cmd>wq<CR>")
+vim.keymap.set("n", "<leader>wq", "<cmd>wq<CR>")
+vim.keymap.set("n", "<leader>qq", "<cmd>quit<CR>")
+vim.keymap.set("n", "Q", "<cmd>quit<CR>")
+vim.keymap.set("n", "WQ", "<cmd>wq<CR>")
+vim.keymap.set("n", "<leader>q!", "<cmd>quit!<CR>")
 --vim.keymap.set("n", "<leader>wq!", "<cmd>wq!<CR>")
+vim.keymap.set("n", "<leader>lf", "<cmd>Lf<CR>")
+vim.keymap.set("n", "<leader>lg", "<cmd>LazyGit<CR>")
 --
 -- split navigation
 --
@@ -487,7 +485,7 @@ vim.cmd("hi tkLink ctermfg=Magenta cterm=bold,underline guifg=#FF00DF gui=bold,u
 vim.cmd("hi tkBrackets ctermfg=gray guifg=gray")
 
 -- run command in current line and paste stout into current buffer
-vim.keymap.set("n", "Q", "!!$SHELL<CR>")
+--vim.keymap.set("n", "Q", "!!$SHELL<CR>")
 
 -- move lines up and down in visual mode
 vim.keymap.set("x", "K", ":move '<-2<CR>gv-gv")
@@ -495,8 +493,8 @@ vim.keymap.set("x", "J", ":move '>+1<CR>gv-gv")
 --
 -- useful bindings
 -- vim.keymap.set("i", "kj", "<Esc>")
-vim.keymap.set("n", "<leader>ev", "<cmd>vs $MYVIMRC<CR>")
 vim.keymap.set("n", "<leader>sv", "<cmd>source $MYVIMRC<CR>")
+--vim.keymap.set("n", "<leader>ev", "<cmd>vs $MYVIMRC<CR>")
 --
 -- quote quickly
 --vim.keymap.set("i", '<leader>"', '<Esc>viw<Esc>a"<Esc>bi"<Esc>leli')
@@ -504,26 +502,16 @@ vim.keymap.set("v", '<leader>"', '<Esc>`<i"<Esc>`>ea"<Esc>')
 -- substitute shortcut
 vim.keymap.set("n", "S", ":%s//g<Left><Left>")
 vim.keymap.set("v", "S", ":s//g<Left><Left>")
--- quickfix navigation
-vim.keymap.set("n", "<leader>q", "<cmd>cnext<cr>")
-vim.keymap.set("n", "<leader>Q", "<cmd>cprev<cr>")
 -- spellcheck
-vim.keymap.set("n", "<leader>sp", ":setlocal spell spelllang=de")
+vim.keymap.set("n", "<leader>sp", ":setlocal spell spelllang=en")
 -- more reachable line start/end
 vim.keymap.set("n", "H", "^")
 vim.keymap.set("n", "L", "$")
 -- write to ----READONLY---- files
-vim.keymap.set("c", "w!!",  "execute 'silent! write !sudo tee % >/dev/null' <bar> edit!")
+vim.keymap.set("c", "<C-w>",  "execute 'silent! write !sudo tee % >/dev/null' <bar> edit!")
 -- nvim-commenter
 vim.keymap.set("v", "<leader>x", "<cmd>MultiCommenterToggle<cr>")
 vim.keymap.set("n", "<leader>x", "<cmd>SingleCommenterToggle<cr>")
-
--- terminal mappings
---vim.keymap.set("t", "<Esc>", "<C-\\><C-n>")
-
-vim.keymap.set("n", "<leader>t", "<cmd>sp | term<cr>")
--- termdebugger
-vim.keymap.set("n", "<leader>dd", ":TermdebugCommand")
 
 -- ===== find project root for quick cd =====
 local api = vim.api
@@ -560,7 +548,7 @@ local stl = {
   ' %M', ' %y', ' %r'
 }
 vim.o.statusline = table.concat(stl)
-vim.cmd("hi StatusLine guibg=#002233 guifg=#00FFAA"); --active
+vim.cmd("hi StatusLine guibg=none guifg=#00FFAA"); --active
 vim.cmd("hi StatusLineNC guibg=none"); --inactive
 
 -- ===== telescope setup =====
