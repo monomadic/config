@@ -417,6 +417,9 @@ vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
 vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
 vim.cmd("hi NeoTreeFloatTitle guifg=bg guibg=bg");
 
+vim.cmd("hi DiagnosticVirtualTextHint guifg=#F0F0AA")
+vim.cmd("hi DiagnosticVirtualTextError guifg=#F02282")
+
 -- active window
 -- vim.cmd("set winhighlight=Normal:ActiveWindow,NormalNC:InactiveWindow");
 -- vim.cmd("hi ActiveWindow guibg=#092236");
@@ -434,11 +437,12 @@ vim.cmd([[autocmd BufWritePre * %s/\n\+\%$//e]])
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	-- if no args are passed
 	if vim.fn.argc() == 0 then
-		vim.cmd([[enew]])
-		vim.cmd([[setlocal bufhidden=wipe buftype=nofile nobuflisted nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber]])
+		vim.cmd "enew"
+		vim.cmd "setlocal bufhidden=wipe buftype=nofile nobuflisted nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
 		vim.cmd([[call append('$', "")]])
 
-		require('telescope.builtin').find_files()
+		vim.cmd "Lf"
+		--require('telescope.builtin').find_files()
 	end
 end })
 
@@ -758,20 +762,29 @@ end
 --
 -- tsserver: npm install -g typescript typescript-language-server
 
--- lspconfig.denols.setup{}
-
 local capabilities = require('cmp_nvim_lsp').update_capabilities(
 	vim.lsp.protocol.make_client_capabilities()
 );
 local lspconfig = require('lspconfig')
-local servers = { 'bashls', 'denols', 'rnix', 'zk', 'tsserver', 'denols' }
---local servers = require('mason').installed_servers()
-for _, lsp in ipairs(servers) do
+for _, lsp in ipairs({ 'bashls', 'rnix', 'zk', 'denols' }) do
 	lspconfig[lsp].setup {
 		on_attach = custom_attach,
 		capabilities = capabilities,
 	}
 end
+
+-- lspconfig.tsserver.setup({
+-- 	on_attach = function(client, _)
+-- 		require('nvim-lsp-ts-utils').setup({
+-- 			filter_out_diagnostics_by_code = { 80001 },
+-- 		})
+-- 		require('nvim-lsp-ts-utils').setup_client(client)
+-- 	end,
+-- })
+
+-- lspconfig.denols.setup {
+-- 	root_dir = lspconfig.util.root_pattern("mod.ts", "mod.js")
+-- }
 
 lspconfig.sumneko_lua.setup {
 	on_attach = custom_attach,
