@@ -76,7 +76,7 @@ vim.keymap.set("i", "<C-h>", "<Esc><C-w><C-h>")
 vim.keymap.set("n", "<C-w><C-d>", "<cmd>vsplit<CR>")
 
 vim.keymap.set("n", "}", "}j")
-vim.keymap.set("n", "{", "{k")
+vim.keymap.set("n", "{", "k{j")
 
 vim.keymap.set("n", "gd", function() vim.lsp.buf.definition() end)
 vim.keymap.set("n", "gD", function() vim.lsp.buf.declaration() end)
