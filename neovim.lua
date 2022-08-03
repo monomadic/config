@@ -30,7 +30,7 @@ vim.opt.lazyredraw = true -- faster macros (force update with :redraw)
 vim.opt.mouse = "a" -- allow the mouse to be used in neovim
 vim.opt.number = true -- set numbered lines
 vim.opt.number = true -- set numbered lines
-vim.opt.relativenumber = false -- set relative numbered lines
+vim.opt.relativenumber = true -- set relative numbered lines
 vim.opt.scrolloff = 1000 -- keep line centered (disable if scrolling past eof is enabled)
 vim.opt.shiftwidth = 2 -- the number of spaces inserted for each indentation
 vim.opt.showmatch = true -- matching parenthesis
@@ -83,7 +83,7 @@ vim.keymap.set("n", "gD", function() vim.lsp.buf.declaration() end)
 vim.keymap.set("n", "gr", function() vim.lsp.buf.references() end)
 
 vim.keymap.set("n", "gi", "<Cmd>VimwikiIndex<CR>")
-vim.keymap.set("n", "gw", ":VimwikiGoto ")
+vim.keymap.set("n", "gw", "<Cmd>VimwikiGoto ")
 
 -- use ; for commands instead of :
 vim.keymap.set("n", ";", ":")
@@ -491,6 +491,9 @@ vim.keymap.set("n", "<leader>lg", "<cmd>LazyGit<CR>")
 
 vim.keymap.set("n", "<leader>t", "<cmd>Neotree<CR>")
 vim.keymap.set("n", "<leader>b", "<cmd>Neotree buffers<CR>")
+
+vim.keymap.set("n", "<leader>h1", "<Esc>/1.<CR>")
+vim.keymap.set("n", "<leader>h2", "<Esc>/2.<CR>")
 
 --
 -- split navigation
