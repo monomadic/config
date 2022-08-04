@@ -11,17 +11,17 @@ end
 
 -- settings
 --
+--vim.g.vim_markdown_new_list_item_indent = 2 -- markdown list indent
+--vim.opt.formatoptions = vim.o.formatoptions:gsub("r", ""):gsub("o", "")
 vim.g.mapleader = " " -- leader key
 vim.g.tex_flavor = "latex"
 vim.g.vim_markdown_edit_url_in = 'current' -- open md links as (vplit | current)
---vim.g.vim_markdown_new_list_item_indent = 2 -- markdown list indent
 vim.g.vim_markdown_new_list_item_indent = 1 -- indent new items on 'o' from n mode
 vim.opt.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (gnome)
 vim.opt.conceallevel = 0 -- so that `` is visible in markdown files
 vim.opt.cursorline = true -- highlight the current line
 vim.opt.expandtab = false -- insert spaces when tab is pressed
 vim.opt.foldlevelstart = 99
---vim.opt.formatoptions = vim.o.formatoptions:gsub("r", ""):gsub("o", "")
 vim.opt.hidden = false -- switch buffer without unloading+saving them
 vim.opt.hlsearch = false -- highlight all matches on previous search pattern
 vim.opt.ignorecase = true -- ignore case when searching
@@ -49,6 +49,13 @@ vim.wo.foldmethod = 'expr' -- fold method (market | syntax)
 
 vim.api.nvim_set_option('tabstop', 2)
 
+vim.cmd("colorscheme {{colorscheme}}");
+
+-- tabline
+vim.opt.showtabline = 2 -- show the global tab line at the top of neovim
+vim.opt.tabline = "%!render_tabline()"
+vim.opt.tabline = ' [%{fnamemodify(getcwd(), ":t")}]'
+
 -- lf
 vim.g.floaterm_width = 0.8
 vim.g.floaterm_height = 0.8
@@ -56,11 +63,6 @@ vim.g.lf_width = 0.8
 vim.g.lf_height = 0.8
 vim.g.lf_map_keys = 0 -- disable default keymaps
 --vim.g.lf_replace_netrw = 1 -- open when dir is opened from shell
-
---vim.g.floaterm_borderchars = '        '
-vim.g.floaterm_title = ''
-vim.cmd("hi FloatermBorder guibg=black guifg=black")
-vim.cmd("hi Floaterm guibg=black")
 
 -- #keymaps
 -- to view current mappings: :verbose nmap <C-]>
@@ -93,6 +95,15 @@ vim.keymap.set("n", ";", ":")
 --
 vim.cmd [[packadd packer.nvim]]
 require('packer').startup(function(use)
+
+	-- mini utility plugins
+	-- https://github.com/echasnovski/mini.nvim#general-principles
+	--
+	-- use { 'echasnovski/mini.nvim', branch = 'stable', config = function()
+	-- 	-- require('mini.cursorword').setup({}) -- highlight word under cursor
+	-- 	require('mini.fuzzy').setup({}) -- fuzzy search (like rg)
+	-- end }
+
 	--use {'voldikss/vim-floaterm'}
 	use { 'ptzz/lf.vim', requires = { 'voldikss/vim-floaterm' } }
 	use { 'kdheepak/lazygit.nvim' }
@@ -100,9 +111,29 @@ require('packer').startup(function(use)
 	use { 'wbthomason/packer.nvim' }
 	-- use { 'tpope/vim-fugitive' } -- git commands (:G / :Git), use :!git
 	use { 'dylanaraps/wal.vim' }
-	use { 'morhetz/gruvbox' } -- theme
-	use { 'bluz71/vim-nightfly-guicolors' }
-	use { 'lunarvim/darkplus.nvim' }
+
+	-- #colorschemes
+	use { 'morhetz/gruvbox', config = function()
+		vim.g.gruvbox_contrast_dark = "hard"
+	end } -- theme
+	use 'bluz71/vim-nightfly-guicolors'
+	use { 'Mofiqul/vscode.nvim', config = function()
+		vim.o.background = 'dark'
+		require('vscode').setup({
+			transparent = true, -- transparent bg
+			color_overrides = {
+				vscGreen = '#555555',
+			},
+		})
+	end }
+	use 'kadekillary/skull-vim'
+	use 'andreasvc/vim-256noir'
+	--use { 'lunarvim/darkplus.nvim' }
+
+	-- requires nightly nvim
+	-- use { 'fgheng/winbar.nvim', config = function()
+	-- 	require('winbar').setup()
+	-- end }
 
 	-- lspconfig (with mason)
 	use {
@@ -130,8 +161,7 @@ require('packer').startup(function(use)
 	use { 'norcalli/nvim-colorizer.lua', config = function()
 		require "colorizer".setup()
 	end }
-	-- custom tabline framework
-	use { "rafcamlet/tabline-framework.nvim", requires = "kyazdani42/nvim-web-devicons" }
+
 	use 'stevearc/aerial.nvim' -- aerial view / overview of lsp structureneo
 	-- jump/sneak
 	use {
@@ -234,7 +264,11 @@ require('packer').startup(function(use)
 	use { 'lukas-reineke/lsp-format.nvim', config = function()
 		require("lsp-format").setup {}
 	end }
-	use { "petertriho/nvim-scrollbar", config = "require'scrollbar'.setup()" } -- side scrollbar with git support
+
+	use { "petertriho/nvim-scrollbar", config = function()
+		require('scrollbar').setup() -- side scrollbar with git support
+	end }
+
 	use { "lukas-reineke/indent-blankline.nvim", config = function()
 		require("indent_blankline").setup({
 			show_current_context = true,
@@ -290,7 +324,7 @@ require('packer').startup(function(use)
 		"Pocco81/true-zen.nvim",
 		config = function()
 			require("true-zen").setup {}
-		end,
+		end
 	}
 
 	-- treesitter-based dimming
@@ -298,6 +332,20 @@ require('packer').startup(function(use)
 		"folke/twilight.nvim",
 		config = function()
 			require("twilight").setup {}
+		end
+	}
+
+	-- make background highlight groups transparent
+	use { 'xiyaowong/nvim-transparent',
+		config = function()
+			require("transparent").setup {
+				enable = true,
+				extra_groups = {
+					"TablineFramework_1",
+					"StatusLine",
+					"FloatermBorder",
+				},
+			}
 		end
 	}
 end)
@@ -341,7 +389,6 @@ vim.keymap.set('s', '<Tab>', mappings.next('<Tab>'))
 vim.keymap.set({ 'i', 's' }, '<S-Tab>', mappings.previous('<S-Tab>'))
 vim.keymap.set('x', '<Tab>', mappings.cut_text, { remap = true })
 vim.keymap.set('n', 'g<Tab>', mappings.cut_text, { remap = true })
-
 vim.keymap.set('n', '<C-g>', '<Cmd>LazyGit<CR>')
 
 require('telescope').setup {
@@ -370,16 +417,8 @@ end)
 -- go back
 vim.keymap.set('n', '<bs>', ':edit #<cr>', { silent = true })
 
-vim.cmd("hi Term guibg=black")
+vim.api.nvim_set_hl(0, "Term", { bg = "Black" })
 
--- #tabline
-require('tabline_framework').setup {
-	render = function(f)
-		f.add(' %{fnamemodify(getcwd(), ":t")}')
-	end
-}
-vim.opt.showtabline = 2
-vim.cmd("hi TablineFramework_1 gui=bold")
 
 -- tree
 --
@@ -408,15 +447,12 @@ require('telekasten').setup {
 -- #00FF99 #FF00CC #FFFF00 #00CCFF
 --
 vim.cmd('syntax on')
-vim.g.gruvbox_contrast_dark = "hard"
-vim.cmd("colorscheme {{colorscheme}}");
-vim.cmd("highlight WinSeparator guifg=none");
+vim.cmd("hi WinSeparator guifg=none");
 vim.cmd("hi TodoBgTODO guibg=#FFFF00 guifg=black");
 vim.cmd("hi TodoFgTODO guifg=#FFFF00");
 vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
 vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
 vim.cmd("hi NeoTreeFloatTitle guifg=bg guibg=bg");
-
 vim.cmd("hi DiagnosticVirtualTextHint guifg=#F0F0AA")
 vim.cmd("hi DiagnosticVirtualTextError guifg=#F02282")
 
@@ -440,9 +476,7 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 		vim.cmd "enew"
 		vim.cmd "setlocal bufhidden=wipe buftype=nofile nobuflisted nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
 		vim.cmd([[call append('$', "")]])
-
-		vim.cmd "Lf"
-		--require('telescope.builtin').find_files()
+		-- vim.cmd "Lf"
 	end
 end })
 
@@ -611,17 +645,17 @@ vim.keymap.set("n", "cf", "<cmd>cd %:p:h | pwd<cr>")
 local stl = {
 	-- ' %{fnamemodify(getcwd(), ":t")}',
 	-- ' %{pathshorten(expand("%:p"))}',
-	' %{fnamemodify(expand("%"), ":~:.")}',
+	' %{fnamemodify(expand("%"), ":~:.")}', -- current file
 	-- ' %{pathshorten(expand("%"), ":~:.")}',
 	'%=',
 	-- '  %{FugitiveStatusline()}',
 	' %M', ' %y', ' %r'
 }
 vim.o.statusline = table.concat(stl)
-vim.cmd("hi StatusLine guibg=none guifg=#00FFAA"); --active
-vim.cmd("hi StatusLineNC guibg=none"); --inactive
+-- vim.cmd("hi StatusLine guibg=none guifg=#00FFAA"); --active
+-- vim.cmd("hi StatusLineNC guibg=none"); --inactive
 
--- ===== telescope setup =====
+-- #telescope
 vim.keymap.set("n", 'tb', '<cmd>Telescope buffers<cr>')
 vim.keymap.set("n", 'tc', '<cmd>Telescope commands<cr>')
 vim.keymap.set("n", '<leader>f', '<cmd>Telescope find_files<cr>')
@@ -803,7 +837,6 @@ lspconfig.sumneko_lua.setup {
 
 -- #rust-tools
 --
-require('rust-tools').setup({})
 require('rust-tools').setup({
 	tools = {
 		autoSetHints = true,
@@ -889,3 +922,13 @@ cmp.setup {
 
 vim.keymap.set('n', '<C-]>', ']]')
 vim.keymap.set('n', '<C-[>', '[[')
+--vim.g.floaterm_borderchars = '        '
+vim.g.floaterm_title = ''
+vim.cmd("hi FloatermBorder guibg=Black guifg=black")
+vim.cmd("hi Floaterm guibg=Black guifg=green")
+vim.cmd("hi NormalFloat guibg=Black")
+vim.cmd("hi Pmenu guibg=Black guifg=red")
+
+-- titlebar
+vim.api.nvim_set_hl(0, "TablineFramework_1", { fg = "green" })
+vim.api.nvim_set_hl(0, "CursorLine", { fg = "green" })

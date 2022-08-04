@@ -11,5 +11,5 @@ packages = [
 ]
 
 [variables]
-colorscheme = "nightfly"
+colorscheme = "vscode"
 zk_path = "~/workspaces/notes"
