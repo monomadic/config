@@ -49,13 +49,32 @@ vim.wo.foldmethod = 'expr' -- fold method (market | syntax)
 
 vim.api.nvim_set_option('tabstop', 2)
 
+-- https://gist.github.com/romainl/379904f91fa40533175dfaec4c833f2f
 vim.cmd("colorscheme {{colorscheme}}");
 
 -- tabline
 vim.opt.showtabline = 2 -- show the global tab line at the top of neovim
-vim.opt.tabline = "%!render_tabline()"
-vim.opt.tabline = ' [%{fnamemodify(getcwd(), ":t")}]'
+vim.opt.tabline = ' /%{fnamemodify(getcwd(), ":t")}'
+vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
+	vim.api.nvim_set_hl(0, "TabLineFill", { bg = "None" })
+end })
+-- vim.opt.tabline = "%!render_tabline()"
 
+
+-- floats
+vim.g.floaterm_borderchars = '        '
+vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
+	vim.api.nvim_set_hl(0, "NormalFloat", { bg = "None" })
+	vim.api.nvim_set_hl(0, "Floaterm", { bg = "Black" })
+end })
+
+-- -- manual terminal float (don't use this)
+-- vim.keymap.set("n", "<leader>n", function()
+-- 	vim.api.nvim_open_win(0, false, { relative = 'win', row = 3, col = 3, width = 12, height = 3 })
+-- 	vim.api.nvim_open_term(0, {})
+-- end)
+
+-- terminal / floaterm
 -- lf
 vim.g.floaterm_width = 0.8
 vim.g.floaterm_height = 0.8
@@ -63,6 +82,17 @@ vim.g.lf_width = 0.8
 vim.g.lf_height = 0.8
 vim.g.lf_map_keys = 0 -- disable default keymaps
 --vim.g.lf_replace_netrw = 1 -- open when dir is opened from shell
+vim.keymap.set({ 'n', 't' }, '<C-Space>', function()
+	if (vim.api.nvim_win_get_config(0).relative ~= '') then
+		vim.api.nvim_input('<ESC>')
+	end
+	vim.cmd("FloatermToggle")
+end)
+
+
+vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
+	--vim.api.nvim_set_hl(0, "TabLineFill", { bg = "None" })
+end })
 
 -- #keymaps
 -- to view current mappings: :verbose nmap <C-]>
@@ -96,6 +126,8 @@ vim.keymap.set("n", ";", ":")
 vim.cmd [[packadd packer.nvim]]
 require('packer').startup(function(use)
 
+	use { 'wbthomason/packer.nvim' }
+
 	-- mini utility plugins
 	-- https://github.com/echasnovski/mini.nvim#general-principles
 	--
@@ -106,9 +138,9 @@ require('packer').startup(function(use)
 
 	--use {'voldikss/vim-floaterm'}
 	use { 'ptzz/lf.vim', requires = { 'voldikss/vim-floaterm' } }
+	-- FloatermNew --height=0.6 --width=0.4 --wintype=float --name=floaterm1 --position=topleft --autoclose=2 lf
 	use { 'kdheepak/lazygit.nvim' }
 	use { 'lambdalisue/suda.vim' } -- sudo
-	use { 'wbthomason/packer.nvim' }
 	-- use { 'tpope/vim-fugitive' } -- git commands (:G / :Git), use :!git
 	use { 'dylanaraps/wal.vim' }
 
@@ -200,12 +232,40 @@ require('packer').startup(function(use)
 		end
 	}
 	use { 'nvim-telescope/telescope-bibtex.nvim', config = [[require"telescope".load_extension("bibtex")]], ft = 'tex' }
+
+	-- neotree
 	use { 'nvim-neo-tree/neo-tree.nvim',
 		requires = {
 			"nvim-lua/plenary.nvim",
 			"kyazdani42/nvim-web-devicons",
 			"MunifTanjim/nui.nvim",
 		},
+		config = function()
+			require('neo-tree').setup {
+				close_if_last_window = true,
+				popup_border_style = "solid",
+				window = {
+					mappings = {
+						["l"] = "open",
+						["<C-l>"] = "open_vsplit",
+					}
+				}
+			}
+
+			vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
+				vim.api.nvim_set_hl(0, "NeoTreeFloatBorder", { bg = "None", fg = "None" })
+				vim.api.nvim_set_hl(0, "NeoTreeFloatTitle", { bg = "None", fg = "None" })
+			end })
+
+			vim.keymap.set("n", "<leader>t", "<cmd>Neotree<CR>")
+			vim.keymap.set("n", "<leader>b", "<cmd>Neotree buffers<CR>")
+			vim.keymap.set("n", "<C-b>", "<Cmd>NeoTreeFloatToggle<CR>")
+			--vim.api.nvim_set_hl(0, "NeoTreeFloatBorder", { bg = "Red" })
+
+			-- vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
+			-- vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
+			-- vim.cmd("hi NeoTreeFloatTitle guifg=bg guibg=bg");
+		end
 	}
 	use { 'renerocksai/telekasten.nvim' }
 	use { 'preservim/vim-markdown' }
@@ -251,7 +311,7 @@ require('packer').startup(function(use)
 			require('crates').setup {}
 		end,
 	})
-	-- null
+	-- null lsp
 	use({
 		"jose-elias-alvarez/null-ls.nvim",
 		config = function()
@@ -341,7 +401,6 @@ require('packer').startup(function(use)
 			require("transparent").setup {
 				enable = true,
 				extra_groups = {
-					"TablineFramework_1",
 					"StatusLine",
 					"FloatermBorder",
 				},
@@ -407,13 +466,6 @@ require('telescope').setup {
 	}
 };
 
-vim.keymap.set({ 'n', 't' }, '<C-Space>', function()
-	if (vim.api.nvim_win_get_config(0).relative ~= '') then
-		vim.api.nvim_input('<ESC>')
-	end
-	vim.cmd("FloatermToggle")
-end)
-
 -- go back
 vim.keymap.set('n', '<bs>', ':edit #<cr>', { silent = true })
 
@@ -422,16 +474,6 @@ vim.api.nvim_set_hl(0, "Term", { bg = "Black" })
 
 -- tree
 --
-require('neo-tree').setup({
-	close_if_last_window = true,
-	popup_border_style = "solid",
-	window = {
-		mappings = {
-			["l"] = "open",
-			["<C-l>"] = "open_vsplit",
-		}
-	}
-})
 
 local home = vim.fn.expand("{{zk_path}}")
 require('telekasten').setup {
@@ -450,9 +492,6 @@ vim.cmd('syntax on')
 vim.cmd("hi WinSeparator guifg=none");
 vim.cmd("hi TodoBgTODO guibg=#FFFF00 guifg=black");
 vim.cmd("hi TodoFgTODO guifg=#FFFF00");
-vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
-vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
-vim.cmd("hi NeoTreeFloatTitle guifg=bg guibg=bg");
 vim.cmd("hi DiagnosticVirtualTextHint guifg=#F0F0AA")
 vim.cmd("hi DiagnosticVirtualTextError guifg=#F02282")
 
@@ -523,8 +562,6 @@ vim.keymap.set("n", "WQ", "<cmd>wq<CR>")
 vim.keymap.set("n", "<leader>lf", "<cmd>Lf<CR>")
 vim.keymap.set("n", "<leader>lg", "<cmd>LazyGit<CR>")
 
-vim.keymap.set("n", "<leader>t", "<cmd>Neotree<CR>")
-vim.keymap.set("n", "<leader>b", "<cmd>Neotree buffers<CR>")
 
 vim.keymap.set("n", "<leader>h1", "<Esc>/1.<CR>")
 vim.keymap.set("n", "<leader>h2", "<Esc>/2.<CR>")
@@ -536,7 +573,7 @@ vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
 vim.keymap.set("n", "<C-k>", "<C-w><C-k>")
 vim.keymap.set("n", "<C-l>", "<C-w><C-l>")
 vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
-vim.keymap.set("", "<C-b>", "<Cmd>NeoTreeFloatToggle<CR>")
+--vim.keymap.set("", "<C-b>", "<Cmd>NeoTreeFloatToggle<CR>")
 vim.keymap.set("n", "<C-s>", "<Cmd>write<CR>");
 vim.keymap.set("i", "<C-s>", "<Esc><Cmd>write<CR>");
 --
@@ -567,7 +604,9 @@ vim.keymap.set("n", "<leader>o", function()
 	)
 end)
 
-vim.keymap.set("n", "<C-p>", "<Cmd>Lf<CR>")
+vim.keymap.set("n", "<C-p>", function()
+	vim.cmd "FloatermNew --height=0.8 --width=0.8 --wintype=float --name=floaterm1 --position=center --autoclose=2 lf"
+end)
 
 -- markdown
 -- require('mkdnflow').setup({
@@ -922,7 +961,6 @@ cmp.setup {
 
 vim.keymap.set('n', '<C-]>', ']]')
 vim.keymap.set('n', '<C-[>', '[[')
---vim.g.floaterm_borderchars = '        '
 vim.g.floaterm_title = ''
 vim.cmd("hi FloatermBorder guibg=Black guifg=black")
 vim.cmd("hi Floaterm guibg=Black guifg=green")
@@ -930,5 +968,4 @@ vim.cmd("hi NormalFloat guibg=Black")
 vim.cmd("hi Pmenu guibg=Black guifg=red")
 
 -- titlebar
-vim.api.nvim_set_hl(0, "TablineFramework_1", { fg = "green" })
 vim.api.nvim_set_hl(0, "CursorLine", { fg = "green" })
