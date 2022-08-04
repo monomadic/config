@@ -176,13 +176,31 @@ require('packer').startup(function(use)
 	require("mason").setup()
 	require("mason-lspconfig").setup()
 
-	use { 'nvim-treesitter/nvim-treesitter' }
+	-- treesitter
+	use { 'nvim-treesitter/nvim-treesitter', requires = { "p00f/nvim-ts-rainbow" }, config = function()
+		require 'nvim-treesitter.configs'.setup {
+			ensure_installed = { "rust", "bash", "yaml", "typescript", "javascript", "markdown" },
+			highlight = { enable = true },
+			rainbow = { enable = true, colors = {
+				"#9944FF",
+				"#45F588",
+				"#FFFF00",
+				"#FF44FF",
+				"#00BBFF",
+				"#FFAACC",
+				"#AAFF66",
+			} },
+		}
+	end }
+
+
 	use { 'nvim-lua/popup.nvim' }
 	use { 'nvim-lua/plenary.nvim' }
 	use { 'nvim-telescope/telescope.nvim', config = function()
 		require('telescope').setup {}
 	end }
 	--use { 'vijaymarupudi/nvim-fzf' }
+	-- voldikss/fzf-floaterm
 	-- cmp
 	use {
 		'hrsh7th/nvim-cmp',
@@ -388,12 +406,12 @@ require('packer').startup(function(use)
 	}
 
 	-- treesitter-based dimming
-	use {
-		"folke/twilight.nvim",
-		config = function()
-			require("twilight").setup {}
-		end
-	}
+	-- use {
+	-- 	"folke/twilight.nvim",
+	-- 	config = function()
+	-- 		require("twilight").setup {}
+	-- 	end
+	-- }
 
 	-- make background highlight groups transparent
 	use { 'xiyaowong/nvim-transparent',
@@ -911,13 +929,6 @@ vim.g.rust_fold = 2
 vim.g.rustfmt_autosave = true
 vim.g.rust_conceal_mod_path = true
 vim.g.rust_conceal = true
-
--- treesitter
---
-require 'nvim-treesitter.configs'.setup {
-	ensure_installed = { "rust", "bash", "yaml", "typescript", "javascript", "markdown" },
-	highlight = { enable = true },
-}
 
 -- markdown
 --
