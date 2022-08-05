@@ -47,6 +47,10 @@ vim.opt.termguicolors = true -- 24-bit color
 vim.opt.wrap = false -- display lines as one long line
 vim.wo.foldexpr = 'nvim_treesitter#foldexpr()' -- use treesitter for folding
 vim.wo.foldmethod = 'expr' -- fold method (market | syntax)
+vim.o.completeopt = "menuone,noinsert,noselect"
+vim.g.completion_matching_strategy_list = { 'exact', 'substring', 'fuzzy' }
+vim.g.completion_matching_ignore_case = 1
+vim.g.completion_trigger_keyword_length = 3
 
 vim.api.nvim_set_option('tabstop', 2)
 
@@ -178,9 +182,6 @@ vim.keymap.set("n", "gd", function() vim.lsp.buf.definition() end)
 vim.keymap.set("n", "gD", function() vim.lsp.buf.declaration() end)
 vim.keymap.set("n", "gr", function() vim.lsp.buf.references() end)
 
-vim.keymap.set("n", "gi", "<Cmd>VimwikiIndex<CR>")
-vim.keymap.set("n", "gw", "<Cmd>VimwikiGoto ")
-
 -- use ; for commands instead of :
 vim.keymap.set("n", ";", ":")
 -- vim.keymap.set("n", "<Space>", ":")
@@ -225,28 +226,26 @@ require('packer').startup(function(use)
 			},
 		})
 	end }
-	use 'kadekillary/skull-vim'
-	use 'andreasvc/vim-256noir'
 	use { 'lunarvim/darkplus.nvim' }
-	use({
+	use {
 		"olimorris/onedarkpro.nvim",
 		config = function()
 			require("onedarkpro").setup({
 				theme = "onedark_dark"
 			})
 		end
-	})
-	use({ 'projekt0n/github-nvim-theme' })
-	-- requires nightly nvim
-	-- use { 'fgheng/winbar.nvim', config = function()
-	-- 	require('winbar').setup()
-	-- end }
+	}
+	use { 'projekt0n/github-nvim-theme' }
 
 	-- lspconfig (with mason)
 	use {
 		"williamboman/mason.nvim",
 		"williamboman/mason-lspconfig.nvim",
 		"neovim/nvim-lspconfig",
+		config = function()
+			-- require("mason").setup()
+			-- require("mason-lspconfig").setup()
+		end
 	}
 	require("mason").setup()
 	require("mason-lspconfig").setup()
@@ -267,7 +266,6 @@ require('packer').startup(function(use)
 			} },
 		}
 	end }
-
 
 	use { 'nvim-lua/popup.nvim' }
 	use { 'nvim-lua/plenary.nvim' }
@@ -317,19 +315,22 @@ require('packer').startup(function(use)
 	end }
 
 	--use { 'vijaymarupudi/nvim-fzf' }
-	-- voldikss/fzf-floaterm
-	-- cmp
+
+	-- completion TODO: clear out useless plugs, maybe custom one
 	use {
 		'hrsh7th/nvim-cmp',
 		wants = { "LuaSnip" },
 		requires = { "L3MON4D3/LuaSnip" }
 	}
 	use { 'hrsh7th/cmp-nvim-lsp' }
+
+	-- inline colors
 	use { 'norcalli/nvim-colorizer.lua', config = function()
 		require "colorizer".setup()
 	end }
 
-	use 'stevearc/aerial.nvim' -- aerial view / overview of lsp structureneo
+	use 'stevearc/aerial.nvim' -- aerial view / overview of lsp structure
+
 	-- jump/sneak
 	use {
 		"phaazon/hop.nvim", -- alternative to sneak
@@ -396,7 +397,6 @@ require('packer').startup(function(use)
 			--vim.keymap.set("n", "<C-.>", "gcc")
 		end
 	}
-	use { 'nvim-telescope/telescope-bibtex.nvim', config = [[require"telescope".load_extension("bibtex")]], ft = 'tex' }
 
 	-- nvim-tree
 	use {
@@ -404,6 +404,9 @@ require('packer').startup(function(use)
 		requires = {
 			'kyazdani42/nvim-web-devicons', -- optional, for file icons
 		},
+		config = function()
+			require('nvim-tree').setup {}
+		end,
 		tag = 'nightly' -- optional, updated every week. (see issue #1193)
 	}
 
@@ -442,26 +445,13 @@ require('packer').startup(function(use)
 	-- 	end
 	-- }
 
-	-- use { 'renerocksai/telekasten.nvim' } -- TODO: remove in favor or neorg and vimwiki
-	-- local home = vim.fn.expand("{{zk_path}}")
-	-- require('telekasten').setup {
-	-- 	home              = home,
-	-- 	dailies           = home .. '/' .. 'daily',
-	-- 	weeklies          = home .. '/' .. 'weekly',
-	-- 	templates         = home .. '/' .. 'templates',
-	-- 	new_note_filename = "title",
-	-- 	auto_set_filetype = false,
-	-- }
-
 	use { 'preservim/vim-markdown' }
 
-	--use {'jghauser/follow-md-links.nvim'}
-	--use({ 'jakewvincent/mkdnflow.nvim' })
-	-- use {
-	--   -- surround completion
-	--   "numToStr/Surround.nvim"
-	-- }
-	--
+	-- surround completion
+	use {
+		"numToStr/Surround.nvim"
+	}
+
 	-- use{
 	--   -- surround inline change
 	--   "tpope/vim-surround",
@@ -477,29 +467,21 @@ require('packer').startup(function(use)
 			require("lsp_lines").setup()
 		end,
 	})
-	--use {'tamago324/nlsp-settings.nvim'} -- not sure
 
-	-- use { 'numToStr/FTerm.nvim', config = function()
-	--   require'FTerm'.setup({
-	--       border = 'none',
-	--       hl = "Term",
-	--   })
-	-- end}
 
-	use { 'vimwiki/vimwiki' }
-	--
 	-- #lsp
 	-- cargo
-	use({
+	use {
 		"saecki/crates.nvim",
 		event = { "BufRead Cargo.toml" },
 		requires = { { "nvim-lua/plenary.nvim" } },
 		config = function()
 			require('crates').setup {}
 		end,
-	})
+	}
+
 	-- null lsp
-	use({
+	use {
 		"jose-elias-alvarez/null-ls.nvim",
 		config = function()
 			local null_ls = require("null-ls")
@@ -510,7 +492,7 @@ require('packer').startup(function(use)
 			}
 		end,
 		requires = { "nvim-lua/plenary.nvim" },
-	})
+	}
 
 	use { 'simrat39/rust-tools.nvim', config = function()
 	end }
@@ -536,8 +518,29 @@ require('packer').startup(function(use)
 	use {
 		'L3MON4D3/LuaSnip',
 	}
+
 	-- nvim-snippy
-	use { 'dcampos/nvim-snippy' }
+	use { 'dcampos/nvim-snippy', config = function()
+		require('snippy').setup({
+			mappings = {
+				is = {
+					['<Tab>'] = 'expand_or_advance',
+					['<S-Tab>'] = 'previous',
+				},
+				nx = {
+					['<leader>x'] = 'cut_text',
+				},
+			},
+		})
+		local mappings = require('snippy.mapping')
+		vim.keymap.set('i', '<Tab>', mappings.expand_or_advance('<Tab>'))
+		vim.keymap.set('s', '<Tab>', mappings.next('<Tab>'))
+		vim.keymap.set({ 'i', 's' }, '<S-Tab>', mappings.previous('<S-Tab>'))
+		vim.keymap.set('x', '<Tab>', mappings.cut_text, { remap = true })
+		vim.keymap.set('n', 'g<Tab>', mappings.cut_text, { remap = true })
+		vim.keymap.set('n', '<C-g>', '<Cmd>LazyGit<CR>')
+	end }
+
 	use { 'honza/vim-snippets' }
 	use { 'dcampos/cmp-snippy' }
 	-- for luasnip and cmp
@@ -546,22 +549,14 @@ require('packer').startup(function(use)
 		"benfowler/telescope-luasnip.nvim",
 		module = "telescope._extensions.luasnip",
 	}
-	-- Todo
-	use {
-		"folke/todo-comments.nvim",
-		requires = "nvim-lua/plenary.nvim",
-		config = function()
-			require('todo-comments').setup {}
-		end
-	}
+
 	-- better lsp ui
 	use { "glepnir/lspsaga.nvim", config = function()
 		local lsp_saga = require('lspsaga')
 
 		vim.keymap.set("n", "<leader>lo", "<cmd>Lspsaga lsp_finder<CR>")
-
 		vim.keymap.set("n", "<leader>a", ":Lspsaga code_action")
-
+		vim.keymap.set("n", "<leader>r", ":Lspsaga rename")
 		vim.keymap.set("n", 'K', '<cmd>lua vim.lsp.buf.hover()<CR>')
 
 		lsp_saga.init_lsp_saga {
@@ -574,36 +569,26 @@ require('packer').startup(function(use)
 	-- lua formatting
 	use({ "ckipp01/stylua-nvim" })
 
-	-- distraction free
-	-- use {
-	-- 	"folke/zen-mode.nvim",
-	-- 	config = function()
-	-- 		require("zen-mode").setup {
-	-- 			options = {
-	-- 				signcolumn = "no",
-	-- 				number = false
-	-- 			},
-	-- 			plugins = {
-	-- 				gitsigns = { disabled = true }
-	-- 			}
-	-- 		}
-	-- 	end
-	-- }
-	--
-	-- use {
-	-- 	"Pocco81/true-zen.nvim",
-	-- 	config = function()
-	-- 		require("true-zen").setup {}
-	-- 	end
-	-- }
+	-- todo
+	use {
+		"folke/todo-comments.nvim",
+		requires = "nvim-lua/plenary.nvim",
+		config = function()
+			require('todo-comments').setup {}
+		end
+	}
 
-	-- treesitter-based dimming
-	-- use {
-	-- 	"folke/twilight.nvim",
-	-- 	config = function()
-	-- 		require("twilight").setup {}
-	-- 	end
-	-- }
+	use { 'vimwiki/vimwiki', config = function()
+		vim.keymap.set("n", "gi", "<Cmd>VimwikiIndex<CR>")
+		vim.keymap.set("n", "gw", "<Cmd>VimwikiGoto ")
+		vim.g.vimwiki_list = {
+			{
+				path = '~/wiki/',
+				syntax = 'markdown',
+				ext = '.md'
+			}
+		}
+	end }
 
 	-- make background highlight groups transparent
 	use { 'xiyaowong/nvim-transparent',
@@ -616,51 +601,7 @@ require('packer').startup(function(use)
 	}
 end)
 
--- vim.api.nvim_create_autocmd("GoyoEnter", { pattern = "*", callback = function()
--- 	vim.cmd "Gitsigns detach_all"
--- end })
 
-
--- end packer, start setup
-
--- compile packer plugins on plugins.lua change
--- vim.cmd([[autocmd BufWritePost plugins.lua PackerCompile]])
-
--- lazygit
--- let g:lazygit_floating_window_winblend = 0.1 -- transparency of floating window
--- let g:lazygit_floating_window_scaling_factor = 0.9 -- scaling factor for floating window
--- --let g:lazygit_floating_window_corner_chars = ['╭', '╮', '╰', '╯'] " customize lazygit popup window corner characters
--- let g:lazygit_floating_window_use_plenary = 0 " use plenary.nvim to manage floating window if available
--- let g:lazygit_use_neovim_remote = 1 " fallback to 0 if neovim-remote is not installed
-
--- vimwiki
---
-vim.g.vimwiki_list = {
-	{
-		path = '~/wiki/',
-		syntax = 'markdown',
-		ext = '.md'
-	}
-}
-
-require('snippy').setup({
-	mappings = {
-		is = {
-			['<Tab>'] = 'expand_or_advance',
-			['<S-Tab>'] = 'previous',
-		},
-		nx = {
-			['<leader>x'] = 'cut_text',
-		},
-	},
-})
-local mappings = require('snippy.mapping')
-vim.keymap.set('i', '<Tab>', mappings.expand_or_advance('<Tab>'))
-vim.keymap.set('s', '<Tab>', mappings.next('<Tab>'))
-vim.keymap.set({ 'i', 's' }, '<S-Tab>', mappings.previous('<S-Tab>'))
-vim.keymap.set('x', '<Tab>', mappings.cut_text, { remap = true })
-vim.keymap.set('n', 'g<Tab>', mappings.cut_text, { remap = true })
-vim.keymap.set('n', '<C-g>', '<Cmd>LazyGit<CR>')
 
 -- go back
 vim.keymap.set('n', '<bs>', ':edit #<cr>', { silent = true })
@@ -727,16 +668,10 @@ vim.api.nvim_create_autocmd("WinEnter", { pattern = "*", callback = function()
 	vim.o.cursorline = true
 end })
 
--- keymaps
 --
--- split resize
--- vim.keymap.set("n", "<leader>-", "<cmd>vertical resize -10<CR>")
--- vim.keymap.set("n", "<leader>+", "<cmd>vertical resize +10<CR>")
--- vim.keymap.set("n", "<leader>_", "<cmd>resize -10<CR>")
--- vim.keymap.set("n", "<leader>*", "<cmd>resize +10<CR>")
+-- KEYMAPS
 --
 -- leader keys
---
 vim.keymap.set("n", "<leader>s", "<cmd>write<CR>")
 vim.keymap.set("n", "<leader>ww", "<cmd>wq!<CR>")
 vim.keymap.set("n", "<leader>wq", "<cmd>wq<CR>")
@@ -744,22 +679,16 @@ vim.keymap.set("n", "<leader>q", "<cmd>quit<CR>")
 vim.keymap.set("n", "<leader>!", "<cmd>quit!<CR>")
 vim.keymap.set("n", "Q", "<cmd>quit<CR>")
 vim.keymap.set("n", "WQ", "<cmd>wq<CR>")
---vim.keymap.set("n", "<leader>wq!", "<cmd>wq!<CR>")
 vim.keymap.set("n", "<leader>lf", "<cmd>Lf<CR>")
 vim.keymap.set("n", "<leader>lg", "<cmd>LazyGit<CR>")
-
-
 vim.keymap.set("n", "<leader>h1", "<Esc>/1.<CR>")
 vim.keymap.set("n", "<leader>h2", "<Esc>/2.<CR>")
-
 --
 -- split navigation
---
 vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
 vim.keymap.set("n", "<C-k>", "<C-w><C-k>")
 vim.keymap.set("n", "<C-l>", "<C-w><C-l>")
 vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
---vim.keymap.set("", "<C-b>", "<Cmd>NeoTreeFloatToggle<CR>")
 vim.keymap.set("n", "<C-s>", "<Cmd>write<CR>");
 vim.keymap.set("i", "<C-s>", "<Esc><Cmd>write<CR>");
 --
@@ -767,7 +696,7 @@ vim.keymap.set("i", "<C-s>", "<Esc><Cmd>write<CR>");
 vim.keymap.set("n", "<C-f>", function()
 	require('telescope.builtin').live_grep()
 end)
-
+--
 -- emacs style shortcuts in insert mode (yes, i am like that)
 vim.keymap.set("i", "<C-n>", "<Down>")
 vim.keymap.set("i", "<C-p>", "<Up>")
@@ -776,48 +705,14 @@ vim.keymap.set("i", "<C-f>", "<Right>")
 vim.keymap.set("i", "<C-e>", "<End>")
 vim.keymap.set("i", "<C-a>", "<Home>")
 vim.keymap.set("i", "<C-s>", "<Esc>:write<CR>")
-
 vim.keymap.set("n", "<leader>o", function()
 	require('telescope.builtin').find_files(
 		require('telescope.themes').get_dropdown()
 	)
 end)
-
--- vim.keymap.set("n", "<C-p>", function()
--- 	local selected_file = vim.fn.expand('%:p')
--- 	-- local nvterm = require("nvterm.terminal")
--- 	-- nvterm.setup {
--- 	-- 	behavior = {
--- 	-- 		autoclose_on_quit = {
--- 	-- 			enabled = false,
--- 	-- 			confirm = true,
--- 	-- 		},
--- 	-- 		close_on_exit = true,
--- 	-- 		auto_insert = true,
--- 	-- 	}
--- 	-- }
--- 	-- nvterm.toggle "float"
--- 	-- nvterm.send "lf"
---
--- 	-- local cmd = "FloatermNew --height=0.8 --width=0.8 --wintype=float --name=lf --position=center --autoclose=2 lf '"
--- 	-- 		.. selected_file .. "'"
--- 	-- vim.cmd(cmd)
+-- vim.keymap.set("n", "<C-g>", function()
+-- 	vim.cmd "FloatermNew --height=0.9 --width=0.9 --wintype=float --name=lazygit --position=center --autoclose=2 lazygit"
 -- end)
-
-vim.keymap.set("n", "<C-g>", function()
-	vim.cmd "FloatermNew --height=0.9 --width=0.9 --wintype=float --name=lazygit --position=center --autoclose=2 lazygit"
-end)
-
--- markdown
--- require('mkdnflow').setup({
--- 	mappings = {
--- 		--MkdnToggleToDo = { 'n', '<C-d>' },
--- 		MkdnNextHeading = { 'n', '<C-]>' },
--- 		MkdnPrevHeading = { 'n', '<C-[>' },
--- 		-- MkdnNextLink = {'n', '<C-\'>'},
--- 		-- MkdnPrevLink = {'n', '<C-;>'},
--- 	}
--- })
 
 --telekasten
 -- vim.keymap.set("n", "z", "<Cmd>Telekasten panel<CR>")
@@ -831,11 +726,6 @@ end)
 -- vim.keymap.set("n", "zg", "<Cmd>Telekasten follow_link<CR>")
 -- vim.keymap.set("n", "zr", "<Cmd>Telekasten show_backlinks<CR>")
 -- vim.keymap.set("n", "gz", "<Cmd>Telekasten follow_link<CR>")
--- vim.cmd("hi tkLink ctermfg=Magenta cterm=bold,underline guifg=#FF00DF gui=bold,underline")
--- vim.cmd("hi tkBrackets ctermfg=gray guifg=gray")
-
--- run command in current line and paste stout into current buffer
---vim.keymap.set("n", "Q", "!!$SHELL<CR>")
 
 -- move lines up and down in visual mode
 vim.keymap.set("x", "K", ":move '<-2<CR>gv-gv")
@@ -852,16 +742,11 @@ vim.keymap.set("v", '<leader>"', '<Esc>`<i"<Esc>`>ea"<Esc>')
 -- substitute shortcut
 vim.keymap.set("n", "S", ":%s//g<Left><Left>")
 vim.keymap.set("v", "S", ":s//g<Left><Left>")
--- spellcheck
-vim.keymap.set("n", "<leader>sp", ":setlocal spell spelllang=en")
 -- more reachable line start/end
 vim.keymap.set("n", "H", "^")
 vim.keymap.set("n", "L", "$")
 -- write to ----READONLY---- files
-vim.keymap.set("c", "<C-w>", "execute 'silent! write !sudo tee % >/dev/null' <bar> edit!")
--- nvim-commenter
-vim.keymap.set("v", "<leader>x", "<cmd>MultiCommenterToggle<cr>")
-vim.keymap.set("n", "<leader>x", "<cmd>SingleCommenterToggle<cr>")
+-- vim.keymap.set("c", "<C-w>", "execute 'silent! write !sudo tee % >/dev/null' <bar> edit!")
 
 -- ===== find project root for quick cd =====
 -- function find_project_root()
@@ -877,9 +762,9 @@ vim.keymap.set("n", "<leader>x", "<cmd>SingleCommenterToggle<cr>")
 --   end
 -- end
 
-vim.keymap.set("n", "cf", "<cmd>cd %:p:h | pwd<cr>")
-
--- #statusline
+--
+-- STATUSLINE
+--
 -- get(b:,'gitsigns_status','')
 local stl = {
 	-- ' %{fnamemodify(getcwd(), ":t")}',
@@ -925,37 +810,13 @@ vim.keymap.set("n", "ts", function()
 	vim.api.nvim_command('Telescope luasnip')
 end)
 
--- vim.api.nvim_create_user_command('Tig', function()
---   require('FTerm').scratch({
---     cmd = {'tig'},
---     -- autoclose = true,
---     -- on_stdout = function()
---     --   print("ko")
---     -- end
---   })
--- end
--- , { bang = true })
-
--- vim.api.nvim_create_user_command('CargoBuild', function()
---     require('FTerm').scratch({ cmd = {'cargo', 'build', '--target', os.getenv("RUST_TARGET")} })
--- end, { bang = true })
-
--- vim.keymap.set('n', '<C-t>', function()
---   let cmd = 'lf -last-dir-path="' . lastdir_tmpfile . '" -selection-path="' . lf_tmpfile . '"'
--- end)
-
 -- ===== simple session management =====
 local session_dir = vim.fn.stdpath('data') .. '/sessions/'
 vim.keymap.set("n", '<leader>mks', ':mks! ' .. session_dir)
 vim.keymap.set("n", '<leader>lds', ':%bd | so ' .. session_dir)
 
--- ===== completion settings =====
-vim.o.completeopt = "menuone,noinsert,noselect"
-vim.g.completion_matching_strategy_list = { 'exact', 'substring', 'fuzzy' }
-vim.g.completion_matching_ignore_case = 1
-vim.g.completion_trigger_keyword_length = 3
-
--- #lsp
+--
+-- LSP
 --
 local custom_attach = function(client, bufnr)
 	print("lsp started");
@@ -1015,7 +876,7 @@ local custom_attach = function(client, bufnr)
 	vim.keymap.set("n", 'gs', '<cmd>lua vim.lsp.buf.signature_help()<CR>')
 	vim.keymap.set("n", 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>')
 	vim.keymap.set("n", 'ga', '<cmd>lua vim.lsp.buf.code_action()<CR>')
-	vim.keymap.set("n", '<leader>r', '<cmd>lua vim.lsp.buf.rename()<CR>')
+	--vim.keymap.set("n", '<leader>r', '<cmd>lua vim.lsp.buf.rename()<CR>')
 	vim.keymap.set("n", '<leader>=', '<cmd>lua vim.lsp.buf.formatting()<CR>')
 	-- vim.keymap.set("n", '<C-]>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
 	-- vim.keymap.set("n", '<C-[>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
