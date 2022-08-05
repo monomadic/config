@@ -94,9 +94,31 @@ vim.keymap.set({ 'n', 't' }, '<C-Space>', function()
 	vim.cmd("FloatermToggle")
 end)
 
-vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
-	--vim.api.nvim_set_hl(0, "TabLineFill", { bg = "None" })
-end })
+-- custom terminal float
+vim.keymap.set({ 'n', 't' }, '<C-t>', function()
+	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
+
+	vim.api.nvim_buf_set_option(buf, "filetype", "terminal")
+	vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
+	vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
+		relative = 'editor',
+		row = math.floor(0.3 * vim.o.lines),
+		col = math.floor(0.25 * vim.o.columns),
+		width = math.ceil(0.5 * vim.o.columns),
+		height = math.ceil(0.4 * vim.o.lines),
+		border = 'single'
+	})
+
+	local win = vim.api.nvim_get_current_win()
+	vim.api.nvim_win_set_buf(win, buf)
+	vim.wo.relativenumber = false -- turn off line numbers
+	vim.wo.number = false
+
+	--vim.cmd "terminal"
+	local job_id = vim.fn.termopen(vim.o.shell)
+	vim.cmd "startinsert"
+end)
+
 
 -- #keymaps
 -- to view current mappings: :verbose nmap <C-]>
@@ -113,6 +135,10 @@ vim.keymap.set("n", "<C-w><C-d>", "<cmd>vsplit<CR>")
 
 vim.keymap.set("n", "}", "}j")
 vim.keymap.set("n", "{", "k{j")
+
+-- indent in insert mode
+vim.keymap.set("i", "<C-]>", "<C-t>")
+vim.keymap.set("i", "<C-[>", "<C-d>")
 
 -- lf
 vim.keymap.set("n", "gd", function() vim.lsp.buf.definition() end)
