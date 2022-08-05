@@ -77,13 +77,6 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "FloatermBorder", { bg = "Black" })
 end })
 
--- terminal / floaterm
-vim.g.floaterm_width = 0.8
-vim.g.floaterm_height = 0.8
-vim.g.lf_width = 0.8
-vim.g.lf_height = 0.8
-vim.g.lf_map_keys = 0 -- disable default keymaps
---vim.g.lf_replace_netrw = 1 -- open when dir is opened from shell
 vim.keymap.set({ 'n', 't' }, '<C-Space>', function()
 	if (vim.api.nvim_win_get_config(0).relative ~= '') then
 		vim.api.nvim_input('<ESC>')
@@ -100,10 +93,10 @@ vim.keymap.set('n', '<C-p>', function()
 	vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
 	vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
 		relative = 'editor',
-		row = math.floor(0.2 * vim.o.lines),
-		col = math.floor(0.2 * vim.o.columns),
-		width = math.ceil(0.6 * vim.o.columns),
-		height = math.ceil(0.6 * vim.o.lines),
+		row = math.floor(0.05 * vim.o.lines),
+		col = math.floor(0.1 * vim.o.columns),
+		width = math.ceil(0.8 * vim.o.columns),
+		height = math.ceil(0.7 * vim.o.lines),
 		border = 'single'
 	})
 
