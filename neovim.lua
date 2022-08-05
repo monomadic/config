@@ -58,15 +58,20 @@ vim.opt.tabline = ' /%{fnamemodify(getcwd(), ":t")}'
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "EndOfBuffer", { fg = "#444444" })
 	vim.api.nvim_set_hl(0, "TabLineFill", { bg = "None" })
+
+	vim.api.nvim_set_hl(0, "Title", { fg = "#44FF00" })
 end })
 -- vim.opt.tabline = "%!render_tabline()"
 
 
 -- floats
 vim.g.floaterm_borderchars = '        '
+vim.g.floaterm_opener = 'edit'
+vim.g.floaterm_title = ''
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
-	vim.api.nvim_set_hl(0, "NormalFloat", { bg = "None" })
+	vim.api.nvim_set_hl(0, "NormalFloat", {})
 	vim.api.nvim_set_hl(0, "Floaterm", { bg = "Black" })
+	vim.api.nvim_set_hl(0, "FloatermBorder", { bg = "Black" })
 end })
 
 -- -- manual terminal float (don't use this)
@@ -76,7 +81,6 @@ end })
 -- end)
 
 -- terminal / floaterm
--- lf
 vim.g.floaterm_width = 0.8
 vim.g.floaterm_height = 0.8
 vim.g.lf_width = 0.8
@@ -110,6 +114,7 @@ vim.keymap.set("n", "<C-w><C-d>", "<cmd>vsplit<CR>")
 vim.keymap.set("n", "}", "}j")
 vim.keymap.set("n", "{", "k{j")
 
+-- lf
 vim.keymap.set("n", "gd", function() vim.lsp.buf.definition() end)
 vim.keymap.set("n", "gD", function() vim.lsp.buf.declaration() end)
 vim.keymap.set("n", "gr", function() vim.lsp.buf.references() end)
@@ -141,13 +146,11 @@ require('packer').startup(function(use)
 	-- FloatermNew --height=0.6 --width=0.4 --wintype=float --name=floaterm1 --position=topleft --autoclose=2 lf
 	use { 'kdheepak/lazygit.nvim' }
 	use { 'lambdalisue/suda.vim' } -- sudo
-	-- use { 'tpope/vim-fugitive' } -- git commands (:G / :Git), use :!git
 
 	-- #colorschemes
 	use { 'morhetz/gruvbox', config = function()
 		vim.g.gruvbox_contrast_dark = "hard"
 	end } -- theme
-	use { 'dylanaraps/wal.vim' }
 	use 'bluz71/vim-nightfly-guicolors'
 	use { 'Mofiqul/vscode.nvim', config = function()
 		vim.o.background = 'dark'
@@ -160,7 +163,7 @@ require('packer').startup(function(use)
 	end }
 	use 'kadekillary/skull-vim'
 	use 'andreasvc/vim-256noir'
-	--use { 'lunarvim/darkplus.nvim' }
+	use { 'lunarvim/darkplus.nvim' }
 	use({
 		"olimorris/onedarkpro.nvim",
 		config = function()
@@ -248,6 +251,10 @@ require('packer').startup(function(use)
 					vim.schedule(function() gs.prev_hunk() end)
 					return '<Ignore>'
 				end)
+
+				vim.api.nvim_set_hl(0, "GitSignsAdd", { fg = "#44FF00" })
+				vim.api.nvim_set_hl(0, "GitSignsChange", { fg = "#FFFF00" })
+				vim.api.nvim_set_hl(0, "GitSignsDelete", { fg = "#FF0088" })
 			end
 		}
 	end }
@@ -258,7 +265,12 @@ require('packer').startup(function(use)
 			sign_priority = { lower = 10, upper = 15, builtin = 8, bookmark = 20 },
 		}
 	end }
-	use { 'junegunn/goyo.vim' } -- distraction-free / zen mode
+
+	use { 'junegunn/goyo.vim', config = function()
+		vim.g.goyo_width = "65%"
+
+	end } -- distraction-free / zen mode
+
 	use {
 		"folke/trouble.nvim",
 		requires = "kyazdani42/nvim-web-devicons",
@@ -465,14 +477,16 @@ require('packer').startup(function(use)
 		config = function()
 			require("transparent").setup {
 				enable = true,
-				extra_groups = {
-					"StatusLine",
-					"FloatermBorder",
-				},
+				extra_groups = {},
 			}
 		end
 	}
 end)
+
+-- vim.api.nvim_create_autocmd("GoyoEnter", { pattern = "*", callback = function()
+-- 	vim.cmd "Gitsigns detach_all"
+-- end })
+
 
 -- end packer, start setup
 
@@ -545,7 +559,7 @@ vim.api.nvim_set_hl(0, "Term", { bg = "Black" })
 -- #00FF99 #FF00CC #FFFF00 #00CCFF
 --
 vim.cmd('syntax on')
-vim.cmd("hi WinSeparator guifg=none");
+vim.cmd("hi WinSeparator guifg=none"); -- I think this is the split column
 vim.cmd("hi TodoBgTODO guibg=#FFFF00 guifg=black");
 vim.cmd("hi TodoFgTODO guifg=#FFFF00");
 vim.cmd("hi DiagnosticVirtualTextHint guifg=#F0F0AA")
@@ -571,7 +585,6 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 		vim.cmd "enew"
 		vim.cmd "setlocal bufhidden=wipe buftype=nofile nobuflisted nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
 		vim.cmd([[call append('$', "")]])
-		-- vim.cmd "Lf"
 	end
 end })
 
@@ -661,7 +674,14 @@ vim.keymap.set("n", "<leader>o", function()
 end)
 
 vim.keymap.set("n", "<C-p>", function()
-	vim.cmd "FloatermNew --height=0.8 --width=0.8 --wintype=float --name=floaterm1 --position=center --autoclose=2 lf"
+	local selected_file = vim.fn.expand('%:p')
+	local cmd = "FloatermNew --height=0.8 --width=0.8 --wintype=float --name=lf --position=center --autoclose=2 lf '"
+			.. selected_file .. "'"
+	vim.cmd(cmd)
+end)
+
+vim.keymap.set("n", "<C-g>", function()
+	vim.cmd "FloatermNew --height=0.9 --width=0.9 --wintype=float --name=lazygit --position=center --autoclose=2 lazygit"
 end)
 
 -- markdown
@@ -676,19 +696,19 @@ end)
 -- })
 
 --telekasten
-vim.keymap.set("n", "z", "<Cmd>Telekasten panel<CR>")
-vim.keymap.set("n", "zn", "<Cmd>Telekasten new_note<CR>")
-vim.keymap.set("n", "zN", "<Cmd>Telekasten new_templated_note<CR>")
-vim.keymap.set("n", "zt", "<Cmd>Telekasten show_tags<CR>")
-vim.keymap.set("n", "zo", "<Cmd>Telekasten toggle_todo<CR>")
-vim.keymap.set("n", "zT", "<Cmd>Telekasten find_weekly_notes<CR>")
-vim.keymap.set("n", "zf", "<Cmd>Telekasten find_notes<CR>")
-vim.keymap.set("n", "zr", "<Cmd>Telekasten rename_note<CR>")
-vim.keymap.set("n", "zg", "<Cmd>Telekasten follow_link<CR>")
-vim.keymap.set("n", "zr", "<Cmd>Telekasten show_backlinks<CR>")
-vim.keymap.set("n", "gz", "<Cmd>Telekasten follow_link<CR>")
-vim.cmd("hi tkLink ctermfg=Magenta cterm=bold,underline guifg=#FF00DF gui=bold,underline")
-vim.cmd("hi tkBrackets ctermfg=gray guifg=gray")
+-- vim.keymap.set("n", "z", "<Cmd>Telekasten panel<CR>")
+-- vim.keymap.set("n", "zn", "<Cmd>Telekasten new_note<CR>")
+-- vim.keymap.set("n", "zN", "<Cmd>Telekasten new_templated_note<CR>")
+-- vim.keymap.set("n", "zt", "<Cmd>Telekasten show_tags<CR>")
+-- vim.keymap.set("n", "zo", "<Cmd>Telekasten toggle_todo<CR>")
+-- vim.keymap.set("n", "zT", "<Cmd>Telekasten find_weekly_notes<CR>")
+-- vim.keymap.set("n", "zf", "<Cmd>Telekasten find_notes<CR>")
+-- vim.keymap.set("n", "zr", "<Cmd>Telekasten rename_note<CR>")
+-- vim.keymap.set("n", "zg", "<Cmd>Telekasten follow_link<CR>")
+-- vim.keymap.set("n", "zr", "<Cmd>Telekasten show_backlinks<CR>")
+-- vim.keymap.set("n", "gz", "<Cmd>Telekasten follow_link<CR>")
+-- vim.cmd("hi tkLink ctermfg=Magenta cterm=bold,underline guifg=#FF00DF gui=bold,underline")
+-- vim.cmd("hi tkBrackets ctermfg=gray guifg=gray")
 
 -- run command in current line and paste stout into current buffer
 --vim.keymap.set("n", "Q", "!!$SHELL<CR>")
@@ -747,8 +767,10 @@ local stl = {
 	' %M', ' %y', ' %r'
 }
 vim.o.statusline = table.concat(stl)
--- vim.cmd("hi StatusLine guibg=none guifg=#00FFAA"); --active
--- vim.cmd("hi StatusLineNC guibg=none"); --inactive
+vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
+	vim.api.nvim_set_hl(0, "StatusLine", {}) -- active
+	vim.api.nvim_set_hl(0, "StatusLineNC", {}) -- active
+end })
 
 -- #telescope
 vim.keymap.set("n", 'tb', '<cmd>Telescope buffers<cr>')
@@ -1007,14 +1029,3 @@ cmp.setup {
 		end,
 	},
 }
-
-vim.keymap.set('n', '<C-]>', ']]')
-vim.keymap.set('n', '<C-[>', '[[')
-vim.g.floaterm_title = ''
-vim.cmd("hi FloatermBorder guibg=Black guifg=black")
-vim.cmd("hi Floaterm guibg=Black guifg=green")
-vim.cmd("hi NormalFloat guibg=Black")
-vim.cmd("hi Pmenu guibg=Black guifg=red")
-
--- titlebar
-vim.api.nvim_set_hl(0, "CursorLine", { fg = "green" })
