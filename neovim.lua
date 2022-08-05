@@ -56,6 +56,7 @@ vim.cmd("colorscheme {{colorscheme}}");
 vim.opt.showtabline = 2 -- show the global tab line at the top of neovim
 vim.opt.tabline = ' /%{fnamemodify(getcwd(), ":t")}'
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
+	vim.api.nvim_set_hl(0, "EndOfBuffer", { fg = "#444444" })
 	vim.api.nvim_set_hl(0, "TabLineFill", { bg = "None" })
 end })
 -- vim.opt.tabline = "%!render_tabline()"
@@ -88,7 +89,6 @@ vim.keymap.set({ 'n', 't' }, '<C-Space>', function()
 	end
 	vim.cmd("FloatermToggle")
 end)
-
 
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	--vim.api.nvim_set_hl(0, "TabLineFill", { bg = "None" })
@@ -142,12 +142,12 @@ require('packer').startup(function(use)
 	use { 'kdheepak/lazygit.nvim' }
 	use { 'lambdalisue/suda.vim' } -- sudo
 	-- use { 'tpope/vim-fugitive' } -- git commands (:G / :Git), use :!git
-	use { 'dylanaraps/wal.vim' }
 
 	-- #colorschemes
 	use { 'morhetz/gruvbox', config = function()
 		vim.g.gruvbox_contrast_dark = "hard"
 	end } -- theme
+	use { 'dylanaraps/wal.vim' }
 	use 'bluz71/vim-nightfly-guicolors'
 	use { 'Mofiqul/vscode.nvim', config = function()
 		vim.o.background = 'dark'
@@ -161,7 +161,15 @@ require('packer').startup(function(use)
 	use 'kadekillary/skull-vim'
 	use 'andreasvc/vim-256noir'
 	--use { 'lunarvim/darkplus.nvim' }
-
+	use({
+		"olimorris/onedarkpro.nvim",
+		config = function()
+			require("onedarkpro").setup({
+				theme = "onedark_dark"
+			})
+		end
+	})
+	use({ 'projekt0n/github-nvim-theme' })
 	-- requires nightly nvim
 	-- use { 'fgheng/winbar.nvim', config = function()
 	-- 	require('winbar').setup()
@@ -224,7 +232,27 @@ require('packer').startup(function(use)
 		end
 	}
 
-	-- sign column / gutter
+	-- git status in git gutter
+	use { "lewis6991/gitsigns.nvim", requires = { "nvim-lua/plenary.nvim" }, config = function()
+		require('gitsigns').setup {
+			on_attach = function()
+				local gs = package.loaded.gitsigns
+				-- jump between git hunks
+				vim.keymap.set('n', ']g', function()
+					if vim.wo.diff then return ']g' end
+					vim.schedule(function() gs.next_hunk() end)
+					return '<Ignore>'
+				end)
+				vim.keymap.set('n', '[g', function()
+					if vim.wo.diff then return '[g' end
+					vim.schedule(function() gs.prev_hunk() end)
+					return '<Ignore>'
+				end)
+			end
+		}
+	end }
+
+	-- interacting with marks, including putting them in the gutter / sign column
 	use { 'chentoast/marks.nvim', config = function()
 		require 'marks'.setup {
 			sign_priority = { lower = 10, upper = 15, builtin = 8, bookmark = 20 },
@@ -285,8 +313,20 @@ require('packer').startup(function(use)
 			-- vim.cmd("hi NeoTreeFloatTitle guifg=bg guibg=bg");
 		end
 	}
-	use { 'renerocksai/telekasten.nvim' }
+
+	-- use { 'renerocksai/telekasten.nvim' } -- TODO: remove in favor or neorg and vimwiki
+	-- local home = vim.fn.expand("{{zk_path}}")
+	-- require('telekasten').setup {
+	-- 	home              = home,
+	-- 	dailies           = home .. '/' .. 'daily',
+	-- 	weeklies          = home .. '/' .. 'weekly',
+	-- 	templates         = home .. '/' .. 'templates',
+	-- 	new_note_filename = "title",
+	-- 	auto_set_filetype = false,
+	-- }
+
 	use { 'preservim/vim-markdown' }
+
 	--use {'jghauser/follow-md-links.nvim'}
 	--use({ 'jakewvincent/mkdnflow.nvim' })
 	-- use {
@@ -301,6 +341,8 @@ require('packer').startup(function(use)
 	--     require('surround').setup {}
 	--   end
 	-- }
+
+	-- inline diagnostics
 	use({
 		"https://git.sr.ht/~whynothugo/lsp_lines.nvim",
 		config = function()
@@ -308,17 +350,16 @@ require('packer').startup(function(use)
 		end,
 	})
 	--use {'tamago324/nlsp-settings.nvim'} -- not sure
-	-- git
-	use { "lewis6991/gitsigns.nvim", requires = { "nvim-lua/plenary.nvim" }, config = function()
-		require('gitsigns').setup {}
-	end }
+
 	-- use { 'numToStr/FTerm.nvim', config = function()
 	--   require'FTerm'.setup({
 	--       border = 'none',
 	--       hl = "Term",
 	--   })
 	-- end}
+
 	use { 'vimwiki/vimwiki' }
+	--
 	-- #lsp
 	-- cargo
 	use({
@@ -333,7 +374,12 @@ require('packer').startup(function(use)
 	use({
 		"jose-elias-alvarez/null-ls.nvim",
 		config = function()
-			require("null-ls").setup()
+			local null_ls = require("null-ls")
+			null_ls.setup {
+				sources = {
+					null_ls.builtins.code_actions.gitsigns,
+				}
+			}
 		end,
 		requires = { "nvim-lua/plenary.nvim" },
 	})
@@ -347,13 +393,14 @@ require('packer').startup(function(use)
 		require('scrollbar').setup() -- side scrollbar with git support
 	end }
 
-	use { "lukas-reineke/indent-blankline.nvim", config = function()
-		require("indent_blankline").setup({
-			show_current_context = true,
-			show_current_context_start = true,
-			filetype_exclude = { "neo-tree", "help", "floaterm", "SidebarNvim", "" },
-		})
-	end }
+	-- use { "lukas-reineke/indent-blankline.nvim", config = function()
+	-- 	require("indent_blankline").setup({
+	-- 		show_current_context = true,
+	-- 		show_current_context_start = true,
+	-- 		filetype_exclude = { "neo-tree", "help", "floaterm", "SidebarNvim", "" },
+	-- 	})
+	-- end }
+
 	-- snippets
 	use {
 		'L3MON4D3/LuaSnip',
@@ -383,27 +430,27 @@ require('packer').startup(function(use)
 	use({ "ckipp01/stylua-nvim" })
 
 	-- distraction free
-	use {
-		"folke/zen-mode.nvim",
-		config = function()
-			require("zen-mode").setup {
-				options = {
-					signcolumn = "no",
-					number = false
-				},
-				plugins = {
-					gitsigns = { disabled = true }
-				}
-			}
-		end
-	}
-
-	use {
-		"Pocco81/true-zen.nvim",
-		config = function()
-			require("true-zen").setup {}
-		end
-	}
+	-- use {
+	-- 	"folke/zen-mode.nvim",
+	-- 	config = function()
+	-- 		require("zen-mode").setup {
+	-- 			options = {
+	-- 				signcolumn = "no",
+	-- 				number = false
+	-- 			},
+	-- 			plugins = {
+	-- 				gitsigns = { disabled = true }
+	-- 			}
+	-- 		}
+	-- 	end
+	-- }
+	--
+	-- use {
+	-- 	"Pocco81/true-zen.nvim",
+	-- 	config = function()
+	-- 		require("true-zen").setup {}
+	-- 	end
+	-- }
 
 	-- treesitter-based dimming
 	-- use {
@@ -493,15 +540,6 @@ vim.api.nvim_set_hl(0, "Term", { bg = "Black" })
 -- tree
 --
 
-local home = vim.fn.expand("{{zk_path}}")
-require('telekasten').setup {
-	home              = home,
-	dailies           = home .. '/' .. 'daily',
-	weeklies          = home .. '/' .. 'weekly',
-	templates         = home .. '/' .. 'templates',
-	new_note_filename = "title",
-	auto_set_filetype = false,
-}
 
 -- #colors
 -- #00FF99 #FF00CC #FFFF00 #00CCFF
@@ -698,7 +736,7 @@ vim.keymap.set("n", "<leader>x", "<cmd>SingleCommenterToggle<cr>")
 vim.keymap.set("n", "cf", "<cmd>cd %:p:h | pwd<cr>")
 
 -- #statusline
---
+-- get(b:,'gitsigns_status','')
 local stl = {
 	-- ' %{fnamemodify(getcwd(), ":t")}',
 	-- ' %{pathshorten(expand("%:p"))}',
