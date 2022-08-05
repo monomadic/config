@@ -94,7 +94,7 @@ end)
 -- custom terminal float
 vim.keymap.set('n', '<C-p>', function()
 	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
-	local selected_file = vim.fn.expand('%:p')
+	local selected_file = vim.fn.expand('%:p') -- the currently open filename
 
 	vim.api.nvim_buf_set_option(buf, "filetype", "terminal")
 	vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
@@ -117,21 +117,45 @@ vim.keymap.set('n', '<C-p>', function()
 
 	vim.cmd "startinsert" -- start in insert mode
 
-	local tmp_file = vim.fn.tempname()
-	local tmp_dir = vim.fn.tempname()
+	local lf_tmpfile = vim.fn.tempname()
+	local lf_tmpdir = vim.fn.tempname()
 
 	local process_cmd = 'lf -last-dir-path="' ..
-			tmp_dir .. '" -selection-path="' .. tmp_file .. '" "' .. selected_file .. '"'
+			lf_tmpdir .. '" -selection-path="' .. lf_tmpfile .. '" "' .. selected_file .. '"'
 
 	-- local process_cmd = 'lf "' .. selected_file .. '"'
 
 	print(process_cmd)
 
+
 	-- launch lf process
 	vim.fn.termopen(process_cmd, {
 		on_exit = function(job_id, exit_code, event_type)
-			print(job_id, exit_code, event_type)
+
+			if vim.loop.fs_stat(lf_tmpfile) then
+				local contents = {}
+
+				for line in io.lines(lf_tmpfile) do
+					table.insert(contents, line)
+				end
+
+				if not vim.tbl_isempty(contents) then
+					--term:close()
+
+					for _, fname in pairs(contents) do
+						vim.cmd(("%s %s"):format('edit', fname))
+					end
+				end
+			end
+
+
+
+			--print(tmp_file)
+			--print(job_id, exit_code, event_type)
 			--vim.api.nvim_win_close(win, true)
+		end,
+		on_stdout = function(a, b, c)
+			print(a, b, c)
 		end
 	})
 end)
