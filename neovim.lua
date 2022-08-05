@@ -70,7 +70,6 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 end })
 -- vim.opt.tabline = "%!render_tabline()"
 
-
 -- floats
 vim.g.floaterm_borderchars = '        '
 vim.g.floaterm_opener = 'edit'
@@ -81,12 +80,12 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "FloatermBorder", { bg = "Black" })
 end })
 
-vim.keymap.set({ 'n', 't' }, '<C-Space>', function()
-	if (vim.api.nvim_win_get_config(0).relative ~= '') then
-		vim.api.nvim_input('<ESC>')
-	end
-	vim.cmd("FloatermToggle")
-end)
+-- vim.keymap.set({ 'n', 't' }, '<C-Space>', function()
+-- 	if (vim.api.nvim_win_get_config(0).relative ~= '') then
+-- 		vim.api.nvim_input('<ESC>')
+-- 	end
+-- 	vim.cmd("FloatermToggle")
+-- end)
 
 -- custom terminal float
 vim.keymap.set('n', '<C-p>', function()
@@ -118,42 +117,38 @@ vim.keymap.set('n', '<C-p>', function()
 	local lf_tmpdir = vim.fn.tempname()
 
 	local process_cmd = 'lf -last-dir-path="' ..
-			lf_tmpdir .. '" -selection-path="' .. lf_tmpfile .. '" "' .. selected_file .. '"'
+			lf_tmpdir .. '" -selection-path="' .. lf_tmpfile .. '" '
 
-	-- local process_cmd = 'lf "' .. selected_file .. '"'
-
-	print(process_cmd)
-
+	if selected_file ~= "" then
+		process_cmd = process_cmd .. '"' .. selected_file .. '"'
+	end
+	--print(process_cmd)
 
 	-- launch lf process
 	vim.fn.termopen(process_cmd, {
-		on_exit = function(job_id, exit_code, event_type)
+		on_exit = function() -- job_id, exit_code, event_type
 
+			-- -- if window is a float, close the window
+			-- if vim.api.nvim_win_get_config(win).zindex then
+			-- 	vim.api.nvim_win_close(win, true)
+			-- end
+			-- if lf correctly left us a tempfile
 			if vim.loop.fs_stat(lf_tmpfile) then
 				local contents = {}
-
+				-- grab the entries that were selected (one per line)
 				for line in io.lines(lf_tmpfile) do
 					table.insert(contents, line)
 				end
-
 				if not vim.tbl_isempty(contents) then
-					--term:close()
+					--vim.api.nvim_win_close(0, true) -- close current (0) with force
 
 					for _, fname in pairs(contents) do
+						-- and open them for editing
 						vim.cmd(("%s %s"):format('edit', fname))
 					end
 				end
 			end
-
-
-
-			--print(tmp_file)
-			--print(job_id, exit_code, event_type)
-			--vim.api.nvim_win_close(win, true)
 		end,
-		on_stdout = function(a, b, c)
-			print(a, b, c)
-		end
 	})
 end)
 
@@ -641,7 +636,13 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	-- if no args are passed
 	if vim.fn.argc() == 0 then
 		vim.cmd "enew"
-		vim.cmd "setlocal bufhidden=wipe buftype=nofile nobuflisted nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
+
+		--vim.cmd "setlocal bufhidden=wipe buftype=nofile nocursorline nonumber nolist"
+		vim.cmd "setlocal bufhidden=wipe buftype=nofile nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
+
+		--local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
+
+		--vim.cmd "setlocal bufhidden=wipe buftype=nofile nobuflisted nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
 		vim.cmd([[call append('$', "")]])
 	end
 end })

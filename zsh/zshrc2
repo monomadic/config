@@ -1,5 +1,0 @@
-export PATH="$PATH:/Users/nom/.foundry/bin"
-source "${HOME}/.zgen/zgen.zsh"
-autoload -Uz compinit && compinit
-source ~/.zgen/urbainvaes/fzf-marks-master/fzf-marks.plugin.zsh
-bindkey ${FZF_MARKS_JUMP:-'^o'} fzm
