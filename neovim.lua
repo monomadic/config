@@ -17,6 +17,7 @@ vim.g.mapleader = " " -- leader key
 vim.g.tex_flavor = "latex"
 vim.g.vim_markdown_edit_url_in = 'current' -- open md links as (vplit | current)
 vim.g.vim_markdown_new_list_item_indent = 1 -- indent new items on 'o' from n mode
+-- vim.cmd "let g:clipboard = {'copy': {'+': 'pbcopy', '*': 'pbcopy'}, 'paste': {'+': 'pbpaste', '*': 'pbpaste'}, 'name': 'pbcopy', 'cache_enabled': 0}" -- hack for macos
 vim.opt.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (gnome)
 vim.opt.conceallevel = 0 -- so that `` is visible in markdown files
 vim.opt.cursorline = true -- highlight the current line
@@ -59,7 +60,9 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "EndOfBuffer", { fg = "#444444" })
 	vim.api.nvim_set_hl(0, "TabLineFill", { bg = "None" })
 
-	vim.api.nvim_set_hl(0, "Title", { fg = "#44FF00" })
+	vim.api.nvim_set_hl(0, "Title", { fg = "#CCFF00" })
+	vim.api.nvim_set_hl(0, "VimwikiHeaderChar", { fg = "#44FF00" })
+	vim.api.nvim_set_hl(0, "VimwikiLink", { fg = "#44FFFF" })
 end })
 -- vim.opt.tabline = "%!render_tabline()"
 
@@ -73,12 +76,6 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "Floaterm", { bg = "Black" })
 	vim.api.nvim_set_hl(0, "FloatermBorder", { bg = "Black" })
 end })
-
--- -- manual terminal float (don't use this)
--- vim.keymap.set("n", "<leader>n", function()
--- 	vim.api.nvim_open_win(0, false, { relative = 'win', row = 3, col = 3, width = 12, height = 3 })
--- 	vim.api.nvim_open_term(0, {})
--- end)
 
 -- terminal / floaterm
 vim.g.floaterm_width = 0.8
@@ -95,17 +92,18 @@ vim.keymap.set({ 'n', 't' }, '<C-Space>', function()
 end)
 
 -- custom terminal float
-vim.keymap.set({ 'n', 't' }, '<C-t>', function()
+vim.keymap.set('n', '<C-p>', function()
 	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
+	local selected_file = vim.fn.expand('%:p')
 
 	vim.api.nvim_buf_set_option(buf, "filetype", "terminal")
 	vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
 	vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
 		relative = 'editor',
-		row = math.floor(0.3 * vim.o.lines),
-		col = math.floor(0.25 * vim.o.columns),
-		width = math.ceil(0.5 * vim.o.columns),
-		height = math.ceil(0.4 * vim.o.lines),
+		row = math.floor(0.2 * vim.o.lines),
+		col = math.floor(0.2 * vim.o.columns),
+		width = math.ceil(0.6 * vim.o.columns),
+		height = math.ceil(0.6 * vim.o.lines),
 		border = 'single'
 	})
 
@@ -114,9 +112,28 @@ vim.keymap.set({ 'n', 't' }, '<C-t>', function()
 	vim.wo.relativenumber = false -- turn off line numbers
 	vim.wo.number = false
 
-	--vim.cmd "terminal"
-	local job_id = vim.fn.termopen(vim.o.shell)
-	vim.cmd "startinsert"
+	-- local job_id = vim.fn.termopen(vim.o.shell)
+	-- vim.api.nvim_chan_send(job_id, "lf\n")
+
+	vim.cmd "startinsert" -- start in insert mode
+
+	local tmp_file = vim.fn.tempname()
+	local tmp_dir = vim.fn.tempname()
+
+	local process_cmd = 'lf -last-dir-path="' ..
+			tmp_dir .. '" -selection-path="' .. tmp_file .. '" "' .. selected_file .. '"'
+
+	-- local process_cmd = 'lf "' .. selected_file .. '"'
+
+	print(process_cmd)
+
+	-- launch lf process
+	vim.fn.termopen(process_cmd, {
+		on_exit = function(job_id, exit_code, event_type)
+			print(job_id, exit_code, event_type)
+			--vim.api.nvim_win_close(win, true)
+		end
+	})
 end)
 
 
@@ -140,7 +157,6 @@ vim.keymap.set("n", "{", "k{j")
 vim.keymap.set("i", "<C-]>", "<C-t>")
 vim.keymap.set("i", "<C-[>", "<C-d>")
 
--- lf
 vim.keymap.set("n", "gd", function() vim.lsp.buf.definition() end)
 vim.keymap.set("n", "gD", function() vim.lsp.buf.declaration() end)
 vim.keymap.set("n", "gr", function() vim.lsp.buf.references() end)
@@ -157,7 +173,14 @@ vim.keymap.set("n", ";", ":")
 vim.cmd [[packadd packer.nvim]]
 require('packer').startup(function(use)
 
-	use { 'wbthomason/packer.nvim' }
+	--use { 'wbthomason/packer.nvim', opt = true }
+
+	use {
+		"NvChad/nvterm",
+		config = function()
+			require("nvterm").setup()
+		end,
+	}
 
 	-- mini utility plugins
 	-- https://github.com/echasnovski/mini.nvim#general-principles
@@ -168,15 +191,13 @@ require('packer').startup(function(use)
 	-- end }
 
 	--use {'voldikss/vim-floaterm'}
-	use { 'ptzz/lf.vim', requires = { 'voldikss/vim-floaterm' } }
-	-- FloatermNew --height=0.6 --width=0.4 --wintype=float --name=floaterm1 --position=topleft --autoclose=2 lf
 	use { 'kdheepak/lazygit.nvim' }
 	use { 'lambdalisue/suda.vim' } -- sudo
 
 	-- #colorschemes
-	use { 'morhetz/gruvbox', config = function()
-		vim.g.gruvbox_contrast_dark = "hard"
-	end } -- theme
+	-- use { 'ellisonleao/gruvbox.nvim', config = function()
+	-- 	vim.o.background = "dark"
+	-- end } -- theme
 	use 'bluz71/vim-nightfly-guicolors'
 	use { 'Mofiqul/vscode.nvim', config = function()
 		vim.o.background = 'dark'
@@ -233,9 +254,51 @@ require('packer').startup(function(use)
 
 	use { 'nvim-lua/popup.nvim' }
 	use { 'nvim-lua/plenary.nvim' }
+
 	use { 'nvim-telescope/telescope.nvim', config = function()
-		require('telescope').setup {}
+		require('telescope').setup {
+			defaults = {
+				prompt_prefix = "   ",
+				selection_caret = "  ",
+				entry_prefix = "  ",
+				initial_mode = "insert",
+				selection_strategy = "reset",
+				sorting_strategy = "ascending",
+				layout_strategy = "horizontal",
+				layout_config = {
+					horizontal = {
+						prompt_position = "top",
+						preview_width = 0.55,
+						results_width = 0.8,
+					},
+					vertical = {
+						mirror = false,
+					},
+					width = 0.87,
+					height = 0.80,
+					preview_cutoff = 120,
+				},
+				file_sorter = require("telescope.sorters").get_fuzzy_file,
+				set_env = { ["COLORTERM"] = "truecolor" },
+				file_ignore_patterns = { ".git/", ".cache", "%.o", "%.a", "%.out", "%.class", "%.pdf", "%.mkv", "%.mp4", "%.zip",
+					"*.lock", "node_modules", "target" },
+				generic_sorter = require("telescope.sorters").get_generic_fuzzy_sorter,
+				path_display = { "truncate" },
+				winblend = 0,
+				border = {},
+				mappings = {
+					i = {
+						["<Esc>"] = "close",
+						["<Tab>"] = "close",
+						["<C-l>"] = require("telescope.actions.layout").toggle_preview,
+						["<C-u>"] = false,
+					},
+				},
+				extensions_list = { "themes", "terms" },
+			},
+		}
 	end }
+
 	--use { 'vijaymarupudi/nvim-fzf' }
 	-- voldikss/fzf-floaterm
 	-- cmp
@@ -294,7 +357,6 @@ require('packer').startup(function(use)
 
 	use { 'junegunn/goyo.vim', config = function()
 		vim.g.goyo_width = "65%"
-
 	end } -- distraction-free / zen mode
 
 	use {
@@ -305,6 +367,7 @@ require('packer').startup(function(use)
 			}
 		end
 	}
+
 	use { 'numToStr/Comment.nvim',
 		config = function()
 			-- `gcc` line comment
@@ -313,44 +376,54 @@ require('packer').startup(function(use)
 			-- `gco` line comment at line-open
 			-- `gbc` block comment
 			require('Comment').setup()
+			--vim.keymap.set("n", "<C-.>", "gcc")
 		end
 	}
 	use { 'nvim-telescope/telescope-bibtex.nvim', config = [[require"telescope".load_extension("bibtex")]], ft = 'tex' }
 
-	-- neotree
-	use { 'nvim-neo-tree/neo-tree.nvim',
+	-- nvim-tree
+	use {
+		'kyazdani42/nvim-tree.lua',
 		requires = {
-			"nvim-lua/plenary.nvim",
-			"kyazdani42/nvim-web-devicons",
-			"MunifTanjim/nui.nvim",
+			'kyazdani42/nvim-web-devicons', -- optional, for file icons
 		},
-		config = function()
-			require('neo-tree').setup {
-				close_if_last_window = true,
-				popup_border_style = "solid",
-				window = {
-					mappings = {
-						["l"] = "open",
-						["<C-l>"] = "open_vsplit",
-					}
-				}
-			}
-
-			vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
-				vim.api.nvim_set_hl(0, "NeoTreeFloatBorder", { bg = "None", fg = "None" })
-				vim.api.nvim_set_hl(0, "NeoTreeFloatTitle", { bg = "None", fg = "None" })
-			end })
-
-			vim.keymap.set("n", "<leader>t", "<cmd>Neotree<CR>")
-			vim.keymap.set("n", "<leader>b", "<cmd>Neotree buffers<CR>")
-			vim.keymap.set("n", "<C-b>", "<Cmd>NeoTreeFloatToggle<CR>")
-			--vim.api.nvim_set_hl(0, "NeoTreeFloatBorder", { bg = "Red" })
-
-			-- vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
-			-- vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
-			-- vim.cmd("hi NeoTreeFloatTitle guifg=bg guibg=bg");
-		end
+		tag = 'nightly' -- optional, updated every week. (see issue #1193)
 	}
+
+	-- -- neotree
+	-- use { 'nvim-neo-tree/neo-tree.nvim',
+	-- 	requires = {
+	-- 		"nvim-lua/plenary.nvim",
+	-- 		"kyazdani42/nvim-web-devicons",
+	-- 		"MunifTanjim/nui.nvim",
+	-- 	},
+	-- 	config = function()
+	-- 		require('neo-tree').setup {
+	-- 			close_if_last_window = true,
+	-- 			popup_border_style = "solid",
+	-- 			window = {
+	-- 				mappings = {
+	-- 					["l"] = "open",
+	-- 					["<C-l>"] = "open_vsplit",
+	-- 				}
+	-- 			}
+	-- 		}
+	--
+	-- 		vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
+	-- 			vim.api.nvim_set_hl(0, "NeoTreeFloatBorder", { bg = "None", fg = "None" })
+	-- 			vim.api.nvim_set_hl(0, "NeoTreeFloatTitle", { bg = "None", fg = "None" })
+	-- 		end })
+	--
+	-- 		vim.keymap.set("n", "<leader>t", "<cmd>Neotree<CR>")
+	-- 		vim.keymap.set("n", "<leader>b", "<cmd>Neotree buffers<CR>")
+	-- 		vim.keymap.set("n", "<C-b>", "<Cmd>NeoTreeFloatToggle<CR>")
+	-- 		--vim.api.nvim_set_hl(0, "NeoTreeFloatBorder", { bg = "Red" })
+	--
+	-- 		-- vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
+	-- 		-- vim.cmd("hi NeoTreeFloatBorder guifg=bg guibg=bg");
+	-- 		-- vim.cmd("hi NeoTreeFloatTitle guifg=bg guibg=bg");
+	-- 	end
+	-- }
 
 	-- use { 'renerocksai/telekasten.nvim' } -- TODO: remove in favor or neorg and vimwiki
 	-- local home = vim.fn.expand("{{zk_path}}")
@@ -421,7 +494,10 @@ require('packer').startup(function(use)
 		end,
 		requires = { "nvim-lua/plenary.nvim" },
 	})
-	use { 'simrat39/rust-tools.nvim' } -- rust lsp
+
+	use { 'simrat39/rust-tools.nvim', config = function()
+	end }
+
 	-- formatting
 	use { 'lukas-reineke/lsp-format.nvim', config = function()
 		require("lsp-format").setup {}
@@ -462,7 +538,21 @@ require('packer').startup(function(use)
 		end
 	}
 	-- better lsp ui
-	use { "glepnir/lspsaga.nvim" }
+	use { "glepnir/lspsaga.nvim", config = function()
+		local lsp_saga = require('lspsaga')
+
+		vim.keymap.set("n", "<leader>lo", "<cmd>Lspsaga lsp_finder<CR>")
+
+		vim.keymap.set("n", "<leader>a", ":Lspsaga code_action")
+
+		vim.keymap.set("n", 'K', '<cmd>lua vim.lsp.buf.hover()<CR>')
+
+		lsp_saga.init_lsp_saga {
+			show_outline = {
+				jump_key = '<CR>',
+			}
+		}
+	end }
 
 	-- lua formatting
 	use({ "ckipp01/stylua-nvim" })
@@ -554,22 +644,6 @@ vim.keymap.set({ 'i', 's' }, '<S-Tab>', mappings.previous('<S-Tab>'))
 vim.keymap.set('x', '<Tab>', mappings.cut_text, { remap = true })
 vim.keymap.set('n', 'g<Tab>', mappings.cut_text, { remap = true })
 vim.keymap.set('n', '<C-g>', '<Cmd>LazyGit<CR>')
-
-require('telescope').setup {
-	defaults = {
-		prompt_prefix = " ",
-		file_ignore_patterns = { ".git/", ".cache", "%.o", "%.a", "%.out", "%.class", "%.pdf", "%.mkv", "%.mp4", "%.zip",
-			"*.lock", "node_modules", "target" },
-		mappings = {
-			i = {
-				["<Esc>"] = "close",
-				["<Tab>"] = "close",
-				["<C-l>"] = require("telescope.actions.layout").toggle_preview,
-				["<C-u>"] = false,
-			},
-		},
-	}
-};
 
 -- go back
 vim.keymap.set('n', '<bs>', ':edit #<cr>', { silent = true })
@@ -676,14 +750,7 @@ vim.keymap.set("i", "<C-s>", "<Esc><Cmd>write<CR>");
 vim.keymap.set("n", "<C-f>", function()
 	require('telescope.builtin').live_grep()
 end)
---
--- fuzzy file open
--- vim.keymap.set("n", "<Tab>", function()
---   require('telescope.builtin').find_files(
---     require('telescope.themes').get_dropdown({ previewer = false })
---   )
--- end)
---
+
 -- emacs style shortcuts in insert mode (yes, i am like that)
 vim.keymap.set("i", "<C-n>", "<Down>")
 vim.keymap.set("i", "<C-p>", "<Up>")
@@ -699,12 +766,26 @@ vim.keymap.set("n", "<leader>o", function()
 	)
 end)
 
-vim.keymap.set("n", "<C-p>", function()
-	local selected_file = vim.fn.expand('%:p')
-	local cmd = "FloatermNew --height=0.8 --width=0.8 --wintype=float --name=lf --position=center --autoclose=2 lf '"
-			.. selected_file .. "'"
-	vim.cmd(cmd)
-end)
+-- vim.keymap.set("n", "<C-p>", function()
+-- 	local selected_file = vim.fn.expand('%:p')
+-- 	-- local nvterm = require("nvterm.terminal")
+-- 	-- nvterm.setup {
+-- 	-- 	behavior = {
+-- 	-- 		autoclose_on_quit = {
+-- 	-- 			enabled = false,
+-- 	-- 			confirm = true,
+-- 	-- 		},
+-- 	-- 		close_on_exit = true,
+-- 	-- 		auto_insert = true,
+-- 	-- 	}
+-- 	-- }
+-- 	-- nvterm.toggle "float"
+-- 	-- nvterm.send "lf"
+--
+-- 	-- local cmd = "FloatermNew --height=0.8 --width=0.8 --wintype=float --name=lf --position=center --autoclose=2 lf '"
+-- 	-- 		.. selected_file .. "'"
+-- 	-- vim.cmd(cmd)
+-- end)
 
 vim.keymap.set("n", "<C-g>", function()
 	vim.cmd "FloatermNew --height=0.9 --width=0.9 --wintype=float --name=lazygit --position=center --autoclose=2 lazygit"
@@ -912,7 +993,7 @@ local custom_attach = function(client, bufnr)
 
 	vim.keymap.set("n", 'gD', '<cmd>lua vim.lsp.buf.declaration()<CR>')
 	--vim.keymap.set("n", '<c-]>', '<cmd>lua vim.lsp.buf.definition()<CR>')
-	vim.keymap.set("n", 'K', '<cmd>lua vim.lsp.buf.hover()<CR>')
+	--vim.keymap.set("n", 'K', '<cmd>lua vim.lsp.buf.hover()<CR>')
 	vim.keymap.set("n", 'gr', '<cmd>lua vim.lsp.buf.references()<CR>')
 	vim.keymap.set("n", 'gs', '<cmd>lua vim.lsp.buf.signature_help()<CR>')
 	vim.keymap.set("n", 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>')
@@ -924,6 +1005,10 @@ local custom_attach = function(client, bufnr)
 	vim.keymap.set("n", ']d', '<cmd>lua vim.diagnostic.goto_next()<CR>')
 	vim.keymap.set("n", '[d', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
 	vim.keymap.set("n", '\\', '<cmd>TroubleToggle<CR>')
+
+	-- vim.keymap.set("n", '<leader>a', function()
+	-- 	vim.lsp.buf.code_action()
+	-- end)
 
 	vim.keymap.set("n", ']e', function()
 		vim.diagnostic.goto_next({
@@ -946,7 +1031,7 @@ local capabilities = require('cmp_nvim_lsp').update_capabilities(
 	vim.lsp.protocol.make_client_capabilities()
 );
 local lspconfig = require('lspconfig')
-for _, lsp in ipairs({ 'bashls', 'rnix', 'zk', 'denols' }) do
+for _, lsp in ipairs({ 'bashls', 'rnix', 'zk', 'tsserver' }) do
 	lspconfig[lsp].setup {
 		on_attach = custom_attach,
 		capabilities = capabilities,

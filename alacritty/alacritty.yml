@@ -87,7 +87,7 @@ font:
     # as modifying the linespacing, and offset.x as modifying the letter spacing.
     offset:
         x: 0
-        y: 0
+        y: 5
 
     # Glyph offset determines the locations of the glyphs within their cells with
     # the default being at the bottom. Increase the x offset to move the glyph to
@@ -110,14 +110,14 @@ font:
 
 # Use custom cursor colors. If true, display the cursor in the cursor.foreground
 # and cursor.background colors, otherwise invert the colors of the cursor.
-custom_cursor_colors: false
+custom_cursor_colors: true
 
 # Colors (Snazzy)
 colors:
     # Default colors
     primary:
         # background: "0x021627"
-        background: "0x1F1E1E"
+        background: "0x160126"
         foreground: "0xCCC9C2"
 
         # (Optional) Bright and Dim foreground colors
