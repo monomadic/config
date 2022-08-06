@@ -71,9 +71,6 @@ end })
 -- vim.opt.tabline = "%!render_tabline()"
 
 -- floats
-vim.g.floaterm_borderchars = '        '
-vim.g.floaterm_opener = 'edit'
-vim.g.floaterm_title = ''
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "NormalFloat", {})
 	vim.api.nvim_set_hl(0, "Floaterm", { bg = "Black" })
@@ -257,12 +254,12 @@ require('packer').startup(function(use)
 
 	--use { 'wbthomason/packer.nvim', opt = true }
 
-	use {
-		"NvChad/nvterm",
-		config = function()
-			require("nvterm").setup()
-		end,
-	}
+	-- use {
+	-- 	"NvChad/nvterm",
+	-- 	config = function()
+	-- 		require("nvterm").setup()
+	-- 	end,
+	-- }
 
 	-- mini utility plugins
 	-- https://github.com/echasnovski/mini.nvim#general-principles
