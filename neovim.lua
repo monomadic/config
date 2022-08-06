@@ -63,7 +63,6 @@ vim.opt.tabline = ' /%{fnamemodify(getcwd(), ":t")}'
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "EndOfBuffer", { fg = "#444444" })
 	vim.api.nvim_set_hl(0, "TabLineFill", { bg = "None" })
-
 	vim.api.nvim_set_hl(0, "Title", { fg = "#CCFF00" })
 	vim.api.nvim_set_hl(0, "VimwikiHeaderChar", { fg = "#44FF00" })
 	vim.api.nvim_set_hl(0, "VimwikiLink", { fg = "#44FFFF" })
@@ -84,14 +83,16 @@ end })
 -- 	vim.cmd("FloatermToggle")
 -- end)
 
-vim.keymap.set('t', '<C-Space>', function()
+local close_term = function()
 	local win = vim.api.nvim_get_current_win()
 	vim.api.nvim_win_close(win, true)
-end)
+end
+
+vim.keymap.set('t', '<C-p>', function() close_term() end)
+vim.keymap.set('t', '<C-Space>', function() close_term() end)
 
 vim.keymap.set('n', '<C-Space>', function()
 	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
-	-- local selected_file = vim.fn.expand('%:p') -- the currently open filename
 
 	vim.api.nvim_buf_set_option(buf, "filetype", "terminal")
 	vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
@@ -108,49 +109,9 @@ vim.keymap.set('n', '<C-Space>', function()
 	vim.api.nvim_win_set_buf(win, buf)
 	vim.wo.relativenumber = false -- turn off line numbers
 	vim.wo.number = false
-
 	vim.fn.termopen(vim.o.shell)
-	-- vim.api.nvim_chan_send(job_id, "lf\n")
 
 	vim.cmd "startinsert" -- start in insert mode
-
-	-- local lf_tmpfile = vim.fn.tempname()
-	-- local lf_tmpdir = vim.fn.tempname()
-	--
-	-- local process_cmd = 'lf -last-dir-path="' ..
-	-- 		lf_tmpdir .. '" -selection-path="' .. lf_tmpfile .. '" '
-	--
-	-- if selected_file ~= "" then
-	-- 	process_cmd = process_cmd .. '"' .. selected_file .. '"'
-	-- end
-	--print(process_cmd)
-
-	-- launch lf process
-	-- vim.fn.termopen(process_cmd, {
-	-- 	-- on_exit = function() -- job_id, exit_code, event_type
-	-- 	--
-	-- 	-- 	-- -- if window is a float, close the window
-	-- 	-- 	-- if vim.api.nvim_win_get_config(win).zindex then
-	-- 	-- 	-- 	vim.api.nvim_win_close(win, true)
-	-- 	-- 	-- end
-	-- 	-- 	-- if lf correctly left us a tempfile
-	-- 	-- 	if vim.loop.fs_stat(lf_tmpfile) then
-	-- 	-- 		local contents = {}
-	-- 	-- 		-- grab the entries that were selected (one per line)
-	-- 	-- 		for line in io.lines(lf_tmpfile) do
-	-- 	-- 			table.insert(contents, line)
-	-- 	-- 		end
-	-- 	-- 		if not vim.tbl_isempty(contents) then
-	-- 	-- 			--vim.api.nvim_win_close(0, true) -- close current (0) with force
-	-- 	--
-	-- 	-- 			for _, fname in pairs(contents) do
-	-- 	-- 				-- and open them for editing
-	-- 	-- 				vim.cmd(("%s %s"):format('edit', fname))
-	-- 	-- 			end
-	-- 	-- 		end
-	-- 	-- 	end
-	-- 	-- end,
-	-- })
 end)
 
 -- custom terminal float
@@ -193,11 +154,11 @@ vim.keymap.set('n', '<C-p>', function()
 	-- launch lf process
 	vim.fn.termopen(process_cmd, {
 		on_exit = function() -- job_id, exit_code, event_type
+			-- if window is a float, close the window
+			if vim.api.nvim_win_get_config(win).zindex then
+				vim.api.nvim_win_close(win, true)
+			end
 
-			-- -- if window is a float, close the window
-			-- if vim.api.nvim_win_get_config(win).zindex then
-			-- 	vim.api.nvim_win_close(win, true)
-			-- end
 			-- if lf correctly left us a tempfile
 			if vim.loop.fs_stat(lf_tmpfile) then
 				local contents = {}
