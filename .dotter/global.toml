@@ -18,12 +18,6 @@ files = { "kitty.conf" = "~/.config/kitty/kitty.conf" }
 [skhd]
 files = { "skhd.conf" = "~/.config/skhd/skhdrc" }
 
-[nvim-container]
-files = { nvim-container = "~/.config/nvim" }
-
-[nvim-root]
-files = { "nvim/root.lua" = "/root/.config/nvim/init.lua", "nvim/shared.lua" = "/root/.config/nvim/lua/shared.lua" }
-
 [bash]
 files = { "bash/rc.bash" = "~/.bashrc", "bash/fzm.bash" = "~/.bash/fzm.bash" }
 
@@ -34,7 +28,8 @@ files = { "bash/rc.bash" = "~/.bashrc", "bash/fzm.bash" = "~/.bash/fzm.bash" }
 "waybar" = "~/.config/waybar"
 
 [nvim]
-files = { "neovim.lua" = "~/.config/nvim/init.lua", "snippets" = "~/.config/nvim/snippets" }
+files = { "neovim" = "~/.config/nvim" }
+#files = { "neovim.lua" = "~/.config/nvim/init.lua", "snippets" = "~/.config/nvim/snippets" }
 # variables = { "colorscheme" = "darkblue" }
 
 [foot]
