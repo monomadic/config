@@ -590,7 +590,7 @@ require('packer').startup(function(use)
 		config = function()
 			require("transparent").setup {
 				enable = true,
-				extra_groups = {},
+				extra_groups = { "NvimTreeNormal" },
 			}
 		end
 	}
