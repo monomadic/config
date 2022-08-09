@@ -2,3 +2,4 @@
 .dotter/local.toml
 .dotter/cache
 .dotter/cache.toml
+*.lock.json

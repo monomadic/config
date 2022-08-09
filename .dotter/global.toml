@@ -10,7 +10,7 @@ depends = []
 "zk_path" = "/mnt/data/notes/zk"
 
 [alacritty]
-files = { "alacritty" = "~/.config/alacritty" }
+files = { "alacritty.yml" = "~/.config/alacritty/alacritty.yml" }
 
 [kitty]
 files = { "kitty.conf" = "~/.config/kitty/kitty.conf" }

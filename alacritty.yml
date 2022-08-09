@@ -38,17 +38,9 @@ window:
     decorations: transparent
 
 scrolling:
-    # How many lines of scrollback to keep,
-    # '0' will disable scrolling.
-    history: 10000
-
-    # Number of lines the viewport will move for every line
-    # scrolled when scrollback is enabled (history > 0).
-    multiplier: 3
-
-    # Automatically scroll to the bottom when new text is written
-    # to the terminal.
-    auto_scroll: false
+    history: 10000 # 0 disables scrolling
+    multiplier: 3 # scrolling multiplier (in lines)
+    auto_scroll: false # jump to bottom on activity
 
 # Spaces per Tab
 #
@@ -299,6 +291,8 @@ live_config_reload: true
 #     - { ... , command: { program: "alacritty", args: ["-e", "vttest"] } }
 
 key_bindings:
+    - { key: S, mods: Command, chars: "\x13" }
+    - { key: Back, mods: Command, chars: "\x15" }
     - { key: N, mods: Command, action: SpawnNewInstance }
     - { key: V, mods: Command, action: Paste }
     - { key: C, mods: Command, action: Copy }

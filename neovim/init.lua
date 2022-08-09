@@ -15,7 +15,6 @@ if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
 end
 
 -- sudo command: :w !sudo tee %
-
 -- settings
 --
 --vim.g.vim_markdown_new_list_item_indent = 2 -- markdown list indent
@@ -36,9 +35,8 @@ vim.opt.ignorecase = true -- ignore case when searching
 vim.opt.laststatus = 2 -- 3 = global statusline (neovim 0.7+)
 vim.opt.lazyredraw = true -- faster macros (force update with :redraw)
 vim.opt.mouse = "a" -- allow the mouse to be used in neovim
-vim.opt.number = true -- set numbered lines
-vim.opt.number = true -- set numbered lines
-vim.opt.relativenumber = true -- set relative numbered lines
+vim.wo.number = true -- show numbered lines
+vim.wo.relativenumber = true -- set relative numbered lines
 vim.opt.scrolloff = 1000 -- keep line centered (disable if scrolling past eof is enabled)
 vim.opt.shiftwidth = 2 -- the number of spaces inserted for each indentation
 vim.opt.showmatch = true -- matching parenthesis
@@ -64,15 +62,13 @@ vim.api.nvim_set_option('tabstop', 2)
 -- https://gist.github.com/romainl/379904f91fa40533175dfaec4c833f2f
 vim.cmd("colorscheme {{colorscheme}}");
 
--- tabline
-vim.opt.showtabline = 2 -- show the global tab line at the top of neovim
-vim.opt.tabline = ' /%{fnamemodify(getcwd(), ":t")}'
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "EndOfBuffer", { fg = "#444444" })
 	vim.api.nvim_set_hl(0, "TabLineFill", { bg = "None" })
 	vim.api.nvim_set_hl(0, "Title", { fg = "#CCFF00" })
 	vim.api.nvim_set_hl(0, "VimwikiHeaderChar", { fg = "#44FF00" })
 	vim.api.nvim_set_hl(0, "VimwikiLink", { fg = "#44FFFF" })
+	vim.api.nvim_set_hl(0, "LineNr", { fg = "#222222" }) -- active
 end })
 -- vim.opt.tabline = "%!render_tabline()"
 
@@ -406,15 +402,18 @@ require('packer').startup(function(use)
 	end }
 
 	-- jump/sneak
-	use {
-		"phaazon/hop.nvim", -- alternative to sneak
-		branch = "v1", -- optional but strongly recommended
-		config = function()
-			require("hop").setup({ keys = "etovxqpdygfblzhckisuran" })
-			vim.keymap.set("n", "s", "<Cmd>HopWord<CR>")
-			vim.keymap.set("n", "S", "<Cmd>HopPattern<CR>")
-		end
-	}
+	-- use {
+	-- 	"phaazon/hop.nvim", -- alternative to sneak
+	-- 	branch = "v1", -- optional but strongly recommended
+	-- 	config = function()
+	-- 		require("hop").setup({ keys = "etovxqpdygfblzhckisuran" })
+	-- 		vim.keymap.set("n", "s", "<Cmd>HopWord<CR>")
+	-- 		vim.keymap.set("n", "S", "<Cmd>HopPattern<CR>")
+	-- 	end
+	-- }
+	use { 'ggandor/leap.nvim', config = function()
+		require('leap').set_default_keymaps()
+	end }
 
 	-- git status in git gutter
 	use { "lewis6991/gitsigns.nvim", requires = { "nvim-lua/plenary.nvim" }, config = function()
@@ -560,9 +559,12 @@ require('packer').startup(function(use)
 					-- to enable rust-analyzer settings visit:
 					-- https://github.com/rust-analyzer/rust-analyzer/blob/master/docs/user/generated_config.adoc
 					["rust-analyzer"] = {
-						-- enable clippy on save
+						hover = {
+						},
 						checkOnSave = {
-							command = "clippy"
+							enable = true,
+							command = "clippy",
+							features = 'all',
 						},
 					}
 				}
@@ -579,10 +581,6 @@ require('packer').startup(function(use)
 	-- formatting
 	use { 'lukas-reineke/lsp-format.nvim', config = function()
 		require("lsp-format").setup {}
-	end }
-
-	use { "petertriho/nvim-scrollbar", config = function()
-		require('scrollbar').setup() -- side scrollbar with git support
 	end }
 
 	-- use { "lukas-reineke/indent-blankline.nvim", config = function()
@@ -625,6 +623,11 @@ require('packer').startup(function(use)
 	use { 'vimwiki/vimwiki', config = function()
 		vim.keymap.set("n", "gi", "<Cmd>VimwikiIndex<CR>") -- TODO: lsp variants (eg rust will look for lib.rs, main.rs etc)
 		vim.keymap.set("n", "gw", "<Cmd>VimwikiGoto ")
+
+		vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
+			vim.keymap.set("n", "gt", "<Cmd>VimwikiGoto Tasks<CR>")
+		end })
+
 		vim.g.vimwiki_list = {
 			{
 				path = '~/wiki/',
@@ -632,6 +635,11 @@ require('packer').startup(function(use)
 				ext = '.md'
 			}
 		}
+	end }
+
+	-- side scrollbar with git support
+	use { "petertriho/nvim-scrollbar", config = function()
+		require('scrollbar').setup()
 	end }
 
 	-- make background highlight groups transparent
@@ -657,7 +665,19 @@ vim.cmd("hi TodoBgTODO guibg=#FFFF00 guifg=black");
 vim.cmd("hi TodoFgTODO guifg=#FFFF00");
 vim.cmd("hi DiagnosticVirtualTextHint guifg=#F0F0AA")
 vim.cmd("hi DiagnosticVirtualTextError guifg=#F02282")
-vim.cmd([[set fillchars+=vert:\ ]]) -- remove awful vertical split character
+
+vim.opt.fillchars = {
+	vert = " ",
+	fold = "⠀",
+	stl = "⠀", -- statusline
+	stlnc = " ", -- statusline (inactive)
+	eob = " ", -- suppress ~ at EndOfBuffer
+	--diff = "⣿", -- alternatives = ⣿ ░ ─ ╱
+	msgsep = "‾",
+	foldopen = "▾",
+	foldsep = "│",
+	foldclose = "▸",
+}
 
 --
 -- EVENTS
@@ -722,6 +742,10 @@ vim.keymap.set("n", "<leader>lf", "<cmd>Lf<CR>")
 vim.keymap.set("n", "<leader>lg", "<cmd>LazyGit<CR>")
 vim.keymap.set("n", "<leader>h1", "<Esc>/1.<CR>")
 vim.keymap.set("n", "<leader>h2", "<Esc>/2.<CR>")
+vim.keymap.set("n", "<leader>n", function()
+	vim.wo.relativenumber = false -- turn off line numbers
+	vim.wo.number = false
+end)
 --
 -- split navigation
 vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
@@ -729,7 +753,7 @@ vim.keymap.set("n", "<C-k>", "<C-w><C-k>")
 vim.keymap.set("n", "<C-l>", "<C-w><C-l>")
 vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
 vim.keymap.set("n", "<C-s>", "<Cmd>write<CR>");
-vim.keymap.set("i", "<C-s>", "<Esc><Cmd>write<CR>");
+vim.keymap.set({ "v", "i" }, "<C-s>", "<Esc><Cmd>write<CR>");
 --
 -- grep entire project
 vim.keymap.set("n", "<C-f>", function()
@@ -779,8 +803,8 @@ vim.keymap.set("n", "<leader>sv", "<cmd>source $MYVIMRC<CR>")
 --vim.keymap.set("i", '<leader>"', '<Esc>viw<Esc>a"<Esc>bi"<Esc>leli')
 vim.keymap.set("v", '<leader>"', '<Esc>`<i"<Esc>`>ea"<Esc>')
 -- substitute shortcut
-vim.keymap.set("n", "S", ":%s//g<Left><Left>")
-vim.keymap.set("v", "S", ":s//g<Left><Left>")
+-- vim.keymap.set("n", "S", ":%s//g<Left><Left>")
+-- vim.keymap.set("v", "S", ":s//g<Left><Left>")
 -- more reachable line start/end
 vim.keymap.set("n", "H", "^")
 vim.keymap.set("n", "L", "$")
@@ -791,22 +815,62 @@ vim.keymap.set("n", "L", "$")
 -- STATUSLINE
 --
 -- get(b:,'gitsigns_status','')
-local stl = {
-	-- ' %{fnamemodify(getcwd(), ":t")}',
-	-- ' %{pathshorten(expand("%:p"))}',
-	' %{fnamemodify(expand("%"), ":~:.")}', -- current file
-	-- ' %{pathshorten(expand("%"), ":~:.")}',
-	'%=',
-	-- '  %{FugitiveStatusline()}',
-	' %M', ' %y', ' %r'
-}
-vim.o.statusline = table.concat(stl)
+-- local stl = {
+-- 	-- ' %{getcwd()}',
+-- 	' %{pathshorten(expand("%:p"))}',
+-- 	-- ' %{fnamemodify(expand("%"), ":~:.")}', -- current file
+-- 	-- ' %{pathshorten(expand("%"), ":~:.")}',
+-- 	'%=',
+-- 	-- '  %{FugitiveStatusline()}',
+-- 	--' %M', ' %y', ' %r'
+-- }
+vim.o.statusline = '%{fnamemodify(expand("%"), ":.")}';
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "StatusLine", {}) -- active
-	vim.api.nvim_set_hl(0, "StatusLineNC", {}) -- active
+	vim.api.nvim_set_hl(0, "StatusLineNC", {}) -- inactive
 end })
 
--- ===== simple session management =====
+--
+-- TABLINE
+--
+vim.opt.showtabline = 2 -- show the global tab line at the top of neovim
+-- vim.opt.tabline = table.concat({
+-- 	'%=',
+-- 	'%{fnamemodify(getcwd(), ":~")}',
+-- 	'%=',
+-- })
+
+local function git_branch()
+	local git_info = vim.b.gitsigns_status_dict
+	if git_info then
+		return " " .. git_info.head
+	else
+		return ""
+	end
+end
+
+function TabLine()
+
+	return table.concat {
+		vim.fn.fnamemodify(vim.fn.getcwd(), ":~"), -- project directory
+		"%=",
+		git_branch(),
+		--
+		-- vim.fn.fnamemodify(vim.fn.getcwd(), ":~"),
+		-- vim.fn.fnamemodify(vim.fn.expand "%", ":~"),
+		--'%=',
+	}
+	-- local fpath = vim.fn.fnamemodify(vim.fn.expand "%", ":~")
+	-- return fpath
+	-- return vim.fn.fnamemodify(vim.fn.getcwd(), ":~")
+	-- return project_directory()
+end
+
+-- vim.opt.tabline = "%!luaeval('TabLine()')"
+vim.opt.tabline = "%!v:lua.TabLine()"
+--
+-- SESSIONS
+--
 local session_dir = vim.fn.stdpath('data') .. '/sessions/'
 vim.keymap.set("n", '<leader>mks', ':mks! ' .. session_dir)
 vim.keymap.set("n", '<leader>lds', ':%bd | so ' .. session_dir)
