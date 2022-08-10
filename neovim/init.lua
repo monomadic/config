@@ -35,8 +35,8 @@ vim.opt.ignorecase = true -- ignore case when searching
 vim.opt.laststatus = 2 -- 3 = global statusline (neovim 0.7+)
 vim.opt.lazyredraw = true -- faster macros (force update with :redraw)
 vim.opt.mouse = "a" -- allow the mouse to be used in neovim
-vim.wo.number = true -- show numbered lines
-vim.wo.relativenumber = true -- set relative numbered lines
+vim.wo.number = false -- show numbered lines
+vim.wo.relativenumber = false -- set relative numbered lines
 vim.opt.scrolloff = 1000 -- keep line centered (disable if scrolling past eof is enabled)
 vim.opt.shiftwidth = 2 -- the number of spaces inserted for each indentation
 vim.opt.showmatch = true -- matching parenthesis
@@ -56,6 +56,7 @@ vim.o.completeopt = "menuone,noinsert,noselect"
 vim.g.completion_matching_strategy_list = { 'exact', 'substring', 'fuzzy' }
 vim.g.completion_matching_ignore_case = 1
 vim.g.completion_trigger_keyword_length = 3
+vim.opt.showmode = false
 
 vim.api.nvim_set_option('tabstop', 2)
 
@@ -824,7 +825,37 @@ vim.keymap.set("n", "L", "$")
 -- 	-- '  %{FugitiveStatusline()}',
 -- 	--' %M', ' %y', ' %r'
 -- }
-vim.o.statusline = '%{fnamemodify(expand("%"), ":.")}';
+
+local function lsp_connections()
+	local status = ''
+	local clients = {}
+	local ids = vim.lsp.get_buffers_by_client(0)
+
+	for _, id in ipairs(ids) do
+		local client = clients[id]
+		print(client)
+		--status = string.format('%s', id)
+	end
+
+	-- if vim.lsp.buf_is_attached() then
+	-- 	for _, id in ipairs(ids) do
+	-- 		local client = clients[id]
+	-- 		status = string.format('%s%s', status, client.name)
+	-- 	end
+	-- end
+	return status
+end
+
+function StatusLine()
+	return table.concat {
+		vim.fn.fnamemodify(vim.fn.expand("%"), ":."), -- project directory
+		-- "%=",
+		lsp_connections()
+	}
+end
+
+vim.opt.statusline = "%!v:lua.StatusLine()"
+--vim.o.statusline = '%{fnamemodify(expand("%"), ":.")}';
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "StatusLine", {}) -- active
 	vim.api.nvim_set_hl(0, "StatusLineNC", {}) -- inactive
@@ -850,15 +881,10 @@ local function git_branch()
 end
 
 function TabLine()
-
 	return table.concat {
 		vim.fn.fnamemodify(vim.fn.getcwd(), ":~"), -- project directory
 		"%=",
 		git_branch(),
-		--
-		-- vim.fn.fnamemodify(vim.fn.getcwd(), ":~"),
-		-- vim.fn.fnamemodify(vim.fn.expand "%", ":~"),
-		--'%=',
 	}
 	-- local fpath = vim.fn.fnamemodify(vim.fn.expand "%", ":~")
 	-- return fpath
