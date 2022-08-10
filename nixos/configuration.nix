@@ -1,7 +1,10 @@
 { config, pkgs, ... }:
 
 {
-  imports = [ /etc/nixos/hardware-configuration.nix ];
+  imports = [
+    "${builtins.fetchGit { url = "https://github.com/NixOS/nixos-hardware.git"; }}/dell/xps/15-9500"
+    /etc/nixos/hardware-configuration.nix
+  ];
 
   nix = {
     package = pkgs.nixUnstable;
@@ -13,54 +16,55 @@
   nixpkgs.config.allowUnfree = true; # nvidia etc
 
   environment.systemPackages = with pkgs; [
-    neovim
-    helix # neovim alternative in rust
-    lazygit # git tui
-    wget
-    firefox
-    qutebrowser
-    git
-    zellij
-    fd
-    nnn
-    lf # linux filemanager (go)
-    gnupg
-    pulsemixer
-    acpi # battery
-    ncdu # disk usage
-    fzf
-    ripgrep
-    zip
-    dotter # rust dotfiles manager
-    file # filetype identification
-    radare2 # reverse engineering debugger for badasses
-    #cutter # gui for radare2
-    killall
-    htop
-    btop # all the tops
-    protonvpn-cli
-    bat # syntax highlight for lf
-    rnix-lsp # lsp language server for nix (rust)
-    nixfmt
-    rclone
-    zig # needed for nvim lsp
     # wish # ssh keys to mnemonics
-    sumneko-lua-language-server
-    viu # image preview for lf
-    unzip
-    mpv
+    #cutter # gui for radare2
+    acpi # battery
+    bat # syntax highlight for lf
+    btop # all the tops
     cardboard
+    dotter # rust dotfiles manager
     dwl # wm
+    fd
+    file # filetype identification
+    firefox
+    fzf
+    git
+    gnupg
+    helix # neovim alternative in rust
+    htop
+    killall
+    lazygit # git tui
+    lf # linux filemanager (go)
+    mpv
+    ncdu # disk usage
+    neovim
+    nixfmt
+    nnn
+    protonvpn-cli
+    pulsemixer
+    qutebrowser
+    radare2 # reverse engineering debugger for badasses
+    rclone
+    ripgrep
+    rnix-lsp # lsp language server for nix (rust)
+    xsensors # fans heat etc
+    sumneko-lua-language-server
+    unzip
+    viu # image preview for lf
+    wget
+    zellij
+    zig # needed for nvim lsp
+    zip
   ];
 
   programs.sway = {
     enable = true;
     wrapperFeatures.gtk = true; # so that gtk works properly
     extraPackages = with pkgs; [
-      brightnessctl
-      swaylock
+      brightnessctl # brightness control
+      swaylock # lock screen
       swayidle
-      wl-clipboard
+      wl-clipboard # wayland clipboard
       wf-recorder # screen recording
       mako # notification daemon
       alacritty # term
@@ -147,9 +151,8 @@
     ]; # Enable ‘sudo’ for the user.
   };
 
-
   # services.openssh.enable = true;
-  services.tlp.enable = true;
+  # services.tlp.enable = true;
   services.yggdrasil = {
     enable = true;
     persistentKeys = false; # generate new ipv6 address each load
