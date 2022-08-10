@@ -1,0 +1,13 @@
+packages = [
+  "alacritty",
+  "helix",
+  "lf",
+  "nvim",
+  "skhd",
+  "kitty",
+  "zsh",
+]
+
+[variables]
+colorscheme = "vscode"
+zk_path = "~/workspaces/notes"

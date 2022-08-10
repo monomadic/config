@@ -61,7 +61,7 @@ vim.opt.showmode = false
 vim.api.nvim_set_option('tabstop', 2)
 
 -- https://gist.github.com/romainl/379904f91fa40533175dfaec4c833f2f
-vim.cmd("colorscheme {{colorscheme}}");
+-- vim.cmd("colorscheme {{colorscheme}}");
 
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "EndOfBuffer", { fg = "#444444" })
