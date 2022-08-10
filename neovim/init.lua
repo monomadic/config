@@ -32,7 +32,7 @@ vim.opt.foldlevelstart = 99
 vim.opt.hidden = false -- switch buffer without unloading+saving them
 vim.opt.hlsearch = false -- highlight all matches on previous search pattern
 vim.opt.ignorecase = true -- ignore case when searching
-vim.opt.laststatus = 2 -- 3 = global statusline (neovim 0.7+)
+vim.opt.laststatus = 3 -- 2 = local, 3 = global statusline (neovim 0.7+)
 vim.opt.lazyredraw = true -- faster macros (force update with :redraw)
 vim.opt.mouse = "a" -- allow the mouse to be used in neovim
 vim.wo.number = false -- show numbered lines
@@ -59,6 +59,10 @@ vim.g.completion_trigger_keyword_length = 3
 vim.opt.showmode = false
 
 vim.api.nvim_set_option('tabstop', 2)
+
+-- local ICONS = {
+-- 	"file" = ""
+-- }
 
 -- https://gist.github.com/romainl/379904f91fa40533175dfaec4c833f2f
 -- vim.cmd("colorscheme {{colorscheme}}");
@@ -769,6 +773,9 @@ vim.keymap.set("i", "<C-f>", "<Right>")
 vim.keymap.set("i", "<C-e>", "<End>")
 vim.keymap.set("i", "<C-a>", "<Home>")
 vim.keymap.set("i", "<C-s>", "<Esc>:write<CR>")
+vim.keymap.set("n", "go", function()
+	require('telescope.builtin').find_files()
+end)
 vim.keymap.set("n", "<leader>o", function()
 	require('telescope.builtin').find_files(
 		require('telescope.themes').get_dropdown()
@@ -828,13 +835,15 @@ vim.keymap.set("n", "L", "$")
 
 local function lsp_connections()
 	local status = ''
-	local clients = {}
-	local ids = vim.lsp.get_buffers_by_client(0)
+	local ids = vim.lsp.buf_get_clients(0)
 
-	for _, id in ipairs(ids) do
-		local client = clients[id]
-		print(client)
-		--status = string.format('%s', id)
+	vim.cmd "highlight LspIcon guifg=#00DD88"
+
+	for _, client in ipairs(ids) do
+		status = status .. "%#LspIcon#" .. '   ' .. client.name
+		--local client = clients[id]
+		--
+		--status = string.format('%s', id)פּ
 	end
 
 	-- if vim.lsp.buf_is_attached() then
@@ -847,9 +856,13 @@ local function lsp_connections()
 end
 
 function StatusLine()
+	local filetype = ' ' .. vim.api.nvim_buf_get_option(0, 'filetype')
+
 	return table.concat {
 		vim.fn.fnamemodify(vim.fn.expand("%"), ":."), -- project directory
-		-- "%=",
+		"%=",
+		filetype,
+		-- ' ',
 		lsp_connections()
 	}
 end
@@ -881,8 +894,12 @@ local function git_branch()
 end
 
 function TabLine()
+	--vim.cmd "highlight PWD guifg=white guibg=#222222"
+
 	return table.concat {
+		"%#PWD#",
 		vim.fn.fnamemodify(vim.fn.getcwd(), ":~"), -- project directory
+		"%#Normal#",
 		"%=",
 		git_branch(),
 	}
@@ -905,7 +922,7 @@ vim.keymap.set("n", '<leader>lds', ':%bd | so ' .. session_dir)
 -- LSP
 --
 local custom_attach = function(client, bufnr)
-	print("lsp started");
+	--print("lsp started");
 
 	require "lsp-format".on_attach(client)
 
