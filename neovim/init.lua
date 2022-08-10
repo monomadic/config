@@ -251,6 +251,123 @@ require('packer').startup(function(use)
 	-- better % using treesiter - vimscript
 	use { 'andymass/vim-matchup', event = 'VimEnter' }
 
+	use { 'neovim/nvim-lspconfig', config = function()
+		local custom_attach = function(client, bufnr)
+			require "lsp-format".on_attach(client)
+
+			--require('cmp-lsp').on_attach(client);
+			vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(
+				vim.lsp.diagnostic.on_publish_diagnostics, { virtual_text = false, update_in_insert = false }
+			)
+			-- automatic diagnostics popup
+			vim.api.nvim_command('autocmd CursorHold <buffer> lua vim.diagnostic.show()')
+			-- speedup diagnostics popup
+			vim.o.updatetime = 500
+			-- diagnostic settings
+			vim.diagnostic.config({
+				virtual_text = false,
+				signs = true, -- sidebar signs
+				underline = true,
+				severity_sort = true,
+			})
+
+			-- diagnostics icon
+			local signs = { Error = "┃ ", Warn = "┃ ", Hint = "┃ ", Info = "┃ " }
+			for type, icon in pairs(signs) do
+				local hl = "DiagnosticSign" .. type
+				-- vim.cmd("hi " .. hl .. " guibg=none")
+				vim.fn.sign_define(hl, { text = icon, texthl = hl })
+			end
+
+			-- diagnostics float on hover
+			vim.api.nvim_create_autocmd("CursorHold", {
+				buffer = bufnr,
+				callback = function()
+					local opts = {
+						focusable = false,
+						close_events = { "BufLeave", "CursorMoved", "InsertEnter", "FocusLost" },
+						border = 'rounded',
+						source = 'always',
+						prefix = ' ',
+						scope = 'cursor',
+					}
+					vim.diagnostic.open_float(nil, opts)
+				end
+			})
+
+			vim.keymap.set("n", 'gD', '<cmd>lua vim.lsp.buf.declaration()<CR>')
+			--vim.keymap.set("n", '<c-]>', '<cmd>lua vim.lsp.buf.definition()<CR>')
+			--vim.keymap.set("n", 'K', '<cmd>lua vim.lsp.buf.hover()<CR>')
+			vim.keymap.set("n", 'gr', '<cmd>lua vim.lsp.buf.references()<CR>')
+			vim.keymap.set("n", 'gs', '<cmd>lua vim.lsp.buf.signature_help()<CR>')
+			vim.keymap.set("n", 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>')
+			vim.keymap.set("n", 'ga', '<cmd>lua vim.lsp.buf.code_action()<CR>')
+			--vim.keymap.set("n", '<leader>r', '<cmd>lua vim.lsp.buf.rename()<CR>')
+			vim.keymap.set("n", '<leader>=', '<cmd>lua vim.lsp.buf.formatting()<CR>')
+			-- vim.keymap.set("n", '<C-]>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
+			-- vim.keymap.set("n", '<C-[>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
+			vim.keymap.set("n", ']d', '<cmd>lua vim.diagnostic.goto_next()<CR>')
+			vim.keymap.set("n", '[d', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
+			--vim.keymap.set("n", '\\', '<cmd>TroubleToggle<CR>')
+
+			-- vim.keymap.set("n", '<leader>a', function()
+			-- 	vim.lsp.buf.code_action()
+			-- end)
+
+			vim.keymap.set("n", ']e', function()
+				vim.diagnostic.goto_next({
+					severity = vim.diagnostic.severity.ERROR,
+				})
+			end)
+
+			vim.keymap.set("n", '[e', function()
+				vim.diagnostic.goto_prev({
+					severity = vim.diagnostic.severity.ERROR,
+				})
+			end)
+		end
+
+		-- cmp/lsp config
+		--
+		-- tsserver: npm install -g typescript typescript-language-server
+
+		local capabilities = require('cmp_nvim_lsp').update_capabilities(
+			vim.lsp.protocol.make_client_capabilities()
+		);
+		local lspconfig = require('lspconfig')
+		for _, lsp in ipairs({ 'bashls', 'rnix', 'zk', 'tsserver' }) do
+			lspconfig[lsp].setup {
+				on_attach = custom_attach,
+				capabilities = capabilities,
+			}
+		end
+
+		-- lspconfig.tsserver.setup({
+		-- 	on_attach = function(client, _)
+		-- 		require('nvim-lsp-ts-utils').setup({
+		-- 			filter_out_diagnostics_by_code = { 80001 },
+		-- 		})
+		-- 		require('nvim-lsp-ts-utils').setup_client(client)
+		-- 	end,
+		-- })
+
+		-- lspconfig.denols.setup {
+		-- 	root_dir = lspconfig.util.root_pattern("mod.ts", "mod.js")
+		-- }
+
+		lspconfig.sumneko_lua.setup {
+			on_attach = custom_attach,
+			capabilities = capabilities,
+			settings = {
+				Lua = {
+					diagnostics = {
+						globals = { 'vim' }
+					}
+				}
+			}
+		}
+	end }
+
 	-- lspconfig (with mason)
 	use {
 		{ "williamboman/mason.nvim",
@@ -365,7 +482,43 @@ require('packer').startup(function(use)
 	use {
 		'hrsh7th/nvim-cmp',
 		wants = { "LuaSnip" },
-		requires = { "L3MON4D3/LuaSnip", 'hrsh7th/cmp-nvim-lsp' }
+		requires = { "L3MON4D3/LuaSnip", 'hrsh7th/cmp-nvim-lsp' },
+		config = function()
+			local cmp = require('cmp')
+			cmp.setup {
+				sources = {
+					{ name = 'nvim_lsp' },
+					{ name = 'snippy' },
+				},
+				preselect = cmp.PreselectMode.None,
+				snippet = {
+					expand = function(args)
+						require('luasnip').lsp_expand(args.body)
+					end,
+				},
+				mapping = {
+					['<CR>'] = cmp.mapping.confirm({
+						behavior = cmp.ConfirmBehavior.Replace,
+						select = false, -- false = only complete if an item is actually selected
+					}),
+					['<Tab>'] = function(fallback)
+						if cmp.visible() then
+							cmp.select_next_item()
+						else
+							fallback()
+						end
+					end,
+					['<S-Tab>'] = function(fallback)
+						if cmp.visible() then
+							cmp.select_prev_item()
+						else
+							fallback()
+						end
+					end,
+				},
+			}
+
+		end
 	}
 
 	-- snippy
@@ -529,9 +682,9 @@ require('packer').startup(function(use)
 					use_telescope = true
 				},
 				inlay_hints = {
-					show_parameter_hints = false,
-					parameter_hints_prefix = "",
-					other_hints_prefix = "",
+					show_parameter_hints = true,
+					-- parameter_hints_prefix = "",
+					-- other_hints_prefix = "",
 				},
 			},
 
@@ -624,9 +777,12 @@ require('packer').startup(function(use)
 	end }
 
 	-- side scrollbar with git support
-	use { "petertriho/nvim-scrollbar", config = function()
-		require('scrollbar').setup()
-	end }
+	use { "petertriho/nvim-scrollbar",
+		--event = "VimEnter",
+		config = function()
+			require('scrollbar').setup()
+		end
+	}
 
 	-- make background highlight groups transparent
 	use { 'xiyaowong/nvim-transparent',
@@ -855,161 +1011,8 @@ vim.opt.tabline = "%!v:lua.TabLine()"
 -- vim.keymap.set("n", '<leader>mks', ':mks! ' .. session_dir)
 -- vim.keymap.set("n", '<leader>lds', ':%bd | so ' .. session_dir)
 
---
--- LSP
---
-local custom_attach = function(client, bufnr)
-	require "lsp-format".on_attach(client)
-
-	--require('cmp-lsp').on_attach(client);
-	vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(
-		vim.lsp.diagnostic.on_publish_diagnostics, { virtual_text = false, update_in_insert = false }
-	)
-	-- automatic diagnostics popup
-	vim.api.nvim_command('autocmd CursorHold <buffer> lua vim.diagnostic.show()')
-	-- speedup diagnostics popup
-	vim.o.updatetime = 500
-	-- diagnostic settings
-	vim.diagnostic.config({
-		virtual_text = false,
-		signs = true, -- sidebar signs
-		underline = true,
-		severity_sort = true,
-	})
-
-	-- diagnostics icon
-	local signs = { Error = "┃ ", Warn = "┃ ", Hint = "┃ ", Info = "┃ " }
-	for type, icon in pairs(signs) do
-		local hl = "DiagnosticSign" .. type
-		-- vim.cmd("hi " .. hl .. " guibg=none")
-		vim.fn.sign_define(hl, { text = icon, texthl = hl })
-	end
-
-	-- diagnostics float on hover
-	vim.api.nvim_create_autocmd("CursorHold", {
-		buffer = bufnr,
-		callback = function()
-			local opts = {
-				focusable = false,
-				close_events = { "BufLeave", "CursorMoved", "InsertEnter", "FocusLost" },
-				border = 'rounded',
-				source = 'always',
-				prefix = ' ',
-				scope = 'cursor',
-			}
-			vim.diagnostic.open_float(nil, opts)
-		end
-	})
-
-	vim.keymap.set("n", 'gD', '<cmd>lua vim.lsp.buf.declaration()<CR>')
-	--vim.keymap.set("n", '<c-]>', '<cmd>lua vim.lsp.buf.definition()<CR>')
-	--vim.keymap.set("n", 'K', '<cmd>lua vim.lsp.buf.hover()<CR>')
-	vim.keymap.set("n", 'gr', '<cmd>lua vim.lsp.buf.references()<CR>')
-	vim.keymap.set("n", 'gs', '<cmd>lua vim.lsp.buf.signature_help()<CR>')
-	vim.keymap.set("n", 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>')
-	vim.keymap.set("n", 'ga', '<cmd>lua vim.lsp.buf.code_action()<CR>')
-	--vim.keymap.set("n", '<leader>r', '<cmd>lua vim.lsp.buf.rename()<CR>')
-	vim.keymap.set("n", '<leader>=', '<cmd>lua vim.lsp.buf.formatting()<CR>')
-	-- vim.keymap.set("n", '<C-]>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
-	-- vim.keymap.set("n", '<C-[>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
-	vim.keymap.set("n", ']d', '<cmd>lua vim.diagnostic.goto_next()<CR>')
-	vim.keymap.set("n", '[d', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
-	--vim.keymap.set("n", '\\', '<cmd>TroubleToggle<CR>')
-
-	-- vim.keymap.set("n", '<leader>a', function()
-	-- 	vim.lsp.buf.code_action()
-	-- end)
-
-	vim.keymap.set("n", ']e', function()
-		vim.diagnostic.goto_next({
-			severity = vim.diagnostic.severity.ERROR,
-		})
-	end)
-
-	vim.keymap.set("n", '[e', function()
-		vim.diagnostic.goto_prev({
-			severity = vim.diagnostic.severity.ERROR,
-		})
-	end)
-end
-
--- cmp/lsp config
---
--- tsserver: npm install -g typescript typescript-language-server
-
-local capabilities = require('cmp_nvim_lsp').update_capabilities(
-	vim.lsp.protocol.make_client_capabilities()
-);
-local lspconfig = require('lspconfig')
-for _, lsp in ipairs({ 'bashls', 'rnix', 'zk', 'tsserver' }) do
-	lspconfig[lsp].setup {
-		on_attach = custom_attach,
-		capabilities = capabilities,
-	}
-end
-
--- lspconfig.tsserver.setup({
--- 	on_attach = function(client, _)
--- 		require('nvim-lsp-ts-utils').setup({
--- 			filter_out_diagnostics_by_code = { 80001 },
--- 		})
--- 		require('nvim-lsp-ts-utils').setup_client(client)
--- 	end,
--- })
-
--- lspconfig.denols.setup {
--- 	root_dir = lspconfig.util.root_pattern("mod.ts", "mod.js")
--- }
-
-lspconfig.sumneko_lua.setup {
-	on_attach = custom_attach,
-	capabilities = capabilities,
-	settings = {
-		Lua = {
-			diagnostics = {
-				globals = { 'vim' }
-			}
-		}
-	}
-}
-
 -- on markdown
 vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
 	vim.opt.autowriteall = true -- ensure write upon leaving a page
 	vim.opt.wrap = true -- display lines as one long line
 end })
-
--- cmp
-local cmp = require('cmp')
-cmp.setup {
-	sources = {
-		{ name = 'nvim_lsp' },
-		{ name = 'snippy' },
-	},
-	preselect = cmp.PreselectMode.None,
-	snippet = {
-		expand = function(args)
-			require('luasnip').lsp_expand(args.body)
-		end,
-	},
-	mapping = {
-		['<CR>'] = cmp.mapping.confirm({
-			behavior = cmp.ConfirmBehavior.Replace,
-			select = false, -- false = only complete if an item is actually selected
-		}),
-		['<Tab>'] = function(fallback)
-			if cmp.visible() then
-				cmp.select_next_item()
-			else
-				fallback()
-			end
-		end,
-		['<S-Tab>'] = function(fallback)
-			if cmp.visible() then
-				cmp.select_prev_item()
-			else
-				fallback()
-			end
-		end,
-	},
-}
