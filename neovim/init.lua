@@ -253,40 +253,38 @@ require('packer').startup(function(use)
 
 	-- lspconfig (with mason)
 	use {
-		"williamboman/mason.nvim",
-		"williamboman/mason-lspconfig.nvim"
+		{ "williamboman/mason.nvim",
+			requires = { "neovim/nvim-lspconfig" },
+			config = function() require("mason").setup() end
+		},
+		{ "williamboman/mason-lspconfig.nvim",
+			requires = { "williamboman/mason.nvim" },
+			config = function() require("mason-lspconfig").setup() end
+		}
 	}
-
-	use {
-		"neovim/nvim-lspconfig",
-		config = function()
-			-- require("mason").setup()
-			-- require("mason-lspconfig").setup()
-		end
-	}
-	require("mason").setup()
-	require("mason-lspconfig").setup()
 
 	-- treesitter
-	use { 'nvim-treesitter/nvim-treesitter', requires = { "p00f/nvim-ts-rainbow" }, config = function()
-		require 'nvim-treesitter.configs'.setup {
-			ensure_installed = { "rust", "bash", "yaml", "typescript", "javascript", "markdown" },
-			highlight = { enable = true },
-			rainbow = { enable = true, colors = {
-				"#9944FF",
-				"#45F588",
-				"#FFFF00",
-				"#FF44FF",
-				"#00BBFF",
-				"#FFAACC",
-				"#AAFF66",
-			} },
-			matchup = {
-				enable = true, -- mandatory, false will disable the whole extension
-				disable = {}, -- optional, list of language that will be disabled
-			},
-		}
-	end }
+	use { 'nvim-treesitter/nvim-treesitter',
+		requires = { "p00f/nvim-ts-rainbow" },
+		config = function()
+			require 'nvim-treesitter.configs'.setup {
+				ensure_installed = { "rust", "bash", "yaml", "typescript", "javascript", "markdown" },
+				highlight = { enable = true },
+				rainbow = { enable = true, colors = {
+					"#9944FF",
+					"#45F588",
+					"#FFFF00",
+					"#FF44FF",
+					"#00BBFF",
+					"#FFAACC",
+					"#AAFF66",
+				} },
+				matchup = {
+					enable = true, -- mandatory, false will disable the whole extension
+					disable = {}, -- optional, list of language that will be disabled
+				},
+			}
+		end }
 
 	use { 'nvim-telescope/telescope.nvim', config = function()
 		require('telescope').setup {
@@ -361,7 +359,7 @@ require('packer').startup(function(use)
 		end)
 	end }
 
-	--use { 'vijaymarupudi/nvim-fzf' }
+	-- use { 'vijaymarupudi/nvim-fzf' }
 
 	-- completion TODO: clear out useless plugs, maybe custom one
 	use {
@@ -406,16 +404,6 @@ require('packer').startup(function(use)
 		require("colorizer").setup()
 	end }
 
-	-- jump/sneak
-	-- use {
-	-- 	"phaazon/hop.nvim", -- alternative to sneak
-	-- 	branch = "v1", -- optional but strongly recommended
-	-- 	config = function()
-	-- 		require("hop").setup({ keys = "etovxqpdygfblzhckisuran" })
-	-- 		vim.keymap.set("n", "s", "<Cmd>HopWord<CR>")
-	-- 		vim.keymap.set("n", "S", "<Cmd>HopPattern<CR>")
-	-- 	end
-	-- }
 	use { 'ggandor/leap.nvim', config = function()
 		require('leap').set_default_keymaps()
 	end }
@@ -436,7 +424,6 @@ require('packer').startup(function(use)
 					vim.schedule(function() gs.prev_hunk() end)
 					return '<Ignore>'
 				end)
-
 				vim.api.nvim_set_hl(0, "GitSignsAdd", { fg = "#44FF00" })
 				vim.api.nvim_set_hl(0, "GitSignsChange", { fg = "#FFFF00" })
 				vim.api.nvim_set_hl(0, "GitSignsDelete", { fg = "#FF0088" })
@@ -453,17 +440,13 @@ require('packer').startup(function(use)
 
 	use { 'junegunn/goyo.vim', config = function()
 		vim.g.goyo_width = "65%"
-	end } -- distraction-free / zen mode
+	end } -- distraction-free / zen mode (VIMSCRIPT)
 
 	-- Lua
 	use {
 		"folke/zen-mode.nvim",
 		config = function()
-			require("zen-mode").setup {
-				-- your configuration comes here
-				-- or leave it empty to use the default settings
-				-- refer to the configuration section below
-			}
+			require("zen-mode").setup {}
 		end
 	}
 
@@ -488,18 +471,6 @@ require('packer').startup(function(use)
 		end
 	}
 
-	-- -- nvim-tree
-	-- use {
-	-- 	'kyazdani42/nvim-tree.lua',
-	-- 	requires = {
-	-- 		'kyazdani42/nvim-web-devicons', -- optional, for file icons
-	-- 	},
-	-- 	config = function()
-	-- 		require('nvim-tree').setup {}
-	-- 	end,
-	-- 	tag = 'nightly' -- optional, updated every week. (see issue #1193)
-	-- }
-
 	-- surround completion
 	-- use { "numToStr/Surround.nvim" }
 	-- use {
@@ -517,12 +488,20 @@ require('packer').startup(function(use)
 		end,
 	})
 
+	use {
+		'j-hui/fidget.nvim',
+		requires = { 'neovim/nvim-lspconfig' },
+		config = function()
+			require("fidget").setup {}
+		end
+	}
+
 	-- #lsp
 	-- cargo
 	use {
 		"saecki/crates.nvim",
 		event = { "BufRead Cargo.toml" },
-		requires = { { "nvim-lua/plenary.nvim" } },
+		requires = { "nvim-lua/plenary.nvim" },
 		config = function()
 			require('crates').setup {}
 		end,
@@ -531,6 +510,7 @@ require('packer').startup(function(use)
 	-- null lsp
 	use {
 		"jose-elias-alvarez/null-ls.nvim",
+		requires = { "nvim-lua/plenary.nvim" },
 		config = function()
 			local null_ls = require("null-ls")
 			null_ls.setup {
@@ -539,14 +519,12 @@ require('packer').startup(function(use)
 				}
 			}
 		end,
-		requires = { "nvim-lua/plenary.nvim" },
 	}
 
 	use { 'simrat39/rust-tools.nvim', ft = { 'rust' }, config = function()
 		require('rust-tools').setup({
 			tools = {
 				autoSetHints = true,
-				hover_with_actions = true,
 				runnables = {
 					use_telescope = true
 				},
@@ -597,21 +575,24 @@ require('packer').startup(function(use)
 	-- end }
 
 	-- better lsp ui
-	use { "glepnir/lspsaga.nvim", config = function()
-		local lsp_saga = require('lspsaga')
+	use { "glepnir/lspsaga.nvim",
+		requires = { 'neovim/nvim-lspconfig' },
+		config = function()
+			local lsp_saga = require('lspsaga')
 
-		vim.keymap.set("n", "<leader>lo", "<cmd>Lspsaga lsp_finder<CR>")
-		vim.keymap.set("n", "<leader>a", ":Lspsaga code_action")
-		vim.keymap.set("n", "<leader>r", ":Lspsaga rename")
-		vim.keymap.set("n", 'K', '<cmd>lua vim.lsp.buf.hover()<CR>')
-		vim.keymap.set("n", "\\", ':LSoutlineToggle<CR>', { silent = true })
+			vim.keymap.set("n", "<leader>lo", "<cmd>Lspsaga lsp_finder<CR>")
+			vim.keymap.set("n", "<leader>a", "<cmd>Lspsaga code_action<CR>")
+			vim.keymap.set("n", "<leader>r", "<cmd>Lspsaga rename<CR>")
+			vim.keymap.set("n", 'K', '<cmd>Lspsaga hover_doc<CR>')
+			vim.keymap.set("n", "\\", '<cmd>LSoutlineToggle<CR>', { silent = true })
 
-		lsp_saga.init_lsp_saga {
-			show_outline = {
-				jump_key = '<CR>',
+			lsp_saga.init_lsp_saga {
+				show_outline = {
+					saga_winblend = 30,
+					jump_key = '<CR>',
+				}
 			}
-		}
-	end }
+		end }
 
 	-- lua formatting
 	use { "ckipp01/stylua-nvim", ft = { 'lua' } }
@@ -781,43 +762,19 @@ vim.keymap.set("n", "<leader>o", function()
 		require('telescope.themes').get_dropdown()
 	)
 end)
--- vim.keymap.set("n", "<C-g>", function()
--- 	vim.cmd "FloatermNew --height=0.9 --width=0.9 --wintype=float --name=lazygit --position=center --autoclose=2 lazygit"
--- end)
-
---telekasten
--- vim.keymap.set("n", "z", "<Cmd>Telekasten panel<CR>")
--- vim.keymap.set("n", "zn", "<Cmd>Telekasten new_note<CR>")
--- vim.keymap.set("n", "zN", "<Cmd>Telekasten new_templated_note<CR>")
--- vim.keymap.set("n", "zt", "<Cmd>Telekasten show_tags<CR>")
--- vim.keymap.set("n", "zo", "<Cmd>Telekasten toggle_todo<CR>")
--- vim.keymap.set("n", "zT", "<Cmd>Telekasten find_weekly_notes<CR>")
--- vim.keymap.set("n", "zf", "<Cmd>Telekasten find_notes<CR>")
--- vim.keymap.set("n", "zr", "<Cmd>Telekasten rename_note<CR>")
--- vim.keymap.set("n", "zg", "<Cmd>Telekasten follow_link<CR>")
--- vim.keymap.set("n", "zr", "<Cmd>Telekasten show_backlinks<CR>")
--- vim.keymap.set("n", "gz", "<Cmd>Telekasten follow_link<CR>")
-
 -- move lines up and down in visual mode
 vim.keymap.set("x", "K", ":move '<-2<CR>gv-gv")
 vim.keymap.set("x", "J", ":move '>+1<CR>gv-gv")
 --
--- useful bindings
--- vim.keymap.set("i", "kj", "<Esc>")
-vim.keymap.set("n", "<leader>sv", "<cmd>source $MYVIMRC<CR>")
---vim.keymap.set("n", "<leader>ev", "<cmd>vs $MYVIMRC<CR>")
---
 -- quote quickly
 --vim.keymap.set("i", '<leader>"', '<Esc>viw<Esc>a"<Esc>bi"<Esc>leli')
-vim.keymap.set("v", '<leader>"', '<Esc>`<i"<Esc>`>ea"<Esc>')
+vim.keymap.set("v", '"', '<Esc>`<i"<Esc>`>ea"<Esc>')
 -- substitute shortcut
 -- vim.keymap.set("n", "S", ":%s//g<Left><Left>")
 -- vim.keymap.set("v", "S", ":s//g<Left><Left>")
 -- more reachable line start/end
 vim.keymap.set("n", "H", "^")
 vim.keymap.set("n", "L", "$")
--- write to ----READONLY---- files
--- vim.keymap.set("c", "<C-w>", "execute 'silent! write !sudo tee % >/dev/null' <bar> edit!")
 
 --
 -- STATUSLINE
@@ -836,39 +793,24 @@ vim.keymap.set("n", "L", "$")
 local function lsp_connections()
 	local status = ''
 	local ids = vim.lsp.buf_get_clients(0)
-
 	vim.cmd "highlight LspIcon guifg=#00DD88"
-
 	for _, client in ipairs(ids) do
-		status = status .. "%#LspIcon#" .. '   ' .. client.name
-		--local client = clients[id]
-		--
-		--status = string.format('%s', id)פּ
+		status = status .. "  %#LspIcon#" .. client.name
 	end
-
-	-- if vim.lsp.buf_is_attached() then
-	-- 	for _, id in ipairs(ids) do
-	-- 		local client = clients[id]
-	-- 		status = string.format('%s%s', status, client.name)
-	-- 	end
-	-- end
 	return status
 end
 
 function StatusLine()
-	local filetype = ' ' .. vim.api.nvim_buf_get_option(0, 'filetype')
-
+	local filetype = vim.api.nvim_buf_get_option(0, 'filetype')
 	return table.concat {
 		vim.fn.fnamemodify(vim.fn.expand("%"), ":."), -- project directory
 		"%=",
 		filetype,
-		-- ' ',
 		lsp_connections()
 	}
 end
 
 vim.opt.statusline = "%!v:lua.StatusLine()"
---vim.o.statusline = '%{fnamemodify(expand("%"), ":.")}';
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "StatusLine", {}) -- active
 	vim.api.nvim_set_hl(0, "StatusLineNC", {}) -- inactive
@@ -895,7 +837,6 @@ end
 
 function TabLine()
 	--vim.cmd "highlight PWD guifg=white guibg=#222222"
-
 	return table.concat {
 		"%#PWD#",
 		vim.fn.fnamemodify(vim.fn.getcwd(), ":~"), -- project directory
@@ -903,27 +844,21 @@ function TabLine()
 		"%=",
 		git_branch(),
 	}
-	-- local fpath = vim.fn.fnamemodify(vim.fn.expand "%", ":~")
-	-- return fpath
-	-- return vim.fn.fnamemodify(vim.fn.getcwd(), ":~")
-	-- return project_directory()
 end
 
--- vim.opt.tabline = "%!luaeval('TabLine()')"
 vim.opt.tabline = "%!v:lua.TabLine()"
+
 --
 -- SESSIONS
 --
-local session_dir = vim.fn.stdpath('data') .. '/sessions/'
-vim.keymap.set("n", '<leader>mks', ':mks! ' .. session_dir)
-vim.keymap.set("n", '<leader>lds', ':%bd | so ' .. session_dir)
+-- local session_dir = vim.fn.stdpath('data') .. '/sessions/'
+-- vim.keymap.set("n", '<leader>mks', ':mks! ' .. session_dir)
+-- vim.keymap.set("n", '<leader>lds', ':%bd | so ' .. session_dir)
 
 --
 -- LSP
 --
 local custom_attach = function(client, bufnr)
-	--print("lsp started");
-
 	require "lsp-format".on_attach(client)
 
 	--require('cmp-lsp').on_attach(client);
