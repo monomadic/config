@@ -21,7 +21,8 @@
     acpi # battery
     bat # syntax highlight for lf
     btop # all the tops
-    binutils
+    #binutils
+    gcc # for nvim treesitter; could also nix-shell -p gcc --command 'nvim' then :TSInstall
     cardboard
     dotter # rust dotfiles manager
     dwl # wm
