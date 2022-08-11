@@ -21,6 +21,7 @@
     acpi # battery
     bat # syntax highlight for lf
     btop # all the tops
+    binutils
     cardboard
     dotter # rust dotfiles manager
     dwl # wm
@@ -55,6 +56,7 @@
     zellij
     zig # needed for nvim lsp
     zip
+    zsh
   ];
 
   programs.sway = {

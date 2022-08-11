@@ -1,11 +1,12 @@
 packages = [
-  "default",
+	"zsh",
   "bash",
-  "sway",
-  "lf",
+  "default",
   "foot",
+  "lf",
+  "nvim",
+  "sway",
   "xdg",
-  "nvim"
 ]
 
 [variables]
