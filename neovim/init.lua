@@ -1,5 +1,5 @@
---"Black"  @monomadic neovim 0.7+prompt_title = "", preview_title = ""
--- requires: git
+-- @monomadic
+-- requires: git, neovim 0.7+
 
 --
 -- PLUGINS
@@ -660,6 +660,7 @@ vim.g.vim_markdown_new_list_item_indent = 1 -- indent new items on 'o' from n mo
 vim.opt.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (gnome)
 vim.opt.conceallevel = 0 -- so that `` is visible in markdown files
 vim.opt.title = true -- set window title
+vim.opt.titlestring = vim.fn.fnamemodify(vim.fn.getcwd(), ":~:t")
 vim.opt.cursorline = true -- highlight the current line
 vim.opt.expandtab = false -- insert spaces when tab is pressed
 vim.opt.foldlevelstart = 99
@@ -1023,12 +1024,6 @@ end })
 -- TABLINE
 --
 vim.opt.showtabline = 2 -- show the global tab line at the top of neovim
--- vim.opt.tabline = table.concat({
--- 	'%=',
--- 	'%{fnamemodify(getcwd(), ":~")}',
--- 	'%=',
--- })
-
 local function git_branch()
 	local git_info = vim.b.gitsigns_status_dict
 	if git_info then
