@@ -2,7 +2,7 @@
 
 ## Installing
 
-```
+``` bash
 # install dotter
 wget https://github.com/SuperCuber/dotter/releases/download/v0.12.13/dotter
 
@@ -17,7 +17,7 @@ dotter deploy
 
 ## NixOS
 
-```
+``` bash
 sudo ln -s $PWD/nixos/configuration.nix /etc/nixos/configuration.nix
 sudo nixos-rebuild switch
 ```
