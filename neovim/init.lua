@@ -23,19 +23,12 @@ vim.cmd 'packadd packer.nvim' -- only required if packer is opt
 require('packer').startup(function(use)
 	use 'wbthomason/packer.nvim'
 
-	-- mini utility plugins
-	-- https://github.com/echasnovski/mini.nvim#general-principles
 	--
-	-- use { 'echasnovski/mini.nvim', branch = 'stable', config = function()
-	-- 	-- require('mini.cursorword').setup({}) -- highlight word under cursor
-	-- 	require('mini.fuzzy').setup({}) -- fuzzy search (like rg)
-	-- end }
-
-	-- #colorschemes
-	-- use { 'ellisonleao/gruvbox.nvim', config = function()
-	-- 	vim.o.background = "dark"
-	-- end } -- theme
+	-- COLORSCHEMES
+	--
 	use 'bluz71/vim-nightfly-guicolors'
+	use 'lunarvim/darkplus.nvim'
+	use 'projekt0n/github-nvim-theme'
 	use { 'Mofiqul/vscode.nvim', config = function()
 		vim.o.background = 'dark'
 		require('vscode').setup({
@@ -45,7 +38,6 @@ require('packer').startup(function(use)
 			},
 		})
 	end }
-	use { 'lunarvim/darkplus.nvim' }
 	use {
 		"olimorris/onedarkpro.nvim",
 		config = function()
@@ -54,7 +46,6 @@ require('packer').startup(function(use)
 			})
 		end
 	}
-	use { 'projekt0n/github-nvim-theme' }
 
 	-- better % using treesiter - vimscript
 	use { 'andymass/vim-matchup', event = 'VimEnter' }
@@ -245,7 +236,7 @@ require('packer').startup(function(use)
 						"*.lock", "node_modules", "target" },
 					generic_sorter = require("telescope.sorters").get_generic_fuzzy_sorter,
 					path_display = { "truncate" },
-					winblend = 20,
+					winblend = 10,
 					-- border = false,
 					mappings = {
 						i = {
@@ -294,7 +285,7 @@ require('packer').startup(function(use)
 					borderchars = { " ", " ", " ", " ", " ", " ", " ", " " } }
 			end)
 
-			local prompt_bg = "#222222"
+			local prompt_bg = "#0F0F0F"
 			local results_bg = "#202020"
 			local preview_bg = "#0A0A0A"
 
@@ -491,12 +482,11 @@ require('packer').startup(function(use)
 		end,
 	})
 
+	-- lsp progress
 	use {
 		'j-hui/fidget.nvim',
 		requires = { 'neovim/nvim-lspconfig' },
-		config = function()
-			require("fidget").setup {}
-		end
+		config = function() require("fidget").setup {} end
 	}
 
 	-- #lsp
@@ -723,22 +713,40 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "FloatermBorder", { bg = "Black" })
 end })
 
+local targetwin = { win = vim.api.nvim_get_current_win(), buf = vim.api.nvim_get_current_buf() }
+local current_float_handle = nil
+
 local close_term = function()
+	current_float_handle = nil
 	local win = vim.api.nvim_get_current_win()
 	vim.api.nvim_win_close(win, true)
 end
 
-vim.keymap.set('t', '<C-p>', function() close_term() end)
-vim.keymap.set('t', '<C-Space>', function() close_term() end)
+vim.keymap.set('t', '<C-p>', close_term)
+vim.keymap.set('t', '<C-Space>', close_term)
 
 vim.keymap.set('t', '<C-m>', function()
+	if targetwin.win then
+		vim.api.nvim_win_set_height(0, 3)
+		vim.api.nvim_set_current_win(targetwin.win)
+	end
+end)
 
-
+vim.keymap.set('t', '<C-h>', function()
+	local win = vim.api.nvim_get_current_win()
+	vim.api.nvim_win_hide(win)
 end)
 
 vim.keymap.set('n', '<C-Space>', function()
-	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
+	if current_float_handle and vim.api.nvim_win_is_valid(current_float_handle) then
+		vim.api.nvim_set_current_win(current_float_handle)
+		local new_height = math.ceil(0.7 * vim.o.lines)
+		vim.api.nvim_win_set_height(0, new_height)
+		vim.cmd "startinsert" -- start in insert mode
+		return
+	end
 
+	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
 	vim.api.nvim_buf_set_option(buf, "filetype", "terminal")
 	vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
 	vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
@@ -747,11 +755,13 @@ vim.keymap.set('n', '<C-Space>', function()
 		col = math.floor(0.1 * vim.o.columns),
 		width = math.ceil(0.8 * vim.o.columns),
 		height = math.ceil(0.7 * vim.o.lines),
-		border = 'single'
+		border = 'shadow'
 	})
 
 	local win = vim.api.nvim_get_current_win()
+	current_float_handle = win
 	vim.api.nvim_win_set_option(win, "winblend", 20)
+
 	vim.api.nvim_win_set_buf(win, buf)
 	vim.wo.relativenumber = false -- turn off line numbers
 	vim.wo.number = false
@@ -773,10 +783,11 @@ vim.keymap.set('n', '<C-p>', function()
 		col = math.floor(0.1 * vim.o.columns),
 		width = math.ceil(0.8 * vim.o.columns),
 		height = math.ceil(0.7 * vim.o.lines),
-		border = 'single'
+		border = 'shadow'
 	})
 
 	local win = vim.api.nvim_get_current_win()
+	vim.api.nvim_win_set_option(win, "winblend", 20)
 	vim.api.nvim_win_set_buf(win, buf)
 	vim.wo.relativenumber = false -- turn off line numbers
 	vim.wo.number = false
