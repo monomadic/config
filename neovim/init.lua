@@ -214,7 +214,6 @@ require('packer').startup(function(use)
 		end }
 
 	use { 'nvim-telescope/telescope.nvim',
-		requires = { 'nvim-telescope/telescope-file-browser.nvim' },
 		config = function()
 			require('telescope').setup {
 				defaults = {
@@ -246,7 +245,7 @@ require('packer').startup(function(use)
 						"*.lock", "node_modules", "target" },
 					generic_sorter = require("telescope.sorters").get_generic_fuzzy_sorter,
 					path_display = { "truncate" },
-					winblend = 0,
+					winblend = 20,
 					-- border = false,
 					mappings = {
 						i = {
@@ -260,9 +259,15 @@ require('packer').startup(function(use)
 				},
 			}
 
-			require('telescope').load_extension('file_browser')
-
 			-- telescope keymaps
+			vim.keymap.set("n", "go", function()
+				require('telescope.builtin').find_files()
+			end)
+			vim.keymap.set("n", "<leader>o", function()
+				require('telescope.builtin').find_files(
+					require('telescope.themes').get_dropdown()
+				)
+			end)
 			vim.keymap.set("n", 'tb', '<cmd>Telescope buffers<cr>')
 			vim.keymap.set("n", 'tc', '<cmd>Telescope commands<cr>')
 			vim.keymap.set("n", '<leader>f', function()
@@ -273,7 +278,6 @@ require('packer').startup(function(use)
 			vim.keymap.set("n", '<leader>ch', '<cmd>Telescope command_history<cr>')
 			vim.keymap.set("n", '<leader>g', '<cmd>Telescope live_grep<cr>')
 			vim.keymap.set("n", 'ts', '<cmd>Telescope spell_suggest<cr>')
-			vim.keymap.set('', '<F1>', '<cmd>Telescope help_tags<cr>')
 			vim.keymap.set('n', 'td', '<Cmd>Telescope diagnostics<cr>')
 			vim.keymap.set('n', 'tgb', '<Cmd>Telescope git_branches<cr>')
 			vim.keymap.set('n', 'tgc', '<Cmd>Telescope git_bcommits<cr>')
@@ -291,8 +295,8 @@ require('packer').startup(function(use)
 			end)
 
 			local prompt_bg = "#222222"
+			local results_bg = "#202020"
 			local preview_bg = "#0A0A0A"
-			local results_bg = "#0A0A0A"
 
 			vim.api.nvim_set_hl(0, "TelescopeBorder", { fg = prompt_bg, bg = prompt_bg })
 
@@ -727,6 +731,11 @@ end
 vim.keymap.set('t', '<C-p>', function() close_term() end)
 vim.keymap.set('t', '<C-Space>', function() close_term() end)
 
+vim.keymap.set('t', '<C-m>', function()
+
+
+end)
+
 vim.keymap.set('n', '<C-Space>', function()
 	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
 
@@ -742,6 +751,7 @@ vim.keymap.set('n', '<C-Space>', function()
 	})
 
 	local win = vim.api.nvim_get_current_win()
+	vim.api.nvim_win_set_option(win, "winblend", 20)
 	vim.api.nvim_win_set_buf(win, buf)
 	vim.wo.relativenumber = false -- turn off line numbers
 	vim.wo.number = false
@@ -833,7 +843,12 @@ vim.keymap.set("n", "{", "k{j")
 
 -- indent in insert mode
 vim.keymap.set("i", "<C-]>", "<C-t>")
+vim.keymap.set("n", "<C-]>", "i<C-t><C-f><Esc>")
+vim.keymap.set("v", "<C-]>", "<Esc><C-]>")
+
 vim.keymap.set("i", "<C-[>", "<C-d>")
+vim.keymap.set("n", "<C-[>", "i<C-d><C-f><Esc>")
+vim.keymap.set("v", "<C-[>", "<Esc><C-[>")
 
 vim.keymap.set("n", "gd", function() vim.lsp.buf.definition() end)
 vim.keymap.set("n", "gD", function() vim.lsp.buf.declaration() end)
@@ -958,14 +973,6 @@ vim.keymap.set("i", "<C-f>", "<Right>")
 vim.keymap.set("i", "<C-e>", "<End>")
 vim.keymap.set("i", "<C-a>", "<Home>")
 vim.keymap.set("i", "<C-s>", "<Esc>:write<CR>")
-vim.keymap.set("n", "go", function()
-	require('telescope.builtin').find_files()
-end)
-vim.keymap.set("n", "<leader>o", function()
-	require('telescope.builtin').find_files(
-		require('telescope.themes').get_dropdown()
-	)
-end)
 -- move lines up and down in visual mode
 vim.keymap.set("x", "K", ":move '<-2<CR>gv-gv")
 vim.keymap.set("x", "J", ":move '>+1<CR>gv-gv")
