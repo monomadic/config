@@ -285,9 +285,9 @@ require('packer').startup(function(use)
 					borderchars = { " ", " ", " ", " ", " ", " ", " ", " " } }
 			end)
 
-			local prompt_bg = "#0F0F0F"
-			local results_bg = "#202020"
-			local preview_bg = "#0A0A0A"
+			local prompt_bg = "#000000"
+			local results_bg = "#000000"
+			local preview_bg = "#000000"
 
 			vim.api.nvim_set_hl(0, "TelescopeBorder", { fg = prompt_bg, bg = prompt_bg })
 
