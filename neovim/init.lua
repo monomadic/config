@@ -285,6 +285,18 @@ require('packer').startup(function(use)
 					borderchars = { " ", " ", " ", " ", " ", " ", " ", " " } }
 			end)
 
+			-- bg("TelescopeSelection", black2)
+
+			vim.keymap.set('n', 'tm', '<Cmd>Telescope marks<cr>')
+			vim.keymap.set('n', 'tr', '<Cmd>Telescope resume<cr>')
+			vim.keymap.set('n', 'tt', '<Cmd>TodoTelescope<cr>')
+			vim.keymap.set('n', 'tz', '<Cmd>Telekasten find_notes<cr>')
+			vim.keymap.set("n", "ts", function()
+				require("luasnip.loaders.from_snipmate").lazy_load()
+				require('telescope').load_extension('luasnip')
+				vim.api.nvim_command('Telescope luasnip')
+			end)
+
 			local prompt_bg = "#000000"
 			local results_bg = "#000000"
 			local preview_bg = "#000000"
@@ -303,18 +315,6 @@ require('packer').startup(function(use)
 			vim.api.nvim_set_hl(0, "TelescopeResultsTitle", { fg = results_bg, bg = results_bg })
 			vim.api.nvim_set_hl(0, "TelescopeResultsBorder", { fg = results_bg, bg = results_bg })
 			vim.api.nvim_set_hl(0, "TelescopeResultsNormal", { bg = results_bg })
-			--
-			-- bg("TelescopeSelection", black2)
-
-			vim.keymap.set('n', 'tm', '<Cmd>Telescope marks<cr>')
-			vim.keymap.set('n', 'tr', '<Cmd>Telescope resume<cr>')
-			vim.keymap.set('n', 'tt', '<Cmd>TodoTelescope<cr>')
-			vim.keymap.set('n', 'tz', '<Cmd>Telekasten find_notes<cr>')
-			vim.keymap.set("n", "ts", function()
-				require("luasnip.loaders.from_snipmate").lazy_load()
-				require('telescope').load_extension('luasnip')
-				vim.api.nvim_command('Telescope luasnip')
-			end)
 		end }
 
 	-- use { 'vijaymarupudi/nvim-fzf' }
@@ -514,7 +514,7 @@ require('packer').startup(function(use)
 		end,
 	}
 
-	use { 'simrat39/rust-tools.nvim', ft = { 'rust' }, config = function()
+	use { 'simrat39/rust-tools.nvim', config = function()
 		require('rust-tools').setup({
 			tools = {
 				autoSetHints = true,
@@ -535,8 +535,8 @@ require('packer').startup(function(use)
 					-- to enable rust-analyzer settings visit:
 					-- https://github.com/rust-analyzer/rust-analyzer/blob/master/docs/user/generated_config.adoc
 					["rust-analyzer"] = {
-						hover = {
-						},
+						-- hover = {
+						-- },
 						checkOnSave = {
 							enable = true,
 							command = "clippy",
@@ -602,6 +602,7 @@ require('packer').startup(function(use)
 		end
 	}
 
+	-- NOTE: vimwiki is vimscript...
 	use { 'vimwiki/vimwiki', config = function()
 		vim.keymap.set("n", "gi", "<Cmd>VimwikiIndex<CR>") -- TODO: lsp variants (eg rust will look for lib.rs, main.rs etc)
 		vim.keymap.set("n", "gw", "<Cmd>VimwikiGoto ")
@@ -1076,3 +1077,13 @@ vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = funct
 	vim.opt.autowriteall = true -- ensure write upon leaving a page
 	vim.opt.wrap = true -- display lines as one long line
 end })
+
+vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
+	vim.keymap.set("n", "gi", function()
+		vim.cmd ':edit src/lib.rs'
+	end)
+end })
+
+vim.keymap.set("n", "<leader>ri", function()
+	vim.cmd ':edit src/lib.rs'
+end)
