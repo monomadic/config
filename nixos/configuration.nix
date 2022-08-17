@@ -105,7 +105,7 @@
     #  QT_AUTO_SCREEN_SCALE_FACTOR = "1";
     XCURSOR_SIZE = "48";
     XCURSOR_THEME = "Vanilla-DMZ";
-    EDITOR = "nvim";
+		# EDITOR = "nvim";
   };
   # services.xserver.dpi = 97; # this does nothing for wayland
 
@@ -139,6 +139,7 @@
 
   users.users.nom = {
     isNormalUser = true;
+    shell = pkgs.zsh;
     extraGroups = [
       "wheel"
       "disk"

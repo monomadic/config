@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=notes
-Comment=Notes in neovim
+Name=wiki
+Comment=Open wiki in neovim
 Icon=utilities-terminal
 Terminal=true
-Exec=nvim /mnt/data/notes/today.md
-Path=/mnt/data/notes
+Exec=nvim '+colorscheme darkplus' /mnt/data/wiki/index.md
+Path=/mnt/data/wiki
 Categories=ConsoleOnly;System;FileTools;FileManager
 MimeType=inode/directory;

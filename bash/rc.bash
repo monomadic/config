@@ -17,7 +17,7 @@ bind '"\C-o":"fzm\n"'
 
 # environment variables
 #
-export EDITOR=nvim
+#export EDITOR=nvim
 
 # foundry
 export PATH="$PATH:/home/dev/.foundry/bin"
