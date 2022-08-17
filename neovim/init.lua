@@ -132,14 +132,14 @@ require('packer').startup(function(use)
 			}
 		end
 
-		-- lspconfig.tsserver.setup({
-		-- 	on_attach = function(client, _)
-		-- 		require('nvim-lsp-ts-utils').setup({
-		-- 			filter_out_diagnostics_by_code = { 80001 },
-		-- 		})
-		-- 		require('nvim-lsp-ts-utils').setup_client(client)
-		-- 	end,
-		-- })
+		lspconfig.tsserver.setup({
+			on_attach = function(client, _)
+				require('nvim-lsp-ts-utils').setup({
+					filter_out_diagnostics_by_code = { 80001 },
+				})
+				require('nvim-lsp-ts-utils').setup_client(client)
+			end,
+		})
 
 		-- lspconfig.denols.setup {
 		-- 	root_dir = lspconfig.util.root_pattern("mod.ts", "mod.js")
@@ -603,6 +603,12 @@ require('packer').startup(function(use)
 	}
 
 	-- NOTE: vimwiki is vimscript...
+	-- use { 'chipsenkbeil/vimwiki.nvim', config = function()
+	-- end }
+	use { 'ElPiloto/telescope-vimwiki.nvim', config = function()
+		require('telescope').load_extension('vimwiki')
+		vim.keymap.set("n", 'tw', '<cmd>Telescope vimwiki<cr>')
+	end }
 	use { 'vimwiki/vimwiki', config = function()
 		vim.keymap.set("n", "gi", "<Cmd>VimwikiIndex<CR>") -- TODO: lsp variants (eg rust will look for lib.rs, main.rs etc)
 		vim.keymap.set("n", "gw", "<Cmd>VimwikiGoto ")
@@ -687,6 +693,7 @@ vim.g.completion_matching_strategy_list = { 'exact', 'substring', 'fuzzy' }
 vim.g.completion_matching_ignore_case = 1
 vim.g.completion_trigger_keyword_length = 3
 vim.opt.showmode = false
+vim.opt.regexpengine = 2
 
 vim.api.nvim_set_option('tabstop', 2)
 
@@ -712,6 +719,7 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "NormalFloat", {})
 	vim.api.nvim_set_hl(0, "Floaterm", { bg = "Black" })
 	vim.api.nvim_set_hl(0, "FloatermBorder", { bg = "Black" })
+	vim.api.nvim_set_hl(0, "FloatBorder", { bg = "Black" })
 end })
 
 local targetwin = { win = vim.api.nvim_get_current_win(), buf = vim.api.nvim_get_current_buf() }
@@ -723,7 +731,6 @@ local close_term = function()
 	vim.api.nvim_win_close(win, true)
 end
 
-vim.keymap.set('t', '<C-p>', close_term)
 vim.keymap.set('t', '<C-Space>', close_term)
 
 vim.keymap.set('t', '<C-m>', function()
@@ -756,7 +763,7 @@ vim.keymap.set('n', '<C-Space>', function()
 		col = math.floor(0.1 * vim.o.columns),
 		width = math.ceil(0.8 * vim.o.columns),
 		height = math.ceil(0.7 * vim.o.lines),
-		border = 'shadow'
+		border = 'solid'
 	})
 
 	local win = vim.api.nvim_get_current_win()
@@ -784,7 +791,7 @@ vim.keymap.set('n', '<C-p>', function()
 		col = math.floor(0.1 * vim.o.columns),
 		width = math.ceil(0.8 * vim.o.columns),
 		height = math.ceil(0.7 * vim.o.lines),
-		border = 'shadow'
+		border = 'solid'
 	})
 
 	local win = vim.api.nvim_get_current_win()
@@ -1078,7 +1085,7 @@ vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = funct
 	vim.opt.wrap = true -- display lines as one long line
 end })
 
-vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
+vim.api.nvim_create_autocmd("FileType", { pattern = "rust", callback = function()
 	vim.keymap.set("n", "gi", function()
 		vim.cmd ':edit src/lib.rs'
 	end)
