@@ -50,6 +50,11 @@ require('packer').startup(function(use)
 	-- better % using treesiter - vimscript
 	use { 'andymass/vim-matchup', event = 'VimEnter' }
 
+	-- show filename in winbar
+	use { "b0o/incline.nvim", config = function()
+		require('incline').setup()
+	end }
+
 	use { 'neovim/nvim-lspconfig', config = function()
 		local custom_attach = function(client, bufnr)
 			require "lsp-format".on_attach(client)
@@ -131,6 +136,11 @@ require('packer').startup(function(use)
 				capabilities = capabilities,
 			}
 		end
+
+		lspconfig.eslint.setup({
+			on_attach = custom_attach,
+			capabilities = capabilities,
+		})
 
 		lspconfig.tsserver.setup({
 			on_attach = function(client, _)
@@ -284,8 +294,6 @@ require('packer').startup(function(use)
 				require('telescope.builtin').lsp_document_symbols { symbols = "function", prompt_title = "", preview_title = "",
 					borderchars = { " ", " ", " ", " ", " ", " ", " ", " " } }
 			end)
-
-			-- bg("TelescopeSelection", black2)
 
 			vim.keymap.set('n', 'tm', '<Cmd>Telescope marks<cr>')
 			vim.keymap.set('n', 'tr', '<Cmd>Telescope resume<cr>')
@@ -645,7 +653,6 @@ require('packer').startup(function(use)
 	}
 end)
 
-
 --
 -- SETTINGS
 --
@@ -697,6 +704,8 @@ vim.opt.regexpengine = 2
 
 vim.api.nvim_set_option('tabstop', 2)
 
+require 'floats'
+
 -- local ICONS = {
 -- 	"file" = ""
 -- }
@@ -711,138 +720,10 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "VimwikiHeaderChar", { fg = "#44FF00" })
 	vim.api.nvim_set_hl(0, "VimwikiLink", { fg = "#44FFFF" })
 	vim.api.nvim_set_hl(0, "LineNr", { fg = "#222222" }) -- active
+	vim.api.nvim_set_hl(0, "StatusLine", {}) -- active
+	vim.api.nvim_set_hl(0, "StatusLineNC", {}) -- inactive
 end })
 -- vim.opt.tabline = "%!render_tabline()"
-
--- floats
-vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
-	vim.api.nvim_set_hl(0, "NormalFloat", {})
-	vim.api.nvim_set_hl(0, "Floaterm", { bg = "Black" })
-	vim.api.nvim_set_hl(0, "FloatermBorder", { bg = "Black" })
-	vim.api.nvim_set_hl(0, "FloatBorder", { bg = "Black" })
-end })
-
-local targetwin = { win = vim.api.nvim_get_current_win(), buf = vim.api.nvim_get_current_buf() }
-local current_float_handle = nil
-
-local close_term = function()
-	current_float_handle = nil
-	local win = vim.api.nvim_get_current_win()
-	vim.api.nvim_win_close(win, true)
-end
-
-vim.keymap.set('t', '<C-Space>', close_term)
-
-vim.keymap.set('t', '<C-m>', function()
-	if targetwin.win then
-		vim.api.nvim_win_set_height(0, 3)
-		vim.api.nvim_set_current_win(targetwin.win)
-	end
-end)
-
-vim.keymap.set('t', '<C-h>', function()
-	local win = vim.api.nvim_get_current_win()
-	vim.api.nvim_win_hide(win)
-end)
-
-vim.keymap.set('n', '<C-Space>', function()
-	if current_float_handle and vim.api.nvim_win_is_valid(current_float_handle) then
-		vim.api.nvim_set_current_win(current_float_handle)
-		local new_height = math.ceil(0.7 * vim.o.lines)
-		vim.api.nvim_win_set_height(0, new_height)
-		vim.cmd "startinsert" -- start in insert mode
-		return
-	end
-
-	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
-	vim.api.nvim_buf_set_option(buf, "filetype", "terminal")
-	vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
-	vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
-		relative = 'editor',
-		row = math.floor(0.05 * vim.o.lines),
-		col = math.floor(0.1 * vim.o.columns),
-		width = math.ceil(0.8 * vim.o.columns),
-		height = math.ceil(0.7 * vim.o.lines),
-		border = 'solid'
-	})
-
-	local win = vim.api.nvim_get_current_win()
-	current_float_handle = win
-	vim.api.nvim_win_set_option(win, "winblend", 20)
-
-	vim.api.nvim_win_set_buf(win, buf)
-	vim.wo.relativenumber = false -- turn off line numbers
-	vim.wo.number = false
-	vim.fn.termopen(vim.o.shell)
-
-	vim.cmd "startinsert" -- start in insert mode
-end)
-
--- custom terminal float
-vim.keymap.set('n', '<C-p>', function()
-	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
-	local selected_file = vim.fn.expand('%:p') -- the currently open filename
-
-	vim.api.nvim_buf_set_option(buf, "filetype", "terminal")
-	vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
-	vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
-		relative = 'editor',
-		row = math.floor(0.05 * vim.o.lines),
-		col = math.floor(0.1 * vim.o.columns),
-		width = math.ceil(0.8 * vim.o.columns),
-		height = math.ceil(0.7 * vim.o.lines),
-		border = 'solid'
-	})
-
-	local win = vim.api.nvim_get_current_win()
-	vim.api.nvim_win_set_option(win, "winblend", 20)
-	vim.api.nvim_win_set_buf(win, buf)
-	vim.wo.relativenumber = false -- turn off line numbers
-	vim.wo.number = false
-
-	-- local job_id = vim.fn.termopen(vim.o.shell)
-	-- vim.api.nvim_chan_send(job_id, "lf\n")
-
-	vim.cmd "startinsert" -- start in insert mode
-
-	local lf_tmpfile = vim.fn.tempname()
-	local lf_tmpdir = vim.fn.tempname()
-
-	local process_cmd = 'lf -last-dir-path="' ..
-			lf_tmpdir .. '" -selection-path="' .. lf_tmpfile .. '" '
-
-	if selected_file ~= "" then
-		process_cmd = process_cmd .. '"' .. selected_file .. '"'
-	end
-	--print(process_cmd)
-
-	-- launch lf process
-	vim.fn.termopen(process_cmd, {
-		on_exit = function() -- job_id, exit_code, event_type
-			-- if window is a float, close the window
-			if vim.api.nvim_win_get_config(win).zindex then
-				vim.api.nvim_win_close(win, true)
-			end
-
-			-- if lf correctly left us a tempfile
-			if vim.loop.fs_stat(lf_tmpfile) then
-				local contents = {}
-				-- grab the entries that were selected (one per line)
-				for line in io.lines(lf_tmpfile) do
-					table.insert(contents, line)
-				end
-				if not vim.tbl_isempty(contents) then
-					--vim.api.nvim_win_close(0, true) -- close current (0) with force
-
-					for _, fname in pairs(contents) do
-						-- and open them for editing
-						vim.cmd(("%s %s"):format('edit', fname))
-					end
-				end
-			end
-		end,
-	})
-end)
 
 -- #keymaps
 -- to view current mappings: :verbose nmap <C-]>
@@ -913,21 +794,15 @@ vim.api.nvim_create_autocmd("BufWrite", { pattern = "*", callback = function()
 	vim.cmd [[%s/\n\+\%$//e]] -- remove trailing newlines
 end })
 
--- when opening vim
-vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
-	-- if no args are passed
-	if vim.fn.argc() == 0 then
-		vim.cmd "enew"
-
-		--vim.cmd "setlocal bufhidden=wipe buftype=nofile nocursorline nonumber nolist"
-		vim.cmd "setlocal bufhidden=wipe buftype=nofile nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
-
-		--local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
-
-		--vim.cmd "setlocal bufhidden=wipe buftype=nofile nobuflisted nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
-		vim.cmd([[call append('$', "")]])
-	end
-end })
+-- -- when opening vim
+-- vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
+-- 	-- if no args are passed
+-- 	if vim.fn.argc() == 0 then
+-- 		vim.cmd "enew"
+-- 		vim.cmd "setlocal bufhidden=wipe buftype=nofile nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
+-- 		vim.cmd([[call append('$', "")]])
+-- 	end
+-- end })
 
 -- hide line-bar in insert-mode
 vim.api.nvim_create_autocmd("InsertEnter", { pattern = "*", callback = function()
@@ -1041,10 +916,8 @@ function StatusLine()
 end
 
 vim.opt.statusline = "%!v:lua.StatusLine()"
-vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
-	vim.api.nvim_set_hl(0, "StatusLine", {}) -- active
-	vim.api.nvim_set_hl(0, "StatusLineNC", {}) -- inactive
-end })
+-- vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
+-- end })
 
 --
 -- TABLINE
@@ -1080,16 +953,16 @@ vim.opt.tabline = "%!v:lua.TabLine()"
 -- vim.keymap.set("n", '<leader>lds', ':%bd | so ' .. session_dir)
 
 -- on markdown
-vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
-	vim.opt.autowriteall = true -- ensure write upon leaving a page
-	vim.opt.wrap = true -- display lines as one long line
-end })
-
-vim.api.nvim_create_autocmd("FileType", { pattern = "rust", callback = function()
-	vim.keymap.set("n", "gi", function()
-		vim.cmd ':edit src/lib.rs'
-	end)
-end })
+-- vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
+-- 	vim.opt.autowriteall = true -- ensure write upon leaving a page
+-- 	vim.opt.wrap = true -- display lines as one long line
+-- end })
+--
+-- vim.api.nvim_create_autocmd("FileType", { pattern = "rust", callback = function()
+-- 	vim.keymap.set("n", "gi", function()
+-- 		vim.cmd ':edit src/lib.rs'
+-- 	end)
+-- end })
 
 vim.keymap.set("n", "<leader>ri", function()
 	vim.cmd ':edit src/lib.rs'

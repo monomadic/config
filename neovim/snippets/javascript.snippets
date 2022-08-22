@@ -1,0 +1,13 @@
+snippet main-async "async main"
+	const main = async () => {
+	}
+	main()
+		.then(() => process.exit(0))
+		.catch((error) => {
+			console.error(error);
+			process.exit(1);
+		});
+
+snippet async-anon "simple anonymous async function"
+	(async () => {
+	})();
