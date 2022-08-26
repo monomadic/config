@@ -1,56 +1,69 @@
--- floats
+-- modal floats
 
-local targetwin = { win = vim.api.nvim_get_current_win(), buf = vim.api.nvim_get_current_buf() }
-local current_float_handle = nil
+-- local targetwin = { win = vim.api.nvim_get_current_win(), buf = vim.api.nvim_get_current_buf() }
+local background_float_buf = nil
 
 local close_term = function()
-	current_float_handle = nil
+	background_float_buf = nil
 	local win = vim.api.nvim_get_current_win()
 	vim.api.nvim_win_close(win, true)
 end
 
-vim.keymap.set('t', '<C-Space>', close_term)
+--vim.keymap.set('t', 'Esc', close_term)
 
-vim.keymap.set('t', '<C-m>', function()
-	if targetwin.win then
-		vim.api.nvim_win_set_height(0, 3)
-		vim.api.nvim_set_current_win(targetwin.win)
-	end
-end)
+-- vim.keymap.set('t', '<C-m>', function()
+-- 	if targetwin.win then
+-- 		background_float_buf = vim.api.nvim_get_current_buf()
+-- 		vim.api.nvim_win_set_height(0, 3)
+-- 		vim.api.nvim_set_current_win(targetwin.win)
+-- 	end
+-- end)
 
-vim.keymap.set('t', '<C-h>', function()
+vim.keymap.set('t', '<C-Space>', function()
+	background_float_buf = vim.api.nvim_get_current_buf()
 	vim.api.nvim_win_hide(0)
 end)
 
 vim.keymap.set('n', '<C-Space>', function()
-	if current_float_handle and vim.api.nvim_win_is_valid(current_float_handle) then
-		vim.api.nvim_set_current_win(current_float_handle)
-		local new_height = math.ceil(0.7 * vim.o.lines)
-		vim.api.nvim_win_set_height(0, new_height)
-		vim.cmd "startinsert" -- start in insert mode
-		return
+	--if background_float and vim.api.nvim_win_is_valid(background_float) then
+	if background_float_buf then
+		-- vim.api.nvim_set_current_win(background_float_buf)
+		-- local new_height = math.ceil(0.7 * vim.o.lines)
+		-- vim.api.nvim_win_set_height(0, new_height)
+		-- vim.cmd "startinsert" -- start in insert mode
+		local buf = background_float_buf
+		vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
+			relative = 'editor',
+			row = math.floor(0.05 * vim.o.lines),
+			col = math.floor(0.1 * vim.o.columns),
+			width = math.ceil(0.8 * vim.o.columns),
+			height = math.ceil(0.7 * vim.o.lines),
+			border = 'solid'
+		})
+
+	else
+		local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
+		vim.api.nvim_buf_set_option(buf, "filetype", "terminal")
+		vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
+		vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
+			relative = 'editor',
+			row = math.floor(0.05 * vim.o.lines),
+			col = math.floor(0.1 * vim.o.columns),
+			width = math.ceil(0.8 * vim.o.columns),
+			height = math.ceil(0.7 * vim.o.lines),
+			border = 'solid'
+		})
+
+		local win = vim.api.nvim_get_current_win()
+		background_float_buf = win
+		vim.api.nvim_win_set_option(win, "winblend", 20)
+
+		vim.api.nvim_win_set_buf(win, buf)
+		vim.wo.relativenumber = false -- turn off line numbers
+		vim.wo.number = false
+		vim.fn.termopen(vim.o.shell)
 	end
 
-	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
-	vim.api.nvim_buf_set_option(buf, "filetype", "terminal")
-	vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
-	vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
-		relative = 'editor',
-		row = math.floor(0.05 * vim.o.lines),
-		col = math.floor(0.1 * vim.o.columns),
-		width = math.ceil(0.8 * vim.o.columns),
-		height = math.ceil(0.7 * vim.o.lines),
-		border = 'solid'
-	})
-
-	local win = vim.api.nvim_get_current_win()
-	current_float_handle = win
-	vim.api.nvim_win_set_option(win, "winblend", 20)
-
-	vim.api.nvim_win_set_buf(win, buf)
-	vim.wo.relativenumber = false -- turn off line numbers
-	vim.wo.number = false
-	vim.fn.termopen(vim.o.shell)
 
 	vim.cmd "startinsert" -- start in insert mode
 end)

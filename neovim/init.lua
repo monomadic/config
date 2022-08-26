@@ -55,124 +55,132 @@ require('packer').startup(function(use)
 		require('incline').setup()
 	end }
 
-	use { 'neovim/nvim-lspconfig', config = function()
-		local custom_attach = function(client, bufnr)
-			require "lsp-format".on_attach(client)
+	use { 'jose-elias-alvarez/typescript.nvim', config = function()
+		require("typescript").setup({
+			disable_commands = false, -- prevent the plugin from creating Vim commands
+			debug = false,
+		})
+	end }
 
-			vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(
-				vim.lsp.diagnostic.on_publish_diagnostics, { virtual_text = false, update_in_insert = false }
-			)
-			vim.api.nvim_command('autocmd CursorHold <buffer> lua vim.diagnostic.show()') -- automatic diagnostics popup
-			vim.o.updatetime = 500 -- time before diagnostics popup in ms
-			vim.diagnostic.config({
-				virtual_text = true,
-				signs = true, -- sidebar signs
-				underline = false,
-				severity_sort = true,
-			})
+	-- kinda sucks, lets stop using it
+	use { 'neovim/nvim-lspconfig',
+		config = function()
+			local custom_attach = function(client, bufnr)
+				require "lsp-format".on_attach(client)
 
-			-- diagnostics icon
-			local signs = { Error = "┃ ", Warn = "┃ ", Hint = "┃ ", Info = "┃ " }
-			for type, icon in pairs(signs) do
-				local hl = "DiagnosticSign" .. type
-				-- vim.cmd("hi " .. hl .. " guibg=none")
-				vim.fn.sign_define(hl, { text = icon, texthl = hl })
+				vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(
+					vim.lsp.diagnostic.on_publish_diagnostics, { virtual_text = false, update_in_insert = false }
+				)
+				vim.api.nvim_command('autocmd CursorHold <buffer> lua vim.diagnostic.show()') -- automatic diagnostics popup
+				vim.o.updatetime = 500 -- time before diagnostics popup in ms
+				vim.diagnostic.config({
+					virtual_text = true,
+					signs = true, -- sidebar signs
+					underline = false,
+					severity_sort = true,
+				})
+
+				-- diagnostics icon
+				local signs = { Error = "┃ ", Warn = "┃ ", Hint = "┃ ", Info = "┃ " }
+				for type, icon in pairs(signs) do
+					local hl = "DiagnosticSign" .. type
+					-- vim.cmd("hi " .. hl .. " guibg=none")
+					vim.fn.sign_define(hl, { text = icon, texthl = hl })
+				end
+
+				-- diagnostics float on hover
+				vim.api.nvim_create_autocmd("CursorHold", {
+					buffer = bufnr,
+					callback = function()
+						local opts = {
+							focusable = false,
+							close_events = { "BufLeave", "CursorMoved", "InsertEnter", "FocusLost" },
+							border = 'rounded',
+							source = 'always',
+							prefix = ' ',
+							scope = 'cursor',
+						}
+						vim.diagnostic.open_float(nil, opts)
+					end
+				})
+
+				--vim.keymap.set("n", 'gD', '<cmd>lua vim.lsp.buf.declaration()<CR>') -- not used by most lsp servers
+				--vim.keymap.set("n", 'K', '<cmd>lua vim.lsp.buf.hover()<CR>')
+				vim.keymap.set("n", 'gr', '<cmd>lua vim.lsp.buf.references()<CR>')
+				vim.keymap.set("n", 'gs', '<cmd>lua vim.lsp.buf.signature_help()<CR>')
+				--vim.keymap.set("n", 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>')
+				vim.keymap.set("n", 'ga', '<cmd>lua vim.lsp.buf.code_action()<CR>')
+				--vim.keymap.set("n", '<leader>r', '<cmd>lua vim.lsp.buf.rename()<CR>')
+				-- vim.keymap.set("n", '<C-]>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
+				-- vim.keymap.set("n", '<C-[>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
+				vim.keymap.set("n", 'gt', '<cmd>TroubleToggle<CR>')
+				vim.keymap.set("n", 'gD', '<cmd>TroubleToggle<CR>')
+
+				-- vim.keymap.set("n", '<leader>a', function()
+				-- 	vim.lsp.buf.code_action()
+				-- end)
+
+				vim.keymap.set("n", ']e', function()
+					vim.diagnostic.goto_next({
+						severity = vim.diagnostic.severity.ERROR,
+					})
+				end)
+
+				vim.keymap.set("n", '[e', function()
+					vim.diagnostic.goto_prev({
+						severity = vim.diagnostic.severity.ERROR,
+					})
+				end)
 			end
 
-			-- diagnostics float on hover
-			vim.api.nvim_create_autocmd("CursorHold", {
-				buffer = bufnr,
-				callback = function()
-					local opts = {
-						focusable = false,
-						close_events = { "BufLeave", "CursorMoved", "InsertEnter", "FocusLost" },
-						border = 'rounded',
-						source = 'always',
-						prefix = ' ',
-						scope = 'cursor',
-					}
-					vim.diagnostic.open_float(nil, opts)
-				end
+			-- cmp/lsp config
+			local capabilities = require('cmp_nvim_lsp').update_capabilities(
+				vim.lsp.protocol.make_client_capabilities()
+			);
+			local lspconfig = require('lspconfig')
+			for _, lsp in ipairs({ 'bashls', 'rnix', 'tsserver' }) do
+				lspconfig[lsp].setup {
+					on_attach = custom_attach,
+					capabilities = capabilities,
+				}
+			end
+
+			-- lspconfig.eslint.setup({
+			-- 	on_attach = custom_attach,
+			-- 	capabilities = capabilities,
+			-- })
+
+			lspconfig.tsserver.setup({
+				on_attach = function(client, _)
+					require('nvim-lsp-ts-utils').setup({
+						filter_out_diagnostics_by_code = { 80001 },
+					})
+					require('nvim-lsp-ts-utils').setup_client(client)
+				end,
 			})
 
-			--vim.keymap.set("n", 'gD', '<cmd>lua vim.lsp.buf.declaration()<CR>') -- not used by most lsp servers
-			--vim.keymap.set("n", 'K', '<cmd>lua vim.lsp.buf.hover()<CR>')
-			vim.keymap.set("n", 'gr', '<cmd>lua vim.lsp.buf.references()<CR>')
-			vim.keymap.set("n", 'gs', '<cmd>lua vim.lsp.buf.signature_help()<CR>')
-			--vim.keymap.set("n", 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>')
-			vim.keymap.set("n", 'ga', '<cmd>lua vim.lsp.buf.code_action()<CR>')
-			--vim.keymap.set("n", '<leader>r', '<cmd>lua vim.lsp.buf.rename()<CR>')
-			vim.keymap.set("n", '<leader>=', '<cmd>lua vim.lsp.buf.formatting()<CR>')
-			-- vim.keymap.set("n", '<C-]>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
-			-- vim.keymap.set("n", '<C-[>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
-			vim.keymap.set("n", 'gt', '<cmd>TroubleToggle<CR>')
-			vim.keymap.set("n", 'gD', '<cmd>TroubleToggle<CR>')
+			-- lspconfig.denols.setup {
+			-- 	root_dir = lspconfig.util.root_pattern("mod.ts", "mod.js")
+			-- }
 
-			-- vim.keymap.set("n", '<leader>a', function()
-			-- 	vim.lsp.buf.code_action()
-			-- end)
-
-			vim.keymap.set("n", ']e', function()
-				vim.diagnostic.goto_next({
-					severity = vim.diagnostic.severity.ERROR,
-				})
-			end)
-
-			vim.keymap.set("n", '[e', function()
-				vim.diagnostic.goto_prev({
-					severity = vim.diagnostic.severity.ERROR,
-				})
-			end)
-		end
-
-		-- cmp/lsp config
-		local capabilities = require('cmp_nvim_lsp').update_capabilities(
-			vim.lsp.protocol.make_client_capabilities()
-		);
-		local lspconfig = require('lspconfig')
-		for _, lsp in ipairs({ 'bashls', 'rnix', 'tsserver' }) do
-			lspconfig[lsp].setup {
+			lspconfig.prosemd_lsp.setup {
 				on_attach = custom_attach,
 				capabilities = capabilities,
+				filetypes = { "markdown" }
 			}
-		end
 
-		lspconfig.eslint.setup({
-			on_attach = custom_attach,
-			capabilities = capabilities,
-		})
-
-		lspconfig.tsserver.setup({
-			on_attach = function(client, _)
-				require('nvim-lsp-ts-utils').setup({
-					filter_out_diagnostics_by_code = { 80001 },
-				})
-				require('nvim-lsp-ts-utils').setup_client(client)
-			end,
-		})
-
-		-- lspconfig.denols.setup {
-		-- 	root_dir = lspconfig.util.root_pattern("mod.ts", "mod.js")
-		-- }
-
-		lspconfig.prosemd_lsp.setup {
-			on_attach = custom_attach,
-			capabilities = capabilities,
-			filetypes = { "markdown" }
-		}
-
-		lspconfig.sumneko_lua.setup {
-			on_attach = custom_attach,
-			capabilities = capabilities,
-			settings = {
-				Lua = {
-					diagnostics = {
-						globals = { 'vim' }
+			lspconfig.sumneko_lua.setup {
+				on_attach = custom_attach,
+				capabilities = capabilities,
+				settings = {
+					Lua = {
+						diagnostics = {
+							globals = { 'vim' }
+						}
 					}
 				}
 			}
-		}
-	end }
+		end }
 
 	-- lspconfig (with mason)
 	use {
@@ -514,53 +522,64 @@ require('packer').startup(function(use)
 		requires = { "nvim-lua/plenary.nvim" },
 		config = function()
 			local null_ls = require("null-ls")
+			-- https://github.com/jose-elias-alvarez/null-ls.nvim/tree/main/lua/null-ls/builtins/formatting
+			local formatting = null_ls.builtins.formatting;
+
 			null_ls.setup {
 				sources = {
-					null_ls.builtins.code_actions.gitsigns,
+					formatting.prettier.with { extra_args = { "--no-semi", "--single-quote" } },
+					formatting.eslint,
+					formatting.yamlfmt,
+					formatting.dprint.with { filetypes = { "toml" } },
+					null_ls.builtins.hover.dictionary,
 				}
 			}
 		end,
 	}
 
-	use { 'simrat39/rust-tools.nvim', config = function()
-		require('rust-tools').setup({
-			tools = {
-				autoSetHints = true,
-				runnables = {
-					use_telescope = true
+	-- rust
+	use {
+		'simrat39/rust-tools.nvim',
+		config = function()
+			require('rust-tools').setup({
+				tools = {
+					autoSetHints = true,
+					runnables = {
+						use_telescope = true
+					},
+					inlay_hints = {
+						show_parameter_hints = true,
+						-- parameter_hints_prefix = "",
+						-- other_hints_prefix = "",
+					},
 				},
-				inlay_hints = {
-					show_parameter_hints = true,
-					-- parameter_hints_prefix = "",
-					-- other_hints_prefix = "",
-				},
-			},
 
-			-- see https://github.com/neovim/nvim-lspconfig/blob/master/CONFIG.md#rust_analyzer
-			server = {
-				--on_attach = custom_attach,
-				settings = {
-					-- to enable rust-analyzer settings visit:
-					-- https://github.com/rust-analyzer/rust-analyzer/blob/master/docs/user/generated_config.adoc
-					["rust-analyzer"] = {
-						-- hover = {
-						-- },
-						checkOnSave = {
-							enable = true,
-							command = "clippy",
-							features = 'all',
-						},
+				-- see https://github.com/neovim/nvim-lspconfig/blob/master/CONFIG.md#rust_analyzer
+				server = {
+					--on_attach = custom_attach,
+					settings = {
+						-- to enable rust-analyzer settings visit:
+						-- https://github.com/rust-analyzer/rust-analyzer/blob/master/docs/user/generated_config.adoc
+						["rust-analyzer"] = {
+							-- hover = {
+							-- },
+							checkOnSave = {
+								enable = true,
+								command = "clippy",
+								features = 'all',
+							},
+						}
 					}
-				}
-			},
-		})
+				},
+			})
 
-		vim.g.rust_recommended_style = 0 -- don't use default rust styles (causes indent problems)
-		vim.g.rust_fold = 2
-		vim.g.rustfmt_autosave = true
-		vim.g.rust_conceal_mod_path = true
-		vim.g.rust_conceal = true
-	end }
+			vim.g.rust_recommended_style = 0 -- don't use default rust styles (causes indent problems)
+			vim.g.rust_fold = 2
+			vim.g.rustfmt_autosave = true
+			vim.g.rust_conceal_mod_path = true
+			vim.g.rust_conceal = true
+		end
+	}
 
 	-- formatting
 	use { 'lukas-reineke/lsp-format.nvim', config = function()
@@ -795,14 +814,14 @@ vim.api.nvim_create_autocmd("BufWrite", { pattern = "*", callback = function()
 end })
 
 -- -- when opening vim
--- vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
--- 	-- if no args are passed
--- 	if vim.fn.argc() == 0 then
--- 		vim.cmd "enew"
--- 		vim.cmd "setlocal bufhidden=wipe buftype=nofile nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
--- 		vim.cmd([[call append('$', "")]])
--- 	end
--- end })
+vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
+	-- if no args are passed
+	if vim.fn.argc() == 0 then
+		vim.cmd "enew"
+		vim.cmd "setlocal bufhidden=wipe buftype=nofile nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
+		vim.cmd([[call append('$', "")]])
+	end
+end })
 
 -- hide line-bar in insert-mode
 vim.api.nvim_create_autocmd("InsertEnter", { pattern = "*", callback = function()
@@ -845,6 +864,9 @@ vim.keymap.set("n", "<leader>n", function()
 	vim.wo.relativenumber = false -- turn off line numbers
 	vim.wo.number = false
 end)
+
+vim.keymap.set("n", '<leader>=', '<cmd>lua vim.lsp.buf.formatting()<CR>')
+
 --
 -- split navigation
 vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
@@ -916,8 +938,6 @@ function StatusLine()
 end
 
 vim.opt.statusline = "%!v:lua.StatusLine()"
--- vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
--- end })
 
 --
 -- TABLINE
@@ -952,12 +972,12 @@ vim.opt.tabline = "%!v:lua.TabLine()"
 -- vim.keymap.set("n", '<leader>mks', ':mks! ' .. session_dir)
 -- vim.keymap.set("n", '<leader>lds', ':%bd | so ' .. session_dir)
 
--- on markdown
--- vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
--- 	vim.opt.autowriteall = true -- ensure write upon leaving a page
--- 	vim.opt.wrap = true -- display lines as one long line
--- end })
---
+-- markdown
+vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
+	vim.opt.autowriteall = true -- ensure write upon leaving a page
+	vim.opt.wrap = true -- display lines as one long line
+end })
+
 -- vim.api.nvim_create_autocmd("FileType", { pattern = "rust", callback = function()
 -- 	vim.keymap.set("n", "gi", function()
 -- 		vim.cmd ':edit src/lib.rs'
