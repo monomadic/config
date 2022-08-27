@@ -55,10 +55,17 @@ require('packer').startup(function(use)
 		require('incline').setup()
 	end }
 
+	-- typescript lsp
+	-- https://github.com/jose-elias-alvarez/typescript.nvim
 	use { 'jose-elias-alvarez/typescript.nvim', config = function()
 		require("typescript").setup({
 			disable_commands = false, -- prevent the plugin from creating Vim commands
 			debug = false,
+			server = {
+				on_attach = function(client, _)
+					require("lsp-format").on_attach(client)
+				end
+			}
 		})
 	end }
 
@@ -66,7 +73,7 @@ require('packer').startup(function(use)
 	use { 'neovim/nvim-lspconfig',
 		config = function()
 			local custom_attach = function(client, bufnr)
-				require "lsp-format".on_attach(client)
+				require("lsp-format").on_attach(client)
 
 				vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(
 					vim.lsp.diagnostic.on_publish_diagnostics, { virtual_text = false, update_in_insert = false }
@@ -138,7 +145,7 @@ require('packer').startup(function(use)
 				vim.lsp.protocol.make_client_capabilities()
 			);
 			local lspconfig = require('lspconfig')
-			for _, lsp in ipairs({ 'bashls', 'rnix', 'tsserver' }) do
+			for _, lsp in ipairs({ 'bashls', 'rnix' }) do
 				lspconfig[lsp].setup {
 					on_attach = custom_attach,
 					capabilities = capabilities,
@@ -150,19 +157,20 @@ require('packer').startup(function(use)
 			-- 	capabilities = capabilities,
 			-- })
 
-			lspconfig.tsserver.setup({
-				on_attach = function(client, _)
-					require('nvim-lsp-ts-utils').setup({
-						filter_out_diagnostics_by_code = { 80001 },
-					})
-					require('nvim-lsp-ts-utils').setup_client(client)
-				end,
-			})
-
+			-- lspconfig.tsserver.setup({
+			-- 	on_attach = function(client, _)
+			-- 		require('nvim-lsp-ts-utils').setup({
+			-- 			filter_out_diagnostics_by_code = { 80001 },
+			-- 		})
+			-- 		require('nvim-lsp-ts-utils').setup_client(client)
+			-- 	end,
+			-- })
+			--
 			-- lspconfig.denols.setup {
 			-- 	root_dir = lspconfig.util.root_pattern("mod.ts", "mod.js")
 			-- }
 
+			-- markdown
 			lspconfig.prosemd_lsp.setup {
 				on_attach = custom_attach,
 				capabilities = capabilities,
@@ -284,7 +292,7 @@ require('packer').startup(function(use)
 			end)
 			vim.keymap.set("n", 'to', '<cmd>Telescope oldfiles<cr>')
 			vim.keymap.set("n", '<leader>c', '<cmd>Telescope commands<cr>')
-			vim.keymap.set("n", '<leader>ch', '<cmd>Telescope command_history<cr>')
+			vim.keymap.set("n", '<leader>C', '<cmd>Telescope command_history<cr>')
 			vim.keymap.set("n", '<leader>g', '<cmd>Telescope live_grep<cr>')
 			vim.keymap.set("n", 'ts', '<cmd>Telescope spell_suggest<cr>')
 			vim.keymap.set('n', 'td', '<Cmd>Telescope diagnostics<cr>')
@@ -516,32 +524,74 @@ require('packer').startup(function(use)
 		end,
 	}
 
-	-- null lsp
+	-- async formatting
+	-- https://github.com/lukas-reineke/lsp-format.nvim
+	use { 'lukas-reineke/lsp-format.nvim', config = function()
+		require("lsp-format").setup {}
+	end }
+
+	-- null-lsp: a generic lsp server providing lsp functions to neovim on behalf of various tools
 	use {
 		"jose-elias-alvarez/null-ls.nvim",
 		requires = { "nvim-lua/plenary.nvim" },
 		config = function()
 			local null_ls = require("null-ls")
 			-- https://github.com/jose-elias-alvarez/null-ls.nvim/tree/main/lua/null-ls/builtins/formatting
-			local formatting = null_ls.builtins.formatting;
+
+			-- null_ls.register {
+			-- 	name = "markdown_source",
+			-- 	filetypes = { "markdown", "vimwiki" },
+			-- 	sources = {
+			-- 		null_ls.builtins.formatting.prettier,
+			-- 		-- null_ls.builtins.diagnostics.proselint, -- prosemd is better
+			-- 		-- null_ls.builtins.code_actions.proselint,
+			-- 	},
+			-- }
+
+			-- null_ls.register {
+			-- 	name = "rustfmt",
+			-- 	filetypes = { "rust" },
+			-- 	sources = { formatting.rustfmt },
+			-- }
 
 			null_ls.setup {
 				sources = {
-					formatting.prettier.with { extra_args = { "--no-semi", "--single-quote" } },
-					formatting.eslint,
-					formatting.yamlfmt,
-					formatting.dprint.with { filetypes = { "toml" } },
-					null_ls.builtins.hover.dictionary,
-				}
+					null_ls.builtins.formatting.taplo, -- cargo install taplo-cli --locked
+					null_ls.builtins.formatting.prettier.with({
+						filetypes = { "html", "json", "yaml" },
+					}),
+					null_ls.builtins.diagnostics.jsonlint, -- brew install jsonlint
+					null_ls.builtins.hover.dictionary.with {
+						filetypes = { "markdown", "vimwiki" }
+					}, -- markdown spellcheck
+				},
+				on_attach = function(client, bufnr)
+					local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
+					if client.supports_method("textDocument/formatting") then
+						vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
+						vim.api.nvim_create_autocmd("BufWritePre", {
+							group = augroup,
+							buffer = bufnr,
+							callback = function()
+								-- on 0.8, you should use vim.lsp.buf.format({ bufnr = bufnr }) instead
+								vim.lsp.buf.formatting_sync()
+							end,
+						})
+					end
+				end,
 			}
 		end,
 	}
 
-	-- rust
+	-- rust-tools: a rust lsp server specific to rust
+	-- https://github.com/simrat39/rust-tools.nvim
 	use {
 		'simrat39/rust-tools.nvim',
+		requires = { 'neovim/nvim-lspconfig', 'nvim-lua/plenary.nvim', 'mfussenegger/nvim-dap' }, -- last 2 for debug
 		config = function()
-			require('rust-tools').setup({
+			local rust_tools = require('rust-tools')
+
+			rust_tools.setup({
 				tools = {
 					autoSetHints = true,
 					runnables = {
@@ -556,7 +606,20 @@ require('packer').startup(function(use)
 
 				-- see https://github.com/neovim/nvim-lspconfig/blob/master/CONFIG.md#rust_analyzer
 				server = {
-					--on_attach = custom_attach,
+					on_attach = function(client, bufnr)
+						require("lsp-format").on_attach(client)
+
+						vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr })
+						vim.keymap.set("n", "<Leader>a", rust_tools.code_action_group.code_action_group, { buffer = bufnr })
+						vim.keymap.set('n', 'gc', rust_tools.open_cargo_toml.open_cargo_toml)
+						vim.keymap.set('n', 'gu', rust_tools.parent_module.parent_module)
+
+						vim.keymap.set('v', '<C-j>', rust_tools.move_item.move_item(false)) -- down
+						vim.keymap.set('v', '<C-k>', rust_tools.move_item.move_item(true)) -- up
+						vim.keymap.set("n", "gi", function()
+							vim.cmd ':edit src/lib.rs'
+						end)
+					end,
 					settings = {
 						-- to enable rust-analyzer settings visit:
 						-- https://github.com/rust-analyzer/rust-analyzer/blob/master/docs/user/generated_config.adoc
@@ -572,19 +635,8 @@ require('packer').startup(function(use)
 					}
 				},
 			})
-
-			vim.g.rust_recommended_style = 0 -- don't use default rust styles (causes indent problems)
-			vim.g.rust_fold = 2
-			vim.g.rustfmt_autosave = true
-			vim.g.rust_conceal_mod_path = true
-			vim.g.rust_conceal = true
 		end
 	}
-
-	-- formatting
-	use { 'lukas-reineke/lsp-format.nvim', config = function()
-		require("lsp-format").setup {}
-	end }
 
 	-- use { "lukas-reineke/indent-blankline.nvim", config = function()
 	-- 	require("indent_blankline").setup({
