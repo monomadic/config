@@ -684,7 +684,7 @@ require('packer').startup(function(use)
 	use { 'vimwiki/vimwiki', config = function()
 		vim.keymap.set("n", "gi", "<Cmd>VimwikiIndex<CR>") -- TODO: lsp variants (eg rust will look for lib.rs, main.rs etc)
 		vim.keymap.set("n", "gw", "<Cmd>VimwikiGoto ")
-		vim.cmd 'nmap <Leader>nl <Plug>VimwikiToggleListItem' -- unset this shit
+		vim.cmd 'nmap <Leader>nl <Plug>VimwikiToggleListItem' -- unset this shit, it conflicts with term. see also: g:vimwiki_key_mappings
 
 		vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
 			vim.keymap.set("n", "gt", "<Cmd>VimwikiGoto Tasks<CR>")
