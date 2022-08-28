@@ -55,7 +55,7 @@ require('packer').startup(function(use)
 		require('incline').setup()
 	end }
 
-	-- typescript lsp
+	-- typescript lsp - eslint is faster
 	-- https://github.com/jose-elias-alvarez/typescript.nvim
 	use { 'jose-elias-alvarez/typescript.nvim', config = function()
 		require("typescript").setup({
@@ -117,6 +117,7 @@ require('packer').startup(function(use)
 				vim.keymap.set("n", 'gs', '<cmd>lua vim.lsp.buf.signature_help()<CR>')
 				--vim.keymap.set("n", 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>')
 				vim.keymap.set("n", 'ga', '<cmd>lua vim.lsp.buf.code_action()<CR>')
+				vim.keymap.set("n", "<leader>a", "<cmd>Lspsaga code_action<CR>")
 				--vim.keymap.set("n", '<leader>r', '<cmd>lua vim.lsp.buf.rename()<CR>')
 				-- vim.keymap.set("n", '<C-]>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
 				-- vim.keymap.set("n", '<C-[>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
@@ -157,15 +158,6 @@ require('packer').startup(function(use)
 			-- 	capabilities = capabilities,
 			-- })
 
-			-- lspconfig.tsserver.setup({
-			-- 	on_attach = function(client, _)
-			-- 		require('nvim-lsp-ts-utils').setup({
-			-- 			filter_out_diagnostics_by_code = { 80001 },
-			-- 		})
-			-- 		require('nvim-lsp-ts-utils').setup_client(client)
-			-- 	end,
-			-- })
-			--
 			-- lspconfig.denols.setup {
 			-- 	root_dir = lspconfig.util.root_pattern("mod.ts", "mod.js")
 			-- }
@@ -558,7 +550,7 @@ require('packer').startup(function(use)
 				sources = {
 					null_ls.builtins.formatting.taplo, -- cargo install taplo-cli --locked
 					null_ls.builtins.formatting.prettier.with({
-						filetypes = { "html", "json", "yaml" },
+						filetypes = { "html", "json", "yaml", "markdown" },
 					}),
 					null_ls.builtins.diagnostics.jsonlint, -- brew install jsonlint
 					null_ls.builtins.hover.dictionary.with {
@@ -566,6 +558,7 @@ require('packer').startup(function(use)
 					}, -- markdown spellcheck
 				},
 				on_attach = function(client, bufnr)
+					-- disable this dumb mapping
 					local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
 					if client.supports_method("textDocument/formatting") then
 						vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
@@ -652,10 +645,10 @@ require('packer').startup(function(use)
 		config = function()
 			local lsp_saga = require('lspsaga')
 
-			vim.keymap.set("n", "<leader>lf", "<cmd>Lspsaga lsp_finder<CR>")
-			vim.keymap.set("n", "<leader>la", "<cmd>Lspsaga code_action<CR>")
-			vim.keymap.set("n", "<leader>lr", "<cmd>Lspsaga rename<CR>")
-			vim.keymap.set("n", "<leader>ld", "<cmd>Lspsaga preview_definition<CR>")
+			vim.keymap.set("n", "<leader>i", "<cmd>Lspsaga lsp_finder<CR>")
+			vim.keymap.set("n", "<leader>a", "<cmd>Lspsaga code_action<CR>")
+			vim.keymap.set("n", "<leader>r", "<cmd>Lspsaga rename<CR>")
+			vim.keymap.set("n", "<leader>d", "<cmd>Lspsaga preview_definition<CR>")
 			vim.keymap.set("n", 'K', '<cmd>Lspsaga hover_doc<CR>')
 			vim.keymap.set("n", "\\", '<cmd>LSoutlineToggle<CR>', { silent = true })
 			vim.keymap.set("n", ']d', '<cmd>Lspsaga diagnostic_jump_next<cr>')
@@ -691,6 +684,7 @@ require('packer').startup(function(use)
 	use { 'vimwiki/vimwiki', config = function()
 		vim.keymap.set("n", "gi", "<Cmd>VimwikiIndex<CR>") -- TODO: lsp variants (eg rust will look for lib.rs, main.rs etc)
 		vim.keymap.set("n", "gw", "<Cmd>VimwikiGoto ")
+		vim.cmd 'nmap <Leader>nl <Plug>VimwikiToggleListItem' -- unset this shit
 
 		vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
 			vim.keymap.set("n", "gt", "<Cmd>VimwikiGoto Tasks<CR>")
