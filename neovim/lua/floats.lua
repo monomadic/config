@@ -3,34 +3,20 @@
 -- local targetwin = { win = vim.api.nvim_get_current_win(), buf = vim.api.nvim_get_current_buf() }
 local background_float_buf = nil
 
-local close_term = function()
-	background_float_buf = nil
-	local win = vim.api.nvim_get_current_win()
-	vim.api.nvim_win_close(win, true)
-end
-
---vim.keymap.set('t', 'Esc', close_term)
-
--- vim.keymap.set('t', '<C-m>', function()
--- 	if targetwin.win then
--- 		background_float_buf = vim.api.nvim_get_current_buf()
--- 		vim.api.nvim_win_set_height(0, 3)
--- 		vim.api.nvim_set_current_win(targetwin.win)
--- 	end
--- end)
+-- local close_term = function()
+-- 	background_float_buf = nil
+-- 	local win = vim.api.nvim_get_current_win()
+-- 	vim.api.nvim_win_close(win, true)
+-- end
 
 vim.keymap.set('t', '<C-Space>', function()
-	background_float_buf = vim.api.nvim_get_current_buf()
+	-- hide float
+	--background_float_buf = vim.api.nvim_get_current_buf()
 	vim.api.nvim_win_hide(0)
 end)
 
 vim.keymap.set('n', '<C-Space>', function()
-	--if background_float and vim.api.nvim_win_is_valid(background_float) then
-	if background_float_buf then
-		-- vim.api.nvim_set_current_win(background_float_buf)
-		-- local new_height = math.ceil(0.7 * vim.o.lines)
-		-- vim.api.nvim_win_set_height(0, new_height)
-		-- vim.cmd "startinsert" -- start in insert mode
+	if background_float_buf and vim.api.nvim_buf_is_valid(background_float_buf) then
 		local buf = background_float_buf
 		vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
 			relative = 'editor',
@@ -40,9 +26,9 @@ vim.keymap.set('n', '<C-Space>', function()
 			height = math.ceil(0.7 * vim.o.lines),
 			border = 'solid'
 		})
-
 	else
-		local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
+		local buf = vim.api.nvim_create_buf(false, false) -- new buffer for the term (listed, scratch)
+		background_float_buf = buf
 		vim.api.nvim_buf_set_option(buf, "filetype", "terminal")
 		vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
 		vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
@@ -55,15 +41,12 @@ vim.keymap.set('n', '<C-Space>', function()
 		})
 
 		local win = vim.api.nvim_get_current_win()
-		background_float_buf = win
 		vim.api.nvim_win_set_option(win, "winblend", 20)
-
 		vim.api.nvim_win_set_buf(win, buf)
 		vim.wo.relativenumber = false -- turn off line numbers
 		vim.wo.number = false
 		vim.fn.termopen(vim.o.shell)
 	end
-
 
 	vim.cmd "startinsert" -- start in insert mode
 end)
@@ -77,10 +60,10 @@ vim.keymap.set('n', '<C-p>', function()
 	vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
 	vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
 		relative = 'editor',
-		row = math.floor(0.05 * vim.o.lines),
-		col = math.floor(0.1 * vim.o.columns),
-		width = math.ceil(0.8 * vim.o.columns),
-		height = math.ceil(0.7 * vim.o.lines),
+		row = 1, -- math.floor(0.1 * vim.o.lines),
+		col = 2, -- math.floor(0.1 * vim.o.columns),
+		width = math.ceil(1.0 * vim.o.columns) - 2,
+		height = vim.o.lines - 4, --math.ceil(0.8 * vim.o.lines),
 		border = 'solid'
 	})
 
@@ -89,9 +72,6 @@ vim.keymap.set('n', '<C-p>', function()
 	vim.api.nvim_win_set_buf(win, buf)
 	vim.wo.relativenumber = false -- turn off line numbers
 	vim.wo.number = false
-
-	-- local job_id = vim.fn.termopen(vim.o.shell)
-	-- vim.api.nvim_chan_send(job_id, "lf\n")
 
 	vim.cmd "startinsert" -- start in insert mode
 
@@ -104,7 +84,6 @@ vim.keymap.set('n', '<C-p>', function()
 	if selected_file ~= "" then
 		process_cmd = process_cmd .. '"' .. selected_file .. '"'
 	end
-	--print(process_cmd)
 
 	-- launch lf process
 	vim.fn.termopen(process_cmd, {

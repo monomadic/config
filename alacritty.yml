@@ -62,6 +62,7 @@ font:
   # The normal (roman) font face to use.
   normal:
     family: "Ark Nerd Font Mono"
+    # family: "Ark Nerd Font Mono"
     # style: Regular
 
   # The bold font face
@@ -75,7 +76,7 @@ font:
   #   # style: Italic
 
   # Point size of the font
-  size: 16.0
+  size: 18
 
   # Offset is the extra space around each character. offset.y can be thought of
   # as modifying the linespacing, and offset.x as modifying the letter spacing.

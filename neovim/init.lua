@@ -1,7 +1,6 @@
 -- @monomadic
 -- requires: git, neovim 0.7+
 
---
 -- PLUGINS
 --
 --   PackerCompile: compile plugins
@@ -17,13 +16,12 @@ if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
 	vim.fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
 	vim.cmd 'packadd packer.nvim'
 end
-
 vim.cmd 'packadd packer.nvim' -- only required if packer is opt
+
 
 require('packer').startup(function(use)
 	use 'wbthomason/packer.nvim'
 
-	--
 	-- COLORSCHEMES
 	--
 	use 'bluz71/vim-nightfly-guicolors'
@@ -68,6 +66,30 @@ require('packer').startup(function(use)
 			}
 		})
 	end }
+
+	use 'ray-x/lsp_signature.nvim'
+
+	-- use { 'mickael-menu/zk-nvim', config = function()
+	-- 	require("zk").setup {
+	-- 		picker = "telescope", -- telescope, fzf, select
+	--
+	-- 		lsp = {
+	-- 			-- `config` is passed to `vim.lsp.start_client(config)`
+	-- 			config = {
+	-- 				cmd = { "zk", "lsp" },
+	-- 				name = "zk",
+	-- 				-- on_attach = ...
+	-- 				-- etc, see `:h vim.lsp.start_client()`
+	-- 			},
+	--
+	-- 			-- automatically attach buffers in a zk notebook that match the given filetypes
+	-- 			auto_attach = {
+	-- 				enabled = true,
+	-- 				filetypes = { "markdown" },
+	-- 			},
+	-- 		}
+	-- 	}
+	-- end }
 
 	-- kinda sucks, lets stop using it
 	use { 'neovim/nvim-lspconfig',
@@ -163,11 +185,11 @@ require('packer').startup(function(use)
 			-- }
 
 			-- markdown
-			lspconfig.prosemd_lsp.setup {
-				on_attach = custom_attach,
-				capabilities = capabilities,
-				filetypes = { "markdown" }
-			}
+			-- lspconfig.prosemd_lsp.setup {
+			-- 	on_attach = custom_attach,
+			-- 	capabilities = capabilities,
+			-- 	filetypes = { "markdown" }
+			-- }
 
 			lspconfig.sumneko_lua.setup {
 				on_attach = custom_attach,
@@ -180,7 +202,8 @@ require('packer').startup(function(use)
 					}
 				}
 			}
-		end }
+		end
+	}
 
 	-- lspconfig (with mason)
 	use {
@@ -414,6 +437,9 @@ require('packer').startup(function(use)
 		require("colorizer").setup()
 	end }
 
+	-- color picker
+	-- nvim-colortils/colortils.nvim
+
 	use { 'ggandor/leap.nvim', config = function()
 		require('leap').set_default_keymaps()
 	end }
@@ -576,10 +602,22 @@ require('packer').startup(function(use)
 		end,
 	}
 
+	use({
+		'ray-x/navigator.lua',
+		requires = {
+			{ 'ray-x/guihua.lua', run = 'cd lua/fzy && make' },
+			{ 'neovim/nvim-lspconfig' },
+		},
+		config = function()
+			require 'navigator'.setup()
+		end
+	})
+
 	-- rust-tools: a rust lsp server specific to rust
 	-- https://github.com/simrat39/rust-tools.nvim
 	use {
 		'simrat39/rust-tools.nvim',
+		-- ft = 'rust',
 		requires = { 'neovim/nvim-lspconfig', 'nvim-lua/plenary.nvim', 'mfussenegger/nvim-dap' }, -- last 2 for debug
 		config = function()
 			local rust_tools = require('rust-tools')
@@ -604,14 +642,14 @@ require('packer').startup(function(use)
 
 						vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr })
 						vim.keymap.set("n", "<Leader>a", rust_tools.code_action_group.code_action_group, { buffer = bufnr })
-						vim.keymap.set('n', 'gc', rust_tools.open_cargo_toml.open_cargo_toml)
-						vim.keymap.set('n', 'gu', rust_tools.parent_module.parent_module)
-
-						vim.keymap.set('v', '<C-j>', rust_tools.move_item.move_item(false)) -- down
-						vim.keymap.set('v', '<C-k>', rust_tools.move_item.move_item(true)) -- up
-						vim.keymap.set("n", "gi", function()
-							vim.cmd ':edit src/lib.rs'
-						end)
+						vim.keymap.set('n', 'gc', rust_tools.open_cargo_toml.open_cargo_toml, { buffer = bufnr })
+						vim.keymap.set('n', 'gu', rust_tools.parent_module.parent_module, { buffer = bufnr })
+						--
+						-- vim.keymap.set('v', '<C-j>', rust_tools.move_item.move_item(false), { buffer = bufnr }) -- down
+						-- vim.keymap.set('v', '<C-k>', rust_tools.move_item.move_item(true), { buffer = bufnr }) -- up
+						-- vim.keymap.set("n", "gi", function()
+						-- 	vim.cmd ':edit src/lib.rs'
+						-- end)
 					end,
 					settings = {
 						-- to enable rust-analyzer settings visit:
@@ -682,7 +720,7 @@ require('packer').startup(function(use)
 		vim.keymap.set("n", 'tw', '<cmd>Telescope vimwiki<cr>')
 	end }
 	use { 'vimwiki/vimwiki', config = function()
-		vim.keymap.set("n", "gi", "<Cmd>VimwikiIndex<CR>") -- TODO: lsp variants (eg rust will look for lib.rs, main.rs etc)
+		--vim.keymap.set("n", "gi", "<Cmd>VimwikiIndex<CR>") -- TODO: lsp variants (eg rust will look for lib.rs, main.rs etc)
 		vim.keymap.set("n", "gw", "<Cmd>VimwikiGoto ")
 		vim.cmd 'nmap <Leader>nl <Plug>VimwikiToggleListItem' -- unset this shit, it conflicts with term. see also: g:vimwiki_key_mappings
 
@@ -770,6 +808,7 @@ vim.opt.regexpengine = 2
 vim.api.nvim_set_option('tabstop', 2)
 
 require 'floats'
+require 'text'
 
 -- local ICONS = {
 -- 	"file" = ""
@@ -1024,12 +1063,24 @@ vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = funct
 	vim.opt.wrap = true -- display lines as one long line
 end })
 
--- vim.api.nvim_create_autocmd("FileType", { pattern = "rust", callback = function()
--- 	vim.keymap.set("n", "gi", function()
--- 		vim.cmd ':edit src/lib.rs'
--- 	end)
--- end })
-
 vim.keymap.set("n", "<leader>ri", function()
 	vim.cmd ':edit src/lib.rs'
+end)
+
+local function file_exists(fname)
+	local stat = vim.loop.fs_stat(fname)
+	return (stat and stat.type) or false
+end
+
+-- go to root project file
+vim.keymap.set("n", "gI", function()
+	if file_exists("src/lib.rs") then
+		vim.cmd ':edit src/lib.rs'
+	elseif file_exists("src/main.rs") then
+		vim.cmd ':edit src/main.rs'
+	elseif file_exists("index.md") then
+		vim.cmd ':VimwikiIndex'
+	else
+		print("no root file found.")
+	end
 end)
