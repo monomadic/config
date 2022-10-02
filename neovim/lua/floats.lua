@@ -9,13 +9,13 @@ local background_float_buf = nil
 -- 	vim.api.nvim_win_close(win, true)
 -- end
 
-vim.keymap.set('t', '<C-Space>', function()
+vim.keymap.set('t', '<C-p>', function()
 	-- hide float
 	--background_float_buf = vim.api.nvim_get_current_buf()
 	vim.api.nvim_win_hide(0)
 end)
 
-vim.keymap.set('n', '<C-Space>', function()
+vim.keymap.set('n', '<C-p>', function()
 	if background_float_buf and vim.api.nvim_buf_is_valid(background_float_buf) then
 		local buf = background_float_buf
 		vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
@@ -52,7 +52,7 @@ vim.keymap.set('n', '<C-Space>', function()
 end)
 
 -- custom terminal float
-vim.keymap.set('n', '<C-p>', function()
+vim.keymap.set('n', '<C-Space>', function()
 	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
 	local selected_file = vim.fn.expand('%:p') -- the currently open filename
 
