@@ -18,7 +18,6 @@ if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
 end
 vim.cmd 'packadd packer.nvim' -- only required if packer is opt
 
-
 require('packer').startup(function(use)
 	use 'wbthomason/packer.nvim'
 
@@ -517,12 +516,12 @@ require('packer').startup(function(use)
 	-- }
 
 	-- inline diagnostics
-	use({
-		"https://git.sr.ht/~whynothugo/lsp_lines.nvim",
-		config = function()
-			require("lsp_lines").setup()
-		end,
-	})
+	-- use({
+	-- 	"https://git.sr.ht/~whynothugo/lsp_lines.nvim",
+	-- 	config = function()
+	-- 		require("lsp_lines").setup()
+	-- 	end,
+	-- })
 
 	-- lsp progress
 	use {
@@ -808,6 +807,9 @@ vim.opt.regexpengine = 2
 -- netrw
 vim.g.netrw_banner = 0 -- hide banner
 vim.g.netrw_localcopydircmd = 'cp -r' -- recursive copy
+vim.g.netrw_liststyle = 3 -- tree view
+vim.g.netrw_winsize = -28 -- absolute width
+--vim.g.netrw_sort_sequence = '[\/]$,*' -- sort dirs first
 
 vim.api.nvim_set_option('tabstop', 2)
 
@@ -840,7 +842,7 @@ vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
 vim.keymap.set("i", "<C-j>", "<Esc><C-w><C-j>")
 vim.keymap.set("n", "<C-k>", "<C-w><C-k>")
 vim.keymap.set("i", "<C-k>", "<Esc><C-w><C-k>")
-vim.keymap.set("n", "<C-l>", "<C-w><C-l>")
+vim.keymap.set("n", "<C-l>", "<C-w><C-l>", { remap = false })
 vim.keymap.set("i", "<C-l>", "<Esc><C-w><C-l>")
 vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
 vim.keymap.set("i", "<C-h>", "<Esc><C-w><C-h>")
@@ -850,13 +852,13 @@ vim.keymap.set("n", "}", "}j")
 vim.keymap.set("n", "{", "k{j")
 
 -- indent in insert mode
-vim.keymap.set("i", "<C-]>", "<C-t>")
+-- vim.keymap.set("i", "<C-]>", "<C-t>")
 vim.keymap.set("n", "<C-]>", "i<C-t><C-f><Esc>")
-vim.keymap.set("v", "<C-]>", "<Esc><C-]>")
+-- vim.keymap.set("v", "<C-]>", "<Esc><C-]>")
 
-vim.keymap.set("i", "<C-[>", "<C-d>")
+-- vim.keymap.set("i", "<C-[>", "<C-d>")
 vim.keymap.set("n", "<C-[>", "i<C-d><C-f><Esc>")
-vim.keymap.set("v", "<C-[>", "<Esc><C-[>")
+-- vim.keymap.set("v", "<C-[>", "<Esc><C-[>")
 
 vim.keymap.set("n", "gd", function() vim.lsp.buf.definition() end)
 vim.keymap.set("n", "gD", function() vim.lsp.buf.declaration() end)
@@ -955,6 +957,10 @@ vim.keymap.set("n", "<leader>n", function()
 end)
 
 vim.keymap.set("n", '<leader>=', '<cmd>lua vim.lsp.buf.formatting()<CR>')
+
+-- vim.keymap.set("i", "<Esc>", function()
+-- 	print "esc"
+-- end)
 
 --
 -- split navigation
