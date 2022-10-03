@@ -48,10 +48,10 @@ require('packer').startup(function(use)
 	-- better % using treesiter - vimscript
 	use { 'andymass/vim-matchup', event = 'VimEnter' }
 
-	-- show filename in winbar
-	use { "b0o/incline.nvim", config = function()
-		require('incline').setup()
-	end }
+	-- -- show filename in winbar
+	-- use { "b0o/incline.nvim", config = function()
+	-- 	require('incline').setup()
+	-- end }
 
 	-- typescript lsp - eslint is faster
 	-- https://github.com/jose-elias-alvarez/typescript.nvim
@@ -771,7 +771,7 @@ vim.g.vim_markdown_new_list_item_indent = 1 -- indent new items on 'o' from n mo
 vim.opt.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (gnome)
 vim.opt.conceallevel = 0 -- so that `` is visible in markdown files
 vim.opt.title = true -- set window title
-vim.opt.titlestring = vim.fn.fnamemodify(vim.fn.getcwd(), ":~:t")
+--vim.opt.titlestring = vim.fn.fnamemodify(vim.fn.getcwd(), ":~:t")
 vim.opt.cursorline = true -- highlight the current line
 vim.opt.expandtab = false -- insert spaces when tab is pressed
 vim.opt.foldlevelstart = 99
@@ -805,6 +805,10 @@ vim.g.completion_trigger_keyword_length = 3
 vim.opt.showmode = false
 vim.opt.regexpengine = 2
 
+-- netrw
+vim.g.netrw_banner = 0 -- hide banner
+vim.g.netrw_localcopydircmd = 'cp -r' -- recursive copy
+
 vim.api.nvim_set_option('tabstop', 2)
 
 require 'floats'
@@ -829,7 +833,7 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 end })
 -- vim.opt.tabline = "%!render_tabline()"
 
--- #keymaps
+-- KEYMAPS
 -- to view current mappings: :verbose nmap <C-]>
 -- split navigation
 vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
@@ -1012,13 +1016,28 @@ local function lsp_connections()
 	return status
 end
 
+local function git_branch()
+	local git_info = vim.b.gitsigns_status_dict
+	if git_info then
+		return "%#Normal#  " .. git_info.head
+	else
+		return ""
+	end
+end
+
 function StatusLine()
-	local filetype = vim.api.nvim_buf_get_option(0, 'filetype')
+	-- local filetype = vim.api.nvim_buf_get_option(0, 'filetype')
 	return table.concat {
+		"%#Directory#",
+		vim.fn.fnamemodify(vim.fn.getcwd(), ":~"), -- project directory
+		"%#Normal#",
+		"  ",
 		vim.fn.fnamemodify(vim.fn.expand("%"), ":."), -- project directory
 		"%=",
-		filetype,
-		lsp_connections()
+		-- filetype,
+		lsp_connections(),
+		" ",
+		git_branch()
 	}
 end
 
@@ -1027,15 +1046,8 @@ vim.opt.statusline = "%!v:lua.StatusLine()"
 --
 -- TABLINE
 --
-vim.opt.showtabline = 2 -- show the global tab line at the top of neovim
-local function git_branch()
-	local git_info = vim.b.gitsigns_status_dict
-	if git_info then
-		return " " .. git_info.head
-	else
-		return ""
-	end
-end
+-- vim.opt.showtabline = 2 -- show the global tab line at the top of neovim
+vim.opt.showtabline = 0 -- show the global tab line at the top of neovim
 
 function TabLine()
 	--vim.cmd "highlight PWD guifg=white guibg=#222222"
