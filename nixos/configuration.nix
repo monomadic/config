@@ -26,6 +26,7 @@
     cardboard
     dotter # rust dotfiles manager
     dwl # wm
+    exa # ls replacement
     fd
     file # filetype identification
     firefox
@@ -105,7 +106,7 @@
     #  QT_AUTO_SCREEN_SCALE_FACTOR = "1";
     XCURSOR_SIZE = "48";
     XCURSOR_THEME = "Vanilla-DMZ";
-		# EDITOR = "nvim";
+    # EDITOR = "nvim";
   };
   # services.xserver.dpi = 97; # this does nothing for wayland
 
