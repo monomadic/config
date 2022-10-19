@@ -294,14 +294,16 @@ require('packer').startup(function(use)
 			vim.keymap.set("n", "go", function()
 				require('telescope.builtin').find_files()
 			end)
-			vim.keymap.set("n", "<leader>o", function()
-				require('telescope.builtin').find_files(
-					require('telescope.themes').get_dropdown()
-				)
-			end)
+			-- mini find
+			-- vim.keymap.set("n", "<leader>o", function()
+			-- 	require('telescope.builtin').find_files(
+			-- 		require('telescope.themes').get_dropdown()
+			-- 	)
+			-- end)
 			vim.keymap.set("n", 'tb', '<cmd>Telescope buffers<cr>')
+			vim.keymap.set("n", '<leader>b', '<cmd>Telescope buffers<cr>')
 			vim.keymap.set("n", 'tc', '<cmd>Telescope commands<cr>')
-			vim.keymap.set("n", '<leader>f', function()
+			vim.keymap.set("n", '<leader>j', function()
 				require('telescope.builtin').find_files { path_display = { "truncate" }, prompt_title = "", preview_title = "" }
 			end)
 			vim.keymap.set("n", 'to', '<cmd>Telescope oldfiles<cr>')
@@ -502,7 +504,9 @@ require('packer').startup(function(use)
 			-- `gco` line comment at line-open
 			-- `gbc` block comment
 			require('Comment').setup()
-			--vim.keymap.set("n", "<C-.>", "gcc")
+			vim.keymap.set("n", "<C-/>", "gcc")
+			vim.keymap.set("i", "<C-/>", "<Esc>gcc")
+			-- vim.keymap.set("i", "<C-/>", "gcc")
 		end
 	}
 
@@ -575,7 +579,7 @@ require('packer').startup(function(use)
 				sources = {
 					null_ls.builtins.formatting.taplo, -- cargo install taplo-cli --locked
 					null_ls.builtins.formatting.prettier.with({
-						filetypes = { "html", "json", "yaml", "markdown" },
+						filetypes = { "html", "json", "yaml", "markdown", "graphql", "solidity" },
 					}),
 					null_ls.builtins.diagnostics.jsonlint, -- brew install jsonlint
 					null_ls.builtins.hover.dictionary.with {
@@ -840,7 +844,7 @@ end })
 -- split navigation
 vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
 vim.keymap.set("i", "<C-j>", "<Esc><C-w><C-j>")
-vim.keymap.set("n", "<C-k>", "<C-w><C-k>")
+vim.keymap.set("n", "<C-k>", "<C-w><C-k>", { remap = false })
 vim.keymap.set("i", "<C-k>", "<Esc><C-w><C-k>")
 vim.keymap.set("n", "<C-l>", "<C-w><C-l>", { remap = false })
 vim.keymap.set("i", "<C-l>", "<Esc><C-w><C-l>")
@@ -852,13 +856,13 @@ vim.keymap.set("n", "}", "}j")
 vim.keymap.set("n", "{", "k{j")
 
 -- indent in insert mode
--- vim.keymap.set("i", "<C-]>", "<C-t>")
-vim.keymap.set("n", "<C-]>", "i<C-t><C-f><Esc>")
--- vim.keymap.set("v", "<C-]>", "<Esc><C-]>")
+vim.keymap.set("i", "<C-.>", "<C-t>")
+vim.keymap.set("n", "<C-.>", "i<C-t><C-f><C-f><Esc>") -- note: ctrl-f is fwd
+vim.keymap.set("v", "<C-.>", "<Esc><C-t>")
 
--- vim.keymap.set("i", "<C-[>", "<C-d>")
-vim.keymap.set("n", "<C-[>", "i<C-d><C-f><Esc>")
--- vim.keymap.set("v", "<C-[>", "<Esc><C-[>")
+vim.keymap.set("i", "<C-,>", "<C-d>")
+vim.keymap.set("n", "<C-,>", "i<C-d><C-f><Esc>")
+-- vim.keymap.set("v", "<C-,>", "<Esc><C-h>")
 
 vim.keymap.set("n", "gd", function() vim.lsp.buf.definition() end)
 vim.keymap.set("n", "gD", function() vim.lsp.buf.declaration() end)
@@ -1037,8 +1041,8 @@ function StatusLine()
 		"%#Directory#",
 		vim.fn.fnamemodify(vim.fn.getcwd(), ":~"), -- project directory
 		"%#Normal#",
-		"  ",
-		vim.fn.fnamemodify(vim.fn.expand("%"), ":."), -- project directory
+		-- "  ",
+		-- vim.fn.fnamemodify(vim.fn.expand("%"), ":."), -- project directory
 		"%=",
 		-- filetype,
 		lsp_connections(),
@@ -1048,6 +1052,25 @@ function StatusLine()
 end
 
 vim.opt.statusline = "%!v:lua.StatusLine()"
+
+-- make commandline and statusline collapse together
+vim.o.ch = 0
+
+-- WINBAR
+
+function WinBar()
+	-- local filetype = vim.api.nvim_buf_get_option(0, 'filetype')
+	return table.concat {
+		"%#WinBar#",
+		vim.fn.fnamemodify(vim.fn.expand("%"), ":.")
+	}
+end
+
+vim.o.winbar = "%{%v:lua.WinBar()%}"
+
+-- vim.api.nvim_create_autocmd("BufWinEnter", { pattern = "*", callback = function()
+-- 	vim.o.wbr = vim.fn.fnamemodify(vim.fn.expand("%"), ":.") -- project directory
+-- end })
 
 --
 -- TABLINE
@@ -1081,9 +1104,12 @@ vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = funct
 	vim.opt.wrap = true -- display lines as one long line
 end })
 
-vim.keymap.set("n", "<leader>ri", function()
-	vim.cmd ':edit src/lib.rs'
-end)
+-- build command
+vim.api.nvim_create_autocmd("FileType", { pattern = "solidity", callback = function()
+	vim.keymap.set("n", "<C-b>", function()
+		vim.cmd ':split|terminal forge build'
+	end)
+end })
 
 local function file_exists(fname)
 	local stat = vim.loop.fs_stat(fname)
