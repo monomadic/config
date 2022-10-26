@@ -9,6 +9,9 @@ depends = []
 "colorscheme" = "zellner"
 "zk_path" = "/mnt/data/notes/zk"
 
+[bin.files]
+"bin" = "~/.bin/"
+
 [alacritty]
 files = { "alacritty.yml" = "~/.config/alacritty/alacritty.yml" }
 

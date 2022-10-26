@@ -1,12 +1,13 @@
 packages = [
+	"bin",
   "alacritty",
   "bash",
   "default",
   "helix",
+  "kitty",
   "lf",
   "nvim",
   "skhd",
-  "kitty",
   "zsh",
 ]
 
