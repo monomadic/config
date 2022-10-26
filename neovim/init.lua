@@ -54,17 +54,19 @@ require('packer').startup(function(use)
 
 	-- typescript lsp - eslint is faster
 	-- https://github.com/jose-elias-alvarez/typescript.nvim
-	use { 'jose-elias-alvarez/typescript.nvim', config = function()
-		require("typescript").setup({
-			disable_commands = false, -- prevent the plugin from creating Vim commands
-			debug = false,
-			server = {
-				on_attach = function(client, _)
-					require("lsp-format").on_attach(client)
-				end
-			}
-		})
-	end }
+	-- use { 'jose-elias-alvarez/typescript.nvim', config = function()
+	-- 	require("typescript").setup({
+	-- 		disable_commands = false, -- prevent the plugin from creating Vim commands
+	-- 		debug = false,
+	-- 		server = {
+	-- 			on_attach = function(client, _)
+	-- 				require("lsp-format").on_attach(client)
+	-- 			end
+	-- 		}
+	-- 	})
+	-- end }
+
+	--require('lsp').load()
 
 	use 'ray-x/lsp_signature.nvim'
 
@@ -91,118 +93,122 @@ require('packer').startup(function(use)
 	-- end }
 
 	-- kinda sucks, lets stop using it
-	use { 'neovim/nvim-lspconfig',
-		config = function()
-			local custom_attach = function(client, bufnr)
-				require("lsp-format").on_attach(client)
-
-				vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(
-					vim.lsp.diagnostic.on_publish_diagnostics, { virtual_text = false, update_in_insert = false }
-				)
-				vim.api.nvim_command('autocmd CursorHold <buffer> lua vim.diagnostic.show()') -- automatic diagnostics popup
-				vim.o.updatetime = 500 -- time before diagnostics popup in ms
-				vim.diagnostic.config({
-					virtual_text = true,
-					signs = true, -- sidebar signs
-					underline = false,
-					severity_sort = true,
-				})
-
-				-- diagnostics icon
-				local signs = { Error = "┃ ", Warn = "┃ ", Hint = "┃ ", Info = "┃ " }
-				for type, icon in pairs(signs) do
-					local hl = "DiagnosticSign" .. type
-					-- vim.cmd("hi " .. hl .. " guibg=none")
-					vim.fn.sign_define(hl, { text = icon, texthl = hl })
-				end
-
-				-- diagnostics float on hover
-				vim.api.nvim_create_autocmd("CursorHold", {
-					buffer = bufnr,
-					callback = function()
-						local opts = {
-							focusable = false,
-							close_events = { "BufLeave", "CursorMoved", "InsertEnter", "FocusLost" },
-							border = 'rounded',
-							source = 'always',
-							prefix = ' ',
-							scope = 'cursor',
-						}
-						vim.diagnostic.open_float(nil, opts)
-					end
-				})
-
-				--vim.keymap.set("n", 'gD', '<cmd>lua vim.lsp.buf.declaration()<CR>') -- not used by most lsp servers
-				--vim.keymap.set("n", 'K', '<cmd>lua vim.lsp.buf.hover()<CR>')
-				vim.keymap.set("n", 'gr', '<cmd>lua vim.lsp.buf.references()<CR>')
-				vim.keymap.set("n", 'gs', '<cmd>lua vim.lsp.buf.signature_help()<CR>')
-				--vim.keymap.set("n", 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>')
-				vim.keymap.set("n", 'ga', '<cmd>lua vim.lsp.buf.code_action()<CR>')
-				vim.keymap.set("n", "<leader>a", "<cmd>Lspsaga code_action<CR>")
-				--vim.keymap.set("n", '<leader>r', '<cmd>lua vim.lsp.buf.rename()<CR>')
-				-- vim.keymap.set("n", '<C-]>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
-				-- vim.keymap.set("n", '<C-[>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
-				vim.keymap.set("n", 'gt', '<cmd>TroubleToggle<CR>')
-				vim.keymap.set("n", 'gD', '<cmd>TroubleToggle<CR>')
-
-				-- vim.keymap.set("n", '<leader>a', function()
-				-- 	vim.lsp.buf.code_action()
-				-- end)
-
-				vim.keymap.set("n", ']e', function()
-					vim.diagnostic.goto_next({
-						severity = vim.diagnostic.severity.ERROR,
-					})
-				end)
-
-				vim.keymap.set("n", '[e', function()
-					vim.diagnostic.goto_prev({
-						severity = vim.diagnostic.severity.ERROR,
-					})
-				end)
-			end
-
-			-- cmp/lsp config
-			local capabilities = require('cmp_nvim_lsp').update_capabilities(
-				vim.lsp.protocol.make_client_capabilities()
-			);
-			local lspconfig = require('lspconfig')
-			for _, lsp in ipairs({ 'bashls', 'rnix' }) do
-				lspconfig[lsp].setup {
-					on_attach = custom_attach,
-					capabilities = capabilities,
-				}
-			end
-
-			-- lspconfig.eslint.setup({
-			-- 	on_attach = custom_attach,
-			-- 	capabilities = capabilities,
-			-- })
-
-			-- lspconfig.denols.setup {
-			-- 	root_dir = lspconfig.util.root_pattern("mod.ts", "mod.js")
-			-- }
-
-			-- markdown
-			-- lspconfig.prosemd_lsp.setup {
-			-- 	on_attach = custom_attach,
-			-- 	capabilities = capabilities,
-			-- 	filetypes = { "markdown" }
-			-- }
-
-			lspconfig.sumneko_lua.setup {
-				on_attach = custom_attach,
-				capabilities = capabilities,
-				settings = {
-					Lua = {
-						diagnostics = {
-							globals = { 'vim' }
-						}
-					}
-				}
-			}
-		end
-	}
+	-- use { 'neovim/nvim-lspconfig',
+	-- 	config = function()
+	-- 		local custom_attach = function(client, bufnr)
+	-- 			require("lsp-format").on_attach(client)
+	--
+	-- 			vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(
+	-- 				vim.lsp.diagnostic.on_publish_diagnostics, { virtual_text = false, update_in_insert = false }
+	-- 			)
+	-- 			vim.api.nvim_command('autocmd CursorHold <buffer> lua vim.diagnostic.show()') -- automatic diagnostics popup
+	-- 			vim.o.updatetime = 500 -- time before diagnostics popup in ms
+	-- 			vim.diagnostic.config({
+	-- 				virtual_text = true,
+	-- 				signs = true, -- sidebar signs
+	-- 				underline = false,
+	-- 				severity_sort = true,
+	-- 			})
+	--
+	-- 			-- diagnostics icon
+	-- 			local signs = { Error = "┃ ", Warn = "┃ ", Hint = "┃ ", Info = "┃ " }
+	-- 			for type, icon in pairs(signs) do
+	-- 				local hl = "DiagnosticSign" .. type
+	-- 				-- vim.cmd("hi " .. hl .. " guibg=none")
+	-- 				vim.fn.sign_define(hl, { text = icon, texthl = hl })
+	-- 			end
+	--
+	-- 			-- diagnostics float on hover
+	-- 			vim.api.nvim_create_autocmd("CursorHold", {
+	-- 				buffer = bufnr,
+	-- 				callback = function()
+	-- 					local opts = {
+	-- 						focusable = false,
+	-- 						close_events = { "BufLeave", "CursorMoved", "InsertEnter", "FocusLost" },
+	-- 						border = 'rounded',
+	-- 						source = 'always',
+	-- 						prefix = ' ',
+	-- 						scope = 'cursor',
+	-- 					}
+	-- 					vim.diagnostic.open_float(nil, opts)
+	-- 				end
+	-- 			})
+	--
+	-- 			--vim.keymap.set("n", 'gD', '<cmd>lua vim.lsp.buf.declaration()<CR>') -- not used by most lsp servers
+	-- 			--vim.keymap.set("n", 'K', '<cmd>lua vim.lsp.buf.hover()<CR>')
+	-- 			vim.keymap.set("n", 'gr', '<cmd>lua vim.lsp.buf.references()<CR>')
+	-- 			vim.keymap.set("n", 'gs', '<cmd>lua vim.lsp.buf.signature_help()<CR>')
+	-- 			--vim.keymap.set("n", 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>')
+	-- 			vim.keymap.set("n", 'ga', '<cmd>lua vim.lsp.buf.code_action()<CR>')
+	-- 			vim.keymap.set("n", "<leader>a", "<cmd>Lspsaga code_action<CR>")
+	-- 			--vim.keymap.set("n", '<leader>r', '<cmd>lua vim.lsp.buf.rename()<CR>')
+	-- 			-- vim.keymap.set("n", '<C-]>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
+	-- 			-- vim.keymap.set("n", '<C-[>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
+	-- 			vim.keymap.set("n", 'gt', '<cmd>TroubleToggle<CR>')
+	-- 			vim.keymap.set("n", 'gD', '<cmd>TroubleToggle<CR>')
+	--
+	-- 			-- vim.keymap.set("n", '<leader>a', function()
+	-- 			-- 	vim.lsp.buf.code_action()
+	-- 			-- end)
+	--
+	-- 			vim.keymap.set("n", ']e', function()
+	-- 				vim.diagnostic.goto_next({
+	-- 					severity = vim.diagnostic.severity.ERROR,
+	-- 				})
+	-- 			end)
+	--
+	-- 			vim.keymap.set("n", '[e', function()
+	-- 				vim.diagnostic.goto_prev({
+	-- 					severity = vim.diagnostic.severity.ERROR,
+	-- 				})
+	-- 			end)
+	-- 		end
+	--
+	-- 		-- cmp/lsp config
+	-- 		local capabilities = require('cmp_nvim_lsp').default_capabilities();
+	-- 		local lspconfig = require('lspconfig')
+	-- 		for _, lsp in ipairs({ 'bashls', 'rnix' }) do
+	-- 			lspconfig[lsp].setup {
+	-- 				on_attach = custom_attach,
+	-- 				capabilities = capabilities,
+	-- 			}
+	-- 		end
+	--
+	-- 		-- lspconfig.eslint.setup({
+	-- 		-- 	on_attach = custom_attach,
+	-- 		-- 	capabilities = capabilities,
+	-- 		-- })
+	--
+	-- 		-- lspconfig.denols.setup {
+	-- 		-- 	single_file_support = false,
+	-- 		-- }
+	--
+	-- 		-- markdown
+	-- 		-- lspconfig.prosemd_lsp.setup {
+	-- 		-- 	on_attach = custom_attach,
+	-- 		-- 	capabilities = capabilities,
+	-- 		-- 	filetypes = { "markdown" }
+	-- 		-- }
+	--
+	-- 		-- lspconfig.denols.setup {
+	-- 		-- 	init_options = {
+	-- 		-- 		enable = false
+	-- 		-- 	}
+	-- 		-- }
+	--
+	-- 		lspconfig.sumneko_lua.setup {
+	-- 			on_attach = custom_attach,
+	-- 			capabilities = capabilities,
+	-- 			settings = {
+	-- 				Lua = {
+	-- 					diagnostics = {
+	-- 						globals = { 'vim' }
+	-- 					}
+	-- 				}
+	-- 			}
+	-- 		}
+	-- 	end
+	-- }
 
 	-- lspconfig (with mason)
 	use {
@@ -213,8 +219,8 @@ require('packer').startup(function(use)
 		{ "williamboman/mason-lspconfig.nvim",
 			requires = { "williamboman/mason.nvim" },
 			config = function() require("mason-lspconfig").setup {
-					ensure_installed = { 'prosemd' },
-					automatic_installation = true,
+					--ensure_installed = { 'prosemd' },
+					--automatic_installation = true,
 				}
 			end
 		}
@@ -303,7 +309,7 @@ require('packer').startup(function(use)
 			vim.keymap.set("n", 'tb', '<cmd>Telescope buffers<cr>')
 			vim.keymap.set("n", '<leader>b', '<cmd>Telescope buffers<cr>')
 			vim.keymap.set("n", 'tc', '<cmd>Telescope commands<cr>')
-			vim.keymap.set("n", '<leader>j', function()
+			vim.keymap.set("n", '<leader>o', function()
 				require('telescope.builtin').find_files { path_display = { "truncate" }, prompt_title = "", preview_title = "" }
 			end)
 			vim.keymap.set("n", 'to', '<cmd>Telescope oldfiles<cr>')
@@ -475,17 +481,17 @@ require('packer').startup(function(use)
 		}
 	end }
 
-	use { 'junegunn/goyo.vim', config = function()
-		vim.g.goyo_width = "65%"
-	end } -- distraction-free / zen mode (VIMSCRIPT)
-
-	-- Lua
-	use {
-		"folke/zen-mode.nvim",
-		config = function()
-			require("zen-mode").setup {}
-		end
-	}
+	-- use { 'junegunn/goyo.vim', config = function()
+	-- 	vim.g.goyo_width = "65%"
+	-- end } -- distraction-free / zen mode (VIMSCRIPT)
+	--
+	-- -- Lua
+	-- use {
+	-- 	"folke/zen-mode.nvim",
+	-- 	config = function()
+	-- 		require("zen-mode").setup {}
+	-- 	end
+	-- }
 
 	use {
 		"folke/trouble.nvim",
@@ -691,7 +697,7 @@ require('packer').startup(function(use)
 			vim.keymap.set("n", "<leader>r", "<cmd>Lspsaga rename<CR>")
 			vim.keymap.set("n", "<leader>d", "<cmd>Lspsaga preview_definition<CR>")
 			vim.keymap.set("n", 'K', '<cmd>Lspsaga hover_doc<CR>')
-			vim.keymap.set("n", "\\", '<cmd>LSoutlineToggle<CR>', { silent = true })
+			vim.keymap.set("n", "|", '<cmd>LSoutlineToggle<CR>', { silent = true })
 			vim.keymap.set("n", ']d', '<cmd>Lspsaga diagnostic_jump_next<cr>')
 			vim.keymap.set("n", '[d', '<cmd>Lspsaga diagnostic_jump_prev<cr>')
 
@@ -898,6 +904,8 @@ vim.opt.fillchars = {
 	foldclose = "▸",
 }
 
+-- set foldcolumn=2 -- show folds
+
 --
 -- EVENTS
 --
@@ -1060,8 +1068,11 @@ vim.o.ch = 0
 
 function WinBar()
 	-- local filetype = vim.api.nvim_buf_get_option(0, 'filetype')
+
+	vim.cmd("hi WinBar guifg=#FFFFFF guibg=#2222FF"); -- I think this is the split column
+
 	return table.concat {
-		"%#WinBar#",
+		"%#WinBar# ",
 		vim.fn.fnamemodify(vim.fn.expand("%"), ":.")
 	}
 end
@@ -1124,7 +1135,19 @@ vim.keymap.set("n", "gI", function()
 		vim.cmd ':edit src/main.rs'
 	elseif file_exists("index.md") then
 		vim.cmd ':VimwikiIndex'
+	elseif file_exists("src/index.ts") then
+		vim.cmd ':edit src/index.ts'
 	else
 		print("no root file found.")
+	end
+end)
+
+vim.keymap.set("n", "gP", function()
+	if file_exists("Cargo.toml") then
+		vim.cmd ':edit Cargo.toml'
+	elseif file_exists("package.json") then
+		vim.cmd ':edit package.json'
+	else
+		print("no package manifest found.")
 	end
 end)
