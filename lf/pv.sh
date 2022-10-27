@@ -18,6 +18,6 @@ else
         *.png) viu "$1";;
         *.doc) catdoc < "$1";;
         *.docx) docx2txt < "$1";;
-        *) bat --style=plain --paging=never --terminal-width="$2" --color=always --theme=dracula "$1"
+        *) bat --style=plain --paging=never --terminal-width="$2" --tabs=2 --color=always --theme="Visual Studio Dark+" "$1"
     esac
 fi

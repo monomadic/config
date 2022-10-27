@@ -14,7 +14,7 @@ batorcat() {
 	shift
 	if command -v bat > /dev/null 2>&1
 	then
-		bat --color=always --style=plain --pager=never "$file" "$@"
+		bat --color=always --style=plain --pager=never --tabs 2 "$file" "$@"
 	else
 		cat "$file"
 	fi
