@@ -2,3 +2,18 @@
 name = "rust"
 auto-format = true
 indent = { tab-width = 2, unit = "\t" }
+roots = ["Cargo.toml"]
+
+[[language]]
+name = "typescript"
+auto-format = true
+indent = { tab-width = 2, unit = "\t" }
+
+[[language]]
+name = "toml"
+auto-format = true
+
+[[language]]
+name = "solidity"
+auto-format = true
+indent = { tab-width = 2, unit = "\t" }

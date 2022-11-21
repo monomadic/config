@@ -113,7 +113,7 @@ local open_lf = function()
 	})
 end
 vim.keymap.set('n', '<C-Space>', function() open_lf() end)
-vim.keymap.set('n', '<leader>o', function() open_lf() end)
+--vim.keymap.set('n', '<leader>o', function() open_lf() end)
 
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "NormalFloat", {})
