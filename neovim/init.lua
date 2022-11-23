@@ -20,12 +20,14 @@ vim.cmd 'packadd packer.nvim' -- only required if packer is opt
 
 require('packer').startup(function(use)
 	use 'wbthomason/packer.nvim'
+end)
 
+require('packer').startup(function(use)
 	-- COLORSCHEMES
 	--
-	use 'bluz71/vim-nightfly-guicolors'
-	use 'lunarvim/darkplus.nvim'
-	use 'projekt0n/github-nvim-theme'
+	-- use 'bluz71/vim-nightfly-guicolors'
+	-- use 'lunarvim/darkplus.nvim'
+	-- use 'projekt0n/github-nvim-theme'
 	use { 'Mofiqul/vscode.nvim', config = function()
 		vim.o.background = 'dark'
 		require('vscode').setup({
@@ -35,62 +37,19 @@ require('packer').startup(function(use)
 			},
 		})
 	end }
-	use {
-		"olimorris/onedarkpro.nvim",
-		config = function()
-			require("onedarkpro").setup({
-				theme = "onedark_dark"
-			})
-		end
-	}
+	-- use {
+	-- 	"olimorris/onedarkpro.nvim",
+	-- 	config = function()
+	-- 		require("onedarkpro").setup({
+	-- 			theme = "onedark_dark"
+	-- 		})
+	-- 	end
+	-- }
 
 	-- better % using treesiter - vimscript
 	use { 'andymass/vim-matchup', event = 'VimEnter' }
 
-	-- -- show filename in winbar
-	-- use { "b0o/incline.nvim", config = function()
-	-- 	require('incline').setup()
-	-- end }
-
-	-- typescript lsp - eslint is faster
-	-- https://github.com/jose-elias-alvarez/typescript.nvim
-	-- use { 'jose-elias-alvarez/typescript.nvim', config = function()
-	-- 	require("typescript").setup({
-	-- 		disable_commands = false, -- prevent the plugin from creating Vim commands
-	-- 		debug = false,
-	-- 		server = {
-	-- 			on_attach = function(client, _)
-	-- 				require("lsp-format").on_attach(client)
-	-- 			end
-	-- 		}
-	-- 	})
-	-- end }
-
-	--require('lsp').load()
-
-	use 'ray-x/lsp_signature.nvim'
-
-	-- use { 'mickael-menu/zk-nvim', config = function()
-	-- 	require("zk").setup {
-	-- 		picker = "telescope", -- telescope, fzf, select
-	--
-	-- 		lsp = {
-	-- 			-- `config` is passed to `vim.lsp.start_client(config)`
-	-- 			config = {
-	-- 				cmd = { "zk", "lsp" },
-	-- 				name = "zk",
-	-- 				-- on_attach = ...
-	-- 				-- etc, see `:h vim.lsp.start_client()`
-	-- 			},
-	--
-	-- 			-- automatically attach buffers in a zk notebook that match the given filetypes
-	-- 			auto_attach = {
-	-- 				enabled = true,
-	-- 				filetypes = { "markdown" },
-	-- 			},
-	-- 		}
-	-- 	}
-	-- end }
+	require('lsp')
 
 	-- kinda sucks, lets stop using it
 	-- use { 'neovim/nvim-lspconfig',
@@ -368,7 +327,7 @@ require('packer').startup(function(use)
 
 	-- use { 'vijaymarupudi/nvim-fzf' }
 
-	-- completion TODO: clear out useless plugs, maybe custom one
+	-- completion
 	use {
 		'hrsh7th/nvim-cmp',
 		wants = { "LuaSnip" },
@@ -478,11 +437,11 @@ require('packer').startup(function(use)
 	end }
 
 	-- interacting with marks, including putting them in the gutter / sign column
-	use { 'chentoast/marks.nvim', config = function()
-		require 'marks'.setup {
-			sign_priority = { lower = 10, upper = 15, builtin = 8, bookmark = 20 },
-		}
-	end }
+	-- use { 'chentoast/marks.nvim', config = function()
+	-- 	require 'marks'.setup {
+	-- 		sign_priority = { lower = 10, upper = 15, builtin = 8, bookmark = 20 },
+	-- 	}
+	-- end }
 
 	-- use { 'junegunn/goyo.vim', config = function()
 	-- 	vim.g.goyo_width = "65%"
@@ -496,14 +455,15 @@ require('packer').startup(function(use)
 	-- 	end
 	-- }
 
-	use {
-		"folke/trouble.nvim",
-		requires = "kyazdani42/nvim-web-devicons",
-		config = function()
-			require("trouble").setup {
-			}
-		end
-	}
+	-- emoticon errors
+	-- use {
+	-- 	"folke/trouble.nvim",
+	-- 	requires = "kyazdani42/nvim-web-devicons",
+	-- 	config = function()
+	-- 		require("trouble").setup {
+	-- 		}
+	-- 	end
+	-- }
 
 	use { 'numToStr/Comment.nvim',
 		config = function()
@@ -614,6 +574,8 @@ require('packer').startup(function(use)
 		end,
 	}
 
+	-- lsp navigation plug
+	-- https://github.com/ray-x/navigator.lua
 	use({
 		'ray-x/navigator.lua',
 		requires = {
@@ -621,7 +583,61 @@ require('packer').startup(function(use)
 			{ 'neovim/nvim-lspconfig' },
 		},
 		config = function()
-			require 'navigator'.setup()
+			require('navigator').setup({
+				mason = true,
+				icons = {
+					icons = false,
+					code_action_icon = '',
+					code_lens_action_icon = " ",
+					diagnostic_err = 'E',
+					diagnostic_hint = [[!]],
+					doc_symbols = '',
+					diagnostic_head = '',
+					diagnostic_head_severity_1 = " ",
+					diagnostic_head_severity_2 = " ",
+					diagnostic_head_severity_3 = " ",
+					diagnostic_head_description = "",
+					diagnostic_virtual_text = " ",
+					diagnostic_file = " ",
+					--
+					-- Values
+					value_changed = " ",
+					value_definition = "𤋮 ",
+					side_panel = {
+						section_separator = '',
+						line_num_left = '',
+						line_num_right = '',
+						inner_node = '├○',
+						outer_node = '╰○',
+						bracket_left = '⟪',
+						bracket_right = '⟫',
+					},
+					-- Treesitter
+					match_kinds = {
+						var = ' ',
+						method = 'ƒ ',
+						['function'] = ' ',
+						parameter = "  ",
+						associated = "  ",
+						namespace = "  ",
+						type = "  ",
+						field = " ﰠ "
+					},
+					treesitter_defult = " "
+				},
+				lsp = {
+					enable = true,
+					format_on_save = true,
+					format_options = { async = true },
+					diagnostic_virtual_text = false,
+					diagnostic_update_in_insert = false,
+					display_diagnostic_qf = false,
+					diagnostic = {
+						virtual_text = false,
+						update_in_insert = false,
+					},
+				},
+			})
 		end
 	})
 
@@ -630,7 +646,7 @@ require('packer').startup(function(use)
 	use {
 		'simrat39/rust-tools.nvim',
 		-- ft = 'rust',
-		requires = { 'neovim/nvim-lspconfig', 'nvim-lua/plenary.nvim', 'mfussenegger/nvim-dap' }, -- last 2 for debug
+		requires = { 'neovim/nvim-lspconfig', 'jubnzv/virtual-types.nvim', 'nvim-lua/plenary.nvim', 'mfussenegger/nvim-dap' }, -- last 2 for debug
 		config = function()
 			local rust_tools = require('rust-tools')
 
@@ -651,6 +667,7 @@ require('packer').startup(function(use)
 				server = {
 					on_attach = function(client, bufnr)
 						require("lsp-format").on_attach(client)
+						require("virtualtypes").on_attach(client)
 
 						vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr })
 						vim.keymap.set("n", "<Leader>a", rust_tools.code_action_group.code_action_group, { buffer = bufnr })
@@ -825,6 +842,10 @@ vim.g.netrw_winsize = -28 -- absolute width
 --vim.g.netrw_sort_sequence = '[\/]$,*' -- sort dirs first
 
 vim.api.nvim_set_option('tabstop', 2)
+
+vim.diagnostic.config({
+	virtual_text = false,
+})
 
 require 'floats'
 require 'text'

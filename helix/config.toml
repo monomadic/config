@@ -18,6 +18,7 @@ L = ["goto_line_end"]
 V = ["goto_line_start", "select_mode", "goto_line_end"]
 "{" = ["goto_prev_paragraph"]
 "}" = ["goto_next_paragraph"]
+Q = ":quit"
 
 [keys.insert]
 C-s = [":write", "normal_mode"]

@@ -41,7 +41,7 @@ vim.keymap.set('n', '\\', function()
 		})
 
 		local win = vim.api.nvim_get_current_win()
-		vim.api.nvim_win_set_option(win, "winblend", 20)
+		-- vim.api.nvim_win_set_option(win, "winblend", 20)
 		vim.api.nvim_win_set_buf(win, buf)
 		vim.wo.relativenumber = false -- turn off line numbers
 		vim.wo.number = false
@@ -68,7 +68,7 @@ local open_lf = function()
 	})
 
 	local win = vim.api.nvim_get_current_win()
-	vim.api.nvim_win_set_option(win, "winblend", 20)
+	-- vim.api.nvim_win_set_option(win, "winblend", 20)
 	vim.api.nvim_win_set_buf(win, buf)
 	vim.wo.relativenumber = false -- turn off line numbers
 	vim.wo.number = false
