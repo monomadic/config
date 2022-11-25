@@ -1,6 +1,3 @@
--- @monomadic
--- requires: git, neovim 0.7+
-
 -- PLUGINS
 --
 --   PackerCompile: compile plugins
@@ -20,23 +17,20 @@ vim.cmd 'packadd packer.nvim' -- only required if packer is opt
 
 require('packer').startup(function(use)
 	use 'wbthomason/packer.nvim'
-end)
-
-require('packer').startup(function(use)
 	-- COLORSCHEMES
 	--
-	-- use 'bluz71/vim-nightfly-guicolors'
-	-- use 'lunarvim/darkplus.nvim'
-	-- use 'projekt0n/github-nvim-theme'
-	use { 'Mofiqul/vscode.nvim', config = function()
-		vim.o.background = 'dark'
-		require('vscode').setup({
-			transparent = true, -- transparent bg
-			color_overrides = {
-				vscGreen = '#555555',
-			},
-		})
-	end }
+	use 'bluz71/vim-nightfly-guicolors'
+	use 'lunarvim/darkplus.nvim'
+	use 'projekt0n/github-nvim-theme'
+	-- use { 'Mofiqul/vscode.nvim', config = function()
+	-- 	vim.o.background = 'dark'
+	-- 	require('vscode').setup({
+	-- 		transparent = true, -- transparent bg
+	-- 		color_overrides = {
+	-- 			vscGreen = '#555555',
+	-- 		},
+	-- 	})
+	-- end }
 	-- use {
 	-- 	"olimorris/onedarkpro.nvim",
 	-- 	config = function()
@@ -46,144 +40,66 @@ require('packer').startup(function(use)
 	-- 	end
 	-- }
 
-	-- better % using treesiter - vimscript
+		use { 'numToStr/Comment.nvim',
+		config = function()
+			-- `gcc` line comment
+			-- `gcA` line comment at eol
+			-- `gc0` line comment at bol
+			-- `gco` line comment at line-open
+			-- `gbc` block comment
+			require('Comment').setup()
+			vim.keymap.set("n", "<C-/>", "gcc")
+			vim.keymap.set("i", "<C-/>", "<Esc>gcc")
+			-- vim.keymap.set("i", "<C-/>", "gcc")
+		end
+	}
+
+
+
+	-- better % motion using treesiter - vimscript
 	use { 'andymass/vim-matchup', event = 'VimEnter' }
 
-	require('lsp')
+	-- flowstate reading
+	-- https://github.com/nullchilly/fsread.nvim
+	use { "nullchilly/fsread.nvim", ft = {'markdown', 'text', 'vimwiki'} }
 
-	-- kinda sucks, lets stop using it
-	-- use { 'neovim/nvim-lspconfig',
-	-- 	config = function()
-	-- 		local custom_attach = function(client, bufnr)
-	-- 			require("lsp-format").on_attach(client)
-	--
-	-- 			vim.lsp.handlers["textDocument/publishDiagnostics"] = vim.lsp.with(
-	-- 				vim.lsp.diagnostic.on_publish_diagnostics, { virtual_text = false, update_in_insert = false }
-	-- 			)
-	-- 			vim.api.nvim_command('autocmd CursorHold <buffer> lua vim.diagnostic.show()') -- automatic diagnostics popup
-	-- 			vim.o.updatetime = 500 -- time before diagnostics popup in ms
-	-- 			vim.diagnostic.config({
-	-- 				virtual_text = true,
-	-- 				signs = true, -- sidebar signs
-	-- 				underline = false,
-	-- 				severity_sort = true,
-	-- 			})
-	--
-	-- 			-- diagnostics icon
-	-- 			local signs = { Error = "┃ ", Warn = "┃ ", Hint = "┃ ", Info = "┃ " }
-	-- 			for type, icon in pairs(signs) do
-	-- 				local hl = "DiagnosticSign" .. type
-	-- 				-- vim.cmd("hi " .. hl .. " guibg=none")
-	-- 				vim.fn.sign_define(hl, { text = icon, texthl = hl })
-	-- 			end
-	--
-	-- 			-- diagnostics float on hover
-	-- 			vim.api.nvim_create_autocmd("CursorHold", {
-	-- 				buffer = bufnr,
-	-- 				callback = function()
-	-- 					local opts = {
-	-- 						focusable = false,
-	-- 						close_events = { "BufLeave", "CursorMoved", "InsertEnter", "FocusLost" },
-	-- 						border = 'rounded',
-	-- 						source = 'always',
-	-- 						prefix = ' ',
-	-- 						scope = 'cursor',
-	-- 					}
-	-- 					vim.diagnostic.open_float(nil, opts)
-	-- 				end
-	-- 			})
-	--
-	-- 			--vim.keymap.set("n", 'gD', '<cmd>lua vim.lsp.buf.declaration()<CR>') -- not used by most lsp servers
-	-- 			--vim.keymap.set("n", 'K', '<cmd>lua vim.lsp.buf.hover()<CR>')
-	-- 			vim.keymap.set("n", 'gr', '<cmd>lua vim.lsp.buf.references()<CR>')
-	-- 			vim.keymap.set("n", 'gs', '<cmd>lua vim.lsp.buf.signature_help()<CR>')
-	-- 			--vim.keymap.set("n", 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>')
-	-- 			vim.keymap.set("n", 'ga', '<cmd>lua vim.lsp.buf.code_action()<CR>')
-	-- 			vim.keymap.set("n", "<leader>a", "<cmd>Lspsaga code_action<CR>")
-	-- 			--vim.keymap.set("n", '<leader>r', '<cmd>lua vim.lsp.buf.rename()<CR>')
-	-- 			-- vim.keymap.set("n", '<C-]>', '<cmd>lua vim.diagnostic.goto_next()<CR>')
-	-- 			-- vim.keymap.set("n", '<C-[>', '<cmd>lua vim.diagnostic.goto_prev()<CR>')
-	-- 			vim.keymap.set("n", 'gt', '<cmd>TroubleToggle<CR>')
-	-- 			vim.keymap.set("n", 'gD', '<cmd>TroubleToggle<CR>')
-	--
-	-- 			-- vim.keymap.set("n", '<leader>a', function()
-	-- 			-- 	vim.lsp.buf.code_action()
-	-- 			-- end)
-	--
-	-- 			vim.keymap.set("n", ']e', function()
-	-- 				vim.diagnostic.goto_next({
-	-- 					severity = vim.diagnostic.severity.ERROR,
-	-- 				})
-	-- 			end)
-	--
-	-- 			vim.keymap.set("n", '[e', function()
-	-- 				vim.diagnostic.goto_prev({
-	-- 					severity = vim.diagnostic.severity.ERROR,
-	-- 				})
-	-- 			end)
-	-- 		end
-	--
-	-- 		-- cmp/lsp config
-	-- 		local capabilities = require('cmp_nvim_lsp').default_capabilities();
-	-- 		local lspconfig = require('lspconfig')
-	-- 		for _, lsp in ipairs({ 'bashls', 'rnix' }) do
-	-- 			lspconfig[lsp].setup {
-	-- 				on_attach = custom_attach,
-	-- 				capabilities = capabilities,
-	-- 			}
-	-- 		end
-	--
-	-- 		-- lspconfig.eslint.setup({
-	-- 		-- 	on_attach = custom_attach,
-	-- 		-- 	capabilities = capabilities,
-	-- 		-- })
-	--
-	-- 		-- lspconfig.denols.setup {
-	-- 		-- 	single_file_support = false,
-	-- 		-- }
-	--
-	-- 		-- markdown
-	-- 		-- lspconfig.prosemd_lsp.setup {
-	-- 		-- 	on_attach = custom_attach,
-	-- 		-- 	capabilities = capabilities,
-	-- 		-- 	filetypes = { "markdown" }
-	-- 		-- }
-	--
-	-- 		-- lspconfig.denols.setup {
-	-- 		-- 	init_options = {
-	-- 		-- 		enable = false
-	-- 		-- 	}
-	-- 		-- }
-	--
-	-- 		lspconfig.sumneko_lua.setup {
-	-- 			on_attach = custom_attach,
-	-- 			capabilities = capabilities,
-	-- 			settings = {
-	-- 				Lua = {
-	-- 					diagnostics = {
-	-- 						globals = { 'vim' }
-	-- 					}
-	-- 				}
-	-- 			}
-	-- 		}
-	-- 	end
-	-- }
+	-- function signature as-you-type
+	use { 'ray-x/lsp_signature.nvim', config = function()
+		require "lsp_signature".setup {}
+	end}
 
 	-- lspconfig (with mason)
-	use {
-		{ "williamboman/mason.nvim",
-			requires = { "neovim/nvim-lspconfig" },
-			config = function() require("mason").setup() end
-		},
-		{ "williamboman/mason-lspconfig.nvim",
-			requires = { "williamboman/mason.nvim" },
-			config = function() require("mason-lspconfig").setup {
-					--ensure_installed = { 'prosemd' },
-					--automatic_installation = true,
-				}
-			end
-		}
+	use { "williamboman/mason.nvim", config = function()
+		require("mason").setup {}
+	end}
+
+	use { "folke/neodev.nvim",
+		-- after = "nvim-lspconfig",
+		ft = "lua",
+		config = function()
+			require("neodev").setup {}
+		vim.lsp.start({
+			name = "neodev",
+			cmd = { "lua-language-server" },
+			before_init = require("neodev.lsp").before_init,
+			root_dir = vim.fn.getcwd(),
+			settings = { Lua = {} },
+		})
+		end
 	}
+
+	-- use { "williamboman/mason-lspconfig.nvim",
+	-- 		requires = { "williamboman/mason.nvim", "neovim/nvim-lspconfig" },
+	-- 		after = "mason.nvim",
+	-- 		-- ft = "lua",
+	-- 		config = function()
+	-- 			require("mason-lspconfig").setup {
+	-- 				-- ensure_installed = { 'sumneko_lua' },
+	-- 				--automatic_installation = true,
+	-- 			}
+	-- 			require('lspconfig').sumneko_lua.setup {}
+	-- 		end
+	-- 	}
 
 	-- treesitter
 	use { 'nvim-treesitter/nvim-treesitter',
@@ -325,7 +241,8 @@ require('packer').startup(function(use)
 			vim.api.nvim_set_hl(0, "TelescopeResultsNormal", { bg = results_bg })
 		end }
 
-	-- use { 'vijaymarupudi/nvim-fzf' }
+	-- https://github.com/vijaymarupudi/nvim-fzf
+	use { 'vijaymarupudi/nvim-fzf' }
 
 	-- completion
 	use {
@@ -436,49 +353,6 @@ require('packer').startup(function(use)
 		}
 	end }
 
-	-- interacting with marks, including putting them in the gutter / sign column
-	-- use { 'chentoast/marks.nvim', config = function()
-	-- 	require 'marks'.setup {
-	-- 		sign_priority = { lower = 10, upper = 15, builtin = 8, bookmark = 20 },
-	-- 	}
-	-- end }
-
-	-- use { 'junegunn/goyo.vim', config = function()
-	-- 	vim.g.goyo_width = "65%"
-	-- end } -- distraction-free / zen mode (VIMSCRIPT)
-	--
-	-- -- Lua
-	-- use {
-	-- 	"folke/zen-mode.nvim",
-	-- 	config = function()
-	-- 		require("zen-mode").setup {}
-	-- 	end
-	-- }
-
-	-- emoticon errors
-	-- use {
-	-- 	"folke/trouble.nvim",
-	-- 	requires = "kyazdani42/nvim-web-devicons",
-	-- 	config = function()
-	-- 		require("trouble").setup {
-	-- 		}
-	-- 	end
-	-- }
-
-	use { 'numToStr/Comment.nvim',
-		config = function()
-			-- `gcc` line comment
-			-- `gcA` line comment at eol
-			-- `gc0` line comment at bol
-			-- `gco` line comment at line-open
-			-- `gbc` block comment
-			require('Comment').setup()
-			vim.keymap.set("n", "<C-/>", "gcc")
-			vim.keymap.set("i", "<C-/>", "<Esc>gcc")
-			-- vim.keymap.set("i", "<C-/>", "gcc")
-		end
-	}
-
 	-- surround completion
 	-- use { "numToStr/Surround.nvim" }
 	-- use {
@@ -488,18 +362,10 @@ require('packer').startup(function(use)
 	-- 	end
 	-- }
 
-	-- inline diagnostics
-	-- use({
-	-- 	"https://git.sr.ht/~whynothugo/lsp_lines.nvim",
-	-- 	config = function()
-	-- 		require("lsp_lines").setup()
-	-- 	end,
-	-- })
-
 	-- lsp progress
 	use {
 		'j-hui/fidget.nvim',
-		requires = { 'neovim/nvim-lspconfig' },
+		-- requires = { 'neovim/nvim-lspconfig' },
 		config = function() require("fidget").setup {} end
 	}
 
@@ -557,102 +423,130 @@ require('packer').startup(function(use)
 				},
 				on_attach = function(client, bufnr)
 					-- disable this dumb mapping
-					local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
-					if client.supports_method("textDocument/formatting") then
-						vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
-						vim.api.nvim_create_autocmd("BufWritePre", {
-							group = augroup,
-							buffer = bufnr,
-							callback = function()
-								-- on 0.8, you should use vim.lsp.buf.format({ bufnr = bufnr }) instead
-								vim.lsp.buf.formatting_sync()
-							end,
-						})
-					end
+					-- local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
+					-- if client.supports_method("textDocument/formatting") then
+					-- 	vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
+					-- 	vim.api.nvim_create_autocmd("BufWritePre", {
+					-- 		group = augroup,
+					-- 		buffer = bufnr,
+					-- 		callback = function()
+					-- 			-- on 0.8, you should use vim.lsp.buf.format({ bufnr = bufnr }) instead
+					-- 			vim.lsp.buf.formatting_sync()
+					-- 		end,
+					-- 	})
+					-- end
 				end,
 			}
 		end,
 	}
 
+	-- lsp naviation
+	-- https://github.com/DNLHC/glance.nvim
+	use({
+		"dnlhc/glance.nvim",
+		config = function()
+			require('glance').setup({
+				winbar = { enable = true }
+			})
+			vim.keymap.set("n", "gr", "<CMD>Glance references<CR>")
+			vim.keymap.set("n", "gD", "<CMD>Glance definitions<CR>")
+			vim.keymap.set("n", "gY", "<CMD>Glance type_definitions<CR>")
+			vim.keymap.set("n", "gM", "<CMD>Glance implementations<CR>")
+		end,
+	})
+
+	use {'jose-elias-alvarez/typescript.nvim', ft = 'typescript', config = function()
+	require("typescript").setup({
+    -- disable_commands = false, -- prevent the plugin from creating Vim commands
+    debug = false, -- enable debug logging for commands
+    go_to_source_definition = {
+        fallback = true, -- fall back to standard LSP definition on failure
+    },
+    server = { -- pass options to lspconfig's setup method
+        -- on_attach = ...,
+    },
+})
+end }
+
 	-- lsp navigation plug
 	-- https://github.com/ray-x/navigator.lua
-	use({
-		'ray-x/navigator.lua',
-		requires = {
-			{ 'ray-x/guihua.lua', run = 'cd lua/fzy && make' },
-			{ 'neovim/nvim-lspconfig' },
-		},
-		config = function()
-			require('navigator').setup({
-				mason = true,
-				icons = {
-					icons = false,
-					code_action_icon = '',
-					code_lens_action_icon = " ",
-					diagnostic_err = 'E',
-					diagnostic_hint = [[!]],
-					doc_symbols = '',
-					diagnostic_head = '',
-					diagnostic_head_severity_1 = " ",
-					diagnostic_head_severity_2 = " ",
-					diagnostic_head_severity_3 = " ",
-					diagnostic_head_description = "",
-					diagnostic_virtual_text = " ",
-					diagnostic_file = " ",
-					--
-					-- Values
-					value_changed = " ",
-					value_definition = "𤋮 ",
-					side_panel = {
-						section_separator = '',
-						line_num_left = '',
-						line_num_right = '',
-						inner_node = '├○',
-						outer_node = '╰○',
-						bracket_left = '⟪',
-						bracket_right = '⟫',
-					},
-					-- Treesitter
-					match_kinds = {
-						var = ' ',
-						method = 'ƒ ',
-						['function'] = ' ',
-						parameter = "  ",
-						associated = "  ",
-						namespace = "  ",
-						type = "  ",
-						field = " ﰠ "
-					},
-					treesitter_defult = " "
-				},
-				lsp = {
-					enable = true,
-					format_on_save = true,
-					format_options = { async = true },
-					diagnostic_virtual_text = false,
-					diagnostic_update_in_insert = false,
-					display_diagnostic_qf = false,
-					diagnostic = {
-						virtual_text = false,
-						update_in_insert = false,
-					},
-				},
-			})
-		end
-	})
+	-- use({
+	-- 	'ray-x/navigator.lua',
+	-- 	requires = {
+	-- 		{ 'ray-x/guihua.lua', run = 'cd lua/fzy && make' },
+	-- 		{ 'neovim/nvim-lspconfig' },
+	-- 	},
+	-- 	config = function()
+	-- 		require('navigator').setup({
+	-- 			mason = true,
+	-- 			icons = {
+	-- 				icons = false,
+	-- 				code_action_icon = '',
+	-- 				code_lens_action_icon = " ",
+	-- 				diagnostic_err = 'E',
+	-- 				diagnostic_hint = [[!]],
+	-- 				doc_symbols = '',
+	-- 				diagnostic_head = '',
+	-- 				diagnostic_head_severity_1 = " ",
+	-- 				diagnostic_head_severity_2 = " ",
+	-- 				diagnostic_head_severity_3 = " ",
+	-- 				diagnostic_head_description = "",
+	-- 				diagnostic_virtual_text = " ",
+	-- 				diagnostic_file = " ",
+	-- 				--
+	-- 				-- Values
+	-- 				value_changed = " ",
+	-- 				value_definition = "𤋮 ",
+	-- 				side_panel = {
+	-- 					section_separator = '',
+	-- 					line_num_left = '',
+	-- 					line_num_right = '',
+	-- 					inner_node = '├○',
+	-- 					outer_node = '╰○',
+	-- 					bracket_left = '⟪',
+	-- 					bracket_right = '⟫',
+	-- 				},
+	-- 				-- Treesitter
+	-- 				match_kinds = {
+	-- 					var = ' ',
+	-- 					method = 'ƒ ',
+	-- 					['function'] = ' ',
+	-- 					parameter = "  ",
+	-- 					associated = "  ",
+	-- 					namespace = "  ",
+	-- 					type = "  ",
+	-- 					field = " ﰠ "
+	-- 				},
+	-- 				treesitter_defult = " "
+	-- 			},
+	-- 			lsp = {
+	-- 				enable = true,
+	-- 				format_on_save = true,
+	-- 				format_options = { async = true },
+	-- 				diagnostic_virtual_text = false,
+	-- 				diagnostic_update_in_insert = false,
+	-- 				display_diagnostic_qf = false,
+	-- 				diagnostic = {
+	-- 					virtual_text = false,
+	-- 					update_in_insert = false,
+	-- 				},
+	-- 			},
+	-- 		})
+	-- 	end
+	-- })
 
 	-- rust-tools: a rust lsp server specific to rust
 	-- https://github.com/simrat39/rust-tools.nvim
 	use {
 		'simrat39/rust-tools.nvim',
-		-- ft = 'rust',
-		requires = { 'neovim/nvim-lspconfig', 'jubnzv/virtual-types.nvim', 'nvim-lua/plenary.nvim', 'mfussenegger/nvim-dap' }, -- last 2 for debug
+		ft = 'rust',
+		requires = { 'jubnzv/virtual-types.nvim', 'nvim-lua/plenary.nvim', 'mfussenegger/nvim-dap' }, -- last 2 for debug
 		config = function()
 			local rust_tools = require('rust-tools')
 
 			rust_tools.setup({
 				tools = {
-					autoSetHints = true,
+					autosethints = true,
 					runnables = {
 						use_telescope = true
 					},
@@ -661,6 +555,7 @@ require('packer').startup(function(use)
 						-- parameter_hints_prefix = "",
 						-- other_hints_prefix = "",
 					},
+					hover_actions = { auto_focus = false },
 				},
 
 				-- see https://github.com/neovim/nvim-lspconfig/blob/master/CONFIG.md#rust_analyzer
@@ -670,10 +565,10 @@ require('packer').startup(function(use)
 						require("virtualtypes").on_attach(client)
 
 						vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr })
-						vim.keymap.set("n", "<Leader>a", rust_tools.code_action_group.code_action_group, { buffer = bufnr })
-						vim.keymap.set('n', 'gc', rust_tools.open_cargo_toml.open_cargo_toml, { buffer = bufnr })
-						vim.keymap.set('n', 'gu', rust_tools.parent_module.parent_module, { buffer = bufnr })
-						--
+						vim.keymap.set("n", "<leader>a", "<cmd>Lspsaga code_action<CR>", { buffer = bufnr })
+						-- vim.keymap.set("n", "<leader>a", rust_tools.code_action_group.code_action_group, { buffer = bufnr })
+						vim.keymap.set('n', 'gP', rust_tools.open_cargo_toml.open_cargo_toml, { buffer = bufnr })
+						vim.keymap.set('n', 'gp', rust_tools.parent_module.parent_module, { buffer = bufnr })
 						-- vim.keymap.set('v', '<C-j>', rust_tools.move_item.move_item(false), { buffer = bufnr }) -- down
 						-- vim.keymap.set('v', '<C-k>', rust_tools.move_item.move_item(true), { buffer = bufnr }) -- up
 						-- vim.keymap.set("n", "gi", function()
@@ -684,6 +579,7 @@ require('packer').startup(function(use)
 						-- to enable rust-analyzer settings visit:
 						-- https://github.com/rust-analyzer/rust-analyzer/blob/master/docs/user/generated_config.adoc
 						["rust-analyzer"] = {
+							lens = { enable = false },
 							-- hover = {
 							-- },
 							checkOnSave = {
@@ -708,11 +604,12 @@ require('packer').startup(function(use)
 
 	-- better lsp ui
 	use { "glepnir/lspsaga.nvim",
-		requires = { 'neovim/nvim-lspconfig' },
+		-- requires = { 'neovim/nvim-lspconfig' },
+		ft = {'rust', 'typescript', 'javascript', 'lua' },
 		config = function()
 			local lsp_saga = require('lspsaga')
 
-			vim.keymap.set("n", "<leader>i", "<cmd>Lspsaga lsp_finder<CR>")
+			vim.keymap.set("n", "gR", "<cmd>Lspsaga lsp_finder<CR>")
 			vim.keymap.set("n", "<leader>a", "<cmd>Lspsaga code_action<CR>")
 			vim.keymap.set("n", "<leader>r", "<cmd>Lspsaga rename<CR>")
 			vim.keymap.set("n", "<leader>d", "<cmd>Lspsaga preview_definition<CR>")
@@ -720,6 +617,8 @@ require('packer').startup(function(use)
 			vim.keymap.set("n", "|", '<cmd>LSoutlineToggle<CR>', { silent = true })
 			vim.keymap.set("n", ']d', '<cmd>Lspsaga diagnostic_jump_next<cr>')
 			vim.keymap.set("n", '[d', '<cmd>Lspsaga diagnostic_jump_prev<cr>')
+			-- vim.keymap.set("n", '\\', '<cmd>Lspsaga open_floaterm<cr>')
+			-- vim.keymap.set("t", '\\', '<cmd>Lspsaga close_floaterm<cr>')
 
 			lsp_saga.init_lsp_saga {
 				show_outline = {
@@ -744,11 +643,11 @@ require('packer').startup(function(use)
 	-- NOTE: vimwiki is vimscript...
 	-- use { 'chipsenkbeil/vimwiki.nvim', config = function()
 	-- end }
-	use { 'ElPiloto/telescope-vimwiki.nvim', config = function()
+	use { 'ElPiloto/telescope-vimwiki.nvim', ft = {"markdown", "vimwiki"}, config = function()
 		require('telescope').load_extension('vimwiki')
 		vim.keymap.set("n", 'tw', '<cmd>Telescope vimwiki<cr>')
 	end }
-	use { 'vimwiki/vimwiki', config = function()
+	use { 'vimwiki/vimwiki', ft = {"markdown", "vimwiki"}, config = function()
 		--vim.keymap.set("n", "gi", "<Cmd>VimwikiIndex<CR>") -- TODO: lsp variants (eg rust will look for lib.rs, main.rs etc)
 		vim.keymap.set("n", "gw", "<Cmd>VimwikiGoto ")
 		vim.cmd 'nmap <Leader>nl <Plug>VimwikiToggleListItem' -- unset this shit, it conflicts with term. see also: g:vimwiki_key_mappings
@@ -855,7 +754,7 @@ require 'text'
 -- }
 
 -- https://gist.github.com/romainl/379904f91fa40533175dfaec4c833f2f
--- vim.cmd("colorscheme {{colorscheme}}");
+vim.cmd("colorscheme {{colorscheme}}");
 
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "EndOfBuffer", { fg = "#444444" })
@@ -895,8 +794,9 @@ vim.keymap.set("n", "<C-,>", "i<C-d><C-f><Esc>")
 -- vim.keymap.set("v", "<C-,>", "<Esc><C-h>")
 
 vim.keymap.set("n", "gd", function() vim.lsp.buf.definition() end)
-vim.keymap.set("n", "gD", function() vim.lsp.buf.declaration() end)
-vim.keymap.set("n", "gr", function() vim.lsp.buf.references() end)
+vim.keymap.set("n", "<Enter>", function() vim.lsp.buf.definition() end)
+vim.keymap.set("n", "gc", function() vim.lsp.buf.declaration() end)
+-- vim.keymap.set("n", "gr", function() vim.lsp.buf.references() end)
 
 -- use ; for commands instead of :
 vim.keymap.set("n", ";", ":")
@@ -1086,7 +986,8 @@ end
 vim.opt.statusline = "%!v:lua.StatusLine()"
 
 -- make commandline and statusline collapse together
-vim.o.ch = 0
+-- > don't do this. it causes annoying prompts.
+-- vim.o.ch = 0
 
 -- WINBAR
 
@@ -1175,3 +1076,12 @@ vim.keymap.set("n", "gP", function()
 		print("no package manifest found.")
 	end
 end)
+
+-- TERMINAL
+vim.keymap.set("n", '<C-t>', '<C-w><C-s>:term<CR>i', { remap = false })
+vim.keymap.set("t", '<C-\\>', '<C-\\><C-n>', { remap = false })
+-- vim.keymap.set("t", '<C-Space>', '<C-\\><C-n>', { remap = false })
+vim.keymap.set("t", '<C-h>', '<C-\\><C-n><C-w><C-h>', { remap = false })
+vim.keymap.set("t", '<C-j>', '<C-\\><C-n><C-w><C-j>', { remap = false })
+vim.keymap.set("t", '<C-k>', '<C-\\><C-n><C-w><C-k>', { remap = false })
+vim.keymap.set("t", '<C-l>', '<C-\\><C-n><C-w><C-l>', { remap = false })
