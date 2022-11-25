@@ -50,11 +50,13 @@ require('packer').startup(function(use)
 			require('Comment').setup()
 			vim.keymap.set("n", "<C-/>", "gcc")
 			vim.keymap.set("i", "<C-/>", "<Esc>gcc")
-			-- vim.keymap.set("i", "<C-/>", "gcc")
 		end
 	}
 
-
+	-- lspconfig (with mason)
+	use { "williamboman/mason.nvim", config = function()
+		require("mason").setup {}
+	end}
 
 	-- better % motion using treesiter - vimscript
 	use { 'andymass/vim-matchup', event = 'VimEnter' }
@@ -68,16 +70,13 @@ require('packer').startup(function(use)
 		require "lsp_signature".setup {}
 	end}
 
-	-- lspconfig (with mason)
-	use { "williamboman/mason.nvim", config = function()
-		require("mason").setup {}
-	end}
-
 	use { "folke/neodev.nvim",
-		-- after = "nvim-lspconfig",
+		after = "nvim-lspconfig",
 		ft = "lua",
 		config = function()
-			require("neodev").setup {}
+			require("neodev").setup {
+				lspconfig = false
+			}
 		vim.lsp.start({
 			name = "neodev",
 			cmd = { "lua-language-server" },
@@ -88,18 +87,18 @@ require('packer').startup(function(use)
 		end
 	}
 
-	-- use { "williamboman/mason-lspconfig.nvim",
-	-- 		requires = { "williamboman/mason.nvim", "neovim/nvim-lspconfig" },
-	-- 		after = "mason.nvim",
-	-- 		-- ft = "lua",
-	-- 		config = function()
-	-- 			require("mason-lspconfig").setup {
-	-- 				-- ensure_installed = { 'sumneko_lua' },
-	-- 				--automatic_installation = true,
-	-- 			}
-	-- 			require('lspconfig').sumneko_lua.setup {}
-	-- 		end
-	-- 	}
+	use { "williamboman/mason-lspconfig.nvim",
+			requires = { "neovim/nvim-lspconfig" },
+			after = "mason.nvim",
+			ft = "lua",
+			config = function()
+				require("mason-lspconfig").setup {
+					-- ensure_installed = { 'sumneko_lua' },
+					--automatic_installation = true,
+				}
+				-- require('lspconfig').sumneko_lua.setup {}
+			end
+		}
 
 	-- treesitter
 	use { 'nvim-treesitter/nvim-treesitter',
@@ -389,7 +388,7 @@ require('packer').startup(function(use)
 	-- null-lsp: a generic lsp server providing lsp functions to neovim on behalf of various tools
 	use {
 		"jose-elias-alvarez/null-ls.nvim",
-		requires = { "nvim-lua/plenary.nvim" },
+		requires = { "nvim-lua/plenary.nvim", "lukas-reineke/lsp-format.nvim" },
 		config = function()
 			local null_ls = require("null-ls")
 			-- https://github.com/jose-elias-alvarez/null-ls.nvim/tree/main/lua/null-ls/builtins/formatting
@@ -422,6 +421,8 @@ require('packer').startup(function(use)
 					}, -- markdown spellcheck
 				},
 				on_attach = function(client, bufnr)
+						require("lsp-format").on_attach(client)
+
 					-- disable this dumb mapping
 					-- local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
 					-- if client.supports_method("textDocument/formatting") then
@@ -455,15 +456,17 @@ require('packer').startup(function(use)
 		end,
 	})
 
-	use {'jose-elias-alvarez/typescript.nvim', ft = 'typescript', config = function()
+	use {'jose-elias-alvarez/typescript.nvim',
+		ft = 'typescript',
+		config = function()
 	require("typescript").setup({
     -- disable_commands = false, -- prevent the plugin from creating Vim commands
     debug = false, -- enable debug logging for commands
     go_to_source_definition = {
         fallback = true, -- fall back to standard LSP definition on failure
     },
-    server = { -- pass options to lspconfig's setup method
-        -- on_attach = ...,
+    server = {
+				on_attach = require("lsp-format").on_attach
     },
 })
 end }
@@ -540,7 +543,7 @@ end }
 	use {
 		'simrat39/rust-tools.nvim',
 		ft = 'rust',
-		requires = { 'jubnzv/virtual-types.nvim', 'nvim-lua/plenary.nvim', 'mfussenegger/nvim-dap' }, -- last 2 for debug
+		requires = { 'neovim/nvim-lspconfig', 'jubnzv/virtual-types.nvim', 'nvim-lua/plenary.nvim', 'mfussenegger/nvim-dap' }, -- last 2 for debug
 		config = function()
 			local rust_tools = require('rust-tools')
 
@@ -562,7 +565,6 @@ end }
 				server = {
 					on_attach = function(client, bufnr)
 						require("lsp-format").on_attach(client)
-						require("virtualtypes").on_attach(client)
 
 						vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr })
 						vim.keymap.set("n", "<leader>a", "<cmd>Lspsaga code_action<CR>", { buffer = bufnr })
@@ -574,12 +576,13 @@ end }
 						-- vim.keymap.set("n", "gi", function()
 						-- 	vim.cmd ':edit src/lib.rs'
 						-- end)
+						require("virtualtypes").on_attach(client, bufnr)
 					end,
 					settings = {
 						-- to enable rust-analyzer settings visit:
 						-- https://github.com/rust-analyzer/rust-analyzer/blob/master/docs/user/generated_config.adoc
 						["rust-analyzer"] = {
-							lens = { enable = false },
+							lens = { enable = true },
 							-- hover = {
 							-- },
 							checkOnSave = {
