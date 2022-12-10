@@ -6,6 +6,7 @@
 --   PackerUpdate: PackerClean, PackerUpdate, PackerInstall
 --   PackerSync: PackerUpdate, PackerCompile
 --
+-- local vim = vim
 -- autoinstall packer:
 local install_path = vim.fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
 if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
@@ -70,6 +71,25 @@ require('packer').startup(function(use)
 		require "lsp_signature".setup {}
 	end}
 
+	-- notifications
+	-- use 'rcarriga/nvim-notify'
+
+	-- convenience file operations (new, rename, etc)
+	use {"chrisgrieser/nvim-genghis",
+		requires = {"stevearc/dressing.nvim", "rcarriga/nvim-notify" },
+		config = function ()
+			local keymap = vim.keymap.set
+			local genghis = require("genghis")
+			keymap("n", "<leader>fp", genghis.copyFilepath)
+			-- keymap("n", "<leader>fn", genghis.copyFilename)
+			keymap("n", "<leader>fx", genghis.chmodx)
+			keymap("n", "<leader>fr", genghis.renameFile)
+			keymap("n", "<leader>fn", genghis.createNewFile)
+			-- keymap("n", "<leader>fd", genghis.duplicateFile)
+			keymap("n", "<leader>fd", function () genghis.trashFile{trashLocation = "your/path"} end) -- default: '$HOME/.Trash'.
+			keymap("x", "<leader>x", genghis.moveSelectionToNewFile)
+		end}
+
 	use { "folke/neodev.nvim",
 		after = "nvim-lspconfig",
 		ft = "lua",
@@ -128,7 +148,7 @@ require('packer').startup(function(use)
 		config = function()
 			require('telescope').setup {
 				defaults = {
-					prompt_prefix = "   ",
+					prompt_prefix = "  ",
 					selection_caret = "  ",
 					entry_prefix = "  ",
 					initial_mode = "insert",
@@ -201,7 +221,7 @@ require('packer').startup(function(use)
 			vim.keymap.set('n', 'tk', '<Cmd>Telescope keymaps<cr>')
 			vim.keymap.set('n', 'tld', '<Cmd>Telescope lsp_definitions<cr>')
 			vim.keymap.set('n', 'tli', '<Cmd>Telescope lsp_implementations<cr>')
-			vim.keymap.set('n', 'tls', '<Cmd>Telescope lsp_document_symbols<cr>')
+			vim.keymap.set('n', '<leader>S', '<Cmd>Telescope lsp_document_symbols<cr>')
 			vim.keymap.set('n', 'tlw', function()
 				require('telescope.builtin').lsp_workspace_symbols { path_display = "hidden", prompt_title = "", preview_title = "" }
 			end)
@@ -242,6 +262,17 @@ require('packer').startup(function(use)
 
 	-- https://github.com/vijaymarupudi/nvim-fzf
 	use { 'vijaymarupudi/nvim-fzf' }
+	-- vim.keymap.set("n", 'tb', function ()
+	-- end)
+
+	use { 'ibhagwan/fzf-lua',
+		requires = { 'nvim-tree/nvim-web-devicons' },
+		config = function()
+			vim.keymap.set('n', '<c-P>', function()
+				require('fzf-lua').files()
+			end)
+		end
+	}
 
 	-- completion
 	use {
@@ -1056,15 +1087,17 @@ local function file_exists(fname)
 end
 
 -- go to root project file
-vim.keymap.set("n", "gI", function()
+vim.keymap.set("n", "gI", function() -- TODO: convert to array
 	if file_exists("src/lib.rs") then
 		vim.cmd ':edit src/lib.rs'
 	elseif file_exists("src/main.rs") then
 		vim.cmd ':edit src/main.rs'
 	elseif file_exists("index.md") then
-		vim.cmd ':VimwikiIndex'
+		vim.cmd ':edit index.md'
 	elseif file_exists("src/index.ts") then
 		vim.cmd ':edit src/index.ts'
+	elseif file_exists("init.lua") then
+		vim.cmd ':edit init.lua'
 	else
 		print("no root file found.")
 	end

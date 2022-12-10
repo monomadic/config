@@ -1,7 +1,15 @@
 -- modal floats
+-- local vim = vim
 
--- local targetwin = { win = vim.api.nvim_get_current_win(), buf = vim.api.nvim_get_current_buf() }
-local background_float_buf = nil
+local row = 2
+local col = 2
+local width = vim.o.columns
+local height = vim.o.lines - 2
+-- local term_height = math.ceil(0.7 * vim.o.lines)
+local border = 'none'
+
+vim.g.terminal_color_4 = 'red'
+vim.g.terminal_color_5 = 'green'
 
 -- local close_term = function()
 -- 	background_float_buf = nil
@@ -9,22 +17,24 @@ local background_float_buf = nil
 -- 	vim.api.nvim_win_close(win, true)
 -- end
 
+local background_float_buf = nil
+
 vim.keymap.set('t', '<C-Space>', function()
 	-- hide float
 	--background_float_buf = vim.api.nvim_get_current_buf()
 	vim.api.nvim_win_hide(0)
 end)
 
-vim.keymap.set('n', '\\', function()
+vim.keymap.set('n', '<C-/>', function()
 	if background_float_buf and vim.api.nvim_buf_is_valid(background_float_buf) then
 		local buf = background_float_buf
 		vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
 			relative = 'editor',
-			row = math.floor(0.05 * vim.o.lines),
-			col = math.floor(0.1 * vim.o.columns),
-			width = math.ceil(0.8 * vim.o.columns),
-			height = math.ceil(0.7 * vim.o.lines),
-			border = 'solid'
+			row = row,
+			col = col,
+			width = width,
+			height = height,
+			border = border,
 		})
 	else
 		local buf = vim.api.nvim_create_buf(false, false) -- new buffer for the term (listed, scratch)
@@ -33,11 +43,11 @@ vim.keymap.set('n', '\\', function()
 		vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
 		vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
 			relative = 'editor',
-			row = math.floor(0.05 * vim.o.lines),
-			col = math.floor(0.1 * vim.o.columns),
-			width = math.ceil(0.8 * vim.o.columns),
-			height = math.ceil(0.7 * vim.o.lines),
-			border = 'solid'
+			row = row,
+			col = col,
+			width = width,
+			height = height,
+			border = border,
 		})
 
 		local win = vim.api.nvim_get_current_win()
@@ -51,7 +61,7 @@ vim.keymap.set('n', '\\', function()
 	vim.cmd "startinsert" -- start in insert mode
 end)
 
--- lf terminal float (TODO: replace with function, add <leader>o)
+-- lf terminal float
 local open_lf = function()
 	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
 	local selected_file = vim.fn.expand('%:p') -- the currently open filename
@@ -60,11 +70,11 @@ local open_lf = function()
 	vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
 	vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
 		relative = 'editor',
-		row = 1, -- math.floor(0.1 * vim.o.lines),
-		col = 2, -- math.floor(0.1 * vim.o.columns),
-		width = math.ceil(1.0 * vim.o.columns) - 2,
-		height = vim.o.lines - 4, --math.ceil(0.8 * vim.o.lines),
-		border = 'solid'
+		row = row,
+		col = col,
+		width = width,
+		height = height,
+		border = border,
 	})
 
 	local win = vim.api.nvim_get_current_win()
