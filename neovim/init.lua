@@ -49,8 +49,8 @@ require('packer').startup(function(use)
 			-- `gco` line comment at line-open
 			-- `gbc` block comment
 			require('Comment').setup()
-			vim.keymap.set("n", "<C-/>", "gcc")
-			vim.keymap.set("i", "<C-/>", "<Esc>gcc")
+			-- vim.keymap.set("n", "<C-/>", "gcc")
+			-- vim.keymap.set("i", "<C-/>", "<Esc>gcc")
 		end
 	}
 

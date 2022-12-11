@@ -53,3 +53,6 @@ files = { "helix" = "~/.config/helix" }
 
 [zsh]
 files = { "zshrc.conf" = "~/.zshrc" }
+
+[dotter]
+files = { "dotter/global.toml" = "~/.config/dotter/global.toml" }

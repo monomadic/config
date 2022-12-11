@@ -1,15 +1,16 @@
 -- modal floats
 -- local vim = vim
 
+-- TODO: extract float creation into function
+-- TODO: place term devicon in statusbar if term float exists
+-- TODO: make term close C-/ in t
+
 local row = 2
 local col = 2
 local width = vim.o.columns
 local height = vim.o.lines - 2
 -- local term_height = math.ceil(0.7 * vim.o.lines)
 local border = 'none'
-
-vim.g.terminal_color_4 = 'red'
-vim.g.terminal_color_5 = 'green'
 
 -- local close_term = function()
 -- 	background_float_buf = nil
@@ -19,8 +20,13 @@ vim.g.terminal_color_5 = 'green'
 
 local background_float_buf = nil
 
+-- hide float
 vim.keymap.set('t', '<C-Space>', function()
-	-- hide float
+	--background_float_buf = vim.api.nvim_get_current_buf()
+	vim.api.nvim_win_hide(0)
+end)
+
+vim.keymap.set('t', '<C-/>', function()
 	--background_float_buf = vim.api.nvim_get_current_buf()
 	vim.api.nvim_win_hide(0)
 end)
@@ -130,4 +136,7 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "Floaterm", { bg = "Black" })
 	vim.api.nvim_set_hl(0, "FloatermBorder", { bg = "Black" })
 	vim.api.nvim_set_hl(0, "FloatBorder", { bg = "Black" })
+
+	vim.g.terminal_color_4 = 'red'
+	vim.g.terminal_color_5 = 'green'
 end })
