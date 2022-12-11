@@ -1,5 +1,7 @@
--- modal floats
--- local vim = vim
+-- TERMINAL
+--
+--	modal floats
+--	local vim = vim
 
 -- TODO: extract float creation into function
 -- TODO: place term devicon in statusbar if term float exists
