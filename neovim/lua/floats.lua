@@ -137,6 +137,15 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.api.nvim_set_hl(0, "FloatermBorder", { bg = "Black" })
 	vim.api.nvim_set_hl(0, "FloatBorder", { bg = "Black" })
 
-	vim.g.terminal_color_4 = 'red'
-	vim.g.terminal_color_5 = 'green'
+	vim.g.terminal_color_1 = '#000000'
+	vim.g.terminal_color_2 = '#0F0'
+	vim.g.terminal_color_3 = '#FF00FF'
+	vim.g.terminal_color_4 = '#5CF'
+	vim.g.terminal_color_5 = '#FFFF00'
+	vim.g.terminal_color_6 = '#BAD'
+	vim.g.terminal_color_7 = '#DAB'
+	vim.g.terminal_color_8 = '#FAD'
+	vim.g.terminal_color_9 = '#7AA'
+	vim.g.terminal_color_10 = '#14FFFF'
+
 end })

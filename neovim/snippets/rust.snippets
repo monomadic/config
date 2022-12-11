@@ -395,3 +395,8 @@ snippet unim "unimplemented!()"
 	unimplemented!()
 snippet use "use ...;" b
 	use ${1:std::$2};
+
+snippet walkdir
+	for entry in WalkDir::new("foo").into_iter().filter_map(|e| e.ok()) {
+    println!("{}", entry.path().display());
+	}

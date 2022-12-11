@@ -66,6 +66,13 @@ require('packer').startup(function(use)
 	-- https://github.com/nullchilly/fsread.nvim
 	use { "nullchilly/fsread.nvim", ft = {'markdown', 'text', 'vimwiki'} }
 
+	use {'glepnir/template.nvim', config = function()
+		local temp = require('template')
+		temp.temp_dir = '~/.config/nvim/templates' -- template directory
+		temp.author   = 'monomadic' -- your name
+		temp.email    = 'monomadic@localhost' -- email address
+	end}
+
 	-- function signature as-you-type
 	use { 'ray-x/lsp_signature.nvim', config = function()
 		require "lsp_signature".setup {}
