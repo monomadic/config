@@ -6,12 +6,16 @@
 -- save / write
 vim.keymap.set({ "v", "i" }, "<C-s>", "<Esc><Cmd>write<CR>");
 
+-- buffer wipeout
+vim.keymap.set("n", "q", "<CMD>bw<CR>");
+
 -- leader keys
 vim.keymap.set("n", "<leader>s", "<cmd>write<CR>")
 vim.keymap.set("n", "<leader>ww", "<cmd>wq!<CR>")
 vim.keymap.set("n", "<leader>wq", "<cmd>wq<CR>")
 vim.keymap.set("n", "<leader>q", "<cmd>quit<CR>")
 vim.keymap.set("n", "<leader>!", "<cmd>quit!<CR>")
+vim.keymap.set("n", "<leader><tab>", "<cmd>Drex<CR>")
 vim.keymap.set("n", "Q", "<cmd>quit<CR>")
 vim.keymap.set("n", "WQ", "<cmd>wq<CR>")
 --vim.keymap.set("n", "<leader>lf", "<cmd>Lf<CR>")

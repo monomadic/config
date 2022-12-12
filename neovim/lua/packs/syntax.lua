@@ -1,4 +1,3 @@
-
 	-- treesitter
 	return { 'nvim-treesitter/nvim-treesitter',
 		requires = { "p00f/nvim-ts-rainbow" },

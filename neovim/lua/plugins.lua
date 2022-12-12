@@ -28,6 +28,11 @@ require('packer').startup(function(use)
 		require 'packs.leader',
 	}
 
+	use {
+  'theblob42/drex.nvim',
+  requires = 'kyazdani42/nvim-web-devicons', -- optional
+}
+
 	-- lspconfig (with mason)
 	use { "williamboman/mason.nvim", config = function()
 		require("mason").setup {}
@@ -79,17 +84,11 @@ require('packer').startup(function(use)
 		end
 	}
 
-
 	use 'andymass/vim-matchup'
 
-
 	-- https://github.com/vijaymarupudi/nvim-fzf
-	use { 'vijaymarupudi/nvim-fzf' }
-	-- vim.keymap.set("n", 'tb', function ()
-	-- end)
-
 	use { 'ibhagwan/fzf-lua',
-		requires = { 'nvim-tree/nvim-web-devicons' },
+		requires = { 'vijaymarupudi/nvim-fzf', 'nvim-tree/nvim-web-devicons' },
 		config = function()
 			vim.keymap.set('n', '<c-P>', function()
 				require('fzf-lua').files()

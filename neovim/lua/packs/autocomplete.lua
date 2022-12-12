@@ -13,19 +13,21 @@ return {
 				},
 			},
 		})
-		local mappings = require('snippy.mapping')
 
-		vim.keymap.set('i', '<Tab>', mappings.expand_or_advance('<Tab>'))
-		vim.keymap.set('s', '<Tab>', mappings.next('<Tab>'))
-		vim.keymap.set({ 'i', 's' }, '<S-Tab>', mappings.previous('<S-Tab>'))
-		vim.keymap.set('x', '<Tab>', mappings.cut_text, { remap = true })
-		vim.keymap.set('n', 'g<Tab>', mappings.cut_text, { remap = true })
-		vim.keymap.set('n', '<C-g>', '<Cmd>LazyGit<CR>')
+		-- local mappings = require('snippy.mapping')
+		-- vim.keymap.set('i', '<Tab>', mappings.expand_or_advance('<Tab>'))
+		-- vim.keymap.set('i', '<C-n>', mappings.expand_or_advance('<Tab>'))
+		-- vim.keymap.set('s', '<Tab>', mappings.next('<Tab>'))
+		-- vim.keymap.set('s', '<C-n>', mappings.next('<Tab>'))
+		-- vim.keymap.set({ 'i', 's' }, '<S-Tab>', mappings.previous('<S-Tab>'))
+		-- vim.keymap.set('x', '<Tab>', mappings.cut_text, { remap = true })
+		-- vim.keymap.set('n', 'g<Tab>', mappings.cut_text, { remap = true })
 
 		local cmp = require('cmp')
 		cmp.setup {
 			sources = {
-				{ name = 'snippy', name = 'nvim_lsp' },
+				{ name = 'snippy'},
+				{ name = 'nvim_lsp' },
 			},
 			preselect = cmp.PreselectMode.None,
 			snippet = {
@@ -38,9 +40,23 @@ return {
 					behavior = cmp.ConfirmBehavior.Replace,
 					select = false, -- false = only complete if an item is actually selected
 				}),
+				['<C-n>'] = function(fallback)
+					if cmp.visible() then
+						cmp.select_next_item()
+					else
+						fallback()
+					end
+				end,
 				['<Tab>'] = function(fallback)
 					if cmp.visible() then
 						cmp.select_next_item()
+					else
+						fallback()
+					end
+				end,
+				['<C-p>'] = function(fallback)
+					if cmp.visible() then
+						cmp.select_prev_item()
 					else
 						fallback()
 					end
