@@ -1,4 +1,7 @@
 -- STATUSLINE
+--	per-document status line at bottom of each window
+--
+--	https://elianiva.my.id/post/neovim-lua-statusline/
 --
 -- get(b:,'gitsigns_status','')
 -- local stl = {
@@ -30,7 +33,7 @@ local function git_branch()
 	end
 end
 
-function StatusLine()
+StatusLine = function()
 	-- local filetype = vim.api.nvim_buf_get_option(0, 'filetype')
 	return table.concat {
 		"%#Directory#",
@@ -47,3 +50,12 @@ function StatusLine()
 end
 
 vim.opt.statusline = "%!v:lua.StatusLine()"
+
+vim.cmd [[
+  augroup Statusline
+  au!
+  au WinEnter,BufEnter * setlocal statusline=%!v:lua.StatusLine('active')
+  au WinLeave,BufLeave * setlocal statusline=%!v:lua.StatusLine('inactive')
+  au WinEnter,BufEnter,FileType NvimTree setlocal statusline=%!v:lua.StatusLine('explorer')
+  augroup END
+]]

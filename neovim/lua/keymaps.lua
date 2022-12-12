@@ -23,7 +23,11 @@ vim.keymap.set("n", "<leader>n", function()
 	vim.wo.number = false
 end)
 
-vim.keymap.set("n", '<leader>=', '<cmd>lua vim.lsp.buf.formatting()<CR>')
+vim.keymap.set("n", '<leader>=',
+	function()
+		vim.lsp.buf.format { async = true }
+	end
+)
 
 -- split navigation
 vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
@@ -39,6 +43,10 @@ vim.keymap.set("n", "<C-w><C-d>", "<cmd>vsplit<CR>")
 -- jump to next paragraph
 vim.keymap.set("n", "}", "}j")
 vim.keymap.set("n", "{", "k{j")
+
+-- jump page up/down 5 lines
+--vim.keymap.set("n", ">", "5j")
+--vim.keymap.set("n", "{", "k{j")
 
 -- indent in insert mode
 vim.keymap.set("i", "<C-.>", "<C-t>")

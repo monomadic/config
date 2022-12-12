@@ -1,9 +1,10 @@
 -- WINBAR
+-- top bar per window
 
 function WinBar()
 	-- local filetype = vim.api.nvim_buf_get_option(0, 'filetype')
 
-	vim.cmd("hi WinBar guifg=#FFFFFF guibg=#2222FF"); -- I think this is the split column
+	vim.api.nvim_set_hl(0, "WinBar", { fg = "#FFFFFF", bg = "#2222FF" })
 
 	return table.concat {
 		"%#WinBar# ",

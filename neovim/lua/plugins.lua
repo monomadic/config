@@ -6,85 +6,53 @@
 --   PackerUpdate: PackerClean, PackerUpdate, PackerInstall
 --   PackerSync: PackerUpdate, PackerCompile
 --
--- local vim = vim
 -- autoinstall packer:
-local install_path = vim.fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
-if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
-	print("downloading packer...")
-	vim.fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
-	vim.cmd 'packadd packer.nvim'
+local packer_exists = pcall(require, "packer")
+if not packer_exists then
+	local install_path = vim.fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
+	if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
+		print("downloading packer...")
+		vim.fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
+		vim.cmd 'packadd packer.nvim'
+	end
 end
+
 vim.cmd 'packadd packer.nvim' -- only required if packer is opt
 
 require('packer').startup(function(use)
 	use 'wbthomason/packer.nvim'
-	-- COLORSCHEMES
-	--
-	use 'bluz71/vim-nightfly-guicolors'
-	use 'lunarvim/darkplus.nvim'
-	use 'projekt0n/github-nvim-theme'
-	-- use { 'Mofiqul/vscode.nvim', config = function()
-	-- 	vim.o.background = 'dark'
-	-- 	require('vscode').setup({
-	-- 		transparent = true, -- transparent bg
-	-- 		color_overrides = {
-	-- 			vscGreen = '#555555',
-	-- 		},
-	-- 	})
-	-- end }
-	-- use {
-	-- 	"olimorris/onedarkpro.nvim",
-	-- 	config = function()
-	-- 		require("onedarkpro").setup({
-	-- 			theme = "onedark_dark"
-	-- 		})
-	-- 	end
-	-- }
 
-		use { 'numToStr/Comment.nvim',
-		config = function()
-			-- `gcc` line comment
-			-- `gcA` line comment at eol
-			-- `gc0` line comment at bol
-			-- `gco` line comment at line-open
-			-- `gbc` block comment
-			require('Comment').setup()
-			-- vim.keymap.set("n", "<C-/>", "gcc")
-			-- vim.keymap.set("i", "<C-/>", "<Esc>gcc")
-		end
+	use {
+		require 'packs.comments',
+		require 'packs.themes',
+		require 'packs.leader',
 	}
 
 	-- lspconfig (with mason)
 	use { "williamboman/mason.nvim", config = function()
 		require("mason").setup {}
-	end}
+	end }
 
 	-- better % motion using treesiter - vimscript
-	use { 'andymass/vim-matchup', event = 'VimEnter' }
 
 	-- flowstate reading
 	-- https://github.com/nullchilly/fsread.nvim
-	use { "nullchilly/fsread.nvim", ft = {'markdown', 'text', 'vimwiki'} }
+	use { "nullchilly/fsread.nvim", ft = { 'markdown', 'text', 'vimwiki' } }
 
-	use {'glepnir/template.nvim', config = function()
-		local temp = require('template')
-		temp.temp_dir = '~/.config/nvim/templates' -- template directory
-		temp.author   = 'monomadic' -- your name
-		temp.email    = 'monomadic@localhost' -- email address
-	end}
-
-	-- function signature as-you-type
-	use { 'ray-x/lsp_signature.nvim', config = function()
-		require "lsp_signature".setup {}
-	end}
+	-- use {'glepnir/template.nvim', config = function()
+	-- 	local temp = require('template')
+	-- 	temp.temp_dir = '~/.config/nvim/templates' -- template directory
+	-- 	temp.author   = 'monomadic' -- your name
+	-- 	temp.email    = 'monomadic@localhost' -- email address
+	-- end}
 
 	-- notifications
 	-- use 'rcarriga/nvim-notify'
 
 	-- convenience file operations (new, rename, etc)
-	use {"chrisgrieser/nvim-genghis",
-		requires = {"stevearc/dressing.nvim", "rcarriga/nvim-notify" },
-		config = function ()
+	use { "chrisgrieser/nvim-genghis",
+		requires = { "stevearc/dressing.nvim", "rcarriga/nvim-notify" },
+		config = function()
 			local keymap = vim.keymap.set
 			local genghis = require("genghis")
 			keymap("n", "<leader>fp", genghis.copyFilepath)
@@ -93,179 +61,27 @@ require('packer').startup(function(use)
 			keymap("n", "<leader>fr", genghis.renameFile)
 			keymap("n", "<leader>fn", genghis.createNewFile)
 			-- keymap("n", "<leader>fd", genghis.duplicateFile)
-			keymap("n", "<leader>fd", function () genghis.trashFile{trashLocation = "your/path"} end) -- default: '$HOME/.Trash'.
+			keymap("n", "<leader>fd", function() genghis.trashFile { trashLocation = "your/path" } end) -- default: '$HOME/.Trash'.
 			keymap("x", "<leader>x", genghis.moveSelectionToNewFile)
-		end}
+		end }
 
-	use { "folke/neodev.nvim",
-		after = "nvim-lspconfig",
+
+	use { "williamboman/mason-lspconfig.nvim",
+		requires = { "neovim/nvim-lspconfig" },
+		after = "mason.nvim",
 		ft = "lua",
 		config = function()
-			require("neodev").setup {
-				lspconfig = false
+			require("mason-lspconfig").setup {
+				-- ensure_installed = { 'sumneko_lua' },
+				--automatic_installation = true,
 			}
-		vim.lsp.start({
-			name = "neodev",
-			cmd = { "lua-language-server" },
-			before_init = require("neodev.lsp").before_init,
-			root_dir = vim.fn.getcwd(),
-			settings = { Lua = {} },
-		})
+			-- require('lspconfig').sumneko_lua.setup {}
 		end
 	}
 
-	use { "williamboman/mason-lspconfig.nvim",
-			requires = { "neovim/nvim-lspconfig" },
-			after = "mason.nvim",
-			ft = "lua",
-			config = function()
-				require("mason-lspconfig").setup {
-					-- ensure_installed = { 'sumneko_lua' },
-					--automatic_installation = true,
-				}
-				-- require('lspconfig').sumneko_lua.setup {}
-			end
-		}
 
-	-- treesitter
-	use { 'nvim-treesitter/nvim-treesitter',
-		requires = { "p00f/nvim-ts-rainbow" },
-		config = function()
-			require 'nvim-treesitter.configs'.setup {
-				ensure_installed = { "rust", "bash", "yaml", "typescript", "javascript", "markdown", "lua" },
-				auto_install = true, -- install missing when entering buffer
-				highlight = { enable = true },
-				rainbow = { enable = true, colors = {
-					"#9944FF",
-					"#45F588",
-					"#FFFF00",
-					"#FF44FF",
-					"#00BBFF",
-					"#FFAACC",
-					"#AAFF66",
-				} },
-				matchup = {
-					enable = true, -- mandatory, false will disable the whole extension
-					disable = {}, -- optional, list of language that will be disabled
-				},
-			}
-		end }
+	use 'andymass/vim-matchup'
 
-	use { 'nvim-telescope/telescope.nvim',
-		config = function()
-			require('telescope').setup {
-				defaults = {
-					prompt_prefix = "  ",
-					selection_caret = "  ",
-					entry_prefix = "  ",
-					initial_mode = "insert",
-					selection_strategy = "reset",
-					sorting_strategy = "ascending",
-					layout_strategy = "horizontal",
-					prompt_title = "",
-					results_title = "",
-					layout_config = {
-						horizontal = {
-							prompt_position = "top",
-							preview_width = 0.55,
-							results_width = 0.8,
-						},
-						vertical = {
-							mirror = false,
-						},
-						width = 0.87,
-						height = 0.80,
-						preview_cutoff = 120,
-					},
-					file_sorter = require("telescope.sorters").get_fuzzy_file,
-					set_env = { ["COLORTERM"] = "truecolor" },
-					file_ignore_patterns = { ".git/", ".cache", "%.o", "%.a", "%.out", "%.class", "%.pdf", "%.mkv", "%.mp4", "%.zip",
-						"*.lock", "node_modules", "target" },
-					generic_sorter = require("telescope.sorters").get_generic_fuzzy_sorter,
-					path_display = { "truncate" },
-					winblend = 10,
-					-- border = false,
-					mappings = {
-						i = {
-							["<Esc>"] = "close",
-							["<Tab>"] = "close",
-							["<C-l>"] = require("telescope.actions.layout").toggle_preview,
-							["<C-u>"] = false,
-						},
-					},
-					extensions_list = { "themes", "terms" },
-				},
-			}
-
-			-- telescope keymaps
-			vim.keymap.set("n", "go", function()
-				require('telescope.builtin').find_files()
-			end)
-			-- mini find
-			-- vim.keymap.set("n", "<leader>o", function()
-			-- 	require('telescope.builtin').find_files(
-			-- 		require('telescope.themes').get_dropdown()
-			-- 	)
-			-- end)
-			vim.keymap.set("n", 'tb', '<cmd>Telescope buffers<cr>')
-			vim.keymap.set("n", '<leader>b', '<cmd>Telescope buffers<cr>')
-			vim.keymap.set("n", 'tc', '<cmd>Telescope commands<cr>')
-			vim.keymap.set("n", '<leader>f', function()
-				require('telescope.builtin').find_files { path_display = { "truncate" }, prompt_title = "", preview_title = "" }
-			end)
-			vim.keymap.set("n", '<leader>o', function()
-				require('telescope.builtin').find_files { path_display = { "truncate" }, prompt_title = "", preview_title = "" }
-			end)
-			vim.keymap.set("n", 'to', '<cmd>Telescope oldfiles<cr>')
-			vim.keymap.set("n", '<leader>c', '<cmd>Telescope commands<cr>')
-			vim.keymap.set("n", '<leader>C', '<cmd>Telescope command_history<cr>')
-			vim.keymap.set("n", '<leader>g', '<cmd>Telescope live_grep<cr>')
-			vim.keymap.set("n", 'ts', '<cmd>Telescope spell_suggest<cr>')
-			vim.keymap.set('n', 'td', '<Cmd>Telescope diagnostics<cr>')
-			vim.keymap.set('n', 'tgb', '<Cmd>Telescope git_branches<cr>')
-			vim.keymap.set('n', 'tgc', '<Cmd>Telescope git_bcommits<cr>')
-			vim.keymap.set('n', 'tgd', '<Cmd>Telescope git_status<cr>')
-			vim.keymap.set('n', 'tk', '<Cmd>Telescope keymaps<cr>')
-			vim.keymap.set('n', 'tld', '<Cmd>Telescope lsp_definitions<cr>')
-			vim.keymap.set('n', 'tli', '<Cmd>Telescope lsp_implementations<cr>')
-			vim.keymap.set('n', '<leader>S', '<Cmd>Telescope lsp_document_symbols<cr>')
-			vim.keymap.set('n', 'tlw', function()
-				require('telescope.builtin').lsp_workspace_symbols { path_display = "hidden", prompt_title = "", preview_title = "" }
-			end)
-			vim.keymap.set('n', 'tlf', function()
-				require('telescope.builtin').lsp_document_symbols { symbols = "function", prompt_title = "", preview_title = "",
-					borderchars = { " ", " ", " ", " ", " ", " ", " ", " " } }
-			end)
-
-			vim.keymap.set('n', 'tm', '<Cmd>Telescope marks<cr>')
-			vim.keymap.set('n', 'tr', '<Cmd>Telescope resume<cr>')
-			vim.keymap.set('n', 'tt', '<Cmd>TodoTelescope<cr>')
-			vim.keymap.set('n', 'tz', '<Cmd>Telekasten find_notes<cr>')
-			vim.keymap.set("n", "ts", function()
-				require("luasnip.loaders.from_snipmate").lazy_load()
-				require('telescope').load_extension('luasnip')
-				vim.api.nvim_command('Telescope luasnip')
-			end)
-
-			local prompt_bg = "#000000"
-			local results_bg = "#000000"
-			local preview_bg = "#000000"
-
-			vim.api.nvim_set_hl(0, "TelescopeBorder", { fg = prompt_bg, bg = prompt_bg })
-
-			vim.api.nvim_set_hl(0, "TelescopePromptBorder", { fg = prompt_bg, bg = prompt_bg })
-			vim.api.nvim_set_hl(0, "TelescopePromptNormal", { fg = "White", bg = prompt_bg })
-			vim.api.nvim_set_hl(0, "TelescopePromptPrefix", { fg = "White" }) -- the icon
-			vim.api.nvim_set_hl(0, "TelescopePromptTitle", { fg = prompt_bg, bg = prompt_bg })
-
-			vim.api.nvim_set_hl(0, "TelescopePreviewTitle", { fg = preview_bg, bg = preview_bg })
-			vim.api.nvim_set_hl(0, "TelescopePreviewBorder", { fg = preview_bg, bg = preview_bg })
-			vim.api.nvim_set_hl(0, "TelescopePreviewNormal", { bg = preview_bg })
-
-			vim.api.nvim_set_hl(0, "TelescopeResultsTitle", { fg = results_bg, bg = results_bg })
-			vim.api.nvim_set_hl(0, "TelescopeResultsBorder", { fg = results_bg, bg = results_bg })
-			vim.api.nvim_set_hl(0, "TelescopeResultsNormal", { bg = results_bg })
-		end }
 
 	-- https://github.com/vijaymarupudi/nvim-fzf
 	use { 'vijaymarupudi/nvim-fzf' }
@@ -281,79 +97,80 @@ require('packer').startup(function(use)
 		end
 	}
 
-	-- completion
-	use {
-		'hrsh7th/nvim-cmp',
-		wants = { "LuaSnip" },
-		requires = { "L3MON4D3/LuaSnip", 'hrsh7th/cmp-nvim-lsp' },
-		config = function()
-			local cmp = require('cmp')
-			cmp.setup {
-				sources = {
-					{ name = 'nvim_lsp' },
-					{ name = 'snippy' },
-				},
-				preselect = cmp.PreselectMode.None,
-				snippet = {
-					expand = function(args)
-						require('luasnip').lsp_expand(args.body)
-					end,
-				},
-				mapping = {
-					['<CR>'] = cmp.mapping.confirm({
-						behavior = cmp.ConfirmBehavior.Replace,
-						select = false, -- false = only complete if an item is actually selected
-					}),
-					['<Tab>'] = function(fallback)
-						if cmp.visible() then
-							cmp.select_next_item()
-						else
-							fallback()
-						end
-					end,
-					['<S-Tab>'] = function(fallback)
-						if cmp.visible() then
-							cmp.select_prev_item()
-						else
-							fallback()
-						end
-					end,
-				},
-			}
+	-- -- completion
+	-- use {
+	-- 	'hrsh7th/nvim-cmp',
+	-- 	wants = { "LuaSnip" },
+	-- 	requires = { "L3MON4D3/LuaSnip", 'hrsh7th/cmp-nvim-lsp' },
+	-- 	config = function()
+	-- 		local cmp = require('cmp')
+	-- 		cmp.setup {
+	-- 			sources = {
+	-- 				{ name = 'nvim_lsp' },
+	-- 				{ name = 'snippy' },
+	-- 			},
+	-- 			preselect = cmp.PreselectMode.None,
+	-- 			snippet = {
+	-- 				expand = function(args)
+	-- 					require('luasnip').lsp_expand(args.body)
+	-- 				end,
+	-- 			},
+	-- 			mapping = {
+	-- 				['<CR>'] = cmp.mapping.confirm({
+	-- 					behavior = cmp.ConfirmBehavior.Replace,
+	-- 					select = false, -- false = only complete if an item is actually selected
+	-- 				}),
+	-- 				['<Tab>'] = function(fallback)
+	-- 					if cmp.visible() then
+	-- 						cmp.select_next_item()
+	-- 					else
+	-- 						fallback()
+	-- 					end
+	-- 				end,
+	-- 				['<S-Tab>'] = function(fallback)
+	-- 					if cmp.visible() then
+	-- 						cmp.select_prev_item()
+	-- 					else
+	-- 						fallback()
+	-- 					end
+	-- 				end,
+	-- 			},
+	-- 		}
+	--
+	-- 	end
+	-- }
+	--
 
-		end
-	}
+	-- -- snippy
+	-- use { 'dcampos/nvim-snippy', config = function()
+	-- 	require('snippy').setup({
+	-- 		mappings = {
+	-- 			is = {
+	-- 				['<Tab>'] = 'expand_or_advance',
+	-- 				['<S-Tab>'] = 'previous',
+	-- 			},
+	-- 			nx = {
+	-- 				['<leader>x'] = 'cut_text',
+	-- 			},
+	-- 		},
+	-- 	})
+	-- 	local mappings = require('snippy.mapping')
+	-- 	vim.keymap.set('i', '<Tab>', mappings.expand_or_advance('<Tab>'))
+	-- 	vim.keymap.set('s', '<Tab>', mappings.next('<Tab>'))
+	-- 	vim.keymap.set({ 'i', 's' }, '<S-Tab>', mappings.previous('<S-Tab>'))
+	-- 	vim.keymap.set('x', '<Tab>', mappings.cut_text, { remap = true })
+	-- 	vim.keymap.set('n', 'g<Tab>', mappings.cut_text, { remap = true })
+	-- 	vim.keymap.set('n', '<C-g>', '<Cmd>LazyGit<CR>')
+	-- end }
 
-	-- snippy
-	use { 'dcampos/nvim-snippy', config = function()
-		require('snippy').setup({
-			mappings = {
-				is = {
-					['<Tab>'] = 'expand_or_advance',
-					['<S-Tab>'] = 'previous',
-				},
-				nx = {
-					['<leader>x'] = 'cut_text',
-				},
-			},
-		})
-		local mappings = require('snippy.mapping')
-		vim.keymap.set('i', '<Tab>', mappings.expand_or_advance('<Tab>'))
-		vim.keymap.set('s', '<Tab>', mappings.next('<Tab>'))
-		vim.keymap.set({ 'i', 's' }, '<S-Tab>', mappings.previous('<S-Tab>'))
-		vim.keymap.set('x', '<Tab>', mappings.cut_text, { remap = true })
-		vim.keymap.set('n', 'g<Tab>', mappings.cut_text, { remap = true })
-		vim.keymap.set('n', '<C-g>', '<Cmd>LazyGit<CR>')
-	end }
-
-	use { 'honza/vim-snippets' }
-	use { 'dcampos/cmp-snippy' }
-	-- for luasnip and cmp
-	use { 'saadparwaiz1/cmp_luasnip' }
-	use {
-		"benfowler/telescope-luasnip.nvim",
-		module = "telescope._extensions.luasnip"
-	}
+	-- use { 'honza/vim-snippets' }
+	-- use { 'dcampos/cmp-snippy' }
+	-- -- for luasnip and cmp
+	-- use { 'saadparwaiz1/cmp_luasnip' }
+	-- use {
+	-- 	"benfowler/telescope-luasnip.nvim",
+	-- 	module = "telescope._extensions.luasnip"
+	-- }
 
 	-- inline colors
 	use { 'norcalli/nvim-colorizer.lua', config = function()
@@ -459,7 +276,7 @@ require('packer').startup(function(use)
 					}, -- markdown spellcheck
 				},
 				on_attach = function(client, bufnr)
-						require("lsp-format").on_attach(client)
+					require("lsp-format").on_attach(client)
 
 					-- disable this dumb mapping
 					-- local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
@@ -494,20 +311,20 @@ require('packer').startup(function(use)
 		end,
 	})
 
-	use {'jose-elias-alvarez/typescript.nvim',
+	use { 'jose-elias-alvarez/typescript.nvim',
 		ft = 'typescript',
 		config = function()
-	require("typescript").setup({
-    -- disable_commands = false, -- prevent the plugin from creating Vim commands
-    debug = false, -- enable debug logging for commands
-    go_to_source_definition = {
-        fallback = true, -- fall back to standard LSP definition on failure
-    },
-    server = {
-				on_attach = require("lsp-format").on_attach
-    },
-})
-end }
+			require("typescript").setup({
+				-- disable_commands = false, -- prevent the plugin from creating Vim commands
+				debug = false, -- enable debug logging for commands
+				go_to_source_definition = {
+					fallback = true, -- fall back to standard LSP definition on failure
+				},
+				server = {
+					on_attach = require("lsp-format").on_attach
+				},
+			})
+		end }
 
 	-- lsp navigation plug
 	-- https://github.com/ray-x/navigator.lua
@@ -646,7 +463,7 @@ end }
 	-- better lsp ui
 	use { "glepnir/lspsaga.nvim",
 		-- requires = { 'neovim/nvim-lspconfig' },
-		ft = {'rust', 'typescript', 'javascript', 'lua' },
+		ft = { 'rust', 'typescript', 'javascript', 'lua' },
 		config = function()
 			local lsp_saga = require('lspsaga')
 
@@ -684,11 +501,11 @@ end }
 	-- NOTE: vimwiki is vimscript...
 	-- use { 'chipsenkbeil/vimwiki.nvim', config = function()
 	-- end }
-	use { 'ElPiloto/telescope-vimwiki.nvim', ft = {"markdown", "vimwiki"}, config = function()
+	use { 'ElPiloto/telescope-vimwiki.nvim', ft = { "markdown", "vimwiki" }, config = function()
 		require('telescope').load_extension('vimwiki')
 		vim.keymap.set("n", 'tw', '<cmd>Telescope vimwiki<cr>')
 	end }
-	use { 'vimwiki/vimwiki', ft = {"markdown", "vimwiki"}, config = function()
+	use { 'vimwiki/vimwiki', ft = { "markdown", "vimwiki" }, config = function()
 		--vim.keymap.set("n", "gi", "<Cmd>VimwikiIndex<CR>") -- TODO: lsp variants (eg rust will look for lib.rs, main.rs etc)
 		vim.keymap.set("n", "gw", "<Cmd>VimwikiGoto ")
 		vim.cmd 'nmap <Leader>nl <Plug>VimwikiToggleListItem' -- unset this shit, it conflicts with term. see also: g:vimwiki_key_mappings
@@ -706,11 +523,34 @@ end }
 		}
 	end }
 
-	-- side scrollbar with git support
-	use { "petertriho/nvim-scrollbar",
-		--event = "VimEnter",
+
+	use { 'ray-x/lsp_signature.nvim',
 		config = function()
-			require('scrollbar').setup()
+			require "lsp_signature".setup {}
+		end
+	}
+
+	use {
+		require 'packs.syntax',
+		require 'packs.scrollbar',
+		require 'packs.autocomplete',
+		require 'packs.telescope',
+	}
+
+	use { "folke/neodev.nvim",
+		-- after = "nvim-lspconfig",
+		ft = "lua",
+		config = function()
+			require("neodev").setup {
+				lspconfig = false
+			}
+			vim.lsp.start({
+				name = "neodev",
+				cmd = { "lua-language-server" },
+				before_init = require("neodev.lsp").before_init,
+				root_dir = vim.fn.getcwd(),
+				settings = { Lua = {} },
+			})
 		end
 	}
 

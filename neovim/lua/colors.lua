@@ -13,8 +13,9 @@ vim.api.nvim_set_hl(0, "LineNr", { fg = "#222222" }) -- active
 vim.api.nvim_set_hl(0, "StatusLine", {}) -- active
 vim.api.nvim_set_hl(0, "StatusLineNC", {}) -- inactive
 
-vim.cmd("hi WinSeparator guifg=none"); -- I think this is the split column
-vim.cmd("hi TodoBgTODO guibg=#FFFF00 guifg=black");
-vim.cmd("hi TodoFgTODO guifg=#FFFF00");
-vim.cmd("hi DiagnosticVirtualTextHint guifg=#F0F0AA")
-vim.cmd("hi DiagnosticVirtualTextError guifg=#F02282")
+vim.api.nvim_set_hl(0, "WinSeparator", {fg = "bg", bg = "bg"}) -- inactive
+-- vim.cmd("hi WinSeparator guifg=none"); -- I think this is the split column
+vim.api.nvim_set_hl(0, "TodoBgTODO", { bg="#FFFF00", fg="black"})
+vim.api.nvim_set_hl(0, "TodoFgTODO", {fg="#FFFF00"})
+vim.api.nvim_set_hl(0, "DiagnosticVirtualTextHint", {fg="#F0F0AA"})
+vim.api.nvim_set_hl(0, "DiagnosticVirtualTextError", {fg="#F02282"})

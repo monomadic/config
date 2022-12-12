@@ -5,6 +5,8 @@
 --vim.g.vim_markdown_new_list_item_indent = 2 -- markdown list indent
 --vim.opt.formatoptions = vim.o.formatoptions:gsub("r", ""):gsub("o", "")
 vim.g.mapleader = " " -- leader key
+	vim.opt.autowriteall = true -- ensure write upon leaving a page
+
 vim.g.tex_flavor = "latex"
 vim.g.vim_markdown_edit_url_in = 'current' -- open md links as (vplit | current)
 vim.g.vim_markdown_new_list_item_indent = 1 -- indent new items on 'o' from n mode
@@ -64,6 +66,9 @@ vim.diagnostic.config({
 vim.opt.fillchars = {
 	vert = " ",
 	fold = "⠀",
+	horiz = " ",
+	vertleft = " ",
+	vertright = " ",
 	stl = "⠀", -- statusline
 	stlnc = " ", -- statusline (inactive)
 	eob = " ", -- suppress ~ at EndOfBuffer

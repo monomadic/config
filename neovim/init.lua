@@ -1,10 +1,17 @@
---
 -- MONOMADIC neovim
 --
---	references:
---		https://github.com/chr0n1x/neovim-template
+--  NOTE: references
+--
+--		templates:
+--		  https://github.com/chr0n1x/neovim-template
+--		plugin-index:
+--		  https://neoland.dev/
+--
+--  TODO:
+--  - https://github.com/ldelossa/litee-symboltree.nvim
 --
 
+-- require 'bootstrap'
 require 'plugins'
 require 'autocmds'
 
