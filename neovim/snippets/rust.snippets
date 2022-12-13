@@ -113,6 +113,84 @@ snippet args "env::args template"
 			${0}
 	}
 
+snippet example-errors-anyhow "used for applications (not libraries)"
+	use anyhow::{Context, Result};
+
+	fn main() -> Result<()> {
+		it.detach().context("Failed to detach the important thing")?;
+
+    let content = std::fs::read(path)
+        .with_context(|| format!("Failed to read instrs from {}", path))?;
+	}
+
+snippet example-errors-thiserror "derive macro for Errors, for libraries"
+	use thiserror::Error;
+
+	#[derive(Error, Debug)]
+	pub enum DataStoreError {
+			#[error("data store disconnected")]
+			Disconnect(#[from] io::Error),
+
+			/// Represents a failure to read from input.
+			#[error("Read error")]
+			ReadError { source: std::io::Error },
+
+			#[error("unknown data store error")]
+			Unknown,
+	}
+
+snippet example-pattern-builder-consuming "the builder pattern, consuming"
+	// see https://github.com/jeremychone-channel/rust-builder/blob/main/src/web_consuming.rs
+	use crate::prelude::*;
+
+	#[derive(Debug)]
+	pub struct Request {
+		val: String,
+	}
+
+	#[derive(Debug)]
+	pub struct RequestBuilder {
+		val: Option<String>,
+	}
+
+	impl RequestBuilder {
+		pub fn new() -> Self { RequestBuilder::default() }
+		pub fn val(mut self, val: impl Into<String>) -> Self {
+				self.url.insert(url.into());
+				self
+		}
+	}
+
+snippet example-prelude "an example crate prelude"
+	//! Crate prelude
+
+	pub use crate::error::Error;
+
+	pub type Result<T> = core::result::Result<T, Error>;
+
+	// Generic Wrapper tuple struct for newtype pattern,
+	// mostly for external type to type From/TryFrom conversions
+	pub struct W<T>(pub T);
+
+	// Personal preference.
+	pub use std::format as f;
+
+snippet example-thiserror
+	//! Main Crate Error
+
+	#[derive(thiserror::Error, Debug)]
+	pub enum Error {
+		/// For starter, to remove as code matures.
+		#[error("Generic error: {0}")]
+		Generic(String),
+		/// For starter, to remove as code matures.
+		#[error("Static error: {0}")]
+		Static(&'static str),
+
+		#[error(transparent)]
+		IO(#[from] std::io::Error),
+	}
+
 snippet main-clap "clap main()"
 	use anyhow::Result;
 	use clap::Parser;

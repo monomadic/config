@@ -478,10 +478,18 @@ require('packer').startup(function(use)
 			-- vim.keymap.set("t", '\\', '<cmd>Lspsaga close_floaterm<cr>')
 
 			lsp_saga.init_lsp_saga {
+				-- border_style = "none",
 				show_outline = {
 					saga_winblend = 30,
 					jump_key = '<CR>',
-				}
+				},
+				code_action_icon = '',
+				code_action_lightbulb = {
+					enable = false,
+				},
+				-- symbol_in_winbar = {
+				-- 	enable = true,
+				-- }
 			}
 		end }
 

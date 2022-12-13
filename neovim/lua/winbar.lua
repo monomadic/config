@@ -38,7 +38,7 @@ end
 function FileName()
 	local filetype = vim.bo.filetype
 
-	if filetype == "drex" then
+	if filetype == "drex" or filetype == "" then
 		return ""
 	else
 		return string.format(" %s:%%l %%m %%r ", vim.fn.fnamemodify(vim.fn.expand("%"), ":."))

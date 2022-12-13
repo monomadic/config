@@ -33,7 +33,7 @@ vim.keymap.set('t', '<C-/>', function()
 	vim.api.nvim_win_hide(0)
 end)
 
-vim.keymap.set('n', '<C-/>', function()
+function ShowTerminal()
 	if background_float_buf and vim.api.nvim_buf_is_valid(background_float_buf) then
 		local buf = background_float_buf
 		vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
@@ -67,7 +67,9 @@ vim.keymap.set('n', '<C-/>', function()
 	end
 
 	vim.cmd "startinsert" -- start in insert mode
-end)
+end
+
+vim.keymap.set('n', '<C-/>', ShowTerminal)
 
 -- lf terminal float
 local open_lf = function()
