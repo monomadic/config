@@ -1,6 +1,10 @@
 return {
 	'hrsh7th/nvim-cmp',
-	requires = { 'dcampos/nvim-snippy', 'hrsh7th/cmp-nvim-lsp', 'dcampos/cmp-snippy' },
+	requires = {
+		'dcampos/nvim-snippy', -- snipmate and lsp snippets
+		'dcampos/cmp-snippy', -- cmp support for snippy
+		'hrsh7th/cmp-nvim-lsp', -- cmp support for LSP (needed?)
+	},
 	config = function()
 		require('snippy').setup({
 			mappings = {
@@ -26,13 +30,13 @@ return {
 		local cmp = require('cmp')
 		cmp.setup {
 			sources = {
-				{ name = 'snippy'},
+				{ name = 'snippy' },
 				{ name = 'nvim_lsp' },
 			},
 			preselect = cmp.PreselectMode.None,
 			snippet = {
 				expand = function(args)
-					require('luasnip').lsp_expand(args.body)
+					require 'snippy'.expand_snippet(args.body)
 				end,
 			},
 			mapping = {

@@ -134,11 +134,6 @@ vim.keymap.set('n', '<C-Space>', function() open_lf() end)
 --vim.keymap.set('n', '<leader>o', function() open_lf() end)
 
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
-	vim.api.nvim_set_hl(0, "NormalFloat", {})
-	vim.api.nvim_set_hl(0, "Floaterm", { bg = "Black" })
-	vim.api.nvim_set_hl(0, "FloatermBorder", { bg = "Black" })
-	vim.api.nvim_set_hl(0, "FloatBorder", { bg = "Black" })
-
 	vim.g.terminal_color_1 = '#000000'
 	vim.g.terminal_color_2 = '#0F0'
 	vim.g.terminal_color_3 = '#FF00FF'

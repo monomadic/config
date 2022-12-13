@@ -4,6 +4,9 @@
 -- https://gist.github.com/romainl/379904f91fa40533175dfaec4c833f2f
 vim.cmd("colorscheme {{colorscheme}}");
 
+vim.api.nvim_set_hl(0, "Float", { bg = "#111111" })
+-- vim.api.nvim_set_hl(0, "NormalFloat", { bg = "red" })
+
 vim.api.nvim_set_hl(0, "EndOfBuffer", { fg = "#444444" })
 vim.api.nvim_set_hl(0, "TabLineFill", { bg = "None" })
 vim.api.nvim_set_hl(0, "Title", { fg = "#CCFF00" })
