@@ -22,6 +22,11 @@ vim.cmd 'packadd packer.nvim' -- only required if packer is opt
 require('packer').startup(function(use)
 	use 'wbthomason/packer.nvim'
 
+	-- speed up lua modules
+	use {'lewis6991/impatient.nvim', config = function()
+		require('impatient')
+	end}
+
 	use {
 		require 'packs.comments',
 		require 'packs.themes',
@@ -60,16 +65,15 @@ require('packer').startup(function(use)
 		config = function()
 			local keymap = vim.keymap.set
 			local genghis = require("genghis")
-			keymap("n", "<leader>fp", genghis.copyFilepath)
-			-- keymap("n", "<leader>fn", genghis.copyFilename)
-			keymap("n", "<leader>fx", genghis.chmodx)
-			keymap("n", "<leader>fr", genghis.renameFile)
-			keymap("n", "<leader>fn", genghis.createNewFile)
-			-- keymap("n", "<leader>fd", genghis.duplicateFile)
-			keymap("n", "<leader>fd", function() genghis.trashFile { trashLocation = "your/path" } end) -- default: '$HOME/.Trash'.
+			keymap("n", "<leader>fc", genghis.copyFilepath, { desc = " copy path" })
+			keymap("n", "<leader>fC", genghis.copyFilename, { desc = " copy filename" })
+			keymap("n", "<leader>fr", genghis.renameFile, { desc = " rename" })
+			keymap("n", "<leader>fn", genghis.createNewFile, { desc = " new" } )
+			keymap("n", "<leader>fd", genghis.duplicateFile, { desc = " duplicate" })
+			keymap("n", "<leader>fx", genghis.chmodx, { desc = " chmod" })
+			keymap("n", "<leader>ft", function() genghis.trashFile { trashLocation = "your/path" } end, { desc = "﬒ trash" }) -- default: '$HOME/.Trash'.
 			keymap("x", "<leader>x", genghis.moveSelectionToNewFile)
 		end }
-
 
 	use { "williamboman/mason-lspconfig.nvim",
 		requires = { "neovim/nvim-lspconfig" },
@@ -218,11 +222,9 @@ require('packer').startup(function(use)
 	-- lsp progress
 	use {
 		'j-hui/fidget.nvim',
-		-- requires = { 'neovim/nvim-lspconfig' },
 		config = function() require("fidget").setup {} end
 	}
 
-	-- #lsp
 	-- cargo
 	use {
 		"saecki/crates.nvim",
@@ -274,9 +276,8 @@ require('packer').startup(function(use)
 						filetypes = { "markdown", "vimwiki" }
 					}, -- markdown spellcheck
 				},
-				on_attach = function(client, bufnr)
-					require("lsp-format").on_attach(client)
-
+				on_attach = function(client, buf)
+					require("lsp-format").on_attach(client, buf)
 					-- disable this dumb mapping
 					-- local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
 					-- if client.supports_method("textDocument/formatting") then
@@ -303,7 +304,7 @@ require('packer').startup(function(use)
 			require('glance').setup({
 				winbar = { enable = true }
 			})
-			vim.keymap.set("n", "gr", "<CMD>Glance references<CR>")
+			vim.keymap.set("n", "gR", "<CMD>Glance references<CR>")
 			vim.keymap.set("n", "gD", "<CMD>Glance definitions<CR>")
 			vim.keymap.set("n", "gY", "<CMD>Glance type_definitions<CR>")
 			vim.keymap.set("n", "gM", "<CMD>Glance implementations<CR>")
@@ -419,18 +420,19 @@ require('packer').startup(function(use)
 				server = {
 					on_attach = function(client, bufnr)
 						require("lsp-format").on_attach(client)
+						require("virtualtypes").on_attach(client, bufnr)
 
 						vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr })
-						vim.keymap.set("n", "<leader>a", "<cmd>Lspsaga code_action<CR>", { buffer = bufnr })
+						vim.keymap.set("n", "<leader>a", ":RustCodeAction<CR>", { buffer = bufnr, desc = " code action" })
 						-- vim.keymap.set("n", "<leader>a", rust_tools.code_action_group.code_action_group, { buffer = bufnr })
-						vim.keymap.set('n', 'gP', rust_tools.open_cargo_toml.open_cargo_toml, { buffer = bufnr })
-						vim.keymap.set('n', 'gp', rust_tools.parent_module.parent_module, { buffer = bufnr })
+						vim.keymap.set('n', '<leader>gp', rust_tools.open_cargo_toml.open_cargo_toml, { buffer = bufnr, desc = " cargo.toml" })
+						vim.keymap.set('n', '<leader>gu', rust_tools.parent_module.parent_module,
+							{ buffer = bufnr, desc = " up (parent module)" })
 						-- vim.keymap.set('v', '<C-j>', rust_tools.move_item.move_item(false), { buffer = bufnr }) -- down
 						-- vim.keymap.set('v', '<C-k>', rust_tools.move_item.move_item(true), { buffer = bufnr }) -- up
 						-- vim.keymap.set("n", "gi", function()
 						-- 	vim.cmd ':edit src/lib.rs'
 						-- end)
-						require("virtualtypes").on_attach(client, bufnr)
 					end,
 					settings = {
 						-- to enable rust-analyzer settings visit:

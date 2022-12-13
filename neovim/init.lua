@@ -11,6 +11,7 @@
 --  - https://github.com/ldelossa/litee-symboltree.nvim
 --
 
+require 'utils'
 -- require 'bootstrap'
 require 'plugins'
 require 'autocmds'

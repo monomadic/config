@@ -22,3 +22,7 @@ vim.api.nvim_set_hl(0, "TodoBgTODO", { bg="#FFFF00", fg="black"})
 vim.api.nvim_set_hl(0, "TodoFgTODO", {fg="#FFFF00"})
 vim.api.nvim_set_hl(0, "DiagnosticVirtualTextHint", {fg="#F0F0AA"})
 vim.api.nvim_set_hl(0, "DiagnosticVirtualTextError", {fg="#F02282"})
+
+-- text input borders
+vim.api.nvim_set_hl(0, "FloatBorder", { fg = "#CCFF00" })
+vim.api.nvim_set_hl(0, "NormalFloat", { bg = "black" })

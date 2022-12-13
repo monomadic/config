@@ -1,6 +1,5 @@
 return {
-	'folke/which-key.nvim',
-	config = function()
+	'folke/which-key.nvim', config = function()
 		-- vim.g.timeoutlen=100
 		-- vim.g.ttimeoutlen=100
 
@@ -22,15 +21,23 @@ return {
 		require("which-key").register({
 			b = "buffers...",
 			f = {
-				name = "find",
-				f = { function()
+				name = "file",
+				f = { function() vim.lsp.buf.format { async = true } end, " format" },
+				o = { function()
 					require('telescope.builtin').find_files { path_display = { "truncate" }, prompt_title = "", preview_title = "" }
-				end, "file" },
+				end, "open" },
 			},
 			d = {
 				name = "document",
 				f = { function() vim.lsp.buf.format { async = true } end, "format" }
 			},
+			g = {
+				name = "go",
+				r = { GoRoot, "root" },
+				p = { GoPackagerFile, "package manifest" }
+			},
+
+
 			j = {
 				name = "jump",
 				e = { function()
@@ -46,7 +53,6 @@ return {
 				F = { function()
 					require('telescope.builtin').lsp_workspace_symbols { symbols = "function" }
 				end, "function (workspace)" },
-
 
 				m = { function()
 					require('telescope.builtin').lsp_document_symbols { symbols = "module" }
@@ -74,7 +80,7 @@ return {
 				r = { ":FzfLua oldfiles<CR>", "recent files" },
 				t = { ":FzfLua colorschemes<CR>", "themes" },
 			},
-			o = "open...",
+
 			s = {
 				name = "symbol",
 				a = { ":Lspsaga code_action<CR>", "code actions" }
@@ -86,8 +92,8 @@ return {
 				end, "function" },
 			}
 		}, {
-				prefix = "<leader>",
-			})
+			prefix = "<leader>",
+		})
 
 		vim.api.nvim_set_hl(0, "WhichKey", { fg = "#FFFF00" })
 		vim.api.nvim_set_hl(0, "WhichKeyDesc", { bg = "none" })
