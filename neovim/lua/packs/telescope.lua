@@ -75,7 +75,7 @@
 			vim.keymap.set('n', 'tk', '<Cmd>Telescope keymaps<cr>')
 			vim.keymap.set('n', 'tld', '<Cmd>Telescope lsp_definitions<cr>')
 			vim.keymap.set('n', 'tli', '<Cmd>Telescope lsp_implementations<cr>')
-			vim.keymap.set('n', '<leader>S', '<Cmd>Telescope lsp_document_symbols<cr>', { desc = "DoCuMeNt" })
+			-- vim.keymap.set('n', '<leader>S', '<Cmd>Telescope lsp_document_symbols<cr>', { desc = "DoCuMeNt" })
 			vim.keymap.set('n', 'tlw', function()
 				require('telescope.builtin').lsp_workspace_symbols { path_display = "hidden", prompt_title = "", preview_title = "" }
 			end)

@@ -20,12 +20,13 @@ end
 vim.cmd 'packadd packer.nvim' -- only required if packer is opt
 
 require('packer').startup(function(use)
-	use 'wbthomason/packer.nvim'
-
 	-- speed up lua modules
 	use {'lewis6991/impatient.nvim', config = function()
 		require('impatient')
 	end}
+
+	-- packer package manager
+	use 'wbthomason/packer.nvim'
 
 	use {
 		require 'packs.comments',
@@ -296,6 +297,40 @@ require('packer').startup(function(use)
 		end,
 	}
 
+		-- better lsp ui
+	use { "glepnir/lspsaga.nvim",
+		-- requires = { 'neovim/nvim-lspconfig' },
+		ft = { 'rust', 'typescript', 'javascript', 'lua' },
+		config = function()
+			local lsp_saga = require('lspsaga')
+
+			vim.keymap.set("n", "<leader>sf", "<cmd>Lspsaga lsp_finder<CR>", { desc = "find references (saga)" })
+			vim.keymap.set("n", "<leader>sa", "<cmd>Lspsaga code_action<CR>", { desc = "code-actions (saga)" })
+			vim.keymap.set("n", "<leader>sr", "<cmd>Lspsaga rename<CR>", { desc = "rename (saga)" })
+			vim.keymap.set("n", "<leader>sd", "<cmd>Lspsaga peek_definition<CR>", { desc = "peek definition (saga)" })
+			vim.keymap.set("n", 'K', '<cmd>Lspsaga hover_doc<CR>')
+			vim.keymap.set("n", "<leader>do", '<cmd>Lspsaga outline<CR>', { silent = true, desc = "outline (saga)" })
+			vim.keymap.set("n", ']d', '<cmd>Lspsaga diagnostic_jump_next<cr>')
+			vim.keymap.set("n", '[d', '<cmd>Lspsaga diagnostic_jump_prev<cr>')
+			-- vim.keymap.set("n", '\\', '<cmd>Lspsaga open_floaterm<cr>')
+			-- vim.keymap.set("t", '\\', '<cmd>Lspsaga close_floaterm<cr>')
+
+			lsp_saga.init_lsp_saga {
+				-- border_style = "none",
+				show_outline = {
+					saga_winblend = 30,
+					jump_key = '<CR>',
+				},
+				code_action_icon = '',
+				code_action_lightbulb = {
+					enable = false,
+				},
+				-- symbol_in_winbar = {
+				-- 	enable = true,
+				-- }
+			}
+		end }
+
 	-- lsp naviation
 	-- https://github.com/DNLHC/glance.nvim
 	use({
@@ -423,9 +458,9 @@ require('packer').startup(function(use)
 						require("virtualtypes").on_attach(client, bufnr)
 
 						vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr })
-						vim.keymap.set("n", "<leader>a", ":RustCodeAction<CR>", { buffer = bufnr, desc = " code action" })
+						vim.keymap.set("n", "<leader>da", ":RustCodeAction<CR>", { buffer = bufnr, desc = " code action", remap = false })
 						-- vim.keymap.set("n", "<leader>a", rust_tools.code_action_group.code_action_group, { buffer = bufnr })
-						vim.keymap.set('n', '<leader>gp', rust_tools.open_cargo_toml.open_cargo_toml, { buffer = bufnr, desc = " cargo.toml" })
+						vim.keymap.set('n', '<leader>gp', rust_tools.open_cargo_toml.open_cargo_toml, { buffer = bufnr, desc = " cargo.toml", remap = false })
 						vim.keymap.set('n', '<leader>gu', rust_tools.parent_module.parent_module,
 							{ buffer = bufnr, desc = " up (parent module)" })
 						-- vim.keymap.set('v', '<C-j>', rust_tools.move_item.move_item(false), { buffer = bufnr }) -- down
@@ -433,6 +468,7 @@ require('packer').startup(function(use)
 						-- vim.keymap.set("n", "gi", function()
 						-- 	vim.cmd ':edit src/lib.rs'
 						-- end)
+						print("rust-tools loaded")
 					end,
 					settings = {
 						-- to enable rust-analyzer settings visit:
@@ -461,39 +497,6 @@ require('packer').startup(function(use)
 	-- 	})
 	-- end }
 
-	-- better lsp ui
-	use { "glepnir/lspsaga.nvim",
-		-- requires = { 'neovim/nvim-lspconfig' },
-		ft = { 'rust', 'typescript', 'javascript', 'lua' },
-		config = function()
-			local lsp_saga = require('lspsaga')
-
-			vim.keymap.set("n", "gR", "<cmd>Lspsaga lsp_finder<CR>")
-			vim.keymap.set("n", "<leader>a", "<cmd>Lspsaga code_action<CR>")
-			vim.keymap.set("n", "<leader>r", "<cmd>Lspsaga rename<CR>")
-			vim.keymap.set("n", "<leader>d", "<cmd>Lspsaga peek_definition<CR>")
-			vim.keymap.set("n", 'K', '<cmd>Lspsaga hover_doc<CR>')
-			vim.keymap.set("n", "|", '<cmd>LSoutlineToggle<CR>', { silent = true })
-			vim.keymap.set("n", ']d', '<cmd>Lspsaga diagnostic_jump_next<cr>')
-			vim.keymap.set("n", '[d', '<cmd>Lspsaga diagnostic_jump_prev<cr>')
-			-- vim.keymap.set("n", '\\', '<cmd>Lspsaga open_floaterm<cr>')
-			-- vim.keymap.set("t", '\\', '<cmd>Lspsaga close_floaterm<cr>')
-
-			lsp_saga.init_lsp_saga {
-				-- border_style = "none",
-				show_outline = {
-					saga_winblend = 30,
-					jump_key = '<CR>',
-				},
-				code_action_icon = '',
-				code_action_lightbulb = {
-					enable = false,
-				},
-				-- symbol_in_winbar = {
-				-- 	enable = true,
-				-- }
-			}
-		end }
 
 	-- lua formatting
 	use { "ckipp01/stylua-nvim", ft = { 'lua' } }

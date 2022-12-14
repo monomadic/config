@@ -83,7 +83,6 @@ return {
 
 			s = {
 				name = "symbol",
-				a = { ":Lspsaga code_action<CR>", "code actions" }
 			},
 			t = { function() ShowTerminal() end, "terminal" },
 			w = { name = "workspace",
