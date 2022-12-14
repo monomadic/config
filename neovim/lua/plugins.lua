@@ -7,7 +7,7 @@
 --   PackerSync: PackerUpdate, PackerCompile
 --
 -- autoinstall packer:
-local packer_exists = pcall(require, "packer")
+local pecker_exists = pcall(require, "packer")
 if not packer_exists then
 	local install_path = vim.fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
 	if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
@@ -273,6 +273,7 @@ require('packer').startup(function(use)
 				},
 				on_attach = function(client, buf)
 					require("lsp-format").on_attach(client, buf)
+
 					-- disable this dumb mapping
 					-- local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
 					-- if client.supports_method("textDocument/formatting") then
@@ -298,16 +299,20 @@ require('packer').startup(function(use)
 		config = function()
 			local lsp_saga = require('lspsaga')
 
-			vim.keymap.set("n", "<leader>sf", "<cmd>Lspsaga lsp_finder<CR>", { desc = "find references (saga)" })
+			vim.keymap.set("n", "<leader>gf", "<cmd>Lspsaga lsp_finder<CR>", { desc = "symbol finder (saga)" })
+
+			vim.keymap.set("n", "<leader>sf", "<cmd>Lspsaga lsp_finder<CR>", { desc = "symbol finder (saga)" })
 			vim.keymap.set("n", "<leader>sa", "<cmd>Lspsaga code_action<CR>", { desc = "code-actions (saga)" })
 			vim.keymap.set("n", "<leader>sr", "<cmd>Lspsaga rename<CR>", { desc = "rename (saga)" })
-			vim.keymap.set("n", "<leader>sd", "<cmd>Lspsaga peek_definition<CR>", { desc = "peek definition (saga)" })
+
+			vim.keymap.set("n", "<leader>pd", "<cmd>Lspsaga peek_definition<CR>", { desc = "peek definition (saga)" })
+
 			vim.keymap.set("n", 'K', '<cmd>Lspsaga hover_doc<CR>')
+
 			vim.keymap.set("n", "<leader>do", '<cmd>Lspsaga outline<CR>', { silent = true, desc = "outline (saga)" })
+
 			vim.keymap.set("n", ']d', '<cmd>Lspsaga diagnostic_jump_next<cr>')
 			vim.keymap.set("n", '[d', '<cmd>Lspsaga diagnostic_jump_prev<cr>')
-			-- vim.keymap.set("n", '\\', '<cmd>Lspsaga open_floaterm<cr>')
-			-- vim.keymap.set("t", '\\', '<cmd>Lspsaga close_floaterm<cr>')
 
 			lsp_saga.init_lsp_saga {
 				-- border_style = "none",
@@ -350,7 +355,10 @@ require('packer').startup(function(use)
 					fallback = true, -- fall back to standard LSP definition on failure
 				},
 				server = {
-					on_attach = require("lsp-format").on_attach
+					on_attach = function(client, buf)
+						require("lsp-format").on_attach(client, buf)
+						require("lsp")
+					end
 				},
 			})
 		end }
@@ -467,10 +475,10 @@ require('packer').startup(function(use)
 
 						vim.keymap.set("n", "<leader>gd", ":RustOpenExternalDocs<CR>", { buffer = bufnr, desc = " open docs" })
 
-												vim.keymap.set("n", "<leader>se", ":RustExpand<CR>", { buffer = bufnr, desc = " expand" })
-												vim.keymap.set("n", "<leader>sE", ":RustExpandMacro<CR>", { buffer = bufnr, desc = " expand macro" })
+						vim.keymap.set("n", "<leader>se", ":RustExpand<CR>", { buffer = bufnr, desc = " expand" })
+						vim.keymap.set("n", "<leader>sE", ":RustExpandMacro<CR>", { buffer = bufnr, desc = " expand macro" })
 
-												vim.keymap.set("n", "<C-b>", ":RustRun<CR>", { buffer = bufnr, desc = " run" })
+						vim.keymap.set("n", "<C-b>", ":RustRun<CR>", { buffer = bufnr, desc = " run" })
 
 						-- vim.keymap.set("n", "<leader>r", "", { buffer = bufnr, desc = " rust" })
 						vim.keymap.set("n", "<leader>rR", ":RustRunnables<CR>", { buffer = bufnr, desc = " run" })
@@ -586,6 +594,15 @@ require('packer').startup(function(use)
 			})
 		end
 	}
+
+	-- lsp/ts navigation
+	use({
+		'ray-x/navigator.lua',
+		requires = {
+			{ 'ray-x/guihua.lua', run = 'cd lua/fzy && make' },
+			{ 'neovim/nvim-lspconfig' },
+		},
+	})
 
 	-- make background highlight groups transparent
 	use { 'xiyaowong/nvim-transparent',

@@ -28,11 +28,9 @@ vim.keymap.set("n", "WQ", "<cmd>wq<CR>")
 -- vim.keymap.set("n", "<leader>h2", "<Esc>/2.<CR>")
 vim.keymap.set("n", "<C-n>", ToggleLineNumbers, {desc = "toggle line numbers" })
 
-vim.keymap.set("n", '<leader>df',
-	function()
-		vim.lsp.buf.format { async = true }
-	end
-)
+vim.keymap.set("n", '<leader>df', function() vim.lsp.buf.format { async = true } end)
+
+vim.keymap.set("n", "<leader>a", vim.lsp.buf.code_action, { desc = "code-actions (saga)" })
 
 -- split navigation
 vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
@@ -68,6 +66,7 @@ vim.keymap.set("n", "gc", function() vim.lsp.buf.declaration() end)
 -- vim.keymap.set("n", "gr", function() vim.lsp.buf.references() end)
 
 vim.keymap.set("n", "<C-b>", Build, { buffer = bufnr, desc = " build" })
+vim.keymap.set("n", "<leader>rb", Build, { buffer = bufnr, desc = " build" })
 
 -- use ; for commands instead of :
 vim.keymap.set("n", ";", ":")
@@ -80,6 +79,8 @@ vim.keymap.set('n', '<bs>', ':edit #<cr>', { silent = true })
 vim.keymap.set("n", "<C-f>", function()
 	require('telescope.builtin').live_grep()
 end)
+
+vim.keymap.set("n", "<Tab>o", OpenFiles, { desc = "open" })
 
 -- emacs style shortcuts in insert mode (yes, i am like that)
 vim.keymap.set("i", "<C-n>", "<Down>")

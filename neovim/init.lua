@@ -25,3 +25,5 @@ require 'winbar'
 require 'settings'
 require 'keymaps'
 require 'colors'
+
+require "lsp"

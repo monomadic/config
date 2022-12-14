@@ -52,7 +52,7 @@ function WinBar()
 	end
 
 	-- local filetype = vim.api.nvim_buf_get_option(0, 'filetype')
-	vim.api.nvim_set_hl(0, "WinBar", { fg = "#FFFFFF", bg = "#2222FF" })
+	--vim.api.nvim_set_hl(0, "WinBar", { fg = "#FFFFFF", bg = "#2222FF" })
 
 	return table.concat {
 		"%#WinBar#",

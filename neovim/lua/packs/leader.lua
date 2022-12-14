@@ -26,46 +26,28 @@ return {
 			},
 			d = {
 				name = "document",
-				f = { function() vim.lsp.buf.format { async = true } end, "format" }
+
+				e = { function()
+					require('telescope.builtin').lsp_document_symbols { symbols = "enum" }
+				end, " enums…" },
+
+				f = { function()
+					require('telescope.builtin').lsp_document_symbols { symbols = "function" }
+				end, " functions…" },
+				F = { function() vim.lsp.buf.format { async = true } end, " format" },
+
+				s = { function()
+					require('telescope.builtin').lsp_document_symbols { symbols = "struct" }
+				end, " structs…" },
+				S = { require('telescope.builtin').lsp_document_symbols, " symbols…" },
+				m = { function()
+					require('telescope.builtin').lsp_document_symbols { symbols = "module" }
+				end, " modules…" },
 			},
 			g = {
 				name = "go",
 			},
 
-
-			j = {
-				name = "jump",
-				e = { function()
-					require('telescope.builtin').lsp_document_symbols { symbols = "enum" }
-				end, "enum" },
-				E = { function()
-					require('telescope.builtin').lsp_workspace_symbols { symbols = "enum" }
-				end, "enum (workspace)" },
-
-				f = { function()
-					require('telescope.builtin').lsp_document_symbols { symbols = "function" }
-				end, "function" },
-				F = { function()
-					require('telescope.builtin').lsp_workspace_symbols { symbols = "function" }
-				end, "function (workspace)" },
-
-				m = { function()
-					require('telescope.builtin').lsp_document_symbols { symbols = "module" }
-				end, "module" },
-				M = { function()
-					require('telescope.builtin').lsp_workspace_symbols { symbols = "module" }
-				end, "module (workspace)" },
-
-				s = { function()
-					require('telescope.builtin').lsp_document_symbols { symbols = "struct" }
-				end, "struct" },
-				S = { function()
-					require('telescope.builtin').lsp_workspace_symbols { symbols = "struct" }
-				end, "struct (workspace)" },
-
-				a = { ":FzfLua lsp_document_symbols<CR>", "symbol (all types)" },
-				A = { ":FzfLua lsp_workspace_symbols<CR>", "symbol (all types, workspace)" },
-			},
 			l = {
 				name = "list",
 				c = { ":FzfLua commands<CR>", "commands" },
@@ -76,15 +58,29 @@ return {
 				t = { ":FzfLua colorschemes<CR>", "themes" },
 			},
 
-			r = { name = "run" },
+			p = { name = "peek" },
+			r = { name = "run",
+				-- d = { "", "debug" }
+			},
 			s = {
 				name = "symbol",
+				h = {vim.lsp.buf.signature_help, "help"}
 			},
-			t = { function() ShowTerminal() end, "terminal" },
+			t = { ShowTerminal, " terminal" },
 			w = { name = "workspace",
+				e = { function()
+					require('telescope.builtin').lsp_workspace_symbols { symbols = "enum" }
+				end, " enums…" },
 				f = { function()
 					require('telescope.builtin').lsp_workspace_symbols { symbols = "function", prompt_title = "", preview_title = "" }
-				end, "function" },
+				end, " functions…" },
+				m = { function()
+					require('telescope.builtin').lsp_workspace_symbols { symbols = "module" }
+				end, " modules…" },
+				s = { function()
+					require('telescope.builtin').lsp_workspace_symbols { symbols = "struct" }
+				end, " structs…" },
+				S = { ":FzfLua lsp_workspace_symbols<CR>", " symbols…" },
 			}
 		}, {
 			prefix = "<leader>",

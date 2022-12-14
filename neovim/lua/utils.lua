@@ -6,6 +6,10 @@ local function file_exists(fname)
 	return (stat and stat.type) or false
 end
 
+function OpenFiles()
+	require('telescope.builtin').find_files { path_display = { "truncate" }, prompt_title = "", preview_title = "" }
+end
+
 function ToggleLineNumbers()
 	if vim.wo.relativenumber == true then
 			vim.wo.relativenumber = false -- turn off line numbers

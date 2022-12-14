@@ -1,0 +1,6 @@
+-- local function custom_codeAction_callback(_, _, action)
+-- 	print("attaching custom...")
+-- 	print(vim.inspect(action))
+-- end
+--
+-- vim.lsp.handlers['textDocument/codeAction'] = custom_codeAction_callback
