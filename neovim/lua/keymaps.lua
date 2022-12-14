@@ -24,12 +24,9 @@ vim.keymap.set("n", "Q", "<cmd>quit<CR>")
 vim.keymap.set("n", "WQ", "<cmd>wq<CR>")
 --vim.keymap.set("n", "<leader>lf", "<cmd>Lf<CR>")
 --vim.keymap.set("n", "<leader>lg", "<cmd>LazyGit<CR>")
-vim.keymap.set("n", "<leader>h1", "<Esc>/1.<CR>")
-vim.keymap.set("n", "<leader>h2", "<Esc>/2.<CR>")
-vim.keymap.set("n", "<leader>n", function()
-	vim.wo.relativenumber = false -- turn off line numbers
-	vim.wo.number = false
-end)
+-- vim.keymap.set("n", "<leader>h1", "<Esc>/1.<CR>")
+-- vim.keymap.set("n", "<leader>h2", "<Esc>/2.<CR>")
+vim.keymap.set("n", "<C-n>", ToggleLineNumbers, {desc = "toggle line numbers" })
 
 vim.keymap.set("n", '<leader>df',
 	function()
@@ -69,6 +66,8 @@ vim.keymap.set("n", "gd", function() vim.lsp.buf.definition() end)
 vim.keymap.set("n", "<Enter>", function() vim.lsp.buf.definition() end)
 vim.keymap.set("n", "gc", function() vim.lsp.buf.declaration() end)
 -- vim.keymap.set("n", "gr", function() vim.lsp.buf.references() end)
+
+vim.keymap.set("n", "<C-b>", Build, { buffer = bufnr, desc = " build" })
 
 -- use ; for commands instead of :
 vim.keymap.set("n", ";", ":")

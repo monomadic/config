@@ -49,6 +49,9 @@ vim.g.completion_trigger_keyword_length = 3
 vim.opt.showmode = false
 vim.opt.regexpengine = 2
 
+		vim.g.timeoutlen=0
+		vim.g.ttimeoutlen=0
+
 -- netrw
 vim.g.netrw_banner = 0 -- hide banner
 vim.g.netrw_localcopydircmd = 'cp -r' -- recursive copy

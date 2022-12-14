@@ -6,6 +6,20 @@ local function file_exists(fname)
 	return (stat and stat.type) or false
 end
 
+function ToggleLineNumbers()
+	if vim.wo.relativenumber == true then
+			vim.wo.relativenumber = false -- turn off line numbers
+			vim.wo.number = false
+	else
+			vim.wo.relativenumber = true -- turn off line numbers
+			vim.wo.number = true
+	end
+end
+
+function Build()
+	print("no build command found for this project")
+end
+
 -- go to root project file
 function GoRoot()
 	if file_exists("src/lib.rs") then

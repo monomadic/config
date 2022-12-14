@@ -1,7 +1,5 @@
 return {
 	'folke/which-key.nvim', config = function()
-		-- vim.g.timeoutlen=100
-		-- vim.g.ttimeoutlen=100
 
 		require("which-key").setup {
 			window = {
@@ -19,7 +17,6 @@ return {
 		}
 
 		require("which-key").register({
-			b = "buffers…",
 			f = {
 				name = "file",
 				f = { function() vim.lsp.buf.format { async = true } end, " format" },
