@@ -114,8 +114,10 @@ vim.keymap.set("t", '<C-k>', '<C-\\><C-n><C-w><C-k>', { remap = false })
 vim.keymap.set("t", '<C-l>', '<C-\\><C-n><C-w><C-l>', { remap = false })
 
 -- go to root project file
-vim.keymap.set("n", "gr", GoRoot)
-vim.keymap.set("n", "gp", GoPackagerFile)
+vim.keymap.set("n", "gr", GoRoot, { desc = "root" })
+vim.keymap.set("n", "<leader>gr", GoRoot, { desc = "root" })
+vim.keymap.set("n", "gp", GoPackagerFile, { desc = "package manifest" })
+vim.keymap.set("n", "<leader>gp", GoPackagerFile, { desc = "package manifest" })
 
 -- sessions
 -- local session_dir = vim.fn.stdpath('data') .. '/sessions/'

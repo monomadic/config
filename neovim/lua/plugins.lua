@@ -21,24 +21,25 @@ vim.cmd 'packadd packer.nvim' -- only required if packer is opt
 
 require('packer').startup(function(use)
 	-- speed up lua modules
-	use {'lewis6991/impatient.nvim', config = function()
+	use { 'lewis6991/impatient.nvim', config = function()
 		require('impatient')
-	end}
+	end }
 
 	-- packer package manager
 	use 'wbthomason/packer.nvim'
 
 	use {
-		require 'packs.comments',
-		require 'packs.themes',
-		require 'packs.leader',
+		require 'packs.comments', -- commenting
+		require 'packs.themes', -- colorschemes
+		require 'packs.leader', -- whichkey
 	}
 
 	use {
-  'theblob42/drex.nvim',
-  requires = 'kyazdani42/nvim-web-devicons', -- optional
-}
+		'theblob42/drex.nvim',
+		requires = 'kyazdani42/nvim-web-devicons', -- optional
+	}
 
+	-- also see: https://github.com/VonHeikemen/lsp-zero.nvim
 	-- lspconfig (with mason)
 	use { "williamboman/mason.nvim", config = function()
 		require("mason").setup {}
@@ -49,13 +50,6 @@ require('packer').startup(function(use)
 	-- flowstate reading
 	-- https://github.com/nullchilly/fsread.nvim
 	use { "nullchilly/fsread.nvim", ft = { 'markdown', 'text', 'vimwiki' } }
-
-	-- use {'glepnir/template.nvim', config = function()
-	-- 	local temp = require('template')
-	-- 	temp.temp_dir = '~/.config/nvim/templates' -- template directory
-	-- 	temp.author   = 'monomadic' -- your name
-	-- 	temp.email    = 'monomadic@localhost' -- email address
-	-- end}
 
 	-- notifications
 	-- use 'rcarriga/nvim-notify'
@@ -69,7 +63,7 @@ require('packer').startup(function(use)
 			keymap("n", "<leader>fc", genghis.copyFilepath, { desc = " copy path" })
 			keymap("n", "<leader>fC", genghis.copyFilename, { desc = " copy filename" })
 			keymap("n", "<leader>fr", genghis.renameFile, { desc = " rename" })
-			keymap("n", "<leader>fn", genghis.createNewFile, { desc = " new" } )
+			keymap("n", "<leader>fn", genghis.createNewFile, { desc = " new" })
 			keymap("n", "<leader>fd", genghis.duplicateFile, { desc = " duplicate" })
 			keymap("n", "<leader>fx", genghis.chmodx, { desc = " chmod" })
 			keymap("n", "<leader>ft", function() genghis.trashFile { trashLocation = "your/path" } end, { desc = "﬒ trash" }) -- default: '$HOME/.Trash'.
@@ -297,7 +291,7 @@ require('packer').startup(function(use)
 		end,
 	}
 
-		-- better lsp ui
+	-- better lsp ui
 	use { "glepnir/lspsaga.nvim",
 		-- requires = { 'neovim/nvim-lspconfig' },
 		ft = { 'rust', 'typescript', 'javascript', 'lua' },
@@ -458,9 +452,11 @@ require('packer').startup(function(use)
 						require("virtualtypes").on_attach(client, bufnr)
 
 						vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr })
-						vim.keymap.set("n", "<leader>da", ":RustCodeAction<CR>", { buffer = bufnr, desc = " code action", remap = false })
-						-- vim.keymap.set("n", "<leader>a", rust_tools.code_action_group.code_action_group, { buffer = bufnr })
-						vim.keymap.set('n', '<leader>gp', rust_tools.open_cargo_toml.open_cargo_toml, { buffer = bufnr, desc = " cargo.toml", remap = false })
+						vim.keymap.set("n", "<leader>sa", ":RustCodeAction<CR>", { buffer = bufnr, desc = " code action", remap = false })
+						vim.keymap.set("n", "<leader>a", rust_tools.code_action_group.code_action_group,
+							{ buffer = bufnr, desc = " code action" })
+						vim.keymap.set('n', '<leader>gp', rust_tools.open_cargo_toml.open_cargo_toml,
+							{ buffer = bufnr, desc = " cargo.toml", remap = false })
 						vim.keymap.set('n', '<leader>gu', rust_tools.parent_module.parent_module,
 							{ buffer = bufnr, desc = " up (parent module)" })
 						-- vim.keymap.set('v', '<C-j>', rust_tools.move_item.move_item(false), { buffer = bufnr }) -- down
@@ -468,6 +464,20 @@ require('packer').startup(function(use)
 						-- vim.keymap.set("n", "gi", function()
 						-- 	vim.cmd ':edit src/lib.rs'
 						-- end)
+
+						vim.keymap.set("n", "<leader>gd", ":RustOpenExternalDocs<CR>", { buffer = bufnr, desc = " open docs" })
+
+												vim.keymap.set("n", "<leader>se", ":RustExpand<CR>", { buffer = bufnr, desc = " expand" })
+												vim.keymap.set("n", "<leader>sE", ":RustExpandMacro<CR>", { buffer = bufnr, desc = " expand macro" })
+
+												vim.keymap.set("n", "<C-b>", ":RustRun<CR>", { buffer = bufnr, desc = " run" })
+
+						-- vim.keymap.set("n", "<leader>r", "", { buffer = bufnr, desc = " rust" })
+						vim.keymap.set("n", "<leader>rR", ":RustRunnables<CR>", { buffer = bufnr, desc = " run" })
+						vim.keymap.set("n", "<leader>rr", ":RustRunnables<CR>", { buffer = bufnr, desc = " runnables…" })
+						vim.keymap.set("n", "<leader>rd", ":RustDebuggables<CR>", { buffer = bufnr, desc = " debuggables…" })
+
+						vim.keymap.set("n", "<leader>df", ":RustFmt<CR>", { buffer = bufnr, desc = " rustfmt" })
 						print("rust-tools loaded")
 					end,
 					settings = {
@@ -548,6 +558,17 @@ require('packer').startup(function(use)
 		require 'packs.autocomplete',
 		require 'packs.telescope',
 	}
+
+	use { 'glepnir/template.nvim',
+		after = "telescope",
+		config = function()
+			local temp    = require('template')
+			temp.temp_dir = '~/.config/nvim/templates' -- template directory
+			temp.author   = 'monomadic' -- your name
+			temp.email    = 'monomadic@localhost' -- email address
+
+			require("telescope").load_extension('find_template')
+		end }
 
 	use { "folke/neodev.nvim",
 		-- after = "nvim-lspconfig",

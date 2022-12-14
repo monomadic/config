@@ -19,7 +19,7 @@ return {
 		}
 
 		require("which-key").register({
-			b = "buffers...",
+			b = "buffers…",
 			f = {
 				name = "file",
 				f = { function() vim.lsp.buf.format { async = true } end, " format" },
@@ -33,8 +33,6 @@ return {
 			},
 			g = {
 				name = "go",
-				r = { GoRoot, "root" },
-				p = { GoPackagerFile, "package manifest" }
 			},
 
 
@@ -81,6 +79,7 @@ return {
 				t = { ":FzfLua colorschemes<CR>", "themes" },
 			},
 
+			r = { name = "run" },
 			s = {
 				name = "symbol",
 			},
@@ -101,6 +100,6 @@ return {
 		vim.api.nvim_set_hl(0, "WhichKeyGroup", { fg = "#00FFFF" })
 		vim.api.nvim_set_hl(0, "WhichKeySeparator", { fg = "#888888" })
 
-		print("WhichKey loaded.")
+		print("whichkey loaded")
 	end
 }
