@@ -7,9 +7,12 @@ vim.cmd("colorscheme {{colorscheme}}");
 vim.api.nvim_set_hl(0, "Float", { bg = "#111111" })
 -- vim.api.nvim_set_hl(0, "NormalFloat", { bg = "red" })
 
-vim.api.nvim_set_hl(0, "TabLine", { fg = "white", bg = "#2222FF" })
+vim.api.nvim_set_hl(0, "TabLine", { fg = "white", bg = "black" })
+vim.api.nvim_set_hl(0, "WinBar", { fg = "white", bg = "#2222FF" })
+
+--vim.api.nvim_set_hl(0, "TabLine", { fg = "white", bg = "#2222FF" })
 --vim.api.nvim_set_hl(0, "WinBar", { fg = "white", bg = "#7740FF" })
-vim.api.nvim_set_hl(0, "WinBar", { fg = "white" })
+-- vim.api.nvim_set_hl(0, "WinBar", { fg = "white" })
 
 vim.api.nvim_set_hl(0, "EndOfBuffer", { fg = "#444444" })
 vim.api.nvim_set_hl(0, "TabLineFill", { bg = "None" })

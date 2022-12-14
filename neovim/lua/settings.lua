@@ -49,6 +49,7 @@ vim.g.completion_trigger_keyword_length = 3
 vim.opt.showmode = false
 vim.opt.regexpengine = 2
 
+-- set guicursor=a:blinkon1 -- blinking cursor
 		vim.g.timeoutlen=0
 		vim.g.ttimeoutlen=0
 

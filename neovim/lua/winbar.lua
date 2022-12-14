@@ -62,6 +62,8 @@ function WinBar()
 		-- " %m", -- modified
 		-- -- " &modified?'[+]':''", -- modified switch
 		-- "%r", -- readonly
+		-- " %#Normal#",
+		-- "%=",
 		"%=%{%v:lua.LSPStatus()%}",
 	}
 end
