@@ -28,6 +28,7 @@ vim.opt.mouse = "a" -- allow the mouse to be used in neovim
 vim.wo.number = false -- show numbered lines
 vim.wo.relativenumber = false -- set relative numbered lines
 vim.opt.scrolloff = 1000 -- keep line centered (disable if scrolling past eof is enabled)
+vim.opt.scroll = 3 -- number of lines to scroll
 vim.opt.shiftwidth = 2 -- the number of spaces inserted for each indentation
 vim.opt.showmatch = true -- matching parenthesis
 vim.opt.signcolumn = "yes" -- always show the sign column, otherwise it would shift the text each time

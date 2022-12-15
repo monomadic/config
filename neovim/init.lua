@@ -14,6 +14,7 @@
 require 'utils'
 -- require 'bootstrap'
 require 'plugins'
+require 'colors'
 require 'autocmds'
 
 require 'term'

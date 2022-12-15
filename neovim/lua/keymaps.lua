@@ -15,23 +15,13 @@ vim.keymap.set("n", "<leader>u", "<CMD>bun<CR>", {desc = "unload buffer"})
 -- fast quit
 vim.keymap.set("n", "W", "<cmd>wall<CR>")
 vim.keymap.set("n", "Q", "<cmd>wall<CR><cmd>qall<CR>")
+-- leader
 vim.keymap.set("n", "<leader>!", "<cmd>quit!<CR>")
-
--- leader keys
--- vim.keymap.set("n", "<leader>s", "<cmd>write<CR>")
--- vim.keymap.set("n", "<leader>ww", "<cmd>wq!<CR>")
--- vim.keymap.set("n", "<leader>wq", "<cmd>wq<CR>")
-
--- vim.keymap.set("n", "<leader>j", "<cmd>quit!<CR>") -- jump
-
 vim.keymap.set("n", "<leader><tab>", "<cmd>Drex<CR>", { desc = " Drex" })
---vim.keymap.set("n", "<leader>lf", "<cmd>Lf<CR>")
---vim.keymap.set("n", "<leader>lg", "<cmd>LazyGit<CR>")
--- vim.keymap.set("n", "<leader>h1", "<Esc>/1.<CR>")
--- vim.keymap.set("n", "<leader>h2", "<Esc>/2.<CR>")
 vim.keymap.set("n", "<C-n>", ToggleLineNumbers, {desc = "toggle line numbers" })
 
-vim.keymap.set("n", '<leader>df', function() vim.lsp.buf.format { async = true } end)
+vim.keymap.set("n", '<leader>df', function() vim.lsp.buf.format { async = true } end, { desc = "format" })
+vim.keymap.set("n", '<leader>F', function() vim.lsp.buf.format { async = true } end, { desc = "format" })
 
 vim.keymap.set("n", "<leader>a", vim.lsp.buf.code_action, { desc = "code-actions (saga)" })
 
@@ -92,6 +82,7 @@ end)
 
 vim.keymap.set("n", "<Tab>o", OpenFiles, { desc = "open file" })
 vim.keymap.set("n", "<Tab>d", ":Drex<CR>", { desc = "drex" })
+vim.keymap.set("n", "<Tab>f", ":DrexDrawerOpen<CR>", { desc = "filetree" })
 vim.keymap.set("n", "<Tab>t", ShowTerminal, { desc = "terminal" })
 -- vim.keymap.set("n", "<Tab>l", ShowTerminal, { desc = "lf" })
 

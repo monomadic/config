@@ -17,12 +17,12 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 end })
 
 -- hide line-bar in insert-mode
-vim.api.nvim_create_autocmd("InsertEnter", { pattern = "*", callback = function()
-	vim.o.cursorline = false
-end })
-vim.api.nvim_create_autocmd("InsertLeave", { pattern = "*", callback = function()
-	vim.o.cursorline = true
-end })
+-- vim.api.nvim_create_autocmd("InsertEnter", { pattern = "*", callback = function()
+-- 	vim.o.cursorline = false
+-- end })
+-- vim.api.nvim_create_autocmd("InsertLeave", { pattern = "*", callback = function()
+-- 	vim.o.cursorline = true
+-- end })
 
 -- only show line-bar on current buffer, on active window
 vim.api.nvim_create_autocmd("BufLeave", { pattern = "*", callback = function()
@@ -37,6 +37,18 @@ end })
 vim.api.nvim_create_autocmd("WinEnter", { pattern = "*", callback = function()
 	vim.o.cursorline = true
 end })
+
+vim.api.nvim_create_autocmd("LspAttach", {
+	callback = function(args)
+		if not (args.data and args.data.client_id) then
+			return
+		end
+
+		local bufnr = args.buf
+		local client = vim.lsp.get_client_by_id(args.data.client_id)
+		-- require("lsp-inlayhints").on_attach(client, bufnr)
+	end
+})
 
 -- vim.api.nvim_create_autocmd("BufWinEnter", { pattern = "*", callback = function()
 -- 	vim.o.wbr = vim.fn.fnamemodify(vim.fn.expand("%"), ":.") -- project directory

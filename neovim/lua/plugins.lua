@@ -214,7 +214,7 @@ require('packer').startup(function(use)
 	-- 	end
 	-- }
 
-	-- lsp progress
+	-- show lsp progress
 	use {
 		'j-hui/fidget.nvim',
 		config = function() require("fidget").setup {} end
@@ -226,14 +226,14 @@ require('packer').startup(function(use)
 		event = { "BufRead Cargo.toml" },
 		requires = { "nvim-lua/plenary.nvim" },
 		config = function()
-			require('crates').setup {}
-		end,
+			require('crates').setup()
+		end
 	}
 
 	-- async formatting
 	-- https://github.com/lukas-reineke/lsp-format.nvim
 	use { 'lukas-reineke/lsp-format.nvim', config = function()
-		require("lsp-format").setup {}
+		require("lsp-format").setup()
 	end }
 
 	-- null-lsp: a generic lsp server providing lsp functions to neovim on behalf of various tools
@@ -347,6 +347,7 @@ require('packer').startup(function(use)
 
 	use { 'jose-elias-alvarez/typescript.nvim',
 		ft = 'typescript',
+		reqires = { 'lvimuser/lsp-inlayhints.nvim' },
 		config = function()
 			require("typescript").setup({
 				-- disable_commands = false, -- prevent the plugin from creating Vim commands
@@ -355,13 +356,32 @@ require('packer').startup(function(use)
 					fallback = true, -- fall back to standard LSP definition on failure
 				},
 				server = {
-					on_attach = function(client, buf)
-						require("lsp-format").on_attach(client, buf)
+					on_attach = function(client, bufnr)
+						require("lsp-format").on_attach(client, bufnr)
+						require("lsp-inlayhints").on_attach(client, bufnr)
 						require("lsp")
 					end
 				},
 			})
 		end }
+
+	use { 'lvimuser/lsp-inlayhints.nvim',
+		ft = 'typescript',
+		config = function()
+			vim.api.nvim_create_autocmd("LspAttach", {
+				callback = function(args)
+					if not (args.data and args.data.client_id) then
+						return
+					end
+
+					local bufnr = args.buf
+					local client = vim.lsp.get_client_by_id(args.data.client_id)
+					require("lsp-inlayhints").on_attach(client, bufnr)
+				end
+			})
+
+		end
+	}
 
 	-- lsp navigation plug
 	-- https://github.com/ray-x/navigator.lua
@@ -446,9 +466,8 @@ require('packer').startup(function(use)
 						use_telescope = true
 					},
 					inlay_hints = {
+						auto = true,
 						show_parameter_hints = true,
-						-- parameter_hints_prefix = "",
-						-- other_hints_prefix = "",
 					},
 					hover_actions = { auto_focus = false },
 				},
@@ -585,13 +604,15 @@ require('packer').startup(function(use)
 			require("neodev").setup {
 				lspconfig = false
 			}
-			vim.lsp.start({
-				name = "neodev",
-				cmd = { "lua-language-server" },
-				before_init = require("neodev.lsp").before_init,
-				root_dir = vim.fn.getcwd(),
-				settings = { Lua = {} },
-			})
+			vim.api.nvim_create_autocmd("FileType", { pattern = "lua", callback = function()
+				vim.lsp.start {
+					name = "neodev",
+					cmd = { "lua-language-server" },
+					before_init = require("neodev.lsp").before_init,
+					root_dir = vim.fn.getcwd(),
+					settings = { Lua = {} },
+				}
+			end })
 		end
 	}
 
