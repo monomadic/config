@@ -7,21 +7,24 @@
 vim.keymap.set("n", "<C-s>", "<CMD>write<CR>");
 vim.keymap.set({ "v", "i" }, "<C-s>", "<Esc><Cmd>write<CR>");
 
+-- window hide
+vim.keymap.set("n", "q", "<CMD>hide<CR>");
 -- buffer unload
-vim.keymap.set("n", "q", "<CMD>bun<CR>");
+vim.keymap.set("n", "<leader>q", "<CMD>hide<CR>", {desc = "hide window"})
+vim.keymap.set("n", "<leader>u", "<CMD>bun<CR>", {desc = "unload buffer"})
+-- fast quit
+vim.keymap.set("n", "W", "<cmd>wall<CR>")
+vim.keymap.set("n", "Q", "<cmd>wall<CR><cmd>qall<CR>")
+vim.keymap.set("n", "<leader>!", "<cmd>quit!<CR>")
 
 -- leader keys
 -- vim.keymap.set("n", "<leader>s", "<cmd>write<CR>")
-vim.keymap.set("n", "<leader>ww", "<cmd>wq!<CR>")
-vim.keymap.set("n", "<leader>wq", "<cmd>wq<CR>")
-vim.keymap.set("n", "<leader>q", "<cmd>quit<CR>")
-vim.keymap.set("n", "<leader>!", "<cmd>quit!<CR>")
+-- vim.keymap.set("n", "<leader>ww", "<cmd>wq!<CR>")
+-- vim.keymap.set("n", "<leader>wq", "<cmd>wq<CR>")
 
 -- vim.keymap.set("n", "<leader>j", "<cmd>quit!<CR>") -- jump
 
-vim.keymap.set("n", "<leader><tab>", "<cmd>Drex<CR>")
-vim.keymap.set("n", "Q", "<cmd>quit<CR>")
-vim.keymap.set("n", "WQ", "<cmd>wq<CR>")
+vim.keymap.set("n", "<leader><tab>", "<cmd>Drex<CR>", { desc = " Drex" })
 --vim.keymap.set("n", "<leader>lf", "<cmd>Lf<CR>")
 --vim.keymap.set("n", "<leader>lg", "<cmd>LazyGit<CR>")
 -- vim.keymap.set("n", "<leader>h1", "<Esc>/1.<CR>")
@@ -41,7 +44,14 @@ vim.keymap.set("n", "<C-l>", "<C-w><C-l>", { remap = false })
 vim.keymap.set("i", "<C-l>", "<Esc><C-w><C-l>")
 vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
 vim.keymap.set("i", "<C-h>", "<Esc><C-w><C-h>")
-vim.keymap.set("n", "<C-w><C-d>", "<cmd>vsplit<CR>")
+vim.keymap.set({"n", "t"}, "<C-w><C-d>", "<cmd>vsplit<CR>")
+
+-- maximize
+vim.keymap.set("n", "<C-w>m", "<CMD>only<CR>", { desc = "Maximize" })
+vim.keymap.set("n", "<C-w><C-m>", "<CMD>only<CR>", { desc = "Maximize" })
+
+-- hide
+vim.keymap.set("n", "<C-w><C-h>", "<CMD>hide<CR>", { desc = "Hide" })
 
 -- jump to next paragraph
 vim.keymap.set("n", "}", "}j")
@@ -80,7 +90,10 @@ vim.keymap.set("n", "<C-f>", function()
 	require('telescope.builtin').live_grep()
 end)
 
-vim.keymap.set("n", "<Tab>o", OpenFiles, { desc = "open" })
+vim.keymap.set("n", "<Tab>o", OpenFiles, { desc = "open file" })
+vim.keymap.set("n", "<Tab>d", ":Drex<CR>", { desc = "drex" })
+vim.keymap.set("n", "<Tab>t", ShowTerminal, { desc = "terminal" })
+-- vim.keymap.set("n", "<Tab>l", ShowTerminal, { desc = "lf" })
 
 -- emacs style shortcuts in insert mode (yes, i am like that)
 vim.keymap.set("i", "<C-n>", "<Down>")

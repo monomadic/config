@@ -50,8 +50,9 @@ vim.opt.showmode = false
 vim.opt.regexpengine = 2
 
 -- set guicursor=a:blinkon1 -- blinking cursor
-		vim.g.timeoutlen=0
-		vim.g.ttimeoutlen=0
+vim.cmd 'set guicursor=n-v-c:block,i-ci-ve:ver25,r-cr:hor20,o:hor50,a:blinkwait700-blinkoff400-blinkon250-Cursor/lCursor,sm:block-blinkwait175-blinkoff150-blinkon175'
+		-- vim.g.timeoutlen=0
+		-- vim.g.ttimeoutlen=0
 
 -- netrw
 vim.g.netrw_banner = 0 -- hide banner
