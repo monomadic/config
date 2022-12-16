@@ -6,8 +6,9 @@
 --   PackerUpdate: PackerClean, PackerUpdate, PackerInstall
 --   PackerSync: PackerUpdate, PackerCompile
 --
+
 -- autoinstall packer:
-local pecker_exists = pcall(require, "packer")
+local packer_exists = pcall(require, "packer")
 if not packer_exists then
 	local install_path = vim.fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
 	if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
@@ -73,13 +74,22 @@ require('packer').startup(function(use)
 	use { "williamboman/mason-lspconfig.nvim",
 		requires = { "neovim/nvim-lspconfig" },
 		after = "mason.nvim",
-		ft = "lua",
+		ft = { "lua", "solidity" },
 		config = function()
 			require("mason-lspconfig").setup {
 				-- ensure_installed = { 'sumneko_lua' },
 				--automatic_installation = true,
 			}
 			-- require('lspconfig').sumneko_lua.setup {}
+			require('lspconfig').solidity.setup {
+				-- on_attach = on_attach, -- probably you will need this.
+				-- capabilities = capabilities,
+				settings = {
+					-- example of global remapping
+					solidity = { includePath = '', remapping = { ["@OpenZeppelin/"] = 'OpenZeppelin/openzeppelin-contracts@4.6.0/' } }
+				},
+			}
+			require'lspconfig'.solidity_ls.setup{}
 		end
 	}
 
@@ -264,7 +274,7 @@ require('packer').startup(function(use)
 				sources = {
 					null_ls.builtins.formatting.taplo, -- cargo install taplo-cli --locked
 					null_ls.builtins.formatting.prettier.with({
-						filetypes = { "html", "json", "yaml", "markdown", "graphql", "solidity" },
+						filetypes = { "html", "json", "yaml", "markdown", "graphql", "snippets" },
 					}),
 					null_ls.builtins.diagnostics.jsonlint, -- brew install jsonlint
 					null_ls.builtins.hover.dictionary.with {
@@ -298,8 +308,6 @@ require('packer').startup(function(use)
 		ft = { 'rust', 'typescript', 'javascript', 'lua' },
 		config = function()
 			local lsp_saga = require('lspsaga')
-
-			vim.keymap.set("n", "<leader>gf", "<cmd>Lspsaga lsp_finder<CR>", { desc = "symbol finder (saga)" })
 
 			vim.keymap.set("n", "<leader>sf", "<cmd>Lspsaga lsp_finder<CR>", { desc = "symbol finder (saga)" })
 			vim.keymap.set("n", "<leader>sa", "<cmd>Lspsaga code_action<CR>", { desc = "code-actions (saga)" })
@@ -349,6 +357,7 @@ require('packer').startup(function(use)
 		ft = 'typescript',
 		reqires = { 'lvimuser/lsp-inlayhints.nvim' },
 		config = function()
+			require("lsp-inlayhints").setup()
 			require("typescript").setup({
 				-- disable_commands = false, -- prevent the plugin from creating Vim commands
 				debug = false, -- enable debug logging for commands
@@ -505,7 +514,6 @@ require('packer').startup(function(use)
 						vim.keymap.set("n", "<leader>rd", ":RustDebuggables<CR>", { buffer = bufnr, desc = " debuggables…" })
 
 						vim.keymap.set("n", "<leader>df", ":RustFmt<CR>", { buffer = bufnr, desc = " rustfmt" })
-						print("rust-tools loaded")
 					end,
 					settings = {
 						-- to enable rust-analyzer settings visit:
@@ -555,9 +563,8 @@ require('packer').startup(function(use)
 		vim.keymap.set("n", 'tw', '<cmd>Telescope vimwiki<cr>')
 	end }
 	use { 'vimwiki/vimwiki', ft = { "markdown", "vimwiki" }, config = function()
-		--vim.keymap.set("n", "gi", "<Cmd>VimwikiIndex<CR>") -- TODO: lsp variants (eg rust will look for lib.rs, main.rs etc)
-		vim.keymap.set("n", "gw", "<Cmd>VimwikiGoto ")
-		vim.cmd 'nmap <Leader>nl <Plug>VimwikiToggleListItem' -- unset this shit, it conflicts with term. see also: g:vimwiki_key_mappings
+		-- vim.keymap.set("n", "gw", "<Cmd>VimwikiGoto ")
+		-- vim.cmd 'nmap <Leader>nl <Plug>VimwikiToggleListItem' -- unset this shit, it conflicts with term. see also: g:vimwiki_key_mappings
 
 		vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
 			vim.keymap.set("n", "gt", "<Cmd>VimwikiGoto Tasks<CR>")
@@ -615,6 +622,15 @@ require('packer').startup(function(use)
 			end })
 		end
 	}
+
+	-- vim.api.nvim_create_autocmd("FileType", { pattern = "solidity", callback = function()
+	-- 	vim.lsp.start {
+	-- 		cmd = { 'solidity-ls', '--stdio' },
+	-- 		filetypes = { 'solidity' },
+	-- 		root_dir = vim.fn.getcwd(),
+	-- 		settings = { solidity = { includePath = '', remapping = {} } },
+	-- 	}
+	-- end })
 
 	-- lsp/ts navigation
 	use({

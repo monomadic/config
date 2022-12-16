@@ -1,27 +1,23 @@
+require 'colors'
 -- STATUSLINE
 --	per-document status line at bottom of each window
 --
 --	https://elianiva.my.id/post/neovim-lua-statusline/
 --
--- get(b:,'gitsigns_status','')
--- local stl = {
--- 	-- ' %{getcwd()}',
--- 	' %{pathshorten(expand("%:p"))}',
--- 	-- ' %{fnamemodify(expand("%"), ":~:.")}', -- current file
--- 	-- ' %{pathshorten(expand("%"), ":~:.")}',
--- 	'%=',
--- 	-- '  %{FugitiveStatusline()}',
--- 	--' %M', ' %y', ' %r'
--- }
 
 local function lsp_connections()
 	local status = ''
-	local ids = vim.lsp.buf_get_clients(0)
-	vim.cmd "highlight LspIcon guifg=#00DD88"
+	-- local ids = vim.lsp.buf_get_clients(0)
+	local ids = vim.lsp.get_active_clients()
+
 	for _, client in ipairs(ids) do
-		status = status .. "  %#LspIcon#" .. client.name
+		if vim.lsp.buf_is_attached(0, client.id) then
+			status = status .. "%#LspActive#" .. client.name
+		else
+			status = status .. "%#LspInactive#" .. client.name
+		end
 	end
-	return status
+	return status .. "%#NORMAL#"
 end
 
 local function git_branch()

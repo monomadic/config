@@ -18,10 +18,8 @@ return { 'folke/which-key.nvim', config = function()
 		require("which-key").register({
 			f = {
 				name = "file",
-				f = { function() vim.lsp.buf.format { async = true } end, " format" },
-				o = { function()
-					require('telescope.builtin').find_files { path_display = { "truncate" }, prompt_title = "", preview_title = "" }
-				end, "open" },
+				f = { Format, " format" },
+				o = { OpenFiles, "open…" },
 			},
 			d = {
 				name = "document",
@@ -29,12 +27,10 @@ return { 'folke/which-key.nvim', config = function()
 				e = { function()
 					require('telescope.builtin').lsp_document_symbols { symbols = "enum" }
 				end, " enums…" },
-
 				f = { function()
 					require('telescope.builtin').lsp_document_symbols { symbols = "function" }
 				end, " functions…" },
 				F = { function() vim.lsp.buf.format { async = true } end, " format" },
-
 				s = { function()
 					require('telescope.builtin').lsp_document_symbols { symbols = "struct" }
 				end, " structs…" },
@@ -43,6 +39,7 @@ return { 'folke/which-key.nvim', config = function()
 					require('telescope.builtin').lsp_document_symbols { symbols = "module" }
 				end, " modules…" },
 			},
+
 			g = {
 				name = "go",
 			},

@@ -1,5 +1,6 @@
 snippet docstring "docstring"
-	//! ${0}
+	//! # ${0}
+	//!
 
 snippet derive
 	#[derive($0)]
@@ -161,7 +162,7 @@ snippet example-pattern-builder-consuming "the builder pattern, consuming"
 		}
 	}
 
-snippet example-prelude "an example crate prelude"
+snippet template--prelude "an example crate prelude"
 	//! Crate prelude
 
 	pub use crate::error::Error;
@@ -175,7 +176,7 @@ snippet example-prelude "an example crate prelude"
 	// Personal preference.
 	pub use std::format as f;
 
-snippet example-thiserror
+snippet template--thiserror
 	//! Main Crate Error
 
 	#[derive(thiserror::Error, Debug)]

@@ -133,10 +133,9 @@ local open_lf = function()
 	})
 end
 vim.keymap.set('n', '<C-Space>', function() open_lf() end)
---vim.keymap.set('n', '<leader>o', function() open_lf() end)
 
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
-	vim.g.terminal_color_1 = '#000000'
+	vim.g.terminal_color_1 = '#F00'
 	vim.g.terminal_color_2 = '#0F0'
 	vim.g.terminal_color_3 = '#FF00FF'
 	vim.g.terminal_color_4 = '#5CF'
@@ -146,5 +145,6 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.g.terminal_color_8 = '#FAD'
 	vim.g.terminal_color_9 = '#7AA'
 	vim.g.terminal_color_10 = '#14FFFF'
+	vim.g.terminal_color_11 = '#FF0000'
 
 end })

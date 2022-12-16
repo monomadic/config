@@ -48,30 +48,19 @@ return { 'nvim-telescope/telescope.nvim',
 		-- telescope keymaps
 		vim.keymap.set("n", "go", function()
 			require('telescope.builtin').find_files()
-		end)
-		-- mini find
-		-- vim.keymap.set("n", "<leader>o", function()
-		-- 	require('telescope.builtin').find_files(
-		-- 		require('telescope.themes').get_dropdown()
-		-- 	)
-		-- end)
-		-- vim.keymap.set("n", '<C-b>', '<cmd>Telescope buffers<cr>', {desc = "buffers…" })
-		vim.keymap.set("n", '<leader>b', '<cmd>Telescope buffers<cr>', {desc = "buffers…" })
-		vim.keymap.set("n", '<leader>lb', '<cmd>Telescope buffers<cr>', {desc = "buffers…" })
+		end, { desc = "open" })
 
-		vim.keymap.set("n", 'tc', '<cmd>Telescope commands<cr>')
+		-- vim.keymap.set("n", '<C-b>', '<cmd>Telescope buffers<cr>', {desc = "buffers…" })
+		vim.keymap.set("n", '<leader>b', '<cmd>Telescope buffers<cr>', { desc = "buffers…" })
+
 		-- vim.keymap.set("n", '<leader>f', function()
 		-- 	require('telescope.builtin').find_files { path_display = { "truncate" }, prompt_title = "", preview_title = "" }
 		-- end)
-		vim.keymap.set("n", '<leader>o', function()
-			require('telescope.builtin').find_files { path_display = { "truncate" }, prompt_title = "", preview_title = "" }
-		end, { desc = "open…" })
+
+		vim.keymap.set("n", '<leader>o', OpenFiles, { desc = "open…" })
+
 		vim.keymap.set("n", 'to', '<cmd>Telescope oldfiles<cr>')
-		vim.keymap.set("n", '<leader>lc', '<cmd>Telescope commands<cr>', {desc = "commands (telescope)"})
-		vim.keymap.set("n", '<leader>lC', '<cmd>Telescope command_history<cr>', { desc = "command history (telescope)"})
 		-- vim.keymap.set("n", '<leader>g', '<cmd>Telescope live_grep<cr>')
-		vim.keymap.set("n", 'ts', '<cmd>Telescope spell_suggest<cr>')
-		vim.keymap.set('n', 'td', '<Cmd>Telescope diagnostics<cr>')
 		vim.keymap.set('n', 'tgb', '<Cmd>Telescope git_branches<cr>')
 		vim.keymap.set('n', 'tgc', '<Cmd>Telescope git_bcommits<cr>')
 		vim.keymap.set('n', 'tgd', '<Cmd>Telescope git_status<cr>')
@@ -87,15 +76,14 @@ return { 'nvim-telescope/telescope.nvim',
 				borderchars = { " ", " ", " ", " ", " ", " ", " ", " " } }
 		end)
 
-		vim.keymap.set('n', 'tm', '<Cmd>Telescope marks<cr>')
 		vim.keymap.set('n', 'tr', '<Cmd>Telescope resume<cr>')
 		vim.keymap.set('n', 'tt', '<Cmd>TodoTelescope<cr>')
-		vim.keymap.set('n', 'tz', '<Cmd>Telekasten find_notes<cr>')
-		vim.keymap.set("n", "ts", function()
-			require("luasnip.loaders.from_snipmate").lazy_load()
-			require('telescope').load_extension('luasnip')
-			vim.api.nvim_command('Telescope luasnip')
-		end)
+
+		-- vim.keymap.set("n", "ts", function()
+		-- 	require("luasnip.loaders.from_snipmate").lazy_load()
+		-- 	require('telescope').load_extension('luasnip')
+		-- 	vim.api.nvim_command('Telescope luasnip')
+		-- end)
 
 		local prompt_bg = "#000000"
 		local results_bg = "#000000"

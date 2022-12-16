@@ -10,13 +10,17 @@ function OpenFiles()
 	require('telescope.builtin').find_files { path_display = { "truncate" }, prompt_title = "", preview_title = "" }
 end
 
+function Format()
+	vim.lsp.buf.format { async = true }
+end
+
 function ToggleLineNumbers()
 	if vim.wo.relativenumber == true then
-			vim.wo.relativenumber = false -- turn off line numbers
-			vim.wo.number = false
+		vim.wo.relativenumber = false -- turn off line numbers
+		vim.wo.number = false
 	else
-			vim.wo.relativenumber = true -- turn off line numbers
-			vim.wo.number = true
+		vim.wo.relativenumber = true -- turn off line numbers
+		vim.wo.number = true
 	end
 end
 
@@ -42,7 +46,7 @@ function GoRoot()
 end
 
 function GoPackagerFile()
-		if file_exists("Cargo.toml") then
+	if file_exists("Cargo.toml") then
 		vim.cmd ':edit Cargo.toml'
 	elseif file_exists("package.json") then
 		vim.cmd ':edit package.json'

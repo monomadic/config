@@ -9,7 +9,7 @@ vim.g.mapleader = " " -- leader key
 
 vim.g.tex_flavor = "latex"
 vim.g.vim_markdown_edit_url_in = 'current' -- open md links as (vplit | current)
-vim.g.vim_markdown_new_list_item_indent = 1 -- indent new items on 'o' from n mode
+-- vim.g.vim_markdown_new_list_item_indent = 1 -- indent new items on 'o' from n mode
 -- vim.cmd "let g:clipboard = {'copy': {'+': 'pbcopy', '*': 'pbcopy'}, 'paste': {'+': 'pbpaste', '*': 'pbpaste'}, 'name': 'pbcopy', 'cache_enabled': 0}" -- hack for macos
 vim.opt.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (gnome)
 vim.opt.conceallevel = 0 -- so that `` is visible in markdown files
