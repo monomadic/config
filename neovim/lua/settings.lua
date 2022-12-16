@@ -50,8 +50,11 @@ vim.g.completion_trigger_keyword_length = 3
 vim.opt.showmode = false
 vim.opt.regexpengine = 2
 
+vim.opt.guicursor = "n-v-c:block,i-ci-ve:ver25,r-cr:hor20,o:hor50,a:blinkon250-Cursor/lCursor,sm:block-blinkwait175-blinkoff150-blinkon175"
+-- vim.opt.guicursor = "n-v-c:block,i-ci-ve:ver25,r-cr:hor20,o:hor50,a:blinkon250-Cursor/lCursor,sm:block"
+-- vim.opt.guicursor = "n-v-c:block,i-ci-ve:ver25"
+
 -- set guicursor=a:blinkon1 -- blinking cursor
-vim.cmd 'set guicursor=n-v-c:block,i-ci-ve:ver25,r-cr:hor20,o:hor50,a:blinkwait700-blinkoff400-blinkon250-Cursor/lCursor,sm:block-blinkwait175-blinkoff150-blinkon175'
 		-- vim.g.timeoutlen=0
 		-- vim.g.ttimeoutlen=0
 

@@ -47,11 +47,10 @@ return { 'folke/which-key.nvim', config = function()
 			l = {
 				name = "list",
 				c = { ":FzfLua commands<CR>", "commands" },
-				h = { ":FzfLua command_history<CR>", "command history" },
-				H = { ":FzfLua highlights<CR>", "highlight colors" },
+				h = { ":FzfLua highlights<CR>", "highlight colors" },
 				k = { ":FzfLua keymaps<CR>", "keymaps" },
 				r = { ":FzfLua oldfiles<CR>", "recent files" },
-				t = { ":FzfLua colorschemes<CR>", "themes" },
+				C = { ":FzfLua colorschemes<CR>", "themes" },
 			},
 
 			p = { name = "peek" },
@@ -88,7 +87,5 @@ return { 'folke/which-key.nvim', config = function()
 		vim.api.nvim_set_hl(0, "WhichKeyBorder", { bg = "black", fg = "#222222" })
 		vim.api.nvim_set_hl(0, "WhichKeyGroup", { fg = "#00FFFF" })
 		vim.api.nvim_set_hl(0, "WhichKeySeparator", { fg = "#888888" })
-
-		print("whichkey loaded")
 	end
 }

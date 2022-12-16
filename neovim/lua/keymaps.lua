@@ -130,10 +130,12 @@ vim.keymap.set("n", "<leader>gw", function()
 end, { desc = "wiki page" })
 
 -- list
-vim.keymap.set("n", '<leader>lb', '<cmd>Telescope buffers<cr>', { desc = "buffers…" })
-vim.keymap.set("n", '<leader>lf', '<cmd>Telescope filetypes<cr>', { desc = "filetypes…" })
-vim.keymap.set("n", '<leader>lc', '<cmd>Telescope commands<cr>', { desc = "commands (telescope)" })
 vim.keymap.set("n", '<leader>lC', '<cmd>Telescope command_history<cr>', { desc = "command history (telescope)" })
+vim.keymap.set("n", '<leader>lb', '<cmd>Telescope buffers<cr>', { desc = "buffers…" })
+vim.keymap.set("n", '<leader>lc', '<cmd>Telescope commands<cr>', { desc = "commands (telescope)" })
+vim.keymap.set("n", '<leader>lf', '<cmd>Telescope filetypes<cr>', { desc = "filetypes…" })
+vim.keymap.set("n", '<leader>lm', '<cmd>Telescope marks<cr>', { desc = "marks…" })
+vim.keymap.set("n", '<leader>lt', '<cmd>TodoTelescope<cr>', { desc = "todos…" })
 
 -- symbol
 vim.keymap.set("n", '<leader>ss', '<cmd>Telescope spell_suggest<cr>', { desc = "spelling" })
