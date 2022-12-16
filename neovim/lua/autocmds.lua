@@ -27,15 +27,15 @@ end })
 local function branch_name()
 	local branch = vim.fn.system("git branch --show-current 2> /dev/null | tr -d '\n'")
 	if branch ~= "" then
-		return " " .. branch
+		return branch
 	else
 		return " "
 	end
 end
 
-vim.api.nvim_create_autocmd({ "FileType", "BufEnter", "FocusGained" }, {
+vim.api.nvim_create_autocmd({ "FileType", "BufEnter", "FocusGained", "VimEnter" }, {
 	callback = function()
-		vim.b.branch_name = branch_name()
+		vim.b.branch_name = vim.fn.system("git branch --show-current 2> /dev/null | tr -d '\n'")
 	end
 })
 

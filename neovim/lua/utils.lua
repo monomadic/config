@@ -69,6 +69,13 @@ function LSPClients()
 	return status .. "%#Normal#"
 end
 
+function GitBranch()
+	if vim.b.branch_name ~="" then
+		return string.format(" %s", vim.b.branch_name)
+	else
+		return ""
+	end
+end
 
 function LSPWorkspaceDiagnostics(bufnr)
 	local count = {}

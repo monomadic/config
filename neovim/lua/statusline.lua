@@ -7,15 +7,8 @@ require 'colors'
 
 StatusLine = function()
 	return table.concat {
-		vim.b.branch_name,
-		" ",
-		-- "%#Directory#",
-		-- vim.fn.fnamemodify(vim.fn.getcwd(), ":~"), -- project directory
-		-- "%#Normal#",
-		-- "  ",
-		-- vim.fn.fnamemodify(vim.fn.expand("%"), ":."), -- project directory
+		GitBranch(),
 		"%=",
-		-- filetype,
 		LSPClients(),
 	}
 end
