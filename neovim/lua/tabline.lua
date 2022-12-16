@@ -1,16 +1,17 @@
 -- TABLINE
---
+--	topmost bar
 
 vim.opt.showtabline = 2 -- show the global tab line at the top of neovim
 function TabLine()
-	--vim.cmd "highlight PWD guifg=white guibg=#222222"
 	return table.concat {
-		"%#TabLine# ",
+		"%#TabLineDir#",
 		vim.fn.fnamemodify(vim.fn.getcwd(), ":~"), -- project directory
-		-- " %#Normal#",
-		-- "%=",
+		"%=",
+		"%#TablineDiagnostics#",
+		LSPWorkspaceDiagnostics(nil),
+		-- "%#TablineLSPClients#",
+		-- LSPClients(),
 	}
 end
 
 vim.opt.tabline = "%!v:lua.TabLine()"
--- vim.opt.tabline = "%!render_tabline()"

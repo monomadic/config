@@ -40,9 +40,8 @@ return { 'folke/which-key.nvim', config = function()
 				end, " modules…" },
 			},
 
-			g = {
-				name = "go",
-			},
+			g = { name = "go" },
+			G = { name = "git" },
 
 			l = {
 				name = "list",

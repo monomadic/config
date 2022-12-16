@@ -24,6 +24,21 @@ end })
 -- 	vim.o.cursorline = true
 -- end })
 
+local function branch_name()
+	local branch = vim.fn.system("git branch --show-current 2> /dev/null | tr -d '\n'")
+	if branch ~= "" then
+		return " " .. branch
+	else
+		return " "
+	end
+end
+
+vim.api.nvim_create_autocmd({ "FileType", "BufEnter", "FocusGained" }, {
+	callback = function()
+		vim.b.branch_name = branch_name()
+	end
+})
+
 -- only show line-bar on current buffer, on active window
 vim.api.nvim_create_autocmd("BufLeave", { pattern = "*", callback = function()
 	vim.o.cursorline = false

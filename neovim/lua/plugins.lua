@@ -89,7 +89,7 @@ require('packer').startup(function(use)
 					solidity = { includePath = '', remapping = { ["@OpenZeppelin/"] = 'OpenZeppelin/openzeppelin-contracts@4.6.0/' } }
 				},
 			}
-			require'lspconfig'.solidity_ls.setup{}
+			require 'lspconfig'.solidity_ls.setup {}
 		end
 	}
 
@@ -464,7 +464,7 @@ require('packer').startup(function(use)
 	use {
 		'simrat39/rust-tools.nvim',
 		ft = 'rust',
-		requires = { 'neovim/nvim-lspconfig', 'jubnzv/virtual-types.nvim', 'nvim-lua/plenary.nvim', 'mfussenegger/nvim-dap' }, -- last 2 for debug
+		requires = { 'neovim/nvim-lspconfig', 'nvim-lua/plenary.nvim', 'mfussenegger/nvim-dap' }, -- last 2 for debug
 		config = function()
 			local rust_tools = require('rust-tools')
 
@@ -485,7 +485,7 @@ require('packer').startup(function(use)
 				server = {
 					on_attach = function(client, bufnr)
 						require("lsp-format").on_attach(client)
-						require("virtualtypes").on_attach(client, bufnr)
+						-- require("virtualtypes").on_attach(client, bufnr)
 
 						vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr })
 						vim.keymap.set("n", "<leader>sa", ":RustCodeAction<CR>", { buffer = bufnr, desc = " code action", remap = false })
@@ -534,15 +534,6 @@ require('packer').startup(function(use)
 		end
 	}
 
-	-- use { "lukas-reineke/indent-blankline.nvim", config = function()
-	-- 	require("indent_blankline").setup({
-	-- 		show_current_context = true,
-	-- 		show_current_context_start = true,
-	-- 		filetype_exclude = { "neo-tree", "help", "floaterm", "SidebarNvim", "" },
-	-- 	})
-	-- end }
-
-
 	-- lua formatting
 	use { "ckipp01/stylua-nvim", ft = { 'lua' } }
 
@@ -552,6 +543,10 @@ require('packer').startup(function(use)
 		requires = "nvim-lua/plenary.nvim",
 		config = function()
 			require('todo-comments').setup {}
+			-- local Search = require("todo-comments.search")
+			-- Search.search(function(results)
+			-- 	print(vim.inspect(results))
+			-- end)
 		end
 	}
 
@@ -562,22 +557,22 @@ require('packer').startup(function(use)
 		require('telescope').load_extension('vimwiki')
 		vim.keymap.set("n", 'tw', '<cmd>Telescope vimwiki<cr>')
 	end }
-	use { 'vimwiki/vimwiki', ft = { "markdown", "vimwiki" }, config = function()
-		-- vim.keymap.set("n", "gw", "<Cmd>VimwikiGoto ")
-		-- vim.cmd 'nmap <Leader>nl <Plug>VimwikiToggleListItem' -- unset this shit, it conflicts with term. see also: g:vimwiki_key_mappings
 
-		vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
-			vim.keymap.set("n", "gt", "<Cmd>VimwikiGoto Tasks<CR>")
-		end })
+	use { 'vimwiki/vimwiki',
+		ft = { "markdown", "vimwiki" }, config = function()
 
-		vim.g.vimwiki_list = {
-			{
-				path = '~/wiki/',
-				syntax = 'markdown',
-				ext = '.md'
+			vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
+				vim.keymap.set("n", "gt", "<Cmd>VimwikiGoto Tasks<CR>")
+			end })
+
+			vim.g.vimwiki_list = {
+				{
+					path = '~/wiki/',
+					syntax = 'markdown',
+					ext = '.md'
+				}
 			}
-		}
-	end }
+		end }
 
 
 	use { 'ray-x/lsp_signature.nvim',

@@ -55,7 +55,22 @@ function GoPackagerFile()
 	end
 end
 
-function LSPDiagnostics(bufnr)
+function LSPClients()
+	local status = ''
+	local ids = vim.lsp.get_active_clients()
+
+	for _, client in ipairs(ids) do
+		if vim.lsp.buf_is_attached(0, client.id) then
+			status = status .. "%#LspActive# " .. client.name .. " "
+		else
+			status = status .. "%#LspInactive# " .. client.name .. " "
+		end
+	end
+	return status .. "%#Normal#"
+end
+
+
+function LSPWorkspaceDiagnostics(bufnr)
 	local count = {}
 	local levels = {
 		errors = "Error",
@@ -74,16 +89,16 @@ function LSPDiagnostics(bufnr)
 	local info = ""
 
 	if count["errors"] ~= 0 then
-		errors = "%#LspDiagnosticsSignError# " .. count["errors"] .. " "
+		errors = "%#BarDiagnosticError# " .. count["errors"] .. " "
 	end
 	if count["warnings"] ~= 0 then
-		warnings = "%#LspDiagnosticsSignWarning# " .. count["warnings"] .. " "
+		warnings = "%#BarDiagnosticWarn# " .. count["warnings"] .. " "
 	end
 	if count["hints"] ~= 0 then
-		hints = "%#LspDiagnosticsSignHint# " .. count["hints"] .. " "
+		hints = "%#BarDiagnosticHint# " .. count["hints"] .. " "
 	end
 	if count["info"] ~= 0 then
-		info = "%#LspDiagnosticsSignInformation# " .. count["info"] .. " "
+		info = "%#BarDiagnosticInformation# " .. count["info"] .. " "
 	end
 
 	return errors .. warnings .. hints .. info .. "%#Normal#"

@@ -117,6 +117,11 @@ vim.keymap.set("t", '<C-j>', '<C-\\><C-n><C-w><C-j>', { remap = false })
 vim.keymap.set("t", '<C-k>', '<C-\\><C-n><C-w><C-k>', { remap = false })
 vim.keymap.set("t", '<C-l>', '<C-\\><C-n><C-w><C-l>', { remap = false })
 
+-- git
+vim.keymap.set("n", "<leader>Gb", ":Telescope git_branches<CR>", { desc = "branches" })
+vim.keymap.set("n", "<leader>Gc", ":Telescope git_commits<CR>", { desc = "commits" })
+vim.keymap.set("n", "<leader>Gs", ":Telescope git_status<CR>", { desc = "status" })
+
 -- go
 vim.keymap.set("n", "gr", GoRoot, { desc = "root" })
 vim.keymap.set("n", "gp", GoPackagerFile, { desc = "package manifest" })
