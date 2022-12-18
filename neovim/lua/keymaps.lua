@@ -5,6 +5,7 @@
 
 -- save / write
 vim.keymap.set("n", "<C-s>", "<CMD>write<CR>", { desc = "save" });
+vim.keymap.set("n", "<C-S>", "<CMD>wall<CR>", { desc = "save all" });
 vim.keymap.set({ "v", "i" }, "<C-s>", "<Esc><Cmd>write<CR>", { desc = "save" });
 
 -- window hide
@@ -83,6 +84,7 @@ end)
 vim.keymap.set("n", "\\o", OpenFiles, { desc = "open file" })
 vim.keymap.set("n", "\\d", ":Drex<CR>", { desc = "drex" })
 vim.keymap.set("n", "\\f", ":DrexDrawerOpen<CR>", { desc = "filetree" })
+vim.keymap.set("n", "<C-b>", ":DrexDrawerToggle<CR>", { desc = "filetree" })
 vim.keymap.set("n", "\\t", ShowTerminal, { desc = "terminal" })
 vim.keymap.set("n", "<Tab>", ShowTerminal, { desc = "terminal" })
 -- vim.keymap.set("n", "<Tab>l", ShowTerminal, { desc = "lf" })
@@ -128,11 +130,21 @@ vim.keymap.set("n", "gp", GoPackagerFile, { desc = "package manifest" })
 vim.keymap.set("n", "<leader>gr", GoRoot, { desc = "root" })
 vim.keymap.set("n", "<leader>gp", GoPackagerFile, { desc = "package manifest" })
 vim.keymap.set("n", "<leader>gs", function()
-	require('telescope.builtin').find_files({ cwd = "~/.config/nvim/snippets/" })
+	require('telescope.builtin').find_files({ cwd = "~/.config/nvim/snippets/", follow = true })
 end, { desc = "snippet" })
+vim.keymap.set("n", "<leader>gt", function()
+	require('telescope.builtin').find_files({ cwd = "~/.config/nvim/templates/", follow = true })
+end, { desc = "template" })
 vim.keymap.set("n", "<leader>gw", function()
 	require('telescope.builtin').find_files({ cwd = "~/wiki/" })
 end, { desc = "wiki page" })
+
+vim.keymap.set("n", "<leader>Wo", function()
+	require('telescope.builtin').find_files({ cwd = "~/wiki/" })
+end, { desc = "open page" })
+vim.keymap.set("n", "<leader>Wf", function()
+	require('telescope.builtin').live_grep({ cwd = "~/wiki/" })
+end, { desc = "find" })
 
 -- list
 vim.keymap.set("n", '<leader>lC', '<cmd>Telescope command_history<cr>', { desc = "command history (telescope)" })

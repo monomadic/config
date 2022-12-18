@@ -13,13 +13,24 @@ snippet clamp
 			f32::min(f32::max(v, lb), ub)
 	}
 
+snippet prelude
+	use crate::prelude::*;
+
+snippet glob
+	for entry in glob::glob("**/*.md")? {
+			match entry {
+					Ok(path) => println!("{:?}", path.display()),
+					Err(e) => println!("{:?}", e),
+			}
+	}
+
 snippet yew-cargo "yew cargo include"
 	yew = { git = "https://github.com/yewstack/yew", features=["csr"] }
 
 snippet yew-prelude "use yew"
 	use yew::prelude::*;
 
-snippet yew-main "yew main()"
+snippet main-yew "yew main()"
 	use yew::prelude::*;
 
 	fn main() {
@@ -65,7 +76,7 @@ snippet yew-struct-component "yew struct component"
 		}
 	}
 
-snippet tokio-main "tokio main()"
+snippet main-tokio "tokio main()"
 	use anyhow::Result;
 	#[tokio::main]
 	async fn main() -> Result<()> {
@@ -218,7 +229,6 @@ snippet main-clap "clap main()"
 			Ok(())
 	}
 
-
 snippet fncmd "fncmd main()"
 	#[fncmd::fncmd]
 	pub fn main(
@@ -302,8 +312,9 @@ snippet ase "assert_eq!"
 	assert_eq!(${1:expected}, ${2:actual});
 snippet test "Unit test function"
 	#[test]
-	fn ${1:function_name}_test() {
+	fn ${1:function_name}_test() -> Result<()> {
 		${0}
+		Ok(())
 	}
 snippet testmod "Test module" b
 	#[cfg(test)]

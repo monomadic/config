@@ -26,4 +26,4 @@ require 'settings'
 require 'keymaps'
 require 'colors'
 
-require "lsp"
+require 'lsp'

@@ -32,25 +32,11 @@ require('packer').startup(function(use)
 	use {
 		require 'packs.comments', -- commenting
 		require 'packs.themes', -- colorschemes
-		require 'packs.leader', -- whichkey
+		require 'packs.menu', -- whichkey
+		require 'packs.filetree', -- drex
 	}
 
-	use {
-		'theblob42/drex.nvim',
-		requires = 'kyazdani42/nvim-web-devicons', -- optional
-	}
-
-	-- also see: https://github.com/VonHeikemen/lsp-zero.nvim
-	-- lspconfig (with mason)
-	use { "williamboman/mason.nvim", config = function()
-		require("mason").setup {}
-	end }
-
-	-- better % motion using treesiter - vimscript
-
-	-- flowstate reading
-	-- https://github.com/nullchilly/fsread.nvim
-	use { "nullchilly/fsread.nvim", ft = { 'markdown', 'text', 'vimwiki' } }
+	-- better % motion using treesitter - vimscript
 
 	-- notifications
 	-- use 'rcarriga/nvim-notify'
@@ -70,6 +56,12 @@ require('packer').startup(function(use)
 			keymap("n", "<leader>ft", function() genghis.trashFile { trashLocation = "your/path" } end, { desc = "﬒ trash" }) -- default: '$HOME/.Trash'.
 			keymap("x", "<leader>x", genghis.moveSelectionToNewFile)
 		end }
+
+	-- also see: https://github.com/VonHeikemen/lsp-zero.nvim
+	-- lspconfig (with mason)
+	use { "williamboman/mason.nvim", config = function()
+		require("mason").setup {}
+	end }
 
 	use { "williamboman/mason-lspconfig.nvim",
 		requires = { "neovim/nvim-lspconfig" },
@@ -312,13 +304,9 @@ require('packer').startup(function(use)
 			vim.keymap.set("n", "<leader>sf", "<cmd>Lspsaga lsp_finder<CR>", { desc = "symbol finder (saga)" })
 			vim.keymap.set("n", "<leader>sa", "<cmd>Lspsaga code_action<CR>", { desc = "code-actions (saga)" })
 			vim.keymap.set("n", "<leader>sr", "<cmd>Lspsaga rename<CR>", { desc = "rename (saga)" })
-
 			vim.keymap.set("n", "<leader>pd", "<cmd>Lspsaga peek_definition<CR>", { desc = "peek definition (saga)" })
-
 			vim.keymap.set("n", 'K', '<cmd>Lspsaga hover_doc<CR>')
-
 			vim.keymap.set("n", "<leader>do", '<cmd>Lspsaga outline<CR>', { silent = true, desc = "outline (saga)" })
-
 			vim.keymap.set("n", ']d', '<cmd>Lspsaga diagnostic_jump_next<cr>')
 			vim.keymap.set("n", '[d', '<cmd>Lspsaga diagnostic_jump_prev<cr>')
 
@@ -459,83 +447,12 @@ require('packer').startup(function(use)
 	-- 	end
 	-- })
 
-	-- rust-tools: a rust lsp server specific to rust
-	-- https://github.com/simrat39/rust-tools.nvim
+
+	-- lsp
 	use {
-		'simrat39/rust-tools.nvim',
-		ft = 'rust',
-		requires = { 'neovim/nvim-lspconfig', 'nvim-lua/plenary.nvim', 'mfussenegger/nvim-dap' }, -- last 2 for debug
-		config = function()
-			local rust_tools = require('rust-tools')
-
-			rust_tools.setup({
-				tools = {
-					autosethints = true,
-					runnables = {
-						use_telescope = true
-					},
-					inlay_hints = {
-						auto = true,
-						show_parameter_hints = true,
-					},
-					hover_actions = { auto_focus = false },
-				},
-
-				-- see https://github.com/neovim/nvim-lspconfig/blob/master/CONFIG.md#rust_analyzer
-				server = {
-					on_attach = function(client, bufnr)
-						require("lsp-format").on_attach(client)
-						-- require("virtualtypes").on_attach(client, bufnr)
-
-						vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr })
-						vim.keymap.set("n", "<leader>sa", ":RustCodeAction<CR>", { buffer = bufnr, desc = " code action", remap = false })
-						vim.keymap.set("n", "<leader>a", rust_tools.code_action_group.code_action_group,
-							{ buffer = bufnr, desc = " code action" })
-						vim.keymap.set('n', '<leader>gp', rust_tools.open_cargo_toml.open_cargo_toml,
-							{ buffer = bufnr, desc = " cargo.toml", remap = false })
-						vim.keymap.set('n', '<leader>gu', rust_tools.parent_module.parent_module,
-							{ buffer = bufnr, desc = " up (parent module)" })
-						-- vim.keymap.set('v', '<C-j>', rust_tools.move_item.move_item(false), { buffer = bufnr }) -- down
-						-- vim.keymap.set('v', '<C-k>', rust_tools.move_item.move_item(true), { buffer = bufnr }) -- up
-						-- vim.keymap.set("n", "gi", function()
-						-- 	vim.cmd ':edit src/lib.rs'
-						-- end)
-
-						vim.keymap.set("n", "<leader>gd", ":RustOpenExternalDocs<CR>", { buffer = bufnr, desc = " open docs" })
-
-						vim.keymap.set("n", "<leader>se", ":RustExpand<CR>", { buffer = bufnr, desc = " expand" })
-						vim.keymap.set("n", "<leader>sE", ":RustExpandMacro<CR>", { buffer = bufnr, desc = " expand macro" })
-
-						vim.keymap.set("n", "<C-b>", ":RustRun<CR>", { buffer = bufnr, desc = " run" })
-
-						-- vim.keymap.set("n", "<leader>r", "", { buffer = bufnr, desc = " rust" })
-						vim.keymap.set("n", "<leader>rR", ":RustRunnables<CR>", { buffer = bufnr, desc = " run" })
-						vim.keymap.set("n", "<leader>rr", ":RustRunnables<CR>", { buffer = bufnr, desc = " runnables…" })
-						vim.keymap.set("n", "<leader>rd", ":RustDebuggables<CR>", { buffer = bufnr, desc = " debuggables…" })
-
-						vim.keymap.set("n", "<leader>df", ":RustFmt<CR>", { buffer = bufnr, desc = " rustfmt" })
-					end,
-					settings = {
-						-- to enable rust-analyzer settings visit:
-						-- https://github.com/rust-analyzer/rust-analyzer/blob/master/docs/user/generated_config.adoc
-						["rust-analyzer"] = {
-							lens = { enable = true },
-							-- hover = {
-							-- },
-							checkOnSave = {
-								enable = true,
-								command = "clippy",
-								features = 'all',
-							},
-						}
-					}
-				},
-			})
-		end
+		require('lsp.rust'),
+		require('lsp.lua'),
 	}
-
-	-- lua formatting
-	use { "ckipp01/stylua-nvim", ft = { 'lua' } }
 
 	-- highlight TODO comments
 	use {
@@ -550,31 +467,6 @@ require('packer').startup(function(use)
 		end
 	}
 
-	-- NOTE: vimwiki is vimscript...
-	-- use { 'chipsenkbeil/vimwiki.nvim', config = function()
-	-- end }
-	use { 'ElPiloto/telescope-vimwiki.nvim', ft = { "markdown", "vimwiki" }, config = function()
-		require('telescope').load_extension('vimwiki')
-		vim.keymap.set("n", 'tw', '<cmd>Telescope vimwiki<cr>')
-	end }
-
-	use { 'vimwiki/vimwiki',
-		ft = { "markdown", "vimwiki" }, config = function()
-
-			vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
-				vim.keymap.set("n", "gt", "<Cmd>VimwikiGoto Tasks<CR>")
-			end })
-
-			vim.g.vimwiki_list = {
-				{
-					path = '~/wiki/',
-					syntax = 'markdown',
-					ext = '.md'
-				}
-			}
-		end }
-
-
 	use { 'ray-x/lsp_signature.nvim',
 		config = function()
 			require "lsp_signature".setup {}
@@ -586,6 +478,8 @@ require('packer').startup(function(use)
 		require 'packs.scrollbar',
 		require 'packs.autocomplete',
 		require 'packs.telescope',
+		require 'packs.wiki', -- vimwiki
+		require 'packs.reading-mode', -- flowstate, zen modes
 	}
 
 	use { 'glepnir/template.nvim',

@@ -1,3 +1,4 @@
+-- TODO: https://github.com/linty-org/key-menu.nvim
 return { 'folke/which-key.nvim', config = function()
 
 		require("which-key").setup {
