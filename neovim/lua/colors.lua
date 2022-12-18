@@ -1,6 +1,8 @@
 -- COLORS
 --
 
+-- TODO: set on theme change event
+
 -- https://gist.github.com/romainl/379904f91fa40533175dfaec4c833f2f
 vim.cmd("colorscheme {{colorscheme}}");
 
@@ -28,3 +30,6 @@ vim.api.nvim_set_hl(0, "VimwikiLink", { fg = "#44FFFF" })
 vim.api.nvim_set_hl(0, "WinBar", { fg = "white", bg = "#2222FF" })
 vim.api.nvim_set_hl(0, "WinBarNC", { fg = "white", bg = "#2222FF" })
 vim.api.nvim_set_hl(0, "WinSeparator", { fg = "bg", bg = "bg" }) -- inactive
+
+vim.api.nvim_set_hl(0, "FzfLuaBorder", { fg = "black", bg = "black" })
+vim.api.nvim_set_hl(0, "FzfLuaNormal", { fg = "white", bg = "black" })

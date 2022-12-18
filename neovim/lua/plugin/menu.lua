@@ -1,5 +1,9 @@
 -- TODO: https://github.com/linty-org/key-menu.nvim
-return { 'folke/which-key.nvim', config = function()
+return {
+	{ 'linty-org/key-menu.nvim', config = function()
+		require 'key-menu'.set('n', '\\')
+	end},
+	{ 'folke/which-key.nvim', config = function()
 
 		require("which-key").setup {
 			window = {
@@ -47,7 +51,7 @@ return { 'folke/which-key.nvim', config = function()
 			l = {
 				name = "list",
 				c = { ":FzfLua commands<CR>", "commands" },
-				h = { ":FzfLua highlights<CR>", "highlight colors" },
+				h = { ":Telescope highlights<CR>", "highlight colors" },
 				k = { ":FzfLua keymaps<CR>", "keymaps" },
 				r = { ":FzfLua oldfiles<CR>", "recent files" },
 				C = { ":FzfLua colorschemes<CR>", "themes" },
@@ -88,4 +92,4 @@ return { 'folke/which-key.nvim', config = function()
 		vim.api.nvim_set_hl(0, "WhichKeyGroup", { fg = "#00FFFF" })
 		vim.api.nvim_set_hl(0, "WhichKeySeparator", { fg = "#888888" })
 	end
-}
+}}

@@ -7,6 +7,8 @@
 --   PackerSync: PackerUpdate, PackerCompile
 --
 
+-- TODO: https://github.com/MunifTanjim/nui.nvim
+
 -- autoinstall packer:
 local packer_exists = pcall(require, "packer")
 if not packer_exists then
@@ -30,10 +32,11 @@ require('packer').startup(function(use)
 	use 'wbthomason/packer.nvim'
 
 	use {
-		require 'packs.comments', -- commenting
-		require 'packs.themes', -- colorschemes
-		require 'packs.menu', -- whichkey
-		require 'packs.filetree', -- drex
+		require 'plugin.comments', -- commenting
+		require 'plugin.themes', -- colorschemes
+		require 'plugin.fzf', -- fuzzy finder
+		require 'plugin.menu', -- whichkey
+		require 'plugin.filetree', -- drex
 	}
 
 	-- better % motion using treesitter - vimscript
@@ -86,16 +89,6 @@ require('packer').startup(function(use)
 	}
 
 	use 'andymass/vim-matchup'
-
-	-- https://github.com/vijaymarupudi/nvim-fzf
-	use { 'ibhagwan/fzf-lua',
-		requires = { 'vijaymarupudi/nvim-fzf', 'nvim-tree/nvim-web-devicons' },
-		config = function()
-			vim.keymap.set('n', '<c-P>', function()
-				require('fzf-lua').files()
-			end)
-		end
-	}
 
 	-- -- completion
 	-- use {
@@ -474,12 +467,12 @@ require('packer').startup(function(use)
 	}
 
 	use {
-		require 'packs.syntax',
-		require 'packs.scrollbar',
-		require 'packs.autocomplete',
-		require 'packs.telescope',
-		require 'packs.wiki', -- vimwiki
-		require 'packs.reading-mode', -- flowstate, zen modes
+		require 'plugin.syntax',
+		require 'plugin.scrollbar',
+		require 'plugin.autocomplete',
+		require 'plugin.telescope',
+		require 'plugin.wiki', -- vimwiki
+		require 'plugin.reading-mode', -- flowstate, zen modes
 	}
 
 	use { 'glepnir/template.nvim',

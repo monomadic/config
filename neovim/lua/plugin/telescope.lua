@@ -1,5 +1,10 @@
 -- TODO: native?
-return { 'nvim-telescope/telescope.nvim',
+-- TODO: https://github.com/nvim-telescope/telescope.nvim/wiki/Extensions
+-- TODO: colors for input box and select
+return {
+	{ 'nvim-telescope/telescope-fzf-native.nvim',
+		run = 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release && cmake --install build --prefix build' },
+	{ 'nvim-telescope/telescope.nvim',
 		as = "telescope",
 		config = function()
 			require('telescope').setup {
@@ -32,7 +37,7 @@ return { 'nvim-telescope/telescope.nvim',
 						"*.lock", "node_modules", "target" },
 					generic_sorter = require("telescope.sorters").get_generic_fuzzy_sorter,
 					path_display = { "truncate" },
-					winblend = 10,
+					-- winblend = 10,
 					-- border = false,
 					mappings = {
 						i = {
@@ -42,9 +47,47 @@ return { 'nvim-telescope/telescope.nvim',
 							["<C-u>"] = false,
 						},
 					},
-					extensions_list = { "themes", "terms" },
+					extensions_list = { "themes", "terms", "fzf" },
+					extensions = {
+						fzf = {
+							fuzzy = true, -- false will only do exact matching
+							override_generic_sorter = true, -- override the generic sorter
+							override_file_sorter = true, -- override the file sorter
+							case_mode = "smart_case", -- or "ignore_case" or "respect_case"
+							-- the default case_mode is "smart_case"
+						}
+					}
 				},
 			}
+
+			vim.keymap.set("n", "tP", function()
+				local previewers = require("telescope.previewers")
+				local pickers = require("telescope.pickers")
+				local sorters = require("telescope.sorters")
+				local finders = require("telescope.finders")
+
+				pickers.new {
+					results_title = "Resources",
+					-- Run an external command and show the results in the finder window
+					finder = finders.new_oneshot_job({ "fd" }),
+					sorter = sorters.get_fuzzy_file(),
+					previewer = previewers.new_buffer_previewer {
+						define_preview = function(self, entry, status)
+							-- Execute another command using the highlighted entry
+							return require('telescope.previewers.utils').job_maker(
+								{ "bat" },
+								self.state.bufnr,
+								{
+									callback = function(bufnr, content)
+										if content ~= nil then
+											require('telescope.previewers.utils').regex_highlighter(bufnr, 'terraform')
+										end
+									end,
+								})
+						end
+					},
+				}:find()
+			end)
 
 			-- telescope keymaps
 			vim.keymap.set("n", "go", function()
@@ -104,3 +147,4 @@ return { 'nvim-telescope/telescope.nvim',
 			vim.api.nvim_set_hl(0, "TelescopeResultsBorder", { fg = results_bg, bg = results_bg })
 			vim.api.nvim_set_hl(0, "TelescopeResultsNormal", { bg = results_bg })
 		end }
+}
