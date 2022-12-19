@@ -1,4 +1,3 @@
--- TODO: native?
 -- TODO: https://github.com/nvim-telescope/telescope.nvim/wiki/Extensions
 -- TODO: colors for input box and select
 return {
@@ -31,7 +30,7 @@ return {
 						height = 0.80,
 						preview_cutoff = 120,
 					},
-					file_sorter = require("telescope.sorters").get_fuzzy_file,
+					file_sorter = require("telescope.sorters").get_fzy_sorter,
 					set_env = { ["COLORTERM"] = "truecolor" },
 					file_ignore_patterns = { ".git/", ".cache", "%.o", "%.a", "%.out", "%.class", "%.pdf", "%.mkv", "%.mp4", "%.zip",
 						"*.lock", "node_modules", "target" },
