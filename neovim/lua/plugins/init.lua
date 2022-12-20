@@ -1,3 +1,14 @@
+-- PLUGINS
+--
+--   PackerCompile: compile plugins
+--   PackerClean: remove unused plugs
+--   PackerInstall: add new plugins
+--   PackerUpdate: PackerClean, PackerUpdate, PackerInstall
+--   PackerSync: PackerUpdate, PackerCompile
+--
+
+-- TODO: https://github.com/MunifTanjim/nui.nvim
+
 -- vim.defer_fn(function()
 -- 	pcall(require, "impatient")
 -- end, 0)
@@ -57,15 +68,23 @@ packer.startup(function(use)
 
 	use {
 		'wbthomason/packer.nvim', -- packer package manager
+		require 'plugins.transparent', -- background transparency
 		require 'plugins.comments',
 		require 'plugins.telescope',
 		require 'plugins.themes', -- colorschemes
+		require 'plugins.color-highlight', -- highlight colors
 		require 'plugins.scrollbar',
 		require 'plugins.fzf', -- fuzzy finder
 		require 'plugins.menu', -- whichkey
 		require 'plugins.lspsaga', -- better lsp ui
 		require 'plugins.treesitter',
 		require 'plugins.genghis', -- convenience file operations (new, rename, etc)
+		require 'plugins.wiki', -- vimwiki
+		require 'plugins.reading-mode', -- flowstate, zen modes
+		require 'plugins.autocomplete',
+		require 'plugins.todo', -- todo comments
+		require 'plugins.git',
+		require 'plugins.drex',
 	}
 
 	use {
@@ -73,65 +92,22 @@ packer.startup(function(use)
 		require 'lsp.rust',
 		require 'lsp.lua',
 		require 'lsp.null', -- null-ls
+		require 'lsp.progress', -- fidget
+		require 'lsp.format',
+		require 'lsp.cargo',
+		require 'lsp.glance', -- lsp navigation
+		require 'lsp.typescript',
+		require 'lsp.inlay-hints',
+		require 'lsp.signature', -- function signatures
 	}
 
 	-- use 'andymass/vim-matchup'
-	-- 	-- async formatting
-	-- -- https://github.com/lukas-reineke/lsp-format.nvim
-	-- use { 'lukas-reineke/lsp-format.nvim', config = function()
-	-- 	require("lsp-format").setup()
-	-- end }
 
-	-- inline colors
-	use { 'norcalli/nvim-colorizer.lua', config = function()
-		require("colorizer").setup()
-	end }
+	-- notifications
+	-- use 'rcarriga/nvim-notify'
 
 	use { 'ggandor/leap.nvim', config = function()
 		require('leap').set_default_keymaps()
 	end }
-	-- git status in git gutter
-	use { "lewis6991/gitsigns.nvim", requires = { "nvim-lua/plenary.nvim" }, config = function()
-		require('gitsigns').setup {
-			on_attach = function()
-				local gs = package.loaded.gitsigns
-				-- jump between git hunks
-				vim.keymap.set('n', ']g', function()
-					if vim.wo.diff then return ']g' end
-					vim.schedule(function() gs.next_hunk() end)
-					return '<Ignore>'
-				end)
-				vim.keymap.set('n', '[g', function()
-					if vim.wo.diff then return '[g' end
-					vim.schedule(function() gs.prev_hunk() end)
-					return '<Ignore>'
-				end)
-				vim.api.nvim_set_hl(0, "GitSignsAdd", { fg = "#44FF00" })
-				vim.api.nvim_set_hl(0, "GitSignsChange", { fg = "#FFFF00" })
-				vim.api.nvim_set_hl(0, "GitSignsDelete", { fg = "#FF0088" })
-			end
-		}
-	end }
 
-	-- show lsp progress
-	use {
-		'j-hui/fidget.nvim',
-		config = function() require("fidget").setup {} end
-	}
-
-	-- cargo
-	use {
-		"saecki/crates.nvim",
-		event = { "BufRead Cargo.toml" },
-		requires = { "nvim-lua/plenary.nvim" },
-		config = function()
-			require('crates').setup()
-		end
-	}
-
-	-- async formatting
-	-- https://github.com/lukas-reineke/lsp-format.nvim
-	use { 'lukas-reineke/lsp-format.nvim', config = function()
-		require("lsp-format").setup()
-	end }
 end)

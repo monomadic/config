@@ -4,6 +4,7 @@ return {
 	'projekt0n/github-nvim-theme',
 	'olimorris/onedarkpro.nvim',
 	'Mofiqul/vscode.nvim',
+	'notken12/base46-colors',
 	{ 'NvChad/base46',
 		config = function()
 			local ok, base46 = pcall(require, "base46")
