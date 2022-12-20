@@ -17,6 +17,13 @@ end
 M.whichkey = function()
 end
 
+M.glance = function()
+		keymap("n", "gR", "<CMD>Glance references<CR>")
+		keymap("n", "gD", "<CMD>Glance definitions<CR>")
+		keymap("n", "gY", "<CMD>Glance type_definitions<CR>")
+		keymap("n", "gM", "<CMD>Glance implementations<CR>")
+end
+
 -- save / write
 vim.keymap.set("n", "<C-s>", "<CMD>write<CR>", { desc = "save" });
 vim.keymap.set("n", "<C-S>", "<CMD>wall<CR>", { desc = "save all" });

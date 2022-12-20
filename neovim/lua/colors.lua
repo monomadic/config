@@ -1,8 +1,32 @@
 -- COLORS
 --
 
+local M = {}
 local autocmd = vim.api.nvim_create_autocmd
 local hl = vim.api.nvim_set_hl
+
+M.telescope = function()
+	autocmd({"ColorScheme", "VimEnter"},
+	{ pattern = "*", callback = function()
+			local prompt_bg = "#000000"
+			local results_bg = "#000000"
+			local preview_bg = "#000000"
+
+			hl(0, "TelescopeBorder", { fg = prompt_bg, bg = prompt_bg })
+			hl(0, "TelescopePromptBorder", { fg = prompt_bg, bg = prompt_bg })
+			hl(0, "TelescopePromptNormal", { fg = "White", bg = prompt_bg })
+			hl(0, "TelescopePromptPrefix", { fg = "White" }) -- the icon
+			hl(0, "TelescopePromptTitle", { fg = prompt_bg, bg = prompt_bg })
+			hl(0, "TelescopePreviewTitle", { fg = preview_bg, bg = preview_bg })
+			hl(0, "TelescopePreviewBorder", { fg = preview_bg, bg = preview_bg })
+			hl(0, "TelescopePreviewNormal", { bg = preview_bg })
+			hl(0, "TelescopeResultsTitle", { fg = results_bg, bg = results_bg })
+			hl(0, "TelescopeResultsBorder", { fg = results_bg, bg = results_bg })
+			hl(0, "TelescopeResultsNormal", { bg = results_bg })
+			hl(0, "TelescopeResultsNormal", { bg = results_bg })
+			hl(0, "CursorLine", { bg = results_bg })
+	end })
+end
 
 -- color picker
 -- nvim-colortils/colortils.nvim
@@ -44,3 +68,5 @@ autocmd({"ColorScheme", "VimEnter"},
 
 		hl(0, "CursorLine", {bg = "black"})
 	end })
+
+	return M

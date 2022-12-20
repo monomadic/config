@@ -68,7 +68,7 @@ packer.startup(function(use)
 
 	use {
 		'wbthomason/packer.nvim', -- packer package manager
-		require 'plugins.transparent', -- background transparency
+		-- require 'plugins.transparent', -- background transparency
 		require 'plugins.comments',
 		require 'plugins.telescope',
 		require 'plugins.themes', -- colorschemes

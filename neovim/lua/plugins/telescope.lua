@@ -139,27 +139,12 @@ return {
 			-- 	vim.api.nvim_command('Telescope luasnip')
 			-- end)
 
-			local prompt_bg = "#000000"
-			local results_bg = "#000000"
-			local preview_bg = "#000000"
 
-			vim.api.nvim_set_hl(0, "TelescopeBorder", { fg = prompt_bg, bg = prompt_bg })
 
-			vim.api.nvim_set_hl(0, "TelescopePromptBorder", { fg = prompt_bg, bg = prompt_bg })
-			vim.api.nvim_set_hl(0, "TelescopePromptNormal", { fg = "White", bg = prompt_bg })
-			vim.api.nvim_set_hl(0, "TelescopePromptPrefix", { fg = "White" }) -- the icon
-			vim.api.nvim_set_hl(0, "TelescopePromptTitle", { fg = prompt_bg, bg = prompt_bg })
-
-			vim.api.nvim_set_hl(0, "TelescopePreviewTitle", { fg = preview_bg, bg = preview_bg })
-			vim.api.nvim_set_hl(0, "TelescopePreviewBorder", { fg = preview_bg, bg = preview_bg })
-			vim.api.nvim_set_hl(0, "TelescopePreviewNormal", { bg = preview_bg })
-
-			vim.api.nvim_set_hl(0, "TelescopeResultsTitle", { fg = results_bg, bg = results_bg })
-			vim.api.nvim_set_hl(0, "TelescopeResultsBorder", { fg = results_bg, bg = results_bg })
-			vim.api.nvim_set_hl(0, "TelescopeResultsNormal", { bg = results_bg })
 		end },
 
 		setup = function()
 			require("keymaps").telescope()
+			require("colors").telescope()
 		end,
 }
