@@ -1,7 +1,9 @@
 -- UTILS
 --
 
-local function file_exists(fname)
+local M = {}
+
+M.file_exists = function(fname)
 	local stat = vim.loop.fs_stat(fname)
 	return (stat and stat.type) or false
 end
@@ -30,15 +32,15 @@ end
 
 -- go to root project file
 function GoRoot()
-	if file_exists("src/lib.rs") then
+	if M.file_exists("src/lib.rs") then
 		vim.cmd ':edit src/lib.rs'
-	elseif file_exists("src/main.rs") then
+	elseif M.file_exists("src/main.rs") then
 		vim.cmd ':edit src/main.rs'
-	elseif file_exists("index.md") then
+	elseif M.file_exists("index.md") then
 		vim.cmd ':edit index.md'
-	elseif file_exists("src/index.ts") then
+	elseif M.file_exists("src/index.ts") then
 		vim.cmd ':edit src/index.ts'
-	elseif file_exists("init.lua") then
+	elseif M.file_exists("init.lua") then
 		vim.cmd ':edit init.lua'
 	else
 		print("no root file found.")
@@ -46,9 +48,9 @@ function GoRoot()
 end
 
 function GoPackagerFile()
-	if file_exists("Cargo.toml") then
+	if M.file_exists("Cargo.toml") then
 		vim.cmd ':edit Cargo.toml'
-	elseif file_exists("package.json") then
+	elseif M.file_exists("package.json") then
 		vim.cmd ':edit package.json'
 	else
 		print("no package manifest found.")
@@ -70,7 +72,7 @@ function LSPClients()
 end
 
 function GitBranch()
-	if vim.b.branch_name ~="" then
+	if vim.b.branch_name ~= "" then
 		return string.format(" %s", vim.b.branch_name)
 	else
 		return ""
@@ -110,3 +112,5 @@ function LSPWorkspaceDiagnostics(bufnr)
 
 	return errors .. warnings .. hints .. info .. "%#Normal#"
 end
+
+return M

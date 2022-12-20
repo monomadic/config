@@ -3,6 +3,20 @@
 --	to view current mappings: :verbose nmap <C-]>
 --
 
+local M = {}
+local keymap = vim.keymap.set
+
+M.telescope = function()
+	keymap("n", "<leader>Gb", ":Telescope git_branches<CR>", { desc = "branches" })
+	keymap("n", "<leader>Gc", ":Telescope git_commits<CR>", { desc = "commits" })
+	keymap("n", "<leader>Gs", ":Telescope git_status<CR>", { desc = "status" })
+
+	keymap("n", "<leader>o", ":Telescope find_files<CR>", { desc = "open" })
+end
+
+M.whichkey = function()
+end
+
 -- save / write
 vim.keymap.set("n", "<C-s>", "<CMD>write<CR>", { desc = "save" });
 vim.keymap.set("n", "<C-S>", "<CMD>wall<CR>", { desc = "save all" });
@@ -185,3 +199,5 @@ vim.api.nvim_create_autocmd("LspAttach", {
 -- rust
 vim.api.nvim_create_autocmd("FileType", { pattern = "rust", callback = function()
 end })
+
+return M

@@ -11,9 +11,9 @@
 --  - https://github.com/ldelossa/litee-symboltree.nvim
 --
 
-require 'utils'
 require 'plugins'
-require 'colors'
+
+require 'utils'
 require 'autocmds'
 
 require 'term'

@@ -2,30 +2,42 @@
 --
 --	sudo command: :w !sudo tee %
 --
+
+local o = vim.o -- vim options
+local g = vim.g -- global scoped options
+local w = vim.wo -- window scoped options
+-- local b = vim.b -- buffer scoped options
+
 --vim.g.vim_markdown_new_list_item_indent = 2 -- markdown list indent
 --vim.opt.formatoptions = vim.o.formatoptions:gsub("r", ""):gsub("o", "")
-vim.g.mapleader = " " -- leader key
-	vim.opt.autowriteall = true -- ensure write upon leaving a page
 
-vim.g.tex_flavor = "latex"
-vim.g.vim_markdown_edit_url_in = 'current' -- open md links as (vplit | current)
+-- vim options
+-- o.foldcolumn=2 -- show folds
+o.autowriteall = true -- ensure write upon leaving a page
+o.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (gnome)
+o.conceallevel = 0 -- so that `` is visible in markdown files
+o.cursorline = true -- highlight the current line
+o.expandtab = false -- insert spaces when tab is pressed
+o.foldlevelstart = 99
+o.hidden = false -- switch buffer without unloading+saving them
+o.hlsearch = false -- highlight all matches on previous search pattern
+o.ignorecase = true -- ignore case when searching
+o.laststatus = 3 -- 2 = local, 3 = global statusline (neovim 0.7+)
+o.lazyredraw = true -- faster macros (force update with :redraw)
+o.mouse = "a" -- allow the mouse to be used in neovim
+o.title = true -- set window title
+o.titlestring = vim.fn.fnamemodify(vim.fn.getcwd(), ":~:t")
+
+-- global options
+g.mapleader = " " -- leader key
+g.tex_flavor = "latex"
+g.vim_markdown_edit_url_in = 'current' -- open md links as (vplit | current)
+
+-- window options
+w.number = false -- show numbered lines
+
 -- vim.g.vim_markdown_new_list_item_indent = 1 -- indent new items on 'o' from n mode
 -- vim.cmd "let g:clipboard = {'copy': {'+': 'pbcopy', '*': 'pbcopy'}, 'paste': {'+': 'pbpaste', '*': 'pbpaste'}, 'name': 'pbcopy', 'cache_enabled': 0}" -- hack for macos
-vim.opt.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (gnome)
-vim.opt.conceallevel = 0 -- so that `` is visible in markdown files
-vim.opt.title = true -- set window title
-vim.opt.titlestring = vim.fn.fnamemodify(vim.fn.getcwd(), ":~:t")
-vim.opt.cursorline = true -- highlight the current line
-vim.opt.expandtab = false -- insert spaces when tab is pressed
-vim.opt.foldlevelstart = 99
--- vim.opt.foldcolumn=2 -- show folds
-vim.opt.hidden = false -- switch buffer without unloading+saving them
-vim.opt.hlsearch = false -- highlight all matches on previous search pattern
-vim.opt.ignorecase = true -- ignore case when searching
-vim.opt.laststatus = 3 -- 2 = local, 3 = global statusline (neovim 0.7+)
-vim.opt.lazyredraw = true -- faster macros (force update with :redraw)
-vim.opt.mouse = "a" -- allow the mouse to be used in neovim
-vim.wo.number = false -- show numbered lines
 vim.wo.relativenumber = false -- set relative numbered lines
 vim.opt.scrolloff = 1000 -- keep line centered (disable if scrolling past eof is enabled)
 vim.opt.scroll = 3 -- number of lines to scroll

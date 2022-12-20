@@ -29,7 +29,7 @@ vim.api.nvim_set_hl(0, "VimwikiHeaderChar", { fg = "#44FF00" })
 vim.api.nvim_set_hl(0, "VimwikiLink", { fg = "#44FFFF" })
 vim.api.nvim_set_hl(0, "WinBar", { fg = "white", bg = "#2222FF" })
 vim.api.nvim_set_hl(0, "WinBarNC", { fg = "white", bg = "#2222FF" })
-vim.api.nvim_set_hl(0, "WinSeparator", { fg = "bg", bg = "bg" }) -- inactive
+-- vim.api.nvim_set_hl(0, "WinSeparator", { fg = "bg", bg = "bg" }) -- inactive
 
 vim.api.nvim_set_hl(0, "FzfLuaBorder", { fg = "black", bg = "black" })
 vim.api.nvim_set_hl(0, "FzfLuaNormal", { fg = "white", bg = "black" })

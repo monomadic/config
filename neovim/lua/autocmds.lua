@@ -1,10 +1,19 @@
 -- AUTOCMDS
+local autocmd = vim.api.nvim_create_autocmd
 
 -- on document write
-vim.api.nvim_create_autocmd("BufWrite", { pattern = "*", callback = function()
-	vim.cmd [[%s/\s\+$//e]] -- remove trailing whitespace
-	vim.cmd [[%s/\n\+\%$//e]] -- remove trailing newlines
-end })
+autocmd("BufWrite",
+	{ pattern = "*", callback = function()
+		vim.cmd [[%s/\s\+$//e]] -- remove trailing whitespace
+		vim.cmd [[%s/\n\+\%$//e]] -- remove trailing newlines
+	end })
+
+-- dont list quickfix buffers
+autocmd("FileType", {
+  pattern = "qf",
+  callback = function()
+    vim.opt_local.buflisted = false
+  end })
 
 -- on vim open
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()

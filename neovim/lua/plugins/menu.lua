@@ -3,7 +3,9 @@ return {
 	{ 'linty-org/key-menu.nvim', config = function()
 		require 'key-menu'.set('n', '\\')
 	end},
-	{ 'folke/which-key.nvim', config = function()
+	{ 'folke/which-key.nvim',
+    -- keys = { "<leader>", '"', "'", "`" },
+	config = function()
 
 		require("which-key").setup {
 			window = {
@@ -92,4 +94,9 @@ return {
 		vim.api.nvim_set_hl(0, "WhichKeyGroup", { fg = "#00FFFF" })
 		vim.api.nvim_set_hl(0, "WhichKeySeparator", { fg = "#888888" })
 	end
-}}
+},
+
+    setup = function()
+      require("keymaps").whichkey()
+    end,
+}

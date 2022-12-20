@@ -9,18 +9,18 @@
 
 -- TODO: https://github.com/MunifTanjim/nui.nvim
 
--- autoinstall packer:
-local packer_exists = pcall(require, "packer")
-if not packer_exists then
-	local install_path = vim.fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
-	if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
-		print("downloading packer...")
-		vim.fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
-		vim.cmd 'packadd packer.nvim'
-	end
-end
-
-vim.cmd 'packadd packer.nvim' -- only required if packer is opt
+-- -- autoinstall packer:
+-- local packer_exists = pcall(require, "packer")
+-- if not packer_exists then
+-- 	local install_path = vim.fn.stdpath("data") .. "/site/pack/packer/start/packer.nvim"
+-- 	if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
+-- 		print("downloading packer...")
+-- 		vim.fn.system({ "git", "clone", "--depth", "1", "https://github.com/wbthomason/packer.nvim", install_path })
+-- 		vim.cmd 'packadd packer.nvim'
+-- 	end
+-- end
+--
+-- vim.cmd 'packadd packer.nvim' -- only required if packer is opt
 
 require('packer').startup(function(use)
 	-- speed up lua modules
@@ -32,11 +32,11 @@ require('packer').startup(function(use)
 	use 'wbthomason/packer.nvim'
 
 	use {
-		require 'plugin.comments', -- commenting
+		-- require 'plugin.comments', -- commenting
 		require 'plugin.themes', -- colorschemes
 		require 'plugin.fzf', -- fuzzy finder
 		require 'plugin.menu', -- whichkey
-		require 'plugin.filetree', -- drex
+		-- require 'plugin.filetree', -- drex
 	}
 
 	-- better % motion using treesitter - vimscript
@@ -230,94 +230,6 @@ require('packer').startup(function(use)
 	use { 'lukas-reineke/lsp-format.nvim', config = function()
 		require("lsp-format").setup()
 	end }
-
-	-- null-lsp: a generic lsp server providing lsp functions to neovim on behalf of various tools
-	use {
-		"jose-elias-alvarez/null-ls.nvim",
-		requires = { "nvim-lua/plenary.nvim", "lukas-reineke/lsp-format.nvim" },
-		config = function()
-			local null_ls = require("null-ls")
-			-- https://github.com/jose-elias-alvarez/null-ls.nvim/tree/main/lua/null-ls/builtins/formatting
-
-			-- null_ls.register {
-			-- 	name = "markdown_source",
-			-- 	filetypes = { "markdown", "vimwiki" },
-			-- 	sources = {
-			-- 		null_ls.builtins.formatting.prettier,
-			-- 		-- null_ls.builtins.diagnostics.proselint, -- prosemd is better
-			-- 		-- null_ls.builtins.code_actions.proselint,
-			-- 	},
-			-- }
-
-			-- null_ls.register {
-			-- 	name = "rustfmt",
-			-- 	filetypes = { "rust" },
-			-- 	sources = { formatting.rustfmt },
-			-- }
-
-			null_ls.setup {
-				sources = {
-					null_ls.builtins.formatting.taplo, -- cargo install taplo-cli --locked
-					null_ls.builtins.formatting.prettier.with({
-						filetypes = { "html", "json", "yaml", "markdown", "graphql", "snippets" },
-					}),
-					null_ls.builtins.diagnostics.jsonlint, -- brew install jsonlint
-					null_ls.builtins.hover.dictionary.with {
-						filetypes = { "markdown", "vimwiki" }
-					}, -- markdown spellcheck
-				},
-				on_attach = function(client, buf)
-					require("lsp-format").on_attach(client, buf)
-
-					-- disable this dumb mapping
-					-- local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
-					-- if client.supports_method("textDocument/formatting") then
-					-- 	vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
-					-- 	vim.api.nvim_create_autocmd("BufWritePre", {
-					-- 		group = augroup,
-					-- 		buffer = bufnr,
-					-- 		callback = function()
-					-- 			-- on 0.8, you should use vim.lsp.buf.format({ bufnr = bufnr }) instead
-					-- 			vim.lsp.buf.formatting_sync()
-					-- 		end,
-					-- 	})
-					-- end
-				end,
-			}
-		end,
-	}
-
-	-- better lsp ui
-	use { "glepnir/lspsaga.nvim",
-		-- requires = { 'neovim/nvim-lspconfig' },
-		ft = { 'rust', 'typescript', 'javascript', 'lua' },
-		config = function()
-			local lsp_saga = require('lspsaga')
-
-			vim.keymap.set("n", "<leader>sf", "<cmd>Lspsaga lsp_finder<CR>", { desc = "symbol finder (saga)" })
-			vim.keymap.set("n", "<leader>sa", "<cmd>Lspsaga code_action<CR>", { desc = "code-actions (saga)" })
-			vim.keymap.set("n", "<leader>sr", "<cmd>Lspsaga rename<CR>", { desc = "rename (saga)" })
-			vim.keymap.set("n", "<leader>pd", "<cmd>Lspsaga peek_definition<CR>", { desc = "peek definition (saga)" })
-			vim.keymap.set("n", 'K', '<cmd>Lspsaga hover_doc<CR>')
-			vim.keymap.set("n", "<leader>do", '<cmd>Lspsaga outline<CR>', { silent = true, desc = "outline (saga)" })
-			vim.keymap.set("n", ']d', '<cmd>Lspsaga diagnostic_jump_next<cr>')
-			vim.keymap.set("n", '[d', '<cmd>Lspsaga diagnostic_jump_prev<cr>')
-
-			lsp_saga.init_lsp_saga {
-				-- border_style = "none",
-				show_outline = {
-					saga_winblend = 30,
-					jump_key = '<CR>',
-				},
-				code_action_icon = '',
-				code_action_lightbulb = {
-					enable = false,
-				},
-				-- symbol_in_winbar = {
-				-- 	enable = true,
-				-- }
-			}
-		end }
 
 	-- lsp naviation
 	-- https://github.com/DNLHC/glance.nvim

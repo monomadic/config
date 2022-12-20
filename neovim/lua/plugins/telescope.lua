@@ -5,9 +5,21 @@ return {
 		run = 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release && cmake --install build --prefix build' },
 	{ 'nvim-telescope/telescope.nvim',
 		as = "telescope",
+		requires = { 'nvim-lua/plenary.nvim' },
 		config = function()
 			require('telescope').setup {
 				defaults = {
+
+		vimgrep_arguments = {
+			"rg",
+			"-L",
+			"--color=never",
+			"--no-heading",
+			"--with-filename",
+			"--line-number",
+			"--column",
+			"--smart-case",
+		},
 					prompt_prefix = "  ",
 					selection_caret = "  ",
 					entry_prefix = "  ",
@@ -46,7 +58,7 @@ return {
 							["<C-u>"] = false,
 						},
 					},
-					extensions_list = { "themes", "terms", "fzf" },
+					extensions_list = { "themes", "terms" },
 					extensions = {
 						fzf = {
 							fuzzy = true, -- false will only do exact matching
@@ -145,5 +157,9 @@ return {
 			vim.api.nvim_set_hl(0, "TelescopeResultsTitle", { fg = results_bg, bg = results_bg })
 			vim.api.nvim_set_hl(0, "TelescopeResultsBorder", { fg = results_bg, bg = results_bg })
 			vim.api.nvim_set_hl(0, "TelescopeResultsNormal", { bg = results_bg })
-		end }
+		end },
+
+		setup = function()
+			require("keymaps").telescope()
+		end,
 }
