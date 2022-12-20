@@ -7,6 +7,7 @@ require 'colors'
 
 StatusLine = function()
 	return table.concat {
+		" ",
 		GitBranch(),
 		"%=",
 		LSPClients(),

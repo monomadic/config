@@ -13,9 +13,8 @@ end
 
 function WinBar()
 	local filetype = vim.bo.filetype
-
 	if filetype == "drex" then
-		return table.concat {"%#WinBar#", " "}
+		return table.concat {"%#Normal#"}
 	end
 
 	return table.concat {

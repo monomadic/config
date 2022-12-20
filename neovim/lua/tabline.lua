@@ -4,7 +4,7 @@
 vim.opt.showtabline = 2 -- show the global tab line at the top of neovim
 function TabLine()
 	return table.concat {
-		"%#TabLineDir#",
+		" %#TabLineDir#",
 		vim.fn.fnamemodify(vim.fn.getcwd(), ":~"), -- project directory
 		"%=",
 		"%#TablineDiagnostics#",

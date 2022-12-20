@@ -15,6 +15,12 @@ autocmd("FileType", {
     vim.opt_local.buflisted = false
   end })
 
+autocmd("FileType", {
+  pattern = "drex",
+  callback = function()
+    vim.opt_local.buflisted = false
+  end })
+
 -- on vim open
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	-- if no args are passed

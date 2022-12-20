@@ -4,25 +4,71 @@
 --
 
 local M = {}
-local keymap = vim.keymap.set
+local map = vim.keymap.set
+local utils = require 'utils'
 
 M.telescope = function()
-	keymap("n", "<leader>Gb", ":Telescope git_branches<CR>", { desc = "branches" })
-	keymap("n", "<leader>Gc", ":Telescope git_commits<CR>", { desc = "commits" })
-	keymap("n", "<leader>Gs", ":Telescope git_status<CR>", { desc = "status" })
+	map("n", "<leader>Gb", function()
+		require('telescope.builtin').git_branches()
+	end, { desc = "branches" })
 
-	keymap("n", "<leader>o", ":Telescope find_files<CR>", { desc = "open" })
+	map("n", "<leader>cc", ":PackerCompile<CR>", { desc = "compile" })
+
+	map("n", "<leader>Gc", ":Telescope git_commits<CR>", { desc = "commits" })
+	map("n", "<leader>Gs", ":Telescope git_status<CR>", { desc = "status" })
+
+	map("n", "<leader>o", ":Telescope find_files<CR>", { desc = "open" })
+	vim.keymap.set("n", "go", function()
+		require('telescope.builtin').find_files()
+	end, { desc = "open" })
+
+	vim.keymap.set("n", '<leader>b', '<cmd>Telescope buffers<cr>', { desc = "buffers…" })
+
+	-- vim.keymap.set("n", '<leader>f', function()
+	-- 	require('telescope.builtin').find_files { path_display = { "truncate" }, prompt_title = "", preview_title = "" }
+	-- end)
+
+	vim.keymap.set("n", '<leader>o', OpenFiles, { desc = "open…" })
+
+	vim.keymap.set("n", 'to', '<cmd>Telescope oldfiles<cr>')
+	-- vim.keymap.set("n", '<leader>g', '<cmd>Telescope live_grep<cr>')
+	vim.keymap.set('n', 'tgb', '<Cmd>Telescope git_branches<cr>')
+	vim.keymap.set('n', 'tgc', '<Cmd>Telescope git_bcommits<cr>')
+	vim.keymap.set('n', 'tgd', '<Cmd>Telescope git_status<cr>')
+	vim.keymap.set('n', 'tk', '<Cmd>Telescope keymaps<cr>')
+	vim.keymap.set('n', 'tld', '<Cmd>Telescope lsp_definitions<cr>')
+	vim.keymap.set('n', 'tli', '<Cmd>Telescope lsp_implementations<cr>')
+	-- vim.keymap.set('n', '<leader>S', '<Cmd>Telescope lsp_document_symbols<cr>', { desc = "DoCuMeNt" })
+	vim.keymap.set('n', 'tlw', function()
+		require('telescope.builtin').lsp_workspace_symbols { path_display = "hidden", prompt_title = "", preview_title = "" }
+	end)
+	vim.keymap.set('n', 'tlf', function()
+		require('telescope.builtin').lsp_document_symbols { symbols = "function", prompt_title = "", preview_title = "",
+			borderchars = { " ", " ", " ", " ", " ", " ", " ", " " } }
+	end)
+
+	vim.keymap.set('n', 'tr', '<Cmd>Telescope resume<cr>')
+	vim.keymap.set('n', 'tt', '<Cmd>TodoTelescope<cr>')
+
+	-- vim.keymap.set("n", "ts", function()
+	-- 	require("luasnip.loaders.from_snipmate").lazy_load()
+	-- 	require('telescope').load_extension('luasnip')
+	-- 	vim.api.nvim_command('Telescope luasnip')
+	-- end)
+
 end
 
 M.whichkey = function()
 end
 
 M.glance = function()
-		keymap("n", "gR", "<CMD>Glance references<CR>")
-		keymap("n", "gD", "<CMD>Glance definitions<CR>")
-		keymap("n", "gY", "<CMD>Glance type_definitions<CR>")
-		keymap("n", "gM", "<CMD>Glance implementations<CR>")
+	map("n", "gR", "<CMD>Glance references<CR>")
+	map("n", "gD", "<CMD>Glance definitions<CR>")
+	map("n", "gY", "<CMD>Glance type_definitions<CR>")
+	map("n", "gM", "<CMD>Glance implementations<CR>")
 end
+
+map("n", "<leader>gc", utils.open_config, { desc = "config" })
 
 -- save / write
 vim.keymap.set("n", "<C-s>", "<CMD>write<CR>", { desc = "save" });

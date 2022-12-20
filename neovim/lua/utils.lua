@@ -8,6 +8,30 @@ M.file_exists = function(fname)
 	return (stat and stat.type) or false
 end
 
+M.open_config = function()
+	vim.fn.chdir '~/config/neovim'
+	vim.cmd 'edit init.lua'
+end
+
+-- close a buffer
+M.close_buffer = function(bufnr)
+  if vim.bo.buftype == "terminal" then
+    vim.cmd(vim.bo.buflisted and "set nobl | enew" or "hide")
+  else
+    bufnr = bufnr or vim.api.nvim_get_current_buf()
+    -- require("nvchad_ui.tabufline").tabuflinePrev()
+    vim.cmd("confirm bd" .. bufnr)
+  end
+end
+
+-- close all but current buf
+M.close_all_buffers = function()
+	local bufs = vim.api.nvim_list_bufs()
+	for _, buf in ipairs(bufs) do
+    M.close_buffer(buf)
+  end
+end
+
 function OpenFiles()
 	require('telescope.builtin').find_files { path_display = { "truncate" }, prompt_title = "", preview_title = "" }
 end
