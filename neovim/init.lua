@@ -1,7 +1,5 @@
 -- MONOMADIC neovim
 --
---  NOTE: references
---
 --		templates:
 --		  https://github.com/chr0n1x/neovim-template
 --		plugin-index:
@@ -9,6 +7,7 @@
 --
 --  TODO:
 --  - https://github.com/ldelossa/litee-symboltree.nvim
+--  - format-on-save
 --
 
 require 'plugins'

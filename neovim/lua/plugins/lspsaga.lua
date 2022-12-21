@@ -10,7 +10,7 @@ return { "glepnir/lspsaga.nvim",
 		vim.keymap.set("n", "<leader>sr", "<cmd>Lspsaga rename<CR>", { desc = "rename (saga)" })
 		vim.keymap.set("n", "<leader>pd", "<cmd>Lspsaga peek_definition<CR>", { desc = "peek definition (saga)" })
 		vim.keymap.set("n", 'K', '<cmd>Lspsaga hover_doc<CR>')
-		vim.keymap.set("n", "<leader>do", '<cmd>Lspsaga outline<CR>', { silent = true, desc = "outline (saga)" })
+		vim.keymap.set("n", "<leader>Do", '<cmd>Lspsaga outline<CR>', { silent = true, desc = "outline (saga)" })
 		vim.keymap.set("n", ']d', '<cmd>Lspsaga diagnostic_jump_next<cr>')
 		vim.keymap.set("n", '[d', '<cmd>Lspsaga diagnostic_jump_prev<cr>')
 

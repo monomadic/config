@@ -12,7 +12,16 @@ M.telescope = function()
 		require('telescope.builtin').git_branches()
 	end, { desc = "branches" })
 
-	map("n", "<leader>cc", ":PackerCompile<CR>", { desc = "compile" })
+	map("n", "<leader>Oc", utils.open_config, { desc = "config" })
+
+	map("n", "<leader>Cc", ":PackerCompile<CR>", { desc = "compile" })
+	map("n", "<leader>Cf", function()
+		utils.select_file_at("~/config/neovim/")
+	end, { desc = "file..." })
+
+	map("n", "<leader>Cf", function()
+		utils.select_file_at("~/config/neovim/")
+	end, { desc = "file" })
 
 	map("n", "<leader>Gc", ":Telescope git_commits<CR>", { desc = "commits" })
 	map("n", "<leader>Gs", ":Telescope git_status<CR>", { desc = "status" })
@@ -59,6 +68,66 @@ M.telescope = function()
 end
 
 M.whichkey = function()
+	return {
+		f = {
+			name = "file",
+			f = { Format, " format" },
+			o = { OpenFiles, "open…" },
+		},
+		D = {
+			name = "document",
+
+			e = { function()
+				require('telescope.builtin').lsp_document_symbols { symbols = "enum" }
+			end, " enums…" },
+			f = { function()
+				require('telescope.builtin').lsp_document_symbols { symbols = "function" }
+			end, " functions…" },
+			F = { function() vim.lsp.buf.format { async = true } end, " format" },
+			s = { function()
+				require('telescope.builtin').lsp_document_symbols { symbols = "struct" }
+			end, " structs…" },
+			S = { require('telescope.builtin').lsp_document_symbols, " symbols…" },
+			m = { function()
+				require('telescope.builtin').lsp_document_symbols { symbols = "module" }
+			end, " modules…" },
+		},
+
+		g = { name = "go" },
+		G = { name = "git" },
+
+		l = {
+			name = "list",
+		},
+
+		p = { name = "peek" },
+		r = { name = "run",
+			-- d = { "", "debug" }
+		},
+		s = {
+			name = "symbol",
+			h = { vim.lsp.buf.signature_help, "help" }
+		},
+		t = { ShowTerminal, " terminal" },
+		w = { name = "workspace",
+			e = { function()
+				require('telescope.builtin').lsp_workspace_symbols { symbols = "enum" }
+			end, " enums…" },
+			f = { function()
+				require('telescope.builtin').lsp_workspace_symbols { symbols = "function", prompt_title = "", preview_title = "" }
+			end, " functions…" },
+			m = { function()
+				require('telescope.builtin').lsp_workspace_symbols { symbols = "module" }
+			end, " modules…" },
+			s = { function()
+				require('telescope.builtin').lsp_workspace_symbols { symbols = "struct" }
+			end, " structs…" },
+			S = { ":FzfLua lsp_workspace_symbols<CR>", " symbols…" },
+		},
+		C = { name = "Config" },
+		T = { name = "Toggle" },
+		O = { name = "Open" },
+	}
 end
 
 M.glance = function()
@@ -69,6 +138,10 @@ M.glance = function()
 end
 
 map("n", "<leader>gc", utils.open_config, { desc = "config" })
+
+map("n", "<leader>Td", ":DrexDrawerToggle<CR>", { desc = "drex" })
+map("n", "<leader>Tl", ToggleLineNumbers, { desc = "line numbers" })
+map("n", "<leader>Tt", ":TransparentToggle<CR>", { desc = "tranparency" })
 
 -- save / write
 vim.keymap.set("n", "<C-s>", "<CMD>write<CR>", { desc = "save" });
@@ -85,10 +158,10 @@ vim.keymap.set("n", "W", "<cmd>wall<CR>")
 vim.keymap.set("n", "Q", "<cmd>wall<CR><cmd>qall<CR>")
 -- leader
 vim.keymap.set("n", "<leader>!", "<cmd>quit!<CR>")
-vim.keymap.set("n", "<leader><tab>", "<cmd>Drex<CR>", { desc = " Drex" })
+vim.keymap.set("n", "<leader><tab>", "<cmd>Drex<CR>", { desc = "drex" })
 vim.keymap.set("n", "<C-n>", ToggleLineNumbers, { desc = "toggle line numbers" })
 
-vim.keymap.set("n", '<leader>df', function() vim.lsp.buf.format { async = true } end, { desc = "format" })
+vim.keymap.set("n", '<leader>Df', function() vim.lsp.buf.format { async = true } end, { desc = "format" })
 vim.keymap.set("n", '<leader>F', function() vim.lsp.buf.format { async = true } end, { desc = "format" })
 
 vim.keymap.set("n", "<leader>a", vim.lsp.buf.code_action, { desc = "code-actions (saga)" })
@@ -214,11 +287,16 @@ vim.keymap.set("n", "<leader>Wf", function()
 end, { desc = "find" })
 
 -- list
-vim.keymap.set("n", '<leader>lC', '<cmd>Telescope command_history<cr>', { desc = "command history (telescope)" })
 vim.keymap.set("n", '<leader>lb', '<cmd>Telescope buffers<cr>', { desc = "buffers…" })
-vim.keymap.set("n", '<leader>lc', '<cmd>Telescope commands<cr>', { desc = "commands (telescope)" })
+vim.keymap.set("n", '<leader>lc', '<cmd>FzfLua colorschemes<cr>', { desc = "colorschemes" })
+vim.keymap.set("n", '<leader>lC', '<cmd>Telescope commands<cr>', { desc = "commands (telescope)" })
+--vim.keymap.set("n", '<leader>lh', '<cmd>Telescope command_history<cr>', { desc = "command history (telescope)" })
+vim.keymap.set("n", '<leader>ld', '<cmd>Telescope diagnostics<cr>', { desc = "diagnostics" })
 vim.keymap.set("n", '<leader>lf', '<cmd>Telescope filetypes<cr>', { desc = "filetypes…" })
+vim.keymap.set("n", '<leader>lk', '<cmd>Telescope keymaps<cr>', { desc = "keymaps" })
+vim.keymap.set("n", '<leader>lh', '<cmd>Telescope highlights<cr>', { desc = "highlights" })
 vim.keymap.set("n", '<leader>lm', '<cmd>Telescope marks<cr>', { desc = "marks…" })
+vim.keymap.set("n", '<leader>lr', '<cmd>Telescope oldfiles<cr>', { desc = "recent files" })
 vim.keymap.set("n", '<leader>lt', '<cmd>TodoTelescope<cr>', { desc = "todos…" })
 
 -- symbol
@@ -243,8 +321,8 @@ vim.api.nvim_create_autocmd("LspAttach", {
 		-- local bufnr = args.buf
 		-- local client = vim.lsp.get_client_by_id(args.data.client_id)
 		-- require("lsp-inlayhints").on_attach(client, bufnr)
-		vim.keymap.set('n', '<leader>D', '<Cmd>Telescope diagnostics<cr>', { desc = "diagnostics" })
-		vim.keymap.set('n', '<leader>dd', '<Cmd>FzfLua diagnostics_document<cr>', { desc = "diagnostics" })
+		vim.keymap.set('n', '<leader>d', '<Cmd>Telescope diagnostics<cr>', { desc = "diagnostics" })
+		vim.keymap.set('n', '<leader>Dd', '<Cmd>FzfLua diagnostics_document<cr>', { desc = "diagnostics" })
 		vim.keymap.set('n', '<leader>wd', '<Cmd>Telescope diagnostics<cr>', { desc = "diagnostics" })
 	end
 })

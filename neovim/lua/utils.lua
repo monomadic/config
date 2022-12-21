@@ -13,6 +13,11 @@ M.open_config = function()
 	vim.cmd 'edit init.lua'
 end
 
+M.select_file_at = function(dir)
+	vim.fn.chdir(dir)
+	require('telescope.builtin').find_files({ cwd = dir, follow = true })
+end
+
 -- load another project in neovim and open the root file
 M.switch_workspace = function(dir)
 	vim.fn.chdir(dir)

@@ -2,7 +2,7 @@
 return { 'xiyaowong/nvim-transparent',
 	config = function()
 		require("transparent").setup {
-			enable = true,
+			enable = false,
 			extra_groups = { "NvimTreeNormal", "ModeMsg" },
 		}
 	end

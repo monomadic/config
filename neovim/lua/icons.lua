@@ -1,5 +1,9 @@
 local M = {}
 
+M.icons = {
+	switch = ' ',
+}
+
 M.lspkind = {
   Namespace = "",
   Text = " ",
