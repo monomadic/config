@@ -53,7 +53,7 @@ autocmd({ "ColorScheme", "VimEnter" },
 		hl(0, "TodoFgTODO", { fg = "#FFFF00" })
 		hl(0, "VimwikiHeaderChar", { fg = "#44FF00" })
 		hl(0, "VimwikiLink", { fg = "#44FFFF" })
-		-- hl(0, "WinBar", { fg = "white", bg = "#232335" })
+		hl(0, "WinBarFileName", { fg = "white", bg = "#111122" })
 		-- hl(0, "WinBarNC", { fg = "white", bg = "#2222FF" })
 		hl(0, "TabLineFill", { fg = "white", bg = "#262639" })
 		hl(0, "WinSeparator", { fg = "bg", bg = "bg" }) -- inactive

@@ -1,6 +1,6 @@
 -- UTILS
---
 
+local icons = require('icons');
 local M = {}
 
 M.file_exists = function(fname)
@@ -13,23 +13,41 @@ M.open_config = function()
 	vim.cmd 'edit init.lua'
 end
 
+-- load another project in neovim and open the root file
+M.switch_workspace = function(dir)
+	vim.fn.chdir(dir)
+	GoRoot()
+end
+
 -- close a buffer
 M.close_buffer = function(bufnr)
-  if vim.bo.buftype == "terminal" then
-    vim.cmd(vim.bo.buflisted and "set nobl | enew" or "hide")
-  else
-    bufnr = bufnr or vim.api.nvim_get_current_buf()
-    -- require("nvchad_ui.tabufline").tabuflinePrev()
-    vim.cmd("confirm bd" .. bufnr)
-  end
+	if vim.bo.buftype == "terminal" then
+		vim.cmd(vim.bo.buflisted and "set nobl | enew" or "hide")
+	else
+		bufnr = bufnr or vim.api.nvim_get_current_buf()
+		-- require("nvchad_ui.tabufline").tabuflinePrev()
+		vim.cmd("confirm bd" .. bufnr)
+	end
 end
 
 -- close all but current buf
 M.close_all_buffers = function()
 	local bufs = vim.api.nvim_list_bufs()
 	for _, buf in ipairs(bufs) do
-    M.close_buffer(buf)
-  end
+		M.close_buffer(buf)
+	end
+end
+
+M.get_icon = function(name)
+	-- local icon, icon_hl = devicons.get_icon(name, string.match(name, "%a+$"))
+
+	local icon = icons.devicons[name]
+
+	if not icon then
+		icon = icons.devicons["default_icon"]
+	end
+
+	return icon.icon
 end
 
 function OpenFiles()
@@ -66,6 +84,8 @@ function GoRoot()
 		vim.cmd ':edit src/index.ts'
 	elseif M.file_exists("init.lua") then
 		vim.cmd ':edit init.lua'
+	elseif M.file_exists("README.md") then
+		vim.cmd ':edit README.md'
 	else
 		print("no root file found.")
 	end

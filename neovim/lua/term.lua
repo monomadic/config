@@ -28,6 +28,12 @@ vim.keymap.set('t', '<C-Space>', function()
 	vim.api.nvim_win_hide(0)
 end)
 
+-- hide float
+vim.keymap.set('t', '<C-t>', function()
+	--background_float_buf = vim.api.nvim_get_current_buf()
+	vim.api.nvim_win_hide(0)
+end)
+
 vim.keymap.set('t', '<C-/>', function()
 	--background_float_buf = vim.api.nvim_get_current_buf()
 	vim.api.nvim_win_hide(0)
