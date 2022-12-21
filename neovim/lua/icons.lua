@@ -2,6 +2,16 @@ local M = {}
 
 M.icons = {
 	switch = ' ',
+
+	missing = '◌ ',
+	unknown = ' ',
+	success = ' ',
+
+	branch = '',
+	star = '★ ',
+
+	chevron_down = '',
+	chevron_right = '',
 }
 
 M.lspkind = {

@@ -1,6 +1,8 @@
 -- TABLINE
 --	topmost bar
 
+local icons = require('icons')
+
 vim.opt.showtabline = 2 -- show the global tab line at the top of neovim
 function TabLine()
 	return table.concat {
@@ -9,6 +11,9 @@ function TabLine()
 		"%=",
 		"%#TablineDiagnostics#",
 		LSPWorkspaceDiagnostics(nil),
+		" ",
+		icons.icons.switch,
+		" ",
 		-- "%#TablineLSPClients#",
 		-- LSPClients(),
 	}

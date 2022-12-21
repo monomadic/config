@@ -96,6 +96,12 @@ M.whichkey = function()
 		g = { name = "go" },
 		G = { name = "git" },
 
+		I = { name = "Insert",
+			t = { function()
+				require('pickers').insert_template()
+			end, "template" }
+		},
+
 		l = {
 			name = "list",
 		},
