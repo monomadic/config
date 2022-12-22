@@ -12,7 +12,7 @@ else
         *.epub) unzip -l "$1";;
         *.rar) unrar l "$1";;
         *.7z) 7z l "$1";;
-        *.pdf) pdftotext "$1" -;;
+        *.pdf) file "$1" -;;
         *.jpg) viu "$1";;
         *.jpeg) viu "$1";;
         *.png) viu "$1";;
