@@ -1,5 +1,9 @@
 local M = {}
 
+M.open_with_extension = function(ext)
+	require('telescope.builtin').find_files({search_file = ext})
+end
+
 M.insert_template = function()
 	local previewers = require("telescope.previewers")
 	local pickers = require("telescope.pickers")

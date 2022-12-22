@@ -1,5 +1,7 @@
 -- UTILS
 
+-- TODO: vim.diagnostic.reset() -- hide all diagnostics
+
 local icons = require('icons');
 local M = {}
 

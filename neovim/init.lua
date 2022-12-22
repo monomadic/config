@@ -1,7 +1,9 @@
+--
 -- MONOMADIC neovim
 --
 --		templates:
 --		  https://github.com/chr0n1x/neovim-template
+--
 --		plugin-index:
 --		  https://neoland.dev/
 --

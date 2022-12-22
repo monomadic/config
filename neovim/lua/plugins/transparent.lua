@@ -2,8 +2,8 @@
 return { 'xiyaowong/nvim-transparent',
 	config = function()
 		require("transparent").setup {
-			enable = false,
-			extra_groups = { "NvimTreeNormal", "ModeMsg" },
+			enable = true,
+			extra_groups = { "Normal", "NvimTreeNormal", "ModeMsg", "MsgArea" }, -- MsgArea is command line
 		}
 	end
 }

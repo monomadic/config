@@ -13,8 +13,14 @@ M.telescope = function()
 	end, { desc = "branches" })
 
 	map("n", "<leader>Oc", utils.open_config, { desc = "config" })
+	map("n", "<leader>Ot", function()
+		require('telescope.builtin').find_files({ cwd = "tests/", follow = true })
+	end, { desc = "test" })
 
-	map("n", "<leader>Cc", ":PackerCompile<CR>", { desc = "compile" })
+	-- packer
+	map("n", "<leader>Pc", ":PackerCompile<CR>", { desc = "compile" })
+	map("n", "<leader>Ps", ":PackerSync<CR>", { desc = "sync" })
+
 	map("n", "<leader>Cf", function()
 		utils.select_file_at("~/config/neovim/")
 	end, { desc = "file..." })
@@ -64,7 +70,6 @@ M.telescope = function()
 	-- 	require('telescope').load_extension('luasnip')
 	-- 	vim.api.nvim_command('Telescope luasnip')
 	-- end)
-
 end
 
 M.whichkey = function()
@@ -88,16 +93,18 @@ M.whichkey = function()
 				require('telescope.builtin').lsp_document_symbols { symbols = "struct" }
 			end, " structs…" },
 			S = { require('telescope.builtin').lsp_document_symbols, " symbols…" },
+			t = { function()
+				require('telescope.builtin').treesitter()
+			end, " treesitter…" },
 			m = { function()
 				require('telescope.builtin').lsp_document_symbols { symbols = "module" }
 			end, " modules…" },
 		},
 
 		g = { name = "go" },
-		G = { name = "git" },
 
 		I = { name = "Insert",
-			t = { function()
+			T = { function()
 				require('pickers').insert_template()
 			end, "template" }
 		},
@@ -110,7 +117,7 @@ M.whichkey = function()
 		r = { name = "run",
 			-- d = { "", "debug" }
 		},
-		s = {
+		S = {
 			name = "symbol",
 			h = { vim.lsp.buf.signature_help, "help" }
 		},
@@ -131,8 +138,10 @@ M.whichkey = function()
 			S = { ":FzfLua lsp_workspace_symbols<CR>", " symbols…" },
 		},
 		C = { name = "Config" },
+		G = { name = "git" },
 		T = { name = "Toggle" },
 		O = { name = "Open" },
+		P = { name = "Packer" },
 	}
 end
 
@@ -306,7 +315,7 @@ vim.keymap.set("n", '<leader>lr', '<cmd>Telescope oldfiles<cr>', { desc = "recen
 vim.keymap.set("n", '<leader>lt', '<cmd>TodoTelescope<cr>', { desc = "todos…" })
 
 -- symbol
-vim.keymap.set("n", '<leader>ss', '<cmd>Telescope spell_suggest<cr>', { desc = "spelling" })
+vim.keymap.set("n", '<leader>Ss', '<cmd>Telescope spell_suggest<cr>', { desc = "spelling" })
 
 -- workspace
 vim.keymap.set("n", '<leader>wM', '<cmd>Telescope marks<cr>', { desc = "mark…" })
@@ -316,6 +325,8 @@ vim.keymap.set("n", '<leader>wt', '<cmd>TodoTelescope<cr>', { desc = "todo…" }
 -- local session_dir = vim.fn.stdpath('data') .. '/sessions/'
 -- vim.keymap.set("n", '<leader>mks', ':mks! ' .. session_dir)
 -- vim.keymap.set("n", '<leader>lds', ':%bd | so ' .. session_dir)
+
+map('n', '<leader>?', ":Telescope help_tags<CR>", { desc = "help" })
 
 -- lsp
 vim.api.nvim_create_autocmd("LspAttach", {
@@ -330,6 +341,12 @@ vim.api.nvim_create_autocmd("LspAttach", {
 		vim.keymap.set('n', '<leader>d', '<Cmd>Telescope diagnostics<cr>', { desc = "diagnostics" })
 		vim.keymap.set('n', '<leader>Dd', '<Cmd>FzfLua diagnostics_document<cr>', { desc = "diagnostics" })
 		vim.keymap.set('n', '<leader>wd', '<Cmd>Telescope diagnostics<cr>', { desc = "diagnostics" })
+
+		-- next/prev: [ and ]
+
+		map('n', ']d', vim.diagnostic.goto_next, { desc = "next diagnostic" })
+		map('n', '[d', vim.diagnostic.goto_prev, { desc = "prev diagnostic" })
+
 	end
 })
 

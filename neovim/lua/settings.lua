@@ -38,7 +38,7 @@ w.number = false -- show numbered lines
 
 -- vim.g.vim_markdown_new_list_item_indent = 1 -- indent new items on 'o' from n mode
 -- vim.cmd "let g:clipboard = {'copy': {'+': 'pbcopy', '*': 'pbcopy'}, 'paste': {'+': 'pbpaste', '*': 'pbpaste'}, 'name': 'pbcopy', 'cache_enabled': 0}" -- hack for macos
-vim.wo.relativenumber = false -- set relative numbered lines
+vim.wo.relativenumber = true -- set relative numbered lines
 vim.opt.scrolloff = 1000 -- keep line centered (disable if scrolling past eof is enabled)
 vim.opt.scroll = 3 -- number of lines to scroll
 vim.opt.shiftwidth = 2 -- the number of spaces inserted for each indentation

@@ -6,8 +6,10 @@
 --   PackerUpdate: PackerClean, PackerUpdate, PackerInstall
 --   PackerSync: PackerUpdate, PackerCompile
 --
-
--- TODO: https://github.com/MunifTanjim/nui.nvim
+--  TODO:
+--  - https://github.com/MunifTanjim/nui.nvim
+--	- https://github.com/folke/lazy.nvim
+--
 
 -- vim.defer_fn(function()
 -- 	pcall(require, "impatient")

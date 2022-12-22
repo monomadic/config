@@ -5,14 +5,14 @@ return { "glepnir/lspsaga.nvim",
 	config = function()
 		local lsp_saga = require('lspsaga')
 
-		vim.keymap.set("n", "<leader>sf", "<cmd>Lspsaga lsp_finder<CR>", { desc = "symbol finder (saga)" })
-		vim.keymap.set("n", "<leader>sa", "<cmd>Lspsaga code_action<CR>", { desc = "code-actions (saga)" })
-		vim.keymap.set("n", "<leader>sr", "<cmd>Lspsaga rename<CR>", { desc = "rename (saga)" })
-		vim.keymap.set("n", "<leader>pd", "<cmd>Lspsaga peek_definition<CR>", { desc = "peek definition (saga)" })
+		vim.keymap.set("n", "<leader>Sf", "<cmd>Lspsaga lsp_finder<CR>", { desc = "symbol finder (saga)" })
+		vim.keymap.set("n", "<leader>Sa", "<cmd>Lspsaga code_action<CR>", { desc = "code-actions (saga)" })
+		vim.keymap.set("n", "<leader>Sr", "<cmd>Lspsaga rename<CR>", { desc = "rename (saga)" })
+		vim.keymap.set("n", "<leader>Pd", "<cmd>Lspsaga peek_definition<CR>", { desc = "peek definition (saga)" })
 		vim.keymap.set("n", 'K', '<cmd>Lspsaga hover_doc<CR>')
 		vim.keymap.set("n", "<leader>Do", '<cmd>Lspsaga outline<CR>', { silent = true, desc = "outline (saga)" })
-		vim.keymap.set("n", ']d', '<cmd>Lspsaga diagnostic_jump_next<cr>')
-		vim.keymap.set("n", '[d', '<cmd>Lspsaga diagnostic_jump_prev<cr>')
+		-- map('n', ']d', ":Lspsaga diagnostic_jump_next<CR>", { desc = "next diagnostic" })
+		-- map('n', '[d', ":Lspsaga diagnostic_jump_prev<CR>", { desc = "prev diagnostic" })
 
 		lsp_saga.init_lsp_saga {
 			-- border_style = "none",

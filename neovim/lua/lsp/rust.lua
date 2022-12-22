@@ -1,5 +1,7 @@
 -- rust-tools: a rust lsp server specific to rust
 -- https://github.com/simrat39/rust-tools.nvim
+local pickers = require('pickers')
+
 return {
 	'simrat39/rust-tools.nvim',
 	ft = 'rust',
@@ -36,7 +38,7 @@ return {
 					-- vim.keymap.set("n", "<leader>R", ":RustCodeAction<CR>", { desc = "RUST" })
 
 					vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr })
-					vim.keymap.set("n", "<leader>sa", ":RustCodeAction<CR>",
+					vim.keymap.set("n", "<leader>Sa", ":RustCodeAction<CR>",
 						{ buffer = bufnr, desc = " code action", remap = false })
 					vim.keymap.set("n", "<leader>a", rust_tools.code_action_group.code_action_group,
 						{ buffer = bufnr, desc = " code action" })
@@ -50,10 +52,20 @@ return {
 					-- 	vim.cmd ':edit src/lib.rs'
 					-- end)
 
+					vim.keymap.set('n', '<leader>s', function()
+						-- pickers.open_with_extension('*.rs')
+						require('telescope.builtin').find_files({ search_file = '*.rs' })
+					end, { desc = "source" })
+
+					vim.keymap.set('n', '<leader>gt', function()
+						-- pickers.open_with_extension('*.rs')
+						require('telescope.builtin').find_files({ search_file = 'tests/*.rs' })
+					end, { desc = "test" })
+
 					vim.keymap.set("n", "<leader>gd", ":RustOpenExternalDocs<CR>", { buffer = bufnr, desc = " open docs" })
 
-					vim.keymap.set("n", "<leader>se", ":RustExpand<CR>", { buffer = bufnr, desc = " expand" })
-					vim.keymap.set("n", "<leader>sE", ":RustExpandMacro<CR>", { buffer = bufnr, desc = " expand macro" })
+					vim.keymap.set("n", "<leader>Se", ":RustExpand<CR>", { buffer = bufnr, desc = " expand" })
+					vim.keymap.set("n", "<leader>SE", ":RustExpandMacro<CR>", { buffer = bufnr, desc = " expand macro" })
 
 					vim.keymap.set("n", "<C-b>", ":RustRun<CR>", { buffer = bufnr, desc = " run" })
 
