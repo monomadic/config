@@ -32,13 +32,13 @@ autocmd({ "ColorScheme", "VimEnter" },
 	{ pattern = "*", callback = function()
 		local document_grey = "#1E1D2D";
 		local dark_grey = "#111122";
-		local light_grey = "#262639";
+		local light_grey = "#323246";
 
 		-- local title_bar = { bg = dark_grey };
 		-- local tabs = { fg = "white", bg = dark_grey };
 		-- local tabs_bg = { bg = document_grey };
 
-		local title_bar = { bg = "None" };
+		local title_bar = { bg = document_grey };
 		local tabs = { fg = "white", bg = light_grey };
 		local tabs_bg = { bg = "None" };
 

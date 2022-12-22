@@ -87,6 +87,7 @@ packer.startup(function(use)
 		require 'plugins.todo', -- todo comments
 		require 'plugins.git',
 		require 'plugins.drex',
+		-- require 'plugins.notifications',
 	}
 
 	use {
@@ -104,9 +105,6 @@ packer.startup(function(use)
 	}
 
 	-- use 'andymass/vim-matchup'
-
-	-- notifications
-	-- use 'rcarriga/nvim-notify'
 
 	use { 'ggandor/leap.nvim', config = function()
 		require('leap').set_default_keymaps()
