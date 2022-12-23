@@ -41,16 +41,14 @@ function ls_relative() {
 	# fd --type d --strip-cwd-prefix --exact-depth 3 --max-results 10000
 }
 
-
-
 function ls_hidden {
 	exa --icons --group-directories-first
 }
 
 # fzf directory options
 function fzf_dirs() {
-	fzf --prompt 'cd  ' --layout=reverse --height 50% \
-		--color=bg+:-1,fg:4,info:15,fg+:4,header:7,hl:5,hl+:5 \
+	fzf --prompt 'cd  ' --layout=reverse --height 60% \
+		--color=bg+:-1,fg:4,info:15,fg+:5,header:7,hl:5,hl+:5 \
 		--header $'ctrl-[f:finder, w:workspace, o:bookmarks, r:relative, p:project, c:cancel]\n' \
 		--info=hidden \
 		--pointer=' ' \

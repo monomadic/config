@@ -28,3 +28,4 @@ require 'keymaps'
 require 'colors'
 
 require 'lsp'
+require 'autoclose'.setup({}) -- automatic close for ()[]"" etc

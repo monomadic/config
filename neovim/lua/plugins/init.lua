@@ -95,9 +95,9 @@ packer.startup(function(use)
 		require 'lsp.rust',
 		require 'lsp.lua',
 		require 'lsp.null', -- null-ls
-		require 'lsp.progress', -- fidget
-		require 'lsp.format',
-		require 'lsp.cargo',
+		require 'lsp.progress', -- fidget (show lsp process status)
+		require 'lsp.format', -- format using lsp
+		require 'lsp.cargo', -- rust cargo support
 		require 'lsp.glance', -- lsp navigation
 		require 'lsp.typescript',
 		require 'lsp.inlay-hints',
@@ -118,7 +118,6 @@ packer.startup(function(use)
 			})
 		end,
 	}
-
 
 	use { 'ggandor/leap.nvim', config = function()
 		require('leap').set_default_keymaps()
