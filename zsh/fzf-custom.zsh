@@ -45,6 +45,12 @@ function ls_hidden {
 	exa --icons --group-directories-first
 }
 
+# ripgrep
+function fzf-rg {
+	RG_PREFIX="rg --column --line-number --no-heading --color=always --smart-case "
+  fzf --bind "change:reload:$RG_PREFIX {q} || true" --ansi --disabled
+}
+
 # fzf directory options
 function fzf_dirs() {
 	fzf --prompt 'cd  ' --layout=reverse --height 60% \

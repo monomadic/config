@@ -13,7 +13,7 @@ else
         *.rar) unrar l "$1";;
         *.7z) 7z l "$1";;
         *.pdf) file "$1" -;;
-        *.jpg) viu "$1";;
+        *.jpg) chafa --format=symbols --size=60 "$1";;
         *.jpeg) viu "$1";;
         *.png) viu "$1";;
         *.doc) catdoc < "$1";;
