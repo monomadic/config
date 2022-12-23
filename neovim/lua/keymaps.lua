@@ -270,7 +270,7 @@ vim.keymap.set("n", "L", "$")
 vim.keymap.set("n", '<C-t>', '<C-w><C-s>:term<CR>i', { remap = false })
 vim.keymap.set("t", '<C-\\>', '<C-\\><C-n>', { remap = false })
 vim.keymap.set("t", '<C-h>', '<C-\\><C-n><C-w><C-h>', { remap = false })
-vim.keymap.set("t", '<C-j>', '<C-\\><C-n><C-w><C-j>', { remap = false })
+-- vim.keymap.set("t", '<C-j>', '<C-\\><C-n><C-w><C-j>', { remap = false })
 vim.keymap.set("t", '<C-k>', '<C-\\><C-n><C-w><C-k>', { remap = false })
 vim.keymap.set("t", '<C-l>', '<C-\\><C-n><C-w><C-l>', { remap = false })
 

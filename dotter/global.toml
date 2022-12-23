@@ -52,7 +52,7 @@ files = { "helix" = "~/.config/helix" }
 "lf/colors" = "~/.config/lf/colors"
 
 [zsh]
-files = { "zshrc.conf" = "~/.zshrc", "zsh/" = "~/.zsh/" }
+files = { "zsh/zshrc.conf" = "~/.zshrc", "zsh/" = "~/.zsh/" }
 
 [dotter]
 files = { "dotter/global.toml" = "~/.config/dotter/global.toml" }

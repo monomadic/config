@@ -1,6 +1,9 @@
 -- COLORS
 -- https://ofstack.com/Linux/25280/vim-custom-highlighted-groups-and-some-practical-tips.html
 
+local TITLEBAR_BG = "#1E1D2D"
+-- local TAB_BG = "#323246"
+
 local M = {}
 local autocmd = vim.api.nvim_create_autocmd
 local hl = vim.api.nvim_set_hl
@@ -56,11 +59,11 @@ autocmd({ "ColorScheme", "VimEnter" },
 		hl(0, "FzfLuaBorder", { fg = "black", bg = "black" })
 		hl(0, "FzfLuaNormal", { fg = "white", bg = "black" })
 		hl(0, "LspActive", { fg = "#00FF00" })
-		hl(0, "NormalFloat", { bg = "black" })
+		hl(0, "NormalFloat", { bg = "black" }) -- terminal?
 		hl(0, "StatusLine", {}) -- active
 		hl(0, "StatusLineNC", {}) -- inactive
 		hl(0, "TabLine", { fg = "white", bg = "black" })
-		hl(0, "TabLineFill", title_bar)
+		hl(0, "TabLineFill", {bg = TITLEBAR_BG})
 		--hl(0, "TabLineFill", { fg = "white", bg = "#262639" })
 		hl(0, "Title", { fg = "#CCFF00" })
 		hl(0, "TodoBgTODO", { bg = "#FFFF00", fg = "black" })

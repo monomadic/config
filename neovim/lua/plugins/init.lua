@@ -106,6 +106,20 @@ packer.startup(function(use)
 
 	-- use 'andymass/vim-matchup'
 
+	-- improved search feedback
+	-- use { 'kevinhwang91/nvim-hlslens' }
+	use {
+		"kevinhwang91/nvim-hlslens",
+		requires = { "petertriho/nvim-scrollbar" },
+		config = function()
+			-- require('hlslens').setup() is not required
+			require("scrollbar.handlers.search").setup({
+				-- hlslens config overrides
+			})
+		end,
+	}
+
+
 	use { 'ggandor/leap.nvim', config = function()
 		require('leap').set_default_keymaps()
 	end }

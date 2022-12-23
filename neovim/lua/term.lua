@@ -6,6 +6,7 @@
 -- TODO: extract float creation into function
 -- TODO: place term devicon in statusbar if term float exists
 -- TODO: make term close C-/ in t
+-- - remove <C-j> binding
 
 local row = 2
 local col = 2
@@ -141,6 +142,7 @@ end
 vim.keymap.set('n', '<C-Space>', function() open_lf() end)
 
 vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
+	-- default term colors
 	vim.g.terminal_color_1 = '#F00'
 	vim.g.terminal_color_2 = '#0F0'
 	vim.g.terminal_color_3 = '#FF00FF'
@@ -152,5 +154,4 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.g.terminal_color_9 = '#7AA'
 	vim.g.terminal_color_10 = '#14FFFF'
 	vim.g.terminal_color_11 = '#FF0000'
-
 end })
