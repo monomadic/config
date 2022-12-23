@@ -31,8 +31,17 @@ function ls_projects() {
 }
 
 function ls_recursive() {
-	fd --type d --strip-cwd-prefix --hidden --max-depth 5 --max-results 10000 --exclude node_modules --exclude .git --exclude target
+	fd --type d --strip-cwd-prefix --max-depth 5 --max-results 10000 --exclude node_modules --exclude .git --exclude target
 }
+
+# 2 levels deep, immediate first
+function ls_relative() {
+	fd --type d --strip-cwd-prefix --max-depth 1
+	fd --type d --strip-cwd-prefix --exact-depth 2 --max-results 10000
+	# fd --type d --strip-cwd-prefix --exact-depth 3 --max-results 10000
+}
+
+
 
 function ls_hidden {
 	exa --icons --group-directories-first
@@ -44,18 +53,19 @@ function fzf_dirs() {
 		--color=bg+:-1,fg:4,info:15,fg+:4,header:7,hl:5,hl+:5 \
 		--header $'ctrl-[f:finder, w:workspace, o:bookmarks, r:relative, p:project, c:cancel]\n' \
 		--info=hidden \
+		--pointer=' ' \
 		--preview 'exa --tree --icons --level 2 {}' \
-		--bind 'ctrl-w:change-prompt(workspaces > )+reload(fd . ~/workspaces --extension workspace --follow)' \
+		--bind 'ctrl-f:execute-silent(open {1})' \
 		--bind 'ctrl-o:change-prompt(bookmarks > )+reload(cat ~/.marks)' \
 		--bind 'ctrl-p:change-prompt(projects > )+reload(exa ~/workspaces/*.workspace/* --oneline --only-dirs --list-dirs)' \
-		--bind 'ctrl-f:execute-silent(open {1})' \
-		--bind 'ctrl-r:change-prompt(relative > )+reload(fd --type d --strip-cwd-prefix --max-depth 5 --max-results 10000 --exclude target)' \
+		--bind 'ctrl-r:change-prompt(relative > )+reload(fd --type d --strip-cwd-prefix --max-depth 1 && fd --type d --strip-cwd-prefix --exact-depth 2 --max-results 10000)' \
+		--bind 'ctrl-w:change-prompt(workspaces > )+reload(fd . ~/workspaces --extension workspace --follow)' \
 		"$@"
 }
 
 function fzf_edit() {
 	files=$(ls_all|fzf_dirs)
-	[[ -n "$files" ]] && cd "${files[@]}" && nvim . +"lua GoRoot()"
+	[[ -n "$files" ]] && cd "${files[@]}" && nvim . -c "lua GoRoot()"
 	zle && zle reset-prompt
 }
 zle -N fzf_edit
