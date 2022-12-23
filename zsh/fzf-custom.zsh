@@ -1,3 +1,8 @@
+# FZF jumps
+#
+# - https://github-wiki-see.page/m/junegunn/fzf/wiki/Color-schemes
+#
+
 CMD_LIST_RELATIVE_DIRS='cat ~/.marks'
 CMD_DIRS_WORKSPACES='fd . ~/workspaces --extension workspace --follow'
 
