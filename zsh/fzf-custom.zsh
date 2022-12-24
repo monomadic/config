@@ -77,6 +77,10 @@ zle -N fzf_edit
 function fzf_cd() {
 	files=$(ls_all|fzf_dirs)
 	[[ -n "$files" ]] && cd "${files[@]}"
+	clear
+	printf '    %s/\n\n' "${PWD##*/}"
+	exa --icons --group-directories-first --all --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' --color=always |head -n 15
+	echo
 	zle && zle reset-prompt
 }
 zle -N fzf_cd
