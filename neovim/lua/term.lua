@@ -74,7 +74,7 @@ function ShowTerminal()
 		vim.fn.termopen(vim.o.shell)
 	end
 
-	vim.cmd "startinsert" -- start in insert mode
+	vim.cmd.startinsert()
 end
 
 vim.keymap.set('n', '<C-/>', ShowTerminal)
@@ -101,7 +101,7 @@ local open_lf = function()
 	vim.wo.relativenumber = false -- turn off line numbers
 	vim.wo.number = false
 
-	vim.cmd "startinsert" -- start in insert mode
+	vim.cmd.startinsert()
 
 	local lf_tmpfile = vim.fn.tempname()
 	local lf_tmpdir = vim.fn.tempname()
@@ -156,10 +156,3 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.g.terminal_color_10 = '#14FFFF'
 	vim.g.terminal_color_11 = '#FF0000'
 end })
-
--- local M = {}
---
--- M.member_function = function()
--- end
---
--- export M
