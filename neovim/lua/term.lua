@@ -23,6 +23,7 @@ local border = 'none'
 
 local background_float_buf = nil
 
+
 -- hide float
 vim.keymap.set('t', '<C-Space>', function()
 	--background_float_buf = vim.api.nvim_get_current_buf()
@@ -155,3 +156,10 @@ vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
 	vim.g.terminal_color_10 = '#14FFFF'
 	vim.g.terminal_color_11 = '#FF0000'
 end })
+
+-- local M = {}
+--
+-- M.member_function = function()
+-- end
+--
+-- export M

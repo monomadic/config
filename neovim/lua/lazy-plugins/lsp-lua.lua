@@ -1,8 +1,12 @@
 -- lua formatting
 return {
-	{ "ckipp01/stylua-nvim", ft = { 'lua' } },
+	{ "ckipp01/stylua-nvim",
+		dependencies = "nvim-lspconfig",
+		ft = { 'lua' }
+	},
+
 	{ "folke/neodev.nvim",
-		-- after = "nvim-lspconfig",
+		dependencies = "nvim-lspconfig",
 		ft = "lua",
 
 		config = function()
