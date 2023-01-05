@@ -114,7 +114,7 @@ M.whichkey = function()
 		},
 
 		p = { name = "peek" },
-		r = { name = "run",
+		R = { name = "run",
 			-- d = { "", "debug" }
 		},
 		S = {
@@ -326,6 +326,12 @@ vim.keymap.set("n", '<leader>wt', '<cmd>TodoTelescope<cr>', { desc = "todo…" }
 -- vim.keymap.set("n", '<leader>mks', ':mks! ' .. session_dir)
 -- vim.keymap.set("n", '<leader>lds', ':%bd | so ' .. session_dir)
 
+-- visual mode
+map('v', '<leader>u', ':UpperCase<CR>')
+map('v', '<leader>l', ':LowerCase<CR>')
+map('v', '<leader>C', ':CamelCase<CR>')
+map('v', '<leader>c', ':Capitalize<CR>')
+
 map('n', '<leader>?', ":Telescope help_tags<CR>", { desc = "help" })
 
 -- lsp
@@ -352,6 +358,11 @@ vim.api.nvim_create_autocmd("LspAttach", {
 
 -- rust
 vim.api.nvim_create_autocmd("FileType", { pattern = "rust", callback = function()
+end })
+
+-- lua
+vim.api.nvim_create_autocmd("FileType", { pattern = "lua", callback = function()
+	map("n", "<leader>Rr", ":source %<CR>", { desc = "run" })
 end })
 
 return M

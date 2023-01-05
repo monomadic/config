@@ -1,18 +1,22 @@
+--------------------------------------------------------------------------------
 --
--- MONOMADIC neovim
+--  MONOMADIC NEOVIM CONFIG
 --
---		templates:
+--------------------------------------------------------------------------------
+--
+--		- templates:
 --		  https://github.com/chr0n1x/neovim-template
 --
---		plugin-index:
+--		- plugin-index:
 --		  https://neoland.dev/
 --
 --  TODO:
 --  - https://github.com/ldelossa/litee-symboltree.nvim
 --  - format-on-save
 --
+--------------------------------------------------------------------------------
 
-require 'plugins'
+--require 'plugins'
 
 require 'utils'
 require 'autocmds'
@@ -28,4 +32,8 @@ require 'keymaps'
 require 'colors'
 
 require 'lsp'
-require 'autoclose'.setup({}) -- automatic close for ()[]"" etc
+-- require 'autoclose'.setup({}) -- automatic close for ()[]"" etc
+
+require 'bootstrap-lazy'
+
+--------------------------------------------------------------------------------

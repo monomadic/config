@@ -77,7 +77,7 @@ packer.startup(function(use)
 		require 'plugins.color-highlight', -- highlight colors
 		require 'plugins.scrollbar',
 		require 'plugins.fzf', -- fuzzy finder
-		require 'plugins.menu', -- whichkey
+		--require 'plugins.menu', -- whichkey
 		require 'plugins.lspsaga', -- better lsp ui
 		require 'plugins.treesitter',
 		require 'plugins.genghis', -- convenience file operations (new, rename, etc)

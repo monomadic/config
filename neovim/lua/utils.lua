@@ -81,8 +81,16 @@ end
 
 -- go to root project file
 function GoRoot()
+	-- local files = {"src/lib.rs"}
+	--
+	-- for file in files do
+	-- 	if M.file_exists(file) then
+	-- 		vim.cmd.edit(file)
+	-- 	end
+	-- end
+
 	if M.file_exists("src/lib.rs") then
-		vim.cmd ':edit src/lib.rs'
+		vim.cmd.edit 'src/lib.rs'
 	elseif M.file_exists("src/main.rs") then
 		vim.cmd ':edit src/main.rs'
 	elseif M.file_exists("index.md") then

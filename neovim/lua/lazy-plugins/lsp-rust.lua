@@ -4,8 +4,10 @@ local pickers = require('pickers')
 
 return {
 	'simrat39/rust-tools.nvim',
+
+	dependencies = { 'neovim/nvim-lspconfig', 'nvim-lua/plenary.nvim', 'mfussenegger/nvim-dap' }, -- last 2 for debug
 	ft = 'rust',
-	requires = { 'neovim/nvim-lspconfig', 'nvim-lua/plenary.nvim', 'mfussenegger/nvim-dap' }, -- last 2 for debug
+
 	config = function()
 		local rust_tools = require('rust-tools')
 

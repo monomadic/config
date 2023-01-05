@@ -1,9 +1,7 @@
 -- highlight TODO comments
 return {
 	"folke/todo-comments.nvim",
-
-	dependencies = "nvim-lua/plenary.nvim",
-
+	requires = "nvim-lua/plenary.nvim",
 	config = function()
 		require('todo-comments').setup {}
 		-- local Search = require("todo-comments.search")
