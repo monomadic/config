@@ -1,7 +1,6 @@
 	-- side scrollbar with git and diagnostics support
 	return {
 		"petertriho/nvim-scrollbar",
-
 		dependencies = "kevinhwang91/nvim-hlslens",
 
 		config = function()
@@ -13,8 +12,6 @@
 				}
 			}
 
-			require("scrollbar.handlers.search").setup({
-				-- hlslens config overrides
-			})
+			require("scrollbar.handlers.search").setup {}
 		end
 	}

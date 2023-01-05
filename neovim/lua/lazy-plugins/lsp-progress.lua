@@ -5,7 +5,10 @@ return {
 		require("fidget").setup {
 			text = { spinner = "dots" },
 			align = { bottom = false },
-			window = { border = "none" }
+			window = {
+				border = "none",
+				relative = "win"
+			},
 		}
 	end
 }

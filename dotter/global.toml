@@ -57,3 +57,6 @@ files = { "zsh/zshrc.conf" = "~/.zshrc", "zsh/" = "~/.zsh/" }
 
 [dotter]
 files = { "dotter/global.toml" = "~/.config/dotter/global.toml" }
+
+[gitui]
+files = { "gitui/vim.ron" = "~/.config/gitui/key_bindings.ron" }

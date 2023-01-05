@@ -1,6 +1,7 @@
 packages = [
-	"dotter",
-	"bin",
+  "bin",
+  "dotter",
+  "gitui",
   "alacritty",
   "bash",
   "default",
