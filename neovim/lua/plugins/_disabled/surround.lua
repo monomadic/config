@@ -1,5 +1,6 @@
 -- surround completion
 -- use { "numToStr/Surround.nvim" }
+-- maps <C-s>
 return {
 	"ur4ltz/surround.nvim",
 
