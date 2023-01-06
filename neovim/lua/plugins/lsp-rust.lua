@@ -1,11 +1,15 @@
 -- rust-tools: a rust lsp server specific to rust
 -- https://github.com/simrat39/rust-tools.nvim
-local pickers = require('pickers')
+-- local pickers = require('pickers')
 
 return {
 	'simrat39/rust-tools.nvim',
-
-	dependencies = { 'neovim/nvim-lspconfig', 'nvim-lua/plenary.nvim', 'mfussenegger/nvim-dap' }, -- last 2 for debug
+	dependencies = {
+		'neovim/nvim-lspconfig',
+		'nvim-telescope/telescope.nvim',
+		'nvim-lua/plenary.nvim',
+		'mfussenegger/nvim-dap' -- debug
+	},
 	ft = 'rust',
 
 	config = function()
@@ -31,8 +35,7 @@ return {
 					-- require("virtualtypes").on_attach(client, bufnr)
 
 					require("which-key").register({
-						R = {
-							name = "Rust",
+						R = { name = "Rust",
 							r = { ":RustRunnables<CR>", "runnables" },
 						}
 					}, { prefix = "<leader>" })
@@ -72,8 +75,8 @@ return {
 					vim.keymap.set("n", "<C-b>", ":RustRun<CR>", { buffer = bufnr, desc = " run" })
 
 					-- vim.keymap.set("n", "<leader>r", "", { buffer = bufnr, desc = " rust" })
-					vim.keymap.set("n", "<leader>rR", ":RustRunnables<CR>", { buffer = bufnr, desc = " run" })
-					vim.keymap.set("n", "<leader>rr", ":RustRunnables<CR>", { buffer = bufnr, desc = " runnables…" })
+					vim.keymap.set("n", "<leader>rR", rust_tools.runnables.runnables, { buffer = bufnr, desc = " run" })
+					vim.keymap.set("n", "<leader>rr", rust_tools.runnables.runnables, { buffer = bufnr, desc = " runnables…" })
 					vim.keymap.set("n", "<leader>rd", ":RustDebuggables<CR>", { buffer = bufnr, desc = " debuggables…" })
 
 					vim.keymap.set("n", "<leader>Df", ":RustFmt<CR>", { buffer = bufnr, desc = " rustfmt" })

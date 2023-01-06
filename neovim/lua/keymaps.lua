@@ -6,6 +6,7 @@
 local M = {}
 local map = vim.keymap.set
 local utils = require 'utils'
+local lf = require 'lf'
 
 M.telescope = function()
 	map("n", "<leader>Gb", function()
@@ -157,6 +158,8 @@ map("n", "<leader>gc", utils.open_config, { desc = "config" })
 map("n", "<leader>Td", ":DrexDrawerToggle<CR>", { desc = "drex" })
 map("n", "<leader>Tl", ToggleLineNumbers, { desc = "line numbers" })
 map("n", "<leader>Tt", ":TransparentToggle<CR>", { desc = "tranparency" })
+
+vim.keymap.set('n', '<C-Space>', lf.show)
 
 -- save / write
 vim.keymap.set("n", "<C-s>", "<CMD>write<CR>", { desc = "save" });

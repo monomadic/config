@@ -1,9 +1,7 @@
 -- better lsp ui
 return {
 	"glepnir/lspsaga.nvim",
-
 	dependencies = { 'neovim/nvim-lspconfig' },
-
 	ft = { 'rust', 'typescript', 'javascript', 'lua' },
 
 	config = function()

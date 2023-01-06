@@ -1,6 +1,6 @@
 return {
-	"folke/which-key.nvim",
-	-- keys = { "gc", "gb", "gcA" },
+	"numToStr/Comment.nvim",
+	keys = { "gc", "gb", "gcA" },
 
 	init = function()
 		require('Comment').setup {

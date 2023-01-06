@@ -321,7 +321,10 @@ snippet testmod "Test module" b
 	mod tests {
 		use super::${1:*};
 
-		test${0}
+		#[test]
+		fn ${2}() {
+			$0
+		}
 	}
 
 snippet ig "#[ignore]"

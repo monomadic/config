@@ -45,6 +45,37 @@ M.close_all_buffers = function()
 	end
 end
 
+-- create a floating window from a buffer
+M.create_floating_window = function()
+	local row = 2
+	local col = 2
+	local width = vim.o.columns
+	local height = vim.o.lines - 2
+	local border = 'none'
+	-- local term_height = math.ceil(0.7 * vim.o.lines)
+
+	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
+	-- local selected_file = vim.fn.expand('%:p') -- the currently open filename
+	-- vim.opt_local.filetype = "float"
+
+	vim.api.nvim_buf_set_option(buf, "filetype", "float")
+	vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
+	--vim.opt.buflisted = false -- don't show in bufferlist
+	vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
+		relative = 'editor',
+		row = row,
+		col = col,
+		width = width,
+		height = height,
+		border = border,
+	})
+
+	vim.wo.relativenumber = false -- turn off line numbers
+	vim.wo.number = false
+
+	return buf
+end
+
 M.get_icon = function(name)
 	-- local icon, icon_hl = devicons.get_icon(name, string.match(name, "%a+$"))
 
