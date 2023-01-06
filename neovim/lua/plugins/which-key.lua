@@ -1,5 +1,6 @@
 return {
 	"folke/which-key.nvim",
+	event = "VeryLazy",
 
 	init = function()
 		require("keymaps").whichkey()
@@ -23,6 +24,27 @@ return {
 
 		require("which-key").register(require('keymaps').whichkey(), {
 			prefix = "<leader>",
+		})
+
+		require("which-key").register({
+			mode = { "n", "v" },
+			["g"] = { name = "+goto" },
+			["]"] = { name = "+next" },
+			["["] = { name = "+prev" },
+			["<leader>"] = { name = "Leader Menu" },
+			["<leader>C"] = { name = "Config" },
+			["<leader>D"] = { name = "Document" },
+			["<leader>G"] = { name = "Git" },
+			["<leader>g"] = { name = "goto" },
+			["<leader>I"] = { name = "Insert" },
+			["<leader>l"] = { name = "list" },
+			["<leader>O"] = { name = "Open" },
+			["<leader>p"] = { name = "peek" },
+			["<leader>P"] = { name = "Packer" },
+			["<leader>R"] = { name = "Run" },
+			["<leader>S"] = { name = "Symbol" },
+			["<leader>T"] = { name = "Toggle" },
+			["<leader>w"] = { name = "workspace" },
 		})
 
 		vim.api.nvim_set_hl(0, "WhichKey", { fg = "#FFFF00" })

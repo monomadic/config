@@ -20,7 +20,6 @@
 require 'utils'
 require 'autocmds'
 
-require 'term'
 require 'text'
 require 'statusline'
 require 'tabline'

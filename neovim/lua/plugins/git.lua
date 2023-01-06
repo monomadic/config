@@ -13,12 +13,12 @@ return {
 					if vim.wo.diff then return ']g' end
 					vim.schedule(function() gs.next_hunk() end)
 					return '<Ignore>'
-				end)
+				end, { desc = "Next git change" })
 				vim.keymap.set('n', '[g', function()
 					if vim.wo.diff then return '[g' end
 					vim.schedule(function() gs.prev_hunk() end)
 					return '<Ignore>'
-				end)
+				end, { desc = "Previous git change" })
 				vim.api.nvim_set_hl(0, "GitSignsAdd", { fg = "#44FF00" })
 				vim.api.nvim_set_hl(0, "GitSignsChange", { fg = "#FFFF00" })
 				vim.api.nvim_set_hl(0, "GitSignsDelete", { fg = "#FF0088" })

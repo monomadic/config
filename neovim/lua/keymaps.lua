@@ -5,8 +5,10 @@
 
 local M = {}
 local map = vim.keymap.set
+local keymap = vim.keymap.set
 local utils = require 'utils'
 local lf = require 'lf'
+local term = require 'term'
 
 M.telescope = function()
 	map("n", "<leader>Gb", function()
@@ -102,27 +104,16 @@ M.whichkey = function()
 			end, " modules…" },
 		},
 
-		g = { name = "go" },
-
 		I = { name = "Insert",
 			T = { function()
 				require('pickers').insert_template()
 			end, "template" }
 		},
 
-		l = {
-			name = "list",
-		},
-
-		p = { name = "peek" },
-		R = { name = "run",
-			-- d = { "", "debug" }
-		},
 		S = {
-			name = "symbol",
 			h = { vim.lsp.buf.signature_help, "help" }
 		},
-		t = { ShowTerminal, " terminal" },
+		t = { term.show, " terminal" },
 		w = { name = "workspace",
 			e = { function()
 				require('telescope.builtin').lsp_workspace_symbols { symbols = "enum" }
@@ -138,14 +129,14 @@ M.whichkey = function()
 			end, " structs…" },
 			S = { ":FzfLua lsp_workspace_symbols<CR>", " symbols…" },
 		},
-		C = { name = "Config" },
-		G = { name = "git" },
-		T = { name = "Toggle" },
-		O = { name = "Open" },
-		P = { name = "Packer" },
 	}
 end
 
+-- NEXT/PREV
+map('n', ']w', '*', { desc = "Next word" })
+map('n', '[w', '#', { desc = "Previous word" })
+
+-- GOTO
 M.glance = function()
 	map("n", "gR", "<CMD>Glance references<CR>")
 	map("n", "gD", "<CMD>Glance definitions<CR>")
@@ -153,18 +144,22 @@ M.glance = function()
 	map("n", "gM", "<CMD>Glance implementations<CR>")
 end
 
+-- LEADER MENU
 map("n", "<leader>gc", utils.open_config, { desc = "config" })
-
 map("n", "<leader>Td", ":DrexDrawerToggle<CR>", { desc = "drex" })
 map("n", "<leader>Tl", ToggleLineNumbers, { desc = "line numbers" })
 map("n", "<leader>Tt", ":TransparentToggle<CR>", { desc = "tranparency" })
 
-vim.keymap.set('n', '<C-Space>', lf.show)
+keymap('n', '<C-Space>', lf.show, { desc = "lf" })
+keymap('n', '<Tab>', term.show)
+keymap('t', '<C-Space>', function()
+	vim.api.nvim_win_hide(0)
+end)
 
 -- save / write
-vim.keymap.set("n", "<C-s>", "<CMD>write<CR>", { desc = "save" });
-vim.keymap.set("n", "<C-S>", "<CMD>wall<CR>", { desc = "save all" });
-vim.keymap.set({ "v", "i" }, "<C-s>", "<Esc><Cmd>write<CR>", { desc = "save" });
+keymap("n", "<C-s>", "<CMD>write<CR>", { desc = "save" });
+keymap("n", "<C-S>", "<CMD>wall<CR>", { desc = "save all" });
+keymap({ "v", "i" }, "<C-s>", "<Esc><Cmd>write<CR>", { desc = "save" });
 
 -- window hide
 vim.keymap.set("n", "q", "<CMD>hide<CR>");
@@ -225,7 +220,7 @@ vim.keymap.set("n", "gc", function() vim.lsp.buf.declaration() end)
 -- vim.keymap.set("n", "gr", function() vim.lsp.buf.references() end)
 
 vim.keymap.set("n", "<C-b>", Build, { desc = " build" })
-vim.keymap.set("n", "<leader>rb", Build, { desc = " build" })
+vim.keymap.set("n", "<leader>Rb", Build, { desc = " build" })
 
 -- use ; for commands instead of :
 vim.keymap.set("n", ";", ":")
@@ -243,8 +238,8 @@ vim.keymap.set("n", "\\o", OpenFiles, { desc = "open file" })
 vim.keymap.set("n", "\\d", ":Drex<CR>", { desc = "drex" })
 vim.keymap.set("n", "\\f", ":DrexDrawerOpen<CR>", { desc = "filetree" })
 vim.keymap.set("n", "<C-b>", ":DrexDrawerToggle<CR>", { desc = "filetree" })
-vim.keymap.set("n", "\\t", ShowTerminal, { desc = "terminal" })
-vim.keymap.set("n", "<Tab>", ShowTerminal, { desc = "terminal" })
+--vim.keymap.set("n", "\\t", ShowTerminal, { desc = "terminal" })
+--vim.keymap.set("n", "<Tab>", ShowTerminal, { desc = "terminal" })
 -- vim.keymap.set("n", "<Tab>l", ShowTerminal, { desc = "lf" })
 
 -- emacs style shortcuts in insert mode (yes, i am like that)
@@ -353,18 +348,19 @@ vim.api.nvim_create_autocmd("LspAttach", {
 
 		-- next/prev: [ and ]
 
-		map('n', ']d', vim.diagnostic.goto_next, { desc = "next diagnostic" })
-		map('n', '[d', vim.diagnostic.goto_prev, { desc = "prev diagnostic" })
-
+		map('n', ']d', vim.diagnostic.goto_next, { desc = "Next diagnostic" })
+		map('n', '[d', vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })
 	end
 })
 
 -- rust
-vim.api.nvim_create_autocmd("FileType", { pattern = "rust", callback = function()
-end })
+-- vim.api.nvim_create_autocmd("FileType", { pattern = "rust", callback = function()
+-- end })
 
 -- lua
 vim.api.nvim_create_autocmd("FileType", { pattern = "lua", callback = function()
+	map("n", "<leader>r", ":source %<CR>", { desc = "run" })
+	map("n", "<C-r>", ":source %<CR>", { desc = "run" })
 	map("n", "<leader>Rr", ":source %<CR>", { desc = "run" })
 end })
 
