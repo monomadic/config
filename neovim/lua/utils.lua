@@ -114,6 +114,10 @@ function Build()
 	print("no build command found for this project")
 end
 
+M.go_root = function()
+	GoRoot()
+end
+
 -- go to root project file
 function GoRoot()
 	-- local files = {"src/lib.rs"}
