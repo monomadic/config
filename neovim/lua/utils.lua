@@ -92,6 +92,10 @@ function OpenFiles()
 	require('telescope.builtin').find_files { path_display = { "truncate" }, prompt_title = "", preview_title = "" }
 end
 
+M.format = function()
+	vim.lsp.buf.format { async = true }
+end
+
 function Format()
 	vim.lsp.buf.format { async = true }
 end

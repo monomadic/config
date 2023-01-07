@@ -1,7 +1,80 @@
+local builtin = require 'telescope.builtin'
+local utils = require 'utils'
+
 local M = {}
 
 M.open_with_extension = function(ext)
-	require('telescope.builtin').find_files({ search_file = ext })
+	builtin.find_files {
+		path_display = { "truncate" },
+		search_file = string.format("*.%s", ext),
+	}
+end
+
+M.open_files = function()
+	builtin.find_files {
+		path_display = { "truncate" },
+		hidden = true,
+	}
+end
+
+M.open_same_filetype = function()
+	builtin.find_files {
+		path_display = { "truncate" },
+		search_file = string.format("*.%s", vim.bo.filetype),
+	}
+end
+
+M.wiki_open_page = function()
+	builtin.find_files({ cwd = "~/wiki/" })
+end
+
+M.wiki_search = function()
+	builtin.live_grep({ cwd = "~/wiki/" })
+end
+
+M.open_template = function()
+	builtin.find_files({ cwd = "~/.config/nvim/templates/", follow = true })
+end
+
+M.open_test = function()
+	builtin.find_files { cwd = "tests/", follow = true }
+end
+
+M.open_config_file = function()
+	utils.select_file_at("~/config/neovim/")
+end
+
+M.git_commits = function()
+	builtin.git_commits()
+end
+
+M.git_status = function()
+	builtin.git_status()
+end
+
+M.git_branches = function()
+	builtin.git_branches()
+end
+
+M.lsp_workspace_symbols = function()
+	builtin.lsp_workspace_symbols { path_display = "hidden", prompt_title = "", preview_title = "" }
+end
+
+M.lsp_document_functions = function()
+	builtin.lsp_document_symbols {
+		symbols = "function",
+		prompt_title = "",
+		preview_title = "",
+		borderchars = { " ", " ", " ", " ", " ", " ", " ", " " }
+	}
+end
+
+M.lsp_document_enums = function()
+	builtin.lsp_document_symbols { symbols = "enum" }
+end
+
+M.list_keymaps = function()
+	builtin.keymaps()
 end
 
 M.insert_template = function()

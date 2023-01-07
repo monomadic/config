@@ -11,87 +11,72 @@ local lf = require 'lf'
 local term = require 'term'
 
 M.telescope = function()
-	map("n", "<leader>Gb", function()
-		require('telescope.builtin').git_branches()
-	end, { desc = "branches" })
+	local pickers = require 'pickers'
+	local builtin = require 'telescope.builtin'
 
-	map("n", "<leader>Oc", utils.open_config, { desc = "config" })
-	map("n", "<leader>Ot", function()
-		require('telescope.builtin').find_files({ cwd = "tests/", follow = true })
-	end, { desc = "test" })
+	-- single letter actions
+	keymap('n', '<leader>b', builtin.buffers, { desc = "buffer" })
+	keymap('n', "<leader>s", pickers.open_same_filetype, { desc = "source" })
 
-	-- packer
-	map("n", "<leader>Pc", ":PackerCompile<CR>", { desc = "compile" })
-	map("n", "<leader>Ps", ":PackerSync<CR>", { desc = "sync" })
+	-- list
+	keymap('n', "<leader>lgb", pickers.git_branches, { desc = "branches" })
+	keymap('n', '<leader>lb', builtin.buffers, { desc = "buffers…" })
+	keymap('n', "<leader>lgc", pickers.git_commits, { desc = "commits" })
+	keymap('n', '<leader>lk', pickers.list_keymaps, { desc = "keymaps" })
 
-	map("n", "<leader>Cf", function()
-		utils.select_file_at("~/config/neovim/")
-	end, { desc = "file..." })
+	-- document
+	keymap('n', '<leader>De', pickers.lsp_document_enums, { desc = " enums…" })
+	keymap('n', '<leader>Df', pickers.lsp_document_functions, { desc = " functions…" })
 
-	map("n", "<leader>Cf", function()
-		utils.select_file_at("~/config/neovim/")
-	end, { desc = "file" })
+	-- git
+	keymap('n', "<leader>Gb", pickers.git_branches, { desc = "branches" })
+	keymap('n', "<leader>Gc", pickers.git_commits, { desc = "commits" })
+	keymap('n', "<leader>Gs", pickers.git_status, { desc = "changed files" })
 
-	map("n", "<leader>Gc", ":Telescope git_commits<CR>", { desc = "commits" })
-	map("n", "<leader>Gs", ":Telescope git_status<CR>", { desc = "status" })
+	-- open
+	keymap('n', "<leader>OT", pickers.open_template, { desc = "template" })
+	keymap('n', "<leader>Ot", pickers.open_test, { desc = "test" })
+	keymap('n', "<leader>Ow", pickers.wiki_open_page, { desc = "wiki page" })
+	keymap('n', "<leader>Os", pickers.open_same_filetype, { desc = "source file" })
 
-	map("n", "<leader>o", ":Telescope find_files<CR>", { desc = "open" })
-	vim.keymap.set("n", "go", function()
-		require('telescope.builtin').find_files()
-	end, { desc = "open" })
+	-- config
+	keymap('n', "<leader>Cf", pickers.open_config_file, { desc = "file..." })
 
-	vim.keymap.set("n", '<leader>b', '<cmd>Telescope buffers<cr>', { desc = "buffers…" })
+	-- goto
+	keymap('n', "<leader>go", pickers.open_files, { desc = "open" })
+	keymap('n', "<leader>gt", pickers.open_template, { desc = "template" })
+	keymap('n', "<leader>gw", pickers.wiki_open_page, { desc = "wiki page" })
 
-	-- vim.keymap.set("n", '<leader>f', function()
-	-- 	require('telescope.builtin').find_files { path_display = { "truncate" }, prompt_title = "", preview_title = "" }
-	-- end)
+	-- insert
+	keymap('n', '<leader>Nt', pickers.insert_template, { desc = "template" })
 
-	vim.keymap.set("n", '<leader>o', OpenFiles, { desc = "open…" })
+	keymap('n', '<leader>o', pickers.open_files, { desc = "open…" })
+	keymap('n', '<leader>t', term.show, { desc = " terminal" })
 
-	vim.keymap.set("n", 'to', '<cmd>Telescope oldfiles<cr>')
-	-- vim.keymap.set("n", '<leader>g', '<cmd>Telescope live_grep<cr>')
-	vim.keymap.set('n', 'tgb', '<Cmd>Telescope git_branches<cr>')
-	vim.keymap.set('n', 'tgc', '<Cmd>Telescope git_bcommits<cr>')
-	vim.keymap.set('n', 'tgd', '<Cmd>Telescope git_status<cr>')
-	vim.keymap.set('n', 'tk', '<Cmd>Telescope keymaps<cr>')
-	vim.keymap.set('n', 'tld', '<Cmd>Telescope lsp_definitions<cr>')
-	vim.keymap.set('n', 'tli', '<Cmd>Telescope lsp_implementations<cr>')
-	-- vim.keymap.set('n', '<leader>S', '<Cmd>Telescope lsp_document_symbols<cr>', { desc = "DoCuMeNt" })
-	vim.keymap.set('n', 'tlw', function()
-		require('telescope.builtin').lsp_workspace_symbols { path_display = "hidden", prompt_title = "", preview_title = "" }
-	end)
-	vim.keymap.set('n', 'tlf', function()
-		require('telescope.builtin').lsp_document_symbols { symbols = "function", prompt_title = "", preview_title = "",
-			borderchars = { " ", " ", " ", " ", " ", " ", " ", " " } }
-	end)
+	keymap('n', 'tk', pickers.list_keymaps, { desc = "keymaps" })
+	keymap('n', 'tld', '<Cmd>Telescope lsp_definitions<cr>')
+	keymap('n', 'tli', '<Cmd>Telescope lsp_implementations<cr>')
+	keymap('n', 'tlw', pickers.lsp_document_functions, { desc = "functions" })
+	keymap('n', 'tlw', pickers.lsp_workspace_symbols, { desc = "symbols" })
+	keymap('n', 'to', '<cmd>Telescope oldfiles<cr>')
+	keymap('n', 'tr', '<Cmd>Telescope resume<cr>')
+	keymap('n', 'tt', '<Cmd>TodoTelescope<cr>')
 
-	vim.keymap.set('n', 'tr', '<Cmd>Telescope resume<cr>')
-	vim.keymap.set('n', 'tt', '<Cmd>TodoTelescope<cr>')
+	-- wiki
+	keymap('n', "<leader>Wo", pickers.wiki_open_page, { desc = "open page" })
+	keymap('n', "<leader>Wf", pickers.wiki_search, { desc = "find" })
 
-	-- vim.keymap.set("n", "ts", function()
+	-- keymap('n', "ts", function()
 	-- 	require("luasnip.loaders.from_snipmate").lazy_load()
 	-- 	require('telescope').load_extension('luasnip')
 	-- 	vim.api.nvim_command('Telescope luasnip')
 	-- end)
 end
 
+
 M.whichkey = function()
 	return {
-		f = {
-			name = "file",
-			f = { Format, " format" },
-			o = { OpenFiles, "open…" },
-		},
 		D = {
-			name = "document",
-
-			e = { function()
-				require('telescope.builtin').lsp_document_symbols { symbols = "enum" }
-			end, " enums…" },
-			f = { function()
-				require('telescope.builtin').lsp_document_symbols { symbols = "function" }
-			end, " functions…" },
-			F = { function() vim.lsp.buf.format { async = true } end, " format" },
 			s = { function()
 				require('telescope.builtin').lsp_document_symbols { symbols = "struct" }
 			end, " structs…" },
@@ -103,18 +88,7 @@ M.whichkey = function()
 				require('telescope.builtin').lsp_document_symbols { symbols = "module" }
 			end, " modules…" },
 		},
-
-		I = { name = "Insert",
-			T = { function()
-				require('pickers').insert_template()
-			end, "template" }
-		},
-
-		S = {
-			h = { vim.lsp.buf.signature_help, "help" }
-		},
-		t = { term.show, " terminal" },
-		w = { name = "workspace",
+		w = {
 			e = { function()
 				require('telescope.builtin').lsp_workspace_symbols { symbols = "enum" }
 			end, " enums…" },
@@ -133,22 +107,31 @@ M.whichkey = function()
 end
 
 -- NEXT/PREV
-map('n', ']w', '*', { desc = "Next word" })
-map('n', '[w', '#', { desc = "Previous word" })
+keymap('n', ']w', '*', { desc = "Next word" })
+keymap('n', '[w', '#', { desc = "Previous word" })
 
 -- GOTO
 M.glance = function()
-	map("n", "gR", "<CMD>Glance references<CR>")
-	map("n", "gD", "<CMD>Glance definitions<CR>")
-	map("n", "gY", "<CMD>Glance type_definitions<CR>")
-	map("n", "gM", "<CMD>Glance implementations<CR>")
+	keymap('n', "gR", "<CMD>Glance references<CR>")
+	keymap('n', "<leader>Sd", "<CMD>Glance definitions<CR>", { desc = "glance definition" })
+	keymap('n', "gY", "<CMD>Glance type_definitions<CR>")
+	keymap('n', "gM", "<CMD>Glance implementations<CR>")
 end
 
 -- LEADER MENU
-map("n", "<leader>gc", utils.open_config, { desc = "config" })
-map("n", "<leader>Td", ":DrexDrawerToggle<CR>", { desc = "drex" })
-map("n", "<leader>Tl", ToggleLineNumbers, { desc = "line numbers" })
-map("n", "<leader>Tt", ":TransparentToggle<CR>", { desc = "tranparency" })
+--
+-- goto
+keymap('n', "<leader>gc", utils.open_config, { desc = "config" })
+--
+-- buffers
+--
+-- toggle
+keymap('n', "<leader>Td", ":DrexDrawerToggle<CR>", { desc = "drex" })
+keymap('n', "<leader>Tl", ToggleLineNumbers, { desc = "line numbers" })
+keymap('n', "<leader>Tt", ":TransparentToggle<CR>", { desc = "tranparency" })
+--
+-- actions
+keymap('n', '<leader>f', utils.format, { desc = " format" })
 
 keymap('n', '<C-Space>', lf.show, { desc = "lf" })
 keymap('n', '<Tab>', term.show)
@@ -157,172 +140,155 @@ keymap('t', '<C-Space>', function()
 end)
 
 -- save / write
-keymap("n", "<C-s>", "<CMD>write<CR>", { desc = "save" });
-keymap("n", "<C-S>", "<CMD>wall<CR>", { desc = "save all" });
+keymap('n', "<C-s>", "<CMD>write<CR>", { desc = "save" });
+keymap('n', "<C-S>", "<CMD>wall<CR>", { desc = "save all" });
 keymap({ "v", "i" }, "<C-s>", "<Esc><Cmd>write<CR>", { desc = "save" });
 
 -- window hide
-vim.keymap.set("n", "q", "<CMD>hide<CR>");
--- buffer unload
-vim.keymap.set("n", "<leader>q", "<CMD>hide<CR>", { desc = "hide window" })
-vim.keymap.set("n", "<leader>u", "<CMD>bun<CR>", { desc = "unload buffer" })
+keymap('n', "q", "<CMD>hide<CR>");
+keymap('n', "<leader>q", "<CMD>hide<CR>", { desc = "hide window" })
+keymap('n', "<leader>Bu", "<CMD>bun<CR>", { desc = "unload" })
 -- fast quit
-vim.keymap.set("n", "W", "<cmd>wall<CR>")
-vim.keymap.set("n", "Q", "<cmd>wall<CR><cmd>qall<CR>")
+keymap('n', "W", "<cmd>wall<CR>")
+keymap('n', "Q", "<cmd>wall<CR><cmd>qall<CR>")
 -- leader
-vim.keymap.set("n", "<leader>!", "<cmd>quit!<CR>")
-vim.keymap.set("n", "<leader><tab>", "<cmd>Drex<CR>", { desc = "drex" })
-vim.keymap.set("n", "<C-n>", ToggleLineNumbers, { desc = "toggle line numbers" })
+keymap('n', "<leader>!", "<cmd>quit!<CR>")
+keymap('n', "<leader><tab>", "<cmd>Drex<CR>", { desc = "drex" })
+keymap('n', "<C-n>", ToggleLineNumbers, { desc = "toggle line numbers" })
 
-vim.keymap.set("n", '<leader>Df', function() vim.lsp.buf.format { async = true } end, { desc = "format" })
-vim.keymap.set("n", '<leader>F', function() vim.lsp.buf.format { async = true } end, { desc = "format" })
-
-vim.keymap.set("n", "<leader>a", vim.lsp.buf.code_action, { desc = "code-actions (saga)" })
+keymap('n', "<leader>a", vim.lsp.buf.code_action, { desc = "code-actions (saga)" })
 
 -- split navigation
-vim.keymap.set("n", "<C-j>", "<C-w><C-j>")
-vim.keymap.set("i", "<C-j>", "<Esc><C-w><C-j>")
-vim.keymap.set("n", "<C-k>", "<C-w><C-k>", { remap = false })
-vim.keymap.set("i", "<C-k>", "<Esc><C-w><C-k>")
-vim.keymap.set("n", "<C-l>", "<C-w><C-l>", { remap = false })
-vim.keymap.set("i", "<C-l>", "<Esc><C-w><C-l>")
-vim.keymap.set("n", "<C-h>", "<C-w><C-h>")
-vim.keymap.set("i", "<C-h>", "<Esc><C-w><C-h>")
-vim.keymap.set({ "n", "t" }, "<C-w><C-d>", "<cmd>vsplit<CR>")
+keymap('n', "<C-j>", "<C-w><C-j>")
+keymap("i", "<C-j>", "<Esc><C-w><C-j>")
+keymap('n', "<C-k>", "<C-w><C-k>", { remap = false })
+keymap("i", "<C-k>", "<Esc><C-w><C-k>")
+keymap('n', "<C-l>", "<C-w><C-l>", { remap = false })
+keymap("i", "<C-l>", "<Esc><C-w><C-l>")
+keymap('n', "<C-h>", "<C-w><C-h>")
+keymap("i", "<C-h>", "<Esc><C-w><C-h>")
+keymap({ 'n', "t" }, "<C-w><C-d>", "<cmd>vsplit<CR>")
 
 -- maximize
-vim.keymap.set("n", "<C-w>m", "<CMD>only<CR>", { desc = "Maximize" })
-vim.keymap.set("n", "<C-w><C-m>", "<CMD>only<CR>", { desc = "Maximize" })
+keymap('n', "<C-w>m", "<CMD>only<CR>", { desc = "Maximize" })
+keymap('n', "<C-w><C-m>", "<CMD>only<CR>", { desc = "Maximize" })
 
 -- hide
-vim.keymap.set("n", "<C-w><C-h>", "<CMD>hide<CR>", { desc = "Hide" })
+keymap('n', "<C-w><C-h>", "<CMD>hide<CR>", { desc = "Hide" })
+
 
 -- jump to next paragraph
-vim.keymap.set("n", "}", "}j")
-vim.keymap.set("n", "{", "k{j")
+keymap('n', "}", "}j")
+keymap('n', "{", "k{j")
 
 -- jump page up/down 5 lines
---vim.keymap.set("n", ">", "5j")
---vim.keymap.set("n", "{", "k{j")
+--keymap('n', ">", "5j")
+--keymap('n', "{", "k{j")
 
 -- indent in insert mode
-vim.keymap.set("i", "<C-.>", "<C-t>")
-vim.keymap.set("n", "<C-.>", "i<C-t><C-f><C-f><Esc>") -- note: ctrl-f is fwd
-vim.keymap.set("v", "<C-.>", "<Esc><C-t>")
+keymap("i", "<C-.>", "<C-t>")
+keymap('n', "<C-.>", "i<C-t><C-f><C-f><Esc>") -- note: ctrl-f is fwd
+keymap("v", "<C-.>", "<Esc><C-t>")
 
-vim.keymap.set("i", "<C-,>", "<C-d>")
-vim.keymap.set("n", "<C-,>", "i<C-d><C-f><Esc>")
--- vim.keymap.set("v", "<C-,>", "<Esc><C-h>")
+keymap("i", "<C-,>", "<C-d>")
+keymap('n', "<C-,>", "i<C-d><C-f><Esc>")
+-- keymap("v", "<C-,>", "<Esc><C-h>")
 
-vim.keymap.set("n", "gd", function() vim.lsp.buf.definition() end)
-vim.keymap.set("n", "<Enter>", function() vim.lsp.buf.definition() end)
-vim.keymap.set("n", "gc", function() vim.lsp.buf.declaration() end)
--- vim.keymap.set("n", "gr", function() vim.lsp.buf.references() end)
+keymap('n', "gd", function() vim.lsp.buf.definition() end)
+keymap('n', "<Enter>", function() vim.lsp.buf.definition() end)
+keymap('n', "gc", function() vim.lsp.buf.declaration() end)
+-- keymap('n', "gr", function() vim.lsp.buf.references() end)
 
-vim.keymap.set("n", "<C-b>", Build, { desc = " build" })
-vim.keymap.set("n", "<leader>Rb", Build, { desc = " build" })
+keymap('n', "<C-b>", Build, { desc = " build" })
+keymap('n', "<leader>Rb", Build, { desc = " build" })
 
 -- use ; for commands instead of :
-vim.keymap.set("n", ";", ":")
--- vim.keymap.set("n", "<Space>", ":")
+keymap('n', ";", ":")
+-- keymap('n', "<Space>", ":")
 
 -- go back
-vim.keymap.set('n', '<bs>', ':edit #<cr>', { silent = true })
+keymap('n', '<bs>', ':edit #<cr>', { silent = true })
 
 -- grep entire project
-vim.keymap.set("n", "<C-f>", function()
+keymap('n', "<C-f>", function()
 	require('telescope.builtin').live_grep()
 end)
 
-vim.keymap.set("n", "\\o", OpenFiles, { desc = "open file" })
-vim.keymap.set("n", "\\d", ":Drex<CR>", { desc = "drex" })
-vim.keymap.set("n", "\\f", ":DrexDrawerOpen<CR>", { desc = "filetree" })
-vim.keymap.set("n", "<C-b>", ":DrexDrawerToggle<CR>", { desc = "filetree" })
---vim.keymap.set("n", "\\t", ShowTerminal, { desc = "terminal" })
---vim.keymap.set("n", "<Tab>", ShowTerminal, { desc = "terminal" })
--- vim.keymap.set("n", "<Tab>l", ShowTerminal, { desc = "lf" })
+keymap('n', "\\o", OpenFiles, { desc = "open file" })
+keymap('n', "\\d", ":Drex<CR>", { desc = "drex" })
+keymap('n', "\\f", ":DrexDrawerOpen<CR>", { desc = "filetree" })
+keymap('n', "<C-b>", ":DrexDrawerToggle<CR>", { desc = "filetree" })
+--keymap('n', "\\t", ShowTerminal, { desc = "terminal" })
+--keymap('n', "<Tab>", ShowTerminal, { desc = "terminal" })
+-- keymap('n', "<Tab>l", ShowTerminal, { desc = "lf" })
 
 -- emacs style shortcuts in insert mode (yes, i am like that)
-vim.keymap.set("i", "<C-n>", "<Down>")
-vim.keymap.set("i", "<C-p>", "<Up>")
-vim.keymap.set("i", "<C-b>", "<Left>")
-vim.keymap.set("i", "<C-f>", "<Right>")
-vim.keymap.set("i", "<C-e>", "<End>")
-vim.keymap.set("i", "<C-a>", "<Home>")
-vim.keymap.set("i", "<C-s>", "<Esc>:write<CR>")
+keymap("i", "<C-n>", "<Down>")
+keymap("i", "<C-p>", "<Up>")
+keymap("i", "<C-b>", "<Left>")
+keymap("i", "<C-f>", "<Right>")
+keymap("i", "<C-e>", "<End>")
+keymap("i", "<C-a>", "<Home>")
+keymap("i", "<C-s>", "<Esc>:write<CR>")
 -- move lines up and down in visual mode
-vim.keymap.set("x", "K", ":move '<-2<CR>gv-gv")
-vim.keymap.set("x", "J", ":move '>+1<CR>gv-gv")
+keymap("x", "K", ":move '<-2<CR>gv-gv")
+keymap("x", "J", ":move '>+1<CR>gv-gv")
 --
 -- quote quickly
---vim.keymap.set("i", '<leader>"', '<Esc>viw<Esc>a"<Esc>bi"<Esc>leli')
-vim.keymap.set("v", '"', '<Esc>`<i"<Esc>`>ea"<Esc>')
+--keymap("i", '<leader>"', '<Esc>viw<Esc>a"<Esc>bi"<Esc>leli')
+keymap("v", '"', '<Esc>`<i"<Esc>`>ea"<Esc>')
 -- substitute shortcut
--- vim.keymap.set("n", "S", ":%s//g<Left><Left>")
--- vim.keymap.set("v", "S", ":s//g<Left><Left>")
+-- keymap('n', "S", ":%s//g<Left><Left>")
+-- keymap("v", "S", ":s//g<Left><Left>")
 -- more reachable line start/end
-vim.keymap.set("n", "H", "^")
-vim.keymap.set("n", "L", "$")
+keymap('n', "H", "^")
+keymap('n', "L", "$")
 
 -- terminal
-vim.keymap.set("n", '<C-t>', '<C-w><C-s>:term<CR>i', { remap = false })
-vim.keymap.set("t", '<C-\\>', '<C-\\><C-n>', { remap = false })
-vim.keymap.set("t", '<C-h>', '<C-\\><C-n><C-w><C-h>', { remap = false })
--- vim.keymap.set("t", '<C-j>', '<C-\\><C-n><C-w><C-j>', { remap = false })
-vim.keymap.set("t", '<C-k>', '<C-\\><C-n><C-w><C-k>', { remap = false })
-vim.keymap.set("t", '<C-l>', '<C-\\><C-n><C-w><C-l>', { remap = false })
+keymap('n', '<C-t>', '<C-w><C-s>:term<CR>i', { remap = false })
+keymap("t", '<C-\\>', '<C-\\><C-n>', { remap = false })
+keymap("t", '<C-h>', '<C-\\><C-n><C-w><C-h>', { remap = false })
+-- keymap("t", '<C-j>', '<C-\\><C-n><C-w><C-j>', { remap = false })
+keymap("t", '<C-k>', '<C-\\><C-n><C-w><C-k>', { remap = false })
+keymap("t", '<C-l>', '<C-\\><C-n><C-w><C-l>', { remap = false })
 
 -- git
-vim.keymap.set("n", "<leader>Gb", ":Telescope git_branches<CR>", { desc = "branches" })
-vim.keymap.set("n", "<leader>Gc", ":Telescope git_commits<CR>", { desc = "commits" })
-vim.keymap.set("n", "<leader>Gs", ":Telescope git_status<CR>", { desc = "status" })
+keymap('n', "<leader>Gb", ":Telescope git_branches<CR>", { desc = "branches" })
+keymap('n', "<leader>Gc", ":Telescope git_commits<CR>", { desc = "commits" })
+keymap('n', "<leader>Gs", ":Telescope git_status<CR>", { desc = "status" })
 
 -- go
-vim.keymap.set("n", "gr", GoRoot, { desc = "root" })
-vim.keymap.set("n", "gp", GoPackagerFile, { desc = "package manifest" })
-vim.keymap.set("n", "<leader>gr", GoRoot, { desc = "root" })
-vim.keymap.set("n", "<leader>gp", GoPackagerFile, { desc = "package manifest" })
-vim.keymap.set("n", "<leader>gs", function()
+keymap('n', "gr", GoRoot, { desc = "root" })
+keymap('n', "gp", GoPackagerFile, { desc = "package manifest" })
+keymap('n', "<leader>gr", GoRoot, { desc = "root" })
+keymap('n', "<leader>gp", GoPackagerFile, { desc = "package manifest" })
+keymap('n', "<leader>gs", function()
 	require('telescope.builtin').find_files({ cwd = "~/.config/nvim/snippets/", follow = true })
 end, { desc = "snippet" })
-vim.keymap.set("n", "<leader>gt", function()
-	require('telescope.builtin').find_files({ cwd = "~/.config/nvim/templates/", follow = true })
-end, { desc = "template" })
-vim.keymap.set("n", "<leader>gw", function()
-	require('telescope.builtin').find_files({ cwd = "~/wiki/" })
-end, { desc = "wiki page" })
-
-vim.keymap.set("n", "<leader>Wo", function()
-	require('telescope.builtin').find_files({ cwd = "~/wiki/" })
-end, { desc = "open page" })
-vim.keymap.set("n", "<leader>Wf", function()
-	require('telescope.builtin').live_grep({ cwd = "~/wiki/" })
-end, { desc = "find" })
 
 -- list
-vim.keymap.set("n", '<leader>lb', '<cmd>Telescope buffers<cr>', { desc = "buffers…" })
-vim.keymap.set("n", '<leader>lc', '<cmd>FzfLua colorschemes<cr>', { desc = "colorschemes" })
-vim.keymap.set("n", '<leader>lC', '<cmd>Telescope commands<cr>', { desc = "commands (telescope)" })
---vim.keymap.set("n", '<leader>lh', '<cmd>Telescope command_history<cr>', { desc = "command history (telescope)" })
-vim.keymap.set("n", '<leader>ld', '<cmd>Telescope diagnostics<cr>', { desc = "diagnostics" })
-vim.keymap.set("n", '<leader>lf', '<cmd>Telescope filetypes<cr>', { desc = "filetypes…" })
-vim.keymap.set("n", '<leader>lk', '<cmd>Telescope keymaps<cr>', { desc = "keymaps" })
-vim.keymap.set("n", '<leader>lh', '<cmd>Telescope highlights<cr>', { desc = "highlights" })
-vim.keymap.set("n", '<leader>lm', '<cmd>Telescope marks<cr>', { desc = "marks…" })
-vim.keymap.set("n", '<leader>lr', '<cmd>Telescope oldfiles<cr>', { desc = "recent files" })
-vim.keymap.set("n", '<leader>lt', '<cmd>TodoTelescope<cr>', { desc = "todos…" })
+keymap('n', '<leader>lb', '<cmd>Telescope buffers<cr>', { desc = "buffers…" })
+keymap('n', '<leader>lc', '<cmd>FzfLua colorschemes<cr>', { desc = "colorschemes" })
+keymap('n', '<leader>lC', '<cmd>Telescope commands<cr>', { desc = "commands (telescope)" })
+--keymap('n', '<leader>lh', '<cmd>Telescope command_history<cr>', { desc = "command history (telescope)" })
+keymap('n', '<leader>ld', '<cmd>Telescope diagnostics<cr>', { desc = "diagnostics" })
+keymap('n', '<leader>lf', '<cmd>Telescope filetypes<cr>', { desc = "filetypes…" })
+keymap('n', '<leader>lh', '<cmd>Telescope highlights<cr>', { desc = "highlights" })
+keymap('n', '<leader>lm', '<cmd>Telescope marks<cr>', { desc = "marks…" })
+keymap('n', '<leader>lr', '<cmd>Telescope oldfiles<cr>', { desc = "recent files" })
+keymap('n', '<leader>lt', '<cmd>TodoTelescope<cr>', { desc = "todos…" })
 
 -- symbol
-vim.keymap.set("n", '<leader>Ss', '<cmd>Telescope spell_suggest<cr>', { desc = "spelling" })
+keymap('n', '<leader>Ss', '<cmd>Telescope spell_suggest<cr>', { desc = "spelling" })
 
 -- workspace
-vim.keymap.set("n", '<leader>wM', '<cmd>Telescope marks<cr>', { desc = "mark…" })
-vim.keymap.set("n", '<leader>wt', '<cmd>TodoTelescope<cr>', { desc = "todo…" })
+keymap('n', '<leader>wM', '<cmd>Telescope marks<cr>', { desc = "mark…" })
+keymap('n', '<leader>wt', '<cmd>TodoTelescope<cr>', { desc = "todo…" })
 
 -- sessions
 -- local session_dir = vim.fn.stdpath('data') .. '/sessions/'
--- vim.keymap.set("n", '<leader>mks', ':mks! ' .. session_dir)
--- vim.keymap.set("n", '<leader>lds', ':%bd | so ' .. session_dir)
+-- keymap('n', '<leader>mks', ':mks! ' .. session_dir)
+-- keymap('n', '<leader>lds', ':%bd | so ' .. session_dir)
 
 -- visual mode
 map('v', '<leader>u', ':UpperCase<CR>')
@@ -342,9 +308,9 @@ vim.api.nvim_create_autocmd("LspAttach", {
 		-- local bufnr = args.buf
 		-- local client = vim.lsp.get_client_by_id(args.data.client_id)
 		-- require("lsp-inlayhints").on_attach(client, bufnr)
-		vim.keymap.set('n', '<leader>d', '<Cmd>Telescope diagnostics<cr>', { desc = "diagnostics" })
-		vim.keymap.set('n', '<leader>Dd', '<Cmd>FzfLua diagnostics_document<cr>', { desc = "diagnostics" })
-		vim.keymap.set('n', '<leader>wd', '<Cmd>Telescope diagnostics<cr>', { desc = "diagnostics" })
+		keymap('n', '<leader>d', '<Cmd>Telescope diagnostics<cr>', { desc = "diagnostics" })
+		keymap('n', '<leader>Dd', '<Cmd>FzfLua diagnostics_document<cr>', { desc = "diagnostics" })
+		keymap('n', '<leader>wd', '<Cmd>Telescope diagnostics<cr>', { desc = "diagnostics" })
 
 		-- next/prev: [ and ]
 
@@ -359,9 +325,9 @@ vim.api.nvim_create_autocmd("LspAttach", {
 
 -- lua
 vim.api.nvim_create_autocmd("FileType", { pattern = "lua", callback = function()
-	map("n", "<leader>r", ":source %<CR>", { desc = "run" })
-	map("n", "<C-r>", ":source %<CR>", { desc = "run" })
-	map("n", "<leader>Rr", ":source %<CR>", { desc = "run" })
+	map('n', "<leader>r", ":source %<CR>", { desc = "run" })
+	map('n', "<C-r>", ":source %<CR>", { desc = "run" })
+	map('n', "<leader>Rr", ":source %<CR>", { desc = "run" })
 end })
 
 return M
