@@ -1,1 +1,2 @@
-hi!
+function Hello ()
+end

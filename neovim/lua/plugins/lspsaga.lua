@@ -8,6 +8,7 @@ return {
 		local lsp_saga = require('lspsaga')
 
 		vim.keymap.set("n", "<leader>Sf", "<cmd>Lspsaga lsp_finder<CR>", { desc = "symbol finder (saga)" })
+		vim.keymap.set("n", "<leader>a", "<cmd>Lspsaga code_action<CR>", { desc = "code-actions (saga)" })
 		vim.keymap.set("n", "<leader>Sa", "<cmd>Lspsaga code_action<CR>", { desc = "code-actions (saga)" })
 		vim.keymap.set("n", "<leader>Sr", "<cmd>Lspsaga rename<CR>", { desc = "rename (saga)" })
 		vim.keymap.set("n", "<leader>Pd", "<cmd>Lspsaga peek_definition<CR>", { desc = "peek definition (saga)" })

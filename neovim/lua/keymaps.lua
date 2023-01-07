@@ -30,6 +30,7 @@ M.telescope = function()
 	keymap('n', '<leader>De', pickers.lsp_document_enums, { desc = " enums…" })
 	keymap('n', '<leader>Df', pickers.lsp_document_functions, { desc = " functions…" })
 	keymap('n', "<leader>Dc", builtin.git_status, { desc = "changes" })
+	keymap('n', "<leader>Dt", builtin.treesitter, { desc = " treesitter…" })
 
 	-- git
 	keymap('n', "<leader>Gb", pickers.git_branches, { desc = "branches" })
@@ -95,9 +96,6 @@ M.whichkey = function()
 				require('telescope.builtin').lsp_document_symbols { symbols = "struct" }
 			end, " structs…" },
 			S = { require('telescope.builtin').lsp_document_symbols, " symbols…" },
-			t = { function()
-				require('telescope.builtin').treesitter()
-			end, " treesitter…" },
 			m = { function()
 				require('telescope.builtin').lsp_document_symbols { symbols = "module" }
 			end, " modules…" },
