@@ -1,7 +1,7 @@
 return {
 	'theblob42/drex.nvim',
 	cmd = { "Drex", "DrexDrawerOpen", "DrexDrawerToggle" },
-	dependencies = 'kyazdani42/nvim-web-devicons', -- optional
+	dependencies = 'nvim-tree/nvim-web-devicons', -- optional
 
 	config = function()
 		-- local utils = require('drex.utils')

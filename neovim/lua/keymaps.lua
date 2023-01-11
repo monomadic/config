@@ -159,7 +159,7 @@ keymap('n', "<leader>Tl", ToggleLineNumbers, { desc = "line numbers" })
 keymap('n', "<leader>Tt", ":TransparentToggle<CR>", { desc = "tranparency" })
 
 -- floats
-keymap('n', '<C-Space>', lf.show, { desc = "lf" })
+keymap('n', '<C-Space>', lf.show, { desc = "lf", remap = false })
 keymap('n', '<Tab>', term.show, { desc = " terminal" })
 keymap('t', '<C-Space>', function()
 	vim.api.nvim_win_hide(0)

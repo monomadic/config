@@ -87,7 +87,7 @@ M.insert_template = function()
 
 	pickers.new {
 		results_title = "Insert Template",
-		finder = finders.new_oneshot_job({ "ls", template_dir }),
+		finder = finders.new_oneshot_job({ "exa", template_dir }),
 		--finder = finders.new_oneshot_job({ "fd", ".", template_dir }),
 		sorter = sorters.get_generic_fuzzy_sorter(),
 		-- previewer = require'telescope.previewers'.vim_buffer_cat.new({}),
@@ -114,6 +114,9 @@ M.insert_template = function()
 				local file = vim.fn.expand(template_dir .. selected_file[1])
 				-- close telescope window
 				actions.close(bufnr)
+				-- new document
+				vim.cmd.new()
+				vim.cmd.saveas(selected_file[1])
 				-- insert file at current position
 				vim.cmd.read(file)
 			end)
@@ -122,6 +125,6 @@ M.insert_template = function()
 	}:find()
 end
 
--- M.insert_template()
+ -- M.insert_template()
 
 return M

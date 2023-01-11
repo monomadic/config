@@ -63,7 +63,7 @@ autocmd({ "ColorScheme", "VimEnter" },
 		hl(0, "StatusLine", {}) -- active
 		hl(0, "StatusLineNC", {}) -- inactive
 		hl(0, "TabLine", { fg = "white", bg = "black" })
-		hl(0, "TabLineFill", {bg = TITLEBAR_BG})
+		hl(0, "TabLineFill", { bg = TITLEBAR_BG })
 		--hl(0, "TabLineFill", { fg = "white", bg = "#262639" })
 		hl(0, "Title", { fg = "#CCFF00" })
 		hl(0, "TodoBgTODO", { bg = "#FFFF00", fg = "black" })
@@ -82,5 +82,9 @@ autocmd({ "ColorScheme", "VimEnter" },
 
 -- https://gist.github.com/romainl/379904f91fa40533175dfaec4c833f2f
 vim.cmd("colorscheme {{colorscheme}}");
+
+-- vim.api.nvim_create_autocmd("FileType", { pattern = "rust", callback = function()
+-- 	vim.cmd("colorscheme habamax");
+-- end })
 
 return M

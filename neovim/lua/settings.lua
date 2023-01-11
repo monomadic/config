@@ -59,8 +59,8 @@ g.vim_markdown_edit_url_in = 'current' -- open md links as (vplit | current)
 -- o.guicursor = "n-v-c:block,i-ci-ve:ver25"
 w.foldexpr = 'nvim_treesitter#foldexpr()' -- use treesitter for folding
 w.foldmethod = 'expr' -- fold method (market | syntax)
-w.number = false -- show numbered lines
-w.relativenumber = true -- set relative numbered lines
+w.number = true -- show line number on current line
+w.relativenumber = true -- relative numbered lines
 
 -- set guicursor=a:blinkon1 -- blinking cursor
 -- vim.g.timeoutlen=0
