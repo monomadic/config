@@ -37,7 +37,12 @@ M.open_template = function()
 end
 
 M.open_test = function()
-	builtin.find_files { cwd = "tests/", follow = true }
+	builtin.find_files {
+		path_display = { "truncate" },
+		search_file = string.format("*.%s", utils.current_file_extension()),
+		cwd = "tests/",
+		follow = true,
+	}
 end
 
 M.open_config_file = function()

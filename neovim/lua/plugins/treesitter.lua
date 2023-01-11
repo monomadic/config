@@ -2,7 +2,7 @@
 return {
 	'nvim-treesitter/nvim-treesitter',
 
-	dependencies = { "p00f/nvim-ts-rainbow" },
+	dependencies = { "p00f/nvim-ts-rainbow", 'nvim-treesitter/nvim-treesitter-textobjects' },
 
 	config = function()
 		require 'nvim-treesitter.configs'.setup {

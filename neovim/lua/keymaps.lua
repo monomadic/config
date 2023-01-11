@@ -77,7 +77,7 @@ M.telescope = function()
 	keymap('n', '<leader>wM', '<cmd>Telescope marks<cr>', { desc = "mark…" })
 	keymap('n', '<leader>wt', '<cmd>TodoTelescope<cr>', { desc = "todo…" })
 
-	keymap('n', "\\o", pickers.open_files, { desc = "open…" })
+	-- keymap('n', "\\o", pickers.open_files, { desc = "open…" })
 
 	keymap('n', '<C-f>', builtin.live_grep, { desc = "find" })
 
@@ -229,8 +229,8 @@ keymap('n', ";", ":")
 -- go back
 keymap('n', '<bs>', ':edit #<cr>', { silent = true })
 
-keymap('n', "\\d", ":Drex<CR>", { desc = "drex" })
-keymap('n', "\\f", ":DrexDrawerOpen<CR>", { desc = "filetree" })
+-- keymap('n', "\\d", ":Drex<CR>", { desc = "drex" })
+-- keymap('n', "\\f", ":DrexDrawerOpen<CR>", { desc = "filetree" })
 keymap('n', "<C-b>", ":DrexDrawerToggle<CR>", { desc = "filetree" })
 --keymap('n', "\\t", ShowTerminal, { desc = "terminal" })
 --keymap('n', "<Tab>", ShowTerminal, { desc = "terminal" })

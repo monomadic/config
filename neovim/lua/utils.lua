@@ -10,6 +10,12 @@ M.file_exists = function(fname)
 	return (stat and stat.type) or false
 end
 
+M.current_file_extension = function()
+	local current_file = vim.fn.expand('%')
+	local file_extension = string.match(current_file, '%.([^%.]+)$')
+	return file_extension
+end
+
 M.open_config = function()
 	vim.fn.chdir '~/config/neovim'
 	vim.cmd 'edit init.lua'

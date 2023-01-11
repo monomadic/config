@@ -19,6 +19,10 @@ function WinBar()
 		return table.concat { "%#Normal#" }
 	end
 
+	if filetype == "aerial" then
+		return table.concat { "%#Winbar#", " symbols" }
+	end
+
 	return table.concat {
 		"%#WinBar#",
 		"%#WinBarFileName#",

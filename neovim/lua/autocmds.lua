@@ -8,6 +8,11 @@ autocmd("BufWrite",
 		vim.cmd [[%s/\n\+\%$//e]] -- remove trailing newlines
 	end })
 
+autocmd("TermEnter",
+	{ pattern = "*", callback = function()
+		vim.cmd.startinsert()
+	end })
+
 -- dont list quickfix buffers
 autocmd("FileType", {
   pattern = "qf",
