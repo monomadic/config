@@ -52,6 +52,8 @@ M.telescope = function()
 	keymap('n', '<leader>gt', '<Cmd>TodoTelescope<cr>', { desc = "todo" })
 	keymap('n', "<leader>gb", pickers.git_branches, { desc = "git branches" })
 	keymap('n', "<leader>gs", pickers.git_status, { desc = "change (git)" })
+	keymap('n', "<leader>gd", builtin.lsp_definitions, { desc = "definitions" })
+	keymap('n', "gd", builtin.lsp_definitions)
 
 	-- insert
 	keymap('n', '<leader>Nt', pickers.insert_template, { desc = "from template" })
