@@ -107,7 +107,7 @@ function Format()
 end
 
 function ToggleLineNumbers()
-	if vim.wo.relativenumber == true then
+	if vim.wo.number == true then
 		vim.wo.relativenumber = false -- turn off line numbers
 		vim.wo.number = false
 	else

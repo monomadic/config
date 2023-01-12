@@ -11,6 +11,6 @@ return {
 		local keymap = vim.keymap.set
 		-- keymap('n', '<C-]>', ':AerialNext<CR>', { desc = "Next aerial" })
 		-- keymap('n', '<C-[>', ':AerialPrev<CR>', { desc = "Prev aerial" })
-		keymap('n', '\\', ':AerialToggle<CR>', { desc = "Prev aerial" })
+		keymap('n', '\\', ':AerialToggle<CR>', { desc = "Prev aerial", silent = true })
 	end
 }

@@ -53,8 +53,15 @@ M.telescope = function()
 	keymap('n', "<leader>gb", pickers.git_branches, { desc = "git branches" })
 	keymap('n', "<leader>gs", pickers.git_status, { desc = "change (git)" })
 	keymap('n', "<leader>gd", builtin.lsp_definitions, { desc = "definitions" })
+	keymap('n', "<Enter>", builtin.lsp_definitions, { desc = "definitions" })
 	keymap('n', "gd", builtin.lsp_definitions)
 
+	keymap('n', "gD", function()
+		builtin.lsp_definitions {
+			jump_type = "vsplit"
+		}
+	end, { desc = "definition split" })
+	--
 	-- insert
 	keymap('n', '<leader>Nt', pickers.insert_template, { desc = "from template" })
 
@@ -71,7 +78,8 @@ M.telescope = function()
 	keymap('n', 'tt', '<Cmd>TodoTelescope<cr>')
 
 	-- wiki
-	keymap('n', "<leader>Wo", pickers.wiki_open_page, { desc = "open page" })
+	keymap('n', "<leader>Wg", pickers.wiki_search, { desc = "grep" })
+	keymap('n', "<leader>Wo", pickers.wiki_open_page, { desc = "open" })
 	keymap('n', "<leader>Ws", pickers.wiki_search, { desc = "search" })
 
 	-- workspace
@@ -162,8 +170,12 @@ keymap('n', "<leader>Tt", ":TransparentToggle<CR>", { desc = "tranparency" })
 
 -- floats
 keymap('n', '<C-Space>', lf.show, { desc = "lf", remap = false })
-keymap('n', '<Tab>', term.show, { desc = " terminal" })
+--keymap('n', '<Tab>', term.show, { desc = " terminal" })
 keymap('t', '<C-Space>', function()
+	vim.api.nvim_win_hide(0)
+end)
+
+keymap('t', '<C-t>', function()
 	vim.api.nvim_win_hide(0)
 end)
 
@@ -214,10 +226,6 @@ keymap('n', "<C-,>", "i<C-d><C-f><Esc>")
 -- keymap("v", "<C-,>", "<Esc><C-h>")
 
 keymap('n', "gd", function() vim.lsp.buf.definition() end)
-keymap('n', "gD", function()
-	vim.cmd.vsplit()
-	vim.lsp.buf.definition()
-end, { desc = "definition split" })
 keymap('n', "<Enter>", function() vim.lsp.buf.definition() end)
 keymap('n', "gc", function() vim.lsp.buf.declaration() end)
 -- keymap('n', "gr", function() vim.lsp.buf.references() end)
@@ -233,7 +241,7 @@ keymap('n', '<bs>', ':edit #<cr>', { silent = true })
 
 -- keymap('n', "\\d", ":Drex<CR>", { desc = "drex" })
 -- keymap('n', "\\f", ":DrexDrawerOpen<CR>", { desc = "filetree" })
-keymap('n', "<C-b>", ":DrexDrawerToggle<CR>", { desc = "filetree" })
+keymap('n', "<Tab>", ":DrexDrawerToggle<CR>", { desc = "filetree", silent = true })
 --keymap('n', "\\t", ShowTerminal, { desc = "terminal" })
 --keymap('n', "<Tab>", ShowTerminal, { desc = "terminal" })
 -- keymap('n', "<Tab>l", ShowTerminal, { desc = "lf" })
@@ -320,6 +328,9 @@ vim.api.nvim_create_autocmd("LspAttach", {
 		map('n', '[d', vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })
 	end
 })
+
+
+map('n', "<leader>Rs", ":SnipRun<CR>", { desc = "SnipRun" })
 
 -- rust
 -- vim.api.nvim_create_autocmd("FileType", { pattern = "rust", callback = function()
