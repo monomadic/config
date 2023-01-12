@@ -2,7 +2,7 @@ return {
 	'stevearc/aerial.nvim',
 	config = function()
 		require('aerial').setup {
-			backends = { "lsp", "treesitter", "lsp", "markdown", "man" },
+			backends = { "treesitter", "lsp", "markdown", "man" },
 			layout = {
 				width = 26,
 			}

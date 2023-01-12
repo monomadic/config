@@ -8,9 +8,16 @@ autocmd("BufWrite",
 		vim.cmd [[%s/\n\+\%$//e]] -- remove trailing newlines
 	end })
 
+-- automatic insert mode when switching to terminal buffers
+autocmd("BufEnter",
+	{ pattern = "term://*", callback = function()
+		vim.cmd.startinsert()
+	end })
+
 autocmd("TermEnter",
 	{ pattern = "*", callback = function()
-		vim.cmd.startinsert()
+		vim.wo.relativenumber = false -- turn off line numbers
+		vim.wo.number = false
 	end })
 
 -- dont list quickfix buffers
