@@ -8,24 +8,27 @@ return {
 		'neovim/nvim-lspconfig',
 		'nvim-telescope/telescope.nvim',
 		'nvim-lua/plenary.nvim',
-		'mfussenegger/nvim-dap' -- debug
+		'mfussenegger/nvim-dap', -- debug
+		'stevearc/dressing.nvim' -- pretty run
 	},
 	ft = 'rust',
 
 	config = function()
+		require('dressing').setup {}
 		local rust_tools = require('rust-tools')
 
-		rust_tools.setup({
+		rust_tools.setup {
 			tools = {
 				autosethints = true,
+				executor = require("rust-tools/executors").termopen,
 				runnables = {
 					use_telescope = true
 				},
-				inlay_hints = {
-					auto = true,
-					show_parameter_hints = true,
-				},
-				hover_actions = { auto_focus = false },
+				-- inlay_hints = {
+				-- 	auto = true,
+				-- 	show_parameter_hints = true,
+				-- },
+				-- hover_actions = { auto_focus = false },
 			},
 
 			-- see https://github.com/neovim/nvim-lspconfig/blob/master/CONFIG.md#rust_analyzer
@@ -35,8 +38,8 @@ return {
 					-- require("virtualtypes").on_attach(client, bufnr)
 
 					require("which-key").register({
-						R = { name = "Rust",
-							r = { ":RustRunnables<CR>", "runnables" },
+						R = { name = "Run",
+							r = { rust_tools.runnables.runnables, "runnables" },
 						}
 					}, { prefix = "<leader>" })
 
@@ -81,19 +84,19 @@ return {
 
 					vim.keymap.set("n", "<leader>Df", ":RustFmt<CR>", { buffer = bufnr, desc = " rustfmt" })
 				end,
-				settings = {
-					-- to enable rust-analyzer settings visit:
-					-- https://github.com/rust-analyzer/rust-analyzer/blob/master/docs/user/generated_config.adoc
-					["rust-analyzer"] = {
-						lens = { enable = true },
-						-- hover = {
-						-- },
-						checkOnSave = {
-							allFeatures = true,
-						},
-					}
-				}
+				-- settings = {
+				-- 	-- to enable rust-analyzer settings visit:
+				-- 	-- https://github.com/rust-analyzer/rust-analyzer/blob/master/docs/user/generated_config.adoc
+				-- 	["rust-analyzer"] = {
+				-- 		lens = { enable = true },
+				-- 		-- hover = {
+				-- 		-- },
+				-- 		checkOnSave = {
+				-- 			allFeatures = true,
+				-- 		},
+				-- 	}
+				-- }
 			},
-		})
+		}
 	end
 }

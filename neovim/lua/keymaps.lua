@@ -176,7 +176,8 @@ keymap('t', '<C-Space>', function()
 end)
 
 keymap('t', '<C-t>', function()
-	vim.api.nvim_win_hide(0)
+	vim.api.nvim_buf_delete(0, { force = true })
+	--vim.api.nvim_win_hide(0)
 end)
 
 -- save / write
@@ -268,7 +269,7 @@ keymap('n', "H", "^")
 keymap('n', "L", "$")
 
 -- terminal
-keymap('n', '<C-t>', '<C-w><C-s>:term<CR>i', { remap = false })
+keymap('n', '<C-t>', '<C-w><C-s>:term<CR>i', { remap = false, silent = true })
 keymap("t", '<C-\\>', '<C-\\><C-n>', { remap = false })
 keymap("t", '<C-h>', '<C-\\><C-n><C-w><C-h>', { remap = false })
 -- keymap("t", '<C-j>', '<C-\\><C-n><C-w><C-j>', { remap = false })
@@ -330,7 +331,6 @@ vim.api.nvim_create_autocmd("LspAttach", {
 })
 
 
-map('n', "<leader>Rs", ":SnipRun<CR>", { desc = "SnipRun" })
 
 -- rust
 -- vim.api.nvim_create_autocmd("FileType", { pattern = "rust", callback = function()

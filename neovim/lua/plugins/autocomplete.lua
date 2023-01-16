@@ -8,12 +8,13 @@ return {
 	},
 
 	config = function()
-		require('snippy').setup({
+		local snippy = require 'snippy'
+		snippy.setup({
 			mappings = {
-				is = {
-					['<Tab>'] = 'expand_or_advance',
-					['<S-Tab>'] = 'previous',
-				},
+				-- is = {
+				-- 	['<Tab>'] = 'expand_or_advance',
+				-- 	['<S-Tab>'] = 'previous',
+				-- },
 				-- nx = {
 				-- 	['<leader>x'] = 'cut_text',
 				-- },
@@ -41,11 +42,12 @@ return {
 					require 'snippy'.expand_snippet(args.body)
 				end,
 			},
-			mapping = {
+			mapping = cmp.mapping.preset.insert {
 				['<CR>'] = cmp.mapping.confirm({
 					behavior = cmp.ConfirmBehavior.Replace,
 					select = false, -- false = only complete if an item is actually selected
 				}),
+
 				['<C-n>'] = function(fallback)
 					if cmp.visible() then
 						cmp.select_next_item()
@@ -53,13 +55,35 @@ return {
 						fallback()
 					end
 				end,
-				['<Tab>'] = function(fallback)
-					if cmp.visible() then
+
+				["<Tab>"] = cmp.mapping(function(fallback)
+					if snippy.can_expand_or_advance() then
+						snippy.next()
+					elseif cmp.visible() then
 						cmp.select_next_item()
 					else
 						fallback()
 					end
-				end,
+				end, { "i", "s" }),
+
+				["<S-Tab>"] = cmp.mapping(function(fallback)
+					if snippy.can_expand_or_advance() then
+						snippy.previous()
+					elseif cmp.visible() then
+						cmp.select_prev_item()
+					else
+						fallback()
+					end
+				end, { "i", "s" }),
+
+				-- ['<Tab>'] = function(fallback)
+				-- 	if cmp.visible() then
+				-- 		cmp.select_next_item()
+				-- 	else
+				-- 		fallback()
+				-- 	end
+				-- end,
+
 				['<C-p>'] = function(fallback)
 					if cmp.visible() then
 						cmp.select_prev_item()
@@ -67,13 +91,14 @@ return {
 						fallback()
 					end
 				end,
-				['<S-Tab>'] = function(fallback)
-					if cmp.visible() then
-						cmp.select_prev_item()
-					else
-						fallback()
-					end
-				end,
+
+				-- ['<S-Tab>'] = function(fallback)
+				-- 	if cmp.visible() then
+				-- 		cmp.select_prev_item()
+				-- 	else
+				-- 		fallback()
+				-- 	end
+				-- end,
 			},
 		}
 	end
