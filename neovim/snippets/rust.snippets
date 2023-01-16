@@ -2,11 +2,24 @@ snippet docstring "docstring"
 	//! # ${0}
 	//!
 
-snippet derive
-	#[derive($0)]
+# snippet derive
+# 	#[derive($0)]
+snippet derive "#[derive(..)]" b
+	#[derive(${1:Debug})]
+	$0
+
+snippet struct
+	struct ${1} {
+		${0}
+	}
 
 snippet debug
 	format!("{:?}", $0)
+
+snippet match "match pattern"
+	match ${1} {
+		${2} => ${3}
+	}
 
 snippet clamp
 	fn clamp(v: f32, lb: f32, ub: f32) -> f32 {
@@ -254,6 +267,9 @@ snippet fn "function"
 		${0}
 	}
 
+snippet mod
+	${1|mod,pub mod,pub(crate) mod|} ${2};${0}
+
 snippet pfn "pub function"
 	pub fn ${1:function_name}(${2})${3} {
 		${0}
@@ -301,10 +317,11 @@ snippet ecl "extern crate log"
 	#[macro_use]
 	extern crate log;
 
-snippet mod
-	mod ${1:`substitute(vim_snippets#Filename(), '\(_\|^\)\(.\)', '\u\2', 'g')`} {
-		${0}
-	} /* $1 */
+# snippet mod
+# 	mod ${1:`substitute(substitute(expand("%"), '/', '::', 'g'), '^.*lib::', '', '')`} {
+# 		${0}
+# 	} /* $1 */
+
 # Testing
 snippet as "assert!"
 	assert!(${1:predicate});
@@ -336,8 +353,6 @@ snippet cfg "cfg attribute" b
 	#[cfg(${1:target_os = "linux"})]
 snippet feat "feature attribute" b
 	#![feature(${1:plugin})]
-snippet der "#[derive(..)]" b
-	#[derive(${1:Debug})]
 snippet attr "#[..]" b
 	#[${1:inline}]
 snippet crate "Define create meta attributes"
@@ -376,10 +391,6 @@ snippet el "else"
 snippet eli "else if"
 	else if ${1} {
 		${0:${VISUAL}}
-	}
-snippet mat "match pattern"
-	match ${1} {
-		${2} => ${3}
 	}
 snippet case "Case clause of pattern match"
 	${1:_} => ${2:expression}
