@@ -176,13 +176,20 @@ return {
 			local ts_utils = require("nvim-treesitter.ts_utils")
 			local node = ts_utils.get_node_at_cursor()
 
-			-- go to start of the node
-			local parent = node:parent()
-			while not parent:type() == 'source_file' do
-				parent = node:parent()
+			if not node then
+				print 'no node at cursor'
+				return
 			end
 
-			print("parent "..parent:type())
+			-- go to start of the node
+			local parent = node:parent()
+			if not parent then return end
+
+			while not parent:type() == 'source_file' do
+				parent = node:parent()
+				print("parent "..parent:type())
+			end
+
 
 			local next_node = ts_utils.get_next_node(parent)
 
