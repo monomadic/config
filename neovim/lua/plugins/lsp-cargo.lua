@@ -4,6 +4,26 @@ return {
 	event = { 'BufRead Cargo.toml' },
 
 	config = function()
-		require('crates').setup()
+		local crates = require('crates')
+
+		crates.setup {
+			autoload = true,
+			null_ls = {
+				enabled = true,
+				name = 'crates.nvim',
+			}
+		}
+
+		-- markdown
+		vim.api.nvim_create_autocmd("BufRead", { pattern = "Cargo.toml",
+			callback = function()
+				print("read cargo.toml")
+			end })
+
+		local buffer = vim.api. nvim_get_current_buf()
+		vim.keymap.set('n', 'K', crates.show_popup, { silent = true, buffer = buffer })
+
+		crates.show()
+		--print 'loaded crates.nvim'
 	end
 }

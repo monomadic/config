@@ -131,6 +131,9 @@ snippet args "env::args template"
 			${0}
 	}
 
+snippet read
+	std::fs::read($1)?;$0
+
 snippet example-errors-anyhow "used for applications (not libraries)"
 	use anyhow::{Context, Result};
 
