@@ -22,6 +22,8 @@ return {
 
 		local buffer = vim.api. nvim_get_current_buf()
 		vim.keymap.set('n', 'K', crates.show_popup, { silent = true, buffer = buffer })
+		vim.keymap.set('n', '<Space><Space>u', crates.upgrade_crate, { silent = true, buffer = buffer, desc = "upgrade crate" })
+		vim.keymap.set('n', '<Space><Space>U', crates.upgrade_all_crates, { silent = true, buffer = buffer, desc = "upgrade all crates" })
 
 		crates.show()
 		--print 'loaded crates.nvim'
