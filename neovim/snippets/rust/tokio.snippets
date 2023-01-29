@@ -1,0 +1,10 @@
+snippet tokio-main "tokio main()"
+	use anyhow::Result;
+	#[tokio::main]
+	async fn main() -> Result<()> {
+			Ok(())
+	}
+
+snippet tokio-sleep
+	// sleep $1 ms
+	tokio::time::sleep(Duration::from_milis(${1:sleep_ms})).await;

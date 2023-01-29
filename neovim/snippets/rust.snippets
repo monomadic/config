@@ -89,13 +89,6 @@ snippet yew-struct-component "yew struct component"
 		}
 	}
 
-snippet main-tokio "tokio main()"
-	use anyhow::Result;
-	#[tokio::main]
-	async fn main() -> Result<()> {
-			Ok(())
-	}
-
 snippet main-bevy "bevy main() template"
   use bevy::prelude::*;
 
@@ -263,9 +256,14 @@ snippet tokio-main "tokyo main() template"
 	}
 
 snippet fn "function"
-	${1|fn,pub fn,async pub fn|} ${2:function_name}(${3})${4} {
+	${1|fn,pub fn,pub(crate) fn,async pub fn|} ${2:function_name}(${3})${4} {
 		${0}
 	}
+
+snippet thread
+	thread::spawn(move || {
+		${0}
+	});
 
 snippet mod
 	${1|mod,pub mod,pub(crate) mod|} ${2};${0}
@@ -333,6 +331,7 @@ snippet test "Unit test function"
 		${0}
 		Ok(())
 	}
+
 snippet testmod "Test module" b
 	#[cfg(test)]
 	mod tests {
@@ -343,6 +342,14 @@ snippet testmod "Test module" b
 			$0
 		}
 	}
+
+snippet from
+	impl From<${1}> for ${2} {
+    fn from(_: $1) -> Self {
+        ${0:todo!()}
+    }
+	}
+
 
 snippet ig "#[ignore]"
 	#[ignore]

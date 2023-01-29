@@ -1,3 +1,4 @@
+local treesitter = require "vim.treesitter"
 -- treesitter
 return {
 	'nvim-treesitter/nvim-treesitter',
@@ -95,6 +96,176 @@ return {
 		-- 	local tsparser = vim.treesitter.get_parser()
 		--
 		-- end)
+		function JumpModule()
+			local ts_utils = require("nvim-treesitter.ts_utils")
+			local node = ts_utils.get_node_at_cursor()
+
+			if not node then
+				return
+			end
+
+			--while ts_utils.get_next_node()
+
+			--ts_utils.goto_node(parent)
+		end
+
+		function JumpRoot()
+			local ts_utils = require("nvim-treesitter.ts_utils")
+			local node = ts_utils.get_node_at_cursor()
+			local root = ts_utils.get_root_for_node(node)
+			ts_utils.goto_node(root)
+		end
+
+		function JumpNodeParent()
+			local ts_utils = require("nvim-treesitter.ts_utils")
+			local node = ts_utils.get_node_at_cursor()
+			local parent = node
+			local result = node
+
+			while parent:type() ~= 'source_file' do
+				result = parent
+				parent = result:parent()
+			end
+
+			ts_utils.goto_node(result)
+			return result
+		end
+
+		function JumpNodeParent1()
+			local ts_utils = require("nvim-treesitter.ts_utils")
+			local node = ts_utils.get_node_at_cursor()
+			local parent = node:parent()
+
+			while parent:type() ~= 'source_file' do
+				ts_utils.goto_node(parent)
+				parent = parent:parent()
+			end
+		end
+
+		function JumpNext()
+			local ts_utils = require("nvim-treesitter.ts_utils")
+			local node = ts_utils.get_node_at_cursor()
+			local next_node = ts_utils.get_next_node(node)
+			ts_utils.goto_node(next_node)
+		end
+
+		function JumpNextModule1()
+			JumpNodeParent()
+			JumpNext()
+
+			local ts_utils = require("nvim-treesitter.ts_utils")
+			local node = ts_utils.get_node_at_cursor()
+
+			while ts_utils.get_next_node(node) do
+				node = ts_utils.get_next_node(node)
+				if node:type() == 'mod_item' then
+					for child in node:iter_children() do
+						if child:type() == 'identifier' then
+							print(ts_utils.get_node_text(child)[1])
+							ts_utils.goto_node(child)
+							return
+						end
+					end
+				end
+			end
+
+			print("no module found")
+		end
+
+		function JumpNextModule()
+			local ts_utils = require("nvim-treesitter.ts_utils")
+			local node = ts_utils.get_node_at_cursor()
+
+			-- go to start of the node
+			local parent = node:parent()
+			while not parent:type() == 'source_file' do
+				parent = node:parent()
+			end
+
+			print("parent "..parent:type())
+
+			local next_node = ts_utils.get_next_node(parent)
+
+			if next_node then
+				node = next_node
+			end
+
+			ts_utils.goto_node(node)
+
+			while node do
+				if node:type() == 'mod_item' then
+					for child in node:iter_children() do
+						if child:type() == 'identifier' then
+							print(ts_utils.get_node_text(child)[1])
+							ts_utils.goto_node(child)
+							return
+						end
+					end
+				end
+				node = ts_utils.get_next_node(node)
+			end
+
+			print("no module found")
+		end
+		vim.keymap.set('n', '<Tab>', JumpNextModule, { silent = true })
+
+		function JumpPrevModule()
+			local ts_utils = require("nvim-treesitter.ts_utils")
+			local node = ts_utils.get_node_at_cursor()
+
+			-- go to start of the node
+			local parent = node:parent()
+			while not parent:type() == 'source_file' do
+				parent = node:parent()
+			end
+
+			print("parent "..parent:type())
+
+			local prev_node = ts_utils.get_previous_node(parent)
+
+			if prev_node then
+				node = prev_node
+			end
+
+			ts_utils.goto_node(node)
+
+			while node do
+				if node:type() == 'mod_item' then
+					for child in node:iter_children() do
+						if child:type() == 'identifier' then
+							print(ts_utils.get_node_text(child)[1])
+							ts_utils.goto_node(child)
+							return
+						end
+					end
+				end
+				node = ts_utils.get_previous_node(node)
+			end
+
+			print("no module found")
+		end
+		vim.keymap.set('n', '<S-Tab>', JumpPrevModule, { silent = true })
+
+		function JumpParent()
+			local ts_utils = require("nvim-treesitter.ts_utils")
+			local node = ts_utils.get_node_at_cursor()
+
+			if not node then
+				return
+			end
+
+			-- local sibling = node:next_sibling()
+			-- if (sibling == nil) then
+			-- 	return
+			-- end
+
+			local parent = node:parent()
+			if (parent == nil) then
+				return
+			end
+
+			ts_utils.goto_node(parent)
+		end
 
 	end
 }
