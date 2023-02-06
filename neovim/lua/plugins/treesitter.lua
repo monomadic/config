@@ -172,6 +172,62 @@ return {
 			print("no module found")
 		end
 
+		function JumpNextRelevant()
+			local ts_utils = require("nvim-treesitter.ts_utils")
+
+			local node = ts_utils.get_node_at_cursor()
+			if not node then return end
+
+			local parent = node:parent()
+			if not parent then return end
+
+			-- skip to upper-most node
+			while not parent:type() == 'source_file' do
+				parent = node:parent()
+			end
+
+			-- get the next node to this upper-node (if exists)
+			local next_node = ts_utils.get_next_node(parent)
+			if next_node then node = next_node end
+
+			-- ts_utils.goto_node(node)
+			-- if node then return end
+
+			-- node is now in position, lets search for the next relevant node
+			while node do
+				-- rust module
+				if node:type() == 'mod_item' then
+					for child in node:iter_children() do
+						if child:type() == 'identifier' then
+							print(ts_utils.get_node_text(child)[1])
+							-- ts_utils.highlight_node(node, buf, "Normal")
+							ts_utils.goto_node(child)
+							return
+						end
+					end
+				end
+
+				-- lua 'require' (unfinished)
+				if node:type() == 'function_call' then
+					local child = node:named_child(0)
+
+					if child then
+						local child_text = ts_utils.get_node_text(child)[1]
+						if child_text == 'require' then
+							if node:child(1) then
+								ts_utils.goto_node(node:child(1))
+								return
+							end
+						end
+					end
+				end
+
+				node = ts_utils.get_next_node(node)
+			end
+
+		end
+		vim.keymap.set('n', '<Tab>', JumpNextRelevant, { silent = true })
+
 		function JumpNextModule()
 			local ts_utils = require("nvim-treesitter.ts_utils")
 			local node = ts_utils.get_node_at_cursor()
@@ -187,9 +243,8 @@ return {
 
 			while not parent:type() == 'source_file' do
 				parent = node:parent()
-				print("parent "..parent:type())
+				print("parent " .. parent:type())
 			end
-
 
 			local next_node = ts_utils.get_next_node(parent)
 
@@ -214,7 +269,7 @@ return {
 
 			print("no module found")
 		end
-		vim.keymap.set('n', '<Tab>', JumpNextModule, { silent = true })
+
 
 		function JumpPrevModule()
 			local ts_utils = require("nvim-treesitter.ts_utils")
@@ -226,7 +281,7 @@ return {
 				parent = node:parent()
 			end
 
-			print("parent "..parent:type())
+			print("parent " .. parent:type())
 
 			local prev_node = ts_utils.get_previous_node(parent)
 
@@ -251,6 +306,7 @@ return {
 
 			print("no module found")
 		end
+
 		vim.keymap.set('n', '<S-Tab>', JumpPrevModule, { silent = true })
 
 		function JumpParent()

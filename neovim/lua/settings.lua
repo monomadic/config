@@ -93,3 +93,16 @@ vim.opt.fillchars = {
 	foldsep = "│",
 	foldclose = "▸",
 }
+
+--
+-- NeoVide Settings
+--
+-- Helper function for transparency formatting
+local alpha = function()
+  return string.format("%x", math.floor(255 * (vim.g.neovide_transparency_point or 0.8)))
+end
+g.neovide_transparency = 0.0
+g.transparency = 0.8
+g.neovide_background_color = "#0f1117" .. alpha()
+g.neovide_fullscreen = true
+g.neovide_cursor_vfx_mode = "sonicboom"

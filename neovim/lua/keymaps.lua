@@ -18,6 +18,7 @@ M.telescope = function()
 	keymap('n', '<leader>b', builtin.buffers, { desc = "buffer" })
 	keymap('n', "<leader>s", pickers.open_same_filetype, { desc = "source" })
 	keymap('n', '<leader>d', builtin.diagnostics, { desc = "diagnostics" })
+	keymap('n', '<leader>h', builtin.oldfiles, { desc = "history" })
 
 	-- list
 	keymap('n', "<leader>lgb", pickers.git_branches, { desc = "branches" })
@@ -35,24 +36,31 @@ M.telescope = function()
 	-- git
 	keymap('n', "<leader>Gb", pickers.git_branches, { desc = "branches" })
 	keymap('n', "<leader>Gc", pickers.git_commits, { desc = "commits" })
-	keymap('n', "<leader>Gs", pickers.git_status, { desc = "changed files" })
+	keymap('n', "<leader>Gs", pickers.git_status, { desc = "status" })
 
 	-- open
 	keymap('n', "<leader>OT", pickers.open_template, { desc = "template" })
 	keymap('n', "<leader>Ot", pickers.open_test, { desc = "test" })
 	keymap('n', "<leader>Ow", pickers.wiki_open_page, { desc = "wiki page" })
-	keymap('n', "<leader>Os", pickers.open_same_filetype, { desc = "source file" })
+	keymap('n', "<leader>OO", pickers.open_same_filetype, { desc = "same filetype" })
+	keymap('n', "<leader>Os", function()
+		require('telescope.builtin').find_files({ cwd = "~/.config/nvim/snippets/", follow = true })
+	end, { desc = "snippet" })
 
 	-- config
 	keymap('n', "<leader>Cf", pickers.open_config_file, { desc = "file..." })
 
+	-- jump
+	keymap('n', '<leader>jf', pickers.lsp_document_functions, { desc = " function…" })
+
 	-- goto
+	keymap('n', "<leader>gb", pickers.git_branches, { desc = "git branches" })
+	keymap('n', "<leader>gd", builtin.lsp_definitions, { desc = "definitions" })
+	keymap('n', '<leader>gf', pickers.lsp_document_functions, { desc = " function…" })
+	keymap('n', "<leader>gs", pickers.git_status, { desc = "change (git)" })
+	keymap('n', '<leader>gt', '<Cmd>TodoTelescope<cr>', { desc = "todo" })
 	keymap('n', "<leader>gT", pickers.open_template, { desc = "template" })
 	keymap('n', "<leader>gw", pickers.wiki_open_page, { desc = "wiki page" })
-	keymap('n', '<leader>gt', '<Cmd>TodoTelescope<cr>', { desc = "todo" })
-	keymap('n', "<leader>gb", pickers.git_branches, { desc = "git branches" })
-	keymap('n', "<leader>gs", pickers.git_status, { desc = "change (git)" })
-	keymap('n', "<leader>gd", builtin.lsp_definitions, { desc = "definitions" })
 	keymap('n', "<Enter>", builtin.lsp_definitions, { desc = "definitions" })
 	keymap('n', "gd", builtin.lsp_definitions)
 
@@ -66,7 +74,7 @@ M.telescope = function()
 	keymap('n', '<leader>Nt', pickers.insert_template, { desc = "from template" })
 
 	keymap('n', '<leader>o', pickers.open_files, { desc = "open…" })
-	keymap('n', '<leader>t', term.show, { desc = " terminal" })
+	keymap('n', '<leader>t', '<C-w><C-s>:term<CR>i', { desc = " terminal" })
 
 	keymap('n', 'tk', pickers.list_keymaps, { desc = "keymaps" })
 	keymap('n', 'tld', '<Cmd>Telescope lsp_definitions<cr>')

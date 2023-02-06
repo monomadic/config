@@ -4,7 +4,7 @@ return {
 
 	config = function()
 		require("transparent").setup {
-			enable = false,
+			enable = true,
 			extra_groups = { "Normal", "NvimTreeNormal", "ModeMsg", "MsgArea" }, -- MsgArea is command line
 		}
 	end

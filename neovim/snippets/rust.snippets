@@ -90,11 +90,11 @@ snippet yew-struct-component "yew struct component"
 	}
 
 snippet main-bevy "bevy main() template"
-  use bevy::prelude::*;
+	use bevy::prelude::*;
 
-  fn main() {
-		App::new().add_plugins(DefaultPlugins).run();
-  }
+	fn main() {
+			App::new().add_plugins(DefaultPlugins).run();
+	}
 
 snippet bevy-cargo "bevy Cargo.toml"
 	[profile.dev]
@@ -104,7 +104,7 @@ snippet bevy-cargo "bevy Cargo.toml"
 	opt-level = 3
 
 	[dependencies]
-	bevy = { version = "0.7", features = ["dynamic"] }
+	bevy = "*"
 
 snippet args-structopt "structopt template"
 	// clap = { version = "3.2.8", features = ["derive"] }
@@ -144,8 +144,11 @@ snippet example-errors-anyhow "used for applications (not libraries)"
         .with_context(|| format!("Failed to read instrs from {}", path))?;
 	}
 
-snippet example-errors-thiserror "derive macro for Errors, for libraries"
+snippet thiserror "derive macro for Errors, for libraries"
+	// errors for libraries (anyhow for bins)
 	use thiserror::Error;
+
+	pub type Result<T> = std::result::Result<T, NIFileError>;
 
 	#[derive(Error, Debug)]
 	pub enum DataStoreError {
@@ -159,6 +162,19 @@ snippet example-errors-thiserror "derive macro for Errors, for libraries"
 			#[error("unknown data store error")]
 			Unknown,
 	}
+
+snippet error-thiserror
+	use thiserror::Error;
+
+	#[derive(Error, Debug, PartialEq)]
+	pub enum KeyError {
+	  #[error("Invalid secret key string")]
+  	SkParseError,
+	}
+
+snippet read_exact
+	let mut buf = vec![0u8; bytes_to_read];
+	reader.read_exact(&mut buf)?;
 
 snippet example-pattern-builder-consuming "the builder pattern, consuming"
 	// see https://github.com/jeremychone-channel/rust-builder/blob/main/src/web_consuming.rs

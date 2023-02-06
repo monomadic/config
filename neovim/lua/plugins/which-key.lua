@@ -38,6 +38,7 @@ return {
 			["<leader>F"] = { name = "file" },
 			["<leader>G"] = { name = "Git" },
 			["<leader>g"] = { name = "goto" },
+			["<leader>j"] = { name = "jump" },
 			["<leader>N"] = { name = "New" },
 			["<leader>l"] = { name = "list" },
 			["<leader>O"] = { name = "Open" },
