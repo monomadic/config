@@ -14,6 +14,11 @@ M.icons = {
 	chevron_right = '',
 
 	ellipsis = "…",
+
+	error = " ",
+	warn = " ",
+	hint = " ",
+	info = " ",
 }
 
 M.lspkind = {

@@ -16,7 +16,7 @@ M.telescope = function()
 
 	-- single letter actions
 	keymap('n', '<leader>b', builtin.buffers, { desc = "buffer" })
-	keymap('n', "<leader>s", pickers.open_same_filetype, { desc = "source" })
+	keymap('n', "<leader><tab>", pickers.open_same_filetype, { desc = "source" })
 	keymap('n', '<leader>d', "<Cmd>Trouble workspace_diagnostics<CR>", { desc = "diagnostics" })
 	keymap('n', '<leader>h', builtin.oldfiles, { desc = "history" })
 
@@ -155,7 +155,6 @@ end
 keymap('n', '<leader>f', utils.format, { desc = " format" })
 keymap('n', "<leader>q", "<CMD>hide<CR>", { desc = "hide window" })
 keymap('n', "<leader>!", "<cmd>quit!<CR>")
-keymap('n', "<leader><tab>", "<cmd>Drex<CR>", { desc = "drex" })
 keymap('n', "<leader>a", vim.lsp.buf.code_action, { desc = "code-actions (saga)" })
 --
 -- git

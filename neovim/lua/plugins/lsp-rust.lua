@@ -78,9 +78,10 @@ return {
 					vim.keymap.set("n", "<C-b>", ":RustRun<CR>", { buffer = bufnr, desc = " run" })
 
 					-- vim.keymap.set("n", "<leader>r", "", { buffer = bufnr, desc = " rust" })
-					vim.keymap.set("n", "<leader>rR", rust_tools.runnables.runnables, { buffer = bufnr, desc = " run" })
-					vim.keymap.set("n", "<leader>rr", rust_tools.runnables.runnables, { buffer = bufnr, desc = " runnables…" })
-					vim.keymap.set("n", "<leader>rd", ":RustDebuggables<CR>", { buffer = bufnr, desc = " debuggables…" })
+					vim.keymap.set("n", "<leader>r", rust_tools.runnables.runnables, { buffer = bufnr, desc = " run" })
+					vim.keymap.set("n", "<leader>Rr", rust_tools.runnables.runnables, { buffer = bufnr, desc = " run" })
+					vim.keymap.set("n", "<leader>Rr", rust_tools.runnables.runnables, { buffer = bufnr, desc = " runnables…" })
+					vim.keymap.set("n", "<leader>Rd", ":RustDebuggables<CR>", { buffer = bufnr, desc = " debuggables…" })
 
 					vim.keymap.set("n", "<leader>Df", ":RustFmt<CR>", { buffer = bufnr, desc = " rustfmt" })
 				end,

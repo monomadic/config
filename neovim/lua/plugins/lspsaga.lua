@@ -22,6 +22,13 @@ return {
 		vim.api.nvim_set_hl(0, "SagaBorder", { fg = "#1e1d2d", bg = "#1e1d2d" })
 		vim.api.nvim_set_hl(0, "DiagnosticTitleSymbol", { fg = "#1e1d2d", bg = "#1e1d2d" })
 
+		vim.keymap.set("n", "[e", function()
+			require("lspsaga.diagnostic"):goto_prev({ severity = vim.diagnostic.severity.ERROR })
+		end)
+		vim.keymap.set("n", "]e", function()
+			require("lspsaga.diagnostic"):goto_next({ severity = vim.diagnostic.severity.ERROR })
+		end)
+
 		require("lspsaga").setup({
 			ui = {
 				border = "single",
