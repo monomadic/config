@@ -24,6 +24,11 @@ function WinBar()
 		--return table.concat { "%#Winbar#", " symbols" }
 	end
 
+	if filetype == "Trouble" then
+		return table.concat { "%#WinBarFileName#" .. "  󱍧 diagnostics  " .. "%#Normal#" }
+		--return table.concat { "%#Winbar#", " symbols" }
+	end
+
 	return table.concat {
 		"%#WinBar#",
 		"%#WinBarFileName#",

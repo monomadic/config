@@ -15,10 +15,14 @@ M.icons = {
 
 	ellipsis = "…",
 
+	code = "󰅱 ",
+
+	diagnostic = "󱍧 ",
 	error = " ",
 	warn = " ",
 	hint = " ",
 	info = " ",
+	other = "﫠",
 }
 
 M.lspkind = {
