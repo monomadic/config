@@ -12,13 +12,15 @@ M.icons = {
 
 	chevron_down = '',
 	chevron_right = '',
+
+	ellipsis = "…",
 }
 
 M.lspkind = {
   Namespace = "",
   Text = " ",
   Method = " ",
-  Function = " ",
+  Function = " ",
   Constructor = " ",
   Field = "ﰠ ",
   Variable = " ",

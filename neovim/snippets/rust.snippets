@@ -275,8 +275,8 @@ snippet tokio-main "tokyo main() template"
 	}
 
 snippet fn "function"
-	${1|fn,pub fn,pub(crate) fn,async pub fn|} ${2:function_name}(${3})${4} {
-		${0}
+	${1|fn,pub fn,pub(crate) fn,async pub fn|} ${2:function_name}(${3})${4} ${5:-> Result<(), Box<dyn Error>> }{
+		${0:Ok(())}
 	}
 
 snippet thread
@@ -354,11 +354,13 @@ snippet test "Unit test function"
 snippet testmod "Test module" b
 	#[cfg(test)]
 	mod tests {
-		use super::${1:*};
+		use super::*;
+		use std::err::Error;
 
 		#[test]
-		fn ${2}() {
+		fn ${1}_test() -> Result<(), Box<dyn Error>> {
 			$0
+			Ok(())
 		}
 	}
 

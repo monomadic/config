@@ -8,7 +8,7 @@ local map = vim.keymap.set
 local keymap = vim.keymap.set
 local utils = require 'utils'
 local lf = require 'lf'
-local term = require 'term'
+local icons = require 'icons'
 
 M.telescope = function()
 	local pickers = require 'pickers'
@@ -17,7 +17,7 @@ M.telescope = function()
 	-- single letter actions
 	keymap('n', '<leader>b', builtin.buffers, { desc = "buffer" })
 	keymap('n', "<leader>s", pickers.open_same_filetype, { desc = "source" })
-	keymap('n', '<leader>d', builtin.diagnostics, { desc = "diagnostics" })
+	keymap('n', '<leader>d', "<Cmd>Trouble workspace_diagnostics<CR>", { desc = "diagnostics" })
 	keymap('n', '<leader>h', builtin.oldfiles, { desc = "history" })
 
 	-- list
@@ -51,7 +51,8 @@ M.telescope = function()
 	keymap('n', "<leader>Cf", pickers.open_config_file, { desc = "file..." })
 
 	-- jump
-	keymap('n', '<leader>jf', pickers.lsp_document_functions, { desc = " function…" })
+	keymap('n', '<leader>jf', pickers.lsp_document_functions, { desc = icons.lspkind.Function .. "function" .. icons.icons.ellipsis })
+	keymap('n', '<leader>jr', "<Cmd>Trouble lsp_references<CR>", { desc = icons.lspkind.Reference .. "references" .. icons.icons.ellipsis })
 
 	-- goto
 	keymap('n', "<leader>gb", pickers.git_branches, { desc = "git branches" })
@@ -333,8 +334,8 @@ vim.api.nvim_create_autocmd("LspAttach", {
 
 		-- next/prev: [ and ]
 
-		map('n', ']d', vim.diagnostic.goto_next, { desc = "Next diagnostic" })
-		map('n', '[d', vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })
+		-- map('n', ']d', vim.diagnostic.goto_next, { desc = "Next diagnostic" })
+		-- map('n', '[d', vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })
 	end
 })
 
