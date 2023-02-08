@@ -17,6 +17,8 @@ M.telescope = function()
 	-- single letter actions
 	keymap('n', '<leader>b', builtin.buffers, { desc = "buffer" })
 	keymap('n', "<leader><tab>", pickers.open_same_filetype, { desc = "source" })
+	keymap("n", "<leader>\\", "<cmd>ChatGPT<CR>", { desc = " ChatGPT" })
+	keymap("n", "<leader><leader>", "<cmd>Lspsaga term_toggle<CR>", { desc = " ChatGPT" })
 	keymap('n', '<leader>d', "<Cmd>Trouble workspace_diagnostics<CR>", { desc = "diagnostics" })
 	keymap('n', '<leader>h', builtin.oldfiles, { desc = "history" })
 
@@ -51,8 +53,10 @@ M.telescope = function()
 	keymap('n', "<leader>Cf", pickers.open_config_file, { desc = "file..." })
 
 	-- jump
-	keymap('n', '<leader>jf', pickers.lsp_document_functions, { desc = icons.lspkind.Function .. "function" .. icons.icons.ellipsis })
-	keymap('n', '<leader>jr', "<Cmd>Trouble lsp_references<CR>", { desc = icons.lspkind.Reference .. "references" .. icons.icons.ellipsis })
+	keymap('n', '<leader>jf', pickers.lsp_document_functions,
+		{ desc = icons.lspkind.Function .. "function" .. icons.icons.ellipsis })
+	keymap('n', '<leader>jr', "<Cmd>Trouble lsp_references<CR>",
+		{ desc = icons.lspkind.Reference .. "references" .. icons.icons.ellipsis })
 
 	-- goto
 	keymap('n', "<leader>gb", pickers.git_branches, { desc = "git branches" })

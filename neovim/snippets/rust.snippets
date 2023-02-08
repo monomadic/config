@@ -275,8 +275,13 @@ snippet tokio-main "tokyo main() template"
 	}
 
 snippet fn "function"
-	${1|fn,pub fn,pub(crate) fn,async pub fn|} ${2:function_name}(${3})${4} ${5:-> Result<(), Box<dyn Error>> }{
-		${0:Ok(())}
+	${1|fn,pub fn,pub(crate) fn,async pub fn|} ${2:function_name}(${3}) ${4:-> Result<(), Box<dyn Error>> }{
+		${0:todo!()}
+	}
+
+snippet pubfn "function"
+	pub fn ${1:function_name}(${2}) ${3:-> Result<(), Box<dyn Error>> }{
+		${0:todo!()}
 	}
 
 snippet thread
@@ -330,9 +335,17 @@ snippet d; "dbg! debugging macro statement"
 	dbg!(&${1});
 	${0}
 
-snippet ecl "extern crate log"
-	#[macro_use]
-	extern crate log;
+snippet loggy
+	#[allow(dead_code)]
+	pub(crate) fn setup_logger() {
+			log::set_logger(&loggy::Loggy {
+					prefix: "",
+					show_time: false,
+					show_thread: true,
+			})
+			.unwrap();
+			log::set_max_level(log::LevelFilter::Info); // Or whatever level you want.
+	}
 
 # snippet mod
 # 	mod ${1:`substitute(substitute(expand("%"), '/', '::', 'g'), '^.*lib::', '', '')`} {

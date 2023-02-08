@@ -34,6 +34,7 @@ function WinBar()
 		"%#WinBarFileName#",
 		"%{%v:lua.FileName()%}",
 		"%#WinBar#",
+		" %{%v:lua.LSPWorkspaceDiagnostics(0)%}",
 		-- vim.fn.fnamemodify(vim.fn.expand("%"), ":."),
 		-- ":%l",
 		-- " %m", -- modified
@@ -41,7 +42,7 @@ function WinBar()
 		-- "%r", -- readonly
 		-- " %#Normal#",
 		-- "%=",
-		"%=%{%v:lua.LSPWorkspaceDiagnostics(0)%}",
+		"%=",
 	}
 end
 

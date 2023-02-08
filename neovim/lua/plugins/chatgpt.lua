@@ -1,8 +1,6 @@
 return {
 	"jackMort/ChatGPT.nvim",
 	config = function()
-		vim.keymap.set("n", "<leader><leader>", "<cmd>ChatGPT<CR>", { desc = " ChatGPT" })
-
 		require("chatgpt").setup({})
 	end,
 	dependencies = {
