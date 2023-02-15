@@ -73,7 +73,7 @@ autocmd({ "ColorScheme", "VimEnter" },
 		hl(0, "WinBar", tabs_bg)
 		hl(0, "WinBarFileName", tabs)
 		-- hl(0, "WinBarNC", { fg = "white", bg = "#2222FF" })
-		hl(0, "WinSeparator", { fg = "bg", bg = "bg" }) -- inactive
+		--hl(0, "WinSeparator", { fg = "bg", bg = "bg" }) -- inactive
 
 		hl(0, "MsgArea", { bg = "None" }) -- CommandLine
 
@@ -81,7 +81,7 @@ autocmd({ "ColorScheme", "VimEnter" },
 	end })
 
 -- https://gist.github.com/romainl/379904f91fa40533175dfaec4c833f2f
-vim.cmd("colorscheme {{colorscheme}}");
+--vim.cmd("colorscheme {{colorscheme}}");
 
 -- vim.api.nvim_create_autocmd("FileType", { pattern = "rust", callback = function()
 -- 	vim.cmd("colorscheme habamax");

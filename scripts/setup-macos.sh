@@ -8,3 +8,9 @@ git clone https://github.com/monomadic/config
 
 # install Brewfile
 brew bundle
+
+mkdir ~/workspaces
+mkdir ~/src
+touch ~/.marks
+
+cp .env ~/.env

@@ -21,8 +21,11 @@ brew "koekeishiya/formulae/yabai"
 brew "lf"
 brew "neovim"
 brew "rclone"
-brew "rg"
+brew "rg" # ripgrep
+brew "fd" # find
+brew "helix" # editor
 
+cask "kitty" # term
 cask "1password"
 cask "font-hack"
 cask "font-hack-nerd-font"
