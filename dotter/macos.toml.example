@@ -14,5 +14,5 @@ packages = [
 ]
 
 [variables]
-colorscheme = "catppuccin"
+colorscheme = "chadracula"
 zk_path = "~/workspaces/notes"

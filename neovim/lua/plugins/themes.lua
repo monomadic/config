@@ -12,6 +12,8 @@ return {
 			if ok then
 				base46.load_theme()
 			end
+
+			vim.cmd("colorscheme {{colorscheme}}");
 		end
 	}
 }
