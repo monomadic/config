@@ -180,9 +180,14 @@ keymap('n', "<leader>Td", ":DrexDrawerToggle<CR>", { desc = "drex" })
 keymap('n', "<leader>Tl", ToggleLineNumbers, { desc = "line numbers" })
 keymap('n', "<leader>Tt", ":TransparentToggle<CR>", { desc = "tranparency" })
 
+-- settings
+keymap('n', "<leader>,l", ToggleLineNumbers, { desc = "toggle line numbers" })
+keymap('n', "<leader>,t", ":TransparentToggle<CR>", { desc = "toggle tranparency" })
+keymap('n', '<leader>,c', '<cmd>FzfLua colorschemes<cr>', { desc = "colorscheme" })
+keymap('n', '<leader>,t', '<cmd>FzfLua colorschemes<cr>', { desc = "theme" })
+
 -- floats
 keymap('n', '<C-Space>', lf.show, { desc = "lf", remap = false })
---keymap('n', '<Tab>', term.show, { desc = " terminal" })
 keymap('t', '<C-Space>', function()
 	vim.api.nvim_win_hide(0)
 end)
@@ -249,15 +254,10 @@ keymap('n', "<C-b>", Build, { desc = " build" })
 keymap('n', ";", ":")
 -- keymap('n', "<Space>", ":")
 
+keymap('i', "<C-v>", vim.cmd.put)
+
 -- go back
 keymap('n', '<bs>', ':edit #<cr>', { silent = true })
-
--- keymap('n', "\\d", ":Drex<CR>", { desc = "drex" })
--- keymap('n', "\\f", ":DrexDrawerOpen<CR>", { desc = "filetree" })
-keymap('n', "<Tab>", ":DrexDrawerToggle<CR>", { desc = "filetree", silent = true })
---keymap('n', "\\t", ShowTerminal, { desc = "terminal" })
---keymap('n', "<Tab>", ShowTerminal, { desc = "terminal" })
--- keymap('n', "<Tab>l", ShowTerminal, { desc = "lf" })
 
 -- emacs style shortcuts in insert mode (yes, i am like that)
 keymap("i", "<C-n>", "<Down>")

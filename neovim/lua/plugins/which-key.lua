@@ -48,6 +48,7 @@ return {
 			["<leader>T"] = { name = "Toggle" },
 			["<leader>w"] = { name = "workspace" },
 			["<leader>W"] = { name = "Wiki" },
+			["<leader>,"] = { name = "Settings" },
 		})
 
 		vim.api.nvim_set_hl(0, "WhichKey", { fg = "#FFFF00" })

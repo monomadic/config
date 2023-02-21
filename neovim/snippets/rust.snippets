@@ -13,6 +13,12 @@ snippet struct
 		${0}
 	}
 
+snippet box_error
+	Box<dyn std::error::Error>
+
+snippet result
+	Result<${1:()}, ${2:Box<dyn std::error::Error>}>
+
 snippet debug
 	format!("{:?}", $0)
 
@@ -368,7 +374,7 @@ snippet testmod "Test module" b
 	#[cfg(test)]
 	mod tests {
 		use super::*;
-		use std::err::Error;
+		use std::error::Error;
 
 		#[test]
 		fn ${1}_test() -> Result<(), Box<dyn Error>> {
