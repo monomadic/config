@@ -75,7 +75,9 @@ return {
 					vim.keymap.set("n", "<leader>Se", ":RustExpand<CR>", { buffer = bufnr, desc = " expand" })
 					vim.keymap.set("n", "<leader>SE", ":RustExpandMacro<CR>", { buffer = bufnr, desc = " expand macro" })
 
-					vim.keymap.set("n", "<C-b>", ":RustRun<CR>", { buffer = bufnr, desc = " run" })
+					-- vim.keymap.set("n", "\\", ":RustLastRun<CR>", { buffer = bufnr, desc = " run", silent = true })
+					vim.keymap.set("n", "\\", ":RustRunnables<CR>", { buffer = bufnr, desc = " run", silent = true })
+					-- vim.keymap.set("n", "\\", ":RustDebuggables<CR>", { buffer = bufnr, desc = " run", silent = true })
 
 					-- vim.keymap.set("n", "<leader>r", "", { buffer = bufnr, desc = " rust" })
 					vim.keymap.set("n", "<leader>r", rust_tools.runnables.runnables, { buffer = bufnr, desc = " run" })
