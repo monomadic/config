@@ -1,9 +1,8 @@
 -- lsp/ts navigation
 return {
 	'ray-x/navigator.lua',
-
 	dependencies = {
-		{ 'ray-x/guihua.lua', run = 'cd lua/fzy && make' },
+		{ 'ray-x/guihua.lua',     build = 'cd lua/fzy && make' },
 		{ 'neovim/nvim-lspconfig' },
 	},
 }

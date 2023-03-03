@@ -24,11 +24,11 @@ return {
 				runnables = {
 					use_telescope = true
 				},
-				-- inlay_hints = {
-				-- 	auto = true,
-				-- 	show_parameter_hints = true,
-				-- },
-				-- hover_actions = { auto_focus = false },
+				inlay_hints = {
+					auto = true,
+					show_parameter_hints = true,
+				},
+				hover_actions = { auto_focus = false },
 			},
 
 			-- see https://github.com/neovim/nvim-lspconfig/blob/master/CONFIG.md#rust_analyzer
@@ -60,10 +60,12 @@ return {
 					-- 	vim.cmd ':edit src/lib.rs'
 					-- end)
 
-					vim.keymap.set('n', '<leader>s', function()
-						-- pickers.open_with_extension('*.rs')
-						require('telescope.builtin').find_files({ search_file = '*.rs' })
-					end, { desc = "source" })
+					-- vim.keymap.set('n', '<leader>s', function()
+					-- 	-- pickers.open_with_extension('*.rs')
+					-- 	require('telescope.builtin').find_files({ search_file = '*.rs' })
+					-- end, { desc = "source" })
+
+					vim.keymap.set('n', '<leader>s', ':FzfLua lsp_workspace_symbols<CR>', { desc = " symbols…" })
 
 					vim.keymap.set('n', '<leader>gt', function()
 						-- pickers.open_with_extension('*.rs')

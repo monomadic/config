@@ -1,3 +1,4 @@
+--
 -- KEYMAPS
 --
 -- to view current mappings: :verbose nmap <C-]>
@@ -21,6 +22,7 @@ M.telescope = function()
 	keymap("n", "<leader><leader>", "<cmd>Lspsaga term_toggle<CR>", { desc = " ChatGPT" })
 	keymap('n', '<leader>d', "<Cmd>Trouble workspace_diagnostics<CR>", { desc = "diagnostics" })
 	keymap('n', '<leader>h', builtin.oldfiles, { desc = "history" })
+	keymap('n', '<leader>t', ':TestFile<CR>', { desc = "history", silent = true })
 
 	-- list
 	keymap('n', "<leader>lgb", pickers.git_branches, { desc = "branches" })
@@ -28,6 +30,7 @@ M.telescope = function()
 	keymap('n', '<leader>lb', builtin.buffers, { desc = "buffers…" })
 	keymap('n', '<leader>ld', builtin.diagnostics, { desc = "diagnostics" })
 	keymap('n', '<leader>lk', pickers.list_keymaps, { desc = "keymaps" })
+	keymap('n', '<leader>ls', ":FzfLua lsp_workspace_symbols<CR>", { desc = "symbols" })
 
 	-- document
 	keymap('n', '<leader>De', pickers.lsp_document_enums, { desc = " enums…" })
@@ -79,7 +82,7 @@ M.telescope = function()
 	keymap('n', '<leader>Nt', pickers.insert_template, { desc = "from template" })
 
 	keymap('n', '<leader>o', pickers.open_files, { desc = "open…" })
-	keymap('n', '<leader>t', '<C-w><C-s>:term<CR>i', { desc = " terminal" })
+	-- keymap('n', '<leader>t', '<C-w><C-s>:term<CR>i', { desc = " terminal" })
 
 	keymap('n', 'tk', pickers.list_keymaps, { desc = "keymaps" })
 	keymap('n', 'tld', '<Cmd>Telescope lsp_definitions<cr>')
@@ -185,6 +188,7 @@ keymap('n', "<leader>,l", ToggleLineNumbers, { desc = "toggle line numbers" })
 keymap('n', "<leader>,t", ":TransparentToggle<CR>", { desc = "toggle tranparency" })
 keymap('n', '<leader>,c', '<cmd>FzfLua colorschemes<cr>', { desc = "colorscheme" })
 keymap('n', '<leader>,t', '<cmd>FzfLua colorschemes<cr>', { desc = "theme" })
+keymap('n', '<leader>,u', '<cmd>Lazy update<cr>', { desc = "update plugins" })
 
 -- floats
 keymap('n', '<C-Space>', lf.show, { desc = "lf", remap = false })

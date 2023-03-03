@@ -29,21 +29,40 @@ brew "neovim" # editor
 brew "helix" # editor
 brew "kakoune" # editor
 brew "youtube-dl"
+brew "ffmpeg" # for youtube-dl
 brew "wget"
+brew "age" # age encryption
+brew "bandwhich" # bandwidth monitor
+brew "diskonaut" # disk usage
+brew "zellij" # tmux replacement
 
-cask "kitty" # term
-cask "1password"
+# dev
+brew "cargo-nextest" # testing
+
+# fonts
+cask "font-ark-pixel-10px-monospaced"
+cask "font-ark-pixel-12px-monospaced"
+cask "font-ark-pixel-16px-monospaced"
 cask "font-hack"
 cask "font-hack-nerd-font"
-cask "signal"
-cask "telegram-desktop"
+
+cask "kitty" # term
+cask "alacritty" # term
+cask "1password"
 # cask "hammerspoon"
 cask "bluewallet"
 cask "ledger-live"
 cask "spotify"
 cask "numi"
+cask "caffeine"
+
+# messaging
+cask "signal"
+cask "telegram-desktop"
 
 # reversing
+brew "binwalk"
+brew "radare2"
+brew "rizin"
+cask "cutter"
 cask "hex-fiend"
-
-cask "caffeine"

@@ -11,7 +11,8 @@ return {
 
 		config = function()
 			require("neodev").setup {
-				lspconfig = false
+				lspconfig = false,
+				library = { plugins = { "neotest" }, types = true },
 			}
 			vim.api.nvim_create_autocmd("FileType", { pattern = "lua", callback = function()
 				vim.lsp.start {

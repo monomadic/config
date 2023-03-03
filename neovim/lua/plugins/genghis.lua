@@ -1,12 +1,10 @@
 -- convenience file operations (new, rename, etc)
 return {
 	"chrisgrieser/nvim-genghis",
-
-	requires = {
+	dependencies = {
 		"stevearc/dressing.nvim",
 		"rcarriga/nvim-notify"
 	},
-
 	config = function()
 		local keymap = vim.keymap.set
 		local genghis = require("genghis")

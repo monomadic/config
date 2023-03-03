@@ -1,6 +1,7 @@
 return {
 	'lvimuser/lsp-inlayhints.nvim',
 	ft = 'typescript',
+	enabled = false,
 
 	config = function()
 		vim.api.nvim_create_autocmd("LspAttach", {
