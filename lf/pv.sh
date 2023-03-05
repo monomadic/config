@@ -17,6 +17,10 @@ else
         *.jpeg) chafa --format=symbols --size=60 "$1";;
         *.gif) chafa --format=symbols --size=60 "$1";;
         *.png) chafa --format=symbols --size=60 "$1";;
+        # *.jpg) chafa --format=symbols --size=60 "$1";;
+        # *.jpeg) chafa --format=symbols --size=60 "$1";;
+        # *.gif) chafa --format=symbols --size=60 "$1";;
+        # *.png) chafa --format=symbols --size=60 "$1";;
         *.doc) catdoc < "$1";;
         *.docx) docx2txt < "$1";;
         *) bat --style=plain --paging=never --terminal-width="$2" --tabs=2 --color=always --theme="Visual Studio Dark+" "$1"

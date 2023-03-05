@@ -12,6 +12,8 @@ cask_args appdir: "/Applications"
 brew "git"
 brew "gzip"
 
+brew "rm-improved" # rm replacement
+# brew "most" # more replacement (use less -R)
 brew "bat" # cat replacement
 brew "bk" # ebook reader
 brew "exa" # ls replacement
@@ -35,9 +37,10 @@ brew "age" # age encryption
 brew "bandwhich" # bandwidth monitor
 brew "diskonaut" # disk usage
 brew "zellij" # tmux replacement
+brew "chafa" # sixel
 
 # dev
-brew "cargo-nextest" # testing
+#	brew "cargo-nextest" # testing NEVER INSTALL THIS, brew should never manage rust EVERQ
 
 # fonts
 cask "font-ark-pixel-10px-monospaced"
@@ -64,5 +67,7 @@ cask "telegram-desktop"
 brew "binwalk"
 brew "radare2"
 brew "rizin"
+brew "bingrep"
+brew "bitwise" # bit conversion
 cask "cutter"
 cask "hex-fiend"
