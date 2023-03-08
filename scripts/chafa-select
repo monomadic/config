@@ -1,0 +1,17 @@
+#!/bin/bash
+chafa --clear --format=symbol --center=on --scale=max "$1"
+
+if [[ "$TERMINFO" == *"kitty"* ]]; then
+	# kitty
+	chafa --clear --format=kitty --center=on --scale=max "$1"
+elif [[ "$TERM_PROGRAM" == "iTerm.app" ]]; then
+	# iTerm2
+	chafa --clear --format=sixel --center=on --scale=max "$1"
+elif [ -n "${ALACRITTY_WINDOW_ID}" ]; then
+	# alacritty-sixel
+	chafa --clear --format=sixel --center=on --scale=max "$1"
+	# chafa "$1" -f sixel -s "$(($2-2))x$3" | sed 's/#/\n#/g'
+else
+	# fallback
+	chafa --clear --format=symbol --center=on --scale=max "$1"
+fi

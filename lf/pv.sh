@@ -17,12 +17,20 @@ else
         # *.jpeg) chafa-select $1;;
         # *.gif) chafa-select  $1;;
         # *.png) chafa-select  $1;;
-        *.jpg) chafa --format=symbols --size=60 "$1";;
-        *.jpeg) chafa --format=symbols --size=60 "$1";;
-        *.gif) chafa --format=symbols --size=60 "$1";;
-        *.png) chafa --format=symbols --size=60 "$1";;
+        *.jpg) chafa --size=$2x$3 --format=symbols "$1";;
+        *.jpeg) chafa --size=$2x$3 --format=symbols "$1";;
+        *.gif) chafa --size=$2x$3 --format=symbols "$1";;
+        *.png) chafa --size=$2x$3 --format=symbols "$1";;
         *.doc) catdoc < "$1";;
         *.docx) docx2txt < "$1";;
-        *) bat --style=plain --paging=never --terminal-width="$2" --tabs=2 --color=always --theme="Visual Studio Dark+" "$1"
+				*.mp4)
+					ffmpeg -y -i "$1" -vframes 120 "/tmp/lf-thumbnail.png"
+					chafa --size=$2x$3 --format=symbols "/tmp/lf-thumbnail.png"
+					;;
+				*.mov)
+					ffmpeg -y -i "$1" -vframes 120 "/tmp/lf-thumbnail.png"
+					chafa --size=$2x$3 --format=symbols "/tmp/lf-thumbnail.png"
+					;;
+        *) bat --style=plain --paging=never --terminal-width="$2" --tabs=2 --color=always --theme="Visual Studio Dark+" "$1";;
     esac
 fi
