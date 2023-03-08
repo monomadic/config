@@ -5,6 +5,11 @@
 local icons = require('icons');
 local M = {}
 
+-- Prints an object
+M.inspect = function(obj)
+	print(vim.inspect(obj))
+end
+
 M.file_exists = function(fname)
 	local stat = vim.loop.fs_stat(fname)
 	return (stat and stat.type) or false
@@ -16,9 +21,34 @@ M.current_file_extension = function()
 	return file_extension
 end
 
+-- Returns (row, col) of the current cursor position
+M.current_pos = function()
+	return vim.api.nvim_win_get_cursor(0)
+end
+
+-- Returns current row of the cursor position
+M.current_row = function()
+	local row, _ = unpack(vim.api.nvim_win_get_cursor(0))
+	return row
+end
+
+-- Returns current col of the cursor position
+M.current_col = function()
+	local _, col = unpack(vim.api.nvim_win_get_cursor(0))
+	return col
+end
+
+
 M.open_config = function()
 	vim.fn.chdir '~/config/neovim'
 	vim.cmd 'edit init.lua'
+end
+
+M.highlight_range = function(range, buf, hl_namespace, hl_group)
+  ---@type integer, integer, integer, integer
+  local start_row, start_col, end_row, end_col = unpack(range)
+  ---@diagnostic disable-next-line: missing-parameter
+  vim.highlight.range(buf, hl_namespace, hl_group, { start_row, start_col }, { end_row, end_col })
 end
 
 M.select_file_at = function(dir)
@@ -67,7 +97,8 @@ M.create_floating_window = function()
 	vim.api.nvim_buf_set_option(buf, "filetype", "float")
 	vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
 	--vim.opt.buflisted = false -- don't show in bufferlist
-	vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
+	vim.api.nvim_open_win(buf, true, {
+	                                                    -- true here focuses the buffer
 		relative = 'editor',
 		row = row,
 		col = col,
@@ -215,6 +246,11 @@ function LSPWorkspaceDiagnostics(bufnr)
 	end
 
 	return errors .. warnings .. hints .. info .. "%#Normal#"
+end
+
+-- shortcut alias to inspect
+function i(obj)
+	Utils.inspect(obj)
 end
 
 return M

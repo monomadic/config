@@ -1,7 +1,12 @@
 snippet module
 	local M = {}
 
-	M.member_function = function()
+	-- Creates a new instance
+	function M:new()
+	end
+
+	-- Instance method
+	M.method_name = function()
 	end
 
 	return M
@@ -12,3 +17,11 @@ snippet --
 	-- $0
 	--
 	----------------------------------------------------------------------------------
+
+snippet me
+	-- Returns the root node of the first syntax tree
+	-- @returns {Node}
+	-- @see {@link lua-treesitter-node| https://neovim.io/doc/user/treesitter.html#lua-treesitter-node} node on the cursor
+	function M:{${1:function_name}()
+		return 0
+	end

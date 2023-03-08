@@ -1,0 +1,5 @@
+{
+    "diagnostics.globals": [
+        "next_named_node"
+    ]
+}

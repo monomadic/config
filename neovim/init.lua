@@ -30,6 +30,8 @@ require 'keymaps'
 require 'colors'
 
 require 'lsp'
+TreeSitter = require 'treesitter'
+Utils = require 'utils'
 -- require 'autoclose'.setup({}) -- automatic close for ()[]"" etc
 
 require 'bootstrap-lazy'

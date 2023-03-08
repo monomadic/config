@@ -43,7 +43,7 @@ M.telescope = function()
 	keymap('n', "<leader>Gc", pickers.git_commits, { desc = "commits" })
 	keymap('n', "<leader>Gs", pickers.git_status, { desc = "status" })
 
-	-- open
+	-- open (various filters of file open pickers)
 	keymap('n', "<leader>OT", pickers.open_template, { desc = "template" })
 	keymap('n', "<leader>Ot", pickers.open_test, { desc = "test" })
 	keymap('n', "<leader>Ow", pickers.wiki_open_page, { desc = "wiki page" })
@@ -52,16 +52,20 @@ M.telescope = function()
 		require('telescope.builtin').find_files({ cwd = "~/.config/nvim/snippets/", follow = true })
 	end, { desc = "snippet" })
 
-	-- config
+	-- config (neovim related items)
 	keymap('n', "<leader>Cf", pickers.open_config_file, { desc = "file..." })
 
-	-- jump
+	-- jump (locations related to current pos)
 	keymap('n', '<leader>jf', pickers.lsp_document_functions,
 		{ desc = icons.lspkind.Function .. "function" .. icons.icons.ellipsis })
 	keymap('n', '<leader>jr', "<Cmd>Trouble lsp_references<CR>",
-		{ desc = icons.lspkind.Reference .. "references" .. icons.icons.ellipsis })
+		{ desc = icons.lspkind.Reference .. "reference" .. icons.icons.ellipsis })
+	-- keymap('n', '<leader>jm', pickers.lsp_document_functions,
+	-- 	{ desc = icons.lspkind.Method .. "method" .. icons.icons.ellipsis })
+	keymap('n', "<leader>ji", builtin.lsp_implementations, { desc = "implementations" })
+	keymap('n', "<leader>jd", builtin.lsp_definitions, { desc = "definition" })
 
-	-- goto
+	-- goto (locations not related to current pos)
 	keymap('n', "<leader>gb", pickers.git_branches, { desc = "git branches" })
 	keymap('n', "<leader>gd", builtin.lsp_definitions, { desc = "definitions" })
 	keymap('n', '<leader>gf', pickers.lsp_document_functions, { desc = " function…" })

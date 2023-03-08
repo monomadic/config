@@ -43,6 +43,8 @@ brew "mpv"
 # dev
 #	brew "cargo-nextest" # testing NEVER INSTALL THIS, brew should never manage rust EVERQ
 brew "prettier"
+brew "tokei" # loc
+brew "pastel" # colors
 
 # fonts
 cask "font-ark-pixel-10px-monospaced"
