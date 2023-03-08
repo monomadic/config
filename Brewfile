@@ -38,9 +38,11 @@ brew "bandwhich" # bandwidth monitor
 brew "diskonaut" # disk usage
 brew "zellij" # tmux replacement
 brew "chafa" # sixel
+brew "mpv"
 
 # dev
 #	brew "cargo-nextest" # testing NEVER INSTALL THIS, brew should never manage rust EVERQ
+brew "prettier"
 
 # fonts
 cask "font-ark-pixel-10px-monospaced"

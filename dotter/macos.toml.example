@@ -1,15 +1,18 @@
 packages = [
   "bin",
+	"chafa",
   "dotter",
   "gitui",
   "alacritty",
   "bash",
   "default",
   "helix",
+	"mpv",
   "kitty",
   "lf",
   "nvim",
   "skhd",
+	"zellij",
   "zsh",
 ]
 

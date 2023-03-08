@@ -2,7 +2,8 @@
 
 image() {
    #chafa "$1" -f sixel -s "$(($2-2))x$3" | sed 's/#/\n#/g'
-   chafa "$1" -f sixel | sed 's/#/\n#/g'
+   #chafa "$1" -f sixel | sed 's/#/\n#/g'
+	 fbi "$1"
 }
 
 batorcat() {

@@ -12,6 +12,15 @@ depends = []
 [bin.files]
 "bin" = "~/.bin/"
 
+[chafa.files]
+"scripts/chafa-select" = "~/.bin/chafa-select"
+
+[zellij.files]
+"zellij" = "~/.config/zellij"
+
+[mpv.files]
+"mpv" = "~/.config/mpv"
+
 [alacritty]
 files = { "alacritty.yml" = "~/.config/alacritty/alacritty.yml" }
 
