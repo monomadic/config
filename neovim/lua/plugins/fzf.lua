@@ -1,4 +1,6 @@
 -- https://github.com/vijaymarupudi/nvim-fzf
+-- https://github.com/ibhagwan/fzf-lua/wiki/Advanced#preview-nvim-builtin
+
 return {
 	'ibhagwan/fzf-lua',
 
@@ -8,7 +10,9 @@ return {
 	},
 
 	config = function()
-		require('fzf-lua').setup {
+		local fzf = require('fzf-lua')
+
+		fzf.setup {
 			winopts = {
 				border = 'solid',
 				preview = {
@@ -19,10 +23,10 @@ return {
 		}
 
 		vim.keymap.set('n', '<c-P>', function()
-			require 'fzf-lua'.files({
+			fzf.files {
 				cmd = "fd",
 				prompt = "   ",
-			})
+			}
 		end)
 	end
 }

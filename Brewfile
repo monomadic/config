@@ -10,6 +10,7 @@ tap "koekeishiya/formulae"
 cask_args appdir: "/Applications"
 
 brew "git"
+brew "git-delta" # rust git diff
 brew "gzip"
 
 brew "rm-improved" # rm replacement

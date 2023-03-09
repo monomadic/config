@@ -8,6 +8,7 @@ local M = {}
 local map = vim.keymap.set
 local keymap = vim.keymap.set
 local utils = require 'utils'
+local key = utils.key
 local lf = require 'lf'
 local icons = require 'icons'
 
@@ -16,8 +17,8 @@ M.telescope = function()
 	local builtin = require 'telescope.builtin'
 
 	-- single letter actions
-	keymap('n', '<leader>b', builtin.buffers, { desc = "buffer" })
-	keymap('n', "<leader><tab>", pickers.open_same_filetype, { desc = "source" })
+	key('n', '<leader>b', builtin.buffers, 'buffer')
+	key('n', '<leader><tab>', pickers.open_same_filetype, 'source')
 	keymap("n", "<leader>\\", "<cmd>ChatGPT<CR>", { desc = " ChatGPT" })
 	keymap("n", "<leader><leader>", "<cmd>Lspsaga term_toggle<CR>", { desc = " ChatGPT" })
 	keymap('n', '<leader>d', "<Cmd>Trouble workspace_diagnostics<CR>", { desc = "diagnostics" })

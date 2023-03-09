@@ -31,7 +31,8 @@ function M:get_parser()
 end
 
 function M:query()
-	local query = ts.parse_query('rust', '(use_declaration (scoped_identifier name: (identifier) @name))')
+	-- local query = ts.parse_query('rust', '(use_declaration (scoped_identifier (name: (identifier) @name)))')
+	local query = ts.parse_query('rust', '(mod_item (visibility_modifier) (identifier) @name)')
 	local node = M:get_root_node()
 	local q = require 'vim.treesitter.query'
 

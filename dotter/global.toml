@@ -3,6 +3,9 @@
 [default]
 depends = []
 
+[delta.files]
+"delta/gitconfig" = "~/.gitconfig"
+
 [default.files]
 
 [default.variables]

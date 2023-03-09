@@ -21,6 +21,9 @@ M.current_file_extension = function()
 	return file_extension
 end
 
+M.key = function(mode, keymap, callback, desc)
+	vim.keymap.set(mode, keymap, callback, { desc = desc, silent = true}) end
+
 -- Returns (row, col) of the current cursor position
 M.current_pos = function()
 	return vim.api.nvim_win_get_cursor(0)
