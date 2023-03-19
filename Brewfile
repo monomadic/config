@@ -21,7 +21,8 @@ brew "exa" # ls replacement
 brew "duf" # disk usage go
 brew "dust" # better ncdu in rust
 brew "ncdu"
-brew "fzf" # fuzzy find
+brew "fzf" # fuzzy filter (go)
+brew "sk" # fuzzy filter (rust)
 brew "koekeishiya/formulae/skhd" # brew services start skhd
 # brew "koekeishiya/formulae/yabai"
 brew "lf" # ranger, but in c
@@ -39,13 +40,30 @@ brew "bandwhich" # bandwidth monitor
 brew "diskonaut" # disk usage
 brew "zellij" # tmux replacement
 brew "chafa" # sixel
+brew "viu" # sixel
 brew "mpv"
+brew "procs" # ps replacement (rust)
+
+brew "ouch" # general decompressor (rust)
 
 # dev
 #	brew "cargo-nextest" # testing NEVER INSTALL THIS, brew should never manage rust EVERQ
 brew "prettier"
 brew "tokei" # loc
 brew "pastel" # colors
+
+brew "macchina" # system info
+
+# tabs
+tap "austinjones/taps"
+brew "tab"
+
+# atuin (history db)
+tap "ellie/atuin"
+brew "atuin"
+
+# network
+brew "rustscan" # port scanner
 
 # fonts
 cask "font-ark-pixel-10px-monospaced"

@@ -13,13 +13,16 @@ depends = []
 "zk_path" = "/mnt/data/notes/zk"
 
 [bin.files]
-"bin" = "~/.bin/"
+"bin" = { target = "~/.bin/", type = "symbolic" }
+
+[joshuto.files]
+"joshuto" = "~/.config/joshuto"
 
 [chafa.files]
 "scripts/chafa-select" = "~/.bin/chafa-select"
 
 [zellij.files]
-"zellij" = "~/.config/zellij"
+"zellij" = { target = "~/.config/zellij", type = "symbolic" }
 
 [mpv.files]
 "mpv" = "~/.config/mpv"
@@ -31,7 +34,7 @@ files = { "alacritty.yml" = "~/.config/alacritty/alacritty.yml" }
 files = { "kitty.conf" = "~/.config/kitty/kitty.conf" }
 
 [skhd]
-files = { "skhd.conf" = "~/.config/skhd/skhdrc" }
+files = { "skhd/skhd.conf" = "~/.config/skhd/skhdrc" }
 
 [bash]
 files = { "bash/rc.bash" = "~/.bashrc", "bash/fzm.bash" = "~/.bash/fzm.bash" }

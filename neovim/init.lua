@@ -14,10 +14,13 @@
 --  - https://github.com/ldelossa/litee-symboltree.nvim
 --  - https://github.com/MunifTanjim/nui.nvim - menus etc
 --  - format-on-save
+--  - look for small minimal fuzzy replacement
 --
 --------------------------------------------------------------------------------
 
 require 'utils'
+Utils = require 'utils'
+
 require 'autocmds'
 
 require 'text'
@@ -30,10 +33,10 @@ require 'keymaps'
 require 'colors'
 
 require 'lsp'
-TreeSitter = require 'treesitter'
-Utils = require 'utils'
+
 -- require 'autoclose'.setup({}) -- automatic close for ()[]"" etc
 
 require 'bootstrap-lazy'
+TreeSitter = require 'treesitter'
 
 --------------------------------------------------------------------------------

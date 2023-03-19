@@ -1,8 +1,22 @@
 --
+--
 -- KEYMAPS
 --
 -- to view current mappings: :verbose nmap <C-]>
 --
+
+
+-- TODO:
+-- terminals
+-- <leader>1 etc is term window
+-- <C-c> kills window
+-- <C-h> hides window
+-- <C-1> switch to window
+-- show mapping of active terminals in bottom bar
+--
+-- tab / smartjump
+-- if errors exist, tab should jump to them
+-- otherwise modules and types
 
 local M = {}
 local map = vim.keymap.set
@@ -74,6 +88,7 @@ M.telescope = function()
 	keymap('n', '<leader>gt', '<Cmd>TodoTelescope<cr>', { desc = "todo" })
 	keymap('n', "<leader>gT", pickers.open_template, { desc = "template" })
 	keymap('n', "<leader>gw", pickers.wiki_open_page, { desc = "wiki page" })
+	keymap('n', "gw", pickers.wiki_open_page, { desc = "wiki page" })
 	keymap('n', "<Enter>", builtin.lsp_definitions, { desc = "definitions" })
 	keymap('n', "gd", builtin.lsp_definitions)
 
@@ -318,6 +333,7 @@ keymap('n', '<leader>lt', '<cmd>TodoTelescope<cr>', { desc = "todos…" })
 
 -- symbol
 keymap('n', '<leader>Ss', '<cmd>Telescope spell_suggest<cr>', { desc = "spelling" })
+
 
 -- sessions
 -- local session_dir = vim.fn.stdpath('data') .. '/sessions/'

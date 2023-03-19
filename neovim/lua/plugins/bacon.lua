@@ -1,0 +1,3 @@
+return {
+	'Canop/nvim-bacon'
+}

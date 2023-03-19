@@ -1,5 +1,6 @@
-#!/bin/bash
-#chafa --clear --format=symbol --center=on --scale=max "$1"
+#!/usr/bin/env bash
+
+chafa --clear --format=symbol --center=on --scale=max "$1"
 
 if [[ "$TERMINFO" == *"kitty"* ]]; then
 	# kitty

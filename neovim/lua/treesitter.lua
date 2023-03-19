@@ -5,6 +5,55 @@ local ts = vim.treesitter
 
 local M = {}
 
+function M:t()
+	local ts_utils = require('nvim-treesitter.ts_utils')
+	local parsers = require('nvim-treesitter.parsers')
+
+	local bufnr = vim.api.nvim_get_current_buf()
+	local cursor = vim.api.nvim_win_get_cursor(0)
+
+	if not parsers.has_parser() then
+		print("No Treesitter parser available for current buffer")
+		return
+	end
+
+	local root = M.get_root_node()
+	--local query = ts.get_query(parsers.get_buf_lang(bufnr), "functions")
+
+	local lang = parsers.get_buf_lang(bufnr)
+	local query = vim.treesitter.parse_query(lang, "(function_item) @function")
+
+	if not query then
+		print("Query returned no results")
+		return
+	end
+
+	local next_function_node = nil
+	local function_iter = query:iter_captures(root, bufnr)
+
+	for id, node in function_iter do
+		local node_start = { node:start() }
+		if ts_utils.compare_positions(cursor, node_start) < 0 then
+			if next_function_node == nil or ts_utils.compare_positions(node_start, { next_function_node:start() }) < 0 then
+				next_function_node = node
+			end
+		end
+	end
+
+	if next_function_node then
+		local start_row, start_col, end_row, end_col = next_function_node:range()
+		vim.api.nvim_win_set_cursor(0, { start_row + 1, start_col })
+		vim.api.nvim_exec("normal! v", false)
+		vim.api.nvim_win_set_cursor(0, { end_row + 1, end_col })
+	else
+		print("No next function found")
+	end
+
+	-- return {
+	-- 	select_next_function = M:t(),
+	-- }
+end
+
 -- Returns the root node of the first syntax tree
 -- @returns {Node}
 -- @see {@link lua-treesitter-node| https://neovim.io/doc/user/treesitter.html#lua-treesitter-node} node on the cursor
@@ -16,28 +65,64 @@ end
 -- @returns {Array<Tree>}
 -- @see {@link lua-treesitter-tree| https://neovim.io/doc/user/treesitter.html#lua-treesitter-tree}
 function M:get_syntax_trees()
-  return M:get_parser():parse()
+	return M:get_parser():parse()
 end
 
 -- Refresh the syntax tree
 function M:refresh()
-  M:get_parser():parse()
+	M:get_parser():parse()
 end
 
 function M:get_parser()
 	local parsers = require "nvim-treesitter.parsers"
 	return parsers.get_parser()
-  -- return ts.get_parser(self.buffer, self.language)
+	-- return ts.get_parser(self.buffer, self.language)
 end
 
-function M:query()
+function M:query_tree(query)
+	-- Parse the current buffer with Treesitter
+	local parser = M:get_root_node()
+
+	-- Find all nodes in the tree that match the query
+	local matches = parser:query(query):captures()
+
+	-- Map each match to its node object
+	local nodes = {}
+	for _, match in ipairs(matches) do
+		table.insert(nodes, match.node)
+	end
+
+	return nodes
+end
+
+function M:mods()
+	local mod_nodes = M:query_tree("(call_expression function_name:_)")
+	for _, node in ipairs(mod_nodes) do
+		print(node:type())
+	end
+end
+
+function M:query__()
 	-- local query = ts.parse_query('rust', '(use_declaration (scoped_identifier (name: (identifier) @name)))')
 	local query = ts.parse_query('rust', '(mod_item (visibility_modifier) (identifier) @name)')
+	--local tree = M:get_parser():parse()
 	local node = M:get_root_node()
 	local q = require 'vim.treesitter.query'
+	--local l = require 'vim.treesitter.languagetree'
+
+	for capture, node, metadata in query:iter_matches(node, 0) do
+		for id, node in ipairs(node) do
+			i(q.get_node_text(node[1], 0))
+			i(node)
+			i(metadata[id])
+		end
+	end
 
 	for _, captures, metadata in query:iter_matches(node, 0) do
+		local node = captures[1]
+
 		i(q.get_node_text(captures[1], 0))
+
 		M.goto_node(captures[1])
 	end
 end
@@ -110,7 +195,7 @@ end
 -- @see {@link lua-treesitter-node| https://neovim.io/doc/user/treesitter.html#lua-treesitter-node} node on the cursor
 function M:get_curr_node()
 	local ts_utils = require("nvim-treesitter.ts_utils")
-  return ts_utils.get_node_at_cursor()
+	return ts_utils.get_node_at_cursor()
 end
 
 -- M.jump_next_named_node = function()

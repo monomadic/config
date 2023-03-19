@@ -8,10 +8,10 @@ local create_float = function()
 	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
 	-- local selected_file = vim.fn.expand('%:p') -- the currently open filename
 	-- vim.opt_local.filetype = "float"
-	local row = 2
-	local col = 2
+	local row = 4
+	local col = 4
 	local width = vim.o.columns
-	local height = vim.o.lines - 2
+	local height = vim.o.lines - 4
 	local border = 'none'
 
 	vim.api.nvim_buf_set_option(buf, "filetype", "float")
