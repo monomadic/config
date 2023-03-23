@@ -24,7 +24,7 @@ else
         *.doc) catdoc < "$1";;
         *.docx) docx2txt < "$1";;
 				*.mp4)
-					ffmpeg -y -i "$1" -vframes 120 "/tmp/lf-thumbnail.png"
+					ffmpeg -y -i "$1" -vframes 1 -ss 5 "/tmp/lf-thumbnail.png"
 					chafa --size=$2x$3 --format=symbols "/tmp/lf-thumbnail.png"
 					;;
 				*.mov)

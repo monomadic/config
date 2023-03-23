@@ -31,7 +31,7 @@ depends = []
 files = { "alacritty.yml" = "~/.config/alacritty/alacritty.yml" }
 
 [kitty]
-files = { "kitty.conf" = "~/.config/kitty/kitty.conf" }
+files = { "kitty" = "~/.config/kitty" }
 
 [skhd]
 files = { "skhd/skhd.conf" = "~/.config/skhd/skhdrc" }

@@ -1,10 +1,5 @@
 [class]
-audio_default = [
-  { command = "mpv", args = [
-    "--",
-  ] },
-  { command = "mediainfo", confirm_exit = true },
-]
+audio_default = [{ command = "mpv" }]
 
 image_default = [
   { command = "qimgv", args = [
@@ -17,7 +12,7 @@ image_default = [
   { command = "swappy", args = [
     "-f",
   ], fork = true },
-  { command = "fbi", silent = true },
+  { command = "fbi", silent = true, fork = true },
 ]
 
 video_default = [
@@ -74,6 +69,7 @@ m4a.inherit = "audio_default"
 mp3.inherit = "audio_default"
 ogg.inherit = "audio_default"
 wav.inherit = "audio_default"
+opus.inherit = "audio_default"
 
 ## video formats
 avi.inherit = "video_default"

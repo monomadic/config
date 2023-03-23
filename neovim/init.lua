@@ -24,13 +24,15 @@ Utils = require 'utils'
 require 'autocmds'
 
 require 'text'
-require 'statusline'
-require 'tabline'
-require 'winbar'
+require 'statusline'	-- bottom bar (global)
+require 'tabline'			-- top bar (global)
+require 'winbar'			-- top bar (buffer)
 
 require 'settings'
 require 'keymaps'
 require 'colors'
+
+Joshuto = require 'joshuto'
 
 require 'lsp'
 

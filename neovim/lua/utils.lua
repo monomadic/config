@@ -86,11 +86,11 @@ end
 
 -- create a floating window from a buffer
 M.create_floating_window = function()
-	local row = 2
-	local col = 2
-	local width = vim.o.columns
-	local height = vim.o.lines - 2
-	local border = 'none'
+	local row = 5
+	local col = 3
+	local width = vim.o.columns - 8
+	local height = vim.o.lines - 5
+	local border = 'single'
 	-- local term_height = math.ceil(0.7 * vim.o.lines)
 
 	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term

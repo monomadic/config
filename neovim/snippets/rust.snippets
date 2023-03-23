@@ -387,10 +387,9 @@ snippet testmod "Test module" b
 	#[cfg(test)]
 	mod tests {
 		use super::*;
-		use std::error::Error;
 
 		#[test]
-		fn ${1}_test() -> Result<(), Box<dyn Error>> {
+		fn test_${1:name}() -> Result<()> {
 			$0
 			Ok(())
 		}
