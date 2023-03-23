@@ -21,6 +21,8 @@ function image {
 }
 
 case "$mimetype" in
+	video/*)
+		;;
 	image/*)
 		image "${FILE_PATH}"
 		;;
