@@ -55,8 +55,8 @@ brew "pastel" # colors
 brew "macchina" # system info
 
 # tabs
-tap "austinjones/taps"
-brew "tab"
+# tap "austinjones/taps"
+# brew "tab"
 
 # atuin (history db)
 tap "ellie/atuin"
@@ -92,5 +92,8 @@ brew "radare2"
 brew "rizin"
 brew "bingrep"
 brew "bitwise" # bit conversion
+brew "demumble" # demangling
 cask "cutter"
 cask "hex-fiend"
+cask "ghidra"
+cask "temurin"
