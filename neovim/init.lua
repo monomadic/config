@@ -41,4 +41,6 @@ require 'lsp'
 require 'bootstrap-lazy'
 TreeSitter = require 'treesitter'
 
+require 'ts.ts-jump'
+
 --------------------------------------------------------------------------------

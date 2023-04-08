@@ -45,6 +45,11 @@ return {
 
 					-- vim.keymap.set("n", "<leader>R", ":RustCodeAction<CR>", { desc = "RUST" })
 
+					vim.keymap.set("n", "crr", ":! cargo run --release<CR>", { desc = "release" })
+					vim.keymap.set("n", "crd", ":! cargo run<CR>", { desc = "debug" })
+					vim.keymap.set("n", "cri", ":! cargo install --path . <CR>", { desc = "install" })
+					vim.keymap.set("n", "crb", ":split|resize 8|terminal bacon --summary<CR>", { desc = "bacon", silent = true })
+
 					vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr })
 					vim.keymap.set("n", "<leader>Sa", ":RustCodeAction<CR>",
 						{ buffer = bufnr, desc = " code action", remap = false })
