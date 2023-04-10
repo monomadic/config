@@ -1,5 +1,11 @@
 {
     "diagnostics.globals": [
         "next_named_node"
+    ],
+    "workspace.library": [
+        "/Users/nom/.local/share/nvim/lazy/neodev.nvim/types/stable",
+        "/opt/homebrew/Cellar/neovim/0.9.0/share/nvim/runtime/lua",
+        "/Users/nom/config/neovim/lua",
+        "${3rd}/luv/library"
     ]
 }

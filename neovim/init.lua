@@ -19,10 +19,14 @@
 --------------------------------------------------------------------------------
 
 require 'utils'
+
 Utils = require 'utils'
+Joshuto = require 'joshuto'
+TreeSitter = require 'treesitter'
 
 require 'autocmds'
 
+-- ui
 require 'text'
 require 'statusline'	-- bottom bar (global)
 require 'tabline'			-- top bar (global)
@@ -33,14 +37,10 @@ require 'settings'
 require 'keymaps'
 require 'colors'
 
-Joshuto = require 'joshuto'
-
 require 'lsp'
-
 -- require 'autoclose'.setup({}) -- automatic close for ()[]"" etc
 
 require 'bootstrap-lazy'
-TreeSitter = require 'treesitter'
 
 require 'ts.ts-jump'
 

@@ -32,6 +32,7 @@ function _G.RunFile()
     })
 
     vim.api.nvim_win_set_option(win, "winhl", "Normal:NormalFloat")
+    -- vim.api.nvim_win_set_option(win, "title", ".runfile") -- Set window title
     vim.cmd("terminal " .. command)
   end
 
@@ -39,31 +40,38 @@ function _G.RunFile()
   local commands = load_commands_from_file(commands_file_path)
 
   if commands then
-    -- Add numbers before each command
-    local numbered_commands = {}
-    for i, command in ipairs(commands) do
-      table.insert(numbered_commands, string.format("%d. %s", i, command))
-    end
+    -- If there's only one command, execute it automatically
+    if #commands == 1 then
+      open_floating_terminal_with_command(commands[1])
+    else
+      -- Add numbers before each command
+      local numbered_commands = {}
+      for i, command in ipairs(commands) do
+        table.insert(numbered_commands, string.format("%d. %s", i, command))
+      end
 
-    -- Display the commands using vim.ui.select and store the user's choice
-    vim.ui.select(numbered_commands, {
-      prompt = "RunFile:",
-      default = 1
-    }, function(selected_item)
-      -- Find the index of the selected item in the numbered_commands table
-      local choice = nil
-      for i, item in ipairs(numbered_commands) do
-        if item == selected_item then
-          choice = i
-          break
+      -- Display the commands using vim.ui.select and store the user's choice
+      vim.ui.select(numbered_commands, {
+        prompt = ".runfile",
+        default = 1
+      }, function(selected_item)
+        -- Find the index of the selected item in the numbered_commands table
+        local choice = nil
+        for i, item in ipairs(numbered_commands) do
+          if item == selected_item then
+            choice = i
+            break
+          end
         end
-      end
 
-      -- Check if the user made a valid choice and execute the corresponding command
-      if choice and choice >= 1 and choice <= #commands then
-        open_floating_terminal_with_command(commands[choice])
-      end
-    end)
+        -- Check if the user made a valid choice and execute the corresponding command
+        if choice and choice >= 1 and choice <= #commands then
+          open_floating_terminal_with_command(commands[choice])
+        else
+          print("Invalid choice. Please try again.")
+        end
+      end)
+    end
   else
     print("Error: Could not open the file " .. commands_file_path)
   end
