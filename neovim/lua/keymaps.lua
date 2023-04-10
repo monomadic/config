@@ -190,6 +190,7 @@ keymap('n', "<leader>Gc", ":Telescope git_commits<CR>", { desc = "commits" })
 keymap('n', "<leader>Gs", ":Telescope git_status<CR>", { desc = "status" })
 --
 -- run
+map('n', "<leader>r", RunFile, { desc = "run" })
 keymap('n', "<leader>Rb", Build, { desc = " build" })
 --
 -- goto
@@ -375,7 +376,6 @@ vim.api.nvim_create_autocmd("LspAttach", {
 
 -- lua
 vim.api.nvim_create_autocmd("FileType", { pattern = "lua", callback = function()
-	map('n', "<leader>r", ":source %<CR>", { desc = "run" })
 	map('n', "<C-r>", ":source %<CR>", { desc = "run" })
 	map('n', "<leader>Rr", ":source %<CR>", { desc = "run" })
 end })

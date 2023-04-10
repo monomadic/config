@@ -2,7 +2,7 @@
   "entries": {
     "tap": {
       "homebrew/cask-fonts": {
-        "revision": "12d8761e98aa1aa2d6ee148aa3da5b5d82bb3989"
+        "revision": "dc10566b2214196f213c853413941284e446e580"
       },
       "homebrew/bundle": {
         "revision": "20ac256630f057789be7f4dcadff9307d866e4fb"
@@ -2258,6 +2258,15 @@
             "appdir": "/Applications"
           }
         }
+      },
+      "sparrow": {
+        "version": "1.7.4",
+        "options": {
+          "full_name": "sparrow",
+          "args": {
+            "appdir": "/Applications"
+          }
+        }
       }
     }
   },
@@ -2277,7 +2286,7 @@
         "Homebrew/homebrew-core": "api",
         "CLT": "14.3.0.0.1.1679647830",
         "Xcode": "14.1",
-        "macOS": "13.3"
+        "macOS": "13.3.1"
       }
     }
   }

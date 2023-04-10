@@ -28,6 +28,7 @@ require 'statusline'	-- bottom bar (global)
 require 'tabline'			-- top bar (global)
 require 'winbar'			-- top bar (buffer)
 
+require 'runfile' -- .runfile support
 require 'settings'
 require 'keymaps'
 require 'colors'

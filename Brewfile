@@ -43,16 +43,15 @@ brew "chafa" # sixel
 brew "viu" # sixel
 brew "mpv"
 brew "procs" # ps replacement (rust)
+brew "macchina" # system info
 
 brew "ouch" # general decompressor (rust)
 
-# dev
-#	brew "cargo-nextest" # testing NEVER INSTALL THIS, brew should never manage rust EVERQ
+# development
+#	brew "cargo-nextest" # testing NEVER INSTALL THIS, brew should never manage uust EVERQ
 brew "prettier"
 brew "tokei" # loc
 brew "pastel" # colors
-
-brew "macchina" # system info
 
 # tabs
 # tap "austinjones/taps"
@@ -74,26 +73,32 @@ cask "font-hack-nerd-font"
 
 cask "kitty" # term
 cask "alacritty" # term
-cask "1password"
+cask "1password" # password manager
 # cask "hammerspoon"
+
+# bitcoin
 cask "bluewallet"
+cask "sparrow"
 cask "ledger-live"
+
+# music
 cask "spotify"
-cask "numi"
-cask "caffeine"
+
+cask "numi" # calculator
+cask "caffeine" # sleep prevention
 
 # messaging
 cask "signal"
 cask "telegram-desktop"
 
 # reversing
-brew "binwalk"
-brew "radare2"
-brew "rizin"
-brew "bingrep"
+brew "binwalk" # binary analyser
+brew "bingrep" # binary analyser
+brew "radare2" # debugger / decompiler
+cask "cutter" # debugger / compiler
+cask "ghidra" # debugger / decompiler
+brew "rizin" # fork of radare2
+cask "temurin" # jre replacement (for ghidra)
 brew "bitwise" # bit conversion
 brew "demumble" # demangling
-cask "cutter"
-cask "hex-fiend"
-cask "ghidra"
-cask "temurin"
+cask "hex-fiend" # hex editor
