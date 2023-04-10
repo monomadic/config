@@ -55,7 +55,7 @@ autocmd({ "ColorScheme", "VimEnter" },
 		hl(0, "DiagnosticUnderlineWarn", { fg = "#F0F0AA", underdotted = true })
 		hl(0, "EndOfBuffer", { fg = "#444444" })
 		hl(0, "Float", { bg = "#111111" })
-		hl(0, "FloatBorder", { fg = "#CCFF00" })
+		hl(0, "FloatBorder", { fg = "black", bg = "black" })
 		hl(0, "FzfLuaBorder", { fg = "black", bg = "black" })
 		hl(0, "FzfLuaNormal", { fg = "white", bg = "black" })
 		hl(0, "LspActive", { fg = "#00FF00" })
