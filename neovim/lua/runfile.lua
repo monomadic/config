@@ -28,7 +28,7 @@ function _G.RunFile()
       col = math.ceil(width * 0.1),
       row = math.ceil(height * 0.1),
       style = "minimal",
-      border = "single" -- Set border option here
+      border = "single"
     })
 
     vim.api.nvim_win_set_option(win, "winhl", "Normal:NormalFloat")
@@ -45,20 +45,25 @@ function _G.RunFile()
       table.insert(numbered_commands, string.format("%d. %s", i, command))
     end
 
-    -- Display the commands in a dialog and store the user's choice
-    local choice = vim.fn.inputlist(numbered_commands)
+    -- Display the commands using vim.ui.select and store the user's choice
+    vim.ui.select(numbered_commands, {
+      prompt = "RunFile:",
+      default = 1
+    }, function(selected_item)
+      -- Find the index of the selected item in the numbered_commands table
+      local choice = nil
+      for i, item in ipairs(numbered_commands) do
+        if item == selected_item then
+          choice = i
+          break
+        end
+      end
 
-    -- Make hitting Enter select the default option (number 1)
-    if choice == 0 then
-      choice = 1
-    end
-
-    -- Check if the user made a valid choice and execute the corresponding command
-    if choice >= 1 and choice <= #commands then
-      open_floating_terminal_with_command(commands[choice])
-    else
-      print("Invalid choice. Please try again.")
-    end
+      -- Check if the user made a valid choice and execute the corresponding command
+      if choice and choice >= 1 and choice <= #commands then
+        open_floating_terminal_with_command(commands[choice])
+      end
+    end)
   else
     print("Error: Could not open the file " .. commands_file_path)
   end
