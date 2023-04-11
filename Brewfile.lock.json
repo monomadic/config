@@ -8,10 +8,10 @@
         "revision": "20ac256630f057789be7f4dcadff9307d866e4fb"
       },
       "homebrew/cask": {
-        "revision": "90f1b9d0c9e925c0cfa7ba49574c555ddab49668"
+        "revision": "8a41398bb1c3fc8d0120247217d5e34bf5de04fd"
       },
       "homebrew/core": {
-        "revision": "3139fe706ec273dd20b859562da60bdf17fc0d4a"
+        "revision": "fe748547bbe691f4c5693e594b0dd9d87993f3e5"
       },
       "koekeishiya/formulae": {
         "revision": "4c171bd29cc3de82fefc258414bd4938b37c5950"
@@ -2087,6 +2087,10 @@
         }
       },
       "dotter": {
+        "version": "0.12.15",
+        "bottle": false
+      },
+      "homebrew/dotter.rb": {
         "version": "0.12.15",
         "bottle": false
       }

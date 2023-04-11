@@ -53,7 +53,7 @@ brew "prettier"
 brew "tokei" # loc
 brew "pastel" # colors
 
-brew "dotter"
+brew "homebrew/dotter.rb"
 
 
 # tabs
