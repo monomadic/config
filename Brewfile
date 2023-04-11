@@ -53,6 +53,9 @@ brew "prettier"
 brew "tokei" # loc
 brew "pastel" # colors
 
+brew "dotter"
+
+
 # tabs
 # tap "austinjones/taps"
 # brew "tab"

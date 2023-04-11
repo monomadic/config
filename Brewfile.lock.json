@@ -2,7 +2,7 @@
   "entries": {
     "tap": {
       "homebrew/cask-fonts": {
-        "revision": "dc10566b2214196f213c853413941284e446e580"
+        "revision": "f40e0edb5aa42357e605205271c805a0e5e62068"
       },
       "homebrew/bundle": {
         "revision": "20ac256630f057789be7f4dcadff9307d866e4fb"
@@ -2085,6 +2085,10 @@
             }
           }
         }
+      },
+      "dotter": {
+        "version": "0.12.15",
+        "bottle": false
       }
     },
     "cask": {
@@ -2281,7 +2285,7 @@
         "macOS": "12.4"
       },
       "ventura": {
-        "HOMEBREW_VERSION": "4.0.11",
+        "HOMEBREW_VERSION": "4.0.12",
         "HOMEBREW_PREFIX": "/opt/homebrew",
         "Homebrew/homebrew-core": "api",
         "CLT": "14.3.0.0.1.1679647830",
