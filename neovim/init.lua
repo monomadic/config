@@ -36,6 +36,7 @@ require 'runfile' -- .runfile support
 require 'settings'
 require 'keymaps'
 require 'colors'
+require 'insert-url' -- insert markdown url
 
 require 'lsp'
 -- require 'autoclose'.setup({}) -- automatic close for ()[]"" etc
@@ -43,5 +44,7 @@ require 'lsp'
 require 'bootstrap-lazy'
 
 require 'ts.ts-jump'
+
+LoadRunFileKeymaps()
 
 --------------------------------------------------------------------------------
