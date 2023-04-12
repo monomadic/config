@@ -5,7 +5,7 @@
         "revision": "f40e0edb5aa42357e605205271c805a0e5e62068"
       },
       "homebrew/bundle": {
-        "revision": "20ac256630f057789be7f4dcadff9307d866e4fb"
+        "revision": "71dc38965e2da232d0ce409f1d6be8669fcaae4e"
       },
       "homebrew/cask": {
         "revision": "8a41398bb1c3fc8d0120247217d5e34bf5de04fd"
@@ -21,6 +21,9 @@
       },
       "ellie/atuin": {
         "revision": "3c72797d79e75d2b16396b421d775d38e79f8b67"
+      },
+      "jorpilo/formulae": {
+        "revision": "5b82e1dcca97f88be5e59f17b0baa737899fa32c"
       }
     },
     "brew": {
@@ -2115,7 +2118,7 @@
         }
       },
       "1password": {
-        "version": "8.10.3",
+        "version": "8.10.4",
         "options": {
           "full_name": "1password",
           "args": {
@@ -2271,6 +2274,15 @@
         "version": "1.7.4",
         "options": {
           "full_name": "sparrow",
+          "args": {
+            "appdir": "/Applications"
+          }
+        }
+      },
+      "1password-cli": {
+        "version": "2.16.1",
+        "options": {
+          "full_name": "1password-cli",
           "args": {
             "appdir": "/Applications"
           }

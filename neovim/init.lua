@@ -18,6 +18,9 @@
 --
 --------------------------------------------------------------------------------
 
+-- lua byte-compiler
+vim.loader.enable()
+
 require 'utils'
 
 Utils = require 'utils'
@@ -31,6 +34,7 @@ require 'text'
 require 'statusline'	-- bottom bar (global)
 require 'tabline'			-- top bar (global)
 require 'winbar'			-- top bar (buffer)
+require 'gutter'
 
 require 'runfile' -- .runfile support
 require 'settings'
