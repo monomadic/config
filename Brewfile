@@ -5,13 +5,16 @@ tap "homebrew/cask"
 tap "homebrew/cask-fonts"
 tap "homebrew/core"
 tap "homebrew/services"
-tap "koekeishiya/formulae"
+#tap "koekeishiya/formulae"
+tap "jorpilo/formulae" # replacement for koekeishiya
 
 cask_args appdir: "/Applications"
 
 brew "git"
 brew "git-delta" # rust git diff
 brew "gzip"
+
+brew "homebrew/dotter.rb"
 
 brew "rm-improved" # rm replacement
 # brew "most" # more replacement (use less -R)
@@ -47,13 +50,14 @@ brew "macchina" # system info
 
 brew "ouch" # general decompressor (rust)
 
+# encryption
+brew "age"
+
 # development
 #	brew "cargo-nextest" # testing NEVER INSTALL THIS, brew should never manage uust EVERQ
 brew "prettier"
 brew "tokei" # loc
 brew "pastel" # colors
-
-brew "dotter"
 
 
 # tabs
@@ -77,6 +81,7 @@ cask "font-hack-nerd-font"
 cask "kitty" # term
 cask "alacritty" # term
 cask "1password" # password manager
+cask "1password-cli"
 # cask "hammerspoon"
 
 # bitcoin
