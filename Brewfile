@@ -5,8 +5,6 @@ tap "homebrew/cask"
 tap "homebrew/cask-fonts"
 tap "homebrew/core"
 tap "homebrew/services"
-#tap "koekeishiya/formulae"
-tap "jorpilo/formulae" # replacement for koekeishiya
 
 cask_args appdir: "/Applications"
 
@@ -16,7 +14,7 @@ brew "gzip"
 
 brew "homebrew/dotter.rb"
 
-brew "rm-improved" # rm replacement
+brew "rm-improved" # rm replacement (rip)
 # brew "most" # more replacement (use less -R)
 brew "bat" # cat replacement
 brew "bk" # ebook reader
@@ -26,8 +24,7 @@ brew "dust" # better ncdu in rust
 brew "ncdu"
 brew "fzf" # fuzzy filter (go)
 brew "sk" # fuzzy filter (rust)
-brew "koekeishiya/formulae/skhd" # brew services start skhd
-# brew "koekeishiya/formulae/yabai"
+
 brew "lf" # ranger, but in c
 brew "rclone" # disk clone (cloud)
 brew "rg" # ripgrep
@@ -59,6 +56,11 @@ brew "prettier"
 brew "tokei" # loc
 brew "pastel" # colors
 
+# yabai + skhd
+# tap "koekeishiya/formulae"
+# tap "jorpilo/formulae" # replacement for koekeishiya
+# brew "koekeishiya/formulae/skhd" # brew services start skhd
+# brew "koekeishiya/formulae/yabai"
 
 # tabs
 # tap "austinjones/taps"
