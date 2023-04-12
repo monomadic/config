@@ -1,15 +1,14 @@
 [default_view]
 
 keymap = [
-  { keys = ["escape"], command = "escape" },
+  { keys = ["escape"], command = "quit --output-current-directory" },
   { keys = ["ctrl+t"], command = "new_tab" },
   { keys = ["alt+t"], command = "new_tab --cursor" },
   { keys = ["T"], command = "new_tab --current" },
   { keys = ["W"], command = "close_tab" },
   { keys = ["ctrl+w"], command = "close_tab" },
-  { keys = ["q"], command = "close_tab" },
+  { keys = ["q"], command = "quit --output-current-directory" },
   { keys = ["Q"], command = "quit --output-current-directory" },
-  { keys = ["ctrl+space"], command = "quit --output-current-directory" },
 
   { keys = ["R"], command = "reload_dirlist" },
   { keys = ["H"], command = "toggle_hidden" },
