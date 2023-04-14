@@ -13,3 +13,6 @@
 
 [diff]
     colorMoved = default
+[user]
+	name = monomadic
+	email = monomadic@localhost
