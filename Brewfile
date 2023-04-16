@@ -47,6 +47,8 @@ brew "macchina" # system info
 
 brew "ouch" # general decompressor (rust)
 
+cask "megasync" # mega.nz
+
 # encryption
 brew "age"
 
