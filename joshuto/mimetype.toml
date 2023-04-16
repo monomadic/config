@@ -12,7 +12,7 @@ image_default = [
   { command = "swappy", args = [
     "-f",
   ], fork = true },
-  { command = "fbi", silent = true, fork = true },
+  { command = "iv", silent = true, fork = true },
 ]
 
 video_default = [
