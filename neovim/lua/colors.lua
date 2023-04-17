@@ -1,7 +1,7 @@
 -- COLORS
 -- https://ofstack.com/Linux/25280/vim-custom-highlighted-groups-and-some-practical-tips.html
 
-local TITLEBAR_BG = "#1E1D2D"
+local TITLEBAR_BG = "#1E1D3D"
 -- local TAB_BG = "#323246"
 
 local M = {}

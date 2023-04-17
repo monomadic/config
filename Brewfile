@@ -93,6 +93,9 @@ cask "bluewallet"
 cask "sparrow"
 cask "ledger-live"
 
+# browser
+cask "firefox"
+
 # music
 cask "spotify"
 

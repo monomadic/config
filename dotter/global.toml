@@ -33,6 +33,9 @@ files = { "alacritty/alacritty.yml" = "~/.config/alacritty/alacritty.yml" }
 [kitty]
 files = { "kitty" = "~/.config/kitty" }
 
+[nu]
+files = { "nu" = "~/.config/nushell" }
+
 [skhd]
 files = { "skhd/skhd.conf" = "~/.config/skhd/skhdrc" }
 

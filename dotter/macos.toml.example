@@ -2,6 +2,7 @@ packages = [
   "bin",
 	"chafa",
 	"joshuto",
+	"nu",
 	"delta",
   "dotter",
   "gitui",

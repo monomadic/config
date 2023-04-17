@@ -2,7 +2,7 @@
   "entries": {
     "tap": {
       "homebrew/cask-fonts": {
-        "revision": "0fd9b1a7ac4b8b9b0250602af159f36bb7ebcec0"
+        "revision": "b96ebde83cb6227cc9d388f852d011bdb1e4e2a8"
       },
       "homebrew/bundle": {
         "revision": "55302883b7a175f1e778196fa398649499885bea"
@@ -2163,7 +2163,7 @@
         }
       },
       "kitty": {
-        "version": "0.27.1",
+        "version": "0.28.0",
         "options": {
           "full_name": "kitty",
           "args": {
@@ -2271,7 +2271,7 @@
         }
       },
       "sparrow": {
-        "version": "1.7.4",
+        "version": "1.7.6",
         "options": {
           "full_name": "sparrow",
           "args": {
@@ -2292,6 +2292,15 @@
         "version": "4.9.1",
         "options": {
           "full_name": "megasync",
+          "args": {
+            "appdir": "/Applications"
+          }
+        }
+      },
+      "firefox": {
+        "version": "112.0",
+        "options": {
+          "full_name": "firefox",
           "args": {
             "appdir": "/Applications"
           }
