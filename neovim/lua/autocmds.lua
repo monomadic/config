@@ -104,7 +104,7 @@ end })
 
 -- build command
 vim.api.nvim_create_autocmd("FileType", { pattern = "solidity", callback = function()
-	vim.keymap.set("n", "<C-b>", function()
-		vim.cmd ':split|terminal forge build'
-	end)
+	-- vim.keymap.set("n", "<C-b>", function()
+	-- 	vim.cmd ':split|terminal forge build'
+	-- end)
 end })

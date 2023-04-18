@@ -200,7 +200,7 @@ keymap('n', "<leader>gc", utils.open_config, { desc = "config" })
 keymap('n', "<leader>Bu", "<CMD>bun<CR>", { desc = "unload" })
 --
 -- toggle
-keymap('n', "<leader>Td", ":DrexDrawerToggle<CR>", { desc = "drex" })
+keymap('n', "<C-b>", ":DrexDrawerToggle<CR>", { desc = "drex" })
 keymap('n', "<leader>Tl", ToggleLineNumbers, { desc = "line numbers" })
 keymap('n', "<leader>Tt", ":TransparentToggle<CR>", { desc = "tranparency" })
 
@@ -273,7 +273,7 @@ keymap('n', "<Enter>", function() vim.lsp.buf.definition() end)
 keymap('n', "gc", function() vim.lsp.buf.declaration() end)
 -- keymap('n', "gr", function() vim.lsp.buf.references() end)
 
-keymap('n', "<C-b>", Build, { desc = " build" })
+-- keymap('n', "<C-b>", Build, { desc = " build" })
 
 -- use ; for commands instead of :
 keymap('n', ";", ":")

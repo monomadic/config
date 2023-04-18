@@ -9,14 +9,12 @@ local w = vim.wo -- window scoped options
 -- local b = vim.b -- buffer scoped options
 
 -- options
--- o.foldcolumn=2 -- show folds
 o.autowriteall = true -- ensure write upon leaving a page
 o.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (gnome)
 o.completeopt = "menuone,noinsert,noselect"
 o.conceallevel = 0 -- so that `` is visible in markdown files
 o.cursorline = true -- highlight the current line
 o.expandtab = false -- insert spaces when tab is pressed
-o.foldlevelstart = 99
 o.guicursor = "n-v-c:block,i-ci-ve:ver25,r-cr:hor20,o:hor50,a:blinkon250-Cursor/lCursor,sm:block-blinkwait175-blinkoff150-blinkon175"
 o.hidden = false -- switch buffer without unloading+saving them
 o.hlsearch = false -- highlight all matches on previous search pattern
@@ -52,17 +50,23 @@ g.mapleader = " " -- leader key
 g.tex_flavor = "latex"
 g.vim_markdown_edit_url_in = 'current' -- open md links as (vplit | current)
 
+-- folds
+--o.foldlevelstart = 99
+w.foldlevel = 99
+o.foldcolumn="0" -- show folds
+w.foldexpr = 'nvim_treesitter#foldexpr()' -- use treesitter for folding
+w.foldmethod = 'expr' -- fold method (market | syntax | expr)
+w.foldminlines = 5 -- minimum lines before fold
+--w.foldnestmax = 3 -- maximum nested folds
+
 -- window options
 -- vim.g.vim_markdown_new_list_item_indent = 1 -- indent new items on 'o' from n mode
 -- vim.cmd "let g:clipboard = {'copy': {'+': 'pbcopy', '*': 'pbcopy'}, 'paste': {'+': 'pbpaste', '*': 'pbpaste'}, 'name': 'pbcopy', 'cache_enabled': 0}" -- hack for macos
 -- o.guicursor = "n-v-c:block,i-ci-ve:ver25,r-cr:hor20,o:hor50,a:blinkon250-Cursor/lCursor,sm:block"
 -- o.guicursor = "n-v-c:block,i-ci-ve:ver25"
-w.foldexpr = 'nvim_treesitter#foldexpr()' -- use treesitter for folding
-w.foldmethod = 'expr' -- fold method (market | syntax)
 w.number = false -- show line number on current line
 w.relativenumber = false -- relative numbered lines
 
--- set guicursor=a:blinkon1 -- blinking cursor
 -- vim.g.timeoutlen=0
 -- vim.g.ttimeoutlen=0
 --vim.g.vim_markdown_new_list_item_indent = 2 -- markdown list indent
