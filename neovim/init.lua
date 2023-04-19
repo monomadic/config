@@ -48,6 +48,7 @@ require 'lsp'
 require 'bootstrap-lazy'
 
 require 'ts.ts-jump'
+require 'ts.highlight-matches'
 
 LoadRunFileKeymaps()
 
