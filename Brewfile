@@ -95,6 +95,7 @@ cask "ledger-live"
 
 # browser
 cask "firefox"
+cask "mullvad-browser" # firefox-based privacy browser
 
 # music
 cask "spotify"
