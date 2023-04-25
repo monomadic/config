@@ -435,7 +435,18 @@ let-env config = {
         }
       }
   ]
+
   keybindings: [
+	{
+			name: joshuto
+			modifier: control
+			keycode: space
+			mode: [vi_normal]
+			event: {
+					send: executehostcommand,
+					cmd: "ls"
+				}
+		}
     {
       name: completion_menu
       modifier: none

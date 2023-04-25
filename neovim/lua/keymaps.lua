@@ -37,7 +37,6 @@ M.telescope = function()
 	keymap("n", "<leader><leader>", "<cmd>Lspsaga term_toggle<CR>", { desc = " ChatGPT" })
 	keymap('n', '<leader>d', "<Cmd>Trouble workspace_diagnostics<CR>", { desc = "diagnostics" })
 	keymap('n', '<leader>h', builtin.oldfiles, { desc = "history" })
-	keymap('n', '<leader>t', ':TestFile<CR>', { desc = "history", silent = true })
 
 	-- list
 	keymap('n', "<leader>lgb", pickers.git_branches, { desc = "branches" })

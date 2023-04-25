@@ -1,5 +1,6 @@
 return {
   "klen/nvim-test",
+	enabled = false,
   config = function()
     require('nvim-test').setup()
 

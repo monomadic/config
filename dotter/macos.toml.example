@@ -1,23 +1,26 @@
 packages = [
   "bin",
-	"chafa",
-	"joshuto",
-	"nu",
-	"delta",
+  "chafa",
+  "joshuto",
+  "delta",
   "dotter",
   "gitui",
   "alacritty",
   "bash",
   "default",
   "helix",
-	"mpv",
+  "mpv",
   "kitty",
   "lf",
   "nvim",
   "skhd",
-	"zellij",
+  "zellij",
   "zsh",
 ]
+
+[files]
+"nu/config.nu" = "/Users/nom/Library/Application Support/nushell/config.nu"
+"nu/env.nu" = "/Users/nom/Library/Application Support/nushell/env.nu"
 
 [variables]
 colorscheme = "chadracula"

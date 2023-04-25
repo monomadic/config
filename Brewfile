@@ -17,6 +17,7 @@ brew "homebrew/dotter.rb"
 brew "rm-improved" # rm replacement (rip)
 # brew "most" # more replacement (use less -R)
 brew "bat" # cat replacement
+brew "mdless" # markdown viewer
 brew "bk" # ebook reader
 brew "exa" # ls replacement
 brew "duf" # disk usage go
@@ -35,7 +36,6 @@ brew "kakoune" # editor
 brew "youtube-dl"
 brew "ffmpeg" # for youtube-dl
 brew "wget"
-brew "age" # age encryption
 brew "bandwhich" # bandwidth monitor
 brew "diskonaut" # disk usage
 brew "zellij" # tmux replacement

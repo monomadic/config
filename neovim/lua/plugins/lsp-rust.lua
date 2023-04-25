@@ -93,6 +93,9 @@ return {
 					vim.keymap.set("n", "<leader>Rd", ":RustDebuggables<CR>", { buffer = bufnr, desc = " debuggables…" })
 
 					vim.keymap.set("n", "<leader>Df", ":RustFmt<CR>", { buffer = bufnr, desc = " rustfmt" })
+
+					vim.keymap.set('n', '<leader>t', ':RustRunnables<CR>', { desc = "runnables", silent = true })
+
 				end,
 				-- settings = {
 				-- 	-- to enable rust-analyzer settings visit:

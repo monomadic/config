@@ -21,7 +21,7 @@ function M:t()
 	--local query = ts.get_query(parsers.get_buf_lang(bufnr), "functions")
 
 	local lang = parsers.get_buf_lang(bufnr)
-	local query = vim.treesitter.parse_query(lang, "(function_item) @function")
+	local query = vim.treesitter.query.parse(lang, "(function_item) @function")
 
 	if not query then
 		print("Query returned no results")
@@ -29,7 +29,7 @@ function M:t()
 	end
 
 	local next_function_node = nil
-	local function_iter = query:iter_captures(root, bufnr)
+	local function_iter = query:iter_captures(root, bufnr, 0, -1)
 
 	for id, node in function_iter do
 		local node_start = { node:start() }
@@ -43,7 +43,7 @@ function M:t()
 	if next_function_node then
 		local start_row, start_col, end_row, end_col = next_function_node:range()
 		vim.api.nvim_win_set_cursor(0, { start_row + 1, start_col })
-		vim.api.nvim_exec("normal! v", false)
+		vim.api.nvim_exec2("normal! v")
 		vim.api.nvim_win_set_cursor(0, { end_row + 1, end_col })
 	else
 		print("No next function found")
