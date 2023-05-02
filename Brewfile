@@ -25,6 +25,7 @@ brew "dust" # better ncdu in rust
 brew "ncdu"
 brew "fzf" # fuzzy filter (go)
 brew "sk" # fuzzy filter (rust)
+brew "jq" # json tool
 
 brew "lf" # ranger, but in c
 brew "rclone" # disk clone (cloud)
