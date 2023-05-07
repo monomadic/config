@@ -1,0 +1,28 @@
+#!/bin/zsh
+
+# Change this to your desired subreddit
+subreddit="news"
+
+# Ensure fzf and jq are installed
+if ! command -v fzf >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+  echo "This script requires 'fzf' and 'jq'. Please install them and try again."
+  exit 1
+fi
+
+# Get the latest Reddit posts in JSON format
+reddit_url="https://www.reddit.com/r/${subreddit}/new/.json"
+reddit_json=$(curl -s -H "User-Agent: script:v0.0.1 (by /u/yourusername)" "$reddit_url")
+
+# Extract post titles and URLs using jq, then pipe them into fzf
+selected_post=$(echo "$reddit_json" | jq -r '.data.children[] | [.data.title, .data.url] | @tsv' | fzf --delimiter='\t' --with-nth=1)
+
+if [[ -z "$selected_post" ]]; then
+  echo "No post selected. Exiting."
+  exit 1
+fi
+
+# Extract the URL from the selected post and open it in the default browser
+selected_url=$(echo "$selected_post" | cut -f 2)
+xdg-open "$selected_url" >/dev/null 2>&1 &
+
+echo "Opening $selected_url in your default browser..."
