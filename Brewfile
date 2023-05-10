@@ -1,9 +1,9 @@
 # run 'brew bundle'
 
 tap "homebrew/bundle"
-tap "homebrew/cask"
-tap "homebrew/cask-fonts"
-tap "homebrew/core"
+#tap "homebrew/cask"
+#tap "homebrew/cask-fonts"
+#tap "homebrew/core"
 tap "homebrew/services"
 
 cask_args appdir: "/Applications"
@@ -82,6 +82,7 @@ cask "font-ark-pixel-12px-monospaced"
 cask "font-ark-pixel-16px-monospaced"
 cask "font-hack"
 cask "font-hack-nerd-font"
+cask "font-gohufont-nerd-font"
 
 cask "kitty" # term
 cask "alacritty" # term
