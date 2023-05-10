@@ -1,7 +1,10 @@
 #!/bin/zsh
 
-# Change this to your desired subreddit
-subreddit="news"
+# Default subreddit
+default_subreddit="news"
+
+# If an argument is provided, use it as the subreddit, otherwise use the default
+subreddit="${1:-$default_subreddit}"
 
 # Ensure fzf and jq are installed
 if ! command -v fzf >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
@@ -11,6 +14,7 @@ fi
 
 # Get the latest Reddit posts in JSON format
 reddit_url="https://www.reddit.com/r/${subreddit}/new/.json"
+echo "requesting ${reddit_url}"
 reddit_json=$(curl -s -H "User-Agent: script:v0.0.1 (by /u/yourusername)" "$reddit_url")
 
 # Extract post titles and URLs using jq, then pipe them into fzf
@@ -23,6 +27,7 @@ fi
 
 # Extract the URL from the selected post and open it in the default browser
 selected_url=$(echo "$selected_post" | cut -f 2)
-xdg-open "$selected_url" >/dev/null 2>&1 &
+# xdg-open "$selected_url" >/dev/null 2>&1 &
+open "$selected_url"
 
 echo "Opening $selected_url in your default browser..."

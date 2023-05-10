@@ -22,10 +22,13 @@ brew "bk" # ebook reader
 brew "exa" # ls replacement
 brew "duf" # disk usage go
 brew "dust" # better ncdu in rust
+brew "dua-cli" # another ncdu rust
 brew "ncdu"
 brew "fzf" # fuzzy filter (go)
 brew "sk" # fuzzy filter (rust)
 brew "jq" # json tool
+
+# brew "degit" # git cloner (note: not on brew)
 
 brew "lf" # ranger, but in c
 brew "rclone" # disk clone (cloud)
@@ -52,6 +55,7 @@ cask "megasync" # mega.nz
 
 # encryption
 brew "age"
+brew "ssss" # shamirs secret sharing scheme (multikey)
 
 # development
 #	brew "cargo-nextest" # testing NEVER INSTALL THIS, brew should never manage uust EVERQ
@@ -89,6 +93,8 @@ cask "alacritty" # term
 cask "1password" # password manager
 cask "1password-cli"
 # cask "hammerspoon"
+
+cask "smooze-pro"
 
 # bitcoin
 cask "bluewallet"
