@@ -1,7 +1,10 @@
 #!/bin/zsh
 
-# Change this to your desired subreddit
-subreddit="news"
+# Default subreddit
+default_subreddit="news"
+
+# If an argument is provided, use it as the subreddit, otherwise use the default
+subreddit="${1:-$default_subreddit}"
 
 # Ensure fzf and jq are installed
 if ! command -v fzf >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
