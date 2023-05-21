@@ -15,6 +15,7 @@ brew "gzip"
 brew "homebrew/dotter.rb"
 
 brew "rm-improved" # rm replacement (rip)
+# brew "clear" # regex file delete
 # brew "most" # more replacement (use less -R)
 brew "bat" # cat replacement
 brew "mdless" # markdown viewer
