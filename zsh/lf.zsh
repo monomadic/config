@@ -14,3 +14,4 @@ function lfcd() {
 			fi
 	fi
 }
+zle -N lfcd;

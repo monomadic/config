@@ -96,6 +96,9 @@ cask "1password-cli"
 
 cask "smooze-pro"
 
+# utils
+# cask "daisydisk"
+
 # bitcoin
 cask "bluewallet"
 cask "sparrow"
@@ -114,6 +117,7 @@ cask "caffeine" # sleep prevention
 # messaging
 cask "signal"
 cask "telegram-desktop"
+cask "session" # signal fork with private keys instead of phone numbers
 
 # reversing
 brew "binwalk" # binary analyser

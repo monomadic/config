@@ -51,6 +51,42 @@ function fzf-rg {
   fzf --bind "change:reload:$RG_PREFIX {q} || true" --ansi --disabled
 }
 
+function fzf-cd() {
+	files=($(fd --type=directory --hidden . | \
+		fzf --prompt ' ' --layout=reverse \
+		--preview 'exa --icons --group-directories-first --no-user --no-permissions --no-user --no-time -l --tree --level 2 $(2)' \
+			--color=bg+:-1,fg:4,info:15,fg+:5,header:7,hl:5,hl+:5 \
+			--height 50% \
+			--pointer=' ' \
+			--info=hidden \
+			--bind 'ctrl-h:reload(exa --icons --only-dirs --all)' \
+			--bind 'tab:accept' \
+			--bind 'ctrl-j:jump-accept' \
+		"$@"))
+	file=$files[@]
+	[[ -n "$file" ]] && cd "${file[@]}"
+	zle && zle reset-prompt
+}
+zle -N fzf-cd;
+
+function fzf-insert() {
+	# sk --preview 'bat --style=numbers --color=always --line-range :500 {}'
+	files=($(fd --strip-cwd-prefix --max-depth 1 --max-results 10000 | \
+		fzf --prompt 'insert > ' --layout=reverse --preview 'exa --icons --group-directories-first {}' \
+			--height 75% \
+			--header $'ctrl-e:edit, ctrl-o:open\n' \
+			--bind 'ctrl-e:execute:${EDITOR:-nvim} {1}' \
+			--bind 'ctrl-o:execute:open {1}' \
+		"$@"))
+	# [[ -n "$files" ]] && cd "${files[@]}"
+	# print $files
+	# zle && zle reset-prompt
+	#[ -n "$files" ] &&
+	print -z -- "$1 ${files[@]:q:q}"
+	zle
+}
+zle -N fzf-insert;
+
 # fzf directory options
 function fzf_dirs() {
 	fzf --prompt 'cd  ' --layout=reverse --height 60% \
@@ -67,14 +103,14 @@ function fzf_dirs() {
 		"$@"
 }
 
-function fzf_edit() {
+function fzf-edit() {
 	files=$(ls_all|fzf_dirs)
 	[[ -n "$files" ]] && cd "${files[@]}" && nvim . -c "lua GoRoot()"
 	zle && zle reset-prompt
 }
 zle -N fzf_edit
 
-function fzf_cd() {
+function fzf-marks() {
 	files=$(ls_all|fzf_dirs)
 	[[ -n "$files" ]] && cd "${files[@]}"
 	clear
@@ -84,7 +120,7 @@ function fzf_cd() {
 	echo
 	zle && zle reset-prompt
 }
-zle -N fzf_cd
+zle -N fzf-marks
 
 function fzf_cd_project() {
 	files=$(ls_projects|fzf_dirs)

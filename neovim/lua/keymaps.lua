@@ -281,6 +281,7 @@ keymap('n', ";", ":")
 -- keymap('n', "<Space>", ":")
 
 keymap('i', "<C-v>", vim.cmd.put)
+keymap('c', "<C-v>", vim.cmd.put)
 
 -- go back
 keymap('n', '<bs>', ':edit #<cr>', { silent = true })
