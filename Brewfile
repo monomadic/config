@@ -8,6 +8,8 @@ tap "homebrew/services"
 
 cask_args appdir: "/Applications"
 
+brew "mas"
+
 brew "git"
 brew "git-delta" # rust git diff
 brew "gzip"
@@ -34,6 +36,7 @@ brew "jq" # json tool
 brew "lf" # ranger, but in c
 brew "rclone" # disk clone (cloud)
 brew "rg" # ripgrep
+brew "rga" # ripgrep-all (search pdf, zip etc)
 brew "fd" # find
 brew "neovim" # editor
 brew "helix" # editor
@@ -63,6 +66,7 @@ brew "ssss" # shamirs secret sharing scheme (multikey)
 brew "prettier"
 brew "tokei" # loc
 brew "pastel" # colors
+brew "aicommits" # gpt generated commit messages
 
 # yabai + skhd
 # tap "koekeishiya/formulae"
@@ -73,6 +77,8 @@ brew "pastel" # colors
 # tabs
 # tap "austinjones/taps"
 # brew "tab"
+
+# mas "", id: 1521432881 # session pomodoro timer
 
 # atuin (history db)
 tap "ellie/atuin"
@@ -118,7 +124,7 @@ cask "caffeine" # sleep prevention
 # messaging
 cask "signal"
 cask "telegram-desktop"
-cask "session" # signal fork with private keys instead of phone numbers
+cask "session", target: 'Session Desktop.app' # signal fork with private keys instead of phone numbers
 
 # reversing
 brew "binwalk" # binary analyser
