@@ -1,6 +1,6 @@
 # list all available models
 function ai-ls-models() {
-	curl -H "Authorization: Bearer $OPENAI_API_KEY" \
+	curl --silent -H "Authorization: Bearer $OPENAI_API_KEY" \
 		 https://api.openai.com/v1/models \
 		 | jq -r '.data[].id'
 }
