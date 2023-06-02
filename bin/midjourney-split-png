@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Input image file
+input_file="$1"
+
+# Check if the input file is provided
+if [[ -z "$input_file" ]]; then
+  echo "Please provide an input image file."
+  exit 1
+fi
+
+# Check if the input file exists
+if [[ ! -f "$input_file" ]]; then
+  echo "Input file does not exist: $input_file"
+  exit 1
+fi
+
+# Output directory
+output_dir=$(dirname "$input_file")
+
+# Output filenames for the quadrants
+output_files=(
+  "${input_file%.*}_1.png"
+  "${input_file%.*}_2.png"
+  "${input_file%.*}_3.png"
+  "${input_file%.*}_4.png"
+)
+
+# Divide the image into quadrants and save them as JPG
+convert "$input_file" -crop 50%x50% +repage "${output_files[@]}"
+
+printf "%s\n" "${output_files[@]}"

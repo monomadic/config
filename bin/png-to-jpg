@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Directory containing the PNG files
+input_dir="."
+
+# Output directory for the converted JPG files
+output_dir="."
+
+# Output format (default: jpg)
+output_format="${2:-jpg}"
+
+# Iterate over image files in the input directory
+for file in "$input_dir"/*.png; do
+  # Check if the file is a regular file
+  if [[ -f "$file" ]]; then
+    # Get the filename without extension
+    filename=$(basename "$file")
+    filename_no_ext=${filename%.*}
+
+    # Construct the output file path with the specified format
+    output_file="$output_dir/$filename_no_ext.$output_format"
+
+    # Convert the image file to the specified format
+    convert "$file" "$output_file"
+
+    echo "Converted: $file to $output_file"
+  fi
+done
