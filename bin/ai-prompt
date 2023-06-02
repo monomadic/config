@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# Your OpenAI API Key
+API_KEY=$OPENAI_API_KEY
+
+# The prompt for GPT-4
+PROMPT="You are a GitCommitGPT-4, You will help user to write conventional commit message, commit message should be short (less than 100 chars), clean and meaningful, be careful on commit type. Only response the message. If you can not write the message, response empty."
+
+# Query the OpenAI API
+RESPONSE=$(curl -s -X POST https://api.openai.com/v1/engines/davinci-codex/completions \
+-H "Content-Type: application/json" \
+-H "Authorization: Bearer $API_KEY" \
+-d '{
+  "prompt": "'"$PROMPT"'",
+  "max_tokens": 100,
+  "temperature": 0.5
+}' | jq -r '.choices[0].text' | tr -d '\n')
+
+# Check if the response meets the constraints
+if [ ${#RESPONSE} -gt 100 ] || [ -z "$RESPONSE" ]; then
+  echo "Commit message does not meet the criteria"
+else
+  echo "Commit message: $RESPONSE"
+fi
