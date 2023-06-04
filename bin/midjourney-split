@@ -26,7 +26,9 @@ output_files=(
   "${input_file%.*}_4.jpg"
 )
 
-# Divide the image into quadrants and save them as JPG
+# Divide the image into quadrants and save them as jpegs
 convert "$input_file" -crop 50%x50% +repage "${output_files[@]}"
 
-printf "%s\n" "${output_files[@]}"
+echo "convert \"$input_file\" -crop 50%x50% +repage \"${output_files[@]}\""
+
+# printf "%s\n" "${output_files[@]}"

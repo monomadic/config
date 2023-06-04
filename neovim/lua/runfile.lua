@@ -38,7 +38,6 @@ function _G.RunFile()
 
   local commands_file_path = vim.loop.cwd() .. "/.runfile"
   local commands = load_commands_from_file(commands_file_path)
-
   if commands then
     -- If there's only one command, execute it automatically
     if #commands == 1 then
@@ -72,8 +71,8 @@ function _G.RunFile()
         end
       end)
     end
-  else
-    print("Error: Could not open the file " .. commands_file_path)
+  -- else
+  --   print("Error: Could not open the file " .. commands_file_path)
   end
 end
 

@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Directory containing the PNG files
+input_dir="."
+
+# # Output directory for the converted JPG files
+# output_dir="."
+#
+# # Output format (default: jpg)
+# output_format="${2:-jpg}"
+
+# Iterate over image files in the input directory
+for file in "$input_dir"/*; do
+  if [[ -f "$file" ]]; then
+    midjourney-split "$file"
+  fi
+done

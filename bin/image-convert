@@ -6,11 +6,14 @@ input_dir="."
 # Output directory for the converted JPG files
 output_dir="."
 
+# Input format (default: png)
+input_format="${2:-png}"
+
 # Output format (default: jpg)
-output_format="${2:-jpg}"
+output_format="${3:-jpg}"
 
 # Iterate over image files in the input directory
-for file in "$input_dir"/*.png; do
+for file in "$input_dir"/*."$input_format"; do
   # Check if the file is a regular file
   if [[ -f "$file" ]]; then
     # Get the filename without extension
@@ -23,6 +26,6 @@ for file in "$input_dir"/*.png; do
     # Convert the image file to the specified format
     convert "$file" "$output_file"
 
-    echo "Converted: $file to $output_file"
+    echo "converted: $file to $output_file"
   fi
 done

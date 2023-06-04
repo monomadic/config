@@ -181,7 +181,7 @@ function GoRoot()
 	elseif M.file_exists("README.md") then
 		vim.cmd ':edit README.md'
 	else
-		print("no root file found.")
+		-- print("no root file found.")
 	end
 end
 
