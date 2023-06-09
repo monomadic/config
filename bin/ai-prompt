@@ -1,20 +1,55 @@
 #!/bin/bash
 
+# Check if a prompt is provided as an argument
+if [[ -z "$1" ]]; then
+  echo "usage: ai-prompt <prompt>"
+  exit 1
+fi
+# Set the prompt from the argument
+PROMPT="$1"
+
+# Define the OpenAPI API endpoint
+MODEL="gpt-3.5-turbo" # 4096 tokens, cheapest, fastest, most versatile model
+# MODEL="text-davinci-003" # 4096 tokens, human re-enforced. 10x more expensive than gpt-3.5-turbo
+# MODEL="davinci" # for code, 8001 tokens
+ENDPOINT="https://api.openai.com/v1/chat/completions"
+
 # Your OpenAI API Key
 API_KEY=$OPENAI_API_KEY
 
 # The prompt for GPT-4
-PROMPT="You are a GitCommitGPT-4, You will help user to write conventional commit message, commit message should be short (less than 100 chars), clean and meaningful, be careful on commit type. Only response the message. If you can not write the message, response empty."
+# PROMPT="You are a GitCommitGPT-4, You will help user to write conventional commit message, commit message should be short (less than 100 chars), clean and meaningful, be careful on commit type. Only response the message. If you can not write the message, response empty."
+
+# Escape special characters in the PROMPT variable
+ESCAPED_PROMPT=$(printf '%s' "$PROMPT" | jq -Rs @uri)
+
+# Create the JSON data
+JSON_DATA=$(cat <<EOF
+{
+  "model": "$MODEL",
+  "messages": [{"role": "user", "content": "hello"}]
+}
+EOF
+)
+
+# Make the API request
+RESPONSE=$(curl -s -X POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_KEY" \
+  -d "$JSON_DATA" \
+  "$ENDPOINT")
+
+echo "=${RESPONSE}"
 
 # Query the OpenAI API
-RESPONSE=$(curl -s -X POST https://api.openai.com/v1/engines/davinci-codex/completions \
--H "Content-Type: application/json" \
--H "Authorization: Bearer $API_KEY" \
--d '{
-  "prompt": "'"$PROMPT"'",
-  "max_tokens": 100,
-  "temperature": 0.5
-}' | jq -r '.choices[0].text' | tr -d '\n')
+# RESPONSE=$(curl -s -X POST https://api.openai.com/v1/engines/davinci-codex/completions \
+# -H "Content-Type: application/json" \
+# -H "Authorization: Bearer $API_KEY" \
+# -d '{
+#   "prompt": "'"$PROMPT"'",
+#   "max_tokens": 100,
+#   "temperature": 0.5
+# }' | jq -r '.choices[0].text' | tr -d '\n')
 
 # Check if the response meets the constraints
 if [ ${#RESPONSE} -gt 100 ] || [ -z "$RESPONSE" ]; then
