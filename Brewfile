@@ -1,5 +1,7 @@
 # run 'brew bundle'
 
+# note: add https://github.com/wader/fq
+
 tap "homebrew/bundle"
 #tap "homebrew/cask"
 #tap "homebrew/cask-fonts"

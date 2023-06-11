@@ -158,6 +158,9 @@ snippet args "env::args template"
 snippet read
 	std::fs::read($1)?;$0
 
+snippet write
+	std::fs::write("$1", "content")?;
+
 snippet example-errors-anyhow "used for applications (not libraries)"
 	use anyhow::{Context, Result};
 
