@@ -88,6 +88,7 @@ brew "atuin"
 
 # network
 brew "rustscan" # port scanner
+brew "trippy" # network diagnostic `sudo trip crates.io`
 
 # fonts
 cask "font-ark-pixel-10px-monospaced"
