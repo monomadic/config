@@ -7,6 +7,9 @@ function gpt-ls-models {
 		 | jq -r '.data[].id'
 }
 
+alias gpt-refactor="python3 $HOME/config/openai/refactor.py"
+alias gpt-refactor16="GPT_MODEL=gpt-3.5-turbo-16k python3 $HOME/config/openai/refactor.py"
+
 function gpt-input {
 	local prompt=$(jq --null-input --arg input "$1" '$input')
 	#local prompt=$1
