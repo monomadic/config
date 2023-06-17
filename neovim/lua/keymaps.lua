@@ -201,7 +201,7 @@ keymap('n', "<leader>gc", utils.open_config, { desc = "config" })
 keymap('n', "<leader>Bu", "<CMD>bun<CR>", { desc = "unload" })
 --
 -- toggle
-keymap('n', "<C-b>", ":DrexDrawerToggle<CR>", { desc = "drex" })
+keymap('n', "<C-b>", ":DrexDrawerFindFileAndFocus<CR>", { desc = "drex" })
 keymap('n', "<leader>Tl", ToggleLineNumbers, { desc = "line numbers" })
 keymap('n', "<leader>Tt", ":TransparentToggle<CR>", { desc = "tranparency" })
 

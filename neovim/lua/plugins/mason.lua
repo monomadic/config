@@ -7,7 +7,7 @@ return {
 
 	{ "williamboman/mason-lspconfig.nvim",
 		dependencies = { "neovim/nvim-lspconfig", "williamboman/mason.nvim" },
-		ft = { "lua", "solidity" },
+		ft = { "lua", "solidity", "cpp" },
 		config = function()
 			require("mason-lspconfig").setup {
 				-- ensure_installed = { 'sumneko_lua' },
@@ -19,7 +19,7 @@ return {
 				-- capabilities = capabilities,
 				settings = {
 					-- example of global remapping
-					solidity = { includePath = '', remapping = { ["@OpenZeppelin/"] = 'OpenZeppelin/openzeppelin-contracts@4.6.0/' } }
+					solidity = { includePath = '', remapping = { ["@OpenZeppelin/"] = 'OpenZeppelin/openzeppelin-contracts@4.6.0/' } },
 				},
 			}
 			require 'lspconfig'.solidity_ls.setup {}
