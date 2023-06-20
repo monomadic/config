@@ -8,7 +8,9 @@ function lfcd() {
 			if [ -d "$dir" ]; then
 					if [ "$dir" != "$(pwd)" ]; then
 							cd "$dir"
-							# clear
+							clear
+							exa --icons --group-directories-first
+							echo
 							zle && zle reset-prompt
 					fi
 			fi

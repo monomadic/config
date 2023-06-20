@@ -89,7 +89,8 @@ zle -N fzf-insert;
 
 # fzf directory options
 function fzf_dirs() {
-	fzf --prompt 'cd  ' --layout=reverse --height 60% \
+	# --height 60% \
+	fzf --prompt 'cd  ' --layout=reverse \
 		--color=bg+:-1,fg:4,info:15,fg+:5,header:7,hl:5,hl+:5 \
 		--header $'ctrl-[f:finder, w:workspace, o:bookmarks, r:relative, p:project, c:cancel]\n' \
 		--info=hidden \
@@ -113,11 +114,10 @@ zle -N fzf_edit
 function fzf-marks() {
 	files=$(ls_all|fzf_dirs)
 	[[ -n "$files" ]] && cd "${files[@]}"
-	clear
 
-	printf ' %s/\n\n' "${PWD##*/}"
-	exa --icons --group-directories-first --all --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' --color=always |head -n 15
-	echo
+	# printf ' %s/\n\n' "${PWD##*/}"
+	exa-ls
+
 	zle && zle reset-prompt
 }
 zle -N fzf-marks
