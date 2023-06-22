@@ -39,6 +39,9 @@ return {
 
      -- vim.g.vimwiki_key_mappings = { all_maps = 0 }
 
+		 local keymap = vim.keymap.set
+		 keymap()
+
 			vim.g.vimwiki_list = {
 				{
 					path = '~/wiki/',
