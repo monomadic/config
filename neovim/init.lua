@@ -50,6 +50,8 @@ require 'bootstrap-lazy'
 require 'ts.ts-jump'
 require 'ts.highlight-matches'
 
+require 'templates'
+
 LoadRunFileKeymaps()
 
 --------------------------------------------------------------------------------

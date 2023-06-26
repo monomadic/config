@@ -33,6 +33,9 @@ return {
 			-- }
 		end,
 		config = function()
+			local hl = vim.api.nvim_set_hl
+			hl(0, "VimwikiBold", { fg = "#FF33AA" })
+
 			-- vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
 			-- 	vim.keymap.set("n", "gt", "<Cmd>VimwikiGoto Tasks<CR>")
 			-- end })

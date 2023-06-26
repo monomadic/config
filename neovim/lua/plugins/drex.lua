@@ -9,7 +9,7 @@ return {
 		local elements = require('drex.elements')
 
 		-- open the home directory
-		vim.keymap.set('n', '~', '<CMD>Drex ~<CR>', {})
+		-- vim.keymap.set('n', '~', '<CMD>Drex ~<CR>', {})
 		-- open parent DREX buffer and focus current file
 		vim.keymap.set('n', '-', function()
 				local path = vim.fn.expand('%:p')
@@ -32,6 +32,7 @@ return {
 			disable_default_keybindings = false,
 			keybindings = {
 				['n'] = {
+					['~'] = { ':Drex ~<CR>', {} },
 					['<C-l>'] = { '<C-w><C-l>', {} },
 					['<C-h>'] = { '<C-w><C-h>', {} },
 					['<C-b>'] = { '<C-w><C-q>', {} },

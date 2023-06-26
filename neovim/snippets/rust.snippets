@@ -9,6 +9,11 @@ snippet args-single
 			panic!("Please enter a file")
 	};
 
+snippet debug-remaining-bytes
+	// count remaining bytes
+	let mut buf = Vec::new();
+	reader.read_to_end(&mut buf)?;
+	println!("bytes_remaining: {}", buf.len());
 
 # snippet derive
 # 	#[derive($0)]
