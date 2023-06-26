@@ -69,6 +69,9 @@ return {
 
 		-- set default lsp providers to use telescope
 		local telescope = require('telescope.builtin')
+		vim.lsp.handlers["textDocument/implementation"] = telescope.lsp_implementations
+		vim.lsp.handlers["workspace/symbol"] = telescope.lsp_workspace_symbols
+
 		vim.api.nvim_create_autocmd('LspAttach', {
 			callback = function(args)
 				local client = vim.lsp.get_client_by_id(args.data.client_id)

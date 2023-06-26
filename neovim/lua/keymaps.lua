@@ -61,8 +61,6 @@ M.telescope = function()
 	keymap('n', '<leader>lf', pickers.lsp_document_functions, { desc = " function…" })
 
 	-- lsp
-	keymap('n', '<leader>Lr', vim.lsp.buf.references, { desc = "references" })
-	keymap('n', '<leader>Li', vim.lsp.buf.implementation, { desc = "implementation" })
 
 	-- open (various filters of file open pickers)
 	keymap('n', "<leader>OT", pickers.open_template, { desc = "template" })
@@ -187,7 +185,7 @@ end
 keymap('n', '<leader>f', utils.format, { desc = " format" })
 keymap('n', "<leader>q", "<CMD>hide<CR>", { desc = "hide window" })
 keymap('n', "<leader>!", "<cmd>quit!<CR>")
-keymap('n', "<leader>a", vim.lsp.buf.code_action, { desc = "code-actions (saga)" })
+keymap('n', "<leader>a", vim.lsp.buf.code_action, { desc = "code-actions" })
 --
 -- git
 keymap('n', "<leader>Gb", ":Telescope git_branches<CR>", { desc = "branches" })
@@ -273,9 +271,6 @@ keymap("i", "<C-,>", "<C-d>")
 keymap('n', "<C-,>", "i<C-d><C-f><Esc>")
 -- keymap("v", "<C-,>", "<Esc><C-h>")
 
-keymap('n', "gd", function() vim.lsp.buf.definition() end)
-keymap('n', "<Enter>", function() vim.lsp.buf.definition() end)
-keymap('n', "gc", function() vim.lsp.buf.declaration() end)
 -- keymap('n', "gr", function() vim.lsp.buf.references() end)
 
 -- keymap('n', "<C-b>", Build, { desc = " build" })

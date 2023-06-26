@@ -48,6 +48,23 @@ return {
 		event = "User BaseFile",
 	},
 
+	-- https://github.com/b0o/SchemaStore.nvim
+	{
+		'b0o/schemastore.nvim',
+		ft = { "json" },
+		dependencies = { "neovim/nvim-lspconfig" },
+		config = function()
+			require('lspconfig').jsonls.setup {
+				settings = {
+					json = {
+						schemas = require('schemastore').json.schemas(),
+						validate = { enable = true },
+					},
+				},
+			}
+		end
+	},
+
 	{
 		"williamboman/mason-lspconfig.nvim",
 		dependencies = { "neovim/nvim-lspconfig", "williamboman/mason.nvim" },

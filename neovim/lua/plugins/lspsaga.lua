@@ -9,7 +9,6 @@ return {
 		vim.keymap.set("n", "<leader>Sa", "<cmd>Lspsaga code_action<CR>", { desc = "code-actions (saga)" })
 		vim.keymap.set("n", "<leader>Sr", "<cmd>Lspsaga rename<CR>", { desc = "rename (saga)" })
 		vim.keymap.set("n", "<leader>Pd", "<cmd>Lspsaga peek_definition<CR>", { desc = "peek definition (saga)" })
-		vim.keymap.set("n", 'K', '<cmd>Lspsaga hover_doc<CR>')
 		vim.keymap.set("n", "<leader>Do", '<cmd>Lspsaga outline<CR>', { silent = true, desc = "outline (saga)" })
 		-- map('n', ']d', ":Lspsaga diagnostic_jump_next<CR>", { desc = "next diagnostic" })
 		-- map('n', '[d', ":Lspsaga diagnostic_jump_prev<CR>", { desc = "prev diagnostic" })

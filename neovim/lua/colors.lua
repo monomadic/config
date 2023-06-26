@@ -75,12 +75,12 @@ autocmd({ "ColorScheme", "VimEnter" },
 			-- hl(0, "WinBarNC", { fg = "white", bg = "#2222FF" })
 			--hl(0, "WinSeparator", { fg = "bg", bg = "bg" }) -- inactive
 
-			hl(0, "VimwikiBold", { fg = "#FF33AA" })
+			hl(0, "VimwikiBold", { fg = "#AFAAFF" })
 			hl(0, "VimwikiItalic", { fg = "#FFFF00" })
 			hl(0, "VimwikiLink", { fg = "#33CCFF" })
-			hl(0, "VimwikiLink", { fg = "#3377FF", underdashed = true })
+			--hl(0, "VimwikiLink", { fg = "#3377FF", underdashed = true })
 			hl(0, "VimwikiHeaderChar", { fg = "#F1FA8C" })
-			hl(0, "VimwikiCode", { fg = "#AFAAFF" })
+			hl(0, "VimwikiCode", { bg = "#222222", fg = "#F1FA8C" })
 
 			hl(0, "MsgArea", { bg = "None" }) -- CommandLine
 
