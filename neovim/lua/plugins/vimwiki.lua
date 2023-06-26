@@ -1,5 +1,5 @@
+-- https://github.com/vimwiki/vimwiki
 -- TODO: https://github.com/chipsenkbeil/vimwiki-rs
--- NOTE: vimwiki is vimscript...
 
 return {
 	-- use { 'chipsenkbeil/vimwiki.nvim', config = function()
@@ -18,7 +18,7 @@ return {
 	{ 'vimwiki/vimwiki',
 		-- ft = { "markdown", "vimwiki" },
 		init = function()
-     vim.g.vimwiki_key_mappings = { lists = 0 }
+			vim.g.vimwiki_key_mappings = { lists = 0 }
 			-- vim.g.vimwiki_key_mappings = {
 			-- 	all_maps = 1,
 			-- 	global = 1,
@@ -36,15 +36,19 @@ return {
 			local hl = vim.api.nvim_set_hl
 			hl(0, "VimwikiBold", { fg = "#FF33AA" })
 
-			-- vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
-			-- 	vim.keymap.set("n", "gt", "<Cmd>VimwikiGoto Tasks<CR>")
-			-- end })
-
-     -- vim.g.vimwiki_key_mappings = { all_maps = 0 }
+			local keymap = vim.keymap.set
+			keymap("n", "<leader>Wb", ":VimwikiBacklinks<CR>", { desc = "backlinks" })
+			keymap("n", "<leader>Wr", ":VimwikiRenameFile<CR>", { desc = "rename" })
+			keymap("n", "<leader>Wd", ":VimwikiDiaryIndex<CR>", { desc = "diary" })
 
 			vim.g.vimwiki_list = {
 				{
 					path = '~/wiki/',
+					template_path = '~/wiki/templates/',
+					template_default = 'default',
+					template_ext = '.md',
+					diary_rel_path = "journal/",
+					diary_index = "journal",
 					syntax = 'markdown',
 					ext = '.md'
 				}

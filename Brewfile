@@ -134,7 +134,7 @@ brew "binwalk" # binary analyser
 brew "bingrep" # binary analyser
 brew "radare2" # debugger / decompiler
 cask "cutter" # debugger / compiler
-cask "coretto" # jdk alternative by amazon
+cask "corretto" # jdk alternative by amazon
 cask "ghidra" # debugger / decompiler
 brew "rizin" # fork of radare2
 cask "temurin" # jre replacement (for ghidra)

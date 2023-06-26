@@ -377,9 +377,12 @@ vim.api.nvim_create_autocmd("LspAttach", {
 -- end })
 
 -- lua
-vim.api.nvim_create_autocmd("FileType", { pattern = "lua", callback = function()
-	map('n', "<C-r>", ":source %<CR>", { desc = "run" })
-	map('n', "<leader>Rr", ":source %<CR>", { desc = "run" })
-end })
+vim.api.nvim_create_autocmd("FileType", {
+	pattern = "lua",
+	callback = function()
+		map('n', "<C-r>", ":source %<CR>", { desc = "run" })
+		map('n', "<leader>Rr", ":source %<CR>", { desc = "run" })
+	end
+})
 
 return M

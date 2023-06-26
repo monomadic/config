@@ -1,5 +1,3 @@
-# Configuration for Alacritty, the GPU enhanced terminal emulator
-
 # Any items in the `env` entry below will be added as
 # environment variables. Some entries may override variables
 # set by alacritty it self.
@@ -15,9 +13,6 @@ env:
 
 window:
   opacity: 0.9
-
-  # Window dimensions in character columns and lines
-  # (changes require restart)
   dimensions:
     columns: 130
     lines: 36

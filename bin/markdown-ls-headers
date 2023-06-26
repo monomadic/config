@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+
+import argparse
+
+def parse_headings(line):
+    """
+    Parse the markdown line and return a tuple (level, content) if it is a heading.
+    Return None if it is not a heading.
+    """
+    level = 0
+    content = line.strip()
+
+    while content:
+        if content.startswith("#"):
+            level += 1
+            content = content[1:].strip()
+        else:
+            break
+
+    if level > 0:
+        return level, content
+    else:
+        return None
+
+def print_table_of_contents(input):
+    """
+    Reads a markdown file and prints a table of contents based on headings.
+    """
+    try:
+        with open(input, 'r') as file:
+            lines = file.readlines()
+
+            print("Table of Contents:")
+            print("===================")
+
+            for line in lines:
+                heading = parse_headings(line)
+                if heading:
+                    level, content = heading
+                    indent = '    ' * (level - 1)
+                    print(f"{indent}- {content}")
+
+    except FileNotFoundError:
+        print(f"Error: The file '{filename}' was not found.")
+
+def main():
+    parser = argparse.ArgumentParser(description='Prints a table of contents in a markdown document.')
+    parser.add_argument('input', type=str, help='The code file to refactor.')
+
+    args = parser.parse_args()
+
+    print_table_of_contents(input=args.input)
+
+if __name__ == "__main__":
+    main()
