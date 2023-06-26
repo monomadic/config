@@ -60,6 +60,10 @@ M.telescope = function()
 	-- list
 	keymap('n', '<leader>lf', pickers.lsp_document_functions, { desc = " function…" })
 
+	-- lsp
+	keymap('n', '<leader>Lr', vim.lsp.buf.references, { desc = "references" })
+	keymap('n', '<leader>Li', vim.lsp.buf.implementation, { desc = "implementation" })
+
 	-- open (various filters of file open pickers)
 	keymap('n', "<leader>OT", pickers.open_template, { desc = "template" })
 	keymap('n', "<leader>Ot", pickers.open_test, { desc = "test" })

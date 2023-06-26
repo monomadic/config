@@ -107,7 +107,7 @@ function _G.LoadRunFileKeymaps()
 				{ noremap = true, silent = true, desc = command })
     end
   else
-    print("Error: Could not open the file " .. commands_file_path)
+    -- print("Error: Could not open the file " .. commands_file_path)
   end
 end
 

@@ -10,6 +10,9 @@
 --		- plugin-index:
 --		  https://neoland.dev/
 --
+--		- references:
+--			https://github.com/NormalNvim/NormalNvim
+--
 --  TODO:
 --  - https://github.com/ldelossa/litee-symboltree.nvim
 --  - https://github.com/MunifTanjim/nui.nvim - menus etc

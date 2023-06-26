@@ -104,6 +104,8 @@ cask "1password" # password manager
 cask "1password-cli"
 # cask "hammerspoon"
 
+cask "cheatsheet" # show a cheat sheet by holding ⌘
+
 cask "smooze-pro"
 
 # utils

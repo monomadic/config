@@ -57,7 +57,7 @@ return {
 				extensions_list = { "themes", "terms" },
 				extensions = {
 					fzf = {
-						fuzzy = true, -- false will only do exact matching
+						fuzzy = true,             -- false will only do exact matching
 						override_generic_sorter = true, -- override the generic sorter
 						override_file_sorter = true, -- override the file sorter
 						case_mode = "smart_case", -- or "ignore_case" or "respect_case"
@@ -66,6 +66,17 @@ return {
 				}
 			},
 		}
+
+		-- set default lsp providers to use telescope
+		local telescope = require('telescope.builtin')
+		vim.api.nvim_create_autocmd('LspAttach', {
+			callback = function(args)
+				local client = vim.lsp.get_client_by_id(args.data.client_id)
+				if client.server_capabilities.referencesProvider then
+					vim.lsp.handlers["textDocument/references"] = telescope.lsp_references
+				end
+			end,
+		})
 
 		vim.keymap.set("n", "tP", function()
 			local previewers = require("telescope.previewers")

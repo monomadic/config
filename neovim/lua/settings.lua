@@ -50,6 +50,10 @@ g.mapleader = " " -- leader key
 g.tex_flavor = "latex"
 g.vim_markdown_edit_url_in = 'current' -- open md links as (vplit | current)
 
+-- use newer filetype.lua instead of filetype.vim
+g.do_filetype_lua = 1
+-- g.did_load_filetypes = 0 -- do not use filetype.vim at all
+
 -- folds
 --o.foldlevelstart = 99
 w.foldlevel = 99

@@ -1,4 +1,5 @@
 -- https://github.com/vimwiki/vimwiki
+-- config: https://github.com/vimwiki/vimwiki/blob/dev/autoload/vimwiki/vars.vim
 -- TODO: https://github.com/chipsenkbeil/vimwiki-rs
 
 return {
@@ -16,30 +17,18 @@ return {
 		end },
 
 	{ 'vimwiki/vimwiki',
-		-- ft = { "markdown", "vimwiki" },
-		init = function()
-			vim.g.vimwiki_key_mappings = { lists = 0 }
-			-- vim.g.vimwiki_key_mappings = {
-			-- 	all_maps = 1,
-			-- 	global = 1,
-			-- 	headers = 1,
-			-- 	text_objs = 1,
-			-- 	table_format = 1,
-			-- 	table_mappings = 0,
-			-- 	lists = 0,
-			-- 	links = 1,
-			-- 	html = 1,
-			-- 	mouse = 0,
-			-- }
-		end,
+		-- cmd = { "VimwikiIndex" },
+		enabled = false,
 		config = function()
-			local hl = vim.api.nvim_set_hl
-			hl(0, "VimwikiBold", { fg = "#FF33AA" })
+			-- local hl = vim.api.nvim_set_hl
+			-- hl(0, "VimwikiHeaderChar", { fg = "#F1FA8C" })
 
 			local keymap = vim.keymap.set
 			keymap("n", "<leader>Wb", ":VimwikiBacklinks<CR>", { desc = "backlinks" })
 			keymap("n", "<leader>Wr", ":VimwikiRenameFile<CR>", { desc = "rename" })
 			keymap("n", "<leader>Wd", ":VimwikiDiaryIndex<CR>", { desc = "diary" })
+
+			vim.g.vimwiki_key_mappings = { lists = 0 }
 
 			vim.g.vimwiki_list = {
 				{
