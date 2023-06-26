@@ -57,6 +57,7 @@ font:
   # The normal (roman) font face to use.
   normal:
     family: "Monaco Nerd Font Mono"
+    # family: "3270 Nerd Font"
     # family: "Ark Nerd Font Mono"
     # style: Regular
 
@@ -77,7 +78,7 @@ font:
   # as modifying the linespacing, and offset.x as modifying the letter spacing.
   offset:
     x: 0
-    y: 5
+    y: 0
 
   # Glyph offset determines the locations of the glyphs within their cells with
   # the default being at the bottom. Increase the x offset to move the glyph to
