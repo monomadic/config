@@ -83,53 +83,51 @@ M.list_keymaps = function()
 end
 
 M.insert_template = function()
-	local previewers = require("telescope.previewers")
 	local pickers = require("telescope.pickers")
 	local sorters = require("telescope.sorters")
 	local finders = require("telescope.finders")
+
 	local filetype = vim.bo.filetype
-	local template_dir = vim.fn.expand("~/.config/nvim/templates/" .. filetype .. "/")
+	-- if current buffer has no filetype
+	if filetype and filetype ~= '' then
+		filetype = filetype .. "/"
+	end
+
+	local template_dir = vim.fn.expand("~/.config/nvim/templates/" .. filetype)
+	local current_directory = vim.fn.expand('%:p:h')
 
 	pickers.new {
 		results_title = "Insert Template",
-		finder = finders.new_oneshot_job({ "exa", template_dir }),
-		--finder = finders.new_oneshot_job({ "fd", ".", template_dir }),
+		finder = finders.new_oneshot_job({ "fd", "--type", "symlink", ".", template_dir }),
 		sorter = sorters.get_generic_fuzzy_sorter(),
-		-- previewer = require'telescope.previewers'.vim_buffer_cat.new({}),
-		previewer = previewers.new_buffer_previewer {
-			define_preview = function(self, entry, status)
-				return require('telescope.previewers.utils').job_maker(
-					{ "bat" },
-					self.state.bufnr,
-					{
-						cwd = template_dir,
-						callback = function(bufnr, content)
-							if content ~= nil then
-								--require('telescope.previewers.utils').(bufnr, 'terraform')
-								require('telescope.previewers.utils').regex_highlighter(bufnr, 'terraform')
-							end
-						end,
-					})
-			end
-		},
+		previewer = require 'telescope.previewers'.vim_buffer_cat.new({}),
 		attach_mappings = function(bufnr, map)
 			local actions = require 'telescope.actions'
 			map("i", "<CR>", function()
-				local selected_file = require('telescope.actions.state').get_selected_entry()
-				local file = vim.fn.expand(template_dir .. selected_file[1])
-				-- close telescope window
-				actions.close(bufnr)
-				-- new document
-				vim.cmd.new()
-				vim.cmd.saveas(selected_file[1])
-				-- insert file at current position
-				vim.cmd.read(file)
+				local selected_file = require('telescope.actions.state').get_selected_entry()[1]
+				if not selected_file then
+					return
+				end
+
+				vim.ui.input({ prompt = 'Save template as: ', default = current_directory .. '/', completion = 'dir' },
+					function(destination_file)
+						if not destination_file then
+							return
+						end
+						actions.close(bufnr)  -- close telescope window
+						vim.cmd.vnew()        -- new buffer (vertical)
+						vim.cmd.read(selected_file) -- read template into buffer
+						-- If the first line is empty, delete it
+						vim.api.nvim_command("if getline(1) == '' | execute '1delete' | endif")
+						vim.cmd.saveas(destination_file) -- save file
+						vim.cmd.stopinsert()       -- enter normal mode
+					end)
 			end)
 			return true
 		end
 	}:find()
 end
 
- -- M.insert_template()
+-- M.insert_template()
 
 return M

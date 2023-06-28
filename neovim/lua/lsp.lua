@@ -11,8 +11,19 @@ vim.api.nvim_create_autocmd('LspAttach', {
 		local client = vim.lsp.get_client_by_id(args.data.client_id)
 		local keymap = vim.keymap.set
 
+		--
+		-- hoverProvider
 		if client.server_capabilities.hoverProvider then
 			vim.keymap.set('n', 'K', vim.lsp.buf.hover, { buffer = args.buf })
+
+			vim.lsp.handlers["textDocument/hover"] = vim.lsp.with(
+				vim.lsp.handlers.hover, {
+					-- Use a sharp border with `FloatBorder` highlights
+					border = "single",
+					-- add the title in hover float window
+					-- title = "hover"
+				}
+			)
 		end
 
 		if client.server_capabilities.codeActionProvider then

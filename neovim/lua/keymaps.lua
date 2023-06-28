@@ -60,7 +60,11 @@ M.telescope = function()
 	-- list
 	keymap('n', '<leader>lf', pickers.lsp_document_functions, { desc = " function…" })
 
-	-- lsp
+	-- insert
+	keymap('n', '<leader>It', pickers.insert_template, { desc = "template" })
+
+	-- new
+	keymap('n', '<leader>Nt', pickers.insert_template, { desc = "template" })
 
 	-- open (various filters of file open pickers)
 	keymap('n', "<leader>OT", pickers.open_template, { desc = "template" })
@@ -100,12 +104,8 @@ M.telescope = function()
 			jump_type = "vsplit"
 		}
 	end, { desc = "definition split" })
-	--
-	-- insert
-	keymap('n', '<leader>Nt', pickers.insert_template, { desc = "from template" })
 
 	keymap('n', '<leader>o', pickers.open_files, { desc = "open…" })
-	-- keymap('n', '<leader>t', '<C-w><C-s>:term<CR>i', { desc = " terminal" })
 
 	keymap('n', 'tk', pickers.list_keymaps, { desc = "keymaps" })
 	keymap('n', 'tld', '<Cmd>Telescope lsp_definitions<cr>')

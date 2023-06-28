@@ -68,5 +68,9 @@ local function create_template_menu(templates_dir)
     end)
 end
 
+local function buf_insert_template()
+	create_template_menu("~/.config/nvim/templates")
+end
+
 _G.create_template_menu = create_template_menu
-_G.insert_template = insert_template
+_G.buf_insert_template = buf_insert_template
