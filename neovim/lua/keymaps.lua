@@ -25,6 +25,7 @@ local utils = require 'utils'
 local key = utils.key
 local lf = require 'lf'
 local icons = require 'icons'
+local templates = require 'templates'
 
 M.telescope = function()
 	local pickers = require 'pickers'
@@ -64,7 +65,7 @@ M.telescope = function()
 	keymap('n', '<leader>It', pickers.insert_template, { desc = "template" })
 
 	-- new
-	keymap('n', '<leader>Nt', pickers.insert_template, { desc = "template" })
+	keymap('n', '<leader>Nt', templates.new_file_from_template, { desc = "template" })
 
 	-- open (various filters of file open pickers)
 	keymap('n', "<leader>OT", pickers.open_template, { desc = "template" })
@@ -182,7 +183,7 @@ end
 -- LEADER MENU
 --
 -- actions
-keymap('n', '<leader>f', utils.format, { desc = " format" })
+keymap('n', '<leader>f', utils.format, { desc = "format" })
 keymap('n', "<leader>q", "<CMD>hide<CR>", { desc = "hide window" })
 keymap('n', "<leader>!", "<cmd>quit!<CR>")
 keymap('n', "<leader>a", vim.lsp.buf.code_action, { desc = "code-actions" })

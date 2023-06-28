@@ -12,7 +12,7 @@ return {
 		keymap("n", "<leader>FC", genghis.copyFilename, { desc = " copy filename" })
 		keymap("n", "<leader>Fr", genghis.renameFile, { desc = " rename" })
 		keymap("n", "<leader>Fn", genghis.createNewFile, { desc = " new" })
-		keymap("n", "<leader>Nf", genghis.createNewFile, { desc = " file" })
+		keymap("n", "<leader>Nf", genghis.createNewFile, { desc = "file" })
 		keymap("n", "<leader>Fd", genghis.duplicateFile, { desc = " duplicate" })
 		keymap("n", "<leader>Fx", genghis.chmodx, { desc = " chmod" })
 		keymap("n", "<leader>Ft", function() genghis.trashFile { trashLocation = "your/path" } end, { desc = "﬒ trash" }) -- default: '$HOME/.Trash'.
