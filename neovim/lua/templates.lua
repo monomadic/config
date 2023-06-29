@@ -1,6 +1,10 @@
+--
+-- template picker using telescope
+--
 local M = {}
 
 M.new_file_from_template = function()
+	local utils = require('utils')
 	local pickers = require("telescope.pickers")
 	local sorters = require("telescope.sorters")
 	local finders = require("telescope.finders")
@@ -25,7 +29,7 @@ M.new_file_from_template = function()
 		return files
 	end
 
-	local template_dir = vim.fn.expand("~/.config/nvim/templates/" .. filetype)
+	local template_dir = vim.fn.expand("~/.config/nvim/templates/")
 	local current_directory = vim.fn.expand('%:p:h')
 
 	pickers.new {
@@ -43,19 +47,13 @@ M.new_file_from_template = function()
 					}
 				})
 				return {
-					display = function(entry)
-						return displayer({
-							{ icon,          icon_highlight },
-							{ entry.filename }
-						})
+					display = function()
+						local pretty_path = file_path.filename:gsub("^" .. template_dir, "");
+						return displayer({ { icon, icon_highlight }, { pretty_path} })
 					end,
 					ordinal = file_path.filename,
 					value = entry,
 					filename = file_path.filename,
-					display_cols = {
-						{ icon,              icon_highlight },
-						{ file_path.filename },
-					}
 				}
 			end
 		},
@@ -71,9 +69,14 @@ M.new_file_from_template = function()
 				if not selected_file then
 					return
 				end
-				vim.ui.input({ prompt = 'Save template as: ', default = current_directory .. '/', completion = 'dir' },
+				local new_file_path = current_directory .. '/' .. selected_file:match("([^/]+)$");
+				vim.ui.input({ prompt = 'Save template as: ', default = new_file_path, completion = 'dir' },
 					function(destination_file)
 						if not destination_file then
+							return
+						end
+						if utils.file_exists(destination_file) then
+							print("File already exists at location: " .. destination_file)
 							return
 						end
 						actions.close(bufnr)  -- close telescope window

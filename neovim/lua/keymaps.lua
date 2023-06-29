@@ -66,6 +66,8 @@ M.telescope = function()
 
 	-- new
 	keymap('n', '<leader>Nt', templates.new_file_from_template, { desc = "template" })
+	keymap('n', '<leader>n', templates.new_file_from_template, { desc = "template" })
+	keymap('n', '<C-n>', templates.new_file_from_template, { desc = "template" })
 
 	-- open (various filters of file open pickers)
 	keymap('n', "<leader>OT", pickers.open_template, { desc = "template" })
@@ -236,7 +238,7 @@ keymap('n', "q", vim.cmd.hide, { desc = "hide" });
 keymap('n', "W", vim.cmd.wall)
 keymap('n', "Q", "<cmd>wall<CR><cmd>qall<CR>")
 -- leader
-keymap('n', "<C-n>", ToggleLineNumbers, { desc = "toggle line numbers" })
+-- keymap('n', "<C-n>", ToggleLineNumbers, { desc = "toggle line numbers" })
 
 -- split navigation
 keymap('n', "<C-j>", "<C-w><C-j>")
