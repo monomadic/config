@@ -17,6 +17,27 @@ M.new_file_from_template = function()
 		filetype = filetype .. "/"
 	end
 
+	local function sort_files_by_keyword(files, keyword)
+		if keyword == "" then
+			return files
+		end
+
+		table.sort(files, function(file1, file2)
+			local contains_keyword1 = file1:find(keyword) and 1 or 0
+			local contains_keyword2 = file2:find(keyword) and 1 or 0
+
+			if contains_keyword1 ~= contains_keyword2 then
+				-- Place files containing the keyword at the front
+				return contains_keyword1 > contains_keyword2
+			else
+				-- Sort the rest of the files lexicographically
+				return file1 < file2
+			end
+		end)
+
+		return files
+	end
+
 	local function get_files_recursive(directory)
 		local files = {}
 		local p = io.popen('fd --type symlink . "' .. directory .. '"')
@@ -35,7 +56,7 @@ M.new_file_from_template = function()
 	pickers.new {
 		prompt_title = "Insert Template",
 		finder = finders.new_table {
-			results = get_files_recursive(template_dir),
+			results = sort_files_by_keyword(get_files_recursive(template_dir), filetype),
 			entry_maker = function(entry)
 				local file_path = Path:new(entry)
 				local icon, icon_highlight = devicons.get_icon(file_path.filename, file_path.filetype)
@@ -49,7 +70,7 @@ M.new_file_from_template = function()
 				return {
 					display = function()
 						local pretty_path = file_path.filename:gsub("^" .. template_dir, "");
-						return displayer({ { icon, icon_highlight }, { pretty_path} })
+						return displayer({ { icon, icon_highlight }, { pretty_path } })
 					end,
 					ordinal = file_path.filename,
 					value = entry,
@@ -59,7 +80,9 @@ M.new_file_from_template = function()
 		},
 
 		sorter = sorters.get_generic_fuzzy_sorter(),
-
+		-- sorter = sorters.Sorter:new {
+		-- 	scoring_function = custom_sorter(filetype)
+		-- },
 		previewer = require 'telescope.previewers'.vim_buffer_cat.new({}),
 
 		attach_mappings = function(bufnr, map)
