@@ -25,15 +25,15 @@ M.open_same_filetype = function()
 end
 
 M.wiki_open_page = function()
-	builtin.find_files({ cwd = "~/wiki/" })
+	builtin.find_files({ cwd = vim.g.wiki_directory })
 end
 
 M.wiki_search = function()
-	builtin.live_grep({ cwd = "~/wiki/" })
+	builtin.live_grep({ cwd = vim.g.wiki_directory })
 end
 
 M.open_template = function()
-	builtin.find_files({ cwd = "~/.config/nvim/templates/", follow = true })
+	builtin.find_files({ cwd = vim.g.template_directory, follow = true })
 end
 
 M.open_test = function()
@@ -46,7 +46,7 @@ M.open_test = function()
 end
 
 M.open_config_file = function()
-	utils.select_file_at("~/config/neovim/")
+	utils.select_file_at(vim.g.neovim_config_directory)
 end
 
 M.git_commits = function()
@@ -93,7 +93,7 @@ M.insert_template = function()
 		filetype = filetype .. "/"
 	end
 
-	local template_dir = vim.fn.expand("~/.config/nvim/templates/" .. filetype)
+	local template_dir = vim.fn.expand(vim.g.template_directory .. filetype)
 	local current_directory = vim.fn.expand('%:p:h')
 
 	pickers.new {

@@ -3,12 +3,12 @@
 --	sudo command: :w !sudo tee %
 --
 
-local o = vim.o -- options
-local g = vim.g -- global scoped options
-local w = vim.wo -- window scoped options
--- local b = vim.b -- buffer scoped options
+local g = vim.g -- global variables
+local o = vim.o -- global neovim built-in options
+local w = vim.wo -- window scoped neovim options
+-- local b = vim.b -- buffer scoped neovim options
 
--- options
+-- neovim built-in options
 o.autowriteall = true -- ensure write upon leaving a page
 o.clipboard = "unnamedplus" -- allows neovim to access the system clipboard (gnome)
 o.completeopt = "menuone,noinsert,noselect"
@@ -42,13 +42,17 @@ o.title = true -- set window title
 o.titlestring = vim.fn.fnamemodify(vim.fn.getcwd(), ":~:t")
 o.wrap = false -- display lines as one long line
 
--- global options
+-- global variables
 g.completion_matching_ignore_case = 1
 g.completion_matching_strategy_list = { 'exact', 'substring', 'fuzzy' }
 g.completion_trigger_keyword_length = 3
 g.mapleader = " " -- leader key
 g.tex_flavor = "latex"
 g.vim_markdown_edit_url_in = 'current' -- open md links as (vplit | current)
+
+g.template_directory = "~/config/neovim/templates"
+g.wiki_directory = "~/wiki/"
+g.neovim_config_directory = "~/config/neovim"
 
 -- use newer filetype.lua instead of filetype.vim
 g.do_filetype_lua = 1

@@ -50,7 +50,7 @@ M.new_file_from_template = function()
 		return files
 	end
 
-	local template_dir = vim.fn.expand("~/.config/nvim/templates/")
+	local template_dir = vim.fn.expand(vim.g.template_directory)
 	local current_directory = vim.fn.expand('%:p:h')
 
 	pickers.new {
@@ -93,7 +93,7 @@ M.new_file_from_template = function()
 					return
 				end
 				local new_file_path = current_directory .. '/' .. selected_file:match("([^/]+)$");
-				vim.ui.input({ prompt = 'Save template as: ', default = new_file_path, completion = 'dir' },
+				vim.ui.input({ prompt = 'New File: ', default = new_file_path, completion = 'dir' },
 					function(destination_file)
 						if not destination_file then
 							return

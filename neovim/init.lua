@@ -16,7 +16,6 @@
 --  - https://github.com/ldelossa/litee-symboltree.nvim
 --  - https://github.com/MunifTanjim/nui.nvim - menus etc
 --  - format-on-save
---  - look for small minimal fuzzy replacement
 --
 --------------------------------------------------------------------------------
 
@@ -49,6 +48,7 @@ require 'lsp'
 
 require 'bootstrap-lazy'
 
+-- treesitter
 require 'ts.ts-jump'
 require 'ts.highlight-matches'
 
