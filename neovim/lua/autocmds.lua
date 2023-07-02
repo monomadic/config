@@ -3,45 +3,60 @@ local autocmd = vim.api.nvim_create_autocmd
 
 -- on document write
 autocmd("BufWrite",
-	{ pattern = "*", callback = function()
-		vim.cmd [[%s/\s\+$//e]] -- remove trailing whitespace
-		vim.cmd [[%s/\n\+\%$//e]] -- remove trailing newlines
-	end })
+	{
+		pattern = "*",
+		callback = function()
+			vim.cmd [[%s/\s\+$//e]] -- remove trailing whitespace
+			vim.cmd [[%s/\n\+\%$//e]] -- remove trailing newlines
+			vim.lsp.buf.format()
+		end
+	})
 
 -- automatic insert mode when switching to terminal buffers
 autocmd("BufEnter",
-	{ pattern = "term://*", callback = function()
-		vim.cmd.startinsert()
-	end })
+	{
+		pattern = "term://*",
+		callback = function()
+			vim.cmd.startinsert()
+		end
+	})
 
 autocmd("TermEnter",
-	{ pattern = "*", callback = function()
-		vim.wo.relativenumber = false -- turn off line numbers
-		vim.wo.number = false
-	end })
+	{
+		pattern = "*",
+		callback = function()
+			vim.wo.relativenumber = false -- turn off line numbers
+			vim.wo.number = false
+		end
+	})
 
 -- dont list quickfix buffers
 autocmd("FileType", {
-  pattern = "qf",
-  callback = function()
-    vim.opt_local.buflisted = false
-  end })
+	pattern = "qf",
+	callback = function()
+		vim.opt_local.buflisted = false
+	end
+})
 
 autocmd("FileType", {
-  pattern = "drex",
-  callback = function()
-    vim.opt_local.buflisted = false
-  end })
+	pattern = "drex",
+	callback = function()
+		vim.opt_local.buflisted = false
+	end
+})
 
 -- on vim open
-vim.api.nvim_create_autocmd("VimEnter", { pattern = "*", callback = function()
-	-- if no args are passed
-	if vim.fn.argc() == 0 then
-		vim.cmd "enew"
-		vim.cmd "setlocal bufhidden=wipe buftype=nofile nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
-		vim.cmd([[call append('$', "")]])
+vim.api.nvim_create_autocmd("VimEnter", {
+	pattern = "*",
+	callback = function()
+		-- if no args are passed
+		if vim.fn.argc() == 0 then
+			vim.cmd "enew"
+			vim.cmd "setlocal bufhidden=wipe buftype=nofile nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
+			vim.cmd([[call append('$', "")]])
+		end
 	end
-end })
+})
 
 -- hide line-bar in insert-mode
 -- vim.api.nvim_create_autocmd("InsertEnter", { pattern = "*", callback = function()
@@ -67,18 +82,30 @@ vim.api.nvim_create_autocmd({ "FileType", "BufEnter", "FocusGained", "VimEnter" 
 })
 
 -- only show line-bar on current buffer, on active window
-vim.api.nvim_create_autocmd("BufLeave", { pattern = "*", callback = function()
-	vim.o.cursorline = false
-end })
-vim.api.nvim_create_autocmd("BufEnter", { pattern = "*", callback = function()
-	vim.o.cursorline = true
-end })
-vim.api.nvim_create_autocmd("WinLeave", { pattern = "*", callback = function()
-	vim.o.cursorline = false
-end })
-vim.api.nvim_create_autocmd("WinEnter", { pattern = "*", callback = function()
-	vim.o.cursorline = true
-end })
+vim.api.nvim_create_autocmd("BufLeave", {
+	pattern = "*",
+	callback = function()
+		vim.o.cursorline = false
+	end
+})
+vim.api.nvim_create_autocmd("BufEnter", {
+	pattern = "*",
+	callback = function()
+		vim.o.cursorline = true
+	end
+})
+vim.api.nvim_create_autocmd("WinLeave", {
+	pattern = "*",
+	callback = function()
+		vim.o.cursorline = false
+	end
+})
+vim.api.nvim_create_autocmd("WinEnter", {
+	pattern = "*",
+	callback = function()
+		vim.o.cursorline = true
+	end
+})
 
 vim.api.nvim_create_autocmd("LspAttach", {
 	callback = function(args)
@@ -97,14 +124,20 @@ vim.api.nvim_create_autocmd("LspAttach", {
 -- end })
 
 -- markdown
-vim.api.nvim_create_autocmd("FileType", { pattern = "markdown", callback = function()
-	vim.opt.autowriteall = true -- ensure write upon leaving a page
-	vim.opt.wrap = true -- display lines as one long line
-end })
+vim.api.nvim_create_autocmd("FileType", {
+	pattern = "markdown",
+	callback = function()
+		vim.opt.autowriteall = true -- ensure write upon leaving a page
+		vim.opt.wrap = true      -- display lines as one long line
+	end
+})
 
 -- build command
-vim.api.nvim_create_autocmd("FileType", { pattern = "solidity", callback = function()
-	-- vim.keymap.set("n", "<C-b>", function()
-	-- 	vim.cmd ':split|terminal forge build'
-	-- end)
-end })
+vim.api.nvim_create_autocmd("FileType", {
+	pattern = "solidity",
+	callback = function()
+		-- vim.keymap.set("n", "<C-b>", function()
+		-- 	vim.cmd ':split|terminal forge build'
+		-- end)
+	end
+})

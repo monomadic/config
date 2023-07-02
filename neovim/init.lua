@@ -32,9 +32,9 @@ require 'autocmds'
 
 -- ui
 require 'text'
-require 'statusline'	-- bottom bar (global)
-require 'tabline'			-- top bar (global)
-require 'winbar'			-- top bar (buffer)
+require 'statusline' -- bottom bar (global)
+require 'tabline'    -- top bar (global)
+require 'winbar'     -- top bar (buffer)
 require 'gutter'
 
 require 'runfile' -- .runfile support

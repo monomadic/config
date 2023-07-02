@@ -1,9 +1,8 @@
 -- rust-tools: a rust lsp server specific to rust
 -- https://github.com/simrat39/rust-tools.nvim
--- local pickers = require('pickers')
-
 return {
 	'simrat39/rust-tools.nvim',
+
 	dependencies = {
 		'neovim/nvim-lspconfig',
 		'nvim-telescope/telescope.nvim',
@@ -11,6 +10,7 @@ return {
 		'mfussenegger/nvim-dap', -- debug
 		'stevearc/dressing.nvim' -- pretty run
 	},
+
 	ft = 'rust',
 
 	config = function()
@@ -34,7 +34,7 @@ return {
 			-- see https://github.com/neovim/nvim-lspconfig/blob/master/CONFIG.md#rust_analyzer
 			server = {
 				on_attach = function(client, bufnr)
-					require("lsp-format").on_attach(client)
+					--require("lsp-format").on_attach(client)
 					-- require("virtualtypes").on_attach(client, bufnr)
 
 					require("which-key").register({
@@ -50,7 +50,9 @@ return {
 					vim.keymap.set("n", "cri", ":! cargo install --path . <CR>", { desc = "install" })
 					vim.keymap.set("n", "crb", ":split|resize 8|terminal bacon --summary<CR>", { desc = "bacon", silent = true })
 
-					vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr })
+					-- TODO: change to lsp handler instead of keymap
+					vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr, desc="hover actions" })
+
 					vim.keymap.set("n", "<leader>Sa", ":RustCodeAction<CR>",
 						{ buffer = bufnr, desc = " code action", remap = false })
 					vim.keymap.set("n", "<leader>a", rust_tools.code_action_group.code_action_group,
