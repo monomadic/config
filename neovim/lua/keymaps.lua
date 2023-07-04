@@ -129,15 +129,7 @@ M.telescope = function()
 	keymap('n', '<leader>wM', '<cmd>Telescope marks<cr>', { desc = "mark…" })
 	keymap('n', '<leader>wt', '<cmd>TodoTelescope<cr>', { desc = "todo…" })
 
-	-- keymap('n', "\\o", pickers.open_files, { desc = "open…" })
-
 	keymap('n', '<C-f>', builtin.live_grep, { desc = "find" })
-
-	-- keymap('n', "ts", function()
-	-- 	require("luasnip.loaders.from_snipmate").lazy_load()
-	-- 	require('telescope').load_extension('luasnip')
-	-- 	vim.api.nvim_command('Telescope luasnip')
-	-- end)
 end
 
 

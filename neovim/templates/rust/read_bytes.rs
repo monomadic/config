@@ -2,16 +2,32 @@ use std::io;
 
 /// Extensions to io::Read for simplifying reading bytes.
 pub trait ReadBytesExt: io::Read {
+    fn read_bool(&mut self) -> io::Result<bool> {
+        Ok(self.read_u8()? == 1)
+    }
+
     fn read_u8(&mut self) -> io::Result<u8> {
         let mut buf = [0u8; 1];
         self.read_exact(&mut buf)?;
         Ok(u8::from_le_bytes(buf))
     }
 
+    fn read_i8(&mut self) -> io::Result<i8> {
+        let mut buf = [0u8; 1];
+        self.read_exact(&mut buf)?;
+        Ok(i8::from_le_bytes(buf))
+    }
+
     fn read_u16_le(&mut self) -> io::Result<u16> {
         let mut buf = [0u8; 2];
         self.read_exact(&mut buf)?;
         Ok(u16::from_le_bytes(buf))
+    }
+
+    fn read_i16_le(&mut self) -> io::Result<i16> {
+        let mut buf = [0u8; 2];
+        self.read_exact(&mut buf)?;
+        Ok(i16::from_le_bytes(buf))
     }
 
     fn read_u32_le(&mut self) -> io::Result<u32> {
