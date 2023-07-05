@@ -8,7 +8,7 @@ return {
 		'nvim-telescope/telescope.nvim',
 		'nvim-lua/plenary.nvim',
 		'mfussenegger/nvim-dap', -- debug
-		'stevearc/dressing.nvim' -- pretty run
+		'stevearc/dressing.nvim' -- pretty runnables
 	},
 
 	ft = 'rust',
@@ -38,7 +38,8 @@ return {
 					-- require("virtualtypes").on_attach(client, bufnr)
 
 					require("which-key").register({
-						R = { name = "Run",
+						R = {
+							name = "Run",
 							r = { rust_tools.runnables.runnables, "runnables" },
 						}
 					}, { prefix = "<leader>" })
@@ -51,7 +52,7 @@ return {
 					vim.keymap.set("n", "crb", ":split|resize 8|terminal bacon --summary<CR>", { desc = "bacon", silent = true })
 
 					-- TODO: change to lsp handler instead of keymap
-					vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr, desc="hover actions" })
+					vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr, desc = "hover actions" })
 
 					vim.keymap.set("n", "<leader>Sa", ":RustCodeAction<CR>",
 						{ buffer = bufnr, desc = " code action", remap = false })
@@ -90,14 +91,16 @@ return {
 
 					-- vim.keymap.set("n", "<leader>r", "", { buffer = bufnr, desc = " rust" })
 					vim.keymap.set("n", "<leader>r", RunFile, { buffer = bufnr, desc = " run" })
-					vim.keymap.set("n", "<leader>Rr", rust_tools.runnables.runnables, { buffer = bufnr, desc = " run" })
-					vim.keymap.set("n", "<leader>Rr", rust_tools.runnables.runnables, { buffer = bufnr, desc = " runnables…" })
+
+					require("runnables")
+					vim.keymap.set("n", "<leader>Rr", RustRunnable, { buffer = bufnr, desc = "runnables" })
+					--vim.keymap.set("n", "<leader>Rr", rust_tools.runnables.runnables, { buffer = bufnr, desc = " run" })
+					--vim.keymap.set("n", "<leader>Rr", rust_tools.runnables.runnables, { buffer = bufnr, desc = " runnables…" })
 					vim.keymap.set("n", "<leader>Rd", ":RustDebuggables<CR>", { buffer = bufnr, desc = " debuggables…" })
 
 					vim.keymap.set("n", "<leader>Df", ":RustFmt<CR>", { buffer = bufnr, desc = " rustfmt" })
 
 					vim.keymap.set('n', '<leader>t', ':RustRunnables<CR>', { desc = "runnables", silent = true })
-
 				end,
 				-- settings = {
 				-- 	-- to enable rust-analyzer settings visit:

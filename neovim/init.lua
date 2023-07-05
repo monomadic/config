@@ -16,6 +16,7 @@
 --  - https://github.com/ldelossa/litee-symboltree.nvim
 --  - https://github.com/MunifTanjim/nui.nvim - menus etc
 --  - format-on-save
+--  - https://github.com/mfussenegger/nvim-fzy
 --
 --------------------------------------------------------------------------------
 
