@@ -98,7 +98,6 @@ function fzf_dirs() {
 		--preview 'exa --tree --icons --level 2 {}' \
 		--bind 'ctrl-f:execute-silent(open {1})' \
 		--bind 'ctrl-o:change-prompt(bookmarks > )+reload(cat ~/.marks)' \
-		--bind 'ctrl-p:change-prompt(projects > )+reload(exa ~/workspaces/*.workspace/* --oneline --only-dirs --list-dirs)' \
 		--bind 'ctrl-r:change-prompt(relative > )+reload(fd --type d --strip-cwd-prefix --max-depth 1 && fd --type d --strip-cwd-prefix --exact-depth 2 --max-results 10000)' \
 		--bind 'ctrl-w:change-prompt(workspaces > )+reload(fd . ~/workspaces --extension workspace --follow)' \
 		"$@"
