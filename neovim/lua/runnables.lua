@@ -62,19 +62,34 @@ function _G.RustRunnable()
 
 		local command, args, cwd = get_command(choice, result)
 
-		-- Concatenate command and args
-		local command_str = command
-		for _, arg in ipairs(args) do
-			command_str = command_str .. " " .. arg
+		-- Define a callback to handle the job's output
+		local output = {}
+		local function on_stdout(_, data)
+			for _, line in ipairs(data) do
+				table.insert(output, line)
+			end
 		end
 
-		-- Execute the command and capture the output
-		local handle = io.popen(command_str) -- Execute command with arguments
-		local command_output = handle:read("*a")
-		handle:close()
+		-- Define a callback to handle the job's completion
+		local function on_exit(_, _)
+			-- Combine the output lines into a single string
+			local command_output = table.concat(output, '\n')
 
-		-- Display the result in a floating window
-		open_floating_window(command_output)
+			-- Display the result in a floating window
+			open_floating_window(command_output)
+		end
+
+		-- Execute the command asynchronously
+		local job_id = vim.fn.jobstart({ command, unpack(args) }, {
+			cwd = cwd,
+			on_stdout = on_stdout,
+			on_exit = on_exit,
+		})
+
+		-- Check if the job started successfully
+		if job_id < 1 then
+			print("Failed to start job")
+		end
 	end
 
 	-- Function to select a runnable from a list and run it
