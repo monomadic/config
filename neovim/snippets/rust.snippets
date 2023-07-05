@@ -5,6 +5,7 @@ snippet docstring "docstring"
 snippet reader
 	use crate::{Error, read_bytes::ReadBytesExt};
 
+	#[derive(Debug)]
 	pub struct ${1};
 
 	impl ${1} {
