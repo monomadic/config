@@ -3,7 +3,8 @@ local key = Utils.key
 return {
 	'echasnovski/mini.nvim',
 	version = false, -- false=main, '*'=stable
-	config = function ()
+	enabled = false,
+	config = function()
 		-- buffer removing
 		-- MiniBufremove.unshow()
 		require('mini.bufremove').setup()

@@ -22,7 +22,8 @@ M.current_file_extension = function()
 end
 
 M.key = function(mode, keymap, callback, desc)
-	vim.keymap.set(mode, keymap, callback, { desc = desc, silent = true}) end
+	vim.keymap.set(mode, keymap, callback, { desc = desc, silent = true })
+end
 
 -- Returns (row, col) of the current cursor position
 M.current_pos = function()
@@ -48,10 +49,10 @@ M.open_config = function()
 end
 
 M.highlight_range = function(range, buf, hl_namespace, hl_group)
-  ---@type integer, integer, integer, integer
-  local start_row, start_col, end_row, end_col = unpack(range)
-  ---@diagnostic disable-next-line: missing-parameter
-  vim.highlight.range(buf, hl_namespace, hl_group, { start_row, start_col }, { end_row, end_col })
+	---@type integer, integer, integer, integer
+	local start_row, start_col, end_row, end_col = unpack(range)
+	---@diagnostic disable-next-line: missing-parameter
+	vim.highlight.range(buf, hl_namespace, hl_group, { start_row, start_col }, { end_row, end_col })
 end
 
 M.select_file_at = function(dir)
@@ -86,10 +87,11 @@ end
 
 -- create a floating window from a buffer
 M.create_floating_window = function()
+	local width = vim.api.nvim_get_option("columns")
+	local height = vim.api.nvim_get_option("lines")
+
 	local row = 5
 	local col = 3
-	local width = vim.o.columns - 8
-	local height = vim.o.lines - 5
 	local border = 'single'
 	-- local term_height = math.ceil(0.7 * vim.o.lines)
 
@@ -100,15 +102,17 @@ M.create_floating_window = function()
 	vim.api.nvim_buf_set_option(buf, "filetype", "float")
 	vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
 	--vim.opt.buflisted = false -- don't show in bufferlist
-	vim.api.nvim_open_win(buf, true, {
-	                                                    -- true here focuses the buffer
-		relative = 'editor',
-		row = row,
-		col = col,
-		width = width,
-		height = height,
-		border = border,
+
+	local win = vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
+		width = math.ceil(width * 0.8),
+		height = math.ceil(height * 0.8),
+		col = math.ceil(width * 0.1),
+		row = math.ceil(height * 0.1),
+		style = "minimal",
+		border = "single",
+		relative = "editor",
 	})
+	vim.api.nvim_win_set_option(win, "winblend", 20)
 
 	vim.wo.relativenumber = false -- turn off line numbers
 	vim.wo.number = false

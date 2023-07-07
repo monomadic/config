@@ -10,7 +10,6 @@ return {
 		local genghis = require("genghis")
 		keymap("n", "<leader>Fc", genghis.copyFilepath, { desc = " copy path" })
 		keymap("n", "<leader>FC", genghis.copyFilename, { desc = " copy filename" })
-		keymap("n", "<leader>Fr", genghis.renameFile, { desc = " rename" })
 		keymap("n", "<leader>Fn", genghis.createNewFile, { desc = " new" })
 		keymap("n", "<leader>Nf", genghis.createNewFile, { desc = "file" })
 		keymap("n", "<leader>Fd", genghis.duplicateFile, { desc = " duplicate" })

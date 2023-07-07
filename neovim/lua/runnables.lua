@@ -65,9 +65,9 @@ function _G.RustRunnable()
 	end
 
 	local function open_floating_terminal_with_command(command)
+		local buf = vim.api.nvim_create_buf(false, true)
 		local width = vim.api.nvim_get_option("columns")
 		local height = vim.api.nvim_get_option("lines")
-		local buf = vim.api.nvim_create_buf(false, true)
 
 		vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
 

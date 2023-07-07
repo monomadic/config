@@ -5,19 +5,6 @@
 -- to view current mappings: :verbose nmap <C-]>
 --
 
-
--- TODO:
--- terminals
--- <leader>1 etc is term window
--- <C-c> kills window
--- <C-h> hides window
--- <C-1> switch to window
--- show mapping of active terminals in bottom bar
---
--- tab / smartjump
--- if errors exist, tab should jump to them
--- otherwise modules and types
-
 local M = {}
 local map = vim.keymap.set
 local keymap = vim.keymap.set
@@ -27,6 +14,11 @@ local lf = require 'lf'
 local icons = require 'icons'
 local templates = require 'templates'
 
+-- reset leader key
+vim.keymap.set('', '<Space>', '<Nop>', { noremap = true, silent = true })
+vim.g.mapleader = ' '
+vim.g.maplocalleader = ' '
+
 M.telescope = function()
 	local pickers = require 'pickers'
 	local builtin = require 'telescope.builtin'
@@ -35,7 +27,6 @@ M.telescope = function()
 	key('n', '<leader>b', builtin.buffers, 'buffer')
 	key('n', '<leader><tab>', pickers.open_same_filetype, 'source')
 	keymap("n", "<leader>\\", "<cmd>ChatGPT<CR>", { desc = " ChatGPT" })
-	keymap("n", "<leader><leader>", "<cmd>Lspsaga term_toggle<CR>", { desc = " ChatGPT" })
 	keymap('n', '<leader>d', "<Cmd>Trouble workspace_diagnostics<CR>", { desc = "diagnostics" })
 	keymap('n', '<leader>h', builtin.oldfiles, { desc = "history" })
 
@@ -53,6 +44,9 @@ M.telescope = function()
 	keymap('n', "<leader>Dc", builtin.git_status, { desc = "changes" })
 	keymap('n', "<leader>Dt", builtin.treesitter, { desc = " treesitter…" })
 
+	-- file
+	keymap('n', '<leader>Fr', vim.lsp.buf.rename, { desc = "rename" })
+
 	-- git
 	keymap('n', "<leader>Gb", pickers.git_branches, { desc = "branches" })
 	keymap('n', "<leader>Gc", pickers.git_commits, { desc = "commits" })
@@ -67,7 +61,8 @@ M.telescope = function()
 	-- new
 	keymap('n', '<leader>Nt', templates.new_file_from_template, { desc = "template" })
 	keymap('n', '<leader>n', templates.new_file_from_template, { desc = "template" })
-	keymap('n', '<C-n>', templates.new_file_from_template, { desc = "template" })
+	keymap('n', '<C-S-n>', templates.new_file_from_template, { desc = "template" })
+	keymap('n', '<C-n>', require 'files'.new_prompt, { desc = "new" })
 
 	-- open (various filters of file open pickers)
 	keymap('n', "<leader>OT", pickers.open_template, { desc = "template" })
@@ -162,6 +157,10 @@ M.whichkey = function()
 	}
 end
 
+-- CONTEXT/POPUP MENU
+keymap('n', '<leader>m', '<cmd>popup PopUp<cr>', { desc = 'open menu' })
+keymap('n', ',', '<cmd>popup PopUp<cr>j', { desc = 'open menu' })
+
 -- NEXT/PREV
 keymap('n', ']w', '*', { desc = "Next word" })
 keymap('n', '[w', '#', { desc = "Previous word" })
@@ -202,6 +201,8 @@ keymap('n', "<C-b>", ":DrexDrawerFindFileAndFocus<CR>", { desc = "drex" })
 keymap('n', "<leader>Tl", ToggleLineNumbers, { desc = "line numbers" })
 keymap('n', "<leader>Tt", ":TransparentToggle<CR>", { desc = "tranparency" })
 
+-- keymap('n', '<leader>l', lf.show, { desc = "lf" })
+
 -- settings
 keymap('n', "<leader>,l", ToggleLineNumbers, { desc = "toggle line numbers" })
 keymap('n', "<leader>,t", ":TransparentToggle<CR>", { desc = "toggle tranparency" })
@@ -210,7 +211,10 @@ keymap('n', '<leader>,t', '<cmd>FzfLua colorschemes<cr>', { desc = "theme" })
 keymap('n', '<leader>,u', '<cmd>Lazy update<cr>', { desc = "update plugins" })
 
 -- floats
-keymap('n', '<C-Space>', lf.show, { desc = "lf", remap = false })
+keymap('n', '<C-Space>', require('term').show, { desc = "term", remap = false })
+keymap('n', '<C-S-Space>', require('lf').show, { desc = "term", remap = false })
+keymap('t', 'Esc', require('term').close, { desc = "", remap = false })
+-- keymap('n', '<C-Space>', lf.show, { desc = "lf", remap = false })
 keymap('t', '<C-Space>', function()
 	vim.api.nvim_win_hide(0)
 end)
@@ -302,12 +306,12 @@ keymap('n', "H", "^")
 keymap('n', "L", "$")
 
 -- terminal
-keymap('n', '<C-t>', '<C-w><C-s>:term<CR>i', { remap = false, silent = true })
+-- keymap('n', '<C-t>', '<C-w><C-s>:term<CR>i', { remap = false, silent = true })
 keymap("t", '<C-\\>', '<C-\\><C-n>', { remap = false })
-keymap("t", '<C-h>', '<C-\\><C-n><C-w><C-h>', { remap = false })
+-- keymap("t", '<C-h>', '<C-\\><C-n><C-w><C-h>', { remap = false })
 -- keymap("t", '<C-j>', '<C-\\><C-n><C-w><C-j>', { remap = false })
-keymap("t", '<C-k>', '<C-\\><C-n><C-w><C-k>', { remap = false })
-keymap("t", '<C-l>', '<C-\\><C-n><C-w><C-l>', { remap = false })
+-- keymap("t", '<C-k>', '<C-\\><C-n><C-w><C-k>', { remap = false })
+-- keymap("t", '<C-l>', '<C-\\><C-n><C-w><C-l>', { remap = false })
 
 -- go
 keymap('n', "gr", utils.go_root, { desc = "root" })

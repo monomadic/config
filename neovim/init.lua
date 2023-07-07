@@ -37,8 +37,9 @@ require 'statusline' -- bottom bar (global)
 require 'tabline'    -- top bar (global)
 require 'winbar'     -- top bar (buffer)
 require 'gutter'
+require 'menu'       -- right-click menu
 
-require 'runfile' -- .runfile support
+require 'runfile'    -- .runfile support
 require 'settings'
 require 'keymaps'
 require 'colors'

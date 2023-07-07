@@ -1,30 +1,26 @@
-local keymap = vim.keymap.set
-
 local M = {
 	buf = nil,
 }
 
 local create_float = function()
 	local buf = vim.api.nvim_create_buf(false, true) -- new buffer for the term
-	-- local selected_file = vim.fn.expand('%:p') -- the currently open filename
-	-- vim.opt_local.filetype = "float"
-	local row = 4
-	local col = 4
-	local width = vim.o.columns
-	local height = vim.o.lines - 4
-	local border = 'none'
+	local width = vim.api.nvim_get_option("columns")
+	local height = vim.api.nvim_get_option("lines")
 
 	vim.api.nvim_buf_set_option(buf, "filetype", "float")
-	vim.api.nvim_buf_set_option(buf, "buflisted", false) -- don't show in bufferlist
-	--vim.opt.buflisted = false -- don't show in bufferlist
-	vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
-		relative = 'editor',
-		row = row,
-		col = col,
-		width = width,
-		height = height,
-		border = border,
+	vim.opt.buflisted = false -- don't show in bufferlist
+	vim.opt.bufhidden = "wipe"
+
+	local win = vim.api.nvim_open_win(buf, true, { -- true here focuses the buffer
+		width = math.ceil(width * 0.8),
+		height = math.ceil(height * 0.8),
+		col = math.ceil(width * 0.1),
+		row = math.ceil(height * 0.1),
+		style = "minimal",
+		border = "single",
+		relative = "editor",
 	})
+	vim.api.nvim_win_set_option(win, "winblend", 20)
 
 	vim.wo.relativenumber = false -- turn off line numbers
 	vim.wo.number = false
@@ -33,28 +29,45 @@ local create_float = function()
 end
 
 M.show = function()
+	local width = vim.api.nvim_get_option("columns")
+	local height = vim.api.nvim_get_option("lines")
+
 	if M.buf and vim.api.nvim_buf_is_valid(M.buf) then
-		vim.api.nvim_open_win(M.buf, true, { -- true here focuses the buffer
-			relative = 'editor',
-			row = 2,
-			col = 2,
-			width = vim.o.columns,
-			height = vim.o.lines - 2,
-			border = 'none',
+		local win = vim.api.nvim_open_win(M.buf, true, { -- true here focuses the buffer
+			width = math.ceil(width * 0.8),
+			height = math.ceil(height * 0.8),
+			col = math.ceil(width * 0.1),
+			row = math.ceil(height * 0.1),
+			style = "minimal",
+			border = "single",
+			relative = "editor",
 		})
+		vim.api.nvim_win_set_option(win, "winblend", 20)
 	else
 		M.buf = create_float()
 		vim.fn.termopen(vim.o.shell) -- start terminal
 	end
 
-	-- local win = vim.api.nvim_get_current_win()
-	-- vim.api.nvim_win_set_option(win, "winblend", 20)
 	-- vim.api.nvim_win_set_buf(win, buf)
 
 	vim.cmd.startinsert() -- start in insert mode
 end
 
 M.hide = function()
+	if M.win and vim.api.nvim_win_is_valid(M.win) then
+		vim.api.nvim_win_hide(M.win)
+	end
+end
+
+M.close = function()
+	if M.win and vim.api.nvim_win_is_valid(M.win) then
+		vim.api.nvim_win_close(M.win, true)
+	end
+	if M.buf and vim.api.nvim_buf_is_valid(M.buf) then
+		vim.api.nvim_buf_delete(M.buf, { force = true })
+	end
+	M.buf = nil
+	M.win = nil
 end
 
 return M
