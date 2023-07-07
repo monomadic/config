@@ -34,9 +34,6 @@ return {
 			-- see https://github.com/neovim/nvim-lspconfig/blob/master/CONFIG.md#rust_analyzer
 			server = {
 				on_attach = function(client, bufnr)
-					--require("lsp-format").on_attach(client)
-					-- require("virtualtypes").on_attach(client, bufnr)
-
 					require("which-key").register({
 						R = {
 							name = "Run",
@@ -44,24 +41,20 @@ return {
 						}
 					}, { prefix = "<leader>" })
 
-					-- vim.keymap.set("n", "<leader>R", ":RustCodeAction<CR>", { desc = "RUST" })
-
 					vim.keymap.set("n", "crr", ":! cargo run --release<CR>", { desc = "release" })
 					vim.keymap.set("n", "crd", ":! cargo run<CR>", { desc = "debug" })
 					vim.keymap.set("n", "cri", ":! cargo install --path . <CR>", { desc = "install" })
 					vim.keymap.set("n", "crb", ":split|resize 8|terminal bacon --summary<CR>", { desc = "bacon", silent = true })
 
-					-- TODO: change to lsp handler instead of keymap
-					vim.keymap.set("n", "K", rust_tools.hover_actions.hover_actions, { buffer = bufnr, desc = "hover actions" })
+					vim.lsp.handlers["textDocument/hover"] = rust_tools.hover_actions.hover_actions
 
-					vim.keymap.set("n", "<leader>Sa", ":RustCodeAction<CR>",
-						{ buffer = bufnr, desc = " code action", remap = false })
 					vim.keymap.set("n", "<leader>a", rust_tools.code_action_group.code_action_group,
 						{ buffer = bufnr, desc = " code action" })
 					vim.keymap.set('n', '<leader>gp', rust_tools.open_cargo_toml.open_cargo_toml,
 						{ buffer = bufnr, desc = " cargo.toml", remap = false })
 					vim.keymap.set('n', '<leader>gu', rust_tools.parent_module.parent_module,
 						{ buffer = bufnr, desc = " up (parent module)" })
+
 					-- vim.keymap.set('v', '<C-j>', rust_tools.move_item.move_item(false), { buffer = bufnr }) -- down
 					-- vim.keymap.set('v', '<C-k>', rust_tools.move_item.move_item(true), { buffer = bufnr }) -- up
 					-- vim.keymap.set("n", "gi", function()
@@ -85,15 +78,11 @@ return {
 					vim.keymap.set("n", "<leader>Se", ":RustExpand<CR>", { buffer = bufnr, desc = " expand" })
 					vim.keymap.set("n", "<leader>SE", ":RustExpandMacro<CR>", { buffer = bufnr, desc = " expand macro" })
 
-					-- vim.keymap.set("n", "\\", ":RustLastRun<CR>", { buffer = bufnr, desc = " run", silent = true })
-					vim.keymap.set("n", "\\", ":RustRunnables<CR>", { buffer = bufnr, desc = " run", silent = true })
-					-- vim.keymap.set("n", "\\", ":RustDebuggables<CR>", { buffer = bufnr, desc = " run", silent = true })
-
-					-- vim.keymap.set("n", "<leader>r", "", { buffer = bufnr, desc = " rust" })
 					vim.keymap.set("n", "<leader>r", RunFile, { buffer = bufnr, desc = " run" })
 
 					require("runnables")
 					vim.keymap.set("n", "<leader>Rr", RustRunnable, { buffer = bufnr, desc = "runnables" })
+					vim.keymap.set("n", "\\", RustRunnable, { buffer = bufnr, desc = "runnables" })
 					--vim.keymap.set("n", "<leader>Rr", rust_tools.runnables.runnables, { buffer = bufnr, desc = " run" })
 					--vim.keymap.set("n", "<leader>Rr", rust_tools.runnables.runnables, { buffer = bufnr, desc = " runnables…" })
 					vim.keymap.set("n", "<leader>Rd", ":RustDebuggables<CR>", { buffer = bufnr, desc = " debuggables…" })
