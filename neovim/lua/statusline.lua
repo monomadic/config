@@ -10,6 +10,8 @@ StatusLine = function()
 		" ",
 		GitBranch(),
 		"%=",
+		vim.bo.filetype,
+		" ",
 		LSPClients(),
 	}
 end

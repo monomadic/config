@@ -27,7 +27,7 @@ return {
 			sources = {
 				null_ls.builtins.formatting.taplo, -- cargo install taplo-cli --locked
 				null_ls.builtins.formatting.prettier.with({
-					filetypes = { "html", "json", "yaml", "markdown", "graphql", "snippets" },
+					filetypes = { "html", "json", "yaml", "markdown", "vimwiki", "graphql", "snippets" },
 				}),
 				null_ls.builtins.diagnostics.jsonlint, -- brew install jsonlint
 				null_ls.builtins.hover.dictionary.with {

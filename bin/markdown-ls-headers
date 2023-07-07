@@ -30,15 +30,14 @@ def print_table_of_contents(input):
         with open(input, 'r') as file:
             lines = file.readlines()
 
-            print("Table of Contents:")
-            print("===================")
+            print("Contents\n")
 
             for line in lines:
                 heading = parse_headings(line)
                 if heading:
                     level, content = heading
-                    indent = '    ' * (level - 1)
-                    print(f"{indent}- {content}")
+                    indent = '#' * (level - 1)
+                    print(f"{indent} {content}")
 
     except FileNotFoundError:
         print(f"Error: The file '{filename}' was not found.")
