@@ -12,6 +12,9 @@ function QuickCommit()
 		return
 	end
 
+	-- add all changed files to staging
+	vim.cmd('!git add -A')
+
 	-- check if there are changes to commit
 	handle = io.popen('git diff --cached --exit-code')
 	if handle == nil then
@@ -20,24 +23,18 @@ function QuickCommit()
 	result = handle:read("*a")
 	handle:close()
 
-	if result ~= "" then
+	if result:find("changed") == nil then
 		print("There are no changes to commit.")
 		return
 	end
 
-	-- add all changed files to staging
-	vim.cmd('!git add -A')
-
 	-- prompts for a commit message
-	local message = vim.fn.input("Commit message: ")
-
-	-- check if the commit message is empty
-	if message == "" then
-		print("Empty commit message, commit cancelled")
-		return
-	end
-
-	-- creates the commit
-	vim.cmd('!git commit -m "' .. message .. '"')
-	print("Commit successful")
+	vim.ui.input({ prompt = "Commit message: ", default = "add: " }, function(message)
+		if not message then
+			return
+		end
+		-- creates the commit
+		vim.cmd('!git commit -m "' .. message .. '"')
+		print("Commit successful")
+	end)
 end

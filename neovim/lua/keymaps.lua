@@ -50,7 +50,8 @@ M.telescope = function()
 
 	-- git
 	keymap('n', "<leader>Gb", pickers.git_branches, { desc = "branches" })
-	keymap('n', "<leader>Gc", pickers.git_commits, { desc = "commits" })
+	keymap('n', "<leader>Gc", QuickCommit, { desc = "branches" })
+	keymap('n', "<leader>Gd", pickers.git_commits, { desc = "commits" })
 	keymap('n', "<leader>Gs", pickers.git_status, { desc = "status" })
 
 	-- list
