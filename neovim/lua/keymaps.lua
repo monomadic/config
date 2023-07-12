@@ -53,6 +53,7 @@ M.telescope = function()
 	keymap('n', "<leader>Gc", QuickCommit, { desc = "branches" })
 	keymap('n', "<leader>Gd", pickers.git_commits, { desc = "commits" })
 	keymap('n', "<leader>Gs", pickers.git_status, { desc = "status" })
+	keymap('n', "<leader>Gp", GitPush, { desc = "branches" })
 
 	-- list
 	keymap('n', '<leader>lf', pickers.lsp_document_functions, { desc = " function…" })

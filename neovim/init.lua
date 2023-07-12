@@ -44,7 +44,7 @@ require 'settings'
 require 'keymaps'
 require 'colors'
 require 'insert-url' -- insert markdown url
-require 'quick-commit'
+require 'git'
 
 require 'lsp'
 -- require 'autoclose'.setup({}) -- automatic close for ()[]"" etc
