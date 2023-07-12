@@ -25,7 +25,13 @@ return {
 
 		null_ls.setup {
 			sources = {
-				null_ls.builtins.formatting.taplo, -- cargo install taplo-cli --locked
+				null_ls.builtins.formatting.taplo,   -- cargo install taplo-cli --locked
+				null_ls.builtins.formatting.black.with({ -- python
+					filetypes = { "python" }
+				}),
+				null_ls.builtins.formatting.isort.with({ -- python
+					filetypes = { "python" }
+				}),
 				null_ls.builtins.formatting.prettier.with({
 					filetypes = { "html", "json", "yaml", "markdown", "vimwiki", "graphql", "snippets" },
 				}),

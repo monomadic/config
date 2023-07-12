@@ -11,6 +11,7 @@ local keymap = vim.keymap.set
 local utils = require 'utils'
 local key = utils.key
 local lf = require 'lf'
+local term = require 'term'
 local icons = require 'icons'
 local templates = require 'templates'
 
@@ -176,7 +177,7 @@ end
 -- LEADER MENU
 --
 -- actions
-keymap('n', '<leader>f', utils.format, { desc = "format" })
+-- keymap('n', '<leader>f', utils.format, { desc = "format" })
 keymap('n', "<leader>q", "<CMD>hide<CR>", { desc = "hide window" })
 keymap('n', "<leader>!", "<cmd>quit!<CR>")
 keymap('n', "<leader>a", vim.lsp.buf.code_action, { desc = "code-actions" })
@@ -201,7 +202,7 @@ keymap('n', "<C-b>", ":DrexDrawerFindFileAndFocus<CR>", { desc = "drex" })
 keymap('n', "<leader>Tl", ToggleLineNumbers, { desc = "line numbers" })
 keymap('n', "<leader>Tt", ":TransparentToggle<CR>", { desc = "tranparency" })
 
--- keymap('n', '<leader>l', lf.show, { desc = "lf" })
+keymap('n', '<leader>f', lf.show, { desc = "lf" })
 
 -- settings
 keymap('n', "<leader>,l", ToggleLineNumbers, { desc = "toggle line numbers" })
@@ -211,9 +212,10 @@ keymap('n', '<leader>,t', '<cmd>FzfLua colorschemes<cr>', { desc = "theme" })
 keymap('n', '<leader>,u', '<cmd>Lazy update<cr>', { desc = "update plugins" })
 
 -- floats
-keymap('n', '<C-Space>', require('term').show, { desc = "term", remap = false })
-keymap('n', '<C-S-Space>', require('lf').show, { desc = "term", remap = false })
-keymap('t', 'Esc', require('term').close, { desc = "", remap = false })
+keymap('n', '<C-S-Space>', term.show, { desc = "term", remap = false })
+keymap('n', '<C-,>', term.show, { desc = "term", remap = false })
+keymap('t', 'Esc', term.close, { desc = "close", remap = false })
+keymap('n', '<C-Space>', lf.show, { desc = "term", remap = false })
 -- keymap('n', '<C-Space>', lf.show, { desc = "lf", remap = false })
 keymap('t', '<C-Space>', function()
 	vim.api.nvim_win_hide(0)
@@ -266,9 +268,8 @@ keymap("i", "<C-.>", "<C-t>")
 keymap('n', "<C-.>", "i<C-t><C-f><C-f><Esc>") -- note: ctrl-f is fwd
 keymap("v", "<C-.>", "<Esc><C-t>")
 
-keymap("i", "<C-,>", "<C-d>")
-keymap('n', "<C-,>", "i<C-d><C-f><Esc>")
--- keymap("v", "<C-,>", "<Esc><C-h>")
+-- keymap("i", "<C-,>", "<C-d>")
+-- keymap('n', "<C-,>", "i<C-d><C-f><Esc>")
 
 -- keymap('n', "gr", function() vim.lsp.buf.references() end)
 

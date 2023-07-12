@@ -68,7 +68,7 @@ return {
 	{
 		"williamboman/mason-lspconfig.nvim",
 		dependencies = { "neovim/nvim-lspconfig", "williamboman/mason.nvim" },
-		ft = { "solidity", "cpp", "markdown" },
+		ft = { "solidity", "cpp", "markdown", "python" },
 
 		config = function()
 			require("mason-lspconfig").setup {
@@ -78,6 +78,9 @@ return {
 			-- require('lspconfig').sumneko_lua.setup {}
 			-- https://github.com/artempyanykh/marksman/blob/main/Tests/default.marksman.toml
 			require('lspconfig').marksman.setup {}
+
+			--require('lspconfig').pylyzer.setup {}
+			require('lspconfig').pyright.setup {}
 
 			require('lspconfig').solidity.setup {
 				-- on_attach = on_attach, -- probably you will need this.
