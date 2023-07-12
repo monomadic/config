@@ -8,6 +8,7 @@ end
 
 vim.cmd.aunmenu { 'PopUp' }
 vim.cmd.nmenu('PopUp.Rename', ':lua vim.lsp.buf.rename()<CR>')
+vim.cmd.nmenu('PopUp.Docs', ':RustOpenExternalDocs<CR>')
 vim.cmd.nmenu('PopUp.Definition', ':lua vim.lsp.buf.definition()<CR>')
 vim.cmd.nmenu('PopUp.Declaration', ':lua vim.lsp.buf.declaration()<CR>')
 vim.cmd.nmenu('PopUp.TypeDefinition', ':lua vim.lsp.buf.type_definition()<CR>')

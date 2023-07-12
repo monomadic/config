@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
 # installation:
-# pip3 install opencv-python matplotlib numpy
+# pip3 install opencv-python numpy
 
 import argparse
 
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
+from PIL import Image
 
 
 def euclidean_distance(color1, color2):
@@ -65,13 +65,7 @@ def main():
     # Process the image
     output_img = process_image(img, min_block_size, max_block_size, color_threshold)
 
-    # Convert the output image to RGB for displaying
-    output_img_rgb = cv2.cvtColor(output_img, cv2.COLOR_BGR2RGB)
-
-    # Display the output image
-    plt.imshow(output_img_rgb)
-    plt.axis("off")
-    plt.show()
+    output_img.save("processed_image.png")
 
 
 if __name__ == "__main__":

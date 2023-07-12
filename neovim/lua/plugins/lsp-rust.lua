@@ -65,6 +65,7 @@ return {
 					-- 	-- pickers.open_with_extension('*.rs')
 					-- 	require('telescope.builtin').find_files({ search_file = '*.rs' })
 					-- end, { desc = "source" })
+					vim.keymap.set('n', '<leader>d', ':RustOpenExternalDocs<CR>', { desc = "docs" })
 
 					vim.keymap.set('n', '<leader>s', ':FzfLua lsp_workspace_symbols<CR>', { desc = " symbols…" })
 
