@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 
+# installation:
+# pip3 install opencv-python matplotlib numpy
+
+import argparse
+
 import cv2
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+
 
 def euclidean_distance(color1, color2):
     """Calculate the Euclidean distance between two colors."""
     return np.sqrt(np.sum((color1 - color2) ** 2))
+
 
 def process_image(img, min_block_size, max_block_size, color_threshold):
     """Process an image by coloring blocks of similar colors with their average color."""
@@ -19,29 +26,31 @@ def process_image(img, min_block_size, max_block_size, color_threshold):
     # Iterate over the image with a step size equal to the minimum block size
     for y in range(0, height, min_block_size):
         for x in range(0, width, min_block_size):
-
             # Try different block sizes
             for block_size in range(min_block_size, max_block_size + 1):
                 # Ensure the block fits within the image
                 if y + block_size <= height and x + block_size <= width:
                     # Extract the block
-                    block = img[y:y+block_size, x:x+block_size]
+                    block = img[y : y + block_size, x : x + block_size]
 
                     # Calculate the average color of the block
                     avg_color = np.mean(block, axis=(0, 1))
 
                     # Check if each pixel in the block has a color close to the average color
-                    color_diffs = np.apply_along_axis(euclidean_distance, 2, block, avg_color)
+                    color_diffs = np.apply_along_axis(
+                        euclidean_distance, 2, block, avg_color
+                    )
 
                     # If all pixels in the block pass the color check, color the block
                     if np.all(color_diffs < color_threshold):
-                        output_img[y:y+block_size, x:x+block_size] = avg_color
+                        output_img[y : y + block_size, x : x + block_size] = avg_color
 
     return output_img
 
+
 def main():
-    parser = argparse.ArgumentParser(description='Quantize pixels')
-    parser.add_argument('input', type=str, help='image')
+    parser = argparse.ArgumentParser(description="Quantize pixels")
+    parser.add_argument("input", type=str, help="image")
 
     args = parser.parse_args()
 
@@ -61,8 +70,9 @@ def main():
 
     # Display the output image
     plt.imshow(output_img_rgb)
-    plt.axis('off')
+    plt.axis("off")
     plt.show()
+
 
 if __name__ == "__main__":
     main()
