@@ -53,7 +53,6 @@ brew "chafa" # sixel
 brew "viu" # sixel
 brew "mpv"
 brew "procs" # ps replacement (rust)
-brew "macchina" # system info
 
 brew "ouch" # general decompressor (rust)
 

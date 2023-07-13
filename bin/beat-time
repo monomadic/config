@@ -1,0 +1,21 @@
+#!/bin/sh
+
+# Time zone for Biel, Switzerland, where .beat time is defined
+Biel_TZ="Europe/Zurich"
+
+# Get current time in Biel in HH:MM:SS format
+Biel_time=$(TZ=$Biel_TZ date +%T)
+
+# Extract hours, minutes, and seconds
+hours=$(echo $Biel_time | cut -d: -f1)
+minutes=$(echo $Biel_time | cut -d: -f2)
+seconds=$(echo $Biel_time | cut -d: -f3)
+
+# Calculate the number of seconds since midnight
+seconds_since_midnight=$((10#$hours*3600 + 10#$minutes*60 + 10#$seconds))
+
+# Calculate .beats, where each .beat is 86.4 seconds
+beats=$(echo "scale=2; $seconds_since_midnight / 86.4" | bc)
+
+# Print .beats with leading zeros
+printf '@%04.2f\n' $beats
