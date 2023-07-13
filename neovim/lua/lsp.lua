@@ -1,17 +1,13 @@
--- local function custom_codeAction_callback(_, _, action)
--- 	print("attaching custom...")
--- 	print(vim.inspect(action))
--- end
 --
--- vim.lsp.handlers['textDocument/codeAction'] = custom_codeAction_callback
+-- LSP
 --
-
 vim.api.nvim_create_autocmd('LspAttach', {
 	callback = function(args)
 		local client = vim.lsp.get_client_by_id(args.data.client_id)
 		local keymap = vim.keymap.set
 
-		--
+		-- print(vim.inspect(client.server_capabilities))
+
 		-- hoverProvider
 		if client.server_capabilities.hoverProvider then
 			vim.keymap.set('n', 'K', vim.lsp.buf.hover, { buffer = args.buf })
@@ -26,15 +22,16 @@ vim.api.nvim_create_autocmd('LspAttach', {
 			)
 		end
 
+		-- codeActionProvider
 		if client.server_capabilities.codeActionProvider then
-			vim.keymap.set('n', '<leader>La', vim.lsp.buf.code_action, { desc = "code_action" })
+			vim.keymap.set('n', '<leader>La', vim.lsp.buf.code_action, { desc = "code action" })
 		end
 
 		keymap('n', '<leader>Lr', vim.lsp.buf.references, { desc = "references" })
 		keymap('n', '<leader>Li', vim.lsp.buf.implementation, { desc = "implementation" })
 		keymap('n', "<leader>Ld", vim.lsp.buf.definition, { desc = "definition" })
 		keymap('n', "<leader>LD", vim.lsp.buf.declaration, { desc = "declaration" })
-		keymap('n', '<leader>Ls', vim.lsp.buf.workspace_symbol, { desc = "workspace_symbol" })
+		keymap('n', '<leader>Ls', vim.lsp.buf.workspace_symbol, { desc = "workspace symbol" })
 
 		keymap('n', "gd", vim.lsp.buf.definition, { desc = "definition" })
 		keymap('n', "<Enter>", vim.lsp.buf.definition, { desc = "definition" })

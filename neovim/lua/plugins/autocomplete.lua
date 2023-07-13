@@ -5,6 +5,7 @@ return {
 		'dcampos/nvim-snippy', -- snipmate and lsp snippets
 		'dcampos/cmp-snippy', -- cmp support for snippy
 		'hrsh7th/cmp-nvim-lsp', -- cmp support for LSP (needed?)
+		'onsails/lspkind.nvim', -- icons for lsp
 	},
 
 	config = function()
@@ -32,16 +33,43 @@ return {
 
 		local cmp = require('cmp')
 		cmp.setup {
+			--view = 'native',
 			sources = {
 				{ name = 'snippy' },
 				{ name = 'nvim_lsp' },
 			},
 			preselect = cmp.PreselectMode.None,
+
 			snippet = {
 				expand = function(args)
-					require 'snippy'.expand_snippet(args.body)
+					snippy.expand_snippet(args.body)
 				end,
 			},
+
+			formatting = {
+				format = function(entry, vim_item)
+					if vim.tbl_contains({ 'path' }, entry.source.name) then
+						local icon, hl_group = require('nvim-web-devicons').get_icon(entry:get_completion_item().label)
+						if icon then
+							vim_item.kind = icon
+							vim_item.kind_hl_group = hl_group
+							return vim_item
+						end
+					end
+					return require('lspkind').cmp_format({
+						with_text = true,
+						-- mode = "symbol_text",
+						-- menu = ({
+						-- 	buffer = "Buffer",
+						-- 	nvim_lsp = "LSP",
+						-- 	luasnip = "LuaSnip",
+						-- 	nvim_lua = "Lua",
+						-- 	latex_symbols = "Latex",
+						-- })
+					})(entry, vim_item)
+				end
+			},
+
 			mapping = cmp.mapping.preset.insert {
 				['<CR>'] = cmp.mapping.confirm({
 					behavior = cmp.ConfirmBehavior.Replace,
@@ -76,14 +104,6 @@ return {
 					end
 				end, { "i", "s" }),
 
-				-- ['<Tab>'] = function(fallback)
-				-- 	if cmp.visible() then
-				-- 		cmp.select_next_item()
-				-- 	else
-				-- 		fallback()
-				-- 	end
-				-- end,
-
 				['<C-p>'] = function(fallback)
 					if cmp.visible() then
 						cmp.select_prev_item()
@@ -91,14 +111,6 @@ return {
 						fallback()
 					end
 				end,
-
-				-- ['<S-Tab>'] = function(fallback)
-				-- 	if cmp.visible() then
-				-- 		cmp.select_prev_item()
-				-- 	else
-				-- 		fallback()
-				-- 	end
-				-- end,
 			},
 		}
 	end

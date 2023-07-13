@@ -23,6 +23,7 @@
 -- lua byte-compiler
 vim.loader.enable()
 
+require 'colors'
 require 'utils'
 
 Utils = require 'utils'

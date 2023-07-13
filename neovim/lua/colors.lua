@@ -1,8 +1,6 @@
 -- COLORS
 -- https://ofstack.com/Linux/25280/vim-custom-highlighted-groups-and-some-practical-tips.html
 
--- local TAB_BG = "#323246"
-
 local M = {}
 local autocmd = vim.api.nvim_create_autocmd
 local hl = vim.api.nvim_set_hl
@@ -32,10 +30,10 @@ autocmd({ "ColorScheme", "VimEnter" },
 		pattern = "*",
 		callback = function()
 			local document_grey = "#1E1D3D";
-			local dark_grey = "#111122";
 			local light_grey = "#323246";
 			local TITLEBAR_BG = "#1E1D3D"
 
+			-- local TAB_BG = "#323246"
 			-- local title_bar = { bg = dark_grey };
 			-- local tabs = { fg = "white", bg = dark_grey };
 			-- local tabs_bg = { bg = document_grey };

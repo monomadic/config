@@ -128,16 +128,6 @@ vim.api.nvim_create_autocmd("FileType", {
 	pattern = "markdown",
 	callback = function()
 		vim.opt.autowriteall = true -- ensure write upon leaving a page
-		vim.opt.wrap = true      -- display lines as one long line
-	end
-})
-
--- build command
-vim.api.nvim_create_autocmd("FileType", {
-	pattern = "solidity",
-	callback = function()
-		-- vim.keymap.set("n", "<C-b>", function()
-		-- 	vim.cmd ':split|terminal forge build'
-		-- end)
+		vim.opt.wrap = true       -- display lines as one long line
 	end
 })
