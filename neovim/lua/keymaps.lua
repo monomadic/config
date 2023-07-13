@@ -73,6 +73,7 @@ M.telescope = function()
 	keymap('n', "<leader>Ot", pickers.open_test, { desc = "test" })
 	keymap('n', "<leader>Ow", pickers.wiki_open_page, { desc = "wiki page" })
 	keymap('n', "<leader>OO", pickers.open_same_filetype, { desc = "same filetype" })
+
 	keymap('n', "<leader>Os", function()
 		require('telescope.builtin').find_files({ cwd = "~/.config/nvim/snippets/", follow = true })
 	end, { desc = "snippet" })
@@ -348,39 +349,5 @@ map('v', '<leader>C', ':CamelCase<CR>')
 map('v', '<leader>c', ':Capitalize<CR>')
 
 map('n', '<leader>?', ":Telescope help_tags<CR>", { desc = "help" })
-
--- lsp
-vim.api.nvim_create_autocmd("LspAttach", {
-	callback = function()
-		-- if not (args.data and args.data.client_id) then
-		-- 	return
-		-- end
-		--
-		-- local bufnr = args.buf
-		-- local client = vim.lsp.get_client_by_id(args.data.client_id)
-		-- require("lsp-inlayhints").on_attach(client, bufnr)
-		keymap('n', '<leader>Dd', '<Cmd>FzfLua diagnostics_document<cr>', { desc = "diagnostics" })
-
-		-- next/prev: [ and ]
-
-		-- map('n', ']d', vim.diagnostic.goto_next, { desc = "Next diagnostic" })
-		-- map('n', '[d', vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })
-	end
-})
-
-
-
--- rust
--- vim.api.nvim_create_autocmd("FileType", { pattern = "rust", callback = function()
--- end })
-
--- lua
-vim.api.nvim_create_autocmd("FileType", {
-	pattern = "lua",
-	callback = function()
-		map('n', "<C-r>", ":source %<CR>", { desc = "run" })
-		map('n', "<leader>Rr", ":source %<CR>", { desc = "run" })
-	end
-})
 
 return M
