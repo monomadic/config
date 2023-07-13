@@ -49,6 +49,7 @@ M.telescope = function()
 	keymap('n', '<leader>Fr', vim.lsp.buf.rename, { desc = "rename" })
 
 	-- git
+	keymap('n', "<leader>Ga", AutoCommit, { desc = "autocommit" })
 	keymap('n', "<leader>Gb", builtin.buffers, { desc = "buffer" })
 	keymap('n', "<leader>Gc", QuickCommit, { desc = "branches" })
 	keymap('n', "<leader>Gd", pickers.git_commits, { desc = "commits" })

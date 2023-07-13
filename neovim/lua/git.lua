@@ -24,7 +24,7 @@ function GitPush()
 	open_floating_terminal_with_command("git push")
 end
 
-function AiCommit()
+function AutoCommit()
 	local handle = io.popen('git rev-parse --is-inside-work-tree')
 	if handle == nil then
 		return
