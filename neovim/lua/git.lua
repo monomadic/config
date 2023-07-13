@@ -20,10 +20,6 @@ local function open_floating_terminal_with_command(command)
 	vim.cmd("terminal " .. command)
 end
 
-function GitPush()
-	open_floating_terminal_with_command("git push")
-end
-
 function AutoCommit()
 	local handle = io.popen('git rev-parse --is-inside-work-tree')
 	if handle == nil then
@@ -38,18 +34,21 @@ function AutoCommit()
 		return
 	end
 
-	-- add all changed files to staging
-	vim.fn.system('git add -A')
+	-- Add all changes to the staging area
+	os.execute('git add -A >/dev/null 2>&1')
 
-	-- check if there are changes to commit
-	local exit_code = os.execute('git diff --cached --exit-code')
-
-	if exit_code == 0 then
+	-- Check if there are changes to commit
+	local exit_code_diff = os.execute('git diff --cached --exit-code >/dev/null 2>&1')
+	if exit_code_diff == 0 then
 		print("There are no changes to commit.")
 		return
 	end
 
 	open_floating_terminal_with_command("aicommits")
+end
+
+function GitPush()
+	open_floating_terminal_with_command("git push")
 end
 
 function QuickCommit()
@@ -66,18 +65,12 @@ function QuickCommit()
 		return
 	end
 
-	-- add all changed files to staging
-	vim.fn.system('!git add -A')
+	-- Add all changes to the staging area
+	os.execute('git add -A >/dev/null 2>&1')
 
-	-- check if there are changes to commit
-	handle = io.popen('git diff --cached --exit-code')
-	if handle == nil then
-		return
-	end
-	result = handle:read("*a")
-	handle:close()
-
-	if result:find("changed") == nil then
+	-- Check if there are changes to commit
+	local exit_code_diff = os.execute('git diff --cached --exit-code >/dev/null 2>&1')
+	if exit_code_diff == 0 then
 		print("There are no changes to commit.")
 		return
 	end
@@ -87,8 +80,6 @@ function QuickCommit()
 		if not message then
 			return
 		end
-		-- creates the commit
-		vim.cmd('!git commit -m "' .. message .. '"')
-		print("Commit successful")
+		open_floating_terminal_with_command('git commit -m "' .. message .. '" && git push')
 	end)
 end
