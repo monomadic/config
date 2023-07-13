@@ -49,9 +49,10 @@ M.telescope = function()
 	keymap('n', '<leader>Fr', vim.lsp.buf.rename, { desc = "rename" })
 
 	-- git
-	keymap('n', "<leader>Gb", pickers.git_branches, { desc = "branches" })
+	keymap('n', "<leader>Gb", builtin.buffers, { desc = "buffer" })
 	keymap('n', "<leader>Gc", QuickCommit, { desc = "branches" })
 	keymap('n', "<leader>Gd", pickers.git_commits, { desc = "commits" })
+	keymap('n', "<leader>Gh", builtin.oldfiles, { desc = "history" })
 	keymap('n', "<leader>Gs", pickers.git_status, { desc = "status" })
 	keymap('n', "<leader>Gp", GitPush, { desc = "branches" })
 
@@ -326,14 +327,12 @@ keymap('n', "<leader>gs", function()
 end, { desc = "snippet" })
 
 -- list
-keymap('n', '<leader>lc', '<cmd>FzfLua colorschemes<cr>', { desc = "colorschemes" })
-keymap('n', '<leader>lC', '<cmd>Telescope commands<cr>', { desc = "commands (telescope)" })
---keymap('n', '<leader>lh', '<cmd>Telescope command_history<cr>', { desc = "command history (telescope)" })
---keymap('n', '<leader>lf', '<cmd>Telescope filetypes<cr>', { desc = "filetypes…" })
-keymap('n', '<leader>lh', '<cmd>Telescope highlights<cr>', { desc = "highlights" })
-keymap('n', '<leader>lm', '<cmd>Telescope marks<cr>', { desc = "marks…" })
-keymap('n', '<leader>lr', '<cmd>Telescope oldfiles<cr>', { desc = "recent files" })
-keymap('n', '<leader>lt', '<cmd>TodoTelescope<cr>', { desc = "todos…" })
+keymap('n', '<leader>lc', '<cmd>Telescope highlights<cr>', { desc = "colors" })
+keymap('n', '<leader>lC', '<cmd>FzfLua colorschemes<cr>', { desc = "colorschemes" })
+--keymap('n', '<leader>lC', '<cmd>Telescope commands<cr>', { desc = "commands (telescope)" })
+keymap('n', '<leader>lm', '<cmd>Telescope marks<cr>', { desc = "marks" })
+keymap('n', '<leader>lh', '<cmd>Telescope oldfiles<cr>', { desc = "history" })
+keymap('n', '<leader>lt', '<cmd>TodoTelescope<cr>', { desc = "todos" })
 
 -- symbol
 keymap('n', '<leader>Ss', '<cmd>Telescope spell_suggest<cr>', { desc = "spelling" })
