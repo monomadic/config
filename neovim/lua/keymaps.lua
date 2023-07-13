@@ -99,10 +99,10 @@ M.telescope = function()
 	-- keymap('n', "<leader>gT", pickers.open_template, { desc = "template" })
 	-- keymap('n', "<leader>gw", pickers.wiki_open_page, { desc = "wiki page" })
 	keymap('n', "gw", pickers.wiki_open_page, { desc = "wiki page" })
-	keymap('n', "<Enter>", builtin.lsp_definitions, { desc = "definitions" })
 	keymap('n', "gd", builtin.lsp_definitions)
 
-	keymap('n', "gD", function()
+	keymap('n', "<Enter>", vim.lsp.buf.definition, { desc = "definition" })
+	keymap('n', "<S-Enter>", function()
 		builtin.lsp_definitions {
 			jump_type = "vsplit"
 		}

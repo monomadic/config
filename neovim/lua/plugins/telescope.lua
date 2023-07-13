@@ -71,6 +71,7 @@ return {
 		local telescope = require('telescope.builtin')
 		vim.lsp.handlers["textDocument/implementation"] = telescope.lsp_implementations
 		vim.lsp.handlers["workspace/symbol"] = telescope.lsp_workspace_symbols
+		vim.lsp.handlers["textDocument/definition"] = require 'telescope.builtin'.lsp_definitions
 
 		vim.api.nvim_create_autocmd('LspAttach', {
 			callback = function(args)
