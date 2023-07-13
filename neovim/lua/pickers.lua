@@ -17,7 +17,7 @@ M.open_files = function()
 	}
 end
 
-M.open_same_filetype = function()
+function M.open_same_filetype()
 	builtin.find_files {
 		path_display = { "truncate" },
 		search_file = string.format("*.%s", vim.bo.filetype),
@@ -49,7 +49,7 @@ M.open_config_file = function()
 	utils.select_file_at(vim.g.neovim_config_directory)
 end
 
-M.git_commits = function()
+function M.git_commits()
 	builtin.git_commits()
 end
 
@@ -127,7 +127,5 @@ M.insert_template = function()
 		end
 	}:find()
 end
-
--- M.insert_template()
 
 return M
