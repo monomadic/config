@@ -49,6 +49,7 @@ M.telescope = function()
 	keymap('n', '<leader>Fr', vim.lsp.buf.rename, { desc = "rename" })
 
 	-- git
+<<<<<<< HEAD
 	keymap('n', "<leader>ga", AutoCommit, { desc = "autocommit" })
 	keymap('n', "<leader>gb", builtin.buffers, { desc = "buffer" })
 	keymap('n', "<leader>gc", QuickCommit, { desc = "branches" })
@@ -56,6 +57,23 @@ M.telescope = function()
 	keymap('n', "<leader>gh", builtin.oldfiles, { desc = "history" })
 	keymap('n', "<leader>gs", pickers.git_status, { desc = "status" })
 	keymap('n', "<leader>gp", GitPush, { desc = "branches" })
+||||||| parent of 7f66d69 (Change git branch keymap to git branch picker)
+	keymap('n', "<leader>Ga", AutoCommit, { desc = "autocommit" })
+	keymap('n', "<leader>Gb", builtin.buffers, { desc = "buffer" })
+	keymap('n', "<leader>Gc", QuickCommit, { desc = "branches" })
+	keymap('n', "<leader>Gd", pickers.git_commits, { desc = "commits" })
+	keymap('n', "<leader>Gh", builtin.oldfiles, { desc = "history" })
+	keymap('n', "<leader>Gs", pickers.git_status, { desc = "status" })
+	keymap('n', "<leader>Gp", GitPush, { desc = "branches" })
+=======
+	keymap('n', "<leader>Ga", AutoCommit, { desc = "autocommit" })
+	keymap('n', "<leader>Gb", pickers.git_branches, { desc = "branches" })
+	keymap('n', "<leader>Gc", QuickCommit, { desc = "branches" })
+	keymap('n', "<leader>Gl", pickers.git_commits, { desc = "log" })
+	keymap('n', "<leader>Gh", builtin.oldfiles, { desc = "history" })
+	keymap('n', "<leader>Gp", GitPush, { desc = "branches" })
+	keymap('n', "<leader>Gs", pickers.git_status, { desc = "status" })
+>>>>>>> 7f66d69 (Change git branch keymap to git branch picker)
 
 	-- list
 	keymap('n', '<leader>lf', pickers.lsp_document_functions, { desc = " function…" })
@@ -187,9 +205,6 @@ keymap('n', "<leader>!", "<cmd>quit!<CR>")
 keymap('n', "<leader>a", vim.lsp.buf.code_action, { desc = "code-actions" })
 --
 -- git
-keymap('n', "<leader>Gb", ":Telescope git_branches<CR>", { desc = "branches" })
-keymap('n', "<leader>Gc", ":Telescope git_commits<CR>", { desc = "commits" })
-keymap('n', "<leader>Gs", ":Telescope git_status<CR>", { desc = "status" })
 --
 -- run
 map('n', "<leader>r", RunFile, { desc = "run" })

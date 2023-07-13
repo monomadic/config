@@ -19,7 +19,7 @@ function _G.RustRunnable()
 	---@return string|table args
 	---@return any cwd
 	local function get_command(c, results)
-		local ret = " "
+		local ret = {}
 		local args = results[c].args
 
 		local dir = args.workspaceRoot
