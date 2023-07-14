@@ -3,6 +3,11 @@
 --
 vim.api.nvim_create_autocmd('LspAttach', {
 	callback = function(args)
+		if not (args.data and args.data.client_id) then
+			return
+		end
+
+		-- local bufnr = args.buf
 		local client = vim.lsp.get_client_by_id(args.data.client_id)
 		local keymap = vim.keymap.set
 

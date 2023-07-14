@@ -1,4 +1,3 @@
--- AUTOCMDS
 local autocmd = vim.api.nvim_create_autocmd
 
 -- on document write
@@ -30,16 +29,9 @@ autocmd("TermEnter",
 		end
 	})
 
--- dont list quickfix buffers
+-- don't list certain types of buffers (quickfix, drex)
 autocmd("FileType", {
-	pattern = "qf",
-	callback = function()
-		vim.opt_local.buflisted = false
-	end
-})
-
-autocmd("FileType", {
-	pattern = "drex",
+	pattern = "qf,drex",
 	callback = function()
 		vim.opt_local.buflisted = false
 	end
@@ -77,7 +69,7 @@ end
 
 vim.api.nvim_create_autocmd({ "FileType", "BufEnter", "FocusGained", "VimEnter" }, {
 	callback = function()
-		vim.b.branch_name = vim.fn.system("git branch --show-current 2> /dev/null | tr -d '\n'")
+		vim.b.branch_name = branch_name()
 	end
 })
 
@@ -106,22 +98,6 @@ vim.api.nvim_create_autocmd("WinEnter", {
 		vim.o.cursorline = true
 	end
 })
-
-vim.api.nvim_create_autocmd("LspAttach", {
-	callback = function(args)
-		if not (args.data and args.data.client_id) then
-			return
-		end
-
-		local bufnr = args.buf
-		local client = vim.lsp.get_client_by_id(args.data.client_id)
-		-- require("lsp-inlayhints").on_attach(client, bufnr)
-	end
-})
-
--- vim.api.nvim_create_autocmd("BufWinEnter", { pattern = "*", callback = function()
--- 	vim.o.wbr = vim.fn.fnamemodify(vim.fn.expand("%"), ":.") -- project directory
--- end })
 
 -- markdown
 vim.api.nvim_create_autocmd("FileType", {

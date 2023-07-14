@@ -2,9 +2,13 @@ snippet #!
 	#!/usr/bin/env python3
 
 snippet argparser
-    parser = argparse.ArgumentParser(description="Quantize pixels")
-    parser.add_argument("input", type=str, help="image")
+	import argparse
 
-    args = parser.parse_args()
+	def main(args):
+			print(f"Hello, {args.name}!")
 
-    process_image(args.input)
+	if __name__ == "__main__":
+			parser = argparse.ArgumentParser(description='My CLI utility')
+			parser.add_argument('-n', '--name', type=str, default="World", help='Name to greet')
+			args = parser.parse_args()
+			main(args)
