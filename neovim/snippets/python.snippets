@@ -1,0 +1,10 @@
+snippet #!
+	#!/usr/bin/env python3
+
+snippet argparser
+    parser = argparse.ArgumentParser(description="Quantize pixels")
+    parser.add_argument("input", type=str, help="image")
+
+    args = parser.parse_args()
+
+    process_image(args.input)

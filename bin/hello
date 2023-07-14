@@ -4,25 +4,33 @@
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+BG_BLUE='\033[34;0m'
 PURPLE='\033[0;35m'
 GRAY='\033[1;30m'
 NC='\033[0m'
+BG_PINK='\033[41;37m'
+PINK='\033[0;31m'
+BLACK='\033[0;30m'
 
-# Get disk space for root directory in a human-readable format (GB) and get the second line of output
-df_output=$(df -h / | sed -n '2p')
+ICON_COLOR=$BLUE
 
-# Parse disk space from the output string. Adjust according to your df version output. Here we're getting the 4th field which is typically the available space.
-disk_space=$(echo $df_output | awk '{print $4}')
+# TRUE C0LORS \033[38;2;R;G;Bm
+#CC88FF
+BG_TRUE_PURPLE="\033[48;2;204;136;255;37m"
+BG_TRUE_MID_PURPLE="\033[48;2;180;126;245;37m"
+TRUE_MID_PURPLE="\033[38;2;204;136;255m"
 
-# # Get uptime in seconds
-# uptime_seconds=$(cat /proc/uptime | awk '{print $1}')
-#
-# # Calculate days, hours, minutes and seconds
-# uptime_days=$(echo "$uptime_seconds / 60 / 60 / 24" | bc)
-# uptime_hours=$(echo "($uptime_seconds / 60 / 60) % 24" | bc)
+disk_space() {
+	# Get disk space for root directory in a human-readable format (GB) and get the second line of output
+	df_output=$(df -h / | sed -n '2p')
 
-# Function to convert uptime command output to 'X day(s), Y hour(s)' format
-format_uptime() {
+	# Parse disk space from the output string. Adjust according to your df version output. Here we're getting the 4th field which is typically the available space.
+	disk_space=$(echo $df_output | awk '{print $4}')
+
+	echo $disk_space
+}
+
+print_uptime() {
     # Get uptime
     uptime_str=$(uptime)
 
@@ -33,10 +41,10 @@ format_uptime() {
         uptime_time=$(echo $uptime_str | awk -F'up ' '{print $2}' | awk '{print $3}')
 
         if [[ $uptime_time == *"mins"* ]]; then
-            uptime_formatted="${uptime_days}d, $uptime_time"
+            uptime_formatted="${uptime_days}d $uptime_time"
         else
             uptime_hours=$(echo $uptime_time | awk -F':' '{print $1}')
-            uptime_mins=$(echo $uptime_time | awk -F':' '{print $2}')
+						uptime_mins=$(echo $uptime_time | awk -F':' '{print $2}' | tr -d ',')
 						uptime_formatted="${uptime_days}d ${uptime_hours}h"
         fi
 
@@ -48,12 +56,12 @@ format_uptime() {
             uptime_formatted="$uptime_time"
         else
             uptime_hours=$(echo $uptime_time | awk -F':' '{print $1}')
-            uptime_mins=$(echo $uptime_time | awk -F':' '{print $2}')
+						uptime_mins=$(echo $uptime_time | awk -F':' '{print $2}' | tr -d ',')
             uptime_formatted="${uptime_hours}h ${uptime_mins}m"
         fi
     fi
 
-    echo "$uptime_formatted"
+		echo "${uptime_formatted}"
 }
 
 beat_time() {
@@ -78,25 +86,36 @@ beat_time() {
 	printf '@%04.2f\n' $beats
 }
 
-# Get total physical memory (in bytes)
-total_memory=$(sysctl -n hw.memsize)
+battery() {
+	battery_info=`pmset -g batt`
+	battery_percentage=`echo $battery_info | egrep "([0-9]+\%).*" -o --colour=auto | cut -f1 -d'%'`
+	echo $battery_percentage%
+}
 
-# Get available physical memory (in bytes)
-phys_memory=$(sysctl -n hw.physmem)
+memory() {
+	# Get total physical memory (in bytes)
+	total_memory=$(sysctl -n hw.memsize)
 
-# Get free memory (in bytes)
-free_memory=$(sysctl -n hw.usermem)
+	# Get available physical memory (in bytes)
+	phys_memory=$(sysctl -n hw.physmem)
 
-# Calculate used memory (in bytes)
-used_memory=$(($total_memory + $free_memory))
+	# Get free memory (in bytes)
+	free_memory=$(sysctl -n hw.usermem)
 
-# Convert bytes to GB
-total_memory_gb=$(echo "scale=2; $total_memory/(1024*1024*1024)" | bc)
-phys_memory_gb=$(echo "scale=2; $phys_memory/(1024*1024*1024)" | bc)
-free_memory_gb=$(echo "scale=2; $free_memory/(1024*1024*1024)" | bc)
-used_memory_gb=$(echo "scale=2; $used_memory/(1024*1024*1024)" | bc)
+	# Calculate used memory (in bytes)
+	used_memory=$(($total_memory + $free_memory))
 
-echo "${BLUE}${NC} $disk_space    ${BLUE}󱄄 ${NC} $(format_uptime)${NC} ${BLUE}   󰍛${NC} ${used_memory_gb}Gb"
+	# Convert bytes to GB
+	total_memory_gb=$(echo "scale=2; $total_memory/(1024*1024*1024)" | bc)
+	phys_memory_gb=$(echo "scale=2; $phys_memory/(1024*1024*1024)" | bc)
+	free_memory_gb=$(echo "scale=2; $free_memory/(1024*1024*1024)" | bc)
+	used_memory_gb=$(echo "scale=2; $used_memory/(1024*1024*1024)" | bc)
+
+	echo "${BLUE}󰍛${NC} ${used_memory_gb}Gb"
+}
+
+# 󰍹
+echo "${ICON_COLOR}${NC} $(disk_space)    ${ICON_COLOR}󱄄${NC}  $(print_uptime)    ${ICON_COLOR}󱊣${NC} $(battery)   ${NC}"
 #echo
 #echo "${BLUE}$(date "+%I:%M%p")  $(beat_time)${NC}"
 echo
