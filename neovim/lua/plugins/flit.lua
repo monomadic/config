@@ -5,6 +5,7 @@
 -- press f/F/enter again to jump next
 return {
 	'ggandor/flit.nvim',
+	enabled = false,
 	config = function()
 		require('flit').setup {
 			keys = { f = 'f', F = 'F', t = 't', T = 'T' },
