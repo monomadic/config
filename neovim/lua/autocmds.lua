@@ -105,5 +105,7 @@ vim.api.nvim_create_autocmd("FileType", {
 	callback = function()
 		vim.opt.autowriteall = true -- ensure write upon leaving a page
 		vim.opt.wrap = true       -- display lines as one long line
+		local md = require 'md-headers'
+		vim.keymap.set("n", "\\", md.markdown_headers, { desc = "headings" })
 	end
 })

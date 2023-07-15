@@ -1,23 +1,20 @@
-# Config
+# Dotfiles
 
-## Installing
+## MacOS (Apple Silicon)
 
-``` bash
-# install dotter
-wget https://github.com/SuperCuber/dotter/releases/download/v0.12.13/dotter
+```bash
+# install dependencies
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew bundle
 
-# or install rustup and compile it
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-cargo install dotter
-
-# install config
+# link configuration
 ln -s .dotter/nixos.toml.example .dotter/local.toml
 dotter deploy
 ```
 
 ## NixOS
 
-``` bash
+```bash
 sudo ln -s $PWD/nixos/configuration.nix /etc/nixos/configuration.nix
 sudo nixos-rebuild switch
 ```
