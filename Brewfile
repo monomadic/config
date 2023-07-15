@@ -32,6 +32,7 @@ brew "ncdu"
 brew "fzf" # fuzzy filter (go)
 brew "sk" # fuzzy filter (rust)
 brew "jq" # json tool
+brew "bottom" # htop / sysperf monitor
 
 # brew "degit" # git cloner (note: not on brew)
 

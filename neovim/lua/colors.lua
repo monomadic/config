@@ -72,6 +72,9 @@ autocmd({ "ColorScheme", "VimEnter" },
 			hl(0, "WinBar", tabs_bg)
 			hl(0, "WinBarFileName", tabs)
 
+			hl(0, "FidgetTitle", { fg = "#00FF00" })
+			hl(0, "FidgetTask", { fg = "#CC00FF" })
+
 			-- #CCFF00
 			-- #FFFF00
 			-- #CC88FF
