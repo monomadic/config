@@ -48,16 +48,25 @@ print_uptime() {
 						uptime_formatted="${uptime_days}d ${uptime_hours}h"
         fi
 
-    else
+    elif [[ $uptime_str == *"hour"* ]]; then
         # Extract uptime
         uptime_time=$(echo $uptime_str | awk -F'up ' '{print $2}' | awk '{print $1}')
-
         if [[ $uptime_time == *"mins"* ]]; then
             uptime_formatted="$uptime_time"
         else
             uptime_hours=$(echo $uptime_time | awk -F':' '{print $1}')
 						uptime_mins=$(echo $uptime_time | awk -F':' '{print $2}' | tr -d ',')
             uptime_formatted="${uptime_hours}h ${uptime_mins}m"
+        fi
+
+		else
+        # Extract uptime
+        uptime_time=$(echo $uptime_str | awk -F'up ' '{print $2}' | awk '{print $1}')
+        if [[ $uptime_time == *"mins"* ]]; then
+            uptime_formatted="$uptime_time"
+        else
+            uptime_mins=$(echo $uptime_time | awk -F':' '{print $1}')
+            uptime_formatted="${uptime_mins}m"
         fi
     fi
 
