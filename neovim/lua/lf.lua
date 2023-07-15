@@ -27,7 +27,7 @@ M.show = function()
 			fileManagerTmpDir .. '" -selection-path="' .. fileManagerTmpFile .. '" '
 
 	if selected_file ~= "" then
-		process_cmd = process_cmd .. '"' .. vim.fn.shellescape(selected_file) .. '"'
+		process_cmd = process_cmd .. '"' .. selected_file .. '"'
 	end
 
 	local win = vim.api.nvim_get_current_win()
