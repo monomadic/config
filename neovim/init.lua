@@ -13,6 +13,7 @@
 --			https://github.com/NormalNvim/NormalNvim
 --
 --  TODO:
+--  - https://github.com/nvimdev/guard.nvim to replace null-ls
 --  - https://github.com/ldelossa/litee-symboltree.nvim
 --  - https://github.com/MunifTanjim/nui.nvim - menus etc
 --  - format-on-save

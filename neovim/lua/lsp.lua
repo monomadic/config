@@ -32,6 +32,19 @@ vim.api.nvim_create_autocmd('LspAttach', {
 			vim.keymap.set('n', '<leader>La', vim.lsp.buf.code_action, { desc = "code action" })
 		end
 
+		vim.keymap.set('n', ']d', vim.diagnostic.goto_next, { desc = "Next diagnostic" })
+		vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })
+		vim.keymap.set('n', ']e', function()
+			vim.diagnostic.goto_next {
+				severity = vim.diagnostic.severity.ERROR
+			}
+		end, { desc = "Next error" })
+		vim.keymap.set('n', '[e', function()
+			vim.diagnostic.goto_prev {
+				severity = vim.diagnostic.severity.ERROR
+			}
+		end, { desc = "Next error" })
+
 		keymap('n', '<leader>Lr', vim.lsp.buf.references, { desc = "references" })
 		keymap('n', '<leader>Li', vim.lsp.buf.implementation, { desc = "implementation" })
 		keymap('n', "<leader>Ld", vim.lsp.buf.definition, { desc = "definition" })

@@ -15,7 +15,7 @@ HEADERS = {"User-Agent": UA}
 def download_file_cf(url, filename):
     scraper = cloudscraper.create_scraper()
     response = scraper.get(url, headers=HEADERS)
-    response.raise_for_status()
+    # response.raise_for_status()
     with open(filename, "wb") as file:
         for chunk in response.iter_content(chunk_size=8192):
             file.write(chunk)
