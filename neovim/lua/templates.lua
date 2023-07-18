@@ -40,7 +40,7 @@ M.new_file_from_template = function()
 
 	local function get_files_recursive(directory)
 		local files = {}
-		local p = io.popen('fd --type symlink . "' .. directory .. '"')
+		local p = io.popen('fd --type symlink --type file . "' .. directory .. '"')
 		if p then
 			for entry in p:lines() do
 				local relative_path = entry
@@ -80,9 +80,7 @@ M.new_file_from_template = function()
 		},
 
 		sorter = sorters.get_generic_fuzzy_sorter(),
-		-- sorter = sorters.Sorter:new {
-		-- 	scoring_function = custom_sorter(filetype)
-		-- },
+
 		previewer = require 'telescope.previewers'.vim_buffer_cat.new({}),
 
 		attach_mappings = function(bufnr, map)

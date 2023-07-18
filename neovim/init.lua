@@ -34,24 +34,23 @@ TreeSitter = require 'treesitter'
 require 'autocmds'
 
 -- ui
-require 'text'
+require 'text'       -- text manipulation
 require 'statusline' -- bottom bar (global)
 require 'tabline'    -- top bar (global)
 require 'winbar'     -- top bar (buffer)
-require 'gutter'
+require 'gutter'     -- git gutter
 require 'menu'       -- right-click menu
 
 require 'runfile'    -- .runfile support
 require 'settings'
 require 'keymaps'
-require 'colors'
 require 'insert-url' -- insert markdown url
 require 'git'
 
+require 'bootstrap-lazy'
+
 require 'lsp'
 -- require 'autoclose'.setup({}) -- automatic close for ()[]"" etc
-
-require 'bootstrap-lazy'
 
 -- treesitter
 require 'ts.ts-jump'
