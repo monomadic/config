@@ -1,6 +1,7 @@
-#!/usr/bin/env python3
+#!python3
 
 import argparse
+
 
 def parse_headings(line):
     """
@@ -22,12 +23,13 @@ def parse_headings(line):
     else:
         return None
 
+
 def print_table_of_contents(input):
     """
     Reads a markdown file and prints a table of contents based on headings.
     """
     try:
-        with open(input, 'r') as file:
+        with open(input, "r") as file:
             lines = file.readlines()
 
             print("Contents\n")
@@ -36,19 +38,23 @@ def print_table_of_contents(input):
                 heading = parse_headings(line)
                 if heading:
                     level, content = heading
-                    indent = '#' * (level - 1)
+                    indent = "#" * (level - 1)
                     print(f"{indent} {content}")
 
     except FileNotFoundError:
         print(f"Error: The file '{filename}' was not found.")
 
+
 def main():
-    parser = argparse.ArgumentParser(description='Prints a table of contents in a markdown document.')
-    parser.add_argument('input', type=str, help='The code file to refactor.')
+    parser = argparse.ArgumentParser(
+        description="Prints a table of contents in a markdown document."
+    )
+    parser.add_argument("input", type=str, help="The code file to refactor.")
 
     args = parser.parse_args()
 
     print_table_of_contents(input=args.input)
+
 
 if __name__ == "__main__":
     main()

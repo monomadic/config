@@ -18,10 +18,21 @@ M.open_files = function()
 end
 
 function M.open_same_filetype()
-	builtin.find_files {
-		path_display = { "truncate" },
-		search_file = string.format("*.%s", vim.bo.filetype),
-	}
+	-- Get the current filetype
+	local filetype = vim.api.nvim_buf_get_option(0, 'filetype')
+
+	if filetype then
+		builtin.find_files {
+			path_display = { "truncate" },
+			cwd = vim.fn.expand("%:p:h"),
+			filetype = filetype,
+		}
+	else
+		builtin.find_files {
+			path_display = { "truncate" },
+			cwd = vim.fn.expand("%:p:h"),
+		}
+	end
 end
 
 M.wiki_open_page = function()

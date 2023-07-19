@@ -72,14 +72,13 @@ return {
 
 		config = function()
 			require("mason-lspconfig").setup {
-				-- ensure_installed = { 'sumneko_lua' },
+				ensure_installed = { 'marksman' },
 				--automatic_installation = true,
 			}
 			-- require('lspconfig').sumneko_lua.setup {}
 			-- https://github.com/artempyanykh/marksman/blob/main/Tests/default.marksman.toml
 			require('lspconfig').marksman.setup {}
 
-			--require('lspconfig').pylyzer.setup {}
 			require('lspconfig').pyright.setup {}
 
 			require('lspconfig').solidity.setup {

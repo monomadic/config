@@ -82,6 +82,7 @@ return {
 					vim.keymap.set("n", "<leader>r", RunFile, { buffer = bufnr, desc = " run" })
 
 					require("runnables")
+					vim.keymap.set("n", "<A-r>", RustRunnable, { buffer = bufnr, desc = "runnables" })
 					vim.keymap.set("n", "<leader>Rr", RustRunnable, { buffer = bufnr, desc = "runnables" })
 					vim.keymap.set("n", "\\", RustRunnable, { buffer = bufnr, desc = "runnables" })
 					--vim.keymap.set("n", "<leader>Rr", rust_tools.runnables.runnables, { buffer = bufnr, desc = " run" })

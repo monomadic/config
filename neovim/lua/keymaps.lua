@@ -27,6 +27,8 @@ M.telescope = function()
 	-- single letter actions
 	key('n', '<leader>b', builtin.buffers, 'buffer')
 	key('n', '<leader><tab>', pickers.open_same_filetype, 'source')
+	key('n', '<A-o>', pickers.open_same_filetype, 'source')
+
 	keymap("n", "<leader>\\", "<cmd>ChatGPT<CR>", { desc = " ChatGPT" })
 
 	-- list
