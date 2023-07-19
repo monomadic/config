@@ -441,7 +441,7 @@ snippet tryfrom
 	}
 
 snippet fnread
-	pub fn read<R: Read>(mut reader: R) -> Result<Self> {}
+	pub fn read<R: Read>(mut reader: R) -> Result<Self, Error> {}
 
 snippet fnreadbytes
   pub fn read<R: ReadBytesExt>(mut reader: R) -> Result<Self> {

@@ -1,6 +1,7 @@
 -- better lsp ui
 return {
 	"glepnir/lspsaga.nvim",
+	enabled = true,
 	event = "BufRead",
 	ft = { 'rust', 'typescript', 'javascript', 'lua' },
 	config = function()
@@ -35,6 +36,9 @@ return {
 			show_outline = {
 				saga_winblend = 30,
 				jump_key = '<CR>',
+			},
+			scroll_preview = {
+				scroll_down = '<C-1>', -- bug in this crappy library
 			},
 			diagnostic = {
 				show_code_action = true,

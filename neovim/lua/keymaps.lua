@@ -28,14 +28,13 @@ M.telescope = function()
 	key('n', '<leader>b', builtin.buffers, 'buffer')
 	key('n', '<leader><tab>', pickers.open_same_filetype, 'source')
 	keymap("n", "<leader>\\", "<cmd>ChatGPT<CR>", { desc = " ChatGPT" })
-	keymap('n', '<leader>d', "<Cmd>Trouble workspace_diagnostics<CR>", { desc = "diagnostics" })
-	keymap('n', '<leader>h', builtin.oldfiles, { desc = "history" })
 
 	-- list
 	keymap('n', "<leader>lgb", pickers.git_branches, { desc = "branches" })
 	keymap('n', "<leader>lgc", pickers.git_commits, { desc = "commits" })
 	keymap('n', '<leader>lb', builtin.buffers, { desc = "buffers…" })
 	keymap('n', '<leader>ld', builtin.diagnostics, { desc = "diagnostics" })
+	keymap('n', '<leader>d', builtin.diagnostics, { desc = "diagnostics" })
 	keymap('n', '<leader>lk', pickers.list_keymaps, { desc = "keymaps" })
 	keymap('n', '<leader>ls', ":FzfLua lsp_workspace_symbols<CR>", { desc = "symbols" })
 
@@ -73,6 +72,7 @@ M.telescope = function()
 	keymap('n', "<leader>Ot", pickers.open_test, { desc = "test" })
 	keymap('n', "<leader>Ow", pickers.wiki_open_page, { desc = "wiki page" })
 	keymap('n', "<leader>OO", pickers.open_same_filetype, { desc = "same filetype" })
+	keymap('n', '<leader>Or', builtin.oldfiles, { desc = "recent" })
 
 	keymap('n', "<leader>Os", function()
 		require('telescope.builtin').find_files({ cwd = "~/.config/nvim/snippets/", follow = true })
