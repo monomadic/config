@@ -1,7 +1,7 @@
 -- better lsp ui
 return {
 	"glepnir/lspsaga.nvim",
-	enabled = true,
+	enabled = false,
 	event = "BufRead",
 	ft = { 'rust', 'typescript', 'javascript', 'lua' },
 	config = function()

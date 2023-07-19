@@ -13,6 +13,7 @@
 --			https://github.com/NormalNvim/NormalNvim
 --
 --  TODO:
+--  - https://github.com/nvimdev/guard.nvim to replace null-ls
 --  - https://github.com/ldelossa/litee-symboltree.nvim
 --  - https://github.com/MunifTanjim/nui.nvim - menus etc
 --  - format-on-save
@@ -33,24 +34,23 @@ TreeSitter = require 'treesitter'
 require 'autocmds'
 
 -- ui
-require 'text'
+require 'text'       -- text manipulation
 require 'statusline' -- bottom bar (global)
 require 'tabline'    -- top bar (global)
 require 'winbar'     -- top bar (buffer)
-require 'gutter'
+require 'gutter'     -- git gutter
 require 'menu'       -- right-click menu
 
 require 'runfile'    -- .runfile support
 require 'settings'
 require 'keymaps'
-require 'colors'
 require 'insert-url' -- insert markdown url
 require 'git'
 
+require 'bootstrap-lazy'
+
 require 'lsp'
 -- require 'autoclose'.setup({}) -- automatic close for ()[]"" etc
-
-require 'bootstrap-lazy'
 
 -- treesitter
 require 'ts.ts-jump'
