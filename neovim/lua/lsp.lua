@@ -51,6 +51,9 @@ vim.api.nvim_create_autocmd('LspAttach', {
 		keymap('n', "<leader>LD", vim.lsp.buf.declaration, { desc = "declaration" })
 		keymap('n', '<leader>Ls', vim.lsp.buf.workspace_symbol, { desc = "workspace symbol" })
 
+		keymap('n', '<leader>LR', vim.lsp.buf.rename, { desc = "rename" })
+		keymap('n', '<leader>Sr', vim.lsp.buf.rename, { desc = "rename" })
+
 		keymap('n', "gd", vim.lsp.buf.definition, { desc = "definition" })
 		keymap('n', "<Enter>", vim.lsp.buf.definition, { desc = "definition" })
 		keymap('n', "gc", vim.lsp.buf.declaration, { desc = "declaration" })

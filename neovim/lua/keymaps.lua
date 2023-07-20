@@ -47,7 +47,7 @@ M.telescope = function()
 	keymap('n', "<leader>Dt", builtin.treesitter, { desc = " treesitter…" })
 
 	-- file
-	keymap('n', '<leader>Fr', vim.lsp.buf.rename, { desc = "rename" })
+	-- keymap('n', '<leader>Fr', vim.lsp.buf.rename, { desc = "rename" })
 
 	-- git
 	key('n', "<leader>ga", AutoCommit, "autocommit")
