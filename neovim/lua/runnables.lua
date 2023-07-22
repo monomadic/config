@@ -65,6 +65,7 @@ function _G.RustRunnable()
 
 		vim.api.nvim_win_set_option(win, "winhl", "Normal:NormalFloat")
 		vim.cmd("terminal " .. command)
+		vim.cmd.startinsert() -- start in insert mode
 	end
 
 	local function run_command(choice, result)
