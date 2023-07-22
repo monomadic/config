@@ -27,11 +27,52 @@ vim.api.nvim_create_autocmd('LspAttach', {
 			)
 		end
 
+		-- vim.lsp.handlers["workspace/symbol"] =
+
 		-- codeActionProvider
 		if client.server_capabilities.codeActionProvider then
 			vim.keymap.set('n', '<leader>La', vim.lsp.buf.code_action, { desc = "code action" })
 		end
 
+
+		-- -- Override the default diagnostics handler
+		-- vim.lsp.handlers["textDocument/publishDiagnostics"] = function(bufnr, _, params, client_id, _)
+		-- 	local lsp = require('vim.lsp')
+		-- 	local diagnostics = vim.diagnostic.get(bufnr, client_id)
+		-- 	print(diagnostics)
+		--
+		-- 	if #diagnostics > 0 then
+		-- 		local lines = { "Diagnostics:" }
+		-- 		for _, diagnostic in ipairs(diagnostics) do
+		-- 			local prefix = string.rep(" ", diagnostic.range.start.character)
+		-- 			local message = prefix .. diagnostic.message
+		-- 			table.insert(lines, message)
+		-- 		end
+		--
+		-- 		-- Get code actions for the current line and add them to the popup
+		-- 		lsp.buf_request(bufnr, 'textDocument/codeAction', lsp.util.make_range_params(), function(_, _, result)
+		-- 			if result then
+		-- 				for _, action in ipairs(result) do
+		-- 					table.insert(lines, "Action: " .. action.title)
+		-- 				end
+		-- 			end
+		--
+		-- 			local height = #lines
+		-- 			local width = math.max(unpack(vim.tbl_map(string.len, lines)))
+		-- 			local col = math.min(diagnostics[1].range.start.character, vim.api.nvim_win_get_width(0) - width)
+		--
+		-- 			lsp.util.open_floating_preview(lines, 'markdown', {
+		-- 				height = height,
+		-- 				width = width,
+		-- 				col = col,
+		-- 			})
+		-- 		end)
+		-- 	end
+		-- end
+
+
+		-- keymaps
+		--
 		vim.keymap.set('n', ']d', vim.diagnostic.goto_next, { desc = "Next diagnostic" })
 		vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })
 		vim.keymap.set('n', ']e', function()
@@ -50,6 +91,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
 		keymap('n', "<leader>Ld", vim.lsp.buf.definition, { desc = "definition" })
 		keymap('n', "<leader>LD", vim.lsp.buf.declaration, { desc = "declaration" })
 		keymap('n', '<leader>Ls', vim.lsp.buf.workspace_symbol, { desc = "workspace symbol" })
+		keymap('n', '<leader>ls', vim.lsp.buf.workspace_symbol, { desc = "symbols" })
 
 		keymap('n', '<leader>LR', vim.lsp.buf.rename, { desc = "rename" })
 		keymap('n', '<leader>Sr', vim.lsp.buf.rename, { desc = "rename" })

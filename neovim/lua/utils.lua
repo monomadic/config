@@ -5,6 +5,77 @@
 local icons = require('icons');
 local M = {}
 
+M.show_code_actions = function()
+	local bufnr = vim.api.nvim_get_current_buf()
+
+	local params = vim.lsp.util.make_range_params()
+	params.context = { diagnostics = vim.lsp.diagnostic.get_line_diagnostics(bufnr) }
+
+	local actions = {}
+
+	vim.lsp.buf_request_all(bufnr, 'textDocument/codeAction', params, function(results)
+		for _, res in pairs(results or {}) do
+			if res.result then
+				vim.list_extend(actions, res.result)
+			end
+		end
+
+		if #actions == 0 then
+			print("No actions available")
+			return
+		end
+
+		local titles = {}
+		for _, action in ipairs(actions) do
+			table.insert(titles, action.title)
+		end
+
+		vim.ui.select(titles, { prompt = "Select code action:" }, function(choice)
+			local action = actions[choice]
+			vim.lsp.buf.execute_command(action.command)
+		end)
+	end)
+end
+
+M.goto_next_diag_wip = function(opts)
+	local next_diag = vim.diagnostic.get_next(opts)
+	if next_diag == nil then
+		return
+	end
+
+	-- diag found, move there
+	vim.diagnostic.goto_next({ float = false })
+
+	-- show code actions
+	local bufnr = vim.api.nvim_get_current_buf()
+	local params = vim.lsp.util.make_range_params()
+	local context = { diagnostics = vim.lsp.diagnostic.get_line_diagnostics(bufnr) }
+	params.context = context
+
+	vim.lsp.buf_request_all(bufnr, 'textDocument/codeAction', params, function(results)
+		local has_actions = false
+		local actions = {}
+		for _, res in pairs(results or {}) do
+			if res.result and type(res.result) == 'table' and next(res.result) ~= nil then
+				has_actions = true
+				for _, action in pairs(res.result) do
+					table.insert(actions, action.title)
+				end
+				break
+			end
+		end
+
+		if has_actions then
+			local height = #actions
+			local width = math.max(unpack(vim.tbl_map(string.len, actions)))
+			print(vim.inspect(actions))
+			vim.lsp.util.open_floating_preview(actions, 'plaintext', { height = height, width = width })
+
+			vim.diagnostic.open_float({ prefix = actions })
+		end
+	end)
+end
+
 -- Prints an object
 M.inspect = function(obj)
 	print(vim.inspect(obj))

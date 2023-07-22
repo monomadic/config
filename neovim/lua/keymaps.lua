@@ -24,10 +24,13 @@ M.telescope = function()
 	local pickers = require 'pickers'
 	local builtin = require 'telescope.builtin'
 
-	-- single letter actions
-	key('n', '<leader>b', builtin.buffers, 'buffer')
-	key('n', '<leader><tab>', pickers.open_same_filetype, 'source')
-	key('n', '<A-o>', pickers.open_same_filetype, 'source')
+	key('n', '<leader>b', builtin.buffers, 'open buffer')
+	key('n', '<leader>Ob', builtin.buffers, 'buffer')
+
+	key('n', '<leader>On', builtin.buffers, 'nearby')
+	key('n', '<leader><tab>', pickers.open_same_filetype, 'open nearby')
+	key('n', '<A-o>', pickers.open_same_filetype, 'open nearby')
+	key('n', '<leader>i', pickers.open_same_filetype, 'open nearby')
 
 	keymap("n", "<leader>\\", "<cmd>ChatGPT<CR>", { desc = " ChatGPT" })
 
@@ -38,7 +41,6 @@ M.telescope = function()
 	keymap('n', '<leader>ld', builtin.diagnostics, { desc = "diagnostics" })
 	keymap('n', '<leader>d', builtin.diagnostics, { desc = "diagnostics" })
 	keymap('n', '<leader>lk', pickers.list_keymaps, { desc = "keymaps" })
-	keymap('n', '<leader>ls', ":FzfLua lsp_workspace_symbols<CR>", { desc = "symbols" })
 
 	-- document
 	keymap('n', '<leader>De', pickers.lsp_document_enums, { desc = " enums…" })
@@ -73,7 +75,6 @@ M.telescope = function()
 	keymap('n', "<leader>OT", pickers.open_template, { desc = "template" })
 	keymap('n', "<leader>Ot", pickers.open_test, { desc = "test" })
 	keymap('n', "<leader>Ow", pickers.wiki_open_page, { desc = "wiki page" })
-	keymap('n', "<leader>OO", pickers.open_same_filetype, { desc = "same filetype" })
 	keymap('n', '<leader>Or', builtin.oldfiles, { desc = "recent" })
 
 	keymap('n', "<leader>Os", function()
