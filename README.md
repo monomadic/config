@@ -10,6 +10,9 @@ brew bundle
 # link configuration
 ln -s .dotter/nixos.toml.example .dotter/local.toml
 dotter deploy
+
+# python deps
+pip3 install -r python.deps
 ```
 
 ## NixOS

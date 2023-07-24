@@ -1,13 +1,8 @@
 --------------------------------------------------------------------------------
+--
 --  MONOMADIC NEOVIM CONFIG
 --
 --------------------------------------------------------------------------------
---
---		- templates:
---		  https://github.com/chr0n1x/neovim-template
---
---		- plugin-index:
---		  https://neoland.dev/
 --
 --		- references:
 --			https://github.com/NormalNvim/NormalNvim
@@ -16,7 +11,6 @@
 --  - https://github.com/nvimdev/guard.nvim to replace null-ls
 --  - https://github.com/ldelossa/litee-symboltree.nvim
 --  - https://github.com/MunifTanjim/nui.nvim - menus etc
---  - format-on-save
 --  - https://github.com/mfussenegger/nvim-fzy
 --
 --------------------------------------------------------------------------------
@@ -24,6 +18,7 @@
 -- lua byte-compiler
 vim.loader.enable()
 
+require 'debug'
 require 'colors'
 require 'utils'
 
