@@ -14,15 +14,20 @@ function ls_marks() {
 	cat ~/.marks
 }
 
+
+function ls_all() {
+	ls_marks
+	ls_projects
+	ls_src
+}
+
 # list all workspaces (*.workspace)
 function ls_workspaces() {
 	fd . ~/workspaces --extension workspace --follow
 }
 
-function ls_all() {
-	ls_marks
-	ls_projects
-	ls_workspaces
+function ls_src() {
+	exa ~/src/*/* --oneline --only-dirs --list-dirs
 }
 
 # list all projects (workspaces/*.workspace/**/*)

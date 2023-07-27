@@ -163,8 +163,9 @@ handle_image() {
 		## Image
 		image/*)
 			# kitty +kitten icat --clear
-			kitty +kitten chafa-select --clear ${FILE_PATH}
-				# --place "${PREVIEW_WIDTH}x${PREVIEW_HEIGHT}@${PREVIEW_X_COORD}x${PREVIEW_Y_COORD}" \
+			# kitty +kitten chafa-select --clear ${FILE_PATH}
+			viu ${FILE_PATH}
+			# --place "${PREVIEW_WIDTH}x${PREVIEW_HEIGHT}@${PREVIEW_X_COORD}x${PREVIEW_Y_COORD}" \
 			exit 5
 			;;
 	esac

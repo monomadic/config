@@ -20,7 +20,7 @@ local function open_floating_terminal_with_command(command)
 	vim.cmd("terminal " .. command)
 end
 
-function AutoCommit()
+function AiCommit()
 	local handle = io.popen('git rev-parse --is-inside-work-tree')
 	if handle == nil then
 		return

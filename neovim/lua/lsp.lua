@@ -27,6 +27,10 @@ vim.api.nvim_create_autocmd('LspAttach', {
 			)
 		end
 
+		-- workspaceSymbolProvider
+		-- vim.lsp.handlers["textDocument/workspaceSymbol"] = vim.lsp.with
+
+
 		-- vim.lsp.handlers["workspace/symbol"] =
 
 		-- codeActionProvider

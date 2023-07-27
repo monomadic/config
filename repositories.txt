@@ -1,1 +1,4 @@
-https://github.com/chipnertkj/chipbox.git, ~/src/audio/rust-daw-chipbox
+https://github.com/chipnertkj/chipbox.git, ~/src/audio/chipbox-daw-rust-yew
+https://git.sr.ht/~wezm/lobsters, ~/src/tui/lobsters-rust
+git@github.com:monomadic/sm64.git, ~/src/mario/mario64-leak
+https://github.com/monomadic/sm64ex, ~/src/mario/mario64-sm64ex

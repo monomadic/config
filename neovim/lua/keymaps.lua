@@ -52,7 +52,7 @@ M.telescope = function()
 	-- keymap('n', '<leader>Fr', vim.lsp.buf.rename, { desc = "rename" })
 
 	-- git
-	key('n', "<leader>ga", AutoCommit, "autocommit")
+	key('n', "<leader>ga", AiCommit, "aicommit")
 	key('n', "<leader>gc", QuickCommit, "branches")
 	key('n', "<leader>gd", pickers.git_commits, "commits")
 	key('n', "<leader>gh", builtin.oldfiles, "history")

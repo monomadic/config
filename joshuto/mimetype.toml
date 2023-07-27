@@ -2,6 +2,7 @@
 audio_default = [{ command = "mpv" }]
 
 image_default = [
+  { command = "iv", silent = true, fork = true },
   { command = "qimgv", args = [
     "--",
   ], fork = true, silent = true },
@@ -12,7 +13,6 @@ image_default = [
   { command = "swappy", args = [
     "-f",
   ], fork = true },
-  { command = "iv", silent = true, fork = true },
 ]
 
 video_default = [

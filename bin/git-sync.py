@@ -27,7 +27,7 @@ def update_or_clone_repositories(input_file):
             subprocess.run(["git", "pull"], cwd=folder_path)
         else:
             print(f"Cloning repository from {git_url} to {folder_path}...")
-            subprocess.run(["git", "clone", git_url, folder_path])
+            subprocess.run(["git", "clone", "--depth=1", git_url, folder_path])
 
 
 if __name__ == "__main__":
