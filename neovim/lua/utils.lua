@@ -233,7 +233,7 @@ M.go_root = function()
 	GoRoot()
 end
 
--- go to root project file
+-- Attempt to find a root source file
 function GoRoot()
 	-- local files = {"src/lib.rs"}
 	--
@@ -250,6 +250,7 @@ function GoRoot()
 	elseif M.file_exists("index.md") then
 		vim.cmd ':edit index.md'
 	elseif M.file_exists("src/index.ts") then
+		-- vim.fs.edit("src/index.ts")
 		vim.cmd ':edit src/index.ts'
 	elseif M.file_exists("init.lua") then
 		vim.cmd ':edit init.lua'

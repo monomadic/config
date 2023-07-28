@@ -26,7 +26,6 @@ Utils = require 'utils'
 Joshuto = require 'joshuto'
 TreeSitter = require 'treesitter'
 
-require 'autocmds'
 
 -- ui
 require 'text'       -- text manipulation
@@ -51,6 +50,7 @@ require 'lsp'
 require 'ts.ts-jump'
 require 'ts.highlight-matches'
 
+require 'autocmds'
 require 'templates'
 
 LoadRunFileKeymaps()

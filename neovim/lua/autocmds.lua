@@ -37,15 +37,43 @@ autocmd("FileType", {
 	end
 })
 
+local default_main_files = {
+	"src/main.rs",
+	"src/lib.rs",
+	"main.c",
+	"init.lua",
+	"main.py",
+	"index.js",
+	"src/index.ts",
+	"src/index.js",
+	"index.md",
+	"README.md",
+	"doc/README.md",
+}
+
 -- on vim open
 vim.api.nvim_create_autocmd("VimEnter", {
-	pattern = "*",
 	callback = function()
 		-- if no args are passed
 		if vim.fn.argc() == 0 then
-			vim.cmd "enew"
-			vim.cmd "setlocal bufhidden=wipe buftype=nofile nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
-			vim.cmd([[call append('$', "")]])
+			-- vim.cmd "enew"
+			-- vim.cmd "setlocal bufhidden=wipe buftype=nofile nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
+			-- vim.cmd([[call append('$', "")]])
+			local filename
+			for _, f in ipairs(default_main_files) do
+				if vim.fn.filereadable(f) == 1 then
+					filename = f
+					break
+				end
+			end
+
+			if filename then
+				local bufnr = vim.fn.bufadd(filename)
+				vim.cmd("buffer " .. bufnr)
+				-- Detect filetype
+				local ft = vim.filetype.match({ filename = filename })
+				vim.bo.filetype = ft
+			end
 		end
 	end
 })
