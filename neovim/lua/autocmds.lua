@@ -71,6 +71,8 @@ vim.api.nvim_create_autocmd("VimEnter", {
 				local bufnr = vim.fn.bufadd(filename)
 				vim.cmd("buffer " .. bufnr)
 				-- Detect filetype
+				-- manually set the filetype
+				-- otherwise lsp + treesitter won't load
 				local ft = vim.filetype.match({ filename = filename })
 				vim.bo.filetype = ft
 			end

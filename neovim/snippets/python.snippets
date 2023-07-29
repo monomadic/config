@@ -4,11 +4,13 @@ snippet #!
 snippet argparser
 	import argparse
 
+
 	def main(args):
-			print(f"Hello, {args.name}!")
+			print(f"Hello, {args.input}!")
+
 
 	if __name__ == "__main__":
-			parser = argparse.ArgumentParser(description='My CLI utility')
-			parser.add_argument('-n', '--name', type=str, default="World", help='Name to greet')
+			parser = argparse.ArgumentParser(description="NSP Extractor")
+			parser.add_argument("-i", "--input", type=str, help="NSP file")
 			args = parser.parse_args()
 			main(args)

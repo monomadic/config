@@ -235,29 +235,31 @@ end
 
 -- Attempt to find a root source file
 function GoRoot()
-	-- local files = {"src/lib.rs"}
-	--
-	-- for file in files do
-	-- 	if M.file_exists(file) then
-	-- 		vim.cmd.edit(file)
-	-- 	end
-	-- end
+	local default_main_files = {
+		"src/main.rs",
+		"src/lib.rs",
+		"main.c",
+		"init.lua",
+		"main.py",
+		"index.js",
+		"src/index.ts",
+		"src/index.js",
+		"index.md",
+		"README.md",
+		"doc/README.md",
+	}
 
-	if M.file_exists("src/lib.rs") then
-		vim.cmd.edit 'src/lib.rs'
-	elseif M.file_exists("src/main.rs") then
-		vim.cmd ':edit src/main.rs'
-	elseif M.file_exists("index.md") then
-		vim.cmd ':edit index.md'
-	elseif M.file_exists("src/index.ts") then
-		-- vim.fs.edit("src/index.ts")
-		vim.cmd ':edit src/index.ts'
-	elseif M.file_exists("init.lua") then
-		vim.cmd ':edit init.lua'
-	elseif M.file_exists("README.md") then
-		vim.cmd ':edit README.md'
-	else
-		-- print("no root file found.")
+	local filename
+	for _, f in ipairs(default_main_files) do
+		if vim.fn.filereadable(f) == 1 then
+			filename = f
+			break
+		end
+	end
+
+	if filename then
+		local bufnr = vim.fn.bufadd(filename)
+		vim.cmd("buffer " .. bufnr)
 	end
 end
 
