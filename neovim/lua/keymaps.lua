@@ -26,8 +26,8 @@ M.telescope = function()
 
 	key('n', '<leader>b', builtin.buffers, 'open buffer')
 	key('n', '<leader>Ob', builtin.buffers, 'buffer')
-
 	key('n', '<leader>On', builtin.buffers, 'nearby')
+
 	key('n', '<leader><tab>', pickers.open_same_filetype, 'open nearby')
 	key('n', '<A-o>', pickers.open_same_filetype, 'open nearby')
 	key('n', '<leader>i', pickers.open_same_filetype, 'open nearby')
@@ -47,9 +47,6 @@ M.telescope = function()
 	keymap('n', '<leader>Df', pickers.lsp_document_functions, { desc = " functions…" })
 	keymap('n', "<leader>Dc", builtin.git_status, { desc = "changes" })
 	keymap('n', "<leader>Dt", builtin.treesitter, { desc = " treesitter…" })
-
-	-- file
-	-- keymap('n', '<leader>Fr', vim.lsp.buf.rename, { desc = "rename" })
 
 	-- git
 	key('n', "<leader>ga", AiCommit, "aicommit")
@@ -73,16 +70,13 @@ M.telescope = function()
 
 	-- open (various filters of file open pickers)
 	keymap('n', "<leader>OT", pickers.open_template, { desc = "template" })
+	keymap('n', "<leader>Oc", pickers.open_config_file, { desc = "config file" })
 	keymap('n', "<leader>Ot", pickers.open_test, { desc = "test" })
 	keymap('n', "<leader>Ow", pickers.wiki_open_page, { desc = "wiki page" })
 	keymap('n', '<leader>Or', builtin.oldfiles, { desc = "recent" })
-
 	keymap('n', "<leader>Os", function()
 		require('telescope.builtin').find_files({ cwd = "~/.config/nvim/snippets/", follow = true })
 	end, { desc = "snippet" })
-
-	-- config (neovim related items)
-	keymap('n', "<leader>Cf", pickers.open_config_file, { desc = "file..." })
 
 	-- jump (locations related to current pos)
 	keymap('n', '<leader>jf', pickers.lsp_document_functions,
@@ -95,12 +89,6 @@ M.telescope = function()
 	keymap('n', "<leader>jd", builtin.lsp_definitions, { desc = "definition" })
 
 	-- goto (locations not related to current pos)
-	-- keymap('n', "<leader>gb", pickers.git_branches, { desc = "git branches" })
-	-- keymap('n', "<leader>gd", builtin.lsp_definitions, { desc = "definitions" })
-	-- keymap('n', "<leader>gs", pickers.git_status, { desc = "change (git)" })
-	-- keymap('n', '<leader>gt', '<Cmd>TodoTelescope<cr>', { desc = "todo" })
-	-- keymap('n', "<leader>gT", pickers.open_template, { desc = "template" })
-	-- keymap('n', "<leader>gw", pickers.wiki_open_page, { desc = "wiki page" })
 	keymap('n', "gw", pickers.wiki_open_page, { desc = "wiki page" })
 	keymap('n', "gd", builtin.lsp_definitions)
 

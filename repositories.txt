@@ -4,3 +4,4 @@ git@github.com:monomadic/sm64.git, ~/src/mario/mario64-leak
 https://github.com/monomadic/sm64ex, ~/src/mario/mario64-sm64ex
 https://github.com/nicoboss/nsz.git, ~/src/switch/nsz
 https://github.com/Dooskington/Rustcaster.git, ~/src/gamedev/raycaster/rustcaster
+https://github.com/Rodrigodd/tiny-snake.rs.git, ~/src/gamedev/tui/tiny-snake

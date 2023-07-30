@@ -149,3 +149,7 @@ cask "temurin" # jre replacement (for ghidra)
 brew "bitwise" # bit conversion
 brew "demumble" # demangling
 cask "hex-fiend" # hex editor
+
+# manga
+tap "metafates/mangal"
+brew "mangal"
