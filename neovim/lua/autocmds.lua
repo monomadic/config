@@ -59,6 +59,7 @@ vim.api.nvim_create_autocmd("VimEnter", {
 			-- vim.cmd "enew"
 			-- vim.cmd "setlocal bufhidden=wipe buftype=nofile nocursorcolumn nocursorline nolist nonumber noswapfile norelativenumber"
 			-- vim.cmd([[call append('$', "")]])
+
 			local filename
 			for _, f in ipairs(default_main_files) do
 				if vim.fn.filereadable(f) == 1 then
@@ -103,7 +104,7 @@ vim.api.nvim_create_autocmd({ "FileType", "BufEnter", "FocusGained", "VimEnter" 
 	end
 })
 
--- only show line-bar on current buffer, on active window
+-- only show cursor line-bar on current buffer, on active window
 vim.api.nvim_create_autocmd("BufLeave", {
 	pattern = "*",
 	callback = function()

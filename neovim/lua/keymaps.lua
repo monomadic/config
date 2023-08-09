@@ -176,7 +176,20 @@ end
 keymap('n', "<leader>q", "<CMD>hide<CR>", { desc = "hide window" })
 keymap('n', "<leader>!", "<cmd>quit!<CR>")
 keymap('n', "<leader>a", vim.lsp.buf.code_action, { desc = "code-actions" })
---
+
+keymap('n', '<leader>Ac', ':Copilot enable<CR>', { desc = "copilot load", silent = true })
+keymap('n', '<leader>Ad', ':Copilot disable<CR>', { desc = "copilot unload", silent = true })
+keymap('n', '<leader>Ar', ':Copilot reload<CR>', { desc = "copilot reload", silent = true })
+keymap('n', '<leader>As', ':Copilot status<CR>', { desc = "copilot status", silent = true })
+
+keymap('n', '<leader>,a', function()
+	require('cmp').setup.buffer({ enabled = false })
+end, { desc = "cmp disable", silent = true })
+
+keymap('n', '<leader>,A', function()
+	require('cmp').setup.buffer({ enabled = true })
+end, { desc = "cmp enable", silent = true })
+
 -- git
 --
 -- run

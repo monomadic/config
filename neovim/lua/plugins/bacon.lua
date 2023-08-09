@@ -1,3 +1,4 @@
 return {
-	'Canop/nvim-bacon'
+	'Canop/nvim-bacon',
+	cmd = "BaconLoad",
 }

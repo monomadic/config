@@ -107,7 +107,6 @@ html.inherit = "text_default"
 ini.inherit = "text_default"
 java.inherit = "text_default"
 js.inherit = "text_default"
-json.inherit = "text_default"
 kt.inherit = "text_default"
 lua.inherit = "text_default"
 log.inherit = "text_default"
@@ -128,6 +127,9 @@ vim.inherit = "text_default"
 xml.inherit = "text_default"
 yaml.inherit = "text_default"
 yml.inherit = "text_default"
+
+epub.app_list = [{ command = "epy" }]
+json.app_list = [{ command = "jless" }]
 
 # archive formats
 7z.app_list = [

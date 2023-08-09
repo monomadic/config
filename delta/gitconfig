@@ -15,7 +15,7 @@
     colorMoved = default
 [user]
 	name = monomadic
-	email = monomadic@localhost
+	email = 129359+monomadic@users.noreply.github.com
 [init]
 	defaultBranch = development
 [filter "lfs"]

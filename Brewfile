@@ -23,6 +23,7 @@ brew "rm-improved" # rm replacement (rip)
 # brew "most" # more replacement (use less -R)
 brew "bat" # cat replacement
 brew "mdless" # markdown viewer
+brew "glow" # markdown viewer golang
 brew "bk" # ebook reader
 brew "exa" # ls replacement
 brew "duf" # disk usage go
@@ -32,11 +33,13 @@ brew "ncdu"
 brew "fzf" # fuzzy filter (go)
 brew "sk" # fuzzy filter (rust)
 brew "jq" # json tool
+brew "jless" # json tree viewer
 brew "bottom" # htop / sysperf monitor
 
 # brew "degit" # git cloner (note: not on brew)
 
 brew "lf" # ranger, but in c
+brew "joshuto" # ranger, but in rust. better than lf.
 brew "rclone" # disk clone (cloud)
 brew "rg" # ripgrep
 brew "rga" # ripgrep-all (search pdf, zip etc)

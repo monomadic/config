@@ -1,6 +1,7 @@
 -- https://github.com/jackMort/ChatGPT.nvim
 return {
 	"jackMort/ChatGPT.nvim",
+	cmd = "ChatGPT",
 	config = function()
 		require("chatgpt").setup {
 			yank_register = "c",

@@ -66,7 +66,6 @@ files = { "helix" = "~/.config/helix" }
 [lf.files]
 "lf/lfrc.conf" = { target = "~/.config/lf/lfrc", type = "symbolic" }
 "lf/pv.sh" = "~/.config/lf/pv.sh"
-"lf/preview-sixel.sh" = "~/.config/lf/preview-sixel.sh"
 "lf/icons" = "~/.config/lf/icons"
 "lf/colors" = "~/.config/lf/colors"
 

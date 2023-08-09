@@ -14,15 +14,18 @@ return {
 			ensure_installed = { "rust", "bash", "yaml", "typescript", "javascript", "markdown", "lua" },
 			auto_install = true, -- install missing when entering buffer
 			highlight = { enable = true },
-			rainbow = { enable = true, colors = {
-				"#9944FF",
-				"#45F588",
-				"#FFFF00",
-				"#FF44FF",
-				"#00BBFF",
-				"#FFAACC",
-				"#AAFF66",
-			} },
+			rainbow = {
+				enable = true,
+				colors = {
+					"#9944FF",
+					"#45F588",
+					"#FFFF00",
+					"#FF44FF",
+					"#00BBFF",
+					"#FFAACC",
+					"#AAFF66",
+				}
+			},
 			matchup = {
 				enable = true, -- mandatory, false will disable the whole extension
 				disable = {}, -- optional, list of language that will be disabled
@@ -224,9 +227,9 @@ return {
 
 				node = ts_utils.get_next_node(node)
 			end
-
 		end
-		vim.keymap.set('n', '<Tab>', JumpNextRelevant, { silent = true })
+
+		vim.keymap.set('n', '<C-]>', JumpNextRelevant, { silent = true })
 
 		function JumpNextModule()
 			local ts_utils = require("nvim-treesitter.ts_utils")
@@ -269,7 +272,6 @@ return {
 
 			print("no module found")
 		end
-
 
 		function JumpPrevModule()
 			local ts_utils = require("nvim-treesitter.ts_utils")
@@ -329,6 +331,5 @@ return {
 
 			ts_utils.goto_node(parent)
 		end
-
 	end
 }

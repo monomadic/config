@@ -26,7 +26,6 @@ Utils = require 'utils'
 Joshuto = require 'joshuto'
 TreeSitter = require 'treesitter'
 
-
 -- ui
 require 'text'       -- text manipulation
 require 'statusline' -- bottom bar (global)

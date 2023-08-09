@@ -110,18 +110,14 @@ function fzf_dirs() {
 
 function fzf-edit() {
 	files=$(ls_all|fzf_dirs)
-	[[ -n "$files" ]] && cd "${files[@]}" && nvim . -c "lua GoRoot()"
+	[[ -n "$files" ]] && cd "${files[@]}" && nvim
 	zle && zle reset-prompt
 }
 zle -N fzf_edit
 
 function fzf-marks() {
 	files=$(ls_all|fzf_dirs)
-	[[ -n "$files" ]] && cd "${files[@]}"
-
-	# printf ' %s/\n\n' "${PWD##*/}"
-	exa-ls
-
+	[[ -n "$files" ]] && cd "${files[@]}" && clear && exa-ls
 	zle && zle reset-prompt
 }
 zle -N fzf-marks
