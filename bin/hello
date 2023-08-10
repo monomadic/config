@@ -11,6 +11,7 @@ NC='\033[0m'
 BG_PINK='\033[41;37m'
 PINK='\033[0;31m'
 BLACK='\033[0;30m'
+WHITE_HL='\033[47m\033[30m'
 
 ICON_COLOR=$BLUE
 
@@ -123,8 +124,16 @@ memory() {
 	echo "${BLUE}󰍛${NC} ${used_memory_gb}Gb"
 }
 
+
+# year-percent
+CURRENT_DATE=$(date +%j)
+TOTAL_DAYS=365
+PERCENT_COMPLETE=$(( ($CURRENT_DATE * 100) / $TOTAL_DAYS))
+
+CURRENT_TIME=$(date +%H:%M)
+
 # 󰍹
-echo "${ICON_COLOR}${NC} $(disk_space)    ${ICON_COLOR}󱄄${NC}  $(print_uptime)    ${ICON_COLOR}󱊣${NC} $(battery)   ${NC}"
+echo "${WHITE_HL} ${CURRENT_TIME} ${NC}    ${GREEN}󰔚${NC} ${PERCENT_COMPLETE}%   ${ICON_COLOR}${NC} $(disk_space)   ${ICON_COLOR}󱄄${NC}  $(print_uptime)   ${ICON_COLOR}󱊣${NC} $(battery)   ${NC}"
 #echo
 #echo "${BLUE}$(date "+%I:%M%p")  $(beat_time)${NC}"
 echo
