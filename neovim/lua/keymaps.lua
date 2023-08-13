@@ -254,6 +254,21 @@ keymap('n', "<C-h>", "<C-w><C-h>")
 keymap("i", "<C-h>", "<Esc><C-w><C-h>")
 keymap({ 'n', "t" }, "<C-w><C-d>", "<cmd>vsplit<CR>")
 
+-- split balance
+vim.keymap.set("n", "<C-w><C-b>", function()
+	local win_count = vim.fn.winnr("$")
+	if win_count == 2 then
+		local width = vim.o.columns
+		local new_width = math.floor(width / 2)
+
+		local left_win = vim.fn.win_getid(1)
+		local right_win = vim.fn.win_getid(2)
+
+		vim.api.nvim_win_set_width(left_win, new_width)
+		vim.api.nvim_win_set_width(right_win, width - new_width)
+	end
+end, { desc = "rebalance splits" })
+
 -- maximize
 keymap('n', "<C-w>m", "<CMD>only<CR>", { desc = "Maximize" })
 keymap('n', "<C-w><C-m>", "<CMD>only<CR>", { desc = "Maximize" })

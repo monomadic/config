@@ -133,7 +133,7 @@ PERCENT_COMPLETE=$(( ($CURRENT_DATE * 100) / $TOTAL_DAYS))
 CURRENT_TIME=$(date +%H:%M)
 
 # 󰍹
-echo "${WHITE_HL} ${CURRENT_TIME} ${NC}    ${GREEN}󰔚${NC} ${PERCENT_COMPLETE}%   ${ICON_COLOR}${NC} $(disk_space)   ${ICON_COLOR}󱄄${NC}  $(print_uptime)   ${ICON_COLOR}󱊣${NC} $(battery)   ${NC}"
+echo "${WHITE_HL}  ${CURRENT_TIME} ${NC}    ${GREEN}󰔚${NC} ${PERCENT_COMPLETE}%   ${ICON_COLOR}${NC} $(disk_space)   ${ICON_COLOR}󱄄${NC}  $(print_uptime)   ${ICON_COLOR}󱊣${NC} $(battery)   ${NC}"
 #echo
 #echo "${BLUE}$(date "+%I:%M%p")  $(beat_time)${NC}"
 echo
