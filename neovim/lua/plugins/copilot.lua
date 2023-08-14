@@ -30,9 +30,9 @@ return {
 						accept = "<M-l>",
 						accept_word = false,
 						accept_line = false,
-						next = "<M-]>",
-						prev = "<M-[>",
-						dismiss = "<C-]>",
+						next = "<C-]>",
+						prev = "<C-[>",
+						dismiss = "<M-]>",
 					},
 				},
 				filetypes = {
@@ -61,38 +61,4 @@ return {
 			-- vim.keymap.set("n", "<C-Enter>", ':Copilot panel<CR>', { silent = true })
 		end,
 	},
-
-	-- { -- alternative client in lua
-	-- 	"zbirenbaum/copilot.lua",
-	-- 	cmd = "Copilot",
-	-- 	event = "InsertEnter",
-	-- 	config = function()
-	-- 		require("copilot").setup({})
-	-- 	end,
-	-- },
-
-	-- {
-	-- 	"zbirenbaum/copilot-cmp",
-	-- 	dependencies = {
-	-- 		"github/copilot.vim"
-	-- 	},
-	-- 	config = function()
-	-- 		require("copilot_cmp").setup()
-	-- 	end
-	-- }
 }
-
-
--- cell 1: github.com/copilot.vim
--- cell 2: github.com/zbirenbaum/copilot.lua
--- cell 3: github.com/zbirenbaum/copilot-cmp
-
-
--- cell 1: github.com/copilot.vim
--- cell 2: github.com/zbirenbaum/copilot.lua
--- cell 3: github.com/zbirenbaum/copilot-cmp
-
-
--- cell 1: github.com/copilot.vim
--- cell 2: github.com/zbirenbaum/copilot.lua
--- cell 3: github.com/zbirenbaum/copilot-cmp

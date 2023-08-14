@@ -185,6 +185,7 @@ keymap('n', "<leader>q", "<CMD>hide<CR>", { desc = "hide window" })
 keymap('n', "<leader>!", "<cmd>quit!<CR>")
 keymap('n', "<leader>a", vim.lsp.buf.code_action, { desc = "code-actions" })
 
+keymap('n', '<leader>c', ':Copilot enable<CR>', { desc = "copilot", silent = true })
 keymap('n', '<leader>Ac', ':Copilot enable<CR>', { desc = "copilot load", silent = true })
 keymap('n', '<leader>As', ':Copilot status<CR>', { desc = "copilot status", silent = true })
 keymap("n", "<C-Enter>", ':Copilot panel<CR>', { silent = true })
