@@ -11,6 +11,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
 		local client = vim.lsp.get_client_by_id(args.data.client_id)
 		local keymap = vim.keymap.set
 
+		client.server_capabilities.semanticTokensProvider = nil
 		-- print(vim.inspect(client.server_capabilities))
 
 		-- hoverProvider
@@ -26,6 +27,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
 				}
 			)
 		end
+
 
 		-- workspaceSymbolProvider
 		-- vim.lsp.handlers["textDocument/workspaceSymbol"] = vim.lsp.with

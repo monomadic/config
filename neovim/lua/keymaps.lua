@@ -74,6 +74,10 @@ M.telescope = function()
 	keymap('n', "<leader>Ot", pickers.open_test, { desc = "test" })
 	keymap('n', "<leader>Ow", pickers.wiki_open_page, { desc = "wiki page" })
 	keymap('n', '<leader>Or', builtin.oldfiles, { desc = "recent" })
+	keymap('n', '<leader>Ou', ':edit .runfile<CR>',
+		{ buffer = bufnr, desc = ".runfile", remap = false })
+
+
 	keymap('n', "<leader>Os", function()
 		require('telescope.builtin').find_files({ cwd = "~/.config/nvim/snippets/", follow = true })
 	end, { desc = "snippet" })
@@ -152,6 +156,10 @@ M.whichkey = function()
 		},
 	}
 end
+
+-- paste should not yank
+keymap('n', 'p', '"_dP', { noremap = true })
+keymap('v', 'p', '"_dP', { noremap = true })
 
 -- CONTEXT/POPUP MENU
 keymap('n', '<leader>m', '<cmd>popup PopUp<cr>', { desc = 'open menu' })

@@ -38,6 +38,11 @@ return {
 					-- vim.keymap.set("n", "crd", ":! cargo run<CR>", { desc = "debug" })
 					-- vim.keymap.set("n", "cri", ":! cargo install --path . <CR>", { desc = "install" })
 					-- vim.keymap.set("n", "crb", ":split|resize 8|terminal bacon --summary<CR>", { desc = "bacon", silent = true })
+					--
+					-- client.resolved_capabilities.document_highlight = false
+					-- client.resolved_capabilities.document_color = false
+					-- client.resolved_capabilities.color_provider = false
+					-- client.resolved_capabilities.formatting = true
 
 					vim.lsp.handlers["textDocument/hover"] = rust_tools.hover_actions.hover_actions
 					vim.lsp.handlers["textDocument/codeAction"] = rust_tools.code_action_group.code_action_group
