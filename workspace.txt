@@ -1,0 +1,1 @@
+git@github.com:monomadic/scripts.git, ~/worspaces/python-projects.workspace

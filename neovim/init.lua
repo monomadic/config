@@ -24,7 +24,7 @@ require 'utils'
 
 Utils = require 'utils'
 Joshuto = require 'joshuto'
-TreeSitter = require 'treesitter'
+-- TreeSitter = require 'treesitter'
 
 -- ui
 require 'text'       -- text manipulation

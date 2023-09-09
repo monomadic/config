@@ -427,16 +427,16 @@ snippet testmod "Test module" b
 snippet from
 	impl From<${1}> for ${2} {
     fn from(_: $1) -> Self {
-        ${0:todo!()}
+      ${0:todo!()}
     }
 	}
 
 snippet tryfrom
 	impl std::convert::TryFrom<${1}> for ${2} {
-		type Error = &'static str;
+		type Error = Error;
 
-		fn try_from(_: $1) -> Result<Self, Self::Error> { {
-				${0:todo!()}
+		fn try_from(_: $1) -> Result<Self, Self::Error> {
+			${0:todo!()}
 		}
 	}
 

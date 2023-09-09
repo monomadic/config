@@ -158,8 +158,8 @@ M.whichkey = function()
 end
 
 -- paste should not yank
-keymap('n', 'p', '"_dP', { noremap = true })
-keymap('v', 'p', '"_dP', { noremap = true })
+-- keymap('n', 'p', '"_dP', { noremap = true })
+-- keymap('v', 'p', '"_dP', { noremap = true })
 
 -- CONTEXT/POPUP MENU
 keymap('n', '<leader>m', '<cmd>popup PopUp<cr>', { desc = 'open menu' })
@@ -185,7 +185,10 @@ keymap('n', "<leader>q", "<CMD>hide<CR>", { desc = "hide window" })
 keymap('n', "<leader>!", "<cmd>quit!<CR>")
 keymap('n', "<leader>a", vim.lsp.buf.code_action, { desc = "code-actions" })
 
-keymap('n', '<leader>c', ':Copilot enable<CR>', { desc = "copilot", silent = true })
+keymap('n', '<leader>c', function()
+	print("loading copilot...")
+	vim.cmd ":Copilot enable"
+end, { desc = "copilot", silent = true })
 keymap('n', '<leader>Ac', ':Copilot enable<CR>', { desc = "copilot load", silent = true })
 keymap('n', '<leader>As', ':Copilot status<CR>', { desc = "copilot status", silent = true })
 keymap("n", "<C-Enter>", ':Copilot panel<CR>', { silent = true })

@@ -11,7 +11,7 @@ return {
 
 	config = function()
 		require 'nvim-treesitter.configs'.setup {
-			ensure_installed = { "rust", "bash", "yaml", "typescript", "javascript", "markdown", "lua" },
+			ensure_installed = { "rust", "bash", "yaml", "typescript", "markdown", "lua" },
 			auto_install = true, -- install missing when entering buffer
 			highlight = { enable = true },
 			rainbow = {
