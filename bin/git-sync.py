@@ -1,9 +1,8 @@
 #!python3
 
+import argparse
 import os
 import subprocess
-
-default_input_file = "$HOME/config/repositories.txt"
 
 
 def expand_path(path):
@@ -31,5 +30,16 @@ def update_or_clone_repositories(input_file):
 
 
 if __name__ == "__main__":
-    input_file = expand_path(default_input_file.strip())
+    parser = argparse.ArgumentParser(
+        description="Syncs git repositories to a local folder based on a text file."
+    )
+    parser.add_argument(
+        "file",
+        type=str,
+        help="text file containing remote repositories and local directories to sync to",
+        default="$HOME/config/repositories.txt",
+    )
+    args = parser.parse_args()
+    input_file = args.file
+    input_file = expand_path(input_file.strip())
     update_or_clone_repositories(input_file)
