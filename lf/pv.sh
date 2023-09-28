@@ -23,12 +23,17 @@ else
         *.png) chafa --size=$2x$3 --format=symbols "$1";;
         *.doc) catdoc < "$1";;
         *.docx) docx2txt < "$1";;
+				*.tga) file "$1";;
+				*.wav) file "$1";;
 				*.nkx) ni-info "$1";;
+				*.nkg) ni-info "$1";;
 				*.ncw) ni-info "$1";;
 				*.nkr) ni-info "$1";;
 				*.nkc) ni-info "$1";;
 				*.nki) ni-info "$1";;
 				*.nkm) ni-info "$1";;
+				*.ksd) ni-info "$1";;
+				*.nkp) ni-info "$1";;
 				*.nfm8) ni-info "$1";;
 				*.mxfx) ni-info "$1";;
 				*.nmsv) ni-info "$1";;

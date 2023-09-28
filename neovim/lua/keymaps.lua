@@ -50,6 +50,7 @@ M.telescope = function()
 
 	-- git
 	key('n', "<leader>ga", AiCommit, "aicommit")
+	key('n', "<leader>gi", builtin.lsp_implementations, "implementations")
 	key('n', "<leader>gc", QuickCommit, "branches")
 	key('n', "<leader>gd", pickers.git_commits, "commits")
 	key('n', "<leader>gh", builtin.oldfiles, "history")

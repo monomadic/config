@@ -7,3 +7,4 @@ https://github.com/Dooskington/Rustcaster.git, ~/src/gamedev/raycaster/rustcaste
 https://github.com/Rodrigodd/tiny-snake.rs.git, ~/src/gamedev/tui/tiny-snake
 https://github.com/phoboslab/wipeout-rewrite.git, ~/src/gamedev/rewrites/wipeout-rewrite
 https://github.com/PikuseruConsole/pikuseru.git, ~/src/gamedev/pikseru-fantasy-console
+https://github.com/IsoFrieze/SMWDisX.git, ~/src/gamedev/console-disassemblies/snes/super-mario-world

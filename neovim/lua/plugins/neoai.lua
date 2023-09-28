@@ -26,12 +26,21 @@ return {
 		require("neoai").setup {
 			inject = {
 				cutoff_width = 4096,
+				-- 	cutoff_width = nil, -- do not wrap text
 			},
-			-- inject = {
-			-- 	cutoff_width = nil, -- do not wrap text
-			-- },
+			models = {
+				{
+					name = "openai",
+					model = "gpt-4",
+					params = nil,
+				},
+				-- {
+				-- 	name = "gpt-3.5-turbo",
+				-- 	model = "gpt-3.5-turbo",
+				-- 	params = nil,
+				-- },
+			},
 			shortcuts = {
-
 				{
 					name = "format-markdown",
 					key = "<leader>Am",

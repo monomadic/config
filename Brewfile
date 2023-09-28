@@ -74,6 +74,7 @@ brew "ssss" # shamirs secret sharing scheme (multikey)
 
 # development
 #	brew "cargo-nextest" # testing NEVER INSTALL THIS, brew should never manage uust EVERQ
+brew "cloc" # loc
 brew "prettier"
 brew "tokei" # loc
 brew "pastel" # colors

@@ -94,6 +94,7 @@ vim.api.nvim_create_autocmd('LspAttach', {
 
 		keymap('n', '<leader>Lr', vim.lsp.buf.references, { desc = "references" })
 		keymap('n', '<leader>Li', vim.lsp.buf.implementation, { desc = "implementation" })
+		keymap('n', '<C-i>', vim.lsp.buf.implementation, { desc = "implementation" })
 		keymap('n', "<leader>Ld", vim.lsp.buf.definition, { desc = "definition" })
 		keymap('n', "<leader>LD", vim.lsp.buf.declaration, { desc = "declaration" })
 		keymap('n', '<leader>Ls', vim.lsp.buf.workspace_symbol, { desc = "workspace symbol" })
