@@ -3,9 +3,6 @@
 # note: add https://github.com/wader/fq
 
 tap "homebrew/bundle"
-#tap "homebrew/cask"
-#tap "homebrew/cask-fonts"
-#tap "homebrew/core"
 tap "homebrew/services"
 
 cask_args appdir: "/Applications"
@@ -128,6 +125,7 @@ cask "ledger-live"
 
 # browser
 cask "firefox"
+cask "brave-browser"
 cask "mullvad-browser" # firefox-based privacy browser
 
 # music
