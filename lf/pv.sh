@@ -25,18 +25,18 @@ else
         *.docx) docx2txt < "$1";;
 				*.tga) file "$1";;
 				*.wav) file "$1";;
-				*.nkx) ni-info "$1";;
-				*.nkg) ni-info "$1";;
-				*.ncw) ni-info "$1";;
-				*.nkr) ni-info "$1";;
-				*.nkc) ni-info "$1";;
-				*.nki) ni-info "$1";;
-				*.nkm) ni-info "$1";;
-				*.ksd) ni-info "$1";;
-				*.nkp) ni-info "$1";;
-				*.nfm8) ni-info "$1";;
-				*.mxfx) ni-info "$1";;
-				*.nmsv) ni-info "$1";;
+				*.nkx) ni-tree "$1"; ni-info "$1";;
+				*.nkg) ni-tree "$1"; ni-info "$1";;
+				*.ncw) ni-tree "$1"; ni-info "$1";;
+				*.nkr) ni-tree "$1"; ni-info "$1";;
+				*.nkc) ni-tree "$1"; ni-info "$1";;
+				*.nki) ni-tree "$1"; ni-info "$1";;
+				*.nkm) ni-tree "$1"; ni-info "$1";;
+				*.ksd) ni-tree "$1"; ni-info "$1";;
+				*.nkp) ni-tree "$1"; ni-info "$1";;
+				*.nfm8) ni-tree "$1"; ni-info "$1";;
+				*.mxfx) ni-tree "$1"; ni-info "$1";;
+				*.nmsv) ni-tree "$1"; ni-info "$1";;
 				*.mp4)
 					ffmpeg -y -i "$1" -vframes 1 -ss 5 "/tmp/lf-thumbnail.png"
 					chafa --size=$2x$3 --format=symbols "/tmp/lf-thumbnail.png"

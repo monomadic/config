@@ -62,6 +62,7 @@ tap "simonw/llm"
 brew "ttok" # token counter
 brew "strip-tags" # strip tags from html with gpt
 brew "llm" # cli tool to interact with large language models
+# brew "lm-studio"
 
 cask "megasync" # mega.nz
 
