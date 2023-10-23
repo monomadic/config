@@ -12,6 +12,8 @@ end
 
 M.open_files = function()
 	builtin.find_files {
+		-- rg --no-ignore --files --binary exclude --type-not bin
+		-- find_command = { 'rg', '--no-ignore', '--files', '--binary', 'exclude', '--type-not', 'bin' },
 		path_display = { "truncate" },
 		hidden = true,
 	}

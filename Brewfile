@@ -5,6 +5,10 @@
 tap "homebrew/bundle"
 tap "homebrew/services"
 
+# localsend (airdrop alternative)
+tap "localsend/localsend"
+brew "localsend"
+
 cask_args appdir: "/Applications"
 
 brew "mas"

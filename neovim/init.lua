@@ -4,9 +4,6 @@
 --
 --------------------------------------------------------------------------------
 --
---		- references:
---			https://github.com/NormalNvim/NormalNvim
---
 --  TODO:
 --  - https://github.com/nvimdev/guard.nvim to replace null-ls
 --  - https://github.com/ldelossa/litee-symboltree.nvim
