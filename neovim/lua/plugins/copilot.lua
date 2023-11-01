@@ -1,6 +1,7 @@
 return {
 	{
 		"github/copilot.vim",
+		enabled = false,
 		cmd = "Copilot",
 		build = ":Copilot auth",
 		config = function()

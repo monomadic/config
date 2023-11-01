@@ -40,6 +40,7 @@ autocmd("FileType", {
 local default_main_files = {
 	"src/main.rs",
 	"src/lib.rs",
+	"main.go",
 	"main.c",
 	"init.lua",
 	"main.py",

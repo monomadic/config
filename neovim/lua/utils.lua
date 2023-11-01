@@ -257,6 +257,7 @@ function GoRoot()
 		"src/main.rs",
 		"src/lib.rs",
 		"main.c",
+		"main.go",
 		"init.lua",
 		"main.py",
 		"index.js",
