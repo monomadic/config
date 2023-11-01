@@ -23,6 +23,16 @@ return {
 		-- 	sources = { formatting.rustfmt },
 		-- }
 
+		-- local comrak = {
+		-- 	method = null_ls.methods.FORMATTING,
+		-- 	filetypes = { "markdown", "vimwiki" },
+		-- 	generator = null_ls.generator({
+		-- 		command = "comrak",
+		-- 		args = { "--to commonmark" },
+		-- 		to_stdin = true,
+		-- 	}),
+		-- }
+
 		null_ls.setup {
 			sources = {
 				null_ls.builtins.formatting.taplo,   -- cargo install taplo-cli --locked
@@ -33,29 +43,16 @@ return {
 					filetypes = { "python" }
 				}),
 				null_ls.builtins.formatting.prettier.with({
-					filetypes = { "html", "json", "yaml", "markdown", "vimwiki", "graphql", "snippets" },
+					filetypes = { "html", "json", "yaml", "graphql", "snippets", "markdown", "vimwiki" },
 				}),
 				null_ls.builtins.diagnostics.jsonlint, -- brew install jsonlint
 				null_ls.builtins.hover.dictionary.with {
 					filetypes = { "markdown", "vimwiki" }
 				}, -- markdown spellcheck
 			},
+
 			on_attach = function(client, buf)
 				require("lsp-format").on_attach(client, buf)
-
-				-- disable this dumb mapping
-				-- local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
-				-- if client.supports_method("textDocument/formatting") then
-				-- 	vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
-				-- 	vim.api.nvim_create_autocmd("BufWritePre", {
-				-- 		group = augroup,
-				-- 		buffer = bufnr,
-				-- 		callback = function()
-				-- 			-- on 0.8, you should use vim.lsp.buf.format({ bufnr = bufnr }) instead
-				-- 			vim.lsp.buf.formatting_sync()
-				-- 		end,
-				-- 	})
-				-- end
 			end,
 		}
 	end,

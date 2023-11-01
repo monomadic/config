@@ -42,6 +42,8 @@ require 'bootstrap-lazy'
 require 'lsp'
 -- require 'autoclose'.setup({}) -- automatic close for ()[]"" etc
 
+require 'comrak'
+
 -- treesitter
 require 'ts.ts-jump'
 require 'ts.highlight-matches'

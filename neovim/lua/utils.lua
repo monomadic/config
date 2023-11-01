@@ -5,6 +5,24 @@
 local icons = require('icons');
 local M = {}
 
+M.get_current_buffer_content = function()
+	local bufnr = vim.api.nvim_get_current_buf()
+	local start_line = 0
+	local end_line = vim.fn.line('$')
+	local lines = vim.api.nvim_buf_get_lines(bufnr, start_line, end_line, false)
+	local content = table.concat(lines, "\n")
+	return content
+end
+
+M.set_current_buffer_content = function(output)
+	local bufnr = vim.api.nvim_get_current_buf()
+	local start_line = 0
+	local end_line = vim.fn.line('$')
+	if output then
+		vim.api.nvim_buf_set_lines(bufnr, start_line, end_line, false, vim.split(output, '\n'))
+	end
+end
+
 M.show_code_actions = function()
 	local bufnr = vim.api.nvim_get_current_buf()
 
