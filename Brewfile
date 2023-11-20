@@ -67,6 +67,7 @@ brew "ttok" # token counter
 brew "strip-tags" # strip tags from html with gpt
 brew "llm" # cli tool to interact with large language models
 # brew "lm-studio"
+# brew "ollama"
 
 cask "megasync" # mega.nz
 
@@ -101,6 +102,8 @@ brew "atuin"
 # network
 brew "rustscan" # port scanner
 brew "trippy" # network diagnostic `sudo trip crates.io`
+
+# cask "airpass" # MAC address renewal for wifi
 
 # fonts
 cask "font-ark-pixel-10px-monospaced"
@@ -159,4 +162,4 @@ cask "hex-fiend" # hex editor
 
 # manga
 tap "metafates/mangal"
-brew "mangal"
+brew "mangal" # tui comic downloader

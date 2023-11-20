@@ -42,8 +42,14 @@ return {
 				null_ls.builtins.formatting.isort.with({ -- python
 					filetypes = { "python" }
 				}),
+				null_ls.builtins.formatting.dprint.with({
+					filetypes = { "markdown", "vimwiki" },
+				}),
 				null_ls.builtins.formatting.prettier.with({
-					filetypes = { "html", "json", "yaml", "graphql", "snippets", "markdown", "vimwiki" },
+					filetypes = { "json", "yaml", "graphql", "snippets" },
+				}),
+				null_ls.builtins.diagnostics.curlylint.with({
+					filetypes = { "html" },
 				}),
 				null_ls.builtins.diagnostics.jsonlint, -- brew install jsonlint
 				null_ls.builtins.hover.dictionary.with {

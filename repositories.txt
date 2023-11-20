@@ -9,3 +9,5 @@ https://github.com/phoboslab/wipeout-rewrite.git, ~/src/gamedev/rewrites/wipeout
 https://github.com/PikuseruConsole/pikuseru.git, ~/src/gamedev/pikseru-fantasy-console
 https://github.com/IsoFrieze/SMWDisX.git, ~/src/gamedev/console-disassemblies/snes/super-mario-world
 https://github.com/rust-lang/mdBook.git, ~/src/rust-ideomatic/mdbook
+https://github.com/rootmos/arweaver.git, ~/src/arweave/rust-client-arweaver
+https://github.com/floneum/floneum.git, ~/src/rust/gui/dioxus/floneum-graph-editor

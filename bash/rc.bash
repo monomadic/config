@@ -34,3 +34,6 @@ if command -v cargo &> /dev/null
 then
   . "$HOME/.cargo/env"
 fi
+
+# Generated for envman. Do not edit.
+[ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
