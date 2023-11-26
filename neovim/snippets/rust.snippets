@@ -2,6 +2,9 @@ snippet docstring "docstring"
 	//! # ${0}
 	//!
 
+snippet dbg-stream-position
+	dbg!(reader.stream_position()?);
+
 snippet reader
 	use crate::{Error, read_bytes::ReadBytesExt};
 

@@ -28,6 +28,7 @@ else
 				*.chunk) kontakt-info "$1";;
 				*.kontakt) kontakt-info "$1";;
 				*.kon) kontakt-info "$1";;
+				*.ncint) ni-info "$1";;
 				*.ens) ni-tree "$1"; ni-info "$1";;
 				*.nbcl) ni-tree "$1"; ni-info "$1";;
 				*.nbfx) ni-tree "$1"; ni-info "$1";;
