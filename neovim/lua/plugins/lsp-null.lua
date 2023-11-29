@@ -1,6 +1,6 @@
 -- null-lsp: a generic lsp server providing lsp functions to neovim on behalf of various tools
 return {
-	"jose-elias-alvarez/null-ls.nvim",
+	"nvimtools/none-ls.nvim",
 	dependencies = { "nvim-lua/plenary.nvim", "lukas-reineke/lsp-format.nvim" },
 
 	config = function()

@@ -6,6 +6,6 @@ input_dir="."
 # Iterate over image files in the input directory
 for file in "$input_dir"/*.png; do
   if [[ -f "$file" ]]; then
-    midjourney-split-png "$file"
+    midjourney-split-webp "$file"
   fi
 done

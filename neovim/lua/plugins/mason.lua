@@ -72,9 +72,12 @@ return {
 
 		config = function()
 			require("mason-lspconfig").setup {
-				ensure_installed = { 'marksman' },
+				ensure_installed = { 'marksman', 'biome' },
 				--automatic_installation = true,
 			}
+
+			require 'lspconfig'.biome.setup {}
+
 			-- require('lspconfig').sumneko_lua.setup {}
 			-- https://github.com/artempyanykh/marksman/blob/main/Tests/default.marksman.toml
 			require('lspconfig').marksman.setup {}
