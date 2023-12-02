@@ -15,6 +15,7 @@ brew "mas"
 
 brew "git"
 brew "git-delta" # rust git diff
+brew "lazygit"
 brew "gzip"
 
 brew "homebrew/dotter.rb"
