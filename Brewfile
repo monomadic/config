@@ -117,6 +117,8 @@ cask "kitty" # term
 cask "alacritty" # term
 cask "1password" # password manager
 cask "1password-cli"
+cask "protonvpn"
+cask "proton-drive"
 # cask "hammerspoon"
 
 # cask "cheatsheet" # show a cheat sheet by holding ⌘
