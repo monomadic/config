@@ -1,7 +1,7 @@
 export GPT_MODEL="gpt-3.5-turbo" # 4096 tokens, cheapest, fastest, most versatile model
 
 # list all available models
-function gpt-ls-models {
+function openai-ls-models {
 	curl --silent -H "Authorization: Bearer $OPENAI_API_KEY" \
 		 https://api.openai.com/v1/models \
 		 | jq -r '.data[].id'
