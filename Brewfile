@@ -15,6 +15,7 @@ brew "mas"
 
 brew "git"
 brew "git-delta" # rust git diff
+brew "lazygit"
 brew "gzip"
 
 brew "homebrew/dotter.rb"
@@ -117,6 +118,8 @@ cask "kitty" # term
 cask "alacritty" # term
 cask "1password" # password manager
 cask "1password-cli"
+cask "protonvpn"
+cask "proton-drive"
 # cask "hammerspoon"
 
 # cask "cheatsheet" # show a cheat sheet by holding ⌘
