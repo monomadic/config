@@ -49,7 +49,7 @@ return {
 					filetypes = { "json", "yaml", "graphql", "snippets" },
 				}),
 				null_ls.builtins.diagnostics.curlylint.with({
-					filetypes = { "html" },
+					filetypes = { "html", "htmldjango" },
 				}),
 				null_ls.builtins.diagnostics.jsonlint, -- brew install jsonlint
 				null_ls.builtins.hover.dictionary.with {
