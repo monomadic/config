@@ -11,3 +11,4 @@ https://github.com/IsoFrieze/SMWDisX.git, ~/src/gamedev/console-disassemblies/sn
 https://github.com/rust-lang/mdBook.git, ~/src/rust-ideomatic/mdbook
 https://github.com/rootmos/arweaver.git, ~/src/arweave/rust-client-arweaver
 https://github.com/floneum/floneum.git, ~/src/rust/gui/dioxus/floneum-graph-editor
+https://github.com/willhansen/rust_realtime_terminal_game.git, ~/src/rust/tui/realtime-platformer
