@@ -3,14 +3,6 @@
 --  MONOMADIC NEOVIM CONFIG
 --
 --------------------------------------------------------------------------------
---
---  TODO:
---  - https://github.com/nvimdev/guard.nvim to replace null-ls
---  - https://github.com/ldelossa/litee-symboltree.nvim
---  - https://github.com/MunifTanjim/nui.nvim - menus etc
---  - https://github.com/mfussenegger/nvim-fzy
---
---------------------------------------------------------------------------------
 
 -- lua byte-compiler
 vim.loader.enable()
