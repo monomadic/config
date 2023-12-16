@@ -18,8 +18,9 @@ def update_or_clone_repositories(input_file):
         lines = f.readlines()
 
     for line in lines:
-        git_url, folder_path = line.strip().split(",")
+        folder_path, git_url = line.strip().split(",")
         folder_path = expand_path(folder_path.strip())
+        git_url = git_url.strip()
 
         if os.path.exists(folder_path):
             print(f"Updating repository in {folder_path}...")
