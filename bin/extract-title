@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Check if a URL is provided
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <url>"
+    exit 1
+fi
+
+URL="$1"
+
+# Fetch the title from the URL
+TITLE=$(curl -sL "$URL" | \
+        awk -v RS="</title>" '/<title>/{gsub(/.*<title>|<\/title>.*/, ""); print; exit}')
+
+# Check if title is extracted
+if [ -z "$TITLE" ]; then
+    echo "Could not extract title from $URL"
+    exit 2
+fi
+
+# Print the Vimwiki style link
+echo "[$TITLE]($URL)"
+
+# Copy to clipboard (macos)
+echo "[$TITLE]($URL)" | pbcopy

@@ -1,1 +1,3 @@
-git@github.com:monomadic/scripts.git, ~/workspaces/python-projects.workspace
+~/workspaces/blog.workspace/_ref/vimwiki-rs, https://github.com/chipsenkbeil/vimwiki-rs.git
+~/workspaces/nintendo-switch.workspace/_ref/lockpick, https://github.com/iczero/Lockpick_RCM.git
+~/workspaces/python-projects.workspace, git@github.com:monomadic/scripts.git
