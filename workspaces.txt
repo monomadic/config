@@ -3,4 +3,5 @@
 ~/workspaces/blog.workspace/monomadic-zola, git@github.com:monomadic/monomadic-zola.git
 ~/workspaces/image-viewer.workspace/iv, git@github.com:monomadic/fbi.git
 ~/workspaces/nintendo-switch.workspace/_ref/lockpick, https://github.com/iczero/Lockpick_RCM.git
+~/workspaces/nintendo-switch.workspace/switchtools-rs, git@github.com:monomadic/switchtools-rs.git
 ~/workspaces/python-projects.workspace, git@github.com:monomadic/scripts.git

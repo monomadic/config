@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# Check if an argument is provided for the test file location
+if [ "$1" ]; then
+    TEST_FILE="$1/disk_speed_test_file"
+else
+    # Default location if no argument is provided
+    TEST_FILE="$HOME/disk_speed_test_file"
+fi
+
+TEST_SIZE=1G # 1GB test file
+
+echo "Starting disk speed test at $TEST_FILE..."
+
+# Write test (Disk Write Speed)
+echo "Testing write speed..."
+sync; sudo purge
+WRITE_SPEED=$(dd if=/dev/zero of=$TEST_FILE bs=1m count=1024 conv=fdatasync 2>&1 | grep -o '[0-9\.]* MB/s')
+
+# Read test (Disk Read Speed)
+echo "Testing read speed..."
+sync; sudo purge
+READ_SPEED=$(dd if=$TEST_FILE of=/dev/null bs=1m 2>&1 | grep -o '[0-9\.]* MB/s')
+
+# Clean up
+rm $TEST_FILE
+
+# Output results
+echo "Write Speed: $WRITE_SPEED"
+echo "Read Speed: $READ_SPEED"

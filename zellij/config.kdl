@@ -303,5 +303,5 @@ default_mode "locked"
 //
 // mirror_session true
 
-layout_dir "/Users/nom/.config/zellij/layouts"
-theme_dir "~/.config/zellij/themes"
+layout_dir ".config/zellij/layouts"
+theme_dir ".config/zellij/themes"
