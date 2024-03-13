@@ -40,9 +40,12 @@ brew "bottom" # htop / sysperf monitor
 
 # brew "degit" # git cloner (note: not on brew)
 
+# file manager
+brew "yazi" # rust based
 brew "xplr" # rust file explorer
 brew "lf" # ranger, but in c
 brew "joshuto" # ranger, but in rust. better than lf.
+
 brew "rclone" # disk clone (cloud)
 brew "rg" # ripgrep
 brew "rga" # ripgrep-all (search pdf, zip etc)
