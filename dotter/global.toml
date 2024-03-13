@@ -28,7 +28,7 @@ depends = []
 "mpv" = "~/.config/mpv"
 
 [alacritty]
-files = { "alacritty/alacritty.yml" = "~/.config/alacritty/alacritty.yml" }
+files = { "alacritty/alacritty.toml" = "~/.config/alacritty/alacritty.toml" }
 
 [kitty]
 files = { "kitty" = "~/.config/kitty" }

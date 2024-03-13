@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Get charging status and wattage information
+charging_info=$(system_profiler SPPowerDataType | grep -E "Connected: Yes|Wattage (W):")
+
+# Check if the MacBook is currently charging
+if echo "$charging_info" | grep -q "Connected: Yes"; then
+    # Extract the wattage
+    wattage=$(echo "$charging_info" | grep "Wattage (W):" | sed 's/.*Wattage (W): //')
+    echo "Your MacBook is charging at $wattage watts."
+else
+    echo "Your MacBook is not currently charging."
+fi
