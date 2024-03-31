@@ -51,7 +51,8 @@ brew "rg" # ripgrep
 brew "rga" # ripgrep-all (search pdf, zip etc)
 brew "fd" # find
 brew "neovim" # editor
-brew "helix" # editor
+brew "helix" # editor (rust)
+brew "amp" # editor (rust)
 brew "kakoune" # editor
 brew "youtube-dl"
 brew "ffmpeg" # for youtube-dl
