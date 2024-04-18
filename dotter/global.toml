@@ -18,6 +18,9 @@ depends = []
 [joshuto.files]
 "joshuto" = "~/.config/joshuto"
 
+[yazi.files]
+"yazi" = "~/.config/yazi"
+
 [chafa.files]
 "scripts/chafa-select" = "~/.bin/chafa-select"
 

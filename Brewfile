@@ -4,10 +4,11 @@
 
 tap "homebrew/bundle"
 tap "homebrew/services"
+tap "homebrew/cask-fonts"
 
 # localsend (airdrop alternative)
-tap "localsend/localsend"
-brew "localsend"
+# tap "localsend/localsend"
+# brew "localsend"
 
 cask_args appdir: "/Applications"
 
@@ -27,7 +28,7 @@ brew "bat" # cat replacement
 brew "mdless" # markdown viewer
 brew "glow" # markdown viewer golang
 brew "bk" # ebook reader
-brew "exa" # ls replacement
+brew "eza" # ls/exa replacement
 brew "duf" # disk usage go
 brew "dust" # better ncdu in rust
 brew "dua-cli" # another ncdu rust
@@ -41,10 +42,13 @@ brew "bottom" # htop / sysperf monitor
 # brew "degit" # git cloner (note: not on brew)
 
 # file manager
-brew "yazi" # rust based
+brew "yazi", args: ["HEAD"] # rust based
 brew "xplr" # rust file explorer
 brew "lf" # ranger, but in c
 brew "joshuto" # ranger, but in rust. better than lf.
+
+brew "poppler" # pdf renderer
+brew "unar" # unarchiver
 
 brew "rclone" # disk clone (cloud)
 brew "rg" # ripgrep
@@ -55,6 +59,7 @@ brew "helix" # editor
 brew "kakoune" # editor
 brew "youtube-dl"
 brew "ffmpeg" # for youtube-dl
+brew "ffmpegthumbnailer"
 brew "wget"
 brew "bandwhich" # bandwidth monitor
 brew "diskonaut" # disk usage
@@ -117,6 +122,7 @@ cask "font-ark-pixel-16px-monospaced"
 cask "font-hack"
 cask "font-hack-nerd-font"
 cask "font-gohufont-nerd-font"
+cask "font-symbols-only-nerd-font"
 
 cask "kitty" # term
 cask "alacritty" # term
