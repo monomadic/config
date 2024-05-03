@@ -1,4 +1,6 @@
-# fzf browser function
+export FZF_DEFAULT_OPTS="--layout=reverse --inline-info --color=bg+:-1,fg:4,info:15,fg+:5,header:7,hl:5,hl+:5"
+export SKIM_DEFAULT_OPTIONS=$FZF_DEFAULT_OPTS
+export SKIM_DEFAULT_COMMAND="fd . --max-depth=3"
 
 function fzf-brave-bookmarks() {
      # bookmarks_path=~/Library/Application\ Support/Google/Chrome/Default/Bookmarks
