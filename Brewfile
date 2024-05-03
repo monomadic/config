@@ -39,6 +39,8 @@ brew "jq" # json tool
 brew "jless" # json tree viewer
 brew "bottom" # htop / sysperf monitor
 
+brew "mp4v2" # mp4 tools like mp4info etc
+
 # brew "degit" # git cloner (note: not on brew)
 
 # file manager
