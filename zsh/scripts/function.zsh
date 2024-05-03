@@ -19,6 +19,7 @@ function vlc-find() {
 	# fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort" | xargs -0 vlc
 	fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort" | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
 }
+alias vlc-top-find="vlc-find \"\_\[\""
 
 function iina-find() {
   local search_term="$1"
