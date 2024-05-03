@@ -59,21 +59,66 @@ function yt-avc-format-filename() {
   yt-dlp -f 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
     --cookies-from-browser brave \
     --merge-output-format mp4 \
-    -o '[%(uploader)s] %(title)s.%(ext)s' \
+    --output '[%(uploader)s] %(title)s.%(ext)s' \
     --embed-metadata \
+		--embed-thumbnail \
     --exec "ffmpeg -i {} -metadata comment='https://youtube.com/watch?v=%(id)s' -codec copy {}_tagged.%(ext)s" \
     "$@"
 }
 
-function yt-avc-format-filename-ex() {
+function yt-avc-format-filename-ex-old() {
   yt-dlp -f 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
     --cookies-from-browser brave \
     --merge-output-format mp4 \
-    -o '[%(uploader)s] %(title)s.%(ext)s' \
+    --output '[%(uploader)s] %(title)s.%(ext)s' \
     --embed-metadata \
+		--embed-thumbnail \
     --postprocessor-args "ffmpeg:-metadata comment='https://youtube.com/watch?v=%(id)s' -codec copy" \
     "$@"
 }
+
+function yt-avc-format-filename-ex() {
+  local url="$1"
+  local output_template="%(uploader)s - %(title)s [%(id)s].%(ext)s"
+		#--postprocessor-args "ffmpeg:-metadata comment='%(webpage_url)s' -metadata synopsis='%(id)s' -codec copy" \
+  yt-dlp -v \
+		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+    --cookies-from-browser brave \
+    --merge-output-format mp4 \
+    --output "${output_template}" \
+    --embed-metadata \
+    --embed-thumbnail \
+    --embed-subs \
+    --sub-format 'srt' \
+    --convert-subs 'srt' \
+    --write-auto-subs \
+		--exec "echo {}; ffmpeg -i {} -metadata comment='%(webpage_url)s' -metadata synopsis='%(id)s' -codec copy '{}'" \
+    --restrict-filenames \
+    --ignore-errors \
+    "${url}"
+}
+
+function yt-avc-format-filename-two-step() {
+  local url="$1"
+  local output_template="%(uploader)s - %(title)s [%(id)s].%(ext)s"
+
+  yt-dlp -v \
+    --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+    --cookies-from-browser brave \
+    --merge-output-format mp4 \
+    --output "${output_template}" \
+    --embed-metadata \
+    --embed-thumbnail \
+    --embed-subs \
+    --sub-format 'srt' \
+    --convert-subs 'srt' \
+    --write-auto-subs \
+    --restrict-filenames \
+    --ignore-errors \
+    --exec "ffmpeg -i {} -metadata comment='$(yt-dlp --get-url "${url}" --skip-download)' -metadata synopsis='$(yt-dlp --get-id "${url}" --skip-download)' -codec copy {}_metadata.mp4" \
+    "${url}"
+}
+alias yt-porn-two-step=yt-avc-format-filename-two-step
 
 function yt-print-filename() {
     local video_url="$1"
