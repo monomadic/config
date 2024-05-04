@@ -51,7 +51,8 @@ alias l="echo && exa --icons --group-directories-first && echo"
 alias la="exa --icons --group-directories-first --all"
 alias lg=lazygit
 alias lh="exa --icons --group-directories-first --all"
-alias ll="echo && exa --icons --group-directories-first --all --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
+alias ll="echo && exa --icons --group-directories-first --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
+alias lla="echo && exa --icons --group-directories-first --all --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
 alias lll="exa --tree --icons --level 2"
 alias lln="exa --icons --all -l --sort=date"
 alias loc=tokei
