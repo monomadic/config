@@ -170,7 +170,7 @@ function yt-porn-rename {
     local file="$2"
     # Ensure URL and file are not empty
     if [[ -z "$url" || -z "$file" ]]; then
-        echo "Error: URL and file name must be provided."
+        echo "Usage: yt-porn-rename <url> <file>"
         return 1
     fi
 

@@ -41,6 +41,8 @@ brew "bottom" # htop / sysperf monitor
 
 brew "mp4v2" # mp4 tools like mp4info etc
 
+brew "blueutil" # bluetooth util
+
 # brew "degit" # git cloner (note: not on brew)
 
 # file manager
