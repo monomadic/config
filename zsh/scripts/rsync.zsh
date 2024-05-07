@@ -22,7 +22,12 @@ function rsync-archive {
     fi
 
     # Perform rsync to backup the folder
-    rsync --archive --progress --ignore-existing --delete "$source_folder" "$destination_folder"
+    rsync --archive \
+			--progress \
+			--ignore-existing \
+			--delete \
+			"$source_folder" \
+			"$destination_folder"
 
     # Check if rsync succeeded
     if [ $? -eq 0 ]; then

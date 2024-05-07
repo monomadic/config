@@ -72,7 +72,6 @@ alias pull="git pull"
 alias push="git push"
 alias push="git push"
 alias q=exit
-alias scrt="secretcli"
 alias sips-to-webp-lossy='sips -s format webp -s formatOptions 75'
 alias sips-to-webp-lossy='sips -s format webp -s'
 alias sixel-kitty="chafa --clear --format=kitty --center=on --scale=max "
@@ -98,12 +97,5 @@ alias wiki="cd ~/wiki && e index.md"
 alias wiki='cd ~/wiki && e ~/wiki/index.md'
 alias workspaces="cd ~/workspaces && l"
 alias xdg-open=open
-alias youtube-dl-audio="youtube-dl --extract-audio --audio-format mp3 "
-alias yt-audio="yt-dlp -f 'bestaudio' --extract-audio --embed-metadata "
-alias yt-avc="yt-dlp -f 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' --cookies-from-browser=brave --merge-output-format mp4 --embed-metadata "
-alias yt-firefox="yt-dlp --cookies-from-browser=firefox "
-alias yt-porn=yt-avc-format-filename-ex
-alias yt-video="yt-dlp -f 'bestvideo[vcodec^=avc1]' --merge-output-format mp4 --cookies-from-browser=brave --embed-metadata "
-alias yt="yt-dlp"
 alias zsh-reload="source ~/.zshrc"
 alias ~=grep

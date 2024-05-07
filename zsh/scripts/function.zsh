@@ -13,13 +13,20 @@ function ffmpeg-convert-to-switch-webp() {
   # ffmpeg -i "$input_file" -t "$duration" -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2" -vcodec libwebp -compression_level 6 -q:v 80 -loop 0 "$output_file"
 }
 
-function vlc-find() {
+function vlc-filter() {
   local search_term="$1"
 	# fd -i "$search_term" -E '.*\.(mp4|webp|webm|mkv|mov)$' --print0 | xargs -0 vlc --loop --random --no-repeat
 	# fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort" | xargs -0 vlc
 	fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort" | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
 }
-alias vlc-top-find="vlc-find \"\_\[\""
+alias vlc-top-find="vlc-filter \"\_\[\""
+
+function vlc-find() {
+  local search_term="$1"
+	# fd -i "$search_term" -E '.*\.(mp4|webp|webm|mkv|mov)$' --print0 | xargs -0 vlc --loop --random --no-repeat
+	# fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort" | xargs -0 vlc
+	fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
+}
 
 function iina-find() {
   local search_term="$1"
@@ -54,7 +61,6 @@ function cd-up() {
 }; zle -N cd-up;
 
 
-# yt-dlp
 function yt-avc-format-filename() {
   yt-dlp -f 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
     --cookies-from-browser brave \
@@ -79,13 +85,12 @@ function yt-avc-format-filename-ex-old() {
 
 function yt-avc-format-filename-ex() {
   local url="$1"
-  local output_template="%(uploader)s - %(title)s [%(id)s].%(ext)s"
+  local output_template="[%(uploader)s] %(title)s.%(ext)s"
 		#--postprocessor-args "ffmpeg:-metadata comment='%(webpage_url)s' -metadata synopsis='%(id)s' -codec copy" \
   yt-dlp -v \
 		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
     --cookies-from-browser brave \
     --merge-output-format mp4 \
-    --output "${output_template}" \
     --embed-metadata \
     --embed-thumbnail \
     --embed-subs \
@@ -165,12 +170,12 @@ function yt-download-tagged-file() {
   rm "${new_filename}"
 }
 
-function yt-porn-rename {
+function yt-tag-rename {
     local url="$1"
     local file="$2"
     # Ensure URL and file are not empty
     if [[ -z "$url" || -z "$file" ]]; then
-        echo "Usage: yt-porn-rename <url> <file>"
+        echo "Usage: ${0:t} <url> <file>"
         return 1
     fi
 
@@ -200,13 +205,12 @@ function yt-porn-rename {
     echo "\nSuccess! File renamed to: $new_filename"
 }
 
-function yt-write-tags {
+function yt-fetch-tags {
     local url="$1"
-    local output_file="$2"
 
     # Ensure URL and output file are provided
-    if [[ -z "$url" || -z "$output_file" ]]; then
-        echo "Error: Both URL and output file path must be provided."
+    if [[ -z "$url" ]]; then
+				echo "Usage: ${0:t} <url>"
         return 1
     fi
 
@@ -219,11 +223,41 @@ function yt-write-tags {
         return 1
     fi
 
-    # Write metadata and the source URL to the output file
-    echo "Source URL: $url" > "$output_file"
-    echo "$metadata" >> "$output_file"
+		echo "Metadata: ${metadata}"
 
-    echo "Metadata written to: $output_file"
+    # # Write metadata and the source URL to the output file
+    # echo "Source URL: $url" > "$output_file"
+    # echo "$metadata" >> "$output_file"
+    #
+    # echo "Metadata written to: $output_file"
+}
+
+function yt-write-tags {
+    local url="$1"
+    local file_path="$2"
+
+    # Ensure URL and output file are provided
+    if [[ -z "$url" || -z "$file_path" ]]; then
+				echo "Usage: ${0:t} <url> <file_path>"
+        return 1
+    fi
+
+    # Fetch metadata using yt-dlp and convert it to JSON
+    local metadata=$(yt-dlp --skip-download --print-json "$url")
+
+    # Check if metadata retrieval was successful
+    if [[ -z "$metadata" ]]; then
+        echo "Error: Failed to retrieve metadata."
+        return 1
+    fi
+
+		echo "Metadata: ${metadata}"
+
+    # # Write metadata and the source URL to the output file
+    # echo "Source URL: $url" > "$output_file"
+    # echo "$metadata" >> "$output_file"
+    #
+    # echo "Metadata written to: $output_file"
 }
 
 # Example usage:
@@ -239,7 +273,7 @@ function yt-write-tags {
 function yt-rename() {
   # Check if the correct number of arguments is provided
   if [[ $# -ne 2 ]]; then
-    echo "Usage: tag_file_with_metadata <file_path> <url>"
+		echo "Usage: ${0:t} <file_path> <url>"
     return 1
   fi
 
