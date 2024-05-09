@@ -13,6 +13,38 @@ function ffmpeg-convert-to-switch-webp() {
   # ffmpeg -i "$input_file" -t "$duration" -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2" -vcodec libwebp -compression_level 6 -q:v 80 -loop 0 "$output_file"
 }
 
+
+# not working
+function rename-porn() {
+	if [[ -z "$1" ]]; then
+		echo "Usage: ${0:t} <file>"
+		return 1
+	fi
+	# Loop over each argument passed to the function
+	for file in "$@"; do
+			# Check if file exists to avoid errors on unmatched patterns
+			if [[ -e "$file" ]]; then
+					# Check if the file name contains a bracket
+					if [[ "$file" =~ \[.*\] ]]; then
+							# Extract and preserve the part inside the brackets
+							bracket_content=$(echo "$file" | grep -o '\[.*\]')
+							# Remove the bracket part from the filename for processing
+							name_without_brackets=$(echo "$file" | sed 's/\[.*\]//')
+							# Capitalize the rest of the name
+							new_name=$(echo "$name_without_brackets" | awk '{print toupper($0)}')
+							# Combine the capitalized part with the original bracket content
+							new_filename="${new_name}${bracket_content}"
+					else
+							# Capitalize the whole name if there are no brackets
+							new_filename=$(echo "$file" | awk '{print toupper($0)}')
+					fi
+					# Rename the file
+					# mv -- "$file" "$new_filename"
+					echo "new filename: ${new_filename}"
+			fi
+	done
+}
+
 function vlc-filter() {
   local search_term="$1"
 	# fd -i "$search_term" -E '.*\.(mp4|webp|webm|mkv|mov)$' --print0 | xargs -0 vlc --loop --random --no-repeat
@@ -20,6 +52,9 @@ function vlc-filter() {
 	fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort" | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
 }
 alias vlc-top-find="vlc-filter \"\_\[\""
+alias vlc-babyblue="cd /Volumes/BabyBlue2TB/Videos/not-porn && vlc-filter"
+alias vlc-babyblue-one="cd /Volumes/BabyBlue2TB/Videos/not-porn && vlc-find"
+alias vlc-inbox="cd $HOME/_inbox && vlc-filter"
 
 function vlc-find() {
   local search_term="$1"

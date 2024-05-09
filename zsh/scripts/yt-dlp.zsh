@@ -21,7 +21,7 @@ alias yt-video="yt-dlp -f 'bestvideo[vcodec^=avc1]' --merge-output-format mp4 --
 alias yt-json-dump="yt-dlp --write-info-json --skip-download "
 alias yt-json-description="jq '.description' "
 
-function yt-dlp-get-music-video {
+function yt-music-video {
   local url="$1"
   local output_template="%(uploader)s - %(title)s.%(ext)s"
 
@@ -50,6 +50,8 @@ function yt-porn {
 			return 1
 	fi
 
+	# ffmpeg -i "{}" -metadata comment="%(webpage_url)s" -metadata title="%(title)s" -codec copy "{}"
+	#
 	# download and rename
   yt-dlp -v \
     --output "${output_template}" \
@@ -59,8 +61,21 @@ function yt-porn {
     --embed-metadata \
     --embed-thumbnail \
     "${url}"
+}
 
-	# ffmpeg -i "{}" -metadata comment="%(webpage_url)s" -metadata title="%(title)s" -codec copy "{}"
+function mp4-tag-write-title {
+  local file="$1"
+  local title="$2"
+
+	if [[ -z "$file" ]]; then
+			echo "Usage: ${0:t} <file> <title>"
+			return 1
+	fi
+
+	ffmpeg -i "${file}" -metadata title="%(title)s" -codec copy "${file}.tmp"
+	mv "${file}.tmp" "${file}"
+
+	echo "Successfully written title tag to ${file}"
 }
 
 function yt-porn-no-thumbnail {
@@ -92,7 +107,8 @@ function yt-dlp-download-and-embed-tags {
 			return 1
 	fi
 
-  yt-dlp -v \
+  yt-dlp \
+		--verbose \
 		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
     --cookies-from-browser brave \
     --merge-output-format mp4 \
@@ -102,7 +118,23 @@ function yt-dlp-download-and-embed-tags {
     "${url}"
 }
 
-function mp4-tags-rename {
+# not working
+function mp4-tag-fetch {
+  local url="$1"
+	if [[ -z "$url" ]]; then
+			echo "Usage: ${0:t} <url>"
+			return 1
+	fi
+
+	# yt-dlp --verbose --skip-download --print-json "${url}"
+	# fetch metadata
+	local json_metadata=$(yt-dlp --verbose --skip-download --print-json "${url}")
+
+	echo "description: "
+	echo "$json_metadata" |jq '.description'
+}
+
+function mp4-tag-rename {
   # Ensure an argument is provided
   if [[ -z "$1" ]]; then
     echo "Usage: ${0:t} <file>"
