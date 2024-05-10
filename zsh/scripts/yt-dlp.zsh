@@ -23,7 +23,7 @@ alias yt-json-description="jq '.description' "
 
 function yt-music-video {
   local url="$1"
-  local output_template="%(uploader)s - %(title)s.%(ext)s"
+  local output_template="%(artist)s - %(title)s.%(ext)s"
 
 	if [[ -z "$url" ]]; then
 			echo "Usage: ${0:t} <url>"
@@ -36,7 +36,6 @@ function yt-music-video {
     --merge-output-format mp4 \
     --embed-metadata \
     --embed-thumbnail \
-		--exec 'ffmpeg -i "{}" -metadata comment="%(webpage_url)s" -metadata synopsis="%(id)s" -codec copy "{}"' \
     --output "${output_template}" \
     "${url}"
 }
