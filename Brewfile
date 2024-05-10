@@ -39,7 +39,9 @@ brew "jq" # json tool
 brew "jless" # json tree viewer
 brew "bottom" # htop / sysperf monitor
 
+# video tools
 brew "mp4v2" # mp4 tools like mp4info etc
+cask "losslesscut" # lossless slicing of videos (mp4, webm, etc)
 
 brew "blueutil" # bluetooth util
 
