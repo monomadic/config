@@ -36,9 +36,26 @@ function yt-music-video {
 	#	--format 'bestvideo+bestaudio/best' \
 
   yt-dlp -v \
-		--format bestvideo+bestaudio \
-		--merge-output-format mp4 \
+		--format bestvideo+bestaudio/best \
     --output "${output_template}" \
+    --cookies-from-browser brave \
+    --embed-metadata \
+    "${url}"
+}
+
+function yt-music-video-mp4 {
+  local url="$1"
+  local output_template="%(artist)s - %(title)s.%(ext)s"
+
+	if [[ -z "$url" ]]; then
+			echo "Usage: ${0:t} <url>"
+			return 1
+	fi
+
+  yt-dlp -v \
+		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+    --output "${output_template}" \
+		--merge-output-format mp4 \
     --cookies-from-browser brave \
     --embed-metadata \
     "${url}"
@@ -62,7 +79,6 @@ function yt-porn {
     --cookies-from-browser brave \
     --merge-output-format mp4 \
     --embed-metadata \
-    --embed-thumbnail \
     "${url}"
 }
 
