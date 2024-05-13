@@ -35,7 +35,6 @@ function yt-music-video {
     --cookies-from-browser brave \
     --merge-output-format mp4 \
     --embed-metadata \
-    --embed-thumbnail \
     --output "${output_template}" \
     "${url}"
 }

@@ -13,7 +13,6 @@ function ffmpeg-convert-to-switch-webp() {
   # ffmpeg -i "$input_file" -t "$duration" -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2" -vcodec libwebp -compression_level 6 -q:v 80 -loop 0 "$output_file"
 }
 
-
 # not working
 function rename-porn() {
 	if [[ -z "$1" ]]; then
