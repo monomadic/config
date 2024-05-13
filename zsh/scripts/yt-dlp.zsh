@@ -30,12 +30,17 @@ function yt-music-video {
 			return 1
 	fi
 
+	# --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+  # --merge-output-format mp4 \
+	#	--exec 'ffmpeg -i "{}" -metadata comment="%(webpage_url)s" -metadata synopsis="%(id)s" -codec copy "{}"' \
+	#	--format 'bestvideo+bestaudio/best' \
+
   yt-dlp -v \
-		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
-    --cookies-from-browser brave \
-    --merge-output-format mp4 \
-    --embed-metadata \
+		--format bestvideo+bestaudio \
+		--merge-output-format mp4 \
     --output "${output_template}" \
+    --cookies-from-browser brave \
+    --embed-metadata \
     "${url}"
 }
 
