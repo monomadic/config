@@ -24,20 +24,22 @@ brew "homebrew/dotter.rb"
 brew "rm-improved" # rm replacement (rip)
 # brew "clear" # regex file delete
 # brew "most" # more replacement (use less -R)
-brew "bat" # cat replacement
+brew "bat"		# cat replacement
 brew "mdless" # markdown viewer
-brew "glow" # markdown viewer golang
-brew "bk" # ebook reader
-brew "eza" # ls/exa replacement
-brew "duf" # disk usage go
-brew "dust" # better ncdu in rust
+brew "glow"		# markdown viewer golang
+brew "bk"			# ebook reader
+brew "eza"		# ls/exa replacement
+brew "duf"		# disk usage go
+brew "dust"		# better ncdu in rust
 brew "dua-cli" # another ncdu rust
-brew "ncdu"
-brew "fzf" # fuzzy filter (go)
-brew "sk" # fuzzy filter (rust)
-brew "jq" # json tool
-brew "jless" # json tree viewer
+brew "ncdu"		# disk usage
+brew "fzf"		# fuzzy filter (go)
+brew "sk"			# fuzzy filter (rust)
+brew "jq"			# json tool
+brew "jless"	# json tree viewer
 brew "bottom" # htop / sysperf monitor
+
+brew "fclones" # rust duplicate finder
 
 # video tools
 brew "mp4v2" # mp4 tools like mp4info etc

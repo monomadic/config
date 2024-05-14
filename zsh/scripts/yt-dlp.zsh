@@ -40,7 +40,7 @@ function yt-music-video {
     --output "${output_template}" \
     --cookies-from-browser brave \
     --embed-metadata \
-    "${url}"
+    $0
 }
 
 function yt-music-video-mp4 {
@@ -58,7 +58,7 @@ function yt-music-video-mp4 {
 		--merge-output-format mp4 \
     --cookies-from-browser brave \
     --embed-metadata \
-    "${url}"
+    $@
 }
 
 function yt-porn {
@@ -70,16 +70,40 @@ function yt-porn {
 			return 1
 	fi
 
-	# ffmpeg -i "{}" -metadata comment="%(webpage_url)s" -metadata title="%(title)s" -codec copy "{}"
-	#
-	# download and rename
   yt-dlp -v \
     --output "${output_template}" \
 		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
     --cookies-from-browser brave \
     --merge-output-format mp4 \
     --embed-metadata \
-    "${url}"
+    $@
+}
+
+function tag-comment() {
+    if [[ $# -lt 2 ]]; then
+        echo "Usage: yt_comment_tag <video_file> <comment>"
+        return 1
+    fi
+
+    local video_file="$1"
+    local comment="$2"
+
+    if [[ ! -f "$video_file" ]]; then
+        echo "Error: File '$video_file' not found."
+        return 1
+    fi
+
+    # Generate the output file name with "_tagged" appended
+    local tagged_video="${video_file%.*}_tagged.${video_file##*.}"
+
+    # Add the comment as a metadata tag using ffmpeg
+    ffmpeg -i "$video_file" -metadata comment="$comment" -codec copy "$tagged_video"
+    if [[ $? -eq 0 ]]; then
+        echo "Tagged video saved as: $tagged_video"
+    else
+        echo "Error tagging the video."
+        return 1
+    fi
 }
 
 function mp4-tag-write-title {
@@ -153,7 +177,25 @@ function mp4-tag-fetch {
 	echo "$json_metadata" |jq '.description'
 }
 
-function mp4-tag-rename {
+function convert-to-mp4() {
+    local input_file="$1"
+    local output_file="${input_file%.*}.mp4"
+
+    if [ -z "$1" ]; then
+        echo "Usage: convert-to-mp4 <input_file>"
+        return 1
+    fi
+
+    ffmpeg -i "$input_file" -c copy "$output_file"
+
+    if [ $? -eq 0 ]; then
+        echo "Conversion successful: $output_file"
+    else
+        echo "Conversion failed"
+    fi
+}
+
+function tag-rename {
   # Ensure an argument is provided
   if [[ -z "$1" ]]; then
     echo "Usage: ${0:t} <file>"
@@ -219,7 +261,66 @@ function mp4-tag-rename {
 
 # alias mp4-tag-comment="
 
-function mp4-tag-list {
+function tag-embed() {
+    # Check for two arguments
+    if [ $# -ne 2 ]; then
+        echo "Usage: ${0:t} <file> <url>"
+        return 1
+    fi
+
+    local file="$1"
+    local url="$2"
+
+    # Ensure yt-dlp, ffprobe, and ffmpeg are installed
+    for cmd in yt-dlp ffprobe ffmpeg; do
+        if ! command -v $cmd &> /dev/null; then
+            echo "$cmd is not installed. Please install it first."
+            return 1
+        fi
+    done
+
+    # Extract metadata using yt-dlp
+    metadata=$(yt-dlp --skip-download --print-json "$url")
+    if [ $? -ne 0 ]; then
+        echo "Failed to extract metadata from $url"
+        return 1
+    fi
+
+    # Use jq to extract relevant metadata
+    title=$(echo "$metadata" | jq -r '.title')
+    uploader=$(echo "$metadata" | jq -r '.uploader')
+    upload_date=$(echo "$metadata" | jq -r '.upload_date')
+    description=$(echo "$metadata" | jq -r '.description')
+
+    # Extract existing metadata from the file using ffprobe
+    existing_metadata=$(ffprobe -v quiet -print_format json -show_format "$file")
+    if [ $? -ne 0 ]; then
+        echo "Failed to extract existing metadata from $file"
+        return 1
+    fi
+
+    # Add new metadata using ffmpeg
+    ffmpeg -i "$file" \
+        -metadata title="$title" \
+        -metadata artist="$uploader" \
+        -metadata description="$description" \
+        -metadata date="$upload_date" \
+        -codec copy "temp_$file"
+
+    if [ $? -eq 0 ]; then
+        mv "temp_$file" "$file"
+        echo "Metadata added successfully to $file"
+    else
+        echo "Failed to add metadata to $file"
+        rm "temp_$file"
+        return 1
+    fi
+}
+
+# Example usage:
+# add_metadata "localfile.mp4" "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+
+function tag-print {
     # Check if ffprobe is installed
     if ! command -v ffprobe &> /dev/null; then
         echo "ffprobe is not installed."
@@ -228,7 +329,7 @@ function mp4-tag-list {
 
     # Check for correct number of arguments
     if [ "$#" -ne 1 ]; then
-        echo "Usage: list_mp4_tags <filename>"
+        echo "Usage: tag-print <filename>"
         return 1
     fi
 
