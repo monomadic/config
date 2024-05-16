@@ -79,6 +79,171 @@ function yt-porn {
     $@
 }
 
+function yt-porn-firefox {
+  local url="$1"
+  local output_template="[%(uploader)s] %(title)s.%(ext)s"
+
+	if [[ -z "$url" ]]; then
+			echo "Usage: ${0:t} <url>"
+			return 1
+	fi
+
+  yt-dlp -v \
+    --output "${output_template}" \
+		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+		--user-agent "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" \
+    --cookies-from-browser firefox \
+    --merge-output-format mp4 \
+    --embed-metadata \
+    $@
+}
+
+function vid-info {
+    if [ -z "$1" ]; then
+        echo "Usage: video-info <video_file>"
+        return 1
+    fi
+
+		echo "\n$1:"
+    ffprobe -v error \
+        -show_entries format=duration,size,bit_rate \
+        -show_entries stream=codec_name,width,height,r_frame_rate \
+        -of default=noprint_wrappers=1 "$@"
+}
+
+function vid-info-color() {
+    if [ -z "$1" ]; then
+        echo "Usage: vid-info-color <video_file>"
+        return 1
+    fi
+
+    # Colors
+    RED=$(tput setaf 1)
+    GREEN=$(tput setaf 2)
+    YELLOW=$(tput setaf 3)
+    BLUE=$(tput setaf 4)
+    MAGENTA=$(tput setaf 5)
+    CYAN=$(tput setaf 6)
+    RESET=$(tput sgr0)
+
+    # Output the video file name
+    echo "\n${CYAN}File:${RESET} ${GREEN}$1${RESET}\n"
+
+    # Get video info
+    info=$(ffprobe -v error \
+        -show_entries format=duration,size,bit_rate \
+        -show_entries stream=codec_name,width,height,r_frame_rate \
+        -of default=noprint_wrappers=1 "$@")
+
+    # Display the information with color formatting
+    echo "${YELLOW}Video Information:${RESET}"
+    echo "$info" | while IFS= read -r line; do
+        key=$(echo "$line" | cut -d'=' -f1)
+        value=$(echo "$line" | cut -d'=' -f2-)
+
+        case $key in
+            duration) echo "${MAGENTA}Duration:${RESET} ${value}" ;;
+            size) echo "${MAGENTA}Size:${RESET} ${value}" ;;
+            bit_rate) echo "${MAGENTA}Bit Rate:${RESET} ${value}" ;;
+            codec_name) echo "${MAGENTA}Codec Name:${RESET} ${value}" ;;
+            width) echo "${MAGENTA}Width:${RESET} ${value}" ;;
+            height) echo "${MAGENTA}Height:${RESET} ${value}" ;;
+            r_frame_rate) echo "${MAGENTA}Frame Rate:${RESET} ${value}" ;;
+            *) echo "${key}: ${value}" ;;
+        esac
+    done
+}
+
+function yt-batch-porn {
+  local output_template="$HOME/_inbox/[%(uploader)s] %(title)s.%(ext)s"
+	local batch_file="$HOME/.ytdl-batch-porn"
+
+	if [[ ! -e "$batch_file" ]]; then
+		echo "$batch_file not found, creating..."
+		touch "$batch_file"
+	fi
+
+  yt-dlp -v \
+    --output "${output_template}" \
+		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+    --cookies-from-browser firefox \
+    --merge-output-format mp4 \
+    --batch-file "${batch_file}" \
+    --download-archive '$HOME/.ytdl-archive' \
+    --embed-metadata \
+    --add-metadata \
+    --parse-metadata '%(title)s:%(meta_title)s' \
+    --parse-metadata '%(uploader)s:%(meta_artist)s' \
+    --write-info-json \
+    --write-annotations \
+		--get-comments \
+		--check-formats \
+		--concurrent-fragments 3 \
+		$@
+}
+
+function yt-fg-archive {
+    # Define format string for better readability
+    local format_str="(
+        bestvideo[vcodec^=av01][height>=4320][fps>30]/bestvideo[vcodec^=vp09.02][height>=4320][fps>30]/bestvideo[vcodec^=vp09.00][height>=4320][fps>30]/bestvideo[vcodec^=avc1][height>=4320][fps>30]/bestvideo[height>=4320][fps>30]/
+        bestvideo[vcodec^=av01][height>=4320]/bestvideo[vcodec^=vp09.02][height>=4320]/bestvideo[vcodec^=vp09.00][height>=4320]/bestvideo[vcodec^=avc1][height>=4320]/bestvideo[height>=4320]/
+        bestvideo[vcodec^=av01][height>=2880][fps>30]/bestvideo[vcodec^=vp09.02][height>=2880][fps>30]/bestvideo[vcodec^=vp09.00][height>=2880][fps>30]/bestvideo[vcodec^=avc1][height>=2880][fps>30]/bestvideo[height>=2880][fps>30]/
+        bestvideo[vcodec^=av01][height>=2880]/bestvideo[vcodec^=vp09.02][height>=2880]/bestvideo[vcodec^=vp09.00][height>=2880]/bestvideo[vcodec^=avc1][height>=2880]/bestvideo[height>=2880]/
+        bestvideo[vcodec^=av01][height>=2160][fps>30]/bestvideo[vcodec^=vp09.02][height>=2160][fps>30]/bestvideo[vcodec^=vp09.00][height>=2160][fps>30]/bestvideo[vcodec^=avc1][height>=2160][fps>30]/bestvideo[height>=2160][fps>30]/
+        bestvideo[vcodec^=av01][height>=2160]/bestvideo[vcodec^=vp09.02][height>=2160]/bestvideo[vcodec^=vp09.00][height>=2160]/bestvideo[vcodec^=avc1][height>=2160]/bestvideo[height>=2160]/
+        bestvideo[vcodec^=av01][height>=1440][fps>30]/bestvideo[vcodec^=vp09.02][height>=1440][fps>30]/bestvideo[vcodec^=vp09.00][height>=1440][fps>30]/bestvideo[vcodec^=avc1][height>=1440][fps>30]/bestvideo[height>=1440][fps>30]/
+        bestvideo[vcodec^=av01][height>=1440]/bestvideo[vcodec^=vp09.02][height>=1440]/bestvideo[vcodec^=vp09.00][height>=1440]/bestvideo[vcodec^=avc1][height>=1440]/bestvideo[height>=1440]/
+        bestvideo[vcodec^=av01][height>=1080][fps>30]/bestvideo[vcodec^=vp09.02][height>=1080][fps>30]/bestvideo[vcodec^=vp09.00][height>=1080][fps>30]/bestvideo[vcodec^=avc1][height>=1080][fps>30]/bestvideo[height>=1080][fps>30]/
+        bestvideo[vcodec^=av01][height>=1080]/bestvideo[vcodec^=vp09.02][height>=1080]/bestvideo[vcodec^=vp09.00][height>=1080]/bestvideo[vcodec^=avc1][height>=1080]/bestvideo[height>=1080]/
+        bestvideo[vcodec^=av01][height>=720][fps>30]/bestvideo[vcodec^=vp09.02][height>=720][fps>30]/bestvideo[vcodec^=vp09.00][height>=720][fps>30]/bestvideo[vcodec^=avc1][height>=720][fps>30]/bestvideo[height>=720][fps>30]/
+        bestvideo[vcodec^=av01][height>=720]/bestvideo[vcodec^=vp09.02][height>=720]/bestvideo[vcodec^=vp09.00][height>=720]/bestvideo[vcodec^=avc1][height>=720]/bestvideo[height>=720]/
+        bestvideo[vcodec^=av01][height>=480][fps>30]/bestvideo[vcodec^=vp09.02][height>=480][fps>30]/bestvideo[vcodec^=vp09.00][height>=480][fps>30]/bestvideo[vcodec^=avc1][height>=480][fps>30]/bestvideo[height>=480][fps>30]/
+        bestvideo[vcodec^=av01][height>=480]/bestvideo[vcodec^=vp09.02][height>=480]/bestvideo[vcodec^=vp09.00][height>=480]/bestvideo[vcodec^=avc1][height>=480]/bestvideo[height>=480]/
+        bestvideo[vcodec^=av01][height>=360][fps>30]/bestvideo[vcodec^=vp09.02][height>=360][fps>30]/bestvideo[vcodec^=vp09.00][height>=360][fps>30]/bestvideo[vcodec^=avc1][height>=360][fps>30]/bestvideo[height>=360][fps>30]/
+        bestvideo[vcodec^=av01][height>=360]/bestvideo[vcodec^=vp09.02][height>=360]/bestvideo[vcodec^=vp09.00][height>=360]/bestvideo[vcodec^=avc1][height>=360]/bestvideo[height>=360]/
+        bestvideo[vcodec^=av01][height>=240][fps>30]/bestvideo[vcodec^=vp09.02][height>=240][fps>30]/bestvideo[vcodec^=vp09.00][height>=240][fps>30]/bestvideo[vcodec^=avc1][height>=240][fps>30]/bestvideo[height>=240][fps>30]/
+        bestvideo[vcodec^=av01][height>=240]/bestvideo[vcodec^=vp09.02][height>=240]/bestvideo[vcodec^=vp09.00][height>=240]/bestvideo[vcodec^=avc1][height>=240]/bestvideo[height>=240]/
+        bestvideo[vcodec^=av01][height>=144][fps>30]/bestvideo[vcodec^=vp09.02][height>=144][fps>30]/bestvideo[vcodec^=vp09.00][height>=144][fps>30]/bestvideo[vcodec^=avc1][height>=144][fps>30]/bestvideo[height>=144][fps>30]/
+        bestvideo[vcodec^=av01][height>=144]/bestvideo[vcodec^=vp09.02][height>=144]/bestvideo[vcodec^=vp09.00][height>=144]/bestvideo[vcodec^=avc1][height>=144]/bestvideo[height>=144]
+    )+(bestaudio[acodec^=opus]/bestaudio)/best"
+
+    # Define common options
+    local common_opts="
+        --verbose
+        --force-ipv4
+        --sleep-requests 1
+        --sleep-interval 5
+        --max-sleep-interval 30
+        --ignore-errors
+        --no-continue
+        --no-overwrites
+        --download-archive archive.log
+        --add-metadata
+        --parse-metadata '%(title)s:%(meta_title)s'
+        --parse-metadata '%(uploader)s:%(meta_artist)s'
+        --write-description
+        --write-info-json
+        --write-annotations
+        --write-thumbnail
+        --embed-thumbnail
+        --all-subs
+        --embed-subs
+        --get-comments
+        --check-formats
+        --concurrent-fragments 3
+        --match-filter '!is_live & !live'
+        --output '%(title)s - %(uploader)s - %(upload_date)s/%(title)s - %(uploader)s - %(upload_date)s [%(id)s].%(ext)s'
+        --merge-output-format 'mkv'
+        --datebefore '$(date --date="30 days ago" +%Y%m%d)'
+        --throttled-rate 100K
+        --batch-file '$HOME/.ytdl-batch'
+    "
+
+    # Run yt-dlp with all options
+    yt-dlp --format "$format_str" $common_opts 2>&1 | tee output.log
+}
+
+
 function tag-comment() {
     if [[ $# -lt 2 ]]; then
         echo "Usage: yt_comment_tag <video_file> <comment>"

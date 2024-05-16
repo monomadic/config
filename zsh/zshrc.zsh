@@ -5,6 +5,9 @@ autoload -Uz add-zsh-hook
 
 # Source all configuration files
 for config_file ($ZSH_CONFIG_DIR/*.zsh); do
+  YELLOW=$(tput setaf 3)
+  RESET=$(tput sgr0)
+	echo "${YELLOW}$config_file${RESET}"
   source $config_file
 done
 

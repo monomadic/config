@@ -183,6 +183,8 @@ brew "bitwise" # bit conversion
 brew "demumble" # demangling
 cask "hex-fiend" # hex editor
 
+brew "aria2c" # cli download client
+
 # manga
 tap "metafates/mangal"
 brew "mangal" # tui comic downloader
