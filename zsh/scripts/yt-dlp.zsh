@@ -180,6 +180,9 @@ function yt-batch-porn {
 		--check-formats \
 		--concurrent-fragments 3 \
 		$@
+
+	# move .json files out
+	mv $HOME/_inbox/*.json $HOME/_inbox/
 }
 
 function yt-fg-archive {

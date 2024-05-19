@@ -6,8 +6,8 @@ function rsync-archive {
     fi
 
     # Variables for source and destination
-    local source_folder=$1
-    local destination_folder=$2
+    local source_folder="$1"
+    local destination_folder="$2"
 
     # Check if source folder exists
     if [ ! -d "$source_folder" ]; then
@@ -37,4 +37,10 @@ function rsync-archive {
         return 1
     fi
 }
-alias rsync-backup-babyblue="rsync-archive /Volumes/BabyBlue2TB/ /Volumes/FireBird1TB/_backup/BabyBlue2TB/"
+
+function rsync-backup-babyblue {
+	rsync-archive /Volumes/BabyBlue2TB/ /Volumes/FireBird1TB/_backup/BabyBlue2TB/
+	# check file count is the same
+	# keep log of the files
+	fd . '/Volumes/BabyBlue2TB/not-porn' > $HOME/.indexes/BabyBlue2TB.txt
+}

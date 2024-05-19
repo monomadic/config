@@ -1,11 +1,10 @@
-
 function ffmpeg-convert-to-switch-webp() {
   local input_file="$1"
   local output_file="$2"
   local duration="$3"
 
   if [[ -z "$input_file" || -z "$output_file" || -z "$duration" ]]; then
-    echo "Usage: webm_to_webp <input_file> <output_file> <duration_in_seconds>"
+    echo "Usage: ${0:t} <input_file> <output_file> <duration_in_seconds>"
     return 1
   fi
 
@@ -50,8 +49,16 @@ function vlc-filter() {
 	# fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort" | xargs -0 vlc
 	fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort" | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
 }
+function vlc-play {
+  local search_term="$1"
+	fd --fixed-strings "$search_term" -0 |xargs -0 vlc
+}
+function vlc-play-cumshots {
+	vlc-play '[cumshot]'
+}
+alias cd-babyblue="cd /Volumes/BabyBlue2TB/not-porn"
 alias vlc-top-find="vlc-filter \"\_\[\""
-alias vlc-babyblue="cd /Volumes/BabyBlue2TB/Videos/not-porn && vlc-filter"
+alias vlc-babyblue="cd-babyblue && vlc-filter"
 alias vlc-babyblue-one="cd /Volumes/BabyBlue2TB/Videos/not-porn && vlc-find"
 alias vlc-inbox="cd $HOME/_inbox && vlc-filter"
 

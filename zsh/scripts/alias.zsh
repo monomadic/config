@@ -1,9 +1,9 @@
 alias b="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
-alias backup-babyblue="rsync-one-way-backup-dry-run /Volumes/BabyBlue2TB/ /Volumes/FireBird1TB/_backup/BabyBlue2TB/"
 alias battery='pmset -g batt'
 alias branch="b"
 alias cb="cargo build"
 alias cc="cargo check"
+alias cd-blue="cd /Volumes/BabyBlue2TB/not-porn"
 alias ci="cargo install --path ."
 alias cp-pwd="echo $PWD|pbcopy" # mac only
 alias cr="cargo run"
