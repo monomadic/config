@@ -57,6 +57,7 @@ function vlc-play-cumshots {
 	vlc-play '[cumshot]'
 }
 alias cd-babyblue="cd /Volumes/BabyBlue2TB/not-porn"
+alias cd-babyblue-inbox="cd /Volumes/BabyBlue2TB/not-porn/___full-videos/_inbox"
 alias cd-inbox="cd $HOME/_inbox"
 alias vlc-top-find="vlc-filter \"\_\[\""
 alias vlc-babyblue="cd-babyblue && vlc-filter"
