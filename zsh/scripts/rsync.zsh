@@ -41,7 +41,8 @@ function rsync-archive {
 function rsync-backup-babyblue {
 	rsync-archive /Volumes/BabyBlue2TB/ /Volumes/FireBird1TB/_backup/BabyBlue2TB/
 	# check file count is the same
-	# keep log of the files
-	fd . '/Volumes/BabyBlue2TB/not-porn' > $HOME/.indexes/BabyBlue2TB.txt
+	# run the indexer
+	index-all
+	echo "Backup successful."
 }
 alias backup-babyblue=rsync-backup-babyblue

@@ -83,7 +83,7 @@ function index-search-and {
         local rg_command="rg -i --fixed-strings --no-line-number --glob '*.txt'"
 
         for term in "$@"; do
-            rg_command+=" | rg -i --fixed-strings \"$term\""
+            rg_command+=" | rg -i --fixed-strings --no-line-number \"$term\""
         done
 
         rg_command+=" \"$index_dir\""

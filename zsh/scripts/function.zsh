@@ -53,6 +53,14 @@ function vlc-play {
   local search_term="$1"
 	fd --fixed-strings "$search_term" -0 |xargs -0 vlc
 }
+function vlc-play-top {
+	vlc-play '🎖️'
+}
+
+function vlc-play-hot {
+	vlc-play '🔥'
+}
+
 function vlc-play-cumshots {
 	vlc-play '[cumshot]'
 }
@@ -63,6 +71,9 @@ alias vlc-top-find="vlc-filter \"\_\[\""
 alias vlc-babyblue="cd-babyblue && vlc-filter"
 alias vlc-babyblue-one="cd /Volumes/BabyBlue2TB/Videos/not-porn && vlc-find"
 alias vlc-inbox="cd $HOME/_inbox && vlc-filter"
+alias bbtop="cd-babyblue && vlc-play-top"
+alias bbhot="cd-babyblue && vlc-play-hot"
+alias is="index-all && index-search-and"
 
 function vlc-find() {
   local search_term="$1"
