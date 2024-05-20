@@ -44,3 +44,4 @@ function rsync-backup-babyblue {
 	# keep log of the files
 	fd . '/Volumes/BabyBlue2TB/not-porn' > $HOME/.indexes/BabyBlue2TB.txt
 }
+alias backup-babyblue=rsync-backup-babyblue
