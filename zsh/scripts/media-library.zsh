@@ -24,7 +24,7 @@ function index-all {
 						echo "Error: Failed to create index for '/Volumes/BabyBlue2TB/not-porn'." >&2
 				}
 		else
-				echo "Warning: Directory '/Volumes/BabyBlue2TB/not-porn' does not exist." >&2
+				echo "Warning: BabyBlue2TB drive not found, skipping this index." >&2
 		fi
 }
 
@@ -33,7 +33,7 @@ function index-search {
     local index_dir="$HOME/doc/indexes"
 
     if [[ -z "$search_term" ]]; then
-        echo "Usage: index_search <search_term>"
+        echo "Usage: index-search <search_term>"
         return 1
     fi
 
@@ -52,7 +52,7 @@ function index-search-or {
 		local index_dir="$HOME/doc/indexes"
 
 		if [[ $# -eq 0 ]]; then
-				echo "Usage: index_search_and <search_term1> <search_term2> ..."
+				echo "Usage: index-search-or <search_term1> <search_term2> ..."
 				return 1
 		fi
 
@@ -75,7 +75,7 @@ function index-search-and {
     local index_dir="$HOME/doc/indexes"
 
     if [[ $# -eq 0 ]]; then
-        echo "Usage: index_search_and <search_term1> <search_term2> ..."
+        echo "Usage: index-search-and <search_term1> <search_term2> ..."
         return 1
     fi
 
