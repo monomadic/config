@@ -73,7 +73,7 @@ alias vlc-babyblue-one="cd /Volumes/BabyBlue2TB/Videos/not-porn && vlc-find"
 alias vlc-inbox="cd $HOME/_inbox && vlc-filter"
 alias bbtop="cd-babyblue && vlc-play-top"
 alias bbhot="cd-babyblue && vlc-play-hot"
-alias is="index-all && index-search-and"
+alias is="index-search"
 
 function vlc-find() {
   local search_term="$1"
