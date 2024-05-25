@@ -11,11 +11,31 @@ for config_file ($ZSH_CONFIG_DIR/*.zsh); do
   source $config_file
 done
 
-# check for uncommitted changes in important dirs
+# ------------------------
+
+# Define colors
 RED=$(tput setaf 1)
 RESET=$(tput sgr0)
-[[ -n "$(cd $HOME/config && git status --porcelain)" ]] && echo "\n${RED} uncommitted changes: $HOME/config${RESET}" && cd $HOME/config && git status --short --untracked-files=all && cd $HOME
-[[ -n "$(cd $HOME/wiki && git status --porcelain)" ]] && echo "\n${RED} uncommitted changes: $HOME/wiki${RESET}" && cd $HOME/wiki && git status --short --untracked-files=all && cd $HOME
+
+# Directories to check
+declare -a dirs=("$HOME/config" "$HOME/wiki")
+
+# Function to check for uncommitted changes
+check_uncommitted_changes() {
+    local dir=$1
+    if [[ -n "$(cd "$dir" && git status --porcelain)" ]]; then
+        echo -e "\n${RED} uncommitted changes: $dir${RESET}"
+        cd "$dir" && git status --short --untracked-files=all
+        cd "$HOME"
+    fi
+}
+
+# Check each directory
+for dir in "${dirs[@]}"; do
+    check_uncommitted_changes "$dir"
+done
+
+# ------------------------
 
 # Local source (not checked into git)
 [[ -f "$ZSH_CONFIG_DIR/local.zsh" ]] && source "$ZSH_CONFIG_DIR/local.zsh"
