@@ -11,6 +11,13 @@ for config_file ($ZSH_CONFIG_DIR/*.zsh); do
   source $config_file
 done
 
+# check for uncommitted changes in important dirs
+RED=$(tput setaf 1)
+RESET=$(tput sgr0)
+[[ -n "$(cd $HOME/config && git status --porcelain)" ]] && echo "\n${RED} uncommitted changes: $HOME/config${RESET}" && cd $HOME/config && git status --short --untracked-files=all && cd $HOME
+
+# git status --short --untracked-files=all
+
 # Local source (not checked into git)
 [[ -f "$ZSH_CONFIG_DIR/local.zsh" ]] && source "$ZSH_CONFIG_DIR/local.zsh"
 

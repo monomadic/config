@@ -43,6 +43,7 @@ alias gl="git log"
 alias gp="git push"
 alias gr="cd /"
 alias gs="git status"
+alias gss="git status --short --untracked-files=all"
 alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
 alias img="chafa --format=symbols "
 alias j=joshuto
