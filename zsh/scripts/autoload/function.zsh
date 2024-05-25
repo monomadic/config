@@ -12,6 +12,52 @@ function ffmpeg-convert-to-switch-webp() {
   # ffmpeg -i "$input_file" -t "$duration" -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2" -vcodec libwebp -compression_level 6 -q:v 80 -loop 0 "$output_file"
 }
 
+function rename-append-resolution {
+  if [[ -z "$1" ]]; then
+    echo "Usage: ${0:t} <file.mp4>"
+    return 1
+  fi
+
+  file="$1"
+  resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$file")
+
+  if [[ -z "$resolution" ]]; then
+    echo "Error: Unable to determine resolution."
+    return 1
+  fi
+
+	echo "Resolution found: $resolution"
+
+  width=$(echo "$resolution" | cut -d'x' -f1)
+  height=$(echo "$resolution" | cut -d'x' -f2)
+
+  if (( height <= 720 )); then
+    tag="[720]"
+  elif (( height <= 1080 )); then
+    tag="[1080]"
+  elif (( height <= 1440 )); then
+    tag="[1440]"
+  else
+    tag="[4K]"
+  fi
+
+  extension="${file##*.}"
+  filename="${file%.*}"
+  new_filename="${filename}${tag}.${extension}"
+
+  if [[ -e "$new_filename" ]]; then
+    echo "Warning: File '$new_filename' already exists. Do you want to overwrite it? (y/N)"
+    read -r response
+    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+      echo "Operation aborted."
+      return 1
+    fi
+  fi
+
+  mv "$file" "$new_filename"
+  echo "Renamed to: $new_filename"
+}
+
 # function porntag-rename() {
 #   local input="$1"
 #   echo "$input" | awk '{
@@ -42,39 +88,52 @@ function rename-format-porn() {
   }'
 }
 
-function rename-all-dry-run {
-    for file in *; do
-        # Skip directories
-        [[ -d "$file" ]] && continue
+# function rename-all-dry-run {
+#     for file in *; do
+#         # Skip directories
+#         [[ -d "$file" ]] && continue
+#
+# 				if [[ -f "$file" ]]; then
+# 					local filename=$(basename "$file")
+# 					local new_filename=$(rename-format-porn "$filename")
+# 					echo "$file -> $new_filename\n"
+# 				fi
+# 		done
+# }
 
-				if [[ -f "$file" ]]; then
-					local filename=$(basename "$file")
-					local new_filename=$(rename-format-porn "$filename")
-					echo "$file -> $new_filename\n"
-				fi
-		done
-}
+function rename-porn {
+  if [[ -z "$1" ]]; then
+    echo "Usage: ${0:t} <file1.mp4> [file2.mp4] [...]"
+    return 1
+  fi
 
-function rename-porn-all {
-    for file in *; do
-        # Skip directories
-        [[ -d "$file" ]] && continue
+  for file in "$@"; do
+    # Skip directories
+    [[ -d "$file" ]] && continue
 
-				if [[ -f "$file" ]]; then
-					local filename=$(basename "$file")
-					local new_filename=$(rename-format-porn "$filename")
+    local filename=$(basename "$file")
+    local new_filename=$(rename-format-porn "$filename")
 
-            echo "Rename:\n\t$filename\n\t$new_filename\n\nOk? (y/N)"
-            read -r response
+    echo "Rename:\n\t$filename\n\t$new_filename\n\nOk? (y/N)"
+    read -r response
 
-            if [[ "$response" =~ ^[Yy]$ ]]; then
-                echo "Renaming '$filename' to '$new_filename'"
-                #mv "$filename" "$new_filename"
-            else
-                echo "Skipping '$filename'"
-            fi
-				fi
-		done
+    if [[ "$response" =~ ^[Yy]$ ]]; then
+      if [[ -e "$new_filename" ]]; then
+				echo -e "Warning: '$new_filename' already exists.\nOverwrite? (y/N)"
+        read -r response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+          echo "Operation aborted."
+          continue
+        fi
+      fi
+      echo "Renaming '$filename' to '$new_filename'"
+      mv "$filename" "$new_filename"
+    else
+      echo "Skipping '$filename'"
+    fi
+
+		echo "Batch rename completed."
+  done
 }
 
 function rename_files_dry_run() {
@@ -103,37 +162,6 @@ function rename_files_dry_run() {
         # Print old and new name
         echo "Would rename: \"$file\" -> \"$new_name\""
     done
-}
-
-# not working
-function rename-porn() {
-	if [[ -z "$1" ]]; then
-		echo "Usage: ${0:t} <file>"
-		return 1
-	fi
-	# Loop over each argument passed to the function
-	for file in "$@"; do
-			# Check if file exists to avoid errors on unmatched patterns
-			if [[ -e "$file" ]]; then
-					# Check if the file name contains a bracket
-					if [[ "$file" =~ \[.*\] ]]; then
-							# Extract and preserve the part inside the brackets
-							bracket_content=$(echo "$file" | grep -o '\[.*\]')
-							# Remove the bracket part from the filename for processing
-							name_without_brackets=$(echo "$file" | sed 's/\[.*\]//')
-							# Capitalize the rest of the name
-							new_name=$(echo "$name_without_brackets" | awk '{print toupper($0)}')
-							# Combine the capitalized part with the original bracket content
-							new_filename="${new_name}${bracket_content}"
-					else
-							# Capitalize the whole name if there are no brackets
-							new_filename=$(echo "$file" | awk '{print toupper($0)}')
-					fi
-					# Rename the file
-					# mv -- "$file" "$new_filename"
-					echo "new filename: ${new_filename}"
-			fi
-	done
 }
 
 function rename-as-tag-format() {
@@ -202,6 +230,7 @@ local DIR_BABYBLUE="/Volumes/BabyBlue2TB"
 alias bb-eject="diskutil eject $DIR_BABYBLUE"
 alias bb-cd="cd $DIR_BABYBLUE"
 alias cd-babyblue="cd $DIR_BABYBLUE/not-porn"
+alias bb-fzf="cd-babyblue && vlc-filter"
 
 function vlc-find() {
 		local search_term="$1"
