@@ -162,7 +162,7 @@ function vlc-play-hot {
 function vlc-play-cumshots {
 	vlc-play '[cumshot]'
 }
-alias cd-babyblue="cd /Volumes/BabyBlue2TB/not-porn"
+
 alias cd-babyblue-inbox="cd /Volumes/BabyBlue2TB/not-porn/___full-videos/_inbox"
 alias cd-inbox="cd $HOME/_inbox"
 alias vlc-top-find="vlc-filter \"\_\[\""
@@ -173,6 +173,11 @@ alias bbtop="cd-babyblue && vlc-play-top"
 alias bbhot="cd-babyblue && vlc-play-hot"
 alias is="index-search"
 alias i="index-search"
+
+local DIR_BABYBLUE="/Volumes/BabyBlue2TB"
+alias bb-eject="diskutil eject $DIR_BABYBLUE"
+alias bb-cd="cd $DIR_BABYBLUE"
+alias cd-babyblue="cd $DIR_BABYBLUE/not-porn"
 
 function vlc-find() {
 		local search_term="$1"

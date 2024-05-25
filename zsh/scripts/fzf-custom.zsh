@@ -5,19 +5,29 @@
 
 CMD_LIST_RELATIVE_DIRS='cat ~/.marks'
 CMD_DIRS_WORKSPACES='fd . ~/workspaces --extension workspace --follow'
+MARKS_FILE=$HOME/.marks
 
-function mark() {
-	echo $PWD >> ~/.marks
+function mark {
+    local mark_to_add
+    mark_to_add="$(pwd)"
+
+    if grep -qxFe "${mark_to_add}" "${MARKS_FILE}"; then
+        echo "** The following mark already exists **"
+    else
+        printf '%s\n' "${mark_to_add}" >> "${MARKS_FILE}"
+        echo "** The following mark has been added **"
+    fi
+    _fzm_color_marks <<< $mark_to_add
 }
 
 function ls_marks() {
-	cat ~/.marks
+	cat $MARKS_FILE
 }
 
 
 function ls_all() {
 	ls_marks
-	#ls_projects
+	ls_projects
 	ls_src
 }
 
@@ -116,7 +126,7 @@ function fzf-edit() {
 zle -N fzf_edit
 
 function fzf-marks() {
-	files=$(ls_all|fzf_dirs)
+	files=$(ls_marks|fzf_dirs)
 	[[ -n "$files" ]] && cd "${files[@]}" && clear && exa-ls
 	zle && zle reset-prompt
 }

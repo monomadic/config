@@ -42,7 +42,7 @@ if [[ -z ${FZF_MARKS_COMMAND-} ]] ; then
     fi
 fi
 
-function mark {
+function _mark {
     local mark_to_add
     mark_to_add="$* : $(pwd)"
 
