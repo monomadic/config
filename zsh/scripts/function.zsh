@@ -171,13 +171,45 @@ alias vlc-babyblue-one="cd /Volumes/BabyBlue2TB/Videos/not-porn && vlc-find"
 alias vlc-inbox="cd $HOME/_inbox && vlc-filter"
 alias bbtop="cd-babyblue && vlc-play-top"
 alias bbhot="cd-babyblue && vlc-play-hot"
+<<<<<<< HEAD
 alias is="index-search"
 
 function vlc-find() {
   local search_term="$1"
+||||||| parent of 69303c9 (update:)
+alias is="index-all && index-search-and"
+
+function vlc-find() {
+  local search_term="$1"
+=======
+alias i="index-search"
+alias is="i"
+>>>>>>> 69303c9 (update:)
 	# fd -i "$search_term" -E '.*\.(mp4|webp|webm|mkv|mov)$' --print0 | xargs -0 vlc --loop --random --no-repeat
 	# fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort" | xargs -0 vlc
-	fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
+
+function vlc-find() {
+		local search_term="$1"
+		fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
+}
+
+function fd-video {
+    local search_term="$1"
+    fd -i "$search_term" -E '.*\.(mp4|webp|webm|mkv|mov)$'
+}
+
+function fzf-filter {
+    fzf --exact --multi --print0
+}
+
+function vlc-find {
+    local search_term="$1"
+    fd-video "$search_term" | fzf-filter | xargs -0 vlc --loop --random --no-repeat
+}
+
+function vlc-ff {
+  local search_term="$1"
+	fd-video "$search_term" | fzf-filter |  xargs -0 sh -c 'echo '
 }
 
 function fzf-vlc {

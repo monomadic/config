@@ -10,7 +10,7 @@ function index-run {
 		fi
 }
 
-function index-all {
+function index-update {
 		# Ensure the target directory exists
 		mkdir -p "$HOME/doc/indexes"
 
