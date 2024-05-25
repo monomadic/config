@@ -35,23 +35,23 @@ return {
 
 		null_ls.setup {
 			sources = {
-				null_ls.builtins.formatting.taplo,   -- cargo install taplo-cli --locked
+				-- null_ls.builtins.formatting.taplo,   -- cargo install taplo-cli --locked
 				null_ls.builtins.formatting.black.with({ -- python
 					filetypes = { "python" }
 				}),
 				null_ls.builtins.formatting.isort.with({ -- python
 					filetypes = { "python" }
 				}),
-				null_ls.builtins.formatting.dprint.with({
-					filetypes = { "markdown", "vimwiki" },
-				}),
+				-- null_ls.builtins.formatting.dprint.with({
+				-- 	filetypes = { "markdown", "vimwiki" },
+				-- }),
 				null_ls.builtins.formatting.prettier.with({
 					filetypes = { "json", "yaml", "graphql", "snippets" },
 				}),
-				null_ls.builtins.diagnostics.curlylint.with({
-					filetypes = { "html", "htmldjango" },
-				}),
-				null_ls.builtins.diagnostics.jsonlint, -- brew install jsonlint
+				-- null_ls.builtins.diagnostics.curlylint.with({
+				-- 	filetypes = { "html", "htmldjango" },
+				-- }),
+				-- null_ls.builtins.diagnostics.jsonlint, -- brew install jsonlint
 				null_ls.builtins.hover.dictionary.with {
 					filetypes = { "markdown", "vimwiki" }
 				}, -- markdown spellcheck

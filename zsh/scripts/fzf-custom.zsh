@@ -17,7 +17,7 @@ function ls_marks() {
 
 function ls_all() {
 	ls_marks
-	ls_projects
+	#ls_projects
 	ls_src
 }
 

@@ -55,10 +55,10 @@ alias ll="echo && exa --icons --group-directories-first --no-time --no-permissio
 alias lla="echo && exa --icons --group-directories-first --all --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
 alias lll="exa --tree --icons --level 2"
 alias lln="exa --icons --all -l --sort=date"
+alias ll-fzf="exa --icons --color=always --group-directories-first --no-permissions --no-user -l --ignore-glob '.DS_Store' | fzf --ansi"
 alias loc=tokei
 alias ls-colors='for x in {0..8}; do for i in {30..37}; do for a in {40..47}; do echo -ne "\e[$x;$i;$a""m\\\e[$x;$i;$a""m\e[0;37;40m "; done; echo; done; done; echo ""'
 alias monitor="btm"
-alias new="fzf_create_template"
 alias o=open
 alias org='cd ~/org && e index.md'
 alias p8="ping 8.8.8.8"
@@ -80,8 +80,6 @@ alias sixel="chafa --clear --format=symbol --center=on --scale=max "
 alias snippets="cd ~/config/neovim/snippets/ && ll"
 alias src="cd ~/src && l"
 alias suckit-sub="suckit -v -j 1 --delay 1 --include-visit '${1}(.*)$' --include-download '${1}(.*)$' ${1}"
-alias t="fzf_create_template"
-alias template="fzf_create_template"
 alias top="btm" # I always forget which monitor I have installed
 alias trash-undo="rip --unbury "
 alias trash-view="rip --seance"

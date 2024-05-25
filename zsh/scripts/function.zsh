@@ -12,6 +12,75 @@ function ffmpeg-convert-to-switch-webp() {
   # ffmpeg -i "$input_file" -t "$duration" -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2" -vcodec libwebp -compression_level 6 -q:v 80 -loop 0 "$output_file"
 }
 
+function porntag-rename() {
+  local input="$1"
+  echo "$input" | awk '{
+    while (match($0, /\[[^]]*\]/)) {
+        printf "%s%s", tolower(substr($0, 1, RSTART-1)), substr($0, RSTART, RLENGTH)
+        $0 = substr($0, RSTART + RLENGTH)
+    }
+    print tolower($0)
+  }'
+}
+
+function porntag-rename-strict() {
+  local input="$1"
+  echo "$input" | awk '{
+    while (match($0, /\[[^]]*\]/)) {
+        # Convert text before the match to lowercase and replace _ with space
+        converted = tolower(substr($0, 1, RSTART-1))
+        gsub("_", " ", converted)
+        printf "%s%s", converted, substr($0, RSTART, RLENGTH)
+        $0 = substr($0, RSTART + RLENGTH)
+    }
+    # Convert remaining text to lowercase and replace _ with space
+    remaining = tolower($0)
+    gsub("_", " ", remaining)
+    print remaining
+  }'
+}
+
+function porntag-rename-all-dry-run {
+    for file in *; do
+        # Skip directories
+        [[ -d "$file" ]] && continue
+
+				if [[ -f "$file" ]]; then
+					local filename=$(basename "$file")
+					local new_filename=$(porntag-rename-strict "$filename")
+					echo "$new_filename"
+				fi
+		done
+}
+
+function rename_files_dry_run() {
+    for file in *; do
+        # Skip directories
+        [[ -d "$file" ]] && continue
+
+        # Extract parts within brackets
+        parts_with_brackets=()
+        temp_file="$file"
+        while [[ "$temp_file" =~ \[([^]]+)\] ]]; do
+            parts_with_brackets+=("${match[1]}")
+            temp_file="${temp_file//\[[^]]*\]/}"
+        done
+
+        # Lowercase and replace characters
+        new_name="${temp_file:l}"
+        new_name="${new_name//-/ }"
+        new_name="${new_name//_/ }"
+
+        # Re-insert parts within brackets
+        for part in "${parts_with_brackets[@]}"; do
+            new_name="${new_name/[]/[$part]}"
+        done
+
+        # Print old and new name
+        echo "Would rename: \"$file\" -> \"$new_name\""
+    done
+}
+
 # not working
 function rename-porn() {
 	if [[ -z "$1" ]]; then
@@ -42,6 +111,35 @@ function rename-porn() {
 			fi
 	done
 }
+
+function rename-as-tag-format() {
+  for file in *; do
+    if [[ -f $file ]]; then
+      # Extract parts within and outside brackets
+      parts=($(echo $file | grep -oE '\[[^]]*\]|[^[]+'))
+
+      new_name=""
+      for part in "${parts[@]}"; do
+        if [[ $part == \[*\] ]]; then
+          new_name+="$part"
+        else
+          new_name+=$(echo "$part" | tr '[:upper:]' '[:lower:]')
+					# new_name+=$(echo "$part" | tr '[:upper:]' '[:lower:]' | tr '-_' ' ')
+        fi
+      done
+
+      echo "$file" "$new_name"
+      #mv -- "$file" "$new_name"
+    fi
+  done
+}
+
+function fzf-multi {
+	fzf --exact --multi --bind "enter:select-all+accept,ctrl-c:abort" --header "search type: multi-select, fuzzy search, smart case" --color=header:#888888
+}
+alias fd-fzf="fd . |fzf-multi"
+alias ff="fd-fzf"
+alias fd-portrait="fd --fixed-strings '[portrait]' ."
 
 function vlc-filter() {
   local search_term="$1"
@@ -80,6 +178,22 @@ function vlc-find() {
 	# fd -i "$search_term" -E '.*\.(mp4|webp|webm|mkv|mov)$' --print0 | xargs -0 vlc --loop --random --no-repeat
 	# fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort" | xargs -0 vlc
 	fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
+}
+
+function fzf-vlc {
+    local file
+    file=$(fd . | fzf)
+    if [[ -n $file ]]; then
+        vlc "$file"
+    fi
+}
+
+function fzf-iina {
+    local file
+    file=$(fd . | fzf)
+    if [[ -n $file ]]; then
+        iina "$file"
+    fi
 }
 
 function iina-find() {

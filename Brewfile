@@ -142,6 +142,8 @@ cask "protonvpn"
 cask "proton-drive"
 # cask "hammerspoon"
 
+cask "openinterminal" # opens current finder folder in terminal
+
 # cask "cheatsheet" # show a cheat sheet by holding ⌘
 
 cask "smooze-pro"
@@ -183,7 +185,7 @@ brew "bitwise" # bit conversion
 brew "demumble" # demangling
 cask "hex-fiend" # hex editor
 
-brew "aria2c" # cli download client
+brew "aria2" # cli download client
 
 # manga
 tap "metafates/mangal"

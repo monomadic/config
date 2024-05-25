@@ -79,6 +79,24 @@ function yt-porn {
     $@
 }
 
+function yt-nightly-porn {
+  local url="$1"
+  local output_template="[%(uploader)s] %(title)s.%(ext)s"
+
+	if [[ -z "$url" ]]; then
+			echo "Usage: ${0:t} <url>"
+			return 1
+	fi
+
+  yt-dlp-nightly -v \
+    --output "${output_template}" \
+		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+    --cookies-from-browser brave \
+    --merge-output-format mp4 \
+    --embed-metadata \
+    $@
+}
+
 function yt-porn-firefox {
   local url="$1"
   local output_template="[%(uploader)s] %(title)s.%(ext)s"
