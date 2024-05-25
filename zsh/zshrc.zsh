@@ -15,8 +15,7 @@ done
 RED=$(tput setaf 1)
 RESET=$(tput sgr0)
 [[ -n "$(cd $HOME/config && git status --porcelain)" ]] && echo "\n${RED} uncommitted changes: $HOME/config${RESET}" && cd $HOME/config && git status --short --untracked-files=all && cd $HOME
-
-# git status --short --untracked-files=all
+[[ -n "$(cd $HOME/wiki && git status --porcelain)" ]] && echo "\n${RED} uncommitted changes: $HOME/wiki${RESET}" && cd $HOME/wiki && git status --short --untracked-files=all && cd $HOME
 
 # Local source (not checked into git)
 [[ -f "$ZSH_CONFIG_DIR/local.zsh" ]] && source "$ZSH_CONFIG_DIR/local.zsh"
