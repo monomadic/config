@@ -12,43 +12,67 @@ function ffmpeg-convert-to-switch-webp() {
   # ffmpeg -i "$input_file" -t "$duration" -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2" -vcodec libwebp -compression_level 6 -q:v 80 -loop 0 "$output_file"
 }
 
-function porntag-rename() {
-  local input="$1"
-  echo "$input" | awk '{
-    while (match($0, /\[[^]]*\]/)) {
-        printf "%s%s", tolower(substr($0, 1, RSTART-1)), substr($0, RSTART, RLENGTH)
-        $0 = substr($0, RSTART + RLENGTH)
-    }
-    print tolower($0)
-  }'
-}
+# function porntag-rename() {
+#   local input="$1"
+#   echo "$input" | awk '{
+#     while (match($0, /\[[^]]*\]/)) {
+#         printf "%s%s", tolower(substr($0, 1, RSTART-1)), substr($0, RSTART, RLENGTH)
+#         $0 = substr($0, RSTART + RLENGTH)
+#     }
+#     print tolower($0)
+#   }'
+# }
 
-function porntag-rename-strict() {
+function rename-format-porn() {
   local input="$1"
   echo "$input" | awk '{
     while (match($0, /\[[^]]*\]/)) {
         # Convert text before the match to lowercase and replace _ with space
         converted = tolower(substr($0, 1, RSTART-1))
         gsub("_", " ", converted)
+				gsub(/ i /, " I ", converted)
         printf "%s%s", converted, substr($0, RSTART, RLENGTH)
         $0 = substr($0, RSTART + RLENGTH)
     }
     # Convert remaining text to lowercase and replace _ with space
     remaining = tolower($0)
-    gsub("_", " ", remaining)
+		gsub(/[_-]/, " ", remaining)
+		gsub(/ i /, " I ", converted)
     print remaining
   }'
 }
 
-function porntag-rename-all-dry-run {
+function rename-all-dry-run {
     for file in *; do
         # Skip directories
         [[ -d "$file" ]] && continue
 
 				if [[ -f "$file" ]]; then
 					local filename=$(basename "$file")
-					local new_filename=$(porntag-rename-strict "$filename")
-					echo "$new_filename"
+					local new_filename=$(rename-format-porn "$filename")
+					echo "$file -> $new_filename\n"
+				fi
+		done
+}
+
+function rename-porn-all {
+    for file in *; do
+        # Skip directories
+        [[ -d "$file" ]] && continue
+
+				if [[ -f "$file" ]]; then
+					local filename=$(basename "$file")
+					local new_filename=$(rename-format-porn "$filename")
+
+            echo "Rename:\n\t$filename\n\t$new_filename\n\nOk? (y/N)"
+            read -r response
+
+            if [[ "$response" =~ ^[Yy]$ ]]; then
+                echo "Renaming '$filename' to '$new_filename'"
+                #mv "$filename" "$new_filename"
+            else
+                echo "Skipping '$filename'"
+            fi
 				fi
 		done
 }
