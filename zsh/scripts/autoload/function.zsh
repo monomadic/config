@@ -193,12 +193,38 @@ alias fd-fzf="fd . |fzf-multi"
 alias ff="fd-fzf"
 alias fd-portrait="fd --fixed-strings '[portrait]' ."
 
+# works
 function vlc-filter() {
   local search_term="$1"
 	# fd -i "$search_term" -E '.*\.(mp4|webp|webm|mkv|mov)$' --print0 | xargs -0 vlc --loop --random --no-repeat
 	# fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort" | xargs -0 vlc
 	fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort" | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
 }
+
+		#echo "$files" | xargs -0 -I{} open -a IINA --args --mpv-shuffle --mpv-loop-playlist "{}"
+
+function iina-filter() {
+  local search_term="$1"
+  local files
+  files=$(fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort")
+  if [[ -n "$files" ]]; then
+		for file in $files; do
+				open -a IINA "$file"
+		done
+  fi
+}
+
+function open_with_iina() {
+    local selected_files=$(fd . | fzf -m)
+    if [[ -n "$selected_files" ]]; then
+        for file in $selected_files; do
+            open -a IINA "$file"
+        done
+    else
+        echo "No files selected."
+    fi
+}
+
 function vlc-play {
   local search_term="$1"
 	fd --fixed-strings "$search_term" -0 |xargs -0 vlc
@@ -230,7 +256,8 @@ local DIR_BABYBLUE="/Volumes/BabyBlue2TB"
 alias bb-eject="diskutil eject $DIR_BABYBLUE"
 alias bb-cd="cd $DIR_BABYBLUE"
 alias cd-babyblue="cd $DIR_BABYBLUE/not-porn"
-alias bb-fzf="cd-babyblue && vlc-filter"
+alias bb-play-vlc="cd-babyblue && vlc-filter"
+alias bb-play-iina="cd-babyblue && iina-filter"
 
 function vlc-find() {
 		local search_term="$1"
@@ -256,21 +283,21 @@ function vlc-ff {
 	fd-video "$search_term" | fzf-filter |  xargs -0 sh -c 'echo '
 }
 
-function fzf-vlc {
-    local file
-    file=$(fd . | fzf)
-    if [[ -n $file ]]; then
-        vlc "$file"
-    fi
-}
-
-function fzf-iina {
-    local file
-    file=$(fd . | fzf)
-    if [[ -n $file ]]; then
-        iina "$file"
-    fi
-}
+# function fzf-vlc {
+#     local file
+#     file=$(fd . | fzf)
+#     if [[ -n $file ]]; then
+#         vlc "$file"
+#     fi
+# }
+#
+# function fzf-iina {
+#     local file
+#     file=$(fd . | fzf)
+#     if [[ -n $file ]]; then
+#         iina "$file"
+#     fi
+# }
 
 function iina-find() {
   local search_term="$1"
