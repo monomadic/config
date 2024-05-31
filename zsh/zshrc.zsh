@@ -7,7 +7,7 @@ autoload -Uz add-zsh-hook
 for config_file ($ZSH_CONFIG_DIR/autoload/*.zsh); do
   YELLOW=$(tput setaf 3)
   RESET=$(tput sgr0)
-	echo "${YELLOW}$config_file${RESET}"
+	echo "${YELLOW}󰅱 ${config_file:t}${RESET}"
   source $config_file
 done
 
