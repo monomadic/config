@@ -25,21 +25,23 @@ local MUSIC_VIDEO_FORMAT="%(artist)s - %(title)s.%(ext)s"
 
 function yt-download-mp4() {
     local url="$1"
+
 		if [[ -z "$url" ]]; then
 				echo "Usage: ${0:t} <url>"
 				return 1
 		fi
+
     yt-dlp \
-			--format "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+			--format "bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best" \
 			--output "${output_template}" \
 			--cookies-from-browser brave \
 			--embed-metadata \
-			"$@"
+			--merge-output-format mp4 \
+			$@
 }
 
 function yt-music-video {
   local url="$1"
-
   local output_template="%(artist)s - %(title)s.%(ext)s"
 
 	if [[ -z "$url" ]]; then

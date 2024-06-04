@@ -18,13 +18,15 @@ function index-update {
 				echo "Error: Failed to create index for '$HOME/_inbox/'." >&2
 				return 1
 		fi
+		echo "Indexed: $HOME/_inbox"
 
-		if [[ -d "/Volumes/BabyBlue2TB/not-porn" ]]; then
-				index-run "/Volumes/BabyBlue2TB/not-porn" > "$HOME/doc/indexes/BabyBlue2TB.txt" || {
-						echo "Error: Failed to create index for '/Volumes/BabyBlue2TB/not-porn'." >&2
+		if [[ -d "${babyblue}/not-porn" ]]; then
+				index-run "${babyblue}/not-porn" > "$HOME/doc/indexes/BabyBlue2TB.txt" || {
+						echo "Error: Failed to create index for '${babyblue}/not-porn'." >&2
 				}
+				echo "Indexed: ${babyblue}"
 		else
-				echo "Warning: BabyBlue2TB drive not found, skipping this index." >&2
+				echo "Warning: ${babyblue} not found, skipping this index." >&2
 		fi
 }
 

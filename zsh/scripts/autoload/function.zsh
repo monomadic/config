@@ -12,6 +12,42 @@ function ffmpeg-convert-to-switch-webp() {
   # ffmpeg -i "$input_file" -t "$duration" -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2" -vcodec libwebp -compression_level 6 -q:v 80 -loop 0 "$output_file"
 }
 
+function rename-file() {
+  if [[ $# -eq 0 ]]; then
+    echo "Usage: rename-file <filename>"
+    return 1
+  fi
+
+  local original_file=$1
+  if [[ ! -f $original_file ]]; then
+    echo "Error: File '$original_file' not found."
+    return 1
+  fi
+
+  local temp_file=$(mktemp /tmp/rename_file.XXXXXX)
+  echo "$original_file" > "$temp_file"
+  nvim "$temp_file"
+
+  local new_filename=$(<"$temp_file")
+  rm "$temp_file"
+
+  if [[ -z "$new_filename" || "$new_filename" == "$original_file" ]]; then
+    echo "No changes made."
+    return 0
+  fi
+
+  if [[ -e "$new_filename" ]]; then
+    echo "Error: File '$new_filename' already exists."
+    return 1
+  fi
+
+  mv "$original_file" "$new_filename"
+  echo "File renamed to '$new_filename'."
+}
+
+# Make the function available to zsh
+autoload -Uz rename_file
+
 function rename-append-resolution {
   if [[ -z "$1" ]]; then
     echo "Usage: ${0:t} <file.mp4>"
