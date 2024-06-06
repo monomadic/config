@@ -1,3 +1,5 @@
+local INDEX_DIR="$HOME/doc/indexes"
+
 function index-run {
 		if [[ -d "$1" ]]; then
 				fd --type f --hidden --exclude '.*' --search-path "$1" || {
@@ -10,9 +12,37 @@ function index-run {
 		fi
 }
 
+function index-cat {
+	cat $INDEX_DIR/*.txt
+}
+
+function index-cat-checked {
+	cat $INDEX_DIR/*.txt | while read -r filepath; do
+		if [ -f "$filepath" ]; then
+			echo "$filepath"
+		fi
+	done
+}
+
+function index-select {
+	index-cat-checked | fzf-multi
+}
+
+function index-select-multi {
+	index-cat-checked | fzf-multi
+}
+
+function index-send-to-vlc {
+	index-select-multi | sed 's/.*/"&"/' | xargs --verbose vlc
+}
+
+function index-send-to-iina {
+	index-select-multi | sed 's/.*/"&"/' | xargs --verbose iina
+}
+
 function index-update {
 		# Ensure the target directory exists
-		mkdir -p "$HOME/doc/indexes"
+		mkdir -p "${INDEX_DIR}"
 
 		if ! index-run "$HOME/_inbox/" > "$HOME/doc/indexes/${HOSTNAME}_inbox.txt"; then
 				echo "Error: Failed to create index for '$HOME/_inbox/'." >&2
@@ -32,14 +62,13 @@ function index-update {
 
 function index-search {
     local search_term="$1"
-    local index_dir="$HOME/doc/indexes"
 
     if [[ -z "$search_term" ]]; then
         echo "Usage: index-search <search_term>"
         return 1
     fi
 
-    if [[ -d "$index_dir" ]]; then
+    if [[ -d "$INDEX_DIR" ]]; then
         rg -i --fixed-strings --no-line-number --glob "*.txt" "$search_term" "$index_dir" || {
             echo "No matches found for '$search_term' in $index_dir." >&2
             return 1
@@ -51,51 +80,47 @@ function index-search {
 }
 
 function index-search-or {
-		local index_dir="$HOME/doc/indexes"
-
 		if [[ $# -eq 0 ]]; then
 				echo "Usage: index-search-or <search_term1> <search_term2> ..."
 				return 1
 		fi
 
-		if [[ -d "$index_dir" ]]; then
+		if [[ -d "$INDEX_DIR" ]]; then
 				local rg_command="rg -i --fixed-strings --no-line-number --glob '*.txt'"
 				for term in "$@"; do
 						rg_command+=" -e \"$term\""
         done
-        eval "$rg_command \"$index_dir\"" || {
-            echo "No matches found for the specified search terms in $index_dir." >&2
+        eval "$rg_command \"$INDEX_DIR\"" || {
+            echo "No matches found for the specified search terms in $INDEX_DIR." >&2
             return 1
         }
     else
-        echo "Warning: Directory '$index_dir' does not exist." >&2
+        echo "Warning: Directory '$INDEX_DIR' does not exist." >&2
         return 1
     fi
 }
 
 function index-search-and {
-    local index_dir="$HOME/doc/indexes"
-
     if [[ $# -eq 0 ]]; then
         echo "Usage: index-search-and <search_term1> <search_term2> ..."
         return 1
     fi
 
-    if [[ -d "$index_dir" ]]; then
+    if [[ -d "$INDEX_DIR" ]]; then
         local rg_command="rg -i --fixed-strings --no-line-number --glob '*.txt'"
 
         for term in "$@"; do
             rg_command+=" | rg -i --fixed-strings --no-line-number \"$term\""
         done
 
-        rg_command+=" \"$index_dir\""
+        rg_command+=" \"$INDEX_DIR\""
 
         eval "$rg_command" || {
-            echo "No matches found for the specified search terms in $index_dir." >&2
+            echo "No matches found for the specified search terms in $INDEX_DIR." >&2
             return 1
         }
     else
-        echo "Warning: Directory '$index_dir' does not exist." >&2
+        echo "Warning: Directory '$INDEX_DIR' does not exist." >&2
         return 1
     fi
 }
