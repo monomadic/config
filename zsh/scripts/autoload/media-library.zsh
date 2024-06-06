@@ -40,6 +40,10 @@ function index-send-to-iina {
 	index-select-multi | sed 's/.*/"&"/' | xargs --verbose iina
 }
 
+function index-send-to-elmedia {
+	index-select-multi | sed 's/.*/"&"/' | xargs --verbose /Applications/Elmedia\ Video\ Player.app/Contents/MacOS/Elmedia\ Video\ Player
+}
+
 function index-update {
 		# Ensure the target directory exists
 		mkdir -p "${INDEX_DIR}"
