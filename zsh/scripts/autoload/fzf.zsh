@@ -2,11 +2,10 @@ export FZF_DEFAULT_OPTS="--layout=reverse --inline-info --color=bg+:-1,fg:4,info
 export SKIM_DEFAULT_OPTIONS=$FZF_DEFAULT_OPTS
 export SKIM_DEFAULT_COMMAND="fd . --max-depth=3"
 
-function fzf-vlc {
-
-  local search_term="$1"
-	fd --fixed-strings "$search_term" -0 |xargs -0 vlc
-}
+# function fzf-vlc {
+#   local search_term="$1"
+# 	fd --fixed-strings "$search_term" -0 |xargs -0 vlc
+# }
 
 function fzf-brave-bookmarks() {
      # bookmarks_path=~/Library/Application\ Support/Google/Chrome/Default/Bookmarks

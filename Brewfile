@@ -12,6 +12,15 @@ tap "homebrew/cask-fonts"
 
 cask_args appdir: "/Applications"
 
+# make macos default tools behave more like unix/linux
+brew "coreutils"
+brew "findutils"
+brew "gnu-sed"
+brew "gawk"
+brew "gnu-tar"
+brew "gnu-which"
+brew "grep"
+
 brew "mas"
 
 brew "git"

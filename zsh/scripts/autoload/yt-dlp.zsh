@@ -20,6 +20,7 @@ alias yt-firefox="yt-dlp --cookies-from-browser=firefox "
 alias yt-video="yt-dlp -f 'bestvideo[vcodec^=avc1]' --merge-output-format mp4 --cookies-from-browser=brave --embed-metadata "
 alias yt-json-dump="yt-dlp --write-info-json --skip-download "
 alias yt-json-description="jq '.description' "
+alias yt-batch-edit="nvim $HOME/.ytdl-batch-porn"
 
 local MUSIC_VIDEO_FORMAT="%(artist)s - %(title)s.%(ext)s"
 
@@ -82,7 +83,7 @@ function yt-music-video-mp4 {
 
 function yt-porn {
   local url="$1"
-  local output_template="[%(uploader)s] %(title)s.%(ext)s"
+	local output_template="[%(uploader)s] %(title)s [%(extractor)s][%(resolution)s].%(ext)s"
 
 	if [[ -z "$url" ]]; then
 			echo "Usage: ${0:t} <url>"
@@ -191,7 +192,7 @@ function vid-info-color() {
     done
 }
 
-function yt-batch-porn {
+function yt-batch-run {
   local output_template="$HOME/_inbox/[%(uploader)s] %(title)s.%(ext)s"
 	local batch_file="$HOME/.ytdl-batch-porn"
 

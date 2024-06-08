@@ -41,7 +41,7 @@ function index-send-to-iina {
 }
 
 function index-send-to-elmedia {
-	index-select-multi | sed 's/.*/"&"/' | xargs --verbose /Applications/Elmedia\ Video\ Player.app/Contents/MacOS/Elmedia\ Video\ Player
+	index-select-multi | sed 's/.*/"&"/' | xargs --verbose open -a /Applications/Elmedia\ Video\ Player.app/Contents/MacOS/Elmedia\ Video\ Player
 }
 
 function index-update {
