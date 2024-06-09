@@ -1,17 +1,43 @@
 # https://youtube-dl.readthedocs.io/en/latest/
 #
-# %(title)s: The title of the video.
-# %(id)s: The video ID.
-# %(uploader)s: The name of the uploader.
-# %(uploader_id)s: The uploader's ID.
-# %(upload_date)s: The upload date (usually in YYYYMMDD format).
-# %(duration)s: The duration of the video in seconds.
-# %(format)s: The format code of the downloaded file.
-# %(ext)s: The extension of the downloaded file (e.g., mp4, mp3).
-# %(resolution)s: The resolution of the video.
-# %(width)s and %(height)s: The width and height of the video.
-# %(epoch)s: The Unix epoch timestamp at the start of download.
-# %(autonumber)s: An automatically incremented number starting from 00001 or a specified value.
+#	%(title)s: The title of the video.
+	#	%(id)s: The video identifier.
+	#	%(url)s: The URL of the video.
+	#	%(extractor)s: The name of the extractor (site/scraper).
+	#	%(upload_date)s: The upload date in YYYYMMDD format.
+	#	%(uploader)s: The uploader of the video.
+	#	%(uploader_id)s: The uploader identifier.
+	#	%(channel)s: The channel name.
+	#	%(channel_id)s: The channel identifier.
+	#	%(duration)s: The duration of the video in seconds.
+	#	%(view_count)s: The number of views.
+	#	%(like_count)s: The number of likes.
+	#	%(dislike_count)s: The number of dislikes.
+	#	%(comment_count)s: The number of comments.
+	#	%(ext)s: The file extension.
+	#	%(format)s: The format of the file.
+	#	%(format_id)s: The format identifier.
+	#	%(playlist)s: The name of the playlist.
+	#	%(playlist_index)s: The index of the video in the playlist.
+	#	%(playlist_id)s: The playlist identifier.
+	#	%(playlist_title)s: The playlist title.
+	#	%(playlist_uploader)s: The uploader of the playlist.
+	#	%(playlist_uploader_id)s: The uploader identifier of the playlist.
+	#	%(epoch)s: The UNIX timestamp of the download.
+	#	%(autonumber)s: A five-digit sequential number starting at 00001.
+	#	%(chapter)s: The name of the chapter the video is part of.
+	#	%(series)s: The series the video is part of.
+	#	%(season_number)s: The season number of the series.
+	#	%(episode_number)s: The episode number of the series.
+	#	%(track)s: The track name of the video.
+	#	%(artist)s: The artist of the video.
+	#	%(album)s: The album of the video.
+	#	%(genre)s: The genre of the video.
+	#	%(location)s: The location where the video was recorded.
+	#	%(resolution)s: The resolution of the video.
+	#	%(bitrate)s: The bitrate of the video.
+	#	%(filesize)s: The filesize of the video.
+	#	%(filesize_approx)s: The approximate filesize of the video.
 
 alias yt="yt-dlp"
 alias yt-audio="yt-dlp -f 'bestaudio' --extract-audio --embed-metadata "
