@@ -28,6 +28,8 @@ brew "git-delta" # rust git diff
 brew "lazygit"
 brew "gzip"
 
+brew "shfmt" # formatter for zsh/sh/etc
+
 brew "homebrew/dotter.rb"
 
 brew "rm-improved" # rm replacement (rip)
@@ -152,6 +154,8 @@ cask "1password-cli"
 cask "protonvpn"
 cask "proton-drive"
 # cask "hammerspoon"
+
+cask "coconutbattery" # battery info
 
 cask "openinterminal" # opens current finder folder in terminal
 
