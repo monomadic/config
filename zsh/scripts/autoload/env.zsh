@@ -9,7 +9,7 @@ export XDG_CONFIG_HOME=$HOME/.config
 # Homebrew
 export HOMEBREW_NO_ENV_HINTS
 
-export HOSTNAME=`hostname`
+export HOSTNAME=$(hostname)
 
 # WASMTime
 export WASMTIME_HOME=$HOME/.wasmtime

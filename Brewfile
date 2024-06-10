@@ -202,6 +202,8 @@ cask "hex-fiend" # hex editor
 
 brew "aria2" # cli download client
 
+cask "airflow" # airplay streamer
+
 # manga
 tap "metafates/mangal"
 brew "mangal" # tui comic downloader

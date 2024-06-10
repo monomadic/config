@@ -1,4 +1,5 @@
 ZSH_CONFIG_DIR="$HOME/.zsh"
+DOTFILES_DIR="$HOME/config/"
 
 setopt autocd # cd without typing cd
 autoload -Uz add-zsh-hook
