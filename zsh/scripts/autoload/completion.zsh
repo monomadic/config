@@ -1,6 +1,7 @@
 # COMPLETIONS
 #
-autoload -Uz compinit; compinit
+autoload -Uz compinit
+compinit
 
 # 1password
 eval "$(op completion zsh)"

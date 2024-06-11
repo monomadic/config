@@ -97,4 +97,5 @@ alias wiki='cd ~/wiki && e ~/wiki/index.md'
 alias workspaces="cd ~/workspaces && l"
 alias xdg-open=open
 alias zsh-reload="source ~/.zshrc"
+alias zsh-config="cd $DOTFILES_DIR/zsh/ && nvim zshrc.zsh"
 alias ~=grep
