@@ -107,6 +107,7 @@ zle -N fzf-insert
 function fzf_dirs() {
   # --height 60% \
   fzf --prompt 'cd  ' --layout=reverse \
+    --exact \
     --color=bg+:-1,fg:4,info:15,fg+:5,header:7,hl:5,hl+:5 \
     --header $'ctrl-[f:finder, w:workspace, o:bookmarks, r:relative, p:project, c:cancel]\n' \
     --info=hidden \
