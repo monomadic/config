@@ -28,13 +28,13 @@ function index-play {
   index-cat-checked | fzf-play
 }
 
-function index-send-to-iina {
-  index-select-multi | sed 's/.*/"&"/' | xargs --verbose iina
-}
+# function index-send-to-iina {
+#   index-select-multi | sed 's/.*/"&"/' | xargs --verbose iina
+# }
 
-function index-send-to-elmedia {
-  index-select-multi | sed 's/.*/"&"/' | xargs --verbose open -a /Applications/Elmedia\ Video\ Player.app/Contents/MacOS/Elmedia\ Video\ Player
-}
+# function index-send-to-elmedia {
+#   index-select-multi | sed 's/.*/"&"/' | xargs --verbose open -a /Applications/Elmedia\ Video\ Player.app/Contents/MacOS/Elmedia\ Video\ Player
+# }
 
 function index-update {
   # Ensure the target directory exists
@@ -44,7 +44,7 @@ function index-update {
     echo "Error: Failed to create index for '$HOME/_inbox/'." >&2
     return 1
   fi
-  echo "Indexed: $HOME/_inbox"
+  echo "Indexed: $HOME/_inbox as ${HOSTNAME}_inbox"
 
   if [[ -d "${babyblue}/not-porn" ]]; then
     index-run "${babyblue}/not-porn" >"$HOME/doc/indexes/BabyBlue2TB.txt" || {
