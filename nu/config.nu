@@ -549,3 +549,5 @@ let-env config = {
     }
   ]
 }
+
+use '/Users/nom/.config/broot/launcher/nushell/br' *

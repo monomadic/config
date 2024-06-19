@@ -69,6 +69,8 @@ brew "xplr" # rust file explorer
 brew "lf" # ranger, but in c
 brew "joshuto" # ranger, but in rust. better than lf.
 
+brew "broot" # lists tree output
+
 brew "poppler" # pdf renderer
 brew "unar" # unarchiver
 

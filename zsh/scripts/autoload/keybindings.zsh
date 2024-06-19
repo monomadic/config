@@ -3,7 +3,7 @@
 # bindkey '^ ' lfcd;
 #bindkey '^ ' yy;
 # bindkey '^ ' joshuto-wrapper;
-bindkey '^f' fzf-cd
+bindkey '^f' fzf-rg
 bindkey '^k' clear-reset
 bindkey '^m' magic-enter
 bindkey '^o' fzf-marks

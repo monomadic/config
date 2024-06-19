@@ -1,39 +1,31 @@
 local INDEX_DIR="$HOME/doc/indexes"
 
-function index-run {
-  if [[ -d "$1" ]]; then
+index-run() {
+  emulate -L zsh
+
+  [[ -d "$1" ]] && {
     fd --type f --hidden --exclude '.*' --search-path "$1" || {
       echo "Error: Failed to index directory '$1'." >&2
       return 1
     }
-  else
+  } || {
     echo "Warning: Directory '$1' does not exist." >&2
     return 1
-  fi
+  }
 }
 
 function index-cat {
   cat $INDEX_DIR/*.txt
 }
 
-function index-cat-checked {
+index-cat-checked() {
   cat $INDEX_DIR/*.txt | while read -r filepath; do
-    if [ -f "$filepath" ]; then
-      echo "$filepath"
-    fi
+    [[ -f "$filepath" ]] && echo "$filepath"
   done
 }
 
-function index-select {
-  index-cat-checked | fzf-multi
-}
-
-function index-select-multi {
-  index-cat-checked | fzf-multi
-}
-
-function index-send-to-vlc {
-  index-select-multi | sed 's/.*/"&"/' | xargs --verbose vlc
+function index-play {
+  index-cat-checked | fzf-play
 }
 
 function index-send-to-iina {
