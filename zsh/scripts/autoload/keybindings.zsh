@@ -1,6 +1,6 @@
 # KEYBINDINGS
 #
-# bindkey '^ ' lfcd;
+bindkey '^ ' lfcd
 #bindkey '^ ' yy;
 # bindkey '^ ' joshuto-wrapper;
 bindkey '^f' fzf-rg

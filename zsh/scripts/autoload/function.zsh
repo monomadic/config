@@ -237,8 +237,6 @@ function vlc-filter() {
 	fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort" | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
 }
 
-		#echo "$files" | xargs -0 -I{} open -a IINA --args --mpv-shuffle --mpv-loop-playlist "{}"
-
 function iina-filter() {
   local search_term="$1"
   local files

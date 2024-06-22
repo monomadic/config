@@ -28,17 +28,25 @@ function index-play {
   index-cat | fzf-play
 }
 
+index-grep-top() {
+  grep -E '\[TOP\]|🎖️|\[\*\]'
+}
+
+function index-grep-safe {
+  grep -v -E '\[g\]|\[bi\]|\[unsafe\]'
+}
+
 function index-play-top {
-  index-cat | grep '🎖️' | fzf-play
+  index-cat | index-grep-top | fzf-play
 }
 
 # list available files from the index and play them
 function index-play-checked {
-  index-cat-checked | fzf-play
+  index-cat-checked | index-grep-safe | fzf-play
 }
 
 function index-play-checked-top {
-  index-cat-checked | grep '🎖️' | fzf-play
+  index-cat-checked | index-grep-top | fzf-play
 }
 
 # just search the index without filtering or playing
