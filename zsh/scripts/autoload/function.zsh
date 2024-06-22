@@ -265,6 +265,7 @@ function vlc-play {
   local search_term="$1"
 	fd --fixed-strings "$search_term" -0 |xargs -0 vlc
 }
+
 function vlc-play-top {
 	vlc-play '🎖️'
 }

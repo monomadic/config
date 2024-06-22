@@ -25,7 +25,25 @@ index-cat-checked() {
 }
 
 function index-play {
+  index-cat | fzf-play
+}
+
+function index-play-top {
+  index-cat | grep '🎖️' | fzf-play
+}
+
+# list available files from the index and play them
+function index-play-checked {
   index-cat-checked | fzf-play
+}
+
+function index-play-checked-top {
+  index-cat-checked | grep '🎖️' | fzf-play
+}
+
+# just search the index without filtering or playing
+function index-list {
+  index-cat | fzf --ansi --exact
 }
 
 # function index-send-to-iina {

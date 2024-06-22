@@ -7,6 +7,32 @@ export SKIM_DEFAULT_COMMAND="fd . --max-depth=3"
 # 	fd --fixed-strings "$search_term" -0 |xargs -0 vlc
 # }
 
+# fzf search and open in vlc
+fzf-play() {
+  fzf \
+    --ansi \
+    --multi \
+    --exact \
+    --bind 'enter:select-all+execute-silent(vlc {+})' \
+    --bind 'alt-o:execute-silent(vlc {})' \
+    --bind 'alt-i:select-all+execute-silent(iina {+})' \
+    --bind 'alt-e:select-all+execute-silent(elmedia-open {+})' \
+    --bind 'alt-a:select-all,alt-d:deselect-all,ctrl-/:toggle-preview' \
+    --bind 'alt-t:execute-silent(kitty @ launch --cwd $(dirname {}))' \
+    --bind 'alt-enter:execute-silent(kitty @ launch --cwd $(dirname {}))' \
+    --bind 'alt-l:execute(kitty @ launch --cwd $(dirname {}) lf)' \
+    --bind 'alt-s:select-all+accept' \
+    --bind 'alt-p:select-all+execute-silent(printf "%s\n" {+} > playlist.m3u)+abort' \
+    --header 'enter:play-all | alt-o:play-one | alt-i:iina | alt-e:elmedia | alt-a:select-all | alt-d:deselect-all | alt-t:new-tab | alt-l:lf | alt-s: stdout | alt-p:playlist' \
+    --color header:italic:47 \
+    --query "$*" # $* treat all arguments as a single string
+}
+
+function git-log-fzf {
+  git log --oneline --decorate --color | fzf --ansi --preview 'git show --color $(echo {} | cut -d" " -f1)'
+}
+alias gl="git-log-fzf"
+
 function fzf-brave-bookmarks() {
   # bookmarks_path=~/Library/Application\ Support/Google/Chrome/Default/Bookmarks
   bookmarks_path=~/Library/Application\ Support/BraveSoftware/Brave-Browser/Default/Bookmarks

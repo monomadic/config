@@ -1,8 +1,14 @@
-alias fd-video="fd -E '.*\.(mp4|webp|webm|mkv|mov)$' --type=file"
+alias fd-video="fd -E '.*\.(mp4|webp|webm|mkv|mov)$' --type=file --color=always"
+alias fd-dirs-all="fd --type d --hidden --exclude .git --exclude Library --exclude target --exclude go --exclude .cargo --exclude .local --exclude .rustup --exclude build --color always"
+alias fd-dirs="fd --type d --exclude .git --exclude Library --exclude target --exclude go --exclude .cargo --exclude .local --exclude .rustup --exclude build --color always"
 
 function elmedia-open {
   # xargs --verbose open -a /Applications/Elmedia\ Video\ Player.app/Contents/MacOS/Elmedia\ Video\ Player
   xargs -I {} open -a /Applications/Elmedia\ Video\ Player.app/Contents/MacOS/Elmedia\ Video\ Player "$*"
+}
+
+fzf-fd-cd() {
+  cd $(fd-dirs-all | fzf --ansi --exact)
 }
 
 # function elmedia-open {
@@ -20,21 +26,3 @@ function elmedia-open {
 #   fi
 #   # echo $files | sed 's/.*/"&"/' | xargs --verbose open -a /Applications/Elmedia\ Video\ Player.app/Contents/MacOS/Elmedia\ Video\ Player
 # }
-
-fzf-fd-cd() {
-  cd $(fd --type d --color=always | fzf --ansi)
-}
-
-# fzf search and open in vlc
-fzf-play() {
-  fzf \
-    --ansi \
-    --multi \
-    --exact \
-    --bind 'enter:select-all+execute-silent(vlc {+})' \
-    --bind 'alt-o:execute-silent(vlc {})' \
-    --bind 'alt-i:select-all+execute-silent(iina {+})' \
-    --bind 'alt-e:select-all+execute-silent(elmedia-open {+})' \
-    --bind 'alt-a:select-all,alt-d:deselect-all,ctrl-/:toggle-preview' \
-    --query "$*" # $* treat all arguments as a single string
-}
