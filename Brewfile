@@ -103,6 +103,7 @@ brew "strip-tags" # strip tags from html with gpt
 brew "llm" # cli tool to interact with large language models
 # brew "lm-studio"
 # brew "ollama"
+brew "aichat" # rust-based client for many llm platforms
 
 cask "megasync" # mega.nz
 
