@@ -1,43 +1,43 @@
 # https://youtube-dl.readthedocs.io/en/latest/
 #
 #	%(title)s: The title of the video.
-	#	%(id)s: The video identifier.
-	#	%(url)s: The URL of the video.
-	#	%(extractor)s: The name of the extractor (site/scraper).
-	#	%(upload_date)s: The upload date in YYYYMMDD format.
-	#	%(uploader)s: The uploader of the video.
-	#	%(uploader_id)s: The uploader identifier.
-	#	%(channel)s: The channel name.
-	#	%(channel_id)s: The channel identifier.
-	#	%(duration)s: The duration of the video in seconds.
-	#	%(view_count)s: The number of views.
-	#	%(like_count)s: The number of likes.
-	#	%(dislike_count)s: The number of dislikes.
-	#	%(comment_count)s: The number of comments.
-	#	%(ext)s: The file extension.
-	#	%(format)s: The format of the file.
-	#	%(format_id)s: The format identifier.
-	#	%(playlist)s: The name of the playlist.
-	#	%(playlist_index)s: The index of the video in the playlist.
-	#	%(playlist_id)s: The playlist identifier.
-	#	%(playlist_title)s: The playlist title.
-	#	%(playlist_uploader)s: The uploader of the playlist.
-	#	%(playlist_uploader_id)s: The uploader identifier of the playlist.
-	#	%(epoch)s: The UNIX timestamp of the download.
-	#	%(autonumber)s: A five-digit sequential number starting at 00001.
-	#	%(chapter)s: The name of the chapter the video is part of.
-	#	%(series)s: The series the video is part of.
-	#	%(season_number)s: The season number of the series.
-	#	%(episode_number)s: The episode number of the series.
-	#	%(track)s: The track name of the video.
-	#	%(artist)s: The artist of the video.
-	#	%(album)s: The album of the video.
-	#	%(genre)s: The genre of the video.
-	#	%(location)s: The location where the video was recorded.
-	#	%(resolution)s: The resolution of the video.
-	#	%(bitrate)s: The bitrate of the video.
-	#	%(filesize)s: The filesize of the video.
-	#	%(filesize_approx)s: The approximate filesize of the video.
+#	%(id)s: The video identifier.
+#	%(url)s: The URL of the video.
+#	%(extractor)s: The name of the extractor (site/scraper).
+#	%(upload_date)s: The upload date in YYYYMMDD format.
+#	%(uploader)s: The uploader of the video.
+#	%(uploader_id)s: The uploader identifier.
+#	%(channel)s: The channel name.
+#	%(channel_id)s: The channel identifier.
+#	%(duration)s: The duration of the video in seconds.
+#	%(view_count)s: The number of views.
+#	%(like_count)s: The number of likes.
+#	%(dislike_count)s: The number of dislikes.
+#	%(comment_count)s: The number of comments.
+#	%(ext)s: The file extension.
+#	%(format)s: The format of the file.
+#	%(format_id)s: The format identifier.
+#	%(playlist)s: The name of the playlist.
+#	%(playlist_index)s: The index of the video in the playlist.
+#	%(playlist_id)s: The playlist identifier.
+#	%(playlist_title)s: The playlist title.
+#	%(playlist_uploader)s: The uploader of the playlist.
+#	%(playlist_uploader_id)s: The uploader identifier of the playlist.
+#	%(epoch)s: The UNIX timestamp of the download.
+#	%(autonumber)s: A five-digit sequential number starting at 00001.
+#	%(chapter)s: The name of the chapter the video is part of.
+#	%(series)s: The series the video is part of.
+#	%(season_number)s: The season number of the series.
+#	%(episode_number)s: The episode number of the series.
+#	%(track)s: The track name of the video.
+#	%(artist)s: The artist of the video.
+#	%(album)s: The album of the video.
+#	%(genre)s: The genre of the video.
+#	%(location)s: The location where the video was recorded.
+#	%(resolution)s: The resolution of the video.
+#	%(bitrate)s: The bitrate of the video.
+#	%(filesize)s: The filesize of the video.
+#	%(filesize_approx)s: The approximate filesize of the video.
 
 alias yt="yt-dlp"
 alias yt-audio="yt-dlp -f 'bestaudio' --extract-audio --embed-metadata "
@@ -51,38 +51,38 @@ alias yt-batch-edit="nvim $HOME/.ytdl-batch-porn"
 local MUSIC_VIDEO_FORMAT="%(artist)s - %(title)s.%(ext)s"
 
 function yt-download-mp4() {
-    local url="$1"
+  local url="$1"
 
-		if [[ -z "$url" ]]; then
-				echo "Usage: ${0:t} <url>"
-				return 1
-		fi
+  if [[ -z "$url" ]]; then
+    echo "Usage: ${0:t} <url>"
+    return 1
+  fi
 
-    yt-dlp \
-			--format "bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best" \
-			--output "${output_template}" \
-			--cookies-from-browser brave \
-			--embed-metadata \
-			--merge-output-format mp4 \
-			$@
+  yt-dlp \
+    --format "bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best" \
+    --output "${output_template}" \
+    --cookies-from-browser brave \
+    --embed-metadata \
+    --merge-output-format mp4 \
+    $@
 }
 
 function yt-music-video {
   local url="$1"
   local output_template="%(artist)s - %(title)s.%(ext)s"
 
-	if [[ -z "$url" ]]; then
-			echo "Usage: ${0:t} <url>"
-			return 1
-	fi
+  if [[ -z "$url" ]]; then
+    echo "Usage: ${0:t} <url>"
+    return 1
+  fi
 
-	# --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+  # --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
   # --merge-output-format mp4 \
-	#	--exec 'ffmpeg -i "{}" -metadata comment="%(webpage_url)s" -metadata synopsis="%(id)s" -codec copy "{}"' \
-	#	--format 'bestvideo+bestaudio/best' \
+  #	--exec 'ffmpeg -i "{}" -metadata comment="%(webpage_url)s" -metadata synopsis="%(id)s" -codec copy "{}"' \
+  #	--format 'bestvideo+bestaudio/best' \
 
   yt-dlp -v \
-		--format bestvideo+bestaudio/best \
+    --format bestvideo+bestaudio/best \
     --output "${output_template}" \
     --cookies-from-browser brave \
     --embed-metadata \
@@ -93,15 +93,15 @@ function yt-music-video-mp4 {
   local url="$1"
   local output_template="%(artist)s - %(title)s.%(ext)s"
 
-	if [[ -z "$url" ]]; then
-			echo "Usage: ${0:t} <url>"
-			return 1
-	fi
+  if [[ -z "$url" ]]; then
+    echo "Usage: ${0:t} <url>"
+    return 1
+  fi
 
   yt-dlp -v \
-		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+    --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
     --output "${output_template}" \
-		--merge-output-format mp4 \
+    --merge-output-format mp4 \
     --cookies-from-browser brave \
     --embed-metadata \
     $@
@@ -109,16 +109,16 @@ function yt-music-video-mp4 {
 
 function yt-porn {
   local url="$1"
-	local output_template="[%(uploader)s] %(title)s [%(extractor)s][%(resolution)s].%(ext)s"
+  local output_template="[%(uploader)s] %(title)s [%(extractor)s][%(resolution)s].%(ext)s"
 
-	if [[ -z "$url" ]]; then
-			echo "Usage: ${0:t} <url>"
-			return 1
-	fi
+  if [[ -z "$url" ]]; then
+    echo "Usage: ${0:t} <url>"
+    return 1
+  fi
 
   yt-dlp -v \
     --output "${output_template}" \
-		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+    --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
     --cookies-from-browser brave \
     --merge-output-format mp4 \
     --embed-metadata \
@@ -129,14 +129,14 @@ function yt-nightly-porn {
   local url="$1"
   local output_template="[%(uploader)s] %(title)s.%(ext)s"
 
-	if [[ -z "$url" ]]; then
-			echo "Usage: ${0:t} <url>"
-			return 1
-	fi
+  if [[ -z "$url" ]]; then
+    echo "Usage: ${0:t} <url>"
+    return 1
+  fi
 
   yt-dlp-nightly -v \
     --output "${output_template}" \
-		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+    --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
     --cookies-from-browser brave \
     --merge-output-format mp4 \
     --embed-metadata \
@@ -147,15 +147,15 @@ function yt-porn-firefox {
   local url="$1"
   local output_template="[%(uploader)s] %(title)s.%(ext)s"
 
-	if [[ -z "$url" ]]; then
-			echo "Usage: ${0:t} <url>"
-			return 1
-	fi
+  if [[ -z "$url" ]]; then
+    echo "Usage: ${0:t} <url>"
+    return 1
+  fi
 
   yt-dlp -v \
     --output "${output_template}" \
-		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
-		--user-agent "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" \
+    --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+    --user-agent "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" \
     --cookies-from-browser firefox \
     --merge-output-format mp4 \
     --embed-metadata \
@@ -163,73 +163,73 @@ function yt-porn-firefox {
 }
 
 function vid-info {
-    if [ -z "$1" ]; then
-        echo "Usage: video-info <video_file>"
-        return 1
-    fi
+  if [ -z "$1" ]; then
+    echo "Usage: video-info <video_file>"
+    return 1
+  fi
 
-		echo "\n$1:"
-    ffprobe -v error \
-        -show_entries format=duration,size,bit_rate \
-        -show_entries stream=codec_name,width,height,r_frame_rate \
-        -of default=noprint_wrappers=1 "$@"
+  echo "\n$1:"
+  ffprobe -v error \
+    -show_entries format=duration,size,bit_rate \
+    -show_entries stream=codec_name,width,height,r_frame_rate \
+    -of default=noprint_wrappers=1 "$@"
 }
 
 function vid-info-color() {
-    if [ -z "$1" ]; then
-        echo "Usage: vid-info-color <video_file>"
-        return 1
-    fi
+  if [ -z "$1" ]; then
+    echo "Usage: vid-info-color <video_file>"
+    return 1
+  fi
 
-    # Colors
-    RED=$(tput setaf 1)
-    GREEN=$(tput setaf 2)
-    YELLOW=$(tput setaf 3)
-    BLUE=$(tput setaf 4)
-    MAGENTA=$(tput setaf 5)
-    CYAN=$(tput setaf 6)
-    RESET=$(tput sgr0)
+  # Colors
+  RED=$(tput setaf 1)
+  GREEN=$(tput setaf 2)
+  YELLOW=$(tput setaf 3)
+  BLUE=$(tput setaf 4)
+  MAGENTA=$(tput setaf 5)
+  CYAN=$(tput setaf 6)
+  RESET=$(tput sgr0)
 
-    # Output the video file name
-    echo "\n${CYAN}File:${RESET} ${GREEN}$1${RESET}\n"
+  # Output the video file name
+  echo "\n${CYAN}File:${RESET} ${GREEN}$1${RESET}\n"
 
-    # Get video info
-    info=$(ffprobe -v error \
-        -show_entries format=duration,size,bit_rate \
-        -show_entries stream=codec_name,width,height,r_frame_rate \
-        -of default=noprint_wrappers=1 "$@")
+  # Get video info
+  info=$(ffprobe -v error \
+    -show_entries format=duration,size,bit_rate \
+    -show_entries stream=codec_name,width,height,r_frame_rate \
+    -of default=noprint_wrappers=1 "$@")
 
-    # Display the information with color formatting
-    echo "${YELLOW}Video Information:${RESET}"
-    echo "$info" | while IFS= read -r line; do
-        key=$(echo "$line" | cut -d'=' -f1)
-        value=$(echo "$line" | cut -d'=' -f2-)
+  # Display the information with color formatting
+  echo "${YELLOW}Video Information:${RESET}"
+  echo "$info" | while IFS= read -r line; do
+    key=$(echo "$line" | cut -d'=' -f1)
+    value=$(echo "$line" | cut -d'=' -f2-)
 
-        case $key in
-            duration) echo "${MAGENTA}Duration:${RESET} ${value}" ;;
-            size) echo "${MAGENTA}Size:${RESET} ${value}" ;;
-            bit_rate) echo "${MAGENTA}Bit Rate:${RESET} ${value}" ;;
-            codec_name) echo "${MAGENTA}Codec Name:${RESET} ${value}" ;;
-            width) echo "${MAGENTA}Width:${RESET} ${value}" ;;
-            height) echo "${MAGENTA}Height:${RESET} ${value}" ;;
-            r_frame_rate) echo "${MAGENTA}Frame Rate:${RESET} ${value}" ;;
-            *) echo "${key}: ${value}" ;;
-        esac
-    done
+    case $key in
+    duration) echo "${MAGENTA}Duration:${RESET} ${value}" ;;
+    size) echo "${MAGENTA}Size:${RESET} ${value}" ;;
+    bit_rate) echo "${MAGENTA}Bit Rate:${RESET} ${value}" ;;
+    codec_name) echo "${MAGENTA}Codec Name:${RESET} ${value}" ;;
+    width) echo "${MAGENTA}Width:${RESET} ${value}" ;;
+    height) echo "${MAGENTA}Height:${RESET} ${value}" ;;
+    r_frame_rate) echo "${MAGENTA}Frame Rate:${RESET} ${value}" ;;
+    *) echo "${key}: ${value}" ;;
+    esac
+  done
 }
 
 function yt-batch-run {
   local output_template="$HOME/_inbox/[%(uploader)s] %(title)s.%(ext)s"
-	local batch_file="$HOME/.ytdl-batch-porn"
+  local batch_file="$HOME/.ytdl-batch-porn"
 
-	if [[ ! -e "$batch_file" ]]; then
-		echo "$batch_file not found, creating..."
-		touch "$batch_file"
-	fi
+  if [[ ! -e "$batch_file" ]]; then
+    echo "$batch_file not found, creating..."
+    touch "$batch_file"
+  fi
 
   yt-dlp -v \
     --output "${output_template}" \
-		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+    --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
     --cookies-from-browser firefox \
     --merge-output-format mp4 \
     --batch-file "${batch_file}" \
@@ -240,18 +240,18 @@ function yt-batch-run {
     --parse-metadata '%(uploader)s:%(meta_artist)s' \
     --write-info-json \
     --write-annotations \
-		--get-comments \
-		--check-formats \
-		--concurrent-fragments 3 \
-		$@
+    --get-comments \
+    --check-formats \
+    --concurrent-fragments 3 \
+    $@
 
-	# move .json files out
-	mv $HOME/_inbox/*.json $HOME/_inbox/
+  # move .json files out
+  mv $HOME/_inbox/*.json $HOME/_inbox/
 }
 
 function yt-fg-archive {
-    # Define format string for better readability
-    local format_str="(
+  # Define format string for better readability
+  local format_str="(
         bestvideo[vcodec^=av01][height>=4320][fps>30]/bestvideo[vcodec^=vp09.02][height>=4320][fps>30]/bestvideo[vcodec^=vp09.00][height>=4320][fps>30]/bestvideo[vcodec^=avc1][height>=4320][fps>30]/bestvideo[height>=4320][fps>30]/
         bestvideo[vcodec^=av01][height>=4320]/bestvideo[vcodec^=vp09.02][height>=4320]/bestvideo[vcodec^=vp09.00][height>=4320]/bestvideo[vcodec^=avc1][height>=4320]/bestvideo[height>=4320]/
         bestvideo[vcodec^=av01][height>=2880][fps>30]/bestvideo[vcodec^=vp09.02][height>=2880][fps>30]/bestvideo[vcodec^=vp09.00][height>=2880][fps>30]/bestvideo[vcodec^=avc1][height>=2880][fps>30]/bestvideo[height>=2880][fps>30]/
@@ -274,8 +274,8 @@ function yt-fg-archive {
         bestvideo[vcodec^=av01][height>=144]/bestvideo[vcodec^=vp09.02][height>=144]/bestvideo[vcodec^=vp09.00][height>=144]/bestvideo[vcodec^=avc1][height>=144]/bestvideo[height>=144]
     )+(bestaudio[acodec^=opus]/bestaudio)/best"
 
-    # Define common options
-    local common_opts="
+  # Define common options
+  local common_opts="
         --verbose
         --force-ipv4
         --sleep-requests 1
@@ -306,125 +306,127 @@ function yt-fg-archive {
         --batch-file '$HOME/.ytdl-batch'
     "
 
-    # Run yt-dlp with all options
-    yt-dlp --format "$format_str" $common_opts 2>&1 | tee output.log
+  # Run yt-dlp with all options
+  yt-dlp --format "$format_str" $common_opts 2>&1 | tee output.log
 }
 
-
 function tag-comment() {
-    if [[ $# -lt 2 ]]; then
-        echo "Usage: yt_comment_tag <video_file> <comment>"
-        return 1
-    fi
+  if [[ $# -lt 2 ]]; then
+    echo "Usage: yt_comment_tag <video_file> <comment>"
+    return 1
+  fi
 
-    local video_file="$1"
-    local comment="$2"
+  local video_file="$1"
+  local comment="$2"
 
-    if [[ ! -f "$video_file" ]]; then
-        echo "Error: File '$video_file' not found."
-        return 1
-    fi
+  if [[ ! -f "$video_file" ]]; then
+    echo "Error: File '$video_file' not found."
+    return 1
+  fi
 
-    # Generate the output file name with "_tagged" appended
-    local tagged_video="${video_file%.*}_tagged.${video_file##*.}"
+  # Generate the output file name with "_tagged" appended
+  local tagged_video="${video_file%.*}_tagged.${video_file##*.}"
 
-    # Add the comment as a metadata tag using ffmpeg
-    ffmpeg -i "$video_file" -metadata comment="$comment" -codec copy "$tagged_video"
-    if [[ $? -eq 0 ]]; then
-        echo "Tagged video saved as: $tagged_video"
-    else
-        echo "Error tagging the video."
-        return 1
-    fi
+  # Add the comment as a metadata tag using ffmpeg
+  ffmpeg -i "$video_file" -metadata comment="$comment" -codec copy "$tagged_video"
+  if [[ $? -eq 0 ]]; then
+    echo "Tagged video saved as: $tagged_video"
+  else
+    echo "Error tagging the video."
+    return 1
+  fi
 }
 
 function mp4-tag-write-title {
   local file="$1"
   local title="$2"
 
-	if [[ -z "$file" ]]; then
-			echo "Usage: ${0:t} <file> <title>"
-			return 1
-	fi
+  if [[ -z "$file" ]]; then
+    echo "Usage: ${0:t} <file> <title>"
+    return 1
+  fi
 
-	ffmpeg -i "${file}" -metadata title="%(title)s" -codec copy "${file}.tmp"
-	mv "${file}.tmp" "${file}"
+  ffmpeg -i "${file}" -metadata title="%(title)s" -codec copy "${file}.tmp"
+  mv "${file}.tmp" "${file}"
 
-	echo "Successfully written title tag to ${file}"
+  echo "Successfully written title tag to ${file}"
 }
 
 function yt-porn-no-thumbnail {
   local url="$1"
   local output_template="[%(uploader)s] %(title)s.%(ext)s"
 
-	if [[ -z "$url" ]]; then
-			echo "Usage: ${0:t} <url>"
-			return 1
-	fi
+  if [[ -z "$url" ]]; then
+    echo "Usage: ${0:t} <url>"
+    return 1
+  fi
 
-	# download and rename
+  # download and rename
   yt-dlp -v \
     --output "${output_template}" \
-		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+    --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
     --cookies-from-browser brave \
     --merge-output-format mp4 \
     --embed-metadata \
     "${url}"
 
-	# ffmpeg -i "{}" -metadata comment="%(webpage_url)s" -metadata title="%(title)s" -codec copy "{}"
+  # ffmpeg -i "{}" -metadata comment="%(webpage_url)s" -metadata title="%(title)s" -codec copy "{}"
 }
 
 function yt-dlp-download-and-embed-tags {
   local url="$1"
 
-	if [[ -z "$url" ]]; then
-			echo "Usage: ${0:t} <url>"
-			return 1
-	fi
+  if [[ -z "$url" ]]; then
+    echo "Usage: ${0:t} <url>"
+    return 1
+  fi
 
   yt-dlp \
-		--verbose \
-		--format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+    --verbose \
+    --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
     --cookies-from-browser brave \
     --merge-output-format mp4 \
     --embed-metadata \
     --embed-thumbnail \
-		--exec 'ffmpeg -i "{}" -metadata comment="%(webpage_url)s" -metadata title="%(title)s" -codec copy "{}"' \
+    --exec 'ffmpeg -i "{}" -metadata comment="%(webpage_url)s" -metadata title="%(title)s" -codec copy "{}"' \
     "${url}"
 }
 
 # not working
 function mp4-tag-fetch {
   local url="$1"
-	if [[ -z "$url" ]]; then
-			echo "Usage: ${0:t} <url>"
-			return 1
-	fi
+  if [[ -z "$url" ]]; then
+    echo "Usage: ${0:t} <url>"
+    return 1
+  fi
 
-	# yt-dlp --verbose --skip-download --print-json "${url}"
-	# fetch metadata
-	local json_metadata=$(yt-dlp --verbose --skip-download --print-json "${url}")
+  # yt-dlp --verbose --skip-download --print-json "${url}"
+  # fetch metadata
+  local json_metadata=$(yt-dlp --verbose --skip-download --print-json "${url}")
 
-	echo "description: "
-	echo "$json_metadata" |jq '.description'
+  echo "description: "
+  echo "$json_metadata" | jq '.description'
 }
 
-function convert-to-mp4() {
-    local input_file="$1"
-    local output_file="${input_file%.*}.mp4"
+convert-to-mp4() {
+  (($# == 0)) && {
+    echo "Usage: $0 file1.mov [file2.mov ...]"
+    exit 1
+  }
 
-    if [ -z "$1" ]; then
-        echo "Usage: convert-to-mp4 <input_file>"
-        return 1
-    fi
+  for file in "$@"; do
+    [[ "$file" != *.mov ]] && {
+      echo "Skipping $file: not a .mov file"
+      continue
+    }
 
-    ffmpeg -i "$input_file" -c copy "$output_file"
-
-    if [ $? -eq 0 ]; then
-        echo "Conversion successful: $output_file"
-    else
-        echo "Conversion failed"
-    fi
+    output="${file:r}.mp4"
+    ffmpeg -i "$file" -c:v copy -c:a copy "$output" && {
+      echo "Converted $file to $output"
+    } || {
+      echo "Failed to convert $file" >&2
+    }
+  done
 }
 
 function tag-rename {
@@ -494,86 +496,86 @@ function tag-rename {
 # alias mp4-tag-comment="
 
 function tag-embed() {
-    # Check for two arguments
-    if [ $# -ne 2 ]; then
-        echo "Usage: ${0:t} <file> <url>"
-        return 1
+  # Check for two arguments
+  if [ $# -ne 2 ]; then
+    echo "Usage: ${0:t} <file> <url>"
+    return 1
+  fi
+
+  local file="$1"
+  local url="$2"
+
+  # Ensure yt-dlp, ffprobe, and ffmpeg are installed
+  for cmd in yt-dlp ffprobe ffmpeg; do
+    if ! command -v $cmd &>/dev/null; then
+      echo "$cmd is not installed. Please install it first."
+      return 1
     fi
+  done
 
-    local file="$1"
-    local url="$2"
+  # Extract metadata using yt-dlp
+  metadata=$(yt-dlp --skip-download --print-json "$url")
+  if [ $? -ne 0 ]; then
+    echo "Failed to extract metadata from $url"
+    return 1
+  fi
 
-    # Ensure yt-dlp, ffprobe, and ffmpeg are installed
-    for cmd in yt-dlp ffprobe ffmpeg; do
-        if ! command -v $cmd &> /dev/null; then
-            echo "$cmd is not installed. Please install it first."
-            return 1
-        fi
-    done
+  # Use jq to extract relevant metadata
+  title=$(echo "$metadata" | jq -r '.title')
+  uploader=$(echo "$metadata" | jq -r '.uploader')
+  upload_date=$(echo "$metadata" | jq -r '.upload_date')
+  description=$(echo "$metadata" | jq -r '.description')
 
-    # Extract metadata using yt-dlp
-    metadata=$(yt-dlp --skip-download --print-json "$url")
-    if [ $? -ne 0 ]; then
-        echo "Failed to extract metadata from $url"
-        return 1
-    fi
+  # Extract existing metadata from the file using ffprobe
+  existing_metadata=$(ffprobe -v quiet -print_format json -show_format "$file")
+  if [ $? -ne 0 ]; then
+    echo "Failed to extract existing metadata from $file"
+    return 1
+  fi
 
-    # Use jq to extract relevant metadata
-    title=$(echo "$metadata" | jq -r '.title')
-    uploader=$(echo "$metadata" | jq -r '.uploader')
-    upload_date=$(echo "$metadata" | jq -r '.upload_date')
-    description=$(echo "$metadata" | jq -r '.description')
+  # Add new metadata using ffmpeg
+  ffmpeg -i "$file" \
+    -metadata title="$title" \
+    -metadata artist="$uploader" \
+    -metadata description="$description" \
+    -metadata date="$upload_date" \
+    -codec copy "temp_$file"
 
-    # Extract existing metadata from the file using ffprobe
-    existing_metadata=$(ffprobe -v quiet -print_format json -show_format "$file")
-    if [ $? -ne 0 ]; then
-        echo "Failed to extract existing metadata from $file"
-        return 1
-    fi
-
-    # Add new metadata using ffmpeg
-    ffmpeg -i "$file" \
-        -metadata title="$title" \
-        -metadata artist="$uploader" \
-        -metadata description="$description" \
-        -metadata date="$upload_date" \
-        -codec copy "temp_$file"
-
-    if [ $? -eq 0 ]; then
-        mv "temp_$file" "$file"
-        echo "Metadata added successfully to $file"
-    else
-        echo "Failed to add metadata to $file"
-        rm "temp_$file"
-        return 1
-    fi
+  if [ $? -eq 0 ]; then
+    mv "temp_$file" "$file"
+    echo "Metadata added successfully to $file"
+  else
+    echo "Failed to add metadata to $file"
+    rm "temp_$file"
+    return 1
+  fi
 }
 
 # Example usage:
 # add_metadata "localfile.mp4" "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
 function tag-print {
-    # Check if ffprobe is installed
-    if ! command -v ffprobe &> /dev/null; then
-        echo "ffprobe is not installed."
-        return 1
-    fi
+  # Check if ffprobe is installed
+  if ! command -v ffprobe &>/dev/null; then
+    echo "ffprobe is not installed."
+    return 1
+  fi
 
-    # Check for correct number of arguments
-    if [ "$#" -ne 1 ]; then
-        echo "Usage: tag-print <filename>"
-        return 1
-    fi
+  # Check for correct number of arguments
+  if [ "$#" -ne 1 ]; then
+    echo "Usage: tag-print <filename>"
+    return 1
+  fi
 
-    local file_name="$1"
+  local file_name="$1"
 
-    # Check if the file exists
-    if [[ ! -f "$file_name" ]]; then
-        echo "File does not exist: $file_name"
-        return 1
-    fi
+  # Check if the file exists
+  if [[ ! -f "$file_name" ]]; then
+    echo "File does not exist: $file_name"
+    return 1
+  fi
 
-    # Command to list metadata
-    echo "Metadata for ${file_name}:"
-    ffprobe -loglevel error -show_entries format_tags -of ini "$file_name"
+  # Command to list metadata
+  echo "Metadata for ${file_name}:"
+  ffprobe -loglevel error -show_entries format_tags -of ini "$file_name"
 }
