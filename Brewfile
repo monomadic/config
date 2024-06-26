@@ -5,6 +5,7 @@
 tap "homebrew/bundle"
 tap "homebrew/services"
 tap "homebrew/cask-fonts"
+tap "rschmitt/heatseeker"
 
 # localsend (airdrop alternative)
 # tap "localsend/localsend"
@@ -46,6 +47,7 @@ brew "dua-cli" # another ncdu rust
 brew "ncdu"		# disk usage
 brew "fzf"		# fuzzy filter (go)
 brew "sk"			# fuzzy filter (rust)
+brew "heatseeker" # fuzzy filter for small menus (rust)
 brew "jq"			# json tool
 brew "jless"	# json tree viewer
 brew "bottom" # htop / sysperf monitor
