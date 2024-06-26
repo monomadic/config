@@ -1,44 +1,3 @@
-# https://youtube-dl.readthedocs.io/en/latest/
-#
-#	%(title)s: The title of the video.
-#	%(id)s: The video identifier.
-#	%(url)s: The URL of the video.
-#	%(extractor)s: The name of the extractor (site/scraper).
-#	%(upload_date)s: The upload date in YYYYMMDD format.
-#	%(uploader)s: The uploader of the video.
-#	%(uploader_id)s: The uploader identifier.
-#	%(channel)s: The channel name.
-#	%(channel_id)s: The channel identifier.
-#	%(duration)s: The duration of the video in seconds.
-#	%(view_count)s: The number of views.
-#	%(like_count)s: The number of likes.
-#	%(dislike_count)s: The number of dislikes.
-#	%(comment_count)s: The number of comments.
-#	%(ext)s: The file extension.
-#	%(format)s: The format of the file.
-#	%(format_id)s: The format identifier.
-#	%(playlist)s: The name of the playlist.
-#	%(playlist_index)s: The index of the video in the playlist.
-#	%(playlist_id)s: The playlist identifier.
-#	%(playlist_title)s: The playlist title.
-#	%(playlist_uploader)s: The uploader of the playlist.
-#	%(playlist_uploader_id)s: The uploader identifier of the playlist.
-#	%(epoch)s: The UNIX timestamp of the download.
-#	%(autonumber)s: A five-digit sequential number starting at 00001.
-#	%(chapter)s: The name of the chapter the video is part of.
-#	%(series)s: The series the video is part of.
-#	%(season_number)s: The season number of the series.
-#	%(episode_number)s: The episode number of the series.
-#	%(track)s: The track name of the video.
-#	%(artist)s: The artist of the video.
-#	%(album)s: The album of the video.
-#	%(genre)s: The genre of the video.
-#	%(location)s: The location where the video was recorded.
-#	%(resolution)s: The resolution of the video.
-#	%(bitrate)s: The bitrate of the video.
-#	%(filesize)s: The filesize of the video.
-#	%(filesize_approx)s: The approximate filesize of the video.
-
 alias yt="yt-dlp"
 alias yt-audio="yt-dlp -f 'bestaudio' --extract-audio --embed-metadata "
 alias yt-avc="yt-dlp -f 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' --cookies-from-browser=brave --merge-output-format mp4 --embed-metadata "
@@ -72,7 +31,7 @@ function yt-music-video {
   local output_template="%(artist)s - %(title)s.%(ext)s"
 
   if [[ -z "$url" ]]; then
-    echo "Usage: ${0:t} <url>"
+    echo "Usage: ${0:t} [args] <url>"
     return 1
   fi
 
@@ -86,7 +45,7 @@ function yt-music-video {
     --output "${output_template}" \
     --cookies-from-browser brave \
     --embed-metadata \
-    $0
+    $@
 }
 
 function yt-music-video-mp4 {
@@ -112,7 +71,7 @@ function yt-porn {
   local output_template="[%(uploader)s] %(title)s [%(extractor)s][%(resolution)s].%(ext)s"
 
   if [[ -z "$url" ]]; then
-    echo "Usage: ${0:t} <url>"
+    echo "Usage: ${0:t} [args] <url>"
     return 1
   fi
 
@@ -164,7 +123,7 @@ function yt-porn-firefox {
 
 function vid-info {
   if [ -z "$1" ]; then
-    echo "Usage: video-info <video_file>"
+    echo "Usage: $0 <video_file>"
     return 1
   fi
 
@@ -409,23 +368,19 @@ function mp4-tag-fetch {
 }
 
 convert-to-mp4() {
-  (($# == 0)) && {
+  if [ $# -eq 0 ]; then
     echo "Usage: $0 file1.mov [file2.mov ...]"
-    exit 1
-  }
+    return 1
+  fi
 
   for file in "$@"; do
-    [[ "$file" != *.mov ]] && {
-      echo "Skipping $file: not a .mov file"
-      continue
-    }
+    local output="${file%.*}.mp4"
 
-    output="${file:r}.mp4"
-    ffmpeg -i "$file" -c:v copy -c:a copy "$output" && {
+    if ffmpeg -i "$file" -c:v copy -c:a copy "$output"; then
       echo "Converted $file to $output"
-    } || {
+    else
       echo "Failed to convert $file" >&2
-    }
+    fi
   done
 }
 
@@ -579,3 +534,44 @@ function tag-print {
   echo "Metadata for ${file_name}:"
   ffprobe -loglevel error -show_entries format_tags -of ini "$file_name"
 }
+
+# https://youtube-dl.readthedocs.io/en/latest/
+#
+#	%(title)s: The title of the video.
+#	%(id)s: The video identifier.
+#	%(url)s: The URL of the video.
+#	%(extractor)s: The name of the extractor (site/scraper).
+#	%(upload_date)s: The upload date in YYYYMMDD format.
+#	%(uploader)s: The uploader of the video.
+#	%(uploader_id)s: The uploader identifier.
+#	%(channel)s: The channel name.
+#	%(channel_id)s: The channel identifier.
+#	%(duration)s: The duration of the video in seconds.
+#	%(view_count)s: The number of views.
+#	%(like_count)s: The number of likes.
+#	%(dislike_count)s: The number of dislikes.
+#	%(comment_count)s: The number of comments.
+#	%(ext)s: The file extension.
+#	%(format)s: The format of the file.
+#	%(format_id)s: The format identifier.
+#	%(playlist)s: The name of the playlist.
+#	%(playlist_index)s: The index of the video in the playlist.
+#	%(playlist_id)s: The playlist identifier.
+#	%(playlist_title)s: The playlist title.
+#	%(playlist_uploader)s: The uploader of the playlist.
+#	%(playlist_uploader_id)s: The uploader identifier of the playlist.
+#	%(epoch)s: The UNIX timestamp of the download.
+#	%(autonumber)s: A five-digit sequential number starting at 00001.
+#	%(chapter)s: The name of the chapter the video is part of.
+#	%(series)s: The series the video is part of.
+#	%(season_number)s: The season number of the series.
+#	%(episode_number)s: The episode number of the series.
+#	%(track)s: The track name of the video.
+#	%(artist)s: The artist of the video.
+#	%(album)s: The album of the video.
+#	%(genre)s: The genre of the video.
+#	%(location)s: The location where the video was recorded.
+#	%(resolution)s: The resolution of the video.
+#	%(bitrate)s: The bitrate of the video.
+#	%(filesize)s: The filesize of the video.
+#	%(filesize_approx)s: The approximate filesize of the video.
