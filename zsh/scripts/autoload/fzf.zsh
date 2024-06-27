@@ -2,28 +2,23 @@ export FZF_DEFAULT_OPTS="--layout=reverse --inline-info --color=bg+:-1,fg:4,info
 export SKIM_DEFAULT_OPTIONS=$FZF_DEFAULT_OPTS
 export SKIM_DEFAULT_COMMAND="fd . --max-depth=3"
 
-# function fzf-vlc {
-#   local search_term="$1"
-# 	fd --fixed-strings "$search_term" -0 |xargs -0 vlc
-# }
-
 # fzf search and open in vlc
-fzf-play() {
+function fzf-play() {
   fzf \
     --ansi \
     --multi \
     --exact \
-    --bind 'enter:select-all+execute-silent(vlc {+})' \
+    --bind 'enter:select-all+change-header("playing with vlc...")+execute-silent(vlc {+})' \
     --bind 'alt-enter:execute-silent(kitty @ launch --cwd $(dirname {}))' \
-    --bind 'alt-a:select-all,alt-d:deselect-all,ctrl-/:toggle-preview' \
     --bind 'alt-A:select-all+execute(airflow-open {})' \
+    --bind 'alt-a:select-all,alt-d:deselect-all,ctrl-/:toggle-preview' \
     --bind 'alt-e:select-all+execute(elmedia-open {})' \
-    --bind 'alt-f:execute(open --reveal {})' \
     --bind 'alt-i:select-all+execute(iina-open {})' \
     --bind 'alt-l:execute(kitty @ launch --cwd $(dirname {}) lf)' \
-    --bind 'alt-o:execute-silent(vlc {})' \
+    --bind 'alt-o:execute(open --reveal {})' \
     --bind 'alt-p:select-all+execute-silent(printf "%s\n" {+} > playlist.m3u)+abort' \
     --bind 'alt-s:select-all+accept' \
+    --bind 'alt-v:execute-silent(vlc {})' \
     --bind 'alt-t:execute-silent(kitty @ launch --cwd $(dirname {}))' \
     --header 'enter:play-all | alt-o:play-one | alt-i:iina | alt-e:elmedia | alt-f:finder | alt-A:airflow | alt-a:select-all | alt-d:deselect-all | alt-t:new-tab | alt-l:lf | alt-s: stdout | alt-p:playlist' \
     --color header:italic:47 \
