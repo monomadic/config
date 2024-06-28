@@ -26,7 +26,9 @@ brew "mas"
 
 brew "git"
 brew "git-delta" # rust git diff
+brew "ghq" # git repo management https://github.com/x-motemen/ghq
 brew "lazygit"
+
 brew "gzip"
 
 brew "shfmt" # formatter for zsh/sh/etc
