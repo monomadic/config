@@ -2,6 +2,53 @@ export FZF_DEFAULT_OPTS="--layout=reverse --inline-info --color=bg+:-1,fg:4,info
 export SKIM_DEFAULT_OPTIONS=$FZF_DEFAULT_OPTS
 export SKIM_DEFAULT_COMMAND="fd . --max-depth=3"
 
+# history
+# bind '"\C-r": "$(fc -rl 1 | fzf -e)"'
+
+# ssh into known_hosts
+function fzf-ssh() {
+  ssh $(grep -oP 'Host \K.*' ~/.ssh/config | fzf)
+}
+
+# kill processes
+function fzf-kill() {
+  kill -9 $(ps -ef | fzf | awk '{print $2}')
+}
+
+# set environment variables
+function fzf-env() {
+  export $(printenv | fzf | cut -d= -f1)
+}
+
+# alias mark='echo $PWD >> ~/.marks'
+# alias jump='cd $(cat ~/.marks | fzf)'
+
+# install with homebrew
+# function fzf-brew-install() {
+#   local formulae
+#   formulae=$(brew search | sort)
+#   local selected
+#   selected=$(echo "$formulae" | fzf -m --preview 'brew info {}')
+#   if [[ -n "$selected" ]]; then
+#     echo "$selected" | tr ' ' '\n' | xargs -I {} brew install {}
+#   fi
+# }
+
+# search emojis
+function fzf-emoji() {
+  emojis=$(cat ~/.zsh/autoload/emoji.json | jq -r '.[] | "\(.emoji) \(.description)"')
+  selected=$(echo "$emojis" | fzf --preview 'echo {1}' --preview-window up:1)
+  echo -n "${selected%% *}" | pbcopy
+  echo "Copied ${selected%% *} to clipboard!"
+}
+
+function fzf-git-switch-branch() {
+  local branches branch
+  branches=$(git branch --all | grep -v HEAD) &&
+    branch=$(echo "$branches" | fzf -d $((2 + $(wc -l <<<"$branches"))) +m) &&
+    git checkout $(echo "$branch" | sed "s/.* //" | sed "s#remotes/[^/]*/##")
+}
+
 # fzf search and open in vlc
 function fzf-play() {
   fzf \

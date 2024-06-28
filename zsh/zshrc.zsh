@@ -24,7 +24,7 @@ RESET=$(tput sgr0)
 declare -a dirs=("$HOME/config" "$HOME/wiki")
 
 # Function to check for uncommitted changes
-check_uncommitted_changes() {
+function check_uncommitted_changes() {
   local dir=$1
   if [[ -n "$(cd "$dir" && git status --porcelain)" ]]; then
     echo -e "\n${RED} uncommitted changes: $dir${RESET}"
