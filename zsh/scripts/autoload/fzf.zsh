@@ -34,6 +34,24 @@ function fzf-env() {
 #   fi
 # }
 
+# copy lines from the scrollback buffer
+function fzf-scrollback() {
+  local scrollback
+  scrollback=$(kitty @ get-text)
+
+  if [[ -n "$scrollback" ]]; then
+    selected=$(echo "$scrollback" | fzf --no-sort)
+    if [[ -n "$selected" ]]; then
+      echo "$selected" | kitten clipboard
+      echo "Copied to clipboard: $selected"
+    fi
+  else
+    echo "No scrollback buffer available."
+  fi
+}
+alias @sb="fzf-scrollback"
+alias sb="fzf-scrollback"
+
 # search emojis
 function fzf-emoji() {
   emojis=$(cat ~/.zsh/autoload/emoji.json | jq -r '.[] | "\(.emoji) \(.description)"')
