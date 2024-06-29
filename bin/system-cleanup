@@ -29,7 +29,7 @@ print_header "Cleaning Cargo projects..."
 cargo-recursive-clean ~/workspaces
 
 # Update and upgrade macOS App Store apps
-print-header "Updating and upgrading MacOS..."
+print_header "Updating and upgrading MacOS..."
 sudo softwareupdate -i -a
 
 # Update Mac App Store apps
