@@ -214,3 +214,7 @@ cask "airflow" # airplay streamer
 # manga
 tap "metafates/mangal"
 brew "mangal" # tui comic downloader
+
+# things.app shell access
+tap "AlexanderWillner/tap"
+brew "things.sh"
