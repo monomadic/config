@@ -248,17 +248,6 @@ function iina-filter() {
   fi
 }
 
-function open_with_iina() {
-    local selected_files=$(fd . | fzf -m)
-    if [[ -n "$selected_files" ]]; then
-        for file in $selected_files; do
-            open -a IINA "$file"
-        done
-    else
-        echo "No files selected."
-    fi
-}
-
 function vlc-play {
   local search_term="$1"
 	fd --fixed-strings "$search_term" -0 |xargs -0 vlc

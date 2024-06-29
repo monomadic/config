@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Get screen dimensions
+SCREEN_WIDTH=$(system_profiler SPDisplaysDataType | awk '/Resolution:/ {print $2; exit}')
+SCREEN_HEIGHT=$(system_profiler SPDisplaysDataType | awk '/Resolution:/ {print $4; exit}')
+
+# Set window dimensions (adjust as needed)
+WINDOW_WIDTH=800
+WINDOW_HEIGHT=600
+
+# Calculate position to center the window
+POS_X=$((($SCREEN_WIDTH - $WINDOW_WIDTH) / 2))
+POS_Y=$((($SCREEN_HEIGHT - $WINDOW_HEIGHT) / 2))
+
+# Open a new Kitty window at the calculated position and run the command
+/Applications/Kitty.app/Contents/MacOS/kitty --single-instance --instance-group=1 -o remember_window_size=no -o initial_window_width=${WINDOW_WIDTH} -o initial_window_height=${WINDOW_HEIGHT} -o window_padding_width=0 --position=${POS_X}x${POS_Y} -e zsh -c "index-play-checked"

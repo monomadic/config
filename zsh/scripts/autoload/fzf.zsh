@@ -138,3 +138,26 @@ function fzf-brave-history() {
       --prompt ' ' |
     sed 's#.*\(https*://\)#\1#' | xargs $open >/dev/null 2>/dev/null
 }
+
+# Function to open a new centered kitty window and run 'index-play-checked'
+function kitty-popup-centered() {
+  # Center coordinates for a 1920x1080 screen, adjust as needed
+  SCREEN_WIDTH=1920
+  SCREEN_HEIGHT=1080
+  WINDOW_WIDTH=800
+  WINDOW_HEIGHT=600
+
+  CENTER_X=$(((SCREEN_WIDTH - WINDOW_WIDTH) / 2))
+  CENTER_Y=$(((SCREEN_HEIGHT - WINDOW_HEIGHT) / 2))
+
+  # Create a temporary command to run in the new kitty window
+  TEMP_COMMAND="index-play-checked"
+
+  # Open a new kitty window with specified geometry and run the command
+  kitty @ new-window --cwd="$HOME" --title="Centered Window" \
+    --override "initial_window_width=${WINDOW_WIDTH}px" \
+    --override "initial_window_height=${WINDOW_HEIGHT}px" \
+    --override "window_margin_width=${CENTER_X}px" \
+    --override "window_margin_height=${CENTER_Y}px" \
+    zsh -c "$TEMP_COMMAND"
+}
