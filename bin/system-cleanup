@@ -1,0 +1,74 @@
+#!/usr/bin/env zsh
+
+# Function to print headers
+function print_header() {
+  echo "\n\e[1;34m==> $1\e[0m\n"
+}
+
+# Function to get free disk space
+function get_free_disk_space() {
+  df -h / | awk 'NR==2 {print $4}'
+}
+
+initial_free_space=$(get_free_disk_space)
+
+# Verify the disk
+print_header "Verifying drive integrity..."
+sudo diskutil verifyVolume /
+
+# Update and upgrade rustup
+print_header "Updating and upgrading Rustup..."
+rustup update
+
+# Clean outdated Cargo dependencies
+print_header "Cleaning Cargo cache..."
+cargo install-update -a
+
+# Clean outdated Cargo dependencies
+print_header "Cleaning Cargo projects..."
+cargo-recursive-clean ~/workspaces
+
+# Update and upgrade macOS App Store apps
+print-header "Updating and upgrading MacOS..."
+sudo softwareupdate -i -a
+
+# Update Mac App Store apps
+print_header "Updating Mac App Store apps..."
+mas upgrade
+
+# Update and upgrade Homebrew
+print_header "Updating and upgrading Homebrew..."
+brew update
+brew upgrade
+brew cleanup -s
+brew doctor
+
+# Empty the Trash
+print_header "Emptying the Trash..."
+sudo rm -rf ~/.Trash/*
+sudo rm -rf /Volumes/*/.Trashes/*
+
+# Clear system caches
+print_header "Clearing system caches"
+sudo rm -rf ~/Library/Caches/* /Library/Caches/* /System/Library/Caches/* /private/var/folders/* 2>/dev/null
+
+# Clean user cache files
+print_header "Cleaning user cache files"
+rm -rf ~/Library/Logs/* ~/Library/Containers/*/Data/Library/Caches/* ~/Library/Preferences/ByHost/* 2>/dev/null
+
+# Restarting Finder
+print_header "Restarting Finder"
+killall Finder
+
+# Record final free disk space
+final_free_space=$(get_free_disk_space)
+echo "Final free disk space: $final_free_space"
+
+# Calculate difference in free disk space
+initial_free_space_bytes=$(df / | awk 'NR==2 {print $4}')
+final_free_space_bytes=$(df / | awk 'NR==2 {print $4}')
+freed_space=$((final_free_space_bytes - initial_free_space_bytes))
+freed_space_human=$(numfmt --to=iec $freed_space)
+
+echo "\n\e[1;32mMaintenance tasks completed!\e[0m"
+echo "Freed disk space: $freed_space_human\n"
