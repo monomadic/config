@@ -20,6 +20,13 @@ function fzf-env() {
   export $(printenv | fzf | cut -d= -f1)
 }
 
+# show brew info for installed packages
+function fzf-brew-installed() {
+  brew list -1 | fzf \
+    --preview 'brew info {}' \
+    --bind 'enter:execute(open $(brew info --json=v1 {} | jq -r ".[0].homepage"))'
+}
+
 # alias mark='echo $PWD >> ~/.marks'
 # alias jump='cd $(cat ~/.marks | fzf)'
 
