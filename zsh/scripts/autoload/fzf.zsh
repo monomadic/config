@@ -84,7 +84,7 @@ function fzf-play() {
     --bind 'alt-A:select-all+execute(airflow-open {})' \
     --bind 'alt-a:select-all,alt-d:deselect-all,ctrl-/:toggle-preview' \
     --bind 'alt-e:select-all+execute(elmedia-open {})' \
-    --bind 'alt-enter:execute-silent(kitty @ launch --cwd $(dirname {}))' \
+    --bind 'alt-enter:execute-silent(kitty @ launch --cwd $PWD/$(dirname {}))' \
     --bind 'alt-i:select-all+execute(iina-open {})' \
     --bind 'alt-l:execute(kitty @ launch --cwd $(dirname {}) lf)' \
     --bind 'alt-m:select-all+execute-silent(mpv --macos-fs-animation-duration=0 {+})' \
@@ -94,14 +94,17 @@ function fzf-play() {
     --bind 'alt-s:select-all+accept' \
     --bind 'alt-t:execute-silent(kitty @ launch --cwd $(dirname {}))' \
     --bind 'alt-v:execute-silent(vlc {})' \
-    --header 'enter:play-all | alt-o:play | alt-r:reveal-in-finder | alt-i:iina | alt-e:elmedia | alt-f:finder | alt-A:airflow | alt-a:select-all | alt-d:deselect-all | alt-t:new-tab | alt-l:lf | alt-s: stdout | alt-p:playlist' \
+    --header 'enter:play-all | alt-o:play | alt-r:reveal-in-finder | alt-t:new-tab | alt-i:iina | alt-e:elmedia | alt-A:airflow | alt-a:select-all | alt-d:deselect-all | alt-l:lf | alt-s: stdout | alt-p:playlist' \
     --color header:italic:47 \
     --query "$*" # $* treat all arguments as a single string
 }
 alias @play="fd-video | fzf-play"
 alias @play-inbox="cd ~/_inbox  && @play"
+alias @play-babyblue="cd $DIR_BABYBLUE/not-porn && @play"
 alias @play-babyblue-inbox="cd-babyblue-inbox && @play"
 alias @play-babyblue-clips="cd $DIR_BABYBLUE/not-porn/_clips && @play"
+alias @play-babyblue-full="cd $DIR_BABYBLUE/not-porn/___full-videos && @play"
+alias @play-babyblue-full-inbox="cd $DIR_BABYBLUE/not-porn/___full-videos/_inbox && @play"
 
 function git-log-fzf {
   git log --oneline --decorate --color | fzf --ansi --preview 'git show --color $(echo {} | cut -d" " -f1)'
