@@ -81,19 +81,20 @@ function fzf-play() {
     --multi \
     --exact \
     --bind 'enter:select-all+execute-silent(mpv --macos-fs-animation-duration=0 --no-native-fs --fs {+})+deselect-all' \
-    --bind 'alt-enter:execute-silent(kitty @ launch --cwd $(dirname {}))' \
     --bind 'alt-A:select-all+execute(airflow-open {})' \
     --bind 'alt-a:select-all,alt-d:deselect-all,ctrl-/:toggle-preview' \
     --bind 'alt-e:select-all+execute(elmedia-open {})' \
+    --bind 'alt-enter:execute-silent(kitty @ launch --cwd $(dirname {}))' \
     --bind 'alt-i:select-all+execute(iina-open {})' \
     --bind 'alt-l:execute(kitty @ launch --cwd $(dirname {}) lf)' \
-    --bind 'alt-o:execute(open --reveal {})' \
     --bind 'alt-m:select-all+execute-silent(mpv --macos-fs-animation-duration=0 {+})' \
+    --bind 'alt-o:execute-silent(mpv --macos-fs-animation-duration=0 --no-native-fs --fs {+})' \
     --bind 'alt-p:select-all+execute-silent(printf "%s\n" {+} > playlist.m3u)+abort' \
+    --bind 'alt-r:execute(open --reveal {})' \
     --bind 'alt-s:select-all+accept' \
-    --bind 'alt-v:execute-silent(vlc {})' \
     --bind 'alt-t:execute-silent(kitty @ launch --cwd $(dirname {}))' \
-    --header 'enter:play-all | alt-m:mpv | alt-o:play-one | alt-i:iina | alt-e:elmedia | alt-f:finder | alt-A:airflow | alt-a:select-all | alt-d:deselect-all | alt-t:new-tab | alt-l:lf | alt-s: stdout | alt-p:playlist' \
+    --bind 'alt-v:execute-silent(vlc {})' \
+    --header 'enter:play-all | alt-o:play | alt-r:reveal-in-finder | alt-i:iina | alt-e:elmedia | alt-f:finder | alt-A:airflow | alt-a:select-all | alt-d:deselect-all | alt-t:new-tab | alt-l:lf | alt-s: stdout | alt-p:playlist' \
     --color header:italic:47 \
     --query "$*" # $* treat all arguments as a single string
 }
