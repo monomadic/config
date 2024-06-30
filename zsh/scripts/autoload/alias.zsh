@@ -22,6 +22,7 @@ alias d-yew="open https://yew.rs/docs/next/"
 alias dd='WD=${PWD} && cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml deploy --global-config global.toml --local-config local.toml && cd $WD && clear && zsh-reload'
 alias doc="cargo doc --open"
 alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml watch --global-config global.toml --local-config local.toml'
+alias e="nvim"
 alias e-brewfile="edit ~/config/Brewfile"
 alias e-config="cd ~/config/ && edit ."
 alias e-fzf="fzf_edit"
