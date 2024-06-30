@@ -9,6 +9,27 @@ alias yt-batch-edit="nvim $HOME/.ytdl-batch-porn"
 
 local MUSIC_VIDEO_FORMAT="%(artist)s - %(title)s.%(ext)s"
 
+function yt-download-format() {
+  if [ -z "$1" ]; then
+    echo "Usage: $0 <YouTube_URL>"
+    return 1
+  fi
+
+  local url="$1"
+
+  # Get available formats and use fzf for selection
+  local format=$(yt-dlp -F "$url" | awk 'NR>1' | fzf --layout=reverse --prompt="Select format: " | awk '{print $1}')
+
+  # Check if a format was selected
+  if [ -z "$format" ]; then
+    echo "No format selected."
+    return 1
+  fi
+
+  # Download the selected format
+  yt-dlp -f "$format" "$url"
+}
+
 function yt-download-mp4() {
   local url="$1"
 

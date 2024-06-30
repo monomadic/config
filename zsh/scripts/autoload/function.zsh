@@ -288,10 +288,10 @@ function vlc-find() {
 		fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
 }
 
-function fd-video {
-    local search_term="$1"
-    fd -i "$search_term" -E '.*\.(mp4|webp|webm|mkv|mov)$'
-}
+# function fd-video {
+#     local search_term="$1"
+#     fd -i "$search_term" -E '.*\.(mp4|webp|webm|mkv|mov)$'
+# }
 
 function fzf-filter {
     fzf --exact --multi --print0

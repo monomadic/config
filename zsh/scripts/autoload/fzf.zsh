@@ -80,7 +80,7 @@ function fzf-play() {
     --ansi \
     --multi \
     --exact \
-    --bind 'enter:select-all+execute-silent(vlc {+})' \
+    --bind 'enter:select-all+execute-silent(mpv --macos-fs-animation-duration=0 --no-native-fs --fs {+})+deselect-all' \
     --bind 'alt-enter:execute-silent(kitty @ launch --cwd $(dirname {}))' \
     --bind 'alt-A:select-all+execute(airflow-open {})' \
     --bind 'alt-a:select-all,alt-d:deselect-all,ctrl-/:toggle-preview' \
@@ -97,6 +97,10 @@ function fzf-play() {
     --color header:italic:47 \
     --query "$*" # $* treat all arguments as a single string
 }
+alias @play="fd-video | fzf-play"
+alias @play-inbox="cd ~/_inbox  && @play"
+alias @play-babyblue-inbox="cd-babyblue-inbox && @play"
+alias @play-babyblue-clips="cd $DIR_BABYBLUE/not-porn/_clips && @play"
 
 function git-log-fzf {
   git log --oneline --decorate --color | fzf --ansi --preview 'git show --color $(echo {} | cut -d" " -f1)'

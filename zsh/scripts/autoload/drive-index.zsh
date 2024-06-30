@@ -27,6 +27,7 @@ index-cat-checked() {
 function index-play {
   index-cat | fzf-play
 }
+alias @play-index=index-play
 
 index-grep-top() {
   grep -E '\[TOP\]|🎖️|\[\*\]'
@@ -44,6 +45,7 @@ function index-play-top {
 function index-play-checked {
   index-cat-checked | index-grep-safe | fzf-play
 }
+alias @play-index-checked=index-play-checked
 
 function index-play-checked-top {
   index-cat-checked | index-grep-top | fzf-play

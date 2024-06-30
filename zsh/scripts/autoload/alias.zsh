@@ -1,3 +1,4 @@
+alias fd-video="fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always"
 alias b="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
 alias battery='pmset -g batt'
 alias branch="b"
@@ -29,7 +30,8 @@ alias e-snippets="cd ~/config/neovim/snippets/ && edit . +'Telescope find_files'
 alias e-wiki=wiki
 alias e-zellij="cd ~/config/zellij/ && edit config.kdl"
 alias e-zsh="cd ~/config/zsh/ && edit zshrc.zsh"
-alias @edit-config-zsh="e-zsh"
+alias @zsh-config-edit="e-zsh"
+alias @config-zsh="e-zsh"
 alias edit=nvim
 alias f-all="fzf-cd"
 alias ga="git add . && git commit --amend"

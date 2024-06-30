@@ -1,4 +1,3 @@
-alias fd-video="fd -E '.*\.(mp4|webp|webm|mkv|mov)$' --type=file --color=always"
 alias fd-dirs-all="fd --type d --hidden --exclude .git --exclude Library --exclude target --exclude go --exclude .cargo --exclude .local --exclude .rustup --exclude build --color always"
 alias fd-dirs="fd --type d --exclude .git --exclude Library --exclude target --exclude go --exclude .cargo --exclude .local --exclude .rustup --exclude build --color always"
 
