@@ -95,7 +95,11 @@ brew "diskonaut" # disk usage
 brew "zellij" # tmux replacement
 brew "chafa" # sixel
 brew "viu" # sixel
+
+# video
 brew "mpv"
+brew "vapoursynth" # frame interpolation for mpv
+
 brew "procs" # ps replacement (rust)
 
 brew "ouch" # general decompressor (rust)

@@ -83,7 +83,6 @@ function fzf-cd() {
   [[ -n "$file" ]] && cd "${file[@]}"
   zle && zle reset-prompt
 }
-zle -N fzf-cd
 
 function fzf-insert() {
   # sk --preview 'bat --style=numbers --color=always --line-range :500 {}'

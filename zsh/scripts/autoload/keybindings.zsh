@@ -11,3 +11,4 @@ bindkey '^y' fzf-insert
 bindkey '^[u' cd-up
 # bindkey '^e' fzf_edit
 # bindkey '^b' fzm
+zle -N fzf-cd && bindkey '^j' fzf-cd
