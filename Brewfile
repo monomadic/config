@@ -33,7 +33,9 @@ brew "gzip"
 
 brew "shfmt" # formatter for zsh/sh/etc
 
-brew "homebrew/dotter.rb"
+brew "dotter"
+# brew "homebrew/dotter.rb"
+# brew "chezmoi" # go-based dotfiles manager
 
 brew "rm-improved" # rm replacement (rip)
 # brew "clear" # regex file delete

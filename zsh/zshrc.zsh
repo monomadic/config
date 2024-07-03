@@ -2,7 +2,7 @@ ZSH_CONFIG_DIR="$HOME/.zsh"
 DOTFILES_DIR="$HOME/config/"
 
 setopt autocd # cd without typing cd
-autoload -Uz add-zsh-hook
+autoload -Uz add-zsh-hook # function autoloading (built-in zsh function)
 
 # Source all configuration files
 fpath=($ZSH_CONFIG_DIR/functions/ $fpath)
