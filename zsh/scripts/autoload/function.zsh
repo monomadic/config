@@ -261,10 +261,6 @@ function vlc-play-hot {
 	vlc-play '🔥'
 }
 
-function vlc-play-cumshots {
-	vlc-play '[cumshot]'
-}
-
 alias cd-babyblue-inbox="cd /Volumes/BabyBlue2TB/not-porn/___full-videos/_inbox"
 alias cd-inbox="cd $HOME/_inbox"
 alias vlc-top-find="vlc-filter \"\_\[\""
@@ -276,8 +272,7 @@ alias bbhot="cd-babyblue && vlc-play-hot"
 alias is="index-search"
 alias i="index-search"
 
-local DIR_BABYBLUE="/Volumes/BabyBlue2TB"
-alias bb-eject="diskutil eject $DIR_BABYBLUE"
+alias eject-babyblue="diskutil eject $DIR_BABYBLUE"
 alias bb-cd="cd $DIR_BABYBLUE"
 alias cd-babyblue="cd $DIR_BABYBLUE/not-porn"
 alias bb-play-vlc="cd-babyblue && vlc-filter"
@@ -287,11 +282,6 @@ function vlc-find() {
 		local search_term="$1"
 		fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
 }
-
-# function fd-video {
-#     local search_term="$1"
-#     fd -i "$search_term" -E '.*\.(mp4|webp|webm|mkv|mov)$'
-# }
 
 function fzf-filter {
     fzf --exact --multi --print0

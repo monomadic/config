@@ -104,6 +104,7 @@ function yt-porn {
     --embed-metadata \
     $@
 }
+alias ytp=yt-porn
 
 function yt-nightly-porn {
   local url="$1"
