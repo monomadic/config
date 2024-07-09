@@ -24,16 +24,17 @@ brew "grep"
 
 brew "mas"
 
+# git
 brew "git"
 brew "git-delta" # rust git diff
 brew "ghq" # git repo management https://github.com/x-motemen/ghq
 brew "lazygit"
+# brew "degit" # git cloner (note: not on brew)
 
 brew "gzip"
-
 brew "shfmt" # formatter for zsh/sh/etc
 
-brew "dotter"
+brew "dotter" # rust dotfiles manager
 # brew "homebrew/dotter.rb"
 # brew "chezmoi" # go-based dotfiles manager
 
@@ -55,9 +56,7 @@ brew "heatseeker" # fuzzy filter for small menus (rust)
 brew "jq"			# json tool
 brew "jless"	# json tree viewer
 brew "bottom" # htop / sysperf monitor
-
 brew "fclones" # rust duplicate finder
-
 brew "starship" # cli prompt in rust
 
 # video tools
@@ -66,8 +65,6 @@ cask "losslesscut" # lossless slicing of videos (mp4, webm, etc)
 cask "qlvideo" # quicklook/finder preview and info panel for unsupported videos (webm, mkv, etc)
 
 brew "blueutil" # bluetooth util
-
-# brew "degit" # git cloner (note: not on brew)
 
 # file manager
 brew "yazi", args: ["HEAD"] # rust based
@@ -178,6 +175,7 @@ cask "smooze-pro"
 
 # utils
 # cask "daisydisk"
+brew "rnr" # rust based rename
 
 # bitcoin
 cask "bluewallet"

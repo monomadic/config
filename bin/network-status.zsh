@@ -37,6 +37,8 @@ else
   ip="${GREEN}${ip}${NC}"
 fi
 
+echo
+
 # Check for a captive portal if the network is down but a WiFi SSID is present
 if [[ "$network_status" == "${RED}DOWN${NC}" && "$ssid" != "${RED}Not connected to WiFi${NC}" ]]; then
   captive_portal_url=$(curl -I http://captive.apple.com 2>/dev/null | grep -i 'location' | awk '{print $2}' | tr -d '\r')
