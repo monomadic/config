@@ -1,5 +1,7 @@
-ZSH_CONFIG_DIR="$HOME/.zsh"
-DOTFILES_DIR="$HOME/config/"
+export ZSH_CONFIG_DIR="$HOME/.zsh"
+export DOTFILES_DIR="$HOME/config/"
+
+export DIR_BABYBLUE="/Volumes/BabyBlue2TB"
 
 setopt autocd # cd without typing cd
 autoload -Uz add-zsh-hook # function autoloading (built-in zsh function)
