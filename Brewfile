@@ -59,6 +59,8 @@ brew "bottom" # htop / sysperf monitor
 brew "fclones" # rust duplicate finder
 brew "starship" # cli prompt in rust
 
+cask "journey" # diary
+
 # video tools
 brew "mp4v2" # mp4 tools like mp4info etc
 cask "losslesscut" # lossless slicing of videos (mp4, webm, etc)
