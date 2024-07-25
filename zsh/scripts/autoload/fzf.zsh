@@ -1,6 +1,7 @@
 export FZF_DEFAULT_OPTS="--layout=reverse --inline-info --color=bg+:-1,fg:4,info:15,fg+:5,header:7,hl:5,hl+:5"
 export SKIM_DEFAULT_OPTIONS=$FZF_DEFAULT_OPTS
 export SKIM_DEFAULT_COMMAND="fd . --max-depth=3"
+export PRIVATE_PHOTOS_LIBRARY="$HOME/Media/Private/Private.photoslibrary"
 
 # history
 # bind '"\C-r": "$(fc -rl 1 | fzf -e)"'
@@ -98,13 +99,14 @@ function fzf-play() {
     --color header:italic:47 \
     --query "$*" # $* treat all arguments as a single string
 }
-alias @play="fd-video | fzf-play"
-alias @play-inbox="cd ~/_inbox  && @play"
-alias @play-babyblue="cd $DIR_BABYBLUE/not-porn && @play"
-alias @play-babyblue-inbox="cd-babyblue-inbox && @play"
-alias @play-babyblue-clips="cd $DIR_BABYBLUE/not-porn/_clips && @play"
-alias @play-babyblue-full="cd $DIR_BABYBLUE/not-porn/___full-videos && @play"
-alias @play-babyblue-full-inbox="cd $DIR_BABYBLUE/not-porn/___full-videos/_inbox && @play"
+alias @play-pwd="fd-video | fzf-play"
+alias @play-inbox="cd ~/_inbox  && @play-pwd"
+alias @play-babyblue="cd $DIR_BABYBLUE/not-porn && @play-pwd"
+alias @play-babyblue-inbox="cd-babyblue-inbox && @play-pwd"
+alias @play-babyblue-clips="cd $DIR_BABYBLUE/not-porn/_clips && @play-pwd"
+alias @play-babyblue-full="cd $DIR_BABYBLUE/not-porn/___full-videos && @play-pwd"
+alias @play-babyblue-full-inbox="cd $DIR_BABYBLUE/not-porn/___full-videos/_inbox && @play-pwd"
+alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
 
 function git-log-fzf {
   git log --oneline --decorate --color | fzf --ansi --preview 'git show --color $(echo {} | cut -d" " -f1)'
