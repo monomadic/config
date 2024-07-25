@@ -1,0 +1,3 @@
+#!/bin/bash
+
+rnr 's/^(.*) by (.*)tabs @ Ultimate Guitar Archive\.pdf$/$1 - $2.pdf/' *.pdf
