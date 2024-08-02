@@ -1,5 +1,5 @@
 alias yt="yt-dlp"
-alias yt-audio="yt-dlp -f 'bestaudio' --extract-audio --embed-metadata "
+alias yt-audio="yt-dlp -f 'bestaudio' --extract-audio --embed-metadata --cookies-from-browser=brave "
 alias yt-avc="yt-dlp -f 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' --cookies-from-browser=brave --merge-output-format mp4 --embed-metadata "
 alias yt-firefox="yt-dlp --cookies-from-browser=firefox "
 alias yt-video="yt-dlp -f 'bestvideo[vcodec^=avc1]' --merge-output-format mp4 --cookies-from-browser=brave --embed-metadata "

@@ -1,6 +1,35 @@
 local INDEX_DIR="$HOME/doc/indexes"
+alias fd-video="fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always"
 
-index-run() {
+local MEDIA_PATHS=(
+	/Volumes/**/not-porn/(N)
+  "$HOME/Media/Porn/"
+)
+
+function ls-media() {
+  for media_path in "${MEDIA_PATHS[@]}"; do
+    fd-video . $media_path --type f
+  done
+}
+
+function search-media() {
+  ls-media | fzf-play
+}
+alias @media-search=search-media
+
+# not working
+function play-with-mpv() {
+  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --playlist=-
+}
+
+function play-with-mpv-debug() {
+  while IFS= read -r file; do
+    echo "Playing: $file" # For debugging
+    echo "$file"
+  done | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --playlist=-
+}
+
+function index-run() {
   emulate -L zsh
 
   [[ -d "$1" ]] && {
