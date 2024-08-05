@@ -3,12 +3,19 @@ alias fd-video="fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=
 
 local MEDIA_PATHS=(
 	/Volumes/**/not-porn/(N)
+	/Volumes/**/Media/Porn/(N)
   "$HOME/Media/Porn/"
 )
 
 function ls-media() {
   for media_path in "${MEDIA_PATHS[@]}"; do
     fd-video . $media_path --type f
+  done
+}
+
+function media-detect() {
+  for media_path in "${MEDIA_PATHS[@]}"; do
+		echo "Path found: $media_path"
   done
 }
 
