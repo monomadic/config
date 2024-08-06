@@ -22,7 +22,8 @@ function media-detect() {
 function search-media() {
   ls-media | fzf-play
 }
-alias @media-search=search-media
+alias @media-search-all=search-media
+alias @play-all=search-media
 
 # not working
 function play-with-mpv() {

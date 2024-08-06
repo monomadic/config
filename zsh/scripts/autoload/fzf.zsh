@@ -3,6 +3,10 @@ export SKIM_DEFAULT_OPTIONS=$FZF_DEFAULT_OPTS
 export SKIM_DEFAULT_COMMAND="fd . --max-depth=3"
 export PRIVATE_PHOTOS_LIBRARY="$HOME/Media/Private/Private.photoslibrary"
 
+# themes
+export FZF_THEME_MOLOKAI='--color=bg+:#293739,bg:#1B1D1E,border:#808080,spinner:#E6DB74,hl:#7E8E91,fg:#F8F8F2,header:#7E8E91,info:#A6E22E,pointer:#A6E22E,marker:#F92672,fg+:#F8F8F2,prompt:#F92672,hl+:#F92672'
+export FZF_DEFAULT_OPTS=$FZF_THEME_MOLOKAI
+
 # history
 # bind '"\C-r": "$(fc -rl 1 | fzf -e)"'
 
@@ -100,12 +104,6 @@ function fzf-play() {
     --query "$*" # $* treat all arguments as a single string
 }
 alias @play-pwd="fd-video | fzf-play"
-alias @play-inbox="cd ~/_inbox  && @play-pwd"
-alias @play-babyblue="cd $DIR_BABYBLUE/not-porn && @play-pwd"
-alias @play-babyblue-inbox="cd-babyblue-inbox && @play-pwd"
-alias @play-babyblue-clips="cd $DIR_BABYBLUE/not-porn/_clips && @play-pwd"
-alias @play-babyblue-full="cd $DIR_BABYBLUE/not-porn/___full-videos && @play-pwd"
-alias @play-babyblue-full-inbox="cd $DIR_BABYBLUE/not-porn/___full-videos/_inbox && @play-pwd"
 alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
 
 function git-log-fzf {
@@ -172,3 +170,8 @@ function kitty-popup-centered() {
     --override "window_margin_height=${CENTER_Y}px" \
     zsh -c "$TEMP_COMMAND"
 }
+
+function dj-play-visuals() {
+  cd $HOME/Music/DJ/Visuals && @play-pwd
+}
+alias @play-dj-visuals=dj-play-visuals

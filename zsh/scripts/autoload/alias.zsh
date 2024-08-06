@@ -46,7 +46,7 @@ alias gen-yew-web3="cargo generate --git https://github.com/monomadic/yew-web3-t
 alias gh="cd ~"
 alias gp="git push"
 alias gr="cd /"
-alias gs="git status"
+alias gs="fzf-git-status.sh"
 alias gss="git status --short --untracked-files=all"
 alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
 alias img="chafa --format=symbols "
