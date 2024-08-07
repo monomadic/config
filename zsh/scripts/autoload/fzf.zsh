@@ -85,6 +85,7 @@ function fzf-play() {
     --ansi \
     --multi \
     --exact \
+    --preview 'ffmpeg -loglevel error -ss 00:00:01 -i {} -vf "scale=80:-1,select=eq(n\,0)" -vframes 1 -f image2 - 2>/dev/null | chafa -c full --format=symbols --size=80x40 2>/dev/null' \
     --bind 'enter:select-all+execute-silent(mpv --macos-fs-animation-duration=0 --no-native-fs --fs {+})+deselect-all' \
     --bind 'alt-A:select-all+execute(airflow-open {})' \
     --bind 'alt-a:select-all,alt-d:deselect-all,ctrl-/:toggle-preview' \
@@ -94,7 +95,8 @@ function fzf-play() {
     --bind 'alt-l:execute(kitty @ launch --cwd $(dirname {}) lf)' \
     --bind 'alt-m:select-all+execute-silent(mpv --macos-fs-animation-duration=0 {+})' \
     --bind 'alt-o:execute-silent(mpv --macos-fs-animation-duration=0 --no-native-fs --fs {+})' \
-    --bind 'alt-p:select-all+execute-silent(printf "%s\n" {+} > playlist.m3u)+abort' \
+    --bind 'alt-P:select-all+execute-silent(printf "%s\n" {+} > playlist.m3u)+abort' \
+    --bind 'alt-p:toggle-preview' \
     --bind 'alt-r:execute(open --reveal {})' \
     --bind 'alt-s:select-all+accept' \
     --bind 'alt-t:execute-silent(kitty @ launch --cwd $(dirname {}))' \

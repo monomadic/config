@@ -25,6 +25,10 @@ function search-media() {
 alias @media-search-all=search-media
 alias @play-all=search-media
 
+function @play-local() {
+	ls-media | grep $HOME | fzf-play
+}
+
 # not working
 function play-with-mpv() {
   mpv --macos-fs-animation-duration=0 --no-native-fs --fs --playlist=-

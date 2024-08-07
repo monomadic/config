@@ -9,6 +9,11 @@ alias yt-batch-edit="nvim $HOME/.ytdl-batch-porn"
 
 local MUSIC_VIDEO_FORMAT="%(artist)s - %(title)s.%(ext)s"
 
+function yt-video-only() {
+  local url="$1"
+  yt-dlp -f "bv[ext=mp4]" "$url" --merge-output-format mp4
+}
+
 function yt-download-format() {
   if [ -z "$1" ]; then
     echo "Usage: $0 <YouTube_URL>"
