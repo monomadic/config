@@ -1,3 +1,4 @@
+alias exa=eza
 alias fd-video="fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always"
 alias mpv-fs="mpv --macos-fs-animation-duration=0 --no-native-fs --fs"
 #alias fd-video-by-recent="fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm -X mtime --color=always"

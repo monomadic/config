@@ -7,6 +7,8 @@ local MEDIA_PATHS=(
   "$HOME/Media/Porn/"
 )
 
+local MASTER_COPY_PATH="/Volumes/BabyBlue2TB"
+
 function ls-media() {
   for media_path in "${MEDIA_PATHS[@]}"; do
     fd-video . $media_path --type f
@@ -18,6 +20,32 @@ function media-detect() {
 		echo "Path found: $media_path"
   done
 }
+
+function media-cache-top() {
+    local MASTER_COPY_PATH="/Volumes/BabyBlue2TB"
+    local destination_dir="$1"
+
+    # Ensure the destination directory is provided
+    if [[ -z "$destination_dir" ]]; then
+        echo "Usage: $0 <destination_dir>"
+        return 1
+    fi
+
+    # Check if the source directory exists
+    if [[ ! -d "$MASTER_COPY_PATH" ]]; then
+        echo "Source directory $MASTER_COPY_PATH does not exist."
+        return 1
+    fi
+
+    # Create destination directory if it doesn't exist
+    mkdir -p "$destination_dir"
+
+    # Recursively find and copy files containing "[Top]" in their names
+    find "$MASTER_COPY_PATH" -type f -name "*[Top]*" -exec cp -- "{}" "$destination_dir" \;
+
+    echo "Files containing '[Top]' have been copied to $destination_dir"
+}
+alias @media-backup-top
 
 function search-media() {
   ls-media | fzf-play
