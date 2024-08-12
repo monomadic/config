@@ -1,32 +1,47 @@
+# Set variables
 local INDEX_DIR="$HOME/doc/indexes"
-alias fd-video="fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always"
-
-function media-paths() {
-  echo "$HOME/Media/Porn/"
-  echo "/Volumes/**/not-porn/(N)"
-  echo "/Volumes/**/Media/Porn/(N)"
-}
-
 export MASTER_COPY_PATH="/Volumes/BabyBlue2TB"
 
-function ls-media() {
-  for media_path in $(get-media-paths); do
-    fd-video . $media_path --type f
+# Define fd-video alias for video file search
+alias fd-video="fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always"
+
+# Define MEDIA_PATHS as a function to avoid pattern expansion on load
+function get-media-paths() {
+  # Use `print -l` to handle new lines
+  print -l "$HOME/Media/Porn/"
+  # List volumes and use globbing only within the function
+  local volumes=(/Volumes/*)
+  for volume in "${volumes[@]}"; do
+    print -l "$volume/not-porn/"
+    print -l "$volume/Media/Porn/"
   done
 }
 
+# List media files using fd-video
+function ls-media() {
+  # Iterate over each media path
+  for media_path in $(get-media-paths); do
+    # Use fd only for valid directories
+    if [[ -d "$media_path" ]]; then
+      fd-video . "$media_path" --type f
+    fi
+  done
+}
+
+# Detect and print media paths
 function media-detect() {
   for media_path in $(get-media-paths); do
     echo "Path found: $media_path"
   done
 }
 
+# Cache media files containing "[Top]" in their names
 function media-cache-top() {
   local destination_dir="$1"
 
   # Ensure the destination directory is provided
   if [[ -z "$destination_dir" ]]; then
-    echo "Usage: $0 <destination_dir>"
+    echo "Usage: media-cache-top <destination_dir>"
     return 1
   fi
 
@@ -39,22 +54,23 @@ function media-cache-top() {
   # Create destination directory if it doesn't exist
   mkdir -p "$destination_dir"
 
-  # Recursively find and copy files containing "[Top]" in their names
-  find "$MASTER_COPY_PATH" -type f -name "*[Top]*" -exec cp -- "{}" "$destination_dir" \;
+  # Use fd to find files with [Top] and copy them
+  fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm -g "*[Top]*" "$MASTER_COPY_PATH" \
+    -x cp -- '{}' "$destination_dir"
 
   echo "Files containing '[Top]' have been copied to $destination_dir"
 }
-alias @media-backup-top
 
+# Search media files and play with fzf
 function search-media() {
   ls-media | fzf-play
 }
-alias @media-search-all=search-media
-alias @play-all=search-media
 
-function @play-local() {
-  ls-media | grep $HOME | fzf-play
-}
+# Define aliases
+alias @media-backup-top="media-cache-top"
+alias @media-search-all="search-media"
+alias @play-all="search-media"
+alias @play-local="ls-media | grep $HOME | fzf-play"
 
 # not working
 function play-with-mpv() {
