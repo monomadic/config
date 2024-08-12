@@ -4,7 +4,7 @@
 
 tap "homebrew/bundle"
 tap "homebrew/services"
-tap "homebrew/cask-fonts"
+#tap "homebrew/cask-fonts"
 tap "rschmitt/heatseeker"
 
 # localsend (airdrop alternative)
@@ -200,6 +200,7 @@ cask "caffeine" # sleep prevention
 cask "signal"
 cask "telegram-desktop"
 cask "session", target: 'Session Desktop.app' # signal fork with private keys instead of phone numbers
+cask "whatsapp"
 
 # reversing
 brew "binwalk" # binary analyser
