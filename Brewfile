@@ -26,6 +26,7 @@ brew "mas"
 
 # git
 brew "git"
+brew "gh" # github cli tool
 brew "git-delta" # rust git diff
 brew "ghq" # git repo management https://github.com/x-motemen/ghq
 brew "lazygit"
