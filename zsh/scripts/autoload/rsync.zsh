@@ -39,7 +39,7 @@ function rsync-archive {
 }
 
 function rsync-backup-babyblue {
-  rsync-archive /Volumes/BabyBlue2TB/ /Volumes/FireBird1TB/_backup/BabyBlue2TB/
+  rsync-archive /Volumes/BabyBlue2TB/Media/Porn/ /Volumes/FireBird1TB/Media/Porn/
   # check file count is the same
   # run the indexer
   index-all
