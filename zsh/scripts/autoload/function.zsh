@@ -45,9 +45,6 @@ function rename-file() {
   echo "File renamed to '$new_filename'."
 }
 
-# Make the function available to zsh
-autoload -Uz rename_file
-
 function rename-append-resolution {
   if [[ -z "$1" ]]; then
     echo "Usage: ${0:t} <file.mp4>"
@@ -264,8 +261,6 @@ function vlc-play-hot {
 alias cd-babyblue-inbox="cd /Volumes/BabyBlue2TB/not-porn/___full-videos/_inbox"
 alias cd-inbox="cd $HOME/_inbox"
 alias vlc-top-find="vlc-filter \"\_\[\""
-alias vlc-babyblue="cd-babyblue && vlc-filter"
-alias vlc-babyblue-one="cd /Volumes/BabyBlue2TB/Videos/not-porn && vlc-find"
 alias vlc-inbox="cd $HOME/_inbox && vlc-filter"
 alias bbtop="cd-babyblue && vlc-play-top"
 alias bbhot="cd-babyblue && vlc-play-hot"

@@ -1,3 +1,10 @@
+function rsync-backup-media-to-babyblue {
+  echo "FireBird1TB/Media/Porn		${du-sh /Volumes/FireBird1TB/Media/Porn/}"
+  # rsync-archive /Volumes/FireBird1TB/Media/Porn/ /Volumes/BabyBlue2TB/Media/Porn/
+  # echo "Backup successful."
+}
+alias @backup-media-to-babyblue
+
 function rsync-archive {
   # Check for proper number of arguments
   if [ $# -ne 2 ]; then
@@ -38,11 +45,11 @@ function rsync-archive {
   fi
 }
 
-function rsync-backup-babyblue {
-  rsync-archive /Volumes/BabyBlue2TB/Media/Porn/ /Volumes/FireBird1TB/Media/Porn/
-  # check file count is the same
-  # run the indexer
-  index-all
-  echo "Backup successful."
-}
-alias @backup-babyblue=rsync-backup-babyblue
+# function rsync-backup-babyblue {
+#   rsync-archive /Volumes/BabyBlue2TB/Media/Porn/ /Volumes/FireBird1TB/Media/Porn/
+#   # check file count is the same
+#   # run the indexer
+#   index-all
+#   echo "Backup successful."
+# }
+# alias @backup-babyblue=rsync-backup-babyblue

@@ -113,7 +113,7 @@ function index-play {
 }
 alias @play-index=index-play
 
-index-grep-top() {
+function grep-top() {
   grep -E '\[TOP\]|🎖️|\[\*\]'
 }
 
