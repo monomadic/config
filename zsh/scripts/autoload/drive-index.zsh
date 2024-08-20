@@ -116,6 +116,7 @@ alias @play-index=index-play
 function grep-top() {
   grep -E '\[TOP\]|🎖️|\[\*\]'
 }
+alias fd-top="fd-video |grep-top"
 
 function index-grep-safe {
   grep -v -E '\[g\]|\[bi\]|\[unsafe\]'

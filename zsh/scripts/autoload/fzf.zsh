@@ -86,6 +86,7 @@ function fzf-play() {
     --multi \
     --exact \
     --preview 'ffmpeg -loglevel error -ss 00:00:01 -i {} -vf "scale=80:-1,select=eq(n\,0)" -vframes 1 -f image2 - 2>/dev/null | chafa -c full --format=symbols --size=80x40 2>/dev/null' \
+    --preview-window=hidden \
     --bind 'enter:select-all+execute-silent(mpv --macos-fs-animation-duration=0 --no-native-fs --fs {+})+deselect-all' \
     --bind 'alt-A:select-all+execute(airflow-open {})' \
     --bind 'alt-a:select-all,alt-d:deselect-all,ctrl-/:toggle-preview' \
