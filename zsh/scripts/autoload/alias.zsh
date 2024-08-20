@@ -1,3 +1,4 @@
+alias @tab="cd $HOME/Tablature && fd . --extension pdf | fzf --bind 'enter:execute(open {})'"
 alias exa=eza
 alias fd-video="fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always"
 alias mpv-fs="mpv --macos-fs-animation-duration=0 --no-native-fs --fs"
