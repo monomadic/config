@@ -2,30 +2,31 @@
 local INDEX_DIR="$HOME/doc/indexes"
 export MASTER_COPY_PATH="/Volumes/BabyBlue2TB"
 
-# Define fd-video alias for video file search
-alias fd-video="fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always"
-
-# Define MEDIA_PATHS as a function to avoid pattern expansion on load
-function get-media-paths() {
-  # Use `print -l` to handle new lines
-  print -l "$HOME/Media/Porn/"
-  # List volumes and use globbing only within the function
-  local volumes=(/Volumes/*)
-  for volume in "${volumes[@]}"; do
-    print -l "$volume/not-porn/"
-    print -l "$volume/Media/Porn/"
-  done
+function fd-video() {
+  fd -t f -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always "$@"
 }
 
 # List media files using fd-video
-function ls-media() {
+function ls-media-unsafe() {
   # Iterate over each media path
-  for media_path in $(get-media-paths); do
+  for media_path in $(ls-media-paths); do
     # Use fd only for valid directories
     if [[ -d "$media_path" ]]; then
       fd-video . "$media_path" --type f
     fi
   done
+}
+
+# List media files across media paths.
+# - handles special characters
+# - preserves whitespace, prevents backslash interpretation
+# - does not create a subshell for `ls-media-paths`
+function ls-media() {
+  while IFS= read -r media_path; do
+    if [[ -d "$media_path" ]]; then
+      fd-video . "$media_path"
+    fi
+  done < <(ls-media-paths)
 }
 
 function ls-tags() {
@@ -34,7 +35,7 @@ function ls-tags() {
 
 # Detect and print media paths
 function media-detect() {
-  for media_path in $(get-media-paths); do
+  for media_path in $(ls-media-paths); do
     echo "Path found: $media_path"
   done
 }
@@ -67,13 +68,53 @@ function media-cache-top() {
 
 # Search media files and play with fzf
 function search-media() {
+  ls-media | grep-safe | fzf-play
+}
+
+# Include unsafe files
+function search-media-all() {
   ls-media | fzf-play
 }
 
 # Define aliases
-alias @media-backup-top="media-cache-top"
-alias @media-search-all="search-media"
-alias @play-all="search-media"
+alias @media-copy-top="media-cache-top"
+alias @media-search-all="search-media-all"
+alias @media-play-all="search-media-all"
+alias @media-search="search-media"
+
+# Update the alias to use the new function
+alias @media-stats="ls-media-stats"
+
+# Ensure fd-video searches recursively
+function fd-video() {
+  fd -t f -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always -d 20 "$@"
+}
+export -f fd-video
+
+# Update the alias to use the new function
+alias @media-stats="ls-media-stats"
+
+# Update the alias to use the new function
+alias @media-stats="ls-media-stats"
+
+# Update the alias to use the new function
+alias @media-stats="ls-media-stats"
+
+# New play-all-now function
+function play-all-now() {
+  local playlist_file=$(mktemp)
+  ls-media | tr '\n' '\0' >"$playlist_file"
+
+  if [ -s "$playlist_file" ]; then
+    xargs -0 mpv --macos-fs-animation-duration=0 --no-native-fs --fs <"$playlist_file"
+  else
+    echo "No media files found."
+  fi
+
+  rm "$playlist_file"
+}
+alias @play-all-now="play-all-now"
+
 alias @play-local="ls-media | grep $HOME | fzf-play"
 
 # not working
@@ -122,17 +163,17 @@ function grep-top() {
 }
 alias fd-top="fd-video |grep-top"
 
-function index-grep-safe {
+function grep-safe {
   grep -v -E '\[g\]|\[bi\]|\[unsafe\]'
 }
 
 function index-play-top {
-  index-cat | index-grep-top | fzf-play
+  index-cat | grep-top | fzf-play
 }
 
 # list available files from the index and play them
 function index-play-checked {
-  index-cat-checked | index-grep-safe | fzf-play
+  index-cat-checked | grep-safe | fzf-play
 }
 alias @play-index-checked=index-play-checked
 

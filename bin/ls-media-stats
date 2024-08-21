@@ -1,0 +1,74 @@
+#!/usr/bin/env zsh
+
+function fd-video() {
+  fd -t f -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always "$@"
+}
+
+# Color definitions
+typeset -A colors
+colors=(
+  RED $'\e[0;31m'
+  GREEN $'\e[0;32m'
+  YELLOW $'\e[0;33m'
+  BLUE $'\e[0;34m'
+  MAGENTA $'\e[0;35m'
+  CYAN $'\e[0;36m'
+  BOLD $'\e[1m'
+  NC $'\e[0m'
+)
+
+# Nerd Font icons (make sure you have a Nerd Font installed and configured in your terminal)
+typeset -A icons
+icons=(
+  FOLDER $'\uf07b'
+  FILE $'\uf15b'
+  HDD $'\uf0a0'
+  STATS $'\uf080'
+)
+
+# Function to get free space
+get_free_space() {
+  local path="$1"
+  local free_space=$(/bin/df -h "$path" | /usr/bin/awk 'NR==2 {print $4}')
+  echo $free_space
+}
+
+# Main ls-media-stats function
+ls_media_stats() {
+  local total_count=0
+  local total_size=0
+
+  print -P "${colors[BOLD]}${colors[BLUE]}=== Media Statistics ===${colors[NC]}\n"
+
+  ls-media-paths | while IFS= read -r media_path; do
+    if [[ -d "$media_path" ]]; then
+      print -P "${colors[CYAN]}${icons[FOLDER]} Path:${colors[NC]} ${colors[BOLD]}$media_path${colors[NC]}"
+
+      # Get file count
+      local file_count=$(fd-video . "$media_path" | wc -l | tr -d ' ')
+
+      # Get total size
+      local size_kb=$(du -sk "$media_path" | cut -f1)
+      local size=$((size_kb * 1024))
+
+      # Get free space
+      local free_space=$(get_free_space "$media_path")
+
+      print -P "  ${colors[YELLOW]}${icons[FILE]} Files:${colors[NC]} $file_count"
+      print -P "  ${colors[GREEN]}${icons[HDD]} Total size:${colors[NC]} $(numfmt --to=iec-i --suffix=B --format="%.2f" $size)"
+      print -P "  ${colors[MAGENTA]}${icons[HDD]} Free space:${colors[NC]} $free_space"
+
+      ((total_count += file_count))
+      ((total_size += size))
+
+      print
+    fi
+  done
+
+  print -P "${colors[BOLD]}${colors[BLUE]}${icons[STATS]} Overall Statistics:${colors[NC]}"
+  print -P "${colors[YELLOW]}${icons[FILE]} Total files:${colors[NC]} $total_count"
+  print -P "${colors[GREEN]}${icons[HDD]} Total size:${colors[NC]} $(numfmt --to=iec-i --suffix=B --format="%.2f" $total_size)"
+}
+
+# Run the main function
+ls_media_stats

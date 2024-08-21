@@ -5,6 +5,10 @@ function rsync-backup-media-to-babyblue {
 }
 alias @backup-media-to-babyblue
 
+function rsync-copy-firebird-to-babyblue {
+  rsync-archive /Volumes/BabyBlue2TB/Media/Porn/ /Volumes/FireBird1TB/Media/Porn/
+}
+
 function rsync-archive {
   # Check for proper number of arguments
   if [ $# -ne 2 ]; then

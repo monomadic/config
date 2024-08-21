@@ -1,0 +1,11 @@
+#!/usr/bin/env zsh
+
+# Print the home media path
+printf '%s\n' "$HOME/Media/Porn/"
+
+# List volumes and use globbing only within the function
+local volumes=(/Volumes/*)
+for volume in "${volumes[@]}"; do
+  printf '%s\n' "$volume/not-porn/"
+  printf '%s\n' "$volume/Media/Porn/"
+done
