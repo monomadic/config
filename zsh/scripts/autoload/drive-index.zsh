@@ -28,6 +28,10 @@ function ls-media() {
   done
 }
 
+function ls-tags() {
+  fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
+}
+
 # Detect and print media paths
 function media-detect() {
   for media_path in $(get-media-paths); do
