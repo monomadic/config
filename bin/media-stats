@@ -42,7 +42,7 @@ ls_media_stats() {
 
   ls-media-paths | while IFS= read -r media_path; do
     if [[ -d "$media_path" ]]; then
-      print -P "${colors[CYAN]}${icons[FOLDER]} Path:${colors[NC]} ${colors[BOLD]}$media_path${colors[NC]}"
+      print -P "${colors[CYAN]}${icons[FOLDER]} ${colors[BOLD]}$media_path${colors[NC]}"
 
       # Get file count
       local file_count=$(fd-video . "$media_path" | wc -l | tr -d ' ')
@@ -54,9 +54,7 @@ ls_media_stats() {
       # Get free space
       local free_space=$(get_free_space "$media_path")
 
-      print -P "  ${colors[YELLOW]}${icons[FILE]} Files:${colors[NC]} $file_count"
-      print -P "  ${colors[GREEN]}${icons[HDD]} Total size:${colors[NC]} $(numfmt --to=iec-i --suffix=B --format="%.2f" $size)"
-      print -P "  ${colors[MAGENTA]}${icons[HDD]} Free space:${colors[NC]} $free_space"
+      print -P "  ${colors[YELLOW]}${icons[FILE]} $file_count files, ${icons[HDD]} $(numfmt --to=iec-i --suffix=B --format="%.2f" $size) total / $free_space free ${colors[NC]}"
 
       ((total_count += file_count))
       ((total_size += size))

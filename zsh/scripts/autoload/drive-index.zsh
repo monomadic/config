@@ -89,7 +89,6 @@ alias @media-stats="ls-media-stats"
 function fd-video() {
   fd -t f -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always -d 20 "$@"
 }
-export -f fd-video
 
 # Update the alias to use the new function
 alias @media-stats="ls-media-stats"

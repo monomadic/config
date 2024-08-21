@@ -5,7 +5,7 @@ function rsync-backup-media-to-babyblue {
 }
 alias @backup-media-to-babyblue
 
-function rsync-copy-firebird-to-babyblue {
+function rsync-copy-babyblue-to-firebird {
   rsync-archive /Volumes/BabyBlue2TB/Media/Porn/ /Volumes/FireBird1TB/Media/Porn/
 }
 
