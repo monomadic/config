@@ -71,6 +71,7 @@ alias ns="network-status.zsh"
 alias @ns=ns
 alias @network-status=ns
 alias @network-detect-captive-portal=detect-captive-portal-color.zsh
+alias @open-captive-portal=detect-captive-portal-color.zsh
 alias @status-network=ns
 alias o=open
 alias org='cd ~/org && e index.md'

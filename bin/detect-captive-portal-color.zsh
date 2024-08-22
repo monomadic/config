@@ -1,5 +1,4 @@
 #!/usr/bin/env zsh
-
 # Color definitions
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -27,13 +26,12 @@ print_formatted $MAGENTA "\n=== Captive Portal Detector ==="
 print_formatted $CYAN "Checking for required commands..."
 
 # Check for required commands
-for cmd in curl dig nc; do
+for cmd in curl dig nc open; do
   if ! command_exists $cmd; then
     print_formatted $RED "Error: $cmd is not installed. Please install it and try again."
     exit 1
   fi
 done
-
 print_formatted $GREEN "All required commands are available."
 
 # Define variables
@@ -83,7 +81,10 @@ if [[ $STATUS_CODE == "204" ]] && nc -z -w $TIMEOUT www.google.com 80 >/dev/null
 else
   print_formatted $YELLOW "A captive portal may be present. Please check your network connection."
   if [[ -n $REDIRECT_URL ]]; then
-    print_formatted $MAGENTA "You may need to visit: $REDIRECT_URL"
+    print_formatted $MAGENTA "Opening captive portal in your default browser..."
+    open "$REDIRECT_URL"
+  else
+    print_formatted $RED "No redirect URL found. Unable to open captive portal automatically."
   fi
 fi
 
