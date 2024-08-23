@@ -6,6 +6,7 @@ alias @open-captive-portal=detect-captive-portal-color.zsh
 alias @status-network=ns
 alias @tab="cd $HOME/Tablature && fd . --extension pdf | fzf --bind 'enter:execute(open {})'"
 alias @zsh-config-edit="e-zsh"
+alias @rename="fd-rename.zsh"
 
 alias b="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
 alias battery='pmset -g batt'
