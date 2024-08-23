@@ -262,10 +262,6 @@ alias cd-babyblue-inbox="cd /Volumes/BabyBlue2TB/not-porn/___full-videos/_inbox"
 alias cd-inbox="cd $HOME/_inbox"
 alias vlc-top-find="vlc-filter \"\_\[\""
 alias vlc-inbox="cd $HOME/_inbox && vlc-filter"
-alias bbtop="cd-babyblue && vlc-play-top"
-alias bbhot="cd-babyblue && vlc-play-hot"
-alias is="index-search"
-alias i="index-search"
 
 alias eject-babyblue="diskutil eject $DIR_BABYBLUE"
 alias bb-cd="cd $DIR_BABYBLUE"
@@ -282,15 +278,15 @@ function fzf-filter {
     fzf --exact --multi --print0
 }
 
-function vlc-find {
-    local search_term="$1"
-    fd-video "$search_term" | fzf-filter | xargs -0 vlc --loop --random --no-repeat
-}
+# function vlc-find {
+#     local search_term="$1"
+#     fd-video "$search_term" | fzf-filter | xargs -0 vlc --loop --random --no-repeat
+# }
 
-function vlc-ff {
-  local search_term="$1"
-	fd-video "$search_term" | fzf-filter |  xargs -0 sh -c 'echo '
-}
+# function vlc-ff {
+#   local search_term="$1"
+# 	fd-video "$search_term" | fzf-filter |  xargs -0 sh -c 'echo '
+# }
 
 # function fzf-vlc {
 #     local file

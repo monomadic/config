@@ -1,9 +1,12 @@
+alias @config-zsh="e-zsh"
+alias @network-detect-captive-portal=detect-captive-portal-color.zsh
+alias @network-status=ns
+alias @ns=ns
+alias @open-captive-portal=detect-captive-portal-color.zsh
+alias @status-network=ns
 alias @tab="cd $HOME/Tablature && fd . --extension pdf | fzf --bind 'enter:execute(open {})'"
-alias exa=eza
-alias fd-video="fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always"
-alias mpv-fs="mpv --macos-fs-animation-duration=0 --no-native-fs --fs"
-alias mpv-loop-mode="mpv --loop-file=1 --length=10 --macos-fs-animation-duration=0 --no-native-fs --fs "
-#alias fd-video-by-recent="fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm -X mtime --color=always"
+alias @zsh-config-edit="e-zsh"
+
 alias b="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
 alias battery='pmset -g batt'
 alias branch="b"
@@ -25,7 +28,6 @@ alias d-yew="open https://yew.rs/docs/next/"
 alias dd='WD=${PWD} && cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml deploy --global-config global.toml --local-config local.toml && cd $WD && clear && zsh-reload'
 alias doc="cargo doc --open"
 alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml watch --global-config global.toml --local-config local.toml'
-alias e="nvim"
 alias e-brewfile="edit ~/config/Brewfile"
 alias e-config="cd ~/config/ && edit ."
 alias e-fzf="fzf_edit"
@@ -36,10 +38,11 @@ alias e-snippets="cd ~/config/neovim/snippets/ && edit . +'Telescope find_files'
 alias e-wiki=wiki
 alias e-zellij="cd ~/config/zellij/ && edit config.kdl"
 alias e-zsh="cd ~/config/zsh/ && edit zshrc.zsh"
-alias @zsh-config-edit="e-zsh"
-alias @config-zsh="e-zsh"
+alias e="nvim"
 alias edit=nvim
+alias exa=eza
 alias f-all="fzf-cd"
+alias fd-video="fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always"
 alias ga="git add . && git commit --amend"
 alias gb="b"
 alias gc-update="gc update:"
@@ -48,7 +51,6 @@ alias gd="git diff"
 alias gen-yew-web3="cargo generate --git https://github.com/monomadic/yew-web3-template"
 alias gp="git push"
 alias gr="cd /"
-#alias gs="fzf-git-status.sh"
 alias gs="git status"
 alias gss="git status --short --untracked-files=all"
 alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
@@ -59,20 +61,17 @@ alias l="echo && exa --icons --group-directories-first && echo"
 alias la="exa --icons --group-directories-first --all"
 alias lg=lazygit
 alias lh="exa --icons --group-directories-first --all"
+alias ll-fzf="exa --icons --color=always --group-directories-first --no-permissions --no-user -l --ignore-glob '.DS_Store' | fzf --ansi"
 alias ll="echo && exa --icons --group-directories-first --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
 alias lla="echo && exa --icons --group-directories-first --all --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
 alias lll="exa --tree --icons --level 2"
 alias lln="exa --icons --all -l --sort=date"
-alias ll-fzf="exa --icons --color=always --group-directories-first --no-permissions --no-user -l --ignore-glob '.DS_Store' | fzf --ansi"
 alias loc=tokei
 alias ls-colors='for x in {0..8}; do for i in {30..37}; do for a in {40..47}; do echo -ne "\e[$x;$i;$a""m\\\e[$x;$i;$a""m\e[0;37;40m "; done; echo; done; done; echo ""'
 alias monitor="btm"
+alias mpv-fs="mpv --macos-fs-animation-duration=0 --no-native-fs --fs"
+alias mpv-loop-mode="mpv --loop-file=1 --length=10 --macos-fs-animation-duration=0 --no-native-fs --fs "
 alias ns="network-status.zsh"
-alias @ns=ns
-alias @network-status=ns
-alias @network-detect-captive-portal=detect-captive-portal-color.zsh
-alias @open-captive-portal=detect-captive-portal-color.zsh
-alias @status-network=ns
 alias o=open
 alias org='cd ~/org && e index.md'
 alias p8="ping 8.8.8.8"
@@ -109,6 +108,6 @@ alias wiki="cd ~/wiki && e index.md"
 alias wiki='cd ~/wiki && e ~/wiki/index.md'
 alias workspaces="cd ~/workspaces && l"
 alias xdg-open=open
-alias zsh-reload="source ~/.zshrc"
 alias zsh-config="cd $DOTFILES_DIR/zsh/ && nvim zshrc.zsh"
+alias zsh-reload="source ~/.zshrc"
 alias ~=grep
