@@ -165,6 +165,7 @@ cask "alacritty" # term
 cask "1password" # password manager
 cask "1password-cli"
 cask "protonvpn"
+cask "proton-mail"
 cask "proton-drive"
 # cask "hammerspoon"
 
