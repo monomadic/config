@@ -1,7 +1,9 @@
 export ZSH_CONFIG_DIR="$HOME/.zsh"
-export DOTFILES_DIR="$HOME/config/"
-export DIR_BABYBLUE="/Volumes/BabyBlue2TB"
-export MASTER_BACKUP_PATH="/Volumes/BabyBlue2TB"
+export DOTFILES_DIR="$HOME/config"
+export ZSH_DOTFILES_DIR="$DOTFILES_DIR/zsh"
+export BABYBLUE_DIR="/Volumes/BabyBlue2TB"
+export MASTER_BACKUP_DIR="/Volumes/BabyBlue2TB"
+export TABLATURE_DIR="$HOME/Tablature"
 
 setopt autocd # cd without typing cd
 autoload -Uz add-zsh-hook # function autoloading (built-in zsh function)
@@ -16,6 +18,8 @@ for config_file ($ZSH_CONFIG_DIR/autoload/*.zsh); do
   source $config_file
 done
 
+echo
+@uptime
 # ------------------------
 
 # Define colors

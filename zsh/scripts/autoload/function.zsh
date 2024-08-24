@@ -263,9 +263,9 @@ alias cd-inbox="cd $HOME/_inbox"
 alias vlc-top-find="vlc-filter \"\_\[\""
 alias vlc-inbox="cd $HOME/_inbox && vlc-filter"
 
-alias eject-babyblue="diskutil eject $DIR_BABYBLUE"
-alias bb-cd="cd $DIR_BABYBLUE"
-alias cd-babyblue="cd $DIR_BABYBLUE/not-porn"
+alias eject-babyblue="diskutil eject $BABYBLUE_DIR"
+alias bb-cd="cd $BABYBLUE_DIR"
+alias cd-babyblue="cd $BABYBLUE_DIR/not-porn"
 alias bb-play-vlc="cd-babyblue && vlc-filter"
 alias bb-play-iina="cd-babyblue && iina-filter"
 

@@ -1,12 +1,17 @@
-alias @config-zsh="e-zsh"
+alias @config="cd $ZSH_DOTFILES_DIR && nvim zshrc.zsh"
+alias @config-zsh=@config
+alias @config-env="cd $ZSH_DOTFILES_DIR && nvim scripts/autoload/alias.zsh"
+alias @config-aliases=@config-env
+alias @config-bin="cd $DOTFILES_DIR/bin && nvim ."
 alias @network-detect-captive-portal=detect-captive-portal-color.zsh
 alias @network-status=ns
 alias @ns=ns
 alias @open-captive-portal=detect-captive-portal-color.zsh
 alias @status-network=ns
-alias @tab="cd $HOME/Tablature && fd . --extension pdf | fzf --bind 'enter:execute(open {})'"
+alias @tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --bind 'enter:execute(open {})'"
 alias @zsh-config-edit="e-zsh"
 alias @rename="fd-rename.zsh"
+alias @uptime="uptime-pretty.zsh"
 
 alias b="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
 alias battery='pmset -g batt'
