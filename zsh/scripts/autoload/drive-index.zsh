@@ -99,27 +99,15 @@ alias @media-stats="ls-media-stats"
 # Update the alias to use the new function
 alias @media-stats="ls-media-stats"
 
-# New play-all-now function
-function play-all-now() {
-  local playlist_file=$(mktemp)
-  ls-media | tr '\n' '\0' >"$playlist_file"
-
-  if [ -s "$playlist_file" ]; then
-    xargs -0 mpv --macos-fs-animation-duration=0 --no-native-fs --fs <"$playlist_file"
-  else
-    echo "No media files found."
-  fi
-
-  rm "$playlist_file"
+function mpv-play() {
+  xargs -0 mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-file=1 --shuffle
 }
-alias @play-all-now="play-all-now"
-
-alias @play-local="ls-media | grep $HOME | fzf-play"
-
-# not working
-function play-with-mpv() {
-  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --playlist=-
+function media-play-all() {
+  ls-media-paths | tr '\n' '\0' | mpv-play
 }
+alias @media-play-all="media-play-all"
+alias @media-play-local="ls-media | grep $HOME | mpv-play"
+alias @media-play-external-disks="ls-media | grep '/Volumes/' | mpv-play"
 
 function play-with-mpv-debug() {
   while IFS= read -r file; do

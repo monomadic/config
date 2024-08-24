@@ -19,7 +19,4 @@ export PATH=$PATH:$WASMTIME_HOME/bin
 export LANG="en_US.UTF-8"
 export LC_ALL="en_US.UTF-8"
 
-export babyblue=/Volumes/BabyBlue2TB
-export babyblueinbox=/Volumes/BabyBlue2TB/not-porn/___full-videos/_inbox
-
 export GHQ_ROOT=$HOME/src
