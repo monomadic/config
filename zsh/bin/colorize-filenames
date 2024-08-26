@@ -1,0 +1,50 @@
+#!/usr/bin/env zsh
+
+# colorize-filenames.zsh
+#
+# This script colorizes filenames based on specific rules:
+# - Tags (#tag) are yellow
+# - Directories are grey
+# - File extensions are blue
+# - Text in brackets is green
+#
+# Usage: ./colorize-filenames.zsh
+
+# ANSI color codes
+YELLOW=$'\033[33m'
+GREY=$'\033[90m'
+BLUE=$'\033[34m'
+GREEN=$'\033[32m'
+RESET=$'\033[0m'
+
+# Function to colorize a single filename
+colorize_filename() {
+  local filename="$1"
+
+  # Color tags yellow
+  filename=${filename//(#[a-zA-Z0-9-]+)/${YELLOW}${match[1]}${RESET}}
+
+  # Color directories grey
+  if [[ -d "$filename" ]]; then
+    filename="${GREY}${filename}${RESET}"
+  fi
+
+  # Color extensions blue
+  filename=${filename/%(\.[a-zA-Z0-9]+)/${BLUE}${match[1]}${RESET}}
+
+  # Color bracketed text green
+  filename=${filename//(\[[^\]]+\])/${GREEN}${match[1]}${RESET}}
+
+  echo -E "$filename"
+}
+
+# Check if fd is installed
+if ! command -v fd >/dev/null; then
+  echo "Error: This script requires 'fd' to be installed." >&2
+  exit 1
+fi
+
+# Use fd to list files and directories, colorize each filename
+fd --type f --type d | while IFS= read -r line; do
+  colorize_filename "$line"
+done

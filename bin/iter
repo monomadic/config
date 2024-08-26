@@ -1,0 +1,18 @@
+#!/usr/bin/env zsh
+
+# Function to display file size
+display_file_size() {
+    local file="$1"
+    if [[ -e "$file" ]]; then
+        local size=$(du -h "$file" | cut -f1)
+        print -r -- "File: ${(q)file}"
+        print -r -- "Size: $size"
+    else
+        print -r -- "Error: File '${(q)file}' does not exist."
+    fi
+}
+
+# Read filenames from stdin
+while IFS= read -r file; do
+    display_file_size "$file"
+done

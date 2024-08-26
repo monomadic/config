@@ -35,7 +35,7 @@ declare -a dirs=("$HOME/config" "$HOME/wiki")
 function check_uncommitted_changes() {
   local dir=$1
   if [[ -n "$(cd "$dir" && git status --porcelain)" ]]; then
-    echo -e "\n${RED} uncommitted changes: $dir${RESET}"
+    echo -e "\n${RED} $dir${RESET}"
     # cd "$dir" && git status --short --untracked-files=all
     # cd "$HOME"
   fi

@@ -112,23 +112,25 @@ function yt-porn {
 }
 alias ytp=yt-porn
 
-function yt-url() {
-  local url="$1"
-  local filename="$2"
-
-  if [[ -z "$url" || -z "$filename" ]]; then
-    echo "Usage: ${0:t} [args] <url> <filename>"
-    return 1
-  fi
-
-  yt-dlp -v \
-    --output "$2" \
-    --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
-    --cookies-from-browser brave \
-    --merge-output-format mp4 \
-    --embed-metadata \
-    $1
-}
+# function yt-url() {
+#   local url="$1"
+#   local filename="$2"
+#
+#   if [[ -z "$url" || -z "$filename" ]]; then
+#     echo "Usage: ${0:t} [args] <url> <filename>"
+#     return 1
+#   fi
+#
+#   yt-dlp -v \
+#     --output "$2" \
+#     --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+#     --cookies-from-browser brave \
+#     --merge-output-format mp4 \
+#     --embed-metadata \
+#     $1
+#
+#   osascript -e "display notification '$2' with title 'yt-url complete'"
+# }
 
 function yt-nightly-porn {
   local url="$1"

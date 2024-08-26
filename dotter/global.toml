@@ -76,6 +76,7 @@ files = { "helix" = "~/.config/helix" }
 [zsh.files]
 "zsh/zshrc.zsh" = "~/.zshrc"
 "zsh/scripts/" = "~/.zsh/"
+"zsh/bin" = "~/.zsh/bin"
 
 [dotter]
 files = { "dotter/global.toml" = "~/.config/dotter/global.toml" }

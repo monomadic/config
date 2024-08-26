@@ -1,0 +1,93 @@
+#!/bin/zsh
+
+# Initialize variables
+total_size=0
+file_count=0
+error_count=0
+verbose=false
+use_null_delimiter=false
+debug=false
+
+# Function to display usage information
+show_usage() {
+  echo "Usage: $0 [-v] [-0] [-d]"
+  echo "  -v    Verbose mode"
+  echo "  -0    Use null character as input delimiter"
+  echo "  -d    Debug mode"
+}
+
+# Function to log debug information
+log_debug() {
+  if $debug; then
+    echo "DEBUG: $1" >&2
+  fi
+}
+
+# Parse command line options
+while getopts "v0d" opt; do
+  case $opt in
+  v) verbose=true ;;
+  0) use_null_delimiter=true ;;
+  d) debug=true ;;
+  *)
+    show_usage
+    exit 1
+    ;;
+  esac
+done
+
+log_debug "Starting file processing"
+$debug && set -x # Enables shell debugging mode if debug is true
+
+# Read filenames from stdin
+if $use_null_delimiter; then
+  log_debug "Using null delimiter for input"
+  while IFS= read -rd $'\0' file; do
+    log_debug "Read file: '${file}'"
+
+    if [[ -f "$file" && -r "$file" ]]; then
+      if size=$(stat -f %z "$file" 2>/dev/null); then
+        ((total_size += size))
+        ((file_count++))
+        $verbose && echo "Processed: $file (${size} bytes)"
+      else
+        echo "Error: Unable to get file size for: $file" >&2
+        ((error_count++))
+      fi
+    else
+      echo "Error: File not found or not readable: '$file'" >&2
+      ((error_count++))
+    fi
+  done
+else
+  log_debug "Using newline delimiter for input"
+  while IFS= read -r file; do
+    log_debug "Read file: '${file}'"
+
+    if [[ -f "$file" && -r "$file" ]]; then
+      if size=$(stat -f %z "$file" 2>/dev/null); then
+        ((total_size += size))
+        ((file_count++))
+        $verbose && echo "Processed: $file (${size} bytes)"
+      else
+        echo "Error: Unable to get file size for: $file" >&2
+        ((error_count++))
+      fi
+    else
+      echo "Error: File not found or not readable: '$file'" >&2
+      ((error_count++))
+    fi
+  done
+fi
+
+log_debug "Finished file processing"
+log_debug "Files processed: $file_count"
+log_debug "Errors encountered: $error_count"
+
+if ((file_count == 0)); then
+  echo "No files were processed." >&2
+  exit 1
+fi
+
+echo "Total: $file_count files, $total_size bytes"
+echo "Errors encountered: $error_count"

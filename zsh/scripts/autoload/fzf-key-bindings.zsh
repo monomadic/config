@@ -113,6 +113,9 @@ zle     -N            fzf-history-widget
 bindkey -M emacs '^R' fzf-history-widget
 bindkey -M vicmd '^R' fzf-history-widget
 bindkey -M viins '^R' fzf-history-widget
+bindkey -M emacs '^H' fzf-history-widget
+bindkey -M vicmd '^H' fzf-history-widget
+bindkey -M viins '^H' fzf-history-widget
 
 } always {
   eval $__fzf_key_bindings_options

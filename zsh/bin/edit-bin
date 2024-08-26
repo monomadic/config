@@ -1,0 +1,18 @@
+#!/bin/zsh
+
+
+# Check if argument is provided
+if [[ -z $1 ]]; then
+  echo "Usage: $0 <command>"
+  exit 1
+fi
+
+# Check if the command exists
+cmd_path=$(command -v $1)
+if [[ -z $cmd_path ]]; then
+  echo "Error: Command '$1' not found."
+  exit 1
+fi
+
+# Open the command in nvim
+cd $ZSH_CONFIG_DIR && nvim $cmd_path

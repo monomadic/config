@@ -1,0 +1,28 @@
+#!/usr/bin/env zsh
+
+# Display usage information
+usage() {
+    echo "Usage: $0 [--color]"
+    echo "List media files in directories specified by ls-media-paths"
+    echo "Options:"
+    echo "  --color    Enable colored output"
+}
+
+# Check arguments
+if [[ $# -eq 0 ]]; then
+    color_option=""
+elif [[ $# -eq 1 && "$1" == "--color" ]]; then
+    color_option="--color=always"
+else
+    usage
+    exit 1
+fi
+
+# List media files
+while IFS= read -r media_path
+do
+    if [[ -d "$media_path" ]]
+    then
+        fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm $color_option . "$media_path"
+    fi
+done < <(ls-media-paths)

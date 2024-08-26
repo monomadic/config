@@ -1,0 +1,47 @@
+#!/bin/zsh
+# Define color variables for better readability
+HEADER_COLOR="header:italic:magenta"
+PREVIEW_WINDOW="right:50%:hidden"
+# Define common mpv options
+MPV_COMMON_OPTS="--macos-fs-animation-duration=0 --no-native-fs --fs"
+
+# Function to colorize filenames
+colorize_filename() {
+  sed 's/\[/\x1b[35m[/g; s/\]/]\x1b[0m/g; s/#\([^ ]*\)/\x1b[36m#\1\x1b[0m/g'
+}
+
+export FZF_DEFAULT_OPTS="
+  --ansi
+  --delimiter=/
+  --with-nth=-1
+  --preview-window=down:1
+"
+
+# Main fzf command
+fzf \
+  --ansi \
+  --multi \
+  --exact \
+  -i \
+  --color=fg:#f8f8f2,bg:-1,hl:#f92672,fg+:#a6e22e,bg+:-1,hl+:#66d9ef,info:#66d9ef,prompt:#ae81ff,spinner:#66d9ef,pointer:#f92672,marker:#a6e22e \
+  --preview 'ffmpeg -loglevel error -ss 00:00:01 -i {} -vf "scale=80:-1,select=eq(n\,0)" -vframes 1 -f image2 - 2>/dev/null | chafa -c full --format=symbols --size=80x40 2>/dev/null' \
+  --preview-window="$PREVIEW_WINDOW" \
+  --bind 'enter:select-all+execute-silent(mpv --loop-file=1 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
+  --bind 'alt-enter:select-all+execute-silent(mpv --loop-file=1 --length=10 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
+  --bind 'alt-L:select-all+execute-silent(mpv --loop-file=1 --length=2 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
+  --bind 'alt-A:select-all+execute(airflow-open {})' \
+  --bind 'alt-a:select-all,alt-d:deselect-all,ctrl-/:toggle-preview' \
+  --bind 'alt-e:select-all+execute(elmedia-open {})' \
+  --bind 'alt-o:execute-silent(kitty @ launch --cwd $PWD/$(dirname {}))' \
+  --bind 'alt-i:select-all+execute(iina-open {})' \
+  --bind 'alt-c:execute(kitty @ launch --cwd $(dirname {}) lf)' \
+  --bind 'alt-m:select-all+execute-silent(mpv '"$MPV_COMMON_OPTS"' {+})' \
+  --bind 'alt-P:select-all+execute-silent(printf "%s\n" {+} > playlist.m3u)+abort' \
+  --bind 'alt-p:toggle-preview' \
+  --bind 'alt-r:execute(open --reveal {})' \
+  --bind 'alt-s:select-all+accept' \
+  --bind 'alt-t:execute-silent(kitty @ launch --cwd $(dirname {}))' \
+  --bind 'alt-v:execute-silent(vlc {})' \
+  --header $'enter:play-all | alt-o:play | alt-enter:loop-mode | alt-r:reveal-in-finder | alt-t:new-tab | alt-i:iina | alt-e:elmedia | alt-A:airflow | alt-a:select-all | alt-d:deselect-all | alt-l:lf | alt-s: stdout | alt-p:playlist\n' \
+  --color "$HEADER_COLOR" \
+  --query "$*" | colorize_filename # $* treat all arguments as a single string

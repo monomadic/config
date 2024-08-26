@@ -6,28 +6,28 @@ function fd-video() {
   fd -t f -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always "$@"
 }
 
-# List media files using fd-video
-function ls-media-unsafe() {
-  # Iterate over each media path
-  for media_path in $(ls-media-paths); do
-    # Use fd only for valid directories
-    if [[ -d "$media_path" ]]; then
-      fd-video . "$media_path" --type f
-    fi
-  done
-}
-
-# List media files across media paths.
-# - handles special characters
-# - preserves whitespace, prevents backslash interpretation
-# - does not create a subshell for `ls-media-paths`
-function ls-media() {
-  while IFS= read -r media_path; do
-    if [[ -d "$media_path" ]]; then
-      fd-video . "$media_path"
-    fi
-  done < <(ls-media-paths)
-}
+# # List media files using fd-video
+# function ls-media-unsafe() {
+#   # Iterate over each media path
+#   for media_path in $(ls-media-paths); do
+#     # Use fd only for valid directories
+#     if [[ -d "$media_path" ]]; then
+#       fd-video . "$media_path" --type f
+#     fi
+#   done
+# }
+#
+# # List media files across media paths.
+# # - handles special characters
+# # - preserves whitespace, prevents backslash interpretation
+# # - does not create a subshell for `ls-media-paths`
+# function ls-media() {
+#   while IFS= read -r media_path; do
+#     if [[ -d "$media_path" ]]; then
+#       fd-video . "$media_path"
+#     fi
+#   done < <(ls-media-paths)
+# }
 
 function ls-tags() {
   fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
@@ -68,12 +68,12 @@ function media-cache-top() {
 
 # Search media files and play with fzf
 function search-media() {
-  ls-media | grep-safe | fzf-play
+  ls-media --color | grep-safe | fzf-play
 }
 
 # Include unsafe files
 function search-media-all() {
-  ls-media | fzf-play
+  ls-media --color | fzf-play
 }
 
 # Define aliases
