@@ -1,0 +1,46 @@
+#!/bin/zsh
+
+# Enable zsh's extended globbing and null_glob options
+setopt extended_glob null_glob
+
+check_orientation_and_tag() {
+    local file="$1"
+
+    # Use ffprobe more efficiently by extracting only the first video stream
+    # and using a faster format (flat) for output
+    local dimensions=$(ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=width,height -of flat=s=_ -i "$file")
+
+    # Use parameter expansion for faster string manipulation
+    local width=${dimensions#*width=}
+    width=${width%%.*}
+    local height=${dimensions#*height=}
+    height=${height%%.*}
+
+    # Check if portrait and missing #portrait tag
+    if (( height > width )) && [[ "$file" != *"#portrait"* ]]; then
+        echo "Portrait video missing #portrait tag: $file"
+    fi
+}
+
+# Check if any arguments are provided
+if (( $# == 0 )); then
+    echo "Usage: $0 <video_file1> [<video_file2> ...]"
+    exit 1
+fi
+
+# Use zsh's parallel execution feature
+integer max_jobs=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 2)
+
+for file in "$@"; do
+    # Use zsh's extended globbing to check for video file extensions
+    if [[ $file == *.(<->)(#i)(mp4|avi|mov|mkv|flv|wmv) ]]; then
+        check_orientation_and_tag "$file" &
+        # Limit the number of parallel jobs
+        if (( $#jobstates >= max_jobs )); then
+            wait -n
+        fi
+    fi
+done
+
+# Wait for all background jobs to finish
+wait

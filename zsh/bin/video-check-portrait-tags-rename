@@ -1,0 +1,81 @@
+#!/bin/zsh
+
+check_orientation_and_tag() {
+  local file="$1"
+  local rename_flag="$2"
+
+  if [[ ! -f "$file" ]]; then
+    return
+  fi
+
+  # Check if the file is a video using file command
+  if ! file -b "$file" | grep -qiE "video|movie"; then
+    return
+  fi
+
+  # Get video dimensions using ffprobe
+  dimensions=$(ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=width,height -of csv=p=0 "$file")
+  if [[ -z "$dimensions" ]]; then
+    return
+  fi
+
+  # Extract width and height
+  width=$(echo $dimensions | cut -d',' -f1)
+  height=$(echo $dimensions | cut -d',' -f2)
+
+  # Check if portrait and missing #portrait tag
+  if ((height > width)); then
+    if ! [[ "$file" =~ "#portrait" ]]; then
+      echo "Portrait video missing #portrait tag: $file"
+      if [[ "$rename_flag" == "true" ]]; then
+        # Generate new filename
+        directory=$(dirname "$file")
+        filename=$(basename "$file")
+        extension="${filename##*.}"
+        name="${filename%.*}"
+        new_filename="${name} #portrait.${extension}"
+        new_path="${directory}/${new_filename}"
+
+        # Safely rename the file
+        if [[ ! -e "$new_path" ]]; then
+          mv -n "$file" "$new_path"
+          if [[ $? -eq 0 ]]; then
+            echo "Renamed: $file -> $new_path"
+          else
+            echo "Failed to rename: $file"
+          fi
+        else
+          echo "Cannot rename: $new_path already exists"
+        fi
+      fi
+    fi
+  fi
+}
+
+# Parse command line arguments
+rename_flag=false
+files=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --rename)
+    rename_flag=true
+    shift
+    ;;
+  *)
+    files+=("$1")
+    shift
+    ;;
+  esac
+done
+
+# Check if any files are provided
+if [[ ${#files[@]} -eq 0 ]]; then
+  echo "Usage: $0 [--rename] <video_file1> [<video_file2> ...]"
+  exit 1
+fi
+
+# Process each file provided as an argument
+for file in "${files[@]}"; do
+  check_orientation_and_tag "$file" "$rename_flag"
+done

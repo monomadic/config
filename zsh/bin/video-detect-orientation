@@ -1,0 +1,41 @@
+#!/bin/zsh
+
+check_orientation() {
+    local file="$1"
+    if [[ ! -f "$file" ]]; then
+        echo "File not found: $file"
+        return
+    fi
+
+    # Get video dimensions using ffprobe
+    dimensions=$(ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=width,height -of csv=p=0 "$file")
+
+    if [[ -z "$dimensions" ]]; then
+        echo "Unable to get dimensions for: $file"
+        return
+    fi
+
+    # Extract width and height
+    width=$(echo $dimensions | cut -d',' -f1)
+    height=$(echo $dimensions | cut -d',' -f2)
+
+    # Determine orientation
+    if (( width > height )); then
+        echo "$file: Landscape"
+    elif (( height > width )); then
+        echo "$file: Portrait"
+    else
+        echo "$file: Square"
+    fi
+}
+
+# Check if any arguments are provided
+if [[ $# -eq 0 ]]; then
+    echo "Usage: $0 <video_file1> [<video_file2> ...]"
+    exit 1
+fi
+
+# Process each file provided as an argument
+for file in "$@"; do
+    check_orientation "$file"
+done
