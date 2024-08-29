@@ -55,3 +55,6 @@ done
 # [ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
 
 # source /Users/nom/.config/broot/launcher/bash/br
+
+# Created by `pipx` on 2024-08-26 19:39:42
+export PATH="$PATH:/Users/nom/.local/bin"

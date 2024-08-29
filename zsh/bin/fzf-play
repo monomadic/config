@@ -1,7 +1,21 @@
 #!/bin/zsh
+
+# Parse command-line arguments
+PREVIEW_MODE="ascii"
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+  --kitty)
+    PREVIEW_MODE="kitty"
+    shift
+    ;;
+  *) break ;;
+  esac
+done
+
 # Define color variables for better readability
 HEADER_COLOR="header:italic:magenta"
 PREVIEW_WINDOW="right:50%:hidden"
+
 # Define common mpv options
 MPV_COMMON_OPTS="--macos-fs-animation-duration=0 --no-native-fs --fs"
 
@@ -17,6 +31,13 @@ export FZF_DEFAULT_OPTS="
   --preview-window=down:1
 "
 
+# Set preview command based on preview mode
+if [[ "$PREVIEW_MODE" == "kitty" ]]; then
+  PREVIEW_CMD='ffmpeg -loglevel error -ss 00:00:01 -i {} -vf "scale=80:-1,select=eq(n\,0)" -vframes 1 -f image2 - 2>/dev/null | chafa -c full --format=kitty 2>/dev/null'
+else
+  PREVIEW_CMD='ffmpeg -loglevel error -ss 00:00:01 -i {} -vf "scale=80:-1,select=eq(n\,0)" -vframes 1 -f image2 - 2>/dev/null | chafa -c full --format=symbols --size=80x40 2>/dev/null'
+fi
+
 # Main fzf command
 fzf \
   --ansi \
@@ -24,7 +45,7 @@ fzf \
   --exact \
   -i \
   --color=fg:#f8f8f2,bg:-1,hl:#f92672,fg+:#a6e22e,bg+:-1,hl+:#66d9ef,info:#66d9ef,prompt:#ae81ff,spinner:#66d9ef,pointer:#f92672,marker:#a6e22e \
-  --preview 'ffmpeg -loglevel error -ss 00:00:01 -i {} -vf "scale=80:-1,select=eq(n\,0)" -vframes 1 -f image2 - 2>/dev/null | chafa -c full --format=symbols --size=80x40 2>/dev/null' \
+  --preview "$PREVIEW_CMD" \
   --preview-window="$PREVIEW_WINDOW" \
   --bind 'enter:select-all+execute-silent(mpv --loop-file=1 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
   --bind 'alt-enter:select-all+execute-silent(mpv --loop-file=1 --length=10 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \

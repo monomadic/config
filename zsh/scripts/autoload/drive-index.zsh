@@ -73,7 +73,7 @@ function search-media() {
 
 # Include unsafe files
 function search-media-all() {
-  ls-media --color | fzf-play
+  ls-media --color | fzf-play --kitty
 }
 
 # Define aliases
@@ -106,7 +106,7 @@ function media-play-all() {
   ls-media-paths | tr '\n' '\0' | mpv-play
 }
 alias @media-play-all="media-play-all"
-alias @media-play-local="ls-media | grep $HOME | mpv-play"
+alias @media-play-local="ls-media-paths | grep $HOME | tr '\n' '\0' | mpv-play"
 alias @media-play-external-disks="ls-media | grep '/Volumes/' | mpv-play"
 
 function play-with-mpv-debug() {
@@ -146,7 +146,7 @@ function index-play {
 alias @play-index=index-play
 
 function grep-top() {
-  grep -E '\[TOP\]|🎖️|\[\*\]'
+  grep -E '\[TOP\]|🎖️|\[\*\]|\#top'
 }
 alias fd-top="fd-video |grep-top"
 
