@@ -1,0 +1,36 @@
+#!/usr/bin/env zsh
+# Color codes
+YELLOW=$'\033[33m'
+GREY=$'\033[90m'
+BLUE=$'\033[34m'
+GREEN=$'\033[32m'
+RESET=$'\033[0m'
+
+# Function to apply colors
+apply_colors() {
+  local text="$1"
+  # Tags (#tag) are yellow
+  text=$(echo "$text" | sed -E "s/(#[[:alnum:]]+)/${YELLOW}\1${RESET}/g")
+  # Bracketed text is green
+  text=$(echo "$text" | sed -E "s/(\[[^\]]+\])/${GREEN}\1${RESET}/g")
+  # File extensions are blue
+  text=$(echo "$text" | sed -E "s/(\.[[:alnum:]]+)$/${BLUE}\1${RESET}/")
+  echo "$text"
+}
+
+# Read input from stdin and apply colorization
+while IFS= read -r filename; do
+  # Apply colors to the entire filename
+  colored_filename=$(apply_colors "$filename")
+
+  # Color the directory path grey if it exists
+  if [[ "$colored_filename" == */* ]]; then
+    dir="${colored_filename%/*}/"
+    base="${colored_filename##*/}"
+    # Apply grey color to the directory part, preserving other colors
+    grey_dir=$(echo "$dir" | sed -E "s/([^\033]+|^\033\[[0-9;]*m[^\033]*)/${GREY}&${RESET}/g")
+    echo -e "${grey_dir}${base}"
+  else
+    echo -e "$colored_filename"
+  fi
+done

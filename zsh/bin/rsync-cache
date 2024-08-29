@@ -1,0 +1,32 @@
+#!/bin/zsh
+
+# Check if all required arguments are provided
+if [[ $# -ne 3 ]]; then
+  echo "Error: Incorrect number of arguments."
+  echo "Usage: $0 <search_string> <source_path> <destination_path>"
+  exit 1
+fi
+
+# Check if fd and rsync are installed
+for cmd in fd rsync; do
+  if ! command -v $cmd &>/dev/null; then
+    echo "Error: $cmd is not installed. Please install $cmd and try again."
+    exit 1
+  fi
+done
+
+# Assign arguments to variables
+search_string=$1
+source_path=$(realpath "$2")
+destination_path=$(realpath "$3")
+
+echo "Searching for files matching '$search_string'..."
+
+# Use fd to find matching files and pipe directly to rsync
+cd "$source_path" &&
+  fd "$search_string" -t f -0 |
+  rsync -av --files-from=- --from0 \
+    --ignore-existing \
+    . "$destination_path"
+
+echo "Operation completed."

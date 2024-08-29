@@ -1,0 +1,136 @@
+#!/usr/bin/env zsh
+
+# Color definitions
+declare -A colors=(
+  [RED]='\033[0;31m'
+  [GREEN]='\033[0;32m'
+  [YELLOW]='\033[0;33m'
+  [BLUE]='\033[0;34m'
+  [MAGENTA]='\033[0;35m'
+  [CYAN]='\033[0;36m'
+  [BOLD]='\033[1m'
+  [NC]='\033[0m'
+)
+
+# Configuration
+TEST_URL="http://connectivitycheck.gstatic.com/generate_204"
+DNS_TEST_DOMAIN="www.google.com"
+TIMEOUT=5
+REQUIRED_COMMANDS=(curl dig nc open)
+
+# Function to print colored and formatted text
+print_formatted() {
+  local color="${colors[$1]}"
+  local text="$2"
+  echo -e "${color}${colors[BOLD]}${text}${colors[NC]}"
+}
+
+# Function to check if a command exists
+command_exists() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+# Function to check required commands
+check_required_commands() {
+  local missing_commands=()
+  for cmd in "${REQUIRED_COMMANDS[@]}"; do
+    if ! command_exists "$cmd"; then
+      missing_commands+=("$cmd")
+    fi
+  done
+
+  if ((${#missing_commands[@]} > 0)); then
+    print_formatted RED "Error: The following commands are not installed:"
+    for cmd in "${missing_commands[@]}"; do
+      print_formatted RED "  - $cmd"
+    done
+    print_formatted RED "Please install them and try again."
+    exit 1
+  fi
+
+  print_formatted GREEN "All required commands are available."
+}
+
+# Function to perform DNS resolution check
+dns_resolution_check() {
+  print_formatted YELLOW "\n1. Performing DNS resolution check..."
+  if dig +short "$DNS_TEST_DOMAIN" >/dev/null 2>&1; then
+    print_formatted GREEN "   ✓ DNS resolution successful."
+    return 0
+  else
+    print_formatted RED "   ✗ DNS resolution failed. Possible captive portal."
+    return 1
+  fi
+}
+
+# Function to perform HTTP request and response analysis
+http_check() {
+  print_formatted YELLOW "\n2. Sending HTTP request and analyzing response..."
+  local response
+  response=$(curl -sS -m "$TIMEOUT" -o /dev/null -w "%{http_code} %{redirect_url}" "$TEST_URL")
+  local status_code redirect_url
+  status_code=$(echo "$response" | cut -d' ' -f1)
+  redirect_url=$(echo "$response" | cut -d' ' -f2-)
+
+  if [[ $status_code != "204" ]]; then
+    print_formatted RED "   ✗ Unexpected status code: $status_code. Possible captive portal."
+    if [[ -n $redirect_url ]]; then
+      print_formatted MAGENTA "   → Captive portal URL: $redirect_url"
+    fi
+    return 1
+  else
+    print_formatted GREEN "   ✓ HTTP check passed. No captive portal detected."
+    return 0
+  fi
+}
+
+# Function to perform TCP connection test
+tcp_connection_test() {
+  print_formatted YELLOW "\n3. Performing TCP connection test..."
+  if nc -z -w "$TIMEOUT" www.google.com 80 >/dev/null 2>&1; then
+    print_formatted GREEN "   ✓ TCP connection test passed."
+    return 0
+  else
+    print_formatted RED "   ✗ TCP connection test failed. Possible captive portal."
+    return 1
+  fi
+}
+
+# Main function
+main() {
+  print_formatted MAGENTA "\n=== Captive Portal Detector ==="
+  print_formatted CYAN "Checking for required commands..."
+  check_required_commands
+
+  print_formatted CYAN "\nInitiating captive portal detection..."
+
+  local dns_check http_check tcp_check
+  dns_resolution_check
+  dns_check=$?
+  http_check
+  http_check=$?
+  tcp_connection_test
+  tcp_check=$?
+
+  print_formatted MAGENTA "\n=== Captive portal detection complete ==="
+
+  print_formatted CYAN "\nSummary:"
+  if ((dns_check == 0 && http_check == 0 && tcp_check == 0)); then
+    print_formatted GREEN "No captive portal detected. You appear to have full internet access."
+  else
+    print_formatted YELLOW "A captive portal may be present. Please check your network connection."
+    local redirect_url
+    redirect_url=$(curl -sS -m "$TIMEOUT" -o /dev/null -w "%{redirect_url}" "$TEST_URL")
+    if [[ -n $redirect_url ]]; then
+      print_formatted MAGENTA "Opening captive portal in your default browser..."
+      open "$redirect_url"
+    else
+      print_formatted RED "No redirect URL found. Unable to open captive portal automatically."
+    fi
+  fi
+
+  echo # Print a newline for better spacing
+}
+
+# Run the main function
+main "$@"

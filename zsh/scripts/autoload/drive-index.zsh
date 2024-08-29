@@ -6,29 +6,6 @@ function fd-video() {
   fd -t f -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always "$@"
 }
 
-# # List media files using fd-video
-# function ls-media-unsafe() {
-#   # Iterate over each media path
-#   for media_path in $(ls-media-paths); do
-#     # Use fd only for valid directories
-#     if [[ -d "$media_path" ]]; then
-#       fd-video . "$media_path" --type f
-#     fi
-#   done
-# }
-#
-# # List media files across media paths.
-# # - handles special characters
-# # - preserves whitespace, prevents backslash interpretation
-# # - does not create a subshell for `ls-media-paths`
-# function ls-media() {
-#   while IFS= read -r media_path; do
-#     if [[ -d "$media_path" ]]; then
-#       fd-video . "$media_path"
-#     fi
-#   done < <(ls-media-paths)
-# }
-
 function ls-tags() {
   fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
 }
@@ -40,31 +17,35 @@ function media-detect() {
   done
 }
 
-# Cache media files containing "[Top]" in their names
-function media-cache-top() {
-  local destination_dir="$1"
-
-  # Ensure the destination directory is provided
-  if [[ -z "$destination_dir" ]]; then
-    echo "Usage: media-cache-top <destination_dir>"
-    return 1
-  fi
-
-  # Check if the source directory exists
-  if [[ ! -d "$MASTER_COPY_PATH" ]]; then
-    echo "Source directory $MASTER_COPY_PATH does not exist."
-    return 1
-  fi
-
-  # Create destination directory if it doesn't exist
-  mkdir -p "$destination_dir"
-
-  # Use fd to find files with [Top] and copy them
-  fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm -g "*[Top]*" "$MASTER_COPY_PATH" \
-    -x cp -- '{}' "$destination_dir"
-
-  echo "Files containing '[Top]' have been copied to $destination_dir"
+function media-cache-local() {
+  rsync-cache "#top" /Volumes/BabyBlue2TB/Media/Porn/clips /Users/nom/Movies/Porn/clips
 }
+
+# # Cache top media files
+# function media-cache-top() {
+#   local destination_dir="$1"
+#
+#   # Ensure the destination directory is provided
+#   if [[ -z "$destination_dir" ]]; then
+#     echo "Usage: media-cache-top <destination_dir>"
+#     return 1
+#   fi
+#
+#   # Check if the source directory exists
+#   if [[ ! -d "$MASTER_COPY_PATH" ]]; then
+#     echo "Source directory $MASTER_COPY_PATH does not exist."
+#     return 1
+#   fi
+#
+#   # Create destination directory if it doesn't exist
+#   mkdir -p "$destination_dir"
+#
+#   # Use fd to find files with [Top] and copy them
+#   fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm -g "*[Top]*" "$MASTER_COPY_PATH" \
+#     -x cp -- '{}' "$destination_dir"
+#
+#   echo "Files containing '[Top]' have been copied to $destination_dir"
+# }
 
 # Search media files and play with fzf
 function search-media() {
@@ -146,7 +127,7 @@ function index-play {
 alias @play-index=index-play
 
 function grep-top() {
-  grep -E '\[TOP\]|🎖️|\[\*\]|\#top'
+  grep -E '(?i)\[TOP\]|🎖️|\[\*\]|\#top'
 }
 alias fd-top="fd-video |grep-top"
 

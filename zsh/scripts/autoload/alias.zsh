@@ -48,7 +48,7 @@ alias e="nvim"
 alias edit=nvim
 alias exa=eza
 alias f-all="fzf-cd"
-alias fd-video="fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always"
+alias fd-video="fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm"
 alias ga="git add . && git commit --amend"
 alias gb="b"
 alias gc-update="gc update:"

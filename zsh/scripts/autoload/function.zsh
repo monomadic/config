@@ -1,3 +1,11 @@
+function ip-address() {
+	ifconfig | grep inet | awk '$1=="inet" && $2!="127.0.0.1" {print $2}'
+}
+
+function wifi-ssid() {
+	networksetup -getairportnetwork en0 | awk -F': ' '{print $2}'
+}
+
 function ffmpeg-convert-to-switch-webp() {
   local input_file="$1"
   local output_file="$2"
@@ -277,32 +285,6 @@ function vlc-find() {
 function fzf-filter {
     fzf --exact --multi --print0
 }
-
-# function vlc-find {
-#     local search_term="$1"
-#     fd-video "$search_term" | fzf-filter | xargs -0 vlc --loop --random --no-repeat
-# }
-
-# function vlc-ff {
-#   local search_term="$1"
-# 	fd-video "$search_term" | fzf-filter |  xargs -0 sh -c 'echo '
-# }
-
-# function fzf-vlc {
-#     local file
-#     file=$(fd . | fzf)
-#     if [[ -n $file ]]; then
-#         vlc "$file"
-#     fi
-# }
-#
-# function fzf-iina {
-#     local file
-#     file=$(fd . | fzf)
-#     if [[ -n $file ]]; then
-#         iina "$file"
-#     fi
-# }
 
 function iina-find() {
   local search_term="$1"

@@ -1,0 +1,32 @@
+#!/bin/zsh
+
+# Check if destination directory is provided
+if [[ $# -eq 0 ]]; then
+    echo "\033[31mError: Please provide a destination directory.\033[0m"
+    echo "Usage: $0 <destination_directory>"
+    exit 1
+fi
+
+destination="$1"
+
+# Check if destination directory exists
+if [[ ! -d "$destination" ]]; then
+    echo "\033[31mError: Destination directory does not exist.\033[0m"
+    exit 1
+fi
+
+# Read file list from stdin
+while IFS= read -r file; do
+    if [[ -f "$file" ]]; then
+        if [[ -f "$destination/$(basename "$file")" ]]; then
+            echo "\033[33mNotice: File '$(basename "$file")' already exists in the destination. Skipping...\033[0m"
+        else
+            cp "$file" "$destination"
+            echo "\033[32mCopied: $file -> $destination\033[0m"
+        fi
+    else
+        echo "\033[31mError: File '$file' not found.\033[0m"
+    fi
+done
+
+echo "\033[34mFile copy process completed.\033[0m"
