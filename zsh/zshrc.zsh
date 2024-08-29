@@ -4,8 +4,8 @@ export ZSH_DOTFILES_DIR="$DOTFILES_DIR/zsh"
 export BABYBLUE_DIR="/Volumes/BabyBlue2TB"
 export MASTER_BACKUP_DIR="/Volumes/BabyBlue2TB"
 export TABLATURE_DIR="$HOME/Tablature"
-export LOCAL_MEDIA_PATHS="$HOME/Media/Porn:$HOME/Downloads/Porn"
-export EXTERNAL_MEDIA_PATHS="/Volumes/*/Media/Porn"
+export LOCAL_MEDIA_PATHS="$HOME/Movies/Porn:$HOME/Downloads/Porn"
+export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn"
 
 setopt autocd # cd without typing cd
 autoload -Uz add-zsh-hook # function autoloading (built-in zsh function)

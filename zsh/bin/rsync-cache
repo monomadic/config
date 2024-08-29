@@ -17,16 +17,15 @@ done
 
 # Assign arguments to variables
 search_string=$1
-source_path=$(realpath "$2")
-destination_path=$(realpath "$3")
+source_path=$2
+destination_path=$3
 
 echo "Searching for files matching '$search_string'..."
 
 # Use fd to find matching files and pipe directly to rsync
-cd "$source_path" &&
-  fd "$search_string" -t f -0 |
+fd "$search_string" -t f -0 "$source_path" |
   rsync -av --files-from=- --from0 \
     --ignore-existing \
-    . "$destination_path"
+    "$source_path" "$destination_path"
 
 echo "Operation completed."

@@ -17,8 +17,10 @@ function media-detect() {
   done
 }
 
-function media-cache-local() {
-  rsync-cache "#top" /Volumes/BabyBlue2TB/Media/Porn/clips /Users/nom/Movies/Porn/clips
+function cache-all() {
+  ls-media | grep "clips" | grep "#top" | copy-flat ./clips
+  ls-media | grep "scenes" | grep "#top" | copy-flat ./scenes
+  ls-media | grep "originals" | grep "#top" | copy-flat ./originals
 }
 
 # # Cache top media files

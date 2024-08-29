@@ -1,0 +1,53 @@
+#!/bin/zsh
+
+# Check if a destination directory is provided
+if [[ $# -eq 0 ]]; then
+    echo "Usage: $0 <destination_directory>"
+    exit 1
+fi
+
+destination_dir="$1"
+
+# Create the destination directory if it doesn't exist
+mkdir -p "$destination_dir"
+
+# Read file paths from stdin
+while IFS= read -r file_path; do
+    # Check if the file exists
+    if [[ ! -f "$file_path" ]]; then
+        echo "File not found: $file_path"
+        continue
+    fi
+
+    # Get the filename
+    filename=$(basename "$file_path")
+    destination_file="$destination_dir/$filename"
+
+    # Check if the file already exists in the destination
+    if [[ -f "$destination_file" ]]; then
+        # Compare file sizes
+        src_size=$(stat -f%z "$file_path")
+        dest_size=$(stat -f%z "$destination_file")
+
+        if [[ "$src_size" -ne "$dest_size" ]]; then
+            # Prompt for overwrite
+            echo "File $filename already exists in the destination and has a different size."
+            echo -n "Do you want to overwrite it? (y/n): "
+            read -r answer
+
+            if [[ "$answer" != "y" && "$answer" != "Y" ]]; then
+                echo "Skipping $filename"
+                continue
+            fi
+        else
+            echo "File $filename already exists in the destination with the same size. Skipping."
+            continue
+        fi
+    fi
+
+    # Copy the file
+    cp "$file_path" "$destination_file"
+    echo "Copied $filename to $destination_dir"
+done
+
+echo "File copying process completed."

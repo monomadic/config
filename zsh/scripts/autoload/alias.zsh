@@ -13,6 +13,8 @@ alias @zsh-config-edit="e-zsh"
 alias @rename="fd-rename-all.zsh"
 alias @uptime="uptime-pretty.zsh"
 alias @rsync-cache-portrait="rsync-cache #portrait $MASTER_BACKUP_DIR "
+alias @media-cache-copy="cd $HOME/Movies/Cache && cache-all"
+alias @media-cache-open="cd $HOME/Movies/Cache && fzf-play ."
 
 alias b="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
 alias battery='pmset -g batt'
