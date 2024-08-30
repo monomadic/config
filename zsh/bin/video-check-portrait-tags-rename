@@ -8,11 +8,6 @@ check_orientation_and_tag() {
     return
   fi
 
-  # Check if the file is a video using file command
-  if ! file -b "$file" | grep -qiE "video|movie"; then
-    return
-  fi
-
   # Get video dimensions using ffprobe
   dimensions=$(ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=width,height -of csv=p=0 "$file")
   if [[ -z "$dimensions" ]]; then

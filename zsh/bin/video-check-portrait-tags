@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/bin/bash
 
 check_orientation_and_tag() {
   local file="$1"
@@ -6,25 +6,21 @@ check_orientation_and_tag() {
     return
   fi
 
-  # Check if the file is a video using file command
-  if ! file -b "$file" | grep -qiE "video|movie"; then
-    return
-  fi
-
   # Get video dimensions using ffprobe
-  dimensions=$(ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=width,height -of csv=p=0 "$file")
+  dimensions=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$file" 2>/dev/null)
+  echo "dimensions: $dimensions"
 
   if [[ -z "$dimensions" ]]; then
     return
   fi
 
   # Extract width and height
-  width=$(echo $dimensions | cut -d',' -f1)
-  height=$(echo $dimensions | cut -d',' -f2)
+  width=$(echo "$dimensions" | cut -d'x' -f1)
+  height=$(echo "$dimensions" | cut -d'x' -f2)
 
   # Check if portrait and missing #portrait tag
   if ((height > width)); then
-    if ! [[ "$file" =~ "#portrait" ]]; then
+    if [[ "$file" != *"#portrait"* ]]; then
       echo "Portrait video missing #portrait tag: $file"
     fi
   fi
@@ -38,5 +34,6 @@ fi
 
 # Process each file provided as an argument
 for file in "$@"; do
+  echo "checking $file"
   check_orientation_and_tag "$file"
 done

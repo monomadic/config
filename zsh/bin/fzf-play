@@ -2,10 +2,15 @@
 
 # Parse command-line arguments
 PREVIEW_MODE="ascii"
+HIDE_PATH=false
 while [[ "$#" -gt 0 ]]; do
   case $1 in
   --kitty)
     PREVIEW_MODE="kitty"
+    shift
+    ;;
+  --hide-path)
+    HIDE_PATH=true
     shift
     ;;
   *) break ;;
@@ -24,12 +29,11 @@ colorize_filename() {
   sed 's/\[/\x1b[35m[/g; s/\]/]\x1b[0m/g; s/#\([^ ]*\)/\x1b[36m#\1\x1b[0m/g'
 }
 
-export FZF_DEFAULT_OPTS="
-  --ansi
-  --delimiter=/
-  --with-nth=-1
-  --preview-window=down:1
-"
+# Set FZF default options and conditionally hide path
+FZF_DEFAULT_OPTS="--ansi --delimiter=/ --preview-window=down:1"
+if [[ "$HIDE_PATH" == true ]]; then
+  FZF_DEFAULT_OPTS+=" --with-nth=-1"
+fi
 
 # Set preview command based on preview mode
 if [[ "$PREVIEW_MODE" == "kitty" ]]; then
@@ -40,7 +44,6 @@ fi
 
 # Main fzf command
 fzf \
-  --ansi \
   --multi \
   --exact \
   -i \

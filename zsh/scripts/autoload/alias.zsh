@@ -3,10 +3,10 @@ alias @config-zsh=@config
 alias @config-env="cd $ZSH_DOTFILES_DIR && nvim scripts/autoload/alias.zsh"
 alias @config-aliases=@config-env
 alias @config-bin="cd $DOTFILES_DIR/bin && nvim ."
-alias @network-detect-captive-portal=detect-captive-portal-color.zsh
+alias @network-detect-captive-portal=detect-captive-portal
 alias @network-status=ns
 alias @ns=ns
-alias @open-captive-portal=detect-captive-portal-color.zsh
+alias @open-captive-portal=detect-captive-portal
 alias @status-network=ns
 alias @tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --bind 'enter:execute(open {})'"
 alias @zsh-config-edit="e-zsh"
@@ -16,6 +16,7 @@ alias @rsync-cache-portrait="rsync-cache #portrait $MASTER_BACKUP_DIR "
 alias @media-cache-copy="cd $HOME/Movies/Cache && cache-all"
 alias @media-cache-open="cd $HOME/Movies/Cache && fzf-play ."
 
+alias exa=eza
 alias b="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
 alias battery='pmset -g batt'
 alias branch="b"

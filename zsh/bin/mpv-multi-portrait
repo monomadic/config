@@ -1,0 +1,42 @@
+#!/bin/zsh
+# Usage: mpv-multi-portrait file1.mp4 file2.mp4 file3.mp4 ...
+
+if [[ $# -lt 3 ]]; then
+  echo "Please provide at least three video files."
+  exit 1
+fi
+
+# Shuffle the input videos
+shuffled_videos=($(printf "%s\n" "$@" | shuf))
+
+# Get screen dimensions
+screen_info=$(osascript -e 'tell application "Finder" to get bounds of window of desktop')
+screen_width=$(echo $screen_info | awk '{print $3}')
+screen_height=$(echo $screen_info | awk '{print $4}')
+
+# Remove any commas from the values
+screen_width=${screen_width//,/}
+screen_width=$((screen_width * 2))
+screen_height=${screen_height//,/}
+screen_height=$((screen_height * 2))
+
+# Calculate video width (1/3 of screen width)
+video_width=$((screen_width / 3))
+
+# Debug output
+echo "Screen width: $screen_width"
+echo "Screen height: $screen_height"
+echo "Video width: $video_width"
+
+# Start playing shuffled videos in 3 windows side by side
+for i in {1..3}; do
+  pos_x=$((0 + (i - 1) * video_width))
+  mpv "${shuffled_videos[@]}" \
+    --geometry="${video_width}x${screen_height}+${pos_x}+0" \
+    --autofit-larger="${video_width}x${screen_height}" \
+    --no-border --no-fs --shuffle --force-window=yes \
+    --loop-file=inf &
+done
+
+# Wait for all background mpv processes to complete
+wait

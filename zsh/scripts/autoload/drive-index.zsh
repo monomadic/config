@@ -20,6 +20,7 @@ function media-detect() {
 function cache-all() {
   ls-media | grep "clips" | grep "#top" | copy-flat ./clips
   ls-media | grep "scenes" | grep "#top" | copy-flat ./scenes
+  ls-media --match "#portrait" | copy-flat ./portrait
   ls-media | grep "originals" | grep "#top" | copy-flat ./originals
 }
 
@@ -50,20 +51,18 @@ function cache-all() {
 # }
 
 # Search media files and play with fzf
-function search-media() {
+function fzf-safe-media() {
   ls-media --color | grep-safe | fzf-play
 }
 
 # Include unsafe files
-function search-media-all() {
+function fzf-media-all() {
   ls-media --color | fzf-play --kitty
 }
 
 # Define aliases
-alias @media-copy-top="media-cache-top"
-alias @media-search-all="search-media-all"
-alias @media-play-all="search-media-all"
-alias @media-search="search-media"
+alias @play="fzf-safe-media"
+alias @play-all="fzf-media-all"
 
 # Update the alias to use the new function
 alias @media-stats="ls-media-stats"
@@ -85,7 +84,7 @@ alias @media-stats="ls-media-stats"
 function mpv-play() {
   xargs -0 mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-file=1 --shuffle
 }
-function media-play-all() {
+function mpv-play-all() {
   ls-media-paths | tr '\n' '\0' | mpv-play
 }
 alias @media-play-all="media-play-all"
@@ -134,7 +133,7 @@ function grep-top() {
 alias fd-top="fd-video |grep-top"
 
 function grep-safe {
-  grep -v -E '\[g\]|\[bi\]|\[unsafe\]'
+  grep -v -E '#g(\.| |/)|#bi(\.| |/)|#unsafe(\.| |/)|#ts(\.| |/)'
 }
 
 function index-play-top {
