@@ -5,7 +5,7 @@ function rsync-backup-media-to-babyblue {
 }
 
 function rsync-clone-babyblue-to-firebird {
-  rsync-archive /Volumes/BabyBlue2TB/Media/Porn/ /Volumes/FireBird1TB/Media/Porn/
+  rsync-archive /Volumes/BabyBlue2TB/Movies/Porn/ /Volumes/FireBird1TB/Movies/Porn/
 }
 
 function rsync-archive {
