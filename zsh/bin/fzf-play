@@ -2,7 +2,9 @@
 
 # Parse command-line arguments
 PREVIEW_MODE="ascii"
+PREVIEW_WINDOW="right:50%:hidden"
 HIDE_PATH=false
+
 while [[ "$#" -gt 0 ]]; do
   case $1 in
   --kitty)
@@ -17,17 +19,8 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-# Define color variables for better readability
-HEADER_COLOR="header:italic:magenta"
-PREVIEW_WINDOW="right:50%:hidden"
-
 # Define common mpv options
 MPV_COMMON_OPTS="--macos-fs-animation-duration=0 --no-native-fs --fs"
-
-# Function to colorize filenames
-colorize_filename() {
-  sed 's/\[/\x1b[35m[/g; s/\]/]\x1b[0m/g; s/#\([^ ]*\)/\x1b[36m#\1\x1b[0m/g'
-}
 
 # Set FZF default options and conditionally hide path
 FZF_DEFAULT_OPTS="--ansi --delimiter=/ --preview-window=down:1"
@@ -67,5 +60,4 @@ fzf \
   --bind 'alt-t:execute-silent(kitty @ launch --cwd $(dirname {}))' \
   --bind 'alt-v:execute-silent(vlc {})' \
   --header $'enter:play-all | alt-o:play | alt-enter:loop-mode | alt-r:reveal-in-finder | alt-t:new-tab | alt-i:iina | alt-e:elmedia | alt-A:airflow | alt-a:select-all | alt-d:deselect-all | alt-l:lf | alt-s: stdout | alt-p:playlist\n' \
-  --color "$HEADER_COLOR" \
-  --query "$*" | colorize_filename # $* treat all arguments as a single string
+  --query "$*"

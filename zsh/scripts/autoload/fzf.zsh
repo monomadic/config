@@ -79,6 +79,7 @@ function fzf-git-switch-branch() {
     git checkout $(echo "$branch" | sed "s/.* //" | sed "s#remotes/[^/]*/##")
 }
 
+alias play-pwd="fd-video | fzf-play --kitty"
 alias @play-pwd="fd-video | fzf-play"
 alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
 

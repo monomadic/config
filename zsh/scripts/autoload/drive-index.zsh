@@ -6,6 +6,10 @@ function fd-video() {
   fd -t f -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always "$@"
 }
 
+function most-recent() {
+  xargs -d '\n' ls -lt | tac
+}
+
 function ls-tags() {
   fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
 }
@@ -90,6 +94,8 @@ function mpv-play-all() {
 alias @media-play-all="media-play-all"
 alias @media-play-local="ls-media-paths | grep $HOME | tr '\n' '\0' | mpv-play"
 alias @media-play-external-disks="ls-media | grep '/Volumes/' | mpv-play"
+
+function play-newest-local="ls-media gg"
 
 function play-with-mpv-debug() {
   while IFS= read -r file; do
