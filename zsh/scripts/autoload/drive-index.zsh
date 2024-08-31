@@ -56,12 +56,12 @@ function cache-all() {
 
 # Search media files and play with fzf
 function fzf-safe-media() {
-  ls-media --color | grep-safe | fzf-play
+  ls-media | grep-safe | fzf-play
 }
 
 # Include unsafe files
 function fzf-media-all() {
-  ls-media --color | fzf-play --kitty
+  ls-media | fzf-play --kitty
 }
 
 # Define aliases

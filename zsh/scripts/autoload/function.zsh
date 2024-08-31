@@ -234,62 +234,23 @@ alias fd-fzf="fd . |fzf-multi"
 alias ff="fd-fzf"
 alias fd-portrait="fd --fixed-strings '[portrait]' ."
 
-# works
-function vlc-filter() {
-  local search_term="$1"
-	# fd -i "$search_term" -E '.*\.(mp4|webp|webm|mkv|mov)$' --print0 | xargs -0 vlc --loop --random --no-repeat
-	# fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort" | xargs -0 vlc
-	fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort" | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
+function play-latest {
+	fd-sort | fzf-play
 }
 
-function iina-filter() {
-  local search_term="$1"
-  local files
-  files=$(fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 --bind "enter:select-all+accept,ctrl-c:abort")
-  if [[ -n "$files" ]]; then
-		for file in $files; do
-				open -a IINA "$file"
-		done
-  fi
-}
-
-function vlc-play {
-  local search_term="$1"
-	fd --fixed-strings "$search_term" -0 |xargs -0 vlc
-}
-
-function vlc-play-top {
-	vlc-play '🎖️'
-}
-
-function vlc-play-hot {
-	vlc-play '🔥'
-}
-
-alias cd-babyblue-inbox="cd /Volumes/BabyBlue2TB/not-porn/___full-videos/_inbox"
-alias cd-inbox="cd $HOME/_inbox"
-alias vlc-top-find="vlc-filter \"\_\[\""
-alias vlc-inbox="cd $HOME/_inbox && vlc-filter"
-
-alias eject-babyblue="diskutil eject $BABYBLUE_DIR"
-alias bb-cd="cd $BABYBLUE_DIR"
-alias cd-babyblue="cd $BABYBLUE_DIR/not-porn"
-alias bb-play-vlc="cd-babyblue && vlc-filter"
-alias bb-play-iina="cd-babyblue && iina-filter"
-
-function vlc-find() {
-		local search_term="$1"
-		fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
-}
-
-function fzf-filter {
-    fzf --exact --multi --print0
-}
-
-function iina-find() {
-  local search_term="$1"
-  fd -0 -i "$search_term" -E '.*\.(mp4|webp|webm|mkv|mov)$' | xargs -0 -I{} open -a IINA '{}' --args --mpv-repeat=inf
-}
+# function vlc-find() {
+# 		local search_term="$1"
+# 		fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
+# }
+#
+# function fzf-filter {
+#     fzf --exact --multi --print0
+# }
+#
+# function iina-find() {
+#   local search_term="$1"
+#   fd -0 -i "$search_term" -E '.*\.(mp4|webp|webm|mkv|mov)$' | xargs -0 -I{} open -a IINA '{}' --args --mpv-repeat=inf
+# }
 
 # microcommit
 function gc () {

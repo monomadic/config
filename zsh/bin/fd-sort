@@ -6,12 +6,12 @@ if ! command -v fd &>/dev/null; then
   exit 1
 fi
 
-# Function to search files and sort by creation time (oldest first)
+# Function to search files and sort by creation time across the entire tree
 search_and_sort_files() {
   local search_path="$1"
 
-  # Use fd to find all files, then use stat to get creation time
-  # Sort the results by creation time (oldest first)
+  # Use fd to find all files, get their full paths and creation times
+  # Sort all files globally by creation time (oldest first)
   fd . "$search_path" -t f -0 |
     xargs -0 stat -f '%B %N' |
     sort -n |
