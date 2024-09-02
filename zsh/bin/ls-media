@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
-verbose=false
 
+verbose=false
 log_verbose() {
   if $verbose; then
     echo "[DEBUG] $1" >&2
@@ -31,7 +31,7 @@ while [ $# -gt 0 ]; do
     shift 2
     ;;
   --reverse)
-    reverse_option="true"
+    reverse_option="-r"
     shift
     ;;
   --verbose)
@@ -48,30 +48,31 @@ done
 process_input_fd() {
   local dir="$1"
   log_verbose "Processing input with fd-video in directory: $dir"
+
   # Build fd options
-  local fd_opts=""
-  [ -n "$match_pattern" ] && fd_opts="$fd_opts --match '$match_pattern'"
+  local fd_opts="-t f"
+  [ -n "$match_pattern" ] && fd_opts="$fd_opts -g '$match_pattern'"
+
   # Navigate to the target directory
   cd "$dir" || {
     log_verbose "Failed to change to directory: $dir"
     return 1
   }
+
   log_verbose "Executing in $dir: fd-video $fd_opts"
 
   # Execute fd and apply sorting logic if needed
   if [ -n "$sort_option" ]; then
-    fd-video ${fd_opts} -0 | while IFS= read -r -d '' file; do
-      log_verbose "Found: $file"
-      case "$sort_option" in
-      modified) printf "%s\t%s\0" "$(stat -f "%m" "$file" 2>/dev/null)" "$file" ;;
-      size) printf "%s\t%s\0" "$(stat -f "%z" "$file" 2>/dev/null)" "$file" ;;
-      name) printf "%s\t%s\0" "$file" "$file" ;;
-      esac
-    done | sort -z ${reverse_option:+-r} | awk 'BEGIN {RS="\0"; FS="\t"} {print $2}'
+    case "$sort_option" in
+    modified) fd-video $fd_opts -0 | xargs -0 stat -f "%m %N" | sort -n $reverse_option | cut -d' ' -f2- ;;
+    size) fd-video $fd_opts -0 | xargs -0 stat -f "%z %N" | sort -n $reverse_option | cut -d' ' -f2- ;;
+    name) fd-video $fd_opts | sort $reverse_option ;;
+    esac
   else
-    # If no sorting is needed, just output files as they are found
-    fd-video ${fd_opts}
-  fi
+    fd-video $fd_opts
+  fi | while IFS= read -r file; do
+    printf '%s/%s\n' "$dir" "$file"
+  done
 }
 
 directories=$(ls-media-paths)
@@ -92,11 +93,7 @@ for dir in $directories; do
     log_verbose "Cannot read directory $dir (permission denied)"
     continue
   fi
-  file_count=$(fd -t f '\.(mp4|avi|mkv|mov|wmv|flv|webm|m4v|mpg|mpeg|3gp|3g2|mxf|roq|nsv|f4v|f4p|f4a|f4b)$' "$dir" | wc -l)
-  log_verbose "Total matching files in $dir: $file_count"
-  process_input_fd "$dir" | while IFS= read -r -d '' file; do
-    printf '%s/%s\0' "$dir" "$file"
-  done
+  process_input_fd "$dir"
 done
 
 log_verbose "Script execution completed"
