@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# Search for video files with specific extensions, case-insensitive
+fd --ignore-case --type=file --extension mp4 --extension avi --extension mkv --extension mov --extension webm --extension webp --extension m4v --extension mpg --extension mpeg "$@"

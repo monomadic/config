@@ -1,25 +1,14 @@
-#!/usr/bin/env zsh
-
-# Enable debugging if --verbose is passed
+#!/usr/bin/env sh
 verbose=false
 
-# Function for verbose logging
 log_verbose() {
   if $verbose; then
     echo "[DEBUG] $1" >&2
   fi
 }
 
-# Check if fd is installed
-if ! command -v fd &>/dev/null; then
-  echo "fd could not be found. Please install fd first." >&2
-  exit 1
-fi
-
-# Display usage information
 usage() {
   echo "Usage: $0 [--match PATTERN] [--sort SORT_OPTION] [--reverse] [--verbose]" >&2
-  echo "List absolute paths of video files in directories provided by ls-media-paths" >&2
   echo "Options:" >&2
   echo " --match PATTERN Only list files matching the given pattern" >&2
   echo " --sort SORT_OPTION Sort files by the given option (modified, size, name)" >&2
@@ -27,134 +16,87 @@ usage() {
   echo " --verbose Enable verbose logging" >&2
 }
 
-# Parse arguments
 match_pattern=""
 sort_option=""
 reverse_option=""
-while [[ $# -gt 0 ]]; do
+
+while [ $# -gt 0 ]; do
   case $1 in
-    --match)
-      if [[ -z "$2" ]]; then
-        echo "Error: --match requires a PATTERN argument" >&2
-        usage
-        exit 1
-      fi
-      match_pattern="$2"
-      log_verbose "Match pattern set to: $match_pattern"
-      shift 2
-      ;;
-    --sort)
-      if [[ -z "$2" ]]; then
-        echo "Error: --sort requires a SORT_OPTION argument" >&2
-        usage
-        exit 1
-      fi
-      sort_option="$2"
-      log_verbose "Sort option set to: $sort_option"
-      shift 2
-      ;;
-    --reverse)
-      reverse_option="true"
-      log_verbose "Reverse option enabled"
-      shift
-      ;;
-    --verbose)
-      verbose=true
-      log_verbose "Verbose logging enabled"
-      shift
-      ;;
-    -*)
-      echo "Error: Unknown option $1" >&2
-      usage
-      exit 1
-      ;;
-    *)
-      echo "Error: Unexpected argument $1" >&2
-      usage
-      exit 1
-      ;;
+  --match)
+    match_pattern="$2"
+    shift 2
+    ;;
+  --sort)
+    sort_option="$2"
+    shift 2
+    ;;
+  --reverse)
+    reverse_option="true"
+    shift
+    ;;
+  --verbose)
+    verbose=true
+    shift
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
   esac
 done
 
-# Function to sort files based on the given option
-sort_files() {
-  local sort_cmd="sort"
-  case "$sort_option" in
-    modified)
-      sort_cmd+=" -k1,2n"
-      ;;
-    size)
-      sort_cmd+=" -k3n"
-      ;;
-    name)
-      sort_cmd+=" -k4"
-      ;;
-    *)
-      log_verbose "No valid sort option provided, using default sorting"
-      cat # No sorting if invalid option
-      return
-      ;;
-  esac
-  if [[ "$reverse_option" == "true" ]]; then
-    sort_cmd+=" -r"
-  fi
-  log_verbose "Sort command: $sort_cmd"
-  eval "$sort_cmd"
-}
+process_input_fd() {
+  local dir="$1"
+  log_verbose "Processing input with fd-video in directory: $dir"
+  # Build fd options
+  local fd_opts=""
+  [ -n "$match_pattern" ] && fd_opts="$fd_opts --match '$match_pattern'"
+  # Navigate to the target directory
+  cd "$dir" || {
+    log_verbose "Failed to change to directory: $dir"
+    return 1
+  }
+  log_verbose "Executing in $dir: fd-video $fd_opts"
 
-# Function to process input
-process_input() {
-  log_verbose "Processing input"
-  if [[ -n "$sort_option" ]]; then
-    log_verbose "Sorting enabled, using stat and sort_files"
-    xargs -d '\n' stat -f '%m %Y %z %N' 2>/dev/null |
-      sort_files |
-      cut -d' ' -f4-
+  # Execute fd and apply sorting logic if needed
+  if [ -n "$sort_option" ]; then
+    fd-video ${fd_opts} -0 | while IFS= read -r -d '' file; do
+      log_verbose "Found: $file"
+      case "$sort_option" in
+      modified) printf "%s\t%s\0" "$(stat -f "%m" "$file" 2>/dev/null)" "$file" ;;
+      size) printf "%s\t%s\0" "$(stat -f "%z" "$file" 2>/dev/null)" "$file" ;;
+      name) printf "%s\t%s\0" "$file" "$file" ;;
+      esac
+    done | sort -z ${reverse_option:+-r} | awk 'BEGIN {RS="\0"; FS="\t"} {print $2}'
   else
-    if [[ "$reverse_option" == "true" ]]; then
-      log_verbose "Reverse option enabled, sorting in reverse"
-      sort -r
-    else
-      log_verbose "No sorting or reverse, using cat"
-      cat
-    fi
+    # If no sorting is needed, just output files as they are found
+    fd-video ${fd_opts}
   fi
 }
 
-# Function to filter video files
-filter_video_files() {
-  log_verbose "Filtering for video files"
-  grep -E '\.(mp4|avi|mkv|mov|wmv|flv|webm|m4v|mpg|mpeg|3gp|3g2|mxf|roq|nsv|f4v|f4p|f4a|f4b)$' -i
-}
+directories=$(ls-media-paths)
+log_verbose "Directories to search: $directories"
 
-# Get directories from ls-media-paths
-directories=("${(@f)$(ls-media-paths)}")
-log_verbose "Directories to search: ${directories[*]}"
-if [[ ${#directories[@]} -eq 0 ]]; then
+if [ -z "$directories" ]; then
   echo "Error: No directories found from ls-media-paths" >&2
   exit 1
 fi
 
-# Search for video files in all directories
-found_files=false
-for dir in "${directories[@]}"; do
+for dir in $directories; do
   log_verbose "Searching directory: $dir"
-  if [[ ! -d "$dir" ]]; then
+  if [ ! -d "$dir" ]; then
     log_verbose "Skipping non-existent or non-directory: $dir"
     continue
   fi
-  fd_cmd="fd . '$dir' -t f --absolute-path"
-  [[ -n "$match_pattern" ]] && fd_cmd+=" -g '$match_pattern'"
-  log_verbose "Executing fd command: $fd_cmd"
-  files=$(eval "$fd_cmd" | filter_video_files)
-  if [[ -n "$files" ]]; then
-    found_files=true
-    echo "$files"
+  if [ ! -r "$dir" ]; then
+    log_verbose "Cannot read directory $dir (permission denied)"
+    continue
   fi
-done | process_input
-
-if ! $found_files; then
-  echo "No video files found in the specified directories."
-fi
+  file_count=$(fd -t f '\.(mp4|avi|mkv|mov|wmv|flv|webm|m4v|mpg|mpeg|3gp|3g2|mxf|roq|nsv|f4v|f4p|f4a|f4b)$' "$dir" | wc -l)
+  log_verbose "Total matching files in $dir: $file_count"
+  process_input_fd "$dir" | while IFS= read -r -d '' file; do
+    printf '%s/%s\0' "$dir" "$file"
+  done
+done
 
 log_verbose "Script execution completed"

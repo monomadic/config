@@ -46,7 +46,8 @@ brew "bat"		# cat replacement
 brew "mdless" # markdown viewer
 brew "glow"		# markdown viewer golang
 brew "bk"			# ebook reader
-brew "eza"		# ls/exa replacement
+brew "eza"		# ls/exa replacement (rust)
+brew "lsd"		# ls replacement (rust)
 brew "duf"		# disk usage go
 brew "dust"		# better ncdu in rust
 brew "dua-cli" # another ncdu rust
@@ -81,7 +82,7 @@ brew "poppler" # pdf renderer
 brew "unar" # unarchiver
 
 brew "rclone" # disk clone (cloud)
-brew "rg" # ripgrep
+brew "rg" # ripgrep grep replacement (rust)
 brew "rga" # ripgrep-all (search pdf, zip etc)
 brew "fd" # find
 brew "neovim" # editor

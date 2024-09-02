@@ -16,13 +16,18 @@ alias @rsync-cache-portrait="rsync-cache #portrait $MASTER_BACKUP_DIR "
 alias @media-cache-copy="cd $HOME/Movies/Cache && cache-all"
 alias @media-cache-open="cd $HOME/Movies/Cache && fzf-play ."
 
-alias exa=eza
+alias .config=@config
+alias .brewfile="cd $DOTFILES_DIR && e Brewfile"
+alias .captive-portal=detect-captive-portal
+alias .apple-music-dl=gamdl
+
+alias amdl=gamdl
+alias fd-empty="fd --type empty"
 alias b="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
 alias battery='pmset -g batt'
 alias branch="b"
 alias cb="cargo build"
 alias cc="cargo check"
-alias cd-blue="cd /Volumes/BabyBlue2TB/not-porn"
 alias ci="cargo install --path ."
 alias cp-pwd="echo $PWD|pbcopy" # mac only
 alias cr="cargo run"
@@ -39,6 +44,7 @@ alias dd='WD=${PWD} && cd ~/config/ && dotter --cache-directory ~/.config/dotter
 alias doc="cargo doc --open"
 alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml watch --global-config global.toml --local-config local.toml'
 alias e-brewfile="edit ~/config/Brewfile"
+alias e-bin="edit-bin"
 alias e-config="cd ~/config/ && edit ."
 alias e-fzf="fzf_edit"
 alias e-joshuto="cd ~/config/joshuto/ && edit joshuto.toml"
@@ -52,7 +58,6 @@ alias e="nvim"
 alias edit=nvim
 alias exa=eza
 alias f-all="fzf-cd"
-alias fd-video="fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm"
 alias ga="git add . && git commit --amend"
 alias gb="b"
 alias gc-update="gc update:"
