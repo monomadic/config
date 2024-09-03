@@ -1,0 +1,5 @@
+#!/usr/bin/env zsh
+
+# Output all paths
+expand-paths "$LOCAL_MEDIA_PATHS"
+expand-paths "$EXTERNAL_MEDIA_PATHS"

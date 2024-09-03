@@ -230,13 +230,6 @@ function rename-as-tag-format() {
 function fzf-multi {
 	fzf --exact --multi --bind "enter:select-all+accept,ctrl-c:abort" --header "search type: multi-select, fuzzy search, smart case" --color=header:#888888
 }
-alias fd-fzf="fd . |fzf-multi"
-alias ff="fd-fzf"
-alias fd-portrait="fd --fixed-strings '[portrait]' ."
-
-function play-latest {
-	fd-sort | fzf-play
-}
 
 # function vlc-find() {
 # 		local search_term="$1"

@@ -1,27 +1,29 @@
 #!/usr/bin/env sh
 
-verbose=false
-null_terminated=false
+usage() {
+  echo "Usage: $0 [--match PATTERN] [--sort SORT_OPTION] [--reverse] [--verbose] [DIRECTORY...]" >&2
+  echo "Purpose: accepts a list of paths as input (stdin or arguments) and recursively sorts all files across them."
+  echo
+  echo "If no DIRECTORYs are provided, reads directories from stdin." >&2
+  echo
+  echo "Options:" >&2
+  echo " --match PATTERN Only list files matching the given pattern" >&2
+  echo " --sort SORT_OPTION Sort files by the given option (modified, size, name)" >&2
+  echo " --reverse Reverse the sort order and the final list" >&2
+  echo " --verbose Enable verbose logging" >&2
+}
 
+verbose=false
 log_verbose() {
   if $verbose; then
     echo "[DEBUG] $1" >&2
   fi
 }
 
-usage() {
-  echo "Usage: $0 [--match PATTERN] [--sort SORT_OPTION] [--reverse] [--null] [--verbose]" >&2
-  echo "Options:" >&2
-  echo " --match PATTERN Only list files matching the given pattern" >&2
-  echo " --sort SORT_OPTION Sort files by the given option (modified, size, name)" >&2
-  echo " --reverse Reverse the sort order" >&2
-  echo " --null Output null-terminated file paths" >&2
-  echo " --verbose Enable verbose logging" >&2
-}
-
 match_pattern=""
 sort_option=""
-reverse_option=""
+reverse=false
+input_dirs=""
 
 while [ $# -gt 0 ]; do
   case $1 in
@@ -34,11 +36,7 @@ while [ $# -gt 0 ]; do
     shift 2
     ;;
   --reverse)
-    reverse_option="-r"
-    shift
-    ;;
-  --null)
-    null_terminated=true
+    reverse=true
     shift
     ;;
   --verbose)
@@ -46,8 +44,8 @@ while [ $# -gt 0 ]; do
     shift
     ;;
   *)
-    usage
-    exit 1
+    input_dirs="$input_dirs$1\n"
+    shift
     ;;
   esac
 done
@@ -55,50 +53,42 @@ done
 process_input_fd() {
   local dir="$1"
   log_verbose "Processing input with fd-video in directory: $dir"
-
   # Build fd options
   local fd_opts="-t f"
   [ -n "$match_pattern" ] && fd_opts="$fd_opts -g '$match_pattern'"
-
-  # Add the null-terminated flag if --null is passed
-  $null_terminated && fd_opts="$fd_opts -0"
-
   # Navigate to the target directory
   cd "$dir" || {
     log_verbose "Failed to change to directory: $dir"
     return 1
   }
-
   log_verbose "Executing in $dir: fd-video $fd_opts"
-
   # Execute fd and apply sorting logic if needed
   if [ -n "$sort_option" ]; then
     case "$sort_option" in
-    modified) fd-video $fd_opts | xargs -0 stat -f "%m %N" | sort -n $reverse_option | cut -d' ' -f2- ;;
-    size) fd-video $fd_opts | xargs -0 stat -f "%z %N" | sort -n $reverse_option | cut -d' ' -f2- ;;
-    name) fd-video $fd_opts | sort $reverse_option ;;
+    modified) fd-video $fd_opts -0 | xargs -0 stat -f "%m %N" | sort -n | cut -d' ' -f2- ;;
+    size) fd-video $fd_opts -0 | xargs -0 stat -f "%z %N" | sort -n | cut -d' ' -f2- ;;
+    name) fd-video $fd_opts | sort ;;
     esac
   else
-    # If --null is passed, handle null-terminated output
-    if $null_terminated; then
-      fd-video $fd_opts | xargs -0 -I {} printf '%s/%s\0' "$dir" "{}"
-    else
-      fd-video $fd_opts | while IFS= read -r file; do
-        printf '%s/%s\n' "$dir" "$file"
-      done
-    fi
-  fi
+    fd-video $fd_opts
+  fi | while IFS= read -r file; do
+    printf '%s/%s\n' "$dir" "$file"
+  done
 }
 
-directories=$(ls-media-paths)
-log_verbose "Directories to search: $directories"
-
-if [ -z "$directories" ]; then
-  echo "Error: No directories found from ls-media-paths" >&2
-  exit 1
+# Read directories from arguments or stdin
+if [ -z "$input_dirs" ]; then
+  while IFS= read -r line; do
+    input_dirs="$input_dirs$line\n"
+  done
 fi
 
-for dir in $directories; do
+# Temporary file to store all results
+temp_file=$(mktemp)
+
+# Process each directory
+printf "%b" "$input_dirs" | while IFS= read -r dir; do
+  [ -z "$dir" ] && continue
   log_verbose "Searching directory: $dir"
   if [ ! -d "$dir" ]; then
     log_verbose "Skipping non-existent or non-directory: $dir"
@@ -108,7 +98,15 @@ for dir in $directories; do
     log_verbose "Cannot read directory $dir (permission denied)"
     continue
   fi
-  process_input_fd "$dir"
+  process_input_fd "$dir" >>"$temp_file"
 done
 
+# Reverse the entire list if --reverse option is used
+if $reverse; then
+  tac "$temp_file"
+else
+  cat "$temp_file"
+fi
+
+rm "$temp_file"
 log_verbose "Script execution completed"

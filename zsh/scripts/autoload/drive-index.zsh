@@ -2,10 +2,6 @@
 local INDEX_DIR="$HOME/doc/indexes"
 export MASTER_COPY_PATH="/Volumes/BabyBlue2TB"
 
-function fd-video() {
-  fd -t f -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always "$@"
-}
-
 function most-recent() {
   xargs -d '\n' ls -lt | tac
 }
@@ -59,6 +55,10 @@ function fzf-safe-media() {
   ls-media | grep-safe | fzf-play
 }
 
+function fzf-safe-media-latest() {
+  ls-media --sort modified | grep-safe | fzf-play
+}
+
 # Include unsafe files
 function fzf-media-all() {
   ls-media | fzf-play --kitty
@@ -67,35 +67,55 @@ function fzf-media-all() {
 # Define aliases
 alias @play="fzf-safe-media"
 alias @play-all="fzf-media-all"
+alias @play-latest="fzf-safe-media-latest"
 
 # Update the alias to use the new function
 alias @media-stats="ls-media-stats"
 
-# Ensure fd-video searches recursively
-function fd-video() {
-  fd -t f -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm --color=always -d 20 "$@"
+# Update the alias to use the new function
+alias @media-stats="ls-media-stats"
+
+# Update the alias to use the new function
+alias @media-stats="ls-media-stats"
+
+# Update the alias to use the new function
+alias @media-stats="ls-media-stats"
+
+xargs-mpv-play-random() {
+  xargs -0 mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --loop-file=1 --shuffle
+}
+xargs-mpv-play() {
+  xargs -0 mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
 }
 
-# Update the alias to use the new function
-alias @media-stats="ls-media-stats"
-
-# Update the alias to use the new function
-alias @media-stats="ls-media-stats"
-
-# Update the alias to use the new function
-alias @media-stats="ls-media-stats"
-
-function mpv-play() {
-  xargs -0 mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-file=1 --shuffle
+mpv-play-latest() {
+  ls-media --sort modified --reverse | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
 }
-function mpv-play-all() {
-  ls-media-paths | tr '\n' '\0' | mpv-play
-}
-alias @media-play-all="media-play-all"
-alias @media-play-local="ls-media-paths | grep $HOME | tr '\n' '\0' | mpv-play"
-alias @media-play-external-disks="ls-media | grep '/Volumes/' | mpv-play"
 
-function play-newest-local="ls-media gg"
+mpv-play-cache() {
+  cd $CACHE && fd-video | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
+}
+
+mpv-play-latest-local() {
+  ls-media --sort modified --reverse | grep $HOME | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
+}
+
+alias @play-latest=mpv-play-latest
+alias .play-latest=mpv-play-latest
+alias .latest=mpv-play-latest
+
+function xargs-iina-play() {
+  xargs -0 open -a IINA --args --mpv-repeat=inf --mpv-fs-animation-duration=0 --mpv-no-native-fs --mpv-fs
+}
+
+function mpv-play-latest-local() {
+  ls-media --sort modified --reverse | grep $HOME | tr '\n' '\0' | xargs-mpv-play
+}
+function mpv-play-media-paths() {
+  ls-media-paths | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --loop-file=1 --shuffle --playlist=-
+}
+alias @media-play-all="mpv-play-media-paths"
+alias @media-play-all-local="ls-media-paths | grep $HOME | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --loop-file=1 --shuffle --playlist=-"
 
 function play-with-mpv-debug() {
   while IFS= read -r file; do

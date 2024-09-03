@@ -8,7 +8,7 @@ alias @network-status=ns
 alias @ns=ns
 alias @open-captive-portal=detect-captive-portal
 alias @status-network=ns
-alias @tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --bind 'enter:execute(open {})'"
+alias @tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --reverse --exact --bind 'enter:execute(open {})'"
 alias @zsh-config-edit="e-zsh"
 alias @rename="fd-rename-all.zsh"
 alias @uptime="uptime-pretty.zsh"
@@ -19,7 +19,7 @@ alias @media-cache-open="cd $HOME/Movies/Cache && fzf-play ."
 alias .config=@config
 alias .brewfile="cd $DOTFILES_DIR && e Brewfile"
 alias .captive-portal=detect-captive-portal
-alias .apple-music-dl=gamdl
+alias .apple-music-dl="gamdl --template-folder-album='{artist} - {title}' --template-folder-music-video='{artist} - {title}' "
 
 alias amdl=gamdl
 alias fd-empty="fd --type empty"

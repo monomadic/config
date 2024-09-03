@@ -1,0 +1,38 @@
+#!/usr/bin/env zsh
+
+# Function to display usage information
+show_usage() {
+    cat << EOF
+Usage: $(basename $0) <path1>[:<path2>:...]
+
+Checks existence of given paths. Supports glob patterns.
+
+Examples:
+  $(basename $0) /usr/bin:/usr/local/bin
+  $(basename $0) '/home/*/.bashrc'
+EOF
+}
+
+# Check if no arguments were provided
+if [[ $# -eq 0 ]]; then
+    show_usage
+    exit 1
+fi
+
+# Enable necessary options
+setopt null_glob extended_glob
+
+local paths=$1
+local IFS=':'
+for path in ${(s.:.)paths}; do
+		if [[ $path == *\** ]]; then
+				# If path contains a glob, expand it
+				print -l ${~path}(N)
+		else
+				# If no glob, output the path if it exists
+				[[ -e $path ]] && echo $path
+		fi
+done
+
+# Disable options
+unsetopt null_glob extended_glob
