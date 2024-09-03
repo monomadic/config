@@ -2,9 +2,9 @@
 local INDEX_DIR="$HOME/doc/indexes"
 export MASTER_COPY_PATH="/Volumes/BabyBlue2TB"
 
-function most-recent() {
-  xargs -d '\n' ls -lt | tac
-}
+# function most-recent() {
+#   xargs -d '\n' ls -lt | tac
+# }
 
 function ls-tags() {
   fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
@@ -55,28 +55,29 @@ alias @media-stats="ls-media-stats"
 # Update the alias to use the new function
 alias @media-stats="ls-media-stats"
 
-xargs-mpv-play-random() {
-  xargs -0 mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --loop-file=1 --shuffle
-}
-xargs-mpv-play() {
-  xargs -0 mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
-}
+# xargs-mpv-play-random() {
+#   xargs -0 mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --loop-file=1 --shuffle
+# }
+#
+# xargs-mpv-play() {
+#   xargs -0 mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
+# }
 
 mpv-play-latest() {
   ls-media --sort modified --reverse | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
 }
 
 mpv-play-cache() {
-  echo $LOCAL_CACHE_PATHS | iter-expand-paths | ls-media | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
+  expand-paths $LOCAL_CACHE_PATHS | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
 }
 
-mpv-play-latest-local() {
+mpv-play-cache-latest() {
+  expand-paths $LOCAL_CACHE_PATHS | sort-across-paths --sort modified --reverse | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
+}
+
+mpv-play-local-latest() {
   ls-media --sort modified --reverse | grep $HOME | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
 }
-
-alias @play-latest=mpv-play-latest
-alias .play-latest=mpv-play-latest
-alias .latest=mpv-play-latest
 
 function xargs-iina-play() {
   xargs -0 open -a IINA --args --mpv-repeat=inf --mpv-fs-animation-duration=0 --mpv-no-native-fs --mpv-fs
@@ -88,8 +89,6 @@ function mpv-play-latest-local() {
 function mpv-play-media-paths() {
   ls-media-paths | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --loop-file=1 --shuffle --playlist=-
 }
-alias @media-play-all="mpv-play-media-paths"
-alias @media-play-all-local="ls-media-paths | grep $HOME | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --loop-file=1 --shuffle --playlist=-"
 
 function play-with-mpv-debug() {
   while IFS= read -r file; do

@@ -1,25 +1,31 @@
-alias @config="cd $ZSH_DOTFILES_DIR && nvim zshrc.zsh"
-alias @config-zsh=@config
-alias @config-env="cd $ZSH_DOTFILES_DIR && nvim scripts/autoload/alias.zsh"
 alias @config-aliases=@config-env
 alias @config-bin="cd $DOTFILES_DIR/bin && nvim ."
+alias @config-env="cd $ZSH_DOTFILES_DIR && nvim scripts/autoload/alias.zsh"
+alias @config-zsh=@config
+alias @config="cd $ZSH_DOTFILES_DIR && nvim zshrc.zsh"
+alias @media-cache-copy="cd $HOME/Movies/Cache && cache-all"
+alias @media-cache-open="cd $HOME/Movies/Cache && fzf-play ."
+alias @media-play-all-local="ls-media-paths | grep $HOME | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --loop-file=1 --shuffle --playlist=-"
+alias @media-play-all="mpv-play-media-paths"
 alias @network-detect-captive-portal=detect-captive-portal
 alias @network-status=ns
 alias @ns=ns
 alias @open-captive-portal=detect-captive-portal
+alias @play-latest=mpv-play-latest
+alias @rename="fd-rename-all.zsh"
+alias @rsync-cache-portrait="rsync-cache #portrait $MASTER_BACKUP_DIR "
 alias @status-network=ns
 alias @tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --reverse --exact --bind 'enter:execute(open {})'"
-alias @zsh-config-edit="e-zsh"
-alias @rename="fd-rename-all.zsh"
 alias @uptime="uptime-pretty.zsh"
-alias @rsync-cache-portrait="rsync-cache #portrait $MASTER_BACKUP_DIR "
-alias @media-cache-copy="cd $HOME/Movies/Cache && cache-all"
-alias @media-cache-open="cd $HOME/Movies/Cache && fzf-play ."
+alias @zsh-config-edit="e-zsh"
 
-alias .config=@config
+alias .apple-music-dl="gamdl --template-folder-album='{artist} - {title}' --template-folder-music-video='{artist} - {title}' "
 alias .brewfile="cd $DOTFILES_DIR && e Brewfile"
 alias .captive-portal=detect-captive-portal
-alias .apple-music-dl="gamdl --template-folder-album='{artist} - {title}' --template-folder-music-video='{artist} - {title}' "
+alias .config=@config
+alias .latest=mpv-play-latest
+alias .play-latest=mpv-play-latest
+alias .play-cache=mpv-play-cache
 
 alias amdl=gamdl
 alias fd-empty="fd --type empty"

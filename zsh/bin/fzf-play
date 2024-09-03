@@ -1,114 +1,63 @@
-#!/usr/bin/env sh
+#!/bin/zsh
 
-verbose=false
-null_terminated=false
+# Parse command-line arguments
+PREVIEW_MODE="ascii"
+PREVIEW_WINDOW="right:50%:hidden"
+HIDE_PATH=false
 
-log_verbose() {
-  if $verbose; then
-    echo "[DEBUG] $1" >&2
-  fi
-}
-
-usage() {
-  echo "Usage: $0 [--match PATTERN] [--sort SORT_OPTION] [--reverse] [--null] [--verbose]" >&2
-  echo "Options:" >&2
-  echo " --match PATTERN Only list files matching the given pattern" >&2
-  echo " --sort SORT_OPTION Sort files by the given option (modified, size, name)" >&2
-  echo " --reverse Reverse the sort order" >&2
-  echo " --null Output null-terminated file paths" >&2
-  echo " --verbose Enable verbose logging" >&2
-}
-
-match_pattern=""
-sort_option=""
-reverse_option=""
-
-while [ $# -gt 0 ]; do
+while [[ "$#" -gt 0 ]]; do
   case $1 in
-  --match)
-    match_pattern="$2"
-    shift 2
-    ;;
-  --sort)
-    sort_option="$2"
-    shift 2
-    ;;
-  --reverse)
-    reverse_option="-r"
+  --kitty)
+    PREVIEW_MODE="kitty"
     shift
     ;;
-  --null)
-    null_terminated=true
+  --hide-path)
+    HIDE_PATH=true
     shift
     ;;
-  --verbose)
-    verbose=true
-    shift
-    ;;
-  *)
-    usage
-    exit 1
-    ;;
+  *) break ;;
   esac
 done
 
-process_input_fd() {
-  local dir="$1"
-  log_verbose "Processing input with fd-video in directory: $dir"
+# Define common mpv options
+MPV_COMMON_OPTS="--macos-fs-animation-duration=0 --no-native-fs --fs"
 
-  # Build fd options
-  local fd_opts="-t f"
-  [ -n "$match_pattern" ] && fd_opts="$fd_opts -g '$match_pattern'"
-
-  # Add the null-terminated flag if --null is passed
-  $null_terminated && fd_opts="$fd_opts -0"
-
-  # Navigate to the target directory
-  cd "$dir" || {
-    log_verbose "Failed to change to directory: $dir"
-    return 1
-  }
-
-  log_verbose "Executing in $dir: fd-video $fd_opts"
-
-  # Execute fd and apply sorting logic if needed
-  if [ -n "$sort_option" ]; then
-    case "$sort_option" in
-    modified) fd-video $fd_opts | xargs -0 stat -f "%m %N" | sort -n $reverse_option | cut -d' ' -f2- ;;
-    size) fd-video $fd_opts | xargs -0 stat -f "%z %N" | sort -n $reverse_option | cut -d' ' -f2- ;;
-    name) fd-video $fd_opts | sort $reverse_option ;;
-    esac
-  else
-    # If --null is passed, handle null-terminated output
-    if $null_terminated; then
-      fd-video $fd_opts | xargs -0 -I {} printf '%s/%s\0' "$dir" "{}"
-    else
-      fd-video $fd_opts | while IFS= read -r file; do
-        printf '%s/%s\n' "$dir" "$file"
-      done
-    fi
-  fi
-}
-
-directories=$(ls-media-paths)
-log_verbose "Directories to search: $directories"
-
-if [ -z "$directories" ]; then
-  echo "Error: No directories found from ls-media-paths" >&2
-  exit 1
+# Set FZF default options and conditionally hide path
+FZF_DEFAULT_OPTS="--ansi --delimiter=/ --preview-window=down:1"
+if [[ "$HIDE_PATH" == true ]]; then
+  FZF_DEFAULT_OPTS+=" --with-nth=-1"
 fi
 
-for dir in $directories; do
-  log_verbose "Searching directory: $dir"
-  if [ ! -d "$dir" ]; then
-    log_verbose "Skipping non-existent or non-directory: $dir"
-    continue
-  fi
-  if [ ! -r "$dir" ]; then
-    log_verbose "Cannot read directory $dir (permission denied)"
-    continue
-  fi
-  process_input_fd "$dir"
-done
+# Set preview command based on preview mode
+if [[ "$PREVIEW_MODE" == "kitty" ]]; then
+  PREVIEW_CMD='ffmpeg -loglevel error -ss 00:00:01 -i {} -vf "scale=80:-1,select=eq(n\,0)" -vframes 1 -f image2 - 2>/dev/null | chafa -c full --format=kitty 2>/dev/null'
+else
+  PREVIEW_CMD='ffmpeg -loglevel error -ss 00:00:01 -i {} -vf "scale=80:-1,select=eq(n\,0)" -vframes 1 -f image2 - 2>/dev/null | chafa -c full --format=symbols --size=80x40 2>/dev/null'
+fi
 
-log_verbose "Script execution completed"
+# Main fzf command
+fzf \
+  --multi \
+  --exact \
+  -i \
+  --color=fg:#f8f8f2,bg:-1,hl:#f92672,fg+:#a6e22e,bg+:-1,hl+:#66d9ef,info:#66d9ef,prompt:#ae81ff,spinner:#66d9ef,pointer:#f92672,marker:#a6e22e \
+  --preview "$PREVIEW_CMD" \
+  --preview-window="$PREVIEW_WINDOW" \
+  --bind 'enter:select-all+execute-silent(mpv --loop-file=1 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
+  --bind 'alt-enter:select-all+execute-silent(mpv --loop-file=1 --length=10 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
+  --bind 'alt-L:select-all+execute-silent(mpv --loop-file=1 --length=2 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
+  --bind 'alt-A:select-all+execute(airflow-open {})' \
+  --bind 'alt-a:select-all,alt-d:deselect-all,ctrl-/:toggle-preview' \
+  --bind 'alt-e:select-all+execute(elmedia-open {})' \
+  --bind 'alt-o:execute-silent(kitty @ launch --cwd $PWD/$(dirname {}))' \
+  --bind 'alt-i:select-all+execute(iina-open {})' \
+  --bind 'alt-c:execute(kitty @ launch --cwd $(dirname {}) lf)' \
+  --bind 'alt-m:select-all+execute-silent(mpv '"$MPV_COMMON_OPTS"' {+})' \
+  --bind 'alt-P:select-all+execute-silent(printf "%s\n" {+} > playlist.m3u)+abort' \
+  --bind 'alt-p:toggle-preview' \
+  --bind 'alt-r:execute(open --reveal {})' \
+  --bind 'alt-s:select-all+accept' \
+  --bind 'alt-t:execute-silent(kitty @ launch --cwd $(dirname {}))' \
+  --bind 'alt-v:execute-silent(vlc {})' \
+  --header $'enter:play-all | alt-o:play | alt-enter:loop-mode | alt-r:reveal-in-finder | alt-t:new-tab | alt-i:iina | alt-e:elmedia | alt-A:airflow | alt-a:select-all | alt-d:deselect-all | alt-l:lf | alt-s: stdout | alt-p:playlist\n' \
+  --query "$*"
