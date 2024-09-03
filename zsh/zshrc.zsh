@@ -4,7 +4,7 @@ export ZSH_DOTFILES_DIR="$DOTFILES_DIR/zsh"
 export BABYBLUE_DIR="/Volumes/BabyBlue2TB"
 export MASTER_BACKUP_DIR="/Volumes/BabyBlue2TB"
 export TABLATURE_DIR="$HOME/Tablature"
-export LOCAL_MEDIA_PATHS="$HOME/Movies/Porn:$HOME/Downloads/Porn:$HOME/Media/Porn"
+export LOCAL_MEDIA_PATHS="$HOME/Downloads/Porn:$HOME/Media/Porn:$HOME/Movies/Porn"
 export LOCAL_CACHE_PATHS="$HOME/Movies/Cache:$HOME/Media/Cache"
 export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn"
 

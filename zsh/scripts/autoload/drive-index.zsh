@@ -66,6 +66,7 @@ mpv-play-latest() {
 mpv-play-pwd-latest() {
   echo $PWD | sort-across-paths --sort modified --reverse | mpv-stdin
 }
+alias .play-pwd-latest=mpv-play-pwd-latest
 
 fzf-search-pwd-latest() {
   echo $PWD | sort-across-paths --sort modified --reverse | fzf-play
@@ -82,6 +83,8 @@ mpv-play-cache-latest() {
 mpv-play-local-latest() {
   expand-paths $LOCAL_MEDIA_PATHS | sort-across-paths --sort modified --reverse | mpv-stdin
 }
+alias .latest-local=mpv-play-local-latest
+alias .play-local-latest=mpv-play-local-latest
 
 alias mpv-play-pwd="fd-video | mpv-stdin"
 alias @play-pwd=mpv-play-pwd
