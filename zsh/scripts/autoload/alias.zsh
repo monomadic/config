@@ -23,9 +23,6 @@ alias .apple-music-dl="gamdl --template-folder-album='{artist} - {title}' --temp
 alias .brewfile="cd $DOTFILES_DIR && e Brewfile"
 alias .captive-portal=detect-captive-portal
 alias .config=@config
-alias .latest=mpv-play-latest
-alias .play-latest=mpv-play-latest
-alias .play-cache=mpv-play-cache
 
 alias amdl=gamdl
 alias fd-empty="fd --type empty"

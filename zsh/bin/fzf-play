@@ -2,7 +2,7 @@
 
 # Parse command-line arguments
 PREVIEW_MODE="ascii"
-PREVIEW_WINDOW="right:50%:hidden"
+PREVIEW_WINDOW="right:50%:hidden:noborder"
 HIDE_PATH=false
 
 while [[ "$#" -gt 0 ]]; do
@@ -23,16 +23,28 @@ done
 MPV_COMMON_OPTS="--macos-fs-animation-duration=0 --no-native-fs --fs"
 
 # Set FZF default options and conditionally hide path
-FZF_DEFAULT_OPTS="--ansi --delimiter=/ --preview-window=down:1"
+FZF_DEFAULT_OPTS="--reverse --ansi --delimiter=/ --preview-window=down:1"
 if [[ "$HIDE_PATH" == true ]]; then
   FZF_DEFAULT_OPTS+=" --with-nth=-1"
 fi
 
 # Set preview command based on preview mode
 if [[ "$PREVIEW_MODE" == "kitty" ]]; then
-  PREVIEW_CMD='ffmpeg -loglevel error -ss 00:00:01 -i {} -vf "scale=80:-1,select=eq(n\,0)" -vframes 1 -f image2 - 2>/dev/null | chafa -c full --format=kitty 2>/dev/null'
+  PREVIEW_CMD='
+    ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=width,height,codec_name,duration -of csv=p=0 {} |
+    awk -F, '\''{printf "Resolution: %sx%s\nCodec: %s\nDuration: %.2f seconds\n", $1, $2, $3, $4}'\'';
+    echo;
+    ffmpeg -loglevel error -ss 00:00:08 -i {} -vf "scale=320:-1:flags=lanczos,select=eq(n\,0)" -vframes 1 -f image2 - 2>/dev/null |
+    chafa -c 256 --size 80x40 --format=kitty --symbols all 2>/dev/null
+  '
 else
-  PREVIEW_CMD='ffmpeg -loglevel error -ss 00:00:01 -i {} -vf "scale=80:-1,select=eq(n\,0)" -vframes 1 -f image2 - 2>/dev/null | chafa -c full --format=symbols --size=80x40 2>/dev/null'
+  PREVIEW_CMD='
+    ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=width,height,codec_name,duration -of csv=p=0 {} |
+    awk -F, '\''{printf "Resolution: %sx%s\nCodec: %s\nDuration: %.2f seconds\n", $1, $2, $3, $4}'\'';
+    echo;
+    ffmpeg -loglevel error -ss 00:00:08 -i {} -vf "scale=80:-1,select=eq(n\,0)" -vframes 1 -f image2 - 2>/dev/null |
+    chafa -c full --format=symbols --size=80x40 2>/dev/null
+  '
 fi
 
 # Main fzf command
@@ -43,7 +55,7 @@ fzf \
   --color=fg:#f8f8f2,bg:-1,hl:#f92672,fg+:#a6e22e,bg+:-1,hl+:#66d9ef,info:#66d9ef,prompt:#ae81ff,spinner:#66d9ef,pointer:#f92672,marker:#a6e22e \
   --preview "$PREVIEW_CMD" \
   --preview-window="$PREVIEW_WINDOW" \
-  --bind 'enter:select-all+execute-silent(mpv --loop-file=1 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
+  --bind 'enter:select-all+execute-silent(mpv --loop-file=1 '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
   --bind 'alt-enter:select-all+execute-silent(mpv --loop-file=1 --length=10 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
   --bind 'alt-L:select-all+execute-silent(mpv --loop-file=1 --length=2 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
   --bind 'alt-A:select-all+execute(airflow-open {})' \

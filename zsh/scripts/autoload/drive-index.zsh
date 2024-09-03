@@ -55,16 +55,20 @@ alias @media-stats="ls-media-stats"
 # Update the alias to use the new function
 alias @media-stats="ls-media-stats"
 
-# xargs-mpv-play-random() {
-#   xargs -0 mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --loop-file=1 --shuffle
-# }
-#
-# xargs-mpv-play() {
-#   xargs -0 mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
-# }
+mpv-stdin() {
+  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
+}
 
 mpv-play-latest() {
-  ls-media --sort modified --reverse | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
+  ls-media --sort modified --reverse | mpv-stdin
+}
+
+mpv-play-pwd-latest() {
+  echo $PWD | sort-across-paths --sort modified --reverse | mpv-stdin
+}
+
+fzf-search-pwd-latest() {
+  echo $PWD | sort-across-paths --sort modified --reverse | fzf-play
 }
 
 mpv-play-cache() {
@@ -72,22 +76,36 @@ mpv-play-cache() {
 }
 
 mpv-play-cache-latest() {
-  expand-paths $LOCAL_CACHE_PATHS | sort-across-paths --sort modified --reverse | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
+  expand-paths $LOCAL_CACHE_PATHS | sort-across-paths --sort modified --reverse | mpv-stdin
 }
 
 mpv-play-local-latest() {
-  ls-media --sort modified --reverse | grep $HOME | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
+  expand-paths $LOCAL_MEDIA_PATHS | sort-across-paths --sort modified --reverse | mpv-stdin
 }
 
-function xargs-iina-play() {
-  xargs -0 open -a IINA --args --mpv-repeat=inf --mpv-fs-animation-duration=0 --mpv-no-native-fs --mpv-fs
-}
+alias mpv-play-pwd="fd-video | mpv-stdin"
+alias @play-pwd=mpv-play-pwd
+alias .play-pwd=mpv-play-pwd
 
-function mpv-play-latest-local() {
-  ls-media --sort modified --reverse | grep $HOME | tr '\n' '\0' | xargs-mpv-play
-}
-function mpv-play-media-paths() {
-  ls-media-paths | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --loop-file=1 --shuffle --playlist=-
+alias fzf-search-pwd="fd-video | fzf-play --kitty"
+alias @search-pwd=fzf-search-pwd
+alias .search-pwd=fzf-search-pwd
+
+alias @search-pwd-latest=fzf-search-pwd-latest
+alias .search-pwd-latest=fzf-search-pwd-latest
+
+alias .latest=mpv-play-latest
+alias .play-latest=mpv-play-latest
+alias .play-cache=mpv-play-cache
+
+alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
+
+# function xargs-iina-play() {
+#   xargs -0 open -a IINA --args --mpv-repeat=inf --mpv-fs-animation-duration=0 --mpv-no-native-fs --mpv-fs
+# }
+
+mpv-play-all() {
+  ls-media-paths | mpv-stdin
 }
 
 function play-with-mpv-debug() {
