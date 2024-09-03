@@ -24,32 +24,6 @@ function cache-all() {
   ls-media | grep "originals" | grep "#top" | copy-flat ./originals
 }
 
-# # Cache top media files
-# function media-cache-top() {
-#   local destination_dir="$1"
-#
-#   # Ensure the destination directory is provided
-#   if [[ -z "$destination_dir" ]]; then
-#     echo "Usage: media-cache-top <destination_dir>"
-#     return 1
-#   fi
-#
-#   # Check if the source directory exists
-#   if [[ ! -d "$MASTER_COPY_PATH" ]]; then
-#     echo "Source directory $MASTER_COPY_PATH does not exist."
-#     return 1
-#   fi
-#
-#   # Create destination directory if it doesn't exist
-#   mkdir -p "$destination_dir"
-#
-#   # Use fd to find files with [Top] and copy them
-#   fd -i -e mp4 -e avi -e mkv -e mov -e wmv -e flv -e webm -g "*[Top]*" "$MASTER_COPY_PATH" \
-#     -x cp -- '{}' "$destination_dir"
-#
-#   echo "Files containing '[Top]' have been copied to $destination_dir"
-# }
-
 # Search media files and play with fzf
 function fzf-safe-media() {
   ls-media | grep-safe | fzf-play
@@ -93,7 +67,7 @@ mpv-play-latest() {
 }
 
 mpv-play-cache() {
-  cd $CACHE && fd-video | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
+  echo $LOCAL_CACHE_PATHS | iter-expand-paths | ls-media | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
 }
 
 mpv-play-latest-local() {
