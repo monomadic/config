@@ -29,6 +29,12 @@ function fzf-safe-media() {
   ls-media | grep-safe | fzf-play
 }
 
+function fzf-media-top() {
+  ls-media | grep-top | grep-safe | fzf-play
+}
+alias .top=fzf-media-top
+alias .play-top=fzf-media-top
+
 function fzf-safe-media-latest() {
   ls-media --sort modified | grep-safe | fzf-play
 }
@@ -147,7 +153,7 @@ function index-play {
 }
 alias @play-index=index-play
 
-function grep-top() {
+grep-top() {
   grep -E '(?i)\[TOP\]|🎖️|\[\*\]|\#top'
 }
 alias fd-top="fd-video |grep-top"

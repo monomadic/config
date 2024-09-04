@@ -6,7 +6,6 @@ alias @config="cd $ZSH_DOTFILES_DIR && nvim zshrc.zsh"
 alias @media-cache-copy="cd $HOME/Movies/Cache && cache-all"
 alias @media-cache-open="cd $HOME/Movies/Cache && fzf-play ."
 alias @media-play-all-local="ls-media-paths | grep $HOME | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --loop-file=1 --shuffle --playlist=-"
-alias @media-play-all="mpv-play-media-paths"
 alias @network-detect-captive-portal=detect-captive-portal
 alias @network-status=ns
 alias @ns=ns
@@ -19,7 +18,18 @@ alias @tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --reverse --exact --
 alias @uptime="uptime-pretty.zsh"
 alias @zsh-config-edit="e-zsh"
 
-alias .apple-music-dl="gamdl --template-folder-album='{artist} - {title}' --template-folder-music-video='{artist} - {title}' "
+apple-music-dl() {
+  gamdl \
+    --template-folder-album='' \
+    --template-folder-compilation='' \
+    --template-folder-no-album='' \
+    --template-file-single-disc='{artist} - {title}' \
+    --template-file-multi-disc='{artist} - {title}' \
+    --template-file-no-album='{artist} - {title}' \
+    $@
+}
+alias .apple-music-dl=apple-music-dl
+
 alias .brewfile="cd $DOTFILES_DIR && e Brewfile"
 alias .captive-portal=detect-captive-portal
 alias .config=@config
