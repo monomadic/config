@@ -14,18 +14,17 @@ autoload -Uz add-zsh-hook # function autoloading (built-in zsh function)
 # Source all configuration files
 fpath=($ZSH_CONFIG_DIR/functions/ $fpath)
 
-# Enable error handling
-set -o errexit # Exit on error
-
-# Trap errors to prevent closing the terminal
-trap 'echo "An error occurred. Please check the script.";' ERR
+# # Enable error handling
+# set -o errexit # Exit on error
+#
+# # Trap errors to prevent closing the terminal
+# trap 'echo "An error occurred. Please check the script.";' ERR
 
 # Loop through the config files
-for config_file in $ZSH_CONFIG_DIR/autoload/*.zsh; do
-  YELLOW=$(tput setaf 3)
+for config_file in $ZSH_CONFIG_DIR/autoload/*.(zsh|sh); do
+  YELLOW=$(tput setaf 4)
   RESET=$(tput sgr0)
-  echo "${YELLOW}󰅱 ${config_file:t}${RESET}"
-  echo $config_file >>$HOME/out.txt
+  echo "${YELLOW}󰅱 autoload/${config_file:t}${RESET}"
 
   # Source the config file and continue if there's an error
   if ! source $config_file; then

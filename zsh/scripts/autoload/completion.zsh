@@ -3,9 +3,16 @@
 autoload -Uz compinit
 compinit
 
-# use fzf for shell completion (this should autoload?)
-source $ZSH_CONFIG_DIR/completions/fzf-zsh.sh
-source $ZSH_CONFIG_DIR/completions/things.zsh
+for config_file in $ZSH_CONFIG_DIR/completions/*.(zsh|sh); do
+  GREEN=$(tput setaf 2)
+  RESET=$(tput sgr0)
+  echo "${GREEN}󰅱 completions/${config_file:t}${RESET}"
+
+  # Source the config file and continue if there's an error
+  if ! source $config_file; then
+    echo "Error sourcing $config_file. Skipping..."
+  fi
+done
 
 # 1password
 eval "$(op completion zsh)"

@@ -72,7 +72,7 @@ mpv-stdin() {
   mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
 }
 
-mpv-play-latest() {
+mpv-play-sorted() {
   ls-media --sort modified --reverse | mpv-stdin
 }
 
@@ -81,7 +81,7 @@ mpv-play-pwd-latest() {
 }
 alias .play-pwd-latest=mpv-play-pwd-latest
 
-fzf-search-pwd-latest() {
+fzf-play-pwd-sorted() {
   echo $PWD | sort-across-paths --sort modified --reverse | fzf-play
 }
 
@@ -93,11 +93,26 @@ mpv-play-cache-latest() {
   expand-paths $LOCAL_CACHE_PATHS | sort-across-paths --sort modified --reverse | mpv-stdin
 }
 
-mpv-play-local-latest() {
+mpv-play-local() {
+  expand-paths $LOCAL_MEDIA_PATHS | mpv-stdin
+}
+alias .local
+
+mpv-play-local() {
+  expand-paths $LOCAL_MEDIA_PATHS | mpv-stdin
+}
+alias .local-search=mpv-play-local
+
+fzf-local-sorted() {
+  expand-paths $LOCAL_MEDIA_PATHS | sort-across-paths --sort modified --reverse | fzf-play --kitty
+}
+alias .search-local=fzf-local-sorted
+
+mpv-play-local-sorted() {
   expand-paths $LOCAL_MEDIA_PATHS | sort-across-paths --sort modified --reverse | mpv-stdin
 }
-alias .latest-local=mpv-play-local-latest
-alias .play-local-latest=mpv-play-local-latest
+alias .local-sorted=mpv-play-local-sorted
+alias .play-local-sorted=mpv-play-local-sorted
 
 alias mpv-play-pwd="fd-video | mpv-stdin"
 alias @play-pwd=mpv-play-pwd
@@ -107,18 +122,14 @@ alias fzf-search-pwd="fd-video | fzf-play --kitty"
 alias @search-pwd=fzf-search-pwd
 alias .search-pwd=fzf-search-pwd
 
-alias @search-pwd-latest=fzf-search-pwd-latest
-alias .search-pwd-latest=fzf-search-pwd-latest
+alias @search-pwd-sorted=fzf-play-pwd-sorted
+alias .search-pwd-sorted=fzf-play-pwd-sorted
 
-alias .latest=mpv-play-latest
-alias .play-latest=mpv-play-latest
+alias .latest=mpv-play-sorted
+alias .play-latest=mpv-play-sorted
 alias .play-cache=mpv-play-cache
 
 alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
-
-# function xargs-iina-play() {
-#   xargs -0 open -a IINA --args --mpv-repeat=inf --mpv-fs-animation-duration=0 --mpv-no-native-fs --mpv-fs
-# }
 
 mpv-play-all() {
   ls-media-paths | mpv-stdin
@@ -181,6 +192,10 @@ alias @play-index-checked=index-play-checked
 
 function index-play-checked-top {
   index-cat-checked | index-grep-top | fzf-play
+}
+
+function media-play-all-local {
+  ls-media-paths | grep $HOME | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --loop-file=1 --shuffle --playlist=-
 }
 
 # # just search the index without filtering or playing
