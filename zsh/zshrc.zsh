@@ -8,17 +8,29 @@ export LOCAL_MEDIA_PATHS="$HOME/Downloads/Porn:$HOME/Media/Porn:$HOME/Movies/Por
 export LOCAL_CACHE_PATHS="$HOME/Movies/Cache:$HOME/Media/Cache"
 export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn"
 
-setopt autocd # cd without typing cd
+setopt autocd             # cd without typing cd
 autoload -Uz add-zsh-hook # function autoloading (built-in zsh function)
 
 # Source all configuration files
 fpath=($ZSH_CONFIG_DIR/functions/ $fpath)
 
-for config_file ($ZSH_CONFIG_DIR/autoload/*.zsh); do
+# Enable error handling
+set -o errexit # Exit on error
+
+# Trap errors to prevent closing the terminal
+trap 'echo "An error occurred. Please check the script.";' ERR
+
+# Loop through the config files
+for config_file in $ZSH_CONFIG_DIR/autoload/*.zsh; do
   YELLOW=$(tput setaf 3)
   RESET=$(tput sgr0)
-	echo "${YELLOW}󰅱 ${config_file:t}${RESET}"
-  source $config_file
+  echo "${YELLOW}󰅱 ${config_file:t}${RESET}"
+  echo $config_file >>$HOME/out.txt
+
+  # Source the config file and continue if there's an error
+  if ! source $config_file; then
+    echo "Error sourcing $config_file. Skipping..."
+  fi
 done
 
 echo

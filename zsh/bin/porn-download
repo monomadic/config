@@ -1,0 +1,29 @@
+#!/bin/sh
+
+# Check if a URL is provided
+if [ $# -eq 0 ]; then
+    echo "Error: Please provide a URL as an argument."
+    echo "Usage: $0 <URL>"
+    exit 1
+fi
+
+# The URL is the first argument
+URL="$1"
+
+# Run yt-dlp command
+yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+    --merge-output-format mp4 \
+    --embed-metadata \
+    --embed-thumbnail \
+    --embed-subs \
+    --embed-chapters \
+    --output "%(uploader|Unknown)s[%(title)s][%(extractor)s].%(ext)s" \
+    "$URL"
+
+# Check if the download was successful
+if [ $? -eq 0 ]; then
+    echo "Download completed successfully."
+else
+    echo "Error: Download failed."
+    exit 1
+fi

@@ -56,12 +56,12 @@ fzf \
   --preview "$PREVIEW_CMD" \
   --preview-window="$PREVIEW_WINDOW" \
   --bind 'enter:select-all+execute-silent(mpv --loop-file=1 '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
-  --bind 'alt-enter:select-all+execute-silent(mpv --loop-file=1 --length=10 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
+  --bind 'alt-enter:select-all+execute-silent(mpv '"$MPV_COMMON_OPTS"' --loop-file=1 --length=10 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
+  --bind 'alt-o:execute-silent(mpv '"$MPV_COMMON_OPTS"' {+})' \
   --bind 'alt-L:select-all+execute-silent(mpv --loop-file=1 --length=2 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
   --bind 'alt-A:select-all+execute(airflow-open {})' \
   --bind 'alt-a:select-all,alt-d:deselect-all,ctrl-/:toggle-preview' \
   --bind 'alt-e:select-all+execute(elmedia-open {})' \
-  --bind 'alt-o:execute-silent(kitty @ launch --cwd $PWD/$(dirname {}))' \
   --bind 'alt-i:select-all+execute(iina-open {})' \
   --bind 'alt-c:execute(kitty @ launch --cwd $(dirname {}) lf)' \
   --bind 'alt-m:select-all+execute-silent(mpv '"$MPV_COMMON_OPTS"' {+})' \

@@ -28,6 +28,7 @@ function cache-all() {
 function fzf-safe-media() {
   ls-media | grep-safe | fzf-play
 }
+alias .play=fzf-safe-media
 
 function fzf-media-top() {
   ls-media | grep-top | grep-safe | fzf-play
@@ -43,6 +44,12 @@ function fzf-safe-media-latest() {
 function fzf-media-all() {
   ls-media | fzf-play --kitty
 }
+
+function fzf-media-cache {
+  cd $HOME/Movies/Cache && fd-video | fzf-play
+}
+alias @cache
+alias .cache
 
 # Define aliases
 alias @play="fzf-safe-media"

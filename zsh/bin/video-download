@@ -1,0 +1,75 @@
+#!/bin/sh
+
+# Function to print usage
+print_usage() {
+  echo "Usage: $0 <command> <URL>"
+  echo "Commands:"
+  echo "  porn <URL>        - Download adult content"
+  echo "  music-video <URL> - Download music video"
+  echo "  audio-only <URL>  - Download audio only"
+  echo "  video-only <URL>  - Download video without audio"
+}
+
+# Check if correct number of arguments is provided
+if [ $# -ne 2 ]; then
+  print_usage
+  exit 1
+fi
+
+COMMAND="$1"
+URL="$2"
+
+# Base yt-dlp command with Brave browser cookies
+YT_DLP_BASE="yt-dlp --cookies-from-browser brave"
+
+case "$COMMAND" in
+"porn")
+  $YT_DLP_BASE -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+    --merge-output-format mp4 \
+    --embed-metadata \
+    --embed-thumbnail \
+    --embed-subs \
+    --embed-chapters \
+    --output "%(uploader|Unknown)s[%(title)s][%(extractor)s].%(ext)s" \
+    "$URL"
+  ;;
+"music-video")
+  $YT_DLP_BASE -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+    --merge-output-format mp4 \
+    --embed-metadata \
+    --embed-thumbnail \
+    --embed-subs \
+    --embed-chapters \
+    --output "%(artist)s - %(title)s.%(ext)s" \
+    "$URL"
+  ;;
+"audio-only")
+  $YT_DLP_BASE -f "bestaudio[ext=m4a]/bestaudio" \
+    --extract-audio \
+    --audio-format m4a \
+    --embed-metadata \
+    --embed-thumbnail \
+    --output "%(artist)s - %(title)s.%(ext)s" \
+    "$URL"
+  ;;
+"video-only")
+  $YT_DLP_BASE -f "bestvideo[ext=mp4]" \
+    --embed-metadata \
+    --embed-thumbnail \
+    --output "%(artist)s - %(title)s.%(ext)s" \
+    "$URL"
+  ;;
+*)
+  echo "Error: Unknown command '$COMMAND'"
+  print_usage
+  exit 1
+  ;;
+esac
+
+# Check if the download was successful
+if [ $? -eq 0 ]; then
+  echo "Download completed successfully."
+else
+  echo "Error: Download failed."
+  exit 1
+fi
