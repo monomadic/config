@@ -40,6 +40,8 @@ function fzf-safe-media-latest() {
   ls-media --sort modified | grep-safe | fzf-play
 }
 
+alias .cumshots="ls-media --sort modified | grep #cumshot | grep #top | fzf-play"
+
 # Include unsafe files
 function fzf-media-all() {
   ls-media | fzf-play --kitty
@@ -101,7 +103,7 @@ alias .local
 mpv-play-local() {
   expand-paths $LOCAL_MEDIA_PATHS | mpv-stdin
 }
-alias .local-search=mpv-play-local
+alias .local-play=mpv-play-local
 
 fzf-local-sorted() {
   expand-paths $LOCAL_MEDIA_PATHS | sort-across-paths --sort modified --reverse | fzf-play --kitty

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Run ls-media-paths and pipe the output to fzf for selection
+selected_path=$(ls-media-paths | fzf --height 40% --reverse)
+
+# Check if a path was selected
+if [ -n "$selected_path" ]; then
+    # Change to the selected directory
+    cd "$selected_path"
+    echo "Changed directory to: $selected_path"
+else
+    echo "No directory selected."
+fi
