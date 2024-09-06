@@ -28,6 +28,10 @@ apple-music-dl() {
 }
 alias .apple-music-dl=apple-music-dl
 
+alias dlv="download-video"
+alias dlp="download-video porn"
+alias dly="download-video youtube"
+
 alias .brewfile="cd $DOTFILES_DIR && e Brewfile"
 alias .captive-portal=detect-captive-portal
 alias .config=@config

@@ -33,8 +33,8 @@ alias .play=fzf-safe-media
 function fzf-media-top() {
   ls-media | grep-top | grep-safe | fzf-play
 }
-alias .top=fzf-media-top
-alias .play-top=fzf-media-top
+alias top=fzf-media-top
+alias .search-top=fzf-media-top
 
 function fzf-safe-media-latest() {
   ls-media --sort modified | grep-safe | fzf-play

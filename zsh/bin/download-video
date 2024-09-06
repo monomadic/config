@@ -1,7 +1,7 @@
 #!/bin/sh
 # Function to print usage
 print_usage() {
-  echo "Usage: $0 <command> <URL>"
+  echo "Usage: ${0:t} <command> <URL>"
   echo "Commands:"
   echo "  music-video <URL> - Download music video"
   echo "  audio-only <URL>  - Download audio only"
