@@ -16,6 +16,10 @@ alias @tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --reverse --exact --
 alias @uptime="uptime-pretty.zsh"
 alias @zsh-config-edit="e-zsh"
 
+alias c=@config
+alias g=git
+alias p=@play
+
 apple-music-dl() {
   gamdl \
     --template-folder-album='' \
@@ -105,11 +109,10 @@ alias ns="network-status.zsh"
 alias o=open
 alias org='cd ~/org && e index.md'
 alias p8="ping 8.8.8.8"
-alias p="ping cloudflare.com"
+alias pc="ping cloudflare.com"
 alias pandoc-yfm="pandoc "{$1}" -s -f epub -t markdown-markdown_in_html_blocks --extract-media=./ -o book.md --standalone"
 alias pg="ping google.com"
 alias prev="fzf --layout=reverse --preview 'bat --style=numbers --color=always --line-range :500 {}'"
-alias price="price.py"
 alias pull="git pull"
 alias pull="git pull"
 alias push="git push"
