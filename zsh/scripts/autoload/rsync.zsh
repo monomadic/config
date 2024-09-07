@@ -8,6 +8,34 @@ function rsync-clone-babyblue-to-firebird {
   rsync-archive /Volumes/BabyBlue2TB/Movies/Porn/ /Volumes/FireBird1TB/Movies/Porn/
 }
 
+function rsync-cache-top {
+  local source_path="$MASTER_MEDIA_DIR/Porn"
+  local dest_path="$LOCAL_CACHE_PATH"
+
+  # Check if source path exists
+  if [ ! -d "$source_path" ]; then
+    echo "Error: Source path '$source_path' does not exist: is the volume connected?"
+    return 1
+  fi
+
+  # Perform rsync
+  rsync -avR --delete --prune-empty-dirs \
+    --include '*/' \
+    --include '*top*' \
+    --exclude '*' \
+    "${source_path}/." "${dest_path}/"
+
+  local rsync_exit_code=$?
+
+  if [ $rsync_exit_code -eq 0 ]; then
+    echo "Rsync completed successfully."
+  else
+    echo "Rsync encountered an error. Exit code: $rsync_exit_code"
+  fi
+
+  return $rsync_exit_code
+}
+
 function rsync-archive {
   # Check for proper number of arguments
   if [ $# -ne 2 ]; then

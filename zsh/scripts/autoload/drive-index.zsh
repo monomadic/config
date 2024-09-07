@@ -57,17 +57,6 @@ alias .cache
 alias @play="fzf-safe-media"
 alias @play-all="fzf-media-all"
 alias @play-latest="fzf-safe-media-latest"
-
-# Update the alias to use the new function
-alias @media-stats="ls-media-stats"
-
-# Update the alias to use the new function
-alias @media-stats="ls-media-stats"
-
-# Update the alias to use the new function
-alias @media-stats="ls-media-stats"
-
-# Update the alias to use the new function
 alias @media-stats="ls-media-stats"
 
 mpv-stdin() {

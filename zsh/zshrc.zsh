@@ -1,12 +1,12 @@
 export ZSH_CONFIG_DIR="$HOME/.zsh"
 export DOTFILES_DIR="$HOME/config"
 export ZSH_DOTFILES_DIR="$DOTFILES_DIR/zsh"
-export BABYBLUE_DIR="/Volumes/BabyBlue2TB"
-export MASTER_BACKUP_DIR="/Volumes/BabyBlue2TB"
 export TABLATURE_DIR="$HOME/Tablature"
 export LOCAL_MEDIA_PATHS="$HOME/Downloads/Porn:$HOME/Media/Porn:$HOME/Movies/Porn"
 export LOCAL_CACHE_PATHS="$HOME/Movies/Cache:$HOME/Media/Cache"
+export LOCAL_CACHE_PATH="$HOME/Movies/Cache"
 export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn"
+export MASTER_MEDIA_DIR="/Volumes/BabyBlue2TB/Movies"
 
 setopt autocd             # cd without typing cd
 autoload -Uz add-zsh-hook # function autoloading (built-in zsh function)

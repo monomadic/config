@@ -38,12 +38,9 @@ ls_media_stats() {
   local total_count=0
   local total_size=0
 
-  print -P "${colors[BOLD]}${colors[BLUE]}=== Media Statistics ===${colors[NC]}\n"
-
+  print -P "\n${colors[BOLD]}${colors[BLUE]}Media${colors[NC]}"
   ls-media-paths | while IFS= read -r media_path; do
     if [[ -d "$media_path" ]]; then
-      print -P "${colors[CYAN]}${icons[FOLDER]} ${colors[BOLD]}$media_path${colors[NC]}"
-
       # Get file count
       local file_count=$(fd-video . "$media_path" | wc -l | tr -d ' ')
 
@@ -54,16 +51,34 @@ ls_media_stats() {
       # Get free space
       local free_space=$(get_free_space "$media_path")
 
-      print -P "  ${colors[YELLOW]}${icons[FILE]} $file_count files, ${icons[HDD]} $(numfmt --to=iec-i --suffix=B --format="%.2f" $size) total / $free_space free ${colors[NC]}"
+      print -P "${colors[CYAN]}${icons[FOLDER]} ${colors[BOLD]}$media_path${colors[NC]} ${colors[YELLOW]}${icons[FILE]} $file_count files, ${icons[HDD]} $(numfmt --to=iec-i --suffix=B --format="%.2f" $size) total / $free_space free ${colors[NC]}"
 
       ((total_count += file_count))
       ((total_size += size))
-
-      print
     fi
   done
 
-  print -P "${colors[BOLD]}${colors[BLUE]}${icons[STATS]} Overall Statistics:${colors[NC]}"
+  print -P "\n${colors[BOLD]}${colors[BLUE]}Caches${colors[NC]}"
+  expand-paths $LOCAL_CACHE_PATHS | while IFS= read -r media_path; do
+    if [[ -d "$media_path" ]]; then
+      # Get file count
+      local file_count=$(fd-video . "$media_path" | wc -l | tr -d ' ')
+
+      # Get total size
+      local size_kb=$(du -sk "$media_path" | cut -f1)
+      local size=$((size_kb * 1024))
+
+      # Get free space
+      local free_space=$(get_free_space "$media_path")
+
+      print -P "${colors[MAGENTA]}${icons[FOLDER]} ${colors[BOLD]}$media_path${colors[NC]} ${colors[YELLOW]}${icons[FILE]} $file_count files, ${icons[HDD]} $(numfmt --to=iec-i --suffix=B --format="%.2f" $size) total / $free_space free ${colors[NC]}"
+
+      ((total_count += file_count))
+      ((total_size += size))
+    fi
+  done
+
+  print
   print -P "${colors[YELLOW]}${icons[FILE]} Total files:${colors[NC]} $total_count"
   print -P "${colors[GREEN]}${icons[HDD]} Total size:${colors[NC]} $(numfmt --to=iec-i --suffix=B --format="%.2f" $total_size)"
 }
