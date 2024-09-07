@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Check if a directory is provided
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <directory>"
+    exit 1
+fi
+
+directory="$1"
+
+# Find all files, sort them by size, and then by MD5 hash
+find "$directory" -type f -print0 | xargs -0 du -s | sort -zn |
+while read -r -d $'\0' line; do
+    # Extract filename
+    filename=$(echo "$line" | cut -f2-)
+    # Calculate MD5 hash
+    md5sum=$(md5sum "$filename" | cut -d' ' -f1)
+    # Print size, MD5 hash, and filename
+    echo "${line%	*} $md5sum $filename"
+done |
+# Group by MD5 hash, keeping only groups with more than one file
+sort -k2 | uniq -w32 -dD |
+# Format output
+awk '{print $2, $3}' |
+while read -r hash file; do
+    if [ "$hash" != "$prev_hash" ]; then
+        [ -n "$prev_hash" ] && echo
+        echo "Duplicate files with hash $hash:"
+        prev_hash=$hash
+    fi
+    echo "  $file"
+done

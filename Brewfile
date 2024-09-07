@@ -59,6 +59,7 @@ brew "jq"			# json tool
 brew "jless"	# json tree viewer
 brew "bottom" # htop / sysperf monitor
 brew "fclones" # rust duplicate finder
+brew "fdupes" # another rust dupe finder
 brew "starship" # cli prompt in rust
 
 cask "journey" # diary
@@ -98,6 +99,8 @@ brew "diskonaut" # disk usage
 brew "zellij" # tmux replacement
 brew "chafa" # sixel
 brew "viu" # sixel
+
+brew "fdupes" # file duplicates
 
 # video
 brew "mpv"

@@ -31,7 +31,7 @@ case "$COMMAND" in
     --match-filter "duration > 60" \
     --embed-subs \
     --embed-chapters \
-    --output "%(uploader|Unknown)s[%(title)s][%(extractor)s].%(ext)s" \
+    --output "[%(uploader|Unknown)s] %(title)s [%(extractor)s].%(ext)s" \
     "$URL"
   ;;
 "music-video")
@@ -41,7 +41,7 @@ case "$COMMAND" in
     --embed-thumbnail \
     --embed-subs \
     --embed-chapters \
-    --output "%(artist)s - %(title)s.%(ext)s" \
+    --output "%(artist|)s - %(title)s.%(ext)s" \
     "$URL"
   ;;
 "audio-only")

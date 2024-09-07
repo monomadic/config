@@ -19,6 +19,9 @@ alias @zsh-config-edit="e-zsh"
 alias c=@config
 alias g=git
 alias p=@play
+alias d=download-video
+alias dp="download-video porn "
+alias dmv="download-video music-video "
 
 apple-music-dl() {
   gamdl \
@@ -103,7 +106,7 @@ alias lln="exa --icons --all -l --sort=date"
 alias loc=tokei
 alias ls-colors='for x in {0..8}; do for i in {30..37}; do for a in {40..47}; do echo -ne "\e[$x;$i;$a""m\\\e[$x;$i;$a""m\e[0;37;40m "; done; echo; done; done; echo ""'
 alias monitor="btm"
-alias mpv-fs="mpv --macos-fs-animation-duration=0 --no-native-fs --fs"
+alias mpv-fs="mpv --macos-fs-animation-duration=0 --no-native-fs --fs "
 alias mpv-loop-mode="mpv --loop-file=1 --length=10 --macos-fs-animation-duration=0 --no-native-fs --fs "
 alias ns="network-status.zsh"
 alias o=open
