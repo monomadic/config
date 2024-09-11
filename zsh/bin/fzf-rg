@@ -1,0 +1,77 @@
+#!/bin/sh
+
+# Script: interactive_search.sh
+# Description: Combines ripgrep with fzf for interactive searching and opens selected files in Neovim
+# Usage: ./interactive_search.sh [directory]
+
+# Display usage information if -h or --help is provided
+case "$1" in
+-h | --help)
+  cat <<EOF
+Usage: $(basename "$0") [DIRECTORY]
+
+Perform an interactive search using ripgrep and fzf, then open selected files in Neovim.
+
+Arguments:
+  fIRECTORY    Optional. The directory to search in. If not provided,
+               the current directory will be used.
+
+Options:
+  -h, --help   Show this help message and exit.
+
+Examples:
+  $(basename "$0")
+  $(basename "$0") /path/to/search/directory
+EOF
+  exit 0
+  ;;
+esac
+
+# Set the search directory, default to current directory if not provided
+search_dir=${1:-.}
+
+# Change to the search directory
+cd "$search_dir" || {
+  echo "Error: Unable to change to directory $search_dir"
+  exit 1
+}
+
+# Get the absolute path of the search directory
+abs_search_dir=$(pwd)
+
+# Define the ripgrep command with desired options
+rg_search_command="rg --column --line-number --no-heading --color=always --smart-case"
+
+# Use fzf with ripgrep, enabling live reload on query change
+selected=$(fzf --bind "change:reload($rg_search_command {q} || true)" \
+  --ansi \
+  --disabled \
+  --preview 'bat --style=numbers --color=always --highlight-line {2} {1} 2>/dev/null || cat {1}' \
+  --preview-window 'up:60%:wrap' \
+  --bind 'ctrl-/:toggle-preview' \
+  --header "Search directory: $abs_search_dir
+Press CTRL-/ to toggle preview" \
+  --prompt 'Search: ' \
+  --delimiter : \
+  --with-nth 1,2,3,4 \
+  --exit-0 \
+  --query '' \
+  --expect enter)
+
+# Check if fzf returned a selection
+if [ -n "$selected" ]; then
+  # Extract the file, line, and column from the selection
+  file=$(echo "$selected" | cut -d: -f1)
+  line=$(echo "$selected" | cut -d: -f2)
+  column=$(echo "$selected" | cut -d: -f3)
+
+  # Ensure file is not empty before proceeding
+  if [ -n "$file" ]; then
+    # Open the file in Neovim at the selected line and column
+    nvim "$file" "+call cursor($line, $column)"
+  else
+    echo "Error: Unable to extract valid file path."
+  fi
+else
+  echo "No file selected."
+fi

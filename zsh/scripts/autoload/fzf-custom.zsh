@@ -60,9 +60,8 @@ function ls_hidden {
 }
 
 # ripgrep
-function fzf-rg {
-  RG_PREFIX="rg --column --line-number --no-heading --color=always --smart-case "
-  fzf --bind "change:reload:$RG_PREFIX {q} || true" --ansi --disabled
+fzf-ripgrep() {
+  fzf-rg
 }
 
 function fzf-cd() {

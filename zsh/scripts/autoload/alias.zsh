@@ -1,38 +1,29 @@
-alias @config-aliases=@config-env
-alias @config-bin="cd $DOTFILES_DIR/bin && nvim ."
-alias @config-env="cd $ZSH_DOTFILES_DIR && nvim scripts/autoload/alias.zsh"
-alias @config-zsh=@config
-alias @config="cd $ZSH_DOTFILES_DIR && nvim zshrc.zsh"
-alias @media-cache-copy="cd $HOME/Movies/Cache && cache-all"
+# media functions
+alias @play-latest=mpv-play-latest
+alias @cache-copy="cd $HOME/Movies/Cache && cache-all"
 alias @network-detect-captive-portal=detect-captive-portal
 alias @network-status=ns
 alias @ns=ns
 alias @open-captive-portal=detect-captive-portal
-alias @play-latest=mpv-play-latest
 alias @rename="fd-rename-all.zsh"
 alias @rsync-cache-portrait="rsync-cache #portrait $MASTER_MEDIA_DIR "
 alias @status-network=ns
 alias @tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --reverse --exact --bind 'enter:execute(open {})'"
 alias @uptime="uptime-pretty.zsh"
-alias @zsh-config-edit="e-zsh"
 
-alias c=@config
+alias c=e-zsh
 alias g=git
 alias p=@play
+
 alias d=download-video
 alias dp="download-video porn "
 alias dmv="download-video music-video "
 
-apple-music-dl() {
-  gamdl \
-    --template-folder-album='' \
-    --template-folder-compilation='' \
-    --template-folder-no-album='' \
-    --template-file-single-disc='{artist} - {title}' \
-    --template-file-multi-disc='{artist} - {title}' \
-    --template-file-no-album='{artist} - {title}' \
-    $@
-}
+alias .config-aliases=.config-env
+alias .config-bin="cd $DOTFILES_DIR/bin && nvim ."
+alias .config-env="cd $ZSH_DOTFILES_DIR && nvim scripts/autoload/alias.zsh"
+alias .config-zsh=e-zsh
+alias .config="cd $ZSH_DOTFILES_DIR && nvim zshrc.zsh"
 alias .apple-music-dl=apple-music-dl
 
 alias dlv="download-video"
@@ -40,12 +31,13 @@ alias dlp="download-video porn"
 alias dly="download-video youtube"
 
 alias .brewfile="cd $DOTFILES_DIR && e Brewfile"
-alias .captive-portal=detect-captive-portal
-alias .config=@config
+alias .portal=detect-captive-portal
+alias .detect-captive-portal=detect-captive-portal
+alias .config=e-zsh
 
 alias amdl=gamdl
 alias fd-empty="fd --type empty"
-alias b="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
+alias gb="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
 alias battery='pmset -g batt'
 alias branch="b"
 alias cb="cargo build"
@@ -81,7 +73,6 @@ alias edit=nvim
 alias exa=eza
 alias f-all="fzf-cd"
 alias ga="git add . && git commit --amend"
-alias gb="b"
 alias gc-update="gc update:"
 alias gca="ga"
 alias gd="git diff"

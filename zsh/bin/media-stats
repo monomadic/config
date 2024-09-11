@@ -33,7 +33,7 @@ get_free_space() {
   echo $free_space
 }
 
-# Main ls-media-stats function
+# Main media-stats function
 ls_media_stats() {
   local total_count=0
   local total_size=0

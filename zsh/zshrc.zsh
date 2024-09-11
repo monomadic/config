@@ -7,6 +7,7 @@ export LOCAL_CACHE_PATHS="$HOME/Movies/Cache:$HOME/Media/Cache"
 export LOCAL_CACHE_PATH="$HOME/Movies/Cache"
 export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn"
 export MASTER_MEDIA_DIR="/Volumes/BabyBlue2TB/Movies"
+export MEDIA_INBOX_PATH="$HOME/Movies/Porn/originals/_inbox"
 
 setopt autocd             # cd without typing cd
 autoload -Uz add-zsh-hook # function autoloading (built-in zsh function)
@@ -70,3 +71,5 @@ done
 
 # Created by `pipx` on 2024-08-26 19:39:42
 export PATH="$PATH:/Users/nom/.local/bin"
+
+source /Users/nom/.config/broot/launcher/bash/br

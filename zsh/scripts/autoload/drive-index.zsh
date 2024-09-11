@@ -1,21 +1,6 @@
-# Set variables
+# indexing and searching for non-persistent volumes
+
 local INDEX_DIR="$HOME/doc/indexes"
-export MASTER_COPY_PATH="/Volumes/BabyBlue2TB"
-
-# function most-recent() {
-#   xargs -d '\n' ls -lt | tac
-# }
-
-function ls-tags() {
-  fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
-}
-
-# Detect and print media paths
-function media-detect() {
-  for media_path in $(ls-media-paths); do
-    echo "Path found: $media_path"
-  done
-}
 
 function cache-all() {
   ls-media | grep "clips" | grep "#top" | copy-flat ./clips
@@ -57,10 +42,14 @@ alias .cache
 alias @play="fzf-safe-media"
 alias @play-all="fzf-media-all"
 alias @play-latest="fzf-safe-media-latest"
-alias @media-stats="ls-media-stats"
+alias @stats="media-stats"
+
+alias .dupes-check="fdupes --recurse --cache --nohidden --size --summarize ."
+alias .dupes-delete="fdupes --recurse --cache --nohidden --size --delete ."
+alias .dupes-delete-line-by-line="fdupes --recurse --cache --nohidden --size --plain ."
 
 mpv-stdin() {
-  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
+  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --mute=yes --playlist=-
 }
 
 mpv-play-sorted() {
@@ -102,6 +91,7 @@ alias .search-local=fzf-local-sorted
 mpv-play-local-sorted() {
   expand-paths $LOCAL_MEDIA_PATHS | sort-across-paths --sort modified --reverse | mpv-stdin
 }
+
 alias .local-sorted=mpv-play-local-sorted
 alias .play-local-sorted=mpv-play-local-sorted
 
@@ -124,6 +114,16 @@ alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
 
 mpv-play-all() {
   ls-media-paths | mpv-stdin
+}
+
+mpv-search-incomplete-downloads() {
+  cd $HOME/Movies/Porn/originals/_inbox &&
+    ls *.mp4.part | fzf-play
+}
+
+mpv-play-incomplete-downloads() {
+  cd $HOME/Movies/Porn/originals/_inbox &&
+    ls *.mp4.part | mpv-stdin
 }
 
 function play-with-mpv-debug() {

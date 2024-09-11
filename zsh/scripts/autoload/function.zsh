@@ -1,3 +1,14 @@
+apple-music-dl() {
+  gamdl \
+    --template-folder-album='' \
+    --template-folder-compilation='' \
+    --template-folder-no-album='' \
+    --template-file-single-disc='{artist} - {title}' \
+    --template-file-multi-disc='{artist} - {title}' \
+    --template-file-no-album='{artist} - {title}' \
+    $@
+}
+
 function ip-address() {
 	ifconfig | grep inet | awk '$1=="inet" && $2!="127.0.0.1" {print $2}'
 }

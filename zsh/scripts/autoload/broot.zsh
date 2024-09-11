@@ -41,5 +41,4 @@ fv() (
     --query "$*"
 )
 
-alias fzf-rg=rfv
-zle -N fzf-rg
+zle -N fzf-ripgrep

@@ -163,6 +163,7 @@ cask "font-hack"
 cask "font-hack-nerd-font"
 cask "font-gohufont-nerd-font"
 cask "font-symbols-only-nerd-font"
+brew "font-jetbrains-mono-nerd-font"
 
 cask "kitty" # term
 cask "alacritty" # term
