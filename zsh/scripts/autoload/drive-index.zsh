@@ -46,7 +46,7 @@ alias @stats="media-stats"
 
 alias .dupes-check="fdupes --recurse --cache --nohidden --size --summarize ."
 alias .dupes-delete="fdupes --recurse --cache --nohidden --size --delete ."
-alias .dupes-delete-line-by-line="fdupes --recurse --cache --nohidden --size --plain ."
+alias .dupes-delete-interactive="fdupes --recurse --deferconfirmation --cache --nohidden --size --plain ."
 
 mpv-stdin() {
   mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --mute=yes --playlist=-
@@ -120,11 +120,13 @@ mpv-search-incomplete-downloads() {
   cd $HOME/Movies/Porn/originals/_inbox &&
     ls *.mp4.part | fzf-play
 }
+alias @search-incomplete=mpv-search-incomplete-downloads
 
 mpv-play-incomplete-downloads() {
   cd $HOME/Movies/Porn/originals/_inbox &&
     ls *.mp4.part | mpv-stdin
 }
+alias @play-incomplete
 
 function play-with-mpv-debug() {
   while IFS= read -r file; do

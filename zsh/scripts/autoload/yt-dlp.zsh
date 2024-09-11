@@ -359,26 +359,26 @@ function mp4-tag-write-title {
   echo "Successfully written title tag to ${file}"
 }
 
-function yt-porn-no-thumbnail {
-  local url="$1"
-  local output_template="[%(uploader)s] %(title)s.%(ext)s"
-
-  if [[ -z "$url" ]]; then
-    echo "Usage: ${0:t} <url>"
-    return 1
-  fi
-
-  # download and rename
-  yt-dlp -v \
-    --output "${output_template}" \
-    --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
-    --cookies-from-browser brave \
-    --merge-output-format mp4 \
-    --embed-metadata \
-    "${url}"
-
-  # ffmpeg -i "{}" -metadata comment="%(webpage_url)s" -metadata title="%(title)s" -codec copy "{}"
-}
+# function yt-porn-no-thumbnail {
+#   local url="$1"
+#   local output_template="[%(uploader)s] %(title)s.%(ext)s"
+#
+#   if [[ -z "$url" ]]; then
+#     echo "Usage: ${0:t} <url>"
+#     return 1
+#   fi
+#
+#   # download and rename
+#   yt-dlp -v \
+#     --output "${output_template}" \
+#     --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
+#     --cookies-from-browser brave \
+#     --merge-output-format mp4 \
+#     --embed-metadata \
+#     "${url}"
+#
+#   # ffmpeg -i "{}" -metadata comment="%(webpage_url)s" -metadata title="%(title)s" -codec copy "{}"
+# }
 
 function yt-dlp-download-and-embed-tags {
   local url="$1"

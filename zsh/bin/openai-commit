@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# Step 1: Check if OpenAI API key is set
+if [ -z "$OPENAI_API_KEY" ]; then
+    echo "OpenAI API key is not set. Please export it as OPENAI_API_KEY."
+    exit 1
+fi
+
+# Step 2: Assess the staged changes
+staged_changes=$(git diff --cached --name-only)
+
+if [ -z "$staged_changes" ]; then
+    echo "No changes to commit."
+    exit 1
+fi
+
+# Step 3: Prepare prompt for GPT
+prompt="Generate a concise Git commit message for the following staged changes:\n\n$staged_changes"
+
+# Step 4: Send prompt to OpenAI GPT API to generate commit message
+response=$(curl https://api.openai.com/v1/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -d '{
+    "model": "gpt-4",
+    "prompt": "'"$prompt"'",
+    "max_tokens": 50,
+    "temperature": 0.7
+  }')
+
+# Step 5: Extract commit message from GPT response
+commit_message=$(echo "$response" | jq -r '.choices[0].text' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+# Step 6: Prompt user for approval of the generated commit message
+echo "Generated commit message:"
+echo "$commit_message"
+read -p "Is this commit message ok? [y/N]: " user_input
+
+# Step 7: Commit and push if user approves
+if [[ "$user_input" == "y" || "$user_input" == "Y" ]]; then
+    git commit -m "$commit_message"
+    git push
+    echo "Changes committed and pushed."
+else
+    echo "Commit canceled."
+    exit 1
+fi

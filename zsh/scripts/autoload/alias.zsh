@@ -13,7 +13,7 @@ alias @uptime="uptime-pretty.zsh"
 
 alias c=e-zsh
 alias g=git
-alias p=@play
+alias p=mpv-play-sorted
 
 alias d=download-video
 alias dp="download-video porn "
