@@ -1,13 +1,16 @@
-export ZSH_CONFIG_DIR="$HOME/.zsh"
-export DOTFILES_DIR="$HOME/config"
-export ZSH_DOTFILES_DIR="$DOTFILES_DIR/zsh"
-export TABLATURE_DIR="$HOME/Tablature"
-export LOCAL_MEDIA_PATHS="$HOME/Downloads/Porn:$HOME/Media/Porn:$HOME/Movies/Porn"
-export LOCAL_CACHE_PATHS="$HOME/Movies/Cache:$HOME/Media/Cache"
-export LOCAL_CACHE_PATH="$HOME/Movies/Cache"
-export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn"
-export MASTER_MEDIA_DIR="/Volumes/BabyBlue2TB/Movies"
-export MEDIA_INBOX_PATH="$HOME/Movies/Porn/originals/_inbox"
+
+# Load environment variables
+# source "$HOME/.env"
+local env_file="$HOME/config/zsh/env.zsh"
+
+GREEN=$(tput setaf 5)
+RESET=$(tput sgr0)
+echo "${GREEN}󰅱 ${env_file:t}${RESET}"
+
+# Source the config file and continue if there's an error
+if ! source $env_file; then
+	echo "Error sourcing $env_file. Skipping..."
+fi
 
 setopt autocd             # cd without typing cd
 autoload -Uz add-zsh-hook # function autoloading (built-in zsh function)

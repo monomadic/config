@@ -69,6 +69,8 @@ fzf \
   --bind 'alt-p:toggle-preview' \
   --bind 'alt-r:execute(open --reveal {})' \
   --bind 'alt-s:select-all+accept' \
+  --bind 'ctrl-r:execute-silent(shuf -o /dev/stdout)' \
+  --bind 'ctrl-s:execute-silent(sort -o /dev/stdout)' \
   --bind 'alt-t:execute-silent(kitty @ launch --cwd $(dirname {}))' \
   --bind 'alt-v:execute-silent(vlc {})' \
   --header $'enter:play-all | alt-o:play | alt-enter:loop-mode | alt-r:reveal-in-finder | alt-t:new-tab | alt-i:iina | alt-e:elmedia | alt-A:airflow | alt-a:select-all | alt-d:deselect-all | alt-l:lf | alt-s: stdout | alt-p:playlist\n' \

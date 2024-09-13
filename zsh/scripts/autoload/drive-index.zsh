@@ -2,13 +2,6 @@
 
 local INDEX_DIR="$HOME/doc/indexes"
 
-function cache-all() {
-  ls-media | grep "clips" | grep "#top" | copy-flat ./clips
-  ls-media | grep "scenes" | grep "#top" | copy-flat ./scenes
-  ls-media --match "#portrait" | copy-flat ./portrait
-  ls-media | grep "originals" | grep "#top" | copy-flat ./originals
-}
-
 # Search media files and play with fzf
 function fzf-safe-media() {
   ls-media | grep-safe | fzf-play

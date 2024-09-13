@@ -1,8 +1,22 @@
+export ZSH_CONFIG_DIR="$HOME/.zsh"
+export DOTFILES_DIR="$HOME/config"
+export ZSH_DOTFILES_DIR="$DOTFILES_DIR/zsh"
+
 # Paths
 export PATH=$PATH:$HOME/.bin:$ZSH_CONFIG_DIR/bin
 export PATH=$PATH:$HOME/.local/share/nvim/mason/bin/:$HOME/.cargo/bin/:$HOME/go/bin:$HOME/workspaces/python-projects.workspace
 export PATH=$PATH:$HOME/.deno/bin
 export PATH=$PATH:$HOME/.foundry/bin
+
+export TABLATURE_DIR="$HOME/Tablature"
+
+# Media
+export LOCAL_MEDIA_PATHS="$HOME/Downloads/Porn:$HOME/Media/Porn:$HOME/Movies/Porn"
+export LOCAL_CACHE_PATHS="$HOME/Movies/Cache:$HOME/Media/Cache"
+export LOCAL_CACHE_PATH="$HOME/Movies/Cache"
+export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn"
+export MASTER_MEDIA_DIR="/Volumes/BabyBlue2TB/Movies"
+export MEDIA_INBOX_PATH="$HOME/Movies/Porn/originals/_inbox"
 
 # XDG
 export XDG_CONFIG_HOME=$HOME/.config

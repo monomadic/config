@@ -1,6 +1,5 @@
 # media functions
 alias @play-latest=mpv-play-latest
-alias @cache-copy="cd $HOME/Movies/Cache && cache-all"
 alias @network-detect-captive-portal=detect-captive-portal
 alias @network-status=ns
 alias @ns=ns

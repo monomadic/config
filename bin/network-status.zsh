@@ -45,7 +45,7 @@ if [[ "$network_status" == "${RED}DOWN${NC}" && "$ssid" != "${RED}Not connected 
   if [[ -n "$captive_portal_url" ]]; then
     captive_portal_status="${YELLOW}Captive portal detected: ${BLUE}${captive_portal_url}${NC}"
   else
-    captive_portal_status="${RED}No captive portal detected${NC}"
+    captive_portal_status="${GREEN}No captive portal detected${NC}"
   fi
 else
   captive_portal_status=""
@@ -55,4 +55,4 @@ fi
 echo -e "\n${CYAN}${ICON_NETWORK_STATUS} Network ${NC}\t${network_status}"
 echo -e "${CYAN}${ICON_WIFI} SSID ${NC}\t\t${ssid}"
 echo -e "${CYAN}${ICON_IP} IPv4 ${NC}\t\t${ip}"
-[[ -n "$captive_portal_status" ]] && echo -e "${CYAN}${ICON_CAPTIVE} ${captive_portal_status}"
+[[ -n "$captive_portal_status" ]] && echo -e "\n${CYAN}${ICON_CAPTIVE} ${captive_portal_status}"
