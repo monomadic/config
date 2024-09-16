@@ -1,5 +1,5 @@
 # detect available media paths
-media-detect() {
+ls-media-paths-checked() {
   for media_path in $(ls-media-paths); do
     echo $media_path
   done
@@ -30,14 +30,14 @@ ls-tags() {
   fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
 }
 
-cache-all() {
+cache-copy-all() {
   ls-media | grep "clips" | grep "#top" | copy-flat ./clips
   ls-media | grep "scenes" | grep "#top" | copy-flat ./scenes
   ls-media --match "#portrait" | copy-flat ./portrait
   ls-media | grep "originals" | grep "#top" | copy-flat ./originals
 }
 
-alias @cache-copy="cd $LOCAL_CACHE_PATH && cache-all"
+alias @cache-copy="cd $LOCAL_CACHE_PATH && cache-copy-all"
 
 media-cache-clear() {
   cd $LOCAL_CACHE_PATH && rm -rf **/*

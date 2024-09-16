@@ -55,7 +55,7 @@ fzf \
   --color=fg:#f8f8f2,bg:-1,hl:#f92672,fg+:#a6e22e,bg+:-1,hl+:#66d9ef,info:#66d9ef,prompt:#ae81ff,spinner:#66d9ef,pointer:#f92672,marker:#a6e22e \
   --preview "$PREVIEW_CMD" \
   --preview-window="$PREVIEW_WINDOW" \
-  --bind 'enter:select-all+execute-silent(mpv --loop-file=1 '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
+  --bind 'enter:select-all+execute-silent(mpv --loop-file=1 '"$MPV_COMMON_OPTS"' {+} &)+deselect-all' \
   --bind 'alt-enter:select-all+execute-silent(mpv '"$MPV_COMMON_OPTS"' --loop-file=1 --length=10 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
   --bind 'alt-o:execute-silent(mpv '"$MPV_COMMON_OPTS"' {+})' \
   --bind 'alt-L:select-all+execute-silent(mpv --loop-file=1 --length=2 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \

@@ -144,7 +144,7 @@ function kitty-popup-centered() {
     zsh -c "$TEMP_COMMAND"
 }
 
-function dj-play-visuals() {
+function play-dj-visuals() {
   cd $HOME/Music/DJ/Visuals && @play-pwd
 }
 alias @play-dj-visuals=dj-play-visuals

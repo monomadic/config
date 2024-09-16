@@ -1,14 +1,10 @@
 # media functions
 alias @play-latest=mpv-play-latest
-alias @network-detect-captive-portal=detect-captive-portal
-alias @network-status=ns
-alias @ns=ns
-alias @open-captive-portal=detect-captive-portal
-alias @rename="fd-rename-all.zsh"
-alias @rsync-cache-portrait="rsync-cache #portrait $MASTER_MEDIA_DIR "
-alias @status-network=ns
-alias @tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --reverse --exact --bind 'enter:execute(open {})'"
-alias @uptime="uptime-pretty.zsh"
+alias @play="fzf-safe-media"
+alias @play-all="fzf-media-all"
+alias @play-latest="fzf-safe-media-latest"
+alias @stats="media-stats"
+#alias @cache-portrait="rsync-cache #portrait $MASTER_MEDIA_DIR "
 
 alias c=e-zsh
 alias g=git
@@ -18,12 +14,17 @@ alias d=download-video
 alias dp="download-video porn "
 alias dmv="download-video music-video "
 
+alias .rename="fd-rename-all.zsh"
 alias .config-aliases=.config-env
 alias .config-bin="cd $DOTFILES_DIR/bin && nvim ."
 alias .config-env="cd $ZSH_DOTFILES_DIR && nvim scripts/autoload/alias.zsh"
 alias .config-zsh=e-zsh
 alias .config="cd $ZSH_DOTFILES_DIR && nvim zshrc.zsh"
 alias .apple-music-dl=apple-music-dl
+alias .network-detect-captive-portal=detect-captive-portal
+alias .network-status=ns
+alias .tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --reverse --exact --bind 'enter:execute(open {})'"
+alias .uptime="uptime-pretty.zsh"
 
 alias dlv="download-video"
 alias dlp="download-video porn"

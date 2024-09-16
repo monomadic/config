@@ -1,4 +1,3 @@
-
 # Load environment variables
 # source "$HOME/.env"
 local env_file="$HOME/config/zsh/env.zsh"
@@ -25,19 +24,21 @@ fpath=($ZSH_CONFIG_DIR/functions/ $fpath)
 # trap 'echo "An error occurred. Please check the script.";' ERR
 
 # Loop through the config files
-for config_file in $ZSH_CONFIG_DIR/autoload/*.(zsh|sh); do
+for config_file in $ZSH_CONFIG_DIR/autoload/*.(zsh|sh)(N); do
   YELLOW=$(tput setaf 4)
   RESET=$(tput sgr0)
-  echo "${YELLOW}󰅱 autoload/${config_file:t}${RESET}"
+  echo "${YELLOW}autoload/${config_file:t}${RESET}"
 
   # Source the config file and continue if there's an error
-  if ! source $config_file; then
+  if ! source "$config_file"; then
     echo "Error sourcing $config_file. Skipping..."
   fi
 done
 
 echo
-@uptime
+
+.uptime
+
 # ------------------------
 
 # Define colors

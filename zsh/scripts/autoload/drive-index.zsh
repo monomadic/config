@@ -14,6 +14,13 @@ function fzf-media-top() {
 alias top=fzf-media-top
 alias .search-top=fzf-media-top
 
+function fzf-search-clips() {
+  ls-media | grep "\/clips\/" | grep-safe | fzf-play
+}
+alias @search-clips=fzf-search-clips
+alias .search-clips=fzf-search-clips
+alias search-clips=fzf-search-clips
+
 function fzf-safe-media-latest() {
   ls-media --sort modified | grep-safe | fzf-play
 }
@@ -32,18 +39,32 @@ alias @cache
 alias .cache
 
 # Define aliases
-alias @play="fzf-safe-media"
-alias @play-all="fzf-media-all"
-alias @play-latest="fzf-safe-media-latest"
-alias @stats="media-stats"
 
 alias .dupes-check="fdupes --recurse --cache --nohidden --size --summarize ."
 alias .dupes-delete="fdupes --recurse --cache --nohidden --size --delete ."
 alias .dupes-delete-interactive="fdupes --recurse --deferconfirmation --cache --nohidden --size --plain ."
 
 mpv-stdin() {
-  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --mute=yes --playlist=-
+  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --input-ipc-server=/tmp/mpvsocket --mute=yes $@ --playlist=-
 }
+
+mpv-play-suki() {
+  ls-media | grep "#suki" | grep-safe | mpv-stdin --shuffle
+}
+alias @play-suki=mpv-play-suki
+alias .suki=mpv-play-suki
+
+mpv-play-clips() {
+  ls-media | grep "\/clips\/" | grep-safe | mpv-stdin --shuffle
+}
+alias @play-clips=mpv-play-clips
+alias .clips=mpv-play-clips
+
+mpv-play-loops() {
+  ls-media | grep "\/loops\/" | grep-safe | mpv-stdin --shuffle --loop-file=1 --length=10
+}
+alias @play-loops=mpv-play-loops
+alias .loops=mpv-play-loops
 
 mpv-play-sorted() {
   ls-media --sort modified --reverse | mpv-stdin
@@ -59,8 +80,13 @@ fzf-play-pwd-sorted() {
 }
 
 mpv-play-cache() {
-  expand-paths $LOCAL_CACHE_PATHS | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --playlist=-
+  expand-paths $LOCAL_CACHE_PATHS | mpv-stdin --shuffle
 }
+
+mpv-play-cache-clips() {
+  expand-paths $LOCAL_CACHE_PATHS | sort-across-paths --sort modified --reverse | grep "\/clips\/" | mpv-stdin --shuffle
+}
+alias @play-clips-cached=mpv-play-cache-clips
 
 mpv-play-cache-latest() {
   expand-paths $LOCAL_CACHE_PATHS | sort-across-paths --sort modified --reverse | mpv-stdin
