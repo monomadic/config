@@ -60,6 +60,7 @@ brew "jless"	# json tree viewer
 brew "bottom" # htop / sysperf monitor
 brew "fclones" # rust duplicate finder
 brew "fdupes" # another rust dupe finder
+brew "czkawka" # gui dupe finder
 brew "starship" # cli prompt in rust
 
 cask "journey" # diary
