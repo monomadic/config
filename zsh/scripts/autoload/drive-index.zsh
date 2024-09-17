@@ -1,51 +1,48 @@
 # indexing and searching for non-persistent volumes
-
 local INDEX_DIR="$HOME/doc/indexes"
 
 # Search media files and play with fzf
-function fzf-safe-media() {
+fzf-safe-media() {
   ls-media | grep-safe | fzf-play
 }
 alias .play=fzf-safe-media
 
-function fzf-media-top() {
+fzf-media-top() {
   ls-media | grep-top | grep-safe | fzf-play
 }
 alias top=fzf-media-top
 alias .search-top=fzf-media-top
 
-function fzf-search-clips() {
+fzf-search-clips() {
   ls-media | grep "\/clips\/" | grep-safe | fzf-play
 }
 alias @search-clips=fzf-search-clips
 alias .search-clips=fzf-search-clips
 alias search-clips=fzf-search-clips
 
-function fzf-safe-media-latest() {
+fzf-safe-media-latest() {
   ls-media --sort modified | grep-safe | fzf-play
 }
-
-alias .cumshots="ls-media --sort modified | grep #cumshot | grep #top | fzf-play"
+alias .cumshot="ls-media --sort modified | grep #cumshot | fzf-play"
 
 # Include unsafe files
-function fzf-media-all() {
+fzf-media-all() {
   ls-media | fzf-play --kitty
 }
 
-function fzf-media-cache {
+fzf-media-cache {
   cd $HOME/Movies/Cache && fd-video | fzf-play
 }
 alias @cache
 alias .cache
 
 # Define aliases
-
 alias .dupes-check="fdupes --recurse --cache --nohidden --size --summarize ."
 alias .dupes-delete="fdupes --recurse --cache --nohidden --size --delete ."
 alias .dupes-delete-interactive="fdupes --recurse --deferconfirmation --cache --nohidden --size --plain ."
 
 mpv-stdin() {
-  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --input-ipc-server=/tmp/mpvsocket --mute=yes $@ --playlist=-
+  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --input-ipc-server=/tmp/mpvsocket --mute=yes $@ --playlist=- >/dev/null 2>&1 &
 }
 
 mpv-play-suki() {
@@ -82,6 +79,7 @@ fzf-play-pwd-sorted() {
 mpv-play-cache() {
   expand-paths $LOCAL_CACHE_PATHS | mpv-stdin --shuffle
 }
+alias @play-cache=mpv-play-cache
 
 mpv-play-cache-clips() {
   expand-paths $LOCAL_CACHE_PATHS | sort-across-paths --sort modified --reverse | grep "\/clips\/" | mpv-stdin --shuffle
@@ -147,14 +145,14 @@ mpv-play-incomplete-downloads() {
 }
 alias @play-incomplete
 
-function play-with-mpv-debug() {
+play-with-mpv-debug() {
   while IFS= read -r file; do
     echo "Playing: $file" # For debugging
     echo "$file"
   done | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --playlist=-
 }
 
-function index-run() {
+index-run() {
   emulate -L zsh
 
   [[ -d "$1" ]] && {
@@ -168,7 +166,7 @@ function index-run() {
   }
 }
 
-function index-cat {
+index-cat {
   cat $INDEX_DIR/*.txt
 }
 
@@ -178,7 +176,7 @@ index-cat-checked() {
   done
 }
 
-function index-play {
+index-play {
   index-cat | fzf-play
 }
 alias @play-index=index-play
@@ -188,119 +186,24 @@ grep-top() {
 }
 alias fd-top="fd-video |grep-top"
 
-function grep-safe {
+grep-safe {
   grep -v -E '#g(\.| |/)|#bi(\.| |/)|#unsafe(\.| |/)|#ts(\.| |/)'
 }
 
-function index-play-top {
+index-play-top {
   index-cat | grep-top | fzf-play
 }
 
 # list available files from the index and play them
-function index-play-checked {
+index-play-checked {
   index-cat-checked | grep-safe | fzf-play
 }
 alias @play-index-checked=index-play-checked
 
-function index-play-checked-top {
+index-play-checked-top {
   index-cat-checked | index-grep-top | fzf-play
 }
 
-function media-play-all-local {
+media-play-all-local {
   ls-media-paths | grep $HOME | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --loop-file=1 --shuffle --playlist=-
 }
-
-# # just search the index without filtering or playing
-# function index-list {
-#   index-cat | fzf --ansi --exact
-# }
-#
-# # function index-send-to-iina {
-# #   index-select-multi | sed 's/.*/"&"/' | xargs --verbose iina
-# # }
-#
-# # function index-send-to-elmedia {
-# #   index-select-multi | sed 's/.*/"&"/' | xargs --verbose open -a /Applications/Elmedia\ Video\ Player.app/Contents/MacOS/Elmedia\ Video\ Player
-# # }
-#
-# function index-update {
-#   # Ensure the target directory exists
-#   mkdir -p "${INDEX_DIR}"
-#
-#   if ! index-run "$HOME/_inbox/" >"$HOME/doc/indexes/${HOSTNAME}_inbox.txt"; then
-#     echo "Error: Failed to create index for '$HOME/_inbox/'." >&2
-#     return 1
-#   fi
-#   echo "Indexed: $HOME/_inbox as ${HOSTNAME}_inbox"
-#
-#   if [[ -d "${babyblue}/not-porn" ]]; then
-#     index-run "${babyblue}/not-porn" >"$HOME/doc/indexes/BabyBlue2TB.txt" || {
-#       echo "Error: Failed to create index for '${babyblue}/not-porn'." >&2
-#     }
-#     echo "Indexed: ${babyblue}"
-#   else
-#     echo "Warning: ${babyblue} not found, skipping this index." >&2
-#   fi
-# }
-#
-# function index-search {
-#   local search_term="$1"
-#
-#   if [[ -z "$search_term" ]]; then
-#     echo "Usage: index-search <search_term>"
-#     return 1
-#   fi
-#
-#   if [[ -d "$INDEX_DIR" ]]; then
-#     rg -i --fixed-strings --no-line-number --glob "*.txt" "$search_term" "$INDEX_DIR" || {
-#       echo "No matches found for '$search_term' in $INDEX_DIR." >&2
-#       return 1
-#     }
-#   else
-#     echo "Warning: Directory '$INDEX_DIR' does not exist." >&2
-#     return 1
-#   fi
-# }
-#
-# function index-search-or {
-#   if [[ $# -eq 0 ]]; then
-#     echo "Usage: index-search-or <search_term1> <search_term2> ..."
-#     return 1
-#   fi
-#
-#   if [[ -d "$INDEX_DIR" ]]; then
-#     local rg_command="rg -i --fixed-strings --no-line-number --glob '*.txt'"
-#     for term in "$@"; do
-#       rg_command+=" -e \"$term\""
-#     done
-#     eval "$rg_command \"$INDEX_DIR\"" || {
-#       echo "No matches found for the specified search terms in $INDEX_DIR." >&2
-#       return 1
-#     }
-#   else
-#     echo "Warning: Directory '$INDEX_DIR' does not exist." >&2
-#     return 1
-#   fi
-# }
-#
-# function index-search-and {
-#   if [[ $# -eq 0 ]]; then
-#     echo "Usage: index-search-and <search_term1> <search_term2> ..."
-#     return 1
-#   fi
-#
-#   if [[ -d "$INDEX_DIR" ]]; then
-#     local rg_command="rg -i --fixed-strings --no-line-number --glob '*.txt'"
-#     for term in "$@"; do
-#       rg_command+=" | rg -i --fixed-strings --no-line-number \"$term\""
-#     done
-#     rg_command+=" \"$INDEX_DIR\""
-#     eval "$rg_command" || {
-#       echo "No matches found for the specified search terms in $INDEX_DIR." >&2
-#       return 1
-#     }
-#   else
-#     echo "Warning: Directory '$INDEX_DIR' does not exist." >&2
-#     return 1
-#   fi
-# }
