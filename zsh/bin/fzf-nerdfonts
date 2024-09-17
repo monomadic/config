@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# Ensure necessary commands are installed
+for cmd in fzf jq; do
+  if ! command -v $cmd &>/dev/null; then
+    echo "$cmd is not installed. Please install it first."
+    exit 1
+  fi
+done
+
+# URL of the glyph data
+GLYPHS_URL="https://raw.githubusercontent.com/ryanoasis/nerd-fonts/master/glyphnames.json"
+
+# Temporary file to store glyph data
+GLYPHS_FILE="/tmp/nerd_fonts_glyphs.json"
+
+# Download glyphnames.json if it doesn't exist
+if [ ! -f "$GLYPHS_FILE" ]; then
+  echo "Downloading glyph data..."
+  curl -sSLo "$GLYPHS_FILE" "$GLYPHS_URL"
+
+  # Check if the download was successful
+  if [ $? -ne 0 ] || [ ! -s "$GLYPHS_FILE" ]; then
+    echo "Failed to download glyph data from $GLYPHS_URL"
+    exit 1
+  fi
+fi
+
+# Parse the JSON file and extract glyphs and names
+glyph_data=$(jq -r '
+    to_entries[] |
+    "\(.value.char)\t\(.key)"
+' "$GLYPHS_FILE")
+
+# Check if glyph_data is empty
+if [ -z "$glyph_data" ]; then
+  echo "Failed to extract glyph data."
+  exit 1
+fi
+
+# Feed glyph data to fzf for selection
+selected=$(printf "%s\n" "$glyph_data" | fzf --reverse --ansi --prompt="Search Nerd Font Glyphs: ")
+
+# If an item was selected, copy the glyph to clipboard
+if [ -n "$selected" ]; then
+  glyph=$(printf '%s' "$selected" | cut -f1)
+  name=$(printf '%s' "$selected" | cut -f2)
+  printf "%s" "$glyph" | pbcopy
+  echo "Copied '$glyph' (Name: $name) to clipboard."
+else
+  echo "No selection made."
+fi

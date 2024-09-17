@@ -1,0 +1,71 @@
+#!/bin/zsh
+
+# Colors and NerdFont icons (JetBrains Mono Nerd Font)
+GREEN=$'\033[0;32m'
+RED=$'\033[0;31m'
+YELLOW=$'\033[0;33m'
+RESET=$'\033[0m'
+
+# Icons
+NETWORK_ICON="󰀂"        # Network icon
+SSID_ICON=""           # SSID icon
+IP_ICON=""             # IP/Gateway icon
+INTERNET_ICON=""       # Internet icon
+DNS_ICON=""            # DNS icon
+CAPTIVE_PORTAL_ICON="" # Captive Portal icon
+
+# Automatically detect the router IP (gateway)
+GATEWAY_IP=$(route -n get default | grep 'gateway' | awk '{print $2}')
+TEST_SITE="8.8.8.8"                                                  # External IP for Internet connectivity check
+DNS_SERVER="1.1.1.1"                                                 # Public DNS server (Cloudflare)
+CAPTIVE_TEST_URL="http://connectivitycheck.gstatic.com/generate_204" # Captive portal check URL
+
+function print_status_icon() {
+  local STATUS_CODE=$1
+  local ICON=$2
+  local DESCRIPTION=$3
+  if [[ $STATUS_CODE -eq 0 ]]; then
+    printf "%b %-25s %s\n" "$ICON" "$DESCRIPTION" "${GREEN}UP${RESET}"
+  else
+    printf "%b %-25s %s\n" "$ICON" "$DESCRIPTION" "${RED}DOWN${RESET}"
+  fi
+}
+
+echo -e "\n${INTERNET_ICON} ${YELLOW}Wi-Fi Diagnostic Tool${RESET}\n"
+
+# 1. Check Wi-Fi status
+WIFI_STATUS=$(networksetup -getairportnetwork en0)
+if [[ "$WIFI_STATUS" =~ "You are not associated" ]]; then
+  printf "%b %-25s %s\n" "${NETWORK_ICON}" "Wi-Fi Connection" "${RED}DOWN${RESET}"
+  echo -e "\n${RED}Please connect to a Wi-Fi network and try again.${RESET}\n"
+  exit 1
+else
+  printf "%b %-25s %s\n" "${NETWORK_ICON}" "Wi-Fi Connection" "${GREEN}UP${RESET}"
+  SSID=$(echo $WIFI_STATUS | cut -d ':' -f2 | xargs)
+  printf "%b %-25s %s\n" "${SSID_ICON}" "SSID" "${YELLOW}${SSID}${RESET}"
+fi
+
+# 2. Display Gateway IP
+printf "%b %-25s %s\n" "${IP_ICON}" "Gateway IP" "${YELLOW}${GATEWAY_IP}${RESET}"
+
+# 3. Ping the router (Gateway IP)
+ping -c 1 $GATEWAY_IP >/dev/null 2>&1
+STATUS=$?
+print_status_icon $STATUS "${IP_ICON}" "Router Reachability"
+
+# 4. Ping a known internet IP
+ping -c 1 $TEST_SITE >/dev/null 2>&1
+STATUS=$?
+print_status_icon $STATUS "${INTERNET_ICON}" "Internet Reachability"
+
+# 5. DNS lookup
+nslookup google.com $DNS_SERVER >/dev/null 2>&1
+STATUS=$?
+print_status_icon $STATUS "${DNS_ICON}" "DNS Resolution"
+
+# 6. Check for captive portal
+curl -s -o /dev/null -w "%{http_code}" $CAPTIVE_TEST_URL | grep -q 204
+STATUS=$?
+print_status_icon $STATUS "${CAPTIVE_PORTAL_ICON}" "Captive Portal Check"
+
+echo -e "\n${INTERNET_ICON} ${YELLOW}Network diagnostics complete.${RESET}\n"

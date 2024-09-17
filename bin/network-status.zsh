@@ -9,10 +9,10 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # NerdIcons
-ICON_NETWORK_STATUS="\uf6ff" # Example: Satellite dish
-ICON_WIFI="\uf1eb"           # WiFi icon
-ICON_IP="\uf124"             # Network IP icon
-ICON_CAPTIVE="\uf2d1"        # Portal icon
+ICON_NETWORK_STATUS="󰀂" # Example: Satellite dish
+ICON_WIFI="\uf1eb"      # WiFi icon
+ICON_IP="\uf124"        # Network IP icon
+ICON_CAPTIVE="\uf2d1"   # Portal icon
 
 # Check if the network is up
 if ping -q -c 1 -W 1 8.8.8.8 &>/dev/null; then
@@ -52,7 +52,7 @@ else
 fi
 
 # Output status
-echo -e "\n${CYAN}${ICON_NETWORK_STATUS} Network ${NC}\t${network_status}"
+echo -e "${CYAN}${ICON_NETWORK_STATUS} Network ${NC}\t${network_status}"
 echo -e "${CYAN}${ICON_WIFI} SSID ${NC}\t\t${ssid}"
 echo -e "${CYAN}${ICON_IP} IPv4 ${NC}\t\t${ip}"
 [[ -n "$captive_portal_status" ]] && echo -e "\n${CYAN}${ICON_CAPTIVE} ${captive_portal_status}"

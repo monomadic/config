@@ -30,16 +30,11 @@ fzf-media-all() {
   ls-media | fzf-play --kitty
 }
 
-fzf-media-cache {
+fzf-media-cache() {
   cd $HOME/Movies/Cache && fd-video | fzf-play
 }
 alias @cache
 alias .cache
-
-# Define aliases
-alias .dupes-check="fdupes --recurse --cache --nohidden --size --summarize ."
-alias .dupes-delete="fdupes --recurse --cache --nohidden --size --delete ."
-alias .dupes-delete-interactive="fdupes --recurse --deferconfirmation --cache --nohidden --size --plain ."
 
 mpv-stdin() {
   mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --input-ipc-server=/tmp/mpvsocket --mute=yes $@ --playlist=- >/dev/null 2>&1 &
@@ -93,7 +88,7 @@ mpv-play-cache-latest() {
 mpv-play-local() {
   expand-paths $LOCAL_MEDIA_PATHS | mpv-stdin
 }
-alias .local
+alias .local=mpv-play-local
 
 mpv-play-local() {
   expand-paths $LOCAL_MEDIA_PATHS | mpv-stdin
@@ -166,7 +161,7 @@ index-run() {
   }
 }
 
-index-cat {
+index-cat() {
   cat $INDEX_DIR/*.txt
 }
 
@@ -176,7 +171,7 @@ index-cat-checked() {
   done
 }
 
-index-play {
+index-play() {
   index-cat | fzf-play
 }
 alias @play-index=index-play
@@ -186,24 +181,24 @@ grep-top() {
 }
 alias fd-top="fd-video |grep-top"
 
-grep-safe {
+grep-safe() {
   grep -v -E '#g(\.| |/)|#bi(\.| |/)|#unsafe(\.| |/)|#ts(\.| |/)'
 }
 
-index-play-top {
+index-play-top() {
   index-cat | grep-top | fzf-play
 }
 
 # list available files from the index and play them
-index-play-checked {
+index-play-checked() {
   index-cat-checked | grep-safe | fzf-play
 }
 alias @play-index-checked=index-play-checked
 
-index-play-checked-top {
+index-play-checked-top() {
   index-cat-checked | index-grep-top | fzf-play
 }
 
-media-play-all-local {
+media-play-all-local() {
   ls-media-paths | grep $HOME | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --loop-file=1 --shuffle --playlist=-
 }
