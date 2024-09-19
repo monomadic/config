@@ -2,8 +2,8 @@
 
 # Check if a destination directory is provided
 if [[ $# -eq 0 ]]; then
-    echo "Usage: $0 <destination_directory>"
-    exit 1
+  echo "Usage: $0 <destination_directory>"
+  exit 1
 fi
 
 destination_dir="$1"
@@ -11,43 +11,60 @@ destination_dir="$1"
 # Create the destination directory if it doesn't exist
 mkdir -p "$destination_dir"
 
-# Read file paths from stdin
-while IFS= read -r file_path; do
-    # Check if the file exists
-    if [[ ! -f "$file_path" ]]; then
-        echo "File not found: $file_path"
-        continue
-    fi
+# Initialize an associative array to keep track of destination filenames
+typeset -A dest_files
 
-    # Get the filename
-    filename=$(basename "$file_path")
-    destination_file="$destination_dir/$filename"
+# Read file paths from stdin and store them in an array
+file_paths=()
+while IFS= read -r file_path || [[ -n "$file_path" ]]; do
+  # Check if the file exists
+  if [[ ! -f "$file_path" ]]; then
+    echo "\nFile not found: $file_path"
+    continue
+  fi
 
-    # Check if the file already exists in the destination
-    if [[ -f "$destination_file" ]]; then
-        # Compare file sizes
-        src_size=$(stat -f%z "$file_path")
-        dest_size=$(stat -f%z "$destination_file")
+  # Get the basename of the file
+  filename=$(basename "$file_path")
 
-        if [[ "$src_size" -ne "$dest_size" ]]; then
-            # Prompt for overwrite
-            echo "File $filename already exists in the destination and has a different size."
-            echo -n "Do you want to overwrite it? (y/n): "
-            read -r answer
+  # Check for duplicate basenames
+  if [[ -n "${dest_files[$filename]}" ]]; then
+    # echo "\nDuplicate filename detected: $filename"
+    # echo "Skipping $file_path to avoid conflict."
+    continue
+  fi
 
-            if [[ "$answer" != "y" && "$answer" != "Y" ]]; then
-                echo "Skipping $filename"
-                continue
-            fi
-        else
-            echo "File $filename already exists in the destination with the same size. Skipping."
-            continue
-        fi
-    fi
-
-    # Copy the file
-    cp "$file_path" "$destination_file"
-    echo "Copied $filename to $destination_dir"
+  dest_files[$filename]=1 # Mark the filename as used
+  file_paths+=("$file_path")
 done
 
+# Copy files into the flat directory using rsync
+for file_path in "${file_paths[@]}"; do
+  filename=$(basename "$file_path")
+  destination_file="$destination_dir/$filename"
+
+  # Use rsync to copy the file, capturing output
+  rsync_output=$(rsync -a --itemize-changes "$file_path" "$destination_file" 2>&1)
+
+  # If rsync_output is non-empty, it means the file was copied or updated
+  if [[ -n "$rsync_output" ]]; then
+    # Display the filename on a single line
+    printf "\rCopying %-60s" "$filename"
+  fi
+done
+
+# Ensure we move to the next line after copying
+echo
+
+# Remove files in the destination directory that are not in the source list
+for file in "$destination_dir"/*; do
+  if [[ -f "$file" ]]; then
+    basename=$(basename "$file")
+    if [[ -z "${dest_files[$basename]}" ]]; then
+      rm -f "$file"
+      printf "\rRemoving %-80s" "$basename"
+    fi
+  fi
+done
+
+# Move to the next line after completion
 echo "File copying process completed."

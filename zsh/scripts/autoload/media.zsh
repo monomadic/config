@@ -31,13 +31,19 @@ ls-tags() {
 }
 
 cache-copy-all() {
-  ls-media | grep "clips" | grep "#top" | copy-flat ./clips
-  ls-media | grep "scenes" | grep "#top" | copy-flat ./scenes
-  ls-media --match "#portrait" | copy-flat ./portrait
-  ls-media | grep "originals" | grep "#top" | copy-flat ./originals
-}
+  echo "Caching clips..."
+  ls-media --match-string "clips" --match-string "#top" | copy-flat "$LOCAL_CACHE_PATH/clips"
 
-alias @cache-copy="cd $LOCAL_CACHE_PATH && cache-copy-all"
+  echo "\nCaching scenes..."
+  ls-media --match-string "scenes" --match-string "#top" | copy-flat "$LOCAL_CACHE_PATH/scenes"
+
+  echo "\nCaching portraits..."
+  ls-media --match-string "#portrait" --match-string "#top" | copy-flat "$LOCAL_CACHE_PATH/portrait"
+
+  # echo "\nCaching originals..."
+  # ls-media --match-string "originals" --match-string "#top" | copy-flat "$LOCAL_CACHE_PATH/originals"
+}
+alias @cache-update="cache-copy-all && cd $LOCAL_CACHE_PATH"
 
 media-cache-clear() {
   cd $LOCAL_CACHE_PATH && rm -rf **/*

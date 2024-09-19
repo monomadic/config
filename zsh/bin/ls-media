@@ -1,12 +1,12 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 usage() {
-  echo "Usage: $0 [--match PATTERN] [--sort SORT_OPTION] [--reverse] [--verbose]" >&2
+  echo "Usage: $0 [--match-string STRING]... [--sort SORT_OPTION] [--reverse] [--verbose]" >&2
   echo "Options:" >&2
-  echo " --match PATTERN Only list files matching the given pattern" >&2
-  echo " --sort SORT_OPTION Sort files by the given option (modified, size, name)" >&2
-  echo " --reverse Reverse the sort order and the final list" >&2
-  echo " --verbose Enable verbose logging" >&2
+  echo " --match-string STRING   Only list files where the path contains all the given strings (case-insensitive). Can be used multiple times." >&2
+  echo " --sort SORT_OPTION      Sort files by the given option (modified, size, name)" >&2
+  echo " --reverse               Reverse the sort order and the final list" >&2
+  echo " --verbose               Enable verbose logging" >&2
 }
 
 verbose=false
@@ -17,14 +17,15 @@ log_verbose() {
   fi
 }
 
-match_pattern=""
+match_strings=()
 sort_option=""
 reverse=false
 
+# Parse command-line arguments
 while [ $# -gt 0 ]; do
   case $1 in
-  --match)
-    match_pattern="$2"
+  --match-string)
+    match_strings+=("$2")
     shift 2
     ;;
   --sort)
@@ -45,28 +46,51 @@ while [ $# -gt 0 ]; do
     ;;
   esac
 done
+
 process_input_fd() {
   local dir="$1"
   log_verbose "Processing input with fd-video in directory: $dir"
-  # Build fd options
-  local fd_opts="-t f"
-  [ -n "$match_pattern" ] && fd_opts="$fd_opts -g '$match_pattern'"
-  # Navigate to the target directory
   cd "$dir" || {
     log_verbose "Failed to change to directory: $dir"
     return 1
   }
-  log_verbose "Executing in $dir: fd-video $fd_opts"
-  # Execute fd and apply sorting logic if needed
-  if [ -n "$sort_option" ]; then
-    case "$sort_option" in
-    modified) fd-video $fd_opts -0 | xargs -0 stat -f "%m %N" | sort -n | cut -d' ' -f2- ;;
-    size) fd-video $fd_opts -0 | xargs -0 stat -f "%z %N" | sort -n | cut -d' ' -f2- ;;
-    name) fd-video $fd_opts | sort ;;
-    esac
-  else
-    fd-video $fd_opts
-  fi | while IFS= read -r file; do
+
+  # Build fd-video command arguments
+  fd_video_cmd=(fd-video -t f --full-path)
+  log_verbose "Executing in $dir: ${fd_video_cmd[*]}"
+
+  # Execute fd-video and filter results using grep for each match string
+  "${fd_video_cmd[@]}" | {
+    local result
+    result=$(cat)
+    for str in "${match_strings[@]}"; do
+      result=$(echo "$result" | grep -F -i -- "$str")
+    done
+    echo "$result"
+  } | {
+    if [ -n "$sort_option" ]; then
+      case "$sort_option" in
+      modified)
+        while IFS= read -r file; do
+          stat -f "%m %N" "$file"
+        done | sort -n | cut -d' ' -f2-
+        ;;
+      size)
+        while IFS= read -r file; do
+          stat -f "%z %N" "$file"
+        done | sort -n | cut -d' ' -f2-
+        ;;
+      name)
+        sort
+        ;;
+      *)
+        cat
+        ;;
+      esac
+    else
+      cat
+    fi
+  } | while IFS= read -r file; do
     printf '%s/%s\n' "$dir" "$file"
   done
 }
