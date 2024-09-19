@@ -42,6 +42,9 @@ cache-copy-all() {
   echo "Caching #suki clips..."
   ls-media --match-string "clips" --match-string "#suki" --match-string "$MASTER_MEDIA_DIR" | copy-flat --append "$LOCAL_CACHE_PATH/clips"
 
+  echo "Caching #cumshot clips..."
+  ls-media --match-string "clips" --match-string "#cumshot" --match-string "$MASTER_MEDIA_DIR" | copy-flat --append "$LOCAL_CACHE_PATH/clips"
+
   echo "Caching #top scenes..."
   ls-media --match-string "scenes" --match-string "#top" --match-string "$MASTER_MEDIA_DIR" | copy-flat "$LOCAL_CACHE_PATH/scenes"
 

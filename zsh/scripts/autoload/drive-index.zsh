@@ -83,7 +83,12 @@ alias @play-cache=mpv-play-cache
 mpv-play-cache-clips() {
   expand-paths $LOCAL_CACHE_PATHS | sort-across-paths --sort modified --reverse | grep "\/clips\/" | mpv-stdin --shuffle
 }
-alias @play-clips-cached=mpv-play-cache-clips
+alias @play-cached-clips=mpv-play-cache-clips
+
+mpv-play-cache-cs() {
+  expand-paths $LOCAL_CACHE_PATHS | sort-across-paths --sort modified --reverse | grep "#cumshot" | mpv-stdin --shuffle
+}
+alias @play-cached-cs=mpv-play-cache-cs
 
 mpv-play-cache-latest() {
   expand-paths $LOCAL_CACHE_PATHS | sort-across-paths --sort modified --reverse | mpv-stdin
@@ -131,6 +136,11 @@ alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
 mpv-play-all() {
   ls-media-paths | mpv-stdin
 }
+
+mpv-play-external-drives() {
+  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --mute=yes --shuffle /Volumes/**/Movies/* >/dev/null 2>&1 &
+}
+alias @play-external=mpv-play-external-drives
 
 mpv-search-incomplete-downloads() {
   cd $HOME/Movies/Porn/originals/_inbox &&

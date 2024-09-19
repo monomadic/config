@@ -29,6 +29,7 @@ alias .apple-music-dl=apple-music-dl
 alias .network-detect-captive-portal=detect-captive-portal
 alias .network-status=ns
 alias .tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --reverse --exact --bind 'enter:execute(open {})'"
+alias .tab-newest="cd $TABLATURE_DIR && fd . --extension pdf -t f --exec stat -f '%m%t%N' | sort -nr | cut -f2- | fzf --reverse --exact --bind 'enter:execute(open {})'"
 alias .uptime="uptime-pretty.zsh"
 
 alias dlv="download-video"

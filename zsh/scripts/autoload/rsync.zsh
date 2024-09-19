@@ -1,11 +1,11 @@
-function rsync-backup-media-to-babyblue {
-  echo "FireBird1TB/Media/Porn		${du-sh /Volumes/FireBird1TB/Media/Porn/}"
-  # rsync-archive /Volumes/FireBird1TB/Media/Porn/ /Volumes/BabyBlue2TB/Media/Porn/
-  # echo "Backup successful."
-}
+# function rsync-backup-media-to-babyblue {
+#   echo "FireBird1TB/Media/Porn		${du-sh /Volumes/FireBird1TB/Media/Porn/}"
+#   # rsync-archive /Volumes/FireBird1TB/Media/Porn/ /Volumes/BabyBlue2TB/Media/Porn/
+#   # echo "Backup successful."
+# }
 
-function rsync-clone-babyblue-to-firebird {
-  rsync-archive /Volumes/BabyBlue2TB/Movies/Porn/ /Volumes/FireBird1TB/Movies/Porn/
+function rsync-clone-firebird-to-babyblue {
+  rsync-archive /Volumes/FireBird1TB/Movies/Porn/ /Volumes/BabyBlue2TB/Movies/Porn/
 }
 
 function rsync-cache-top {
