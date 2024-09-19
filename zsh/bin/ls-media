@@ -56,7 +56,7 @@ process_input_fd() {
   }
 
   # Build fd-video command arguments
-  fd_video_cmd=(fd-video -t f --full-path --ignore-case --fixed-strings)
+  fd_video_cmd=(fd-video -t f --full-path --ignore-case --fixed-strings -0)
 
   # Add match strings with --and
   for str in "${match_strings[@]}"; do
@@ -66,14 +66,33 @@ process_input_fd() {
   log_verbose "Executing in $dir: ${fd_video_cmd[*]}"
 
   # Execute fd-video and process results
-  "${fd_video_cmd[@]}" | {
+  "${fd_video_cmd[@]}" | while IFS= read -r -d '' file; do
     if [ -n "$sort_option" ]; then
       case "$sort_option" in
       modified)
-        xargs -I{} stat -f "%m %N" "{}" | sort -n | cut -d' ' -f2-
+        # Use a tab as a delimiter
+        mod_time=$(stat -f "%m" "$file")
+        printf '%s\t%s\n' "$mod_time" "$file"
         ;;
       size)
-        xargs -I{} stat -f "%z %N" "{}" | sort -n | cut -d' ' -f2-
+        file_size=$(stat -f "%z" "$file")
+        printf '%s\t%s\n' "$file_size" "$file"
+        ;;
+      name)
+        echo "$file"
+        ;;
+      *)
+        echo "$file"
+        ;;
+      esac
+    else
+      echo "$file"
+    fi
+  done | {
+    if [ -n "$sort_option" ]; then
+      case "$sort_option" in
+      modified | size)
+        sort -n -k1,1 | cut -f2-
         ;;
       name)
         sort
