@@ -17,6 +17,7 @@ export LOCAL_CACHE_PATH="$HOME/Movies/Cache"
 export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn"
 export MASTER_MEDIA_DIR="/Volumes/BabyBlue2TB/Movies"
 export MEDIA_INBOX_PATH="$HOME/Movies/Porn/originals/_inbox"
+export INDEX_DIR="$HOME/doc/indexes"
 
 # XDG
 export XDG_CONFIG_HOME=$HOME/.config

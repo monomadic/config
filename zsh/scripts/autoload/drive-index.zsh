@@ -1,5 +1,4 @@
-# indexing and searching for non-persistent volumes
-local INDEX_DIR="$HOME/doc/indexes"
+# Indexing and searching for non-persistent volumes
 
 # Search media files and play with fzf
 fzf-safe-media() {

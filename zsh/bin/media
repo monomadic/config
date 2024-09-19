@@ -1,0 +1,21 @@
+#!/usr/bin/env zsh
+
+# Build up the list of files (null-separated) before the case loop
+media_list=()
+while IFS= read -r -d '' line; do
+    media_list+=("$line")
+done < <(ls-media)
+
+case "$1" in
+  play)
+    # Pass the list to mpv-stdin
+    printf '%s\0' "${media_list[@]}" | mpv-stdin
+    ;;
+  search)
+    # Pass the list to fzf-play with the --kitty option
+    printf '%s\0' "${media_list[@]}" | fzf-play --kitty
+    ;;
+  *)
+    echo "Usage: $0 {play|search}"
+    ;;
+esac

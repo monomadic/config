@@ -3,8 +3,9 @@
 local env_file="$HOME/config/zsh/env.zsh"
 
 GREEN=$(tput setaf 5)
+BLUE=$(tput setaf 4)
 RESET=$(tput sgr0)
-echo "${GREEN}󰅱 ${env_file:t}${RESET}"
+echo "${GREEN}󰅱 ${BLUE}${env_file:t}${RESET}"
 
 # Source the config file and continue if there's an error
 if ! source $env_file; then
@@ -27,7 +28,7 @@ fpath=($ZSH_CONFIG_DIR/functions/ $fpath)
 for config_file in $ZSH_CONFIG_DIR/autoload/*.(zsh|sh)(N); do
   YELLOW=$(tput setaf 4)
   RESET=$(tput sgr0)
-  echo "${YELLOW}autoload/${config_file:t}${RESET}"
+  echo "${GREEN}󰚔 ${YELLOW}autoload/${config_file:t}${RESET}"
 
   # Source the config file and continue if there's an error
   if ! source "$config_file"; then

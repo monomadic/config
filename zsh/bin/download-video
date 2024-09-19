@@ -1,7 +1,17 @@
 #!/bin/sh
+
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+# Check if yt-dlp is installed
+if ! command -v yt-dlp >/dev/null 2>&1; then
+  echo "Error: yt-dlp is not installed. Please install yt-dlp."
+  exit 1
+fi
+
 # Function to print usage
 print_usage() {
-  echo "Usage: ${0:t} <command> <URL>"
+  echo "Usage: $(basename "$0") <command> <URL>"
   echo "Commands:"
   echo "  music-video <URL> - Download music video"
   echo "  audio-only <URL>  - Download audio only"
@@ -20,7 +30,7 @@ COMMAND="$1"
 URL="$2"
 
 # Base yt-dlp command with Brave browser cookies
-YT_DLP_BASE="yt-dlp --cookies-from-browser brave"
+YT_DLP_BASE="yt-dlp --cookies-from-browser brave --continue"
 
 case "$COMMAND" in
 "porn")
@@ -71,7 +81,7 @@ case "$COMMAND" in
     "$URL"
   ;;
 *)
-  echo "Error: Unknown command '$COMMAND'"
+  printf "Error: Unknown command '%s'\n" "$COMMAND"
   print_usage
   exit 1
   ;;
