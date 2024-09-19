@@ -56,29 +56,24 @@ process_input_fd() {
   }
 
   # Build fd-video command arguments
-  fd_video_cmd=(fd-video -t f --full-path)
+  fd_video_cmd=(fd-video -t f --full-path --ignore-case --fixed-strings)
+
+  # Add match strings with --and
+  for str in "${match_strings[@]}"; do
+    fd_video_cmd+=(--and "$str")
+  done
+
   log_verbose "Executing in $dir: ${fd_video_cmd[*]}"
 
-  # Execute fd-video and filter results using grep for each match string
+  # Execute fd-video and process results
   "${fd_video_cmd[@]}" | {
-    local result
-    result=$(cat)
-    for str in "${match_strings[@]}"; do
-      result=$(echo "$result" | grep -F -i -- "$str")
-    done
-    echo "$result"
-  } | {
     if [ -n "$sort_option" ]; then
       case "$sort_option" in
       modified)
-        while IFS= read -r file; do
-          stat -f "%m %N" "$file"
-        done | sort -n | cut -d' ' -f2-
+        xargs -I{} stat -f "%m %N" "{}" | sort -n | cut -d' ' -f2-
         ;;
       size)
-        while IFS= read -r file; do
-          stat -f "%z %N" "$file"
-        done | sort -n | cut -d' ' -f2-
+        xargs -I{} stat -f "%z %N" "{}" | sort -n | cut -d' ' -f2-
         ;;
       name)
         sort
