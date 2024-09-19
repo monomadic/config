@@ -1,12 +1,28 @@
 #!/bin/zsh
 
-# Check if a destination directory is provided
-if [[ $# -eq 0 ]]; then
-  echo "Usage: $0 <destination_directory>"
+# Initialize append_mode to 0
+append_mode=0
+
+# Process options
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --append)
+    append_mode=1
+    shift
+    ;;
+  *)
+    # Assume any non-option argument is the destination directory
+    destination_dir="$1"
+    shift
+    ;;
+  esac
+done
+
+# Check if destination directory is provided
+if [[ -z "$destination_dir" ]]; then
+  echo "Usage: $0 [--append] <destination_directory>"
   exit 1
 fi
-
-destination_dir="$1"
 
 # Create the destination directory if it doesn't exist
 mkdir -p "$destination_dir"
@@ -28,7 +44,7 @@ while IFS= read -r file_path || [[ -n "$file_path" ]]; do
 
   # Check for duplicate basenames
   if [[ -n "${dest_files[$filename]}" ]]; then
-    # printf "\rSkipping %-60s" "$filename"
+    printf "\r\033[KSkipping %-60s" "$filename"
     continue
   fi
 
@@ -47,23 +63,25 @@ for file_path in "${file_paths[@]}"; do
   # If rsync_output is non-empty, it means the file was copied or updated
   if [[ -n "$rsync_output" ]]; then
     # Display the filename on a single line
-    printf "\rCopying %-60s" "$filename"
+    printf "\r\033[KCopying %-60s" "$filename"
   fi
 done
 
-# Ensure we move to the next line after copying
-echo
+# Remove the echo that adds a newline here to prevent the extra blank line
+# echo
 
 # Remove files in the destination directory that are not in the source list
-for file in "$destination_dir"/*; do
-  if [[ -f "$file" ]]; then
-    basename=$(basename "$file")
-    if [[ -z "${dest_files[$basename]}" ]]; then
-      rm -f "$file"
-      printf "\rRemoving %-80s" "$basename"
+if [[ $append_mode -eq 0 ]]; then
+  for file in "$destination_dir"/*; do
+    if [[ -f "$file" ]]; then
+      basename=$(basename "$file")
+      if [[ -z "${dest_files[$basename]}" ]]; then
+        rm -f "$file"
+        printf "\r\033[KRemoving %-80s" "$basename"
+      fi
     fi
-  fi
-done
+  done
+fi
 
-# Move to the next line after completion
-echo "File copying process completed."
+# Print the "done." message, overwriting the last progress message
+printf "\r\033[Kdone.\n"

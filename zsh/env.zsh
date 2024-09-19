@@ -15,7 +15,7 @@ export LOCAL_MEDIA_PATHS="$HOME/Downloads/Porn:$HOME/Media/Porn:$HOME/Movies/Por
 export LOCAL_CACHE_PATHS="$HOME/Movies/Cache:$HOME/Media/Cache"
 export LOCAL_CACHE_PATH="$HOME/Movies/Cache"
 export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn"
-export MASTER_MEDIA_DIR="/Volumes/BabyBlue2TB/Movies"
+export MASTER_MEDIA_DIR="/Volumes/FireBird1TB/Movies"
 export MEDIA_INBOX_PATH="$HOME/Movies/Porn/originals/_inbox"
 export INDEX_DIR="$HOME/doc/indexes"
 

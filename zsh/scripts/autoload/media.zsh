@@ -31,14 +31,22 @@ ls-tags() {
 }
 
 cache-copy-all() {
-  echo "Caching clips..."
-  ls-media --match-string "clips" --match-string "#top" | copy-flat "$LOCAL_CACHE_PATH/clips"
+  if [ ! -d "$MASTER_MEDIA_DIR" ]; then
+    echo "Error: MASTER_MEDIA_DIR '$MASTER_MEDIA_DIR' does not exist. Is the master volume connected?"
+    return 1
+  fi
 
-  echo "\nCaching scenes..."
-  ls-media --match-string "scenes" --match-string "#top" | copy-flat "$LOCAL_CACHE_PATH/scenes"
+  echo "Caching #top clips..."
+  ls-media --match-string "clips" --match-string "#top" --match-string "$MASTER_MEDIA_DIR" | copy-flat "$LOCAL_CACHE_PATH/clips"
 
-  echo "\nCaching portraits..."
-  ls-media --match-string "#portrait" --match-string "#top" | copy-flat "$LOCAL_CACHE_PATH/portrait"
+  echo "Caching #suki clips..."
+  ls-media --match-string "clips" --match-string "#suki" --match-string "$MASTER_MEDIA_DIR" | copy-flat --append "$LOCAL_CACHE_PATH/clips"
+
+  echo "Caching #top scenes..."
+  ls-media --match-string "scenes" --match-string "#top" --match-string "$MASTER_MEDIA_DIR" | copy-flat "$LOCAL_CACHE_PATH/scenes"
+
+  echo "Caching #top portraits..."
+  ls-media --match-string "#portrait" --match-string "#top" --match-string "$MASTER_MEDIA_DIR" | copy-flat "$LOCAL_CACHE_PATH/portrait"
 
   # echo "\nCaching originals..."
   # ls-media --match-string "originals" --match-string "#top" | copy-flat "$LOCAL_CACHE_PATH/originals"
