@@ -13,11 +13,16 @@ alias top=fzf-media-top
 alias .search-top=fzf-media-top
 
 fzf-search-clips() {
-  ls-media | grep "\/clips\/" | grep-safe | fzf-play
+  ls-media --match-string "clips" | grep-safe | fzf-play
 }
 alias @search-clips=fzf-search-clips
 alias .search-clips=fzf-search-clips
 alias search-clips=fzf-search-clips
+
+fzf-search-local() {
+  ls-media --match-string "$HOME" | grep-safe | fzf-play
+}
+alias @search-local=fzf-search-local
 
 fzf-safe-media-latest() {
   ls-media --sort modified | grep-safe | fzf-play

@@ -28,8 +28,7 @@ while IFS= read -r file_path || [[ -n "$file_path" ]]; do
 
   # Check for duplicate basenames
   if [[ -n "${dest_files[$filename]}" ]]; then
-    # echo "\nDuplicate filename detected: $filename"
-    # echo "Skipping $file_path to avoid conflict."
+    # printf "\rSkipping %-60s" "$filename"
     continue
   fi
 

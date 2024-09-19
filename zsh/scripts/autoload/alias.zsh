@@ -1,9 +1,10 @@
 # media functions
-alias @play-latest=mpv-play-latest
-alias @play="fzf-safe-media"
-alias @play-all="fzf-media-all"
-alias @play-latest="fzf-safe-media-latest"
+alias @play-latest=mpv-play-sorted
+alias @search="fzf-safe-media"
+alias @search-all="fzf-media-all"
+alias @search-latest="fzf-safe-media-latest"
 alias @stats="media-stats"
+alias @play-all="mpv-play-all"
 #alias @cache-portrait="rsync-cache #portrait $MASTER_MEDIA_DIR "
 
 alias c=e-zsh
