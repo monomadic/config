@@ -144,6 +144,11 @@ function kitty-popup-centered() {
     zsh -c "$TEMP_COMMAND"
 }
 
+function search-dj-audio-tracks() {
+  cd $HOME/Music/Tracks/Audio && fzf-play
+}
+alias @dj-audio-tracks=search-dj-audio-tracks
+
 function play-dj-visuals() {
   cd $HOME/Music/DJ/Visuals && @play-pwd
 }
