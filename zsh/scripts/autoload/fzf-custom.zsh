@@ -92,14 +92,9 @@ function fzf-insert() {
       --bind 'ctrl-e:execute:${EDITOR:-nvim} {1}' \
       --bind 'ctrl-o:execute:open {1}' \
       "$@"))
-  # [[ -n "$files" ]] && cd "${files[@]}"
-  # print $files
-  # zle && zle reset-prompt
-  #[ -n "$files" ] &&
   print -z -- "$1 ${files[@]:q:q}"
   zle
 }
-zle -N fzf-insert
 
 # fzf directory options
 function fzf_dirs() {
@@ -123,18 +118,15 @@ function fzf-edit() {
   [[ -n "$files" ]] && cd "${files[@]}" && nvim
   zle && zle reset-prompt
 }
-zle -N fzf_edit
 
 function fzf-marks() {
   files=$(ls_marks | fzf_dirs)
   [[ -n "$files" ]] && cd "${files[@]}" && clear && exa-ls
   zle && zle reset-prompt
 }
-zle -N fzf-marks
 
 function fzf_cd_project() {
   files=$(ls_projects | fzf_dirs)
   [[ -n "$files" ]] && cd "${files[@]}"
   zle && zle reset-prompt
 }
-zle -N fzf_cd_project

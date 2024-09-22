@@ -6,8 +6,8 @@ bindkey '^ ' lfcd
 bindkey '^f' fzf-ripgrep
 bindkey '^k' clear-reset
 bindkey '^m' magic-enter
-bindkey '^o' fzf-marks
-bindkey '^y' fzf-insert
+zle -N fzf-marks && bindkey '^o' fzf-marks
+zle -N fzf-insert && bindkey '^y' fzf-insert
 bindkey '^[u' cd-up
 # bindkey '^e' fzf_edit
 # bindkey '^b' fzm
