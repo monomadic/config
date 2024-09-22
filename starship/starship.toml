@@ -1,0 +1,4 @@
+[custom.vi_mode]
+format = "[$symbol($status)]($style) "
+symbol = "$env(STARSHIP_VI_MODE)"
+style = "bold green"

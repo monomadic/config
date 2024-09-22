@@ -30,23 +30,24 @@ ls-tags() {
   fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
 }
 
+cache-copy-clips() {
+  local dest="$1"
+
+  echo "Caching clips to $dest"
+  ls-media --match-regex '/clips/' --match-regex '#(suki|top|cumshot)' | copy-flat "$dest/clips"
+}
+
 cache-copy-all() {
   if [ ! -d "$MASTER_MEDIA_DIR" ]; then
     echo "Error: MASTER_MEDIA_DIR '$MASTER_MEDIA_DIR' does not exist. Is the master volume connected?"
     return 1
   fi
 
-  echo "Caching #top clips..."
-  ls-media --match-string "clips" --match-string "#top" --match-string "$MASTER_MEDIA_DIR" | copy-flat "$LOCAL_CACHE_PATH/clips"
-
-  echo "Caching #suki clips..."
-  ls-media --match-string "clips" --match-string "#suki" --match-string "$MASTER_MEDIA_DIR" | copy-flat --append "$LOCAL_CACHE_PATH/clips"
-
-  echo "Caching #cumshot clips..."
-  ls-media --match-string "clips" --match-string "#cumshot" --match-string "$MASTER_MEDIA_DIR" | copy-flat --append "$LOCAL_CACHE_PATH/clips"
+  echo "Caching clips..."
+  ls-media --match-regex '\/clips\/' --match-regex '#(suki|top|cumshot)' | copy-flat "$LOCAL_CACHE_PATH/clips"
 
   echo "Caching #top scenes..."
-  ls-media --match-string "scenes" --match-string "#top" --match-string "$MASTER_MEDIA_DIR" | copy-flat "$LOCAL_CACHE_PATH/scenes"
+  ls-media --match-string "scenes" --match-string "#top" | copy-flat "$LOCAL_CACHE_PATH/scenes"
 
   echo "Caching #top portraits..."
   ls-media --match-string "#portrait" --match-string "#top" --match-string "$MASTER_MEDIA_DIR" | copy-flat "$LOCAL_CACHE_PATH/portrait"

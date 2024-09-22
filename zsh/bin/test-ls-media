@@ -1,0 +1,420 @@
+#!/usr/bin/env bash
+
+# Test script for the given script
+
+set -e
+
+# Create a temporary directory for testing
+TEST_DIR=$(mktemp -d)
+
+# Ensure cleanup on exit
+cleanup() {
+  rm -rf "$TEST_DIR"
+}
+trap cleanup EXIT
+
+# Create test directories and files
+mkdir -p "$TEST_DIR/media1"
+mkdir -p "$TEST_DIR/media2"
+mkdir -p "$TEST_DIR/media3"
+
+# Create files in media1
+echo "Content of file1.mp4" >"$TEST_DIR/media1/file1.mp4"
+echo "Content of file2.avi" >"$TEST_DIR/media1/file2.avi"
+echo "Content of document.txt" >"$TEST_DIR/media1/document.txt"
+
+# Create files in media2
+echo "Content of movie1.mkv" >"$TEST_DIR/media2/movie1.mkv"
+echo "Content of movie2.mp4" >"$TEST_DIR/media2/movie2.mp4"
+echo "Content of movie_special.mkv" >"$TEST_DIR/media2/movie_special.mkv"
+
+# Create files in media3
+echo "Content of song.mp3" >"$TEST_DIR/media3/song.mp3"
+echo "Content of image.jpg" >"$TEST_DIR/media3/image.jpg"
+echo "Content of special_song.mp3" >"$TEST_DIR/media3/special_song.mp3"
+
+# Create a bin directory for mock commands
+BIN_DIR="$TEST_DIR/bin"
+mkdir -p "$BIN_DIR"
+
+# Mock ls-media-paths script
+cat <<EOF >"$BIN_DIR/ls-media-paths"
+#!/usr/bin/env bash
+echo "$TEST_DIR/media1"
+echo "$TEST_DIR/media2"
+echo "$TEST_DIR/media3"
+EOF
+chmod +x "$BIN_DIR/ls-media-paths"
+
+# Mock fd-video script with support for --match-regex and sorted output
+cat <<'EOF' >"$BIN_DIR/fd-video"
+#!/usr/bin/env bash
+
+# Simulate fd-video command
+
+# Initialize variables
+ignore_case=false
+fixed_strings=false
+null_delimiter=false
+and_terms=()
+regex_terms=()
+
+# Parse arguments
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -t)
+      shift 2
+      ;;
+    --full-path)
+      shift
+      ;;
+    --ignore-case)
+      ignore_case=true
+      shift
+      ;;
+    --fixed-strings)
+      fixed_strings=true
+      shift
+      ;;
+    -0)
+      null_delimiter=true
+      shift
+      ;;
+    --and)
+      and_terms+=("$2")
+      shift 2
+      ;;
+    --regex)
+      regex_terms+=("$2")
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+# List and sort video files
+find . -type f \( -iname "*.mp4" -o -iname "*.avi" -o -iname "*.mkv" \) | sort | while read -r file; do
+  match=true
+
+  # Check --and terms (match-string)
+  for term in "${and_terms[@]}"; do
+    if $ignore_case; then
+      shopt -s nocasematch
+      [[ "$file" != *"$term"* ]] && match=false
+      shopt -u nocasematch
+    else
+      [[ "$file" != *"$term"* ]] && match=false
+    fi
+  done
+
+  # Check --regex terms
+  for regex in "${regex_terms[@]}"; do
+    if $ignore_case; then
+      shopt -s nocasematch
+      [[ "$file" =~ $regex ]] || match=false
+      shopt -u nocasematch
+    else
+      [[ "$file" =~ $regex ]] || match=false
+    fi
+  done
+
+  if $match; then
+    file="${file#./}"
+    if $null_delimiter; then
+      printf '%s\0' "$file"
+    else
+      echo "$file"
+    fi
+  fi
+done
+EOF
+chmod +x "$BIN_DIR/fd-video"
+
+# Add BIN_DIR to PATH
+export PATH="$BIN_DIR:$PATH"
+
+# Copy the script to be tested into TEST_DIR
+SCRIPT_PATH="$TEST_DIR/test_script.sh"
+cat <<'EOF' >"$SCRIPT_PATH"
+#!/usr/bin/env bash
+
+usage() {
+  echo "Usage: $0 [--match-string STRING]... [--match-regex REGEX]... [--sort SORT_OPTION] [--reverse] [--verbose]" >&2
+  echo "Options:" >&2
+  echo " --match-string STRING   Only list files where the path contains all the given strings (case-insensitive). Can be used multiple times." >&2
+  echo " --match-regex REGEX     Only list files where the path matches all the given regex patterns. Can be used multiple times." >&2
+  echo " --sort SORT_OPTION      Sort files by the given option (modified, size, name)" >&2
+  echo " --reverse               Reverse the sort order and the final list" >&2
+  echo " --verbose               Enable verbose logging" >&2
+}
+
+verbose=false
+
+log_verbose() {
+  if $verbose; then
+    echo "[DEBUG] $1" >&2
+  fi
+}
+
+match_strings=()
+match_regexes=()
+sort_option=""
+reverse=false
+
+# Parse command-line arguments
+while [ $# -gt 0 ]; do
+  case $1 in
+  --match-string)
+    match_strings+=("$2")
+    shift 2
+    ;;
+  --match-regex)
+    match_regexes+=("$2")
+    shift 2
+    ;;
+  --sort)
+    sort_option="$2"
+    shift 2
+    ;;
+  --reverse)
+    reverse=true
+    shift
+    ;;
+  --verbose)
+    verbose=true
+    shift
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+  esac
+done
+
+process_input_fd() {
+  local dir="$1"
+  log_verbose "Processing input with fd-video in directory: $dir"
+  cd "$dir" || {
+    log_verbose "Failed to change to directory: $dir"
+    return 1
+  }
+
+  # Build fd-video command arguments
+  fd_video_cmd=(fd-video -t f --full-path --ignore-case --fixed-strings -0)
+
+  # Add match strings with --and
+  for str in "${match_strings[@]}"; do
+    fd_video_cmd+=(--and "$str")
+  done
+
+  # Add match regexes with --regex
+  for regex in "${match_regexes[@]}"; do
+    fd_video_cmd+=(--regex "$regex")
+  done
+
+  log_verbose "Executing in $dir: ${fd_video_cmd[*]}"
+
+  # Execute fd-video and process results
+  "${fd_video_cmd[@]}" | while IFS= read -r -d '' file; do
+    if [ -n "$sort_option" ]; then
+      case "$sort_option" in
+      modified)
+        # Use a tab as a delimiter
+        mod_time=$(stat -f "%m" "$file")
+        printf '%s\t%s\n' "$mod_time" "$file"
+        ;;
+      size)
+        file_size=$(stat -f "%z" "$file")
+        printf '%s\t%s\n' "$file_size" "$file"
+        ;;
+      name)
+        echo "$file"
+        ;;
+      *)
+        echo "$file"
+        ;;
+      esac
+    else
+      echo "$file"
+    fi
+  done | {
+    if [ -n "$sort_option" ]; then
+      case "$sort_option" in
+      modified | size)
+        sort -n -k1,1 | cut -f2-
+        ;;
+      name)
+        sort
+        ;;
+      *)
+        cat
+        ;;
+      esac
+    else
+      cat
+    fi
+  } | while IFS= read -r file; do
+    printf '%s/%s\n' "$dir" "$file"
+  done
+}
+
+directories=$(ls-media-paths)
+log_verbose "Directories to search: $directories"
+if [ -z "$directories" ]; then
+  echo "Error: No directories found from ls-media-paths" >&2
+  exit 1
+fi
+
+# Temporary file to store all results
+temp_file=$(mktemp)
+for dir in $directories; do
+  log_verbose "Searching directory: $dir"
+  if [ ! -d "$dir" ]; then
+    log_verbose "Skipping non-existent or non-directory: $dir"
+    continue
+  fi
+  if [ ! -r "$dir" ]; then
+    log_verbose "Cannot read directory $dir (permission denied)"
+    continue
+  fi
+  process_input_fd "$dir" >>"$temp_file"
+done
+
+# Reverse the entire list if --reverse option is used
+if $reverse; then
+  tac "$temp_file"
+else
+  cat "$temp_file"
+fi
+rm "$temp_file"
+log_verbose "Script execution completed"
+EOF
+chmod +x "$SCRIPT_PATH"
+
+cd "$TEST_DIR"
+
+# Function to compare outputs with optional sorting
+compare_outputs() {
+  local test_number="$1"
+  local actual_output="$2"
+  local expected_output="$3"
+  local sort_output="$4" # "sort" or "nosort"
+
+  if [ "$sort_output" == "sort" ]; then
+    actual_output=$(echo "$actual_output" | sort)
+    expected_output=$(echo "$expected_output" | sort)
+  fi
+
+  if [ "$actual_output" == "$expected_output" ]; then
+    echo "Test $test_number passed"
+  else
+    echo "Test $test_number failed"
+    echo "Expected output:"
+    echo "$expected_output"
+    echo "Actual output:"
+    echo "$actual_output"
+    exit 1
+  fi
+}
+
+# Test 1: Run script without arguments
+output=$(./test_script.sh)
+
+expected_output="$TEST_DIR/media1/file1.mp4
+$TEST_DIR/media1/file2.avi
+$TEST_DIR/media2/movie1.mkv
+$TEST_DIR/media2/movie2.mp4
+$TEST_DIR/media2/movie_special.mkv"
+
+compare_outputs "1" "$output" "$expected_output" "sort"
+
+# Test 2: Run script with --match-string 'file1'
+output=$(./test_script.sh --match-string 'file1')
+
+expected_output="$TEST_DIR/media1/file1.mp4"
+
+compare_outputs "2" "$output" "$expected_output" "sort"
+
+# Test 3: Run script with --match-string 'movie' --sort name
+output=$(./test_script.sh --match-string 'movie' --sort name)
+
+expected_output="$TEST_DIR/media2/movie1.mkv
+$TEST_DIR/media2/movie2.mp4
+$TEST_DIR/media2/movie_special.mkv"
+
+compare_outputs "3" "$output" "$expected_output" "nosort"
+
+# Test 4: Run script with --sort size
+output=$(./test_script.sh --sort size)
+
+# Since file sizes are identical in this mock, sorting by size won't change the order
+# Therefore, we sort the expected output to match
+expected_output="$TEST_DIR/media1/file1.mp4
+$TEST_DIR/media1/file2.avi
+$TEST_DIR/media2/movie1.mkv
+$TEST_DIR/media2/movie2.mp4
+$TEST_DIR/media2/movie_special.mkv"
+
+compare_outputs "4" "$output" "$expected_output" "sort"
+
+# Test 5: Run script with --reverse
+output=$(./test_script.sh --reverse)
+
+# Define the expected output as the reverse of the sorted expected_output from Test 1
+expected_output="$TEST_DIR/media2/movie_special.mkv
+$TEST_DIR/media2/movie2.mp4
+$TEST_DIR/media2/movie1.mkv
+$TEST_DIR/media1/file2.avi
+$TEST_DIR/media1/file1.mp4"
+
+compare_outputs "5" "$output" "$expected_output" "nosort"
+
+# ================================
+# Additional Tests as Requested
+# ================================
+
+# Test 6: Run script with two --match-string arguments
+output=$(./test_script.sh --match-string 'movie' --match-string 'special')
+
+expected_output="$TEST_DIR/media2/movie_special.mkv"
+
+compare_outputs "6" "$output" "$expected_output" "sort"
+
+# Test 7: Run script with two --match-regex arguments
+output=$(./test_script.sh --match-regex '^.*\.mkv$' --match-regex 'special')
+
+expected_output="$TEST_DIR/media2/movie_special.mkv"
+
+compare_outputs "7" "$output" "$expected_output" "sort"
+
+# Test 8: Run script with one --match-string and one --match-regex combined
+output=$(./test_script.sh --match-string 'movie' --match-regex '^.*_special\.mkv$')
+
+expected_output="$TEST_DIR/media2/movie_special.mkv"
+
+compare_outputs "8" "$output" "$expected_output" "sort"
+
+# Test 9: Run script with two --match-string arguments that have no matching files
+output=$(./test_script.sh --match-string 'nonexistent' --match-string 'file')
+
+expected_output="" # No matching files
+
+compare_outputs "9" "$output" "$expected_output" "sort"
+
+# Test 10: Run script with two --match-regex arguments that have no matching files
+output=$(./test_script.sh --match-regex '^.*\.txt$' --match-regex 'movie')
+
+expected_output="" # No matching files
+
+compare_outputs "10" "$output" "$expected_output" "sort"
+
+# Test 11: Run script with one --match-string and one --match-regex combined that have no matching files
+output=$(./test_script.sh --match-string 'file' --match-regex '^movie.*\.mp3$')
+
+expected_output="" # No matching files
+
+compare_outputs "11" "$output" "$expected_output" "sort"
+
+echo "All tests passed successfully."

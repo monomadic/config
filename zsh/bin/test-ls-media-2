@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Create temporary directories and files
+temp_dir=$(mktemp -d)
+mkdir -p "$temp_dir/dir1"
+mkdir -p "$temp_dir/dir2"
+
+touch "$temp_dir/dir1/file1.mp4"
+touch "$temp_dir/dir1/file2.avi"
+touch "$temp_dir/dir1/file3.txt"
+touch "$temp_dir/dir2/movie1.mkv"
+touch "$temp_dir/dir2/movie2.mp4"
+touch "$temp_dir/dir2/notes.doc"
+
+# Create a mock 'ls-media-paths' script
+mock_dir=$(mktemp -d)
+echo -e '#!/usr/bin/env bash\necho "'"$temp_dir/dir1 $temp_dir/dir2"'"' > "$mock_dir/ls-media-paths"
+chmod +x "$mock_dir/ls-media-paths"
+
+# Create a mock 'fd-video' script
+echo '#!/usr/bin/env bash' > "$mock_dir/fd-video"
+echo '
+# Mock fd-video script
+find . -type f \( -iname "*.mp4" -o -iname "*.avi" -o -iname "*.mkv" \) -printf "%P\0"
+' >> "$mock_dir/fd-video"
+chmod +x "$mock_dir/fd-video"
+
+# Update PATH to include the mock directory
+export PATH="$mock_dir:$PATH"
+
+# The script to test
+script_to_test="./script.sh"
+
+# Test 1: Basic usage
+echo "Test 1: Basic usage"
+output=$("$script_to_test")
+echo "Output:"
+echo "$output"
+expected_output=$(printf '%s\n' "$temp_dir/dir1/file1.mp4" "$temp_dir/dir1/file2.avi" "$temp_dir/dir2/movie1.mkv" "$temp_dir/dir2/movie2.mp4")
+if [ "$output" = "$expected_output" ]; then
+  echo "Test 1 passed"
+else
+  echo "Test 1 failed"
+  exit 1
+fi
+
+# Test 2: --match-string "file1"
+echo "Test 2: --match-string 'file1'"
+output=$("$script_to_test" --match-string "file1")
+echo "Output:"
+echo "$output"
+expected_output="$temp_dir/dir1/file1.mp4"
+if [ "$output" = "$expected_output" ]; then
+  echo "Test 2 passed"
+else
+  echo "Test 2 failed"
+  exit 1
+fi
+
+# Test 3: --match-regex "movie[0-9]"
+echo "Test 3: --match-regex 'movie[0-9]'"
+output=$("$script_to_test" --match-regex "movie[0-9]")
+echo "Output:"
+echo "$output"
+expected_output=$(printf '%s\n' "$temp_dir/dir2/movie1.mkv" "$temp_dir/dir2/movie2.mp4")
+if [ "$output" = "$expected_output" ]; then
+  echo "Test 3 passed"
+else
+  echo "Test 3 failed"
+  exit 1
+fi
+
+# Test 4: --match-string "file" --match-regex ".*\.mp4$"
+echo "Test 4: --match-string 'file' --match-regex '.*\.mp4$'"
+output=$("$script_to_test" --match-string "file" --match-regex ".*\.mp4$")
+echo "Output:"
+echo "$output"
+expected_output="$temp_dir/dir1/file1.mp4"
+if [ "$output" = "$expected_output" ]; then
+  echo "Test 4 passed"
+else
+  echo "Test 4 failed"
+  exit 1
+fi
+
+# Test 5: --sort name --reverse
+echo "Test 5: --sort name --reverse"
+output=$("$script_to_test" --sort name --reverse)
+echo "Output:"
+echo "$output"
+expected_output=$(printf '%s\n' "$temp_dir/dir2/movie2.mp4" "$temp_dir/dir2/movie1.mkv" "$temp_dir/dir1/file2.avi" "$temp_dir/dir1/file1.mp4")
+if [ "$output" = "$expected_output" ]; then
+  echo "Test 5 passed"
+else
+  echo "Test 5 failed"
+  exit 1
+fi
+
+# Cleanup
+rm -rf "$temp_dir"
+rm -rf "$mock_dir"
+
+echo "All tests passed"

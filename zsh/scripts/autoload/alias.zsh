@@ -32,6 +32,8 @@ alias .tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --reverse --exact --
 alias .tab-newest="cd $TABLATURE_DIR && fd . --extension pdf -t f --exec stat -f '%m%t%N' | sort -nr | cut -f2- | fzf --reverse --exact --bind 'enter:execute(open {})'"
 alias .uptime="uptime-pretty.zsh"
 
+alias .brave-mp4-support="/Applications/Brave\ Browser.app/Contents/MacOS/Brave\ Browser --disable-features=MediaSource,UseModernMediaControls"
+
 alias dlv="download-video"
 alias dlp="download-video porn"
 alias dly="download-video youtube"

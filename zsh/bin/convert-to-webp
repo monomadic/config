@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# Check if correct number of arguments is provided
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <input.mp4> [output.webp] [quality] [frames]"
+    echo "  quality : WebP quality (0-100, default: 75)"
+    echo "  frames  : Number of frames to convert (default: 1)"
+    exit 1
+fi
+
+# Set input and output filenames
+input="$1"
+output="${2:-${input%.mp4}.webp}"
+
+# Set default values for quality and frames
+quality="${3:-75}"
+frames="${4:-1}"
+
+# Check if input file exists
+if [ ! -f "$input" ]; then
+    echo "Error: Input file '$input' does not exist."
+    exit 1
+fi
+
+# Perform the conversion
+ffmpeg -i "$input" -vframes "$frames" -q:v "$quality" "$output"
+
+# Check if conversion was successful
+if [ $? -eq 0 ]; then
+    echo "Successfully converted $frames frame(s) of $input to $output with quality $quality"
+else
+    echo "Error occurred during conversion"
+    exit 1
+fi

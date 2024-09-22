@@ -1,0 +1,36 @@
+#!/bin/zsh
+
+# Check if URL is provided
+if [ -z "$1" ]; then
+  echo "Usage: $0 <url>"
+  exit 1
+fi
+
+# Extract the domain from the URL
+domain=$(echo "$1" | awk -F[/:] '{print $4}')
+
+# Ensure the site is faphouse.com, otherwise exit with an error
+if [[ "$domain" != "faphouse.com" ]]; then
+  echo "Error: This script should only be run on faphouse.com links."
+  exit 1
+fi
+
+# Fetch the page content
+html_content=$(curl -s "$1")
+
+# Extract TITLE
+title=$(echo "$html_content" | grep -oP '(?<=<meta property="og:title" content=")[^"]+')
+
+# Extract DESCRIPTION
+description=$(echo "$html_content" | grep -oP '(?<=<meta name="description" content=")[^"]+')
+
+# Extract CREATOR (using the 'a' tag with specific class)
+creator=$(echo "$html_content" | grep -oP '(?<=<a class="video-info-details__studio-link " href="[^"]+">)[^<]+')
+
+# Output the formatted string: [$creator] $title [FapHouse].mp4
+if [ -n "$title" ] && [ -n "$creator" ]; then
+  echo "[$creator] $title [FapHouse].mp4"
+else
+  echo "Error: Unable to extract required data."
+  exit 1
+fi

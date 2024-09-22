@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# Check if correct number of arguments is provided
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <input.mp4> [output.webm] [crf] [audio_bitrate]"
+    echo "  crf           : Constant Rate Factor (0-63, default: 30)"
+    echo "  audio_bitrate : Audio Bitrate in k (default: 128k)"
+    exit 1
+fi
+
+# Set input and output filenames
+input="$1"
+output="${2:-${input%.mp4}.webm}"
+
+# Set default values for CRF and audio bitrate
+crf="${3:-30}"
+audio_bitrate="${4:-128k}"
+
+# Check if input file exists
+if [ ! -f "$input" ]; then
+    echo "Error: Input file '$input' does not exist."
+    exit 1
+fi
+
+# Perform the conversion
+ffmpeg -i "$input" -c:v libvpx-vp9 -crf "$crf" -b:v 0 -b:a "$audio_bitrate" -c:a libopus "$output"
+
+# Check if conversion was successful
+if [ $? -eq 0 ]; then
+    echo "Successfully converted $input to $output"
+else
+    echo "Error occurred during conversion"
+    exit 1
+fi

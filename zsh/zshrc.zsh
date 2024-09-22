@@ -1,6 +1,10 @@
 # Load environment variables
+#
 # source "$HOME/.env"
 local env_file="$HOME/config/zsh/env.zsh"
+
+# Enable vi mode
+bindkey -v
 
 GREEN=$(tput setaf 5)
 BLUE=$(tput setaf 4)

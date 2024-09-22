@@ -27,7 +27,8 @@ alias @search-local=fzf-search-local
 fzf-safe-media-latest() {
   ls-media --sort modified | grep-safe | fzf-play
 }
-alias .cumshot="ls-media --sort modified | grep #cumshot | fzf-play"
+alias .cumshot="ls-media --sort modified --match-string '#cumshot' | mpv-stdin --shuffle"
+alias .search-cumshot="ls-media --sort modified --match-string '#cumshot' | fzf-play"
 
 # Include unsafe files
 fzf-media-all() {

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 
 usage() {
-  echo "Usage: $0 [--match-string STRING]... [--sort SORT_OPTION] [--reverse] [--verbose]" >&2
+  echo "Usage: $0 [--match-string STRING]... [--match-regex REGEX]... [--sort SORT_OPTION] [--reverse] [--verbose]" >&2
   echo "Options:" >&2
   echo " --match-string STRING   Only list files where the path contains all the given strings (case-insensitive). Can be used multiple times." >&2
+  echo " --match-regex REGEX     Only list files where the path matches all the given regex patterns (case-insensitive). Can be used multiple times." >&2
   echo " --sort SORT_OPTION      Sort files by the given option (modified, size, name)" >&2
   echo " --reverse               Reverse the sort order and the final list" >&2
   echo " --verbose               Enable verbose logging" >&2
@@ -18,14 +19,51 @@ log_verbose() {
 }
 
 match_strings=()
+match_regexes=()
 sort_option=""
 reverse=false
+
+completions() {
+  cat <<EOF
+#!/usr/bin/env bash
+# Bash completion script for test_script.sh
+
+_test_script_completions() {
+  local cur prev opts
+  COMPREPLY=()
+  cur="\${COMP_WORDS[COMP_CWORD]}"
+  prev="\${COMP_WORDS[COMP_CWORD-1]}"
+  opts="--match-string --match-regex --sort --reverse --verbose completions"
+
+  case "\${prev}" in
+    --sort)
+      COMPREPLY=( \$(compgen -W "modified size name" -- "\${cur}") )
+      return 0
+      ;;
+  esac
+
+  COMPREPLY=( \$(compgen -W "\${opts}" -- "\${cur}") )
+}
+
+complete -F _test_script_completions test_script.sh
+EOF
+}
+
+# Check if the first argument is 'completions'
+if [ "$1" == "completions" ]; then
+  completions
+  exit 0
+fi
 
 # Parse command-line arguments
 while [ $# -gt 0 ]; do
   case $1 in
   --match-string)
     match_strings+=("$2")
+    shift 2
+    ;;
+  --match-regex)
+    match_regexes+=("$2")
     shift 2
     ;;
   --sort)
@@ -56,12 +94,35 @@ process_input_fd() {
   }
 
   # Build fd-video command arguments
-  fd_video_cmd=(fd-video -t f --full-path --ignore-case --fixed-strings -0)
+  fd_video_cmd=(fd-video -t f --full-path --ignore-case -0)
 
-  # Add match strings with --and
+  local first_pattern=true
+
+  # Check match_strings
+  match=true
+
   for str in "${match_strings[@]}"; do
-    fd_video_cmd+=(--and "$str")
+    shopt -s nocasematch
+    if [[ "$file" != *"$str"* ]]; then
+      match=false
+      shopt -u nocasematch
+      break
+    fi
+    shopt -u nocasematch
   done
+
+  # Check match_regexes
+  if $match; then
+    for regex in "${match_regexes[@]}"; do
+      shopt -s nocasematch
+      if [[ ! "$file" =~ $regex ]]; then
+        match=false
+        shopt -u nocasematch
+        break
+      fi
+      shopt -u nocasematch
+    done
+  fi
 
   log_verbose "Executing in $dir: ${fd_video_cmd[*]}"
 
