@@ -60,3 +60,5 @@ alias @cache-update="cache-copy-all && cd $LOCAL_CACHE_PATH"
 media-cache-clear() {
   cd $LOCAL_CACHE_PATH && rm -rf **/*
 }
+
+alias fd-media-check-cumshot="fd '.*\s+cumshot' --exclude '*#cumshot*'"

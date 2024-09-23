@@ -6,26 +6,26 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
-# Extract the domain from the URL
-domain=$(echo "$1" | awk -F[/:] '{print $4}')
+# Extract the domain from the URL using sed
+domain=$(echo "$1" | sed -E 's#https?://([^/]+).*#\1#')
 
 # Ensure the site is faphouse.com, otherwise exit with an error
 if [[ "$domain" != "faphouse.com" ]]; then
-  echo "Error: This script should only be run on faphouse.com links."
+  echo "Error: This script should only be run on faphouse.com links. ($domain)"
   exit 1
 fi
 
 # Fetch the page content
 html_content=$(curl -s "$1")
 
-# Extract TITLE
-title=$(echo "$html_content" | grep -oP '(?<=<meta property="og:title" content=")[^"]+')
+# Extract TITLE using perl
+title=$(echo "$html_content" | perl -ne 'print "$1\n" if /<meta property="og:title" content="([^"]+)"/')
 
-# Extract DESCRIPTION
-description=$(echo "$html_content" | grep -oP '(?<=<meta name="description" content=")[^"]+')
+# Extract DESCRIPTION using perl
+description=$(echo "$html_content" | perl -ne 'print "$1\n" if /<meta name="description" content="([^"]+)"/')
 
-# Extract CREATOR (using the 'a' tag with specific class)
-creator=$(echo "$html_content" | grep -oP '(?<=<a class="video-info-details__studio-link " href="[^"]+">)[^<]+')
+# Extract CREATOR using perl (adjusted for potential whitespace in the class attribute)
+creator=$(echo "$html_content" | perl -ne 'print "$1\n" if /<a class="video-info-details__studio-link\s*" href="[^"]+">([^<]+)<\/a>/')
 
 # Output the formatted string: [$creator] $title [FapHouse].mp4
 if [ -n "$title" ] && [ -n "$creator" ]; then

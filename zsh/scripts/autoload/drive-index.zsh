@@ -35,6 +35,10 @@ fzf-media-all() {
   ls-media | fzf-play --kitty
 }
 
+fzf-media-untagged() {
+  ls-media | grep -v '#' | fzf-play --kitty
+}
+
 fzf-media-cache() {
   cd $HOME/Movies/Cache && fd-video | fzf-play
 }

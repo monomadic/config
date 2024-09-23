@@ -20,7 +20,7 @@ TEST_SITE="8.8.8.8"                                                  # External 
 DNS_SERVER="1.1.1.1"                                                 # Public DNS server (Cloudflare)
 CAPTIVE_TEST_URL="http://connectivitycheck.gstatic.com/generate_204" # Captive portal check URL
 
-function print_status_icon() {
+print_status_icon() {
   local STATUS_CODE=$1
   local ICON=$2
   local DESCRIPTION=$3

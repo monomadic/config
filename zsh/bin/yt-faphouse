@@ -1,0 +1,7 @@
+#!/bin/zsh
+
+local direct-url="$1"
+local faphouse-url="$2"
+local filename="`scrape-filename-faphouse $faphouse-url`"
+
+yt-url $direct-url $filename

@@ -65,6 +65,9 @@ files = { "xdg-applications" = "~/.local/share/applications" }
 [helix]
 files = { "helix" = "~/.config/helix" }
 
+[starship]
+files = { "starship/starship.toml" = "~/.config/starship.toml" }
+
 [lf]
 [lf.files]
 "lf/lfrc.conf" = { target = "~/.config/lf/lfrc", type = "symbolic" }

@@ -1,5 +1,6 @@
 packages = [
   "bin",
+	"starship",
   "chafa",
   "joshuto",
   "delta",

@@ -1,0 +1,111 @@
+#!/bin/zsh
+
+# Set the source path
+source_path="$MASTER_MEDIA_DIR/Porn"
+
+# Usage information
+usage() {
+  echo "Usage: $0 [--quiet] [--dry-run] [--log logfile] <dest_path> [filter_pattern]"
+  echo "  <dest_path>     : Destination path for rsync"
+  echo "  [filter_pattern]: Optional regex pattern to match files"
+  echo "Options:"
+  echo "  --quiet         : Quiet mode (minimal output)"
+  echo "  --dry-run       : Dry run (test the command without transferring files)"
+  echo "  --log logfile   : Log output to a file"
+  exit 1
+}
+
+# Default options
+quiet_mode=false
+dry_run=false
+logfile=""
+filter_pattern=""
+
+# Parse options
+while [[ "$1" =~ ^-- ]]; do
+  case "$1" in
+  --quiet)
+    quiet_mode=true
+    shift
+    ;;
+  --dry-run)
+    dry_run=true
+    shift
+    ;;
+  --log)
+    logfile="$2"
+    shift 2
+    ;;
+  *)
+    echo "Unknown option: $1"
+    usage
+    ;;
+  esac
+done
+
+# Check if at least the destination path is provided
+if [ "$#" -lt 1 ]; then
+  echo "Error: Missing destination path."
+  usage
+fi
+
+# Set destination path from arguments
+dest_path="$1"
+
+# Set filter pattern if provided (optional)
+if [ "$#" -eq 2 ]; then
+  filter_pattern="$2"
+fi
+
+# Check if source path exists
+if [ ! -d "$source_path" ]; then
+  echo "Error: Source path '$source_path' does not exist: is the volume connected?"
+  exit 1
+fi
+
+# Check if destination path is valid
+if [ ! -d "$dest_path" ]; then
+  echo "Error: Destination path '$dest_path' does not exist or is not accessible."
+  exit 1
+fi
+
+# Construct rsync options as an array
+rsync_opts=(-avR --delete --prune-empty-dirs)
+
+# Add include patterns based on filter
+if [ -n "$filter_pattern" ]; then
+  rsync_opts+=(--include '*/' --include "*${filter_pattern}*" --exclude '*')
+else
+  rsync_opts+=(--include '*/' --include '*')
+fi
+
+# Add dry run option if enabled
+if $dry_run; then
+  rsync_opts+=(--dry-run)
+fi
+
+# Perform rsync using the provided filter pattern
+if $quiet_mode; then
+  rsync "${rsync_opts[@]}" "${source_path}/." "${dest_path}/" >/dev/null 2>&1
+else
+  rsync "${rsync_opts[@]}" "${source_path}/." "${dest_path}/"
+fi
+
+# Log the rsync output if a logfile is specified
+if [ -n "$logfile" ]; then
+  rsync "${rsync_opts[@]}" "${source_path}/." "${dest_path}/" >"$logfile" 2>&1
+fi
+
+# Capture the exit code of rsync
+rsync_exit_code=$?
+
+# Check for rsync success or failure
+if [ $rsync_exit_code -eq 0 ]; then
+  if ! $quiet_mode; then
+    echo "Rsync completed successfully."
+  fi
+else
+  echo "Rsync encountered an error. Exit code: $rsync_exit_code"
+fi
+
+exit $rsync_exit_code

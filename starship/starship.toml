@@ -1,3 +1,8 @@
+[custom.wattage]
+command = "get_wattage"
+shell = "zsh"
+format = "[$output](bold green) "
+
 [custom.vi_mode]
 format = "[$symbol($status)]($style) "
 symbol = "$env(STARSHIP_VI_MODE)"
