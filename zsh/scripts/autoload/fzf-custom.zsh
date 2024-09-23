@@ -20,8 +20,8 @@ function mark {
   _fzm_color_marks <<<$mark_to_add
 }
 
-function ls_marks() {
-  cat $MARKS_FILE
+ls_marks() {
+  while IFS= read -r dir; do [ -d "$dir" ] && printf '%s\n' "$dir"; done <$MARKS_FILE
 }
 
 function ls_all() {
@@ -98,14 +98,14 @@ function fzf-insert() {
 
 # fzf directory options
 function fzf_dirs() {
-  # --height 60% \
   fzf --prompt 'cd  ' --layout=reverse \
     --exact \
     --color=bg+:-1,fg:4,info:15,fg+:5,header:7,hl:5,hl+:5 \
     --header $'ctrl-[f:finder, w:workspace, o:bookmarks, r:relative, p:project, c:cancel]\n' \
     --info=hidden \
     --pointer=' ' \
-    --preview 'exa --tree --icons --level 2 {}' \
+    --height=~100% \
+    --preview 'preview-dir {}' \
     --bind 'ctrl-f:execute-silent(open {1})' \
     --bind 'ctrl-o:change-prompt(bookmarks > )+reload(cat ~/.marks)' \
     --bind 'ctrl-r:change-prompt(relative > )+reload(fd --type d --strip-cwd-prefix --max-depth 1 && fd --type d --strip-cwd-prefix --max-results 10000)' \
@@ -120,13 +120,8 @@ function fzf-edit() {
 }
 
 function fzf-marks() {
+  magic-enter
   files=$(ls_marks | fzf_dirs)
-  [[ -n "$files" ]] && cd "${files[@]}" && clear && exa-ls
-  zle && zle reset-prompt
-}
-
-function fzf_cd_project() {
-  files=$(ls_projects | fzf_dirs)
   [[ -n "$files" ]] && cd "${files[@]}"
   zle && zle reset-prompt
 }

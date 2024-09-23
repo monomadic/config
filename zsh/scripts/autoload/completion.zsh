@@ -1,7 +1,5 @@
 # COMPLETIONS
 #
-autoload -Uz compinit
-compinit
 
 for config_file in $ZSH_CONFIG_DIR/completions/*.(zsh|sh); do
   GREEN=$(tput setaf 2)

@@ -1,7 +1,7 @@
 #!/bin/zsh
 
 # Set the source path
-source_path="$MASTER_MEDIA_DIR/Porn"
+source_path="$MASTER_MEDIA_DIR"
 
 # Usage information
 usage() {
@@ -69,8 +69,8 @@ if [ ! -d "$dest_path" ]; then
   exit 1
 fi
 
-# Construct rsync options as an array
-rsync_opts=(-avR --delete --prune-empty-dirs)
+# Construct rsync options as an array (without -R)
+rsync_opts=(-av --delete --prune-empty-dirs --exclude '*/.*')
 
 # Add include patterns based on filter
 if [ -n "$filter_pattern" ]; then
@@ -84,16 +84,16 @@ if $dry_run; then
   rsync_opts+=(--dry-run)
 fi
 
-# Perform rsync using the provided filter pattern
+# Perform rsync using the provided filter pattern, and ensure only contents of source_path are copied
 if $quiet_mode; then
-  rsync "${rsync_opts[@]}" "${source_path}/." "${dest_path}/" >/dev/null 2>&1
+  rsync "${rsync_opts[@]}" "${source_path}/" "${dest_path}/" >/dev/null 2>&1
 else
-  rsync "${rsync_opts[@]}" "${source_path}/." "${dest_path}/"
+  rsync "${rsync_opts[@]}" "${source_path}/" "${dest_path}/"
 fi
 
 # Log the rsync output if a logfile is specified
 if [ -n "$logfile" ]; then
-  rsync "${rsync_opts[@]}" "${source_path}/." "${dest_path}/" >"$logfile" 2>&1
+  rsync "${rsync_opts[@]}" "${source_path}/" "${dest_path}/" >"$logfile" 2>&1
 fi
 
 # Capture the exit code of rsync

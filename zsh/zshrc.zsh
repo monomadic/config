@@ -3,21 +3,38 @@
 # source "$HOME/.env"
 local env_file="$HOME/config/zsh/env.zsh"
 
+# Ensure autocompletion system is initialized
+autoload -Uz compinit
+compinit
+
+setopt autocd             # cd without typing cd
+setopt autopushd					# auto push dirs to recent dirs db (for dirs cmd)
+autoload -Uz add-zsh-hook # function autoloading (built-in zsh function)
+
+# Enable menu selection for better directory completion
+zstyle ':completion:*' menu select
+
+# Ensure Zsh treats directories as valid completion targets without needing `./`
+zstyle ':completion:*' special-dirs true
+
+# Ensure Zsh completes directories first before files
+zstyle ':completion:*' list-dirs first
+
+# Enable case-insensitive matching (optional, for ease of completion)
+zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
+
 # Enable vi mode
 bindkey -v
 
-GREEN=$(tput setaf 5)
+YELLOW=$(tput setaf 3)
 BLUE=$(tput setaf 4)
 RESET=$(tput sgr0)
-echo "${GREEN}󰅱 ${BLUE}${env_file:t}${RESET}"
+echo "${YELLOW}󰅩 ${BLUE}${env_file:t}${RESET}"
 
 # Source the config file and continue if there's an error
 if ! source $env_file; then
 	echo "Error sourcing $env_file. Skipping..."
 fi
-
-setopt autocd             # cd without typing cd
-autoload -Uz add-zsh-hook # function autoloading (built-in zsh function)
 
 # Source all configuration files
 fpath=($ZSH_CONFIG_DIR/functions/ $fpath)
@@ -30,9 +47,10 @@ fpath=($ZSH_CONFIG_DIR/functions/ $fpath)
 
 # Loop through the config files
 for config_file in $ZSH_CONFIG_DIR/autoload/*.(zsh|sh)(N); do
-  YELLOW=$(tput setaf 4)
+  PURPLE=$(tput setaf 5)
+	BLUE=$(tput setaf 4)
   RESET=$(tput sgr0)
-  echo "${GREEN}󰚔 ${YELLOW}autoload/${config_file:t}${RESET}"
+  echo "${PURPLE}󰚔 ${BLUE}autoload/${config_file:t}${RESET}"
 
   # Source the config file and continue if there's an error
   if ! source "$config_file"; then
@@ -43,6 +61,9 @@ done
 echo
 
 .uptime
+
+disk_space=$(df --si / | awk 'NR==2 {print $4}')
+echo "  $disk_space"
 
 # ------------------------
 

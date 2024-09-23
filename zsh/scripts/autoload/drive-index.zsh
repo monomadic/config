@@ -13,7 +13,7 @@ alias top=fzf-media-top
 alias .search-top=fzf-media-top
 
 fzf-search-clips() {
-  ls-media --match-string "clips" | grep-safe | fzf-play
+  ls-media --match-string clips | grep-safe | fzf-play
 }
 alias @search-clips=fzf-search-clips
 alias .search-clips=fzf-search-clips
