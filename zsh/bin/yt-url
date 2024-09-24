@@ -8,60 +8,80 @@ local output_format='mp4'
 
 # Function to display usage information
 usage() {
-		echo "Usage: ${0:t} <url> <filename> [options]"
-		echo "Options:"
-		echo "  -f, --format <format>    Specify video format (default: $format)"
-		echo "  -b, --browser <browser>  Specify browser for cookies (default: $browser)"
-		echo "  -o, --output <format>    Specify output format (default: $output_format)"
-		echo "  -h, --help               Display this help message"
+  echo "Usage: $0 <url> <filename> [options]"
+  echo "Options:"
+  echo "  -f, --format <format>    Specify video format (default: $format)"
+  echo "  -b, --browser <browser>  Specify browser for cookies (default: $browser)"
+  echo "  -o, --output <format>    Specify output format (default: $output_format)"
+  echo "  -h, --help               Display this help message"
 }
 
 # Parse options
 while [[ $# -gt 0 ]]; do
-		case "$1" in
-				-f|--format) format="$2"; shift 2 ;;
-				-b|--browser) browser="$2"; shift 2 ;;
-				-o|--output) output_format="$2"; shift 2 ;;
-				-h|--help) usage; return 0 ;;
-				*) url="$1"; filename="$2"; break ;;
-		esac
+  case "$1" in
+  -f | --format)
+    format="$2"
+    shift 2
+    ;;
+  -b | --browser)
+    browser="$2"
+    shift 2
+    ;;
+  -o | --output)
+    output_format="$2"
+    shift 2
+    ;;
+  -h | --help)
+    usage
+    return 0
+    ;;
+  *)
+    url="$1"
+    filename="$2"
+    break
+    ;;
+  esac
 done
 
 # Check for required arguments
 if [[ -z "$url" || -z "$filename" ]]; then
-		usage
-		return 1
+  usage
+  return 1
 fi
+
+# Remove any quotes from the filename
+filename=$(echo "$filename" | sed 's/[\"'\'']//g')
 
 # Validate URL
 if ! [[ "$url" =~ ^https?:// ]]; then
-		echo "Error: Invalid URL. Please provide a valid http or https URL."
-		return 1
+  echo "Error: Invalid URL. Please provide a valid http or https URL."
+  return 1
 fi
 
-# Validate filename
+# Validate filename and append output format if missing
 if [[ "$filename" != *.${output_format} ]]; then
-		filename="${filename}.${output_format}"
-		echo "Note: Appended .${output_format} to the filename."
+  filename="${filename}.${output_format}"
+  echo "Note: Appended .${output_format} to the filename."
 fi
 
 # Check if yt-dlp is installed
-if ! command -v yt-dlp &> /dev/null; then
-		echo "Error: yt-dlp is not installed. Please install it first."
-		return 1
+if ! command -v yt-dlp &>/dev/null; then
+  echo "Error: yt-dlp is not installed. Please install it first."
+  return 1
 fi
 
 # Download video
 if yt-dlp -v \
-		--output "$filename" \
-		--format "$format" \
-		--cookies-from-browser "$browser" \
-		--merge-output-format "$output_format" \
-		--embed-metadata \
-		"$url"; then
-		# Show notification on success
-		osascript -e "display notification \"$filename\" with title \"yt-url complete\""
+  --continue \
+  --output "$filename" \
+  --format "$format" \
+  --cookies-from-browser "$browser" \
+  --merge-output-format "$output_format" \
+  --embed-metadata \
+  "$url"; then
+  # Show notification on success
+  osascript -e "display notification \"$filename\" with title \"yt-url complete\""
 else
-		echo "Error: Download failed."
-		return 1
+  echo "Error: Download failed."
+  return 1
 fi

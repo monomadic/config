@@ -2,7 +2,7 @@
 
 # Check if URL is provided
 if [ -z "$1" ]; then
-  echo "Usage: $0 <url>"
+  echo "Usage: $0 <faphouse-url>"
   exit 1
 fi
 
@@ -27,9 +27,12 @@ description=$(echo "$html_content" | perl -ne 'print "$1\n" if /<meta name="desc
 # Extract CREATOR using perl (adjusted for potential whitespace in the class attribute)
 creator=$(echo "$html_content" | perl -ne 'print "$1\n" if /<a class="video-info-details__studio-link\s*" href="[^"]+">([^<]+)<\/a>/')
 
+m3u8_url=$(echo "$html_content" | perl -ne 'print "$1\n" if /<link href="([^"]+\.m3u8)"/')
+
 # Output the formatted string: [$creator] $title [FapHouse].mp4
 if [ -n "$title" ] && [ -n "$creator" ]; then
-  echo "[$creator] $title [FapHouse].mp4"
+  # Call yt-url with properly quoted variables
+  yt-url "$m3u8_url" "\"[$creator] $title [FapHouse]\""
 else
   echo "Error: Unable to extract required data."
   exit 1

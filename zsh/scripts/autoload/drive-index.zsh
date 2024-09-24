@@ -147,9 +147,13 @@ mpv-play-external-drives() {
 }
 alias @play-external=mpv-play-external-drives
 
+mpv-search-incomplete-downloads-pwd() {
+  fd mp4.part$ | fzf-play
+}
+
 mpv-search-incomplete-downloads() {
   cd $HOME/Movies/Porn/originals/_inbox &&
-    ls *.mp4.part | fzf-play
+    fd mp4.part$ | fzf-play
 }
 alias @search-incomplete=mpv-search-incomplete-downloads
 

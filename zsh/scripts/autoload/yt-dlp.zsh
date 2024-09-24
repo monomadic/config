@@ -112,26 +112,6 @@ function yt-porn {
 }
 alias ytp=yt-porn
 
-# function yt-url() {
-#   local url="$1"
-#   local filename="$2"
-#
-#   if [[ -z "$url" || -z "$filename" ]]; then
-#     echo "Usage: ${0:t} [args] <url> <filename>"
-#     return 1
-#   fi
-#
-#   yt-dlp -v \
-#     --output "$2" \
-#     --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
-#     --cookies-from-browser brave \
-#     --merge-output-format mp4 \
-#     --embed-metadata \
-#     $1
-#
-#   osascript -e "display notification '$2' with title 'yt-url complete'"
-# }
-
 function yt-nightly-porn {
   local url="$1"
   local output_template="[%(uploader)s] %(title)s.%(ext)s"
@@ -145,25 +125,6 @@ function yt-nightly-porn {
     --output "${output_template}" \
     --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
     --cookies-from-browser brave \
-    --merge-output-format mp4 \
-    --embed-metadata \
-    $@
-}
-
-function yt-porn-firefox {
-  local url="$1"
-  local output_template="[%(uploader)s] %(title)s.%(ext)s"
-
-  if [[ -z "$url" ]]; then
-    echo "Usage: ${0:t} <url>"
-    return 1
-  fi
-
-  yt-dlp -v \
-    --output "${output_template}" \
-    --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
-    --user-agent "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" \
-    --cookies-from-browser firefox \
     --merge-output-format mp4 \
     --embed-metadata \
     $@
@@ -358,27 +319,6 @@ function mp4-tag-write-title {
 
   echo "Successfully written title tag to ${file}"
 }
-
-# function yt-porn-no-thumbnail {
-#   local url="$1"
-#   local output_template="[%(uploader)s] %(title)s.%(ext)s"
-#
-#   if [[ -z "$url" ]]; then
-#     echo "Usage: ${0:t} <url>"
-#     return 1
-#   fi
-#
-#   # download and rename
-#   yt-dlp -v \
-#     --output "${output_template}" \
-#     --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
-#     --cookies-from-browser brave \
-#     --merge-output-format mp4 \
-#     --embed-metadata \
-#     "${url}"
-#
-#   # ffmpeg -i "{}" -metadata comment="%(webpage_url)s" -metadata title="%(title)s" -codec copy "{}"
-# }
 
 function yt-dlp-download-and-embed-tags {
   local url="$1"

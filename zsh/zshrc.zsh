@@ -72,7 +72,7 @@ if [[ "$unit" == "M" && "$value" -ge 1024 ]]; then
   gb=$(echo "scale=2; $value / 1024" | bc)
   print -P "%F{yellow}  %F{green}${gb}gb free"
 else
-  print "%F{yellow}  %F{green}${disk_space}mb free"
+  print -P "%F{yellow}  %F{green}${disk_space} free"
 fi
 
 # ------------------------
