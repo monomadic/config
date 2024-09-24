@@ -8,7 +8,7 @@ zmodload zsh/terminfo
 PS1o="$PS1"
 
 # calculate how many lines one half of the terminal's height has
-halfpage=$((LINES/2))
+halfpage=$((LINES / 2))
 
 # construct parameter to go down/up $halfpage lines via termcap
 halfpage_down=""
@@ -31,13 +31,11 @@ function prompt_restore() {
   PS1="$PS1o"
 }
 
-magic-enter () {
-    if [[ -z $BUFFER ]]
-    then
-            print ${halfpage_down}${halfpage_up}$terminfo[cuu1]
-            zle reset-prompt
-    else
-            zle accept-line
-    fi
+magic-enter() {
+  if [[ -z $BUFFER ]]; then
+    print ${halfpage_down}${halfpage_up}$terminfo[cuu1]
+    zle reset-prompt
+  else
+    zle accept-line
+  fi
 }
-zle -N magic-enter

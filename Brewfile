@@ -186,6 +186,8 @@ cask "smooze-pro"
 # utils
 # cask "daisydisk"
 brew "rnr" # rust based rename
+cask "transnomino" # gui renamer
+brew "mmv" # go based util for renaming with vim
 
 # bitcoin
 cask "bluewallet"

@@ -63,7 +63,17 @@ echo
 .uptime
 
 disk_space=$(df --si / | awk 'NR==2 {print $4}')
-echo "  $disk_space"
+# Extract the numeric value and the unit
+value=$(echo "$disk_space" | grep -oE '[0-9]+')
+unit=$(echo "$disk_space" | grep -oE '[A-Z]+')
+
+# Convert MB to GB if applicable
+if [[ "$unit" == "M" && "$value" -ge 1024 ]]; then
+  gb=$(echo "scale=2; $value / 1024" | bc)
+  print -P "%F{yellow}  %F{green}${gb}gb free"
+else
+  print "%F{yellow}  %F{green}${disk_space}mb free"
+fi
 
 # ------------------------
 

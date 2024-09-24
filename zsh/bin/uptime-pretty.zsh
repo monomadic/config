@@ -23,4 +23,4 @@ green='%F{green}'
 reset='%f'
 
 # Print the formatted output
-print -P "${blue}${clock_icon}${reset}  ${green}Up ${output}${reset}"
+print -P "%F{yellow}${clock_icon}${green}  ${output}${reset}"

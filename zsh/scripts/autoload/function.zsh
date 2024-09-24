@@ -245,20 +245,6 @@ function fzf-multi {
 	fzf --exact --multi --bind "enter:select-all+accept,ctrl-c:abort" --header "search type: multi-select, fuzzy search, smart case" --color=header:#888888
 }
 
-# function vlc-find() {
-# 		local search_term="$1"
-# 		fd -e mp4 -i "$search_term" | fzf --exact --multi --print0 | xargs -0 sh -c 'vlc --loop --random --no-repeat "$@"'
-# }
-#
-# function fzf-filter {
-#     fzf --exact --multi --print0
-# }
-#
-# function iina-find() {
-#   local search_term="$1"
-#   fd -0 -i "$search_term" -E '.*\.(mp4|webp|webm|mkv|mov)$' | xargs -0 -I{} open -a IINA '{}' --args --mpv-repeat=inf
-# }
-
 # microcommit
 function gc () {
 	git add . &&
@@ -267,24 +253,16 @@ function gc () {
 	git push
 }
 
-function quickls () {
-	echo
-	echo
-	ll
-	echo
-	zle && zle reset-prompt
-}; zle -N quickls;
-
 function clear-reset {
 	clear
 	hello
 	zle && zle reset-prompt
-}; zle -N clear-reset;
+}
 
 function cd-up() {
 	cd ..
 	zle && zle reset-prompt
-}; zle -N cd-up;
+}
 
 
 function yt-avc-format-filename() {
