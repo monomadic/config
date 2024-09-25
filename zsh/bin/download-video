@@ -35,7 +35,6 @@ YT_DLP_BASE="yt-dlp --cookies-from-browser brave --continue"
 case "$COMMAND" in
 "porn")
   $YT_DLP_BASE -f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
-    --continue \
     --merge-output-format mp4 \
     --embed-metadata \
     --embed-thumbnail \

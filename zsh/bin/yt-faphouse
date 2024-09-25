@@ -1,9 +1,0 @@
-#!/bin/zsh
-
-direct_url="$1"
-faphouse_url="$2"
-
-filename=$(scrape-filename-faphouse "$faphouse_url")
-
-# Pass the URLs and filename to yt-url function
-yt-url "$direct_url" "$filename"
