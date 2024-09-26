@@ -9,6 +9,12 @@ if ! command -v yt-dlp >/dev/null 2>&1; then
   exit 1
 fi
 
+# Check if terminal-notifier is installed
+if ! command -v terminal-notifier >/dev/null 2>&1; then
+  echo "Error: terminal-notifier is not installed. Please install it using 'brew install terminal-notifier'."
+  exit 1
+fi
+
 # Function to print usage
 print_usage() {
   echo "Usage: $(basename "$0") <command> <URL>"
@@ -30,56 +36,55 @@ COMMAND="$1"
 URL="$2"
 
 # Base yt-dlp command with Brave browser cookies
-YT_DLP_BASE="yt-dlp --cookies-from-browser brave --continue"
+YT_DLP_BASE="yt-dlp --cookies-from-browser brave --continue --print '%(filepath)s'"
+
+# Initialize OUTPUT_TEMPLATE and other variables
+OUTPUT_TEMPLATE=""
+FORMAT_ARGS=()
 
 case "$COMMAND" in
 "porn")
-  $YT_DLP_BASE -f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
-    --merge-output-format mp4 \
-    --embed-metadata \
-    --embed-thumbnail \
-    --embed-info-json \
-    --match-filter "duration > 60" \
-    --embed-subs \
-    --embed-chapters \
-    --output "[%(uploader|Unknown)s] %(title)s [%(extractor)s].%(ext)s" \
-    "$URL"
+  OUTPUT_TEMPLATE="[%(uploader|Unknown)s] %(title)s [%(extractor)s].%(ext)s"
+  FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+              --merge-output-format mp4 \
+              --embed-metadata \
+              --embed-thumbnail \
+              --embed-info-json \
+              --match-filter "duration > 60" \
+              --embed-subs \
+              --embed-chapters)
   ;;
 "music-video")
-  $YT_DLP_BASE -f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
-    --merge-output-format mp4 \
-    --embed-metadata \
-    --embed-thumbnail \
-    --embed-subs \
-    --embed-chapters \
-    --output "%(artist|)s - %(title)s.%(ext)s" \
-    "$URL"
+  OUTPUT_TEMPLATE="%(artist|)s - %(title)s.%(ext)s"
+  FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+              --merge-output-format mp4 \
+              --embed-metadata \
+              --embed-thumbnail \
+              --embed-subs \
+              --embed-chapters)
   ;;
 "audio-only")
-  $YT_DLP_BASE -f "bestaudio[ext=m4a]/bestaudio" \
-    --extract-audio \
-    --audio-format m4a \
-    --embed-metadata \
-    --embed-thumbnail \
-    --output "%(artist)s - %(title)s.%(ext)s" \
-    "$URL"
+  OUTPUT_TEMPLATE="%(artist)s - %(title)s.%(ext)s"
+  FORMAT_ARGS=(-f "bestaudio[ext=m4a]/bestaudio" \
+              --extract-audio \
+              --audio-format m4a \
+              --embed-metadata \
+              --embed-thumbnail)
   ;;
 "video-only")
-  $YT_DLP_BASE -f "bestvideo[ext=mp4][vcodec^=avc1]" \
-    --embed-metadata \
-    --embed-thumbnail \
-    --output "%(artist)s - %(title)s.%(ext)s" \
-    "$URL"
+  OUTPUT_TEMPLATE="%(artist)s - %(title)s.%(ext)s"
+  FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]" \
+              --embed-metadata \
+              --embed-thumbnail)
   ;;
 "youtube")
-  $YT_DLP_BASE -f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
-    --merge-output-format mp4 \
-    --embed-metadata \
-    --embed-thumbnail \
-    --embed-subs \
-    --embed-chapters \
-    --output "[%(channel)s] %(title)s [youtube].%(ext)s" \
-    "$URL"
+  OUTPUT_TEMPLATE="[%(channel)s] %(title)s [youtube].%(ext)s"
+  FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+              --merge-output-format mp4 \
+              --embed-metadata \
+              --embed-thumbnail \
+              --embed-subs \
+              --embed-chapters)
   ;;
 *)
   printf "Error: Unknown command '%s'\n" "$COMMAND"
@@ -88,10 +93,20 @@ case "$COMMAND" in
   ;;
 esac
 
-# Check if the download was successful
-if [ $? -eq 0 ]; then
+# Combine yt-dlp base command with format arguments and output template
+YT_DLP_CMD=("$YT_DLP_BASE" "${FORMAT_ARGS[@]}" --output "$OUTPUT_TEMPLATE")
+
+# Execute yt-dlp and capture the file path
+FILE_PATH=$("${YT_DLP_CMD[@]}" "$URL")
+
+# Check if the download was successful and FILE_PATH is not empty
+if [ $? -eq 0 ] && [ -n "$FILE_PATH" ]; then
   echo "Download completed successfully."
-  osascript -e "Download completed successfully."
+  # Use terminal-notifier to display a clickable notification
+  terminal-notifier -title "yt-dlp Download" \
+                    -message "Download completed successfully." \
+                    -activate "Finder" \
+                    -execute "open --reveal \"$FILE_PATH\""
 else
   echo "Error: Download failed."
   exit 1

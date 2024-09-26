@@ -22,12 +22,12 @@ for i in {1..$halfpage}; do
 done
 
 # define functions
-function prompt_middle() {
+prompt_middle() {
   # print $halfpage_down
   PS1="%{${halfpage_down}${halfpage_up}%}$PS1o"
 }
 
-function prompt_restore() {
+prompt_restore() {
   PS1="$PS1o"
 }
 

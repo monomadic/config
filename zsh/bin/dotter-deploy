@@ -1,0 +1,57 @@
+#!/usr/bin/env zsh
+
+# Use DOTFILES_DIR if set, otherwise default to ~/config
+CONFIG_DIR="${DOTFILES_DIR:-$HOME/config}"
+
+# Use XDG_CONFIG_HOME if set, otherwise default to ~/.config
+XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+
+# Define the cache directory and file
+CACHE_DIR="$XDG_CONFIG_HOME/dotter/cache"
+CACHE_FILE="$CACHE_DIR/cache.toml"
+
+# Define the configuration files
+GLOBAL_CONFIG="$CONFIG_DIR/global.toml"
+LOCAL_CONFIG="$CONFIG_DIR/local.toml"
+
+# Function to check if a directory exists
+check_directory() {
+  if [[ ! -d "$1" ]]; then
+    echo "Error: Directory $1 does not exist."
+    exit 1
+  fi
+}
+
+# Function to check if a file exists
+check_file() {
+  if [[ ! -f "$1" ]]; then
+    echo "Error: File $1 does not exist."
+    exit 1
+  fi
+}
+
+# Save current directory
+ORIGINAL_DIR="$PWD"
+
+# Check if necessary directories and files exist
+check_directory "$CONFIG_DIR"
+check_directory "$CACHE_DIR"
+check_file "$GLOBAL_CONFIG"
+check_file "$LOCAL_CONFIG"
+
+# Change to the config directory
+cd "$CONFIG_DIR" || exit 1
+
+# Run dotter command
+if dotter --cache-directory "$CACHE_DIR" --cache-file "$CACHE_FILE" deploy --global-config "$GLOBAL_CONFIG" --local-config "$LOCAL_CONFIG"; then
+  echo "\nDotter deploy completed successfully."
+else
+  echo "\nError: Dotter deploy failed."
+  cd "$ORIGINAL_DIR"
+  exit 1
+fi
+
+# Return to the original directory
+cd "$ORIGINAL_DIR" || exit 1
+
+echo "\nDone."

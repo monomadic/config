@@ -49,13 +49,13 @@ function ls_recursive() {
 }
 
 # 2 levels deep, immediate first
-function ls_relative() {
+fd-depth-2() {
   fd --type d --strip-cwd-prefix --max-depth 1
   fd --type d --strip-cwd-prefix --exact-depth 2 --max-results 10000
   # fd --type d --strip-cwd-prefix --exact-depth 3 --max-results 10000
 }
 
-function ls_hidden {
+ls_hidden() {
   exa --icons --group-directories-first
 }
 
@@ -64,7 +64,8 @@ fzf-ripgrep() {
   fzf-rg
 }
 
-function fzf-cd() {
+# cd
+fzf-cd() {
   files=($(fd --type=directory --hidden . |
     fzf \
       --prompt ' ' \

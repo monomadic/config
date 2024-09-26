@@ -1,5 +1,8 @@
 # Indexing and searching for non-persistent volumes
 
+# todo: rename this cmd
+alias media-ls=ls-media
+
 # Search media files and play with fzf
 fzf-safe-media() {
   ls-media | grep-safe | fzf-play
@@ -12,8 +15,9 @@ fzf-media-top() {
 alias top=fzf-media-top
 alias .search-top=fzf-media-top
 
-fzf-search-clips() {
-  ls-media --match-string clips | grep-safe | fzf-play
+alias media-ls-clips="media-ls --match-string '/clips/'"
+media-search-clips() {
+  media-ls-clips | grep-safe | fzf-play
 }
 alias @search-clips=fzf-search-clips
 alias .search-clips=fzf-search-clips
@@ -31,9 +35,6 @@ alias .cumshot="ls-media --sort modified --match-string '#cumshot' | mpv-stdin -
 alias .search-cumshot="ls-media --sort modified --match-string '#cumshot' | fzf-play"
 
 # Include unsafe files
-fzf-media-all() {
-  ls-media | fzf-play --kitty
-}
 
 fzf-media-untagged() {
   ls-media | grep -v '#' | fzf-play --kitty
@@ -49,11 +50,33 @@ mpv-stdin() {
   mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --input-ipc-server=/tmp/mpvsocket --mute=yes $@ --playlist=- >/dev/null 2>&1 &
 }
 
-mpv-play-suki() {
-  ls-media | grep "#suki" | grep-safe | mpv-stdin --shuffle
-}
+alias media-play-safe="media-ls | grep-safe | mpv-play --shuffle"
+alias media-play-unsafe="media-ls | grep-unsafe | mpv-play --shuffle"
+
+alias media-ls-suki="ls-media --match-regex '#suki'"
+alias media-play-suki="media-ls-suki | mpv-play --shuffle"
 alias @play-suki=mpv-play-suki
 alias .suki=mpv-play-suki
+
+alias media-ls-top="ls-media --match-regex '#top'"
+alias media-play-top="media-ls-top | mpv-play"
+alias @play-top=media-play-top
+alias .top=media-play-top
+
+alias media-ls-clips="ls-media --match-string 'clips'"
+
+# alias media-ls-clips-top="ls-media --match-regex 'clips.*#top'"
+# alias media-ls-clips-top="ls-media --match-regex 'clips' --match-regex '#top'"
+alias media-ls-clips-top="media-ls-clips --match-string '#top'"
+alias media-play-clips-top="media-ls-clips-top | mpv-play --shuffle"
+alias media-search-clips-top="media-ls-clips-top | fzf-play"
+
+alias media-ls-clips-top-latest="media-ls-clips-top --sort modified"
+alias media-play-clips-top-latest="media-ls-clips-top-latest | mpv-play"
+
+alias media-ls-clips-suki-top-cumshot="ls-media --match-regex 'clips.*#(suki|top|cumshot)'"
+alias media-play-clips-suki-top-cumshot="media-ls-clips-suki-top-cumshot | mpv-play --shuffle"
+alias media-search-clips-suki-top-cumshot="media-ls-clips-suki-top-cumshot | fzf-play"
 
 mpv-play-clips() {
   ls-media | grep "\/clips\/" | grep-safe | mpv-stdin --shuffle
@@ -66,10 +89,6 @@ mpv-play-loops() {
 }
 alias @play-loops=mpv-play-loops
 alias .loops=mpv-play-loops
-
-mpv-play-sorted() {
-  ls-media --sort modified --reverse | mpv-stdin
-}
 
 mpv-play-pwd-latest() {
   echo $PWD | sort-across-paths --sort modified --reverse | mpv-stdin
@@ -139,7 +158,7 @@ alias .play-cache=mpv-play-cache
 alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
 
 mpv-play-all() {
-  ls-media-paths | mpv-stdin
+  ls-media-paths | mpv-play
 }
 
 mpv-play-external-drives() {
@@ -147,30 +166,23 @@ mpv-play-external-drives() {
 }
 alias @play-external=mpv-play-external-drives
 
-mpv-search-incomplete-downloads-pwd() {
+media-search-incomplete-downloads-pwd() {
   fd mp4.part$ | fzf-play
 }
 
-mpv-search-incomplete-downloads() {
+media-search-incomplete-downloads() {
   cd $HOME/Movies/Porn/originals/_inbox &&
     fd mp4.part$ | fzf-play
 }
-alias @search-incomplete=mpv-search-incomplete-downloads
+alias @search-incomplete=media-search-incomplete-downloads
 
 mpv-play-incomplete-downloads() {
   cd $HOME/Movies/Porn/originals/_inbox &&
-    ls *.mp4.part | mpv-stdin
+    ls *.mp4.part | mpv-play
 }
 alias @play-incomplete
 
-play-with-mpv-debug() {
-  while IFS= read -r file; do
-    echo "Playing: $file" # For debugging
-    echo "$file"
-  done | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --playlist=-
-}
-
-index-run() {
+index-update() {
   emulate -L zsh
 
   [[ -d "$1" ]] && {
@@ -206,6 +218,10 @@ alias fd-top="fd-video |grep-top"
 
 grep-safe() {
   grep -v -E '#g(\.| |/)|#bi(\.| |/)|#unsafe(\.| |/)|#ts(\.| |/)'
+}
+
+grep-unsafe() {
+  grep -E '#g(\.| |/)|#bi(\.| |/)|#unsafe(\.| |/)|#ts(\.| |/)'
 }
 
 index-play-top() {

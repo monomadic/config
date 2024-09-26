@@ -4,39 +4,11 @@
 #   # echo "Backup successful."
 # }
 
-function rsync-clone-firebird-to-babyblue {
+rsync-clone-firebird-to-babyblue() {
   rsync-archive /Volumes/FireBird1TB/Movies/Porn/ /Volumes/BabyBlue2TB/Movies/Porn/
 }
 
-function rsync-cache-top {
-  local source_path="$MASTER_MEDIA_DIR/Porn"
-  local dest_path="$LOCAL_CACHE_PATH"
-
-  # Check if source path exists
-  if [ ! -d "$source_path" ]; then
-    echo "Error: Source path '$source_path' does not exist: is the volume connected?"
-    return 1
-  fi
-
-  # Perform rsync
-  rsync -avR --delete --prune-empty-dirs \
-    --include '*/' \
-    --include '*top*' \
-    --exclude '*' \
-    "${source_path}/." "${dest_path}/"
-
-  local rsync_exit_code=$?
-
-  if [ $rsync_exit_code -eq 0 ]; then
-    echo "Rsync completed successfully."
-  else
-    echo "Rsync encountered an error. Exit code: $rsync_exit_code"
-  fi
-
-  return $rsync_exit_code
-}
-
-function rsync-archive {
+rsync-archive() {
   # Check for proper number of arguments
   if [ $# -ne 2 ]; then
     echo "Usage: ${0:t} <source_folder> <destination_folder>"
@@ -132,12 +104,3 @@ function rsync-from-stdio {
   # Clean up the temporary file
   rm "$temp_file"
 }
-
-# function rsync-backup-babyblue {
-#   rsync-archive /Volumes/BabyBlue2TB/Media/Porn/ /Volumes/FireBird1TB/Media/Porn/
-#   # check file count is the same
-#   # run the indexer
-#   index-all
-#   echo "Backup successful."
-# }
-# alias @backup-babyblue=rsync-backup-babyblue

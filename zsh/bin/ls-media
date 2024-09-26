@@ -96,42 +96,49 @@ process_input_fd() {
   # Build fd-video command arguments
   fd_video_cmd=(fd-video -t f --full-path --ignore-case -0)
 
-  local first_pattern=true
+  log_verbose "Executing in $dir: ${fd_video_cmd[*]}"
 
-  # Check match_strings
-  match=true
+  # Execute fd-video and process results
+  "${fd_video_cmd[@]}" | while IFS= read -r -d '' file; do
+    match=true
 
-  for str in "${match_strings[@]}"; do
-    shopt -s nocasematch
-    if [[ "$file" != *"$str"* ]]; then
-      match=false
-      shopt -u nocasematch
-      break
-    fi
-    shopt -u nocasematch
-  done
+    log_verbose "Checking match for file: $file"
 
-  # Check match_regexes
-  if $match; then
-    for regex in "${match_regexes[@]}"; do
+    # Match strings
+    for str in "${match_strings[@]}"; do
       shopt -s nocasematch
-      if [[ ! "$file" =~ $regex ]]; then
+      if [[ "$file" != *"$str"* ]]; then
+        log_verbose "String '$str' not found in file: $file"
         match=false
         shopt -u nocasematch
         break
       fi
       shopt -u nocasematch
     done
-  fi
 
-  log_verbose "Executing in $dir: ${fd_video_cmd[*]}"
+    # Match regexes
+    if $match; then
+      for regex in "${match_regexes[@]}"; do
+        shopt -s nocasematch
+        if [[ ! "$file" =~ $regex ]]; then
+          log_verbose "Regex '$regex' not matching file: $file"
+          match=false
+          shopt -u nocasematch
+          break
+        fi
+        shopt -u nocasematch
+      done
+    fi
 
-  # Execute fd-video and process results
-  "${fd_video_cmd[@]}" | while IFS= read -r -d '' file; do
+    # Skip file if it doesn't match the criteria
+    if ! $match; then
+      continue
+    fi
+
+    # Process the file (sorting, printing, etc.)
     if [ -n "$sort_option" ]; then
       case "$sort_option" in
       modified)
-        # Use a tab as a delimiter
         mod_time=$(stat -f "%m" "$file")
         printf '%s\t%s\n' "$mod_time" "$file"
         ;;

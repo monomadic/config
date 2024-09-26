@@ -1,0 +1,23 @@
+#!/bin/zsh
+
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+# Check if mpv is installed
+if ! command -v mpv >/dev/null 2>&1; then
+  echo "Error: mpv is not installed. Please install mpv."
+  exit 1
+fi
+
+mpv-stdin() {
+  mpv --macos-fs-animation-duration=0 \
+      --no-native-fs \
+      --fs \
+      --loop-playlist \
+      --mute=yes \
+			"$@" \
+      --playlist=- >/dev/null 2>&1 &
+}
+
+# Read from stdin and pass arguments through to mpv
+mpv-stdin "$@" < /dev/stdin

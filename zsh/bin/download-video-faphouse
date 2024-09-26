@@ -1,8 +1,32 @@
 #!/bin/zsh
 
+# Function to print usage
+print_usage() {
+  echo "Usage: $0 [--verbose] <faphouse-url> [m3u8-url]"
+  echo "  --verbose: Optional. Print detailed information during execution"
+  echo "  <faphouse-url>: URL of the FapHouse video page"
+  echo "  [m3u8-url]: Optional. Direct URL to the m3u8 file"
+}
+
+# Initialize verbose flag
+verbose=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+  --verbose)
+    verbose=true
+    shift
+    ;;
+  *)
+    break
+    ;;
+  esac
+done
+
 # Check if URL is provided
 if [ -z "$1" ]; then
-  echo "Usage: $0 <faphouse-url>"
+  print_usage
   exit 1
 fi
 
@@ -15,31 +39,41 @@ if [[ "$domain" != "faphouse.com" ]]; then
   exit 1
 fi
 
+# Set m3u8_url if provided as second argument
+m3u8_url="$2"
+
 # Fetch the page content
 html_content=$(curl -s "$1")
 
 # Extract TITLE using perl
 title=$(echo "$html_content" | perl -ne 'print "$1\n" if /<meta property="og:title" content="([^"]+)"/')
+$verbose && echo "Title: $title"
 
 # Extract DESCRIPTION using perl
 description=$(echo "$html_content" | perl -ne 'print "$1\n" if /<meta name="description" content="([^"]+)"/')
+$verbose && echo "Description: $description"
 
 # Extract CREATOR using perl (adjusted for potential whitespace in the class attribute)
 creator=$(echo "$html_content" | perl -ne 'print "$1\n" if /<a class="video-info-details__studio-link\s*" href="[^"]+">([^<]+)<\/a>/')
+$verbose && echo "Creator: $creator"
 
-# Extract M3U8 URL
-m3u8_url=$(echo "$html_content" | perl -ne 'print "$1\n" if /<link href="([^"]+\.m3u8)"/')
-
-# Check if m3u8 URL is found
+# If m3u8_url is not provided, try to extract it from the page
 if [ -z "$m3u8_url" ]; then
-  echo "Error: Unable to find m3u8 URL in the page."
-  exit 1
+  m3u8_url=$(echo "$html_content" | perl -ne 'print "$1\n" if /<link href="([^"]+\.mp4\.m3u8)".*?rel="preload"/')
+
+  # Check if m3u8 URL is found
+  if [ -z "$m3u8_url" ]; then
+    echo "Error: Unable to find m3u8 URL in the page."
+    exit 1
+  fi
 fi
+
+$verbose && echo "M3U8 URL: $m3u8_url"
 
 # Output the formatted string: [$creator] $title [FapHouse].mp4
 if [ -n "$title" ] && [ -n "$creator" ]; then
   # Call yt-url with properly quoted variables
-  yt-url "$m3u8_url" "\"[$creator] $title [FapHouse]\""
+  download-video-url "$m3u8_url" "\"[$creator] $title [FapHouse]\""
 else
   echo "Error: Unable to extract required data."
   exit 1

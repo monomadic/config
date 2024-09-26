@@ -1,3 +1,11 @@
+# todo: rename this cmd
+alias media-ls=ls-media
+
+media-search-all() {
+  media-ls | fzf-play --kitty
+}
+
+alias fd-top-clips="fd --full-path --regex 'originals.*(#top|#suki)'"
 # detect available media paths
 ls-media-paths-checked() {
   for media_path in $(ls-media-paths); do
@@ -25,6 +33,10 @@ cd-inbox() {
 }
 alias .inbox=cd-inbox
 
+mpv-play-sorted() {
+  ls-media --sort modified --reverse | mpv-stdin
+}
+
 # list all unique tags found in files under the present directory
 ls-tags() {
   fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
@@ -44,7 +56,7 @@ cache-copy-all() {
   fi
 
   echo "Caching clips..."
-  ls-media --match-regex '\/clips\/' --match-regex '#(suki|top|cumshot)' | copy-flat "$LOCAL_CACHE_PATH/clips"
+  ls-media --match-regex '/clips/' --match-regex '#(suki|top|cumshot)' | copy-flat "$LOCAL_CACHE_PATH/clips"
 
   echo "Caching #top scenes..."
   ls-media --match-string "scenes" --match-string "#top" | copy-flat "$LOCAL_CACHE_PATH/scenes"
