@@ -3,7 +3,6 @@
 # Colors using Zsh's %F (foreground color) and %f (reset foreground)
 dir_color="%F{grey}"      # Gray for directories
 creator_color="%F{green}" # Green for [creator] (start of line or after a /)
-title_color="%F{blue}"    # Blue for title words
 origin_color="%F{yellow}" # Yellow for [origin_site] (preceded by space)
 tag_color="%F{magenta}"   # Magenta for #tags (anything with space # until next space)
 ext_color="%F{cyan}"      # Cyan for file extension
@@ -12,19 +11,19 @@ reset_color="%f"          # Reset all colors at the end of the line
 # Process input from stdin
 while IFS= read -r line; do
   # Step 1: Colorize directories (anything before the filename itself)
-  colored_line=$(echo "$line" | sed -E "s|^(.*/)|${dir_color}\1${reset_color}|")
+  colored_line=$(echo "$line" | sed -E $'s|^(.*/)|'${dir_color}'\1'${reset_color}'|')
 
   # Step 2: Colorize [creator] - [creator] tags preceded by either the start of the line or a /
-  colored_line=$(echo "$colored_line" | sed -E "s|(^|/)(\[[^\]]*\])|\1${creator_color}\2${reset_color}|g")
+  colored_line=$(echo "$colored_line" | sed -E $'s|(^|/)(\\[[^]]*\\])|\\1'${creator_color}'\\2'${reset_color}'|g')
 
   # Step 3: Colorize [origin_site] - [origin] tags preceded by a space
-  colored_line=$(echo "$colored_line" | sed -E "s|( )(\[[^\]]*\])|\1${origin_color}\2${reset_color}|g")
+  colored_line=$(echo "$colored_line" | sed -E $'s|( )(\\[[^]]*\\])|\\1'${origin_color}'\\2'${reset_color}'|g')
 
   # Step 4: Colorize #tags - space followed by #tag
-  colored_line=$(echo "$colored_line" | sed -E "s|( #[^ ]+)|\1${tag_color}\1${reset_color}|g")
+  colored_line=$(echo "$colored_line" | sed -E $'s|( #[^ ]+)|'${tag_color}'\\1'${reset_color}'|g')
 
   # Step 5: Colorize the file extension (including optional number)
-  colored_line=$(echo "$colored_line" | sed -E "s|(\.[a-zA-Z0-9]+)$|${ext_color}\1${reset_color}|")
+  colored_line=$(echo "$colored_line" | sed -E $'s|(\\.[a-zA-Z0-9]+)$|'${ext_color}'\\1'${reset_color}'|')
 
   # Print the result
   print -P "${colored_line}"

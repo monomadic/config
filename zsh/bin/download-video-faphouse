@@ -27,7 +27,14 @@ description=$(echo "$html_content" | perl -ne 'print "$1\n" if /<meta name="desc
 # Extract CREATOR using perl (adjusted for potential whitespace in the class attribute)
 creator=$(echo "$html_content" | perl -ne 'print "$1\n" if /<a class="video-info-details__studio-link\s*" href="[^"]+">([^<]+)<\/a>/')
 
+# Extract M3U8 URL
 m3u8_url=$(echo "$html_content" | perl -ne 'print "$1\n" if /<link href="([^"]+\.m3u8)"/')
+
+# Check if m3u8 URL is found
+if [ -z "$m3u8_url" ]; then
+  echo "Error: Unable to find m3u8 URL in the page."
+  exit 1
+fi
 
 # Output the formatted string: [$creator] $title [FapHouse].mp4
 if [ -n "$title" ] && [ -n "$creator" ]; then
