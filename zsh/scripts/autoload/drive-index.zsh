@@ -71,7 +71,8 @@ alias media-ls-clips-top="media-ls-clips --match-string '#top'"
 alias media-play-clips-top="media-ls-clips-top | mpv-play --shuffle"
 alias media-search-clips-top="media-ls-clips-top | fzf-play"
 
-alias media-ls-clips-top-latest="media-ls-clips-top --sort modified"
+alias media-ls-clips-top-latest="media-ls-clips-top --sort-modified --reverse"
+alias media-search-clips-top-latest="media-ls-clips-top-latest | fzf-play"
 alias media-play-clips-top-latest="media-ls-clips-top-latest | mpv-play"
 
 alias media-ls-clips-suki-top-cumshot="ls-media --match-regex 'clips.*#(suki|top|cumshot)'"
@@ -151,8 +152,8 @@ alias .search-pwd=fzf-search-pwd
 alias @search-pwd-sorted=fzf-play-pwd-sorted
 alias .search-pwd-sorted=fzf-play-pwd-sorted
 
-alias .latest=mpv-play-sorted
-alias .play-latest=mpv-play-sorted
+alias .latest=mpv-play-all--sorted
+alias .play-latest=mpv-play-all-sorted
 alias .play-cache=mpv-play-cache
 
 alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"

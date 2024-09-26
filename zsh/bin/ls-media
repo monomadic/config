@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
 usage() {
-  echo "Usage: $0 [--match-string STRING]... [--match-regex REGEX]... [--sort SORT_OPTION] [--reverse] [--verbose]" >&2
+  echo "Usage: $0 [--match-string STRING]... [--match-regex REGEX]... [--sort-modified] [--reverse] [--verbose]" >&2
   echo "Options:" >&2
   echo " --match-string STRING   Only list files where the path contains all the given strings (case-insensitive). Can be used multiple times." >&2
   echo " --match-regex REGEX     Only list files where the path matches all the given regex patterns (case-insensitive). Can be used multiple times." >&2
-  echo " --sort SORT_OPTION      Sort files by the given option (modified, size, name)" >&2
-  echo " --reverse               Reverse the sort order and the final list" >&2
+  echo " --sort-modified         Sort files by modification time" >&2
+  echo " --reverse               Reverse the sort order" >&2
   echo " --verbose               Enable verbose logging" >&2
 }
 
@@ -20,40 +20,8 @@ log_verbose() {
 
 match_strings=()
 match_regexes=()
-sort_option=""
+sort_modified=false
 reverse=false
-
-completions() {
-  cat <<EOF
-#!/usr/bin/env bash
-# Bash completion script for test_script.sh
-
-_test_script_completions() {
-  local cur prev opts
-  COMPREPLY=()
-  cur="\${COMP_WORDS[COMP_CWORD]}"
-  prev="\${COMP_WORDS[COMP_CWORD-1]}"
-  opts="--match-string --match-regex --sort --reverse --verbose completions"
-
-  case "\${prev}" in
-    --sort)
-      COMPREPLY=( \$(compgen -W "modified size name" -- "\${cur}") )
-      return 0
-      ;;
-  esac
-
-  COMPREPLY=( \$(compgen -W "\${opts}" -- "\${cur}") )
-}
-
-complete -F _test_script_completions test_script.sh
-EOF
-}
-
-# Check if the first argument is 'completions'
-if [ "$1" == "completions" ]; then
-  completions
-  exit 0
-fi
 
 # Parse command-line arguments
 while [ $# -gt 0 ]; do
@@ -66,9 +34,9 @@ while [ $# -gt 0 ]; do
     match_regexes+=("$2")
     shift 2
     ;;
-  --sort)
-    sort_option="$2"
-    shift 2
+  --sort-modified)
+    sort_modified=true
+    shift
     ;;
   --reverse)
     reverse=true
@@ -135,45 +103,15 @@ process_input_fd() {
       continue
     fi
 
-    # Process the file (sorting, printing, etc.)
-    if [ -n "$sort_option" ]; then
-      case "$sort_option" in
-      modified)
-        mod_time=$(stat -f "%m" "$file")
-        printf '%s\t%s\n' "$mod_time" "$file"
-        ;;
-      size)
-        file_size=$(stat -f "%z" "$file")
-        printf '%s\t%s\n' "$file_size" "$file"
-        ;;
-      name)
-        echo "$file"
-        ;;
-      *)
-        echo "$file"
-        ;;
-      esac
+    # Get the full path
+    full_path="$(pwd)/$file"
+
+    if $sort_modified; then
+      mod_time=$(stat -f "%m" "$full_path")
+      printf '%s\t%s\n' "$mod_time" "$full_path"
     else
-      echo "$file"
+      echo "$full_path"
     fi
-  done | {
-    if [ -n "$sort_option" ]; then
-      case "$sort_option" in
-      modified | size)
-        sort -n -k1,1 | cut -f2-
-        ;;
-      name)
-        sort
-        ;;
-      *)
-        cat
-        ;;
-      esac
-    else
-      cat
-    fi
-  } | while IFS= read -r file; do
-    printf '%s/%s\n' "$dir" "$file"
   done
 }
 
@@ -199,11 +137,22 @@ for dir in $directories; do
   process_input_fd "$dir" >>"$temp_file"
 done
 
-# Reverse the entire list if --reverse option is used
-if $reverse; then
-  tac "$temp_file"
+# Sort and output results
+if $sort_modified; then
+  sort -n "$temp_file" | cut -f2-
 else
   cat "$temp_file"
-fi
+fi | {
+  if $reverse; then
+    if command -v tac >/dev/null 2>&1; then
+      tac
+    else
+      tail -r
+    fi
+  else
+    cat
+  fi
+}
+
 rm "$temp_file"
 log_verbose "Script execution completed"

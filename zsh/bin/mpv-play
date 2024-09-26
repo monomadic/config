@@ -11,13 +11,13 @@ fi
 
 mpv-stdin() {
   mpv --macos-fs-animation-duration=0 \
-      --no-native-fs \
-      --fs \
-      --loop-playlist \
-      --mute=yes \
-			"$@" \
-      --playlist=- >/dev/null 2>&1 &
+    --no-native-fs \
+    --fs \
+    --loop-playlist \
+    --mute=yes \
+    "$@" \
+    --playlist=- >/dev/null 2>&1 &
 }
 
 # Read from stdin and pass arguments through to mpv
-mpv-stdin "$@" < /dev/stdin
+mpv-stdin "$@" </dev/stdin

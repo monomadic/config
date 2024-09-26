@@ -23,7 +23,7 @@ done
 MPV_COMMON_OPTS="--macos-fs-animation-duration=0 --no-native-fs --fs"
 
 # Set FZF default options and conditionally hide path
-FZF_DEFAULT_OPTS="--reverse --ansi --delimiter=/ --preview-window=down:1"
+FZF_DEFAULT_OPTS="--reverse --ansi --no-sort --layout=reverse-list --delimiter=/ --preview-window=down:1"
 if [[ "$HIDE_PATH" == true ]]; then
   FZF_DEFAULT_OPTS+=" --with-nth=-1"
 fi
