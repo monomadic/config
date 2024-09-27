@@ -1,5 +1,4 @@
 #!/bin/sh
-
 # Exit immediately if a command exits with a non-zero status
 set -e
 
@@ -36,7 +35,7 @@ COMMAND="$1"
 URL="$2"
 
 # Base yt-dlp command with Brave browser cookies
-YT_DLP_BASE="yt-dlp --cookies-from-browser brave --continue --print '%(filepath)s'"
+YT_DLP_BASE=(yt-dlp --cookies-from-browser brave --continue --print after_move:filepath)
 
 # Initialize OUTPUT_TEMPLATE and other variables
 OUTPUT_TEMPLATE=""
@@ -45,46 +44,56 @@ FORMAT_ARGS=()
 case "$COMMAND" in
 "porn")
   OUTPUT_TEMPLATE="[%(uploader|Unknown)s] %(title)s [%(extractor)s].%(ext)s"
-  FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
-              --merge-output-format mp4 \
-              --embed-metadata \
-              --embed-thumbnail \
-              --embed-info-json \
-              --match-filter "duration > 60" \
-              --embed-subs \
-              --embed-chapters)
+  FORMAT_ARGS=(
+    -f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+    --merge-output-format mp4
+    --embed-metadata
+    --embed-thumbnail
+    --embed-info-json
+    --match-filter "duration > 60"
+    --embed-subs
+    --embed-chapters
+  )
   ;;
 "music-video")
   OUTPUT_TEMPLATE="%(artist|)s - %(title)s.%(ext)s"
-  FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
-              --merge-output-format mp4 \
-              --embed-metadata \
-              --embed-thumbnail \
-              --embed-subs \
-              --embed-chapters)
+  FORMAT_ARGS=(
+    -f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+    --merge-output-format mp4
+    --embed-metadata
+    --embed-thumbnail
+    --embed-subs
+    --embed-chapters
+  )
   ;;
 "audio-only")
   OUTPUT_TEMPLATE="%(artist)s - %(title)s.%(ext)s"
-  FORMAT_ARGS=(-f "bestaudio[ext=m4a]/bestaudio" \
-              --extract-audio \
-              --audio-format m4a \
-              --embed-metadata \
-              --embed-thumbnail)
+  FORMAT_ARGS=(
+    -f "bestaudio[ext=m4a]/bestaudio"
+    --extract-audio
+    --audio-format m4a
+    --embed-metadata
+    --embed-thumbnail
+  )
   ;;
 "video-only")
   OUTPUT_TEMPLATE="%(artist)s - %(title)s.%(ext)s"
-  FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]" \
-              --embed-metadata \
-              --embed-thumbnail)
+  FORMAT_ARGS=(
+    -f "bestvideo[ext=mp4][vcodec^=avc1]"
+    --embed-metadata
+    --embed-thumbnail
+  )
   ;;
 "youtube")
   OUTPUT_TEMPLATE="[%(channel)s] %(title)s [youtube].%(ext)s"
-  FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
-              --merge-output-format mp4 \
-              --embed-metadata \
-              --embed-thumbnail \
-              --embed-subs \
-              --embed-chapters)
+  FORMAT_ARGS=(
+    -f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+    --merge-output-format mp4
+    --embed-metadata
+    --embed-thumbnail
+    --embed-subs
+    --embed-chapters
+  )
   ;;
 *)
   printf "Error: Unknown command '%s'\n" "$COMMAND"
@@ -94,20 +103,26 @@ case "$COMMAND" in
 esac
 
 # Combine yt-dlp base command with format arguments and output template
-YT_DLP_CMD=("$YT_DLP_BASE" "${FORMAT_ARGS[@]}" --output "$OUTPUT_TEMPLATE")
+YT_DLP_CMD=("${YT_DLP_BASE[@]}" "${FORMAT_ARGS[@]}" --output "$OUTPUT_TEMPLATE")
+
+# Print the command for debugging
+echo "Executing command: ${YT_DLP_CMD[*]@Q} $URL"
 
 # Execute yt-dlp and capture the file path
 FILE_PATH=$("${YT_DLP_CMD[@]}" "$URL")
 
+# Debugging: Print the captured file path
+echo "FILE_PATH: $FILE_PATH"
+
 # Check if the download was successful and FILE_PATH is not empty
-if [ $? -eq 0 ] && [ -n "$FILE_PATH" ]; then
+if [ -n "$FILE_PATH" ]; then
   echo "Download completed successfully."
   # Use terminal-notifier to display a clickable notification
   terminal-notifier -title "yt-dlp Download" \
                     -message "Download completed successfully." \
-                    -activate "Finder" \
+                    -activate "com.apple.finder" \
                     -execute "open --reveal \"$FILE_PATH\""
 else
-  echo "Error: Download failed."
+  echo "Error: Download failed or FILE_PATH is empty."
   exit 1
 fi

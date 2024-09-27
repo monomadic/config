@@ -1,21 +1,88 @@
-#!/usr/bin/env zsh
+#!/bin/zsh
 
-# Build up the list of files (null-separated) before the case loop
-media_list=()
-while IFS= read -r -d '' line; do
-    media_list+=("$line")
-done < <(ls-media)
+# Function to print usage information
+print_usage() {
+  echo "Usage: media <command> [video-type] [args]"
+  echo "Commands:"
+  echo "  play   - Play videos"
+  echo "  search - Search videos"
+  echo "Video types:"
+  echo "  clips     - Match videos in '/clips/'"
+  echo "  originals - Match videos in '/originals/'"
+  echo "Args:"
+  echo "  #tag      - Match videos with '#tag'"
+  echo "  [Tag]     - Match videos with '[Tag]'"
+  echo "  (other args can be added similarly)"
+}
 
-case "$1" in
-  play)
-    # Pass the list to mpv-stdin
-    printf '%s\0' "${media_list[@]}" | mpv-stdin
-    ;;
-  search)
-    # Pass the list to fzf-play with the --kitty option
-    printf '%s\0' "${media_list[@]}" | fzf-play --kitty
+# Initialize variables
+command=""
+video_type=""
+base_command="ls-media"
+additional_args=()
+
+# Parse command
+if [[ $# -ge 1 ]]; then
+  case $1 in
+  play | search)
+    command=$1
+    shift
     ;;
   *)
-    echo "Usage: $0 {play|search}"
+    echo "Error: Invalid command"
+    print_usage
+    exit 1
     ;;
+  esac
+else
+  echo "Error: Command is required"
+  print_usage
+  exit 1
+fi
+
+# Parse video type and args
+while [[ $# -gt 0 ]]; do
+  case $1 in
+  clips)
+    video_type="clips"
+    additional_args+=("--match-string='/clips/'")
+    shift
+    ;;
+  originals)
+    video_type="originals"
+    additional_args+=("--match-string='/originals/'")
+    shift
+    ;;
+  \#*)
+    additional_args+=("--match-string '$1'")
+    shift
+    ;;
+  \[*\])
+    # Remove brackets and add as a match string
+    tag="${1#\[}"
+    tag="${tag%\]}"
+    additional_args+=("--match-string '$tag'")
+    shift
+    ;;
+  *)
+    echo "Warning: Unrecognized argument '$1'"
+    shift
+    ;;
+  esac
+done
+
+# Build the final command
+final_command="$base_command ${additional_args[@]}"
+
+case $command in
+play)
+  final_command+=" | mpv-play"
+  ;;
+search)
+  final_command+=" | fzf-play"
+  ;;
 esac
+
+# Execute the command
+echo "Executing: $final_command"
+eval $final_command

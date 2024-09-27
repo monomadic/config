@@ -1,0 +1,47 @@
+#!/usr/bin/env zsh
+
+# Function to print colored text
+print_color() {
+    local color=$1 text=$2
+    print -P "%F{$color}$text%f"
+}
+
+# Function to print colored background
+print_bg_color() {
+    local color=$1 text=$2
+    print -P "%K{$color}$text%k"
+}
+
+# Print standard 16 colors
+print "\nStandard 16 colors:"
+for color in {0..15}; do
+    print_color $color "Color $color"
+    print_bg_color $color "  BG $color  "
+    if (( ($color + 1) % 8 == 0 )); then
+        print # New line every 8 colors
+    else
+        print -n "  "
+    fi
+done
+
+# Print 256 color palette
+print "\n\n256 color palette:"
+for color in {0..255}; do
+    print_color $color "%3d" $color
+    if (( ($color + 1) % 16 == 0 )); then
+        print # New line every 16 colors
+    else
+        print -n " "
+    fi
+done
+
+# Print color names
+print "\n\nNamed colors:"
+for color in black red green yellow blue magenta cyan white; do
+    print_color $color $color
+    print -n "  "
+    print_bg_color $color "  $color  "
+    print -n "  "
+done
+
+print "\n"

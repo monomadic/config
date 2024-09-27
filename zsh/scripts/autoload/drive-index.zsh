@@ -34,17 +34,18 @@ fzf-safe-media-latest() {
 alias .cumshot="ls-media --sort modified --match-string '#cumshot' | mpv-stdin --shuffle"
 alias .search-cumshot="ls-media --sort modified --match-string '#cumshot' | fzf-play"
 
-# Include unsafe files
-
 fzf-media-untagged() {
   ls-media | grep -v '#' | fzf-play --kitty
 }
 
-fzf-media-cache() {
+alias .top=media-play-top
+alias .suki=mpv-play-suki
+
+media-play-cache() {
   cd $HOME/Movies/Cache && fd-video | fzf-play
 }
-alias @cache
-alias .cache
+alias @cache=media-play-cache
+alias .cache=media-play-cache
 
 mpv-stdin() {
   mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --input-ipc-server=/tmp/mpvsocket --mute=yes $@ --playlist=- >/dev/null 2>&1 &
@@ -55,15 +56,14 @@ alias media-play-unsafe="media-ls | grep-unsafe | mpv-play --shuffle"
 
 alias media-ls-suki="ls-media --match-regex '#suki'"
 alias media-play-suki="media-ls-suki | mpv-play --shuffle"
-alias @play-suki=mpv-play-suki
-alias .suki=mpv-play-suki
 
 alias media-ls-top="ls-media --match-regex '#top'"
 alias media-play-top="media-ls-top | mpv-play"
 alias @play-top=media-play-top
-alias .top=media-play-top
 
-alias media-ls-clips="ls-media --match-string 'clips'"
+alias media-ls-clips="ls-media --match-string '/clips/'"
+alias media-play-clips="media-ls-clips | mpv-play --shuffle"
+alias media-search-clips="media-ls-clips | fzf-play"
 
 # alias media-ls-clips-top="ls-media --match-regex 'clips.*#top'"
 # alias media-ls-clips-top="ls-media --match-regex 'clips' --match-regex '#top'"
@@ -79,11 +79,8 @@ alias media-ls-clips-suki-top-cumshot="ls-media --match-regex 'clips.*#(suki|top
 alias media-play-clips-suki-top-cumshot="media-ls-clips-suki-top-cumshot | mpv-play --shuffle"
 alias media-search-clips-suki-top-cumshot="media-ls-clips-suki-top-cumshot | fzf-play"
 
-mpv-play-clips() {
-  ls-media | grep "\/clips\/" | grep-safe | mpv-stdin --shuffle
-}
-alias @play-clips=mpv-play-clips
-alias .clips=mpv-play-clips
+alias @play-clips=media-play-clips
+alias .clips=media-play-clips
 
 mpv-play-loops() {
   ls-media | grep "\/loops\/" | grep-safe | mpv-stdin --shuffle --loop-file=1 --length=10
@@ -91,12 +88,17 @@ mpv-play-loops() {
 alias @play-loops=mpv-play-loops
 alias .loops=mpv-play-loops
 
-mpv-play-pwd-latest() {
-  echo $PWD | sort-across-paths --sort modified --reverse | mpv-stdin
+media-play-pwd-latest() {
+  echo $PWD | sort-across-paths --sort modified | mpv-stdin
 }
-alias .play-pwd-latest=mpv-play-pwd-latest
+alias .play-pwd-latest=media-play-pwd-latest
+alias ppwd=media-play-pwd-latest
 
-fzf-play-pwd-sorted() {
+media-search-pwd() {
+  fd-video | fzf-play
+}
+
+media-search-pwd-sorted() {
   echo $PWD | sort-across-paths --sort modified --reverse | fzf-play
 }
 
@@ -152,15 +154,13 @@ alias .search-pwd=fzf-search-pwd
 alias @search-pwd-sorted=fzf-play-pwd-sorted
 alias .search-pwd-sorted=fzf-play-pwd-sorted
 
-alias .latest=mpv-play-all--sorted
-alias .play-latest=mpv-play-all-sorted
+alias .latest=media-play-all-sorted
+alias .play-latest=media-play-all-sorted
 alias .play-cache=mpv-play-cache
 
 alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
 
-mpv-play-all() {
-  ls-media-paths | mpv-play
-}
+alias media-play-all="ls-media | mpv-play"
 
 mpv-play-external-drives() {
   mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --mute=yes --shuffle /Volumes/**/Movies/* >/dev/null 2>&1 &

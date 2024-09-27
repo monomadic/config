@@ -1,19 +1,21 @@
 # media functions
-alias @play-latest=mpv-play-sorted
+alias @play-latest=media-play-all-sorted
 alias @search="fzf-safe-media"
 alias @search-all="fzf-media-all"
 alias @search-latest="fzf-safe-media-latest"
 alias @stats="media-stats"
-alias @play-all="mpv-play-all"
+alias @play-all="media-play-all"
 #alias @cache-portrait="rsync-cache #portrait $MASTER_MEDIA_DIR "
 
 alias c=e-zsh
 alias g=git
-alias p=mpv-play-sorted
+alias p="media-play-all --shuffle"
 
 alias d=download-video
 alias dp="download-video porn "
-alias dmv="download-video music-video "
+alias dm="download-video music-video "
+alias dy="download-video youtube "
+alias durl="download-video-url "
 
 alias .dupes-check="fdupes --recurse --cache --nohidden --size --summarize ."
 alias .dupes-delete="fdupes --recurse --cache --nohidden --size --delete ."
@@ -30,16 +32,12 @@ alias .network-detect-captive-portal=detect-captive-portal
 alias .network-status=ns
 alias .tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --reverse --exact --bind 'enter:execute(open {})'"
 alias .tab-newest="cd $TABLATURE_DIR && fd . --extension pdf -t f --exec stat -f '%m%t%N' | sort -nr | cut -f2- | fzf --reverse --exact --bind 'enter:execute(open {})'"
-alias .uptime="uptime-pretty.zsh"
+alias .uptime="display-uptime"
 
-alias faphouse="yt-faphouse"
-alias .faphouse="yt-faphouse"
+alias faphouse="download-video-faphouse"
+alias .faphouse="download-video-faphouse"
 
 alias .brave-mp4-support="/Applications/Brave\ Browser.app/Contents/MacOS/Brave\ Browser --disable-features=MediaSource,UseModernMediaControls"
-
-alias dlv="download-video"
-alias dlp="download-video porn"
-alias dly="download-video youtube"
 
 alias .brewfile="cd $DOTFILES_DIR && e Brewfile"
 alias .portal=detect-captive-portal

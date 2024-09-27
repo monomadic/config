@@ -33,8 +33,9 @@ cd-inbox() {
 }
 alias .inbox=cd-inbox
 
-alias media-ls-all-sorted="media-ls --sort-modified | mpv-play"
+alias media-ls-all-sorted="media-ls --sort-modified --reverse"
 alias media-play-all-sorted="media-ls-all-sorted | mpv-play"
+alias media-search-all-sorted="media-ls-all-sorted | fzf-play"
 
 # list all unique tags found in files under the present directory
 ls-tags() {

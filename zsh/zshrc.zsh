@@ -7,8 +7,9 @@ local env_file="$HOME/config/zsh/env.zsh"
 autoload -Uz compinit
 compinit
 
-setopt autocd             # cd without typing cd
-setopt autopushd					# auto push dirs to recent dirs db (for dirs cmd)
+setopt autocd           # cd without typing cd
+setopt autopushd        # auto push dirs to recent dirs db (for dirs cmd)
+
 autoload -Uz add-zsh-hook # function autoloading (built-in zsh function)
 
 # Enable menu selection for better directory completion
@@ -45,11 +46,12 @@ fpath=($ZSH_CONFIG_DIR/functions/ $fpath)
 # # Trap errors to prevent closing the terminal
 # trap 'echo "An error occurred. Please check the script.";' ERR
 
+PURPLE=$(tput setaf 5)
+BLUE=$(tput setaf 4)
+RESET=$(tput sgr0)
+
 # Loop through the config files
 for config_file in $ZSH_CONFIG_DIR/autoload/*.(zsh|sh)(N); do
-  PURPLE=$(tput setaf 5)
-	BLUE=$(tput setaf 4)
-  RESET=$(tput sgr0)
   echo "${PURPLE}󰚔 ${BLUE}autoload/${config_file:t}${RESET}"
 
   # Source the config file and continue if there's an error
@@ -60,7 +62,7 @@ done
 
 echo
 
-.uptime
+display-uptime
 
 disk_space=$(df --si / | awk 'NR==2 {print $4}')
 # Extract the numeric value and the unit

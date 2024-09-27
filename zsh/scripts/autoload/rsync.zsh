@@ -5,7 +5,7 @@
 # }
 
 rsync-clone-firebird-to-babyblue() {
-  rsync-archive /Volumes/FireBird1TB/Movies/Porn/ /Volumes/BabyBlue2TB/Movies/Porn/
+  rsync-archive /Volumes/FireBird1TB/Movies/Porn/ /Volumes/LongBoy\ 1TB/Movies/Porn/
 }
 
 rsync-archive() {
