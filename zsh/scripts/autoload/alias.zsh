@@ -10,6 +10,7 @@ alias @play-all="media-play-all"
 alias c=e-zsh
 alias g=git
 alias p="media-play-all --shuffle"
+alias s="media-search-all --hide-path"
 
 alias d=download-video
 alias dp="download-video porn "

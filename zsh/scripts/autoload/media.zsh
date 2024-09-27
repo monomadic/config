@@ -1,9 +1,7 @@
 # todo: rename this cmd
 alias media-ls=ls-media
 
-media-search-all() {
-  media-ls | fzf-play --kitty
-}
+alias media-search-all="media-ls | fzf-play"
 
 alias fd-top-clips="fd --full-path --regex 'originals.*(#top|#suki)'"
 # detect available media paths

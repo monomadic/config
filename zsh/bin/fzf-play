@@ -1,10 +1,26 @@
 #!/bin/zsh
 
-# Parse command-line arguments
+# Initialize default settings
 PREVIEW_MODE="ascii"
 PREVIEW_WINDOW="right:50%:hidden:noborder"
-HIDE_PATH=false
+FZF_DEFAULT_OPTS="--prompt '    ' --border --reverse --ansi --no-sort --delimiter=/ --preview-window=down:1"
+# Define FZF color options with all possible settings for theming
+FZF_COLOR_OPTS="--color="
+FZF_COLOR_OPTS+="fg:#fadaf2,"      # Regular foreground
+FZF_COLOR_OPTS+="bg:#000000,"      # Regular background
+FZF_COLOR_OPTS+="hl:#ff4499,"      # Highlighted text (foreground)
+FZF_COLOR_OPTS+="fg+:#ff4499,"     # Selected line (foreground)
+FZF_COLOR_OPTS+="bg+:#000000,"     # Selected line (background)
+FZF_COLOR_OPTS+="hl+:#FFe22e,"     # Highlighted text in selected line (foreground)
+FZF_COLOR_OPTS+="info:#ae81ff,"    # Info line
+FZF_COLOR_OPTS+="border:#000000,"  # Border color
+FZF_COLOR_OPTS+="prompt:#FFFFFF,"  # Prompt
+FZF_COLOR_OPTS+="pointer:#FFe22e," # Pointer to the current line
+FZF_COLOR_OPTS+="marker:#a6e22e,"  # Multi-select marker
+FZF_COLOR_OPTS+="spinner:#FFFFFF,"
+FZF_COLOR_OPTS+="header:#66ddee"
 
+# Parse command-line arguments
 while [[ "$#" -gt 0 ]]; do
   case $1 in
   --kitty)
@@ -12,71 +28,82 @@ while [[ "$#" -gt 0 ]]; do
     shift
     ;;
   --hide-path)
-    HIDE_PATH=true
+    FZF_DEFAULT_OPTS+=" --with-nth=-1"
     shift
     ;;
-  *) break ;;
+  *)
+    break
+    ;;
   esac
 done
 
-# Define common mpv options
-MPV_COMMON_OPTS="--macos-fs-animation-duration=0 --no-native-fs --fs"
-
-# Set FZF default options and conditionally hide path
-FZF_DEFAULT_OPTS="--reverse --ansi --no-sort --layout=reverse-list --delimiter=/ --preview-window=down:1"
-if [[ "$HIDE_PATH" == true ]]; then
-  FZF_DEFAULT_OPTS+=" --with-nth=-1"
-fi
-
-# Set preview command based on preview mode
+# Set the preview command based on the preview mode
 if [[ "$PREVIEW_MODE" == "kitty" ]]; then
   PREVIEW_CMD='
-    ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=width,height,codec_name,duration -of csv=p=0 {} |
+    # Extract video metadata
+    ffprobe -v error -select_streams v:0 -count_packets \
+      -show_entries stream=width,height,codec_name,duration -of csv=p=0 {} | \
     awk -F, '\''{printf "Resolution: %sx%s\nCodec: %s\nDuration: %.2f seconds\n", $1, $2, $3, $4}'\'';
+
     echo;
-    ffmpeg -loglevel error -ss 00:00:08 -i {} -vf "scale=320:-1:flags=lanczos,select=eq(n\,0)" -vframes 1 -f image2 - 2>/dev/null |
+
+    # Generate preview image and render with chafa (kitty graphics protocol)
+    ffmpeg -loglevel error -ss 00:00:08 -i {} \
+      -vf "scale=320:-1:flags=lanczos,select=eq(n\,0)" \
+      -vframes 1 -f image2 - 2>/dev/null | \
     chafa -c 256 --size 80x40 --format=kitty --symbols all 2>/dev/null
   '
 else
   PREVIEW_CMD='
-    ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=width,height,codec_name,duration -of csv=p=0 {} |
+    # Extract video metadata
+    ffprobe -v error -select_streams v:0 -count_packets \
+      -show_entries stream=width,height,codec_name,duration -of csv=p=0 {} | \
     awk -F, '\''{printf "Resolution: %sx%s\nCodec: %s\nDuration: %.2f seconds\n", $1, $2, $3, $4}'\'';
+
     echo;
-    ffmpeg -loglevel error -ss 00:00:08 -i {} -vf "scale=80:-1,select=eq(n\,0)" -vframes 1 -f image2 - 2>/dev/null |
+
+    # Generate preview image and render with chafa (ASCII mode)
+    ffmpeg -loglevel error -ss 00:00:08 -i {} \
+      -vf "scale=80:-1,select=eq(n\,0)" \
+      -vframes 1 -f image2 - 2>/dev/null | \
     chafa -c full --format=symbols --size=80x40 2>/dev/null
   '
 fi
 
-# Main fzf command
+# Main fzf command with updated bindings and color options
 fzf \
   --multi \
   --exact \
   -i \
-  --color=fg:#f8f8f2,bg:-1,hl:#f92672,fg+:#a6e22e,bg+:-1,hl+:#66d9ef,info:#66d9ef,prompt:#ae81ff,spinner:#66d9ef,pointer:#f92672,marker:#a6e22e \
+  --no-sort \
+  --info=hidden \
+  --pointer=' ' \
+  --query "$*" \
+  $FZF_COLOR_OPTS \
   --preview "$PREVIEW_CMD" \
   --preview-window="$PREVIEW_WINDOW" \
-  --no-sort \
-  --bind 'enter:select-all+execute-silent(mpv --loop-file=1 '"$MPV_COMMON_OPTS"' {+} &)+deselect-all' \
-  --bind 'alt-enter:select-all+execute-silent(mpv '"$MPV_COMMON_OPTS"' --loop-file=1 --length=10 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
-  --bind 'alt-o:execute-silent(mpv '"$MPV_COMMON_OPTS"' {+})' \
-  --bind 'alt-L:select-all+execute-silent(mpv --loop-file=1 --length=2 --shuffle '"$MPV_COMMON_OPTS"' {+})+deselect-all' \
+  --bind 'enter:select-all+execute-silent(mpv-play {+} &)+deselect-all' \
+  --bind 'alt-enter:select-all+execute-silent(mpv-play --loop-file=1 --length=10 --shuffle {+})+deselect-all' \
+  --bind 'alt-o:execute-silent(mpv-play {+})' \
+  --bind 'alt-L:select-all+execute-silent(mpv-play --loop-file=1 --length=2 --shuffle {+})+deselect-all' \
+  --bind 'alt-m:select-all+execute-silent(mpv-play {+})' \
+  --bind 'alt-v:execute-silent(vlc {})' \
   --bind 'alt-A:select-all+execute(airflow-open {})' \
-  --bind 'alt-a:select-all,alt-d:deselect-all,ctrl-/:toggle-preview' \
   --bind 'alt-e:select-all+execute(elmedia-open {})' \
   --bind 'alt-i:select-all+execute(iina-open {})' \
   --bind 'alt-c:execute(kitty @ launch --cwd $(dirname {}) lf)' \
-  --bind 'alt-m:select-all+execute-silent(mpv '"$MPV_COMMON_OPTS"' {+})' \
-  --bind 'alt-P:select-all+execute-silent(printf "%s\n" {+} > playlist.m3u)+abort' \
-  --bind 'alt-p:toggle-preview' \
-  --bind 'alt-r:execute(open --reveal {})' \
+  --bind 'alt-t:execute-silent(kitty @ launch --cwd $(dirname {}))' \
+  --bind 'alt-a:select-all,alt-d:deselect-all' \
   --bind 'alt-s:select-all+accept' \
+  --bind 'ctrl-/:toggle-preview' \
+  --bind 'alt-p:toggle-preview' \
+  --bind 'alt-P:select-all+execute-silent(printf "%s\n" {+} > playlist.m3u)+abort' \
+  --bind 'alt-r:execute(open --reveal {})' \
   --bind 'ctrl-r:execute-silent(shuf -o /dev/stdout)' \
   --bind 'ctrl-s:execute-silent(sort -o /dev/stdout)' \
   --bind 'ctrl-d:execute-silent(ls -t {} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \
   --bind 'alt-R:execute-silent(shuf -o /dev/stdout)' \
   --bind 'alt-S:execute-silent(sort -o /dev/stdout)' \
   --bind 'alt-D:execute-silent(ls -t {} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \
-  --bind 'alt-t:execute-silent(kitty @ launch --cwd $(dirname {}))' \
-  --bind 'alt-v:execute-silent(vlc {})' \
-  --header $'enter:play-all | alt-o:play | alt-enter:loop-mode | alt-r:reveal-in-finder | alt-t:new-tab | alt-i:iina | alt-e:elmedia | alt-A:airflow | alt-a:select-all | alt-d:deselect-all | alt-l:lf | alt-s: stdout | alt-p:playlist\n' \
-  --query "$*"
+  \
+  --header $'enter:play-all | alt-o:play | alt-enter:loop-mode | alt-r:reveal-in-finder | alt-t:new-tab | alt-i:iina | alt-e:elmedia | alt-A:airflow | alt-a:select-all | alt-d:deselect-all | alt-l:lf | alt-s: stdout | alt-p:playlist\n'

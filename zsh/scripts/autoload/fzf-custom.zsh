@@ -99,9 +99,10 @@ function fzf-insert() {
 
 # fzf directory options
 function fzf_dirs() {
-  fzf --prompt 'cd  ' --layout=reverse \
+  fzf --prompt '  ' --layout=reverse \
     --exact \
-    --color=bg+:-1,fg:4,info:15,fg+:5,header:7,hl:5,hl+:5 \
+    --border \
+    --color=fg:4,info:#66d9ef,fg+:5,header:7,hl:5,hl+:5,prompt:#FFFFFF \
     --header $'ctrl-[f:finder, w:workspace, o:bookmarks, r:relative, p:project, c:cancel]\n' \
     --info=hidden \
     --pointer=' ' \
