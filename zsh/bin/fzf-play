@@ -3,7 +3,7 @@
 # Initialize default settings
 PREVIEW_MODE="ascii"
 PREVIEW_WINDOW="right:50%:hidden:noborder"
-FZF_DEFAULT_OPTS="--prompt '    ' --border --reverse --ansi --no-sort --delimiter=/ --preview-window=down:1"
+FZF_DEFAULT_OPTS="--prompt '   ' --border --reverse --ansi --no-sort --delimiter=/ --preview-window=down:1"
 # Define FZF color options with all possible settings for theming
 FZF_COLOR_OPTS="--color="
 FZF_COLOR_OPTS+="fg:#fadaf2,"      # Regular foreground
@@ -71,6 +71,7 @@ else
 fi
 
 # Main fzf command with updated bindings and color options
+# ⌘ ⇧ ⇧ ⌥ ⇪ ⌃ ↵
 fzf \
   --multi \
   --exact \
@@ -82,7 +83,7 @@ fzf \
   $FZF_COLOR_OPTS \
   --preview "$PREVIEW_CMD" \
   --preview-window="$PREVIEW_WINDOW" \
-  --bind 'enter:select-all+execute-silent(mpv-play {+} &)+deselect-all' \
+  --bind '↵:select-all+execute-silent(mpv-play {+} &)+deselect-all' \
   --bind 'alt-enter:select-all+execute-silent(mpv-play --loop-file=1 --length=10 --shuffle {+})+deselect-all' \
   --bind 'alt-o:execute-silent(mpv-play {+})' \
   --bind 'alt-L:select-all+execute-silent(mpv-play --loop-file=1 --length=2 --shuffle {+})+deselect-all' \
