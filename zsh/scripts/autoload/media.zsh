@@ -1,9 +1,14 @@
 # todo: rename this cmd
 alias media-ls=ls-media
-
-alias media-search-all="media-ls | fzf-play"
-
 alias fd-top-clips="fd --full-path --regex 'originals.*(#top|#suki)'"
+
+alias media-search="media search"
+alias media-play="media play"
+alias media-play-latest="media play latest"
+alias media-search-latest="media search latest"
+alias .cumshot="media play latest #cumshot"
+alias .cumshot-search="media search latest #cumshot"
+
 # detect available media paths
 ls-media-paths-checked() {
   for media_path in $(ls-media-paths); do
@@ -31,10 +36,6 @@ cd-inbox() {
 }
 alias .inbox=cd-inbox
 
-alias media-ls-all-sorted="media-ls --sort-modified --reverse"
-alias media-play-all-sorted="media-ls-all-sorted | mpv-play"
-alias media-search-all-sorted="media-ls-all-sorted | fzf-play"
-
 # list all unique tags found in files under the present directory
 ls-tags() {
   fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
@@ -44,7 +45,7 @@ cache-copy-clips() {
   local dest="$1"
 
   echo "Caching clips to $dest"
-  ls-media --match-regex '/clips/' --match-regex '#(suki|top|cumshot)' | copy-flat "$dest/clips"
+  ls-media --match-string '/clips/' --match-regex '#(suki|top|cumshot)' | copy-flat "$dest/clips"
 }
 
 cache-copy-all() {
@@ -54,10 +55,10 @@ cache-copy-all() {
   fi
 
   echo "Caching clips..."
-  ls-media --match-regex '/clips/' --match-regex '#(suki|top|cumshot)' | copy-flat "$LOCAL_CACHE_PATH/clips"
+  ls-media --match-string '/clips/' --match-regex '#(suki|top|cumshot)' | copy-flat "$LOCAL_CACHE_PATH/clips"
 
   echo "Caching #top scenes..."
-  ls-media --match-string "scenes" --match-string "#top" | copy-flat "$LOCAL_CACHE_PATH/scenes"
+  ls-media --match-string '/scenes/' --match-string "#top" | copy-flat "$LOCAL_CACHE_PATH/scenes"
 
   echo "Caching #top portraits..."
   ls-media --match-string "#portrait" --match-string "#top" --match-string "$MASTER_MEDIA_DIR" | copy-flat "$LOCAL_CACHE_PATH/portrait"

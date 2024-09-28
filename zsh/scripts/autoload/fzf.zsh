@@ -1,4 +1,4 @@
-export FZF_DEFAULT_OPTS="--layout=reverse --inline-info --color=bg+:-1,fg:4,info:15,fg+:5,header:7,hl:5,hl+:5"
+export FZF_DEFAULT_OPTS="--layout=reverse --cycle --inline-info --color=bg+:-1,fg:4,info:15,fg+:5,header:7,hl:5,hl+:5,border-bg:-1"
 export SKIM_DEFAULT_OPTIONS=$FZF_DEFAULT_OPTS
 export SKIM_DEFAULT_COMMAND="fd . --max-depth=3"
 export PRIVATE_PHOTOS_LIBRARY="$HOME/Media/Private/Private.photoslibrary"

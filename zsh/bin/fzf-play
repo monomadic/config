@@ -113,4 +113,4 @@ fzf \
   --bind 'alt-S:execute-silent(sort -o /dev/stdout)' \
   --bind 'alt-D:execute-silent(ls -t {} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \
   \
-  --header $'󰌑 play all · 󰘵 o play selected · 󰘵 󰌑 loop-mode (10 sec) · 󰘵 r reveal in finder · 󰘵 t reveal in kitty | 󰘵 p toggle preview | alt-i:iina | alt-e:elmedia | alt-A:airflow | alt-a:select-all | alt-d:deselect-all | alt-l:lf | alt-s: stdout | alt-p:playlist\n'
+  --header '󰌑 play all · 󰘵 o play selected · 󰘵 󰌑 loop-mode (10 sec) · 󰘵 r reveal in finder · 󰘵 t reveal in kitty · 󰘵 p toggle preview · 󰘵 i iina · 󰘵 e elmedia · 󰘵 A airflow · 󰘵 a select-all · 󰘵 d deselect-all · 󰘵 l lf · 󰘵 s stdout · 󰘵 p playlist'

@@ -6,12 +6,14 @@ print_usage() {
   echo "Commands:"
   echo "  play   - Play videos"
   echo "  search - Search videos"
+  echo "  list   - List videos"
   echo "Video types:"
   echo "  clips     - Match videos in '/clips/'"
   echo "  originals - Match videos in '/originals/'"
   echo "Args:"
   echo "  #tag      - Match videos with '#tag'"
   echo "  [Tag]     - Match videos with '[Tag]'"
+  echo "  --shuffle - Shuffle videos during playback (only for 'play' command)"
   echo "  (other args can be added similarly)"
 }
 
@@ -20,11 +22,12 @@ command=""
 video_type=""
 base_command="ls-media"
 additional_args=()
+shuffle_enabled=false
 
 # Parse command
 if [[ $# -ge 1 ]]; then
   case $1 in
-  play | search)
+  play | search | list)
     command=$1
     shift
     ;;
@@ -53,6 +56,14 @@ while [[ $# -gt 0 ]]; do
     additional_args+=("--match-string='/originals/'")
     shift
     ;;
+  latest)
+    additional_args+=("--sort-modified --reverse")
+    shift
+    ;;
+  --shuffle)
+    shuffle_enabled=true
+    shift
+    ;;
   \#*)
     additional_args+=("--match-string '$1'")
     shift
@@ -77,9 +88,16 @@ final_command="$base_command ${additional_args[@]}"
 case $command in
 play)
   final_command+=" | mpv-play"
+  if $shuffle_enabled; then
+    final_command+=" --shuffle"
+  fi
   ;;
 search)
   final_command+=" | fzf-play"
+  ;;
+list)
+  # Just list the files without any further command
+  final_command+=" | cat"
   ;;
 esac
 

@@ -28,12 +28,6 @@ fzf-search-local() {
 }
 alias @search-local=fzf-search-local
 
-fzf-safe-media-latest() {
-  ls-media --sort modified | grep-safe | fzf-play
-}
-alias .cumshot="ls-media --sort modified --match-string '#cumshot' | mpv-stdin --shuffle"
-alias .search-cumshot="ls-media --sort modified --match-string '#cumshot' | fzf-play"
-
 fzf-media-untagged() {
   ls-media | grep -v '#' | fzf-play --kitty
 }
@@ -159,8 +153,6 @@ alias .play-latest=media-play-all-sorted
 alias .play-cache=mpv-play-cache
 
 alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
-
-alias media-play-all="ls-media | mpv-play"
 
 mpv-play-external-drives() {
   mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --mute=yes --shuffle /Volumes/**/Movies/* >/dev/null 2>&1 &

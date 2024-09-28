@@ -1,7 +1,7 @@
 # media functions
 alias @play-latest=media-play-all-sorted
-alias @search="fzf-safe-media"
-alias @search-all="fzf-media-all"
+alias @search="media-search-all-safe"
+alias @search-all="media-search-all"
 alias @search-latest="fzf-safe-media-latest"
 alias @stats="media-stats"
 alias @play-all="media-play-all"
@@ -9,8 +9,8 @@ alias @play-all="media-play-all"
 
 alias c=e-zsh
 alias g=git
-alias p="media-play-all --shuffle"
-alias s="media-search-all --hide-path"
+alias p="media-play --shuffle"
+alias s="media-search --hide-path"
 
 alias d=download-video
 alias dp="download-video porn "
@@ -31,7 +31,7 @@ alias .config="cd $ZSH_DOTFILES_DIR && nvim zshrc.zsh"
 alias .apple-music-dl=apple-music-dl
 alias .network-detect-captive-portal=detect-captive-portal
 alias .network-status=ns
-alias .tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --reverse --exact --bind 'enter:execute(open {})'"
+alias .tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --margin=10%,0% --reverse --cycle --prompt=' 󰋆 ' --border --border-label=' Tabs' --no-info --exact --bind 'enter:execute(open {})'"
 alias .tab-newest="cd $TABLATURE_DIR && fd . --extension pdf -t f --exec stat -f '%m%t%N' | sort -nr | cut -f2- | fzf --reverse --exact --bind 'enter:execute(open {})'"
 alias .uptime="display-uptime"
 
