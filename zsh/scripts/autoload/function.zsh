@@ -409,7 +409,7 @@ function yt-tag-rename {
     echo "\nSuccess! File renamed to: $new_filename"
 }
 
-function yt-fetch-tags {
+yt-fetch-tags() {
     local url="$1"
 
     # Ensure URL and output file are provided
@@ -524,10 +524,11 @@ function yt-rename() {
   # fi
 }
 
-function yt-tag-and-rename() {
+function media-tag-download-and-rename() {
   # Check if the correct number of arguments is provided
   if [[ $# -ne 2 ]]; then
-    echo "Usage: tag_file_with_metadata <file_path> <url>"
+    echo "Usage: ${0:t} <file_path> <url>"
+    echo "Purpose: download tags with yt-dlp and embed them into a given file."
     return 1
   fi
 

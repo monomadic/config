@@ -39,7 +39,7 @@ if [ -z "$glyph_data" ]; then
 fi
 
 # Feed glyph data to fzf for selection
-selected=$(printf "%s\n" "$glyph_data" | fzf --reverse --ansi --prompt="Search Nerd Font Glyphs: ")
+selected=$(printf "%s\n" "$glyph_data" | fzf --info=hidden --margin 2% --padding 3% --reverse --cycle --ansi --prompt="NerdFonts > ")
 
 # If an item was selected, copy the glyph to clipboard
 if [ -n "$selected" ]; then

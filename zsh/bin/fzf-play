@@ -2,22 +2,25 @@
 
 # Initialize default settings
 PREVIEW_MODE="ascii"
-PREVIEW_WINDOW="right:50%:hidden:noborder"
+PREVIEW_WINDOW="right:50%:hidden:border"
 FZF_DEFAULT_OPTS="--prompt '   ' --border --reverse --ansi --no-sort --delimiter=/ --preview-window=down:1"
-# Define FZF color options with all possible settings for theming
-FZF_COLOR_OPTS="--color="
+
+# Color Scheme
+FZF_COLOR_OPTS=""
 FZF_COLOR_OPTS+="fg:#fadaf2,"      # Regular foreground
 FZF_COLOR_OPTS+="bg:#000000,"      # Regular background
-FZF_COLOR_OPTS+="hl:#ff4499,"      # Highlighted text (foreground)
+FZF_COLOR_OPTS+="hl:#FFe22e,"      # Highlighted text (foreground)
+FZF_COLOR_OPTS+="hl+:#FFe22e,"     # Highlighted text in selected line (foreground)
 FZF_COLOR_OPTS+="fg+:#ff4499,"     # Selected line (foreground)
 FZF_COLOR_OPTS+="bg+:#000000,"     # Selected line (background)
-FZF_COLOR_OPTS+="hl+:#FFe22e,"     # Highlighted text in selected line (foreground)
 FZF_COLOR_OPTS+="info:#ae81ff,"    # Info line
 FZF_COLOR_OPTS+="border:#000000,"  # Border color
 FZF_COLOR_OPTS+="prompt:#FFFFFF,"  # Prompt
 FZF_COLOR_OPTS+="pointer:#FFe22e," # Pointer to the current line
 FZF_COLOR_OPTS+="marker:#a6e22e,"  # Multi-select marker
 FZF_COLOR_OPTS+="spinner:#FFFFFF,"
+FZF_COLOR_OPTS+="preview-bg:#111111,"
+FZF_COLOR_OPTS+="preview-border:#111111,"
 FZF_COLOR_OPTS+="header:#66ddee"
 
 # Parse command-line arguments
@@ -71,19 +74,22 @@ else
 fi
 
 # Main fzf command with updated bindings and color options
-# ⌘ ⇧ ⇧ ⌥ ⇪ ⌃ ↵
+# unicode:		⌘ ⇧ ⇧ ⌥ ⇪ ⌃ ↵
+# nerdfonts:	󰘶 󰘵 󰘲 󰘳 󰘴 󰌑
 fzf \
   --multi \
   --exact \
-  -i \
+  --ignore-case \
+  --margin 2% --padding 3%,1% \
   --no-sort \
   --info=hidden \
+  --cycle \
   --pointer=' ' \
   --query "$*" \
-  $FZF_COLOR_OPTS \
+  --color $FZF_COLOR_OPTS \
   --preview "$PREVIEW_CMD" \
   --preview-window="$PREVIEW_WINDOW" \
-  --bind '↵:select-all+execute-silent(mpv-play {+} &)+deselect-all' \
+  --bind 'enter:select-all+execute-silent(mpv-play {+} &)+deselect-all' \
   --bind 'alt-enter:select-all+execute-silent(mpv-play --loop-file=1 --length=10 --shuffle {+})+deselect-all' \
   --bind 'alt-o:execute-silent(mpv-play {+})' \
   --bind 'alt-L:select-all+execute-silent(mpv-play --loop-file=1 --length=2 --shuffle {+})+deselect-all' \
@@ -107,4 +113,4 @@ fzf \
   --bind 'alt-S:execute-silent(sort -o /dev/stdout)' \
   --bind 'alt-D:execute-silent(ls -t {} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \
   \
-  --header $'enter:play-all | alt-o:play | alt-enter:loop-mode | alt-r:reveal-in-finder | alt-t:new-tab | alt-i:iina | alt-e:elmedia | alt-A:airflow | alt-a:select-all | alt-d:deselect-all | alt-l:lf | alt-s: stdout | alt-p:playlist\n'
+  --header $'󰌑 play all · 󰘵 o play selected · 󰘵 󰌑 loop-mode (10 sec) · 󰘵 r reveal in finder · 󰘵 t reveal in kitty | 󰘵 p toggle preview | alt-i:iina | alt-e:elmedia | alt-A:airflow | alt-a:select-all | alt-d:deselect-all | alt-l:lf | alt-s: stdout | alt-p:playlist\n'

@@ -7,6 +7,8 @@ alias yt-video="yt-dlp -f 'bestvideo[vcodec^=avc1]' --merge-output-format mp4 --
 alias yt-json-dump="yt-dlp --write-info-json --skip-download "
 alias yt-json-description="jq '.description' "
 alias yt-batch-edit="nvim $HOME/.ytdl-batch-porn"
+alias yt-thumbnail="yt-dlp --skip-download --write-thumbnail "
+alias yt-thumbnail-jpg="yt-dlp --skip-download --write-thumbnail --convert-thumbnails jpg "
 
 local MUSIC_VIDEO_FORMAT="%(artist)s - %(title)s.%(ext)s"
 
@@ -340,20 +342,20 @@ function yt-dlp-download-and-embed-tags {
 }
 
 # not working
-function mp4-tag-fetch {
-  local url="$1"
-  if [[ -z "$url" ]]; then
-    echo "Usage: ${0:t} <url>"
-    return 1
-  fi
-
-  # yt-dlp --verbose --skip-download --print-json "${url}"
-  # fetch metadata
-  local json_metadata=$(yt-dlp --verbose --skip-download --print-json "${url}")
-
-  echo "description: "
-  echo "$json_metadata" | jq '.description'
-}
+# mp4-tag-fetch() {
+#   local url="$1"
+#   if [[ -z "$url" ]]; then
+#     echo "Usage: ${0:t} <url>"
+#     return 1
+#   fi
+#
+#   # yt-dlp --verbose --skip-download --print-json "${url}"
+#   # fetch metadata
+#   local json_metadata=$(yt-dlp --verbose --skip-download --print-json "${url}")
+#
+#   echo "description: "
+#   echo "$json_metadata" | jq '.description'
+# }
 
 convert-to-mp4() {
   if [ $# -eq 0 ]; then
