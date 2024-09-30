@@ -104,6 +104,10 @@ fzf-insert() {
 fzf-dirs() {
   fzf --prompt '   ' \
     --layout=reverse \
+    --no-sort \
+    --exact \
+    --ignore-case \
+    --cycle \
     --exact \
     --border \
     --color=fg:4,info:#66d9ef,hl:#FFe22e,hl+:#FFe22e,fg+:5,header:7,prompt:#FFFFFF,border:#000000,bg+:#000000,bg:#000000 \
@@ -127,11 +131,10 @@ fzf-edit() {
 }
 
 fzf-marks() {
-  magic-enter
   local dir
   dir=$(ls-marks | fzf-dirs)
-  [[ -n "$dir" ]] && cd "$dir"
-  zle && zle reset-prompt
+  [[ -n "$dir" ]] && cd "$dir" && zle && zle reset-prompt && magic-enter
+  zle
 }
 
 # Bind functions to keys (if needed)
