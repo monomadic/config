@@ -1,10 +1,10 @@
 # media functions
-alias @play-latest=media-play-all-sorted
-alias @search="media-search-all-safe"
-alias @search-all="media-search-all"
+alias @play-latest=media-play-sorted
+alias @search="media-search-safe"
+alias @search-all="media-search"
 alias @search-latest="fzf-safe-media-latest"
 alias @stats="media-stats"
-alias @play-all="media-play-all"
+alias @play-all="media-play"
 #alias @cache-portrait="rsync-cache #portrait $MASTER_MEDIA_DIR "
 
 alias c=e-zsh

@@ -2,15 +2,21 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
+# ANSI color codes
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No color
+
 # Check if yt-dlp is installed
 if ! command -v yt-dlp >/dev/null 2>&1; then
-  echo "Error: yt-dlp is not installed. Please install yt-dlp."
+  printf "${RED}[error] yt-dlp is not installed. Please install yt-dlp.${NC}\n"
   exit 1
 fi
 
 # Check if terminal-notifier is installed
 if ! command -v terminal-notifier >/dev/null 2>&1; then
-  echo "Error: terminal-notifier is not installed. Please install it using 'brew install terminal-notifier'."
+  printf "${RED}[error] terminal-notifier is not installed. Please install it using 'brew install terminal-notifier'.${NC}\n"
   exit 1
 fi
 
@@ -18,11 +24,11 @@ fi
 print_usage() {
   echo "Usage: $(basename "$0") <command> <URL>"
   echo "Commands:"
-  echo "  music-video <URL> - Download music video"
-  echo "  audio-only <URL>  - Download audio only"
-  echo "  video-only <URL>  - Download video without audio"
-  echo "  porn <URL>        - Download adult content"
-  echo "  youtube <URL>     - Download YouTube video"
+  echo "  music-video (m) <URL> - Download music video"
+  echo "  audio-only (a) <URL>  - Download audio only"
+  echo "  video-only (v) <URL>  - Download video without audio"
+  echo "  porn (p) <URL>        - Download adult content"
+  echo "  youtube (y) <URL>     - Download YouTube video"
 }
 
 # Check if correct number of arguments is provided
@@ -34,8 +40,17 @@ fi
 COMMAND="$1"
 URL="$2"
 
+# Map shortcuts to full commands
+case "$COMMAND" in
+  m) COMMAND="music-video" ;;
+  a) COMMAND="audio-only" ;;
+  v) COMMAND="video-only" ;;
+  p) COMMAND="porn" ;;
+  y) COMMAND="youtube" ;;
+esac
+
 # Base yt-dlp command with Brave browser cookies
-YT_DLP_BASE=(yt-dlp --cookies-from-browser brave --continue --print after_move:filepath)
+YT_DLP_BASE=(yt-dlp --cookies-from-browser brave --continue --print after_move:filepath --progress --verbose)
 
 # Initialize OUTPUT_TEMPLATE and other variables
 OUTPUT_TEMPLATE=""
@@ -96,7 +111,7 @@ case "$COMMAND" in
   )
   ;;
 *)
-  printf "Error: Unknown command '%s'\n" "$COMMAND"
+  printf "${RED}[error] Unknown command '%s'\n${NC}" "$COMMAND"
   print_usage
   exit 1
   ;;
@@ -105,24 +120,24 @@ esac
 # Combine yt-dlp base command with format arguments and output template
 YT_DLP_CMD=("${YT_DLP_BASE[@]}" "${FORMAT_ARGS[@]}" --output "$OUTPUT_TEMPLATE")
 
-# Print the command for debugging
-echo "Executing command: ${YT_DLP_CMD[*]@Q} $URL"
+# Print the command for debugging in green
+printf "${GREEN}Executing command: %s %s${NC}\n" "${YT_DLP_CMD[*]@Q}" "$URL"
 
 # Execute yt-dlp and capture the file path
 FILE_PATH=$("${YT_DLP_CMD[@]}" "$URL")
 
-# Debugging: Print the captured file path
-echo "FILE_PATH: $FILE_PATH"
+# Debugging: Print the captured file path in yellow
+printf "${YELLOW}[debug] FILE_PATH: %s${NC}\n" "$FILE_PATH"
 
 # Check if the download was successful and FILE_PATH is not empty
 if [ -n "$FILE_PATH" ]; then
-  echo "Download completed successfully."
+  printf "${GREEN}Download completed successfully.${NC}\n"
   # Use terminal-notifier to display a clickable notification
   terminal-notifier -title "yt-dlp Download" \
                     -message "Download completed successfully." \
                     -activate "com.apple.finder" \
                     -execute "open --reveal \"$FILE_PATH\""
 else
-  echo "Error: Download failed or FILE_PATH is empty."
+  printf "${RED}[error] Download failed or FILE_PATH is empty.${NC}\n"
   exit 1
 fi

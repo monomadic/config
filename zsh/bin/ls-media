@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 
 usage() {
-  echo "Usage: $0 [--match-string STRING]... [--match-regex REGEX]... [--sort-modified] [--reverse] [--verbose]" >&2
+  echo "Usage: $0 [--match-string STRING]... [--match-regex REGEX]... [--sort-modified | --sort-created] [--reverse] [--verbose]" >&2
   echo "Options:" >&2
   echo " --match-string STRING   Only list files where the path contains all the given strings (case-insensitive). Can be used multiple times." >&2
   echo " --match-regex REGEX     Only list files where the path matches all the given regex patterns (case-insensitive). Can be used multiple times." >&2
   echo " --sort-modified         Sort files by modification time" >&2
+  echo " --sort-created          Sort files by creation time" >&2
   echo " --reverse               Reverse the sort order" >&2
   echo " --verbose               Enable verbose logging" >&2
 }
@@ -21,6 +22,7 @@ log_verbose() {
 match_strings=()
 match_regexes=()
 sort_modified=false
+sort_created=false
 reverse=false
 
 # Parse command-line arguments
@@ -36,6 +38,10 @@ while [ $# -gt 0 ]; do
     ;;
   --sort-modified)
     sort_modified=true
+    shift
+    ;;
+  --sort-created)
+    sort_created=true
     shift
     ;;
   --reverse)
@@ -106,9 +112,13 @@ process_input_fd() {
     # Get the full path
     full_path="$(pwd)/$file"
 
+    # Handle sorting by modification or creation time
     if $sort_modified; then
       mod_time=$(stat -f "%m" "$full_path")
       printf '%s\t%s\n' "$mod_time" "$full_path"
+    elif $sort_created; then
+      create_time=$(stat -f "%B" "$full_path")
+      printf '%s\t%s\n' "$create_time" "$full_path"
     else
       echo "$full_path"
     fi
@@ -138,7 +148,7 @@ for dir in $directories; do
 done
 
 # Sort and output results
-if $sort_modified; then
+if $sort_modified || $sort_created; then
   sort -n "$temp_file" | cut -f2-
 else
   cat "$temp_file"

@@ -148,8 +148,8 @@ alias .search-pwd=fzf-search-pwd
 alias @search-pwd-sorted=fzf-play-pwd-sorted
 alias .search-pwd-sorted=fzf-play-pwd-sorted
 
-alias .latest=media-play-all-sorted
-alias .play-latest=media-play-all-sorted
+alias .latest=media-play-latest
+alias .play-latest=media-play-latest
 alias .play-cache=mpv-play-cache
 
 alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
