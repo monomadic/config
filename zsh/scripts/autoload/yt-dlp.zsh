@@ -1,9 +1,3 @@
-alias yt="yt-dlp"
-alias yt-audio="yt-dlp -f 'bestaudio' --extract-audio --embed-metadata --cookies-from-browser=brave "
-alias yt-aac="yt-dlp -f 'bestaudio[ext=m4a]' --embed-metadata --cookies-from-browser=brave --extract-audio "
-alias yt-avc="yt-dlp -f 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' --cookies-from-browser=brave --merge-output-format mp4 --embed-metadata "
-alias yt-firefox="yt-dlp --cookies-from-browser=firefox "
-alias yt-video="yt-dlp -f 'bestvideo[vcodec^=avc1]' --merge-output-format mp4 --cookies-from-browser=brave --embed-metadata "
 alias yt-json-dump="yt-dlp --write-info-json --skip-download "
 alias yt-json-description="jq '.description' "
 alias yt-batch-edit="nvim $HOME/.ytdl-batch-porn"
@@ -12,12 +6,7 @@ alias yt-thumbnail-jpg="yt-dlp --skip-download --write-thumbnail --convert-thumb
 
 local MUSIC_VIDEO_FORMAT="%(artist)s - %(title)s.%(ext)s"
 
-function yt-video-only() {
-  local url="$1"
-  yt-dlp -f "bv[ext=mp4]" "$url" --merge-output-format mp4
-}
-
-function yt-download-format() {
+fzf-yt-dlp-get-format() {
   if [ -z "$1" ]; then
     echo "Usage: $0 <YouTube_URL>"
     return 1
@@ -36,23 +25,6 @@ function yt-download-format() {
 
   # Download the selected format
   yt-dlp -f "$format" "$url"
-}
-
-function yt-download-mp4() {
-  local url="$1"
-
-  if [[ -z "$url" ]]; then
-    echo "Usage: ${0:t} <url>"
-    return 1
-  fi
-
-  yt-dlp \
-    --format "bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best" \
-    --output "${output_template}" \
-    --cookies-from-browser brave \
-    --embed-metadata \
-    --merge-output-format mp4 \
-    $@
 }
 
 function yt-music-video {
