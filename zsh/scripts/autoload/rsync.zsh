@@ -30,12 +30,12 @@ rsync-archive() {
     echo "Destination folder does not exist. Creating it now..."
     mkdir -p "$destination_folder"
   fi
+  #--delete
 
   # Perform rsync to backup the folder
   rsync --archive \
     --progress \
     --ignore-existing \
-    --delete \
     "$source_folder" \
     "$destination_folder"
 

@@ -3,6 +3,7 @@ alias @play-latest=media-play-sorted
 alias @search="media-search-safe"
 alias @search-all="media-search"
 alias @search-latest="fzf-safe-media-latest"
+alias @search-volumes="ls-media --match-string '/Volumes/' | fzf-play"
 alias @stats="media-stats"
 alias @play-all="media-play"
 #alias @cache-portrait="rsync-cache #portrait $MASTER_MEDIA_DIR "
