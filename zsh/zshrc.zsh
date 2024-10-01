@@ -25,7 +25,7 @@ zstyle ':completion:*' list-dirs first
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 
 # Enable vi mode
-bindkey -v
+# bindkey -v
 
 YELLOW=$(tput setaf 3)
 BLUE=$(tput setaf 4)

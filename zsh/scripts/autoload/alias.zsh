@@ -10,8 +10,8 @@ alias @play-all="media-play"
 
 alias c=e-zsh
 alias g=git
-alias p="media-play --shuffle"
-alias s="media-search --hide-path"
+alias p="media play"
+alias s="media search --hide-path"
 
 alias d=download-video
 alias dp="download-video porn "
@@ -80,6 +80,7 @@ alias e-wiki=wiki
 alias e-zellij="cd ~/config/zellij/ && edit config.kdl"
 alias e-zsh="cd ~/config/zsh/ && edit zshrc.zsh"
 alias e="nvim"
+alias n="fzf-neovim"
 alias edit=nvim
 alias exa=eza
 alias f-all="fzf-cd"

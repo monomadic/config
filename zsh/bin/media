@@ -48,12 +48,12 @@ while [[ $# -gt 0 ]]; do
   case $1 in
   clips)
     video_type="clips"
-    additional_args+=("--match-string='/clips/'")
+    additional_args+=("--match-string '/clips/'")
     shift
     ;;
   originals)
     video_type="originals"
-    additional_args+=("--match-string='/originals/'")
+    additional_args+=("--match-string '/originals/'")
     shift
     ;;
   latest)

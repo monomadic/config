@@ -26,13 +26,16 @@ mark() {
 }
 
 ls-marks() {
+  BLUE=$'\033[34m'
+  NC='\033[0m' # No color
   while IFS= read -r dir; do
-    [[ -d "$dir" ]] && echo "$dir"
+    [[ -d "$dir" ]] && printf "${BLUE}${dir}${NC}\n"
   done <"$MARKS_FILE"
 }
 
 # Directory listing functions
 ls-all() {
+  pwd
   ls-marks
   ls-workspaces
   ls-src
@@ -43,11 +46,11 @@ ls-workspaces() {
 }
 
 ls-src() {
-  dir-exists "$SRC_DIR" && exa "$SRC_DIR"/* --oneline --only-dirs --list-dirs
+  dir-exists "$SRC_DIR" && exa "$SRC_DIR"/* --oneline --only-dirs --list-dirs --color=always
 }
 
 ls-projects() {
-  dir-exists "$WORKSPACES_DIR" && exa "$WORKSPACES_DIR"/*.workspace/* --oneline --only-dirs --list-dirs
+  dir-exists "$WORKSPACES_DIR" && exa "$WORKSPACES_DIR"/*.workspace/* --oneline --only-dirs --list-dirs --color=always
 }
 
 ls-recursive() {
@@ -105,12 +108,13 @@ fzf-dirs() {
   fzf --prompt '   ' \
     --layout=reverse \
     --no-sort \
+    --ansi \
     --exact \
     --ignore-case \
     --cycle \
     --exact \
     --border \
-    --color=fg:4,info:#66d9ef,hl:#FFe22e,hl+:#FFe22e,fg+:5,header:7,prompt:#FFFFFF,border:#000000,bg+:#000000,bg:#000000 \
+    --color=info:#66d9ef,hl:#FFe22e,hl+:#FFe22e,fg+:5,header:7,prompt:#FFFFFF,border:#000000,bg+:#000000,bg:#000000 \
     --header '󰌑 open  󰘴r reveal  󰘴b marks  󰘴o pwd  󰘴c cancel' \
     --info=hidden \
     --pointer=' ' \
@@ -123,7 +127,23 @@ fzf-dirs() {
     "$@"
 }
 
-fzf-edit() {
+nvim-edit() {
+  if [[ "$1" == "--help" ]]; then
+    echo "Usage: $0 [file ...]"
+    echo " - If arguments are given, run nvim with the arguments."
+    echo " - If no arguments are given, launch fzf-neovim."
+    return
+  fi
+
+  if [[ $# -gt 0 ]]; then
+    nvim "$@"
+  else
+    fzf-neovim
+  fi
+}
+
+alias nvim_or_fzf="nvim_or_fzf"
+fzf-neovim() {
   local dir
   dir=$(ls-all | fzf-dirs)
   [[ -n "$dir" ]] && cd "$dir" && ${EDITOR:-nvim}
