@@ -1,6 +1,5 @@
+alias exa=eza
 function exa-ls {
-  clear
   exa --icons --group-directories-first
-  echo
-  zle && zle reset-prompt
 }
+alias xls=exa-ls

@@ -82,7 +82,6 @@ alias e-zsh="cd ~/config/zsh/ && edit zshrc.zsh"
 alias e="nvim"
 alias n="fzf-neovim"
 alias edit=nvim
-alias exa=eza
 alias f-all="fzf-cd"
 alias ga="git add . && git commit --amend"
 alias gc-update="gc update:"

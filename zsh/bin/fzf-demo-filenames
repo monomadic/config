@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# Function to safely encode filenames
+encode_filename() {
+  printf '%s' "$1" | sed 's/"/\\"/g; s/^/"/; s/$/"/'
+}
+
+# Function to get file size that works on both Linux and macOS
+get_file_size() {
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    stat -f %z "$1"
+  else
+    stat -c %s "$1"
+  fi
+}
+
+# Function to safely decode and preview file
+preview_file() {
+  local size=$(echo "$1" | cut -d' ' -f1)
+  local encoded_file=$(echo "$1" | cut -d' ' -f2-)
+  local file=$(echo "$encoded_file" | sed 's/^"//; s/"$//; s/\\"/"/g')
+  echo "File: $file"
+  echo "Size: $size bytes"
+  echo "Contents:"
+  head -n 10 "$file"
+}
+
+# Find files and format output
+find . -type f -print0 | while IFS= read -r -d '' file; do
+  size=$(get_file_size "$file")
+  encoded_file=$(encode_filename "$file")
+  clean_name=$(basename "$file" | sed 's/^"//; s/"$//')
+  echo "${size} ${encoded_file} ${clean_name}"
+done | sort -rn |
+  fzf --with-nth=3 -d' ' \
+    --preview 'bash -c "$(declare -f preview_file); preview_file {}"' \
+    --bind 'ctrl-/:change-preview-window(down|hidden|)' |
+  cut -d' ' -f2 | xargs -0 echo | sed 's/^"//; s/"$//; s/\\"/"/g'

@@ -1,4 +1,4 @@
-# Indexing and searching for non-persistent volumes
+# Indexing and offline searching for non-persistent volumes
 
 # todo: rename this cmd
 alias media-ls=ls-media

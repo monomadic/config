@@ -133,8 +133,8 @@ printf "${YELLOW}[debug] FILE_PATH: %s${NC}\n" "$FILE_PATH"
 if [ -n "$FILE_PATH" ]; then
   printf "${GREEN}Download completed successfully.${NC}\n"
   # Use terminal-notifier to display a clickable notification
-  terminal-notifier -title "yt-dlp Download" \
-                    -message "Download completed successfully." \
+  terminal-notifier -message "Download completed successfully." \
+										-title "yt-dlp Download" \
                     -activate "com.apple.finder" \
                     -execute "open --reveal \"$FILE_PATH\""
 else
