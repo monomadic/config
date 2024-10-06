@@ -12,7 +12,7 @@ FZF_COLOR_OPTS+="bg:#000000,"      # Regular background
 FZF_COLOR_OPTS+="hl:#FFe22e,"      # Highlighted text (foreground)
 FZF_COLOR_OPTS+="hl+:#FFe22e,"     # Highlighted text in selected line (foreground)
 FZF_COLOR_OPTS+="fg+:#ff4499,"     # Selected line (foreground)
-FZF_COLOR_OPTS+="bg+:#000000,"     # Selected line (background)
+FZF_COLOR_OPTS+="bg+:#422042,"     # Selected line (background)
 FZF_COLOR_OPTS+="info:#ae81ff,"    # Info line
 FZF_COLOR_OPTS+="border:#000000,"  # Border color
 FZF_COLOR_OPTS+="prompt:#FFFFFF,"  # Prompt
@@ -73,10 +73,23 @@ else
   '
 fi
 
+# Read input from stdin
+input=$(cat)
+
+# Process input to highlight #tags and [Categories]
+# \033[38;2;0;0;255;48;2;50;50;50m
+# \033[38;2;255;226;46m
+# \033[38;2;0;0;255m
+processed_input=$(echo "$input" | awk '{
+    gsub(/#[^ \t]+/, "\033[38;2;180;180;230m&\033[0m")
+    gsub(/\[[^]]+\]/, "\033[38;2;255;168;253m&\033[0m")
+    print
+}')
+
 # Main fzf command with updated bindings and color options
-# unicode:		⌘ ⇧ ⇧ ⌥ ⇪ ⌃ ↵
-# nerdfonts:	󰘶 󰘵 󰘲 󰘳 󰘴 󰌑
-fzf \
+# unicode:       ⌘ ⇧ ⇧ ⌥ ⇪ ⌃ ↵
+# nerdfonts:     󰘶 󰘵 󰘲 󰘳 󰘴 󰌑
+echo "$processed_input" | fzf \
   --multi \
   --exact \
   --ignore-case \
@@ -86,6 +99,7 @@ fzf \
   --cycle \
   --pointer=' ' \
   --query "$*" \
+  --ansi \
   --color $FZF_COLOR_OPTS \
   --preview "$PREVIEW_CMD" \
   --preview-window="$PREVIEW_WINDOW" \
