@@ -1,3 +1,25 @@
+# starship.toml
+
+# Don't print a new line at the start
+add_newline = false
+
+# Disable default prefix in the prompt (shows no newlines between sections)
+[character]
+success_symbol = "[❯](bold green)"  # Symbol when the last command was successful
+error_symbol = "[✗](bold red)"      # Symbol when the last command failed
+
+# Configure the directory module
+[directory]
+truncation_length = 3 # Show the last 3 directories of the path
+truncation_symbol = "…/" # Use an ellipsis for truncation
+format = "[$path]($style) " # Show the directory path in brackets
+style = "blue"
+
+# Configure the git module
+[git_branch]
+symbol = " " # Icon for the git branch
+style = "bold yellow"
+
 [custom.wattage]
 command = "get_wattage"
 shell = "zsh"
@@ -7,3 +29,19 @@ format = "[$output](bold green) "
 format = "[$symbol($status)]($style) "
 symbol = "$env(STARSHIP_VI_MODE)"
 style = "bold green"
+
+[status]
+symbol = "⚠️ "
+style = "bold red"
+format = "[$symbol$status]($style) "
+disabled = false
+
+[custom.disk_space]
+command = "df -h / | grep -E '^/dev/' | awk '{print $4}' | sed 's/Gi/gb/' | xargs -I {} echo '  {}'"  # Convert Gi to gb
+when = "df -h / | grep -E '^/dev/' | awk '{print $4}' | sed 's/Gi//' | awk '$1 < 10 {exit 1}'"  # Trigger warning if free space is less than 10GB
+style = "bold red"  # Apply red style when the threshold is met
+
+[custom.uptime]
+command = "uptime -p | sed 's/ days/d/' | xargs -I {} echo '  up {}'"  # Format uptime and use 'd' for days
+when = "uptime -p | awk '/day/ {print $2}' | awk '$1 >= 2 {exit 1}'"  # Trigger warning if uptime is 2 days or more
+style = "bold yellow"  # Apply yellow style when the threshold is met

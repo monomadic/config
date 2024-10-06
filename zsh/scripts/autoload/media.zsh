@@ -41,7 +41,11 @@ ls-tags() {
   fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
 }
 
-cache-copy-clips() {
+media-cache-to-discboy() {
+  media list top-clips | copy-flat "/Volumes/Discboy 512/clips"
+}
+
+media-cache-copy-top-clips() {
   local dest="$1"
 
   echo "Caching clips to $dest"

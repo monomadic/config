@@ -51,6 +51,11 @@ while [[ $# -gt 0 ]]; do
     additional_args+=("--match-string '/clips/'")
     shift
     ;;
+  top-clips)
+    video_type="top-clips"
+    additional_args+=("--match-regex 'clips.*#(suki|top|cumshot)'")
+    shift
+    ;;
   originals)
     video_type="originals"
     additional_args+=("--match-string '/originals/'")

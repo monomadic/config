@@ -7,10 +7,11 @@ alias @search-volumes="ls-media --match-string '/Volumes/' | fzf-play"
 alias @stats="media-stats"
 alias @play-all="media-play"
 #alias @cache-portrait="rsync-cache #portrait $MASTER_MEDIA_DIR "
+alias autotag=media-autotag
 
 alias c=e-zsh
 alias g=git
-alias p="media play"
+alias p="media play latest"
 alias s="media search --hide-path"
 
 alias d=download-video

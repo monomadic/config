@@ -1,0 +1,168 @@
+#!/usr/bin/env zsh
+
+# Check for at least 2 arguments
+if (($# < 2)); then
+  echo "Usage:"
+  echo "rename replace <match-string> <replacement-string> [files...]"
+  echo "rename append <string> [files...]"
+  echo "rename insert <string> [files...]"
+  echo "rename remove <string> [files...]"
+  exit 1
+fi
+
+subcommand=$1
+shift
+
+case "$subcommand" in
+replace)
+  if (($# < 2)); then
+    echo "Usage: rename replace <match-string> <replacement-string> [files...]"
+    exit 1
+  fi
+  match_string=$1
+  replacement_string=$2
+  shift 2
+  ;;
+append)
+  if (($# < 1)); then
+    echo "Usage: rename append <string> [files...]"
+    exit 1
+  fi
+  append_string=$1
+  shift
+  ;;
+insert)
+  if (($# < 1)); then
+    echo "Usage: rename insert <string> [files...]"
+    exit 1
+  fi
+  insert_string=$1
+  shift
+  ;;
+remove)
+  if (($# < 1)); then
+    echo "Usage: rename remove <string> [files...]"
+    exit 1
+  fi
+  remove_string=$1
+  shift
+  ;;
+*)
+  echo "Unknown subcommand: $subcommand"
+  exit 1
+  ;;
+esac
+
+# Collect files
+if (($# == 0)); then
+  echo "No files specified. Operate on all files in current directory? (y/n)"
+  read -r answer
+  if [[ "$answer" == "y" ]]; then
+    files=(*)
+  else
+    echo "Operation cancelled."
+    exit 1
+  fi
+else
+  files=("$@")
+fi
+
+old_filenames=()
+new_filenames=()
+
+# Process each file
+for file in "${files[@]}"; do
+  newfile="$file"
+  case "$subcommand" in
+  replace)
+    newfile="${file//$match_string/$replacement_string}"
+    ;;
+  append)
+    newfile="${file}${append_string}"
+    ;;
+  insert)
+    newfile="${insert_string}${file}"
+    ;;
+  remove)
+    newfile="${file//$remove_string/}"
+    ;;
+  esac
+  # Check for empty or blank filenames
+  if [[ -z "$newfile" ]]; then
+    echo "Error: Removing '$remove_string' from '$file' would result in an empty filename."
+    echo "Operation aborted."
+    exit 1
+  fi
+  if [[ "$file" != "$newfile" ]]; then
+    old_filenames+=("$file")
+    new_filenames+=("$newfile")
+  fi
+done
+
+if ((${#old_filenames[@]} == 0)); then
+  echo "No files to rename."
+  exit 0
+fi
+
+# Preview changes
+echo "The following changes will be made:"
+for i in "${(k)old_filenames}"; do
+  echo "'${old_filenames[i]}' -> '${new_filenames[i]}'"
+done
+
+# Check for filename conflicts
+declare -A new_filenames_map
+for i in "${(k)new_filenames}"; do
+  new="${new_filenames[i]}"
+  if [[ -n "${new_filenames_map[$new]}" ]]; then
+    echo "Error: Multiple files would be renamed to '$new'"
+    echo "Operation aborted."
+    exit 1
+  fi
+  new_filenames_map[$new]=1
+done
+
+# Perform renaming
+for i in "${(k)old_filenames}"; do
+  old="${old_filenames[i]}"
+  new="${new_filenames[i]}"
+  mv -- "$old" "$new"
+done
+
+# Prompt for confirmation
+echo "Proceed with renaming? (y/n)"
+read -r answer
+if [[ "$answer" != "y" ]]; then
+  echo "Operation cancelled."
+  exit 1
+fi
+
+# Check for filename conflicts
+declare -A new_filenames_map
+for i in "${!new_filenames[@]}"; do
+  new="${new_filenames[$i]}"
+  if [[ -n "${new_filenames_map[$new]}" ]]; then
+    echo "Error: Multiple files would be renamed to '$new'"
+    echo "Operation aborted."
+    exit 1
+  fi
+  new_filenames_map[$new]=1
+done
+
+# Ensure no overwriting of existing files
+for new in "${new_filenames[@]}"; do
+  if [[ -e "$new" && ! " ${old_filenames[@]} " =~ " $new " ]]; then
+    echo "Error: Cannot rename to '$new' because it already exists."
+    echo "Operation aborted."
+    exit 1
+  fi
+done
+
+# Perform renaming
+for i in "${!old_filenames[@]}"; do
+  old="${old_filenames[$i]}"
+  new="${new_filenames[$i]}"
+  mv -- "$old" "$new"
+done
+
+echo "Files renamed successfully."

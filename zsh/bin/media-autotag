@@ -3,23 +3,23 @@
 # Function to display usage information
 show_usage() {
   cat <<EOF
-Usage: $(basename "$0") [OPTIONS] <video_file>
+Usage: $(basename "$0") [OPTIONS] <video_files>
 
 This script tags video files with their resolution and frame rate in the filename.
 
 Options:
-  --dry-run    Show what changes would be made without actually renaming the file
+  --dry-run    Show what changes would be made without actually renaming the files
   -h, --help   Display this help message and exit
 
 Example:
-  $(basename "$0") my_video.mp4
+  $(basename "$0") *.mp4
   $(basename "$0") --dry-run my_video.mp4
 EOF
 }
 
 # Parse command line options
 dry_run=false
-video_file=""
+video_files=()
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -32,108 +32,111 @@ while [[ $# -gt 0 ]]; do
     exit 0
     ;;
   *)
-    if [[ -z "$video_file" ]]; then
-      video_file="$1"
-    else
-      echo "Error: Too many arguments."
-      show_usage
-      exit 1
-    fi
+    video_files+=("$1") # Collect all video files passed as arguments
     shift
     ;;
   esac
 done
 
-# Check if a video file was provided
-if [[ -z "$video_file" ]]; then
-  echo "Error: No video file specified."
+# Check if video files were provided
+if [[ ${#video_files[@]} -eq 0 ]]; then
+  echo "Error: No video files specified."
   show_usage
   exit 1
 fi
 
-# Get video resolution and frame rate
-video_info=$(ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=width,height,r_frame_rate -of csv=p=0 "$video_file")
-if [[ -z "$video_info" ]]; then
-  echo "Error: Could not retrieve video information. Ensure the file is a valid video."
-  exit 1
-fi
-
-width=$(echo $video_info | cut -d',' -f1)
-height=$(echo $video_info | cut -d',' -f2)
-framerate=$(echo $video_info | cut -d',' -f3 | bc -l)
-
-if [[ -z "$width" || -z "$height" || -z "$framerate" ]]; then
-  echo "Error: Missing resolution or framerate information."
-  exit 1
-fi
-
-# Determine resolution tag
-if ((height >= 2160)); then
-  res_tag="#4k"
-elif ((height >= 1080)); then
-  res_tag="#1080p"
-elif ((height >= 720)); then
-  res_tag="#720p"
-else
-  res_tag=""
-fi
-
-# Determine frame rate tag
-if (($(echo "$framerate >= 120" | bc -l))); then
-  fps_tag="#120fps"
-elif (($(echo "$framerate >= 60" | bc -l))); then
-  fps_tag="#60fps"
-elif (($(echo "$framerate >= 30" | bc -l))); then
-  fps_tag="#30fps"
-elif (($(echo "$framerate >= 24" | bc -l))); then
-  fps_tag="#24fps"
-else
-  fps_tag=""
-fi
-
-# Combine tags with a space between them
-tags=""
-if [[ -n "$res_tag" ]]; then
-  tags="${res_tag}"
-fi
-if [[ -n "$fps_tag" ]]; then
-  tags="${tags} ${fps_tag}"
-fi
-
-if [[ -z "$res_tag" && -z "$fps_tag" ]]; then
-  echo "Video doesn't meet criteria for tagging (720p+, 24fps+). No changes needed."
-  exit 0
-fi
-
-# Check if filename already contains any resolution or fps tags
-if [[ "$video_file" =~ "#(720p|1080p|4k|24fps|30fps|60fps|120fps)" ]]; then
-  current_tags=$(echo "$video_file" | grep -o '#\(720p\|1080p\|4k\|24fps\|30fps\|60fps\|120fps\)')
-  if [[ "$current_tags" != "${tags}" ]]; then
-    echo "Error: Filename contains incorrect resolution or fps tags."
-    exit 1
-  else
-    echo "Correct tags already present. No changes needed."
-    exit 0
+# Loop over all provided files
+for video_file in "${video_files[@]}"; do
+  # Check if the file exists
+  if [[ ! -e "$video_file" ]]; then
+    echo "Error: File '$video_file' does not exist. Skipping."
+    continue
   fi
-fi
 
-# Generate new filename with a space before tags and between the resolution and fps tags
-new_filename="${video_file%.*} ${tags}.${video_file##*.}"
-
-# Check if new filename already exists
-if [[ -e "$new_filename" ]]; then
-  echo "Error: A file with the name '$new_filename' already exists. Cannot rename."
-  exit 1
-fi
-
-# Rename the file with the new tags or perform dry run
-if $dry_run; then
-  echo "Dry run: Would rename '$video_file' to '$new_filename'"
-else
-  if mv -n "$video_file" "$new_filename"; then
-    echo "File renamed to: $new_filename"
-  else
-    echo "Error: Failed to rename the file. Please check permissions and try again."
-    exit 1
+  # Get video resolution and frame rate
+  video_info=$(ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=width,height,r_frame_rate -of csv=p=0 "$video_file")
+  if [[ -z "$video_info" ]]; then
+    echo "Error: Could not retrieve video information for '$video_file'. Skipping."
+    continue
   fi
-fi
+
+  width=$(echo $video_info | cut -d',' -f1)
+  height=$(echo $video_info | cut -d',' -f2)
+  framerate=$(echo $video_info | cut -d',' -f3 | bc -l)
+
+  if [[ -z "$width" || -z "$height" || -z "$framerate" ]]; then
+    echo "Error: Missing resolution or framerate information for '$video_file'. Skipping."
+    continue
+  fi
+
+  # Determine resolution tag
+  if ((height >= 2160)); then
+    res_tag="#4k"
+  elif ((height >= 1080)); then
+    res_tag="#1080p"
+  elif ((height >= 720)); then
+    res_tag="#720p"
+  else
+    res_tag=""
+  fi
+
+  # Determine frame rate tag
+  if (($(echo "$framerate >= 120" | bc -l))); then
+    fps_tag="#120fps"
+  elif (($(echo "$framerate >= 60" | bc -l))); then
+    fps_tag="#60fps"
+  elif (($(echo "$framerate >= 30" | bc -l))); then
+    fps_tag="#30fps"
+  elif (($(echo "$framerate >= 24" | bc -l))); then
+    fps_tag="#24fps"
+  else
+    fps_tag=""
+  fi
+
+  # Combine tags with a space between them
+  tags=""
+  if [[ -n "$res_tag" ]]; then
+    tags="${res_tag}"
+  fi
+  if [[ -n "$fps_tag" ]]; then
+    tags="${tags} ${fps_tag}"
+  fi
+
+  if [[ -z "$res_tag" && -z "$fps_tag" ]]; then
+    echo "Video '$video_file' doesn't meet criteria for tagging (720p+, 24fps+). No changes needed."
+    continue
+  fi
+
+  # Check if filename already contains any resolution or fps tags
+  if [[ "$video_file" =~ "#(720p|1080p|4k|24fps|30fps|60fps|120fps)" ]]; then
+    current_tags=$(echo "$video_file" | grep -o '#\(720p\|1080p\|4k\|24fps\|30fps\|60fps\|120fps\)')
+    if [[ "$current_tags" != "${tags}" ]]; then
+      echo "Error: Filename '$video_file' contains incorrect resolution or fps tags."
+      continue
+    else
+      echo "Correct tags already present for '$video_file'. No changes needed."
+      continue
+    fi
+  fi
+
+  # Generate new filename with a space before tags and between the resolution and fps tags
+  new_filename="${video_file%.*} ${tags}.${video_file##*.}"
+
+  # Check if new filename already exists
+  if [[ -e "$new_filename" ]]; then
+    echo "Error: A file with the name '$new_filename' already exists. Cannot rename '$video_file'."
+    continue
+  fi
+
+  # Rename the file with the new tags or perform dry run
+  if $dry_run; then
+    echo "Dry run: Would rename '$video_file' to '$new_filename'"
+  else
+    if mv -n "$video_file" "$new_filename"; then
+      echo "File renamed to: $new_filename"
+    else
+      echo "Error: Failed to rename the file '$video_file'. Please check permissions and try again."
+      continue
+    fi
+  fi
+done

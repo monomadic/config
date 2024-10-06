@@ -1,0 +1,86 @@
+#!/usr/bin/env zsh
+
+# Color definitions
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m' # No Color
+
+# Function to display usage information
+display_usage() {
+  cat <<EOF
+Usage: $(basename "$0") [file1] [file2] ...
+   or: command | $(basename "$0")
+
+Calculates the total size of given files and counts them.
+
+Options:
+  -h, --help    Display this help message and exit
+
+Examples:
+  $(basename "$0") file1.txt file2.txt file3.txt
+  find . -type f | $(basename "$0")
+EOF
+}
+
+# Function to calculate size in human-readable format
+human_readable() {
+  local size=$1
+  local units=('B' 'KB' 'MB' 'GB' 'TB')
+  local unit_index=0
+
+  while ((size > 1024 && unit_index < ${#units[@]} - 1)); do
+    size=$((size / 1024.0))
+    ((unit_index++))
+  done
+
+  printf "%.2f%s" $size $units[$unit_index+1]
+}
+
+# Check for help option
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  display_usage
+  exit 0
+fi
+
+# Initialize variables
+total_size=0
+file_count=0
+
+# Check if there are command-line arguments
+if [[ $# -gt 0 ]]; then
+  for file in "$@"; do
+    if [[ -f "$file" ]]; then
+      size=$(stat -f %z "$file")
+      ((total_size += size))
+      ((file_count++))
+    else
+      echo "${YELLOW}Warning: $file is not a file or does not exist.${NC}" >&2
+    fi
+  done
+else
+  # Read from stdin if no arguments provided
+  if [[ -t 0 ]]; then
+    # If stdin is a terminal (i.e., no piped input), display usage and exit
+    display_usage
+    exit 1
+  fi
+
+  while IFS= read -r file; do
+    if [[ -f "$file" ]]; then
+      size=$(stat -f %z "$file")
+      ((total_size += size))
+      ((file_count++))
+    else
+      echo "${YELLOW}Warning: $file is not a file or does not exist.${NC}" >&2
+    fi
+  done
+fi
+
+# Print results only if files were processed
+if ((file_count > 0)); then
+  total_size_human=$(human_readable $total_size)
+  echo -e "${GREEN}${total_size_human}${NC} / ${GREEN}${file_count} files${NC}"
+else
+  echo -e "${RED}No files processed.${NC}"
+fi

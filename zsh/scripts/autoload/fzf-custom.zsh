@@ -22,7 +22,7 @@ mark() {
     echo "${mark_to_add}" >>"${MARKS_FILE}"
     echo "** The following mark has been added **"
   fi
-  color-marks <<<"$mark_to_add"
+  $MARKS_FILE <<<"$mark_to_add"
 }
 
 ls-marks() {

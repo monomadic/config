@@ -1,0 +1,34 @@
+#compdef media
+
+_media() {
+  local -a commands video_types args
+  commands=('play:Play videos' 'search:Search videos' 'list:List videos')
+  video_types=('clips:Match videos in /clips/' 'originals:Match videos in /originals/')
+  args=('latest:Sort by latest' '--shuffle:Shuffle videos during playback')
+
+  _arguments -C \
+    '1: :->command' \
+    '*: :->args'
+
+  case $state in
+  command)
+    _describe 'command' commands
+    ;;
+  args)
+    case $words[2] in
+    play)
+      _values 'args' $video_types $args \
+        '*:tag:_guard "^-*" tag' \
+        '*:bracket tag:_guard "^\[*\]" bracket-tag'
+      ;;
+    search | list)
+      _values 'args' $video_types \
+        '*:tag:_guard "^-*" tag' \
+        '*:bracket tag:_guard "^\[*\]" bracket-tag'
+      ;;
+    esac
+    ;;
+  esac
+}
+
+_media "$@"

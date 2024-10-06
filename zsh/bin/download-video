@@ -123,20 +123,34 @@ YT_DLP_CMD=("${YT_DLP_BASE[@]}" "${FORMAT_ARGS[@]}" --output "$OUTPUT_TEMPLATE")
 # Print the command for debugging in green
 printf "${GREEN}Executing command: %s %s${NC}\n" "${YT_DLP_CMD[*]@Q}" "$URL"
 
-# Execute yt-dlp and capture the file path
-FILE_PATH=$("${YT_DLP_CMD[@]}" "$URL")
+# Execute yt-dlp and allow output to be displayed
+"${YT_DLP_CMD[@]}" "$URL"
+
+# Capture the last line of output (which should be the file path)
+FILE_PATH=$(printf '%s\n' "${PIPESTATUS[0]}")
 
 # Debugging: Print the captured file path in yellow
 printf "${YELLOW}[debug] FILE_PATH: %s${NC}\n" "$FILE_PATH"
 
 # Check if the download was successful and FILE_PATH is not empty
-if [ -n "$FILE_PATH" ]; then
+if [ -n "$FILE_PATH" ] && [ -f "$FILE_PATH" ]; then
   printf "${GREEN}Download completed successfully.${NC}\n"
+
+  # Run media-autotag on the downloaded file
+  printf "${YELLOW}Running media-autotag on the downloaded file...${NC}\n"
+  media-autotag "$FILE_PATH"
+
+  # Get the new filename after media-autotag
+  NEW_FILE_PATH=$(dirname "$FILE_PATH")/$(basename "$FILE_PATH")
+
+  # Print the new filename
+  printf "${GREEN}New filename after media-autotag: %s${NC}\n" "$NEW_FILE_PATH"
+
   # Use terminal-notifier to display a clickable notification
-  terminal-notifier -message "Download completed successfully." \
-										-title "yt-dlp Download" \
+  terminal-notifier -message "Download and tagging completed successfully." \
+                    -title "yt-dlp Download and Tag" \
                     -activate "com.apple.finder" \
-                    -execute "open --reveal \"$FILE_PATH\""
+                    -execute "open --reveal \"$NEW_FILE_PATH\""
 else
   printf "${RED}[error] Download failed or FILE_PATH is empty.${NC}\n"
   exit 1

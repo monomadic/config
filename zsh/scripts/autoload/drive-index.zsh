@@ -33,7 +33,8 @@ fzf-media-untagged() {
 }
 
 alias .top=media-play-top
-alias .suki=mpv-play-suki
+alias .suki="media play latest #suki"
+alias .ssuki="media search latest #suki"
 
 media-play-cache() {
   cd $HOME/Movies/Cache && fd-video | fzf-play
@@ -140,17 +141,18 @@ alias .play-local-sorted=mpv-play-local-sorted
 alias mpv-play-pwd="fd-video | mpv-stdin"
 alias @play-pwd=mpv-play-pwd
 alias .play-pwd=mpv-play-pwd
+alias .play-pwd-shuffle=mpv-play-pwd --shuffle
 
-alias fzf-search-pwd="fd-video | fzf-play --kitty"
+alias media-search-pwd="fd-video | fzf-play --kitty"
 alias @search-pwd=fzf-search-pwd
-alias .search-pwd=fzf-search-pwd
+alias @search-pwd-latest=fzf-search-pwd-latest
+alias .search-pwd=fzf-search-pwd-latest
 
 alias @search-pwd-sorted=fzf-play-pwd-sorted
-alias .search-pwd-sorted=fzf-play-pwd-sorted
 
+alias latest=media-play-latest
 alias .latest=media-play-latest
-alias .play-latest=media-play-latest
-alias .play-cache=mpv-play-cache
+alias .cache=mpv-play-cache
 
 alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
 
