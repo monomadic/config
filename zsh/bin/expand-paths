@@ -10,6 +10,7 @@ Checks existence of given paths. Supports glob patterns.
 Examples:
   $(basename $0) /usr/bin:/usr/local/bin
   $(basename $0) '/home/*/.bashrc'
+  $(basename $0) '/path/with spaces:/another/path'
 EOF
 }
 
@@ -23,15 +24,15 @@ fi
 setopt null_glob extended_glob
 
 local paths=$1
-local IFS=':'
+local IFS=$'\n' # Set IFS to newline to preserve spaces
 for path in ${(s.:.)paths}; do
-		if [[ $path == *\** ]]; then
-				# If path contains a glob, expand it
-				print -l ${~path}(N)
-		else
-				# If no glob, output the path if it exists
-				[[ -e $path ]] && echo $path
-		fi
+    if [[ $path == *\** ]]; then
+        # If path contains a glob, expand it
+        print -l ${~path}(N)
+    else
+        # If no glob, output the path if it exists
+        [[ -e $path ]] && echo $path
+    fi
 done
 
 # Disable options

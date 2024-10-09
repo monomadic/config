@@ -1,5 +1,23 @@
 #!/usr/bin/env zsh
 
-# Output all paths
+# Function to display usage information
+usage() {
+  echo "Usage: $0 [--no-cache]"
+  echo ""
+  echo "Options:"
+  echo "  --no-cache   Exclude cache paths from the output"
+  exit 1
+}
+
+# Parse arguments
+[[ "$1" == "--no-cache" ]] || [[ -z "$1" ]] || usage
+
+# Output media paths
 expand-paths "$EXTERNAL_MEDIA_PATHS"
 expand-paths "$LOCAL_MEDIA_PATHS"
+
+# Output cache paths unless --no-cache is specified
+[[ "$1" == "--no-cache" ]] || {
+  expand-paths "$EXTERNAL_CACHE_PATHS"
+  expand-paths "$LOCAL_CACHE_PATHS"
+}
