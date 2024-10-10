@@ -122,6 +122,9 @@ brew "aichat" # rust-based client for many llm platforms
 
 cask "megasync" # mega.nz
 
+# macos desktop
+cask "hiddenbar"
+
 # encryption
 brew "age"
 brew "ssss" # shamirs secret sharing scheme (multikey)
