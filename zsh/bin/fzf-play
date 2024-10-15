@@ -80,9 +80,9 @@ input=$(cat)
 # \033[38;2;0;0;255;48;2;50;50;50m
 # \033[38;2;255;226;46m
 # \033[38;2;0;0;255m
-processed_input=$(echo "$input" | awk '{
-    gsub(/#[^ \t]+/, "\033[38;2;180;180;230m&\033[0m")
+processed_input=$(printf '%s' "$input" | awk '{
     gsub(/\[[^]]+\]/, "\033[38;2;255;168;253m&\033[0m")
+    gsub(/\#[a-zA-Z0-9-]+/, "\033[38;2;180;180;230m&\033[0m")
     print
 }')
 
@@ -95,9 +95,10 @@ echo "$processed_input" | fzf \
   --ignore-case \
   --margin 2% --padding 3%,1% \
   --no-sort \
-  --info=hidden \
+  --info=inline \
   --cycle \
-  --pointer=' ' \
+  --pointer='▶' \
+  --marker='✓' \
   --query "$*" \
   --ansi \
   --color $FZF_COLOR_OPTS \
