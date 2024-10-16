@@ -4,7 +4,6 @@
 
 tap "homebrew/bundle"
 tap "homebrew/services"
-#tap "homebrew/cask-fonts"
 tap "rschmitt/heatseeker"
 
 # localsend (airdrop alternative)
@@ -168,7 +167,7 @@ cask "font-hack"
 cask "font-hack-nerd-font"
 cask "font-gohufont-nerd-font"
 cask "font-symbols-only-nerd-font"
-brew "font-jetbrains-mono-nerd-font"
+cask "font-jetbrains-mono-nerd-font"
 
 cask "kitty" # term
 cask "alacritty" # term
