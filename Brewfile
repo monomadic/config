@@ -192,7 +192,7 @@ brew "rnr" # rust based rename
 cask "transnomino" # gui renamer
 brew "mmv" # go based util for renaming with vim
 
-# bitcoin
+# bitcoin wallets
 cask "bluewallet"
 cask "sparrow"
 cask "ledger-live"
