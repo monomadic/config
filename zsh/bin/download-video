@@ -123,11 +123,8 @@ YT_DLP_CMD=("${YT_DLP_BASE[@]}" "${FORMAT_ARGS[@]}" --output "$OUTPUT_TEMPLATE")
 # Print the command for debugging in green
 printf "${GREEN}Executing command: %s %s${NC}\n" "${YT_DLP_CMD[*]@Q}" "$URL"
 
-# Execute yt-dlp and allow output to be displayed
-"${YT_DLP_CMD[@]}" "$URL"
-
-# Capture the last line of output (which should be the file path)
-FILE_PATH=$(printf '%s\n' "${PIPESTATUS[0]}")
+# Execute yt-dlp and capture the file path
+FILE_PATH=$("${YT_DLP_CMD[@]}" "$URL" | grep -oP '(?<=\[download\] Destination: ).*')
 
 # Debugging: Print the captured file path in yellow
 printf "${YELLOW}[debug] FILE_PATH: %s${NC}\n" "$FILE_PATH"

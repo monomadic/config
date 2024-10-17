@@ -69,7 +69,7 @@ function yt-music-video-mp4 {
 
 function yt-porn {
   local url="$1"
-  local output_template="[%(uploader)s] %(title)s [%(extractor)s][%(resolution)s].%(ext)s"
+  local output_template="[%(uploader)s] %(title)s [%(extractor)s].%(ext)s"
 
   if [[ -z "$url" ]]; then
     echo "Usage: ${0:t} [args] <url>"

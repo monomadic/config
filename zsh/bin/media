@@ -98,7 +98,7 @@ final_command="$base_command ${additional_args[@]}"
 case $command in
 play)
   if [[ "$video_type" == "loops" ]]; then
-    final_command+=" | mpv-play --loop-mode 5 --shuffle"
+    final_command+=" | mpv-play --loop-mode 5"
   else
     final_command+=" | mpv-play"
   fi
