@@ -21,6 +21,7 @@ brew "gnu-tar"
 brew "gnu-which"
 brew "grep"
 
+# manage app store
 brew "mas"
 
 # git
@@ -45,6 +46,7 @@ brew "bat"		# cat replacement
 brew "mdless" # markdown viewer
 brew "glow"		# markdown viewer golang
 brew "bk"			# ebook reader
+# cask "calibre" # ebook converter
 brew "eza"		# ls/exa replacement (rust)
 brew "lsd"		# ls replacement (rust)
 brew "duf"		# disk usage go
@@ -91,7 +93,7 @@ brew "neovim" # editor
 brew "helix" # editor (rust)
 brew "amp" # editor (rust)
 brew "kakoune" # editor
-brew "youtube-dl"
+# brew "youtube-dl" # deprecated
 brew "ffmpeg" # for youtube-dl
 brew "ffmpegthumbnailer"
 brew "wget"
