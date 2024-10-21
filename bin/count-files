@@ -39,6 +39,11 @@ done
 log_debug "Starting file processing"
 $debug && set -x # Enables shell debugging mode if debug is true
 
+# Function to get file size
+get_file_size() {
+  wc -c <"$1" 2>/dev/null
+}
+
 # Read filenames from stdin
 if $use_null_delimiter; then
   log_debug "Using null delimiter for input"
@@ -46,7 +51,7 @@ if $use_null_delimiter; then
     log_debug "Read file: '${file}'"
 
     if [[ -f "$file" && -r "$file" ]]; then
-      if size=$(stat -f %z "$file" 2>/dev/null); then
+      if size=$(get_file_size "$file"); then
         ((total_size += size))
         ((file_count++))
         $verbose && echo "Processed: $file (${size} bytes)"
@@ -65,7 +70,7 @@ else
     log_debug "Read file: '${file}'"
 
     if [[ -f "$file" && -r "$file" ]]; then
-      if size=$(stat -f %z "$file" 2>/dev/null); then
+      if size=$(get_file_size "$file"); then
         ((total_size += size))
         ((file_count++))
         $verbose && echo "Processed: $file (${size} bytes)"
