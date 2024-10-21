@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Tablature Finder
+# This script allows users to search and preview PDF tablature files.
+
+# Set the directory containing tablature files
+TABLATURE_DIR="${TABLATURE_DIR:-$HOME/Tablature}"
+
+# Ensure the tablature directory exists and is readable
+if [[ ! -d "$TABLATURE_DIR" || ! -r "$TABLATURE_DIR" ]]; then
+  echo "Error: Tablature directory '$TABLATURE_DIR' does not exist or is not readable."
+  exit 1
+fi
+
+# Change to the tablature directory
+cd "$TABLATURE_DIR" || {
+  echo "Error: Failed to change directory to '$TABLATURE_DIR'."
+  exit 1
+}
+
+# Use fd to find PDF files and use fzf with a custom enter key binding to open files
+fd . --extension pdf --type f --exec stat --format="%Y|%n" {} \; 2>/dev/null |
+  sort -rn |
+  cut -d'|' -f2- |
+  fzf --margin="10%,0%" \
+    --reverse \
+    --cycle \
+    --prompt=" 󰋆 " \
+    --border \
+    --border-label=" Tabs" \
+    --no-info \
+    --exact \
+    --bind "enter:execute(echo \"Opening: {}\" && qlmanage -p {} > /dev/null 2>&1)"

@@ -10,6 +10,7 @@ alias @play-all="media-play"
 alias autotag=media-autotag
 
 alias c=e-zsh
+alias C=e-config
 alias g=git
 alias p="media play latest"
 alias s="media search --hide-path"
@@ -33,8 +34,6 @@ alias .config="cd $ZSH_DOTFILES_DIR && nvim zshrc.zsh"
 alias .apple-music-dl=apple-music-dl
 alias .network-detect-captive-portal=detect-captive-portal
 alias .network-status=ns
-alias .tab="cd $TABLATURE_DIR && fd . --extension pdf | fzf --margin=10%,0% --reverse --cycle --prompt=' 󰋆 ' --border --border-label=' Tabs' --no-info --exact --bind 'enter:execute(open {})'"
-alias .tab-newest="cd $TABLATURE_DIR && fd . --extension pdf -t f --exec stat -f '%m%t%N' | sort -nr | cut -f2- | fzf --reverse --exact --bind 'enter:execute(open {})'"
 alias .uptime="display-uptime"
 
 alias faphouse="download-video-faphouse"
@@ -71,11 +70,11 @@ alias doc="cargo doc --open"
 alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml watch --global-config global.toml --local-config local.toml'
 alias e-brewfile="edit ~/config/Brewfile"
 alias e-bin="edit-bin"
-alias e-config="cd ~/config/ && edit ."
+alias e-config="nvim $DOTFILES_DIR/README.md"
+alias e-joshuto="nvim $DOTFILES_DIR/joshuto/joshuto.toml"
+alias e-kitty="nvim $DOTFILES_DIR/kitty/kitty.conf"
+alias e-neovim="nvim $DOTFILES_DIR/neovim/init.lua"
 alias e-fzf="fzf_edit"
-alias e-joshuto="cd ~/config/joshuto/ && edit joshuto.toml"
-alias e-kitty="cd ~/config/kitty/ && edit kitty.conf"
-alias e-neovim="cd ~/config/neovim/ && edit init.lua"
 alias e-snippets="cd ~/config/neovim/snippets/ && edit . +'Telescope find_files'"
 alias e-wiki=wiki
 alias e-zellij="cd ~/config/zellij/ && edit config.kdl"

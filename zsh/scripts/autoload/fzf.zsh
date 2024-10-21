@@ -66,7 +66,7 @@ alias sb="fzf-scrollback"
 
 # search emojis
 function fzf-emoji() {
-  emojis=$(cat ~/.zsh/autoload/emoji.json | jq -r '.[] | "\(.emoji) \(.description)"')
+  emojis=$(cat ~/.zsh/emoji.json | jq -r '.[] | "\(.emoji) \(.description)"')
   selected=$(echo "$emojis" | fzf --preview 'echo {1}' --preview-window up:1)
   echo -n "${selected%% *}" | pbcopy
   echo "Copied ${selected%% *} to clipboard!"

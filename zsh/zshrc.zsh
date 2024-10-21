@@ -4,8 +4,8 @@
 local env_file="$HOME/config/zsh/env.zsh"
 
 # Ensure autocompletion system is initialized
-autoload -Uz compinit
-compinit
+fpath=(~/.zsh/completions $fpath)
+autoload -Uz compinit && compinit
 
 setopt autocd           # cd without typing cd
 setopt autopushd        # auto push dirs to recent dirs db (for dirs cmd)
@@ -51,9 +51,8 @@ BLUE=$(tput setaf 4)
 RESET=$(tput sgr0)
 
 # Loop through the config files
-for config_file in $ZSH_CONFIG_DIR/autoload/*.(zsh|sh)(N); do
-  echo "${PURPLE}󰚔 ${BLUE}autoload/${config_file:t}${RESET}"
-
+for config_file in $ZSH_CONFIG_DIR/scripts/autoload/*.(zsh|sh)(N); do
+	echo "${PURPLE}󰚔 ${BLUE}${config_file}${RESET}"
   # Source the config file and continue if there's an error
   if ! source "$config_file"; then
     echo "Error sourcing $config_file. Skipping..."
@@ -113,5 +112,9 @@ done
 
 # Created by `pipx` on 2024-08-26 19:39:42
 export PATH="$PATH:/Users/nom/.local/bin"
+
+# coreutils
+export PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:/opt/homebrew/opt/gnu-sed/libexec/gnubin:/opt/homebrew/opt/grep/libexec/gnubin:$PATH"
+export MANPATH="/opt/homebrew/opt/coreutils/libexec/gnuman:$MANPATH"
 
 source /Users/nom/.config/broot/launcher/bash/br

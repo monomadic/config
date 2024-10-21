@@ -1,11 +1,11 @@
 # COMPLETIONS
 #
 
-for config_file in $ZSH_CONFIG_DIR/completions/*.(zsh|sh); do
+for config_file in $ZSH_CONFIG_DIR/scripts/completions/*; do
   GREEN=$(tput setaf 2)
-	BLUE=$(tput setaf 4)
+  BLUE=$(tput setaf 4)
   RESET=$(tput sgr0)
-  echo "${GREEN} ${BLUE}completions/${config_file:t}${RESET}"
+  echo "${GREEN} ${BLUE}${config_file}${RESET}"
 
   # Source the config file and continue if there's an error
   if ! source $config_file; then

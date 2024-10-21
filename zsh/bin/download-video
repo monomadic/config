@@ -1,5 +1,4 @@
 #!/bin/sh
-# Exit immediately if a command exits with a non-zero status
 set -e
 
 # ANSI color codes
@@ -8,39 +7,43 @@ YELLOW='\033[0;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No color
 
-# Check if yt-dlp is installed
-if ! command -v yt-dlp >/dev/null 2>&1; then
-  printf "${RED}[error] yt-dlp is not installed. Please install yt-dlp.${NC}\n"
+# Function to print error and exit
+error_exit() {
+  printf "${RED}[error] %s${NC}\n" "$1"
   exit 1
-fi
+}
 
-# Check if terminal-notifier is installed
-if ! command -v terminal-notifier >/dev/null 2>&1; then
-  printf "${RED}[error] terminal-notifier is not installed. Please install it using 'brew install terminal-notifier'.${NC}\n"
-  exit 1
-fi
+# Check if a command is installed
+check_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    error_exit "$1 is not installed. Please install it."
+  fi
+}
+
+# Check dependencies
+check_command "yt-dlp"
+check_command "terminal-notifier"
 
 # Function to print usage
 print_usage() {
-  echo "Usage: $(basename "$0") <command> <URL>"
-  echo "Commands:"
-  echo "  music-video (m) <URL> - Download music video"
-  echo "  audio-only (a) <URL>  - Download audio only"
-  echo "  video-only (v) <URL>  - Download video without audio"
-  echo "  porn (p) <URL>        - Download adult content"
-  echo "  youtube (y) <URL>     - Download YouTube video"
+  cat <<EOF
+Usage: $(basename "$0") <command> <URL>
+Commands:
+  music-video (m) <URL> - Download music video
+  audio-only (a) <URL>  - Download audio only
+  video-only (v) <URL>  - Download video without audio
+  porn (p) <URL>        - Download adult content
+  youtube (y) <URL>     - Download YouTube video
+EOF
 }
 
-# Check if correct number of arguments is provided
-if [ $# -ne 2 ]; then
-  print_usage
-  exit 1
-fi
+# Exit if arguments are missing
+[ $# -ne 2 ] && print_usage && exit 1
 
 COMMAND="$1"
 URL="$2"
 
-# Map shortcuts to full commands
+# Map command shortcuts
 case "$COMMAND" in
   m) COMMAND="music-video" ;;
   a) COMMAND="audio-only" ;;
@@ -49,106 +52,63 @@ case "$COMMAND" in
   y) COMMAND="youtube" ;;
 esac
 
-# Base yt-dlp command with Brave browser cookies
-YT_DLP_BASE=(yt-dlp --cookies-from-browser brave --continue --print after_move:filepath --progress --verbose)
+# Base yt-dlp command
+YT_DLP_BASE=(yt-dlp --cookies-from-browser brave --continue --progress --verbose \
+  --retries infinite --fragment-retries infinite --socket-timeout 15)
 
-# Initialize OUTPUT_TEMPLATE and other variables
-OUTPUT_TEMPLATE=""
-FORMAT_ARGS=()
-
+# Initialize variables for different commands
 case "$COMMAND" in
-"porn")
-  OUTPUT_TEMPLATE="[%(uploader|Unknown)s] %(title)s [%(extractor)s].%(ext)s"
-  FORMAT_ARGS=(
-    -f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best"
-    --merge-output-format mp4
-    --embed-metadata
-    --embed-thumbnail
-    --embed-info-json
-    --match-filter "duration > 60"
-    --embed-subs
-    --embed-chapters
-  )
-  ;;
-"music-video")
-  OUTPUT_TEMPLATE="%(artist|)s - %(title)s.%(ext)s"
-  FORMAT_ARGS=(
-    -f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best"
-    --merge-output-format mp4
-    --embed-metadata
-    --embed-thumbnail
-    --embed-subs
-    --embed-chapters
-  )
-  ;;
-"audio-only")
-  OUTPUT_TEMPLATE="%(artist)s - %(title)s.%(ext)s"
-  FORMAT_ARGS=(
-    -f "bestaudio[ext=m4a]/bestaudio"
-    --extract-audio
-    --audio-format m4a
-    --embed-metadata
-    --embed-thumbnail
-  )
-  ;;
-"video-only")
-  OUTPUT_TEMPLATE="%(artist)s - %(title)s.%(ext)s"
-  FORMAT_ARGS=(
-    -f "bestvideo[ext=mp4][vcodec^=avc1]"
-    --embed-metadata
-    --embed-thumbnail
-  )
-  ;;
-"youtube")
-  OUTPUT_TEMPLATE="[%(channel)s] %(title)s [youtube].%(ext)s"
-  FORMAT_ARGS=(
-    -f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]/best"
-    --merge-output-format mp4
-    --embed-metadata
-    --embed-thumbnail
-    --embed-subs
-    --embed-chapters
-  )
-  ;;
-*)
-  printf "${RED}[error] Unknown command '%s'\n${NC}" "$COMMAND"
-  print_usage
-  exit 1
-  ;;
+  "porn")
+    OUTPUT_TEMPLATE="[%(uploader|Unknown)s] %(title)s [%(extractor)s].%(ext)s"
+    FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]" \
+      --merge-output-format mp4 --embed-metadata --embed-thumbnail --embed-info-json \
+      --match-filter "duration > 60" --embed-subs --embed-chapters)
+    ;;
+  "music-video")
+    OUTPUT_TEMPLATE="%(artist|)s - %(title)s.%(ext)s"
+    FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]" \
+      --merge-output-format mp4 --embed-metadata --embed-thumbnail --embed-subs --embed-chapters)
+    ;;
+  "audio-only")
+    OUTPUT_TEMPLATE="%(artist)s - %(title)s.%(ext)s"
+    FORMAT_ARGS=(-f "bestaudio[ext=m4a]" --extract-audio --audio-format m4a \
+      --embed-metadata --embed-thumbnail)
+    ;;
+  "video-only")
+    OUTPUT_TEMPLATE="%(artist)s - %(title)s.%(ext)s"
+    FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]" --embed-metadata --embed-thumbnail)
+    ;;
+  "youtube")
+    OUTPUT_TEMPLATE="[%(channel)s] %(title)s [youtube].%(ext)s"
+    FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]" \
+      --merge-output-format mp4 --embed-metadata --embed-thumbnail --embed-subs --embed-chapters)
+    ;;
+  *)
+    error_exit "Unknown command '$COMMAND'"
+    ;;
 esac
 
-# Combine yt-dlp base command with format arguments and output template
+# Combine yt-dlp command
 YT_DLP_CMD=("${YT_DLP_BASE[@]}" "${FORMAT_ARGS[@]}" --output "$OUTPUT_TEMPLATE")
 
-# Print the command for debugging in green
+# Print command for debugging
 printf "${GREEN}Executing command: %s %s${NC}\n" "${YT_DLP_CMD[*]@Q}" "$URL"
 
-# Execute yt-dlp and capture the file path
-FILE_PATH=$("${YT_DLP_CMD[@]}" "$URL" | grep -oP '(?<=\[download\] Destination: ).*')
+# Execute yt-dlp and extract file path
+FILE_PATH=$("${YT_DLP_CMD[@]}" "$URL" | tee /dev/tty | rg --only-matching '\[download\] Destination: .*' | sed 's/\[download\] Destination: //')
 
-# Debugging: Print the captured file path in yellow
-printf "${YELLOW}[debug] FILE_PATH: %s${NC}\n" "$FILE_PATH"
+# Check if the file was downloaded
+[ -n "$FILE_PATH" ] && [ -f "$FILE_PATH" ] || error_exit "Download failed or file not found."
 
-# Check if the download was successful and FILE_PATH is not empty
-if [ -n "$FILE_PATH" ] && [ -f "$FILE_PATH" ]; then
-  printf "${GREEN}Download completed successfully.${NC}\n"
+# Run media-autotag and update file path
+printf "${YELLOW}Running media-autotag...${NC}\n"
+media-autotag "$FILE_PATH"
+NEW_FILE_PATH="$FILE_PATH"
 
-  # Run media-autotag on the downloaded file
-  printf "${YELLOW}Running media-autotag on the downloaded file...${NC}\n"
-  media-autotag "$FILE_PATH"
+# Notify user
+terminal-notifier -message "Download and tagging completed successfully." \
+  -title "yt-dlp Download and Tag" \
+  -activate "com.apple.finder" \
+  -execute "open --reveal \"$NEW_FILE_PATH\""
 
-  # Get the new filename after media-autotag
-  NEW_FILE_PATH=$(dirname "$FILE_PATH")/$(basename "$FILE_PATH")
-
-  # Print the new filename
-  printf "${GREEN}New filename after media-autotag: %s${NC}\n" "$NEW_FILE_PATH"
-
-  # Use terminal-notifier to display a clickable notification
-  terminal-notifier -message "Download and tagging completed successfully." \
-                    -title "yt-dlp Download and Tag" \
-                    -activate "com.apple.finder" \
-                    -execute "open --reveal \"$NEW_FILE_PATH\""
-else
-  printf "${RED}[error] Download failed or FILE_PATH is empty.${NC}\n"
-  exit 1
-fi
+printf "${GREEN}New file path: %s${NC}\n" "$NEW_FILE_PATH"

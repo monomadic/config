@@ -78,8 +78,11 @@ files = { "starship/starship.toml" = "~/.config/starship.toml" }
 [zsh]
 [zsh.files]
 "zsh/zshrc.zsh" = "~/.zshrc"
-"zsh/scripts/" = "~/.zsh/"
-"zsh/bin" = "~/.zsh/bin"
+"zsh/emoji.json" = "~/.zsh/emoji.json"
+"zsh/scripts/" = "~/.zsh/scripts"
+"zsh/completions/" = "~/.zsh/completions"
+"zsh/autoload/" = "~/.zsh/autoload"
+"zsh/bin/" = "~/.zsh/bin"
 
 [dotter]
 files = { "dotter/global.toml" = "~/.config/dotter/global.toml" }
