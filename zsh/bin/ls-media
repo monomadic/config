@@ -106,12 +106,12 @@ process_input_fd() {
     # Get the full path
     full_path="$PWD/$file"
 
-    # Handle sorting by modification or creation time using exa
+    # Handle sorting by modification or creation time using eza
     if $sort_modified; then
-      mod_time=$(eza --no-filesize --no-permissions --time-style=unix --sort=newest --long "$full_path" | awk '{print $7}')
+      mod_time=$(eza --no-filesize --no-permissions --time-style=long-iso --long "$full_path" | awk '{print $6 " " $7}')
       printf '%s\t%s\n' "$mod_time" "$full_path"
     elif $sort_created; then
-      create_time=$(eza --no-filesize --no-permissions --time-style=unix --sort=created --long "$full_path" | awk '{print $7}')
+      create_time=$(eza --no-filesize --no-permissions --time-style=long-iso --sort=created --long "$full_path" | awk '{print $6 " " $7}')
       printf '%s\t%s\n' "$create_time" "$full_path"
     else
       echo "$full_path"
