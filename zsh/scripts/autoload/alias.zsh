@@ -25,6 +25,8 @@ alias .dupes-check="fdupes --recurse --cache --nohidden --size --summarize ."
 alias .dupes-delete="fdupes --recurse --cache --nohidden --size --delete ."
 alias .dupes-delete-interactive="fdupes --recurse --deferconfirmation --cache --nohidden --size --plain ."
 
+alias .tab=fzf-tablature
+
 alias .rename="fd-rename-all.zsh"
 alias .config-aliases=.config-env
 alias .config-bin="cd $DOTFILES_DIR/bin && nvim ."
