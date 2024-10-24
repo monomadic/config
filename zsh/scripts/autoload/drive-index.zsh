@@ -75,7 +75,8 @@ alias media-play-clips-suki-top-cumshot="media-ls-clips-suki-top-cumshot | mpv-p
 alias media-search-clips-suki-top-cumshot="media-ls-clips-suki-top-cumshot | fzf-play"
 
 alias @play-clips=media-play-clips
-alias .clips=media-play-clips
+alias .clips="media play clips --shuffle"
+alias .top-clips="media play clips #top --shuffle"
 
 mpv-play-loops() {
   ls-media | grep "\/loops\/" | grep-safe | mpv-stdin --shuffle --loop-file=1 --length=10
