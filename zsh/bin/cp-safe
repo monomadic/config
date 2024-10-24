@@ -1,0 +1,61 @@
+#!/bin/zsh
+
+# Usage: ./cp-safe.sh /path/to/source1 /path/to/source2 ... /path/to/destination
+# This script safely copies files or directories using rsync with progress, speed, and checksum verification.
+
+# Ensure at least two arguments (source(s) and destination)
+if [[ $# -lt 2 ]]; then
+  echo "Usage: $0 /path/to/source1 /path/to/source2 ... /path/to/destination"
+  exit 1
+fi
+
+# The destination is always the last argument
+DESTINATION="${@: -1}"
+
+# Check if destination exists and is a directory
+if [[ ! -d "$DESTINATION" ]]; then
+  echo "Error: Destination directory '$DESTINATION' does not exist."
+  exit 1
+fi
+
+# Extract all the source arguments (all but the last one)
+SOURCES=("${@:1:$#-1}")
+
+# Ensure all source files or directories exist
+for SOURCE in "${SOURCES[@]}"; do
+  if [[ ! -e "$SOURCE" ]]; then
+    echo "Error: Source '$SOURCE' does not exist."
+    exit 1
+  fi
+done
+
+# Display the files that will be copied
+echo "The following files will be copied:"
+for SOURCE in "${SOURCES[@]}"; do
+  rsync -a --dry-run --info=name0 "$SOURCE" "$DESTINATION" | while read file; do
+    if [[ "$file" != "" ]]; then
+      # Display the source -> destination path
+      dest_path="${DESTINATION%/}/$(basename "$file")"
+      echo "$file -> $dest_path"
+    fi
+  done
+done
+
+# Confirm with the user before proceeding
+read "response?Proceed with the copy? (y/n): "
+if [[ "$response" != "y" ]]; then
+  echo "Aborted by user."
+  exit 0
+fi
+
+# Run the actual rsync command for all sources with error handling
+echo "Starting the actual copy..."
+for SOURCE in "${SOURCES[@]}"; do
+  rsync -ah --progress --info=stats2 --checksum "$SOURCE" "$DESTINATION"
+  if [[ $? -ne 0 ]]; then
+    echo "Error: rsync failed on '$SOURCE'. Please check the logs for details."
+    exit 1
+  fi
+done
+
+echo "Files copied successfully with verification."
