@@ -8,71 +8,73 @@ WORKSPACES_DIR="$HOME/workspaces"
 SRC_DIR="$HOME/src"
 
 # Helper functions
-dir-exists() {
+dir_exists() {
   [[ -d "$1" ]]
 }
 
 # Mark management
 mark() {
-  local mark_to_add
-  mark_to_add="$(pwd)"
-  if grep -qxFe "${mark_to_add}" "${MARKS_FILE}"; then
+  local current_dir
+  current_dir="$(pwd)"
+
+  if grep -qxF "$current_dir" "$MARKS_FILE"; then
     echo "** The following mark already exists **"
   else
-    echo "${mark_to_add}" >>"${MARKS_FILE}"
+    echo "$current_dir" >>"$MARKS_FILE"
     echo "** The following mark has been added **"
   fi
-  $MARKS_FILE <<<"$mark_to_add"
 }
 
-ls-marks() {
+ls_marks() {
+  local BLUE NC
   BLUE=$'\033[34m'
-  NC='\033[0m' # No color
+  NC=$'\033[0m' # No color
+
   while IFS= read -r dir; do
-    [[ -d "$dir" ]] && printf "${BLUE}${dir}${NC}\n"
+    [[ -d "$dir" ]] && printf "${BLUE}%s${NC}\n" "$dir"
   done <"$MARKS_FILE"
 }
 
 # Directory listing functions
-ls-all() {
+ls_all() {
   pwd
-  ls-marks
-  ls-workspaces
-  ls-src
+  ls_marks
+  ls_workspaces
+  ls_src
 }
 
-ls-workspaces() {
-  dir-exists "$WORKSPACES_DIR" && fd . "$WORKSPACES_DIR" --extension workspace --follow
+ls_workspaces() {
+  dir_exists "$WORKSPACES_DIR" && fd . "$WORKSPACES_DIR" --extension workspace --follow
 }
 
-ls-src() {
-  dir-exists "$SRC_DIR" && exa "$SRC_DIR"/* --oneline --only-dirs --list-dirs --color=always
+ls_src() {
+  dir_exists "$SRC_DIR" && exa --oneline --only-dirs --list-dirs --color=always "$SRC_DIR"/*
 }
 
-ls-projects() {
-  dir-exists "$WORKSPACES_DIR" && exa "$WORKSPACES_DIR"/*.workspace/* --oneline --only-dirs --list-dirs --color=always
+ls_projects() {
+  dir_exists "$WORKSPACES_DIR" && exa --oneline --only-dirs --list-dirs --color=always "$WORKSPACES_DIR"/*.workspace/*
 }
 
-ls-recursive() {
-  fd --type d --strip-cwd-prefix --max-depth 5 --max-results 10000 --exclude node_modules --exclude .git --exclude target
+ls_recursive() {
+  fd --type d --strip-cwd-prefix --max-depth 5 --exclude node_modules --exclude .git --exclude target
 }
 
-fd-depth-2() {
+fd_depth_2() {
   fd --type d --strip-cwd-prefix --max-depth 1
-  fd --type d --strip-cwd-prefix --exact-depth 2 --max-results 10000
+  fd --type d --strip-cwd-prefix --exact-depth 2
 }
 
-ls-hidden() {
+ls_hidden() {
   exa --icons --group-directories-first
 }
 
-fzf-ripgrep() {
+fzf_ripgrep() {
   fzf-rg
 }
 
-fzf-cd() {
+fzf_cd() {
   local dir
-  dir=$(fd --type=directory --hidden . | fzf \
+  dir=$(fd --type directory --hidden . | fzf \
     --prompt ' ' \
     --layout=reverse \
     --preview 'exa --icons --group-directories-first --no-user --no-permissions --no-time -l --tree --level 2 {}' \
@@ -82,29 +84,25 @@ fzf-cd() {
     --info=hidden \
     --bind 'ctrl-h:reload(exa --icons --only-dirs --all)' \
     --bind 'tab:accept' \
-    --bind 'ctrl-j:jump-accept' \
-    "$@")
-  [[ -n "$dir" ]] && cd "$dir" && zle && zle reset-prompt
+    --bind 'ctrl-j:jump-accept')
+  [[ -n "$dir" ]] && cd "$dir" && zle reset-prompt
 }
 
-fzf-insert() {
+fzf_insert() {
   local files
-  files=$(fd --strip-cwd-prefix --max-depth 1 --max-results 10000 | fzf \
+  files=$(fd --strip-cwd-prefix --max-depth 1 | fzf \
     --prompt 'insert > ' \
     --layout=reverse \
     --preview 'exa --icons --group-directories-first {}' \
     --height 75% \
     --header $'ctrl-e:edit, ctrl-o:open\n' \
-    --bind 'ctrl-e:execute:${EDITOR:-nvim} {1}' \
-    --bind 'ctrl-o:execute:open {1}' \
-    "$@")
+    --bind 'ctrl-e:execute(${EDITOR:-nvim} {1})' \
+    --bind 'ctrl-o:execute(open {1})')
   print -z -- "$1 ${files[@]:q:q}"
-  zle && zle reset-prompt
+  zle reset-prompt
 }
 
-# unicode:		⌘ ⇧ ⇧ ⌥ ⇪ ⌃ ↵
-# nerdfonts:	󰘶 󰘵 󰘲 󰘳 󰘴 󰌑
-fzf-dirs() {
+fzf_dirs() {
   fzf --prompt '   ' \
     --layout=reverse \
     --no-sort \
@@ -112,7 +110,6 @@ fzf-dirs() {
     --exact \
     --ignore-case \
     --cycle \
-    --exact \
     --border \
     --color=info:#66d9ef,hl:#FFe22e,hl+:#FFe22e,fg+:5,header:7,prompt:#FFFFFF,border:#000000,bg+:#000000,bg:#000000 \
     --header '󰌑 open  󰘴r reveal  󰘴b marks  󰘴o pwd  󰘴c cancel' \
@@ -120,14 +117,13 @@ fzf-dirs() {
     --pointer=' ' \
     --margin 10% \
     --padding 3%,2% \
-    --preview 'preview-dir {}' \
+    --preview 'exa --icons --group-directories-first {}' \
     --bind 'ctrl-r:execute-silent(open {1})' \
-    --bind 'ctrl-o:change-prompt(pwd > )+reload(fd --type d --strip-cwd-prefix --max-depth 1 && fd --type d --strip-cwd-prefix --max-results 10000)' \
-    --bind 'ctrl-b:change-prompt(marks > )+reload(cat ~/.marks)' \
-    "$@"
+    --bind 'ctrl-o:change-prompt(pwd > )+reload(fd --type d --strip-cwd-prefix --max-depth 1)' \
+    --bind 'ctrl-b:change-prompt(marks > )+reload(cat ~/.marks)'
 }
 
-nvim-edit() {
+nvim_edit() {
   if [[ "$1" == "--help" ]]; then
     echo "Usage: $0 [file ...]"
     echo " - If arguments are given, run nvim with the arguments."
@@ -138,29 +134,27 @@ nvim-edit() {
   if [[ $# -gt 0 ]]; then
     nvim "$@"
   else
-    fzf-neovim
+    fzf_neovim
   fi
 }
 
-alias nvim_or_fzf="nvim_or_fzf"
-fzf-neovim() {
+fzf_neovim() {
   local dir
-  dir=$(ls-all | fzf-dirs)
+  dir=$(ls_all | fzf_dirs)
   [[ -n "$dir" ]] && cd "$dir" && ${EDITOR:-nvim}
-  zle && zle reset-prompt
+  zle reset-prompt
 }
 
-fzf-marks() {
+fzf_marks() {
   local dir
-  dir=$(ls-marks | fzf-dirs)
-  [[ -n "$dir" ]] && cd "$dir" && zle && zle reset-prompt && magic-enter
-  zle
+  dir=$(ls_marks | fzf_dirs)
+  [[ -n "$dir" ]] && cd "$dir" && zle reset-prompt && magic-enter
 }
 
-# Bind functions to keys (if needed)
-# zle -N fzf-cd
-# zle -N fzf-edit
-# zle -N fzf-marks
-# bindkey '^G' fzf-cd
-# bindkey '^E' fzf-edit
-# bindkey '^B' fzf-marks
+# Uncomment these to bind functions to keys
+# zle -N fzf_cd
+# zle -N fzf_edit
+# zle -N fzf_marks
+# bindkey '^G' fzf_cd
+# bindkey '^E' fzf_edit
+# bindkey '^B' fzf_marks

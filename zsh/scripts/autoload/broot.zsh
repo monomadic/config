@@ -40,5 +40,3 @@ fv() (
     --preview-window '~4,+{2}+4/3,<80(up)' \
     --query "$*"
 )
-
-zle -N fzf-ripgrep
