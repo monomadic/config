@@ -1,0 +1,66 @@
+#!/bin/zsh
+
+cheat_sheet=$(
+  cat <<EOF
++----------------------+-------------------------------------------+
+| 󰘴 + Binding          | Action                                    |
++----------------------+-------------------------------------------+
+| 󰘴 A                  | Move to the beginning of the line          |
+| 󰘴 E                  | Move to the end of the line                |
+| 󰘴 U                  | Clear from cursor to beginning of the line |
+| 󰘴 K                  | Clear from cursor to end of the line       |
+| 󰘴 W                  | Cut the word before the cursor             |
+| 󰘴 Y                  | Paste text cut by 󰘴 U/K/W                  |
+| 󰘴 L                  | Clear the screen (like \`clear\` command)    |
+| 󰘴 C                  | Send a SIGINT (interrupt current command)  |
+| 󰘴 Z                  | Send a process to background (SIGTSTP)     |
+| 󰘴 D                  | Log out of current shell (EOF)             |
+| 󰘴 H                  | Delete one character (same as backspace)   |
+| 󰘴 B                  | Move one character backward                |
+| 󰘴 F                  | Move one character forward                 |
+| 󰘴 P                  | Previous command (like up arrow)           |
+| 󰘴 N                  | Next command (like down arrow)             |
+| 󰘴 R                  | Reverse search through command history     |
+| 󰘴 G                  | Exit from reverse search or cancellation   |
+| 󰘴 T                  | Swap the last two characters before cursor |
++----------------------+-------------------------------------------+
+EOF
+)
+
+# Display the cheat sheet in the terminal
+echo "$cheat_sheet"
+
+# Define the symbol for Ctrl key
+ctrl_symbol="󰘴"
+
+# Function to format key bindings
+format_bindings() {
+  bindkey | while read -r line; do
+    # Extract the key and the corresponding command
+    key=$(echo "$line" | awk '{print $1}')
+    command=$(echo "$line" | awk '{print $2}')
+
+    # Format output for Ctrl key bindings
+    if [[ "$key" == '^'* ]]; then
+      # Remove '^' and show as Ctrl
+      formatted_key="${ctrl_symbol} $(echo "$key" | sed 's/^.\(.\)/\1/')"
+    else
+      # For other bindings, keep them as is
+      formatted_key="$key"
+    fi
+
+    # Print formatted key and command
+    printf "| %-20s | %-40s |\n" "$formatted_key" "$command"
+  done
+}
+
+# Print header
+echo "+----------------------+-------------------------------------------+"
+echo "| Key                 | Action                                    |"
+echo "+----------------------+-------------------------------------------+"
+
+# Print key bindings in formatted output
+format_bindings
+
+# Print footer
+echo "+----------------------+-------------------------------------------+"

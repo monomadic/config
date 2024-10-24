@@ -14,6 +14,7 @@ alias C=e-config
 alias g=git
 alias p="media play latest"
 alias s="media search --hide-path"
+alias ms="media-stats"
 
 alias d=download-video
 alias dp="download-video porn "
