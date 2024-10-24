@@ -1,4 +1,5 @@
 # media functions
+alias .60fps="media play #60fps --shuffle"
 alias .clips="media play clips --shuffle"
 alias .cumshot="media play #cumshot --shuffle"
 alias .edits="media play edits --shuffle"
@@ -9,6 +10,7 @@ alias .suki-latest="media play latest #suki"
 alias .suki="media play #suki --shuffle"
 alias .top-cumshot="media play #top #cumshot --shuffle"
 alias .top="media play #top --shuffle"
+alias .upscaled="media play #upscaled --shuffle"
 alias @="media search"
 alias @clips="media search clips"
 alias @cumshot="media search #cumshot"
