@@ -1,0 +1,15 @@
+#!/bin/zsh
+
+# Load Zsh regex module for native regex handling
+zmodload zsh/regex
+
+# Read input from stdin
+while IFS= read -r line; do
+  # Match the first word (non-space characters) and color it blue
+  if [[ "$line" =~ '^([^\-]+)' ]]; then
+    # First word captured in $match[1]
+    print -P "%F{green}$match[1]%F{blue}${line#$match[1]}%f"
+  else
+    print -P "%s\n" "$line"
+  fi
+done

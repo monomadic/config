@@ -8,7 +8,7 @@ export PATH=$PATH:$HOME/.local/share/nvim/mason/bin/:$HOME/.cargo/bin/:$HOME/go/
 export PATH=$PATH:$HOME/.deno/bin
 export PATH=$PATH:$HOME/.foundry/bin
 
-export TABLATURE_DIR="$HOME/Tablature"
+export TABLATURE_DIR="$HOME/Music/Tablature"
 
 # Media
 export LOCAL_MEDIA_PATHS="$HOME/Downloads/Porn:$HOME/Media/Porn:$HOME/Movies/Porn"

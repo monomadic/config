@@ -22,8 +22,10 @@ cd "$TABLATURE_DIR" || {
 fd . --extension pdf --type f --exec stat --format="%Y|%n" {} \; 2>/dev/null |
   sort -rn |
   cut -d'|' -f2- |
+  highlight-tablature |
   fzf --margin="10%,0%" \
     --reverse \
+    --ansi \
     --cycle \
     --prompt=" 󰋆 " \
     --border \

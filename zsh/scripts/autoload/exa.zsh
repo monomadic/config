@@ -1,5 +1,4 @@
-alias exa=eza
-function exa-ls {
-  exa --icons --group-directories-first
+function eza-ls {
+  eza --icons --group-directories-first
 }
-alias xls=exa-ls
+alias xls=eza-ls

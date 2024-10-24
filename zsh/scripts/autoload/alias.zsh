@@ -117,15 +117,15 @@ alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
 alias img="chafa --format=symbols "
 alias j=joshuto
 alias kitty-joshuto="kitty --override background=#000 --working-directory=$HOME/workspaces --single-instance joshuto"
-alias l="echo && exa --icons --group-directories-first && echo"
-alias la="exa --icons --group-directories-first --all"
+alias l="echo && eza --icons --group-directories-first && echo"
+alias la="eza --icons --group-directories-first --all"
 alias lg=lazygit
-alias lh="exa --icons --group-directories-first --all"
-alias ll-fzf="exa --icons --color=always --group-directories-first --no-permissions --no-user -l --ignore-glob '.DS_Store' | fzf --ansi"
-alias ll="echo && exa --icons --group-directories-first --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
-alias lla="echo && exa --icons --group-directories-first --all --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
-alias lll="exa --tree --icons --level 2"
-alias lln="exa --icons --all -l --sort=date"
+alias lh="eza --icons --group-directories-first --all"
+alias ll-fzf="eza --icons --color=always --group-directories-first --no-permissions --no-user -l --ignore-glob '.DS_Store' | fzf --ansi"
+alias ll="echo && eza --icons --group-directories-first --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
+alias lla="echo && eza --icons --group-directories-first --all --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
+alias lll="eza --tree --icons --level 2"
+alias lln="eza --icons --all -l --sort=date"
 alias loc=tokei
 alias ls-colors='for x in {0..8}; do for i in {30..37}; do for a in {40..47}; do echo -ne "\e[$x;$i;$a""m\\\e[$x;$i;$a""m\e[0;37;40m "; done; echo; done; done; echo ""'
 alias monitor="btm"

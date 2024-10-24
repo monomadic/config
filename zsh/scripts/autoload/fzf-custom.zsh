@@ -48,11 +48,11 @@ ls_workspaces() {
 }
 
 ls_src() {
-  dir_exists "$SRC_DIR" && exa --oneline --only-dirs --list-dirs --color=always "$SRC_DIR"/*
+  dir_exists "$SRC_DIR" && eza --oneline --only-dirs --list-dirs --color=always "$SRC_DIR"/*
 }
 
 ls_projects() {
-  dir_exists "$WORKSPACES_DIR" && exa --oneline --only-dirs --list-dirs --color=always "$WORKSPACES_DIR"/*.workspace/*
+  dir_exists "$WORKSPACES_DIR" && eza --oneline --only-dirs --list-dirs --color=always "$WORKSPACES_DIR"/*.workspace/*
 }
 
 ls_recursive() {
@@ -65,7 +65,7 @@ fd_depth_2() {
 }
 
 ls_hidden() {
-  exa --icons --group-directories-first
+  eza --icons --group-directories-first
 }
 
 fzf_ripgrep() {
@@ -77,12 +77,12 @@ fzf_cd() {
   dir=$(fd --type directory --hidden . | fzf \
     --prompt ' ' \
     --layout=reverse \
-    --preview 'exa --icons --group-directories-first --no-user --no-permissions --no-time -l --tree --level 2 {}' \
+    --preview 'eza --icons --group-directories-first --no-user --no-permissions --no-time -l --tree --level 2 {}' \
     --color=bg+:-1,fg:4,info:15,fg+:5,header:7,hl:5,hl+:5 \
     --height 50% \
     --pointer=' ' \
     --info=hidden \
-    --bind 'ctrl-h:reload(exa --icons --only-dirs --all)' \
+    --bind 'ctrl-h:reload(eza --icons --only-dirs --all)' \
     --bind 'tab:accept' \
     --bind 'ctrl-j:jump-accept')
   [[ -n "$dir" ]] && cd "$dir" && zle reset-prompt
@@ -93,7 +93,7 @@ fzf_insert() {
   files=$(fd --strip-cwd-prefix --max-depth 1 | fzf \
     --prompt 'insert > ' \
     --layout=reverse \
-    --preview 'exa --icons --group-directories-first {}' \
+    --preview 'eza --icons --group-directories-first {}' \
     --height 75% \
     --header $'ctrl-e:edit, ctrl-o:open\n' \
     --bind 'ctrl-e:execute(${EDITOR:-nvim} {1})' \
@@ -117,7 +117,7 @@ fzf_dirs() {
     --pointer=' ' \
     --margin 10% \
     --padding 3%,2% \
-    --preview 'exa --icons --group-directories-first {}' \
+    --preview 'eza --icons --group-directories-first {}' \
     --bind 'ctrl-r:execute-silent(open {1})' \
     --bind 'ctrl-o:change-prompt(pwd > )+reload(fd --type d --strip-cwd-prefix --max-depth 1)' \
     --bind 'ctrl-b:change-prompt(marks > )+reload(cat ~/.marks)'
