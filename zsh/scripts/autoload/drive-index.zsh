@@ -15,14 +15,6 @@ fzf-media-top() {
 alias top=fzf-media-top
 alias .search-top=fzf-media-top
 
-alias media-ls-clips="media-ls --match-string '/clips/'"
-media-search-clips() {
-  media-ls-clips | grep-safe | fzf-play
-}
-alias @search-clips=fzf-search-clips
-alias .search-clips=fzf-search-clips
-alias search-clips=fzf-search-clips
-
 fzf-search-local() {
   ls-media --match-string "$HOME" | grep-safe | fzf-play
 }
@@ -31,10 +23,6 @@ alias @search-local=fzf-search-local
 fzf-media-untagged() {
   ls-media | grep -v '#' | fzf-play --kitty
 }
-
-alias .top=media-play-top
-alias .suki="media play latest #suki"
-alias .ssuki="media search latest #suki"
 
 media-play-cache() {
   cd $HOME/Movies/Cache && fd-video | fzf-play
@@ -49,35 +37,6 @@ mpv-stdin() {
 alias media-play-safe="media-ls | grep-safe | mpv-play --shuffle"
 alias media-play-unsafe="media-ls | grep-unsafe | mpv-play --shuffle"
 
-alias media-ls-suki="ls-media --match-regex '#suki'"
-alias media-play-suki="media-ls-suki | mpv-play --shuffle"
-
-alias media-ls-top="ls-media --match-regex '#top'"
-alias media-play-top="media-ls-top | mpv-play"
-alias @play-top=media-play-top
-
-alias media-ls-clips="ls-media --match-string '/clips/'"
-alias media-play-clips="media-ls-clips | mpv-play --shuffle"
-alias media-search-clips="media-ls-clips | fzf-play"
-
-# alias media-ls-clips-top="ls-media --match-regex 'clips.*#top'"
-# alias media-ls-clips-top="ls-media --match-regex 'clips' --match-regex '#top'"
-alias media-ls-clips-top="media-ls-clips --match-string '#top'"
-alias media-play-clips-top="media-ls-clips-top | mpv-play --shuffle"
-alias media-search-clips-top="media-ls-clips-top | fzf-play"
-
-alias media-ls-clips-top-latest="media-ls-clips-top --sort-modified --reverse"
-alias media-search-clips-top-latest="media-ls-clips-top-latest | fzf-play"
-alias media-play-clips-top-latest="media-ls-clips-top-latest | mpv-play"
-
-alias media-ls-clips-suki-top-cumshot="ls-media --match-regex 'clips.*#(suki|top|cumshot)'"
-alias media-play-clips-suki-top-cumshot="media-ls-clips-suki-top-cumshot | mpv-play --shuffle"
-alias media-search-clips-suki-top-cumshot="media-ls-clips-suki-top-cumshot | fzf-play"
-
-alias @play-clips=media-play-clips
-alias .clips="media play clips --shuffle"
-alias .top-clips="media play clips #top --shuffle"
-
 mpv-play-loops() {
   ls-media | grep "\/loops\/" | grep-safe | mpv-stdin --shuffle --loop-file=1 --length=10
 }
@@ -89,10 +48,6 @@ media-play-pwd-latest() {
 }
 alias .play-pwd-latest=media-play-pwd-latest
 alias ppwd=media-play-pwd-latest
-
-media-search-pwd() {
-  fd-video | fzf-play
-}
 
 media-search-pwd-sorted() {
   echo $PWD | sort-across-paths --sort modified --reverse | fzf-play
@@ -152,7 +107,6 @@ alias .search-pwd=fzf-search-pwd-latest
 alias @search-pwd-sorted=fzf-play-pwd-sorted
 
 alias latest=media-play-latest
-alias .latest=media-play-latest
 alias .cache=mpv-play-cache
 
 alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"

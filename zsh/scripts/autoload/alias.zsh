@@ -1,12 +1,26 @@
 # media functions
-alias @play-latest=media-play-sorted
-alias @search="media-search-safe"
+alias .clips="media play clips --shuffle"
+alias .cumshot="media play #cumshot --shuffle"
+alias .latest="media play latest"
+alias .suki-latest="media play latest #suki"
+alias .suki="media play #suki --shuffle"
+alias .top-cumshot="media play #top #cumshot --shuffle"
+alias .top="media play #top --shuffle"
+alias @="media search"
+alias @clips="media search clips"
+alias @cumshot="media search #cumshot"
+alias @latest="media search latest"
+alias @play-all="media-play"
 alias @search-all="media-search"
 alias @search-latest="media-search-latest"
 alias @search-volumes="ls-media --match-string '/Volumes/' | fzf-play"
+alias @search="media-search-safe"
 alias @stats="media-stats"
-alias @play-all="media-play"
-#alias @cache-portrait="rsync-cache #portrait $MASTER_MEDIA_DIR "
+alias @suki="media search #suki"
+alias @top="media search #top"
+alias @pwd="fd-video | fzf-play"
+alias .pwd="fd-video | mpv-play"
+
 alias autotag=media-autotag
 
 alias c=e-zsh

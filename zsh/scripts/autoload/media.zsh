@@ -2,14 +2,6 @@
 alias media-ls=ls-media
 alias fd-top-clips="fd --full-path --regex 'originals.*(#top|#suki)'"
 
-alias media-search="media search"
-alias media-play="media play"
-alias media-play-latest="media play latest"
-alias media-search-latest="media search latest"
-alias .cumshot="media play #cumshot --shuffle"
-alias .top-cumshot="media play #top #cumshot --shuffle"
-alias .cumshot-search="media search latest #cumshot"
-
 # detect available media paths
 ls-media-paths-checked() {
   for media_path in $(ls-media-paths); do
