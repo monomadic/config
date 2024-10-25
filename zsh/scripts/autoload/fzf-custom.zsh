@@ -102,6 +102,8 @@ fzf_insert() {
   zle reset-prompt
 }
 
+# unicode:       ⌘ ⇧ ⇧ ⌥ ⇪ ⌃ ↵
+# nerdfonts:     󰘶 󰘵 󰘲 󰘳 󰘴 󰌑
 fzf_dirs() {
   fzf --prompt '   ' \
     --layout=reverse \
@@ -112,12 +114,13 @@ fzf_dirs() {
     --cycle \
     --border \
     --color=info:#66d9ef,hl:#FFe22e,hl+:#FFe22e,fg+:5,header:7,prompt:#FFFFFF,border:#000000,bg+:#000000,bg:#000000 \
-    --header '󰌑 open  󰘴r reveal  󰘴b marks  󰘴o pwd  󰘴c cancel' \
+    --header '󰌑 open  󰘴e edit  󰘴r reveal  󰘴b marks  󰘴o pwd  󰘴c cancel' \
     --info=hidden \
     --pointer=' ' \
     --margin 10% \
     --padding 3%,2% \
     --preview 'eza --icons --group-directories-first {}' \
+    --bind 'ctrl-e:execute-silent(nvim {1})' \
     --bind 'ctrl-r:execute-silent(open {1})' \
     --bind 'ctrl-o:change-prompt(pwd > )+reload(fd --type d --strip-cwd-prefix --max-depth 1)' \
     --bind 'ctrl-b:change-prompt(marks > )+reload(cat ~/.marks)'

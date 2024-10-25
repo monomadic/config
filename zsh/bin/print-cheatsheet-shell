@@ -23,6 +23,7 @@ cheat_sheet=$(
 | 󰘴 R                  | Reverse search through command history     |
 | 󰘴 G                  | Exit from reverse search or cancellation   |
 | 󰘴 T                  | Swap the last two characters before cursor |
+| 󰘴 del                | History                                    |
 +----------------------+-------------------------------------------+
 EOF
 )

@@ -30,7 +30,7 @@ zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 YELLOW=$(tput setaf 3)
 BLUE=$(tput setaf 4)
 RESET=$(tput sgr0)
-echo "${YELLOW}󰅩 ${BLUE}${env_file:t}${RESET}"
+echo "${YELLOW}󰅩  ${BLUE}${env_file:t}${RESET}"
 
 # Source the config file and continue if there's an error
 if ! source $env_file; then
@@ -50,16 +50,6 @@ PURPLE=$(tput setaf 5)
 BLUE=$(tput setaf 4)
 RESET=$(tput sgr0)
 
-# Loop through the config files
-for config_file in $ZSH_CONFIG_DIR/scripts/autoload/*.(zsh|sh)(N); do
-	echo "${PURPLE}󰚔 ${BLUE}${config_file}${RESET}"
-  # Source the config file and continue if there's an error
-  if ! source "$config_file"; then
-    echo "Error sourcing $config_file. Skipping..."
-  fi
-done
-
-echo
 
 display-uptime
 
@@ -117,4 +107,18 @@ export PATH="$PATH:/Users/nom/.local/bin"
 export PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:/opt/homebrew/opt/gnu-sed/libexec/gnubin:/opt/homebrew/opt/grep/libexec/gnubin:$PATH"
 export MANPATH="/opt/homebrew/opt/coreutils/libexec/gnuman:$MANPATH"
 
+# homebrew
+eval "$(/opt/homebrew/bin/brew shellenv)"
+
 source /Users/nom/.config/broot/launcher/bash/br
+
+
+# TODO: remove this shit
+for config_file in $ZSH_CONFIG_DIR/scripts/autoload/*.(zsh|sh)(N); do
+	echo "${PURPLE}󰚔 ${BLUE}${config_file}${RESET}"
+  # Source the config file and continue if there's an error
+  if ! source "$config_file"; then
+    echo "Error sourcing $config_file. Skipping..."
+  fi
+done
+echo
