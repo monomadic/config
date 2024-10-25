@@ -1,4 +1,5 @@
 # media functions
+alias .4k="media play #4k --shuffle"
 alias .60fps="media play #60fps --shuffle"
 alias .clips="media play clips --shuffle"
 alias .cumshot="media play #cumshot --shuffle"

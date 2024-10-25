@@ -1,0 +1,16 @@
+#!/bin/zsh
+
+# Run the AppleScript and get the file paths of selected photos
+selected_photos=$(osascript get_selected_photos.applescript)
+
+# Check if any photos were selected
+if [[ -z "$selected_photos" ]]; then
+    echo "No photos selected."
+    exit 1
+fi
+
+# Convert AppleScript result to newline-separated list
+photos=$(echo "$selected_photos" | tr ', ' '\n')
+
+# Play the selected photos in mpv
+mpv --image-display-duration=5 --loop-file=inf $photos
