@@ -39,9 +39,9 @@ alias ms="media-stats"
 
 alias d=download-video
 alias dp="download-video porn "
-alias dm="download-video music-video "
-alias dy="download-video youtube "
-alias durl="download-video-url "
+alias dmv="download-video music-video "
+alias dyt="download-video youtube "
+alias dlu="download-video-url "
 
 alias .dupes-check="fdupes --recurse --cache --nohidden --size --summarize ."
 alias .dupes-delete="fdupes --recurse --cache --nohidden --size --delete ."
