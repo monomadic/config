@@ -32,5 +32,6 @@ fd . --extension pdf --type f --exec stat --format="%Y|%n" {} \; 2>/dev/null |
     --border-label=" Tabs" \
     --no-info \
     --exact \
-    --bind "alt-enter:execute(echo \"Opening: {}\" && open {} > /dev/null 2>&1)" \
-    --bind "enter:execute(echo \"Opening: {}\" && qlmanage -p {} > /dev/null 2>&1)"
+    --bind 'alt-r:execute(open --reveal {})' \
+    --bind "enter:execute(echo \"Opening: {}\" && open {}&)" \
+    --bind "alt-enter:execute(echo \"Opening: {}\" && qlmanage -p {} > /dev/null 2>&1)"
