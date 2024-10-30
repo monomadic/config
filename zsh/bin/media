@@ -15,6 +15,7 @@ print_usage() {
   echo "  #tag      - Match videos with '#tag'"
   echo "  [Tag]     - Match videos with '[Tag]'"
   echo "  --shuffle - Shuffle videos during playback (only for 'play' command)"
+  echo "  --verbose - Enable verbose output"
 }
 
 # Initialize variables
@@ -23,6 +24,7 @@ video_type=""
 base_command="ls-media"
 additional_args=()
 shuffle_enabled=false
+verbose=false
 
 # Parse command
 if [[ $# -ge 1 ]]; then
@@ -79,6 +81,10 @@ while [[ $# -gt 0 ]]; do
     shuffle_enabled=true
     shift
     ;;
+  --verbose)
+    verbose=true
+    shift
+    ;;
   \#*)
     additional_args+=("--match-string '$1'")
     shift
@@ -121,6 +127,9 @@ list)
   ;;
 esac
 
-# Execute the command
-echo "Executing: $final_command"
+# Execute the command with optional verbose output
+if $verbose; then
+  echo "Executing: $final_command"
+fi
+
 eval $final_command
