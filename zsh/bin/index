@@ -1,0 +1,104 @@
+#!/usr/bin/env zsh
+
+# Set up configuration directory
+INDEX_DIR="$HOME/.index"
+mkdir -p "$INDEX_DIR"
+
+function index_run() {
+    local volumes=(/Volumes/*)
+    local system_volume="$(df / | tail -1 | awk '{print $1}')"
+
+    echo "Starting indexing process..."
+
+    # Process each volume
+    for volume in $volumes; do
+        # Skip system volume
+        if [[ "$(df "$volume" | tail -1 | awk '{print $1}')" == "$system_volume" ]]; then
+            continue
+        }
+
+        # Get volume name and create its directory
+        local volume_name=$(basename "$volume")
+        local volume_index_dir="$INDEX_DIR/$volume_name"
+        mkdir -p "$volume_index_dir"
+
+        echo "Indexing volume: $volume_name"
+
+        # Clear previous index
+        rm -f "$volume_index_dir"/*
+
+        # Use fd to find all files and process them
+        fd . "$volume" --type f --hidden --no-ignore | while read -r file; do
+            # Create a safe filename for the index
+            local safe_name=$(echo "$file" | sed 's/\//_/g')
+            local index_file="$volume_index_dir/$safe_name.txt"
+
+            # Skip if file is too large (>100MB)
+            if [[ $(stat -f %z "$file") -gt 104857600 ]]; then
+                echo "Skipping large file: $file"
+                continue
+            }
+
+            # Try to read the file content
+            if [[ -r "$file" ]]; then
+                {
+                    echo "PATH: $file"
+                    echo "INDEXED: $(date '+%Y-%m-%d %H:%M:%S')"
+                    echo "---"
+                    cat "$file"
+                } > "$index_file"
+            else
+                echo "Cannot read file: $file"
+            fi
+        done
+
+        echo "Finished indexing $volume_name"
+    done
+
+    echo "Indexing complete!"
+}
+
+function index_search() {
+    # Check if fzf is installed
+    if ! command -v fzf >/dev/null 2>&1; then
+        echo "Error: fzf is not installed. Please install it first."
+        return 1
+    }
+
+    # Create a temporary file to store all indexed file paths
+    local temp_file=$(mktemp)
+
+    # Collect all original file paths from index files
+    for volume_dir in "$INDEX_DIR"/*(/); do
+        local volume_name=$(basename "$volume_dir")
+        find "$volume_dir" -type f -name "*.txt" | while read -r index_file; do
+            head -n 1 "$index_file" | sed 's/PATH: //' >> "$temp_file"
+        done
+    done
+
+    # Use fzf to search through the paths
+    selected=$(cat "$temp_file" | fzf --multi \
+        --preview "echo 'Volume: $(basename $(dirname {}))'; echo; cat '$INDEX_DIR'/*/$(echo {} | sed 's/\//_/g').txt" \
+        --preview-window=right:70% \
+        --bind 'ctrl-/:change-preview-window(down|hidden|)' \
+        --header 'CTRL-/ to toggle preview window')
+
+    # Clean up
+    rm "$temp_file"
+}
+
+# Main command handler
+case "$1" in
+    "run")
+        index_run
+        ;;
+    "search")
+        index_search
+        ;;
+    *)
+        echo "Usage: index <command>"
+        echo "Commands:"
+        echo "  run     - Index files from external volumes"
+        echo "  search  - Interactively search through indexed files using fzf"
+        ;;
+esac
