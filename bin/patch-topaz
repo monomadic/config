@@ -1,0 +1,34 @@
+#!/bin/sh
+
+function hex() {
+    echo ''$1'' | perl -0777pe 's|([0-9a-zA-Z]{2}+(?![^\(]*\)))|\\x${1}|gs'
+}
+
+function replace() {
+    declare -r dom=$(hex $2)
+    declare -r sub=$(hex $3)
+    sudo perl -0777pi -e 'BEGIN{$/=\1e8} s|'$dom'|'$sub'|gs' "$1"
+    return
+}
+
+function prep() {
+    sudo xattr -cr "$1"
+    sudo xattr -r -d com.apple.quarantine "$1"
+    sudo codesign --force --deep --sign - "$1"
+}
+
+function patchlib() {
+    replace "$1" '4C5FFAFF84C00F8462030000' '4C5FFAFF84C00F8562030000'
+    replace "$1" '554889E5534883EC38488B05' 'B801000000C3909090488B05'
+    replace "$1" '995B335840130034360340F9' '995B335840130035360340F9'
+    replace "$1" 'FF8301D1F44F04A9FD7B05A9' '20008052C0035FD6FD7B05A9'
+}
+
+function patchbin() {
+    replace "$1" '0080FB020F8297000000488D' '00909090E9CD0F000090488D'
+    replace "$1" '1F090071A3030054E0430791' '1F0900718A030014E0430791'
+}
+
+patchlib "/Applications/Topaz Video AI.app/Contents/Frameworks/libvideoai.dylib"
+patchbin "/Applications/Topaz Video AI.app/Contents/MacOS/login"
+prep "/Applications/Topaz Video AI.app"
