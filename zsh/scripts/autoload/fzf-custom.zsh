@@ -39,8 +39,13 @@ ls_marks() {
 ls_all() {
   pwd
   ls_marks
-  ls_workspaces
-  ls_src
+  ls_volumes
+  # ls_workspaces
+  # ls_src
+}
+
+ls_volumes() {
+  fd -t d . /Volumes -d 1
 }
 
 ls_workspaces() {
@@ -150,7 +155,7 @@ fzf_neovim() {
 
 fzf_marks() {
   local dir
-  dir=$(ls_marks | fzf_dirs)
+  dir=$(ls_all | fzf_dirs)
   [[ -n "$dir" ]] && cd "$dir" && zle reset-prompt && magic-enter
 }
 
