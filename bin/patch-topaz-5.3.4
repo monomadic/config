@@ -1,0 +1,57 @@
+#!/bin/sh
+
+function hex() {
+    echo ''$1'' | perl -0777pe 's|([0-9a-zA-Z]{2}+(?![^\(]*\)))|\\x${1}|gs'
+}
+
+function replace() {
+    declare -r dom=$(hex $2)
+    declare -r sub=$(hex $3)
+    sudo perl -0777pi -e 'BEGIN{$/=\1e8} s|'$dom'|'$sub'|gs' "$1"
+    return
+}
+
+function prep() {
+    sudo xattr -cr "$1"
+    sudo xattr -r -d com.apple.quarantine "$1"
+    sudo codesign --force --deep --sign - "$1"
+}
+
+function download_and_extract_login_libvideo() {
+    tmp_dir=$(mktemp -d)
+    curl -L -o $tmp_dir/TopazVideoAI-5.0.4.dmg https://downloads.topazlabs.com/deploy/TopazVideoAI/5.0.4/TopazVideoAI-5.0.4.dmg
+    hdiutil attach $tmp_dir/TopazVideoAI-5.0.4.dmg -nobrowse -quiet
+    cp /Volumes/Topaz\ Video\ AI\ 5.0.4/Topaz\ Video\ AI.app/Contents/MacOS/login /Applications/Topaz\ Video\ AI.app/Contents/MacOS/login
+    cp /Volumes/Topaz\ Video\ AI\ 5.0.4/Topaz\ Video\ AI.app/Contents/Frameworks/libvideoai.1.4.0.dylib /Applications/Topaz\ Video\ AI.app/Contents/Frameworks/libvideoai.1.4.0.dylib
+    hdiutil detach /Volumes/Topaz\ Video\ AI\ 5.0.4 -quiet
+    rm -rf $tmp_dir
+}
+
+function link_dylib() {
+    cd /Applications/Topaz\ Video\ AI.app/Contents/Frameworks
+    ln -s libaiengine.dylib libaiengine.3.dylib
+    rm -rf libvideoai.dylib
+    ln -s libvideoai.1.4.0.dylib libvideoai.dylib
+    ln -s libvideoai.1.4.0.dylib libvideoai.1.dylib
+}
+
+function patch_login() {
+    replace "/Applications/Topaz Video AI.app/Contents/MacOS/login" 'a3030054' '55000014'
+    replace "/Applications/Topaz Video AI.app/Contents/MacOS/login" '0f8297000000' '660f1f440000'
+    replace "/Applications/Topaz Video AI.app/Contents/MacOS/login" '0f8430060000' 'e93106000000'
+}
+
+function patch_libvideoai() {
+    replace "/Applications/Topaz Video AI.app/Contents/Frameworks/libvideoai.1.4.0.dylib" '020054200080' '020054000080'
+    replace "/Applications/Topaz Video AI.app/Contents/Frameworks/libvideoai.1.4.0.dylib" 'B0014180' 'B0004180'
+}
+
+function patch() {
+    download_and_extract_login_libvideo
+    link_dylib
+    patch_login
+    patch_libvideoai
+}
+
+patch
+prep "/Applications/Topaz Video AI.app"
