@@ -2,21 +2,12 @@
 
 usage() {
   echo "Usage: $0 [--match-string STRING]... [--match-regex REGEX]... [--sort-modified | --sort-created] [--reverse] [--verbose]" >&2
-  echo "Options:" >&2
-  echo " --match-string STRING   Only list files where the path contains all the given strings (case-insensitive). Can be used multiple times." >&2
-  echo " --match-regex REGEX     Only list files where the path matches all the given regex patterns (case-insensitive). Can be used multiple times." >&2
-  echo " --sort-modified         Sort files by modification time" >&2
-  echo " --sort-created          Sort files by creation time" >&2
-  echo " --reverse               Reverse the sort order" >&2
-  echo " --verbose               Enable verbose logging" >&2
 }
 
 verbose=false
 
 log_verbose() {
-  if $verbose; then
-    echo "[DEBUG] $1" >&2
-  fi
+  $verbose && echo "[DEBUG] $1" >&2
 }
 
 match_strings=()
@@ -59,105 +50,70 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-process_input_fd() {
+process_files() {
   local dir="$1"
-  log_verbose "Processing input with fd-video in directory: $dir"
-  cd "$dir" || {
-    log_verbose "Failed to change to directory: $dir"
-    return 1
-  }
+  cd "$dir" || { log_verbose "Cannot access $dir"; return 1; }
 
-  # Build fd-video command arguments
-  fd_video_cmd=(fd-video -t f --full-path --ignore-case -0)
+  local fd_video_cmd=(fd-video -t f --full-path --ignore-case -0)
+  log_verbose "Executing: ${fd_video_cmd[*]}"
 
-  log_verbose "Executing in $dir: ${fd_video_cmd[*]}"
-
-  # Execute fd-video and process results
-  ${fd_video_cmd[@]} | while IFS= read -r -d $'\0' file; do
-    match=true
-
-    log_verbose "Checking match for file: $file"
-
-    # Match strings
+  # Collect files into an array
+  local files=()
+  while IFS= read -r -d $'\0' file; do
+    # Filter by match_strings and match_regexes in one loop
+    local match=true
     for str in "${match_strings[@]}"; do
-      if [[ "${file:l}" != *"${str:l}"* ]]; then
-        log_verbose "String '$str' not found in file: $file"
-        match=false
-        break
-      fi
+      [[ "${file:l}" != *"${str:l}"* ]] && match=false && break
     done
-
-    # Match regexes
     if $match; then
       for regex in "${match_regexes[@]}"; do
-        if [[ ! "${file:l}" =~ "${regex:l}" ]]; then
-          log_verbose "Regex '$regex' not matching file: $file"
-          match=false
-          break
-        fi
+        [[ ! "${file:l}" =~ "${regex:l}" ]] && match=false && break
       done
     fi
+    $match && files+=("$file")
+  done < <("${fd_video_cmd[@]}")
 
-    # Skip file if it doesn't match the criteria
-    if ! $match; then
-      continue
-    fi
-
-    # Get the full path
-    full_path="$PWD/$file"
-
-    # Handle sorting by modification or creation time using eza
+  # Process file times if sorting
+  for file in "${files[@]}"; do
+    local full_path="$PWD/$file"
     if $sort_modified; then
-      mod_time=$(eza --no-filesize --no-permissions --time-style=long-iso --long "$full_path" | awk '{print $6 " " $7}')
-      printf '%s\t%s\n' "$mod_time" "$full_path"
+      eza --no-filesize --no-permissions --time-style=long-iso --long "$full_path" | \
+      awk '{print $6 " " $7, full_path}' full_path="$full_path"
     elif $sort_created; then
-      create_time=$(eza --no-filesize --no-permissions --time-style=long-iso --sort=created --long "$full_path" | awk '{print $6 " " $7}')
-      printf '%s\t%s\n' "$create_time" "$full_path"
+      eza --no-filesize --no-permissions --time-style=long-iso --sort=created --long "$full_path" | \
+      awk '{print $6 " " $7, full_path}' full_path="$full_path"
     else
       echo "$full_path"
     fi
   done
 }
 
-# Use Zsh array to properly handle directories with spaces
+# Get directories
 directories=("${(@f)$(ls-media-paths)}")
-log_verbose "Directories to search: ${directories[*]}"
-if [ ${#directories[@]} -eq 0 ]; then
-  echo "Error: No directories found from ls-media-paths" >&2
-  exit 1
-fi
+(( ${#directories[@]} == 0 )) && echo "No directories found" >&2 && exit 1
 
-# Temporary file to store all results
-temp_file=$(mktemp)
+# Temporary array to store results for in-memory sorting
+results=()
 for dir in "${directories[@]}"; do
-  log_verbose "Searching directory: $dir"
-  if [ ! -d "$dir" ]; then
-    log_verbose "Skipping non-existent or non-directory: $dir"
-    continue
-  fi
-  if [ ! -r "$dir" ]; then
-    log_verbose "Cannot read directory $dir (permission denied)"
-    continue
-  fi
-  process_input_fd "$dir" >>"$temp_file"
+  [[ -d "$dir" && -r "$dir" ]] && results+=("$(process_files "$dir")")
 done
 
-# Sort and output results
+# Sort in-memory
 if $sort_modified || $sort_created; then
-  sort -n "$temp_file" | cut -f2-
+  sorted_results=$(printf "%s\n" "${results[@]}" | sort -n)
 else
-  cat "$temp_file"
-fi | {
-  if $reverse; then
-    if (( $+commands[tac] )); then
-      tac
-    else
-      tail -r
-    fi
-  else
-    cat
-  fi
-}
+  sorted_results="${results[@]}"
+fi
 
-rm "$temp_file"
+# Reverse if needed
+if $reverse; then
+  if (( $+commands[tac] )); then
+    echo "$sorted_results" | tac
+  else
+    echo "$sorted_results" | tail -r
+  fi
+else
+  echo "$sorted_results"
+fi
+
 log_verbose "Script execution completed"
