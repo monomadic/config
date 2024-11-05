@@ -1,0 +1,90 @@
+#!/bin/zsh
+
+# Function to transform a filename according to the rules
+transform_filename() {
+    local filename="$1"
+    local dirname=$(dirname "$filename")
+    local basename=$(basename "$filename")
+    local new_name=""
+    local word=""
+
+    # Read word by word
+    while IFS= read -r -d ' ' word || [[ -n "$word" ]]; do
+        if [[ "$word" = *[[:space:]]* ]]; then
+            # Handle words with spaces
+            new_name+="$word"
+        elif [[ "$word" =~ ^[\[\#] ]]; then
+            # Words starting with [ or # remain unchanged
+            new_name+="$word"
+        else
+            # Capitalize first letter of other words
+            new_name+="${word:0:1:u}${word:1:l}"
+        fi
+
+        # Add space if this isn't the last word
+        if [[ -n "$word" ]]; then
+            new_name+=" "
+        fi
+    done < <(echo -n "$basename" | sed 's/\([[:space:]]\)/\n\1/g')
+
+    # Trim trailing space
+    new_name="${new_name% }"
+
+    # Return full path
+    [[ "$dirname" = "." ]] && echo "$new_name" || echo "$dirname/$new_name"
+}
+
+# Main script
+echo "Scanning for files..."
+echo
+
+# Store original and new names in arrays
+typeset -A file_mappings
+for file in *(N); do
+    if [[ -f "$file" ]]; then
+        new_name=$(transform_filename "$file")
+        if [[ "$new_name" != "$file" ]]; then
+            file_mappings[$file]="$new_name"
+        fi
+    fi
+done
+
+# If no files to rename, exit
+if (( ${#file_mappings} == 0 )); then
+    echo "No files need renaming."
+    exit 0
+fi
+
+# Show preview of changes
+echo "The following files will be renamed:"
+echo "----------------------------------------"
+for original new in "${(@kv)file_mappings}"; do
+    echo "From: $original"
+    echo "To:   $new"
+    echo "----------------------------------------"
+done
+
+# Ask for confirmation
+echo -n "Proceed with renaming? (y/N): "
+read -q response || exit 0
+echo
+
+if [[ "$response" =~ ^[Yy]$ ]]; then
+    # Perform the renaming
+    for original new in "${(@kv)file_mappings}"; do
+        if [[ -e "$new" ]]; then
+            echo "Error: Cannot rename '$original' to '$new' - destination already exists"
+            continue
+        fi
+
+        mv -n "$original" "$new"
+        if [[ $? -eq 0 ]]; then
+            echo "Renamed: $original → $new"
+        else
+            echo "Error renaming: $original"
+        fi
+    done
+    echo "Renaming complete."
+else
+    echo "Operation cancelled."
+fi
