@@ -21,6 +21,9 @@ brew "gnu-tar"
 brew "gnu-which"
 brew "grep"
 
+#brew "default-handler" # Utility for changing default URL scheme handlers
+brew "screens"
+
 # manage app store
 brew "mas"
 
@@ -107,7 +110,8 @@ brew "viu" # sixel
 brew "fdupes" # file duplicates
 
 # video
-brew "mpv"
+# brew "mpv"
+brew "stolendata-mpv" # version with more gui-like integration
 brew "vapoursynth" # frame interpolation for mpv
 
 brew "procs" # ps replacement (rust)
