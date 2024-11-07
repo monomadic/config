@@ -1,7 +1,7 @@
 # KEYBINDINGS
 #
-bindkey '^ ' lfcd
-#bindkey '^ ' yy;
+#bindkey '^ ' lfcd
+zle -N y && bindkey '^ ' y
 # bindkey '^ ' joshuto-wrapper;
 zle -N fzf_ripgrep && bindkey '^f' fzf_ripgrep
 zle -N clear-reset && bindkey '^k' clear-reset
