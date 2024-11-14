@@ -80,18 +80,20 @@ for video_file in "${video_files[@]}"; do
     res_tag=""
   fi
 
-  # Determine frame rate tag
-  if (($(echo "$framerate >= 120" | bc -l))); then
-    fps_tag="#120fps"
-  elif (($(echo "$framerate >= 60" | bc -l))); then
-    fps_tag="#60fps"
-  elif (($(echo "$framerate >= 30" | bc -l))); then
-    fps_tag="#30fps"
-  elif (($(echo "$framerate >= 24" | bc -l))); then
-    fps_tag="#24fps"
-  else
-    fps_tag=""
-  fi
+  fps_tag="#${framerate}fps"
+
+  # # Determine frame rate tag
+  # if (($(echo "$framerate >= 120" | bc -l))); then
+  #   fps_tag="#120fps"
+  # elif (($(echo "$framerate >= 60" | bc -l))); then
+  #   fps_tag="#60fps"
+  # elif (($(echo "$framerate >= 30" | bc -l))); then
+  #   fps_tag="#30fps"
+  # elif (($(echo "$framerate >= 24" | bc -l))); then
+  #   fps_tag="#24fps"
+  # else
+  #   fps_tag=""
+  # fi
 
   # Combine tags with a space between them
   tags=""

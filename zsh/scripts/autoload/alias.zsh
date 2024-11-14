@@ -13,6 +13,7 @@ alias .top-cumshot="media play #top #cumshot --shuffle"
 alias .top="media play #top --shuffle"
 alias .upscaled="media play #upscaled --shuffle"
 alias @="media search"
+alias @@="media search edits"
 alias @clips="media search clips"
 alias @cumshot="media search #cumshot"
 alias @edits="media search edits"
@@ -28,7 +29,11 @@ alias @stats="media-stats"
 alias @suki="media search #suki"
 alias @top="media search #top"
 
+alias media-backup="rsync-backup /Volumes/Media-BAK1/Movies"
+
 alias autotag=media-autotag
+
+alias remove-gatekeeper="xattr -rd com.apple.quarantine "
 
 alias c=e-zsh
 alias C=e-config

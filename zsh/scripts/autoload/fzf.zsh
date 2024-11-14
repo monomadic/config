@@ -32,6 +32,8 @@ function fzf-brew-installed() {
     --bind 'enter:execute(open $(brew info --json=v1 {} | jq -r ".[0].homepage"))'
 }
 
+alias fzf-tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
+
 # alias mark='echo $PWD >> ~/.marks'
 # alias jump='cd $(cat ~/.marks | fzf)'
 

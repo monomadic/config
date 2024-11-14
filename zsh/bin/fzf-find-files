@@ -1,0 +1,62 @@
+#!/usr/bin/env zsh
+
+# Check if FZF is installed
+if ! command -v fzf >/dev/null 2>&1; then
+    echo "Error: fzf is not installed. Please install it first."
+    exit 1
+fi
+
+# Default paths if FILE_SEARCH_PATHS is not set
+if [[ -z "$FILE_SEARCH_PATHS" ]]; then
+    FILE_SEARCH_PATHS="$HOME/Downloads:$HOME/Movies"
+fi
+
+# Convert colon-separated paths to array
+search_paths=(${(s/:/)FILE_SEARCH_PATHS})
+
+# Function to determine the preview command based on file type
+preview_command() {
+    case "$1" in
+        *.md|*.txt|*.log|*.json|*.yaml|*.yml|*.xml|*.csv)
+            echo "bat --style=numbers --color=always {} || cat {}"
+            ;;
+        *.jpg|*.jpeg|*.png|*.gif)
+            echo "exiftool {} || echo 'Install exiftool for image previews'"
+            ;;
+        *.pdf)
+            echo "pdftotext {} - || echo 'Install poppler-utils for PDF previews'"
+            ;;
+        *.mp4|*.mkv|*.avi)
+            echo "mediainfo {} || echo 'Install mediainfo for video previews'"
+            ;;
+        *)
+            echo "file {} && head -n 100 {}"
+            ;;
+    esac
+}
+
+# Main search function
+search_files() {
+    # Build find command for all paths
+    local find_cmd=""
+    for path in $search_paths; do
+        if [[ -d "$path" ]]; then
+            [[ -n "$find_cmd" ]] && find_cmd+=" ; "
+            find_cmd+="find '$path' -type f"
+        fi
+    done
+
+    # Execute the search with fzf
+    eval $find_cmd | fzf \
+        --preview "if [[ -f {} ]]; then $(preview_command '{}'); else echo 'Not a regular file'; fi" \
+        --preview-window='right:60%' \
+        --bind='ctrl-/:change-preview-window(down|hidden|)' \
+        --header 'CTRL-/ to toggle preview window' \
+        --layout=reverse \
+        --border \
+        --height=80% \
+        --prompt='Search files > '
+}
+
+# Run the search
+search_files

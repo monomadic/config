@@ -9,11 +9,13 @@ export PATH=$PATH:$HOME/.deno/bin
 export PATH=$PATH:$HOME/.foundry/bin
 
 export TABLATURE_DIR="$HOME/Music/Tablature"
+export MOVIES_PATH="$HOME/Movies"
+export TUTORIALS_PATH="$HOME/Movies/Tutorials"
 
 # Media
-export LOCAL_MEDIA_PATHS="$HOME/Downloads/Porn:$HOME/Media/Porn:$HOME/Movies/Porn"
-export LOCAL_CACHE_PATHS="$HOME/Movies/Cache:$HOME/Media/Cache"
-export LOCAL_CACHE_PATH="$HOME/Movies/Cache"
+export LOCAL_MEDIA_PATHS="$HOME/Downloads/Porn:$HOME/Media/Porn:$MOVIES_PATH/Porn"
+export LOCAL_CACHE_PATHS="$MOVIES_PATH/Cache:$HOME/Media/Cache"
+export LOCAL_CACHE_PATH="$MOVIES_PATH/Cache"
 export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn"
 export EXTERNAL_CACHE_PATHS="/Volumes/*/Movies/Cache"
 export MASTER_MEDIA_DIR="/Volumes/Media-MSTR/Movies"

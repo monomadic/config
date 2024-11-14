@@ -1,13 +1,3 @@
-# function rsync-backup-media-to-babyblue {
-#   echo "FireBird1TB/Media/Porn		${du-sh /Volumes/FireBird1TB/Media/Porn/}"
-#   # rsync-archive /Volumes/FireBird1TB/Media/Porn/ /Volumes/BabyBlue2TB/Media/Porn/
-#   # echo "Backup successful."
-# }
-
-rsync-clone-firebird-to-babyblue() {
-  rsync-archive /Volumes/FireBird1TB/Movies/Porn/ /Volumes/LongBoy\ 1TB/Movies/Porn/
-}
-
 rsync-archive() {
   # Check for proper number of arguments
   if [ $# -ne 2 ]; then
