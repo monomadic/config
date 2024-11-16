@@ -50,7 +50,6 @@ PURPLE=$(tput setaf 5)
 BLUE=$(tput setaf 4)
 RESET=$(tput sgr0)
 
-
 display-uptime
 
 disk_space=$(df --si / | awk 'NR==2 {print $4}')

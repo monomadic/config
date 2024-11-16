@@ -11,9 +11,6 @@
 # - $FZF_ALT_C_COMMAND
 # - $FZF_ALT_C_OPTS
 
-# Key bindings
-# ------------
-
 # The code at the top and the bottom of this file is the same as in completion.zsh.
 # Refer to that file for explanation.
 if 'zmodload' 'zsh/parameter' 2>'/dev/null' && (( ${+options} )); then

@@ -1,62 +1,39 @@
 #!/usr/bin/env zsh
 
-# Check if FZF is installed
-if ! command -v fzf >/dev/null 2>&1; then
-    echo "Error: fzf is not installed. Please install it first."
-    exit 1
-fi
+# Create a temporary script file to handle previews
+PREVIEW_SCRIPT=$(mktemp)
+cat >"$PREVIEW_SCRIPT" <<'EOF'
+#!/usr/bin/env zsh
 
-# Default paths if FILE_SEARCH_PATHS is not set
-if [[ -z "$FILE_SEARCH_PATHS" ]]; then
-    FILE_SEARCH_PATHS="$HOME/Downloads:$HOME/Movies"
-fi
+file="$1"
+case $(file -b --mime-type "$file") in
+    text/*)
+        bat --style=numbers --color=always "$file"
+        ;;
+    image/*)
+        chafa -s "${FZF_PREVIEW_COLUMNS}x${FZF_PREVIEW_LINES}" "$file"
+        ;;
+    application/pdf)
+        pdfinfo "$file"
+        ;;
+    video/*)
+        mediainfo "$file"
+        ;;
+    *)
+        file "$file"
+        ;;
+esac
+EOF
 
-# Convert colon-separated paths to array
-search_paths=(${(s/:/)FILE_SEARCH_PATHS})
-
-# Function to determine the preview command based on file type
-preview_command() {
-    case "$1" in
-        *.md|*.txt|*.log|*.json|*.yaml|*.yml|*.xml|*.csv)
-            echo "bat --style=numbers --color=always {} || cat {}"
-            ;;
-        *.jpg|*.jpeg|*.png|*.gif)
-            echo "exiftool {} || echo 'Install exiftool for image previews'"
-            ;;
-        *.pdf)
-            echo "pdftotext {} - || echo 'Install poppler-utils for PDF previews'"
-            ;;
-        *.mp4|*.mkv|*.avi)
-            echo "mediainfo {} || echo 'Install mediainfo for video previews'"
-            ;;
-        *)
-            echo "file {} && head -n 100 {}"
-            ;;
-    esac
-}
+chmod +x "$PREVIEW_SCRIPT"
 
 # Main search function
-search_files() {
-    # Build find command for all paths
-    local find_cmd=""
-    for path in $search_paths; do
-        if [[ -d "$path" ]]; then
-            [[ -n "$find_cmd" ]] && find_cmd+=" ; "
-            find_cmd+="find '$path' -type f"
-        fi
-    done
+fd --type f --exclude .git |
+  fzf --preview="$PREVIEW_SCRIPT {}" \
+    --preview-window='right:60%' \
+    --bind 'enter:execute-silent(open --reveal {})' \
+    --bind='ctrl-/:toggle-preview' \
+    --header='Enter: open file | Ctrl-/: toggle preview'
 
-    # Execute the search with fzf
-    eval $find_cmd | fzf \
-        --preview "if [[ -f {} ]]; then $(preview_command '{}'); else echo 'Not a regular file'; fi" \
-        --preview-window='right:60%' \
-        --bind='ctrl-/:change-preview-window(down|hidden|)' \
-        --header 'CTRL-/ to toggle preview window' \
-        --layout=reverse \
-        --border \
-        --height=80% \
-        --prompt='Search files > '
-}
-
-# Run the search
-search_files
+# Clean up
+rm -f "$PREVIEW_SCRIPT"

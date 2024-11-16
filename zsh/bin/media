@@ -11,6 +11,7 @@ print_usage() {
   echo "  clips     - Match videos in '/clips/'"
   echo "  originals - Match videos in '/originals/'"
   echo "  loops     - Match videos in '/loops/'"
+  echo "  scenes    - Match videos in '/scenes/'"
   echo "Args:"
   echo "  #tag      - Match videos with '#tag'"
   echo "  [Tag]     - Match videos with '[Tag]'"
@@ -71,6 +72,11 @@ while [[ $# -gt 0 ]]; do
   loops)
     video_type="loops"
     additional_args+=("--match-string '/loops/'")
+    shift
+    ;;
+  scenes)
+    video_type="scenes"
+    additional_args+=("--match-string '/scenes/'")
     shift
     ;;
   latest)

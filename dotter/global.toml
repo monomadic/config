@@ -18,8 +18,8 @@ depends = []
 [joshuto.files]
 "joshuto" = "~/.config/joshuto"
 
-[yazi]
-files = { "apps/yazi" = { target = "~/.config/yazi", template = false } }
+[yazi.files]
+"apps/yazi" = "~/.config/yazi"
 
 [chafa.files]
 "scripts/chafa-select" = "~/.bin/chafa-select"

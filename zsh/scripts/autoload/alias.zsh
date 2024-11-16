@@ -30,7 +30,7 @@ alias @suki="media search #suki"
 alias @top="media search #top"
 
 alias media-backup="rsync-backup /Volumes/Media-BAK1/Movies"
-#alias media-cache="rsync-backup $HOME/Movies/Cache"
+alias media-cache="rsync-backup --dry-run $HOME/Movies/Cache \/clipped\/ "
 
 alias autotag=media-autotag
 

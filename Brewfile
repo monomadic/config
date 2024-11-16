@@ -22,7 +22,7 @@ brew "gnu-which"
 brew "grep"
 
 #brew "default-handler" # Utility for changing default URL scheme handlers
-brew "screens"
+# brew "screen"
 
 # manage app store
 brew "mas"
@@ -96,8 +96,11 @@ brew "fd" # find
 brew "neovim" # editor
 brew "helix" # editor (rust)
 brew "amp" # editor (rust)
-brew "kakoune" # editor
+#brew "kakoune" # editor
+
 # brew "youtube-dl" # deprecated
+brew "yt-dlp"
+
 brew "ffmpeg" # for youtube-dl
 brew "ffmpegthumbnailer"
 brew "wget"
@@ -110,8 +113,8 @@ brew "viu" # sixel
 brew "fdupes" # file duplicates
 
 # video
-# brew "mpv"
-brew "stolendata-mpv" # version with more gui-like integration
+brew "mpv"
+# brew "stolendata-mpv" # version with more gui-like integration
 brew "vapoursynth" # frame interpolation for mpv
 
 brew "procs" # ps replacement (rust)
@@ -119,7 +122,7 @@ brew "procs" # ps replacement (rust)
 brew "ouch" # general decompressor (rust)
 
 # llm / openai
-brew "claude" # claude.ai gui
+cask "claude" # claude.ai gui
 tap "simonw/llm"
 brew "ttok" # token counter
 brew "strip-tags" # strip tags from html with gpt
@@ -198,7 +201,7 @@ cask "smooze-pro"
 # cask "daisydisk"
 brew "rnr" # rust based rename
 cask "transnomino" # gui renamer
-brew "mmv" # go based util for renaming with vim
+# brew "mmv" # go based util for renaming with vim
 
 # bitcoin wallets
 cask "bluewallet"
