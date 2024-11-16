@@ -202,6 +202,7 @@ cask "smooze-pro"
 brew "rnr" # rust based rename
 cask "transnomino" # gui renamer
 # brew "mmv" # go based util for renaming with vim
+brew "moreutils" # includes vidir, for renaming with vi
 
 # bitcoin wallets
 cask "bluewallet"

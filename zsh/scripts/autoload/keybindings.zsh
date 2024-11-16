@@ -3,7 +3,9 @@
 # bindkey '^ ' lfcd
 zle -N y && bindkey '^ ' y
 # bindkey '^ ' joshuto-wrapper;
-zle -N fzf_ripgrep && bindkey '^f' fzf_ripgrep
+zle -N _fzf-find-files && bindkey '^f' _fzf-find-files
+zle -N _fzf-jump && bindkey '^j' _fzf-jump
+zle -N fzf_ripgrep && bindkey '^s' fzf_ripgrep
 zle -N clear-reset && bindkey '^k' clear-reset
 #zle -N magic-enter && bindkey '^m' magic-enter
 
@@ -15,4 +17,11 @@ zle -N fzf_insert && bindkey '^y' fzf_insert
 zle -N cd-up && bindkey '^u' cd-up
 # bindkey '^e' fzf_edit
 # bindkey '^b' fzm
-zle -N fzf-cd && bindkey '^j' fzf-cd
+
+_fzf-find-files() {
+  fzf-find-files
+}
+
+_fzf-jump() {
+  fzf-jump
+}
