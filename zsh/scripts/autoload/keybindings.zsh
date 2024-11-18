@@ -1,7 +1,7 @@
 # KEYBINDINGS
 #
 # bindkey '^ ' lfcd
-zle -N y && bindkey '^ ' y
+zle -N yazi-jump && bindkey '^ ' yazi-jump
 # bindkey '^ ' joshuto-wrapper;
 zle -N _fzf-find-files && bindkey '^f' _fzf-find-files
 zle -N _fzf-jump && bindkey '^j' _fzf-jump
