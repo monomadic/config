@@ -18,7 +18,7 @@ cwd = { fg = "cyan" }
 
 # Hovered
 hovered         = { reversed = true }
-preview_hovered = { underline = true }
+preview_hovered = { underline = false }
 
 # Find
 find_keyword  = { fg = "yellow", bold = true, italic = true, underline = true }
