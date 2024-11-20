@@ -22,7 +22,8 @@ keymap = [
 	{ on = "<C-u>", run = "arrow -50%",  desc = "Move cursor up half page" },
 	{ on = "<C-d>", run = "arrow 50%",   desc = "Move cursor down half page" },
 	{ on = "<C-b>", run = "arrow -100%", desc = "Move cursor up one page" },
-	{ on = "<C-f>", run = "arrow 100%",  desc = "Move cursor down one page" },
+	{ on = "<C-f>", run = "shell --confirm 'fd --type f --hidden --exclude .git | fzf --preview \"bat --color=always --style=numbers {}\" 2>/dev/tty | xargs -r yazi -f'", desc = "FZF find files" },
+	# { on = "<C-f>", run = "arrow 100%",  desc = "Move cursor down one page" },
 
 	{ on = "<S-PageUp>",   run = "arrow -50%",  desc = "Move cursor up half page" },
 	{ on = "<S-PageDown>", run = "arrow 50%",   desc = "Move cursor down half page" },

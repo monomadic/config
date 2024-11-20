@@ -134,7 +134,9 @@ brew "aichat" # rust-based client for many llm platforms
 cask "megasync" # mega.nz
 
 # macos desktop
-cask "hiddenbar"
+# cask "hiddenbar" # hides menu items (bartender is better)
+cask "bartender" # hides menu items
+cask "topnotch" # makes the menu bar entirely black
 
 # encryption
 brew "age"
