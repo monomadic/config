@@ -156,7 +156,7 @@ fzf_neovim() {
 fzf_marks() {
   local dir
   dir=$(ls_all | fzf_dirs)
-  [[ -n "$dir" ]] && cd "$dir" && zle reset-prompt && magic-enter
+  [[ -n "$dir" ]] && cd "$dir" && zle reset-prompt
 }
 
 # Uncomment these to bind functions to keys

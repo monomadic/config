@@ -2,6 +2,8 @@ export ZSH_CONFIG_DIR="$HOME/.zsh"
 export DOTFILES_DIR="$HOME/config"
 export ZSH_DOTFILES_DIR="$DOTFILES_DIR/zsh"
 
+export EDITOR=nvim
+
 # Paths
 export PATH=$PATH:$HOME/.bin:$ZSH_CONFIG_DIR/bin
 export PATH=$PATH:$HOME/.local/share/nvim/mason/bin/:$HOME/.cargo/bin/:$HOME/go/bin:$HOME/workspaces/python-projects.workspace

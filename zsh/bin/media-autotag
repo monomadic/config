@@ -1,26 +1,19 @@
 #!/bin/zsh
-
 # Function to display usage information
 show_usage() {
-  cat <<EOF
-Usage: $(basename "$0") [OPTIONS] <video_files>
-
-This script tags video files with their resolution and frame rate in the filename.
-
-Options:
-  --dry-run    Show what changes would be made without actually renaming the files
-  -h, --help   Display this help message and exit
-
-Example:
-  $(basename "$0") *.mp4
-  $(basename "$0") --dry-run my_video.mp4
-EOF
+  echo "Usage: $(basename "$0") [OPTIONS] <video_files>"
+  echo "This script tags video files with their resolution and frame rate in the filename."
+  echo "Options:"
+  echo "  --dry-run    Show what changes would be made without actually renaming the files"
+  echo "  -h, --help   Display this help message and exit"
+  echo "Example:"
+  echo "  $(basename "$0") *.mp4"
+  echo "  $(basename "$0") --dry-run my_video.mp4"
 }
 
 # Parse command line options
 dry_run=false
 video_files=()
-
 while [[ $# -gt 0 ]]; do
   case $1 in
   --dry-run)
@@ -62,7 +55,8 @@ for video_file in "${video_files[@]}"; do
 
   width=$(echo $video_info | cut -d',' -f1)
   height=$(echo $video_info | cut -d',' -f2)
-  framerate=$(echo $video_info | cut -d',' -f3 | bc -l)
+  # Round the framerate to the nearest integer using awk
+  framerate=$(echo $video_info | cut -d',' -f3 | bc -l | awk '{printf "%.0f", $0}')
 
   if [[ -z "$width" || -z "$height" || -z "$framerate" ]]; then
     echo "Error: Missing resolution or framerate information for '$video_file'. Skipping."
@@ -82,19 +76,6 @@ for video_file in "${video_files[@]}"; do
 
   fps_tag="#${framerate}fps"
 
-  # # Determine frame rate tag
-  # if (($(echo "$framerate >= 120" | bc -l))); then
-  #   fps_tag="#120fps"
-  # elif (($(echo "$framerate >= 60" | bc -l))); then
-  #   fps_tag="#60fps"
-  # elif (($(echo "$framerate >= 30" | bc -l))); then
-  #   fps_tag="#30fps"
-  # elif (($(echo "$framerate >= 24" | bc -l))); then
-  #   fps_tag="#24fps"
-  # else
-  #   fps_tag=""
-  # fi
-
   # Combine tags with a space between them
   tags=""
   if [[ -n "$res_tag" ]]; then
@@ -110,10 +91,13 @@ for video_file in "${video_files[@]}"; do
   fi
 
   # Check if filename already contains any resolution or fps tags
-  if [[ "$video_file" =~ "#(720p|1080p|4k|24fps|30fps|60fps|120fps)" ]]; then
-    current_tags=$(echo "$video_file" | grep -o '#\(720p\|1080p\|4k\|24fps\|30fps\|60fps\|120fps\)')
-    if [[ "$current_tags" != "${tags}" ]]; then
+  if [[ "$video_file" =~ "#(720p|1080p|4k|[0-9]+fps)" ]]; then
+    # Extract existing tags and normalize spaces
+    current_tags=$(echo "$video_file" | grep -o '#\(720p\|1080p\|4k\|[0-9]\+fps\)' | tr '\n' ' ' | sed 's/ $//')
+    if [[ "$current_tags" != "${tags# }" ]]; then
       echo "Error: Filename '$video_file' contains incorrect resolution or fps tags."
+      echo "Current tags: '$current_tags'"
+      echo "Expected tags: '${tags# }'"
       continue
     else
       echo "Correct tags already present for '$video_file'. No changes needed."

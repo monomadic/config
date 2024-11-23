@@ -20,6 +20,11 @@ wifi-ssid() {
 	networksetup -getairportnetwork en0 | awk -F': ' '{print $2}'
 }
 
+rm-ds-store() {
+  local input_dir="$1"
+	fd '.DS_Store' $input_dir --exec rm -f
+}
+
 function ffmpeg-convert-to-switch-webp() {
   local input_file="$1"
   local output_file="$2"

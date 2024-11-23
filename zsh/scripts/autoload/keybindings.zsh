@@ -11,6 +11,7 @@ zle -N clear-reset && bindkey '^k' clear-reset
 
 # file open
 zle -N fzf_marks && bindkey '^o' fzf_marks
+#zle -N _fzf-cd && bindkey '^o' _fzf-cd
 zle -N fzf_insert && bindkey '^y' fzf_insert
 
 # alt+u: up directory
@@ -24,4 +25,8 @@ _fzf-find-files() {
 
 _fzf-jump() {
   fzf-jump
+}
+
+_fzf-cd() {
+  fzf_cd && zle reset-prompt
 }
