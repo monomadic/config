@@ -1,4 +1,6 @@
 # media functions
+
+# media play
 alias .4k="media play #4k --shuffle"
 alias .60fps="media play #60fps --shuffle"
 alias .clips="media play clips --shuffle"
@@ -12,6 +14,9 @@ alias .suki="media play #suki --shuffle"
 alias .top-cumshot="media play #top #cumshot --shuffle"
 alias .top="media play #top --shuffle"
 alias .upscaled="media play #upscaled --shuffle"
+alias .lib="media play library --shuffle"
+
+# media search
 alias @="media search"
 alias @@="media search edits"
 alias @clips="media search clips"
@@ -21,14 +26,12 @@ alias @latest="media search latest"
 alias @loops="media search loops"
 alias @play-all="media-play"
 alias @pwd="fd-video | fzf-play"
-#alias @pwd-latest="fd-video | sort-by-mtime | fzf-play"
-alias @search-all="media-search"
-alias @search-latest="media-search-latest"
-alias @search-volumes="ls-media --match-string '/Volumes/' | fzf-play"
-alias @search="media-search-safe"
+alias @volumes="ls-media --match-string '/Volumes/' | fzf-play"
+alias @safe="media-search-safe"
 alias @stats="media-stats"
 alias @suki="media search #suki"
 alias @top="media search #top"
+alias @lib="media search library"
 
 alias .url="download-video-url"
 

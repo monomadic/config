@@ -1,19 +1,73 @@
+# Function to remux a file (rebuild the container without re-encoding)
 ffmpeg-remux() {
-  ffmpeg -i $1 -c copy $2
+  if [[ $# -ne 2 ]]; then
+    print -P "%F{red}Usage:%f ffmpeg-remux <input_file> <output_file>"
+    return 1
+  fi
+  ffmpeg -i "$1" -c copy "$2"
 }
 
+# Function to recover keyframes (useful for streamable formats)
 ffmpeg-recover-keyframes() {
-  ffmpeg -i $1 -force_key_frames "expr:gte(t,n_forced*1)" -c:v libx264 -c:a copy $2
+  if [[ $# -ne 2 ]]; then
+    print -P "%F{red}Usage:%f ffmpeg-recover_keyframes <input_file> <output_file>"
+    return 1
+  fi
+  ffmpeg -i "$1" -force_key_frames "expr:gte(t,n_forced*1)" -c:v libx264 -c:a copy "$2"
 }
 
+# Function to display info about an input file using ffmpeg
 ffmpeg-info() {
-  ffmpeg -i $1 -f null -
+  if [[ $# -ne 1 ]]; then
+    print -P "%F{red}Usage:%f ffmpeg-info <input_file>"
+    return 1
+  fi
+  ffmpeg -i "$1" -f null -
 }
 
+# Function to remux and "repair" a file
 ffmpeg-repair-remux() {
-  ffmpeg -i $1 -c:v copy -c:a copy $1-remux.mp4
+  if [[ $# -ne 1 ]]; then
+    print -P "%F{red}Usage:%f ffmpeg-repair_remux <input_file>"
+    return 1
+  fi
+  local output_file="${1%.*}-remux.mp4"
+  ffmpeg -i "$1" -c:v copy -c:a copy "$output_file"
 }
 
+# Function to get detailed stream and format info using ffprobe
 ffprobe-info() {
-  ffprobe -v error -show_streams -show_format $1
+  if [[ $# -ne 1 ]]; then
+    print -P "%F{red}Usage:%f ffprobe_info <input_file>"
+    return 1
+  fi
+  ffprobe -v error -show_streams -show_format "$1"
+}
+
+# Extract video stream (remove audio)
+ffmpeg-extract-video() {
+  if [[ $# -ne 2 ]]; then
+    print -P "%F{red}Usage:%f ffmpeg-extract_video <input_file> <output_video_file>"
+    return 1
+  fi
+  ffmpeg -i "$1" -an -c:v copy "$2"
+}
+
+# Extract audio from a video file
+ffmpeg-extract-audio() {
+  if [[ $# -ne 2 ]]; then
+    print -P "%F{red}Usage:%f ffmpeg-extract_audio <input_file> <output_audio_file>"
+    return 1
+  fi
+  ffmpeg -i "$1" -vn -c:a copy "$2"
+}
+
+# Combine multiple video files into one
+ffmpeg-concat-videos() {
+  if [[ $# -ne 2 ]]; then
+    print -P "%F{red}Usage:%f ffmpeg-concat_videos <file_list.txt> <output_file>"
+    print -P "Example file_list.txt contents: %F{green}file 'video1.mp4'\nfile 'video2.mp4'%f"
+    return 1
+  fi
+  ffmpeg -f concat -safe 0 -i "$1" -c copy "$2"
 }

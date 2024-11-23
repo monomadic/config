@@ -54,9 +54,9 @@ while [[ $# -gt 0 ]]; do
     additional_args+=("--match-string '/clips/'")
     shift
     ;;
-  edits)
-    video_type="edits"
-    additional_args+=("--match-regex 'clips|loops|scenes'")
+  library)
+    video_type="library"
+    additional_args+=("--match-string '/clip-library/'")
     shift
     ;;
   top-clips)
