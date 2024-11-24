@@ -25,6 +25,40 @@ ffmpeg-info() {
   ffmpeg -i "$1" -f null -
 }
 
+# Function to display errors in an input file using ffmpeg
+ffmpeg-check-errors() {
+  trap "return 1" INT  # Handle Ctrl+C
+
+  [[ $# -eq 0 ]] && { print -P "%F{red}Usage:%f ffmpeg-check-errors <input_file> [input_file2 ...]"; return 1 }
+
+  for file in $@; do
+    print -P "%F{blue}Checking:%f $file"
+    ffmpeg -v error -i "$file" -f null /dev/null || break
+  done
+}
+
+ffmpeg-check() {
+  trap "return 1" INT  # Handle Ctrl+C
+
+  [[ $# -eq 0 ]] && { print -P "%F{red}Usage:%f ffmpeg-check <input_file> [input_file2 ...]"; return 1 }
+
+  for file in $@; do
+    print -P "%F{blue}Checking:%f $file"
+    ffmpeg -i "$file" -f null /dev/null || break
+  done
+}
+
+ffprobe-check-errors() {
+  trap "return 1" INT
+
+  [[ $# -eq 0 ]] && { print -P "%F{red}Usage:%f ffprobe-check-errors <input_file> [input_file2 ...]"; return 1 }
+
+  for file in $@; do
+    print -P "%F{blue}Checking:%f $file"
+    ffprobe -v error "$file" || break
+  done
+}
+
 # Function to remux and "repair" a file
 ffmpeg-repair-remux() {
   if [[ $# -ne 1 ]]; then

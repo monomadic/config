@@ -12,8 +12,6 @@ alias .play=fzf-safe-media
 fzf-media-top() {
   ls-media | grep-top | grep-safe | fzf-play
 }
-alias top=fzf-media-top
-alias .search-top=fzf-media-top
 
 fzf-search-local() {
   ls-media --match-string "$HOME" | grep-safe | fzf-play
