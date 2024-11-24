@@ -1,128 +1,76 @@
 #!/bin/zsh
-# Function to display usage information
-show_usage() {
-  echo "Usage: $(basename "$0") [OPTIONS] <video_files>"
-  echo "This script tags video files with their resolution and frame rate in the filename."
-  echo "Options:"
-  echo "  --dry-run    Show what changes would be made without actually renaming the files"
-  echo "  -h, --help   Display this help message and exit"
-  echo "Example:"
-  echo "  $(basename "$0") *.mp4"
-  echo "  $(basename "$0") --dry-run my_video.mp4"
-}
+
+autoload -U colors && colors
 
 # Parse command line options
-dry_run=false
-video_files=()
-while [[ $# -gt 0 ]]; do
+local dry_run=false
+local -a video_files
+
+while (( $# )); do
   case $1 in
-  --dry-run)
-    dry_run=true
-    shift
-    ;;
-  -h | --help)
-    show_usage
-    exit 0
-    ;;
-  *)
-    video_files+=("$1") # Collect all video files passed as arguments
-    shift
-    ;;
+    --dry-run) dry_run=true ;;
+    -h|--help)
+      print "Usage: ${commands[0]:t} [--dry-run] <video_files>"
+      exit 0 ;;
+    *) video_files+=($1) ;;
   esac
+  shift
 done
 
-# Check if video files were provided
-if [[ ${#video_files[@]} -eq 0 ]]; then
-  echo "Error: No video files specified."
-  show_usage
-  exit 1
-fi
+(( ${#video_files} == 0 )) && { print -P "%F{red}%B 󰅙 No video files specified%f%b"; exit 1 }
 
-# Loop over all provided files
-for video_file in "${video_files[@]}"; do
-  # Check if the file exists
-  if [[ ! -e "$video_file" ]]; then
-    echo "Error: File '$video_file' does not exist. Skipping."
+for video_file in $video_files; do
+  [[ ! -e $video_file ]] && { print -P "%F{red}%B 󰅙 $video_file%f%b"; continue }
+
+  local video_info=$(ffprobe -v error -select_streams v:0 -count_packets \
+    -show_entries stream=width,height,r_frame_rate -of csv=p=0 "$video_file")
+
+  [[ -z $video_info ]] && { print -P "%F{red}%B 󰅙 $video_file%f%b"; continue }
+
+  local width=${${(s:,:)video_info}[1]}
+  local height=${${(s:,:)video_info}[2]}
+  local framerate=$(( (${${(s:,:)video_info}[3]:h} + ${${(s:,:)video_info}[3]:t}/2) \
+    / ${${(s:,:)video_info}[3]:t} ))
+
+  local res_tag=""
+  (( height >= 2160 )) && res_tag="#4k"
+  (( height >= 1080 && height < 2160 )) && res_tag="#1080p"
+  (( height >= 720 && height < 1080 )) && res_tag="#720p"
+
+  local fps_tag="#${framerate}fps"
+  local tags="${res_tag:+$res_tag }${fps_tag}"
+
+  [[ -z $res_tag && -z $fps_tag ]] && {
+    print -P "%F{yellow}%B 󰄾 $video_file%f%b"
     continue
-  fi
+  }
 
-  # Get video resolution and frame rate
-  video_info=$(ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=width,height,r_frame_rate -of csv=p=0 "$video_file")
-  if [[ -z "$video_info" ]]; then
-    echo "Error: Could not retrieve video information for '$video_file'. Skipping."
-    continue
-  fi
-
-  width=$(echo $video_info | cut -d',' -f1)
-  height=$(echo $video_info | cut -d',' -f2)
-  # Round the framerate to the nearest integer using awk
-  framerate=$(echo $video_info | cut -d',' -f3 | bc -l | awk '{printf "%.0f", $0}')
-
-  if [[ -z "$width" || -z "$height" || -z "$framerate" ]]; then
-    echo "Error: Missing resolution or framerate information for '$video_file'. Skipping."
-    continue
-  fi
-
-  # Determine resolution tag
-  if ((height >= 2160)); then
-    res_tag="#4k"
-  elif ((height >= 1080)); then
-    res_tag="#1080p"
-  elif ((height >= 720)); then
-    res_tag="#720p"
-  else
-    res_tag=""
-  fi
-
-  fps_tag="#${framerate}fps"
-
-  # Combine tags with a space between them
-  tags=""
-  if [[ -n "$res_tag" ]]; then
-    tags="${res_tag}"
-  fi
-  if [[ -n "$fps_tag" ]]; then
-    tags="${tags} ${fps_tag}"
-  fi
-
-  if [[ -z "$res_tag" && -z "$fps_tag" ]]; then
-    echo "Video '$video_file' doesn't meet criteria for tagging (720p+, 24fps+). No changes needed."
-    continue
-  fi
-
-  # Check if filename already contains any resolution or fps tags
-  if [[ "$video_file" =~ "#(720p|1080p|4k|[0-9]+fps)" ]]; then
-    # Extract existing tags and normalize spaces
-    current_tags=$(echo "$video_file" | grep -o '#\(720p\|1080p\|4k\|[0-9]\+fps\)' | tr '\n' ' ' | sed 's/ $//')
-    if [[ "$current_tags" != "${tags# }" ]]; then
-      echo "Error: Filename '$video_file' contains incorrect resolution or fps tags."
-      echo "Current tags: '$current_tags'"
-      echo "Expected tags: '${tags# }'"
+  if [[ $video_file =~ '#(720p|1080p|4k|[0-9]+fps)' ]]; then
+    local current_tags=$(print $video_file | grep -o '#\(720p\|1080p\|4k\|[0-9]\+fps\)' | tr '\n' ' ' | sed 's/ $//')
+    if [[ $current_tags != ${tags## } ]]; then
+      print -P "%F{red}%B 󰅙 $video_file%f%b %F{242}($current_tags → ${tags## })%f"
       continue
     else
-      echo "Correct tags already present for '$video_file'. No changes needed."
+      print -P "%F{yellow}%B 󰄾 $video_file%f%b"
       continue
     fi
   fi
 
-  # Generate new filename with a space before tags and between the resolution and fps tags
-  new_filename="${video_file%.*} ${tags}.${video_file##*.}"
+  local new_filename="${video_file:r} ${tags}.${video_file:e}"
 
-  # Check if new filename already exists
-  if [[ -e "$new_filename" ]]; then
-    echo "Error: A file with the name '$new_filename' already exists. Cannot rename '$video_file'."
-    continue
-  fi
+  [[ -e $new_filename ]] && { print -P "%F{red}%B 󰅙 $video_file%f%b"; continue }
 
-  # Rename the file with the new tags or perform dry run
   if $dry_run; then
-    echo "Dry run: Would rename '$video_file' to '$new_filename'"
+    local old_part=${video_file:t:r}
+    local new_part=" ${tags}"
+    print -P "%F{green}%B 󰄴 ${old_part}%F{cyan}${new_part}%F{green}.${video_file:e}%f%b"
   else
-    if mv -n "$video_file" "$new_filename"; then
-      echo "File renamed to: $new_filename"
+    if mv -n $video_file $new_filename; then
+      local old_part=${video_file:t:r}
+      local new_part=" ${tags}"
+      print -P "%F{green}%B 󰄴 ${old_part}%F{cyan}${new_part}%F{green}.${video_file:e}%f%b"
     else
-      echo "Error: Failed to rename the file '$video_file'. Please check permissions and try again."
-      continue
+      print -P "%F{red}%B 󰅙 $video_file%f%b"
     fi
   fi
 done
