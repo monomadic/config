@@ -10,6 +10,7 @@ print_usage() {
   echo "Video types:"
   echo "  clips     - Match videos in '/clips/'"
   echo "  originals - Match videos in '/originals/'"
+  echo "  library   - Match videos in '/clip-library/'"
   echo "  loops     - Match videos in '/loops/'"
   echo "  scenes    - Match videos in '/scenes/'"
   echo "Args:"

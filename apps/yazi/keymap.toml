@@ -31,6 +31,8 @@ keymap = [
 	{ on = "<PageUp>",     run = "arrow -100%", desc = "Move cursor up one page" },
 	{ on = "<PageDown>",   run = "arrow 100%",  desc = "Move cursor down one page" },
 
+	{ on = ["<A-c>"], run = "cd", desc = "Change directory with fzf" },
+
 	{ on = [ "g", "g" ], run = "arrow -99999999", desc = "Move cursor to the top" },
 	{ on = "G",          run = "arrow 99999999",  desc = "Move cursor to the bottom" },
 
