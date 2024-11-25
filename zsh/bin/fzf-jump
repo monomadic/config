@@ -31,7 +31,7 @@ chmod +x "$PREVIEW_SCRIPT"
 RESULT_FILE=$(mktemp)
 
 # Main search function
-fd --type d --hidden --exclude .git |
+fd --type d --exclude .git |
   fzf --preview="$PREVIEW_SCRIPT {}" \
     --preview-window='right:60%' \
     --bind="enter:execute(echo {} > $RESULT_FILE)+abort" \
@@ -40,12 +40,12 @@ fd --type d --hidden --exclude .git |
 
 # Change to the selected directory if one was chosen
 if [ -f "$RESULT_FILE" ]; then
-    selected_dir=$(cat "$RESULT_FILE")
-    if [ -n "$selected_dir" ]; then
-        cd "$selected_dir"
-        # Print the new working directory for confirmation
-        echo "Changed to: $selected_dir"
-    fi
+  selected_dir=$(cat "$RESULT_FILE")
+  if [ -n "$selected_dir" ]; then
+    cd "$selected_dir"
+    # Print the new working directory for confirmation
+    echo "Changed to: $selected_dir"
+  fi
 fi
 
 # Clean up temporary files

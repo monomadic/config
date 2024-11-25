@@ -98,10 +98,21 @@ ffmpeg-extract-audio() {
 
 # Combine multiple video files into one
 ffmpeg-concat-videos() {
-  if [[ $# -ne 2 ]]; then
-    print -P "%F{red}Usage:%f ffmpeg-concat_videos <file_list.txt> <output_file>"
-    print -P "Example file_list.txt contents: %F{green}file 'video1.mp4'\nfile 'video2.mp4'%f"
+  if [[ $# -lt 2 ]]; then
+    print -P "%F{red}Usage:%f ffmpeg-concat_videos <output_file> <input_file1> [input_file2 ...]"
+    print -P "%F{red}Example:%f ffmpeg-concat_videos output.mp4 video1.mp4 video2.mp4"
     return 1
   fi
-  ffmpeg -f concat -safe 0 -i "$1" -c copy "$2"
+
+  local output_file=$1
+  shift
+  local temp_file=$(mktemp)
+
+  # Create the temporary file list for ffmpeg
+  for file in "$@"; do
+    print "file '$file'" >> "$temp_file"
+  done
+
+  ffmpeg -f concat -safe 0 -i "$temp_file" -c copy "$output_file"
+  rm -f "$temp_file"
 }

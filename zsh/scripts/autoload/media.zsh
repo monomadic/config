@@ -34,6 +34,10 @@ ls-tags() {
   fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
 }
 
+ls-creators() {
+  fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
+}
+
 media-cache-to-discboy() {
   media list top-clips | copy-flat "/Volumes/Discboy 512/clips"
 }
