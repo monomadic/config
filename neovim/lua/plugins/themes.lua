@@ -5,7 +5,8 @@ return {
 	'olimorris/onedarkpro.nvim',
 	'Mofiqul/vscode.nvim',
 	'notken12/base46-colors',
-	{ 'NvChad/base46',
+	{
+		'NvChad/base46',
 		config = function()
 			local ok, base46 = pcall(require, "base46")
 
@@ -13,7 +14,7 @@ return {
 				base46.load_theme()
 			end
 
-			vim.cmd("colorscheme {{colorscheme}}");
+			vim.cmd("colorscheme chadracula");
 		end
 	}
 }
