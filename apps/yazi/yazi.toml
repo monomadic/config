@@ -28,6 +28,20 @@ sixel_fraction  = 15
 ueberzug_scale  = 1
 ueberzug_offset = [ 0, 0, 0, 0 ]
 
+[preview.video]
+metadata = ["filename", "size", "mime_essence", "width", "height", "duration", "frame_rate", "bit_rate", "codec"]
+
+[entry.preview]
+tab_size = 2
+max_width = 0
+max_height = 0
+cache_dir = ""
+ueberzug_scale = 1
+ueberzug_offset = [0, 0, 0, 0]
+image = { enable = true }
+video = { enable = true }
+show_table_properties = true
+
 [opener]
 edit = [
 	{ run = '${EDITOR:-vi} "$@"', desc = "$EDITOR", block = true, for = "unix" },

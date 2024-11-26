@@ -19,7 +19,7 @@ depends = []
 "joshuto" = "~/.config/joshuto"
 
 [yazi.files]
-"apps/yazi" = "~/.config/yazi"
+"apps/yazi" = { target = "~/.config/yazi", type = "symbolic" }
 
 [chafa.files]
 "scripts/chafa-select" = "~/.bin/chafa-select"
@@ -33,8 +33,8 @@ depends = []
 [alacritty]
 files = { "alacritty/alacritty.toml" = "~/.config/alacritty/alacritty.toml" }
 
-[kitty]
-files = { "kitty" = "~/.config/kitty" }
+[kitty.files]
+"kitty" = "~/.config/kitty"
 
 [nu]
 files = { "nu" = "~/.config/nushell" }
