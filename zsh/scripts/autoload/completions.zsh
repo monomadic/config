@@ -21,4 +21,4 @@ source <(fd --gen-completions)
 
 # dotter
 eval "$(dotter gen-completions --shell zsh)"
-# compdef _dotter dotter
+compdef _dotter dotter

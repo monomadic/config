@@ -130,7 +130,6 @@ alias gs="git status"
 alias gss="git status --short --untracked-files=all"
 alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
 alias img="chafa --format=symbols "
-alias j=joshuto
 alias kitty-joshuto="kitty --override background=#000 --working-directory=$HOME/workspaces --single-instance joshuto"
 alias l="echo && eza --icons --group-directories-first && echo"
 alias la="eza --icons --group-directories-first --all"

@@ -2,7 +2,6 @@
 #
 # bindkey '^ ' lfcd
 zle -N yazi-jump && bindkey '^ ' yazi-jump
-# bindkey '^ ' joshuto-wrapper;
 zle -N _fzf-find-files && bindkey '^f' _fzf-find-files
 zle -N _fzf-jump && bindkey '^j' _fzf-jump
 zle -N fzf_ripgrep && bindkey '^s' fzf_ripgrep
@@ -24,7 +23,7 @@ _fzf-find-files() {
 }
 
 _fzf-jump() {
-  fzf-jump
+  fzf-jump && zle reset-prompt
 }
 
 _fzf-cd() {

@@ -1,52 +1,14 @@
-#!/usr/bin/env zsh
+#!/bin/zsh
 
-# Create a temporary script file to handle directory previews
-PREVIEW_SCRIPT=$(mktemp)
-cat >"$PREVIEW_SCRIPT" <<'EOF'
-#!/usr/bin/env zsh
-dir="$1"
+j() {
+  fd --type d --no-hidden --max-depth 7 |
+    fzf --preview 'tree -C {} | head -50' |
+    read dir
 
-# Function to count files and get directory size
-get_dir_info() {
-    local dir="$1"
-    local file_count=$(find "$dir" -maxdepth 1 -type f | wc -l)
-    local dir_count=$(find "$dir" -maxdepth 1 -type d | wc -l)
-    local dir_size=$(du -sh "$dir" 2>/dev/null | cut -f1)
-    echo "Directory: $dir"
-    echo "Files: $file_count"
-    echo "Subdirectories: $((dir_count - 1))"  # Subtract 1 to exclude current directory
-    echo "Total size: $dir_size"
-    echo "\nContents:"
-    echo "----------------------------------------"
-    ls -lah "$dir" | head -n 20  # Show first 20 items
+  kill $(jobs -p) 2>/dev/null
+
+  [[ -n "$dir" ]] && cd "$dir"
 }
 
-# Show directory information and contents
-get_dir_info "$1"
-EOF
-
-chmod +x "$PREVIEW_SCRIPT"
-
-# Create a temporary file to store the selected directory
-RESULT_FILE=$(mktemp)
-
-# Main search function
-fd --type d --exclude .git |
-  fzf --preview="$PREVIEW_SCRIPT {}" \
-    --preview-window='right:60%' \
-    --bind="enter:execute(echo {} > $RESULT_FILE)+abort" \
-    --bind='ctrl-/:toggle-preview' \
-    --header='Enter: cd into directory | Ctrl-/: toggle preview'
-
-# Change to the selected directory if one was chosen
-if [ -f "$RESULT_FILE" ]; then
-  selected_dir=$(cat "$RESULT_FILE")
-  if [ -n "$selected_dir" ]; then
-    cd "$selected_dir"
-    # Print the new working directory for confirmation
-    echo "Changed to: $selected_dir"
-  fi
-fi
-
-# Clean up temporary files
-rm -f "$PREVIEW_SCRIPT" "$RESULT_FILE"
+# Add alias for easier access (optional)
+alias jj='j'

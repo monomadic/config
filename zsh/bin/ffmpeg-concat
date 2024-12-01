@@ -1,0 +1,52 @@
+#!/bin/zsh
+
+# Check dependencies
+for cmd in ffmpeg ffprobe; do
+    if ! command -v $cmd &>/dev/null; then
+        echo "Error: $cmd is not installed. Please install it and try again."
+        exit 1
+    fi
+done
+
+# Input: Directory containing MP4 files or a list of MP4 files as arguments
+if [[ $# -eq 0 ]]; then
+    echo "Usage: $0 file1.mp4 file2.mp4 [file3.mp4 ...]"
+    exit 1
+fi
+
+# Create a temporary concatenation list file
+concat_file=$(mktemp)
+for file in "$@"; do
+    echo "file '$file'" >> "$concat_file"
+done
+
+# Concatenate MP4 files
+output="concatenated.mp4"
+ffmpeg -f concat -safe 0 -i "$concat_file" -c copy "$output"
+
+# Generate chapter metadata
+chapter_file=$(mktemp)
+start=0
+
+for file in "$@"; do
+    duration=$(ffprobe -v error -select_streams v:0 -show_entries stream=duration -of csv=p=0 "$file")
+    duration_ms=$(bc <<< "$duration * 1000")
+    end=$(bc <<< "$start + $duration_ms")
+
+    echo "[CHAPTER]" >> "$chapter_file"
+    echo "TIMEBASE=1/1000" >> "$chapter_file"
+    echo "START=$start" >> "$chapter_file"
+    echo "END=$end" >> "$chapter_file"
+    echo "title=Chapter $((++chapter))" >> "$chapter_file"
+
+    start=$end
+done
+
+# Mux chapters into the final file
+final_output="final_with_chapters.mp4"
+ffmpeg -i "$output" -i "$chapter_file" -map_metadata 1 -codec copy "$final_output"
+
+# Clean up
+rm "$concat_file" "$chapter_file" "$output"
+
+echo "Done! Final file with chapters: $final_output"
