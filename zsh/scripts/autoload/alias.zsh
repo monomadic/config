@@ -32,6 +32,7 @@ alias @stats="media-stats"
 alias @suki="media search #suki"
 alias @top="media search #top"
 alias @lib="media search library"
+alias @tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
 
 alias .url="download-video-url"
 
@@ -120,6 +121,7 @@ alias n="fzf-neovim"
 alias edit=nvim
 alias f-all="fzf-cd"
 alias ga="git add . && git commit --amend"
+alias gl="fzf-git-log"
 alias gc-update="gc update:"
 alias gca="ga"
 alias gd="git diff"
@@ -136,9 +138,10 @@ alias la="eza --icons --group-directories-first --all"
 alias lg=lazygit
 alias lh="eza --icons --group-directories-first --all"
 alias ll-fzf="eza --icons --color=always --group-directories-first --no-permissions --no-user -l --ignore-glob '.DS_Store' | fzf --ansi"
-alias ll="echo && eza --icons --group-directories-first --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
+#alias ll="echo && eza --icons --group-directories-first --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
+alias ll="echo && lsd --icon always --long --depth 1 --ignore-config --blocks name --group-directories-first --color always && echo"
 alias lla="echo && eza --icons --group-directories-first --all --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
-alias lll="eza --tree --icons --level 2"
+alias lll="lsd --icon always --long --depth 1 --ignore-config --group-directories-first --color always"
 alias lln="eza --icons --all -l --sort=date"
 alias loc=tokei
 alias ls-colors='for x in {0..8}; do for i in {30..37}; do for a in {40..47}; do echo -ne "\e[$x;$i;$a""m\\\e[$x;$i;$a""m\e[0;37;40m "; done; echo; done; done; echo ""'
@@ -160,6 +163,7 @@ alias push="git push"
 alias q=exit
 alias sips-to-webp-lossy='sips -s format webp -s formatOptions 75'
 alias sips-to-webp-lossy='sips -s format webp -s'
+alias sb="fzf-scrollback"
 alias sixel-kitty="chafa --clear --format=kitty --center=on --scale=max "
 alias sixel-sixel="chafa --clear --format=sixel --center=on --scale=max "
 alias sixel="chafa --clear --format=symbol --center=on --scale=max "

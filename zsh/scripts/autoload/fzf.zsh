@@ -32,22 +32,6 @@ function fzf-brew-installed() {
     --bind 'enter:execute(open $(brew info --json=v1 {} | jq -r ".[0].homepage"))'
 }
 
-alias fzf-tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
-
-# alias mark='echo $PWD >> ~/.marks'
-# alias jump='cd $(cat ~/.marks | fzf)'
-
-# install with homebrew
-# function fzf-brew-install() {
-#   local formulae
-#   formulae=$(brew search | sort)
-#   local selected
-#   selected=$(echo "$formulae" | fzf -m --preview 'brew info {}')
-#   if [[ -n "$selected" ]]; then
-#     echo "$selected" | tr ' ' '\n' | xargs -I {} brew install {}
-#   fi
-# }
-
 # copy lines from the scrollback buffer
 function fzf-scrollback() {
   local scrollback
@@ -63,30 +47,27 @@ function fzf-scrollback() {
     echo "No scrollback buffer available."
   fi
 }
-alias @sb="fzf-scrollback"
-alias sb="fzf-scrollback"
 
 # search emojis
-function fzf-emoji() {
+fzf-emoji() {
   emojis=$(cat ~/.zsh/emoji.json | jq -r '.[] | "\(.emoji) \(.description)"')
   selected=$(echo "$emojis" | fzf --preview 'echo {1}' --preview-window up:1)
   echo -n "${selected%% *}" | pbcopy
   echo "Copied ${selected%% *} to clipboard!"
 }
 
-function fzf-git-switch-branch() {
+fzf-git-switch-branch() {
   local branches branch
   branches=$(git branch --all | grep -v HEAD) &&
     branch=$(echo "$branches" | fzf -d $((2 + $(wc -l <<<"$branches"))) +m) &&
     git checkout $(echo "$branch" | sed "s/.* //" | sed "s#remotes/[^/]*/##")
 }
 
-function git-log-fzf {
+fzf-git-log() {
   git log --oneline --decorate --color | fzf --ansi --preview 'git show --color $(echo {} | cut -d" " -f1)'
 }
-alias gl="git-log-fzf"
 
-function fzf-brave-bookmarks() {
+fzf-brave-bookmarks() {
   # bookmarks_path=~/Library/Application\ Support/Google/Chrome/Default/Bookmarks
   bookmarks_path=~/Library/Application\ Support/BraveSoftware/Brave-Browser/Default/Bookmarks
 
@@ -101,7 +82,45 @@ function fzf-brave-bookmarks() {
     xargs open
 }
 
-function fzf-brave-history() {
+# Enhanced directory jumping function with early termination
+fzf-jump() {
+  set +o monitor
+  local fd_pid dir timeout=30
+
+  # Create a named pipe for fd output
+  local pipe=$(mktemp -u)
+  mkfifo "$pipe"
+
+  # Cleanup function to handle interrupts and cleanup
+  cleanup() {
+    kill $fd_pid 2>/dev/null
+    rm -f "$pipe"
+    trap - INT EXIT
+  } >/dev/null 2>&1
+  trap cleanup INT EXIT
+
+  # Run fd with timeout in background, writing to named pipe
+  {
+    nohup timeout $timeout fd --type d --no-hidden --max-depth 10 . >"$pipe" 2>/dev/null &
+  } >/dev/null
+  disown
+
+  fd_pid=$!
+
+  # Run fzf with the preview window showing tree or ls output
+  dir=$(fzf --preview 'tree -C {} 2>/dev/null || ls -la {}' \
+    --bind 'ctrl-d:preview-page-down,ctrl-u:preview-page-up' \
+    --height=50% \
+    --border \
+    --prompt="Directory > " <"$pipe" 2>/dev/null)
+
+  # Change to selected directory if valid
+  [[ -n "$dir" && -d "$dir" ]] && cd "$dir"
+
+  cleanup
+} 2>/dev/null
+
+fzf-brave-history() {
   local cols sep google_history open
   cols=$((COLUMNS / 3))
   sep='{::}'
@@ -124,7 +143,7 @@ function fzf-brave-history() {
 }
 
 # Function to open a new centered kitty window and run 'index-play-checked'
-function kitty-popup-centered() {
+kitty-popup-centered() {
   # Center coordinates for a 1920x1080 screen, adjust as needed
   SCREEN_WIDTH=1920
   SCREEN_HEIGHT=1080

@@ -77,6 +77,32 @@ fzf_ripgrep() {
   fzf-rg
 }
 
+# Function to handle directory navigation with lsd and fzf
+fzf-lsd-cd() {
+  # Run lsd with desired options and pipe to fzf
+  # Use awk to extract just the directory name, removing the icon and any other prefixes
+  selected=$(lsd --icon always --long --ignore-config --blocks name --directory-only --color always |
+    fzf --ansi --reverse |
+    awk '{
+                   # Skip the first field (icon) and concatenate remaining fields
+                   for(i=2; i<=NF; i++) {
+                       if(i==2) printf "%s", $i;
+                       else printf " %s", $i
+                   }
+               }')
+
+  # Check if a directory was selected
+  if [ -n "$selected" ]; then
+    # Check if the selected item is a directory before attempting to cd
+    if [ -d "$selected" ]; then
+      cd "$selected"
+    else
+      echo "Error: '$selected' is not a directory"
+      return 1
+    fi
+  fi
+}
+
 fzf_cd() {
   local dir
   dir=$(fd --type directory --hidden . | fzf \

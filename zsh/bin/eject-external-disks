@@ -1,0 +1,41 @@
+#!/bin/zsh
+# Script to eject all external disks on macOS
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+  echo "Usage: $(basename "$0")"
+  echo "Ejects all external disks connected to your macOS system."
+  exit 0
+fi
+
+# Get all external disks
+external_disks=($(diskutil list | grep -B 1 "external" | grep "^/dev/disk" | awk '{print $1}'))
+
+if [[ ${#external_disks[@]} -eq 0 ]]; then
+  print -P "%F{yellow}No external disks found%f"
+  exit 0
+fi
+
+# Track results
+success_count=0
+failed_count=0
+
+# Eject each disk
+for disk in $external_disks; do
+  # Get volume name if it exists
+  volume_name=$(diskutil info "$disk" | grep "Media Name" | cut -d: -f2 | xargs)
+  disk_info="${disk}${volume_name:+ ($volume_name)}"
+
+  if diskutil eject "$disk" &>/dev/null; then
+    print -P "%F{green}✓ Ejected $disk_info%f"
+    ((success_count++))
+  else
+    print -P "%F{red}✗ Failed to eject $disk_info%f"
+    ((failed_count++))
+  fi
+done
+
+# Only show summary if there were any failures
+if ((failed_count > 0)); then
+  print -P "\n%F{yellow}$success_count ejected, $failed_count failed%f"
+fi
+
+exit $failed_count

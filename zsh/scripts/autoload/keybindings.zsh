@@ -11,6 +11,8 @@ zle -N magic-enter && bindkey '^l' magic-enter
 # file open
 zle -N fzf_marks && bindkey '^o' fzf_marks
 #zle -N _fzf-cd && bindkey '^o' _fzf-cd
+
+# insert a file path into the current buffer
 zle -N fzf_insert && bindkey '^y' fzf_insert
 
 # alt+u: up directory
@@ -23,7 +25,7 @@ _fzf-find-files() {
 }
 
 _fzf-jump() {
-  fzf-jump && zle reset-prompt
+  source fzf-jump-subshell && zle reset-prompt
 }
 
 _fzf-cd() {
