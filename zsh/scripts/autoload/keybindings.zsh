@@ -17,11 +17,14 @@ zle -N magic-enter && bindkey '^l' magic-enter
 _fzf-cd() {
   # Capture selected directory from fzf
   local selected_dir=$(ls_all | source fzf-cd)
-  # If a directory is selected, execute cd in the parent shell
-  if [[ -n "$selected_dir" && -d "$selected_dir" ]]; then
+  local ret=$?
+
+  # Only change directory if fzf exited successfully
+  if [[ $ret -eq 0 && -n "$selected_dir" && -d "$selected_dir" ]]; then
     cd "$selected_dir"
     zle reset-prompt
   fi
+  return $ret
 }
 zle -N _fzf-cd
 bindkey '^o' _fzf-cd

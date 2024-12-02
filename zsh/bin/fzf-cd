@@ -4,18 +4,23 @@ local timeout=30
 # Create a named pipe for input
 local pipe=$(mktemp -u)
 mkfifo "$pipe"
+
 # Cleanup function to handle interrupts and cleanup
 cleanup() {
   rm -f "$pipe"
   trap - INT EXIT
+  return 1 # Return non-zero on interrupt
 } >/dev/null 2>&1
+
 trap cleanup INT EXIT
+
 # Handle input from args or stdin
 if [[ $# -gt 0 ]]; then
   printf "%s\n" "$@" >"$pipe" &
 else
   cat >"$pipe" &
 fi
+
 # Run fzf with the preview window showing tree or ls output
 dir=$(fzf --ansi --preview 'tree -C {} 2>/dev/null || lsd --icon always --long --depth 1 --ignore-config --group-directories-first --color always {}' \
   --bind 'ctrl-d:preview-page-down,ctrl-u:preview-page-up' \
@@ -23,6 +28,8 @@ dir=$(fzf --ansi --preview 'tree -C {} 2>/dev/null || lsd --icon always --long -
   --reverse \
   --border \
   --prompt="cd " <"$pipe" 2>/dev/null)
-# Output the selected directory
-[[ -n "$dir" ]] && echo "$dir"
+
+local ret=$?
 cleanup
+[[ $ret -eq 0 && -n "$dir" ]] && echo "$dir"
+exit $ret
