@@ -24,11 +24,12 @@ disown
 fd_pid=$!
 
 # Run fzf with the preview window showing tree or ls output
-dir=$(fzf --preview 'tree -C {} 2>/dev/null || ls -la {}' \
+dir=$(fzf --preview 'tree -C {} 2>/dev/null || lsd --icon always --long --depth 1 --ignore-config --group-directories-first --color always {}' \
   --bind 'ctrl-d:preview-page-down,ctrl-u:preview-page-up' \
   --height=50% \
+  --reverse \
   --border \
-  --prompt="Directory > " <"$pipe" 2>/dev/null)
+  --prompt="$PWD/" <"$pipe" 2>/dev/null)
 
 # Change to selected directory if valid
 [[ -n "$dir" && -d "$dir" ]] && cd "$dir"

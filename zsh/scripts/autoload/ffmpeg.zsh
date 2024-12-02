@@ -116,3 +116,20 @@ ffmpeg-concat-videos() {
   ffmpeg -f concat -safe 0 -i "$temp_file" -c copy "$output_file"
   rm -f "$temp_file"
 }
+
+# Simple container rewrapping (lossless)
+ffmpeg-rewrap-container() {
+    if [ $# -ne 1 ]; then
+        echo "Usage: ffmpeg-rewrap-container <input_file>"
+        echo "Performs lossless container rewrapping of media files using ffmpeg"
+        echo "Example: ffmpeg-rewrap-container movie.mp4"
+        return 1
+    fi
+
+    input_file="$1"
+    filename="${input_file%.*}"
+    extension="${input_file##*.}"
+    output_file="${filename}-rewrap.${extension}"
+
+    ffmpeg -i "$input_file" -c copy "$output_file"
+}

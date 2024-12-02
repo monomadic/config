@@ -60,6 +60,9 @@ alias .dupes-check="fdupes --recurse --cache --nohidden --size --summarize ."
 alias .dupes-delete="fdupes --recurse --cache --nohidden --size --delete ."
 alias .dupes-delete-interactive="fdupes --recurse --deferconfirmation --cache --nohidden --size --plain ."
 
+alias ls-usb="system_profiler SPUSBDataType"
+alias ls-usb-ioreg="ioreg -p IOUSB -w0"
+
 alias .tab=fzf-tablature
 
 alias .rename="fd-rename-all.zsh"
@@ -119,7 +122,6 @@ alias e-zsh="cd ~/config/zsh/ && edit zshrc.zsh"
 alias e="nvim"
 alias n="fzf-neovim"
 alias edit=nvim
-alias f-all="fzf-cd"
 alias ga="git add . && git commit --amend"
 alias gl="fzf-git-log"
 alias gc-update="gc update:"
