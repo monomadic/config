@@ -5,6 +5,8 @@ local env_file="$HOME/config/zsh/env.zsh"
 
 # Ensure autocompletion system is initialized
 fpath=(~/.zsh/completions $fpath)
+# Homebrew Zsh Completions
+fpath+=("$(brew --prefix)/share/zsh/site-functions")
 autoload -Uz compinit && compinit
 
 setopt autocd           # cd without typing cd

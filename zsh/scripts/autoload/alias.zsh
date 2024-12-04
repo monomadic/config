@@ -2,6 +2,7 @@
 
 # media play
 alias .4k="media play #4k --shuffle"
+alias .perf="media play #60fps #4k --shuffle"
 alias .60fps="media play #60fps --shuffle"
 alias .clips="media play clips --shuffle"
 alias .cumshot="media play #cumshot --shuffle"
@@ -33,6 +34,7 @@ alias @suki="media search #suki"
 alias @top="media search #top"
 alias @lib="media search library"
 alias @tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
+alias @perf="media search #60fps #4k"
 
 alias .url="download-video-url"
 
