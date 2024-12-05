@@ -30,11 +30,11 @@ cd-inbox() {
 alias .inbox=cd-inbox
 
 # list all unique tags found in files under the present directory
-ls-tags() {
+fd-tags() {
   fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
 }
 
-ls-creators() {
+fd-creators() {
   fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
 }
 

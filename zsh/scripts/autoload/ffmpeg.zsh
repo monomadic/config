@@ -25,6 +25,23 @@ ffmpeg-info() {
   ffmpeg -i "$1" -f null -
 }
 
+ffmpeg-dump-frames() {
+    if [[ $# -ne 1 ]]; then
+        echo "Usage: ffmpeg-dump-frames <input_file>"
+        return 1
+    fi
+
+    local input_file="$1"
+    local output_dir="${input_file%.*}_frames"
+
+    mkdir -p "$output_dir" || {
+        echo "Failed to create output directory: $output_dir"
+        return 1
+    }
+
+    ffmpeg -i "$input_file" "$output_dir/frame_%04d.png"
+}
+
 # Function to display errors in an input file using ffmpeg
 ffmpeg-check-errors() {
   trap "return 1" INT  # Handle Ctrl+C
