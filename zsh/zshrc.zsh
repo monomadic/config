@@ -1,12 +1,30 @@
 # Load environment variables
 #
+
+# Path
+# Note: in zsh, $path is an associative array that syncs to $PATH
+typeset -U path
+path=(
+  /opt/homebrew/opt/coreutils/libexec/gnubin
+  /opt/homebrew/opt/gnu-sed/libexec/gnubin
+  /opt/homebrew/opt/grep/libexec/gnubin
+  $HOME/.local/bin
+  $path
+)
+
+# Manpath configuration
+typeset -U manpath
+manpath=(
+  /opt/homebrew/opt/coreutils/libexec/gnuman
+  $manpath
+)
+
 # source "$HOME/.env"
 local env_file="$HOME/config/zsh/env.zsh"
 
 # Ensure autocompletion system is initialized
 fpath=(~/.zsh/completions $fpath)
-# Homebrew Zsh Completions
-fpath+=("$(brew --prefix)/share/zsh/site-functions")
+
 autoload -Uz compinit && compinit
 
 setopt autocd           # cd without typing cd
@@ -99,27 +117,20 @@ done
 # # Generated for envman. Do not edit.
 # [ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
 
-# source /Users/nom/.config/broot/launcher/bash/br
-
-# Created by `pipx` on 2024-08-26 19:39:42
-export PATH="$PATH:/Users/nom/.local/bin"
-
-# coreutils
-export PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:/opt/homebrew/opt/gnu-sed/libexec/gnubin:/opt/homebrew/opt/grep/libexec/gnubin:$PATH"
-export MANPATH="/opt/homebrew/opt/coreutils/libexec/gnuman:$MANPATH"
-
-# homebrew
+# Homebrew
 eval "$(/opt/homebrew/bin/brew shellenv)"
+# Homebrew completions
+fpath+=("$(brew --prefix)/share/zsh/site-functions")
 
-source /Users/nom/.config/broot/launcher/bash/br
+# Broot
+[[ -f $HOME/.config/broot/launcher/bash/br ]] && source $HOME/.config/broot/launcher/bash/br
 
+print
 
-# TODO: remove this shit
+# Source additional configuration files
 for config_file in $ZSH_CONFIG_DIR/scripts/autoload/*.(zsh|sh)(N); do
-	echo "${PURPLE}󰚔 ${BLUE}${config_file}${RESET}"
-  # Source the config file and continue if there's an error
-  if ! source "$config_file"; then
-    echo "Error sourcing $config_file. Skipping..."
-  fi
+  print -P "%F{green}󰚔 %f${config_file:t}%f"
+  source $config_file || print "Error sourcing $config_file. Skipping..."
 done
-echo
+
+print

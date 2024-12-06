@@ -5,7 +5,7 @@ for config_file in $ZSH_CONFIG_DIR/scripts/completions/*; do
   GREEN=$(tput setaf 2)
   BLUE=$(tput setaf 4)
   RESET=$(tput sgr0)
-  echo "${GREEN} ${BLUE}${config_file}${RESET}"
+  echo "${GREEN} ${RESET}${config_file}${RESET}"
 
   # Source the config file and continue if there's an error
   if ! source $config_file; then
