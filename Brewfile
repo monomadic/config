@@ -220,7 +220,7 @@ cask "mullvad-browser" # firefox-based privacy browser
 cask "spotify"
 
 cask "numi" # calculator
-cask "caffeine" # sleep prevention
+cask "chai" # sleep prevention
 
 # messaging
 cask "signal"

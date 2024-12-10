@@ -1,0 +1,50 @@
+#!/bin/zsh
+# Check if URL is provided
+if [[ -z "$1" ]]; then
+  echo "Usage: $0 <url>"
+  exit 1
+fi
+url="$1"
+
+echo "Fetching formats for URL: $url"
+
+# Get format information using --list-formats
+formats=$(yt-dlp --list-formats "$url" 2>/tmp/yt-dlp-error.log)
+
+# Check if formats were retrieved
+if [[ -z "$formats" ]]; then
+  echo "Error: No output received from yt-dlp"
+  cat /tmp/yt-dlp-error.log
+  exit 1
+fi
+
+# Extract only the format lines (skip headers and separators)
+# Filter for formats that have both video and audio (contain numbers and letters in resolution)
+complete_formats=$(echo "$formats" | grep -E '^[0-9a-zA-Z-]+\s+\S+\s+[0-9]+x[0-9]+.*\s+[0-9]+\s+2\s' | grep -v 'video only\|audio only')
+
+# Debug: Show number of formats found
+echo "Number of complete formats found: $(echo "$complete_formats" | grep -c "^")"
+
+# Check if complete formats are available
+if [[ -z "$complete_formats" ]]; then
+  echo "No complete formats available for the provided URL."
+  echo "Available formats:"
+  echo "$formats"
+  exit 1
+fi
+
+# Format the output to be more readable in fzf
+formatted_formats=$(echo "$complete_formats" | awk '{printf "%-8s %-6s %-12s %-8s %s\n", $1, $2, $3, $4, $NF}')
+
+# Use fzf to select a format
+selected_format=$(echo "$formatted_formats" | fzf --prompt="Select format> " | cut -d' ' -f1)
+
+# Check if a format was selected
+if [[ -z "$selected_format" ]]; then
+  echo "No format selected."
+  exit 1
+fi
+
+# Download the selected format using yt-dlp
+echo "Downloading format $selected_format..."
+yt-dlp -f "$selected_format" "$url"

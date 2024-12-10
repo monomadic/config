@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# Check if URL is provided
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <video-url>"
+    exit 1
+fi
+
+# Check if required commands exist
+for cmd in yt-dlp fzf; do
+    if ! command -v $cmd &> /dev/null; then
+        echo "Error: $cmd is not installed"
+        exit 1
+    fi
+done
+
+URL="$1"
+
+# Get format list and filter out unnecessary lines
+formats=$(yt-dlp --list-formats "$URL" | awk 'NR>5' | grep -v "^$")
+
+# Check if format listing was successful
+if [ -z "$formats" ]; then
+    echo "Error: Could not fetch format list for the provided URL"
+    exit 1
+fi
+
+# Present formats in fzf and get user selection
+selected_format=$(echo "$formats" | fzf --height 50% \
+    --reverse \
+    --header "Select format to download (use arrow keys, press ENTER to select):" \
+    --preview-window "up:3" \
+    --preview 'echo "Selected format:"' \
+    | awk '{print $1}')
+
+# Check if a format was selected
+if [ -z "$selected_format" ]; then
+    echo "No format selected. Exiting..."
+    exit 0
+fi
+
+# Download the video in selected format
+echo "Downloading format $selected_format..."
+yt-dlp -f "$selected_format" "$URL"
