@@ -30,7 +30,7 @@ zle -N _fzf-cd
 bindkey '^o' _fzf-cd
 
 # insert a file path into the current buffer
-zle -N fzf_insert && bindkey '^y' fzf_insert
+# zle -N fzf_insert && bindkey '^y' fzf_insert
 
 # alt+u: up directory
 zle -N cd-up && bindkey '^u' cd-up
