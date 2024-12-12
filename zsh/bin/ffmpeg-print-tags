@@ -1,0 +1,39 @@
+#!/usr/bin/env zsh
+
+# Check if ffprobe is available
+if ! command -v ffprobe &>/dev/null; then
+  print -P "%F{red}Error:%f ffprobe is not installed."
+  exit 1
+fi
+
+# Check if the file is provided
+if [[ -z $1 ]]; then
+  print -P "%F{yellow}Usage:%f $0 <file.mp4>"
+  exit 1
+fi
+
+# Check if the file exists
+if [[ ! -f $1 ]]; then
+  print -P "%F{red}Error:%f File '$1' not found."
+  exit 1
+fi
+
+# Extract tags using ffprobe
+tags=$(ffprobe -v error -show_entries format_tags -of flat "$1" 2>/dev/null)
+
+if [[ -z $tags ]]; then
+  print -P "%F{yellow}No tags found in '%f$1'."
+  exit 0
+fi
+
+print -P "%F{yellow}$1:%f"
+print
+
+# Process and display tags with colors
+for tag_line in ${(f)tags}; do
+  key=${tag_line%%=*}
+  value=${tag_line#*=}
+  key=${key##*.} # Remove prefix (e.g., "format.tags.")
+
+  print -P "%F{blue}$key%f: %F{green}$value%f"
+done

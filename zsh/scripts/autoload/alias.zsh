@@ -36,6 +36,7 @@ alias @top="media search #top"
 alias @lib="media search library"
 alias @tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
 alias @perf="media search #60fps #4k"
+alias @remaster="media search #remaster"
 
 alias .url="download-video-url"
 

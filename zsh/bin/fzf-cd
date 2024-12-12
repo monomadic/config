@@ -1,35 +1,75 @@
 #!/bin/zsh
+
+# TODO:
+# - add jump locations (marks)
+#		- media locations (creators, tags) if present
+# - add pwd recursive jump
+# - shortcuts for switching between pwd and marks
+# - shortcuts for reveal in finder
+# - fix bug when ctrl+c
+
 set +o monitor
-local timeout=30
-# Create a named pipe for input
-local pipe=$(mktemp -u)
-mkfifo "$pipe"
 
-# Cleanup function to handle interrupts and cleanup
-cleanup() {
-  rm -f "$pipe"
-  trap - INT EXIT
-  return 1 # Return non-zero on interrupt
-} >/dev/null 2>&1
+handle_directory_selection() {
+  local timeout=30
+  local pipe=$(mktemp -u)
 
-trap cleanup INT EXIT
+  # Create named pipe
+  mkfifo "$pipe"
 
-# Handle input from args or stdin
-if [[ $# -gt 0 ]]; then
-  printf "%s\n" "$@" >"$pipe" &
-else
-  cat >"$pipe" &
-fi
+  # Cleanup function that properly handles signals
+  cleanup() {
+    local exit_code=$?
+    # Kill any background processes
+    jobs -p | xargs -r kill >/dev/null 2>&1
+    # Remove the named pipe
+    rm -f "$pipe"
+    # Reset traps
+    trap - INT TERM EXIT
+    # Preserve the original exit code
+    return $exit_code
+  }
 
-# Run fzf with the preview window showing tree or ls output
-dir=$(fzf --ansi --preview 'tree -C {} 2>/dev/null || lsd --icon always --long --depth 1 --ignore-config --group-directories-first --color always {}' \
-  --bind 'ctrl-d:preview-page-down,ctrl-u:preview-page-up' \
-  --height=50% \
-  --reverse \
-  --border \
-  --prompt="cd " <"$pipe" 2>/dev/null)
+  # Set up traps for proper cleanup
+  trap cleanup INT TERM EXIT
 
-local ret=$?
-cleanup
-[[ $ret -eq 0 && -n "$dir" ]] && echo "$dir"
-exit $ret
+  # Handle input from args or stdin with proper background process management
+  if [[ $# -gt 0 ]]; then
+    # Use a subshell to avoid leaving zombie processes
+    (printf "%s\n" "$@" >"$pipe") &
+  else
+    # Use a subshell for cat as well
+    (cat >"$pipe") &
+  fi
+
+  # Store the background process PID
+  local input_pid=$!
+
+  # Run fzf with the preview window
+  local dir=$(fzf --ansi \
+    --preview 'tree -C {} 2>/dev/null || lsd --icon always --long --depth 1 --ignore-config --group-directories-first --color always {}' \
+    --bind 'ctrl-d:preview-page-down,ctrl-u:preview-page-up' \
+    --bind 'ctrl-/:toggle-preview' \
+    --bind 'alt-p:toggle-preview' \
+    --height=50% \
+    --reverse \
+    --border \
+    --prompt="cd " <"$pipe" 2>/dev/null)
+
+  local ret=$?
+
+  # Kill the input process if it's still running
+  kill $input_pid >/dev/null 2>&1
+
+  # Clean up and handle the result
+  cleanup
+
+  if [[ $ret -eq 0 && -n "$dir" ]]; then
+    echo "$dir"
+  fi
+
+  return $ret
+}
+
+# Call the main function with all arguments
+handle_directory_selection "$@"

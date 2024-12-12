@@ -591,49 +591,6 @@ function rsync-one-way-backup() {
   fi
 }
 
-function rsync-one-way-backup-dry-run() {
-  local source="$1"
-  local destination="$2"
-
-  if [[ -d "$source" && -d "$destination" ]]; then
-    echo "Performing dry run to show changes..."
-    rsync --archive --verbose --checksum --delete --dry-run --itemize-changes "$source/" "$destination/"
-
-    echo "Review the above changes. Files marked with 'deleting' are to be deleted."
-    read "response?Do you want to proceed with these changes? (y/n): "
-    if [[ "$response" =~ ^[Yy]$ ]]; then
-			rsync --archive --verbose --checksum --delete --ignore-existing "$source/" "$destination/"
-      echo "Changes applied."
-    else
-      echo "Operation cancelled."
-    fi
-  else
-    echo "Usage: rsync-one-way-backup-dry-run <source> <destination>"
-  fi
-}
-
-
-function rename-ext() {
-    local old_ext=$1
-    local new_ext=$2
-
-    # Check for the correct number of arguments
-    if (( $# != 2 )); then
-        echo "Usage: rename-ext <old_ext> <new_ext>"
-        return 1
-    fi
-
-    # Loop over all files with the old extension in the current directory
-    for file in *.$old_ext; do
-        if [[ -f "$file" ]]; then
-            local base_name="${file%.*}"
-            mv "$file" "$base_name.$new_ext"
-        fi
-    done
-}
-
-# Example usage: rename-ext mov mp4
-
 function convert_mp4_to_switch_webp() {
     local input_dir=$1
     local output_dir=$2
