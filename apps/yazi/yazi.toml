@@ -85,6 +85,11 @@ rules = [
 	# JSON
 	{ mime = "application/{json,x-ndjson}", use = [ "edit", "reveal" ] },
 	{ mime = "*/javascript", use = [ "edit", "reveal" ] },
+
+	# Media - modified to separate video handling
+	{ mime = "audio/*", use = [ "play", "reveal" ] },
+	{ mime = "video/*", use = [ "mpv", "vlc", "reveal" ] },  # Add your preferred video players here
+
 	# Empty file
 	{ mime = "inode/x-empty", use = [ "edit", "reveal" ] },
 	# Fallback
@@ -98,6 +103,7 @@ bizarre_retry    = 5
 image_alloc      = 536870912  # 512MB
 image_bound      = [ 0, 0 ]
 suppress_preload = false
+
 
 [plugin]
 

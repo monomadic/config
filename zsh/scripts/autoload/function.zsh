@@ -1,5 +1,7 @@
 apple-music-dl() {
   gamdl \
+		--cookies-path="$HOME/cookies.txt" \
+		--output-path='.' \
     --template-folder-album='' \
     --template-folder-compilation='' \
     --template-folder-no-album='' \
@@ -7,6 +9,15 @@ apple-music-dl() {
     --template-file-multi-disc='{artist} - {title}' \
     --template-file-no-album='{artist} - {title}' \
     $@
+}
+
+# Find all subdirectories and check if they are Git repository roots
+fd-git-repositories() {
+	fd -t d . -d 10 --absolute-path | while read -r dir; do
+			if [[ -d "$dir/.git" ]]; then
+					echo "$dir"
+			fi
+	done
 }
 
 ip-address() {
