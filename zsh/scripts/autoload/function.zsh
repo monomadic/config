@@ -9,9 +9,6 @@ apple-music-dl() {
     $@
 }
 
-get_wattage() {
-}
-
 ip-address() {
 	ifconfig | grep inet | awk '$1=="inet" && $2!="127.0.0.1" {print $2}'
 }

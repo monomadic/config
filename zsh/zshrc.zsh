@@ -27,8 +27,8 @@ fpath=(~/.zsh/completions $fpath)
 
 autoload -Uz compinit && compinit
 
-setopt autocd           # cd without typing cd
-setopt autopushd        # auto push dirs to recent dirs db (for dirs cmd)
+setopt autocd    # cd without typing cd
+setopt autopushd # auto push dirs to recent dirs db (for dirs cmd)
 
 autoload -Uz add-zsh-hook # function autoloading (built-in zsh function)
 
@@ -54,7 +54,7 @@ echo "${YELLOW}󰅩  ${BLUE}${env_file:t}${RESET}"
 
 # Source the config file and continue if there's an error
 if ! source $env_file; then
-	echo "Error sourcing $env_file. Skipping..."
+  echo "Error sourcing $env_file. Skipping..."
 fi
 
 # Source all configuration files

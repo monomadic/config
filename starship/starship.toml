@@ -12,7 +12,7 @@ error_symbol = "[✗](bold red)"      # Symbol when the last command failed
 [directory]
 truncation_length = 3 # Show the last 3 directories of the path
 truncation_symbol = "…/" # Use an ellipsis for truncation
-format = "[$path]($style) " # Show the directory path in brackets
+format = "[ $path]($style) " # Show the directory path in brackets
 style = "blue"
 
 # Configure the git module

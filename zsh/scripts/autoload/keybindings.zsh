@@ -1,11 +1,11 @@
 # KEYBINDINGS
-#
-# bindkey '^ ' lfcd
+
+bindkey '^ ' lfcd
 zle -N yazi-jump && bindkey '^ ' yazi-jump
 zle -N _fzf-find-files && bindkey '^f' _fzf-find-files
 
-# F20 -> fzf-jump
-zle -N _fzf-jump && bindkey '^j' _fzf-jump && bindkey '^[[57373u' _fzf-jump
+# # F20 -> fzf-jump
+# zle -N _fzf-jump && bindkey '^j' _fzf-jump && bindkey '^[[57373u' _fzf-jump
 
 zle -N fzf_ripgrep && bindkey '^s' fzf_ripgrep
 zle -N clear-reset && bindkey '^k' clear-reset

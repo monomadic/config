@@ -6,67 +6,6 @@ alias yt-thumbnail-jpg="yt-dlp --skip-download --write-thumbnail --convert-thumb
 
 local MUSIC_VIDEO_FORMAT="%(artist)s - %(title)s.%(ext)s"
 
-fzf-yt-dlp-get-format() {
-  if [ -z "$1" ]; then
-    echo "Usage: $0 <YouTube_URL>"
-    return 1
-  fi
-
-  local url="$1"
-
-  # Get available formats and use fzf for selection
-  local format=$(yt-dlp -F "$url" | awk 'NR>1' | fzf --layout=reverse --prompt="Select format: " | awk '{print $1}')
-
-  # Check if a format was selected
-  if [ -z "$format" ]; then
-    echo "No format selected."
-    return 1
-  fi
-
-  # Download the selected format
-  yt-dlp -f "$format" "$url"
-}
-
-function yt-music-video {
-  local url="$1"
-  local output_template="%(artist)s - %(title)s.%(ext)s"
-
-  if [[ -z "$url" ]]; then
-    echo "Usage: ${0:t} [args] <url>"
-    return 1
-  fi
-
-  # --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
-  # --merge-output-format mp4 \
-  #	--exec 'ffmpeg -i "{}" -metadata comment="%(webpage_url)s" -metadata synopsis="%(id)s" -codec copy "{}"' \
-  #	--format 'bestvideo+bestaudio/best' \
-
-  yt-dlp -v \
-    --format bestvideo+bestaudio/best \
-    --output "${output_template}" \
-    --cookies-from-browser brave \
-    --embed-metadata \
-    $@
-}
-
-function yt-music-video-mp4 {
-  local url="$1"
-  local output_template="%(artist)s - %(title)s.%(ext)s"
-
-  if [[ -z "$url" ]]; then
-    echo "Usage: ${0:t} <url>"
-    return 1
-  fi
-
-  yt-dlp -v \
-    --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
-    --output "${output_template}" \
-    --merge-output-format mp4 \
-    --cookies-from-browser brave \
-    --embed-metadata \
-    $@
-}
-
 function yt-porn {
   local url="$1"
   local output_template="[%(uploader)s] %(title)s [%(extractor)s].%(ext)s"
@@ -84,27 +23,8 @@ function yt-porn {
     --embed-metadata \
     $@
 }
-alias ytp=yt-porn
 
-function yt-nightly-porn {
-  local url="$1"
-  local output_template="[%(uploader)s] %(title)s.%(ext)s"
-
-  if [[ -z "$url" ]]; then
-    echo "Usage: ${0:t} <url>"
-    return 1
-  fi
-
-  yt-dlp-nightly -v \
-    --output "${output_template}" \
-    --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
-    --cookies-from-browser brave \
-    --merge-output-format mp4 \
-    --embed-metadata \
-    $@
-}
-
-function vid-info {
+ffprobe-show-info() {
   if [ -z "$1" ]; then
     echo "Usage: $0 <video_file>"
     return 1
@@ -117,7 +37,7 @@ function vid-info {
     -of default=noprint_wrappers=1 "$@"
 }
 
-function vid-info-color() {
+ffprobe-info-color() {
   if [ -z "$1" ]; then
     echo "Usage: vid-info-color <video_file>"
     return 1
