@@ -59,4 +59,4 @@ if [[ -z "$selected_format" ]]; then
 fi
 
 echo "Downloading format $selected_format..."
-yt-dlp -f "$selected_format" --cookies-from-browser=brave --continue --format="[%(channel)s] %(title)s [youtube].%(ext)s" "$url"
+yt-dlp -f "$selected_format" --cookies-from-browser=brave --continue --output "[%(channel)s] %(title)s [youtube].%(ext)s" "$url"
