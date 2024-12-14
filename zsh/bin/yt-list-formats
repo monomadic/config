@@ -1,17 +1,12 @@
 #!/bin/zsh
-
-# Check if URL is provided
 if [[ -z "$1" ]]; then
   echo "Usage: $0 <url>"
   exit 1
 fi
-
 url="$1"
 
-# Fetch formats and filter for video formats (excluding audio-only and storyboard)
 formats=$(yt-dlp --list-formats "$url" --cookies-from-browser=brave |
   awk '
-    # Skip lines until we find the format list
     /^ID/ { p=1; next }
     /^───/ { next }
     p==1 && /^[0-9]/ {
@@ -22,45 +17,46 @@ formats=$(yt-dlp --list-formats "$url" --cookies-from-browser=brave |
       filesize=$6
 
       # Skip audio-only and storyboard formats
-      if (vcodec ~ /^(avc1|vp9)/) {
-        # Format resolution with fps
-        if (resolution != "audio") {
-          # Clean up codec name
-          if (vcodec ~ /^avc1/) {
-            codec = "mp4"
-          } else if (vcodec ~ /^vp9/) {
-            codec = "vp9/webm"
-          }
-
-          # Format the size
-          if (filesize ~ /MiB/) {
-            size = filesize
-          } else if (filesize ~ /KiB/) {
-            size = sprintf("%.2fMB", substr(filesize, 1, length(filesize)-3)/1024)
-          }
-
-          # Print formatted output
-          printf "%-8s %-18s %-15s %-15s\n", id, resolution " @ " fps "fps", codec, size
+      if (resolution != "audio" && vcodec != "images") {
+        # Clean up codec name
+        if (vcodec ~ /^avc1/) {
+          codec = "mp4"
+        } else if (vcodec ~ /^vp0?9/) {
+          codec = "vp9/webm"
+        } else if (vcodec ~ /^av01/) {
+          codec = "av1"
+        } else {
+          codec = vcodec
         }
+
+        # Format the size
+        if (filesize ~ /MiB/) {
+          size = filesize
+        } else if (filesize ~ /GiB/) {
+          size = filesize
+        } else if (filesize ~ /KiB/) {
+          size = sprintf("%.2fMB", substr(filesize, 1, length(filesize)-3)/1024)
+        } else if (filesize ~ /~/) {
+          size = filesize
+        }
+
+        # Print formatted output
+        printf "%-8s %-18s %-15s %-15s\n", id, resolution " @ " fps "fps", codec, size
       }
     }
   ')
 
-# Check if formats were fetched
 if [[ -z "$formats" ]]; then
   echo "No valid formats available for the provided URL."
   exit 1
 fi
 
-# Use fzf to select a format
 selected_format=$(echo "$formats" | tac | fzf --ansi --prompt="yt-dlp> " --reverse --cycle --no-sort | awk '{print $1}')
 
-# Check if a format was selected
 if [[ -z "$selected_format" ]]; then
   echo "No format selected."
   exit 1
 fi
 
-# Download the selected format using yt-dlp
 echo "Downloading format $selected_format..."
-yt-dlp -f "$selected_format" --cookies-from-browser=brave "$url"
+yt-dlp -f "$selected_format" --cookies-from-browser=brave --continue --format="[%(channel)s] %(title)s [youtube].%(ext)s" "$url"

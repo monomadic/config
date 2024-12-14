@@ -48,7 +48,7 @@ alias autotag=media-autotag
 alias remove-gatekeeper="xattr -rd com.apple.quarantine "
 alias gatekeeper-remove="xattr -rd com.apple.quarantine "
 
-alias c=e-zsh
+alias c=cfg-zsh
 alias C=e-config
 alias g=git
 alias p="media play --shuffle"
@@ -91,13 +91,20 @@ alias .portal=detect-captive-portal
 alias .detect-captive-portal=detect-captive-portal
 alias .config=e-zsh
 
+#alias ll="echo && eza --icons --group-directories-first --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
 alias amdl=gamdl
-alias fd-empty="fd --type empty"
-alias gb="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
 alias battery='pmset -g batt'
 alias branch="b"
 alias cb="cargo build"
 alias cc="cargo check"
+alias cfg-homebrew="cd $DOTFILES_DIR && nvim Brewfile"
+alias cfg-kitty="cd $DOTFILES_DIR/kitty && nvim kitty.conf"
+alias cfg-neovim="cd $DOTFILES_DIR/neovim && edit init.lua"
+alias cfg-open="cd $DOTFILES_DIR && nvim README.md"
+alias cfg-yazi="cd $DOTFILES_DIR/apps/yazi && nvim yazi.toml"
+alias cfg-zellij="cd $DOTFILES_DIR/zellij && edit config.kdl"
+alias cfg-zsh-keybindings="cd $DOTFILES_DIR/zsh && nvim scripts/autoload/keybindings.zsh"
+alias cfg-zsh="cd $DOTFILES_DIR/zsh && edit zshrc.zsh"
 alias ci="cargo install --path ."
 alias cp-pwd="echo $PWD|pbcopy" # mac only
 alias cr="cargo run"
@@ -110,30 +117,21 @@ alias d-rustup-cargo="rustup doc --cargo"
 alias d-rustup-core="rustup doc --core"
 alias d-wasmtime="open https://docs.wasmtime.dev/"
 alias d-yew="open https://yew.rs/docs/next/"
-alias dd='WD=${PWD} && cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml deploy --global-config global.toml --local-config local.toml && cd $WD && echo "\nDone."'
 alias dd-force='WD=${PWD} && cd ~/config/ && dotter --force --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml deploy --global-config global.toml --local-config local.toml && cd $WD && echo "\nDone."'
+alias dd='WD=${PWD} && cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml deploy --global-config global.toml --local-config local.toml && cd $WD && echo "\nDone."'
 alias doc="cargo doc --open"
 alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml watch --global-config global.toml --local-config local.toml'
-alias e-brewfile="edit ~/config/Brewfile"
 alias e-bin="edit-bin"
-alias e-config="nvim $DOTFILES_DIR/README.md"
-alias e-joshuto="nvim $DOTFILES_DIR/joshuto/joshuto.toml"
-alias e-kitty="nvim $DOTFILES_DIR/kitty/kitty.conf"
-alias e-neovim="nvim $DOTFILES_DIR/neovim/init.lua"
-alias e-fzf="fzf_edit"
-alias e-snippets="cd ~/config/neovim/snippets/ && edit . +'Telescope find_files'"
-alias e-wiki=wiki
-alias e-zellij="cd ~/config/zellij/ && edit config.kdl"
-alias e-zsh="cd ~/config/zsh/ && edit zshrc.zsh"
 alias e="nvim"
-alias n="fzf-neovim"
 alias edit=nvim
+alias fd-empty="fd --type empty"
 alias ga="git add . && git commit --amend"
-alias gl="fzf-git-log"
+alias gb="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
 alias gc-update="gc update:"
 alias gca="ga"
 alias gd="git diff"
 alias gen-yew-web3="cargo generate --git https://github.com/monomadic/yew-web3-template"
+alias gl="fzf-git-log"
 alias gp="git push"
 alias gr="cd /"
 alias gs="git status"
@@ -146,7 +144,6 @@ alias la="eza --icons --group-directories-first --all"
 alias lg=lazygit
 alias lh="eza --icons --group-directories-first --all"
 alias ll-fzf="eza --icons --color=always --group-directories-first --no-permissions --no-user -l --ignore-glob '.DS_Store' | fzf --ansi"
-#alias ll="echo && eza --icons --group-directories-first --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
 alias ll="echo && lsd --icon always --long --depth 1 --ignore-config --blocks name --group-directories-first --color always && echo"
 alias lla="echo && eza --icons --group-directories-first --all --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
 alias lll="lsd --icon always --long --depth 1 --ignore-config --group-directories-first --color always"
@@ -156,12 +153,13 @@ alias ls-colors='for x in {0..8}; do for i in {30..37}; do for a in {40..47}; do
 alias monitor="btm"
 alias mpv-fs="mpv --macos-fs-animation-duration=0 --no-native-fs --fs "
 alias mpv-loop-mode="mpv --loop-file=1 --length=10 --macos-fs-animation-duration=0 --no-native-fs --fs "
+alias n="fzf-neovim"
 alias ns="network-status.zsh"
 alias o=open
 alias org='cd ~/org && e index.md'
 alias p8="ping 8.8.8.8"
-alias pc="ping cloudflare.com"
 alias pandoc-yfm="pandoc "{$1}" -s -f epub -t markdown-markdown_in_html_blocks --extract-media=./ -o book.md --standalone"
+alias pc="ping cloudflare.com"
 alias pg="ping google.com"
 alias prev="fzf --layout=reverse --preview 'bat --style=numbers --color=always --line-range :500 {}'"
 alias pull="git pull"
@@ -169,9 +167,9 @@ alias pull="git pull"
 alias push="git push"
 alias push="git push"
 alias q=exit
+alias sb="fzf-scrollback"
 alias sips-to-webp-lossy='sips -s format webp -s formatOptions 75'
 alias sips-to-webp-lossy='sips -s format webp -s'
-alias sb="fzf-scrollback"
 alias sixel-kitty="chafa --clear --format=kitty --center=on --scale=max "
 alias sixel-sixel="chafa --clear --format=sixel --center=on --scale=max "
 alias sixel="chafa --clear --format=symbol --center=on --scale=max "

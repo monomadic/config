@@ -79,7 +79,7 @@ case "$COMMAND" in
     FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]" --merge-output-format mp4 --embed-metadata --embed-thumbnail)
     ;;
   "youtube")
-    OUTPUT_TEMPLATE="[%(channel)s] %(title)s [youtube].%(ext)s"
+    OUTPUT_TEMPLATE="[%(channel)s] %(title)s [YouTube].%(ext)s"
     FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]" \
       --merge-output-format mp4 --embed-metadata --embed-thumbnail --embed-subs --embed-chapters)
     ;;

@@ -20,6 +20,56 @@ fd-git-repositories() {
 	done
 }
 
+lsd-get-icon() {
+    if [[ "$1" == "--help" || "$#" -ne 1 ]]; then
+        echo "Usage: ${0:t} <file_or_directory>"
+        echo "Extracts and displays the icon for the given file or directory using lsd."
+        return 1
+    fi
+
+    target="$1" # Avoid $path to prevent conflicts
+    if [[ ! -e "$target" ]]; then
+        echo "Error: '$target' does not exist."
+        return 1
+    fi
+
+    dir="${target:h}"    # Get directory part of the path
+    name="${target:t}"   # Get base name of the file/directory
+
+    output=$(lsd --icon=always "$dir" | grep "$name")
+    if [[ -n "$output" ]]; then
+        echo "${output[1]}" # Extract the first character (icon)
+    else
+        echo "Error: Could not find icon for '$target'."
+        return 1
+    fi
+}
+
+exa-get-icon() {
+    if [[ "$1" == "--help" || "$#" -ne 1 ]]; then
+        echo "Usage: ${0:t} <file_or_directory>"
+        echo "Extracts and displays the NerdFont icon for the given file or directory using exa."
+        return 1
+    fi
+
+    target="$1" # Avoid $path to prevent conflicts
+    if [[ ! -e "$target" ]]; then
+        echo "Error: '$target' does not exist."
+        return 1
+    fi
+
+    dir="${target:h}"    # Get directory part of the path
+    name="${target:t}"   # Get base name of the file/directory
+
+    output=$(exa --icons -1 "$dir" | grep "$name")
+    if [[ -n "$output" ]]; then
+        echo "${output[1]}" # Extract the first character (icon)
+    else
+        echo "Error: Could not find icon for '$target'."
+        return 1
+    fi
+}
+
 ip-address() {
 	ifconfig | grep inet | awk '$1=="inet" && $2!="127.0.0.1" {print $2}'
 }
@@ -33,7 +83,7 @@ rm-ds-store() {
 	fd '.DS_Store' $input_dir --exec rm -f
 }
 
-function ffmpeg-convert-to-switch-webp() {
+ffmpeg-convert-to-switch-webp() {
   local input_file="$1"
   local output_file="$2"
   local duration="$3"
