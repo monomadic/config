@@ -4,12 +4,6 @@ export ZSH_DOTFILES_DIR="$DOTFILES_DIR/zsh"
 
 export EDITOR=nvim
 
-# Paths
-export PATH=$PATH:$HOME/.bin:$ZSH_CONFIG_DIR/bin
-export PATH=$PATH:$HOME/.local/share/nvim/mason/bin/:$HOME/.cargo/bin/:$HOME/go/bin:$HOME/workspaces/python-projects.workspace
-export PATH=$PATH:$HOME/.deno/bin
-export PATH=$PATH:$HOME/.foundry/bin
-
 export TABLATURE_DIR="$HOME/Music/Tablature"
 export MOVIES_PATH="$HOME/Movies"
 export TUTORIALS_PATH="$HOME/Movies/Tutorials"

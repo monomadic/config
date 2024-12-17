@@ -27,7 +27,7 @@ lsd-get-icon() {
         return 1
     fi
 
-    target="$1" # Avoid $path to prevent conflicts
+    target="$1"
     if [[ ! -e "$target" ]]; then
         echo "Error: '$target' does not exist."
         return 1
@@ -52,7 +52,7 @@ exa-get-icon() {
         return 1
     fi
 
-    target="$1" # Avoid $path to prevent conflicts
+    target="$1"
     if [[ ! -e "$target" ]]; then
         echo "Error: '$target' does not exist."
         return 1

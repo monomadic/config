@@ -1,7 +1,7 @@
 # COMPLETIONS
 #
 
-for config_file in $ZSH_CONFIG_DIR/scripts/completions/*; do
+for config_file in ~/.zsh/scripts/completions/*; do
   GREEN=$(tput setaf 2)
   BLUE=$(tput setaf 4)
   RESET=$(tput sgr0)

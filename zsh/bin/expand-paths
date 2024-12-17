@@ -3,14 +3,14 @@
 # Function to display usage information
 show_usage() {
     cat << EOF
-Usage: $(basename $0) <path1>[:<path2>:...]
+Usage: $(basename $0) <dir1>[:<dir2>:...]
 
-Checks existence of given paths. Supports glob patterns.
+Checks existence of given dirs. Supports glob patterns.
 
 Examples:
   $(basename $0) /usr/bin:/usr/local/bin
   $(basename $0) '/home/*/.bashrc'
-  $(basename $0) '/path/with spaces:/another/path'
+  $(basename $0) '/dir/with spaces:/another/dir'
 EOF
 }
 
@@ -23,15 +23,15 @@ fi
 # Enable necessary options
 setopt null_glob extended_glob
 
-local paths=$1
+local dirs=$1
 local IFS=$'\n' # Set IFS to newline to preserve spaces
-for path in ${(s.:.)paths}; do
-    if [[ $path == *\** ]]; then
-        # If path contains a glob, expand it
-        print -l ${~path}(N)
+for dir in ${(s.:.)dirs}; do
+    if [[ $dir == *\** ]]; then
+        # If dir contains a glob, expand it
+        print -l ${~dir}(N)
     else
-        # If no glob, output the path if it exists
-        [[ -e $path ]] && echo $path
+        # If no glob, output the dir if it exists
+        [[ -e $dir ]] && echo $dir
     fi
 done
 

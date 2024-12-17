@@ -13,8 +13,9 @@ formats=$(yt-dlp --list-formats "$url" --cookies-from-browser=brave |
       id=$1
       resolution=$3
       fps=$4
-      vcodec=$10
-      filesize=$6
+      hdr=$5
+      filesize=$8
+      vcodec=$13
 
       # Skip audio-only and storyboard formats
       if (resolution != "audio" && vcodec != "images") {
@@ -38,6 +39,13 @@ formats=$(yt-dlp --list-formats "$url" --cookies-from-browser=brave |
           size = sprintf("%.2fMB", substr(filesize, 1, length(filesize)-3)/1024)
         } else if (filesize ~ /~/) {
           size = filesize
+        } else {
+          size = filesize  # Handle empty or other cases
+        }
+
+        # Add HDR to resolution if present
+        if (hdr == "10") {
+          resolution = resolution " HDR"
         }
 
         # Print formatted output

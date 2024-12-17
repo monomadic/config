@@ -1,5 +1,4 @@
 #!/bin/zsh
-
 # Function to print usage information
 print_usage() {
   echo "Usage: media <command> [video-type] [args]"
@@ -14,10 +13,11 @@ print_usage() {
   echo "  loops     - Match videos in '/loops/'"
   echo "  scenes    - Match videos in '/scenes/'"
   echo "Args:"
-  echo "  #tag      - Match videos with '#tag'"
-  echo "  [Tag]     - Match videos with '[Tag]'"
-  echo "  --shuffle - Shuffle videos during playback (only for 'play' command)"
-  echo "  --verbose - Enable verbose output"
+  echo "  #tag          - Match videos with '#tag'"
+  echo "  [Tag]         - Match videos with '[Tag]'"
+  echo "  --shuffle     - Shuffle videos during playback (only for 'play' command)"
+  echo "  --start-random - Start playback from a random position in playlist"
+  echo "  --verbose     - Enable verbose output"
 }
 
 # Initialize variables
@@ -26,6 +26,7 @@ video_type=""
 base_command="ls-media"
 additional_args=()
 shuffle_enabled=false
+start_random=false
 verbose=false
 
 # Parse command
@@ -88,6 +89,10 @@ while [[ $# -gt 0 ]]; do
     shuffle_enabled=true
     shift
     ;;
+  --start-random)
+    start_random=true
+    shift
+    ;;
   --verbose)
     verbose=true
     shift
@@ -112,7 +117,6 @@ done
 
 # Build the final command
 final_command="$base_command ${additional_args[@]}"
-
 case $command in
 play)
   if [[ "$video_type" == "loops" ]]; then
@@ -120,9 +124,11 @@ play)
   else
     final_command+=" | mpv-play"
   fi
-
   if $shuffle_enabled; then
     final_command+=" --shuffle"
+  fi
+  if $start_random; then
+    final_command+=" --start-random" # This is the mpv argument
   fi
   ;;
 search)
@@ -138,5 +144,4 @@ esac
 if $verbose; then
   echo "Executing: $final_command"
 fi
-
 eval $final_command
