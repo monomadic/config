@@ -249,24 +249,7 @@ function yt-dlp-download-and-embed-tags {
 #   echo "$json_metadata" | jq '.description'
 # }
 
-convert-to-mp4() {
-  if [ $# -eq 0 ]; then
-    echo "Usage: $0 file1.mov [file2.mov ...]"
-    return 1
-  fi
-
-  for file in "$@"; do
-    local output="${file%.*}.mp4"
-
-    if ffmpeg -i "$file" -c:v copy -c:a copy "$output"; then
-      echo "Converted $file to $output"
-    else
-      echo "Failed to convert $file" >&2
-    fi
-  done
-}
-
-function tag-rename {
+tag-rename() {
   # Ensure an argument is provided
   if [[ -z "$1" ]]; then
     echo "Usage: ${0:t} <file>"
