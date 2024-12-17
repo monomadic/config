@@ -90,6 +90,7 @@ alias .brewfile="cd $DOTFILES_DIR && e Brewfile"
 alias .portal=detect-captive-portal
 alias .detect-captive-portal=detect-captive-portal
 alias .config=e-zsh
+alias .fonts="kitty list-fonts"
 
 #alias ll="echo && eza --icons --group-directories-first --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
 alias amdl=gamdl
@@ -105,6 +106,7 @@ alias cfg-yazi="cd $DOTFILES_DIR/apps/yazi && nvim yazi.toml"
 alias cfg-zellij="cd $DOTFILES_DIR/zellij && edit config.kdl"
 alias cfg-zsh-keybindings="cd $DOTFILES_DIR/zsh && nvim scripts/autoload/keybindings.zsh"
 alias cfg-zsh="cd $DOTFILES_DIR/zsh && edit zshrc.zsh"
+alias cfg-mpv="cd $DOTFILES_DIR/mpv && edit mpv.conf"
 alias ci="cargo install --path ."
 alias cp-pwd="echo $PWD|pbcopy" # mac only
 alias cr="cargo run"
