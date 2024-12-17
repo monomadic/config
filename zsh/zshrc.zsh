@@ -42,26 +42,10 @@ manpath=(
 
 # Environment variables
 local env_file="$HOME/config/zsh/env.zsh"
-
-# Initialize autocompletion system
-autoload -Uz compinit && compinit
-
-setopt autocd    # cd without typing cd
-setopt autopushd # auto push dirs to recent dirs db (for dirs cmd)
-
-autoload -Uz add-zsh-hook # function autoloading (built-in zsh function)
-
-# Enable menu selection for better directory completion
-zstyle ':completion:*' menu select
-
-# Ensure Zsh treats directories as valid completion targets without needing `./`
-zstyle ':completion:*' special-dirs true
-
-# Ensure Zsh completes directories first before files
-zstyle ':completion:*' list-dirs first
-
-# Enable case-insensitive matching (optional, for ease of completion)
-zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
+# Source the config file and continue if there's an error
+if ! source $env_file; then
+  echo "Error sourcing $env_file. Skipping..."
+fi
 
 # Enable vi mode
 # bindkey -v
@@ -70,11 +54,6 @@ YELLOW=$(tput setaf 3)
 BLUE=$(tput setaf 4)
 RESET=$(tput sgr0)
 echo "${YELLOW}󰅩  ${BLUE}${env_file:t}${RESET}"
-
-# Source the config file and continue if there's an error
-if ! source $env_file; then
-  echo "Error sourcing $env_file. Skipping..."
-fi
 
 #
 # # # Enable error handling
@@ -140,37 +119,44 @@ fi
 print
 
 # Source additional configuration files
+#
+# Define base directory for config files
+ZSH_AUTOLOAD_DIR="$HOME/.zsh/scripts/autoload"
 
-source "$HOME/.zsh/scripts/autoload/alias.zsh"
-source "$HOME/.zsh/scripts/autoload/broot.zsh"
-source "$HOME/.zsh/scripts/autoload/completions.zsh"
-source "$HOME/.zsh/scripts/autoload/drive-index.zsh"
-source "$HOME/.zsh/scripts/autoload/ffmpeg.zsh"
-source "$HOME/.zsh/scripts/autoload/function.zsh"
-source "$HOME/.zsh/scripts/autoload/fzf-completion.zsh"
-source "$HOME/.zsh/scripts/autoload/fzf-custom.zsh"
-source "$HOME/.zsh/scripts/autoload/fzf-key-bindings.zsh"
-source "$HOME/.zsh/scripts/autoload/fzf-marks.zsh"
-source "$HOME/.zsh/scripts/autoload/fzf-templates.zsh"
-source "$HOME/.zsh/scripts/autoload/fzf.zsh"
-source "$HOME/.zsh/scripts/autoload/history.zsh"
-source "$HOME/.zsh/scripts/autoload/imagemagick.zsh"
-source "$HOME/.zsh/scripts/autoload/joshuto.zsh.disabled"
-source "$HOME/.zsh/scripts/autoload/media-players.zsh"
-source "$HOME/.zsh/scripts/autoload/media.zsh"
-source "$HOME/.zsh/scripts/autoload/prompt-middle.zsh"
-source "$HOME/.zsh/scripts/autoload/prompt.zsh"
-source "$HOME/.zsh/scripts/autoload/rsync.zsh"
-source "$HOME/.zsh/scripts/autoload/starship.zsh"
-source "$HOME/.zsh/scripts/autoload/vi-mode.zsh"
-source "$HOME/.zsh/scripts/autoload/yt-dlp.zsh"
-source "$HOME/.zsh/scripts/autoload/keybindings.zsh"
+# Define the array of config files
+config_files=(
+  "$ZSH_AUTOLOAD_DIR/alias.zsh"
+  "$ZSH_AUTOLOAD_DIR/broot.zsh"
+  "$ZSH_AUTOLOAD_DIR/completions.zsh"
+  "$ZSH_AUTOLOAD_DIR/drive-index.zsh"
+  "$ZSH_AUTOLOAD_DIR/ffmpeg.zsh"
+  "$ZSH_AUTOLOAD_DIR/function.zsh"
+  "$ZSH_AUTOLOAD_DIR/fzf-completion.zsh"
+  "$ZSH_AUTOLOAD_DIR/fzf-custom.zsh"
+  "$ZSH_AUTOLOAD_DIR/fzf-key-bindings.zsh"
+  "$ZSH_AUTOLOAD_DIR/fzf-marks.zsh"
+  "$ZSH_AUTOLOAD_DIR/fzf-templates.zsh"
+  "$ZSH_AUTOLOAD_DIR/fzf.zsh"
+  "$ZSH_AUTOLOAD_DIR/history.zsh"
+  "$ZSH_AUTOLOAD_DIR/imagemagick.zsh"
+  "$ZSH_AUTOLOAD_DIR/joshuto.zsh.disabled"
+  "$ZSH_AUTOLOAD_DIR/media-players.zsh"
+  "$ZSH_AUTOLOAD_DIR/media.zsh"
+  "$ZSH_AUTOLOAD_DIR/prompt-middle.zsh"
+  "$ZSH_AUTOLOAD_DIR/prompt.zsh"
+  "$ZSH_AUTOLOAD_DIR/rsync.zsh"
+  "$ZSH_AUTOLOAD_DIR/starship.zsh"
+  "$ZSH_AUTOLOAD_DIR/vi-mode.zsh"
+  "$ZSH_AUTOLOAD_DIR/yt-dlp.zsh"
+  "$ZSH_AUTOLOAD_DIR/keybindings.zsh"
+)
 
-#for config_file in $ZSH_CONFIG_DIR/scripts/autoload/*.(zsh|sh)(N); do
-#    print -P "%F{green}󰚔 %f${config_file:t}%f"
-#    if ! source $config_file; then
-#        print -P "%F{red}Error sourcing $config_file. Skipping...%f"
-#    fi
-#done
+# Loop through and source each file
+for config_file in $config_files; do
+  print -P "%F{green}󰚔 %f${config_file:t}%f"
+  if ! source $config_file; then
+    print -P "%F{red}Error sourcing $config_file. Skipping...%f"
+  fi
+done
 
 print
