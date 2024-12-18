@@ -80,6 +80,7 @@ alias .apple-music-dl=apple-music-dl
 alias .network-detect-captive-portal=detect-captive-portal
 alias .network-status=ns
 alias .uptime="display-uptime"
+alias .clear-notifications="killall NotificationCenter"
 
 alias faphouse="download-video-faphouse"
 alias .faphouse="download-video-faphouse"

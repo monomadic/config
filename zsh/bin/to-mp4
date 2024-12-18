@@ -1,15 +1,22 @@
 #!/bin/zsh
-
 if [ $# -eq 0 ]; then
   echo "Usage: $0 <input> [<input...> ...]"
   return 1
 fi
 
+# Get user's home directory for Trash location
+TRASH="${HOME}/.Trash"
+
 for file in "$@"; do
   local output="${file%.*}.mp4"
-
   if ffmpeg -i "$file" -c:v copy -c:a copy "$output"; then
     echo "Success: $output"
+    # Move original file to Trash
+    if mv "$file" "$TRASH/"; then
+      echo "Original file moved to Trash: $file"
+    else
+      echo "Warning: Could not move original file to Trash: $file" >&2
+    fi
   else
     echo "Error: could not convert $file" >&2
   fi

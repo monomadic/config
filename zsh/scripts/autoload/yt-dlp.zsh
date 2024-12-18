@@ -281,9 +281,6 @@ tag-rename() {
   echo "File renamed to: $new_filename"
 }
 
-# Usage:
-# rename_mp4 "example.mp4"
-
 # function mp4-add-tag {
 #     # Check if ffmpeg is installed
 #     if ! command -v ffmpeg &> /dev/null; then
@@ -312,8 +309,6 @@ tag-rename() {
 #
 #     echo "Tagged $file_name with $tag_name: $tag_content"
 # }
-
-# alias mp4-tag-comment="
 
 function tag-embed() {
   # Check for two arguments
@@ -370,9 +365,6 @@ function tag-embed() {
     return 1
   fi
 }
-
-# Example usage:
-# add_metadata "localfile.mp4" "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
 function tag-print {
   # Check if ffprobe is installed

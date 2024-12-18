@@ -1,8 +1,3 @@
-export FZF_DEFAULT_OPTS="--layout=reverse --cycle --inline-info --color=bg+:-1,fg:4,info:15,fg+:5,header:7,hl:5,hl+:5,border-bg:-1"
-export SKIM_DEFAULT_OPTIONS=$FZF_DEFAULT_OPTS
-export SKIM_DEFAULT_COMMAND="fd . --max-depth=3"
-export PRIVATE_PHOTOS_LIBRARY="$HOME/Media/Private/Private.photoslibrary"
-
 # themes
 export FZF_THEME_MOLOKAI='--color=bg+:#293739,bg:#1B1D1E,border:#808080,spinner:#E6DB74,hl:#7E8E91,fg:#F8F8F2,header:#7E8E91,info:#A6E22E,pointer:#A6E22E,marker:#F92672,fg+:#F8F8F2,prompt:#F92672,hl+:#F92672'
 export FZF_DEFAULT_OPTS=$FZF_THEME_MOLOKAI
