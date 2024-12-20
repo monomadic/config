@@ -13,39 +13,34 @@ set +o monitor
 handle_directory_selection() {
   local timeout=30
   local pipe=$(mktemp -u)
-
-  # Create named pipe
   mkfifo "$pipe"
 
-  # Cleanup function that properly handles signals
   cleanup() {
     local exit_code=$?
-    # Kill any background processes
-    jobs -p | xargs -r kill >/dev/null 2>&1
-    # Remove the named pipe
+    # More graceful process termination
+    jobs -p | while read pid; do
+      kill -TERM "$pid" 2>/dev/null || true
+    done
     rm -f "$pipe"
-    # Reset traps
     trap - INT TERM EXIT
-    # Preserve the original exit code
     return $exit_code
   }
 
-  # Set up traps for proper cleanup
   trap cleanup INT TERM EXIT
 
-  # Handle input from args or stdin with proper background process management
+  # Debug the input
+  echo "Debug: Starting input process..." >&2
+
   if [[ $# -gt 0 ]]; then
-    # Use a subshell to avoid leaving zombie processes
-    (printf "%s\n" "$@" >"$pipe") &
+    (printf "%s\n" "$@" | tee >(cat >&2) >"$pipe") &
   else
-    # Use a subshell for cat as well
-    (cat >"$pipe") &
+    (cat | tee >(cat >&2) >"$pipe") &
   fi
 
-  # Store the background process PID
   local input_pid=$!
 
-  # Run fzf with the preview window
+  echo "Debug: Running fzf..." >&2
+
   local dir=$(fzf --ansi \
     --preview 'tree -C {} 2>/dev/null || lsd --icon always --long --depth 1 --ignore-config --group-directories-first --color always {}' \
     --bind 'ctrl-d:preview-page-down,ctrl-u:preview-page-up' \
@@ -58,18 +53,17 @@ handle_directory_selection() {
 
   local ret=$?
 
-  # Kill the input process if it's still running
-  kill $input_pid >/dev/null 2>&1
+  echo "Debug: fzf completed with status $ret" >&2
 
-  # Clean up and handle the result
+  kill $input_pid >/dev/null 2>&1
+  wait $input_pid 2>/dev/null
+
   cleanup
 
   if [[ $ret -eq 0 && -n "$dir" ]]; then
     echo "$dir"
   fi
-
   return $ret
 }
 
-# Call the main function with all arguments
 handle_directory_selection "$@"

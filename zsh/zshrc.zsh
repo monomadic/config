@@ -4,14 +4,16 @@
 #
 eval "$(/opt/homebrew/bin/brew shellenv)"
 
+local BREW_PREFIX="$(brew --prefix)"
+
 # PATH
 #
 # note: in zsh, $path is an associative array that syncs to $PATH
 typeset -U path
 path=(
-  "$(brew --prefix)/coreutils/libexec/gnubin"
-  "$(brew --prefix)/gnu-sed/libexec/gnubin"
-  "$(brew --prefix)/grep/libexec/gnubin"
+  $BREW_PREFIX/coreutils/libexec/gnubin
+  $BREW_PREFIX/gnu-sed/libexec/gnubin
+  $BREW_PREFIX/grep/libexec/gnubin
   $HOME/.bin
   $HOME/.cargo/bin
   $HOME/.deno/bin
@@ -25,22 +27,25 @@ path=(
 )
 
 # ZSH FUNCTIONS
+#
 fpath=(
   ~/.zsh/completions
   ~/.zsh/functions
   ~/.zsh/widgets
-  "$(brew --prefix)/share/zsh/site-functions"
+  $BREW_PREFIX/share/zsh/site-functions
   $fpath
 )
 
-# Manpath configuration
+# MANPATH CONFIGURATION
+#
 typeset -U manpath
 manpath=(
   /opt/homebrew/opt/coreutils/libexec/gnuman
   $manpath
 )
 
-# Environment variables
+# ENVIRONMENT VARIABLES
+#
 local env_file="$HOME/config/zsh/env.zsh"
 # Source the config file and continue if there's an error
 if ! source $env_file; then

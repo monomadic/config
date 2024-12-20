@@ -24,7 +24,7 @@ if [[ -o interactive ]]; then
   }
 
   _fzf-jump() {
-    source fzf-jump-subshell && zle reset-prompt
+    source fzf-jump && zle reset-prompt
   }
 
   fzf_ripgrep() { # removed invalid asterisks
@@ -72,6 +72,6 @@ if [[ -o interactive ]]; then
   bindkey '^k' clear-reset
   bindkey '^l' magic-enter
   bindkey '^o' _fzf-cd
-  bindkey '^u' cd-up
+  #bindkey '^u' cd-up
   bindkey '^[J' _fzf-jump # Alt+J
 fi

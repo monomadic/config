@@ -194,7 +194,7 @@ cask "1password-cli"
 cask "protonvpn"
 cask "proton-mail"
 cask "proton-drive"
-# cask "hammerspoon"
+# cask "hammerspoon" # lua script automation for macos
 
 cask "coconutbattery" # battery info
 
