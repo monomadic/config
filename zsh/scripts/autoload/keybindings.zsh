@@ -72,6 +72,6 @@ if [[ -o interactive ]]; then
   bindkey '^k' clear-reset
   bindkey '^l' magic-enter
   bindkey '^o' _fzf-cd
-  #bindkey '^u' cd-up
-  bindkey '^[J' _fzf-jump # Alt+J
+  bindkey '^u' cd-up
+  bindkey '^j' _fzf-jump # Alt+J
 fi
