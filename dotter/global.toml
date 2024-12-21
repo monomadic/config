@@ -84,7 +84,6 @@ files = { "starship/starship.toml" = "~/.config/starship.toml" }
 "zsh/emoji.json" = "~/.zsh/emoji.json"
 "zsh/scripts/" = "~/.zsh/scripts"
 "zsh/completions/" = "~/.zsh/completions"
-"zsh/widgets/" = "~/.zsh/widgets"
 "zsh/functions/" = "~/.zsh/functions"
 "zsh/autoload/" = "~/.zsh/autoload"
 "zsh/bin/" = "~/.zsh/bin"
