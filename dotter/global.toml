@@ -18,6 +18,9 @@ depends = []
 [bin.files]
 "bin" = { target = "~/.bin/", type = "symbolic" }
 
+[hammerspoon.files]
+"hammerspoon" = "~/.hammerspoon"
+
 [joshuto.files]
 "joshuto" = "~/.config/joshuto"
 

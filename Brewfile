@@ -225,7 +225,7 @@ cask "mullvad-browser" # firefox-based privacy browser
 cask "spotify"
 
 cask "numi" # calculator
-cask "chai" # sleep prevention
+# cask "chai" # sleep prevention (using caffeinated from MAS)
 
 # messaging
 cask "signal"
@@ -239,11 +239,11 @@ brew "bingrep" # binary analyser
 brew "radare2" # debugger / decompiler
 cask "cutter" # debugger / compiler
 cask "corretto" # jdk alternative by amazon
+cask "temurin" # jre replacement (for ghidra)
 cask "ghidra" # debugger / decompiler
 brew "rizin" # fork of radare2
-cask "temurin" # jre replacement (for ghidra)
 brew "bitwise" # bit conversion
-brew "demumble" # demangling
+# brew "demumble" # demangling
 cask "hex-fiend" # hex editor
 
 brew "aria2" # cli download client
