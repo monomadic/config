@@ -1,5 +1,8 @@
 # Load environment variables
 
+# Return early if not running interactively
+[[ $- != *i* ]] && return
+
 # HOMEBREW
 #
 eval "$(/opt/homebrew/bin/brew shellenv)"
