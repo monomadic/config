@@ -31,10 +31,24 @@
 #    defaults write com.apple.Safari NSUserKeyEquivalents -dict-add "New Tab" "@$T"
 #
 # 5. To remove the shortcut later, run the same command but use `-dict-remove` instead of `-dict-add`.
+#
+# Alternate method:
+# /usr/libexec/PlistBuddy -c "Add :NSUserKeyEquivalents:'Open In Kitty' string @\\U0000000A" ~/Library/Preferences/com.apple.finder.plist
+#
+#	defaults delete com.apple.finder NSUserKeyEquivalents
+#
+#	To see all existing shortcuts (for finder for example):
+#	defaults read com.apple.finder NSUserKeyEquivalents
+#
 
 # Assign a keyboard shortcut to Finder's "Merge All Windows" option
 # ⌘$M Finder: Merge All Windows
 defaults write com.apple.finder NSUserKeyEquivalents -dict-add "Merge All Windows" '@$M'
+
+# FINDER
+#
+# CMD+Enter - open current directory in kitty (shortcut)
+defaults write com.apple.finder NSUserKeyEquivalents -dict-add "Open in Kitty" "@\\U21a9"
 
 # Restart Finder for the change to take effect
 killall Finder
