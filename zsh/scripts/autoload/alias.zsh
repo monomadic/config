@@ -38,6 +38,8 @@ alias @tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
 alias @perf="media search #60fps #4k"
 alias @remaster="media search #remaster"
 
+alias .kitty-reload="kitty @ set-colors --all ~/.config/kitty/kitty.conf"
+
 alias .url="download-video-url"
 
 alias media-backup="rsync-backup /Volumes/Media-BAK1/Movies"
