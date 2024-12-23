@@ -226,6 +226,7 @@ cask "spotify"
 
 cask "numi" # calculator
 # cask "chai" # sleep prevention (using caffeinated from MAS)
+cask "stats" # menu stats (like iStat)
 
 # messaging
 cask "signal"
