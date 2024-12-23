@@ -38,6 +38,6 @@ export LC_ALL="en_US.UTF-8"
 export GHQ_ROOT=$HOME/src
 
 # FZF / Skim
-export FZF_DEFAULT_OPTS="--layout=reverse --border=none --cycle --inline-info --color=bg+:-1,bg:-1,fg:4,info:15,fg+:5,header:7,hl:5,hl+:5,border:-1"
+export FZF_DEFAULT_OPTS="--layout=reverse --cycle --preview-window=noborder --no-separator --no-border --inline-info --color=bg+:-1,fg:4,info:15,fg+:5,header:7,hl:5,hl+:5"
 export SKIM_DEFAULT_OPTIONS=$FZF_DEFAULT_OPTS
 export SKIM_DEFAULT_COMMAND="fd . --max-depth=3"

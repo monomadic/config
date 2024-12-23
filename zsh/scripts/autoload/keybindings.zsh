@@ -19,10 +19,6 @@ if [[ -o interactive ]]; then
     rm -f -- "$tmp"
   }
 
-  _fzf-find-files() {
-    fzf-find-files
-  }
-
   _fzf-jump() {
     source fzf-jump && zle reset-prompt
   }
@@ -36,20 +32,23 @@ if [[ -o interactive ]]; then
     zle reset-prompt
   }
 
-  magic-enter() {
-    : # placeholder
-  }
-
   _fzf-cd() {
     local selected_dir
+
+    # move cursor up one line
+    tput cuu1
+
     # Use command substitution to capture fzf-cd's output
     selected_dir=$(ls_all 2>/dev/null | source fzf-cd) || return $?
+    echo $selected_dir
 
     if [[ -n "$selected_dir" && -d "${selected_dir}" ]]; then
       cd "${selected_dir}" || return 1
       zle reset-prompt
       return 0
     fi
+
+    zle reset-prompt
     return 1
   }
 

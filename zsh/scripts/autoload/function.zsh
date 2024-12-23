@@ -318,7 +318,6 @@ function gc () {
 
 function clear-reset {
 	clear
-	hello
 	zle && zle reset-prompt
 }
 

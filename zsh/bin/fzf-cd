@@ -7,17 +7,20 @@ handle_directory_selection() {
 
   cleanup() {
     local exit_code=$?
-    kill -TERM -$$ 2>/dev/null || true
+    # Kill only the specific background process if it exists
+    [[ -n "$input_pid" ]] && kill $input_pid 2>/dev/null
     wait 2>/dev/null || true
     rm -f "$pipe"
     trap - INT TERM EXIT HUP
     return $exit_code
   }
-
   trap cleanup INT TERM EXIT HUP
 
-  # Read input in background to prevent blocking
-  cat >"$pipe" &
+  # Read from stdin to pipe in background, but close when stdin closes
+  (
+    cat >"$pipe"
+    kill -PIPE $$ 2>/dev/null
+  ) &
   local input_pid=$!
 
   local dir
@@ -29,13 +32,10 @@ handle_directory_selection() {
     --no-info \
     --height=50% \
     --reverse \
-    --prompt="cd " <"$pipe")
+    --prompt="❯ " <"$pipe")
   local ret=$?
 
-  kill $input_pid 2>/dev/null
-  wait $input_pid 2>/dev/null
-  cleanup
-
+  # Cleanup will handle killing the background process
   if [[ $ret -eq 0 && -n "$dir" ]]; then
     printf '%s\n' "$dir"
   fi
