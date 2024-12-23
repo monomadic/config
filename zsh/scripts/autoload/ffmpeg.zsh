@@ -95,60 +95,60 @@ ffprobe-info() {
   ffprobe -v error -show_streams -show_format "$1"
 }
 
-# Extract video stream (remove audio)
-ffmpeg-extract-video() {
-  if [[ $# -ne 1 ]]; then
-    print -P "%F{red}Usage:%f ffmpeg-extract-video <input_file>"
-    return 1
-  fi
-
-  # Split the filename and extension
-  local base="${1%.*}"
-  local ext="${1##*.}"
-
-  # Create output filename with -demux before extension
-  local output="${base}.video.${ext}"
-
-  ffmpeg -i "$1" -an -c:v copy "$output"
-}
-
-# Extract audio from a video file
-ffmpeg-extract-audio() {
-  if [[ $# -ne 1 ]]; then
-    print -P "%F{red}Usage:%f ffmpeg-extract-audio <input_file>"
-    return 1
-  fi
-
-  # Split the filename and extension
-  local base="${1%.*}"
-  local ext="${1##*.}"
-
-  # Create output filename with -demux before extension
-  local output="${base}.audio.${ext}"
-
-  ffmpeg -i "$1" -vn -c:a copy "$output"
-}
-
-# Extract video and audio from a video file
-ffmpeg-demux() {
-  if [[ $# -ne 1 ]]; then
-    print -P "%F{red}Usage:%f ffmpeg-demux <input_file>"
-    return 1
-  fi
-
-  # Split the filename and extension
-  local base="${1%.*}"
-  local ext="${1##*.}"
-
-  # Create output filenames with -demux before extension
-  local video_output="${base}.video.${ext}"
-  local audio_output="${base}.audio.${ext}"
-
-  # Extract video (no audio) and audio (no video) in parallel
-  ffmpeg -i "$1" \
-    -map 0:v:0 -c:v copy -an "$video_output" \
-    -map 0:a:0 -c:a copy -vn "$audio_output"
-}
+# # Extract video stream (remove audio)
+# ffmpeg-extract-video() {
+#   if [[ $# -ne 1 ]]; then
+#     print -P "%F{red}Usage:%f ffmpeg-extract-video <input_file>"
+#     return 1
+#   fi
+#
+#   # Split the filename and extension
+#   local base="${1%.*}"
+#   local ext="${1##*.}"
+#
+#   # Create output filename with -demux before extension
+#   local output="${base}.video.${ext}"
+#
+#   ffmpeg -i "$1" -an -c:v copy "$output"
+# }
+#
+# # Extract audio from a video file
+# ffmpeg-extract-audio() {
+#   if [[ $# -ne 1 ]]; then
+#     print -P "%F{red}Usage:%f ffmpeg-extract-audio <input_file>"
+#     return 1
+#   fi
+#
+#   # Split the filename and extension
+#   local base="${1%.*}"
+#   local ext="${1##*.}"
+#
+#   # Create output filename with -demux before extension
+#   local output="${base}.audio.${ext}"
+#
+#   ffmpeg -i "$1" -vn -c:a copy "$output"
+# }
+#
+# # Extract video and audio from a video file
+# ffmpeg-demux-simple() {
+#   if [[ $# -ne 1 ]]; then
+#     print -P "%F{red}Usage:%f ffmpeg-demux <input_file>"
+#     return 1
+#   fi
+#
+#   # Split the filename and extension
+#   local base="${1%.*}"
+#   local ext="${1##*.}"
+#
+#   # Create output filenames with -demux before extension
+#   local video_output="${base}.video.${ext}"
+#   local audio_output="${base}.audio.${ext}"
+#
+#   # Extract video (no audio) and audio (no video) in parallel
+#   ffmpeg -i "$1" \
+#     -map 0:v:0 -c:v copy -an "$video_output" \
+#     -map 0:a:0 -c:a copy -vn "$audio_output"
+# }
 
 # Combine multiple video files into one
 ffmpeg-concat-videos() {
