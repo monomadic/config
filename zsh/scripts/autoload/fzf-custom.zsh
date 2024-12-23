@@ -42,6 +42,7 @@ ls_all() {
   ls_volumes
   # ls_workspaces
   # ls_src
+  ls_creators
 }
 
 ls_volumes() {

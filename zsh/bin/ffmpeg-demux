@@ -1,0 +1,114 @@
+#!/usr/bin/env zsh
+
+# Parse arguments
+zparseopts -D -E -- -audio-only=audio_only -video-only=video_only -raw=strip_container
+
+# Show usage if no input file or both flags specified
+if [[ $# -ne 1 || (-n "$audio_only" && -n "$video_only") ]]; then
+  print -P "%F{red}Usage:%f $(basename $0) [--audio-only | --video-only] [--raw] <input_file>"
+  print "Options:"
+  print "  --audio-only      Extract only audio stream"
+  print "  --video-only      Extract only video stream"
+  print "  --raw						 Extract video without container (raw codec)"
+  exit 1
+fi
+
+input_file=$1
+base="${input_file%.*}"
+
+# Get codec info only for the streams we need
+if [[ -z "$audio_only" ]]; then
+  video_codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$input_file")
+fi
+if [[ -z "$video_only" ]]; then
+  audio_codec=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$input_file")
+fi
+
+# Define video settings based on codec and raw flag
+if [[ -n "$video_codec" ]]; then
+  if [[ -n "$strip_container" ]]; then
+    case $video_codec in
+      h264)
+        video_ext="h264"
+        video_bsf="-bsf:v h264_mp4toannexb"
+        ;;
+      hevc)
+        video_ext="hevc"
+        video_bsf="-bsf:v hevc_mp4toannexb"
+        ;;
+      vp8 | vp9)
+        video_ext="ivf"
+        video_bsf=""
+        ;;
+      av1)
+        video_ext="obu"
+        video_bsf=""
+        ;;
+      *)
+        video_ext="raw"
+        video_bsf=""
+        ;;
+    esac
+  else
+    video_ext="mp4"
+    video_bsf=""
+  fi
+fi
+
+# Define audio extension based on codec
+if [[ -n "$audio_codec" ]]; then
+  case $audio_codec in
+    aac)
+      audio_ext="aac"
+      ;;
+    ac3)
+      audio_ext="ac3"
+      ;;
+    eac3)
+      audio_ext="eac3"
+      ;;
+    mp3)
+      audio_ext="mp3"
+      ;;
+    opus)
+      audio_ext="opus"
+      ;;
+    vorbis)
+      audio_ext="ogg"
+      ;;
+    flac)
+      audio_ext="flac"
+      ;;
+    *)
+      audio_ext="raw"
+      ;;
+  esac
+fi
+
+# Print detected codecs
+if [[ -n "$video_codec" && -z "$audio_only" ]]; then
+  print -P "%F{green}Detected video codec:%f $video_codec"
+fi
+if [[ -n "$audio_codec" && -z "$video_only" ]]; then
+  print -P "%F{green}Detected audio codec:%f $audio_codec"
+fi
+
+# Extract video if requested and present
+if [[ -n "$video_codec" && -z "$audio_only" ]]; then
+  print -P "%F{blue}Extracting video to:%f ${base}-video.${video_ext}"
+  if [[ -n "$strip_container" && -n "$video_bsf" ]]; then
+    ffmpeg -i "$input_file" -map 0:v:0 -c:v copy ${=video_bsf} "${base}-video.${video_ext}"
+  else
+    ffmpeg -i "$input_file" -map 0:v:0 -c:v copy "${base}-video.${video_ext}"
+  fi
+elif [[ -z "$audio_only" ]]; then
+  print -P "%F{yellow}No video stream found%f"
+fi
+
+# Extract audio if requested and present
+if [[ -n "$audio_codec" && -z "$video_only" ]]; then
+  print -P "%F{blue}Extracting audio to:%f ${base}-audio.${audio_ext}"
+  ffmpeg -i "$input_file" -map 0:a:0 -c:a copy "${base}-audio.${audio_ext}"
+elif [[ -z "$video_only" ]]; then
+  print -P "%F{yellow}No audio stream found%f"
+fi

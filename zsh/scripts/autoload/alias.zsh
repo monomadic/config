@@ -39,6 +39,11 @@ alias @perf="media search #60fps #4k"
 alias @remaster="media search #remaster"
 
 alias .kitty-reload="kitty @ set-colors --all ~/.config/kitty/kitty.conf"
+alias .kitty-configure="cfg-kitty"
+
+alias .demux="ffmpeg-demux"
+alias .demux-audio="ffmpeg-demux --audio-only"
+alias .demux-video="ffmpeg-demux --video-only"
 
 alias .url="download-video-url"
 

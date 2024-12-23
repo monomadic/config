@@ -14,6 +14,20 @@ fd-creators() {
   fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
 }
 
+ls-creators() {
+  ls-media-paths | while read -r dir; do
+    echo "Processing: $dir"
+
+    cd $dir
+    fd-creators
+
+    # for match in $dir/*/clips/**/*; do
+    #   [[ -f $match ]] && echo "Found file: $match"
+    # done
+    # Your commands here
+  done
+}
+
 # media-cache-to-discboy() {
 #   media list top-clips | copy-flat "/Volumes/Discboy 512/clips"
 # }
