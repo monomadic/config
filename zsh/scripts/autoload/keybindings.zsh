@@ -41,7 +41,20 @@ if [[ -o interactive ]]; then
   }
 
   _fzf-cd() {
-    local selected_dir=$(ls_all | source fzf-cd)
+    local selected_dir
+    # Use command substitution to capture fzf-cd's output
+    selected_dir=$(ls_all 2>/dev/null | source fzf-cd) || return $?
+
+    if [[ -n "$selected_dir" && -d "${selected_dir}" ]]; then
+      cd "${selected_dir}" || return 1
+      zle reset-prompt
+      return 0
+    fi
+    return 1
+  }
+
+  _fzf-jump() {
+    local selected_dir=$(ls_all | source fzf-jump)
     local ret=$?
     if [[ $ret -eq 0 && -n "$selected_dir" && -d "$selected_dir" ]]; then
       cd "$selected_dir"
@@ -66,12 +79,13 @@ if [[ -o interactive ]]; then
   zle -N cd-up
 
   # Bind keys to functions
-  bindkey '^ ' _yazi-jump
+  # Ctrl-Space: yazi jump
+  bindkey '^@' _yazi-jump
   bindkey '^f' _fzf-find-files
   bindkey '^s' fzf_ripgrep
   bindkey '^k' clear-reset
   bindkey '^l' magic-enter
   bindkey '^o' _fzf-cd
   #bindkey '^u' cd-up
-  bindkey 'f20' _fzf-jump # Alt+J
+  # bindkey 'f20' _fzf-jump # Alt+J
 fi

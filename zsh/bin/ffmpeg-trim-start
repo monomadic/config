@@ -1,0 +1,46 @@
+#!/bin/zsh
+
+# Define a mapping for site-name to intro duration in milliseconds
+declare -A intro_durations=(
+  [pornhub]=2000
+  [faphouse]=5000
+)
+
+# Ensure at least two arguments are passed
+if [[ $# -lt 2 ]]; then
+  echo "Usage: strip-intro <site-name|time-in-ms> <file ...>"
+  exit 1
+fi
+
+input=$1
+shift # Shift arguments to process files
+
+# Determine the intro duration
+if [[ $input =~ ^[0-9]+$ ]]; then
+  # If input is a number, use it as the duration in milliseconds
+  duration_ms=$input
+elif [[ -n ${intro_durations[$input]} ]]; then
+  # If input matches a site name, use the predefined duration
+  duration_ms=${intro_durations[$input]}
+else
+  echo "Error: Unknown site-name or invalid time '$input'."
+  exit 1
+fi
+
+# Convert milliseconds to seconds for ffmpeg
+duration_sec=$(echo "$duration_ms / 1000" | bc -l)
+
+# Process each file
+for file in "$@"; do
+  if [[ ! -f $file ]]; then
+    echo "Error: File '$file' does not exist."
+    continue
+  fi
+
+  output_file="${file:r}-cut.${file:e}"
+
+  echo "Processing '$file'... Cutting $duration_ms ms ($duration_sec seconds)"
+  ffmpeg -i "$file" -ss "$duration_sec" -c copy "$output_file"
+done
+
+echo "Done!"

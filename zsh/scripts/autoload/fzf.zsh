@@ -1,6 +1,6 @@
 # themes
-export FZF_THEME_MOLOKAI='--color=bg+:#293739,bg:#1B1D1E,border:#808080,spinner:#E6DB74,hl:#7E8E91,fg:#F8F8F2,header:#7E8E91,info:#A6E22E,pointer:#A6E22E,marker:#F92672,fg+:#F8F8F2,prompt:#F92672,hl+:#F92672'
-export FZF_DEFAULT_OPTS=$FZF_THEME_MOLOKAI
+# export FZF_THEME_MOLOKAI='--color=bg+:#293739,bg:#1B1D1E,border:#808080,spinner:#E6DB74,hl:#7E8E91,fg:#F8F8F2,header:#7E8E91,info:#A6E22E,pointer:#A6E22E,marker:#F92672,fg+:#F8F8F2,prompt:#F92672,hl+:#F92672'
+# export FZF_DEFAULT_OPTS=$FZF_THEME_MOLOKAI
 
 # history
 # bind '"\C-r": "$(fc -rl 1 | fzf -e)"'
@@ -76,44 +76,6 @@ fzf-brave-bookmarks() {
     cut -d$'\t' -f2 |
     xargs open
 }
-
-# # Enhanced directory jumping function with early termination
-# fzf-jump() {
-#   set +o monitor
-#   local fd_pid dir timeout=30
-#
-#   # Create a named pipe for fd output
-#   local pipe=$(mktemp -u)
-#   mkfifo "$pipe"
-#
-#   # Cleanup function to handle interrupts and cleanup
-#   cleanup() {
-#     kill $fd_pid 2>/dev/null
-#     rm -f "$pipe"
-#     trap - INT EXIT
-#   } >/dev/null 2>&1
-#   trap cleanup INT EXIT
-#
-#   # Run fd with timeout in background, writing to named pipe
-#   {
-#     nohup timeout $timeout fd --type d --no-hidden --max-depth 10 . >"$pipe" 2>/dev/null &
-#   } >/dev/null
-#   disown
-#
-#   fd_pid=$!
-#
-#   # Run fzf with the preview window showing tree or ls output
-#   dir=$(fzf --preview 'tree -C {} 2>/dev/null || ls -la {}' \
-#     --bind 'ctrl-d:preview-page-down,ctrl-u:preview-page-up' \
-#     --height=50% \
-#     --border \
-#     --prompt="Directory > " <"$pipe" 2>/dev/null)
-#
-#   # Change to selected directory if valid
-#   [[ -n "$dir" && -d "$dir" ]] && cd "$dir"
-#
-#   cleanup
-# } 2>/dev/null
 
 fzf-brave-history() {
   local cols sep google_history open

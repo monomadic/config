@@ -29,7 +29,7 @@ dir=$(fzf --preview 'tree -C {} 2>/dev/null || ls -la {}' \
   --bind 'ctrl-d:preview-page-down,ctrl-u:preview-page-up' \
   --height=50% \
   --reverse \
-  --border \
+  --no-info \
   --prompt="$PWD/" <"$pipe" 2>/dev/null)
 
 # Change to selected directory if valid

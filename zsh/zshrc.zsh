@@ -146,7 +146,6 @@ config_files=(
   "$ZSH_AUTOLOAD_DIR/fzf.zsh"
   "$ZSH_AUTOLOAD_DIR/history.zsh"
   "$ZSH_AUTOLOAD_DIR/imagemagick.zsh"
-  "$ZSH_AUTOLOAD_DIR/joshuto.zsh.disabled"
   "$ZSH_AUTOLOAD_DIR/media-players.zsh"
   "$ZSH_AUTOLOAD_DIR/media.zsh"
   "$ZSH_AUTOLOAD_DIR/prompt-middle.zsh"

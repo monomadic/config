@@ -1,67 +1,43 @@
 #!/bin/zsh
-
-# TODO:
-# - add jump locations (marks)
-#		- media locations (creators, tags) if present
-# - add pwd recursive jump
-# - shortcuts for switching between pwd and marks
-# - shortcuts for reveal in finder
-# - fix bug when ctrl+c
-
 set +o monitor
 
 handle_directory_selection() {
-  local timeout=30
   local pipe=$(mktemp -u)
-  mkfifo "$pipe"
+  mkfifo "$pipe" || return 1
 
   cleanup() {
     local exit_code=$?
-    # More graceful process termination
-    jobs -p | while read pid; do
-      kill -TERM "$pid" 2>/dev/null || true
-    done
+    kill -TERM -$$ 2>/dev/null || true
+    wait 2>/dev/null || true
     rm -f "$pipe"
-    trap - INT TERM EXIT
+    trap - INT TERM EXIT HUP
     return $exit_code
   }
 
-  trap cleanup INT TERM EXIT
+  trap cleanup INT TERM EXIT HUP
 
-  # Debug the input
-  echo "Debug: Starting input process..." >&2
-
-  if [[ $# -gt 0 ]]; then
-    (printf "%s\n" "$@" | tee >(cat >&2) >"$pipe") &
-  else
-    (cat | tee >(cat >&2) >"$pipe") &
-  fi
-
+  # Read input in background to prevent blocking
+  cat >"$pipe" &
   local input_pid=$!
 
-  echo "Debug: Running fzf..." >&2
-
-  local dir=$(fzf --ansi \
+  local dir
+  dir=$(fzf --ansi \
     --preview 'tree -C {} 2>/dev/null || lsd --icon always --long --depth 1 --ignore-config --group-directories-first --color always {}' \
     --bind 'ctrl-d:preview-page-down,ctrl-u:preview-page-up' \
     --bind 'ctrl-/:toggle-preview' \
     --bind 'alt-p:toggle-preview' \
+    --no-info \
     --height=50% \
     --reverse \
-    --border \
-    --prompt="cd " <"$pipe" 2>/dev/null)
-
+    --prompt="cd " <"$pipe")
   local ret=$?
 
-  echo "Debug: fzf completed with status $ret" >&2
-
-  kill $input_pid >/dev/null 2>&1
+  kill $input_pid 2>/dev/null
   wait $input_pid 2>/dev/null
-
   cleanup
 
   if [[ $ret -eq 0 && -n "$dir" ]]; then
-    echo "$dir"
+    printf '%s\n' "$dir"
   fi
   return $ret
 }

@@ -143,8 +143,6 @@ fzf_dirs() {
     --exact \
     --ignore-case \
     --cycle \
-    --border \
-    --color=info:#66d9ef,hl:#FFe22e,hl+:#FFe22e,fg+:5,header:7,prompt:#FFFFFF,border:#000000,bg+:#000000,bg:#000000 \
     --header '󰌑 open  󰘴e edit  󰘴r reveal  󰘴b marks  󰘴o pwd  󰘴c cancel' \
     --info=hidden \
     --pointer=' ' \

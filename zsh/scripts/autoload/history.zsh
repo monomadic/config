@@ -1,4 +1,3 @@
-# Set the file where the history is stored
 HISTFILE="$HOME/.zsh_history"
 
 # Set the maximum number of history entries
