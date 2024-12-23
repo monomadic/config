@@ -42,7 +42,7 @@ alias .kitty-reload="kitty @ set-colors --all ~/.config/kitty/kitty.conf"
 
 alias .url="download-video-url"
 
-alias media-backup="rsync-backup /Volumes/Media-BAK1/Movies"
+alias media-backup-src="rsync-backup SRC"
 alias media-cache="rsync-backup --dry-run $HOME/Movies/Cache \/clipped\/ "
 
 alias autotag=media-autotag

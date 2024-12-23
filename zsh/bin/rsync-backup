@@ -1,12 +1,10 @@
 #!/bin/zsh
 
-# Set the source path
-source_path="$MASTER_MEDIA_DIR"
-
 # Usage information
 usage() {
-  echo "Usage: $0 [--quiet] [--dry-run] [--log logfile] <dest_path> [filter_pattern]"
-  echo "  <dest_path>     : Destination path for rsync"
+  echo "Usage: $0 [--quiet] [--dry-run] [--log logfile] <prefix> [filter_pattern]"
+  echo "  <prefix>        : Three-character prefix used to build source/destination paths"
+  echo "                    (e.g., 'SRC' creates paths /Volumes/Media-SRC-M and /Volumes/Media-SRC-S)"
   echo "  [filter_pattern]: Optional regex pattern to match files"
   echo "Options:"
   echo "  --quiet         : Quiet mode (minimal output)"
@@ -43,19 +41,27 @@ while [[ "$1" =~ ^-- ]]; do
   esac
 done
 
-# Check if at least the destination path is provided
+# Check if at least the prefix is provided
 if [ "$#" -lt 1 ]; then
-  echo "Error: Missing destination path."
+  echo "Error: Missing prefix."
   usage
 fi
 
-# Set destination path from arguments
-dest_path="$1"
+# Get the prefix and validate it
+prefix="$1"
+if [ ${#prefix} -ne 3 ]; then
+  echo "Error: Prefix must be exactly 3 characters long."
+  exit 1
+fi
 
 # Set filter pattern if provided (optional)
 if [ "$#" -eq 2 ]; then
   filter_pattern="$2"
 fi
+
+# Build source and destination paths using the prefix
+source_path="/Volumes/Media-${prefix}-M/Movies"
+dest_path="/Volumes/Media-${prefix}-S/Movies"
 
 # Check if source path exists
 if [ ! -d "$source_path" ]; then
@@ -63,7 +69,7 @@ if [ ! -d "$source_path" ]; then
   exit 1
 fi
 
-# Check if destination path is valid
+# Check if destination path exists
 if [ ! -d "$dest_path" ]; then
   echo "Error: Destination path '$dest_path' does not exist or is not accessible."
   exit 1

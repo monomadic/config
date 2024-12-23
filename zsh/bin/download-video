@@ -59,29 +59,30 @@ YT_DLP_BASE=(yt-dlp --cookies-from-browser brave --continue --progress --verbose
 # Initialize variables for different commands
 case "$COMMAND" in
   "porn")
+		# bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]
     OUTPUT_TEMPLATE="[%(uploader|Unknown)s] %(title)s [%(extractor)s].%(ext)s"
-    FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/best[ext=mp4]" \
-      --merge-output-format mp4 --embed-metadata --embed-thumbnail --embed-info-json \
+    FORMAT_ARGS=(-f "bv*+ba/best" \
+      --merge-output-format mp4 --embed-metadata --embed-info-json \
       --match-filter "duration > 60" --embed-subs --embed-chapters)
     ;;
   "music-video")
     OUTPUT_TEMPLATE="%(artist|)s - %(title)s.%(ext)s"
     FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]" \
-      --merge-output-format mp4 --embed-metadata --embed-thumbnail --embed-subs --embed-chapters)
+      --merge-output-format mp4 --embed-metadata --embed-subs --embed-chapters)
     ;;
   "audio-only")
     OUTPUT_TEMPLATE="%(artist)s - %(title)s.%(ext)s"
     FORMAT_ARGS=(-f "bestaudio[ext=m4a]" --extract-audio --audio-format m4a \
-      --embed-metadata --embed-thumbnail)
+      --embed-metadata)
     ;;
   "video-only")
     OUTPUT_TEMPLATE="%(artist)s - %(title)s.%(ext)s"
-    FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]" --merge-output-format mp4 --embed-metadata --embed-thumbnail)
+    FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]" --merge-output-format mp4 --embed-metadata)
     ;;
   "youtube")
-    OUTPUT_TEMPLATE="[%(channel)s] %(title)s [YouTube].%(ext)s"
-    FORMAT_ARGS=(-f "bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]" \
-      --merge-output-format mp4 --embed-metadata --embed-thumbnail --embed-subs --embed-chapters)
+		OUTPUT_TEMPLATE="[%(channel)s] %(title)s [YouTube][%(id)s].%(ext)s"
+    FORMAT_ARGS=(-f "bv*+ba/best" \
+      --merge-output-format mp4 --embed-metadata --embed-subs --embed-chapters)
     ;;
   *)
     error_exit "Unknown command '$COMMAND'"

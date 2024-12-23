@@ -39,3 +39,6 @@ fi
 [ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
 
 source /Users/nom/.config/broot/launcher/bash/br
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/nom/.cache/lm-studio/bin"

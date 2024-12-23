@@ -166,3 +166,6 @@ for config_file in $config_files; do
 done
 
 print
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/nom/.cache/lm-studio/bin"

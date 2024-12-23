@@ -7,35 +7,34 @@ handle_directory_selection() {
 
   cleanup() {
     local exit_code=$?
-    # Kill only the specific background process if it exists
-    [[ -n "$input_pid" ]] && kill $input_pid 2>/dev/null
+    # Kill any remaining background processes in our group
+    kill $(jobs -p) 2>/dev/null
     wait 2>/dev/null || true
     rm -f "$pipe"
     trap - INT TERM EXIT HUP
-    return $exit_code
+    exit $exit_code
   }
+
   trap cleanup INT TERM EXIT HUP
 
   # Read from stdin to pipe in background, but close when stdin closes
-  (
-    cat >"$pipe"
-    kill -PIPE $$ 2>/dev/null
-  ) &
+  (cat >"$pipe") &
   local input_pid=$!
 
   local dir
+  # Run fzf in a subshell so we can better control its termination
   dir=$(fzf --ansi \
     --preview 'tree -C {} 2>/dev/null || lsd --icon always --long --depth 1 --ignore-config --group-directories-first --color always {}' \
     --bind 'ctrl-d:preview-page-down,ctrl-u:preview-page-up' \
     --bind 'ctrl-/:toggle-preview' \
     --bind 'alt-p:toggle-preview' \
+    --multi --bind 'ctrl-a:toggle-all' \
     --no-info \
     --height=50% \
     --reverse \
     --prompt="❯ " <"$pipe")
   local ret=$?
 
-  # Cleanup will handle killing the background process
   if [[ $ret -eq 0 && -n "$dir" ]]; then
     printf '%s\n' "$dir"
   fi

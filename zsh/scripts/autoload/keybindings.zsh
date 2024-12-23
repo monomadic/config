@@ -39,7 +39,7 @@ if [[ -o interactive ]]; then
     tput cuu1
 
     # Use command substitution to capture fzf-cd's output
-    selected_dir=$(ls_all 2>/dev/null | source fzf-cd) || return $?
+    selected_dir=$(ls_all 2>/dev/null | awk '{ plain=$0; gsub(/\033\[[0-9;]*[mK]/, "", plain); if (!seen[plain]++) print $0 }' | source fzf-cd) || return $?
     echo $selected_dir
 
     if [[ -n "$selected_dir" && -d "${selected_dir}" ]]; then
