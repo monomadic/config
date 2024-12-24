@@ -22,32 +22,52 @@ check_command() {
 
 # Check dependencies
 check_command "yt-dlp"
-check_command "ffmpeg"
 check_command "terminal-notifier"
 
 # Function to print usage
 print_usage() {
   cat <<EOF
-Usage: $(basename "$0") <command> <URL>
+Usage: $(basename "$0") [--best-quality] <command> <URL> [additional yt-dlp args]
 Commands:
   music-video (m) <URL> - Download music video
   audio-only (a) <URL>  - Download audio only
   video-only (v) <URL>  - Download video without audio
+  porn (p) <URL>        - Download adult content
   youtube (y) <URL>     - Download YouTube video
+Options:
+  --best-quality        Download using the best quality format options
+Additional commands like --list-formats are passed directly to yt-dlp.
 EOF
 }
 
 # Exit if arguments are missing
-[ $# -ne 2 ] && print_usage && exit 1
+[ $# -lt 2 ] && print_usage && exit 1
+
+# Parse options for best-quality preference
+BEST_QUALITY=false
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --best-quality)
+      BEST_QUALITY=true
+      shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
 
 COMMAND="$1"
 URL="$2"
+shift 2
+ADDITIONAL_ARGS=("$@") # Capture all additional arguments
 
 # Map command shortcuts
 case "$COMMAND" in
   m) COMMAND="music-video" ;;
   a) COMMAND="audio-only" ;;
   v) COMMAND="video-only" ;;
+  p) COMMAND="porn" ;;
   y) COMMAND="youtube" ;;
 esac
 
@@ -55,62 +75,40 @@ esac
 YT_DLP_BASE=(yt-dlp --cookies-from-browser brave --continue --progress --verbose \
   --retries infinite --fragment-retries infinite --socket-timeout 15)
 
-# Initialize variables for different commands
-case "$COMMAND" in
-  "music-video"|"youtube")
-    OUTPUT_TEMPLATE="%(title)s.%(ext)s"
-    FORMAT_ARGS=(-f "bestvideo+bestaudio/best" --embed-metadata --embed-subs --embed-chapters)
-    ;;
-  "audio-only")
-    OUTPUT_TEMPLATE="%(title)s.%(ext)s"
-    FORMAT_ARGS=(-f "bestaudio" --extract-audio --audio-format m4a --embed-metadata)
-    ;;
-  "video-only")
-    OUTPUT_TEMPLATE="%(title)s.%(ext)s"
-    FORMAT_ARGS=(-f "bestvideo" --embed-metadata)
-    ;;
-  *)
-    error_exit "Unknown command '$COMMAND'"
-    ;;
-esac
-
-# Combine yt-dlp command
-YT_DLP_CMD=("${YT_DLP_BASE[@]}" "${FORMAT_ARGS[@]}" --output "$OUTPUT_TEMPLATE")
-
-# Check available formats
-printf "${YELLOW}Checking available formats...${NC}\n"
-FORMATS=$(yt-dlp -F "$URL")
-
-# Determine if a WebM is better than MP4
-WEBM_FORMAT=$(echo "$FORMATS" | rg -o '^[0-9]+.*webm.*[0-9]{4,}' | head -n 1 | awk '{print $1}')
-MP4_FORMAT=$(echo "$FORMATS" | rg -o '^[0-9]+.*mp4.*[0-9]{4,}' | head -n 1 | awk '{print $1}')
-
-if [ -n "$WEBM_FORMAT" ] && [ -n "$MP4_FORMAT" ]; then
-  WEBM_RES=$(echo "$FORMATS" | rg "^$WEBM_FORMAT" | awk '{print $3}')
-  MP4_RES=$(echo "$FORMATS" | rg "^$MP4_FORMAT" | awk '{print $3}')
-
-  if [ "$WEBM_RES" -gt "$MP4_RES" ]; then
-    printf "${YELLOW}Higher-quality WebM detected. Downloading WebM and converting to MP4...${NC}\n"
-    yt-dlp -f "$WEBM_FORMAT+bestaudio" --output "$OUTPUT_TEMPLATE" "$URL"
-    WEBM_FILE=$(ls | rg '\.webm$' | head -n 1)
-    [ -n "$WEBM_FILE" ] || error_exit "WebM download failed."
-
-    MP4_FILE="${WEBM_FILE%.webm}.mp4"
-    ffmpeg -i "$WEBM_FILE" -c:v libx264 -c:a aac "$MP4_FILE"
-
-    printf "${GREEN}Conversion complete. MP4 saved as: ${MP4_FILE}${NC}\n"
-  else
-    printf "${YELLOW}MP4 is the highest quality available. Downloading MP4...${NC}\n"
-    yt-dlp -f "$MP4_FORMAT+bestaudio" --output "$OUTPUT_TEMPLATE" "$URL"
-  fi
+# Add format options only if --best-quality is provided
+if [ "$BEST_QUALITY" = true ]; then
+  case "$COMMAND" in
+    "porn")
+      FORMAT_ARGS=(-f "bv*+ba/best" --merge-output-format mp4 --embed-metadata --embed-info-json \
+        --match-filter "duration > 60" --embed-subs --embed-chapters)
+      ;;
+    "music-video")
+      FORMAT_ARGS=(-f "bestvideo+bestaudio" --merge-output-format mp4 --embed-metadata \
+        --embed-subs --embed-chapters)
+      ;;
+    "audio-only")
+      FORMAT_ARGS=(-f "bestaudio" --extract-audio --audio-format m4a --embed-metadata)
+      ;;
+    "video-only")
+      FORMAT_ARGS=(-f "bestvideo" --merge-output-format mp4 --embed-metadata)
+      ;;
+    "youtube")
+      FORMAT_ARGS=(-f "bv*+ba/best" --merge-output-format mp4 --embed-metadata --embed-subs \
+        --embed-chapters)
+      ;;
+    *)
+      FORMAT_ARGS=()
+      ;;
+  esac
 else
-  printf "${YELLOW}Defaulting to best available format...${NC}\n"
-  "${YT_DLP_CMD[@]}" "$URL"
+  FORMAT_ARGS=()
 fi
 
-# Notify user
-terminal-notifier -message "Download completed successfully." \
-  -title "yt-dlp Download" \
-  -execute "open ."
+# Combine yt-dlp command
+YT_DLP_CMD=("${YT_DLP_BASE[@]}" "${FORMAT_ARGS[@]}" "${ADDITIONAL_ARGS[@]}" "$URL")
 
-printf "${GREEN}Download process completed.${NC}\n"
+# Print command for debugging
+printf "${GREEN}Executing command: %s${NC}\n" "${YT_DLP_CMD[*]@Q}"
+
+# Execute yt-dlp
+"${YT_DLP_CMD[@]}"
