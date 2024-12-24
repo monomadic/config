@@ -27,7 +27,7 @@ check_command "terminal-notifier"
 # Function to print usage
 print_usage() {
   cat <<EOF
-Usage: $(basename "$0") [--best-quality] <command> <URL> [additional yt-dlp args]
+Usage: $(basename "$0") [--mp4 | --webm] <command> <URL> [additional yt-dlp args]
 Commands:
   music-video (m) <URL> - Download music video
   audio-only (a) <URL>  - Download audio only
@@ -35,7 +35,8 @@ Commands:
   porn (p) <URL>        - Download adult content
   youtube (y) <URL>     - Download YouTube video
 Options:
-  --best-quality        Download using the best quality format options
+  --mp4                 Prefer MP4 format
+  --webm                Prefer WEBM format
 Additional commands like --list-formats are passed directly to yt-dlp.
 EOF
 }
@@ -43,12 +44,16 @@ EOF
 # Exit if arguments are missing
 [ $# -lt 2 ] && print_usage && exit 1
 
-# Parse options for best-quality preference
-BEST_QUALITY=false
+# Parse options for format preference
+FORMAT_PREF=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --best-quality)
-      BEST_QUALITY=true
+    --mp4)
+      FORMAT_PREF="[ext=mp4]"
+      shift
+      ;;
+    --webm)
+      FORMAT_PREF="[ext=webm]"
       shift
       ;;
     *)
@@ -61,6 +66,12 @@ COMMAND="$1"
 URL="$2"
 shift 2
 ADDITIONAL_ARGS=("$@") # Capture all additional arguments
+
+# Detect if the command is a passthrough (e.g., --list-formats)
+PASSTHROUGH_COMMAND=false
+if printf '%s\n' "${ADDITIONAL_ARGS[@]}" | grep -qE '^--(list-formats|print|dump-json)$'; then
+  PASSTHROUGH_COMMAND=true
+fi
 
 # Map command shortcuts
 case "$COMMAND" in
@@ -75,37 +86,46 @@ esac
 YT_DLP_BASE=(yt-dlp --cookies-from-browser brave --continue --progress --verbose \
   --retries infinite --fragment-retries infinite --socket-timeout 15)
 
-# Add format options only if --best-quality is provided
-if [ "$BEST_QUALITY" = true ]; then
+if [ "$PASSTHROUGH_COMMAND" = true ]; then
+  # Pass through additional arguments directly for commands like --list-formats
+  YT_DLP_CMD=("${YT_DLP_BASE[@]}" "${ADDITIONAL_ARGS[@]}" "$URL")
+else
+  # Initialize variables for different commands
   case "$COMMAND" in
     "porn")
-      FORMAT_ARGS=(-f "bv*+ba/best" --merge-output-format mp4 --embed-metadata --embed-info-json \
-        --match-filter "duration > 60" --embed-subs --embed-chapters)
+      OUTPUT_TEMPLATE="[%(uploader|Unknown)s] %(title)s [%(extractor)s].%(ext)s"
+      FORMAT_ARGS=(-f "bv*$FORMAT_PREF+ba/best" \
+        --merge-output-format mp4 \
+				--embed-metadata --embed-info-json \
+        --match-filter "duration > 60")
       ;;
     "music-video")
-      FORMAT_ARGS=(-f "bestvideo+bestaudio" --merge-output-format mp4 --embed-metadata \
-        --embed-subs --embed-chapters)
+      OUTPUT_TEMPLATE="%(artist|)s - %(title)s.%(ext)s"
+      FORMAT_ARGS=(-f "bestvideo$FORMAT_PREF[ext^=avc1]+bestaudio$FORMAT_PREF" \
+        --merge-output-format mp4 --embed-metadata --embed-subs --embed-chapters)
       ;;
     "audio-only")
-      FORMAT_ARGS=(-f "bestaudio" --extract-audio --audio-format m4a --embed-metadata)
+      OUTPUT_TEMPLATE="%(artist)s - %(title)s.%(ext)s"
+      FORMAT_ARGS=(-f "bestaudio$FORMAT_PREF" --extract-audio --audio-format m4a \
+        --embed-metadata)
       ;;
     "video-only")
-      FORMAT_ARGS=(-f "bestvideo" --merge-output-format mp4 --embed-metadata)
+      OUTPUT_TEMPLATE="%(artist)s - %(title)s.%(ext)s"
+      FORMAT_ARGS=(-f "bestvideo$FORMAT_PREF" --merge-output-format mp4 --embed-metadata)
       ;;
     "youtube")
-      FORMAT_ARGS=(-f "bv*+ba/best" --merge-output-format mp4 --embed-metadata --embed-subs \
-        --embed-chapters)
+      OUTPUT_TEMPLATE="[%(channel)s] %(title)s [YouTube][%(id)s].%(ext)s"
+      FORMAT_ARGS=(-f "bv*$FORMAT_PREF+ba/best" \
+        --merge-output-format mp4 --embed-metadata --embed-subs --embed-chapters)
       ;;
     *)
-      FORMAT_ARGS=()
+      error_exit "Unknown command '$COMMAND'"
       ;;
   esac
-else
-  FORMAT_ARGS=()
-fi
 
-# Combine yt-dlp command
-YT_DLP_CMD=("${YT_DLP_BASE[@]}" "${FORMAT_ARGS[@]}" "${ADDITIONAL_ARGS[@]}" "$URL")
+  # Combine yt-dlp command
+  YT_DLP_CMD=("${YT_DLP_BASE[@]}" "${FORMAT_ARGS[@]}" --output "$OUTPUT_TEMPLATE" "${ADDITIONAL_ARGS[@]}" "$URL")
+fi
 
 # Print command for debugging
 printf "${GREEN}Executing command: %s${NC}\n" "${YT_DLP_CMD[*]@Q}"
