@@ -32,11 +32,15 @@ prompt_restore() {
 }
 
 magic-enter() {
-  echo "magic-enter"
   if [[ -z $BUFFER ]]; then
-    print ${halfpage_down}${halfpage_up}$terminfo[cuu1]
+    local halfpage_up=$(echoti cuu $((LINES / 2)))
+    local halfpage_down=$(echoti cud $((LINES / 2)))
+    local cursor_up=$terminfo[cuu1]
+    print ${halfpage_down}${halfpage_up}${cursor_up}
     zle reset-prompt
   else
     zle accept-line
   fi
 }
+zle -N magic-enter
+bindkey "^M" magic-enter
