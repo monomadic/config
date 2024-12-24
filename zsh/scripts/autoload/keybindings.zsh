@@ -35,20 +35,30 @@ if [[ -o interactive ]]; then
   _fzf-cd() {
     local selected_dir
 
-    # move cursor up one line
-    tput cuu1
+    # Save cursor position without clearing the line
+    tput sc
 
     # Use command substitution to capture fzf-cd's output
-    #selected_dir=$(ls_all 2>/dev/null | awk '{ plain=$0; gsub(/\033\[[0-9;]*[mK]/, "", plain); if (!seen[plain]++) print $0 }' | source fzf-cd) || return $?
-    selected_dir=$(ls_all 2>/dev/null | source fzf-cd) || return $?
-    echo $selected_dir
+    selected_dir=$(ls_all 2>/dev/null | source fzf-cd)
+    local fzf_exit_status=$?
 
-    if [[ -n "$selected_dir" && -d "${selected_dir}" ]]; then
-      cd "${selected_dir}" || return 1
+    # Restore cursor position
+    tput rc
+    tput el # Clear to the end of the line to prevent leftover artifacts
+
+    if ((fzf_exit_status != 0)); then
+      zle reset-prompt
+      return $fzf_exit_status
+    fi
+
+    # If a directory was selected, change to it
+    if [[ -n "$selected_dir" && -d "$selected_dir" ]]; then
+      cd "$selected_dir" || return 1
       zle reset-prompt
       return 0
     fi
 
+    # Reset prompt if no directory was selected
     zle reset-prompt
     return 1
   }
