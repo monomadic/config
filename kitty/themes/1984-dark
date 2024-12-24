@@ -30,7 +30,7 @@ cursor #59e1e3
 
 # Tab Bar
 active_tab_foreground   #0FF
-active_tab_background   #000
+active_tab_background   -1
 active_tab_font_style   bold
 inactive_tab_foreground #AAA
 inactive_tab_background #000
