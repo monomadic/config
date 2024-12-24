@@ -3,7 +3,7 @@
 # Initialize default settings
 PREVIEW_MODE="ascii"
 PREVIEW_WINDOW="right:50%:hidden:border"
-FZF_DEFAULT_OPTS="--prompt '   ' --border --reverse --ansi --no-sort --delimiter=/ --preview-window=down:1"
+FZF_DEFAULT_OPTS="--prompt '   ' --border --reverse --ansi --no-sort --delimiter=/ --preview-window=down:1"
 
 # Color Scheme
 FZF_COLOR_OPTS=""
@@ -73,27 +73,14 @@ else
   '
 fi
 
-# Read input from stdin
-input=$(cat)
-
-# Process input to highlight #tags and [Categories]
-# \033[38;2;0;0;255;48;2;50;50;50m
-# \033[38;2;255;226;46m
-# \033[38;2;0;0;255m
-processed_input=$(printf '%s' "$input" | awk '{
-    gsub(/\[[^]]+\]/, "\033[38;2;255;168;253m&\033[0m")
-    gsub(/\#[a-zA-Z0-9-]+/, "\033[38;2;180;180;230m&\033[0m")
-    print
-}')
-
-# Main fzf command with updated bindings and color options
-# unicode:       ⌘ ⇧ ⇧ ⌥ ⇪ ⌃ ↵
-# nerdfonts:     󰘶 󰘵 󰘲 󰘳 󰘴 󰌑
-echo "$processed_input" | fzf \
+# Main fzf command
+exec fzf \
+  --read0 \
   --multi \
   --exact \
   --ignore-case \
-  --margin 2% --padding 3%,1% \
+  --margin 2% \
+  --padding 3%,1% \
   --no-sort \
   --info=inline \
   --cycle \
@@ -101,7 +88,7 @@ echo "$processed_input" | fzf \
   --marker='✓' \
   --query "$*" \
   --ansi \
-  --color $FZF_COLOR_OPTS \
+  --color=$FZF_COLOR_OPTS \
   --preview "$PREVIEW_CMD" \
   --preview-window="$PREVIEW_WINDOW" \
   --bind 'enter:select-all+execute-silent(mpv-play {+} &)+deselect-all' \
@@ -127,5 +114,4 @@ echo "$processed_input" | fzf \
   --bind 'alt-R:execute-silent(shuf -o /dev/stdout)' \
   --bind 'alt-S:execute-silent(sort -o /dev/stdout)' \
   --bind 'alt-D:execute-silent(ls -t {} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \
-  \
   --header '󰌑 play all · 󰘵 o play selected · 󰘵 󰌑 loop-mode (10 sec) · 󰘵 r reveal in finder · 󰘵 t reveal in kitty · 󰘵 p toggle preview · 󰘵 i iina · 󰘵 e elmedia · 󰘵 A airflow · 󰘵 a select-all · 󰘵 d deselect-all · 󰘵 l lf · 󰘵 s stdout · 󰘵 p playlist'

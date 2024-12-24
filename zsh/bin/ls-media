@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 
 usage() {
-  echo "Usage: $0 [--match-string STRING]... [--match-regex REGEX]... [--sort-modified | --sort-created] [--reverse] [--verbose]" >&2
+  echo "Usage: ${0:t} [--match-string STRING]... [--match-regex REGEX]... [--sort-modified | --sort-created] [--reverse] [--verbose]" >&2
 }
 
 verbose=false
@@ -53,12 +53,9 @@ done
 process_files() {
   local dir="$1"
   cd "$dir" || { log_verbose "Cannot access $dir"; return 1; }
-
   local fd_video_cmd=(fd-video -t f --full-path --ignore-case -0)
   log_verbose "Executing: ${fd_video_cmd[*]}"
 
-  # Collect files into an array
-  local files=()
   while IFS= read -r -d $'\0' file; do
     # Filter by match_strings and match_regexes in one loop
     local match=true
@@ -70,50 +67,45 @@ process_files() {
         [[ ! "${file:l}" =~ "${regex:l}" ]] && match=false && break
       done
     fi
-    $match && files+=("$file")
-  done < <("${fd_video_cmd[@]}")
-
-  # Process file times if sorting
-  for file in "${files[@]}"; do
-    local full_path="$PWD/$file"
-    if $sort_modified; then
-      eza --no-filesize --no-permissions --time-style=long-iso --long "$full_path" | \
-      awk '{print $6 " " $7, full_path}' full_path="$full_path"
-    elif $sort_created; then
-      eza --no-filesize --no-permissions --time-style=long-iso --sort=created --long "$full_path" | \
-      awk '{print $6 " " $7, full_path}' full_path="$full_path"
-    else
-      echo "$full_path"
+    if $match; then
+      local full_path="$PWD/$file"
+      if $sort_modified; then
+        ts=$(eza --no-filesize --no-permissions --time-style=long-iso --long "$full_path" | awk '{print $6, $7}')
+        printf "%s\t%s\0" "$ts" "$full_path"
+      elif $sort_created; then
+        ts=$(eza --no-filesize --no-permissions --time-style=long-iso --sort=created --long "$full_path" | awk '{print $6, $7}')
+        printf "%s\t%s\0" "$ts" "$full_path"
+      else
+        printf "%s\0" "$full_path"
+      fi
     fi
-  done
+  done < <("${fd_video_cmd[@]}")
 }
 
 # Get directories
 directories=("${(@f)$(ls-media-paths)}")
 (( ${#directories[@]} == 0 )) && echo "No directories found" >&2 && exit 1
 
-# Temporary array to store results for in-memory sorting
-results=()
-for dir in "${directories[@]}"; do
-  [[ -d "$dir" && -r "$dir" ]] && results+=("$(process_files "$dir")")
-done
-
-# Sort in-memory
-if $sort_modified || $sort_created; then
-  sorted_results=$(printf "%s\n" "${results[@]}" | sort -n)
+# Process output based on sorting needs
+if ! $sort_modified && ! $sort_created; then
+  for dir in "${directories[@]}"; do
+    [[ -d "$dir" && -r "$dir" ]] && process_files "$dir"
+  done
 else
-  sorted_results="${results[@]}"
-fi
+  # For sorted output
+  results=()
+  for dir in "${directories[@]}"; do
+    [[ -d "$dir" && -r "$dir" ]] && while IFS= read -r -d $'\0' line; do
+      results+=("$line")
+    done < <(process_files "$dir")
+  done
 
-# Reverse if needed
-if $reverse; then
-  if (( $+commands[tac] )); then
-    echo "$sorted_results" | tac
+  # Sort and output
+  if $reverse; then
+    printf '%s\0' "${(On)results[@]}"
   else
-    echo "$sorted_results" | tail -r
+    printf '%s\0' "${results[@]}"
   fi
-else
-  echo "$sorted_results"
 fi
 
 log_verbose "Script execution completed"

@@ -1,4 +1,6 @@
 #!/bin/zsh
+# Simpler version of media tool that does not stream input from disk. Slower but more reliable.
+#
 # Function to print usage information
 print_usage() {
   echo "Usage: media <command> [video-type] [args]"
@@ -120,23 +122,22 @@ final_command="$base_command ${additional_args[@]}"
 case $command in
 play)
   if [[ "$video_type" == "loops" ]]; then
-    final_command+=" | mpv-play --loop-mode 5"
+    final_command+=" | tr '\0' '\n' | mpv-play --loop-mode 5" # Convert nulls to newlines for mpv
   else
-    final_command+=" | mpv-play"
+    final_command+=" | tr '\0' '\n' | mpv-play" # Convert nulls to newlines for mpv
   fi
   if $shuffle_enabled; then
     final_command+=" --shuffle"
   fi
   if $start_random; then
-    final_command+=" --start-random" # This is the mpv argument
+    final_command+=" --start-random"
   fi
   ;;
 search)
-  final_command+=" | fzf-play"
+  final_command+=" | fzf-play" # No change needed if fzf-play already handles --read0
   ;;
 list)
-  # Just list the files without any further command
-  final_command+=" | cat"
+  final_command+=" | tr '\0' '\n'" # Convert nulls to newlines for normal output
   ;;
 esac
 

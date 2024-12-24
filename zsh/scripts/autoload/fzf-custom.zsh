@@ -26,12 +26,8 @@ mark() {
 }
 
 ls_marks() {
-  local BLUE NC
-  BLUE=$'\033[34m'
-  NC=$'\033[0m' # No color
-
   while IFS= read -r dir; do
-    [[ -d "$dir" ]] && printf "${BLUE}%s${NC}\n" "$dir"
+    [[ -d "$dir" ]] && printf "%s\n" "$dir"
   done <"$MARKS_FILE"
 }
 
@@ -46,11 +42,11 @@ ls_all() {
 }
 
 ls_volumes() {
-  fd -t d . /Volumes -d 1
+  fd --color=never -t d . /Volumes -d 1
 }
 
 ls_workspaces() {
-  dir_exists "$WORKSPACES_DIR" && fd . "$WORKSPACES_DIR" --extension workspace --follow
+  dir_exists "$WORKSPACES_DIR" && fd . "$WORKSPACES_DIR" --color=never --extension workspace --follow
 }
 
 ls_src() {
@@ -62,12 +58,12 @@ ls_projects() {
 }
 
 ls_recursive() {
-  fd --type d --strip-cwd-prefix --max-depth 5 --exclude node_modules --exclude .git --exclude target
+  fd --type d --color=never --strip-cwd-prefix --max-depth 5 --exclude node_modules --exclude .git --exclude target
 }
 
 fd_depth_2() {
-  fd --type d --strip-cwd-prefix --max-depth 1
-  fd --type d --strip-cwd-prefix --exact-depth 2
+  fd --type d --color=never --strip-cwd-prefix --max-depth 1
+  fd --type d --color=never --strip-cwd-prefix --exact-depth 2
 }
 
 ls_hidden() {
