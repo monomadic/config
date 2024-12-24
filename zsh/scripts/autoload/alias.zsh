@@ -42,8 +42,8 @@ alias .kitty-reload="kitty @ set-colors --all ~/.config/kitty/kitty.conf"
 alias .kitty-configure="cfg-kitty"
 
 alias .demux="ffmpeg-demux"
-alias .demux-audio="ffmpeg-demux --audio-only"
-alias .demux-video="ffmpeg-demux --video-only"
+alias .demux-audio="ffmpeg-demux --skip-video"
+alias .demux-video="ffmpeg-demux --skip-audio"
 
 alias .url="download-video-url"
 
