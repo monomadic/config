@@ -7,27 +7,28 @@ if [[ -o interactive ]]; then
 
   # Define functions first
   _yazi-jump() {
-    local tmp="$(mktemp -t "yazi-cwd.XXXXX")"
-
-    yazi "$@" --cwd-file="$tmp"
-
-    if cwd="$(cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
-      cd -- "$cwd"
-      zle reset-prompt
+    local tmp cwd
+    if ! tmp="$(mktemp -t "yazi-cwd.XXXXX")"; then
+      return 1
     fi
 
+    yazi "$@" --cwd-file="$tmp"
+    if cwd="$(cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
+      cd -- "$cwd"
+    fi
     rm -f -- "$tmp"
+    zle reset-prompt
   }
 
   _fzf-jump() {
     source fzf-jump && zle reset-prompt
   }
 
-  fzf_ripgrep() { # removed invalid asterisks
+  _fzf_ripgrep() {
     fzf_ripgrep
   }
 
-  clear-reset() {
+  _clear-reset() {
     clear
     zle reset-prompt
   }
@@ -73,7 +74,7 @@ if [[ -o interactive ]]; then
     return $ret
   }
 
-  cd-up() {
+  _cd-up() {
     cd ..
     zle reset-prompt
   }
@@ -82,19 +83,19 @@ if [[ -o interactive ]]; then
   zle -N _yazi-jump
   zle -N _fzf-find-files
   zle -N _fzf-jump
-  zle -N fzf_ripgrep
-  zle -N clear-reset
-  zle -N magic-enter
+  zle -N _fzf_ripgrep
+  zle -N _clear-reset
+  zle -N _magic-enter
   zle -N _fzf-cd
-  zle -N cd-up
+  zle -N _cd-up
 
   # Bind keys to functions
   # Ctrl-Space: yazi jump
   bindkey '^@' _yazi-jump
   bindkey '^f' _fzf-find-files
-  bindkey '^s' fzf_ripgrep
-  bindkey '^k' clear-reset
-  bindkey '^l' magic-enter
+  bindkey '^s' _fzf_ripgrep
+  bindkey '^k' _clear-reset
+  bindkey '^l' _magic-enter
   bindkey '^o' _fzf-cd
   #bindkey '^u' cd-up
   # bindkey 'f20' _fzf-jump # Alt+J

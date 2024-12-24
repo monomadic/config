@@ -2,12 +2,12 @@
 
 zparseopts -D -E -- -skip-audio=skip_audio -skip-video=skip_video -extract-video-raw=unpack_container -overwrite=overwrite
 
-if [[ $# -lt 1 || (-n "$skip_audio" && -n "$skip_video") ]]; then
+if [[ $# -ne 1 || (-n "$audio_only" && -n "$video_only") ]]; then
  print -P "%F{red}Usage:%f $(basename $0) [--skip-audio | --skip-video] [--extract-video-raw] [--overwrite] <input_file> [input_file2 ...]"
  print "Options:"
- print "  --skip-audio              Skip audio stream extraction"
- print "  --skip-video              Skip video stream extraction"
- print "  --extract-video-raw				Extract raw video stream without container"
+ print "  --audio-only      Extract only audio stream"
+ print "  --video-only      Extract only video stream"
+ print "  --raw						 Extract video without container (raw codec)"
  print "  --overwrite               Overwrite input file if output has same extension"
  exit 1
 fi

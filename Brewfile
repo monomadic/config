@@ -67,6 +67,8 @@ brew "fdupes" # another rust dupe finder
 brew "czkawka" # gui dupe finder
 brew "starship" # cli prompt in rust
 
+brew "mpv", tap: "homebrew/cask/stolendata-mpv"
+
 # brew "battop", tap: "indigoviolet/tap" # battery info
 # brew "battop", url: "https://raw.githubusercontent.com/indigoviolet/homebrew-tap/main/Formula/battop.rb"
 # tap "indigoviolet/tap"
