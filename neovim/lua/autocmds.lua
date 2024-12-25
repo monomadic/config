@@ -24,8 +24,8 @@ autocmd("TermEnter",
 	{
 		pattern = "*",
 		callback = function()
-			vim.wo.relativenumber = false -- turn off line numbers
-			vim.wo.number = false
+			-- vim.wo.relativenumber = false -- turn off line numbers
+			-- vim.wo.number = false
 		end
 	})
 

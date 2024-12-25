@@ -203,8 +203,8 @@ M.create_floating_window = function()
 	})
 	vim.api.nvim_win_set_option(win, "winblend", 20)
 
-	vim.wo.relativenumber = false -- turn off line numbers
-	vim.wo.number = false
+	-- vim.wo.relativenumber = false -- turn off line numbers
+	-- vim.wo.number = false
 
 	return buf
 end

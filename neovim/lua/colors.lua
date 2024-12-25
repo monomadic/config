@@ -31,7 +31,7 @@ autocmd({ "ColorScheme", "VimEnter" },
 		callback = function()
 			local document_grey = "#1E1D3D";
 			local light_grey = "#323246";
-			local TITLEBAR_BG = "#1E1D3D"
+			local TITLEBAR_BG = "#111111"
 
 			-- local TAB_BG = "#323246"
 			-- local title_bar = { bg = dark_grey };

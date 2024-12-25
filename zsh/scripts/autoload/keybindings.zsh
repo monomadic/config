@@ -12,7 +12,8 @@ if [[ -o interactive ]]; then
       return 1
     fi
 
-    yazi "$@" --cwd-file="$tmp"
+    zle reset-prompt
+    yazi "$PWD" --cwd-file="$tmp"
     if cwd="$(cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
       cd -- "$cwd"
     fi
@@ -91,7 +92,7 @@ if [[ -o interactive ]]; then
 
   # Bind keys to functions
   # Ctrl-Space: yazi jump
-  bindkey '^@' _yazi-jump
+  bindkey '^ ' _yazi-jump
   bindkey '^f' _fzf-find-files
   bindkey '^s' _fzf_ripgrep
   bindkey '^k' _clear-reset
