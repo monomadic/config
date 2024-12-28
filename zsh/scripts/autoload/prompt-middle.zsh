@@ -31,16 +31,34 @@ prompt_restore() {
   PS1="$PS1o"
 }
 
-magic-enter() {
+# _magic-enter-erase() {
+#   if [[ -z $BUFFER ]]; then
+#     # Calculate half the terminal height for scroll effect
+#     local halfpage_up=$(echoti cuu $((LINES / 2)))
+#     local halfpage_down=$(echoti cud $((LINES / 2)))
+#     # Get sequence for moving cursor up one line
+#     local cursor_up=$terminfo[cuu1]
+#     # Print scroll effect without newline (-n flag)
+#     print -n ${halfpage_down}${halfpage_up}${cursor_up}
+#     zle reset-prompt
+#   else
+#     # If buffer contains text, act like a normal Enter key
+#     zle accept-line
+#   fi
+# }
+
+_magic-enter() {
   if [[ -z $BUFFER ]]; then
-    local halfpage_up=$(echoti cuu $((LINES / 2)))
-    local halfpage_down=$(echoti cud $((LINES / 2)))
-    local cursor_up=$terminfo[cuu1]
-    print ${halfpage_down}${halfpage_up}${cursor_up}
+    # Print newlines to scroll content up
+    local halfpage=$((LINES / 2))
+    printf '\n%.0s' {1..$halfpage}
+    # Move cursor back up to the middle of the screen
+    local cursor_up=$(echoti cuu $halfpage)
+    print -n $cursor_up
     zle reset-prompt
   else
     zle accept-line
   fi
 }
-zle -N magic-enter
-bindkey "^M" magic-enter
+
+zle -N _magic-enter

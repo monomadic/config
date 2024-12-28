@@ -1,0 +1,113 @@
+#!/bin/zsh
+local COMPRESSOR_SETTINGS_DIR="$DOTFILES_DIR/compressor"
+local COMPRESSOR_APP="/Applications/Compressor.app"
+
+# Check if Compressor.app exists
+if [[ ! -d "/Applications/Compressor.app" ]]; then
+  echo "Error: Compressor.app not found in /Applications"
+  exit 1
+fi
+
+# Function to print usage instructions
+print_usage() {
+  echo "Usage: ${0:t} [-s settings_path] [-p preset] input_file [suffix]"
+  echo
+  echo "Options:"
+  echo "  -s path     Path to custom Compressor settings file (.cmprstng)"
+  echo "  -p preset   Use built-in preset (h264, prores, hevc)"
+  echo "  suffix      Optional suffix for output filename (default: '_compressed')"
+  echo
+  echo "Example:"
+  echo "  ${0:t} -p h264 video.mov _web"
+  echo "  ${0:t} -s ~/settings.cmprstng video.mov _final"
+  exit 1
+}
+
+# Default values
+suffix="_compressed"
+settings_path=""
+preset="hevc" # Default to HEVC preset
+
+# Parse options
+while getopts ":s:p:h" opt; do
+  case $opt in
+  s) settings_path="$OPTARG" ;;
+  p) preset="$OPTARG" ;;
+  h) print_usage ;;
+  \?)
+    echo "Invalid option: -$OPTARG" >&2
+    print_usage
+    ;;
+  :)
+    echo "Option -$OPTARG requires an argument." >&2
+    print_usage
+    ;;
+  esac
+done
+
+# Shift past the options
+shift $((OPTIND - 1))
+
+# Check if input file is provided
+if [[ $# -lt 1 ]]; then
+  echo "Error: Input file required"
+  print_usage
+fi
+
+# Get input file and optional suffix
+input_file="$1"
+if [[ $# -eq 2 ]]; then
+  suffix="$2"
+fi
+
+# Validate input file exists
+if [[ ! -f "$input_file" ]]; then
+  echo "Error: Input file '${input_file}' not found"
+  exit 1
+fi
+
+# Get the directory, filename, and extension
+input_dir="${(q)$(dirname "$input_file")}"
+filename="${(q)$(basename "$input_file")}"
+extension="${filename##*.}"
+basename="${${filename%.*}%\"}"  # Remove any trailing quote
+
+# Create output path
+output_file="${input_dir}/${basename}${suffix}.${extension}"
+
+# Set up settings path based on preset or custom settings
+if [[ -n "$preset" ]]; then
+  case "$preset" in
+  h264)
+    settings_path="$COMPRESSOR_SETTINGS_DIR/Apple Devices HD (Custom).cmprstng"
+    ;;
+  prores)
+    settings_path="$COMPRESSOR_SETTINGS_DIR/Apple ProRes 422.cmprstng"
+    ;;
+  hevc)
+    settings_path="$COMPRESSOR_SETTINGS_DIR/HEVC (High Quality).compressorsetting"
+    ;;
+  *)
+    echo "Error: Unknown preset '$preset'"
+    exit 1
+    ;;
+  esac
+# If no settings or preset specified, preset will be "hevc" by default
+fi
+
+# Validate settings file exists
+if [[ ! -f "$settings_path" ]]; then
+  echo "Error: Settings file '${settings_path}' not found"
+  exit 1
+fi
+
+# Run compressor with properly quoted paths
+echo "Compressing '${input_file}' to '${output_file}'..."
+"$COMPRESSOR_APP/Contents/MacOS/compressor" \
+  -batchname "${basename}${suffix}" \
+  -jobpath "$input_file" \
+  -settingpath "$settings_path" \
+  -locationpath "$input_dir" \
+  -batch
+
+echo "Compression job started. Check Compressor.app for progress."

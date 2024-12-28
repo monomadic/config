@@ -86,7 +86,6 @@ if [[ -o interactive ]]; then
   zle -N _fzf-jump
   zle -N _fzf_ripgrep
   zle -N _clear-reset
-  zle -N _magic-enter
   zle -N _fzf-cd
   zle -N _cd-up
 
@@ -96,7 +95,7 @@ if [[ -o interactive ]]; then
   bindkey '^f' _fzf-find-files
   bindkey '^s' _fzf_ripgrep
   bindkey '^k' _clear-reset
-  bindkey '^l' _magic-enter
+  bindkey '^M' _magic-enter
   bindkey '^o' _fzf-cd
   #bindkey '^u' cd-up
   # bindkey 'f20' _fzf-jump # Alt+J

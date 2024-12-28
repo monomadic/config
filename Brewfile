@@ -27,6 +27,10 @@ brew "grep"
 # manage app store
 brew "mas"
 
+# brew "clamxav" # antivirus
+# brew "lynis" # antivirus
+brew "powermetrics" # benchmarking, profiling
+
 # git
 brew "git"
 brew "gh" # github cli tool
@@ -149,6 +153,9 @@ cask "topnotch" # makes the menu bar entirely black
 brew "age"
 brew "ssss" # shamirs secret sharing scheme (multikey)
 
+brew "there" # display local times of friends in any time zone
+brew "menuwhere" # global drill-down menu https://manytricks.com/menuwhere/
+
 # development
 #	brew "cargo-nextest" # testing NEVER INSTALL THIS, brew should never manage uust EVERQ
 brew "cloc" # loc
@@ -212,6 +219,8 @@ brew "rnr" # rust based rename
 cask "transnomino" # gui renamer
 # brew "mmv" # go based util for renaming with vim
 brew "moreutils" # includes vidir, for renaming with vi
+
+brew "wallpaper" # manage desktop wallpaper
 
 # bitcoin wallets
 cask "bluewallet"

@@ -1,6 +1,7 @@
-export ZSH_CONFIG_DIR="$HOME/.zsh"
-export DOTFILES_DIR="$HOME/config"
-export ZSH_DOTFILES_DIR="$DOTFILES_DIR/zsh"
+export ZSH_CONFIG_DIR=$HOME/.zsh
+export CONFIG_DIR=$HOME/.config
+export DOTFILES_DIR=$HOME/config
+export ZSH_DOTFILES_DIR=$DOTFILES_DIR/zsh
 
 export EDITOR=nvim
 
@@ -20,7 +21,7 @@ export INDEX_DIR="$HOME/doc/indexes"
 export PRIVATE_PHOTOS_LIBRARY="$HOME/Media/Private/Private.photoslibrary"
 
 # XDG
-export XDG_CONFIG_HOME=$HOME/.config
+export XDG_CONFIG_HOME=$CONFIG_DIR
 
 # Homebrew
 export HOMEBREW_NO_ENV_HINTS
