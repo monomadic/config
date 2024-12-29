@@ -22,3 +22,11 @@
 -- 		hs.alert.show("Kitty tab launched successfully!")
 -- 	end
 -- end)
+
+hs.hotkey.bind({"cmd", "alt"}, "return", function()
+    -- Define the Kitty command
+    local kitty_cmd = "/Applications/kitty.app/Contents/MacOS/kitty @ new-window yazi"
+    
+    -- Execute the command in the shell
+    hs.execute(kitty_cmd)
+end)
