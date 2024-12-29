@@ -78,6 +78,8 @@ alias ls-usb-ioreg="ioreg -p IOUSB -w0"
 
 alias .tab=fzf-tablature
 
+alias .macos-keybindings="source $DOTFILES_DIR/scripts/macos-keybindings.sh"
+
 alias .rename="fd-rename-all.zsh"
 alias .config-aliases=.config-env
 alias .config-bin="cd $DOTFILES_DIR/bin && nvim ."

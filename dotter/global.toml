@@ -74,6 +74,9 @@ files = { "helix" = "~/.config/helix" }
 [starship]
 files = { "starship/starship.toml" = "~/.config/starship.toml" }
 
+[yt-dlp.files]
+"apps/yt-dlp" = "~/.config/yt-dlp/"
+
 [lf]
 [lf.files]
 "lf/lfrc.conf" = { target = "~/.config/lf/lfrc", type = "symbolic" }

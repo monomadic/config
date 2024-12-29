@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Global Keyboard Shortcuts
+echo "Configuring global keyboard shortcuts..."
+
 # Script to assign a keyboard shortcut to Finder's "Merge All Windows" option.
 
 # MODIFIERS:
@@ -41,14 +44,35 @@
 #	defaults read com.apple.finder NSUserKeyEquivalents
 #
 
-# Assign a keyboard shortcut to Finder's "Merge All Windows" option
-# ⌘$M Finder: Merge All Windows
+# Zoom action (e.g., Fill Window)
+defaults write com.apple.finder NSUserKeyEquivalents -dict-add "Select Startup Disk" "\0"
+defaults write -g NSUserKeyEquivalents -dict-add "Fill" "@$↑"
+
+# Move and Resize Shortcuts
+defaults write NSGlobalDomain NSUserKeyEquivalents '{
+    "Move & Resize -> Left" = "@$←";
+    "Move & Resize -> Right" = "@$→";
+    "Center" = "@$↓";
+    "Move & Resize -> Top & Bottom" = "~$↑";
+    "Move & Resize -> Bottom & Top" = "~$↓";
+    "Move & Resize -> Left & Right" = "~$←";
+    "Move & Resize -> Right & Left" = "~$→";
+    "Move & Resize -> Quarters" = "~$4";
+}'
+
+# Finder-Specific Shortcuts
+echo "Configuring Finder-specific keyboard shortcuts..."
+
+# Merge All Windows in Finder
+# ⌘$M to merge all Finder windows
 defaults write com.apple.finder NSUserKeyEquivalents -dict-add "Merge All Windows" '@$M'
 
-# FINDER
-#
-# CMD+Enter - open current directory in kitty (shortcut)
+# Open current directory in Kitty
+# Cmd+Enter to open the directory in Kitty
 defaults write com.apple.finder NSUserKeyEquivalents -dict-add "Open in Kitty" "@\\U21a9"
 
-# Restart Finder for the change to take effect
+# Restart Finder for changes to take effect
+echo "Restarting Finder to apply changes..."
 killall Finder
+
+echo "Keyboard shortcuts configuration complete!"

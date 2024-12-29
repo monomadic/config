@@ -25,7 +25,9 @@ handle_directory_selection() {
   # Run fzf in a subshell so we can better control its termination
   # --preview 'tree -C {} 2>/dev/null || lsd --icon always --long --depth 1 --ignore-config --group-directories-first --color always {}' \
   dir=$(
-    fzf --ansi \
+    fzf \
+      --ansi \
+      --header '󰌑 cd · 󰘳 󰌑 finder · 󰘵 n prev down · 󰘵 p prev up' \
       --bind 'alt-n:preview-page-down,alt-p:preview-page-up' \
       --bind 'ctrl-/:toggle-preview' \
       --bind 'alt-p:toggle-preview' \
@@ -34,7 +36,7 @@ handle_directory_selection() {
       --no-info \
       --height=30% \
       --exact \
-      --prompt="❯> " <"$pipe"
+      --prompt="  " <"$pipe"
   )
   local ret=$?
 

@@ -18,6 +18,7 @@ packages = [
   "nvim",
   "skhd",
   "zellij",
+	"yt-dlp",
   "zsh",
 ]
 
