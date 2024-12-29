@@ -44,9 +44,17 @@ echo "Configuring global keyboard shortcuts..."
 #	defaults read com.apple.finder NSUserKeyEquivalents
 #
 
+# Remove finder defaults
+#defaults delete com.apple.finder NSUserKeyEquivalents
+# Remove global
+#defaults delete -g NSUserKeyEquivalents
+
 # Zoom action (e.g., Fill Window)
 defaults write com.apple.finder NSUserKeyEquivalents -dict-add "Select Startup Disk" "\0"
-defaults write -g NSUserKeyEquivalents -dict-add "Fill" "@$↑"
+defaults write com.apple.finder NSUserKeyEquivalents -dict-add "Fill" "@\$↑"
+
+#defaults write -g NSUserKeyEquivalents -dict-add "Fill" "@$↑"
+defaults write -g NSUserKeyEquivalents -dict-add "Fill" "@\$↑"
 
 # Move and Resize Shortcuts
 defaults write NSGlobalDomain NSUserKeyEquivalents '{
