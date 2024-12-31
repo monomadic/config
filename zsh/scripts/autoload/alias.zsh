@@ -63,6 +63,9 @@ alias p="media play --shuffle"
 alias s="media search --hide-path"
 alias ms="media-stats"
 
+alias rn="batch-rename"
+alias ren="batch-rename"
+
 alias d=download-video
 alias dp="download-video porn "
 alias dmv="download-video music-video "

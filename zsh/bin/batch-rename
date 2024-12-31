@@ -1,0 +1,113 @@
+#!/bin/zsh
+
+# Default to nvim if $EDITOR is not set
+: ${EDITOR:=nvim}
+
+# Colors for output
+RED=$'\033[31m'
+GREEN=$'\033[32m'
+RESET=$'\033[0m'
+
+# Usage information
+function usage() {
+  echo "Usage: $0 [files...]"
+  echo "       cat files.txt | $0"
+  echo "       fd -t f | $0"
+  echo
+  echo "Allows batch renaming of files via \$EDITOR (default: $EDITOR)."
+  echo
+  echo "Features:"
+  echo " - Files with changes are shown in green."
+  echo " - Unchanged files remain in default color."
+  echo " - Conflicting renames are shown in red."
+  echo " - Prevents accidental overwrites."
+  exit 1
+}
+
+# Parse input files
+if [[ -t 0 && $# -eq 0 ]]; then
+  usage
+fi
+
+if [[ -t 0 ]]; then
+  # Input via arguments
+  files=("$@")
+else
+  # Input via stdin
+  files=($(cat))
+fi
+
+if [[ ${#files[@]} -eq 0 ]]; then
+  echo "No files to rename."
+  exit 1
+fi
+
+# Create a temporary file for editing
+tmpfile=$(mktemp)
+print -l "${files[@]}" >"$tmpfile"
+$EDITOR "$tmpfile"
+
+# Check if the file was saved
+if ! cmp -s <(print -l "${files[@]}") "$tmpfile"; then
+  edited_files=($(<"$tmpfile"))
+else
+  echo "Edit aborted, no files changed."
+  rm -f "$tmpfile"
+  exit 0
+fi
+
+# Ensure line counts match
+if [[ ${#files[@]} -ne ${#edited_files[@]} ]]; then
+  echo "${RED}Error: Line count mismatch!${RESET}"
+  rm -f "$tmpfile"
+  exit 1
+fi
+
+# Preview changes and perform renames
+conflicts=false
+echo "Preview:"
+for i in {1..${#files[@]}}; do
+  original="${files[i]}"
+  new="${edited_files[i]}"
+
+  if [[ "$original" == "$new" ]]; then
+    echo " $original"
+  elif [[ -e "$new" && "$original" != "$new" ]]; then
+    conflicts=true
+    echo "${RED}Conflict:${RESET} $original -> $new"
+  else
+    echo "${GREEN}Change:${RESET} $original -> $new"
+  fi
+done
+
+if $conflicts; then
+  echo "${RED}Conflicts detected! Resolve conflicts before proceeding.${RESET}"
+  rm -f "$tmpfile"
+  exit 1
+fi
+
+echo
+read "response?Proceed with renaming? [Y/n]: "
+response=${response:-Y}
+if [[ "${response:l}" != "y" ]]; then
+  echo "Aborted."
+  rm -f "$tmpfile"
+  exit 0
+fi
+
+# Perform renames
+for i in {1..${#files[@]}}; do
+  original="${files[i]}"
+  new="${edited_files[i]}"
+
+  if [[ "$original" != "$new" ]]; then
+    if [[ -e "$new" ]]; then
+      echo "${RED}Skipping:${RESET} $new already exists."
+      continue
+    fi
+    mv -- "$original" "$new" || echo "${RED}Error renaming:${RESET} $original -> $new"
+  fi
+done
+
+rm -f "$tmpfile"
+echo "Renaming completed."
