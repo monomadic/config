@@ -50,7 +50,8 @@ alias url="download-video-url"
 alias media-backup-src="rsync-backup SRC"
 alias media-cache="rsync-backup --dry-run $HOME/Movies/Cache \/clipped\/ "
 
-alias .tag=media-autotag
+alias tag=media-autotag
+alias .tag=tag
 
 alias remove-gatekeeper="xattr -rd com.apple.quarantine "
 alias .gatekeeper-remove=remove-gatekeeper
