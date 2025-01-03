@@ -84,4 +84,5 @@ _media() {
   esac
 }
 
-_media "$@"
+# Register the completion function
+compdef _media media

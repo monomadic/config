@@ -128,7 +128,7 @@ print
 # Source additional configuration files
 #
 # Define base directory for config files
-ZSH_AUTOLOAD_DIR="$HOME/.zsh/scripts/autoload"
+ZSH_AUTOLOAD_DIR="$HOME/.zsh/autoload"
 
 # Define the array of config files
 config_files=(
@@ -145,7 +145,6 @@ config_files=(
   "$ZSH_AUTOLOAD_DIR/fzf-templates.zsh"
   "$ZSH_AUTOLOAD_DIR/fzf.zsh"
   "$ZSH_AUTOLOAD_DIR/history.zsh"
-  "$ZSH_AUTOLOAD_DIR/imagemagick.zsh"
   "$ZSH_AUTOLOAD_DIR/media-players.zsh"
   "$ZSH_AUTOLOAD_DIR/media.zsh"
   "$ZSH_AUTOLOAD_DIR/prompt-middle.zsh"

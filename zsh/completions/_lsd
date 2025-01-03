@@ -1,10 +1,5 @@
 #compdef lsd
 
-# Save this file as _lsd in /usr/local/share/zsh/site-functions or in any
-# other folder in $fpath.  E.g. save it in a folder called ~/.zfunc and add a
-# line containing `fpath=(~/.zfunc $fpath)` somewhere before `compinit` in your
-# ~/.zshrc.
-
 __lsd() {
   _arguments -s -S \
     {-1,--oneline}"[Display one entry per line]" \

@@ -1,6 +1,6 @@
 #compdef download-video
 
-_download_video() {
+__download_video() {
   local -a commands
   commands=(
     'music-video:Download music video'
@@ -31,4 +31,4 @@ _download_video() {
   esac
 }
 
-compdef _download_video download-video
+__download_video "$@"

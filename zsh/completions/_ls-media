@@ -1,6 +1,6 @@
 #compdef ls-media
 
-_ls-media() {
+__ls-media() {
   _arguments -s \
     '--match-string[Only list files where the path contains all the given strings (case-insensitive). Can be used multiple times]:string: ' \
     '--match-regex[Only list files where the path matches all the given regex patterns (case-insensitive). Can be used multiple times]:regex: ' \
@@ -10,4 +10,4 @@ _ls-media() {
     '*:filename:_files'
 }
 
-compdef _ls-media ls-media
+__ls-media "$@"

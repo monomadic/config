@@ -88,11 +88,9 @@ files = { "starship/starship.toml" = "~/.config/starship.toml" }
 [zsh.files]
 "zsh/zshrc.zsh" = "~/.zshrc"
 "zsh/emoji.json" = "~/.zsh/emoji.json"
-"zsh/scripts/" = "~/.zsh/scripts"
-"zsh/completions/" = "~/.zsh/completions"
-"zsh/functions/" = "~/.zsh/functions"
-"zsh/autoload/" = "~/.zsh/autoload"
-"zsh/bin/" = "~/.zsh/bin"
+"zsh/completions" = "~/.zsh/completions"
+"zsh/autoload" = "~/.zsh/autoload"
+"zsh/bin" = "~/.zsh/bin"
 
 [dotter]
 files = { "dotter/global.toml" = "~/.config/dotter/global.toml" }
