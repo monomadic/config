@@ -5,18 +5,28 @@ if [[ -o interactive ]]; then
   #   autoload -Uz zle
   # fi
 
-  # Define functions first
+  _cd-yazi() {
+    local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd
+    yazi "$@" --cwd-file="$tmp"
+    if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
+      builtin cd -- "$cwd"
+    fi
+    rm -f -- "$tmp"
+  }
+
   _yazi-jump() {
     local tmp cwd
     if ! tmp="$(mktemp -t "yazi-cwd.XXXXX")"; then
       return 1
     fi
 
-    zle reset-prompt
+    echo "yazi \"$PWD\" --cwd-file=\"$tmp\""
     yazi "$PWD" --cwd-file="$tmp"
+
     if cwd="$(cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
       cd -- "$cwd"
     fi
+
     rm -f -- "$tmp"
     zle reset-prompt
   }
@@ -30,7 +40,7 @@ if [[ -o interactive ]]; then
     zle reset-prompt
   }
 
-  _fzf-cd() {
+  _cd-fzf() {
     local selected_dir
 
     # Save cursor position without clearing the line
@@ -98,22 +108,22 @@ if [[ -o interactive ]]; then
   }
 
   # Register functions with ZLE
-  zle -N _yazi-jump
+  zle -N _cd-yazi
   zle -N _fzf-find-files
   zle -N _fzf-jump
   zle -N _fzf_ripgrep
   zle -N _clear-reset
-  zle -N _fzf-cd
+  zle -N _cd-fzf
   zle -N _cd-up
 
   # Bind keys to functions
   # Ctrl-Space: yazi jump
-  bindkey '^ ' _yazi-jump
+  bindkey '^ ' _cd-yazi
   bindkey '^f' _fzf-find-files
   bindkey '^s' _fzf_ripgrep
   bindkey '^k' _clear-reset
   bindkey '^M' _magic-enter
-  bindkey '^o' _fzf-cd
+  bindkey '^o' _cd-fzf
   #bindkey '^u' cd-up
   bindkey '^[j' _fzf-jump # Alt+J
 fi

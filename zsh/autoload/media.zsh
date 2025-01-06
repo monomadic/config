@@ -16,10 +16,15 @@ fd-creators() {
 
 ls-creators() {
   ls-media-paths | while read -r dir; do
-    echo "Processing: $dir"
 
-    cd $dir
-    fd-creators
+    for media_path in $(ls-media-paths); do
+      for match in $dir/*/creators/; do
+        ls $match
+      done
+    done
+
+    # cd $dir
+    # fd-creators
 
     # for match in $dir/*/clips/**/*; do
     #   [[ -f $match ]] && echo "Found file: $match"

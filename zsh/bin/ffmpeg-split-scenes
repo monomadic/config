@@ -1,0 +1,59 @@
+#!/bin/bash
+
+# Check if input file is provided
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <input_video_file>"
+    exit 1
+fi
+
+input_file="$1"
+filename=$(basename "$input_file")
+filename_noext="${filename%.*}"
+extension="${filename##*.}"
+
+# Create output directory
+output_dir="${filename_noext}_scenes"
+mkdir -p "$output_dir"
+
+# Detect scenes and save timestamps to a file
+echo "Detecting scenes..."
+ffmpeg -i "$input_file" \
+    -vf "select='gt(scene,0.3)',metadata=print:file=scenes.txt" \
+    -f null - 2>/dev/null
+
+# Process the scenes.txt file to get timestamps
+echo "Processing scene timestamps..."
+grep "pts_time:" scenes.txt | cut -d ":" -f 2 | cut -d "," -f 1 > timestamps.txt
+
+# Read timestamps into an array
+mapfile -t timestamps < timestamps.txt
+
+# Add start time (0) and get video duration for end time
+duration=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$input_file")
+timestamps=("0" "${timestamps[@]}" "$duration")
+
+# Split video at scene changes
+echo "Splitting video into scenes..."
+for ((i=0; i<${#timestamps[@]}-1; i++)); do
+    start_time=${timestamps[i]}
+    end_time=${timestamps[i+1]}
+
+    # Calculate duration
+    duration=$(echo "$end_time - $start_time" | bc)
+
+    # Format output filename with leading zeros
+    output_file="${output_dir}/${filename_noext}_scene_$(printf "%03d" $i).$extension"
+
+    echo "Creating scene $i: $start_time to $end_time"
+    ffmpeg -y -hide_banner -loglevel warning \
+        -ss "$start_time" -i "$input_file" \
+        -t "$duration" \
+        -c copy \
+        "$output_file"
+done
+
+# Cleanup temporary files
+rm scenes.txt timestamps.txt
+
+echo "Done! Scenes have been saved to $output_dir/"
+echo "Original file has been preserved."

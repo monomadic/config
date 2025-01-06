@@ -107,6 +107,8 @@ alias .detect-captive-portal=detect-captive-portal
 alias .config=e-zsh
 alias .fonts="kitty list-fonts"
 
+alias mpv-auto-safe="mpv --hwdec=auto-safe --vo=libmpv "
+
 #alias ll="echo && eza --icons --group-directories-first --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
 alias amdl=gamdl
 alias battery='pmset -g batt'
