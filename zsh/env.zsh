@@ -24,7 +24,7 @@ export PRIVATE_PHOTOS_LIBRARY="$HOME/Media/Private/Private.photoslibrary"
 export XDG_CONFIG_HOME=$CONFIG_DIR
 
 # Homebrew
-export HOMEBREW_NO_ENV_HINTS
+export HOMEBREW_NO_ENV_HINTS=true
 
 export HOSTNAME=$(hostname)
 

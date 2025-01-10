@@ -11,58 +11,16 @@ fd-tags() {
 }
 
 fd-creators() {
-  fd -t f '#' -x basename {} \; | grep -o '#[a-zA-Z0-9_-]\+' | sort -u
+  fd -td -d1 . /Volumes/*/Movies/Porn/*/creators 2>/dev/null || true
 }
 
-ls-creators() {
-  ls-media-paths | while read -r dir; do
-
-    for media_path in $(ls-media-paths); do
-      for match in $dir/*/creators/; do
-        ls $match
-      done
-    done
-
-    # cd $dir
-    # fd-creators
-
-    # for match in $dir/*/clips/**/*; do
-    #   [[ -f $match ]] && echo "Found file: $match"
-    # done
-    # Your commands here
-  done
+fzf-creators() {
+  fd-creators | while read -r path; do
+    name=${path%/}   # Remove trailing slash
+    name=${name##*/} # Get last component
+    echo "$name	$path"
+  done | fzf --with-nth=1 --delimiter="\t" --preview="echo {}" | cut -f2
 }
-
-# media-cache-to-discboy() {
-#   media list top-clips | copy-flat "/Volumes/Discboy 512/clips"
-# }
-#
-# media-cache-copy-top-clips() {
-#   local dest="$1"
-#
-#   echo "Caching clips to $dest"
-#   ls-media --match-string '/clips/' --match-regex '#(suki|top|cumshot)' | copy-flat "$dest/clips"
-# }
-#
-# media-cache-copy-all() {
-#   if [ ! -d "$MASTER_MEDIA_DIR" ]; then
-#     echo "Error: MASTER_MEDIA_DIR '$MASTER_MEDIA_DIR' does not exist. Is the master volume connected?"
-#     return 1
-#   fi
-#
-#   echo "Caching clips..."
-#   ls-media --match-string '/clips/' --match-regex '#(suki|top|cumshot)' | copy-flat "$LOCAL_CACHE_PATH/clips"
-#
-#   echo "Caching #top scenes..."
-#   ls-media --match-string '/scenes/' --match-string "#top" | copy-flat "$LOCAL_CACHE_PATH/scenes"
-#
-#   echo "Caching #top portraits..."
-#   ls-media --match-string "#portrait" --match-string "#top" --match-string "$MASTER_MEDIA_DIR" | copy-flat "$LOCAL_CACHE_PATH/portrait"
-#
-#   # echo "\nCaching originals..."
-#   # ls-media --match-string "originals" --match-string "#top" | copy-flat "$LOCAL_CACHE_PATH/originals"
-# }
-# alias @cache-update="cache-copy-all && cd $LOCAL_CACHE_PATH"
 
 media-cache-clear() {
   cd $LOCAL_CACHE_PATH && rm -rf **/*
