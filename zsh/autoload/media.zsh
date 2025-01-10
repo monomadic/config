@@ -11,7 +11,8 @@ fd-tags() {
 }
 
 fd-creators() {
-  fd -td -d1 . /Volumes/*/Movies/Porn/*/creators 2>/dev/null || true
+  setopt +o nomatch
+  fd -td -d1 . /Volumes/*/Movies/Porn/*/creators 2>/dev/null
 }
 
 fzf-creators() {
@@ -20,6 +21,10 @@ fzf-creators() {
     name=${name##*/} # Get last component
     echo "$name	$path"
   done | fzf --with-nth=1 --delimiter="\t" --preview="echo {}" | cut -f2
+}
+
+cd-creators() {
+  cd $(fzf-creators)
 }
 
 media-cache-clear() {

@@ -47,7 +47,7 @@ if [[ -o interactive ]]; then
     tput sc
 
     # Use command substitution to capture fzf-cd's output
-    selected_dir=$(ls_all 2>/dev/null | source fzf-cd)
+    selected_dir=$(ls-all 2>/dev/null | source fzf-cd)
     local fzf_exit_status=$?
 
     # Restore cursor position

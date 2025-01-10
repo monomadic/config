@@ -32,17 +32,18 @@ ls_marks() {
 }
 
 # Directory listing functions
-ls_all() {
+ls-all() {
   pwd
   ls_marks
-  ls_volumes
+  fd-volumes
+  fd-creators
 
   # ls_workspaces
   # ls_src
   # ls_creators
 }
 
-ls_volumes() {
+fd-volumes() {
   fd --color=never -t d . /Volumes -d 1
 }
 
@@ -170,14 +171,14 @@ nvim_edit() {
 
 fzf_neovim() {
   local dir
-  dir=$(ls_all | fzf_dirs)
+  dir=$(ls-all | fzf_dirs)
   [[ -n "$dir" ]] && cd "$dir" && ${EDITOR:-nvim}
   zle reset-prompt
 }
 
 fzf_marks() {
   local dir
-  dir=$(ls_all | fzf_dirs)
+  dir=$(ls-all | fzf_dirs)
   [[ -n "$dir" ]] && cd "$dir" && zle reset-prompt
 }
 
