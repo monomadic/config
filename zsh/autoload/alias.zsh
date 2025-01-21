@@ -38,6 +38,8 @@ alias @tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
 alias @perf="media search #60fps #4k"
 alias @remaster="media search #remaster"
 
+alias .screen-sharing-kick-users="sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -deactivate -restart -users current"
+
 alias .kitty-reload="kitty @ set-colors --all ~/.config/kitty/kitty.conf"
 alias .kitty-configure="cfg-kitty"
 
