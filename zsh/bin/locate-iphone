@@ -1,0 +1,11 @@
+#!/bin/zsh
+
+# Use AppleScript to invoke Siri and ask it to find the iPhone
+osascript <<EOF
+tell application "Siri" to activate
+delay 1
+tell application "System Events"
+    keystroke "Find my iPhone"
+    key code 36 -- Press Enter
+end tell
+EOF

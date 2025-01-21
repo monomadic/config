@@ -1,3 +1,133 @@
+hs.loadSpoon("MPVController")
+
+-- Bind hotkeys
+spoon.MPVController:bindHotkeys({
+	next = { { "cmd", "alt" }, "right" },    -- Command+Alt+Right Arrow for next track
+	previous = { { "cmd", "alt" }, "left" }, -- Command+Alt+Left Arrow for previous track
+	toggle = { { "cmd", "alt" }, "space" },  -- Command+Alt+Space to toggle pause
+	forward = { { "alt" }, "right" },        -- Alt+Right Arrow to seek forward
+	backward = { { "alt" }, "left" },        -- Alt+Left Arrow to seek backward
+	volumeUp = { { "cmd", "alt" }, "up" },   -- Command+Alt+Up Arrow to increase volume
+	volumeDown = { { "cmd", "alt" }, "down" } -- Command+Alt+Down Arrow to decrease volume
+})
+
+-- Maximize focused window
+hs.hotkey.bind({ "cmd", "shift" }, "up", function()
+	local win = hs.window.focusedWindow()
+	if win then
+		win:maximize()
+	end
+end)
+
+-- Restore window to its previous state
+hs.hotkey.bind({ "cmd", "shift" }, "down", function()
+	local app = hs.application.frontmostApplication()
+	if app then
+		app:selectMenuItem({ "Window", "Zoom" })
+	end
+end)
+
+-- Focus Kitty
+-- Modified Kitty hotkey to toggle visibility
+hs.hotkey.bind({ "rcmd" }, "k", function()
+	local kitty = hs.application.find("kitty")
+
+	if kitty then
+		-- If Kitty is the frontmost app, hide it
+		if kitty:isFrontmost() then
+			kitty:hide()
+		else
+			-- If Kitty exists but isn't frontmost, show and focus it
+			kitty:unhide()
+			kitty:activate()
+		end
+	else
+		-- If Kitty isn't running, launch it
+		hs.application.launchOrFocus("kitty")
+	end
+end)
+
+-- Function to get the Kitty window or create one if it doesn't exist
+function getOrCreateKittyWindow()
+	local kitty = hs.application.find('kitty')
+	if not kitty then
+		return nil
+	end
+
+	-- Get all Kitty windows
+	local windows = kitty:allWindows()
+
+	-- Try to find an existing floating window
+	for _, window in ipairs(windows) do
+		if window:isFloating() then
+			return window
+		end
+	end
+
+	-- If no floating window exists, create one
+	kitty:selectMenuItem({ "Shell", "New OS Window" })
+	hs.timer.usleep(100000) -- Wait a bit for the window to be created
+
+	-- Get the new window (should be the last one created)
+	local newWindows = kitty:allWindows()
+	return newWindows[#newWindows]
+end
+
+-- Function to center and show the Kitty window
+function toggleFloatingKitty()
+	hs.alert.show("hit")
+
+	local window = getOrCreateKittyWindow()
+	if not window then
+		hs.alert.show("Kitty is not running")
+		return
+	end
+
+	if window:isVisible() then
+		window:hide()
+	else
+		-- Get the screen frame
+		local screen = hs.screen.mainScreen()
+		local screenFrame = screen:frame()
+
+		-- Set window size (adjust these values as needed)
+		local windowWidth = 800
+		local windowHeight = 600
+
+		-- Calculate position to center the window
+		local x = screenFrame.x + (screenFrame.w - windowWidth) / 2
+		local y = screenFrame.y + (screenFrame.h - windowHeight) / 2
+
+		-- Set window frame and show it
+		window:setFrame(hs.geometry.rect(x, y, windowWidth, windowHeight))
+		window:setFloating(true)
+		window:focus()
+	end
+end
+
+-- Bind right-command + p to toggle the floating Kitty window
+-- hs.hotkey.bind({ "rcmd" }, "p", toggleFloatingKitty)
+-- local hyperFn = { "fn" } -- `fn` as the modifier
+--
+-- -- Function to select "Window -> Zoom" from the menu bar
+-- function zoomCurrentWindow()
+-- 	local app = hs.application.frontmostApplication()
+-- 	if app then
+-- 		local menuPath = { "Window", "Zoom" } -- Menu hierarchy
+-- 		app:selectMenuItem(menuPath)
+-- 	else
+-- 		hs.alert.show("No frontmost application")
+-- 	end
+-- end
+--
+-- -- Bind Globe + K (fn + K) to the zoom function
+-- hs.hotkey.bind(hyperFn, "K", function()
+-- 	zoomCurrentWindow()
+-- end)
+--
+-- -- Notify Hammerspoon is ready
+-- hs.alert.show("Hammerspoon loaded")
+--
 -- hs.hotkey.bind({ "cmd" }, "return", function()
 -- 	-- Attempt to discover KITTY_LISTEN_ON dynamically
 -- 	local socketPath = hs.execute(
@@ -23,10 +153,10 @@
 -- 	end
 -- end)
 
-hs.hotkey.bind({"cmd", "alt"}, "return", function()
-    -- Define the Kitty command
-    local kitty_cmd = "/Applications/kitty.app/Contents/MacOS/kitty @ new-window yazi"
-    
-    -- Execute the command in the shell
-    hs.execute(kitty_cmd)
-end)
+-- hs.hotkey.bind({"cmd", "alt"}, "return", function()
+--     -- Define the Kitty command
+--     local kitty_cmd = "/Applications/kitty.app/Contents/MacOS/kitty @ new-window yazi"
+--
+--     -- Execute the command in the shell
+--     hs.execute(kitty_cmd)
+-- end)

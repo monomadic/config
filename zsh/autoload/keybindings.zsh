@@ -116,9 +116,14 @@ if [[ -o interactive ]]; then
   zle -N _cd-fzf
   zle -N _cd-up
 
+  # unbind meta ctrl+space
+  bindkey -r '\M-^@'
+  bindkey -r '\M-^?'
+
   # Bind keys to functions
   # Ctrl-Space: yazi jump
-  bindkey '^ ' _cd-yazi
+  #bindkey '^@' _cd-yazi
+  bindkey -s '^@' "_cd-yazi\n"
   bindkey '^f' _fzf-find-files
   bindkey '^s' _fzf_ripgrep
   bindkey '^k' _clear-reset

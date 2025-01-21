@@ -1,0 +1,43 @@
+#!/bin/zsh
+
+# Symbol for the Ctrl key
+ctrl_symbol="󰘴"
+
+# Zsh color definitions
+COLOR_HEADER="%B%F{blue}"    # Bold Blue for header
+COLOR_KEY="%F{yellow}"       # Yellow for keys
+COLOR_COMMAND="%F{green}"    # Green for commands
+COLOR_RESET="%f%b"           # Reset colors and bold
+
+# Function to format and display key bindings for a specific keymap
+format_bindings() {
+  local keymap="$1"
+  bindkey -M "$keymap" | uniq | while IFS= read -r line; do
+    # Extract the key and corresponding command
+    key="${line%% ->*}"       # Part before '->' is the key
+    command="${line#*-> }"    # Part after '-> ' is the command
+
+    # Remove quotes from the key
+    key="${key//\"}"
+
+    # Format Ctrl key bindings
+    if [[ $key == '^'* ]]; then
+      formatted_key="${ctrl_symbol} ${key:1}" # Replace '^' with symbol
+    else
+      formatted_key="$key"
+    fi
+
+    # Print formatted key and command
+    print -P "${COLOR_KEY}%-20s${COLOR_RESET} ${COLOR_COMMAND}%-40s${COLOR_RESET}" \
+      "$formatted_key" "$command"
+  done
+}
+
+# Print header
+print -P "${COLOR_HEADER}%-20s %-40s${COLOR_RESET}" "Key" "Action"
+
+# List all available keymaps and print bindings for each
+for keymap in ${(k)keymaps}; do
+  print -P "${COLOR_HEADER}Keymap: $keymap${COLOR_RESET}"
+  format_bindings "$keymap"
+done

@@ -21,6 +21,9 @@ brew "gnu-tar"
 brew "gnu-which"
 brew "grep"
 
+# cask "hazeover" # dim non-focus windows
+
+
 #brew "default-handler" # Utility for changing default URL scheme handlers
 # brew "screen"
 
@@ -30,6 +33,10 @@ brew "mas"
 # brew "clamxav" # antivirus
 # brew "lynis" # antivirus
 brew "powermetrics" # benchmarking, profiling
+
+cask "monitorcontrol" # independent controls for each monitor
+
+cask "motrix" # download manager
 
 # git
 brew "git"
@@ -238,6 +245,7 @@ cask "spotify"
 
 cask "numi" # calculator
 # cask "chai" # sleep prevention (using caffeinated from MAS)
+cask "keepingyouawake" # sleep prevention
 cask "stats" # menu stats (like iStat)
 
 # messaging

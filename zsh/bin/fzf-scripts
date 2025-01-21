@@ -1,0 +1,49 @@
+#!/usr/bin/env zsh
+
+# Exit if fzf or nvim are not available
+if ! (( $+commands[fzf] )) || ! (( $+commands[nvim] )); then
+    echo "Error: This script requires both fzf and nvim to be installed"
+    return 1
+fi
+
+# Function to check if a file is a script
+is_script() {
+    local file="$1"
+    # Check if file is executable and not a binary
+    [[ -x "$file" ]] && ! file "$file" | grep -q "binary"
+}
+
+# Create array of PATH directories
+path_dirs=(${(s/:/)PATH})
+
+# Find all executable scripts in PATH
+# Use anonymous function for proper scope
+() {
+    local scripts=()
+    local file
+
+    for dir in $path_dirs; do
+        # Skip if directory doesn't exist or isn't readable
+        [[ -d "$dir" && -r "$dir" ]] || continue
+
+        # Find potential scripts in this directory
+        for file in "$dir"/*(.); do
+            if is_script "$file"; then
+                scripts+=("$file")
+            fi
+        done
+    done
+
+    # Exit if no scripts found
+    if (( ${#scripts} == 0 )); then
+        echo "No executable scripts found in PATH"
+        return 1
+    fi
+
+    # Display scripts in fzf with preview
+    print -l $scripts | \
+        fzf --preview 'bat --style=numbers --color=always {}' \
+            --preview-window='right:60%' \
+            --header='Select a script to edit (Press ENTER to open in neovim)' \
+            --bind='enter:execute(nvim {})'
+}

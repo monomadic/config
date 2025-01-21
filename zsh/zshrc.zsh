@@ -76,7 +76,6 @@ ZSH_AUTOLOAD_DIR="$HOME/.zsh/autoload"
 
 # Define the array of config files
 config_files=(
-  "$ZSH_AUTOLOAD_DIR/keybindings.zsh"
   "$ZSH_AUTOLOAD_DIR/alias.zsh"
   "$ZSH_AUTOLOAD_DIR/broot.zsh"
   "$ZSH_AUTOLOAD_DIR/completions.zsh"
@@ -98,6 +97,7 @@ config_files=(
   "$ZSH_AUTOLOAD_DIR/starship.zsh"
   "$ZSH_AUTOLOAD_DIR/vi-mode.zsh"
   "$ZSH_AUTOLOAD_DIR/yt-dlp.zsh"
+  "$ZSH_AUTOLOAD_DIR/keybindings.zsh"
 )
 
 # Loop through and source each file

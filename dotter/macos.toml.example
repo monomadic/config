@@ -1,6 +1,7 @@
 packages = [
 	"starship",
 	"hammerspoon",
+	"karabiner",
 	"yazi",
   "alacritty",
   "bash",

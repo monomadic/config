@@ -1,0 +1,19 @@
+{
+  "description": "Show Desktop with Right Command + D",
+  "manipulators": [
+    {
+      "type": "basic",
+      "from": {
+        "key_code": "d",
+        "modifiers": {
+          "mandatory": ["right_command"]
+        }
+      },
+      "to": [
+        {
+          "key_code": "f11"
+        }
+      ]
+    }
+  ]
+}

@@ -45,7 +45,7 @@ alias .demux="ffmpeg-demux"
 alias .demux-audio="ffmpeg-demux --skip-video"
 alias .demux-video="ffmpeg-demux --skip-audio"
 
-alias url="download-video-url"
+alias url="yt-url"
 
 alias media-backup-src="rsync-backup SRC"
 alias media-cache="rsync-backup --dry-run $HOME/Movies/Cache \/clipped\/ "

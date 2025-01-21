@@ -1,0 +1,88 @@
+# Basic function to run fzf in overlay and capture result
+function overlay_fzf() {
+    # Create a FIFO for communication
+    local fifo="/tmp/overlay_fifo_$$"
+    mkfifo "$fifo"
+
+    # Launch fzf in overlay window
+    kitty @ launch --type=overlay --cwd=current \
+        --title="FZF Selection" \
+        zsh -ic "find . -type f | fzf > $fifo; exit" &
+
+    # Read from FIFO (this will block until data is available)
+    local result=$(<"$fifo")
+
+    # Cleanup
+    rm "$fifo"
+
+    echo "$result"
+}
+
+# More advanced example with customizable command
+function overlay_command() {
+    local cmd="$1"
+    local fifo="/tmp/overlay_fifo_$$"
+    mkfifo "$fifo"
+
+    # Launch overlay with specified command
+    kitty @ launch --type=overlay --cwd=current \
+        --title="Overlay Command" \
+        zsh -ic "$cmd > $fifo; exit" &
+
+    # Read from FIFO
+    local result=$(<"$fifo")
+
+    # Cleanup
+    rm "$fifo"
+
+    echo "$result"
+}
+
+# Example using ripgrep with fzf
+function overlay_rg_fzf() {
+    local fifo="/tmp/overlay_fifo_$$"
+    mkfifo "$fifo"
+
+    kitty @ launch --type=overlay --cwd=current \
+        --title="RG Search" \
+        zsh -ic 'rg --color=always --line-number --no-heading --smart-case "." | \
+                fzf --ansi \
+                    --color "hl:-1:underline,hl+:-1:underline:reverse" \
+                    --delimiter : \
+                    --preview "bat --color=always {1} --highlight-line {2}" \
+                    --preview-window "right,60%,+{2}+3/3,~3" \
+                > '"$fifo"'; exit' &
+
+    # Read from FIFO
+    local result=$(<"$fifo")
+
+    # Cleanup
+    rm "$fifo"
+
+    echo "$result"
+}
+
+# Test the functions individually
+echo "Testing fzf overlay..."
+selected_file=$(overlay_fzf)
+if [[ -n "$selected_file" ]]; then
+    echo "Selected file: $selected_file"
+else
+    echo "No file selected"
+fi
+
+echo "Testing command overlay..."
+result=$(overlay_command "ls -la | fzf")
+if [[ -n "$result" ]]; then
+    echo "Command result: $result"
+else
+    echo "No selection made"
+fi
+
+echo "Testing ripgrep+fzf overlay..."
+search_result=$(overlay_rg_fzf)
+if [[ -n "$search_result" ]]; then
+    echo "Search result: $search_result"
+else
+    echo "No search result"
+fi
