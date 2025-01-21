@@ -23,6 +23,7 @@ brew "grep"
 
 # cask "hazeover" # dim non-focus windows
 
+brew "karabiner-elements" # keyboard shortcuts
 
 #brew "default-handler" # Utility for changing default URL scheme handlers
 # brew "screen"
