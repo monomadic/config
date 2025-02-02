@@ -152,6 +152,7 @@ alias gb="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) 
 alias gc-update="gc update:"
 alias gca="ga"
 alias gd="git diff"
+alias git-stage-last-commit="git reset --soft HEAD~"
 alias gen-yew-web3="cargo generate --git https://github.com/monomadic/yew-web3-template"
 alias gl="fzf-git-log"
 alias gp="git push"

@@ -16,12 +16,11 @@ zstyle ':completion:*' special-dirs true
 zstyle ':completion:*' list-dirs first
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 
-# Tool-specific completions
-# 1password - keep using eval as it's their recommended method
+# 1password
 eval "$(op completion zsh)"
 
-# fd - instead of source, use eval
+# fd
 eval "$(fd --gen-completions zsh)"
 
-# dotter - keep using eval as it's their recommended method
+# dotter
 eval "$(dotter gen-completions --shell zsh)"

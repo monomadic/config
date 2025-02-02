@@ -25,6 +25,12 @@ ffmpeg-info() {
   ffmpeg -i "$1" -f null -
 }
 
+ffmpeg-trim-intro() {
+	for file in *.mp4; do
+			ffmpeg -i "$file" -c copy -ss 00:00:03 "${file%.*}_nointro.mp4"
+	done
+}
+
 ffmpeg-dump-frames() {
     if [[ $# -ne 1 ]]; then
         echo "Usage: ffmpeg-dump-frames <input_file>"
