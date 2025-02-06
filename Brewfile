@@ -267,6 +267,7 @@ brew "rizin" # fork of radare2
 brew "bitwise" # bit conversion
 # brew "demumble" # demangling
 cask "hex-fiend" # hex editor
+brew "hevi" # tui hex viewer
 
 brew "aria2" # cli download client
 
