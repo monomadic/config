@@ -1,0 +1,82 @@
+#compdef rename
+
+# Define the main completion function
+_rename() {
+    local curcontext="$curcontext" state line ret=1
+    typeset -A opt_args
+
+    # Define the main subcommands
+    local -a commands
+    commands=(
+        'replace:Replace matching string with replacement string'
+        'append:Append string to filename'
+        'insert:Insert string at start of filename'
+        'remove:Remove string from filename'
+        'case:Change case of filename'
+    )
+
+    # Define case subcommands
+    local -a case_commands
+    case_commands=(
+        'up:Convert filename to uppercase'
+        'down:Convert filename to lowercase'
+        'sentence:Convert filename to sentence case'
+    )
+
+    _arguments -C \
+        '1: :->command' \
+        '*: :->args' && ret=0
+
+    case $state in
+        command)
+            # Complete main commands
+            _describe -t commands 'rename command' commands && ret=0
+            ;;
+        args)
+            case $words[2] in
+                replace)
+                    case $CURRENT in
+                        3)
+                            _message 'match string' && ret=0
+                            ;;
+                        4)
+                            _message 'replacement string' && ret=0
+                            ;;
+                        *)
+                            # Complete files for remaining arguments
+                            _files && ret=0
+                            ;;
+                    esac
+                    ;;
+                append|insert|remove)
+                    case $CURRENT in
+                        3)
+                            _message 'string' && ret=0
+                            ;;
+                        *)
+                            # Complete files for remaining arguments
+                            _files && ret=0
+                            ;;
+                    esac
+                    ;;
+                case)
+                    case $CURRENT in
+                        3)
+                            # Complete case subcommands
+                            _describe -t case_commands 'case type' case_commands && ret=0
+                            ;;
+                        *)
+                            # Complete files for remaining arguments
+                            _files && ret=0
+                            ;;
+                    esac
+                    ;;
+            esac
+            ;;
+    esac
+
+    return ret
+}
+
+# Register the completion function
+_rename "$@"

@@ -1,0 +1,33 @@
+#!/usr/bin/env zsh
+
+# Launch an overlay window with fzf
+kitty @ launch --type=overlay --title "Config Finder" --cwd "$PWD" --keep-focus --stdin-source=@ --stdin-add-formatting=no --hold
+
+# Get window ID
+FZF_WINDOW=$(kitty @ ls | jq -r '.[] | select(.tabs[].windows[].title == "Config Finder") | .tabs[].windows[].id')
+
+# Function to switch search mode
+toggle_search_mode() {
+  if [[ "$SEARCH_MODE" == "fd" ]]; then
+    SEARCH_MODE="rg"
+  else
+    SEARCH_MODE="fd"
+  fi
+}
+
+# Default to filename search
+SEARCH_MODE="fd"
+
+while true; do
+  # Generate file list based on search mode
+  if [[ "$SEARCH_MODE" == "fd" ]]; then
+    FILE=$(fd . --type f --hidden --follow --exclude .git | fzf --preview 'bat --color=always --style=numbers {}')
+  else
+    FILE=$(rg --files-with-matches "" | fzf --preview 'bat --color=always --style=numbers {}')
+  fi
+
+  if [[ -n "$FILE" ]]; then
+    kitty @ launch --type=overlay --title "Neovim" --cwd "$PWD" --hold --execute nvim "$FILE"
+  fi
+
+done

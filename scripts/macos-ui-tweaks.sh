@@ -23,8 +23,8 @@ defaults write -g QLPanelAnimationDuration -float 0
 defaults write -g NSInitialToolTipDelay -integer 0
 
 # Speed up key repeat rates
-defaults write -g KeyRepeat -int 1
-defaults write -g InitialKeyRepeat -int 10
+# defaults write -g KeyRepeat -int 1
+# defaults write -g InitialKeyRepeat -int 10
 
 # Disable the shadow in screenshots
 defaults write com.apple.screencapture disable-shadow -bool true

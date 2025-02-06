@@ -1,5 +1,4 @@
 #!/usr/bin/env zsh
-
 # Check for at least 2 arguments
 if (($# < 2)); then
   echo "Usage:"
@@ -7,6 +6,9 @@ if (($# < 2)); then
   echo "rename append <string> [files...]"
   echo "rename insert <string> [files...]"
   echo "rename remove <string> [files...]"
+  echo "rename case up [files...]     # convert filenames to uppercase"
+  echo "rename case down [files...]   # convert filenames to lowercase"
+  echo "rename case sentence [files...] # convert filenames to sentence case"
   exit 1
 fi
 
@@ -22,6 +24,18 @@ replace)
   match_string=$1
   replacement_string=$2
   shift 2
+  ;;
+case)
+  if (($# < 1)); then
+    echo "Usage: rename case <up|down|sentence> [files...]"
+    exit 1
+  fi
+  case_type=$1
+  if [[ ! "$case_type" =~ ^(up|down|sentence)$ ]]; then
+    echo "Error: case type must be 'up', 'down', or 'sentence'"
+    exit 1
+  fi
+  shift
   ;;
 append)
   if (($# < 1)); then
@@ -86,13 +100,29 @@ for file in "${files[@]}"; do
   remove)
     newfile="${file//$remove_string/}"
     ;;
+  case)
+    case "$case_type" in
+    up)
+      newfile="${file:u}"  # zsh syntax for uppercase
+      ;;
+    down)
+      newfile="${file:l}"  # zsh syntax for lowercase
+      ;;
+    sentence)
+      # Convert to lowercase first, then capitalize first letter
+      newfile="${${file:l}[1]:u}${${file:l}[2,-1]}"
+      ;;
+    esac
+    ;;
   esac
+
   # Check for empty or blank filenames
   if [[ -z "$newfile" ]]; then
     echo "Error: Removing '$remove_string' from '$file' would result in an empty filename."
     echo "Operation aborted."
     exit 1
   fi
+
   if [[ "$file" != "$newfile" ]]; then
     old_filenames+=("$file")
     new_filenames+=("$newfile")
@@ -120,13 +150,6 @@ for i in "${(k)new_filenames}"; do
     exit 1
   fi
   new_filenames_map[$new]=1
-done
-
-# Perform renaming
-for i in "${(k)old_filenames}"; do
-  old="${old_filenames[i]}"
-  new="${new_filenames[i]}"
-  mv -- "$old" "$new"
 done
 
 # Prompt for confirmation

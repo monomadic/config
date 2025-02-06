@@ -1,4 +1,124 @@
 # Infinite loop for playlists
+# Infinite loop for playlists
+loop-playlist=inf
+
+# Start in fullscreen
+fullscreen
+script-opts=osc-windowcontrols=no
+no-border
+autofit=100%
+
+# Hardware-accelerated decoding via macOS VideoToolbox
+hwdec=videotoolbox
+
+# Center the player window on screen
+geometry=50%:50%
+
+# Restrict window size to 90% of screen dimensions
+autofit-larger=90%x90%
+
+# Use high-quality GPU rendering preset
+#profile=gpu-hq
+vo=gpu
+#gpu-api=vulkan
+
+# Enable hardware decoding fallback
+hwdec
+
+hr-seek=yes  # More precise seeking
+video-sync=audio  # Usually better for short clips
+
+# Faster loading and playback
+demuxer-max-bytes=1000000KiB
+demuxer-readahead-secs=2
+cache=yes
+cache-secs=2
+
+# Quicker navigation between files
+force-window=immediate
+force-seekable=yes
+keep-open=always
+# reset-on-next-file=all
+
+# Reduce memory usage with many files
+cache-pause=no
+#demuxer-max-back-bytes=10000000
+
+# ----------------------
+# On-Screen Display (OSD)
+# ----------------------
+
+# Font size and alignment
+osd-font="JetBrainsMono Nerd Font Mono"
+osd-font-size=14
+osd-bold=yes
+osd-color="#FFFFFF"               # White text
+osd-scale-by-window=yes
+# osd-line-spacing=2 # Adjust space between lines (default is 0)
+
+osd-on-seek=bar
+#osd-blur=20 # 0-20
+
+osd-border-size=0.5               # Thin outline for text
+osd-border-color="#00000000"      # Semi-transparent black outline
+osd-shadow-offset=0.3               # Minimal shadow for depth
+osd-shadow-color="#000000"      # Soft, transparent black shadow
+osd-margin-x=20                   # Horizontal margin
+osd-margin-y=20                   # Vertical margin
+osd-bar-align-y=0
+osd-bar-align-x=0 # -1 is far left, 0 is centered, 1 is far right
+osd-bar-outline-size=1
+osd-border-size=5
+osd-bar-w=60
+osd-bar-h=2
+
+osd-border-style=background-box # outline-and-shadow|opaque-box|background-box
+osd-back-color="#A0000000" # border behind border-color
+osd-spacing=0.0      # kern
+
+# osd-margin-x=50
+# osd-margin-y=50
+
+
+# Display the filename while playing
+osd-playing-msg="${filename}"
+
+# Status message format (e.g., shows time and playback speed)
+osd-status-msg="Time: ${time-pos} / ${duration} | Speed: ${speed}x"
+
+# Duration for OSD messages
+osd-duration=3000                 # Messages fade out after 3 seconds
+
+# ----------------------
+# AUDIO SETTINGS
+# ----------------------
+
+# Optional: Disable pitch correction when changing playback speed
+#audio-pitch-correction=no
+
+# ----------------------
+# VIDEO SETTINGS
+# ----------------------
+
+# Optional: Lock video sync to display refresh rate for smooth playback
+#video-sync=display-resample
+
+# ----------------------
+# OTHER SETTINGS
+# ----------------------
+
+# Force mpv to keep the window open after playback
+#keep-open=yes
+
+# Optional: Enable caching for smoother streaming
+#cache=yes
+#demuxer-max-bytes=500M
+#demuxer-max-back-bytes=100M
+
+# Default English subtitles if available
+#slang=en
+
+input-ipc-server=/tmp/.mpv-socket
 loop-playlist=inf
 
 # Start in fullscreen
