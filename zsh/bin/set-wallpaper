@@ -1,0 +1,66 @@
+#!/bin/zsh
+
+# set-random-wallpaper
+# =====================
+# Sets a unique random wallpaper for each desktop on macOS.
+# Selects images from ~/Pictures/Wallpapers and updates every 15 minutes via LaunchAgent.
+#
+# Installation:
+# 1. Ensure ~/.bin/set-random-wallpaper exists and is executable.
+# 2. Create ~/Library/LaunchAgents/com.user.randomwallpaper.plist with:
+#      <?xml version="1.0" encoding="UTF-8"?>
+#      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+#      <plist version="1.0">
+#          <dict>
+#              <key>Label</key>
+#              <string>com.user.randomwallpaper</string>
+#              <key>ProgramArguments</key>
+#              <array>
+#                  <string>/Users/$USER/.bin/set-random-wallpaper</string>
+#              </array>
+#              <key>StartInterval</key>
+#              <integer>900</integer> <!-- 900s = 15min -->
+#              <key>RunAtLoad</key>
+#              <true/>
+#          </dict>
+#      </plist>
+# 3. Enable auto-refresh:
+#      launchctl load ~/Library/LaunchAgents/com.user.randomwallpaper.plist
+# 4. Manually run anytime:
+#      ~/.bin/set-random-wallpaper
+# 5. Disable auto-refresh:
+#      launchctl unload ~/Library/LaunchAgents/com.user.randomwallpaper.plist
+
+# Folder containing wallpapers
+WALLPAPER_DIR="$HOME/Pictures/Wallpapers"
+
+# Ensure the folder exists
+if [[ ! -d "$WALLPAPER_DIR" ]]; then
+  echo "Wallpaper directory not found: $WALLPAPER_DIR"
+  exit 1
+fi
+
+# Get all connected desktops
+NUM_DESKTOPS=$(osascript -e 'tell application "System Events" to count desktops')
+
+# Ensure at least one desktop exists
+if [[ "$NUM_DESKTOPS" -lt 1 ]]; then
+  echo "No desktops detected."
+  exit 1
+fi
+
+# Get list of available wallpapers
+WALLPAPER_FILES=($(find "$WALLPAPER_DIR" -type f \( -iname "*.jpg" -o -iname "*.png" -o -iname "*.heic" \)))
+
+# Ensure wallpapers exist
+if [[ ${#WALLPAPER_FILES[@]} -eq 0 ]]; then
+  echo "No wallpapers found in $WALLPAPER_DIR"
+  exit 1
+fi
+
+# Set a unique random wallpaper for each desktop
+for ((i = 1; i <= NUM_DESKTOPS; i++)); do
+  RANDOM_WALLPAPER="${WALLPAPER_FILES[$(($RANDOM % ${#WALLPAPER_FILES[@]} + 1))]}"
+  osascript -e "tell application \"System Events\" to set picture of desktop $i to \"$RANDOM_WALLPAPER\""
+  echo "Desktop $i set to $RANDOM_WALLPAPER"
+done
