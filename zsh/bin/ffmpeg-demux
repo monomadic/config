@@ -1,14 +1,13 @@
 #!/usr/bin/env zsh
+zparseopts -D -E -- -audio=audio -video=video -extract-video-raw=unpack_container -overwrite=overwrite
 
-zparseopts -D -E -- -skip-audio=skip_audio -skip-video=skip_video -extract-video-raw=unpack_container -overwrite=overwrite
-
-if [[ $# -ne 1 || (-n "$audio_only" && -n "$video_only") ]]; then
- print -P "%F{red}Usage:%f $(basename $0) [--skip-audio | --skip-video] [--extract-video-raw] [--overwrite] <input_file> [input_file2 ...]"
+if [[ $# -lt 1 || (-z "$audio" && -z "$video") ]]; then
+ print -P "%F{red}Usage:%f $(basename $0) [--audio] [--video] [--extract-video-raw] [--overwrite] <input_file> [input_file2 ...]"
  print "Options:"
- print "  --audio-only      Extract only audio stream"
- print "  --video-only      Extract only video stream"
- print "  --raw						 Extract video without container (raw codec)"
- print "  --overwrite               Overwrite input file if output has same extension"
+ print "  --audio           Extract audio stream"
+ print "  --video           Extract video stream"
+ print "  --raw            Extract video without container (raw codec)"
+ print "  --overwrite      Overwrite input file if output has same extension"
  exit 1
 fi
 
@@ -17,11 +16,10 @@ process_file() {
  base="${input_file%.*}"
  input_ext="${input_file##*.}"
 
- if [[ -z "$skip_video" ]]; then
+ if [[ -n "$video" ]]; then
    video_codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$input_file")
  fi
-
- if [[ -z "$skip_audio" ]]; then
+ if [[ -n "$audio" ]]; then
    audio_codec=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$input_file")
  fi
 
@@ -70,29 +68,27 @@ process_file() {
 
  print -P "\n%F{cyan}Processing:%f $input_file"
 
- if [[ -n "$video_codec" && -z "$skip_video" ]]; then
+ if [[ -n "$video_codec" && -n "$video" ]]; then
    print -P "%F{green}Detected video codec:%f $video_codec"
    output_file="${base}-video.${video_ext}"
    [[ -n "$overwrite" && "$video_ext" == "$input_ext" ]] && output_file="$input_file"
-
    print -P "%F{blue}Extracting video to:%f $output_file"
    if [[ -n "$unpack_container" && -n "$video_bsf" ]]; then
      ffmpeg -i "$input_file" -map 0:v:0 -c:v copy ${=video_bsf} "$output_file"
    else
      ffmpeg -i "$input_file" -map 0:v:0 -c:v copy "$output_file"
    fi
- elif [[ -z "$skip_video" ]]; then
+ elif [[ -n "$video" ]]; then
    print -P "%F{yellow}No video stream found%f"
  fi
 
- if [[ -n "$audio_codec" && -z "$skip_audio" ]]; then
+ if [[ -n "$audio_codec" && -n "$audio" ]]; then
    print -P "%F{green}Detected audio codec:%f $audio_codec"
    output_file="${base}-audio.${audio_ext}"
    [[ -n "$overwrite" && "$audio_ext" == "$input_ext" ]] && output_file="$input_file"
-
    print -P "%F{blue}Extracting audio to:%f $output_file"
    ffmpeg -i "$input_file" -map 0:a:0 -c:a copy "$output_file"
- elif [[ -z "$skip_audio" ]]; then
+ elif [[ -n "$audio" ]]; then
    print -P "%F{yellow}No audio stream found%f"
  fi
 }

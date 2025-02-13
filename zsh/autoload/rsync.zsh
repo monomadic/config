@@ -1,3 +1,5 @@
+# RSYNC
+
 rsync-cp() {
   if [[ $# -ne 2 ]]; then
     echo "Usage: ${0:t} <src> <dest>"

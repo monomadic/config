@@ -1,3 +1,5 @@
+# PROMPT MIDDLE
+#
 # ensures the terminal prompt is always above the middle of the terminal
 # for keyboard-on-stomach typing
 

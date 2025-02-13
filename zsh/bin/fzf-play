@@ -100,13 +100,13 @@ exec fzf \
   --bind 'alt-A:select-all+execute(airflow-open {})' \
   --bind 'alt-e:select-all+execute(elmedia-open {})' \
   --bind 'alt-i:select-all+execute(iina-open {})' \
-  --bind 'alt-c:execute(kitty @ launch --cwd $(dirname {}) lf)' \
-  --bind 'alt-t:execute-silent(kitty @ launch --cwd $(dirname {}))' \
+  --bind 'alt-c:execute-silent(echo "{}" | pbcopy)' \
+  --bind 'alt-t:execute-silent(kitty @ launch --cwd "$(dirname {})")' \
   --bind 'alt-a:select-all,alt-d:deselect-all' \
   --bind 'alt-s:select-all+accept' \
   --bind 'ctrl-/:toggle-preview' \
   --bind 'alt-p:toggle-preview' \
-  --bind 'alt-r:execute(open --reveal {})' \
+  --bind 'alt-r:execute-silent(open --reveal "$(realpath "{}")")' \
   --bind 'ctrl-r:execute-silent(shuf -o /dev/stdout)' \
   --bind 'ctrl-s:execute-silent(sort -o /dev/stdout)' \
   --bind 'ctrl-d:execute-silent(ls -t {} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \

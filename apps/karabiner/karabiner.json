@@ -2,18 +2,104 @@
   "description": "Show Desktop with Right Command + D",
   "manipulators": [
     {
-      "type": "basic",
       "from": {
         "key_code": "d",
-        "modifiers": {
-          "mandatory": ["right_command"]
-        }
+        "modifiers": { "mandatory": ["right_command"] }
       },
-      "to": [
+      "to": [{ "key_code": "f11" }],
+      "type": "basic"
+    }
+  ],
+  "profiles": [
+    {
+      "complex_modifications": {
+        "rules": [
+          {
+            "description": "Brave Browser: Cmd+Shift+F -> Search Tabs...",
+            "manipulators": [
+              {
+                "conditions": [
+                  {
+                    "bundle_identifiers": ["^com\\.brave\\.Browser$"],
+                    "type": "frontmost_application_if"
+                  }
+                ],
+                "from": {
+                  "key_code": "f",
+                  "modifiers": { "mandatory": ["left_command", "left_shift"] }
+                },
+                "to": [
+                  {
+                    "key_code": "a",
+                    "modifiers": ["left_command", "left_shift"]
+                  }
+                ],
+                "type": "basic"
+              }
+            ]
+          },
+          {
+            "description": "Show Desktop with right_command+d",
+            "manipulators": [
+              {
+                "from": {
+                  "key_code": "d",
+                  "modifiers": { "mandatory": ["right_command"] }
+                },
+                "to": [{ "key_code": "f11" }],
+                "type": "basic"
+              }
+            ]
+          },
+          {
+            "manipulators": [
+              {
+                "description": "Change caps_lock to escape",
+                "from": {
+                  "key_code": "caps_lock",
+                  "modifiers": { "optional": ["any"] }
+                },
+                "to": [
+                  {
+                    "key_code": "escape",
+                    "modifiers": []
+                  }
+                ],
+                "type": "basic"
+              }
+            ]
+          },
+          {
+            "description": "Change spacebar to left_shift+left_command+left_control+left_option",
+            "enabled": false,
+            "manipulators": [
+              {
+                "from": {
+                  "key_code": "spacebar",
+                  "modifiers": { "optional": ["any"] }
+                },
+                "to": [
+                  {
+                    "key_code": "left_shift",
+                    "modifiers": ["left_command", "left_control", "left_option"]
+                  }
+                ],
+                "to_if_alone": [{ "key_code": "spacebar" }],
+                "type": "basic"
+              }
+            ]
+          }
+        ]
+      },
+      "fn_function_keys": [
         {
-          "key_code": "f11"
+          "from": { "key_code": "f4" },
+          "to": [{ "key_code": "f4" }]
         }
-      ]
+      ],
+      "name": "Default profile",
+      "selected": true,
+      "virtual_hid_keyboard": { "keyboard_type_v2": "ansi" }
     }
   ]
 }

@@ -157,6 +157,7 @@ cask "megasync" # mega.nz
 # cask "hiddenbar" # hides menu items (bartender is better)
 cask "bartender" # hides menu items
 cask "topnotch" # makes the menu bar entirely black
+cask "notchnook" # menu under notch
 
 # encryption
 brew "age"

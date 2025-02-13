@@ -1,5 +1,5 @@
-# Load environment variables
-
+# Main Zsh configuration file
+#
 # Return early if not running interactively
 # [[ $- != *i* ]] && return
 
@@ -88,7 +88,6 @@ config_files=(
   "$ZSH_AUTOLOAD_DIR/ffmpeg.zsh"
   "$ZSH_AUTOLOAD_DIR/function.zsh"
   "$ZSH_AUTOLOAD_DIR/history.zsh"
-  "$ZSH_AUTOLOAD_DIR/media-players.zsh"
   "$ZSH_AUTOLOAD_DIR/media.zsh"
   "$ZSH_AUTOLOAD_DIR/prompt-middle.zsh"
   "$ZSH_AUTOLOAD_DIR/prompt.zsh"

@@ -90,6 +90,10 @@ files = { "starship/starship.toml" = "~/.config/starship.toml" }
 [zsh]
 [zsh.files]
 "zsh/zshrc.zsh" = "~/.zshrc"
+"zsh/zshenv.zsh" = "~/.zshenv"
+"zsh/zprofile.zsh" = "~/.zprofile"
+"zsh/zlogin.zsh" = "~/.zlogin"
+"zsh/zlogout.zsh" = "~/.zlogout"
 "zsh/emoji.json" = "~/.zsh/emoji.json"
 "zsh/completions" = "~/.zsh/completions"
 "zsh/autoload" = "~/.zsh/autoload"

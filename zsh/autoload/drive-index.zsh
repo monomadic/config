@@ -98,14 +98,8 @@ alias .play-pwd=mpv-play-pwd
 alias .play-pwd-shuffle=mpv-play-pwd --shuffle
 
 alias media-search-pwd="fd-video | fzf-play --kitty"
-alias @search-pwd=fzf-search-pwd
-alias @search-pwd-latest=fzf-search-pwd-latest
-alias .search-pwd=fzf-search-pwd-latest
 
 alias @search-pwd-sorted=fzf-play-pwd-sorted
-
-alias latest=media-play-latest
-alias .cache=mpv-play-cache
 
 alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
 

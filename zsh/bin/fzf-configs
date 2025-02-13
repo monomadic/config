@@ -15,19 +15,47 @@ toggle_search_mode() {
   fi
 }
 
+# Trap Ctrl+C to exit cleanly
+trap "exit" INT
+
 # Default to filename search
 SEARCH_MODE="fd"
 
 while true; do
   # Generate file list based on search mode
   if [[ "$SEARCH_MODE" == "fd" ]]; then
-    FILE=$(fd . --type f --hidden --follow --exclude .git | fzf --preview 'bat --color=always --style=numbers {}')
+    FILE=$(fd . --type f --hidden --follow --exclude .git |
+      fzf --preview 'bat --color=always --style=numbers {}' \
+        --bind 'ctrl-j:preview-down,ctrl-k:preview-up' \
+        --bind 'esc:abort' \
+        --bind 'enter:accept' \
+        --header 'Controls:
+  enter: open in nvim
+  esc: exit
+  ctrl-j/k: scroll preview
+  ctrl-c: exit' \
+        --preview-window 'right:60%')
   else
-    FILE=$(rg --files-with-matches "" | fzf --preview 'bat --color=always --style=numbers {}')
+    FILE=$(rg --files-with-matches "" |
+      fzf --preview 'bat --color=always --style=numbers {}' \
+        --bind 'ctrl-j:preview-down,ctrl-k:preview-up' \
+        --bind 'esc:abort' \
+        --bind 'enter:accept' \
+        --header 'Controls:
+  enter: open in nvim
+  esc: exit
+  ctrl-j/k: scroll preview
+  ctrl-c: exit' \
+        --preview-window 'right:60%')
   fi
 
+  # Exit if no file selected (user pressed ESC or ctrl-c)
+  if [[ -z "$FILE" ]]; then
+    exit 0
+  fi
+
+  # Open selected file in nvim
   if [[ -n "$FILE" ]]; then
     kitty @ launch --type=overlay --title "Neovim" --cwd "$PWD" --hold --execute nvim "$FILE"
   fi
-
 done
