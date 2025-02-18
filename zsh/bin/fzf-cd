@@ -27,14 +27,15 @@ handle_directory_selection() {
   dir=$(
     fzf \
       --ansi \
+      --exit-0 \
+      --header-first \
       --header '󰌑 cd · 󰘳 󰌑 finder · 󰘵 n prev down · 󰘵 p prev up' \
       --bind 'alt-n:preview-page-down,alt-p:preview-page-up' \
       --bind 'ctrl-/:toggle-preview' \
       --bind 'alt-p:toggle-preview' \
       --bind 'ctrl-a:toggle-all' \
-      --multi \
       --no-info \
-      --height=30% \
+      --height=50% \
       --exact \
       --prompt="  " <"$pipe"
   )

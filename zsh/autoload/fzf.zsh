@@ -4,6 +4,8 @@
 # history
 # bind '"\C-r": "$(fc -rl 1 | fzf -e)"'
 
+FZF_COMPLETION_OPTS="--no-info --exact --ignore-case"
+
 # source included shell integrations
 source <(fzf --zsh)
 
@@ -65,8 +67,7 @@ fzf-git-log() {
 }
 
 fzf-brave-bookmarks() {
-  # bookmarks_path=~/Library/Application\ Support/Google/Chrome/Default/Bookmarks
-  bookmarks_path=~/Library/Application\ Support/BraveSoftware/Brave-Browser/Default/Bookmarks
+  bookmarks_path="~/Library/Application Support/BraveSoftware/Brave-Browser/Default/Bookmarks"
 
   jq_script='
         def ancestors: while(. | length >= 2; del(.[-1,-2]));
@@ -101,33 +102,28 @@ fzf-brave-history() {
     sed 's#.*\(https*://\)#\1#' | xargs $open >/dev/null 2>/dev/null
 }
 
-# Function to open a new centered kitty window and run 'index-play-checked'
-kitty-popup-centered() {
-  # Center coordinates for a 1920x1080 screen, adjust as needed
-  SCREEN_WIDTH=1920
-  SCREEN_HEIGHT=1080
-  WINDOW_WIDTH=800
-  WINDOW_HEIGHT=600
-
-  CENTER_X=$(((SCREEN_WIDTH - WINDOW_WIDTH) / 2))
-  CENTER_Y=$(((SCREEN_HEIGHT - WINDOW_HEIGHT) / 2))
-
-  # Create a temporary command to run in the new kitty window
-  TEMP_COMMAND="index-play-checked"
-
-  # Open a new kitty window with specified geometry and run the command
-  kitty @ new-window --cwd="$HOME" --title="Centered Window" \
-    --override "initial_window_width=${WINDOW_WIDTH}px" \
-    --override "initial_window_height=${WINDOW_HEIGHT}px" \
-    --override "window_margin_width=${CENTER_X}px" \
-    --override "window_margin_height=${CENTER_Y}px" \
-    zsh -c "$TEMP_COMMAND"
-}
-
-function search-dj-audio-tracks() {
-  cd $HOME/Music/Tracks/Audio && fzf-play
-}
-alias @dj-audio-tracks=search-dj-audio-tracks
+# # Function to open a new centered kitty window and run 'index-play-checked'
+# kitty-popup-centered() {
+#   # Center coordinates for a 1920x1080 screen, adjust as needed
+#   SCREEN_WIDTH=1920
+#   SCREEN_HEIGHT=1080
+#   WINDOW_WIDTH=800
+#   WINDOW_HEIGHT=600
+#
+#   CENTER_X=$(((SCREEN_WIDTH - WINDOW_WIDTH) / 2))
+#   CENTER_Y=$(((SCREEN_HEIGHT - WINDOW_HEIGHT) / 2))
+#
+#   # Create a temporary command to run in the new kitty window
+#   TEMP_COMMAND="index-play-checked"
+#
+#   # Open a new kitty window with specified geometry and run the command
+#   kitty @ new-window --cwd="$HOME" --title="Centered Window" \
+#     --override "initial_window_width=${WINDOW_WIDTH}px" \
+#     --override "initial_window_height=${WINDOW_HEIGHT}px" \
+#     --override "window_margin_width=${CENTER_X}px" \
+#     --override "window_margin_height=${CENTER_Y}px" \
+#     zsh -c "$TEMP_COMMAND"
+# }
 
 function play-dj-visuals() {
   cd $HOME/Music/DJ/Visuals && @play-pwd

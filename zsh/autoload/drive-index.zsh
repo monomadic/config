@@ -18,22 +18,16 @@ fzf-search-local() {
 }
 alias @search-local=fzf-search-local
 
-fzf-media-untagged() {
+ls-media-untagged() {
   ls-media | grep -v '#' | fzf-play --kitty
 }
-
-media-play-cache() {
-  cd $HOME/Movies/Cache && fd-video | fzf-play
-}
-alias @cache=media-play-cache
-alias .cache=media-play-cache
 
 mpv-stdin() {
   mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --input-ipc-server=/tmp/mpvsocket --mute=yes $@ --playlist=- >/dev/null 2>&1 &
 }
 
-alias media-play-safe="media-ls | grep-safe | mpv-play --shuffle"
-alias media-play-unsafe="media-ls | grep-unsafe | mpv-play --shuffle"
+alias media-play-safe="ls-media | grep-safe | mpv-play --shuffle"
+alias media-play-unsafe="ls-media | rep-unsafe | mpv-play --shuffle"
 
 mpv-play-loops() {
   ls-media | grep "\/loops\/" | grep-safe | mpv-stdin --shuffle --loop-file=1 --length=10

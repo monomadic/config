@@ -1,0 +1,31 @@
+{
+  "title": "Open Kitty with Yazi in Current Finder Directory",
+  "rules": [
+    {
+      "description": "Right Command + Y to open Kitty with Yazi (only in Finder)",
+      "manipulators": [
+        {
+          "type": "basic",
+          "conditions": [
+            {
+              "type": "frontmost_application_if",
+              "bundle_identifiers": ["com.apple.finder"]
+            }
+          ],
+          "from": {
+            "key_code": "y",
+            "modifiers": {
+              "mandatory": ["right_command"],
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "osascript -e 'tell application \"Finder\" to set currentDir to POSIX path of (target of front window as alias)' | xargs -I {} kitty --single-instance --directory=\"{}\" --start-as=maximized yazi"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

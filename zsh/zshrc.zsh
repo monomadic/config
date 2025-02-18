@@ -45,21 +45,12 @@ manpath=(
   $manpath
 )
 
-# ENVIRONMENT VARIABLES
-#
-local env_file="$HOME/config/zsh/env.zsh"
-# Source the env file and continue if there's an error
-if ! source $env_file; then
-  echo "Error sourcing $env_file. Skipping..."
-fi
-
 # Enable vi mode
 # bindkey -v
 
 YELLOW=$(tput setaf 3)
 BLUE=$(tput setaf 4)
 RESET=$(tput sgr0)
-echo "${YELLOW}󰅩  ${BLUE}${env_file:t}${RESET}"
 
 # # Generated for envman. Do not edit.
 # [ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
@@ -76,28 +67,26 @@ ZSH_AUTOLOAD_DIR="$HOME/.zsh/autoload"
 
 # Define the array of config files
 config_files=(
-  "$ZSH_AUTOLOAD_DIR/alias.zsh"
-  "$ZSH_AUTOLOAD_DIR/broot.zsh"
-  "$ZSH_AUTOLOAD_DIR/fzf.zsh"
-  "$ZSH_AUTOLOAD_DIR/fzf-completion.zsh"
-  "$ZSH_AUTOLOAD_DIR/fzf-completions.zsh"
-  "$ZSH_AUTOLOAD_DIR/fzf-custom.zsh"
-  "$ZSH_AUTOLOAD_DIR/fzf-key-bindings.zsh"
-  "$ZSH_AUTOLOAD_DIR/fzf-templates.zsh"
-  "$ZSH_AUTOLOAD_DIR/drive-index.zsh"
-  "$ZSH_AUTOLOAD_DIR/ffmpeg.zsh"
-  "$ZSH_AUTOLOAD_DIR/function.zsh"
-  "$ZSH_AUTOLOAD_DIR/history.zsh"
-  "$ZSH_AUTOLOAD_DIR/media.zsh"
-  "$ZSH_AUTOLOAD_DIR/prompt-middle.zsh"
-  "$ZSH_AUTOLOAD_DIR/prompt.zsh"
-  "$ZSH_AUTOLOAD_DIR/rsync.zsh"
-  "$ZSH_AUTOLOAD_DIR/vi-mode.zsh"
-  "$ZSH_AUTOLOAD_DIR/yt-dlp.zsh"
-  "$ZSH_AUTOLOAD_DIR/completions.zsh"
-  "$ZSH_AUTOLOAD_DIR/starship.zsh"
-  "$ZSH_AUTOLOAD_DIR/fzf-marks.zsh"
-  "$ZSH_AUTOLOAD_DIR/keybindings.zsh"
+  $ZSH_AUTOLOAD_DIR/alias.zsh
+  $ZSH_AUTOLOAD_DIR/broot.zsh
+  $ZSH_AUTOLOAD_DIR/fzf-completions.zsh
+  $ZSH_AUTOLOAD_DIR/fzf.zsh
+  $ZSH_AUTOLOAD_DIR/fzf-custom.zsh
+  $ZSH_AUTOLOAD_DIR/fzf-templates.zsh
+  $ZSH_AUTOLOAD_DIR/drive-index.zsh
+  $ZSH_AUTOLOAD_DIR/ffmpeg.zsh
+  $ZSH_AUTOLOAD_DIR/function.zsh
+  $ZSH_AUTOLOAD_DIR/history.zsh
+  $ZSH_AUTOLOAD_DIR/media.zsh
+  $ZSH_AUTOLOAD_DIR/prompt-middle.zsh
+  $ZSH_AUTOLOAD_DIR/prompt.zsh
+  $ZSH_AUTOLOAD_DIR/rsync.zsh
+  $ZSH_AUTOLOAD_DIR/vi-mode.zsh
+  $ZSH_AUTOLOAD_DIR/yt-dlp.zsh
+  $ZSH_AUTOLOAD_DIR/completions.zsh
+  $ZSH_AUTOLOAD_DIR/starship.zsh
+  $ZSH_AUTOLOAD_DIR/fzf-marks.zsh
+  $ZSH_AUTOLOAD_DIR/keybindings.zsh
 )
 
 # Loop through and source each file

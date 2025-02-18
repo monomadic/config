@@ -18,7 +18,7 @@ title_format   = "Yazi: {cwd}"
 
 [preview]
 tab_size        = 2
-max_width       = 600
+max_width       = 1200
 max_height      = 900
 cache_dir       = ""
 image_delay     = 30

@@ -54,9 +54,8 @@ alias media-cache="rsync-backup --dry-run $HOME/Movies/Cache \/clipped\/ "
 alias tag=media-autotag
 alias .tag=tag
 
-alias remove-gatekeeper="xattr -rd com.apple.quarantine "
-alias .gatekeeper-remove=remove-gatekeeper
-alias gatekeeper-remove="xattr -rd com.apple.quarantine "
+alias gatekeeper-whitelist="xattr -rd com.apple.quarantine "
+alias .gatekeeper-whitelist=gatekeeper-whitelist
 
 alias c=cfg-zsh
 alias C=e-config
@@ -110,8 +109,10 @@ alias .fonts="kitty list-fonts"
 
 alias mpv-auto-safe="mpv --hwdec=auto-safe --vo=libmpv "
 
-#alias ll="echo && eza --icons --group-directories-first --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
-alias amdl=gamdl
+# Quick image viewer that loops
+alias mpv-image-viewer='mpv-stdin --image-display-duration=inf'
+alias mpv-image-slideshow='mpv-stdin --image-display-duration=5'
+
 alias battery='pmset -g batt'
 alias branch="b"
 alias cb="cargo build"

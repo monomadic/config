@@ -8,7 +8,7 @@ obj.__index = obj
 -- Metadata
 obj.name = "MPVController"
 obj.version = "1.0"
-obj.author = "Your Name"
+obj.author = "DeathDisco"
 obj.license = "MIT"
 
 -- Socket path where MPV will listen

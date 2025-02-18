@@ -1,0 +1,127 @@
+#!/usr/bin/env zsh
+
+setopt ERR_EXIT PIPE_FAIL UNSET WARN_CREATE_GLOBAL
+
+typeset -g TASKS_FILE="${TASKS_FILE:-${HOME}/.tasks}"
+
+function create_example_tasks() {
+    cat > "$TASKS_FILE" << 'EOT'
+# Format: description :: command
+# Lines starting with # are comments
+
+# Editing configs
+nvim config :: cd ${XDG_CONFIG_HOME:-$HOME/.config}/nvim && $EDITOR init.lua
+zsh config :: $EDITOR ${ZDOTDIR:-$HOME}/.zshrc
+
+# System maintenance
+update packages :: brew update && brew upgrade
+disk usage :: dust -d1 /
+process tree :: procs --tree
+memory usage :: btm -b --mem
+
+# Git operations
+recent branches :: git for-each-ref --sort=-committerdate refs/heads/ --format='%(refname:short)'
+undo commit :: git reset --soft HEAD^
+show log :: git log --oneline --graph --decorate -n 10
+
+# Docker
+clean docker :: docker system prune -f
+
+# Search tools
+find large files :: fd . / -t f -x dust -n 50 {}
+search configs :: cd ${XDG_CONFIG_HOME:-$HOME/.config} && rg -i
+EOT
+}
+
+function check_dependencies() {
+    local -a required_tools=(fzf)
+    local missing_tools=()
+
+    for tool in $required_tools; do
+        if ! command -v $tool >/dev/null 2>&1; then
+            missing_tools+=($tool)
+        fi
+    done
+
+    if (( ${#missing_tools} > 0 )); then
+        print -P "%F{red}Missing required tools: ${(j:, :)missing_tools}%f"
+        print -P "Install with: brew install ${(j: :)missing_tools}"
+        return 1
+    fi
+
+    return 0
+}
+
+function tasks() {
+    emulate -L zsh
+    setopt extended_glob warn_create_global typeset_silent \
+           no_short_loops rc_quotes no_auto_pushd
+
+    if ! check_dependencies; then
+        return 1
+    fi
+
+    if [[ ! -f $TASKS_FILE ]]; then
+        print -P "%F{yellow}No tasks file found. Creating example at $TASKS_FILE%f"
+        create_example_tasks
+        if [[ $? -ne 0 ]]; then
+            print -u2 "Error: Failed to create example tasks file"
+            return 1
+        fi
+    fi
+
+    if [[ ! -r $TASKS_FILE ]]; then
+        print -u2 "Error: $TASKS_FILE is not readable"
+        return 1
+    fi
+
+    local selected
+    local cmd
+
+    # Process tasks with custom formatting
+    selected="$(
+        grep -v '^#' "$TASKS_FILE" |
+        grep -v '^$' |
+        awk -F' :: ' '{
+            # Escape special characters in command for printf
+            gsub(/"/, "\\\"", $2)
+            printf "%s\034%s\n", $1, $2
+        }' |
+        fzf --exit-0 \
+            --cycle \
+            --delimiter='\034' \
+            --with-nth=1 \
+            --height='50%' \
+            --reverse \
+            --preview-window='down:3:wrap' \
+            --preview='echo -e "\033[0;36m$(echo {2} | fold -w $COLUMNS -s)\033[0m"' \
+            --bind='ctrl-p:up' \
+            --bind='ctrl-y:execute-silent(echo -n {2} | clipcopy)' \
+            --bind='ctrl-v:toggle-preview' \
+            --header='↵ execute • ctrl-y copy • ctrl-v preview • ctrl-p up' \
+            --prompt='Task > ' \
+            --no-separator
+    )"
+
+    if [[ -z $selected ]]; then
+        return 0
+    fi
+
+    # Extract command part (after delimiter)
+    cmd="${selected#*$'\034'}"
+
+    # Interpolate variables
+    cmd=$(eval "echo \"$cmd\"")
+
+    print -P "%F{yellow}Executing:%f %B${cmd}%b"
+
+    (eval "${cmd}")
+}
+
+if [[ $0 != "$ZSH_ARGZERO" ]]; then
+    alias tt='tasks'
+fi
+
+if [[ $0 == "$ZSH_ARGZERO" ]]; then
+    tasks "$@"
+fi

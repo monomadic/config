@@ -1,15 +1,14 @@
-hs.loadSpoon("MPVController")
-
--- Bind hotkeys
-spoon.MPVController:bindHotkeys({
-	next = { { "cmd", "alt" }, "right" },    -- Command+Alt+Right Arrow for next track
-	previous = { { "cmd", "alt" }, "left" }, -- Command+Alt+Left Arrow for previous track
-	toggle = { { "cmd", "alt" }, "space" },  -- Command+Alt+Space to toggle pause
-	forward = { { "alt" }, "right" },        -- Alt+Right Arrow to seek forward
-	backward = { { "alt" }, "left" },        -- Alt+Left Arrow to seek backward
-	volumeUp = { { "cmd", "alt" }, "up" },   -- Command+Alt+Up Arrow to increase volume
-	volumeDown = { { "cmd", "alt" }, "down" } -- Command+Alt+Down Arrow to decrease volume
-})
+-- -- MPV
+-- hs.loadSpoon("MPVController")
+-- spoon.MPVController:bindHotkeys({
+-- 	next = { { "cmd", "alt" }, "right" },    -- Command+Alt+Right Arrow for next track
+-- 	previous = { { "cmd", "alt" }, "left" }, -- Command+Alt+Left Arrow for previous track
+-- 	toggle = { { "cmd", "alt" }, "space" },  -- Command+Alt+Space to toggle pause
+-- 	forward = { { "alt" }, "right" },        -- Alt+Right Arrow to seek forward
+-- 	backward = { { "alt" }, "left" },        -- Alt+Left Arrow to seek backward
+-- 	volumeUp = { { "cmd", "alt" }, "up" },   -- Command+Alt+Up Arrow to increase volume
+-- 	volumeDown = { { "cmd", "alt" }, "down" } -- Command+Alt+Down Arrow to decrease volume
+-- })
 
 -- Maximize focused window
 hs.hotkey.bind({ "cmd", "shift" }, "up", function()
@@ -17,6 +16,34 @@ hs.hotkey.bind({ "cmd", "shift" }, "up", function()
 	if win then
 		win:maximize()
 	end
+end)
+
+-- Open yazi from finder
+hs.hotkey.bind({ "rcmd" }, "return", function()
+	-- Check if Finder is frontmost right when the hotkey is pressed
+	local finder = hs.application.frontmostApplication()
+	if not finder or finder:name() ~= "Finder" then
+		-- Pass the event through to other applications
+		return false
+	end
+
+	-- Get the frontmost Finder window's path
+	local script = [[
+        tell application "Finder"
+            try
+                set windowPath to POSIX path of (target of front window as alias)
+                return windowPath
+            on error
+                return ""
+            end try
+        end tell
+    ]]
+	local _, result, _ = hs.osascript.applescript(script)
+	if not result or result == "" then return false end
+
+	-- Open Kitty in the Finder's directory and run Yazi
+	hs.task.new("/opt/homebrew/bin/kitty", nil, { "@", "--hold", "--directory", result, "yazi" }):start()
+	return true
 end)
 
 -- Restore window to its previous state

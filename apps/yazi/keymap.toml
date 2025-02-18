@@ -4,7 +4,7 @@
 
 [[manager.prepend_keymap]]
 on   = ["}"]
-run  = "plugin --sync first-non-directory"
+run  = "plugin --- @sync first-non-directory"
 desc = "Jumps to the first file"
 
 [manager]
