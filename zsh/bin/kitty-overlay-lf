@@ -1,0 +1,6 @@
+#!/bin/bash
+# Get the current directory
+current_dir=$(pwd)
+
+# Launch LF in a new window, preserving the current directory
+kitty @ launch --type=overlay --cwd="$current_dir" --title="LF File Manager" lf

@@ -1,5 +1,43 @@
 # Configuration that runs for all shells (even non-interactive)
 #
+
+# PATH
+#
+# note: in zsh, $path is an associative array that syncs to $PATH
+typeset -U path
+path=(
+  $HOME/.bin
+  $HOME/.local/bin
+  $HOME/.zsh/bin
+  $HOME/.cargo/bin
+  $HOME/.deno/bin
+  $HOME/.foundry/bin
+  $HOME/.local/share/nvim/mason/bin
+  $HOME/go/bin
+  $HOME/.cache/lm-studio/bin
+  $BREW_PREFIX/coreutils/libexec/gnubin
+  $BREW_PREFIX/gnu-sed/libexec/gnubin
+  $BREW_PREFIX/grep/libexec/gnubin
+  $path
+)
+
+# MANPATH CONFIGURATION
+#
+typeset -U manpath
+manpath=(
+  $BREW_PREFIX/coreutils/libexec/gnuman
+  $manpath
+)
+
+# ZSH FUNCTIONS
+#
+fpath=(
+  $ZSH_CONFIG_DIR/completions
+  $ZSH_CONFIG_DIR/widgets
+  $BREW_PREFIX/share/zsh/site-functions
+  $fpath
+)
+
 export ZSH_CONFIG_DIR=$HOME/.zsh
 export CONFIG_DIR=$HOME/.config
 export XDG_CONFIG_HOME=$CONFIG_DIR

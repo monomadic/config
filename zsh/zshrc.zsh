@@ -8,43 +8,6 @@
 eval "$(/opt/homebrew/bin/brew shellenv)"
 local BREW_PREFIX="$(brew --prefix)"
 
-# PATH
-#
-# note: in zsh, $path is an associative array that syncs to $PATH
-typeset -U path
-path=(
-  $BREW_PREFIX/coreutils/libexec/gnubin
-  $BREW_PREFIX/gnu-sed/libexec/gnubin
-  $BREW_PREFIX/grep/libexec/gnubin
-  $HOME/.bin
-  $HOME/.cargo/bin
-  $HOME/.deno/bin
-  $HOME/.foundry/bin
-  $HOME/.local/share/nvim/mason/bin
-  $HOME/.zsh/bin
-  $HOME/.zsh/widgets
-  $HOME/go/bin
-  $HOME/.local/bin
-  $path
-)
-
-# ZSH FUNCTIONS
-#
-fpath=(
-  ~/.zsh/completions
-  ~/.zsh/widgets
-  $BREW_PREFIX/share/zsh/site-functions
-  $fpath
-)
-
-# MANPATH CONFIGURATION
-#
-typeset -U manpath
-manpath=(
-  /opt/homebrew/opt/coreutils/libexec/gnuman
-  $manpath
-)
-
 # Enable vi mode
 # bindkey -v
 
@@ -96,8 +59,3 @@ for config_file in $config_files; do
     print -P "%F{red}Error sourcing $config_file. Skipping...%f"
   fi
 done
-
-print
-
-# Added by LM Studio CLI (lms)
-export PATH="$PATH:/Users/nom/.cache/lm-studio/bin"

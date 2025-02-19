@@ -89,6 +89,7 @@ function tasks() {
         }' |
         fzf --exit-0 \
             --cycle \
+						--ansi \
             --delimiter='\034' \
             --with-nth=1 \
             --height='50%' \
@@ -99,6 +100,9 @@ function tasks() {
             --bind='ctrl-y:execute-silent(echo -n {2} | clipcopy)' \
             --bind='ctrl-v:toggle-preview' \
             --header='↵ execute • ctrl-y copy • ctrl-v preview • ctrl-p up' \
+						--no-header \
+						--no-info \
+						--exact \
             --prompt='Task > ' \
             --no-separator
     )"
