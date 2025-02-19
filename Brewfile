@@ -47,6 +47,8 @@ brew "ghq" # git repo management https://github.com/x-motemen/ghq
 brew "lazygit"
 # brew "degit" # git cloner (note: not on brew)
 
+cask "alt-tab" # better alt-tab switcher
+
 brew "gzip"
 brew "shfmt" # formatter for zsh/sh/etc
 

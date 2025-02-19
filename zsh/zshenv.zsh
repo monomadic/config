@@ -45,7 +45,7 @@ export DOTFILES_DIR=$HOME/config
 export ZSH_DOTFILES_DIR=$DOTFILES_DIR/zsh
 
 export EDITOR=nvim
-export TEMPLATE_BASE_DIR=${XDG_CONFIG_HOME}/nvim/templates
+export TEMPLATE_BASE_DIR=$XDG_CONFIG_HOME/nvim/templates
 
 export TABLATURE_DIR=$HOME/Music/Tablature
 export MOVIES_PATH=$HOME/Movies

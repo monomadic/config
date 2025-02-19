@@ -41,6 +41,9 @@ alias .screen-sharing-kick-users="sudo /System/Library/CoreServices/RemoteManage
 
 alias .kitty-reload="kitty @ set-colors --all ~/.config/kitty/kitty.conf"
 alias .kitty-configure="cfg-kitty"
+alias .kitty-kill-all-nvim="kitten @ close-tab --match 'env:PROC=nvim'"
+alias .nvim-kill-all=.kitty-kill-all-nvim
+alias .kitty-close-idle-tabs="kitty @ close-tab --match 'env:PROC=zsh'"
 
 alias .demux="ffmpeg-demux"
 alias .demux-audio="ffmpeg-demux --skip-video"
