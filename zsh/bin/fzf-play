@@ -106,7 +106,7 @@ exec fzf \
   --bind 'alt-s:select-all+accept' \
   --bind 'ctrl-/:toggle-preview' \
   --bind 'alt-p:toggle-preview' \
-  --bind 'alt-r:execute-silent(open --reveal "$(realpath "{}")")' \
+  --bind 'alt-r:execute(open --reveal "{}")' \
   --bind 'ctrl-r:execute-silent(shuf -o /dev/stdout)' \
   --bind 'ctrl-s:execute-silent(sort -o /dev/stdout)' \
   --bind 'ctrl-d:execute-silent(ls -t {} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \

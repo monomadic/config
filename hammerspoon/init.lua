@@ -1,5 +1,5 @@
--- -- MPV
 -- hs.loadSpoon("MPVController")
+-- -- Bind hotkeys
 -- spoon.MPVController:bindHotkeys({
 -- 	next = { { "cmd", "alt" }, "right" },    -- Command+Alt+Right Arrow for next track
 -- 	previous = { { "cmd", "alt" }, "left" }, -- Command+Alt+Left Arrow for previous track
