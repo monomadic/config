@@ -1,37 +1,102 @@
-#!/bin/bash
-
+#!/bin/zsh
 # Tablature Finder
 # This script allows users to search and preview PDF tablature files.
-
 # Set the directory containing tablature files
 TABLATURE_DIR="${TABLATURE_DIR:-$HOME/Music/Tablature}"
-
 # Ensure the tablature directory exists and is readable
 if [[ ! -d "$TABLATURE_DIR" || ! -r "$TABLATURE_DIR" ]]; then
   echo "Error: Tablature directory '$TABLATURE_DIR' does not exist or is not readable."
   exit 1
 fi
-
 # Change to the tablature directory
 cd "$TABLATURE_DIR" || {
   echo "Error: Failed to change directory to '$TABLATURE_DIR'."
   exit 1
 }
+# Static header text with nerdfonts icons
+HEADER=" 󰄬  ↵ Open | 󰄛  alt+↵ Preview | 󰑓  alt+r Reveal | 󰀓  ctrl+a Sort by Artist | 󰨁  ctrl+t Sort by Title"
+# Function to format file size in human readable format
+human_readable_size() {
+  local size=$1
+  local units=("B" "KB" "MB" "GB" "TB")
+  local unit_index=0
 
-# Use fd to find PDF files and use fzf with a custom enter key binding to open files
-fd . --extension pdf --type f --exec stat -f "%m|%N" {} + 2>/dev/null |
-  sort -rn |
-  cut -d'|' -f2- |
-  highlight-tablature |
-  fzf --margin="10%,0%" \
-    --reverse \
-    --ansi \
-    --cycle \
-    --prompt=" 󰋆 " \
-    --border \
-    --border-label=" Tabs" \
-    --no-info \
-    --exact \
-    --bind 'alt-r:execute(open --reveal {+})' \
-    --bind "enter:execute(echo \"Opening: {+}\" && open {+}&)" \
-    --bind "alt-enter:execute(echo \"Opening: {+}\" && qlmanage -p {+} > /dev/null 2>&1)"
+  while ((size > 1024 && unit_index < 4)); do
+    size=$((size / 1024))
+    ((unit_index++))
+  done
+
+  echo "${size}${units[$unit_index]}"
+}
+
+# Create function to format the output based on view type
+format_tabs() {
+  local view_type=$1
+  fd . --extension pdf --type f --exec stat -f "%z|%m|%N" {} + 2>/dev/null |
+    sort -rn -t'|' -k2 |
+    while IFS='|' read -r filesize mod_time filepath; do
+      # Remove ./ prefix and file extension
+      display_path=${filepath#./}
+      display_name=${display_path%.pdf}
+      # Format file size
+      hr_size=$(human_readable_size "$filesize")
+
+      # Check if the name has an artist-title format
+      if [[ "$display_name" == *" - "* ]]; then
+        # Split artist and title
+        artist=${display_name%% - *}
+        title=${display_name#* - }
+        # Output based on view type
+        if [[ "$view_type" == "artist" ]]; then
+          echo -E "${filepath}"$'\t'"$(print -P "%F{cyan}${artist}%f %F{yellow}${title}%f")"$'\t'"$filesize"
+        else
+          echo -E "${filepath}"$'\t'"$(print -P "%F{yellow}${title}%f %F{cyan}${artist}%f")"$'\t'"$filesize"
+        fi
+      else
+        # Just color the whole name
+        echo -E "${filepath}"$'\t'"$(print -P "%F{green}${display_name}%f")"$'\t'"$filesize"
+      fi
+    done
+}
+
+# Check if eza or exa is installed
+if command -v eza >/dev/null 2>&1; then
+  EXA_CMD="eza"
+elif command -v exa >/dev/null 2>&1; then
+  EXA_CMD="exa"
+else
+  echo "Error: Please install eza or exa with 'brew install eza' or 'brew install exa'"
+  exit 1
+fi
+
+# Create temporary files for the views
+TEMP_DIR=$(mktemp -d)
+ARTIST_VIEW="$TEMP_DIR/artist_view.txt"
+TITLE_VIEW="$TEMP_DIR/title_view.txt"
+# Clean up on exit
+trap 'rm -rf "$TEMP_DIR"' EXIT INT TERM
+# Generate the initial views
+format_tabs "artist" >"$ARTIST_VIEW"
+format_tabs "title" >"$TITLE_VIEW"
+# Export the preview function so it's available to fzf
+export -f preview_file
+
+# Run fzf with initial artist view
+cat "$ARTIST_VIEW" | fzf --margin="10%,0%" \
+  --reverse \
+  --ansi \
+  --cycle \
+  --pointer="󰋆" \
+  --border="rounded" \
+  --border-label=" 󰎈 Tablature Finder " \
+  --header="$HEADER" \
+  --header-first \
+  --no-info \
+  --exact \
+  --delimiter='\t' \
+  --with-nth=2 \
+  --bind 'alt-r:execute(open --reveal {1})' \
+  --bind "enter:execute(echo \"󰄬 Opening: {1}\" && open {1}&)" \
+  --bind "alt-enter:execute(echo \"󰄛 Previewing: {1}\" && qlmanage -p {1} > /dev/null 2>&1)" \
+  --bind "ctrl-a:reload(cat $ARTIST_VIEW)" \
+  --bind "ctrl-t:reload(cat $TITLE_VIEW)"

@@ -20,7 +20,7 @@ fzf-creators() {
     name=${path%/}   # Remove trailing slash
     name=${name##*/} # Get last component
     echo "$name	$path"
-  done | fzf --with-nth=1 --delimiter="\t" --preview="echo {}" | cut -f2
+  done | fzf --exit0 --with-nth=1 --delimiter="\t" --preview="echo {}" | cut -f2
 }
 
 cd-creators() {

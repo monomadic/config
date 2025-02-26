@@ -19,7 +19,7 @@ local random_player = {
 -- 	random_player:jump_random()
 -- end)
 
-mp.register_script_message("jump-to-random-file", function()
+mp.register_script_message("play-random", function()
 	random_player:jump_random()
 end)
 

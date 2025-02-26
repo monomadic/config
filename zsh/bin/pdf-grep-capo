@@ -1,0 +1,24 @@
+#!/bin/zsh
+
+# Ensure a file is provided
+if [[ -z "$1" ]]; then
+    echo "Usage: $0 <pdf-file>"
+    exit 1
+fi
+
+pdf_file="$1"
+
+# Check if pdftotext is installed
+if ! command -v pdftotext &>/dev/null; then
+    echo "Error: pdftotext is not installed. Install it via 'brew install poppler'."
+    exit 1
+fi
+
+# Check if rg (ripgrep) is installed
+if ! command -v rg &>/dev/null; then
+    echo "Error: ripgrep is not installed. Install it via 'brew install ripgrep'."
+    exit 1
+fi
+
+# Extract text from PDF and search for "Capo: x"
+pdftotext "$pdf_file" - | rg -i 'Capo:\s*(\d+|\d+th fret|[A-Za-z]+)'
