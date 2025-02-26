@@ -56,7 +56,7 @@ alias url="yt-url"
 alias media-backup-src="rsync-backup SRC"
 alias media-cache="rsync-backup --dry-run $HOME/Movies/Cache \/clipped\/ "
 
-alias tag=media-autotag
+alias tag=rename-media
 alias .tag=tag
 
 alias gatekeeper-whitelist="xattr -rd com.apple.quarantine "
