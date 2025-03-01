@@ -6,28 +6,16 @@
 # Default options
 DRY_RUN=false
 
-# Function to display usage information
-show_usage() {
-  cat <<EOF
-Usage: $0 [OPTIONS] video_file [video_file ...]
+# NerdFonts icons
+ICON_VIDEO="󰎈"
+ICON_OK=""
+ICON_WARN=""
 
-Analyzes video files and renames them to include resolution, frame rate, and bitrate.
-New format: FILENAME {RESOLUTIONp@FPSfps, BITRATEmbps}.EXT
-
-Options:
-  --dry-run    Show what would be done without actually renaming files
-  -h, --help   Display this help message and exit
-
-Examples:
-  $0 video.mp4
-  $0 --dry-run *.mov
-  $0 /path/to/videos/*.mkv
-
-Dependencies:
-  - ffprobe (part of ffmpeg)
-EOF
-  exit 1
-}
+# Colors
+RESET="\e[0m"
+GREEN="\e[32m"
+YELLOW="\e[33m"
+CYAN="\e[36m"
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
@@ -37,11 +25,15 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   -h | --help)
-    show_usage
+    echo -e "Usage: $0 [OPTIONS] video_file [video_file ...]\n"
+    echo "Options:"
+    echo "  --dry-run    Show what would be done without renaming"
+    echo "  -h, --help   Show this message"
+    exit 1
     ;;
   -*)
-    echo "Error: Unknown option: $1"
-    show_usage
+    echo -e "${YELLOW}${ICON_WARN} Unknown option: $1${RESET}"
+    exit 1
     ;;
   *)
     break
@@ -49,46 +41,51 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Check if any files were provided
-if [[ $# -eq 0 ]]; then
-  echo "Error: No input files specified."
-  show_usage
-fi
-
-# Check if ffprobe is installed
+# Ensure ffprobe is available
 if ! command -v ffprobe &>/dev/null; then
-  echo "Error: ffprobe is required but not installed. Please install ffmpeg."
+  echo -e "${YELLOW}${ICON_WARN} ffprobe is required but not installed.${RESET}"
   exit 1
 fi
 
-# Function to process each video file
+# Remove unwanted tags
+clean_name() {
+  local name="$1"
+  name="${name//#1080p/}"
+  name="${name//#1080/}"
+  name="${name//#720p/}"
+  name="${name//#4k/}"
+  name="${name//#60fps/}"
+  name="${name//#30fps/}"
+  name="${name//#25fps/}"
+  echo "$name"
+}
+
+# Process each video file
 process_video() {
   local file="$1"
   local filename=$(basename "$file")
   local dirname=$(dirname "$file")
   local extension="${filename##*.}"
   local name_without_ext="${filename%.*}"
+  name_without_ext=$(clean_name "$name_without_ext")
 
-  echo "Processing: $filename"
-
-  # Use ffprobe to get video information
+  # Get video metadata
   local video_info=$(ffprobe -v error -select_streams v:0 -show_entries \
     stream=width,height,r_frame_rate,bit_rate -of csv=p=0:s=, "$file")
 
-  # Parse the video information
   local width=$(echo $video_info | cut -d, -f1)
   local height=$(echo $video_info | cut -d, -f2)
   local frame_rate=$(echo $video_info | cut -d, -f3)
   local bit_rate=$(echo $video_info | cut -d, -f4)
 
-  # Calculate frame rate (may be in fraction form like 30000/1001)
+  # Calculate frame rate
   if [[ $frame_rate == */* ]]; then
     local numerator=$(echo $frame_rate | cut -d/ -f1)
     local denominator=$(echo $frame_rate | cut -d/ -f2)
     frame_rate=$(((numerator + (denominator / 2)) / denominator))
   fi
 
-  # Determine resolution code
+  # Determine resolution
   local resolution=""
   if [[ $height -le 480 ]]; then
     resolution="480p"
@@ -104,56 +101,37 @@ process_video() {
     resolution="${height}p"
   fi
 
-  # Convert bitrate to mbps
-  local mbps=""
-  if [[ -z "$bit_rate" ]]; then
-    mbps="unknown"
-  else
-    # Convert to Mbps with one decimal place
+  # Convert bitrate to Mbps
+  local mbps="unknown"
+  if [[ -n "$bit_rate" ]]; then
     mbps=$(printf "%.1f" $(echo "scale=1; $bit_rate / 1000000" | bc))
     mbps="${mbps}mbps"
   fi
 
-  # Create new filename
+  # Construct new filename
   local new_filename="${name_without_ext} {${resolution}@${frame_rate}fps, ${mbps}}.${extension}"
   local new_path="${dirname}/${new_filename}"
 
-  # Check if the new file already exists
+  # Rename file
   if [[ -f "$new_path" ]]; then
-    echo "File already exists, skipping: $new_filename"
+    echo -e "${YELLOW}${ICON_WARN} Exists: $new_filename${RESET}"
   else
-    echo "Renaming to: $new_filename"
     if [[ "$DRY_RUN" = true ]]; then
-      echo "[DRY RUN] Would rename: '$file' -> '$new_path'"
+      echo -e "${CYAN}${ICON_VIDEO} ${new_filename}${RESET}"
     else
       mv "$file" "$new_path"
+      echo -e "${GREEN}${ICON_OK} ${new_filename}${RESET}"
     fi
   fi
-
-  echo "-----------------------------------"
 }
 
-# Main script
-
-# Process each file provided as an argument
+# Process files
 for file in "$@"; do
   if [[ -f "$file" ]]; then
-    # Check if it's a video file (simple extension check)
     case "${file:l}" in
     *.mp4 | *.mov | *.avi | *.mkv | *.wmv | *.flv | *.webm | *.m4v)
       process_video "$file"
       ;;
-    *)
-      echo "Skipping non-video file: $file"
-      ;;
     esac
-  else
-    echo "File doesn't exist: $file"
   fi
 done
-
-if [[ "$DRY_RUN" = true ]]; then
-  echo "All files processed (DRY RUN - no files were actually renamed)."
-else
-  echo "All files processed."
-fi

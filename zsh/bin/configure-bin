@@ -1,0 +1,131 @@
+#!/usr/bin/env zsh
+
+# zsh-script-editor.zsh
+# Script to find and edit zsh scripts across multiple directories
+
+# Check if fzf is installed
+if ! command -v fzf >/dev/null 2>&1; then
+  echo "Error: fzf is not installed" >&2
+  echo "Please install fzf first: https://github.com/junegunn/fzf" >&2
+  exit 1
+fi
+
+# Check if the global variable containing paths exists
+if [[ -z "${ZSH_SCRIPT_PATHS}" ]]; then
+  echo "Error: ZSH_SCRIPT_PATHS global variable is not set" >&2
+  echo "Please define it in your .zshrc like:" >&2
+  echo 'export ZSH_SCRIPT_PATHS=("/path/to/scripts1" "/path/to/scripts2")' >&2
+  exit 1
+fi
+
+# Debug: Show the paths being searched
+echo "Script search paths:" >&2
+for dir in "${ZSH_SCRIPT_PATHS[@]}"; do
+  echo "- $dir" >&2
+done
+
+# Function to check if a file is executable
+is_executable() {
+  [[ -x "$1" ]] && echo "true" || echo "false"
+}
+
+# Function to toggle executable permissions
+toggle_executable() {
+  local file="$1"
+  if [[ -x "$file" ]]; then
+    chmod -x "$file"
+    echo "Removed executable permission from $file"
+  else
+    chmod +x "$file"
+    echo "Added executable permission to $file"
+  fi
+}
+
+# Find all zsh scripts in the specified directories
+find_zsh_scripts() {
+  for dir in "${ZSH_SCRIPT_PATHS[@]}"; do
+    if [[ -d "$dir" ]]; then
+      # Debug output
+      echo "Searching in directory: $dir" >&2
+
+      # The find command needs parentheses around the name patterns to group them
+      find "$dir" -type f \( -name "*.zsh" -o -name "*.sh" -o -name "*zshrc*" -o -name "*.z" -o -path "*zsh*" \)
+    else
+      echo "Warning: Directory $dir does not exist" >&2
+    fi
+  done
+}
+
+# Colorize the output based on executable permissions
+colorize_scripts() {
+  while read -r file; do
+    if [[ -x "$file" ]]; then
+      echo -e "\033[32m$file\033[0m" # Green for executable files
+    else
+      echo "$file" # Default color for non-executable files
+    fi
+  done
+}
+
+# Preview function
+preview_script() {
+  local file="$1"
+  local executable_status=$(is_executable "$file")
+
+  # Show file permission and executable status in header
+  echo -e "\033[1;34m=== File Info ===\033[0m"
+  echo -e "\033[1mPath:\033[0m $file"
+  echo -e "\033[1mPermissions:\033[0m $(ls -la "$file" | awk '{print $1}')"
+
+  if [[ "$executable_status" == "true" ]]; then
+    echo -e "\033[1;32mExecutable: Yes\033[0m"
+  else
+    echo -e "\033[1mExecutable: No\033[0m"
+  fi
+
+  echo -e "\033[1;34m=== File Content ===\033[0m"
+
+  # Show file content with syntax highlighting if bat is available, otherwise use cat
+  if command -v bat >/dev/null 2>&1; then
+    bat --style=plain --color=always "$file"
+  else
+    cat "$file"
+  fi
+}
+
+# Main function to run fzf
+main() {
+  local selected_file
+  local script_list
+
+  # Store the output of find_zsh_scripts in a variable
+  script_list=$(find_zsh_scripts)
+
+  # Debug: Show how many files were found
+  echo "Found $(echo "$script_list" | wc -l) script files" >&2
+
+  # Check if any scripts were found
+  if [[ -z "$script_list" ]]; then
+    echo "No zsh scripts found in the specified directories."
+    echo "Make sure ZSH_SCRIPT_PATHS is correctly set and contains directories with zsh scripts."
+    return 1
+  fi
+
+  selected_file=$(echo "$script_list" | sort | fzf \
+    --ansi \
+    --preview "source $0; preview_script {}" \
+    --preview-window=right:60%:wrap \
+    --header="Ctrl-x: Toggle executable | Enter: Edit in Neovim" \
+    --bind="ctrl-x:execute(source $0; toggle_executable {} > /dev/tty)+reload(source $0; find_zsh_scripts | sort | colorize_scripts)" \
+    --bind="enter:execute(nvim {})+abort")
+
+  # If a file is selected, open it in neovim (this is a fallback, should already be handled by fzf)
+  if [[ -n "$selected_file" ]]; then
+    nvim "$selected_file"
+  fi
+}
+
+# Execute the main function if this script is being run directly
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main
+fi

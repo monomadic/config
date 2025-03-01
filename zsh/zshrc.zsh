@@ -28,9 +28,9 @@ config_files=(
   $ZSH_AUTOLOAD_DIR/alias.zsh
   $ZSH_AUTOLOAD_DIR/homebrew.zsh
   $ZSH_AUTOLOAD_DIR/broot.zsh
+  $ZSH_AUTOLOAD_DIR/fzf.zsh
   $ZSH_AUTOLOAD_DIR/completions.zsh
   $ZSH_AUTOLOAD_DIR/fzf-completions.zsh
-  $ZSH_AUTOLOAD_DIR/fzf.zsh
   $ZSH_AUTOLOAD_DIR/fzf-custom.zsh
   $ZSH_AUTOLOAD_DIR/fzf-templates.zsh
   $ZSH_AUTOLOAD_DIR/drive-index.zsh

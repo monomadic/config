@@ -44,6 +44,10 @@ export XDG_CONFIG_HOME=$CONFIG_DIR
 export DOTFILES_DIR=$HOME/config
 export ZSH_DOTFILES_DIR=$DOTFILES_DIR/zsh
 
+export ZSH_SCRIPT_PATHS=(
+  $ZSH_CONFIG_DIR/bin
+)
+
 export EDITOR=nvim
 export TEMPLATE_BASE_DIR=$XDG_CONFIG_HOME/nvim/templates
 
@@ -79,5 +83,7 @@ export GHQ_ROOT=$HOME/src
 
 # FZF / Skim
 export FZF_DEFAULT_OPTS="--layout=reverse --cycle --preview-window=noborder --highlight-line --no-separator --no-border --inline-info --bind 'ctrl-u:unix-line-discard' --color=bg:-1,fg:blue,info:15,header:7,hl:red,hl+:red,gutter:-1,prompt:yellow,marker:-1,bg+:black,pointer:yellow,fg+:yellow"
+export FZF_COMPLETION_TRIGGER='\t' # Default is '**'
+export FZF_COMPLETION_OPTS='--preview "bat --color=always {} 2>/dev/null || cat {} 2>/dev/null"'
 export SKIM_DEFAULT_OPTIONS=$FZF_DEFAULT_OPTS
 export SKIM_DEFAULT_COMMAND="fd . --max-depth=3"
