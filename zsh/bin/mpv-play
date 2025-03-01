@@ -70,7 +70,6 @@ mpv-stdin() {
       echo "$playlist" | mpv --macos-fs-animation-duration=0 \
         --no-native-fs \
         --fs \
-        --loop-playlist \
         --mute=yes \
         --playlist-start="$start_index" \
         "$@" \
@@ -90,7 +89,6 @@ mpv-stdin() {
       mpv --macos-fs-animation-duration=0 \
         --no-native-fs \
         --fs \
-        --loop-playlist \
         --mute=yes \
         "$@" \
         --playlist=- >/dev/null 2>&1 &

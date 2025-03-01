@@ -14,7 +14,7 @@ cd "$TABLATURE_DIR" || {
   exit 1
 }
 # Static header text with nerdfonts icons
-HEADER=" 󰄬  ↵ Open | 󰄛  alt+↵ Preview | 󰑓  alt+r Reveal | 󰀓  ctrl+a Sort by Artist | 󰨁  ctrl+t Sort by Title"
+HEADER="↵ open · 󰘵 preview · 󰘵 r reveal · 󰘴 a sort:artist · 󰘴 t sort:title"
 # Function to format file size in human readable format
 human_readable_size() {
   local size=$1

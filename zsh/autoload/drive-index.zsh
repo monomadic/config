@@ -23,7 +23,7 @@ ls-media-untagged() {
 }
 
 mpv-stdin() {
-  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --input-ipc-server=/tmp/mpvsocket --mute=yes $@ --playlist=- >/dev/null 2>&1 &
+  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --input-ipc-server=/tmp/mpvsocket --mute=yes $@ --playlist=- >/dev/null 2>&1 &
 }
 
 alias media-play-safe="ls-media | grep-safe | mpv-play --shuffle"
@@ -98,7 +98,7 @@ alias @search-pwd-sorted=fzf-play-pwd-sorted
 alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
 
 mpv-play-external-drives() {
-  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --mute=yes --shuffle /Volumes/**/Movies/* >/dev/null 2>&1 &
+  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --mute=yes --shuffle /Volumes/**/Movies/* >/dev/null 2>&1 &
 }
 alias @play-external=mpv-play-external-drives
 
@@ -175,5 +175,5 @@ index-play-checked-top() {
 }
 
 media-play-all-local() {
-  ls-media-paths | grep $HOME | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-playlist --loop-file=1 --shuffle --playlist=-
+  ls-media-paths | grep $HOME | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-file=1 --shuffle --playlist=-
 }
