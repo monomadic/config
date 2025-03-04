@@ -12,7 +12,7 @@ fd-tags() {
 
 fd-creators() {
   setopt +o nomatch
-  fd -td -d1 . /Volumes/*/Movies/Porn/*/creators 2>/dev/null
+  fd -td -d1 . {/Volumes/*/Movies/Porn/*/creators,$HOME/Movies/Porn/*/creators} 2>/dev/null
 }
 
 fzf-creators() {
@@ -20,7 +20,7 @@ fzf-creators() {
     name=${path%/}   # Remove trailing slash
     name=${name##*/} # Get last component
     echo "$name	$path"
-  done | fzf --exit0 --with-nth=1 --delimiter="\t" --preview="echo {}" | cut -f2
+  done | fzf --exit-0 --with-nth=1 --delimiter="\t" --preview="ls '{2}'" | cut -f2
 }
 
 cd-creators() {

@@ -37,10 +37,15 @@ ls-all() {
   ls_marks
   fd-volumes
   fd-creators
-
+  fd-configs
   # ls_workspaces
   # ls_src
   # ls_creators
+}
+
+fd-configs() {
+  setopt +o nomatch
+  fd -td -d2 . $DOTFILES_DIR 2>/dev/null
 }
 
 fd-volumes() {

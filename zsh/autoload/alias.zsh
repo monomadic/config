@@ -36,6 +36,12 @@ alias @lib="media search library"
 alias @tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
 alias @perf="media search #60fps #4k"
 alias @remaster="media search #remaster"
+alias @masters-smb="fd --print0 --extension=mp4 . /Volumes/Masters\ 1TB/Movies/Porn/ | fzf-play"
+
+alias topaz-video="env LC_ALL=C LC_NUMERIC=C LANG=C /Applications/Topaz\ Video\ AI.app/Contents/MacOS/Topaz\ Video\ AI"
+alias .topaz-video=topaz-video
+
+alias config-dotfiles="cd $DOTFILES_DIR && fd --type directory --max-depth=2 | fzf | xargs nvim"
 
 alias cd-relative="cd ${fd--type directory | fzf-cd}"
 
@@ -152,6 +158,7 @@ alias e-bin="edit-bin"
 alias e="nvim"
 alias edit=nvim
 alias fd-empty="fd --type empty"
+alias fd-dirs="fd --type directory"
 alias ga="git add . && git commit --amend"
 alias gb="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
 alias gc-update="gc update:"

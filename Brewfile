@@ -37,6 +37,7 @@ brew "powermetrics" # benchmarking, profiling
 
 cask "monitorcontrol" # independent controls for each monitor
 
+cask "jdownloader" # download manager
 cask "motrix" # download manager
 
 # git
@@ -51,6 +52,8 @@ cask "alt-tab" # better alt-tab switcher
 
 brew "gzip"
 brew "shfmt" # formatter for zsh/sh/etc
+
+brew "marta" # dual pane file manager
 
 brew "dotter" # rust dotfiles manager
 # brew "homebrew/dotter.rb"

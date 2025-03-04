@@ -68,7 +68,7 @@ process_files() {
       done
     fi
     if $match; then
-      local full_path="$PWD/$file"
+      local full_path="$file"
       if $sort_modified; then
         ts=$(eza --no-filesize --no-permissions --time-style=long-iso --long "$full_path" | awk '{print $6, $7}')
         printf "%s\t%s\0" "$ts" "$full_path"
