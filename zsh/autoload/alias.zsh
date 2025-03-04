@@ -16,6 +16,7 @@ alias .top="media play #top --shuffle"
 alias .upscaled="media play #upscaled --shuffle"
 alias .lib="media play library --shuffle"
 alias .remaster="media play #remaster --shuffle"
+alias .sync="sync-dotfiles"
 
 # media search
 alias @="media search"
