@@ -1,0 +1,104 @@
+#!/bin/bash
+
+# dotfiles-sync.sh - Automate syncing dotfiles repository across computers
+#
+# This script:
+# 1. Pulls the latest changes from remote
+# 2. Detects if there are any local changes
+# 3. Adds all changes, commits with an automated message, and pushes to remote
+# 4. Reports the sync status
+
+set -e # Exit immediately if a command exits with a non-zero status
+
+# Configuration
+CONFIG_DIR="${DOTFILES_DIR:-$HOME/config}"
+REMOTE="origin"
+BRANCH="master"
+
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Move to dotfiles directory
+echo -e "${BLUE}Changing to dotfiles directory: $DOTFILES_DIR${NC}"
+cd "$DOTFILES_DIR" || {
+  echo -e "${RED}Error: Cannot change to $DOTFILES_DIR${NC}"
+  exit 1
+}
+
+# Check if this is a git repository
+if [ ! -d ".git" ]; then
+  echo -e "${RED}Error: $DOTFILES_DIR is not a git repository.${NC}"
+  exit 1
+fi
+
+# Get hostname for the commit message
+HOSTNAME=$(hostname)
+
+# Fetch and pull changes from remote
+echo -e "${BLUE}Fetching changes from remote...${NC}"
+git fetch $REMOTE $BRANCH || {
+  echo -e "${RED}Error: Failed to fetch from remote.${NC}"
+  exit 1
+}
+
+# Check if we need to pull changes
+LOCAL=$(git rev-parse @)
+REMOTE_HASH=$(git rev-parse "$REMOTE/$BRANCH")
+BASE=$(git merge-base @ "$REMOTE/$BRANCH")
+
+if [ "$LOCAL" = "$REMOTE_HASH" ]; then
+  echo -e "${GREEN}Local repository is up to date with remote.${NC}"
+elif [ "$LOCAL" = "$BASE" ]; then
+  echo -e "${YELLOW}Need to pull changes from remote.${NC}"
+  git pull $REMOTE $BRANCH || {
+    echo -e "${RED}Error: Failed to pull changes.${NC}"
+    exit 1
+  }
+  echo -e "${GREEN}Successfully pulled changes from remote.${NC}"
+else
+  # Different histories - might have diverged
+  if [ "$REMOTE_HASH" = "$BASE" ]; then
+    echo -e "${YELLOW}Local has changes to push.${NC}"
+  else
+    echo -e "${YELLOW}Histories have diverged. Attempting to pull with rebase...${NC}"
+    git pull --rebase $REMOTE $BRANCH || {
+      echo -e "${RED}Rebase failed. Please resolve conflicts manually.${NC}"
+      exit 1
+    }
+  fi
+fi
+
+# Check for local changes
+if git status --porcelain | grep -q .; then
+  echo -e "${YELLOW}Local changes detected. Adding to commit...${NC}"
+
+  # Add all changes
+  git add -A
+
+  # Create commit message with timestamp and hostname
+  TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
+  COMMIT_MSG="Auto-sync from $HOSTNAME on $TIMESTAMP"
+
+  # Commit changes
+  git commit -m "$COMMIT_MSG" || {
+    echo -e "${RED}Error: Failed to commit changes.${NC}"
+    exit 1
+  }
+  echo -e "${GREEN}Changes committed with message: '$COMMIT_MSG'${NC}"
+
+  # Push to remote
+  echo -e "${BLUE}Pushing changes to remote...${NC}"
+  git push $REMOTE $BRANCH || {
+    echo -e "${RED}Error: Failed to push changes to remote.${NC}"
+    exit 1
+  }
+  echo -e "${GREEN}Successfully pushed changes to remote.${NC}"
+else
+  echo -e "${GREEN}No local changes to commit.${NC}"
+fi
+
+echo -e "${GREEN}Dotfiles sync completed successfully!${NC}"
