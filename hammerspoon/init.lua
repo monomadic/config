@@ -10,6 +10,26 @@
 -- 	volumeDown = { { "cmd", "alt" }, "down" } -- Command+Alt+Down Arrow to decrease volume
 -- })
 
+-- Load the Spoon
+hs.loadSpoon("TagSelectedFile")
+
+-- Configure and start the Spoon
+spoon.TagSelectedFile
+		:bindHotkeys({
+			tagFile = { { "cmd", "shift" }, "t" } -- You can customize the hotkey here
+		})
+-- Optional configuration
+-- Set the path to the tag command if it's not at /usr/local/bin/tag
+-- spoon.TagSelectedFile.tagCommand = "/opt/homebrew/bin/tag"
+-- Enable or disable notifications
+-- spoon.TagSelectedFile.showNotifications = true
+		:start()
+
+-- -- alt+tab replacement
+-- hs.loadSpoon("FuzzySwitcher")
+-- spoon.FuzzySwitcher:bindHotkeys({ show_switcher = { { "cmd" }, "space" } })
+-- spoon.FuzzySwitcher:start()
+
 -- Maximize focused window
 hs.hotkey.bind({ "cmd", "shift" }, "up", function()
 	local win = hs.window.focusedWindow()
@@ -187,3 +207,52 @@ end
 --     -- Execute the command in the shell
 --     hs.execute(kitty_cmd)
 -- end)
+
+
+
+-- Define a hotkey to create a dual-pane layout with Finder windows
+hs.hotkey.bind({ "cmd", "alt" }, "D", function()
+	-- Get the main screen's frame
+	local screen = hs.screen.mainScreen():frame()
+
+	-- Launch or focus Finder
+	hs.application.launchOrFocus("Finder")
+	local finder = hs.application.find("Finder")
+
+	-- Make sure we have at least two Finder windows
+	local windows = finder:allWindows()
+	if #windows < 2 then
+		-- Create a new Finder window if needed
+		hs.applescript.applescript([[
+            tell application "Finder"
+                make new Finder window
+            end tell
+        ]])
+		-- Small delay to let the window appear
+		hs.timer.doAfter(0.2, function()
+			windows = finder:allWindows()
+			arrangeDualPane(windows, screen)
+		end)
+	else
+		arrangeDualPane(windows, screen)
+	end
+end)
+
+-- Function to arrange windows in dual pane
+function arrangeDualPane(windows, screen)
+	-- Left pane
+	windows[1]:setFrame({
+		x = screen.x,
+		y = screen.y,
+		w = screen.w / 2,
+		h = screen.h
+	})
+
+	-- Right pane
+	windows[2]:setFrame({
+		x = screen.x + screen.w / 2,
+		y = screen.y,
+		w = screen.w / 2,
+		h = screen.h
+	})
+end

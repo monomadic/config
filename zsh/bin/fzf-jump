@@ -23,6 +23,7 @@ trap cleanup INT EXIT
 # Run fzf with preview - removed error redirection
 dir=$(fzf --preview 'tree -C {} || ls -la {}' \
   --bind 'ctrl-d:preview-page-down,ctrl-u:preview-page-up' \
+  --bind 'alt-r:execute(open {})' \
   --height=50% \
   --reverse \
   --no-info \
