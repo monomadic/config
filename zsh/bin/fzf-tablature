@@ -54,7 +54,7 @@ format_tabs() {
         fi
       else
         # Just color the whole name
-        echo -E "${filepath}"$'\t'"$(print -P "%F{green}${display_name}%f")"$'\t'"$filesize"
+        echo -E "${filepath}"$'\t'"$(print -P "%F{red}${display_name}%f")"$'\t'"$filesize"
       fi
     done
 }
@@ -82,13 +82,15 @@ format_tabs "title" >"$TITLE_VIEW"
 export -f preview_file
 
 # Run fzf with initial artist view
-cat "$ARTIST_VIEW" | fzf --margin="10%,0%" \
+cat "$ARTIST_VIEW" | fzf --margin="0%,0%" \
   --reverse \
   --ansi \
   --cycle \
+  --marker=" " \
+  --black \
   --pointer="󰋆" \
-  --border="rounded" \
-  --border-label=" 󰎈 Tablature Finder " \
+  --border="none" \
+  --border-label=" 󰎈 Tabs " \
   --header="$HEADER" \
   --header-first \
   --no-info \
