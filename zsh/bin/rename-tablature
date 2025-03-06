@@ -1,31 +1,41 @@
 #!/bin/zsh
-
 rename_file() {
-    local file="$1"
+  local file="$1"
 
-    # Remove unwanted suffixes
-    local cleaned_name=${file%	abs @ Ultimate Guitar Archive.pdf}
-    cleaned_name=${cleaned_name%\ @ Ultimate-Guitar.Com.pdf}
+  # Remove "tabs @ Ultimate Guitar Archive.pdf" suffix
+  local cleaned_name=${file%tabs @ Ultimate Guitar Archive.pdf}
 
-    # Remove 'Chords', 'Official', '(ver X)' and similar clutter
-    cleaned_name=$(echo "$cleaned_name" | \
-        sed -E 's/ Chords//g' | \
-        sed -E 's/ Official//g' | \
-        sed -E 's/ \(ver [0-9]+\)//g')
+  # Also handle other variants
+  cleaned_name=${cleaned_name%\ @ Ultimate-Guitar.Com.pdf}
 
-    # Ensure consistent formatting with hyphen
-    cleaned_name=$(echo "$cleaned_name" | sed -E 's/ by / - /g')
+  # Remove 'Chords', 'Official', '(ver X)' and similar clutter
+  cleaned_name=$(echo "$cleaned_name" |
+    sed -E 's/ Chords//g' |
+    sed -E 's/ Official//g' |
+    sed -E 's/ \(ver [0-9]+\)//g')
 
-    # Remove any extra spaces before the file extension
-    cleaned_name=$(echo "$cleaned_name" | sed -E 's/ +-.pdf$/.pdf/')
+  # Ensure consistent formatting with hyphen
+  cleaned_name=$(echo "$cleaned_name" | sed -E 's/ by / - /g')
 
-    # Rename the file if the new name is different
-    if [[ "$file" != "$cleaned_name.pdf" ]]; then
-        mv "$file" "$cleaned_name.pdf"
-        echo "Renamed: $file -> $cleaned_name.pdf"
-    fi
+  # Remove any extra spaces
+  cleaned_name=$(echo "$cleaned_name" | sed -E 's/ +$//g')
+
+  # Add the .pdf extension back
+  if [[ "$cleaned_name" != *.pdf ]]; then
+    cleaned_name="${cleaned_name}.pdf"
+  fi
+
+  # Rename the file if the new name is different
+  if [[ "$file" != "$cleaned_name" ]]; then
+    mv "$file" "$cleaned_name"
+    echo "Renamed: $file -> $cleaned_name"
+  fi
 }
 
+# Process all PDF files in the current directory
 for file in *.pdf; do
-    rename_file "$file"
+  # Make sure the file exists (in case no PDFs are found)
+  [ -f "$file" ] || continue
+
+  rename_file "$file"
 done
