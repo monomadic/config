@@ -1,33 +1,41 @@
 #!/bin/zsh
 # Tablature Finder
 # This script allows users to search and preview PDF tablature files.
+
 # Set the directory containing tablature files
 TABLATURE_DIR="${TABLATURE_DIR:-$HOME/Music/Tablature}"
+
 # Ensure the tablature directory exists and is readable
 if [[ ! -d "$TABLATURE_DIR" || ! -r "$TABLATURE_DIR" ]]; then
   echo "Error: Tablature directory '$TABLATURE_DIR' does not exist or is not readable."
   exit 1
 fi
+
 # Change to the tablature directory
 cd "$TABLATURE_DIR" || {
   echo "Error: Failed to change directory to '$TABLATURE_DIR'."
   exit 1
 }
+
 # Static header text with nerdfonts icons
-HEADER="↵ open · 󰘵 preview · 󰘵 r reveal · 󰘴 a sort:artist · 󰘴 t sort:title"
+HEADER="""↵ open · 󰘵 preview · 󰘵 r reveal · 󰘴 a sort:artist · 󰘴 t sort:title · 󰉴 n rename files
+
+"""
+
 # Function to format file size in human readable format
 human_readable_size() {
   local size=$1
   local units=("B" "KB" "MB" "GB" "TB")
   local unit_index=0
-
   while ((size > 1024 && unit_index < 4)); do
     size=$((size / 1024))
     ((unit_index++))
   done
-
   echo "${size}${units[$unit_index]}"
 }
+
+# Set initial view type
+VIEW_TYPE="artist"
 
 # Create function to format the output based on view type
 format_tabs() {
@@ -40,7 +48,6 @@ format_tabs() {
       display_name=${display_path%.pdf}
       # Format file size
       hr_size=$(human_readable_size "$filesize")
-
       # Check if the name has an artist-title format
       if [[ "$display_name" == *" - "* ]]; then
         # Split artist and title
@@ -73,13 +80,16 @@ fi
 TEMP_DIR=$(mktemp -d)
 ARTIST_VIEW="$TEMP_DIR/artist_view.txt"
 TITLE_VIEW="$TEMP_DIR/title_view.txt"
+
 # Clean up on exit
 trap 'rm -rf "$TEMP_DIR"' EXIT INT TERM
+
 # Generate the initial views
 format_tabs "artist" >"$ARTIST_VIEW"
 format_tabs "title" >"$TITLE_VIEW"
+
 # Export the preview function so it's available to fzf
-export -f preview_file
+export -f preview_file 2>/dev/null || true
 
 # Run fzf with initial artist view
 cat "$ARTIST_VIEW" | fzf --margin="0%,0%" \
@@ -89,10 +99,11 @@ cat "$ARTIST_VIEW" | fzf --margin="0%,0%" \
   --marker=" " \
   --black \
   --pointer="󰋆" \
-  --border="none" \
+  --border="horizontal" \
   --border-label=" 󰎈 Tabs " \
   --header="$HEADER" \
   --header-first \
+  --header-lines=0 \
   --no-info \
   --exact \
   --delimiter='\t' \
@@ -101,5 +112,6 @@ cat "$ARTIST_VIEW" | fzf --margin="0%,0%" \
   --bind 'ctrl-/:toggle-preview' \
   --bind "enter:execute(echo \"󰄬 Opening: {1}\" && open {1}&)" \
   --bind "alt-enter:execute(echo \"󰄛 Previewing: {1}\" && qlmanage -p {1} > /dev/null 2>&1)" \
-  --bind "ctrl-a:reload(cat $ARTIST_VIEW)" \
-  --bind "ctrl-t:reload(cat $TITLE_VIEW)"
+  --bind "ctrl-a:reload(cat $ARTIST_VIEW)+execute-silent(echo 'artist' > $TEMP_DIR/current_view)" \
+  --bind "ctrl-t:reload(cat $TITLE_VIEW)+execute-silent(echo 'title' > $TEMP_DIR/current_view)" \
+  --bind "alt-n:execute(rename-tablature && echo 'Refreshing views...' && format_tabs 'artist' > $ARTIST_VIEW && format_tabs 'title' > $TITLE_VIEW)+reload(if [[ -f $TEMP_DIR/current_view && \$(cat $TEMP_DIR/current_view) == 'title' ]]; then cat $TITLE_VIEW; else cat $ARTIST_VIEW; fi)"
