@@ -1,5 +1,6 @@
 # media functions
 
+alias mpv-looper="mpv --recursive=yes --player-operation-mode=pseudo-gui --loop-file=inf --loop-playlist=inf --image-display-duration=5 --force-window=yes --no-config --no-input-default-bindings "
 # media play
 alias .4k="media play #4k --shuffle"
 alias .perf="media play #60fps #4k --shuffle"
