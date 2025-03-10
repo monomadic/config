@@ -1,33 +1,106 @@
 #!/usr/bin/env zsh
-#
-# mpv-looper.zsh - A script to play a directory of MP4 files as VJ loops
-#
-# Usage: mpv-looper.zsh [directory] [duration]
-#   - directory: Path to directory containing MP4 files (default: current directory)
-#   - duration: Maximum duration in seconds to show each file (default: 5)
 
-# Default values
-directory="${1:-.}" # Use provided directory or current directory as default
-duration="${2:-5}"  # Use provided duration or 5 seconds as default
+# mpv-vj-loop - VJ tool for playing short video clips with max duration of 5 seconds
+# Usage: ./mpv-vj-loop file1.mp4 file2.mp4 ...
+#   or: ls **/*.mp4 | ./mpv-vj-loop
 
-# Check if directory exists
-if [[ ! -d "$directory" ]]; then
-  echo "Error: Directory '$directory' not found."
-  exit 1
+# Create temporary Lua script
+TMP_SCRIPT=$(mktemp "${TMPDIR:-/tmp}/mpv_script_XXXXXX.lua")
+
+cat >$TMP_SCRIPT <<'EOL'
+local options = require 'mp.options'
+local opt = { max_duration = 5 }
+options.read_options(opt, "vjloop")
+
+local start_time = nil
+local timer = nil
+
+function check_time()
+    local time_pos = mp.get_property_number("time-pos", 0)
+
+    if time_pos >= opt.max_duration then
+        mp.commandv("playlist-next")  -- Skip to the next file
+    end
+end
+
+function on_file_loaded()
+    -- Ensure any previous timer is stopped
+    if timer then
+        timer:kill()
+    end
+
+    -- Start checking every 0.1 seconds
+    timer = mp.add_periodic_timer(0.1, check_time)
+
+    -- Handle looping for short files
+    local duration = mp.get_property_number("duration", 0)
+    if duration > 0 and duration < opt.max_duration then
+        mp.observe_property("time-pos", "native", function(name, time_pos)
+            if time_pos >= duration - 0.1 then
+                mp.commandv("seek", 0, "absolute")  -- Restart the clip
+            end
+        end)
+    end
+end
+
+mp.register_event("file-loaded", on_file_loaded)
+EOL
+
+chmod +x "$TMP_SCRIPT"
+
+# Ensure temporary script is cleaned up on exit
+trap "rm -f $TMP_SCRIPT" EXIT INT TERM
+
+echo "Starting MPV VJ Tool..."
+echo "Using Lua script: $TMP_SCRIPT"
+
+# Check if we have arguments or stdin
+if [[ $# -gt 0 ]]; then
+  echo "Playing $# files from arguments"
+  # Direct file arguments - pass them directly to mpv
+  mpv --no-config \
+    "$@" \
+    --loop-playlist=inf \
+    --loop-file=inf \
+    --osd-level=0 \
+    --force-window=yes \
+    --script-opts=osc-visibility=never \
+    --no-input-default-bindings \
+    --input-conf=/dev/null \
+    --script=$TMP_SCRIPT
+else
+  # Check if we have data on stdin
+  if [[ -t 0 ]]; then
+    echo "Error: No input files provided."
+    echo "Usage: ls *.mp4 | $0"
+    echo "   or: $0 file1.mp4 file2.mp4 ..."
+    exit 1
+  else
+    # Create a temporary playlist file
+    TMP_PLAYLIST=$(mktemp)
+    trap "rm -f $TMP_SCRIPT $TMP_PLAYLIST" EXIT INT TERM
+
+    # Save stdin to temp playlist
+    cat >$TMP_PLAYLIST
+    FILE_COUNT=$(wc -l <$TMP_PLAYLIST)
+
+    echo "Playing $FILE_COUNT files from stdin"
+
+    if [[ $FILE_COUNT -eq 0 ]]; then
+      echo "Error: No files found in input"
+      exit 1
+    fi
+
+    # Use the temp playlist file
+    mpv --no-config \
+      --playlist=$TMP_PLAYLIST \
+      --loop-playlist=inf \
+      --loop-file=inf \
+      --osd-level=0 \
+      --force-window=yes \
+      --script-opts=osc-visibility=never \
+      --no-input-default-bindings \
+      --input-conf=/dev/null \
+      --script=$TMP_SCRIPT
+  fi
 fi
-
-# Print info
-echo "Loading VJ loops from: $directory"
-echo "Maximum duration per loop: $duration seconds"
-echo "Starting playback..."
-
-# Find all mp4 files recursively and play them with mpv
-find "$directory" -type f -name "*.mp4" | sort | mpv \
-  --playlist=- \
-  --player-operation-mode=pseudo-gui \
-  --loop-file=inf \
-  --loop-playlist=inf \
-  --max-playing-time="$duration" \
-  --force-window=yes \
-  --no-config \
-  --no-input-default-bindings
