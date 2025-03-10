@@ -38,7 +38,7 @@ brew "powermetrics" # benchmarking, profiling
 cask "monitorcontrol" # independent controls for each monitor
 
 cask "jdownloader" # download manager
-cask "motrix" # download manager
+# cask "motrix" # download manager
 
 # git
 brew "git"

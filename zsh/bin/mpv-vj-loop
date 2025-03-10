@@ -1,0 +1,33 @@
+#!/usr/bin/env zsh
+#
+# mpv-looper.zsh - A script to play a directory of MP4 files as VJ loops
+#
+# Usage: mpv-looper.zsh [directory] [duration]
+#   - directory: Path to directory containing MP4 files (default: current directory)
+#   - duration: Maximum duration in seconds to show each file (default: 5)
+
+# Default values
+directory="${1:-.}" # Use provided directory or current directory as default
+duration="${2:-5}"  # Use provided duration or 5 seconds as default
+
+# Check if directory exists
+if [[ ! -d "$directory" ]]; then
+  echo "Error: Directory '$directory' not found."
+  exit 1
+fi
+
+# Print info
+echo "Loading VJ loops from: $directory"
+echo "Maximum duration per loop: $duration seconds"
+echo "Starting playback..."
+
+# Find all mp4 files recursively and play them with mpv
+find "$directory" -type f -name "*.mp4" | sort | mpv \
+  --playlist=- \
+  --player-operation-mode=pseudo-gui \
+  --loop-file=inf \
+  --loop-playlist=inf \
+  --max-playing-time="$duration" \
+  --force-window=yes \
+  --no-config \
+  --no-input-default-bindings
