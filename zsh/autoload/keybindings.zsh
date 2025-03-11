@@ -124,8 +124,8 @@ if [[ -o interactive ]]; then
   # Ctrl-Space: yazi jump
   #bindkey '^@' _cd-yazi
   bindkey -s '^@' "_cd-yazi\n"
-  bindkey '^f' _fzf-find-files
-  bindkey '^s' _fzf_ripgrep
+  #bindkey '^f' _fzf-find-files
+  bindkey '^f' _fzf_ripgrep
   bindkey '^k' _clear-reset
   bindkey '^M' _magic-enter
   bindkey '^o' _cd-fzf

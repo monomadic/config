@@ -24,13 +24,6 @@ options.read_options(opt, "vjloop")
 
 local timer = nil
 
-function check_time()
-    local time_pos = mp.get_property_number("time-pos", 0)
-    if time_pos >= opt.max_duration then
-        mp.commandv("playlist-next")
-    end
-end
-
 function reveal_in_finder()
     local path = mp.get_property("path")
     if path then
@@ -43,13 +36,19 @@ function next_file()
 end
 
 function on_file_loaded()
-    -- Kill any existing timer
-    if timer then
-        timer:kill()
-    end
-
-    -- Start checking every 0.1s
-    timer = mp.add_periodic_timer(0.1, check_time)
+	local file_duration = mp.get_property_number("duration", 0)
+	-- Images have a duration of 0, so don’t loop and use
+	-- image-display-duration instead
+	if file_duration == 0 then
+		mp.set_property("loop-file", "no")
+	-- If a GIF or video have duration shorter than x seconds
+	-- make it loop for at least x seconds
+	elseif file_duration < opt.max_duration then
+		mp.set_property("loop-file", math.floor(opt.max_duration  / file_duration))
+	-- For longer file, play it only once
+	else
+		mp.set_property("loop-file", "no")
+	end
 end
 
 -- Key bindings

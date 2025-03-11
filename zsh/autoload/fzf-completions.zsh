@@ -359,3 +359,38 @@ _fzf_completion_compadd() {
 zle -C _fzf_completion complete-word _fzf_completion
 zle -N fzf_completion
 fzf_default_completion=fzf_completion
+
+
+# # Custom fzf completion behavior
+# _fzf_comprun() {
+#   local command=$1
+#   shift
+#   if [ -n "$FZF_COMPLETION_TRIGGER" ]; then
+#     FZF_COMPLETION_TRIGGER='' fzf "$@"
+#   else
+#     fzf "$@"
+#   fi
+# }
+#
+# fzf-compinject() {
+#   # Override fzf's accept function
+#   zle -C fzf_completion complete-word _fzf_completion
+#
+#   _fzf_completion() {
+#     local selected
+#     selected=$(fzf --height 40% --reverse --border --bind 'tab:accept' --bind 'enter:accept+execute(echo {})')
+#
+#     if [[ -n $selected ]]; then
+#       LBUFFER+=$selected
+#       if [[ $KEYS == $'\n' ]]; then
+#         zle accept-line
+#       fi
+#     fi
+#   }
+#
+#   zle -N fzf_completion
+#   bindkey '^I' fzf_completion # Bind TAB to fzf completion
+#   bindkey '^M' fzf_completion # Bind ENTER to fzf completion
+# }
+#
+# fzf-compinject
