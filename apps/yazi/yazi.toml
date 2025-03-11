@@ -49,39 +49,48 @@ edit = [
 	{ run = 'code -w %*', block = true,  desc = "code (block)",   for = "windows" },
 ]
 open = [
-	{ run = 'xdg-open "$1"',                desc = "Open", for = "linux" },
-	{ run = 'open "$@"',                    desc = "Open", for = "macos" },
-	{ run = 'start "" "%1"', orphan = true, desc = "Open", for = "windows" },
+	{ run = 'xdg-open "$1"',                desc = "open", for = "linux" },
+	{ run = 'open "$@"',                    desc = "open", for = "macos" },
+	{ run = 'start "" "%1"', orphan = true, desc = "open", for = "windows" },
 ]
 reveal = [
-	{ run = 'xdg-open "$(dirname "$1")"',           desc = "Reveal", for = "linux" },
-	{ run = 'open -R "$1"',                         desc = "Reveal", for = "macos" },
-	{ run = 'explorer /select,"%1"', orphan = true, desc = "Reveal", for = "windows" },
-	{ run = '''exiftool "$1"; echo "Press enter to exit"; read _''', block = true, desc = "Show EXIF", for = "unix" },
+	{ run = 'xdg-open "$(dirname "$1")"',           desc = "reveal", for = "linux" },
+	{ run = 'open --reveal "$1"',                         desc = "open --reveal", for = "macos" },
+	{ run = 'explorer /select,"%1"', orphan = true, desc = "reveal", for = "windows" },
+	{ run = '''exiftool "$1"; echo "Press enter to exit"; read _''', block = true, desc = "exiftool", for = "unix" },
 ]
 extract = [
-	{ run = 'ya pub extract --list "$@"', desc = "Extract here", for = "unix" },
-	{ run = 'ya pub extract --list %*',   desc = "Extract here", for = "windows" },
+	{ run = 'ya pub extract --list "$@"', desc = "extract", for = "unix" },
 ]
 play = [
 	{ run = 'mpv --force-window "$@"', orphan = true, for = "unix" },
-	{ run = 'mpv --force-window %*', orphan = true, for = "windows" },
-	{ run = '''mediainfo "$1"; echo "Press enter to exit"; read _''', block = true, desc = "Show media info", for = "unix" },
+	{ run = 'vlc "$@" .', orphan = true, for = "unix" },
+	{ run = 'tag "$@"', orphan = true, for = "unix" },
+	{ run = '''mediainfo "$1"; echo "Press enter to exit"; read _''', block = true, desc = "mediainfo", for = "unix" },
+]
+play_dir = [
+	{ run = 'mpv --force-window "$@"', orphan = true, for = "unix" },
+	{ run = 'vlc "$@" .', orphan = true, for = "unix" },
 ]
 
 [open]
 rules = [
 	# Folder
-	{ name = "*/", use = [ "edit", "open", "reveal" ] },
+	{ name = "*/", use = [ "edit", "open", "reveal", "play_dir", "edit" ] },
+
 	# Text
 	{ mime = "text/*", use = [ "edit", "reveal" ] },
+
 	# Image
 	{ mime = "image/*", use = [ "open", "reveal" ] },
+
 	# Media
-	{ mime = "{audio,video}/*", use = [ "play", "reveal" ] },
+	{ mime = "{audio,video}/*", use = [ "play", "open", "reveal" ] },
+
 	# Archive
 	{ mime = "application/{,g}zip", use = [ "extract", "reveal" ] },
 	{ mime = "application/x-{tar,bzip*,7z-compressed,xz,rar}", use = [ "extract", "reveal" ] },
+
 	# JSON
 	{ mime = "application/{json,x-ndjson}", use = [ "edit", "reveal" ] },
 	{ mime = "*/javascript", use = [ "edit", "reveal" ] },
@@ -103,7 +112,6 @@ bizarre_retry    = 5
 image_alloc      = 536870912  # 512MB
 image_bound      = [ 0, 0 ]
 suppress_preload = false
-
 
 [plugin]
 
