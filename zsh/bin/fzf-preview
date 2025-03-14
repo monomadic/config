@@ -1,0 +1,89 @@
+#!/usr/bin/env zsh
+
+setopt errexit nounset pipefail
+
+FZF_PREVIEW_IMAGE_HANDLER="${FZF_PREVIEW_IMAGE_HANDLER:-sixel}"
+
+LOCATION="${1:A}" # Resolve absolute path
+EXTENSION="${LOCATION##*.}"
+EXTENSION="${(L)EXTENSION}" # Lowercase conversion
+MIME_TYPE=$(file --mime-type -b "$LOCATION")
+
+mkdir -p "$HOME/.cache/fzf"
+
+# Unique non-existent cache file path
+CACHE_FILE="$HOME/.cache/fzf/thumbnail.$(echo -n "$LOCATION" | sha256sum | awk '{print $1}')"
+
+handle_text() {
+  case "$EXTENSION" in
+    md) glow --style=auto "$LOCATION" ;;
+    htm|html) w3m -T text/html -dump "$LOCATION" ;;
+    *) bat -p --color=always "$LOCATION" ;;
+  esac
+}
+
+resolve_symlink() {
+  TARGET=$(readlink "$LOCATION")
+
+  if [[ "$TARGET" == /nix/store/* ]]; then
+    FULL_HASH="${TARGET:11:32}"
+    PATH_TO_FILE="${TARGET:44}"
+    echo -e "Symlink to a nix store path\nhash: \e[34m$FULL_HASH\e[0m\nplace: \e[34m/nix/store\e[0m"
+    [[ -n "$PATH_TO_FILE" ]] && echo -e "path: \e[34m${PATH_TO_FILE#/}\e[0m" || echo -e "path: \e[34m<root of hash>\e[0m"
+  else
+    echo -e "Symbolic link to: \e[34m$TARGET\e[0m"
+  fi
+}
+
+handle_image() {
+  local image="${1:-$LOCATION}"
+
+  case "$FZF_PREVIEW_IMAGE_HANDLER" in
+    sixel) chafa -f sixel -s "${FZF_PREVIEW_COLUMNS}x${FZF_PREVIEW_LINES}" "$image" --animate false ;;
+    kitty) kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="${FZF_PREVIEW_COLUMNS}x$((FZF_PREVIEW_LINES - 1))@0x0" "$image" | sed '$d' | sed $'$s/$/\e[m/' ;;
+    symbols) chafa -f symbols -s "${FZF_PREVIEW_COLUMNS}x${FZF_PREVIEW_LINES}" "$image" --animate false ;;
+    *) echo "Error: Unsupported handler '$FZF_PREVIEW_IMAGE_HANDLER'." && return 2 ;;
+  esac
+
+  mediainfo "$image"
+}
+
+handle_mime() {
+  case "$MIME_TYPE" in
+    text/*) handle_text ;;
+    application/json) bat "$LOCATION" | jq ;;
+    inode/directory) eza -T -L 2 "$LOCATION" ;;
+    inode/symlink) resolve_symlink ;;
+    application/x-executable|application/x-pie-executable|application/x-sharedlib) readelf --wide --demangle=auto --all "$LOCATION" ;;
+    application/x-x509-ca-cert) openssl x509 -text -noout -in "$LOCATION" ;;
+    image/*) handle_image ;;
+    video/*)
+      ffmpegthumbnailer -i "$LOCATION" -o "${CACHE_FILE}.jpg" -s 1200
+      handle_image "${CACHE_FILE}.jpg"
+      ;;
+    application/pdf)
+      pdftoppm -jpeg -f 1 -singlefile "$LOCATION" "$CACHE_FILE"
+      handle_image "${CACHE_FILE}.jpg"
+      ;;
+    *) handle_extension ;;
+  esac
+}
+
+handle_extension() {
+  case "$EXTENSION" in
+    a|ace|alz|arc|arj|bz|bz2|cab|cpio|deb|gz|jar|lha|lz|lzh|lzma|lzo|rpm|rz|t7z|tar|tbz|tbz2|tgz|tlz|txz|tZ|tzo|war|xpi|xz|Z|zip|rar)
+      atool --list -- "$LOCATION" && return
+      return 1
+      ;;
+    7z) 7z l -p -- "$LOCATION" && return ;;
+    o) nm "$LOCATION" ;;
+    iso) iso-info --no-header -l "$LOCATION" ;;
+    odt|ods|odp|sxw) odt2txt "$LOCATION" ;;
+    doc) catdoc "$LOCATION" ;;
+    docx) docx2txt "$LOCATION" - ;;
+    xls|xlsx) ssconvert --export-type=Gnumeric_stf:stf_csv "$LOCATION" "fd://1" | bat --language=csv ;;
+    wav|mp3|flac|m4a|wma|ape|ac3|og[agx]|spx|opus|as[fx]|mka) exiftool "$LOCATION" ;;
+  esac
+}
+
+handle_mime

@@ -85,5 +85,6 @@ export GHQ_ROOT=$HOME/src
 export FZF_DEFAULT_OPTS="--layout=reverse --cycle --preview-window=noborder --highlight-line --no-separator --no-border --inline-info --bind 'ctrl-u:unix-line-discard' --color=bg:-1,fg:blue,info:15,header:7,hl:red,hl+:red,gutter:-1,prompt:yellow,marker:-1,bg+:black,pointer:yellow,fg+:yellow"
 export FZF_COMPLETION_TRIGGER='\t' # Default is '**'
 export FZF_COMPLETION_OPTS='--preview "bat --color=always {} 2>/dev/null || cat {} 2>/dev/null"'
+export FZF_PREVIEW_COMMAND='fzf-preview {}'
 export SKIM_DEFAULT_OPTIONS=$FZF_DEFAULT_OPTS
 export SKIM_DEFAULT_COMMAND="fd . --max-depth=3"
