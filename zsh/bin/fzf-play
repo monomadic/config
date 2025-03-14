@@ -1,9 +1,11 @@
 #!/bin/zsh
 
 # Initialize default settings
-PREVIEW_MODE="ascii"
-PREVIEW_WINDOW="right:50%:hidden:border"
-FZF_DEFAULT_OPTS="--prompt '   ' --border --reverse --ansi --no-sort --delimiter=/ --preview-window=down:1 --header-first"
+PREVIEW_WINDOW="down:50%:hidden:border"
+HEADER_TEXT='''󰌑 play all · 󰘵 o play selected · 󰘵 󰌑 loop-mode (10 sec) · 󰘵 r reveal in finder · 󰘵 t shell · 󰘵 p preview · 󰘵 i iina · 󰘵 e elmedia · 󰘵 A airflow · 󰘵 l lf · 󰘵 s stdout
+
+'''
+FZF_DEFAULT_OPTS="--prompt '' --border --reverse --ansi --no-sort --delimiter=/ --header-first"
 
 # Color Scheme
 FZF_COLOR_OPTS=""
@@ -26,52 +28,24 @@ FZF_COLOR_OPTS+="header:#66ddee"
 # Parse command-line arguments
 while [[ "$#" -gt 0 ]]; do
   case $1 in
-  --kitty)
-    PREVIEW_MODE="kitty"
-    shift
-    ;;
   --hide-path)
+    # Only show filenames, not full paths
     FZF_DEFAULT_OPTS+=" --with-nth=-1"
     shift
     ;;
+  --help | -h)
+    echo "Usage: $(basename $0) [OPTIONS] [QUERY]"
+    echo "Options:"
+    echo "  --hide-path   Hide full paths in results, show only filenames"
+    echo "  --help, -h    Show this help message"
+    exit 0
+    ;;
   *)
+    # Non-option arguments are treated as initial query
     break
     ;;
   esac
 done
-
-# Set the preview command based on the preview mode
-if [[ "$PREVIEW_MODE" == "kitty" ]]; then
-  PREVIEW_CMD='
-    # Extract video metadata
-    ffprobe -v error -select_streams v:0 -count_packets \
-      -show_entries stream=width,height,codec_name,duration -of csv=p=0 {} | \
-    awk -F, '\''{printf "Resolution: %sx%s\nCodec: %s\nDuration: %.2f seconds\n", $1, $2, $3, $4}'\'';
-
-    echo;
-
-    # Generate preview image and render with chafa (kitty graphics protocol)
-    ffmpeg -loglevel error -ss 00:00:08 -i {} \
-      -vf "scale=320:-1:flags=lanczos,select=eq(n\,0)" \
-      -vframes 1 -f image2 - 2>/dev/null | \
-    chafa -c 256 --size 80x40 --format=kitty --symbols all 2>/dev/null
-  '
-else
-  PREVIEW_CMD='
-    # Extract video metadata
-    ffprobe -v error -select_streams v:0 -count_packets \
-      -show_entries stream=width,height,codec_name,duration -of csv=p=0 {} | \
-    awk -F, '\''{printf "Resolution: %sx%s\nCodec: %s\nDuration: %.2f seconds\n", $1, $2, $3, $4}'\'';
-
-    echo;
-
-    # Generate preview image and render with chafa (ASCII mode)
-    ffmpeg -loglevel error -ss 00:00:08 -i {} \
-      -vf "scale=80:-1,select=eq(n\,0)" \
-      -vframes 1 -f image2 - 2>/dev/null | \
-    chafa -c full --format=symbols --size=80x40 2>/dev/null
-  '
-fi
 
 # Main fzf command
 exec fzf \
@@ -89,7 +63,7 @@ exec fzf \
   --query "$*" \
   --ansi \
   --color=$FZF_COLOR_OPTS \
-  --preview "$PREVIEW_CMD" \
+  --preview "$FZF_PREVIEW_COMMAND" \
   --preview-window="$PREVIEW_WINDOW" \
   --bind 'enter:select-all+execute-silent(mpv-play {+} &)+deselect-all' \
   --bind 'alt-enter:select-all+execute-silent(mpv-play --loop-file=1 --length=10 --shuffle {+})+deselect-all' \
@@ -106,11 +80,11 @@ exec fzf \
   --bind 'alt-s:select-all+accept' \
   --bind 'ctrl-/:toggle-preview' \
   --bind 'alt-p:toggle-preview' \
-  --bind 'alt-r:execute(open --reveal {})' \
+  --bind 'alt-r:execute(echo "exec: open --reveal {}" && open --reveal {})' \
   --bind 'ctrl-r:execute-silent(shuf -o /dev/stdout)' \
   --bind 'ctrl-s:execute-silent(sort -o /dev/stdout)' \
   --bind 'ctrl-d:execute-silent(ls -t {} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \
   --bind 'alt-R:execute-silent(shuf -o /dev/stdout)' \
   --bind 'alt-S:execute-silent(sort -o /dev/stdout)' \
   --bind 'alt-D:execute-silent(ls -t {} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \
-  --header '󰌑 play all · 󰘵 o play selected · 󰘵 󰌑 loop-mode (10 sec) · 󰘵 r reveal in finder · 󰘵 t shell · 󰘵 p preview · 󰘵 i iina · 󰘵 e elmedia · 󰘵 A airflow · 󰘵 l lf · 󰘵 s stdout'
+  --header "${HEADER_TEXT}"
