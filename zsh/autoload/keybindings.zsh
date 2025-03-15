@@ -56,7 +56,7 @@ if [[ -o interactive ]]; then
 
     if ((fzf_exit_status != 0)); then
       zle reset-prompt
-      return $fzf_exit_status
+      return 0 # return ok exit status so no beep, otherwise: $fzf_exit_status
     fi
 
     # If a directory was selected, change to it
@@ -66,7 +66,7 @@ if [[ -o interactive ]]; then
       return 0
     fi
 
-    # Reset prompt if no directory was selected
+    # Reset prompt if error selecting dir
     zle reset-prompt
     return 1
   }
