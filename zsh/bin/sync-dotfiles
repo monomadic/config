@@ -74,31 +74,50 @@ fi
 
 # Check for local changes
 if git status --porcelain | grep -q .; then
-  echo -e "${YELLOW}Local changes detected. Adding to commit...${NC}"
+  echo -e "${YELLOW}Local changes detected. Staging and committing...${NC}"
 
-  # Add all changes
   git add -A
-
-  # Create commit message with timestamp and hostname
   TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
   COMMIT_MSG="Auto-sync from $HOSTNAME on $TIMESTAMP"
 
-  # Commit changes
   git commit -m "$COMMIT_MSG" || {
     echo -e "${RED}Error: Failed to commit changes.${NC}"
     exit 1
   }
-  echo -e "${GREEN}Changes committed with message: '$COMMIT_MSG'${NC}"
-
-  # Push to remote
-  echo -e "${BLUE}Pushing changes to remote...${NC}"
-  git push $REMOTE $BRANCH || {
-    echo -e "${RED}Error: Failed to push changes to remote.${NC}"
-    exit 1
-  }
-  echo -e "${GREEN}Successfully pushed changes to remote.${NC}"
-else
-  echo -e "${GREEN}No local changes to commit.${NC}"
+  echo -e "${GREEN}Committed local changes.${NC}"
 fi
+
+# Ensure we're up to date before pushing
+echo -e "${BLUE}Fetching changes from remote...${NC}"
+git fetch $REMOTE $BRANCH
+
+LOCAL=$(git rev-parse @)
+REMOTE_HASH=$(git rev-parse "$REMOTE/$BRANCH")
+BASE=$(git merge-base @ "$REMOTE/$BRANCH")
+
+if [ "$LOCAL" != "$REMOTE_HASH" ]; then
+  if [ "$LOCAL" = "$BASE" ]; then
+    echo -e "${YELLOW}Pulling changes from remote...${NC}"
+    git pull $REMOTE $BRANCH || {
+      echo -e "${RED}Error: Failed to pull changes.${NC}"
+      exit 1
+    }
+  else
+    echo -e "${YELLOW}Histories have diverged. Stashing local changes...${NC}"
+    git stash push -m "Pre-rebase stash"
+    git pull --rebase $REMOTE $BRANCH || {
+      echo -e "${RED}Rebase failed. Please resolve conflicts manually.${NC}"
+      exit 1
+    }
+    git stash pop || echo -e "${YELLOW}No stash to apply.${NC}"
+  fi
+fi
+
+# Push changes
+echo -e "${BLUE}Pushing changes to remote...${NC}"
+git push $REMOTE $BRANCH || {
+  echo -e "${RED}Error: Failed to push changes.${NC}"
+  exit 1
+}
 
 echo -e "${GREEN}Dotfiles sync completed successfully!${NC}"
