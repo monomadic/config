@@ -1,3 +1,50 @@
+# h.265 encoding with CRF (best quality with variable bitrate)
+encode-h265-crf() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: encode-h265-crf <input_file> [output_file] [crf] [preset]"
+    echo "  input_file   - Source video file"
+    echo "  output_file  - Output file (default: input_h265.mp4)"
+    echo "  crf          - Quality factor (lower is better, default: 22)"
+    echo "  preset       - x265 preset (default: slow, options: ultrafast, fast, medium, slow, veryslow)"
+    return 1
+  fi
+
+  local input="$1"
+  local output="${2:-${input%.*}_h265.mp4}"
+  local crf="${3:-22}"
+  local preset="${4:-slow}"
+
+  ffmpeg -i "$input" -c:v libx265 -preset "$preset" -crf "$crf" -tune grain \
+         -x265-params "rd=6:psy-rd=2.0:aq-mode=3:aq-strength=1.2:qcomp=0.7" \
+         -pix_fmt yuv420p10le -c:a aac -b:a 128k "$output"
+}
+
+# h.265 2-pass encoding (for strict bitrate control)
+encode-h265-2pass() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: h265_2pass <input_file> [output_file] [bitrate] [maxrate] [bufsize] [preset]"
+    echo "  input_file   - Source video file"
+    echo "  output_file  - Output file (default: input_h265.mp4)"
+    echo "  bitrate      - Target bitrate (default: 15M)"
+    echo "  maxrate      - Max bitrate (default: 30M)"
+    echo "  bufsize      - Buffer size (default: 30M)"
+    echo "  preset       - x265 preset (default: slow)"
+    return 1
+  fi
+
+  local input="$1"
+  local output="${2:-${input%.*}_h265.mp4}"
+  local bitrate="${3:-15M}"
+  local maxrate="${4:-30M}"
+  local bufsize="${5:-30M}"
+  local preset="${6:-slow}"
+
+  ffmpeg -i "$input" -c:v libx265 -preset "$preset" -b:v "$bitrate" -maxrate "$maxrate" -bufsize "$bufsize" -pass 1 \
+         -f null /dev/null && \
+  ffmpeg -i "$input" -c:v libx265 -preset "$preset" -b:v "$bitrate" -maxrate "$maxrate" -bufsize "$bufsize" -pass 2 \
+         -c:a aac -b:a 128k "$output"
+}
+
 # Function to remux a file (rebuild the container without re-encoding)
 ffmpeg-remux() {
   if [[ $# -ne 2 ]]; then
