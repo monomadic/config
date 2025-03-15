@@ -1,0 +1,23 @@
+#!/bin/zsh
+
+# reveal
+#  use in place of open --reveal, which has issues on network paths
+
+if [[ -z "$1" ]]; then
+    echo "Usage: $0 <file-or-dir>"
+    exit 1
+fi
+
+target="$(realpath "$1")"
+
+if [[ -d "$target" ]]; then
+    # Open directory in Finder
+    open "$target"
+elif [[ -f "$target" ]]; then
+    # Reveal file in Finder
+    osascript -e "tell application \"Finder\" to reveal POSIX file \"$target\""
+    osascript -e "tell application \"Finder\" to activate"
+else
+    echo "Error: '$1' is not a valid file or directory."
+    exit 1
+fi

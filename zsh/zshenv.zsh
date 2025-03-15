@@ -15,9 +15,6 @@ path=(
   $HOME/.local/share/nvim/mason/bin
   $HOME/go/bin
   $HOME/.cache/lm-studio/bin
-  $BREW_PREFIX/coreutils/libexec/gnubin
-  $BREW_PREFIX/gnu-sed/libexec/gnubin
-  $BREW_PREFIX/grep/libexec/gnubin
   $path
 )
 
@@ -25,17 +22,7 @@ path=(
 #
 typeset -U manpath
 manpath=(
-  $BREW_PREFIX/coreutils/libexec/gnuman
   $manpath
-)
-
-# ZSH FUNCTIONS
-#
-fpath=(
-  $ZSH_CONFIG_DIR/completions
-  $ZSH_CONFIG_DIR/widgets
-  $BREW_PREFIX/share/zsh/site-functions
-  $fpath
 )
 
 export ZSH_CONFIG_DIR=$HOME/.zsh
@@ -65,9 +52,6 @@ export MASTER_MEDIA_DIR="/Volumes/Media-Library 4TB/Movies"
 export MEDIA_INBOX_PATH="$HOME/Movies/Porn/originals/_inbox"
 export INDEX_DIR="$HOME/doc/indexes"
 export PRIVATE_PHOTOS_LIBRARY="$HOME/Media/Private/Private.photoslibrary"
-
-# Homebrew
-export HOMEBREW_NO_ENV_HINTS=true
 
 export HOSTNAME=$(hostname)
 
