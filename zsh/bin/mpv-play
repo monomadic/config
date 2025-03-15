@@ -97,4 +97,4 @@ mpv-stdin() {
 }
 
 # Read from stdin and pass arguments through to mpv
-mpv-stdin "$@" </dev/stdin
+mpv --macos-fs-animation-duration=0 --no-native-fs --fs --mute=yes "$@" --playlist=- >/dev/null 2>&1 &
