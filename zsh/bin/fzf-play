@@ -81,6 +81,7 @@ exec fzf \
   --bind 'ctrl-/:toggle-preview' \
   --bind 'alt-p:toggle-preview' \
   --bind 'alt-r:execute(echo "exec: open --reveal {}" && open --reveal {})' \
+  --bind 'alt-o:execute(echo "exec: reveal {}" && reveal {})' \
   --bind 'ctrl-r:execute-silent(shuf -o /dev/stdout)' \
   --bind 'ctrl-s:execute-silent(sort -o /dev/stdout)' \
   --bind 'ctrl-d:execute-silent(ls -t {} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \
