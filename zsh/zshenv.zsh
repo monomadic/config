@@ -26,6 +26,8 @@ manpath=(
 )
 
 export ZSH_CONFIG_DIR=$HOME/.zsh
+export ZSH_COMPLETIONS_DIR=$ZSH_CONFIG_DIR/completions
+export ZSH_AUTOLOAD_DIR=$ZSH_CONFIG_DIR/autoload
 export CONFIG_DIR=$HOME/.config
 export XDG_CONFIG_HOME=$CONFIG_DIR
 export DOTFILES_DIR=$HOME/config

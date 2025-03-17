@@ -46,16 +46,7 @@ zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 # load completion system
 autoload -Uz compinit && compinit
 
-# Source additional configuration files
-#
-YELLOW=$(tput setaf 3)
-BLUE=$(tput setaf 4)
-RESET=$(tput sgr0)
-#
-# Define base directory for config files
-ZSH_AUTOLOAD_DIR="$HOME/.zsh/autoload"
-#
-# Define the array of config files
+# load autoloaded files
 config_files=(
   $ZSH_AUTOLOAD_DIR/homebrew.zsh
   $ZSH_AUTOLOAD_DIR/completions.zsh
@@ -79,8 +70,6 @@ config_files=(
   $ZSH_AUTOLOAD_DIR/fzf-marks.zsh
   $ZSH_AUTOLOAD_DIR/keybindings.zsh
 )
-
-# Loop through and source each file
 for config_file in $config_files; do
   print -P "%F{green}󰚔 %f${config_file:t}%f"
   if ! source $config_file; then
