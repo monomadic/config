@@ -8,10 +8,14 @@
 # 3. Adds all changes, commits with an automated message, and pushes to remote
 # 4. Reports the sync status
 
-set -e # Exit immediately if a command exits with a non-zero status
+set -e # Exit on error
 
 # Configuration
-CONFIG_DIR="${DOTFILES_DIR:-$HOME/config}"
+if [[ -z "$DOTFILES_DIR" ]]; then
+  echo -e "\033[0;31mError: DOTFILES_DIR is not set.\033[0m"
+  exit 1
+fi
+
 REMOTE="origin"
 BRANCH="master"
 
@@ -29,93 +33,64 @@ cd "$DOTFILES_DIR" || {
   exit 1
 }
 
-# Check if this is a git repository
+# Ensure this is a git repository
 if [ ! -d ".git" ]; then
   echo -e "${RED}Error: $DOTFILES_DIR is not a git repository.${NC}"
   exit 1
 fi
 
 # Get hostname for the commit message
-HOSTNAME=$(hostname)
+HOSTNAME=$(uname -n)
 
-# Fetch and pull changes from remote
+# Fetch changes from remote
 echo -e "${BLUE}Fetching changes from remote...${NC}"
 git fetch $REMOTE $BRANCH || {
   echo -e "${RED}Error: Failed to fetch from remote.${NC}"
   exit 1
 }
 
-# Check if we need to pull changes
 LOCAL=$(git rev-parse @)
 REMOTE_HASH=$(git rev-parse "$REMOTE/$BRANCH")
 BASE=$(git merge-base @ "$REMOTE/$BRANCH")
 
 if [ "$LOCAL" = "$REMOTE_HASH" ]; then
-  echo -e "${GREEN}Local repository is up to date with remote.${NC}"
+  echo -e "${GREEN}Local repository is up to date.${NC}"
 elif [ "$LOCAL" = "$BASE" ]; then
-  echo -e "${YELLOW}Need to pull changes from remote.${NC}"
-  git pull $REMOTE $BRANCH || {
+  echo -e "${YELLOW}Pulling latest changes from remote...${NC}"
+  git pull --ff-only $REMOTE $BRANCH || {
     echo -e "${RED}Error: Failed to pull changes.${NC}"
     exit 1
   }
-  echo -e "${GREEN}Successfully pulled changes from remote.${NC}"
+  echo -e "${GREEN}Successfully pulled changes.${NC}"
 else
-  # Different histories - might have diverged
-  if [ "$REMOTE_HASH" = "$BASE" ]; then
-    echo -e "${YELLOW}Local has changes to push.${NC}"
-  else
-    echo -e "${YELLOW}Histories have diverged. Attempting to pull with rebase...${NC}"
-    git pull --rebase $REMOTE $BRANCH || {
-      echo -e "${RED}Rebase failed. Please resolve conflicts manually.${NC}"
-      exit 1
-    }
-  fi
+  echo -e "${YELLOW}Histories have diverged. Attempting to rebase...${NC}"
+  git pull --rebase $REMOTE $BRANCH || {
+    echo -e "${RED}Rebase failed. Resolve conflicts manually.${NC}"
+    exit 1
+  }
 fi
 
-# Check for local changes
-if git status --porcelain | grep -q .; then
-  echo -e "${YELLOW}Local changes detected. Staging and committing...${NC}"
-
-  git add -A
+# Ensure all changes are staged
+if git status --porcelain | grep -q '^[ MADRCU]'; then
+  echo -e "${YELLOW}Local changes detected. Staging all changes...${NC}"
+  git add --all || {
+    echo -e "${RED}Error: Failed to stage files.${NC}"
+    exit 1
+  }
   TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
   COMMIT_MSG="Auto-sync from $HOSTNAME on $TIMESTAMP"
-
   git commit -m "$COMMIT_MSG" || {
     echo -e "${RED}Error: Failed to commit changes.${NC}"
     exit 1
   }
   echo -e "${GREEN}Committed local changes.${NC}"
+else
+  echo -e "${GREEN}No changes to commit.${NC}"
 fi
 
-# Ensure we're up to date before pushing
-echo -e "${BLUE}Fetching changes from remote...${NC}"
-git fetch $REMOTE $BRANCH
-
-LOCAL=$(git rev-parse @)
-REMOTE_HASH=$(git rev-parse "$REMOTE/$BRANCH")
-BASE=$(git merge-base @ "$REMOTE/$BRANCH")
-
-if [ "$LOCAL" != "$REMOTE_HASH" ]; then
-  if [ "$LOCAL" = "$BASE" ]; then
-    echo -e "${YELLOW}Pulling changes from remote...${NC}"
-    git pull $REMOTE $BRANCH || {
-      echo -e "${RED}Error: Failed to pull changes.${NC}"
-      exit 1
-    }
-  else
-    echo -e "${YELLOW}Histories have diverged. Stashing local changes...${NC}"
-    git stash push -m "Pre-rebase stash"
-    git pull --rebase $REMOTE $BRANCH || {
-      echo -e "${RED}Rebase failed. Please resolve conflicts manually.${NC}"
-      exit 1
-    }
-    git stash pop || echo -e "${YELLOW}No stash to apply.${NC}"
-  fi
-fi
-
-# Push changes
+# Push changes safely
 echo -e "${BLUE}Pushing changes to remote...${NC}"
-git push $REMOTE $BRANCH || {
+git push --force-with-lease $REMOTE $BRANCH || {
   echo -e "${RED}Error: Failed to push changes.${NC}"
   exit 1
 }
