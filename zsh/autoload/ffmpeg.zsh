@@ -1,28 +1,56 @@
-# h.265 encoding with CRF (best quality with variable bitrate)
-encode-h265-crf() {
+# Find repeating frames using SSIM (outputs logs)
+ffmpeg-find-repeating-frames() {
   if [[ -z "$1" ]]; then
-    echo "Usage: encode-h265-crf <input_file> [output_file] [crf] [preset]"
-    echo "  input_file   - Source video file"
-    echo "  output_file  - Output file (default: input_h265.mp4)"
-    echo "  crf          - Quality factor (lower is better, default: 22)"
-    echo "  preset       - x265 preset (default: slow, options: ultrafast, fast, medium, slow, veryslow)"
+    echo "Usage: ffmpeg-find-repeating-frames <input_file>"
+    echo "  input_file  - Source video file"
     return 1
   fi
 
   local input="$1"
-  local output="${2:-${input%.*}_h265.mp4}"
-  local crf="${3:-22}"
-  local preset="${4:-slow}"
 
-  ffmpeg -i "$input" -c:v libx265 -preset "$preset" -crf "$crf" -tune grain \
-         -x265-params "rd=6:psy-rd=2.0:aq-mode=3:aq-strength=1.2:qcomp=0.7" \
-         -pix_fmt yuv420p10le -c:a aac -b:a 128k "$output"
+  ffmpeg -i "$input" -vf "ssim" -f null -
+}
+
+# Extract a loop section from a video
+ffmpeg-loop-section() {
+  if [[ -z "$1" || -z "$2" || -z "$3" ]]; then
+    echo "Usage: ffmpeg-loop-section <input_file> <start_time> <end_time> [output_file]"
+    echo "  input_file   - Source video file"
+    echo "  start_time   - Start time of loop (format: HH:MM:SS or seconds)"
+    echo "  end_time     - End time of loop"
+    echo "  output_file  - Output file (default: input_loop.mp4)"
+    return 1
+  fi
+
+  local input="$1"
+  local start_time="$2"
+  local end_time="$3"
+  local output="${4:-${input%.*}_loop.mp4}"
+
+  ffmpeg -i "$input" -ss "$start_time" -to "$end_time" -c copy "$output"
+}
+
+# Create a seamless loop with crossfade
+ffmpeg-create-seamless-loop() {
+  if [[ -z "$1" || -z "$2" ]]; then
+    echo "Usage: ffmpeg-create-seamless-loop <input_file> <loop_duration> [output_file]"
+    echo "  input_file   - Input loop file"
+    echo "  loop_duration - Duration of loop in seconds"
+    echo "  output_file  - Output file (default: input_seamless.mp4)"
+    return 1
+  fi
+
+  local input="$1"
+  local duration="$2"
+  local output="${3:-${input%.*}_seamless.mp4}"
+
+  ffmpeg -i "$input" -filter_complex "xfade=transition=fade:duration=1:offset=$((duration-1))" "$output"
 }
 
 # h.265 2-pass encoding (for strict bitrate control)
-encode-h265-2pass() {
+ffmpeg-encode-h265-2pass() {
   if [[ -z "$1" ]]; then
-    echo "Usage: h265_2pass <input_file> [output_file] [bitrate] [maxrate] [bufsize] [preset]"
+    echo "Usage: ffmpeg-encode-h265-2pass <input_file> [output_file] [bitrate] [maxrate] [bufsize] [preset]"
     echo "  input_file   - Source video file"
     echo "  output_file  - Output file (default: input_h265.mp4)"
     echo "  bitrate      - Target bitrate (default: 15M)"
