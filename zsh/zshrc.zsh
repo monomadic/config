@@ -43,35 +43,10 @@ zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 # load completion system
 autoload -Uz compinit && compinit
 
-<<<<<<< HEAD
-# load autoloaded files
-||||||| parent of 8199e42 (update:)
-# Source additional configuration files
-#
-YELLOW=$(tput setaf 3)
-BLUE=$(tput setaf 4)
-RESET=$(tput sgr0)
-#
-# Define base directory for config files
-ZSH_AUTOLOAD_DIR="$HOME/.zsh/autoload"
-#
-# Define the array of config files
-=======
 # Set vi/emacs mode
 # bindkey -v
 set -o emacs
 
-# Source additional configuration files
-#
-YELLOW=$(tput setaf 3)
-BLUE=$(tput setaf 4)
-RESET=$(tput sgr0)
-#
-# Define base directory for config files
-ZSH_AUTOLOAD_DIR="$HOME/.zsh/autoload"
-#
-# Define the array of config files
->>>>>>> 8199e42 (update:)
 config_files=(
   $ZSH_AUTOLOAD_DIR/homebrew.zsh
   $ZSH_AUTOLOAD_DIR/completions.zsh
