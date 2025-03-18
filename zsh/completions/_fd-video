@@ -1,0 +1,20 @@
+#compdef fd-video
+
+# Video file extensions supported by fd-video
+local -a video_extensions
+video_extensions=(
+  mp4 avi mkv mov webm webp m4v mpg mpeg
+)
+
+# Build a glob pattern for video files
+local video_glob="*.(${(j:|:)video_extensions})"
+
+# Function to complete video files and directories
+_fd_video_complete() {
+  _alternative \
+    'files:file:_files -g "$video_glob"' \
+    'directories:directory:_path_files -/'
+}
+
+_arguments \
+  '*:file or directory:_fd_video_complete'

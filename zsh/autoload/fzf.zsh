@@ -3,12 +3,6 @@
 # FZF
 #
 eval "$(fzf --zsh)"
-#
-# export FZF_THEME_MOLOKAI='--color=bg+:#293739,bg:#1B1D1E,border:#808080,spinner:#E6DB74,hl:#7E8E91,fg:#F8F8F2,header:#7E8E91,info:#A6E22E,pointer:#A6E22E,marker:#F92672,fg+:#F8F8F2,prompt:#F92672,hl+:#F92672'
-
-# source included shell integrations
-# history
-# bind '"\C-r": "$(fc -rl 1 | fzf -e)"'
 
 export FZF_COMPLETION_TRIGGER='\t' # Default is '**'
 export FZF_COMPLETION_OPTS='--preview "bat --color=always --no-info --exact --ignore-case {} 2>/dev/null || cat {} 2>/dev/null"'

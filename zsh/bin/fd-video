@@ -1,4 +1,18 @@
-#!/bin/sh
+#!/bin/zsh
 
 # Search for video files with specific extensions, case-insensitive
-fd --absolute-path --print0 --color=never --ignore-case --type=file --extension mp4 --extension avi --extension mkv --extension mov --extension webm --extension webp --extension m4v --extension mpg --extension mpeg "$@"
+fd --absolute-path \
+  --print0 \
+  --color=never \
+  --ignore-case \
+  --type=file \
+  --extension mp4 \
+  --extension avi \
+  --extension mkv \
+  --extension mov \
+  --extension webm \
+  --extension webp \
+  --extension m4v \
+  --extension mpg \
+  --extension mpeg \
+  "$@"
