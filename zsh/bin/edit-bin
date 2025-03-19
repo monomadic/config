@@ -5,12 +5,27 @@ if [[ -z $1 ]]; then
   # If no argument, change to $DOTFILES_DIR/bin and open nvim
   cd $DOTFILES_DIR/bin && nvim .
 else
+  original_cmd=$1
+  cmd_to_use=$original_cmd
+
+  # Get all aliases and check if our command is among them
+  alias_output=$(alias)
+  if echo "$alias_output" | grep -q "^$original_cmd="; then
+    # Extract what the alias points to
+    alias_target=$(echo "$alias_output" | grep "^$original_cmd=" | sed -E "s/$original_cmd='(.*)'/\1/" | awk '{print $1}')
+    if [[ -n "$alias_target" ]]; then
+      cmd_to_use=$alias_target
+      echo "Command '$original_cmd' is aliased to: $alias_target"
+    fi
+  fi
+
   # Check if the command exists
-  cmd_path=$(command -v $1)
+  cmd_path=$(command -v $cmd_to_use)
   if [[ -z $cmd_path ]]; then
-    echo "Error: Command '$1' not found."
+    echo "Error: Command '$cmd_to_use' not found."
     exit 1
   fi
+
   # Open the command in nvim
   cd $ZSH_CONFIG_DIR && nvim $cmd_path
 fi

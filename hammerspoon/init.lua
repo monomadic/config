@@ -32,39 +32,40 @@ spoon.TagSelectedFile
 
 -- Maximize focused window
 hs.hotkey.bind({ "cmd", "shift" }, "up", function()
+	print("call: window maximize");
 	local win = hs.window.focusedWindow()
 	if win then
 		win:maximize()
 	end
 end)
 
--- Open yazi from finder
-hs.hotkey.bind({ "rcmd" }, "return", function()
-	-- Check if Finder is frontmost right when the hotkey is pressed
-	local finder = hs.application.frontmostApplication()
-	if not finder or finder:name() ~= "Finder" then
-		-- Pass the event through to other applications
-		return false
-	end
-
-	-- Get the frontmost Finder window's path
-	local script = [[
-        tell application "Finder"
-            try
-                set windowPath to POSIX path of (target of front window as alias)
-                return windowPath
-            on error
-                return ""
-            end try
-        end tell
-    ]]
-	local _, result, _ = hs.osascript.applescript(script)
-	if not result or result == "" then return false end
-
-	-- Open Kitty in the Finder's directory and run Yazi
-	hs.task.new("/opt/homebrew/bin/kitty", nil, { "@", "--hold", "--directory", result, "yazi" }):start()
-	return true
-end)
+-- -- Open yazi from finder
+-- hs.hotkey.bind({ "rcmd" }, "return", function()
+-- 	-- Check if Finder is frontmost right when the hotkey is pressed
+-- 	local finder = hs.application.frontmostApplication()
+-- 	if not finder or finder:name() ~= "Finder" then
+-- 		-- Pass the event through to other applications
+-- 		return false
+-- 	end
+--
+-- 	-- Get the frontmost Finder window's path
+-- 	local script = [[
+--         tell application "Finder"
+--             try
+--                 set windowPath to POSIX path of (target of front window as alias)
+--                 return windowPath
+--             on error
+--                 return ""
+--             end try
+--         end tell
+--     ]]
+-- 	local _, result, _ = hs.osascript.applescript(script)
+-- 	if not result or result == "" then return false end
+--
+-- 	-- Open Kitty in the Finder's directory and run Yazi
+-- 	hs.task.new("/opt/homebrew/bin/kitty", nil, { "@", "--hold", "--directory", result, "yazi" }):start()
+-- 	return true
+-- end)
 
 -- Restore window to its previous state
 hs.hotkey.bind({ "cmd", "shift" }, "down", function()
@@ -76,7 +77,8 @@ end)
 
 -- Focus Kitty
 -- Modified Kitty hotkey to toggle visibility
-hs.hotkey.bind({ "rcmd" }, "k", function()
+hs.hotkey.bind({ "rightcmd" }, "k", function()
+	print("toggle: kitty");
 	local kitty = hs.application.find("kitty")
 
 	if kitty then
@@ -256,3 +258,7 @@ function arrangeDualPane(windows, screen)
 		h = screen.h
 	})
 end
+
+--- SPACES STUFF
+---
+---

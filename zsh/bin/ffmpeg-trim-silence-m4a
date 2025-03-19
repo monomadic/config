@@ -1,0 +1,19 @@
+#!/usr/bin/env zsh
+
+input_file=$1
+output_file=${2:-${input_file:r}_trimmed.m4a}
+
+# Detect silence duration at start
+silence_end=$(ffmpeg -i "$input_file" -af silencedetect=noise=-50dB:d=0.1 -f null - 2>&1 \
+  | rg 'silence_end: ([0-9.]+)' -or '$1' | head -1)
+
+if [[ -z $silence_end ]]; then
+  echo "No initial silence detected; copying file as-is."
+  cp "$input_file" "$output_file"
+  exit 0
+fi
+
+# Use stream copy to avoid re-encoding (lossless)
+ffmpeg -ss "$silence_end" -i "$input_file" -c copy "$output_file"
+
+echo "Trimmed silence of ${silence_end}s from start. Saved as '$output_file'."

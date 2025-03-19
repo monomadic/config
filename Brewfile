@@ -99,6 +99,7 @@ cask "losslesscut" # lossless slicing of videos (mp4, webm, etc)
 # cask "vidcutter" # qt5 based cutter and jointer
 cask "qlvideo" # quicklook/finder preview and info panel for unsupported videos (webm, mkv, etc)
 cask "djv" # video review / ab testing
+cask "iina" # mac gui for mpv
 
 brew "blueutil" # bluetooth util
 
