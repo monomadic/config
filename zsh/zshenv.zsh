@@ -25,6 +25,21 @@ manpath=(
   $manpath
 )
 
+JUMP_DIRS=(
+  "/Volumes/**/Movies/**/*.mp4"
+  "/System/home/**/Movies/**/*.mp4"
+)
+
+MEDIA_GLOBS=(
+  "/Volumes/*/Movies/Porn/**/*.mp4"
+  "$HOME/Movies/Porn/**/*.mp4"
+)
+
+TABLATURE_GLOBS=(
+  "/Volumes/*/Tablature/**/*.pdf"
+  "$HOME/Music/Tablature/**/*.pdf"
+)
+
 export ZSH_CONFIG_DIR=$HOME/.zsh
 export ZSH_COMPLETIONS_DIR=$ZSH_CONFIG_DIR/completions
 export ZSH_AUTOLOAD_DIR=$ZSH_CONFIG_DIR/autoload
@@ -45,7 +60,7 @@ export MOVIES_PATH=$HOME/Movies
 export TUTORIALS_PATH=$HOME/Movies/Tutorials
 
 # Media
-export LOCAL_MEDIA_PATHS="$HOME/Downloads/Porn:$HOME/Media/Porn:$MOVIES_PATH/Porn"
+export LOCAL_MEDIA_PATHS="$HOME/Media/Porn:$MOVIES_PATH/Porn"
 export LOCAL_CACHE_PATHS="$MOVIES_PATH/Cache:$HOME/Media/Cache"
 export LOCAL_CACHE_PATH="$MOVIES_PATH/Cache"
 export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn"

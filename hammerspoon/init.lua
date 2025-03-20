@@ -212,53 +212,111 @@ end
 
 
 
--- Define a hotkey to create a dual-pane layout with Finder windows
-hs.hotkey.bind({ "cmd", "alt" }, "D", function()
-	-- Get the main screen's frame
-	local screen = hs.screen.mainScreen():frame()
+-- -- Define a hotkey to create a dual-pane layout with Finder windows
+-- hs.hotkey.bind({ "cmd", "alt" }, "D", function()
+-- 	-- Get the main screen's frame
+-- 	local screen = hs.screen.mainScreen():frame()
+--
+-- 	-- Launch or focus Finder
+-- 	hs.application.launchOrFocus("Finder")
+-- 	local finder = hs.application.find("Finder")
+--
+-- 	-- Make sure we have at least two Finder windows
+-- 	local windows = finder:allWindows()
+-- 	if #windows < 2 then
+-- 		-- Create a new Finder window if needed
+-- 		hs.applescript.applescript([[
+--             tell application "Finder"
+--                 make new Finder window
+--             end tell
+--         ]])
+-- 		-- Small delay to let the window appear
+-- 		hs.timer.doAfter(0.2, function()
+-- 			windows = finder:allWindows()
+-- 			arrangeDualPane(windows, screen)
+-- 		end)
+-- 	else
+-- 		arrangeDualPane(windows, screen)
+-- 	end
+-- end)
+--
+-- -- Function to arrange windows in dual pane
+-- function arrangeDualPane(windows, screen)
+-- 	-- Left pane
+-- 	windows[1]:setFrame({
+-- 		x = screen.x,
+-- 		y = screen.y,
+-- 		w = screen.w / 2,
+-- 		h = screen.h
+-- 	})
+--
+-- 	-- Right pane
+-- 	windows[2]:setFrame({
+-- 		x = screen.x + screen.w / 2,
+-- 		y = screen.y,
+-- 		w = screen.w / 2,
+-- 		h = screen.h
+-- 	})
+-- end
 
-	-- Launch or focus Finder
-	hs.application.launchOrFocus("Finder")
-	local finder = hs.application.find("Finder")
-
-	-- Make sure we have at least two Finder windows
-	local windows = finder:allWindows()
-	if #windows < 2 then
-		-- Create a new Finder window if needed
-		hs.applescript.applescript([[
-            tell application "Finder"
-                make new Finder window
-            end tell
-        ]])
-		-- Small delay to let the window appear
-		hs.timer.doAfter(0.2, function()
-			windows = finder:allWindows()
-			arrangeDualPane(windows, screen)
-		end)
-	else
-		arrangeDualPane(windows, screen)
-	end
+hs.hotkey.bind({ "cmd", "ctrl" }, "R", function()
+	hs.reload()
+	hs.notify.new({ title = "Hammerspoon", informativeText = "Config reloaded" }):send()
 end)
-
--- Function to arrange windows in dual pane
-function arrangeDualPane(windows, screen)
-	-- Left pane
-	windows[1]:setFrame({
-		x = screen.x,
-		y = screen.y,
-		w = screen.w / 2,
-		h = screen.h
-	})
-
-	-- Right pane
-	windows[2]:setFrame({
-		x = screen.x + screen.w / 2,
-		y = screen.y,
-		w = screen.w / 2,
-		h = screen.h
-	})
-end
 
 --- SPACES STUFF
 ---
 ---
+local spaces = require("hs.spaces")
+
+hs.hotkey.bind({ "cmd", "ctrl" }, "e", function()
+	hs.alert.show("Switching to left screen")
+	local screen = hs.screen.allScreens()[1]          -- Left screen
+	local space = spaces.layout()[screen:getUUID()][1] -- First space on left screen
+
+	-- Switch to the space
+	spaces.gotoSpace(space)
+
+	-- Move the mouse to the center of the screen to ensure focus
+	local point = hs.geometry.rectMidPoint(screen:frame())
+	hs.mouse.absolutePosition(point)
+
+	-- Optional: Ensure a window on that screen gets focus
+	-- Uncomment this if just moving the mouse isn't enough
+	-- local win = hs.window.focusedWindow()
+	-- if win and win:screen() ~= screen then
+	--     local windowsOnScreen = hs.fnutils.filter(hs.window.allWindows(), function(w)
+	--         return w:screen() == screen
+	--     end)
+	--     if #windowsOnScreen > 0 then
+	--         windowsOnScreen[1]:focus()
+	--     end
+	-- end
+end)
+
+hs.hotkey.bind({ "cmd", "ctrl" }, "w", function()
+	hs.alert.show("Switching to right screen")
+	local screen = hs.screen.allScreens()[2]          -- Right screen
+	local space = spaces.layout()[screen:getUUID()][1] -- First space on right screen
+
+	-- Switch to the space
+	spaces.gotoSpace(space)
+
+	-- Move the mouse to the center of the screen to ensure focus
+	local point = hs.geometry.rectMidPoint(screen:frame())
+	hs.mouse.absolutePosition(point)
+
+	-- Optional: Ensure a window on that screen gets focus
+	-- Uncomment this if just moving the mouse isn't enough
+	local win = hs.window.focusedWindow()
+	if win and win:screen() ~= screen then
+		local windowsOnScreen = hs.fnutils.filter(hs.window.allWindows(), function(w)
+			return w:screen() == screen
+		end)
+		if #windowsOnScreen > 0 then
+			windowsOnScreen[1]:focus()
+		end
+	end
+end)
+
+hs.alert.show("  hammerspoon config reloaded  ")

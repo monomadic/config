@@ -17,6 +17,7 @@
                 "rules": [
                     {
                         "description": "Toggle Dock with Fn + D",
+                        "enabled": false,
                         "manipulators": [
                             {
                                 "from": {
@@ -92,12 +93,12 @@
                         ]
                     },
                     {
-                        "description": "Show Desktop with right_command+d",
+                        "description": "Show Desktop with fn+d",
                         "manipulators": [
                             {
                                 "from": {
                                     "key_code": "d",
-                                    "modifiers": { "mandatory": ["right_command"] }
+                                    "modifiers": { "mandatory": ["fn"] }
                                 },
                                 "to": [{ "key_code": "f11" }],
                                 "type": "basic"
