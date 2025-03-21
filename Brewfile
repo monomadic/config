@@ -235,6 +235,7 @@ brew "rnr" # rust based rename
 cask "transnomino" # gui renamer
 # brew "mmv" # go based util for renaming with vim
 brew "moreutils" # includes vidir, for renaming with vi
+brew "advanced-renamer"
 
 brew "wallpaper" # manage desktop wallpaper
 

@@ -69,7 +69,7 @@ echo "Using Lua script: $TMP_SCRIPT"
 
 if [[ $# -gt 0 ]]; then
   echo "Playing $# files from arguments"
-  mpv --no-config \
+  mpv \
     "$@" \
     --no-native-fs \
     --fs \
@@ -79,8 +79,6 @@ if [[ $# -gt 0 ]]; then
     --osd-level=0 \
     --force-window=yes \
     --script-opts=osc-visibility=never \
-    --no-input-default-bindings \
-    --input-conf=/dev/null \
     --script=$TMP_SCRIPT
 else
   if [[ -t 0 ]]; then
@@ -98,7 +96,8 @@ else
       exit 1
     fi
 
-    mpv --no-config --no-native-fs \
+    mpv \
+      --no-native-fs \
       --fs \
       --playlist=$TMP_PLAYLIST \
       --loop-playlist=inf \
@@ -107,8 +106,6 @@ else
       --osd-level=0 \
       --force-window=yes \
       --script-opts=osc-visibility=never \
-      --no-input-default-bindings \
-      --input-conf=/dev/null \
       --script=$TMP_SCRIPT
   fi
 fi
