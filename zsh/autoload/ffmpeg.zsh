@@ -49,11 +49,128 @@ ffmpeg-create-seamless-loop() {
 
 # Converts input video to the Steam Deck native resolution (1280x800) at 60fps using AV1.
 function ffmpeg-encode-steamdeck-av1() {
-    if [[ $# -ne 2 ]]; then
-        echo "Usage: av1_native <input_file> <output_file>"
+    if [[ $# -ne 1 ]]; then
+        echo "Usage: ffmpeg-encode-steamdeck-av1() <input_file>"
         return 1
     fi
-    ffmpeg -i "$1" -vf "scale=1280:800" -r 60 -c:v libaom-av1 -crf 30 -b:v 0 -c:a aac -b:a 256k "$2"
+    local infile="$1"
+    local base="${infile%.*}"
+    local ext="${infile##*.}"
+    local outfile="${base}#av1_native.${ext}"
+    ffmpeg -i "$infile" -vf "scale=1280:800" -r 60 -c:v libaom-av1 -crf 30 -b:v 0 -c:a aac -b:a 256k "$outfile"
+}
+
+# Converts input video to the Steam Deck native resolution (1280x800) at 60fps using HEVC.
+function ffmpeg-encode-steamdeck-hevc() {
+    if [[ $# -ne 1 ]]; then
+        echo "Usage: ffmpeg-encode-steamdeck-hevc() <input_file>"
+        return 1
+    fi
+    local infile="$1"
+    local base="${infile%.*}"
+    local ext="${infile##*.}"
+    local outfile="${base}#hevc_native.${ext}"
+    ffmpeg -i "$infile" -vf "scale=1280:800" -r 60 -c:v libx265 -preset fast -crf 22 -c:a aac -b:a 256k "$outfile"
+}
+
+# Converts input video to the Steam Deck native resolution (1280x800) at 60fps using AV1,
+# while printing a progress percentage. The output filename is auto-generated with a "#av1_native_progress" tag.
+function ffmpeg-encode-steamdeck-av1-progress() {
+    if [[ $# -ne 1 ]]; then
+        echo "Usage: ffmpeg-encode-steamdeck-av1-progress <input_file>"
+        return 1
+    fi
+
+    local infile="$1"
+    local base="${infile%.*}"
+    local ext="${infile##*.}"
+    local outfile="${base}#av1_native_progress.${ext}"
+
+    # Get total duration (in seconds) using ffprobe
+    local duration
+    duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
+               -of default=noprint_wrappers=1:nokey=1 "$infile")
+    if [[ -z "$duration" ]]; then
+        echo "Error: Could not determine duration for $infile"
+        return 1
+    fi
+
+    # Convert duration to milliseconds (rounded)
+    local duration_ms
+    duration_ms=$(printf "%.0f" "$(echo "$duration * 1000" | bc -l)")
+
+    echo "Total duration: ${duration} seconds."
+
+    # Run ffmpeg with progress reporting.
+    # The progress info is output as key=value pairs which we parse for out_time_ms.
+    ffmpeg -i "$infile" -vf "scale=1280:800" -r 60 \
+        -c:v libaom-av1 -cpu-used 4 -crf 30 -b:v 0 \
+        -c:a aac -b:a 256k \
+        -progress pipe:1 "$outfile" 2>&1 | while IFS= read -r line; do
+            if [[ "$line" == out_time_ms=* ]]; then
+                # Get the current output time in milliseconds
+                local out_time_ms=${line#out_time_ms=}
+                # Calculate percentage (if duration_ms > 0)
+                if (( duration_ms > 0 )); then
+                    local percent
+                    percent=$(echo "scale=2; ($out_time_ms / $duration_ms) * 100" | bc -l)
+                    # Print progress (overwrite the same line)
+                    echo -ne "Progress: ${percent}%\r"
+                fi
+            elif [[ "$line" == progress=end ]]; then
+                echo -e "\nEncoding complete: ${outfile}"
+            fi
+        done
+}
+
+# Converts input video to the Steam Deck native resolution (1280x800) at 60fps using HEVC,
+# while printing a progress percentage. The output filename is auto-generated with a "#hevc_native_progress" tag.
+function ffmpeg-encode-steamdeck-hevc-progress() {
+    if [[ $# -ne 1 ]]; then
+        echo "Usage: ffmpeg-encode-steamdeck-hevc-progress <input_file>"
+        return 1
+    fi
+
+    local infile="$1"
+    local base="${infile%.*}"
+    local ext="${infile##*.}"
+    local outfile="${base}#hevc_native_progress.${ext}"
+
+    # Get total duration (in seconds) using ffprobe
+    local duration
+    duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
+               -of default=noprint_wrappers=1:nokey=1 "$infile")
+    if [[ -z "$duration" ]]; then
+        echo "Error: Could not determine duration for $infile"
+        return 1
+    fi
+
+    # Convert duration to milliseconds (rounded)
+    local duration_ms
+    duration_ms=$(printf "%.0f" "$(echo "$duration * 1000" | bc -l)")
+
+    echo "Total duration: ${duration} seconds."
+
+    # Run ffmpeg with progress reporting.
+    # The progress info is output as key=value pairs which we parse for out_time_ms.
+    ffmpeg -i "$infile" -vf "scale=1280:800" -r 60 \
+        -c:v libx265 -preset fast -crf 22 \
+        -c:a aac -b:a 256k \
+        -progress pipe:1 "$outfile" 2>&1 | while IFS= read -r line; do
+            if [[ "$line" == out_time_ms=* ]]; then
+                # Get the current output time in milliseconds
+                local out_time_ms=${line#out_time_ms=}
+                # Calculate percentage (if duration_ms > 0)
+                if (( duration_ms > 0 )); then
+                    local percent
+                    percent=$(echo "scale=2; ($out_time_ms / $duration_ms) * 100" | bc -l)
+                    # Print progress (overwrite the same line)
+                    echo -ne "Progress: ${percent}%\r"
+                fi
+            elif [[ "$line" == progress=end ]]; then
+                echo -e "\nEncoding complete: ${outfile}"
+            fi
+        done
 }
 
 # h.265 2-pass encoding (for strict bitrate control)
@@ -80,6 +197,100 @@ ffmpeg-encode-h265-2pass() {
          -f null /dev/null && \
   ffmpeg -i "$input" -c:v libx265 -preset "$preset" -b:v "$bitrate" -maxrate "$maxrate" -bufsize "$bufsize" -pass 2 \
          -c:a aac -b:a 128k "$output"
+}
+
+# Compresses input video in HEVC (libx265) while preserving original resolution, framerate, and HDR metadata.
+# Output file is auto‐generated with a "#hevc_hdr" tag.
+function ffmpeg-encode-hdr-hevc-progress() {
+    if [[ $# -ne 1 ]]; then
+        echo "Usage: ffmpeg-encode-hdr-hevc-progress <input_file>"
+        return 1
+    fi
+
+    local infile="$1"
+    local base="${infile%.*}"
+    local ext="${infile##*.}"
+    local outfile="${base}#hevc_hdr.${ext}"
+
+    # Get total duration (in seconds) using ffprobe.
+    local duration
+    duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
+               -of default=noprint_wrappers=1:nokey=1 "$infile")
+    if [[ -z "$duration" ]]; then
+        echo "Error: Could not determine duration for $infile"
+        return 1
+    fi
+
+    # Convert duration to milliseconds.
+    local duration_ms
+    duration_ms=$(printf "%.0f" "$(echo "$duration * 1000" | bc -l)")
+
+    echo "Total duration: ${duration} seconds."
+
+    ffmpeg -i "$infile" \
+           -c:v libx265 -preset slow -crf 18 \
+           -pix_fmt yuv420p10le \
+           -x265-params "hdr10=1:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc" \
+           -c:a aac -b:a 256k \
+           -progress pipe:1 "$outfile" 2>&1 | while IFS= read -r line; do
+               if [[ "$line" == out_time_ms=* ]]; then
+                   local out_time_ms=${line#out_time_ms=}
+                   if (( duration_ms > 0 )); then
+                       local percent
+                       percent=$(echo "scale=2; ($out_time_ms / $duration_ms) * 100" | bc -l)
+                       echo -ne "Progress: ${percent}%\r"
+                   fi
+               elif [[ "$line" == progress=end ]]; then
+                   echo -e "\nEncoding complete: ${outfile}"
+               fi
+           done
+}
+
+# Compresses input video in AV1 (libaom-av1) while preserving original resolution, framerate, and HDR metadata.
+# Output file is auto‐generated with a "#av1_hdr" tag.
+function ffmpeg-encode-hdr-av1-progress() {
+    if [[ $# -ne 1 ]]; then
+        echo "Usage: ffmpeg-encode-hdr-av1-progress <input_file>"
+        return 1
+    fi
+
+    local infile="$1"
+    local base="${infile%.*}"
+    local ext="${infile##*.}"
+    local outfile="${base}#av1_hdr.${ext}"
+
+    # Get total duration (in seconds) using ffprobe.
+    local duration
+    duration=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
+               -of default=noprint_wrappers=1:nokey=1 "$infile")
+    if [[ -z "$duration" ]]; then
+        echo "Error: Could not determine duration for $infile"
+        return 1
+    fi
+
+    # Convert duration to milliseconds.
+    local duration_ms
+    duration_ms=$(printf "%.0f" "$(echo "$duration * 1000" | bc -l)")
+
+    echo "Total duration: ${duration} seconds."
+
+    ffmpeg -i "$infile" \
+           -c:v libaom-av1 -cpu-used 4 -crf 30 -b:v 0 \
+           -pix_fmt yuv420p10le \
+           -color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc \
+           -c:a aac -b:a 256k \
+           -progress pipe:1 "$outfile" 2>&1 | while IFS= read -r line; do
+               if [[ "$line" == out_time_ms=* ]]; then
+                   local out_time_ms=${line#out_time_ms=}
+                   if (( duration_ms > 0 )); then
+                       local percent
+                       percent=$(echo "scale=2; ($out_time_ms / $duration_ms) * 100" | bc -l)
+                       echo -ne "Progress: ${percent}%\r"
+                   fi
+               elif [[ "$line" == progress=end ]]; then
+                   echo -e "\nEncoding complete: ${outfile}"
+               fi
+           done
 }
 
 # Function to remux a file (rebuild the container without re-encoding)
