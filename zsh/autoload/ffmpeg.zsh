@@ -47,6 +47,15 @@ ffmpeg-create-seamless-loop() {
   ffmpeg -i "$input" -filter_complex "xfade=transition=fade:duration=1:offset=$((duration-1))" "$output"
 }
 
+# Converts input video to the Steam Deck native resolution (1280x800) at 60fps using AV1.
+function ffmpeg-encode-steamdeck-av1() {
+    if [[ $# -ne 2 ]]; then
+        echo "Usage: av1_native <input_file> <output_file>"
+        return 1
+    fi
+    ffmpeg -i "$1" -vf "scale=1280:800" -r 60 -c:v libaom-av1 -crf 30 -b:v 0 -c:a aac -b:a 256k "$2"
+}
+
 # h.265 2-pass encoding (for strict bitrate control)
 ffmpeg-encode-h265-2pass() {
   if [[ -z "$1" ]]; then

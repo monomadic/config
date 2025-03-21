@@ -1,24 +1,22 @@
-# Main Zsh configuration file
-#
+# MAIN ZSH CONFIGURATION FILE
 
-# ZSH FUNCTIONS
+# FUNCTIONS
 #
-# Function autoloading
+# AUTOLOADING
 autoload -Uz add-zsh-hook
 #
-# Function load path
+# LOAD PATH
 fpath=(
   $ZSH_CONFIG_DIR/completions
   $fpath
 )
 
-# TAB COMPLETION
+# DIRECTORY NAVIGATION OPTIONS
 #
-# Directory navigation options
 setopt autocd
 setopt autopushd
 
-# Completion styles
+# TAB COMPLETION
 #
 zstyle ':completion:*:*:*:default' menu yes select search
 #

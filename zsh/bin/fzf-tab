@@ -1,0 +1,78 @@
+#!/usr/bin/env zsh
+
+# Define glob patterns for tablature search
+TABLATURE_GLOBS=(
+  "/Volumes/*/Tablature/**/*.pdf"
+  "$HOME/Music/Tablature/**/*.pdf"
+)
+
+# Function to format file sizes in human-readable format
+human_readable_size() {
+  local size=$1
+  local units=(B K M G T P)
+  local i=0
+  while ((size > 1024 && i < ${#units[@]} - 1)); do
+    ((size /= 1024))
+    ((i++))
+  done
+  echo "$size${units[i]}"
+}
+
+# Function to format files for fzf display
+format_tabs() {
+  local view_type=$1
+  fd . --extension pdf --type f ${TABLATURE_GLOBS[@]} \
+    --exec stat -f "%z|%m|%N" {} + 2>/dev/null |
+    sort -rn -t'|' -k2 |
+    while IFS='|' read -r filesize mod_time filepath; do
+      display_path=${filepath#./}
+      display_name=${display_path%.pdf}
+      hr_size=$(human_readable_size "$filesize")
+      if [[ "$display_name" == *" - "* ]]; then
+        artist=${display_name%% - *}
+        title=${display_name#* - }
+        if [[ "$view_type" == "artist" ]]; then
+          echo -E "${filepath}"$'\t'"$(print -P "%F{cyan}${artist}%f %F{yellow}${title}%f")"$'\t'"$filesize"
+        else
+          echo -E "${filepath}"$'\t'"$(print -P "%F{yellow}${title}%f %F{cyan}${artist}%f")"$'\t'"$filesize"
+        fi
+      else
+        echo -E "${filepath}"$'\t'"$(print -P "%F{red}${display_name}%f")"$'\t'"$filesize"
+      fi
+    done
+}
+
+# Create temp files for different views
+TEMP_DIR=$(mktemp -d)
+ARTIST_VIEW="$TEMP_DIR/artist_view"
+TITLE_VIEW="$TEMP_DIR/title_view"
+echo 'artist' > "$TEMP_DIR/current_view"
+
+format_tabs "artist" > "$ARTIST_VIEW"
+format_tabs "title" > "$TITLE_VIEW"
+
+# Run fzf with initial artist view
+cat "$ARTIST_VIEW" | fzf --margin="0%,0%" \
+  --reverse \
+  --ansi \
+  --cycle \
+  --marker=" " \
+  --black \
+  --pointer="󰋆" \
+  --border="horizontal" \
+  --border-label=" 󰎈 Tabs " \
+  --header-lines=0 \
+  --no-info \
+  --exact \
+  --delimiter='\t' \
+  --with-nth=2 \
+  --bind 'alt-r:execute(open --reveal {1})' \
+  --bind 'ctrl-/:toggle-preview' \
+  --bind "enter:execute(echo \"󰄬 Opening: {1}\" && open {1}&)" \
+  --bind "alt-enter:execute(echo \"󰄛 Previewing: {1}\" && qlmanage -p {1} > /dev/null 2>&1)" \
+  --bind "ctrl-a:reload(cat $ARTIST_VIEW)+execute-silent(echo 'artist' > $TEMP_DIR/current_view)" \
+  --bind "ctrl-t:reload(cat $TITLE_VIEW)+execute-silent(echo 'title' > $TEMP_DIR/current_view)" \
+  --bind "alt-n:execute(rename-tablature && echo 'Refreshing views...' && format_tabs 'artist' > $ARTIST_VIEW && format_tabs 'title' > $TITLE_VIEW)+reload(if [[ -f $TEMP_DIR/current_view && \$(cat $TEMP_DIR/current_view) == 'title' ]]; then cat $TITLE_VIEW; else cat $ARTIST_VIEW; fi)"
+
+# Cleanup temp files
+rm -rf "$TEMP_DIR"
