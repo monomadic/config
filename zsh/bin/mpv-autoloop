@@ -1,72 +1,60 @@
 #!/usr/bin/env zsh
-
 # mpv-vj-loop - VJ tool for playing short video clips with a configurable max duration
 # Usage: ./mpv-vj-loop <max_duration> file1.mp4 file2.mp4 ...
 #   or: ls **/*.mp4 | ./mpv-vj-loop <max_duration>
-
 if [[ $# -lt 2 ]]; then
   echo "Error: Missing arguments."
   echo "Usage: $0 <max_duration> file1.mp4 file2.mp4 ..."
   echo "   or: ls *.mp4 | $0 <max_duration>"
   exit 1
 fi
-
 MAX_DURATION="$1"
 shift # Remove first argument so the rest are file names
-
 # Create temporary Lua script
 TMP_SCRIPT=$(mktemp "${TMPDIR:-/tmp}/mpv_script_XXXXXX.lua")
-
 cat >$TMP_SCRIPT <<EOL
 local options = require 'mp.options'
 local opt = { max_duration = tonumber("$MAX_DURATION") or 5 }
 options.read_options(opt, "vjloop")
-
 local timer = nil
-
 function reveal_in_finder()
     local path = mp.get_property("path")
     if path then
         os.execute(string.format("open -R %q", path))
     end
 end
-
 function next_file()
     mp.commandv("playlist-next")
 end
-
 function on_file_loaded()
-	local file_duration = mp.get_property_number("duration", 0)
-	-- Images have a duration of 0, so don’t loop and use
-	-- image-display-duration instead
-	if file_duration == 0 then
-		mp.set_property("loop-file", "no")
-	-- If a GIF or video have duration shorter than x seconds
-	-- make it loop for at least x seconds
-	elseif file_duration < opt.max_duration then
-		mp.set_property("loop-file", math.floor(opt.max_duration  / file_duration))
-	-- For longer file, play it only once
-	else
-		mp.set_property("loop-file", "no")
-	end
-end
+    local file_duration = mp.get_property_number("duration", 0)
+    -- Images have a duration of 0, so don't loop and use
+    -- image-display-duration instead
+    if file_duration == 0 then
+        mp.set_property("loop-file", "no")
+    -- If a GIF or video have duration shorter than x seconds
+    -- make it loop for at least x seconds
+    elseif file_duration < opt.max_duration then
+        mp.set_property("loop-file", math.floor(opt.max_duration  / file_duration))
+    -- For longer file, play it only once
+    else
+        mp.set_property("loop-file", "no")
+    end
 
+    -- Ensure playback starts automatically
+    mp.set_property_bool("pause", false)
+end
 -- Key bindings
 mp.add_key_binding("SPACE", "next-file", next_file, {repeatable=true})
 mp.add_key_binding("ENTER", "next-file", next_file, {repeatable=true})
 mp.add_key_binding("Meta+r", "reveal-in-finder", reveal_in_finder, {repeatable=true})
-
 mp.register_event("file-loaded", on_file_loaded)
 EOL
-
 chmod +x "$TMP_SCRIPT"
-
 # Ensure temporary script is cleaned up on exit
 trap "rm -f $TMP_SCRIPT" EXIT INT TERM
-
 echo "Starting MPV VJ Tool with max duration: $MAX_DURATION seconds"
 echo "Using Lua script: $TMP_SCRIPT"
-
 if [[ $# -gt 0 ]]; then
   echo "Playing $# files from arguments"
   mpv \
@@ -79,6 +67,13 @@ if [[ $# -gt 0 ]]; then
     --osd-level=0 \
     --force-window=yes \
     --script-opts=osc-visibility=never \
+<<<<<<< HEAD
+||||||| parent of 0d5db24 (update:)
+    --no-input-default-bindings \
+    --input-conf=/dev/null \
+=======
+    --no-pause \
+>>>>>>> 0d5db24 (update:)
     --script=$TMP_SCRIPT
 else
   if [[ -t 0 ]]; then
@@ -90,14 +85,21 @@ else
     cat >$TMP_PLAYLIST
     FILE_COUNT=$(wc -l <$TMP_PLAYLIST)
     echo "Playing $FILE_COUNT files from stdin"
-
     if [[ $FILE_COUNT -eq 0 ]]; then
       echo "Error: No files found in input"
       exit 1
     fi
+<<<<<<< HEAD
 
     mpv \
       --no-native-fs \
+||||||| parent of 0d5db24 (update:)
+
+    mpv --no-config --no-native-fs \
+=======
+    mpv \
+      --no-native-fs \
+>>>>>>> 0d5db24 (update:)
       --fs \
       --playlist=$TMP_PLAYLIST \
       --loop-playlist=inf \
@@ -106,6 +108,13 @@ else
       --osd-level=0 \
       --force-window=yes \
       --script-opts=osc-visibility=never \
+<<<<<<< HEAD
+||||||| parent of 0d5db24 (update:)
+      --no-input-default-bindings \
+      --input-conf=/dev/null \
+=======
+      --no-pause \
+>>>>>>> 0d5db24 (update:)
       --script=$TMP_SCRIPT
   fi
 fi

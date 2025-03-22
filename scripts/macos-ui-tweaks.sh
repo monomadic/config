@@ -22,6 +22,8 @@ defaults write -g QLPanelAnimationDuration -float 0
 # Speed up the dialog box animations
 defaults write -g NSInitialToolTipDelay -integer 0
 
+#defaults write com.apple.dock workspaces-swoosh-animation -bool true
+#
 # Speed up key repeat rates
 # defaults write -g KeyRepeat -int 1
 # defaults write -g InitialKeyRepeat -int 10
@@ -44,7 +46,7 @@ defaults write -g NSMenuFadeOutDuration -float 0
 defaults write com.apple.finder DisableAllAnimations -bool true
 
 # Reduce system transparency
-defaults write com.apple.universalaccess reduceTransparency -bool true
+# defaults write com.apple.universalaccess reduceTransparency -bool true
 
 # Disable smart quotes and dashes for faster text input
 defaults write -g NSAutomaticQuoteSubstitutionEnabled -bool false

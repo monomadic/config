@@ -50,7 +50,7 @@ alias cd-relative="cd ${fd--type directory | fzf-cd}"
 alias .screen-sharing-kick-users="sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -deactivate -restart -users current"
 
 alias .kitty-reload="kitty @ set-colors --all ~/.config/kitty/kitty.conf"
-alias .kitty-configure="cfg-kitty"
+alias .kitty-configure="e-kitty"
 alias .kitty-kill-all-nvim="kitten @ close-tab --match 'env:PROC=nvim'"
 alias .nvim-kill-all=.kitty-kill-all-nvim
 alias .kitty-close-idle-tabs="kitty @ close-tab --match 'env:PROC=zsh'"
@@ -70,7 +70,7 @@ alias .tag=tag
 alias gatekeeper-whitelist="xattr -rd com.apple.quarantine "
 alias .gatekeeper-whitelist=gatekeeper-whitelist
 
-alias c=cfg-zsh
+alias c=e-zsh
 alias C=e-config
 alias g=git
 alias p="media play --shuffle"
@@ -131,16 +131,16 @@ alias battery='pmset -g batt'
 alias branch="b"
 alias cb="cargo build"
 alias cc="cargo check"
-alias cfg-homebrew="cd $DOTFILES_DIR && nvim Brewfile"
-alias cfg-kitty="cd $DOTFILES_DIR/kitty && nvim kitty.conf"
-alias cfg-neovim="cd $DOTFILES_DIR/neovim && edit init.lua"
-alias cfg-open="cd $DOTFILES_DIR && nvim README.md"
-alias cfg-yazi="cd $DOTFILES_DIR/apps/yazi && nvim yazi.toml"
+alias e-homebrew="cd $DOTFILES_DIR && nvim Brewfile"
+alias e-kitty="cd $DOTFILES_DIR/kitty && nvim kitty.conf"
+alias e-neovim="cd $DOTFILES_DIR/neovim && edit init.lua"
+alias e-open="cd $DOTFILES_DIR && nvim README.md"
+alias e-yazi="cd $DOTFILES_DIR/apps/yazi && nvim yazi.toml"
+alias e-zellij="cd $DOTFILES_DIR/zellij && edit config.kdl"
+alias e-zsh-keybindings="cd $DOTFILES_DIR/zsh && nvim scripts/autoload/keybindings.zsh"
+alias e-zsh="cd $DOTFILES_DIR/zsh && edit zshrc.zsh"
+alias e-mpv="cd $DOTFILES_DIR/mpv && edit mpv.conf"
 alias .yazi-config="cd $DOTFILES_DIR/apps/yazi && nvim yazi.toml"
-alias cfg-zellij="cd $DOTFILES_DIR/zellij && edit config.kdl"
-alias cfg-zsh-keybindings="cd $DOTFILES_DIR/zsh && nvim scripts/autoload/keybindings.zsh"
-alias cfg-zsh="cd $DOTFILES_DIR/zsh && edit zshrc.zsh"
-alias cfg-mpv="cd $DOTFILES_DIR/mpv && edit mpv.conf"
 alias ci="cargo install --path ."
 alias cp-pwd="echo $PWD|pbcopy" # mac only
 alias cr="cargo run"

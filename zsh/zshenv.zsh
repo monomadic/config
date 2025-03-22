@@ -27,7 +27,7 @@ manpath=(
 
 JUMP_DIRS=(
   "/Volumes/**/Movies/**/*.mp4"
-  "/System/home/**/Movies/**/*.mp4"
+  "$HOME/Movies/**/*.mp4"
 )
 
 MEDIA_GLOBS=(
