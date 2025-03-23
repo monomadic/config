@@ -1,0 +1,31 @@
+#compdef beatportdl-darwin-arm64
+
+__beatportdl() {
+  local -a opts
+  opts=(
+    '--help[Show help information]'
+    '--quality[Audio quality]:quality:(medium-hls medium high lossless)'
+    '--downloads-directory[Specify downloads directory]:directory:_directories'
+    '--show-progress[Enable progress bars]:show progress:(true false)'
+    '--write-error-log[Write errors to error.log]:write error log:(true false)'
+    '--max-download-workers[Concurrent download jobs]:workers:'
+    '--max-global-workers[Concurrent global jobs]:workers:'
+    '--sort-by-context[Sort downloads by context]:sort context:(true false)'
+    '--sort-by-label[Sort by label]:sort label:(true false)'
+    '--force-release-directories[Force release directories]:force dirs:(true false)'
+    '--track-exists[Existing track handling]:track exists:(error skip overwrite update)'
+    '--keep-cover[Download cover art]:keep cover:(true false)'
+    '--fix-tags[Enable tag writing]:fix tags:(true false)'
+    '--cover-size[Cover art size]:cover size:(1400x1400)'
+    '--key-system[Music key system]:key system:(standard standard-short openkey camelot)'
+    '--proxy[Specify proxy URL]:proxy:_urls'
+  )
+
+  if (( CURRENT > 1 )); then
+    _arguments '*:URL or file:_files'
+  else
+    _arguments $opts
+  fi
+}
+
+compdef __beatportdl beatportdl-darwin-arm64
