@@ -104,7 +104,7 @@ alias .config-env="cd $ZSH_DOTFILES_DIR && nvim scripts/autoload/alias.zsh"
 alias .config-zsh=e-zsh
 alias .config="cd $ZSH_DOTFILES_DIR && nvim zshrc.zsh"
 alias .apple-music=apple-music-dl
-alias .beatport="beatportdl-darwin-arm64"
+alias .beatport="beatportdl-darwin-arm64 --fix_tags --track_file_template='{artists} - {name} ({mix_name})'"
 alias .network-detect-captive-portal=detect-captive-portal
 alias .network-status=ns
 alias .uptime="display-uptime"

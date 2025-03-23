@@ -7,8 +7,7 @@ tap "homebrew/services"
 tap "rschmitt/heatseeker"
 
 # localsend (airdrop alternative)
-# tap "localsend/localsend"
-# brew "localsend"
+cask "localsend"
 
 cask_args appdir: "/Applications"
 
@@ -281,10 +280,12 @@ brew "aria2" # cli download client
 
 cask "airflow" # airplay streamer
 
+cask "aichat" # chatgpt etc
+
 # manga
-tap "metafates/mangal"
-brew "mangal" # tui comic downloader
+# tap "metafates/mangal"
+# brew "mangal" # tui comic downloader
 
 # things.app shell access
-tap "AlexanderWillner/tap"
-brew "things.sh"
+# tap "AlexanderWillner/tap"
+# brew "things.sh"
