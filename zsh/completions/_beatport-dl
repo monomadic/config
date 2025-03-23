@@ -1,31 +1,31 @@
 #compdef beatportdl-darwin-arm64
 
-__beatportdl() {
-  local -a opts
-  opts=(
-    '--help[Show help information]'
-    '--quality[Audio quality]:quality:(medium-hls medium high lossless)'
-    '--downloads-directory[Specify downloads directory]:directory:_directories'
-    '--show-progress[Enable progress bars]:show progress:(true false)'
-    '--write-error-log[Write errors to error.log]:write error log:(true false)'
-    '--max-download-workers[Concurrent download jobs]:workers:'
-    '--max-global-workers[Concurrent global jobs]:workers:'
-    '--sort-by-context[Sort downloads by context]:sort context:(true false)'
-    '--sort-by-label[Sort by label]:sort label:(true false)'
-    '--force-release-directories[Force release directories]:force dirs:(true false)'
-    '--track-exists[Existing track handling]:track exists:(error skip overwrite update)'
-    '--keep-cover[Download cover art]:keep cover:(true false)'
-    '--fix-tags[Enable tag writing]:fix tags:(true false)'
-    '--cover-size[Cover art size]:cover size:(1400x1400)'
-    '--key-system[Music key system]:key system:(standard standard-short openkey camelot)'
-    '--proxy[Specify proxy URL]:proxy:_urls'
-  )
-
-  if (( CURRENT > 1 )); then
-    _arguments '*:URL or file:_files'
-  else
-    _arguments $opts
-  fi
-}
-
-compdef __beatportdl beatportdl-darwin-arm64
+_arguments \
+  '--help[Show help information]' \
+  '--username[Beatport username (default: none)]:username:' \
+  '--password[Beatport password (default: none)]:password:' \
+  '--quality[Audio quality (default: lossless)]:quality:(medium-hls medium high lossless)' \
+  '--downloads-directory[Specify downloads directory (default: current directory)]:directory:_directories' \
+  '--show-progress[Enable progress bars (default: true)]:show progress:(true false)' \
+  '--write-error-log[Write errors to error.log (default: false)]:write error log:(true false)' \
+  '--max-download-workers[Concurrent download jobs (default: 15)]:workers:' \
+  '--max-global-workers[Concurrent global jobs (default: 15)]:workers:' \
+  '--sort-by-context[Create directories for releases, playlists, charts, labels, or artists (default: false)]:sort context:(true false)' \
+  '--sort-by-label[Use label names as parent directories (requires sort-by-context, default: false)]:sort label:(true false)' \
+  '--force-release-directories[Force creation of release directories inside charts and playlists (default: false)]:force dirs:(true false)' \
+  '--track-exists[Handling for existing tracks (default: update)]:track exists:(error skip overwrite update)' \
+  '--keep-cover[Download cover art (default: false)]:keep cover:(true false)' \
+  '--fix-tags[Enable metadata tag writing (default: true)]:fix tags:(true false)' \
+  '--cover-size[Cover art size in pixels (default: 1400x1400, max: 1400x1400)]:cover size:(1400x1400)' \
+  '--key-system[Music key system format (default: standard-short)]:key system:(standard standard-short openkey camelot)' \
+  '--whitespace-character[Whitespace character for filenames (default: none)]:character:' \
+  '--artists-limit[Maximum number of artists before using short form (default: 3)]:number:' \
+  '--artists-short-form[Short form for various artists (default: VA)]:short form:' \
+  '--track-file-template[Track filename template (default: "{number}. {artists} - {name} ({mix_name})")]:template:' \
+  '--release-directory-template[Release directory template (default: "\[{catalog_number}\] {artists} - {name}")]:template:' \
+  '--playlist-directory-template[Playlist directory template (default: "{name} \[{created_date}\]")]:template:' \
+  '--chart-directory-template[Chart directory template (default: "{name} \[{published_date}\]")]:template:' \
+  '--label-directory-template[Label directory template (default: "{name} \[{updated_date}\]")]:template:' \
+  '--artist-directory-template[Artist directory template (default: "{name}")]:template:' \
+  '--proxy[Specify proxy URL (default: none)]:proxy:_urls' \
+  '*:URL or file:_files'
