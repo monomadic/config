@@ -265,64 +265,64 @@ hs.hotkey.bind({ "cmd", "ctrl" }, "R", function()
 	hs.notify.new({ title = "Hammerspoon", informativeText = "Config reloaded" }):send()
 end)
 
--- switch to remote
-hs.hotkey.bind({ "cmd" }, "2", function()
-	local ssApp = hs.application.get("Screen Sharing")
-	if ssApp then
-		ssApp:activate()            -- bring Screen Sharing to front
-		screenSharingHotkey:disable() -- prevent recursion
-		hs.timer.doAfter(0.3, function()
-			hs.eventtap.keyStroke({ "cmd" }, "k")
-			screenSharingHotkey:enable()
-		end)
-	else
-		hs.alert.show("Screen Sharing app is not running")
-	end
-end)
-
--- switch local
-hs.hotkey.bind({ "cmd" }, "1", function()
-	local desktopSwitchHotkey = hs.hotkey.bind({ "rcmd" }, "1", function()
-		local mainScreen = hs.screen.mainScreen()
-		local uuid = mainScreen:getUUID()
-		local desktops = hs.spaces.allSpaces()[uuid]
-		if desktops and #desktops > 0 then
-			local desktop1 = desktops[1]
-			local allWindows = hs.window.allWindows()
-			local targetWindow = nil
-			for _, win in ipairs(allWindows) do
-				local winSpaces = hs.spaces.windowSpaces(win)
-				if winSpaces then
-					for _, sp in ipairs(winSpaces) do
-						if sp == desktop1 then
-							targetWindow = win
-							break
-						end
-					end
-				end
-				if targetWindow then break end
-			end
-
-			if targetWindow then
-				local targetApp = targetWindow:application()
-				if targetApp then
-					targetApp:activate()     -- focus the app that's on Desktop 1
-					desktopSwitchHotkey:disable() -- prevent recursion
-					hs.timer.doAfter(0.3, function()
-						hs.eventtap.keyStroke({ "cmd" }, "k")
-						desktopSwitchHotkey:enable()
-					end)
-				else
-					hs.alert.show("No application found for the window on Desktop 1")
-				end
-			else
-				hs.alert.show("No window found on Desktop 1")
-			end
-		else
-			hs.alert.show("No desktops found for the main screen")
-		end
-	end)
-end)
+-- -- switch to remote
+-- hs.hotkey.bind({ "cmd" }, "2", function()
+-- 	local ssApp = hs.application.get("Screen Sharing")
+-- 	if ssApp then
+-- 		ssApp:activate()            -- bring Screen Sharing to front
+-- 		screenSharingHotkey:disable() -- prevent recursion
+-- 		hs.timer.doAfter(0.3, function()
+-- 			hs.eventtap.keyStroke({ "cmd" }, "k")
+-- 			screenSharingHotkey:enable()
+-- 		end)
+-- 	else
+-- 		hs.alert.show("Screen Sharing app is not running")
+-- 	end
+-- end)
+--
+-- -- switch local
+-- hs.hotkey.bind({ "cmd" }, "1", function()
+-- 	local desktopSwitchHotkey = hs.hotkey.bind({ "rcmd" }, "1", function()
+-- 		local mainScreen = hs.screen.mainScreen()
+-- 		local uuid = mainScreen:getUUID()
+-- 		local desktops = hs.spaces.allSpaces()[uuid]
+-- 		if desktops and #desktops > 0 then
+-- 			local desktop1 = desktops[1]
+-- 			local allWindows = hs.window.allWindows()
+-- 			local targetWindow = nil
+-- 			for _, win in ipairs(allWindows) do
+-- 				local winSpaces = hs.spaces.windowSpaces(win)
+-- 				if winSpaces then
+-- 					for _, sp in ipairs(winSpaces) do
+-- 						if sp == desktop1 then
+-- 							targetWindow = win
+-- 							break
+-- 						end
+-- 					end
+-- 				end
+-- 				if targetWindow then break end
+-- 			end
+--
+-- 			if targetWindow then
+-- 				local targetApp = targetWindow:application()
+-- 				if targetApp then
+-- 					targetApp:activate()     -- focus the app that's on Desktop 1
+-- 					desktopSwitchHotkey:disable() -- prevent recursion
+-- 					hs.timer.doAfter(0.3, function()
+-- 						hs.eventtap.keyStroke({ "cmd" }, "k")
+-- 						desktopSwitchHotkey:enable()
+-- 					end)
+-- 				else
+-- 					hs.alert.show("No application found for the window on Desktop 1")
+-- 				end
+-- 			else
+-- 				hs.alert.show("No window found on Desktop 1")
+-- 			end
+-- 		else
+-- 			hs.alert.show("No desktops found for the main screen")
+-- 		end
+-- 	end)
+-- end)
 
 --- SPACES STUFF
 ---

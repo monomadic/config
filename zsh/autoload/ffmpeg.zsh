@@ -1,3 +1,118 @@
+ffmpeg-detect-black-frame() {
+  local video="$1"
+  [[ -f "$video" ]] || { echo "File not found: $video"; return 1; }
+
+  local mean
+  mean=$(ffmpeg -hide_banner -loglevel error -i "$video" \
+    -vf "select=eq(n\,0),format=gray,signalstats" -vframes 1 -f null - 2>&1 \
+    | rg -o 'YAVG:[0-9.]+' | cut -d':' -f2)
+
+  if [[ -z "$mean" ]]; then
+    echo "Failed to analyze frame."
+    return 1
+  fi
+
+  (( $(echo "$mean < 0.01" | bc -l) )) && return 0 || return 1
+}
+
+ffmpeg-detect-black-frame-nodeps() {
+  local video_file="$1"
+  local threshold="${2:-0.85}"  # Default threshold (0-1, higher = stricter)
+  local min_black_percent="${3:-95}"  # Minimum percentage of frame that must be black
+
+  if [[ ! -f "$video_file" ]]; then
+    echo "Error: File '$video_file' not found." >&2
+    return 1
+  fi
+
+  # Create a temporary directory for the extracted frame
+  local tmp_dir=$(mktemp -d)
+  local frame_file="$tmp_dir/first_frame.png"
+
+  # Extract the first frame using ffmpeg
+  if ! ffmpeg -y -i "$video_file" -vframes 1 -q:v 2 "$frame_file" &>/dev/null; then
+    echo "Error: Failed to extract first frame from '$video_file'." >&2
+    rm -rf "$tmp_dir"
+    return 1
+  fi
+
+  # Use FFmpeg's blackframe filter with a very high threshold to detect true black frames
+  # This measures what percentage of the frame consists of nearly black pixels
+  local analysis=$(ffmpeg -i "$frame_file" -vf "blackframe=amount=${min_black_percent}:thresh=${threshold}*100" -f null - 2>&1)
+
+  # Clean up
+  rm -rf "$tmp_dir"
+
+  # Check if the blackframe filter detected a black frame
+  if echo "$analysis" | grep -q "frame:0 pblack:[0-9.]*"; then
+    # Extract the percentage of black pixels
+    local pblack=$(echo "$analysis" | grep "frame:0 pblack:" | head -1 | grep -o "pblack:[0-9.]*" | cut -d: -f2)
+    echo "First frame of '$video_file' is black (${pblack}% black pixels detected)."
+    return 0
+  else
+    # If we want more details about why it's not black, we can extract that info
+    local frame_info=$(ffmpeg -i "$video_file" -vframes 1 -vf "signalstats" -f null - 2>&1 | grep -E "YAVG|UAVG|VAVG")
+    local y_avg=$(echo "$frame_info" | grep "YAVG" | grep -o "YAVG:[0-9.]*" | cut -d: -f2)
+
+    # Y channel (luminance) - lower values are darker
+    if [[ -n "$y_avg" ]]; then
+      echo "First frame of '$video_file' is not black enough (luminance: ${y_avg}/255, threshold: ${threshold})."
+    else
+      echo "First frame of '$video_file' is not black (below specified threshold: ${threshold})."
+    fi
+    return 1
+  fi
+}
+
+# note: imagemagick required
+ffmpeg-detect-black-frame-alt() {
+  local video_file="$1"
+  local threshold="${2:-20}"  # Default threshold (0-255, lower = darker)
+
+  if [[ ! -f "$video_file" ]]; then
+    echo "Error: File '$video_file' not found." >&2
+    return 1
+  fi
+
+  # Create a temporary directory for the extracted frame
+  local tmp_dir=$(mktemp -d)
+  local frame_file="$tmp_dir/first_frame.png"
+
+  # Extract the first frame using ffmpeg
+  if ! ffmpeg -y -i "$video_file" -vframes 1 "$frame_file" &>/dev/null; then
+    echo "Error: Failed to extract first frame from '$video_file'." >&2
+    rm -rf "$tmp_dir"
+    return 1
+  fi
+
+  # Use ImageMagick to get the mean brightness
+  local mean_value=$(convert "$frame_file" -colorspace Gray -format "%[mean]" info:)
+
+  # Clean up
+  rm -rf "$tmp_dir"
+
+  # If we couldn't get a value, assume failure
+  if [[ -z "$mean_value" ]]; then
+    echo "Error: Could not analyze first frame of '$video_file'." >&2
+    return 1
+  fi
+
+  # Scale the mean to 0-255
+  mean_value=$(echo "scale=0; $mean_value / 257" | bc)
+
+  # Compare to threshold and return result
+  if [[ "$mean_value" -le "$threshold" ]]; then
+    echo "First frame of '$video_file' is black (brightness: $mean_value/255)."
+    return 0
+  else
+    echo "First frame of '$video_file' is not black (brightness: $mean_value/255)."
+    return 1
+  fi
+}
+
+# Usage example:
+# is_first_frame_black video.mp4
+# is_first_frame_black video.mp4 0.2  # With custom threshold
 # Find repeating frames using SSIM (outputs logs)
 ffmpeg-find-repeating-frames() {
   if [[ -z "$1" ]]; then

@@ -1,0 +1,255 @@
+#!/usr/bin/env zsh
+#
+# black-frame-detector.zsh - Detects if the first frame of a video is a black screen
+#
+# Usage:
+#   black-frame-detector.zsh [options] <video_file> [<video_file2> ...]
+#
+# Options:
+#   -h, --help                 Show this help message and exit
+#   -t, --threshold <value>    Set darkness threshold (0-1, higher = stricter, default: 0.85)
+#   -p, --percent <value>      Set minimum black pixel percentage (0-100, default: 95)
+#   -v, --verbose              Show detailed analysis information
+#   -q, --quiet                Only output filenames of black-frame videos
+#   -d, --duration <seconds>   Also check if black frame duration exceeds specified seconds
+#   --ffmpeg-path <path>       Specify custom FFmpeg path
+
+# Set default options
+threshold=0.85
+min_black_percent=95
+verbose=false
+quiet=false
+check_duration=false
+duration_threshold=0
+ffmpeg_cmd="ffmpeg"
+
+# Function to display usage information
+function show_usage() {
+  cat <<EOF
+Usage: $(basename $0) [options] <video_file> [<video_file2> ...]
+
+Detects if the first frame of a video is a black screen.
+
+Options:
+  -h, --help                 Show this help message and exit
+  -t, --threshold <value>    Set darkness threshold (0-1, higher = stricter, default: 0.85)
+  -p, --percent <value>      Set minimum black pixel percentage (0-100, default: 95)
+  -v, --verbose              Show detailed analysis information
+  -q, --quiet                Only output filenames of black-frame videos
+  -d, --duration <seconds>   Also check if black frame duration exceeds specified seconds
+  --ffmpeg-path <path>       Specify custom FFmpeg path
+
+Examples:
+  $(basename $0) video.mp4
+  $(basename $0) --threshold 0.9 --percent 98 video.mp4
+  $(basename $0) -q -t 0.9 *.mp4 > black_videos.txt
+  $(basename $0) -d 0.5 video.mp4  # Check if black frame lasts at least 0.5 seconds
+EOF
+}
+
+# Function to detect if the first frame is black
+function is_first_frame_black() {
+  local video_file="$1"
+  local threshold="$2"
+  local min_black_percent="$3"
+
+  if [[ ! -f "$video_file" ]]; then
+    echo "Error: File '$video_file' not found." >&2
+    return 2
+  fi
+
+  # Create a temporary directory for the extracted frame
+  local tmp_dir=$(mktemp -d)
+  local frame_file="$tmp_dir/first_frame.png"
+
+  # Extract the first frame using ffmpeg
+  if ! $ffmpeg_cmd -y -i "$video_file" -vframes 1 -q:v 2 "$frame_file" &>/dev/null; then
+    $verbose && echo "Error: Failed to extract first frame from '$video_file'." >&2
+    rm -rf "$tmp_dir"
+    return 2
+  fi
+
+  # Use FFmpeg's blackframe filter with a very high threshold to detect true black frames
+  local analysis=$($ffmpeg_cmd -i "$frame_file" -vf "blackframe=amount=${min_black_percent}:thresh=${threshold}*100" -f null - 2>&1)
+
+  # Check if the blackframe filter detected a black frame
+  local is_black=false
+  local pblack=""
+
+  if echo "$analysis" | grep -q "frame:0 pblack:[0-9.]*"; then
+    is_black=true
+    pblack=$(echo "$analysis" | grep "frame:0 pblack:" | head -1 | grep -o "pblack:[0-9.]*" | cut -d: -f2)
+  fi
+
+  # Clean up
+  rm -rf "$tmp_dir"
+
+  # Output info based on verbosity level
+  if $is_black; then
+    if $verbose; then
+      echo "First frame of '$video_file' is black (${pblack}% black pixels detected)."
+    elif ! $quiet; then
+      echo "Black frame detected: $video_file"
+    elif $quiet; then
+      echo "$video_file"
+    fi
+    return 0
+  else
+    if $verbose; then
+      local frame_info=$($ffmpeg_cmd -i "$video_file" -vframes 1 -vf "signalstats" -f null - 2>&1 | grep -E "YAVG|UAVG|VAVG")
+      local y_avg=$(echo "$frame_info" | grep "YAVG" | grep -o "YAVG:[0-9.]*" | cut -d: -f2)
+
+      if [[ -n "$y_avg" ]]; then
+        echo "First frame of '$video_file' is not black enough (luminance: ${y_avg}/255, threshold: ${threshold})."
+      else
+        echo "First frame of '$video_file' is not black (below specified threshold: ${threshold})."
+      fi
+    elif ! $quiet; then
+      echo "No black frame: $video_file"
+    fi
+    return 1
+  fi
+}
+
+# Function to check if black frame duration exceeds threshold
+function check_black_frame_duration() {
+  local video_file="$1"
+  local threshold="$2"
+  local min_black_percent="$3"
+  local duration_threshold="$4"
+
+  # Use FFmpeg's blackdetect filter to find black frames and their durations
+  local analysis=$($ffmpeg_cmd -i "$video_file" -vf "blackdetect=d=${duration_threshold}:pix_th=${threshold}" -f null - 2>&1)
+
+  # Check if a black frame was detected at the start
+  if echo "$analysis" | grep -q "black_start:0"; then
+    local black_duration=$(echo "$analysis" | grep "black_start:0" | head -1 | grep -o "black_duration:[0-9.]*" | cut -d: -f2)
+
+    if [[ -n "$black_duration" ]] && (( $(echo "$black_duration >= $duration_threshold" | bc -l) )); then
+      if $verbose; then
+        echo "Black frame at start of '$video_file' lasts for ${black_duration} seconds."
+      elif ! $quiet; then
+        echo "Black frame duration: ${black_duration}s - $video_file"
+      elif $quiet; then
+        echo "$video_file"
+      fi
+      return 0
+    fi
+  fi
+
+  if $verbose; then
+    echo "No black frame of sufficient duration detected at start of '$video_file'."
+  elif ! $quiet; then
+    echo "No lasting black frame: $video_file"
+  fi
+  return 1
+}
+
+# Check if we have required dependencies
+if ! command -v ffmpeg &>/dev/null; then
+  echo "Error: FFmpeg is required but not installed." >&2
+  exit 1
+fi
+
+if ! command -v bc &>/dev/null; then
+  echo "Error: 'bc' command is required but not installed." >&2
+  exit 1
+fi
+
+# Parse command line arguments
+video_files=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      show_usage
+      exit 0
+      ;;
+    -t|--threshold)
+      if [[ -z "$2" || "$2" =~ ^- ]]; then
+        echo "Error: --threshold requires a value" >&2
+        exit 1
+      fi
+      threshold="$2"
+      shift 2
+      ;;
+    -p|--percent)
+      if [[ -z "$2" || "$2" =~ ^- ]]; then
+        echo "Error: --percent requires a value" >&2
+        exit 1
+      fi
+      min_black_percent="$2"
+      shift 2
+      ;;
+    -v|--verbose)
+      verbose=true
+      shift
+      ;;
+    -q|--quiet)
+      quiet=true
+      shift
+      ;;
+    -d|--duration)
+      if [[ -z "$2" || "$2" =~ ^- ]]; then
+        echo "Error: --duration requires a value" >&2
+        exit 1
+      fi
+      check_duration=true
+      duration_threshold="$2"
+      shift 2
+      ;;
+    --ffmpeg-path)
+      if [[ -z "$2" || "$2" =~ ^- ]]; then
+        echo "Error: --ffmpeg-path requires a value" >&2
+        exit 1
+      fi
+      ffmpeg_cmd="$2"
+      shift 2
+      ;;
+    -*)
+      echo "Error: Unknown option: $1" >&2
+      show_usage
+      exit 1
+      ;;
+    *)
+      video_files+=("$1")
+      shift
+      ;;
+  esac
+done
+
+# Check if we have video files to process
+if [[ ${#video_files[@]} -eq 0 ]]; then
+  echo "Error: No video files specified." >&2
+  show_usage
+  exit 1
+fi
+
+# Validate threshold
+if (( $(echo "$threshold < 0 || $threshold > 1" | bc -l) )); then
+  echo "Error: Threshold must be between 0 and 1." >&2
+  exit 1
+fi
+
+# Validate min_black_percent
+if (( min_black_percent < 0 || min_black_percent > 100 )); then
+  echo "Error: Minimum black percent must be between 0 and 100." >&2
+  exit 1
+fi
+
+# Check if FFmpeg exists at specified path
+if ! command -v $ffmpeg_cmd &>/dev/null; then
+  echo "Error: FFmpeg not found at specified path: $ffmpeg_cmd" >&2
+  exit 1
+fi
+
+# Process each video file
+for video_file in "${video_files[@]}"; do
+  if $check_duration; then
+    check_black_frame_duration "$video_file" "$threshold" "$min_black_percent" "$duration_threshold"
+  else
+    is_first_frame_black "$video_file" "$threshold" "$min_black_percent"
+  fi
+done
+
+exit 0

@@ -67,13 +67,8 @@ if [[ $# -gt 0 ]]; then
     --osd-level=0 \
     --force-window=yes \
     --script-opts=osc-visibility=never \
-<<<<<<< HEAD
-||||||| parent of 0d5db24 (update:)
     --no-input-default-bindings \
-    --input-conf=/dev/null \
-=======
     --no-pause \
->>>>>>> 0d5db24 (update:)
     --script=$TMP_SCRIPT
 else
   if [[ -t 0 ]]; then
@@ -89,17 +84,9 @@ else
       echo "Error: No files found in input"
       exit 1
     fi
-<<<<<<< HEAD
 
     mpv \
       --no-native-fs \
-||||||| parent of 0d5db24 (update:)
-
-    mpv --no-config --no-native-fs \
-=======
-    mpv \
-      --no-native-fs \
->>>>>>> 0d5db24 (update:)
       --fs \
       --playlist=$TMP_PLAYLIST \
       --loop-playlist=inf \
@@ -108,13 +95,9 @@ else
       --osd-level=0 \
       --force-window=yes \
       --script-opts=osc-visibility=never \
-<<<<<<< HEAD
-||||||| parent of 0d5db24 (update:)
       --no-input-default-bindings \
       --input-conf=/dev/null \
-=======
       --no-pause \
->>>>>>> 0d5db24 (update:)
       --script=$TMP_SCRIPT
   fi
 fi
