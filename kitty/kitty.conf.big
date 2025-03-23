@@ -1,13 +1,10 @@
-ell# KITTY CONFIG
+# KITTY CONFIG
 
-# Set mod key to cmd
 kitty_mod cmd
 
-# -----------------------------
-# KEYBINDINGS
-# -----------------------------
-
-## Tabs Management
+## TABS
+map kitty_mod+right next_tab
+map kitty_mod+left previous_tab
 map kitty_mod+1 goto_tab 1
 map kitty_mod+2 goto_tab 2
 map kitty_mod+3 goto_tab 3
@@ -19,82 +16,62 @@ map kitty_mod+8 goto_tab 8
 map kitty_mod+9 goto_tab 9
 map ctrl+cmd+] move_tab_forward
 map ctrl+cmd+[ move_tab_backward
-map shift+cmd+t new_tab_with_cwd
-map shift+cmd+w close_os_window
-
-## Window Management
-map kitty_mod+j neighboring_window down
-map kitty_mod+k neighboring_window up
-map kitty_mod+h neighboring_window left
-map kitty_mod+l neighboring_window right
-map kitty_mod+enter       new_window_with_cwd
-
-# Create new window panes in different directions
-map kitty_mod+w close_window
-map ctrl+w>s launch --location=bottom
-map ctrl+w>a launch --location=left
-map ctrl+w>d launch --location=right
-map ctrl+w>q close_window
-
-## Tab Management
+map kitty_mod+t new_tab_with_cwd !neighbor
+map kitty_mod+shift+t new_tab !neighbor
 map kitty_mod+shift+r set_tab_title
 
-## Tab Navigation
-map kitty_mod+right next_tab
-map kitty_mod+left previous_tab
-map kitty_mod+] next_window
-map kitty_mod+[ previous_window
+## WINDOWS
+map kitty_mod+shift+n				new_os_window_with_cwd
+map super+f									toggle_fullscreen
+map shift+cmd+w							close_os_window
 
+#
+# Create new window panes in different directions
+# map ctrl+w>s launch --location=vsplit
+# map ctrl+w>a launch --location=left
+# map ctrl+w>d launch --location=right
+# map ctrl+w>q close_window
 map kitty_mod+w close_window
 map kitty_mod+r launch --cwd=current open --reveal .
-#map kitty_mod+r shell_command --cwd=current open --reveal .
-#map cmd+w close_window
+map kitty_mod+m combine : toggle_marker text 1 ❯ : copy_to_clipboard
 
+# PANES
+map kitty_mod+|							split_window -v --cwd=current
+#
+# Vim-style pane navigation
+map ctrl+h neighboring_window left
+map ctrl+j neighboring_window down
+map ctrl+k neighboring_window up
+map ctrl+l neighboring_window right
+#
+map kitty_mod+shift+j				neighboring_window down
+map kitty_mod+shift+k 			neighboring_window up
+map kitty_mod+shift+h 			neighboring_window left
+map kitty_mod+shift+l 			neighboring_window right
+map kitty_mod+enter					launch --location=split --cwd=current
+map kitty_mod+]							next_window
+map kitty_mod+[ 						previous_window
+map kitty_mod+w 						close_window
+map kitty_mod+1							first_window
+map kitty_mod+2 						second_window
 
-# map kitty_mod+w close_window
-# Create new window panes in different directions
-# map cmd+w>w launch --location=top
-map ctrl+w>s launch --location=bottom
-map ctrl+w>a launch --location=left
-map ctrl+w>d launch --location=right
-map ctrl+w>w close_window
-
-# map cmd+o shell_command open $(kitty @ ls | jq -r '.[0].cwd'
-
-# map cmd+j goto_tab_below
-# map cmd+k goto_tab_above
-# map cmd+h goto_tab_left
-# map cmd+l goto_tab_right
-
-#: Toggle fullscreen
-map super+f toggle_fullscreen
-
-map cmd+shift+n						new_os_window_with_cmd
-map alt+n						new_os_window_with_cmd
-map cmd+t						new_tab
-map cmd+shift+t			new_tab_with_cwd
-map cmd+shift+j       new_window_with_cwd
-map cmd+shift+\       new_window_with_cwd
 map cmd+shift+g			show_last_command_output
-#map cmd+shift+n launch --cwd=current
 
 # Overlays
-map alt+f1 launch --title "scrollback overlay" --stdin-source=@screen_scrollback --type=overlay most -v
-map alt+f2 launch --title "pianobar overlay" --type=overlay screen -d -RR pianobar pianobar
-map alt+f3 launch --title "reddit overlay" --type=overlay screen -d -RR reddit tuir
-map alt+f4 launch --title "scratch overlay" --type=overlay screen -d -RR scratch nano /tmp/scratch
+# map alt+f1 launch --title "scrollback overlay" --stdin-source=@screen_scrollback --type=overlay most -v
+# map alt+f2 launch --title "pianobar overlay" --type=overlay screen -d -RR pianobar pianobar
+# map alt+f3 launch --title "reddit overlay" --type=overlay screen -d -RR reddit tuir
+# map alt+f4 launch --title "scratch overlay" --type=overlay screen -d -RR scratch nano /tmp/scratch
 
-map alt+f6 launch --title "cwd overlay" --type=overlay --cwd=current
-map alt+f7 launch --title "TODO overlay" --type=overlay screen -d -RR todo nano $HOME/Documents/.notes/to_do
-map kitty_mod+f8 launch --title "debug" --type=overlay cmatrix -ab -C blue -u 2
-map alt+f9 launch --title "w3m overlay" --type=overlay screen -d -RR w3m w3m -B
-map alt+f10 launch --title "htop overlay" --type=overlay screen -d -RR htop htop
-map alt+shift+f10 launch --title "btop overlay" --type=overlay screen -d -RR btop btop
-map alt+f11 launch --title "ssh:gamerboxloc overlay" --type=overlay ssh christopher@gamerboxloc
-map alt+shift+f11 launch --title "ssh:gamerboxint overlay" --type=overlay ssh christopher@gamerboxint
-map alt+f12 launch --title "customizations overlay" --type=overlay most -v $HOME/.config/kitty/personalizations-help
-
-map kitty_mod+f2 launch --title "kitty.conf overlay" --type=overlay screen -d -RR kitty.conf nano $HOME/.config/kitty/kitty.co>
+# map alt+f6 launch --title "cwd overlay" --type=overlay --cwd=current
+# map alt+f7 launch --title "TODO overlay" --type=overlay screen -d -RR todo nano $HOME/Documents/.notes/to_do
+# map kitty_mod+f8 launch --title "debug" --type=overlay cmatrix -ab -C blue -u 2
+# map alt+f9 launch --title "w3m overlay" --type=overlay screen -d -RR w3m w3m -B
+# map alt+f10 launch --title "htop overlay" --type=overlay screen -d -RR htop htop
+# map alt+shift+f10 launch --title "btop overlay" --type=overlay screen -d -RR btop btop
+# map alt+f11 launch --title "ssh:gamerboxloc overlay" --type=overlay ssh christopher@gamerboxloc
+# map alt+shift+f11 launch --title "ssh:gamerboxint overlay" --type=overlay ssh christopher@gamerboxint
+# map alt+f12 launch --title "customizations overlay" --type=overlay most -v $HOME/.config/kitty/personalizations-help
 
 
 # focus kitty
@@ -106,7 +83,7 @@ map kitty_mod+f2 launch --title "kitty.conf overlay" --type=overlay screen -d -R
 # FONTS
 # run: `kitty list-fonts`
 #
-font_family      JetBrains Mono Nerd Font
+font_family      JetBrainsMono Nerd Font Mono
 font_size        14
 # force_ltr no
 # adjust_line_height  0 # use pixels or %, can be negative
@@ -118,21 +95,21 @@ font_size        14
 
 # disable_ligatures never
 
-#: Choose how you want to handle multi-character ligatures. The
-#: default is to always render them.  You can tell kitty to not render
-#: them when the cursor is over them by using cursor to make editing
-#: easier, or have kitty never render them at all by using always, if
-#: you don't like them. The ligature strategy can be set per-window
-#: either using the kitty remote control facility or by defining
-#: shortcuts for it in kitty.conf, for example::
+# Choose how you want to handle multi-character ligatures. The
+# default is to always render them.  You can tell kitty to not render
+# them when the cursor is over them by using cursor to make editing
+# easier, or have kitty never render them at all by using always, if
+# you don't like them. The ligature strategy can be set per-window
+# either using the kitty remote control facility or by defining
+# shortcuts for it in kitty.conf, for example::
 
-#:     map alt+1 disable_ligatures_in active always
-#:     map alt+2 disable_ligatures_in all never
-#:     map alt+3 disable_ligatures_in tab cursor
+# map alt+1 disable_ligatures_in active always
+# map alt+2 disable_ligatures_in all never
+# map alt+3 disable_ligatures_in tab cursor
 
-#: Note that this refers to programming ligatures, typically
-#: implemented using the calt OpenType feature. For disabling general
-#: ligatures, use the font_features setting.
+# Note that this refers to programming ligatures, typically
+#  implemented using the calt OpenType feature. For disabling general
+#  ligatures, use the font_features setting.
 
 # font_features
 
@@ -202,7 +179,6 @@ font_size        14
 
 #: Cursor customization
 
-cursor #F0F
 #: Default cursor color. If set to the special value none the cursor
 #: will be rendered with a "reverse video" effect. It's color will be
 #: the color of the text in the cell it is over and the text will be
@@ -212,7 +188,6 @@ cursor #F0F
 #: background and foreground colors have very low contrast.
 
 # cursor_text_color #111111
-
 #: Choose the color of text under the cursor. If you want it rendered
 #: with the background color of the cell underneath instead, use the
 #: special keyword: background. Note that if cursor is set to none
@@ -244,7 +219,7 @@ cursor_blink_interval 0.5
 #: that numbers smaller than repaint_delay will be limited to
 #: repaint_delay.
 
-# cursor_stop_blinking_after 15.0
+cursor_stop_blinking_after 3.0
 
 #: Stop blinking cursor after the specified number of seconds of
 #: keyboard inactivity.  Set to zero to never stop blinking.
@@ -291,20 +266,17 @@ cursor_blink_interval 0.5
 #: enlarging a window.
 
 # wheel_scroll_multiplier 5.0
-
 #: Modify the amount scrolled by the mouse wheel. Note this is only
 #: used for low precision scrolling devices, not for high precision
 #: scrolling on platforms such as macOS and Wayland. Use negative
 #: numbers to change scroll direction.
 
 # touch_scroll_multiplier 1.0
-
 #: Modify the amount scrolled by a touchpad. Note this is only used
 #: for high precision scrolling devices on platforms such as macOS and
 #: Wayland. Use negative numbers to change scroll direction.
 
 mouse_hide_wait 2
-
 #: Hide mouse cursor after the specified number of seconds of the
 #: mouse not being used. Set to zero to disable mouse cursor hiding.
 #: Set to a negative value to hide the mouse cursor immediately when
@@ -312,26 +284,19 @@ mouse_hide_wait 2
 #: robustly with the ever-changing sea of bugs that is Cocoa is too
 #: much effort.
 
-# url style (on mouseover)
+# URLs
 url_color #0066FF
 url_style curly
 open_url_with default
-url_prefixes http https file ftp gemini irc gopher mailto news git
-# detect urls under mouse
+url_prefixes http https file ftp gemini irc gopher mailto news git magnet
 detect_urls yes
 
-#: Detect URLs under the mouse. Detected URLs are highlighted with an
-#: underline and the mouse cursor becomes a hand over them. Even if
-#: this option is disabled, URLs are still clickable.
-
 # url_excluded_characters
-
 #: Additional characters to be disallowed from URLs, when detecting
 #: URLs under the mouse cursor. By default, all characters legal in
 #: URLs are allowed.
 
 # copy_on_select yes
-
 #: Copy to clipboard or a private buffer on select. With this set to
 #: clipboard, simply selecting text with the mouse will cause the text
 #: to be copied to clipboard. Useful on platforms such as macOS that
@@ -346,26 +311,22 @@ detect_urls yes
 #: programs, including websites open in your browser can read the
 #: contents of the system clipboard.
 
-# strip_trailing_spaces never
+strip_trailing_spaces smart
+# Remove spaces at the end of lines when copying to clipboard. A
+# value of smart will do it when using normal selections, but not
+# rectangle selections. always will always do it.
 
-#: Remove spaces at the end of lines when copying to clipboard. A
-#: value of smart will do it when using normal selections, but not
-#: rectangle selections. always will always do it.
-
-# select_by_word_characters @-./_~?&=%+#
-
+select_by_word_characters @-./_~?&=%+#
 #: Characters considered part of a word when double clicking. In
 #: addition to these characters any character that is marked as an
 #: alphanumeric character in the unicode database will be matched.
 
 # click_interval -1.0
-
 #: The interval between successive clicks to detect double/triple
 #: clicks (in seconds). Negative numbers will use the system default
 #: instead, if available, or fallback to 0.5.
 
 # focus_follows_mouse no
-
 #: Set the active window to the window under the mouse when moving the
 #: mouse around
 
@@ -384,7 +345,7 @@ detect_urls yes
 #: The default shape of the mouse pointer when dragging across text.
 #: Valid values are: arrow, beam and hand
 
-#: Mouse actions \{{{
+#: Mouse actions
 
 #: Mouse buttons can be remapped to perform arbitrary actions. The
 #: syntax for doing so is:
@@ -392,6 +353,9 @@ detect_urls yes
 #: .. code-block:: none
 
 #:     mouse_map button-name event-type modes action
+
+# rename tab on right click of tab
+# mouse_map left doubleclick ungrabbed set_tab_title
 
 #: Where ``button-name`` is one of ``left``, ``middle``, ``right`` or
 #: ``b1 ... b8`` with added keyboard modifiers, for example:
@@ -534,11 +498,7 @@ detect_urls yes
 #::  Requires https://sw.kovidgoyal.net/kitty/shell-integration/ to
 #::  work
 
-#: }}}
-
-#: }}}
-
-#: Performance tuning \{{{
+#: Performance tuning
 
 # repaint_delay 10
 
@@ -567,16 +527,12 @@ detect_urls yes
 #: keyboard repeat rate, you may notice some slight input latency. If
 #: so, set this to no.
 
-#: }}}
+#:
 
-#: Terminal bell \{{{
+#: Terminal bell
 
-# enable_audio_bell yes
-
-#: Enable/disable the audio bell. Useful in environments that require
-#: silence.
-
-# visual_bell_duration 0.0
+enable_audio_bell no
+visual_bell_duration 0.1
 
 #: Visual bell duration. Flash the screen when a bell occurs for the
 #: specified number of seconds. Set to zero to disable.
@@ -611,24 +567,25 @@ detect_urls yes
 #: the operating systems sound API, such as WAV or OGA on Linux
 #: (libcanberra) or AIFF, MP3 or WAV on macOS (NSSound)
 
-remember_window_size  yes
-initial_window_width  640
-initial_window_height 400
 
-#: If enabled, the window size will be remembered so that new
-#: instances of kitty will have the same size as the previous
-#: instance. If disabled, the window will initially have size
-#: configured by initial_window_width/height, in pixels. You can use a
-#: suffix of "c" on the width/height values to have them interpreted
-#: as number of cells instead of pixels.
-
-# enabled_layouts *
-
-#: The enabled window layouts. A comma separated list of layout names.
-#: The special value all means all layouts. The first listed layout
-#: will be used as the startup layout. Default configuration is all
-#: layouts in alphabetical order. For a list of available layouts, see
-#: the https://sw.kovidgoyal.net/kitty/overview/#layouts.
+# LAYOUTS
+#
+map ctrl+alt+\ next_layout
+map ctrl+alt+l last_used_layout
+#
+# You can also create shortcuts to switch to specific layouts::
+map kitty_mod+1 goto_layout tall
+map kitty_mod+2 goto_layout stack
+# Similarly, to switch back to the previous layout
+#: There is also a toggle layout function that switches to the named
+#: layout or back to the previous layout if in the named layout.
+#: Useful to temporarily "zoom" the active window by switching to the
+#: stack layout::
+#:     map ctrl+alt+z toggle_layout stack
+#:
+enabled_layouts splits
+#
+# layouts https://sw.kovidgoyal.net/kitty/overview/#layouts.
 
 # window_resize_step_cells 2
 # window_resize_step_lines 2
@@ -637,7 +594,6 @@ initial_window_height 400
 #: resizing kitty windows in a layout with the keyboard
 #: (start_resizing_window). The cells value is used for horizontal
 #: resizing and the lines value for vertical resizing.
-
 window_border_width 0.0px
 
 #: The width of window borders. Can be either in pixels (px) or pts
@@ -645,7 +601,6 @@ window_border_width 0.0px
 #: based on screen resolution. If not specified the unit is assumed to
 #: be pts. Note that borders are displayed only when more than one
 #: window is visible. They are meant to separate multiple windows.
-
 draw_minimal_borders yes
 
 #: Draw only the minimum borders needed. This means that only the
@@ -653,7 +608,6 @@ draw_minimal_borders yes
 #: the borders that separate the inactive window from a neighbor. Note
 #: that setting a non-zero window margin overrides this and causes all
 #: borders to be drawn.
-
 window_margin_width 0
 
 #: The window margin (in pts) (blank area outside the border). A
@@ -670,14 +624,12 @@ window_margin_width 0
 #: values set top, horizontal and bottom. Four values set top, right,
 #: bottom and left.
 
-window_padding_width 0 26 26 26
+window_padding_width 0 50 50 50
 
 #: The window padding (in pts) (blank area between the text and the
 #: window border). A single value sets all four sides. Two values set
 #: the vertical and horizontal sides. Three values set top, horizontal
 #: and bottom. Four values set top, right, bottom and left.
-
-placement_strategy center
 
 #: When the window size is not an exact multiple of the cell size, the
 #: cell area of the terminal window will have some extra padding on
@@ -686,16 +638,9 @@ placement_strategy center
 #: placed centrally. A value of top-left means the padding will be on
 #: only the bottom and right edges.
 
-active_border_color #00ff00
-
-#: The color for the border of the active window. Set this to none to
-#: not draw borders around the active window.
-
-# inactive_border_color #cccccc
 
 #: The color for the border of inactive windows
 
-# bell_border_color #ff5a00
 
 #: The color for the border of inactive windows in which a bell has
 #: occurred
@@ -706,39 +651,14 @@ active_border_color #00ff00
 #: between zero and one, with zero being fully faded).
 
 hide_window_decorations yes
-
-#: Hide the window decorations (title-bar and window borders) with
-#: yes. On macOS, titlebar-only can be used to only hide the titlebar.
-#: Whether this works and exactly what effect it has depends on the
-#: window manager/operating system. Note that the effects of changing
-#: this setting when reloading config are undefined.
-
-# window_logo_path none
-
-#: Path to a logo image. Must be in PNG format. Relative paths are
-#: interpreted relative to the kitty config directory.  The logo is
-#: displayed in a corner of every kitty window. The position is
-#: controlled by window_logo_position. Individual windows can be
-#: configured to have different logos either using the launch function
-#: or the remote-control facility.
-
-# window_logo_position bottom-right
-
-#: Where to position the window logo in the window. The value can be
-#: one of: top-left, top, top-right, left, center, right, bottom-left,
-#: bottom, bottom-right.
-
-# window_logo_alpha 0.5
-
-#: The amount the logo should be faded into the background. With zero
-#: being fully faded and one being fully opaque.
+# Hide the window decorations (title-bar and window borders) with
+# yes. On macOS, titlebar-only can be used to only hide the titlebar.
 
 # resize_debounce_time 0.1
-
-#: The time (in seconds) to wait before redrawing the screen when a
-#: resize event is received. On platforms such as macOS, where the
-#: operating system sends events corresponding to the start and end of
-#: a resize, this number is ignored.
+#  The time (in seconds) to wait before redrawing the screen when a
+#  resize event is received. On platforms such as macOS, where the
+#  operating system sends events corresponding to the start and end of
+#  a resize, this number is ignored.
 
 # resize_draw_strategy static
 
@@ -782,102 +702,10 @@ confirm_os_window_close 0
 #: https://sw.kovidgoyal.net/kitty/actions/#close-window-with-
 #: confirmation action.
 
-#: }}}
-
-#: TAB_BAR
-tab_bar_edge top
-# which edge to show the tab bar on, top or bottom
-tab_bar_margin_width 32.0
-# margin to the left and right of the tab bar (in pts)
-tab_bar_margin_height 16.0 5.0
-# magin above and below tab bar (in pts).
-tab_bar_style separator
-# tab bar style: fade, slant, separator, powerline, custom, hidden
-tab_bar_align right
-# horizontal alignment of tab bar. left, center, right.
-tab_bar_min_tabs 1
-# min tabs before tab bar is shown
-# tab_switch_strategy previous
-
-#: The algorithm to use when switching to a tab when the current tab
-#: is closed. The default of previous will switch to the last used
-#: tab. A value of left will switch to the tab to the left of the
-#: closed tab. A value of right will switch to the tab to the right of
-#: the closed tab. A value of last will switch to the right-most tab.
-
-# tab_fade 0.0 0.0 0.0 0.0
-
-#: Control how each tab fades into the background when using fade for
-#: the tab_bar_style. Each number is an alpha (between zero and one)
-#: that controls how much the corresponding cell fades into the
-#: background, with zero being no fade and one being full fade. You
-#: can change the number of cells used by adding/removing entries to
-#: this list.
-
-tab_separator "  "
-
-#: The separator between tabs in the tab bar when using separator as
-#: the tab_bar_style.
-
-# tab_powerline_style slanted
-
-#: The powerline separator style between tabs in the tab bar when
-#: using powerline as the tab_bar_style, can be one of: angled,
-#: slanted, or round.
-
-# tab_activity_symbol none
-
-#: Some text or a unicode symbol to show on the tab if a window in the
-#: tab that does not have focus has some activity. If you want to use
-#: leading or trailing spaces surround the text with quotes.
-
-tab_title_template "{title[title.rfind('/')+1:].lower()[:3]}{sup.index}"
-
-#: A template to render the tab title. The default just renders the
-#: title. If you wish to include the tab-index as well, use something
-#: like: {index}: {title}. Useful if you have shortcuts mapped for
-#: goto_tab N. If you prefer to see the index as a superscript, use
-#: {sup.index}. In addition you can use {layout_name} for the current
-#: layout name, {num_windows} for the number of windows in the tab and
-#: {num_window_groups} for the number of window groups (not counting
-#: overlay windows) in the tab. Note that formatting is done by
-#: Python's string formatting machinery, so you can use, for instance,
-#: {layout_name[:2].upper()} to show only the first two letters of the
-#: layout name, upper-cased. If you want to style the text, you can
-#: use styling directives, for example:
-#: {fmt.fg.red}red{fmt.fg.default}normal{fmt.bg._00FF00}green
-#: bg{fmt.bg.tab}. Similarly, for bold and italic:
-#: {fmt.bold}bold{fmt.nobold}normal{fmt.italic}italic{fmt.noitalic}.
-
-# active_tab_title_template none
-
-#: Template to use for active tabs, if not specified falls back to
-#: tab_title_template.
-
-active_tab_foreground   #FF00FF
-active_tab_background   #000
-active_tab_font_style   bold
-inactive_tab_foreground #AAA
-#inactive_tab_background #111
-inactive_tab_font_style normal
-
-#: Tab bar colors and styles
-
-# tab_bar_background #111
-#: Background color for the tab bar. Defaults to using the terminal
-#: background color.
-
-# tab_bar_margin_color none
+#:
 
 #: Color for the tab bar margin area. Defaults to using the terminal
 #: background color.
-
-# THEME
-#
-# foreground #dddddd
-background #111
-# 151e13
-#: The foreground and background colors
 
 background_opacity 0.95
 #: The opacity of the background. A number between 0 and 1, where 1 is
@@ -943,7 +771,6 @@ dynamic_background_opacity yes
 #: the program running in the terminal.
 
 #: The color table
-
 #: The 256 terminal colors. There are 8 basic colors, each color has a
 #: dull and bright version, for the first 16 colors. You can set the
 #: remaining 240 colors as color16 to color255.
@@ -951,37 +778,20 @@ dynamic_background_opacity yes
 #: black
 color0 #000000
 color8 #767676
-#: red
 color1 #F28779
 color9 #ff3334
-#: green
 color2  #BAE67E
 color10 #9ec400
-
 # color3  #cecb00
 # color11 #fffd00
-
-#: yellow
-
 # color4  #0d73cc
 # color12 #1a8fff
-
-#: blue
-
 # color5  #cb1ed1
 # color13 #fd28ff
-
-#: magenta
-
 # color6  #0dcdcd
 # color14 #14ffff
-
-#: cyan
-
 # color7  #dddddd
 # color15 #ffffff
-
-#: white
 
 # mark1_foreground black
 
@@ -1028,7 +838,6 @@ editor nvim
 #: etc) and take the first one that exists on your system.
 
 # close_on_child_death no
-
 #: Close the window when the child process (shell) exits. If no (the
 #: default), the terminal will remain open when the child exits as
 #: long as there are still processes outputting to the terminal (for
@@ -1038,7 +847,6 @@ editor nvim
 #: can fail silently because their stdout/stderr/stdin no longer work.
 
 allow_remote_control yes
-
 #: Allow other programs to control kitty. If you turn this on other
 #: programs can control all aspects of kitty, including sending text
 #: to kitty windows, opening new windows, closing windows, reading the
@@ -1051,7 +859,7 @@ allow_remote_control yes
 #: from controlling kitty. Reloading the config will not affect this
 #: setting.
 
-# listen_on none
+listen_on unix:/tmp/kitty-socket
 
 #: Tell kitty to listen to the specified unix/tcp socket for remote
 #: control connections. Note that this will apply to all kitty
@@ -1066,8 +874,8 @@ allow_remote_control yes
 #: details. Changing this option by reloading the config is not
 #: supported.
 
-# env
-
+# ENV
+#
 #: Specify environment variables to set in all child processes. Note
 #: that environment variables are expanded recursively, so if you
 #: use::
@@ -1102,6 +910,9 @@ allow_remote_control yes
 #: that starts with the + sign will be append to the search order,
 #: after ~/bin above. A path that starts with the - sign will be
 #: removed from the entire search order. For example::
+
+
+exe_search_path +$HOME/.zsh/bin
 
 #:     exe_search_path /some/prepended/path
 #:     exe_search_path +/some/appended/path
@@ -1162,40 +973,17 @@ allow_hyperlinks yes
 #: will ask before opening the link when clicked.
 
 shell_integration enabled
-#: Enable shell integration on supported shells. This enables features
-#: such as jumping to previous prompts, browsing the output of the
-#: previous command in a pager, etc. on supported shells.  Set to
-#: ``disabled`` to turn off shell integration, completely. See
-#: https://sw.kovidgoyal.net/kitty/shell-integration/ for details.
-
+# - jumping to previous prompts
+# - browsing the output of the previous command in a pager
+# - etc
+# https://sw.kovidgoyal.net/kitty/shell-integration/
+#
 # macos_menu_action Maximize Window Command+Up
 # macos_menu_action Split Window Left Command+Left
-# macos_menu_action Split Window Right Command+Right
-
-# term xterm-kitty
-#: The value of the TERM environment variable to set. Changing this
-#: can break many terminal programs, only change it if you know what
-#: you are doing, not because you read some advice on Stack Overflow
-#: to change it. The TERM variable is used by various programs to get
-#: information about the capabilities and behavior of the terminal. If
-#: you change it, depending on what programs you run, and how
-#: different the terminal you are changing it to is, various things
-#: from key-presses, to colors, to various advanced features may not
-#: work. Changing this option by reloading the config will only affect
-#: newly created windows.
-
-#: OS specific tweaks
-
-# wayland_titlebar_color system
-
-#: Change the color of the kitty window's titlebar on Wayland systems
-#: with client side window decorations such as GNOME. A value of
-#: system means to use the default system color, a value of background
-#: means to use the background color of the currently active window
-#: and finally you can use an arbitrary color, such as #12af59 or red.
+# macos_menu_action Split Window Right Command+L
+# map Command+shift+j macos_menu_action Split Window Down Command+J
 
 # macos_titlebar_color background
-
 #: Change the color of the kitty window's titlebar on macOS. A value
 #: of system means to use the default system color, light or dark can
 #: also be used to set it explicitly. A value of background means to
@@ -1208,7 +996,6 @@ shell_integration enabled
 #: better off just hiding the titlebar with hide_window_decorations.
 
 macos_option_as_alt yes
-
 #: Use the option key as an alt key. With this set to no, kitty will
 #: use the macOS native Option+Key = unicode character behavior. This
 #: will break any Alt+key keyboard shortcuts in your terminal
@@ -1234,15 +1021,14 @@ macos_window_resizable yes
 #: will only affect newly created windows.
 
 # macos_thicken_font 0
-
 #: Draw an extra border around the font with the given width, to
 #: increase legibility at small font sizes. For example, a value of
 #: 0.75 will result in rendering that looks similar to sub-pixel
 #: antialiasing at common font sizes.
 
 macos_traditional_fullscreen yes
-#: Use the traditional full-screen transition, that is faster, but
-#: less pretty.
+#  Use the traditional full-screen transition, that is faster, but
+#  less pretty.
 
 macos_show_window_title_in none
 #: Show or hide the window title in the macOS window or menu-bar. A
@@ -1259,14 +1045,9 @@ macos_custom_beam_cursor yes
 #: by reloading the config is not supported.
 
 # linux_display_server auto
-
-#: Choose between Wayland and X11 backends. By default, an appropriate
-#: backend based on the system state is chosen automatically. Set it
-#: to x11 or wayland to force the choice. Changing this setting by
-#: reloading the config is not supported.
+#		wayland, x11
 
 #: Keyboard shortcuts
-
 #: Keys are identified simply by their lowercase unicode characters.
 #: For example: ``a`` for the A key, ``[`` for the left square bracket
 #: key, etc. For functional keys, such as ``Enter or Escape`` the
@@ -1345,7 +1126,6 @@ macos_custom_beam_cursor yes
 
 # action_alias
 
-#: E.g. action_alias launch_tab launch --type=tab --cwd=current
 
 #: Define aliases to avoid repeating the same options in multiple
 #: mappings. Aliases can be defined for any action. Aliases are
@@ -1353,7 +1133,9 @@ macos_custom_beam_cursor yes
 #: create mappings to launch a new tab in the current working
 #: directory without duplication::
 
-map f1 launch_tab vim
+action_alias launch_tab launch --type=tab --cwd=current
+
+map f1 launch_tab nvim
 map f2 launch_tab lf
 
 #: Similarly, to alias kitten invocation::
@@ -1463,7 +1245,8 @@ map kitty_mod+v paste_from_clipboard
 #::  For example, the following opens the scrollback buffer in less in
 #::  an overlay window::
 
-#::      map f1 launch --stdin-source=@screen_scrollback --stdin-add-formatting --type=overlay less +G -R
+#map alt+b launch --stdin-source=@screen_scrollback --stdin-add-formatting --type=overlay less +G -R
+map alt+b launch --stdin-source=@last_cmd_output --stdin-add-formatting --type=overlay nvim
 
 #::  For more details on piping screen and buffer contents to external
 #::  programs, see launch.
@@ -1495,22 +1278,29 @@ map kitty_mod+v paste_from_clipboard
 #::  Requires https://sw.kovidgoyal.net/kitty/shell-integration/ to
 #::  work.
 
-#: }}}
+#:
 
-#: Window management \{{{
+#: Window management
 
 #: New window
 
-# map kitty_mod+enter new_window
+env PATH=$HOME/.zsh/bin:$PATH
 
 #::  You can open a new window running an arbitrary program, for
 #::  example::
 
-#::      map kitty_mod+y      launch mutt
+#map kitty_mod+y launch --cwd=current yazi
+#map cmd+y kitten run-shell zsh -ic '_yazi-jump'
+#map kitty_mod+y remote_control launch --type=overlay zsh -ic '_yazi-jump'
+#map alt+s launch "/Users/nom/.zsh/bin/media search --verbose"
+#map alt+p launch "/Users/nom/.zsh/bin/ls-media | /Users/nom/.zsh/bin/mpv-stdin"
+#map alt+p launch "media play --shuffle"
+map ctrl+\ launch --location=neighbor --cwd=current yazi
+# map ctrl+space launch --type=overlay zsh -ic '_yazi-jump'
+#map ctrl+space no_op
 
-#::  You can open a new window with the current working directory set
-#::  to the working directory of the current window using::
 
+#::  open a new window with the cwd set:
 #::      map ctrl+alt+enter    launch --cwd=current
 
 #::  You can open a new window that is allowed to control kitty via
@@ -1523,7 +1313,7 @@ map kitty_mod+v paste_from_clipboard
 #::  You can open a new window next to the currently active window or
 #::  as the first window, with::
 
-#::      map ctrl+n launch --location=neighbor some_program
+# map ctrl+n launch --cwd=current --location=neighbor yazi
 #::      map ctrl+f launch --location=first some_program
 
 #::  For more details, see launch.
@@ -1534,22 +1324,6 @@ map kitty_mod+v paste_from_clipboard
 #::  Works like new_window above, except that it opens a top level OS
 #::  kitty window. In particular you can use new_os_window_with_cwd to
 #::  open a window with the current working directory.
-
-#: Close window
-
-# map kitty_mod+w close_window
-# map shift+cmd+d close_window
-
-#: Next window
-
-# map kitty_mod+] next_window
-
-#: Previous window
-
-# map kitty_mod+[ previous_window
-
-# map cmd+] move_window_forward
-# map cmd+[ move_window_backward
 
 #: Move window to top
 
@@ -1562,7 +1336,6 @@ map kitty_mod+v paste_from_clipboard
 
 #: First window
 
-# map kitty_mod+1 first_window
 # map cmd+1       first_window
 
 #: Second window
@@ -1617,14 +1390,6 @@ map kitty_mod+v paste_from_clipboard
 
 # map kitty_mod+f8 swap_with_window
 
-#: Tab management
-
-#: New tab
-
-# map shift+cmd+t new_tab
-# map cmd+t new_tab
-# map ctrl+t new_tab
-
 #: Close tab
 
 # map kitty_mod+q close_tab
@@ -1632,13 +1397,6 @@ map kitty_mod+v paste_from_clipboard
 #: Close OS window
 
 # map shift+cmd+w close_os_window
-
-#: Move tab forward
-
-
-#: Move tab backward
-
-# map kitty_mod+, move_tab_backward
 
 #: Set tab title
 
@@ -1658,33 +1416,10 @@ map kitty_mod+v paste_from_clipboard
 #: the current tab rather than at the end of the tabs list, use::
 
 #:     map ctrl+t new_tab !neighbor [optional cmd to run]
-#: }}}
-
-#: Layout management \{{{
-
-#: Next layout
-
-# map kitty_mod+l next_layout
+#:
 
 
-#: You can also create shortcuts to switch to specific layouts::
-
-#:     map ctrl+alt+t goto_layout tall
-#:     map ctrl+alt+s goto_layout stack
-
-#: Similarly, to switch back to the previous layout::
-
-#:    map ctrl+alt+p last_used_layout
-
-#: There is also a toggle layout function that switches to the named
-#: layout or back to the previous layout if in the named layout.
-#: Useful to temporarily "zoom" the active window by switching to the
-#: stack layout::
-
-#:     map ctrl+alt+z toggle_layout stack
-#: }}}
-
-#: Font sizes \{{{
+#: Font sizes
 
 #: You can change the font size for all top-level kitty OS windows at
 #: a time or only the current one.
@@ -1719,9 +1454,9 @@ map kitty_mod+v paste_from_clipboard
 #: size::
 
 #:     map kitty_mod+f6 change_font_size current 10.0
-#: }}}
+#:
 
-#: Select and act on visible text \{{{
+#: Select and act on visible text
 
 #: Use the hints kitten to select text and either pass it to an
 #: external program or insert it into the terminal or copy it to the
@@ -1800,7 +1535,8 @@ map kitty_mod+p>f kitten hints --type path --program -
 #: Edit config file
 
 # map kitty_mod+f2 edit_config_file
-# map cmd+,        edit_config_file
+map cmd+,        edit_config_file
+map cmd+, launch --title "kitty.conf" --type=overlay /opt/homebrew/bin/nvim $HOME/.config/kitty/kitty.conf
 
 #: Open the kitty command shell
 
@@ -1810,12 +1546,10 @@ map kitty_mod+p>f kitten hints --type path --program -
 #::  control kitty using commands.
 
 #: Increase background opacity
-
-# map kitty_mod+a>m set_background_opacity +0.1
+map kitty_mod+shift+= set_background_opacity +0.1
 
 #: Decrease background opacity
-
-# map kitty_mod+a>l set_background_opacity -0.1
+map kitty_mod+shift+- set_background_opacity -0.1
 
 #: Make background fully opaque
 
@@ -1861,23 +1595,24 @@ map kitty_mod+p>f kitten hints --type path --program -
 
 #: Reload kitty.conf
 
-# map kitty_mod+f5 load_config_file
-# map ctrl+cmd+,   load_config_file
+map kitty_mod+f5		load_config_file
+map ctrl+shift+,		load_config_file
+
+map kitty_mod+f6		debug_config
+map cmd+ctrl+,			debug_config
 
 #::  Reload kitty.conf, applying any changes since the last time it
 #::  was loaded. Note that a handful of settings cannot be dynamically
 #::  changed and require a full restart of kitty.  You can also map a
 #::  keybinding to load a different config file, for example::
 
-#::      map f5 load_config /path/to/alternative/kitty.conf
+#map ctrl+f5 load_config $HOME/.config/kitty/safe-mode/kitty.conf
 
 #::  Note that all setting from the original kitty.conf are discarded,
 #::  in other words the new conf settings *replace* the old ones.
 
 #: Debug kitty configuration
 
-# map kitty_mod+f6 debug_config
-# map opt+cmd+,    debug_config
 
 #::  Show details about exactly what configuration kitty is running
 #::  with and its host environment. Useful for debugging issues.
@@ -1913,6 +1648,68 @@ map kitty_mod+p>f kitten hints --type path --program -
 # Key Passthroughs
 # use showkey on linux, or Show Key on mac to work out codes, under "key code" (unicode hex)
 
+# TABS
+#
+tab_bar_edge top
+# which edge to show the tab bar on, top or bottom
+tab_bar_margin_width 1.0
+# margin to the left and right of the tab bar (in pts)
+tab_bar_margin_height 16.0 5.0
+# magin above and below tab bar (in pts).
+tab_bar_style separator
+# tab bar style: fade, slant, separator, powerline, custom, hidden
+tab_bar_align left
+# horizontal alignment of tab bar. left, center, right.
+tab_bar_min_tabs 2
+# min tabs before tab bar is shown
+
+tab_switch_strategy previous
+#  The algorithm to use when switching to a tab when the current tab
+#  is closed. The default of previous will switch to the last used
+#  tab. A value of left will switch to the tab to the left of the
+#  closed tab. A value of right will switch to the tab to the right of
+#  the closed tab. A value of last will switch to the right-most tab.
+#
+tab_fade 1.0 1.0 1.0 1.0
+#: Control how each tab fades into the background when using fade for
+#: the tab_bar_style. Each number is an alpha (between zero and one)
+#: that controls how much the corresponding cell fades into the
+#: background, with zero being no fade and one being full fade. You
+#: can change the number of cells used by adding/removing entries to
+#: this list.
+#
+tab_separator "  "
+#  The separator between tabs in the tab bar when using separator as
+#  the tab_bar_style.
+#
+# tab_powerline_style slanted
+#: The powerline separator style between tabs in the tab bar when
+#: using powerline as the tab_bar_style, can be one of: angled,
+#: slanted, or round.
+#
+tab_title_template "{title[title.rfind('/')+1:].lower()[:4]}{sup.index}"
+#  A template to render the tab title. The default just renders the
+#  title. If you wish to include the tab-index as well, use something
+#  like: {index}: {title}. Useful if you have shortcuts mapped for
+#  goto_tab N. If you prefer to see the index as a superscript, use
+#  {sup.index}. In addition you can use {layout_name} for the current
+#  layout name, {num_windows} for the number of windows in the tab and
+#  {num_window_groups} for the number of window groups (not counting
+#  overlay windows) in the tab. Note that formatting is done by
+#  Python's string formatting machinery, so you can use, for instance,
+#  {layout_name[:2].upper()} to show only the first two letters of the
+#  layout name, upper-cased. If you want to style the text, you can
+#  use styling directives, for example:
+#  {fmt.fg.red}red{fmt.fg.default}normal{fmt.bg._00FF00}green
+#  bg{fmt.bg.tab}. Similarly, for bold and italic:
+#  {fmt.bold}bold{fmt.nobold}normal{fmt.italic}italic{fmt.noitalic}.
+#
+# active_tab_title_template none
+#  Template to use for active tabs, if not specified falls back to
+#  tab_title_template.
+
+# KEYMAPS
+#
 map		ctrl+enter      send_text normal,application \x1b[13;5u
 map		shift+enter     send_text normal,application \x1b[13;2u
 map		ctrl+tab        send_text normal,application \x1b[9;5u
@@ -1921,11 +1718,61 @@ map		ctrl+shift+tab  send_text normal,application \x1b[9;6u
 map		cmd+s						send_text	all \x13
 # # cmd+o -> alt+o
 # map		cmd+o						send_text all \xf8
-
+# CMD+J -> F20
+# map		cmd+k						f10
+# map		cmd+j						ctrl+j
+# map		cmd+shift+j						f20
+# map F20 alt+shift+j
+#map cmd+shift+y launch yazi --cwd=current
+#map kitty_mod+y launch yazi --cwd=current
 # cmd+o -> ctrl+o
 map		cmd+o						send_text all \x0f
-
+# cmd+j -> alt+j
+map   cmd+j send_text all \x1bj
+map   cmd+l send_text all \x1bl
 map		cmd+backspace		send_text all \x15
+map   cmd+shift+b launch --type=tab btm
+map   cmd+shift+y launch --type=tab yazi
 
-# Theme
+# C64
+foreground #ddddfd
+background #050F63
+inactive_text_alpha 0.5
+cursor #ddddfd
+
+enabled_layouts all
+window_border_width 5
+window_margin_width 5
+window_padding_width 0
+
+active_border_color #00ff00
+inactive_border_color #050F63
+
+# TAB STYLE
+#tab_bar_background			none
+#tab_bar_margin_color		none
+active_tab_background   #ddddfd
+active_tab_foreground   #050F63
+#active_tab_font_style   bold
+inactive_tab_background #050F63
+inactive_tab_foreground #444444
+#inactive_tab_font_style bold
+tab_activity_symbol			
+bell_border_color #FF3AD0
+
+# OVERLAYS
+remember_window_size  no
+initial_window_width  1200
+initial_window_height 800
+#  If enabled, the window size will be remembered so that new
+#  instances of kitty will have the same size as the previous
+#  instance. If disabled, the window will initially have size
+#  configured by initial_window_width/height, in pixels. You can use a
+#  suffix of "c" on the width/height values to have them interpreted
+#  as number of cells instead of pixels.
+#
+placement_strategy center
+
+# THEME
+#
 include themes/1984-dark
