@@ -40,6 +40,9 @@ alias @perf="media search #60fps #4k"
 alias @remaster="media search #remaster"
 alias @masters-smb="fd --print0 --extension=mp4 . /Volumes/Masters\ 1TB/Movies/Porn/ | fzf-play"
 
+alias .kitty-mark-current-tab-orange="kitty @ set-tab-color active_bg=orange active_fg=white inactive_bg=orange inactive_fg=black"
+alias .kitty-mark-current-tab-red="kitty @ set-tab-color inactive_bg=red inactive_fg=black"
+
 alias topaz-video="env LC_ALL=C LC_NUMERIC=C LANG=C /Applications/Topaz\ Video\ AI.app/Contents/MacOS/Topaz\ Video\ AI"
 alias .topaz-video=topaz-video
 
@@ -103,7 +106,7 @@ alias .config-env="cd $ZSH_DOTFILES_DIR && nvim scripts/autoload/alias.zsh"
 alias .config-zsh=e-zsh
 alias .config="cd $ZSH_DOTFILES_DIR && nvim zshrc.zsh"
 alias .apple-music=apple-music-dl
-alias .beatport="beatportdl-darwin-arm64 --fix_tags --track_file_template='{artists} - {name} ({mix_name})'"
+alias .beatport="beatportdl-darwin-arm64"
 alias .network-detect-captive-portal=detect-captive-portal
 alias .network-status=ns
 alias .uptime="display-uptime"

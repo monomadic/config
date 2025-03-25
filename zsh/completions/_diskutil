@@ -1,0 +1,61 @@
+#compdef diskutil
+
+_diskutil() {
+  local -a verbs
+  verbs=(
+    "list:List the partitions of a disk"
+    "info:Information on a specific disk or partition"
+    "listFilesystems:List file systems available for formatting"
+    "listClients:List all current disk management clients"
+    "activity:Continuous log of system-wide disk arbitration"
+    "unmount:Unmount a single volume"
+    "unmountDisk:Unmount an entire disk (all volumes)"
+    "eject:Eject a disk"
+    "mount:Mount a single volume"
+    "mountDisk:Mount an entire disk (all mountable volumes)"
+    "enableJournal:Enable HFS+ journaling on a mounted HFS+ volume"
+    "disableJournal:Disable HFS+ journaling on a mounted HFS+ volume"
+    "moveJournal:Move the HFS+ journal onto another volume"
+    "enableOwnership:Apply on-disk User/Group IDs on a mounted volume"
+    "disableOwnership:Ignore on-disk User/Group IDs on a mounted volume"
+    "rename:Rename a volume"
+    "verifyVolume:Verify the file system data structures of a volume"
+    "repairVolume:Repair the file system data structures of a volume"
+    "verifyDisk:Verify the components of a partition map of a disk"
+    "repairDisk:Repair the components of a partition map of a disk"
+    "resetFusion:Reset the components of a machine's Fusion Drive"
+    "eraseDisk:Erase an existing disk, removing all volumes"
+    "eraseVolume:Erase an existing volume"
+    "reformat:Erase an existing volume with same name and type"
+    "eraseOptical:Erase optical media (CD/RW, DVD/RW, etc.)"
+    "zeroDisk:Erase a disk, writing zeros to the media"
+    "randomDisk:Erase a disk, writing random data to the media"
+    "secureErase:Securely erase a disk or freespace on a volume"
+    "partitionDisk:(re)Partition a disk, removing all volumes"
+    "addPartition:Create a new partition to occupy free space"
+    "splitPartition:Split an existing partition into two or more"
+    "mergePartitions:Combine two or more existing partitions into one"
+    "resizeVolume:Resize a volume, increasing or decreasing its size"
+    "appleRAID:Perform additional verbs related to AppleRAID"
+    "coreStorage:Perform additional verbs related to CoreStorage"
+    "apfs:Perform additional verbs related to APFS"
+    "image:Perform additional verbs related to DiskImage"
+  )
+
+  _arguments \
+    '(-h --help)'{-h,--help}'[display help information]' \
+    '1: :->verb' \
+    '*:: :->args' && return 0
+
+  case $state in
+    verb)
+      _values "diskutil verbs" $verbs
+      ;;
+    args)
+      # Fallback: complete filenames if necessary
+      _files
+      ;;
+  esac
+}
+
+_diskutil "$@"

@@ -107,6 +107,7 @@ brew "yazi", args: ["HEAD"] # rust based
 brew "xplr" # rust file explorer
 brew "lf" # ranger, but in c
 brew "fff" # file manager
+brew "nnn" # tui file manager
 brew "joshuto" # ranger, but in rust. better than lf.
 
 brew "broot" # lists tree output
@@ -230,8 +231,10 @@ cask "smooze-pro"
 
 # utils
 # cask "daisydisk"
+#
+# FILE RENAMING
 brew "rnr" # rust based rename
-cask "transnomino" # gui renamer
+cask "transnomino" # macos native gui renamer
 # brew "mmv" # go based util for renaming with vim
 brew "moreutils" # includes vidir, for renaming with vi
 brew "advanced-renamer"

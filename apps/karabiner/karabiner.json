@@ -1,6 +1,5 @@
 {
     "description": "Show Desktop with Right Command + D",
-    "machine_specific": { "krbn-empty-machine-identifier": { "enable_multitouch_extension": true } },
     "manipulators": [
         {
             "from": {
