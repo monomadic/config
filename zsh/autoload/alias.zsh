@@ -74,7 +74,6 @@ alias c=e-zsh
 alias C=e-config
 alias g=git
 alias p="media play --shuffle"
-alias s="media search --hide-path"
 alias ms="media-stats"
 
 alias rn="batch-rename"
