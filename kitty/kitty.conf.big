@@ -1687,7 +1687,7 @@ tab_separator "  "
 #: using powerline as the tab_bar_style, can be one of: angled,
 #: slanted, or round.
 #
-tab_title_template "{title[title.rfind('/')+1:].lower()[:4]}{sup.index}"
+tab_title_template "{title[title.rfind('/')+1:].lower().replace(' ', '')[:4]}{sup.index}"
 #  A template to render the tab title. The default just renders the
 #  title. If you wish to include the tab-index as well, use something
 #  like: {index}: {title}. Useful if you have shortcuts mapped for
