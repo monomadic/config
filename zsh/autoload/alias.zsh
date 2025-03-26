@@ -112,6 +112,9 @@ alias .network-status=ns
 alias .uptime="display-uptime"
 alias .clear-notifications="killall NotificationCenter"
 
+alias dl-beatport=beatportdl-darwin-arm64
+alias dl-apple-music=apple-music-dl
+
 alias faphouse="download-video-faphouse"
 alias .faphouse="download-video-faphouse"
 
