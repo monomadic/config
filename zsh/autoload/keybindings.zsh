@@ -107,6 +107,12 @@ if [[ -o interactive ]]; then
     zle reset-prompt
   }
 
+  _fzf-insert-path() {
+    local selected
+    selected="$(ls-media | fzf -0)" || return
+    LBUFFER+="${selected}"
+  }
+
   # Register functions with ZLE
   zle -N _cd-yazi
   zle -N _fzf-find-files
@@ -115,6 +121,7 @@ if [[ -o interactive ]]; then
   zle -N _clear-reset
   zle -N _cd-fzf
   zle -N _cd-up
+  zle -N _fzf-insert-path
 
   # unbind meta ctrl+space
   bindkey -r '\M-^@'
@@ -131,4 +138,5 @@ if [[ -o interactive ]]; then
   bindkey '^o' _cd-fzf
   #bindkey '^u' cd-up
   bindkey '^[j' _fzf-jump # Alt+J
+  bindkey '^[i' _fzf-insert-path
 fi

@@ -78,7 +78,7 @@ end)
 -- Focus Kitty
 -- Modified Kitty hotkey to toggle visibility
 hs.hotkey.bind({ "rightcmd" }, "k", function()
-	print("toggle: kitty");
+	-- print("toggle: kitty");
 	local kitty = hs.application.find("kitty")
 
 	if kitty then
