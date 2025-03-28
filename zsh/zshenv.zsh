@@ -55,19 +55,15 @@ export ZSH_SCRIPT_PATHS=(
 export EDITOR=nvim
 export TEMPLATE_BASE_DIR=$XDG_CONFIG_HOME/nvim/templates
 
+export BACKUP_TARGET="/Volumes/Backup-4TB"
 export TABLATURE_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature/"
-export MOVIES_PATH=$HOME/Movies
 export TUTORIALS_PATH=$HOME/Movies/Tutorials
 
 # Media
-export LOCAL_MEDIA_PATHS="$HOME/Media/Porn:$MOVIES_PATH/Porn"
-export LOCAL_CACHE_PATHS="$MOVIES_PATH/Cache:$HOME/Media/Cache"
-export LOCAL_CACHE_PATH="$MOVIES_PATH/Cache"
+export LOCAL_MEDIA_PATHS=$HOME/Movies/Porn
 export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn"
 export EXTERNAL_CACHE_PATHS="/Volumes/*/Movies/Cache"
-export MASTER_MEDIA_DIR="/Volumes/Media-Library 4TB/Movies"
-export MEDIA_INBOX_PATH="$HOME/Movies/Porn/originals/_inbox"
-export INDEX_DIR="$HOME/doc/indexes"
+export INDEX_DIR="$HOME/.indexes"
 export PRIVATE_PHOTOS_LIBRARY="$HOME/Media/Private/Private.photoslibrary"
 
 export HOSTNAME=$(hostname)
