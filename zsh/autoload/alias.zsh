@@ -43,12 +43,18 @@ alias @masters-smb="fd --print0 --extension=mp4 . /Volumes/Masters\ 1TB/Movies/P
 alias .kitty-mark-current-tab-orange="kitty @ set-tab-color active_bg=orange active_fg=white inactive_bg=orange inactive_fg=black"
 alias .kitty-mark-current-tab-red="kitty @ set-tab-color inactive_bg=red inactive_fg=black"
 
+alias mpv-with-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
+alias mpv-without-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --no-config --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
+
 alias topaz-video="env LC_ALL=C LC_NUMERIC=C LANG=C /Applications/Topaz\ Video\ AI.app/Contents/MacOS/Topaz\ Video\ AI"
 alias .topaz-video=topaz-video
 
 alias config-dotfiles="cd $DOTFILES_DIR && fd --type directory --max-depth=2 | fzf | xargs nvim"
 
 alias cd-relative="cd ${fd--type directory | fzf-cd}"
+
+alias .get-app-id="osascript -e 'id of app $1'"
+alias .get-app-id-debug="echo \"osascript -e 'id of app ${1}'\""
 
 alias .screen-sharing-kick-users="sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -deactivate -restart -users current"
 

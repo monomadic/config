@@ -10,6 +10,32 @@
 -- 	volumeDown = { { "cmd", "alt" }, "down" } -- Command+Alt+Down Arrow to decrease volume
 -- })
 
+-- local hyper = { "ralt" }
+-- local key = "K"
+-- local appName = "Screen Sharing"
+-- local hotkey
+--
+-- hotkey = hs.hotkey.bind(hyper, key, function()
+-- 	local frontApp = hs.application.frontmostApplication()
+-- 	local app = hs.application.get(appName)
+--
+-- 	if app then
+-- 		hotkey:disable()
+--
+-- 		if frontApp:bundleID() ~= app:bundleID() then
+-- 			app:activate()
+-- 			hs.timer.usleep(200000) -- delay for focus
+-- 		end
+--
+-- 		hs.eventtap.keyStroke(hyper, key, 0)
+--
+-- 		hotkey:enable()
+-- 	else
+-- 		hs.alert.show(appName .. " not running")
+-- 	end
+-- end)
+--
+
 -- Load the Spoon
 hs.loadSpoon("TagSelectedFile")
 
@@ -77,82 +103,82 @@ end)
 
 -- Focus Kitty
 -- Modified Kitty hotkey to toggle visibility
-hs.hotkey.bind({ "rightcmd" }, "k", function()
-	-- print("toggle: kitty");
-	local kitty = hs.application.find("kitty")
-
-	if kitty then
-		-- If Kitty is the frontmost app, hide it
-		if kitty:isFrontmost() then
-			kitty:hide()
-		else
-			-- If Kitty exists but isn't frontmost, show and focus it
-			kitty:unhide()
-			kitty:activate()
-		end
-	else
-		-- If Kitty isn't running, launch it
-		hs.application.launchOrFocus("kitty")
-	end
-end)
-
--- Function to get the Kitty window or create one if it doesn't exist
-function getOrCreateKittyWindow()
-	local kitty = hs.application.find('kitty')
-	if not kitty then
-		return nil
-	end
-
-	-- Get all Kitty windows
-	local windows = kitty:allWindows()
-
-	-- Try to find an existing floating window
-	for _, window in ipairs(windows) do
-		if window:isFloating() then
-			return window
-		end
-	end
-
-	-- If no floating window exists, create one
-	kitty:selectMenuItem({ "Shell", "New OS Window" })
-	hs.timer.usleep(100000) -- Wait a bit for the window to be created
-
-	-- Get the new window (should be the last one created)
-	local newWindows = kitty:allWindows()
-	return newWindows[#newWindows]
-end
-
--- Function to center and show the Kitty window
-function toggleFloatingKitty()
-	hs.alert.show("hit")
-
-	local window = getOrCreateKittyWindow()
-	if not window then
-		hs.alert.show("Kitty is not running")
-		return
-	end
-
-	if window:isVisible() then
-		window:hide()
-	else
-		-- Get the screen frame
-		local screen = hs.screen.mainScreen()
-		local screenFrame = screen:frame()
-
-		-- Set window size (adjust these values as needed)
-		local windowWidth = 800
-		local windowHeight = 600
-
-		-- Calculate position to center the window
-		local x = screenFrame.x + (screenFrame.w - windowWidth) / 2
-		local y = screenFrame.y + (screenFrame.h - windowHeight) / 2
-
-		-- Set window frame and show it
-		window:setFrame(hs.geometry.rect(x, y, windowWidth, windowHeight))
-		window:setFloating(true)
-		window:focus()
-	end
-end
+-- hs.hotkey.bind({ "rightcmd" }, "k", function()
+-- 	-- print("toggle: kitty");
+-- 	local kitty = hs.application.find("kitty")
+--
+-- 	if kitty then
+-- 		-- If Kitty is the frontmost app, hide it
+-- 		if kitty:isFrontmost() then
+-- 			kitty:hide()
+-- 		else
+-- 			-- If Kitty exists but isn't frontmost, show and focus it
+-- 			kitty:unhide()
+-- 			kitty:activate()
+-- 		end
+-- 	else
+-- 		-- If Kitty isn't running, launch it
+-- 		hs.application.launchOrFocus("kitty")
+-- 	end
+-- end)
+--
+-- -- Function to get the Kitty window or create one if it doesn't exist
+-- function getOrCreateKittyWindow()
+-- 	local kitty = hs.application.find('kitty')
+-- 	if not kitty then
+-- 		return nil
+-- 	end
+--
+-- 	-- Get all Kitty windows
+-- 	local windows = kitty:allWindows()
+--
+-- 	-- Try to find an existing floating window
+-- 	for _, window in ipairs(windows) do
+-- 		if window:isFloating() then
+-- 			return window
+-- 		end
+-- 	end
+--
+-- 	-- If no floating window exists, create one
+-- 	kitty:selectMenuItem({ "Shell", "New OS Window" })
+-- 	hs.timer.usleep(100000) -- Wait a bit for the window to be created
+--
+-- 	-- Get the new window (should be the last one created)
+-- 	local newWindows = kitty:allWindows()
+-- 	return newWindows[#newWindows]
+-- end
+--
+-- -- Function to center and show the Kitty window
+-- function toggleFloatingKitty()
+-- 	hs.alert.show("hit")
+--
+-- 	local window = getOrCreateKittyWindow()
+-- 	if not window then
+-- 		hs.alert.show("Kitty is not running")
+-- 		return
+-- 	end
+--
+-- 	if window:isVisible() then
+-- 		window:hide()
+-- 	else
+-- 		-- Get the screen frame
+-- 		local screen = hs.screen.mainScreen()
+-- 		local screenFrame = screen:frame()
+--
+-- 		-- Set window size (adjust these values as needed)
+-- 		local windowWidth = 800
+-- 		local windowHeight = 600
+--
+-- 		-- Calculate position to center the window
+-- 		local x = screenFrame.x + (screenFrame.w - windowWidth) / 2
+-- 		local y = screenFrame.y + (screenFrame.h - windowHeight) / 2
+--
+-- 		-- Set window frame and show it
+-- 		window:setFrame(hs.geometry.rect(x, y, windowWidth, windowHeight))
+-- 		window:setFloating(true)
+-- 		window:focus()
+-- 	end
+-- end
 
 -- Bind right-command + p to toggle the floating Kitty window
 -- hs.hotkey.bind({ "rcmd" }, "p", toggleFloatingKitty)
@@ -329,54 +355,54 @@ end)
 ---
 local spaces = require("hs.spaces")
 
-hs.hotkey.bind({ "cmd", "ctrl" }, "e", function()
-	hs.alert.show("Switching to left screen")
-	local screen = hs.screen.allScreens()[1]          -- Left screen
-	local space = spaces.layout()[screen:getUUID()][1] -- First space on left screen
+-- hs.hotkey.bind({ "cmd", "ctrl" }, "e", function()
+-- 	hs.alert.show("Switching to left screen")
+-- 	local screen = hs.screen.allScreens()[1]          -- Left screen
+-- 	local space = spaces.layout()[screen:getUUID()][1] -- First space on left screen
+--
+-- 	-- Switch to the space
+-- 	spaces.gotoSpace(space)
+--
+-- 	-- Move the mouse to the center of the screen to ensure focus
+-- 	local point = hs.geometry.rectMidPoint(screen:frame())
+-- 	hs.mouse.absolutePosition(point)
+--
+-- 	-- Optional: Ensure a window on that screen gets focus
+-- 	-- Uncomment this if just moving the mouse isn't enough
+-- 	-- local win = hs.window.focusedWindow()
+-- 	-- if win and win:screen() ~= screen then
+-- 	--     local windowsOnScreen = hs.fnutils.filter(hs.window.allWindows(), function(w)
+-- 	--         return w:screen() == screen
+-- 	--     end)
+-- 	--     if #windowsOnScreen > 0 then
+-- 	--         windowsOnScreen[1]:focus()
+-- 	--     end
+-- 	-- end
+-- end)
 
-	-- Switch to the space
-	spaces.gotoSpace(space)
-
-	-- Move the mouse to the center of the screen to ensure focus
-	local point = hs.geometry.rectMidPoint(screen:frame())
-	hs.mouse.absolutePosition(point)
-
-	-- Optional: Ensure a window on that screen gets focus
-	-- Uncomment this if just moving the mouse isn't enough
-	-- local win = hs.window.focusedWindow()
-	-- if win and win:screen() ~= screen then
-	--     local windowsOnScreen = hs.fnutils.filter(hs.window.allWindows(), function(w)
-	--         return w:screen() == screen
-	--     end)
-	--     if #windowsOnScreen > 0 then
-	--         windowsOnScreen[1]:focus()
-	--     end
-	-- end
-end)
-
-hs.hotkey.bind({ "cmd", "ctrl" }, "w", function()
-	hs.alert.show("Switching to right screen")
-	local screen = hs.screen.allScreens()[2]          -- Right screen
-	local space = spaces.layout()[screen:getUUID()][1] -- First space on right screen
-
-	-- Switch to the space
-	spaces.gotoSpace(space)
-
-	-- Move the mouse to the center of the screen to ensure focus
-	local point = hs.geometry.rectMidPoint(screen:frame())
-	hs.mouse.absolutePosition(point)
-
-	-- Optional: Ensure a window on that screen gets focus
-	-- Uncomment this if just moving the mouse isn't enough
-	local win = hs.window.focusedWindow()
-	if win and win:screen() ~= screen then
-		local windowsOnScreen = hs.fnutils.filter(hs.window.allWindows(), function(w)
-			return w:screen() == screen
-		end)
-		if #windowsOnScreen > 0 then
-			windowsOnScreen[1]:focus()
-		end
-	end
-end)
+-- hs.hotkey.bind({ "cmd", "ctrl" }, "w", function()
+-- 	hs.alert.show("Switching to right screen")
+-- 	local screen = hs.screen.allScreens()[2]          -- Right screen
+-- 	local space = spaces.layout()[screen:getUUID()][1] -- First space on right screen
+--
+-- 	-- Switch to the space
+-- 	spaces.gotoSpace(space)
+--
+-- 	-- Move the mouse to the center of the screen to ensure focus
+-- 	local point = hs.geometry.rectMidPoint(screen:frame())
+-- 	hs.mouse.absolutePosition(point)
+--
+-- 	-- Optional: Ensure a window on that screen gets focus
+-- 	-- Uncomment this if just moving the mouse isn't enough
+-- 	local win = hs.window.focusedWindow()
+-- 	if win and win:screen() ~= screen then
+-- 		local windowsOnScreen = hs.fnutils.filter(hs.window.allWindows(), function(w)
+-- 			return w:screen() == screen
+-- 		end)
+-- 		if #windowsOnScreen > 0 then
+-- 			windowsOnScreen[1]:focus()
+-- 		end
+-- 	end
+-- end)
 
 hs.alert.show("  hammerspoon config reloaded  ")
