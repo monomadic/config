@@ -62,7 +62,7 @@ config_files=(
   $ZSH_AUTOLOAD_DIR/prompt-middle.zsh
   $ZSH_AUTOLOAD_DIR/prompt.zsh
   $ZSH_AUTOLOAD_DIR/rsync.zsh
-  $ZSH_AUTOLOAD_DIR/vi-mode.zsh
+  # $ZSH_AUTOLOAD_DIR/vi-mode.zsh
   $ZSH_AUTOLOAD_DIR/yt-dlp.zsh
   $ZSH_AUTOLOAD_DIR/starship.zsh
   $ZSH_AUTOLOAD_DIR/fzf-marks.zsh

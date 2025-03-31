@@ -91,32 +91,11 @@ alias @play-pwd=mpv-play-pwd
 alias .play-pwd=mpv-play-pwd
 alias .play-pwd-shuffle=mpv-play-pwd --shuffle
 
-alias media-search-pwd="fd-video | fzf-play --kitty"
-
 alias @search-pwd-sorted=fzf-play-pwd-sorted
 
 alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
 
-mpv-play-external-drives() {
-  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --mute=yes --shuffle /Volumes/**/Movies/* >/dev/null 2>&1 &
-}
-alias @play-external=mpv-play-external-drives
-
-media-search-incomplete-downloads-pwd() {
-  fd mp4.part$ | fzf-play
-}
-
-media-search-incomplete-downloads() {
-  cd $HOME/Movies/Porn/originals/_inbox &&
-    fd mp4.part$ | fzf-play
-}
 alias @search-incomplete=media-search-incomplete-downloads
-
-mpv-play-incomplete-downloads() {
-  cd $HOME/Movies/Porn/originals/_inbox &&
-    ls *.mp4.part | mpv-play
-}
-alias @play-incomplete
 
 index-update() {
   emulate -L zsh

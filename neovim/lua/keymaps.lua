@@ -252,7 +252,10 @@ keymap({ "v", "i" }, "<C-s>", "<Esc><Cmd>write<CR>", { desc = "save" });
 keymap('n', "q", vim.cmd.hide, { desc = "hide" });
 -- fast quit
 keymap('n', "W", vim.cmd.wall)
-keymap('n', "Q", "<cmd>wall<CR><cmd>qall<CR>")
+
+keymap('n', 'QQ', 'ZZ', { noremap = true })
+keymap('n', 'ZZ', '<Nop>', { noremap = true })
+
 -- leader
 -- keymap('n', "<C-n>", ToggleLineNumbers, { desc = "toggle line numbers" })
 
