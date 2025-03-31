@@ -15,6 +15,181 @@
             "complex_modifications": {
                 "rules": [
                     {
+                        "description": "Fn+F3 passthrough for Screen Sharing",
+                        "manipulators": [
+                            {
+                                "conditions": [
+                                    {
+                                        "bundle_identifiers": [
+                                            "^com\\.apple\\.ScreenSharing$"
+                                        ],
+                                        "type": "frontmost_application_if"
+                                    }
+                                ],
+                                "from": {
+                                    "key_code": "f3",
+                                    "modifiers": {
+                                        "mandatory": ["fn"],
+                                        "optional": []
+                                    }
+                                },
+                                "to": [{ "key_code": "f3" }],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Maximize focused window (CMD+SHIFT+UP)",
+                        "enabled": false,
+                        "manipulators": [
+                            {
+                                "from": {
+                                    "key_code": "up_arrow",
+                                    "modifiers": {
+                                        "mandatory": ["left_command", "left_shift"],
+                                        "optional": ["any"]
+                                    }
+                                },
+                                "to": [{ "shell_command": "osascript -e 'tell application \"System Events\" to tell (first application process whose frontmost is true) to set value of attribute \"AXFullScreen\" of front window to true'" }],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Fast application switch (Option+Tab to next app immediately)",
+                        "manipulators": [
+                            {
+                                "from": {
+                                    "key_code": "tab",
+                                    "modifiers": {
+                                        "mandatory": ["option"],
+                                        "optional": ["any"]
+                                    }
+                                },
+                                "to": [
+                                    {
+                                        "key_code": "tab",
+                                        "modifiers": ["left_command"]
+                                    }
+                                ],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Right Alt + K activates Screen Sharing and sends Right Alt + K",
+                        "enabled": false,
+                        "manipulators": [
+                            {
+                                "from": {
+                                    "key_code": "k",
+                                    "modifiers": {
+                                        "mandatory": ["right_option"],
+                                        "optional": []
+                                    }
+                                },
+                                "to": [{ "shell_command": "/usr/local/bin/hs -c 'hs.urlevent.openURL(\"hammerspoon://sendRightAltK\")'" }],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Right Alt + T sends itself to Screen Sharing app",
+                        "manipulators": [
+                            {
+                                "conditions": [
+                                    {
+                                        "bundle_identifiers": [
+                                            "com.apple.ScreenSharing"
+                                        ],
+                                        "type": "frontmost_application_unless"
+                                    }
+                                ],
+                                "from": {
+                                    "key_code": "t",
+                                    "modifiers": {
+                                        "mandatory": ["right_option"],
+                                        "optional": []
+                                    }
+                                },
+                                "to": [
+                                    { "shell_command": "osascript -e 'tell application \"Screen Sharing\" to activate'" },
+                                    {
+                                        "key_code": "t",
+                                        "modifiers": ["right_option"]
+                                    }
+                                ],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Right Alt + K sends itself to Screen Sharing app",
+                        "manipulators": [
+                            {
+                                "conditions": [
+                                    {
+                                        "bundle_identifiers": [
+                                            "com.apple.ScreenSharing"
+                                        ],
+                                        "type": "frontmost_application_unless"
+                                    }
+                                ],
+                                "from": {
+                                    "key_code": "k",
+                                    "modifiers": {
+                                        "mandatory": ["right_option"],
+                                        "optional": []
+                                    }
+                                },
+                                "to": [{ "shell_command": "osascript -e 'tell application \"Screen Sharing\" to activate' && /usr/local/bin/hs -c 'hs.urlevent.openURL(\"hammerspoon://sendRightAltK\")'" }],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Send Mission Control key to remote machine only when Screen Sharing is active",
+                        "manipulators": [
+                            {
+                                "conditions": [
+                                    {
+                                        "bundle_identifiers": [
+                                            "com.apple.ScreenSharing"
+                                        ],
+                                        "type": "frontmost_application_if"
+                                    }
+                                ],
+                                "from": { "key_code": "mission_control" },
+                                "to": [{ "key_code": "mission_control" }],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Right Command + Y to open Kitty with Yazi (only in Finder)",
+                        "manipulators": [
+                            {
+                                "conditions": [
+                                    {
+                                        "bundle_identifiers": [
+                                            "com.apple.finder"
+                                        ],
+                                        "type": "frontmost_application_if"
+                                    }
+                                ],
+                                "from": {
+                                    "key_code": "y",
+                                    "modifiers": {
+                                        "mandatory": ["right_command"],
+                                        "optional": ["any"]
+                                    }
+                                },
+                                "to": [{ "shell_command": "osascript -e 'tell application \"Finder\" to set currentDir to POSIX path of (target of front window as alias)' | xargs -I {} kitty --single-instance --directory=\"{}\" --start-as=maximized yazi" }],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
                         "description": "Toggle Dock with Fn + D",
                         "enabled": false,
                         "manipulators": [
@@ -161,8 +336,36 @@
             ],
             "fn_function_keys": [
                 {
+                    "from": { "key_code": "f1" },
+                    "to": [{ "key_code": "f1" }]
+                },
+                {
+                    "from": { "key_code": "f2" },
+                    "to": [{ "key_code": "f2" }]
+                },
+                {
+                    "from": { "key_code": "f3" },
+                    "to": [{ "key_code": "f3" }]
+                },
+                {
                     "from": { "key_code": "f4" },
                     "to": [{ "key_code": "f4" }]
+                },
+                {
+                    "from": { "key_code": "f5" },
+                    "to": [{ "key_code": "f5" }]
+                },
+                {
+                    "from": { "key_code": "f7" },
+                    "to": [{ "key_code": "f7" }]
+                },
+                {
+                    "from": { "key_code": "f8" },
+                    "to": [{ "key_code": "f8" }]
+                },
+                {
+                    "from": { "key_code": "f9" },
+                    "to": [{ "key_code": "f9" }]
                 }
             ],
             "name": "Default profile",
