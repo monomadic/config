@@ -77,10 +77,6 @@ ls_hidden() {
   eza --icons --group-directories-first
 }
 
-fzf_ripgrep() {
-  fzf-rg
-}
-
 # Function to handle directory navigation with lsd and fzf
 fzf-lsd-cd() {
   # Run lsd with desired options and pipe to fzf

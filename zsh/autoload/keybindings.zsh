@@ -32,7 +32,7 @@ if [[ -o interactive ]]; then
   }
 
   _fzf_ripgrep() {
-    fzf_ripgrep
+    fzf-ripgrep
   }
 
   _clear-reset() {
