@@ -38,7 +38,7 @@ alias @lib="media search library"
 alias @tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
 alias @perf="media search #60fps #4k"
 alias @remaster="media search #remaster"
-alias @masters-smb="fd --print0 --extension=mp4 . /Volumes/Masters\ 1TB/Movies/Porn/ | fzf-play"
+alias @masters="fd --print0 --extension=mp4 . /Volumes/Masters/Movies/Porn/ | fzf-play"
 
 alias .kitty-mark-current-tab-orange="kitty @ set-tab-color active_bg=orange active_fg=white inactive_bg=orange inactive_fg=black"
 alias .kitty-mark-current-tab-red="kitty @ set-tab-color inactive_bg=red inactive_fg=black"
@@ -70,8 +70,7 @@ alias .demux-video="ffmpeg-demux --skip-audio"
 
 alias url="yt-url"
 
-alias media-backup-src="rsync-backup SRC"
-alias media-cache="rsync-backup --dry-run $HOME/Movies/Cache \/clipped\/ "
+alias rsync-backup-masters="rsync-backup /Volumes/Masters/Switch /Volumes/Backup-4TB/Switch"
 
 alias tag=rename-media
 alias .tag=tag
