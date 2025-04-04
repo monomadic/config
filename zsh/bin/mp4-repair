@@ -1,0 +1,29 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+if [[ $# -lt 2 ]]; then
+  print -P "%F{red}Usage:%f $0 <corrupted.mp4> <reference.mp4>"
+  exit 1
+fi
+
+corrupt="$1"
+ref="$2"
+basename="${corrupt:r}"
+ffmpeg_fixed="${basename}_ffmpeg_fixed.mp4"
+untrunc_fixed="${basename}_untrunc_fixed.mp4"
+
+print -P "%F{cyan}[*]%f Trying ffmpeg reindex on '$corrupt'..."
+if ffmpeg -v error -err_detect ignore_err -i "$corrupt" -c copy "$ffmpeg_fixed"; then
+  print -P "%F{green}[✓]%f ffmpeg repair succeeded: $ffmpeg_fixed"
+else
+  print -P "%F{yellow}[!]%f ffmpeg failed, trying untrunc with reference '$ref'..."
+  if command -v untrunc > /dev/null; then
+    untrunc "$ref" "$corrupt"
+    mv fixed.mp4 "$untrunc_fixed"
+    print -P "%F{green}[✓]%f untrunc repair succeeded: $untrunc_fixed"
+  else
+    print -P "%F{red}[✗]%f untrunc not found. Install with: brew install --HEAD ponchio/untrunc/untrunc"
+    exit 1
+  fi
+fi

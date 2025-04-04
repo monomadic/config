@@ -98,7 +98,7 @@ else
       exit 1
     fi
 
-    mpv --no-config --no-native-fs \
+    mpv --no-native-fs \
       --fs \
       --loop-file=1 --length=10 \
       --shuffle \

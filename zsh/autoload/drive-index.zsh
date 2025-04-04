@@ -91,8 +91,6 @@ alias @play-pwd=mpv-play-pwd
 alias .play-pwd=mpv-play-pwd
 alias .play-pwd-shuffle=mpv-play-pwd --shuffle
 
-alias @search-pwd-sorted=fzf-play-pwd-sorted
-
 alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
 
 alias @search-incomplete=media-search-incomplete-downloads

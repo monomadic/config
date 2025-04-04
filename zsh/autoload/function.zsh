@@ -1,6 +1,6 @@
 apple-music-dl() {
   gamdl \
-		--cookies-path="$HOME/cookies.txt" \
+		--cookies-path="$HOME/.config/music.apple.com_cookies.txt" \
 		--output-path='.' \
     --template-folder-album='' \
     --template-folder-compilation='' \

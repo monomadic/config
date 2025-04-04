@@ -253,7 +253,7 @@ keymap('n', "q", vim.cmd.hide, { desc = "hide" });
 -- fast quit
 keymap('n', "W", vim.cmd.wall)
 
-keymap('n', 'QQ', 'ZZ', { noremap = true })
+keymap('n', 'Q', 'ZZ', { noremap = true })
 keymap('n', 'ZZ', '<Nop>', { noremap = true })
 
 -- leader

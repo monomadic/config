@@ -9,7 +9,7 @@ alias .clips="media play clips --shuffle"
 alias .cumshot="media play #cumshot --shuffle"
 alias .edits="media play edits --shuffle"
 alias .loops="media play loops --shuffle"
-alias .pwd="fd-video | mpv-play"
+alias .pwd="fd-video | mpv-stdin"
 alias .suki-latest="media play latest #suki"
 alias .suki="media play #suki --shuffle"
 alias .top-cumshot="media play #top #cumshot --shuffle"
@@ -38,7 +38,11 @@ alias @lib="media search library"
 alias @tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
 alias @perf="media search #60fps #4k"
 alias @remaster="media search #remaster"
-alias @masters="fd --print0 --extension=mp4 . /Volumes/Masters/Movies/Porn/ | fzf-play"
+alias @masters="fd --print0 --extension=mp4 . /Volumes/*/Movies/Porn/Masters/ | fzf-play"
+
+@play-type() {
+  fd --print0 --extension=mp4 . /Volumes/*/Movies/Porn/$1/ | fzf-play
+}
 
 alias .kitty-mark-current-tab-orange="kitty @ set-tab-color active_bg=orange active_fg=white inactive_bg=orange inactive_fg=black"
 alias .kitty-mark-current-tab-red="kitty @ set-tab-color inactive_bg=red inactive_fg=black"
@@ -99,6 +103,7 @@ alias .dupes-delete-interactive="fdupes --recurse --deferconfirmation --cache --
 
 alias ls-usb="system_profiler SPUSBDataType"
 alias ls-usb-ioreg="ioreg -p IOUSB -w0"
+alias ls-disks="diskutil list"
 
 alias .tab=fzf-tablature
 

@@ -1,0 +1,32 @@
+#!/bin/zsh
+
+typeset -A diagnostics=(
+  ["  USB hardware info"]="system_profiler SPUSBDataType"
+  ["  List all disks"]="diskutil list"
+  ["  Disk info"]="diskutil info \$(prompt_disk)"
+  ["  Mount disk"]="diskutil mountDisk \$(prompt_disk)"
+  ["  GPT partitions"]="gpt -r show \$(prompt_disk)"
+  ["  Identify filesystem"]="fstyp \$(prompt_partition)"
+  ["ﳁ  Stream USB logs"]="command log stream --predicate 'eventMessage contains \"USB\"' --info"
+  ["  Grep USB logs"]="command log stream | grep -i usb"
+  ["  List /dev/disk*"]="ls -l /dev/disk*"
+)
+
+prompt_disk() {
+  diskutil list | awk '/^\/dev\// {print $1}' | fzf --prompt="Select disk: "
+}
+
+prompt_partition() {
+  diskutil list | awk '/^\/dev\// {print $1}' | grep 's' | fzf --prompt="Select partition: "
+}
+
+while true; do
+  choice=$(print -l -- "${(@k)diagnostics}" | fzf --prompt="Select diagnostic 󰅂 (ESC to quit): ")
+  [[ -z "$choice" ]] && break
+
+  cmd="${diagnostics[$choice]}"
+  cmd=$(eval "print -r -- \"$cmd\"")
+
+  # Launch in new vertical split (right side pane)
+  kitten @ launch --type=window --location=split-right --cwd=current --title="$choice" -- zsh -ic "$cmd; echo; read -sk __"
+done
