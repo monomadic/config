@@ -74,8 +74,7 @@ alias .demux-video="ffmpeg-demux --skip-audio"
 
 alias url="yt-url"
 
-alias rsync-backup-masters="rsync-backup /Volumes/Masters/Switch /Volumes/Backup-4TB/Switch"
-
+alias rsync-backup-masters="rsync-backup /Volumes/Masters/Movies/Porn $BACKUP_TARGET/Movies/Porn"
 alias tag=rename-media
 alias .tag=tag
 
