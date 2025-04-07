@@ -134,7 +134,7 @@ play)
   fi
   ;;
 search)
-  final_command+=" | fzf-play" # No change needed if fzf-play already handles --read0
+  final_command+=" | fzf-play --hide-path"
   ;;
 list)
   final_command+=" | tr '\0' '\n'" # Convert nulls to newlines for normal output

@@ -1,0 +1,20 @@
+#!/usr/bin/env zsh
+
+COLOR="$1"
+if [[ -z "$COLOR" ]]; then
+  echo "Usage: $0 <color>"
+  exit 1
+fi
+
+# Grab the current tab color in JSON, then parse with jq.
+CURRENT_COLOR="$(kitty @ get-colors --match id:$KITTY_WINDOW_ID --json | jq -r '.tab_active_bg')"
+
+# If kitty hasn’t set a tab_active_bg yet, it might come back as null.
+[[ "$CURRENT_COLOR" == "null" ]] && CURRENT_COLOR=""
+
+# Toggle: if already set to the passed-in color, remove it; otherwise set it.
+if [[ "$CURRENT_COLOR" == "$COLOR" ]]; then
+  kitty @ set-colors --match id:$KITTY_WINDOW_ID tab_active_bg=''
+else
+  kitty @ set-colors --match id:$KITTY_WINDOW_ID tab_active_bg="$COLOR"
+fi
