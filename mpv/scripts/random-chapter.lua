@@ -1,6 +1,6 @@
 math.randomseed(os.time())
 
-function random_jump()
+function random_chapter()
 	local playlist_count = mp.get_property_number("playlist-count", 0)
 	if playlist_count == 0 then return end
 

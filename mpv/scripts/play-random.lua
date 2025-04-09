@@ -15,10 +15,6 @@ local random_player = {
 	end
 }
 
--- mp.add_key_binding("SPACE", "jump-to-random-file", function()
--- 	random_player:jump_random()
--- end)
-
 mp.register_script_message("play-random", function()
 	random_player:jump_random()
 end)

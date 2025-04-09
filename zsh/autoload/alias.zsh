@@ -29,7 +29,7 @@ alias @latest="media search latest"
 alias @loops="media search loops"
 alias @play-all="media-play"
 alias @pwd="fd-video | fzf-play"
-alias @volumes="ls-media --match-string '/Volumes/' | fzf-play"
+alias @external="ls-media --match-string '/Volumes/' | fzf-play --hide-path"
 alias @safe="media-search-safe"
 alias @stats="media-stats"
 alias @suki="media search #suki"
@@ -46,6 +46,8 @@ alias @masters="fd --print0 --extension=mp4 . /Volumes/*/Movies/Porn/Masters/ | 
 
 alias .kitty-mark-current-tab-orange="kitty @ set-tab-color active_bg=orange active_fg=white inactive_bg=orange inactive_fg=black"
 alias .kitty-mark-current-tab-red="kitty @ set-tab-color inactive_bg=red inactive_fg=black"
+alias .kitty-set-tab-color-orange="kitty @ set-tab-color --match id:$KITTY_WINDOW_ID active_bg=#FFA500 active_fg=#050F63 inactive_fg=#FFA500 inactive_bg=#030D43"
+alias .kitty-set-tab-color-green="kitty @ set-tab-color --match id:$KITTY_WINDOW_ID active_bg=#38F273 active_fg=#050F63 inactive_fg=#38F273 inactive_bg=#030D43"
 
 alias mpv-with-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
 alias mpv-without-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --no-config --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
