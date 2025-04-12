@@ -30,6 +30,7 @@ chmod +x "$PREVIEW_SCRIPT"
 # Main search function
 fd --type f --exclude .git |
   fzf --preview="$PREVIEW_SCRIPT {}" \
+    --exact \
     --preview-window='right:60%' \
     --bind 'enter:execute-silent(open --reveal {})' \
     --bind='ctrl-/:toggle-preview' \

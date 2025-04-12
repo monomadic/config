@@ -15,7 +15,18 @@
             "complex_modifications": {
                 "rules": [
                     {
+                        "description": "Toggle Fullscreen Focused Window (F10) [AppleScript]",
+                        "manipulators": [
+                            {
+                                "from": { "key_code": "f10" },
+                                "to": [{ "shell_command": "osascript -e 'tell application \"System Events\" to tell (first application process whose frontmost is true) to tell front window to set value of attribute \"AXFullScreen\" to not (value of attribute \"AXFullScreen\")'" }],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
                         "description": "Fn+F3 passthrough for Screen Sharing",
+                        "enabled": false,
                         "manipulators": [
                             {
                                 "conditions": [
@@ -39,8 +50,7 @@
                         ]
                     },
                     {
-                        "description": "Maximize focused window (CMD+SHIFT+UP)",
-                        "enabled": false,
+                        "description": "Maximize Focused Window (CMD+SHIFT+UP) [AppleScript]",
                         "manipulators": [
                             {
                                 "from": {
@@ -50,13 +60,14 @@
                                         "optional": ["any"]
                                     }
                                 },
-                                "to": [{ "shell_command": "osascript -e 'tell application \"System Events\" to tell (first application process whose frontmost is true) to set value of attribute \"AXFullScreen\" of front window to true'" }],
+                                "to": [{ "shell_command": "osascript -e 'tell application \"System Events\" set frontApp to first application process whose frontmost is true tell front window of frontApp set position to {0, 25} set size to {(item 3 of (get bounds of desktop 1)), ((item 4 of (get bounds of desktop 1)) - 25)} end tell end tell'" }],
                                 "type": "basic"
                             }
                         ]
                     },
                     {
                         "description": "Fast application switch (Option+Tab to next app immediately)",
+                        "enabled": false,
                         "manipulators": [
                             {
                                 "from": {
@@ -95,6 +106,7 @@
                     },
                     {
                         "description": "Right Alt + T sends itself to Screen Sharing app",
+                        "enabled": false,
                         "manipulators": [
                             {
                                 "conditions": [
@@ -125,6 +137,7 @@
                     },
                     {
                         "description": "Right Alt + K sends itself to Screen Sharing app",
+                        "enabled": false,
                         "manipulators": [
                             {
                                 "conditions": [
@@ -148,25 +161,7 @@
                         ]
                     },
                     {
-                        "description": "Send Mission Control key to remote machine only when Screen Sharing is active",
-                        "manipulators": [
-                            {
-                                "conditions": [
-                                    {
-                                        "bundle_identifiers": [
-                                            "com.apple.ScreenSharing"
-                                        ],
-                                        "type": "frontmost_application_if"
-                                    }
-                                ],
-                                "from": { "key_code": "mission_control" },
-                                "to": [{ "key_code": "mission_control" }],
-                                "type": "basic"
-                            }
-                        ]
-                    },
-                    {
-                        "description": "Right Command + Y to open Kitty with Yazi (only in Finder)",
+                        "description": "Finder: Open In Kitty (CMD+Y)",
                         "manipulators": [
                             {
                                 "conditions": [
@@ -180,7 +175,7 @@
                                 "from": {
                                     "key_code": "y",
                                     "modifiers": {
-                                        "mandatory": ["right_command"],
+                                        "mandatory": ["command"],
                                         "optional": ["any"]
                                     }
                                 },
