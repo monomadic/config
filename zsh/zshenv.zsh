@@ -55,7 +55,7 @@ export ZSH_SCRIPT_PATHS=(
 export EDITOR=nvim
 export TEMPLATE_BASE_DIR=$XDG_CONFIG_HOME/nvim/templates
 
-export BACKUP_TARGET="/Volumes/Backup-4TB"
+export BACKUP_TARGET="/Volumes/Tower"
 export TABLATURE_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature/"
 export TUTORIALS_PATH=$HOME/Movies/Tutorials
 

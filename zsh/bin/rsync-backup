@@ -2,7 +2,7 @@
 
 # Usage information
 usage() {
-  echo "Usage: $0 [--quiet] [--dry-run] [--log logfile] <source> <destination> [filter_pattern]"
+  echo "Usage: $0 [--quiet] [--dry-run] [--log logfile] [--delete] <source> <destination> [filter_pattern]"
   exit 1
 }
 
@@ -10,6 +10,7 @@ usage() {
 quiet_mode=false
 dry_run=false
 logfile=""
+delete_mode=false
 
 # Parse options
 while [[ "$1" =~ ^-- ]]; do
@@ -25,6 +26,10 @@ while [[ "$1" =~ ^-- ]]; do
   --log)
     logfile="$2"
     shift 2
+    ;;
+  --delete)
+    delete_mode=true
+    shift
     ;;
   *)
     echo "Unknown option: $1"
@@ -52,7 +57,9 @@ for dir in "$source_path" "$dest_path"; do
 done
 
 # Rsync options
-rsync_opts=(-av --delete --prune-empty-dirs --exclude '*/.*')
+rsync_opts=(-av --prune-empty-dirs --exclude '*/.*' --stats --out-format='%n')
+# '--stats' will show total bytes transferred and average speed
+# '--out-format=%n' prints the relative filename being transferred.
 
 if [ -n "$filter_pattern" ]; then
   rsync_opts+=(--include '*/' --include "*${filter_pattern}*" --exclude '*')
@@ -61,14 +68,10 @@ else
 fi
 
 $dry_run && rsync_opts+=(--dry-run)
+$delete_mode && rsync_opts+=(--delete)
 
-# Execute rsync
 run_rsync() {
-  rsync_opts+=("--out-format=%n") # output filenames only, preserving spaces/newlines
-
-  rsync "${rsync_opts[@]}" "$source_path/" "$dest_path/" | while IFS= read -r file; do
-    [ -n "$file" ] && printf "%s -> %s\n" "$source_path/$file" "$dest_path/$file"
-  done
+  rsync "${rsync_opts[@]}" "$source_path/" "$dest_path/"
 }
 
 if [ -n "$logfile" ]; then
