@@ -7,8 +7,27 @@ on   = ["}"]
 run  = "plugin --- @sync first-non-directory"
 desc = "Jumps to the first file"
 
-[manager]
+# Preview files with the system Quick Look
+[[manager.prepend_keymap]]
+on = "<C-p>"
+run = 'shell -- qlmanage -p "$@"'
 
+[[manager.prepend_keymap]]
+on   = [ "f","f" ]
+run  = "plugin fg --args='fzf'"
+desc = "find file by filename"
+
+[[manager.prepend_keymap]]
+on   = [ "f","G" ]
+run  = "plugin fg --args='rg'"
+desc = "find file by content (ripgrep match)"
+
+[[manager.prepend_keymap]]
+on   = [ "f","g" ]
+run  = "plugin fg"
+desc = "find file by content (fuzzy match)"
+
+[manager]
 keymap = [
 	{ on = "<Esc>", run = "escape",             desc = "Exit visual mode, clear selected, or cancel search" },
 	{ on = "<C-[>", run = "escape",             desc = "Exit visual mode, clear selected, or cancel search" },
@@ -202,8 +221,13 @@ keymap = [
 	{ on = "<F1>", run = "help", desc = "Open help" },
 ]
 
-[input]
+# Close inputs with ESC
+[[input.prepend_keymap]]
+on   = "<Esc>"
+run  = "close"
+desc = "Cancel input"
 
+[input]
 keymap = [
 	{ on = "<C-c>",   run = "close",          desc = "Cancel input" },
 	{ on = "<Enter>", run = "close --submit", desc = "Submit input" },

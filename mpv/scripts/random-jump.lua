@@ -5,7 +5,7 @@ math.randomseed(os.time())
 
 local pending_jump = false
 
-local function random_jump()
+function random_jump()
 	local pl_count = mp.get_property_number("playlist-count", 0)
 	if pl_count < 1 then
 		mp.msg.warn("No playlist items available!")
@@ -41,3 +41,28 @@ mp.register_event("file-loaded", function()
 	-- Resume playback after the seek.
 	mp.set_property("pause", "no")
 end)
+
+--------
+
+local active = false
+local timer = nil
+
+-- Toggle function: starts/stops the periodic timer for autojump mode.
+local function toggle_auto_jump()
+	active = not active
+	if active then
+		timer = mp.add_periodic_timer(5, function()
+			-- Call RandomJump, assumed to be defined elsewhere in your setup.
+			random_jump()
+		end)
+		mp.osd_message("Autojump mode enabled")
+	else
+		if timer then
+			timer:kill()
+			timer = nil
+		end
+		mp.osd_message("Autojump mode disabled")
+	end
+end
+
+mp.add_key_binding("C", "toggle_auto_jump", toggle_auto_jump)

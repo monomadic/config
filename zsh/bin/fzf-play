@@ -73,7 +73,7 @@ exec fzf \
   --bind 'alt-v:execute-silent(vlc {})' \
   --bind 'alt-A:select-all+execute(airflow-open {})' \
   --bind 'alt-e:select-all+execute(elmedia-open {})' \
-  --bind 'alt-i:select-all+execute(iina-open {})' \
+  --bind 'alt-i:select-all+execute-silent(iina --mpv-shuffle --mpv-loop-playlist {})' \
   --bind 'alt-c:execute-silent(echo "{}" | pbcopy)' \
   --bind 'alt-t:execute-silent(kitty @ launch --cwd "$(dirname {})")' \
   --bind 'alt-a:select-all,alt-d:deselect-all' \
