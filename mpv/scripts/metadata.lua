@@ -56,21 +56,20 @@ mp.register_event("file-loaded", function()
 	local meta = mp.get_property_native("metadata")
 	if not meta then return end
 
+	local titlefont = string.format("{\\fnHelvetica Neue} ")
+	local nerdfont = string.format("{\\fnHack Nerd Font Mono} ")
+
 	-- Get title or a fallback string if not defined.
 	local line_1 = meta.title or mp.get_property("filename")
-	local line_2 = ""
-	if not meta.artist or meta.artist == "" then
-		line_2 = file_info()
-	else
-		line_2 = meta.artist .. " - " .. file_info()
-	end
+	local line_2 = meta.artist or ""
 
 	-- Build ASS markup:
 	-- {\\an7} aligns top left.
 	-- {\\an1} aligns bottom left.
 	-- {\\fs20}{\\b1} sets a larger bold font for the title.
 	-- {\\fs16} sets a smaller font for subsequent metadata.
-	local ass_text = string.format("{\\an1}{\\fs12}{\\b1}%s{\\b0}\\N{\\fs8}%s", line_1, line_2)
+	local ass_text = string.format("%s{\\an1}{\\fs12}{\\b1}%s{\\b0}\\N{\\fs9}%s\\N{\\fs6}%s%s", titlefont, line_1, line_2,
+		nerdfont, file_info())
 
 	mp.set_osd_ass(0, 0, ass_text)
 end)

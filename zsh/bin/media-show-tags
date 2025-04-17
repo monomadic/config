@@ -1,0 +1,34 @@
+#!/bin/zsh
+
+# Check if the input file exists
+if [[ ! -f "$1" ]]; then
+  echo "Error: File '$1' not found."
+  exit 1
+fi
+
+# Extract metadata using ffprobe
+metadata=$(ffprobe -v quiet -print_format json -show_format -show_streams "$1")
+
+# Extract and display specific metadata fields
+title=$(echo "$metadata" | jq -r '.format.tags.title // "No title found"')
+description=$(echo "$metadata" | jq -r '.format.tags.description // "No description found"')
+keywords=$(echo "$metadata" | jq -r '.format.tags.keywords // "No keywords found"')
+url=$(echo "$metadata" | jq -r '.format.tags.url // "No URL found"')
+creator=$(echo "$metadata" | jq -r '.format.tags.creator // "No creator found"')
+artist=$(echo "$metadata" | jq -r '.format.tags.artist // "No artist found"')
+date=$(echo "$metadata" | jq -r '.format.tags.date // "No artist found"')
+
+# Print the metadata found
+echo "\nTitle: $title"
+echo "Description: $description"
+echo "Keywords: $keywords"
+echo "URL: $url"
+echo "Creator: $creator"
+echo "Artist: $artist"
+echo "Date: $date"
+
+# # Extract and display any other tags (if any)
+# other_tags=$(echo "$metadata" | jq -r '.format.tags | to_entries | map("\(.key): \(.value)") | .[]')
+#
+# echo "Other Tags:"
+# echo "$other_tags"

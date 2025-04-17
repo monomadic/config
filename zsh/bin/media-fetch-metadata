@@ -1,0 +1,25 @@
+#!/bin/zsh
+
+# Check if URL argument is provided
+if [ -z "$1" ]; then
+  echo "Usage: $0 <URL>"
+  exit 1
+fi
+
+# URL passed as argument
+url="$1"
+
+# Use yt-dlp to fetch metadata in JSON format
+metadata=$(yt-dlp -j "$url")
+
+# Extract and print various fields
+title=$(echo "$metadata" | jq -r '.title')
+artist=$(echo "$metadata" | jq -r '.artist')
+tags=$(echo "$metadata" | jq -r '.tags | join(", ")')
+description=$(echo "$metadata" | jq -r '.description')
+
+# Print results
+echo "Title: $title"
+echo "Artist: $artist"
+echo "Tags: $tags"
+echo "Description: $description"

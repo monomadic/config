@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Check if the correct number of arguments are passed
+if [ "$#" -ne 2 ]; then
+  echo "Usage: $0 <URL> <Existing_MP4_File>"
+  exit 1
+fi
+
+URL="$1"
+MP4_FILE="$2"
+
+# Temporary file to store metadata
+METADATA_FILE=$(mktemp)
+
+# Step 1: Download metadata with yt-dlp (skip download, get metadata in JSON format)
+yt-dlp --skip-download --write-info-json --output "%(id)s.json" "$URL"
+
+# Step 2: Get the filename of the metadata JSON file
+JSON_FILE=$(ls -t *.json | head -n 1)
+
+# Step 3: Extract the metadata fields from the JSON
+TITLE=$(jq -r '.title' "$JSON_FILE")
+DESCRIPTION=$(jq -r '.description' "$JSON_FILE")
+TAGS=$(jq -r '.tags | join(", ")' "$JSON_FILE")
+
+# Step 4: Embed metadata into the MP4 file using ffmpeg
+ffmpeg -i "$MP4_FILE" -i "$JSON_FILE" \
+  -map_metadata 1 \
+  -metadata title="$TITLE" \
+  -metadata description="$DESCRIPTION" \
+  -metadata keywords="$TAGS" \
+  -codec copy "output_with_metadata.mp4"
+
+# Clean up
+rm "$JSON_FILE"
+echo "Metadata (Title, Description, Tags) successfully embedded into $MP4_FILE as output_with_metadata.mp4"

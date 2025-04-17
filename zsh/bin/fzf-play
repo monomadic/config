@@ -65,6 +65,7 @@ exec fzf \
   --preview "$FZF_PREVIEW_COMMAND" \
   --preview-window="$PREVIEW_WINDOW" \
   --bind 'enter:select-all+execute(mpv-play {+} &)+deselect-all' \
+  --bind 'enter:select-all+execute-silent(kitty @ launch --type=background /opt/homebrew/bin/mpv --shuffle --loop-playlist --macos-fs-animation-duration=0 --no-native-fs --fs --mute=yes {+} &)+deselect-all' \
   --bind 'alt-enter:select-all+execute-silent(mpv-play --loop-file=1 --length=10 --shuffle {+})+deselect-all' \
   --bind 'alt-o:execute-silent(mpv-play {+})' \
   --bind 'alt-L:select-all+execute-silent(mpv-play --loop-file=1 --length=2 --shuffle {+})+deselect-all' \
@@ -72,7 +73,6 @@ exec fzf \
   --bind 'alt-v:execute-silent(vlc {})' \
   --bind 'alt-A:select-all+execute(airflow-open {})' \
   --bind 'alt-e:select-all+execute(elmedia-open {})' \
-  --bind 'alt-i:select-all+execute-silent(iina --mpv-shuffle --mpv-loop-playlist {})' \
   --bind 'alt-c:execute-silent(echo "{}" | pbcopy)' \
   --bind 'alt-t:execute-silent(kitty @ launch --cwd "$(dirname {})")' \
   --bind 'alt-a:select-all,alt-d:deselect-all' \
@@ -80,8 +80,11 @@ exec fzf \
   --bind 'ctrl-/:toggle-preview' \
   --bind 'alt-p:toggle-preview' \
   --bind 'alt-r:execute(echo "exec: open --reveal {}" && open --reveal {})' \
+  --bind 'ctrl-alt-r:execute-silent(kitty @ launch --type=background --cwd=current open --reveal {})' \
+  --bind 'ctrl-alt-p:execute-silent(kitty @ launch --type=background --cwd=current qlmanage -p {})' \
+  --bind 'ctrl-alt-p:execute-silent(kitty @ launch --type=background --cwd=current mpv --no-fs {})' \
+  --bind 'ctrl-alt-p:select-all+execute-silent(kitty @ launch --type=background mpv --shuffle --loop-playlist {+} &)+deselect-all' \
   --bind 'alt-o:execute(echo "exec: reveal {}" && reveal {})' \
-  --bind 'ctrl-r:reload(shuf -o /dev/stdout)' \
   --bind 'ctrl-s:reload(sort -o /dev/stdout)' \
   --bind 'ctrl-d:execute-silent(ls -t {} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \
   --bind 'alt-R:execute-silent(shuf -o /dev/stdout)' \

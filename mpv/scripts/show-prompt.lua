@@ -27,4 +27,4 @@ local function show_prompt()
 end
 
 -- Bind a key to launch the prompt (e.g. "p")
-mp.add_key_binding("p", "show-prompt", show_prompt)
+mp.add_key_binding("h", "show-prompt", show_prompt)

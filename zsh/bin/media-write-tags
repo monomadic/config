@@ -1,0 +1,25 @@
+#!/bin/zsh
+
+# Check if the user has provided a file as an argument
+if [ -z "$1" ]; then
+  echo "Usage: $0 <path_to_mp4>"
+  exit 1
+fi
+
+# Prompt for metadata
+echo "Enter the title:"
+read title
+
+echo "Enter the artist:"
+read artist
+
+echo "Enter the keywords (comma-separated):"
+read keywords
+
+# Get the input file
+input_file="$1"
+
+# Use ffmpeg to embed metadata into the MP4 file
+ffmpeg -i "$input_file" -metadata title="$title" -metadata artist="$artist" -metadata keywords="$keywords" -codec copy "${input_file%.*}_with_metadata.mp4"
+
+echo "Metadata has been embedded successfully into ${input_file%.*}_with_metadata.mp4"
