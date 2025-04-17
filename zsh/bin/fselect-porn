@@ -1,31 +1,33 @@
 #!/usr/bin/env zsh
-# fselect-multi.sh — search multiple globs, sort, and optionally NUL‑terminate
+# fselect-porn — search multiple globs, sort by modified, with optional NUL termination
 
-setopt null_glob   # so unmatched globs vanish
+setopt null_glob   # unmatched globs disappear instead of erroring
 
-# collect all Movies paths (you can tweak these globs or turn into "$@" for args)
+# 1) define your globs
 paths=(/Volumes/*/Movies/Porn /Users/nom/Movies/Porn)
 
-# drop any that didn’t match
-dirs=(${paths:#(#m)^([[:space:]]|)*})
-(( ${#dirs} )) || { print -u2 "no matching directories"; exit 1 }
+# 2) collect only the ones that actually exist
+dirs=("${paths[@]}")
+(( ${#dirs} )) || { echo "no matching directories" >&2; exit 1 }
 
-# join with commas for fselect’s FROM clause
-from="${(j.,.)dirs}"
+# 3) quote each separately and join with commas
+qdirs=()
+for d in "${dirs[@]}"; do
+  qdirs+=("\"$d\"")
+done
+from="${(j:, :)qdirs}"  # => "/Vol/.../Porn", "/Users/nom/.../Porn"
 
-# build the SQL‑like query
-# query="SELECT path, size FROM \"$from\" WHERE path LIKE '%.mp4' ORDER BY modified ASC"
-query="SELECT path FROM \"$from\" WHERE path LIKE '%.mp4' ORDER BY modified ASC"
-echo "query: $query"
+# 4) build the query
+query="SELECT path, size FROM ${from} WHERE path LIKE '%.mp4' ORDER BY modified ASC"
 
-# parse -0 flag for NUL termination
+# 5) parse -0 for NUL output
 null_term=false
 while getopts "0" opt; do
   [[ $opt == 0 ]] && null_term=true
 done
 shift $((OPTIND - 1))
 
-# run fselect and handle terminator
+# 6) run it
 if $null_term; then
   fselect "$query" | tr '\n' '\0'
 else
