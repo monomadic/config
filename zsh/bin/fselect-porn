@@ -18,7 +18,8 @@ done
 from="${(j:, :)qdirs}"  # => "/Vol/.../Porn", "/Users/nom/.../Porn"
 
 # 4) build the query
-query="SELECT path, size FROM ${from} WHERE path LIKE '%.mp4' ORDER BY modified ASC"
+#query="SELECT path, size FROM ${from} WHERE path LIKE '%.mp4' ORDER BY modified ASC"
+query="SELECT path FROM ${from} WHERE path LIKE '%.mp4' ORDER BY modified ASC"
 
 # 5) parse -0 for NUL output
 null_term=false
