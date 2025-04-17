@@ -22,6 +22,7 @@ alias .sync="sync-dotfiles"
 # media search
 alias @="media search"
 alias @sort="fselect-porn -0 | fzf-play --hide-path --tac"
+alias @sort-pwd="fselect-pwd -0 | fzf-play --hide-path --tac"
 alias @@="media search edits"
 alias @clips="media search clips"
 alias @cumshot="media search #cumshot"

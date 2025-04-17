@@ -1,0 +1,18 @@
+#!/usr/bin/env zsh
+
+# build the query
+query="SELECT path FROM $PWD WHERE path LIKE '%.mp4' ORDER BY modified ASC"
+
+# 5) parse -0 for NUL output
+null_term=false
+while getopts "0" opt; do
+  [[ $opt == 0 ]] && null_term=true
+done
+shift $((OPTIND - 1))
+
+# 6) run it
+if $null_term; then
+  fselect "$query" | tr '\n' '\0'
+else
+  fselect "$query"
+fi
