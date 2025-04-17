@@ -60,7 +60,6 @@ exec fzf \
   --cycle \
   --pointer='▶' \
   --marker='✓' \
-  --query "$*" \
   --ansi \
   --color=$FZF_COLOR_OPTS \
   --preview "$FZF_PREVIEW_COMMAND" \
@@ -88,4 +87,5 @@ exec fzf \
   --bind 'alt-R:execute-silent(shuf -o /dev/stdout)' \
   --bind 'alt-S:execute-silent(sort -o /dev/stdout)' \
   --bind 'alt-D:execute-silent(ls -t {} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \
-  --header "${HEADER_TEXT}"
+  --header "${HEADER_TEXT}" \
+  $*

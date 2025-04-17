@@ -11,6 +11,21 @@ apple-music-dl() {
     $@
 }
 
+apple-music-dl-hq() {
+  gamdl \
+		--cookies-path="$HOME/.config/music.apple.com_cookies.txt" \
+		--output-path='.' \
+    --template-folder-album='' \
+    --template-folder-compilation='' \
+    --template-folder-no-album='' \
+    --template-file-single-disc='{artist} - {title}' \
+    --template-file-multi-disc='{artist} - {title}' \
+    --template-file-no-album='{artist} - {title}' \
+		--codec-music-video='h265' \
+		--codec-song='ask' \
+    $@
+}
+
 mpv-vertical-stack-2() {
   if [[ $# -ne 2 ]]; then
     echo "Usage: ${0:t} <video1> <video2>"

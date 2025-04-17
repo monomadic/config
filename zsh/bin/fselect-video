@@ -1,0 +1,33 @@
+#!/usr/bin/env zsh
+# fselect-multi.sh — search multiple globs, sort, and optionally NUL‑terminate
+
+setopt null_glob   # so unmatched globs vanish
+
+# collect all Movies paths (you can tweak these globs or turn into "$@" for args)
+paths=(/Volumes/*/Movies/Porn /Users/nom/Movies/Porn)
+
+# drop any that didn’t match
+dirs=(${paths:#(#m)^([[:space:]]|)*})
+(( ${#dirs} )) || { print -u2 "no matching directories"; exit 1 }
+
+# join with commas for fselect’s FROM clause
+from="${(j.,.)dirs}"
+
+# build the SQL‑like query
+# query="SELECT path, size FROM \"$from\" WHERE path LIKE '%.mp4' ORDER BY modified ASC"
+query="SELECT path FROM \"$from\" WHERE path LIKE '%.mp4' ORDER BY modified ASC"
+echo "query: $query"
+
+# parse -0 flag for NUL termination
+null_term=false
+while getopts "0" opt; do
+  [[ $opt == 0 ]] && null_term=true
+done
+shift $((OPTIND - 1))
+
+# run fselect and handle terminator
+if $null_term; then
+  fselect "$query" | tr '\n' '\0'
+else
+  fselect "$query"
+fi

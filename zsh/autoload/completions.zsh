@@ -7,6 +7,9 @@
 # 1Password (dynamic completions are fine)
 eval "$(op completion zsh)"
 
+# FZF
+eval "$(fzf --zsh)"
+
 # Ensure completions directory exists
 mkdir -p ~/.zsh/completions
 
