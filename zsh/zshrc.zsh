@@ -53,7 +53,6 @@ config_files=(
   $ZSH_AUTOLOAD_DIR/fzf.zsh
   $ZSH_AUTOLOAD_DIR/fzf-completions.zsh
   $ZSH_AUTOLOAD_DIR/fzf-custom.zsh
-  $ZSH_AUTOLOAD_DIR/fzf-templates.zsh
   $ZSH_AUTOLOAD_DIR/drive-index.zsh
   $ZSH_AUTOLOAD_DIR/ffmpeg.zsh
   $ZSH_AUTOLOAD_DIR/function.zsh

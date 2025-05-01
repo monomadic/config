@@ -1,12 +1,11 @@
 #!/bin/zsh
-#
-# FZF
-#
+
+# Completion for FZF
+
 eval "$(fzf --zsh)"
 
 export FZF_COMPLETION_TRIGGER='\t' # Default is '**'
 export FZF_COMPLETION_OPTS='--preview "bat --color=always --no-info --exact --ignore-case {} 2>/dev/null || cat {} 2>/dev/null"'
-export FZF_COMPLETION_TRIGGER
 
 # ssh into known_hosts
 function fzf-ssh() {

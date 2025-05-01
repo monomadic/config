@@ -109,6 +109,7 @@ alias ls-usb-ioreg="ioreg -p IOUSB -w0"
 alias ls-disks="diskutil list"
 
 alias .tab=fzf-tablature
+alias t=fzf-tablature
 
 alias .macos-keybindings="source $DOTFILES_DIR/scripts/macos-keybindings.sh"
 

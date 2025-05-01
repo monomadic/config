@@ -1,0 +1,30 @@
+#!/bin/sh
+set -e
+
+TEMPLATE_DIR="${TEMPLATE_BASE_DIR:?TEMPLATE_BASE_DIR not set}"
+EDITOR_CMD="${EDITOR:-nvim}"
+
+if command -v bat >/dev/null 2>&1; then
+  preview_cmd="bat --style=numbers --color=always --line-range :500 -- '${TEMPLATE_DIR}/{}'"
+else
+  preview_cmd="cat '${TEMPLATE_DIR}/{}'"
+fi
+
+fd --full-path --type f --type l --base-directory "$TEMPLATE_DIR" |
+  fzf --prompt='template > ' \
+    --layout=reverse \
+    --height=50% \
+    --multi \
+    --header=$'enter:copy+edit\nctrl-e:edit only\n' \
+    --preview="$preview_cmd" \
+    --bind "ctrl-e:execute(${EDITOR_CMD} '${TEMPLATE_DIR}/{}')" \
+    --bind "enter:execute-silent(
+      dest=./\$(basename {}); \
+      [ -e \"\$dest\" ] && {
+        printf 'Overwrite %s? [y/N] ' \"\$dest\"; read -r r; [ \"\$r\" = y ] || exit
+      }; \
+      cp -L -- '${TEMPLATE_DIR}/{}' \"\$dest\" && \
+      echo '  \$(basename {}) copied' && \
+      ${EDITOR_CMD} \"\$dest\"
+    )+abort" \
+    "$@"

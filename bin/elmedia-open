@@ -1,9 +1,0 @@
-#!/bin/bash
-
-# for file in "$@"; do
-#   if [[ -e "$file" ]]; then
-#     echo "$file" | xargs -0 -I{} open -a IINA --args --mpv-shuffle --mpv-loop-playlist "{}"
-#   fi
-# done
-
-open -a /Applications/Elmedia\ Video\ Player.app/Contents/MacOS/Elmedia\ Video\ Player "$*"
