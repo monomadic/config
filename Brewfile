@@ -119,6 +119,7 @@ brew "rclone" # disk clone (cloud)
 brew "rg" # ripgrep grep replacement (rust)
 brew "rga" # ripgrep-all (search pdf, zip etc)
 brew "fd" # find
+brew "fselect" # sql like find
 brew "neovim" # editor
 brew "helix" # editor (rust)
 brew "amp" # editor (rust)
