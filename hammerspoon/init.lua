@@ -1,4 +1,17 @@
--- hs.loadSpoon("MPVController")
+hs = hs
+
+-- reload hammerspoon
+hs.hotkey.bind({ "cmd", "ctrl" }, "R", function()
+	hs.reload()
+	hs.notify.new({ title = "Hammerspoon", informativeText = "Config reloaded" }):send()
+end)
+
+local RemoteCmdInjector = hs.loadSpoon("RemoteCmdInjector")
+RemoteCmdInjector.triggerMod = "rightalt"                 -- Right Option
+RemoteCmdInjector.targetAppBundleID = "com.apple.RemoteDesktop"
+RemoteCmdInjector.keys = { "k", "c", "v", "a", "f", "t" } -- Add any you like
+RemoteCmdInjector:start()
+
 -- -- Bind hotkeys
 -- spoon.MPVController:bindHotkeys({
 -- 	next = { { "cmd", "alt" }, "right" },    -- Command+Alt+Right Arrow for next track
@@ -284,12 +297,6 @@ end)
 -- 		h = screen.h
 -- 	})
 -- end
-
--- reload hammerspoon
-hs.hotkey.bind({ "cmd", "ctrl" }, "R", function()
-	hs.reload()
-	hs.notify.new({ title = "Hammerspoon", informativeText = "Config reloaded" }):send()
-end)
 
 -- -- switch to remote
 -- hs.hotkey.bind({ "cmd" }, "2", function()

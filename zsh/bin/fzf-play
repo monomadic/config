@@ -85,7 +85,7 @@ exec fzf \
   --bind 'ctrl-alt-p:execute-silent(kitty @ launch --type=background --cwd=current mpv --no-fs {})' \
   --bind 'ctrl-alt-p:select-all+execute-silent(kitty @ launch --type=background mpv --shuffle --loop-playlist {+} &)+deselect-all' \
   --bind 'alt-o:execute(echo "exec: reveal {}" && reveal {})' \
-  --bind 'ctrl-s:reload(sort -o /dev/stdout)' \
+  --bind 'ctrl-s:accept' \
   --bind 'ctrl-d:execute-silent(ls -t {} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \
   --bind 'alt-R:execute-silent(shuf -o /dev/stdout)' \
   --bind 'alt-S:execute-silent(sort -o /dev/stdout)' \

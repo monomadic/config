@@ -333,6 +333,24 @@
                             "to": [{ "key_code": "escape" }]
                         }
                     ]
+                },
+                {
+                    "identifiers": {
+                        "is_pointing_device": true,
+                        "product_id": 64161,
+                        "vendor_id": 9639
+                    },
+                    "ignore": false,
+                    "simple_modifications": [
+                        {
+                            "from": { "pointing_button": "button5" },
+                            "to": [{ "key_code": "mission_control" }]
+                        },
+                        {
+                            "from": { "pointing_button": "button4" },
+                            "to": [{ "consumer_key_code": "al_local_machine_browser" }]
+                        }
+                    ]
                 }
             ],
             "fn_function_keys": [
