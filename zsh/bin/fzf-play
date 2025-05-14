@@ -48,6 +48,14 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 # Main fzf command
+#
+# Note:
+#		{} currently selected file
+#		{+} all selected items (if multi is enabled), space-separated
+#		{q} current, shell-quoted
+#		{+q} all selected items, individually quoted
+#		{+f} all selected items, individually quoted and newline-separated
+#
 exec fzf \
   --read0 \
   --multi \
@@ -64,16 +72,12 @@ exec fzf \
   --color=$FZF_COLOR_OPTS \
   --preview "$FZF_PREVIEW_COMMAND" \
   --preview-window="$PREVIEW_WINDOW" \
-  --bind 'enter:select-all+execute(mpv-play {+} &)+deselect-all' \
   --bind 'enter:select-all+execute-silent(kitty @ launch --type=background /opt/homebrew/bin/mpv --shuffle --loop-playlist --macos-fs-animation-duration=0 --no-native-fs --fs --mute=yes {+} &)+deselect-all' \
   --bind 'alt-enter:select-all+execute-silent(mpv-play --loop-file=1 --length=10 --shuffle {+})+deselect-all' \
-  --bind 'alt-o:execute-silent(mpv-play {+})' \
+  --bind 'alt-o:execute-silent(mpv-play {+q})' \
   --bind 'alt-L:select-all+execute-silent(mpv-play --loop-file=1 --length=2 --shuffle {+})+deselect-all' \
   --bind 'alt-m:select-all+execute-silent(mpv-play {+})' \
-  --bind 'alt-v:execute-silent(vlc {})' \
-  --bind 'alt-A:select-all+execute(airflow-open {})' \
-  --bind 'alt-e:select-all+execute(elmedia-open {})' \
-  --bind 'alt-c:execute-silent(echo "{}" | pbcopy)' \
+  --bind 'alt-c:execute-silent(echo "{+}" | pbcopy)' \
   --bind 'alt-t:execute-silent(kitty @ launch --cwd "$(dirname {})")' \
   --bind 'alt-a:select-all,alt-d:deselect-all' \
   --bind 'alt-s:select-all+accept' \
