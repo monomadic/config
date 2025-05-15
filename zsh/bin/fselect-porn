@@ -1,10 +1,10 @@
 #!/usr/bin/env zsh
 # fselect-porn — search multiple globs, sort by modified, with optional NUL termination
 
-setopt null_glob   # unmatched globs disappear instead of erroring
+setopt null_glob # unmatched globs disappear instead of erroring
 
 # 1) define your globs
-paths=(/Volumes/*/Movies/Porn /Users/nom/Movies/Porn)
+paths=(/Users/nom/Movies/Porn /Volumes/*/Movies/Porn)
 
 # 2) collect only the ones that actually exist
 dirs=("${paths[@]}")
@@ -13,13 +13,12 @@ dirs=("${paths[@]}")
 # 3) quote each separately and join with commas
 qdirs=()
 for d in "${dirs[@]}"; do
-  qdirs+=("\"$d\"")
+  qdirs+=(""$d"")
 done
-from="${(j:, :)qdirs}"  # => "/Vol/.../Porn", "/Users/nom/.../Porn"
+from="${(j:, :)qdirs}" # => "/Vol/.../Porn", "/Users/nom/.../Porn"
 
-# 4) build the query
-#query="SELECT path, size FROM ${from} WHERE path LIKE '%.mp4' ORDER BY modified ASC"
-query="SELECT path FROM ${from} WHERE path LIKE '%.mp4' ORDER BY modified ASC"
+# 4) build the query with multiple file extensions
+query="SELECT path FROM ${from} WHERE path LIKE '%.mp4' OR path LIKE '%.mov' OR path LIKE '%.m4v' OR path LIKE '%.webm' OR path LIKE '%.mkv' ORDER BY modified ASC"
 
 # 5) parse -0 for NUL output
 null_term=false

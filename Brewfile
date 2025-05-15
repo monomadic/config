@@ -22,6 +22,8 @@ brew "grep"
 
 # cask "hazeover" # dim non-focus windows
 
+brew "sd" # find and replace
+
 brew "karabiner-elements" # keyboard shortcuts
 
 #brew "default-handler" # Utility for changing default URL scheme handlers

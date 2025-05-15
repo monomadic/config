@@ -21,6 +21,9 @@ depends = []
 [karabiner.files]
 "apps/karabiner" = "~/.config/karabiner"
 
+[switch.files]
+"switch" = "~/.switch"
+
 [hammerspoon.files]
 "hammerspoon" = "~/.hammerspoon"
 

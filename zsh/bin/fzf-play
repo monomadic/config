@@ -72,7 +72,15 @@ exec fzf \
   --color=$FZF_COLOR_OPTS \
   --preview "$FZF_PREVIEW_COMMAND" \
   --preview-window="$PREVIEW_WINDOW" \
+<<<<<<< HEAD
   --bind 'enter:select-all+execute-silent(kitty @ launch --type=background /opt/homebrew/bin/mpv --shuffle --loop-playlist --macos-fs-animation-duration=0 --no-native-fs --fs --mute=yes {+} &)+deselect-all' \
+||||||| parent of cc740b3 (update:)
+  --bind 'enter:select-all+execute(mpv-play {+} &)+deselect-all' \
+  --bind 'enter:select-all+execute-silent(kitty @ launch --type=background /opt/homebrew/bin/mpv --shuffle --loop-playlist --macos-fs-animation-duration=0 --no-native-fs --fs --mute=yes {+} &)+deselect-all' \
+=======
+  --bind 'enter:select-all+execute-silent(kitty @ launch --type=background -- bash -c '\''/opt/homebrew/bin/mpv --shuffle --loop-playlist --macos-fs-animation-duration=0 --no-native-fs --fs --mute=yes "$@"'\'' _ {+})+deselect-all' \
+  --bind 'enter:select-all+execute-silent(mpv-play {+} &)+deselect-all' \
+>>>>>>> cc740b3 (update:)
   --bind 'alt-enter:select-all+execute-silent(mpv-play --loop-file=1 --length=10 --shuffle {+})+deselect-all' \
   --bind 'alt-o:execute-silent(mpv-play {+q})' \
   --bind 'alt-L:select-all+execute-silent(mpv-play --loop-file=1 --length=2 --shuffle {+})+deselect-all' \

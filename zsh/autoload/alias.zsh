@@ -20,7 +20,7 @@ alias .remaster="media play #remaster --shuffle"
 alias .sync="sync-dotfiles"
 
 # media search
-alias @="media search"
+alias @="fselect-porn -0 | fzf-play --hide-path --tac"
 alias @sort="fselect-porn -0 | fzf-play --hide-path --tac"
 alias @sort-pwd="fselect-pwd -0 | fzf-play --hide-path --tac"
 alias @@="media search edits"
