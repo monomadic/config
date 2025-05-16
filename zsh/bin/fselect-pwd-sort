@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 
 # build the query
-query="SELECT path FROM $PWD WHERE path LIKE '%.mp4'"
+query="SELECT path FROM $PWD WHERE path LIKE '%.mp4' ORDER BY modified ASC"
 
 # 5) parse -0 for NUL output
 null_term=false
