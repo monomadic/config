@@ -47,6 +47,7 @@ for entry in $entries; do
     echo -E "$rel_path"$'\t'"${RED}${artist}${RESET}"
   fi
 done | fzf --margin="0%,0%" \
+  --exact \
   --reverse --ansi --cycle --marker=" " \
   --pointer="󰋆" --border="horizontal" --border-label=" 󰎈 Tabs " \
   --header="$HEADER" --header-first --no-info \
