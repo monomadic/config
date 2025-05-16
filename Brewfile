@@ -29,6 +29,8 @@ brew "karabiner-elements" # keyboard shortcuts
 #brew "default-handler" # Utility for changing default URL scheme handlers
 # brew "screen"
 
+brew "f3" # flash fraud detection
+
 # manage app store
 brew "mas"
 
