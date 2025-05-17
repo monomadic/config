@@ -1,8 +1,10 @@
 packages = [
-	"starship",
 	"hammerspoon",
 	"karabiner",
+	"starship",
+	"switch",
 	"yazi",
+	"yt-dlp",
   "alacritty",
   "bash",
   "bin",
@@ -19,7 +21,6 @@ packages = [
   "nvim",
   "skhd",
   "zellij",
-	"yt-dlp",
   "zsh",
 ]
 
