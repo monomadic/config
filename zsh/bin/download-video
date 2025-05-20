@@ -1,134 +1,151 @@
-#!/bin/sh
-set -e
+#!/usr/bin/env zsh
+set -euo pipefail
 
-# ANSI color codes
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No color
+# ANSI colour codes
+local GREEN=$'\e[32m'
+local RED=$'\e[31m'
+local NC=$'\e[0m'
 
-# Function to print error and exit
+# print error and exit
 error_exit() {
-  printf "${RED}[error] %s${NC}\n" "$1"
+  print -P "${RED}[error] $1${NC}"
   exit 1
 }
 
-# Check if a command is installed
+# ensure command exists
 check_command() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    error_exit "$1 is not installed. Please install it."
-  fi
+  whence -p "$1" &>/dev/null || error_exit "$1 is not installed"
 }
 
-# Check dependencies
-check_command "yt-dlp"
-check_command "terminal-notifier"
+check_command yt-dlp
+check_command terminal-notifier
 
-# Function to print usage
-print_usage() {
+usage() {
   cat <<EOF
-Usage: $(basename "$0") [--mp4 | --webm] <command> <URL> [additional yt-dlp args]
-Commands:
-  music-video (m) <URL> - Download music video
-  audio-only (a) <URL>  - Download audio only
-  video-only (v) <URL>  - Download video without audio
-  porn (p) <URL>        - Download adult content
-  youtube (y) <URL>     - Download YouTube video
-Options:
-  --mp4                 Prefer MP4 format
-  --webm                Prefer WEBM format
-Additional commands like --list-formats are passed directly to yt-dlp.
+Usage: ${0:t} [--mp4|--webm] <mode> <URL> [yt-dlp args]
+Modes:
+  music-video (m)   Download music video
+  audio-only  (a)   Download audio only
+  video-only  (v)   Download video without audio
+  adult        (A)  Download adult content
+  youtube      (y)  Download YouTube video
+  best-quality (b)  Download best quality (video+audio)
 EOF
 }
 
-# Exit if arguments are missing
-[ $# -lt 2 ] && print_usage && exit 1
+(($# < 2)) && usage && exit 1
 
-# Parse options for format preference
-FORMAT_PREF=""
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --mp4)
-      FORMAT_PREF="[ext=mp4]"
-      shift
-      ;;
-    --webm)
-      FORMAT_PREF="[ext=webm]"
-      shift
-      ;;
-    *)
-      break
-      ;;
+# parse format preference
+local FORMAT_PREF=''
+while [[ $1 == --* ]]; do
+  case $1 in
+  --mp4) FORMAT_PREF='[ext=mp4]' ;;
+  --webm) FORMAT_PREF='[ext=webm]' ;;
+  *) break ;;
   esac
+  shift
 done
 
-COMMAND="$1"
-URL="$2"
+local MODE=$1 URL=$2
 shift 2
-ADDITIONAL_ARGS=("$@") # Capture all additional arguments
+local EXTRA_ARGS=("$@")
 
-# Detect if the command is a passthrough (e.g., --list-formats)
-PASSTHROUGH_COMMAND=false
-if printf '%s\n' "${ADDITIONAL_ARGS[@]}" | grep -qE '^--(list-formats|print|dump-json)$'; then
-  PASSTHROUGH_COMMAND=true
-fi
+# detect passthrough commands
+local PASSTHROUGH=0
+for arg in "${EXTRA_ARGS[@]}"; do
+  [[ $arg =~ ^--(list-formats|print|dump-json)$ ]] && {
+    PASSTHROUGH=1
+    break
+  }
+done
 
-# Map command shortcuts
-case "$COMMAND" in
-  m) COMMAND="music-video" ;;
-  a) COMMAND="audio-only" ;;
-  v) COMMAND="video-only" ;;
-  p) COMMAND="porn" ;;
-  y) COMMAND="youtube" ;;
+# normalize shortcuts
+case $MODE in
+m) MODE=music-video ;;
+a) MODE=audio-only ;;
+v) MODE=video-only ;;
+p | A) MODE=adult ;;
+y) MODE=youtube ;;
+b) MODE=best-quality ;;
 esac
 
-# Base yt-dlp command
-YT_DLP_BASE=(yt-dlp --cookies-from-browser brave --continue --progress --verbose \
-  --retries infinite --fragment-retries infinite --socket-timeout 15)
+# base yt-dlp options
+typeset -a YTDL_BASE=(
+  yt-dlp
+  --cookies-from-browser brave
+  --continue --progress --verbose
+  --retries infinite --fragment-retries infinite --socket-timeout 15
+)
 
-if [ "$PASSTHROUGH_COMMAND" = true ]; then
-  # Pass through additional arguments directly for commands like --list-formats
-  YT_DLP_CMD=("${YT_DLP_BASE[@]}" "${ADDITIONAL_ARGS[@]}" "$URL")
+if ((PASSTHROUGH)); then
+  YTDL_CMD=("${YTDL_BASE[@]}" "${EXTRA_ARGS[@]}" "$URL")
 else
-  # Initialize variables for different commands
-  case "$COMMAND" in
-    "porn")
-      OUTPUT_TEMPLATE="[%(uploader|Unknown)s] %(title)s [%(extractor)s].%(ext)s"
-      FORMAT_ARGS=(-f "bv*$FORMAT_PREF+ba/best" \
-        --merge-output-format mp4 \
-				--embed-metadata --embed-info-json \
-        --match-filter "duration > 60")
-      ;;
-    "music-video")
-      OUTPUT_TEMPLATE="%(artist|)s - %(title)s.%(ext)s"
-      FORMAT_ARGS=(-f "bestvideo$FORMAT_PREF[ext^=avc1]+bestaudio$FORMAT_PREF" \
-        --merge-output-format mp4 --embed-metadata --embed-subs --embed-chapters)
-      ;;
-    "audio-only")
-      OUTPUT_TEMPLATE="%(artist)s - %(title)s.%(ext)s"
-      FORMAT_ARGS=(-f "bestaudio$FORMAT_PREF" --extract-audio --audio-format m4a \
-        --embed-metadata)
-      ;;
-    "video-only")
-      OUTPUT_TEMPLATE="%(artist)s - %(title)s.%(ext)s"
-      FORMAT_ARGS=(-f "bestvideo$FORMAT_PREF" --merge-output-format mp4 --embed-metadata)
-      ;;
-    "youtube")
-      OUTPUT_TEMPLATE="[%(channel)s] %(title)s [YouTube][%(id)s].%(ext)s"
-      FORMAT_ARGS=(-f "bv*$FORMAT_PREF+ba/best" \
-        --merge-output-format mp4 --embed-metadata --embed-subs --embed-chapters)
-      ;;
-    *)
-      error_exit "Unknown command '$COMMAND'"
-      ;;
+  local OUTPUT_FMT=''
+  typeset -a FMT_ARGS
+  case $MODE in
+  adult)
+    OUTPUT_FMT='[%(uploader|Unknown)s] %(title)s [%(extractor)s].%(ext)s'
+    FMT_ARGS=(
+      -f "bv*${FORMAT_PREF}+ba/best"
+      --merge-output-format mp4
+      --embed-metadata --embed-info-json
+      --match-filter "duration > 60"
+    )
+    ;;
+  music-video)
+    OUTPUT_FMT='%(artist|)s - %(title)s.%(ext)s'
+    FMT_ARGS=(
+      -f "bestvideo${FORMAT_PREF}[ext^=avc1]+bestaudio${FORMAT_PREF}"
+      --merge-output-format mp4
+      --embed-metadata --embed-subs --embed-chapters
+    )
+    ;;
+  audio-only)
+    OUTPUT_FMT='%(artist)s - %(title)s.%(ext)s'
+    FMT_ARGS=(
+      -f "bestaudio${FORMAT_PREF}"
+      --extract-audio --audio-format m4a
+      --embed-metadata
+    )
+    ;;
+  video-only)
+    OUTPUT_FMT='%(artist)s - %(title)s.%(ext)s'
+    FMT_ARGS=(
+      -f "bestvideo${FORMAT_PREF}"
+      --merge-output-format mp4
+      --embed-metadata
+    )
+    ;;
+  youtube)
+    OUTPUT_FMT='[%(channel)s] %(title)s [YouTube][%(id)s].%(ext)s'
+    FMT_ARGS=(
+      -f "bv*${FORMAT_PREF}+ba/best"
+      --merge-output-format mp4
+      --embed-metadata --embed-subs --embed-chapters
+    )
+    ;;
+  best-quality)
+    OUTPUT_FMT='%(uploader)s - %(title)s.%(ext)s'
+    FMT_ARGS=(
+      -f bestvideo+ba/best
+      --merge-output-format mkv
+      --embed-metadata
+    )
+    ;;
+  *)
+    error_exit "Unknown mode: $MODE"
+    ;;
   esac
 
-  # Combine yt-dlp command
-  YT_DLP_CMD=("${YT_DLP_BASE[@]}" "${FORMAT_ARGS[@]}" --output "$OUTPUT_TEMPLATE" "${ADDITIONAL_ARGS[@]}" "$URL")
+  YTDL_CMD=(
+    "${YTDL_BASE[@]}"
+    "${FMT_ARGS[@]}"
+    --output "$OUTPUT_FMT"
+    "${EXTRA_ARGS[@]}"
+    "$URL"
+  )
 fi
 
-# Print command for debugging
-printf "${GREEN}Executing command: %s${NC}\n" "${YT_DLP_CMD[*]@Q}"
-
-# Execute yt-dlp
-"${YT_DLP_CMD[@]}"
+print -P "${GREEN}Executing:${NC} ${YTDL_CMD[*]}"
+# run it unquoted so you don’t get literal backslashes
+"${YTDL_CMD[@]}"

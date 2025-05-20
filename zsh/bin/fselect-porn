@@ -6,6 +6,21 @@ setopt null_glob
 paths=(/Users/nom/Movies/Porn /Volumes/*/Movies/Porn)
 exts=('%.mp4' '%.mov' '%.m4v' '%.webm' '%.mkv')
 
+# 2) collect only the ones that actually exist
+dirs=("${paths[@]}")
+(( ${#dirs} )) || { echo "no matching directories" >&2; exit 1 }
+
+# 3) quote each separately and join with commas
+qdirs=()
+for d in "${dirs[@]}"; do
+  qdirs+=(""$d"")
+done
+from="${(j:, :)qdirs}" # => "/Vol/.../Porn", "/Users/nom/.../Porn"
+
+# 4) build the query with multiple file extensions
+query="SELECT path FROM ${from} WHERE path LIKE '%.mp4' OR path LIKE '%.mov' OR path LIKE '%.m4v' OR path LIKE '%.webm' OR path LIKE '%.mkv' AND name NOT LIKE '.%'"
+
+# 5) parse -0 for NUL output
 null_term=false
 while getopts "0" opt; do
   [[ $opt == 0 ]] && null_term=true

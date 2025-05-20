@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 
 # build the query
-query="SELECT path FROM $PWD WHERE path LIKE '%.mp4' AND name NOT LIKE '.%'"
+query="SELECT name, path FROM $PWD WHERE path LIKE '%.mp4' AND name NOT LIKE '.%'"
 
 # -0 for NUL output
 null_term=false

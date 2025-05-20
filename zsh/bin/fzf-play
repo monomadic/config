@@ -56,7 +56,7 @@ done
 #		{+q} all selected items, individually quoted
 #		{+f} all selected items, individually quoted and newline-separated
 #
-exec fzf \
+fzf \
   --read0 \
   --multi \
   --exact \

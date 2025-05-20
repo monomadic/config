@@ -74,8 +74,8 @@ alias .nvim-kill-all=.kitty-kill-all-nvim
 alias .kitty-close-idle-tabs="kitty @ close-tab --match 'env:PROC=zsh'"
 
 alias .demux="ffmpeg-demux"
-alias .demux-audio="ffmpeg-demux --skip-video"
-alias .demux-video="ffmpeg-demux --skip-audio"
+alias .demux-video="ffmpeg-demux --video"
+alias .demux-audio="ffmpeg-demux --audio"
 
 alias url="yt-url"
 
