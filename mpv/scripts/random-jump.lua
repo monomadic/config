@@ -108,9 +108,30 @@ local function jump_to_last_10_percent()
 	mp.commandv("seek", pos, "absolute")
 end
 
+-- Autojump *within* file toggle
+local file_jump_active = false
+local file_jump_timer = nil
+
+local function toggle_auto_seek_within_file()
+	file_jump_active = not file_jump_active
+	if file_jump_active then
+		file_jump_timer = mp.add_periodic_timer(jump_delay, function()
+			random_seek_within_file()
+		end)
+		mp.osd_message("File AutoSeek: ON (delay: " .. jump_delay .. "s)")
+	else
+		if file_jump_timer then
+			file_jump_timer:kill()
+			file_jump_timer = nil
+		end
+		mp.osd_message("File AutoSeek: OFF")
+	end
+end
+
 -- Key bindings
 mp.add_key_binding("ENTER", "random_playlist_jump", random_playlist_jump)
 mp.add_key_binding("a", "toggle_auto_jump", toggle_auto_jump)
+mp.add_key_binding("A", "toggle_auto_seek_within_file", toggle_auto_seek_within_file)
 mp.add_key_binding("j", "random_seek_within_file", random_seek_within_file)
 
 -- CMD+[1–9] bindings (these will be seen as META+digit by MPV)
