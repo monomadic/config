@@ -24,6 +24,7 @@ alias @="fselect-porn -0 | fzf-play --hide-path --tac"
 alias @sort="fselect-porn-sort -0 | fzf-play --hide-path --tac"
 alias @loop="fselect-porn -0 | fzf-media-select --hide-path --tac | mpv-with-config -"
 alias @pwd="fselect-pwd -0 | fzf-play --hide-path --tac"
+alias @@pwd="fselect-pwd -0 | mpv-play"
 alias @pwd-sort="fselect-pwd-sort -0 | fzf-play --hide-path --tac"
 alias @@="media search edits"
 alias @clips="media search clips"
@@ -43,9 +44,18 @@ alias @perf="media search #60fps #4k"
 alias @remaster="media search #remaster"
 alias @masters="fd --print0 --extension=mp4 . /Volumes/*/Movies/Porn/Masters/ | fzf-play"
 
+# note:
+# pipx install demucs
+# pipx inject demucs soundfile
+alias .stem-split="demucs -d mps -n htdemucs --flac -o stems_output"
+alias .stem-split-2="demucs -d mps -n htdemucs --flac -o stems_output --two-stems=vocals"
+alias .stem-split-4="demucs -d mps -n htdemucs --flac -o stems_output"
+
 @play-type() {
   fd --print0 --extension=mp4 . /Volumes/*/Movies/Porn/$1/ | fzf-play
 }
+
+alias fd-dirs="fd -t d -d 15 -E '.*' -E 'Library'"
 
 alias .kitty-mark-current-tab-orange="kitty @ set-tab-color active_bg=orange active_fg=white inactive_bg=orange inactive_fg=black"
 alias .kitty-mark-current-tab-red="kitty @ set-tab-color inactive_bg=red inactive_fg=black"
@@ -177,11 +187,10 @@ alias dd-force='WD=${PWD} && cd ~/config/ && dotter --force --cache-directory ~/
 alias dd='WD=${PWD} && cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml deploy --global-config global.toml --local-config local.toml && cd $WD && echo "\nDone."'
 alias doc="cargo doc --open"
 alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml watch --global-config global.toml --local-config local.toml'
-alias e-bin="edit-bin"
 alias e="nvim"
+alias eb="edit-bin"
 alias edit=nvim
 alias fd-empty="fd --type empty"
-alias fd-dirs="fd --type directory"
 alias ga="git add . && git commit --amend"
 alias gb="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
 alias gc-update="gc update:"

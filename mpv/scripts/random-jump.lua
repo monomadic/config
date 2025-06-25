@@ -4,7 +4,7 @@ local math = require "math"
 math.randomseed(os.time())
 
 local pending_jump = false
-local jump_delay = 5 -- default in seconds
+local jump_delay = 15 -- default in seconds
 
 -- Jump to a random playlist file
 function random_playlist_jump()

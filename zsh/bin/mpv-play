@@ -1,28 +1,20 @@
 #!/bin/zsh
-# Exit immediately if a command exits with a non-zero status
-set -e
 
 # Display usage information
 show_usage() {
   cat <<EOF
-Usage: $0 [options] < playlist.txt
+Usage: $0 [options] [files...]
+       cat playlist.txt | $0 [options]
 
 Options:
-  --loop-mode <seconds>  Play each item for specified number of seconds
-  --start-random        Start playback from a random item in playlist
+  --start-random    Start playback from a random item in playlist
 
-The script reads a playlist from stdin and plays it using mpv.
-Example:
+Examples:
+  $0 video1.mp4 video2.mp4
+  $0 --start-random *.mp4
   cat playlist.txt | $0 --start-random
-  echo "video.mp4" | $0 --loop-mode 30
 EOF
 }
-
-# Check if stdin is empty or no input is provided
-if [ -t 0 ]; then
-  show_usage
-  exit 1
-fi
 
 # Check if mpv is installed
 if ! command -v mpv >/dev/null 2>&1; then
@@ -31,70 +23,54 @@ if ! command -v mpv >/dev/null 2>&1; then
 fi
 
 # Parse arguments
-local seconds=""
-local start_random=""
-zparseopts -D -E -loop-mode:=loop_mode -start-random=start_random
+start_random=false
+zparseopts -D -E -start-random=start_random_flag
 
-# Convert flag presence to boolean
-if ((${#start_random} > 0)); then
+if [[ -n "$start_random_flag" ]]; then
   start_random=true
-else
-  start_random=false
 fi
 
-# If --loop-mode is passed, ensure seconds is provided
-if [[ -n "$loop_mode" ]]; then
-  if [[ -z "$loop_mode[2]" ]]; then
-    echo "Error: --loop-mode requires a seconds argument."
-    exit 1
-  fi
-  seconds="$loop_mode[2]"
-fi
-
-mpv-stdin() {
+# Determine input source
+if [[ $# -gt 0 ]]; then
+  # Files provided as arguments
   if [[ "$start_random" == "true" ]]; then
-    # Count the number of lines in stdin and generate a random starting point
-    local playlist=$(cat)
-    local line_count=$(echo "$playlist" | wc -l)
-    local start_index=$((RANDOM % line_count + 1))
-
-    if [[ -n "$seconds" ]]; then
-      echo "$playlist" | mpv --macos-fs-animation-duration=0 \
-        --no-native-fs \
-        --fs \
-        --length="$seconds" \
-        --playlist-start="$start_index" \
-        "$@" \
-        --playlist=- >/dev/null 2>&1 &
-    else
-      echo "$playlist" | mpv --macos-fs-animation-duration=0 \
-        --no-native-fs \
-        --fs \
-        --mute=yes \
-        --playlist-start="$start_index" \
-        "$@" \
-        --playlist=- >/dev/null 2>&1 &
-    fi
+    # Create array and shuffle for random start
+    files=("$@")
+    start_index=$((RANDOM % ${#files[@]}))
+    mpv --macos-fs-animation-duration=0 \
+      --no-native-fs \
+      --fs \
+      --mute=yes \
+      --playlist-start="$start_index" \
+      "${files[@]}"
   else
-    if [[ -n "$seconds" ]]; then
-      # Use the loop-mode specific arguments
-      mpv --macos-fs-animation-duration=0 \
-        --no-native-fs \
-        --fs \
-        --length="$seconds" \
-        "$@" \
-        --playlist=- >/dev/null 2>&1 &
-    else
-      # Default arguments
-      mpv --macos-fs-animation-duration=0 \
-        --no-native-fs \
-        --fs \
-        --mute=yes \
-        "$@" \
-        --playlist=- >/dev/null 2>&1 &
-    fi
+    mpv --macos-fs-animation-duration=0 \
+      --no-native-fs \
+      --fs \
+      --mute=yes \
+      "$@"
   fi
-}
-
-# Read from stdin and pass arguments through to mpv
-mpv --macos-fs-animation-duration=0 --no-native-fs --fs --mute=yes "$@" --playlist=- >/dev/null 2>&1 &
+elif [[ ! -t 0 ]]; then
+  # Input from stdin
+  if [[ "$start_random" == "true" ]]; then
+    playlist=$(cat)
+    line_count=$(echo "$playlist" | wc -l)
+    start_index=$((RANDOM % line_count + 1))
+    echo "$playlist" | mpv --macos-fs-animation-duration=0 \
+      --no-native-fs \
+      --fs \
+      --mute=yes \
+      --playlist-start="$start_index" \
+      --playlist=-
+  else
+    mpv --macos-fs-animation-duration=0 \
+      --no-native-fs \
+      --fs \
+      --mute=yes \
+      --playlist=-
+  fi
+else
+  # No input provided
+  show_usage
+  exit 1
+fi

@@ -107,6 +107,11 @@ if [[ -o interactive ]]; then
     zle reset-prompt
   }
 
+  _reveal() {
+    cd ..
+    zle reset-prompt
+  }
+
   _fzf-insert-path() {
     local selected
     selected="$(ls-media | fzf -0)" || return
@@ -128,15 +133,16 @@ if [[ -o interactive ]]; then
   bindkey -r '\M-^?'
 
   # Bind keys to functions
-  # Ctrl-Space: yazi jump
-  #bindkey '^@' _cd-yazi
-  bindkey -s '^@' "_cd-yazi\n"
-  #bindkey '^f' _fzf-find-files
+  #
+  bindkey -s '^@' "_cd-yazi && clear\n"
+  # bindkey '^f' _fzf-find-files
   bindkey '^f' _fzf_ripgrep
-  bindkey '^k' _clear-reset
+  #bindkey '^k' _clear-reset
   bindkey '^M' _magic-enter
   bindkey '^o' _cd-fzf
   #bindkey '^u' cd-up
   bindkey '^[j' _fzf-jump # Alt+J
   bindkey '^[i' _fzf-insert-path
+  bindkey -s '^k' "clear\n"
+  bindkey -s '^l' "clear\n"
 fi

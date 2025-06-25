@@ -43,6 +43,8 @@ cask "monitorcontrol" # independent controls for each monitor
 cask "jdownloader" # download manager
 # cask "motrix" # download manager
 
+cask "swift-shift" # window manager with mouse
+
 # git
 brew "git"
 brew "gh" # github cli tool

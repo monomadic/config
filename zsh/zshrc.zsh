@@ -76,3 +76,8 @@ done
 
 # load completion system
 autoload -Uz compinit && compinit
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/nom/.cache/lm-studio/bin"
+# End of LM Studio CLI section
+

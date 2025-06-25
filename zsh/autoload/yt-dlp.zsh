@@ -80,37 +80,6 @@ ffprobe-info-color() {
   done
 }
 
-function yt-batch-run {
-  local output_template="$HOME/_inbox/[%(uploader)s] %(title)s.%(ext)s"
-  local batch_file="$HOME/.ytdl-batch-porn"
-
-  if [[ ! -e "$batch_file" ]]; then
-    echo "$batch_file not found, creating..."
-    touch "$batch_file"
-  fi
-
-  yt-dlp -v \
-    --output "${output_template}" \
-    --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
-    --cookies-from-browser firefox \
-    --merge-output-format mp4 \
-    --batch-file "${batch_file}" \
-    --download-archive '$HOME/.ytdl-archive' \
-    --embed-metadata \
-    --add-metadata \
-    --parse-metadata '%(title)s:%(meta_title)s' \
-    --parse-metadata '%(uploader)s:%(meta_artist)s' \
-    --write-info-json \
-    --write-annotations \
-    --get-comments \
-    --check-formats \
-    --concurrent-fragments 3 \
-    $@
-
-  # move .json files out
-  mv $HOME/_inbox/*.json $HOME/_inbox/
-}
-
 function yt-fg-archive {
   # Define format string for better readability
   local format_str="(

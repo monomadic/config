@@ -18,7 +18,7 @@ done
 from="${(j:, :)qdirs}" # => "/Vol/.../Porn", "/Users/nom/.../Porn"
 
 # 4) build the query with multiple file extensions
-query="SELECT path FROM ${from} WHERE path LIKE '%.mp4' OR path LIKE '%.mov' OR path LIKE '%.m4v' OR path LIKE '%.webm' OR path LIKE '%.mkv' AND name NOT LIKE '.%'"
+query="SELECT path, name FROM ${from} WHERE (path LIKE '%.mp4' OR path LIKE '%.mov' OR path LIKE '%.m4v' OR path LIKE '%.webm' OR path LIKE '%.mkv') AND name NOT GLOB '._*' AND name NOT GLOB '.*'"
 
 # 5) parse -0 for NUL output
 null_term=false
