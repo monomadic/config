@@ -60,7 +60,7 @@ mp.register_event("file-loaded", function()
 	local nerdfont = string.format("{\\fnHack Nerd Font Mono} ")
 
 	-- Get title or a fallback string if not defined.
-	local line_1 = meta.title or mp.get_property("filename")
+	local line_1 = meta.title or "" -- mp.get_property("filename")
 	local line_2 = meta.artist or ""
 
 	-- Build ASS markup:

@@ -17,3 +17,9 @@ auto-format = true
 name = "solidity"
 auto-format = true
 indent = { tab-width = 2, unit = "\t" }
+
+[[language]]
+name = "html"
+file-types = ["html", "xml"]
+auto-format = true
+indent = { tab-width = 2, unit = "\t" }
