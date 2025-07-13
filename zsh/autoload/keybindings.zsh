@@ -145,4 +145,10 @@ if [[ -o interactive ]]; then
   bindkey '^[i' _fzf-insert-path
   bindkey -s '^k' "clear\n"
   bindkey -s '^l' "clear\n"
+
+  function open_finder_pwd() {
+    open .
+  }
+  zle -N open-finder-pwd open_finder_pwd
+  bindkey "\e\x12" open-finder-pwd
 fi

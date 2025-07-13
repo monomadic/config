@@ -19,6 +19,7 @@ brew "gawk"
 brew "gnu-tar"
 brew "gnu-which"
 brew "grep"
+brew "uni" # unicode db
 
 # cask "hazeover" # dim non-focus windows
 
@@ -44,6 +45,10 @@ cask "jdownloader" # download manager
 # cask "motrix" # download manager
 
 cask "swift-shift" # window manager with mouse
+
+brew "flac" # flac support
+cask "nifty-file-lists" # metadata gui for various files
+
 
 # git
 brew "git"
@@ -169,6 +174,7 @@ cask "megasync" # mega.nz
 # macos desktop
 # cask "hiddenbar" # hides menu items (bartender is better)
 cask "bartender" # hides menu items
+cask "jordanbaird-ice" # menubar manager (like bartender, open source)
 cask "topnotch" # makes the menu bar entirely black
 cask "notchnook" # menu under notch
 

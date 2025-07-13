@@ -1,0 +1,14 @@
+#!/usr/bin/env zsh
+
+uni print all --as json |
+  jq -r '.[] | "\(.char)\t\(.name)"' |
+  fzf --ansi --exact \
+    --prompt='unicode> ' \
+    --with-nth=1,2 \
+    --delimiter='\t' \
+    --preview='echo {} | cut -f1' \
+    --preview-window=up:3:wrap \
+    --bind 'enter:execute-silent(cut -f1 <<< {} | tr -d "\n" | pbcopy)+abort' \
+    --height=50% \
+    --layout=reverse \
+    --border

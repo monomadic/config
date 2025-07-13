@@ -94,8 +94,8 @@ alias rsync-backup-masters="rsync-backup /Volumes/Masters/Movies/Porn/Masters $B
 alias tag=rename-media
 alias .tag=tag
 
-alias gatekeeper-whitelist="xattr -rd com.apple.quarantine "
-alias .gatekeeper-whitelist=gatekeeper-whitelist
+alias .gatekeeper-whitelist="xattr -rd com.apple.quarantine "
+alias .self-sign="codesign --sign - --force --deep "
 
 alias c=e-zsh
 alias C=e-config
@@ -133,6 +133,7 @@ alias .config-zsh=e-zsh
 alias .config="cd $ZSH_DOTFILES_DIR && nvim zshrc.zsh"
 alias .apple-music=apple-music-dl
 alias .beatport="beatportdl-darwin-arm64"
+alias .tidal="tidal-dl-ng dl"
 alias .network-detect-captive-portal=detect-captive-portal
 alias .network-status=ns
 alias .uptime="display-uptime"
