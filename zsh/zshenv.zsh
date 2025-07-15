@@ -68,6 +68,9 @@ export PRIVATE_PHOTOS_LIBRARY="$HOME/Media/Private/Private.photoslibrary"
 
 export HOSTNAME=$(hostname)
 
+# Helix
+export HELIX_USE_OSC52=true
+
 # WASMTime
 export WASMTIME_HOME=$HOME/.wasmtime
 export PATH=$PATH:$WASMTIME_HOME/bin
