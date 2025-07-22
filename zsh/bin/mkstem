@@ -1,0 +1,85 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+setopt NO_NOMATCH
+
+autoload -Uz colors && colors
+info(){ print -P "%F{cyan}[INFO]%f $*"; }
+print_done(){ print -P "%F{green}[DONE]%f $*"; }
+err(){ print -P "%F{red}[ERROR]%f $*" >&2; }
+
+usage(){
+  echo "Usage: $0 [--lossless] input_audio.{wav,mp3,…}"
+  exit 1
+}
+
+#–– parse args
+LOSSLESS=0
+ARGS=()
+while (( $# )); do
+  case $1 in
+    --lossless) LOSSLESS=1; shift ;;
+    -h|--help) usage ;;
+    --) shift; break ;;
+    -*) err "Unknown option: $1"; usage ;;
+    *) ARGS+=$1; shift ;;
+  esac
+done
+(( ${#ARGS} == 1 )) || usage
+INPUT=$ARGS[1]
+
+[[ -f $INPUT ]] || { err "File not found: $INPUT"; exit 1 }
+
+#–– check deps
+for cmd in demucs stemtool ffmpeg zip; do
+  command -v $cmd >/dev/null || { err "$cmd not in \$PATH"; exit 1; }
+done
+
+BASE=${INPUT:t:r}
+OUTDIR="output_stems/$BASE"
+mkdir -pv -- "$OUTDIR"
+
+info "Separating stems from '$INPUT'…"
+demucs --out "$OUTDIR" "$INPUT"
+
+#–– locate the model subdir
+MODEL_DIR=(
+  $(find "$OUTDIR" -maxdepth 1 -type d \
+    \( -name 'demucs*' -o -name 'mdx_*' \) | head -n1)
+)
+STEM_DIR="$MODEL_DIR/$BASE"
+[[ -d $STEM_DIR ]] || { err "Couldn't find stems dir under '$OUTDIR'"; exit 1; }
+
+#–– rename/move stems
+typeset -A map=( vocals vocals drums drums bass bass other melody )
+for orig new in ${(kv)map}; do
+  src="$STEM_DIR/${orig}.wav"
+  dst="$OUTDIR/${new}.wav"
+  [[ -f $src ]] || { err "Missing stem: $orig.wav"; exit 1 }
+  mv -- "$src" "$dst"
+done
+
+#–– build .stem.mp4
+STEM_MP4="$OUTDIR/${BASE}.stem.mp4"
+info "Creating Native Instruments stem.mp4…"
+stemtool create \
+  --master "$INPUT" \
+  --drums  "$OUTDIR/drums.wav" \
+  --bass   "$OUTDIR/bass.wav" \
+  --melody "$OUTDIR/melody.wav" \
+  --vocals "$OUTDIR/vocals.wav" \
+  --output "$STEM_MP4"
+print_done "Stem MP4: $STEM_MP4"
+
+if (( LOSSLESS )); then
+  info "Encoding lossless FLACs in parallel…"
+  mkdir -pv -- "$OUTDIR/lossless"
+  for s in drums bass melody vocals; do
+    ffmpeg -nostats -loglevel error \
+      -i "$OUTDIR/${s}.wav" \
+      -c:a flac "$OUTDIR/lossless/${s}.flac" &
+  done
+  wait
+  info "Zipping FLAC bundle…"
+  (cd "$OUTDIR/lossless" && zip -q "../${BASE}_stems_flac.zip" *.flac)
+  print_done "FLAC ZIP: $OUTDIR/${BASE}_stems_flac.zip"
+fi
