@@ -52,6 +52,12 @@ alias .stem-split="demucs -d mps -n htdemucs --flac -o stems_output"
 alias .stem-split-2="demucs -d mps -n htdemucs --flac -o stems_output --two-stems=vocals"
 alias .stem-split-4="demucs -d mps -n htdemucs --flac -o stems_output"
 
+.stem-mdx23() {
+  cd /Users/nom/tmp/MVSEP-MDX23-music-separation-model &&
+    source .venv/bin/activate &&
+    python inference.py --input_audio $1 --output_folder /Users/nom/stems_output/mdx23/
+}
+
 @play-type() {
   fd --print0 --extension=mp4 . /Volumes/*/Movies/Porn/$1/ | fzf-play
 }

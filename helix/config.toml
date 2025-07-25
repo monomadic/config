@@ -35,7 +35,7 @@ C-n = ["move_line_down", "scroll_down"]
 "}" = ["goto_next_paragraph"]
 H = ["goto_line_start"]
 L = ["goto_line_end"]
-y = [":clipboard-yank"]
+y = ["yank", ":clipboard-yank", "collapse_selection"]
 
 [editor.cursor-shape]
 insert = "bar"

@@ -158,6 +158,7 @@ brew "vapoursynth" # frame interpolation for mpv
 brew "procs" # ps replacement (rust)
 
 brew "ouch" # general decompressor (rust)
+brew "zstd" # facebook zip compression (zstandard)
 
 # llm / openai
 cask "claude" # claude.ai gui
