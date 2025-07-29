@@ -195,7 +195,7 @@ alias dd-force='WD=${PWD} && cd ~/config/ && dotter --force --cache-directory ~/
 alias dd='WD=${PWD} && cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml deploy --global-config global.toml --local-config local.toml && cd $WD && echo "\nDone."'
 alias doc="cargo doc --open"
 alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml watch --global-config global.toml --local-config local.toml'
-alias e="nvim"
+alias e=$EDITOR
 alias eb="edit-bin"
 alias edit=nvim
 alias fd-empty="fd --type empty"

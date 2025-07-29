@@ -5,6 +5,7 @@
 tap "homebrew/bundle"
 tap "homebrew/services"
 tap "rschmitt/heatseeker"
+tap "sumoduduk/tap" # terminusdm
 
 # localsend (airdrop alternative)
 cask "localsend"
@@ -43,6 +44,7 @@ cask "monitorcontrol" # independent controls for each monitor
 
 cask "jdownloader" # download manager
 # cask "motrix" # download manager
+cask "terminusdm"
 
 cask "swift-shift" # window manager with mouse
 
