@@ -1,45 +1,8 @@
 # Indexing and offline searching for non-persistent volumes
 
-# todo: rename this cmd
-alias media-ls=ls-media
-
-# Search media files and play with fzf
-fzf-safe-media() {
-  ls-media | grep-safe | fzf-play
-}
-alias .play=fzf-safe-media
-
-fzf-media-top() {
-  ls-media | grep-top | grep-safe | fzf-play
-}
-
-fzf-search-local() {
-  ls-media --match-string "$HOME" | grep-safe | fzf-play
-}
-alias @search-local=fzf-search-local
-
-ls-media-untagged() {
-  ls-media | grep -v '#' | fzf-play --kitty
-}
-
 mpv-stdin() {
   mpv --macos-fs-animation-duration=0 --no-native-fs --fs --input-ipc-server=/tmp/mpvsocket --mute=yes $@ --playlist=- >/dev/null 2>&1 &
 }
-
-alias media-play-safe="ls-media | grep-safe | mpv-play --shuffle"
-alias media-play-unsafe="ls-media | rep-unsafe | mpv-play --shuffle"
-
-mpv-play-loops() {
-  ls-media | grep "\/loops\/" | grep-safe | mpv-stdin --shuffle --loop-file=1 --length=10
-}
-alias @play-loops=mpv-play-loops
-alias .loops=mpv-play-loops
-
-media-play-pwd-latest() {
-  echo $PWD | sort-across-paths --sort modified | mpv-stdin
-}
-alias .play-pwd-latest=media-play-pwd-latest
-alias ppwd=media-play-pwd-latest
 
 media-search-pwd-sorted() {
   echo $PWD | sort-across-paths --sort modified --reverse | fzf-play
@@ -149,8 +112,4 @@ alias @play-index-checked=index-play-checked
 
 index-play-checked-top() {
   index-cat-checked | index-grep-top | fzf-play
-}
-
-media-play-all-local() {
-  ls-media-paths | grep $HOME | mpv --macos-fs-animation-duration=0 --no-native-fs --fs --loop-file=1 --shuffle --playlist=-
 }

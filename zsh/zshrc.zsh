@@ -33,14 +33,26 @@ compinit -d "$COMPDUMP" -C -i
 # Autoload common helper module
 autoload -Uz add-zsh-hook
 
+# --- Lazy fzf init on first prompt ---
+_lazy_fzf_precmd() {
+  # only source if files exist
+  [[ -r "$ZSH_AUTOLOAD_DIR/fzf.zsh" ]]             && source "$ZSH_AUTOLOAD_DIR/fzf.zsh"
+  [[ -r "$ZSH_AUTOLOAD_DIR/fzf-completions.zsh" ]] && source "$ZSH_AUTOLOAD_DIR/fzf-completions.zsh"
+  [[ -r "$ZSH_AUTOLOAD_DIR/fzf-custom.zsh" ]]      && source "$ZSH_AUTOLOAD_DIR/fzf-custom.zsh"
+  [[ -r "$ZSH_AUTOLOAD_DIR/fzf-marks.zsh" ]]       && source "$ZSH_AUTOLOAD_DIR/fzf-marks.zsh"  # optional
+
+  add-zsh-hook -d precmd _lazy_fzf_precmd
+}
+add-zsh-hook precmd _lazy_fzf_precmd
+
 config_files=(
   $ZSH_AUTOLOAD_DIR/homebrew.zsh
   $ZSH_AUTOLOAD_DIR/completions.zsh
   $ZSH_AUTOLOAD_DIR/alias.zsh
   $ZSH_AUTOLOAD_DIR/broot.zsh
-  $ZSH_AUTOLOAD_DIR/fzf.zsh
-  $ZSH_AUTOLOAD_DIR/fzf-completions.zsh
-  $ZSH_AUTOLOAD_DIR/fzf-custom.zsh
+  # $ZSH_AUTOLOAD_DIR/fzf.zsh
+  # $ZSH_AUTOLOAD_DIR/fzf-completions.zsh
+  # $ZSH_AUTOLOAD_DIR/fzf-custom.zsh
   $ZSH_AUTOLOAD_DIR/drive-index.zsh
   $ZSH_AUTOLOAD_DIR/ffmpeg.zsh
   $ZSH_AUTOLOAD_DIR/function.zsh
@@ -51,7 +63,7 @@ config_files=(
   $ZSH_AUTOLOAD_DIR/rsync.zsh
   $ZSH_AUTOLOAD_DIR/yt-dlp.zsh
   $ZSH_AUTOLOAD_DIR/starship.zsh
-  $ZSH_AUTOLOAD_DIR/fzf-marks.zsh
+  # $ZSH_AUTOLOAD_DIR/fzf-marks.zsh
   $ZSH_AUTOLOAD_DIR/keybindings.zsh
 )
 for config_file in $config_files; do
@@ -71,13 +83,19 @@ if (( $+commands[brew] )); then
   source "$_brew_env"
 fi
 
-# ---- Cached starship init glue (safe; starship still runs at prompt draw) ----
+# --- Lazy starship (first prompt render) ---
 if (( $+commands[starship] )); then
-  local _star_init="$ZSH_CACHE_DIR/starship-init.zsh"
-  if [[ ! -s $_star_init || $(command -v starship) -nt $_star_init ]]; then
-    command starship init zsh >! "$_star_init"
-  fi
-  source "$_star_init"
+  _lazy_starship_precmd() {
+    local _star_init="$ZSH_CACHE_DIR/starship-init.zsh"
+    if [[ ! -s $_star_init || $(command -v starship) -nt $_star_init ]]; then
+      command starship init zsh >! "$_star_init"
+    fi
+    source "$_star_init"
+    # run the real precmds starship registered (if any), then unhook ourselves
+    add-zsh-hook -d precmd _lazy_starship_precmd
+    typeset -pm precmd_functions >/dev/null 2>&1  # touch to rebuild widgets
+  }
+  add-zsh-hook precmd _lazy_starship_precmd
 fi
 
 # LM Studio PATH (kept)

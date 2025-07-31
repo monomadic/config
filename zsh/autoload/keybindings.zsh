@@ -4,6 +4,49 @@ if [[ -o interactive ]]; then
   # if [[ -z $ZLE_VERSION ]]; then
   #   autoload -Uz zle
   # fi
+  # --- ensure add-zsh-hook is available earlier in your rc ---
+  autoload -Uz add-zsh-hook
+
+  # Optional lazy loader if you deferred your fzf init
+  _ensure_fzf_loaded() {
+    # If you used a precmd deferral, call it here once when a widget is hit
+    typeset -f _lazy_fzf_precmd >/dev/null && { add-zsh-hook -d precmd _lazy_fzf_precmd 2>/dev/null; _lazy_fzf_precmd; }
+  }
+
+  # ── ⌘H: fzf history picker (insert selected command)
+  fzf-history-widget() {
+    setopt localoptions pipefail
+    _ensure_fzf_loaded
+    # reverse chronological, strip numbers
+    local sel
+    sel=$(fc -rl 1 | sed 's/^[[:space:]]*[0-9[:space:]]*//' | fzf --tac --no-sort --exact --ansi \
+           --prompt='history> ' --height=40% --border) || return
+    LBUFFER=$sel
+    zle redisplay
+  }
+  zle -N fzf-history-widget
+
+  # ── ⌘I: insert file path(s) from fzf (current dir; multi-select)
+  fzf-insert-path() {
+    setopt localoptions pipefail
+    _ensure_fzf_loaded
+    local -a files
+    # Tweak fd switches as you like (hidden, gitignore, type filters)
+    files=("${(@f)$(fd -t f . 2>/dev/null | fzf -m --ansi \
+                  --prompt='files> ' --height=40% --preview 'ls -lah -- {}' --border)}") || return
+    (( ${#files} )) || return
+    # Quote each path and append
+    local f
+    for f in "${files[@]}"; do
+      LBUFFER+="${(q)f} "
+    done
+    zle redisplay
+  }
+  zle -N fzf-insert-path
+
+  # ── Keybindings (emacs keymap, CSI-u from Kitty)
+  bindkey -M emacs $'\e[104;9u' fzf-history-widget  # Cmd+H
+  bindkey -M emacs $'\e[105;9u' fzf-insert-path     # Cmd+I
 
   _cd-yazi() {
     local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd
