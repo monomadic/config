@@ -1,9 +1,13 @@
 theme = "tokyonight"
 
+[editor]
+clipboard-provider = "pasteboard"
+
 [editor.whitespace]
 # render = "all"
 
 [keys.normal]
+Cmd-a = "select_all"
 C-h = "jump_view_left"
 C-j = "jump_view_down"
 C-k = "jump_view_up"
@@ -25,15 +29,15 @@ backspace = "goto_last_accessed_file"
 p = [":clipboard-paste-after"]
 P = [":clipboard-paste-before"]
 # Move current line down (Shift+J)
-"J" = [
+G = "goto_last_line"
+J = [
   "extend_line",       # select the current line
   "delete_selection",  # cut it
   "paste_after",       # drop it one line down
   "collapse_selection" # reset the selection so you can do it again
 ]
-
 # Move current line up (Shift+K)
-"K" = [
+K = [
   "extend_line",         # select the current line
   "delete_selection",    # cut it
   "move_line_up",        # go up to the line above
@@ -48,13 +52,21 @@ C-p = ["move_line_up", "scroll_up"]
 C-n = ["move_line_down", "scroll_down"]
 
 [keys.select]
-"{" = ["goto_prev_paragraph"]
-"}" = ["goto_next_paragraph"]
-H = ["goto_line_start"]
-L = ["goto_line_end"]
-y = ["yank", ":clipboard-yank", "collapse_selection"]
-"J" = ["delete_selection", "paste_after"]
-"K" = ["delete_selection", "move_visual_line_up", "paste_before"]
+Cmd-a = "select_all"
+'{' = "goto_prev_paragraph"
+'}' = "goto_next_paragraph"
+H = "goto_line_start"
+L = "goto_line_end"
+y = ["yank_to_clipboard", "collapse_selection"]
+Y = ["yank_main_selection_to_clipboard", "collapse_selection"]
+J = ["delete_selection", "paste_after"]
+K = ["delete_selection", "move_visual_line_up", "paste_before"]
+# make “p” replace the current selection with the system clipboard
+p = ["replace_selections_with_clipboard", "collapse_selection"]
+# full-line extend down
+j = "extend_line_below"
+# full-line extend up
+k = "extend_line_above"
 
 [editor.cursor-shape]
 insert = "bar"
