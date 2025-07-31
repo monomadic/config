@@ -52,7 +52,7 @@ export ZSH_SCRIPT_PATHS=(
   $ZSH_CONFIG_DIR/bin
 )
 
-export EDITOR=nvim
+export EDITOR=hx
 export TEMPLATE_BASE_DIR=$XDG_CONFIG_HOME/nvim/templates
 
 export BACKUP_TARGET="/Volumes/Tower"
