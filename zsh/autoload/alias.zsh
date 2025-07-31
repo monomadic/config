@@ -52,9 +52,9 @@ alias .stem-split-2="demucs -d mps -n htdemucs --flac -o stems_output --two-stem
 alias .stem-split-4="demucs -d mps -n htdemucs --flac -o stems_output"
 
 .stem-mdx23() {
-  cd /Users/nom/tmp/MVSEP-MDX23-music-separation-model &&
+  cd $HOME/Music/Stems/MVSEP-MDX23-Colab_v2.1 &&
     source .venv/bin/activate &&
-    python inference.py --input_audio $1 --output_folder /Users/nom/stems_output/mdx23/
+    time python inference_2.2_b1.5.1_voc_ft.py --input_audio $1 --output_folder $HOME/Music/Stems --large_gpu --chunk_size 500000
 }
 
 @play-type() {
