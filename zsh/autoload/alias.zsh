@@ -35,14 +35,13 @@ alias @latest="media search latest"
 alias @loops="media search loops"
 alias @play-all="media-play"
 alias @volumes="ls-media --match-string '/Volumes/' | fzf-play --hide-path"
+alias @external=@volumes
 alias @safe="media-search-safe"
 alias @stats="media-stats"
 alias @suki="media search #suki"
 alias @top="media search #top"
 alias @lib="media search library"
 alias @tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
-alias @perf="media search #60fps #4k"
-alias @remaster="media search #remaster"
 alias @masters="fd --print0 --extension=mp4 . /Volumes/*/Movies/Porn/Masters/ | fzf-play"
 
 # note:
