@@ -12,45 +12,25 @@ RemoteCmdInjector.targetAppBundleID = "com.apple.RemoteDesktop"
 RemoteCmdInjector.keys = { "k", "c", "v", "a", "f", "t" } -- Add any you like
 RemoteCmdInjector:start()
 
--- -- Bind hotkeys
--- spoon.MPVController:bindHotkeys({
--- 	next = { { "cmd", "alt" }, "right" },    -- Command+Alt+Right Arrow for next track
--- 	previous = { { "cmd", "alt" }, "left" }, -- Command+Alt+Left Arrow for previous track
--- 	toggle = { { "cmd", "alt" }, "space" },  -- Command+Alt+Space to toggle pause
--- 	forward = { { "alt" }, "right" },        -- Alt+Right Arrow to seek forward
--- 	backward = { { "alt" }, "left" },        -- Alt+Left Arrow to seek backward
--- 	volumeUp = { { "cmd", "alt" }, "up" },   -- Command+Alt+Up Arrow to increase volume
--- 	volumeDown = { { "cmd", "alt" }, "down" } -- Command+Alt+Down Arrow to decrease volume
--- })
-
--- local hyper = { "ralt" }
--- local key = "K"
--- local appName = "Screen Sharing"
--- local hotkey
---
--- hotkey = hs.hotkey.bind(hyper, key, function()
--- 	local frontApp = hs.application.frontmostApplication()
--- 	local app = hs.application.get(appName)
---
--- 	if app then
--- 		hotkey:disable()
---
--- 		if frontApp:bundleID() ~= app:bundleID() then
--- 			app:activate()
--- 			hs.timer.usleep(200000) -- delay for focus
--- 		end
---
--- 		hs.eventtap.keyStroke(hyper, key, 0)
---
--- 		hotkey:enable()
--- 	else
--- 		hs.alert.show(appName .. " not running")
--- 	end
--- end)
---
-
 -- Load the Spoon
 hs.loadSpoon("TagSelectedFile")
+
+-- Alacritty toggle (add this after your existing spoons)
+local function toggleAlacritty()
+    local app = hs.application.find("Alacritty")
+    if app then
+        if app:isFrontmost() then
+            app:hide()
+        else
+            app:activate()
+        end
+    else
+        hs.application.launchOrFocus("Alacritty")
+    end
+end
+
+-- This will override any existing Cmd+Return binding
+hs.hotkey.bind({"cmd"}, "return", toggleAlacritty)
 
 -- Configure and start the Spoon
 spoon.TagSelectedFile

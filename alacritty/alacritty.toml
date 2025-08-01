@@ -1,59 +1,50 @@
-
-[colors]
-draw_bold_text_with_bright_colors = true
-
-[colors.bright]
-black = "0x666666"
-blue = "0x7aa6da"
-cyan = "0x54ced6"
-green = "0x9ec400"
-magenta = "0xb77ee0"
-red = "0xff3334"
-white = "0xffffff"
-yellow = "0xe7c547"
-
-[colors.cursor]
-cursor = "0xffffff"
-text = "0x000000"
-
-[colors.dim]
-black = "0x333333"
-blue = "0x6699cc"
-cyan = "0x66cccc"
-green = "0x99cc99"
-magenta = "0xcc99cc"
-red = "0xf2777a"
-white = "0xdddddd"
-yellow = "0xffcc66"
-
-[colors.normal]
-black = "0x212733"
-blue = "0x73D0FF"
-cyan = "0x5CCFE6"
-green = "0xBAE67E"
-magenta = "0xD4BFFF"
-red = "0xF28779"
-white = "0xffffff"
-yellow = "0xFFCC66"
-
 [colors.primary]
 background = "0x160126"
 foreground = "0xCCC9C2"
 
+[colors.normal]
+black = "0x212733"
+red = "0xF28779"
+green = "0xBAE67E"
+yellow = "0xFFCC66"
+blue = "0x73D0FF"
+magenta = "0xD4BFFF"
+cyan = "0x5CCFE6"
+white = "0xffffff"
+
+[colors.bright]
+black = "0x666666"
+red = "0xff3334"
+green = "0x9ec400"
+yellow = "0xe7c547"
+blue = "0x7aa6da"
+magenta = "0xb77ee0"
+cyan = "0x54ced6"
+white = "0xffffff"
+
+[colors.dim]
+black = "0x333333"
+red = "0xf2777a"
+green = "0x99cc99"
+yellow = "0xffcc66"
+blue = "0x6699cc"
+magenta = "0xcc99cc"
+cyan = "0x66cccc"
+white = "0xdddddd"
+
+[colors.cursor]
+text = "0x000000"
+cursor = "0xffffff"
+
 [font]
-size = 14
+size = 16.0
 
 [font.normal]
-family = "Monaco Nerd Font Mono"
-
-[[keyboard.bindings]]
-chars = "\u0013"
-key = "S"
-mods = "Command"
+family = "JetBrainsMono Nerd Font Mono"
 
 [window]
-#decorations = "buttonless"
 opacity = 0.9
+decorations = "transparent"
 
 [window.dimensions]
 columns = 130
@@ -62,6 +53,21 @@ lines = 36
 [window.padding]
 x = 20
 y = 20
+
+[[keyboard.bindings]]
+chars = "\u0013"
+key = "S"
+mods = "Command"
+
+[[keyboard.bindings]]
+key = "F"
+mods = "Command"
+action = "ToggleSimpleFullscreen"
+
+[[keyboard.bindings]]
+key = "NumpadEnter"
+mods = "Command"
+action = "ToggleSimpleFullscreen"
 
 [general]
 live_config_reload = true
