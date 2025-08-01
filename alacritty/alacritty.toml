@@ -64,10 +64,15 @@ key = "F"
 mods = "Command"
 action = "ToggleSimpleFullscreen"
 
+#[[keyboard.bindings]]
+#key = "K"
+#mods = "Command"
+#action = "ToggleSimpleFullscreen"
+
 [[keyboard.bindings]]
-key = "NumpadEnter"
+key = "O"
 mods = "Command"
-action = "ToggleSimpleFullscreen"
+chars = "\u001b[1;9o"
 
 [general]
 live_config_reload = true

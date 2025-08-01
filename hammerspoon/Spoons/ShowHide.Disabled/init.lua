@@ -24,8 +24,7 @@ local function toggleAlacritty()
 end
 
 -- Try multiple ways to bind Cmd+Enter
-local hotkey1 = hs.hotkey.bind({"cmd"}, "return", toggleAlacritty)
-local hotkey2 = hs.hotkey.bind({"cmd"}, "enter", toggleAlacritty)
+local hotkey1 = hs.hotkey.bind({"cmd"}, "k", toggleAlacritty)
 
 -- Debug: Show which hotkeys were created
 if hotkey1 then

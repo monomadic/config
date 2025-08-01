@@ -225,5 +225,19 @@ if [[ -o interactive ]]; then
   # FZF keybindings (emacs keymap, CSI-u from Kitty)
   bindkey -M emacs $'\e[104;9u' fzf-history-widget  # Cmd+H: FZF history
   bindkey -M emacs $'\e[105;9u' fzf-insert-path     # Cmd+I: FZF insert path
-
+  
+  # Bind keys to functions
+  #
+  bindkey -s '^@' "_cd-yazi && clear\n"
+  # bindkey '^f' _fzf-find-files
+  bindkey '^f' _fzf_ripgrep
+  #bindkey '^k' _clear-reset
+  bindkey '^M' _magic-enter
+  bindkey '^o' _cd-fzf
+  bindkey '^[[1;9o' _cd-fzf
+  #bindkey '^u' cd-up
+  bindkey '^[j' _fzf-jump # Alt+J
+  bindkey '^[i' _fzf-insert-path
+  bindkey -s '^k' "clear\n"
+  bindkey -s '^l' "clear\n"
 fi
