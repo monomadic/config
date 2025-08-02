@@ -1,0 +1,107 @@
+# background 
+"ui.background" = { bg = "dominant" }
+
+# for selections in the editing area
+"ui.selection" = { bg = "glaucous" }
+
+# line numbers
+"ui.linenr" = { bg = "dominant" }
+
+# gutter area
+"ui.gutter" = { bg = "dominant" }
+
+# statusline mode during normal mode (only if editor.color-modes is enabled)
+"ui.statusline.normal" = { bg = "cadmium-orange" }
+
+# statusline mode during insert mode (only if editor.color-modes is enabled)
+"ui.statusline.insert" = { bg = "ufo-green" }
+
+# statusline mode during select mode (only if editor.color-modes is enabled)
+"ui.statusline.select" = { bg = "paradise-pink" }
+
+# the line of the primary cursor (if cursorline is enabled)
+"ui.cursorline.primary" = { bg = "dark-gunmetal" }
+
+# documentation popups (e.g Space + k)
+"ui.popup" = { fg = "baby-powder", bg = "dark-gunmetal" }
+
+# border lines separating splits
+"ui.window" = { fg = "dominant" }
+
+# selected autocomplete item
+"ui.menu.selected" = { bg = "light-tangelo" }
+
+# description box for commands
+"ui.help" = { bg = "dominant" }
+
+# function name
+"function" = { fg = "ufo-green", modifiers = ["bold"] }
+
+# key word
+"keyword" = { fg = "begonia", modifiers = ["bold"] }
+
+# reserved language variables (self, this, super, etc)
+"variable.builtin" = "baby-powder"
+
+# function parameters
+"variable.parameter" = { fg = "light-tangelo", modifiers = ["bold"] }
+
+# code comments
+"comment" = "pale-cerulean"
+
+"string" = "light-tangelo"
+
+# ||, +=, >
+"operator" = "begonia"
+
+# diff version control changes
+# additions
+"diff.plus" = "french-lime"
+# deletions
+"diff.minus" = "light-tangelo"
+# modifications
+"diff.delta" = "tufts-blue"
+
+# punctuation
+# parentheses, angle brackets, etc.
+"punctuation.bracket" = { fg = "banana-yellow", modifiers = ["bold"] }
+# string interpolation brackets.
+"punctuation.special" = "paradise-pink"
+
+# type name
+"type" = { fg = "tufts-blue", modifiers = ["bold", "italic"] }
+
+# tag
+"tag" = "cadmium-orange"
+
+"label" = "cadmium-orange"
+
+# constant
+constant = { fg = "french-lime", modifiers = ["italic", "bold"] }
+
+# diagnostics warning (gutter)
+"warning" = { fg = "cadmium-orange" }
+# diagnostics error (gutter)
+"error" = { fg = "cinnabar" }
+# diagnostics info (gutter)
+"info" = { fg = "french-lime" }
+# diagnostics hint (gutter)
+"hint" = { fg = "violet-blue" }
+
+[palette]
+baby-powder = "#fafffc"
+dark-gunmetal = "#222533"
+cinnabar = "#db4b3d"
+paradise-pink = "#dc435b"
+dominant = "#36354d"
+french-lime = "#a7f547"
+violet-blue = "#3f48c2"
+tufts-blue = "#448de7"
+banana-yellow = "#ffeb33"
+cadmium-orange = "#f58931"
+light-tangelo = "#ffab7b"
+ufo-green = "#2bdb72"
+english-red = "#a63d57"
+begonia = "#ff6c7a"
+glaucous = "#6275ba"
+pale-cerulean = "#a3c0e6"
