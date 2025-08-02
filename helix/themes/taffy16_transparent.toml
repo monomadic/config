@@ -7,9 +7,14 @@ inherits = "taffy16"
 "ui.window"     = { fg = "white" }
 "ui.help"       = { fg = "light-gray" }
 
+"ui.gutter"            = { fg = "gray" }        # gutter background (no bg => transparent)
+"ui.gutter.selected"   = { fg = "white" }       # current line gutter
+"ui.linenr"            = { fg = "gray" }        # line numbers
+"ui.linenr.selected"   = { fg = "white", modifiers = ["bold"] }
+
 "ui.statusline"          = { fg = "gray" }
 "ui.statusline.inactive" = { fg = "gray" }
 
 # Optional: keep these unfilled too if your theme paints bars
 "ui.bufferline.background" = { fg = "gray" }
-"ui.picker.header"         = { fg = "gray" }ale-cerulean = "#a3c0e6"
+"ui.picker.header"         = { fg = "gray" }

@@ -1,4 +1,4 @@
-theme = "tokyonight"
+theme = "taffy16_transparent"
 
 [editor]
 clipboard-provider = "pasteboard"
