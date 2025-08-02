@@ -1,0 +1,15 @@
+# ~/.config/helix/themes/tokyonight_transparent.toml
+inherits = "taffy16"
+
+"ui.background" = { fg = "foreground" }            # no bg => terminal shows through
+"ui.menu"       = { fg = "white" }
+"ui.popup"      = { fg = "white" }
+"ui.window"     = { fg = "white" }
+"ui.help"       = { fg = "light-gray" }
+
+"ui.statusline"          = { fg = "gray" }
+"ui.statusline.inactive" = { fg = "gray" }
+
+# Optional: keep these unfilled too if your theme paints bars
+"ui.bufferline.background" = { fg = "gray" }
+"ui.picker.header"         = { fg = "gray" }ale-cerulean = "#a3c0e6"
