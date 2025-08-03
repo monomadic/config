@@ -44,6 +44,10 @@ alias @lib="media search library"
 alias @tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
 alias @masters="fd --print0 --extension=mp4 . /Volumes/*/Movies/Porn/Masters/ | fzf-play"
 
+alias .python-venv-create="python3 -m venv .venv && source .venv/bin/activate"
+alias .python-venv-activate="source .venv/bin/activate"
+alias .python-pip-install-requirements="pip install -r requirements.txt"
+
 # note:
 # pipx install demucs
 # pipx inject demucs soundfile
@@ -74,7 +78,7 @@ alias mpv-without-config="mpv --profile=fast --video-sync=display-resample --hwd
 alias topaz-video="env LC_ALL=C LC_NUMERIC=C LANG=C /Applications/Topaz\ Video\ AI.app/Contents/MacOS/Topaz\ Video\ AI"
 alias .topaz-video=topaz-video
 
-alias config-dotfiles="cd $DOTFILES_DIR && fd --type directory --max-depth=2 | fzf | xargs nvim"
+alias config-dotfiles="cd $DOTFILES_DIR && fd --type directory --max-depth=2 | fzf | xargs $EDITOR"
 
 alias cd-relative="cd ${fd--type directory | fzf-cd}"
 
@@ -132,10 +136,10 @@ alias .macos-keybindings="source $DOTFILES_DIR/scripts/macos-keybindings.sh"
 
 alias .rename="fd-rename-all.zsh"
 alias .config-aliases=.config-env
-alias .config-bin="cd $DOTFILES_DIR/bin && nvim ."
-alias .config-env="cd $ZSH_DOTFILES_DIR && nvim scripts/autoload/alias.zsh"
+alias .config-bin="cd $DOTFILES_DIR/bin && $EDITOR ."
+alias .config-env="cd $ZSH_DOTFILES_DIR && $EDITOR scripts/autoload/alias.zsh"
 alias .config-zsh=e-zsh
-alias .config="cd $ZSH_DOTFILES_DIR && nvim zshrc.zsh"
+alias .config="cd $ZSH_DOTFILES_DIR && $EDITOR zshrc.zsh"
 alias .apple-music=apple-music-dl
 alias .beatport="beatportdl-darwin-arm64"
 alias .tidal="tidal-dl-ng dl"
@@ -168,16 +172,16 @@ alias battery='pmset -g batt'
 alias branch="b"
 alias cb="cargo build"
 alias cc="cargo check"
-alias e-homebrew="cd $DOTFILES_DIR && nvim Brewfile"
-alias e-kitty="cd $DOTFILES_DIR/kitty && nvim kitty.conf"
-alias e-neovim="cd $DOTFILES_DIR/neovim && edit init.lua"
-alias e-open="cd $DOTFILES_DIR && nvim README.md"
-alias e-yazi="cd $DOTFILES_DIR/apps/yazi && nvim yazi.toml"
-alias e-zellij="cd $DOTFILES_DIR/zellij && edit config.kdl"
-alias e-zsh-keybindings="cd $DOTFILES_DIR/zsh && nvim scripts/autoload/keybindings.zsh"
-alias e-zsh="cd $DOTFILES_DIR/zsh && edit zshrc.zsh"
-alias e-mpv="cd $DOTFILES_DIR/mpv && edit mpv.conf"
-alias .yazi-config="cd $DOTFILES_DIR/apps/yazi && nvim yazi.toml"
+alias e-homebrew="cd $DOTFILES_DIR && $EDITOR Brewfile"
+alias e-kitty="cd $DOTFILES_DIR/kitty && $EDITOR kitty.conf"
+alias e-neovim="cd $DOTFILES_DIR/neovim && $EDITOR init.lua"
+alias e-open="cd $DOTFILES_DIR && $EDITOR README.md"
+alias e-yazi="cd $DOTFILES_DIR/apps/yazi && $EDITOR yazi.toml"
+alias e-zellij="cd $DOTFILES_DIR/zellij && $EDITOR config.kdl"
+alias e-zsh-keybindings="cd $DOTFILES_DIR/zsh && $EDITOR scripts/autoload/keybindings.zsh"
+alias e-zsh="cd $DOTFILES_DIR/zsh && $EDITOR zshrc.zsh"
+alias e-mpv="cd $DOTFILES_DIR/mpv && $EDITOR mpv.conf"
+alias .yazi-config="cd $DOTFILES_DIR/apps/yazi && $EDITOR yazi.toml"
 alias ci="cargo install --path ."
 alias cp-pwd="echo $PWD|pbcopy" # mac only
 alias cr="cargo run"
@@ -196,7 +200,7 @@ alias doc="cargo doc --open"
 alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml watch --global-config global.toml --local-config local.toml'
 alias e=$EDITOR
 alias eb="edit-bin"
-alias edit=nvim
+alias edit=$EDITOR
 alias fd-empty="fd --type empty"
 alias ga="git add . && git commit --amend"
 alias gb="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"

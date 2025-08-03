@@ -47,6 +47,7 @@ opacity = 0.9
 decorations = "transparent"
 dynamic_title = true
 startup_mode = "Maximized"
+#startup_mode = "Fullscreen"
 
 [window.dimensions]
 columns = 130
@@ -75,7 +76,7 @@ action = "ToggleSimpleFullscreen"
 [[keyboard.bindings]]
 key = "T"
 mods = "Command"
-action = "CreateNewWindow"
+action = "CreateNewTab"
 
 # Optional: keep ⌘N for a real new window
 [[keyboard.bindings]]
