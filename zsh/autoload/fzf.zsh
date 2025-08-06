@@ -122,8 +122,3 @@ fzf-brave-history() {
 #     --override "window_margin_height=${CENTER_Y}px" \
 #     zsh -c "$TEMP_COMMAND"
 # }
-
-function play-dj-visuals() {
-  cd $HOME/Music/DJ/Visuals && @play-pwd
-}
-alias @play-dj-visuals=dj-play-visuals

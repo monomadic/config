@@ -1,49 +1,25 @@
+ICLOUD_HOME="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
+DJ_VISUALS_PATH="$ICLOUD_HOME/Movies/Visuals"
+
 # media functions
 
-alias mpv-looper="mpv --recursive=yes --player-operation-mode=pseudo-gui --loop-file=inf --loop-playlist=inf --image-display-duration=5 --force-window=yes --no-config --no-input-default-bindings "
-# media play
-alias .4k="media play #4k --shuffle"
-alias .perf="media play #60fps #4k --shuffle"
-alias .60fps="media play #60fps --shuffle"
-alias .clips="media play clips --shuffle"
-alias .cumshot="media play #cumshot --shuffle"
-alias .edits="media play edits --shuffle"
-alias .loops="media play loops --shuffle"
-alias .pwd="fd-video | mpv-stdin"
-alias .suki-latest="media play latest #suki"
-alias .suki="media play #suki --shuffle"
-alias .top-cumshot="media play #top #cumshot --shuffle"
-alias .top="media play #top --shuffle"
-alias .upscaled="media play #upscaled --shuffle"
-alias .lib="media play library --shuffle"
-alias .remaster="media play #remaster --shuffle"
-alias .sync="sync-dotfiles"
+alias mpv-loop="mpv --player-operation-mode=pseudo-gui --loop-file=inf --loop-playlist=inf --image-display-duration=5 --force-window=yes --no-config --no-input-default-bindings "
+alias .pwd="mpv-play $PWD"
+alias mpv-play-porn="mpv-play $HOME/Movies/Porn/ /Volumes/*/Movies/Porn/**/*.mp4"
+alias mpv-play-volumes="mpv-play /Volumes/*/Movies/**/*.mp4"
 
 # media search
-#alias @="fselect-porn -0 | fzf-play --hide-path --tac"
 alias @="ls-media | fzf-play --hide-path --tac"
 alias @sort="fselect-porn-sort -0 | fzf-play --hide-path --tac"
 alias @loop="fselect-porn -0 | fzf-media-select --hide-path --tac | mpv-with-config -"
-# alias @pwd="fselect-pwd -0 | fzf-play --hide-path --tac"
-# alias @@pwd="fselect-pwd -0 | mpv-play"
 alias @pwd-sort="fselect-pwd-sort -0 | fzf-play --hide-path --tac"
 alias @@="fd-video | fzf-play --hide-path --tac"
-alias @clips="media search clips"
-alias @cumshot="media search #cumshot"
-alias @edits="media search edits"
-alias @latest="media search latest"
-alias @loops="media search loops"
-alias @play-all="media-play"
-alias @volumes="ls-media --match-string '/Volumes/' | fzf-play --hide-path"
-alias @external=@volumes
-alias @safe="media-search-safe"
-alias @stats="media-stats"
-alias @suki="media search #suki"
-alias @top="media search #top"
-alias @lib="media search library"
+alias @volumes="fd-video . /Volumes/*/Movies/Porn | fzf-play --hide-path"
+alias @masters="fd-video . /Volumes/*/Movies/Porn/Masters/ | fzf-play"
 alias @tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
-alias @masters="fd --print0 --extension=mp4 . /Volumes/*/Movies/Porn/Masters/ | fzf-play"
-
+alias @external=@volumes
+alias @dj-visuals="fd-video . '$DJ_VISUALS_PATH' '$HOME/Movies/Visuals' '/Volumes/*/Movies/Visuals' | fzf-play --hide-path"
+alias .dj-visuals="mpv-loop '$DJ_VISUALS_PATH' '$HOME/Movies/Visuals' '/Volumes/*/Movies/Visuals'"
 alias .python-venv-create="python3 -m venv .venv && source .venv/bin/activate"
 alias .python-venv-activate="source .venv/bin/activate"
 alias .python-pip-install-requirements="pip install -r requirements.txt"
@@ -59,10 +35,6 @@ alias .stem-split-4="demucs -d mps -n htdemucs --flac -o stems_output"
   cd $HOME/Music/Stems/MVSEP-MDX23-Colab_v2.1 &&
     source .venv/bin/activate &&
     time python inference_2.2_b1.5.1_voc_ft.py --input_audio $1 --output_folder $HOME/Music/Stems --large_gpu --chunk_size 500000
-}
-
-@play-type() {
-  fd --print0 --extension=mp4 . /Volumes/*/Movies/Porn/$1/ | fzf-play
 }
 
 alias fd-dirs="fd -t d -d 15 -E '.*' -E 'Library'"
@@ -109,8 +81,6 @@ alias .self-sign="codesign --sign - --force --deep "
 alias c=e-zsh
 alias C=e-config
 alias g=git
-alias p="media play --shuffle"
-alias ms="media-stats"
 
 alias rn="batch-rename"
 alias ren="batch-rename"

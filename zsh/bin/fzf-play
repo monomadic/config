@@ -85,7 +85,7 @@ fzf \
   --bind 'alt-s:select-all+accept' \
   --bind 'ctrl-/:toggle-preview' \
   --bind 'alt-p:toggle-preview' \
-  --bind 'alt-r:execute(echo "exec: open --reveal {}" && open --reveal {})' \
+  --bind 'ctrl-r:execute(echo "exec: open --reveal {}" && open --reveal {})' \
   --bind 'ctrl-alt-r:execute-silent(kitty @ launch --type=background --cwd=current open --reveal {})' \
   --bind 'ctrl-alt-p:execute-silent(kitty @ launch --type=background --cwd=current qlmanage -p {})' \
   --bind 'ctrl-alt-p:execute-silent(kitty @ launch --type=background --cwd=current mpv --no-fs {})' \

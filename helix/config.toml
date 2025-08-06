@@ -1,8 +1,5 @@
 theme = "taffy16_transparent"
 
-[editor]
-clipboard-provider = "pasteboard"
-
 [editor.whitespace]
 # render = "all"
 
@@ -57,7 +54,9 @@ Cmd-a = "select_all"
 '}' = "goto_next_paragraph"
 H = "goto_line_start"
 L = "goto_line_end"
+# yank selection into system clipboard
 y = ["yank_to_clipboard", "collapse_selection"]
+# yank main (joined) selection into system clipboard
 Y = ["yank_main_selection_to_clipboard", "collapse_selection"]
 J = ["delete_selection", "paste_after"]
 K = ["delete_selection", "move_visual_line_up", "paste_before"]

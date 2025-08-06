@@ -44,9 +44,9 @@ family = "JetBrainsMono Nerd Font Mono"
 
 [window]
 opacity = 0.9
-decorations = "transparent"
-dynamic_title = true
-startup_mode = "Maximized"
+#decorations = "transparent"
+#dynamic_title = true
+#startup_mode = "Windowed"
 #startup_mode = "Fullscreen"
 
 [window.dimensions]
@@ -67,16 +67,21 @@ key = "F"
 mods = "Command"
 action = "ToggleSimpleFullscreen"
 
+[[keyboard.bindings]]
+key = "R"
+mods = "Command"
+chars = "\u0012"  # This is ^R, same as Ctrl+R
+
 #[[keyboard.bindings]]
 #key = "K"
 #mods = "Command"
 #action = "ToggleSimpleFullscreen"
 # Disable any default Cmd+T binding
 
-[[keyboard.bindings]]
-key = "T"
-mods = "Command"
-action = "CreateNewTab"
+# [[keyboard.bindings]]
+# key = "T"
+# mods = "Command"
+# action = "CreateNewTab"
 
 # Optional: keep ⌘N for a real new window
 [[keyboard.bindings]]

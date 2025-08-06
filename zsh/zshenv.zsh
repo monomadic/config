@@ -18,6 +18,8 @@ path=(
   $path
 )
 
+export ICLOUD_HOME="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
+
 # MANPATH CONFIGURATION
 #
 typeset -U manpath
