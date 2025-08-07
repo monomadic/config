@@ -1,0 +1,85 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+usage() { print -u2 "usage: $0 [-n] <url>"; exit 2 }
+dry_run=false
+
+while getopts "n" opt; do
+  case $opt in
+    n) dry_run=true ;;
+    *) usage ;;
+  esac
+done
+shift $((OPTIND-1))
+[[ $# -eq 1 ]] || usage
+
+url=$1
+
+# Normalize: add scheme if missing
+if [[ $url != *://* ]]; then
+  url="https://$url"
+fi
+
+# Extract host (strip scheme, userinfo, and path), lowercase, drop leading www.
+host=${${${url#*://}%%/*}%%@*}
+host=${host:l}
+host=${host/#www./}
+
+# Helper: run or show
+run() {
+  if $dry_run; then
+    print -r -- "+ $*"
+  else
+    exec "$@"
+  fi
+}
+
+# Optional: quick predicate helpers
+has() { [[ $url == *$1* ]]; }         # substring check
+rgq() { command rg -q --pcre2 -- "$1" <<<"$url"; }  # regex check (ripgrep)
+
+# Domain/path routing
+case $host in
+  # YouTube (any subdomain + youtu.be)
+  youtube.com|*.youtube.com|youtu.be)
+    if has "list="; then
+      run yt-dlp -N 8 -o "%(playlist_title)s/%(playlist_index)03d - %(title)s.%(ext)s" "$url"
+    else
+      run yt-dlp -N 8 -f "bv*+ba/b" -o "%(title)s.%(ext)s" "$url"
+    fi
+    ;;
+
+  # SoundCloud
+  soundcloud.com|*.soundcloud.com)
+    run yt-dlp -N 8 -f "bestaudio" -o "%(uploader)s - %(title)s.%(ext)s" "$url"
+    ;;
+
+  # Tidal (example: open the app)
+  tidal.com|*.tidal.com)
+    # Could be: run your own CLI, or just open the app
+    run open -a "TIDAL" "$url"
+    ;;
+
+  # Beatport (example: open in browser or scrape)
+  beatport.com|*.beatport.com)
+    run open "$url"
+    ;;
+
+  # GitHub – different actions per path
+  github.com)
+    if rgq '^https?://github\.com/[^/]+/[^/]+/?$'; then
+      # Repo root: clone
+      run gh repo clone "${url#https://github.com/}"
+    elif rgq '/pull/\d+/?$'; then
+      run gh pr view "$url" --web
+    else
+      run open "$url"
+    fi
+    ;;
+
+  # Fallbacks
+  *)
+    # Add more rules above; default behavior last.
+    run open "$url"
+    ;;
+esac
