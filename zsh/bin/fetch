@@ -54,15 +54,16 @@ case $host in
     run yt-dlp -N 8 -f "bestaudio" -o "%(uploader)s - %(title)s.%(ext)s" "$url"
     ;;
 
-  # Tidal (example: open the app)
+  # Tidal
   tidal.com|*.tidal.com)
-    # Could be: run your own CLI, or just open the app
-    run open -a "TIDAL" "$url"
+    print -r "Using tidal-dl-ng"
+    run tidal-dl-ng dl "$url"
     ;;
 
   # Beatport (example: open in browser or scrape)
   beatport.com|*.beatport.com)
-    run open "$url"
+    print -r "Using beatportdl"
+    run beatportdl-darwin-arm64 "$url"
     ;;
 
   # GitHub – different actions per path
@@ -79,7 +80,6 @@ case $host in
 
   # Fallbacks
   *)
-    # Add more rules above; default behavior last.
-    run open "$url"
+    print -r "\nERROR: Unsupported URL" "$url"
     ;;
 esac

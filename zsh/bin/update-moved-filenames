@@ -1,0 +1,122 @@
+#!/usr/bin/env zsh
+# czk-rename-like-first.zsh
+# Usage:
+#   czk-rename-like-first.zsh [-p|--print-only] [-o results.json] DIR1 DIR2 [DIR...]
+# Notes:
+#   - Renames duplicates' basenames to match the first file in each group (in-place).
+#   - Uses jq or jaq (whichever is available).
+#   - Expects Czkawka "compact" JSON from --compact-file-to-save.
+
+set -euo pipefail
+emulate -L zsh
+setopt no_nomatch
+
+print_only=0
+out="results.json"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -p|--print-only) print_only=1; shift ;;
+    -o) out="${2:-results.json}"; shift 2 ;;
+    --) shift; break ;;
+    -*) print -u2 -- "Unknown option: $1"; exit 2 ;;
+    *) break ;;
+  esac
+done
+
+if (( $# < 2 )); then
+  print -u2 "Usage: $0 [-p|--print-only] [-o results.json] DIR1 DIR2 [DIR...]"
+  exit 2
+fi
+
+# prefer jaq if present (Rust), else jq
+if command -v jaq >/dev/null 2>&1; then
+  JQ=(jaq)
+elif command -v jq >/dev/null 2>&1; then
+  JQ=(jq)
+else
+  print -u2 "Need jq or jaq"
+  exit 1
+fi
+
+if ! command -v czkawka_cli >/dev/null 2>&1; then
+  print -u2 "Need czkawka_cli"
+  exit 1
+fi
+
+# Build -d args
+dirs=("$@")
+dargs=()
+for d in "${dirs[@]}"; do
+  dargs+=(-d "$d")
+done
+
+# Run czkawka duplicate scan (size method, dry-run) and save compact JSON
+czkawka_cli dup \
+  "${dargs[@]}" \
+  -s size \
+  --dry-run \
+  --compact-file-to-save "$out"
+
+# Stream groups: first path + rest paths
+# Expected compact JSON shape: { "<groupKey>": [ {path:"..."}, {path:"..."} ], ... }
+# Fallbacks for slightly different shapes can be added if needed.
+renames_json="$("$JQ" -c '
+  to_entries[]
+  | .value as $files
+  | select(($files|length) > 1)
+  | ($files | map(.path)) as $paths
+  | { first: $paths[0], rest: ($paths[1:] | map(.) ) }
+' "$out")"
+
+apply_all=0
+
+while IFS= read -r line; do
+  [[ -z "$line" ]] && continue
+  first=$(print -r -- "$line" | "$JQ" -r '.first')
+  rest_count=$(print -r -- "$line" | "$JQ" -r '.rest | length')
+
+  first_base=${first:t}
+
+  # Iterate over the rest in the group
+  for i in {0..$((rest_count-1))}; do
+    target=$(print -r -- "$line" | "$JQ" -r --argjson i "$i" '.rest[$i]')
+    target_dir=${target:h}
+    new_path="$target_dir/$first_base"
+
+    # Skip if already matches
+    if [[ "${target:t}" == "$first_base" && "$target" != "$new_path" ]]; then
+      # Different path, same basename – but we only rename basenames here.
+      :
+    fi
+    if [[ "${target:t}" == "$first_base" ]]; then
+      continue
+    fi
+
+    if (( print_only )); then
+      printf 'mv -n -- %q %q\n' "$target" "$new_path"
+      continue
+    fi
+
+    if (( ! apply_all )); then
+      print -n -- "Rename: "
+      printf '%q -> %q' "$target" "$new_path"
+      print -n " ? [y]es/[n]o/[a]ll: "
+      read -k 1 ans
+      print  # newline
+      case "$ans" in
+        a|A) apply_all=1 ;;
+        y|Y) ;;
+        n|N|'') continue ;;
+        *) continue ;;
+      esac
+    fi
+
+    # Execute rename
+    if [[ -e "$new_path" ]]; then
+      print -u2 -- "Skip (exists): $new_path"
+      continue
+    fi
+    mv -n -- "$target" "$new_path"
+  done
+done <<< "$renames_json"

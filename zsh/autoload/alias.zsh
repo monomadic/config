@@ -50,6 +50,7 @@ alias mpv-without-config="mpv --profile=fast --video-sync=display-resample --hwd
 alias topaz-video="env LC_ALL=C LC_NUMERIC=C LANG=C /Applications/Topaz\ Video\ AI.app/Contents/MacOS/Topaz\ Video\ AI"
 alias .topaz-video=topaz-video
 
+alias .list-moved-files="fclones group --cache --hash-fn metro --isolate --dry-run"
 alias config-dotfiles="cd $DOTFILES_DIR && fd --type directory --max-depth=2 | fzf | xargs $EDITOR"
 
 alias cd-relative="cd ${fd--type directory | fzf-cd}"
@@ -117,6 +118,7 @@ alias .network-detect-captive-portal=detect-captive-portal
 alias .network-status=ns
 alias .uptime="display-uptime"
 alias .clear-notifications="killall NotificationCenter"
+alias f="noglob fetch"
 
 alias dl-beatport=beatportdl-darwin-arm64
 alias dl-apple-music=apple-music-dl
