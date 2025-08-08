@@ -1,16 +1,23 @@
 #!/usr/bin/env zsh
-autoload -U colors && colors
+# czk-rename-interactive.zsh
+# Usage:
+#   czk-rename-interactive.zsh [-p|--print-only] DIR1 DIR2 [DIR...]
+# Notes:
+#   - Prompts per duplicate group to choose the canonical file (by index).
+#   - Prints paths one-per-line for easy comparison.
+#   - Confirms each rename with y/n (no "all" option).
+#   - Uses a temp JSON; nothing persisted.
+
 set -euo pipefail
 emulate -L zsh
 setopt no_nomatch
 
-print_only=0
-out="results.json"
+autoload -U colors && colors
 
+print_only=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -p|--print-only) print_only=1; shift ;;
-    -o) out="${2:-results.json}"; shift 2 ;;
     --) shift; break ;;
     -*) print -u2 -- "Unknown option: $1"; exit 2 ;;
     *) break ;;
@@ -18,57 +25,88 @@ while [[ $# -gt 0 ]]; do
 done
 
 if (( $# < 2 )); then
-  print -u2 "Usage: $0 [-p|--print-only] [-o results.json] DIR1 DIR2 [DIR...]"
+  print -u2 "Usage: $0 [-p|--print-only] DIR1 DIR2 [DIR...]"
   exit 2
 fi
 
-# jq/jaq detection
-if command -v jaq >/dev/null 2>&1; then
-  JQ=(jaq)
-elif command -v jq >/dev/null 2>&1; then
-  JQ=(jq)
-else
-  print -u2 "Need jq or jaq"
-  exit 1
-fi
+# jq/jaq
+if command -v jaq >/dev/null 2>&1; then JQ=(jaq)
+elif command -v jq  >/dev/null 2>&1; then JQ=(jq)
+else print -u2 "Need jq or jaq"; exit 1; fi
 
-if ! command -v czkawka_cli >/dev/null 2>&1; then
-  print -u2 "Need czkawka_cli"
-  exit 1
-fi
+command -v czkawka_cli >/dev/null 2>&1 || { print -u2 "Need czkawka_cli"; exit 1; }
 
-dirs=("$@")
+# Build -d args
 dargs=()
-for d in "${dirs[@]}"; do
-  dargs+=(-d "$d")
-done
+for d in "$@"; do dargs+=(-d "$d"); done
 
-czkawka_cli dup \
-  "${dargs[@]}" \
-  -s size \
-  --dry-run \
-  --compact-file-to-save "$out"
+# Temp JSON (deleted on exit)
+tmpjson="$(mktemp -t czkawka_dups.XXXXXX.json)"
+cleanup() { rm -f "$tmpjson" 2>/dev/null || true; }
+trap cleanup EXIT
 
-renames_json="$("$JQ" -c '
+# Run czkawka; silence stdout (keep stderr)
+czkawka_cli dup "${dargs[@]}" -s size --dry-run --compact-file-to-save "$tmpjson" >/dev/null
+
+# Extract duplicate groups from compact JSON
+groups_json="$("$JQ" -c '
   to_entries[]
   | .value as $files
   | select(($files|length) > 1)
-  | ($files | map(.path)) as $paths
-  | { paths: $paths }
-' "$out")"
+  | { paths: ($files | map(.path)) }
+' "$tmpjson" || true)"
 
-apply_all=0
+[[ -z "$groups_json" ]] && { print "${fg_bold[yellow]}No duplicate groups.${reset_color}"; exit 0; }
 
-while IFS= read -r line; do
-  [[ -z "$line" ]] && continue
-  paths=("${(@f)$(print -r -- "$line" | "$JQ" -r '.paths[]')}")
+while IFS= read -r grp; do
+  [[ -z "$grp" ]] && continue
+  paths=("${(@f)$(print -r -- "$grp" | "$JQ" -r '.paths[]')}")
 
+  # Show group (one path per line)
   print "\n${fg_bold[blue]}Duplicate group:${reset_color}"
-  for idx in {1..${#paths[@]}}; do
-    print "  ${fg_bold[cyan]}$idx${reset_color}) ${paths[$idx]}"
+  for i in {1..${#paths[@]}}; do
+    print "  ${fg_bold[cyan]}$i${reset_color}) ${paths[$i]}"
   done
 
-  if (( ! apply_all )); then
-    print -n "${fg_bold[yellow]}Choose canonical file${reset_color} number [1-${#paths[@]}], or (a)ll use this choice: "
-    read sel
-    case "$sel
+  # Choose canonical index
+  local sel_num=""
+  while :; do
+    print -n "${fg_bold[yellow]}Choose canonical index${reset_color} [1-${#paths[@]}]: "
+    read sel_num
+    [[ "$sel_num" == <-> && $sel_num -ge 1 && $sel_num -le ${#paths[@]} ]] && break
+  done
+
+  canonical="${paths[$sel_num]}"
+  canon_base=${canonical:t}
+
+  # For each non-canonical file in this group, propose rename → same basename
+  for p in "${paths[@]}"; do
+    [[ "$p" == "$canonical" ]] && continue
+    new_path="${p:h}/$canon_base"
+    [[ "$p" == "$new_path" ]] && continue
+
+    if [[ -e "$new_path" ]]; then
+      print "${fg_bold[red]}Skip (exists)${reset_color}:\n  $new_path"
+      continue
+    fi
+
+    if (( print_only )); then
+      # Machine-safe one-liner
+      printf 'mv -n -- %q %q\n' "$p" "$new_path"
+      continue
+    fi
+
+    # Human-readable prompt (one-per-line)
+    print "${fg_bold[yellow]}Rename:${reset_color}"
+    print "  ${fg[red]}$p${reset_color}"
+    print "  ${fg_bold[yellow]}->${reset_color}"
+    print "  ${fg[green]}$new_path${reset_color}"
+    print -n "[y]es/[n]o: "
+    read -k 1 ans; print
+    case "$ans" in
+      y|Y) mv -n -- "$p" "$new_path" ;;
+      n|N|'') continue ;;
+      *) continue ;;
+    esac
+  done
+done <<< "$groups_json"
