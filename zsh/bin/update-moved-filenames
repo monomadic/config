@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
-# czk-rename-interactive.zsh
-# Usage: czk-rename-interactive.zsh [-p|--print-only] DIR1 DIR2 [DIR...]
+# czk-rename-renamed-only.zsh
+# Usage: czk-rename-renamed-only.zsh [-p|--print-only] DIR1 DIR2 [DIR...]
 # Requires: czkawka_cli, jq or jaq
 
 set -euo pipefail
@@ -39,10 +39,10 @@ tmpjson="$(mktemp -t czkawka_dups.XXXXXX.json)"
 cleanup() { rm -f "$tmpjson" 2>/dev/null || true; }
 trap cleanup EXIT
 
-# Run czkawka; silence stdout
+# Run czkawka (silence stdout)
 czkawka_cli dup "${dargs[@]}" -s size --dry-run --compact-file-to-save "$tmpjson" >/dev/null
 
-# Duplicate groups → NDJSON
+# Stream duplicate groups
 groups_json="$("$JQ" -c '
   to_entries[]
   | .value as $files
@@ -52,7 +52,7 @@ groups_json="$("$JQ" -c '
 
 [[ -z "$groups_json" ]] && { print "${fg_bold[yellow]}No duplicate groups.${reset_color}"; exit 0; }
 
-# Open TTY so prompts don't read from the JSON stream
+# Open TTY for prompts even while reading a stream
 if [[ -t 0 ]]; then
   exec {ttyfd}<>/dev/tty
 else
@@ -60,26 +60,37 @@ else
   ttyfd=0
 fi
 
+renamed_groups=0
+
 while IFS= read -r grp; do
   [[ -z "$grp" ]] && continue
   paths=("${(@f)$(print -r -- "$grp" | "$JQ" -r '.paths[]')}")
 
-  # Build preview of command sets for each possible canonical choice
-  # For choice i, every other path p becomes: mv -n -- p  (p:h)/(paths[i]:t)
-  print "\n${fg_bold[blue]}Renamed file detected, select correct command:${reset_color}"
+  # Collect basenames and detect if all equal
+  typeset -A seen=()
+  for p in "${paths[@]}"; do seen[${p:t}]=1; done
+  if (( ${#seen[@]} == 1 )); then
+    # All filenames identical → only moved; skip entirely
+    continue
+  fi
+
+  ((renamed_groups++))
+  print "\n${fg_bold[blue]}Select correct filename:${reset_color}"
+
+  # For each possible canonical choice, show only renames for entries whose basename differs
   for i in {1..${#paths[@]}}; do
     canon="${paths[$i]}"
     canon_base=${canon:t}
-    print "  ${fg_bold[cyan]}$i${reset_color})"
+    print -n "${fg_bold[cyan]}$i${reset_color}) "
     for p in "${paths[@]}"; do
       [[ "$p" == "$canon" ]] && continue
+      [[ "${p:t}" == "$canon_base" ]] && continue  # same basename already → no rename
       new_path="${p:h}/$canon_base"
-      # Show exactly what would be executed (human-readable, one per line)
-      print "     mv -n -- $p $new_path"
+      print "${new_path:t}"
     done
   done
 
-  # Choose canonical index
+  # Choose canonical index (no "all")
   local sel_num=""
   while :; do
     print -n "${fg_bold[yellow]}Choose canonical index${reset_color} [1-${#paths[@]}]: " >&$ttyfd
@@ -90,13 +101,13 @@ while IFS= read -r grp; do
   canonical="${paths[$sel_num]}"
   canon_base=${canonical:t}
 
-  # Execute the chosen renames (confirm each)
+  # Apply renames ONLY where basename differs
   for p in "${paths[@]}"; do
     [[ "$p" == "$canonical" ]] && continue
+    [[ "${p:t}" == "$canon_base" ]] && continue
     new_path="${p:h}/$canon_base"
-    [[ "$p" == "$new_path" ]] && continue
 
-    # HARD STOP if destination exists (never overwrite/delete)
+    # Hard error if destination exists
     if [[ -e "$new_path" ]]; then
       print -u2 "${fg_bold[red]}ERROR:${reset_color} destination exists:"
       print -u2 "  $new_path"
@@ -104,12 +115,11 @@ while IFS= read -r grp; do
     fi
 
     if (( print_only )); then
-      # Machine-safe one-liner (quoting)
       printf 'mv -n -- %q %q\n' "$p" "$new_path"
       continue
     fi
 
-    # Pretty, one-per-line prompt
+    # Confirm per-file
     print "${fg_bold[yellow]}Rename:${reset_color}"
     print "  ${fg[red]}$p${reset_color}"
     print "  ${fg_bold[yellow]}->${reset_color}"
@@ -123,3 +133,5 @@ while IFS= read -r grp; do
     esac
   done
 done <<< "$groups_json"
+
+((renamed_groups == 0)) && print "${fg_bold[green]}No renamed files detected.${reset_color}"
