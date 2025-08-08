@@ -6,7 +6,6 @@
 set -euo pipefail
 emulate -L zsh
 setopt no_nomatch
-
 autoload -U colors && colors
 
 print_only=0
@@ -35,15 +34,15 @@ command -v czkawka_cli >/dev/null 2>&1 || { print -u2 "Need czkawka_cli"; exit 1
 dargs=()
 for d in "$@"; do dargs+=(-d "$d"); done
 
-# Temp JSON (deleted on exit)
+# tmp JSON (auto-removed)
 tmpjson="$(mktemp -t czkawka_dups.XXXXXX.json)"
 cleanup() { rm -f "$tmpjson" 2>/dev/null || true; }
 trap cleanup EXIT
 
-# Run czkawka; silence stdout (keep stderr)
+# Run czkawka; silence stdout
 czkawka_cli dup "${dargs[@]}" -s size --dry-run --compact-file-to-save "$tmpjson" >/dev/null
 
-# Extract duplicate groups from compact JSON → stream as ndjson
+# Duplicate groups → NDJSON
 groups_json="$("$JQ" -c '
   to_entries[]
   | .value as $files
@@ -53,7 +52,7 @@ groups_json="$("$JQ" -c '
 
 [[ -z "$groups_json" ]] && { print "${fg_bold[yellow]}No duplicate groups.${reset_color}"; exit 0; }
 
-# Open TTY for interactive prompts (stdin is consumed by the JSON stream otherwise)
+# Open TTY so prompts don't read from the JSON stream
 if [[ -t 0 ]]; then
   exec {ttyfd}<>/dev/tty
 else
@@ -61,17 +60,26 @@ else
   ttyfd=0
 fi
 
-# Iterate groups; read user input from $ttyfd
 while IFS= read -r grp; do
   [[ -z "$grp" ]] && continue
   paths=("${(@f)$(print -r -- "$grp" | "$JQ" -r '.paths[]')}")
 
-  print "\n${fg_bold[blue]}Duplicate group:${reset_color}"
+  # Build preview of command sets for each possible canonical choice
+  # For choice i, every other path p becomes: mv -n -- p  (p:h)/(paths[i]:t)
+  print "\n${fg_bold[blue]}Renamed file detected, select correct command:${reset_color}"
   for i in {1..${#paths[@]}}; do
-    print "  ${fg_bold[cyan]}$i${reset_color}) ${paths[$i]}"
+    canon="${paths[$i]}"
+    canon_base=${canon:t}
+    print "  ${fg_bold[cyan]}$i${reset_color})"
+    for p in "${paths[@]}"; do
+      [[ "$p" == "$canon" ]] && continue
+      new_path="${p:h}/$canon_base"
+      # Show exactly what would be executed (human-readable, one per line)
+      print "     mv -n -- $p $new_path"
+    done
   done
 
-  # Choose canonical index (force per group; no "all")
+  # Choose canonical index
   local sel_num=""
   while :; do
     print -n "${fg_bold[yellow]}Choose canonical index${reset_color} [1-${#paths[@]}]: " >&$ttyfd
@@ -82,23 +90,26 @@ while IFS= read -r grp; do
   canonical="${paths[$sel_num]}"
   canon_base=${canonical:t}
 
-  # Rename the others to match the canonical basename
+  # Execute the chosen renames (confirm each)
   for p in "${paths[@]}"; do
     [[ "$p" == "$canonical" ]] && continue
     new_path="${p:h}/$canon_base"
     [[ "$p" == "$new_path" ]] && continue
 
+    # HARD STOP if destination exists (never overwrite/delete)
     if [[ -e "$new_path" ]]; then
-      print "${fg_bold[red]}Skip (exists)${reset_color}:\n  $new_path"
+      print -u2 "${fg_bold[red]}ERROR:${reset_color} destination exists:"
+      print -u2 "  $new_path"
       continue
     fi
 
     if (( print_only )); then
+      # Machine-safe one-liner (quoting)
       printf 'mv -n -- %q %q\n' "$p" "$new_path"
       continue
     fi
 
-    # Pretty prompt: one-per-line
+    # Pretty, one-per-line prompt
     print "${fg_bold[yellow]}Rename:${reset_color}"
     print "  ${fg[red]}$p${reset_color}"
     print "  ${fg_bold[yellow]}->${reset_color}"
