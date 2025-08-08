@@ -48,7 +48,7 @@ case $host in
       run yt-dlp -N 8 -f "bv*+ba/b" -o "%(title)s.%(ext)s" "$url"
     fi
     ;;
-
+  
   # SoundCloud
   soundcloud.com|*.soundcloud.com)
     run yt-dlp -N 8 -f "bestaudio" -o "%(uploader)s - %(title)s.%(ext)s" "$url"

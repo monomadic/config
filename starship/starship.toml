@@ -1,47 +1,93 @@
-# starship.toml
-
-# Don't print a new line at the start
+# ~/.config/starship.toml
 add_newline = true
+command_timeout = 500
+scan_timeout = 10
 
-# Disable default prefix in the prompt (shows no newlines between sections)
-[character]
-success_symbol = "[❯](bold green)"  # Symbol when the last command was successful
-error_symbol = "[✗](bold red)"      # Symbol when the last command failed
+format = """
+$os$hostname \
+$directory \
+$git_branch$git_status \
+${custom.disk_free} \
+${custom.uptime_warn}${custom.uptime_ok} \
+$battery \
+$line_break$character
+"""
 
-# Configure the directory module
-[directory]
-# truncation_length = 3 # Show the last 3 directories of the path
-# truncation_symbol = "…/" # Use an ellipsis for truncation
-format = "[ $path]($style) " # Show the directory path in brackets
-style = "blue"
+right_format = """$time"""
 
-# Configure the git module
-[git_branch]
-symbol = " " # Icon for the git branch
-style = "bold yellow"
+# ---------- OS + Host ----------
+[os]
+disabled = false
+format = "[$symbol]($style) "
+style = "bold cyan"
+[os.symbols]
+Macos = ""
 
-[custom.wattage]
-command = "get_wattage"
-shell = "zsh"
-format = "[$output](bold green) "
-
-[custom.vi_mode]
-format = "[$symbol($status)]($style) "
-symbol = "$env(STARSHIP_VI_MODE)"
-style = "bold green"
-
-[status]
-symbol = "⚠️ "
-style = "bold red"
-format = "[$symbol$status]($style) "
+[hostname]
+ssh_only = false
+format = "@[$hostname]($style) "
 disabled = false
 
-[custom.disk_space]
-command = "df -h / | grep -E '^/dev/' | awk '{print $4}' | sed 's/Gi/gb/' | xargs -I {} echo '  {}'"  # Convert Gi to gb
-when = "df -h / | grep -E '^/dev/' | awk '{print $4}' | sed 's/Gi//' | awk '$1 < 10 {exit 1}'"  # Trigger warning if free space is less than 10GB
-style = "bold red"  # Apply red style when the threshold is met
+# ---------- Directory (absolute path) ----------
+[directory]
+style = "bold blue"
+format = "[$path]($style) "
+truncation_length = 0
+truncate_to_repo = false
 
-[custom.uptime]
-command = "uptime -p | sed 's/ days/d/' | xargs -I {} echo '  up {}'"  # Format uptime and use 'd' for days
-when = "uptime -p | awk '/day/ {print $2}' | awk '$1 >= 2 {exit 1}'"  # Trigger warning if uptime is 2 days or more
-style = "bold yellow"  # Apply yellow style when the threshold is met
+# ---------- Git ----------
+[git_branch]
+symbol = " "
+style = "bold green"
+format = "[$symbol$branch]($style) "
+
+[git_status]
+style = "bold red"
+format = "[$all_status$ahead_behind]($style) "
+disabled = false
+
+# ---------- Disk Free (GB of current filesystem) ----------
+[custom.disk_free]
+command = "df -H -P . | awk 'NR==2{print $4}'"
+when = "true"
+shell = ["bash", "-lc"]
+format = "[ $output](bold green) "
+
+# ---------- Uptime (warn ≥ 2 days) ----------
+# Red when >= 2 days
+[custom.uptime_warn]
+when = 'boot=$(sysctl -n kern.boottime | awk "{print \$4}" | tr -d ","); now=$(date +%s); (( now - boot >= 172800 ))'
+command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
+shell = ["bash", "-lc"]
+format = "[ $output](bold red) "
+
+# Yellow when < 2 days
+[custom.uptime_ok]
+when = 'boot=$(sysctl -n kern.boottime | awk "{print \$4}" | tr -d ","); now=$(date +%s); (( now - boot < 172800 ))'
+command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
+shell = ["bash", "-lc"]
+format = "[ $output](bold yellow) "
+
+# ---------- Battery ----------
+[battery]
+format = "[$symbol$percentage]($style) "
+display = [
+  { threshold = 101, style = "bold purple" } # apply style at any charge
+]
+full_symbol = " "
+charging_symbol = " "
+discharging_symbol = " "
+unknown_symbol = " "
+empty_symbol = " "
+
+# ---------- Time (right) ----------
+[time]
+disabled = false
+format = "[ $time](bold white)"
+time_format = "%H:%M:%S"
+
+# ---------- Prompt char ----------
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+vicmd_symbol = "[❮](bold yellow)"
