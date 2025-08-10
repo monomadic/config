@@ -4,29 +4,6 @@ mpv-stdin() {
   mpv --macos-fs-animation-duration=0 --no-native-fs --fs --input-ipc-server=/tmp/mpvsocket --mute=yes $@ --playlist=- >/dev/null 2>&1 &
 }
 
-media-search-pwd-sorted() {
-  echo $PWD | sort-across-paths --sort modified --reverse | fzf-play
-}
-
-mpv-play-cache() {
-  expand-paths $LOCAL_CACHE_PATHS | mpv-stdin --shuffle
-}
-alias @play-cache=mpv-play-cache
-
-mpv-play-cache-clips() {
-  expand-paths $LOCAL_CACHE_PATHS | sort-across-paths --sort modified --reverse | grep "\/clips\/" | mpv-stdin --shuffle
-}
-alias @play-cached-clips=mpv-play-cache-clips
-
-mpv-play-cache-cs() {
-  expand-paths $LOCAL_CACHE_PATHS | sort-across-paths --sort modified --reverse | grep "#cumshot" | mpv-stdin --shuffle
-}
-alias @play-cached-cs=mpv-play-cache-cs
-
-mpv-play-cache-latest() {
-  expand-paths $LOCAL_CACHE_PATHS | sort-across-paths --sort modified --reverse | mpv-stdin
-}
-
 mpv-play-local() {
   expand-paths $LOCAL_MEDIA_PATHS | mpv-stdin
 }
@@ -48,13 +25,6 @@ mpv-play-local-sorted() {
 
 alias .local-sorted=mpv-play-local-sorted
 alias .play-local-sorted=mpv-play-local-sorted
-
-alias mpv-play-pwd="fd-video | mpv-stdin"
-alias @play-pwd=mpv-play-pwd
-alias .play-pwd=mpv-play-pwd
-alias .play-pwd-shuffle=mpv-play-pwd --shuffle
-
-alias @play-private="cd $PRIVATE_PHOTOS_LIBRARY/originals && @play-pwd"
 
 alias @search-incomplete=media-search-incomplete-downloads
 

@@ -41,6 +41,7 @@ if [[ $# -gt 0 ]]; then
       --no-native-fs \
       --fs \
       --mute=yes \
+      --interpolation --tscale=mitchell --video-sync=display-resample \
       --playlist-start="$start_index" \
       "${files[@]}"
   else

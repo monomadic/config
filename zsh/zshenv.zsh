@@ -32,6 +32,14 @@ JUMP_DIRS=(
   "$HOME/Movies/**/*.mp4"
 )
 
+# usage:
+# setopt local_options null_glob
+# mpv $~MEDIA_GLOBS
+# print -rl -- $^MEDIA_GLOBS
+# print -rl -- $~MEDIA_GLOBS
+#
+# null safe:
+# printf '%s\0' $~MEDIA_GLOBS | fzf --read0 -m
 MEDIA_GLOBS=(
   "/Volumes/*/Movies/Porn/**/*.mp4"
   "$HOME/Movies/Porn/**/*.mp4"
@@ -57,14 +65,12 @@ export ZSH_SCRIPT_PATHS=(
 export EDITOR=hx
 export TEMPLATE_BASE_DIR=$XDG_CONFIG_HOME/nvim/templates
 
-export BACKUP_TARGET="/Volumes/Tower"
 export TABLATURE_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature/"
 export TUTORIALS_PATH=$HOME/Movies/Tutorials
 
 # Media
 export LOCAL_MEDIA_PATHS=$HOME/Movies/Porn
 export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn"
-export EXTERNAL_CACHE_PATHS="/Volumes/*/Movies/Cache"
 export INDEX_DIR="$HOME/.indexes"
 export PRIVATE_PHOTOS_LIBRARY="$HOME/Media/Private/Private.photoslibrary"
 

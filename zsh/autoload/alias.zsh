@@ -1,11 +1,13 @@
 ICLOUD_HOME="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
 DJ_VISUALS_PATH="$ICLOUD_HOME/Movies/Visuals"
 
+alias yt-dlp-youtube-embedded="yt-dlp --cookies-from-browser brave --continue --progress --verbose --retries infinite --fragment-retries infinite --socket-timeout 15 -f bestvideo+ba/best --embed-metadata --extractor-args 'youtube:player-client=tv_embedded' "
+
 # media functions
 
 alias mpv-loop="mpv --player-operation-mode=pseudo-gui --loop-file=inf --loop-playlist=inf --image-display-duration=5 --force-window=yes --no-config --no-input-default-bindings "
 alias .pwd="mpv-play $PWD"
-alias mpv-play-porn="mpv-play $HOME/Movies/Porn/ /Volumes/*/Movies/Porn/**/*.mp4"
+alias mpv-play-porn="setopt local_options null_glob && mpv-play $~MEDIA_GLOBS"
 alias mpv-play-volumes="mpv-play /Volumes/*/Movies/**/*.mp4"
 
 # media search
