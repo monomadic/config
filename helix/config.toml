@@ -41,6 +41,7 @@ K = [
   "paste_after",         # paste here
   "collapse_selection"   # reset the selection for the next repeat
 ]
+y = ["yank_main_selection_to_clipboard"]
 
 [keys.insert]
 C-s = [":write", "normal_mode"]
@@ -65,6 +66,7 @@ p = ["replace_selections_with_clipboard", "collapse_selection"]
 j = "extend_line_below"
 # full-line extend up
 k = "extend_line_above"
+R = ["replace_selections_with_clipboard"]
 
 [editor.cursor-shape]
 insert = "bar"

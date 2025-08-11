@@ -2,7 +2,6 @@
 
 # Search for video files with specific extensions, case-insensitive
 fd --absolute-path \
-  --print0 \
   --color=never \
   --ignore-case \
   --type=file \

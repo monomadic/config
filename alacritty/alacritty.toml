@@ -96,3 +96,6 @@ chars = "\u001b[1;9o"
 
 [general]
 live_config_reload = true
+
+[selection]
+save_to_clipboard = true

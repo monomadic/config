@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# generate-test-stems
+# Make synthetic stems (pure tones) and optionally pack into VDJ (.vdjstems) or NI-like (.stem.mp4).
+# Now supports dumping WAVs only via --emit-wavs and --wavs-only.
+
+set -euo pipefail
+
+DUR=30
+FORMAT="vdj"        # vdj | ni
+CODEC="alac"        # alac | aac
+OUTFILE=""
+EMIT_WAVS_DIR=""    # if set, write wavs there
+WAVS_ONLY=false
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [opts]
+
+Options:
+  --dur SECONDS          Duration (default: 30)
+  --format vdj|ni        Container format (default: vdj)
+  --codec alac|aac       Audio codec for container (default: alac)
+  -o OUTFILE             Output container path (default per format)
+  --emit-wavs DIR        Write per-stem WAVs to DIR (all.wav, vocal.wav, instrument.wav, bass.wav, drums.wav)
+  --wavs-only            Generate WAVs then exit (requires or implies --emit-wavs; uses ./stems-YYYYmmdd-HHMMSS if omitted)
+  -h|--help              Show this help
+
+Tones:
+  Vocal=1000 Hz, Instrument=500 Hz, Bass=125 Hz, Drums=250 Hz. All = sum of the four.
+EOF
+}
+
+# Parse args
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dur) shift; DUR="${1:?}";;
+    --format) shift; FORMAT="${1:?}";;
+    --codec) shift; CODEC="${1:?}";;
+    -o) shift; OUTFILE="${1:?}";;
+    --emit-wavs) shift; EMIT_WAVS_DIR="${1:?}";;
+    --wavs-only) WAVS_ONLY=true;;
+    -h|--help) usage; exit 0;;
+    *) echo "Unknown arg: $1"; usage; exit 1;;
+  esac
+  shift
+done
+
+case "$FORMAT" in
+  vdj) OUTFILE="${OUTFILE:-$(pwd)/TestTone.vdjstems}";;
+  ni)  OUTFILE="${OUTFILE:-$(pwd)/TestTone.stem.mp4}";;
+  *) echo "Bad --format: $FORMAT"; exit 1;;
+esac
+
+# Prepare dirs
+if $WAVS_ONLY && [[ -z "$EMIT_WAVS_DIR" ]]; then
+  ts="$(date +%Y%m%d-%H%M%S)"
+  EMIT_WAVS_DIR="$(pwd)/stems-${ts}"
+fi
+if [[ -n "$EMIT_WAVS_DIR" ]]; then
+  mkdir -p "$EMIT_WAVS_DIR"
+fi
+
+tmpdir="$(mktemp -d -t vdjtest.XXXXXXXX)"
+cleanup() {
+  # Keep tmp if user requested WAVs to a temp-less dest
+  rm -rf "$tmpdir"
+}
+trap cleanup EXIT
+
+# Helper to choose a final wav path (either emit dir or tmp)
+wav_path() {
+  local name="$1"
+  if [[ -n "$EMIT_WAVS_DIR" ]]; then
+    echo "$EMIT_WAVS_DIR/$name"
+  else
+    echo "$tmpdir/$name"
+  fi
+}
+
+# Synthesize tones (stereo)
+mk_tone() {
+  local freq="$1" out="$2" vol="${3:-0.6}"
+  ffmpeg -v error -y -f lavfi -i "sine=frequency=${freq}:sample_rate=44100:duration=${DUR},volume=${vol}" \
+    -ac 2 "$out"
+}
+
+VOCAL_WAV="$(wav_path vocal.wav)"
+INSTR_WAV="$(wav_path instrument.wav)"
+BASS_WAV="$(wav_path bass.wav)"
+DRUMS_WAV="$(wav_path drums.wav)"
+ALL_WAV="$(wav_path all.wav)"
+
+mk_tone 1000 "$VOCAL_WAV"      0.5
+mk_tone 500  "$INSTR_WAV"      0.5
+mk_tone 125  "$BASS_WAV"       0.6
+mk_tone 250  "$DRUMS_WAV"      0.6
+
+# All = sum (label output as [a])
+ffmpeg -v error -y \
+  -i "$VOCAL_WAV" -i "$INSTR_WAV" -i "$BASS_WAV" -i "$DRUMS_WAV" \
+  -filter_complex "[0:a][1:a][2:a][3:a]amix=inputs=4:normalize=0, aformat=channel_layouts=stereo[a]" \
+  -map "[a]" -ac 2 "$ALL_WAV"
+
+if $WAVS_ONLY; then
+  echo "WAVs written to: ${EMIT_WAVS_DIR:-$tmpdir}"
+  printf "%s\n" "$ALL_WAV" "$VOCAL_WAV" "$INSTR_WAV" "$BASS_WAV" "$DRUMS_WAV"
+  exit 0
+fi
+
+# Codec opts for container
+if [[ "$CODEC" == "alac" ]]; then
+  aopts=(-c:a alac -sample_fmt s16p -ac 2)
+else
+  aopts=(-c:a aac -b:a 256k -ac 2)
+fi
+
+if [[ "$FORMAT" == "vdj" ]]; then
+  ffmpeg -v error -y \
+    -i "$ALL_WAV" \
+    -i "$VOCAL_WAV" \
+    -i "$INSTR_WAV" \
+    -i "$BASS_WAV" \
+    -i "$DRUMS_WAV" \
+    -map 0:a -metadata:s:a:0 title="All"        -metadata:s:a:0 handler_name="SoundHandler"  -disposition:a:0 default \
+    -map 1:a -metadata:s:a:1 title="Vocal"      -metadata:s:a:1 handler_name="SoundHandler"  -disposition:a:1 0 \
+    -map 2:a -metadata:s:a:2 title="Instrument" -metadata:s:a:2 handler_name="SoundHandler"  -disposition:a:2 0 \
+    -map 3:a -metadata:s:a:3 title="Bass"       -metadata:s:a:3 handler_name="SoundHandler"  -disposition:a:3 0 \
+    -map 4:a -metadata:s:a:4 title="Drums"      -metadata:s:a:4 handler_name="SoundHandler"  -disposition:a:4 0 \
+    -filter:a "aformat=channel_layouts=stereo" \
+    "${aopts[@]}" -movflags +faststart+use_metadata_tags -brand mp42 -f mp4 "$OUTFILE"
+else
+  ffmpeg -v error -y \
+    -i "$ALL_WAV" \
+    -i "$DRUMS_WAV" \
+    -i "$BASS_WAV" \
+    -i "$INSTR_WAV" \
+    -i "$VOCAL_WAV" \
+    -map 0:a -metadata:s:a:0 title="Full"       -metadata:s:a:0 handler_name="SoundHandler" -disposition:a:0 default \
+    -map 1:a -metadata:s:a:1 title="Drums"      -metadata:s:a:1 handler_name="SoundHandler" -disposition:a:1 0 \
+    -map 2:a -metadata:s:a:2 title="Bass"       -metadata:s:a:2 handler_name="SoundHandler" -disposition:a:2 0 \
+    -map 3:a -metadata:s:a:3 title="Melody"     -metadata:s:a:3 handler_name="SoundHandler" -disposition:a:3 0 \
+    -map 4:a -metadata:s:a:4 title="Vocals"     -metadata:s:a:4 handler_name="SoundHandler" -disposition:a:4 0 \
+    -filter:a "aformat=channel_layouts=stereo" \
+    "${aopts[@]}" -movflags +faststart+use_metadata_tags -brand mp42 -f mp4 "$OUTFILE"
+fi
+
+echo "Wrote container: $OUTFILE"
