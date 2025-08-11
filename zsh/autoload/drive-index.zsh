@@ -15,12 +15,12 @@ mpv-play-local() {
 alias .local-play=mpv-play-local
 
 fzf-local-sorted() {
-  expand-paths $LOCAL_MEDIA_PATHS | sort-across-paths --sort modified --reverse | fzf-play --kitty
+  expand-paths $LOCAL_MEDIA_PATHS | sort-across-paths --sort modified --reverse | fzf-play
 }
 alias .search-local=fzf-local-sorted
 
 mpv-play-local-sorted() {
-  expand-paths $LOCAL_MEDIA_PATHS | sort-across-paths --sort modified --reverse | mpv-stdin
+  expand-paths $LOCAL_MEDIA_PATHS | sort-across-paths --sort modified --reverse | mpv-stdin -0
 }
 
 alias .local-sorted=mpv-play-local-sorted

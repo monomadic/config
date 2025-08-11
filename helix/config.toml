@@ -21,7 +21,6 @@ V = ["extend_line", "select_mode"]
 "{" = ["goto_prev_paragraph"]
 "}" = ["goto_next_paragraph"]
 Q = ":wq!"
-#C-f = [":new", ":insert-output lf-pick", ":theme default", "select_all", "split_selection_on_newline", "goto_file", "goto_last_modified_file", ":buffer-close!", ":theme tokyonight_storm"]
 backspace = "goto_last_accessed_file"
 p = [":clipboard-paste-after"]
 P = [":clipboard-paste-before"]

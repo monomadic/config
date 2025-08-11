@@ -1,0 +1,146 @@
+#!/bin/zsh
+# ni-stem-to-vdjstems
+# Convert Native Instruments .stem.mp4 -> VirtualDJ .vdjstems using ffmpeg.
+# Requirements: ffmpeg, ffprobe
+#
+# Default mapping (NI standard):
+#   0: Full/Master, 1: Drums, 2: Bass, 3: Melody, 4: Vocals
+#
+# VirtualDJ 4-stem layout (plus Full):
+#   a:0 Full, a:1 Vocal, a:2 Instrument, a:3 Bass, a:4 Drums
+#
+# Optional 5-stem: duplicate Drums into Kick & Hihat
+#   a:0 Full, a:1 Vocal, a:2 Instrument, a:3 Bass, a:4 Kick, a:5 Hihat
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ni-stem-to-vdjstems [-o OUTFILE] [--aac] [--five] [--map X:Y ...] INPUT.stem.mp4
+
+Options:
+  -o OUTFILE   Output path (default: input basename with .vdjstems)
+  --aac        Use AAC instead of ALAC (lossy). Default is ALAC (lossless).
+  --five       Produce 5 stems (Kick+Hihat by duplicating Drums).
+  --map X:Y    Override NI->logical mapping (repeatable). X is NI index, Y in {full,drums,bass,melody,vocals}
+               Example: --map 1:drums --map 2:bass --map 3:melody --map 4:vocals
+
+Notes:
+- If stems appear out of order in your file, use --map to fix.
+- This writes well-formed MP4 with proper stereo layout and per-stream titles VirtualDJ recognizes.
+EOF
+}
+
+# Defaults
+codec="alac"
+five=false
+declare -A ni_to_kind
+ni_to_kind=([0]=full [1]=drums [2]=bass [3]=melody [4]=vocals)
+outfile=""
+
+# Parse args
+args=()
+while (( $# )); do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    -o) shift; outfile="${1:-}";;
+    --aac) codec="aac" ;;
+    --five) five=true ;;
+    --map)
+      shift
+      pair="${1:-}"
+      [[ "$pair" == *:* ]] || { echo "Bad --map value: $pair" >&2; exit 1; }
+      ni="${pair%%:*}"; kind="${pair##*:}"
+      [[ "$ni" == <-> ]] || { echo "NI index must be numeric: $ni" >&2; exit 1; }
+      case "$kind" in full|drums|bass|melody|vocals) ;; *) echo "Bad kind: $kind" >&2; exit 1;; esac
+      ni_to_kind[$ni]="$kind"
+      ;;
+    --) shift; break ;;
+    -*)
+      echo "Unknown option: $1" >&2; usage; exit 1 ;;
+    *)
+      args+=("$1")
+      ;;
+  esac
+  shift
+done
+
+(( ${#args[@]} == 1 )) || { usage; exit 1; }
+infile="${args[1]}"
+
+[[ -f "$infile" ]] || { echo "No such file: $infile" >&2; exit 1; }
+base="${infile:t:r}"
+out="${outfile:-${infile:h}/${base}.vdjstems}"
+
+# Probe audio stream count to sanity check
+astreams=$(ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$infile" | wc -l | tr -d ' ')
+if (( astreams < 2 )); then
+  echo "Input doesn't look like NI STEMS (found $astreams audio streams)." >&2
+  exit 1
+fi
+
+# Build input stream selectors (by NI index)
+# We expect at least NI[0]=full and NI[1..] = stems.
+function first_index_of() {
+  local target="$1"
+  for i in ${(k)ni_to_kind}; do
+    [[ "${ni_to_kind[$i]}" == "$target" ]] && { echo "$i"; return 0; }
+  done
+  return 1
+}
+
+idx_full=$(first_index_of full || true)
+idx_drums=$(first_index_of drums || true)
+idx_bass=$(first_index_of bass || true)
+idx_melody=$(first_index_of melody || true)
+idx_vocals=$(first_index_of vocals || true)
+
+# Validate presence of critical stems
+[[ -n "$idx_full"   ]] || { echo "Missing NI 'full' mapping." >&2; exit 1; }
+[[ -n "$idx_vocals" ]] || { echo "Missing NI 'vocals' mapping." >&2; exit 1; }
+[[ -n "$idx_melody" ]] || { echo "Missing NI 'melody' mapping." >&2; exit 1; }
+[[ -n "$idx_bass"   ]] || { echo "Missing NI 'bass' mapping." >&2; exit 1; }
+[[ -n "$idx_drums"  ]] || { echo "Missing NI 'drums' mapping." >&2; exit 1; }
+
+# Audio codec settings
+# - For ALAC we keep lossless and force stereo layout to avoid 'unknown' channel layouts some builds show.
+# - For AAC, pick a solid CBR and stereo layout as well.
+ac_opts=()
+if [[ "$codec" == "alac" ]]; then
+  ac_opts=(-c:a alac -sample_fmt s16p -ac 2)
+else
+  ac_opts=(-c:a aac -b:a 256k -ac 2)
+fi
+
+# Title set A (4 stems + Full) — widely recognized by VDJ:
+#   Full, Vocal, Instrument, Bass, Drums
+# Title set B (5 stems) — Kick/Hihat (Drums duplicated)
+if $five; then
+  # Duplicate DRUMS -> Kick and Hihat
+  ffmpeg -y -hide_banner -loglevel error -stats \
+    -i "$infile" \
+    -map 0:a:"$idx_full"   -metadata:s:a:0 title="All" \
+    -map 0:a:"$idx_vocals" -metadata:s:a:1 title="Vocal" \
+    -map 0:a:"$idx_melody" -metadata:s:a:2 title="Instrument" \
+    -map 0:a:"$idx_bass"   -metadata:s:a:3 title="Bass" \
+    -map 0:a:"$idx_drums"  -metadata:s:a:4 title="Kick" \
+    -map 0:a:"$idx_drums"  -metadata:s:a:5 title="Hihat" \
+    "${ac_opts[@]}" \
+    -movflags +faststart -f mp4 "$out"
+else
+  ffmpeg -y -hide_banner -loglevel error -stats \
+    -i "$infile" \
+    -map 0:a:"$idx_full"   -metadata:s:a:0 title="All" \
+    -map 0:a:"$idx_vocals" -metadata:s:a:1 title="Vocal" \
+    -map 0:a:"$idx_melody" -metadata:s:a:2 title="Instrument" \
+    -map 0:a:"$idx_bass"   -metadata:s:a:3 title="Bass" \
+    -map 0:a:"$idx_drums"  -metadata:s:a:4 title="Drums" \
+    "${ac_opts[@]}" \
+    -movflags +faststart -f mp4 "$out"
+fi
+
+# Quick verification output
+echo "Wrote: $out"
+ffprobe -v error -select_streams a -show_entries stream=index,codec_name,channels,channel_layout:stream_tags=title \
+  -of compact=p=0:nk=1 "$out"
