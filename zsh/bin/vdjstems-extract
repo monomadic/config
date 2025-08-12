@@ -1,0 +1,59 @@
+#!/bin/sh
+
+# need FFMPEG - SOX and MAC terminal (file.sh)
+# Extract .flac and  his saved .vdjstems in same directory 
+# VirtualDJ to 32 bits to 3 files OTHER/DRUM/VOCAL .wav and 32 bits .raw
+# if you play Play the 3 .wav in Audacity minor phase inversed original .flac : silence 
+# so other part is used for bit perfect (other = Original - VOCAL - DRUM)
+# OTHER+DRUM+VOCAL -> BIT PERFECT of original .flac
+
+export PATH=/opt/homebrew/bin:$PATH #patch where home-brew and FFmpeg are installed on my MAC M1
+
+
+echo "Drag n drop the folder with the .vdjstems to compute here: "
+read chemin
+
+echo "FOLDER: "  $chemin
+
+
+for i in "$chemin"/*.vdjstems; do
+    [ -f "$i" ] || break
+
+
+
+original_i=$(echo "${i:0:${#i}-14}") #delete .flac .vdjstems extensions to find original file in same directory
+
+
+ffmpeg  -i "$i" -map 0:0 "$original_i""_vocal.wav" #0 Vocal in .vdjstems
+ffmpeg  -i "$i" -map 0:1 "$original_i""_vdjdrum1.wav" #1 hithat in .vdjstems
+ffmpeg  -i "$i" -map 0:4 "$original_i""_vdjdrum2.wav" #4 kick in .vdjstems
+
+Sox -v 1 "$original_i"".flac" "$original_i"".wav" # original to be used to creat other = original - drum - vocal
+
+Sox -m -v 1 "$original_i""_vdjdrum1.wav" -v 1 "$original_i""_vdjdrum2.wav" "$original_i""_drum.wav" # full drum stem drum1 + drum2
+
+# Create Other Stem : Other stem  = ( Original + Phase inverted drums + Phase inverted vocals) 
+# (phase inversion with "-v -1" sox option)
+
+Sox -m -v 1 "$original_i"".wav" -v -1 "$original_i""_vocal.wav"  -v -1 "$original_i""_drum.wav"  "$original_i""_other.wav"
+
+
+other="$original_i""_other.raw"
+echo "File other : " $other
+
+drum="$original_i""_drum.raw"
+echo "File drum : " $drum
+
+vocal="$original_i""_vocal.raw"
+echo "File vocal : " $vocal
+
+# RAW 32 bits export option 3 stems
+#Sox -v 1 "$original_i""_vocal.wav"  -r 44100 -e floating-point -b 32 -c 2 "$vocal" 
+
+#Sox -v 1 "$original_i""_drum.wav" -r 44100 -e floating-point -b 32 -c 2  "$drum"
+
+#Sox -v 1  "$original_i""_other.wav" -r 44100 -e floating-point -b 32 -c 2  "$other"
+
+rm "$original_i""_vdjdrum1.wav"
+rm "$original_i""_vdjdrum2.wav"
+rm "$original_i"".wav"

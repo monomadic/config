@@ -1,0 +1,200 @@
+#!/usr/bin/env zsh
+# Portable zsh rewrite of the Python stem packer
+# Requires: ffmpeg, MP4Box; Prefers: fdkaac (falls back to ffmpeg aac)
+# macOS-friendly, but should work anywhere with the deps.
+
+set -euo pipefail
+
+# ---------- config ----------
+# Track naming/order for the final file (VirtualDJ style)
+typeset -a TRACK_NAMES=("mixed track" "vocal" "hihat" "bass" "instruments" "kick")
+
+# Map common source filenames → canonical names we expect
+typeset -A FILE_REMAP=(
+  "drums-main.wav"      "kick.wav"
+  "drums-hihats.wav"    "hihat.wav"
+  "other.wav"           "instruments.wav"
+  "vocals.wav"          "vocal.wav"
+)
+
+# Canonical input set we need to find in the folder
+typeset -a REQUIRED=("kick.wav" "instruments.wav" "vocal.wav" "bass.wav" "hihat.wav")
+
+# ---------- helpers ----------
+die() { print -r -- "ERROR: $*" >&2; exit 1; }
+
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# Pick AAC encoder: prefer fdkaac; otherwise ffmpeg (libfdk_aac if present, else native aac)
+pick_aac_encoder() {
+  if have fdkaac; then
+    print fdkaac
+  else
+    print ffmpeg
+  fi
+}
+
+assert_bins() {
+  have ffmpeg    || die "ffmpeg not found in PATH"
+  have MP4Box    || die "MP4Box (GPAC) not found in PATH"
+}
+
+# Lowercase filename utility
+lower() { print -nr -- "${1:l}"; }
+
+# ---------- usage ----------
+if (( $# < 1 )); then
+  print "Usage: ${0:t} /path/to/folder/of/wavs"
+  exit 2
+fi
+
+FOLDER="${1:A}"
+[[ -d "$FOLDER" ]] || die "Not a directory: $FOLDER"
+
+assert_bins
+AAC_ENCODER="$(pick_aac_encoder)"
+print "Using AAC encoder: $AAC_ENCODER"
+
+tmpdir="$(mktemp -d 2>/dev/null || mktemp -d -t vdjpack)"
+cleanup() { rm -rf -- "$tmpdir"; }
+trap cleanup EXIT
+
+# ---------- discover inputs ----------
+typeset -A INPUTS  # canonical -> fullpath
+for f in "$FOLDER"/*.wav(N); do
+  base="${f:t}"
+  lb="$(lower "$base")"
+  canon="${FILE_REMAP[$lb]:-$lb}"
+  # only keep filenames we actually care about
+  for want in $REQUIRED; do
+    if [[ "$canon" == "$want" ]]; then
+      INPUTS[$want]="$f"
+    fi
+  done
+done
+
+# Ensure we found all required stems
+for need in $REQUIRED; do
+  [[ -n "${INPUTS[$need]-}" ]] || die "Missing stem: $need"
+done
+
+# ---------- create mixed track (amix of the 5 stems) ----------
+mixed_wav="$tmpdir/temp_mixed.wav"
+{
+  args=(-y)
+  # feed the 5 stems in arbitrary order, ffmpeg input order does not matter for amix=inputs=5
+  for k in $REQUIRED; do
+    args+=(-i "$INPUTS[$k]")
+  done
+  # amix inputs = number of stems; then boost volume=5 (match original)
+  inputs_count="${#REQUIRED}"
+  ffmpeg "${args[@]}" \
+    -filter_complex "amix=inputs=${inputs_count}[m];[m]volume=5[out]" \
+    -map "[out]" -acodec pcm_f32le "$mixed_wav"
+} || die "ffmpeg mix failed"
+
+# ---------- encode each wav to AAC ----------
+# order here must match the later stream mapping:
+# 0: kick, 1: instruments (Other), 2: vocal, 3: bass, 4: hihat, 5: mixed
+typeset -a ENCODE_ORDER=("kick.wav" "instruments.wav" "vocal.wav" "bass.wav" "hihat.wav")
+typeset -a TEMP_AAC
+for stem in $ENCODE_ORDER; do
+  in_file="$INPUTS[$stem]"
+  out_file="$tmpdir/temp_${stem:r}.aac"
+  TEMP_AAC+=("$out_file")
+
+  if [[ -s "$out_file" ]]; then
+    print "Skip existing: ${out_file:t}"
+    continue
+  fi
+
+  if [[ "$AAC_ENCODER" == "fdkaac" ]]; then
+    # fdkaac: LC, 320k CBR, afterburner=1, bandwidth 20000 (as in Python)
+    fdkaac \
+      -p 2 -b 320k -m 0 --afterburner 1 -w 20000 \
+      -o "$out_file" "$in_file" || die "fdkaac failed for $stem"
+  else
+    # ffmpeg fallback: prefer libfdk_aac if available, else native aac
+    # We can’t probe codec availability portably here; native aac is fine for 320k CBR.
+    ffmpeg -y -i "$in_file" -c:a aac -b:a 320k -movflags +faststart "$out_file" \
+      || die "ffmpeg aac encode failed for $stem"
+  fi
+done
+
+# Append mixed track AAC to the end of array for mapping consistency
+mixed_aac="$tmpdir/temp_mixed_track.aac"
+if [[ "$AAC_ENCODER" == "fdkaac" ]]; then
+  fdkaac -p 2 -b 320k -m 0 --afterburner 1 -w 20000 -o "$mixed_aac" "$mixed_wav" \
+    || die "fdkaac failed for mixed track"
+else
+  ffmpeg -y -i "$mixed_wav" -c:a aac -b:a 320k -movflags +faststart "$mixed_aac" \
+    || die "ffmpeg aac encode failed for mixed track"
+fi
+TEMP_AAC+=("$mixed_aac")
+
+# Sanity check: expect 6 tracks total
+(( ${#TEMP_AAC} == 6 )) || die "Expected 6 AAC tracks, got ${#TEMP_AAC}"
+
+# ---------- mux to isom m4a with specific stream order/dispositions ----------
+# Input indices (TEMP_AAC):
+# 0 kick, 1 instruments, 2 vocal, 3 bass, 4 hihat, 5 mixed
+# Output mapping (to match Python):
+# 0 <- mixed(5), 1 <- vocal(2), 2 <- hihat(4), 3 <- bass(3), 4 <- instruments(1), 5 <- kick(0)
+temp_ffmpeg_m4a="$tmpdir/temp_ffmpeg_m4a.m4a"
+
+ffmpeg -y \
+  -i "${TEMP_AAC[1]}" \
+  -i "${TEMP_AAC[2]}" \
+  -i "${TEMP_AAC[3]}" \
+  -i "${TEMP_AAC[4]}" \
+  -i "${TEMP_AAC[5]}" \
+  -i "${TEMP_AAC[6]}" \
+  -map 5:a -map 1:a -map 4:a -map 3:a -map 2:a -map 0:a \
+  -c:a copy \
+  -disposition:a:0 default \
+  -disposition:a:1 0 \
+  -disposition:a:2 0 \
+  -disposition:a:3 0 \
+  -disposition:a:4 0 \
+  -disposition:a:5 0 \
+  -metadata title="virtualdj" \
+  -metadata artist="output" \
+  -brand isom \
+  "$temp_ffmpeg_m4a" \
+  >/dev/null 2>&1 || die "ffmpeg mux failed"
+
+# ---------- MP4Box: set track names, udta, brands ----------
+out_file="$FOLDER/${FOLDER:t}-custom.m4a"
+
+# Build -udta name updates
+typeset -a mp4box_args
+mp4box_args+=(MP4Box)
+
+# Set per-track names
+# MP4Box tracks are 1-based in the final file order (same as ffmpeg output order above)
+for i in {1..${#TRACK_NAMES}}; do
+  name="${TRACK_NAMES[$i]}"
+  mp4box_args+=(-udta "${i}:type=name" -udta "${i}:type=name:str=${name}")
+done
+
+# Write a short itags file for the container-level metadata
+meta_txt="$tmpdir/itags.txt"
+cat > "$meta_txt" <<EOF
+tool=VirtualDJ 2023.7544
+created=0
+tempo=127
+INITIALKEY=F
+rate=0
+EOF
+
+mp4box_args+=(-itags "$meta_txt")
+mp4box_args+=(-flat)
+mp4box_args+=(-brand isom:512)
+mp4box_args+=(-rb mp42)
+mp4box_args+=(-ab mp41)
+mp4box_args+=(-out "$out_file" "$temp_ffmpeg_m4a")
+
+# Run GPAC
+"${mp4box_args[@]}" >/dev/null 2>&1 || die "MP4Box failed"
+
+print "OK → $out_file"

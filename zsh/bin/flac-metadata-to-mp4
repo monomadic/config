@@ -1,0 +1,53 @@
+#!/bin/zsh
+# Copy all metadata (incl. Serato blobs) + cover art from FLAC -> MP4/M4A
+# Deps: ffmpeg, ffprobe
+# Usage: flac2mp4-meta-direct src.flac dst.{mp4,m4a} [--overwrite]
+
+set -euo pipefail
+
+(( $# >= 2 && $# <= 3 )) || { print -u2 "Usage: $0 src.flac dst.{mp4,m4a} [--overwrite]"; exit 1; }
+src="$1"; dst="$2"; overwrite="${3:-}"
+
+[[ -f $src ]] || { print -u2 "No such FLAC: $src"; exit 1; }
+[[ -f $dst ]] || { print -u2 "No such MP4/M4A: $dst"; exit 1; }
+case "${dst:t:e:l}" in mp4|m4a) ;; *) print -u2 "Destination must be .mp4 or .m4a"; exit 1 ;; esac
+
+out="$dst"; [[ "$overwrite" == "--overwrite" ]] || out="${dst:r}.meta.${dst:t:e}"
+
+# Detect an attached_pic stream on the FLAC (index relative to input 0)
+pic_index="$(ffprobe -v error -select_streams v \
+  -show_entries stream=index,disposition \
+  -of compact=p=0:nk=1 "$src" \
+  | awk -F'|' '/attached_pic=1/ {print $1; exit}')"
+
+# Count video streams on destination to compute the new v:N index (appended)
+vcount_dst="$(ffprobe -v error -select_streams v -show_entries stream=index -of csv=p=0 "$dst" | wc -l | tr -d ' ')"
+attach_vidx="$vcount_dst"  # new cover will be the next video stream
+
+args=(ffmpeg -v error -y)
+# 0 = FLAC (metadata + cover), 1 = MP4/M4A (streams)
+args+=(-i "$src" -i "$dst")
+
+# Keep all original dst streams
+args+=(-map 1)
+
+# Pull *all* metadata from FLAC (input 0) — preserves long/base64 Serato tags verbatim
+args+=(-map_metadata 0)
+
+# Copy codecs by default
+args+=(-c copy)
+
+# If FLAC has a cover stream, map and re-encode it as MJPEG cover
+if [[ -n "${pic_index:-}" ]]; then
+  args+=(-map "0:v:${pic_index}")
+  # Re-encode that *newly added* stream as mjpeg (container-safe), and mark as attached_pic
+  args+=(-c:v:${attach_vidx} mjpeg)
+  args+=(-disposition:v:${attach_vidx} attached_pic)
+  args+=(-metadata:s:v:${attach_vidx} title="Cover (front)")
+fi
+
+args+=("$out")
+"${args[@]}"
+
+print "✅ Wrote: $out"
+[[ -n "${pic_index:-}" ]] && print "🎨 Cover copied (from 0:v:${pic_index} → v:${attach_vidx})." || print "ℹ️ No attached_pic in FLAC."
