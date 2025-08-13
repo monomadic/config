@@ -19,7 +19,11 @@ auto-format = true
 indent = { tab-width = 2, unit = "\t" }
 
 [[language]]
-name = "html"
-file-types = ["html", "xml"]
+name = "xml"
+file-types = [ "xml", "svg", "xsd", "xslt", "xsl" ]
 auto-format = true
-indent = { tab-width = 2, unit = "\t" }
+formatter = { command = "xmllint", args = ["--format", "-"] }
+language-servers = [ "xml" ]
+
+[language-server.xml]
+command = "lemminx-osx-aarch_64"

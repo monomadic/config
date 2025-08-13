@@ -1,7 +1,9 @@
 theme = "taffy16_transparent"
 
-[editor.whitespace]
-# render = "all"
+[editor]
+true-color = true
+shell = ["zsh", "-c"]
+bufferline = "always"
 
 [keys.normal]
 Cmd-a = "select_all"
@@ -18,8 +20,8 @@ D = ["insert_mode", "kill_to_line_end", "normal_mode"]
 0 = ["goto_line_start"]
 L = ["goto_line_end"]
 V = ["extend_line", "select_mode"]
-"{" = ["goto_prev_paragraph"]
-"}" = ["goto_next_paragraph"]
+"{" = ["goto_prev_paragraph", "collapse_selection", "normal_mode"]
+"}" = ["goto_next_paragraph", "move_line_down", "collapse_selection", "normal_mode"]
 Q = ":wq!"
 backspace = "goto_last_accessed_file"
 p = [":clipboard-paste-after"]
@@ -42,6 +44,8 @@ K = [
   "collapse_selection"   # reset the selection for the next repeat
 ]
 y = ["yank_main_selection_to_clipboard"]
+"C-=" = "expand_selection"
+"C-minus" = "shrink_selection"
 
 [keys.insert]
 C-s = [":write", "normal_mode"]
@@ -67,6 +71,9 @@ j = "extend_line_below"
 # full-line extend up
 k = "extend_line_above"
 R = ["replace_selections_with_clipboard"]
+"C-+" = "expand_selection"
+"C-minus" = "shrink_selection"
+esc = ["collapse_selection", "normal_mode"]
 
 [editor.cursor-shape]
 insert = "bar"
