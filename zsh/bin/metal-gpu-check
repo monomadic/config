@@ -1,0 +1,40 @@
+#!/usr/bin/env zsh
+# macos-gpu-check: Detect GPU acceleration & headless mode on macOS
+
+display_info=$(system_profiler SPDisplaysDataType 2>/dev/null)
+metal_support=$(print "$display_info" | rg -i "Metal Support" | head -n 1 | sed 's/^[ \t]*//')
+display_names=("${(@f)$(print "$display_info" | rg -i "Display:" | sed 's/^[ \t]*//')}")
+
+# Count non-virtual displays
+physical_count=0
+for d in "${display_names[@]}"; do
+    if [[ "$d" != *"Screen Sharing Virtual Display"* ]]; then
+        ((physical_count++))
+    fi
+done
+
+# Check WindowServer renderer mode
+render_mode=$(log show --last 1m --predicate 'process == "WindowServer"' 2>/dev/null | rg -i "renderer" | tail -n 1)
+
+print -P "%F{cyan}--- GPU Mode Check --- %f"
+
+if (( physical_count == 0 )); then
+    print -P "%F{yellow}No physical display detected%f"
+    if (( ${#display_names[@]} > 0 )); then
+        print -P "%F{magenta}Virtual display active:%f ${display_names[*]}"
+    fi
+else
+    print -P "%F{green}Physical display(s) detected:%f $physical_count"
+fi
+
+if [[ "$metal_support" == *"Metal"* ]]; then
+    print -P "%F{green}$metal_support%f"
+else
+    print -P "%F{red}Metal not supported or not active%f"
+fi
+
+if [[ "$render_mode" == *"software"* ]]; then
+    print -P "%F{red}WindowServer is using software rendering%f"
+else
+    print -P "%F{green}WindowServer appears to be hardware accelerated%f"
+fi
