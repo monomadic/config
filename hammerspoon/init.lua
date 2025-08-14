@@ -1,4 +1,4 @@
-hs = hs
+local hs = hs
 
 -- reload hammerspoon
 hs.hotkey.bind({ "cmd", "ctrl" }, "R", function()
@@ -13,7 +13,7 @@ RemoteCmdInjector.keys = { "k", "c", "v", "a", "f", "t" } -- Add any you like
 RemoteCmdInjector:start()
 
 -- Load the Spoon
-hs.loadSpoon("TagSelectedFile")
+-- hs.loadSpoon("TagSelectedFile")
 
 -- Alacritty toggle (add this after your existing spoons)
 local function toggleAlacritty()
@@ -30,19 +30,19 @@ local function toggleAlacritty()
 end
 
 -- This will override any existing Cmd+Return binding
-hs.hotkey.bind({"cmd"}, "return", toggleAlacritty)
+-- hs.hotkey.bind({"cmd"}, "return", toggleAlacritty)
 
 -- Configure and start the Spoon
-spoon.TagSelectedFile
-		:bindHotkeys({
-			tagFile = { { "cmd", "shift" }, "t" } -- You can customize the hotkey here
-		})
--- Optional configuration
--- Set the path to the tag command if it's not at /usr/local/bin/tag
--- spoon.TagSelectedFile.tagCommand = "/opt/homebrew/bin/tag"
--- Enable or disable notifications
--- spoon.TagSelectedFile.showNotifications = true
-		:start()
+-- spoon.TagSelectedFile
+-- 		:bindHotkeys({
+-- 			tagFile = { { "cmd", "shift" }, "t" } -- You can customize the hotkey here
+-- 		})
+-- -- Optional configuration
+-- -- Set the path to the tag command if it's not at /usr/local/bin/tag
+-- -- spoon.TagSelectedFile.tagCommand = "/opt/homebrew/bin/tag"
+-- -- Enable or disable notifications
+-- -- spoon.TagSelectedFile.showNotifications = true
+-- 		:start()
 
 -- -- alt+tab replacement
 -- hs.loadSpoon("FuzzySwitcher")
@@ -340,7 +340,7 @@ end)
 --- SPACES STUFF
 ---
 ---
-local spaces = require("hs.spaces")
+-- local spaces = require("hs.spaces")
 
 -- hs.hotkey.bind({ "cmd", "ctrl" }, "e", function()
 -- 	hs.alert.show("Switching to left screen")
