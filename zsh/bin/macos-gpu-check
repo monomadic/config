@@ -1,0 +1,34 @@
+#!/usr/bin/env zsh
+# check-gpu-mode: Detect GPU acceleration status on macOS
+# Works on Intel & Apple Silicon
+
+# Get display info
+display_info=$(system_profiler SPDisplaysDataType)
+metal_support=$(print "$display_info" | rg -i "Metal:" | head -n 1)
+display_count=$(print "$display_info" | rg -i "Display Type" | wc -l)
+
+# Check WindowServer renderer mode
+render_mode=$(log show --last 1m --predicate 'process == "WindowServer"' 2>/dev/null | rg -i "renderer" | tail -n 1)
+
+print -P "%F{cyan}--- GPU Mode Check --- %f"
+
+# Display detection
+if (( display_count == 0 )); then
+    print -P "%F{yellow}No display detected%f"
+else
+    print -P "%F{green}Display(s) detected:%f $display_count"
+fi
+
+# Metal support
+if [[ "$metal_support" == *"Supported"* ]]; then
+    print -P "%F{green}$metal_support%f"
+else
+    print -P "%F{red}Metal not supported or not active%f"
+fi
+
+# Render mode
+if [[ "$render_mode" == *"software"* ]]; then
+    print -P "%F{red}WindowServer is using software rendering%f"
+else
+    print -P "%F{green}WindowServer appears to be hardware accelerated%f"
+fi
