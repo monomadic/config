@@ -100,3 +100,8 @@ fi
 
 # LM Studio PATH (kept)
 export PATH="$PATH:/Users/nom/.cache/lm-studio/bin"
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/nom/.lmstudio/bin"
+# End of LM Studio CLI section
+
