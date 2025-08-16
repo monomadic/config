@@ -53,6 +53,10 @@ if [[ -o interactive ]]; then
     zle reset-prompt
   }
 
+  fzf-dir-widget() {
+    fd . --type=directory $HOME/Music $PWD | fzf | tr '\n' ' '
+  }
+
   # FZF directory navigation with ls-all
   _cd-fzf() {
     local selected_dir
@@ -199,9 +203,11 @@ if [[ -o interactive ]]; then
   zle -N _fzf_ripgrep
   zle -N _clear-reset
   zle -N _cd-fzf
+  zle -N fzf-cd
   zle -N _cd-up
   zle -N _fzf-insert-path
   zle -N open-finder-pwd open_finder_pwd
+  zle -N fzf-dir-widget
 
   # ===============================================================================
   # Key Bindings
@@ -229,15 +235,16 @@ if [[ -o interactive ]]; then
   # Bind keys to functions
   #
   bindkey -s '^@' "_cd-yazi && clear\n"
-  # bindkey '^f' _fzf-find-files
   bindkey '^f' _fzf_ripgrep
-  #bindkey '^k' _clear-reset
   bindkey '^M' _magic-enter
   bindkey '^o' _cd-fzf
   bindkey '^[[1;9o' _cd-fzf
-  #bindkey '^u' cd-up
   bindkey '^[j' _fzf-jump # Alt+J
   bindkey '^[i' _fzf-insert-path
   bindkey -s '^k' "clear\n"
   bindkey -s '^l' "clear\n"
+  bindkey '^T' fzf-file-widget
+  bindkey '^D' fzf-dir-widget
+  bindkey '^U' kill-whole-line
 fi
+

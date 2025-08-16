@@ -1,54 +1,32 @@
 #!/usr/bin/env zsh
-# flac-copy-metadata: clone all metadata from one FLAC to another
-# Preserves Vorbis comments, SERATO_MARKERS_V2, embedded pictures, etc.
-# deps: ffmpeg
-set -euo pipefail
 
-usage() {
-  print "Usage: ${0:t} <source.flac> <target.flac> [--dry-run] [--overwrite]"
-  exit 1
-}
+# copyflacmeta: Copy all FLAC metadata (tags + pictures) from one file to another
 
-[[ $# -ge 2 ]] || usage
-src=$1
-dst=$2
-dry=false
-overwrite=false
-
-# Parse extra flags
-for arg in "${@:3}"; do
-  case "$arg" in
-    --dry-run) dry=true ;;
-    --overwrite) overwrite=true ;;
-    *) print -u2 "Unknown option: $arg"; usage ;;
-  esac
-done
-
-# Sanity checks
-[[ -f "$src" ]] || { print -u2 "ERR: source not found: $src"; exit 2; }
-[[ -f "$dst" ]] || { print -u2 "ERR: target not found: $dst"; exit 2; }
-
-# Optional dry-run inspection
-if $dry; then
-  print "Would copy metadata from: $src"
-  print "Into target: $dst"
-  print "\nSource metadata:\n"
-  ffmpeg -i "$src" -f ffmetadata - 2>/dev/null | sed 's/^/  /'
-  exit 0
+if [[ $# -ne 2 ]]; then
+    print -P "%F{red}Usage:%f $0 source.flac target.flac"
+    exit 1
 fi
 
-tmpfile=$(mktemp -t flacmeta.XXXXXXXX.flac)
+src="$1"
+dst="$2"
 
-ffmpeg -loglevel error \
-  -i "$src" -i "$dst" \
-  -map_metadata 0 \
-  -c copy "$tmpfile"
-
-if $overwrite; then
-  mv "$tmpfile" "$dst"
-  print "Metadata cloned into existing target: $dst"
-else
-  outname="${dst:r}_with_metadata.flac"
-  mv "$tmpfile" "$outname"
-  print "Metadata cloned into new file: $outname"
+if [[ ! -f $src ]]; then
+    print -P "%F{red}Error:%f source file '$src' not found."
+    exit 1
 fi
+
+if [[ ! -f $dst ]]; then
+    print -P "%F{red}Error:%f target file '$dst' not found."
+    exit 1
+fi
+
+# Remove all existing metadata blocks in target
+metaflac --remove-all "$dst"
+
+# Copy all tags
+metaflac --export-tags-to=- "$src" | metaflac --import-tags-from=- "$dst"
+
+# Copy all pictures
+metaflac --export-picture-to=- "$src" | metaflac --import-picture-from=- "$dst"
+
+print -P "%F{green}Metadata copied successfully from%f '$src' %F{green}to%f '$dst'."
