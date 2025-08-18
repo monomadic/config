@@ -195,96 +195,6 @@ ffmpeg-convert-to-switch-webp() {
   # ffmpeg -i "$input_file" -t "$duration" -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2" -vcodec libwebp -compression_level 6 -q:v 80 -loop 0 "$output_file"
 }
 
-function rename-file() {
-  if [[ $# -eq 0 ]]; then
-    echo "Usage: rename-file <filename>"
-    return 1
-  fi
-
-  local original_file=$1
-  if [[ ! -f $original_file ]]; then
-    echo "Error: File '$original_file' not found."
-    return 1
-  fi
-
-  local temp_file=$(mktemp /tmp/rename_file.XXXXXX)
-  echo "$original_file" > "$temp_file"
-  nvim "$temp_file"
-
-  local new_filename=$(<"$temp_file")
-  rm "$temp_file"
-
-  if [[ -z "$new_filename" || "$new_filename" == "$original_file" ]]; then
-    echo "No changes made."
-    return 0
-  fi
-
-  if [[ -e "$new_filename" ]]; then
-    echo "Error: File '$new_filename' already exists."
-    return 1
-  fi
-
-  mv "$original_file" "$new_filename"
-  echo "File renamed to '$new_filename'."
-}
-
-function rename-append-resolution {
-  if [[ -z "$1" ]]; then
-    echo "Usage: ${0:t} <file.mp4>"
-    return 1
-  fi
-
-  file="$1"
-  resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 "$file")
-
-  if [[ -z "$resolution" ]]; then
-    echo "Error: Unable to determine resolution."
-    return 1
-  fi
-
-	echo "Resolution found: $resolution"
-
-  width=$(echo "$resolution" | cut -d'x' -f1)
-  height=$(echo "$resolution" | cut -d'x' -f2)
-
-  if (( height <= 720 )); then
-    tag="[720]"
-  elif (( height <= 1080 )); then
-    tag="[1080]"
-  elif (( height <= 1440 )); then
-    tag="[1440]"
-  else
-    tag="[4K]"
-  fi
-
-  extension="${file##*.}"
-  filename="${file%.*}"
-  new_filename="${filename}${tag}.${extension}"
-
-  if [[ -e "$new_filename" ]]; then
-    echo "Warning: File '$new_filename' already exists. Do you want to overwrite it? (y/N)"
-    read -r response
-    if [[ ! "$response" =~ ^[Yy]$ ]]; then
-      echo "Operation aborted."
-      return 1
-    fi
-  fi
-
-  mv "$file" "$new_filename"
-  echo "Renamed to: $new_filename"
-}
-
-# function porntag-rename() {
-#   local input="$1"
-#   echo "$input" | awk '{
-#     while (match($0, /\[[^]]*\]/)) {
-#         printf "%s%s", tolower(substr($0, 1, RSTART-1)), substr($0, RSTART, RLENGTH)
-#         $0 = substr($0, RSTART + RLENGTH)
-#     }
-#     print tolower($0)
-#   }'
-# }
-
 function rename-format-porn() {
   local input="$1"
   echo "$input" | awk '{
@@ -303,19 +213,6 @@ function rename-format-porn() {
     print remaining
   }'
 }
-
-# function rename-all-dry-run {
-#     for file in *; do
-#         # Skip directories
-#         [[ -d "$file" ]] && continue
-#
-# 				if [[ -f "$file" ]]; then
-# 					local filename=$(basename "$file")
-# 					local new_filename=$(rename-format-porn "$filename")
-# 					echo "$file -> $new_filename\n"
-# 				fi
-# 		done
-# }
 
 function rename-porn {
   if [[ -z "$1" ]]; then
