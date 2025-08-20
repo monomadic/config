@@ -27,6 +27,11 @@ alias .dj-visuals="mpv-loop '$DJ_VISUALS_PATH' '$HOME/Movies/Visuals' '/Volumes/
 alias .python-venv-create="python3 -m venv .venv && source .venv/bin/activate"
 alias .python-venv-activate="source .venv/bin/activate"
 alias .python-pip-install-requirements="pip install -r requirements.txt"
+alias m4v-to-mp4="fd -e m4v -tf . -x sh -c 'mv -n -- \"$1\" \"${1%.m4v}.mp4\"' sh {}"
+
+fd-video-color() {
+  { fd -e mp4 $1 } | sd '\]\[' '] [' | sd '\[([^\]]+)\]' $'\e[32m''$1'$'\e[0m' | sd '\{([^}]*)\}' $'\e[33m''$1'$'\e[0m' | sd '(^|/)\(([^)]*)\)' '${1}'$'\e[36m''$2'$'\e[0m' | rg --passthru --color=always -N -r '$0' -e '#\S+' --colors 'match:fg:magenta'
+}
 
 # note:
 # pipx install demucs

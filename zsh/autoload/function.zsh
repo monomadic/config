@@ -118,55 +118,55 @@ fd-git-repositories() {
 	done
 }
 
-lsd-get-icon() {
-    if [[ "$1" == "--help" || "$#" -ne 1 ]]; then
-        echo "Usage: ${0:t} <file_or_directory>"
-        echo "Extracts and displays the icon for the given file or directory using lsd."
-        return 1
-    fi
+# lsd-get-icon() {
+#     if [[ "$1" == "--help" || "$#" -ne 1 ]]; then
+#         echo "Usage: ${0:t} <file_or_directory>"
+#         echo "Extracts and displays the icon for the given file or directory using lsd."
+#         return 1
+#     fi
 
-    target="$1"
-    if [[ ! -e "$target" ]]; then
-        echo "Error: '$target' does not exist."
-        return 1
-    fi
+#     target="$1"
+#     if [[ ! -e "$target" ]]; then
+#         echo "Error: '$target' does not exist."
+#         return 1
+#     fi
 
-    dir="${target:h}"    # Get directory part of the path
-    name="${target:t}"   # Get base name of the file/directory
+#     dir="${target:h}"    # Get directory part of the path
+#     name="${target:t}"   # Get base name of the file/directory
 
-    output=$(lsd --icon=always "$dir" | grep "$name")
-    if [[ -n "$output" ]]; then
-        echo "${output[1]}" # Extract the first character (icon)
-    else
-        echo "Error: Could not find icon for '$target'."
-        return 1
-    fi
-}
+#     output=$(lsd --icon=always "$dir" | grep "$name")
+#     if [[ -n "$output" ]]; then
+#         echo "${output[1]}" # Extract the first character (icon)
+#     else
+#         echo "Error: Could not find icon for '$target'."
+#         return 1
+#     fi
+# }
 
-exa-get-icon() {
-    if [[ "$1" == "--help" || "$#" -ne 1 ]]; then
-        echo "Usage: ${0:t} <file_or_directory>"
-        echo "Extracts and displays the NerdFont icon for the given file or directory using exa."
-        return 1
-    fi
+# exa-get-icon() {
+#     if [[ "$1" == "--help" || "$#" -ne 1 ]]; then
+#         echo "Usage: ${0:t} <file_or_directory>"
+#         echo "Extracts and displays the NerdFont icon for the given file or directory using exa."
+#         return 1
+#     fi
 
-    target="$1"
-    if [[ ! -e "$target" ]]; then
-        echo "Error: '$target' does not exist."
-        return 1
-    fi
+#     target="$1"
+#     if [[ ! -e "$target" ]]; then
+#         echo "Error: '$target' does not exist."
+#         return 1
+#     fi
 
-    dir="${target:h}"    # Get directory part of the path
-    name="${target:t}"   # Get base name of the file/directory
+#     dir="${target:h}"    # Get directory part of the path
+#     name="${target:t}"   # Get base name of the file/directory
 
-    output=$(exa --icons -1 "$dir" | grep "$name")
-    if [[ -n "$output" ]]; then
-        echo "${output[1]}" # Extract the first character (icon)
-    else
-        echo "Error: Could not find icon for '$target'."
-        return 1
-    fi
-}
+#     output=$(exa --icons -1 "$dir" | grep "$name")
+#     if [[ -n "$output" ]]; then
+#         echo "${output[1]}" # Extract the first character (icon)
+#     else
+#         echo "Error: Could not find icon for '$target'."
+#         return 1
+#     fi
+# }
 
 ip-address() {
 	ifconfig | grep inet | awk '$1=="inet" && $2!="127.0.0.1" {print $2}'
@@ -195,87 +195,87 @@ ffmpeg-convert-to-switch-webp() {
   # ffmpeg -i "$input_file" -t "$duration" -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2" -vcodec libwebp -compression_level 6 -q:v 80 -loop 0 "$output_file"
 }
 
-function rename-format-porn() {
-  local input="$1"
-  echo "$input" | awk '{
-    while (match($0, /\[[^]]*\]/)) {
-        # Convert text before the match to lowercase and replace _ with space
-        converted = tolower(substr($0, 1, RSTART-1))
-        gsub("_", " ", converted)
-				gsub(/ i /, " I ", converted)
-        printf "%s%s", converted, substr($0, RSTART, RLENGTH)
-        $0 = substr($0, RSTART + RLENGTH)
-    }
-    # Convert remaining text to lowercase and replace _ with space
-    remaining = tolower($0)
-		gsub(/[_-]/, " ", remaining)
-		gsub(/ i /, " I ", converted)
-    print remaining
-  }'
-}
+# function rename-format-porn() {
+#   local input="$1"
+#   echo "$input" | awk '{
+#     while (match($0, /\[[^]]*\]/)) {
+#         # Convert text before the match to lowercase and replace _ with space
+#         converted = tolower(substr($0, 1, RSTART-1))
+#         gsub("_", " ", converted)
+# 				gsub(/ i /, " I ", converted)
+#         printf "%s%s", converted, substr($0, RSTART, RLENGTH)
+#         $0 = substr($0, RSTART + RLENGTH)
+#     }
+#     # Convert remaining text to lowercase and replace _ with space
+#     remaining = tolower($0)
+# 		gsub(/[_-]/, " ", remaining)
+# 		gsub(/ i /, " I ", converted)
+#     print remaining
+#   }'
+# }
 
-function rename-porn {
-  if [[ -z "$1" ]]; then
-    echo "Usage: ${0:t} <file1.mp4> [file2.mp4] [...]"
-    return 1
-  fi
+# function rename-porn {
+#   if [[ -z "$1" ]]; then
+#     echo "Usage: ${0:t} <file1.mp4> [file2.mp4] [...]"
+#     return 1
+#   fi
 
-  for file in "$@"; do
-    # Skip directories
-    [[ -d "$file" ]] && continue
+#   for file in "$@"; do
+#     # Skip directories
+#     [[ -d "$file" ]] && continue
 
-    local filename=$(basename "$file")
-    local new_filename=$(rename-format-porn "$filename")
+#     local filename=$(basename "$file")
+#     local new_filename=$(rename-format-porn "$filename")
 
-    echo "Rename:\n\t$filename\n\t$new_filename\n\nOk? (y/N)"
-    read -r response
+#     echo "Rename:\n\t$filename\n\t$new_filename\n\nOk? (y/N)"
+#     read -r response
 
-    if [[ "$response" =~ ^[Yy]$ ]]; then
-      if [[ -e "$new_filename" ]]; then
-				echo -e "Warning: '$new_filename' already exists.\nOverwrite? (y/N)"
-        read -r response
-        if [[ ! "$response" =~ ^[Yy]$ ]]; then
-          echo "Operation aborted."
-          continue
-        fi
-      fi
-      echo "Renaming '$filename' to '$new_filename'"
-      mv "$filename" "$new_filename"
-    else
-      echo "Skipping '$filename'"
-    fi
+#     if [[ "$response" =~ ^[Yy]$ ]]; then
+#       if [[ -e "$new_filename" ]]; then
+# 				echo -e "Warning: '$new_filename' already exists.\nOverwrite? (y/N)"
+#         read -r response
+#         if [[ ! "$response" =~ ^[Yy]$ ]]; then
+#           echo "Operation aborted."
+#           continue
+#         fi
+#       fi
+#       echo "Renaming '$filename' to '$new_filename'"
+#       mv "$filename" "$new_filename"
+#     else
+#       echo "Skipping '$filename'"
+#     fi
 
-		echo "Batch rename completed."
-  done
-}
+# 		echo "Batch rename completed."
+#   done
+# }
 
-function rename_files_dry_run() {
-    for file in *; do
-        # Skip directories
-        [[ -d "$file" ]] && continue
+# function rename_files_dry_run() {
+#     for file in *; do
+#         # Skip directories
+#         [[ -d "$file" ]] && continue
 
-        # Extract parts within brackets
-        parts_with_brackets=()
-        temp_file="$file"
-        while [[ "$temp_file" =~ \[([^]]+)\] ]]; do
-            parts_with_brackets+=("${match[1]}")
-            temp_file="${temp_file//\[[^]]*\]/}"
-        done
+#         # Extract parts within brackets
+#         parts_with_brackets=()
+#         temp_file="$file"
+#         while [[ "$temp_file" =~ \[([^]]+)\] ]]; do
+#             parts_with_brackets+=("${match[1]}")
+#             temp_file="${temp_file//\[[^]]*\]/}"
+#         done
 
-        # Lowercase and replace characters
-        new_name="${temp_file:l}"
-        new_name="${new_name//-/ }"
-        new_name="${new_name//_/ }"
+#         # Lowercase and replace characters
+#         new_name="${temp_file:l}"
+#         new_name="${new_name//-/ }"
+#         new_name="${new_name//_/ }"
 
-        # Re-insert parts within brackets
-        for part in "${parts_with_brackets[@]}"; do
-            new_name="${new_name/[]/[$part]}"
-        done
+#         # Re-insert parts within brackets
+#         for part in "${parts_with_brackets[@]}"; do
+#             new_name="${new_name/[]/[$part]}"
+#         done
 
-        # Print old and new name
-        echo "Would rename: \"$file\" -> \"$new_name\""
-    done
-}
+#         # Print old and new name
+#         echo "Would rename: \"$file\" -> \"$new_name\""
+#     done
+# }
 
 function rename-as-tag-format() {
   for file in *; do

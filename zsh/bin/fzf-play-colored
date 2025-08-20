@@ -1,0 +1,111 @@
+#!/bin/zsh
+
+# Initialize default settings
+PREVIEW_WINDOW="down:50%:hidden:border"
+HEADER_TEXT='''󰌑 play all · 󰘵 o play selected · 󰘵 󰌑 loop-mode (10 sec) · 󰘵 r reveal in finder · 󰘵 t shell · 󰘵 p preview · 󰘵 i iina · 󰘵 e elmedia · 󰘵 A airflow · 󰘵 l lf · 󰘵 s stdout
+
+'''
+FZF_DEFAULT_OPTS="--prompt '' --border --reverse --ansi --no-sort --delimiter=/ --header-first"
+
+# fzf UI colors
+FZF_COLOR_OPTS=""
+FZF_COLOR_OPTS+="fg:#fadaf2,"
+FZF_COLOR_OPTS+="bg:#000000,"
+FZF_COLOR_OPTS+="hl:#FFe22e,"
+FZF_COLOR_OPTS+="hl+:#FFe22e,"
+FZF_COLOR_OPTS+="fg+:#ff4499,"
+FZF_COLOR_OPTS+="bg+:#422042,"
+FZF_COLOR_OPTS+="info:#ae81ff,"
+FZF_COLOR_OPTS+="border:#000000,"
+FZF_COLOR_OPTS+="prompt:#FFFFFF,"
+FZF_COLOR_OPTS+="pointer:#FFe22e,"
+FZF_COLOR_OPTS+="marker:#a6e22e,"
+FZF_COLOR_OPTS+="spinner:#FFFFFF,"
+FZF_COLOR_OPTS+="preview-bg:#111111,"
+FZF_COLOR_OPTS+="preview-border:#111111,"
+FZF_COLOR_OPTS+="header:#66ddee"
+
+# Inline ANSI for parts
+ANSI_RESET=$'\e[0m'
+C_ARTIST=$'\e[38;5;213m'
+C_TAG=$'\e[38;5;45m'
+C_STUDIO=$'\e[38;5;121m'
+C_META=$'\e[38;5;186m'
+
+# Parse args
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+    --hide-path) FZF_DEFAULT_OPTS+=" --with-nth=-1"; shift ;;
+    --help|-h)
+      echo "Usage: $(basename $0) [OPTIONS] [QUERY]"
+      echo "  --hide-path   Show only filenames"
+      exit 0
+      ;;
+    *) break ;;
+  esac
+done
+
+# Stream NUL-separated paths -> "PATH<TAB>COLORED_LABEL\0"
+stream_entries() {
+  local file base label
+  while IFS= read -r -d '' file; do
+    base="${file##*/}"
+
+    # Ensure a space when studios are adjacent: "]["
+    label=$(printf '%s' "$base" | sd '\]\[' '] [')
+    # Artists at start: "(A, B) " -> colored, no parens
+    label=$(printf '%s' "$label" | sd '^\(([^)]*)\)\s*' "${C_ARTIST}\$1${ANSI_RESET} ")
+    # Studios: "[Studio]" -> colored, no brackets
+    label=$(printf '%s' "$label" | sd '\[([^\]]+)\]' "${C_STUDIO}\$1${ANSI_RESET}")
+    # Meta: "{...}" -> colored, no braces
+    label=$(printf '%s' "$label" | sd '\{([^}]*)\}' "${C_META}\$1${ANSI_RESET}")
+    # Tags: "#tag" -> colored
+    label=$(printf '%s' "$label" | sd '(^|\s)(#\S+)' "\$1${C_TAG}\$2${ANSI_RESET}")
+
+    printf '%s\t%s\0' "$file" "$label"
+  done
+}
+
+fzf \
+  --read0 \
+  --multi \
+  --exact \
+  --ignore-case \
+  --margin 2% \
+  --padding 3%,1% \
+  --no-sort \
+  --info=inline \
+  --cycle \
+  --pointer='▶' \
+  --marker='✓' \
+  --ansi \
+  --color=$FZF_COLOR_OPTS \
+  --preview "$FZF_PREVIEW_COMMAND" \
+  --preview-window="$PREVIEW_WINDOW" \
+  --delimiter=$'\t' \
+  --with-nth=2 \
+  --bind 'enter:select-all+execute-silent(mpv-play {+1} &)+deselect-all' \
+  --bind 'alt-enter:select-all+execute-silent(mpv-play --loop-file=1 --length=10 --shuffle {+1})+deselect-all' \
+  --bind 'alt-o:execute-silent(mpv-play {+1q})' \
+  --bind 'alt-L:select-all+execute-silent(mpv-play --loop-file=1 --length=2 --shuffle {+1})+deselect-all' \
+  --bind 'alt-m:select-all+execute-silent(mpv-play {+1})+deselect-all' \
+  --bind 'alt-c:execute-silent(echo "{+1}" | pbcopy)' \
+  --bind 'alt-t:execute-silent(kitty @ launch --cwd "$(dirname {1})")' \
+  --bind 'alt-a:select-all,alt-d:deselect-all' \
+  --bind 'alt-s:select-all+accept' \
+  --bind 'ctrl-/:toggle-preview' \
+  --bind 'alt-p:toggle-preview' \
+  --bind 'ctrl-r:execute(echo "exec: open --reveal {1}" && open --reveal {1})' \
+  --bind 'ctrl-alt-r:execute-silent(kitty @ launch --type=background --cwd=current open --reveal {1})' \
+  --bind 'ctrl-alt-p:execute-silent(kitty @ launch --type=background --cwd=current qlmanage -p {1})' \
+  --bind 'ctrl-alt-p:execute-silent(kitty @ launch --type=background --cwd=current mpv --no-fs {1})' \
+  --bind 'ctrl-alt-p:select-all+execute-silent(kitty @ launch --type=background mpv --shuffle --loop-playlist {+1} &)+deselect-all' \
+  --bind 'alt-o:execute(echo "exec: reveal {1}" && reveal {1})' \
+  --bind 'ctrl-s:accept' \
+  --bind 'ctrl-d:execute-silent(ls -t {1} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \
+  --bind 'alt-R:execute-silent(shuf -o /dev/stdout)' \
+  --bind 'alt-S:execute-silent(sort -o /dev/stdout)' \
+  --bind 'alt-D:execute-silent(ls -t {1} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \
+  --header "${HEADER_TEXT}" \
+  --query "$*" \
+  < <(stream_entries)

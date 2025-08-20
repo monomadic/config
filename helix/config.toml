@@ -46,6 +46,8 @@ K = [
 y = ["yank_main_selection_to_clipboard"]
 "C-=" = "expand_selection"
 "C-minus" = "shrink_selection"
+"Cmd-c" = ["yank_main_selection_to_clipboard"]
+"Cmd-v" = [":clipboard-paste-after"]
 
 [keys.insert]
 C-s = [":write", "normal_mode"]
