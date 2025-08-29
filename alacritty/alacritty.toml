@@ -48,6 +48,7 @@ opacity = 0.9
 #dynamic_title = true
 #startup_mode = "Windowed"
 #startup_mode = "Fullscreen"
+option_as_alt = "Both"
 
 [window.dimensions]
 columns = 130

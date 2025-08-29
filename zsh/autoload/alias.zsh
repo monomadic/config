@@ -13,6 +13,7 @@ alias mpv-play-volumes="mpv-play /Volumes/*/Movies/**/*.mp4"
 # media search
 alias @="ls-media | fzf-play --hide-path --tac"
 alias @@@="setopt local_options null_glob && printf '%s\0' $~MEDIA_GLOBS | fzf-play --hide-path -0"
+alias @pwd="fd-video --print0 | fzf-play --hide-path"
 alias @@@pwd="fd-video --absolute-path --print0 | fzf-play --hide-path -0"
 alias @sort="fselect-porn-sort -0 | fzf-play --hide-path --tac"
 alias @loop="fselect-porn -0 | fzf-media-select --hide-path --tac | mpv-with-config -"

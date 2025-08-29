@@ -5,24 +5,23 @@ PREVIEW_WINDOW="down:50%:hidden:border"
 HEADER_TEXT='''󰌑 play all · 󰘵 o play selected · 󰘵 󰌑 loop-mode (10 sec) · 󰘵 r reveal in finder · 󰘵 t shell · 󰘵 p preview · 󰘵 i iina · 󰘵 e elmedia · 󰘵 A airflow · 󰘵 l lf · 󰘵 s stdout
 
 '''
-FZF_DEFAULT_OPTS="--prompt '' --border --reverse --ansi --no-sort --delimiter=/ --header-first"
 
 # Color Scheme
 FZF_COLOR_OPTS=""
-FZF_COLOR_OPTS+="fg:#fadaf2,"      # Regular foreground
-FZF_COLOR_OPTS+="bg:#000000,"      # Regular background
-FZF_COLOR_OPTS+="hl:#FFe22e,"      # Highlighted text (foreground)
-FZF_COLOR_OPTS+="hl+:#FFe22e,"     # Highlighted text in selected line (foreground)
-FZF_COLOR_OPTS+="fg+:#ff4499,"     # Selected line (foreground)
-FZF_COLOR_OPTS+="bg+:#422042,"     # Selected line (background)
-FZF_COLOR_OPTS+="info:#ae81ff,"    # Info line
-FZF_COLOR_OPTS+="border:#000000,"  # Border color
-FZF_COLOR_OPTS+="prompt:#FFFFFF,"  # Prompt
-FZF_COLOR_OPTS+="pointer:#FFe22e," # Pointer to the current line
-FZF_COLOR_OPTS+="marker:#a6e22e,"  # Multi-select marker
-FZF_COLOR_OPTS+="spinner:#FFFFFF,"
-FZF_COLOR_OPTS+="preview-bg:#111111,"
-FZF_COLOR_OPTS+="preview-border:#111111,"
+# FZF_COLOR_OPTS+="fg:#fadaf2,"      # Regular foreground
+# FZF_COLOR_OPTS+="bg:#000000,"      # Regular background
+# FZF_COLOR_OPTS+="hl:#FFe22e,"      # Highlighted text (foreground)
+# FZF_COLOR_OPTS+="hl+:#FFe22e,"     # Highlighted text in selected line (foreground)
+# FZF_COLOR_OPTS+="fg+:#ff4499,"     # Selected line (foreground)
+# FZF_COLOR_OPTS+="bg+:#422042,"     # Selected line (background)
+# FZF_COLOR_OPTS+="info:#ae81ff,"    # Info line
+# FZF_COLOR_OPTS+="border:#000000,"  # Border color
+# FZF_COLOR_OPTS+="prompt:#FFFFFF,"  # Prompt
+# FZF_COLOR_OPTS+="pointer:#FFe22e," # Pointer to the current line
+# FZF_COLOR_OPTS+="marker:#a6e22e,"  # Multi-select marker
+# FZF_COLOR_OPTS+="spinner:#FFFFFF,"
+# FZF_COLOR_OPTS+="preview-bg:#111111,"
+# FZF_COLOR_OPTS+="preview-border:#111111,"
 FZF_COLOR_OPTS+="header:#66ddee"
 
 # Parse command-line arguments
@@ -57,19 +56,15 @@ done
 #		{+f} all selected items, individually quoted and newline-separated
 #
 fzf \
+  --exact --reverse --ansi --cycle --ignore-case \
   --read0 \
   --multi \
-  --exact \
-  --ignore-case \
-  --margin 2% \
-  --padding 3%,1% \
+  --margin 2% --padding 3%,1% \
   --no-sort \
   --info=inline \
-  --cycle \
-  --pointer='▶' \
-  --marker='✓' \
-  --ansi \
-  --color=$FZF_COLOR_OPTS \
+  --pointer='▶' --marker='✓' \
+  --prompt ' ' --delimiter=/ \
+  --header-first --header "${HEADER_TEXT}" \
   --preview "$FZF_PREVIEW_COMMAND" \
   --preview-window="$PREVIEW_WINDOW" \
   --bind 'enter:select-all+execute(kitty @ launch --type=background -- bash -c '\''/opt/homebrew/bin/mpv --shuffle --loop-playlist --macos-fs-animation-duration=0 --no-native-fs --fs --mute=yes "$@"'\'' _ {+})+deselect-all' \
@@ -96,5 +91,4 @@ fzf \
   --bind 'alt-R:execute-silent(shuf -o /dev/stdout)' \
   --bind 'alt-S:execute-silent(sort -o /dev/stdout)' \
   --bind 'alt-D:execute-silent(ls -t {} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \
-  --header "${HEADER_TEXT}" \
   $*

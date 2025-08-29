@@ -62,5 +62,5 @@ done | fzf --margin="0%,0%" \
   --bind 'alt-enter:execute(echo "󰄛 Previewing: {1}" && qlmanage -p {1} >/dev/null 2>&1)' \
   --bind 'alt-n:execute(rename-tablature)' \
   --bind 'ctrl-y:execute-silent(echo -n {1} | pbcopy)' \
-  --preview=$'mdls -name kMDItemTitle -name kMDItemAuthors -name kMDItemPageCount -name kMDItemContentCreationDate -- {1} 2>/dev/null | sed "s/^/  /" || echo "  (no metadata)"' \
+  --preview=$'\nmdls -name kMDItemTitle -name kMDItemAuthors -name kMDItemPageCount -name kMDItemContentCreationDate -- {1} 2>/dev/null | sed "s/^/  /" || echo "\n  (no metadata)"' \
   --preview-window=down,8,wrap
