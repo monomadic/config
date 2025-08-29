@@ -1,39 +1,43 @@
 #!/bin/zsh
+set -euo pipefail
+
+# --- config
 TAB_DIR="${TABLATURE_DIR:-$HOME/Music/Tablature}"
+HEADER=$'↵ open · 󰘵 ↵ preview · 󰘵 r reveal · 󰘵 n rename · 󰘵 y copy path\n'
 
-[[ -d "$TAB_DIR" && -r "$TAB_DIR" ]] || {
-  echo "Error: Tablature dir invalid"
-  exit 1
-}
+# ANSI
+CYAN=$'\e[36m'; YELLOW=$'\e[33m'; RED=$'\e[31m'; RESET=$'\e[0m'
 
-cd "$TAB_DIR" || exit 1
+# --- preflight
+[[ -d "$TAB_DIR" && -r "$TAB_DIR" ]] || { print -ru2 -- "Error: Tablature dir invalid: $TAB_DIR"; exit 1; }
+cd -- "$TAB_DIR"
 
-HEADER=$'↵ open · 󰘵 preview · 󰘵 r reveal · 󰉴 n rename files\n'
+# --- stat impl (GNU/BSD aware)
+if command -v gstat >/dev/null 2>&1; then
+  STAT_CMD=(gstat -c '%Y|%n')
+else
+  STAT_CMD=(stat -f '%m|%N')
+fi
 
-# ANSI colors
-CYAN=$'\e[36m'
-YELLOW=$'\e[33m'
-RED=$'\e[31m'
-RESET=$'\e[0m'
-
-# Collect artist-title pairs
 entries=()
 max_artist_len=0
 
-while IFS='|' read -r _mod file; do
-  rel="${file#./}"
+# --- gather files sorted by mtime desc
+while IFS='|' read -r _mtime rel; do
   base="${rel%.pdf}"
   if [[ "$base" == *" - "* ]]; then
     artist="${base%% - *}"
     title="${base#* - }"
     entries+="$rel|$artist|$title"
-    ((${#artist} > max_artist_len)) && max_artist_len=${#artist}
+    (( ${#artist} > max_artist_len )) && max_artist_len=${#artist}
   else
     entries+="$rel|$base|"
   fi
-done < <(fd . -e pdf -t f -x stat -f "%m|%N" {} + 2>/dev/null | sort -rn -t'|' -k1)
+done < <(fd . -e pdf -t f --strip-cwd-prefix \
+           -x "${STAT_CMD[@]}" '{}' + 2>/dev/null \
+         | sort -rn -t '|' -k1,1)
 
-# Output formatted
+# --- print lines tab-delimited for fzf
 for entry in $entries; do
   rel_path="${entry%%|*}"
   rest="${entry#*|}"
@@ -47,13 +51,16 @@ for entry in $entries; do
     echo -E "$rel_path"$'\t'"${RED}${artist}${RESET}"
   fi
 done | fzf --margin="0%,0%" \
-  --exact \
-  --reverse --ansi --cycle --marker=" " \
-  --pointer="󰋆" --border="horizontal" --border-label=" 󰎈 Tabs " \
+  --exact --reverse --ansi --cycle \
+  --marker=" " --pointer="󰋆" \
+  --border="horizontal" --border-label=" 󰎈 Tabs " \
   --header="$HEADER" --header-first --no-info \
   --delimiter='\t' --with-nth=2 \
   --bind 'alt-r:execute(open --reveal {1})' \
   --bind 'ctrl-/:toggle-preview' \
   --bind 'enter:execute(echo "󰄬 Opening: {1}" && open {1}&)' \
-  --bind 'alt-enter:execute(echo "󰄛 Previewing: {1}" && qlmanage -p {1} > /dev/null 2>&1)' \
-  --bind 'alt-n:execute(rename-tablature)'
+  --bind 'alt-enter:execute(echo "󰄛 Previewing: {1}" && qlmanage -p {1} >/dev/null 2>&1)' \
+  --bind 'alt-n:execute(rename-tablature)' \
+  --bind 'ctrl-y:execute-silent(echo -n {1} | pbcopy)' \
+  --preview=$'mdls -name kMDItemTitle -name kMDItemAuthors -name kMDItemPageCount -name kMDItemContentCreationDate -- {1} 2>/dev/null | sed "s/^/  /" || echo "  (no metadata)"' \
+  --preview-window=down,8,wrap
