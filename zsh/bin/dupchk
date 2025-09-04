@@ -3,6 +3,8 @@
 # deps: fd, fzf (for -i), BSD stat (/usr/bin/stat), trash (optional; fallback provided)
 # macOS-friendly; stays at exact-depth 1 like your original.
 
+zmodload zsh/stat
+
 set -o pipefail
 set -o noclobber
 set -o errexit
@@ -71,10 +73,9 @@ typeset -A counts                          # quick cardinality per size
 {
   fd . "$srcdir" --exact-depth $exact_depth -t f -0 || true
 } |& while IFS= read -r -d '' f; do
-  # Obtain size
-  # BSD stat: %z is size in bytes
-  # Use -- to guard against names starting with "-"
-  size="$($STAT -f '%z' -- "$f" 2>/dev/null || true)"
+	local -A st
+	zstat -H st -- "$f" 2>/dev/null || continue
+	size="${st[size]}"
   [[ -n "${size:-}" ]] || continue
   if [[ -z ${groups[$size]:-} ]]; then
     groups[$size]="$f"
