@@ -50,13 +50,13 @@ opacity = 0.9
 #startup_mode = "Fullscreen"
 option_as_alt = "Both"
 
-[window.dimensions]
-columns = 130
-lines = 36
+# [window.dimensions]
+# columns = 130
+# lines = 40
 
 [window.padding]
-x = 20
-y = 60
+x = 10
+y = 20
 
 [[keyboard.bindings]]
 chars = "\u0013"

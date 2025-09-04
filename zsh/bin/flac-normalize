@@ -1,0 +1,135 @@
+#!/bin/zsh
+# normalize-flac — loudness-normalize FLACs for DJ use
+# - EBU R128 loudnorm (ffmpeg) -> consistent loudness
+# - 44.1 kHz, 16-bit, triangular dither (SOXR)
+# - Exact metadata preserve via metaflac (Vorbis comments + front cover)
+# - On success: source renamed to .original.flac, normalized keeps .flac
+# - Skips a file if .original.flac already exists
+
+set -euo pipefail
+
+jobs=1
+tgtI="-9"     # LUFS
+tgtTP="-1"    # dBTP
+tgtLRA="11"   # LRA
+
+show_help() {
+  cat <<'EOF'
+Usage:
+  normalize-flac [options] [FILES...]
+
+If no FILES are given, processes all *.flac in the current directory.
+
+Options (short/long):
+  -j, --parallel <N>    Parallel jobs (default: 1)
+  -I, --lufs <LUFS>     Target integrated loudness (default: -9)
+  -T, --true-peak <dB>  True peak ceiling in dBTP (default: -1)
+  -L, --lra <LRA>       Loudness range target (default: 11)
+  -h, --help            Show this help
+
+Behavior:
+  - Audio pipeline: loudnorm -> SOXR resample to 44.1 kHz -> 16-bit + triangular dither.
+  - Only the filtered audio is muxed (-map "[aout]") to satisfy FLAC's single-audio requirement.
+  - Tags preserved exactly with metaflac (if available). Fallback: -map_metadata 0.
+  - Success rename: <name>.flac -> <name>.original.flac, normalized temp -> <name>.flac
+  - Safety: if <name>.original.flac already exists, the file is skipped.
+
+Examples:
+  normalize-flac
+  normalize-flac -j 4 *.flac
+  normalize-flac --lufs -8 --true-peak -0.5 tracks/*.flac
+EOF
+}
+
+# --- parse options (supports long and short) ---
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -j|--parallel)   [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; exit 1; }; jobs="$2"; shift 2;;
+    -I|--lufs)       [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; exit 1; }; tgtI="$2"; shift 2;;
+    -T|--true-peak)  [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; exit 1; }; tgtTP="$2"; shift 2;;
+    -L|--lra)        [[ $# -ge 2 ]] || { echo "Missing value for $1" >&2; exit 1; }; tgtLRA="$2"; shift 2;;
+    -h|--help)       show_help; exit 0;;
+    --)              shift; break;;
+    -*)
+      echo "Unknown option: $1" >&2
+      show_help; exit 1;;
+    *)
+      break;;
+  esac
+done
+
+command -v ffmpeg >/dev/null || { echo "ffmpeg not found" >&2; exit 127; }
+
+# Collect files
+files=()
+if (( $# )); then
+  files=("$@")
+else
+  if command -v fd >/dev/null; then
+    files=("${(@f)$(fd -t f -a -E .git -e flac)}")
+  else
+    files=(*.flac(N))
+  fi
+fi
+(( ${#files} )) || { echo "No FLAC files found" >&2; exit 1; }
+
+# Worker (bash for xargs portability)
+worker='
+set -euo pipefail
+in="$1"; I="$2"; TP="$3"; LRA="$4"
+
+# Skip if archive already exists
+archive="${in%.*}.original.flac"
+if [ -e "$archive" ]; then
+  echo "skip (archive exists): $in" >&2
+  exit 0
+fi
+
+tmpdir="$(mktemp -d)"; trap "rm -rf \"$tmpdir\"" EXIT
+out="${tmpdir}/normalized.flac"
+
+cover=""; tags=""; have_metaflac=0
+if command -v metaflac >/dev/null; then
+  have_metaflac=1
+  tags="$tmpdir/tags.txt"
+  if ! metaflac --export-tags-to="$tags" "$in" 2>/dev/null || [ ! -s "$tags" ]; then
+    tags=""
+  fi
+  cover="$tmpdir/cover.bin"
+  if ! metaflac --export-picture-to="$cover" "$in" 2>/dev/null || [ ! -s "$cover" ]; then
+    cover=""
+  fi
+fi
+
+# Normalize to 44.1k/16-bit with triangular dither; map filtered audio only
+ffmpeg -v error -stats -y -i "$in" \
+  -filter_complex "[0:a:0]loudnorm=I=${I}:TP=${TP}:LRA=${LRA},aresample=resampler=soxr:osf=s16:osr=44100:dither_method=triangular[aout]" \
+  -map "[aout]" -c:a flac -map_metadata 0 "$out"
+
+# Re-import exact tags/cover if we had them
+if [ "$have_metaflac" -eq 1 ]; then
+  if [ -n "$tags" ] && [ -s "$tags" ]; then
+    metaflac --remove --block-type=VORBIS_COMMENT "$out" || true
+    metaflac --import-tags-from="$tags" "$out"
+  fi
+  if [ -n "$cover" ] && [ -s "$cover" ]; then
+    metaflac --remove --block-type=PICTURE "$out" || true
+    metaflac --import-picture-from="$cover" "$out"
+  fi
+fi
+
+# Finalize: archive original, replace with normalized
+mv -f -- "$in" "$archive"
+mv -f -- "$out" "$in"
+'
+
+if (( jobs > 1 )); then
+  printf '%s\0' "${files[@]}" | xargs -0 -n1 -P "$jobs" bash -lc '
+    f="$0"
+    '"$worker"'
+  ' _ "$tgtI" "$tgtTP" "$tgtLRA"
+else
+  for f in "${files[@]}"; do
+    bash -lc "$worker" _ "$f" "$tgtI" "$tgtTP" "$tgtLRA"
+  done
+fi

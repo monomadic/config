@@ -16,6 +16,7 @@
                 "rules": [
                     {
                         "description": "Toggle Fullscreen Focused Window (CMD+F10) [AppleScript]",
+                        "enabled": false,
                         "manipulators": [
                             {
                                 "from": {
@@ -57,6 +58,7 @@
                     },
                     {
                         "description": "Maximize Focused Window (CMD+SHIFT+UP) [AppleScript]",
+                        "enabled": false,
                         "manipulators": [
                             {
                                 "from": {
@@ -343,12 +345,12 @@
                     "ignore": false,
                     "simple_modifications": [
                         {
-                            "from": { "pointing_button": "button5" },
-                            "to": [{ "key_code": "mission_control" }]
-                        },
-                        {
                             "from": { "pointing_button": "button4" },
                             "to": [{ "consumer_key_code": "al_local_machine_browser" }]
+                        },
+                        {
+                            "from": { "pointing_button": "button5" },
+                            "to": [{ "key_code": "mission_control" }]
                         }
                     ]
                 }

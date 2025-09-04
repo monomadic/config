@@ -1,0 +1,230 @@
+!/usr/bin/env zsh
+# dupchk.zsh — list/group duplicate-size files and optionally resolve them interactively.
+# deps: fd, fzf (for -i), BSD stat (/usr/bin/stat), trash (optional; fallback provided)
+# macOS-friendly; stays at exact-depth 1 like your original.
+
+set -o pipefail
+set -o noclobber
+set -o errexit
+set -o nounset
+
+# ---- Colors (zsh %F) ---------------------------------------------------------
+autoload -Uz colors && colors
+c() { print -P -- "%F{$1}$2%f"; }       # c red "msg"
+info() { c blue "$1"; }
+ok()   { c green "$1"; }
+warn() { c yellow "$1"; }
+err()  { c red "$1" >&2; }
+
+# ---- Config / defaults --------------------------------------------------------
+use_group=false          # -g: print grouped with size headers
+use_interactive=false    # -i: interactive keep/trash
+srcdir="."
+exact_depth=1            # keep parity with original
+
+# Prefer BSD stat on macOS to avoid GNU/BSD format mismatch
+STAT="/usr/bin/stat"
+
+usage() {
+  cat <<'USAGE'
+dupchk [-g] [-i] [directory]
+
+  -g     Group by size with headers
+  -i     Interactive resolver:
+         - For each duplicate-size group, pick the SINGLE file to keep.
+         - All others in that group are trashed (after explicit confirmation).
+  directory defaults to "."
+
+Notes:
+- Duplicates are detected by identical byte size. (Fast heuristic.)
+- No files are modified unless you pass -i and confirm per group.
+USAGE
+}
+
+# ---- Parse flags --------------------------------------------------------------
+zmodload zsh/zutil
+zparseopts -D -E -F -- g=opt_g i=opt_i h=opt_h -help=opt_h || { err "bad flags"; usage; exit 2; }
+(( ${#opt_h} )) && { usage; exit 0; }
+(( ${#opt_g} )) && use_group=true
+(( ${#opt_i} )) && use_interactive=true
+
+# Positional dir
+if (( $# > 0 )); then
+  srcdir="$1"
+fi
+
+# ---- Sanity checks ------------------------------------------------------------
+command -v fd    >/dev/null 2>&1 || { err "fd not found"; exit 127; }
+[[ -x $STAT ]]                   || { err "BSD stat ($STAT) not found"; exit 127; }
+if $use_interactive; then
+  command -v fzf >/dev/null 2>&1 || { err "fzf is required for -i"; exit 127; }
+fi
+[[ -d $srcdir ]] || { err "Not a directory: $srcdir"; exit 1; }
+
+# ---- Gather (size -> files[]) safely, NUL-safe pipeline -----------------------
+typeset -A groups                          # key=size, val=$'\n' joined list
+typeset -A counts                          # quick cardinality per size
+
+# Use fd -0 and read NUL-delimited to be robust to spaces/newlines
+# exact-depth parity with original
+# shellcheck disable=SC2034  # (zsh; mapfile-like)
+{
+  fd . "$srcdir" --exact-depth $exact_depth -t f -0 || true
+} |& while IFS= read -r -d '' f; do
+  # Obtain size
+  # BSD stat: %z is size in bytes
+  # Use -- to guard against names starting with "-"
+  size="$($STAT -f '%z' -- "$f" 2>/dev/null || true)"
+  [[ -n "${size:-}" ]] || continue
+  if [[ -z ${groups[$size]:-} ]]; then
+    groups[$size]="$f"
+    counts[$size]=1
+  else
+    groups[$size]+=$'\n'"$f"
+    counts[$size]=$(( counts[$size] + 1 ))
+  fi
+done
+
+# Sort sizes numerically ascending for deterministic output
+sorted_sizes=("${(@on)${(k)groups}}")   # keys -> array
+integer i
+typeset -a uniq_sorted
+uniq_sorted=("${(on)sorted_sizes}")     # numeric sort
+
+# ---- Printers -----------------------------------------------------------------
+print_grouped() {
+  local s list
+  for s in $uniq_sorted; do
+    (( counts[$s] > 1 )) || continue
+    print
+    print -- "$(info "# $s bytes")"
+    list="${groups[$s]}"
+    print -r -- "$list"
+  done
+}
+
+print_flat_dupes() {
+  local s list
+  for s in $uniq_sorted; do
+    (( counts[$s] > 1 )) || continue
+    list="${groups[$s]}"
+    print -r -- "$list"
+  done
+}
+
+# ---- Safe trash helper --------------------------------------------------------
+# Uses 'trash' if available, else moves to ~/.Trash with unique names.
+safe_trash() {
+  local f="$1"
+  if command -v trash >/dev/null 2>&1; then
+    trash -- "$f"
+    return
+  fi
+  local trash_dir="$HOME/.Trash"
+  mkdir -p -- "$trash_dir"
+  local base="${f:t}"         # filename only
+  local dst="$trash_dir/$base"
+  if [[ -e "$dst" ]]; then
+    # Avoid overwrite by uniquifying: name (YYYYmmdd-HHMMSS-N)
+    local ts; ts=$(date +%Y%m%d-%H%M%S)
+    local n=1
+    while :; do
+      dst="$trash_dir/${base} (${ts}-${n})"
+      [[ -e "$dst" ]] || break
+      n=$((n+1))
+    done
+  fi
+  # Use mv -n to respect noclobber semantics too
+  command mv -n -- "$f" "$dst"
+}
+
+# ---- Interactive resolver -----------------------------------------------------
+interactive_resolve() {
+  local s list keep to_trash answer preview_cmd
+  # Prefer lsd/eza for nicer preview if present
+  if command -v lsd >/dev/null 2>&1; then
+    preview_cmd='lsd -l -- "{}"'
+  elif command -v eza >/dev/null 2>&1; then
+    preview_cmd='eza -l -- "{}"'
+  else
+    preview_cmd='ls -l "{}"'
+  fi
+
+  for s in $uniq_sorted; do
+    (( counts[$s] > 1 )) || continue
+    list="${groups[$s]}"
+
+    print
+    print -- "$(warn "Duplicate-size group: $s bytes")"
+    # fzf: choose exactly one to keep
+    keep="$(print -r -- "$list" \
+      | fzf --prompt="keep> " \
+            --header="Select the ONE file to keep (size: $s bytes)" \
+            --no-multi \
+            --preview "$preview_cmd" \
+            --preview-window=right:60%:wrap \
+            --height=80% \
+            --border \
+            --ansi \
+            || true)"
+
+    if [[ -z "$keep" ]]; then
+      warn "Skipped group ($s bytes)"
+      continue
+    fi
+
+    # Compute to_trash = list - keep
+    to_trash=()
+    while IFS= read -r line; do
+      [[ "$line" == "$keep" ]] && continue
+      to_trash+=("$line")
+    done <<< "$list"
+
+    if (( ${#to_trash[@]} == 0 )); then
+      ok "Nothing to trash for this group."
+      continue
+    fi
+
+    print -- "$(info "Keep:")"
+    print -r -- "$keep"
+    print -- "$(warn "Trash the following ${#to_trash[@]} file(s)?")"
+    printf '%s\n' "${to_trash[@]}"
+
+    printf "%s " "$(warn '[y/N]')"
+    read -r answer
+    case "$answer" in
+      y|Y|yes|YES)
+        for f in "${to_trash[@]}"; do
+          safe_trash "$f"
+        done
+        ok "Trashed ${#to_trash[@]} file(s)."
+        ;;
+      *)
+        warn "Skipped trashing for this group."
+        ;;
+    esac
+  done
+}
+
+# ---- Main modes ---------------------------------------------------------------
+any_dupes=false
+for s in $uniq_sorted; do
+  (( counts[$s] > 1 )) && { any_dupes=true; break; }
+done
+
+if ! $any_dupes; then
+  ok "No duplicate-size files found at depth $exact_depth in: $srcdir"
+  exit 0
+fi
+
+if $use_interactive; then
+  interactive_resolve
+else
+  if $use_group; then
+    print_grouped
+  else
+    print_flat_dupes
+  fi
+fi
+
+exit 0
