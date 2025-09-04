@@ -1,61 +1,67 @@
 #!/usr/bin/env zsh
-# dupsize-simple.zsh — duplicate-size files at exact depth 1
-# deps: fd, (fzf for -i), /usr/bin/stat, trash (optional), mediainfo (for preview)
+# dupsize-simple.zsh — duplicate-size files (default: exact depth 1; -r: recursive)
+# deps: fd, (fzf for -i), /usr/bin/stat, trash (optional)
 
 set -o pipefail
 set -o noclobber
 set -o nounset
 
 STAT="/usr/bin/stat"
-command -v fd >/dev/null 2>&1 || { print -ru2 -- "fd not found"; exit 127; }
+command -v fd  >/dev/null 2>&1 || { print -ru2 -- "fd not found"; exit 127; }
 [[ -x $STAT ]] || { print -ru2 -- "BSD stat missing"; exit 127; }
 
 use_group=false
 use_interactive=false
+recursive=false
 srcdir="."
 
-while getopts "gi" opt; do
+while getopts "gir" opt; do
   [[ $opt == g ]] && use_group=true
   [[ $opt == i ]] && use_interactive=true
+  [[ $opt == r ]] && recursive=true
 done
 shift $((OPTIND-1))
 [[ $# -gt 0 ]] && srcdir="$1"
 [[ -d $srcdir ]] || { print -ru2 -- "Not a directory: $srcdir"; exit 1; }
-if $use_interactive; then
-  command -v fzf >/dev/null 2>&1 || { print -ru2 -- "fzf required for -i"; exit 127; }
-fi
+$use_interactive && command -v fzf >/dev/null 2>&1 || {
+  $use_interactive || true
+} || { print -ru2 -- "fzf required for -i"; exit 127; }
 
-# --- colors (zsh %F) -----------------------------------------------------------
+# --- colors -----------------------------------------------------------
 autoload -Uz colors && colors
-c() { print -P -- "%F{$1}$2%f"; }
+c()   { print -P -- "%F{$1}$2%f"; }
 hdr() { c cyan "$1"; }
 fnc() { c green "$1"; }
-mut() { c 8 "$1"; }  # dim
+mut() { c 8 "$1"; }
 
-# --- temp dir (avoid noclobber issues) ----------------------------------------
+# --- temp dir ---------------------------------------------------------
 tmpdir="$(mktemp -d -t dupsize.XXXXXXXX)" || { print -ru2 -- "mktemp failed"; exit 1; }
 trap 'rm -rf -- "$tmpdir"' EXIT
 tmp_table="$tmpdir/table.tsv"
 
-# Build table: "<size>\t<path>"
-fd . "$srcdir" --exact-depth 1 -t f -0 \
+# --- gather: "<size>\t<path>" ----------------------------------------
+typeset -a fd_args
+fd_args=( . "$srcdir" -t f -0 )
+if $recursive; then
+  :  # no depth restriction
+else
+  fd_args+=( --exact-depth 1 )
+fi
+
+fd "${fd_args[@]}" \
 | xargs -0 -I{} "$STAT" -f $'%z\t%N' -- "{}" 2>/dev/null \
 | LC_ALL=C sort -n > "$tmp_table"
 
-# Sizes with count > 1
+# sizes with count > 1
 dup_sizes="$(awk -F '\t' '{c[$1]++} END{for (s in c) if (c[s]>1) print s}' "$tmp_table" | LC_ALL=C sort -n)"
+[[ -z $dup_sizes ]] && { mut "No duplicate-size files found$($recursive && print -r "" || print -r " at depth 1") in: $srcdir"; exit 0; }
 
-[[ -z $dup_sizes ]] && { c 8 "No duplicate-size files found at depth 1 in: $srcdir"; exit 0; }
-
-# List files for a size (strip surrounding quotes that %N may add)
+# list files for a given size (strip quotes from %N)
 files_for_size() {
   local sz="$1"
-  awk -F '\t' -v s="$sz" '
-    $1==s {
-      name=$2; gsub(/^"|"$/, "", name);
-      print name
-    }
-  ' "$tmp_table"
+  awk -F '\t' -v s="$sz" '$1==s{
+    name=$2; gsub(/^"|"$/, "", name); print name
+  }' "$tmp_table"
 }
 
 safe_trash() {
@@ -65,7 +71,7 @@ safe_trash() {
   [[ ${p##*/} == -* ]] && p="./$p"   # avoid option parsing
 
   if command -v trash >/dev/null 2>&1; then
-    trash "$p"
+    trash "$p"   # node 'trash' (no "--")
   else
     local td="$HOME/.Trash"; mkdir -p -- "$td"
     local base="${f:t}" dst="$td/$base"
@@ -80,19 +86,12 @@ safe_trash() {
 
 if $use_interactive; then
   print -- "Duplicate-size groups (interactive)…"
-  # preview at bottom, prefer mediainfo, fallback to file/ls
-  local preview_cmd
-  if command -v mediainfo >/dev/null 2>&1; then
-    preview_cmd='mediainfo "{}" || file -b "{}" || /bin/ls -l "{}"'
-  else
-    preview_cmd='file -b "{}" || /bin/ls -l "{}"'
-  fi
-
+  # Tiny preview at bottom: show full path only
+  local preview_cmd='printf "%s\n" "{}"'
   while IFS= read -r sz; do
     print
     print -- "$(hdr "# $sz bytes")"
     list="$(files_for_size "$sz")"
-    # show plain list to fzf; colorization is for non-interactive mode
     print -- "$list"
     keep="$(print -- "$list" | fzf \
       --prompt="keep> " \
@@ -100,7 +99,7 @@ if $use_interactive; then
       --no-multi \
       --ansi \
       --preview "$preview_cmd" \
-      --preview-window=down:60%:wrap,border-top \
+      --preview-window=down:4:wrap,border-top \
       --height=90% \
       --border \
       || true)"
@@ -114,7 +113,7 @@ if $use_interactive; then
   exit 0
 fi
 
-# --- colored non-interactive output -------------------------------------------
+# --- colored non-interactive output ----------------------------------
 if $use_group; then
   while IFS= read -r sz; do
     print
@@ -124,8 +123,14 @@ if $use_group; then
     done
   done <<< "$dup_sizes"
 else
-  # flat: just all dup-size files, colored
+  # flat: keep groups visually separated with a blank line
+  local first=true
   while IFS= read -r sz; do
+    if ! $first; then
+      print    # <-- blank line between groups
+    else
+      first=false
+    fi
     files_for_size "$sz" | while IFS= read -r f; do
       [[ -n $f ]] && print -- "$(fnc "$f")"
     done
