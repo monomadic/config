@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 # dupsize-simple.zsh — duplicate-size files at exact depth 1
-# deps: fd, (fzf for -i), /usr/bin/stat, trash (optional)
+# deps: fd, (fzf for -i), /usr/bin/stat, trash (optional), mediainfo (for preview)
 
 set -o pipefail
 set -o noclobber
@@ -25,13 +25,19 @@ if $use_interactive; then
   command -v fzf >/dev/null 2>&1 || { print -ru2 -- "fzf required for -i"; exit 127; }
 fi
 
-# temp dir (avoids noclobber issue)
+# --- colors (zsh %F) -----------------------------------------------------------
+autoload -Uz colors && colors
+c() { print -P -- "%F{$1}$2%f"; }
+hdr() { c cyan "$1"; }
+fnc() { c green "$1"; }
+mut() { c 8 "$1"; }  # dim
+
+# --- temp dir (avoid noclobber issues) ----------------------------------------
 tmpdir="$(mktemp -d -t dupsize.XXXXXXXX)" || { print -ru2 -- "mktemp failed"; exit 1; }
 trap 'rm -rf -- "$tmpdir"' EXIT
 tmp_table="$tmpdir/table.tsv"
 
 # Build table: "<size>\t<path>"
-# NOTE: BSD stat %N may add quotes; we'll strip later.
 fd . "$srcdir" --exact-depth 1 -t f -0 \
 | xargs -0 -I{} "$STAT" -f $'%z\t%N' -- "{}" 2>/dev/null \
 | LC_ALL=C sort -n > "$tmp_table"
@@ -39,9 +45,9 @@ fd . "$srcdir" --exact-depth 1 -t f -0 \
 # Sizes with count > 1
 dup_sizes="$(awk -F '\t' '{c[$1]++} END{for (s in c) if (c[s]>1) print s}' "$tmp_table" | LC_ALL=C sort -n)"
 
-[[ -z $dup_sizes ]] && { print -- "No duplicate-size files found at depth 1 in: $srcdir"; exit 0; }
+[[ -z $dup_sizes ]] && { c 8 "No duplicate-size files found at depth 1 in: $srcdir"; exit 0; }
 
-# List files for a size (strip surrounding quotes)
+# List files for a size (strip surrounding quotes that %N may add)
 files_for_size() {
   local sz="$1"
   awk -F '\t' -v s="$sz" '
@@ -55,16 +61,12 @@ files_for_size() {
 safe_trash() {
   local f="$1"
   [[ -n $f ]] || return 0
-
-  # normalize path to avoid option parsing for dash-prefixed names
   local p="$f"
-  [[ ${p##*/} == -* ]] && p="./$p"
+  [[ ${p##*/} == -* ]] && p="./$p"   # avoid option parsing
 
   if command -v trash >/dev/null 2>&1; then
-    # Node 'trash' doesn’t support the GNU-style “--” separator; don’t pass it.
     trash "$p"
   else
-    # Fallback: move to ~/.Trash with uniquified name
     local td="$HOME/.Trash"; mkdir -p -- "$td"
     local base="${f:t}" dst="$td/$base"
     if [[ -e $dst ]]; then
@@ -78,28 +80,54 @@ safe_trash() {
 
 if $use_interactive; then
   print -- "Duplicate-size groups (interactive)…"
+  # preview at bottom, prefer mediainfo, fallback to file/ls
+  local preview_cmd
+  if command -v mediainfo >/dev/null 2>&1; then
+    preview_cmd='mediainfo "{}" || file -b "{}" || /bin/ls -l "{}"'
+  else
+    preview_cmd='file -b "{}" || /bin/ls -l "{}"'
+  fi
+
   while IFS= read -r sz; do
-    print; print -- "# $sz bytes"
+    print
+    print -- "$(hdr "# $sz bytes")"
     list="$(files_for_size "$sz")"
+    # show plain list to fzf; colorization is for non-interactive mode
     print -- "$list"
-    keep="$(print -- "$list" | fzf --prompt="keep> " --header="Select ONE to keep (size: $sz bytes)" --no-multi --preview 'ls -l "{}"' --preview-window=right:60%:wrap || true)"
-    [[ -z $keep ]] && { print -- "(skipped)"; continue; }
+    keep="$(print -- "$list" | fzf \
+      --prompt="keep> " \
+      --header="Select ONE to keep (size: $sz bytes)" \
+      --no-multi \
+      --ansi \
+      --preview "$preview_cmd" \
+      --preview-window=down:60%:wrap,border-top \
+      --height=90% \
+      --border \
+      || true)"
+    [[ -z $keep ]] && { mut "(skipped)"; continue; }
     while IFS= read -r f; do
       [[ -z $f || $f == "$keep" ]] && continue
       safe_trash "$f"
     done <<< "$list"
-    print -- "kept: $keep"
+    print -- "$(fnc "kept: $keep")"
   done <<< "$dup_sizes"
   exit 0
 fi
 
+# --- colored non-interactive output -------------------------------------------
 if $use_group; then
   while IFS= read -r sz; do
-    print; print -- "# $sz bytes"
-    files_for_size "$sz"
+    print
+    print -- "$(hdr "# $sz bytes")"
+    files_for_size "$sz" | while IFS= read -r f; do
+      [[ -n $f ]] && print -- "  $(fnc "$f")"
+    done
   done <<< "$dup_sizes"
 else
+  # flat: just all dup-size files, colored
   while IFS= read -r sz; do
-    files_for_size "$sz"
+    files_for_size "$sz" | while IFS= read -r f; do
+      [[ -n $f ]] && print -- "$(fnc "$f")"
+    done
   done <<< "$dup_sizes"
 fi
