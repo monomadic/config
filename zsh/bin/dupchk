@@ -1,4 +1,4 @@
-!/usr/bin/env zsh
+#!/usr/bin/env zsh
 # dupchk.zsh — list/group duplicate-size files and optionally resolve them interactively.
 # deps: fd, fzf (for -i), BSD stat (/usr/bin/stat), trash (optional; fallback provided)
 # macOS-friendly; stays at exact-depth 1 like your original.
