@@ -1,143 +1,105 @@
 #!/usr/bin/env zsh
-# dupsize.zsh — list duplicate-size files and optionally resolve them interactively.
+# dupsize-simple.zsh — duplicate-size files at exact depth 1
+# deps: fd, (fzf for -i), /usr/bin/stat, trash (optional)
 
 set -o pipefail
 set -o noclobber
-set -o errexit
 set -o nounset
 
-autoload -Uz colors && colors
-c()    { print -P -- "%F{$1}$2%f"; }
-info() { c blue "$1"; }
-ok()   { c green "$1"; }
-warn() { c yellow "$1"; }
-err()  { c red "$1" >&2; }
+STAT="/usr/bin/stat"
+command -v fd >/dev/null 2>&1 || { print -ru2 -- "fd not found"; exit 127; }
+[[ -x $STAT ]] || { print -ru2 -- "BSD stat missing"; exit 127; }
 
 use_group=false
 use_interactive=false
 srcdir="."
 
-usage() {
-  cat <<'USAGE'
-dupsize.zsh [-g] [-i] [directory]
+while getopts "gi" opt; do
+  [[ $opt == g ]] && use_group=true
+  [[ $opt == i ]] && use_interactive=true
+done
+shift $((OPTIND-1))
+[[ $# -gt 0 ]] && srcdir="$1"
+[[ -d $srcdir ]] || { print -ru2 -- "Not a directory: $srcdir"; exit 1; }
+if $use_interactive; then
+  command -v fzf >/dev/null 2>&1 || { print -ru2 -- "fzf required for -i"; exit 127; }
+fi
 
-  -g   Group by size with headers
-  -i   Interactive resolver (fzf to keep one, trash the rest)
+# temp dir (avoids noclobber issue)
+tmpdir="$(mktemp -d -t dupsize.XXXXXXXX)" || { print -ru2 -- "mktemp failed"; exit 1; }
+trap 'rm -rf -- "$tmpdir"' EXIT
+tmp_table="$tmpdir/table.tsv"
 
-Duplicates are detected by file size only (fast heuristic).
-USAGE
-}
+# Build table: "<size>\t<path>"
+# NOTE: BSD stat %N may add quotes; we'll strip later.
+fd . "$srcdir" --exact-depth 1 -t f -0 \
+| xargs -0 -I{} "$STAT" -f $'%z\t%N' -- "{}" 2>/dev/null \
+| LC_ALL=C sort -n > "$tmp_table"
 
-# ---- Parse args ----
-zmodload zsh/zutil
-zparseopts -D -E -F -- g=opt_g i=opt_i h=opt_h -help=opt_h || { err "bad flags"; usage; exit 2; }
-(( ${#opt_h} )) && { usage; exit 0; }
-(( ${#opt_g} )) && use_group=true
-(( ${#opt_i} )) && use_interactive=true
-[[ $# -gt 0 ]] && srcdir=$1
-[[ -d $srcdir ]] || { err "Not a directory: $srcdir"; exit 1; }
+# Sizes with count > 1
+dup_sizes="$(awk -F '\t' '{c[$1]++} END{for (s in c) if (c[s]>1) print s}' "$tmp_table" | LC_ALL=C sort -n)"
 
-# ---- Gather data (same as original) ----
-data="$(
-  fd . "$srcdir" --exact-depth 1 -t f -0 \
-    | xargs -0 stat -f $'%z\t%N' 2>/dev/null \
-    | sort -n
-)" || true
+[[ -z $dup_sizes ]] && { print -- "No duplicate-size files found at depth 1 in: $srcdir"; exit 0; }
 
-[[ -z $data ]] && { ok "No files found."; exit 0; }
-
-# ---- Group parser (AWK, same logic as original) ----
-print_grouped() {
-  awk -F '\t' '
-    {
-      size=$1; name=$2; gsub(/^\"|\"$/, "", name)
-      if (size==prev) {
-        if (!opened) { printf("\n# %s bytes\n", prev); print first; opened=1 }
-        print name
-      } else {
-        prev=size; first=name; opened=0
-      }
+# List files for a size (strip surrounding quotes)
+files_for_size() {
+  local sz="$1"
+  awk -F '\t' -v s="$sz" '
+    $1==s {
+      name=$2; gsub(/^"|"$/, "", name);
+      print name
     }
-  ' <<< "$data"
+  ' "$tmp_table"
 }
 
-print_flat() {
-  awk -F '\t' '
-    {
-      size=$1; name=$2; gsub(/^\"|\"$/, "", name)
-      if (size==prev) {
-        if (!printed_first) { print first; printed_first=1 }
-        print name
-      } else {
-        prev=size; first=name; printed_first=0
-      }
-    }
-  ' <<< "$data"
-}
-
-# ---- Safe trash ----
 safe_trash() {
   local f="$1"
+  [[ -n $f ]] || return 0
+
+  # normalize path to avoid option parsing for dash-prefixed names
+  local p="$f"
+  [[ ${p##*/} == -* ]] && p="./$p"
+
   if command -v trash >/dev/null 2>&1; then
-    trash -- "$f"
+    # Node 'trash' doesn’t support the GNU-style “--” separator; don’t pass it.
+    trash "$p"
   else
-    local dst="$HOME/.Trash/${f:t}"
-    local base="${f:t}" ts n=1
-    ts=$(date +%Y%m%d-%H%M%S)
-    while [[ -e $dst ]]; do
-      dst="$HOME/.Trash/${base} (${ts}-${n})"
-      n=$((n+1))
-    done
+    # Fallback: move to ~/.Trash with uniquified name
+    local td="$HOME/.Trash"; mkdir -p -- "$td"
+    local base="${f:t}" dst="$td/$base"
+    if [[ -e $dst ]]; then
+      local ts; ts=$(date +%Y%m%d-%H%M%S); local n=1
+      while [[ -e "$td/${base} (${ts}-${n})" ]]; do ((n++)); done
+      dst="$td/${base} (${ts}-${n})"
+    fi
     mv -n -- "$f" "$dst"
   fi
 }
 
-# ---- Interactive resolver ----
-interactive_resolve() {
-  command -v fzf >/dev/null 2>&1 || { err "fzf required for -i"; exit 127; }
-
-  # Group by size first
-  local sizes=()
-  sizes=($(awk '{print $1}' <<< "$data" | uniq -d))
-
-  for s in $sizes; do
-    local group keep to_trash=()
-    group=$(awk -F '\t' -v sz=$s '$1==sz { gsub(/^\"|\"$/, "", $2); print $2 }' <<< "$data")
-    [[ -z $group ]] && continue
-
-    print -- "$(warn "Duplicate-size group: $s bytes")"
-    keep=$(print -r -- "$group" | fzf --prompt="keep> " --header="Select file to keep ($s bytes)" --no-multi)
-    [[ -z $keep ]] && { warn "Skipped group."; continue; }
-
-    while IFS= read -r f; do
-      [[ $f == "$keep" ]] && continue
-      to_trash+=("$f")
-    done <<< "$group"
-
-    [[ ${#to_trash[@]} -eq 0 ]] && continue
-    print -- "$(info "Keep: $keep")"
-    print -- "$(warn "Trash ${#to_trash[@]} file(s)?")"
-    printf '%s\n' "${to_trash[@]}"
-
-    printf "%s " "$(warn '[y/N]')"
-    read -r ans
-    case $ans in
-      y|Y|yes|YES)
-        for f in "${to_trash[@]}"; do safe_trash "$f"; done
-        ok "Trashed ${#to_trash[@]} file(s)."
-        ;;
-      *) warn "Skipped." ;;
-    esac
-  done
-}
-
-# ---- Run ----
 if $use_interactive; then
-  interactive_resolve
+  print -- "Duplicate-size groups (interactive)…"
+  while IFS= read -r sz; do
+    print; print -- "# $sz bytes"
+    list="$(files_for_size "$sz")"
+    print -- "$list"
+    keep="$(print -- "$list" | fzf --prompt="keep> " --header="Select ONE to keep (size: $sz bytes)" --no-multi --preview 'ls -l "{}"' --preview-window=right:60%:wrap || true)"
+    [[ -z $keep ]] && { print -- "(skipped)"; continue; }
+    while IFS= read -r f; do
+      [[ -z $f || $f == "$keep" ]] && continue
+      safe_trash "$f"
+    done <<< "$list"
+    print -- "kept: $keep"
+  done <<< "$dup_sizes"
+  exit 0
+fi
+
+if $use_group; then
+  while IFS= read -r sz; do
+    print; print -- "# $sz bytes"
+    files_for_size "$sz"
+  done <<< "$dup_sizes"
 else
-  if $use_group; then
-    print_grouped
-  else
-    print_flat
-  fi
+  while IFS= read -r sz; do
+    files_for_size "$sz"
+  done <<< "$dup_sizes"
 fi
