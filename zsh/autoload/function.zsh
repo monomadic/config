@@ -1,48 +1,29 @@
-dupsize() {
-  emulate -L zsh -o pipefail
-  local group=false dir="."
+diff-filenames() {
+  emulate -L zsh
+  setopt pipefail
 
-  # -g => print groups with a size header
-  while getopts "g" opt; do [[ $opt == g ]] && group=true; done
-  shift $((OPTIND-1))
-  [[ -n $1 ]] && dir=$1
-
-  # Gather: <size>\t"<path>"
-  # fd: single folder only (--exact-depth 1). Add -HI to include hidden.
-  local data
-  data="$(
-    fd . "$dir" --exact-depth 1 -t f -0 \
-      | xargs -0 stat -f $'%z\t%N' 2>/dev/null \
-      | sort -n
-  )" || return
-
-  [[ -z $data ]] && return 0
-
-  if $group; then
-    awk -F '\t' '
-      {
-        size=$1; name=$2; gsub(/^\"|\"$/, "", name)
-        if (size==prev) {
-          if (!opened) { printf("\n# %s bytes\n", prev); print first; opened=1 }
-          print name
-        } else {
-          prev=size; first=name; opened=0
-        }
-      }
-    ' <<<"$data"
-  else
-    awk -F '\t' '
-      {
-        size=$1; name=$2; gsub(/^\"|\"$/, "", name)
-        if (size==prev) {
-          if (!printed_first) { print first; printed_first=1 }
-          print name
-        } else {
-          prev=size; first=name; printed_first=0
-        }
-      }
-    ' <<<"$data"
+  if [[ $# -ne 2 ]]; then
+    print "Usage: diffnames <dir1> <dir2>" >&2
+    return 1
   fi
+
+  local left=$1 right=$2
+  local red=$'%F{red}'
+  local green=$'%F{green}'
+  local reset=$'%f'
+
+  comm -3 \
+    <(cd "$left"  && fd -t f --strip-cwd-prefix | sort) \
+    <(cd "$right" && fd -t f --strip-cwd-prefix | sort) \
+  | while IFS= read -r line; do
+      if [[ $line == *$'\t'* ]]; then
+        # right side (missing in left)
+        print -P "${green}${line//$'\t'/}${reset}"
+      else
+        # left side (missing in right)
+        print -P "${red}${line}${reset}"
+      fi
+    done
 }
 
 apple-music-dl() {
