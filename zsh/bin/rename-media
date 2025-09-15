@@ -53,6 +53,8 @@ clean_name() {
   for t in $tags; do
     name="${name//\#$t/}"
   done
+  # remove trailing " s01"
+  name="$(printf '%s' "$name" | sed -E 's/[[:space:]]s01$//I')"
   # collapse & trim spaces
   name="${name//  / }"; name="${name//  / }"   # twice to be safe
   name="${name## }"; name="${name%% }"

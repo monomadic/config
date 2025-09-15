@@ -26,6 +26,26 @@ diff-filenames() {
     done
 }
 
+columns() {
+  emulate -L zsh
+  local cols=2
+  if [[ $# -ge 1 && $1 = <-> ]]; then
+    cols=$1
+    shift
+  fi
+
+  if [[ $# -eq 0 && -t 0 ]]; then
+    print "Usage: columns [cols] <file...> (or pipe input)"
+    return 1
+  fi
+
+  if [[ $# -gt 0 ]]; then
+    pr -t -"$cols" -w "$(tput cols)" "$@"
+  else
+    pr -t -"$cols" -w "$(tput cols)"
+  fi
+}
+
 apple-music-dl() {
   gamdl \
 		--cookies-path="$HOME/.config/music.apple.com_cookies.txt" \
