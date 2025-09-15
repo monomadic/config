@@ -42,7 +42,7 @@ if ! $quiet_mode; then
   rsync_ver_ok() { rsync --version | awk 'NR==1{split($3,v,"."); exit !((v[1]>3) || (v[1]==3 && v[2]>=1))}'; }
   rsync_opts+=(-h --out-format='%n')
   if rsync_ver_ok; then
-    rsync_opts+=(--info=progress --stats)   # overall % + MB/s + ETA (rsync ≥ 3.1)  [oai_citation:2‡Server Fault](https://serverfault.com/questions/607689/can-rsync-display-current-average-speed?utm_source=chatgpt.com)
+    rsync_opts+=(--progress --stats)   # overall % + MB/s + ETA (rsync ≥ 3.1)  [oai_citation:2‡Server Fault](https://serverfault.com/questions/607689/can-rsync-display-current-average-speed?utm_source=chatgpt.com)
   else
     rsync_opts+=(--progress)         # per-file fallback
     echo "Note: overall progress needs rsync ≥ 3.1; showing per-file progress." >&2
