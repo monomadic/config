@@ -29,6 +29,8 @@ alias .python-venv-create="python3 -m venv .venv && source .venv/bin/activate"
 alias .python-venv-activate="source .venv/bin/activate"
 alias .python-pip-install-requirements="pip install -r requirements.txt"
 
+alias backup-tower="rsync-backup --delete /Volumes/Tower/ /Volumes/Tower\ Backup && df -h | grep Tower"
+
 fd-video-color() {
   { fd -e mp4 $1 } | sd '\]\[' '] [' | sd '\[([^\]]+)\]' $'\e[32m''$1'$'\e[0m' | sd '\{([^}]*)\}' $'\e[33m''$1'$'\e[0m' | sd '(^|/)\(([^)]*)\)' '${1}'$'\e[36m''$2'$'\e[0m' | rg --passthru --color=always -N -r '$0' -e '#\S+' --colors 'match:fg:magenta'
 }
