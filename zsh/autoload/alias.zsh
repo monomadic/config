@@ -8,7 +8,9 @@ alias yt-dlp-youtube-embedded="yt-dlp --cookies-from-browser brave --continue --
 alias mpv-loop="mpv --player-operation-mode=pseudo-gui --loop-file=inf --loop-playlist=inf --image-display-duration=5 --force-window=yes --no-config --no-input-default-bindings "
 alias .pwd="mpv-play $PWD"
 alias mpv-play-porn="setopt local_options null_glob && mpv-play $~MEDIA_GLOBS"
-alias mpv-play-volumes="mpv-play /Volumes/*/Movies/**/*.mp4"
+alias mpv-play-volumes="mpv-play /Volumes/*/Movies/Porn/**/*.mp4"
+alias mpv-play-tower="mpv-play /Volumes/Tower/Movies/Porn"
+alias .tower=mpv-play-tower
 
 # media search
 alias @="ls-media | fzf-play --hide-path --tac"
@@ -31,9 +33,10 @@ alias .python-venv-create="python3 -m venv .venv && source .venv/bin/activate"
 alias .python-venv-activate="source .venv/bin/activate"
 alias .python-pip-install-requirements="pip install -r requirements.txt"
 
-alias backup-tower="rsync-backup --delete /Volumes/Tower/ /Volumes/Tower\ Backup && df -h | grep Tower"
 alias rsync-copy='rsync -a --ignore-existing --progress'
 alias cp-skip=rsync-copy
+
+alias backup-tower="rsync-backup --delete /Volumes/Tower/ /Volumes/Tower\ Backup"
 
 fd-video-color() {
   { fd -e mp4 $1 } | sd '\]\[' '] [' | sd '\[([^\]]+)\]' $'\e[32m''$1'$'\e[0m' | sd '\{([^}]*)\}' $'\e[33m''$1'$'\e[0m' | sd '(^|/)\(([^)]*)\)' '${1}'$'\e[36m''$2'$'\e[0m' | rg --passthru --color=always -N -r '$0' -e '#\S+' --colors 'match:fg:magenta'
