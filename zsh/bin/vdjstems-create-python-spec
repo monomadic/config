@@ -1,0 +1,74 @@
+#!/bin/zsh
+# mk-vdjstems — VirtualDJ stems (standalone + sidecar)
+# Inputs: bass.wav, drums.wav, other.wav, vocals.wav, track.mp4
+# Outputs:
+#   1) track.standalone.m4a       (6 tracks: mixed + 5 stems; default= mixed)
+#   2) track.mp4.vdjstems         (5 stems only; pairs with track.mp4)
+#
+# Notes:
+# - Track titles are written to MP4 udta:name boxes (VirtualDJ reads these).
+# - Exact order & titles (lowercase) are critical.
+
+set -euo pipefail
+
+codec="alac"           # default lossless
+abitrate="256k"        # only used for AAC
+[[ "${1:-}" = "--aac" ]] && codec="aac"
+
+sr=44100
+tmpdir="$(mktemp -d)"
+cleanup() { rm -rf -- "$tmpdir"; }
+trap cleanup EXIT
+
+orig="track.mp4"
+base="${orig%.*}"
+
+# ---------- Build both containers in one shot (normalize SR/FMT) ----------
+# We derive hihat & kick from the single drums stem at -6 dB each.
+# normalize, split, derive hh/kick, and emit both containers in one run
+ffmpeg -hide_banner -y \
+  -i vocals.wav -i drums.wav -i bass.wav -i other.wav \
+  -filter_complex "\
+    [0:a]aformat=sample_fmts=s16p:sample_rates=44100[voc0]; \
+      [voc0]asplit=3[voc_mix][voc_solo][voc_side]; \
+    [1:a]aformat=sample_fmts=s16p:sample_rates=44100[drm0]; \
+      [drm0]asplit=3[drm_mix][d_hh_src][d_kick_src]; \
+      [d_hh_src]volume=-6dB[hh0]; [hh0]asplit=2[hh_solo][hh_side]; \
+      [d_kick_src]volume=-6dB[kick0]; [kick0]asplit=2[kick_solo][kick_side]; \
+    [2:a]aformat=sample_fmts=s16p:sample_rates=44100[bas0]; \
+      [bas0]asplit=3[bas_mix][bas_solo][bas_side]; \
+    [3:a]aformat=sample_fmts=s16p:sample_rates=44100[ins0]; \
+      [ins0]asplit=3[ins_mix][ins_solo][ins_side]; \
+    [voc_mix][drm_mix][bas_mix][ins_mix]amix=inputs=4:normalize=1:duration=longest, \
+      aformat=sample_fmts=s32p:sample_rates=44100[mix]" \
+  \
+  -map "[mix]" -map "[voc_solo]" -map "[hh_solo]" -map "[bas_solo]" -map "[ins_solo]" -map "[kick_solo]" \
+  -c:a alac \
+  -disposition:a:0 default -disposition:a:1 0 -disposition:a:2 0 -disposition:a:3 0 -disposition:a:4 0 -disposition:a:5 0 \
+  "${tmpdir}/standalone.m4a" \
+  \
+  -map "[voc_side]" -map "[hh_side]" -map "[bas_side]" -map "[ins_side]" -map "[kick_side]" \
+  -c:a alac \
+  "${tmpdir}/sidecar.m4a"
+  
+# ---------- Tag per-track titles via MP4Box udta:name (standalone, 6 tracks) ----------
+MP4Box \
+  -udta 1:type=name:str="mixed track" \
+  -udta 2:type=name:str="vocal" \
+  -udta 3:type=name:str="hihat" \
+  -udta 4:type=name:str="bass" \
+  -udta 5:type=name:str="instruments" \
+  -udta 6:type=name:str="kick" \
+  -flat -out "${base}.standalone.m4a" "${tmpdir}/standalone.m4a"
+
+# ---------- Tag per-track titles via MP4Box udta:name (sidecar, 5 stems) ----------
+MP4Box \
+  -udta 1:type=name:str="vocal" \
+  -udta 2:type=name:str="hihat" \
+  -udta 3:type=name:str="bass" \
+  -udta 4:type=name:str="instruments" \
+  -udta 5:type=name:str="kick" \
+  -flat -out "${base}.mp4.vdjstems" "${tmpdir}/sidecar.m4a"
+
+echo "✓ Wrote: ${base}.standalone.m4a (6 tracks: mixed + stems)"
+echo "✓ Wrote: ${base}.mp4.vdjstems   (5 stems; pairs with ${orig})"

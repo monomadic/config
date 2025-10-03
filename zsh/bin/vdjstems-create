@@ -1,0 +1,62 @@
+#!/bin/zsh
+# mk-vdjstems — VirtualDJ standalone ALAC (mix=s32p, stems=s16p)
+set -euo pipefail
+
+SR=44100
+OUT="${1:-${PWD##*/}.vdjstems}"
+[[ $OUT != *.vdjstems ]] && OUT="${OUT}.vdjstems"
+TMP="untagged.$$.$RANDOM.stem.mp4"
+
+need() { command -v "$1" >/dev/null || { print -u2 "❌ missing: $1"; exit 1; } }
+need ffmpeg; need ffprobe; need MP4Box
+
+for f in vocals.wav drums.wav bass.wav other.wav; do
+  [[ -f "$f" ]] || { print -u2 "❌ Missing $f"; exit 1; }
+done
+
+print "🎛  Building ALAC stem container (mix=s32p, stems=s16p)…"
+ffmpeg -hide_banner -y \
+  -i vocals.wav \
+  -i drums.wav \
+  -i bass.wav \
+  -i other.wav \
+  -filter_complex "
+    [0:a]aformat=sample_rates=${SR}:channel_layouts=stereo,asetpts=PTS-STARTPTS,asplit=2[v_mix][v_stem_in];
+    [1:a]aformat=sample_rates=${SR}:channel_layouts=stereo,asetpts=PTS-STARTPTS,asplit=3[d_hh_raw][d_kick_raw][d_mix];
+    [2:a]aformat=sample_rates=${SR}:channel_layouts=stereo,asetpts=PTS-STARTPTS,asplit=2[b_mix][b_stem_in];
+    [3:a]aformat=sample_rates=${SR}:channel_layouts=stereo,asetpts=PTS-STARTPTS,asplit=2[i_mix][i_stem_in];
+    [d_hh_raw]volume=-6.0206dB[d_hh_in];
+    [d_kick_raw]volume=-6.0206dB[d_kick_in];
+    [v_mix][d_mix][b_mix][i_mix]amix=inputs=4:normalize=1:duration=longest, aformat=sample_fmts=s32p:sample_rates=${SR}[mix_s32];
+    [v_stem_in] aformat=sample_fmts=s16p:sample_rates=${SR}[v_stem];
+    [d_hh_in]   aformat=sample_fmts=s16p:sample_rates=${SR}[d_hh];
+    [b_stem_in] aformat=sample_fmts=s16p:sample_rates=${SR}[b_stem];
+    [i_stem_in] aformat=sample_fmts=s16p:sample_rates=${SR}[i_stem];
+    [d_kick_in] aformat=sample_fmts=s16p:sample_rates=${SR}[d_kick]
+  " \
+  -map "[mix_s32]" \
+  -map "[v_stem]"  \
+  -map "[d_hh]"    \
+  -map "[b_stem]"  \
+  -map "[i_stem]"  \
+  -map "[d_kick]"  \
+  -c:a alac -ar ${SR} -ac 2 \
+  -movflags +faststart -f mp4 "$TMP"
+
+print "🏷  Naming tracks & interleaving…"
+MP4Box \
+  -name 1="mixed track" \
+  -name 2="vocal" \
+  -name 3="hihat" \
+  -name 4="bass" \
+  -name 5="instruments" \
+  -name 6="kick" \
+  -brand mp42 -rb mp42 -ab isom \
+  -inter 500 \
+  -out "$OUT" "$TMP"
+
+rm -f "$TMP"
+print "✅ Wrote: $OUT"
+ffprobe -v error -select_streams a \
+  -show_entries stream=index,codec_name,sample_fmt,channels:stream_tags=title \
+  -of compact=p=0:nk=1 "$OUT" || true

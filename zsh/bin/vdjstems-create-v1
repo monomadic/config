@@ -1,0 +1,83 @@
+#!/bin/zsh
+# mk-vdjstems — VirtualDJ self-contained lossless stems (ALAC)
+# Inputs in CWD: vocals.wav, drums.wav, bass.wav, other.wav
+# Streams (index→role): 0 mixed track(s32p), 1 vocal(s16p), 2 hihat(s16p), 3 bass(s16p), 4 instruments(s16p), 5 kick(s16p)
+# Output: "<folder>.vdjstems.mp4" or $1
+
+set -euo pipefail
+
+SR=44100
+OUT="${1:-${PWD##*/}.vdjstems.mp4}"
+TMP="untagged.$$.$RANDOM.stem.mp4"
+
+need() { command -v "$1" >/dev/null || { print -u2 "❌ missing: $1"; exit 1; } }
+need ffmpeg; need ffprobe; need MP4Box
+
+for f in vocals.wav drums.wav bass.wav other.wav; do
+  [[ -f "$f" ]] || { print -u2 "❌ Missing $f"; exit 1; }
+done
+
+# longest duration across stems (for sanity/diagnostics only)
+max_dur=0
+for f in vocals.wav drums.wav bass.wav other.wav; do
+  d=$(ffprobe -v error -show_entries format=duration -of default=nk=1:nw=1 "$f"); [[ -z "$d" || "$d" = N/A ]] && d=0
+  (( $(awk -v a="$d" -v b="$max_dur" 'BEGIN{print (a>b)?1:0}') )) && max_dur="$d"
+done
+[[ "$max_dur" = 0 ]] && max_dur=180
+
+print "🎛  Building ALAC stem container (s32p master + s16p stems)…"
+ffmpeg -hide_banner -y \
+  -i "vocals.wav" \
+  -i "drums.wav" \
+  -i "bass.wav" \
+  -i "other.wav" \
+  -filter_complex "
+    [0:a]aformat=sample_fmts=s16p:sample_rates=${SR}:channel_layouts=stereo,asetpts=PTS-STARTPTS,asplit=2[v_mix][v16];
+    [1:a]aformat=sample_fmts=s16p:sample_rates=${SR}:channel_layouts=stereo,asetpts=PTS-STARTPTS,asplit=3[dhh][dkick][d_mix];
+    [2:a]aformat=sample_fmts=s16p:sample_rates=${SR}:channel_layouts=stereo,asetpts=PTS-STARTPTS,asplit=2[b_mix][b16];
+    [3:a]aformat=sample_fmts=s16p:sample_rates=${SR}:channel_layouts=stereo,asetpts=PTS-STARTPTS,asplit=2[i_mix][i16];
+
+    [dhh]volume=-6.0206dB,aformat=sample_fmts=s16p[h16];
+    [dkick]volume=-6.0206dB,aformat=sample_fmts=s16p[k16];
+
+    [v_mix][d_mix][b_mix][i_mix]amix=inputs=4:normalize=1:duration=longest, aformat=sample_fmts=s32p[mix32]
+  " \
+  -map "[mix32]" \
+  -map "[v16]" \
+  -map "[h16]" \
+  -map "[b16]" \
+  -map "[i16]" \
+  -map "[k16]" \
+  -c:a alac -ar ${SR} -ac 2 \
+  -disposition:a:0 default -disposition:a:1 0 -disposition:a:2 0 -disposition:a:3 0 -disposition:a:4 0 -disposition:a:5 0 \
+  -metadata:s:a:0 title="mixed track" -metadata:s:a:0 handler_name="mixed track" \
+  -metadata:s:a:1 title="vocal"       -metadata:s:a:1 handler_name="vocal" \
+  -metadata:s:a:2 title="hihat"       -metadata:s:a:2 handler_name="hihat" \
+  -metadata:s:a:3 title="bass"        -metadata:s:a:3 handler_name="bass" \
+  -metadata:s:a:4 title="instruments" -metadata:s:a:4 handler_name="instruments" \
+  -metadata:s:a:5 title="kick"        -metadata:s:a:5 handler_name="kick" \
+  -movflags +faststart -f mp4 "$TMP"
+
+print "🏷  Tagging per-track names & interleave (MP4Box)…"
+MP4Box \
+  -name 1="mixed track" \
+  -name 2="vocal" \
+  -name 3="hihat" \
+  -name 4="bass" \
+  -name 5="instruments" \
+  -name 6="kick" \
+  -brand mp42 -rb mp42 -ab isom \
+  -inter 500 \
+  -out "$OUT" "$TMP"
+
+rm -f "$TMP"
+print "✅ Wrote: $OUT"
+
+print "\n🔎 ffprobe stream tags (index|codec|sample_fmt|ch|title|handler_name):"
+ffprobe -v error -select_streams a \
+  -show_entries stream=index,codec_name,sample_fmt,channels:stream_tags=title,handler_name \
+  -of compact=p=0:nk=1 "$OUT" || true
+
+print "\n🔎 MP4Box UDTA/track names:"
+# MP4Box -info prints track names as part of track descriptors; show only name lines for brevity.
+MP4Box -info "$OUT" 2>&1 | awk '/Track #/{t=$0} /name=/{print t "\n    " $0}'

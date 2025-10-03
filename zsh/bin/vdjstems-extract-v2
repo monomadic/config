@@ -1,0 +1,114 @@
+#!/usr/bin/env zsh
+# vdjstems-extract — lossless per-stream extractor for stem containers
+set -euo pipefail
+
+die(){ print -r -- "ERROR: $*" >&2; exit 1; }
+have(){ command -v "$1" >/dev/null 2>&1; }
+have ffprobe || die "ffprobe not found"
+have ffmpeg  || die "ffmpeg not found"
+
+usage(){ cat <<'EOF'
+Usage: vdjstems-extract [-o OUTDIR] [--wav] [--skip-mixed] INPUT...
+EOF
+exit 2; }
+
+OUTDIR=""; DECODE_WAV=0; SKIP_MIXED=0
+while (( $# )); do
+  case "${1:-}" in
+    -h|--help) usage ;;
+    -o) OUTDIR="${2:-}"; shift 2 ;;
+    --wav) DECODE_WAV=1; shift ;;
+    --skip-mixed) SKIP_MIXED=1; shift ;;
+    --) shift; break ;;
+    -*) die "Unknown option: $1" ;;
+    *) break ;;
+  esac
+done
+(( $# )) || usage
+
+codec_ext() {
+  local c="${1:l}"
+  case "$c" in
+    alac)  print m4a ;;
+    aac)   print m4a ;;
+    flac)  print flac ;;
+    opus)  print opus ;;
+    vorbis)print ogg ;;
+    pcm_*|pcm*) print wav ;;
+    wavpack|wv) print wv ;;
+    *)      print m4a ;;
+  esac
+}
+
+slug() {
+  local s="$1"
+  s="${s//\//-}"; s="${s//:/-}"; s="${s//\?/}"; s="${s//\"/'}"
+  s="${s//</(}"; s="${s//>)/}"; s="${s//\*/x}"; s="${s//|/-}"; s="${s//\\/-}"
+  print -r -- "$s"
+}
+
+extract_one() {
+  local in="$1"; [[ -f "$in" ]] || die "Not a file: $in"
+  local dir base root
+  dir="${OUTDIR:-${in:A:h}}"; mkdir -p -- "$dir"
+  base="${in:t}"
+  root="${base%.vdjstems}"; root="${root%.*}"
+
+  # Robust parse: one line per stream; fields: idx|codec|ch|title
+  # IMPORTANT FIX: don't try to split the 4th field again — just take it as-is.
+  local line
+  local -A seen
+  ffprobe -v error -select_streams a \
+    -show_entries stream=index,codec_name,channels:stream_tags=title \
+    -of compact=p=0:nk=1 -- "$in" | \
+  while IFS=$'\n' read -r line; do
+    [[ -n "$line" ]] || continue
+    # split into max 4 parts only
+    local idx codec ch title
+    idx="${line%%|*}"; line="${line#*|}"
+    codec="${line%%|*}"; line="${line#*|}"
+    ch="${line%%|*}"
+    # If there was no 4th field, ${line#*|} would equal $line; handle both cases:
+    if [[ "$line" == *"|"* ]]; then
+      title="${line#*|}"
+    else
+      # no 4th delimiter left → whatever remains after removing idx|codec| is 'ch' already;
+      # title may be absent; set explicitly empty
+      title=""
+    fi
+
+    # Title is the 4th field; if missing, use aXi
+    local tag
+    if [[ -n "$title" ]]; then
+      tag="$(slug "$title")"
+    else
+      tag="a${idx}"
+    fi
+
+    # de-dup duplicate titles
+    local key="${tag:l}"
+    local n=${seen[$key]:-0}
+    (( n )) && tag="${tag}-${n}"
+    seen[$key]=$(( n + 1 ))
+
+    # skip mixed if requested
+    if (( SKIP_MIXED )) && [[ "${title:l}" == "mixed track" ]]; then
+      continue
+    fi
+
+    local out
+    if (( DECODE_WAV )); then
+      out="${dir}/${root} - ${tag}.wav"
+      print "→ $out (decode)"
+      ffmpeg -v error -y -i "$in" -map 0:a:${idx} -acodec pcm_s16le "$out"
+    else
+      local extn; extn="$(codec_ext "$codec")"
+      out="${dir}/${root} - ${tag}.${extn}"
+      print "→ $out (copy ${codec})"
+      ffmpeg -v error -y -i "$in" -map 0:a:${idx} -c copy "$out"
+    fi
+  done
+}
+
+for f in "$@"; do extract_one "$f"; done
+print "Done."

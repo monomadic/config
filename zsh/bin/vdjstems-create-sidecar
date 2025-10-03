@@ -1,0 +1,128 @@
+#!/bin/zsh
+# mk-vdjstems-sidecar — VirtualDJ sidecar stems (lossless ALAC by default)
+# Inputs (CWD): vocals.wav, drums.wav, bass.wav, other.wav
+# Optional original file: pass with --orig=FILE or as the first positional arg.
+# Streams (no mixed track): 1 vocal, 2 hihat (drums -6 dB), 3 bass, 4 instruments, 5 kick (drums -6 dB)
+
+set -euo pipefail
+
+SR=44100
+CODEC="alac"     # default lossless. override with --aac
+BITRATE="256k"   # used only if CODEC="aac"
+ORIG=""          # path to original track (for sidecar naming)
+
+# ---- tool checks -------------------------------------------------------------
+need() { command -v "$1" >/dev/null || { print -u2 "❌ missing: $1"; exit 1; } }
+need ffmpeg; need ffprobe; need MP4Box; need awk
+
+# ---- parse args (flags FIRST) -----------------------------------------------
+positional=()
+while (( $# )); do
+  case "$1" in
+    --aac)                CODEC="aac" ;;
+    --sr=*)               SR="${1#--sr=}" ;;
+    --br=*)               BITRATE="${1#--br=}" ;;       # AAC only
+    --orig=*)             ORIG="${1#--orig=}" ;;
+    --)                   shift; positional+=("$@"); break ;;
+    -h|--help)
+      cat <<'EOF'
+Usage: mk-vdjstems-sidecar.zsh [--orig=FILE] [--aac] [--sr=44100] [--br=256k]
+       mk-vdjstems-sidecar.zsh FILE [--aac] [--sr=48000] [--br=192k]
+Inputs required in CWD: vocals.wav, drums.wav, bass.wav, other.wav
+EOF
+      exit 0
+      ;;
+    -*)
+      print -u2 "⚠️  Unknown option: $1"
+      ;;
+    *)
+      positional+=("$1")  # treat as possible ORIG
+      ;;
+  esac
+  shift
+done
+
+# first positional (if any) becomes ORIG only if not already set by --orig=
+if [[ -z "$ORIG" && ${#positional[@]} -gt 0 ]]; then
+  ORIG="${positional[1]}"
+fi
+
+# ---- inputs ------------------------------------------------------------------
+for f in vocals.wav drums.wav bass.wav other.wav; do
+  [[ -f "$f" ]] || { print -u2 "❌ Missing $f"; exit 1; }
+done
+
+# ---- pick output name (sidecar) ----------------------------------------------
+if [[ -n "$ORIG" && -f "$ORIG" ]]; then
+  OUT="${ORIG}.vdjstems"
+else
+  OUT="${PWD##*/}.vdjstems"
+fi
+TMP="untagged.$$.$RANDOM.sidecar.mp4"
+
+# ---- longest duration (pad safety) ------------------------------------------
+max_dur=0
+for f in vocals.wav drums.wav bass.wav other.wav; do
+  d=$(ffprobe -v error -show_entries format=duration -of default=nk=1:nw=1 "$f"); [[ -z "$d" || "$d" = N/A ]] && d=0
+  (( $(awk -v a="$d" -v b="$max_dur" 'BEGIN{print (a>b)?1:0}') )) && max_dur="$d"
+done
+[[ "$max_dur" = 0 ]] && max_dur=180
+
+# ---- codec opts --------------------------------------------------------------
+codec_opts=()
+if [[ "$CODEC" = "aac" ]]; then
+  # Native AAC is fine; profile for broad MP4 compatibility.
+  codec_opts=(-c:a aac -b:a "$BITRATE" -profile:a aac_low)
+else
+  codec_opts=(-c:a alac)
+fi
+
+# ---- build sidecar (NO mixed-track stream) -----------------------------------
+print "🎛  Building sidecar (${CODEC}) with stems only…"
+ffmpeg -hide_banner -y \
+  -i "vocals.wav" \
+  -i "drums.wav" \
+  -i "bass.wav" \
+  -i "other.wav" \
+  -filter_complex "
+    [0:a]aformat=sample_fmts=s16p:sample_rates=${SR}:channel_layouts=stereo,asetpts=PTS-STARTPTS[v_stem];
+    [1:a]aformat=sample_fmts=s16p:sample_rates=${SR}:channel_layouts=stereo,asetpts=PTS-STARTPTS,asplit=2[d_hh_raw][d_kick_raw];
+    [2:a]aformat=sample_fmts=s16p:sample_rates=${SR}:channel_layouts=stereo,asetpts=PTS-STARTPTS[b_stem];
+    [3:a]aformat=sample_fmts=s16p:sample_rates=${SR}:channel_layouts=stereo,asetpts=PTS-STARTPTS[i_stem];
+    [d_hh_raw]volume=-6.0206dB,aformat=sample_fmts=s16p[d_hh];
+    [d_kick_raw]volume=-6.0206dB,aformat=sample_fmts=s16p[d_kick];
+  " \
+  -map "[v_stem]" \
+  -map "[d_hh]"   \
+  -map "[b_stem]" \
+  -map "[i_stem]" \
+  -map "[d_kick]" \
+  "${codec_opts[@]}" \
+  -ar ${SR} -ac 2 \
+  -metadata:s:a:0 title="vocal"       -metadata:s:a:0 handler_name="vocal" \
+  -metadata:s:a:1 title="hihat"       -metadata:s:a:1 handler_name="hihat" \
+  -metadata:s:a:2 title="bass"        -metadata:s:a:2 handler_name="bass" \
+  -metadata:s:a:3 title="instruments" -metadata:s:a:3 handler_name="instruments" \
+  -metadata:s:a:4 title="kick"        -metadata:s:a:4 handler_name="kick" \
+  -disposition:a:0 0 -disposition:a:1 0 -disposition:a:2 0 -disposition:a:3 0 -disposition:a:4 0 \
+  -movflags +faststart -f mp4 "$TMP"
+
+# ---- assert track names & interleave (MP4Box) --------------------------------
+print "🏷  Finalizing mp4 atoms / names / interleave…"
+MP4Box \
+  -name 1="vocal" \
+  -name 2="hihat" \
+  -name 3="bass" \
+  -name 4="instruments" \
+  -name 5="kick" \
+  -brand mp42 -rb mp42 -ab isom \
+  -inter 500 \
+  -out "$OUT" "$TMP"
+
+rm -f "$TMP"
+print "✅ Wrote sidecar: $OUT"
+
+print "🔎 Streams:"
+ffprobe -v error -select_streams a \
+  -show_entries stream=index,codec_name,sample_fmt,channels:stream_tags=title,handler_name \
+  -of compact=p=0:nk=1 "$OUT" || true

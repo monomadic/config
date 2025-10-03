@@ -1,0 +1,16 @@
+#!/bin/zsh
+
+print "\n🔎 ffprobe stream tags (index|codec|sample_fmt|ch|title|handler_name):"
+ffprobe -v error -select_streams a \
+  -show_entries stream=index,codec_name,sample_fmt,channels:stream_tags=title,handler_name \
+  -of compact=p=0:nk=1 "$1" || true
+
+print "\n🔎 MP4Box UDTA names (per track):"
+for i in 0 1 2 3 4 5; do
+  # This dumps the UDTA 'name' fourcc attached to track $i (if present)
+  echo "Track $i:"
+  MP4Box -dump-udta "${i}:name" "$1" 2>/dev/null || echo "  (no udta name on track $i)"
+done
+# Also show any file-level/moov UDTA 'name' just in case:
+echo "File-level UDTA 'name' (moov):"
+MP4Box -dump-udta name "$1" 2>/dev/null || echo "  (none)"

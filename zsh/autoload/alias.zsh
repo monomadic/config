@@ -20,7 +20,9 @@ alias @loop="fselect-porn -0 | fzf-media-select --hide-path --tac | mpv-with-con
 alias @pwd-sort="fselect-pwd-sort -0 | fzf-play --hide-path --tac"
 alias @@="fd-video | fzf-play --hide-path --tac"
 alias @volumes="fd-video --print0 . /Volumes/*/Movies/Porn |fzf-play --hide-path -0"
-alias @masters="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/ $HOME/Movies/Porn/Masters/  |fzf-play -0"
+alias @masters="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/ $HOME/Movies/Porn/Masters/  | fzf-play -0 --hide-path"
+alias @masters-full="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Full $HOME/Movies/Porn/Masters/Full  | fzf-play -0 --hide-path"
+alias @masters-clips="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Clips $HOME/Movies/Porn/Masters/Clips  | fzf-play -0 --hide-path"
 alias @tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
 alias @external=@volumes
 alias @dj-visuals="fd-video . '$DJ_VISUALS_PATH' '$HOME/Movies/Visuals' '/Volumes/*/Movies/Visuals' | fzf-play --hide-path"
@@ -30,6 +32,8 @@ alias .python-venv-activate="source .venv/bin/activate"
 alias .python-pip-install-requirements="pip install -r requirements.txt"
 
 alias backup-tower="rsync-backup --delete /Volumes/Tower/ /Volumes/Tower\ Backup && df -h | grep Tower"
+alias rsync-copy='rsync -a --ignore-existing --progress'
+alias cp-skip=rsync-copy
 
 fd-video-color() {
   { fd -e mp4 $1 } | sd '\]\[' '] [' | sd '\[([^\]]+)\]' $'\e[32m''$1'$'\e[0m' | sd '\{([^}]*)\}' $'\e[33m''$1'$'\e[0m' | sd '(^|/)\(([^)]*)\)' '${1}'$'\e[36m''$2'$'\e[0m' | rg --passthru --color=always -N -r '$0' -e '#\S+' --colors 'match:fg:magenta'

@@ -92,8 +92,8 @@ ALL_WAV="$(wav_path all.wav)"
 
 mk_tone 1000 "$VOCAL_WAV"      0.5
 mk_tone 500  "$INSTR_WAV"      0.5
-mk_tone 800  "$BASS_WAV"       0.5
-mk_tone 650  "$DRUMS_WAV"      0.5
+mk_tone 125  "$BASS_WAV"       0.6
+mk_tone 250  "$DRUMS_WAV"      0.6
 
 # All = sum (label output as [a])
 ffmpeg -v error -y \
