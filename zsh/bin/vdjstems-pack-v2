@@ -1,0 +1,85 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+TRACK_NAMES=("mixed track" "vocal" "hihat" "bass" "instruments" "kick")
+STEMS=("kick" "instruments" "vocal" "bass" "hihat")
+
+die() { print -r -- "ERROR: $*" >&2; exit 1; }
+command -v ffmpeg >/dev/null 2>&1 || die "ffmpeg not found"
+
+[[ $# -eq 1 ]] || { print "Usage: $(basename "$0") /path/to/stems"; exit 2; }
+FOLDER="$(cd "$1" 2>/dev/null && pwd)" || die "Cannot access directory: $1"
+[[ -d "$FOLDER" ]] || die "Not a directory: $FOLDER"
+
+# --- find stems (your original function, trimmed a bit) -----------------------
+find_stem() {
+  local stem="$1" f
+  [[ -f "$FOLDER/${stem}.wav" ]] && { print "$FOLDER/${stem}.wav"; return; }
+  case "$stem" in
+    kick)        for f in "$FOLDER"/drums-main.wav "$FOLDER"/kick.wav; do [[ -f "$f" ]] && { print "$f"; return; } done ;;
+    hihat)       for f in "$FOLDER"/drums-hihats.wav "$FOLDER"/hihat.wav "$FOLDER"/hihats.wav; do [[ -f "$f" ]] && { print "$f"; return; } done ;;
+    instruments) for f in "$FOLDER"/other.wav "$FOLDER"/instruments.wav; do [[ -f "$f" ]] && { print "$f"; return; } done ;;
+    vocal)       for f in "$FOLDER"/vocals.wav "$FOLDER"/vocal.wav; do [[ -f "$f" ]] && { print "$f"; return; } done ;;
+    bass)        [[ -f "$FOLDER"/bass.wav ]] && { print "$FOLDER/bass.wav"; return; } ;;
+  esac
+  for f in "$FOLDER"/*.wav; do
+    [[ -f "$f" ]] || continue
+    local name="$(basename "${f%.wav}" | tr '[:upper:]' '[:lower:]')"
+    [[ "$name" == "$stem" ]] && { print "$f"; return; }
+  done
+  return 1
+}
+
+# Collect input files in your canonical order (kick,instruments,vocal,bass,hihat)
+INPUT_FILES=()
+for stem in "${STEMS[@]}"; do
+  f="$(find_stem "$stem")" || die "Missing: $stem.wav"
+  INPUT_FILES+=("$f")
+  print "Found $stem: $(basename "$f")"
+done
+
+tmpdir="$(mktemp -d)"; trap "rm -rf '$tmpdir'" EXIT
+
+# Build mix = sum of the 5 stems, normalized, force s32p @ 44.1k
+print "Creating mixed (lossless)…"
+mixed_wav="$tmpdir/mixed.wav"
+ffmpeg -y -loglevel error \
+  -i "${INPUT_FILES[1]}" -i "${INPUT_FILES[2]}" -i "${INPUT_FILES[3]}" -i "${INPUT_FILES[4]}" -i "${INPUT_FILES[5]}" \
+  -filter_complex "[0:a][1:a][2:a][3:a][4:a]amix=inputs=5:normalize=1:duration=longest, aformat=sample_fmts=s32p:sample_rates=44100" \
+  "$mixed_wav"
+
+# Final ALAC container with correct stream order + titles/handlers
+# Output order required by VDJ: mixed, vocal, hihat, bass, instruments, kick
+print "Muxing ALAC stem container…"
+output="$FOLDER/$(basename "$FOLDER").lossless.stem.mp4"
+
+ffmpeg -y -loglevel error \
+  -i "$mixed_wav" \
+  -i "$(find_stem vocal)" \
+  -i "$(find_stem hihat)" \
+  -i "$(find_stem bass)" \
+  -i "$(find_stem instruments)" \
+  -i "$(find_stem kick)" \
+  -filter_complex "\
+    [1:a]aformat=sample_fmts=s16p:sample_rates=44100[voc]; \
+    [2:a]aformat=sample_fmts=s16p:sample_rates=44100[hh];  \
+    [3:a]aformat=sample_fmts=s16p:sample_rates=44100[b];   \
+    [4:a]aformat=sample_fmts=s16p:sample_rates=44100[i];   \
+    [5:a]aformat=sample_fmts=s16p:sample_rates=44100[k]" \
+  -map 0:a -map "[voc]" -map "[hh]" -map "[b]" -map "[i]" -map "[k]" \
+  -c:a alac -movflags +faststart \
+  -disposition:a:0 default \
+  -metadata:s:a:0 title="mixed track"  -metadata:s:a:0 handler_name="mixed track" \
+  -metadata:s:a:1 title="vocal"        -metadata:s:a:1 handler_name="vocal" \
+  -metadata:s:a:2 title="hihat"        -metadata:s:a:2 handler_name="hihat" \
+  -metadata:s:a:3 title="bass"         -metadata:s:a:3 handler_name="bass" \
+  -metadata:s:a:4 title="instruments"  -metadata:s:a:4 handler_name="instruments" \
+  -metadata:s:a:5 title="kick"         -metadata:s:a:5 handler_name="kick" \
+  "$output"
+
+print "✓ Created: $output"
+
+print "\nVerify:"
+ffprobe -v error -select_streams a \
+  -show_entries stream=index,codec_name,sample_fmt,channels:stream_tags=title,handler_name \
+  -of compact=p=0:nk=1 "$output" | sed 's/^/  /'

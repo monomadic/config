@@ -13,8 +13,6 @@ $battery \
 $line_break$character
 """
 
-right_format = """$time"""
-
 # ---------- OS + Host ----------
 [os]
 disabled = false
