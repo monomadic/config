@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-# VirtualDJ stem packer for macOS - ALAC version
+# VirtualDJ stem packer for macOS
 # Dependencies: ffmpeg, MP4Box (gpac)
 
 set -euo pipefail
@@ -80,27 +80,27 @@ ffmpeg -y -loglevel error \
   -filter_complex "amix=inputs=5,volume=5" \
   "$mixed_wav" || die "Mix failed"
 
-# Encode all tracks to ALAC
-print "Encoding ALAC tracks..."
-ALAC_FILES=()
+# Encode all tracks to AAC
+print "Encoding AAC tracks..."
+AAC_FILES=()
 i=1
 for stem in "${STEMS[@]}"; do
-  dst="$tmpdir/$stem.m4a"
-  ffmpeg -y -loglevel error -i "${INPUT_FILES[$i]}" -c:a alac "$dst" || die "Encode failed: $stem"
-  ALAC_FILES+=("$dst")
-  print "  Encoded: $stem.m4a (lossless)"
+  dst="$tmpdir/$stem.aac"
+  ffmpeg -y -loglevel error -i "${INPUT_FILES[$i]}" -c:a aac -b:a 320k "$dst" || die "Encode failed: $stem"
+  AAC_FILES+=("$dst")
+  print "  Encoded: $stem.aac"
   ((i++))
 done
 
 # Encode mixed track
-dst="$tmpdir/mixed.m4a"
-ffmpeg -y -loglevel error -i "$mixed_wav" -c:a alac "$dst" || die "Encode failed: mixed"
-ALAC_FILES+=("$dst")
-print "  Encoded: mixed.m4a (lossless)"
+dst="$tmpdir/mixed.aac"
+ffmpeg -y -loglevel error -i "$mixed_wav" -c:a aac -b:a 320k "$dst" || die "Encode failed: mixed"
+AAC_FILES+=("$dst")
+print "  Encoded: mixed.aac"
 
-print "\nALAC file order for muxing:"
+print "\nAAC file order for muxing:"
 for i in {1..6}; do
-  print "  Input $((i-1)): $(basename "${ALAC_FILES[$i]}")"
+  print "  Input $((i-1)): $(basename "${AAC_FILES[$i]}")"
 done
 
 # Mux with correct stream order
@@ -110,12 +110,12 @@ print "\nMuxing M4A..."
 temp_m4a="$tmpdir/temp.m4a"
 
 ffmpeg -y -loglevel error \
-  -i "${ALAC_FILES[1]}" \
-  -i "${ALAC_FILES[2]}" \
-  -i "${ALAC_FILES[3]}" \
-  -i "${ALAC_FILES[4]}" \
-  -i "${ALAC_FILES[5]}" \
-  -i "${ALAC_FILES[6]}" \
+  -i "${AAC_FILES[1]}" \
+  -i "${AAC_FILES[2]}" \
+  -i "${AAC_FILES[3]}" \
+  -i "${AAC_FILES[4]}" \
+  -i "${AAC_FILES[5]}" \
+  -i "${AAC_FILES[6]}" \
   -map 5:a -map 2:a -map 4:a -map 3:a -map 1:a -map 0:a \
   -c copy \
   -disposition:a:0 default \
@@ -127,7 +127,7 @@ ffmpeg -y -loglevel error \
 
 # Add track names and metadata
 print "Finalizing..."
-output="$FOLDER/$(basename "$FOLDER")-alac.m4a"
+output="$FOLDER/$(basename "$FOLDER")-custom.m4a"
 
 # Create metadata file with exact format
 meta="$tmpdir/meta.txt"
@@ -159,18 +159,14 @@ print "✓ Created: $output"
 print "\nVerifying stem file structure:"
 track_count="$(ffprobe -v error -show_streams -select_streams a "$output" 2>/dev/null | grep -c "index=")"
 if [[ "$track_count" -eq 6 ]]; then
-  print "✓ 6 audio tracks found (ALAC lossless)"
-  
-  # Check codec
-  codec="$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$output" 2>/dev/null)"
-  [[ "$codec" == "alac" ]] && print "✓ ALAC codec confirmed"
+  print "✓ 6 audio tracks found"
   
   # Check for udta atoms if we have mp4info or MP4Box
   if command -v MP4Box >/dev/null 2>&1; then
     MP4Box -info "$output" 2>&1 | grep -q "udta" && print "✓ Track metadata (udta) present"
   fi
   
-  print "\nFile should be recognized by VirtualDJ as a lossless stem file."
+  print "\nFile should be recognized by VirtualDJ as a stem file."
 else
   print "⚠ Warning: Expected 6 tracks, found $track_count"
   print "File may not be recognized as a stem file."

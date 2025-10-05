@@ -1,0 +1,123 @@
+#!/usr/bin/env zsh
+# split5 – 4-stem + drum-element split → vocals, kick, hihat, instru, bass
+# Usage: split5 [-e demucs|uvr-mdx23] [-d larsnet|drumsep] [-r 44100] input_audio [outdir]
+# Defaults: -e demucs  -d larsnet  -r 44100
+
+set -euo pipefail
+
+engine="demucs"
+drum="larsnet"
+sr=44100
+
+while getopts "e:d:r:" opt; do
+  case $opt in
+    e) engine="$OPTARG" ;;
+    d) drum="$OPTARG" ;;
+    r) sr="$OPTARG" ;;
+  esac
+done
+shift $((OPTIND-1))
+
+[[ $# -lt 1 ]] && { echo "need input_audio"; exit 2; }
+infile="$1"
+outdir="${2:-split5_out}"
+mkdir -p "$outdir"
+
+work="$outdir/_work"
+mkdir -p "$work"
+
+norm_to_wav() {
+  local in="$1" out="$2"
+  # normalize sample rate/format to de-jank model IO
+  ffmpeg -v error -y -i "$in" -ar "$sr" -ac 2 -c:a pcm_s16le "$out"
+}
+
+### ---------------- Stage 1: 4-stem ----------------
+# Expected outputs: vocals.wav, drums.wav, bass.wav, other.wav (in $work)
+stage1() {
+  local tmpmix="$work/mix.wav"
+  norm_to_wav "$infile" "$tmpmix"
+
+  case "$engine" in
+    demucs)
+      # Demucs v4 / RoFormer 4 stems (pick your model; bs_roformer-4stems is common)
+      # Outputs in ./separated/<model>/mix/
+      MODEL="${DEMUCS_MODEL:-htdemucs_ft}"   # or htdemucs / htdemucs_6s / hdemucs_mmi      local stemdir
+      demucs -n "$MODEL" -o "$work" "$tmpmix" >/dev/null
+      stemdir="$(fd -t d "^bs_roformer-4stems$" "$work" -x echo {} -1 | head -n1)/mix"
+      [[ -d "$stemdir" ]] || { echo "demucs output not found"; exit 1; }
+      cp "$stemdir/vocals.wav" "$work/vocals.wav"
+      cp "$stemdir/drums.wav"  "$work/drums.wav"
+      cp "$stemdir/bass.wav"   "$work/bass.wav"
+      cp "$stemdir/other.wav"  "$work/other.wav"
+      ;;
+    uvr-mdx23)
+      # UVR MDX23C CLI (example; adjust to your UVR runner)
+      # Expect files in "$work/uvr_out"
+      uvr -i "$tmpmix" -o "$work/uvr_out" --model MDX23C-4STEMS >/dev/null
+      # Map whatever UVR names are to canonical names:
+      fd -a . "$work/uvr_out" >/dev/null  # ensure something exists
+      cp "$work/uvr_out/vocals.wav" "$work/vocals.wav"
+      cp "$work/uvr_out/drums.wav"  "$work/drums.wav"
+      cp "$work/uvr_out/bass.wav"   "$work/bass.wav"
+      cp "$work/uvr_out/other.wav"  "$work/other.wav"
+      ;;
+    *)
+      echo "unknown 4-stem engine: $engine"; exit 1;;
+  esac
+}
+
+### --------- Stage 2: Drum sub-sep (kick, hihat) ----------
+# Input: $work/drums.wav
+# Output: $work/kick.wav, $work/hihat.wav
+stage2_drums() {
+  case "$drum" in
+    larsnet)
+      # Example CLI name; change to whatever you use (mvsep-larsnet, ispl-larsnet, etc.)
+      # Assume it writes kick.wav / hihat.wav (may also write snare, toms, cymbals—ignore)
+      larsnet-separate "$work/drums.wav" --out "$work/lars_out" >/dev/null
+      cp "$work/lars_out/kick.wav"   "$work/kick.wav"
+      cp "$work/lars_out/hihat.wav"  "$work/hihat.wav"
+      ;;
+    drumsep)
+      # DrumSep (MDX23-based) – adjust flags to only emit kick/hh or copy from its multi-outputs
+      drumsep -i "$work/drums.wav" -o "$work/ds_out" --elements kick hihat >/dev/null
+      cp "$work/ds_out/kick.wav"   "$work/kick.wav"
+      cp "$work/ds_out/hihat.wav"  "$work/hihat.wav"
+      ;;
+    *)
+      echo "unknown drum splitter: $drum"; exit 1;;
+  esac
+
+  # Safety: ensure existence; if missing, synthesize silence with same length as drums
+  for s in kick hihat; do
+    if [[ ! -s "$work/$s.wav" ]]; then
+      echo "warn: $s not produced, creating silent track"
+      ffmpeg -v error -y -i "$work/drums.wav" -filter_complex "aevalsrc=0:d=duration(ref),asetpts=PTS-STARTPTS" \
+             -map 0:a -t "$(ffprobe -v error -show_entries format=duration -of default=nk=1:nw=1 "$work/drums.wav")" \
+             "$work/$s.wav"
+    fi
+  done
+}
+
+### ---------------- Finalize naming ----------------
+finalize() {
+  cp "$work/vocals.wav" "$outdir/vocals.wav"
+  cp "$work/bass.wav"   "$outdir/bass.wav"
+  cp "$work/other.wav"  "$outdir/instru.wav"
+  cp "$work/kick.wav"   "$outdir/kick.wav"
+  cp "$work/hihat.wav"  "$outdir/hihat.wav"
+
+  # Optional: conform SR/format & light peak normalizing to -1 dBFS
+  for f in vocals bass instru kick hihat; do
+    ffmpeg -v error -y -i "$outdir/$f.wav" -ar "$sr" -ac 2 -filter:a "loudnorm=I=-18:TP=-1.0:LRA=7" "$outdir/$f.tmp.wav"
+    mv "$outdir/$f.tmp.wav" "$outdir/$f.wav"
+  done
+
+  echo "✅ Done → $outdir/{vocals,bass,instru,kick,hihat}.wav"
+}
+
+### ---------------- Run ----------------
+stage1
+stage2_drums
+finalize

@@ -64,11 +64,34 @@ alias .stem-split="demucs -d mps -n htdemucs --flac -o stems_output"
 alias .stem-split-2="demucs -d mps -n htdemucs --flac -o stems_output --two-stems=vocals"
 alias .stem-split-4="demucs -d mps -n htdemucs --flac -o stems_output"
 
-.stem-mdx23() {
+stem-mdx23() {
+  local input_file="$1"
+  local basename=$(basename "$input_file")
+  local output_dir="$HOME/Music/Stems/$basename"
+  
+  mkdir -p "$output_dir"
+  
   cd $HOME/Music/Stems/MVSEP-MDX23-Colab_v2.1 &&
     source .venv/bin/activate &&
-    time python inference_2.2_b1.5.1_voc_ft.py --input_audio $1 --output_folder $HOME/Music/Stems --large_gpu --chunk_size 500000
+    time python inference_2.2_b1.5.1_voc_ft.py \
+      --input_audio "$input_file" \
+      --output_folder "$output_dir" \
+      --large_gpu \
+      --chunk_size 500000
+  
+  cd "$output_dir"
+  
+  # Rename files
+  mv *vocals.wav vocals.wav 2>/dev/null
+  mv *drums.wav drums.wav 2>/dev/null
+  mv *bass.wav bass.wav 2>/dev/null
+  mv *other.wav other.wav 2>/dev/null
+  mv *instrum.wav instrumental.wav 2>/dev/null
+  
+  # Remove unwanted files
+  rm -f *instrum2.wav
 }
+alias vdjstems-split-mdx23=stem-mdx23
 
 alias fd-dirs="fd -t d -d 15 -E '.*' -E 'Library'"
 
