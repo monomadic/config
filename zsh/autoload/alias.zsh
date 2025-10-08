@@ -12,6 +12,8 @@ alias mpv-play-volumes="mpv-play /Volumes/*/Movies/Porn/**/*.mp4"
 alias mpv-play-tower="mpv-play /Volumes/Tower/Movies/Porn"
 alias .tower=mpv-play-tower
 
+alias passwordless-reboot="sudo fdesetup authrestart"
+
 # media search
 alias @="ls-media | fzf-play --hide-path --tac"
 alias @@@="setopt local_options null_glob && printf '%s\0' $~MEDIA_GLOBS | fzf-play --hide-path -0"

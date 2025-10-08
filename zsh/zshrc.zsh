@@ -74,6 +74,10 @@ for config_file in $config_files; do
 done
 print -P "ok"
 
+# kitty tab colors
+kitty @ set-tab-color --match title:"mpv-play" active_bg="#A85FFF" active_fg="#050F63" inactive_fg="#A85FFF" inactive_bg="#030D43"
+kitty @ set-tab-color --match title:"kitty.conf" active_bg="#44F273" active_fg="#050F63" inactive_fg="#38F273" inactive_bg="#030D43"
+
 # ---- Cached brew shellenv (avoids spawning `brew` every startup) ----
 if (( $+commands[brew] )); then
   local _brew_env="$ZSH_CACHE_DIR/brew.env"
