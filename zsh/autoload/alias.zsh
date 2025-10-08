@@ -45,6 +45,13 @@ fd-video-color() {
   { fd -e mp4 $1 } | sd '\]\[' '] [' | sd '\[([^\]]+)\]' $'\e[32m''$1'$'\e[0m' | sd '\{([^}]*)\}' $'\e[33m''$1'$'\e[0m' | sd '(^|/)\(([^)]*)\)' '${1}'$'\e[36m''$2'$'\e[0m' | rg --passthru --color=always -N -r '$0' -e '#\S+' --colors 'match:fg:magenta'
 }
 
+vdjstems-check-wav-lengths() {
+  for f in kick.wav other.wav vocals.wav bass.wav hihat.wav mixed.wav; do
+    dur=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$f")
+    printf "%s: %s\n" "$f" "$dur"
+  done
+}
+
 rename-m4v-to-mp4() {
   local f new
   for f in *.m4v; do
