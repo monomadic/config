@@ -1,0 +1,21 @@
+#!/bin/zsh
+set -euo pipefail
+
+# ensure a kitty instance/socket exists
+if ! ls /tmp/kitty* >/dev/null 2>&1; then
+  /Applications/kitty.app/Contents/MacOS/kitty --single-instance --listen-on "unix:/tmp/kitty-$$" &
+  sleep 0.2
+fi
+
+socket_path="$(ls /tmp/kitty*)"
+
+# launch a new tab that feeds NUL-delimited args into fzf --read0
+/Applications/kitty.app/Contents/MacOS/kitty @ --to "unix:$socket_path" \
+  launch --type=tab --title="mpv-play" zsh -i -c '
+    #printf "%s\0" "$@" | fzf-play --hide-path
+    fd-video -0 "$@" | fzf-play --hide-path
+    # keep tab open (optional)
+    exec zsh
+  ' _ "$@"
+
+osascript -e 'tell application "kitty" to activate'
