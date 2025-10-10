@@ -6,26 +6,34 @@
 set -o errexit -o pipefail
 
 DRY_RUN=false
+USE_COLOR=false
 
 # NerdFonts icons
 ICON_VIDEO="󰎈"
 ICON_OK=""
 ICON_WARN=""
 
-# Colors
-RESET=$'\e[0m'
-GREEN=$'\e[32m'
-YELLOW=$'\e[33m'
-CYAN=$'\e[36m'
+# Color handling (disabled by default)
+RESET=""; GREEN=""; YELLOW=""; CYAN=""
+
+enable_color() {
+  RESET=$'\e[0m'
+  GREEN=$'\e[32m'
+  YELLOW=$'\e[33m'
+  CYAN=$'\e[36m'
+  USE_COLOR=true
+}
 
 # Parse options
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=true; shift ;;
+    --color) enable_color; shift ;;
     -h|--help)
       print -r -- "Usage: $0 [OPTIONS] video_file..."
       print -r -- "Options:"
       print -r -- "  --dry-run    Show what would be done without renaming"
+      print -r -- "  --color      Enable ANSI colors in output"
       print -r -- "  -h, --help   Show this message"
       exit 0
       ;;
@@ -78,6 +86,7 @@ process_video() {
   local filename="${file:t}"
   local dirname="${file:h}"
   local extension="${filename:e}"
+  [[ "${extension:l}" == "m4v" ]] && extension="mp4"
   local name_without_ext="${filename:r}"
 
   name_without_ext="$(clean_name "$name_without_ext")"

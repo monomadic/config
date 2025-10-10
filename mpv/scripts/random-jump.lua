@@ -130,8 +130,8 @@ end
 
 -- Key bindings
 mp.add_key_binding("ENTER", "random_playlist_jump", random_playlist_jump)
-mp.add_key_binding("a", "toggle_auto_jump", toggle_auto_jump)
-mp.add_key_binding("A", "toggle_auto_seek_within_file", toggle_auto_seek_within_file)
+mp.add_key_binding("1", "toggle_auto_jump", toggle_auto_jump)
+mp.add_key_binding("2", "toggle_auto_seek_within_file", toggle_auto_seek_within_file)
 mp.add_key_binding("j", "random_seek_within_file", random_seek_within_file)
 
 -- CMD+[1–9] bindings (these will be seen as META+digit by MPV)

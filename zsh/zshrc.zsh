@@ -57,7 +57,7 @@ config_files=(
   $ZSH_AUTOLOAD_DIR/ffmpeg.zsh
   $ZSH_AUTOLOAD_DIR/function.zsh
   $ZSH_AUTOLOAD_DIR/history.zsh
-  #$ZSH_AUTOLOAD_DIR/media.zsh
+  $ZSH_AUTOLOAD_DIR/media.zsh
   $ZSH_AUTOLOAD_DIR/prompt-middle.zsh
   $ZSH_AUTOLOAD_DIR/prompt.zsh
   $ZSH_AUTOLOAD_DIR/rsync.zsh
