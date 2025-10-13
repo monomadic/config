@@ -1,16 +1,20 @@
 ICLOUD_HOME="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
-DJ_VISUALS_PATH="$ICLOUD_HOME/Movies/Visuals"
+DJ_VISUALS_PATH="${DJ_VISUALS_PATH:-$ICLOUD_HOME/Movies/Visuals}"
 
 alias yt-dlp-youtube-embedded="yt-dlp --cookies-from-browser brave --continue --progress --verbose --retries infinite --fragment-retries infinite --socket-timeout 15 -f bestvideo+ba/best --embed-metadata --extractor-args 'youtube:player-client=tv_embedded' "
 
 # media functions
 
 alias mpv-loop="mpv --player-operation-mode=pseudo-gui --loop-file=inf --loop-playlist=inf --image-display-duration=5 --force-window=yes --no-config --no-input-default-bindings "
+alias mpv-loop-visuals="mpv-loop '$DJ_VISUALS_PATH' '$HOME/Movies/Visuals' '/Volumes/*/Movies/Visuals'"
+
 alias .pwd="mpv-play $PWD"
 alias mpv-play-porn="setopt local_options null_glob && mpv-play $~MEDIA_GLOBS"
 alias mpv-play-volumes="mpv-play /Volumes/*/Movies/Porn/**/*.mp4"
 alias mpv-play-tower="mpv-play /Volumes/Tower/Movies/Porn"
 alias .tower=mpv-play-tower
+
+alias fzf-play-visuals="=fd-video . '$DJ_VISUALS_PATH' '$HOME/Movies/Visuals' '/Volumes/*/Movies/Visuals' | fzf-play --hide-path"
 
 alias passwordless-reboot="sudo fdesetup authrestart"
 
@@ -27,11 +31,11 @@ alias @volumes="fd-video --print0 . /Volumes/*/Movies/Porn |fzf-play --hide-path
 alias @masters="fd-video --print0 . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N)  | fzf-play --hide-path -0"
 alias @masters-full="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Full(N) $HOME/Movies/Porn/Masters/Full(N) | fzf-play --hide-path -0"
 alias @masters-clips="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Clips(N) $HOME/Movies/Porn/Masters/Clips(N) | fzf-play --hide-path -0"
+alias @queue="fd-video --print0 . $HOME/Movies/Porn/Queue/(N) | sort_by_creation_date | fzf-play --hide-path --tac -0"
 alias @tower="fd-video --print0 . /Volumes/Tower/Movies/Porn | fzf-play --hide-path -0"
 alias @tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
 alias @external=@volumes
-alias @dj-visuals="fd-video . '$DJ_VISUALS_PATH' '$HOME/Movies/Visuals' '/Volumes/*/Movies/Visuals' | fzf-play --hide-path"
-alias .dj-visuals="mpv-loop '$DJ_VISUALS_PATH' '$HOME/Movies/Visuals' '/Volumes/*/Movies/Visuals'"
+
 alias .python-venv-create="python3 -m venv .venv && source .venv/bin/activate"
 alias .python-venv-activate="source .venv/bin/activate"
 alias .python-pip-install-requirements="pip install -r requirements.txt"
@@ -43,6 +47,18 @@ alias backup-tower="rsync-backup --delete /Volumes/Tower/ /Volumes/Tower\ Backup
 
 fd-video-color() {
   { fd -e mp4 $1 } | sd '\]\[' '] [' | sd '\[([^\]]+)\]' $'\e[32m''$1'$'\e[0m' | sd '\{([^}]*)\}' $'\e[33m''$1'$'\e[0m' | sd '(^|/)\(([^)]*)\)' '${1}'$'\e[36m''$2'$'\e[0m' | rg --passthru --color=always -N -r '$0' -e '#\S+' --colors 'match:fg:magenta'
+}
+
+# Read NUL-terminated paths on stdin, sort by creation time (newest first).
+sort_by_creation_date() {
+  local gstat="/opt/homebrew/opt/coreutils/libexec/gnubin/stat"
+  local file ctime
+  while IFS= read -r -d '' file; do
+    # %W = birth time (epoch, -1 if unknown); %Y = mtime (epoch)
+    ctime="$("$gstat" -c '%W' -- "$file" 2>/dev/null)"
+    [[ $ctime == "-1" || -z $ctime ]] && ctime="$("$gstat" -c '%Y' -- "$file" 2>/dev/null)"
+    printf '%s\t%s\0' "$ctime" "$file"
+  done | LC_ALL=C sort -z -n -r -k1,1 | perl -0pe 's/^\d+\t//'
 }
 
 vdjstems-check-wav-lengths() {

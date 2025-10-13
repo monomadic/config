@@ -1,6 +1,6 @@
 -- auto-rotate.lua - automatically rotates portrait videos to landscape
 -- 
-local enabled = true
+local enabled = false
 
 local function rotate_if_portrait()
     if not enabled then return end

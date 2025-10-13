@@ -2,7 +2,7 @@
 
 # Initialize default settings
 PREVIEW_WINDOW="down:50%:hidden:border"
-HEADER_TEXT='''󰌑 play all · 󰘵 o play selected · 󰘵 󰌑 loop-mode (10 sec) · 󰘵 r reveal in finder · 󰘵 t shell · 󰘵 p preview · 󰘵 i iina · 󰘵 e elmedia · 󰘵 A airflow · 󰘵 l lf · 󰘵 s stdout
+HEADER_TEXT='''󰌑 play all · 󰘵 o play · 󰘵 p windowed · 󰘵 󰌑 loop-mode · 󰘵 r reveal · 󰘵 t shell · 󰘵 / preview · 󰘵 l lf · 󰘵 s stdout
 
 '''
 
@@ -67,11 +67,13 @@ fzf \
   --header-first --header "${HEADER_TEXT}" \
   --preview "$FZF_PREVIEW_COMMAND" \
   --preview-window="$PREVIEW_WINDOW" \
-  --bind 'enter:select-all+execute(kitty @ launch --type=background -- bash -c '\''/opt/homebrew/bin/mpv --shuffle --loop-playlist --macos-fs-animation-duration=0 --no-native-fs --fs --mute=yes "$@"'\'' _ {+})+deselect-all' \
-  --bind 'enter:select-all+execute-silent(kitty @ launch --type=background /opt/homebrew/bin/mpv --shuffle --loop-playlist --macos-fs-animation-duration=0 --no-native-fs --fs --mute=yes {+} &)+deselect-all' \
   --bind 'enter:select-all+execute-silent(mpv-play {+} &)+deselect-all' \
+  --bind "enter:select-all+execute-silent(kitty @ launch --type=background env PATH='$PATH' mpv-play {+})+deselect-all" \
+  --bind 'alt-p:execute-silent(kitty @ launch --type=background /opt/homebrew/bin/mpv --no-fs -- {+})' \
+  --bind "alt-p:execute-silent(kitty @ launch --type=background env PATH='$PATH' mpv-play --no-fs {+})+deselect-all" \
+  --bind 'alt-o:execute(mpv-play {+})' \
+  --bind "alt-o:execute-silent(kitty @ launch --type=background env PATH='$PATH' mpv-play {})+deselect-all" \
   --bind 'alt-enter:select-all+execute-silent(mpv-play --loop-file=1 --length=10 --shuffle {+})+deselect-all' \
-  --bind 'alt-o:execute-silent(mpv-play {+q})' \
   --bind 'alt-L:select-all+execute-silent(mpv-play --loop-file=1 --length=2 --shuffle {+})+deselect-all' \
   --bind 'alt-m:select-all+execute-silent(mpv-play {+})' \
   --bind 'alt-c:execute-silent(echo "{+}" | pbcopy)' \
@@ -79,13 +81,11 @@ fzf \
   --bind 'alt-a:select-all,alt-d:deselect-all' \
   --bind 'alt-s:select-all+accept' \
   --bind 'ctrl-/:toggle-preview' \
-  --bind 'alt-p:toggle-preview' \
   --bind 'ctrl-r:execute(echo "exec: open --reveal {}" && open --reveal {})' \
   --bind 'ctrl-alt-r:execute-silent(kitty @ launch --type=background --cwd=current open --reveal {})' \
   --bind 'ctrl-alt-p:execute-silent(kitty @ launch --type=background --cwd=current qlmanage -p {})' \
   --bind 'ctrl-alt-p:execute-silent(kitty @ launch --type=background --cwd=current mpv --no-fs {})' \
-  --bind 'ctrl-alt-p:select-all+execute-silent(kitty @ launch --type=background mpv --shuffle --loop-playlist {+} &)+deselect-all' \
-  --bind 'alt-o:execute(echo "exec: reveal {}" && reveal {})' \
+  --bind 'alt-r:execute(echo "exec: reveal {}" && reveal {})' \
   --bind 'ctrl-s:accept' \
   --bind 'ctrl-d:execute-silent(ls -t {} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \
   --bind 'alt-R:execute-silent(shuf -o /dev/stdout)' \
