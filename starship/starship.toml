@@ -4,11 +4,12 @@ command_timeout = 500
 scan_timeout = 10
 
 format = """
-$os$hostname \
+$os \
 $directory \
 $git_branch$git_status \
 ${custom.disk_free} \
-${custom.uptime_warn}${custom.uptime_ok} \
+${custom.uptime} \
+$hostname \
 $battery \
 $line_break$character
 """
@@ -19,11 +20,11 @@ disabled = false
 format = "[$symbol]($style) "
 style = "bold cyan"
 [os.symbols]
-Macos = ""
+Macos = " "
 
 [hostname]
 ssh_only = false
-format = "@[$hostname]($style) "
+format = "[@$hostname]($style) "
 disabled = false
 
 # ---------- Directory (absolute path) ----------
@@ -46,10 +47,9 @@ disabled = false
 
 # ---------- Disk Free (GB of current filesystem) ----------
 [custom.disk_free]
-command = "df -H -P . | awk 'NR==2{print $4}'"
+command = "df -k . | tail -1 | awk '{print $4*1024}' | /opt/homebrew/opt/coreutils/libexec/gnubin/numfmt --to=iec --suffix=B --format=\"%.1f\" | tr '[:upper:]' '[:lower:]'"
 when = "true"
-shell = ["bash", "-lc"]
-format = "[ $output](bold green) "
+format = "[ $output](bold yellow) "
 
 # ---------- Uptime (warn ≥ 2 days) ----------
 # Red when >= 2 days
@@ -65,6 +65,11 @@ when = 'boot=$(sysctl -n kern.boottime | awk "{print \$4}" | tr -d ","); now=$(d
 command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
 shell = ["bash", "-lc"]
 format = "[ $output](bold yellow) "
+
+[custom.uptime]
+command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
+when = "true"
+format = "[up $output](bold blue) "
 
 # ---------- Battery ----------
 [battery]
