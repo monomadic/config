@@ -44,7 +44,7 @@ local function file_info()
         end
     end
 
-    return string.format("📁 %s    %s   📺 %s%s",
+    return string.format(" %s    %s    %s%s",
         human_size, codec, resolution, (fps ~= "" and (" @ " .. fps) or ""))
 end
 
