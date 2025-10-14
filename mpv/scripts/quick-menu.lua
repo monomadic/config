@@ -1,8 +1,58 @@
+--
+-- mp.add_key_binding(nil, "show-menu", show_menu)
+-- 
 local utils = require 'mp.utils'
+local input = require 'mp.input'
+
+-- Track states for external scripts
+local script_states = {
+    auto_rotate = false,
+    metadata = true  -- metadata starts ON by default
+}
+
+-- Track pause state to restore it after menu
+local was_paused = false
 
 local function toggle_panscan()
     local current = mp.get_property_number("panscan", 0)
     mp.set_property_number("panscan", current == 0 and 1 or 0)
+    mp.osd_message("Pan & Scan: " .. (current == 0 and "ON" or "OFF"))
+end
+
+local function cycle_aspect_ratio()
+    local aspects = {"16:9", "4:3", "2.35:1", "21:9", "1:1", "-1"}
+    local aspect_names = {
+        ["16:9"] = "16:9 (Widescreen)",
+        ["4:3"] = "4:3 (Classic)",
+        ["2.35:1"] = "2.35:1 (Cinema)",
+        ["21:9"] = "21:9 (Ultrawide)",
+        ["1:1"] = "1:1 (Square)",
+        ["-1"] = "Auto"
+    }
+    
+    local current = mp.get_property("video-aspect-override", "-1")
+    local next_index = 1
+    
+    for i, aspect in ipairs(aspects) do
+        if aspect == current then
+            next_index = (i % #aspects) + 1
+            break
+        end
+    end
+    
+    local next_aspect = aspects[next_index]
+    mp.set_property("video-aspect-override", next_aspect)
+    mp.osd_message("Aspect Ratio: " .. aspect_names[next_aspect])
+end
+
+local function toggle_auto_rotate()
+    script_states.auto_rotate = not script_states.auto_rotate
+    mp.commandv("script-message-to", "auto-rotate", "toggle")
+end
+
+local function toggle_metadata()
+    script_states.metadata = not script_states.metadata
+    mp.commandv("script-message-to", "metadata", "toggle")
 end
 
 local function load_directory_files()
@@ -43,48 +93,66 @@ local function load_directory_files()
 end
 
 local function show_menu()
-    local items = {
-        {
-            title = "Toggle Pan & Scan",
-            cmd = toggle_panscan,
-        },
-        {
-            title = "Load All Directory Files",
-            cmd = load_directory_files,
-        },
-        {
-            title = "Cycle Aspect Ratio",
-            cmd = function() mp.commandv("cycle-values", "video-aspect-override", "16:9", "4:3", "2.35:1", "-1") end,
-        },
-        {
-            title = "Screenshot (With Subtitles)",
-            cmd = function() mp.commandv("screenshot", "subtitles") end,
-        },
-        {
-            title = "Screenshot (Without Subtitles)",
-            cmd = function() mp.commandv("screenshot", "video") end,
-        },
-    }
-    
-    local list = {}
-    for i, item in ipairs(items) do
-        list[i] = {
-            title = item.title,
-            value = i,
-        }
+    -- Store current pause state and pause if playing
+    was_paused = mp.get_property_bool("pause")
+    if not was_paused then
+        mp.set_property_bool("pause", true)
     end
     
-    mp.commandv("script-message-to", "select", "show-and-select", 
-                utils.format_json(list),
-                utils.format_json({
-                    on_select = mp.get_script_name() .. "/menu-select",
-                    on_close = "",
-                }))
+    local panscan = mp.get_property_number("panscan", 0)
+    local aspect = mp.get_property("video-aspect-override", "-1")
     
-    mp.register_script_message("menu-select", function(_, value)
-        items[tonumber(value)].cmd()
-    end)
+    -- Format aspect ratio display
+    local aspect_display = {
+        ["16:9"] = "16:9",
+        ["4:3"] = "4:3",
+        ["2.35:1"] = "2.35:1",
+        ["21:9"] = "21:9",
+        ["1:1"] = "1:1",
+        ["-1"] = "Auto"
+    }
+    
+    local items = {
+        "  Open Directory",
+        "────────────────────",
+        "Pan & Scan:      " .. (panscan > 0 and " ON" or "OFF"),
+        "Aspect Ratio:    " .. (aspect_display[aspect] or aspect),
+        "────────────────────",
+        "Auto Rotate:     " .. (script_states.auto_rotate and " ON" or "OFF"),
+        "Metadata HUD:    " .. (script_states.metadata and " ON" or "OFF"),
+    }
+    
+    local actions = {
+        load_directory_files,
+        nil,  -- Separator (no action)
+        toggle_panscan,
+        cycle_aspect_ratio,
+        nil,  -- Separator (no action)
+        toggle_auto_rotate,
+        toggle_metadata,
+    }
+    
+    input.select({
+        prompt = "Quick Menu",
+        items = items,
+        submit = function(index)
+            -- Execute action if not a separator
+            if index and actions[index] then
+                actions[index]()
+            end
+            
+            -- Restore pause state after menu closes
+            if not was_paused then
+                mp.set_property_bool("pause", false)
+            end
+        end,
+        on_close = function()
+            -- Also restore pause state if menu is cancelled (ESC)
+            if not was_paused then
+                mp.set_property_bool("pause", false)
+            end
+        end,
+    })
 end
 
-mp.register_script_message("show-menu", show_menu)
 mp.add_key_binding("M", "show-menu", show_menu)

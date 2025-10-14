@@ -40,7 +40,7 @@ handle_directory_selection() {
       --no-info \
       --height=50% \
       --exact \
-      --prompt="  " <"$pipe"
+      --prompt=" " <"$pipe"
   )
   local ret=$?
 

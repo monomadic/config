@@ -14,6 +14,8 @@ alias mpv-play-volumes="mpv-play /Volumes/*/Movies/Porn/**/*.mp4"
 alias mpv-play-tower="mpv-play /Volumes/Tower/Movies/Porn"
 alias .tower=mpv-play-tower
 
+alias mpv-debug="mpv --msg-level=all=debug"
+
 alias fzf-play-visuals="=fd-video . '$DJ_VISUALS_PATH' '$HOME/Movies/Visuals' '/Volumes/*/Movies/Visuals' | fzf-play --hide-path"
 
 alias passwordless-reboot="sudo fdesetup authrestart"

@@ -1,17 +1,14 @@
-# KITTY CONFIG
-# - https://github.com/kovidgoyal/kitty/discussions/5396
-
 kitty_mod cmd
-
 shell zsh
-editor nvim
+editor hx
 allow_remote_control yes
-listen_on unix:/tmp/kitty-socket
-env PATH=$HOME/.zsh/bin:$PATH
+listen_on unix:/tmp/kitty
+env PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$HOME/.zsh/bin:$HOME/.bin:$PATH
 exe_search_path +$HOME/.zsh/bin
+mouse_hide_wait 0.0
 
-# Appearance
-font_family JetBrainsMono Nerd Font Mono
+# APPEARANCE
+# font_family JetBrainsMono Nerd Font Mono
 font_size 14
 cursor_shape block
 cursor_blink_interval 0.5
@@ -31,67 +28,155 @@ url_color #0066FF
 url_style curly
 open_url_with default
 
-tab_bar_background none
-tab_bar_edge top
+# TAB APPEARANCE
+active_tab_background #ddddfd
+active_tab_foreground #050F63
+inactive_tab_background #030D43
+inactive_tab_foreground #ddddfd
+tab_bar_background #030D43
 tab_bar_style separator
+tab_bar_edge top
 tab_bar_align left
 tab_bar_min_tabs 2
-tab_separator "  "
+tab_separator " "
 tab_switch_strategy previous
-tab_bar_margin_width 1.0
-tab_bar_margin_height 16.0 5.0
+tab_bar_margin_width 20.0
+tab_activity_symbol !
+tab_fade 0
+tab_title_template "{title.split('/')[-1][:12]}{sup.index}"
 
-# Colors
+# COLORS
 foreground #ddddfd
 background #050F63
 cursor #ddddfd
-#inactive_text_alpha 0.5
+inactive_text_alpha 1.0
 active_border_color #00ff00
 inactive_border_color #050F63
-active_tab_background #050F63
-active_tab_foreground #00ff00
-inactive_tab_background #050F63
-inactive_tab_foreground #ddddfd
-tab_activity_symbol 
 bell_border_color #FF3AD0
 
-# Layout
+# LAYOUT
 enabled_layouts all
 placement_strategy center
 initial_window_width 1200
 initial_window_height 800
-remember_window_size no
-window_border_width 5
-window_margin_width 5
-window_padding_width 0
+remember_window_size yes
+window_border_width 2
+window_margin_width 8 8
+window_padding_width 8 8
 draw_minimal_borders yes
 
-# Keybindings
-map kitty_mod+right next_tab
-map cmd+, launch --title "kitty.conf" --type=overlay /opt/homebrew/bin/nvim $HOME/.config/kitty/kitty.conf
-map kitty_mod+left previous_tab
-map kitty_mod+t new_tab_with_cwd !neighbor
-map kitty_mod+shift+t new_tab !neighbor
-map kitty_mod+shift+r set_tab_title
-map kitty_mod+ctrl+] move_tab_forward
-map kitty_mod+ctrl+[ move_tab_backward
-map kitty_mod+shift+n new_os_window_with_cwd
-map kitty_mod+f toggle_fullscreen
-map kitty_mod+shift+w close_os_window
-map kitty_mod+w close_window
+# KEYBINDINGS
+# map kitty_mod+a set_tab_color #FFA500
+map alt+b launch --stdin-source=@last_cmd_output --stdin-add-formatting --type=overlay nvim
+map cmd+, launch --allow-remote-control --title="kitty.conf" --type=tab sh -c 'kitty @ set-tab-color --match title:"kitty.conf" active_bg="#44F273" active_fg="#050F63" inactive_fg="#38F273" inactive_bg="#030D43"; exec /opt/homebrew/bin/nvim ~/config/kitty/kitty.conf'
+map cmd+\ launch --location=neighbor --cwd=current sh -c 'kitty @ set-tab-color --match title:"kitty.conf" active_bg="#44F2F3" active_fg="#050F63" inactive_fg="#44F2F3" inactive_bg="#030D43"; exec yazi'
+map kitty_mod+0 launch --hold env PATH="/opt/homebrew/bin:~/.bin/~/.zsh/bin/:$PATH" sh -c 'media search'
+map kitty_mod+1 launch --hold env PATH="/opt/homebrew/bin:~/.bin/~/.zsh/bin/:$PATH" sh -c 'fzf-tablature'
+map ctrl+t>1 launch --type=background sh -c 'kitty @ set-tab-color --match id:$KITTY_WINDOW_ID active_bg=#FFA500'
+map cmd+ctrl+, debug_config
+map cmd+shift+g show_last_command_output
+map ctrl+cmd+[ move_tab_backward
+map ctrl+cmd+] move_tab_forward
+#map ctrl+h neighboring_window left
+#map ctrl+j neighboring_window down
+#map ctrl+k neighboring_window up
+#map ctrl+l neighboring_window right
+# CMD+B send buffer to nvim
+map kitty_mod+b launch --type=overlay --stdin-source=@screen_scrollback nvim -
+# CMD+/ Search in scrollback with vim
+map kitty_mod+/ launch --type=overlay --stdin-source=@screen_scrollback nvim -c 'set nomod' -c 'set ro'
+# CMD+Y Copy mode with vim bindings
+map kitty_mod+y kitten hints --type regex --regex '\S+' --program @
+#map ctrl+h send_text all \x1b[104;9u
+map kitty_mod+i send_text all \x1b[105;9u
+map kitty_mod+h neighboring_window left
+map kitty_mod+j neighboring_window down
+map kitty_mod+k neighboring_window up
+map kitty_mod+l neighboring_window right
+map kitty_mod+[ previous_window
+map kitty_mod+] next_window
+map kitty_mod+e open_url_with_hints
 map kitty_mod+enter launch --location=split --cwd=current
+map kitty_mod+f5 load_config_file
+map kitty_mod+f6 debug_config
+map kitty_mod+left previous_tab
+map kitty_mod+m combine : toggle_marker text 1 ❯ : copy_to_clipboard
+map kitty_mod+p>f kitten hints --type path --program -
+map kitty_mod+r launch --type=background --cwd=current open --reveal $PWD
+map kitty_mod+right next_tab
+map kitty_mod+shift+, load_config_file
+map kitty_mod+shift+- set_background_opacity -0.1
+map kitty_mod+shift+= set_background_opacity +0.1
+map kitty_mod+shift+h neighboring_window left
 map kitty_mod+shift+j neighboring_window down
 map kitty_mod+shift+k neighboring_window up
-map kitty_mod+shift+h neighboring_window left
 map kitty_mod+shift+l neighboring_window right
-map kitty_mod+] next_window
-map kitty_mod+[ previous_window
-map kitty_mod+r launch --cwd=current open --reveal .
-map kitty_mod+m combine : toggle_marker text 1 ❯ : copy_to_clipboard
+map kitty_mod+shift+n new_os_window_with_cwd
+map kitty_mod+shift+r set_tab_title
+map kitty_mod+shift+t new_tab !neighbor
+map kitty_mod+n new_tab !neighbor
+map kitty_mod+t new_tab_with_cwd !neighbor
+map kitty_mod+w close_window
+# map kitty_mod+| split_window -v --cwd=current
+map ctrl+| launch --type=window --cwd=current -m=split:h
+map ctrl+- launch --type=window --cwd=current -m=split:v
+map shift+cmd+w close_os_window
+map super+f toggle_fullscreen
 
-map ctrl+h neighboring_window left
-map ctrl+j neighboring_window down
-map ctrl+k neighboring_window up
-map ctrl+l neighboring_window right
+# CUSTOM KEY TRANSLATIONS
+map ctrl+enter send_text normal,application \x1b[13;5u
+map shift+enter send_text normal,application \x1b[13;2u
+map cmd+s send_text all \x13
+map cmd+o send_text all \x0f
+map cmd+j send_text all \x1bj
+map cmd+l send_text all \x1bl
+map cmd+backspace send_text all \x15
+map cmd+shift+b launch --type=tab btm
+map cmd+shift+y launch --type=tab yazi
 
-map kitty_mod+shift+g show_last_command_output
+map cmd+r combine : send_key ctrl+alt+r
+map cmd+p combine : send_key ctrl+alt+p
+
+# map cmd+@ send_text all \x00
+# map cmd+a send_text all \x01
+# map cmd+b send_text all \x02
+# map cmd+c send_text all \x03
+# map cmd+d send_text all \x04
+# map cmd+e send_text all \x05
+# map cmd+f send_text all \x06
+# map cmd+g send_text all \x07
+# map cmd+h send_text all \x08
+# map cmd+i send_text all \x09
+# map cmd+j send_text all \x0A
+# map cmd+k send_text all \x0B
+# map cmd+l send_text all \x0C
+# map cmd+m send_text all \x0D
+# map cmd+n send_text all \x0E
+# map cmd+o send_text all \x0F
+# map cmd+p send_text all \x10
+# map cmd+q send_text all \x11
+# map cmd+r send_text all \x12
+# map cmd+s send_text all \x13
+# map cmd+t send_text all \x14
+# map cmd+u send_text all \x15
+# map cmd+v send_text all \x16
+# map cmd+w send_text all \x17
+# map cmd+x send_text all \x18
+# map cmd+y send_text all \x19
+# map cmd+z send_text all \x1A
+# map cmd+[ send_text all \x1B
+# map cmd+\ send_text all \x1C
+# map cmd+] send_text all \x1D
+# map cmd+^ send_text all \x1E
+# map cmd+_ send_text all \x1F
+
+# THEME
+#include themes/1984-dark
+
+
+# BEGIN_KITTY_FONTS
+font_family      family="SauceCodePro Nerd Font Mono"
+bold_font        auto
+italic_font      auto
+bold_italic_font auto
+# END_KITTY_FONTS
