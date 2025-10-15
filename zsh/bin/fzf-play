@@ -67,10 +67,10 @@ fzf \
   --header-first --header "${HEADER_TEXT}" \
   --preview "$FZF_PREVIEW_COMMAND" \
   --preview-window="$PREVIEW_WINDOW" \
-  --bind "enter:select-all+execute-silent(kitty @ launch --type=background env PATH='$PATH' mpv-play {+} </dev/null)+deselect-all" \
+  --bind-sync "enter:select-all+execute-silent(kitty @ launch --type=background env PATH='$PATH' mpv-play {+} </dev/null)+deselect-all" \
   --bind "alt-p:execute-silent(kitty @ launch --type=background env PATH='$PATH' mpv-play --no-fs {+} </dev/null)+deselect-all" \
   --bind "alt-o:execute-silent(kitty @ launch --type=background env PATH='$PATH' mpv-play {} </dev/null)+deselect-all" \
-  --bind 'alt-enter:select-all+execute-silent(mpv-play --loop-file=1 --length=10 --shuffle {+})+deselect-all' \
+  --bind-sync 'alt-enter:select-all+execute-silent(mpv-play --loop-file=1 --length=10 --shuffle {+} </dev/null)+deselect-all' \
   --bind 'alt-L:select-all+execute-silent(mpv-play --loop-file=1 --length=2 --shuffle {+})+deselect-all' \
   --bind 'alt-m:select-all+execute-silent(mpv-play {+})' \
   --bind 'alt-c:execute-silent(echo "{+}" | pbcopy)' \

@@ -3,28 +3,20 @@ add_newline = true
 command_timeout = 500
 scan_timeout = 10
 
-format = """
-$os \
-$directory \
-$git_branch$git_status \
-${custom.disk_free} \
-${custom.uptime} \
-$hostname \
-$battery \
-$line_break$character
-"""
+format = "$os$hostname$directory$git_branch    ${custom.disk_free}   ${custom.uptime}   $battery $line_break$character"
 
 # ---------- OS + Host ----------
 [os]
 disabled = false
-format = "[$symbol]($style) "
-style = "bold cyan"
+format = "[$symbol]($style)"
+style = "bold white"
 [os.symbols]
 Macos = " "
 
 [hostname]
 ssh_only = false
-format = "[@$hostname]($style) "
+format = "[$hostname]($style) "
+style="bold white"
 disabled = false
 
 # ---------- Directory (absolute path) ----------
@@ -49,7 +41,7 @@ disabled = false
 [custom.disk_free]
 command = "df -k . | tail -1 | awk '{print $4*1024}' | /opt/homebrew/opt/coreutils/libexec/gnubin/numfmt --to=iec --suffix=B --format=\"%.1f\" | tr '[:upper:]' '[:lower:]'"
 when = "true"
-format = "[ $output](bold yellow) "
+format = "[  $output free](bold yellow) "
 
 # ---------- Uptime (warn ≥ 2 days) ----------
 # Red when >= 2 days
@@ -69,13 +61,13 @@ format = "[ $output](bold yellow) "
 [custom.uptime]
 command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
 when = "true"
-format = "[up $output](bold blue) "
+format = "[󰍹  up $output](bold blue) "
 
 # ---------- Battery ----------
 [battery]
-format = "[$symbol$percentage]($style) "
+format = "[$symbol $percentage]($style) "
 display = [
-  { threshold = 101, style = "bold purple" } # apply style at any charge
+  { threshold = 101, style = "bold green" } # apply style at any charge
 ]
 full_symbol = " "
 charging_symbol = " "
