@@ -56,9 +56,9 @@ done | fzf --margin="0%,0%" \
   --border="horizontal" --border-label=" 󰎈 Tabs " \
   --header="$HEADER" --header-first --no-info \
   --delimiter='\t' --with-nth=2 \
+  --bind "enter:execute-silent(kitty @ launch --type=background echo \"󰄬 Opening: {1}\" && open {1}&)+deselect-all" \
   --bind 'alt-r:execute(open --reveal {1})' \
   --bind 'ctrl-/:toggle-preview' \
-  --bind 'enter:execute(echo "󰄬 Opening: {1}" && open {1}&)' \
   --bind 'alt-enter:execute(echo "󰄛 Previewing: {1}" && qlmanage -p {1} >/dev/null 2>&1)' \
   --bind 'alt-n:execute(rename-tablature)' \
   --bind 'ctrl-y:execute-silent(echo -n {1} | pbcopy)' \

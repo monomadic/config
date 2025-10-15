@@ -1,12 +1,12 @@
-ICLOUD_HOME="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
-DJ_VISUALS_PATH="${DJ_VISUALS_PATH:-$ICLOUD_HOME/Movies/Visuals}"
+export ICLOUD_HOME="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
+export DJ_VISUALS_PATH=$ICLOUD_HOME/Movies/Visuals
 
 alias yt-dlp-youtube-embedded="yt-dlp --cookies-from-browser brave --continue --progress --verbose --retries infinite --fragment-retries infinite --socket-timeout 15 -f bestvideo+ba/best --embed-metadata --extractor-args 'youtube:player-client=tv_embedded' "
 
 # media functions
 
-alias mpv-loop="mpv --player-operation-mode=pseudo-gui --loop-file=inf --loop-playlist=inf --image-display-duration=5 --force-window=yes --no-config --no-input-default-bindings "
-alias mpv-loop-visuals="mpv-loop '$DJ_VISUALS_PATH' '$HOME/Movies/Visuals' '/Volumes/*/Movies/Visuals'"
+# alias mpv-loop="mpv --player-operation-mode=pseudo-gui --loop-file=inf --loop-playlist=inf --image-display-duration=5 --force-window=yes --no-config --no-input-default-bindings "
+# alias mpv-loop-visuals="mpv-loop '$DJ_VISUALS_PATH' '$HOME/Movies/Visuals' '/Volumes/*/Movies/Visuals'"
 
 alias .pwd="mpv-play $PWD"
 alias mpv-play-porn="setopt local_options null_glob && mpv-play $~MEDIA_GLOBS"
@@ -16,7 +16,45 @@ alias .tower=mpv-play-tower
 
 alias mpv-debug="mpv --msg-level=all=debug"
 
-alias fzf-play-visuals="=fd-video . '$DJ_VISUALS_PATH' '$HOME/Movies/Visuals' '/Volumes/*/Movies/Visuals' | fzf-play --hide-path"
+mpv-play-visuals() {
+    fd-visuals "$1" |
+    mpv-play --player-operation-mode=pseudo-gui --loop-file=inf --loop-playlist=inf \
+             --image-display-duration=5 --osd-bar=no --osd-duration=0 --mute=yes --native-fs
+}
+
+# requires: setopt extendedglob
+fd-visuals() {
+  local query=$1
+  local -a roots
+  [[ -n $DJ_VISUALS_PATH ]] && roots+=($DJ_VISUALS_PATH)
+  roots+=($HOME/Movies/Visuals(N) /Volumes/*/Movies/Visuals(N))
+
+  # Print NUL-separated absolute paths from fd-video
+  fd-video --print0 --absolute-path -- "$query" "${roots[@]}"
+}
+
+mpv-play-visuals() {
+  local query=$1
+  local -a files
+  while IFS= read -r -d '' f; do files+=("$f"); done < <(fd-visuals "$query")
+
+  (( ${#files} )) || { print -r -- "no visuals found"; return 1 }
+
+  mpv-play \
+    --player-operation-mode=pseudo-gui \
+    --loop-file=inf --loop-playlist=inf \
+    --image-display-duration=5 \
+    --osd-bar=no --osd-duration=0 \
+    --mute=yes \
+    -- "${files[@]}"
+}
+
+fzf-visuals() {
+  local query=$1
+  fd-visuals "$query" | fzf-play --hide-path -0
+}
+
+alias @visuals=fzf-play-visuals
 
 alias passwordless-reboot="sudo fdesetup authrestart"
 
