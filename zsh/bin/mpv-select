@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+MPV_SOCKET="${MPV_SOCKET:-/tmp/mpv-socket}"
+
+test_socket() {
+    echo '{"command":["get_property","pid"]}' | socat - "$MPV_SOCKET" 2>/dev/null | grep -q "data"
+}
+
+ensure_mpv() {
+    if [[ -S "$MPV_SOCKET" ]] && test_socket; then
+        return 0
+    fi
+    
+    [[ -S "$MPV_SOCKET" ]] && rm -f "$MPV_SOCKET"
+    
+    echo "Starting mpv..." >&2
+    mpv --input-ipc-server="$MPV_SOCKET" --idle --force-window &
+    
+    for i in {1..50}; do
+        if [[ -S "$MPV_SOCKET" ]] && test_socket; then
+            return 0
+        fi
+        sleep 0.1
+    done
+    
+    echo "Error: Failed to start mpv" >&2
+    return 1
+}
+
+if [[ "${1:-}" == "--send" ]]; then
+    ensure_mpv || exit 1
+    
+    # Clear existing playlist
+    echo '{"command":["playlist-clear"]}' | socat - "$MPV_SOCKET" >/dev/null
+    
+    # Create temporary playlist
+    playlist=$(mktemp)
+    trap "rm -f $playlist" EXIT
+    
+    count=0
+    while IFS= read -r file; do
+        [[ -z "$file" ]] && continue
+        
+        if [[ "$file" != /* ]]; then
+            file="$(cd "$(dirname "$file")" && pwd)/$(basename "$file")"
+        fi
+        
+        echo "$file" >> "$playlist"
+        ((count++))
+    done
+    
+    if [[ $count -gt 0 ]]; then
+        escaped=$(printf '%s' "$playlist" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        echo "{\"command\":[\"loadlist\",\"$escaped\",\"append-play\"]}" | socat - "$MPV_SOCKET" >/dev/null
+        echo "Replaced playlist with $count file(s)" >&2
+        
+        # Get mpv PID and bring to foreground
+        pid=$(echo '{"command":["get_property","pid"]}' | socat - "$MPV_SOCKET" | grep -o '"data":[0-9]*' | cut -d: -f2)
+        if [[ -n "$pid" ]]; then
+            osascript -e "tell application \"System Events\" to set frontmost of first process whose unix id is $pid to true" 2>/dev/null || true
+        fi
+    fi
+    
+    exit 0
+fi
+
+fzf --read0 -m \
+    --bind 'ctrl-a:select-all' \
+    --exact --reverse --ansi --cycle --ignore-case \
+    --no-sort \
+    --bind "enter:select-all+execute-silent(printf '%s\n' {+} | MPV_SOCKET=$MPV_SOCKET $0 --send)+deselect-all" \
+    --header 'Enter: send to mpv | Ctrl-A: select all | Tab: toggle selection | Esc: quit'

@@ -1,6 +1,8 @@
 export ICLOUD_HOME="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
 export DJ_VISUALS_PATH=$ICLOUD_HOME/Movies/Visuals
 
+alias pause="read -sk '?Press any key to continue...'; echo"
+
 alias yt-dlp-youtube-embedded="yt-dlp --cookies-from-browser brave --continue --progress --verbose --retries infinite --fragment-retries infinite --socket-timeout 15 -f bestvideo+ba/best --embed-metadata --extractor-args 'youtube:player-client=tv_embedded' "
 
 # media functions
@@ -49,9 +51,9 @@ mpv-play-visuals() {
     -- "${files[@]}"
 }
 
-fzf-visuals() {
+select-visuals() {
   local query=$1
-  fd-visuals "$query" | fzf-play --hide-path -0
+  fd-visuals "$query" | mpv-select --hide-path -0
 }
 
 alias @visuals=fzf-play-visuals

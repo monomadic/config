@@ -27,7 +27,9 @@ function show_playlist()
 
 	for i = start_idx, end_idx do
 		local item = playlist[i + 1]
-		local title = item.title or mp.get_property("filename/no-ext")
+		local filename = item.filename or ""
+		local basename = filename:match("([^/\\]+)$") or filename
+		local title = item.title or basename:match("(.+)%..+$") or basename
 		local prefix = (i == pos) and "▶ " or "  "
 		str = str .. string.format("%s%s\n", prefix, title)
 	end
