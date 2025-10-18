@@ -65,8 +65,10 @@ if [[ "${1:-}" == "--send" ]]; then
 fi
 
 fzf --read0 -m \
+    --ansi \
     --bind 'ctrl-a:select-all' \
     --exact --reverse --ansi --cycle --ignore-case \
     --no-sort \
+    --delimiter=/ --with-nth=-1 \
     --bind "enter:select-all+execute-silent(printf '%s\n' {+} | MPV_SOCKET=$MPV_SOCKET $0 --send)+deselect-all" \
     --header 'Enter: send to mpv | Ctrl-A: select all | Tab: toggle selection | Esc: quit'
