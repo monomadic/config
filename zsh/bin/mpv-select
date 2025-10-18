@@ -71,4 +71,6 @@ fzf --read0 -m \
     --no-sort \
     --delimiter=/ --with-nth=-1 \
     --bind "enter:select-all+execute-silent(printf '%s\n' {+} | MPV_SOCKET=$MPV_SOCKET $0 --send)+deselect-all" \
+    --bind "alt-enter:execute-silent(printf '%s\n' {+} | MPV_SOCKET=$MPV_SOCKET $0 --send)+deselect-all" \
+    --bind 'alt-r:execute(echo "exec: reveal {}" && reveal {})' \
     --header 'Enter: send to mpv | Ctrl-A: select all | Tab: toggle selection | Esc: quit'
