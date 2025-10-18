@@ -75,7 +75,7 @@ alias ..masters="fd-video --print0 . /Volumes/*/Movies/Porn/Masters(N) $HOME/Mov
 alias @masters-full="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Full(N) $HOME/Movies/Porn/Masters/Full(N) | fzf-play --hide-path -0"
 alias @masters-clips="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Clips(N) $HOME/Movies/Porn/Masters/Clips(N) | fzf-play --hide-path -0"
 alias @queue="fd-video --print0 . $HOME/Movies/Porn/Queue/(N) | sort_by_creation_date | fzf-play --hide-path --tac -0"
-alias @tower="fd-video --print0 . /Volumes/Tower/Movies/Porn | fzf-play --hide-path -0"
+alias @tower="fd-video --print0 . /Volumes/Tower/Movies/Porn | mpv-select"
 alias @tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
 alias @external=@volumes
 
