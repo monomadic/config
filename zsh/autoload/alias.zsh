@@ -62,7 +62,8 @@ alias @visuals=fzf-play-visuals
 alias passwordless-reboot="sudo fdesetup authrestart"
 
 # media search
-alias @="ls-media | fzf-play --hide-path --tac"
+alias @="ls-media | mpv-select"
+alias @clips="fd --absolute-path --exact-depth=1 --color=never --print0 . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N) | mpv-select --delimiter='Clips'"
 alias @@@="setopt local_options null_glob && printf '%s\0' $~MEDIA_GLOBS | fzf-play --hide-path -0"
 alias @pwd="fd-video --print0 | fzf-play --hide-path"
 alias @@@pwd="fd-video --absolute-path --print0 | fzf-play --hide-path -0"
@@ -74,9 +75,8 @@ alias ..volumes="fd-video --print0 . /Volumes/*/Movies/Porn | mpv-select"
 alias ..masters="fd-video --print0 . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N)  | mpv-select"
 alias @masters-full="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Full(N) $HOME/Movies/Porn/Masters/Full(N) | fzf-play --hide-path -0"
 alias @masters-clips="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Clips(N) $HOME/Movies/Porn/Masters/Clips(N) | fzf-play --hide-path -0"
-alias @queue="fd-video --print0 . $HOME/Movies/Porn/Queue/(N) | sort_by_creation_date | fzf-play --hide-path --tac -0"
-alias @tower="fd-video --print0 . /Volumes/Tower/Movies/Porn | mpv-select"
-alias @tutorials="fd-video . $TUTORIALS_PATH | fzf-play"
+alias @queue="fd-video --print0 . $HOME/Movies/Porn/Queue/(N) | sort_by_creation_date | mpv-select"
+alias @tutorials="fd-video . $TUTORIALS_PATH | mpv-select"
 alias @external=@volumes
 
 alias .python-venv-create="python3 -m venv .venv && source .venv/bin/activate"
