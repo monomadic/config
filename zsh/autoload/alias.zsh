@@ -61,21 +61,32 @@ alias @visuals=fzf-play-visuals
 
 alias passwordless-reboot="sudo fdesetup authrestart"
 
+mpv-select-all() {
+  kitty @ launch --title="mpv:all" --type=tab env PATH="$PATH" sh -c 'kitty @ set-tab-color --match title:"mpv" active_bg="#A442F3" active_fg="#050F63" inactive_fg="#A442F3" inactive_bg="#030D43" && exec ls-media | mpv-select'
+}
+
+mpv-select-queue() {
+  kitty @ set-tab-title "mpv:queue"
+  kitty @ set-tab-color --match title:"mpv" active_bg="#A442F3" active_fg="#050F63" inactive_fg="#A442F3" inactive_bg="#030D43"
+  ls-media | mpv-select
+}
+alias @q=mpv-select-queue
+
 # media search
 alias @="ls-media | mpv-select"
-alias @clips="fd --absolute-path --exact-depth=1 --color=never --print0 . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N) | mpv-select --delimiter='Clips'"
+alias @@=mpv-select-all
 alias @@@="setopt local_options null_glob && printf '%s\0' $~MEDIA_GLOBS | fzf-play --hide-path -0"
-alias @pwd="fd-video --print0 | fzf-play --hide-path"
-alias @@@pwd="fd-video --absolute-path --print0 | fzf-play --hide-path -0"
+alias @clips="fd --absolute-path --exact-depth=1 --color=never --print0 . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N) | mpv-select --delimiter='Clips'"
+alias @pwd="fd-video --print0 | mpv-select"
+alias @@@pwd="fd-video --absolute-path --print0 | mpv-select"
 alias @sort="fselect-porn-sort -0 | fzf-play --hide-path --tac"
 alias @loop="fselect-porn -0 | fzf-media-select --hide-path --tac | mpv-with-config -"
 alias @pwd-sort="fselect-pwd-sort -0 | fzf-play --hide-path --tac"
-alias @@="fd-video | fzf-play --hide-path --tac"
 alias ..volumes="fd-video --print0 . /Volumes/*/Movies/Porn | mpv-select"
 alias ..masters="fd-video --print0 . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N)  | mpv-select"
 alias @masters-full="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Full(N) $HOME/Movies/Porn/Masters/Full(N) | fzf-play --hide-path -0"
 alias @masters-clips="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Clips(N) $HOME/Movies/Porn/Masters/Clips(N) | fzf-play --hide-path -0"
-alias @queue="fd-video --print0 . $HOME/Movies/Porn/Queue/(N) | sort_by_creation_date | mpv-select"
+alias @queue="fd-video --print0 . $HOME/Movies/Porn/Queue/(N) | mpv-select"
 alias @tutorials="fd-video . $TUTORIALS_PATH | mpv-select"
 alias @external=@volumes
 

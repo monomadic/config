@@ -1,0 +1,212 @@
+#!/usr/bin/env zsh
+# File hashing cache script
+# Usage: hashcache.zsh [-f hashfile] [-d directory] [-c file] [-v] [-r]
+
+set -euo pipefail
+
+# Defaults
+HASH_FILE=".hashes"
+SOURCE_DIR="."
+CHECK_FILE=""
+VERIFY_MODE=false
+REHASH_MODE=false
+HASH_CMD="b3sum"
+CUSTOM_HASH_FILE=false
+
+# Colors
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[0;33m'
+NC='\033[0m' # No Color
+
+show_help() {
+  cat << 'HELP'
+Usage: ${0:t} [OPTIONS]
+
+Options:
+  -f FILE     Hash cache file (default: .hashes in current directory)
+  -d DIR      Source directory to scan (default: .)
+  -c FILE     Check if file exists in cache
+  -v          Verify all cached hashes against current files
+  -r          Rehash all files (overwrites existing hashes)
+  -h          Show this help
+
+Examples:
+  ${0:t}                           # Hash new files in current dir
+  ${0:t} -d /path/to/videos        # Hash new files in specified directory
+  ${0:t} -c video.mp4              # Check if video.mp4 is in cache
+  ${0:t} -v                        # Verify all cached hashes
+  ${0:t} -r                        # Rehash all files
+  ${0:t} -f custom.hashes -d ~/    # Use custom cache file and directory
+
+The default cache file is .hashes in the current working directory.
+HELP
+}
+
+# Parse arguments
+while getopts "f:d:c:vrh" opt; do
+  case $opt in
+    f) HASH_FILE="$OPTARG"; CUSTOM_HASH_FILE=true;;
+    d) SOURCE_DIR="$OPTARG";;
+    c) CHECK_FILE="$OPTARG";;
+    v) VERIFY_MODE=true;;
+    r) REHASH_MODE=true;;
+    h) show_help; exit 0;;
+    \?) echo "Invalid option: -$OPTARG" >&2; show_help; exit 1;;
+  esac
+done
+
+# Check if hash command exists
+if ! command -v "$HASH_CMD" &> /dev/null; then
+  echo "Error: $HASH_CMD not found. Install with: brew install b3sum" >&2
+  exit 1
+fi
+
+# Check if fd exists
+if ! command -v fd &> /dev/null; then
+  echo "Error: fd not found. Install with: brew install fd" >&2
+  exit 1
+fi
+
+# Resolve the real fd binary (ignore aliases/functions)
+FD_BIN="${FD_BIN:-$(whence -p fd || command -v fd)}"
+
+# Convert to absolute paths
+SOURCE_DIR="${SOURCE_DIR:a}"
+if [[ "$CUSTOM_HASH_FILE" == true ]]; then
+  HASH_FILE="${HASH_FILE:a}"
+else
+  HASH_FILE="${PWD}/.hashes"
+fi
+
+# Check single file mode
+if [[ -n "$CHECK_FILE" ]]; then
+  if [[ ! -f "$HASH_FILE" ]]; then
+    echo "Hash cache not found: $HASH_FILE" >&2
+    exit 1
+  fi
+
+  CHECK_FILE="${CHECK_FILE:a}"
+  if grep -qF -- "$CHECK_FILE" "$HASH_FILE"; then
+    echo -e "${GREEN}✓${NC} Found: $CHECK_FILE"
+    grep -F -- "$CHECK_FILE" "$HASH_FILE"
+    exit 0
+  else
+    echo -e "${RED}✗${NC} Not found: $CHECK_FILE"
+    exit 1
+  fi
+fi
+
+# Verify mode - check all hashes against files
+if [[ "$VERIFY_MODE" == true ]]; then
+  if [[ ! -f "$HASH_FILE" ]]; then
+    echo "Hash cache not found: $HASH_FILE" >&2
+    exit 1
+  fi
+
+  echo "Verifying hashes from: $HASH_FILE"
+  echo ""
+
+  verified=0
+  failed=0
+  missing=0
+
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    # Expect "HASH␠␠PATH" as produced by b3sum
+    if [[ "$line" != *"  "* ]]; then
+      echo -e "${YELLOW}⚠${NC} Skipping malformed line: $line"
+      continue
+    fi
+
+    cached_hash="${line%%  *}"
+    filepath="${line#*  }"
+
+    if [[ ! -f "$filepath" ]]; then
+      echo -e "${YELLOW}⚠${NC} Missing: $filepath"
+      ((++missing))
+      continue
+    fi
+
+    # Calculate current hash (first field)
+    current_hash=$("$HASH_CMD" -- "$filepath" | awk '{print $1}')
+
+    if [[ "$cached_hash" == "$current_hash" ]]; then
+      echo -e "${GREEN}✓${NC} $filepath"
+      ((++verified))
+    else
+      echo -e "${RED}✗${NC} Hash mismatch: $filepath"
+      ((++failed))
+    fi
+  done < "$HASH_FILE"
+
+  echo ""
+  echo "Results:"
+  echo -e "  ${GREEN}Verified: $verified${NC}"
+  [[ $failed  -gt 0 ]] && echo -e "  ${RED}Failed:   $failed${NC}"
+  [[ $missing -gt 0 ]] && echo -e "  ${YELLOW}Missing:  $missing${NC}"
+
+  [[ $failed -gt 0 || $missing -gt 0 ]] && exit 1
+  exit 0
+fi
+
+# Rehash mode - remove existing cache
+if [[ "$REHASH_MODE" == true ]]; then
+  if [[ -f "$HASH_FILE" ]]; then
+    echo "Removing existing cache: $HASH_FILE"
+    rm -- "$HASH_FILE"
+  fi
+fi
+
+# Hash mode
+echo "Scanning: $SOURCE_DIR"
+echo "Cache: $HASH_FILE"
+
+# Load existing hashes into associative array (keyed by absolute filepath)
+typeset -A cached_files
+if [[ -f "$HASH_FILE" ]]; then
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    # Extract filepath after two spaces
+    if [[ "$line" == *"  "* ]]; then
+      filepath="${line#*  }"
+      cached_files[$filepath]=1
+    fi
+  done < "$HASH_FILE"
+  echo "Loaded ${#cached_files[@]} cached files"
+fi
+
+# Find all files recursively and hash new ones
+new_count=0
+skipped_count=0
+
+# Exclude the cache file name preemptively (also handled below by equality check)
+cache_basename="${HASH_FILE:t}"
+
+while IFS= read -r -d $'\0' file; do
+  abs_file="${file:a}"
+
+  # Skip the hash file itself
+  [[ "$abs_file" == "$HASH_FILE" ]] && continue
+
+  if [[ -n "${cached_files[$abs_file]:-}" ]]; then
+    ((++skipped_count))
+    continue
+  fi
+
+  # Hash the file and append to cache (b3sum emits "HASH␠␠PATH")
+  if hash_output=$("$HASH_CMD" -- "$abs_file"); then
+    echo "$hash_output" >> "$HASH_FILE"
+    echo "Hashed: $abs_file"
+    ((++new_count))
+  else
+    echo -e "${YELLOW}⚠${NC} Hashing failed: $abs_file" >&2
+    # keep going even if a single file fails
+  fi
+done < <("$FD_BIN" -t f --no-hidden --exclude "$cache_basename" --print0 . "$SOURCE_DIR")
+
+echo ""
+echo "Complete:"
+echo "  New files hashed: $new_count"
+echo "  Skipped (cached): $skipped_count"
+echo "  Total in cache: $((new_count + ${#cached_files[@]}))"

@@ -8,7 +8,6 @@ test_socket() {
 
 ensure_mpv() {
     if [[ -S "$MPV_SOCKET" ]] && test_socket; then
-        echo "Socket not available"
         return 0
     fi
     
@@ -71,11 +70,11 @@ fzf --read0 -m \
     --exact --reverse --ansi --cycle --ignore-case \
     --delimiter=/ --with-nth=-1 \
     --no-sort \
-    --bind "enter:select-all+execute-silent(printf '%s\n' {+} | MPV_SOCKET=$MPV_SOCKET $0 --send)+deselect-all" \
-    --bind "alt-enter:execute-silent(printf '%s\n' {+} | MPV_SOCKET=$MPV_SOCKET $0 --send)+deselect-all" \
+    --bind "enter:select-all+execute-silent(printf '%s\n' {+} | MPV_SOCKET=$MPV_SOCKET $0 --send </dev/null)+deselect-all" \
+    --bind "alt-enter:execute-silent(printf '%s\n' {+} | MPV_SOCKET=$MPV_SOCKET $0 --send </dev/null)+deselect-all" \
     --bind 'alt-r:execute(echo "exec: reveal {}" && reveal {})' \
     --bind 'alt-r:execute-silent(kitty @ launch --type=background --cwd=current open --reveal {})' \
     --bind 'alt-t:execute-silent(kitty @ launch --cwd "$(dirname {})")' \
     --bind 'ctrl-a:select-all' \
     --header 'ENTER: play all | ALT-ENTER: play one | CTRL-A: select all | TAB: toggle selection | ALT-R: reveal | ALT-T: term | ESC: quit' \
-    $*
+    "$@"
