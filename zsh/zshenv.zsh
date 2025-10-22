@@ -62,7 +62,7 @@ export ZSH_SCRIPT_PATHS=(
   $ZSH_CONFIG_DIR/bin
 )
 
-export EDITOR=hx
+export EDITOR=kitty-helix
 export TEMPLATE_BASE_DIR=$XDG_CONFIG_HOME/nvim/templates
 
 export TABLATURE_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature/"

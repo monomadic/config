@@ -5,6 +5,15 @@ alias pause="read -sk '?Press any key to continue...'; echo"
 
 alias yt-dlp-youtube-embedded="yt-dlp --cookies-from-browser brave --continue --progress --verbose --retries infinite --fragment-retries infinite --socket-timeout 15 -f bestvideo+ba/best --embed-metadata --extractor-args 'youtube:player-client=tv_embedded' "
 
+# strips the trailing / from directories and preserves NUL termination exactly.
+strip_fd_slash() {
+  emulate -L zsh -o noglob
+  local p
+  while IFS= read -r -d '' p; do
+    print -rn -- "${p%/}"$'\0'
+  done
+}
+
 # media functions
 
 # alias mpv-loop="mpv --player-operation-mode=pseudo-gui --loop-file=inf --loop-playlist=inf --image-display-duration=5 --force-window=yes --no-config --no-input-default-bindings "
@@ -35,6 +44,7 @@ fd-visuals() {
   # Print NUL-separated absolute paths from fd-video
   fd-video --print0 --absolute-path -- "$query" "${roots[@]}"
 }
+alias ..visuals="fd-visuals | mpv-select"
 
 mpv-play-visuals() {
   local query=$1
@@ -57,12 +67,24 @@ select-visuals() {
   fd-visuals "$query" | mpv-select --hide-path -0
 }
 
-alias @visuals=fzf-play-visuals
-
 alias passwordless-reboot="sudo fdesetup authrestart"
 
 mpv-select-all() {
-  kitty @ launch --title="mpv:all" --type=tab env PATH="$PATH" sh -c 'kitty @ set-tab-color --match title:"mpv" active_bg="#A442F3" active_fg="#050F63" inactive_fg="#A442F3" inactive_bg="#030D43" && exec ls-media | mpv-select'
+  kitty @ launch --title="  media" --type=tab env PATH="$PATH" sh -c 'kitty @ set-tab-color --match title:"" active_bg="#A442F3" active_fg="#050F63" inactive_fg="#A442F3" inactive_bg="#030D43" && exec ls-media | mpv-select'
+}
+
+kitty-mpv-tab() {
+  kitty @ set-tab-color active_bg="#A442F3" active_fg="#050F63" inactive_fg="#A442F3" inactive_bg="#030D43"
+  kitty @ launch --title="  mpv:all" --type=tab env PATH="$PATH" $@
+}
+
+kitty-helix() {
+  kitty @ set-tab-color active_bg="#04F273" active_fg="#050F63" inactive_fg="#04F273" inactive_bg="#030D43"
+
+  target="$1"
+  base="${target##*/}"
+  kitty @ set-tab-title "  $base" >/dev/null 2>&1 || true
+  exec hx "$@"
 }
 
 mpv-select-queue() {
@@ -76,7 +98,7 @@ alias @q=mpv-select-queue
 alias @="ls-media | mpv-select"
 alias @@=mpv-select-all
 alias @@@="setopt local_options null_glob && printf '%s\0' $~MEDIA_GLOBS | fzf-play --hide-path -0"
-alias @clips="fd --absolute-path --exact-depth=1 --color=never --print0 . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N) | mpv-select --delimiter='Clips'"
+alias @clips="fd --absolute-path --exact-depth=1 --color=never --print0 . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N) | strip_fd_slash | mpv-select"
 alias @pwd="fd-video --print0 | mpv-select"
 alias @@@pwd="fd-video --absolute-path --print0 | mpv-select"
 alias @sort="fselect-porn-sort -0 | fzf-play --hide-path --tac"
