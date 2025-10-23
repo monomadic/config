@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+#set -euo pipefail
 MPV_SOCKET="${MPV_SOCKET:-/tmp/mpv-socket}"
 
 test_socket() {
@@ -8,12 +8,14 @@ test_socket() {
 
 ensure_mpv() {
     if [[ -S "$MPV_SOCKET" ]] && test_socket; then
+        # valid socket
         return 0
     fi
     
-    [[ -S "$MPV_SOCKET" ]] && rm -f "$MPV_SOCKET"
+    #[[ -S "$MPV_SOCKET" ]] && rm -f "$MPV_SOCKET"
     
-    echo "Starting mpv..." >&2
+    # echo "Starting mpv..." >&2
+    # start mpv
     mpv --input-ipc-server="$MPV_SOCKET" --idle --force-window &
     
     for i in {1..50}; do
@@ -28,42 +30,36 @@ ensure_mpv() {
 }
 
 if [[ "${1:-}" == "--send" ]]; then
-    ensure_mpv || exit 1
-    
-    # Clear existing playlist
-    echo '{"command":["playlist-clear"]}' | socat - "$MPV_SOCKET" >/dev/null
-    
-    # Create temporary playlist
-    playlist=$(mktemp)
-    trap "rm -f $playlist" EXIT
-    
+  ensure_mpv || exit 1
+
+  # Build and send commands in one write
+  {
+    printf '{"command":["playlist-clear"]}\n'
     count=0
     while IFS= read -r file; do
-        [[ -z "$file" ]] && continue
-        
-        if [[ "$file" != /* ]]; then
-            file="$(cd "$(dirname "$file")" && pwd)/$(basename "$file")"
-        fi
-        
-        echo "$file" >> "$playlist"
-        ((count++))
+      [[ -z "$file" ]] && continue
+      # absolutize relative paths
+      if [[ "$file" != /* ]]; then
+        file="$(cd "$(dirname "$file")" && pwd)/$(basename "$file")"
+      fi
+      # JSON-escape via jq -Rs .
+      jpath=$(printf '%s' "$file" | jq -Rs .)
+      printf '{"command":["loadfile",%s,"append-play"]}\n' "$jpath"
+      ((count++))
     done
-    
-    if [[ $count -gt 0 ]]; then
-        escaped=$(printf '%s' "$playlist" | sed 's/\\/\\\\/g; s/"/\\"/g')
-        echo "{\"command\":[\"loadlist\",\"$escaped\",\"append-play\"]}" | socat - "$MPV_SOCKET" >/dev/null
-        echo "Replaced playlist with $count file(s)" >&2
-        
-        # Get mpv PID and bring to foreground
-        pid=$(echo '{"command":["get_property","pid"]}' | socat - "$MPV_SOCKET" | grep -o '"data":[0-9]*' | cut -d: -f2)
-        if [[ -n "$pid" ]]; then
-            osascript -e "tell application \"System Events\" to set frontmost of first process whose unix id is $pid to true" 2>/dev/null || true
-        fi
-    fi
-    
-    exit 0
+    # optionally: bring to front after enqueues
+    printf '{"command":["get_property","pid"]}\n'
+  } | socat - "$MPV_SOCKET" >/tmp/mpv-ipc.out 2>/dev/null
+
+  # bring mpv to front
+  pid=$(echo '{"command":["get_property","pid"]}' | socat - "$MPV_SOCKET" | grep -o '"data":[0-9]*' | cut -d: -f2)
+  [[ -n "$pid" ]] && osascript -e \
+    "tell application \"System Events\" to set frontmost of first process whose unix id is $pid to true" \
+    >/dev/null 2>&1 || true
+
+  echo "Replaced playlist with $count file(s)" >&2
+  exit 0
 fi
-#     --delimiter=/ --with-nth=-1 \
 
 fzf --read0 -m \
     --ansi \

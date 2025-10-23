@@ -79,12 +79,13 @@ kitty-mpv-tab() {
 }
 
 kitty-helix() {
-  kitty @ set-tab-color active_bg="#04F273" active_fg="#050F63" inactive_fg="#04F273" inactive_bg="#030D43"
-
   target="$1"
   base="${target##*/}"
+  kitty @ set-tab-color active_bg="#04F273" active_fg="#050F63" inactive_fg="#04F273" inactive_bg="#030D43"
   kitty @ set-tab-title "  $base" >/dev/null 2>&1 || true
-  exec hx "$@"
+  hx "$@"
+  kitty @ set-tab-color active_bg="#ddddfd" inactive_fg="#ddddfd"
+  kitty @ set-tab-title ""
 }
 
 mpv-select-queue() {
@@ -98,7 +99,7 @@ alias @q=mpv-select-queue
 alias @="ls-media | mpv-select"
 alias @@=mpv-select-all
 alias @@@="setopt local_options null_glob && printf '%s\0' $~MEDIA_GLOBS | fzf-play --hide-path -0"
-alias @clips="fd --absolute-path --exact-depth=1 --color=never --print0 . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N) | strip_fd_slash | mpv-select"
+alias @clips="fd --absolute-path --exact-depth=1 --color=never . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N) | mpv-socket"
 alias @pwd="fd-video --print0 | mpv-select"
 alias @@@pwd="fd-video --absolute-path --print0 | mpv-select"
 alias @sort="fselect-porn-sort -0 | fzf-play --hide-path --tac"

@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+set -euo pipefail
+MPV_SOCKET="${MPV_SOCKET:-/tmp/mpv-socket}"
+
+test_socket() {
+  echo '{"command":["get_property","pid"]}' | socat - "$MPV_SOCKET" 2>/dev/null | grep -q "data"
+}
+
+ensure_mpv() {
+  if [[ -S "$MPV_SOCKET" ]] && test_socket; then
+    return 0
+  fi
+  [[ -S "$MPV_SOCKET" ]] && rm -f "$MPV_SOCKET"
+  echo "Starting mpv..." >&2
+  mpv --input-ipc-server="$MPV_SOCKET" --idle --force-window &
+
+  for i in {1..50}; do
+    if [[ -S "$MPV_SOCKET" ]] && test_socket; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  echo "Error: Failed to start mpv" >&2
+  return 1
+}
+
+if [[ "${1:-}" == "--send" ]]; then
+  ensure_mpv || exit 1
+
+  # Clear existing playlist
+  echo '{"command":["playlist-clear"]}' | socat - "$MPV_SOCKET" >/dev/null
+
+  # Create temporary playlist
+  playlist=$(mktemp)
+  trap 'rm -f "$playlist"' EXIT
+
+  count=0
+  while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+    if [[ "$file" != /* ]]; then
+      file="$(cd "$(dirname "$file")" && pwd)/$(basename "$file")"
+    fi
+    echo "$file" >> "$playlist"
+    ((count++))
+  done
+
+  if [[ $count -gt 0 ]]; then
+    escaped=$(printf '%s' "$playlist" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    echo "{\"command\":[\"loadlist\",\"$escaped\",\"append-play\"]}" | socat - "$MPV_SOCKET" >/dev/null
+    echo "Replaced playlist with $count file(s)" >&2
+    pid=$(echo '{"command":["get_property","pid"]}' | socat - "$MPV_SOCKET" | grep -o '"data":[0-9]*' | cut -d: -f2)
+    if [[ -n "${pid:-}" ]]; then
+      osascript -e "tell application \"System Events\" to set frontmost of first process whose unix id is $pid to true" 2>/dev/null || true
+    fi
+  fi
+  exit 0
+fi
+
+# ---------- Icon decorator (NUL-safe) ----------
+# Emits: ICON \t BASENAME \t FULLPATH \0
+decorate_nul_stream() {
+  local p b ext icon
+  # optional color (unset to disable)
+  local CYAN=$'\e[38;5;45m' RESET=$'\e[0m'
+
+  while IFS= read -r -d '' p; do
+    b="${p##*/}"
+    if [[ -d "$p" ]]; then
+      icon=""                              # folder
+    else
+      ext="${b##*.}"; ext="${ext,,}"        # lowercased extension
+      if [[ "$ext" == "mp4" || "$ext" == "m4v" ]]; then
+        if [[ "$p" == *"/Clips/"* ]]; then
+          icon=""                          # video in /Clips/
+        else
+          icon=""                          # video outside /Clips/
+        fi
+      else
+        icon=""                            # default file
+      fi
+    fi
+    # colorize icon but keep paths raw
+    printf '%s\t%s\t%s\0' "${CYAN}${icon}${RESET}" "$b" "$p"
+  done
+}
+
+# Read NUL-delimited paths on stdin, decorate, and drive fzf.
+# We show icon + basename, but actions use field 3 (full path).
+decorate_nul_stream \
+| fzf --read0 -m --ansi \
+      --exact --reverse --cycle --ignore-case \
+      --delimiter=$'\t' --with-nth=1,2 --nth=2 \
+      --no-sort \
+      --preview='file {3} 2>/dev/null || exiftool -s -s -s {3} 2>/dev/null || rg -n --hidden -- {3} 2>/dev/null' \
+      --preview-window='down,50%:wrap' \
+      --bind "enter:select-all+execute-silent(printf '%s\n' {+3} | MPV_SOCKET=$MPV_SOCKET $0 --send </dev/null)+deselect-all" \
+      --bind "alt-enter:execute-silent(printf '%s\n' {+3} | MPV_SOCKET=$MPV_SOCKET $0 --send </dev/null)+deselect-all" \
+      --bind 'alt-r:execute-silent(kitty @ launch --type=background --cwd=current open --reveal {3})' \
+      --bind 'alt-t:execute-silent(kitty @ launch --cwd "$(dirname {3})")' \
+      --bind 'ctrl-a:select-all' \
+      --header 'ENTER: play all | ALT-ENTER: play one | CTRL-A: select all | TAB: toggle | ALT-R: reveal | ALT-T: term | ESC: quit' \
+      "$@"
