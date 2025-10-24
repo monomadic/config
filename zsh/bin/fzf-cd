@@ -53,7 +53,7 @@ handle_directory_selection() {
       --border=none \
       --margin=0 \
       --bind 'alt-n:preview-page-down,alt-p:preview-page-up' \
-      --bind 'alt-r:execute(open {})' \
+      --bind 'alt-r:execute-silent(open {})' \
       --bind 'ctrl-/:toggle-preview' \
       --bind 'alt-p:toggle-preview' \
       --bind 'ctrl-a:toggle-all' \
