@@ -1,0 +1,37 @@
+#compdef tab
+
+_tab() {
+  setopt local_options no_aliases
+  zmodload -i zsh/computil 2>/dev/null || true
+
+  local -a files
+  local target_dir="${TABLATURE_DIR:-$HOME/Tablature}"
+
+  _arguments -C \
+    '1:tablature file:->file' \
+    '*::args:->args' || return 0
+
+  case $state in
+    (file)
+      if [[ -d $target_dir ]]; then
+        # Null-delimited fd; ${(0)...} splits safely
+        files=("${(0)$(fd -0 --type f --extension pdf --color never --absolute-path . "$target_dir" 2>/dev/null)}")
+      else
+        files=()
+      fi
+
+      if (( ${#files} )); then
+        # Use -- to avoid treating leading dashes in paths as options
+        compadd -- -a files
+        return 0
+      else
+        _message "no PDFs in ${target_dir}"
+        return 0
+      fi
+    ;;
+  esac
+
+  return 0
+}
+
+compdef _tab tab

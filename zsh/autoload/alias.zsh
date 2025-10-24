@@ -25,6 +25,7 @@ alias mpv-play-porn="setopt local_options null_glob && mpv-play $~MEDIA_GLOBS"
 alias mpv-play-volumes="mpv-play /Volumes/*/Movies/Porn/**/*.mp4"
 alias mpv-play-tower="mpv-play /Volumes/Tower/Movies/Porn"
 alias .tower=mpv-play-tower
+alias m4="kitty kitten ssh nom@m4.local"
 
 alias mpv-debug="mpv --msg-level=all=debug"
 
@@ -45,6 +46,9 @@ fd-visuals() {
   fd-video --print0 --absolute-path -- "$query" "${roots[@]}"
 }
 alias ..visuals="fd-visuals | mpv-select"
+
+alias fd-clips="fd --absolute-path --exact-depth=1 --color=never . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N)"
+alias ..clips="fd-clips | mpv-socket"
 
 mpv-play-visuals() {
   local query=$1
@@ -73,22 +77,25 @@ mpv-select-all() {
   kitty @ launch --title="  media" --type=tab env PATH="$PATH" sh -c 'kitty @ set-tab-color --match title:"" active_bg="#A442F3" active_fg="#050F63" inactive_fg="#A442F3" inactive_bg="#030D43" && exec ls-media | mpv-select'
 }
 
+mpv-select-all-v2() {
+  kitty-exec "  media" "#A442F3" ls-media | mpv-select
+}
+
 kitty-mpv-tab() {
-  kitty @ set-tab-color active_bg="#A442F3" active_fg="#050F63" inactive_fg="#A442F3" inactive_bg="#030D43"
-  kitty @ launch --title="  mpv:all" --type=tab env PATH="$PATH" $@
+  kitty @ launch --type=tab env PATH="$PATH" kitty-exec "  all" "#A442F3" $@
 }
 
 kitty-helix() {
   target="$1"
   base="${target##*/}"
-  kitty @ set-tab-color active_bg="#04F273" active_fg="#050F63" inactive_fg="#04F273" inactive_bg="#030D43"
-  kitty @ set-tab-title "  $base" >/dev/null 2>&1 || true
+  kitty @ set-tab-color active_bg="#04F273" inactive_fg="#04F273"
+  kitty @ set-tab-title "  $base"
   hx "$@"
   kitty @ set-tab-color active_bg="#ddddfd" inactive_fg="#ddddfd"
   kitty @ set-tab-title ""
 }
 
-mpv-select-queue() {
+pv-select-queue() {
   kitty @ set-tab-title "mpv:queue"
   kitty @ set-tab-color --match title:"mpv" active_bg="#A442F3" active_fg="#050F63" inactive_fg="#A442F3" inactive_bg="#030D43"
   ls-media | mpv-select
@@ -260,6 +267,7 @@ alias ls-disks="diskutil list"
 
 alias .tab=fzf-tablature
 alias t=fzf-tablature
+alias tab="open"
 
 alias .macos-keybindings="source $DOTFILES_DIR/scripts/macos-keybindings.sh"
 

@@ -65,6 +65,7 @@ config_files=(
   $ZSH_AUTOLOAD_DIR/starship.zsh
   # $ZSH_AUTOLOAD_DIR/fzf-marks.zsh
   $ZSH_AUTOLOAD_DIR/keybindings.zsh
+  $ZSH_AUTOLOAD_DIR/kitty.zsh
 )
 for config_file in $config_files; do
   print -nP "%F{green}.%f"
@@ -77,6 +78,7 @@ print -P "ok"
 # kitty tab colors
 #kitty @ set-tab-color --match title:"mpv-play" active_bg="#A85FFF" active_fg="#050F63" inactive_fg="#A85FFF" inactive_bg="#030D43"
 #kitty @ set-tab-color --match title:"kitty.conf" active_bg="#44F273" active_fg="#050F63" inactive_fg="#38F273" inactive_bg="#030D43"
+#kitty set-title "  $PWD"
 
 # ---- Cached brew shellenv (avoids spawning `brew` every startup) ----
 if (( $+commands[brew] )); then

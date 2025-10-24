@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Usage: kitty-exec <title> <color> <command> [args...]
+
+title="$1"
+color="$2"
+shift 2
+
+# Save default colors
+default_bg=$(kitty @ get-colors | grep '^active_tab_background' | awk '{print $2}')
+default_fg=$(kitty @ get-colors | grep '^active_tab_foreground' | awk '{print $2}')
+
+kitty @ set-tab-color active_bg="$color" inactive_fg="$color"
+kitty @ set-tab-title "$title"
+exec "$@"
+kitty @ set-tab-title ""
+kitty @ set-tab-color active_bg="$default_bg" active_fg="$default_fg" inactive_bg="$default_fg" inactive_fg="$default_bg"

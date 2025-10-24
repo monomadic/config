@@ -62,15 +62,18 @@ if [[ -o interactive ]]; then
     local selected_dir
 
     # Save cursor position without clearing the line
-    tput sc
+    #tput sc
 
+    # move up one line and clear it
+    printf '\033[2K'
+    
     # Use command substitution to capture fzf-cd's output
     selected_dir=$(ls-all 2>/dev/null | source fzf-cd)
     local fzf_exit_status=$?
 
     # Restore cursor position
-    tput rc
-    tput el # Clear to the end of the line to prevent leftover artifacts
+    #tput rc
+    #tput el # Clear to the end of the line to prevent leftover artifacts
 
     if ((fzf_exit_status != 0)); then
       zle reset-prompt

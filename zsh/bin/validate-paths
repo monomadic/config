@@ -1,0 +1,104 @@
+#!/usr/bin/env zsh
+set -u
+set -o pipefail
+
+OK_COLOR="%F{green}"
+ERR_COLOR="%F{red}"
+NUM_COLOR="%F{blue}"
+PATH_COLOR="%F{cyan}"
+INFO_COLOR="%F{yellow}"
+RESET="%f"
+
+TICK="✔"
+CROSS="✘"
+
+show_help() {
+  print -P "${INFO_COLOR}Usage:${RESET} $(basename "$0") <listfile>"
+  print -P ""
+  print -P "Checks each directory path in a newline-separated text file."
+  print -P "Missing dirs are offered for removal ([Y/n])."
+  print -P "Rewrites the file without removed/blank entries."
+  print -P ""
+  print -P "${INFO_COLOR}Example:${RESET}"
+  print -P "  $(basename "$0") ~/.marks"
+  print
+}
+
+if [[ $# -eq 0 || "$1" == "-h" || "$1" == "--help" ]]; then
+  show_help
+  exit 0
+fi
+
+listfile="$1"
+
+if [[ ! -f "$listfile" ]]; then
+  print -P "${ERR_COLOR}${CROSS}${RESET} ${ERR_COLOR}file not found:${RESET} $listfile" >&2
+  exit 1
+fi
+
+tmpfile="$(mktemp "${TMPDIR:-/tmp}/dirlist.XXXXXX")"
+trap 'rm -f "$tmpfile"' EXIT
+
+print -P "${INFO_COLOR}Scanning:${RESET} ${PATH_COLOR}$listfile${RESET}"
+print
+
+index=0
+kept=0
+removed=0
+
+while IFS= read -r rawline || [[ -n "$rawline" ]]; do
+  (( index++ ))
+
+  # trim leading/trailing whitespace
+  line="${rawline#"${rawline%%[![:space:]]*}"}"
+  line="${line%"${line##*[![:space:]]}"}"
+
+  # skip blank lines (don't keep, but still show that we saw them)
+  if [[ -z "$line" ]]; then
+    print -P "${INFO_COLOR}·${RESET} ${NUM_COLOR}[$index]${RESET} (blank / skipped)"
+    continue
+  fi
+
+  if [[ -d "$line" ]]; then
+    print -P "${OK_COLOR}${TICK}${RESET} ${NUM_COLOR}[$index]${RESET} ${PATH_COLOR}$line${RESET}"
+    print -- "$line" >> "$tmpfile"
+    (( kept++ ))
+  else
+    print -P "${ERR_COLOR}${CROSS}${RESET} ${NUM_COLOR}[$index]${RESET} ${PATH_COLOR}$line${RESET} ${ERR_COLOR}(missing)${RESET}"
+
+    printf "%s" "[Y/n] remove from list? "
+    read -r reply
+
+    case "$reply" in
+      [nN]|[nN][oO])
+        print -P "${INFO_COLOR}keeping anyway${RESET}"
+        print -- "$line" >> "$tmpfile"
+        (( kept++ ))
+        ;;
+      *)
+        print -P "${ERR_COLOR}removed${RESET}"
+        (( removed++ ))
+        ;;
+    esac
+    print
+  fi
+done < "$listfile"
+
+# rewrite original
+cp "$tmpfile" "$listfile"
+
+print
+print -P "${INFO_COLOR}Done.${RESET}"
+
+print -P "${OK_COLOR}${TICK}${RESET} kept: ${OK_COLOR}$kept${RESET}"
+print -P "${ERR_COLOR}${CROSS}${RESET} removed: ${ERR_COLOR}$removed${RESET}"
+print -P "${NUM_COLOR}total lines written:${RESET} $kept"
+
+if (( index == 0 )); then
+  print -P "${ERR_COLOR}warning:${RESET} file was empty / unreadable"
+fi
+
+if (( kept == 0 )); then
+  print -P "${ERR_COLOR}${CROSS}${RESET} ${ERR_COLOR}no valid entries remain; file now empty${RESET}"
+  exit 2
+fi

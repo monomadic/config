@@ -83,6 +83,6 @@ time_format = "%H:%M:%S"
 
 # ---------- Prompt char ----------
 [character]
-success_symbol = "[❯](bold green)"
+success_symbol = "[󰧚 ](bold green)"
 error_symbol = "[❯](bold red)"
 vicmd_symbol = "[❮](bold yellow)"

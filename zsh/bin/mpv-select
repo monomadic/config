@@ -68,7 +68,6 @@ fzf --read0 -m \
     --no-sort \
     --bind "enter:select-all+execute-silent(printf '%s\n' {+} | MPV_SOCKET=$MPV_SOCKET $0 --send </dev/null)+deselect-all" \
     --bind "alt-enter:execute-silent(printf '%s\n' {+} | MPV_SOCKET=$MPV_SOCKET $0 --send </dev/null)+deselect-all" \
-    --bind 'alt-r:execute(echo "exec: reveal {}" && reveal {})' \
     --bind 'alt-r:execute-silent(kitty @ launch --type=background --cwd=current open --reveal {})' \
     --bind 'alt-t:execute-silent(kitty @ launch --cwd "$(dirname {})")' \
     --bind 'ctrl-a:select-all' \
