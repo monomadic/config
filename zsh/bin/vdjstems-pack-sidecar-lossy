@@ -1,0 +1,142 @@
+#!/usr/bin/env zsh
+# VirtualDJ stem packer for macOS - AAC version
+# Dependencies: ffmpeg, MP4Box (gpac)
+
+set -euo pipefail
+
+# VirtualDJ track order (do not change)
+TRACK_NAMES=("mixed track" "vocal" "hihat" "bass" "instruments" "kick")
+
+die() { print -r -- "ERROR: $*" >&2; exit 1; }
+
+# Check dependencies
+command -v ffmpeg >/dev/null 2>&1 || die "ffmpeg not found"
+command -v MP4Box >/dev/null 2>&1 || die "MP4Box not found"
+
+[[ $# -eq 1 ]] || { print "Usage: $(basename "$0") /path/to/stems"; exit 2; }
+
+FOLDER="$(cd "$1" 2>/dev/null && pwd)" || die "Cannot access directory: $1"
+[[ -d "$FOLDER" ]] || die "Not a directory: $FOLDER"
+
+# Create temp workspace
+tmpdir="$(mktemp -d)"
+trap "rm -rf '$tmpdir'" EXIT
+
+# Find the actual stem files - simple and direct
+find_file() {
+  local patterns=("$@")
+  for pattern in "${patterns[@]}"; do
+    for f in "$FOLDER"/${pattern}.wav; do
+      [[ -f "$f" ]] && { print "$f"; return 0; }
+    done
+  done
+  return 1
+}
+
+# Map stems to files
+print "Locating stem files..."
+KICK=$(find_file "kick" "drums" "drum") || die "No drums/kick file found"
+HIHAT=$(find_file "hihat" "hihats" "drums" "drum") || die "No drums/hihat file found"  
+INSTRUMENTS=$(find_file "instruments" "other" "instrumental") || die "No instruments/other file found"
+VOCAL=$(find_file "vocal" "vocals" "vox") || die "No vocal/vocals file found"
+BASS=$(find_file "bass" "bassline") || die "No bass file found"
+
+print "Found:"
+print "  kick → $(basename "$KICK")"
+print "  hihat → $(basename "$HIHAT")"
+print "  instruments → $(basename "$INSTRUMENTS")"
+print "  vocal → $(basename "$VOCAL")"
+print "  bass → $(basename "$BASS")"
+
+# Check if drums is being used for both
+USING_DRUMS_FOR_BOTH=false
+if [[ "$KICK" == "$HIHAT" ]]; then
+  USING_DRUMS_FOR_BOTH=true
+  print "\n→ Using $(basename "$KICK") for both kick and hihat"
+fi
+
+# Create mixed track
+print "\nCreating mixed track..."
+mixed_wav="$tmpdir/mixed.wav"
+
+if [[ "$USING_DRUMS_FOR_BOTH" == true ]]; then
+  # Don't double the drums volume
+  ffmpeg -y -loglevel error \
+    -i "$KICK" -i "$INSTRUMENTS" -i "$VOCAL" -i "$BASS" \
+    -filter_complex "amix=inputs=4,volume=4" \
+    "$mixed_wav" || die "Mix failed"
+else
+  ffmpeg -y -loglevel error \
+    -i "$KICK" -i "$INSTRUMENTS" -i "$VOCAL" -i "$BASS" -i "$HIHAT" \
+    -filter_complex "amix=inputs=5,volume=5" \
+    "$mixed_wav" || die "Mix failed"
+fi
+
+# Encode to AAC
+print "Encoding AAC tracks..."
+kick_aac="$tmpdir/kick.aac"
+instruments_aac="$tmpdir/instruments.aac"
+vocal_aac="$tmpdir/vocal.aac"
+bass_aac="$tmpdir/bass.aac"
+hihat_aac="$tmpdir/hihat.aac"
+mixed_aac="$tmpdir/mixed.aac"
+
+ffmpeg -y -loglevel error -i "$KICK" -c:a aac -b:a 320k "$kick_aac"
+ffmpeg -y -loglevel error -i "$INSTRUMENTS" -c:a aac -b:a 320k "$instruments_aac"
+ffmpeg -y -loglevel error -i "$VOCAL" -c:a aac -b:a 320k "$vocal_aac"
+ffmpeg -y -loglevel error -i "$BASS" -c:a aac -b:a 320k "$bass_aac"
+
+# For hihat, reuse kick encoding if they're the same file
+if [[ "$USING_DRUMS_FOR_BOTH" == true ]]; then
+  hihat_aac="$kick_aac"  # Just point to the same file
+else
+  ffmpeg -y -loglevel error -i "$HIHAT" -c:a aac -b:a 320k "$hihat_aac"
+fi
+
+ffmpeg -y -loglevel error -i "$mixed_wav" -c:a aac -b:a 320k "$mixed_aac"
+print "  Encoded all tracks (320k AAC)"
+
+# Mux with VirtualDJ track order
+# Input order: kick(0) instruments(1) vocal(2) bass(3) hihat(4) mixed(5)
+# Output order: mixed(5) vocal(2) hihat(4) bass(3) instruments(1) kick(0)
+print "\nMuxing M4A..."
+temp_m4a="$tmpdir/temp.m4a"
+
+ffmpeg -y -loglevel error \
+  -i "$kick_aac" \
+  -i "$instruments_aac" \
+  -i "$vocal_aac" \
+  -i "$bass_aac" \
+  -i "$hihat_aac" \
+  -i "$mixed_aac" \
+  -map 5:a -map 2:a -map 4:a -map 3:a -map 1:a -map 0:a \
+  -c copy \
+  -disposition:a:0 default \
+  -metadata title="virtualdj" \
+  -metadata artist="output" \
+  "$temp_m4a" || die "Mux failed"
+
+# Add metadata
+output="$FOLDER/$(basename "$FOLDER")-custom.m4a"
+meta="$tmpdir/meta.txt"
+cat > "$meta" <<EOF
+tool=VirtualDJ 2023.7544
+created=0
+tempo=127
+INITIALKEY=F
+rate=0
+EOF
+
+print "Finalizing..."
+MP4Box \
+  -udta "1:type=name:str=${TRACK_NAMES[1]}" \
+  -udta "2:type=name:str=${TRACK_NAMES[2]}" \
+  -udta "3:type=name:str=${TRACK_NAMES[3]}" \
+  -udta "4:type=name:str=${TRACK_NAMES[4]}" \
+  -udta "5:type=name:str=${TRACK_NAMES[5]}" \
+  -udta "6:type=name:str=${TRACK_NAMES[6]}" \
+  -itags "$meta" \
+  -brand isom:512 -rb mp42 -ab mp41 \
+  -flat -out "$output" "$temp_m4a" 2>&1 | grep -v "Setting up" | grep -v "Flat storage" | grep -v "Unrecognize tag" || true
+
+print "✓ Created: $output"

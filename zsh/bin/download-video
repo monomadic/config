@@ -1,28 +1,28 @@
 #!/usr/bin/env zsh
 set -euo pipefail
-
 # ANSI colour codes
 local GREEN=$'\e[32m'
 local RED=$'\e[31m'
 local NC=$'\e[0m'
-
 # print error and exit
 error_exit() {
   print -P "${RED}[error] $1${NC}"
   exit 1
 }
-
 # ensure command exists
 check_command() {
   whence -p "$1" &>/dev/null || error_exit "$1 is not installed"
 }
-
 check_command yt-dlp
 check_command terminal-notifier
-
 usage() {
   cat <<EOF
-Usage: ${0:t} [--mp4|--webm] <mode> <URL> [yt-dlp args]
+Usage: ${0:t} [options] <mode> <URL> [yt-dlp args]
+Options:
+  --mp4, --webm         Format preference
+  --quiet, -q           Suppress "Executing:" message
+  --dry-run, -n         Show command without executing
+  --show-filename, -f   Show output filename without downloading
 Modes:
   music-video (m)   Download music video
   audio-only  (a)   Download audio only
@@ -32,24 +32,23 @@ Modes:
   best-quality (b)  Download best quality (video+audio)
 EOF
 }
-
 (($# < 2)) && usage && exit 1
-
-# parse format preference
-local FORMAT_PREF=''
-while [[ $1 == --* ]]; do
+# parse options
+local FORMAT_PREF='' QUIET=0 DRY_RUN=0 SHOW_FILENAME=0
+while [[ $1 == -* ]]; do
   case $1 in
   --mp4) FORMAT_PREF='[ext=mp4]' ;;
   --webm) FORMAT_PREF='[ext=webm]' ;;
+  --quiet | -q) QUIET=1 ;;
+  --dry-run | -n) DRY_RUN=1 ;;
+  --show-filename | -f) SHOW_FILENAME=1 ;;
   *) break ;;
   esac
   shift
 done
-
 local MODE=$1 URL=$2
 shift 2
 local EXTRA_ARGS=("$@")
-
 # detect passthrough commands
 local PASSTHROUGH=0
 for arg in "${EXTRA_ARGS[@]}"; do
@@ -58,7 +57,6 @@ for arg in "${EXTRA_ARGS[@]}"; do
     break
   }
 done
-
 # normalize shortcuts
 case $MODE in
 m) MODE=music-video ;;
@@ -68,7 +66,6 @@ p | A) MODE=adult ;;
 y) MODE=youtube ;;
 b) MODE=best-quality ;;
 esac
-
 # base yt-dlp options
 typeset -a YTDL_BASE=(
   yt-dlp
@@ -76,7 +73,6 @@ typeset -a YTDL_BASE=(
   --continue --progress --verbose
   --retries infinite --fragment-retries infinite --socket-timeout 15
 )
-
 if ((PASSTHROUGH)); then
   YTDL_CMD=("${YTDL_BASE[@]}" "${EXTRA_ARGS[@]}" "$URL")
 else
@@ -86,7 +82,7 @@ else
   adult)
     OUTPUT_FMT='[%(uploader|Unknown)s] %(title)s [%(extractor)s].%(ext)s'
     FMT_ARGS=(
-      -f "bv*${FORMAT_PREF}+ba/best"
+      --format "\"bv*${FORMAT_PREF}+ba/best\""
       --merge-output-format mp4
       --embed-metadata --embed-info-json
       --match-filter "duration > 60"
@@ -136,16 +132,40 @@ else
     error_exit "Unknown mode: $MODE"
     ;;
   esac
-
   YTDL_CMD=(
     "${YTDL_BASE[@]}"
     "${FMT_ARGS[@]}"
-    --output "$OUTPUT_FMT"
+    --output "\"$OUTPUT_FMT\""
     "${EXTRA_ARGS[@]}"
-    "$URL"
   )
+  # add filename display if requested
+  if ((SHOW_FILENAME)); then
+    YTDL_CMD+=(--print filename --skip-download)
+  fi
+  YTDL_CMD+=("$URL")
 fi
-
-print -P "${GREEN}Executing:${NC} ${YTDL_CMD[*]}"
-# run it unquoted so you don’t get literal backslashes
+# show command if not quiet or if dry-run
+if ((DRY_RUN)); then
+  print -P "${GREEN}Command:${NC}"
+  for arg in "${YTDL_CMD[@]}"; do
+    if [[ $arg =~ [[:space:]\|\>\<\*\(\)\[\]\#] ]]; then
+      printf "'%s' " "$arg"
+    else
+      printf "%s " "$arg"
+    fi
+  done
+  print
+  exit 0
+elif ((! QUIET)); then
+  print -P "${GREEN}Executing:${NC}"
+  for arg in "${YTDL_CMD[@]}"; do
+    if [[ $arg =~ [[:space:]\|\>\<\*\(\)\[\]\#] ]]; then
+      printf "'%s' " "$arg"
+    else
+      printf "%s " "$arg"
+    fi
+  done
+  print
+fi
+# run it unquoted so you don't get literal backslashes
 "${YTDL_CMD[@]}"

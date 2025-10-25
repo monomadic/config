@@ -23,20 +23,21 @@ die() { print -r -- "${RED}ERROR: $*${NC}" >&2; exit 1; }
 command -v ffmpeg >/dev/null 2>&1 || die "ffmpeg not found"
 command -v MP4Box >/dev/null 2>&1 || die "MP4Box not found"
 
-[[ $# -eq 1 ]] || { print "Usage: $(basename "$0") /path/to/stems"; exit 2; }
+[[ $# -le 1 ]] || { print "Usage: $(basename "$0") [/path/to/stems]"; exit 2; }
 
-FOLDER="$(cd "$1" 2>/dev/null && pwd)" || die "Cannot access directory: $1"
+FOLDER="$(cd "${1:-.}" 2>/dev/null && pwd)" || die "Cannot access directory: ${1:-.}"
 [[ -d "$FOLDER" ]] || die "Not a directory: $FOLDER"
 
 # Create temp workspace
 tmpdir="$(mktemp -d)"
 trap "rm -rf '$tmpdir'" EXIT
 
-# Find the actual stem files
+# Find the actual stem files (matches files ending in pattern)
 find_file() {
   local patterns=("$@")
+  setopt local_options null_glob
   for pattern in "${patterns[@]}"; do
-    for f in "$FOLDER"/${pattern}.wav; do
+    for f in "$FOLDER"/*${pattern}.wav; do
       [[ -f "$f" ]] && { print "$f"; return 0; }
     done
   done
@@ -47,8 +48,8 @@ find_file() {
 print "${CYAN}Locating stem files...${NC}"
 KICK=$(find_file "kick" "drums" "drum") || die "No drums/kick file found"
 HIHAT=$(find_file "hihat" "hihats" "drums" "drum") || die "No drums/hihat file found"  
-INSTRUMENTS=$(find_file "other" "rhythm") || die "No other/rhythm file found"
-VOCAL=$(find_file "vocal" "vocals" "vox") || die "No vocal/vocals file found"
+INSTRUMENTS=$(find_file "other" "rhythm" "harmonic" "melodic") || die "No other/rhythm/harmonic file found"
+VOCAL=$(find_file "vocal" "vocals" "acappella" "vox") || die "No vocal/vocals file found"
 BASS=$(find_file "bass" "bassline") || die "No bass file found"
 
 print "${GREEN}Found:${NC}"
