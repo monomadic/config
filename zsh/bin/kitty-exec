@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/zsh
 # Usage: kitty-exec <title> <color> <command> [args...]
 
 title="$1"

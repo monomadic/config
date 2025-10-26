@@ -55,6 +55,19 @@ local function toggle_metadata()
     mp.commandv("script-message-to", "metadata", "toggle")
 end
 
+local function cycle_osd_level()
+    local current = mp.get_property_number("osd-level", 1)
+    local next_level = (current % 3) + 1
+    mp.set_property_number("osd-level", next_level)
+    
+    local level_names = {
+        [1] = "Seek Only",
+        [2] = "Seek + Timer",
+        [3] = "Full"
+    }
+    mp.osd_message("OSD Level: " .. level_names[next_level])
+end
+
 local function load_directory_files()
     local path = mp.get_property("path")
     if not path then return end
@@ -101,6 +114,7 @@ local function show_menu()
     
     local panscan = mp.get_property_number("panscan", 0)
     local aspect = mp.get_property("video-aspect-override", "-1")
+    local osd_level = mp.get_property_number("osd-level", 1)
     
     -- Format aspect ratio display
     local aspect_display = {
@@ -112,11 +126,18 @@ local function show_menu()
         ["-1"] = "Auto"
     }
     
+    local osd_display = {
+        [1] = "Seek Only",
+        [2] = "Seek + Timer",
+        [3] = "Full"
+    }
+    
     local items = {
-        "  Open Directory",
+        "  Open Directory",
         "────────────────────",
         "Pan & Scan:      " .. (panscan > 0 and " ON" or "OFF"),
         "Aspect Ratio:    " .. (aspect_display[aspect] or aspect),
+        "OSD Level:       " .. osd_display[osd_level],
         "────────────────────",
         "Auto Rotate:     " .. (script_states.auto_rotate and " ON" or "OFF"),
         "Metadata HUD:    " .. (script_states.metadata and " ON" or "OFF"),
@@ -127,6 +148,7 @@ local function show_menu()
         nil,  -- Separator (no action)
         toggle_panscan,
         cycle_aspect_ratio,
+        cycle_osd_level,
         nil,  -- Separator (no action)
         toggle_auto_rotate,
         toggle_metadata,
