@@ -57,13 +57,14 @@ end
 
 local function cycle_osd_level()
     local current = mp.get_property_number("osd-level", 1)
-    local next_level = (current % 3) + 1
+    local next_level = (current + 1) % 4
     mp.set_property_number("osd-level", next_level)
     
     local level_names = {
-        [1] = "Seek Only",
-        [2] = "Seek + Timer",
-        [3] = "Full"
+        [0] = "Off",
+        [1] = "Seekbar Only",
+        [2] = "File Info",
+        [3] = "Full Info"
     }
     mp.osd_message("OSD Level: " .. level_names[next_level])
 end
@@ -127,9 +128,10 @@ local function show_menu()
     }
     
     local osd_display = {
-        [1] = "Seek Only",
-        [2] = "Seek + Timer",
-        [3] = "Full"
+        [0] = "Off",
+        [1] = "Seekbar Only",
+        [2] = "File Info",
+        [3] = "Full Info"
     }
     
     local items = {

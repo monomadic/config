@@ -1,10 +1,8 @@
--- metadata.lua - Toggleable file HUD
+-- osd-formatter.lua - Format OSD status message with custom logic
 local mp = require "mp"
-local enabled = true  -- start ON by default
 
--- Returns a human-friendly description of the file.
-local function file_info()
-    -- Human-readable file size.
+local function format_osd_status()
+    -- Human-readable file size
     local fsize = mp.get_property_number("file-size", 0)
     local human_size = "Unknown size"
     if fsize > 0 then
@@ -17,13 +15,24 @@ local function file_info()
         human_size = string.format("%.1f%s", size, units[unit_index])
     end
 
-    -- Video codec.
-    local codec = mp.get_property("video-codec") or "unknown codec"
+    -- Simplified video codec
+    local codec = mp.get_property("video-codec") or "unknown"
     codec = codec:match("^(.-)%s*/") or codec
+    
+    -- Convert to common names
+    local codec_map = {
+        hevc = "H.265",
+        h264 = "H.264",
+        avc1 = "AVC1",
+        av1 = "AV1",
+        vp9 = "VP9",
+        vp8 = "VP8"
+    }
+    codec = codec_map[codec:lower()] or codec:upper()
 
-    -- Determine resolution.
+    -- Resolution shorthand
     local height = mp.get_property_number("height", 0)
-    local resolution = "unknown resolution"
+    local resolution = "unknown"
     if height >= 2160 then
         resolution = "4k"
     elseif height >= 1080 then
@@ -34,7 +43,7 @@ local function file_info()
         resolution = tostring(height) .. "p"
     end
 
-    -- Get frame rate.
+    -- Rounded frame rate
     local fps_str = mp.get_property("container-fps")
     local fps = ""
     if fps_str and fps_str ~= "" then
@@ -44,35 +53,43 @@ local function file_info()
         end
     end
 
-    return string.format(" %s    %s    %s%s",
+    -- Get title and pause state
+    local title = mp.get_property("media-title") or "Unknown"
+    local paused = mp.get_property_bool("pause", false)
+    
+    -- Format file info line
+    local file_info = string.format(" %s    %s    %s%s",
         human_size, codec, resolution, (fps ~= "" and (" @ " .. fps) or ""))
-end
-
--- Draw HUD (if enabled)
-local function draw_hud()
-    if not enabled then
-        mp.set_osd_ass(0, 0, "") -- clear when disabled
-        return
+    
+    -- Format based on OSD level
+    -- Note: osd-status-msg only appears at levels 2 and 3 (level 1 only shows seekbar)
+    local osd_level = mp.get_property_number("osd-level", 1)
+    local status_msg
+    
+    if osd_level <= 2 then
+        -- Level 2 (Minimal): only file info
+        status_msg = file_info
+    else
+        -- Level 3 (Full): title + file info
+        local line1 = (paused and "(Paused) " or "") .. title
+        status_msg = line1 .. "\n" .. file_info
     end
-
-    -- metadata optional; keep minimal output as in your version
-    local nerdfont = " "
-    local ass_text = string.format("{\\an1}{\\fs6}%s%s", nerdfont, file_info())
-    mp.set_osd_ass(0, 0, ass_text)
+    
+    mp.set_property("osd-status-msg", status_msg)
 end
 
--- Apply on file load and when VO reconfigures
-mp.register_event("file-loaded", draw_hud)
-mp.observe_property("video-params", "native", function() draw_hud() end)
+-- Update on file load and when video params change
+mp.register_event("file-loaded", format_osd_status)
+mp.observe_property("video-params", "native", format_osd_status)
+mp.observe_property("osd-level", "number", format_osd_status)  -- Update when OSD level changes
+mp.observe_property("pause", "bool", format_osd_status)  -- Update when pause state changes
 
--- Toggle message (script-message-to metadata toggle)
-mp.register_script_message("toggle", function()
-    enabled = not enabled
-    mp.osd_message("Metadata HUD: " .. (enabled and "ON" or "OFF"), 1.2)
-    draw_hud()
+-- Show OSD briefly when file loads
+mp.register_event("file-loaded", function()
+    mp.command("show-text ${osd-status-msg} 3000")
 end)
 
--- Get state message (for menu synchronization)
-mp.register_script_message("get-state", function()
-    mp.commandv("script-message", "metadata-state", enabled and "on" or "off")
-end)
+-- Apply format immediately if file is already loaded (script loaded mid-playback)
+if mp.get_property("path") then
+    format_osd_status()
+end
