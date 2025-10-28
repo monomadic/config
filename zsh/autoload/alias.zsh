@@ -103,7 +103,18 @@ pv-select-queue() {
 alias @q=mpv-select-queue
 
 # media search
-alias @="ls-media | mpv-select"
+@() (
+  export FZF_DEFAULT_OPTS="--with-nth=-1 --delimiter=/"
+  fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket
+)
+@unique() (
+  export FZF_DEFAULT_OPTS="--with-nth=-1 --delimiter=/"
+
+  fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) \
+  | awk -F/ '!seen[$NF]++' \
+  | mpv-socket
+)
+alias @full-path="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
 alias @@=mpv-select-all
 alias @@@="setopt local_options null_glob && printf '%s\0' $~MEDIA_GLOBS | fzf-play --hide-path -0"
 alias @clips="fd --absolute-path --exact-depth=1 --color=never . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N) | mpv-socket"

@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-
+echo "DEBUG FZF_DEFAULT_OPTS=$FZF_DEFAULT_OPTS" >&2
 set -e
 
 SOCKET="/tmp/mpv-socket"

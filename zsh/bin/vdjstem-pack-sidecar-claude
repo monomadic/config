@@ -19,6 +19,9 @@ TRACK_NAMES=("mixed track" "vocal" "hihat" "bass" "instruments" "kick")
 # Required input stems
 STEMS=("kick" "instruments" "vocal" "bass" "hihat")
 
+# Hihat can fall back to kick/drums if not found
+HIHAT_OPTIONAL=true
+
 # Default codec
 CODEC="aac"
 CODEC_EXT="aac"
@@ -52,14 +55,20 @@ ${BOLD}MODES:${RESET}
 
 ${BOLD}REQUIRED STEMS:${RESET}
   The stem directory must contain WAV files for:
-    • kick (or drums-main.wav)
+    • kick (or drums.wav, drums-main.wav)
     • instruments (or other.wav)
     • vocal (or vocals.wav)
-    • bass
-    • hihat (or drums-hihats.wav, hihats.wav)
+    • bass (or bass.wav)
+    • hihat (or drums-hihats.wav, hihats.wav) - optional, will use kick/drums if missing
   
   ${BOLD}+ For standalone mode:${RESET}
     • mixed.wav (or "mixed track.wav")
+
+  ${BOLD}Common 4-stem format (Demucs, Spleeter):${RESET}
+    • bass.wav → bass
+    • drums.wav → kick + hihat
+    • other.wav → instruments
+    • vocals.wav → vocal
 
 ${BOLD}DEPENDENCIES:${RESET}
   • ffmpeg
@@ -161,7 +170,7 @@ find_stem() {
   
   # Common aliases
   case "$stem" in
-    kick)        for f in "$FOLDER"/drums-main.wav "$FOLDER"/kick.wav; do
+    kick)        for f in "$FOLDER"/drums.wav "$FOLDER"/drums-main.wav "$FOLDER"/kick.wav; do
                    [[ -f "$f" ]] && { print "$f"; return; }
                  done ;;
     hihat)       for f in "$FOLDER"/drums-hihats.wav "$FOLDER"/hihat.wav "$FOLDER"/hihats.wav; do
@@ -189,10 +198,33 @@ find_stem() {
 # Collect input files
 info "\nLocating stem files..."
 INPUT_FILES=()
+KICK_FILE=""
 for stem in "${STEMS[@]}"; do
-  f="$(find_stem "$stem")" || die "Missing stem: $stem.wav"
-  INPUT_FILES+=("$f")
-  print -P "  %F{green}✓%f %-12s %F{244}%s%f" "$stem" "$(basename "$f")"
+  if [[ "$stem" == "hihat" ]] && [[ "$HIHAT_OPTIONAL" == "true" ]]; then
+    # Try to find hihat, but if not found, we'll use kick later
+    if f="$(find_stem "$stem")"; then
+      INPUT_FILES+=("$f")
+      print -P "  %F{green}✓%f %-12s %F{244}%s%f" "$stem" "$(basename "$f")"
+    else
+      # Will use kick file as fallback
+      INPUT_FILES+=("__FALLBACK__")
+      print -P "  %F{yellow}⚠%f %-12s %F{244}using drums/kick as fallback%f" "$stem"
+    fi
+  else
+    f="$(find_stem "$stem")" || die "Missing stem: $stem.wav"
+    INPUT_FILES+=("$f")
+    print -P "  %F{green}✓%f %-12s %F{244}%s%f" "$stem" "$(basename "$f")"
+    
+    # Store kick file for potential hihat fallback
+    [[ "$stem" == "kick" ]] && KICK_FILE="$f"
+  fi
+done
+
+# Replace hihat fallback with kick file
+for i in {1..${#INPUT_FILES[@]}}; do
+  if [[ "${INPUT_FILES[$i]}" == "__FALLBACK__" ]]; then
+    INPUT_FILES[$i]="$KICK_FILE"
+  fi
 done
 
 if [[ "$MODE" == "standalone" ]]; then
