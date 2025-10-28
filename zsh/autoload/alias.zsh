@@ -102,6 +102,45 @@ pv-select-queue() {
 }
 alias @q=mpv-select-queue
 
+mp4-check-faststart() {
+    if xxd "$1" | head -n 640 | grep -q moov; then
+        echo -e "\e[32m✓ FastStart enabled\e[0m"
+        return 0
+    else
+        echo -e "\e[31m✗ FastStart NOT enabled (moov at end)\e[0m"
+        return 1
+    fi
+}
+
+mp4-enable-faststart() {
+    local file="$1"
+    
+    if xxd "$file" | head -n 640 | grep -q moov; then
+        echo -e "\e[32m✓ FastStart already enabled\e[0m"
+        return 0
+    fi
+    
+    echo -e "\e[31m✗ FastStart not enabled\e[0m"
+    read -p "Enable faststart for $file? (y/N): " confirm
+    
+    if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
+        local temp="${file%.*}_faststart.${file##*.}"
+        echo "Processing..."
+        
+        if ffmpeg -i "$file" -c copy -movflags +faststart "$temp" -y 2>/dev/null; then
+            mv "$temp" "$file"
+            echo -e "\e[32m✓ FastStart enabled successfully\e[0m"
+        else
+            echo -e "\e[31m✗ Failed to enable faststart\e[0m"
+            rm -f "$temp"
+            return 1
+        fi
+    else
+        echo "Cancelled"
+        return 1
+    fi
+}
+
 # media search
 @() (
   export FZF_DEFAULT_OPTS="--with-nth=-1 --delimiter=/"

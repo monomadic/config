@@ -5,7 +5,7 @@ set -e
 SOCKET="/tmp/mpv-socket"
 
 # Select files with fzf (enter = select-all + accept)
-selected=$(fzf --multi --bind 'enter:select-all+accept')
+selected=$(fzf --multi --exact --cycle --bind 'enter:select-all+accept')
 
 # Exit if no files selected
 if [[ -z "$selected" ]]; then
