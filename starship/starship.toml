@@ -3,7 +3,7 @@ add_newline = true
 command_timeout = 500
 scan_timeout = 10
 
-format = "$os$hostname$directory$git_branch    ${custom.disk_free}   ${custom.uptime}   $battery $line_break$character"
+format = "$os$hostname$directory$git_branch${custom.disk_free}${custom.uptime}$battery$line_break$character"
 
 # ---------- OS + Host ----------
 [os]
@@ -11,18 +11,18 @@ disabled = false
 format = "[$symbol]($style)"
 style = "bold white"
 [os.symbols]
-Macos = " "
+Macos = "󰀵 "
 
 [hostname]
 ssh_only = false
-format = "[$hostname]($style) "
+format = "[$hostname]($style):"
 style="bold white"
 disabled = false
 
 # ---------- Directory (absolute path) ----------
 [directory]
 style = "bold blue"
-format = "[$path]($style) "
+format = "[$path]($style)"
 truncation_length = 0
 truncate_to_repo = false
 
@@ -30,7 +30,7 @@ truncate_to_repo = false
 [git_branch]
 symbol = " "
 style = "bold green"
-format = "[$symbol$branch]($style) "
+format = " [$symbol$branch]($style) "
 
 [git_status]
 style = "bold red"
@@ -41,7 +41,7 @@ disabled = false
 [custom.disk_free]
 command = "df -k . | tail -1 | awk '{print $4*1024}' | /opt/homebrew/opt/coreutils/libexec/gnubin/numfmt --to=iec --suffix=B --format=\"%.1f\" | tr '[:upper:]' '[:lower:]'"
 when = "true"
-format = "[  $output free](bold yellow) "
+format = "  [ $output](bold #AAAAFF) "
 
 # ---------- Uptime (warn ≥ 2 days) ----------
 # Red when >= 2 days
@@ -49,25 +49,25 @@ format = "[  $output free](bold yellow) "
 when = 'boot=$(sysctl -n kern.boottime | awk "{print \$4}" | tr -d ","); now=$(date +%s); (( now - boot >= 172800 ))'
 command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
 shell = ["bash", "-lc"]
-format = "[ $output](bold red) "
+format = " [ $output](bold red) "
 
 # Yellow when < 2 days
 [custom.uptime_ok]
 when = 'boot=$(sysctl -n kern.boottime | awk "{print \$4}" | tr -d ","); now=$(date +%s); (( now - boot < 172800 ))'
 command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
 shell = ["bash", "-lc"]
-format = "[ $output](bold yellow) "
+format = "[ $output](bold white) "
 
 [custom.uptime]
 command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
 when = "true"
-format = "[󰍹  up $output](bold blue) "
+format = "  [󰍹 $output](bold #AAAAFF) "
 
 # ---------- Battery ----------
 [battery]
-format = "[$symbol $percentage]($style) "
+format = "  [$symbol$percentage]($style) "
 display = [
-  { threshold = 101, style = "bold green" } # apply style at any charge
+  { threshold = 101, style = "bold #AAAAFF" } # apply style at any charge
 ]
 full_symbol = " "
 charging_symbol = " "
@@ -83,6 +83,6 @@ time_format = "%H:%M:%S"
 
 # ---------- Prompt char ----------
 [character]
-success_symbol = "[󰧚 ](bold green)"
+success_symbol = "[󱞩 ](bold green)"
 error_symbol = "[❯](bold red)"
 vicmd_symbol = "[❮](bold yellow)"
