@@ -1,4 +1,4 @@
-theme = "taffy16_transparent"
+theme = "dark_plus"
 
 [editor]
 true-color = true
@@ -13,10 +13,15 @@ C-k = "jump_view_up"
 C-l = "jump_view_right"
 C-p = ["move_line_up", "scroll_up"]
 C-s = [":w!"]
+y = ":clipboard-yank"
+Y = [":clipboard-yank", "collapse_selection"]
 C-n = ["move_line_down", "scroll_down"]
 esc = ["collapse_selection", "keep_primary_selection"]
 H = ["goto_line_start"]
 D = ["insert_mode", "kill_to_line_end", "normal_mode"]
+d = ["delete_selection"]
+S-backspace = "delete_selection"
+p = ":clipboard-paste"
 0 = ["goto_line_start"]
 L = ["goto_line_end"]
 V = ["extend_line", "select_mode"]
@@ -24,8 +29,6 @@ V = ["extend_line", "select_mode"]
 "}" = ["goto_next_paragraph", "move_line_down", "collapse_selection", "normal_mode"]
 Q = ":wq!"
 backspace = "goto_last_accessed_file"
-p = [":clipboard-paste-after"]
-P = [":clipboard-paste-before"]
 # Move current line down (Shift+J)
 G = "goto_last_line"
 J = [
@@ -43,7 +46,6 @@ K = [
   "paste_after",         # paste here
   "collapse_selection"   # reset the selection for the next repeat
 ]
-y = ["yank_main_selection_to_clipboard"]
 "C-=" = "expand_selection"
 "C-minus" = "shrink_selection"
 "Cmd-c" = ["yank_main_selection_to_clipboard"]
@@ -55,19 +57,22 @@ C-p = ["move_line_up", "scroll_up"]
 C-n = ["move_line_down", "scroll_down"]
 
 [keys.select]
+D = ["yank_main_selection_to_clipboard", "delete_selection"]
+S-backspace = "delete_selection"
+Cmd-backspace = "delete_selection"
 Cmd-a = "select_all"
 '{' = "goto_prev_paragraph"
 '}' = "goto_next_paragraph"
 H = "goto_line_start"
 L = "goto_line_end"
 # yank selection into system clipboard
-y = ["yank_to_clipboard", "collapse_selection"]
+y = [":clipboard-yank"]
 # yank main (joined) selection into system clipboard
-Y = ["yank_main_selection_to_clipboard", "collapse_selection"]
+Y = [":clipboard-yank", "collapse_selection"]
 J = ["delete_selection", "paste_after"]
 K = ["delete_selection", "move_visual_line_up", "paste_before"]
 # make “p” replace the current selection with the system clipboard
-p = ["replace_selections_with_clipboard", "collapse_selection"]
+p = [":clipboard-paste-replace", "collapse_selection"]
 # full-line extend down
 j = "extend_line_below"
 # full-line extend up

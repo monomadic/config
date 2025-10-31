@@ -1,65 +1,67 @@
 #!/usr/bin/env zsh
-echo "DEBUG FZF_DEFAULT_OPTS=$FZF_DEFAULT_OPTS" >&2
-set -e
+set -euo pipefail
 
 SOCKET="/tmp/mpv-socket"
 
-# Select files with fzf (enter = select-all + accept)
-selected=$(fzf --multi --exact --cycle --bind 'enter:select-all+accept')
+# --- Argument parsing ---
+show_absolute=false
+for arg in "$@"; do
+    case "$arg" in
+        --absolute-paths)
+            show_absolute=true
+            ;;
+    esac
+done
 
-# Exit if no files selected
-if [[ -z "$selected" ]]; then
-    echo "No files selected"
-    exit 0
+# --- Read file list ---
+if [[ -p /dev/stdin ]]; then
+    full_paths=$(cat)
+    [[ -z "$full_paths" ]] && { echo "No input received via stdin"; exit 1; }
+else
+    echo "Error: This script expects piped input"
+    exit 1
 fi
 
-# Count selected files
+# --- FZF selection (show basenames but select full paths) ---
+if $show_absolute; then
+    selected=$(echo "$full_paths" | fzf --multi --exact --cycle --bind 'enter:select-all+accept')
+else
+    selected=$(echo "$full_paths" | fzf --multi --exact --cycle --bind 'enter:select-all+accept' --delimiter='/' --with-nth=-1)
+fi
+[[ -z "$selected" ]] && { echo "No files selected"; exit 0; }
+
 file_count=$(echo "$selected" | wc -l | tr -d ' ')
 echo "Selected $file_count files"
 
-# Check if mpv is running
+# --- MPV socket handling ---
 mpv_was_running=false
 if pgrep -qf "mpv.*input-ipc-server=$SOCKET"; then
     echo "Found active socket at $SOCKET"
     mpv_was_running=true
-    
-    # Stop current playback and clear playlist
     echo "Stopping playback and clearing playlist..."
-    printf '{ "command": ["stop"] }\n' | socat - "$SOCKET" >/dev/null 2>&1 || {
-        echo "Warning: Failed to stop playback"
-    }
-    printf '{ "command": ["playlist-clear"] }\n' | socat - "$SOCKET" >/dev/null 2>&1 || {
-        echo "Warning: Failed to clear playlist"
-    }
+    printf '{ "command": ["stop"] }\n' | socat - "$SOCKET" >/dev/null 2>&1 || echo "Warn: stop failed"
+    printf '{ "command": ["playlist-clear"] }\n' | socat - "$SOCKET" >/dev/null 2>&1 || echo "Warn: clear failed"
 else
-    echo "No active socket. Starting mpv with a fresh socket..."
+    echo "No active socket. Starting mpv..."
     mpv --idle --input-ipc-server="$SOCKET" >/dev/null 2>&1 &
     sleep 0.5
 fi
 
-# Send files to mpv
+# --- Send files to mpv ---
 echo "Sending files to mpv..."
 echo "$selected" | while IFS= read -r file; do
-    printf '{ "command": ["loadfile", "%s", "append-play"] }\n' "$file" | 
-        socat - "$SOCKET" >/dev/null 2>&1 || {
-        echo "Error: Failed to send file: $file"
-    }
+    printf '{ "command": ["loadfile", "%s", "append-play"] }\n' "$file" | \
+        socat - "$SOCKET" >/dev/null 2>&1 || echo "Error: failed to send $file"
 done
 
 echo "$file_count files sent to mpv"
 
-# Bring mpv to foreground
-if [[ "$mpv_was_running" == "true" ]]; then
-
-  pid=$(echo '{"command":["get_property","pid"]}' | socat - "$SOCKET" | grep -o '"data":[0-9]*' | cut -d: -f2)
-  [[ -n "$pid" ]] && osascript -e \
-    "tell application \"System Events\" to set frontmost of first process whose unix id is $pid to true" \
-    >/dev/null 2>&1 || {
-        echo "Warning: Could not bring mpv to foreground"
-    }
+# --- Bring mpv to front ---
+if $mpv_was_running; then
+    pid=$(echo '{"command":["get_property","pid"]}' | socat - "$SOCKET" | grep -o '"data":[0-9]*' | cut -d: -f2)
+    [[ -n "$pid" ]] && osascript -e \
+        "tell application \"System Events\" to set frontmost of first process whose unix id is $pid to true" \
+        >/dev/null 2>&1 || echo "Warning: Could not focus mpv"
 else
-    # For newly started mpv, use open command
-    open -a mpv 2>/dev/null || {
-        echo "Warning: Could not bring mpv to foreground"
-    }
+    open -a mpv 2>/dev/null || echo "Warning: Could not bring mpv to foreground"
 fi

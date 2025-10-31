@@ -102,6 +102,22 @@ pv-select-queue() {
 }
 alias @q=mpv-select-queue
 
+ffprobe-tags-as-json() {
+  local file="$1"
+
+  ffprobe -v quiet -show_entries format_tags -of json $file
+} 
+
+ffmpeg-tags-write-artist() {
+  local artist="$1"
+  local input="$2"
+  local output="$3"
+  
+  ffmpeg -i $input -c copy \
+    -metadata artist="$artist" \
+    $output
+}
+
 mp4-check-faststart() {
     if xxd "$1" | head -n 640 | grep -q moov; then
         echo -e "\e[32m✓ FastStart enabled\e[0m"
@@ -142,13 +158,9 @@ mp4-enable-faststart() {
 }
 
 # media search
-@() (
-  export FZF_DEFAULT_OPTS="--with-nth=-1 --delimiter=/"
-  fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket
-)
-@unique() (
-  export FZF_DEFAULT_OPTS="--with-nth=-1 --delimiter=/"
+alias @="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
 
+@unique() (
   fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) \
   | awk -F/ '!seen[$NF]++' \
   | mpv-socket
@@ -367,8 +379,7 @@ alias e-open="cd $DOTFILES_DIR && $EDITOR README.md"
 alias e-yazi="cd $DOTFILES_DIR/apps/yazi && $EDITOR yazi.toml"
 alias e-zellij="cd $DOTFILES_DIR/zellij && $EDITOR config.kdl"
 alias e-zsh-keybindings="cd $DOTFILES_DIR/zsh && $EDITOR scripts/autoload/keybindings.zsh"
-alias e-zsh="cd $DOTFILES_DIR/zsh && $EDITOR zshrc.zsh"
-alias e-mpv="cd $DOTFILES_DIR/mpv && $EDITOR mpv.conf"
+alias e-zsh="cd $DOTFILES_DIR && $EDITOR zshrc.zsh"
 alias .yazi-config="cd $DOTFILES_DIR/apps/yazi && $EDITOR yazi.toml"
 alias ci="cargo install --path ."
 alias cp-pwd="echo $PWD|pbcopy" # mac only

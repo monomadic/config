@@ -249,5 +249,22 @@ if [[ -o interactive ]]; then
   bindkey '^T' fzf-file-widget
   bindkey '^D' fzf-dir-widget
   bindkey '^U' kill-whole-line
+
+  # ~/.zshrc
+
+  # BIND F20
+  open-finder-pwd() { open --reveal "$PWD" }
+  zle -N open-finder-pwd
+  # Prefer terminfo if available
+  if [[ -n ${terminfo[kf20]} ]]; then
+    bindkey -M emacs "${terminfo[kf20]}" open-finder-pwd
+    bindkey -M viins "${terminfo[kf20]}" open-finder-pwd
+    bindkey -M vicmd "${terminfo[kf20]}" open-finder-pwd
+  else
+    # Fallback: literal sequence from `kitty +kitten show-key`
+    bindkey -M emacs '^[[33;2~' open-finder-pwd   # EXAMPLE; replace with yours
+    bindkey -M viins  '^[[33;2~' open-finder-pwd
+    bindkey -M vicmd  '^[[33;2~' open-finder-pwd
+  fi
 fi
 

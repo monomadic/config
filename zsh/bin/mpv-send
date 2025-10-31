@@ -1,0 +1,47 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+SOCKET="/tmp/mpv-socket"
+
+# Check if socket exists
+if [[ ! -S "$SOCKET" ]]; then
+    echo "Error: mpv socket not found at $SOCKET"
+    echo "Start mpv with: mpv --idle --input-ipc-server=$SOCKET"
+    exit 1
+fi
+
+# Parse command
+case "${1:-}" in
+    play)
+        shift
+        [[ $# -eq 0 ]] && { echo "Usage: mpv-send play <files...>"; exit 1; }
+        
+        for file in "$@"; do
+            # Convert to absolute path
+            [[ "$file" != /* ]] && file="$(pwd)/$file"
+            printf '{ "command": ["loadfile", "%s", "append-play"] }\n' "$file" | \
+                socat - "$SOCKET" >/dev/null 2>&1 || echo "Error: failed to send $file"
+        done
+        echo "Sent $# file(s) to mpv"
+        ;;
+    
+    next)
+        printf '{ "command": ["playlist-next"] }\n' | socat - "$SOCKET" >/dev/null 2>&1
+        echo "Skipped to next track"
+        ;;
+    
+    prev)
+        printf '{ "command": ["playlist-prev"] }\n' | socat - "$SOCKET" >/dev/null 2>&1
+        echo "Jumped to previous track"
+        ;;
+    
+    *)
+        echo "Usage: mpv-send <command> [args]"
+        echo ""
+        echo "Commands:"
+        echo "  play <files...>  Add files to playlist"
+        echo "  next             Skip to next file"
+        echo "  prev             Jump to previous file"
+        exit 1
+        ;;
+esac
