@@ -85,9 +85,9 @@ mp.observe_property("osd-level", "number", format_osd_status)  -- Update when OS
 mp.observe_property("pause", "bool", format_osd_status)  -- Update when pause state changes
 
 -- Show OSD briefly when file loads
-mp.register_event("file-loaded", function()
-    mp.command("show-text ${osd-status-msg} 3000")
-end)
+-- mp.register_event("file-loaded", function()
+--     mp.command("show-text ${osd-status-msg} 3000")
+-- end)
 
 -- Apply format immediately if file is already loaded (script loaded mid-playback)
 if mp.get_property("path") then
