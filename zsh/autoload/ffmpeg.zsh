@@ -15,6 +15,23 @@ ffmpeg-detect-black-frame() {
   (( $(echo "$mean < 0.01" | bc -l) )) && return 0 || return 1
 }
 
+ffmpeg-set-url() {
+  local file="$1"
+  local url="$2"
+  local tmp="${file%.*}.tmp.${file##*.}"
+
+  ffmpeg -v error -i "$file" -metadata url="$url" -codec copy -y "$tmp" || {
+    echo "ffmpeg failed for $file" >&2
+    return 1
+  }
+
+  # Move to trash (macOS)
+  command -v trash >/dev/null 2>&1 && trash "$file" || mv "$file" ~/.Trash/
+
+  mv "$tmp" "$file"
+  echo "Updated metadata and replaced $file"
+}
+
 ffmpeg-detect-black-frame-nodeps() {
   local video_file="$1"
   local threshold="${2:-0.85}"  # Default threshold (0-1, higher = stricter)
