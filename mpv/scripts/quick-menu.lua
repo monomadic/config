@@ -11,7 +11,7 @@ local script_states = {
 }
 
 -- Track pause state to restore it after menu
-local was_paused = false
+-- local was_paused = false
 
 local function toggle_panscan()
     local current = mp.get_property_number("panscan", 0)
@@ -108,10 +108,8 @@ end
 
 local function show_menu()
     -- Store current pause state and pause if playing
-    was_paused = mp.get_property_bool("pause")
-    if not was_paused then
-        mp.set_property_bool("pause", true)
-    end
+    -- was_paused = mp.get_property_bool("pause")
+    mp.set_property_bool("pause", true)
     
     local panscan = mp.get_property_number("panscan", 0)
     local aspect = mp.get_property("video-aspect-override", "-1")
@@ -166,17 +164,13 @@ local function show_menu()
             end
             
             -- Restore pause state after menu closes
-            if not was_paused then
-                mp.set_property_bool("pause", false)
-            end
+            mp.set_property_bool("pause", false)
         end,
         on_close = function()
             -- Also restore pause state if menu is cancelled (ESC)
-            if not was_paused then
-                mp.set_property_bool("pause", false)
-            end
+            mp.set_property_bool("pause", false)
         end,
     })
 end
 
-mp.add_key_binding("M", "show-menu", show_menu)
+mp.add_key_binding("Tab", "show-menu", show_menu)

@@ -228,6 +228,22 @@ rename-m4v-to-mp4() {
   done
 }
 
+rename-extension() {
+  local e1=$1
+  local e2=$2
+  local f new
+  for f in *.$e1; do
+    [[ -e "$f" ]] || continue  # skip if no match
+    new="${f%.$e1}.$e2"
+    if [[ -e "$new" ]]; then
+      print -P "%F{yellow}Skipping:%f $f → $new (already exists)"
+    else
+      mv -- "$f" "$new"
+      print -P "%F{green}Renamed:%f  $f → $new"
+    fi
+  done
+}
+
 # note:
 # pipx install demucs
 # pipx inject demucs soundfile
