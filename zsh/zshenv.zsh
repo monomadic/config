@@ -18,7 +18,7 @@ path=(
   $path
 )
 
-export ICLOUD_HOME="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
+export ICLOUD_HOME="$HOME/Library/Mobile Documents/com\~apple\~CloudDocs"
 
 # MANPATH CONFIGURATION
 #
@@ -32,15 +32,21 @@ JUMP_DIRS=(
   "$HOME/Movies/**/*.mp4"
 )
 
+BASE_GLOBS=(
+  "/Volumes/*/"
+  "$HOME/"
+  "$ICLOUD_HOME"
+)
+
 # usage:
 # setopt local_options null_glob
-# mpv $~MEDIA_GLOBS
-# print -rl -- $^MEDIA_GLOBS
-# print -rl -- $~MEDIA_GLOBS
+# mpv $~ADULT_GLOBS
+# print -rl -- $^ADULT_GLOBS
+# print -rl -- $~ADULT_GLOBS
 #
 # null safe:
 # printf '%s\0' $~MEDIA_GLOBS | fzf --read0 -m
-MEDIA_GLOBS=(
+ADULT_GLOBS=(
   "/Volumes/*/Movies/Porn/**/*.mp4"
   "$HOME/Movies/Porn/**/*.mp4"
 )

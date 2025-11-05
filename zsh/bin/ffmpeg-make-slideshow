@@ -1,0 +1,63 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+# --- Config ---
+MAX_DURATION=10          # seconds per clip
+FADE_DURATION=0.5        # seconds for crossfade
+OUTPUT="stitched.mp4"
+
+# --- Usage ---
+if [[ $# -lt 1 ]]; then
+  echo "Usage: $(basename $0) <video1> <video2> ..."; exit 1
+fi
+
+# --- Build temp dir ---
+tmpdir=$(mktemp -d /tmp/stitch.XXXX)
+trap 'rm -rf "$tmpdir"' EXIT
+
+# --- Step 1: Normalize clip lengths ---
+index=0
+inputs=()
+for f in "$@"; do
+  index=$((index + 1))
+  dur=$(ffprobe -v error -show_entries format=duration \
+    -of default=noprint_wrappers=1:nokey=1 "$f")
+  dur=${dur%.*}
+  out="$tmpdir/clip_${index}.mp4"
+
+  if (( dur >= MAX_DURATION )); then
+    # trim to MAX_DURATION
+    ffmpeg -loglevel error -y -t $MAX_DURATION -i "$f" -an -c:v libx264 -preset veryfast -crf 18 "$out"
+  else
+    # loop short clips to reach MAX_DURATION
+    loops=$(( (MAX_DURATION + dur - 1) / dur ))  # ceil(MAX/dur)
+    ffmpeg -loglevel error -y -stream_loop $((loops - 1)) -t $MAX_DURATION -i "$f" -an -c:v libx264 -preset veryfast -crf 18 "$out"
+  fi
+
+  inputs+=("$out")
+done
+
+# --- Step 2: Create complex filter for crossfades ---
+filter=""
+for ((i=1; i<=${#inputs[@]}; i++)); do
+  filter+="[${i}:v]setpts=PTS-STARTPTS[v$i];"
+done
+
+for ((i=1; i<${#inputs[@]}; i++)); do
+  start=$(( (i - 1) * (MAX_DURATION - FADE_DURATION) ))
+  if (( i == 1 )); then
+    filter+="[v1][v2]xfade=transition=fade:duration=$FADE_DURATION:offset=$((MAX_DURATION-FADE_DURATION))[v12];"
+  else
+    prev="v$((i))"
+    filter+="[$prev][v$((i+1))]xfade=transition=fade:duration=$FADE_DURATION:offset=$((i*(MAX_DURATION-FADE_DURATION)))[v$((i+1))];"
+  fi
+done
+
+final="v${#inputs[@]}"
+
+# --- Step 3: Execute ffmpeg with complex filter ---
+ffmpeg -loglevel info -y \
+  $(for f in "${inputs[@]}"; do echo -n "-i '$f' "; done) \
+  -filter_complex "$filter" -map "[$final]" -c:v libx264 -preset fast -crf 18 "$OUTPUT"
+
+echo "✅ Created $OUTPUT"

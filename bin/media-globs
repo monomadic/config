@@ -1,0 +1,33 @@
+#!/usr/bin/env zsh
+setopt local_options null_glob extended_glob
+
+[[ $# -eq 1 ]] || return 2
+
+# collect subpaths
+local arg="$1"
+local -a subs
+if typeset -p -- "$arg" &>/dev/null && [[ $(typeset -p -- "$arg") == *" -a "* ]]; then
+  typeset -n _subs="$arg"     # nameref to array
+  subs=("${_subs[@]}")
+else
+  IFS=':' read -rA subs <<< "$arg"
+fi
+
+# expand BASE_GLOBS patterns into concrete base dirs
+local -a bases=() g
+for g in "${BASE_GLOBS[@]}"; do
+  bases+=( ${~g}(N/) )        # expand pattern; keep only dirs
+done
+
+# join base + sub, normalize slashes, keep only existing dirs
+local -a out=()
+local b s d
+for b in "${bases[@]}"; do
+  for s in "${subs[@]}"; do
+    d="${b%/}/${s#/}"
+    [[ -d $d ]] && out+=("$d")
+  done
+done
+
+reply=("${out[@]}")
+print -rl -- "${out[@]}"

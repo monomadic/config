@@ -1,0 +1,50 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+# Gather file list (absolute paths)
+paths=("${(@f)$(fd . --type f --absolute-path)}")
+
+# Generate unique hashtags from paths
+get_tags() {
+  printf '%s\n' "${paths[@]}" \
+    | rg -o '#[A-Za-z0-9_-]+' --no-filename \
+    | sort -fu
+}
+
+# Store current filters (space-separated hashtags)
+filters=()
+
+# Function to filter paths according to filters
+filtered_list() {
+  if (( ${#filters[@]} )); then
+    rg -i "$(printf '%s|' "${filters[@]}" | sed 's/|$//')" <<< "${(F)paths[@]}"
+  else
+    printf '%s\n' "${paths[@]}"
+  fi
+}
+
+# Function to run the main fzf loop
+main_fzf() {
+  local preview_cmd='echo {}'
+  local reload_cmd='
+    filters=$(get_tags | fzf --multi --prompt="Select tags> ")
+    if [ -n "$filters" ]; then
+      echo "FILTERS: $filters" >&2
+    fi
+  '
+
+  while true; do
+    # Generate filtered list and display only filename column
+    filtered_list \
+      | awk '{print $0 "\t" substr($0, match($0, /[^/]+$/))}' \
+      | fzf --with-nth=2 --delimiter='\t' \
+            --header="Press ctrl-f to select filters (current: ${filters[*]:-none})" \
+            --bind "ctrl-f:execute-silent(${reload_cmd})+reload(echo)" \
+            --bind "ctrl-r:reload(echo)" \
+            --prompt="Files> " \
+            --preview='echo {} | cut -f1' \
+            --ansi --cycle
+  done
+}
+
+main_fzf

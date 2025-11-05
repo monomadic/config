@@ -1,0 +1,112 @@
+#!/usr/bin/env zsh
+# base-subpaths.zsh — expand ${BASE_GLOBS} × SUBPATHS → real dirs (or files via fd)
+
+emulate -L zsh
+set -eu
+setopt null_glob no_nomatch extended_glob
+
+usage() {
+  cat <<'EOF'
+Usage: base-subpaths.zsh [options] SUBPATH [SUBPATH...]
+       base-subpaths.zsh [options] -s "SUB1:SUB2:SUB3"
+
+Options:
+  -s, --subpaths STR   Colon-separated subpaths (instead of positional args).
+  -b, --bases STR      Colon-separated base globs. Defaults to $BASE_GLOBS if set,
+                       else: /Volumes/* : $HOME : $HOME/Library/Mobile Documents/com~apple~CloudDocs
+  -F, --files          Output files under matched dirs (uses fd).
+  -0, --print0         NUL-terminate output.
+  -v, --verbose        Debug output to stderr.
+  -h, --help           Show help.
+
+ENV:
+  BASE_GLOBS           Colon-separated base globs, e.g. "/Volumes/*:$HOME:$ICLOUD_HOME"
+EOF
+}
+
+die() { print -ru2 -- "ERROR: $*"; exit 1; }
+
+# --- args ---
+typeset -a subs bases_raw
+list_files=false
+print0=false
+verbose=false
+
+while (( $# )); do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    -s|--subpaths) shift || die "missing value for --subpaths"
+      IFS=':' read -rA subs <<< "${1:-}"; shift ;;
+    -b|--bases) shift || die "missing value for --bases"
+      IFS=':' read -rA bases_raw <<< "${1:-}"; shift ;;
+    -F|--files)  list_files=true; shift ;;
+    -0|--print0) print0=true; shift ;;
+    -v|--verbose) verbose=true; shift ;;
+    --) shift; break ;;
+    -*) die "unknown option: $1" ;;
+    *)  subs+="$1"; shift ;;
+  esac
+done
+(( $# )) && subs+=("$@")
+(( ${#subs[@]} )) || die "no subpaths provided"
+
+# --- bases from CLI, env, or defaults ---
+if (( ! ${#bases_raw[@]} )); then
+  if [[ -n ${BASE_GLOBS-} ]]; then
+    IFS=':' read -rA bases_raw <<< "$BASE_GLOBS"
+  else
+    # NOTE: escape the literal tildes in the iCloud path!
+    bases_raw=(
+      '/Volumes/*'
+      "$HOME"
+      "$HOME/Library/Mobile Documents/com\~apple\~CloudDocs"
+    )
+  fi
+fi
+
+$verbose && {
+  print -ru2 -- "DBG bases_raw:"
+  printf '%s\n' "${bases_raw[@]}" >&2
+}
+
+# --- expand base globs into concrete dirs ---
+typeset -a bases=()
+for g in "${bases_raw[@]}"; do
+  # ${(~)g} treats the value of $g as a glob; (N/) keeps only existing dirs
+  bases+=( ${(~)g}(N/) )
+done
+
+$verbose && {
+  print -ru2 -- "DBG expanded bases:"
+  printf '%s\n' "${bases[@]}" >&2
+}
+
+# --- join base + sub, keep only existing dirs ---
+typeset -a out=()
+for b in "${bases[@]}"; do
+  for s in "${subs[@]}"; do
+    d="${b%/}/${s#/}"
+    [[ -d $d ]] && out+="$d"
+  done
+done
+
+$verbose && {
+  print -ru2 -- "DBG matched dirs:"
+  printf '%s\n' "${out[@]}" >&2
+}
+
+# --- output ---
+if $list_files; then
+  command -v fd >/dev/null 2>&1 || die "'fd' not found (required by --files)"
+  if $print0; then
+    fd -tf -0 . "${out[@]}" 2>/dev/null || true
+  else
+    fd -tf . "${out[@]}" 2>/dev/null || true
+  fi
+else
+  if $print0; then
+    printf '%s\0' "${out[@]}"
+  else
+    printf '%s\n' "${out[@]}"
+  fi
+fi
