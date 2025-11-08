@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="CUE 16">
+  <pad1 color="cue_color 1" name="`cue_display 1`">hotcue 1 ? hotcue 1 : nothing</pad1>
+  <pad2 name="`cue_display 2`" color="cue_color 2">hotcue 2 ? hotcue 2 : nothing</pad2>
+  <pad3 name="`cue_display 3`" color="cue_color 3">hotcue 3 ? hotcue 3 : nothing</pad3>
+  <pad4 name="`cue_display 4`" color="cue_color 4">hotcue 4 ? hotcue 4 : nothing</pad4>
+  <pad5 name="`cue_display 5`" color="cue_color 5">hotcue 5 ? hotcue 5 : nothing</pad5>
+  <pad6 name="`cue_display 6`" color="cue_color 6">hotcue 6 ? hotcue 6 : nothing</pad6>
+  <pad7 name="`cue_display 7`" color="cue_color 7">hotcue 7 ? hotcue 7 : nothing</pad7>
+  <pad8 name="`cue_display 8`" color="cue_color 8">hotcue 8 ? hotcue 8 : nothing</pad8>
+  <pad9 name="`cue_display 9`" color="cue_color 9">hotcue 9 ? hotcue 9 : nothing</pad9>
+  <pad10 name="`cue_display 10`" color="cue_color 10">hotcue 10 ? hotcue 10 : nothing</pad10>
+  <pad11 name="`cue_display 11`" color="cue_color 11">hotcue 11 ? hotcue 11 : nothing</pad11>
+  <pad12 name="`cue_display 12`" color="cue_color 12">hotcue 12 ? hotcue 12 : nothing</pad12>
+  <pad13 name="`cue_display 13`" color="cue_color 13">hotcue 13 ? hotcue 13 : nothing</pad13>
+  <pad14 name="`cue_display 14`" color="cue_color 14">hotcue 14 ? hotcue 14 : nothing</pad14>
+  <pad15 name="`cue_display 15`" color="cue_color 15">hotcue 15 ? hotcue 15 : nothing</pad15>
+  <pad16 name="`cue_display 16`" color="cue_color 16">hotcue 16 ? hotcue 16 : nothing</pad16>
+  <shift_pad1 color="cue_color 1" name="`cue_display 1`">hotcue 1 ? goto_cue 1 &amp; play &amp; phrase_sync 16 : nothing</shift_pad1>
+  <shift_pad2 color="cue_color 2" name="`cue_display 2`">hotcue 2 ? goto_cue 2 &amp; play &amp; phrase_sync 16 : nothing</shift_pad2>
+  <shift_pad3 color="cue_color 3" name="`cue_display 3`">hotcue 3 ? goto_cue 3 &amp; play &amp; phrase_sync 16 : nothing</shift_pad3>
+  <shift_pad4 color="cue_color 4" name="`cue_display 4`">hotcue 4 ? goto_cue 4 &amp; play &amp; phrase_sync 16 : nothing</shift_pad4>
+  <shift_pad5 color="cue_color 5" name="`cue_display 5`">hotcue 5 ? goto_cue 5 &amp; play &amp; phrase_sync 16 : nothing</shift_pad5>
+  <shift_pad6 color="cue_color 6" name="`cue_display 6`">hotcue 6? goto_cue 6 &amp; play &amp; phrase_sync 16 : nothing</shift_pad6>
+  <shift_pad7 color="cue_color 7" name="`cue_display 7`">hotcue 7 ? goto_cue 7 &amp; play &amp; phrase_sync 16 : nothing</shift_pad7>
+  <shift_pad8 color="cue_color 8" name="`cue_display 8`">hotcue 8 ? goto_cue 8 &amp; play &amp; phrase_sync 16 : nothing</shift_pad8>
+  <shift_pad9 color="cue_color 9" name="`cue_display 9`">hotcue 9 ? goto_cue 9 &amp; play &amp; phrase_sync 16 : nothing</shift_pad9>
+  <shift_pad10 color="cue_color 10" name="`cue_display 10`">hotcue 10 ? goto_cue 10 &amp; play &amp; phrase_sync 16 : nothing</shift_pad10>
+  <shift_pad11 color="cue_color 11" name="`cue_display 11`">hotcue 11 ? goto_cue 11 &amp; play &amp; phrase_sync 16 : nothing</shift_pad11>
+  <shift_pad12 color="cue_color 12" name="`cue_display 12`">hotcue 12 ? goto_cue 12 &amp; play &amp; phrase_sync 16 : nothing</shift_pad12>
+  <shift_pad13 color="cue_color 13" name="`cue_display 13`">hotcue 13 ? goto_cue 13 &amp; play &amp; phrase_sync 16 : nothing</shift_pad13>
+  <shift_pad14 color="cue_color 14" name="`cue_display 14`">hotcue 14 ? goto_cue 14 &amp; play &amp; phrase_sync 16 : nothing</shift_pad14>
+  <shift_pad15 color="cue_color 15" name="`cue_display 15`">hotcue 15 ? goto_cue 15 &amp; play &amp; phrase_sync 16 : nothing</shift_pad15>
+  <shift_pad16 color="cue_color 16" name="`cue_display 16`">hotcue 16 ? goto_cue 16 &amp; play &amp; phrase_sync 16 : nothing</shift_pad16>
+  <menu>Edit CUEs =[edit_poi]
+Read-only (lock hotcues) +[lock_cues]
+Smart Cue (beatmatch on play) +[smart_cue]
+-
+Quantize &gt;&gt; Off +[quantize_setcue off]
+Quantize &gt;&gt; Beat +[quantize_setcue on  &amp; setting 'globalQuantize' 1]
+Quantize &gt;&gt; Bar +[quantize_setcue on  &amp; setting 'globalQuantize' 4]
+Quantize &gt;&gt; Phrase (16) +[quantize_setcue on  &amp; setting 'globalQuantize' 16]
+Quantize &gt;&gt; Phrase (32) +[quantize_setcue on  &amp; setting 'globalQuantize' 32]
+Phrase Length &gt;&gt; 16 +[setting beatCounterRange 16]
+Phrase Length &gt;&gt; 32 +[setting beatCounterRange 32]</menu>
+  <param2 name="CUE">goto_cue</param2>
+  <param1 name="`setting hotcueMode &amp; param_uppercase`">setting hotcueMode</param1>
+</page>

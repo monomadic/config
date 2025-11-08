@@ -10,8 +10,8 @@ USE_COLOR=false
 
 # NerdFonts icons
 ICON_VIDEO="󰎈"
-ICON_OK=""
-ICON_WARN=""
+ICON_OK=""
+ICON_WARN=""
 
 # Color handling (disabled by default)
 RESET=""; GREEN=""; YELLOW=""; CYAN=""
@@ -121,13 +121,23 @@ process_video() {
   local smaller_dim=$(( width < height ? width : height ))
   local resolution; resolution="$(get_resolution_label "$smaller_dim")"
 
+  # Orientation
+  local orientation
+  if (( width > height )); then
+    orientation="landscape"
+  elif (( height > width )); then
+    orientation="portrait"
+  else
+    orientation="square"
+  fi
+
   # Mbps (no bc dependency)
   local mbps="unknown"
   if [[ -n "$bit_rate" && "$bit_rate" != "N/A" ]]; then
     mbps="$(awk -v b="$bit_rate" 'BEGIN{printf("%.1fmbps", b/1000000)}')"
   fi
 
-  local new_filename="${name_without_ext} {${resolution}@${frame_rate}fps, ${mbps}}.${extension}"
+  local new_filename="${name_without_ext} {${resolution}@${frame_rate}fps, ${mbps}, ${orientation}}.${extension}"
   local new_path="${dirname}/${new_filename}"
 
   if [[ -e "$new_path" ]]; then

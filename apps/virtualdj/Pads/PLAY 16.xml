@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="PLAY 16">
+  <pad1 name="◀ CUE" color="color white" autodim="false">goto_cue -1</pad1>
+  <pad2 name="CUE ▶" color="color white" autodim="false">goto_cue +1</pad2>
+  <pad3 name="BPM-&gt;" color="color white" autodim="false">var '@$abpmt_source' 1 ? auto_bpm_transition 'source_original' : auto_bpm_transition</pad3>
+  <pad4 name="BPM `get_text '%Ppitch%'`" color="param_add `get_bpm` `get_bpm 'absolute' &amp; param_multiply -1` &amp; param_bigger 20 ? color red : color green" autodim="false">pitch_reset 4bt</pad4>
+  <pad5 name="VOCAL" color="stem_color 'Vocal'" autodim="false">stem_pad 'Vocal'</pad5>
+  <pad6 name="MELODY" color="stem_color 'Melody'" autodim="false">stem_pad 'Melody'</pad6>
+  <pad7 name="DRUM" color="stem_color 'Rhythm'" autodim="false">stem_pad 'Rhythm'</pad7>
+  <pad8 name="ACAPELLA" color="color pink">stem_pad 'acapella'</pad8>
+  <!-- COLOR FX - Filter knob’s assignment. Label shows active effect. -->
+  <pad9 name="CFX `filter_label 'name' &amp; param_uppercase`" color="color magenta" query="filter_activate">filter_activate</pad9>
+  <!-- FX SLOT 1 -->
+  <pad10 name="FX1 `get_effect_name 1 &amp; param_uppercase`" color="color yellow" query="effect_active 1">effect_active 1</pad10>
+  <!-- FX SLOT 2 -->
+  <pad11 name="FX2 `get_effect_name 2 &amp; param_uppercase`" color="color yellow" query="effect_active 2">effect_active 2</pad11>
+  <!-- FX SLOT 3 -->
+  <pad12 name="FX3 `get_effect_name 3 &amp; param_uppercase`" color="color yellow" query="effect_active 3">effect_active 3</pad12>
+  <pad13 name="MASTER" color="color orange">masterdeck</pad13>
+  <pad14 name="PHRASE" color="color white">sync &amp; phrase_sync 32</pad14>
+  <pad15 name="SYNC" color="color white">sync &amp; phrase_sync 16</pad15>
+  <pad16 name="PLAY" color="color 'green'">play_button</pad16>
+  <shift_pad1 name="◀ PHRASE" color="color white">goto_cue -16</shift_pad1>
+  <shift_pad2 name="PHRASE ▶" color="color white">goto_cue +16</shift_pad2>
+  <shift_pad3 name="◀ PAGE" color="color white">goto_cue 3 &amp; play</shift_pad3>
+  <shift_pad4 name="PAGE ▶" color="color white">goto_cue 4 &amp; play</shift_pad4>
+  <shift_pad5 name="VOCAL ISO" color="stem_color 'Vocal'">action_deck 1 ? deck 1 mute_stem vocal off &amp; deck 2 mute_stem vocal on &amp; deck 3 mute_stem vocal on &amp; deck 4 mute_stem vocal on : action_deck 2 ? deck 1 mute_stem vocal on &amp; deck 2 mute_stem vocal off &amp; deck 3 mute_stem vocal on &amp; deck 4 mute_stem vocal on : action_deck 3 ? deck 1 mute_stem vocal on &amp; deck 2 mute_stem vocal on &amp; deck 3 mute_stem vocal off &amp; deck 4 mute_stem vocal on : deck 1 mute_stem vocal on &amp; deck 2 mute_stem vocal on &amp; deck 3 mute_stem vocal on &amp; deck 4 mute_stem vocal off</shift_pad5>
+  <shift_pad6 name="MELODY ISO" color="stem_color 'melody'">action_deck 1 ? deck 1 mute_stem melody off &amp; deck 2 mute_stem melody on &amp; deck 3 mute_stem melody on &amp; deck 4 mute_stem melody on : action_deck 2 ? deck 1 mute_stem melody on &amp; deck 2 mute_stem melody off &amp; deck 3 mute_stem melody on &amp; deck 4 mute_stem melody on : action_deck 3 ? deck 1 mute_stem melody on &amp; deck 2 mute_stem melody on &amp; deck 3 mute_stem melody off &amp; deck 4 mute_stem melody on : deck 1 mute_stem melody on &amp; deck 2 mute_stem melody on &amp; deck 3 mute_stem melody on &amp; deck 4 mute_stem melody off</shift_pad6>
+  <shift_pad7 name="DRUMS ISO" color="stem_color 'Rhythm'">action_deck 1 ? deck 1 mute_stem rhythm off &amp; deck 2 mute_stem rhythm on &amp; deck 3 mute_stem rhythm on &amp; deck 4 mute_stem rhythm on : action_deck 2 ? deck 1 mute_stem rhythm on &amp; deck 2 mute_stem rhythm off &amp; deck 3 mute_stem rhythm on &amp; deck 4 mute_stem rhythm on : action_deck 3 ? deck 1 mute_stem rhythm on &amp; deck 2 mute_stem rhythm on &amp; deck 3 mute_stem rhythm off &amp; deck 4 mute_stem rhythm on : deck 1 mute_stem rhythm on &amp; deck 2 mute_stem rhythm on &amp; deck 3 mute_stem rhythm on &amp; deck 4 mute_stem rhythm off</shift_pad7>
+  <shift_pad8 name="BEAT" color="color '#F31456'">goto_first_beat</shift_pad8>
+  <shift_pad13 name="KILL FX" color="color red">effect_disable_all &amp; filter_activate off &amp; filter 50%</shift_pad13>
+  <shift_pad14 name="KILL SAMPLER" color="color red">sampler_stop all</shift_pad14>
+  <param1 name="`pad_has_16pads ?   var_equal 'hcpage' 0 ? get_text 'CUES 1-16' :   var_equal 'hcpage' 1 ? get_text 'CUES 17-32' :   var_equal 'hcpage' 2 ? get_text 'CUES 33-48' :   var_equal 'hcpage' 3 ? get_text 'CUES 49-64' :   var_equal 'hcpage' 4 ? get_text 'CUES 65-80' :   var_equal 'hcpage' 5 ? get_text 'CUES 81-96' :   var_equal 'hcpage' 6 ? get_text 'CUES 97-112' : nothing :   var_equal 'hcpage' 0 ? get_text 'CUES 1-8' :   var_equal 'hcpage' 1 ? get_text 'CUES 9-16' :   var_equal 'hcpage' 2 ? get_text 'CUES 17-24' :   var_equal 'hcpage' 3 ? get_text 'CUES 25-32' :   var_equal 'hcpage' 4 ? get_text 'CUES 33-40' :   var_equal 'hcpage' 5 ? get_text 'CUES 41-48' :   var_equal 'hcpage' 6 ? get_text 'CUES 49-56' :   var_equal 'hcpage' 7 ? get_text 'CUES 57-64' :   var_equal 'hcpage' 8 ? get_text 'CUES 65-72' :   var_equal 'hcpage' 9 ? get_text 'CUES 73-80' :   var_equal 'hcpage' 10 ? get_text 'CUES 81-88' :   var_equal 'hcpage' 11 ? get_text 'CUES 89-96' :   var_equal 'hcpage' 12 ? get_text 'CUES 97-104' :   var_equal 'hcpage' 13 ? get_text 'CUES 105-112'`">
+		pad_has_16pads ?
+			param_smaller 0 ? var_equal 'hcpage' 0 ? nothing : cycle 'hcpage' -7 : var_equal 'hcpage' 6 ? nothing : cycle 'hcpage' +7 :
+			param_smaller 0 ? var_equal 'hcpage' 0 ? nothing : cycle 'hcpage' -15 : var_equal 'hcpage' 13 ? nothing : cycle 'hcpage' +15
+	</param1>
+  <param2 name="PHRASE">param_greater 0 ? goto +16bt : goto -16bt</param2>
+</page>
