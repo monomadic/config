@@ -43,9 +43,9 @@ fd-visuals() {
   roots+=($HOME/Movies/Visuals(N) /Volumes/*/Movies/Visuals(N))
 
   # Print NUL-separated absolute paths from fd-video
-  fd-video --print0 --absolute-path -- "$query" "${roots[@]}"
+  fd-video --absolute-path -- "$query" "${roots[@]}"
 }
-alias ..visuals="fd-visuals | mpv-select"
+alias ..visuals="fd-visuals | mpv-socket"
 
 alias fd-clips="fd --absolute-path --exact-depth=1 --color=never . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N)"
 alias ..clips="fd-clips | mpv-socket"
