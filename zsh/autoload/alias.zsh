@@ -159,6 +159,7 @@ mp4-enable-faststart() {
 
 # media search
 alias @="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
+alias @towerlocal="fd-video . /Volumes/Tower/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
 
 @unique() (
   fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) \

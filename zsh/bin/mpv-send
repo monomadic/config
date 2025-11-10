@@ -1,47 +1,172 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-SOCKET="/tmp/mpv-socket"
+SOCKET="${SOCKET:-/tmp/mpv-socket}"
 
-# Check if socket exists
+# --- Guards ---
 if [[ ! -S "$SOCKET" ]]; then
-    echo "Error: mpv socket not found at $SOCKET"
-    echo "Start mpv with: mpv --idle --input-ipc-server=$SOCKET"
-    exit 1
+  echo "Error: mpv socket not found at $SOCKET"
+  echo "Start mpv with: mpv --idle --input-ipc-server=$SOCKET"
+  exit 1
 fi
 
-# Parse command
-case "${1:-}" in
-    play)
-        shift
-        [[ $# -eq 0 ]] && { echo "Usage: mpv-send play <files...>"; exit 1; }
-        
-        for file in "$@"; do
-            # Convert to absolute path
-            [[ "$file" != /* ]] && file="$(pwd)/$file"
-            printf '{ "command": ["loadfile", "%s", "append-play"] }\n' "$file" | \
-                socat - "$SOCKET" >/dev/null 2>&1 || echo "Error: failed to send $file"
+# --- Helpers ---
+json_escape() {
+  local s="$1"
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}
+  print -r -- "$s"
+}
+
+_have() { command -v "$1" >/dev/null 2>&1; }
+
+mpv_send_raw() {
+  local payload="$1"
+  if _have socat; then
+    print -r -- "$payload" | socat - "$SOCKET" >/dev/null 2>&1
+  elif _have nc; then
+    print -r -- "$payload" | nc -U "$SOCKET" >/dev/null 2>&1
+  else
+    echo "Error: need 'socat' or 'nc' installed." >&2
+    return 1
+  fi
+}
+
+mpv_cmd() {
+  local -a parts=()
+  local a
+  for a in "$@"; do
+    parts+=$'"'$(json_escape "$a")$'"'
+  done
+  local joined; joined="$(IFS=,; echo "${parts[*]}")"
+  mpv_send_raw '{ "command": ['"$joined"'] }'
+}
+
+abs_path() {
+  local f="$1"
+  [[ "$f" != /* ]] && f="$(pwd)/$f"
+  print -r -- "$f"
+}
+
+usage() {
+  cat <<'USAGE'
+Usage: mpv-send <command> [args]
+
+Commands:
+  play [files...]         Add files to playlist.
+                          Reads from stdin first (newline by default).
+                          Falls back to args if stdin is empty.
+                          Options: -0|--read0 (NUL-delimited stdin)
+  next                    Skip to next file
+  prev                    Jump to previous file
+  random                  Jump to a random file (shuffle + next)
+  osd on|off|toggle|0..3  Control OSD (osd-level)
+  panscan <0..1>|on|off|toggle  Set/toggle pan&scan
+
+Env:
+  SOCKET=/tmp/mpv-socket
+USAGE
+}
+
+cmd="${1:-}"
+[[ -n "${cmd}" ]] && shift || { usage; exit 1; }
+
+case "$cmd" in
+  play)
+    local read0=false
+    while [[ $# -gt 0 && "$1" == -* ]]; do
+      case "$1" in
+        -0|--read0) read0=true ;;
+        --) shift; break ;;
+        *) break ;;
+      esac
+      shift
+    done
+
+    local -a items=()
+
+    # Prefer stdin if it’s not a TTY; if empty, fall back to args.
+    if [[ ! -t 0 ]]; then
+      if $read0; then
+        local line
+        while IFS= read -r -d $'\0' line; do
+          [[ -n "$line" ]] && items+=("$line")
         done
-        echo "Sent $# file(s) to mpv"
+      else
+        local line
+        while IFS= read -r line; do
+          [[ -n "$line" ]] && items+=("$line")
+        done
+      fi
+    fi
+
+    # If stdin yielded nothing, use remaining args.
+    if [[ ${#items[@]} -eq 0 && $# -gt 0 ]]; then
+      items=("$@")
+    fi
+
+    if [[ ${#items[@]} -eq 0 ]]; then
+      echo "Error: no input. Pipe paths on stdin or pass files as arguments."
+      exit 1
+    fi
+
+    local f sent=0
+    for f in "${items[@]}"; do
+      f="$(abs_path "$f")"
+      mpv_cmd loadfile "$f" "append-play" || {
+        echo "Error: failed to send $f" >&2
+        continue
+      }
+      ((sent++))
+    done
+    echo "Sent $sent file(s) to mpv"
+    ;;
+
+  next)
+    mpv_cmd playlist-next || true
+    echo "Skipped to next track"
+    ;;
+
+  prev)
+    mpv_cmd playlist-prev || true
+    echo "Jumped to previous track"
+    ;;
+
+  random)
+    mpv_cmd playlist-shuffle || true
+    mpv_cmd playlist-next force || true
+    echo "Jumped to a random track"
+    ;;
+
+  osd)
+    local sub="${1:-}"
+    case "$sub" in
+      on)     mpv_cmd set_property osd-level 3  || true; echo "OSD: on" ;;
+      off)    mpv_cmd set_property osd-level 0  || true; echo "OSD: off" ;;
+      toggle) mpv_cmd cycle-values osd-level 0 3 || true; echo "OSD: toggled 0↔3" ;;
+      0|1|2|3) mpv_cmd set_property osd-level "$sub" || true; echo "OSD level: $sub" ;;
+      *) echo "Usage: mpv-send osd on|off|toggle|0..3"; exit 1 ;;
+    esac
+    ;;
+
+  panscan|pan-scan)
+    local val="${1:-}"
+    case "$val" in
+      on)     mpv_cmd set_property panscan 1   || true; echo "panscan: 1" ;;
+      off)    mpv_cmd set_property panscan 0   || true; echo "panscan: 0" ;;
+      toggle) mpv_cmd cycle-values panscan 0 1 || true; echo "panscan: toggled 0↔1" ;;
+      "")
+        echo "Usage: mpv-send panscan <0..1>|on|off|toggle"; exit 1
         ;;
-    
-    next)
-        printf '{ "command": ["playlist-next"] }\n' | socat - "$SOCKET" >/dev/null 2>&1
-        echo "Skipped to next track"
+      *)
+        mpv_cmd set_property panscan "$val" || true
+        echo "panscan: $val"
         ;;
-    
-    prev)
-        printf '{ "command": ["playlist-prev"] }\n' | socat - "$SOCKET" >/dev/null 2>&1
-        echo "Jumped to previous track"
-        ;;
-    
-    *)
-        echo "Usage: mpv-send <command> [args]"
-        echo ""
-        echo "Commands:"
-        echo "  play <files...>  Add files to playlist"
-        echo "  next             Skip to next file"
-        echo "  prev             Jump to previous file"
-        exit 1
-        ;;
+    esac
+    ;;
+
+  *)
+    usage; exit 1
+    ;;
 esac

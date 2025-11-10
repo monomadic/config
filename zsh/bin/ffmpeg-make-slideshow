@@ -7,57 +7,72 @@ FADE_DURATION=0.5        # seconds for crossfade
 OUTPUT="stitched.mp4"
 
 # --- Usage ---
-if [[ $# -lt 1 ]]; then
-  echo "Usage: $(basename $0) <video1> <video2> ..."; exit 1
+if (( $# < 1 )); then
+  print -r -- "Usage: ${0:t} <video1> <video2> ..." >&2
+  exit 1
 fi
 
 # --- Build temp dir ---
 tmpdir=$(mktemp -d /tmp/stitch.XXXX)
 trap 'rm -rf "$tmpdir"' EXIT
 
-# --- Step 1: Normalize clip lengths ---
-index=0
-inputs=()
+# --- Step 1: Normalize clip lengths (video only) ---
+typeset -a inputs
+integer index=0
 for f in "$@"; do
-  index=$((index + 1))
+  (( index++ ))
+  # duration in whole seconds (floor)
   dur=$(ffprobe -v error -show_entries format=duration \
-    -of default=noprint_wrappers=1:nokey=1 "$f")
+        -of default=noprint_wrappers=1:nokey=1 -- "$f" || echo 0)
   dur=${dur%.*}
+  (( dur <= 0 )) && { print -r -- "skip (unreadable): $f" >&2; continue; }
+
   out="$tmpdir/clip_${index}.mp4"
-
   if (( dur >= MAX_DURATION )); then
-    # trim to MAX_DURATION
-    ffmpeg -loglevel error -y -t $MAX_DURATION -i "$f" -an -c:v libx264 -preset veryfast -crf 18 "$out"
+    ffmpeg -loglevel error -y -t "$MAX_DURATION" -i "$f" -an -c:v libx264 -preset veryfast -crf 18 -- "$out"
   else
-    # loop short clips to reach MAX_DURATION
-    loops=$(( (MAX_DURATION + dur - 1) / dur ))  # ceil(MAX/dur)
-    ffmpeg -loglevel error -y -stream_loop $((loops - 1)) -t $MAX_DURATION -i "$f" -an -c:v libx264 -preset veryfast -crf 18 "$out"
+    # ceil(MAX/dur)
+    loops=$(( (MAX_DURATION + dur - 1) / dur ))
+    ffmpeg -loglevel error -y -stream_loop $((loops - 1)) -t "$MAX_DURATION" -i "$f" -an -c:v libx264 -preset veryfast -crf 18 -- "$out"
   fi
-
-  inputs+=("$out")
+  inputs+="$out"
 done
 
-# --- Step 2: Create complex filter for crossfades ---
+(( ${#inputs} == 0 )) && { print -r -- "no valid inputs"; exit 1; }
+(( ${#inputs} == 1 )) && {
+  # single file, just copy it to OUTPUT
+  ffmpeg -loglevel info -y -i "${inputs[1]}" -c copy -- "$OUTPUT"
+  print -r -- "✅ Created $OUTPUT"
+  exit 0
+}
+
+# --- Step 2: Build filtergraph with xfade chain ---
+# label each normalized clip as [v0]..[vN-1]
 filter=""
-for ((i=1; i<=${#inputs[@]}; i++)); do
-  filter+="[${i}:v]setpts=PTS-STARTPTS[v$i];"
+for ((i=0; i<${#inputs}; i++)); do
+  filter+="[${i}:v]setpts=PTS-STARTPTS[v${i}];"
 done
 
-for ((i=1; i<${#inputs[@]}; i++)); do
-  start=$(( (i - 1) * (MAX_DURATION - FADE_DURATION) ))
-  if (( i == 1 )); then
-    filter+="[v1][v2]xfade=transition=fade:duration=$FADE_DURATION:offset=$((MAX_DURATION-FADE_DURATION))[v12];"
-  else
-    prev="v$((i))"
-    filter+="[$prev][v$((i+1))]xfade=transition=fade:duration=$FADE_DURATION:offset=$((i*(MAX_DURATION-FADE_DURATION)))[v$((i+1))];"
-  fi
+# first crossfade: [v0][v1] -> [xf1]
+segment=$(( MAX_DURATION - FADE_DURATION ))     # float in zsh arithmetic is fine
+filter+="[v0][v1]xfade=transition=fade:duration=${FADE_DURATION}:offset=${segment}[xf1];"
+
+# chain remaining: [xf{k-1}][v{k}] -> [xf{k}]
+for ((k=2; k<${#inputs}; k++)); do
+  off=$(( k * segment ))
+  filter+="[xf$((k-1))][v${k}]xfade=transition=fade:duration=${FADE_DURATION}:offset=${off}[xf${k}];"
 done
 
-final="v${#inputs[@]}"
+final_label="xf$(( ${#inputs} - 1 ))"
 
-# --- Step 3: Execute ffmpeg with complex filter ---
-ffmpeg -loglevel info -y \
-  $(for f in "${inputs[@]}"; do echo -n "-i '$f' "; done) \
-  -filter_complex "$filter" -map "[$final]" -c:v libx264 -preset fast -crf 18 "$OUTPUT"
+# --- Step 3: Assemble ffmpeg argv properly (no broken quoting) ---
+typeset -a argv
+argv=(-loglevel info -y)
+for f in "${inputs[@]}"; do
+  argv+=(-i "$f")
+done
+argv+=(-filter_complex "$filter" -map "[$final_label]" -c:v libx264 -preset fast -crf 18 -- "$OUTPUT")
 
-echo "✅ Created $OUTPUT"
+ffmpeg "${argv[@]}"
+
+print -r -- "✅ Created $OUTPUT"
