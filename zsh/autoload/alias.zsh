@@ -316,7 +316,6 @@ alias .demux-audio="ffmpeg-demux --audio"
 
 alias url="yt-url"
 
-alias rsync-backup-masters="rsync-backup /Volumes/Masters/Movies/Porn/Masters $BACKUP_TARGET/Movies/Porn/Masters"
 alias tag=rename-media
 alias .tag=tag
 
