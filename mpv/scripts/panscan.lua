@@ -1,28 +1,61 @@
--- Reapply panscan on each file; toggle + step bindings via script-binding.
-local mp = require 'mp'
-local enabled = true
-local level = 1.0
+-- panscan-persist.lua
+-- Persist panscan state (enabled + level) across files and restarts.
 
-local function apply()
-  mp.set_property_number("panscan", enabled and level or 0)
+local mp    = require 'mp'
+local utils = require 'mp.utils'
+
+local state_file = mp.command_native({'expand-path', '~~/script-opts/panscan-state.json'})
+local enabled, level = true, 1.0
+
+local function clamp(x, lo, hi)
+  if x < lo then return lo end
+  if x > hi then return hi end
+  return x
 end
 
-mp.register_event("file-loaded", apply)
+local function load_state()
+  local f = io.open(state_file, 'r')
+  if not f then return end
+  local s = f:read('*a'); f:close()
+  if not s or s == '' then return end
+  local t = utils.parse_json(s)
+  if t then
+    if t.enabled ~= nil then enabled = not not t.enabled end
+    if t.level  ~= nil then level   = clamp(tonumber(t.level) or level, 0.0, 1.0) end
+  end
+end
 
-mp.add_key_binding(nil, "toggle", function()
+local function save_state()
+  local s = utils.format_json({ enabled = enabled, level = level })
+  local f = io.open(state_file, 'w')
+  if not f then return end
+  f:write(s); f:close()
+end
+
+local function apply()
+  mp.set_property_number('panscan', enabled and level or 0)
+end
+
+load_state()
+mp.register_event('file-loaded', apply)
+mp.register_event('shutdown', save_state)
+
+mp.add_key_binding(nil, 'toggle', function()
   enabled = not enabled
-  apply()
+  apply(); save_state()
   mp.osd_message(("panscan: %s"):format(enabled and ("ON ("..level..")") or "OFF"))
 end)
 
-mp.add_key_binding(nil, "inc", function()
-  level = math.min(1.0, level + 0.1)
+mp.add_key_binding(nil, 'inc', function()
+  level = clamp(level + 0.1, 0.0, 1.0)
   if enabled then apply() end
+  save_state()
   mp.osd_message(("panscan=%.1f"):format(level))
 end)
 
-mp.add_key_binding(nil, "dec", function()
-  level = math.max(0.0, level - 0.1)
+mp.add_key_binding(nil, 'dec', function()
+  level = clamp(level - 0.1, 0.0, 1.0)
   if enabled then apply() end
+  save_state()
   mp.osd_message(("panscan=%.1f"):format(level))
 end)
