@@ -1,0 +1,27 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+  print -u2 "Usage: ${0:t} <script-name>"
+  exit 1
+fi
+
+# Respect EDITOR / VISUAL, fall back to something sane
+editor=${EDITOR:-${VISUAL:-hx}}
+
+name=$1
+
+# Find the command in PATH
+cmd_path=$(command -v -- "$name" 2>/dev/null || true)
+
+if [[ -z "$cmd_path" ]]; then
+  print -u2 "edit-script: command not found: $name"
+  exit 1
+fi
+
+if [[ ! -f "$cmd_path" ]]; then
+  print -u2 "edit-script: not a regular file: $cmd_path"
+  exit 1
+fi
+
+exec "$editor" "$cmd_path"

@@ -22,3 +22,46 @@ mkdir -p ~/.zsh/completions
 # Load completions
 fpath+=(~/.zsh/completions)
 autoload -Uz compinit && compinit
+
+# --- command: e <file> -> open in default editor ---
+e() {
+  local editor=${EDITOR:-${VISUAL:-vi}}
+  "$editor" "$@"
+}
+
+_edit-script() {
+  local -a names descs dirs
+  local file header base
+
+  dirs=(
+    "$HOME/config/bin"
+    "$HOME/config/zsh/bin"
+  )
+
+  for dir in $dirs; do
+    [[ -d $dir ]] || continue
+
+    # regular files, nullglob, no error if none
+    for file in $dir/*(N-); do
+      [[ -r $file ]] || continue
+
+      # Shebang filter => treat as "script"
+      if IFS= read -r header <"$file"; then
+        [[ $header == '#!'* ]] || continue
+      else
+        continue
+      fi
+
+      base=${file:t}
+
+      names+="$base"
+      descs+="$file"
+    done
+  done
+
+  (( ${#names} )) || return 1
+
+  # Show: name  —  /full/path
+  compadd -d descs -- $names
+}
+compdef _edit-script edit-script

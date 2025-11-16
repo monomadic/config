@@ -1,7 +1,8 @@
 # detect available media paths
 ls-media-paths-checked() {
-  for media_path in $(ls-media-paths); do
-    echo $media_path
+  ls-media-paths | while IFS= read -r media_path; do
+    [[ $media_path == *Backup* ]] && continue
+    echo "$media_path"
   done
 }
 

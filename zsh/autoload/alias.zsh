@@ -50,6 +50,18 @@ alias ..visuals="fd-visuals | mpv-socket"
 alias fd-clips="fd --absolute-path --exact-depth=1 --color=never . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N)"
 alias ..clips="fd-clips | mpv-socket"
 
+# open with default editor
+e() {
+  local editor=${EDITOR:-${VISUAL:-vi}}
+  "$editor" "$@"
+}
+# completion: recursively list all files/dirs under $PWD
+_e() {
+  # use zsh's builtin file completion with a recursive glob
+  _files -g '**/*'
+}
+compdef _e e
+
 mpv-play-visuals() {
   local query=$1
   local -a files
@@ -83,16 +95,6 @@ mpv-select-all-v2() {
 
 kitty-mpv-tab() {
   kitty @ launch --type=tab env PATH="$PATH" kitty-exec "  all" "#A442F3" $@
-}
-
-kitty-helix() {
-  target="$1"
-  base="${target##*/}"
-  kitty @ set-tab-color active_bg="#04F273" inactive_fg="#04F273"
-  kitty @ set-tab-title "  $base"
-  hx "$@"
-  kitty @ set-tab-color active_bg="#ddddfd" inactive_fg="#ddddfd"
-  kitty @ set-tab-title ""
 }
 
 pv-select-queue() {
@@ -413,7 +415,6 @@ alias dd-force='WD=${PWD} && cd ~/config/ && dotter --force --cache-directory ~/
 alias dd='WD=${PWD} && cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml deploy --global-config global.toml --local-config local.toml && cd $WD && echo "\nDone."'
 alias doc="cargo doc --open"
 alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml watch --global-config global.toml --local-config local.toml'
-alias e=$EDITOR
 alias eb="edit-bin"
 alias edit=$EDITOR
 alias fd-empty="fd --type empty"

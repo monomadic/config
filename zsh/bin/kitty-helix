@@ -1,0 +1,11 @@
+#!/bin/zsh
+# Usage: kitty-helix <title> <color> <command> [args...]
+
+target="$1"
+base="${target##*/}"
+
+kitty @ set-tab-color active_bg="#04F273" inactive_fg="#04F273"
+kitty @ set-tab-title "  $base"
+hx "$@"
+kitty @ set-tab-color active_bg="#ddddfd" inactive_fg="#ddddfd"
+kitty @ set-tab-title ""
