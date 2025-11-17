@@ -3,13 +3,19 @@ set -euo pipefail
 
 SOCKET="/tmp/mpv-socket"
 
+# --- Dependency checks ---
+for bin in mpv socat; do
+    if ! command -v "$bin" >/dev/null 2>&1; then
+        echo "Error: $bin not found in PATH" >&2
+        exit 1
+    fi
+done
+
 # --- Argument parsing ---
 show_absolute=false
 for arg in "$@"; do
     case "$arg" in
-        --absolute-paths)
-            show_absolute=true
-            ;;
+        --absolute-paths) show_absolute=true ;;
     esac
 done
 
@@ -18,57 +24,73 @@ if [[ -p /dev/stdin ]]; then
     full_paths=$(cat)
     [[ -z "$full_paths" ]] && { echo "No input received via stdin"; exit 1; }
 else
-    echo "Error: This script expects piped input"
+    echo "Error: This script expects piped input" >&2
     exit 1
 fi
 
-# --- FZF selection (show basenames but select full paths) ---
+# --- FZF selection ---
 if $show_absolute; then
     selected=$(echo "$full_paths" | fzf --multi --exact --cycle --bind 'enter:select-all+accept')
 else
-    selected=$(echo "$full_paths" | fzf --multi --exact --cycle --bind 'enter:select-all+accept' --delimiter='/' --with-nth=-1)
+    selected=$(echo "$full_paths" | fzf --multi --exact --cycle \
+        --bind 'enter:select-all+accept' \
+        --delimiter='/' --with-nth=-1)
 fi
 [[ -z "$selected" ]] && { echo "No files selected"; exit 0; }
 
 file_count=$(echo "$selected" | wc -l | tr -d ' ')
 echo "Selected $file_count files"
 
+# --- Helper: send IPC ---
+send_ipc() {
+    local payload=$1
+    printf '%s\n' "$payload" | socat - "$SOCKET"
+}
+
 # --- MPV socket handling ---
 mpv_was_running=false
 if pgrep -qf "mpv.*input-ipc-server=$SOCKET"; then
     echo "Found active socket at $SOCKET"
     mpv_was_running=true
-
-    send_ipc() {
-        local payload=$1
-        if ! command -v socat >/dev/null 2>&1; then
-            echo "Error: socat not found in PATH (needed for mpv IPC)" >&2
-            return 1
-        fi
-
-        printf '%s\n' "$payload" | socat - "$SOCKET"
-    }
     echo "Stopping playback and clearing playlist..."
-    send_ipc '{ "command": ["stop"] }'        >/dev/null 2>&1 || echo "Warn: stop failed"
+    send_ipc '{ "command": ["stop"] }'           >/dev/null 2>&1 || echo "Warn: stop failed"
     send_ipc '{ "command": ["playlist-clear"] }' >/dev/null 2>&1 || echo "Warn: clear failed"
 else
     echo "No active socket. Starting mpv..."
-    mpv --idle --input-ipc-server="$SOCKET" >/dev/null 2>&1 &
-    sleep 0.5
+    mpv --idle --input-ipc-server="$SOCKET" >/tmp/mpv-ipc.log 2>&1 &
+    # Wait for socket to become usable (up to ~5s)
+    ready=false
+    for i in {1..50}; do
+        if [[ -S $SOCKET ]]; then
+            if printf '{"command":["get_property","idle-active"]}\n' \
+                | socat - "$SOCKET" >/dev/null 2>&1; then
+                ready=true
+                break
+            fi
+        fi
+        sleep 0.1
+    done
+    if ! $ready; then
+        echo "Error: mpv socket $SOCKET did not become usable. Check /tmp/mpv-ipc.log" >&2
+        exit 1
+    fi
 fi
 
 # --- Send files to mpv ---
 echo "Sending files to mpv..."
 echo "$selected" | while IFS= read -r file; do
-    send_ipc "$(printf '{ "command": ["loadfile", "%s", "append-play"] }\n' "$file")" \
-        >/dev/null 2>&1 || echo "Error: failed to send $file"
+    payload=$(printf '{ "command": ["loadfile", "%s", "append-play"] }\n' "$file")
+    if ! send_ipc "$payload"; then
+        echo "Error: failed to send $file"
+    fi
 done
 
 echo "$file_count files sent to mpv"
 
 # --- Bring mpv to front ---
 if $mpv_was_running; then
-    pid=$(echo '{"command":["get_property","pid"]}' | socat - "$SOCKET" | grep -o '"data":[0-9]*' | cut -d: -f2)
+    pid=$(printf '{"command":["get_property","pid"]}\n' | socat - "$SOCKET" \
+        | grep -o '"data":[0-9]*' | cut -d: -f2)
     [[ -n "$pid" ]] && osascript -e \
         "tell application \"System Events\" to set frontmost of first process whose unix id is $pid to true" \
         >/dev/null 2>&1 || echo "Warning: Could not focus mpv"
