@@ -38,9 +38,19 @@ mpv_was_running=false
 if pgrep -qf "mpv.*input-ipc-server=$SOCKET"; then
     echo "Found active socket at $SOCKET"
     mpv_was_running=true
+
+    send_ipc() {
+        local payload=$1
+        if ! command -v socat >/dev/null 2>&1; then
+            echo "Error: socat not found in PATH (needed for mpv IPC)" >&2
+            return 1
+        fi
+
+        printf '%s\n' "$payload" | socat - "$SOCKET"
+    }
     echo "Stopping playback and clearing playlist..."
-    printf '{ "command": ["stop"] }\n' | socat - "$SOCKET" >/dev/null 2>&1 || echo "Warn: stop failed"
-    printf '{ "command": ["playlist-clear"] }\n' | socat - "$SOCKET" >/dev/null 2>&1 || echo "Warn: clear failed"
+    send_ipc '{ "command": ["stop"] }'        >/dev/null 2>&1 || echo "Warn: stop failed"
+    send_ipc '{ "command": ["playlist-clear"] }' >/dev/null 2>&1 || echo "Warn: clear failed"
 else
     echo "No active socket. Starting mpv..."
     mpv --idle --input-ipc-server="$SOCKET" >/dev/null 2>&1 &
@@ -50,8 +60,8 @@ fi
 # --- Send files to mpv ---
 echo "Sending files to mpv..."
 echo "$selected" | while IFS= read -r file; do
-    printf '{ "command": ["loadfile", "%s", "append-play"] }\n' "$file" | \
-        socat - "$SOCKET" >/dev/null 2>&1 || echo "Error: failed to send $file"
+    send_ipc "$(printf '{ "command": ["loadfile", "%s", "append-play"] }\n' "$file")" \
+        >/dev/null 2>&1 || echo "Error: failed to send $file"
 done
 
 echo "$file_count files sent to mpv"
