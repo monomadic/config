@@ -1,11 +1,15 @@
+# ============================================================================
+# Environment Variables
+# ============================================================================
+
 export ICLOUD_HOME="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
 export DJ_VISUALS_PATH=$ICLOUD_HOME/Movies/Visuals
 
-alias pause="read -sk '?Press any key to continue...'; echo"
+# ============================================================================
+# Utility Functions
+# ============================================================================
 
-alias yt-dlp-youtube-embedded="yt-dlp --cookies-from-browser brave --continue --progress --verbose --retries infinite --fragment-retries infinite --socket-timeout 15 -f bestvideo+ba/best --embed-metadata --extractor-args 'youtube:player-client=tv_embedded' "
-
-# strips the trailing / from directories and preserves NUL termination exactly.
+# Strips trailing / from directories, preserves NUL termination
 strip_fd_slash() {
   emulate -L zsh -o noglob
   local p
@@ -14,53 +18,78 @@ strip_fd_slash() {
   done
 }
 
-# media functions
-
-# alias mpv-loop="mpv --player-operation-mode=pseudo-gui --loop-file=inf --loop-playlist=inf --image-display-duration=5 --force-window=yes --no-config --no-input-default-bindings "
-# alias mpv-loop-visuals="mpv-loop '$DJ_VISUALS_PATH' '$HOME/Movies/Visuals' '/Volumes/*/Movies/Visuals'"
-
-alias .pwd="mpv-play $PWD"
-alias ..pwd="fd-video --print0 | mpv-select"
-alias mpv-play-porn="setopt local_options null_glob && mpv-play $~MEDIA_GLOBS"
-alias mpv-play-volumes="mpv-play /Volumes/*/Movies/Porn/**/*.mp4"
-alias mpv-play-tower="mpv-play /Volumes/Tower/Movies/Porn"
-alias .tower=mpv-play-tower
-alias m4="kitty kitten ssh nom@m4.local"
-
-alias mpv-debug="mpv --msg-level=all=debug"
-
-mpv-play-visuals() {
-    fd-visuals "$1" |
-    mpv-play --player-operation-mode=pseudo-gui --loop-file=inf --loop-playlist=inf \
-             --image-display-duration=5 --osd-bar=no --osd-duration=0 --mute=yes --native-fs
+# Read NUL-terminated paths, sort by creation time (newest first)
+sort_by_creation_date() {
+  local gstat="/opt/homebrew/opt/coreutils/libexec/gnubin/stat"
+  local file ctime
+  while IFS= read -r -d '' file; do
+    ctime="$("$gstat" -c '%W' -- "$file" 2>/dev/null)"
+    [[ $ctime == "-1" || -z $ctime ]] && ctime="$("$gstat" -c '%Y' -- "$file" 2>/dev/null)"
+    printf '%s\t%s\0' "$ctime" "$file"
+  done | LC_ALL=C sort -z -n -r -k1,1 | perl -0pe 's/^\d+\t//'
 }
 
-# requires: setopt extendedglob
+pause() {
+  read -sk '?Press any key to continue...'
+  echo
+}
+
+e() {
+  local editor=${EDITOR:-${VISUAL:-vi}}
+  "$editor" "$@"
+}
+
+_e() {
+  _files -g '**/*'
+}
+compdef _e e
+
+# ============================================================================
+# File Management Functions
+# ============================================================================
+
+rename-extension() {
+  local e1=$1 e2=$2 f new
+  for f in *.$e1; do
+    [[ -e "$f" ]] || continue
+    new="${f%.$e1}.$e2"
+    if [[ -e "$new" ]]; then
+      print -P "%F{yellow}Skipping:%f $f → $new (already exists)"
+    else
+      mv -- "$f" "$new"
+      print -P "%F{green}Renamed:%f  $f → $new"
+    fi
+  done
+}
+
+rename-m4v-to-mp4() {
+  rename-extension m4v mp4
+}
+
+# ============================================================================
+# Media Discovery Functions
+# ============================================================================
+
+fd-video-color() {
+  { fd -e mp4 $1 } | sd '\]\[' '] [' | sd '\[([^\]]+)\]' $'\e[32m''$1'$'\e[0m' | sd '\{([^}]*)\}' $'\e[33m''$1'$'\e[0m' | sd '(^|/)\(([^)]*)\)' '${1}'$'\e[36m''$2'$'\e[0m' | rg --passthru --color=always -N -r '$0' -e '#\S+' --colors 'match:fg:magenta'
+}
+
 fd-visuals() {
   local query=$1
   local -a roots
   [[ -n $DJ_VISUALS_PATH ]] && roots+=($DJ_VISUALS_PATH)
   roots+=($HOME/Movies/Visuals(N) /Volumes/*/Movies/Visuals(N))
-
-  # Print NUL-separated absolute paths from fd-video
   fd-video --absolute-path -- "$query" "${roots[@]}"
 }
-alias ..visuals="fd-visuals | mpv-socket"
 
-alias fd-clips="fd --absolute-path --exact-depth=1 --color=never . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N)"
-alias ..clips="fd-clips | mpv-socket"
+select-visuals() {
+  local query=$1
+  fd-visuals "$query" | mpv-select --hide-path -0
+}
 
-# open with default editor
-e() {
-  local editor=${EDITOR:-${VISUAL:-vi}}
-  "$editor" "$@"
-}
-# completion: recursively list all files/dirs under $PWD
-_e() {
-  # use zsh's builtin file completion with a recursive glob
-  _files -g '**/*'
-}
-compdef _e e
+# ============================================================================
+# MPV Functions
+# ============================================================================
 
 mpv-play-visuals() {
   local query=$1
@@ -78,181 +107,76 @@ mpv-play-visuals() {
     -- "${files[@]}"
 }
 
-select-visuals() {
-  local query=$1
-  fd-visuals "$query" | mpv-select --hide-path -0
-}
-
-alias passwordless-reboot="sudo fdesetup authrestart"
-
-mpv-select-all() {
-  kitty @ launch --title="  media" --type=tab env PATH="$PATH" sh -c 'kitty @ set-tab-color --match title:"" active_bg="#A442F3" active_fg="#050F63" inactive_fg="#A442F3" inactive_bg="#030D43" && exec ls-media | mpv-select'
-}
-
 mpv-select-all-v2() {
-  kitty-exec "  media" "#A442F3" ls-media | mpv-select
+  kitty-exec "  media" "#A442F3" ls-media | mpv-select
 }
 
 kitty-mpv-tab() {
-  kitty @ launch --type=tab env PATH="$PATH" kitty-exec "  all" "#A442F3" $@
+  kitty @ launch --type=tab env PATH="$PATH" kitty-exec "  all" "#A442F3" $@
 }
 
-pv-select-queue() {
+mpv-select-queue() {
   kitty @ set-tab-title "mpv:queue"
   kitty @ set-tab-color --match title:"mpv" active_bg="#A442F3" active_fg="#050F63" inactive_fg="#A442F3" inactive_bg="#030D43"
   ls-media | mpv-select
 }
-alias @q=mpv-select-queue
+
+# ============================================================================
+# FFmpeg/FFprobe Functions
+# ============================================================================
 
 ffprobe-tags-as-json() {
   local file="$1"
-
   ffprobe -v quiet -show_entries format_tags -of json $file
-} 
+}
 
 ffmpeg-tags-write-artist() {
-  local artist="$1"
-  local input="$2"
-  local output="$3"
-  
-  ffmpeg -i $input -c copy \
-    -metadata artist="$artist" \
-    $output
+  local artist="$1" input="$2" output="$3"
+  ffmpeg -i $input -c copy -metadata artist="$artist" $output
 }
 
 mp4-check-faststart() {
-    if xxd "$1" | head -n 640 | grep -q moov; then
-        echo -e "\e[32m✓ FastStart enabled\e[0m"
-        return 0
-    else
-        echo -e "\e[31m✗ FastStart NOT enabled (moov at end)\e[0m"
-        return 1
-    fi
+  if xxd "$1" | head -n 640 | grep -q moov; then
+    echo -e "\e[32m✓ FastStart enabled\e[0m"
+    return 0
+  else
+    echo -e "\e[31m✗ FastStart NOT enabled (moov at end)\e[0m"
+    return 1
+  fi
 }
 
 mp4-enable-faststart() {
-    local file="$1"
+  local file="$1"
+  
+  if xxd "$file" | head -n 640 | grep -q moov; then
+    echo -e "\e[32m✓ FastStart already enabled\e[0m"
+    return 0
+  fi
+  
+  echo -e "\e[31m✗ FastStart not enabled\e[0m"
+  read -p "Enable faststart for $file? (y/N): " confirm
+  
+  if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
+    local temp="${file%.*}_faststart.${file##*.}"
+    echo "Processing..."
     
-    if xxd "$file" | head -n 640 | grep -q moov; then
-        echo -e "\e[32m✓ FastStart already enabled\e[0m"
-        return 0
-    fi
-    
-    echo -e "\e[31m✗ FastStart not enabled\e[0m"
-    read -p "Enable faststart for $file? (y/N): " confirm
-    
-    if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
-        local temp="${file%.*}_faststart.${file##*.}"
-        echo "Processing..."
-        
-        if ffmpeg -i "$file" -c copy -movflags +faststart "$temp" -y 2>/dev/null; then
-            mv "$temp" "$file"
-            echo -e "\e[32m✓ FastStart enabled successfully\e[0m"
-        else
-            echo -e "\e[31m✗ Failed to enable faststart\e[0m"
-            rm -f "$temp"
-            return 1
-        fi
+    if ffmpeg -i "$file" -c copy -movflags +faststart "$temp" -y 2>/dev/null; then
+      mv "$temp" "$file"
+      echo -e "\e[32m✓ FastStart enabled successfully\e[0m"
     else
-        echo "Cancelled"
-        return 1
+      echo -e "\e[31m✗ Failed to enable faststart\e[0m"
+      rm -f "$temp"
+      return 1
     fi
+  else
+    echo "Cancelled"
+    return 1
+  fi
 }
 
-# media search
-alias @="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
-alias @towerlocal="fd-video . /Volumes/Tower/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
-
-@unique() (
-  fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) \
-  | awk -F/ '!seen[$NF]++' \
-  | mpv-socket
-)
-alias @full-path="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
-alias @@=mpv-select-all
-alias @@@="setopt local_options null_glob && printf '%s\0' $~MEDIA_GLOBS | fzf-play --hide-path -0"
-alias @clips="fd --absolute-path --exact-depth=1 --color=never . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N) | mpv-socket"
-alias @pwd="fd-video --print0 | mpv-select"
-alias @@@pwd="fd-video --absolute-path --print0 | mpv-select"
-alias @sort="fselect-porn-sort -0 | fzf-play --hide-path --tac"
-alias @loop="fselect-porn -0 | fzf-media-select --hide-path --tac | mpv-with-config -"
-alias @pwd-sort="fselect-pwd-sort -0 | fzf-play --hide-path --tac"
-alias ..volumes="fd-video --print0 . /Volumes/*/Movies/Porn | mpv-select"
-alias ..masters="fd-video --print0 . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N)  | mpv-select"
-alias @masters-full="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Full(N) $HOME/Movies/Porn/Masters/Full(N) | fzf-play --hide-path -0"
-alias @masters-clips="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Clips(N) $HOME/Movies/Porn/Masters/Clips(N) | fzf-play --hide-path -0"
-alias @queue="fd-video --print0 . $HOME/Movies/Porn/Queue/(N) | mpv-select"
-alias @tutorials="fd-video . $TUTORIALS_PATH | mpv-select"
-alias @external=@volumes
-
-alias .python-venv-create="python3 -m venv .venv && source .venv/bin/activate"
-alias .python-venv-activate="source .venv/bin/activate"
-alias .python-pip-install-requirements="pip install -r requirements.txt"
-
-alias rsync-copy='rsync -a --ignore-existing --progress'
-alias cp-skip=rsync-copy
-
-alias backup-tower="rsync-backup --delete /Volumes/Tower/ /Volumes/Tower\ Backup"
-
-fd-video-color() {
-  { fd -e mp4 $1 } | sd '\]\[' '] [' | sd '\[([^\]]+)\]' $'\e[32m''$1'$'\e[0m' | sd '\{([^}]*)\}' $'\e[33m''$1'$'\e[0m' | sd '(^|/)\(([^)]*)\)' '${1}'$'\e[36m''$2'$'\e[0m' | rg --passthru --color=always -N -r '$0' -e '#\S+' --colors 'match:fg:magenta'
-}
-
-# Read NUL-terminated paths on stdin, sort by creation time (newest first).
-sort_by_creation_date() {
-  local gstat="/opt/homebrew/opt/coreutils/libexec/gnubin/stat"
-  local file ctime
-  while IFS= read -r -d '' file; do
-    # %W = birth time (epoch, -1 if unknown); %Y = mtime (epoch)
-    ctime="$("$gstat" -c '%W' -- "$file" 2>/dev/null)"
-    [[ $ctime == "-1" || -z $ctime ]] && ctime="$("$gstat" -c '%Y' -- "$file" 2>/dev/null)"
-    printf '%s\t%s\0' "$ctime" "$file"
-  done | LC_ALL=C sort -z -n -r -k1,1 | perl -0pe 's/^\d+\t//'
-}
-
-vdjstems-check-wav-lengths() {
-  for f in kick.wav other.wav vocals.wav bass.wav hihat.wav mixed.wav; do
-    dur=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$f")
-    printf "%s: %s\n" "$f" "$dur"
-  done
-}
-
-rename-m4v-to-mp4() {
-  local f new
-  for f in *.m4v; do
-    [[ -e "$f" ]] || continue  # skip if no match
-    new="${f%.m4v}.mp4"
-    if [[ -e "$new" ]]; then
-      print -P "%F{yellow}Skipping:%f $f → $new (already exists)"
-    else
-      mv -- "$f" "$new"
-      print -P "%F{green}Renamed:%f  $f → $new"
-    fi
-  done
-}
-
-rename-extension() {
-  local e1=$1
-  local e2=$2
-  local f new
-  for f in *.$e1; do
-    [[ -e "$f" ]] || continue  # skip if no match
-    new="${f%.$e1}.$e2"
-    if [[ -e "$new" ]]; then
-      print -P "%F{yellow}Skipping:%f $f → $new (already exists)"
-    else
-      mv -- "$f" "$new"
-      print -P "%F{green}Renamed:%f  $f → $new"
-    fi
-  done
-}
-
-# note:
-# pipx install demucs
-# pipx inject demucs soundfile
-alias .stem-split="demucs -d mps -n htdemucs --flac -o stems_output"
-alias .stem-split-2="demucs -d mps -n htdemucs --flac -o stems_output --two-stems=vocals"
-alias .stem-split-4="demucs -d mps -n htdemucs --flac -o stems_output"
+# ============================================================================
+# Audio Stem Separation
+# ============================================================================
 
 stem-mdx23() {
   local input_file="$1"
@@ -277,133 +201,248 @@ stem-mdx23() {
   mv *bass.wav bass.wav 2>/dev/null
   mv *other.wav other.wav 2>/dev/null
   mv *instrum.wav instrumental.wav 2>/dev/null
-  
-  # Remove unwanted files
   rm -f *instrum2.wav
 }
+
+vdjstems-check-wav-lengths() {
+  for f in kick.wav other.wav vocals.wav bass.wav hihat.wav mixed.wav; do
+    dur=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$f")
+    printf "%s: %s\n" "$f" "$dur"
+  done
+}
+
+# ============================================================================
+# Download & Media Aliases
+# ============================================================================
+
+alias yt-dlp-youtube-embedded="yt-dlp --cookies-from-browser brave --continue --progress --verbose --retries infinite --fragment-retries infinite --socket-timeout 15 -f bestvideo+ba/best --embed-metadata --extractor-args 'youtube:player-client=tv_embedded'"
+
+alias d=download-video
+alias dp="download-video porn"
+alias dmv="download-video music-video"
+alias dyt="download-video youtube"
+alias dlu="download-video-url"
+alias faphouse="download-video-faphouse"
+alias dl-beatport=beatportdl-darwin-arm64
+alias dl-apple-music=apple-music-dl
+
+alias url="yt-url"
+
+# ============================================================================
+# Media Player Aliases
+# ============================================================================
+
+alias mpv-with-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
+alias mpv-without-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --no-config --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
+alias mpv-auto-safe="mpv --hwdec=auto-safe --vo=libmpv"
+alias mpv-fs="mpv --macos-fs-animation-duration=0 --no-native-fs --fs"
+alias mpv-loop-mode="mpv --loop-file=1 --length=10 --macos-fs-animation-duration=0 --no-native-fs --fs"
+alias mpv-debug="mpv --msg-level=all=debug"
+alias mpv-image-viewer='mpv-stdin --image-display-duration=inf'
+alias mpv-image-slideshow='mpv-stdin --image-display-duration=5'
+
+alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
+
+# ============================================================================
+# Media Selection & Playback
+# ============================================================================
+
+alias .play-pwd="mpv-play $PWD"
+alias .select-pwd="fd-video | mpv-socket"
+alias .select-sort-pwd="fd-video-sort | mpv-socket"
+
+alias mpv-play-porn="setopt local_options null_glob && mpv-play $~MEDIA_GLOBS"
+alias mpv-play-volumes="mpv-play /Volumes/*/Movies/Porn/**/*.mp4"
+alias mpv-play-tower="mpv-play /Volumes/Tower/Movies/Porn"
+alias .tower=mpv-play-tower
+
+alias @q=mpv-select-queue
+alias @@=mpv-select-all
+
+# Media search shortcuts
+alias @="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
+alias @towerlocal="fd-video . /Volumes/Tower/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
+alias @unique='fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | awk -F/ '"'"'!seen[$NF]++'"'"' | mpv-socket'
+alias @full-path="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
+alias @@@="setopt local_options null_glob && printf '%s\0' $~MEDIA_GLOBS | fzf-play --hide-path -0"
+alias @clips="fd --absolute-path --exact-depth=1 --color=never . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N) | mpv-socket"
+alias @pwd="fd-video | mpv-socket"
+alias @@@pwd="fd-video --absolute-path --print0 | mpv-select"
+alias @sort="fselect-porn-sort | fzf-play --hide-path --tac"
+alias @loop="fselect-porn -0 | fzf-media-select --hide-path --tac | mpv-with-config -"
+alias @pwd-sort="fselect-pwd-sort -0 | fzf-play --hide-path --tac"
+alias @queue="fd-video --print0 . $HOME/Movies/Porn/Queue/(N) | mpv-select"
+alias @tutorials="fd-video . $TUTORIALS_PATH | mpv-select"
+alias @external=@volumes
+
+alias ..visuals="fd-visuals | mpv-socket"
+alias ..clips="fd-clips | mpv-socket"
+alias ..volumes="fd-video --print0 . /Volumes/*/Movies/Porn | mpv-select"
+alias ..masters="fd-video --print0 . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | mpv-select"
+alias ..downloads="fd --extension=mp4 . $HOME/Downloads | mpv-socket"
+
+alias @masters-full="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Full(N) $HOME/Movies/Porn/Masters/Full(N) | fzf-play --hide-path -0"
+alias @masters-clips="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Clips(N) $HOME/Movies/Porn/Masters/Clips(N) | fzf-play --hide-path -0"
+
+alias fd-clips="fd --absolute-path --exact-depth=1 --color=never . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N)"
+
+# ============================================================================
+# Stem Separation Aliases
+# ============================================================================
+
+alias .stem-split="demucs -d mps -n htdemucs --flac -o stems_output"
+alias .stem-split-2="demucs -d mps -n htdemucs --flac -o stems_output --two-stems=vocals"
+alias .stem-split-4="demucs -d mps -n htdemucs --flac -o stems_output"
 alias vdjstems-split-mdx23=stem-mdx23
 
-alias fd-dirs="fd -t d -d 15 -E '.*' -E 'Library'"
+# ============================================================================
+# File Operations
+# ============================================================================
+
+alias rsync-copy='rsync -a --ignore-existing --progress'
+alias cp-skip=rsync-copy
+alias backup-tower="rsync-backup --delete /Volumes/Tower/ /Volumes/Tower\ Backup"
+
+alias tag=rename-media
+alias .tag=tag
+alias rn="batch-rename"
+alias ren="batch-rename"
+alias .rename="fd-rename-all.zsh"
+
+alias trash-undo="rip --unbury"
+alias trash-view="rip --seance"
+
+alias .dupes-check="fdupes --recurse --cache --nohidden --size --summarize ."
+alias .dupes-delete="fdupes --recurse --cache --nohidden --size --delete ."
+alias .dupes-delete-interactive="fdupes --recurse --deferconfirmation --cache --nohidden --size --plain ."
+alias .list-moved-files="fclones group --cache --hash-fn metro --isolate --dry-run"
+
+# ============================================================================
+# Python/Development
+# ============================================================================
+
+alias .python-venv-create="python3 -m venv .venv && source .venv/bin/activate"
+alias .python-venv-activate="source .venv/bin/activate"
+alias .python-pip-install-requirements="pip install -r requirements.txt"
+
+# ============================================================================
+# Kitty Terminal
+# ============================================================================
 
 alias .kitty-mark-current-tab-orange="kitty @ set-tab-color active_bg=orange active_fg=white inactive_bg=orange inactive_fg=black"
 alias .kitty-mark-current-tab-red="kitty @ set-tab-color inactive_bg=red inactive_fg=black"
 alias .kitty-set-tab-color-orange="kitty @ set-tab-color --match id:$KITTY_WINDOW_ID active_bg=#FFA500 active_fg=#050F63 inactive_fg=#FFA500 inactive_bg=#030D43"
 alias .kitty-set-tab-color-green="kitty @ set-tab-color --match id:$KITTY_WINDOW_ID active_bg=#38F273 active_fg=#050F63 inactive_fg=#38F273 inactive_bg=#030D43"
-
-alias mpv-with-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
-alias mpv-without-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --no-config --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
-
-alias topaz-video="env LC_ALL=C LC_NUMERIC=C LANG=C /Applications/Topaz\ Video\ AI.app/Contents/MacOS/Topaz\ Video\ AI"
-alias .topaz-video=topaz-video
-
-alias .list-moved-files="fclones group --cache --hash-fn metro --isolate --dry-run"
-alias config-dotfiles="cd $DOTFILES_DIR && fd --type directory --max-depth=2 | fzf | xargs $EDITOR"
-
-alias cd-relative="cd ${fd--type directory | fzf-cd}"
-
-alias .get-app-id="osascript -e 'id of app $1'"
-alias .get-app-id-debug="echo \"osascript -e 'id of app ${1}'\""
-
-alias .screen-sharing-kick-users="sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -deactivate -restart -users current"
-
 alias .kitty-reload="kitty @ set-colors --all ~/.config/kitty/kitty.conf"
 alias .kitty-configure="e-kitty"
 alias .kitty-kill-all-nvim="kitten @ close-tab --match 'env:PROC=nvim'"
 alias .nvim-kill-all=.kitty-kill-all-nvim
 alias .kitty-close-idle-tabs="kitty @ close-tab --match 'env:PROC=zsh'"
 
-alias .demux="ffmpeg-demux"
-alias .demux-video="ffmpeg-demux --video"
-alias .demux-audio="ffmpeg-demux --audio"
+alias kitty-joshuto="kitty --override background=#000 --working-directory=$HOME/workspaces --single-instance joshuto"
 
-alias url="yt-url"
+# ============================================================================
+# macOS Specific
+# ============================================================================
 
-alias tag=rename-media
-alias .tag=tag
+alias .macos-keybindings="source $DOTFILES_DIR/scripts/macos-keybindings.sh"
+alias .gatekeeper-whitelist="xattr -rd com.apple.quarantine"
+alias .self-sign="codesign --sign - --force --deep"
+alias .get-app-id="osascript -e 'id of app $1'"
+alias .screen-sharing-kick-users="sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -deactivate -restart -users current"
+alias passwordless-reboot="sudo fdesetup authrestart"
+alias .clear-notifications="killall NotificationCenter"
+alias battery='pmset -g batt'
 
-alias .gatekeeper-whitelist="xattr -rd com.apple.quarantine "
-alias .self-sign="codesign --sign - --force --deep "
+alias topaz-video="env LC_ALL=C LC_NUMERIC=C LANG=C /Applications/Topaz\ Video\ AI.app/Contents/MacOS/Topaz\ Video\ AI"
+alias .topaz-video=topaz-video
+alias .brave-mp4-support="/Applications/Brave\ Browser.app/Contents/MacOS/Brave\ Browser --disable-features=MediaSource,UseModernMediaControls"
 
-alias c=e-zsh
-alias C=e-config
-alias g=git
+alias xdg-open=open
+alias o=open
+alias tab="open"
 
-alias rn="batch-rename"
-alias ren="batch-rename"
+# ============================================================================
+# Network & System
+# ============================================================================
 
-alias d=download-video
-alias dp="download-video porn "
-alias dmv="download-video music-video "
-alias dyt="download-video youtube "
-alias dlu="download-video-url "
+alias .network-detect-captive-portal=detect-captive-portal
+alias .network-status=ns
+alias .portal=detect-captive-portal
+alias .detect-captive-portal=detect-captive-portal
+alias ns="network-status.zsh"
+alias .uptime="display-uptime"
 
-alias .dupes-check="fdupes --recurse --cache --nohidden --size --summarize ."
-alias .dupes-delete="fdupes --recurse --cache --nohidden --size --delete ."
-alias .dupes-delete-interactive="fdupes --recurse --deferconfirmation --cache --nohidden --size --plain ."
+alias p8="ping 8.8.8.8"
+alias pc="ping cloudflare.com"
+alias pg="ping google.com"
 
 alias ls-usb="system_profiler SPUSBDataType"
 alias ls-usb-ioreg="ioreg -p IOUSB -w0"
 alias ls-disks="diskutil list"
 
-alias .tab=fzf-tablature
-alias t=fzf-tablature
-alias tab="open"
+# ============================================================================
+# Configuration Editing
+# ============================================================================
 
-alias .macos-keybindings="source $DOTFILES_DIR/scripts/macos-keybindings.sh"
-
-alias .rename="fd-rename-all.zsh"
+alias c=e-zsh
+alias C=e-config
+alias .config=e-zsh
+alias .config-zsh=e-zsh
 alias .config-aliases=.config-env
 alias .config-bin="cd $DOTFILES_DIR/bin && $EDITOR ."
 alias .config-env="cd $ZSH_DOTFILES_DIR && $EDITOR scripts/autoload/alias.zsh"
-alias .config-zsh=e-zsh
-alias .config="cd $ZSH_DOTFILES_DIR && $EDITOR zshrc.zsh"
-alias .apple-music=apple-music-dl
-alias .beatport="beatportdl-darwin-arm64"
-alias .tidal="noglob tidal-dl-ng dl"
-alias .network-detect-captive-portal=detect-captive-portal
-alias .network-status=ns
-alias .uptime="display-uptime"
-alias .clear-notifications="killall NotificationCenter"
-alias f="noglob fetch"
+alias config-dotfiles="cd $DOTFILES_DIR && fd --type directory --max-depth=2 | fzf | xargs $EDITOR"
 
-alias dl-beatport=beatportdl-darwin-arm64
-alias dl-apple-music=apple-music-dl
-
-alias faphouse="download-video-faphouse"
-alias .faphouse="download-video-faphouse"
-
-alias .brave-mp4-support="/Applications/Brave\ Browser.app/Contents/MacOS/Brave\ Browser --disable-features=MediaSource,UseModernMediaControls"
-
-alias .brewfile="cd $DOTFILES_DIR && e Brewfile"
-alias .portal=detect-captive-portal
-alias .detect-captive-portal=detect-captive-portal
-alias .config=e-zsh
-alias .fonts="kitty list-fonts"
-
-alias mpv-auto-safe="mpv --hwdec=auto-safe --vo=libmpv "
-
-# Quick image viewer that loops
-alias mpv-image-viewer='mpv-stdin --image-display-duration=inf'
-alias mpv-image-slideshow='mpv-stdin --image-display-duration=5'
-
-alias battery='pmset -g batt'
-alias branch="b"
-alias cb="cargo build"
-alias cc="cargo check"
 alias e-homebrew="cd $DOTFILES_DIR && $EDITOR Brewfile"
+alias .brewfile="cd $DOTFILES_DIR && e Brewfile"
 alias e-kitty="cd $DOTFILES_DIR/kitty && $EDITOR kitty.conf"
 alias e-neovim="cd $DOTFILES_DIR/neovim && $EDITOR init.lua"
 alias e-open="cd $DOTFILES_DIR && $EDITOR README.md"
 alias e-yazi="cd $DOTFILES_DIR/apps/yazi && $EDITOR yazi.toml"
+alias .yazi-config="cd $DOTFILES_DIR/apps/yazi && $EDITOR yazi.toml"
 alias e-zellij="cd $DOTFILES_DIR/zellij && $EDITOR config.kdl"
 alias e-zsh-keybindings="cd $DOTFILES_DIR/zsh && $EDITOR scripts/autoload/keybindings.zsh"
 alias e-zsh="cd $DOTFILES_DIR && $EDITOR zshrc.zsh"
-alias .yazi-config="cd $DOTFILES_DIR/apps/yazi && $EDITOR yazi.toml"
+alias zsh-config="cd $DOTFILES_DIR/zsh/ && nvim zshrc.zsh"
+alias zsh-reload="source ~/.zshrc"
+
+alias .fonts="kitty list-fonts"
+
+# ============================================================================
+# Git Shortcuts
+# ============================================================================
+
+alias g=git
+alias ga="git add . && git commit --amend"
+alias gca="ga"
+alias gc-update="gc update:"
+alias gd="git diff"
+alias gl="fzf-git-log"
+alias gp="git push"
+alias push="git push"
+alias pull="git pull"
+alias gs="git status"
+alias gss="git status --short --untracked-files=all"
+alias gb="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
+alias git-stage-last-commit="git reset --soft HEAD~"
+alias branch="b"
+alias lg=lazygit
+
+# ============================================================================
+# Rust/Cargo
+# ============================================================================
+
+alias cb="cargo build"
+alias cc="cargo check"
 alias ci="cargo install --path ."
-alias cp-pwd="echo $PWD|pbcopy" # mac only
 alias cr="cargo run"
 alias crr="cargo run --release"
 alias ct="cargo test"
+alias doc="cargo doc --open"
+alias loc=tokei
+
+# Rust docs
 alias d-bevy-cheat="open https://bevy-cheatbook.github.io/"
 alias d-rs-yew="open https://docs.rs/yew/latest/yew/"
 alias d-rustdoc="open https://doc.rust-lang.org/rustdoc/"
@@ -411,80 +450,106 @@ alias d-rustup-cargo="rustup doc --cargo"
 alias d-rustup-core="rustup doc --core"
 alias d-wasmtime="open https://docs.wasmtime.dev/"
 alias d-yew="open https://yew.rs/docs/next/"
-alias dd-force='WD=${PWD} && cd ~/config/ && dotter --force --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml deploy --global-config global.toml --local-config local.toml && cd $WD && echo "\nDone."'
-alias dd='WD=${PWD} && cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml deploy --global-config global.toml --local-config local.toml && cd $WD && echo "\nDone."'
-alias doc="cargo doc --open"
-alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml watch --global-config global.toml --local-config local.toml'
-alias eb="edit-bin"
-alias edit=$EDITOR
-alias fd-empty="fd --type empty"
-alias ga="git add . && git commit --amend"
-alias gb="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) %(color:yellow)%(refname:short) %(color:green)(%(committerdate:relative))\t%(color:blue)%(subject)%(color:reset)' --color=always | column -ts$'\t'"
-alias gc-update="gc update:"
-alias gca="ga"
-alias gd="git diff"
-alias git-stage-last-commit="git reset --soft HEAD~"
 alias gen-yew-web3="cargo generate --git https://github.com/monomadic/yew-web3-template"
-alias gl="fzf-git-log"
-alias gp="git push"
-alias gr="cd /"
-alias gs="git status"
-alias gss="git status --short --untracked-files=all"
-alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
-alias img="chafa --format=symbols "
-alias kitty-joshuto="kitty --override background=#000 --working-directory=$HOME/workspaces --single-instance joshuto"
+
+# ============================================================================
+# File Listing & Navigation
+# ============================================================================
+
 alias l="echo && eza --icons --group-directories-first && echo"
 alias la="eza --icons --group-directories-first --all"
-alias lg=lazygit
 alias lh="eza --icons --group-directories-first --all"
-alias ll-fzf="eza --icons --color=always --group-directories-first --no-permissions --no-user -l --ignore-glob '.DS_Store' | fzf --ansi"
 alias ll="echo && lsd --icon always --long --depth 1 --ignore-config --blocks name --group-directories-first --color always && echo"
 alias lla="echo && eza --icons --group-directories-first --all --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"
 alias lll="lsd --icon always --long --depth 1 --ignore-config --group-directories-first --color always"
 alias lln="eza --icons --all -l --sort=date"
-alias loc=tokei
-alias ls-colors='for x in {0..8}; do for i in {30..37}; do for a in {40..47}; do echo -ne "\e[$x;$i;$a""m\\\e[$x;$i;$a""m\e[0;37;40m "; done; echo; done; done; echo ""'
-alias monitor="btm"
-alias mpv-fs="mpv --macos-fs-animation-duration=0 --no-native-fs --fs "
-alias mpv-loop-mode="mpv --loop-file=1 --length=10 --macos-fs-animation-duration=0 --no-native-fs --fs "
-alias n="fzf-neovim"
-alias ns="network-status.zsh"
-alias o=open
-alias org='cd ~/org && e index.md'
-alias p8="ping 8.8.8.8"
-alias pandoc-yfm="pandoc "{$1}" -s -f epub -t markdown-markdown_in_html_blocks --extract-media=./ -o book.md --standalone"
-alias pc="ping cloudflare.com"
-alias pg="ping google.com"
-alias prev="fzf --layout=reverse --preview 'bat --style=numbers --color=always --line-range :500 {}'"
-alias pull="git pull"
-alias pull="git pull"
-alias push="git push"
-alias push="git push"
-alias q=exit
-alias sb="fzf-scrollback"
-alias sips-to-webp-lossy='sips -s format webp -s formatOptions 75'
-alias sips-to-webp-lossy='sips -s format webp -s'
-alias sixel-kitty="chafa --clear --format=kitty --center=on --scale=max "
-alias sixel-sixel="chafa --clear --format=sixel --center=on --scale=max "
-alias sixel="chafa --clear --format=symbol --center=on --scale=max "
-alias snippets="cd ~/config/neovim/snippets/ && ll"
-alias src="cd ~/src && l"
-alias suckit-sub="suckit -v -j 1 --delay 1 --include-visit '${1}(.*)$' --include-download '${1}(.*)$' ${1}"
-alias top="btm" # I always forget which monitor I have installed
-alias trash-undo="rip --unbury "
-alias trash-view="rip --seance"
-alias unzip 'atool --extract --explain $1'
+alias ll-fzf="eza --icons --color=always --group-directories-first --no-permissions --no-user -l --ignore-glob '.DS_Store' | fzf --ansi"
+
 alias up="cd .."
-alias v="viu --height 20"
-alias vi="nvim"
-alias vi=nvim
-alias vim="nvim"
-alias vim=nvim
-alias w=wiki
-alias wiki="cd ~/wiki && e index.md"
-alias wiki='cd ~/wiki && e ~/wiki/index.md'
+alias gr="cd /"
+alias cd-relative="cd ${fd--type directory | fzf-cd}"
+alias fd-dirs="fd -t d -d 15 -E '.*' -E 'Library'"
+alias fd-empty="fd --type empty"
+
+alias src="cd ~/src && l"
 alias workspaces="cd ~/workspaces && l"
-alias xdg-open=open
-alias zsh-config="cd $DOTFILES_DIR/zsh/ && nvim zshrc.zsh"
-alias zsh-reload="source ~/.zshrc"
+alias org='cd ~/org && e index.md'
+alias wiki="cd ~/wiki && e index.md"
+alias w=wiki
+alias snippets="cd ~/config/neovim/snippets/ && ll"
+
+# ============================================================================
+# Editor & Tools
+# ============================================================================
+
+alias vi=nvim
+alias vim=nvim
+alias edit=$EDITOR
+alias n="fzf-neovim"
+alias eb="edit-bin"
+alias es="edit-script"
+
+alias f="noglob fetch"
+alias sb="fzf-scrollback"
+alias prev="fzf --layout=reverse --preview 'bat --style=numbers --color=always --line-range :500 {}'"
+
+alias .tab=fzf-tablature
+alias t=fzf-tablature
+
+# ============================================================================
+# Media & Image Tools
+# ============================================================================
+
+alias img="chafa --format=symbols"
+alias sixel="chafa --clear --format=symbol --center=on --scale=max"
+alias sixel-sixel="chafa --clear --format=sixel --center=on --scale=max"
+alias sixel-kitty="chafa --clear --format=kitty --center=on --scale=max"
+alias v="viu --height 20"
+
+alias sips-to-webp-lossy='sips -s format webp -s formatOptions 75'
+
+# ============================================================================
+# FFmpeg Shortcuts
+# ============================================================================
+
+alias .demux="ffmpeg-demux"
+alias .demux-video="ffmpeg-demux --video"
+alias .demux-audio="ffmpeg-demux --audio"
+
+# ============================================================================
+# Music Download
+# ============================================================================
+
+alias .apple-music=apple-music-dl
+alias .beatport="beatportdl-darwin-arm64"
+alias .tidal="noglob tidal-dl-ng dl"
+alias .faphouse="download-video-faphouse"
+
+# ============================================================================
+# Misc SSH & Remote
+# ============================================================================
+
+alias m4="kitty kitten ssh nom@m4.local"
+
+# ============================================================================
+# Dotter (dotfile manager)
+# ============================================================================
+
+alias dd='WD=${PWD} && cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml deploy --global-config global.toml --local-config local.toml && cd $WD && echo "\nDone."'
+alias dd-force='WD=${PWD} && cd ~/config/ && dotter --force --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml deploy --global-config global.toml --local-config local.toml && cd $WD && echo "\nDone."'
+alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cache-file ~/.config/dotter/cache.toml watch --global-config global.toml --local-config local.toml'
+
+# ============================================================================
+# Misc Utilities
+# ============================================================================
+
+alias monitor="btm"
+alias top="btm"
+alias cp-pwd="echo $PWD|pbcopy"
+alias q=exit
 alias ~=grep
+alias ls-colors='for x in {0..8}; do for i in {30..37}; do for a in {40..47}; do echo -ne "\e[$x;$i;$a""m\\\e[$x;$i;$a""m\e[0;37;40m "; done; echo; done; done; echo ""'
+
+alias pandoc-yfm="pandoc "{$1}" -s -f epub -t markdown-markdown_in_html_blocks --extract-media=./ -o book.md --standalone"
+alias suckit-sub="suckit -v -j 1 --delay 1 --include-visit '${1}(.*)$' --include-download '${1}(.*)$' ${1}"
+alias unzip 'atool --extract --explain $1'

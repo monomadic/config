@@ -1,0 +1,38 @@
+#!/bin/zsh
+set -euo pipefail
+
+generate() {
+  printf '%s\t%s\n' one   "First item"
+  printf '%s\t%s\n' two   "Second item"
+  printf '%s\t%s\n' three "Third item"
+}
+
+while true; do
+  sel=$(
+    generate | fzf \
+      --ansi \
+      --delimiter=$'\t' --with-nth=2 \
+      --expect=enter,alt-n
+  ) || break
+
+  key=${sel%%$'\n'*}
+  line=${sel#*$'\n'}
+  [[ -z $line ]] && continue
+
+  name=${line%%$'\t'*}
+
+  case $key in
+    enter)
+      echo "OPEN: $name"
+      ;;
+    alt-n)
+      echo "RENAME FLOW (pretend)" >&2
+      # e.g. rename-tablature here
+      ;;
+    *)
+      break
+      ;;
+  esac
+
+  # loop => generate() runs again => refreshed content
+done

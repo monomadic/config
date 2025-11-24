@@ -1,4 +1,3 @@
-
 ##### ───────────────  FAST + STABLE ZSH STARTUP (SAFE BASELINE)  ────────────── #####
 
 # Assume $ZSH_CONFIG_DIR and $ZSH_AUTOLOAD_DIR are exported from .zshenv

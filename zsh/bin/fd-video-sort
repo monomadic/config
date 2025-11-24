@@ -1,0 +1,39 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+# Search for video files with specific extensions, case-insensitive,
+# and sort by mtime (newest first).
+#
+# Usage:
+#   vid-fd [fd-args...]
+#   vid-fd /some/root /other/root
+#
+# If no args: fd searches in $PWD, as usual.
+
+if ! command -v fd >/dev/null 2>&1; then
+  print -u2 "Error: fd not found in \$PATH"
+  exit 1
+fi
+
+fd --absolute-path \
+  --color=never \
+  --ignore-case \
+  --type=file \
+  --extension mp4 \
+  --extension avi \
+  --extension mkv \
+  --extension mov \
+  --extension webm \
+  --extension webp \
+  --extension m4v \
+  --extension mpg \
+  --extension mpeg \
+  "$@" \
+| while IFS= read -r file_path; do
+    # macOS: %m = modification time (seconds since epoch)
+    # If stat fails for some reason, fall back to 0 so sort still works.
+    ts=$(stat -f '%m' -- "$file_path" 2>/dev/null || echo 0)
+    printf '%s\t%s\n' "$ts" "$file_path"
+  done \
+| sort -nr -k1,1 \
+| cut -f2-

@@ -1,0 +1,33 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+if ! command -v ffprobe >/dev/null 2>&1; then
+  echo "Error: ffprobe not found in PATH" >&2
+  exit 1
+fi
+
+if (( $# != 1 )); then
+  echo "Usage: $0 <file.(mp4|m4v|mov|...)>" >&2
+  exit 1
+fi
+
+file=$1
+
+if [[ ! -f "$file" ]]; then
+  echo "Error: file not found: $file" >&2
+  exit 1
+fi
+
+# Show container/format-level tags
+echo "=== Format tags ==="
+ffprobe -v error \
+  -show_entries format_tags \
+  -of default=noprint_wrappers=1 \
+  -- "$file"
+
+echo
+echo "=== Stream tags ==="
+ffprobe -v error \
+  -show_entries stream=index,codec_type,tags \
+  -of default=noprint_wrappers=1 \
+  -- "$file"

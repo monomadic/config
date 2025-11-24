@@ -3,20 +3,20 @@ set -euo pipefail
 
 SOCKET="/tmp/mpv-socket"
 
-# --- Dependency checks ---
-for bin in mpv socat; do
-    if ! command -v "$bin" >/dev/null 2>&1; then
-        echo "Error: $bin not found in PATH" >&2
-        exit 1
-    fi
-done
-
 # --- Argument parsing ---
 show_absolute=false
 for arg in "$@"; do
     case "$arg" in
         --absolute-paths) show_absolute=true ;;
     esac
+done
+
+# --- Dependency checks ---
+for bin in mpv socat fzf; do
+    if ! command -v "$bin" >/dev/null 2>&1; then
+        printf 'Error: %s not found in PATH\n' "$bin" >&2
+        exit 1
+    fi
 done
 
 # --- Read file list ---
@@ -30,7 +30,8 @@ fi
 
 # --- FZF selection ---
 if $show_absolute; then
-    selected=$(echo "$full_paths" | fzf --multi --exact --cycle --bind 'enter:select-all+accept')
+    selected=$(echo "$full_paths" | fzf --multi --exact --cycle \
+        --bind 'enter:select-all+accept')
 else
     selected=$(echo "$full_paths" | fzf --multi --exact --cycle \
         --bind 'enter:select-all+accept' \
@@ -41,22 +42,23 @@ fi
 file_count=$(echo "$selected" | wc -l | tr -d ' ')
 echo "Selected $file_count files"
 
-# --- Helper: send IPC ---
+# --- Helper: send IPC (quiet) ---
 send_ipc() {
     local payload=$1
-    printf '%s\n' "$payload" | socat - "$SOCKET"
+    # send command, drop mpv's JSON reply
+    printf '%s\n' "$payload" | socat - "$SOCKET" >/dev/null 2>&1
 }
 
 # --- MPV socket handling ---
 mpv_was_running=false
 if pgrep -qf "mpv.*input-ipc-server=$SOCKET"; then
-    echo "Found active socket at $SOCKET"
+    echo "Using existing mpv instance"
     mpv_was_running=true
-    echo "Stopping playback and clearing playlist..."
-    send_ipc '{ "command": ["stop"] }'           >/dev/null 2>&1 || echo "Warn: stop failed"
-    send_ipc '{ "command": ["playlist-clear"] }' >/dev/null 2>&1 || echo "Warn: clear failed"
+    # best-effort stop + clear, still quiet
+    send_ipc '{ "command": ["stop"] }'           || echo "Warning: stop failed" >&2
+    send_ipc '{ "command": ["playlist-clear"] }' || echo "Warning: playlist-clear failed" >&2
 else
-    echo "No active socket. Starting mpv..."
+    echo "Starting mpv..."
     mpv --idle --input-ipc-server="$SOCKET" >/tmp/mpv-ipc.log 2>&1 &
     # Wait for socket to become usable (up to ~5s)
     ready=false
@@ -76,24 +78,48 @@ else
     fi
 fi
 
-# --- Send files to mpv ---
+# --- Send files to mpv (quiet) ---
 echo "Sending files to mpv..."
 echo "$selected" | while IFS= read -r file; do
     payload=$(printf '{ "command": ["loadfile", "%s", "append-play"] }\n' "$file")
     if ! send_ipc "$payload"; then
-        echo "Error: failed to send $file"
+        printf 'Error: failed to send "%s"\n' "$file" >&2
     fi
 done
 
 echo "$file_count files sent to mpv"
 
-# --- Bring mpv to front ---
-if $mpv_was_running; then
-    pid=$(printf '{"command":["get_property","pid"]}\n' | socat - "$SOCKET" \
-        | grep -o '"data":[0-9]*' | cut -d: -f2)
-    [[ -n "$pid" ]] && osascript -e \
-        "tell application \"System Events\" to set frontmost of first process whose unix id is $pid to true" \
-        >/dev/null 2>&1 || echo "Warning: Could not focus mpv"
+# --- Bring mpv to front (best-effort) ---
+focus_mpv() {
+    local mpv_pid=$1
+
+    osascript -l JavaScript <<EOF >/dev/null 2>&1
+ObjC.import('AppKit');
+
+var ws   = $.NSWorkspace.sharedWorkspace;
+var apps = ws.runningApplications;
+
+for (var i = 0; i < apps.count; i++) {
+    var app = apps.objectAtIndex(i);
+
+    // Match either by PID or by name "mpv"
+    if (String(app.processIdentifier) === "$mpv_pid" ||
+        String(app.localizedName) === "mpv") {
+        app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);
+        break;
+    }
+}
+EOF
+}
+
+# We don't really care whether mpv_was_running or not at this point,
+# socket exists and mpv is up.
+mpv_pid=$(printf '{"command":["get_property","pid"]}\n' \
+    | socat - "$SOCKET" \
+    | grep -o '"data":[0-9]*' | cut -d: -f2)
+
+if [[ -n "${mpv_pid:-}" ]]; then
+    focus_mpv "$mpv_pid" || echo "Warning: Could not focus mpv" >&2
 else
-    open -a mpv 2>/dev/null || echo "Warning: Could not bring mpv to foreground"
+    echo "Warning: Could not determine mpv pid" >&2
 fi

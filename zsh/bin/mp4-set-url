@@ -1,0 +1,44 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  echo "Error: ffmpeg not found in PATH" >&2
+  exit 1
+fi
+
+if (( $# != 2 )); then
+  echo "Usage: $0 <file.mp4> <url>" >&2
+  exit 1
+fi
+
+file=$1
+url=$2
+
+if [[ ! -f "$file" ]]; then
+  echo "Error: file not found: $file" >&2
+  exit 1
+fi
+
+# Work in same directory to avoid cross-device rename issues
+dir=${file:h}
+base=${file:t}
+ext=${base##*.}
+stem=${base%.*}
+
+tmp="${dir}/.${stem}.tmp.$$.${ext}"
+
+# Write metadata:
+#   -map 0      : keep all streams
+#   -c copy     : no re-encode
+#   -movflags use_metadata_tags : make sure tags end up in container
+ffmpeg -hide_banner -loglevel error \
+  -i "$file" \
+  -map 0 \
+  -c copy \
+  -movflags use_metadata_tags \
+  -metadata url="$url" \
+  "$tmp"
+
+# If ffmpeg succeeded, replace original atomically
+mv -f -- "$tmp" "$file"
+echo "Updated URL metadata on: $file"

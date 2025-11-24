@@ -1,0 +1,121 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+# --- config
+TAB_DIR="${TABLATURE_DIR:-$HOME/Music/Tablature}"
+HEADER=$'↵ open · 󰘵 ↵ preview · 󰘵 r reveal · 󰘵 n rename · 󰘵 y copy path\n'
+
+# ANSI
+CYAN=$'\e[36m'; YELLOW=$'\e[33m'; RED=$'\e[31m'; RESET=$'\e[0m'
+
+# --- preflight
+[[ -d "$TAB_DIR" && -r "$TAB_DIR" ]] || { print -ru2 -- "Error: Tablature dir invalid: $TAB_DIR"; exit 1; }
+cd -- "$TAB_DIR"
+
+# --- stat impl (GNU/BSD aware)
+if command -v gstat >/dev/null 2>&1; then
+  STAT_CMD=(gstat -c '%Y|%n')
+else
+  STAT_CMD=(stat -f '%m|%N')
+fi
+
+# --- function to generate fzf input (one call = full list)
+tab_source() {
+  # 1) raw list: mtime|relpath sorted by mtime desc
+  local lines
+  lines=$(
+    fd . -e pdf -t f --strip-cwd-prefix \
+      -x "${STAT_CMD[@]}" '{}' + 2>/dev/null \
+      | sort -rn -t '|' -k1,1
+  ) || return
+
+  [[ -z "$lines" ]] && return
+
+  # 2) parse into array to compute max artist width
+  local -a entries=()
+  local max_artist_len=0
+  local _mtime rel base artist title
+
+  while IFS='|' read -r _mtime rel; do
+    base="${rel%.pdf}"
+    if [[ "$base" == *" - "* ]]; then
+      artist="${base%% - *}"
+      title="${base#* - }"
+      entries+=("$rel|$artist|$title")
+      (( ${#artist} > max_artist_len )) && max_artist_len=${#artist}
+    else
+      entries+=("$rel|$base|")
+    fi
+  done <<< "$lines"
+
+  # 3) format with colors + padded artist, tab-delimited for fzf
+  local entry rel_path rest padded_artist
+  for entry in "${entries[@]}"; do
+    rel_path="${entry%%|*}"
+    rest="${entry#*|}"
+    artist="${rest%%|*}"
+    title="${rest#*|}"
+
+    if [[ -n "$title" ]]; then
+      padded_artist=$(printf "%-${max_artist_len}s" "$artist")
+      printf '%s\t%s\n' \
+        "$rel_path" \
+        "${CYAN}${padded_artist}${RESET}  ${YELLOW}${title}${RESET}"
+    else
+      printf '%s\t%s\n' \
+        "$rel_path" \
+        "${RED}${artist}${RESET}"
+    fi
+  done
+}
+
+while true; do
+  # run fzf over current list, capturing key + line
+  selection=$(
+    tab_source | fzf --margin="0%,0%" \
+      --exact --reverse --ansi --cycle \
+      --marker=" " --pointer="󰋆" \
+      --border="horizontal" --border-label=" 󰎈 Tabs " \
+      --header="$HEADER" --header-first --no-info \
+      --delimiter=$'\t' --with-nth=2 \
+      --expect=enter,alt-r,alt-enter,alt-n,ctrl-y \
+      --bind 'ctrl-/:toggle-preview' \
+      --preview=$'\nmdls -name kMDItemTitle -name kMDItemAuthors -name kMDItemPageCount -name kMDItemContentCreationDate -- {1} 2>/dev/null | sed "s/^/  /" || echo "\n  (no metadata)"' \
+      --preview-window=down,8,wrap
+  ) || break   # ESC / Ctrl-C
+
+  [[ -z "$selection" ]] && break
+
+  key=$(printf '%s\n' "$selection" | head -n1)
+  line=$(printf '%s\n' "$selection" | tail -n1)
+  [[ -z "$line" ]] && continue
+
+  file_rel="${line%%$'\t'*}"
+  file_abs="$TAB_DIR/$file_rel"
+
+  case "$key" in
+    enter)
+      kitty @ launch --type=background echo "󰄬 Opening: $file_rel" >/dev/null 2>&1 || true
+      open -- "$file_abs" &
+      ;;
+    alt-r)
+      open --reveal -- "$file_abs" &
+      ;;
+    alt-enter)
+      echo "󰄛 Previewing: $file_rel"
+      qlmanage -p -- "$file_abs" >/dev/null 2>&1 &
+      ;;
+    alt-n)
+      # same as your original behaviour: global rename script, no args
+      rename-tablature
+      ;;
+    ctrl-y)
+      printf '%s' "$file_abs" | pbcopy
+      ;;
+    *)
+      break
+      ;;
+  esac
+
+  # loop continues → tab_source is re-run → list reflects any renames
+done

@@ -1,23 +1,42 @@
 #!/usr/bin/env zsh
 
-# Function to display usage information
 usage() {
-  echo "Usage: $0 [--no-cache]"
+  echo "Usage: $0 [--include-backups]"
   echo ""
   echo "Options:"
-  echo "  --no-cache   Exclude cache paths from the output"
+  echo "  --include-backups  Include paths with 'Backup' in the name"
   exit 1
 }
 
-# Parse arguments
-[[ "$1" == "--no-cache" ]] || [[ -z "$1" ]] || usage
+INCLUDE_BACKUPS=false
 
-# Output media paths
-expand-paths "$EXTERNAL_MEDIA_PATHS"
-expand-paths "$LOCAL_MEDIA_PATHS"
+# Parse args
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --include-backups)
+      INCLUDE_BACKUPS=true
+      ;;
+    *)
+      usage
+      ;;
+  esac
+  shift
+done
 
-# Output cache paths unless --no-cache is specified
-[[ "$1" == "--no-cache" ]] || {
-  expand-paths "$EXTERNAL_CACHE_PATHS"
-  expand-paths "$LOCAL_CACHE_PATHS"
+expand_paths_filtered() {
+  local group="$1"
+
+  if $INCLUDE_BACKUPS; then
+    expand-paths "$group"
+  else
+    if command -v rg >/dev/null 2>&1; then
+      expand-paths "$group" | rg -v 'Backup'
+    else
+      expand-paths "$group" | grep -v 'Backup'
+    fi
+  fi
 }
+
+# Media paths only
+expand_paths_filtered "$EXTERNAL_MEDIA_PATHS"
+expand_paths_filtered "$LOCAL_MEDIA_PATHS"
