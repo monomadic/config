@@ -550,6 +550,14 @@ alias q=exit
 alias ~=grep
 alias ls-colors='for x in {0..8}; do for i in {30..37}; do for a in {40..47}; do echo -ne "\e[$x;$i;$a""m\\\e[$x;$i;$a""m\e[0;37;40m "; done; echo; done; done; echo ""'
 
-alias pandoc-yfm="pandoc "{$1}" -s -f epub -t markdown-markdown_in_html_blocks --extract-media=./ -o book.md --standalone"
-alias suckit-sub="suckit -v -j 1 --delay 1 --include-visit '${1}(.*)$' --include-download '${1}(.*)$' ${1}"
-alias unzip 'atool --extract --explain $1'
+pandoc-yfm() {
+  pandoc "$1" -s -f epub -t markdown-markdown_in_html_blocks --extract-media=./ -o book.md --standalone
+}
+
+suckit-sub() {
+  suckit -v -j 1 --delay 1 --include-visit "${1}(.*)$" --include-download "${1}(.*)$" "$1"
+}
+
+unzip() {
+  atool --extract --explain "$1"
+}
