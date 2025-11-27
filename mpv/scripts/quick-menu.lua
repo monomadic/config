@@ -13,7 +13,7 @@ local script_states = {
 -- local was_paused = false
 
 local function toggle_panscan()
-    mp.commandv("script-binding", "auto-panscan/toggle")
+    mp.command("script-binding auto-panscan/toggle")
 end
 
 local function cycle_aspect_ratio()
