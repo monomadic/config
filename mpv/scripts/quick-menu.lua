@@ -6,7 +6,6 @@ local input = require 'mp.input'
 
 -- Track states for external scripts
 local script_states = {
-    auto_rotate = false,
     metadata = true  -- metadata starts ON by default
 }
 
@@ -44,7 +43,6 @@ local function cycle_aspect_ratio()
 end
 
 local function toggle_auto_rotate()
-    script_states.auto_rotate = not script_states.auto_rotate
     mp.commandv("script-message-to", "auto-rotate", "toggle")
 end
 
@@ -137,7 +135,7 @@ local function show_menu()
         "Aspect Ratio:    " .. (aspect_display[aspect] or aspect),
         "OSD Level:       " .. osd_display[osd_level],
         "────────────────────",
-        "Auto Rotate:     " .. (script_states.auto_rotate and " ON" or "OFF"),
+        "Toggle Auto Rotate",
         "Metadata HUD:    " .. (script_states.metadata and " ON" or "OFF"),
     }
     
