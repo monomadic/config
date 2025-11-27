@@ -1,0 +1,84 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+usage() {
+  cat >&2 <<EOF
+Usage: ${0:t} [--keep-audio] input1 [input2 ...]
+  Converts video files to Apple ProRes 422 Proxy (.mov).
+
+Options:
+  --keep-audio   Keep audio and convert it to PCM (pcm_s16le).
+                 Default is to strip audio (video-only output).
+
+Supported extensions: .webm .mp4 .mov .mkv .m4v
+Outputs: <basename>_prores.mov in the same directory as each input.
+EOF
+  exit 1
+}
+
+keep_audio=false
+
+# --- parse options
+while (( $# )); do
+  case "$1" in
+    --keep-audio)
+      keep_audio=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      ;;
+    --*)
+      echo "Unknown option: $1" >&2
+      usage
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+(( $# >= 1 )) || usage
+
+# --- audio args
+if $keep_audio; then
+  audio_args=(-c:a pcm_s16le)
+else
+  audio_args=(-an)
+fi
+
+for infile in "$@"; do
+  [[ -f "$infile" ]] || { echo "Skip (not a file): $infile" >&2; continue }
+
+  ext="${${infile##*.}:l}"
+  case "$ext" in
+    webm|mp4|mov|mkv|m4v) ;;
+    *)
+      echo "Skip (unsupported extension .$ext): $infile" >&2
+      continue
+      ;;
+  esac
+
+  dir="${infile:h}"
+  base="${infile:t}"
+  base="${base%.*}"
+  outfile="${dir}/${base}_prores.mov"
+
+  if $keep_audio; then
+    opt_audio="with PCM audio"
+  else
+    opt_audio="video-only (no audio)"
+  fi
+
+  echo "Converting:"
+  echo "  IN : $infile"
+  echo "  OUT: $outfile"
+  echo "  OPT: ProRes 422 Proxy, $opt_audio"
+
+  ffmpeg -y -i "$infile" \
+    "${audio_args[@]}" \
+    -c:v prores_ks \
+    -profile:v 0 \
+    -pix_fmt yuv422p10le \
+    "$outfile"
+done

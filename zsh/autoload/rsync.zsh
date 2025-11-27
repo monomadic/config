@@ -3,14 +3,17 @@
 rsync-cp() {
   if [[ $# -ne 2 ]]; then
     echo "Usage: ${0:t} <src> <dest>"
+    echo " archive   archive mode (recursive, preserves perms, times, owner, group, etc)"
+    echo " human     human-readable numbers (KB/MB/GB) in size and speed output"
+    echo " progress  "
     return 1
   fi
-  rsync -ah --progress "$1" "$2"
+  rsync --archive --human-readable --info=progress2 "$1" "$2"
 }
 
 pv-cp() {
   if [[ $# -ne 2 ]]; then
-    echo "Usage: pv_cp <source> <destination>"
+    echo "Usage: pv-cp <source> <destination>"
     echo "This uses a simple byte-for-byte copy (pv + >), which directly streams data from the source to the destination without additional logic or metadata handling. It’s lightweight and fast because it doesn’t check or preserve attributes like permissions, timestamps, or partial transfers."
     return 1
   fi

@@ -2,7 +2,7 @@
 <page name="Color FX">
   <!-- ROW 1: MOST COMMON EFFECTS -->
   <!-- PAD 1: ECHO OUT -->
-  <pad1 name="ECHO OUT" color="filter_selectcolorfx 'Echo Out' ? filter_activate ? color 'magenta' : color 'white' : color 'white'">
+  <pad1 name="ECHO OUT" query="filter_selectcolorfx 'Echo Out' ? filter_activate ? blink 500ms" color="color magenta">
     var_equal 'colorfxpush' 1 ?
       filter_selectcolorfx 'Echo Out' &amp; filter_activate off &amp; filter_activate on while_pressed :
     var_equal 'colorfxpush' 2 ?
@@ -12,7 +12,7 @@
       ( filter_activate ? filter_selectcolorfx 'Echo Out' : filter_selectcolorfx 'Echo Out' &amp; filter_activate on )
   </pad1>
   <!-- PAD 2: LOOP ROLL -->
-  <pad2 name="LOOP ROLL" color="filter_selectcolorfx 'loop roll' ? filter_activate ? color 'magenta' : color 'white' : color 'white'">
+  <pad2 name="LOOP ROLL" query="filter_selectcolorfx 'Loop Roll' ? filter_activate ? blink 500ms" color="color magenta">
     var_equal 'colorfxpush' 1 ?
       filter_selectcolorfx 'loop roll' &amp; filter_activate off &amp; filter_activate on while_pressed :
     var_equal 'colorfxpush' 2 ?
@@ -22,7 +22,7 @@
       ( filter_activate ? filter_selectcolorfx 'loop roll' : filter_selectcolorfx 'loop roll' &amp; filter_activate on )
   </pad2>
   <!-- PAD 3: CUT -->
-  <pad3 name="CUT" color="filter_selectcolorfx 'Cut' ? filter_activate ? color 'magenta' : color 'white' : color 'white'">
+  <pad3 name="CUT" query="filter_selectcolorfx 'Cut' ? filter_activate ? blink 500ms" color="color magenta">
     var_equal 'colorfxpush' 1 ?
       filter_selectcolorfx 'Cut' &amp; filter_activate off &amp; filter_activate on while_pressed :
     var_equal 'colorfxpush' 2 ?
@@ -32,7 +32,7 @@
       ( filter_activate ? filter_selectcolorfx 'Cut' : filter_selectcolorfx 'Cut' &amp; filter_activate on )
   </pad3>
   <!-- PAD 4: FILTER -->
-  <pad4 name="FILTER" color="filter_selectcolorfx 'Filter' ? filter_activate ? color 'magenta' : color 'white' : color 'white'">
+  <pad4 name="FILTER" query="filter_selectcolorfx 'Filter' ? filter_activate ? blink 500ms" color="color magenta">
     var_equal 'colorfxpush' 1 ?
       filter_selectcolorfx 'Filter' &amp; filter_activate off &amp; filter_activate on while_pressed :
     var_equal 'colorfxpush' 2 ?
@@ -43,17 +43,17 @@
   </pad4>
   <!-- ROW 2: COMMON EFFECTS -->
   <!-- PAD 5: REVERB -->
-  <pad5 name="REVERB" color="filter_selectcolorfx 'Reverb' ? filter_activate ? color 'magenta' : color 'white' : color 'white'">
+  <pad5 name="REVERB" query="filter_selectcolorfx 'Reverb' ? filter_activate ? blink 500ms" color="color magenta">
     var_equal 'colorfxpush' 1 ?
       filter_selectcolorfx 'Reverb' &amp; filter_activate off &amp; filter_activate on while_pressed :
     var_equal 'colorfxpush' 2 ?
       filter_selectcolorfx 'Reverb' &amp; filter_activate on &amp; filter_activate off while_pressed :
-    filter_selectcolorfx 'Reverb' ?
+ query="effect_active 'Echo' ? blink 500ms"     filter_selectcolorfx 'Reverb' ?
       ( filter_activate ? blink 300ms &amp; filter_activate off : filter_activate on ) :
       ( filter_activate ? filter_selectcolorfx 'Reverb' : filter_selectcolorfx 'Reverb' &amp; filter_activate on )
   </pad5>
   <!-- PAD 6: NOISE -->
-  <pad6 name="NOISE" color="filter_selectcolorfx 'Noise' ? filter_activate ? color 'magenta' : color 'white' : color 'white'">
+  <pad6 name="NOISE" query="filter_selectcolorfx 'Noise' ? filter_activate ? blink 500ms" color="color magenta">
     var_equal 'colorfxpush' 1 ?
       filter_selectcolorfx 'Noise' &amp; filter_activate off &amp; filter_activate on while_pressed :
     var_equal 'colorfxpush' 2 ?
@@ -63,7 +63,7 @@
       ( filter_activate ? filter_selectcolorfx 'Noise' : filter_selectcolorfx 'Noise' &amp; filter_activate on )
   </pad6>
   <!-- PAD 7: DISTORTION -->
-  <pad7 name="DISTORTION" color="filter_selectcolorfx 'Distortion' ? filter_activate ? color 'magenta' : color 'white' : color 'white'">
+  <pad7 name="DISTORTION" query="filter_selectcolorfx 'Distortion' ? filter_activate ? blink 500ms" color="color magenta">
     var_equal 'colorfxpush' 1 ?
       filter_selectcolorfx 'Distortion' &amp; filter_activate off &amp; filter_activate on while_pressed :
     var_equal 'colorfxpush' 2 ?
@@ -73,7 +73,7 @@
       ( filter_activate ? filter_selectcolorfx 'Distortion' : filter_selectcolorfx 'Distortion' &amp; filter_activate on )
   </pad7>
   <!-- PAD 8: FLANGER -->
-  <pad8 name="FLANGER" color="filter_selectcolorfx 'Flanger' ? filter_activate ? color 'magenta' : color 'white' : color 'white'">
+  <pad8 name="FLANGER" query="filter_selectcolorfx 'Flanger' ? blink 500ms" color="color magenta">
     var_equal 'colorfxpush' 1 ?
       filter_selectcolorfx 'Flanger' &amp; filter_activate off &amp; filter_activate on while_pressed :
     var_equal 'colorfxpush' 2 ?
@@ -81,10 +81,10 @@
     filter_selectcolorfx 'Flanger' ?
       ( filter_activate ? blink 300ms &amp; filter_activate off : filter_activate on ) :
       ( filter_activate ? filter_selectcolorfx 'Flanger' : filter_selectcolorfx 'Flanger' &amp; filter_activate on )
-  </pad8>
+ ? filter_activate  </pad8>
   <!-- ROW 3: ADDITIONAL EFFECTS -->
   <!-- PAD 9: SPIRAL -->
-  <pad9 name="SPIRAL" color="filter_selectcolorfx 'Spiral' ? filter_activate ? color 'magenta' : color 'white' : color 'white'">
+  <pad9 name="SPIRAL" query="filter_selectcolorfx 'Spiral' ? filter_activate ? blink 500ms" color="color magenta">
     var_equal 'colorfxpush' 1 ?
       filter_selectcolorfx 'Spiral' &amp; filter_activate off &amp; filter_activate on while_pressed :
     var_equal 'colorfxpush' 2 ?
@@ -94,7 +94,7 @@
       ( filter_activate ? filter_selectcolorfx 'Spiral' : filter_selectcolorfx 'Spiral' &amp; filter_activate on )
   </pad9>
   <!-- PAD 10: PITCH -->
-  <pad10 name="PITCH" color="filter_selectcolorfx 'Pitch' ? filter_activate ? color 'magenta' : color 'white' : color 'white'">
+  <pad10 name="PITCH" query="filter_selectcolorfx 'Pitch' ? filter_activate ? blink 500ms" color="color magenta">
     var_equal 'colorfxpush' 1 ?
       filter_selectcolorfx 'Pitch' &amp; filter_activate off &amp; filter_activate on while_pressed :
     var_equal 'colorfxpush' 2 ?
@@ -104,7 +104,7 @@
       ( filter_activate ? filter_selectcolorfx 'Pitch' : filter_selectcolorfx 'Pitch' &amp; filter_activate on )
   </pad10>
   <!-- PAD 11: VOCALS -->
-  <pad11 name="VOCALS" color="filter_selectcolorfx 'Vocals' ? filter_activate ? color 'magenta' : color 'white' : color 'white'">
+  <pad11 name="VOCALS" query="filter_selectcolorfx 'Vocals' ? filter_activate ? blink 500ms" color="color magenta">
     var_equal 'colorfxpush' 1 ?
       filter_selectcolorfx 'Vocals' &amp; filter_activate off &amp; filter_activate on while_pressed :
     var_equal 'colorfxpush' 2 ?
@@ -114,7 +114,7 @@
       ( filter_activate ? filter_selectcolorfx 'Vocals' : filter_selectcolorfx 'Vocals' &amp; filter_activate on )
   </pad11>
   <!-- PAD 12: DELAY -->
-  <pad12 name="DELAY" color="filter_selectcolorfx 'Delay' ? filter_activate ? color 'magenta' : color 'white' : color 'white'">
+  <pad12 name="DELAY" query="filter_selectcolorfx 'Delay' ? filter_activate ? blink 500ms" color="color magenta">
     var_equal 'colorfxpush' 1 ?
       filter_selectcolorfx 'Delay' &amp; filter_activate off &amp; filter_activate on while_pressed :
     var_equal 'colorfxpush' 2 ?
@@ -124,12 +124,12 @@
       ( filter_activate ? filter_selectcolorfx 'Delay' : filter_selectcolorfx 'Delay' &amp; filter_activate on )
   </pad12>
   <!-- PARAM 1: (unused, keep for consistency or repurpose later) -->
-  <param1 name="MODE">nothing</param1>
+  <param1 name="COLOR FX">pad_page "FX"</param1>
   <!-- PARAM 2: TOGGLE COLORFX PUSH MODE -->
   <param2 name="`var 'colorfxpush' 0 ? get_text &quot;ON / OFF&quot; : var 'colorfxpush' 1 ? get_text &quot;PUSH ON&quot; : get_text &quot;PUSH OFF&quot;`">
     cycle 'colorfxpush' 3 &amp; filter_activate off
   </param2>
-  <menu/>
+  <menu>FX =[pad_page "FX"]</menu>
   <!-- SHIFT ROW 1: CREATIVE EFFECTS -->
   <!-- SHIFT PAD 1: BEATGRID -->
   <shift_pad1 name="BEATGRID" color="filter_selectcolorfx 'Beatgrid' ? filter_activate ? color 'magenta' : color 'white' : color 'white'">

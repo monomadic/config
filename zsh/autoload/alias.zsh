@@ -18,6 +18,15 @@ strip_fd_slash() {
   done
 }
 
+# Strips trailing / from directories, expects newline-terminated input
+strip-slash() {
+  emulate -L zsh -o noglob
+  local p
+  while IFS= read -r p; do
+    print -r -- "${p%/}"
+  done
+}
+
 # Read NUL-terminated paths, sort by creation time (newest first)
 sort_by_creation_date() {
   local gstat="/opt/homebrew/opt/coreutils/libexec/gnubin/stat"
@@ -84,7 +93,7 @@ fd-visuals() {
 
 select-visuals() {
   local query=$1
-  fd-visuals "$query" | mpv-select --hide-path -0
+  fd-visuals "$query" | mpv-socket
 }
 
 # ============================================================================
@@ -124,6 +133,20 @@ mpv-select-queue() {
 # ============================================================================
 # FFmpeg/FFprobe Functions
 # ============================================================================
+
+vp9-repack-to-webm() {
+  local count=0
+  for file in *.mp4(N); do
+    local codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$file" 2>/dev/null)
+    if [[ $codec == vp9 ]]; then
+      print "Repacking: $file"
+      mv "$file" "${file:r}.webm"
+      (( count++ ))
+    fi
+  done
+  print "Repacked $count file(s)"
+}
+alias .repack=vp9-repack-to-webm
 
 ffprobe-tags-as-json() {
   local file="$1"
@@ -220,7 +243,7 @@ alias yt-dlp-youtube-embedded="yt-dlp --cookies-from-browser brave --continue --
 alias d=download-video
 alias dp="download-video porn"
 alias dmv="download-video music-video"
-alias dyt="download-video youtube"
+alias dl-youtube="download-video youtube"
 alias dlu="download-video-url"
 alias faphouse="download-video-faphouse"
 alias dl-beatport=beatportdl-darwin-arm64
@@ -240,6 +263,10 @@ alias mpv-loop-mode="mpv --loop-file=1 --length=10 --macos-fs-animation-duration
 alias mpv-debug="mpv --msg-level=all=debug"
 alias mpv-image-viewer='mpv-stdin --image-display-duration=inf'
 alias mpv-image-slideshow='mpv-stdin --image-display-duration=5'
+
+mpv-focus() {
+  osascript -e 'tell application "System Events" to set frontmost of process "mpv" to true'
+}
 
 alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
 
@@ -276,9 +303,9 @@ alias @tutorials="fd-video . $TUTORIALS_PATH | mpv-select"
 alias @external=@volumes
 
 alias ..visuals="fd-visuals | mpv-socket"
-alias ..clips="fd-clips | mpv-socket"
-alias ..volumes="fd-video --print0 . /Volumes/*/Movies/Porn | mpv-select"
-alias ..masters="fd-video --print0 . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | mpv-select"
+alias ..clips="fd-clips | strip-slash | mpv-socket"
+alias ..volumes="fd-video . /Volumes/*/Movies/Porn | mpv-socket"
+alias ..masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | mpv-socket"
 alias ..downloads="fd --extension=mp4 . $HOME/Downloads | mpv-socket"
 
 alias @masters-full="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Full(N) $HOME/Movies/Porn/Masters/Full(N) | fzf-play --hide-path -0"
@@ -524,6 +551,7 @@ alias .apple-music=apple-music-dl
 alias .beatport="beatportdl-darwin-arm64"
 alias .tidal="noglob tidal-dl-ng dl"
 alias .faphouse="download-video-faphouse"
+alias .instagram="yt-visuals-instagram"
 
 # ============================================================================
 # Misc SSH & Remote

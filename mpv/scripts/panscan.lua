@@ -5,7 +5,7 @@ local mp    = require 'mp'
 local utils = require 'mp.utils'
 
 local state_file = mp.command_native({'expand-path', '~~/script-opts/panscan-state.json'})
-local enabled, level = true, 1.0
+local enabled, level = false, 1.0
 
 local function clamp(x, lo, hi)
   if x < lo then return lo end

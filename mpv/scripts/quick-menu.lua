@@ -14,9 +14,7 @@ local script_states = {
 -- local was_paused = false
 
 local function toggle_panscan()
-    local current = mp.get_property_number("panscan", 0)
-    mp.set_property_number("panscan", current == 0 and 1 or 0)
-    mp.osd_message("Pan & Scan: " .. (current == 0 and "ON" or "OFF"))
+    mp.commandv("script-binding", "auto-panscan/toggle")
 end
 
 local function cycle_aspect_ratio()

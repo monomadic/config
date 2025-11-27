@@ -91,25 +91,7 @@ echo "$file_count files sent to mpv"
 
 # --- Bring mpv to front (best-effort) ---
 focus_mpv() {
-    local mpv_pid=$1
-
-    osascript -l JavaScript <<EOF >/dev/null 2>&1
-ObjC.import('AppKit');
-
-var ws   = $.NSWorkspace.sharedWorkspace;
-var apps = ws.runningApplications;
-
-for (var i = 0; i < apps.count; i++) {
-    var app = apps.objectAtIndex(i);
-
-    // Match either by PID or by name "mpv"
-    if (String(app.processIdentifier) === "$mpv_pid" ||
-        String(app.localizedName) === "mpv") {
-        app.activateWithOptions($.NSApplicationActivateIgnoringOtherApps);
-        break;
-    }
-}
-EOF
+  osascript -e 'tell application "System Events" to set frontmost of process "mpv" to true'
 }
 
 # We don't really care whether mpv_was_running or not at this point,

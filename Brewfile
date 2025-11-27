@@ -6,6 +6,7 @@ tap "homebrew/bundle"
 tap "homebrew/services"
 tap "rschmitt/heatseeker"
 tap "sumoduduk/tap" # terminusdm
+tap "nijaru/tap" # sy
 
 # localsend (airdrop alternative)
 cask "localsend"
@@ -21,6 +22,9 @@ brew "gnu-tar"
 brew "gnu-which"
 brew "grep"
 brew "uni" # unicode db
+brew "sy" # rsync replacement
+
+brew "m-cli" # system config tool
 
 # cask "hazeover" # dim non-focus windows
 

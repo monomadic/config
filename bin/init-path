@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+
+PATH="$PATH"
+PATH="$PATH:/opt/homebrew/bin:/opt/homebrew/sbin"
+PATH="$PATH:/opt/homebrew/coreutils/libexec/gnubin"
+PATH="$PATH:/opt/homebrew/gnu-sed/libexec/gnubin"
+PATH="$PATH:/opt/homebrew/grep/libexec/gnubin"
+PATH="$PATH:/Users/nom/.bin:/Users/nom/.local/bin:/Users/nom/.zsh/bin"
+PATH="$PATH:/Users/nom/.cargo/bin:/Users/nom/.deno/bin:/Users/nom/.foundry/bin"
+PATH="$PATH:/Users/nom/.local/share/nvim/mason/bin:/Users/nom/go/bin"
+PATH="$PATH:/Users/nom/.cache/lm-studio/bin:/Users/nom/.lmstudio/bin"
+PATH="$PATH:/Users/nom/.wasmtime/bin"
+PATH="$PATH:/Applications/kitty.app/Contents/MacOS"
+PATH="$PATH:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+export PATH

@@ -1,0 +1,25 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+if (( $# == 0 )); then
+  print -u2 "usage: ${0:t} INSTAGRAM_URL [...]"
+  exit 1
+fi
+
+for url in "$@"; do
+  yt-dlp \
+    --cookies-from-browser brave \
+    -f "bv*" \
+    --merge-output-format mp4 \
+    -o "%(channel)s [%(id)s] %(playlist_index|)s %(title)s.%(ext)s" \
+    "$url"
+  
+  # Find the most recently created mp4 and check if it's VP9
+  local latest=$(ls -t *.mp4 2>/dev/null | head -1)
+  if [[ -n $latest ]]; then
+    local codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$latest" 2>/dev/null)
+    if [[ $codec == vp9 ]]; then
+      mv "$latest" "${latest:r}.webm"
+    fi
+  fi
+done

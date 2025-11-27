@@ -4,19 +4,21 @@
 # PATH
 #
 # note: in zsh, $path is an associative array that syncs to $PATH
-typeset -U path
-path=(
-  $HOME/.bin
-  $HOME/.local/bin
-  $HOME/.zsh/bin
-  $HOME/.cargo/bin
-  $HOME/.deno/bin
-  $HOME/.foundry/bin
-  $HOME/.local/share/nvim/mason/bin
-  $HOME/go/bin
-  $HOME/.cache/lm-studio/bin
-  $path
-)
+# typeset -U path
+# path=(
+#   $HOME/.bin
+#   $HOME/.local/bin
+#   $HOME/.zsh/bin
+#   $HOME/.cargo/bin
+#   $HOME/.deno/bin
+#   $HOME/.foundry/bin
+#   $HOME/.local/share/nvim/mason/bin
+#   $HOME/go/bin
+#   $HOME/.cache/lm-studio/bin
+#   $path
+# )
+
+source $HOME/.bin/init-path
 
 export ICLOUD_HOME="$HOME/Library/Mobile Documents/com\~apple\~CloudDocs"
 
