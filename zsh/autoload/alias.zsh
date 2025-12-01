@@ -326,6 +326,9 @@ alias vdjstems-split-mdx23=stem-mdx23
 # File Operations
 # ============================================================================
 
+alias rm="rm -i"
+alias df="df -h"
+
 alias rsync-copy='rsync -a --ignore-existing --progress'
 alias cp-skip=rsync-copy
 alias backup-tower="rsync-backup --delete /Volumes/Tower/ /Volumes/Tower\ Backup"
@@ -483,8 +486,9 @@ alias gen-yew-web3="cargo generate --git https://github.com/monomadic/yew-web3-t
 # File Listing & Navigation
 # ============================================================================
 
-alias l="echo && eza --icons --group-directories-first && echo"
-alias la="eza --icons --group-directories-first --all"
+#alias l="eza --icons --group-directories-first"
+alias l="lsd --group-directories-first"
+# alias la="eza --icons --group-directories-first --all"
 alias lh="eza --icons --group-directories-first --all"
 alias ll="echo && lsd --icon always --long --depth 1 --ignore-config --blocks name --group-directories-first --color always && echo"
 alias lla="echo && eza --icons --group-directories-first --all --no-time --no-permissions --no-user -l --ignore-glob '.DS_Store' && echo"

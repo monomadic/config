@@ -3,7 +3,7 @@ add_newline = true
 command_timeout = 500
 scan_timeout = 10
 
-format = "$os$hostname$directory$git_branch${custom.disk_free}${custom.uptime}$battery$line_break$character"
+format = "$line_break$os$hostname$directory$git_branch${custom.disk_free}${custom.uptime}$battery$line_break$character"
 
 # ---------- OS + Host ----------
 [os]

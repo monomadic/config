@@ -3,6 +3,7 @@
 # Assume $ZSH_CONFIG_DIR and $ZSH_AUTOLOAD_DIR are exported from .zshenv
 set -o emacs
 setopt autocd autopushd
+setopt extendedglob # extra globs like /Volumes/*~*Backup*/Movies
 
 # Cache dir
 : ${XDG_CACHE_HOME:="$HOME/.cache"}
