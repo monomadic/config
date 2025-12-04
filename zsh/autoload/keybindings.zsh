@@ -267,4 +267,3 @@ if [[ -o interactive ]]; then
     bindkey -M vicmd  '^[[33;2~' open-finder-pwd
   fi
 fi
-
