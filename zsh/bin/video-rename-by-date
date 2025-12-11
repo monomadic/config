@@ -1,0 +1,81 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+usage() {
+  cat >&2 <<EOF
+Usage: ${0:t} file1 [file2 ...]
+Rename videos to: YYYY-MM-DD-HH-MM.ext
+
+Priority:
+  1) Metadata date (DateTimeOriginal / CreateDate / MediaCreateDate)
+  2) Filesystem creation time
+
+Requires: exiftool
+EOF
+  exit 1
+}
+
+(( $# >= 1 )) || usage
+
+for file in "$@"; do
+  [[ -f $file ]] || {
+    print -u2 "skip (not a file): $file"
+    continue
+  }
+
+  dir=${file:h}
+  name=${file:t}
+  base=${name%.*}
+  ext=${name##*.}
+
+  # Skip if already in YYYY-MM-DD-HH-MM pattern
+  if [[ $base =~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}$' ]]; then
+    print "skip (already formatted): $file"
+    continue
+  fi
+
+  # --- 1) Try metadata via exiftool
+  ts=""
+  if command -v exiftool >/dev/null 2>&1; then
+    ts=$(exiftool -s -s -s -d '%Y-%m-%d-%H-%M' \
+      -DateTimeOriginal -CreateDate -MediaCreateDate -- "$file" 2>/dev/null | head -n1 || true)
+  fi
+
+  # --- 2) Fallback: filesystem creation time
+  if [[ -z ${ts:-} ]]; then
+    # macOS: stat -f '%B' = birth time (epoch)
+    epoch=$(stat -f '%B' -- "$file")
+    ts=$(date -r "$epoch" '+%Y-%m-%d-%H-%M')
+  fi
+
+  if [[ -z ${ts:-} ]]; then
+    print -u2 "error: could not determine timestamp for $file"
+    continue
+  fi
+
+  # Normalize ext (keep exactly as-is, or lower if you prefer)
+  new_base=$ts
+  new_name="${new_base}.${ext}"
+
+  target="${dir}/${new_name}"
+
+  # Handle collisions by appending -01, -02, ...
+  if [[ -e $target && $target != $file ]]; then
+    i=1
+    while :; do
+      suffix=$(printf '%02d' "$i")
+      new_name="${new_base}-${suffix}.${ext}"
+      target="${dir}/${new_name}"
+      [[ -e $target ]] || break
+      (( i++ ))
+    done
+  fi
+
+  if [[ $target == $file ]]; then
+    print "skip (same name): $file"
+    continue
+  fi
+
+  print "$file -> $target"
+  mv -- "$file" "$target"
+done

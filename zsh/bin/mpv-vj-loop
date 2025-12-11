@@ -70,19 +70,13 @@ echo "Using Lua script: $TMP_SCRIPT"
 
 if [[ $# -gt 0 ]]; then
   echo "Playing $# files from arguments"
-  mpv --no-config \
-    "$@" \
-    --no-native-fs \
-    --fs \
-    --loop-file=1 --length=10 \
+  mpv "$@" \
+    --profile=vj \
+    --script="$TMP_SCRIPT" \
     --shuffle \
-    --mute=yes \
-    --osd-level=0 \
-    --force-window=yes \
-    --script-opts=osc-visibility=never \
-    --no-input-default-bindings \
-    --input-conf=/dev/null
-else
+    --loop-playlist=inf \
+    --input-conf=/dev/nullelse
+    
   if [[ -t 0 ]]; then
     echo "Error: No input files provided."
     exit 1
@@ -97,16 +91,13 @@ else
       echo "Error: No files found in input"
       exit 1
     fi
-
-    mpv --no-native-fs \
-      --fs \
-      --loop-file=1 --length=10 \
+  
+    mpv \
+      --profile=vj \
+      --script="$TMP_SCRIPT" \
       --shuffle \
-      --playlist=$TMP_PLAYLIST \
+      --playlist="$TMP_PLAYLIST" \
       --loop-playlist=inf \
-      --loop-file=inf \
-      --mute=yes \
-      --osd-level=0 \
-      --force-window=yes 
+      --input-conf=/dev/null
   fi
 fi

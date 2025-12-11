@@ -11,7 +11,7 @@ for url in "$@"; do
     --cookies-from-browser brave \
     -f "bv*" \
     --merge-output-format mp4 \
-    -o "%(channel)s [%(id)s] %(playlist_index|)s %(title)s.%(ext)s" \
+    -o "%(channel)s [%(id)s]%(playlist_index|)s %(uploader)s.%(ext)s" \
     "$url"
   
   # Find the most recently created mp4 and check if it's VP9
