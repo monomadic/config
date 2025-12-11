@@ -30,7 +30,7 @@ usage() {
 Usage: ${0:t} [OPTIONS] video_file...
 
 Renames videos to:
-  YYYY-MM-DD-HH-MM Clean Name {1080p@60fps, 20mbps, landscape}.ext
+  YYYY-MM-DD-HH-MM Clean Name {1080p@60fps 20mbps landscape}.ext
 
 Timestamp priority:
   1) Metadata (DateTimeOriginal / CreateDate / MediaCreateDate via exiftool)
@@ -70,18 +70,25 @@ fi
 
 # --- Helpers ---
 
-# Strip ALL {...} blocks and known #tags from the "title" part
+# Strip ALL {...} blocks, leading timestamp, and known #tags from the "title" part
 clean_name() {
   local name="$1"
+
+  # strip leading YYYY-MM-DD-HH-MM plus optional space/dash/underscore
+  name="$(printf '%s' "$name" | sed -E 's/^[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2}-[0-9]{2}[[:space:]_-]*//')"
+
   # remove every {...} block (non-nested)
   name="$(printf '%s' "$name" | sed -E 's/\{[^}]*\}//g')"
+
   # remove specific #tags
   local tags=(1080p 1080 720p 4k 60fps 30fps 25fps)
   for t in $tags; do
     name="${name//\#$t/}"
   done
+
   # remove trailing " s01"
   name="$(printf '%s' "$name" | sed -E 's/[[:space:]]s01$//I')"
+
   # collapse & trim spaces
   name="${name//  / }"; name="${name//  / }"   # twice to be safe
   name="${name## }"; name="${name%% }"
@@ -195,8 +202,8 @@ process_video() {
   local new_base="$ts"
   [[ -n "$clean_title" ]] && new_base+=" $clean_title"
 
-  # Metadata block
-  local meta_block=" {${resolution}@${frame_rate}fps, ${mbps}, ${orientation}}"
+  # Metadata block (no commas)
+  local meta_block=" {${resolution}@${frame_rate}fps ${mbps} ${orientation}}"
 
   local new_name="${new_base}${meta_block}.${extension}"
   local target="${dirname}/${new_name}"
