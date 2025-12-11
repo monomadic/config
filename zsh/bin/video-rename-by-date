@@ -30,7 +30,7 @@ usage() {
 Usage: ${0:t} [OPTIONS] video_file...
 
 Renames videos to:
-  YYYY-MM-DD-HH-MM Clean Name {1080p@60fps 20mbps landscape}.ext
+  YYYY-MM-DD-HH-MM Clean Name {1080p 60fps 4min 20mbps}.ext
 
 Timestamp priority:
   1) Metadata (DateTimeOriginal / CreateDate / MediaCreateDate via exiftool)
@@ -129,6 +129,25 @@ get_timestamp() {
   print -r -- "$ts"
 }
 
+# Convert duration seconds -> human string: "30sec", "4min", "1.5hr"
+format_duration() {
+  local secs="$1"
+  local out="unknown"
+
+  if (( secs < 60 )); then
+    out="${secs}sec"
+  elif (( secs < 3600 )); then
+    # nearest minute
+    local mins=$(( (secs + 30) / 60 ))
+    out="${mins}min"
+  else
+    # hours with one decimal
+    out="$(awk -v s="$secs" 'BEGIN{printf("%.1fhr", s/3600)}')"
+  fi
+
+  print -r -- "$out"
+}
+
 process_video() {
   local file="$1"
   local filename="${file:t}"
@@ -152,7 +171,7 @@ process_video() {
   local clean_title
   clean_title="$(clean_name "$raw_base")"
 
-  # Probe video info
+  # Probe video info (width/height/fps/bitrate)
   local video_info
   if ! video_info=$(ffprobe -v error -select_streams v:0 \
         -show_entries stream=width,height,r_frame_rate,bit_rate \
@@ -182,14 +201,16 @@ process_video() {
   local smaller_dim=$(( width < height ? width : height ))
   local resolution; resolution="$(get_resolution_label "$smaller_dim")"
 
-  # Orientation
-  local orientation
-  if (( width > height )); then
-    orientation="landscape"
-  elif (( height > width )); then
-    orientation="portrait"
-  else
-    orientation="square"
+  # Duration: separate ffprobe call (seconds as float)
+  local duration_raw duration_str="unknown"
+  if duration_raw=$(ffprobe -v error -show_entries format=duration \
+        -of default=noprint_wrappers=1:nokey=1 -- "$file" 2>/dev/null); then
+    if [[ -n "$duration_raw" && "$duration_raw" != "N/A" ]]; then
+      # round to nearest second
+      local secs
+      secs=$(awk -v d="$duration_raw" 'BEGIN{printf("%d", int(d+0.5))}')
+      duration_str="$(format_duration "$secs")"
+    fi
   fi
 
   # Mbps as integer, rounded
@@ -202,8 +223,14 @@ process_video() {
   local new_base="$ts"
   [[ -n "$clean_title" ]] && new_base+=" $clean_title"
 
-  # Metadata block (no commas)
-  local meta_block=" {${resolution}@${frame_rate}fps ${mbps} ${orientation}}"
+  # Collect meta fields dynamically (avoid trailing "unknown" spam if you ever change logic)
+  local -a meta_fields
+  meta_fields+=("$resolution")
+  meta_fields+=("${frame_rate}fps")
+  meta_fields+=("$duration_str")
+  meta_fields+=("$mbps")
+
+  local meta_block=" {${(j: :)meta_fields}}"
 
   local new_name="${new_base}${meta_block}.${extension}"
   local target="${dirname}/${new_name}"
