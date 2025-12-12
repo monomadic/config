@@ -55,7 +55,7 @@ local function format_osd_status()
 
     -- Get title and pause state
     local title = mp.get_property("media-title") or "Unknown"
-    local paused = mp.get_property_bool("pause", false)
+    -- local paused = mp.get_property_bool("pause", false)
     
     -- Format file info line
     local file_info = string.format(" %s    %s    %s%s",
