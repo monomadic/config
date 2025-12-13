@@ -24,6 +24,8 @@ brew "grep"
 brew "uni" # unicode db
 brew "sy" # rsync replacement
 
+brew "rmrfrs" # fs cleaner supporting many project types
+
 brew "m-cli" # system config tool
 
 # cask "hazeover" # dim non-focus windows

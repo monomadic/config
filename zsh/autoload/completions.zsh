@@ -10,6 +10,8 @@ eval "$(op completion zsh)"
 # FZF
 eval "$(fzf --zsh)"
 
+#eval "$(rmrfrs --completions zsh)" &> /dev/null
+
 # Ensure completions directory exists
 mkdir -p ~/.zsh/completions
 

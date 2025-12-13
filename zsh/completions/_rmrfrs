@@ -1,0 +1,49 @@
+#compdef rmrfrs
+
+autoload -U is-at-least
+
+_rmrfrs() {
+    typeset -A opt_args
+    typeset -a _arguments_options
+    local ret=1
+
+    if is-at-least 5.2; then
+        _arguments_options=(-s -S -C)
+    else
+        _arguments_options=(-s -C)
+    fi
+
+    local context curcontext="$curcontext" state line
+    _arguments "${_arguments_options[@]}" : \
+'*-I+[Directories to ignore. Will also prevent recursive traversal within]:IGNORED_DIRS:_files' \
+'*--ignored-dirs=[Directories to ignore. Will also prevent recursive traversal within]:IGNORED_DIRS:_files' \
+'-o+[Only directories with a file last modified n units of time ago will be looked at. Ex\: 20d. Units are m\: minutes, h\: hours, d\: days, w\: weeks, M\: months and y\: years]:OLDER:_default' \
+'--older=[Only directories with a file last modified n units of time ago will be looked at. Ex\: 20d. Units are m\: minutes, h\: hours, d\: days, w\: weeks, M\: months and y\: years]:OLDER:_default' \
+'--completions=[Generates completions for the specified shell]:GENERATOR:(bash elvish fish powershell zsh)' \
+'*-q[Quiet mode. Won'\''t output to the terminal. -qq prevents all output]' \
+'*--quiet[Quiet mode. Won'\''t output to the terminal. -qq prevents all output]' \
+'-a[Clean all found projects without confirmation]' \
+'--all[Clean all found projects without confirmation]' \
+'-L[Follow symbolic links]' \
+'--follow-symlinks[Follow symbolic links]' \
+'-s[Restrict directory traversal to the root filesystem]' \
+'--same-filesystem[Restrict directory traversal to the root filesystem]' \
+'-d[If there is no input, defaults to yes]' \
+'--default[If there is no input, defaults to yes]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+'*::DIRS -- The directories to examine. Current directory will be used if DIRS is omitted:_files' \
+&& ret=0
+}
+
+(( $+functions[_rmrfrs_commands] )) ||
+_rmrfrs_commands() {
+    local commands; commands=()
+    _describe -t commands 'rmrfrs commands' commands "$@"
+}
+
+if [ "$funcstack[1]" = "_rmrfrs" ]; then
+    _rmrfrs "$@"
+else
+    compdef _rmrfrs rmrfrs
+fi
