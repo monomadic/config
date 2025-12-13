@@ -27,16 +27,16 @@ strip-slash() {
   done
 }
 
-# Read NUL-terminated paths, sort by creation time (newest first)
-sort_by_creation_date() {
-  local gstat="/opt/homebrew/opt/coreutils/libexec/gnubin/stat"
-  local file ctime
-  while IFS= read -r -d '' file; do
-    ctime="$("$gstat" -c '%W' -- "$file" 2>/dev/null)"
-    [[ $ctime == "-1" || -z $ctime ]] && ctime="$("$gstat" -c '%Y' -- "$file" 2>/dev/null)"
-    printf '%s\t%s\0' "$ctime" "$file"
-  done | LC_ALL=C sort -z -n -r -k1,1 | perl -0pe 's/^\d+\t//'
-}
+# # Read NUL-terminated paths, sort by creation time (newest first)
+# sort_by_creation_date() {
+#   local gstat="/opt/homebrew/opt/coreutils/libexec/gnubin/stat"
+#   local file ctime
+#   while IFS= read -r -d '' file; do
+#     ctime="$("$gstat" -c '%W' -- "$file" 2>/dev/null)"
+#     [[ $ctime == "-1" || -z $ctime ]] && ctime="$("$gstat" -c '%Y' -- "$file" 2>/dev/null)"
+#     printf '%s\t%s\0' "$ctime" "$file"
+#   done | LC_ALL=C sort -z -n -r -k1,1 | perl -0pe 's/^\d+\t//'
+# }
 
 pause() {
   read -sk '?Press any key to continue...'
@@ -293,8 +293,8 @@ alias @full-path="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | 
 alias @@@="setopt local_options null_glob && printf '%s\0' $~MEDIA_GLOBS | fzf-play --hide-path -0"
 alias @clips="fd --absolute-path --exact-depth=1 --color=never . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N) | mpv-socket"
 alias @pwd="fd-video | mpv-socket"
-alias @@@pwd="fd-video --absolute-path --print0 | mpv-select"
-alias @sort="fselect-porn-sort | fzf-play --hide-path --tac"
+alias @@@pwd="ls-media --absolute-path --print0 | mpv-select"
+alias @by-created="ls-media --sort-created | mpv-socket"
 alias @loop="fselect-porn -0 | fzf-media-select --hide-path --tac | mpv-with-config -"
 alias @pwd-sort="fselect-pwd-sort -0 | fzf-play --hide-path --tac"
 alias @queue="fd-video --print0 . $HOME/Movies/Porn/Queue/(N) | mpv-select"

@@ -1,16 +1,17 @@
 #!/usr/bin/env zsh
 
 usage() {
-  echo "Usage: ${0:t} [--match-string STRING]... [--match-regex REGEX]... [--sort-modified | --sort-created] [--reverse] [--verbose]" >&2
+  echo "Usage: ${0:t} [--match-string STRING]... [--match-regex REGEX]... [--sort-modified | --sort-created] [--reverse] [--print0] [--verbose]" >&2
 }
 
 verbose=false
+print0=false
 
 log_verbose() {
-	if $verbose; then
-		echo "[DEBUG] $1" >&2
-	fi
-	return 0
+  if $verbose; then
+    echo "[DEBUG] $1" >&2
+  fi
+  return 0
 }
 
 match_strings=()
@@ -22,56 +23,67 @@ reverse=false
 # Parse command-line arguments
 while [ $# -gt 0 ]; do
   case $1 in
-  --match-string)
-    match_strings+=("$2")
-    shift 2
-    ;;
-  --match-regex)
-    match_regexes+=("$2")
-    shift 2
-    ;;
-  --sort-modified)
-    sort_modified=true
-    shift
-    ;;
-  --sort-created)
-    sort_created=true
-    shift
-    ;;
-  --reverse)
-    reverse=true
-    shift
-    ;;
-  --verbose)
-    verbose=true
-    shift
-    ;;
-  *)
-    usage
-    exit 1
-    ;;
+    --match-string)
+      match_strings+=("$2")
+      shift 2
+      ;;
+    --match-regex)
+      match_regexes+=("$2")
+      shift 2
+      ;;
+    --sort-modified)
+      sort_modified=true
+      shift
+      ;;
+    --sort-created)
+      sort_created=true
+      shift
+      ;;
+    --reverse)
+      reverse=true
+      shift
+      ;;
+    --print0)
+      print0=true
+      shift
+      ;;
+    --verbose)
+      verbose=true
+      shift
+      ;;
+    *)
+      usage
+      exit 1
+      ;;
   esac
 done
 
+# Emits NUL-separated records:
+# - unsorted: "path\0"
+# - sorted:   "ts\tpath\0"
 process_files() {
   local dir="$1"
   cd "$dir" || { log_verbose "Cannot access $dir"; return 1; }
+
   local fd_video_cmd=(fd-video -t f --full-path --ignore-case -0)
   log_verbose "Executing: ${fd_video_cmd[*]}"
 
+  local file ts full_path match str regex
   while IFS= read -r -d $'\0' file; do
-    # Filter by match_strings and match_regexes in one loop
-    local match=true
+    match=true
+
     for str in "${match_strings[@]}"; do
       [[ "${file:l}" != *"${str:l}"* ]] && match=false && break
     done
+
     if $match; then
       for regex in "${match_regexes[@]}"; do
         [[ ! "${file:l}" =~ "${regex:l}" ]] && match=false && break
       done
     fi
+
     if $match; then
-      local full_path="$file"
+      full_path="$file"
       if $sort_modified; then
         ts=$(eza --no-filesize --no-permissions --time-style=long-iso --long "$full_path" | awk '{print $6, $7}')
         printf "%s\t%s\0" "$ts" "$full_path"
@@ -85,29 +97,55 @@ process_files() {
   done < <("${fd_video_cmd[@]}")
 }
 
+# Emit final output in requested delimiter (default newline, optional NUL via --print0)
+emit_paths() {
+  local -a records=("${(@f)1}") # not used; placeholder if you ever want
+  return 0
+}
+
 # Get directories
 directories=("${(@f)$(ls-media-paths)}")
 (( ${#directories[@]} == 0 )) && echo "No directories found" >&2 && exit 1
 
-# Process output based on sorting needs
 if ! $sort_modified && ! $sort_created; then
+  # Stream unsorted output: internal NUL -> final newline (default) or NUL (--print0)
   for dir in "${directories[@]}"; do
-    [[ -d "$dir" && -r "$dir" ]] && process_files "$dir"
+    [[ -d "$dir" && -r "$dir" ]] || continue
+
+    if $print0; then
+      process_files "$dir"
+    else
+      while IFS= read -r -d $'\0' line; do
+        printf '%s\n' "$line"
+      done < <(process_files "$dir")
+    fi
   done
 else
-  # For sorted output
+  # Collect, sort, then emit paths only
   results=()
   for dir in "${directories[@]}"; do
-    [[ -d "$dir" && -r "$dir" ]] && while IFS= read -r -d $'\0' line; do
+    [[ -d "$dir" && -r "$dir" ]] || continue
+    while IFS= read -r -d $'\0' line; do
       results+=("$line")
     done < <(process_files "$dir")
   done
 
-  # Sort and output
+  # Sort by the full record (timestamp prefix makes it chronological)
   if $reverse; then
-    printf '%s\0' "${(On)results[@]}"
+    sorted=("${(On)results[@]}")
   else
-    printf '%s\0' "${results[@]}"
+    sorted=("${(on)results[@]}")
+  fi
+
+  if $print0; then
+    for rec in "${sorted[@]}"; do
+      # strip "ts<TAB>" if present
+      printf '%s\0' "${rec#*$'\t'}"
+    done
+  else
+    for rec in "${sorted[@]}"; do
+      printf '%s\n' "${rec#*$'\t'}"
+    done
   fi
 fi
 

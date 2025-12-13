@@ -31,9 +31,13 @@ fi
 # --- FZF selection ---
 if $show_absolute; then
     selected=$(echo "$full_paths" | fzf --multi --exact --cycle \
+        --bind 'alt-r:execute-silent(open --reveal {1})' \
+        --bind 'ctrl-r:execute-silent(open --reveal {})' \
         --bind 'enter:select-all+accept')
 else
     selected=$(echo "$full_paths" | fzf --multi --exact --cycle \
+        --bind 'alt-r:execute-silent(open --reveal {1})' \
+        --bind 'ctrl-r:execute-silent(open --reveal {})' \
         --bind 'enter:select-all+accept' \
         --delimiter='/' --with-nth=-1)
 fi
@@ -59,7 +63,8 @@ if pgrep -qf "mpv.*input-ipc-server=$SOCKET"; then
     send_ipc '{ "command": ["playlist-clear"] }' || echo "Warning: playlist-clear failed" >&2
 else
     echo "Starting mpv..."
-    mpv --idle --input-ipc-server="$SOCKET" >/tmp/mpv-ipc.log 2>&1 &
+    mpv  --idle --input-ipc-server="$SOCKET" >/tmp/mpv-ipc.log 2>&1 &
+        
     # Wait for socket to become usable (up to ~5s)
     ready=false
     for i in {1..50}; do
