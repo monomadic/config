@@ -12,21 +12,16 @@ alias .local=mpv-play-local
 mpv-play-local() {
   expand-paths $LOCAL_MEDIA_PATHS | mpv-stdin
 }
-alias .local-play=mpv-play-local
+alias .play-local=mpv-play-local
 
-fzf-local-sorted() {
-  expand-paths $LOCAL_MEDIA_PATHS | sort-across-paths --sort modified --reverse | fzf-play
+mpv-filter-local-sorted() {
+  fd-video-sort . $LOCAL_MEDIA_PATHS | mpv-socket
 }
-alias .search-local=fzf-local-sorted
+alias .local-sorted=fzf-local-sorted
 
 mpv-play-local-sorted() {
-  expand-paths $LOCAL_MEDIA_PATHS | sort-across-paths --sort modified --reverse | mpv-stdin -0
+  fd-video-sort . $LOCAL_MEDIA_PATHS | mpv-play
 }
-
-alias .local-sorted=mpv-play-local-sorted
-alias .play-local-sorted=mpv-play-local-sorted
-
-alias @search-incomplete=media-search-incomplete-downloads
 
 index-update() {
   emulate -L zsh

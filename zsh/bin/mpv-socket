@@ -85,12 +85,14 @@ fi
 
 # --- Send files to mpv (quiet) ---
 echo "Sending files to mpv..."
-echo "$selected" | while IFS= read -r file; do
-    payload=$(printf '{ "command": ["loadfile", "%s", "append-play"] }\n' "$file")
-    if ! send_ipc "$payload"; then
-        printf 'Error: failed to send "%s"\n' "$file" >&2
-    fi
-done
+
+while IFS= read -r file; do
+  payload=$(printf '{ "command": ["loadfile", "%s", "append-play"] }\n' "$file")
+  if ! send_ipc "$payload"; then
+    printf 'Error: failed to send "%s"\n' "$file" >&2
+    exit 1
+  fi
+done <<< "$selected"
 
 echo "$file_count files sent to mpv"
 

@@ -1,0 +1,11 @@
+#!/usr/bin/env zsh
+
+SOCKET="${TMPDIR:-/tmp}/mpv-socket"
+rm -f -- "$SOCKET" 2>/dev/null || true
+
+mpv --idle=yes \
+    --force-window=yes \
+    --no-terminal \
+    --input-ipc-server="$SOCKET" \
+    >/tmp/mpv-ipc.log 2>&1 &
+disown

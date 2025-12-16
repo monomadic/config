@@ -1,13 +1,13 @@
 local mp = require "mp"
 
 local overlay = mp.create_osd_overlay("ass-events")
-local visible = true
+
+local keybar_enabled = true  -- what Tab toggles
+local osd_ok = true          -- derived from osd-level
 
 local function build_bar()
-    -- bottom-center, size tweak as you like
     local s = [[{\an2}{\fs18}]]
 
-    -- ASS colors: \1c&HBBGGRR& (BGR)
     local key_color  = "{\\1c&H00FF00&}" -- green keys
     local text_color = "{\\1c&HFFFFFF&}" -- white labels
 
@@ -25,6 +25,7 @@ local function build_bar()
 end
 
 local function render_bar()
+    local visible = osd_ok and keybar_enabled
     if not visible then
         overlay:remove()
         return
@@ -38,32 +39,35 @@ local function render_bar()
     overlay.data  = build_bar()
     overlay.res_x = dim.w
     overlay.res_y = dim.h
-    overlay.z     = 10
     overlay:update()
 end
 
--- redraw on new file
 mp.register_event("file-loaded", render_bar)
 
--- redraw on resize/fullscreen changes
 mp.observe_property("osd-dimensions", "native", function()
     render_bar()
 end)
 
--- keep keybar visibility in sync with osd-level
 mp.observe_property("osd-level", "number", function(_, v)
-    -- osd-level 0 => hide bar, >0 => show bar
-    if v and v > 0 then
-        visible = true
-    else
-        visible = false
-    end
+    osd_ok = (v and v > 0) or false
     render_bar()
 end)
 
--- optional manual toggle if you still want it:
---   F12 script-message keybar-toggle
-mp.register_script_message("keybar-toggle", function()
-    visible = not visible
+local function toggle_keybar()
+    keybar_enabled = not keybar_enabled
     render_bar()
+end
+
+mp.register_script_message("keybar-toggle", toggle_keybar)
+
+-- Tab toggles osd on/off
+local OSD_FULL = 3
+
+mp.add_key_binding("TAB", "toggle-osd-full", function()
+    local v = mp.get_property_number("osd-level", OSD_FULL)
+    if v and v > 0 then
+        mp.set_property_number("osd-level", 0)
+    else
+        mp.set_property_number("osd-level", OSD_FULL)
+    end
 end)

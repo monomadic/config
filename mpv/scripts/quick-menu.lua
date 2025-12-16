@@ -169,4 +169,4 @@ local function show_menu()
     })
 end
 
-mp.add_key_binding("Tab", "show-menu", show_menu)
+-- mp.add_key_binding("Tab", "show-menu", show_menu)

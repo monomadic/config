@@ -251,6 +251,9 @@ alias dl-apple-music=apple-music-dl
 
 alias url="yt-url"
 
+alias N_m3u8DL-RE="/Users/nom/config/bin/N_m3u8DL-RE_v0.5.1-beta_osx-arm64_20251029"
+alias .dl-N_m3u8DL-RE=N_m3u8DL-RE
+
 # ============================================================================
 # Media Player Aliases
 # ============================================================================
@@ -306,6 +309,7 @@ alias ..clips="fd-clips | strip-slash | mpv-socket"
 alias ..volumes="fd-video . /Volumes/*/Movies/Porn | mpv-socket"
 alias ..masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | mpv-socket"
 alias ..downloads="fd --extension=mp4 . $HOME/Downloads | mpv-socket"
+alias ..downloads-sorted="fd-video-sort . $HOME/Downloads | mpv-socket"
 
 alias @masters-full="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Full(N) $HOME/Movies/Porn/Masters/Full(N) | fzf-play --hide-path -0"
 alias @masters-clips="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Clips(N) $HOME/Movies/Porn/Masters/Clips(N) | fzf-play --hide-path -0"

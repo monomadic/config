@@ -585,23 +585,25 @@ ffprobe-info() {
 
 # Combine multiple video files into one
 ffmpeg-concat-videos() {
-  if [[ $# -lt 2 ]]; then
-    print -P "%F{red}Usage:%f ffmpeg-concat_videos <output_file> <input_file1> [input_file2 ...]"
-    print -P "%F{red}Example:%f ffmpeg-concat_videos output.mp4 video1.mp4 video2.mp4"
+  (( $# >= 2 )) || {
+    print -P "%F{red}Usage:%f ffmpeg-concat-videos <output_file> <input_file1> [input_file2 ...]"
     return 1
-  fi
+  }
 
-  local output_file=$1
-  shift
-  local temp_file=$(mktemp)
+  local output_file=$1; shift
+  local list_file
+  list_file="$(mktemp -t ffconcat.XXXXXX.txt)" || return 1
 
-  # Create the temporary file list for ffmpeg
   for file in "$@"; do
-    print "file '$file'" >> "$temp_file"
+    local abs="${file:a}"              # zsh: absolute path
+    local esc="${abs//\'/\'\\\'\'}"    # escape single quotes for ffconcat syntax
+    print -r -- "file '$esc'" >> "$list_file"
   done
 
-  ffmpeg -f concat -safe 0 -i "$temp_file" -c copy "$output_file"
-  rm -f "$temp_file"
+  ffmpeg -hide_banner -f concat -safe 0 -i "$list_file" -c copy -- "$output_file"
+  local rc=$?
+  rm -f -- "$list_file"
+  return $rc
 }
 
 # Simple container rewrapping (lossless)

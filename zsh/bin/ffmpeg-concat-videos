@@ -1,0 +1,397 @@
+#!/usr/bin/env zsh
+# ffmpeg-concat-videos: concat files via ffconcat demuxer (fast, stream-copy)
+# macOS-friendly, handles spaces/#/[] etc. by writing absolute paths.
+
+set -euo pipefail
+
+# ---------- pretty output ----------
+autoload -Uz colors && colors
+typeset -gi NO_COLOR=0
+[[ -n "${NO_COLOR-}" ]] && NO_COLOR=1
+
+_ok()   { (( NO_COLOR )) && print -r -- "OK: $*"   || print -P "%F{green}✔%f $*"; }
+_info() { (( NO_COLOR )) && print -r -- "INFO: $*" || print -P "%F{cyan}ℹ%f $*"; }
+_warn() { (( NO_COLOR )) && print -r -- "WARN: $*" || print -P "%F{yellow}⚠%f $*"; }
+_err()  { (( NO_COLOR )) && print -r -- "ERR: $*"  || print -P "%F{red}✖%f $*" >&2; }
+
+die() { _err "$*"; exit 1; }
+
+usage() {
+  cat <<'EOF'
+ffmpeg-concat-videos — concat video files quickly (stream copy)
+
+USAGE
+  ffmpeg-concat-videos -o OUTPUT INPUT1 [INPUT2 ...]
+  ffmpeg-concat-videos OUTPUT INPUT1 [INPUT2 ...]   # legacy positional form
+
+OPTIONS
+  -o, --output FILE     Output file (required in flag form)
+  -n, --dry-run         Print the generated ffconcat list and exit
+  -k, --keep-list       Keep the generated list file (prints its path)
+  -v, --verbose         Pass through ffmpeg output (default is concise)
+      --no-color        Disable colored output
+  -h, --help            Show this help
+
+NOTES
+  - This uses: ffmpeg -f concat -safe 0 -i LIST -c copy OUTPUT
+  - Stream-copy requires inputs to be compatible (codec, parameters, timebase).
+    If ffmpeg errors about incompatible streams, you must re-encode or normalize.
+
+EXAMPLES
+  ffmpeg-concat-videos -o out.mp4 clip1.mp4 clip2.mp4
+  ffmpeg-concat-videos out.mp4 "a file [x] #tag.mp4" "b file.mp4"
+EOF
+}
+
+need_cmd() {
+  command -v -- "$1" >/dev/null 2>&1 || die "Missing command: $1"
+}
+
+# ---------- arg parsing ----------
+typeset -i dry_run=0 keep_list=0 verbose=0
+typeset output_file=""
+typeset -a inputs=()
+
+while (( $# )); do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --no-color) NO_COLOR=1; shift ;;
+    -n|--dry-run) dry_run=1; shift ;;
+    -k|--keep-list) keep_list=1; shift ;;
+    -v|--verbose) verbose=1; shift ;;
+    -o|--output)
+      shift
+      (( $# )) || die "Missing value for --output"
+      output_file="$1"
+      shift
+      ;;
+    --) shift; break ;;
+    -*)
+      die "Unknown option: $1 (use --help)"
+      ;;
+    *)
+      # allow legacy positional: OUTPUT INPUT1 INPUT2...
+      if [[ -z "$output_file" && ${#inputs} -eq 0 ]]; then
+        output_file="$1"; shift
+      else
+        inputs+=("$1"); shift
+      fi
+      ;;
+  esac
+done
+
+# remaining args after --
+(( $# )) && inputs+=("$@")
+
+[[ -n "$output_file" ]] || { usage >&2; die "Missing output file"; }
+(( ${#inputs} >= 1 )) || { usage >&2; die "Need at least 1 input file"; }
+
+need_cmd ffmpeg
+
+# ---------- build ffconcat list ----------
+list_file="$(mktemp -t ffconcat.XXXXXX)" || die "mktemp failed"
+cleanup() { (( keep_list )) || rm -f -- "$list_file"; }
+trap cleanup EXIT INT TERM
+
+_info "Output: ${output_file}"
+_info "Inputs: ${#inputs}"
+
+# ffconcat format: lines like: file '/abs/path'
+# use absolute paths because ffmpeg resolves relative paths relative to the list file directory.
+: >| "$list_file"
+for f in "${inputs[@]}"; do
+  [[ -e "$f" ]] || die "Input not found: $f"
+  [[ -r "$f" ]] || die "Input not readable: $f"
+  abs="${f:a}"                         # zsh: absolute path
+  esc="${abs//\'/\'\\\'\'}"            # escape single quotes for ffconcat single-quoted strings
+  print -r -- "file '$esc'" >> "$list_file"
+done
+
+_info "List file: $list_file"
+
+if (( dry_run )); then
+  _info "Dry-run: generated ffconcat list:"
+  print -r -- "-----"
+  cat -- "$list_file"
+  print -r -- "-----"
+  exit 0
+fi
+
+# ---------- run ffmpeg ----------
+typeset -a ffmpeg_args
+ffmpeg_args=(-hide_banner -f concat -safe 0 -i "$list_file" -c copy -- "$output_file")
+
+if (( verbose )); then
+  _info "Running: ffmpeg ${(qq)ffmpeg_args}"
+  ffmpeg "${ffmpeg_args[@]}"
+else
+  _info "Running ffmpeg (concise output; use -v for full logs)…"
+  ffmpeg -loglevel warning -stats "${ffmpeg_args[@]}"
+fi
+
+_ok "Wrote: $output_file"
+(( keep_list )) && _warn "Kept list file: $list_file"
+#!/usr/bin/env zsh
+# ffmpeg-concat-videos: concat files via ffconcat demuxer (fast, stream-copy)
+# Optional: emit chapter markers per input file.
+# Optional: print zsh completions.
+
+set -euo pipefail
+
+print_completions() {
+  cat <<'EOF'
+#compdef ffmpeg-concat-videos
+# Zsh completion for ffmpeg-concat-videos
+
+_arguments -s -S \
+  '(-h --help)'{-h,--help}'[show help]' \
+  '--no-color[disable colored output]' \
+  '--chapters[add chapter markers (one per input file)]' \
+  '(-n --dry-run)'{-n,--dry-run}'[print generated ffconcat list (and chapters metadata) then exit]' \
+  '(-k --keep-list)'{-k,--keep-list}'[keep generated temp files (prints their paths)]' \
+  '(-v --verbose)'{-v,--verbose}'[pass through full ffmpeg output]' \
+  '--completions[print this zsh completion script to stdout]' \
+  '(-o --output)'{-o,--output}'[output file]:output file:_files' \
+  ':output file (legacy positional form):_files' \
+  '*:input files:_files'
+EOF
+}
+
+# --completions should work even if other args are present
+for a in "$@"; do
+  if [[ "$a" == "--completions" ]]; then
+    print_completions
+    exit 0
+  fi
+done
+
+# ---------- pretty output ----------
+autoload -Uz colors && colors
+typeset -gi NO_COLOR=0
+[[ -n "${NO_COLOR-}" ]] && NO_COLOR=1
+
+_ok()   { (( NO_COLOR )) && print -r -- "OK: $*"   || print -P "%F{green}✔%f $*"; }
+_info() { (( NO_COLOR )) && print -r -- "INFO: $*" || print -P "%F{cyan}ℹ%f $*"; }
+_warn() { (( NO_COLOR )) && print -r -- "WARN: $*" || print -P "%F{yellow}⚠%f $*"; }
+_err()  { (( NO_COLOR )) && print -r -- "ERR: $*"  || print -P "%F{red}✖%f $*" >&2; }
+
+die() { _err "$*"; exit 1; }
+
+usage() {
+  cat <<'EOF'
+ffmpeg-concat-videos — concat video files quickly (stream copy)
+
+USAGE
+  ffmpeg-concat-videos -o OUTPUT INPUT1 [INPUT2 ...]
+  ffmpeg-concat-videos OUTPUT INPUT1 [INPUT2 ...]   # legacy positional form
+  ffmpeg-concat-videos --completions                # print zsh completion script
+
+OPTIONS
+  -o, --output FILE     Output file (required in flag form)
+      --chapters        Add chapter markers (one chapter per input file)
+  -n, --dry-run         Print the generated ffconcat list (and chapters metadata) then exit
+  -k, --keep-list       Keep the generated temp files (prints their paths)
+  -v, --verbose         Pass through ffmpeg output (default is concise)
+      --no-color        Disable colored output
+      --completions     Print zsh autocomplete script to stdout
+  -h, --help            Show this help
+
+NOTES
+  - Concat is: ffmpeg -f concat -safe 0 -i LIST -c copy OUTPUT
+  - Stream-copy requires compatible inputs (codec/params/timebase).
+  - --chapters uses ffprobe to read each input duration and remuxes with chapter metadata.
+    Works best for MP4/MOV/MKV outputs.
+
+EXAMPLES
+  ffmpeg-concat-videos -o out.mp4 clip1.mp4 clip2.mp4
+  ffmpeg-concat-videos --chapters -o out.mp4 "a file [x] #tag.mp4" "b file.mp4"
+
+ZSH COMPLETION
+  ffmpeg-concat-videos --completions > _ffmpeg-concat-videos
+EOF
+}
+
+need_cmd() {
+  command -v -- "$1" >/dev/null 2>&1 || die "Missing command: $1"
+}
+
+# escape for ffmetadata value context
+escape_ffmeta() {
+  local s="$1"
+  s="${s//\\/\\\\}"   # backslash
+  s="${s//=/\\=}"     # key/value separator
+  s="${s//;/\\;}"     # comment starter
+  s="${s//#/\\#}"     # comment-ish
+  s="${s//$'\n'/\\n}"
+  s="${s//$'\r'/\\r}"
+  print -r -- "$s"
+}
+
+# seconds (float) -> milliseconds (int)
+sec_to_ms() {
+  local sec="$1"
+  python3 - "$sec" <<'PY'
+import sys
+s = sys.argv[1].strip()
+try:
+    x = float(s)
+except Exception:
+    print("")
+    sys.exit(0)
+print(int(round(x * 1000.0)))
+PY
+}
+
+# ---------- arg parsing ----------
+typeset -i dry_run=0 keep_list=0 verbose=0 chapters=0
+typeset output_file=""
+typeset -a inputs=()
+
+while (( $# )); do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --no-color) NO_COLOR=1; shift ;;
+    -n|--dry-run) dry_run=1; shift ;;
+    -k|--keep-list) keep_list=1; shift ;;
+    -v|--verbose) verbose=1; shift ;;
+    --chapters) chapters=1; shift ;;
+    --completions) print_completions; exit 0 ;; # (in case parsing reaches it)
+    -o|--output)
+      shift
+      (( $# )) || die "Missing value for --output"
+      output_file="$1"
+      shift
+      ;;
+    --) shift; break ;;
+    -*)
+      die "Unknown option: $1 (use --help)"
+      ;;
+    *)
+      # allow legacy positional: OUTPUT INPUT1 INPUT2...
+      if [[ -z "$output_file" && ${#inputs} -eq 0 ]]; then
+        output_file="$1"; shift
+      else
+        inputs+=("$1"); shift
+      fi
+      ;;
+  esac
+done
+
+(( $# )) && inputs+=("$@")
+
+[[ -n "$output_file" ]] || { usage >&2; die "Missing output file"; }
+(( ${#inputs} >= 1 )) || { usage >&2; die "Need at least 1 input file"; }
+
+need_cmd ffmpeg
+(( chapters )) && need_cmd ffprobe
+(( chapters )) && need_cmd python3
+
+# ---------- build ffconcat list ----------
+list_file="$(mktemp -t ffconcat.XXXXXX.txt)" || die "mktemp failed"
+meta_file=""
+
+cleanup() {
+  (( keep_list )) || rm -f -- "$list_file"
+  if [[ -n "$meta_file" ]]; then
+    (( keep_list )) || rm -f -- "$meta_file"
+  fi
+}
+trap cleanup EXIT INT TERM
+
+_info "Output: ${output_file}"
+_info "Inputs: ${#inputs}"
+(( chapters )) && _info "Chapters: enabled"
+
+: >| "$list_file"
+for f in "${inputs[@]}"; do
+  [[ -e "$f" ]] || die "Input not found: $f"
+  [[ -r "$f" ]] || die "Input not readable: $f"
+  abs="${f:a}"                         # zsh: absolute path
+  esc="${abs//\'/\'\\\'\'}"            # escape single quotes for ffconcat single-quoted string
+  print -r -- "file '$esc'" >> "$list_file"
+done
+
+_info "List file: $list_file"
+
+# ---------- build chapters ffmetadata ----------
+if (( chapters )); then
+  meta_file="$(mktemp -t ffchapters.XXXXXX.txt)" || die "mktemp failed (chapters)"
+  : >| "$meta_file"
+  print -r -- ";FFMETADATA1" >> "$meta_file"
+
+  case "${output_file:l}" in
+    *.mp4|*.m4v|*.mov|*.mkv) ;;
+    *) _warn "Output extension doesn’t commonly support chapters; you may lose them: $output_file" ;;
+  esac
+
+  typeset -i start_ms=0
+  for f in "${inputs[@]}"; do
+    abs="${f:a}"
+    dur_s="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 -- "$abs" | tr -d '[:space:]' || true)"
+    [[ -n "$dur_s" && "$dur_s" != "N/A" ]] || die "ffprobe duration failed for: $f"
+
+    dur_ms="$(sec_to_ms "$dur_s")"
+    [[ -n "$dur_ms" ]] || die "Failed to convert duration to ms for: $f (duration='$dur_s')"
+
+    end_ms=$(( start_ms + dur_ms ))
+    title="$(basename -- "$abs")"
+    title="${title%.*}"
+    title="$(escape_ffmeta "$title")"
+
+    print -r -- "[CHAPTER]" >> "$meta_file"
+    print -r -- "TIMEBASE=1/1000" >> "$meta_file"
+    print -r -- "START=$start_ms" >> "$meta_file"
+    print -r -- "END=$end_ms" >> "$meta_file"
+    print -r -- "title=$title" >> "$meta_file"
+
+    start_ms=$end_ms
+  done
+
+  _info "Chapters metadata: $meta_file"
+fi
+
+if (( dry_run )); then
+  _info "Dry-run: generated ffconcat list:"
+  print -r -- "-----"; cat -- "$list_file"; print -r -- "-----"
+  if (( chapters )); then
+    _info "Dry-run: generated ffmetadata chapters:"
+    print -r -- "-----"; cat -- "$meta_file"; print -r -- "-----"
+  fi
+  exit 0
+fi
+
+# ---------- run ffmpeg ----------
+typeset -a ffmpeg_args
+if (( chapters )); then
+  ffmpeg_args=(
+    -hide_banner
+    -f concat -safe 0 -i "$list_file"
+    -f ffmetadata -i "$meta_file"
+    -map 0 -c copy
+    -map_metadata 1
+    -map_chapters 1
+    -- "$output_file"
+  )
+else
+  ffmpeg_args=(
+    -hide_banner
+    -f concat -safe 0 -i "$list_file"
+    -c copy
+    -- "$output_file"
+  )
+fi
+
+if (( verbose )); then
+  _info "Running: ffmpeg ${(qq)ffmpeg_args}"
+  ffmpeg "${ffmpeg_args[@]}"
+else
+  _info "Running ffmpeg (concise output; use -v for full logs)…"
+  ffmpeg -loglevel warning -stats "${ffmpeg_args[@]}"
+fi
+
+_ok "Wrote: $output_file"
+if (( keep_list )); then
+  _warn "Kept temp files:"
+  print -r -- "  $list_file"
+  [[ -n "$meta_file" ]] && print -r -- "  $meta_file"
+fi

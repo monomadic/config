@@ -25,7 +25,7 @@ local function auto_rotate()
     -- and no rotate metadata: this is a "dumb" portrait we want to fix.
     if encoded_portrait and display_portrait and meta_rotate == 0 then
         mp.set_property_number("video-rotate", 90)
-        mp.osd_message("Auto-rotated 90° (portrait)")
+        -- mp.osd_message("Auto-rotated 90° (portrait)")
     else
         -- Anything else: leave it in normal orientation.
         mp.set_property_number("video-rotate", 0)
