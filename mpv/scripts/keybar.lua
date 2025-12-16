@@ -5,21 +5,29 @@ local overlay = mp.create_osd_overlay("ass-events")
 local keybar_enabled = true  -- what Tab toggles
 local osd_ok = true          -- derived from osd-level
 
-local function build_bar()
-    local s = [[{\an2}{\fs18}]]
+local function build_bar(dim)
+    dim = dim or mp.get_property_native("osd-dimensions")
+
+    -- Scale font with window height; clamp to sane range
+    local h = (dim and dim.h) or 720
+    local fs = math.floor(math.max(22, math.min(60, h * 0.02))) -- tweak 0.045 to taste
+
+    local s = string.format("{\\an2}{\\fs%d}", fs)
 
     local key_color  = "{\\1c&H00FF00&}" -- green keys
     local text_color = "{\\1c&HFFFFFF&}" -- white labels
 
     local function key(label, desc)
-        return key_color .. "[" .. label .. "] " .. text_color .. desc .. "    "
+        return key_color .. "" .. label .. "" .. text_color .. desc .. "    "
     end
 
     s = s
-        .. key("TAB", "Toggle OSD")
-        .. key("A",   "Auto-rotate")
-        .. key("R",   "Rotate")
-        .. key("I",   "Info")
+        .. key("TAB", " Toggle OSD")
+        .. key("A",   "uto-rotate")
+        .. key("N",   "ext")
+        .. key("R",   "otate")
+        .. key("S",   "huffle")
+        .. key("I",   "nfo")
 
     return s
 end

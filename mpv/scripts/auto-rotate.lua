@@ -1,6 +1,10 @@
-local mp = require 'mp'
+local mp = require "mp"
+
+local enabled = false  -- default OFF
 
 local function auto_rotate()
+    if not enabled then return end
+
     local w  = mp.get_property_number("video-params/w")
     local h  = mp.get_property_number("video-params/h")
     local dw = mp.get_property_number("dwidth")
@@ -14,8 +18,8 @@ local function auto_rotate()
     local encoded_portrait  = h > w
     local display_portrait  = dh > dw
 
-    -- Case 1: encoded portrait, display NOT portrait → already --cache=yes --demuxer-max-bytes=50Meffectively rotated
-    -- (e.g. Finder / Exif / container rotation). Don't touch it.
+    -- Case 1: encoded portrait, display NOT portrait → effectively already rotated.
+    -- (e.g. container rotation / exif). Don't touch it.
     if encoded_portrait and not display_portrait then
         mp.set_property_number("video-rotate", 0)
         return
@@ -25,11 +29,27 @@ local function auto_rotate()
     -- and no rotate metadata: this is a "dumb" portrait we want to fix.
     if encoded_portrait and display_portrait and meta_rotate == 0 then
         mp.set_property_number("video-rotate", 90)
-        -- mp.osd_message("Auto-rotated 90° (portrait)")
     else
-        -- Anything else: leave it in normal orientation.
+        mp.set_property_number("video-rotate", 0)
+    end
+end
+
+local function toggle_auto_rotate()
+    enabled = not enabled
+    mp.osd_message(("Auto-rotate: %s"):format(enabled and "ON" or "OFF"), 1.2)
+
+    -- If turning ON mid-file, apply immediately.
+    if enabled then
+        auto_rotate()
+    else
+        -- Optional: when turning OFF, return to normal orientation.
         mp.set_property_number("video-rotate", 0)
     end
 end
 
 mp.register_event("file-loaded", auto_rotate)
+
+-- Bind a key for toggling (pick whatever you like)
+mp.add_key_binding(nil, "toggle-auto-rotate", toggle_auto_rotate)
+-- Example binding in input.conf:
+-- r script-binding toggle-auto-rotate
