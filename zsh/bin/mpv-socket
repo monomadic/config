@@ -86,16 +86,20 @@ fi
 # --- Send files to mpv (quiet) ---
 echo "Sending files to mpv..."
 
+fail_count=0
+
 while IFS= read -r file; do
-  payload=$(printf '{ "command": ["loadfile", "%s", "append-play"] }\n' "$file")
+  # (avoid double-newline: send_ipc already appends one)
+  payload=$(printf '{ "command": ["loadfile", "%s", "append-play"] }' "$file")
+
   if ! send_ipc "$payload"; then
-    printf 'Error: failed to send "%s"\n' "$file" >&2
-    exit 1
+    ((fail_count++))
   fi
 done <<< "$selected"
 
-echo "$file_count files sent to mpv"
-
+ok_count=$((file_count - fail_count))
+printf '%d/%d files sent to mpv (%d failed)\n' "$ok_count" "$file_count" "$fail_count"
+# 
 # --- Bring mpv to front (best-effort) ---
 focus_mpv() {
   osascript -e 'tell application "System Events" to set frontmost of process "mpv" to true'
