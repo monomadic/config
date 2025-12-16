@@ -1,0 +1,9 @@
+#!/usr/bin/env zsh
+
+fclones group /Volumes/Tower \
+  --exclude "**/.Trash/**" \
+  --exclude "**/.Spotlight-V100/**" \
+  --exclude "**/.DS_Store" \
+  --delete-unsafe > clean.sh
+
+echo "created clean.sh"
