@@ -77,8 +77,8 @@ export TABLATURE_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Music/T
 export TUTORIALS_PATH=$HOME/Movies/Tutorials
 
 # Media
-export LOCAL_MEDIA_PATHS=$HOME/Movies/Porn
-export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn"
+export LOCAL_MEDIA_PATHS="$HOME/Movies/Porn/"
+export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn/"
 export INDEX_DIR="$HOME/.indexes"
 export PRIVATE_PHOTOS_LIBRARY="$HOME/Media/Private/Private.photoslibrary"
 

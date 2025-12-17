@@ -558,7 +558,7 @@ alias .apple-music=apple-music-dl
 alias .beatport="beatportdl-darwin-arm64"
 alias .tidal="noglob tidal-dl-ng dl"
 alias .faphouse="download-video-faphouse"
-alias .instagram="yt-visuals-instagram"
+alias .instagram="yt-visuals"
 
 # ============================================================================
 # Misc SSH & Remote

@@ -10,7 +10,6 @@ for url in "$@"; do
   yt-dlp \
     --cookies-from-browser brave \
     -f "bv*" \
-    --merge-output-format mp4 \
     -o "%(channel)s [%(id)s]%(playlist_index|)s %(uploader)s.%(ext)s" \
     "$url"
   

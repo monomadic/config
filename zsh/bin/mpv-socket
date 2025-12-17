@@ -33,11 +33,13 @@ if $show_absolute; then
     selected=$(echo "$full_paths" | fzf --multi --exact --cycle \
         --bind 'alt-r:execute-silent(open --reveal {1})' \
         --bind 'ctrl-r:execute-silent(open --reveal {})' \
+        --bind 'ctrl-s:put(★)' \
         --bind 'enter:select-all+accept')
 else
     selected=$(echo "$full_paths" | fzf --multi --exact --cycle \
         --bind 'alt-r:execute-silent(open --reveal {1})' \
         --bind 'ctrl-r:execute-silent(open --reveal {})' \
+        --bind 'ctrl-s:put(★)' \
         --bind 'enter:select-all+accept' \
         --delimiter='/' --with-nth=-1)
 fi
