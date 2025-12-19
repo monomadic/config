@@ -4,6 +4,7 @@ fclones group /Volumes/Tower \
   --exclude "**/.Trash/**" \
   --exclude "**/.Spotlight-V100/**" \
   --exclude "**/.DS_Store" \
-  --delete-unsafe > clean.sh
+  --cache \
+  > dupes.txt
 
-echo "created clean.sh"
+echo "created dupes.txt"
