@@ -263,6 +263,7 @@ alias mpv-without-config="mpv --profile=fast --video-sync=display-resample --hwd
 alias mpv-auto-safe="mpv --hwdec=auto-safe --vo=libmpv"
 alias mpv-fs="mpv --macos-fs-animation-duration=0 --no-native-fs --fs"
 alias mpv-debug="mpv --msg-level=all=debug"
+alias mpv-verbose="mpv --msg-level=all=v"
 alias mpv-image-viewer='mpv-stdin --image-display-duration=inf'
 alias mpv-image-slideshow='mpv-stdin --image-display-duration=5'
 
