@@ -22,12 +22,16 @@ local function build_bar(dim)
     end
 
     s = s
-        .. key("TAB", " Toggle OSD")
+        .. key("󱊷 ", " Menu")
+        .. key(" ", " OSD")
+        .. key("󰌑 ", " Next")
         .. key("A",   "uto-rotate")
+        .. key("I",   "nfo")
+        .. key("J",   "ump in playlist")
         .. key("N",   "ext")
+        .. key("Q",   "uit")
         .. key("R",   "otate")
         .. key("S",   "huffle")
-        .. key("I",   "nfo")
 
     return s
 end

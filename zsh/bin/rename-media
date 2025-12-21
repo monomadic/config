@@ -81,6 +81,50 @@ get_resolution_label() {
   fi
 }
 
+# Format duration in human readable form (rounded to largest unit)
+format_duration() {
+  local secs=${1:-0}
+  local hours=$(( secs / 3600 ))
+  local mins=$(( secs / 60 ))
+  
+  if (( hours > 0 )); then
+    print -r -- "${hours}hr"
+  elif (( mins > 0 )); then
+    print -r -- "${mins}min"
+  else
+    print -r -- "${secs}sec"
+  fi
+}
+
+# Extract rotation from multiple possible locations
+get_rotation() {
+  local file="$1"
+  local rotation=""
+  
+  # Try stream_side_data (display matrix) - most reliable for MOV/MP4
+  rotation=$(ffprobe -v error -select_streams v:0 \
+      -show_entries stream_side_data=rotation \
+      -of default=noprint_wrappers=1:nokey=1 -- "$file" 2>/dev/null | head -1)
+  
+  # If not found, try stream tags
+  if [[ -z "$rotation" ]]; then
+    rotation=$(ffprobe -v error -select_streams v:0 \
+        -show_entries stream_tags=rotate \
+        -of default=noprint_wrappers=1:nokey=1 -- "$file" 2>/dev/null | head -1)
+  fi
+  
+  # If not found, try format tags
+  if [[ -z "$rotation" ]]; then
+    rotation=$(ffprobe -v error \
+        -show_entries format_tags=rotate \
+        -of default=noprint_wrappers=1:nokey=1 -- "$file" 2>/dev/null | head -1)
+  fi
+  
+  # Default to 0 if nothing found
+  [[ -z "$rotation" ]] && rotation="0"
+  print -r -- "$rotation"
+}
+
 process_video() {
   local file="$1"
   local filename="${file:t}"
@@ -91,7 +135,7 @@ process_video() {
 
   name_without_ext="$(clean_name "$name_without_ext")"
 
-  # Probe
+  # Probe for video stream info
   local video_info
   if ! video_info=$(ffprobe -v error -select_streams v:0 \
       -show_entries stream=width,height,r_frame_rate,bit_rate \
@@ -100,13 +144,25 @@ process_video() {
     return
   fi
 
-  local width height frame_rate bit_rate
-  width=$(   print -r -- "$video_info" | cut -d, -f1)
-  height=$(  print -r -- "$video_info" | cut -d, -f2)
-  frame_rate=$(print -r -- "$video_info" | cut -d, -f3)
-  bit_rate=$( print -r -- "$video_info" | cut -d, -f4)
+  # Get rotation from multiple sources
+  local rotation; rotation="$(get_rotation "$file")"
 
-  # fps -> nearest integer (keeps existing ints)
+  # Probe for duration
+  local duration_secs
+  if ! duration_secs=$(ffprobe -v error -show_entries format=duration \
+      -of csv=p=0 -- "$file" 2>/dev/null); then
+    duration_secs="0"
+  fi
+  # Round to nearest integer
+  duration_secs=$(awk -v d="$duration_secs" 'BEGIN{printf("%d", d+0.5)}')
+
+  local width height frame_rate bit_rate
+  width=$(     print -r -- "$video_info" | cut -d, -f1)
+  height=$(    print -r -- "$video_info" | cut -d, -f2)
+  frame_rate=$(print -r -- "$video_info" | cut -d, -f3)
+  bit_rate=$(  print -r -- "$video_info" | cut -d, -f4)
+
+  # fps -> nearest integer
   if [[ $frame_rate == */* ]]; then
     local num=${frame_rate%%/*}
     local denom=${frame_rate##*/}
@@ -117,27 +173,40 @@ process_video() {
     fi
   fi
 
-  # Resolution from smaller dimension (handles portrait)
-  local smaller_dim=$(( width < height ? width : height ))
+  # Check if rotation swaps dimensions (90 or 270 degrees)
+  # Handle negative angles
+  local display_width=$width
+  local display_height=$height
+  local abs_rotation=${rotation#-}  # remove negative sign
+  if [[ "$abs_rotation" == "90" || "$abs_rotation" == "270" ]]; then
+    display_width=$height
+    display_height=$width
+  fi
+
+  # Resolution from smaller dimension
+  local smaller_dim=$(( display_width < display_height ? display_width : display_height ))
   local resolution; resolution="$(get_resolution_label "$smaller_dim")"
 
-  # Orientation
+  # Orientation based on display dimensions
   local orientation
-  if (( width > height )); then
+  if (( display_width > display_height )); then
     orientation="landscape"
-  elif (( height > width )); then
+  elif (( display_height > display_width )); then
     orientation="portrait"
   else
     orientation="square"
   fi
 
-  # Mbps (no bc dependency)
+  # Mbps rounded to integer
   local mbps="unknown"
   if [[ -n "$bit_rate" && "$bit_rate" != "N/A" ]]; then
-    mbps="$(awk -v b="$bit_rate" 'BEGIN{printf("%.1fmbps", b/1000000)}')"
+    mbps="$(awk -v b="$bit_rate" 'BEGIN{printf("%dmbps", (b+500000)/1000000)}')"
   fi
 
-  local new_filename="${name_without_ext} {${resolution}@${frame_rate}fps, ${mbps}, ${orientation}}.${extension}"
+  # Format duration
+  local duration; duration="$(format_duration "$duration_secs")"
+
+  local new_filename="${name_without_ext} {${resolution} ${frame_rate}fps ${duration} ${mbps} ${orientation}}.${extension}"
   local new_path="${dirname}/${new_filename}"
 
   if [[ -e "$new_path" ]]; then

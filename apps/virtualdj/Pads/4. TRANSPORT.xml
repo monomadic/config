@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="TRANSPORT">
+  <!-- <pad1 name="MASTER" color="color '#FF0000'">masterdeck</pad1> -->
+  <!-- <pad2 name="sync" color="color '#FFFF44'" autodim="false">sync</pad2> -->
+  <!-- <pad3 name="sync bar" color="color '#FFFF44'" autodim="false">phrase_sync 4</pad3> -->
+  <!-- <pad4 name="sync phrase" color="color '#FF0000'" autodim="false">phrase_sync 16</pad4> -->
+  <pad1 name="◀ BAR" color="color '#FF2600'" autodim="false">goto -4</pad1>
+  <pad2 name="BAR  ▶" color="color '#FF2600'" autodim="false">goto +4</pad2>
+  <pad3 name="◀ BEAT" color="color '#FFFF44'" autodim="false">goto -1</pad3>
+  <pad4 name="BEAT ▶" color="color '#FFFF44'" autodim="false">goto +1</pad4>
+  <!-- <pad5 name="BPM SRC" color="color '#8534FF'" autodim="false">var '@$abpmt_source' 1 ? auto_bpm_transition 'source_original' : auto_bpm_transition</pad5> -->
+  <pad5 name="`leftdeck ? get_text '◀SWAP' : get_text 'SWAP ▶'`" color="color white" autodim="false">rightdeck ? deck left volume 0% &amp; deck right volume 100% &amp; deck right play : deck right volume 0% &amp; deck left volume 100% &amp; deck left play</pad5>
+  <pad6 name="PITCH RESET" color="blue" autodim="false">pitch_reset 4bt</pad6>
+  <pad7 name="BPM －" color="color '#75D5FF'" autodim="false">pitch -1 bpm</pad7>
+  <pad8 name="BPM ＋" color="color '#75D5FF'" autodim="false">pitch +1 bpm</pad8>
+  <!-- <pad12 name="`filter_label 'name' &amp; param_uppercase`" color="color magenta" query="effect_active 'colorfx'">effect_active 'colorfx'</pad12> -->
+  <pad9 name="ACAPELLA" color="color '#3592F9'">stem_pad 'acapella'</pad9>
+  <pad10 name="INSTRUMENTAL" color="color '#CC55FF'">stem_pad 'instrumental'</pad10>
+  <pad11 name="COLORFX" color="color magenta" query="effect_active 'colorfx'">effect_active 'colorfx'</pad11>
+  <pad12 name="`masterdeck ? masterdeck_auto ? get_text 'AUTO' : get_text 'MASTER' : get_text 'SLAVE'`" query="masterdeck" color="color orange">masterdeck</pad12>
+  <pad13 name="KEY" color="masterdeck ? color orange : match_key ? color green : color red" autodim="true" query="not masterdeck ? match_key ? true : blink 500ms">match_key</pad13>
+  <pad14 name="BEAT" color="masterdeck ? color orange : is_sync ? color green : color red" autodim="true" query="not masterdeck ? is_sync ? true : blink 500ms">sync</pad14>
+  <pad15 name="PHRASE" color="masterdeck ? color orange : is_sync ? color green : color red" autodim="true" query="not masterdeck ? is_sync ? true : blink 500ms">sync &amp; phrase_sync 'auto'</pad15>
+  <pad16 name="`play ? get_text 'PAUSE' : get_text '▶ PLAY'`" color="color &quot;green&quot;">play_button</pad16>
+  <param1 name="BPM `get_bpm`">param_bigger 0 ? pitch +1 bpm : pitch -1 bpm</param1>
+  <param2 name="KEY `get_key`">param_bigger 0 ? key_move +1 : key_move -1</param2>
+</page>

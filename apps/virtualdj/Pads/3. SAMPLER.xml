@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="SAMPLER 16">
+	<pad1 name="`get_sample_name 1`" color="get_sample_color 1">sampler_play 1</pad1>
+	<shift_pad1 name="`get_sampler_bank 0`">sampler_bank 1</shift_pad1>
+	<pad2 name="`get_sample_name 2`" color="get_sample_color 2">sampler_play 2</pad2>
+	<pad3 name="`get_sample_name 3`" color="get_sample_color 3">sampler_play 3</pad3>
+	<pad4 name="`get_sample_name 4`" color="get_sample_color 4">sampler_play 4</pad4>
+	<shift_pad2 name="`get_sampler_bank 1`">sampler_bank 2</shift_pad2>
+	<shift_pad3 name="`get_sampler_bank 2`">sampler_bank 3</shift_pad3>
+	<shift_pad4 name="`get_sampler_bank 3`">sampler_bank 4</shift_pad4>
+	<shift_pad5 name="`get_sampler_bank 5`">sampler_bank 5</shift_pad5>
+	<pad5 name="`get_sample_name 5`" color="get_sample_color 5">sampler_play_stutter 5</pad5>
+	<shift_pad6 name="`get_sampler_bank 6`">sampler_bank 6</shift_pad6>
+	<shift_pad8 />
+	<shift_pad7 />
+	<pad6 name="`get_sample_name 6`" color="get_sample_color 6">sampler_play_stutter 6</pad6>
+	<pad8 color="get_sample_color 8" name="`get_sample_name 8`">sampler_play_stutter 8</pad8>
+	<pad7 color="get_sample_color 7" name="`get_sample_name 7`">sampler_play_stutter 7</pad7>
+	<pad9 color="get_sample_color 9" name="`get_sampler_bank 0`">sampler_bank 1</pad9>
+	<pad10 color="get_sample_color 10" name="`get_sampler_bank 1`">sampler_bank 2</pad10>
+	<pad11 color="get_sample_color 11" name="`get_sampler_bank 2`">sampler_bank 3</pad11>
+	<pad12 color="get_sample_color 12" name="`get_sampler_bank 3`">sampler_bank 4</pad12>
+	<pad13 color="get_sample_color 13" name="`get_sampler_bank 4`">sampler_bank 5</pad13>
+	<pad14 color="get_sample_color 14" name="`get_sampler_bank 5`">sampler_bank 6</pad14>
+	<pad15 color="get_sample_color 15" name="`get_sampler_bank 6`">sampler_bank 7</pad15>
+	<pad16 color="get_sample_color 16" name="`get_sampler_bank 7`">sampler_bank 8</pad16>
+	<param2 name="`sampler_bank`">sampler_bank</param2>
+	<param1 name="`get_sampler_bank`">sampler_bank</param1>
+	<menu>sampler_options</menu>
+	<shift_pad9 />
+</page>

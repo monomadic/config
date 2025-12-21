@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="FX">
+  <pad1 name="ECHO" query="effect_active 'Echo' ? blink 500ms" color="color yellow">
+    effect_active 'Echo' ?
+      effect_active 'Echo' :
+      effect_slider 'Echo' 1 75% &amp; effect_slider 'Echo' 2 50% &amp; effect_active 'Echo'
+  </pad1>
+  <pad2 name="REVERB" query="effect_active 'Reverb' ? blink 500ms" color="color yellow">
+    effect_active 'Reverb' ?
+      effect_active 'Reverb' :
+      effect_slider 'Reverb' 1 75% &amp; effect_slider 'Reverb' 2 50% &amp; effect_active 'Reverb'
+  </pad2>
+  <pad3 name="DELAY" query="effect_active 'Delay' ? blink 500ms" color="color yellow">
+    effect_active 'Delay' ?
+      effect_active 'Delay' :
+      effect_slider 'Delay' 1 75% &amp; effect_slider 'Delay' 2 50% &amp; effect_active 'Delay'
+  </pad3>
+  <pad4 name="CUT" query="effect_active 'Cut' ? blink 500ms" color="color yellow">
+    effect_active 'Cut' ?
+      effect_active 'Cut' :
+      effect_slider 'Cut' 1 75% &amp; effect_slider 'Cut' 2 50% &amp; effect_active 'Cut'
+  </pad4>
+  <pad5 name="ECHO OUT" query="effect_active 'Echo Out' ? blink 500ms" color="color yellow">
+    effect_active 'Echo Out' ?
+      effect_active 'Echo Out' :
+      effect_slider 'Echo Out' 1 75% &amp; effect_slider 'Echo Out' 2 50% &amp; effect_active 'Echo Out'
+  </pad5>
+  <pad6 name="LOOP ROLL" query="effect_active 'Loop Roll' ? blink 500ms" color="color yellow">
+    effect_active 'loop roll' ?
+      effect_active 'loop roll' :
+      effect_slider 'loop roll' 1 75% &amp; effect_slider 'loop roll' 2 50% &amp; effect_active 'loop roll'
+  </pad6>
+  <pad7 name="BACKSPIN" query="effect_active 'Backspin' ? blink 500ms" color="color yellow">
+    effect_active 'Backspin' ?
+      effect_active 'Backspin' :
+      effect_slider 'Backspin' 1 75% &amp; effect_slider 'Backspin' 2 50% &amp; effect_active 'Backspin'
+  </pad7>
+  <pad8 name="BRAKE" query="effect_active 'Brake' ? blink 500ms" color="color yellow">
+    effect_active 'Brake' ?
+      effect_active 'Brake' :
+      effect_slider 'Brake' 1 75% &amp; effect_slider 'Brake' 2 50% &amp; effect_active 'Brake'
+  </pad8>
+  <pad9 name="SPIRAL" query="effect_active 'Spiral' ? blink 500ms" color="color yellow">
+    effect_active 'Spiral' ?
+      effect_active 'Spiral' :
+      effect_slider 'Spiral' 1 75% &amp; effect_slider 'Spiral' 2 50% &amp; effect_active 'Spiral'
+  </pad9>
+  <pad10 name="PHASER" query="effect_active 'Phaser' ? blink 500ms" color="color yellow">
+    effect_active 'Phaser' ?
+      effect_active 'Phaser' :
+      effect_slider 'Phaser' 1 75% &amp; effect_slider 'Phaser' 2 50% &amp; effect_active 'Phaser'
+  </pad10>
+  <pad11 name="BEATGRID" query="effect_active 'Beatgrid' ? blink 500ms" color="color yellow">
+    effect_active 'Beatgrid' ?
+      effect_active 'Beatgrid' :
+      effect_slider 'Beatgrid' 1 75% &amp; effect_slider 'Beatgrid' 2 50% &amp; effect_active 'Beatgrid'
+  </pad11>
+  <pad12 name="EDIT" color="color white">effect_show_gui</pad12>
+  <shift_pad1 name="VOCAL ECHO OUT" color="color green">
+    effect_active 'Echo Out' ?
+      effect_active 'Echo Out' off &amp;
+      stem 'vocal' 100% &amp; stem 'melody' 100% &amp; stem 'bass' 100% &amp; stem 'rhythm' 100% :
+      only_stem 'vocal' &amp;
+      effect_slider 'Echo Out' 1 75% &amp;
+      effect_slider 'Echo Out' 2 50% &amp;
+      effect_active 'Echo Out'
+  </shift_pad1>
+  <pad13 name="VOCAL" color="stem_color vocal">
+    effect_stems 'vocal'
+  </pad13>
+  <pad14 name="MELODY" color="stem_color melody">
+    effect_stems 'melody'
+  </pad14>
+  <pad15 name="DRUM" color="stem_color rhythm">
+    effect_stems 'rhythm'
+  </pad15>
+  <pad16 name="KILL" color="color 'red'">
+    effect_active 'Reverb' off &amp; effect_active 'Echo' off &amp; effect_active 'Delay' off &amp; effect_active 'Cut' off &amp; effect_active 'Echo Out' off &amp; effect_active 'Loop Roll' off &amp; effect_active 'Backspin' off &amp; effect_active 'Brake' off &amp; effect_active 'Spiral' off &amp; effect_active 'Phaser' off &amp; effect_active 'Beatgrid' off &amp; effect_active 'Gate' off" </pad16>
+  <menu>ColorFX =[pad_page "ColorFX"]</menu>
+  <param1 name="EFFECTS">pad_page "2. COLOR FX"</param1>
+</page>

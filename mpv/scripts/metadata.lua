@@ -1,6 +1,32 @@
 -- osd-formatter.lua - Format OSD status message with custom logic
 local mp = require "mp"
 
+local function get_orientation()
+    -- Prefer display dimensions (already accounts for rotation/aspect)
+    local dw = mp.get_property_number("dwidth", 0)
+    local dh = mp.get_property_number("dheight", 0)
+
+    -- Fallback: raw width/height + rotate metadata
+    if dw <= 0 or dh <= 0 then
+        dw = mp.get_property_number("width", 0)
+        dh = mp.get_property_number("height", 0)
+
+        local rot = mp.get_property_number("video-params/rotate", 0) or 0
+        rot = ((rot % 360) + 360) % 360
+        if rot == 90 or rot == 270 then
+            dw, dh = dh, dw
+        end
+    end
+
+    if dw > 0 and dh > 0 then
+        if dw > dh then return "landscape"
+        elseif dh > dw then return "portrait"
+        else return "square"
+        end
+    end
+    return "unknown"
+end
+
 local function format_osd_status()
     -- Human-readable file size
     local fsize = mp.get_property_number("file-size", 0)
@@ -18,7 +44,7 @@ local function format_osd_status()
     -- Simplified video codec
     local codec = mp.get_property("video-codec") or "unknown"
     codec = codec:match("^(.-)%s*/") or codec
-    
+
     -- Convert to common names
     local codec_map = {
         hevc = "H.265",
@@ -53,43 +79,36 @@ local function format_osd_status()
         end
     end
 
-    -- Get title and pause state
     local title = mp.get_property("media-title") or "Unknown"
-    -- local paused = mp.get_property_bool("pause", false)
-    
+    local paused = mp.get_property_bool("pause", false)
+
+    -- Orientation (rotation-aware)
+    local orient = get_orientation()
+
     -- Format file info line
-    local file_info = string.format(" %s    %s    %s%s",
-        human_size, codec, resolution, (fps ~= "" and (" @ " .. fps) or ""))
-    
+    local file_info = string.format(" %s    %s    %s%s   󰟾 %s",
+        human_size, codec, resolution, (fps ~= "" and (" @ " .. fps) or ""), orient
+    )
+
     -- Format based on OSD level
-    -- Note: osd-status-msg only appears at levels 2 and 3 (level 1 only shows seekbar)
     local osd_level = mp.get_property_number("osd-level", 1)
     local status_msg
-    
+
     if osd_level <= 2 then
-        -- Level 2 (Minimal): only file info
         status_msg = file_info
     else
-        -- Level 3 (Full): title + file info
         local line1 = (paused and "(Paused) " or "") .. title
         status_msg = line1 .. "\n" .. file_info
     end
-    
+
     mp.set_property("osd-status-msg", status_msg)
 end
 
--- Update on file load and when video params change
 mp.register_event("file-loaded", format_osd_status)
 mp.observe_property("video-params", "native", format_osd_status)
-mp.observe_property("osd-level", "number", format_osd_status)  -- Update when OSD level changes
-mp.observe_property("pause", "bool", format_osd_status)  -- Update when pause state changes
+mp.observe_property("osd-level", "number", format_osd_status)
+mp.observe_property("pause", "bool", format_osd_status)
 
--- Show OSD briefly when file loads
--- mp.register_event("file-loaded", function()
---     mp.command("show-text ${osd-status-msg} 3000")
--- end)
-
--- Apply format immediately if file is already loaded (script loaded mid-playback)
 if mp.get_property("path") then
     format_osd_status()
 end
