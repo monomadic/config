@@ -9,6 +9,7 @@ rclone sync -P \
   --transfers 1 --checkers 2 \
   --backup-dir "/Volumes/Tower Backup/.rclone/$ts" \
   --exclude "/.rclone/**" \
+  --exclude "/Installers/Cyberpunk/**" \
   --exclude "/.Trashes/**" \
   --exclude "/.TemporaryItems/**" \
   --exclude "/.Spotlight-V100/**" \
