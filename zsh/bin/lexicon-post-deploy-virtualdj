@@ -1,0 +1,149 @@
+#!/usr/bin/env zsh
+emulate -L zsh
+set -euo pipefail
+
+db_file="${HOME}/Library/Application Support/VirtualDJ/database.xml"
+lexicon_dir="${HOME}/Library/Application Support/lexicon"
+pre_file="${db_file}.pre-lexicon-sync.xml"
+
+STEMS_BIT=33554432   # VirtualDJ prepared stems bit
+POLL_SECS=2
+
+die() { print -P "%F{red}error:%f $*" >&2; exit 1; }
+note() { print -P "%F{cyan}==>%f $*"; }
+
+need() { command -v "$1" >/dev/null 2>&1 || die "missing dependency: $1"; }
+
+vdj_running() {
+  pgrep -x "VirtualDJ" >/dev/null 2>&1
+}
+
+pre() {
+  [[ -f "$db_file" ]] || die "VDJ database not found: $db_file"
+  if vdj_running; then
+    note "VirtualDJ is running. Strongly recommend quitting it before snapshot/sync."
+  fi
+
+  mkdir -p "${db_file:h}"
+  cp -f "$db_file" "$pre_file"
+  note "Snapshot saved:"
+  print -r -- "  $pre_file"
+}
+
+post() {
+  [[ -f "$db_file" ]] || die "VDJ database not found: $db_file"
+  [[ -f "$pre_file" ]] || die "missing snapshot: $pre_file (run: $0 pre)"
+  if vdj_running; then
+    note "VirtualDJ is running. Quit it before applying merge to avoid races."
+    exit 1
+  fi
+
+  need python3
+
+  note "Re-applying prepared-stems flags from snapshot → current DB"
+  python3 - "$pre_file" "$db_file" "$STEMS_BIT" <<'PY'
+import sys, os, tempfile
+import xml.etree.ElementTree as ET
+
+old_db, new_db, bit_s = sys.argv[1], sys.argv[2], sys.argv[3]
+BIT = int(bit_s)
+
+def get_flag(song):
+    v = song.get("Flag")
+    if not v:
+        return 0
+    try:
+        return int(v)
+    except ValueError:
+        return 0
+
+# Key by FilePath to survive tag writes/size changes; you can tighten later if needed.
+def key(song):
+    return song.get("FilePath")
+
+old_root = ET.parse(old_db).getroot()
+new_tree = ET.parse(new_db)
+new_root = new_tree.getroot()
+
+stems_paths = set()
+for s in old_root.iter("Song"):
+    p = key(s)
+    if p and (get_flag(s) & BIT):
+        stems_paths.add(p)
+
+changed = 0
+for s in new_root.iter("Song"):
+    p = key(s)
+    if p in stems_paths:
+        f = get_flag(s)
+        nf = f | BIT
+        if nf != f:
+            s.set("Flag", str(nf))
+            changed += 1
+
+# Atomic write
+d = os.path.dirname(new_db) or "."
+fd, tmp = tempfile.mkstemp(prefix="database.xml.", suffix=".tmp", dir=d)
+os.close(fd)
+new_tree.write(tmp, encoding="utf-8", xml_declaration=True)
+os.replace(tmp, new_db)
+
+print(f"Re-applied stems flag to {changed} tracks.")
+PY
+
+  note "Done."
+}
+
+watch() {
+  [[ -f "$db_file" ]] || die "VDJ database not found: $db_file"
+  [[ -d "$lexicon_dir" ]] || note "Lexicon dir not found (continuing anyway): $lexicon_dir"
+  need python3
+
+  note "Watching for changes:"
+  print -r -- "  $db_file"
+  print -r -- "Every ${POLL_SECS}s, if database.xml mtime changes, we run: post"
+  note "Tip: run '$0 pre' right before you hit Full Sync in Lexicon."
+
+  local last_mtime
+  last_mtime="$(stat -f '%m' "$db_file")"
+
+  while true; do
+    sleep "$POLL_SECS"
+    local mtime
+    mtime="$(stat -f '%m' "$db_file")" || continue
+    if [[ "$mtime" != "$last_mtime" ]]; then
+      last_mtime="$mtime"
+      if [[ -f "$pre_file" ]]; then
+        note "database.xml changed → applying stems merge"
+        post || note "merge failed (is VirtualDJ running?)"
+      else
+        note "database.xml changed but no snapshot found; run '$0 pre' before syncing."
+      fi
+    fi
+  done
+}
+
+usage() {
+  cat <<EOF
+Usage:
+  ${0:t} pre        # snapshot VDJ DB to ${pre_file}
+  ${0:t} post       # re-apply prepared-stems flags from snapshot to current DB
+  ${0:t} watch      # poll for DB changes and auto-run post
+
+Recommended flow for Full Sync idempotency:
+  1) Quit VirtualDJ
+  2) ${0:t} pre
+  3) Run Lexicon Full Sync (target: VirtualDJ)
+  4) ${0:t} post
+  5) Launch VirtualDJ
+EOF
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  pre)   pre ;;
+  post)  post ;;
+  watch) watch ;;
+  ""|help|-h|--help) usage ;;
+  *) die "unknown command: $cmd (try: $0 help)" ;;
+esac

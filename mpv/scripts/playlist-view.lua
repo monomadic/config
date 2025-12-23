@@ -96,7 +96,7 @@ function show_playlist()
 	mp.osd_message(table.concat(lines, "\n"), 5)
 end
 
-mp.add_key_binding("P", "show-minimal-playlist", show_playlist)
+-- mp.add_key_binding("P", "show-minimal-playlist", show_playlist)
 
 mp.observe_property("playlist", "native", function()
 	if mp.get_property_number("osd-msg-counter", 0) > 0 then

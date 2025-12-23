@@ -379,6 +379,7 @@ alias kitty-joshuto="kitty --override background=#000 --working-directory=$HOME/
 # macOS Specific
 # ============================================================================
 
+alias .restart-window-server="sudo killall -HUP WindowServer"
 alias .macos-keybindings="source $DOTFILES_DIR/scripts/macos-keybindings.sh"
 alias .gatekeeper-whitelist="xattr -rd com.apple.quarantine"
 alias .self-sign="codesign --sign - --force --deep"
