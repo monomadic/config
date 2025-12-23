@@ -5,7 +5,7 @@ ts=$(date +%F_%H%M%S)
 rclone sync -P \
   --track-renames --track-renames-strategy modtime \
   --metadata \
-  --stats 2s --stats-one-line --stats-one-line-date --stats-log-level NOTICE \
+  --stats 2s --stats-log-level NOTICE \
   --transfers 1 --checkers 2 \
   --backup-dir "/Volumes/Tower Backup/.rclone/$ts" \
   --exclude "/.rclone/**" \
