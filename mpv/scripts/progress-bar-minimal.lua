@@ -43,7 +43,7 @@ mp.observe_property("percent-pos", "number", draw_bar)
 mp.observe_property("osd-dimensions", "native", draw_bar)
 mp.observe_property("osd-level", "number", draw_bar)
 
-mp.add_key_binding("P", "toggle-progress", function()
+mp.add_key_binding("Ctrl+p", "toggle-progress", function()
   visible = not visible
   draw_bar()
 end)

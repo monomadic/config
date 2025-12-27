@@ -1,28 +1,31 @@
 #!/usr/bin/env zsh
 set -euo pipefail
-# ANSI colour codes
-local GREEN=$'\e[32m'
-local RED=$'\e[31m'
-local NC=$'\e[0m'
-# print error and exit
+
+typeset -r GREEN=$'\e[32m'
+typeset -r RED=$'\e[31m'
+typeset -r NC=$'\e[0m'
+
 error_exit() {
-  print -P "${RED}[error] $1${NC}"
+  print -P "${RED}[error] $1${NC}" >&2
   exit 1
 }
-# ensure command exists
+
 check_command() {
   whence -p "$1" &>/dev/null || error_exit "$1 is not installed"
 }
-check_command yt-dlp
-check_command terminal-notifier
+
 usage() {
   cat <<EOF
 Usage: ${0:t} [options] <mode> <URL> [yt-dlp args]
+
 Options:
   --mp4, --webm         Format preference
   --quiet, -q           Suppress "Executing:" message
   --dry-run, -n         Show command without executing
   --show-filename, -f   Show output filename without downloading
+  --completion          Print zsh completion script to stdout and exit
+  --help, -h            Show this help
+
 Modes:
   music-video (m)   Download music video
   audio-only  (a)   Download audio only
@@ -32,140 +35,180 @@ Modes:
   best-quality (b)  Download best quality (video+audio)
 EOF
 }
-(($# < 2)) && usage && exit 1
-# parse options
-local FORMAT_PREF='' QUIET=0 DRY_RUN=0 SHOW_FILENAME=0
-while [[ $1 == -* ]]; do
+
+print_completion() {
+  local cmd=${0:t}
+  cat <<EOF
+#compdef ${cmd}
+
+_arguments -s -S \\
+  '--mp4[Prefer mp4-compatible streams/container when possible]' \\
+  '--webm[Prefer webm-compatible streams/container when possible]' \\
+  '(-q --quiet)'{-q,--quiet}'[Suppress Executing output]' \\
+  '(-n --dry-run)'{-n,--dry-run}'[Print yt-dlp command and exit]' \\
+  '(-f --show-filename)'{-f,--show-filename}'[Print filename without downloading]' \\
+  '--completion[Print this zsh completion script and exit]' \\
+  '(-h --help)'{-h,--help}'[Show help]' \\
+  '1:mode:(music-video m audio-only a video-only v adult A youtube y best-quality b)' \\
+  '2:URL:_urls' \\
+  '*::yt-dlp args:_default'
+EOF
+}
+
+# --- option parsing (allow --completion to bypass everything) ---
+typeset FORMAT_PREF='' QUIET=0 DRY_RUN=0 SHOW_FILENAME=0
+
+while [[ $# -gt 0 && $1 == -* ]]; do
   case $1 in
-  --mp4) FORMAT_PREF='[ext=mp4]' ;;
-  --webm) FORMAT_PREF='[ext=webm]' ;;
-  --quiet | -q) QUIET=1 ;;
-  --dry-run | -n) DRY_RUN=1 ;;
-  --show-filename | -f) SHOW_FILENAME=1 ;;
-  *) break ;;
+    --completion) print_completion; exit 0 ;;
+    --help|-h) usage; exit 0 ;;
+    --mp4)  FORMAT_PREF='mp4' ;;
+    --webm) FORMAT_PREF='webm' ;;
+    --quiet|-q) QUIET=1 ;;
+    --dry-run|-n) DRY_RUN=1 ;;
+    --show-filename|-f) SHOW_FILENAME=1 ;;
+    --) shift; break ;;
+    -*) error_exit "Unknown option: $1" ;;
   esac
   shift
 done
-local MODE=$1 URL=$2
+
+(( $# < 2 )) && { usage; exit 1; }
+
+check_command yt-dlp
+
+typeset MODE=$1 URL=$2
 shift 2
-local EXTRA_ARGS=("$@")
-# detect passthrough commands
-local PASSTHROUGH=0
+typeset -a EXTRA_ARGS=("$@")
+
+# Detect passthrough commands
+typeset PASSTHROUGH=0
 for arg in "${EXTRA_ARGS[@]}"; do
-  [[ $arg =~ ^--(list-formats|print|dump-json)$ ]] && {
-    PASSTHROUGH=1
-    break
-  }
+  [[ $arg == --list-formats || $arg == --print || $arg == --dump-json ]] && { PASSTHROUGH=1; break; }
 done
-# normalize shortcuts
+
+# Normalize shortcuts
 case $MODE in
-m) MODE=music-video ;;
-a) MODE=audio-only ;;
-v) MODE=video-only ;;
-p | A) MODE=adult ;;
-y) MODE=youtube ;;
-b) MODE=best-quality ;;
+  m) MODE=music-video ;;
+  a) MODE=audio-only ;;
+  v) MODE=video-only ;;
+  A|p) MODE=adult ;;
+  y) MODE=youtube ;;
+  b) MODE=best-quality ;;
 esac
-# base yt-dlp options
+
+# Preference selectors
+typeset VSEL='' ASEL='' PREF_CONTAINER=''
+case ${FORMAT_PREF:-} in
+  mp4)
+    VSEL='[ext=mp4]'
+    ASEL='[ext=m4a]'
+    PREF_CONTAINER='mp4'
+    ;;
+  webm)
+    VSEL='[ext=webm]'
+    ASEL='[ext=webm]'
+    PREF_CONTAINER='webm'
+    ;;
+esac
+
+# Respect user override if they already passed merge/audio options
+typeset HAS_MERGE=0 HAS_AUDIOFMT=0
+for arg in "${EXTRA_ARGS[@]}"; do
+  [[ $arg == --merge-output-format ]] && HAS_MERGE=1
+  [[ $arg == --audio-format ]] && HAS_AUDIOFMT=1
+done
+
 typeset -a YTDL_BASE=(
   yt-dlp
   --cookies-from-browser brave
-  --continue --progress --verbose
+  --continue --progress
   --retries infinite --fragment-retries infinite --socket-timeout 15
 )
-if ((PASSTHROUGH)); then
+
+typeset -a YTDL_CMD
+
+if (( PASSTHROUGH )); then
   YTDL_CMD=("${YTDL_BASE[@]}" "${EXTRA_ARGS[@]}" "$URL")
 else
-  local OUTPUT_FMT=''
-  typeset -a FMT_ARGS
+  typeset OUTPUT_FMT=''
+  typeset -a FMT_ARGS=()
+
   case $MODE in
-  adult)
-    OUTPUT_FMT='[%(uploader|Unknown)s] %(title)s [%(extractor)s].%(ext)s'
-    FMT_ARGS=(
-      --format "\"bv*${FORMAT_PREF}+ba/best\""
-      --merge-output-format mp4
-      --embed-metadata --embed-info-json
-      --match-filter "duration > 60"
-    )
-    ;;
-  music-video)
-    OUTPUT_FMT='%(artist|)s - %(title)s.%(ext)s'
-    FMT_ARGS=(
-      -f "bestvideo${FORMAT_PREF}[ext^=avc1]+bestaudio${FORMAT_PREF}"
-      --merge-output-format mp4
-      --embed-metadata --embed-subs --embed-chapters
-    )
-    ;;
-  audio-only)
-    OUTPUT_FMT='%(artist)s - %(title)s.%(ext)s'
-    FMT_ARGS=(
-      -f "bestaudio${FORMAT_PREF}"
-      --extract-audio --audio-format m4a
-      --embed-metadata
-    )
-    ;;
-  video-only)
-    OUTPUT_FMT='%(artist)s - %(title)s.%(ext)s'
-    FMT_ARGS=(
-      -f "bestvideo${FORMAT_PREF}"
-      --merge-output-format mp4
-      --embed-metadata
-    )
-    ;;
-  youtube)
-    OUTPUT_FMT='[%(channel)s] %(title)s [YouTube][%(id)s].%(ext)s'
-    FMT_ARGS=(
-      -f "bv*${FORMAT_PREF}+ba/best"
-      --merge-output-format mp4
-      --embed-metadata --embed-subs --embed-chapters
-    )
-    ;;
-  best-quality)
-    OUTPUT_FMT='%(uploader)s - %(title)s.%(ext)s'
-    FMT_ARGS=(
-      -f bestvideo+ba/best
-      --merge-output-format mkv
-      --embed-metadata
-    )
-    ;;
-  *)
-    error_exit "Unknown mode: $MODE"
-    ;;
+    adult)
+      OUTPUT_FMT='[%(uploader|Unknown)s] %(title)s [%(extractor)s].%(ext)s'
+      FMT_ARGS+=(
+        -f "bv*${VSEL}+ba${ASEL}/best"
+        --embed-metadata --embed-info-json
+        --match-filter "duration > 60"
+      )
+      (( HAS_MERGE == 0 && ${#PREF_CONTAINER} )) && FMT_ARGS+=(--merge-output-format "$PREF_CONTAINER")
+      ;;
+    music-video)
+      OUTPUT_FMT='%(artist,channel,uploader|Unknown)s - %(title)s.%(ext)s'
+      if [[ ${FORMAT_PREF:-} == mp4 ]]; then
+        # Prefer H.264 when aiming for mp4 friendliness
+        FMT_ARGS+=(-f "bestvideo${VSEL}[vcodec^=avc1]+bestaudio${ASEL}/best")
+      else
+        FMT_ARGS+=(-f "bestvideo${VSEL}+bestaudio${ASEL}/best")
+      fi
+      FMT_ARGS+=(--embed-metadata --embed-subs --embed-chapters)
+      (( HAS_MERGE == 0 && ${#PREF_CONTAINER} )) && FMT_ARGS+=(--merge-output-format "$PREF_CONTAINER")
+      ;;
+    audio-only)
+      OUTPUT_FMT='%(artist,channel,uploader|Unknown)s - %(title)s.%(ext)s'
+      FMT_ARGS+=(-f "bestaudio${ASEL}/bestaudio")
+      FMT_ARGS+=(--extract-audio --embed-metadata)
+      if (( HAS_AUDIOFMT == 0 )); then
+        [[ ${FORMAT_PREF:-} == webm ]] && FMT_ARGS+=(--audio-format opus) || FMT_ARGS+=(--audio-format m4a)
+      fi
+      ;;
+    video-only)
+      OUTPUT_FMT='%(artist,channel,uploader|Unknown)s - %(title)s.%(ext)s'
+      FMT_ARGS+=(-f "bestvideo${VSEL}/bestvideo")
+      FMT_ARGS+=(--embed-metadata)
+      (( HAS_MERGE == 0 && ${#PREF_CONTAINER} )) && FMT_ARGS+=(--merge-output-format "$PREF_CONTAINER")
+      ;;
+    youtube)
+      OUTPUT_FMT='[%(channel|Unknown)s] %(title)s [YouTube][%(id)s].%(ext)s'
+      FMT_ARGS+=(-f "bv*${VSEL}+ba${ASEL}/best")
+      FMT_ARGS+=(--embed-metadata --embed-subs --embed-chapters)
+      (( HAS_MERGE == 0 && ${#PREF_CONTAINER} )) && FMT_ARGS+=(--merge-output-format "$PREF_CONTAINER")
+      ;;
+    best-quality)
+      OUTPUT_FMT='%(uploader|Unknown)s - %(title)s.%(ext)s'
+      FMT_ARGS+=(-f "bestvideo+ba/best" --merge-output-format mkv --embed-metadata)
+      ;;
+    *)
+      error_exit "Unknown mode: $MODE"
+      ;;
   esac
+
   YTDL_CMD=(
     "${YTDL_BASE[@]}"
     "${FMT_ARGS[@]}"
-    --output "\"$OUTPUT_FMT\""
+    --output "$OUTPUT_FMT"
     "${EXTRA_ARGS[@]}"
+    "$URL"
   )
-  # add filename display if requested
-  if ((SHOW_FILENAME)); then
+
+  if (( SHOW_FILENAME )); then
     YTDL_CMD+=(--print filename --skip-download)
   fi
-  YTDL_CMD+=("$URL")
 fi
-# show command if not quiet or if dry-run
-if ((DRY_RUN)); then
+
+show_cmd() {
+  # zsh-native safe quoting for arrays
+  print -r -- ${(qq)YTDL_CMD}
+}
+
+if (( DRY_RUN )); then
   print -P "${GREEN}Command:${NC}"
-  for arg in "${YTDL_CMD[@]}"; do
-    if [[ $arg =~ [[:space:]\|\>\<\*\(\)\[\]\#] ]]; then
-      printf "'%s' " "$arg"
-    else
-      printf "%s " "$arg"
-    fi
-  done
-  print
+  show_cmd
   exit 0
-elif ((! QUIET)); then
+elif (( ! QUIET )); then
   print -P "${GREEN}Executing:${NC}"
-  for arg in "${YTDL_CMD[@]}"; do
-    if [[ $arg =~ [[:space:]\|\>\<\*\(\)\[\]\#] ]]; then
-      printf "'%s' " "$arg"
-    else
-      printf "%s " "$arg"
-    fi
-  done
-  print
+  show_cmd
 fi
-# run it unquoted so you don't get literal backslashes
+
 "${YTDL_CMD[@]}"
