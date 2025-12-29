@@ -1,0 +1,266 @@
+#!/usr/bin/env zsh
+set -u
+setopt pipefail extended_glob
+
+autoload -U colors && colors
+
+_ok()   { print -P "%F{green}✓%f $*"; }
+_bad()  { print -P "%F{red}✗%f $*"; }
+_warn() { print -P "%F{yellow}!%f $*"; }
+_info() { print -P "%F{blue}•%f $*"; }
+_dim()  { print -P "%F{8}$*%f"; }
+
+_die() { _bad "$*"; exit 2; }
+
+_usage() {
+  cat <<'EOF'
+mov-faststart — check/enable “FastStart” (moov atom before mdat) for MP4/MOV/M4V
+
+Usage:
+  mov-faststart check   <file|glob|dir...>
+  mov-faststart enable  [--yes|-y] <file|glob|dir...>
+  mov-faststart -h|--help
+EOF
+}
+
+# Exit codes: 0 faststart, 1 not faststart, 2 unknown/unparseable
+_is_faststart() {
+  local file="$1"
+  python3 - "$file" <<'PY'
+import os, struct, sys
+
+p = sys.argv[1]
+try:
+    size = os.path.getsize(p)
+    with open(p, "rb") as f:
+        pos = 0
+        for _ in range(100000):
+            if pos + 8 > size:
+                sys.exit(2)
+            f.seek(pos)
+            hdr = f.read(8)
+            if len(hdr) < 8:
+                sys.exit(2)
+
+            atom_size, atom_type = struct.unpack(">I4s", hdr)
+            atom_type = atom_type.decode("latin-1")
+            header_len = 8
+
+            if atom_size == 1:
+                ext = f.read(8)
+                if len(ext) < 8:
+                    sys.exit(2)
+                atom_size = struct.unpack(">Q", ext)[0]
+                header_len = 16
+            elif atom_size == 0:
+                atom_size = size - pos
+
+            if atom_size < header_len:
+                sys.exit(2)
+
+            if atom_type == "moov":
+                sys.exit(0)
+            if atom_type == "mdat":
+                sys.exit(1)
+
+            pos += atom_size
+
+        sys.exit(2)
+except Exception:
+    sys.exit(2)
+PY
+}
+
+_is_video_path() {
+  local f="$1"
+  [[ "${f:l}" == *.mp4 || "${f:l}" == *.mov || "${f:l}" == *.m4v ]]
+}
+
+# Collect files from args (files, globs, dirs). Writes results into global array: FILES
+# Uses fd when available for dirs / quoted patterns / when user passes "*" etc.
+_collect_files() {
+  FILES=()
+  local -a args=("$@")
+  local a
+
+  # helper: add one file if it's video + regular file
+  local add_file
+  add_file() {
+    local f="$1"
+    [[ -f "$f" ]] || return 0
+    _is_video_path "$f" || return 0
+    FILES+=("$f")
+  }
+
+  # If fd exists, we can expand patterns/dirs robustly (and safely with spaces).
+  local has_fd=0
+  command -v fd >/dev/null 2>&1 && has_fd=1
+
+  for a in "${args[@]}"; do
+    # If caller already expanded globs, these will be plain paths: just add.
+    if [[ -f "$a" ]]; then
+      add_file "$a"
+      continue
+    fi
+
+    # Directory: add videos in it (non-recursive).
+    if [[ -d "$a" ]]; then
+      if (( has_fd )); then
+        while IFS= read -r -d '' f; do
+          FILES+=("$f")
+        done < <(fd -t f -e mp4 -e mov -e m4v --max-depth 1 --print0 . "$a")
+      else
+        # zsh-only fallback
+        local -a hits
+        hits=("$a"/*.(mp4|MP4|mov|MOV|m4v|M4V)(N))
+        FILES+=("${hits[@]}")
+      fi
+      continue
+    fi
+
+    # Unexpanded/quoted glob or pattern: use fd --glob in CWD (non-recursive by default).
+    # Examples: "*.mp4", "subdir/*.mov"
+    if [[ "$a" == *[\*\?\[]* ]]; then
+      if (( has_fd )); then
+        # If pattern includes '/', allow deeper search; else keep max-depth 1.
+        if [[ "$a" == */* ]]; then
+          while IFS= read -r -d '' f; do
+            add_file "$f"
+          done < <(fd -t f --glob --print0 "$a" .)
+        else
+          while IFS= read -r -d '' f; do
+            add_file "$f"
+          done < <(fd -t f --glob --max-depth 1 --print0 "$a" .)
+        fi
+      else
+        # zsh-only fallback: expand in current shell (safe since it's only patterns here)
+        local -a hits
+        hits=(${~a}(N))
+        FILES+=("${hits[@]}")
+      fi
+      continue
+    fi
+
+    # Unknown / missing
+    _warn "no such file/dir: $a"
+  done
+
+  # de-dupe (stable)
+  if (( ${#FILES} > 1 )); then
+    local -A seen=()
+    local -a uniq=()
+    local f
+    for f in "${FILES[@]}"; do
+      [[ -n "${seen[$f]-}" ]] && continue
+      seen[$f]=1
+      uniq+=("$f")
+    done
+    FILES=("${uniq[@]}")
+  fi
+}
+
+_cmd_check() {
+  (( $# )) || _die "check: missing args (try: mov-faststart check *.mp4)"
+
+  _collect_files "$@"
+  (( ${#FILES} )) || _die "check: no mp4/mov/m4v files found from args"
+
+  local ok=0 bad=0 unk=0
+  local f st
+  for f in "${FILES[@]}"; do
+    _is_faststart "$f"; st=$?
+    case "$st" in
+      0) _ok  "$f"; ((ok++)) ;;
+      1) _bad "$f"; ((bad++)) ;;
+      *) _warn "unknown: $f"; ((unk++)) ;;
+    esac
+  done
+
+  _dim "—"
+  _info "FastStart: ${ok} ok, ${bad} not enabled, ${unk} unknown"
+  (( bad == 0 )) && return 0 || return 1
+}
+
+_cmd_enable() {
+  local yes=0
+  while (( $# )); do
+    case "$1" in
+      -y|--yes) yes=1; shift ;;
+      -h|--help) _usage; exit 0 ;;
+      --) shift; break ;;
+      -*) _die "enable: unknown option: $1" ;;
+      *) break ;;
+    esac
+  done
+
+  (( $# )) || _die "enable: missing args"
+  command -v ffmpeg >/dev/null 2>&1 || _die "ffmpeg not found in PATH"
+
+  _collect_files "$@"
+  (( ${#FILES} )) || _die "enable: no mp4/mov/m4v files found from args"
+
+  local any_fail=0
+  local f st
+
+  for f in "${FILES[@]}"; do
+    _is_faststart "$f"; st=$?
+    if (( st == 0 )); then
+      _ok "already FastStart: $f"
+      continue
+    elif (( st != 1 )); then
+      _warn "unknown/unparseable (won't modify): $f"
+      any_fail=1
+      continue
+    fi
+
+    _bad "not FastStart: $f"
+
+    if (( !yes )); then
+      local ans=""
+      read -q "ans?Enable FastStart for ${(qqq)f}? [y/N] "
+      print
+      [[ "$ans" == [yY] ]] || { _info "skipped: $f"; any_fail=1; continue; }
+    fi
+
+    local dir="${f:h}"
+    local base="${f:t:r}"
+    local ext="${f:e}"
+
+    local tmp
+    tmp="$(mktemp "${dir}/.${base}.faststart.XXXXXX")" || { _warn "mktemp failed: $f"; any_fail=1; continue; }
+    # keep extension if possible (nice-to-have)
+    if [[ -n "$ext" ]]; then
+      mv -f -- "$tmp" "${tmp}.${ext}" 2>/dev/null && tmp="${tmp}.${ext}"
+    fi
+
+    _info "processing…"
+    if ffmpeg -hide_banner -loglevel error -nostdin \
+        -i "$f" -c copy -movflags +faststart -y "$tmp"; then
+      touch -r "$f" "$tmp" 2>/dev/null || true
+      mv -f -- "$tmp" "$f"
+
+      _is_faststart "$f"; st=$?
+      if (( st == 0 )); then
+        _ok "enabled: $f"
+      else
+        _warn "ffmpeg succeeded but still not FastStart? $f"
+        any_fail=1
+      fi
+    else
+      _warn "ffmpeg failed: $f"
+      rm -f -- "$tmp" 2>/dev/null || true
+      any_fail=1
+    fi
+  done
+
+  (( any_fail == 0 )) && return 0 || return 1
+}
+
+(( $# )) || { _usage; exit 2; }
+
+case "$1" in
+  check)  shift; _cmd_check "$@" ;;
+  enable) shift; _cmd_enable "$@" ;;
+  -h|--help|help) _usage ;;
+  *) _die "unknown command: $1 (try: mov-faststart --help)" ;;
+esac

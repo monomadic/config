@@ -51,6 +51,8 @@ for entry in $entries; do
     echo -E "$rel_path"$'\t'"${RED}${artist}${RESET}"
   fi
 done | fzf --margin="0%,0%" \
+  --prompt ' ' --color="prompt:#ffffff" \
+  --gutter=' ' \
   --exact --reverse --ansi --cycle \
   --marker=" " --pointer="󰋆" \
   --border="horizontal" --border-label=" 󰎈 Tabs " \
@@ -61,6 +63,6 @@ done | fzf --margin="0%,0%" \
   --bind 'ctrl-/:toggle-preview' \
   --bind 'alt-enter:execute(echo "󰄛 Previewing: {1}" && qlmanage -p {1} >/dev/null 2>&1)' \
   --bind 'alt-n:execute(rename-tablature)' \
-  --bind 'ctrl-y:execute-silent(echo -n {1} | pbcopy)' \
-  --preview=$'\nmdls -name kMDItemTitle -name kMDItemAuthors -name kMDItemPageCount -name kMDItemContentCreationDate -- {1} 2>/dev/null | sed "s/^/  /" || echo "\n  (no metadata)"' \
-  --preview-window=down,8,wrap
+  --bind 'ctrl-y:execute-silent(echo -n {1} | pbcopy)'
+  # --preview=$'\nmdls -name kMDItemTitle -name kMDItemAuthors -name kMDItemPageCount -name kMDItemContentCreationDate -- {1} 2>/dev/null | sed "s/^/  /" || echo "\n  (no metadata)"' \
+  # --preview-window=down,8,wrap

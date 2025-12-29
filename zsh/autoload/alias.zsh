@@ -277,9 +277,10 @@ alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
 # Media Selection & Playback
 # ============================================================================
 
-alias .play-pwd="mpv-play $PWD"
-alias .select-pwd="fd-video | mpv-socket"
-alias .select-sort-pwd="fd-video-sort | mpv-socket"
+alias ..pwd="fd-video | mpv-socket"
+alias ..play-pwd="mpv-play $PWD"
+alias ..pwd-latest="fd-video-sort | mpv-socket"
+alias ..play-pwd-latest="fd-video-sort | mpv-play"
 
 alias mpv-play-porn="setopt local_options null_glob && mpv-play $~MEDIA_GLOBS"
 alias mpv-play-volumes="mpv-play /Volumes/*/Movies/Porn/**/*.mp4"
@@ -311,6 +312,13 @@ alias ..volumes="fd-video . /Volumes/*/Movies/Porn | mpv-socket"
 alias ..masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | mpv-socket"
 alias ..downloads="fd --extension=mp4 . $HOME/Downloads | mpv-socket"
 alias ..downloads-sorted="fd-video-sort . $HOME/Downloads | mpv-socket"
+alias ..tower-masters="fd-video . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
+alias ..tower-masters-new="fd-video-sort . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
+alias ..local="fd-video . $LOCAL_MEDIA_PATHS | mpv-socket"
+alias ..local-sorted="fd-video-sort . $LOCAL_MEDIA_PATHS | mpv-socket"
+
+alias mount-tower="open smb://nom@m4.local/Tower"
+alias unmount-tower="diskutil unmount /Volumes/Tower"
 
 alias @masters-full="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Full(N) $HOME/Movies/Porn/Masters/Full(N) | fzf-play --hide-path -0"
 alias @masters-clips="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Clips(N) $HOME/Movies/Porn/Masters/Clips(N) | fzf-play --hide-path -0"
