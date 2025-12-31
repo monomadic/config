@@ -1,0 +1,23 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+# rotate CCW (transpose=2) and encode to HEVC MP4 (VideoToolbox)
+# usage: webm2h265-ccw.zsh <file1> [file2 ...]
+# output: <input_basename>.mp4 next to each input
+
+(( $# >= 1 )) || { print -u2 "usage: ${0:t} <file1> [file2 ...]"; exit 2 }
+
+for in_file in "$@"; do
+  [[ -f "$in_file" ]] || { print -u2 "skip (not found): $in_file"; continue }
+
+  out_file="${in_file:r}.mp4"
+  print -u2 "==> $in_file -> $out_file"
+
+  ffmpeg -hide_banner -y \
+    -i "$in_file" \
+    -vf "transpose=2" \
+    -c:v hevc_videotoolbox -b:v 20M \
+    -tag:v hvc1 -movflags +faststart \
+    -c:a aac -b:a 192k \
+    "$out_file"
+done

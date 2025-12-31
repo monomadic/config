@@ -28,7 +28,15 @@ autoload -Uz compinit && compinit
 # --- command: e <file> -> open in default editor ---
 e() {
   local editor=${EDITOR:-${VISUAL:-vi}}
-  "$editor" "$@"
+  
+  if [[ $# -eq 0 ]]; then
+    local file=$(fd --type f --max-depth 4 | \
+      fzf --preview 'bat --style=numbers --color=always {}' \
+          --preview-window 'right:60%:wrap')
+    [[ -n "$file" ]] && "$editor" "$file"
+  else
+    "$editor" "$@"
+  fi
 }
 
 _edit-script() {

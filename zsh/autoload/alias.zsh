@@ -45,13 +45,31 @@ pause() {
 
 e() {
   local editor=${EDITOR:-${VISUAL:-vi}}
-  "$editor" "$@"
+  
+  if [[ $# -eq 0 ]]; then
+    local file=$(fd --type f --max-depth 4 | \
+      fzf --preview 'bat --style=numbers --color=always {}' \
+          --preview-window 'right:60%:wrap')
+    [[ -n "$file" ]] && "$editor" "$file"
+  else
+    "$editor" "$@"
+  fi
 }
 
 _e() {
   _files -g '**/*'
 }
 compdef _e e
+
+# ============================================================================
+# Queue Management Functions
+# ============================================================================
+
+alias q="pueue"
+alias q-service-start="brew services start pueue"
+alias q-start="/opt/homebrew/opt/pueue/bin/pueued --verbose"
+alias q-add="pueue add -- "
+alias q-status="pueue status"
 
 # ============================================================================
 # File Management Functions
@@ -591,7 +609,6 @@ alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cac
 alias monitor="btm"
 alias top="btm"
 alias cp-pwd="echo $PWD|pbcopy"
-alias q=exit
 alias ~=grep
 alias ls-colors='for x in {0..8}; do for i in {30..37}; do for a in {40..47}; do echo -ne "\e[$x;$i;$a""m\\\e[$x;$i;$a""m\e[0;37;40m "; done; echo; done; done; echo ""'
 
