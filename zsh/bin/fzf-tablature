@@ -4,6 +4,8 @@ set -euo pipefail
 # --- config
 TAB_DIR="${TABLATURE_DIR:-$HOME/Music/Tablature}"
 HEADER=$'↵ open · 󰘵 ↵ preview · 󰘵 r reveal · 󰘵 n rename · 󰘵 y copy path\n'
+TAB_COUNT=$(fd . -e pdf -t f $TAB_DIR 2>/dev/null | wc -l | tr -d ' ')
+BORDER_LABEL=" 󰎈 Tabs (${TAB_COUNT}) "
 
 # ANSI
 CYAN=$'\e[36m'; YELLOW=$'\e[33m'; RED=$'\e[31m'; RESET=$'\e[0m'
@@ -19,50 +21,60 @@ else
   STAT_CMD=(stat -f '%m|%N')
 fi
 
-entries=()
-max_artist_len=0
+# --- fetch mode: print list (tab-delimited, col1=path col2=display)
+if [[ "${1-}" == "--fetch" ]]; then
+  entries=()
+  max_artist_len=0
 
-# --- gather files sorted by mtime desc
-while IFS='|' read -r _mtime rel; do
-  base="${rel%.pdf}"
-  if [[ "$base" == *" - "* ]]; then
-    artist="${base%% - *}"
-    title="${base#* - }"
-    entries+="$rel|$artist|$title"
-    (( ${#artist} > max_artist_len )) && max_artist_len=${#artist}
-  else
-    entries+="$rel|$base|"
-  fi
-done < <(fd . -e pdf -t f --strip-cwd-prefix \
-           -x "${STAT_CMD[@]}" '{}' + 2>/dev/null \
-         | sort -rn -t '|' -k1,1)
+  while IFS='|' read -r _mtime rel; do
+    base="${rel%.pdf}"
+    if [[ "$base" == *" - "* ]]; then
+      artist="${base%% - *}"
+      title="${base#* - }"
+      entries+=("$rel|$artist|$title")
+      (( ${#artist} > max_artist_len )) && max_artist_len=${#artist}
+    else
+      entries+=("$rel|$base|")
+    fi
+  done < <(
+    fd . -e pdf -t f --strip-cwd-prefix \
+      -x "${STAT_CMD[@]}" '{}' + 2>/dev/null \
+    | sort -rn -t '|' -k1,1
+  )
 
-# --- print lines tab-delimited for fzf
-for entry in $entries; do
-  rel_path="${entry%%|*}"
-  rest="${entry#*|}"
-  artist="${rest%%|*}"
-  title="${rest#*|}"
+  for entry in "${entries[@]}"; do
+    rel_path="${entry%%|*}"
+    rest="${entry#*|}"
+    artist="${rest%%|*}"
+    title="${rest#*|}"
 
-  if [[ -n "$title" ]]; then
-    padded_artist=$(printf "%-${max_artist_len}s" "$artist")
-    echo -E "$rel_path"$'\t'"${CYAN}${padded_artist}${RESET}  ${YELLOW}${title}${RESET}"
-  else
-    echo -E "$rel_path"$'\t'"${RED}${artist}${RESET}"
-  fi
-done | fzf --margin="0%,0%" \
-  --prompt ' ' --color="prompt:#ffffff" \
+    if [[ -n "$title" ]]; then
+      padded_artist=$(printf "%-${max_artist_len}s" "$artist")
+      print -r -- "$rel_path"$'\t'"${CYAN}${padded_artist}${RESET}  ${YELLOW}${title}${RESET}"
+    else
+      print -r -- "$rel_path"$'\t'"${RED}${artist}${RESET}"
+    fi
+  done
+  exit 0
+fi
+
+# --- fzf mode
+SCRIPT_PATH="${0:A}"
+FETCH_COMMAND="reload($SCRIPT_PATH --fetch)"
+
+# start with empty stdin, then load via start:reload(...)
+: | fzf --margin="0%,0%" \
+  --prompt ' ' --color="prompt:#ffffff,bg:#111111" \
   --gutter=' ' \
   --exact --reverse --ansi --cycle \
   --marker=" " --pointer="󰋆" \
-  --border="horizontal" --border-label=" 󰎈 Tabs " \
+  --border="horizontal" --border-label="$BORDER_LABEL" \
   --header="$HEADER" --header-first --no-info \
-  --delimiter='\t' --with-nth=2 \
+  --delimiter=$'\t' --with-nth=2 \
+  --bind "start:$FETCH_COMMAND" \
   --bind "enter:execute-silent(kitty @ launch --type=background echo \"󰄬 Opening: {1}\" && open {1}&)+deselect-all" \
   --bind 'alt-r:execute(open --reveal {1})' \
   --bind 'ctrl-/:toggle-preview' \
   --bind 'alt-enter:execute(echo "󰄛 Previewing: {1}" && qlmanage -p {1} >/dev/null 2>&1)' \
   --bind 'alt-n:execute(rename-tablature)' \
   --bind 'ctrl-y:execute-silent(echo -n {1} | pbcopy)'
-  # --preview=$'\nmdls -name kMDItemTitle -name kMDItemAuthors -name kMDItemPageCount -name kMDItemContentCreationDate -- {1} 2>/dev/null | sed "s/^/  /" || echo "\n  (no metadata)"' \
-  # --preview-window=down,8,wrap

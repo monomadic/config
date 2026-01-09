@@ -27,17 +27,33 @@ autoload -Uz compinit && compinit
 
 # --- command: e <file> -> open in default editor ---
 e() {
-  local editor=${EDITOR:-${VISUAL:-vi}}
-  
-  if [[ $# -eq 0 ]]; then
-    local file=$(fd --type f --max-depth 4 | \
-      fzf --preview 'bat --style=numbers --color=always {}' \
-          --preview-window 'right:60%:wrap')
-    [[ -n "$file" ]] && "$editor" "$file"
-  else
-    "$editor" "$@"
-  fi
+  $EDITOR "$@"
 }
+
+zstyle ':completion:*:*:e:*' sort false   # avoid slow sorting on big sets
+
+_e() {
+  setopt localoptions no_errexit noshwordsplit
+
+  local cur="${words[CURRENT]}"
+  local -a m
+
+  # keep <TAB> instant until user types something meaningful
+  # if (( ${#cur} < 2 )); then
+  #   _files
+  #   return 0
+  # fi
+
+  m=("${(@f)$(fd --color=never --follow \
+        --max-depth 6 --max-results 200 \
+        --exclude .git --exclude Library --exclude .config --exclude .cache --exclude .local \
+        --glob "${cur}*" . 2>/dev/null)}")
+
+  (( ${#m} )) && compadd -Q -- "${m[@]}" || _files
+  return 0
+}
+
+compdef _e e
 
 _edit-script() {
   local -a names descs dirs

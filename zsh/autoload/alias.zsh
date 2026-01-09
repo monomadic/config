@@ -43,23 +43,21 @@ pause() {
   echo
 }
 
-e() {
-  local editor=${EDITOR:-${VISUAL:-vi}}
-  
-  if [[ $# -eq 0 ]]; then
-    local file=$(fd --type f --max-depth 4 | \
-      fzf --preview 'bat --style=numbers --color=always {}' \
-          --preview-window 'right:60%:wrap')
-    [[ -n "$file" ]] && "$editor" "$file"
-  else
-    "$editor" "$@"
-  fi
-}
 
-_e() {
-  _files -g '**/*'
-}
-compdef _e e
+#alias e="$EDITOR"
+# _e() {
+#   local editor=${EDITOR:-${VISUAL:-vi}}
+  
+#   if [[ $# -eq 0 ]]; then
+#     local file=$(fd --type f --max-depth 4 | \
+#       fzf --preview 'bat --style=numbers --color=always {}' \
+#           --preview-window 'right:60%:wrap')
+#     [[ -n "$file" ]] && "$editor" "$file"
+#   else
+#     "$editor" "$@"
+#   fi
+# }
+
 
 # ============================================================================
 # Queue Management Functions
