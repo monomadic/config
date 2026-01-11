@@ -370,7 +370,7 @@ alias .rename="fd-rename-all.zsh"
 alias trash-undo="rip --unbury"
 alias trash-view="rip --seance"
 
-alias .dupes-check="fdupes --recurse --cache --nohidden --size --summarize ."
+alias .dupes-check="fdupes --recurse --cache --nohidden --size ."
 alias .dupes-delete="fdupes --recurse --cache --nohidden --size --delete ."
 alias .dupes-delete-interactive="fdupes --recurse --deferconfirmation --cache --nohidden --size --plain ."
 alias .list-moved-files="fclones group --cache --hash-fn metro --isolate --dry-run"
@@ -502,14 +502,13 @@ alias doc="cargo doc --open"
 alias loc=tokei
 
 # Rust docs
-alias d-bevy-cheat="open https://bevy-cheatbook.github.io/"
-alias d-rs-yew="open https://docs.rs/yew/latest/yew/"
-alias d-rustdoc="open https://doc.rust-lang.org/rustdoc/"
-alias d-rustup-cargo="rustup doc --cargo"
-alias d-rustup-core="rustup doc --core"
-alias d-wasmtime="open https://docs.wasmtime.dev/"
-alias d-yew="open https://yew.rs/docs/next/"
-alias gen-yew-web3="cargo generate --git https://github.com/monomadic/yew-web3-template"
+alias docs-bevy-cheat="open https://bevy-cheatbook.github.io/"
+alias docs-rs-yew="open https://docs.rs/yew/latest/yew/"
+alias docs-rustdoc="open https://doc.rust-lang.org/rustdoc/"
+alias docs-rustup-cargo="rustup doc --cargo"
+alias docs-rustup-core="rustup doc --core"
+alias docs-wasmtime="open https://docs.wasmtime.dev/"
+alias docs-yew="open https://yew.rs/docs/next/"
 
 # ============================================================================
 # File Listing & Navigation
@@ -524,6 +523,27 @@ alias lla="echo && eza --icons --group-directories-first --all --no-time --no-pe
 alias lll="lsd --icon always --long --depth 1 --ignore-config --group-directories-first --color always"
 alias lln="eza --icons --all -l --sort=date"
 alias ll-fzf="eza --icons --color=always --group-directories-first --no-permissions --no-user -l --ignore-glob '.DS_Store' | fzf --ansi"
+# 
+# 10 most-recent files (newest first), with date+size, nice output (icons if Nerd Font)
+recent() {
+  local dir="${1:-.}"
+  local n="${2:-10}"
+
+  if command -v eza >/dev/null 2>&1; then
+    eza --icons --color=always \
+      --only-files \
+      --sort=modified --reverse \
+      --long --time-style=relative \
+      --no-permissions --no-user \
+      -- "$dir" | head -n "$n"
+  else
+    # fallback (still modern-ish): BSD ls on macOS
+    command ls -lt -- "$dir" | head -n $((n + 1))
+  fi
+}
+# quick alias for the common case
+alias llr='recent . 10'
+alias .recent='recent'
 
 alias up="cd .."
 alias gr="cd /"
