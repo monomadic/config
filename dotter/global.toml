@@ -82,6 +82,7 @@ files = { "starship/starship.toml" = "~/.config/starship.toml" }
 
 [yt-dlp.files]
 "apps/yt-dlp" = "~/.config/yt-dlp/"
+"apps/yt-dlp/plugins" = "~/.config/yt-dlp/plugins/sites/yt_dlp_plugins/extractorplugins/mysites/yt_dlp_plugins/extractor"
 
 [lf]
 [lf.files]
