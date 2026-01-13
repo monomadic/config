@@ -47,8 +47,8 @@ local function format_osd_status()
 
     -- Convert to common names
     local codec_map = {
-        hevc = "H.265",
-        h264 = "H.264",
+        hevc = "h265",
+        h264 = "h264",
         avc1 = "AVC1",
         av1 = "AV1",
         vp9 = "VP9",
@@ -79,14 +79,18 @@ local function format_osd_status()
         end
     end
 
-    local title = mp.get_property("media-title") or "Unknown"
+    local title = mp.get_property("media-title") or "Untitled"
+    local artist = mp.get_property("artist") or ""
     local paused = mp.get_property_bool("pause", false)
+
+    local cur = mp.get_property_number("playlist-pos", 0)
+    local pl_count = mp.get_property_number("playlist-count", 0)
 
     -- Orientation (rotation-aware)
     local orient = get_orientation()
 
     -- Format file info line
-    local file_info = string.format(" %s    %s    %s%s   󰟾 %s",
+    local file_info = string.format(" %s    %s    %s%s    %s",
         human_size, codec, resolution, (fps ~= "" and (" @ " .. fps) or ""), orient
     )
 
@@ -97,7 +101,7 @@ local function format_osd_status()
     if osd_level <= 2 then
         status_msg = file_info
     else
-        local line1 = (paused and "(Paused) " or "") .. title
+        local line1 = (paused and "PAUSED " or "") .. cur .. '/' .. pl_count .. ' ' .. artist .. title
         status_msg = line1 .. "\n" .. file_info
     end
 

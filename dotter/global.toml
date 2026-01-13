@@ -24,6 +24,9 @@ depends = []
 [switch.files]
 "switch" = "~/.switch"
 
+[rclone.files]
+"apps/rclone" = "~/.config/rclone"
+
 [hammerspoon.files]
 "hammerspoon" = "~/.hammerspoon"
 

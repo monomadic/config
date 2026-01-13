@@ -48,4 +48,4 @@ local function replace_playlist_with_dir()
 	mp.osd_message(string.format("Playing %s (%d items)", dirname, num_files))
 end
 
-mp.add_key_binding(nil, "replace-playlist", replace_playlist_with_dir)
+mp.add_key_binding("d", "replace-playlist", replace_playlist_with_dir)

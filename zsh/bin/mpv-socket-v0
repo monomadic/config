@@ -28,48 +28,21 @@ else
     exit 1
 fi
 
-# --- Colorize helper ---
-colorize() {
-    sed -E '
-        # Replace stars with emoji
-        s/★/ /g
-        s/☆/ /g
-
-        s/([★☆])/\x1b[93m\1\x1b[0m/g;
-        
-        # Parse: Names - [Group] Title #tag {specs}.ext
-        # Names (before " - ") → green, remove " - "
-        s/^([^-]+) - /\x1b[92m\1\x1b[0m /
-        
-        # [Group] → yellow, remove brackets
-        s/\[([^\]]+)\]/\x1b[93m\1\x1b[0m/g
-        
-        # {specs} → cyan, remove braces
-        s/\{([^\}]+)\}/\x1b[96m\1\x1b[0m/g
-        
-        # #hashtags → blue
-        s/(#[a-zA-Z0-9_-]+)/\x1b[94m\1\x1b[0m/g
-    '
-}
-
 # --- FZF selection ---
 if $show_absolute; then
-    selected=$(echo "$full_paths" | colorize | fzf --ansi --multi --exact --cycle \
+    selected=$(echo "$full_paths" | fzf --multi --exact --cycle \
         --bind 'alt-r:execute-silent(open --reveal {1})' \
         --bind 'ctrl-r:execute-silent(open --reveal {})' \
-        --bind 'ctrl-s:put( )' \
+        --bind 'ctrl-s:put(★)' \
         --bind 'enter:select-all+accept')
 else
-    selected=$(echo "$full_paths" | colorize | fzf --ansi --multi --exact --cycle \
+    selected=$(echo "$full_paths" | fzf --multi --exact --cycle \
         --bind 'alt-r:execute-silent(open --reveal {1})' \
         --bind 'ctrl-r:execute-silent(open --reveal {})' \
-        --bind 'ctrl-s:put( )' \
+        --bind 'ctrl-s:put(★)' \
         --bind 'enter:select-all+accept' \
         --delimiter='/' --with-nth=-1)
 fi
-
-# Strip ANSI codes from selection
-selected=$(echo "$selected" | sed 's/\x1b\[[0-9;]*m//g')
 [[ -z "$selected" ]] && { echo "No files selected"; exit 0; }
 
 file_count=$(echo "$selected" | wc -l | tr -d ' ')
@@ -78,6 +51,7 @@ echo "Selected $file_count files"
 # --- Helper: send IPC (quiet) ---
 send_ipc() {
     local payload=$1
+    # send command, drop mpv's JSON reply
     printf '%s\n' "$payload" | socat - "$SOCKET" >/dev/null 2>&1
 }
 
@@ -86,12 +60,14 @@ mpv_was_running=false
 if pgrep -qf "mpv.*input-ipc-server=$SOCKET"; then
     echo "Using existing mpv instance"
     mpv_was_running=true
+    # best-effort stop + clear, still quiet
     send_ipc '{ "command": ["stop"] }'           || echo "Warning: stop failed" >&2
     send_ipc '{ "command": ["playlist-clear"] }' || echo "Warning: playlist-clear failed" >&2
 else
     echo "Starting mpv..."
     mpv  --idle --input-ipc-server="$SOCKET" >/tmp/mpv-ipc.log 2>&1 &
         
+    # Wait for socket to become usable (up to ~5s)
     ready=false
     for i in {1..50}; do
         if [[ -S $SOCKET ]]; then
@@ -115,6 +91,7 @@ echo "Sending files to mpv..."
 fail_count=0
 
 while IFS= read -r file; do
+  # (avoid double-newline: send_ipc already appends one)
   payload=$(printf '{ "command": ["loadfile", "%s", "append-play"] }' "$file")
 
   if ! send_ipc "$payload"; then
@@ -124,12 +101,14 @@ done <<< "$selected"
 
 ok_count=$((file_count - fail_count))
 printf '%d/%d files sent to mpv (%d failed)\n' "$ok_count" "$file_count" "$fail_count"
-
+# 
 # --- Bring mpv to front (best-effort) ---
 focus_mpv() {
   osascript -e 'tell application "System Events" to set frontmost of process "mpv" to true'
 }
 
+# We don't really care whether mpv_was_running or not at this point,
+# socket exists and mpv is up.
 mpv_pid=$(printf '{"command":["get_property","pid"]}\n' \
     | socat - "$SOCKET" \
     | grep -o '"data":[0-9]*' | cut -d: -f2)
