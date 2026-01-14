@@ -68,6 +68,9 @@ alias q-service-start="brew services start pueue"
 alias q-start="/opt/homebrew/opt/pueue/bin/pueued --verbose"
 alias q-add="pueue add -- "
 alias q-status="pueue status"
+alias qs="pueue status"
+alias q-url="pueue add -- yt-url"
+alias qu=q-url
 
 # ============================================================================
 # File Management Functions
