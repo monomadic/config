@@ -66,9 +66,12 @@ pause() {
 alias q="pueue"
 alias q-service-start="brew services start pueue"
 alias q-start="/opt/homebrew/opt/pueue/bin/pueued --verbose"
-alias q-add="pueue add -- "
-alias q-status="pueue status"
+alias q-log="q log"
+alias q-add="q add -- "
+alias q-restart-task="q add -- "
+alias q-status="q status"
 alias qs="pueue status"
+alias ql=q-status
 alias q-url="pueue add -- yt-url"
 alias qu=q-url
 
