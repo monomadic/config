@@ -55,8 +55,9 @@ colorize() {
 # --- FZF selection ---
 if $show_absolute; then
     selected=$(echo "$full_paths" | colorize | fzf --ansi --multi --exact --cycle \
-        --bind 'alt-r:execute-silent(open --reveal {1})' \
-        --bind 'ctrl-r:execute-silent(open --reveal {})' \
+        --bind 'alt-r:execute-silent(open --reveal {})' \
+        --bind 'ctrl-r:execute-silent(open --reveal {1})' \
+        --bind 'cmd-g:put(G)' \
         --bind 'ctrl-s:put( )' \
         --bind 'enter:select-all+accept')
 else
