@@ -275,6 +275,7 @@ cask "mullvad-browser" # firefox-based privacy browser
 
 # music
 cask "spotify"
+brew "kew" # cli music player (c)
 
 cask "numi" # calculator
 # cask "chai" # sleep prevention (using caffeinated from MAS)

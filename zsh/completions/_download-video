@@ -1,13 +1,23 @@
 #compdef print_completion
 
-_arguments -s -S \
-  '--mp4[Prefer mp4-compatible streams/container when possible]' \
-  '--webm[Prefer webm-compatible streams/container when possible]' \
-  '(-q --quiet)'{-q,--quiet}'[Suppress Executing output]' \
-  '(-n --dry-run)'{-n,--dry-run}'[Print yt-dlp command and exit]' \
-  '(-f --show-filename)'{-f,--show-filename}'[Print filename without downloading]' \
+# zsh completion for print_completion
+# long options only
+
+_arguments -S -s \
+  '(__FMT)--mp4[Prefer mp4-friendly formats/containers when possible]' \
+  '(__FMT)--webm[Prefer webm-friendly formats/containers when possible]' \
+  '--quiet[Suppress "Executing:" message]' \
+  '--dry-run[Show yt-dlp command without executing]' \
+  '--show-filename[Print output filename without downloading]' \
   '--completion[Print this zsh completion script and exit]' \
-  '(-h --help)'{-h,--help}'[Show help]' \
-  '1:mode:(music-video m audio-only a video-only v adult A youtube y best-quality b)' \
+  '--help[Show help]' \
+  '1:mode:( \
+    music-video \
+    audio-only \
+    video-only \
+    adult \
+    youtube \
+    best-quality \
+  )' \
   '2:URL:_urls' \
   '*::yt-dlp args:_default'

@@ -19,38 +19,49 @@ usage() {
 Usage: ${0:t} [options] <mode> <URL> [yt-dlp args]
 
 Options:
-  --mp4, --webm         Format preference
-  --quiet, -q           Suppress "Executing:" message
-  --dry-run, -n         Show command without executing
-  --show-filename, -f   Show output filename without downloading
-  --completion          Print zsh completion script to stdout and exit
-  --help, -h            Show this help
+  --mp4                Format preference
+  --webm               Format preference
+  --quiet              Suppress "Executing:" message
+  --dry-run            Show command without executing
+  --show-filename      Show output filename without downloading
+  --completion         Print zsh completion script to stdout and exit
+  --help               Show this help
 
 Modes:
-  music-video (m)   Download music video
-  audio-only  (a)   Download audio only
-  video-only  (v)   Download video without audio
-  adult        (A)  Download adult content
-  youtube      (y)  Download YouTube video
-  best-quality (b)  Download best quality (video+audio)
+  music-video  (m)   Download music video
+  audio-only   (a)   Download audio only
+  video-only   (v)   Download video without audio
+  porn         (p)   Download porn content
+  youtube      (y)   Download YouTube video
+  best-quality (b)   Download best quality (video+audio)
 EOF
 }
 
 print_completion() {
   local cmd=${0:t}
-  cat <<EOF
-#compdef ${cmd}
+  cat <<'EOF' | sed "s/__CMD__/${cmd}/g"
+#compdef __CMD__
 
-_arguments -s -S \\
-  '--mp4[Prefer mp4-compatible streams/container when possible]' \\
-  '--webm[Prefer webm-compatible streams/container when possible]' \\
-  '(-q --quiet)'{-q,--quiet}'[Suppress Executing output]' \\
-  '(-n --dry-run)'{-n,--dry-run}'[Print yt-dlp command and exit]' \\
-  '(-f --show-filename)'{-f,--show-filename}'[Print filename without downloading]' \\
-  '--completion[Print this zsh completion script and exit]' \\
-  '(-h --help)'{-h,--help}'[Show help]' \\
-  '1:mode:(music-video m audio-only a video-only v adult A youtube y best-quality b)' \\
-  '2:URL:_urls' \\
+# zsh completion for __CMD__
+# long options only
+
+_arguments -S -s \
+  '(__FMT)--mp4[Prefer mp4-friendly formats/containers when possible]' \
+  '(__FMT)--webm[Prefer webm-friendly formats/containers when possible]' \
+  '--quiet[Suppress "Executing:" message]' \
+  '--dry-run[Show yt-dlp command without executing]' \
+  '--show-filename[Print output filename without downloading]' \
+  '--completion[Print this zsh completion script and exit]' \
+  '--help[Show help]' \
+  '1:mode:( \
+    music-video \
+    audio-only \
+    video-only \
+    porn \
+    youtube \
+    best-quality \
+  )' \
+  '2:URL:_urls' \
   '*::yt-dlp args:_default'
 EOF
 }
@@ -61,12 +72,12 @@ typeset FORMAT_PREF='' QUIET=0 DRY_RUN=0 SHOW_FILENAME=0
 while [[ $# -gt 0 && $1 == -* ]]; do
   case $1 in
     --completion) print_completion; exit 0 ;;
-    --help|-h) usage; exit 0 ;;
+    --help) usage; exit 0 ;;
     --mp4)  FORMAT_PREF='mp4' ;;
     --webm) FORMAT_PREF='webm' ;;
-    --quiet|-q) QUIET=1 ;;
-    --dry-run|-n) DRY_RUN=1 ;;
-    --show-filename|-f) SHOW_FILENAME=1 ;;
+    --quiet) QUIET=1 ;;
+    --dry-run) DRY_RUN=1 ;;
+    --show-filename) SHOW_FILENAME=1 ;;
     --) shift; break ;;
     -*) error_exit "Unknown option: $1" ;;
   esac
@@ -92,7 +103,7 @@ case $MODE in
   m) MODE=music-video ;;
   a) MODE=audio-only ;;
   v) MODE=video-only ;;
-  A|p) MODE=adult ;;
+  p) MODE=porn ;;
   y) MODE=youtube ;;
   b) MODE=best-quality ;;
 esac
@@ -135,8 +146,8 @@ else
   typeset -a FMT_ARGS=()
 
   case $MODE in
-    adult)
-      OUTPUT_FMT='[%(uploader|Unknown)s] %(title)s [%(extractor)s].%(ext)s'
+    porn)
+      OUTPUT_FMT='%(cast,uploader|Unknown)s - [%(channel,uploader|Unknown)s] %(title)s (%(extractor)s) #%(tags)s.%(ext)s'
       FMT_ARGS+=(
         -f "bv*${VSEL}+ba${ASEL}/best"
         --embed-metadata --embed-info-json
@@ -157,7 +168,8 @@ else
       ;;
     audio-only)
       OUTPUT_FMT='%(artist,channel,uploader|Unknown)s - %(title)s.%(ext)s'
-      FMT_ARGS+=(-f "bestaudio${ASEL}/bestaudio")
+      # Remove the -f line for muxed streams, or use -f best
+      # FMT_ARGS+=(-f "bestaudio${ASEL}/bestaudio")  # OLD - causes errors
       FMT_ARGS+=(--extract-audio --embed-metadata)
       if (( HAS_AUDIOFMT == 0 )); then
         [[ ${FORMAT_PREF:-} == webm ]] && FMT_ARGS+=(--audio-format opus) || FMT_ARGS+=(--audio-format m4a)
