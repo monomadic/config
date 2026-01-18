@@ -163,6 +163,21 @@ yt-debug-extract() {
   | jq '{title, fulltitle, description, channel, uploader, creator, creators, cast, tags, categories}'
 }
 
+yt-queue-add() {
+  print -r -- "$@" >> ~/.yt-dlp-queue
+}
+
+yt-queue-run() {
+  yt-dlp \
+    -a ~/.yt-dlp-queue \
+    --download-archive ~/.yt-dlp-archive \
+    -P ~/Movies/Porn/Downloads \
+    --ignore-errors \
+    --newline \
+    -R 20 --fragment-retries 20 --retry-sleep 2 \
+    --concurrent-fragments 4
+}
+
 # ============================================================================
 # FFmpeg/FFprobe Functions
 # ============================================================================
