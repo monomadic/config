@@ -15,9 +15,8 @@ class FaphouseIE(InfoExtractor):
     IE_NAME = "faphouse"
     _VALID_URL = r'''(?x)
         https?://(?:www\.)?faphouse\.com/
-        (?:
-            videos|video|watch
-        )/
+        (?:[a-z]{2}(?:-[a-z]{2})?/)?   # optional locale prefix, e.g. /vi/ or /pt-br/
+        (?:(?:videos?|watch))/
         (?P<id>[^/?#&]+)
     '''
 
@@ -25,13 +24,23 @@ class FaphouseIE(InfoExtractor):
 
     def _download_webpage_fallback(self, url, video_id):
         try:
-            return self._download_webpage(url, video_id)
+            return self._download_webpage(
+                url, video_id,
+                headers={
+                    "Referer": url,
+                    "User-Agent": (
+                        "Mozilla/5.0 (Macintosh; ARM Mac OS X) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120 Safari/537.36"
+                    ),
+                },
+            )
         except ExtractorError as e:
             cause = getattr(e, "cause", None)
             # best-effort 404 check
             if not (cause and "404" in str(cause)):
                 raise
-            
+
         url_www = re.sub(r'^https?://(?:www\.)?', 'https://www.', url)
         return self._download_webpage(
             url_www, video_id,
@@ -89,23 +98,48 @@ class FaphouseIE(InfoExtractor):
             tags = [clean_html(tag).strip() for tag in tags if tag.strip()]
 
         # Try common embedded JSON blobs first (Next/Nuxt/etc.)
-        data = (
-            self._search_json(
-                r'__NEXT_DATA__\s*=\s*',
+        # Prefer yt-dlp helpers if present (version-dependent), else fallback to script-tag search.
+        nextjs = None
+        nuxt = None
+
+        _search_next = getattr(self, "_search_nextjs_data", None)
+        if callable(_search_next):
+            nextjs = _search_next(webpage, video_id, fatal=False)
+
+        _search_nuxt = getattr(self, "_search_nuxt_data", None)
+        if callable(_search_nuxt):
+            nuxt = _search_nuxt(webpage, video_id, fatal=False)
+
+        # Fallback to generic JSON search, but:
+        #  - match actual Next.js embedding (<script id="__NEXT_DATA__" ...>{...}</script>)
+        #  - stay quiet when absent (default={})
+        if not nextjs:
+            nextjs = self._search_json(
+                r'<script[^>]+id="__NEXT_DATA__"[^>]*>\s*',
                 webpage, "next data", video_id,
-                contains_pattern=r'\{.+\}', end_pattern=r'</script>', fatal=False
+                end_pattern=r'\s*</script>',
+                default={},
+                fatal=False,
             )
-            or self._search_json(
+
+        if not nuxt:
+            nuxt = self._search_json(
                 r'window\.__NUXT__\s*=\s*',
                 webpage, "nuxt data", video_id,
-                contains_pattern=r'\{.+\}', end_pattern=r'</script>', fatal=False
+                end_pattern=r'</script>',
+                default={},
+                fatal=False,
             )
-            or {}
-        )
 
-        # Best-effort traversal for an HLS URL in those blobs
+        data = nextjs or nuxt or {}
+
+        # Best-effort traversal for an HLS URL in those blobs (try common shapes first)
         m3u8 = (
-            traverse_obj(data, (..., "sources", ..., "src"), get_all=False)
+            traverse_obj(data, ("props", "pageProps", ..., "sources", ..., "src"), get_all=False)
+            or traverse_obj(data, ("props", "pageProps", ..., "hls"), get_all=False)
+            or traverse_obj(data, ("props", "pageProps", ..., "m3u8"), get_all=False)
+            or traverse_obj(data, ("state", ..., "sources", ..., "src"), get_all=False)
+            or traverse_obj(data, (..., "sources", ..., "src"), get_all=False)
             or traverse_obj(data, (..., "hls"), get_all=False)
             or traverse_obj(data, (..., "m3u8"), get_all=False)
         )
@@ -145,7 +179,12 @@ class FaphouseIE(InfoExtractor):
 
 class FaphouseModelIE(InfoExtractor):
     IE_NAME = "faphouse:model"
-    _VALID_URL = r'https?://(?:www\.)?faphouse\.com/(?:models|creators?)/(?P<id>[^/?#&]+)'
+    _VALID_URL = r'''(?x)
+         https?://(?:www\.)?faphouse\.com/
+         (?:[a-z]{2}(?:-[a-z]{2})?/)?   # optional locale prefix
+         (?:models|creators?)/
+         (?P<id>[^/?#&]+)
+    '''
 
     # Accept:
     #  - /videos/ABC123
@@ -154,11 +193,22 @@ class FaphouseModelIE(InfoExtractor):
 
     def _download_webpage_fallback(self, url, page_id):
         try:
-            return self._download_webpage(url, page_id)
+            return self._download_webpage(
+                url, page_id,
+                headers={
+                    "Referer": url,
+                    "User-Agent": (
+                        "Mozilla/5.0 (Macintosh; ARM Mac OS X) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120 Safari/537.36"
+                    ),
+                },
+            )
         except ExtractorError as e:
             cause = getattr(e, "cause", None)
             if not (cause and "404" in str(cause)):
                 raise
+
         url_www = re.sub(r'^https?://(?:www\.)?', 'https://www.', url)
         return self._download_webpage(
             url_www, page_id,

@@ -393,7 +393,7 @@ function yt-filename() {
     # yt-dlp command to get the filename
     yt-dlp --get-filename \
 			    --output '[%(uploader)s] %(title)s.%(ext)s' \
-					"$video_url"
+					"$@"
 }
 
 function yt-download-tagged-file() {

@@ -1,0 +1,26 @@
+#!/usr/bin/env zsh
+
+if [[ -e /Volumes/Tower/Movies/Porn/Downloads/_/ ]]; then
+  output_path=/Volumes/Tower/Movies/Porn/Downloads/_/
+else
+  output_path=$HOME/Movies/Porn/Downloads/_/
+fi
+
+echo "Downloading to: $output_path"
+
+output_template=""
+output_template+="%(cast,uploader|)l"                    # cast/uploader (lowercase)
+output_template+="%(cast& - |)s"                         # " - " separator if cast exists
+output_template+="[%(channel,uploader|Unknown)s] "       # [channel/uploader]
+output_template+="%(title)s "                            # video title
+output_template+="(%(extractor)s)"                       # (site name)
+output_template+="%(tags.0& #{}|)s%(tags.1& #{}|)s%(tags.2& #{}|)s%(tags.3& #{}|)s%(tags.4& #{}|)s"
+output_template+=".%(ext)s"                              # extension
+
+yt-dlp \
+  --paths "$output_path" \
+  --output "$output_template" \
+  --output-na-placeholder "" \
+  --replace-in-metadata "tags" "[ _]+" "-" \
+  --progress --console-title \
+  "$@"

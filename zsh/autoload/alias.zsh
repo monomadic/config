@@ -76,6 +76,8 @@ alias qs="pueue status"
 alias ql=q-status
 alias q-url="pueue add yt-url"
 alias qu=q-url
+alias yt-porn="yt-dlp --trim-filenames 200 -o '%(cast,uploader|Unknown)s - [%(channel,uploader|Unknown)s] %(title)s (%(extractor)s) #%(tags.0)s_%(tags.1)s_%(tags.2)s_%(tags.3)s_%(tags.4)s.%(ext)s' $@"
+alias yt-list-fields="yt-dlp --skip-download --print \"%()#j\" "
 
 # ============================================================================
 # File Management Functions
@@ -158,6 +160,22 @@ mpv-select-queue() {
 # YT-DLP
 # ============================================================================
 
+yt-retag() {
+  emulate -L zsh; set -euo pipefail
+  local url="$1" src="$2" tpl="${3:-'%(title)s (%(extractor)s).%(ext)s'}"
+  local dir="${src:A:h}" ext="${src:A:e}"
+
+  local target
+  target="$(yt-dlp --print-name --alias porn "$tpl" "$url")"
+  target="${target%%$'\n'*}"
+  [[ "$target" = /* ]] || target="$dir/$target"
+
+  # keep existing ext by default
+  target="${target%.*}.$ext"
+  mv -- "${src:A}" "$target"
+  print -r -- "$target"
+}
+
 yt-debug-extract() {
   yt-dlp -j -v "$@" \
   | jq '{title, fulltitle, description, channel, uploader, creator, creators, cast, tags, categories}'
@@ -177,6 +195,20 @@ yt-queue-run() {
     -R 20 --fragment-retries 20 --retry-sleep 2 \
     --concurrent-fragments 4
 }
+
+yt-queue-run-ext() {
+  yt-dlp \
+    -a ~/.yt-dlp-queue \
+    --download-archive ~/.yt-dlp-archive \
+    -P /Volumes/Footage 1tb/ \
+    --ignore-errors \
+    --newline \
+    -R 20 --fragment-retries 20 --retry-sleep 2 \
+    --concurrent-fragments 4
+}
+
+alias .qa=yt-queue-add
+alias .qr=yt-queue-run-ext
 
 # ============================================================================
 # FFmpeg/FFprobe Functions
@@ -363,6 +395,7 @@ alias ..downloads="fd --extension=mp4 . $HOME/Downloads | mpv-socket"
 alias ..downloads-latest="fd-video-sort . $HOME/Movies/Porn/Downloads $HOME/Downloads | mpv-socket"
 alias ..tower-masters="fd-video . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
 alias ..tower-masters-new="fd-video-sort . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
+alias ..tower-downloads="fd-video . /Volumes/Tower/Movies/Porn/Downloads | mpv-play"
 alias ..local="fd-video . $LOCAL_MEDIA_PATHS | mpv-socket"
 alias ..local-sorted="fd-video-sort . $LOCAL_MEDIA_PATHS | mpv-socket"
 
@@ -575,8 +608,8 @@ recent() {
   fi
 }
 # quick alias for the common case
-alias llr='recent . 10'
-alias .recent='recent'
+alias lr='recent . 10'
+alias lr='recent . 100'
 
 alias up="cd .."
 alias gr="cd /"

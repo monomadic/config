@@ -1,0 +1,73 @@
+#!/bin/zsh
+set +o monitor
+
+# Color Scheme
+FZF_COLOR_OPTS=""
+FZF_COLOR_OPTS+="fg:#fadaf2,"      # Regular foreground
+#FZF_COLOR_OPTS+="bg:#000000,"      # Regular background
+FZF_COLOR_OPTS+="hl:#FFe22e,"      # Highlighted text (foreground)
+FZF_COLOR_OPTS+="hl+:#FFe22e,"     # Highlighted text in selected line (foreground)
+FZF_COLOR_OPTS+="fg+:#ff4499,"     # Selected line (foreground)
+FZF_COLOR_OPTS+="bg+:#422042,"     # Selected line (background)
+FZF_COLOR_OPTS+="info:#ae81ff,"    # Info line
+FZF_COLOR_OPTS+="border:#000000,"  # Border color
+FZF_COLOR_OPTS+="prompt:#FFFFFF,"  # Prompt
+FZF_COLOR_OPTS+="pointer:#FFe22e," # Pointer to the current line
+FZF_COLOR_OPTS+="marker:#a6e22e,"  # Multi-select marker
+FZF_COLOR_OPTS+="spinner:#FFFFFF,"
+FZF_COLOR_OPTS+="preview-bg:#111111,"
+FZF_COLOR_OPTS+="preview-border:#111111,"
+FZF_COLOR_OPTS+="header:#66ddee"
+
+handle_directory_selection() {
+  local pipe=$(mktemp -u)
+  mkfifo "$pipe" || return 1
+
+  cleanup() {
+    local exit_code=$?
+    # Kill any remaining background processes in our group
+    kill $(jobs -p) 2>/dev/null
+    wait 2>/dev/null || true
+    rm -f "$pipe"
+    trap - INT TERM EXIT HUP
+    exit $exit_code
+  }
+
+  trap cleanup INT TERM EXIT HUP
+
+  # Read from stdin to pipe in background, but close when stdin closes
+  (cat >"$pipe") &
+  local input_pid=$!
+
+  local dir
+  # Run fzf in a subshell so we can better control its termination
+  # --preview 'tree -C {} 2>/dev/null || lsd --icon always --long --depth 1 --ignore-config --group-directories-first --color always {}' \
+  dir=$(
+    fzf \
+      --color="$FZF_COLOR_OPTS" \
+      --ansi \
+      --gutter='󰉋' --pointer='󰉋' --marker='󰉋' \
+      --no-header \
+      --no-preview \
+      --no-info \
+      --no-clear \
+      --border=none \
+      --margin=0 \
+      --bind 'alt-n:preview-page-down,alt-p:preview-page-up' \
+      --bind 'alt-r:execute-silent(open {})' \
+      --bind 'ctrl-/:toggle-preview' \
+      --bind 'alt-p:toggle-preview' \
+      --bind 'ctrl-a:toggle-all' \
+      --height=50% \
+      --exact \
+      --prompt="  " <"$pipe"
+  )
+  local ret=$?
+
+  if [[ $ret -eq 0 && -n "$dir" ]]; then
+    printf '%s\n' "$dir"
+  fi
+  return $ret
+}
+
+handle_directory_selection "$@"

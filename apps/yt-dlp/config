@@ -1,1 +1,11 @@
---no-mtime --continue --cookies-from-browser=brave
+--download-archive ~/.yt-dlp-archive
+--no-mtime
+--continue
+--cookies-from-browser brave
+--retries 5
+--fragment-retries 20
+--retry-sleep 2
+--concurrent-fragments 2
+--windows-filenames
+
+--alias print-name "-s --print filename -o {0} --trim-filenames 200 --output-na-placeholder ''"

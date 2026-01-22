@@ -149,7 +149,7 @@ else
     porn)
       OUTPUT_FMT='%(cast,uploader|Unknown)s - [%(channel,uploader|Unknown)s] %(title)s (%(extractor)s) #%(tags)s.%(ext)s'
       FMT_ARGS+=(
-        -f "bv*${VSEL}+ba${ASEL}/best"
+        -f "bestvideo*+bestaudio/best"
         --embed-metadata --embed-info-json
         --match-filter "duration > 60"
       )
