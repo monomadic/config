@@ -74,7 +74,7 @@ alias q-restart-task="q add -- "
 alias q-status="q status"
 alias qs="pueue status"
 alias ql=q-status
-alias q-url="pueue add -- yt-url"
+alias q-url="pueue add yt-url"
 alias qu=q-url
 
 # ============================================================================
