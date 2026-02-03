@@ -76,6 +76,7 @@ alias qs="pueue status"
 alias ql=q-status
 alias q-url="pueue add yt-url"
 alias qu=q-url
+alias yt-dlp-ignore-history="yt-dlp --no-download-archive"
 alias yt-porn="yt-dlp --trim-filenames 200 -o '%(cast,uploader|Unknown)s - [%(channel,uploader|Unknown)s] %(title)s (%(extractor)s) #%(tags.0)s_%(tags.1)s_%(tags.2)s_%(tags.3)s_%(tags.4)s.%(ext)s' $@"
 alias yt-list-fields="yt-dlp --skip-download --print \"%()#j\" "
 

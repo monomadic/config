@@ -5,7 +5,7 @@ fd --absolute-path \
   --color=never \
   --ignore-case \
   --type=file \
-  --exclude '/Volumes/Tower Backup/**' \
+  --exclude '/Volumes/Tower Backup/**/*' \
   --extension mp4 \
   --extension mkv \
   --extension mov \

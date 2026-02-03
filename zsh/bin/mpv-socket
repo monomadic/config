@@ -6,117 +6,139 @@ SOCKET="/tmp/mpv-socket"
 # --- Argument parsing ---
 show_absolute=false
 for arg in "$@"; do
-    case "$arg" in
-        --absolute-paths) show_absolute=true ;;
-    esac
+  case "$arg" in
+    --absolute-paths) show_absolute=true ;;
+  esac
 done
 
 # --- Dependency checks ---
 for bin in mpv socat fzf; do
-    if ! command -v "$bin" >/dev/null 2>&1; then
-        printf 'Error: %s not found in PATH\n' "$bin" >&2
-        exit 1
-    fi
+  if ! command -v "$bin" >/dev/null 2>&1; then
+    printf 'Error: %s not found in PATH\n' "$bin" >&2
+    exit 1
+  fi
 done
 
 # --- Read file list ---
 if [[ -p /dev/stdin ]]; then
-    full_paths=$(cat)
-    [[ -z "$full_paths" ]] && { echo "No input received via stdin"; exit 1; }
+  full_paths=$(cat)
+  [[ -z "$full_paths" ]] && { echo "No input received via stdin"; exit 1; }
 else
-    echo "Error: This script expects piped input" >&2
-    exit 1
+  echo "Error: This script expects piped input" >&2
+  exit 1
 fi
 
-# --- Colorize helper ---
-colorize() {
-    sed -E '
-        # Replace stars with emoji
-        s/★/ /g
-        s/☆/ /g
+# --- Display-only colorizer (MUST NOT remove/alter characters that matter) ---
+colorize_display() {
+  sed -E '
+    # Replace stars (display only)
+    s/★/ /g
+    s/☆/ /g
 
-        s/([★☆])/\x1b[93m\1\x1b[0m/g;
-        
-        # Parse: Names - [Group] Title #tag {specs}.ext
-        # Names (before " - ") → green, remove " - "
-        s/^([^-]+) - /\x1b[92m\1\x1b[0m /
-        
-        # [Group] → yellow, remove brackets
-        s/\[([^\]]+)\]/\x1b[93m\1\x1b[0m/g
-        
-        # {specs} → cyan, remove braces
-        s/\{([^\}]+)\}/\x1b[96m\1\x1b[0m/g
-        
-        # #hashtags → blue
-        s/(#[a-zA-Z0-9_-]+)/\x1b[94m\1\x1b[0m/g
-    '
+    # Color star glyphs
+    s/( | )/\x1b[93m\1\x1b[0m/g
+
+    # Names (before " - ") → green, KEEP " - "
+    s/^([^-]+) - /\x1b[92m\1\x1b[0m - /;
+
+    # [Group] → yellow, KEEP brackets
+    s/\[([^\]]+)\]/[\x1b[93m\1\x1b[0m]/g;
+
+    # {specs} → cyan, KEEP braces
+    s/\{([^\}]+)\}/{\x1b[96m\1\x1b[0m}/g;
+
+    # #hashtags → blue
+    s/(#[a-zA-Z0-9_-]+)/\x1b[94m\1\x1b[0m/g;
+  '
 }
 
-# --- FZF selection ---
-if $show_absolute; then
-    selected=$(echo "$full_paths" | colorize | fzf --ansi --multi --exact --cycle \
-        --bind 'alt-r:execute-silent(open --reveal {})' \
-        --bind 'ctrl-r:execute-silent(open --reveal {1})' \
-        --bind 'cmd-g:put(G)' \
-        --bind 'ctrl-s:put( )' \
-        --bind 'enter:select-all+accept')
-else
-    selected=$(echo "$full_paths" | colorize | fzf --ansi --multi --exact --cycle \
-        --bind 'alt-r:execute-silent(open --reveal {1})' \
-        --bind 'ctrl-r:execute-silent(open --reveal {})' \
-        --bind 'ctrl-s:put( )' \
-        --bind 'enter:select-all+accept' \
-        --delimiter='/' --with-nth=-1)
-fi
+# --- Build fzf input: RAW<TAB>DISPLAY ---
+build_fzf_lines() {
+  local raw base dir disp
+  while IFS= read -r raw; do
+    [[ -z "$raw" ]] && continue
 
-# Strip ANSI codes from selection
-selected=$(echo "$selected" | sed 's/\x1b\[[0-9;]*m//g')
-[[ -z "$selected" ]] && { echo "No files selected"; exit 0; }
+    if $show_absolute; then
+      disp=$(printf '%s\n' "$raw" | colorize_display)
+    else
+      base=${raw:t}
+      dir=${raw:h}
+      # base gets the “pretty” coloring; dir dimmed
+      disp=$(printf '%s\n' "$base" | colorize_display)
+      disp="${disp} \x1b[90m(${dir})\x1b[0m"
+    fi
 
-file_count=$(echo "$selected" | wc -l | tr -d ' ')
+    printf '%s\t%s\n' "$raw" "$disp"
+  done <<< "$full_paths"
+}
+
+# --- FZF selection (display col 2, output col 1) ---
+selected=$(
+  build_fzf_lines | fzf --ansi --multi --exact --cycle \
+    --delimiter=$'\t' --with-nth=2 --accept-nth=1 \
+    --bind 'alt-r:execute-silent(open --reveal {1})' \
+    --bind 'ctrl-r:execute-silent(open --reveal {1})' \
+    --bind 'ctrl-s:put( )' \
+    --bind 'enter:select-all+accept'
+)
+
+[[ -z "${selected:-}" ]] && { echo "No files selected"; exit 0; }
+
+file_count=$(printf '%s\n' "$selected" | wc -l | tr -d ' ')
 echo "Selected $file_count files"
 
 # --- Helper: send IPC (quiet) ---
 send_ipc() {
-    local payload=$1
-    printf '%s\n' "$payload" | socat - "$SOCKET" >/dev/null 2>&1
+  local payload=$1
+  printf '%s\n' "$payload" | socat - "$SOCKET" >/dev/null 2>&1
+}
+
+# --- JSON string escape (enough for paths) ---
+json_escape() {
+  local s=$1
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}
+  s=${s//$'\r'/\\r}
+  s=${s//$'\t'/\\t}
+  printf '%s' "$s"
 }
 
 # --- MPV socket handling ---
 mpv_was_running=false
 if pgrep -qf "mpv.*input-ipc-server=$SOCKET"; then
-    echo "Using existing mpv instance"
-    mpv_was_running=true
-    send_ipc '{ "command": ["stop"] }'           || echo "Warning: stop failed" >&2
-    send_ipc '{ "command": ["playlist-clear"] }' || echo "Warning: playlist-clear failed" >&2
+  echo "Using existing mpv instance"
+  mpv_was_running=true
+  send_ipc '{ "command": ["stop"] }'           || echo "Warning: stop failed" >&2
+  send_ipc '{ "command": ["playlist-clear"] }' || echo "Warning: playlist-clear failed" >&2
 else
-    echo "Starting mpv..."
-    mpv  --idle --input-ipc-server="$SOCKET" >/tmp/mpv-ipc.log 2>&1 &
-        
-    ready=false
-    for i in {1..50}; do
-        if [[ -S $SOCKET ]]; then
-            if printf '{"command":["get_property","idle-active"]}\n' \
-                | socat - "$SOCKET" >/dev/null 2>&1; then
-                ready=true
-                break
-            fi
-        fi
-        sleep 0.1
-    done
-    if ! $ready; then
-        echo "Error: mpv socket $SOCKET did not become usable. Check /tmp/mpv-ipc.log" >&2
-        exit 1
+  echo "Starting mpv..."
+  mpv --idle --input-ipc-server="$SOCKET" >/tmp/mpv-ipc.log 2>&1 &
+
+  ready=false
+  for i in {1..50}; do
+    if [[ -S $SOCKET ]]; then
+      if printf '{"command":["get_property","idle-active"]}\n' \
+        | socat - "$SOCKET" >/dev/null 2>&1; then
+        ready=true
+        break
+      fi
     fi
+    sleep 0.1
+  done
+  if ! $ready; then
+    echo "Error: mpv socket $SOCKET did not become usable. Check /tmp/mpv-ipc.log" >&2
+    exit 1
+  fi
 fi
 
 # --- Send files to mpv (quiet) ---
 echo "Sending files to mpv..."
-
 fail_count=0
 
 while IFS= read -r file; do
-  payload=$(printf '{ "command": ["loadfile", "%s", "append-play"] }' "$file")
+  local_escaped=$(json_escape "$file")
+  payload="{ \"command\": [\"loadfile\", \"${local_escaped}\", \"append-play\"] }"
 
   if ! send_ipc "$payload"; then
     ((fail_count++))
@@ -132,11 +154,11 @@ focus_mpv() {
 }
 
 mpv_pid=$(printf '{"command":["get_property","pid"]}\n' \
-    | socat - "$SOCKET" \
-    | grep -o '"data":[0-9]*' | cut -d: -f2)
+  | socat - "$SOCKET" \
+  | grep -o '"data":[0-9]*' | cut -d: -f2)
 
 if [[ -n "${mpv_pid:-}" ]]; then
-    focus_mpv "$mpv_pid" || echo "Warning: Could not focus mpv" >&2
+  focus_mpv "$mpv_pid" || echo "Warning: Could not focus mpv" >&2
 else
-    echo "Warning: Could not determine mpv pid" >&2
+  echo "Warning: Could not determine mpv pid" >&2
 fi
