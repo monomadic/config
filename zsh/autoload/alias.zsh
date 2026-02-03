@@ -399,6 +399,7 @@ alias ..tower-masters-new="fd-video-sort . /Volumes/Tower/Movies/Porn/Masters | 
 alias ..tower-downloads="fd-video . /Volumes/Tower/Movies/Porn/Downloads | mpv-play"
 alias ..local="fd-video . $LOCAL_MEDIA_PATHS | mpv-socket"
 alias ..local-sorted="fd-video-sort . $LOCAL_MEDIA_PATHS | mpv-socket"
+alias .play-local-sorted="fd-video-sort . $LOCAL_MEDIA_PATHS | mpv-play"
 
 alias mount-tower="open smb://nom@m4.local/Tower"
 alias unmount-tower="diskutil unmount /Volumes/Tower"

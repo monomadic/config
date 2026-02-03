@@ -14,14 +14,6 @@ mpv-play-local() {
 }
 alias .play-local=mpv-play-local
 
-mpv-filter-local-sorted() {
-  fd-video-sort . $LOCAL_MEDIA_PATHS | mpv-socket
-}
-alias .local-sorted=fzf-local-sorted
-
-mpv-play-local-sorted() {
-  fd-video-sort . $LOCAL_MEDIA_PATHS | mpv-play
-}
 
 index-update() {
   emulate -L zsh

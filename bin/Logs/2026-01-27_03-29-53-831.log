@@ -1,0 +1,40 @@
+﻿LOG 2026/01/27
+Save Path: /Users/nom/config/bin/Logs
+Task Start: 2026/01/27 03:29:53
+Task CommandLine: /Users/nom/config/bin/N_m3u8DL-RE_v0.5.1-beta_osx-arm64_20251029 https://cdn3.onlyfans.com/dash/files/5/5d/5d88edec4b43b8c3652f083c0c9ee4d1/0ho10v8q7z1ga8wqotk01.mpd?u=17385973 --header "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36" --header "Cookie: CloudFront-Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6XC9cL2NkbjMub25seWZhbnMuY29tXC9kYXNoXC9maWxlc1wvNVwvNWRcLzVkODhlZGVjNGI0M2I4YzM2NTJmMDgzYzBjOWVlNGQxXC8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5NTQwNDAwfSwiSXBBZGRyZXNzIjp7IkFXUzpTb3VyY2VJcCI6IjExMS42OC40Ni44OFwvMzIifX19XX0_; CloudFront-Signature=p7cHXTBnf9EmSjEv~0n2jTC9FDxqUXG7RPwOCxgldrnqDpK~VBWXrqSAPNAzXm9LzAWAttlWHF~FgA7s14x6AcN4Ad4iN8LeAIMQg1WBUaGYBqZkPvWHjbpi0NMD~gDm~5w0UIFqvDN1p25dlePGHPzaX05eZMMRQLwrlHY~eiwLgxWaRyldCKa-OIyE98KQ~tlxoK5-gTbu1aOqPoR-IFACGyYrlKlqJQZqW8WsecY8qoHyk3mRTOR2n7-IKSDChBTRV-jJDymPTCyaspyvnAXmbxr9VYRysJ9hng0FDiZm8w2i2gw7Htqzrl5ZHJns603B0LrWHCHKBSrg-TWXog__; CloudFront-Key-Pair-Id=K1JM1KV0NHNR73; fp=2c850704ab0dbb60f0f4c1d037adb86ad6aa7b35; lang=en; c=417352855-479%2C43709985-20; __cf_bm=I48OlZlkav8BUgNDdhUm8RLk6w7lqxWIuI6UjvLkhVM-1769455282-1.0.1.1-7LDhqTgVvR5DCVefG6P7SAuna5PDSia4pNdtnymWXp1rVHo.PVx2lpXbm51l9FGkNUEWJ4tb8jTiveaNmLbGOPVSzR0wzOvDlSZS66HHYGU; _cfuvid=ALI0YKhCVyEFLgj0dUy5W.z_rN6DQF192R1hkRMKCwI-1769455282037-0.0.1.1-604800000; st=0b6f0c6228b14af56c1cc0070e1ff593a1374ea8a24709d49447d6a1f1824236" --header "Referer: https://onlyfans.com/" --save-name "Guapa 🌺 OnlyFans"
+
+03:29:53.859 INFO : N_m3u8DL-RE (Beta version) 20251029
+03:29:53.860 EXTRA: ffmpeg => /opt/homebrew/bin/ffmpeg
+03:29:53.860 EXTRA: User-Defined Header => user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36
+03:29:53.860 EXTRA: User-Defined Header => cookie: CloudFront-Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6XC9cL2NkbjMub25seWZhbnMuY29tXC9kYXNoXC9maWxlc1wvNVwvNWRcLzVkODhlZGVjNGI0M2I4YzM2NTJmMDgzYzBjOWVlNGQxXC8qIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzY5NTQwNDAwfSwiSXBBZGRyZXNzIjp7IkFXUzpTb3VyY2VJcCI6IjExMS42OC40Ni44OFwvMzIifX19XX0_; CloudFront-Signature=p7cHXTBnf9EmSjEv~0n2jTC9FDxqUXG7RPwOCxgldrnqDpK~VBWXrqSAPNAzXm9LzAWAttlWHF~FgA7s14x6AcN4Ad4iN8LeAIMQg1WBUaGYBqZkPvWHjbpi0NMD~gDm~5w0UIFqvDN1p25dlePGHPzaX05eZMMRQLwrlHY~eiwLgxWaRyldCKa-OIyE98KQ~tlxoK5-gTbu1aOqPoR-IFACGyYrlKlqJQZqW8WsecY8qoHyk3mRTOR2n7-IKSDChBTRV-jJDymPTCyaspyvnAXmbxr9VYRysJ9hng0FDiZm8w2i2gw7Htqzrl5ZHJns603B0LrWHCHKBSrg-TWXog__; CloudFront-Key-Pair-Id=K1JM1KV0NHNR73; fp=2c850704ab0dbb60f0f4c1d037adb86ad6aa7b35; lang=en; c=417352855-479%2C43709985-20; __cf_bm=I48OlZlkav8BUgNDdhUm8RLk6w7lqxWIuI6UjvLkhVM-1769455282-1.0.1.1-7LDhqTgVvR5DCVefG6P7SAuna5PDSia4pNdtnymWXp1rVHo.PVx2lpXbm51l9FGkNUEWJ4tb8jTiveaNmLbGOPVSzR0wzOvDlSZS66HHYGU; _cfuvid=ALI0YKhCVyEFLgj0dUy5W.z_rN6DQF192R1hkRMKCwI-1769455282037-0.0.1.1-604800000; st=0b6f0c6228b14af56c1cc0070e1ff593a1374ea8a24709d49447d6a1f1824236
+03:29:53.860 EXTRA: User-Defined Header => referer: https://onlyfans.com/
+03:29:53.860 INFO : Loading URL: https://cdn3.onlyfans.com/dash/files/5/5d/5d88edec4b43b8c3652f083c0c9ee4d1/0ho10v8q7z1ga8wqotk01.mpd?u=17385973
+03:29:54.801 INFO : Content Matched: Dynamic Adaptive Streaming over HTTP
+03:29:54.803 INFO : Parsing streams...
+03:29:54.812 WARN : Writing meta json
+03:29:54.814 INFO : Extracted, there are 3 streams, with 2 basic streams, 1 audio streams, 0 subtitle streams
+03:29:54.814 INFO : Vid *CENC 1280x688 | 5000 Kbps | 1 | 29.97 | avc1.64001f | 1 Segment | ~00m09s
+03:29:54.814 INFO : Vid *CENC 446x240 | 400 Kbps | 2 | 14.985 | avc1.4d4015 | 1 Segment | ~00m09s
+03:29:54.815 INFO : Aud *CENC 3 | 96 Kbps | mp4a.40.2 | und | 2CH | 1 Segment | ~00m09s
+03:29:57.579 INFO : Parsing streams...
+03:29:57.580 INFO : Selected streams:
+03:29:57.580 INFO : Vid *CENC 1280x688 | 5000 Kbps | 1 | 29.97 | avc1.64001f | 1 Segment | ~00m09s
+03:29:57.581 INFO : Aud *CENC 3 | 96 Kbps | mp4a.40.2 | und | 2CH | 1 Segment | ~00m09s
+03:29:57.582 WARN : Writing meta json
+03:29:57.588 INFO : Save Name: Guapa 🌺 OnlyFans
+03:29:57.598 INFO : Start downloading...Vid 1280x688 | 5000 Kbps | 1 | 29.97 | avc1.64001f
+03:29:57.599 WARN : When CENC encryption is detected, binary merging is automatically enabled
+03:30:00.240 WARN : Type: cenc
+03:30:00.241 WARN : PSSH(WV): CAESELROhiMiZZGNx0uwFjA4DKcaDGlua2FlbnR3b3JrcyIKMzI0OTI4MDcwMSoCSEQ=
+03:30:00.242 WARN : KID: b44e86232265918dc74bb01630380ca7
+03:30:00.242 WARN : Reading media info...
+03:30:00.316 INFO : [0x1]: Video, h264 (High) (avc1), 1280x688, 29.97 fps, 5748 kb/s
+03:30:00.317 INFO : Binary merging...
+03:30:00.323 INFO : Start downloading...Aud 3 | 96 Kbps | mp4a.40.2 | und | 2CH
+03:30:01.618 WARN : Type: cenc
+03:30:01.619 WARN : PSSH(WV): CAESELROhiMiZZGNx0uwFjA4DKcaDGlua2FlbnR3b3JrcyIKMzI0OTI4MDcwMSoCSEQ=
+03:30:01.620 WARN : KID: b44e86232265918dc74bb01630380ca7
+03:30:01.620 WARN : Reading media info...
+03:30:01.687 INFO : [0x1]: Audio, aac (LC) (mp4a), 96 kb/s
+03:30:01.687 INFO : Binary merging...
+03:30:01.688 INFO : Done

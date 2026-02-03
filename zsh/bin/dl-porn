@@ -1,11 +1,13 @@
 #!/usr/bin/env zsh
 
-if [[ -e /Volumes/Tower/Movies/Porn/Downloads/_/ ]]; then
-  output_path=/Volumes/Tower/Movies/Porn/Downloads/_/
-else
-  output_path=$HOME/Movies/Porn/Downloads/_/
-fi
+# pick first match (sorted) or fall back to $HOME
+matches=(/Volumes/*/Movies/Porn/Downloads(/N))
 
+if (( ${#matches} )); then
+  output_path="${matches[1]}"
+else
+  output_path="$HOME/Movies/Porn/Downloads"
+fi
 echo "Downloading to: $output_path"
 
 output_template=""
