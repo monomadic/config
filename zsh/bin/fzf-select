@@ -1,0 +1,100 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+# --- Argument parsing ---
+show_absolute=false
+no_color=false
+for arg in "$@"; do
+  case "$arg" in
+    --absolute-paths) show_absolute=true ;;
+    --no-color)       no_color=true ;;
+  esac
+done
+
+# --- Dependency checks ---
+for bin in fzf; do
+  if ! command -v "$bin" >/dev/null 2>&1; then
+    printf 'Error: %s not found in PATH\n' "$bin" >&2
+    exit 1
+  fi
+done
+
+# --- Read file list ---
+if [[ -p /dev/stdin ]]; then
+  full_paths=$(cat)
+  [[ -z "$full_paths" ]] && exit 0
+else
+  echo "Error: fzf-select expects piped input" >&2
+  exit 1
+fi
+
+# --- Display-only colorizer (MUST NOT remove/alter characters that matter) ---
+colorize_display() {
+  if $no_color; then
+    cat
+    return 0
+  fi
+
+  sed -E '
+    # [Group] → yellow, KEEP brackets
+    s/\[([^\]]+)\]/[\x1b[93m\1\x1b[0m]/g;
+
+    # Replace stars (display only)
+    s/★/ /g
+    s/☆/ /g
+
+    # Color star glyphs
+    s/( | )/\x1b[93m\1\x1b[0m/g
+
+    # Names (before " - ") → green, KEEP " - "
+    s/^([^-]+) - /\x1b[92m\1\x1b[0m - /;
+    
+    # {specs} → cyan, KEEP braces
+    s/\{([^\}]+)\}/{\x1b[96m\1\x1b[0m}/g;
+
+    # #hashtags → blue
+    s/(#[a-zA-Z0-9_-]+)/\x1b[94m\1\x1b[0m/g;
+  '
+}
+
+# --- Build fzf input: RAW<TAB>DISPLAY ---
+build_fzf_lines() {
+  local raw base dir disp
+  while IFS= read -r raw; do
+    [[ -z "$raw" ]] && continue
+
+    if $show_absolute; then
+      disp=$(printf '%s\n' "$raw" | colorize_display)
+    else
+      base=${raw:t}
+      dir=${raw:h}
+      disp=$(printf '%s\n' "$base" | colorize_display)
+      if ! $no_color; then
+        disp="${disp} \x1b[90m(${dir})\x1b[0m"
+      else
+        disp="${disp} (${dir})"
+      fi
+    fi
+
+    printf '%s\t%s\n' "$raw" "$disp"
+  done <<< "$full_paths"
+}
+
+# --- FZF selection (display col 2, output col 1) ---
+fzf_args=(--multi --exact --cycle --delimiter=$'\t' --with-nth=2 --accept-nth=1
+  --bind 'alt-r:execute-silent(open --reveal {1})'
+  --bind 'ctrl-r:execute-silent(open --reveal {1})'
+  --bind 'ctrl-s:put( )'
+  --bind 'enter:select-all+accept'
+)
+
+$no_color || fzf_args=(--ansi "${fzf_args[@]}")
+
+selected=$(
+  build_fzf_lines | fzf "${fzf_args[@]}"
+)
+
+[[ -z "${selected:-}" ]] && exit 0
+
+# IMPORTANT: output raw paths only (one per line)
+printf '%s\n' "$selected"

@@ -1,0 +1,86 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+SOCKET="/tmp/mpv-socket"
+
+# --- Dependency checks ---
+for bin in mpv socat pgrep osascript; do
+  if ! command -v "$bin" >/dev/null 2>&1; then
+    printf 'Error: %s not found in PATH\n' "$bin" >&2
+    exit 1
+  fi
+done
+
+# --- Read selected files from stdin ---
+if [[ -p /dev/stdin ]]; then
+  selected=$(cat)
+  [[ -z "$selected" ]] && exit 0
+else
+  echo "Error: mpv-play-socket expects piped input" >&2
+  exit 1
+fi
+
+# --- Helper: send IPC (quiet) ---
+send_ipc() {
+  local payload=$1
+  printf '%s\n' "$payload" | socat - "$SOCKET" >/dev/null 2>&1
+}
+
+# --- JSON string escape (enough for paths) ---
+json_escape() {
+  local s=$1
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}
+  s=${s//$'\r'/\\r}
+  s=${s//$'\t'/\\t}
+  printf '%s' "$s"
+}
+
+# --- MPV socket handling ---
+if pgrep -qf "mpv.*input-ipc-server=$SOCKET"; then
+  send_ipc '{ "command": ["stop"] }'           || true
+  send_ipc '{ "command": ["playlist-clear"] }' || true
+else
+  rm -f "$SOCKET" 2>/dev/null || true
+  mpv --idle --input-ipc-server="$SOCKET" >/tmp/mpv-ipc.log 2>&1 &
+
+  ready=false
+  for i in {1..50}; do
+    if [[ -S $SOCKET ]]; then
+      if printf '{"command":["get_property","idle-active"]}\n' \
+        | socat - "$SOCKET" >/dev/null 2>&1; then
+        ready=true
+        break
+      fi
+    fi
+    sleep 0.1
+  done
+
+  if ! $ready; then
+    echo "Error: mpv socket $SOCKET did not become usable. Check /tmp/mpv-ipc.log" >&2
+    exit 1
+  fi
+fi
+
+# --- Send files to mpv (quiet) ---
+fail_count=0
+file_count=0
+
+while IFS= read -r file; do
+  [[ -z "$file" ]] && continue
+  ((file_count++))
+
+  local_escaped=$(json_escape "$file")
+  payload="{ \"command\": [\"loadfile\", \"${local_escaped}\", \"append-play\"] }"
+
+  if ! send_ipc "$payload"; then
+    ((fail_count++))
+  fi
+done <<< "$selected"
+
+ok_count=$((file_count - fail_count))
+printf '%d/%d files sent to mpv (%d failed)\n' "$ok_count" "$file_count" "$fail_count"
+
+# --- Bring mpv to front (best-effort) ---
+osascript -e 'tell application "System Events" to set frontmost of process "mpv" to true' >/dev/null 2>&1 || true
