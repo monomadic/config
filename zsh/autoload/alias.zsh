@@ -358,7 +358,7 @@ alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
 # Media Selection & Playback
 # ============================================================================
 
-alias ..pwd="fd-video | mpv-socket"
+alias ..pwd="fd-video . | fzf-select | mpv-play"
 alias ..play-pwd="mpv-play $PWD"
 alias ..pwd-latest="fd-video-sort | mpv-socket"
 alias ..play-pwd-latest="fd-video-sort | mpv-play"
@@ -368,12 +368,9 @@ alias mpv-play-volumes="mpv-play /Volumes/*/Movies/Porn/**/*.mp4"
 alias mpv-play-tower="mpv-play /Volumes/Tower/Movies/Porn"
 alias .tower=mpv-play-tower
 
-alias @q=mpv-select-queue
-alias @@=mpv-select-all
-
 # Media search shortcuts
-alias @unc="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-play"
 alias @="ls-media | mpv-play"
+alias @unc="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-play"
 alias @towerlocal="fd-video . /Volumes/Tower/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
 alias @unique='fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | awk -F/ '"'"'!seen[$NF]++'"'"' | mpv-socket'
 alias @full-path="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
