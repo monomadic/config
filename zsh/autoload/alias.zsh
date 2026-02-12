@@ -27,6 +27,11 @@ strip-slash() {
   done
 }
 
+topaz-visuals-60fps-2x() {
+  cd "/Applications/Topaz Video AI.app/Contents/MacOS/"
+  ./ffmpeg "-hide_banner" "-i" "$1" "-sws_flags" "spline+accurate_rnd+full_chroma_int" "-filter_complex" "tvai_fi=model=chf-3:slowmo=1:rdt=0.01:device=0:vram=0.95:instances=1,tvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0:noise=0:details=0:halo=0:blur=0:compression=0:estimate=8:blend=0.2:device=0:vram=0.95:instances=1" "-c:v" "hevc_videotoolbox" "-profile:v" "main" "-tag:v" "hvc1" "-pix_fmt" "yuv420p" "-allow_sw" "1" "-g" "30""-b:v" "0" "-q:v" "60" "-an" "-map_metadata" "0" "-map_metadata:s:v" "0:s:v" "-fps_mode:v" "passthrough" "-movflags" "frag_keyframe+empty_moov+delay_moov+use_metadata_tags+write_colr" "-bf" "0" "-metadata" "videoai=Processed using chf-3 replacing duplicate frames. Enhanced using prob-4; mode: auto; revert compression at 0; recover details at 0; sharpen at 0; reduce noise at 0; dehalo at 0; anti-alias/deblur at 0; focus fix Off; and recover original detail at 20. Changed resolution to 3840x2160" "$1.mp4"
+}
+
 # # Read NUL-terminated paths, sort by creation time (newest first)
 # sort_by_creation_date() {
 #   local gstat="/opt/homebrew/opt/coreutils/libexec/gnubin/stat"
@@ -368,9 +373,12 @@ alias mpv-play-volumes="mpv-play /Volumes/*/Movies/Porn/**/*.mp4"
 alias mpv-play-tower="mpv-play /Volumes/Tower/Movies/Porn"
 alias .tower=mpv-play-tower
 
+alias @q=mpv-select-queue
+
 # Media search shortcuts
 alias @="ls-media | mpv-play"
 alias @unc="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-play"
+alias @@="ls-media | fzf-select | mpv-play"
 alias @towerlocal="fd-video . /Volumes/Tower/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
 alias @unique='fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | awk -F/ '"'"'!seen[$NF]++'"'"' | mpv-socket'
 alias @full-path="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
