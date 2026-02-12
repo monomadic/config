@@ -25,4 +25,5 @@ yt-dlp \
   --output-na-placeholder "" \
   --replace-in-metadata "tags" "[ _]+" "-" \
   --progress --console-title \
+  --trim-filenames 200 \
   "$@"

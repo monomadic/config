@@ -385,6 +385,10 @@ alias @queue="fd-video --print0 . $HOME/Movies/Porn/Queue/(N) | mpv-select"
 alias @tutorials="fd-video . $TUTORIALS_PATH | mpv-select"
 alias @external=@volumes
 
+alias @downloads="mpv $HOME/Movies/Porn/Downloads/**/*.mp4"
+alias @downloads-incomplete="mpv $HOME/Movies/Porn/Downloads/**/*.part"
+alias @suki="ls-media --match-string #suki | mpv-play"
+
 alias ..visuals="fd-visuals | mpv-socket"
 alias ..clips="fd-clips | strip-slash | mpv-socket"
 alias ..volumes="fd-video . /Volumes/*/Movies/Porn | mpv-socket"
@@ -588,27 +592,50 @@ alias lla="echo && eza --icons --group-directories-first --all --no-time --no-pe
 alias lll="lsd --icon always --long --depth 1 --ignore-config --group-directories-first --color always"
 alias lln="eza --icons --all -l --sort=date"
 alias ll-fzf="eza --icons --color=always --group-directories-first --no-permissions --no-user -l --ignore-glob '.DS_Store' | fzf --ansi"
+
+# 10 most-recent files (newest first by default)
+# --reverse => newest at bottom
+# recent
+# recent ~/Downloads 20
+# recent --reverse
+# recent ~/Downloads 15 --reverse
 # 
-# 10 most-recent files (newest first), with date+size, nice output (icons if Nerd Font)
 recent() {
-  local dir="${1:-.}"
-  local n="${2:-10}"
+  local dir="."
+  local n=10
+  local reverse=false
+
+  for arg in "$@"; do
+    case "$arg" in
+      --reverse) reverse=true ;;
+      *) 
+        [[ -z "${dir_set:-}" ]] && { dir="$arg"; dir_set=1; } \
+        || n="$arg"
+        ;;
+    esac
+  done
 
   if command -v eza >/dev/null 2>&1; then
+    local sort_flags=(--sort=modified)
+    $reverse && sort_flags+=(--reverse)
+
     eza --icons --color=always \
       --only-files \
-      --sort=modified --reverse \
+      "${sort_flags[@]}" \
       --long --time-style=relative \
       --no-permissions --no-user \
       -- "$dir" | head -n "$n"
   else
-    # fallback (still modern-ish): BSD ls on macOS
-    command ls -lt -- "$dir" | head -n $((n + 1))
+    # macOS BSD ls fallback
+    if $reverse; then
+      command ls -lt -- "$dir" | head -n $((n + 1)) | tail -n "$n"
+    else
+      command ls -lt -- "$dir" | head -n $((n + 1))
+    fi
   fi
 }
 # quick alias for the common case
-alias lr='recent . 10'
-alias lr='recent . 100'
+alias lr='recent . 10 --reverse'
 
 alias up="cd .."
 alias gr="cd /"
