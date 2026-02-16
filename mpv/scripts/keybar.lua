@@ -12,11 +12,27 @@ local panscan_on = false
 local last_panscan = 1.0
 local PANSCAN_DEFAULT = 1.0
 
+-- prevents observe_property("panscan") from treating our own writes as "external user changes"
+local applying_panscan = false
+
 local function update_panscan_state(v)
     panscan = (type(v) == "number") and v or mp.get_property_number("panscan", 0.0)
     panscan_on = (panscan or 0.0) > 0.001
 end
 update_panscan_state()
+
+local function apply_panscan_preference()
+    -- what we *want* based on persistent state
+    local want = 0.0
+    if panscan_on then
+        local v = (last_panscan and last_panscan > 0.001) and last_panscan or PANSCAN_DEFAULT
+        want = v
+    end
+
+    applying_panscan = true
+    mp.set_property_number("panscan", want)
+    applying_panscan = false
+end
 
 -- RANDOM JUMP state (from the other script)
 local rj_autojump_on = false
@@ -40,10 +56,10 @@ local function build_bar(dim)
         return ("Dialogue: 0,0:00:00.00,0:00:10.00,Default,,0,0,0,,%s"):format(txt)
     end
 
-    local bg = ("{\\an7\\pos(0,%d)\\bord0\\shad0\\1c&H000000&\\alpha&H20&\\p1}"
+    -- local bg = ("{\\an7\\pos(0,%d)\\bord0\\shad0\\1c&H000000&\\alpha&H20&\\p1}"
+    local bg = ("{\\an7\\pos(0,%d)\\bord0\\shad0\\1c&H000000&\\alpha&H80&\\p1}"
         .. "m 0 0 l %d 0 l %d %d l 0 %d"
         .. "{\\p0}"):format(y0, w, w, bar_h, bar_h)
-
     local key_color  = "{\\1c&H00FF00&}"
     local text_color = "{\\1c&HFFFFFF&}"
 
@@ -118,8 +134,12 @@ mp.register_script_message("keybar-randjump-state", function(a, f, d)
 end)
 
 mp.register_event("file-loaded", function()
-    update_panscan_state()
-    render_bar()
+    -- mpv may re-apply defaults on file load; re-assert our preference after that
+    mp.add_timeout(0, function()
+        apply_panscan_preference()
+        update_panscan_state()
+        render_bar()
+    end)
 end)
 
 mp.observe_property("osd-dimensions", "native", function() render_bar() end)
@@ -130,7 +150,22 @@ mp.observe_property("osd-level", "number", function(_, v)
 end)
 
 mp.observe_property("panscan", "number", function(_, v)
+    if applying_panscan then
+        update_panscan_state(v)
+        render_bar()
+        return
+    end
+
     update_panscan_state(v)
+
+    -- If something (user, another script, profile) sets panscan > 0, remember it.
+    if (v or 0.0) > 0.001 then
+        last_panscan = v
+        panscan_on = true
+    else
+        panscan_on = false
+    end
+
     render_bar()
 end)
 
@@ -146,13 +181,19 @@ end)
 
 local function toggle_panscan()
     update_panscan_state()
+
     if panscan_on then
         last_panscan = panscan
-        mp.set_property_number("panscan", 0.0)
+        panscan_on = false
     else
-        local v = (last_panscan and last_panscan > 0.001) and last_panscan or PANSCAN_DEFAULT
-        mp.set_property_number("panscan", v)
+        panscan_on = true
+        if not last_panscan or last_panscan <= 0.001 then
+            last_panscan = PANSCAN_DEFAULT
+        end
     end
+
+    apply_panscan_preference()
+    render_bar()
 end
 
 mp.register_script_message("pan-scan-toggle", toggle_panscan)

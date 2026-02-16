@@ -18,6 +18,7 @@ FZF_COLOR_OPTS+="spinner:#FFFFFF,"
 FZF_COLOR_OPTS+="preview-bg:#111111,"
 FZF_COLOR_OPTS+="preview-border:#111111,"
 FZF_COLOR_OPTS+="header:#66ddee"
+#--color=bg:-1,fg:blue,info:15,header:7,hl:red,hl+:red,gutter:-1,prompt:yellow,marker:-1,bg+:black,pointer:yellow,fg+:yellow
 
 handle_directory_selection() {
   local pipe=$(mktemp -u)

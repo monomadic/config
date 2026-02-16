@@ -129,5 +129,39 @@ print(f"Wrote: {out}")
 print(f"Backup: {bak}")
 PY
 
-print -u2 "OK. If that looks right, do:"
-print -u2 "  mv -f -- '$DB.new' '$DB'"
+status=$?
+
+if (( status != 0 )); then
+  print -u2 "Update failed."
+  exit $status
+fi
+
+NEW_DB="${DB}.new"
+
+if [[ ! -f "$NEW_DB" ]]; then
+  print -u2 "No new DB file written."
+  exit 1
+fi
+
+print
+print "Update complete: $NEW_DB"
+printf "Replace live database and back up existing one? [y/N] "
+read -r reply
+
+case "$reply" in
+  [yY])
+    ts="$(date +%Y%m%d-%H%M%S)"
+    backup="${DB}.${ts}.bak"
+
+    print "Backing up existing DB → $backup"
+    mv -f -- "$DB" "$backup"
+
+    print "Installing new DB"
+    mv -f -- "$NEW_DB" "$DB"
+
+    print "Done."
+    ;;
+  *)
+    print "Aborted. New DB left at: $NEW_DB"
+    ;;
+esac
