@@ -1,23 +1,20 @@
 #!/usr/bin/env zsh
+set -euo pipefail
 
-# pick first match (sorted) or fall back to $HOME
-matches=(/Volumes/*/Movies/Porn/Downloads(/N))
+url="${1:-}"
+[[ -z "$url" ]] && { print -u2 "usage: ${0:t} <url> [output_dir]"; exit 1; }
 
-if (( ${#matches} )); then
-  output_path="${matches[1]}"
-else
-  output_path="$HOME/Movies/Porn/Downloads"
-fi
+output_path="${2:-$PWD}"
 echo "Downloading to: $output_path"
 
 output_template=""
-output_template+="%(cast,uploader|)l"                    # cast/uploader (lowercase)
-output_template+="%(cast& - |)s"                         # " - " separator if cast exists
-output_template+="[%(channel,uploader|Unknown)s] "       # [channel/uploader]
-output_template+="%(title)s "                            # video title
-output_template+="(%(extractor)s)"                       # (site name)
+output_template+="%(cast,uploader|)l"
+output_template+="%(cast& - |)s"
+output_template+="[%(channel,uploader|Unknown)s] "
+output_template+="%(title)s "
+output_template+="(%(extractor)s)"
 output_template+="%(tags.0& #{}|)s%(tags.1& #{}|)s%(tags.2& #{}|)s%(tags.3& #{}|)s%(tags.4& #{}|)s"
-output_template+=".%(ext)s"                              # extension
+output_template+=".%(ext)s"
 
 yt-dlp \
   --paths "$output_path" \
@@ -26,4 +23,4 @@ yt-dlp \
   --replace-in-metadata "tags" "[ _]+" "-" \
   --progress --console-title \
   --trim-filenames 200 \
-  "$@"
+  "$url"

@@ -356,61 +356,12 @@ mpv-focus() {
 
 alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
 
-# ============================================================================
-# Media Selection & Playback
-# ============================================================================
-
-alias ..pwd="fd-video . | fzf-select | mpv-play"
-alias ..play-pwd="mpv-play $PWD"
-alias ..pwd-latest="fd-video-sort | mpv-socket"
-alias ..play-pwd-latest="fd-video-sort | mpv-play"
 
 alias mpv-play-porn="setopt local_options null_glob && mpv-play $~MEDIA_GLOBS"
 alias mpv-play-volumes="mpv-play /Volumes/*/Movies/Porn/**/*.mp4"
 alias mpv-play-tower="mpv-play /Volumes/Tower/Movies/Porn"
 alias .tower=mpv-play-tower
 
-# Media search shortcuts
-alias @="ls-media | mpv-play"
-alias @unc="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-play"
-alias @towerlocal="fd-video . /Volumes/Tower/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
-alias @unique='fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | awk -F/ '"'"'!seen[$NF]++'"'"' | mpv-socket'
-alias @full-path="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
-alias @@@="setopt local_options null_glob && printf '%s\0' $~MEDIA_GLOBS | fzf-play --hide-path -0"
-alias @clips="fd --absolute-path --exact-depth=1 --color=never . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N) | mpv-socket"
-alias @pwd="fd-video | mpv-socket"
-alias @@@pwd="ls-media --absolute-path --print0 | mpv-select"
-alias @by-created="ls-media --sort-created | mpv-socket"
-alias @loop="fselect-porn -0 | fzf-media-select --hide-path --tac | mpv-with-config -"
-alias @pwd-sort="fselect-pwd-sort -0 | fzf-play --hide-path --tac"
-alias @queue="fd-video --print0 . $HOME/Movies/Porn/Queue/(N) | mpv-select"
-alias @tutorials="fd-video . $TUTORIALS_PATH | mpv-select"
-alias @external=@volumes
-
-alias @downloads="mpv $HOME/Movies/Porn/Downloads/**/*.mp4"
-alias @downloads-incomplete="mpv $HOME/Movies/Porn/Downloads/**/*.part"
-alias @suki="ls-media --match-string #suki | mpv-play"
-
-alias ..visuals="fd-visuals | mpv-socket"
-alias ..clips="fd-clips | strip-slash | fzf-select | mpv-play"
-alias ..volumes="fd-video . /Volumes/*/Movies/Porn | fzf-select | mpv-play"
-alias ..masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | fzf-select | mpv-play"
-alias ..downloads="fd --extension=mp4 . $HOME/Downloads | fzf-select | mpv-play"
-alias ..downloads-latest="fd-video-sort . $HOME/Movies/Porn/Downloads $HOME/Downloads | fzf-select | mpv-play"
-alias ..tower-masters="fd-video . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
-alias ..tower-masters-new="fd-video-sort . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
-alias ..tower-downloads="fd-video . /Volumes/Tower/Movies/Porn/Downloads | mpv-play"
-alias ..local="fd-video . $LOCAL_MEDIA_PATHS | mpv-socket"
-alias ..local-sorted="fd-video-sort . $LOCAL_MEDIA_PATHS | mpv-socket"
-alias .play-local-sorted="fd-video-sort . $LOCAL_MEDIA_PATHS | mpv-play"
-
-alias mount-tower="open smb://nom@m4.local/Tower"
-alias unmount-tower="diskutil unmount /Volumes/Tower"
-
-alias @masters-full="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Full(N) $HOME/Movies/Porn/Masters/Full(N) | fzf-play --hide-path -0"
-alias @masters-clips="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Clips(N) $HOME/Movies/Porn/Masters/Clips(N) | fzf-play --hide-path -0"
-
-alias fd-clips="fd --absolute-path --exact-depth=1 --color=never . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N)"
 
 # ============================================================================
 # Stem Separation Aliases
