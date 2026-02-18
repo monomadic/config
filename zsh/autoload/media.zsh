@@ -2,6 +2,8 @@
 # Media Selection & Playback
 # ============================================================================
 
+export DJ_VISUALS_PATH=$ICLOUD_HOME/Movies/Visuals
+
 #
 # ALIASES
 # 
@@ -15,18 +17,18 @@ alias .play-downloads="mpv $HOME/Movies/Porn/Downloads/**/*.mp4"
 alias .play-downloads-incomplete="mpv $HOME/Movies/Porn/Downloads/**/*.part"
 alias @suki="ls-media --match-string #suki | mpv-play"
 
-alias ..visuals="fd-visuals | mpv-socket"
-alias ..clips="fd-clips | strip-slash | fzf-select | mpv-play"
-alias ..volumes="fd-video . /Volumes/*/Movies/Porn | fzf-select | mpv-play"
-alias ..masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | fzf-select | mpv-play"
-alias ..downloads="fd --extension=mp4 . $HOME/Downloads | fzf-select | mpv-play"
-alias ..downloads-latest="fd-video-sort . $HOME/Movies/Porn/Downloads $HOME/Downloads | fzf-select | mpv-play"
-alias ..tower-masters="fd-video . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
-alias ..tower-masters-new="fd-video-sort . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
-alias ..tower-downloads="fd-video . /Volumes/Tower/Movies/Porn/Downloads | mpv-play"
-alias ..local="fd-video . $LOCAL_MEDIA_PATHS | mpv-socket"
-alias ..local-sorted="fd-video-sort . $LOCAL_MEDIA_PATHS | mpv-socket"
-alias .play-local-sorted="fd-video-sort . $LOCAL_MEDIA_PATHS | mpv-play"
+alias .select-visuals="fd-visuals | fzf-select | mpv-play"
+alias .select-clips="fd-clips | strip-slash | fzf-select | mpv-play"
+alias .select-volumes="fd-video . /Volumes/*/Movies/Porn | fzf-select | mpv-play"
+alias .select-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | fzf-select | mpv-play"
+alias .select-downloads="fd --extension=mp4 . $HOME/Downloads | fzf-select | mpv-play"
+alias .select-downloads-latest="fd-video-sort . $HOME/Movies/Porn/Downloads $HOME/Downloads | fzf-select | mpv-play"
+alias .play-tower-masters="fd-video . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
+alias .play-tower-masters-new="fd-video-sort . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
+alias .play-tower-downloads="fd-video . /Volumes/Tower/Movies/Porn/Downloads | mpv-play"
+alias .local="fd-video . $LOCAL_MEDIA_PATHS | fzf-select | mpv-play"
+alias .local-sorted="fd-video-sort . $LOCAL_MEDIA_PATHS | fzf-select | mpv-play"
+alias .play-local-sorted="fd-video-sort . $LOCAL_MEDIA_PATHS | fzf-select | mpv-play"
 
 # Media search shortcuts
 alias @=".play"
