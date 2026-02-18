@@ -2,9 +2,21 @@
 set -euo pipefail
 
 url="${1:-}"
-[[ -z "$url" ]] && { print -u2 "usage: ${0:t} <url> [output_dir]"; exit 1; }
+[[ -z "$url" ]] && { print -u2 "usage: ${0:t} <url> [output_dir] [-- <yt-dlp args...>]"; exit 1; }
+shift
 
-output_path="${2:-$PWD}"
+output_path="$PWD"
+if (( $# )) && [[ "$1" != "--" ]]; then
+  output_path="$1"
+  shift
+fi
+
+# Everything remaining (optionally after --) is passed through
+if (( $# )) && [[ "$1" == "--" ]]; then
+  shift
+fi
+passthru=( "$@" )
+
 echo "Downloading to: $output_path"
 
 output_template=""
@@ -23,4 +35,5 @@ yt-dlp \
   --replace-in-metadata "tags" "[ _]+" "-" \
   --progress --console-title \
   --trim-filenames 200 \
+  "${passthru[@]}" \
   "$url"
