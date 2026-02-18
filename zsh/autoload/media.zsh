@@ -8,12 +8,14 @@ export DJ_VISUALS_PATH=$ICLOUD_HOME/Movies/Visuals
 # ALIASES
 # 
 alias .play="ls-media | mpv-play"
+alias .select="ls-media | fzf-select | mpv-play"
 alias .play-pwd="mpv ."
-alias .play-pwd-new="fd-video-sort | mpv-play"
 alias .select-pwd="fd-video . | fzf-select | mpv-play"
+alias .play-pwd-new="fd-video-sort | mpv-play"
 alias .select-pwd-new="fd-video-sort | fzf-select | mpv-play"
 
 alias .play-downloads="mpv $HOME/Movies/Porn/Downloads/**/*.mp4"
+alias .select-downloads="fd-video $HOME/Movies/Porn/Downloads/**/*.mp4 | fzf-select | mpv-play"
 alias .play-downloads-incomplete="mpv $HOME/Movies/Porn/Downloads/**/*.part"
 alias @suki="ls-media --match-string #suki | mpv-play"
 
