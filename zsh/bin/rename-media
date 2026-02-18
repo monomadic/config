@@ -74,13 +74,19 @@ clean_name() {
 extract_rating() {
   local s="$1"
   local rating=""
-  # first match only
-  rating="$(printf '%s' "$s" | perl -CSDA -ne 'if(/([★☆]{5})/){print $1; exit 0}')"
-  # remove ALL occurrences (just in case)
-  s="$(printf '%s' "$s" | perl -CSDA -pe 's/[★☆]{5}//g')"
-  # collapse & trim
+
+  # zsh regex match (ERE). Captures the first 5-star block.
+  if [[ "$s" =~ '([★☆]{5})' ]]; then
+    rating="${match[1]}"
+  fi
+
+  # Remove ALL 5-star blocks (in case there are multiple), then re-add the first one at end.
+  s="${s//[★☆][★☆][★☆][★☆][★☆]/}"
+
+  # collapse & trim spaces
   s="${s//  / }"; s="${s//  / }"
   s="${s## }"; s="${s%% }"
+
   print -r -- "$s"
   print -r -- "$rating"
 }
