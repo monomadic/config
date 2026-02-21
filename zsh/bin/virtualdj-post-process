@@ -1,0 +1,214 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+DB="${HOME}/Library/Application Support/VirtualDJ/database.xml"
+STEMS_DIR=""          # optional
+CLEAR_MISSING=false   # optional
+DRY_RUN=false         # optional
+
+STEM_FLAG=33554432
+
+usage() {
+  print -u2 "usage: ${0:t} [--db FILE] [--stems-dir DIR] [--clear-missing] [--dry-run]"
+  exit 2
+}
+
+while (( $# )); do
+  case "$1" in
+    --db)            DB="$2"; shift 2 ;;
+    --stems-dir)     STEMS_DIR="$2"; shift 2 ;;
+    --clear-missing) CLEAR_MISSING=true; shift ;;
+    --dry-run)       DRY_RUN=true; shift ;;
+    -h|--help)       usage ;;
+    *) print -u2 "unknown arg: $1"; usage ;;
+  esac
+done
+
+python3 - <<'PY' "$DB" "$STEMS_DIR" "$STEM_FLAG" "$CLEAR_MISSING" "$DRY_RUN"
+import os, re, sys, html
+
+db_path, stems_dir, stem_flag_s, clear_missing_s, dry_run_s = sys.argv[1:6]
+stem_flag = int(stem_flag_s)
+clear_missing = (clear_missing_s.lower() == "true")
+dry_run = (dry_run_s.lower() == "true")
+
+with open(db_path, "rb") as f:
+    data = f.read()
+
+# Keep odd bytes round-trippable
+txt = data.decode("utf-8", errors="surrogateescape")
+
+# Optional index of .vdjstems under stems_dir (fast basename lookups)
+stems_index = {}
+if stems_dir:
+    for root, _, files in os.walk(stems_dir):
+        for fn in files:
+            if fn.lower().endswith(".vdjstems"):
+                stems_index.setdefault(fn.lower(), []).append(os.path.join(root, fn))
+
+def normalize_fp(fp_raw: str) -> str:
+    # robust XML/HTML entity decode (&amp; etc, numeric entities)
+    return html.unescape(fp_raw)
+
+def has_vdjstems(file_path: str) -> tuple[bool, str]:
+    # 1) sidecar next to track
+    sidecar = file_path + ".vdjstems"
+    if os.path.exists(sidecar):
+        return True, "sidecar"
+
+    # 2) optional stemsSavedFolder mode
+    if stems_dir:
+        target = os.path.basename(sidecar).lower()
+        candidates = stems_index.get(target, [])
+        if candidates:
+            return True, "stems_dir"
+    return False, "none"
+
+# Counters + samples (always on)
+seen = 0
+changed = 0
+missing_tracks = 0
+found_sidecar = 0
+found_stemsdir = 0
+already_had_flag = 0
+updated_existing_flag = 0
+inserted_new_flag = 0
+
+MAX_SAMPLES = 12
+samples_not_found = []
+samples_updated = []
+
+# Patch only <Song ...> start tags (don’t reserialize XML)
+song_re = re.compile(r'(<Song\b[^>]*\bFilePath=)(["\'])(.*?)\2([^>]*>)', re.IGNORECASE | re.DOTALL)
+
+def repl(m: re.Match) -> str:
+    global seen, changed, missing_tracks
+    global found_sidecar, found_stemsdir
+    global already_had_flag, updated_existing_flag, inserted_new_flag
+
+    seen += 1
+
+    prefix, quote, fp_raw, rest = m.group(1), m.group(2), m.group(3), m.group(4)
+    fp = normalize_fp(fp_raw)
+
+    if not os.path.exists(fp):
+        missing_tracks += 1
+
+    found, mode = has_vdjstems(fp)
+    if mode == "sidecar":
+        found_sidecar += 1
+    elif mode == "stems_dir":
+        found_stemsdir += 1
+
+    tag = prefix + quote + fp_raw + quote + rest
+
+    flag_m = re.search(r'\bFlag="(\d+)"', tag)
+    if flag_m:
+        already_had_flag += 1
+        old = int(flag_m.group(1))
+        if found:
+            new = old | stem_flag
+        else:
+            new = (old & ~stem_flag) if clear_missing else old
+
+        if new != old:
+            changed += 1
+            updated_existing_flag += 1
+            if len(samples_updated) < MAX_SAMPLES:
+                samples_updated.append(fp)
+
+            if dry_run:
+                return tag
+            return tag[:flag_m.start(1)] + str(new) + tag[flag_m.end(1):]
+        return tag
+
+    # No Flag attr: insert one if found
+    if found:
+        changed += 1
+        inserted_new_flag += 1
+        if len(samples_updated) < MAX_SAMPLES:
+            samples_updated.append(fp)
+
+        if dry_run:
+            return tag
+        return tag[:-1] + f' Flag="{stem_flag}">'
+    else:
+        if len(samples_not_found) < MAX_SAMPLES:
+            samples_not_found.append(fp)
+
+    return tag
+
+new_txt = song_re.sub(repl, txt)
+
+print(f"DB: {db_path}")
+print(f"Stems dir: {stems_dir or '(none)'}")
+print(f"Songs scanned: {seen}")
+print(f"Songs updated: {changed}{' (dry-run)' if dry_run else ''}")
+print(f"Stems found: sidecar={found_sidecar}, stems_dir={found_stemsdir}")
+print(f"Missing track files (per FilePath): {missing_tracks}")
+print(f"Songs with existing Flag=: {already_had_flag}")
+print(f"Updated existing Flag=: {updated_existing_flag}")
+print(f"Inserted new Flag=: {inserted_new_flag}")
+
+if samples_not_found:
+    print("\nSample tracks with NO stems found:")
+    for p in samples_not_found:
+        print("  -", p)
+
+if samples_updated:
+    print("\nSample tracks UPDATED:")
+    for p in samples_updated:
+        print("  -", p)
+
+if dry_run:
+    sys.exit(0)
+
+bak = db_path + ".bak"
+out = db_path + ".new"
+
+# Write backup once
+if not os.path.exists(bak):
+    with open(bak, "wb") as f:
+        f.write(data)
+
+with open(out, "wb") as f:
+    f.write(new_txt.encode("utf-8", errors="surrogateescape"))
+
+print(f"Wrote: {out}")
+print(f"Backup: {bak}")
+PY
+
+exit_code=$?
+if (( exit_code != 0 )); then
+  print -u2 "Update failed."
+  exit $exit_code
+fi
+
+NEW_DB="${DB}.new"
+if [[ ! -f "$NEW_DB" ]]; then
+  print -u2 "No new DB file written."
+  exit 1
+fi
+
+print
+print "Update complete: $NEW_DB"
+printf "Replace live database and back up existing one? [y/N] "
+read -r reply
+
+case "$reply" in
+  [yY])
+    ts="$(date +%Y%m%d-%H%M%S)"
+    backup="${DB}.${ts}.bak"
+
+    print "Backing up existing DB → $backup"
+    mv -f -- "$DB" "$backup"
+
+    print "Installing new DB"
+    mv -f -- "$NEW_DB" "$DB"
+
+    print "Done."
+    ;;
+  *)
+    print "Aborted. New DB left at: $NEW_DB"
+    ;;
+esac

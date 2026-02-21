@@ -9,6 +9,9 @@ depends = []
 [delta.files]
 "delta/gitconfig" = "~/.gitconfig"
 
+[dprint.files]
+"apps/dprint" = "~/.config/dprint"
+
 [default.files]
 
 [default.variables]

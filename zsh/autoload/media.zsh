@@ -4,6 +4,9 @@
 
 export DJ_VISUALS_PATH=$ICLOUD_HOME/Movies/Visuals
 
+alias @play="mpv-play"
+alias @select="fzf-select | mpv-play"
+
 #
 # ALIASES
 # 

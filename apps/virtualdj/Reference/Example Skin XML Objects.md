@@ -1,0 +1,1 @@
+# Example Skin XML Objects
