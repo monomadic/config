@@ -249,7 +249,8 @@ if [[ -o interactive ]]; then
   bindkey '^T' fzf-file-widget
   bindkey '^D' fzf-dir-widget
   bindkey '^U' kill-whole-line
-
+  bindkey '^R' fzf-history-widget
+  
   # ~/.zshrc
 
   # BIND F20
