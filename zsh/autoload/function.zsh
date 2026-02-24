@@ -1,3 +1,14 @@
+macos-disable-wifi-power-management() {
+  # Check current state
+  sudo pmset -g | grep proximitywake
+
+  # Disable WiFi power management (persists across reboots)
+  sudo pmset -a proximitywake 0
+
+  # Also worth trying:
+  sudo pmset -a tcpkeepalive 1  
+}
+
 diff-filenames() {
   emulate -L zsh
   setopt pipefail

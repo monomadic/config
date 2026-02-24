@@ -649,7 +649,7 @@ alias .apple-music=apple-music-dl
 alias .beatport="beatportdl-darwin-arm64"
 alias .tidal="noglob tidal-dl-ng dl"
 alias .faphouse="download-video-faphouse"
-alias .instagram="yt-visuals"
+alias dl-visuals="dl-instagram --out '~/Library/Mobile Documents/com~apple~CloudDocs/Movies/Visuals/Downloads'"
 
 # ============================================================================
 # Misc SSH & Remote
@@ -670,7 +670,7 @@ alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache/ --cac
 # ============================================================================
 
 alias monitor="btm"
-alias top="btm"
+#alias top="btm"
 alias cp-pwd="echo $PWD|pbcopy"
 alias ~=grep
 alias ls-colors='for x in {0..8}; do for i in {30..37}; do for a in {40..47}; do echo -ne "\e[$x;$i;$a""m\\\e[$x;$i;$a""m\e[0;37;40m "; done; echo; done; done; echo ""'

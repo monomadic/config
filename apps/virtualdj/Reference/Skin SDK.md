@@ -311,6 +311,9 @@ Draw buttons with code instead of referencing PNG coordinates. Attributes:
 - `gradient=""` - `"horizontal"`, `"vertical"`, or `"circular"` (requires `color2`)
 - `color2=""` - End color for gradient (start color is `color`)
 
+**Transparent / Hover-only Buttons:**
+Omitting `<up>` (and `<off>` for action buttons) leaves the button fully transparent at rest — the hit area defined by `<size>` still exists, so hover and click work normally. Only define the states you want to be visible. This is useful for invisible overlay buttons or contextual controls that should only reveal themselves on hover.
+
 **Drawing and Mouse Masks:**
 - `<clipmask x="" y=""/>` - B&W graphic used as clip mask (avoid if possible - use transparent PNG)
 - `<mousemask x="" y=""/>` - B&W graphic mask to determine if mouse is over button
@@ -364,6 +367,23 @@ Draw buttons with code instead of referencing PNG coordinates. Attributes:
         color="#00FF00" color2="#008800" gradient="vertical"/>
 </button>
 ```
+
+**Example 4: Transparent / Hover-only Button**
+
+Omitting `<up>` makes the button invisible at rest. It appears only when hovered or pressed. The invisible hit area remains fully interactive.
+
+```xml
+<button action="some_action">
+    <pos x="100" y="100"/>
+    <size width="80" height="40"/>
+    <!-- no <up> = fully transparent at rest -->
+    <over color="#ffffff" radius="4" border="#aaaaaa" border_size="1"/>
+    <down color="#cccccc" radius="4"/>
+    <textover text="LABEL" color="black" align="center"/>
+</button>
+```
+
+> **Note:** The hit area defined by `<size>` is always active regardless of visual transparency, so clicks still register even when the button is invisible. If you need to restrict interactivity to a specific shape, use `<mousemask>`.
 
 ---
 

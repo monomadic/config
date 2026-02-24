@@ -1,28 +1,28 @@
 #!/usr/bin/env zsh
-
 usage() {
-  echo "Usage: ${0:t} [--match-string STRING]... [--match-regex REGEX]... [--sort-modified | --sort-created] [--reverse] [--print0] [--verbose]" >&2
+  echo "Usage: ${0:t} [--path DIR]... [--match-string STRING]... [--match-regex REGEX]... [--sort-modified | --sort-created] [--reverse] [--print0] [--verbose]" >&2
 }
-
 verbose=false
 print0=false
-
 log_verbose() {
   if $verbose; then
     echo "[DEBUG] $1" >&2
   fi
   return 0
 }
-
 match_strings=()
 match_regexes=()
+explicit_paths=()
 sort_modified=false
 sort_created=false
 reverse=false
-
 # Parse command-line arguments
 while [ $# -gt 0 ]; do
   case $1 in
+    --path)
+      explicit_paths+=("$2")
+      shift 2
+      ;;
     --match-string)
       match_strings+=("$2")
       shift 2
@@ -103,8 +103,13 @@ emit_paths() {
   return 0
 }
 
-# Get directories
-directories=("${(@f)$(ls-media-paths)}")
+# Get directories — explicit --path args take precedence over ls-media-paths
+if (( ${#explicit_paths[@]} > 0 )); then
+  directories=("${explicit_paths[@]}")
+  log_verbose "Using explicit paths: ${directories[*]}"
+else
+  directories=("${(@f)$(ls-media-paths)}")
+fi
 (( ${#directories[@]} == 0 )) && echo "No directories found" >&2 && exit 1
 
 if ! $sort_modified && ! $sort_created; then

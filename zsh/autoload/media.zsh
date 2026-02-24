@@ -2,7 +2,8 @@
 # Media Selection & Playback
 # ============================================================================
 
-export DJ_VISUALS_PATH=$ICLOUD_HOME/Movies/Visuals
+typeset -ga DJ_VISUALS_PATHS
+DJ_VISUALS_PATHS=("$ICLOUD_HOME/Movies/Visuals")
 
 alias @play="mpv-play"
 alias @select="fzf-select | mpv-play"
@@ -11,41 +12,60 @@ alias @select="fzf-select | mpv-play"
 # ALIASES
 # 
 alias .play="ls-media | mpv-play"
+alias .play-new="ls-media --sort-created | mpv-play"
+alias .pwd-play="mpv ."
+alias .pwd-select="ls-media --path . | fzf-select | mpv-play"
+alias .pwd-select-latest="ls-media --sort-created | fzf-select| mpv-play"
 alias .select="ls-media | fzf-select | mpv-play"
-alias .play-pwd="mpv ."
-alias .select-pwd="fd-video . | fzf-select | mpv-play"
+alias .select-latest="ls-media --sort-created | fzf-select| mpv-play"
 alias .play-pwd-new="fd-video-sort | mpv-play"
 alias .select-pwd-new="fd-video-sort | fzf-select | mpv-play"
+alias .play-local="fd-video . $LOCAL_MEDIA_PATHS | mpv-play"
+alias .select-local="fd-video . $LOCAL_MEDIA_PATHS | fzf-select | mpv-play"
+alias .play-downloads="fd-video . /Volumes/*/Movies/Porn/Downloads(N) $HOME/Movies/Porn/Downloads | mpv-play"
+alias .select-downloads="fd-video . /Volumes/*/Movies/Porn/Downloads(N) $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
+alias .play-downloads-latest="fd-video-sort . $HOME/Movies/Porn/Downloads $HOME/Movies/Porn/Downloads | mpv-play"
+alias .select-downloads-latest="fd-video-sort . $HOME/Movies/Porn/Downloads $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
+alias .play-local-downloads="fd-video . $HOME/Movies/Porn/Downloads"
+alias .select-local-downloads="fd-video . $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
+alias .play-local-downloads-incomplete="mpv $HOME/Movies/Porn/Downloads/**/*.part"
 
-alias .play-downloads="mpv $HOME/Movies/Porn/Downloads/**/*.mp4"
-alias .select-downloads="fd-video $HOME/Movies/Porn/Downloads/**/*.mp4 | fzf-select | mpv-play"
-alias .play-downloads-incomplete="mpv $HOME/Movies/Porn/Downloads/**/*.part"
-alias @suki="ls-media --match-string #suki | mpv-play"
+alias .play-suki="ls-media --match-string #suki | mpv-play"
+alias .select-suki="ls-media --match-string #suki | fzf-select | mpv-play"
+alias .play-60fps="ls-media --match-string 60fps | mpv-play"
+alias .play-4k60fps="ls-media --match-string 60fps --match-string 2160p | mpv-play"
+alias .play-4k60fps-top="ls-media --match-string 60fps --match-string 2160p --match-string ★★★ | mpv-play"
+alias .select-4k60fps-top="ls-media --match-string 60fps --match-string 2160p --match-string ★★★ | fzf-select | mpv-play"
+alias .play-best="ls-media --match-string ★★★ | mpv-play"
+alias .select-best="ls-media --match-string ★★★ | fzf-select | mpv-play"
 
-alias .select-visuals="fd-visuals | fzf-select | mpv-play"
+alias .play-clips="ls-media --match-string /Clips/ | mpv-play"
 alias .select-clips="fd-clips | strip-slash | fzf-select | mpv-play"
-alias .select-volumes="fd-video . /Volumes/*/Movies/Porn | fzf-select | mpv-play"
+
+alias .play-visuals='fd-video . "${DJ_VISUALS_PATHS[@]}" | mpv-play'
+alias .select-visuals="fd-video . "${DJ_VISUALS_PATHS[@]}" | fzf-select | mpv-play"
+alias .select-visuals="fd-visuals | fzf-select | mpv-play"
+
+alias .select-external="fd-video . /Volumes/*/Movies/Porn | fzf-select | mpv-play"
 alias .select-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | fzf-select | mpv-play"
-alias .select-downloads="fd --extension=mp4 . $HOME/Downloads | fzf-select | mpv-play"
-alias .select-downloads-latest="fd-video-sort . $HOME/Movies/Porn/Downloads $HOME/Downloads | fzf-select | mpv-play"
+alias .play-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | mpv-play"
 alias .play-tower-masters="fd-video . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
 alias .play-tower-masters-new="fd-video-sort . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
 alias .play-tower-downloads="fd-video . /Volumes/Tower/Movies/Porn/Downloads | mpv-play"
-alias .local="fd-video . $LOCAL_MEDIA_PATHS | fzf-select | mpv-play"
 alias .local-sorted="fd-video-sort . $LOCAL_MEDIA_PATHS | fzf-select | mpv-play"
 alias .play-local-sorted="fd-video-sort . $LOCAL_MEDIA_PATHS | fzf-select | mpv-play"
 
 # Media search shortcuts
 alias @=".play"
+alias @@=".play-new"
+alias @@@="setopt local_options null_glob && printf '%s\0' $~MEDIA_GLOBS | fzf-play --hide-path -0"
 alias @unc="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-play"
 alias @towerlocal="fd-video . /Volumes/Tower/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
 alias @unique='fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | awk -F/ '"'"'!seen[$NF]++'"'"' | mpv-socket'
 alias @full-path="fd-video . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-socket"
-alias @@@="setopt local_options null_glob && printf '%s\0' $~MEDIA_GLOBS | fzf-play --hide-path -0"
 alias @clips="fd --absolute-path --exact-depth=1 --color=never . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N) | mpv-socket"
 alias @pwd="fd-video | mpv-socket"
 alias @@@pwd="ls-media --absolute-path --print0 | mpv-select"
-alias @by-created="ls-media --sort-created | mpv-socket"
 alias @loop="fselect-porn -0 | fzf-media-select --hide-path --tac | mpv-with-config -"
 alias @pwd-sort="fselect-pwd-sort -0 | fzf-play --hide-path --tac"
 alias @queue="fd-video --print0 . $HOME/Movies/Porn/Queue/(N) | mpv-select"
