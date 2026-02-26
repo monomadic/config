@@ -92,7 +92,7 @@ local function build_bar(dim)
         .. key("󱊷 ",  " Menu")
         .. key(" ",  " OSD")
         .. key("󰌑 ",  " Next")
-        .. key("A",   "uto-rotate")
+        .. key("A",   "uto-rotate " .. badge(auto_rotate_on))
         .. key("⌘C",  "opy Path")
         .. key("D",   "ir-Open")
         .. key("I",   "nfo")
@@ -107,6 +107,18 @@ local function build_bar(dim)
 
     return bg .. "\n" .. s
 end
+
+-- receive auto-rotate state updates
+mp.register_script_message("keybar-auto-rotate-state", function(v)
+    auto_rotate_on = (v == "1" or v == "true" or v == "on")
+    render_bar()
+end)
+
+
+mp.add_timeout(0, function()
+    mp.commandv("script-message", "randjump-query")
+    mp.commandv("script-message", "auto-rotate-query")
+end)
 
 local function render_bar()
     local visible = osd_ok and keybar_enabled
@@ -140,6 +152,7 @@ mp.register_event("file-loaded", function()
         apply_panscan_preference()
         update_panscan_state()
         render_bar()
+        mp.commandv("script-message", "auto-rotate-query")
     end)
 end)
 

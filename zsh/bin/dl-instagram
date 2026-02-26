@@ -124,3 +124,7 @@ for url in "$@"; do
     fi
   done <<< "$dl_list"
 done
+
+print -r -- "$dl_list" | while IFS= read -r p; do
+  [[ -n "$p" ]] && print -P "%F{magenta}PATH%f ${p:A}"
+done

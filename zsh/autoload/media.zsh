@@ -46,6 +46,8 @@ alias .play-visuals='fd-video . "${DJ_VISUALS_PATHS[@]}" | mpv-play'
 alias .select-visuals="fd-video . "${DJ_VISUALS_PATHS[@]}" | fzf-select | mpv-play"
 alias .select-visuals="fd-visuals | fzf-select | mpv-play"
 
+alias .play-visuals-bg-black='fd-video --regex "#bg-black" . "${DJ_VISUALS_PATHS[@]}" | fzf-select | mpv-play'
+
 alias .select-external="fd-video . /Volumes/*/Movies/Porn | fzf-select | mpv-play"
 alias .select-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | fzf-select | mpv-play"
 alias .play-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | mpv-play"
