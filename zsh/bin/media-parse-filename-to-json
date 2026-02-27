@@ -1,0 +1,121 @@
+#!/usr/bin/env zsh
+
+set -euo pipefail
+setopt extended_glob
+
+json_escape() {
+  local s="$1"
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}
+  s=${s//$'\r'/\\r}
+  s=${s//$'\t'/\\t}
+  print -r -- "$s"
+}
+
+json_array() {
+  local -a items=("$@")
+  local out="[" i=1
+  for item in "${items[@]}"; do
+    (( i > 1 )) && out+=","
+    out+="\"$(json_escape "$item")\""
+    (( i++ ))
+  done
+  out+="]"
+  print -r -- "$out"
+}
+
+trim() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  print -r -- "$s"
+}
+
+parse_one() {
+  local input="$1"
+  local fname="${input:t}"
+  local ext="${fname##*.}"
+  local stem="${fname%.*}"
+
+  local rating="" specs="" origin="" channel="" title="" names_part=""
+  local -a tags names
+
+  # rating: trailing " ★★★★☆" (exactly 5 star chars)
+  if [[ "$stem" =~ ' (['$'★'$'☆']{5})$' ]]; then
+    rating="$match[1]"
+    stem="${stem% ${match[1]}}"
+  fi
+
+  # specs: trailing " { ... }"
+  if [[ "$stem" =~ ' \{([^}]*)\}$' ]]; then
+    specs="$match[1]"
+    stem="${stem% \{${match[1]}\}}"
+  fi
+
+  # origin: trailing " ( ... )"
+  if [[ "$stem" =~ ' \(([^()]*)\)$' ]]; then
+    origin="$match[1]"
+    stem="${stem% \(${match[1]}\)}"
+  fi
+
+  # tags: trailing " #tag #another-tag" (collect from end)
+  tags=()
+  while [[ "$stem" =~ ' (#[[:alnum:]_][-[:alnum:]_]*?)$' ]]; do
+    tags=("${match[1]}" "${tags[@]}")
+    stem="${stem% ${match[1]}}"
+  done
+
+  # names + channel + title
+  # 1) "Names - [Channel] Title"
+  if [[ "$stem" =~ '^(.*) - \[([^][]+)\] (.+)$' ]]; then
+    names_part="$match[1]"
+    channel="$match[2]"
+    title="$match[3]"
+  # 2) "Names - Title"
+  elif [[ "$stem" =~ '^(.*) - (.+)$' ]]; then
+    names_part="$match[1]"
+    title="$match[2]"
+  else
+    title="$stem"
+  fi
+
+  # names: split by commas, trim each
+  names=()
+  if [[ -n "$names_part" ]]; then
+    local -a raw
+    raw=(${(s:,:)names_part})
+    local n
+    for n in "${raw[@]}"; do
+      n="$(trim "$n")"
+      [[ -n "$n" ]] && names+=("$n")
+    done
+  fi
+
+  # build JSON (jsonlines: one object per input)
+  local j_names j_tags
+  j_names="$(json_array "${names[@]}")"
+  j_tags="$(json_array "${tags[@]}")"
+
+  print -r -- "{
+  \"file\": \"$(json_escape "$input")\",
+  \"filename\": \"$(json_escape "$fname")\",
+  \"ext\": \"$(json_escape "$ext")\",
+  \"names\": $j_names,
+  \"channel\": \"$(json_escape "$channel")\",
+  \"title\": \"$(json_escape "$title")\",
+  \"tags\": $j_tags,
+  \"origin\": \"$(json_escape "$origin")\",
+  \"specs\": \"$(json_escape "$specs")\",
+  \"rating\": \"$(json_escape "$rating")\"
+}"
+}
+
+if (( $# == 0 )); then
+  print -u2 "usage: ${0:t} FILE [FILE ...]"
+  exit 2
+fi
+
+for f in "$@"; do
+  parse_one "$f"
+done
