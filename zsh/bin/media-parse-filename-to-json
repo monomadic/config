@@ -1,5 +1,4 @@
 #!/usr/bin/env zsh
-
 set -euo pipefail
 setopt extended_glob
 
@@ -32,82 +31,218 @@ trim() {
   print -r -- "$s"
 }
 
+normalize_orientation() {
+  local o="${(L)1}"
+  case "$o" in
+    portrait)  print -r -- "vertical" ;;
+    landscape) print -r -- "horizontal" ;;
+    vertical|horizontal|square) print -r -- "$o" ;;
+    *) print -r -- "" ;;
+  esac
+}
+
+rating_to_num() {
+  local r="$1"
+  case "$r" in
+    "★☆☆☆☆") print -r -- "1" ;;
+    "★★☆☆☆") print -r -- "2" ;;
+    "★★★☆☆") print -r -- "3" ;;
+    "★★★★☆") print -r -- "4" ;;
+    "★★★★★") print -r -- "5" ;;
+    *) print -r -- "0" ;;
+  esac
+}
+
+# Title casing rule:
+# - uppercase first letter of each "word"
+# - keep the rest of each word unchanged
+# - do NOT touch anything after the first " #" or " (" (hashtags/origin region)
+caps_case_prefix_only() {
+  local s="$1"
+  local cut_pos=$(( ${#s} + 1 ))
+
+  local pos_hash pos_paren
+  pos_hash=$(expr index "$s" " #") || true
+  pos_paren=$(expr index "$s" " (") || true
+
+  (( pos_hash > 0 && pos_hash < cut_pos )) && cut_pos=$pos_hash
+  (( pos_paren > 0 && pos_paren < cut_pos )) && cut_pos=$pos_paren
+
+  local prefix suffix
+  if (( cut_pos <= ${#s} )); then
+    prefix="${s[1,$((cut_pos-1))]}"
+    suffix="${s[$cut_pos,-1]}"
+  else
+    prefix="$s"
+    suffix=""
+  fi
+
+  # uppercase first letter after start or after space (preserve rest as-is)
+  # uses zsh regex replacement
+  prefix="${prefix//(#b)(^|[[:space:]])([[:alpha:]])/${match[1]}${(U)match[2]}}"
+
+  print -r -- "${prefix}${suffix}"
+}
+
+# Spec token parsing (tokens are whitespace-split)
+typeset -g SPEC_RES="" SPEC_FPS="" SPEC_LEN="" SPEC_MBPS="" SPEC_ORI=""
+
+parse_specs_tokens() {
+  local s="$1"
+  SPEC_RES="" SPEC_FPS="" SPEC_LEN="" SPEC_MBPS="" SPEC_ORI=""
+
+  local -a toks
+  toks=(${(z)s})
+  local t tl
+
+  for t in "${toks[@]}"; do
+    tl="${(L)t}"
+
+    if [[ -z "$SPEC_ORI" && "$tl" =~ '^(portrait|landscape|horizontal|vertical|square)$' ]]; then
+      SPEC_ORI="$(normalize_orientation "$tl")"
+      continue
+    fi
+
+    if [[ -z "$SPEC_RES" && "$t" =~ '^([0-9]{3,4}p)$' ]]; then
+      SPEC_RES="$match[1]"
+      continue
+    fi
+
+    if [[ -z "$SPEC_FPS" && "$t" =~ '^([0-9]{1,3}fps)$' ]]; then
+      SPEC_FPS="$match[1]"
+      continue
+    fi
+
+    if [[ -z "$SPEC_MBPS" && "$t" =~ '^([0-9]+(\.[0-9]+)?mbps)$' ]]; then
+      SPEC_MBPS="$match[1]"
+      continue
+    fi
+
+    if [[ -z "$SPEC_LEN" ]]; then
+      if [[ "$t" =~ '^([0-9]{1,2}:[0-9]{2}(:[0-9]{2})?)$' ]]; then
+        SPEC_LEN="$match[1]"
+        continue
+      elif [[ "$t" =~ '^([0-9]+(min|mins|m|s|sec|secs|h|hr|hrs))$' ]]; then
+        SPEC_LEN="$match[1]"
+        continue
+      fi
+    fi
+  done
+}
+
 parse_one() {
   local input="$1"
   local fname="${input:t}"
   local ext="${fname##*.}"
   local stem="${fname%.*}"
 
-  local rating="" specs="" origin="" channel="" title="" names_part=""
-  local -a tags names
+  local rating_stars="" rating=0
+  local specs_raw="" origin="" channel="" title="" tail=""
+  local -a tags actors
 
-  # rating: trailing " ★★★★☆" (exactly 5 star chars)
-  if [[ "$stem" =~ ' (['$'★'$'☆']{5})$' ]]; then
-    rating="$match[1]"
+  # rating: trailing " ★★★★☆" (exactly 5 of ★ or ☆)
+  if [[ "$stem" =~ ' ([★☆]{5})$' ]]; then
+    rating_stars="$match[1]"
+    rating="$(rating_to_num "$rating_stars")"
     stem="${stem% ${match[1]}}"
   fi
 
-  # specs: trailing " { ... }"
+  # specs: trailing "{ ... }" (braces optional, but if present this is authoritative for specs)
   if [[ "$stem" =~ ' \{([^}]*)\}$' ]]; then
-    specs="$match[1]"
+    specs_raw="$match[1]"
     stem="${stem% \{${match[1]}\}}"
   fi
 
-  # origin: trailing " ( ... )"
-  if [[ "$stem" =~ ' \(([^()]*)\)$' ]]; then
-    origin="$match[1]"
-    stem="${stem% \(${match[1]}\)}"
-  fi
-
-  # tags: trailing " #tag #another-tag" (collect from end)
-  tags=()
-  while [[ "$stem" =~ ' (#[[:alnum:]_][-[:alnum:]_]*?)$' ]]; do
-    tags=("${match[1]}" "${tags[@]}")
-    stem="${stem% ${match[1]}}"
-  done
-
-  # names + channel + title
-  # 1) "Names - [Channel] Title"
-  if [[ "$stem" =~ '^(.*) - \[([^][]+)\] (.+)$' ]]; then
-    names_part="$match[1]"
-    channel="$match[2]"
-    title="$match[3]"
-  # 2) "Names - Title"
-  elif [[ "$stem" =~ '^(.*) - (.+)$' ]]; then
-    names_part="$match[1]"
-    title="$match[2]"
+  # actors ALWAYS before first " - "
+  local actors_part=""
+  if [[ "$stem" =~ '^(.+?) - (.+)$' ]]; then
+    actors_part="$match[1]"
+    tail="$match[2]"
   else
-    title="$stem"
+    # if no delimiter, treat whole as tail
+    tail="$stem"
   fi
 
-  # names: split by commas, trim each
-  names=()
-  if [[ -n "$names_part" ]]; then
+  # actors: split by commas
+  actors=()
+  if [[ -n "$actors_part" ]]; then
     local -a raw
-    raw=(${(s:,:)names_part})
+    raw=(${(s:,:)actors_part})
     local n
     for n in "${raw[@]}"; do
       n="$(trim "$n")"
-      [[ -n "$n" ]] && names+=("$n")
+      [[ -n "$n" ]] && actors+=("$n")
     done
   fi
 
-  # build JSON (jsonlines: one object per input)
-  local j_names j_tags
-  j_names="$(json_array "${names[@]}")"
+  # channel (optional): starts with "[...]" at beginning of tail
+  if [[ "$tail" =~ '^\[([^][]+)\] (.+)$' ]]; then
+    channel="$match[1]"
+    tail="$match[2]"
+  else
+    channel=""
+  fi
+
+  # Now parse remainder allowing hashtags either side of origin:
+  # We treat (Origin) as optional anywhere, but prefer the LAST (...) that looks like origin.
+  # Tags are any #Word tokens anywhere in tail.
+  origin=""
+  if [[ "$tail" =~ '(.*) \(([^()]*)\)(.*)$' ]]; then
+    # take the last origin-looking parens by repeatedly matching
+    local t="$tail" pre mid post
+    while [[ "$t" =~ '(.*) \(([^()]*)\)(.*)$' ]]; do
+      pre="$match[1]"; mid="$match[2]"; post="$match[3]"
+      origin="$mid"
+      t="${pre}${post}"
+    done
+    tail="$t"
+  fi
+
+  # collect tags anywhere in tail
+  tags=()
+  local -a toks keep
+  toks=(${(z)tail})
+  local tok
+  for tok in "${toks[@]}"; do
+    if [[ "$tok" =~ '^(#[[:alnum:]_][-[:alnum:]_]*)$' ]]; then
+      tags+=("$match[1]")
+    else
+      keep+=("$tok")
+    fi
+  done
+
+  # whatever remains (minus tags and origin) is title
+  title="$(trim "${(j: :)keep}")"
+  title="$(caps_case_prefix_only "$title")"
+
+  # specs parsing
+  local res="" fps="" len="" mbps="" ori=""
+  if [[ -n "$specs_raw" ]]; then
+    parse_specs_tokens "$specs_raw"
+    res="$SPEC_RES"; fps="$SPEC_FPS"; len="$SPEC_LEN"; mbps="$SPEC_MBPS"; ori="$SPEC_ORI"
+  fi
+
+  local j_actors j_tags
+  j_actors="$(json_array "${actors[@]}")"
   j_tags="$(json_array "${tags[@]}")"
 
   print -r -- "{
-  \"file\": \"$(json_escape "$input")\",
+  \"location\": \"$(json_escape "$input")\",
   \"filename\": \"$(json_escape "$fname")\",
   \"ext\": \"$(json_escape "$ext")\",
-  \"names\": $j_names,
+  \"actors\": $j_actors,
   \"channel\": \"$(json_escape "$channel")\",
   \"title\": \"$(json_escape "$title")\",
   \"tags\": $j_tags,
   \"origin\": \"$(json_escape "$origin")\",
-  \"specs\": \"$(json_escape "$specs")\",
-  \"rating\": \"$(json_escape "$rating")\"
+  \"rating\": $rating,
+  \"specs\": {
+    \"resolution\": \"$(json_escape "$res")\",
+    \"framerate\": \"$(json_escape "$fps")\",
+    \"length\": \"$(json_escape "$len")\",
+    \"bitrate\": \"$(json_escape "$mbps")\",
+    \"orientation\": \"$(json_escape "$ori")\"
+  }
 }"
 }
 
