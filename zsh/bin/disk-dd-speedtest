@@ -1,0 +1,180 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+setopt EXTENDED_GLOB
+
+SELF="${${(%):-%N}:t}"
+autoload -Uz colors && colors
+is_tty=0; [[ -t 1 ]] && is_tty=1
+
+NF_WRITE=$'󰯍 '
+NF_READ=$'󰯍 '
+NF_DISK=$' '
+NF_OK=$' '
+NF_WARN=$' '
+
+c()  { (( is_tty )) && print -P -- "%F{$1%}$2%f" || print -r -- "$2"; }
+cb() { (( is_tty )) && print -P -- "%F{$1%}%B$2%b%f" || print -r -- "$2"; }
+die(){ c red "${NF_WARN} $*"; exit 1; }
+
+COUNT_DEFAULT=4096
+BS_DEFAULT="1m"
+
+usage() {
+  cat >&2 <<EOF
+$(print -P -- "%F{cyan}%B${SELF}%b%f  ${NF_DISK} sequential disk read/write speed test (dd)")
+
+$(print -P -- "%F{yellow}%BUsage:%b%f")
+  ${SELF} <location>
+EOF
+  exit 2
+}
+
+# ---- fixed helpers ----
+
+bytes_from_bs_count() {
+  # Supports: 512k / 1m / 2g / plain bytes. Case-insensitive.
+  local bs="${1:l}"
+  local -i count="$2"
+  local -i n=0 mult=1
+
+  if [[ "$bs" == (#b)(<->)([kmg]) ]]; then
+    n="${match[1]}"
+    case "${match[2]}" in
+      k) mult=$((1024)) ;;
+      m) mult=$((1024*1024)) ;;
+      g) mult=$((1024*1024*1024)) ;;
+    esac
+    print -r -- $(( n * mult * count ))
+    return 0
+  fi
+
+  if [[ "$bs" == <-> ]]; then
+    print -r -- $(( bs * count ))
+    return 0
+  fi
+
+  print -r -- 0
+}
+
+human_bytes_bin() {
+  local -F 1 v="$1"
+  local -a u=(B KiB MiB GiB TiB)
+  local i=1
+  while (( v >= 1024 && i < ${#u[@]} )); do
+    v=$(( v / 1024.0 ))
+    (( i++ ))
+  done
+  print -r -- "${v}${u[$i]}"
+}
+
+human_rate_dec() {
+  # decimal units: 1 MB = 1e6 bytes (Blackmagic-ish)
+  local -F 1 v="$1"
+  local -a u=(B/s KB/s MB/s GB/s TB/s)
+  local i=1
+  while (( v >= 1000 && i < ${#u[@]} )); do
+    v=$(( v / 1000.0 ))
+    (( i++ ))
+  done
+  print -r -- "${v} ${u[$i]}"
+}
+
+human_dd_summary() {
+  local line="$1"
+
+  # Case A: "... (1234 MB/sec)" or "(1234 bytes/sec)"
+  if [[ "$line" == *"("*"/sec)"* ]]; then
+    local paren="${line##*\(}"; paren="${paren%\)*}"
+
+    # Already human-ish units?
+    if [[ "$paren" == *"KB/sec"* || "$paren" == *"MB/sec"* || "$paren" == *"GB/sec"* ]]; then
+      print -r -- "${paren//\/sec/\/s}"
+      return 0
+    fi
+
+    # "(<n> bytes/sec)" -> convert
+    if [[ "$paren" == (#b)(<->)[[:space:]]##bytes/sec ]]; then
+      print -r -- "$(human_rate_dec "${match[1]}")"
+      return 0
+    fi
+
+    print -r -- "$paren"
+    return 0
+  fi
+
+  # Case B: "... <n> bytes/sec" (no parentheses)
+  if [[ "$line" == (#b)*[^0-9](<->)[[:space:]]##bytes/sec* ]]; then
+    print -r -- "$(human_rate_dec "${match[1]}")"
+    return 0
+  fi
+
+  # Fallback: show last token-ish
+  print -r -- "$line"
+}
+
+run_dd_lastline() {
+  local out
+  out="$(command dd "$@" 2>&1 | tail -n 1)" || return 1
+  print -r -- "$out"
+}
+
+free_bytes_for_path() {
+  local p="$1" avail_k
+  avail_k="$(df -k "$p" 2>/dev/null | tail -n 1 | awk '{print $4}')" || return 1
+  [[ "$avail_k" == <-> ]] || return 1
+  print -r -- $(( avail_k * 1024 ))
+}
+
+# ---- args ----
+(( $# == 1 )) || usage
+target="$1"
+[[ -d "$target" ]] && target_dir="$target" || target_dir="${target:h}"
+
+[[ -d "$target_dir" ]] || die "Not a directory: $target_dir"
+[[ -w "$target_dir" ]] || die "Not writable: $target_dir"
+
+tmp_file="${target_dir%/}/.disk-dd-speedtest.$$.bin"
+cleanup(){ rm -f -- "$tmp_file" 2>/dev/null || true; }
+trap cleanup EXIT INT TERM
+
+test_bytes="$(bytes_from_bs_count "$BS_DEFAULT" "$COUNT_DEFAULT")"
+test_human="$(human_bytes_bin "$test_bytes")"
+free_bytes="$(free_bytes_for_path "$target_dir" || echo 0)"
+
+c blue "${NF_DISK} Target: %B${target_dir}%b"
+c blue "    Temp:   ${tmp_file}"
+c blue "    Test:   ${test_human}  (bs=${BS_DEFAULT} count=${COUNT_DEFAULT})"
+(( free_bytes > 0 )) && c blue "    Free:   $(human_bytes_bin "$free_bytes")"
+
+# headroom: +256MiB
+if (( free_bytes > 0 && free_bytes < test_bytes + 256*1024*1024 )); then
+  die "Not enough free space for ${test_human} (plus headroom)."
+fi
+
+print
+
+cb white "${NF_WRITE} Sequential Write Performance:"
+c white "    dd if=/dev/zero of=${tmp_file:t} bs=${BS_DEFAULT} count=${COUNT_DEFAULT} conv=fsync"
+write_line="$(run_dd_lastline if=/dev/zero of="$tmp_file" bs="$BS_DEFAULT" count="$COUNT_DEFAULT" conv=fsync)" \
+  || die "Write test failed"
+c green "    ${NF_OK} $(human_dd_summary "$write_line")"
+print
+
+sync 2>/dev/null || true
+sleep 1
+
+cb white "${NF_READ} Sequential Read Performance:"
+c white "    dd if=${tmp_file:t} of=/dev/null bs=${BS_DEFAULT}"
+
+if read_line="$(run_dd_lastline if="$tmp_file" of=/dev/null bs="$BS_DEFAULT" iflag=direct 2>/dev/null)"; then
+  c yellow "    (using iflag=direct)"
+else
+  read_line="$(run_dd_lastline if="$tmp_file" of=/dev/null bs="$BS_DEFAULT")" \
+    || die "Read test failed"
+  c yellow "    (no direct I/O; may be cache-influenced)"
+fi
+
+c green "    ${NF_OK} $(human_dd_summary "$read_line")"
+print
+
+cb cyan "Done."
