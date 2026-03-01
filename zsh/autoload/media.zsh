@@ -13,7 +13,7 @@ alias @select="fzf-select | mpv-play"
 # 
 alias .play="ls-media | mpv-play"
 alias .play-new="ls-media --sort-created | mpv-play"
-alias .pwd-play="mpv ."
+alias .pwd-play="ls-media --path . | mpv-play"
 alias .pwd-select="ls-media --path . | fzf-select | mpv-play"
 alias .pwd-select-latest="ls-media --path . --sort-created | fzf-select| mpv-play"
 alias .select="ls-media | fzf-select | mpv-play"

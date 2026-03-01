@@ -9,6 +9,11 @@ macos-disable-wifi-power-management() {
   sudo pmset -a tcpkeepalive 1  
 }
 
+disk-speed-test() {
+  dd if="$tmp" of=/dev/null bs=1024k
+  rm -f "$tmp"
+}
+
 diff-filenames() {
   emulate -L zsh
   setopt pipefail

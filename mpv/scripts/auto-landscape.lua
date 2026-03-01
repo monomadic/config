@@ -1,12 +1,12 @@
 local mp = require("mp")
 
-local enabled = true                 -- default ON (change if you want)
-local ROTATE_LABEL = "auto_rotate"
+local enabled = false                      -- default OFF
+local LABEL = "auto_landscape"             -- vf label (no @)
 local OSD_SECS = 1.2
 
 local last_osd = ""
 local applied_for_path = nil
-local last_decision = nil            -- {need=true/false, spec="..."}
+local pending_apply = false
 
 local prev_hwdec = nil
 local forced_hwdec = false
@@ -36,7 +36,6 @@ local function vf_remove_label(label)
 end
 
 local function vf_set_label(label, spec)
-  -- replace under one label (no growth)
   vf_remove_label(label)
   if spec and spec ~= "" then
     pcall(mp.commandv, "vf", "add", "@" .. label .. ":" .. spec)
@@ -48,14 +47,13 @@ local function hwdec_current()
 end
 
 local function ensure_hwdec_copy()
-  local cur = hwdec_current()
-  if cur == "videotoolbox" then
-    if not forced_hwdec then
-      prev_hwdec = mp.get_property("hwdec")
-      forced_hwdec = true
-    end
-    mp.set_property("hwdec", "videotoolbox-copy")
+  -- Force a SW-readable decode path before touching filters.
+  -- Using "videotoolbox-copy" avoids hw surfaces in the filter graph.
+  if not forced_hwdec then
+    prev_hwdec = mp.get_property("hwdec")
+    forced_hwdec = true
   end
+  mp.set_property("hwdec", "videotoolbox-copy")
 end
 
 local function restore_hwdec()
@@ -66,102 +64,98 @@ local function restore_hwdec()
   end
 end
 
--- Decide once using *source* params (not dwidth/dheight which change after filters).
--- Also respect container rotation metadata (rotate tag).
-local function compute_decision()
-  local vp = mp.get_property_native("video-params") -- can be nil briefly
+-- Decide based on *source* params (not dwidth/dheight).
+local function compute_need_rotate()
+  local vp = mp.get_property_native("video-params")
   if type(vp) ~= "table" then return nil end
 
   local w = tonumber(vp.w) or 0
   local h = tonumber(vp.h) or 0
   if w <= 0 or h <= 0 then return nil end
 
-  -- Some files have rotate metadata; mpv may expose it as vp.rotate (degrees).
   local r = tonumber(vp.rotate) or 0
   r = ((r % 360) + 360) % 360
 
-  -- Effective source display orientation before our filter:
-  -- if metadata says 90/270, swap.
   local eff_w, eff_h = w, h
   if r == 90 or r == 270 then
     eff_w, eff_h = h, w
   end
 
-  local is_portrait = eff_h > eff_w
-
-  if not is_portrait then
-    return { need = false, spec = "" , note = "landscape" }
-  end
-
-  -- We want it horizontal. Rotate 90° clockwise.
-  -- transpose=clock is stable.
-  return { need = true, spec = "transpose=clock", note = "portrait→landscape" }
+  return (eff_h > eff_w)
 end
 
-local function apply_once(reason)
+local function apply_for_current_file(reason)
   if not enabled then
+    pending_apply = false
     restore_hwdec()
-    vf_remove_label(ROTATE_LABEL)
-    last_decision = nil
+    vf_remove_label(LABEL)
     applied_for_path = nil
-    osd("Auto-rotate: OFF" .. (reason and (" • " .. reason) or ""))
+    osd("Auto-landscape: OFF" .. (reason and (" • " .. reason) or ""))
     return
   end
 
   local path = mp.get_property("path") or ""
   if path ~= "" and applied_for_path == path then
-    -- already applied for this file
     return
   end
 
-  local d = compute_decision()
-  if not d then return end
+  local need = compute_need_rotate()
+  if need == nil then return end
 
-  -- mark as applied for this file once we have stable params
   applied_for_path = path
-  last_decision = d
 
-  if d.need then
-    ensure_hwdec_copy()
-    vf_set_label(ROTATE_LABEL, d.spec)
-    osd("Auto-rotate: ON • " .. d.note .. (reason and (" • " .. reason) or ""))
-  else
+  if not need then
+    pending_apply = false
     restore_hwdec()
-    vf_remove_label(ROTATE_LABEL)
-    osd("Auto-rotate: ON • " .. d.note .. (reason and (" • " .. reason) or ""))
+    vf_remove_label(LABEL)
+    osd("Auto-landscape: ON • already landscape" .. (reason and (" • " .. reason) or ""))
+    return
+  end
+
+  -- Portrait -> rotate once.
+  -- Critical: set hwdec first, then apply vf on next tick so mpv reconfigures.
+  if not pending_apply then
+    pending_apply = true
+    ensure_hwdec_copy()
+    mp.add_timeout(0, function()
+      if not enabled then return end
+      vf_set_label(LABEL, "transpose=clock")
+      pending_apply = false
+      osd("Auto-landscape: ON • portrait→landscape" .. (reason and (" • " .. reason) or ""))
+    end)
   end
 end
 
-local function on_file_loaded()
+mp.register_event("file-loaded", function()
   last_osd = ""
   applied_for_path = nil
-  last_decision = nil
-  apply_once("file-loaded")
-end
-
--- video-params often becomes valid slightly after file-loaded; react once when it appears
-mp.observe_property("video-params", "native", function()
-  apply_once(nil)
+  pending_apply = false
+  apply_for_current_file("file-loaded")
 end)
 
-mp.register_event("file-loaded", on_file_loaded)
+-- video-params often becomes available after file-loaded; react once.
+mp.observe_property("video-params", "native", function()
+  apply_for_current_file(nil)
+end)
 
-mp.add_key_binding("a", "toggle_auto_rotate", function()
+mp.add_key_binding("2", "toggle_force_landscape", function()
   enabled = not enabled
   last_osd = ""
-  applied_for_path = nil -- allow re-apply immediately
-  apply_once("toggled")
+  applied_for_path = nil
+  pending_apply = false
+  apply_for_current_file("toggled")
 end)
 
--- If mpv disables our filter, stop and tell you (don’t retry-loop).
+-- If mpv disables our filter, stop and report (don’t loop / re-add spam).
 mp.register_event("log-message", function(e)
   if not enabled then return end
   if not e or not e.text then return end
-  if e.text:find("Disabling filter auto_rotate because it has failed", 1, true) then
-    vf_remove_label(ROTATE_LABEL)
+  if e.text:find("Disabling filter " .. LABEL .. " because it has failed", 1, true) then
+    vf_remove_label(LABEL)
     restore_hwdec()
+    pending_apply = false
     applied_for_path = nil
     last_osd = ""
-    osd("Auto-rotate: FAILED • filter removed")
+    osd("Auto-landscape: FAILED • filter removed")
   end
 end)

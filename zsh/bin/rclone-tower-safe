@@ -1,22 +1,40 @@
 #!/bin/sh
 
-ts=$(date +%F_%H%M%S)
+printf "Copying files..."
 
+ts=$(date +%F_%H%M%S)
 rclone sync -P \
   --track-renames --track-renames-strategy modtime \
   --metadata \
   --stats 2s --stats-log-level NOTICE \
-  --transfers 1 --checkers 2 \
+  --create-empty-src-dirs \
+  --transfers 3 --checkers 6 \
+  --log-file "$HOME/.rclone.log" --log-level INFO \
   --backup-dir "/Volumes/Tower Backup/.rclone/$ts" \
   --exclude "/.rclone/**" \
   --exclude "/Installers/Cyberpunk MacOS/**" \
   --exclude "/.Trashes/**" \
   --exclude "/.TemporaryItems/**" \
   --exclude "/.Spotlight-V100/**" \
-  --exclude "/.DocumentRevisions-V100" \
+  --exclude "/.DocumentRevisions-V100/**" \
   --exclude "/.fseventsd/**" \
   --exclude "/.VolumeIcon.icns" \
-  --exclude "/.DS_Store" \
+  --exclude ".DS_Store" \
   --exclude "/.com.apple.timemachine.donotpresent" \
   --exclude "/lost+found/**" \
   "/Volumes/Tower/" "/Volumes/Tower Backup/"
+
+printf "Prune backup directory? [y/N] "
+
+read -r reply
+case "$reply" in
+  [yY])
+    find "/Volumes/Tower Backup/.rclone" -maxdepth 1 -type d -mtime +30 -exec rm -rf {} +
+    ts="$(date +%Y%m%d-%H%M%S)"
+    backup="${DB}.${ts}.bak"
+    ;;
+  *)
+    ;;
+esac
+
+print "Done."

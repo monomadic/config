@@ -1,25 +1,214 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
+set -euo pipefail
+setopt extended_glob
 
-# Check if the user has provided a file as an argument
-if [ -z "$1" ]; then
-  echo "Usage: $0 <path_to_mp4>"
+if [[ -z "${1:-}" ]]; then
+  print -u2 "Usage: ${0:t} <path_to_mp4>"
   exit 1
 fi
 
-# Prompt for metadata
-echo "Enter the title:"
-read title
-
-echo "Enter the artist:"
-read artist
-
-echo "Enter the keywords (comma-separated):"
-read keywords
-
-# Get the input file
 input_file="$1"
+tmp_out="${input_file%.*}.tagged.mp4"
+backup="${input_file%.*}.backup.mp4"
 
-# Use ffmpeg to embed metadata into the MP4 file
-ffmpeg -i "$input_file" -metadata title="$title" -metadata artist="$artist" -metadata keywords="$keywords" -codec copy "${input_file%.*}_with_metadata.mp4"
+# Ensure we can prompt even if stdin/stdout are piped
+exec 3</dev/tty 4>/dev/tty
 
-echo "Metadata has been embedded successfully into ${input_file%.*}_with_metadata.mp4"
+trim() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  print -r -- "$s"
+}
+
+json_escape() {
+  local s="$1"
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\n'/\\n}
+  s=${s//$'\r'/\\r}
+  s=${s//$'\t'/\\t}
+  print -r -- "$s"
+}
+
+json_array() {
+  local -a items=("$@")
+  local out="[" sep=""
+  local it
+  for it in "${items[@]}"; do
+    it="$(trim "$it")"
+    [[ -z "$it" ]] && continue
+    out+="${sep}\"$(json_escape "$it")\""
+    sep=","
+  done
+  out+="]"
+  print -r -- "$out"
+}
+
+rating_to_num() {
+  case "$1" in
+    "★☆☆☆☆") print -r -- 1 ;;
+    "★★☆☆☆") print -r -- 2 ;;
+    "★★★☆☆") print -r -- 3 ;;
+    "★★★★☆") print -r -- 4 ;;
+    "★★★★★") print -r -- 5 ;;
+    *) print -r -- 0 ;;
+  esac
+}
+
+# Uppercase first letter of each word; keep rest unchanged.
+# Only apply before first " #" or " (".
+caps_case_title_prefix() {
+  local s="$1"
+  local prefix="$s" suffix=""
+
+  local cut=0
+  if [[ "$s" == *" #"* ]]; then
+    local pre="${s%%" #"*}"
+    cut=$(( ${#pre} + 1 ))
+  fi
+  if [[ "$s" == *" ("* ]]; then
+    local pre="${s%%" ("*}"
+    local cut2=$(( ${#pre} + 1 ))
+    (( cut == 0 || cut2 < cut )) && cut=$cut2
+  fi
+
+  if (( cut > 0 )); then
+    prefix="${s[1,$((cut-1))]}"
+    suffix="${s[$cut,-1]}"
+  fi
+
+  prefix="${prefix//(#b)(^|[[:space:]])([[:alpha:]])/${match[1]}${(U)match[2]}}"
+  print -r -- "${prefix}${suffix}"
+}
+
+# Prompt on /dev/tty, read from /dev/tty, return value on stdout
+prompt_default() {
+  local label="$1"
+  local def="$2"
+  if [[ -n "$def" ]]; then
+    print -u4 -n -- "${label} [${def}]: "
+  else
+    print -u4 -n -- "${label}: "
+  fi
+  local v=""
+  IFS= read -r -u 3 v
+  print -r -- "${v:-$def}"
+}
+
+# ---------- Parse filename into defaults ----------
+parse_filename_defaults() {
+  local fname="$1"
+  local stem="${fname%.*}"
+
+  rating="0"
+
+  # rating stars at end
+  if [[ "$stem" == *" "([★☆]#) ]]; then
+    local cand="${stem##* }"
+    if [[ ${#cand} -eq 5 && "$cand" == ([★☆])([★☆])([★☆])([★☆])([★☆]) ]]; then
+      rating="$(rating_to_num "$cand")"
+      stem="${stem% $cand}"
+    fi
+  fi
+
+  # strip trailing specs block "{...}"
+  if [[ "$stem" == *\} && "$stem" == *" {"*"}" ]]; then
+    local inside="${stem##*\{}"
+    inside="${inside%\}}"
+    stem="${stem% \{$inside\}}"
+  fi
+
+  # origin: last (....)
+  origin=""
+  if [[ "$stem" == *"("*")"* ]]; then
+    local t="$stem"
+    while [[ "$t" == *" ("*")"* ]]; do
+      local pre="${t%% \(*}"
+      local rest="${t#"$pre"}"
+      local mid="${rest# \(}"
+      mid="${mid%%\)*}"
+      local post="${rest# \(}$mid)"
+      origin="$mid"
+      t="${pre}${post}"
+    done
+    stem="$t"
+  fi
+
+  # actors before first " - "
+  actors_csv=""
+  local tail="$stem"
+  if [[ "$stem" == *" - "* ]]; then
+    actors_csv="${stem%%" - "*}"
+    tail="${stem#*" - "}"
+  fi
+
+  # optional channel prefix: [..]
+  channel=""
+  if [[ "$tail" == \[*\]\ * ]]; then
+    channel="${tail#\[}"
+    channel="${channel%%\]*}"
+    tail="${tail#\[$channel\] }"
+  fi
+
+  # tags anywhere in tail
+  tags_str=""
+  local -a toks keep tags
+  tags=()
+  toks=(${(z)tail})
+  local tok
+  for tok in "${toks[@]}"; do
+    if [[ "$tok" == \#* ]]; then
+      tags+=("$tok")
+    else
+      keep+=("$tok")
+    fi
+  done
+
+  title="$(trim "${(j: :)keep}")"
+  title="$(caps_case_title_prefix "$title")"
+  tags_str="${(j: :)tags}"
+}
+
+title="" actors_csv="" channel="" tags_str="" origin="" rating="0"
+parse_filename_defaults "${input_file:t}"
+
+# ---------- Prompt with defaults ----------
+title="$(prompt_default "Title" "$title")"
+actors_csv="$(prompt_default "Actors (comma-separated)" "$actors_csv")"
+channel="$(prompt_default "Channel" "$channel")"
+tags_str="$(prompt_default "Tags (space-separated)" "$tags_str")"
+origin="$(prompt_default "Origin" "$origin")"
+rating="$(prompt_default "Rating (1-5)" "$rating")"
+
+[[ "${rating:-}" =~ '^[1-5]$' ]] || rating="0"
+
+# tags -> array, ensure leading '#'
+local -a tags
+tags=(${(z)tags_str})
+local i
+for i in {1..${#tags}}; do
+  [[ "${tags[$i]}" == \#* ]] || tags[$i]="#${tags[$i]}"
+done
+
+# actors -> array (split by commas)
+local -a actors
+actors=(${(s:,:)actors_csv})
+
+actors_json="$(json_array "${actors[@]}")"
+tags_json="$(json_array "${tags[@]}")"
+
+comment_json="{\"actors\":${actors_json},\"channel\":\"$(json_escape "$channel")\",\"tags\":${tags_json},\"origin\":\"$(json_escape "$origin")\",\"rating\":${rating}}"
+
+ffmpeg -hide_banner -loglevel error -y \
+  -i "$input_file" \
+  -metadata title="$title" \
+  -metadata comment="$comment_json" \
+  -codec copy \
+  "$tmp_out"
+
+mv -f -- "$input_file" "$backup"
+print -u4 -r -- "Original backup: $backup"
+
+mv -f -- "$tmp_out" "$input_file"
+print -u4 -r -- "Metadata embedded successfully into $input_file"
