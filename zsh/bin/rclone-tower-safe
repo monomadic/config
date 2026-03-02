@@ -4,11 +4,11 @@ printf "Copying files..."
 
 ts=$(date +%F_%H%M%S)
 rclone sync -P \
-  --track-renames --track-renames-strategy modtime \
+  --track-renames --track-renames-strategy size,modtime \
   --metadata \
   --stats 2s --stats-log-level NOTICE \
   --create-empty-src-dirs \
-  --transfers 3 --checkers 6 \
+  --transfers 1 --checkers 3 \
   --log-file "$HOME/.rclone.log" --log-level INFO \
   --backup-dir "/Volumes/Tower Backup/.rclone/$ts" \
   --exclude "/.rclone/**" \
