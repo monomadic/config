@@ -31,7 +31,6 @@ e() {
 }
 
 zstyle ':completion:*:*:e:*' sort false   # avoid slow sorting on big sets
-
 _e() {
   setopt localoptions no_errexit noshwordsplit
 

@@ -43,22 +43,6 @@ pause() {
   echo
 }
 
-
-#alias e="$EDITOR"
-# _e() {
-#   local editor=${EDITOR:-${VISUAL:-vi}}
-  
-#   if [[ $# -eq 0 ]]; then
-#     local file=$(fd --type f --max-depth 4 | \
-#       fzf --preview 'bat --style=numbers --color=always {}' \
-#           --preview-window 'right:60%:wrap')
-#     [[ -n "$file" ]] && "$editor" "$file"
-#   else
-#     "$editor" "$@"
-#   fi
-# }
-
-
 # ============================================================================
 # Queue Management Functions
 # ============================================================================
@@ -490,7 +474,7 @@ alias e-yazi="cd $DOTFILES_DIR/apps/yazi && $EDITOR yazi.toml"
 alias .yazi-config="cd $DOTFILES_DIR/apps/yazi && $EDITOR yazi.toml"
 alias e-zellij="cd $DOTFILES_DIR/zellij && $EDITOR config.kdl"
 alias e-zsh-keybindings="cd $DOTFILES_DIR/zsh && $EDITOR scripts/autoload/keybindings.zsh"
-alias e-zsh="cd $DOTFILES_DIR && $EDITOR zshrc.zsh"
+alias e-zsh="cd $DOTFILES_DIR && $EDITOR zsh/zshrc.zsh"
 alias zsh-config="cd $DOTFILES_DIR/zsh/ && nvim zshrc.zsh"
 alias zsh-reload="source ~/.zshrc"
 
@@ -655,7 +639,7 @@ alias .apple-music=apple-music-dl
 alias .beatport="beatportdl-darwin-arm64"
 alias .tidal="noglob tidal-dl-ng dl"
 alias .faphouse="download-video-faphouse"
-alias dl-visuals="dl-instagram --out '~/Library/Mobile Documents/com~apple~CloudDocs/Movies/Visuals/Downloads'"
+alias dl-visuals="dl-bestvideo --out '$ICLOUD_HOME/Movies/Visuals/Downloads'"
 
 # ============================================================================
 # Misc SSH & Remote
