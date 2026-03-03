@@ -90,3 +90,5 @@ _edit-script() {
   compadd -d descs -- $names
 }
 compdef _edit-script edit-script
+
+compdef dl-porn=yt-dlp

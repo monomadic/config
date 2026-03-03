@@ -64,11 +64,11 @@ build_fzf_lines() {
     [[ -z "$raw" ]] && continue
 
     if $show_absolute; then
-      disp=$(printf '%s\n' "$raw" | colorize_display)
+      disp=$(printf '%s\n' "$raw" | colorize-media)
     else
       base=${raw:t}
       dir=${raw:h}
-      disp=$(printf '%s\n' "$base" | colorize_display)
+      disp=$(printf '%s\n' "$base" | colorize-media)
       if ! $no_color; then
         disp="${disp} \x1b[90m(${dir})\x1b[0m"
       else
@@ -81,10 +81,11 @@ build_fzf_lines() {
 }
 
 # --- FZF selection (display col 2, output col 1) ---
-fzf_args=(--multi --exact --cycle --delimiter=$'\t' --with-nth=2 --accept-nth=1
+fzf_args=(--multi --exact --cycle --multi-line --delimiter=$'\t' --with-nth=2 --accept-nth=1
   --bind 'alt-r:execute-silent(open --reveal {1})'
   --bind 'ctrl-r:execute-silent(open --reveal {1})'
   --bind 'ctrl-s:put( )'
+  --bind 'alt-w:toggle-wrap'
   --bind 'enter:select-all+accept'
 )
 

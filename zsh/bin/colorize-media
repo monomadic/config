@@ -1,0 +1,92 @@
+#!/usr/bin/env zsh
+gawk '
+function trim(x){ sub(/^[ \t]+/,"",x); sub(/[ \t]+$/,"",x); return x }
+function norm(x){ gsub(/[ \t]+/," ",x); return trim(x) }
+
+BEGIN{
+  # colors
+  C_RATE="\033[93m"
+  C_TITLE="\033[96m"
+  C_TAGS="\033[94m"
+  C_ACT="\033[92m"
+  C_SPEC="\033[90m"
+  R="\033[0m"
+}
+
+{
+  s=$0
+  sub(/\r$/,"",s)
+  sub(/\.[^.]+$/,"",s)  # drop extension
+
+  # rating (stars)
+  rating=""
+  if (match(s, /[★☆]{1,10}/)) rating=substr(s, RSTART, RLENGTH)
+
+  # swap unicode star glyph for Nerd Font icon
+  gsub(/★/, " ", rating)
+  gsub(/☆/, " ", rating)
+
+  # tags (in-order)
+  tags=""
+  t=s
+  while (match(t, /#[A-Za-z0-9_-]+/)) {
+    tags = tags (tags? " ":"") substr(t, RSTART, RLENGTH)
+    t = substr(t, RSTART+RLENGTH)
+  }
+
+  # specs inside {...} -> pick res, fps, duration
+  specs=""
+  specblob=""
+  if (match(s, /\{[^}]*\}/)) {
+    specblob = substr(s, RSTART+1, RLENGTH-2)
+    specblob = norm(specblob)
+
+    res=""; fps=""; dur=""
+    if (match(specblob, /[0-9]{3,5}p/)) res=substr(specblob, RSTART, RLENGTH)
+    if (match(specblob, /[0-9]{1,3}fps/)) fps=substr(specblob, RSTART, RLENGTH)
+    if (match(specblob, /[0-9]+(min|sec)/)) dur=substr(specblob, RSTART, RLENGTH)
+
+    specs = norm(res " " fps " " dur)
+  }
+
+  # parse-friendly copy for actors/title
+  p=s
+  gsub(/\[[^]]*\]/,"",p)
+  gsub(/\{[^}]*\}/,"",p)
+  gsub(/[★☆]{1,10}/,"",p)
+
+  # actors + title (title ends before first "(" or " #")
+  actors=""; title=""
+  hy = index(p, " - ")
+  if (hy) {
+    actors = substr(p, 1, hy-1)
+    rest   = substr(p, hy+3)
+
+    cut = length(rest)+1
+    if (match(rest, / *\(/)) cut = (RSTART < cut ? RSTART : cut)
+    if (match(rest, / *#/))  cut = (RSTART < cut ? RSTART : cut)
+    title = substr(rest, 1, cut-1)
+  } else {
+    title = p
+  }
+
+  actors = norm(actors)
+  title  = norm(title)
+
+  # output line 1: RATING Title #tags...
+  line1=""
+  if (rating!="") line1 = line1 C_RATE rating R " "
+  line1 = line1 C_TITLE title R
+  if (tags!="") line1 = line1 " " C_TAGS tags R
+
+  # output line 2: Actors  specs...
+  line2=""
+  if (actors!="") line2 = line2 C_ACT actors R
+  if (specs!="")  line2 = line2 (line2? "  ":"") C_SPEC specs R
+
+  raw=$0
+  print line1 "\t" raw
+  print line2 "\t" raw
+  print ""
+}
+'

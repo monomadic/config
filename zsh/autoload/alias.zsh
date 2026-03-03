@@ -639,7 +639,7 @@ alias .apple-music=apple-music-dl
 alias .beatport="beatportdl-darwin-arm64"
 alias .tidal="noglob tidal-dl-ng dl"
 alias .faphouse="download-video-faphouse"
-alias dl-visuals="dl-bestvideo --out '$ICLOUD_HOME/Movies/Visuals/Downloads'"
+alias dl-visuals="yt-bestvideo --out '$ICLOUD_HOME/Movies/Visuals/Downloads'"
 
 # ============================================================================
 # Misc SSH & Remote

@@ -26,7 +26,7 @@ alias .play-downloads="fd-video . /Volumes/*/Movies/Porn/Downloads(N) $HOME/Movi
 alias .select-downloads="fd-video . /Volumes/*/Movies/Porn/Downloads(N) $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
 alias .play-downloads-latest="fd-video-sort . $HOME/Movies/Porn/Downloads $HOME/Movies/Porn/Downloads | mpv-play"
 alias .select-downloads-latest="fd-video-sort . $HOME/Movies/Porn/Downloads $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
-alias .play-local-downloads="fd-video . $HOME/Movies/Porn/Downloads"
+alias .play-local-downloads="fd-video . $HOME/Movies/Porn/Downloads | mpv-play"
 alias .select-local-downloads="fd-video . $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
 alias .play-local-downloads-incomplete="mpv $HOME/Movies/Porn/Downloads/**/*.part"
 
@@ -52,6 +52,7 @@ alias .play-visuals-bg-black='fd-video --regex "#bg-black" . "${DJ_VISUALS_PATHS
 alias .select-external="fd-video . /Volumes/*/Movies/Porn | fzf-select | mpv-play"
 alias .select-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | fzf-select | mpv-play"
 alias .play-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | mpv-play"
+alias .play-tower="ls-media --path /Volumes/Tower/Movies/Porn | mpv-play"
 alias .play-tower-masters="fd-video . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
 alias .play-tower-masters-new="fd-video-sort . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
 alias .play-tower-downloads="fd-video . /Volumes/Tower/Movies/Porn/Downloads | mpv-play"

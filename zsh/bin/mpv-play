@@ -1,18 +1,21 @@
 #!/bin/zsh
-
 # Display usage information
 show_usage() {
   cat <<EOF
 Usage: $0 [options] [files...]
        cat playlist.txt | $0 [options]
+       fd -e mp4 . /remote/disk | $0 [options]
 
 Options:
   --start-random    Start playback from a random item in playlist
+                    (Note: when streaming from stdin, this buffers all input
+                    before starting — use without flag for true streaming)
 
 Examples:
   $0 video1.mp4 video2.mp4
   $0 --start-random *.mp4
   cat playlist.txt | $0 --start-random
+  fd -e mp4 -e mkv . /remote/disk | $0
 EOF
 }
 
@@ -25,53 +28,50 @@ fi
 # Parse arguments
 start_random=false
 zparseopts -D -E -start-random=start_random_flag
-
 if [[ -n "$start_random_flag" ]]; then
   start_random=true
 fi
+
+# Common mpv flags
+mpv_flags=(
+  --macos-fs-animation-duration=0
+  --no-native-fs
+  --fs
+  --mute=yes
+  --idle=yes
+  --interpolation
+  --tscale=mitchell
+  --video-sync=display-resample
+)
 
 # Determine input source
 if [[ $# -gt 0 ]]; then
   # Files provided as arguments
   if [[ "$start_random" == "true" ]]; then
-    # Create array and shuffle for random start
     files=("$@")
     start_index=$((RANDOM % ${#files[@]}))
-    mpv --macos-fs-animation-duration=0 \
-      --no-native-fs \
-      --fs \
-      --mute=yes \
-      --interpolation --tscale=mitchell --video-sync=display-resample \
-      --playlist-start="$start_index" \
-      "${files[@]}"
+    mpv "${mpv_flags[@]}" --playlist-start="$start_index" "${files[@]}"
   else
-    mpv --macos-fs-animation-duration=0 \
-      --no-native-fs \
-      --fs \
-      --mute=yes \
-      "$@"
+    mpv "${mpv_flags[@]}" "$@"
   fi
+
 elif [[ ! -t 0 ]]; then
-  # Input from stdin
+  # Input from stdin — streaming or buffered
   if [[ "$start_random" == "true" ]]; then
+    # Must buffer to determine random start index
     playlist=$(cat)
-    line_count=$(echo "$playlist" | wc -l)
+    line_count=$(echo "$playlist" | wc -l | tr -d ' ')
     start_index=$((RANDOM % line_count + 1))
-    echo "$playlist" | mpv --macos-fs-animation-duration=0 \
-      --no-native-fs \
-      --fs \
-      --mute=yes \
+    echo "$playlist" | mpv "${mpv_flags[@]}" \
       --playlist-start="$start_index" \
       --playlist=-
   else
-    mpv --macos-fs-animation-duration=0 \
-      --no-native-fs \
-      --fs \
-      --mute=yes \
-      --playlist=-
+    # True streaming: mpv starts on first line, --idle=yes keeps it alive
+    # while more entries arrive (e.g. from a slow fd scan of a remote disk)
+    mpv "${mpv_flags[@]}" --playlist=-
   fi
+
 else
-  # No input provided
   show_usage
   exit 1
 fi

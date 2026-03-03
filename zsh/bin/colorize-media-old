@@ -1,0 +1,124 @@
+#!/usr/bin/env zsh
+# color-adult (fast zsh, fzf-ready)
+# - No external grep/sed/awk; uses zsh PCRE + slicing
+# - Strips extension; removes [...] categories
+# - Output parts: (cyan) actors, (yellow) title, (magenta) #tags, (blue) resolution
+# - Flags:
+#     --pair        : emit "rawpath<TAB>colored" (for fzf --delimiter '\t' --with-nth=2)
+#     --read0 | -0  : read NUL-delimited input (fd -0 / xargs -0 pipelines)
+
+setopt extendedglob
+zmodload zsh/pcre 2>/dev/null || true
+setopt RE_MATCH_PCRE
+
+autoload -U colors && colors
+
+# collapse all whitespace to single spaces and trim
+norm() {
+  local s="$1"
+  local -a a; a=(${=s})
+  print -r -- "${(j: :)a}"
+}
+
+# splice out the most recent regex match from variable $1 using MBEGIN/MEND
+_splice_out() {
+  local __name="$1"
+  local __s="${(P)__name}"
+  local __len=${#__s}
+  local __left="" __right=""
+  (( MBEGIN > 1 )) && __left="${__s[1,$((MBEGIN-1))]}"
+  (( MEND   < __len )) && __right="${__s[$((MEND+1)),$__len]}"
+  typeset -g -- "$__name=${__left}${__right}"
+}
+
+# -------------------------------
+# Flags
+# -------------------------------
+read0=0
+pair=0
+while (( $# )); do
+  case "$1" in
+    --pair) pair=1 ;;
+    --read0|-0) read0=1 ;;
+    --) shift; break ;;
+    *) break ;;
+  esac
+  shift
+done
+
+# -------------------------------
+# Core parser for one filename
+# -------------------------------
+process_file() {
+  local filename="$1"
+  [[ -z $filename ]] && return
+
+  # basename and stem (no extension)
+  local base="${filename:t}"
+  local stem="${base%.*}"
+
+  local actors='' title='' resolution=''
+  local -a tags=()
+
+  # (actors) leading "(...)" once
+  if [[ $stem =~ '^\(([^)]*)\)\s*' ]]; then
+    actors=$(norm "$match[1]")
+  fi
+
+  # remove ALL [...] (categories) — we don't output them
+  local tmp="$stem"
+  while [[ $tmp =~ '\[[^\]]+\]' ]]; do
+    _splice_out tmp
+  done
+
+  # resolution = last "{...}" (content only)
+  local tmp2="$tmp"
+  while [[ $tmp2 =~ '\{([^}]+)\}' ]]; do
+    resolution=$(norm "$match[1]")
+    _splice_out tmp2
+  done
+
+  # tags = all "#nonspace"
+  local tmp3="$tmp2"
+  while [[ $tmp3 =~ '(#[^[:space:]]+)' ]]; do
+    tags+=("$match[1]")
+    _splice_out tmp3
+  done
+
+  # title = stem minus actors + [...] + {...} + #tags
+  title="$stem"
+  if [[ $title =~ '^\([^)]+\)\s*' ]]; then _splice_out title; fi
+  while [[ $title =~ '\[[^\]]+\]'      ]]; do _splice_out title; done
+  while [[ $title =~ '\{[^}]+\}'       ]]; do _splice_out title; done
+  while [[ $title =~ '#[^[:space:]]+'  ]]; do _splice_out title; done
+  title=$(norm "$title")
+
+  # assemble colored parts
+  local -a parts=()
+  [[ -n $actors     ]] && parts+=("${fg[cyan]}$actors${reset_color}")
+  [[ -n $title      ]] && parts+=("${fg[yellow]}$title${reset_color}")
+  if (( ${#tags} )); then
+    for t in $tags; do parts+=("${fg[magenta]}$t${reset_color}"); done
+  fi
+  [[ -n $resolution ]] && parts+=("${fg[blue]}$resolution${reset_color}")
+
+  local out="${(j: :)parts}"
+  if (( pair )); then
+    print -r -- "$filename\t$out"
+  else
+    print -r -- "$out"
+  fi
+}
+
+# -------------------------------
+# Input driver
+# -------------------------------
+if (( read0 )); then
+  while IFS= read -r -d '' f; do
+    process_file "$f"
+  done
+else
+  while IFS= read -r f; do
+    process_file "$f"
+  done
+fi
