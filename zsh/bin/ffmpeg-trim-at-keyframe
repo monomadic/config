@@ -1,0 +1,35 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+# Usage: trim-first-frames <frames> <infile> [outfile]
+# Notes:
+# - Lossless (stream copy) but requires cutting on a keyframe for strict compatibility.
+# - If the computed cut time isn't on a keyframe, you may get a slightly longer trim,
+#   or (with some players) a few corrupted frames at the start.
+
+frames="${1:?frames}"
+in="${2:?input video}"
+out="${3:-${in:r}.trim${frames}f.${in:e}}"
+
+# Grab average frame rate (e.g. "30000/1001")
+fps=$(ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate \
+  -of default=nk=1:nw=1 -- "$in" | head -n1)
+
+# Convert frames -> seconds with high precision
+sec=$(python3 - <<'PY' "$frames" "$fps"
+from fractions import Fraction
+import sys
+frames = int(sys.argv[1])
+fps = Fraction(sys.argv[2])  # e.g. 30000/1001
+t = Fraction(frames, 1) / fps
+print(float(t))
+PY
+)
+
+# Stream-copy from the computed timestamp.
+# Putting -ss AFTER -i is more accurate; still only truly "clean" on keyframes.
+ffmpeg -hide_banner -loglevel error \
+  -ss "$sec" -i "$in" -ss "$sec" -c copy -map 0 -movflags +faststart \
+  -- "$out"
+
+print -r -- "Wrote: $out (cut @ ${sec}s ~ ${frames} frames @ ${fps} fps)"
