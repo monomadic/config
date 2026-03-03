@@ -26,7 +26,7 @@ alias .play-downloads="fd-video . /Volumes/*/Movies/Porn/Downloads(N) $HOME/Movi
 alias .select-downloads="fd-video . /Volumes/*/Movies/Porn/Downloads(N) $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
 alias .play-downloads-latest="fd-video-sort . $HOME/Movies/Porn/Downloads $HOME/Movies/Porn/Downloads | mpv-play"
 alias .select-downloads-latest="fd-video-sort . $HOME/Movies/Porn/Downloads $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
-alias .play-local-downloads="fd-video . $HOME/Movies/Porn/Downloads | mpv-play"
+alias .play-local-downloads="fd-video . $HOME/Movies/Porn/Downloads"
 alias .select-local-downloads="fd-video . $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
 alias .play-local-downloads-incomplete="mpv $HOME/Movies/Porn/Downloads/**/*.part"
 
@@ -34,10 +34,13 @@ alias .play-suki="ls-media --match-string #suki | mpv-play"
 alias \#suki=.play-suki
 alias .select-suki="ls-media --match-string #suki | fzf-select | mpv-play"
 alias .play-60fps="ls-media --match-string 60fps | mpv-play"
+alias \#60fps=.play-60fps
 alias .play-4k60fps="ls-media --match-string 60fps --match-string 2160p | mpv-play"
 alias .play-4k60fps-top="ls-media --match-string 60fps --match-string 2160p --match-string ★★★ | mpv-play"
 alias .select-4k60fps-top="ls-media --match-string 60fps --match-string 2160p --match-string ★★★ | fzf-select | mpv-play"
 alias .play-best="ls-media --match-string ★★★ | mpv-play"
+alias \#★★★="ls-media --match-string ★★★ | mpv-play"
+alias \#★★★★★="ls-media --match-string ★★★★★ | mpv-play"
 alias .select-best="ls-media --match-string ★★★ | fzf-select | mpv-play"
 
 alias .play-clips="ls-media --match-string /Clips/ | mpv-play"
@@ -52,7 +55,6 @@ alias .play-visuals-bg-black='fd-video --regex "#bg-black" . "${DJ_VISUALS_PATHS
 alias .select-external="fd-video . /Volumes/*/Movies/Porn | fzf-select | mpv-play"
 alias .select-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | fzf-select | mpv-play"
 alias .play-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | mpv-play"
-alias .play-tower="ls-media --path /Volumes/Tower/Movies/Porn | mpv-play"
 alias .play-tower-masters="fd-video . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
 alias .play-tower-masters-new="fd-video-sort . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
 alias .play-tower-downloads="fd-video . /Volumes/Tower/Movies/Porn/Downloads | mpv-play"
@@ -75,8 +77,6 @@ alias @pwd-sort="fselect-pwd-sort -0 | fzf-play --hide-path --tac"
 alias @queue="fd-video --print0 . $HOME/Movies/Porn/Queue/(N) | mpv-select"
 alias @tutorials="fd-video . $TUTORIALS_PATH | mpv-select"
 alias @external=@volumes
-
-alias \$=".select"
 
 alias mount-tower="open smb://nom@m4.local/Tower"
 alias unmount-tower="diskutil unmount /Volumes/Tower"
