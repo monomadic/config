@@ -31,6 +31,7 @@ alias .select-local-downloads="fd-video . $HOME/Movies/Porn/Downloads | fzf-sele
 alias .play-local-downloads-incomplete="mpv $HOME/Movies/Porn/Downloads/**/*.part"
 
 alias .play-suki="ls-media --match-string #suki | mpv-play"
+alias \#suki=.play-suki
 alias .select-suki="ls-media --match-string #suki | fzf-select | mpv-play"
 alias .play-60fps="ls-media --match-string 60fps | mpv-play"
 alias .play-4k60fps="ls-media --match-string 60fps --match-string 2160p | mpv-play"
@@ -73,6 +74,8 @@ alias @pwd-sort="fselect-pwd-sort -0 | fzf-play --hide-path --tac"
 alias @queue="fd-video --print0 . $HOME/Movies/Porn/Queue/(N) | mpv-select"
 alias @tutorials="fd-video . $TUTORIALS_PATH | mpv-select"
 alias @external=@volumes
+
+alias \$=".select"
 
 alias mount-tower="open smb://nom@m4.local/Tower"
 alias unmount-tower="diskutil unmount /Volumes/Tower"

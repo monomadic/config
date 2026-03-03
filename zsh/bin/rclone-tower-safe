@@ -24,7 +24,7 @@ rclone sync -P \
   --exclude "/lost+found/**" \
   "/Volumes/Tower/" "/Volumes/Tower Backup/"
 
-printf "Prune rclone history directory also? [y/N] "
+printf "Prune backup directory? [y/N] "
 
 read -r reply
 case "$reply" in
