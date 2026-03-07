@@ -7,5 +7,9 @@
 --retry-sleep 2
 --concurrent-fragments 2
 --windows-filenames
+--progress
+--console-title
+--trim-filenames 200
 
 --alias print-name "-s --print filename -o {0} --trim-filenames 200 --output-na-placeholder ''"
+--alias porn '--output "%(cast,uploader|)s%(cast& - |)s[%(channel,uploader|Unknown)s] %(title)s (%(extractor)s)%(tags.0& #{{}}|)s%(tags.1& #{{}}|)s%(tags.2& #{{}}|)s%(tags.3& #{{}}|)s%(tags.4& #{{}}|)s.%(ext)s"'

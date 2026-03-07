@@ -4,13 +4,15 @@ local overlay = mp.create_osd_overlay("ass-events")
 overlay.z = 10
 
 local keybar_enabled = true  -- what Tab toggles
-local osd_ok = true          -- derived from osd-level
+local osd_ok = false -- derived from osd-level
 
 -- PAN & SCAN state
 local panscan = 0.0
 local panscan_on = false
 local last_panscan = 1.0
 local PANSCAN_DEFAULT = 1.0
+
+local auto_landscape = false
 
 -- prevents observe_property("panscan") from treating our own writes as "external user changes"
 local applying_panscan = false
@@ -92,11 +94,11 @@ local function build_bar(dim)
         .. key("󱊷 ",  " Menu")
         .. key(" ",  " OSD")
         .. key("󰌑 ",  " Jump Random")
-        .. key("L",   " Force-Landscape " .. badge(auto_rotate_on))
+        .. key("1",   " Auto Jump " .. badge(rj_autojump_on) .. fmt_delay())
+        .. key("2",   " Force-Landscape " .. badge(auto_landscape))
         .. key("⌘C",  "opy Path")
         .. key("D",   "ir-Open")
         .. key("I",   "nfo")
-        .. key("󰘶 J", "ump " .. badge(rj_autojump_on) .. fmt_delay())
         .. key("J",   "seek " .. badge(rj_autoseek_on))
         .. key("N",   "ext")
         .. key("P",   "an+Scan " .. badge(panscan_on))
@@ -108,12 +110,11 @@ local function build_bar(dim)
     return bg .. "\n" .. s
 end
 
--- receive auto-rotate state updates
-mp.register_script_message("keybar-auto-rotate-state", function(v)
-    auto_rotate_on = (v == "1" or v == "true" or v == "on")
-    render_bar()
-end)
-
+-- -- receive auto-rotate state updates
+-- mp.register_script_message("keybar-auto-rotate-state", function(v)
+--     auto_rotate_on = (v == "1" or v == "true" or v == "on")
+--     render_bar()
+-- end)
 
 mp.add_timeout(0, function()
     mp.commandv("script-message", "randjump-query")
@@ -221,4 +222,8 @@ mp.add_key_binding("TAB", "toggle-osd-full", function()
     else
         mp.set_property_number("osd-level", OSD_FULL)
     end
+end)
+
+mp.register_script_message("auto_landscape_broadcast", function(state)
+  auto_landscape = (state == "yes")
 end)

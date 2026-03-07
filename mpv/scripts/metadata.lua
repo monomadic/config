@@ -90,8 +90,8 @@ local function format_osd_status()
     local orient = get_orientation()
 
     -- Format file info line
-    local file_info = string.format(" %s    %s    %s%s    %s",
-        human_size, codec, resolution, (fps ~= "" and (" @ " .. fps) or ""), orient
+    local file_info = string.format(" %s%s   %s   %s   %s",
+        resolution, (fps ~= "" and ("@" .. fps) or ""), codec, human_size, orient
     )
 
     -- Format based on OSD level

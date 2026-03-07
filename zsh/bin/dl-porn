@@ -38,4 +38,4 @@ yt-dlp \
   "${passthru[@]}" \
   "$url"
 
-open --reveal $output_path
+open --reveal "${output_path}"

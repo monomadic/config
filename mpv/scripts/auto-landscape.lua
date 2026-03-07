@@ -90,7 +90,12 @@ local function apply_for_current_file(reason)
     restore_hwdec()
     vf_remove_label(LABEL)
     applied_for_path = nil
-    osd("Auto-landscape: OFF" .. (reason and (" • " .. reason) or ""))
+
+    -- local v = mp.get_property_number("osd-level", OSD_FULL)
+    -- if v and v > 0 then
+    --   osd("Auto-landscape: OFF" .. (reason and (" • " .. reason) or ""))
+    -- end
+    
     return
   end
 
@@ -126,7 +131,12 @@ local function apply_for_current_file(reason)
   end
 end
 
+local function broadcast_state()
+  mp.commandv("script-message", "auto_landscape_broadcast", enabled and "yes" or "no")
+end
+
 mp.register_event("file-loaded", function()
+  broadcast_state()
   last_osd = ""
   applied_for_path = nil
   pending_apply = false
@@ -140,6 +150,7 @@ end)
 
 mp.add_key_binding("2", "toggle_force_landscape", function()
   enabled = not enabled
+  broadcast_state()
   last_osd = ""
   applied_for_path = nil
   pending_apply = false
@@ -159,3 +170,4 @@ mp.register_event("log-message", function(e)
     osd("Auto-landscape: FAILED • filter removed")
   end
 end)
+
