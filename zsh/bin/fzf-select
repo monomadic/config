@@ -1,84 +1,113 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-# --- Argument parsing ---
+# -----------------------------------------------------------------------------
+# Args
+# -----------------------------------------------------------------------------
 show_absolute=false
-no_color=false
+print_color=false
+
 for arg in "$@"; do
   case "$arg" in
     --absolute-paths) show_absolute=true ;;
-    --no-color)       no_color=true ;;
+    --color)          print_color=true ;;
   esac
 done
 
-# --- Dependency checks ---
-for bin in fzf; do
+# -----------------------------------------------------------------------------
+# Deps
+# -----------------------------------------------------------------------------
+for bin in fzf perl; do
   if ! command -v "$bin" >/dev/null 2>&1; then
     printf 'Error: %s not found in PATH\n' "$bin" >&2
     exit 1
   fi
 done
 
-# --- Read file list ---
-# if [[ -p /dev/stdin ]]; then
-#   full_paths=$(cat)
-#   [[ -z "$full_paths" ]] && exit 0
-# else
-#   echo "Error: fzf-select expects piped input" >&2
-#   exit 1
-# fi
-
-# Just check for pipe without consuming:
+# -----------------------------------------------------------------------------
+# Input
+# -----------------------------------------------------------------------------
 if [[ ! -p /dev/stdin ]]; then
-  echo "Error: fzf-select expects piped input" >&2
+  print -u2 "Error: fzf-select expects piped input"
   exit 1
 fi
 
-# --- Display-only colorizer (MUST NOT remove/alter characters that matter) ---
+# -----------------------------------------------------------------------------
+# Display-only colorizer
+#
+# Only decorate display text. Never modify the raw path field.
+#
+# Debugging ANSI issues:
+# - use a real ESC byte via $'\033'
+# - reset after every colored segment
+# - do text substitutions before color substitutions
+# - if output looks corrupted, first disable the final "(dir)" coloring, then
+#   disable each perl replacement one by one
+# -----------------------------------------------------------------------------
 colorize_display() {
-  if $no_color; then
+  if ! $print_color; then
     cat
     return 0
   fi
 
-  sed -E '
-    # [Group] → yellow, KEEP brackets
-    s/\[([^\]]+)\]/[\x1b[93m\1\x1b[0m]/g;
+  local esc=$'\033'
 
-    # Replace stars (display only)
-    s/★/ /g
-    s/☆/ /g
+  FZF_SELECT_ESC="$esc" perl -CS -pe '
+    BEGIN {
+      my $esc = $ENV{FZF_SELECT_ESC};
 
-    # Color star glyphs
-    s/( | )/\x1b[93m\1\x1b[0m/g
+      our $YELLOW = "${esc}[93m";
+      our $GREEN  = "${esc}[92m";
+      our $CYAN   = "${esc}[96m";
+      our $BLUE   = "${esc}[94m";
+      our $RESET  = "${esc}[0m";
+    }
 
-    # Names (before " - ") → green, KEEP " - "
-    s/^([^-]+) - /\x1b[92m\1\x1b[0m - /;
-    
-    # {specs} → cyan, KEEP braces
-    s/\{([^\}]+)\}/{\x1b[96m\1\x1b[0m}/g;
+    # Plain glyph replacement first
+    s/★/ /g;
+    s/☆/ /g;
 
-    # #hashtags → blue
-    s/(#[a-zA-Z0-9_-]+)/\x1b[94m\1\x1b[0m/g;
+    # [group] -> color inner text only
+    s/\[([^\]]+)\]/"[" . $YELLOW . $1 . $RESET . "]"/ge;
+
+    # leading performer/title prefix before first " - "
+    s/^([^-]+)( - )/$GREEN . $1 . $RESET . $2/ge;
+
+    # {specs} -> color inner text only
+    s/\{([^\}]+)\}/"{" . $CYAN . $1 . $RESET . "}"/ge;
+
+    # hashtags
+    s/(#[a-zA-Z0-9_-]+)/$BLUE . $1 . $RESET/ge;
+
+    # rating glyphs
+    s/( | )/$YELLOW . $1 . $RESET/ge;
   '
 }
 
-# --- Build fzf input: RAW<TAB>DISPLAY ---
+# -----------------------------------------------------------------------------
+# Build fzf input:
+#   RAW<TAB>DISPLAY
+# -----------------------------------------------------------------------------
 build_fzf_lines() {
   local raw base dir disp
+  local esc=$'\033'
+  local grey="${esc}[90m"
+  local reset="${esc}[0m"
+
   while IFS= read -r raw; do
     [[ -z "$raw" ]] && continue
 
     if $show_absolute; then
-      disp=$(printf '%s\n' "$raw" | colorize-media)
+      disp=$(printf '%s\n' "$raw" | colorize_display)
     else
       base=${raw:t}
       dir=${raw:h}
-      disp=$(printf '%s\n' "$base" | colorize-media)
-      if ! $no_color; then
-        disp="${disp} \x1b[90m(${dir})\x1b[0m"
+      disp=$(printf '%s\n' "$base" | colorize_display)
+
+      if $print_color; then
+        disp+=$' '"${grey}(${dir})${reset}"
       else
-        disp="${disp} (${dir})"
+        disp+=" (${dir})"
       fi
     fi
 
@@ -86,20 +115,41 @@ build_fzf_lines() {
   done
 }
 
-# --- FZF selection (display col 2, output col 1) ---
-fzf_args=(--multi --exact --cycle --multi-line --delimiter=$'\t' --with-nth=2 --accept-nth=1
+# -----------------------------------------------------------------------------
+# fzf
+#
+# No shell trap here. Let fzf manage the tty and return its own status.
+# -----------------------------------------------------------------------------
+fzf_args=(
+  --multi
+  --exact
+  --cycle
+  --multi-line
+  --delimiter=$'\t'
+  --with-nth=2
+  --accept-nth=1
   --bind 'alt-r:execute-silent(open --reveal {1})'
   --bind 'ctrl-r:execute-silent(open --reveal {1})'
   --bind 'ctrl-s:put( )'
-  --bind 'alt-w:toggle-wrap'
   --bind 'enter:select-all+accept'
 )
 
-$no_color || fzf_args=(--ansi "${fzf_args[@]}")
+$print_color && fzf_args=(--ansi "${fzf_args[@]}")
 
+selected=''
+fzf_status=0
+
+set +e
 selected=$(build_fzf_lines | fzf "${fzf_args[@]}")
+fzf_status=$?
+set -e
+
+case "$fzf_status" in
+  0) ;;
+  1) exit 0 ;;    # no selection / no match / escape
+  130) exit 130 ;; # Ctrl-C
+  *) exit "$fzf_status" ;;
+esac
 
 [[ -z "${selected:-}" ]] && exit 0
-
-# IMPORTANT: output raw paths only (one per line)
 printf '%s\n' "$selected"

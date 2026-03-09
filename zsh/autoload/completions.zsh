@@ -91,4 +91,4 @@ _edit-script() {
 }
 compdef _edit-script edit-script
 
-compdef dl-porn=yt-dlp
+#compdef dl-porn=yt-dlp
