@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+"""
+vdj-linked — list linked tracks in the VirtualDJ database
+
+VirtualDJ stores track links as:
+  <Song FilePath="..." Link="path/to/other/file" .../>
+  or inside <Infos Link="..."/>
+  or as child <LinkedSong FilePath="..."/>
+
+Usage:
+  vdj-linked                   # list all linked pairs
+  vdj-linked -s "artist name"  # filter by search term (case-insensitive)
+  vdj-linked --missing         # only pairs where a linked file doesn't exist
+  vdj-linked --json            # output as JSON
+  vdj-linked --db /path/to/database.xml  # custom DB path
+"""
+
+import argparse
+import json
+import os
+import sys
+import xml.etree.ElementTree as ET
+from dataclasses import dataclass, asdict
+from pathlib import Path
+from typing import Optional
+
+DEFAULT_DB = Path.home() / "Library/Application Support/VirtualDJ/database.xml"
+
+RESET  = "\033[0m"
+BOLD   = "\033[1m"
+DIM    = "\033[2m"
+RED    = "\033[31m"
+GREEN  = "\033[32m"
+YELLOW = "\033[33m"
+CYAN   = "\033[36m"
+
+def no_color() -> bool:
+    return not sys.stdout.isatty() or os.environ.get("NO_COLOR")
+
+def c(code: str, text: str) -> str:
+    return text if no_color() else f"{code}{text}{RESET}"
+
+
+@dataclass
+class LinkedPair:
+    source: str
+    target: str
+    title: Optional[str]
+    artist: Optional[str]
+    link_field: str  # where the link was found
+
+    @property
+    def target_exists(self) -> bool:
+        p = Path(self.target)
+        if p.is_absolute():
+            return p.exists()
+        # VDJ sometimes stores relative paths — try relative to source dir
+        return (Path(self.source).parent / self.target).exists()
+
+    def display_name(self) -> str:
+        if self.artist and self.title:
+            return f"{self.artist} — {self.title}"
+        if self.title:
+            return self.title
+        return Path(self.source).name
+
+
+def parse_db(db_path: Path) -> list[LinkedPair]:
+    if not db_path.exists():
+        print(c(RED, f"error: database not found at {db_path}"), file=sys.stderr)
+        print(c(DIM, "  Use --db to specify a custom path."), file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        tree = ET.parse(db_path)
+    except ET.ParseError as e:
+        print(c(RED, f"error: failed to parse XML: {e}"), file=sys.stderr)
+        sys.exit(1)
+
+    root = tree.getroot()
+    pairs: list[LinkedPair] = []
+
+    for song in root.iter("Song"):
+        file_path = song.get("FilePath", "")
+        if not file_path:
+            continue
+
+        # Pull tags for display
+        tags = song.find("Tags")
+        title  = tags.get("Title")  if tags is not None else None
+        artist = tags.get("Author") if tags is not None else None
+
+        # 1. Link attribute directly on <Song>
+        link = song.get("Link")
+        if link:
+            pairs.append(LinkedPair(file_path, link, title, artist, "Song@Link"))
+
+        # 2. Link attribute on <Infos>
+        infos = song.find("Infos")
+        if infos is not None:
+            link = infos.get("Link")
+            if link:
+                pairs.append(LinkedPair(file_path, link, title, artist, "Infos@Link"))
+
+        # 3. Child <LinkedSong> element
+        for ls in song.findall("LinkedSong"):
+            link = ls.get("FilePath")
+            if link:
+                pairs.append(LinkedPair(file_path, link, title, artist, "<LinkedSong>"))
+
+        # 4. Child <Link> element (some VDJ versions)
+        for lel in song.findall("Link"):
+            link = lel.get("FilePath") or lel.text
+            if link:
+                pairs.append(LinkedPair(file_path, link.strip(), title, artist, "<Link>"))
+
+    return pairs
+
+
+def print_pairs(pairs: list[LinkedPair], missing_only: bool) -> None:
+    shown = 0
+    for p in pairs:
+        exists = p.target_exists
+        if missing_only and exists:
+            continue
+
+        shown += 1
+        status = c(RED, "✗ missing") if not exists else c(GREEN, "✓")
+        name = c(BOLD, p.display_name())
+        field = c(DIM, f"[{p.link_field}]")
+
+        print(f"{name}  {field}")
+        print(f"  {c(DIM, 'src:')}    {p.source}")
+        print(f"  {c(DIM, 'link:')}   {c(YELLOW, p.target)}  {status}")
+        print()
+
+    summary = f"{shown} linked track{'s' if shown != 1 else ''}"
+    if missing_only:
+        summary += " with missing targets"
+    print(c(DIM, f"— {summary} —"))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="List linked tracks in the VirtualDJ database.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__.split("\n\nUsage:")[1] if "\n\nUsage:" in __doc__ else "",
+    )
+    parser.add_argument(
+        "--db",
+        metavar="PATH",
+        type=Path,
+        default=DEFAULT_DB,
+        help=f"path to database.xml (default: {DEFAULT_DB})",
+    )
+    parser.add_argument(
+        "-s", "--search",
+        metavar="TERM",
+        help="filter results (case-insensitive, matches path/title/artist)",
+    )
+    parser.add_argument(
+        "--missing",
+        action="store_true",
+        help="only show pairs where the linked file doesn't exist on disk",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="output as JSON array",
+    )
+    parser.add_argument(
+        "--count",
+        action="store_true",
+        help="print count only",
+    )
+
+    args = parser.parse_args()
+
+    pairs = parse_db(args.db)
+
+    if args.search:
+        term = args.search.lower()
+        pairs = [
+            p for p in pairs
+            if term in p.source.lower()
+            or term in p.target.lower()
+            or (p.title  and term in p.title.lower())
+            or (p.artist and term in p.artist.lower())
+        ]
+
+    if args.missing:
+        pairs = [p for p in pairs if not p.target_exists]
+
+    if args.count:
+        print(len(pairs))
+        return
+
+    if not pairs:
+        print(c(DIM, "no linked tracks found"))
+        return
+
+    if args.json:
+        out = [
+            {
+                "source": p.source,
+                "target": p.target,
+                "title": p.title,
+                "artist": p.artist,
+                "link_field": p.link_field,
+                "target_exists": p.target_exists,
+            }
+            for p in pairs
+        ]
+        print(json.dumps(out, indent=2))
+        return
+
+    print_pairs(pairs, missing_only=False)
+
+
+if __name__ == "__main__":
+    main()

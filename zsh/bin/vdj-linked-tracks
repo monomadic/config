@@ -1,0 +1,6 @@
+#!/bin/zsh
+
+db="$HOME/Library/Application Support/VirtualDJ/extra.db"
+tmp="$(mktemp -d)"
+
+cp -f "$db" "$tmp/extra.db" 2>/dev/null && [[ -f "$db-wal" ]] && cp -f "$db-wal" "$tmp/extra.db-wal"; [[ -f "$db-shm" ]] && cp -f "$db-shm" "$tmp/extra.db-shm"; t="$(sqlite3 "$tmp/extra.db" "SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE '%sid1%' AND sql LIKE '%sid2%' LIMIT 1;")"; [[ -n "$t" ]] && sqlite3 "$tmp/extra.db" "SELECT COUNT(*) FROM \"$t\";" || print -u2 "no linked-track table found"; rm -rf "$tmp"

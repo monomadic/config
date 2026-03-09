@@ -3,26 +3,9 @@ alias yt-json-description="jq '.description' "
 alias yt-batch-edit="nvim $HOME/.ytdl-batch-porn"
 alias yt-thumbnail="yt-dlp --skip-download --write-thumbnail "
 alias yt-thumbnail-jpg="yt-dlp --skip-download --write-thumbnail --convert-thumbnails jpg "
+alias yt-porn="yt-dlp --porn"
 
 local MUSIC_VIDEO_FORMAT="%(artist)s - %(title)s.%(ext)s"
-
-function yt-porn {
-  local url="$1"
-  local output_template="[%(uploader)s] %(title)s [%(extractor)s].%(ext)s"
-
-  if [[ -z "$url" ]]; then
-    echo "Usage: ${0:t} [args] <url>"
-    return 1
-  fi
-
-  yt-dlp -v \
-    --output "${output_template}" \
-    --format 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
-    --cookies-from-browser brave \
-    --merge-output-format mp4 \
-    --embed-metadata \
-    $@
-}
 
 ffprobe-show-info() {
   if [ -z "$1" ]; then
