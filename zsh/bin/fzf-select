@@ -2,10 +2,12 @@
 set -euo pipefail
 
 show_absolute=false
+print_color=false
 
 for arg in "$@"; do
   case "$arg" in
     --absolute-paths) show_absolute=true ;;
+    --color)          print_color=true ;;
   esac
 done
 
@@ -39,7 +41,17 @@ while IFS= read -r raw; do
   else
     base=${raw:t}
     dir=${raw:h}
-    disp="$base $dir"
+
+    local esc grey reset
+    esc=$'\033'
+    grey="${esc}[90m"
+    reset="${esc}[0m"
+
+    if $print_color; then
+      disp="${base} ${grey}${dir}${reset}"
+    else
+      disp="$base $dir"
+    fi
   fi
 
   printf '%s\t%s\n' "$raw" "$disp" >> "$tmp_lines"
