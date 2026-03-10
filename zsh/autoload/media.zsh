@@ -10,11 +10,15 @@ alias @select="fzf-select | mpv-play"
 
 #
 # ALIASES
-# 
-alias .play="ls-media | mpv-play"
-alias .play-sort="ls-media --sort-created | mpv-play"
-alias .pwd-play="ls-media --path . | mpv-play"
-alias .select-pwd="ls-media --path . | fzf-select | mpv-play"
+#
+alias .ls-all="ls-media"
+alias .play-all=".ls-all | mpv-play"
+alias .select-all=".ls-all | fzf-select | mpv-play"
+alias .ls-all-sorted="ls-media --sort-created"
+alias .play-all-sorted="ls-media --sort-created | mpv-play"
+alias .ls-pwd="ls-media --path ."
+alias .play-pwd=".list-pwd | mpv-play"
+alias .select-pwd=".ls-pwd | fzf-select | mpv-play"
 alias .select-pwd-sort="ls-media --path . --sort-created | fzf-select| mpv-play"
 alias .select="ls-media | fzf-select | mpv-play"
 alias .select-sort="ls-media --sort-created | fzf-select| mpv-play"

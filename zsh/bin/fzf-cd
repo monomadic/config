@@ -3,13 +3,13 @@ set +o monitor
 
 # Color Scheme
 FZF_COLOR_OPTS=""
-FZF_COLOR_OPTS+="fg:#fadaf2,"      # Regular foreground
-#FZF_COLOR_OPTS+="bg:#000000,"      # Regular background
+FZF_COLOR_OPTS+="fg:#0080F0,"      # Regular foreground
+FZF_COLOR_OPTS+="bg:#000050,"      # Regular background
 FZF_COLOR_OPTS+="hl:#FFe22e,"      # Highlighted text (foreground)
 FZF_COLOR_OPTS+="hl+:#FFe22e,"     # Highlighted text in selected line (foreground)
-FZF_COLOR_OPTS+="fg+:#ff4499,"     # Selected line (foreground)
-FZF_COLOR_OPTS+="bg+:#422042,"     # Selected line (background)
-FZF_COLOR_OPTS+="info:#ae81ff,"    # Info line
+FZF_COLOR_OPTS+="fg+:#FFFFFF,"     # Selected line (foreground)
+FZF_COLOR_OPTS+="bg+:#5070AF,"     # Selected line (background)
+FZF_COLOR_OPTS+="info:#0f81ff,"    # Info line
 FZF_COLOR_OPTS+="border:#000000,"  # Border color
 FZF_COLOR_OPTS+="prompt:#FFFFFF,"  # Prompt
 FZF_COLOR_OPTS+="pointer:#FFe22e," # Pointer to the current line

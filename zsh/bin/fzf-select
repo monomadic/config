@@ -1,155 +1,74 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-# -----------------------------------------------------------------------------
-# Args
-# -----------------------------------------------------------------------------
 show_absolute=false
-print_color=false
 
 for arg in "$@"; do
   case "$arg" in
     --absolute-paths) show_absolute=true ;;
-    --color)          print_color=true ;;
   esac
 done
 
-# -----------------------------------------------------------------------------
-# Deps
-# -----------------------------------------------------------------------------
-for bin in fzf perl; do
-  if ! command -v "$bin" >/dev/null 2>&1; then
-    printf 'Error: %s not found in PATH\n' "$bin" >&2
-    exit 1
-  fi
-done
-
-# -----------------------------------------------------------------------------
-# Input
-# -----------------------------------------------------------------------------
 if [[ ! -p /dev/stdin ]]; then
-  print -u2 "Error: fzf-select expects piped input"
+  print -u2 "Error: expected piped input"
   exit 1
 fi
 
-# -----------------------------------------------------------------------------
-# Display-only colorizer
-#
-# Only decorate display text. Never modify the raw path field.
-#
-# Debugging ANSI issues:
-# - use a real ESC byte via $'\033'
-# - reset after every colored segment
-# - do text substitutions before color substitutions
-# - if output looks corrupted, first disable the final "(dir)" coloring, then
-#   disable each perl replacement one by one
-# -----------------------------------------------------------------------------
-colorize_display() {
-  if ! $print_color; then
-    cat
-    return 0
+for bin in fzf mktemp; do
+  command -v "$bin" >/dev/null 2>&1 || {
+    print -u2 "Error: missing dependency: $bin"
+    exit 1
+  }
+done
+
+tmp_raw=$(mktemp -t fzf-select.raw.XXXXXX)
+tmp_lines=$(mktemp -t fzf-select.lines.XXXXXX)
+
+cleanup() {
+  rm -f "$tmp_raw" "$tmp_lines"
+}
+trap cleanup EXIT
+
+cat > "$tmp_raw"
+
+while IFS= read -r raw; do
+  [[ -z "$raw" ]] && continue
+
+  if $show_absolute; then
+    disp=$raw
+  else
+    base=${raw:t}
+    dir=${raw:h}
+    disp="$base $dir"
   fi
 
-  local esc=$'\033'
+  printf '%s\t%s\n' "$raw" "$disp" >> "$tmp_lines"
+done < "$tmp_raw"
 
-  FZF_SELECT_ESC="$esc" perl -CS -pe '
-    BEGIN {
-      my $esc = $ENV{FZF_SELECT_ESC};
-
-      our $YELLOW = "${esc}[93m";
-      our $GREEN  = "${esc}[92m";
-      our $CYAN   = "${esc}[96m";
-      our $BLUE   = "${esc}[94m";
-      our $RESET  = "${esc}[0m";
-    }
-
-    # Plain glyph replacement first
-    s/★/ /g;
-    s/☆/ /g;
-
-    # [group] -> color inner text only
-    s/\[([^\]]+)\]/"[" . $YELLOW . $1 . $RESET . "]"/ge;
-
-    # leading performer/title prefix before first " - "
-    s/^([^-]+)( - )/$GREEN . $1 . $RESET . $2/ge;
-
-    # {specs} -> color inner text only
-    s/\{([^\}]+)\}/"{" . $CYAN . $1 . $RESET . "}"/ge;
-
-    # hashtags
-    s/(#[a-zA-Z0-9_-]+)/$BLUE . $1 . $RESET/ge;
-
-    # rating glyphs
-    s/( | )/$YELLOW . $1 . $RESET/ge;
-  '
-}
-
-# -----------------------------------------------------------------------------
-# Build fzf input:
-#   RAW<TAB>DISPLAY
-# -----------------------------------------------------------------------------
-build_fzf_lines() {
-  local raw base dir disp
-  local esc=$'\033'
-  local grey="${esc}[90m"
-  local reset="${esc}[0m"
-
-  while IFS= read -r raw; do
-    [[ -z "$raw" ]] && continue
-
-    if $show_absolute; then
-      disp=$(printf '%s\n' "$raw" | colorize_display)
-    else
-      base=${raw:t}
-      dir=${raw:h}
-      disp=$(printf '%s\n' "$base" | colorize_display)
-
-      if $print_color; then
-        disp+=$' '"${grey}(${dir})${reset}"
-      else
-        disp+=" (${dir})"
-      fi
-    fi
-
-    printf '%s\t%s\n' "$raw" "$disp"
-  done
-}
-
-# -----------------------------------------------------------------------------
-# fzf
-#
-# No shell trap here. Let fzf manage the tty and return its own status.
-# -----------------------------------------------------------------------------
 fzf_args=(
   --multi
   --exact
   --cycle
-  --multi-line
   --delimiter=$'\t'
   --with-nth=2
   --accept-nth=1
+  --bind 'enter:select-all+accept'
   --bind 'alt-r:execute-silent(open --reveal {1})'
   --bind 'ctrl-r:execute-silent(open --reveal {1})'
-  --bind 'ctrl-s:put( )'
-  --bind 'enter:select-all+accept'
 )
 
-$print_color && fzf_args=(--ansi "${fzf_args[@]}")
-
-selected=''
-fzf_status=0
-
 set +e
-selected=$(build_fzf_lines | fzf "${fzf_args[@]}")
+selected=$(
+  fzf "${fzf_args[@]}" < "$tmp_lines"
+)
 fzf_status=$?
 set -e
 
 case "$fzf_status" in
   0) ;;
-  1) exit 0 ;;    # no selection / no match / escape
-  130) exit 130 ;; # Ctrl-C
+  1) exit 0 ;;
+  130) exit 130 ;;
   *) exit "$fzf_status" ;;
 esac
 
-[[ -z "${selected:-}" ]] && exit 0
-printf '%s\n' "$selected"
+[[ -n "$selected" ]] && printf '%s\n' "$selected"
