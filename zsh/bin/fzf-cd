@@ -1,22 +1,27 @@
 #!/bin/zsh
 set +o monitor
 
+# 00F0F0 aqua
+# 00A0F0 light blue
+# FF992e oraange
+
 # Color Scheme
 FZF_COLOR_OPTS=""
-FZF_COLOR_OPTS+="fg:#0080F0,"      # Regular foreground
-FZF_COLOR_OPTS+="bg:#000050,"      # Regular background
+FZF_COLOR_OPTS+="fg:#00A0F0,"      # Regular foreground
+FZF_COLOR_OPTS+="bg:#002080,"      # Regular background
 FZF_COLOR_OPTS+="hl:#FFe22e,"      # Highlighted text (foreground)
 FZF_COLOR_OPTS+="hl+:#FFe22e,"     # Highlighted text in selected line (foreground)
-FZF_COLOR_OPTS+="fg+:#FFFFFF,"     # Selected line (foreground)
-FZF_COLOR_OPTS+="bg+:#5070AF,"     # Selected line (background)
+FZF_COLOR_OPTS+="fg+:#DDFFAA,"     # Selected line (foreground)
+FZF_COLOR_OPTS+="bg+:#40609F,"     # Selected line (background)
 FZF_COLOR_OPTS+="info:#0f81ff,"    # Info line
-FZF_COLOR_OPTS+="border:#000000,"  # Border color
+FZF_COLOR_OPTS+="border:#0040A0,"  # Border color
 FZF_COLOR_OPTS+="prompt:#FFFFFF,"  # Prompt
 FZF_COLOR_OPTS+="pointer:#FFe22e," # Pointer to the current line
 FZF_COLOR_OPTS+="marker:#a6e22e,"  # Multi-select marker
 FZF_COLOR_OPTS+="spinner:#FFFFFF,"
 FZF_COLOR_OPTS+="preview-bg:#111111,"
 FZF_COLOR_OPTS+="preview-border:#111111,"
+FZF_COLOR_OPTS+="gutter:#44AADD,"  # non-selected icons
 FZF_COLOR_OPTS+="header:#66ddee"
 #--color=bg:-1,fg:blue,info:15,header:7,hl:red,hl+:red,gutter:-1,prompt:yellow,marker:-1,bg+:black,pointer:yellow,fg+:yellow
 
@@ -47,13 +52,15 @@ handle_directory_selection() {
     fzf \
       --color="$FZF_COLOR_OPTS" \
       --ansi \
-      --gutter='󰉋' --pointer='󰉋' --marker='󰉋' \
+      --gutter='󰉋' --pointer=' ' --marker='󰉋 ' \
       --no-header \
       --no-preview \
       --no-info \
       --no-clear \
-      --border=none \
+      --border=block \
+      --input-border=rounded \
       --margin=0 \
+      --padding=0 \
       --bind 'alt-n:preview-page-down,alt-p:preview-page-up' \
       --bind 'alt-r:execute-silent(open {})' \
       --bind 'ctrl-/:toggle-preview' \
