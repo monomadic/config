@@ -69,6 +69,7 @@ alias .play-visuals-bg-black='fd-video --regex "#bg-black" . "${DJ_VISUALS_PATHS
 alias .select-external="fd-video . /Volumes/*/Movies/Porn | fzf-select | mpv-play"
 alias .select-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | fzf-select | mpv-play"
 alias .play-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | mpv-play"
+alias .play-tower-downloads-60fps="ls-media --match-string 60fps --path /Volumes/Tower/Movies/Porn/Downloads | mpv-play"
 alias .play-tower-masters="fd-video . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
 alias .play-tower-masters-sort="fd-video-sort . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
 alias .play-tower-downloads="fd-video . /Volumes/Tower/Movies/Porn/Downloads | mpv-play"
@@ -93,6 +94,7 @@ alias @tutorials="fd-video . $TUTORIALS_PATH | mpv-select"
 alias @external=@volumes
 
 alias mount-tower="open smb://nom@m4.local/Tower"
+alias .mount-tower=mount-tower
 alias unmount-tower="diskutil unmount /Volumes/Tower"
 
 alias @masters-full="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Full(N) $HOME/Movies/Porn/Masters/Full(N) | fzf-play --hide-path -0"

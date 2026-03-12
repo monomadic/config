@@ -38,6 +38,24 @@ strip-slash() {
 #   done | LC_ALL=C sort -z -n -r -k1,1 | perl -0pe 's/^\d+\t//'
 # }
 
+# check filenames are valid utf-8
+validate-filenames-stdin() {
+  while IFS= read -r f; do
+    local dir="${f:h}" base="${f:t}"
+    local newbase=$(printf '%s' "$base" | iconv -f latin-1 -t utf-8 -c)
+    [[ "$base" != "$newbase" ]] && mv "$f" "$dir/$newbase"
+  done
+}
+
+# check filenames are valid utf-8
+check-invalid-filenames-stdin() {
+  while IFS= read -r f; do
+    local base="${f:t}"
+    local cleaned=$(printf '%s' "$base" | iconv -f UTF-8 -t UTF-8 -c)
+    [[ "$base" != "$cleaned" ]] && printf '%s\n' "$f"
+  done
+}
+
 pause() {
   read -sk '?Press any key to continue...'
   echo

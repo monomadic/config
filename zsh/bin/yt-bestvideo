@@ -1,66 +1,124 @@
 #!/usr/bin/env zsh
 set -euo pipefail
+
 usage() {
   cat >&2 <<'EOF'
 Usage: yt-bestvideo [options] URL [URL...] [-- yt-dlp-args...]
   Downloads highest-resolution video available (no audio in final file).
+
 Rules:
   - VP9/VP8/AV1  -> .webm
-  - H264/HEVC    -> .mp4  (HEVC is tagged hvc1 for Apple compatibility)
+  - H264/HEVC    -> .mp4  (HEVC tagged hvc1 for Apple compatibility)
+
 Options:
   -O, --out DIR        Output directory (default: .)
-  -t, --tmpl TEMPLATE  yt-dlp output template (default: %(channel)s [%(id)s]...)
+  -t, --tmpl TEMPLATE  yt-dlp output template
+                       (default: %(channel|Unknown Channel)s [%(id)s].%(ext)s)
   --no-playlist        Do not download playlists
   --keep-original      Keep the pre-remux download too
   -h, --help           Show help
+
 Passthrough:
   Anything after -- is passed directly to yt-dlp, e.g.:
   yt-bestvideo URL -- --cookies-from-browser firefox --rate-limit 5M
 EOF
   exit 1
 }
+
 out_dir="."
-tmpl="%(channel)s [%(id)s]%(playlist_index&{} |)s.%(ext)s"
+tmpl='%(channel|Unknown Channel)s [%(id)s].%(ext)s'
 no_playlist=0
 keep_original=0
+
 while (( $# )); do
   case "$1" in
-    -O|--out) out_dir="$2"; shift 2;;
-    -t|--tmpl) tmpl="$2"; shift 2;;
-    --no-playlist) no_playlist=1; shift;;
-    --keep-original) keep_original=1; shift;;
-    -h|--help) usage;;
-    --) shift; break;;
-    --*) print -u2 "Unknown option: $1"; usage;;
-    *) break;;
+    -O|--out)
+      [[ $# -ge 2 ]] || usage
+      out_dir="$2"
+      shift 2
+      ;;
+    -t|--tmpl)
+      [[ $# -ge 2 ]] || usage
+      tmpl="$2"
+      shift 2
+      ;;
+    --no-playlist)
+      no_playlist=1
+      shift
+      ;;
+    --keep-original)
+      keep_original=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      ;;
+    --)
+      shift
+      break
+      ;;
+    --*)
+      print -u2 "Unknown option: $1"
+      usage
+      ;;
+    *)
+      break
+      ;;
   esac
 done
-# Split remaining args into URLs and yt-dlp passthrough (separated by --)
-urls=(); user_extra_args=(); hit_sep=0
+
+urls=()
+user_extra_args=()
+hit_sep=0
+
 for arg in "$@"; do
-  (( hit_sep )) && { user_extra_args+=("$arg"); continue; }
-  [[ "$arg" == "--" ]] && { hit_sep=1; continue; }
+  if (( hit_sep )); then
+    user_extra_args+=("$arg")
+    continue
+  fi
+  if [[ "$arg" == "--" ]]; then
+    hit_sep=1
+    continue
+  fi
   urls+=("$arg")
 done
+
 (( ${#urls[@]} >= 1 )) || usage
-need() { command -v "$1" >/dev/null 2>&1 || { print -u2 "Missing: $1"; exit 1; }; }
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || {
+    print -u2 "Missing: $1"
+    exit 1
+  }
+}
+
 need yt-dlp
 need ffmpeg
 need ffprobe
 need rg
+
 info() { print -P "%F{cyan}▶%f $*"; }
 ok()   { print -P "%F{green}✔%f $*"; }
 warn() { print -P "%F{yellow}⚠%f $*"; }
 err()  { print -P "%F{red}✘%f $*"; }
-cmd()  { print -P "%F{245}+ ${(q-)@}%f" >&2; "$@"; }
+
+cmd() {
+  printf '\033[38;5;245m+ ' >&2
+  printf '%q ' "$@" >&2
+  printf '\033[0m\n' >&2
+  "$@"
+}
+
 for url in "${urls[@]}"; do
   info "URL: $url"
+
   extra_args=()
   (( no_playlist )) && extra_args+=(--no-playlist)
   extra_args+=("${user_extra_args[@]}")
+
   dl_list="$(
     cmd yt-dlp \
-      -f 'bv*' \
+      -f 'bv*+ba/b' \
       -S 'res,fps,tbr' \
       --paths "$out_dir" \
       -o "$tmpl" \
@@ -68,49 +126,83 @@ for url in "${urls[@]}"; do
       --print after_move:filepath \
       -- "$url"
   )"
+
   if [[ -z "$dl_list" ]]; then
     warn "No files downloaded."
     continue
   fi
+
   while IFS= read -r file; do
     [[ -z "$file" ]] && continue
+
     if [[ ! -f "$file" ]]; then
       warn "Downloaded path not found on disk: $file"
       continue
     fi
+
     ok "Downloaded: $file"
-    codec="$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name \
-             -of default=nw=1:nk=1 -- "$file" || true)"
-    [[ -n "$codec" ]] || { err "Could not detect codec: $file"; continue; }
+
+    codec="$(
+      ffprobe -v error \
+        -select_streams v:0 \
+        -show_entries stream=codec_name \
+        -of default=nw=1:nk=1 \
+        -- "$file" || true
+    )"
+
+    [[ -n "$codec" ]] || {
+      err "Could not detect codec: $file"
+      continue
+    }
+
     has_audio=0
-    if ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 -- "$file" \
-       | rg -q '.'; then
+    if ffprobe -v error \
+      -select_streams a \
+      -show_entries stream=index \
+      -of csv=p=0 \
+      -- "$file" | rg -q '.'; then
       has_audio=1
     fi
+
     case "$codec" in
       vp9|vp8|av1) target_ext="webm" ;;
       h264|hevc)   target_ext="mp4"  ;;
       *)           target_ext="${file##*.}" ;;
     esac
+
     target="${file:r}.${target_ext}"
+
     if [[ "$target" == "$file" && $has_audio -eq 0 ]]; then
       ok "Kept: $file"
       continue
     fi
+
     tmp="${target:r}.tmp.$$.${target_ext}"
-    ffmpeg_args=(-hide_banner -loglevel error -y -i "$file" -map 0:v:0 -c:v copy -an)
+
+    ffmpeg_args=(
+      -hide_banner -loglevel error -y
+      -i "$file"
+      -map 0:v:0
+      -c:v copy
+      -an
+    )
+
     [[ "$codec" == "hevc" && "$target_ext" == "mp4" ]] && ffmpeg_args+=(-tag:v hvc1)
     ffmpeg_args+=("$tmp")
+
     info "Remuxing → ${target:t}"
-    ffmpeg "${ffmpeg_args[@]}"
+    cmd ffmpeg "${ffmpeg_args[@]}"
+
     mv -f -- "$tmp" "$target"
     ok "Created: $target"
+
     if [[ $keep_original -eq 0 && "$target" != "$file" ]]; then
       rm -f -- "$file"
       info "Removed original: $file"
     fi
   done <<< "$dl_list"
 done
+
 print -r -- "$dl_list" | while IFS= read -r p; do
   [[ -n "$p" ]] && print -P "%F{magenta}PATH%f ${p:A}"
 done
