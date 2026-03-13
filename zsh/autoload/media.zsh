@@ -70,6 +70,7 @@ alias .select-external="fd-video . /Volumes/*/Movies/Porn | fzf-select | mpv-pla
 alias .select-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | fzf-select | mpv-play"
 alias .play-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | mpv-play"
 alias .play-tower-downloads-60fps="ls-media --match-string 60fps --path /Volumes/Tower/Movies/Porn/Downloads | mpv-play"
+alias .play-tower-downloads-2160p="ls-media --match-string 2160p --path /Volumes/Tower/Movies/Porn/Downloads | mpv-play"
 alias .play-tower-masters="fd-video . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
 alias .play-tower-masters-sort="fd-video-sort . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
 alias .play-tower-downloads="fd-video . /Volumes/Tower/Movies/Porn/Downloads | mpv-play"

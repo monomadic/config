@@ -238,7 +238,7 @@ process_video() {
   local rating_suffix=""
   [[ -n "$rating" ]] && rating_suffix=" ${rating}"
 
-  local new_filename="${name_without_ext} {${resolution} ${frame_rate}fps ${duration} ${mbps} ${orientation}}${rating_suffix}.${extension}"
+  local new_filename="${name_without_ext} {${resolution}@${frame_rate}fps ${duration} ${mbps} ${orientation}}${rating_suffix}.${extension}"
   local new_path="${dirname}/${new_filename}"
 
   if [[ -e "$new_path" ]]; then
