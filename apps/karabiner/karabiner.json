@@ -15,6 +15,17 @@
             "complex_modifications": {
                 "rules": [
                     {
+                        "description": "New Rule (change left_shift+caps_lock to page_down, right_shift+caps_lock to left_command+mission_control)",
+                        "enabled": false,
+                        "manipulators": [
+                            {
+                                "from": { "key_code": "right_command" },
+                                "to": [{ "key_code": "f20" }],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
                         "description": "Toggle Fullscreen Focused Window (CMD+F10) [AppleScript]",
                         "enabled": false,
                         "manipulators": [
@@ -32,26 +43,23 @@
                         ]
                     },
                     {
-                        "description": "Fn+F3 passthrough for Screen Sharing",
-                        "enabled": false,
+                        "description": "(Remote Desktop) right command to right control",
                         "manipulators": [
                             {
                                 "conditions": [
                                     {
                                         "bundle_identifiers": [
-                                            "^com\\.apple\\.ScreenSharing$"
+                                            "com\\.microsoft\\.rdc\\.mac",
+                                            "com\\.ericom\\.blazeclient",
+                                            "^com\\.apple\\.RemoteDesktop$",
+                                            "^com\\.apple\\.RemoteDesktopViewer$",
+                                            "^com\\.apple\\.RemoteDesktopAgent$"
                                         ],
                                         "type": "frontmost_application_if"
                                     }
                                 ],
-                                "from": {
-                                    "key_code": "f3",
-                                    "modifiers": {
-                                        "mandatory": ["fn"],
-                                        "optional": []
-                                    }
-                                },
-                                "to": [{ "key_code": "f3" }],
+                                "from": { "key_code": "right_command" },
+                                "to": [{ "key_code": "right_control" }],
                                 "type": "basic"
                             }
                         ]
@@ -170,6 +178,7 @@
                     },
                     {
                         "description": "Finder: Open In Kitty (CMD+Y)",
+                        "enabled": false,
                         "manipulators": [
                             {
                                 "conditions": [
@@ -208,6 +217,7 @@
                     },
                     {
                         "description": "Map right_command+1 to control+1 and right_command+2 to control+2",
+                        "enabled": false,
                         "manipulators": [
                             {
                                 "from": {
@@ -245,6 +255,7 @@
                     },
                     {
                         "description": "Brave Browser: Cmd+Shift+F -> Search Tabs...",
+                        "enabled": false,
                         "manipulators": [
                             {
                                 "conditions": [
@@ -271,6 +282,7 @@
                     },
                     {
                         "description": "Show Desktop with fn+d",
+                        "enabled": false,
                         "manipulators": [
                             {
                                 "from": {
@@ -283,6 +295,7 @@
                         ]
                     },
                     {
+                        "enabled": false,
                         "manipulators": [
                             {
                                 "description": "Change caps_lock to escape",
