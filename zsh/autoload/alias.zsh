@@ -82,6 +82,9 @@ alias yt-dlp-ignore-history="yt-dlp --no-download-archive"
 alias yt-porn="yt-dlp --trim-filenames 200 -o '%(cast,uploader|Unknown)s - [%(channel,uploader|Unknown)s] %(title)s (%(extractor)s) #%(tags.0)s_%(tags.1)s_%(tags.2)s_%(tags.3)s_%(tags.4)s.%(ext)s' $@"
 alias yt-list-fields="yt-dlp --skip-download --print \"%()#j\" "
 
+alias .list-formats="yt-dlp --no-download-archive --list-formats"
+alias .convert-to-hevc="ffmpeg-convert-to-hevc"
+
 dl-porn-batch-file() {
   (( $# )) || { print -u2 "usage: dl-porn-batch-file <batch_file> ...<yt-dlp args>"; return 2; }
   local batch_file=$1; shift
