@@ -107,6 +107,7 @@ local function build_bar(dim)
         .. key("Q",   "uit")
         .. key("R",   "otate")
         .. key("S",   "huffle")
+        .. key("󰘴S",   "ort (asc)")
 
     return bg .. "\n" .. s
 end
