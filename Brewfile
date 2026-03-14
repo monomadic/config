@@ -4,7 +4,7 @@
 
 tap "homebrew/bundle"
 tap "homebrew/services"
-tap "rschmitt/heatseeker"
+#tap "rschmitt/heatseeker"
 tap "sumoduduk/tap" # terminusdm
 #tap "nijaru/tap" # sy
 
@@ -93,7 +93,7 @@ brew "dua-cli" # another ncdu rust
 brew "ncdu"		# disk usage
 brew "fzf"		# fuzzy filter (go)
 brew "sk"			# fuzzy filter (rust)
-brew "heatseeker" # fuzzy filter for small menus (rust)
+#brew "heatseeker" # fuzzy filter for small menus (rust)
 brew "jq"			# json tool
 brew "jless"	# json tree viewer
 brew "bottom" # htop / sysperf monitor
@@ -112,7 +112,7 @@ brew "starship" # cli prompt in rust
 cask "journey" # diary
 
 # video tools
-brew "mp4v2" # mp4 tools like mp4info etc
+#brew "mp4v2" # mp4 tools like mp4info etc
 cask "losslesscut" # lossless slicing of videos (mp4, webm, etc)
 # cask "vidcutter" # qt5 based cutter and jointer
 #cask "qlvideo" # quicklook/finder preview and info panel for unsupported videos (webm, mkv, etc)
@@ -122,7 +122,7 @@ cask "iina" # mac gui for mpv
 brew "blueutil" # bluetooth util
 
 # file manager
-brew "yazi", args: ["HEAD"] # rust based
+#brew "yazi", args: ["HEAD"] # rust based
 brew "xplr" # rust file explorer
 brew "lf" # ranger, but in c
 brew "fff" # file manager
