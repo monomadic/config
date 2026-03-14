@@ -47,6 +47,8 @@ validate-filenames-stdin() {
   done
 }
 
+alias fd-media-check-filenames="fd -t f . --exclude '*[{]*' --exclude '*[}]*'"
+
 # check filenames are valid utf-8
 check-invalid-filenames-stdin() {
   while IFS= read -r f; do

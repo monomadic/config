@@ -60,11 +60,8 @@ alias \$.=.select-pwd
 alias .play-clips="ls-media --match-string /Clips/ | mpv-play"
 alias .select-clips="fd-clips | strip-slash | fzf-select | mpv-play"
 
-alias .play-visuals='fd-video . "${DJ_VISUALS_PATHS[@]}" | mpv-play'
-alias .select-visuals="fd-video . "${DJ_VISUALS_PATHS[@]}" | fzf-select | mpv-play"
-alias .select-visuals="fd-visuals | fzf-select | mpv-play"
-
-alias .play-visuals-bg-black='fd-video --regex "#bg-black" . "${DJ_VISUALS_PATHS[@]}" | fzf-select | mpv-play'
+alias .select-visuals="fd-video . {${ICLOUD_HOME},${HOME},/Volumes/*}/Movies/Visuals | fzf-select | mpv --playlist=-"
+alias .play-visuals-bg-black='fd-video --regex "#bg-black" . {${ICLOUD_HOME},${HOME},/Volumes/*}/Movies/Visuals | mpv --playlist=-'
 
 alias .select-external="fd-video . /Volumes/*/Movies/Porn | fzf-select | mpv-play"
 alias .select-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | fzf-select | mpv-play"
