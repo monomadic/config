@@ -45,7 +45,9 @@ The intended top-level layout is:
 - `zsh/`, `neovim/`, `kitty/`, etc.: first-party config grouped by tool
 - `apps/`: app-specific config that still belongs in dotfiles
 - `scripts/`: bootstrap and machine setup scripts
-- `bin/` and `zsh/bin/`: user-facing executables
+- `bin/` and `zsh/bin/`: maintained user-facing executables
+- `vendor/bin/`: retained third-party or custom-built binaries
+- `archive/`: installers, app bundles, backups, and historical variants kept temporarily
 
 Things that should eventually move out of the main dotfiles path:
 

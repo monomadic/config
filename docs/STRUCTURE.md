@@ -11,7 +11,9 @@ This repo should optimize for two things:
 - `scripts/` contains bootstrap and machine-setup entrypoints.
 - Top-level tool directories contain hand-maintained source config.
 - `apps/` is only for app config that is still part of the dotfiles system.
-- `bin/` and `zsh/bin/` contain maintained executables, not downloaded binaries.
+- `bin/` and `zsh/bin/` contain maintained executables and compatibility wrappers.
+- `vendor/bin/` contains retained third-party or custom-built binaries.
+- `archive/` contains kept-but-not-active material such as installers, app bundles, and old variants.
 - Secrets and machine-private state do not live in git.
 - Installers, DMGs, `.app` bundles, and archives do not live beside source config.
 - Backups like `.bak`, `_old`, and `big` variants should move to an explicit archive area or be deleted.
@@ -24,6 +26,7 @@ Good fit for this repo:
 - window manager config
 - keybindings
 - reusable helper scripts
+- thin wrappers around kept vendor binaries
 - package manifests
 - Dotter package definitions
 
@@ -34,6 +37,7 @@ Poor fit for this repo:
 - generated app resources
 - large standalone binaries
 - historical snapshots kept "just in case"
+- runtime logs and scrape output
 
 ## Migration Direction
 
@@ -44,6 +48,13 @@ When cleaning up the repo, use this order:
 3. Delete or archive backup variants and `_old` directories.
 4. Keep one canonical bootstrap path per platform.
 5. Split Dotter packages by role, not by history.
+
+## Current Holding Areas
+
+- `vendor/bin/` is the temporary home for binaries you still need to sort.
+- `archive/installers/` holds DMGs and installers.
+- `archive/apps/` holds app bundles and generated app artifacts.
+- `archive/config-variants/` holds backup or oversized config variants.
 
 ## Naming
 

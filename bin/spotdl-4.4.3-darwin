@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+
+exec "$HOME/config/vendor/bin/spotdl-4.4.3-darwin" "$@"

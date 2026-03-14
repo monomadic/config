@@ -4,4 +4,5 @@
 .dotter/cache
 .dotter/cache.toml
 dotter/local.toml
+bin/Logs/
 *.lock.json
