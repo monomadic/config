@@ -6,7 +6,7 @@ tap "homebrew/bundle"
 tap "homebrew/services"
 tap "rschmitt/heatseeker"
 tap "sumoduduk/tap" # terminusdm
-tap "nijaru/tap" # sy
+#tap "nijaru/tap" # sy
 
 # localsend (airdrop alternative)
 cask "localsend"
@@ -22,7 +22,7 @@ brew "gnu-tar"
 brew "gnu-which"
 brew "grep"
 brew "uni" # unicode db
-brew "sy" # rsync replacement
+#brew "sy" # rsync replacement
 
 brew "rmrfrs" # fs cleaner supporting many project types
 
@@ -32,7 +32,7 @@ brew "m-cli" # system config tool
 
 brew "sd" # find and replace
 
-brew "karabiner-elements" # keyboard shortcuts
+cask "karabiner-elements" # keyboard shortcuts
 
 #brew "default-handler" # Utility for changing default URL scheme handlers
 # brew "screen"
@@ -44,13 +44,13 @@ brew "mas"
 
 # brew "clamxav" # antivirus
 # brew "lynis" # antivirus
-brew "powermetrics" # benchmarking, profiling
+# brew "powermetrics" # benchmarking, profiling
 
 cask "monitorcontrol" # independent controls for each monitor
 
 cask "jdownloader" # download manager
 # cask "motrix" # download manager
-cask "terminusdm"
+#cask "terminusdm"
 
 cask "swift-shift" # window manager with mouse
 
@@ -66,12 +66,12 @@ brew "ghq" # git repo management https://github.com/x-motemen/ghq
 brew "lazygit"
 # brew "degit" # git cloner (note: not on brew)
 
-cask "alt-tab" # better alt-tab switcher
+#cask "alt-tab" # better alt-tab switcher
 
 brew "gzip"
 brew "shfmt" # formatter for zsh/sh/etc
 
-brew "marta" # dual pane file manager
+cask "marta" # dual pane file manager
 
 brew "dotter" # rust dotfiles manager
 # brew "homebrew/dotter.rb"
@@ -102,7 +102,7 @@ brew "fdupes" # another rust dupe finder
 brew "czkawka" # gui dupe finder
 brew "starship" # cli prompt in rust
 
-brew "mpv", tap: "homebrew/cask/stolendata-mpv"
+#brew "mpv", tap: "homebrew/cask/stolendata-mpv"
 
 # brew "battop", tap: "indigoviolet/tap" # battery info
 # brew "battop", url: "https://raw.githubusercontent.com/indigoviolet/homebrew-tap/main/Formula/battop.rb"
@@ -115,7 +115,7 @@ cask "journey" # diary
 brew "mp4v2" # mp4 tools like mp4info etc
 cask "losslesscut" # lossless slicing of videos (mp4, webm, etc)
 # cask "vidcutter" # qt5 based cutter and jointer
-cask "qlvideo" # quicklook/finder preview and info panel for unsupported videos (webm, mkv, etc)
+#cask "qlvideo" # quicklook/finder preview and info panel for unsupported videos (webm, mkv, etc)
 cask "djv" # video review / ab testing
 cask "iina" # mac gui for mpv
 
@@ -169,30 +169,30 @@ brew "ouch" # general decompressor (rust)
 brew "zstd" # facebook zip compression (zstandard)
 
 # llm / openai
-cask "claude" # claude.ai gui
-tap "simonw/llm"
-brew "ttok" # token counter
-brew "strip-tags" # strip tags from html with gpt
-brew "llm" # cli tool to interact with large language models
+#cask "claude" # claude.ai gui
+#tap "simonw/llm"
+#brew "ttok" # token counter
+#brew "strip-tags" # strip tags from html with gpt
+#brew "llm" # cli tool to interact with large language models
 # brew "lm-studio"
 # brew "ollama"
-brew "aichat" # rust-based client for many llm platforms
+#brew "aichat" # rust-based client for many llm platforms
 
-cask "megasync" # mega.nz
+#cask "megasync" # mega.nz
 
 # macos desktop
 # cask "hiddenbar" # hides menu items (bartender is better)
-cask "bartender" # hides menu items
+#cask "bartender" # hides menu items
 cask "jordanbaird-ice" # menubar manager (like bartender, open source)
 cask "topnotch" # makes the menu bar entirely black
-cask "notchnook" # menu under notch
+#cask "notchnook" # menu under notch
 
 # encryption
 brew "age"
 brew "ssss" # shamirs secret sharing scheme (multikey)
 
-brew "there" # display local times of friends in any time zone
-brew "menuwhere" # global drill-down menu https://manytricks.com/menuwhere/
+#brew "there" # display local times of friends in any time zone
+#brew "menuwhere" # global drill-down menu https://manytricks.com/menuwhere/
 
 # development
 #	brew "cargo-nextest" # testing NEVER INSTALL THIS, brew should never manage uust EVERQ
@@ -243,7 +243,7 @@ cask "proton-mail"
 cask "proton-drive"
 # cask "hammerspoon" # lua script automation for macos
 
-cask "coconutbattery" # battery info
+#cask "coconutbattery" # battery info
 
 cask "openinterminal" # opens current finder folder in terminal
 
@@ -259,19 +259,19 @@ brew "rnr" # rust based rename
 cask "transnomino" # macos native gui renamer
 # brew "mmv" # go based util for renaming with vim
 brew "moreutils" # includes vidir, for renaming with vi
-brew "advanced-renamer"
+#brew "advanced-renamer"
 
 brew "wallpaper" # manage desktop wallpaper
 
 # bitcoin wallets
-cask "bluewallet"
-cask "sparrow"
-cask "ledger-live"
+#cask "bluewallet"
+#cask "sparrow"
+cask "ledger-wallet"
 
 # browser
 cask "firefox"
 cask "brave-browser"
-cask "mullvad-browser" # firefox-based privacy browser
+#cask "mullvad-browser" # firefox-based privacy browser
 
 # music
 cask "spotify"
@@ -291,12 +291,12 @@ cask "whatsapp"
 # reversing
 brew "binwalk" # binary analyser
 brew "bingrep" # binary analyser
-brew "radare2" # debugger / decompiler
-cask "cutter" # debugger / compiler
-cask "corretto" # jdk alternative by amazon
-cask "temurin" # jre replacement (for ghidra)
-cask "ghidra" # debugger / decompiler
-brew "rizin" # fork of radare2
+#brew "radare2" # debugger / decompiler
+#cask "cutter" # debugger / compiler
+#cask "corretto" # jdk alternative by amazon
+#cask "temurin" # jre replacement (for ghidra)
+#cask "ghidra" # debugger / decompiler
+#brew "rizin" # fork of radare2
 brew "bitwise" # bit conversion
 # brew "demumble" # demangling
 cask "hex-fiend" # hex editor
@@ -306,7 +306,7 @@ brew "aria2" # cli download client
 
 cask "airflow" # airplay streamer
 
-cask "aichat" # chatgpt etc
+#cask "aichat" # chatgpt etc
 
 # manga
 # tap "metafates/mangal"

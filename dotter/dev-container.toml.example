@@ -1,4 +1,4 @@
-packages = ["default", "nvim", "bash", "lf"]
+packages = ["default", "helix", "bash", "lf"]
 
 [variables]
 colorscheme = "nightfly"

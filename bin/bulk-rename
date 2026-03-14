@@ -14,8 +14,8 @@ TMPFILE=$(mktemp)
 # List all files in the provided directory and create an editable column next to it
 ls "$DIRECTORY" | awk '{print $0 "\t" $0}' > "$TMPFILE"
 
-# Open the temporary file in Neovim for editing
-nvim "$TMPFILE"
+# Open the temporary file in the configured editor
+"${EDITOR:-hx}" "$TMPFILE"
 
 # Process renaming
 while IFS=$'\t' read -r oldname newname; do

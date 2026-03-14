@@ -18,15 +18,14 @@ packages = [
   "kitty",
   "lf",
   "mpv",
-  "nvim",
   "skhd",
   "zellij",
   "zsh",
 ]
 
 [files]
-"nu/config.nu" = "/Users/nom/Library/Application Support/nushell/config.nu"
-"nu/env.nu" = "/Users/nom/Library/Application Support/nushell/env.nu"
+"config/shell/nu/config.nu" = "/Users/nom/Library/Application Support/nushell/config.nu"
+"config/shell/nu/env.nu" = "/Users/nom/Library/Application Support/nushell/env.nu"
 
 [variables]
 colorscheme = "chadracula"

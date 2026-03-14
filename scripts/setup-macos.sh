@@ -64,7 +64,7 @@ main() {
   ensure_dotter_local_config
 
   echo "Deploying dotfiles with Dotter..."
-  "$DOTFILES_DIR/zsh/bin/dotter-deploy"
+  "$DOTFILES_DIR/config/shell/zsh/bin/dotter-deploy"
 
   cat <<EOF
 

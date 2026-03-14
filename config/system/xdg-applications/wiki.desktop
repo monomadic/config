@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=wiki
+Comment=Open wiki in helix
+Icon=utilities-terminal
+Terminal=true
+Exec=hx /mnt/data/wiki/index.md
+Path=/mnt/data/wiki
+Categories=ConsoleOnly;System;FileTools;FileManager
+MimeType=inode/directory;

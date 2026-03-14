@@ -7,10 +7,10 @@ default_target_type = "symbolic"
 depends = []
 
 [delta.files]
-"delta/gitconfig" = "~/.gitconfig"
+"config/dev/delta/gitconfig" = "~/.gitconfig"
 
 [dprint.files]
-"apps/dprint" = "~/.config/dprint"
+"config/apps/dprint" = "~/.config/dprint"
 
 [default.files]
 
@@ -22,95 +22,96 @@ depends = []
 "bin" = { target = "~/.bin/", type = "symbolic" }
 
 [karabiner.files]
-"apps/karabiner" = "~/.config/karabiner"
+"config/apps/karabiner" = "~/.config/karabiner"
 
 [switch.files]
-"switch" = "~/.switch"
+"config/media/switch" = "~/.switch"
 
 [rclone.files]
-"apps/rclone" = "~/.config/rclone"
+"config/apps/rclone" = "~/.config/rclone"
 
 [hammerspoon.files]
-"hammerspoon" = "~/.hammerspoon"
+"config/windowing/hammerspoon" = "~/.hammerspoon"
 
 [joshuto.files]
-"joshuto" = "~/.config/joshuto"
+"config/navigation/joshuto" = "~/.config/joshuto"
 
 [yazi.files]
-"apps/yazi" = { target = "~/.config/yazi", type = "symbolic" }
+"config/apps/yazi" = { target = "~/.config/yazi", type = "symbolic" }
 
 [chafa.files]
 "scripts/chafa-select" = "~/.bin/chafa-select"
 
 [zellij.files]
-"zellij" = { target = "~/.config/zellij", type = "symbolic" }
+"config/terminals/zellij" = { target = "~/.config/zellij", type = "symbolic" }
 
 [mpv.files]
-"mpv" = "~/.config/mpv"
+"config/media/mpv" = "~/.config/mpv"
 
 [alacritty]
-files = { "alacritty/alacritty.toml" = "~/.config/alacritty/alacritty.toml" }
+files = { "config/terminals/alacritty/alacritty.toml" = "~/.config/alacritty/alacritty.toml" }
 
 [kitty.files]
-"kitty" = "~/.config/kitty"
+"config/terminals/kitty" = "~/.config/kitty"
 
 [nu]
-files = { "nu" = "~/.config/nushell" }
+files = { "config/shell/nu" = "~/.config/nushell" }
 
 [skhd]
-files = { "skhd/skhd.conf" = "~/.config/skhd/skhdrc" }
+files = { "config/windowing/skhd/skhd.conf" = "~/.config/skhd/skhdrc" }
 
 [bash]
-files = { "bash/rc.bash" = "~/.bashrc", "bash/fzm.bash" = "~/.bash/fzm.bash" }
+files = { "config/shell/bash/rc.bash" = "~/.bashrc", "config/shell/bash/fzm.bash" = "~/.bash/fzm.bash" }
 
 [sway]
 [sway.files]
-"sway.conf" = "~/.config/sway/config"
-"yambar.yml" = "~/.config/yambar/config.yml"
-"waybar" = "~/.config/waybar"
+"config/windowing/sway/sway.conf" = "~/.config/sway/config"
+"config/windowing/yambar/yambar.yml" = "~/.config/yambar/config.yml"
+"config/windowing/waybar" = "~/.config/waybar"
 
 [nvim]
-files = { "neovim" = "~/.config/nvim" }
+# Dormant package kept for source retention; not selected by active machine profiles.
+files = { "config/editors/neovim" = "~/.config/nvim" }
 #files = { "neovim.lua" = "~/.config/nvim/init.lua", "snippets" = "~/.config/nvim/snippets" }
 # variables = { "colorscheme" = "darkblue" }
 
 [foot]
-files = { "foot/foot.ini" = "~/.config/foot/foot.ini" }
+files = { "config/terminals/foot/foot.ini" = "~/.config/foot/foot.ini" }
 
 [xdg]
-files = { "xdg-applications" = "~/.local/share/applications" }
+files = { "config/system/xdg-applications" = "~/.local/share/applications" }
 
 [helix]
-files = { "helix" = "~/.config/helix" }
+files = { "config/editors/helix" = "~/.config/helix" }
 
 [starship]
-files = { "starship/starship.toml" = "~/.config/starship.toml" }
+files = { "config/shell/starship/starship.toml" = "~/.config/starship.toml" }
 
 [yt-dlp.files]
-"apps/yt-dlp" = "~/.config/yt-dlp/"
+"config/apps/yt-dlp" = "~/.config/yt-dlp/"
 # "apps/yt-dlp/" = "~/.config/yt-dlp/plugins/sites/yt_dlp_plugins/extractorplugins/mysites/yt_dlp_plugins/extractor"
 
 [lf]
 [lf.files]
-"lf/lfrc.conf" = { target = "~/.config/lf/lfrc", type = "symbolic" }
-"lf/pv.sh" = "~/.config/lf/pv.sh"
-"lf/icons" = "~/.config/lf/icons"
-"lf/colors" = "~/.config/lf/colors"
+"config/navigation/lf/lfrc.conf" = { target = "~/.config/lf/lfrc", type = "symbolic" }
+"config/navigation/lf/pv.sh" = "~/.config/lf/pv.sh"
+"config/navigation/lf/icons" = "~/.config/lf/icons"
+"config/navigation/lf/colors" = "~/.config/lf/colors"
 
 [zsh]
 [zsh.files]
-"zsh/zshrc.zsh" = "~/.zshrc"
-"zsh/zshenv.zsh" = "~/.zshenv"
-"zsh/zprofile.zsh" = "~/.zprofile"
-"zsh/zlogin.zsh" = "~/.zlogin"
-"zsh/zlogout.zsh" = "~/.zlogout"
-"zsh/emoji.json" = "~/.zsh/emoji.json"
-"zsh/completions" = "~/.zsh/completions"
-"zsh/autoload" = "~/.zsh/autoload"
-"zsh/bin" = "~/.zsh/bin"
+"config/shell/zsh/zshrc.zsh" = "~/.zshrc"
+"config/shell/zsh/zshenv.zsh" = "~/.zshenv"
+"config/shell/zsh/zprofile.zsh" = "~/.zprofile"
+"config/shell/zsh/zlogin.zsh" = "~/.zlogin"
+"config/shell/zsh/zlogout.zsh" = "~/.zlogout"
+"config/shell/zsh/emoji.json" = "~/.zsh/emoji.json"
+"config/shell/zsh/completions" = "~/.zsh/completions"
+"config/shell/zsh/autoload" = "~/.zsh/autoload"
+"config/shell/zsh/bin" = "~/.zsh/bin"
 
 [dotter]
 files = { "dotter/global.toml" = "~/.config/dotter/global.toml" }
 
 [gitui]
-files = { "gitui/vim.ron" = "~/.config/gitui/key_bindings.ron" }
+files = { "config/dev/gitui/vim.ron" = "~/.config/gitui/key_bindings.ron" }

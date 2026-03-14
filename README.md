@@ -5,6 +5,7 @@ This repo is now organized around one rule:
 - package installation is handled by the platform package manager
 - file placement is handled by Dotter
 - machine-specific selection lives in `dotter/local.toml`
+- Helix is the active editor; Neovim stays in-tree as inactive source config
 
 ## Bootstrap
 
@@ -34,18 +35,26 @@ That script will:
 Manual deploy:
 
 ```bash
-~/config/zsh/bin/dotter-deploy
+~/config/config/shell/zsh/bin/dotter-deploy
 ```
 
 ## Structure
 
 The intended top-level layout is:
 
-- `dotter/`: deployment manifests and machine profiles
-- `zsh/`, `neovim/`, `kitty/`, etc.: first-party config grouped by tool
-- `apps/`: app-specific config that still belongs in dotfiles
+- `config/`: active config source grouped by domain
+- `config/shell/`: shell and prompt config
+- `config/editors/`: editor config, with Helix active and Neovim dormant
+- `config/terminals/`: terminal and multiplexer config
+- `config/navigation/`: file navigation tools
+- `config/windowing/`: window manager, launcher, and desktop UI config
+- `config/media/`: media player and media-adjacent config
+- `config/apps/`: app-specific config that still belongs in dotfiles
+- `config/dev/`: development tool config
+- `config/system/`: system integration like desktop entries and bootloader config
+- `assets/`: fonts and icons
 - `scripts/`: bootstrap and machine setup scripts
-- `bin/` and `zsh/bin/`: maintained user-facing executables
+- `bin/` and `config/shell/zsh/bin/`: maintained user-facing executables
 - `vendor/bin/`: retained third-party or custom-built binaries
 - `archive/`: installers, app bundles, backups, and historical variants kept temporarily
 

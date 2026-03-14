@@ -1,0 +1,63 @@
+#!/usr/bin/env zsh
+
+EDITOR_CMD="${EDITOR:-hx}"
+
+# Launch an overlay window with fzf
+kitty @ launch --type=overlay --title "Config Finder" --cwd "$PWD" --keep-focus --stdin-source=@ --stdin-add-formatting=no --hold
+
+# Get window ID
+FZF_WINDOW=$(kitty @ ls | jq -r '.[] | select(.tabs[].windows[].title == "Config Finder") | .tabs[].windows[].id')
+
+# Function to switch search mode
+toggle_search_mode() {
+  if [[ "$SEARCH_MODE" == "fd" ]]; then
+    SEARCH_MODE="rg"
+  else
+    SEARCH_MODE="fd"
+  fi
+}
+
+# Trap Ctrl+C to exit cleanly
+trap "exit" INT
+
+# Default to filename search
+SEARCH_MODE="fd"
+
+while true; do
+  # Generate file list based on search mode
+  if [[ "$SEARCH_MODE" == "fd" ]]; then
+    FILE=$(fd . --type f --hidden --follow --exclude .git |
+      fzf --preview 'bat --color=always --style=numbers {}' \
+        --bind 'ctrl-j:preview-down,ctrl-k:preview-up' \
+        --bind 'esc:abort' \
+        --bind 'enter:accept' \
+        --header 'Controls:
+  enter: open in editor
+  esc: exit
+  ctrl-j/k: scroll preview
+  ctrl-c: exit' \
+        --preview-window 'right:60%')
+  else
+    FILE=$(rg --files-with-matches "" |
+      fzf --preview 'bat --color=always --style=numbers {}' \
+        --bind 'ctrl-j:preview-down,ctrl-k:preview-up' \
+        --bind 'esc:abort' \
+        --bind 'enter:accept' \
+        --header 'Controls:
+  enter: open in editor
+  esc: exit
+  ctrl-j/k: scroll preview
+  ctrl-c: exit' \
+        --preview-window 'right:60%')
+  fi
+
+  # Exit if no file selected (user pressed ESC or ctrl-c)
+  if [[ -z "$FILE" ]]; then
+    exit 0
+  fi
+
+  # Open selected file in the configured editor
+  if [[ -n "$FILE" ]]; then
+    kitty @ launch --type=overlay --title "Editor" --cwd "$PWD" --hold --execute ${=EDITOR_CMD} "$FILE"
+  fi
+done
