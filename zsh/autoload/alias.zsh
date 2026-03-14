@@ -668,7 +668,8 @@ alias dl-visuals="yt-bestvideo --out '$ICLOUD_HOME/Movies/Visuals/Downloads'"
 # Misc SSH & Remote
 # ============================================================================
 
-alias m4="kitty kitten ssh nom@m4.local"
+alias .ssh-m4="kitty kitten ssh nom@m4.local"
+alias .ssh-m3="kitty kitten ssh nom@m3.local"
 
 # ============================================================================
 # Dotter (dotfile manager)
