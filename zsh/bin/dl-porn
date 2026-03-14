@@ -34,9 +34,6 @@ yt-dlp \
   --output-na-placeholder "" \
   --replace-in-metadata "tags" "[ _]+" "-" \
   --progress --console-title \
-  --add-metadata \
   --trim-filenames 200 \
   "${passthru[@]}" \
   "$url"
-
-open --reveal "${output_path}/"
