@@ -1,4 +1,7 @@
 .DS_Store
+.env
+.env.*
+!.env.example
 .Brewfile.lock.json
 .dotter/local.toml
 .dotter/cache
