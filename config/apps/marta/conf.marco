@@ -16,4 +16,8 @@ keyBindings {
     "Cmd+P" "core.actions"
     "Ctrl+N" "core.move.down"
     "Ctrl+P" "core.move.up"
+    "Ctrl+J" "core.move.down"
+    "Ctrl+K" "core.move.up"
+    "Ctrl+H" "core.move.left"
+    "Ctrl+L" "core.move.right"
 }

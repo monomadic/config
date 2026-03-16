@@ -3,17 +3,17 @@ name "Black"
 base {
     appearance "dark"
     background #000000
-    separator #121212
-    text #d0d0d0
+    separator #111111
+    text #888888
 }
 
 actionBar {
     separator #121212
 
     button {
-        background #0a0a0a
-        hotkey #b8b8b8
-        text #d8d8d8
+        background #111111
+        hotkey #04F273
+        text #FFFFFF
     }
 }
 
@@ -33,15 +33,15 @@ breadcrumbs {
 
 files {
     background {
-        alternate #050505
-        current #1a1a1a
-        currentSelected #202020
-        selected #0d0d0d
+        alternate #000000
+        current #0000F3
+        currentSelected #0000FF
+        selected #000093
     }
 
     dragDropSelection {
-        color #8a8a8a
-        width 1
+        color #04F273
+        width 2
     }
 
     text {
