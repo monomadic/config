@@ -59,8 +59,7 @@ _edit-script() {
   local file header base
 
   dirs=(
-    "$HOME/config/bin"
-    "$HOME/config/zsh/bin"
+    "$DOTFILES_DIR/config/shell/zsh/bin"
   )
 
   for dir in $dirs; do
