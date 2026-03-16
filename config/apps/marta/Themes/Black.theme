@@ -1,0 +1,136 @@
+name "Black"
+
+base {
+    appearance "dark"
+    background #000000
+    separator #121212
+    text #d0d0d0
+}
+
+actionBar {
+    separator #121212
+
+    button {
+        background #0a0a0a
+        hotkey #b8b8b8
+        text #d8d8d8
+    }
+}
+
+asyncProgressBar {
+    border #3a3a3a
+    progress #8a8a8a
+    itemProgress #d0d0d0
+}
+
+breadcrumbs {
+    color1 #000000
+    color2 #0c0c0c
+    color3 #181818
+    separator #4a4a4a
+    text #bdbdbd
+}
+
+files {
+    background {
+        alternate #050505
+        current #1a1a1a
+        currentSelected #202020
+        selected #0d0d0d
+    }
+
+    dragDropSelection {
+        color #8a8a8a
+        width 1
+    }
+
+    text {
+        current #ffffff
+        currentSelected #ffffff
+        hidden #5a5a5a
+        matched #7fb3ff
+        selected #d0d0d0
+
+        highlighting1 #7fb3ff
+        highlighting2 #a8e6a1
+        highlighting3 #ffc27a
+        highlighting4 #d6a8ff
+    }
+}
+
+searchBar {
+    query {
+        border #1c1c1c
+        text #d0d0d0
+        placeholder #77d0d0d0
+    }
+
+    results {
+        highlighting #7fb3ff
+        selection #1f1f1f
+        subtitle #7a7a7a
+        text #d0d0d0
+    }
+
+    rowSeparator {
+        color #1a1a1a
+        show true
+    }
+}
+
+statusBar {
+    background #050505
+    border #141414
+    text #bdbdbd
+    quickSelectNoResultsHighlighting #8b0000
+}
+
+tableHeader {
+    separator #141414
+    text #9a9a9a
+
+    pressed {
+        background #111111
+    }
+}
+
+tabs {
+    active {
+        text #d0d0d0
+    }
+
+    inactive {
+        background #050505
+        text #6a6a6a
+    }
+}
+
+terminal {
+    caret {
+        background #d0d0d0
+        text #000000
+    }
+}
+
+textEditor {
+    error #d75f5f
+    warning #b58900
+    keyword #8ec07c
+    comment #6a6a6a
+    identifier #d0d0d0
+
+    literal {
+        string #a8e6a1
+        number #7fb3ff
+        color #7fb3ff
+    }
+
+    gutter {
+        background #0b0b0b
+        text #779a9a9a
+    }
+}
+
+titleBar {
+    text #c8c8c8
+}
