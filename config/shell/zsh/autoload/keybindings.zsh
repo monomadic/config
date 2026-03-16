@@ -130,11 +130,6 @@ if [[ -o interactive ]]; then
     zle reset-prompt
   }
 
-  # Open Finder in current directory (macOS)
-  open_finder_pwd() {
-    open .
-  }
-
   # ===============================================================================
   # FZF Widgets
   # ===============================================================================

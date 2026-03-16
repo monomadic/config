@@ -1,0 +1,19 @@
+environment {
+    terminal "Kitty"
+    textEditor "hx"
+}
+
+behavior {
+    theme "Commander"
+    
+    layout {
+        alwaysShowTabBar false
+        showActionBar true
+    }
+}
+
+keyBindings {
+    "Cmd+P" "core.actions"
+    "Ctrl+N" "core.move.down"
+    "Ctrl+P" "core.move.up"
+}

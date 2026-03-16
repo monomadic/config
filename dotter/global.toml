@@ -121,3 +121,7 @@ files = { "dotter/global.toml" = "~/.config/dotter/global.toml" }
 
 [gitui]
 files = { "config/dev/gitui/vim.ron" = "~/.config/gitui/key_bindings.ron" }
+
+[marta.files]
+"config/apps/marta/conf.marco" = "~/Library/Application Support/org.yanex.marta/conf.marco"
+"config/apps/marta/favorites.marco" = "~/Library/Application Support/org.yanex.marta/favorites.marco"

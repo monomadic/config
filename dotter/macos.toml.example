@@ -19,6 +19,7 @@ packages = [
   "joshuto",
   "kitty",
   "lf",
+  "marta",
   "mpv",
   "skhd",
   "zellij",
