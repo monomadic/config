@@ -1,6 +1,8 @@
 packages = [
 	"hammerspoon",
-	"karabiner",
+	# Select exactly one Karabiner package for this host:
+	"karabiner_m3",
+	# "karabiner_m4",
 	"starship",
 	"switch",
 	"yazi",

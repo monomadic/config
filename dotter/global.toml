@@ -24,6 +24,12 @@ depends = []
 [karabiner.files]
 "config/apps/karabiner" = "~/.config/karabiner"
 
+[karabiner_m3.files]
+"config/apps/karabiner-m3" = "~/.config/karabiner"
+
+[karabiner_m4.files]
+"config/apps/karabiner-m4" = "~/.config/karabiner"
+
 [switch.files]
 "config/media/switch" = "~/.switch"
 
