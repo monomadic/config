@@ -3,13 +3,63 @@ environment {
     textEditor "hx"
 }
 
+layout {
+    alwaysShowTabBar false
+    showActionBar true
+}
+
 behavior {
     theme "Black"
     
-    layout {
-        alwaysShowTabBar false
-        showActionBar true
+
+    
+    timeFormat {
+        separator ", "
+        normal "%-H:%M%p"
     }
+    
+    setCurrentPathAsWindowTitle true
+    preselectFirstMenuItem true
+
+    table {
+        showIcons true
+        iconSize 12
+        verticalPadding 5
+    
+        useAlternateColor false
+        colorHighlighting true
+
+        folderPrefix ""
+        folderSuffix ""
+    
+        showGoUpFolder false
+        selectGoUpFolderOnEnter true
+    
+        maxItemCount -1
+        rightClickSelect false
+        
+        defaults {
+            columns ">size:80,modified:135"
+            showHiddenFiles false
+            
+            ordering {
+                column "fileName"
+                isAscending true
+                showFoldersOnTop true
+            }
+        }
+    }
+}
+
+fonts {
+    actionBar [ "Hack Nerd Font Mono" 12 ]
+    breadcrumbs [ "Hack Nerd Font Mono" 12 ]
+    virtualTabs [ "Default Bold" 12 ]
+    files [ "Hack Nerd Font Mono" 12 ]
+    statusBar [ "Default Light" 11 ]
+    tableHeader [ "Default" 11 ]
+    tabs [ "Default" 12 ]
+    preferences [ "Hack Nerd Font Mono" 12 ]
 }
 
 keyBindings {
@@ -18,6 +68,6 @@ keyBindings {
     "Ctrl+P" "core.move.up"
     "Ctrl+J" "core.move.down"
     "Ctrl+K" "core.move.up"
-    "Ctrl+H" "core.move.left"
-    "Ctrl+L" "core.move.right"
+    "Ctrl+H" "core.change.current.pane"
+    "Ctrl+L" "core.change.current.pane"
 }
