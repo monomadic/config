@@ -27,11 +27,15 @@ tmp_raw=$(mktemp -t fzf-select.raw.XXXXXX)
 tmp_lines=$(mktemp -t fzf-select.lines.XXXXXX)
 
 cleanup() {
-  rm -f "$tmp_raw" "$tmp_lines"
+  rm -f -- "$tmp_raw" "$tmp_lines"
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 cat > "$tmp_raw"
+
+esc=$'\033'
+grey="${esc}[90m"
+reset="${esc}[0m"
 
 while IFS= read -r raw; do
   [[ -z "$raw" ]] && continue
@@ -41,11 +45,6 @@ while IFS= read -r raw; do
   else
     base=${raw:t}
     dir=${raw:h}
-
-    local esc grey reset
-    esc=$'\033'
-    grey="${esc}[90m"
-    reset="${esc}[0m"
 
     if $print_color; then
       disp="${base} ${grey}${dir}${reset}"
@@ -68,6 +67,8 @@ fzf_args=(
   --bind 'alt-r:execute-silent(open --reveal {1})'
   --bind 'ctrl-r:execute-silent(open --reveal {1})'
 )
+
+$print_color && fzf_args+=(--ansi)
 
 set +e
 selected=$(

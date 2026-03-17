@@ -1,0 +1,181 @@
+#!/bin/zsh
+# validate-filenames — validate and optionally fix filenames read from stdin
+# Usage: printf '%s\n' /path/to/file1 /path/to/file2 | validate-filenames
+#        find . -maxdepth 1 -type f | validate-filenames
+
+setopt EXTENDED_GLOB NO_UNSET
+
+TTY=/dev/tty
+
+# ── output helpers ────────────────────────────────────────────────────────────
+_pass() { print -P "  %F{green}✓%f $*" >$TTY }
+_fail() { print -P "  %F{red}✗%f $*" >$TTY }
+_info() { print -P "  %F{blue}→%f $*" >$TTY }
+_warn() { print -P "  %F{yellow}!%f $*" >$TTY }
+
+# ── rename prompt ─────────────────────────────────────────────────────────────
+# Result (new or unchanged path) is written to $_renamed
+_renamed=''
+_prompt_rename() {
+    local src=$1 newname=$2
+    _info "Suggested fix:"
+    print "      was: ${src:t}" >$TTY
+    print "      now: ${newname}" >$TTY
+    printf '  Rename? [Y/n] ' >$TTY
+    local ans; IFS= read -r ans <$TTY
+    case ${ans:-Y} in
+        [Yy]|'')
+            local dest="${src:h}/${newname}"
+            if mv -n -- "$src" "$dest"; then
+                _pass "Renamed."
+                _renamed=$dest
+            else
+                _fail "Rename failed (permissions or target exists)."
+                _renamed=$src
+            fi ;;
+        *)
+            _info "Skipped."
+            _renamed=$src ;;
+    esac
+}
+
+# ── check 1: valid utf-8 ──────────────────────────────────────────────────────
+# Uses iconv to validate; strips invalid bytes as a suggested fix.
+# Note: if the shell itself garbled the path reading it, use find-invalid-filenames
+# or convmv-stdin instead — shell can't reliably hold non-UTF-8 paths in variables.
+_check_utf8() {
+    local path=$1 name=${1:t}
+
+    if printf '%s' "$name" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
+        _pass "UTF-8: valid"
+        _renamed=$path; return 0
+    fi
+
+    _fail "UTF-8: invalid byte sequences in filename"
+
+    local fixed
+    fixed=$(printf '%s' "$name" | iconv -f UTF-8 -t UTF-8 -c 2>/dev/null)
+
+    if [[ -z $fixed || $fixed == $name ]]; then
+        _warn "Cannot produce a fix in shell context — use convmv-stdin / find-invalid-filenames"
+        _renamed=$path; return 1
+    fi
+
+    _prompt_rename "$path" "$fixed"
+    return 1
+}
+
+# ── check 2: no brackets in actor field (before first ' - ') ──────────────────
+# Valid transforms:
+#   (Name) rest          → Name - rest
+#   (Name)[Extra] rest   → Name, Extra - rest
+#   (A, B)[C] rest       → A, B, C - rest
+#   (Name)               → Name -
+# Unfixable:
+#   word[bracket]        → error (bare [ without leading () group)
+_check_brackets() {
+    local path=$1 name=${1:t}
+    local pre post
+
+    if [[ $name == *' - '* ]]; then
+        pre=${name%% - *}
+        post=${name#* - }
+    else
+        pre=$name
+        post=''
+    fi
+
+    if [[ $pre != *'('* && $pre != *'['* ]]; then
+        _pass "Actor brackets: none before first ' - '"
+        _renamed=$path; return 0
+    fi
+
+    _fail "Actor brackets: ( or [ found in actor field '${pre}'"
+
+    # Must start with (actors), optionally followed by [extra], then optional title text
+    if [[ $pre =~ '^\(([^)]*)\)([[:space:]]*\[([^]]*)\])?[[:space:]]*(.*)?$' ]]; then
+        local actors=${match[1]}
+        local extra=${match[3]}    # may be empty if no [..] present
+        local remainder=${match[4]} # text after parens/brackets within pre
+
+        [[ -n $extra ]] && actors="${actors}, ${extra}"
+
+        # Reconstruct full title from intra-pre remainder + post-dash content
+        local title=''
+        if   [[ -n $remainder && -n $post ]]; then title="${remainder} - ${post}"
+        elif [[ -n $remainder ]];              then title=$remainder
+        elif [[ -n $post ]];                   then title=$post
+        fi
+
+        local fixed
+        if [[ -n $title ]]; then
+            fixed="${actors} - ${title}"
+        else
+            fixed="${actors} -"
+        fi
+
+        _prompt_rename "$path" "$fixed"
+        return 1
+    fi
+
+    # [ present but no leading () group — ambiguous, cannot safely extract actors
+    if [[ $pre == *'['* ]]; then
+        _fail "Actor brackets: bare [ without leading () group — cannot auto-fix"
+    else
+        _fail "Actor brackets: unrecognised bracket pattern — cannot auto-fix"
+    fi
+
+    _renamed=$path; return 1
+}
+
+# ── check 3: actor field character set ───────────────────────────────────────
+# Before the first ' - ', only A-Za-z, spaces, and commas are valid.
+# Expects comma-separated names, e.g.: "Firstname Lastname, Other Name"
+_check_actors() {
+    local path=$1 name=${1:t}
+    local pre
+
+    if [[ $name != *' - '* ]]; then
+        _warn "Actor field: no ' - ' separator — skipping actor format check"
+        _renamed=$path; return 1
+    fi
+
+    pre=${name%% - *}
+
+    # Residual brackets mean check 2 fix was declined — flag explicitly
+    if [[ $pre == *'('* || $pre == *')'* || $pre == *'['* || $pre == *']'* ]]; then
+        _fail "Actor field: bracket characters remain in '${pre}' (check 2 fix not applied)"
+        _renamed=$path; return 1
+    fi
+
+    if [[ $pre =~ '^[A-Za-z ,]+$' ]]; then
+        _pass "Actor field: '${pre}'"
+        _renamed=$path; return 0
+    fi
+
+    _fail "Actor field: unexpected characters in '${pre}'"
+    _fail "         only [A-Za-z], spaces, and commas allowed before first ' - '"
+    _renamed=$path; return 1
+}
+
+# ── validate one path ─────────────────────────────────────────────────────────
+_validate() {
+    local path=$1
+    print -P "\n%B%F{white}${path}%f%b" >$TTY
+
+    if [[ ! -e $path ]]; then
+        _fail "File not found"; return
+    fi
+
+    _check_utf8     "$path"; path=$_renamed
+    _check_brackets "$path"; path=$_renamed
+    _check_actors   "$path"; path=$_renamed
+}
+
+# ── main ──────────────────────────────────────────────────────────────────────
+while IFS= read -r line; do
+    [[ -z $line ]] && continue
+    _validate "$line"
+done
+
+print >$TTY
