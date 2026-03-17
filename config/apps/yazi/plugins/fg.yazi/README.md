@@ -9,7 +9,7 @@ Supports opening a specified line of search results through nvim or locating fil
 > [!NOTE]
 > The latest main branch of Yazi is required at the moment.
 >
-> Support shell: `bash`, `zsh` ,`fish` ,`nushell`
+> Support shell: `bash`, `zsh`, `fish`
 
 ## Dependencies
 

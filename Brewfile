@@ -312,3 +312,6 @@ cask "airflow" # airplay streamer
 # things.app shell access
 # tap "AlexanderWillner/tap"
 # brew "things.sh"
+#
+
+cask "supasidebar"

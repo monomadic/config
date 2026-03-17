@@ -60,9 +60,6 @@ files = { "config/terminals/alacritty/alacritty.toml" = "~/.config/alacritty/ala
 [kitty.files]
 "config/terminals/kitty" = "~/.config/kitty"
 
-[nu]
-files = { "config/shell/nu" = "~/.config/nushell" }
-
 [skhd]
 files = { "config/windowing/skhd/skhd.conf" = "~/.config/skhd/skhdrc" }
 

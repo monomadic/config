@@ -597,7 +597,6 @@ exts = [
 	{ name = "nim", text = "", fg_dark = "#f3d400", fg_light = "#514700" },
 	{ name = "nix", text = "", fg_dark = "#7ebae4", fg_light = "#3f5d72" },
 	{ name = "nswag", text = "", fg_dark = "#85ea2d", fg_light = "#427516" },
-	{ name = "nu", text = ">", fg_dark = "#3aa675", fg_light = "#276f4e" },
 	{ name = "o", text = "", fg_dark = "#9f0500", fg_light = "#9f0500" },
 	{ name = "obj", text = "󰆧", fg_dark = "#888888", fg_light = "#5b5b5b" },
 	{ name = "ogg", text = "", fg_dark = "#0075aa", fg_light = "#005880" },

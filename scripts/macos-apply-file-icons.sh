@@ -21,6 +21,7 @@ if [[ ! -d "$ICON_DIR" ]]; then
 fi
 
 ICON_MAPPINGS=(
+  "Marta.app|folder1.icns"
   "1Password.app|1password.icns"
   "Alacritty.app|alacritty1.png"
   "Brave Browser.app|brave.icns"
@@ -28,7 +29,7 @@ ICON_MAPPINGS=(
   "Firefox.app|firefox1.icns"
   "Google Chrome.app|chrome.icns"
   "iTerm.app|term.icns"
-  "Kitty.app|kitty-dark.icns"
+  "Kitty.app|terminal1.icns"
   "Numi.app|numi.icns"
   "Spotify.app|spotify.icns"
   "Telegram.app|telegram.icns"
