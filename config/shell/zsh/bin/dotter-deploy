@@ -8,6 +8,7 @@ CACHE_DIR="$XDG_CONFIG_HOME/dotter/cache"
 CACHE_FILE="$XDG_CONFIG_HOME/dotter/cache.toml"
 GLOBAL_CONFIG="$CONFIG_DIR/dotter/global.toml"
 LOCAL_CONFIG="$CONFIG_DIR/dotter/local.toml"
+MACOS_ICON_SCRIPT="$CONFIG_DIR/scripts/macos-apply-file-icons.sh"
 
 if [[ ! -d "$CONFIG_DIR" ]]; then
   echo "Error: dotfiles directory not found: $CONFIG_DIR"
@@ -36,6 +37,10 @@ mkdir -p "$CACHE_DIR"
     --global-config "$GLOBAL_CONFIG" \
     --local-config "$LOCAL_CONFIG"
 )
+
+if [[ "$OSTYPE" == darwin* ]] && [[ -x "$MACOS_ICON_SCRIPT" ]]; then
+  "$MACOS_ICON_SCRIPT"
+fi
 
 echo
 echo "Dotter deploy completed successfully."

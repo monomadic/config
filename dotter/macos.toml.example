@@ -26,10 +26,6 @@ packages = [
   "zsh",
 ]
 
-[files]
-"config/shell/nu/config.nu" = "/Users/nom/Library/Application Support/nushell/config.nu"
-"config/shell/nu/env.nu" = "/Users/nom/Library/Application Support/nushell/env.nu"
-
 [variables]
 colorscheme = "chadracula"
 zk_path = "~/workspaces/notes"

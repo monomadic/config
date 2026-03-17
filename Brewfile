@@ -2,11 +2,7 @@
 
 # note: add https://github.com/wader/fq
 
-tap "homebrew/bundle"
-tap "homebrew/services"
-#tap "rschmitt/heatseeker"
 tap "sumoduduk/tap" # terminusdm
-#tap "nijaru/tap" # sy
 
 # localsend (airdrop alternative)
 cask "localsend"
@@ -48,7 +44,7 @@ brew "mas"
 
 cask "monitorcontrol" # independent controls for each monitor
 
-cask "jdownloader" # download manager
+#cask "jdownloader" # download manager
 # cask "motrix" # download manager
 #cask "terminusdm"
 
@@ -74,6 +70,7 @@ brew "shfmt" # formatter for zsh/sh/etc
 cask "marta" # dual pane file manager
 
 brew "dotter" # rust dotfiles manager
+brew "fileicon" # overwrite macOS app icons during dotter deploy
 # brew "homebrew/dotter.rb"
 # brew "chezmoi" # go-based dotfiles manager
 
@@ -83,7 +80,7 @@ brew "rm-improved" # rm replacement (rip)
 brew "bat"		# cat replacement
 brew "mdless" # markdown viewer
 brew "glow"		# markdown viewer golang
-brew "bk"			# ebook reader
+#brew "bk"			# ebook reader
 # cask "calibre" # ebook converter
 brew "eza"		# ls/exa replacement (rust)
 brew "lsd"		# ls replacement (rust)
@@ -99,7 +96,7 @@ brew "jless"	# json tree viewer
 brew "bottom" # htop / sysperf monitor
 brew "fclones" # rust duplicate finder
 brew "fdupes" # another rust dupe finder
-brew "czkawka" # gui dupe finder
+#brew "czkawka" # gui dupe finder
 brew "starship" # cli prompt in rust
 
 #brew "mpv", tap: "homebrew/cask/stolendata-mpv"
@@ -116,7 +113,7 @@ cask "journey" # diary
 cask "losslesscut" # lossless slicing of videos (mp4, webm, etc)
 # cask "vidcutter" # qt5 based cutter and jointer
 #cask "qlvideo" # quicklook/finder preview and info panel for unsupported videos (webm, mkv, etc)
-cask "djv" # video review / ab testing
+#cask "djv" # video review / ab testing
 cask "iina" # mac gui for mpv
 
 brew "blueutil" # bluetooth util
@@ -127,7 +124,7 @@ brew "xplr" # rust file explorer
 brew "lf" # ranger, but in c
 brew "fff" # file manager
 brew "nnn" # tui file manager
-brew "joshuto" # ranger, but in rust. better than lf.
+#brew "joshuto" # ranger, but in rust. better than lf.
 
 brew "broot" # lists tree output
 
@@ -235,12 +232,12 @@ cask "font-symbols-only-nerd-font"
 cask "font-jetbrains-mono-nerd-font"
 
 cask "kitty" # term
-cask "alacritty" # term
+#cask "alacritty" # term
 cask "1password" # password manager
 cask "1password-cli"
-cask "protonvpn"
-cask "proton-mail"
-cask "proton-drive"
+#cask "protonvpn"
+#cask "proton-mail"
+#cask "proton-drive"
 # cask "hammerspoon" # lua script automation for macos
 
 #cask "coconutbattery" # battery info
@@ -269,7 +266,7 @@ brew "wallpaper" # manage desktop wallpaper
 cask "ledger-wallet"
 
 # browser
-cask "firefox"
+#cask "firefox"
 cask "brave-browser"
 #cask "mullvad-browser" # firefox-based privacy browser
 
@@ -285,7 +282,7 @@ cask "stats" # menu stats (like iStat)
 # messaging
 cask "signal"
 cask "telegram-desktop"
-cask "session", target: 'Session Desktop.app' # signal fork with private keys instead of phone numbers
+#cask "session", target: 'Session Desktop.app' # signal fork with private keys instead of phone numbers
 cask "whatsapp"
 
 # reversing

@@ -22,6 +22,7 @@ That script will:
 - install packages from [Brewfile](/Users/nom/config/Brewfile)
 - create `dotter/local.toml` from `dotter/macos.toml.example` if needed
 - run Dotter using `dotter/global.toml` and `dotter/local.toml`
+- reapply selected macOS app icons with `fileicon`
 
 ### Dotter model
 
@@ -37,6 +38,8 @@ Manual deploy:
 ```bash
 ~/config/config/shell/zsh/bin/dotter-deploy
 ```
+
+On macOS, `dotter-deploy` also runs [scripts/macos-apply-file-icons.sh](/Users/nom/config/scripts/macos-apply-file-icons.sh) after Dotter finishes. Edit the `ICON_MAPPINGS` array there to change which apps get custom icons.
 
 ## Structure
 
