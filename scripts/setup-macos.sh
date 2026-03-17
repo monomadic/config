@@ -7,6 +7,7 @@ DOTFILES_DIR="${DOTFILES_DIR:-$HOME/config}"
 XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 DOTTER_LOCAL_CONFIG="$DOTFILES_DIR/dotter/local.toml"
 DOTTER_PROFILE_SOURCE="${DOTTER_PROFILE_SOURCE:-$DOTFILES_DIR/dotter/macos.toml.example}"
+HEALTHCHECK_SCRIPT="$DOTFILES_DIR/scripts/check-macos-bootstrap.sh"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -63,8 +64,11 @@ main() {
 
   ensure_dotter_local_config
 
+  echo "Running bootstrap health check..."
+  "$HEALTHCHECK_SCRIPT"
+
   echo "Deploying dotfiles with Dotter..."
-  "$DOTFILES_DIR/config/shell/zsh/bin/dotter-deploy"
+  DOTTER_SKIP_HEALTHCHECK=1 "$DOTFILES_DIR/config/shell/zsh/bin/dotter-deploy"
 
   cat <<EOF
 

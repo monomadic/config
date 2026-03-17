@@ -41,6 +41,14 @@ Manual deploy:
 
 On macOS, `dotter-deploy` also runs [scripts/macos-apply-file-icons.sh](/Users/nom/config/scripts/macos-apply-file-icons.sh) after Dotter finishes. Edit the `ICON_MAPPINGS` array there to change which apps get custom icons.
 
+Preflight check:
+
+```bash
+~/config/scripts/check-macos-bootstrap.sh
+```
+
+`dotter-deploy` runs this health check automatically unless `DOTTER_SKIP_HEALTHCHECK=1` is set.
+
 ## Structure
 
 The intended top-level layout is:
