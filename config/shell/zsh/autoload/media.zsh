@@ -23,11 +23,14 @@ alias .play-pwd=".ls-pwd | mpv-play"
 alias .play-pwd-sorted=".ls-pwd | mpv-play"
 alias .play-local=".ls-local | mpv-play"
 
+alias \%play="cat $HOME/.indexes/Tower | mpv --playlist=-"
+
 alias .select=".ls | fzf-select | mpv-play"
 alias .select-all-sorted=".ls-all-sorted | fzf-select | mpv-play"
 alias .select-pwd=".ls-pwd | fzf-select | mpv-play"
 alias .select-pwd-sorted=".ls-pwd-sorted | fzf-select | mpv-play"
 
+alias \%select="cat $HOME/.indexes/Tower | fzf-select | mpv --playlist=-"
 
 alias .play-downloads="fd-video . /Volumes/*/Movies/Porn/Downloads(N) $HOME/Movies/Porn/Downloads | mpv-play"
 alias .play-local-downloads="fd-video . $HOME/Movies/Porn/Downloads | mpv-play"

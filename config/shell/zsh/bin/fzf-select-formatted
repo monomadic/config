@@ -4,19 +4,21 @@ set -euo pipefail
 use_ansi=false
 cmd=''
 reload_mode=false
+raw_mode=false
 
 while (( $# )); do
   case "$1" in
     --ansi)      use_ansi=true ;;
     --reload)    reload_mode=true ;;
+    --raw)       raw_mode=true ;;
     --cmd)
       shift
       (( $# )) || { print -u2 "Error: --cmd requires a command"; exit 1; }
       cmd="$1"
       ;;
     -h|--help)
-      print "usage: ${0:t} [--ansi] [--reload] [--cmd 'command']"
-      print "       producer | ${0:t} [--ansi]"
+      print "usage: ${0:t} [--ansi] [--reload] [--raw] [--cmd 'command']"
+      print "       producer | ${0:t} [--ansi] [--raw]"
       exit 0
       ;;
     *)
@@ -36,13 +38,20 @@ fzf_args=(
   --multi
   --exact
   --cycle
-  --delimiter=$'\t'
-  --with-nth=2
-  --accept-nth=1
   --bind 'enter:select-all+accept'
-  --bind 'alt-r:execute-silent(open --reveal {1})'
-  --bind 'ctrl-r:execute-silent(open --reveal {1})'
+  --bind 'alt-r:execute-silent(open --reveal {})'
+  --bind 'ctrl-r:execute-silent(open --reveal {})'
 )
+
+if ! $raw_mode; then
+  fzf_args+=(
+    --delimiter=$'\t'
+    --with-nth=2
+    --accept-nth=1
+    --bind 'alt-r:execute-silent(open --reveal {1})'
+    --bind 'ctrl-r:execute-silent(open --reveal {1})'
+  )
+fi
 
 $use_ansi && fzf_args+=(--ansi)
 
