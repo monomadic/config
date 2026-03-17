@@ -1,0 +1,85 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+use_ansi=false
+cmd=''
+reload_mode=false
+
+while (( $# )); do
+  case "$1" in
+    --ansi)      use_ansi=true ;;
+    --reload)    reload_mode=true ;;
+    --cmd)
+      shift
+      (( $# )) || { print -u2 "Error: --cmd requires a command"; exit 1; }
+      cmd="$1"
+      ;;
+    -h|--help)
+      print "usage: ${0:t} [--ansi] [--reload] [--cmd 'command']"
+      print "       producer | ${0:t} [--ansi]"
+      exit 0
+      ;;
+    *)
+      print -u2 "Error: unknown argument: $1"
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+command -v fzf >/dev/null 2>&1 || {
+  print -u2 "Error: missing dependency: fzf"
+  exit 1
+}
+
+fzf_args=(
+  --multi
+  --exact
+  --cycle
+  --delimiter=$'\t'
+  --with-nth=2
+  --accept-nth=1
+  --bind 'enter:select-all+accept'
+  --bind 'alt-r:execute-silent(open --reveal {1})'
+  --bind 'ctrl-r:execute-silent(open --reveal {1})'
+)
+
+$use_ansi && fzf_args+=(--ansi)
+
+set +e
+
+if [[ -n "$cmd" ]]; then
+  if $reload_mode; then
+    selected=$(
+      fzf \
+        "${fzf_args[@]}" \
+        --disabled \
+        --bind "start:reload:$cmd"
+    )
+  else
+    selected=$(
+      eval "$cmd" | fzf "${fzf_args[@]}"
+    )
+  fi
+else
+  [[ -p /dev/stdin ]] || {
+    print -u2 "Error: expected piped input or --cmd"
+    exit 1
+  }
+
+  selected=$(
+    fzf "${fzf_args[@]}"
+  )
+fi
+
+fzf_status=$?
+set -e
+
+case "$fzf_status" in
+  0) ;;
+  1) exit 0 ;;
+  130) exit 130 ;;
+  *) exit "$fzf_status" ;;
+esac
+
+[[ -n "$selected" ]] && printf '%s\n' "$selected"

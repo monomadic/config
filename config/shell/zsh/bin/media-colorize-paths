@@ -1,0 +1,44 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+show_absolute=false
+print_color=false
+
+while (( $# )); do
+  case "$1" in
+    --absolute-paths) show_absolute=true ;;
+    --color)          print_color=true ;;
+    -h|--help)
+      print "usage: ${0:t} [--absolute-paths] [--color]"
+      exit 0
+      ;;
+    *)
+      print -u2 "Error: unknown argument: $1"
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+esc=$'\033'
+grey="${esc}[90m"
+reset="${esc}[0m"
+
+while IFS= read -r raw; do
+  [[ -z "$raw" ]] && continue
+
+  if $show_absolute; then
+    disp=$raw
+  else
+    base=${raw:t}
+    dir=${raw:h}
+
+    if $print_color; then
+      disp="${base} ${grey}${dir}${reset}"
+    else
+      disp="$base $dir"
+    fi
+  fi
+
+  printf '%s\t%s\n' "$raw" "$disp"
+done
