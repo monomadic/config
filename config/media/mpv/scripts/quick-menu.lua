@@ -1,6 +1,3 @@
---
--- mp.add_key_binding(nil, "show-menu", show_menu)
--- 
 local utils = require 'mp.utils'
 local input = require 'mp.input'
 
@@ -42,7 +39,7 @@ local function cycle_aspect_ratio()
     mp.osd_message("Aspect Ratio: " .. aspect_names[next_aspect])
 end
 
-local function toggle_auto_rotate()
+local function toggle_auto_landscape()
     mp.commandv("script-message-to", "auto-landscape", "toggle")
 end
 
@@ -135,7 +132,7 @@ local function show_menu()
         "Aspect Ratio:    " .. (aspect_display[aspect] or aspect),
         "OSD Level:       " .. osd_display[osd_level],
         "────────────────────",
-        "Toggle Auto Rotate",
+        "Toggle Auto-Landscape",
         "Metadata HUD:    " .. (script_states.metadata and " ON" or "OFF"),
     }
     
@@ -146,7 +143,7 @@ local function show_menu()
         cycle_aspect_ratio,
         cycle_osd_level,
         nil,  -- Separator (no action)
-        toggle_auto_rotate,
+        toggle_auto_landscape,
         toggle_metadata,
     }
     

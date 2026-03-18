@@ -58,7 +58,6 @@ local function build_bar(dim)
         return ("Dialogue: 0,0:00:00.00,0:00:10.00,Default,,0,0,0,,%s"):format(txt)
     end
 
-    -- local bg = ("{\\an7\\pos(0,%d)\\bord0\\shad0\\1c&H000000&\\alpha&H20&\\p1}"
     local bg = ("{\\an7\\pos(0,%d)\\bord0\\shad0\\1c&H000000&\\alpha&H80&\\p1}"
         .. "m 0 0 l %d 0 l %d %d l 0 %d"
         .. "{\\p0}"):format(y0, w, w, bar_h, bar_h)
@@ -95,12 +94,12 @@ local function build_bar(dim)
         .. key(" ",  " OSD")
         .. key("󰌑 ",  " Jump Random")
         .. key("1",   " Auto Jump " .. badge(rj_autojump_on) .. fmt_delay())
-        .. key("2",   " Force-Landscape " .. badge(auto_landscape))
+        .. key("2",   " Auto-Landscape " .. badge(auto_landscape))
         .. key("9,0",   " Vol")
         .. key("⌘C",  "opy Path")
         .. key("D",   "ir-Open")
         .. key("I",   "nfo")
-        .. key("J",   "seek " .. badge(rj_autoseek_on))
+        .. key("J",   " Seek " .. badge(rj_autoseek_on))
         .. key("]",   " Next")
         .. key("P",   "an+Scan " .. badge(panscan_on))
         .. key("󰘶 P", "rogress Bar ")
@@ -112,15 +111,9 @@ local function build_bar(dim)
     return bg .. "\n" .. s
 end
 
--- -- receive auto-rotate state updates
--- mp.register_script_message("keybar-auto-rotate-state", function(v)
---     auto_rotate_on = (v == "1" or v == "true" or v == "on")
---     render_bar()
--- end)
-
 mp.add_timeout(0, function()
     mp.commandv("script-message", "randjump-query")
-    mp.commandv("script-message", "auto-rotate-query")
+    mp.commandv("script-message", "auto-landscape-query")
 end)
 
 local function render_bar()
@@ -155,7 +148,7 @@ mp.register_event("file-loaded", function()
         apply_panscan_preference()
         update_panscan_state()
         render_bar()
-        mp.commandv("script-message", "auto-rotate-query")
+        mp.commandv("script-message", "auto-landscape-query")
     end)
 end)
 

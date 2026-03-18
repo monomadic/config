@@ -135,9 +135,12 @@ local function broadcast_state()
   mp.commandv("script-message", "auto_landscape_broadcast", enabled and "yes" or "no")
 end
 
-mp.register_script_message("auto-rotate-query", function()
+local function handle_query()
   broadcast_state()
-end)
+end
+
+mp.register_script_message("auto-landscape-query", handle_query)
+mp.register_script_message("auto-rotate-query", handle_query)
 
 mp.register_script_message("toggle", function()
   enabled = not enabled
