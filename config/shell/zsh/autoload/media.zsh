@@ -25,11 +25,11 @@ alias .play-pwd=".ls-pwd | mpv-play"
 alias .play-pwd-sorted=".ls-pwd | mpv-play"
 alias .play-local=".ls-local | mpv-play"
 
-#alias .index-play="cat $HOME/.indexes/Tower | mpv --playlist=-"
+alias .index-play="cat $HOME/.indexes/Tower | mpv --playlist=-"
 alias .index-play-tower="mpv --playlist=$HOME/.indexes/Tower"
-alias \%play-tower=.index-play-tower
-alias index-tower-print="cat $HOME/.indexes/Tower"
-alias index-tower-update="fd . /Volumes/Tower/Movies/Porn/ > $HOME/.indexes/Tower"
+alias \%play-tower=".index-play-tower"
+alias .index-ls="cat $HOME/.indexes/*"
+alias .index-tower-update="fd . /Volumes/Tower/Movies/Porn/ > $HOME/.indexes/Tower"
 alias .index-select-tower="index-tower-print | .select-and-play"
 alias .index-select-tower-masters="index-tower-print | grep 'Masters' | .select-and-play"
 alias .index-select-tower-downloads="index-tower-print | grep 'Downloads' | .select-and-play"
@@ -73,7 +73,8 @@ alias .play-clips="ls-media --match-string /Clips/ | mpv-play"
 alias .select-clips="fd-clips | strip-slash | fzf-select | mpv-play"
 
 alias .select-visuals="fd-video . {${ICLOUD_HOME},${HOME},/Volumes/*}/Movies/Visuals | fzf-select | mpv --playlist=-"
-alias .play-visuals-bg-black='fd-video --regex "#bg-black" . {${ICLOUD_HOME},${HOME},/Volumes/*}/Movies/Visuals | mpv --playlist=-'
+alias .play-visuals-bg-black="fd-video --regex "#bg-black" . {${ICLOUD_HOME},${HOME},/Volumes/*}/Movies/Visuals | mpv --playlist=-"
+alias \#bg-black=".play-visuals-bg-black"
 
 alias .select-external="fd-video . /Volumes/*/Movies/Porn | fzf-select | mpv-play"
 alias .select-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | fzf-select | mpv-play"
