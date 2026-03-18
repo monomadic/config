@@ -23,7 +23,9 @@ alias .play-pwd=".ls-pwd | mpv-play"
 alias .play-pwd-sorted=".ls-pwd | mpv-play"
 alias .play-local=".ls-local | mpv-play"
 
-alias \%play="cat $HOME/.indexes/Tower | mpv --playlist=-"
+#alias .index-play="cat $HOME/.indexes/Tower | mpv --playlist=-"
+alias .index-play-tower="mpv --playlist=$HOME/.indexes/Tower"
+alias \%play-tower=.index-play-tower
 
 alias .select=".ls | fzf-select | mpv-play"
 alias .select-all-sorted=".ls-all-sorted | fzf-select | mpv-play"

@@ -1,43 +1,97 @@
 #!/usr/bin/env zsh
+set -u
+
 usage() {
-  echo "Usage: ${0:t} [--path DIR]... [--match-string STRING]... [--match-regex REGEX]... [--sort-modified | --sort-created] [--reverse] [--print0] [--verbose]" >&2
+  print -u2 -- "Usage: ${0:t} [--path PATH]... [--match-string STRING]... [--match-regex REGEX]... [--sort KEY] [--reverse] [--print0] [--verbose]"
+  print -u2 -- ""
+  print -u2 -- "Options:"
+  print -u2 -- "  --path PATH | --path=PATH"
+  print -u2 -- "  --match-string STRING | --match-string=STRING"
+  print -u2 -- "  --match-regex REGEX | --match-regex=REGEX"
+  print -u2 -- "  --sort KEY | --sort=KEY           KEY: modified | created"
+  print -u2 -- "  --reverse"
+  print -u2 -- "  --print0"
+  print -u2 -- "  --verbose"
+  print -u2 -- "  --help"
 }
-verbose=false
-print0=false
+
+typeset -a match_strings=()
+typeset -a match_regexes=()
+typeset -a explicit_paths=()
+typeset -a directories=()
+typeset -a results=()
+typeset -a sorted=()
+
+typeset verbose=false
+typeset print0=false
+typeset reverse=false
+typeset sort_key=""
+
 log_verbose() {
-  if $verbose; then
-    echo "[DEBUG] $1" >&2
+  $verbose && print -u2 -- "[DEBUG] $*"
+}
+
+die() {
+  print -u2 -- "$*"
+  exit 1
+}
+
+append_arg() {
+  local arr_name="$1"
+  local value="$2"
+  eval "${arr_name}+=(\"\$value\")"
+}
+
+parse_value_opt() {
+  # args:
+  #   $1 = option name for error messages
+  #   $2 = current token
+  #   $3 = next token (may be empty)
+  #
+  # stdout:
+  #   parsed value
+  #
+  # return:
+  #   0 on success, 1 on missing value
+  local opt_name="$1"
+  local token="$2"
+  local next="${3-}"
+
+  if [[ "$token" == *=* ]]; then
+    print -r -- "${token#*=}"
+    return 0
   fi
+
+  [[ -n "$next" ]] || {
+    print -u2 -- "Missing value for $opt_name"
+    return 1
+  }
+
+  print -r -- "$next"
   return 0
 }
-match_strings=()
-match_regexes=()
-explicit_paths=()
-sort_modified=false
-sort_created=false
-reverse=false
-# Parse command-line arguments
-while [ $# -gt 0 ]; do
-  case $1 in
-    --path)
-      explicit_paths+=("$2")
-      shift 2
+
+while (( $# > 0 )); do
+  case "$1" in
+    --path|--path=*)
+      value="$(parse_value_opt --path "$1" "${2-}")" || { usage; exit 1; }
+      append_arg explicit_paths "$value"
+      [[ "$1" == *=* ]] && shift || shift 2
       ;;
-    --match-string)
-      match_strings+=("$2")
-      shift 2
+    --match-string|--match-string=*)
+      value="$(parse_value_opt --match-string "$1" "${2-}")" || { usage; exit 1; }
+      append_arg match_strings "$value"
+      [[ "$1" == *=* ]] && shift || shift 2
       ;;
-    --match-regex)
-      match_regexes+=("$2")
-      shift 2
+    --match-regex|--match-regex=*)
+      value="$(parse_value_opt --match-regex "$1" "${2-}")" || { usage; exit 1; }
+      append_arg match_regexes "$value"
+      [[ "$1" == *=* ]] && shift || shift 2
       ;;
-    --sort-modified)
-      sort_modified=true
-      shift
-      ;;
-    --sort-created)
-      sort_created=true
-      shift
+    --sort|--sort=*)
+      value="$(parse_value_opt --sort "$1" "${2-}")" || { usage; exit 1; }
+      sort_key="$value"
+      [[ "$1" == *=* ]] && shift || shift 2
       ;;
     --reverse)
       reverse=true
@@ -51,107 +105,129 @@ while [ $# -gt 0 ]; do
       verbose=true
       shift
       ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
     *)
       usage
-      exit 1
+      die "Unknown argument: $1"
       ;;
   esac
 done
 
-# Emits NUL-separated records:
-# - unsorted: "path\0"
-# - sorted:   "ts\tpath\0"
-process_files() {
-  local dir="$1"
-  cd "$dir" || { log_verbose "Cannot access $dir"; return 1; }
+case "$sort_key" in
+  ""|modified|created) ;;
+  *)
+    die "Invalid --sort value: $sort_key (expected: modified or created)"
+    ;;
+esac
 
-  local fd_video_cmd=(fd-video -t f --full-path --ignore-case -0)
-  log_verbose "Executing: ${fd_video_cmd[*]}"
-
-  local file ts full_path match str regex
-  while IFS= read -r -d $'\0' file; do
-    match=true
-
-    for str in "${match_strings[@]}"; do
-      [[ "${file:l}" != *"${str:l}"* ]] && match=false && break
-    done
-
-    if $match; then
-      for regex in "${match_regexes[@]}"; do
-        [[ ! "${file:l}" =~ "${regex:l}" ]] && match=false && break
-      done
-    fi
-
-    if $match; then
-      full_path="$file"
-      if $sort_modified; then
-        ts=$(eza --no-filesize --no-permissions --time-style=long-iso --long "$full_path" | awk '{print $6, $7}')
-        printf "%s\t%s\0" "$ts" "$full_path"
-      elif $sort_created; then
-        ts=$(eza --no-filesize --no-permissions --time-style=long-iso --sort=created --long "$full_path" | awk '{print $6, $7}')
-        printf "%s\t%s\0" "$ts" "$full_path"
-      else
-        printf "%s\0" "$full_path"
-      fi
-    fi
-  done < <("${fd_video_cmd[@]}")
-}
-
-# Emit final output in requested delimiter (default newline, optional NUL via --print0)
-emit_paths() {
-  local -a records=("${(@f)1}") # not used; placeholder if you ever want
-  return 0
-}
-
-# Get directories — explicit --path args take precedence over ls-media-paths
 if (( ${#explicit_paths[@]} > 0 )); then
   directories=("${explicit_paths[@]}")
   log_verbose "Using explicit paths: ${directories[*]}"
 else
   directories=("${(@f)$(ls-media-paths)}")
+  log_verbose "Using paths from ls-media-paths: ${directories[*]}"
 fi
-(( ${#directories[@]} == 0 )) && echo "No directories found" >&2 && exit 1
 
-if ! $sort_modified && ! $sort_created; then
-  # Stream unsorted output: internal NUL -> final newline (default) or NUL (--print0)
+(( ${#directories[@]} > 0 )) || die "No directories found"
+
+matches_filters() {
+  local file="$1"
+  local str regex
+
+  for str in "${match_strings[@]}"; do
+    [[ "${file:l}" == *"${str:l}"* ]] || return 1
+  done
+
+  for regex in "${match_regexes[@]}"; do
+    [[ "$file" =~ $regex ]] || return 1
+  done
+
+  return 0
+}
+
+get_timestamp() {
+  local file="$1"
+
+  case "$sort_key" in
+    modified)
+      stat -f '%m' -- "$file" 2>/dev/null
+      ;;
+    created)
+      stat -f '%B' -- "$file" 2>/dev/null
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+process_files() {
+  local dir="$1"
+  local file ts
+  local -a fd_cmd
+
+  [[ -d "$dir" && -r "$dir" ]] || {
+    log_verbose "Skipping unreadable directory: $dir"
+    return 0
+  }
+
+  # Assumes fd-video behaves like fd and accepts a search pattern plus a path.
+  fd_cmd=(fd-video -t f --full-path --ignore-case -0 . "$dir")
+  log_verbose "Executing: ${fd_cmd[*]}"
+
+  while IFS= read -r -d $'\0' file; do
+    matches_filters "$file" || continue
+
+    if [[ -n "$sort_key" ]]; then
+      ts="$(get_timestamp "$file")" || continue
+      printf '%020d\t%s\0' "$ts" "$file"
+    else
+      printf '%s\0' "$file"
+    fi
+  done < <("${fd_cmd[@]}")
+}
+
+emit_path() {
+  local rec="$1"
+
+  [[ -n "$sort_key" ]] && rec="${rec#*$'\t'}"
+
+  if $print0; then
+    printf '%s\0' "$rec"
+  else
+    print -r -- "$rec"
+  fi
+}
+
+if [[ -z "$sort_key" ]]; then
   for dir in "${directories[@]}"; do
-    [[ -d "$dir" && -r "$dir" ]] || continue
-
     if $print0; then
       process_files "$dir"
     else
       while IFS= read -r -d $'\0' line; do
-        printf '%s\n' "$line"
+        print -r -- "$line"
       done < <(process_files "$dir")
     fi
   done
 else
-  # Collect, sort, then emit paths only
-  results=()
   for dir in "${directories[@]}"; do
-    [[ -d "$dir" && -r "$dir" ]] || continue
     while IFS= read -r -d $'\0' line; do
       results+=("$line")
     done < <(process_files "$dir")
   done
 
-  # Sort by the full record (timestamp prefix makes it chronological)
   if $reverse; then
     sorted=("${(On)results[@]}")
   else
     sorted=("${(on)results[@]}")
   fi
 
-  if $print0; then
-    for rec in "${sorted[@]}"; do
-      # strip "ts<TAB>" if present
-      printf '%s\0' "${rec#*$'\t'}"
-    done
-  else
-    for rec in "${sorted[@]}"; do
-      printf '%s\n' "${rec#*$'\t'}"
-    done
-  fi
+  for rec in "${sorted[@]}"; do
+    emit_path "$rec"
+  done
 fi
 
-log_verbose "Script execution completed"
+log_verbose "Execution complete."
