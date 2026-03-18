@@ -1,0 +1,57 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+tmpl='%(channel|Unknown Channel)s [%(id)s].%(ext)s'
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || {
+    print -u2 "Missing dependency: $1"
+    exit 1
+  }
+}
+
+need yt-dlp
+need ffprobe
+need ffmpeg-convert-to-hevc
+
+probe_codec() {
+  ffprobe -v error \
+    -select_streams v:0 \
+    -show_entries stream=codec_name \
+    -of default=nw=1:nk=1 \
+    -- "$1" 2>/dev/null || true
+}
+
+paths_file="$(mktemp -t ytbestvideo.paths.XXXXXX)"
+cleanup() {
+  [[ -n "${paths_file:-}" && -e "$paths_file" ]] && rm -f -- "$paths_file"
+}
+trap cleanup EXIT
+
+yt-dlp \
+  -f 'bv*+ba/b' \
+  -S 'res,fps,tbr' \
+  -o "$tmpl" \
+  --print-to-file 'after_move:filepath' "$paths_file" \
+  "$@"
+
+typeset -A seen=()
+
+while IFS= read -r file; do
+  [[ -n "$file" ]] || continue
+  [[ "$file" == /* ]] || continue
+  [[ -f "$file" ]] || continue
+  [[ -n "${seen[$file]-}" ]] && continue
+  seen[$file]=1
+
+  codec="$(probe_codec "$file")"
+
+  case "$codec" in
+    h264|hevc)
+      ;;
+    *)
+      print -u2 -- "Converting to HEVC: $file"
+      ffmpeg-convert-to-hevc "$file"
+      ;;
+  esac
+done < "$paths_file"
