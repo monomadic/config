@@ -135,6 +135,19 @@ local function broadcast_state()
   mp.commandv("script-message", "auto_landscape_broadcast", enabled and "yes" or "no")
 end
 
+mp.register_script_message("auto-rotate-query", function()
+  broadcast_state()
+end)
+
+mp.register_script_message("toggle", function()
+  enabled = not enabled
+  broadcast_state()
+  last_osd = ""
+  applied_for_path = nil
+  pending_apply = false
+  apply_for_current_file("toggled")
+end)
+
 mp.register_event("file-loaded", function()
   broadcast_state()
   last_osd = ""
@@ -148,7 +161,7 @@ mp.observe_property("video-params", "native", function()
   apply_for_current_file(nil)
 end)
 
-mp.add_key_binding("2", "toggle_force_landscape", function()
+mp.add_key_binding(nil, "toggle_force_landscape", function()
   enabled = not enabled
   broadcast_state()
   last_osd = ""
@@ -170,4 +183,3 @@ mp.register_event("log-message", function(e)
     osd("Auto-landscape: FAILED • filter removed")
   end
 end)
-

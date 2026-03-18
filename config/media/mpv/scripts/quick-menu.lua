@@ -43,7 +43,7 @@ local function cycle_aspect_ratio()
 end
 
 local function toggle_auto_rotate()
-    mp.commandv("script-message-to", "auto-rotate", "toggle")
+    mp.commandv("script-message-to", "auto-landscape", "toggle")
 end
 
 local function toggle_metadata()

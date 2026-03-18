@@ -142,10 +142,10 @@ local function toggle_auto_seek_within_file()
 end
 
 -- Key bindings
-mp.add_key_binding("ENTER", "random_playlist_jump", random_playlist_jump)
-mp.add_key_binding("1", "toggle_auto_jump", toggle_auto_jump)
-mp.add_key_binding("2", "toggle_auto_seek_within_file", toggle_auto_seek_within_file)
-mp.add_key_binding("j", "random_seek_within_file", random_seek_within_file)
+mp.add_key_binding(nil, "random_playlist_jump", random_playlist_jump)
+mp.add_key_binding(nil, "toggle_auto_jump", toggle_auto_jump)
+mp.add_key_binding(nil, "toggle_auto_seek_within_file", toggle_auto_seek_within_file)
+mp.add_key_binding(nil, "random_seek_within_file", random_seek_within_file)
 
 -- CMD+[1–9] (META+digit)
 mp.add_key_binding("meta+1", "set_delay_1", function() set_jump_delay(1) end)
