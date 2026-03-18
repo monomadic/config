@@ -193,31 +193,29 @@ end)
 
 local function show_menu()
     refresh_state()
-    mp.set_property_bool("pause", true)
-    
     local panscan = mp.get_property_number("panscan", 0)
     local aspect = mp.get_property("video-aspect-override", "-1")
     local osd_level = mp.get_property_number("osd-level", 1)
     
     local items = {
-        "Open Directory",
-        "Load Media Library",
+        "Open Dir",
+        "Load Library",
         "────────────────────",
-        "Pan & Scan:      " .. on_off(panscan > 0),
-        "Aspect Ratio:    " .. (aspect_display[aspect] or aspect),
-        "OSD Level:       " .. osd_display[osd_level],
-        "Progress Bar:    " .. on_off(state.progress),
-        "Realtime Stats:  " .. on_off(state.stats),
+        "Pan+Scan:      " .. on_off(panscan > 0),
+        "Aspect:        " .. (aspect_display[aspect] or aspect),
+        "OSD:           " .. osd_display[osd_level],
+        "Progress:      " .. on_off(state.progress),
+        "Stats:         " .. on_off(state.stats),
         "────────────────────",
-        "Auto-Landscape:  " .. on_off(state.auto_landscape),
-        "Metadata HUD:    " .. on_off(state.metadata),
-        "Auto Jump:       " .. on_off(state.auto_jump),
-        "Auto Seek:       " .. on_off(state.auto_seek),
-        "Jump Delay:      " .. format_delay(state.jump_delay),
+        "Auto-Land:     " .. on_off(state.auto_landscape),
+        "Metadata:      " .. on_off(state.metadata),
+        "Auto Jump:     " .. on_off(state.auto_jump),
+        "Auto Seek:     " .. on_off(state.auto_seek),
+        "Jump Delay:    " .. format_delay(state.jump_delay),
         "────────────────────",
-        "Sort Playlist by mtime",
-        "Expand Playlist Directories",
-        "Expand, Sort, Play Newest",
+        "Sort by mtime",
+        "Expand Dirs",
+        "Expand+Sort+Play Newest",
     }
     
     local actions = {
@@ -256,10 +254,6 @@ local function show_menu()
             if index and actions[index] then
                 actions[index]()
             end
-            mp.set_property_bool("pause", false)
-        end,
-        on_close = function()
-            mp.set_property_bool("pause", false)
         end,
     })
 end

@@ -49,23 +49,20 @@ local function build_bar(dim)
     local w = (dim and dim.w) or 1280
     local h = (dim and dim.h) or 720
 
-    local fs = math.floor(math.max(22, math.min(60, h * 0.02)))
-    local bar_h = math.floor(math.max(fs * 2.2, h * 0.06))
-    local bar_h_max = 220
-    if bar_h > bar_h_max then bar_h = bar_h_max end
+    local fs = math.floor(math.max(18, math.min(44, h * 0.017)))
+    local pad_y = math.floor(math.max(4, fs * 0.28))
+    local bar_h = math.floor(math.max(fs + pad_y * 2 + 6, h * 0.038))
 
     local y0 = h - bar_h
-    local bottom_pad = math.floor(math.max(6, fs * 0.35))
-
-    local function dlg(txt)
-        return ("Dialogue: 0,0:00:00.00,0:00:10.00,Default,,0,0,0,,%s"):format(txt)
-    end
+    local text_y = y0 + math.floor(bar_h / 2 + fs * 0.34)
 
     local bg = ("{\\an7\\pos(0,%d)\\bord0\\shad0\\1c&H000000&\\alpha&H80&\\p1}"
         .. "m 0 0 l %d 0 l %d %d l 0 %d"
         .. "{\\p0}"):format(y0, w, w, bar_h, bar_h)
-    local key_color  = "{\\1c&H00FF00&}"
+    local key_color  = "{\\1c&H9CFF00&}"
     local text_color = "{\\1c&HFFFFFF&}"
+    local chip_color = "{\\1c&H181818&\\alpha&H00&}"
+    local sep_color  = "{\\1c&H6A6A6A&}"
 
     local function badge(on)
         local c = on and "{\\1c&H00FFFF&}" or "{\\1c&H777777&}"
@@ -83,35 +80,35 @@ local function build_bar(dim)
     end
 
     local function key(label, desc)
-        return key_color .. label .. text_color .. desc .. "    "
+        return chip_color .. "  " .. key_color .. label .. text_color .. desc .. "  " .. sep_color .. "|" .. text_color
     end
 
     local s = ("{\\an2\\pos(%d,%d)\\bord0\\shad0\\fs%d}"):format(
         math.floor(w / 2),
-        h - bottom_pad,
+        text_y,
         fs
     )
 
     s = s
-        .. key("󱊷 ",  " Menu")
-        .. key(" ",  " OSD")
-        .. key("󰌑 ",  " Jump Random")
+        .. key("󱊷 ", " Menu")
+        .. key(" ", " OSD")
+        .. key("J",   " Rand Seek")
         .. key("1",   " Auto Jump " .. badge(rj_autojump_on) .. fmt_delay())
-        .. key("2",   " Auto-Landscape " .. badge(auto_landscape))
-        .. key("9,0",   " Vol")
-        .. key("⌘C",  "opy Path")
-        .. key("D",   "ir-Open")
-        .. key("I",   "nfo")
-        .. key("J",   " Seek " .. badge(rj_autoseek_on))
-        .. key("M",   "etadata " .. badge(metadata_enabled))
+        .. key("2",   " Auto-Land " .. badge(auto_landscape))
+        .. key("9/0", " Vol")
+        .. key("󰘳 C", " Path")
+        .. key("D",   " Dir")
+        .. key("I",   " Info")
+        .. key("󰘶 J", " Rand Item")
+        .. key("M",   " Meta " .. badge(metadata_enabled))
         .. key("]",   " Next")
-        .. key("P",   "an+Scan " .. badge(panscan_on))
-        .. key("󰘶 P", "rogress " .. badge(progress_visible))
-        .. key("Q",   "uit")
-        .. key("R",   "otate")
-        .. key("S",   "huffle")
-        .. key("󰘴S",   "ort (asc)")
-        .. key("F7",  " Stats " .. badge(stats_visible))
+        .. key("P",   " Pan " .. badge(panscan_on))
+        .. key("󰘴 P", " Progress " .. badge(progress_visible))
+        .. key("Q",   " Quit")
+        .. key("R",   " Rotate")
+        .. key("S",   " Shuffle")
+        .. key("󰘴 S", " Sort")
+        .. key("󱊱 ",  " Stats " .. badge(stats_visible))
 
     return bg .. "\n" .. s
 end
