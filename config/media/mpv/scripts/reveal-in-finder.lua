@@ -42,4 +42,4 @@ local function reveal_in_finder()
     mp.osd_message("Revealed in Finder", 1.5)
 end
 
-mp.add_key_binding("Ctrl+f", "reveal_in_finder", reveal_in_finder)
+mp.add_key_binding(nil, "reveal_in_finder", reveal_in_finder)

@@ -38,7 +38,14 @@ local function toggle_stats()
 		stats_timer = mp.add_periodic_timer(update_interval, display_stats)
 		msg.info("FPS/Bitrate stats toggled ON.")
 	end
+	mp.commandv("script-message", "realtime-stats-state", stats_timer and "yes" or "no")
 end
 
--- Bind toggle function to F7
-mp.add_key_binding("F7", "toggle_stats", toggle_stats)
+mp.register_script_message("realtime-stats-query", function()
+	mp.commandv("script-message", "realtime-stats-state", stats_timer and "yes" or "no")
+end)
+
+mp.add_key_binding(nil, "toggle_stats", toggle_stats)
+mp.add_timeout(0, function()
+	mp.commandv("script-message", "realtime-stats-state", "no")
+end)

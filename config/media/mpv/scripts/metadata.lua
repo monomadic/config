@@ -1,5 +1,10 @@
 -- osd-formatter.lua - Format OSD status message with custom logic
 local mp = require "mp"
+local enabled = true
+
+local function broadcast_state()
+    mp.commandv("script-message", "metadata-state", enabled and "yes" or "no")
+end
 
 local function get_orientation()
     -- Prefer display dimensions (already accounts for rotation/aspect)
@@ -28,6 +33,11 @@ local function get_orientation()
 end
 
 local function format_osd_status()
+    if not enabled then
+        mp.set_property("osd-status-msg", "")
+        return
+    end
+
     -- Human-readable file size
     local fsize = mp.get_property_number("file-size", 0)
     local human_size = "Unknown size"
@@ -108,6 +118,14 @@ local function format_osd_status()
     mp.set_property("osd-status-msg", status_msg)
 end
 
+mp.register_script_message("toggle", function()
+    enabled = not enabled
+    broadcast_state()
+    format_osd_status()
+end)
+
+mp.register_script_message("metadata-query", broadcast_state)
+
 mp.register_event("file-loaded", format_osd_status)
 mp.observe_property("video-params", "native", format_osd_status)
 mp.observe_property("osd-level", "number", format_osd_status)
@@ -116,3 +134,5 @@ mp.observe_property("pause", "bool", format_osd_status)
 if mp.get_property("path") then
     format_osd_status()
 end
+
+mp.add_timeout(0, broadcast_state)

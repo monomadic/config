@@ -46,5 +46,5 @@ function nav_dir(direction)
     end
 end
 
-mp.add_key_binding(">", "next-file-dir", function() nav_dir(1) end)
-mp.add_key_binding("<", "prev-file-dir", function() nav_dir(-1) end)
+mp.add_key_binding(nil, "next-file-dir", function() nav_dir(1) end)
+mp.add_key_binding(nil, "prev-file-dir", function() nav_dir(-1) end)

@@ -6,6 +6,10 @@ ov.z = 100            -- behind keybar
 
 local visible = true
 
+local function broadcast_state()
+  mp.commandv("script-message", "progress_bar_state", visible and "yes" or "no")
+end
+
 local function draw_bar()
   local osd_level = mp.get_property_number("osd-level", 1)
   if not visible or osd_level == 0 then
@@ -43,7 +47,12 @@ mp.observe_property("percent-pos", "number", draw_bar)
 mp.observe_property("osd-dimensions", "native", draw_bar)
 mp.observe_property("osd-level", "number", draw_bar)
 
-mp.add_key_binding("Ctrl+p", "toggle-progress", function()
+mp.register_script_message("progress-bar-query", broadcast_state)
+
+mp.add_key_binding(nil, "toggle-progress", function()
   visible = not visible
+  broadcast_state()
   draw_bar()
 end)
+
+mp.add_timeout(0, broadcast_state)

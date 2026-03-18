@@ -26,5 +26,4 @@ local function show_prompt()
 	mp.add_forced_key_binding("n", "prompt-option-n", on_option_n)
 end
 
--- Bind a key to launch the prompt (e.g. "p")
-mp.add_key_binding("h", "show-prompt", show_prompt)
+mp.add_key_binding(nil, "show-prompt", show_prompt)

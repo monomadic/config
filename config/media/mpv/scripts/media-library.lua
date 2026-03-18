@@ -1,7 +1,7 @@
 -- media-library.lua
 -- CMD+A: replace playlist with output of ls-media
 
-mp.add_key_binding("Meta+o", "load-all-media", function()
+mp.add_key_binding(nil, "load-all-media", function()
     local handle = io.popen("/Users/nom/.zsh/bin/ls-media")
     if not handle then
         mp.osd_message("load-all-media: failed to run ls-media", 3)

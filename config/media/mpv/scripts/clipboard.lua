@@ -18,4 +18,4 @@ local function copy_current_path()
     mp.osd_message("Copied to clipboard:\n" .. path, 1.5)
 end
 
-mp.add_key_binding("Meta+c", "copy-current-path", copy_current_path)
+mp.add_key_binding(nil, "copy-current-path", copy_current_path)

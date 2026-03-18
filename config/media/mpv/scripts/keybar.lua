@@ -13,6 +13,9 @@ local last_panscan = 1.0
 local PANSCAN_DEFAULT = 1.0
 
 local auto_landscape = false
+local metadata_enabled = true
+local progress_visible = true
+local stats_visible = false
 
 -- prevents observe_property("panscan") from treating our own writes as "external user changes"
 local applying_panscan = false
@@ -100,13 +103,15 @@ local function build_bar(dim)
         .. key("D",   "ir-Open")
         .. key("I",   "nfo")
         .. key("J",   " Seek " .. badge(rj_autoseek_on))
+        .. key("M",   "etadata " .. badge(metadata_enabled))
         .. key("]",   " Next")
         .. key("P",   "an+Scan " .. badge(panscan_on))
-        .. key("󰘶 P", "rogress Bar ")
+        .. key("󰘶 P", "rogress " .. badge(progress_visible))
         .. key("Q",   "uit")
         .. key("R",   "otate")
         .. key("S",   "huffle")
         .. key("󰘴S",   "ort (asc)")
+        .. key("F7",  " Stats " .. badge(stats_visible))
 
     return bg .. "\n" .. s
 end
@@ -114,6 +119,9 @@ end
 mp.add_timeout(0, function()
     mp.commandv("script-message", "randjump-query")
     mp.commandv("script-message", "auto-landscape-query")
+    mp.commandv("script-message", "metadata-query")
+    mp.commandv("script-message", "progress-bar-query")
+    mp.commandv("script-message", "realtime-stats-query")
 end)
 
 local function render_bar()
@@ -149,6 +157,9 @@ mp.register_event("file-loaded", function()
         update_panscan_state()
         render_bar()
         mp.commandv("script-message", "auto-landscape-query")
+        mp.commandv("script-message", "metadata-query")
+        mp.commandv("script-message", "progress-bar-query")
+        mp.commandv("script-message", "realtime-stats-query")
     end)
 end)
 
@@ -189,6 +200,21 @@ mp.register_script_message("keybar-toggle", function()
     render_bar()
 end)
 
+mp.register_script_message("metadata-state", function(state)
+    metadata_enabled = (state == "yes")
+    render_bar()
+end)
+
+mp.register_script_message("progress_bar_state", function(state)
+    progress_visible = (state == "yes")
+    render_bar()
+end)
+
+mp.register_script_message("realtime-stats-state", function(state)
+    stats_visible = (state == "yes")
+    render_bar()
+end)
+
 local function toggle_panscan()
     update_panscan_state()
 
@@ -207,10 +233,10 @@ local function toggle_panscan()
 end
 
 mp.register_script_message("pan-scan-toggle", toggle_panscan)
-mp.add_key_binding("p", "toggle-pan-scan", toggle_panscan)
+mp.add_key_binding(nil, "toggle-pan-scan", toggle_panscan)
 
 local OSD_FULL = 3
-mp.add_key_binding("TAB", "toggle-osd-full", function()
+mp.add_key_binding(nil, "toggle-osd-full", function()
     local v = mp.get_property_number("osd-level", OSD_FULL)
     if v and v > 0 then
         mp.set_property_number("osd-level", 0)

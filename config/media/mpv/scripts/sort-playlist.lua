@@ -321,6 +321,6 @@ local function action_expand_sort_play_newest()
   end
 end
 
-mp.add_key_binding("Ctrl+s", "sort_playlist_by_mtime", action_sort_playlist)
-mp.add_key_binding("Ctrl+d", "expand_playlist_dirs", action_expand_playlist)
-mp.add_key_binding("Ctrl+e", "expand_sort_play_newest", action_expand_sort_play_newest)
+mp.add_key_binding(nil, "sort_playlist_by_mtime", action_sort_playlist)
+mp.add_key_binding(nil, "expand_playlist_dirs", action_expand_playlist)
+mp.add_key_binding(nil, "expand_sort_play_newest", action_expand_sort_play_newest)
