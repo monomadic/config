@@ -2,7 +2,7 @@ name "Black"
 
 base {
     appearance "dark"
-    background #000000
+    background #070908
     separator #111111
     text #888888
 }
@@ -96,12 +96,13 @@ tableHeader {
 
 tabs {
     active {
-        text #d0d0d0
+        background #070908
+        text #FFFFFF
     }
 
     inactive {
-        background #050505
-        text #6a6a6a
+        background #101010
+        text #333333
     }
 }
 

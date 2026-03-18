@@ -25,10 +25,10 @@ if [[ -o interactive ]]; then
   # Navigation Functions
   # ===============================================================================
 
-  # Yazi file manager with directory change support
+  # Yazi file manager with directory change on exit
   _cd-yazi() {
     local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd
-    yazi "$@" --cwd-file="$tmp"
+    kitty-exec '   yazi ' '#FF44CC' yazi "$@" --cwd-file="$tmp"
     if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
       builtin cd -- "$cwd"
     fi

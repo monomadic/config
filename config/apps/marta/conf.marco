@@ -4,7 +4,7 @@ environment {
 }
 
 layout {
-    alwaysShowTabBar false
+    alwaysShowTabBar true
     showActionBar true
 }
 
@@ -53,9 +53,9 @@ behavior {
 
 fonts {
     actionBar [ "Hack Nerd Font Mono" 12 ]
-    breadcrumbs [ "Hack Nerd Font Mono" 12 ]
+    breadcrumbs [ "Hack Nerd Font Mono" 10 ]
     virtualTabs [ "Default Bold" 12 ]
-    files [ "Hack Nerd Font Mono" 12 ]
+    files [ "Default Light" 11 ]
     statusBar [ "Default Light" 11 ]
     tableHeader [ "Default" 11 ]
     tabs [ "Default" 12 ]

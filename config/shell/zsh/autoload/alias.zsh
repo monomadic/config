@@ -333,9 +333,9 @@ vdjstems-check-wav-lengths() {
 # ============================================================================
 
 alias yt-dlp-youtube-embedded="yt-dlp --cookies-from-browser brave --continue --progress --verbose --retries infinite --fragment-retries infinite --socket-timeout 15 -f bestvideo+ba/best --embed-metadata --extractor-args 'youtube:player-client=tv_embedded'"
+alias dp="dl-porn"
 
 alias d=download-video
-alias dp="download-video porn"
 alias dmv="download-video music-video"
 alias dl-youtube="download-video youtube"
 alias dlu="download-video-url"
@@ -353,6 +353,9 @@ alias .network-quality="networkQuality -v"
 # ============================================================================
 # Media Player Aliases
 # ============================================================================
+
+alias configure-mpv="cd $DOTFILES_DIR/config/media/mpv && kitty-exec '   mpv.conf ' '#A442F3' hx ."
+alias configure-helix="cd $DOTFILES_DIR/config/editors/helix && $EDITOR ."
 
 alias mpv-with-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
 alias mpv-without-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --no-config --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
