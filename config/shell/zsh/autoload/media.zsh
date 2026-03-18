@@ -8,6 +8,8 @@ DJ_VISUALS_PATHS=("$ICLOUD_HOME/Movies/Visuals")
 alias @play="mpv-play"
 alias @select="fzf-select | mpv-play"
 
+alias .select-and-play="fzf-select --color | mpv --playlist=-"
+
 #
 # ALIASES
 #
@@ -26,6 +28,11 @@ alias .play-local=".ls-local | mpv-play"
 #alias .index-play="cat $HOME/.indexes/Tower | mpv --playlist=-"
 alias .index-play-tower="mpv --playlist=$HOME/.indexes/Tower"
 alias \%play-tower=.index-play-tower
+alias index-tower-print="cat $HOME/.indexes/Tower"
+alias index-tower-update="fd . /Volumes/Tower/Movies/Porn/ > $HOME/.indexes/Tower"
+alias .index-select-tower="index-tower-print | .select-and-play"
+alias .index-select-tower-masters="index-tower-print | grep 'Masters' | .select-and-play"
+alias .index-select-tower-downloads="index-tower-print | grep 'Downloads' | .select-and-play"
 
 alias .select=".ls | fzf-select | mpv-play"
 alias .select-all-sorted=".ls-all-sorted | fzf-select | mpv-play"
@@ -73,8 +80,8 @@ alias .select-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies
 alias .play-masters="fd-video . /Volumes/*/Movies/Porn/Masters(N) $HOME/Movies/Porn/Masters(N) | mpv-play"
 alias .play-tower-downloads-60fps="ls-media --match-string 60fps --path /Volumes/Tower/Movies/Porn/Downloads | mpv-play"
 alias .play-tower-downloads-2160p="ls-media --match-string 2160p --path /Volumes/Tower/Movies/Porn/Downloads | mpv-play"
-alias .play-tower-masters="fd-video . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
-alias .play-tower-masters-sort="fd-video-sort . /Volumes/Tower/Movies/Porn/Masters | mpv-play"
+alias .play-tower-masters="ls-media --path=/Volumes/Tower/Movies/Porn/Masters | mpv-play"
+alias .play-tower-masters-sort="ls-media --path=/Volumes/Tower/Movies/Porn/Masters --sort created | mpv-play"
 alias .play-tower-downloads="fd-video . /Volumes/Tower/Movies/Porn/Downloads | mpv-play"
 alias .local-sorted="fd-video-sort . $LOCAL_MEDIA_PATHS | fzf-select | mpv-play"
 alias .play-local-sorted="fd-video-sort . $LOCAL_MEDIA_PATHS | fzf-select | mpv-play"
