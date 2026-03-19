@@ -12,6 +12,7 @@ need() {
 
 need yt-dlp
 need ffprobe
+need ffmpeg
 need ffmpeg-convert-to-hevc
 
 probe_codec() {
@@ -22,9 +23,50 @@ probe_codec() {
     -- "$1" 2>/dev/null || true
 }
 
+make_webm_if_needed() {
+  local src="$1"
+  local codec="$2"
+  local dst="${src:r}.webm"
+
+  if [[ "${src:e:l}" == "webm" ]]; then
+    print -r -- "$src"
+    return 0
+  fi
+
+  if [[ -e "$dst" ]]; then
+    print -r -- "$dst"
+    return 0
+  fi
+
+  print -u2 -- "Creating webm: $dst"
+
+  local -a ffmpeg_args=(
+    -hide_banner
+    -loglevel error
+    -y
+    -i "$src"
+    -map 0
+    -c copy
+  )
+
+  # Matroska/MP4 can hold odd subtitle/data streams that webm cannot.
+  # Keep only streams webm supports.
+  ffmpeg_args+=(
+    -dn
+    -map -0:s:m:codec_name:ass?
+    -map -0:s:m:codec_name:ssa?
+    -map -0:s:m:codec_name:mov_text?
+    -map -0:s:m:codec_name:hdmv_pgs_subtitle?
+    -map -0:s:m:codec_name:dvd_subtitle?
+  )
+
+  ffmpeg "${ffmpeg_args[@]}" -- "$dst"
+  print -r -- "$dst"
+}
+
 paths_file="$(mktemp -t ytbestvideo.paths.XXXXXX)"
 cleanup() {
-  [[ -n "${paths_file:-}" && -e "$paths_file" ]] && rm -f -- "$paths_file"
+  [[ -e "$paths_file" ]] && rm -f -- "$paths_file"
 }
 trap cleanup EXIT
 
@@ -48,9 +90,21 @@ while IFS= read -r file; do
 
   case "$codec" in
     h264|hevc)
+      print -u2 -- "Keeping as-is: $file ($codec)"
       ;;
+
+    vp9|vp8|av1)
+      webm_file="$(make_webm_if_needed "$file" "$codec")"
+      print -u2 -- "Converting to HEVC mp4: $webm_file"
+      ffmpeg-convert-to-hevc "$webm_file"
+      ;;
+
+    "")
+      print -u2 -- "Could not detect codec: $file"
+      ;;
+
     *)
-      print -u2 -- "Converting to HEVC: $file"
+      print -u2 -- "Converting to HEVC mp4: $file ($codec)"
       ffmpeg-convert-to-hevc "$file"
       ;;
   esac
