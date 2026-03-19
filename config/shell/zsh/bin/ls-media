@@ -220,9 +220,9 @@ else
   done
 
   if $reverse; then
-    sorted=("${(On)results[@]}")
-  else
     sorted=("${(on)results[@]}")
+  else
+    sorted=("${(On)results[@]}")
   fi
 
   for rec in "${sorted[@]}"; do

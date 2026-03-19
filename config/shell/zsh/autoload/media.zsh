@@ -25,16 +25,18 @@ alias .play-pwd=".ls-pwd | mpv-play"
 alias .play-pwd-sorted=".ls-pwd | mpv-play"
 alias .play-local=".ls-local | mpv-play"
 
-alias .index-play="cat $HOME/.indexes/Tower | mpv --playlist=-"
-alias .index-play-tower="mpv --playlist=$HOME/.indexes/Tower"
-alias \%play-tower=".index-play-tower"
-alias .index-ls="cat $HOME/.indexes/*"
-# alias .index-create-tower="fd . /Volumes/Tower/Movies/Porn/ > $HOME/.indexes/Tower"
-alias .index-select-tower="index-tower-print | .select-and-play"
-alias .index-select-tower-masters="index-tower-print | grep 'Masters' | .select-and-play"
-alias .index-select-tower-downloads="index-tower-print | grep 'Downloads' | .select-and-play"
+alias cat-indexes="cat $HOME/.indexes/*"
+alias cat-index-tower="cat $HOME/.indexes/tower-porn"
 
-index-create() {
+alias .index-play="cat-indexes | mpv --playlist=-"
+alias .index-play-tower="mpv --playlist=$HOME/.indexes/tower-porn"
+alias \%play-tower=".index-play-tower"
+# alias .index-create-tower="fd . /Volumes/Tower/Movies/Porn/ > $HOME/.indexes/Tower"
+alias .index-select-tower="cat-index-tower | .select-and-play"
+alias .index-select-tower-masters="cat-index-tower | grep 'Masters' | .select-and-play"
+alias .index-select-tower-downloads="cat-index-tower | grep 'Downloads' | .select-and-play"
+
+.index-create() {
   mkdir -p $HOME/.indexes
   ls-media --path /Volumes/Tower/Movies/Porn --sort created > $HOME/.indexes/tower-porn
   ls-media --path $HOME/Movies/Porn --sort created > $HOME/.indexes/home-porn
