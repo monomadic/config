@@ -29,10 +29,16 @@ alias .index-play="cat $HOME/.indexes/Tower | mpv --playlist=-"
 alias .index-play-tower="mpv --playlist=$HOME/.indexes/Tower"
 alias \%play-tower=".index-play-tower"
 alias .index-ls="cat $HOME/.indexes/*"
-alias .index-tower-update="fd . /Volumes/Tower/Movies/Porn/ > $HOME/.indexes/Tower"
+# alias .index-create-tower="fd . /Volumes/Tower/Movies/Porn/ > $HOME/.indexes/Tower"
 alias .index-select-tower="index-tower-print | .select-and-play"
 alias .index-select-tower-masters="index-tower-print | grep 'Masters' | .select-and-play"
 alias .index-select-tower-downloads="index-tower-print | grep 'Downloads' | .select-and-play"
+
+index-create() {
+  mkdir -p $HOME/.indexes
+  ls-media --path /Volumes/Tower/Movies/Porn --sort created > $HOME/.indexes/tower-porn
+  ls-media --path $HOME/Movies/Porn --sort created > $HOME/.indexes/home-porn
+}
 
 alias .select=".ls | fzf-select | mpv-play"
 alias .select-all-sorted=".ls-all-sorted | fzf-select | mpv-play"
