@@ -29,7 +29,7 @@ alias cat-indexes="cat $HOME/.indexes/*"
 alias cat-index-tower="cat $HOME/.indexes/tower-porn"
 
 alias .index-play="cat-indexes | mpv --playlist=-"
-alias .index-play-tower="mpv --playlist=$HOME/.indexes/tower-porn"
+alias .index-play-tower="mpv --playlist=/Volumes/Tower/Movies/Porn/.index"
 alias \%play-tower=".index-play-tower"
 # alias .index-create-tower="fd . /Volumes/Tower/Movies/Porn/ > $HOME/.indexes/Tower"
 alias .index-select-tower="cat-index-tower | .select-and-play"
@@ -38,8 +38,9 @@ alias .index-select-tower-downloads="cat-index-tower | grep 'Downloads' | .selec
 
 .index-create() {
   mkdir -p $HOME/.indexes
-  ls-media --path /Volumes/Tower/Movies/Porn --sort created > $HOME/.indexes/tower-porn
-  ls-media --path $HOME/Movies/Porn --sort created > $HOME/.indexes/home-porn
+  ls-media --path /Volumes/Tower/Movies/Porn --sort created > /Volumes/Tower/Movies/Porn/.index
+  ls-media --path /Volumes/Tower/Movies/Porn --sort created > /Volumes/Tower/Movies/Porn/.index
+  ls-media --path $HOME/Movies/Porn --sort created > $HOME/Movies/Porn/.index
 }
 
 alias .select=".ls | fzf-select | mpv-play"

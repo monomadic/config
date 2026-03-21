@@ -52,12 +52,21 @@ _check_utf8() {
     fi
 
     _fail "UTF-8: invalid byte sequences in filename"
+    _warn "Shell limitation: under a UTF-8 locale, zsh stores paths as Unicode."
+    _warn "If a filename contains non‑UTF‑8 bytes, reading it into a shell"
+    _warn "variable can corrupt or drop those bytes. Once that happens, the"
+    _warn "exact on‑disk byte sequence is no longer available to safely rename."
+    _warn "Use a byte‑safe tool (e.g. convmv, find -print0 + convmv, or a small"
+    _warn "Perl/Python helper that operates on raw bytes) to repair these names."
 
     local fixed
     fixed=$(printf '%s' "$name" | iconv -f UTF-8 -t UTF-8 -c 2>/dev/null)
 
     if [[ -z $fixed || $fixed == $name ]]; then
-        _warn "Cannot produce a fix in shell context — use convmv-stdin / find-invalid-filenames"
+        _warn "Cannot safely auto-fix here because the shell may not hold the"
+        _warn "original bytes for this path. Suggest: find DIR -depth -print0 |"
+        _warn "  convmv -f UTF-8 -t UTF-8 -c --notest --unz --list -0"
+        _warn "Then re-run with clean names."
         _renamed=$path; return 1
     fi
 
@@ -173,9 +182,27 @@ _validate() {
 }
 
 # ── main ──────────────────────────────────────────────────────────────────────
-while IFS= read -r line; do
-    [[ -z $line ]] && continue
-    _validate "$line"
-done
+# If no files provided via stdin, fall back to `ls-media`.
+
+typeset -i _processed=0
+
+_process_stream() {
+    while IFS= read -r line; do
+        [[ -z $line ]] && continue
+        (( _processed++ ))
+        _validate "$line"
+    done
+}
+
+if [[ -t 0 ]]; then
+    _info "No stdin provided; using ls-media as input"
+    ls-media | _process_stream
+else
+    _process_stream
+    if (( _processed == 0 )); then
+        _info "Stdin empty; using ls-media as input"
+        ls-media | _process_stream
+    fi
+fi
 
 print >$TTY

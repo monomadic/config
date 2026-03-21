@@ -9,3 +9,5 @@
 dotter/local.toml
 bin/Logs/
 *.lock.json
+vendor/bin/beatportdl-config.yml
+vendor/bin/beatportdl-credentials.json

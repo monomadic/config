@@ -94,6 +94,7 @@ files = { "config/shell/starship/starship.toml" = "~/.config/starship.toml" }
 "config/apps/yt-dlp" = "~/.config/yt-dlp/"
 # "apps/yt-dlp/" = "~/.config/yt-dlp/plugins/sites/yt_dlp_plugins/extractorplugins/mysites/yt_dlp_plugins/extractor"
 
+
 [lf]
 [lf.files]
 "config/navigation/lf/lfrc.conf" = { target = "~/.config/lf/lfrc", type = "symbolic" }
