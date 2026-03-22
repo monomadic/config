@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# kitty-repl: open/close/toggle a kitty overlay shell
+# Requires kitty remote control enabled (allow_remote_control + listen_on)
+
+title="repl"
+cmd="${SHELL:-zsh}"
+action="toggle" # open|close|toggle
+keep_focus=0
+cwd="${PWD}"
+
+usage() {
+  cat <<EOF
+Usage: kitty-repl [open|close|toggle] [--title NAME] [--cmd CMD] [--keep-focus] [--cwd DIR]
+
+Defaults: action=toggle, title=repl, cmd=$cmd, cwd=$cwd
+Examples:
+  kitty-repl                 # toggle overlay
+  kitty-repl open            # open overlay
+  kitty-repl close           # close overlay
+  kitty-repl --title srv --cmd "zsh -l"   # toggle with custom title/cmd
+  kitty-repl open --keep-focus            # do not steal focus on open
+EOF
+}
+
+# Parse args
+args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    open|close|toggle) action="$1"; shift ;;
+    -t|--title) title="${2:-$title}"; shift 2 ;;
+    -c|--cmd) cmd="${2:-$cmd}"; shift 2 ;;
+    --keep-focus) keep_focus=1; shift ;;
+    --cwd) cwd="${2:-$cwd}"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    --) shift; break ;;
+    *) args+=("$1"); shift ;;
+  esac
+done
+
+# Remaining args append to command
+if [[ ${#args[@]} -gt 0 ]]; then
+  cmd+=" ${args[*]}"
+fi
+
+match_expr="state:overlay && title:^${title}$"
+
+have_overlay() {
+  # Detect any matching overlay window by title
+  kitty @ ls --match "$match_expr" 2>/dev/null | command grep -q '"id"' || return 1
+}
+
+open_overlay() {
+  if (( keep_focus )); then
+    kitty @ launch --type=overlay --title "$title" --cwd "$cwd" --keep-focus sh -lc "$cmd"
+  else
+    kitty @ launch --type=overlay --title "$title" --cwd "$cwd" sh -lc "$cmd"
+  fi
+}
+
+close_overlay() {
+  # Close all overlays matching the title
+  kitty @ close-window --match "$match_expr" >/dev/null 2>&1 || true
+}
+
+case "$action" in
+  open)
+    have_overlay && exit 0
+    open_overlay
+    ;;
+  close)
+    close_overlay
+    ;;
+  toggle)
+    if have_overlay; then
+      close_overlay
+    else
+      open_overlay
+    fi
+    ;;
+esac
+

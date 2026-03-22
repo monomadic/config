@@ -5,6 +5,24 @@
 typeset -ga DJ_VISUALS_PATHS
 DJ_VISUALS_PATHS=("$ICLOUD_HOME/Movies/Visuals")
 
+play-index() {
+  
+}
+
+.play-tower-with-mount() {
+  MEDIA_PATH="/Volumes/Tower/Movies/Porn"
+
+  if [[ ! -d "/Volumes/Tower" ]]; then
+     osascript -e 'tell application "Finder" to mount volume "smb://nom@m4.local/Tower"'
+  fi
+
+  if [[ ! -d "$MEDIA_PATH/.index" ]]; then
+     ls-media --path "$MEDIA_PATH" --sort created > "$MEDIA_PATH/.index"
+  fi
+
+  mpv --playlist="$MEDIA_PATH/.index"
+}
+
 alias @play="mpv-play"
 alias @select="fzf-select | mpv-play"
 
@@ -13,6 +31,7 @@ alias .select-and-play="fzf-select --color | mpv --playlist=-"
 #
 # ALIASES
 #
+alias fd-media=ls-media
 alias .ls="ls-media"
 alias .ls-all-sorted=".ls --sort-created"
 alias .ls-pwd=".ls --path ."
