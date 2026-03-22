@@ -55,12 +55,17 @@ alias .index-select-tower="cat-index-tower | .select-and-play"
 alias .index-select-tower-masters="cat-index-tower | grep 'Masters' | .select-and-play"
 alias .index-select-tower-downloads="cat-index-tower | grep 'Downloads' | .select-and-play"
 
-.index-create() {
-  mkdir -p $HOME/.indexes
-  ls-media --path /Volumes/Tower/Movies/Porn --sort created > /Volumes/Tower/Movies/Porn/.index
-  ls-media --path /Volumes/Tower/Movies/Porn --sort created > /Volumes/Tower/Movies/Porn/.index
-  ls-media --path $HOME/Movies/Porn --sort created > $HOME/Movies/Porn/.index
+.create-index() {
+  echo "Building index for $1"
+  ls-media --path $1 --sort created > $1/.index
 }
+
+.create-all-indexes() {
+  create-index /Volumes/Tower/Movies/Porn
+  create-index /Volumes/Tower/Movies/Porn/Downloads
+  create-index /Volumes/Tower/Movies/Porn/Masters
+}
+
 
 alias .select=".ls | fzf-select | mpv-play"
 alias .select-all-sorted=".ls-all-sorted | fzf-select | mpv-play"
