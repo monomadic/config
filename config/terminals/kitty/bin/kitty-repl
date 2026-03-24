@@ -49,20 +49,36 @@ match_expr="state:overlay && title:^${title}$"
 
 have_overlay() {
   # Detect any matching overlay window by title
-  kitty @ ls --match "$match_expr" 2>/dev/null | command grep -q '"id"' || return 1
+  if [[ -n "${KITTY_LISTEN_ON:-}" ]]; then
+    kitty @ ls --match "$match_expr" 2>/dev/null | command grep -q '"id"' || return 1
+  else
+    kitty @ --to "unix:/tmp/kitty-$USER" ls --match "$match_expr" 2>/dev/null | command grep -q '"id"' || return 1
+  fi
 }
 
 open_overlay() {
   if (( keep_focus )); then
-    kitty @ launch --type=overlay --title "$title" --cwd "$cwd" --keep-focus sh -lc "$cmd"
+    if [[ -n "${KITTY_LISTEN_ON:-}" ]]; then
+      kitty @ launch --type=overlay --title "$title" --cwd "$cwd" --keep-focus sh -lc "$cmd"
+    else
+      kitty @ --to "unix:/tmp/kitty-$USER" launch --type=overlay --title "$title" --cwd "$cwd" --keep-focus sh -lc "$cmd"
+    fi
   else
-    kitty @ launch --type=overlay --title "$title" --cwd "$cwd" sh -lc "$cmd"
+    if [[ -n "${KITTY_LISTEN_ON:-}" ]]; then
+      kitty @ launch --type=overlay --title "$title" --cwd "$cwd" sh -lc "$cmd"
+    else
+      kitty @ --to "unix:/tmp/kitty-$USER" launch --type=overlay --title "$title" --cwd "$cwd" sh -lc "$cmd"
+    fi
   fi
 }
 
 close_overlay() {
   # Close all overlays matching the title
-  kitty @ close-window --match "$match_expr" >/dev/null 2>&1 || true
+  if [[ -n "${KITTY_LISTEN_ON:-}" ]]; then
+    kitty @ close-window --match "$match_expr" >/dev/null 2>&1 || true
+  else
+    kitty @ --to "unix:/tmp/kitty-$USER" close-window --match "$match_expr" >/dev/null 2>&1 || true
+  fi
 }
 
 case "$action" in
@@ -81,4 +97,3 @@ case "$action" in
     fi
     ;;
 esac
-

@@ -21,7 +21,11 @@ from typing import List, Any
 
 
 def rc(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["kitty", "@", *args], capture_output=True, text=True)
+    to = os.environ.get("KITTY_LISTEN_ON")
+    base = ["kitty", "@"]
+    if not to:
+        base += ["--to", f"unix:/tmp/kitty-{os.environ.get('USER', '')}"]
+    return subprocess.run([*base, *args], capture_output=True, text=True)
 
 
 def main(args: List[str]) -> Any:
@@ -60,4 +64,3 @@ def main(args: List[str]) -> Any:
 def handle_result(args: List[str], data: Any, target_window_id: int, boss) -> None:
     # All the work is done in main via kitty @, nothing to handle post-run.
     return None
-

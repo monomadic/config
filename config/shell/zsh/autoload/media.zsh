@@ -29,10 +29,12 @@ alias cat-indexes="cat $HOME/.indexes/*"
 alias cat-index-tower="cat $HOME/.indexes/tower-porn"
 
 alias .index-play="cat-indexes | mpv --playlist=-"
-alias .index-play-tower="mpv --playlist=$HOME/.indexes/tower-porn"
+alias .index-play-tower="mpv --playlist=/Volumes/Tower/Movies/Porn/.index"
 alias \%play-tower=".index-play-tower"
+alias \%select-tower="cat /Volumes/Tower/Movies/Porn/.index | fzf-select | mpv-play --playlist=-"
+
 # alias .index-create-tower="fd . /Volumes/Tower/Movies/Porn/ > $HOME/.indexes/Tower"
-alias .index-select-tower="cat-index-tower | .select-and-play"
+alias .index-select-tower="%select-tower"
 alias .index-select-tower-masters="cat-index-tower | grep 'Masters' | .select-and-play"
 alias .index-select-tower-downloads="cat-index-tower | grep 'Downloads' | .select-and-play"
 
@@ -45,7 +47,36 @@ create-index() {
   create-index /Volumes/Tower/Movies/Porn
   create-index /Volumes/Tower/Movies/Porn/Downloads
   create-index /Volumes/Tower/Movies/Porn/Masters
+  create-index /Volumes/Tower/Movies/Porn/Masters/Clips
+  create-index /Volumes/Tower/Movies/Porn/Masters/Clips/Full
+  create-index "/Users/nom/Library/Mobile Documents/com~apple~CloudDocs/Movies/Visuals"
 }
+
+.play-tower-downloads-indexed() {
+  MOUNT_PATH="/Volumes/Tower"
+  MEDIA_PATH="/Movies/Porn/Downloads"
+  INDEX_DIR="${MOUNT_PATH}${MEDIA_PATH}"
+  SMB_URL="smb://nom@m4.local/Tower"
+
+  if [[ ! -d "$MOUNT_PATH" ]]; then
+    echo "Mounting $SMB_URL..."
+    osascript -e 'tell application "Finder" to mount volume "$SMB_URL"'
+  fi
+
+  echo "$SMB_URL mounted."
+
+  if [[ ! -d "$INDEX_DIR/.index" ]]; then
+    echo "Index not found at ${INDEX_DIR}/.index"
+    echo "Creating new index..."
+    ls-media --path "${INDEX_DIR}" --sort created > "${INDEX_DIR}/.index"
+    create-index /Volumes/Tower/Movies/Porn/Downloads
+  fi
+
+  echo "Using index at $INDEX_DIR/.index"
+
+  mpv --playlist="$INDEX_DIR/.index"
+}
+
 
 
 alias .select=".ls | fzf-select | mpv-play"
