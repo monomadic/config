@@ -67,8 +67,10 @@ if [[ -o interactive ]]; then
     # move up one line and clear it
     printf '\033[2K'
     
-    # Use command substitution to capture fzf-cd's output
-    selected_dir=$(ls-all 2>/dev/null | source fzf-cd)
+    _ensure_fzf_loaded
+
+    # Use the shared picker rather than sourcing the standalone script.
+    selected_dir=$(ls-all 2>/dev/null | _cd_fzf_pick)
     local fzf_exit_status=$?
 
     # Restore cursor position
@@ -92,6 +94,30 @@ if [[ -o interactive ]]; then
     return 1
   }
 
+  # Legacy directory navigation using the standalone `fzf-cd` script.
+  _cd-fzf-legacy() {
+    local selected_dir
+
+    _ensure_fzf_loaded
+
+    selected_dir=$(ls-all 2>/dev/null | fzf-cd)
+    local fzf_exit_status=$?
+
+    if ((fzf_exit_status != 0)); then
+      zle reset-prompt
+      return 0
+    fi
+
+    if [[ -n "$selected_dir" && -d "$selected_dir" ]]; then
+      cd "$selected_dir" || return 1
+      zle reset-prompt
+      return 0
+    fi
+
+    zle reset-prompt
+    return 1
+  }
+
   # FZF jump to subdirectories
   _fzf-jump() {
     local selected_dir
@@ -99,8 +125,10 @@ if [[ -o interactive ]]; then
     # Save cursor position without clearing the line
     tput sc
 
-    # Use command substitution to capture fzf-cd's output
-    selected_dir=$(fd --type d --no-hidden --max-depth 10 2>/dev/null | source fzf-cd)
+    _ensure_fzf_loaded
+
+    # Use the shared picker rather than sourcing the standalone script.
+    selected_dir=$(fd --type d --no-hidden --max-depth 10 2>/dev/null | _cd_fzf_pick)
     local fzf_exit_status=$?
 
     # Restore cursor position
@@ -201,7 +229,7 @@ if [[ -o interactive ]]; then
   zle -N _fzf_ripgrep
   zle -N _clear-reset
   zle -N _cd-fzf
-  zle -N fzf-cd
+  zle -N _cd-fzf-legacy
   zle -N _cd-up
   zle -N _fzf-insert-path
   zle -N open-finder-pwd open_finder_pwd
@@ -220,6 +248,7 @@ if [[ -o interactive ]]; then
   bindkey '^f'         _fzf_ripgrep              # Ctrl+F: FZF ripgrep
   bindkey '^M'         _magic-enter              # Enter: Magic enter
   bindkey '^o'         _cd-fzf                   # Ctrl+O: FZF directory navigation
+  bindkey '^[g'        _cd-fzf-legacy            # Alt+G: legacy fzf-cd navigation
   bindkey '^[j'        _fzf-jump                 # Alt+J: FZF jump to subdirectory
   bindkey '^[i'        _fzf-insert-path          # Alt+I: Insert path with FZF
   bindkey -s '^k'      "clear\n"                 # Ctrl+K: Clear screen
@@ -236,6 +265,7 @@ if [[ -o interactive ]]; then
   bindkey '^f' _fzf_ripgrep
   bindkey '^M' _magic-enter
   bindkey '^o' _cd-fzf
+  bindkey '^[g' _cd-fzf-legacy
   bindkey '^[[1;9o' _cd-fzf
   bindkey '^[j' _fzf-jump # Alt+J
   bindkey '^[i' _fzf-insert-path

@@ -20,7 +20,7 @@
 
 source $HOME/.bin/init-path
 
-export ICLOUD_HOME="$HOME/Library/Mobile\ Documents/com\~apple\~CloudDocs"
+export ICLOUD_HOME="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
 
 # MANPATH CONFIGURATION
 #

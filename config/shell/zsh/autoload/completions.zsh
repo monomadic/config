@@ -7,9 +7,6 @@
 # 1Password (dynamic completions are fine)
 eval "$(op completion zsh)"
 
-# FZF
-eval "$(fzf --zsh)"
-
 #eval "$(rmrfrs --completions zsh)" &> /dev/null
 
 # Ensure completions directory exists
@@ -21,9 +18,7 @@ mkdir -p ~/.zsh/completions
 [[ ! -f ~/.zsh/completions/_dotter ]] && dotter gen-completions --shell zsh >~/.zsh/completions/_dotter
 [[ ! -f ~/.zsh/completions/_bat ]] && bat --completion zsh >~/.zsh/completions/_bat
 
-# Load completions
-fpath+=(~/.zsh/completions)
-autoload -Uz compinit && compinit
+# `fpath` and `compinit` are handled centrally in `~/.zshrc`.
 
 # --- command: e <file> -> open in default editor ---
 e() {

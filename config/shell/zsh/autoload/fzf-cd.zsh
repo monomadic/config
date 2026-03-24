@@ -36,14 +36,18 @@ function _cd_fzf_paths() {
 
 # ── widget ────────────────────────────────────────────────────────────────────
 
+function _cd_fzf_pick() {
+  fzf --height=50% --reverse \
+      --prompt='cd ❯ ' \
+      --preview='eza --tree --level=2 --color=always {} 2>/dev/null || ls -la {}'
+}
+
 function _cd_fzf_widget() {
   local selected
   selected=$(
     _cd_fzf_paths \
       | sort -u \
-      | fzf --height=50% --reverse \
-            --prompt='cd ❯ ' \
-            --preview='eza --tree --level=2 --color=always {} 2>/dev/null || ls -la {}'
+      | _cd_fzf_pick
   )
 
   if [[ -n "$selected" ]]; then

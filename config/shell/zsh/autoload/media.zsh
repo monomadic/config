@@ -5,24 +5,6 @@
 typeset -ga DJ_VISUALS_PATHS
 DJ_VISUALS_PATHS=("$ICLOUD_HOME/Movies/Visuals")
 
-play-index() {
-  
-}
-
-.play-tower-with-mount() {
-  MEDIA_PATH="/Volumes/Tower/Movies/Porn"
-
-  if [[ ! -d "/Volumes/Tower" ]]; then
-     osascript -e 'tell application "Finder" to mount volume "smb://nom@m4.local/Tower"'
-  fi
-
-  if [[ ! -d "$MEDIA_PATH/.index" ]]; then
-     ls-media --path "$MEDIA_PATH" --sort created > "$MEDIA_PATH/.index"
-  fi
-
-  mpv --playlist="$MEDIA_PATH/.index"
-}
-
 alias @play="mpv-play"
 alias @select="fzf-select | mpv-play"
 
@@ -31,7 +13,6 @@ alias .select-and-play="fzf-select --color | mpv --playlist=-"
 #
 # ALIASES
 #
-alias fd-media=ls-media
 alias .ls="ls-media"
 alias .ls-all-sorted=".ls --sort-created"
 alias .ls-pwd=".ls --path ."
@@ -48,19 +29,19 @@ alias cat-indexes="cat $HOME/.indexes/*"
 alias cat-index-tower="cat $HOME/.indexes/tower-porn"
 
 alias .index-play="cat-indexes | mpv --playlist=-"
-alias .index-play-tower="mpv --playlist=/Volumes/Tower/Movies/Porn/.index"
+alias .index-play-tower="mpv --playlist=$HOME/.indexes/tower-porn"
 alias \%play-tower=".index-play-tower"
 # alias .index-create-tower="fd . /Volumes/Tower/Movies/Porn/ > $HOME/.indexes/Tower"
 alias .index-select-tower="cat-index-tower | .select-and-play"
 alias .index-select-tower-masters="cat-index-tower | grep 'Masters' | .select-and-play"
 alias .index-select-tower-downloads="cat-index-tower | grep 'Downloads' | .select-and-play"
 
-.create-index() {
+create-index() {
   echo "Building index for $1"
   ls-media --path $1 --sort created > $1/.index
 }
 
-.create-all-indexes() {
+.create-indexes() {
   create-index /Volumes/Tower/Movies/Porn
   create-index /Volumes/Tower/Movies/Porn/Downloads
   create-index /Volumes/Tower/Movies/Porn/Masters

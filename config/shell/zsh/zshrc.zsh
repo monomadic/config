@@ -63,7 +63,6 @@ config_files=(
   $ZSH_AUTOLOAD_DIR/prompt.zsh
   $ZSH_AUTOLOAD_DIR/rsync.zsh
   $ZSH_AUTOLOAD_DIR/yt-dlp.zsh
-  $ZSH_AUTOLOAD_DIR/starship.zsh
   # $ZSH_AUTOLOAD_DIR/fzf-marks.zsh
   $ZSH_AUTOLOAD_DIR/keybindings.zsh
   $ZSH_AUTOLOAD_DIR/kitty.zsh
@@ -111,4 +110,3 @@ export PATH="$PATH:/Users/nom/.cache/lm-studio/bin"
 # Added by LM Studio CLI (lms)
 export PATH="$PATH:/Users/nom/.lmstudio/bin"
 # End of LM Studio CLI section
-
