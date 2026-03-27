@@ -1,23 +1,16 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-url="${1:-}"
-[[ -z "$url" ]] && { print -u2 "usage: ${0:t} <url> [output_dir] [-- <yt-dlp args...>]"; exit 1; }
-shift
+(( $# == 0 )) && {
+  print -u2 "usage: ${0:t} [yt-dlp args...] <url>"
+  exit 1
+}
 
-output_path="$PWD"
-if (( $# )) && [[ "$1" != "--" ]]; then
-  output_path="$1"
-  shift
-fi
+argv=( "$@" )
+url="${argv[-1]}"
+passthru=( "${argv[@]:1:$#-1}" )
 
-# Everything remaining (optionally after --) is passed through
-if (( $# )) && [[ "$1" == "--" ]]; then
-  shift
-fi
-passthru=( "$@" )
-
-echo "Downloading to: $output_path"
+echo "URL: $url"
 
 output_template=""
 output_template+="%(cast,uploader|)l"
@@ -29,7 +22,6 @@ output_template+="%(tags.0& #{}|)s%(tags.1& #{}|)s%(tags.2& #{}|)s%(tags.3& #{}|
 output_template+=".%(ext)s"
 
 yt-dlp \
-  --paths "$output_path" \
   --output "$output_template" \
   --output-na-placeholder "" \
   --replace-in-metadata "tags" "[ _]+" "-" \
