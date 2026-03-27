@@ -44,6 +44,320 @@ local rj_autojump_on = false
 local rj_autoseek_on = false
 local rj_delay = nil
 
+local function trim(s)
+    return (s or ""):match("^%s*(.-)%s*$")
+end
+
+local function normalize_command(command)
+    command = trim(command)
+    command = command:gsub("^script_binding%s+", "script-binding ")
+    command = command:gsub("%s+", " ")
+    return command
+end
+
+local function normalize_binding_key(binding)
+    local parts = {}
+
+    for part in tostring(binding or ""):gmatch("[^+]+") do
+        table.insert(parts, trim(part))
+    end
+
+    for i = 1, math.max(#parts - 1, 0) do
+        local lower = parts[i]:lower()
+        if lower == "meta" then
+            parts[i] = "Meta"
+        elseif lower == "ctrl" then
+            parts[i] = "Ctrl"
+        elseif lower == "alt" then
+            parts[i] = "Alt"
+        elseif lower == "shift" then
+            parts[i] = "Shift"
+        end
+    end
+
+    if #parts > 0 then
+        local lower = parts[#parts]:lower()
+        local special_keys = {
+            esc = "ESC",
+            tab = "TAB",
+            space = "SPACE",
+            enter = "ENTER",
+            left = "LEFT",
+            right = "RIGHT",
+        }
+        parts[#parts] = special_keys[lower] or parts[#parts]
+    end
+
+    return table.concat(parts, "+")
+end
+
+local function format_key_label(binding)
+    local mods = {
+        Meta = "⌘",
+        Ctrl = "⌃",
+        Alt = "⌥",
+        Shift = "⇧",
+    }
+    local keys = {
+        ESC = "Esc",
+        TAB = "Tab",
+        SPACE = "Space",
+        ENTER = "Enter",
+        LEFT = "←",
+        RIGHT = "→",
+    }
+    local parts = {}
+    local out = {}
+
+    binding = normalize_binding_key(binding)
+
+    for part in binding:gmatch("[^+]+") do
+        table.insert(parts, part)
+    end
+
+    for _, part in ipairs(parts) do
+        table.insert(out, mods[part] or keys[part] or part)
+    end
+
+    return table.concat(out)
+end
+
+local function command_equals(target)
+    target = normalize_command(target)
+    return function(entry)
+        return entry.command == target
+    end
+end
+
+local function command_prefix(prefix)
+    prefix = normalize_command(prefix)
+    return function(entry)
+        return entry.command:sub(1, #prefix) == prefix
+    end
+end
+
+local function command_contains(...)
+    local needles = { ... }
+    return function(entry)
+        for _, needle in ipairs(needles) do
+            if not entry.command:find(needle, 1, true) then
+                return false
+            end
+        end
+        return true
+    end
+end
+
+local keybar_items = {
+    {
+        id = "menu",
+        fallback = "ESC",
+        prefer = { "ESC" },
+        desc = " Menu",
+        match = command_equals("script-binding show-menu"),
+    },
+    {
+        id = "osd",
+        fallback = "TAB",
+        prefer = { "TAB" },
+        desc = " OSD",
+        match = command_equals("script-binding toggle-osd-full"),
+    },
+    {
+        id = "rand_seek",
+        fallback = "j",
+        prefer = { "j" },
+        desc = " Rand Seek",
+        match = command_equals("script-binding random_seek_within_file"),
+    },
+    {
+        id = "auto_jump",
+        fallback = "1",
+        prefer = { "1" },
+        desc = function(badge, fmt_delay)
+            return " Auto Jump " .. badge(rj_autojump_on) .. fmt_delay()
+        end,
+        match = command_equals("script-binding toggle_auto_jump"),
+    },
+    {
+        id = "auto_landscape",
+        fallback = "2",
+        prefer = { "2" },
+        desc = function(badge)
+            return " Auto-Land " .. badge(auto_landscape)
+        end,
+        match = command_equals("script-binding toggle_force_landscape"),
+    },
+    {
+        id = "path",
+        fallback = "Meta+c",
+        prefer = { "Meta+c" },
+        desc = " Path",
+        match = command_equals("script-binding copy-current-path"),
+    },
+    {
+        id = "dir",
+        fallback = "Meta+d",
+        prefer = { "Meta+d" },
+        desc = " Dir",
+        match = command_equals("script-binding replace-playlist"),
+    },
+    {
+        id = "info",
+        fallback = "f",
+        prefer = { "f" },
+        desc = " Info",
+        match = command_contains("show-text", "Resolution:", "Filesize:"),
+    },
+    {
+        id = "rand_item",
+        fallback = "Shift+j",
+        prefer = { "Shift+j" },
+        desc = " Rand Item",
+        match = command_equals("script-binding random_playlist_jump"),
+    },
+    {
+        id = "metadata",
+        fallback = "b",
+        prefer = { "b" },
+        desc = function(badge)
+            return " Meta " .. badge(metadata_enabled)
+        end,
+        match = command_equals("script-message-to metadata toggle"),
+    },
+    {
+        id = "prev",
+        fallback = "[",
+        prefer = { "[" },
+        desc = " Prev",
+        match = command_equals("playlist-prev"),
+    },
+    {
+        id = "next",
+        fallback = "]",
+        prefer = { "]" },
+        desc = " Next",
+        match = command_equals("playlist-next"),
+    },
+    {
+        id = "panscan",
+        fallback = "p",
+        prefer = { "p" },
+        desc = function(badge)
+            return " Pan " .. badge(panscan_on)
+        end,
+        match = command_equals("script-binding toggle-pan-scan"),
+    },
+    {
+        id = "progress",
+        fallback = "Ctrl+p",
+        prefer = { "Ctrl+p", "4" },
+        desc = function(badge)
+            return " Progress " .. badge(progress_visible)
+        end,
+        match = command_equals("script-binding progress-bar-minimal/toggle-progress"),
+    },
+    {
+        id = "rotate",
+        fallback = "r",
+        prefer = { "r" },
+        desc = " Rotate",
+        match = command_prefix("cycle-values video-rotate 0 90 180 270"),
+    },
+    {
+        id = "shuffle",
+        fallback = "s",
+        prefer = { "s" },
+        desc = " Shuffle",
+        match = command_prefix("playlist-shuffle"),
+    },
+    {
+        id = "sort",
+        fallback = "Ctrl+s",
+        prefer = { "Ctrl+s" },
+        desc = " Sort",
+        match = command_equals("script-binding sort_playlist_by_mtime"),
+    },
+    {
+        id = "stats",
+        fallback = "F7",
+        prefer = { "F7" },
+        desc = function(badge)
+            return " Stats " .. badge(stats_visible)
+        end,
+        match = command_equals("script-binding toggle_stats"),
+    },
+}
+
+local resolved_keys = {}
+
+local function read_input_bindings()
+    local path = mp.find_config_file("input.conf")
+    local bindings = {}
+
+    if not path then
+        return bindings
+    end
+
+    local file = io.open(path, "r")
+    if not file then
+        return bindings
+    end
+
+    for line in file:lines() do
+        local cleaned = trim(line)
+        if cleaned ~= "" and not cleaned:match("^#") then
+            local key, command = cleaned:match("^(%S+)%s+(.+)$")
+            if key and command then
+                table.insert(bindings, {
+                    key = normalize_binding_key(key),
+                    command = normalize_command(command),
+                })
+            end
+        end
+    end
+
+    file:close()
+    return bindings
+end
+
+local function resolve_item_key(item, bindings)
+    local matches = {}
+
+    for _, entry in ipairs(bindings) do
+        if item.match(entry) then
+            table.insert(matches, entry.key)
+        end
+    end
+
+    if item.prefer then
+        for _, preferred in ipairs(item.prefer) do
+            preferred = normalize_binding_key(preferred)
+            for _, candidate in ipairs(matches) do
+                if candidate == preferred then
+                    return format_key_label(candidate)
+                end
+            end
+        end
+    end
+
+    if #matches > 0 then
+        return format_key_label(matches[1])
+    end
+
+    return format_key_label(item.fallback)
+end
+
+local function refresh_resolved_keys()
+    local bindings = read_input_bindings()
+
+    for _, item in ipairs(keybar_items) do
+        resolved_keys[item.id] = resolve_item_key(item, bindings)
+    end
+end
+
+refresh_resolved_keys()
+
 local function build_bar(dim)
     dim = dim or mp.get_property_native("osd-dimensions")
     local w = (dim and dim.w) or 1280
@@ -83,32 +397,22 @@ local function build_bar(dim)
         return chip_color .. "  " .. key_color .. label .. text_color .. desc .. "  " .. sep_color .. "|" .. text_color
     end
 
+    local function desc(item)
+        if type(item.desc) == "function" then
+            return item.desc(badge, fmt_delay)
+        end
+        return item.desc
+    end
+
     local s = ("{\\an2\\pos(%d,%d)\\bord0\\shad0\\fs%d}"):format(
         math.floor(w / 2),
         text_y,
         fs
     )
 
-    s = s
-        .. key("󱊷 ", " Menu")
-        .. key(" ", " OSD")
-        .. key("J",   " Rand Seek")
-        .. key("1",   " Auto Jump " .. badge(rj_autojump_on) .. fmt_delay())
-        .. key("2",   " Auto-Land " .. badge(auto_landscape))
-        .. key("9/0", " Vol")
-        .. key("󰘳 C", " Path")
-        .. key("D",   " Dir")
-        .. key("I",   " Info")
-        .. key("󰘶 J", " Rand Item")
-        .. key("M",   " Meta " .. badge(metadata_enabled))
-        .. key("]",   " Next")
-        .. key("P",   " Pan " .. badge(panscan_on))
-        .. key("󰘴 P", " Progress " .. badge(progress_visible))
-        .. key("Q",   " Quit")
-        .. key("R",   " Rotate")
-        .. key("S",   " Shuffle")
-        .. key("󰘴 S", " Sort")
-        .. key("󱊱 ",  " Stats " .. badge(stats_visible))
+    for _, item in ipairs(keybar_items) do
+        s = s .. key(resolved_keys[item.id] or format_key_label(item.fallback), desc(item))
+    end
 
     return bg .. "\n" .. s
 end
@@ -150,6 +454,7 @@ end)
 mp.register_event("file-loaded", function()
     -- mpv may re-apply defaults on file load; re-assert our preference after that
     mp.add_timeout(0, function()
+        refresh_resolved_keys()
         apply_panscan_preference()
         update_panscan_state()
         render_bar()
