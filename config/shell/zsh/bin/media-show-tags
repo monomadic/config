@@ -16,7 +16,7 @@ keywords=$(echo "$metadata" | jq -r '.format.tags.keywords // "No keywords found
 url=$(echo "$metadata" | jq -r '.format.tags.url // "No URL found"')
 creator=$(echo "$metadata" | jq -r '.format.tags.creator // "No creator found"')
 artist=$(echo "$metadata" | jq -r '.format.tags.artist // "No artist found"')
-date=$(echo "$metadata" | jq -r '.format.tags.date // "No artist found"')
+date=$(echo "$metadata" | jq -r '.format.tags.date // "No date found"')
 
 # Print the metadata found
 echo "\nTitle: $title"
