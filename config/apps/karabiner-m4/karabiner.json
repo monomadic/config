@@ -15,6 +15,19 @@
             "complex_modifications": {
                 "rules": [
                     {
+                        "description": "F5 toggle mpv show/hide",
+                        "manipulators": [
+                            {
+                                "from": {
+                                    "key_code": "f5",
+                                    "modifiers": { "optional": ["any"] }
+                                },
+                                "to": [{ "shell_command": "osascript -e 'tell application \"System Events\"' -e 'if exists (process \"mpv\") then' -e 'if frontmost of process \"mpv\" then' -e 'set visible of process \"mpv\" to false' -e 'else' -e 'set frontmost of process \"mpv\" to true' -e 'end if' -e 'end if' -e 'end tell'" }],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
                         "description": "New Rule (change left_shift+caps_lock to page_down, right_shift+caps_lock to left_command+mission_control)",
                         "enabled": false,
                         "manipulators": [
@@ -46,23 +59,22 @@
                         "description": "(Remote Desktop: Server) right ctrl to right command",
                         "manipulators": [
                             {
-                                "type": "basic",
-                                "from": { "key_code": "right_command" },
-                                "to": [{ "key_code": "right_control" }],
                                 "conditions": [
                                     {
-                                        "type": "frontmost_application_unless",
                                         "bundle_identifiers": [
                                             "com\\.apple\\.universalcontrol"
-                                        ]
+                                        ],
+                                        "type": "frontmost_application_unless"
                                     }
-                                ]
+                                ],
+                                "from": { "key_code": "right_command" },
+                                "to": [{ "key_code": "right_control" }],
+                                "type": "basic"
                             }
                         ]
                     },
                     {
                         "description": "Maximize Focused Window (CMD+SHIFT+UP) [AppleScript]",
-                        "enabled": false,
                         "manipulators": [
                             {
                                 "from": {
@@ -79,7 +91,6 @@
                     },
                     {
                         "description": "Fast application switch (Option+Tab to next app immediately)",
-                        "enabled": false,
                         "manipulators": [
                             {
                                 "from": {
@@ -378,6 +389,10 @@
                     "to": [{ "key_code": "f5" }]
                 },
                 {
+                    "from": { "key_code": "f6" },
+                    "to": [{ "key_code": "f6" }]
+                },
+                {
                     "from": { "key_code": "f7" },
                     "to": [{ "key_code": "f7" }]
                 },
@@ -410,4 +425,3 @@
         }
     ]
 }
-
