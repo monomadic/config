@@ -1,0 +1,253 @@
+#!/usr/bin/env zsh
+emulate -L zsh
+set -euo pipefail
+setopt local_options nonomatch
+
+filter_complex=""
+preset_name="topaz"
+verbose=1
+overwrite=0
+
+while (( $# )); do
+  case "$1" in
+    --filter_complex)
+      (( $# >= 2 )) || { print -u2 "error: --filter_complex requires a value"; exit 1; }
+      filter_complex="$2"
+      shift 2
+      ;;
+    --preset_name)
+      (( $# >= 2 )) || { print -u2 "error: --preset_name requires a value"; exit 1; }
+      preset_name="$2"
+      shift 2
+      ;;
+    --quiet)
+      verbose=0
+      shift
+      ;;
+    --verbose)
+      verbose=1
+      shift
+      ;;
+    --overwrite|-y)
+      overwrite=1
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      print -u2 "error: unknown option: $1"
+      exit 1
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+(( $# )) || {
+  print -u2 "usage: $0 [--preset_name NAME] [--filter_complex FILTER] [--quiet|--verbose] [--overwrite] -- file1 [file2 ...]"
+  exit 1
+}
+
+TOPAZ_APP="/Applications/Topaz Video AI.app"
+TOPAZ_FFMPEG="$TOPAZ_APP/Contents/MacOS/ffmpeg"
+TOPAZ_MODELS_DIR="$TOPAZ_APP/Contents/Resources/models"
+LOG_DIR="${HOME}/Library/Logs/topaz-batch"
+
+export TVAI_MODEL_DIR="$TOPAZ_MODELS_DIR"
+export TVAI_MODEL_DATA_DIR="$TOPAZ_MODELS_DIR"
+
+mkdir -p "$LOG_DIR"
+
+[[ -x "$TOPAZ_FFMPEG" ]] || {
+  print -u2 "error: topaz ffmpeg not found: $TOPAZ_FFMPEG"
+  exit 1
+}
+
+# ---------- UI ----------
+
+is_tty=0
+[[ -t 1 ]] && is_tty=1
+
+if (( is_tty )); then
+  c_reset=$'%{\e[0m%}'
+  c_dim=$'%{\e[2m%}'
+  c_bold=$'%{\e[1m%}'
+  c_red=$'%{\e[31m%}'
+  c_green=$'%{\e[32m%}'
+  c_yellow=$'%{\e[33m%}'
+  c_blue=$'%{\e[34m%}'
+  c_magenta=$'%{\e[35m%}'
+  c_cyan=$'%{\e[36m%}'
+  c_gray=$'%{\e[90m%}'
+else
+  c_reset=""
+  c_dim=""
+  c_bold=""
+  c_red=""
+  c_green=""
+  c_yellow=""
+  c_blue=""
+  c_magenta=""
+  c_cyan=""
+  c_gray=""
+fi
+
+icon_app="󰎆"
+icon_file="󰈔"
+icon_preset="󰏬"
+icon_cmd="󰆍"
+icon_log="󰌱"
+icon_ok="󰄬"
+icon_fail="󰅙"
+icon_skip="󰈉"
+
+hr() {
+  print -r -- "${c_gray}────────────────────────────────────────────────────────────────${c_reset}"
+}
+
+info() {
+  print -r -- "${c_cyan}${1}${c_reset} ${2}"
+}
+
+ok() {
+  print -r -- "${c_green}${1}${c_reset} ${2}"
+}
+
+warn() {
+  print -r -- "${c_yellow}${1}${c_reset} ${2}"
+}
+
+err() {
+  print -u2 -r -- "${c_red}${1}${c_reset} ${2}"
+}
+
+human_bytes() {
+  local bytes="${1:-0}"
+  python3 - <<'PY' "$bytes"
+import sys
+n=float(sys.argv[1])
+units=["B","KB","MB","GB","TB"]
+i=0
+while n >= 1024 and i < len(units)-1:
+    n/=1024
+    i+=1
+print(f"{n:.1f}{units[i]}")
+PY
+}
+
+safe_preset="${preset_name:l}"
+safe_preset="${safe_preset// /-}"
+safe_preset="${safe_preset//[^a-z0-9._-]/_}"
+
+total_files=$#
+current_file=0
+
+for input in "$@"; do
+  (( current_file++ ))
+
+  [[ -f "$input" ]] || {
+    err "$icon_fail" "not a file: $input"
+    exit 1
+  }
+
+  ext="${input:e}"
+  stem="${input:r}"
+  base="${input:t:r}"
+  output="${stem}.${safe_preset}.${ext}"
+  log_file="${LOG_DIR}/${base}.${safe_preset}.log"
+
+  if [[ -e "$output" && $overwrite -eq 0 ]]; then
+    hr
+    warn "$icon_skip" "${c_bold}[$current_file/$total_files] output exists${c_reset}"
+    print -r -- "  ${c_dim}${icon_file} input :${c_reset} $input"
+    print -r -- "  ${c_dim}${icon_file} output:${c_reset} $output"
+    print -r -- "  ${c_dim}${icon_log} log  :${c_reset} $log_file"
+    continue
+  fi
+
+  typeset -a cmd
+  cmd=(
+    "$TOPAZ_FFMPEG"
+    "-hide_banner"
+    "-y"
+    "-i" "$input"
+  )
+
+  [[ -n "$filter_complex" ]] && cmd+=(
+    "-filter_complex" "$filter_complex"
+  )
+
+  cmd+=(
+    "-c:v" "hevc_videotoolbox"
+    "-profile:v" "main10"
+    "-tag:v" "hvc1"
+    "-pix_fmt" "p010le"
+    "-allow_sw" "1"
+    "-b:v" "40M"
+    "-map" "0:a?"
+    "-c:a" "copy"
+    "$output"
+  )
+
+  hr
+  print -r -- "${c_bold}${c_blue}${icon_app} Topaz Batch${c_reset} ${c_dim}[$current_file/$total_files]${c_reset}"
+  print -r -- "  ${c_dim}${icon_file} input :${c_reset} $input"
+  print -r -- "  ${c_dim}${icon_file} output:${c_reset} $output"
+  print -r -- "  ${c_dim}${icon_preset} preset:${c_reset} ${c_bold}${preset_name}${c_reset}"
+  print -r -- "  ${c_dim}${icon_log} log   :${c_reset} $log_file"
+  print -r -- "  ${c_dim}${icon_cmd} cmd   :${c_reset} ${(q+)cmd}"
+  hr
+
+  {
+    print "[$(date '+%F %T')] START $input"
+    print "PRESET: $preset_name"
+    print "CMD: ${(q+)cmd}"
+    print
+  } >"$log_file"
+
+  start_ts=$EPOCHSECONDS
+
+  if (( verbose )); then
+    if "${cmd[@]}" 2>&1 | tee -a "$log_file"; then
+      rc=0
+    else
+      rc=${pipestatus[1]}
+    fi
+  else
+    if "${cmd[@]}" >>"$log_file" 2>&1; then
+      rc=0
+    else
+      rc=$?
+    fi
+  fi
+
+  elapsed=$(( EPOCHSECONDS - start_ts ))
+
+  if (( rc == 0 )); then
+    out_size=0
+    [[ -e "$output" ]] && out_size=$(stat -f '%z' -- "$output")
+    {
+      print
+      print "[$(date '+%F %T')] DONE $output"
+      print "ELAPSED: ${elapsed}s"
+      print "SIZE: ${out_size}"
+    } >>"$log_file"
+
+    ok "$icon_ok" "${c_bold}completed${c_reset} ${c_dim}(${elapsed}s, $(human_bytes "$out_size"))${c_reset}"
+    print -r -- "  ${c_dim}${icon_file} output:${c_reset} $output"
+  else
+    {
+      print
+      print "[$(date '+%F %T')] FAILED rc=$rc"
+      print "ELAPSED: ${elapsed}s"
+    } >>"$log_file"
+
+    rm -f -- "$output"
+    err "$icon_fail" "${c_bold}failed${c_reset} rc=$rc after ${elapsed}s"
+    print -u2 -r -- "  ${c_dim}${icon_log} log:${c_reset} $log_file"
+    exit "$rc"
+  fi
+done

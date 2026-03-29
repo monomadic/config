@@ -1,0 +1,118 @@
+#!/usr/bin/env zsh
+emulate -L zsh
+set -euo pipefail
+
+(( $# == 0 )) && {
+  print -u2 "usage: $0 file1 [file2 ...]"
+  exit 1
+}
+
+for input in "$@"; do
+  [[ -f "$input" ]] || {
+    print -u2 "not a file: $input"
+    exit 1
+  }
+done
+
+command -v fzf >/dev/null 2>&1 || {
+  print -u2 "fzf not found"
+  exit 1
+}
+
+command -v topaz-run >/dev/null 2>&1 || {
+  print -u2 "topaz-run not found in PATH"
+  exit 1
+}
+
+selection="$(
+  printf '%s\n' \
+    "Conservative 4K cleanup - decent 2160p that just needs less mush and compression junk." \
+    "Aggressive artifact cleanup - for nasty 2160p streaming rips with visible macroblocking / ringing." \
+    "Proteus enhance 4k - clean digital 4K that feels just slightly soft." \
+    "Prob-4 upscale 2x, medium enhancement" \
+    "Prob-4 upscale 2x, strong detail recovery" \
+    "Iris MQ, moderate cleanup and sharpening" \
+    "Artemis HQ, gentle enhancement for already decent sources" \
+    "Nyx denoise, strong cleanup for dark/noisy footage" \
+    "Proteus manual, balanced recover + denoise" |
+    fzf \
+      --prompt='󰎆 Topaz preset > ' \
+      --height=40% \
+      --reverse \
+      --border
+)"
+
+[[ -n "$selection" ]] || {
+  print -u2 "no preset selected"
+  exit 1
+}
+
+preset_name=""
+filter_complex=""
+
+case "$selection" in
+  "Conservative 4K cleanup - decent 2160p that just needs less mush and compression junk.")
+    preset_name="conservative-4k-cleanup"
+    filter_complex="scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.20:details=0.22:halo=0.03:blur=0.08:compression=0.18:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1"
+    ;;
+  "Balanced 4K enhancement - general preset for bitrate-starved 2160p web video.")
+    preset_name="balanced-4k-enhance"
+    filter_complex="scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.32:details=0.36:halo=0.05:blur=0.14:compression=0.30:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1"
+    ;;
+  "Aggressive artifact cleanup - for nasty 2160p streaming rips with visible macroblocking / ringing.")
+    preset_name="aggressive-artifact-cleanup"
+    filter_complex="scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.32:details=0.36:halo=0.05:blur=0.14:compression=0.30:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1"
+    ;;
+  "Make It Pop - For clean digital 4K that feels just slightly soft.")
+    preset_name="make-it-pop"
+    filter_complex="scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.10:details=0.30:halo=0.02:blur=0.06:compression=0.10:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1"
+    ;;
+
+  "Clean 1080p -> 2160p - No pre-scale needed; just let scale=2 do the upscale. Best for: camera footage, Blu-ray-ish 1080p, already decent bitrate.")
+    preset_name="clean-1080p-to-4k"
+    filter_complex="tvai_up=model=prob-4:scale=2:preblur=0:noise=0.16:details=0.26:halo=0.02:blur=0.08:compression=0.12:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1"
+    ;;
+  "Proteus enhance 4k - clean digital 4K that feels just slightly soft.")
+    preset_name="proteus-enhance-4k"
+    filter_complex="scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.10:details=0.30:halo=0.02:blur=0.06:compression=0.10:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1"
+    ;;
+  "Prob-4 upscale 2x, medium enhancement")
+    preset_name="prob4-upscale-2x-medium"
+    filter_complex="scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.35:details=0.6:halo=0:blur=0.2:compression=0.3:estimate=8:grain=0.02:gsize=2:device=0:vram=0.9:instances=1"
+    ;;
+  "Prob-4 upscale 2x, strong detail recovery")
+    preset_name="prob4-upscale-2x-strong"
+    filter_complex="scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.55:details=0.9:halo=0:blur=0.5:compression=0.45:estimate=8:grain=0.03:gsize=2:device=0:vram=0.9:instances=1"
+    ;;
+  "Iris MQ, moderate cleanup and sharpening")
+    preset_name="iris-mq-moderate"
+    filter_complex="tvai_up=model=iris-3:scale=1:preblur=0:noise=0.25:details=0.5:halo=0:blur=0.15:compression=0.2:estimate=8:grain=0.01:gsize=2:device=0:vram=0.9:instances=1"
+    ;;
+  "Artemis HQ, gentle enhancement for already decent sources")
+    preset_name="artemis-hq-gentle"
+    filter_complex="tvai_up=model=ahq-12:scale=1:preblur=0:noise=0.15:details=0.35:halo=0:blur=0.1:compression=0.15:estimate=8:grain=0:gsize=2:device=0:vram=0.9:instances=1"
+    ;;
+  "Nyx denoise, strong cleanup for dark/noisy footage")
+    preset_name="nyx-denoise-strong"
+    filter_complex="tvai_up=model=nyx-3:scale=1:preblur=0:noise=0.8:details=0.25:halo=0:blur=0.2:compression=0.25:estimate=8:grain=0:gsize=2:device=0:vram=0.9:instances=1"
+    ;;
+  "Proteus manual, balanced recover + denoise")
+    preset_name="proteus-manual-balanced"
+    filter_complex="tvai_up=model=prob-3:scale=1:preblur=0:noise=0.4:details=0.55:halo=0.05:blur=0.15:compression=0.25:estimate=8:grain=0.02:gsize=2:device=0:vram=0.9:instances=1"
+    ;;
+  *)
+    print -u2 "unknown preset selected"
+    exit 1
+    ;;
+esac
+
+print -r -- $'%{\e[36m%}󰏬%{\e[0m%} preset: '"$selection"
+print -r -- $'%{\e[90m%}slug:%{\e[0m%}   '"$preset_name"
+print -r -- $'%{\e[90m%}cmd:%{\e[0m%}    topaz-run --preset_name '"${(q)preset_name}"' --filter_complex '"${(q)filter_complex}"' -- $*'
+print
+
+topaz-run \
+  --preset_name "$preset_name" \
+  --filter_complex "$filter_complex" \
+  -- \
+  "$@"
