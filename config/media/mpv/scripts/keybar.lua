@@ -148,9 +148,18 @@ local function command_contains(...)
     end
 end
 
+local group_labels = {
+    system = "SYS",
+    nav = "NAV",
+    list = "LIST",
+    view = "VIEW",
+    random = "RAND",
+}
+
 local keybar_items = {
     {
         id = "menu",
+        group = "system",
         fallback = "ESC",
         prefer = { "ESC" },
         desc = " Menu",
@@ -158,96 +167,87 @@ local keybar_items = {
     },
     {
         id = "osd",
+        group = "system",
         fallback = "TAB",
         prefer = { "TAB" },
         desc = " OSD",
         match = command_equals("script-binding toggle-osd-full"),
     },
     {
-        id = "rand_seek",
-        fallback = "j",
-        prefer = { "j" },
-        desc = " Rand Seek",
-        match = command_equals("script-binding random_seek_within_file"),
-    },
-    {
-        id = "auto_jump",
-        fallback = "1",
-        prefer = { "1" },
-        desc = function(badge, fmt_delay)
-            return " Auto Jump " .. badge(rj_autojump_on) .. fmt_delay()
-        end,
-        match = command_equals("script-binding toggle_auto_jump"),
-    },
-    {
-        id = "auto_landscape",
-        fallback = "2",
-        prefer = { "2" },
-        desc = function(badge)
-            return " Auto-Land " .. badge(auto_landscape)
-        end,
-        match = command_equals("script-binding toggle_force_landscape"),
-    },
-    {
-        id = "path",
-        fallback = "Meta+c",
-        prefer = { "Meta+c" },
-        desc = " Path",
-        match = command_equals("script-binding copy-current-path"),
-    },
-    {
         id = "dir",
+        group = "nav",
         fallback = "Meta+d",
         prefer = { "Meta+d" },
         desc = " Open Dir",
         match = command_equals("script-binding replace-playlist"),
     },
     {
-        id = "info",
-        fallback = "f",
-        prefer = { "f" },
-        desc = " Info",
-        match = command_contains("show-text", "Resolution:", "Filesize:"),
-    },
-    {
-        id = "rand_item",
-        fallback = "Shift+j",
-        prefer = { "Shift+j" },
-        desc = " Rand Item",
-        match = command_equals("script-binding random_playlist_jump"),
-    },
-    {
-        id = "metadata",
-        fallback = "b",
-        prefer = { "b" },
-        desc = function(badge)
-            return " Meta " .. badge(metadata_enabled)
-        end,
-        match = command_equals("script-message-to metadata toggle"),
-    },
-    {
         id = "prev",
+        group = "nav",
         fallback = "[",
         prefer = { "[" },
-        desc = " Pl Prev",
+        desc = " Prev",
         match = command_equals("playlist-prev"),
     },
     {
         id = "next",
+        group = "nav",
         fallback = "]",
         prefer = { "]" },
-        desc = " Pl Next",
+        desc = " Next",
         match = command_equals("playlist-next"),
     },
     {
         id = "next_dir",
+        group = "nav",
         fallback = "}",
         prefer = { "}", "Alt+]" },
         desc = " Dir Next",
         match = command_equals("script-binding next-file-dir"),
     },
     {
+        id = "shuffle",
+        group = "list",
+        fallback = "s",
+        prefer = { "s" },
+        desc = " Shuffle",
+        match = command_prefix("playlist-shuffle"),
+    },
+    {
+        id = "sort",
+        group = "list",
+        fallback = "Ctrl+s",
+        prefer = { "Ctrl+s" },
+        desc = " Sort",
+        match = command_equals("script-binding sort_playlist_by_mtime"),
+    },
+    {
+        id = "expand",
+        group = "list",
+        fallback = "Ctrl+d",
+        prefer = { "Ctrl+d" },
+        desc = " Expand",
+        match = command_equals("script-binding expand_playlist_dirs"),
+    },
+    {
+        id = "info",
+        group = "view",
+        fallback = "f",
+        prefer = { "f" },
+        desc = " Info",
+        match = command_contains("show-text", "Resolution:", "Filesize:"),
+    },
+    {
+        id = "path",
+        group = "view",
+        fallback = "Meta+c",
+        prefer = { "Meta+c" },
+        desc = " Path",
+        match = command_equals("script-binding copy-current-path"),
+    },
+    {
         id = "panscan",
+        group = "view",
         fallback = "p",
         prefer = { "p" },
         desc = function(badge)
@@ -257,6 +257,7 @@ local keybar_items = {
     },
     {
         id = "progress",
+        group = "view",
         fallback = "Ctrl+p",
         prefer = { "Ctrl+p", "4" },
         desc = function(badge)
@@ -266,40 +267,67 @@ local keybar_items = {
     },
     {
         id = "rotate",
+        group = "view",
         fallback = "r",
         prefer = { "r" },
         desc = " Rotate",
         match = command_prefix("cycle-values video-rotate 0 90 180 270"),
     },
     {
-        id = "shuffle",
-        fallback = "s",
-        prefer = { "s" },
-        desc = " Shuffle",
-        match = command_prefix("playlist-shuffle"),
-    },
-    {
-        id = "sort",
-        fallback = "Ctrl+s",
-        prefer = { "Ctrl+s" },
-        desc = " Sort",
-        match = command_equals("script-binding sort_playlist_by_mtime"),
-    },
-    {
-        id = "expand",
-        fallback = "Ctrl+d",
-        prefer = { "Ctrl+d" },
-        desc = " Expand",
-        match = command_equals("script-binding expand_playlist_dirs"),
+        id = "metadata",
+        group = "view",
+        fallback = "b",
+        prefer = { "b" },
+        desc = function(badge)
+            return " Meta " .. badge(metadata_enabled)
+        end,
+        match = command_equals("script-message-to metadata toggle"),
     },
     {
         id = "stats",
+        group = "view",
         fallback = "F7",
         prefer = { "F7" },
         desc = function(badge)
             return " Stats " .. badge(stats_visible)
         end,
         match = command_equals("script-binding toggle_stats"),
+    },
+    {
+        id = "auto_landscape",
+        group = "view",
+        fallback = "2",
+        prefer = { "2" },
+        desc = function(badge)
+            return " Auto-Land " .. badge(auto_landscape)
+        end,
+        match = command_equals("script-binding toggle_force_landscape"),
+    },
+    {
+        id = "rand_seek",
+        group = "random",
+        fallback = "j",
+        prefer = { "j" },
+        desc = " Rand Seek",
+        match = command_equals("script-binding random_seek_within_file"),
+    },
+    {
+        id = "rand_item",
+        group = "random",
+        fallback = "Shift+j",
+        prefer = { "Shift+j" },
+        desc = " Rand Item",
+        match = command_equals("script-binding random_playlist_jump"),
+    },
+    {
+        id = "auto_jump",
+        group = "random",
+        fallback = "1",
+        prefer = { "1" },
+        desc = function(badge, fmt_delay)
+            return " Auto Jump " .. badge(rj_autojump_on) .. fmt_delay()
+        end,
+        match = command_equals("script-binding toggle_auto_jump"),
     },
 }
 
@@ -391,6 +419,7 @@ local function build_bar(dim)
     local text_color = "{\\1c&HFFFFFF&}"
     local chip_color = "{\\1c&H181818&\\alpha&H00&}"
     local sep_color  = "{\\1c&H6A6A6A&}"
+    local group_color = "{\\1c&H9B9B9B&}"
 
     local function badge(on)
         local c = on and "{\\1c&H00FFFF&}" or "{\\1c&H777777&}"
@@ -411,6 +440,14 @@ local function build_bar(dim)
         return chip_color .. "  " .. key_color .. label .. text_color .. desc .. "  " .. sep_color .. "|" .. text_color
     end
 
+    local function group_tag(name, first)
+        local label = group_labels[name] or tostring(name or ""):upper()
+        if first then
+            return group_color .. label .. text_color .. "  "
+        end
+        return sep_color .. "  ||  " .. group_color .. label .. text_color .. "  "
+    end
+
     local function desc(item)
         if type(item.desc) == "function" then
             return item.desc(badge, fmt_delay)
@@ -424,7 +461,12 @@ local function build_bar(dim)
         fs
     )
 
+    local last_group = nil
     for _, item in ipairs(keybar_items) do
+        if item.group ~= last_group then
+            s = s .. group_tag(item.group, last_group == nil)
+            last_group = item.group
+        end
         s = s .. key(resolved_keys[item.id] or format_key_label(item.fallback), desc(item))
     end
 

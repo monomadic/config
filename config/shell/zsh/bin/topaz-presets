@@ -115,6 +115,4 @@ print -P -- "%F{cyan}󰏬%f preset: $selection"
 print -P -- "%F{242}slug:%f   $preset_name"
 print -P -- "%F{242}cmd:%f    ${(q+)cmd_preview}"
 print
-
-cmd_preview=(topaz-run --preset_name "$preset_name" --filter_complex "$filter_complex" -- "$@")
-print -P -- "%F{242}cmd:%f    ${(q+)cmd_preview}"
+exec "${cmd_preview[@]}"

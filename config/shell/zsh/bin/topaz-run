@@ -7,6 +7,8 @@ filter_complex=""
 preset_name="topaz"
 verbose=1
 overwrite=0
+fragmented_mp4=1
+interrupted=0
 
 while (( $# )); do
   case "$1" in
@@ -32,6 +34,10 @@ while (( $# )); do
       overwrite=1
       shift
       ;;
+    --finalized-mp4|--no-fragmented-mp4)
+      fragmented_mp4=0
+      shift
+      ;;
     --)
       shift
       break
@@ -47,13 +53,14 @@ while (( $# )); do
 done
 
 (( $# )) || {
-  print -u2 "usage: $0 [--preset_name NAME] [--filter_complex FILTER] [--quiet|--verbose] [--overwrite] -- file1 [file2 ...]"
+  print -u2 "usage: $0 [--preset_name NAME] [--filter_complex FILTER] [--quiet|--verbose] [--overwrite] [--finalized-mp4] -- file1 [file2 ...]"
   exit 1
 }
 
 TOPAZ_APP="/Applications/Topaz Video AI.app"
 TOPAZ_FFMPEG="$TOPAZ_APP/Contents/MacOS/ffmpeg"
 TOPAZ_MODELS_DIR="$TOPAZ_APP/Contents/Resources/models"
+FFPROBE_BIN="$(command -v ffprobe || true)"
 LOG_DIR="${HOME}/Library/Logs/topaz-batch"
 
 export TVAI_MODEL_DIR="$TOPAZ_MODELS_DIR"
@@ -72,16 +79,16 @@ is_tty=0
 [[ -t 1 ]] && is_tty=1
 
 if (( is_tty )); then
-  c_reset=$'%{\e[0m%}'
-  c_dim=$'%{\e[2m%}'
-  c_bold=$'%{\e[1m%}'
-  c_red=$'%{\e[31m%}'
-  c_green=$'%{\e[32m%}'
-  c_yellow=$'%{\e[33m%}'
-  c_blue=$'%{\e[34m%}'
-  c_magenta=$'%{\e[35m%}'
-  c_cyan=$'%{\e[36m%}'
-  c_gray=$'%{\e[90m%}'
+  c_reset=$'\e[0m'
+  c_dim=$'\e[2m'
+  c_bold=$'\e[1m'
+  c_red=$'\e[31m'
+  c_green=$'\e[32m'
+  c_yellow=$'\e[33m'
+  c_blue=$'\e[34m'
+  c_magenta=$'\e[35m'
+  c_cyan=$'\e[36m'
+  c_gray=$'\e[90m'
 else
   c_reset=""
   c_dim=""
@@ -138,6 +145,220 @@ print(f"{n:.1f}{units[i]}")
 PY
 }
 
+human_duration() {
+  local total="${1:-0}"
+  (( total < 0 )) && total=0
+
+  local hours=$(( total / 3600 ))
+  local minutes=$(( (total % 3600) / 60 ))
+  local seconds=$(( total % 60 ))
+
+  if (( hours > 0 )); then
+    printf '%d:%02d:%02d\n' "$hours" "$minutes" "$seconds"
+  else
+    printf '%d:%02d\n' "$minutes" "$seconds"
+  fi
+}
+
+human_duration_ms() {
+  local total_ms="${1:-0}"
+  (( total_ms < 0 )) && total_ms=0
+
+  local total_secs=$(( total_ms / 1000 ))
+  local tenths=$(( (total_ms % 1000) / 100 ))
+
+  if (( total_secs < 60 )); then
+    printf '0:%02d.%d\n' "$total_secs" "$tenths"
+  else
+    human_duration "$total_secs"
+  fi
+}
+
+decimal_to_millis() {
+  local raw="${1:-0}"
+  local whole="${raw%%.*}"
+  local frac=""
+
+  [[ -n "$whole" ]] || whole=0
+
+  if [[ "$raw" == *.* ]]; then
+    frac="${raw#*.}"
+  fi
+
+  frac="${frac[1,3]}"
+  while (( ${#frac} < 3 )); do
+    frac+="0"
+  done
+
+  print $(( 10#$whole * 1000 + 10#${frac:-0} ))
+}
+
+timecode_to_millis() {
+  local timecode="${1:-}"
+  local whole="${timecode%%.*}"
+  local frac=""
+  local -a parts
+
+  parts=("${(@s/:/)whole}")
+  (( ${#parts} == 3 )) || {
+    print 0
+    return
+  }
+
+  if [[ "$timecode" == *.* ]]; then
+    frac="${timecode#*.}"
+  fi
+
+  frac="${frac[1,3]}"
+  while (( ${#frac} < 3 )); do
+    frac+="0"
+  done
+
+  print $(( (10#${parts[1]} * 3600 + 10#${parts[2]} * 60 + 10#${parts[3]}) * 1000 + 10#${frac:-0} ))
+}
+
+probe_duration_millis() {
+  local input="$1"
+  local raw=""
+
+  [[ -n "$FFPROBE_BIN" ]] || return 1
+
+  raw="$("$FFPROBE_BIN" \
+    -v error \
+    -show_entries format=duration \
+    -of default=nw=1:nk=1 \
+    -- "$input" 2>/dev/null || true)"
+
+  [[ -n "$raw" && "$raw" != "N/A" ]] || return 1
+
+  decimal_to_millis "$raw"
+}
+
+render_progress() {
+  local processed_ms="${1:-0}"
+  local duration_ms="${2:-0}"
+  local speed_label="${3:-N/A}"
+  local start_ts="${4:-0}"
+  local elapsed_secs=$(( SECONDS - start_ts ))
+  local processed_text="$(human_duration_ms "$processed_ms")"
+  local duration_text="--:--"
+  local eta_text="warming"
+  local percent_text="--.-%"
+  local -F speed_num=0
+  local -F eta_calc=0
+  local speed_clean="${speed_label%x}"
+  local remaining_ms=0
+  local eta_secs=-1
+  local line=""
+  local percent_tenths=0
+
+  if [[ -n "$speed_clean" && "$speed_clean" != "N/A" ]]; then
+    speed_num="$speed_clean"
+  fi
+
+  if (( duration_ms > 0 )); then
+    (( processed_ms > duration_ms )) && processed_ms=$duration_ms
+    remaining_ms=$(( duration_ms - processed_ms ))
+    duration_text="$(human_duration_ms "$duration_ms")"
+    percent_tenths=$(( processed_ms * 1000 / duration_ms ))
+    (( percent_tenths > 1000 )) && percent_tenths=1000
+    percent_text="$(printf '%d.%d%%' $(( percent_tenths / 10 )) $(( percent_tenths % 10 )))"
+
+    if (( remaining_ms == 0 )); then
+      eta_secs=0
+    elif (( processed_ms >= 10000 || percent_tenths >= 5 )); then
+      if (( speed_num > 0 )); then
+        eta_calc=$(( (remaining_ms / 1000.0) / speed_num ))
+        eta_secs=$(( eta_calc ))
+      elif (( processed_ms > 0 && elapsed_secs > 0 )); then
+        eta_calc=$(( elapsed_secs * remaining_ms / processed_ms ))
+        eta_secs=$(( eta_calc ))
+      fi
+    fi
+
+    if (( eta_secs == 0 )); then
+      eta_text="0:00"
+    elif (( eta_secs > 0 )); then
+      eta_secs=$(( eta_calc ))
+      eta_text="$(human_duration "$eta_secs")"
+    fi
+  fi
+
+  if (( is_tty )); then
+    line="${c_magenta}󰔛${c_reset} ${percent_text}  ${c_dim}time${c_reset} ${processed_text}/${duration_text}  ${c_dim}eta${c_reset} ${eta_text}  ${c_dim}speed${c_reset} ${speed_label}"
+    printf '\r\033[2K%s' "$line"
+  fi
+}
+
+run_ffmpeg() {
+  local log_file="$1"
+  local duration_secs="$2"
+  local start_ts="$3"
+  shift 3
+
+  local -a ffmpeg_cmd
+  ffmpeg_cmd=("$@")
+
+  local processed_ms=0
+  local speed_label="N/A"
+  local key=""
+  local value=""
+  local rc=0
+
+  if (( verbose )); then
+    {
+      "${ffmpeg_cmd[@]}" 2> >(tee -a "$log_file" >&2)
+    } | while IFS='=' read -r key value; do
+      case "$key" in
+        out_time_us)
+          processed_ms=$(( value / 1000 ))
+          ;;
+        out_time_ms)
+          processed_ms=$(( value / 1000 ))
+          ;;
+        out_time)
+          (( processed_ms == 0 )) && processed_ms=$(timecode_to_millis "$value")
+          ;;
+        speed)
+          speed_label="$value"
+          ;;
+        progress)
+          render_progress "$processed_ms" "$duration_secs" "$speed_label" "$start_ts"
+          ;;
+      esac
+    done
+    rc=${pipestatus[1]}
+  else
+    {
+      "${ffmpeg_cmd[@]}" 2>>"$log_file"
+    } | while IFS='=' read -r key value; do
+      case "$key" in
+        out_time_us)
+          processed_ms=$(( value / 1000 ))
+          ;;
+        out_time_ms)
+          processed_ms=$(( value / 1000 ))
+          ;;
+        out_time)
+          (( processed_ms == 0 )) && processed_ms=$(timecode_to_millis "$value")
+          ;;
+        speed)
+          speed_label="$value"
+          ;;
+        progress)
+          render_progress "$processed_ms" "$duration_secs" "$speed_label" "$start_ts"
+          ;;
+      esac
+    done
+    rc=${pipestatus[1]}
+  fi
+
+  (( is_tty )) && printf '\n'
+  return "$rc"
+}
+
+trap 'interrupted=1' INT TERM
+
 safe_preset="${preset_name:l}"
 safe_preset="${safe_preset// /-}"
 safe_preset="${safe_preset//[^a-z0-9._-]/_}"
@@ -146,7 +367,7 @@ total_files=$#
 current_file=0
 
 for input in "$@"; do
-  (( current_file++ ))
+  (( ++current_file ))
 
   [[ -f "$input" ]] || {
     err "$icon_fail" "not a file: $input"
@@ -154,10 +375,15 @@ for input in "$@"; do
   }
 
   ext="${input:e}"
+  ext_lc="${ext:l}"
   stem="${input:r}"
   base="${input:t:r}"
   output="${stem}.${safe_preset}.${ext}"
   log_file="${LOG_DIR}/${base}.${safe_preset}.log"
+  duration_secs=0
+  interrupted=0
+
+  duration_secs="$(probe_duration_millis "$input" 2>/dev/null || print 0)"
 
   if [[ -e "$output" && $overwrite -eq 0 ]]; then
     hr
@@ -173,6 +399,8 @@ for input in "$@"; do
     "$TOPAZ_FFMPEG"
     "-hide_banner"
     "-y"
+    "-progress" "pipe:1"
+    "-nostats"
     "-i" "$input"
   )
 
@@ -189,14 +417,24 @@ for input in "$@"; do
     "-b:v" "40M"
     "-map" "0:a?"
     "-c:a" "copy"
-    "$output"
   )
+
+  if (( fragmented_mp4 )) && [[ "$ext_lc" == (mp4|m4v|mov) ]]; then
+    cmd+=(
+      "-movflags" "+frag_keyframe+empty_moov+default_base_moof"
+    )
+  fi
+
+  cmd+=("$output")
 
   hr
   print -r -- "${c_bold}${c_blue}${icon_app} Topaz Batch${c_reset} ${c_dim}[$current_file/$total_files]${c_reset}"
   print -r -- "  ${c_dim}${icon_file} input :${c_reset} $input"
   print -r -- "  ${c_dim}${icon_file} output:${c_reset} $output"
   print -r -- "  ${c_dim}${icon_preset} preset:${c_reset} ${c_bold}${preset_name}${c_reset}"
+  if (( duration_secs > 0 )); then
+    print -r -- "  ${c_dim}󱎫 duration:${c_reset} $(human_duration_ms "$duration_secs")"
+  fi
   print -r -- "  ${c_dim}${icon_log} log   :${c_reset} $log_file"
   print -r -- "  ${c_dim}${icon_cmd} cmd   :${c_reset} ${(q+)cmd}"
   hr
@@ -208,23 +446,15 @@ for input in "$@"; do
     print
   } >"$log_file"
 
-  start_ts=$EPOCHSECONDS
+  start_ts=$SECONDS
 
-  if (( verbose )); then
-    if "${cmd[@]}" 2>&1 | tee -a "$log_file"; then
-      rc=0
-    else
-      rc=${pipestatus[1]}
-    fi
+  if run_ffmpeg "$log_file" "$duration_secs" "$start_ts" "${cmd[@]}"; then
+    rc=0
   else
-    if "${cmd[@]}" >>"$log_file" 2>&1; then
-      rc=0
-    else
-      rc=$?
-    fi
+    rc=$?
   fi
 
-  elapsed=$(( EPOCHSECONDS - start_ts ))
+  elapsed=$(( SECONDS - start_ts ))
 
   if (( rc == 0 )); then
     out_size=0
@@ -239,6 +469,20 @@ for input in "$@"; do
     ok "$icon_ok" "${c_bold}completed${c_reset} ${c_dim}(${elapsed}s, $(human_bytes "$out_size"))${c_reset}"
     print -r -- "  ${c_dim}${icon_file} output:${c_reset} $output"
   else
+    if (( interrupted || rc == 130 )); then
+      {
+        print
+        print "[$(date '+%F %T')] INTERRUPTED rc=$rc"
+        print "ELAPSED: ${elapsed}s"
+      } >>"$log_file"
+
+      warn "$icon_skip" "${c_bold}interrupted${c_reset} after ${elapsed}s"
+      [[ -e "$output" ]] && print -r -- "  ${c_dim}${icon_file} partial:${c_reset} $output"
+      print -r -- "  ${c_dim}${icon_log} log:${c_reset} $log_file"
+      print -r -- "  ${c_dim}${icon_preset} note:${c_reset} reruns do not resume; use ${c_bold}--overwrite${c_reset} to restart"
+      exit 130
+    fi
+
     {
       print
       print "[$(date '+%F %T')] FAILED rc=$rc"
