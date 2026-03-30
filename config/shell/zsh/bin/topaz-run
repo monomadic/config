@@ -355,16 +355,14 @@ run_ffmpeg() {
 
 preset_records() {
   print -r -- $'4k-conservative-cleanup\t4K Conservative Cleanup\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.20:details=0.22:halo=0.03:blur=0.08:compression=0.18:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
-  print -r -- $'4k-balanced-enhancement\t4K Balanced Enhancement\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.32:details=0.36:halo=0.05:blur=0.14:compression=0.30:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1'
-  print -r -- $'4k-aggressive-artifact-cleanup\t4K Aggressive Artifact Cleanup\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.50:details=0.28:halo=0.10:blur=0.18:compression=0.42:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
-  print -r -- $'4k-make-it-pop\t4K Make It Pop\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.10:details=0.30:halo=0.02:blur=0.06:compression=0.10:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1'
+  print -r -- $'4k-balanced-enhancement\tFor decent 2160p that just needs less mush and compression junk.\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.32:details=0.36:halo=0.05:blur=0.14:compression=0.30:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1'
+  print -r -- $'4k-aggressive-artifact-cleanup\tFor nasty 2160p streaming rips with visible macroblocking / ringing.\t4K Aggressive Artifact Cleanup\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.50:details=0.28:halo=0.10:blur=0.18:compression=0.42:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
+  print -r -- $'4k-make-it-pop\t4K Make It Pop: For clean digital 4K that feels just slightly soft.\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.10:details=0.30:halo=0.02:blur=0.06:compression=0.10:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1'
   print -r -- $'1080p-to-4k-clean\t1080p -> 4K Clean Upscale\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.16:details=0.26:halo=0.02:blur=0.08:compression=0.12:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
   print -r -- $'1080p-to-4k-medium\t1080p -> 4K Medium Enhancement\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.35:details=0.60:halo=0:blur=0.20:compression=0.30:estimate=8:grain=0.02:gsize=2:device=0:vram=0.90:instances=1'
   print -r -- $'1080p-to-4k-strong\t1080p -> 4K Strong Detail Recovery\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.55:details=0.90:halo=0:blur=0.50:compression=0.45:estimate=8:grain=0.03:gsize=2:device=0:vram=0.90:instances=1'
   print -r -- $'iris-mq-moderate\tIris MQ Moderate Cleanup\ttvai_up=model=iris-3:scale=1:preblur=0:noise=0.25:details=0.50:halo=0:blur=0.15:compression=0.20:estimate=8:grain=0.01:gsize=2:device=0:vram=0.90:instances=1'
-  print -r -- $'artemis-hq-gentle\tArtemis HQ Gentle\ttvai_up=model=ahq-12:scale=1:preblur=0:noise=0.15:details=0.35:halo=0:blur=0.10:compression=0.15:estimate=8:grain=0:gsize=2:device=0:vram=0.90:instances=1'
-  print -r -- $'nyx-strong-denoise\tNyx Strong Denoise\ttvai_up=model=nyx-3:scale=1:preblur=0:noise=0.80:details=0.25:halo=0:blur=0.20:compression=0.25:estimate=8:grain=0:gsize=2:device=0:vram=0.90:instances=1'
-  print -r -- $'proteus-manual-balanced\tProteus Manual Balanced\ttvai_up=model=prob-3:scale=1:preblur=0:noise=0.40:details=0.55:halo=0.05:blur=0.15:compression=0.25:estimate=8:grain=0.02:gsize=2:device=0:vram=0.90:instances=1'
+  print -r -- $'artemis-hq-gentle\tArtemis Gentle Upscale - Topaz’s own how-to recommends Artemis High Quality first for 1080p → 4K, specifically to reduce compression artifacts, reduce noise, recover detail, sharpen, and upscale.\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.16:details=0.26:halo=0.02:blur=0.08:compression=0.12:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
 }
 
 preset_description_by_slug() {
