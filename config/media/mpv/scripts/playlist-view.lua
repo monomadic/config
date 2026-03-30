@@ -8,6 +8,9 @@ local opts = {
 }
 options.read_options(opts)
 
+local PLAYLIST_OSD_SECS = 5
+local playlist_visible_until = 0
+
 local function get_osd_width()
 	local w = mp.get_property_number("osd-width", 1280)
 	-- Approximate character width (rough estimate: 10-12 pixels per char)
@@ -34,12 +37,16 @@ local function format_time(seconds)
 	end
 end
 
-function show_playlist()
+local function render_playlist(duration)
 	local playlist = mp.get_property_native("playlist")
+	if not playlist or #playlist == 0 then
+		return mp.osd_message("Playlist is empty")
+	end
+
 	local pos = mp.get_property_number("playlist-pos")
 	local total = #playlist
 	
-	if not pos or not total or total == 0 then
+	if not pos then
 		return mp.osd_message("Playlist is empty")
 	end
 	
@@ -93,13 +100,19 @@ function show_playlist()
 	
 	table.insert(lines, string.rep("─", width))
 	
-	mp.osd_message(table.concat(lines, "\n"), 5)
+	mp.osd_message(table.concat(lines, "\n"), duration or PLAYLIST_OSD_SECS)
 end
 
--- mp.add_key_binding("P", "show-minimal-playlist", show_playlist)
+local function show_playlist()
+	playlist_visible_until = mp.get_time() + PLAYLIST_OSD_SECS
+	render_playlist(PLAYLIST_OSD_SECS)
+end
+
+mp.add_key_binding(nil, "show-minimal-playlist", show_playlist)
 
 mp.observe_property("playlist", "native", function()
-	if mp.get_property_number("osd-msg-counter", 0) > 0 then
-		show_playlist()
+	local remaining = playlist_visible_until - mp.get_time()
+	if remaining > 0 then
+		render_playlist(remaining)
 	end
 end)

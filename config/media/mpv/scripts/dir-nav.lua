@@ -1,6 +1,8 @@
 local utils = require 'mp.utils'
 
-function get_files_in_dir()
+local pending_restore = nil
+
+local function get_files_in_dir()
     local path = mp.get_property("path")
     if not path then return nil end
     
@@ -22,7 +24,7 @@ function get_files_in_dir()
     return dir, media_files
 end
 
-function nav_dir(direction)
+local function nav_dir(direction)
     local dir, files = get_files_in_dir()
     if not files then return end
     
@@ -35,16 +37,42 @@ function nav_dir(direction)
     if idx then
         local new_idx = idx + direction
         if new_idx >= 1 and new_idx <= #files then
-            -- Clear and rebuild playlist with all directory files
-            mp.commandv("playlist-clear")
-            for i, f in ipairs(files) do
+            local was_paused = mp.get_property_bool("pause")
+
+            pending_restore = {
+                filename = files[new_idx],
+                pause = was_paused,
+            }
+
+            mp.set_property_bool("pause", true)
+            mp.commandv("loadfile", utils.join_path(dir, files[1]), "replace")
+            for i = 2, #files do
+                local f = files[i]
                 mp.commandv("loadfile", utils.join_path(dir, f), "append")
             end
-            -- Jump to the target file (0-indexed)
-            mp.set_property_number("playlist-pos", new_idx - 1)
+
+            if new_idx > 1 then
+                mp.add_timeout(0, function()
+                    mp.commandv("playlist-play-index", tostring(new_idx - 1))
+                end)
+            end
         end
     end
 end
+
+mp.register_event("file-loaded", function()
+    if not pending_restore then return end
+    if mp.get_property("filename") ~= pending_restore.filename then
+        return
+    end
+
+    local restore = pending_restore
+    pending_restore = nil
+
+    if restore.pause ~= nil then
+        mp.set_property_bool("pause", restore.pause)
+    end
+end)
 
 mp.add_key_binding(nil, "next-file-dir", function() nav_dir(1) end)
 mp.add_key_binding(nil, "prev-file-dir", function() nav_dir(-1) end)

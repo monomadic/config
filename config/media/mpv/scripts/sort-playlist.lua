@@ -4,6 +4,7 @@ local utils = require "mp.utils"
 local RECURSIVE = true
 local SKIP_DOTFILES = true
 local OSD_SECS = 4
+local pending_restore = nil
 
 local VIDEO_EXT = {
   ["mp4"]=true, ["mkv"]=true, ["webm"]=true, ["mov"]=true, ["m4v"]=true,
@@ -248,33 +249,81 @@ local function sort_paths_by_mtime(paths)
   return sorted
 end
 
+local function find_path_index(paths, target_path)
+  if not target_path then return nil end
+  local target = wd_join(target_path)
+  for i, path in ipairs(paths) do
+    if wd_join(path) == target then
+      return i
+    end
+  end
+  return nil
+end
+
 local function reload_playlist(paths, play_first)
   if not paths or #paths == 0 then
     osd("playlist: nothing to reload", 4)
     return
   end
 
+  local current_path = mp.get_property("path")
+  local current_time = mp.get_property_number("time-pos")
+  local was_paused = mp.get_property_bool("pause")
+  local target_index = play_first and 1 or (find_path_index(paths, current_path) or 1)
+  local target_path = paths[target_index]
+  local restore_time = (not play_first and current_path and target_path and wd_join(current_path) == wd_join(target_path))
+      and current_time
+      or nil
+
+  pending_restore = {
+    path = target_path,
+    time_pos = restore_time,
+    pause = play_first and false or was_paused,
+  }
+
+  if not play_first then
+    mp.set_property_bool("pause", true)
+  end
+
+  osd(("replace current with:\n%s"):format(paths[1]), 3)
+  mp.commandv("loadfile", paths[1], "replace")
+  for i = 2, #paths do
+    mp.msg.warn(("append[%d]: %s"):format(i, tostring(paths[i])))
+    mp.commandv("loadfile", paths[i], "append")
+  end
+
+  if target_index > 1 then
+    mp.add_timeout(0, function()
+      mp.commandv("playlist-play-index", tostring(target_index - 1))
+    end)
+  end
+
   if play_first then
-    osd(("replace current with:\n%s"):format(paths[1]), 3)
-    mp.commandv("loadfile", paths[1], "replace")
-    for i = 2, #paths do
-      mp.msg.warn(("append[%d]: %s"):format(i, tostring(paths[i])))
-      mp.commandv("loadfile", paths[i], "append")
-    end
-    mp.commandv("playlist-play-index", "0")
-    mp.set_property_bool("pause", false)
     osd(("reloaded %d items\nplaying:\n%s"):format(#paths, paths[1]), 4)
   else
-    local was_paused = mp.get_property_bool("pause")
-    mp.commandv("playlist-clear")
-    for i, p in ipairs(paths) do
-      mp.msg.warn(("append[%d]: %s"):format(i, tostring(p)))
-      mp.commandv("loadfile", p, "append")
-    end
-    mp.set_property_bool("pause", was_paused)
     osd(("reloaded playlist: %d items"):format(#paths), 3)
   end
 end
+
+mp.register_event("file-loaded", function()
+  if not pending_restore then return end
+
+  local restore = pending_restore
+  local current_path = mp.get_property("path")
+  if not current_path or wd_join(current_path) ~= wd_join(restore.path) then
+    return
+  end
+
+  pending_restore = nil
+
+  if restore.time_pos and restore.time_pos > 0 then
+    mp.commandv("seek", restore.time_pos, "absolute", "exact")
+  end
+
+  if restore.pause ~= nil then
+    mp.set_property_bool("pause", restore.pause)
+  end
+end)
 
 local function action_sort_playlist()
   local files = select(1, collect_playlist_entries(false))

@@ -4,23 +4,40 @@ local msg = require "mp.msg"
 local stats_timer = nil
 local update_interval = 0.5 -- seconds
 
+local function format_number(value)
+	if not value then
+		return "N/A"
+	end
+	if math.abs(value - math.floor(value + 0.5)) < 0.01 then
+		return tostring(math.floor(value + 0.5))
+	end
+	return string.format("%.2f", value)
+end
+
+local function format_fps(value)
+	if not value then
+		return "N/A"
+	end
+	return format_number(value) .. "fps"
+end
+
 -- Display status: declared fps, estimated (rendered) fps, and bitrate
 local function display_stats()
 	local status = string.format("{\\\\fnFiraCode Nerd Font} ")
 
 	-- FPS
-	local declared_fps = mp.get_property("container-fps")
+	local declared_fps = tonumber(mp.get_property("container-fps"))
 	if not declared_fps then
-		declared_fps = mp.get_property("fps") or "N/A"
+		declared_fps = tonumber(mp.get_property("fps"))
 	end
-	local actual_fps = mp.get_property("estimated-vf-fps") or "N/A"
-	status = status .. string.format("󰣿 Framerate: %dfps (actual: %dfps)", declared_fps, actual_fps)
+	local actual_fps = tonumber(mp.get_property("estimated-vf-fps"))
+	status = status .. string.format("󰣿 Framerate: %s (actual: %s)", format_fps(declared_fps), format_fps(actual_fps))
 
 	-- BITRATE
-	local bitrate = mp.get_property_native("video-bitrate")
+	local bitrate = tonumber(mp.get_property_native("video-bitrate"))
 	if bitrate then
-		local formatted_bitrate = math.floor(mp.get_property_native("video-bitrate") / 1000000)
-		status = status .. string.format("\n󰴙 Bitrate: %d Mbps", formatted_bitrate)
+		local formatted_bitrate = bitrate / 1000000
+		status = status .. string.format("\n󰴙 Bitrate: %s Mbps", format_number(formatted_bitrate))
 	end
 
 	-- OSD message duration slightly longer than the update interval

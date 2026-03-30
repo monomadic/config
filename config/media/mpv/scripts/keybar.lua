@@ -199,7 +199,7 @@ local keybar_items = {
         id = "dir",
         fallback = "Meta+d",
         prefer = { "Meta+d" },
-        desc = " Dir",
+        desc = " Open Dir",
         match = command_equals("script-binding replace-playlist"),
     },
     {
@@ -229,15 +229,22 @@ local keybar_items = {
         id = "prev",
         fallback = "[",
         prefer = { "[" },
-        desc = " Prev",
+        desc = " Pl Prev",
         match = command_equals("playlist-prev"),
     },
     {
         id = "next",
         fallback = "]",
         prefer = { "]" },
-        desc = " Next",
+        desc = " Pl Next",
         match = command_equals("playlist-next"),
+    },
+    {
+        id = "next_dir",
+        fallback = "}",
+        prefer = { "}", "Alt+]" },
+        desc = " Dir Next",
+        match = command_equals("script-binding next-file-dir"),
     },
     {
         id = "panscan",
@@ -277,6 +284,13 @@ local keybar_items = {
         prefer = { "Ctrl+s" },
         desc = " Sort",
         match = command_equals("script-binding sort_playlist_by_mtime"),
+    },
+    {
+        id = "expand",
+        fallback = "Ctrl+d",
+        prefer = { "Ctrl+d" },
+        desc = " Expand",
+        match = command_equals("script-binding expand_playlist_dirs"),
     },
     {
         id = "stats",
@@ -549,4 +563,5 @@ end)
 
 mp.register_script_message("auto_landscape_broadcast", function(state)
   auto_landscape = (state == "yes")
+  render_bar()
 end)

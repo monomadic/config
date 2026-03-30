@@ -11,6 +11,8 @@ local state = {
     jump_delay = nil,
 }
 
+local pending_restore = nil
+
 local aspect_display = {
     ["16:9"] = "16:9",
     ["4:3"] = "4:3",
@@ -29,6 +31,10 @@ local osd_display = {
 
 local function on_off(v)
     return v and "ON" or "OFF"
+end
+
+local function basename(path)
+    return path and path:match("([^/\\]+)$") or path
 end
 
 local function format_delay(seconds)
@@ -115,11 +121,43 @@ local function load_directory_files()
     end
     
     table.sort(media_files)
-    
-    -- Clear playlist and add files
-    mp.commandv("playlist-clear")
-    for _, file in ipairs(media_files) do
+
+    if #media_files == 0 then
+        mp.osd_message("No media files found in directory")
+        return
+    end
+
+    local current_filename = mp.get_property("filename")
+    local current_time = mp.get_property_number("time-pos")
+    local was_paused = mp.get_property_bool("pause")
+    local target_index = 1
+    local found_current = false
+
+    for i, file in ipairs(media_files) do
+        if basename(file) == current_filename then
+            target_index = i
+            found_current = true
+            break
+        end
+    end
+
+    pending_restore = {
+        filename = basename(media_files[target_index]),
+        time_pos = found_current and current_time or nil,
+        pause = was_paused,
+    }
+
+    mp.set_property_bool("pause", true)
+    mp.commandv("loadfile", media_files[1], "replace")
+    for i = 2, #media_files do
+        local file = media_files[i]
         mp.commandv("loadfile", file, "append")
+    end
+
+    if target_index > 1 then
+        mp.add_timeout(0, function()
+            mp.commandv("playlist-play-index", tostring(target_index - 1))
+        end)
     end
     
     mp.osd_message(string.format("Loaded %d files from directory", #media_files))
@@ -189,6 +227,24 @@ end)
 
 mp.register_script_message("realtime-stats-state", function(enabled)
     state.stats = (enabled == "yes")
+end)
+
+mp.register_event("file-loaded", function()
+    if not pending_restore then return end
+    if mp.get_property("filename") ~= pending_restore.filename then
+        return
+    end
+
+    local restore = pending_restore
+    pending_restore = nil
+
+    if restore.time_pos and restore.time_pos > 0 then
+        mp.commandv("seek", restore.time_pos, "absolute", "exact")
+    end
+
+    if restore.pause ~= nil then
+        mp.set_property_bool("pause", restore.pause)
+    end
 end)
 
 local function show_menu()

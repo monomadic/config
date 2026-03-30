@@ -95,6 +95,7 @@ local function format_osd_status()
 
     local cur = mp.get_property_number("playlist-pos", 0)
     local pl_count = mp.get_property_number("playlist-count", 0)
+    local display_cur = (pl_count > 0) and (cur + 1) or 0
 
     -- Orientation (rotation-aware)
     local orient = get_orientation()
@@ -111,7 +112,7 @@ local function format_osd_status()
     if osd_level <= 2 then
         status_msg = file_info
     else
-        local line1 = (paused and "PAUSED " or "") .. cur .. '/' .. pl_count .. ' ' .. artist .. title
+        local line1 = (paused and "PAUSED " or "") .. display_cur .. '/' .. pl_count .. ' ' .. artist .. title
         status_msg = line1 .. "\n" .. file_info
     end
 
