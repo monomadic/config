@@ -5,6 +5,7 @@ setopt local_options nonomatch
 
 filter_complex=""
 preset_name="topaz"
+preset_description=""
 verbose=1
 overwrite=0
 fragmented_mp4=1
@@ -51,11 +52,6 @@ while (( $# )); do
       ;;
   esac
 done
-
-(( $# )) || {
-  print -u2 "usage: $0 [--preset_name NAME] [--filter_complex FILTER] [--quiet|--verbose] [--overwrite] [--finalized-mp4] -- file1 [file2 ...]"
-  exit 1
-}
 
 TOPAZ_APP="/Applications/Topaz Video AI.app"
 TOPAZ_FFMPEG="$TOPAZ_APP/Contents/MacOS/ffmpeg"
@@ -357,7 +353,155 @@ run_ffmpeg() {
   return "$rc"
 }
 
+preset_records() {
+  print -r -- $'4k-conservative-cleanup\t4K Conservative Cleanup\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.20:details=0.22:halo=0.03:blur=0.08:compression=0.18:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
+  print -r -- $'4k-balanced-enhancement\t4K Balanced Enhancement\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.32:details=0.36:halo=0.05:blur=0.14:compression=0.30:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1'
+  print -r -- $'4k-aggressive-artifact-cleanup\t4K Aggressive Artifact Cleanup\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.50:details=0.28:halo=0.10:blur=0.18:compression=0.42:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
+  print -r -- $'4k-make-it-pop\t4K Make It Pop\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.10:details=0.30:halo=0.02:blur=0.06:compression=0.10:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1'
+  print -r -- $'1080p-to-4k-clean\t1080p -> 4K Clean Upscale\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.16:details=0.26:halo=0.02:blur=0.08:compression=0.12:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
+  print -r -- $'1080p-to-4k-medium\t1080p -> 4K Medium Enhancement\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.35:details=0.60:halo=0:blur=0.20:compression=0.30:estimate=8:grain=0.02:gsize=2:device=0:vram=0.90:instances=1'
+  print -r -- $'1080p-to-4k-strong\t1080p -> 4K Strong Detail Recovery\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.55:details=0.90:halo=0:blur=0.50:compression=0.45:estimate=8:grain=0.03:gsize=2:device=0:vram=0.90:instances=1'
+  print -r -- $'iris-mq-moderate\tIris MQ Moderate Cleanup\ttvai_up=model=iris-3:scale=1:preblur=0:noise=0.25:details=0.50:halo=0:blur=0.15:compression=0.20:estimate=8:grain=0.01:gsize=2:device=0:vram=0.90:instances=1'
+  print -r -- $'artemis-hq-gentle\tArtemis HQ Gentle\ttvai_up=model=ahq-12:scale=1:preblur=0:noise=0.15:details=0.35:halo=0:blur=0.10:compression=0.15:estimate=8:grain=0:gsize=2:device=0:vram=0.90:instances=1'
+  print -r -- $'nyx-strong-denoise\tNyx Strong Denoise\ttvai_up=model=nyx-3:scale=1:preblur=0:noise=0.80:details=0.25:halo=0:blur=0.20:compression=0.25:estimate=8:grain=0:gsize=2:device=0:vram=0.90:instances=1'
+  print -r -- $'proteus-manual-balanced\tProteus Manual Balanced\ttvai_up=model=prob-3:scale=1:preblur=0:noise=0.40:details=0.55:halo=0.05:blur=0.15:compression=0.25:estimate=8:grain=0.02:gsize=2:device=0:vram=0.90:instances=1'
+}
+
+preset_description_by_slug() {
+  local wanted_slug="$1"
+  local slug=""
+  local desc=""
+  local filter=""
+
+  while IFS=$'\t' read -r slug desc filter; do
+    [[ "$slug" == "$wanted_slug" ]] || continue
+    print -r -- "$desc"
+    return 0
+  done < <(preset_records)
+
+  return 1
+}
+
+select_input_files() {
+  local selection=""
+
+  command -v fzf >/dev/null 2>&1 || {
+    print -u2 "fzf not found"
+    exit 1
+  }
+
+  selection="$(
+    find . -type f \( \
+      -iname '*.mp4' -o \
+      -iname '*.m4v' -o \
+      -iname '*.mov' -o \
+      -iname '*.mkv' -o \
+      -iname '*.avi' -o \
+      -iname '*.webm' -o \
+      -iname '*.mpg' -o \
+      -iname '*.mpeg' -o \
+      -iname '*.ts' -o \
+      -iname '*.m2ts' \
+    \) -print |
+      sed 's#^\./##' |
+      LC_ALL=C sort |
+      fzf \
+        --multi \
+        --prompt='󰈔 Topaz files > ' \
+        --header='Select one or more videos' \
+        --height=60% \
+        --reverse \
+        --border
+  )"
+
+  [[ -n "$selection" ]] || {
+    print -u2 "no files selected"
+    exit 1
+  }
+
+  reply=("${(@f)selection}")
+}
+
+select_preset() {
+  local selection=""
+  local -a cmd_preview
+  local display=""
+  local slug=""
+  local desc=""
+  local filter=""
+
+  command -v fzf >/dev/null 2>&1 || {
+    print -u2 "fzf not found"
+    exit 1
+  }
+
+  selection="$(
+    while IFS=$'\t' read -r slug desc filter; do
+      printf '%b\t%s\t%s\t%s\n' \
+        "$(printf '\033[36m%-28s\033[0m  \033[2m%s\033[0m' "$slug" "$desc")" \
+        "$slug" \
+        "$desc" \
+        "$filter"
+    done < <(preset_records) |
+      fzf \
+        --ansi \
+        --delimiter=$'\t' \
+        --with-nth=1 \
+        --prompt='󰎆 Topaz preset > ' \
+        --header='Slug                         Description' \
+        --height=40% \
+        --reverse \
+        --border
+  )"
+
+  [[ -n "$selection" ]] || {
+    print -u2 "no preset selected"
+    exit 1
+  }
+
+  IFS=$'\t' read -r display preset_name preset_description filter_complex <<< "$selection"
+
+  cmd_preview=(
+    topaz-run
+    --preset_name "$preset_name"
+    --filter_complex "$filter_complex"
+    --
+    "$@"
+  )
+
+  print -r -- "${c_cyan}${icon_preset}${c_reset} preset: ${preset_description:-$preset_name}"
+  print -r -- "${c_dim}slug:${c_reset}   $preset_name"
+  print -r -- "${c_dim}cmd:${c_reset}    ${(q+)cmd_preview}"
+  print
+}
+
 trap 'interrupted=1' INT TERM
+
+if (( $# == 0 )); then
+  select_input_files
+  set -- "${reply[@]}"
+fi
+
+if [[ -z "$filter_complex" && "$preset_name" == "topaz" ]]; then
+  for input in "$@"; do
+    [[ -f "$input" ]] || {
+      print -u2 "not a file: $input"
+      exit 1
+    }
+  done
+  select_preset "$@"
+fi
+
+if [[ -z "$preset_description" && "$preset_name" != "topaz" ]]; then
+  preset_description="$(preset_description_by_slug "$preset_name" || true)"
+fi
+
+(( $# )) || {
+  print -u2 "usage: $0 [--preset_name NAME] [--filter_complex FILTER] [--quiet|--verbose] [--overwrite] [--finalized-mp4] [--] file1 [file2 ...]"
+  print -u2 "       With no preset/filter, an fzf preset picker opens."
+  print -u2 "       With no input files, an fzf file picker opens in the current directory."
+  exit 1
+}
 
 safe_preset="${preset_name:l}"
 safe_preset="${safe_preset// /-}"
@@ -431,7 +575,8 @@ for input in "$@"; do
   print -r -- "${c_bold}${c_blue}${icon_app} Topaz Batch${c_reset} ${c_dim}[$current_file/$total_files]${c_reset}"
   print -r -- "  ${c_dim}${icon_file} input :${c_reset} $input"
   print -r -- "  ${c_dim}${icon_file} output:${c_reset} $output"
-  print -r -- "  ${c_dim}${icon_preset} preset:${c_reset} ${c_bold}${preset_name}${c_reset}"
+  print -r -- "  ${c_dim}${icon_preset} preset:${c_reset} ${c_bold}${preset_description:-$preset_name}${c_reset}"
+  [[ -n "$preset_description" ]] && print -r -- "  ${c_dim}slug:${c_reset}   $preset_name"
   if (( duration_secs > 0 )); then
     print -r -- "  ${c_dim}󱎫 duration:${c_reset} $(human_duration_ms "$duration_secs")"
   fi
@@ -441,7 +586,8 @@ for input in "$@"; do
 
   {
     print "[$(date '+%F %T')] START $input"
-    print "PRESET: $preset_name"
+    print "PRESET: ${preset_description:-$preset_name}"
+    [[ -n "$preset_description" ]] && print "SLUG: $preset_name"
     print "CMD: ${(q+)cmd}"
     print
   } >"$log_file"

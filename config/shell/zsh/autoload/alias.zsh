@@ -5,6 +5,8 @@
 export ICLOUD_HOME="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
 export DJ_VISUALS_PATH=$ICLOUD_HOME/Movies/Visuals
 
+alias .send-incoming-flac-to-mixed-in-key="open -a /Applications/Mixed\ In\ Key\ 11.app ~/Music/Mixed\ In\ Key/**/*.flac"
+
 # ============================================================================
 # Utility Functions
 # ============================================================================

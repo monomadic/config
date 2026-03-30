@@ -63,13 +63,17 @@ alias .index-select-tower-downloads="cat-index-tower | grep 'Downloads' | .selec
 }
 
 .create-all-indexes() {
-  create-index /Volumes/Tower/Movies/Porn
-  create-index /Volumes/Tower/Movies/Porn/Downloads
-  create-index /Volumes/Tower/Movies/Porn/Masters
-  create-index /Volumes/Tower/Movies/Porn/Masters/Clips
-  create-index /Volumes/Tower/Movies/Porn/Masters/Clips/Full
-  create-index "/Users/nom/Library/Mobile Documents/com~apple~CloudDocs/Movies/Visuals"
+  .create-index /Volumes/Tower/Movies/Porn
+  .create-index /Volumes/Tower/Movies/Porn/Downloads
+  .create-index /Volumes/Tower/Movies/Porn/Masters
+  .create-index /Volumes/Tower/Movies/Porn/Masters/Clips
+  .create-index /Volumes/Tower/Movies/Porn/Masters/Clips/Full
+  .create-index "$HOME/Tower/Movies/Porn"
+  .create-index "$HOME/Tower/Movies/Porn/Downloads"
+  .create-index "$HOME/Tower/Movies/Porn/Masters"
+  .create-index "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Movies/Visuals"
 }
+alias .update-all-indexes=.create-all-indexes
 
 .play-tower-downloads-indexed() {
   MOUNT_PATH="/Volumes/Tower"
