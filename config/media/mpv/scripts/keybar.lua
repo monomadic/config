@@ -238,6 +238,14 @@ local keybar_items = {
         match = command_contains("show-text", "Resolution:", "Filesize:"),
     },
     {
+        id = "full_metadata",
+        group = "view",
+        fallback = "Meta+i",
+        prefer = { "Meta+i" },
+        desc = " Tags",
+        match = command_equals("script-binding toggle_full_metadata_popup"),
+    },
+    {
         id = "path",
         group = "view",
         fallback = "Meta+c",

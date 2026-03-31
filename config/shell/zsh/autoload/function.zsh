@@ -688,3 +688,13 @@ function convert_mp4_to_switch_webp() {
 function magick_to_webp_lossy() {
   magick "$1" -quality 75 -define webp:lossless=false "${1%.*}.webp"
 }
+
+settings-forklift-make-default() {
+  defaults write -g NSFileViewer -string com.binarynights.ForkLift;
+  defaults write com.apple.LaunchServices/com.apple.launchservices.secure LSHandlers -array-add '{LSHandlerContentType="public.folder";LSHandlerRoleAll="com.binarynights.ForkLift";}'
+}
+
+settings-finder-make-default() {
+  defaults delete -g NSFileViewer
+  defaults write com.apple.LaunchServices/com.apple.launchservices.secure LSHandlers -array-add '{LSHandlerContentType="public.folder";LSHandlerRoleAll="com.apple.finder";}'
+}
