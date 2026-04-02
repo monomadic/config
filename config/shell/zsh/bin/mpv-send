@@ -1,4 +1,9 @@
 #!/usr/bin/env zsh
+# mpv-send
+# Send playlist items and simple control commands to a running mpv instance
+# over mpv's JSON IPC Unix socket, using a single persistent socket write
+# for bulk playlist loads.
+
 set -euo pipefail
 
 SOCKET="${SOCKET:-/tmp/mpv-socket}"
@@ -24,9 +29,21 @@ _have() { command -v "$1" >/dev/null 2>&1; }
 mpv_send_raw() {
   local payload="$1"
   if _have socat; then
-    print -r -- "$payload" | socat - "$SOCKET" >/dev/null 2>&1
+    printf '%s\n' "$payload" | socat - UNIX-CONNECT:"$SOCKET" >/dev/null 2>&1
   elif _have nc; then
-    print -r -- "$payload" | nc -U "$SOCKET" >/dev/null 2>&1
+    printf '%s\n' "$payload" | nc -U "$SOCKET" >/dev/null 2>&1
+  else
+    echo "Error: need 'socat' or 'nc' installed." >&2
+    return 1
+  fi
+}
+
+mpv_send_many() {
+  local payload="$1"
+  if _have socat; then
+    printf '%s' "$payload" | socat - UNIX-CONNECT:"$SOCKET" >/dev/null 2>&1
+  elif _have nc; then
+    printf '%s' "$payload" | nc -U "$SOCKET" >/dev/null 2>&1
   else
     echo "Error: need 'socat' or 'nc' installed." >&2
     return 1
@@ -39,8 +56,20 @@ mpv_cmd() {
   for a in "$@"; do
     parts+=$'"'$(json_escape "$a")$'"'
   done
-  local joined; joined="$(IFS=,; echo "${parts[*]}")"
+  local joined
+  joined="$(IFS=,; echo "${parts[*]}")"
   mpv_send_raw '{ "command": ['"$joined"'] }'
+}
+
+mpv_cmd_json() {
+  local -a parts=()
+  local a
+  for a in "$@"; do
+    parts+=$'"'$(json_escape "$a")$'"'
+  done
+  local joined
+  joined="$(IFS=,; echo "${parts[*]}")"
+  printf '{ "command": [%s] }\n' "$joined"
 }
 
 abs_path() {
@@ -52,6 +81,8 @@ abs_path() {
 usage() {
   cat <<'USAGE'
 Usage: mpv-send <command> [args]
+
+Send files and simple control commands to a running mpv instance via IPC.
 
 Commands:
   play [files...]         Add files to playlist.
@@ -70,11 +101,11 @@ USAGE
 }
 
 cmd="${1:-}"
-[[ -n "${cmd}" ]] && shift || { usage; exit 1; }
+[[ -n "$cmd" ]] && shift || { usage; exit 1; }
 
 case "$cmd" in
   play)
-    local read0=false
+    read0=false
     while [[ $# -gt 0 && "$1" == -* ]]; do
       case "$1" in
         -0|--read0) read0=true ;;
@@ -84,9 +115,8 @@ case "$cmd" in
       shift
     done
 
-    local -a items=()
+    items=()
 
-    # Prefer stdin if it’s not a TTY; if empty, fall back to args.
     if [[ ! -t 0 ]]; then
       if $read0; then
         local line
@@ -101,7 +131,6 @@ case "$cmd" in
       fi
     fi
 
-    # If stdin yielded nothing, use remaining args.
     if [[ ${#items[@]} -eq 0 && $# -gt 0 ]]; then
       items=("$@")
     fi
@@ -111,15 +140,21 @@ case "$cmd" in
       exit 1
     fi
 
-    local f sent=0
+    local f
+    local payload=""
+    local sent=0
+
     for f in "${items[@]}"; do
       f="$(abs_path "$f")"
-      mpv_cmd loadfile "$f" "append-play" || {
-        echo "Error: failed to send $f" >&2
-        continue
-      }
+      payload+=$(mpv_cmd_json loadfile "$f" "append-play")
       ((sent++))
     done
+
+    mpv_send_many "$payload" || {
+      echo "Error: failed to send playlist batch to mpv" >&2
+      exit 1
+    }
+
     echo "Sent $sent file(s) to mpv"
     ;;
 
@@ -142,9 +177,9 @@ case "$cmd" in
   osd)
     local sub="${1:-}"
     case "$sub" in
-      on)     mpv_cmd set_property osd-level 3  || true; echo "OSD: on" ;;
-      off)    mpv_cmd set_property osd-level 0  || true; echo "OSD: off" ;;
-      toggle) mpv_cmd cycle-values osd-level 0 3 || true; echo "OSD: toggled 0↔3" ;;
+      on)      mpv_cmd set_property osd-level 3 || true; echo "OSD: on" ;;
+      off)     mpv_cmd set_property osd-level 0 || true; echo "OSD: off" ;;
+      toggle)  mpv_cmd cycle-values osd-level 0 3 || true; echo "OSD: toggled 0↔3" ;;
       0|1|2|3) mpv_cmd set_property osd-level "$sub" || true; echo "OSD level: $sub" ;;
       *) echo "Usage: mpv-send osd on|off|toggle|0..3"; exit 1 ;;
     esac
@@ -153,11 +188,12 @@ case "$cmd" in
   panscan|pan-scan)
     local val="${1:-}"
     case "$val" in
-      on)     mpv_cmd set_property panscan 1   || true; echo "panscan: 1" ;;
-      off)    mpv_cmd set_property panscan 0   || true; echo "panscan: 0" ;;
+      on)     mpv_cmd set_property panscan 1 || true; echo "panscan: 1" ;;
+      off)    mpv_cmd set_property panscan 0 || true; echo "panscan: 0" ;;
       toggle) mpv_cmd cycle-values panscan 0 1 || true; echo "panscan: toggled 0↔1" ;;
       "")
-        echo "Usage: mpv-send panscan <0..1>|on|off|toggle"; exit 1
+        echo "Usage: mpv-send panscan <0..1>|on|off|toggle"
+        exit 1
         ;;
       *)
         mpv_cmd set_property panscan "$val" || true
@@ -167,6 +203,7 @@ case "$cmd" in
     ;;
 
   *)
-    usage; exit 1
+    usage
+    exit 1
     ;;
 esac
