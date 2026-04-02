@@ -161,6 +161,14 @@ cask "airflow"
 cask "hex-fiend"
 cask "jordanbaird-ice"
 
+# AI Tools
+# cask "chatgpt"
+# cask "chatgpt-atlas" # browser
+# cask "codex" # coding agent
+# cask "codex-app" # desktop
+# cask "codexbar" # usage meter
+# cask "nimbalyst" # additional ui for codex and claude code
+
 # Optional ideas worth revisiting
 # brew "fq" # jq for binary formats: https://github.com/wader/fq
 # cask "alacritty" # alternate terminal
