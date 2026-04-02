@@ -148,18 +148,10 @@ local function command_contains(...)
     end
 end
 
-local group_labels = {
-    system = "SYS",
-    nav = "NAV",
-    list = "LIST",
-    view = "VIEW",
-    random = "RAND",
-}
-
 local keybar_items = {
     {
         id = "menu",
-        group = "system",
+        section = "shortcut",
         fallback = "ESC",
         prefer = { "ESC" },
         desc = " Menu",
@@ -167,7 +159,7 @@ local keybar_items = {
     },
     {
         id = "osd",
-        group = "system",
+        section = "shortcut",
         fallback = "TAB",
         prefer = { "TAB" },
         desc = " OSD",
@@ -175,7 +167,7 @@ local keybar_items = {
     },
     {
         id = "dir",
-        group = "nav",
+        section = "shortcut",
         fallback = "Meta+d",
         prefer = { "Meta+d" },
         desc = " Open Dir",
@@ -183,7 +175,7 @@ local keybar_items = {
     },
     {
         id = "prev",
-        group = "nav",
+        section = "shortcut",
         fallback = "[",
         prefer = { "[" },
         desc = " Prev",
@@ -191,7 +183,7 @@ local keybar_items = {
     },
     {
         id = "next",
-        group = "nav",
+        section = "shortcut",
         fallback = "]",
         prefer = { "]" },
         desc = " Next",
@@ -199,23 +191,15 @@ local keybar_items = {
     },
     {
         id = "next_dir",
-        group = "nav",
+        section = "shortcut",
         fallback = "}",
         prefer = { "}", "Alt+]" },
         desc = " Dir Next",
         match = command_equals("script-binding next-file-dir"),
     },
     {
-        id = "shuffle",
-        group = "list",
-        fallback = "s",
-        prefer = { "s" },
-        desc = " Shuffle",
-        match = command_prefix("playlist-shuffle"),
-    },
-    {
         id = "sort",
-        group = "list",
+        section = "shortcut",
         fallback = "Ctrl+s",
         prefer = { "Ctrl+s" },
         desc = " Sort",
@@ -223,39 +207,15 @@ local keybar_items = {
     },
     {
         id = "expand",
-        group = "list",
+        section = "shortcut",
         fallback = "Ctrl+d",
         prefer = { "Ctrl+d" },
         desc = " Expand",
         match = command_equals("script-binding expand_playlist_dirs"),
     },
     {
-        id = "info",
-        group = "view",
-        fallback = "f",
-        prefer = { "f" },
-        desc = " Info",
-        match = command_contains("show-text", "Resolution:", "Filesize:"),
-    },
-    {
-        id = "full_metadata",
-        group = "view",
-        fallback = "Meta+i",
-        prefer = { "Meta+i" },
-        desc = " Tags",
-        match = command_equals("script-binding toggle_full_metadata_popup"),
-    },
-    {
-        id = "path",
-        group = "view",
-        fallback = "Meta+c",
-        prefer = { "Meta+c" },
-        desc = " Path",
-        match = command_equals("script-binding copy-current-path"),
-    },
-    {
         id = "panscan",
-        group = "view",
+        section = "state",
         fallback = "p",
         prefer = { "p" },
         desc = function(badge)
@@ -265,7 +225,7 @@ local keybar_items = {
     },
     {
         id = "progress",
-        group = "view",
+        section = "state",
         fallback = "Ctrl+p",
         prefer = { "Ctrl+p", "4" },
         desc = function(badge)
@@ -274,16 +234,8 @@ local keybar_items = {
         match = command_equals("script-binding progress-bar-minimal/toggle-progress"),
     },
     {
-        id = "rotate",
-        group = "view",
-        fallback = "r",
-        prefer = { "r" },
-        desc = " Rotate",
-        match = command_prefix("cycle-values video-rotate 0 90 180 270"),
-    },
-    {
         id = "metadata",
-        group = "view",
+        section = "state",
         fallback = "b",
         prefer = { "b" },
         desc = function(badge)
@@ -293,7 +245,7 @@ local keybar_items = {
     },
     {
         id = "stats",
-        group = "view",
+        section = "state",
         fallback = "F7",
         prefer = { "F7" },
         desc = function(badge)
@@ -303,7 +255,7 @@ local keybar_items = {
     },
     {
         id = "auto_landscape",
-        group = "view",
+        section = "state",
         fallback = "2",
         prefer = { "2" },
         desc = function(badge)
@@ -312,24 +264,8 @@ local keybar_items = {
         match = command_equals("script-binding toggle_force_landscape"),
     },
     {
-        id = "rand_seek",
-        group = "random",
-        fallback = "j",
-        prefer = { "j" },
-        desc = " Rand Seek",
-        match = command_equals("script-binding random_seek_within_file"),
-    },
-    {
-        id = "rand_item",
-        group = "random",
-        fallback = "Shift+j",
-        prefer = { "Shift+j" },
-        desc = " Rand Item",
-        match = command_equals("script-binding random_playlist_jump"),
-    },
-    {
         id = "auto_jump",
-        group = "random",
+        section = "state",
         fallback = "1",
         prefer = { "1" },
         desc = function(badge, fmt_delay)
@@ -427,7 +363,6 @@ local function build_bar(dim)
     local text_color = "{\\1c&HFFFFFF&}"
     local chip_color = "{\\1c&H181818&\\alpha&H00&}"
     local sep_color  = "{\\1c&H6A6A6A&}"
-    local group_color = "{\\1c&H9B9B9B&}"
 
     local function badge(on)
         local c = on and "{\\1c&H00FFFF&}" or "{\\1c&H777777&}"
@@ -448,14 +383,6 @@ local function build_bar(dim)
         return chip_color .. "  " .. key_color .. label .. text_color .. desc .. "  " .. sep_color .. "|" .. text_color
     end
 
-    local function group_tag(name, first)
-        local label = group_labels[name] or tostring(name or ""):upper()
-        if first then
-            return group_color .. label .. text_color .. "  "
-        end
-        return sep_color .. "  ||  " .. group_color .. label .. text_color .. "  "
-    end
-
     local function desc(item)
         if type(item.desc) == "function" then
             return item.desc(badge, fmt_delay)
@@ -469,11 +396,13 @@ local function build_bar(dim)
         fs
     )
 
-    local last_group = nil
+    local last_section = nil
     for _, item in ipairs(keybar_items) do
-        if item.group ~= last_group then
-            s = s .. group_tag(item.group, last_group == nil)
-            last_group = item.group
+        if item.section ~= last_section then
+            if last_section ~= nil then
+                s = s .. sep_color .. "  ||  " .. text_color
+            end
+            last_section = item.section
         end
         s = s .. key(resolved_keys[item.id] or format_key_label(item.fallback), desc(item))
     end

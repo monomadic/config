@@ -1,9 +1,89 @@
 -- osd-formatter.lua - Format OSD status message with custom logic
 local mp = require "mp"
 local enabled = true
+local TITLE_FONT = "Helvetica Neue"
+local TITLE_DURATION_MS = 2500
 
 local function broadcast_state()
     mp.commandv("script-message", "metadata-state", enabled and "yes" or "no")
+end
+
+local function ass_escape(text)
+    return tostring(text or "")
+        :gsub("\\", "\\\\")
+        :gsub("{", "\\{")
+        :gsub("}", "\\}")
+end
+
+local function trim(text)
+    return tostring(text or ""):match("^%s*(.-)%s*$")
+end
+
+local function metadata_value_to_text(value)
+    if type(value) == "table" then
+        local parts = {}
+
+        if #value > 0 then
+            for _, item in ipairs(value) do
+                local text = trim(item)
+                if text ~= "" then
+                    table.insert(parts, text)
+                end
+            end
+        else
+            for _, item in pairs(value) do
+                local text = trim(item)
+                if text ~= "" then
+                    table.insert(parts, text)
+                end
+            end
+            table.sort(parts)
+        end
+
+        return table.concat(parts, ", ")
+    end
+
+    return trim(value)
+end
+
+local function get_actor_line()
+    local preferred_keys = { "actors", "actor", "cast", "starring", "performer" }
+    local metadata_sources = {
+        mp.get_property_native("metadata") or {},
+        mp.get_property_native("filtered-metadata") or {},
+    }
+
+    for _, source in ipairs(metadata_sources) do
+        local normalized = {}
+
+        for key, value in pairs(source) do
+            local normalized_key = tostring(key):lower():gsub("[^%w]", "")
+            normalized[normalized_key] = value
+        end
+
+        for _, key in ipairs(preferred_keys) do
+            local text = metadata_value_to_text(normalized[key])
+            if text ~= "" then
+                return text
+            end
+        end
+    end
+
+    return nil
+end
+
+local function show_title_card()
+    local title = trim(mp.get_property("media-title") or mp.get_property("filename") or "Untitled")
+    local actors = get_actor_line()
+    local lines = {
+        string.format("{\\fn%s\\fs28\\b1}%s", TITLE_FONT, ass_escape(title)),
+    }
+
+    if actors and actors ~= "" then
+        table.insert(lines, string.format("{\\fn%s\\fs18\\b0}%s", TITLE_FONT, ass_escape(actors)))
+    end
+
+    mp.commandv("show-text", table.concat(lines, "\n"), tostring(TITLE_DURATION_MS), "1")
 end
 
 local function get_orientation()
@@ -127,7 +207,10 @@ end)
 
 mp.register_script_message("metadata-query", broadcast_state)
 
-mp.register_event("file-loaded", format_osd_status)
+mp.register_event("file-loaded", function()
+    format_osd_status()
+    mp.add_timeout(0.05, show_title_card)
+end)
 mp.observe_property("video-params", "native", format_osd_status)
 mp.observe_property("osd-level", "number", format_osd_status)
 mp.observe_property("pause", "bool", format_osd_status)

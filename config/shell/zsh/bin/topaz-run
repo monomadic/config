@@ -1,641 +1,110 @@
 #!/usr/bin/env zsh
-emulate -L zsh
 set -euo pipefail
-setopt local_options nonomatch
 
-filter_complex=""
-preset_name="topaz"
-preset_description=""
-verbose=1
-overwrite=0
-fragmented_mp4=1
-interrupted=0
+(( $# == 0 )) && {
+  print -u2 "usage: $0 file1 [file2 ...]"
+  exit 1
+}
 
-while (( $# )); do
-  case "$1" in
-    --filter_complex)
-      (( $# >= 2 )) || { print -u2 "error: --filter_complex requires a value"; exit 1; }
-      filter_complex="$2"
-      shift 2
-      ;;
-    --preset_name)
-      (( $# >= 2 )) || { print -u2 "error: --preset_name requires a value"; exit 1; }
-      preset_name="$2"
-      shift 2
-      ;;
-    --quiet)
-      verbose=0
-      shift
-      ;;
-    --verbose)
-      verbose=1
-      shift
-      ;;
-    --overwrite|-y)
-      overwrite=1
-      shift
-      ;;
-    --finalized-mp4|--no-fragmented-mp4)
-      fragmented_mp4=0
-      shift
-      ;;
-    --)
-      shift
-      break
-      ;;
-    -*)
-      print -u2 "error: unknown option: $1"
-      exit 1
-      ;;
-    *)
-      break
-      ;;
-  esac
-done
+command -v fzf >/dev/null 2>&1 || {
+  print -u2 "fzf not found"
+  exit 1
+}
 
 TOPAZ_APP="/Applications/Topaz Video AI.app"
-TOPAZ_FFMPEG="$TOPAZ_APP/Contents/MacOS/ffmpeg"
-TOPAZ_MODELS_DIR="$TOPAZ_APP/Contents/Resources/models"
-FFPROBE_BIN="$(command -v ffprobe || true)"
+TOPAZ_BIN="$TOPAZ_APP/Contents/MacOS/Topaz Video AI"
 LOG_DIR="${HOME}/Library/Logs/topaz-batch"
 
-export TVAI_MODEL_DIR="$TOPAZ_MODELS_DIR"
-export TVAI_MODEL_DATA_DIR="$TOPAZ_MODELS_DIR"
+[[ -x "$TOPAZ_BIN" ]] || {
+  print -u2 "Topaz binary not found: $TOPAZ_BIN"
+  exit 1
+}
 
 mkdir -p "$LOG_DIR"
 
-[[ -x "$TOPAZ_FFMPEG" ]] || {
-  print -u2 "error: topaz ffmpeg not found: $TOPAZ_FFMPEG"
+for input in "$@"; do
+  [[ -f "$input" ]] || {
+    print -u2 "not a file: $input"
+    exit 1
+  }
+done
+
+selection="$(
+  printf '%s\n' \
+    $'4K Enhance - clean digital look without cartoonish output\t--filter_complex\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.10:details=0.30:halo=0.02:blur=0.06:compression=0.10:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
+    $'Prob-4 2x - medium enhancement\t--filter_complex\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.35:details=0.60:halo=0:blur=0.20:compression=0.30:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1' \
+    $'Prob-4 2x - strong detail recovery\t--filter_complex\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.55:details=0.90:halo=0:blur=0.50:compression=0.45:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1' \
+    $'1080p to 4K - balanced upscale\t--filter_complex\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.18:details=0.35:halo=0.02:blur=0.08:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
+    $'Focus Fix - mild recovery\t--filter_complex\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.15:details=0.55:halo=0.04:blur=0.18:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
+    $'Focus Fix - stronger recovery\t--filter_complex\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.22:details=0.80:halo=0.08:blur=0.28:compression=0.18:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
+    $'30fps to 60fps - Apollo / interpolation\t--filter_complex\ttvai_fi=model=apollo:slowmo=0:rdt=0.01:device=0:vram=0.95:instances=1,fps=60' \
+    $'24fps to 60fps - Apollo / interpolation\t--filter_complex\ttvai_fi=model=apollo:slowmo=0:rdt=0.01:device=0:vram=0.95:instances=1,fps=60' \
+    $'Iris MQ - moderate cleanup and sharpening\t--filter_complex\ttvai_up=model=iris-mq:scale=1:preblur=0:noise=0.25:details=0.50:halo=0:blur=0.15:compression=0.20:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
+    $'Artemis HQ - gentle enhancement for decent sources\t--filter_complex\ttvai_up=model=ahq-13:scale=1:preblur=0:noise=0.15:details=0.35:halo=0:blur=0.10:compression=0.15:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1' \
+    $'Nyx - strong denoise for dark/noisy footage\t--filter_complex\ttvai_up=model=nyx-3:scale=1:preblur=0:noise=0.80:details=0.25:halo=0:blur=0.20:compression=0.25:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1' \
+    $'Proteus manual - balanced recover + denoise\t--filter_complex\ttvai_up=model=prob-3:scale=1:preblur=0:noise=0.40:details=0.55:halo=0.05:blur=0.15:compression=0.25:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1' |
+    fzf \
+      --prompt='Topaz preset > ' \
+      --delimiter=$'\t' \
+      --with-nth=1 \
+      --height=50% \
+      --reverse \
+      --border \
+      --preview='printf "%s\n\n%s\n" {1} {3}' \
+      --preview-window='down:4:wrap'
+)"
+
+[[ -n "$selection" ]] || {
+  print -u2 "no preset selected"
   exit 1
 }
 
-# ---------- UI ----------
-
-is_tty=0
-[[ -t 1 ]] && is_tty=1
-
-if (( is_tty )); then
-  c_reset=$'\e[0m'
-  c_dim=$'\e[2m'
-  c_bold=$'\e[1m'
-  c_red=$'\e[31m'
-  c_green=$'\e[32m'
-  c_yellow=$'\e[33m'
-  c_blue=$'\e[34m'
-  c_magenta=$'\e[35m'
-  c_cyan=$'\e[36m'
-  c_gray=$'\e[90m'
-else
-  c_reset=""
-  c_dim=""
-  c_bold=""
-  c_red=""
-  c_green=""
-  c_yellow=""
-  c_blue=""
-  c_magenta=""
-  c_cyan=""
-  c_gray=""
-fi
-
-icon_app="󰎆"
-icon_file="󰈔"
-icon_preset="󰏬"
-icon_cmd="󰆍"
-icon_log="󰌱"
-icon_ok="󰄬"
-icon_fail="󰅙"
-icon_skip="󰈉"
-
-hr() {
-  print -r -- "${c_gray}────────────────────────────────────────────────────────────────${c_reset}"
-}
-
-info() {
-  print -r -- "${c_cyan}${1}${c_reset} ${2}"
-}
-
-ok() {
-  print -r -- "${c_green}${1}${c_reset} ${2}"
-}
-
-warn() {
-  print -r -- "${c_yellow}${1}${c_reset} ${2}"
-}
-
-err() {
-  print -u2 -r -- "${c_red}${1}${c_reset} ${2}"
-}
-
-human_bytes() {
-  local bytes="${1:-0}"
-  python3 - <<'PY' "$bytes"
-import sys
-n=float(sys.argv[1])
-units=["B","KB","MB","GB","TB"]
-i=0
-while n >= 1024 and i < len(units)-1:
-    n/=1024
-    i+=1
-print(f"{n:.1f}{units[i]}")
-PY
-}
-
-human_duration() {
-  local total="${1:-0}"
-  (( total < 0 )) && total=0
-
-  local hours=$(( total / 3600 ))
-  local minutes=$(( (total % 3600) / 60 ))
-  local seconds=$(( total % 60 ))
-
-  if (( hours > 0 )); then
-    printf '%d:%02d:%02d\n' "$hours" "$minutes" "$seconds"
-  else
-    printf '%d:%02d\n' "$minutes" "$seconds"
-  fi
-}
-
-human_duration_ms() {
-  local total_ms="${1:-0}"
-  (( total_ms < 0 )) && total_ms=0
-
-  local total_secs=$(( total_ms / 1000 ))
-  local tenths=$(( (total_ms % 1000) / 100 ))
-
-  if (( total_secs < 60 )); then
-    printf '0:%02d.%d\n' "$total_secs" "$tenths"
-  else
-    human_duration "$total_secs"
-  fi
-}
-
-decimal_to_millis() {
-  local raw="${1:-0}"
-  local whole="${raw%%.*}"
-  local frac=""
-
-  [[ -n "$whole" ]] || whole=0
-
-  if [[ "$raw" == *.* ]]; then
-    frac="${raw#*.}"
-  fi
-
-  frac="${frac[1,3]}"
-  while (( ${#frac} < 3 )); do
-    frac+="0"
-  done
-
-  print $(( 10#$whole * 1000 + 10#${frac:-0} ))
-}
-
-timecode_to_millis() {
-  local timecode="${1:-}"
-  local whole="${timecode%%.*}"
-  local frac=""
-  local -a parts
-
-  parts=("${(@s/:/)whole}")
-  (( ${#parts} == 3 )) || {
-    print 0
-    return
-  }
-
-  if [[ "$timecode" == *.* ]]; then
-    frac="${timecode#*.}"
-  fi
-
-  frac="${frac[1,3]}"
-  while (( ${#frac} < 3 )); do
-    frac+="0"
-  done
-
-  print $(( (10#${parts[1]} * 3600 + 10#${parts[2]} * 60 + 10#${parts[3]}) * 1000 + 10#${frac:-0} ))
-}
-
-probe_duration_millis() {
-  local input="$1"
-  local raw=""
-
-  [[ -n "$FFPROBE_BIN" ]] || return 1
-
-  raw="$("$FFPROBE_BIN" \
-    -v error \
-    -show_entries format=duration \
-    -of default=nw=1:nk=1 \
-    -- "$input" 2>/dev/null || true)"
-
-  [[ -n "$raw" && "$raw" != "N/A" ]] || return 1
-
-  decimal_to_millis "$raw"
-}
-
-render_progress() {
-  local processed_ms="${1:-0}"
-  local duration_ms="${2:-0}"
-  local speed_label="${3:-N/A}"
-  local start_ts="${4:-0}"
-  local elapsed_secs=$(( SECONDS - start_ts ))
-  local processed_text="$(human_duration_ms "$processed_ms")"
-  local duration_text="--:--"
-  local eta_text="warming"
-  local percent_text="--.-%"
-  local -F speed_num=0
-  local -F eta_calc=0
-  local speed_clean="${speed_label%x}"
-  local remaining_ms=0
-  local eta_secs=-1
-  local line=""
-  local percent_tenths=0
-
-  if [[ -n "$speed_clean" && "$speed_clean" != "N/A" ]]; then
-    speed_num="$speed_clean"
-  fi
-
-  if (( duration_ms > 0 )); then
-    (( processed_ms > duration_ms )) && processed_ms=$duration_ms
-    remaining_ms=$(( duration_ms - processed_ms ))
-    duration_text="$(human_duration_ms "$duration_ms")"
-    percent_tenths=$(( processed_ms * 1000 / duration_ms ))
-    (( percent_tenths > 1000 )) && percent_tenths=1000
-    percent_text="$(printf '%d.%d%%' $(( percent_tenths / 10 )) $(( percent_tenths % 10 )))"
-
-    if (( remaining_ms == 0 )); then
-      eta_secs=0
-    elif (( processed_ms >= 10000 || percent_tenths >= 5 )); then
-      if (( speed_num > 0 )); then
-        eta_calc=$(( (remaining_ms / 1000.0) / speed_num ))
-        eta_secs=$(( eta_calc ))
-      elif (( processed_ms > 0 && elapsed_secs > 0 )); then
-        eta_calc=$(( elapsed_secs * remaining_ms / processed_ms ))
-        eta_secs=$(( eta_calc ))
-      fi
-    fi
-
-    if (( eta_secs == 0 )); then
-      eta_text="0:00"
-    elif (( eta_secs > 0 )); then
-      eta_secs=$(( eta_calc ))
-      eta_text="$(human_duration "$eta_secs")"
-    fi
-  fi
-
-  if (( is_tty )); then
-    line="${c_magenta}󰔛${c_reset} ${percent_text}  ${c_dim}time${c_reset} ${processed_text}/${duration_text}  ${c_dim}eta${c_reset} ${eta_text}  ${c_dim}speed${c_reset} ${speed_label}"
-    printf '\r\033[2K%s' "$line"
-  fi
-}
-
-run_ffmpeg() {
-  local log_file="$1"
-  local duration_secs="$2"
-  local start_ts="$3"
-  shift 3
-
-  local -a ffmpeg_cmd
-  ffmpeg_cmd=("$@")
-
-  local processed_ms=0
-  local speed_label="N/A"
-  local key=""
-  local value=""
-  local rc=0
-
-  if (( verbose )); then
-    {
-      "${ffmpeg_cmd[@]}" 2> >(tee -a "$log_file" >&2)
-    } | while IFS='=' read -r key value; do
-      case "$key" in
-        out_time_us)
-          processed_ms=$(( value / 1000 ))
-          ;;
-        out_time_ms)
-          processed_ms=$(( value / 1000 ))
-          ;;
-        out_time)
-          (( processed_ms == 0 )) && processed_ms=$(timecode_to_millis "$value")
-          ;;
-        speed)
-          speed_label="$value"
-          ;;
-        progress)
-          render_progress "$processed_ms" "$duration_secs" "$speed_label" "$start_ts"
-          ;;
-      esac
-    done
-    rc=${pipestatus[1]}
-  else
-    {
-      "${ffmpeg_cmd[@]}" 2>>"$log_file"
-    } | while IFS='=' read -r key value; do
-      case "$key" in
-        out_time_us)
-          processed_ms=$(( value / 1000 ))
-          ;;
-        out_time_ms)
-          processed_ms=$(( value / 1000 ))
-          ;;
-        out_time)
-          (( processed_ms == 0 )) && processed_ms=$(timecode_to_millis "$value")
-          ;;
-        speed)
-          speed_label="$value"
-          ;;
-        progress)
-          render_progress "$processed_ms" "$duration_secs" "$speed_label" "$start_ts"
-          ;;
-      esac
-    done
-    rc=${pipestatus[1]}
-  fi
-
-  (( is_tty )) && printf '\n'
-  return "$rc"
-}
-
-preset_records() {
-  print -r -- $'4k-conservative-cleanup\t4K Conservative Cleanup\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.20:details=0.22:halo=0.03:blur=0.08:compression=0.18:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
-  print -r -- $'4k-balanced-enhancement\tFor decent 2160p that just needs less mush and compression junk.\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.32:details=0.36:halo=0.05:blur=0.14:compression=0.30:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1'
-  print -r -- $'4k-aggressive-artifact-cleanup\tFor nasty 2160p streaming rips with visible macroblocking / ringing.\t4K Aggressive Artifact Cleanup\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.50:details=0.28:halo=0.10:blur=0.18:compression=0.42:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
-  print -r -- $'4k-make-it-pop\t4K Make It Pop: For clean digital 4K that feels just slightly soft.\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.10:details=0.30:halo=0.02:blur=0.06:compression=0.10:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1'
-  print -r -- $'1080p-to-4k-clean\t1080p -> 4K Clean Upscale\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.16:details=0.26:halo=0.02:blur=0.08:compression=0.12:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
-  print -r -- $'1080p-to-4k-medium\t1080p -> 4K Medium Enhancement\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.35:details=0.60:halo=0:blur=0.20:compression=0.30:estimate=8:grain=0.02:gsize=2:device=0:vram=0.90:instances=1'
-  print -r -- $'1080p-to-4k-strong\t1080p -> 4K Strong Detail Recovery\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.55:details=0.90:halo=0:blur=0.50:compression=0.45:estimate=8:grain=0.03:gsize=2:device=0:vram=0.90:instances=1'
-  print -r -- $'iris-mq-moderate\tIris MQ Moderate Cleanup\ttvai_up=model=iris-3:scale=1:preblur=0:noise=0.25:details=0.50:halo=0:blur=0.15:compression=0.20:estimate=8:grain=0.01:gsize=2:device=0:vram=0.90:instances=1'
-  print -r -- $'artemis-hq-gentle\tArtemis Gentle Upscale - Topaz’s own how-to recommends Artemis High Quality first for 1080p → 4K, specifically to reduce compression artifacts, reduce noise, recover detail, sharpen, and upscale.\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.16:details=0.26:halo=0.02:blur=0.08:compression=0.12:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
-}
-
-preset_description_by_slug() {
-  local wanted_slug="$1"
-  local slug=""
-  local desc=""
-  local filter=""
-
-  while IFS=$'\t' read -r slug desc filter; do
-    [[ "$slug" == "$wanted_slug" ]] || continue
-    print -r -- "$desc"
-    return 0
-  done < <(preset_records)
-
-  return 1
-}
-
-select_input_files() {
-  local selection=""
-
-  command -v fzf >/dev/null 2>&1 || {
-    print -u2 "fzf not found"
-    exit 1
-  }
-
-  selection="$(
-    find . -type f \( \
-      -iname '*.mp4' -o \
-      -iname '*.m4v' -o \
-      -iname '*.mov' -o \
-      -iname '*.mkv' -o \
-      -iname '*.avi' -o \
-      -iname '*.webm' -o \
-      -iname '*.mpg' -o \
-      -iname '*.mpeg' -o \
-      -iname '*.ts' -o \
-      -iname '*.m2ts' \
-    \) -print |
-      sed 's#^\./##' |
-      LC_ALL=C sort |
-      fzf \
-        --multi \
-        --prompt='󰈔 Topaz files > ' \
-        --header='Select one or more videos' \
-        --height=60% \
-        --reverse \
-        --border
-  )"
-
-  [[ -n "$selection" ]] || {
-    print -u2 "no files selected"
-    exit 1
-  }
-
-  reply=("${(@f)selection}")
-}
-
-select_preset() {
-  local selection=""
-  local -a cmd_preview
-  local display=""
-  local slug=""
-  local desc=""
-  local filter=""
-
-  command -v fzf >/dev/null 2>&1 || {
-    print -u2 "fzf not found"
-    exit 1
-  }
-
-  selection="$(
-    while IFS=$'\t' read -r slug desc filter; do
-      printf '%b\t%s\t%s\t%s\n' \
-        "$(printf '\033[36m%-28s\033[0m  \033[2m%s\033[0m' "$slug" "$desc")" \
-        "$slug" \
-        "$desc" \
-        "$filter"
-    done < <(preset_records) |
-      fzf \
-        --ansi \
-        --delimiter=$'\t' \
-        --with-nth=1 \
-        --prompt='󰎆 Topaz preset > ' \
-        --header='Slug                         Description' \
-        --height=40% \
-        --reverse \
-        --border
-  )"
-
-  [[ -n "$selection" ]] || {
-    print -u2 "no preset selected"
-    exit 1
-  }
-
-  IFS=$'\t' read -r display preset_name preset_description filter_complex <<< "$selection"
-
-  cmd_preview=(
-    topaz-run
-    --preset_name "$preset_name"
-    --filter_complex "$filter_complex"
-    --
-    "$@"
-  )
-
-  print -r -- "${c_cyan}${icon_preset}${c_reset} preset: ${preset_description:-$preset_name}"
-  print -r -- "${c_dim}slug:${c_reset}   $preset_name"
-  print -r -- "${c_dim}cmd:${c_reset}    ${(q+)cmd_preview}"
-  print
-}
-
-trap 'interrupted=1' INT TERM
-
-if (( $# == 0 )); then
-  select_input_files
-  set -- "${reply[@]}"
-fi
-
-if [[ -z "$filter_complex" && "$preset_name" == "topaz" ]]; then
-  for input in "$@"; do
-    [[ -f "$input" ]] || {
-      print -u2 "not a file: $input"
-      exit 1
-    }
-  done
-  select_preset "$@"
-fi
-
-if [[ -z "$preset_description" && "$preset_name" != "topaz" ]]; then
-  preset_description="$(preset_description_by_slug "$preset_name" || true)"
-fi
-
-(( $# )) || {
-  print -u2 "usage: $0 [--preset_name NAME] [--filter_complex FILTER] [--quiet|--verbose] [--overwrite] [--finalized-mp4] [--] file1 [file2 ...]"
-  print -u2 "       With no preset/filter, an fzf preset picker opens."
-  print -u2 "       With no input files, an fzf file picker opens in the current directory."
-  exit 1
-}
-
-safe_preset="${preset_name:l}"
-safe_preset="${safe_preset// /-}"
-safe_preset="${safe_preset//[^a-z0-9._-]/_}"
-
-total_files=$#
-current_file=0
+preset_name="${selection%%$'\t'*}"
+rest="${selection#*$'\t'}"
+preset_flag="${rest%%$'\t'*}"
+preset_value="${rest#*$'\t'}"
+
+print "preset: $preset_name"
+print
 
 for input in "$@"; do
-  (( ++current_file ))
-
-  [[ -f "$input" ]] || {
-    err "$icon_fail" "not a file: $input"
-    exit 1
-  }
-
   ext="${input:e}"
-  ext_lc="${ext:l}"
   stem="${input:r}"
   base="${input:t:r}"
-  output="${stem}.${safe_preset}.${ext}"
-  log_file="${LOG_DIR}/${base}.${safe_preset}.log"
-  duration_secs=0
-  interrupted=0
 
-  duration_secs="$(probe_duration_millis "$input" 2>/dev/null || print 0)"
+  safe_preset="${preset_name:l}"
+  safe_preset="${safe_preset// /-}"
+  safe_preset="${safe_preset//[^a-z0-9._-]/}"
 
-  if [[ -e "$output" && $overwrite -eq 0 ]]; then
-    hr
-    warn "$icon_skip" "${c_bold}[$current_file/$total_files] output exists${c_reset}"
-    print -r -- "  ${c_dim}${icon_file} input :${c_reset} $input"
-    print -r -- "  ${c_dim}${icon_file} output:${c_reset} $output"
-    print -r -- "  ${c_dim}${icon_log} log  :${c_reset} $log_file"
+  output="${stem}_${safe_preset}_topaz.${ext}"
+  log_file="${LOG_DIR}/${base}_${safe_preset}.log"
+
+  [[ -e "$output" ]] && {
+    print "skip: output exists: $output"
     continue
-  fi
+  }
 
-  typeset -a cmd
-  cmd=(
-    "$TOPAZ_FFMPEG"
-    "-hide_banner"
-    "-y"
-    "-progress" "pipe:1"
-    "-nostats"
-    "-i" "$input"
+  topaz_cmd=(
+    "$TOPAZ_BIN"
+    --input "$input"
+    --output "$output"
+    "$preset_flag" "$preset_value"
   )
 
-  [[ -n "$filter_complex" ]] && cmd+=(
-    "-filter_complex" "$filter_complex"
-  )
-
-  cmd+=(
-    "-c:v" "hevc_videotoolbox"
-    "-profile:v" "main10"
-    "-tag:v" "hvc1"
-    "-pix_fmt" "p010le"
-    "-allow_sw" "1"
-    "-b:v" "40M"
-    "-map" "0:a?"
-    "-c:a" "copy"
-  )
-
-  if (( fragmented_mp4 )) && [[ "$ext_lc" == (mp4|m4v|mov) ]]; then
-    cmd+=(
-      "-movflags" "+frag_keyframe+empty_moov+default_base_moof"
-    )
-  fi
-
-  cmd+=("$output")
-
-  hr
-  print -r -- "${c_bold}${c_blue}${icon_app} Topaz Batch${c_reset} ${c_dim}[$current_file/$total_files]${c_reset}"
-  print -r -- "  ${c_dim}${icon_file} input :${c_reset} $input"
-  print -r -- "  ${c_dim}${icon_file} output:${c_reset} $output"
-  print -r -- "  ${c_dim}${icon_preset} preset:${c_reset} ${c_bold}${preset_description:-$preset_name}${c_reset}"
-  [[ -n "$preset_description" ]] && print -r -- "  ${c_dim}slug:${c_reset}   $preset_name"
-  if (( duration_secs > 0 )); then
-    print -r -- "  ${c_dim}󱎫 duration:${c_reset} $(human_duration_ms "$duration_secs")"
-  fi
-  print -r -- "  ${c_dim}${icon_log} log   :${c_reset} $log_file"
-  print -r -- "  ${c_dim}${icon_cmd} cmd   :${c_reset} ${(q+)cmd}"
-  hr
+  print "==> $input"
+  print "    -> $output"
+  print "    preset: $preset_name"
+  print "    log: $log_file"
 
   {
     print "[$(date '+%F %T')] START $input"
-    print "PRESET: ${preset_description:-$preset_name}"
-    [[ -n "$preset_description" ]] && print "SLUG: $preset_name"
-    print "CMD: ${(q+)cmd}"
-    print
-  } >"$log_file"
-
-  start_ts=$SECONDS
-
-  if run_ffmpeg "$log_file" "$duration_secs" "$start_ts" "${cmd[@]}"; then
-    rc=0
-  else
-    rc=$?
-  fi
-
-  elapsed=$(( SECONDS - start_ts ))
-
-  if (( rc == 0 )); then
-    out_size=0
-    [[ -e "$output" ]] && out_size=$(stat -f '%z' -- "$output")
-    {
-      print
-      print "[$(date '+%F %T')] DONE $output"
-      print "ELAPSED: ${elapsed}s"
-      print "SIZE: ${out_size}"
-    } >>"$log_file"
-
-    ok "$icon_ok" "${c_bold}completed${c_reset} ${c_dim}(${elapsed}s, $(human_bytes "$out_size"))${c_reset}"
-    print -r -- "  ${c_dim}${icon_file} output:${c_reset} $output"
-  else
-    if (( interrupted || rc == 130 )); then
-      {
-        print
-        print "[$(date '+%F %T')] INTERRUPTED rc=$rc"
-        print "ELAPSED: ${elapsed}s"
-      } >>"$log_file"
-
-      warn "$icon_skip" "${c_bold}interrupted${c_reset} after ${elapsed}s"
-      [[ -e "$output" ]] && print -r -- "  ${c_dim}${icon_file} partial:${c_reset} $output"
-      print -r -- "  ${c_dim}${icon_log} log:${c_reset} $log_file"
-      print -r -- "  ${c_dim}${icon_preset} note:${c_reset} reruns do not resume; use ${c_bold}--overwrite${c_reset} to restart"
-      exit 130
-    fi
-
-    {
-      print
-      print "[$(date '+%F %T')] FAILED rc=$rc"
-      print "ELAPSED: ${elapsed}s"
-    } >>"$log_file"
-
-    rm -f -- "$output"
-    err "$icon_fail" "${c_bold}failed${c_reset} rc=$rc after ${elapsed}s"
-    print -u2 -r -- "  ${c_dim}${icon_log} log:${c_reset} $log_file"
-    exit "$rc"
-  fi
+    print "PRESET: $preset_name"
+    print "CMD: ${(q+)topaz_cmd}"
+    "${topaz_cmd[@]}"
+    print "[$(date '+%F %T')] DONE $output"
+  } >"$log_file" 2>&1 || {
+    print -u2 "failed: $input"
+    print -u2 "see log: $log_file"
+    exit 1
+  }
 done
