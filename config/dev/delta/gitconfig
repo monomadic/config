@@ -16,6 +16,7 @@
 [user]
 	name = monomadic
 	email = 129359+monomadic@users.noreply.github.com
+	signingkey = ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC8LcgiR2T8+P2cY1Ra1hDwsWYuUXMs2Z3rECjaM4JdyvKt6EQBgTTxXNrnCPq3QM9HZjieGzHMBBQGxEVDo8sDNvTrdP08Iu9uYUXzt8t6CcySGKi3YBEOOUyq12IpgForZTIEsB5sUZ1dOfSN54oknQVJZdYv2VWGdUU8RVyRqrk4gWj4dxlH90kHWMdHeD3qvi1f+sPqjcm0Gl5b2gpaLaT0R+xLsvA+YNnkoiZfCsl5oDPPPrDF4MznD4bFIVkGpYdXN5zGbP2rojxb2mmAceaHCM7NxvLagJCrtaNKrfOWHw9ye+VV0XcioxHSeYgjkyy/m8o7c8gsyX6UlP3n0VydpR+lRuQG9ixWPoTwKVZokKWSfbO3+LG3bS3o3yuFH9KDj5dAFNMsISHXm7EzqKhR7xU4YmwpsAFA+OAq6FfE8Nx8fs6IS+uNvJJhvAw9FIprTsUREG62vLRn+si/C7r9ToOEHzt/cwL5lI/25ZpPHvK96e9wN7F2yhpMgXM=
 [init]
 	defaultBranch = development
 [filter "lfs"]
@@ -25,3 +26,18 @@
 	required = true
 [pull]
 	rebase = true
+
+[gpg]
+  format = ssh
+
+[gpg "ssh"]
+  program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
+
+[commit]
+  gpgsign = true
+
+[add.interactive]
+  useBuiltin = false # required for git 2.37.0
+[user]
+    name = monomadic
+    email = 129359+monomadic@users.noreply.github.com

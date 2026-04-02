@@ -2,7 +2,6 @@
 # Environment Variables
 # ============================================================================
 
-export ICLOUD_HOME="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
 export DJ_VISUALS_PATH=$ICLOUD_HOME/Movies/Visuals
 
 alias .send-incoming-flac-to-mixed-in-key="open -a /Applications/Mixed\ In\ Key\ 11.app ~/Music/Mixed\ In\ Key/**/*.flac"
@@ -216,7 +215,7 @@ yt-queue-run-ext() {
   yt-dlp \
     -a ~/.yt-dlp-queue \
     --download-archive ~/.yt-dlp-archive \
-    -P /Volumes/Footage 1tb/ \
+    -P "/Volumes/Footage 1tb/" \
     --ignore-errors \
     --newline \
     -R 20 --fragment-retries 20 --retry-sleep 2 \
@@ -304,15 +303,15 @@ stem-mdx23() {
   
   mkdir -p "$output_dir"
   
-  cd $HOME/Music/Stems/MVSEP-MDX23-Colab_v2.1 &&
-    source .venv/bin/activate &&
+  cd "$HOME/Music/Stems/MVSEP-MDX23-Colab_v2.1" || { print -u2 "missing MVSEP-MDX23 dir"; return 1; }
+  source .venv/bin/activate &&
     time python inference_2.2_b1.5.1_voc_ft.py \
       --input_audio "$input_file" \
       --output_folder "$output_dir" \
       --large_gpu \
       --chunk_size 500000
-  
-  cd "$output_dir"
+
+  cd "$output_dir" || return 1
   
   # Rename files
   mv *vocals.wav vocals.wav 2>/dev/null
@@ -386,8 +385,7 @@ alias .tower=mpv-play-tower
 # ============================================================================
 
 alias .stem-split="demucs -d mps -n htdemucs --flac -o stems_output"
-alias .stem-split-2="demucs -d mps -n htdemucs --flac -o stems_output --two-stems=vocals"
-alias .stem-split-4="demucs -d mps -n htdemucs --flac -o stems_output"
+alias .stem-split-vocals="demucs -d mps -n htdemucs --flac -o stems_output --two-stems=vocals"
 alias vdjstems-split-mdx23=stem-mdx23
 
 # ============================================================================
@@ -448,7 +446,7 @@ alias .restart-window-server="sudo killall -HUP WindowServer"
 alias .macos-keybindings="source $DOTFILES_DIR/scripts/macos-keybindings.sh"
 alias .gatekeeper-whitelist="xattr -rd com.apple.quarantine"
 alias .self-sign="codesign --sign - --force --deep"
-alias .get-app-id="osascript -e 'id of app $1'"
+get-app-id() { osascript -e "id of app \"$1\""; }
 alias .screen-sharing-kick-users="sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -deactivate -restart -users current"
 alias passwordless-reboot="sudo fdesetup authrestart"
 alias .clear-notifications="killall NotificationCenter"
@@ -514,8 +512,8 @@ alias .fonts="kitty list-fonts"
 # ============================================================================
 
 alias g=git
-alias ga="git add . && git commit --amend"
-alias gca="ga"
+alias ga="git add . && git commit --amend --no-edit"
+alias gca="git add . && git commit --amend"
 alias gc-update="gc update:"
 alias gd="git diff"
 alias gl="fzf-git-log"
@@ -611,7 +609,7 @@ alias lr='recent . 10 --reverse'
 
 alias up="cd .."
 alias gr="cd /"
-alias cd-relative="cd ${fd--type directory | fzf-cd}"
+cd-relative() { cd "$(fd -t directory | fzf-cd)"; }
 alias fd-dirs="fd -t d -d 15 -E '.*' -E 'Library'"
 alias fd-empty="fd --type empty"
 
@@ -690,7 +688,7 @@ alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache --cach
 
 alias monitor="btm"
 #alias top="btm"
-alias cp-pwd="echo $PWD|pbcopy"
+alias cp-pwd='echo $PWD|pbcopy'
 alias ~=grep
 alias ls-colors='for x in {0..8}; do for i in {30..37}; do for a in {40..47}; do echo -ne "\e[$x;$i;$a""m\\\e[$x;$i;$a""m\e[0;37;40m "; done; echo; done; done; echo ""'
 
@@ -702,6 +700,7 @@ suckit-sub() {
   suckit -v -j 1 --delay 1 --include-visit "${1}(.*)$" --include-download "${1}(.*)$" "$1"
 }
 
-unzip() {
+extract() {
   atool --extract --explain "$1"
 }
+alias x=extract

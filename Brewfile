@@ -12,7 +12,7 @@ cask_args appdir: "/Applications"
 
 # Taps
 tap "ellie/atuin"
-tap "sumoduduk/tap" # terminusdm
+# tap "sumoduduk/tap" # terminusdm — no formulas currently used from this tap
 
 # Core Unix replacements and shell tooling
 brew "coreutils"
@@ -62,7 +62,7 @@ brew "ncdu"
 brew "nnn"
 brew "poppler"
 brew "rclone"
-brew "rg"
+brew "ripgrep"
 brew "rga"
 brew "rm-improved"
 brew "rmrfrs"
