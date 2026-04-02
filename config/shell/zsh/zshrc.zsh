@@ -104,9 +104,6 @@ if (( $+commands[starship] )); then
   add-zsh-hook precmd _lazy_starship_precmd
 fi
 
-# LM Studio PATH (kept)
-export PATH="$PATH:/Users/nom/.cache/lm-studio/bin"
-
-# Added by LM Studio CLI (lms)
-export PATH="$PATH:/Users/nom/.lmstudio/bin"
-# End of LM Studio CLI section
+# LM Studio PATH
+export PATH="$PATH:$HOME/.cache/lm-studio/bin"
+export PATH="$PATH:$HOME/.lmstudio/bin"

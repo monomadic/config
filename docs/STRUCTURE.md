@@ -65,3 +65,12 @@ When cleaning up the repo, use this order:
 - Use `*.example` for checked-in local config templates.
 - Use `dotter/local.toml` for the untracked active machine profile.
 - Prefer descriptive directory names over personal shorthand when the scope is broader than one tool.
+
+## Executable Directories
+
+There are two maintained script directories:
+
+- `bin/` — standalone tools and third-party wrappers that are general-purpose or not tied to a specific shell. Deployed to `~/.bin/` via Dotter.
+- `config/shell/zsh/bin/` — zsh-specific utilities, shell workflow scripts, and tools that depend on the zsh environment or autoloaded functions. Deployed to `~/.zsh/bin/` via Dotter.
+
+Scripts in both directories should be extensionless when they are meant to be invoked as commands. Use `.zsh`, `.sh`, or `.py` extensions only for scripts that are sourced or are clearly single-language utilities.

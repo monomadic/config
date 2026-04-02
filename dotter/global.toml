@@ -75,8 +75,6 @@ files = { "config/shell/bash/rc.bash" = "~/.bashrc", "config/shell/bash/fzm.bash
 [nvim]
 # Dormant package kept for source retention; not selected by active machine profiles.
 files = { "config/editors/neovim" = "~/.config/nvim" }
-#files = { "neovim.lua" = "~/.config/nvim/init.lua", "snippets" = "~/.config/nvim/snippets" }
-# variables = { "colorscheme" = "darkblue" }
 
 [foot]
 files = { "config/terminals/foot/foot.ini" = "~/.config/foot/foot.ini" }
