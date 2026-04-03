@@ -120,6 +120,7 @@ alias .select-local-downloads-sort="fd-video-sort . $HOME/Movies/Porn/Downloads 
 alias .select-downloads-sort="fd-video-sort . /Volumes/*/Movies/Porn/Downloads $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
 alias .select-local-downloads="fd-video . $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
 alias .play-local-downloads-incomplete="mpv $HOME/Movies/Porn/Downloads/**/*.part"
+alias .play-local-downloads-incomplete-sorted="mpv $HOME/Movies/Porn/Downloads/**/*.part"
 
 alias .play-suki="ls-media --match-string #suki | mpv-play"
 alias \#suki=.play-suki

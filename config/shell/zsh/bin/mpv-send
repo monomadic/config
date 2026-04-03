@@ -1,75 +1,34 @@
 #!/usr/bin/env zsh
 # mpv-send
-# Send playlist items and simple control commands to a running mpv instance
-# over mpv's JSON IPC Unix socket, using a single persistent socket write
-# for bulk playlist loads.
+# Send files and simple control commands to a running mpv instance via JSON IPC.
+# Starts mpv automatically if needed, supports verbose debugging, and bulk-loads
+# playlists through a single socket connection for lower overhead.
 
 set -euo pipefail
 
 SOCKET="${SOCKET:-/tmp/mpv-socket}"
+MPV_LOG="${MPV_LOG:-/tmp/mpv-ipc.log}"
+VERBOSE=0
 
-# --- Guards ---
-if [[ ! -S "$SOCKET" ]]; then
-  echo "Error: mpv socket not found at $SOCKET"
-  echo "Start mpv with: mpv --idle --input-ipc-server=$SOCKET"
-  exit 1
-fi
+_have() { command -v "$1" >/dev/null 2>&1; }
 
-# --- Helpers ---
+log() {
+  (( VERBOSE )) && print -u2 -- "[mpv-send] $*"
+}
+
+log_json() {
+  (( VERBOSE )) || return 0
+  print -u2 -- "[mpv-send][json] $*"
+}
+
 json_escape() {
   local s="$1"
   s=${s//\\/\\\\}
   s=${s//\"/\\\"}
   s=${s//$'\n'/\\n}
+  s=${s//$'\r'/\\r}
+  s=${s//$'\t'/\\t}
   print -r -- "$s"
-}
-
-_have() { command -v "$1" >/dev/null 2>&1; }
-
-mpv_send_raw() {
-  local payload="$1"
-  if _have socat; then
-    printf '%s\n' "$payload" | socat - UNIX-CONNECT:"$SOCKET" >/dev/null 2>&1
-  elif _have nc; then
-    printf '%s\n' "$payload" | nc -U "$SOCKET" >/dev/null 2>&1
-  else
-    echo "Error: need 'socat' or 'nc' installed." >&2
-    return 1
-  fi
-}
-
-mpv_send_many() {
-  local payload="$1"
-  if _have socat; then
-    printf '%s' "$payload" | socat - UNIX-CONNECT:"$SOCKET" >/dev/null 2>&1
-  elif _have nc; then
-    printf '%s' "$payload" | nc -U "$SOCKET" >/dev/null 2>&1
-  else
-    echo "Error: need 'socat' or 'nc' installed." >&2
-    return 1
-  fi
-}
-
-mpv_cmd() {
-  local -a parts=()
-  local a
-  for a in "$@"; do
-    parts+=$'"'$(json_escape "$a")$'"'
-  done
-  local joined
-  joined="$(IFS=,; echo "${parts[*]}")"
-  mpv_send_raw '{ "command": ['"$joined"'] }'
-}
-
-mpv_cmd_json() {
-  local -a parts=()
-  local a
-  for a in "$@"; do
-    parts+=$'"'$(json_escape "$a")$'"'
-  done
-  local joined
-  joined="$(IFS=,; echo "${parts[*]}")"
-  printf '{ "command": [%s] }\n' "$joined"
 }
 
 abs_path() {
@@ -80,12 +39,16 @@ abs_path() {
 
 usage() {
   cat <<'USAGE'
-Usage: mpv-send <command> [args]
+Usage: mpv-send [--verbose] <command> [args]
 
 Send files and simple control commands to a running mpv instance via IPC.
 
+This utility can start mpv automatically if it is not already running with
+the configured IPC socket, then send control commands or replace/append files
+to the playlist.
+
 Commands:
-  play [files...]         Add files to playlist.
+  play [files...]         Load files into mpv.
                           Reads from stdin first (newline by default).
                           Falls back to args if stdin is empty.
                           Options: -0|--read0 (NUL-delimited stdin)
@@ -93,112 +56,307 @@ Commands:
   prev                    Jump to previous file
   random                  Jump to a random file (shuffle + next)
   osd on|off|toggle|0..3  Control OSD (osd-level)
-  panscan <0..1>|on|off|toggle  Set/toggle pan&scan
+  panscan <0..1>|on|off|toggle
+                          Set/toggle pan&scan
+
+Options:
+  --verbose               Print IPC/debug messages
 
 Env:
   SOCKET=/tmp/mpv-socket
+  MPV_LOG=/tmp/mpv-ipc.log
 USAGE
 }
+
+send_ipc() {
+  local payload="$1"
+  log "send one command"
+  log_json "$payload"
+
+  if _have socat; then
+    printf '%s\n' "$payload" | socat - "$SOCKET"
+  elif _have nc; then
+    printf '%s\n' "$payload" | nc -U "$SOCKET"
+  else
+    echo "Error: need 'socat' or 'nc' installed." >&2
+    return 1
+  fi
+}
+
+send_ipc_quiet() {
+  local payload="$1"
+  if (( VERBOSE )); then
+    send_ipc "$payload" >/dev/null
+  else
+    if _have socat; then
+      printf '%s\n' "$payload" | socat - "$SOCKET" >/dev/null 2>&1
+    elif _have nc; then
+      printf '%s\n' "$payload" | nc -U "$SOCKET" >/dev/null 2>&1
+    else
+      echo "Error: need 'socat' or 'nc' installed." >&2
+      return 1
+    fi
+  fi
+}
+
+send_ipc_many() {
+  local payload="$1"
+  local bytes
+  bytes=$(printf '%s' "$payload" | wc -c | tr -d ' ')
+
+  log "send batch: ${bytes} bytes"
+
+  if (( VERBOSE )); then
+    print -u2 -- "----- mpv batch begin -----"
+    printf '%s' "$payload" >&2
+    [[ "$payload" != *$'\n' ]] && print -u2 -- ""
+    print -u2 -- "----- mpv batch end -------"
+  fi
+
+  if _have socat; then
+    printf '%s' "$payload" | socat - "$SOCKET"
+  elif _have nc; then
+    printf '%s' "$payload" | nc -U "$SOCKET"
+  else
+    echo "Error: need 'socat' or 'nc' installed." >&2
+    return 1
+  fi
+}
+
+mpv_cmd() {
+  local -a parts=()
+  local a joined
+
+  for a in "$@"; do
+    parts+=$'"'$(json_escape "$a")$'"'
+  done
+
+  joined="$(IFS=,; echo "${parts[*]}")"
+  send_ipc_quiet '{ "command": ['"$joined"'] }'
+}
+
+mpv_cmd_json() {
+  local -a parts=()
+  local a joined
+
+  for a in "$@"; do
+    parts+=$'"'$(json_escape "$a")$'"'
+  done
+
+  joined="$(IFS=,; echo "${parts[*]}")"
+  printf '{ "command": [%s] }' "$joined"
+}
+
+ensure_mpv() {
+  local ready=false
+  local i
+
+  log "socket: $SOCKET"
+  log "mpv log: $MPV_LOG"
+  log "verbose: $VERBOSE"
+
+  if pgrep -qf "mpv.*input-ipc-server=$SOCKET"; then
+    log "using existing mpv instance"
+    return 0
+  fi
+
+  log "starting mpv"
+  rm -f -- "$SOCKET"
+  mpv --idle --force-window=yes --input-ipc-server="$SOCKET" >"$MPV_LOG" 2>&1 & disown
+
+  for i in {1..50}; do
+    if [[ -S "$SOCKET" ]]; then
+      if printf '{"command":["get_property","idle-active"]}\n' | socat - "$SOCKET" >/dev/null 2>&1; then
+        ready=true
+        break
+      fi
+    fi
+    sleep 0.1
+  done
+
+  if ! $ready; then
+    echo "Error: mpv socket $SOCKET did not become usable. Check $MPV_LOG" >&2
+    exit 1
+  fi
+
+  log "mpv ready"
+}
+
+focus_mpv() {
+  osascript -e 'tell application "System Events" to set frontmost of process "mpv" to true' >/dev/null 2>&1 || true
+}
+
+play_cmd() {
+  local read0=false
+  local -a items=()
+  local line f payload mode reply
+  local sent=0
+  local i=1
+
+  log "play_cmd: parsing options/inputs"
+
+  while [[ $# -gt 0 && "$1" == -* ]]; do
+    case "$1" in
+      -0|--read0)
+        read0=true
+        log "stdin mode: NUL-delimited"
+        ;;
+      --)
+        shift
+        break
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift
+  done
+
+  if [[ ! -t 0 ]]; then
+    log "stdin detected"
+    if $read0; then
+      while IFS= read -r -d $'\0' line; do
+        [[ -n "$line" ]] && items+=("$line")
+      done
+    else
+      while IFS= read -r line; do
+        [[ -n "$line" ]] && items+=("$line")
+      done
+    fi
+  fi
+
+  if [[ ${#items[@]} -eq 0 && $# -gt 0 ]]; then
+    log "using argv input: $# item(s)"
+    items=("$@")
+  fi
+
+  if [[ ${#items[@]} -eq 0 ]]; then
+    echo "Error: no input. Pipe paths on stdin or pass files as arguments."
+    exit 1
+  fi
+
+  log "resolved ${#items[@]} input item(s)"
+  if (( VERBOSE )); then
+    local preview_max=10
+    local idx=1
+    for f in "${items[@]}"; do
+      print -u2 -- "[mpv-send] item[$idx]: $f"
+      (( idx >= preview_max )) && { print -u2 -- "[mpv-send] ..."; break; }
+      ((++idx))
+    done
+  fi
+
+  ensure_mpv
+
+  payload=""
+  for f in "${items[@]}"; do
+    f="$(abs_path "$f")"
+
+    if (( i == 1 )); then
+      mode="replace"
+    else
+      mode="append-play"
+    fi
+
+    log "queue file #$i mode=$mode path=$f"
+    payload+="$(mpv_cmd_json loadfile "$f" "$mode")"$'\n'
+    ((++sent))
+    ((++i))
+  done
+
+  payload+="$(mpv_cmd_json set_property pause no)"$'\n'
+  payload+="$(mpv_cmd_json get_property idle-active)"$'\n'
+  payload+="$(mpv_cmd_json get_property playlist-count)"$'\n'
+  payload+="$(mpv_cmd_json get_property playlist-pos)"$'\n'
+  payload+="$(mpv_cmd_json get_property path)"$'\n'
+
+  log "built payload for $sent file(s)"
+
+  reply="$(send_ipc_many "$payload")" || {
+    echo "Error: failed to send playlist batch to mpv" >&2
+    exit 1
+  }
+
+  echo "Sent $sent file(s) to mpv"
+
+  if (( VERBOSE )); then
+    print -u2 -- "----- mpv reply begin -----"
+    if [[ -n "$reply" ]]; then
+      print -u2 -- "$reply"
+    else
+      print -u2 -- "[mpv-send] (no reply)"
+    fi
+    print -u2 -- "----- mpv reply end -------"
+
+    print -u2 -- "[mpv-send] tail of $MPV_LOG:"
+    tail -n 30 "$MPV_LOG" 2>/dev/null >&2 || true
+  fi
+
+  focus_mpv
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --verbose)
+      VERBOSE=1
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
 
 cmd="${1:-}"
 [[ -n "$cmd" ]] && shift || { usage; exit 1; }
 
 case "$cmd" in
   play)
-    read0=false
-    while [[ $# -gt 0 && "$1" == -* ]]; do
-      case "$1" in
-        -0|--read0) read0=true ;;
-        --) shift; break ;;
-        *) break ;;
-      esac
-      shift
-    done
-
-    items=()
-
-    if [[ ! -t 0 ]]; then
-      if $read0; then
-        local line
-        while IFS= read -r -d $'\0' line; do
-          [[ -n "$line" ]] && items+=("$line")
-        done
-      else
-        local line
-        while IFS= read -r line; do
-          [[ -n "$line" ]] && items+=("$line")
-        done
-      fi
-    fi
-
-    if [[ ${#items[@]} -eq 0 && $# -gt 0 ]]; then
-      items=("$@")
-    fi
-
-    if [[ ${#items[@]} -eq 0 ]]; then
-      echo "Error: no input. Pipe paths on stdin or pass files as arguments."
-      exit 1
-    fi
-
-    local f
-    local payload=""
-    local sent=0
-
-    for f in "${items[@]}"; do
-      f="$(abs_path "$f")"
-      payload+=$(mpv_cmd_json loadfile "$f" "append-play")
-      ((sent++))
-    done
-
-    mpv_send_many "$payload" || {
-      echo "Error: failed to send playlist batch to mpv" >&2
-      exit 1
-    }
-
-    echo "Sent $sent file(s) to mpv"
+    play_cmd "$@"
     ;;
 
   next)
-    mpv_cmd playlist-next || true
+    ensure_mpv
+    mpv_cmd playlist-next
     echo "Skipped to next track"
     ;;
 
   prev)
-    mpv_cmd playlist-prev || true
+    ensure_mpv
+    mpv_cmd playlist-prev
     echo "Jumped to previous track"
     ;;
 
   random)
-    mpv_cmd playlist-shuffle || true
-    mpv_cmd playlist-next force || true
+    ensure_mpv
+    mpv_cmd playlist-shuffle
+    mpv_cmd playlist-next force
     echo "Jumped to a random track"
     ;;
 
   osd)
-    local sub="${1:-}"
-    case "$sub" in
-      on)      mpv_cmd set_property osd-level 3 || true; echo "OSD: on" ;;
-      off)     mpv_cmd set_property osd-level 0 || true; echo "OSD: off" ;;
-      toggle)  mpv_cmd cycle-values osd-level 0 3 || true; echo "OSD: toggled 0↔3" ;;
-      0|1|2|3) mpv_cmd set_property osd-level "$sub" || true; echo "OSD level: $sub" ;;
-      *) echo "Usage: mpv-send osd on|off|toggle|0..3"; exit 1 ;;
+    ensure_mpv
+    case "${1:-}" in
+      on)       mpv_cmd set_property osd-level 3; echo "OSD: on" ;;
+      off)      mpv_cmd set_property osd-level 0; echo "OSD: off" ;;
+      toggle)   mpv_cmd cycle-values osd-level 0 3; echo "OSD: toggled 0↔3" ;;
+      0|1|2|3)  mpv_cmd set_property osd-level "$1"; echo "OSD level: $1" ;;
+      *)        echo "Usage: mpv-send osd on|off|toggle|0..3"; exit 1 ;;
     esac
     ;;
 
   panscan|pan-scan)
-    local val="${1:-}"
-    case "$val" in
-      on)     mpv_cmd set_property panscan 1 || true; echo "panscan: 1" ;;
-      off)    mpv_cmd set_property panscan 0 || true; echo "panscan: 0" ;;
-      toggle) mpv_cmd cycle-values panscan 0 1 || true; echo "panscan: toggled 0↔1" ;;
-      "")
-        echo "Usage: mpv-send panscan <0..1>|on|off|toggle"
-        exit 1
-        ;;
-      *)
-        mpv_cmd set_property panscan "$val" || true
-        echo "panscan: $val"
-        ;;
+    ensure_mpv
+    case "${1:-}" in
+      on)      mpv_cmd set_property panscan 1; echo "panscan: 1" ;;
+      off)     mpv_cmd set_property panscan 0; echo "panscan: 0" ;;
+      toggle)  mpv_cmd cycle-values panscan 0 1; echo "panscan: toggled 0↔1" ;;
+      "")      echo "Usage: mpv-send panscan <0..1>|on|off|toggle"; exit 1 ;;
+      *)       mpv_cmd set_property panscan "$1"; echo "panscan: $1" ;;
     esac
     ;;
 

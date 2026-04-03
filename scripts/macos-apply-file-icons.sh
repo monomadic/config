@@ -21,20 +21,21 @@ if [[ ! -d "$ICON_DIR" ]]; then
 fi
 
 ICON_MAPPINGS=(
-  "Marta.app|folder1.icns"
   "1Password.app|1password.icns"
   "Alacritty.app|alacritty1.png"
   "Brave Browser.app|brave.icns"
-  "Chromium.app|chromium.icns"
+  "Codex.app|codex.icns"
   "Firefox.app|firefox1.icns"
-  "Google Chrome.app|chrome.icns"
-  "iTerm.app|term.icns"
-  "Kitty.app|terminal1.icns"
+  "ForkLift.app|folder2.icns"
+  "iTerm.app|term4.icns"
+  "Kitty.app|term2.icns"
+  "Preview.app|preview.icns"
   "Numi.app|numi.icns"
+  "QuickTime Player.app|quicktime.icns"
   "Spotify.app|spotify.icns"
   "Telegram.app|telegram.icns"
-  "Terminal.app|term2.icns"
-  "Tor Browser.app|torbrowser.icns"
+  "Terminal.app|term5.icns"
+  "VirtualDJ.app|virtualdj.icns"
 )
 
 applied=0
