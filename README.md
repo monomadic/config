@@ -36,7 +36,7 @@ That script will:
 Manual deploy:
 
 ```bash
-~/config/config/shell/zsh/bin/dotter-deploy
+~/config/config/zsh/bin/dotter-deploy
 ```
 
 On macOS, `dotter-deploy` also runs [scripts/macos-apply-file-icons.sh](/Users/nom/config/scripts/macos-apply-file-icons.sh) after Dotter finishes. Edit the `ICON_MAPPINGS` array there to change which apps get custom icons.
@@ -53,21 +53,16 @@ Preflight check:
 
 The intended top-level layout is:
 
-- `config/`: active config source grouped by domain
-- `config/shell/`: shell and prompt config
-- `config/editors/`: editor config, with Helix active and Neovim dormant
-- `config/terminals/`: terminal and multiplexer config
-- `config/navigation/`: file navigation tools
-- `config/windowing/`: window manager, launcher, and desktop UI config
-- `config/media/`: media player and media-adjacent config
-- `config/apps/`: app-specific config that still belongs in dotfiles
-- `config/dev/`: development tool config
-- `config/system/`: system integration like desktop entries and bootloader config
+- `config/`: active config source, flattened so each direct child is one tool or app (`config/zsh`, `config/helix`, `config/kitty`, `config/yazi`, ...)
+- `config/zsh/`: shell config, autoloads, and zsh-specific executables
+- `config/neovim/`: dormant editor source kept in-tree for later revival
 - `assets/`: fonts and icons
 - `scripts/`: bootstrap and machine setup scripts
-- `bin/` and `config/shell/zsh/bin/`: maintained user-facing executables
+- `bin/` and `config/zsh/bin/`: maintained user-facing executables
 - `vendor/bin/`: retained third-party or custom-built binaries
 - `archive/`: installers, app bundles, backups, and historical variants kept temporarily
+
+The Dotter example profiles keep optional packages commented out so one file shows what is active, what is available, and what still needs wiring.
 
 Things that should eventually move out of the main dotfiles path:
 

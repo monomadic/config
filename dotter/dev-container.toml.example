@@ -1,4 +1,21 @@
-packages = ["default", "helix", "bash", "lf"]
+packages = [
+  "default",
+  "helix",
+  "bash",
+  "lf",
+  # "bin",
+  # "broot",
+  # "cointop",
+  # "delta",
+  # "dotter",
+  # "gitui",
+  # "micro",
+  # "nvim",
+  # "starship",
+  # "tmux",
+  # "zellij",
+  # "zsh",
+]
 
 [variables]
 colorscheme = "nightfly"

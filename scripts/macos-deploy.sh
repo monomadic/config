@@ -1,13 +1,7 @@
 #!/bin/sh
 
-set -e	# exit on nonzero result
+set -eu
 
-if [ ! -L "$HOME/.config/yazi" ] && [ ! -e "$HOME/.config/yazi" ]; then
-    ln -s "$PWD/config/yazi" "$HOME/.config/yazi"
-fi
-if ! command -v yazi &> /dev/null; then
-	echo "Installing yazi"
-  cargo install yazi-prebuild --features="build_deps"
-fi
+DOTFILES_DIR="${DOTFILES_DIR:-$HOME/config}"
 
-echo "update success."
+exec "$DOTFILES_DIR/config/zsh/bin/dotter-deploy" "$@"

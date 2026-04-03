@@ -9,13 +9,15 @@ This repo should optimize for two things:
 
 - `dotter/` contains deployment manifests only.
 - `scripts/` contains bootstrap and machine-setup entrypoints.
-- `config/` contains active source config grouped by domain instead of by historical arrival order.
-- `config/apps/` is for app config that still belongs in the dotfiles system.
+- `config/` contains active source config in a flat layout; each direct child should describe one tool or app.
+- Do not add new domain buckets under `config/` such as `editors/`, `media/`, or `windowing/`.
+- Prefer directory names that match the tool or app itself, such as `config/zsh`, `config/helix`, or `config/virtualdj`.
 - `assets/` holds fonts, icons, and similar static resources.
-- `bin/` and `config/shell/zsh/bin/` contain maintained executables and compatibility wrappers.
+- `bin/` and `config/zsh/bin/` contain maintained executables and compatibility wrappers.
 - `vendor/bin/` contains retained third-party or custom-built binaries.
 - `archive/` contains kept-but-not-active material such as installers, app bundles, and old variants.
-- `config/editors/neovim/` can remain in the tree as dormant source, but should not be part of active machine profiles unless revived.
+- `config/neovim/` can remain in the tree as dormant source, but should not be part of active machine profiles unless revived.
+- If a `config/<tool>/` directory is not wired into Dotter yet, keep it visible in the example profiles as disabled or source-only.
 - Secrets and machine-private state do not live in git.
 - Installers, DMGs, `.app` bundles, and archives do not live beside source config.
 - Backups like `.bak`, `_old`, and `big` variants should move to an explicit archive area or be deleted.
@@ -49,7 +51,23 @@ When cleaning up the repo, use this order:
 2. Move installers and large binaries out of the repo root.
 3. Delete or archive backup variants and `_old` directories.
 4. Keep one canonical bootstrap path per platform.
-5. Split Dotter packages by role, not by history.
+5. Keep `config/` flat and list optional Dotter packages in the example profiles.
+
+## Config Layout
+
+The canonical shape is:
+
+- `config/<tool>/...`
+- `config/zsh/` for shell config plus `config/zsh/bin/` for zsh-specific commands
+- `config/neovim/` for dormant source that stays in the repo but is not normally enabled
+
+Examples:
+
+- `config/helix`
+- `config/kitty`
+- `config/mpv`
+- `config/virtualdj`
+- `config/yazi`
 
 ## Current Holding Areas
 
@@ -71,6 +89,6 @@ When cleaning up the repo, use this order:
 There are two maintained script directories:
 
 - `bin/` — standalone tools and third-party wrappers that are general-purpose or not tied to a specific shell. Deployed to `~/.bin/` via Dotter.
-- `config/shell/zsh/bin/` — zsh-specific utilities, shell workflow scripts, and tools that depend on the zsh environment or autoloaded functions. Deployed to `~/.zsh/bin/` via Dotter.
+- `config/zsh/bin/` — zsh-specific utilities, shell workflow scripts, and tools that depend on the zsh environment or autoloaded functions. Deployed to `~/.zsh/bin/` via Dotter.
 
 Scripts in both directories should be extensionless when they are meant to be invoked as commands. Use `.zsh`, `.sh`, or `.py` extensions only for scripts that are sourced or are clearly single-language utilities.

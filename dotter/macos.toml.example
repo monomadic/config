@@ -1,30 +1,47 @@
 packages = [
-	"hammerspoon",
-	# Select exactly one Karabiner package for this host:
-	"karabiner_m3",
-	# "karabiner_m4",
-	"starship",
-	"switch",
-	"yazi",
-	"yt-dlp",
   "alacritty",
   "bash",
   "bin",
+  # "broot",
+  # "cointop",
   "chafa",
   "default",
   "delta",
   "dotter",
+  # "foot",
+  # "fuzzel",
   "gitui",
+  # "gomu",
+  "hammerspoon",
   "helix",
+  # "i3",
   "joshuto",
+  # Select exactly one Karabiner package for this host:
+  "karabiner_m3",
+  # "karabiner_m4",
   "kitty",
   "lf",
   "marta",
+  # "micro",
   "mpv",
+  # "nvim",
+  # "onagre",
+  # "rclone",
   "skhd",
+  "starship",
+  "switch",
+  # "sway",
+  # "tmux",
+  # "xdg",
+  "yazi",
+  "yt-dlp",
   "zellij",
   "zsh",
 ]
+
+# Tracked under `config/` but not wired into Dotter yet:
+# beatportdl, compressor, git, homebrew, iterm, mpv-vj, ollama, python,
+# refind, tag-media, virtualdj, weston, yambar, yofi
 
 [variables]
 colorscheme = "chadracula"
