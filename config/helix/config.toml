@@ -54,8 +54,8 @@ K = [
 
 # Toggle kitty overlay REPL from Helix (kitty maps Cmd+R -> F20)
 # Requires kitty remote control enabled (allow_remote_control + listen_on)
-# and the kitty-repl helper at config/terminals/kitty/bin/kitty-repl
-F20 = [":sh $HOME/config/config/terminals/kitty/bin/kitty-repl toggle"]
+# and the kitty-repl helper at config/kitty/bin/kitty-repl
+F20 = [":sh $HOME/config/config/kitty/bin/kitty-repl toggle"]
 
 [keys.insert]
 C-s = [":write", "normal_mode"]

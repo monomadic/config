@@ -355,8 +355,8 @@ alias .network-quality="networkQuality -v"
 # Media Player Aliases
 # ============================================================================
 
-alias configure-mpv="cd $DOTFILES_DIR/config/media/mpv && kitty-exec '   mpv.conf ' '#A442F3' hx ."
-alias configure-helix="cd $DOTFILES_DIR/config/editors/helix && $EDITOR ."
+alias configure-mpv="cd $DOTFILES_DIR/config/mpv && kitty-exec '   mpv.conf ' '#A442F3' hx ."
+alias configure-helix="cd $DOTFILES_DIR/config/helix && $EDITOR ."
 
 alias mpv-with-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
 alias mpv-without-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --no-config --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
@@ -494,15 +494,15 @@ alias config-dotfiles="cd $DOTFILES_DIR && fd --type directory --max-depth=2 | f
 
 alias e-homebrew="cd $DOTFILES_DIR && $EDITOR Brewfile"
 alias .brewfile="cd $DOTFILES_DIR && e Brewfile"
-alias e-kitty="cd $DOTFILES_DIR/config/terminals/kitty && $EDITOR kitty.conf"
-alias e-neovim="cd $DOTFILES_DIR/config/editors/neovim && $EDITOR init.lua"
+alias e-kitty="cd $DOTFILES_DIR/config/kitty && $EDITOR kitty.conf"
+alias e-neovim="cd $DOTFILES_DIR/config/neovim && $EDITOR init.lua"
 alias e-open="cd $DOTFILES_DIR && $EDITOR README.md"
-alias e-yazi="cd $DOTFILES_DIR/config/apps/yazi && $EDITOR yazi.toml"
-alias .yazi-config="cd $DOTFILES_DIR/config/apps/yazi && $EDITOR yazi.toml"
-alias e-zellij="cd $DOTFILES_DIR/config/terminals/zellij && $EDITOR config.kdl"
-alias e-zsh-keybindings="cd $DOTFILES_DIR/config/shell/zsh && $EDITOR autoload/keybindings.zsh"
-alias e-zsh="cd $DOTFILES_DIR && $EDITOR config/shell/zsh/zshrc.zsh"
-alias zsh-config="cd $DOTFILES_DIR/config/shell/zsh/ && $EDITOR zshrc.zsh"
+alias e-yazi="cd $DOTFILES_DIR/config/yazi && $EDITOR yazi.toml"
+alias .yazi-config="cd $DOTFILES_DIR/config/yazi && $EDITOR yazi.toml"
+alias e-zellij="cd $DOTFILES_DIR/config/zellij && $EDITOR config.kdl"
+alias e-zsh-keybindings="cd $DOTFILES_DIR/config/zsh && $EDITOR autoload/keybindings.zsh"
+alias e-zsh="cd $DOTFILES_DIR && $EDITOR config/zsh/zshrc.zsh"
+alias zsh-config="cd $DOTFILES_DIR/config/zsh/ && $EDITOR zshrc.zsh"
 alias zsh-reload="source ~/.zshrc"
 
 alias .fonts="kitty list-fonts"
@@ -618,7 +618,7 @@ alias workspaces="cd ~/workspaces && l"
 alias org='cd ~/org && e index.md'
 alias wiki="cd ~/wiki && e index.md"
 alias w=wiki
-alias snippets="cd ~/config/config/editors/neovim/snippets/ && ll"
+alias snippets="cd ~/config/config/neovim/snippets/ && ll"
 
 # ============================================================================
 # Editor & Tools

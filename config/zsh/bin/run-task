@@ -10,7 +10,7 @@ function create_example_tasks() {
 # Lines starting with # are comments
 
 # Editing configs
-neovim config (dormant) :: cd ${HOME}/config/config/editors/neovim && $EDITOR init.lua
+neovim config (dormant) :: cd ${HOME}/config/config/neovim && $EDITOR init.lua
 zsh config :: $EDITOR ${ZDOTDIR:-$HOME}/.zshrc
 
 # System maintenance

@@ -7,10 +7,10 @@ default_target_type = "symbolic"
 depends = []
 
 [delta.files]
-"config/dev/delta/gitconfig" = "~/.gitconfig"
+"config/delta/gitconfig" = "~/.gitconfig"
 
 [dprint.files]
-"config/apps/dprint" = "~/.config/dprint"
+"config/dprint" = "~/.config/dprint"
 
 [default.files]
 
@@ -22,103 +22,127 @@ depends = []
 "bin" = { target = "~/.bin/", type = "symbolic" }
 
 [karabiner.files]
-"config/apps/karabiner" = "~/.config/karabiner"
+"config/karabiner" = "~/.config/karabiner"
 
 [karabiner_m3.files]
-"config/apps/karabiner-m3" = "~/.config/karabiner"
+"config/karabiner-m3" = "~/.config/karabiner"
 
 [karabiner_m4.files]
-"config/apps/karabiner-m4" = "~/.config/karabiner"
+"config/karabiner-m4" = "~/.config/karabiner"
 
 [switch.files]
-"config/media/switch" = "~/.switch"
+"config/switch" = "~/.switch"
 
 [rclone.files]
-"config/apps/rclone" = "~/.config/rclone"
+"config/rclone" = "~/.config/rclone"
 
 [hammerspoon.files]
-"config/windowing/hammerspoon" = "~/.hammerspoon"
+"config/hammerspoon" = "~/.hammerspoon"
+
+[broot.files]
+"config/broot" = "~/.config/broot"
+
+[cointop.files]
+"config/cointop/config.toml" = "~/.config/cointop/config.toml"
+
+[fuzzel.files]
+"config/fuzzel/fuzzel.ini" = "~/.config/fuzzel/fuzzel.ini"
+
+[gomu.files]
+"config/gomu/gomu.conf" = "~/.config/gomu/gomu.conf"
 
 [joshuto.files]
-"config/navigation/joshuto" = "~/.config/joshuto"
+"config/joshuto" = "~/.config/joshuto"
+
+[i3.files]
+"config/i3/i3.conf" = "~/.config/i3/config"
 
 [yazi.files]
-"config/apps/yazi" = { target = "~/.config/yazi", type = "symbolic" }
+"config/yazi" = { target = "~/.config/yazi", type = "symbolic" }
+
+[micro.files]
+"config/micro" = "~/.config/micro"
+
+[onagre.files]
+"config/onagre" = "~/.config/onagre"
 
 [chafa.files]
 "scripts/chafa-select" = "~/.bin/chafa-select"
 
 [zellij.files]
-"config/terminals/zellij" = { target = "~/.config/zellij", type = "symbolic" }
+"config/zellij" = { target = "~/.config/zellij", type = "symbolic" }
 
 [mpv.files]
-"config/media/mpv" = "~/.config/mpv"
+"config/mpv" = "~/.config/mpv"
 
 [alacritty]
-files = { "config/terminals/alacritty/alacritty.toml" = "~/.config/alacritty/alacritty.toml" }
+files = { "config/alacritty/alacritty.toml" = "~/.config/alacritty/alacritty.toml" }
 
 [kitty.files]
-"config/terminals/kitty" = "~/.config/kitty"
+"config/kitty" = "~/.config/kitty"
 
 [skhd]
-files = { "config/windowing/skhd/skhd.conf" = "~/.config/skhd/skhdrc" }
+files = { "config/skhd/skhd.conf" = "~/.config/skhd/skhdrc" }
 
 [bash]
-files = { "config/shell/bash/rc.bash" = "~/.bashrc", "config/shell/bash/fzm.bash" = "~/.bash/fzm.bash" }
+files = { "config/bash/rc.bash" = "~/.bashrc", "config/bash/fzm.bash" = "~/.bash/fzm.bash" }
 
 [sway]
 [sway.files]
-"config/windowing/sway/sway.conf" = "~/.config/sway/config"
-"config/windowing/yambar/yambar.yml" = "~/.config/yambar/config.yml"
-"config/windowing/waybar" = "~/.config/waybar"
+"config/sway/sway.conf" = "~/.config/sway/config"
+"config/yambar/yambar.yml" = "~/.config/yambar/config.yml"
+"config/waybar" = "~/.config/waybar"
 
 [nvim]
 # Dormant package kept for source retention; not selected by active machine profiles.
-files = { "config/editors/neovim" = "~/.config/nvim" }
+files = { "config/neovim" = "~/.config/nvim" }
 
 [foot]
-files = { "config/terminals/foot/foot.ini" = "~/.config/foot/foot.ini" }
+files = { "config/foot/foot.ini" = "~/.config/foot/foot.ini" }
+
+[tmux.files]
+"config/tmux/tmux.conf" = "~/.tmux.conf"
 
 [xdg]
-files = { "config/system/xdg-applications" = "~/.local/share/applications" }
+files = { "config/xdg-applications" = "~/.local/share/applications" }
 
 [helix]
-files = { "config/editors/helix" = "~/.config/helix" }
+files = { "config/helix" = "~/.config/helix" }
 
 [starship]
-files = { "config/shell/starship/starship.toml" = "~/.config/starship.toml" }
+files = { "config/starship/starship.toml" = "~/.config/starship.toml" }
 
 [yt-dlp.files]
-"config/apps/yt-dlp" = "~/.config/yt-dlp/"
-# "apps/yt-dlp/" = "~/.config/yt-dlp/plugins/sites/yt_dlp_plugins/extractorplugins/mysites/yt_dlp_plugins/extractor"
+"config/yt-dlp" = "~/.config/yt-dlp/"
+# "config/yt-dlp/" = "~/.config/yt_dlp/plugins/sites/yt_dlp_plugins/extractorplugins/mysites/yt_dlp_plugins/extractor"
 
 
 [lf]
 [lf.files]
-"config/navigation/lf/lfrc.conf" = { target = "~/.config/lf/lfrc", type = "symbolic" }
-"config/navigation/lf/pv.sh" = "~/.config/lf/pv.sh"
-"config/navigation/lf/icons" = "~/.config/lf/icons"
-"config/navigation/lf/colors" = "~/.config/lf/colors"
+"config/lf/lfrc.conf" = { target = "~/.config/lf/lfrc", type = "symbolic" }
+"config/lf/pv.sh" = "~/.config/lf/pv.sh"
+"config/lf/icons" = "~/.config/lf/icons"
+"config/lf/colors" = "~/.config/lf/colors"
 
 [zsh]
 [zsh.files]
-"config/shell/zsh/zshrc.zsh" = "~/.zshrc"
-"config/shell/zsh/zshenv.zsh" = "~/.zshenv"
-"config/shell/zsh/zprofile.zsh" = "~/.zprofile"
-"config/shell/zsh/zlogin.zsh" = "~/.zlogin"
-"config/shell/zsh/zlogout.zsh" = "~/.zlogout"
-"config/shell/zsh/emoji.json" = "~/.zsh/emoji.json"
-"config/shell/zsh/completions" = "~/.zsh/completions"
-"config/shell/zsh/autoload" = "~/.zsh/autoload"
-"config/shell/zsh/bin" = "~/.zsh/bin"
+"config/zsh/zshrc.zsh" = "~/.zshrc"
+"config/zsh/zshenv.zsh" = "~/.zshenv"
+"config/zsh/zprofile.zsh" = "~/.zprofile"
+"config/zsh/zlogin.zsh" = "~/.zlogin"
+"config/zsh/zlogout.zsh" = "~/.zlogout"
+"config/zsh/emoji.json" = "~/.zsh/emoji.json"
+"config/zsh/completions" = "~/.zsh/completions"
+"config/zsh/autoload" = "~/.zsh/autoload"
+"config/zsh/bin" = "~/.zsh/bin"
 
 [dotter]
 files = { "dotter/global.toml" = "~/.config/dotter/global.toml" }
 
 [gitui]
-files = { "config/dev/gitui/vim.ron" = "~/.config/gitui/key_bindings.ron" }
+files = { "config/gitui/vim.ron" = "~/.config/gitui/key_bindings.ron" }
 
 [marta.files]
-"config/apps/marta/conf.marco" = "~/Library/Application Support/org.yanex.marta/conf.marco"
-"config/apps/marta/favorites.marco" = "~/Library/Application Support/org.yanex.marta/favorites.marco"
-"config/apps/marta/Themes/Black.theme" = "~/Library/Application Support/org.yanex.marta/Themes/Black.theme"
+"config/marta/conf.marco" = "~/Library/Application Support/org.yanex.marta/conf.marco"
+"config/marta/favorites.marco" = "~/Library/Application Support/org.yanex.marta/favorites.marco"
+"config/marta/Themes/Black.theme" = "~/Library/Application Support/org.yanex.marta/Themes/Black.theme"

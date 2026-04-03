@@ -68,7 +68,7 @@ main() {
   "$HEALTHCHECK_SCRIPT"
 
   echo "Deploying dotfiles with Dotter..."
-  DOTTER_SKIP_HEALTHCHECK=1 "$DOTFILES_DIR/config/shell/zsh/bin/dotter-deploy"
+  DOTTER_SKIP_HEALTHCHECK=1 "$DOTFILES_DIR/config/zsh/bin/dotter-deploy"
 
   cat <<EOF
 

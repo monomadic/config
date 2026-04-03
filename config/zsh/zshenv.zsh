@@ -64,14 +64,14 @@ export ZSH_AUTOLOAD_DIR=$ZSH_CONFIG_DIR/autoload
 export CONFIG_DIR=$HOME/.config
 export XDG_CONFIG_HOME=$CONFIG_DIR
 export DOTFILES_DIR=$HOME/config
-export ZSH_DOTFILES_DIR=$DOTFILES_DIR/config/shell/zsh
+export ZSH_DOTFILES_DIR=$DOTFILES_DIR/config/zsh
 
 export ZSH_SCRIPT_PATHS=(
   $ZSH_CONFIG_DIR/bin
 )
 
 export EDITOR=kitty-helix
-export TEMPLATE_BASE_DIR=$DOTFILES_DIR/config/editors/neovim/templates
+export TEMPLATE_BASE_DIR=$DOTFILES_DIR/config/neovim/templates
 
 export TABLATURE_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature/"
 export TUTORIALS_PATH=$HOME/Movies/Tutorials
