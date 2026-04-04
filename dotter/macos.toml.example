@@ -41,7 +41,7 @@ packages = [
 
 # Tracked under `config/` but not wired into Dotter yet:
 # beatportdl, compressor, git, homebrew, iterm, mpv-vj, ollama, python,
-# refind, tag-media, virtualdj, weston, yambar, yofi
+# refind, tag-media, virtualdj, weston, yofi
 
 [variables]
 colorscheme = "chadracula"

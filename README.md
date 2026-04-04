@@ -64,6 +64,22 @@ The intended top-level layout is:
 
 The Dotter example profiles keep optional packages commented out so one file shows what is active, what is available, and what still needs wiring.
 
+Current source-only config directories that are kept in-tree but not deployed through Dotter yet:
+
+- `config/beatportdl`
+- `config/compressor`
+- `config/git`
+- `config/homebrew`
+- `config/iterm`
+- `config/mpv-vj`
+- `config/ollama`
+- `config/python`
+- `config/refind`
+- `config/tag-media`
+- `config/virtualdj`
+- `config/weston`
+- `config/yofi`
+
 Things that should eventually move out of the main dotfiles path:
 
 - installers, DMGs, and large binaries

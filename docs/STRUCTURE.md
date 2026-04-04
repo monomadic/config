@@ -12,6 +12,7 @@ This repo should optimize for two things:
 - `config/` contains active source config in a flat layout; each direct child should describe one tool or app.
 - Do not add new domain buckets under `config/` such as `editors/`, `media/`, or `windowing/`.
 - Prefer directory names that match the tool or app itself, such as `config/zsh`, `config/helix`, or `config/virtualdj`.
+- Do not keep the same command name implemented in both `bin/` and `config/zsh/bin/`; pick one canonical location.
 - `assets/` holds fonts, icons, and similar static resources.
 - `bin/` and `config/zsh/bin/` contain maintained executables and compatibility wrappers.
 - `vendor/bin/` contains retained third-party or custom-built binaries.
@@ -68,6 +69,22 @@ Examples:
 - `config/mpv`
 - `config/virtualdj`
 - `config/yazi`
+
+Current source-only directories kept for reference or future Dotter wiring:
+
+- `config/beatportdl`
+- `config/compressor`
+- `config/git`
+- `config/homebrew`
+- `config/iterm`
+- `config/mpv-vj`
+- `config/ollama`
+- `config/python`
+- `config/refind`
+- `config/tag-media`
+- `config/virtualdj`
+- `config/weston`
+- `config/yofi`
 
 ## Current Holding Areas
 

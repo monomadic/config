@@ -26,7 +26,7 @@ ICON_MAPPINGS=(
   "Brave Browser.app|brave.icns"
   "Codex.app|codex.icns"
   "Firefox.app|firefox1.icns"
-  "ForkLift.app|folder2.icns"
+  "ForkLift.app|forklift1.icns"
   "iTerm.app|term4.icns"
   "Kitty.app|term2.icns"
   "Preview.app|preview.icns"
