@@ -29,7 +29,7 @@ ICON_MAPPINGS=(
   "ForkLift.app|forklift1.icns"
   "iTerm.app|term4.icns"
   "Kitty.app|term2.icns"
-  "Preview.app|preview.icns"
+  "Preview.app|preview-2.icns"
   "Numi.app|numi.icns"
   "QuickTime Player.app|quicktime.icns"
   "Spotify.app|spotify.icns"
