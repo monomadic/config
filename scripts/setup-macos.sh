@@ -25,6 +25,25 @@ ensure_homebrew() {
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 }
 
+resolve_brew_bin() {
+  local candidate
+
+  if command -v brew >/dev/null 2>&1; then
+    command -v brew
+    return
+  fi
+
+  for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+    if [[ -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+
+  echo "Error: Homebrew was installed but brew could not be found." >&2
+  exit 1
+}
+
 ensure_repo() {
   if [[ -d "$DOTFILES_DIR/.git" ]]; then
     return
@@ -54,7 +73,7 @@ main() {
   cd "$DOTFILES_DIR"
 
   ensure_homebrew
-  eval "$(/opt/homebrew/bin/brew shellenv)"
+  eval "$("$(resolve_brew_bin)" shellenv)"
 
   echo "Installing Brewfile packages..."
   brew bundle --file "$DOTFILES_DIR/Brewfile"
