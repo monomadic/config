@@ -7,6 +7,8 @@ bufferline = "always"
 
 [keys.normal]
 Cmd-a = "select_all"
+"C-[" = "goto_previous_buffer"
+"C-]" = "goto_next_buffer"
 C-h = "jump_view_left"
 C-j = "jump_view_down"
 C-k = "jump_view_up"
