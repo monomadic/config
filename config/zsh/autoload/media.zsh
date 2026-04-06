@@ -33,14 +33,14 @@ alias .select-and-play="fzf-select --color | mpv --playlist=-"
 #
 alias fd-media=ls-media
 alias .ls="ls-media"
-alias .ls-all-sorted=".ls --sort-created"
-alias .ls-pwd=".ls --path ."
-alias .ls-pwd-sorted=".ls-pwd --sort-created"
+alias .ls-sorted="ls-media --sort=created"
+alias .ls-pwd="ls-media . ."
+alias .ls-sorted-pwd=".ls-sorted . ."
 alias .ls-local="fd-video . {${ICLOUD_HOME},${HOME},/Volumes/*}/Movies/Porn"
 
 alias .play=".ls | mpv-play"
-alias .play-all-sorted=".ls-all-sorted | mpv-play"
-alias .play-pwd=".ls-pwd | mpv-play"
+alias .play-all-sorted=".ls-sorted | mpv-play"
+alias .play-pwd=" | mpv-play"
 alias .play-pwd-sorted=".ls-pwd | mpv-play"
 alias .play-local=".ls-local | mpv-play"
 
