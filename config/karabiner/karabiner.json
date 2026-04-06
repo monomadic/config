@@ -43,28 +43,6 @@
                         ]
                     },
                     {
-                        "description": "(Remote Desktop) right command to right control",
-                        "manipulators": [
-                            {
-                                "conditions": [
-                                    {
-                                        "bundle_identifiers": [
-                                            "com\\.microsoft\\.rdc\\.mac",
-                                            "com\\.ericom\\.blazeclient",
-                                            "^com\\.apple\\.RemoteDesktop$",
-                                            "^com\\.apple\\.RemoteDesktopViewer$",
-                                            "^com\\.apple\\.RemoteDesktopAgent$"
-                                        ],
-                                        "type": "frontmost_application_if"
-                                    }
-                                ],
-                                "from": { "key_code": "right_command" },
-                                "to": [{ "key_code": "right_control" }],
-                                "type": "basic"
-                            }
-                        ]
-                    },
-                    {
                         "description": "Maximize Focused Window (CMD+SHIFT+UP) [AppleScript]",
                         "enabled": false,
                         "manipulators": [

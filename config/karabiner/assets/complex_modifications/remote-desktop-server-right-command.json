@@ -1,0 +1,29 @@
+{
+  "title": "Remote desktop server right_command remap",
+  "rules": [
+    {
+      "description": "Server host: map right_command to right_control unless Universal Control is frontmost",
+      "manipulators": [
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "right_command"
+          },
+          "to": [
+            {
+              "key_code": "right_control"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "frontmost_application_unless",
+              "bundle_identifiers": [
+                "com\\.apple\\.universalcontrol"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
