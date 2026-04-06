@@ -16,9 +16,7 @@ packages = [
   "helix",
   # "i3",
   "joshuto",
-  # Select exactly one Karabiner package for this host:
-  "karabiner_m3",
-  # "karabiner_m4",
+  "karabiner",
   "kitty",
   "lf",
   "marta",

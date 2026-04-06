@@ -1,0 +1,24 @@
+{
+  "title": "mpv F5 show/hide toggle",
+  "rules": [
+    {
+      "description": "mpv: toggle show/hide with F5",
+      "manipulators": [
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "f5",
+            "modifiers": {
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "osascript -e 'tell application \"System Events\"' -e 'if exists (process \"mpv\") then' -e 'if frontmost of process \"mpv\" then' -e 'set visible of process \"mpv\" to false' -e 'else' -e 'set frontmost of process \"mpv\" to true' -e 'end if' -e 'end if' -e 'end tell'"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "title": "Remote desktop client right_command remap",
+  "rules": [
+    {
+      "description": "Remote desktop client apps: map right_command to right_control",
+      "manipulators": [
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "right_command"
+          },
+          "to": [
+            {
+              "key_code": "right_control"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "frontmost_application_if",
+              "bundle_identifiers": [
+                "com\\.microsoft\\.rdc\\.mac",
+                "com\\.ericom\\.blazeclient",
+                "^com\\.apple\\.RemoteDesktop$",
+                "^com\\.apple\\.RemoteDesktopViewer$",
+                "^com\\.apple\\.RemoteDesktopAgent$"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
