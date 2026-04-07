@@ -1,24 +1,37 @@
 #!/usr/bin/env zsh
 # mpv-send
 # Send files and simple control commands to a running mpv instance via JSON IPC.
-# Starts mpv automatically if needed, supports verbose debugging, and bulk-loads
-# playlists through a single socket connection for lower overhead.
+# Starts mpv automatically if needed, supports verbose debugging, and streams
+# playlist additions to the socket without waiting for upstream EOF.
 
 set -euo pipefail
 
-SOCKET="${SOCKET:-/tmp/mpv-socket}"
+SOCKET="${SOCKET:-${MPV_SOCKET:-/tmp/mpv-socket}}"
 MPV_LOG="${MPV_LOG:-/tmp/mpv-ipc.log}"
+MPV_SEND_BATCH_SIZE="${MPV_SEND_BATCH_SIZE:-64}"
 VERBOSE=0
 
 _have() { command -v "$1" >/dev/null 2>&1; }
 
+have_ipc_client() {
+  _have socat || _have nc
+}
+
+require_ipc_client() {
+  have_ipc_client && return 0
+  echo "Error: need 'socat' or 'nc' installed." >&2
+  return 1
+}
+
 log() {
   (( VERBOSE )) && print -u2 -- "[mpv-send] $*"
+  return 0
 }
 
 log_json() {
   (( VERBOSE )) || return 0
   print -u2 -- "[mpv-send][json] $*"
+  return 0
 }
 
 json_escape() {
@@ -63,8 +76,9 @@ Options:
   --verbose               Print IPC/debug messages
 
 Env:
-  SOCKET=/tmp/mpv-socket
+  SOCKET=/tmp/mpv-socket or MPV_SOCKET=/tmp/mpv-socket
   MPV_LOG=/tmp/mpv-ipc.log
+  MPV_SEND_BATCH_SIZE=64
 USAGE
 }
 
@@ -123,6 +137,18 @@ send_ipc_many() {
   fi
 }
 
+test_socket() {
+  [[ -S "$SOCKET" ]] || return 1
+
+  if _have socat; then
+    printf '{"command":["get_property","idle-active"]}\n' | socat - "$SOCKET" >/dev/null 2>&1
+  elif _have nc; then
+    printf '{"command":["get_property","idle-active"]}\n' | nc -U "$SOCKET" >/dev/null 2>&1
+  else
+    return 1
+  fi
+}
+
 mpv_cmd() {
   local -a parts=()
   local a joined
@@ -155,9 +181,23 @@ ensure_mpv() {
   log "mpv log: $MPV_LOG"
   log "verbose: $VERBOSE"
 
-  if pgrep -qf "mpv.*input-ipc-server=$SOCKET"; then
-    log "using existing mpv instance"
+  require_ipc_client || exit 1
+
+  if test_socket; then
+    log "using existing mpv socket"
     return 0
+  fi
+
+  if pgrep -qf "mpv.*input-ipc-server=$SOCKET"; then
+    log "matched an mpv process, waiting for socket readiness"
+    for i in {1..10}; do
+      if test_socket; then
+        log "using existing mpv instance"
+        return 0
+      fi
+      sleep 0.1
+    done
+    log "matched mpv process did not expose a usable socket"
   fi
 
   log "starting mpv"
@@ -165,11 +205,9 @@ ensure_mpv() {
   mpv --idle --force-window=yes --input-ipc-server="$SOCKET" >"$MPV_LOG" 2>&1 & disown
 
   for i in {1..50}; do
-    if [[ -S "$SOCKET" ]]; then
-      if printf '{"command":["get_property","idle-active"]}\n' | socat - "$SOCKET" >/dev/null 2>&1; then
-        ready=true
-        break
-      fi
+    if test_socket; then
+      ready=true
+      break
     fi
     sleep 0.1
   done
@@ -188,10 +226,9 @@ focus_mpv() {
 
 play_cmd() {
   local read0=false
-  local -a items=()
-  local line f payload mode reply
+  local line f payload batch_count
   local sent=0
-  local i=1
+  local batch_size="$MPV_SEND_BATCH_SIZE"
 
   log "play_cmd: parsing options/inputs"
 
@@ -212,86 +249,97 @@ play_cmd() {
     shift
   done
 
+  case "$batch_size" in
+    ""|*[!0-9]*) batch_size=64 ;;
+  esac
+  (( batch_size > 0 )) || batch_size=64
+
+  payload=""
+  batch_count=0
+
+  flush_payload() {
+    (( batch_count > 0 )) || return 0
+
+    send_ipc_many "$payload" >/dev/null || return 1
+    payload=""
+    batch_count=0
+    return 0
+  }
+
+  queue_item() {
+    local raw="$1"
+    local mode f
+
+    [[ -n "$raw" ]] || return 0
+
+    f="$(abs_path "$raw")"
+
+    if (( sent == 0 )); then
+      ensure_mpv
+      mode="replace"
+      payload="$(mpv_cmd_json loadfile "$f" "$mode")"$'\n'
+      payload+="$(mpv_cmd_json set_property pause no)"$'\n'
+      log "send first file mode=$mode path=$f"
+      send_ipc_many "$payload" >/dev/null || return 1
+      payload=""
+      batch_count=0
+    else
+      mode="append-play"
+      log "queue file #$(( sent + 1 )) mode=$mode path=$f"
+      payload+="$(mpv_cmd_json loadfile "$f" "$mode")"$'\n'
+      (( ++batch_count ))
+
+      if (( batch_count >= batch_size )); then
+        flush_payload || return 1
+      fi
+    fi
+
+    (( ++sent ))
+    return 0
+  }
+
   if [[ ! -t 0 ]]; then
     log "stdin detected"
     if $read0; then
-      while IFS= read -r -d $'\0' line; do
-        [[ -n "$line" ]] && items+=("$line")
+      while IFS= read -r -d $'\0' line || [[ -n "$line" ]]; do
+        queue_item "$line" || {
+          echo "Error: failed to send playlist item to mpv" >&2
+          exit 1
+        }
+        line=""
       done
     else
-      while IFS= read -r line; do
-        [[ -n "$line" ]] && items+=("$line")
+      while IFS= read -r line || [[ -n "$line" ]]; do
+        queue_item "$line" || {
+          echo "Error: failed to send playlist item to mpv" >&2
+          exit 1
+        }
+        line=""
       done
     fi
   fi
 
-  if [[ ${#items[@]} -eq 0 && $# -gt 0 ]]; then
+  if (( sent == 0 && $# > 0 )); then
     log "using argv input: $# item(s)"
-    items=("$@")
-  fi
-
-  if [[ ${#items[@]} -eq 0 ]]; then
-    echo "Error: no input. Pipe paths on stdin or pass files as arguments."
-    exit 1
-  fi
-
-  log "resolved ${#items[@]} input item(s)"
-  if (( VERBOSE )); then
-    local preview_max=10
-    local idx=1
-    for f in "${items[@]}"; do
-      print -u2 -- "[mpv-send] item[$idx]: $f"
-      (( idx >= preview_max )) && { print -u2 -- "[mpv-send] ..."; break; }
-      ((++idx))
+    for f in "$@"; do
+      queue_item "$f" || {
+        echo "Error: failed to send playlist item to mpv" >&2
+        exit 1
+      }
     done
   fi
 
-  ensure_mpv
+  if (( sent == 0 )); then
+    echo "Error: no input. Pipe paths on stdin or pass files as arguments." >&2
+    exit 1
+  fi
 
-  payload=""
-  for f in "${items[@]}"; do
-    f="$(abs_path "$f")"
-
-    if (( i == 1 )); then
-      mode="replace"
-    else
-      mode="append-play"
-    fi
-
-    log "queue file #$i mode=$mode path=$f"
-    payload+="$(mpv_cmd_json loadfile "$f" "$mode")"$'\n'
-    ((++sent))
-    ((++i))
-  done
-
-  payload+="$(mpv_cmd_json set_property pause no)"$'\n'
-  payload+="$(mpv_cmd_json get_property idle-active)"$'\n'
-  payload+="$(mpv_cmd_json get_property playlist-count)"$'\n'
-  payload+="$(mpv_cmd_json get_property playlist-pos)"$'\n'
-  payload+="$(mpv_cmd_json get_property path)"$'\n'
-
-  log "built payload for $sent file(s)"
-
-  reply="$(send_ipc_many "$payload")" || {
+  flush_payload || {
     echo "Error: failed to send playlist batch to mpv" >&2
     exit 1
   }
 
   echo "Sent $sent file(s) to mpv"
-
-  if (( VERBOSE )); then
-    print -u2 -- "----- mpv reply begin -----"
-    if [[ -n "$reply" ]]; then
-      print -u2 -- "$reply"
-    else
-      print -u2 -- "[mpv-send] (no reply)"
-    fi
-    print -u2 -- "----- mpv reply end -------"
-
-    print -u2 -- "[mpv-send] tail of $MPV_LOG:"
-    tail -n 30 "$MPV_LOG" 2>/dev/null >&2 || true
-  fi
-
   focus_mpv
 }
 

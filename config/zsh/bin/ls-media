@@ -5,8 +5,10 @@
 
 set -u
 
+script_name="${0:t}"
+
 usage() {
-  print -u2 -- "Usage: ${0:t} [--sort KEY] [--reverse] [--print0] [--verbose] [pattern] [path]..."
+  print -u2 -- "Usage: $script_name [--sort KEY] [--reverse] [--print0] [--verbose] [pattern] [path]..."
   print -u2 -- ""
   print -u2 -- "Search media files using fd-video with an fd-like interface."
   print -u2 -- "The optional [pattern] and [path]... are passed through to fd-video."
@@ -14,22 +16,29 @@ usage() {
   print -u2 -- ""
   print -u2 -- "Options:"
   print -u2 -- "  --sort KEY | --sort=KEY           KEY: modified | created"
+  print -u2 -- "  --sort-created                    Alias for --sort created"
   print -u2 -- "  --reverse                         Reverse sort order (only applies with --sort)"
   print -u2 -- "  --print0                          Output NUL-delimited paths"
+  print -u2 -- "  --path PATH | --path=PATH         Add a search path"
+  print -u2 -- "  --match-string STRING             Require a case-insensitive literal match"
+  print -u2 -- "  --match-regex REGEX               Require a case-insensitive regex match"
+  print -u2 -- "  --absolute-path                   Compatibility no-op; fd-video already emits absolute paths"
   print -u2 -- "  --verbose                         Print debug logs to stderr"
   print -u2 -- "  --help, -h"
   print -u2 -- ""
   print -u2 -- "Examples:"
-  print -u2 -- "  ${0:t}"
-  print -u2 -- "  ${0:t} catwalk"
-  print -u2 -- "  ${0:t} '#bg-black' ~/Movies /Volumes/Media"
-  print -u2 -- "  ${0:t} --sort modified --reverse concert ~/Movies/Visuals"
+  print -u2 -- "  $script_name"
+  print -u2 -- "  $script_name catwalk"
+  print -u2 -- "  $script_name '#bg-black' ~/Movies /Volumes/Media"
+  print -u2 -- "  $script_name --sort modified --reverse concert ~/Movies/Visuals"
 }
 
 typeset -a directories=()
 typeset -a results=()
 typeset -a sorted=()
 typeset -a fd_paths=()
+typeset -a match_strings=()
+typeset -a match_regexes=()
 
 typeset verbose=false
 typeset print0=false
@@ -39,6 +48,7 @@ typeset pattern="."
 
 log_verbose() {
   $verbose && print -u2 -- "[DEBUG] $*"
+  return 0
 }
 
 die() {
@@ -72,12 +82,34 @@ while (( $# > 0 )); do
       sort_key="$value"
       [[ "$1" == *=* ]] && shift || shift 2
       ;;
+    --sort-created)
+      sort_key="created"
+      shift
+      ;;
     --reverse)
       reverse=true
       shift
       ;;
     --print0)
       print0=true
+      shift
+      ;;
+    --path|--path=*)
+      value="$(parse_value_opt --path "$1" "${2-}")" || { usage; exit 1; }
+      fd_paths+=("$value")
+      [[ "$1" == *=* ]] && shift || shift 2
+      ;;
+    --match-string|--match-string=*)
+      value="$(parse_value_opt --match-string "$1" "${2-}")" || { usage; exit 1; }
+      match_strings+=("$value")
+      [[ "$1" == *=* ]] && shift || shift 2
+      ;;
+    --match-regex|--match-regex=*)
+      value="$(parse_value_opt --match-regex "$1" "${2-}")" || { usage; exit 1; }
+      match_regexes+=("$value")
+      [[ "$1" == *=* ]] && shift || shift 2
+      ;;
+    --absolute-path)
       shift
       ;;
     --verbose)
@@ -115,7 +147,10 @@ if (( $# > 0 )); then
 fi
 
 if (( $# > 0 )); then
-  fd_paths=("$@")
+  fd_paths+=("$@")
+fi
+
+if (( ${#fd_paths[@]} > 0 )); then
   directories=("${fd_paths[@]}")
   log_verbose "Using explicit paths: ${directories[*]}"
 else
@@ -141,6 +176,25 @@ get_timestamp() {
   esac
 }
 
+path_matches() {
+  local file="$1"
+  local file_lc term term_lc regex regex_lc
+
+  file_lc="${(L)file}"
+
+  for term in "${match_strings[@]}"; do
+    term_lc="${(L)term}"
+    [[ "$file_lc" == *"$term_lc"* ]] || return 1
+  done
+
+  for regex in "${match_regexes[@]}"; do
+    regex_lc="${(L)regex}"
+    [[ "$file_lc" =~ $regex_lc ]] || return 1
+  done
+
+  return 0
+}
+
 process_files() {
   local file ts
   local -a fd_cmd
@@ -161,6 +215,8 @@ process_files() {
   log_verbose "Executing: ${fd_cmd[*]}"
 
   while IFS= read -r -d $'\0' file; do
+    path_matches "$file" || continue
+
     if [[ -n "$sort_key" ]]; then
       ts="$(get_timestamp "$file")" || continue
       printf '%020d\t%s\0' "$ts" "$file"

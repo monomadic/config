@@ -8,8 +8,7 @@ Usage: $0 [options] [files...]
 
 Options:
   --start-random    Start playback from a random item in playlist
-                    (Note: when streaming from stdin, this buffers all input
-                    before starting — use without flag for true streaming)
+                    (stdin input is buffered before mpv starts)
 
 Examples:
   $0 video1.mp4 video2.mp4
@@ -44,6 +43,16 @@ mpv_flags=(
   --video-sync=display-resample
 )
 
+read_stdin_files() {
+  local file
+  files=()
+
+  while IFS= read -r file || [[ -n "$file" ]]; do
+    [[ -n "$file" ]] && files+=("$file")
+    file=""
+  done
+}
+
 # Determine input source
 if [[ $# -gt 0 ]]; then
   # Files provided as arguments
@@ -56,19 +65,18 @@ if [[ $# -gt 0 ]]; then
   fi
 
 elif [[ ! -t 0 ]]; then
-  # Input from stdin — streaming or buffered
+  read_stdin_files
+
+  if (( ${#files[@]} == 0 )); then
+    echo "Error: no input received on stdin."
+    exit 1
+  fi
+
   if [[ "$start_random" == "true" ]]; then
-    # Must buffer to determine random start index
-    playlist=$(cat)
-    line_count=$(echo "$playlist" | wc -l | tr -d ' ')
-    start_index=$((RANDOM % line_count + 1))
-    echo "$playlist" | mpv "${mpv_flags[@]}" \
-      --playlist-start="$start_index" \
-      --playlist=-
+    start_index=$((RANDOM % ${#files[@]}))
+    mpv "${mpv_flags[@]}" --playlist-start="$start_index" "${files[@]}"
   else
-    # True streaming: mpv starts on first line, --idle=yes keeps it alive
-    # while more entries arrive (e.g. from a slow fd scan of a remote disk)
-    mpv "${mpv_flags[@]}" --playlist=-
+    mpv "${mpv_flags[@]}" "${files[@]}"
   fi
 
 else
