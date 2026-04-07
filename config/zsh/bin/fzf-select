@@ -3,42 +3,66 @@ set -euo pipefail
 
 show_absolute=false
 print_color=false
+read0=false
+print0=false
+stream=false
+passthrough_args=()
+records_loaded=0
 
 for arg in "$@"; do
   case "$arg" in
     --absolute-paths) show_absolute=true ;;
     --color)          print_color=true ;;
+    -0|--read0)       read0=true ;;
+    --print0)         print0=true ;;
+    --stream)         stream=true ;;
+    *)                passthrough_args+=("$arg") ;;
   esac
 done
 
-if [[ ! -p /dev/stdin ]]; then
+if [[ -t 0 ]]; then
   print -u2 "Error: expected piped input"
   exit 1
 fi
 
-for bin in fzf mktemp; do
+for bin in fzf mktemp awk; do
   command -v "$bin" >/dev/null 2>&1 || {
     print -u2 "Error: missing dependency: $bin"
     exit 1
   }
 done
 
-tmp_raw=$(mktemp -t fzf-select.raw.XXXXXX)
+tmp_map=$(mktemp -t fzf-select.map.XXXXXX)
 tmp_lines=$(mktemp -t fzf-select.lines.XXXXXX)
+tmp_selected=$(mktemp -t fzf-select.selected.XXXXXX)
+tmp_selected_lines=$(mktemp -t fzf-select.selected-lines.XXXXXX)
 
 cleanup() {
-  rm -f -- "$tmp_raw" "$tmp_lines"
+  rm -f -- "$tmp_map" "$tmp_lines" "$tmp_selected" "$tmp_selected_lines"
+  (stty sane < /dev/tty >/dev/null 2>&1) 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
-
-cat > "$tmp_raw"
 
 esc=$'\033'
 grey="${esc}[90m"
 reset="${esc}[0m"
 
-while IFS= read -r raw; do
-  [[ -z "$raw" ]] && continue
+status_message() {
+  [[ -t 2 ]] || return 0
+  print -u2 -- "fzf-select: $*"
+}
+
+sanitize_utf8() {
+  if command -v iconv >/dev/null 2>&1; then
+    iconv -f UTF-8 -t UTF-8 -c 2>/dev/null
+  else
+    cat
+  fi
+}
+
+format_display() {
+  local raw="$1"
+  local base dir disp
 
   if $show_absolute; then
     disp=$raw
@@ -52,9 +76,90 @@ while IFS= read -r raw; do
       disp="$base $dir"
     fi
   fi
+  printf '%s' "$disp"
+}
 
-  printf '%s\t%s\n' "$raw" "$disp" >> "$tmp_lines"
-done < "$tmp_raw"
+emit_record() {
+  local raw="$1"
+  local idx="$2"
+  local disp
+
+  [[ -z "$raw" ]] && return 0
+
+  printf '%s\n' "$raw" >> "$tmp_map"
+  disp="$(format_display "$raw")"
+
+  if $read0; then
+    printf '%s\t%s\0' "$idx" "$disp"
+  else
+    printf '%s\t%s\n' "$idx" "$disp"
+  fi
+}
+
+append_record() {
+  local raw="$1"
+  local idx="$2"
+
+  [[ -z "$raw" ]] && return 0
+
+  emit_record "$raw" "$idx" | sanitize_utf8 >> "$tmp_lines"
+  (( ++records_loaded ))
+}
+
+emit_fzf_input() {
+  local raw
+  local idx=1
+
+  if $read0; then
+    while IFS= read -r -d $'\0' raw || [[ -n "$raw" ]]; do
+      emit_record "$raw" "$idx"
+      (( ++idx ))
+      raw=""
+    done
+  else
+    while IFS= read -r raw || [[ -n "$raw" ]]; do
+      emit_record "$raw" "$idx"
+      (( ++idx ))
+      raw=""
+    done
+  fi
+}
+
+build_fzf_input() {
+  local raw
+  local idx=1
+
+  if $read0; then
+    while IFS= read -r -d $'\0' raw || [[ -n "$raw" ]]; do
+      append_record "$raw" "$idx"
+      (( ++idx ))
+      raw=""
+    done
+  else
+    while IFS= read -r raw || [[ -n "$raw" ]]; do
+      append_record "$raw" "$idx"
+      (( ++idx ))
+      raw=""
+    done
+  fi
+}
+
+map_selection() {
+  if $print0; then
+    tr '\0' '\n' < "$tmp_selected" > "$tmp_selected_lines"
+    LC_ALL=C awk '
+      NR == FNR { paths[NR] = $0; next }
+      $1 in paths { printf "%s%c", paths[$1], 0 }
+    ' "$tmp_map" "$tmp_selected_lines"
+  else
+    LC_ALL=C awk '
+      NR == FNR { paths[NR] = $0; next }
+      $1 in paths { print paths[$1] }
+    ' "$tmp_map" "$tmp_selected"
+  fi
+}
+
+reveal_bind="execute-silent(zsh -c 'path=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$path\" ]] && open --reveal \"\$path\"' _ {1} ${(q)tmp_map})"
 
 fzf_args=(
   --multi
@@ -64,17 +169,26 @@ fzf_args=(
   --with-nth=2
   --accept-nth=1
   --bind 'enter:select-all+accept'
-  --bind 'alt-r:execute-silent(open --reveal {1})'
-  --bind 'ctrl-r:execute-silent(open --reveal {1})'
+  --bind "alt-r:$reveal_bind"
+  --bind "ctrl-r:$reveal_bind"
 )
 
 $print_color && fzf_args+=(--ansi)
+$read0 && fzf_args+=(--read0)
+$print0 && fzf_args+=(--print0)
+fzf_args+=("${passthrough_args[@]}")
 
 set +e
-selected=$(
-  fzf "${fzf_args[@]}" < "$tmp_lines"
-)
-fzf_status=$?
+if $stream; then
+  emit_fzf_input | sanitize_utf8 | fzf "${fzf_args[@]}" > "$tmp_selected"
+  fzf_status=${pipestatus[3]}
+else
+  status_message "reading stdin before launching fzf (safe mode; use --stream for experimental live input)"
+  build_fzf_input
+  status_message "loaded $records_loaded item(s); launching fzf"
+  fzf "${fzf_args[@]}" < "$tmp_lines" > "$tmp_selected"
+  fzf_status=$?
+fi
 set -e
 
 case "$fzf_status" in
@@ -84,4 +198,6 @@ case "$fzf_status" in
   *) exit "$fzf_status" ;;
 esac
 
-[[ -n "$selected" ]] && printf '%s\n' "$selected"
+if [[ -s "$tmp_selected" ]]; then
+  map_selection
+fi

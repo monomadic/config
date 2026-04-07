@@ -1,0 +1,286 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+script_name="${0:t}"
+
+usage() {
+  print -r -- "usage: $script_name COMMANDS_FILE [SELECTOR] [-- FZF_ARGS...]"
+  print -r -- "       $script_name COMMANDS_FILE --run SELECTOR"
+  print -r -- ""
+  print -r -- "Select and run a command from a tab-delimited .commands file."
+  print -r -- "When SELECTOR is provided, run without opening fzf."
+  print -r -- ""
+  print -r -- "File format:"
+  print -r -- "  description<TAB>command"
+  print -r -- ""
+  print -r -- "Selectors:"
+  print -r -- "  12       run the command on source-file line 12"
+  print -r -- "  build    run the command with a matching description"
+  print -r -- ""
+  print -r -- "Blank lines and lines starting with # are ignored."
+}
+
+die() {
+  print -u2 -r -- "Error: $*"
+  exit 1
+}
+
+warn() {
+  print -u2 -r -- "Warning: $*"
+}
+
+require_command() {
+  local bin="$1"
+
+  command -v "$bin" >/dev/null 2>&1 || die "missing dependency: $bin"
+}
+
+commands_file=''
+run_immediately=false
+selector=''
+fzf_passthrough_args=()
+
+case "${1:-}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  '')
+    usage
+    exit 1
+    ;;
+esac
+
+commands_file="$1"
+shift
+
+if (( $# )); then
+  case "$1" in
+    --)
+      shift
+      fzf_passthrough_args=("$@")
+      ;;
+    --run|--select)
+      selector_option="$1"
+      shift
+      (( $# )) || die "$selector_option requires a selector"
+      selector="$1"
+      run_immediately=true
+      shift
+
+      if [[ "${1:-}" == "--" ]]; then
+        shift
+        fzf_passthrough_args=("$@")
+      elif (( $# )); then
+        die "unexpected argument after selector: $1"
+      fi
+      ;;
+    -*)
+      fzf_passthrough_args=("$@")
+      ;;
+    *)
+      selector="$1"
+      run_immediately=true
+      shift
+
+      if [[ "${1:-}" == "--" ]]; then
+        shift
+        fzf_passthrough_args=("$@")
+      elif (( $# )); then
+        die "unexpected argument after selector: $1"
+      fi
+      ;;
+  esac
+fi
+
+[[ -f "$commands_file" ]] || die "not a file: $commands_file"
+[[ -r "$commands_file" ]] || die "not readable: $commands_file"
+
+record_separator=$'\037'
+
+format_entries() {
+  local line desc cmd
+  local lineno=0
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    (( ++lineno ))
+
+    [[ "$line" =~ '^[[:space:]]*$' ]] && continue
+    [[ "$line" =~ '^[[:space:]]*#' ]] && continue
+
+    if [[ "$line" != *$'\t'* ]]; then
+      warn "skipping line $lineno without a tab"
+      continue
+    fi
+
+    desc="${line%%$'\t'*}"
+    cmd="${line#*$'\t'}"
+
+    if [[ -z "$desc" || -z "$cmd" ]]; then
+      warn "skipping line $lineno with an empty description or command"
+      continue
+    fi
+
+    printf '%s%s%s%s%s\n' "$lineno" "$record_separator" "$desc" "$record_separator" "$cmd"
+  done < "$commands_file"
+}
+
+entry_lineno() {
+  local entry="$1"
+
+  print -r -- "${entry%%$record_separator*}"
+}
+
+entry_description() {
+  local entry="$1"
+  local rest="${entry#*$record_separator}"
+
+  print -r -- "${rest%%$record_separator*}"
+}
+
+entry_command() {
+  local entry="$1"
+  local rest="${entry#*$record_separator}"
+
+  print -r -- "${rest#*$record_separator}"
+}
+
+find_entry() {
+  local selector="$1"
+  local entry line desc selector_lc desc_lc
+  local -a exact_matches contains_matches
+
+  [[ -n "$selector" ]] || die "selector cannot be empty"
+
+  if [[ "$selector" =~ '^[0-9]+$' ]]; then
+    while IFS= read -r entry || [[ -n "$entry" ]]; do
+      line="$(entry_lineno "$entry")"
+
+      if [[ "$line" == "$selector" ]]; then
+        print -r -- "$entry"
+        return 0
+      fi
+    done <<< "$entries"
+
+    die "no command found on source-file line $selector"
+  fi
+
+  selector_lc="${(L)selector}"
+
+  while IFS= read -r entry || [[ -n "$entry" ]]; do
+    desc="$(entry_description "$entry")"
+    desc_lc="${(L)desc}"
+
+    if [[ "$desc" == "$selector" ]]; then
+      exact_matches+=("$entry")
+    elif [[ "$desc_lc" == *"$selector_lc"* ]]; then
+      contains_matches+=("$entry")
+    fi
+  done <<< "$entries"
+
+  if (( ${#exact_matches} == 1 )); then
+    print -r -- "$exact_matches[1]"
+    return 0
+  fi
+
+  if (( ${#exact_matches} > 1 )); then
+    print -u2 -r -- "Error: selector matched multiple descriptions exactly:"
+    for entry in "${exact_matches[@]}"; do
+      print -u2 -r -- "  $(entry_lineno "$entry"): $(entry_description "$entry")"
+    done
+    exit 1
+  fi
+
+  if (( ${#contains_matches} == 1 )); then
+    print -r -- "$contains_matches[1]"
+    return 0
+  fi
+
+  if (( ${#contains_matches} > 1 )); then
+    print -u2 -r -- "Error: selector matched multiple descriptions:"
+    for entry in "${contains_matches[@]}"; do
+      print -u2 -r -- "  $(entry_lineno "$entry"): $(entry_description "$entry")"
+    done
+    exit 1
+  fi
+
+  die "no description matched selector: $selector"
+}
+
+run_command() {
+  local cmd="$1"
+
+  if [[ -t 2 ]]; then
+    print -u2 -nP "%F{yellow}Executing:%f "
+    print -u2 -r -- "$cmd"
+  else
+    print -u2 -r -- "Executing: $cmd"
+  fi
+
+  set +e
+  set +u
+  unsetopt pipe_fail
+
+  eval "$cmd"
+}
+
+entries="$(format_entries)"
+
+[[ -n "$entries" ]] || die "no commands found in $commands_file"
+
+if $run_immediately; then
+  if (( ${#fzf_passthrough_args} )); then
+    warn "ignoring fzf arguments for direct run"
+  fi
+
+  selected="$(find_entry "$selector")"
+  run_command "$(entry_command "$selected")"
+  exit $?
+fi
+
+require_command fzf
+
+fzf_header='enter run | ctrl-v preview'
+copy_bind=()
+
+if command -v pbcopy >/dev/null 2>&1; then
+  fzf_header='enter run | ctrl-y copy command | ctrl-v preview'
+  copy_bind=(--bind='ctrl-y:execute-silent(printf %s {3} | pbcopy)')
+elif command -v clipcopy >/dev/null 2>&1; then
+  fzf_header='enter run | ctrl-y copy command | ctrl-v preview'
+  copy_bind=(--bind='ctrl-y:execute-silent(printf %s {3} | clipcopy)')
+fi
+
+fzf_args=(
+  --cycle
+  --exact
+  --exit-0
+  --delimiter="$record_separator"
+  --with-nth=2
+  --preview='printf "%s\n" {3}'
+  --preview-window='down:3:wrap'
+  --prompt='Command > '
+  --header="$fzf_header"
+  --bind='ctrl-v:toggle-preview'
+)
+fzf_args+=("${copy_bind[@]}")
+fzf_args+=("${fzf_passthrough_args[@]}")
+
+set +e
+selected="$(
+  printf '%s\n' "$entries" |
+    fzf "${fzf_args[@]}"
+)"
+fzf_status=$?
+set -e
+
+case "$fzf_status" in
+  0) ;;
+  1) exit 0 ;;
+  130) exit 130 ;;
+  *) exit "$fzf_status" ;;
+esac
+
+[[ -n "$selected" ]] || exit 0
+
+run_command "$(entry_command "$selected")"

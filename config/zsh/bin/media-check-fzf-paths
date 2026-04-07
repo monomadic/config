@@ -1,0 +1,111 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Encode qw(decode FB_CROAK);
+use Getopt::Long qw(GetOptions);
+
+binmode STDIN,  ':raw';
+binmode STDOUT, ':raw';
+binmode STDERR, ':raw';
+
+my $read0 = 0;
+my $quiet = 0;
+my $help  = 0;
+
+GetOptions(
+    '0|read0' => \$read0,
+    'quiet|q' => \$quiet,
+    'help|h' => \$help,
+) or usage(2);
+
+usage(0) if $help;
+
+my $separator = $read0 ? "\0" : "\n";
+local $/ = $separator;
+
+my $checked = 0;
+my $bad = 0;
+
+while (defined(my $path = <STDIN>)) {
+    chomp $path;
+    next if $path eq '';
+
+    ++$checked;
+    my @issues = issues_for($path, $read0);
+    next unless @issues;
+
+    ++$bad;
+    next if $quiet;
+
+    print "record $checked: ", escape_bytes($path), "\n";
+    for my $issue (@issues) {
+        print "  - $issue\n";
+    }
+}
+
+if ($bad) {
+    print "Found $bad fzf-hostile path(s) in $checked checked record(s).\n" unless $quiet;
+    exit 1;
+}
+
+print "OK: checked $checked path(s); no fzf-hostile paths found.\n" unless $quiet;
+exit 0;
+
+sub issues_for {
+    my ($path, $read0) = @_;
+    my @issues;
+    my @bytes = unpack('C*', $path);
+    my %byte_present;
+    $byte_present{$_} = 1 for @bytes;
+
+    eval { decode('UTF-8', $path, FB_CROAK); 1 }
+        or push @issues, 'invalid UTF-8 byte sequence';
+
+    push @issues, 'contains tab byte 0x09; this can confuse tab-delimited fzf displays'
+        if $byte_present{0x09};
+    push @issues, 'contains newline byte 0x0a; use NUL-delimited pipelines and consider renaming'
+        if $read0 && $byte_present{0x0a};
+    push @issues, 'contains carriage return byte 0x0d; this can scramble terminal output'
+        if $byte_present{0x0d};
+
+    my %seen;
+    my @control = map { sprintf '0x%02x', $_ }
+        grep { !$seen{$_}++ }
+        grep { ($_ <= 0x08) || ($_ == 0x0b) || ($_ == 0x0c) || ($_ >= 0x0e && $_ <= 0x1f) || ($_ == 0x7f) }
+        @bytes;
+
+    push @issues, 'contains terminal/control byte(s): ' . join(', ', @control)
+        if @control;
+
+    return @issues;
+}
+
+sub escape_bytes {
+    my ($bytes) = @_;
+    return join '', map {
+        $_ == 0x5c ? '\\\\' :
+        $_ >= 0x20 && $_ <= 0x7e ? chr($_) :
+        sprintf '\\x%02x', $_
+    } unpack('C*', $bytes);
+}
+
+sub usage {
+    my ($status) = @_;
+    my $out = $status ? *STDERR : *STDOUT;
+    print $out <<'USAGE';
+Usage: media-check-fzf-paths [-0|--read0] [--quiet]
+
+Check path records from stdin for bytes that tend to break fzf or terminal
+selectors, especially invalid UTF-8 filenames.
+
+Examples:
+  fd-media . ~/Movies | media-check-fzf-paths
+  fd-media --print0 . ~/Movies | media-check-fzf-paths -0
+
+Exit status:
+  0  no problematic paths found
+  1  one or more problematic paths found
+  2  usage error
+USAGE
+    exit $status;
+}
