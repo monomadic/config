@@ -39,6 +39,7 @@ ICON_MAPPINGS=(
 )
 
 applied=0
+failed=0
 
 for mapping in "${ICON_MAPPINGS[@]}"; do
   app_name="${mapping%%|*}"
@@ -56,10 +57,18 @@ for mapping in "${ICON_MAPPINGS[@]}"; do
   fi
 
   echo "Applying icon: $app_name <- $icon_name"
-  fileicon set "$app_path" "$icon_path"
-  applied=$((applied + 1))
+  if fileicon set "$app_path" "$icon_path"; then
+    applied=$((applied + 1))
+  else
+    echo "Warning: failed to apply icon for $app_name; continuing."
+    failed=$((failed + 1))
+  fi
 done
 
 if (( applied == 0 )); then
   echo "No matching macOS apps found for icon overrides."
+fi
+
+if (( failed > 0 )); then
+  echo "Skipped $failed app icon override(s) due to fileicon errors."
 fi
