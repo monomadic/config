@@ -82,6 +82,8 @@ brew "procs"
 brew "starship"
 brew "viu"
 brew "zellij"
+tap "itchyny/tap"
+brew "itchyny/tap/mmv"
 
 # Media and content tooling
 brew "aria2"
