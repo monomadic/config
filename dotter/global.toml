@@ -22,8 +22,7 @@ depends = []
 "bin" = { target = "~/.bin/", type = "symbolic" }
 
 [karabiner.files]
-"config/karabiner/assets" = { target = "~/.config/karabiner/assets", type = "symbolic" }
-"config/karabiner/karabiner.json" = { target = "~/.config/karabiner/karabiner.json", type = "template" }
+"config/karabiner/assets/complex_modifications" = { target = "~/.config/karabiner/assets/complex_modifications", type = "symbolic" }
 
 [switch.files]
 "config/switch" = "~/.switch"
