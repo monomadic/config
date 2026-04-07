@@ -56,7 +56,7 @@ for mapping in "${ICON_MAPPINGS[@]}"; do
     continue
   fi
 
-  echo "Applying icon: $app_name <- $icon_name"
+  echo "$app_name: apply $icon_name"
   if fileicon set "$app_path" "$icon_path"; then
     applied=$((applied + 1))
   else
