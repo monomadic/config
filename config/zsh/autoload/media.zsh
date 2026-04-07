@@ -5,10 +5,6 @@
 typeset -ga DJ_VISUALS_PATHS
 DJ_VISUALS_PATHS=("$ICLOUD_HOME/Movies/Visuals")
 
-play-index() {
-  
-}
-
 .play-tower-with-mount() {
   MEDIA_PATH="/Volumes/Tower/Movies/Porn"
 
@@ -36,9 +32,11 @@ alias .ls="ls-media"
 alias .ls-sorted="ls-media --sort=created"
 alias .ls-pwd="ls-media . ."
 alias .ls-sorted-pwd=".ls-sorted . ."
-alias .ls-local="fd-video . {${ICLOUD_HOME},${HOME},/Volumes/*}/Movies/Porn"
+alias .ls-local="fd-video . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Porn"
 
-alias .play=".ls | mpv-play"
+alias .play="fd-media --print0 . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Porn(N) | mpv-send play -0"
+alias .select="fd-media --print0 . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Porn(N) | fzf-select -0 --print0 --stream | mpv-send play -0"
+
 alias .play-all-sorted=".ls-sorted | mpv-play"
 alias .play-pwd=" | mpv-play"
 alias .play-pwd-sorted=".ls-pwd | mpv-play"
@@ -109,7 +107,7 @@ alias .select-pwd-sorted=".ls-pwd-sorted | fzf-select | mpv-play"
 
 alias \%select="cat $HOME/.indexes/Tower | fzf-select | mpv --playlist=-"
 
-alias .play-downloads="fd-video . /Volumes/*/Movies/Porn/Downloads(N) $HOME/Movies/Porn/Downloads | mpv-play"
+alias .play-downloads="fd-video --print0 . {/Users/nom/Library/Mobile\ Documents/com~apple~CloudDocs,/Users/nom,/Volumes/*}/Movies/Porn/Downloads(N) | mpv-send play -0"
 alias .play-local-downloads="fd-video . $HOME/Movies/Porn/Downloads | mpv-play"
 alias .play-local-downloads-sorted="fd-video-sort . $HOME/Movies/Porn/Downloads(N) | mpv-play"
 

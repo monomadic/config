@@ -36,9 +36,10 @@ tmp_map=$(mktemp -t fzf-select.map.XXXXXX)
 tmp_lines=$(mktemp -t fzf-select.lines.XXXXXX)
 tmp_selected=$(mktemp -t fzf-select.selected.XXXXXX)
 tmp_selected_lines=$(mktemp -t fzf-select.selected-lines.XXXXXX)
+tmp_fzf_status=$(mktemp -t fzf-select.status.XXXXXX)
 
 cleanup() {
-  rm -f -- "$tmp_map" "$tmp_lines" "$tmp_selected" "$tmp_selected_lines"
+  rm -f -- "$tmp_map" "$tmp_lines" "$tmp_selected" "$tmp_selected_lines" "$tmp_fzf_status"
   (stty sane < /dev/tty >/dev/null 2>&1) 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
@@ -180,8 +181,12 @@ fzf_args+=("${passthrough_args[@]}")
 
 set +e
 if $stream; then
-  emit_fzf_input | sanitize_utf8 | fzf "${fzf_args[@]}" > "$tmp_selected"
-  fzf_status=${pipestatus[3]}
+  emit_fzf_input | sanitize_utf8 | {
+    fzf "${fzf_args[@]}" > "$tmp_selected"
+    print -r -- "$?" > "$tmp_fzf_status"
+  }
+  fzf_status="$(< "$tmp_fzf_status")"
+  [[ -n "$fzf_status" ]] || fzf_status=1
 else
   status_message "reading stdin before launching fzf (safe mode; use --stream for experimental live input)"
   build_fzf_input

@@ -149,6 +149,30 @@ test_socket() {
   fi
 }
 
+start_mpv() {
+  local ready=false
+  local i
+
+  log "starting mpv"
+  rm -f -- "$SOCKET"
+  mpv --idle --force-window=yes --input-ipc-server="$SOCKET" >"$MPV_LOG" 2>&1 & disown
+
+  for i in {1..50}; do
+    if test_socket; then
+      ready=true
+      break
+    fi
+    sleep 0.1
+  done
+
+  if ! $ready; then
+    echo "Error: mpv socket $SOCKET did not become usable. Check $MPV_LOG" >&2
+    exit 1
+  fi
+
+  log "mpv ready"
+}
+
 mpv_cmd() {
   local -a parts=()
   local a joined
@@ -174,7 +198,6 @@ mpv_cmd_json() {
 }
 
 ensure_mpv() {
-  local ready=false
   local i
 
   log "socket: $SOCKET"
@@ -200,24 +223,7 @@ ensure_mpv() {
     log "matched mpv process did not expose a usable socket"
   fi
 
-  log "starting mpv"
-  rm -f -- "$SOCKET"
-  mpv --idle --force-window=yes --input-ipc-server="$SOCKET" >"$MPV_LOG" 2>&1 & disown
-
-  for i in {1..50}; do
-    if test_socket; then
-      ready=true
-      break
-    fi
-    sleep 0.1
-  done
-
-  if ! $ready; then
-    echo "Error: mpv socket $SOCKET did not become usable. Check $MPV_LOG" >&2
-    exit 1
-  fi
-
-  log "mpv ready"
+  start_mpv
 }
 
 focus_mpv() {
@@ -280,7 +286,11 @@ play_cmd() {
       payload="$(mpv_cmd_json loadfile "$f" "$mode")"$'\n'
       payload+="$(mpv_cmd_json set_property pause no)"$'\n'
       log "send first file mode=$mode path=$f"
-      send_ipc_many "$payload" >/dev/null || return 1
+      if ! send_ipc_many "$payload" >/dev/null 2>/dev/null; then
+        log "first send failed; restarting mpv and retrying once"
+        start_mpv
+        send_ipc_many "$payload" >/dev/null || return 1
+      fi
       payload=""
       batch_count=0
     else
