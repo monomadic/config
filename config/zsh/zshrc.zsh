@@ -37,7 +37,6 @@ autoload -Uz add-zsh-hook
 _lazy_fzf_precmd() {
   # only source if files exist
   [[ -r "$ZSH_AUTOLOAD_DIR/fzf.zsh" ]]             && source "$ZSH_AUTOLOAD_DIR/fzf.zsh"
-  [[ -r "$ZSH_AUTOLOAD_DIR/fzf-completions.zsh" ]] && source "$ZSH_AUTOLOAD_DIR/fzf-completions.zsh"
   [[ -r "$ZSH_AUTOLOAD_DIR/fzf-custom.zsh" ]]      && source "$ZSH_AUTOLOAD_DIR/fzf-custom.zsh"
   [[ -r "$ZSH_AUTOLOAD_DIR/fzf-marks.zsh" ]]       && source "$ZSH_AUTOLOAD_DIR/fzf-marks.zsh"  # optional
 
@@ -111,4 +110,3 @@ export PATH="$PATH:$HOME/.lmstudio/bin"
 # Added by LM Studio CLI (lms)
 export PATH="$PATH:/Users/nom/.cache/lm-studio/bin"
 # End of LM Studio CLI section
-

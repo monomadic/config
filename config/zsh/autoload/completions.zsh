@@ -20,6 +20,12 @@ mkdir -p ~/.zsh/completions
 
 # `fpath` and `compinit` are handled centrally in `~/.zshrc`.
 
+# yt-dlp ships its zsh completion through Homebrew; cached compinit can miss it.
+if (( $+commands[yt-dlp] )); then
+  autoload -Uz _yt-dlp
+  compdef _yt-dlp yt-dlp
+fi
+
 # --- command: e <file> -> open in default editor ---
 e() {
   $EDITOR "$@"

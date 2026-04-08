@@ -34,13 +34,20 @@ alias .ls-pwd="ls-media . ."
 alias .ls-sorted-pwd=".ls-sorted . ."
 alias .ls-local="fd-video . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Porn"
 
-alias .play="fd-media --print0 . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Porn(N) | mpv-send play -0"
-alias .select="fd-media --print0 . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Porn(N) | fzf-select -0 --print0 --stream | mpv-send play -0"
+# alias .play="fd-media --print0 . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Porn(N) | mpv-send play -0"
+alias .play="fd-media --print0 . {${HOME},/Volumes/*}/Movies/Porn(N) | mpv-send play -0"
+# alias .select="fd-media --print0 . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Porn(N) | fzf-select -0 --print0 --stream | mpv-send play -0"
+alias .select="fd-media --print0 . {${HOME},/Volumes/*}/Movies/Porn(N) | fzf-select -0 --print0 --stream | mpv-send play -0"
 
 alias .play-all-sorted=".ls-sorted | mpv-play"
 alias .play-pwd=" | mpv-play"
 alias .play-pwd-sorted=".ls-pwd | mpv-play"
 alias .play-local=".ls-local | mpv-play"
+alias .play-tower="fd-media --print0 . /Volumes/Tower/Movies/Porn(N) | mpv-send play -0"
+alias .play-tower-downloads="fd-media --print0 . /Volumes/Tower/Movies/Porn/Downloads(N) | mpv-send play -0"
+alias .play-tower-masters="fd-media --print0 . /Volumes/Tower/Movies/Porn/Masters(N) | mpv-send play -0"
+alias .play-tower-clips="fd-media --print0 . /Volumes/Tower/Movies/Porn/Clips(N) | mpv-send play -0"
+alias .play-tower-clips-landscape="fd-media --print0 . /Volumes/Tower/Movies/Porn/Clips/Landscape(N) | mpv-send play -0"
 
 alias cat-indexes="cat $HOME/.indexes/*"
 alias cat-index-tower="cat $HOME/.indexes/tower-porn"
@@ -98,7 +105,12 @@ alias .update-all-indexes=.create-all-indexes
   mpv --playlist="$INDEX_DIR/.index"
 }
 
-
+filter-icloud-files() {  
+  while IFS= read -r -d '' f; do
+    status="$(mdls -raw -name kMDItemDownloadedDate "$f" 2>/dev/null || true)"
+    [[ "$status" != "(null)" && -n "$status" ]] && print -r -- "$f"
+  done
+}
 
 alias .select=".ls | fzf-select | mpv-play"
 alias .select-all-sorted=".ls-all-sorted | fzf-select | mpv-play"
@@ -140,7 +152,9 @@ alias .play-clips="ls-media --match-string /Clips/ | mpv-play"
 alias .select-clips="fd-clips | strip-slash | fzf-select | mpv-play"
 
 alias .select-visuals="fd-video . {${ICLOUD_HOME},${HOME},/Volumes/*}/Movies/Visuals | fzf-select | mpv --playlist=-"
-alias .play-visuals-bg-black="fd-video --regex "#bg-black" . {${ICLOUD_HOME},${HOME},/Volumes/*}/Movies/Visuals | mpv --playlist=-"
+
+alias .play-visuals="fd-media --print0 . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Visuals(N) | mpv-send play -0"
+alias .play-visuals-bg-black="fd-media . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Visuals(N) | grep '#bg-black' | mpv-send play"
 alias \#bg-black=".play-visuals-bg-black"
 
 alias .select-external="fd-video . /Volumes/*/Movies/Porn | fzf-select | mpv-play"
@@ -177,19 +191,13 @@ alias mount-tower="open smb://nom@m4.local/Tower"
 alias .mount-tower=mount-tower
 alias unmount-tower="diskutil unmount /Volumes/Tower"
 
-alias @masters-full="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Full(N) $HOME/Movies/Porn/Masters/Full(N) | fzf-play --hide-path -0"
-alias @masters-clips="fd-video --print0 . /Volumes/*/Movies/Porn/Masters/Clips(N) $HOME/Movies/Porn/Masters/Clips(N) | fzf-play --hide-path -0"
-
-alias fd-clips="fd --absolute-path --exact-depth=1 --color=never . /Volumes/*/Movies/Porn/Masters/Clips/*/(N) $HOME/Movies/Porn/Masters/Clips/*/(N)"
-
-
-# detect available media paths
-ls-media-paths-checked() {
-  ls-media-paths | while IFS= read -r media_path; do
-    [[ $media_path == *Backup* ]] && continue
-    echo "$media_path"
-  done
-}
+# # detect available media paths
+# ls-media-paths-online() {
+#   ls-media-paths | while IFS= read -r media_path; do
+#     [[ $media_path == *Backup* ]] && continue
+#     echo "$media_path"
+#   done
+# }
 
 # list all unique tags found in files under the present directory
 fd-tags() {
