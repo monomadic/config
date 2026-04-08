@@ -9,6 +9,9 @@ usage() {
 }
 
 INCLUDE_BACKUPS=false
+EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn"
+LOCAL_MEDIA_PATHS="$HOME/Movies/Porn"
+CLOUD_MEDIA_PATHS="$HOME/Library/Mobile\ Documents/com~apple~CloudDocs"
 
 # Parse args
 while [[ $# -gt 0 ]]; do

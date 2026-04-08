@@ -1,0 +1,228 @@
+#!/usr/bin/env zsh
+# filter-icloud-files
+# Filter input paths so only files that are available locally are emitted.
+# iCloud placeholder files that are not downloaded yet are skipped.
+#
+# Features:
+# - accepts files and directories
+# - recursively expands directories with fd
+# - skips non-local iCloud files
+# - supports NUL-delimited input via --read0
+# - optional dry-run / verbose output
+# - optional NUL-delimited output via --print0
+#
+# Examples:
+#   filter-icloud-files ~/Movies ~/Library/Mobile\ Documents/com~apple~CloudDocs/Videos
+#   fd . ~/Library/Mobile\ Documents/com~apple~CloudDocs -t f -0 | filter-icloud-files --read0
+#   fd-video --print0 . ~/Movies/Porn/Downloads | filter-icloud-files --read0 --dry-run --print0 | mpv-send play -0
+#
+# Notes:
+# - Uses a small embedded Swift snippet to query iCloud locality status.
+# - Non-iCloud files are treated as local and passed through normally.
+
+emulate -L zsh
+set -euo pipefail
+setopt local_options null_glob pipefail no_aliases
+
+usage() {
+  cat <<'EOF'
+Usage:
+  filter-icloud-files [options] [file_or_dir ...]
+
+Options:
+  --read0            Read additional paths from stdin as NUL-delimited input
+  --hidden           Include hidden files when expanding directories
+  --print0           In --dry-run mode, print NUL-delimited output
+  --verbose, -v      Print skipped files and summary to stderr
+  --dry-run, -n      Do not launch mpv; print selected files to stdout
+  --help, -h         Show this help
+
+Behavior:
+  - Files are checked for local iCloud availability before output
+  - iCloud placeholder files that are not downloaded locally are skipped
+  - Directories are expanded recursively with fd
+  - Non-iCloud files are always treated as local
+
+Examples:
+  filter-icloud-files ~/Movies
+  fd . ~/Library/Mobile\ Documents/com~apple~CloudDocs -t f -0 | filter-icloud-files --read0
+  filter-icloud-files --verbose ~/Library/Mobile\ Documents/com~apple~CloudDocs/Videos
+  fd-video --print0 . ~/Movies/Porn/Downloads | filter-icloud-files --read0 --dry-run --print0 | mpv-send play -0
+EOF
+}
+
+READ0=0
+INCLUDE_HIDDEN=0
+VERBOSE=0
+DRY_RUN=0
+PRINT0=0
+
+typeset -a args input_paths expanded_files playable_files skipped_files mpv_cmd
+typeset -A seen_input seen_expanded
+
+while (( $# )); do
+  case "$1" in
+    --read0)
+      READ0=1
+      shift
+      ;;
+    --print0)
+      PRINT0=1
+      shift
+      ;;
+    --hidden)
+      INCLUDE_HIDDEN=1
+      shift
+      ;;
+    --verbose|-v)
+      VERBOSE=1
+      shift
+      ;;
+    --dry-run|-n)
+      DRY_RUN=1
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      args+=("$@")
+      break
+      ;;
+    -*)
+      print -u2 -- "error: unknown option: $1"
+      usage
+      exit 1
+      ;;
+    *)
+      args+=("$1")
+      shift
+      ;;
+  esac
+done
+
+input_paths=("${args[@]}")
+
+if (( READ0 )); then
+  while IFS= read -r -d '' item; do
+    input_paths+=("$item")
+  done
+fi
+
+(( ${#input_paths[@]} )) || {
+  print -u2 -- "error: no input files or directories"
+  usage
+  exit 1
+}
+
+for item in "${input_paths[@]}"; do
+  [[ -n "${seen_input[$item]-}" ]] && continue
+  seen_input[$item]=1
+
+  if [[ -d "$item" ]]; then
+    typeset -a fd_cmd
+    fd_cmd=(fd . "$item" -t f -0)
+
+    if (( INCLUDE_HIDDEN )); then
+      fd_cmd+=(--hidden)
+    else
+      fd_cmd+=(--exclude .DS_Store)
+    fi
+
+    while IFS= read -r -d '' f; do
+      [[ -n "${seen_expanded[$f]-}" ]] && continue
+      seen_expanded[$f]=1
+      expanded_files+=("$f")
+    done < <("${fd_cmd[@]}")
+  elif [[ -f "$item" ]]; then
+    [[ -n "${seen_expanded[$item]-}" ]] && continue
+    seen_expanded[$item]=1
+    expanded_files+=("$item")
+  else
+    (( VERBOSE )) && print -u2 -- "skip: not a regular file or directory: $item"
+  fi
+done
+
+(( ${#expanded_files[@]} )) || {
+  print -u2 -- "error: no files found"
+  exit 1
+}
+
+swift_code=$(cat <<'SWIFT'
+import Foundation
+
+let keys: Set<URLResourceKey> = [
+    .isRegularFileKey,
+    .isUbiquitousItemKey,
+    .ubiquitousItemDownloadingStatusKey
+]
+
+for path in CommandLine.arguments.dropFirst() {
+    let url = URL(fileURLWithPath: path)
+    do {
+        let values = try url.resourceValues(forKeys: keys)
+
+        guard values.isRegularFile == true else {
+            continue
+        }
+
+        if values.isUbiquitousItem == true {
+            switch values.ubiquitousItemDownloadingStatus {
+            case .some(.current):
+                print("LOCAL\t\(path)")
+            default:
+                print("SKIP\t\(path)")
+            }
+        } else {
+            print("LOCAL\t\(path)")
+        }
+    } catch {
+        print("SKIP\t\(path)")
+    }
+}
+SWIFT
+)
+
+typeset -a swift_batch
+integer i end_idx batch_size
+batch_size=256
+
+for (( i = 1; i <= ${#expanded_files[@]}; i += batch_size )); do
+  end_idx=$(( i + batch_size - 1 ))
+  swift_batch=("${expanded_files[@][$i,$end_idx]}")
+
+  while IFS=$'\t' read -r status file; do
+    [[ -z "${status:-}" || -z "${file:-}" ]] && continue
+    case "$status" in
+      LOCAL) playable_files+=("$file") ;;
+      SKIP)  skipped_files+=("$file") ;;
+    esac
+  done < <(/usr/bin/swift -e "$swift_code" -- "${swift_batch[@]}")
+done
+
+if (( VERBOSE )); then
+  for f in "${skipped_files[@]}"; do
+    print -u2 -- "skip (not local): $f"
+  done
+  print -u2 -- "local:   ${#playable_files[@]}"
+  print -u2 -- "skipped: ${#skipped_files[@]}"
+fi
+
+(( ${#playable_files[@]} )) || {
+  print -u2 -- "error: no local files available"
+  exit 1
+}
+
+if (( DRY_RUN )); then
+  if (( PRINT0 )); then
+    printf '%s\0' "${playable_files[@]}"
+  else
+    printf '%s\n' "${playable_files[@]}"
+  fi
+  exit 0
+fi
+
+mpv_cmd=(mpv -- "${playable_files[@]}")
+exec "${mpv_cmd[@]}"

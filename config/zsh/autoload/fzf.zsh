@@ -1,11 +1,26 @@
 #!/bin/zsh
 
-# Completion for FZF
+# Official fzf key bindings and fuzzy completion
 
-eval "$(fzf --zsh)"
-
-export FZF_COMPLETION_TRIGGER='\t' # Default is '**'
+export FZF_COMPLETION_TRIGGER='' # Use the official widget on ordinary Tab
 export FZF_COMPLETION_OPTS='--preview "bat --color=always --no-info --exact --ignore-case {} 2>/dev/null || cat {} 2>/dev/null"'
+
+if (( $+commands[fzf] )); then
+  _fzf_shell_dir="${HOMEBREW_PREFIX:-/opt/homebrew}/opt/fzf/shell"
+  _fzf_source_zsh() {
+    source "$1" 2> >(command grep -v "can't change option: zle" >&2)
+  }
+
+  if [[ -r "$_fzf_shell_dir/key-bindings.zsh" && -r "$_fzf_shell_dir/completion.zsh" ]]; then
+    _fzf_source_zsh "$_fzf_shell_dir/key-bindings.zsh"
+    _fzf_source_zsh "$_fzf_shell_dir/completion.zsh"
+  else
+    eval "$(fzf --zsh)" 2> >(command grep -v "can't change option: zle" >&2)
+  fi
+
+  unset _fzf_shell_dir
+  unfunction _fzf_source_zsh
+fi
 
 # ssh into known_hosts
 function fzf-ssh() {
