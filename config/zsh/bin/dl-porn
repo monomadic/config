@@ -12,23 +12,9 @@ passthru=( "${argv[@]:1:$#-1}" )
 
 echo "URL: $url"
 
-output_template=""
-output_template+="%(cast,uploader|)l"
-output_template+="%(cast& - |)s"
-output_template+="[%(channel,uploader|Unknown)s] "
-output_template+="%(title)s "
-output_template+="(%(extractor)s)"
-output_template+="%(tags.0& #{}|)s%(tags.1& #{}|)s%(tags.2& #{}|)s%(tags.3& #{}|)s%(tags.4& #{}|)s"
-output_template+=".%(ext)s"
-
-yt-dlp \
-  --output "$output_template" \
-  --output-na-placeholder "" \
+yt-dlp --porn \
   --replace-in-metadata "tags" "[ _]+" "-" \
-  --embed-metadata \
   --parse-metadata "%(webpage_url)s:(?P<meta_comment>.+)" \
   --parse-metadata "%(webpage_url)s:(?P<meta_purl>.+)" \
-  --progress --console-title \
-  --trim-filenames 200 \
   "${passthru[@]}" \
   "$url"

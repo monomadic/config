@@ -2,7 +2,7 @@
 
 # Official fzf key bindings and fuzzy completion
 
-export FZF_COMPLETION_TRIGGER='' # Use the official widget on ordinary Tab
+export FZF_COMPLETION_TRIGGER='\t' # Keep Tab on the custom zsh completion picker
 export FZF_COMPLETION_OPTS='--preview "bat --color=always --no-info --exact --ignore-case {} 2>/dev/null || cat {} 2>/dev/null"'
 
 if (( $+commands[fzf] )); then

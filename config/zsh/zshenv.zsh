@@ -100,7 +100,7 @@ export GHQ_ROOT=$HOME/src
 # FZF / Skim
 #export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS --bind 'alt-r:execute-silent(open --reveal {1})' --bind 'alt-s:select-all+accept' --layout=reverse --cycle --preview-window=noborder --highlight-line --no-separator --gutter=' ' --no-border --inline-info --bind 'ctrl-u:unix-line-discard' --color=bg:-1,fg:blue,info:15,header:7,hl:red,hl+:red,gutter:-1,prompt:yellow,marker:-1,bg+:black,pointer:yellow,fg+:yellow"
 export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS --bind 'ctrl-a:select-all' --layout=reverse --cycle --preview-window=noborder --highlight-line --no-separator --gutter=' ' --no-border --inline-info --bind 'ctrl-u:unix-line-discard'"
-export FZF_COMPLETION_TRIGGER='' # Empty trigger lets the official fzf widget handle Tab directly
+export FZF_COMPLETION_TRIGGER='\t' # Keep Tab on the custom zsh completion picker
 export FZF_COMPLETION_OPTS='--preview "bat --color=always {} 2>/dev/null || cat {} 2>/dev/null"'
 export FZF_PREVIEW_COMMAND='fzf-preview {}'
 #export SKIM_DEFAULT_OPTIONS=$FZF_DEFAULT_OPTS
