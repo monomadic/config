@@ -70,7 +70,12 @@ export ZSH_SCRIPT_PATHS=(
   $ZSH_CONFIG_DIR/bin
 )
 
-export EDITOR=kitty-helix
+if [[ -n ${KITTY_WINDOW_ID:-} || -n ${KITTY_LISTEN_ON:-} ]]; then
+  export EDITOR=kitty-helix
+else
+  export EDITOR=hx
+fi
+export VISUAL="$EDITOR"
 export TEMPLATE_BASE_DIR=$DOTFILES_DIR/config/neovim/templates
 
 export TABLATURE_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature/"

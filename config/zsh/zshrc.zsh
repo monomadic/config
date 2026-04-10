@@ -82,7 +82,7 @@ done
 
 # ---- Cached brew shellenv (avoids spawning `brew` every startup) ----
 if (( $+commands[brew] )); then
-  local _brew_env="$ZSH_CACHE_DIR/brew.env"
+  typeset _brew_env="$ZSH_CACHE_DIR/brew.env"
   if [[ ! -s $_brew_env || $(command -v brew) -nt $_brew_env ]]; then
     command brew shellenv >! "$_brew_env"
   fi

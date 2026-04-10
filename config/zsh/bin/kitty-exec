@@ -1,16 +1,69 @@
 #!/bin/zsh
-# Usage: kitty-exec <title> <color> <command> [args...]
+# Usage: kitty-exec <title> <color> [--shell <command>] <command> [args...]
+
+if (( $# < 3 )); then
+  print -u2 "Usage: kitty-exec <title> <color> [--shell <command>] <command> [args...]"
+  exit 2
+fi
 
 title="$1"
 color="$2"
 shift 2
 
-# Save default colors
-default_bg=$(kitty @ get-colors | grep '^active_tab_background' | awk '{print $2}')
-default_fg=$(kitty @ get-colors | grep '^active_tab_foreground' | awk '{print $2}')
+mode="argv"
+shell_command=""
 
-kitty @ set-tab-color active_bg="$color" inactive_fg="$color"
-kitty @ set-tab-title "$title"
-exec "$@"
-kitty @ set-tab-title ""
-kitty @ set-tab-color active_bg="$default_bg" active_fg="$default_fg" inactive_bg="$default_fg" inactive_fg="$default_bg"
+if [[ ${1:-} == "--shell" ]]; then
+  shift
+  if [[ -z ${1:-} ]]; then
+    print -u2 "kitty-exec: missing shell command after --shell"
+    exit 2
+  fi
+  mode="shell"
+  shell_command="$1"
+  shift
+fi
+
+run_command() {
+  if [[ $mode == "shell" ]]; then
+    exec /bin/zsh -lc "$shell_command"
+  else
+    exec "$@"
+  fi
+}
+
+if [[ -z ${KITTY_WINDOW_ID:-} && -z ${KITTY_LISTEN_ON:-} ]]; then
+  run_command "$@"
+fi
+
+colors="$(kitty @ get-colors 2>/dev/null || true)"
+default_active_bg="$(printf '%s\n' "$colors" | awk '/^active_tab_background / { print $2; exit }')"
+default_active_fg="$(printf '%s\n' "$colors" | awk '/^active_tab_foreground / { print $2; exit }')"
+default_inactive_bg="$(printf '%s\n' "$colors" | awk '/^inactive_tab_background / { print $2; exit }')"
+default_inactive_fg="$(printf '%s\n' "$colors" | awk '/^inactive_tab_foreground / { print $2; exit }')"
+
+restore_tab_state() {
+  kitty @ set-tab-title "" >/dev/null 2>&1 || true
+
+  if [[ -n "$default_active_bg" && -n "$default_active_fg" && -n "$default_inactive_bg" && -n "$default_inactive_fg" ]]; then
+    kitty @ set-tab-color \
+      active_bg="$default_active_bg" \
+      active_fg="$default_active_fg" \
+      inactive_bg="$default_inactive_bg" \
+      inactive_fg="$default_inactive_fg" >/dev/null 2>&1 || true
+  fi
+}
+
+trap restore_tab_state EXIT INT TERM HUP
+
+kitty @ set-tab-color active_bg="$color" inactive_fg="$color" >/dev/null 2>&1 || true
+kitty @ set-tab-title "$title" >/dev/null 2>&1 || true
+
+if [[ $mode == "shell" ]]; then
+  /bin/zsh -lc "$shell_command"
+else
+  "$@"
+fi
+
+status=$?
+exit $status
