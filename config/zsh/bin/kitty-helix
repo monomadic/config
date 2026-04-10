@@ -9,7 +9,7 @@ fi
 if [[ "$target" == -* || "$target" == +* ]]; then
   base="hx"
 else
-  base="${target##*/}"
+  base="${target:A:t}"
 fi
 
 if [[ -z ${KITTY_WINDOW_ID:-} && -z ${KITTY_LISTEN_ON:-} ]]; then

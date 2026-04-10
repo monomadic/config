@@ -334,6 +334,7 @@ vdjstems-check-wav-lengths() {
 # ============================================================================
 
 alias yt-dlp-youtube-embedded="yt-dlp --cookies-from-browser brave --continue --progress --verbose --retries infinite --fragment-retries infinite --socket-timeout 15 -f bestvideo+ba/best --embed-metadata --extractor-args 'youtube:player-client=tv_embedded'"
+alias yt-dlp-tui=auto-ytdlp
 alias dp="dl-porn"
 
 alias d=download-video
