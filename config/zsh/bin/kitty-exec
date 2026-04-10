@@ -43,7 +43,7 @@ default_inactive_bg="$(printf '%s\n' "$colors" | awk '/^inactive_tab_background 
 default_inactive_fg="$(printf '%s\n' "$colors" | awk '/^inactive_tab_foreground / { print $2; exit }')"
 
 restore_tab_state() {
-  kitty @ set-tab-title "" >/dev/null 2>&1 || true
+  kitty @ set-tab-title >/dev/null 2>&1 || true
 
   if [[ -n "$default_active_bg" && -n "$default_active_fg" && -n "$default_inactive_bg" && -n "$default_inactive_fg" ]]; then
     kitty @ set-tab-color \

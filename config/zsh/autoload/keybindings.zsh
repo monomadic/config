@@ -7,6 +7,7 @@
 if [[ -o interactive ]]; then
   # Ensure add-zsh-hook is available
   autoload -Uz add-zsh-hook
+  zmodload zsh/terminfo 2>/dev/null || true
 
   # ===============================================================================
   # Helper Functions
@@ -216,6 +217,12 @@ if [[ -o interactive ]]; then
     zle reset-prompt
   }
 
+  open-finder-pwd() {
+    zle -I
+    open --reveal "$PWD"
+    zle reset-prompt
+  }
+
   # ===============================================================================
   # ZLE Widget Registration
   # ===============================================================================
@@ -232,7 +239,7 @@ if [[ -o interactive ]]; then
   zle -N _cd-fzf-legacy
   zle -N _cd-up
   zle -N _fzf-insert-path
-  zle -N open-finder-pwd open_finder_pwd
+  zle -N open-finder-pwd
   zle -N fzf-dir-widget
 
   # ===============================================================================
@@ -246,42 +253,29 @@ if [[ -o interactive ]]; then
   # Primary key bindings
   bindkey -s '^@'      "_cd-yazi && clear\n"     # Ctrl+Space: Yazi file manager
   bindkey '^f'         _fzf_ripgrep              # Ctrl+F: FZF ripgrep
-  bindkey '^M'         _magic-enter              # Enter: Magic enter
+  bindkey '^M'         accept-line               # Enter: normal accept
   bindkey '^o'         _cd-fzf                   # Ctrl+O: FZF directory navigation
   bindkey '^[g'        _cd-fzf-legacy            # Alt+G: legacy fzf-cd navigation
   bindkey '^[j'        _fzf-jump                 # Alt+J: FZF jump to subdirectory
   bindkey '^[i'        _fzf-insert-path          # Alt+I: Insert path with FZF
-  bindkey -s '^k'      "clear\n"                 # Ctrl+K: Clear screen
-  bindkey -s '^l'      "clear\n"                 # Ctrl+L: Clear screen
-  bindkey "\e\x12"     open-finder-pwd           # Cmd+R: Open Finder (macOS)
+  bindkey '^K'         kill-line                 # Ctrl+K: kill to end of line
+  bindkey '^L'         clear-screen              # Ctrl+L: clear screen
+  bindkey "\e\x12"     open-finder-pwd           # Legacy fallback: open Finder
 
-  # FZF keybindings (emacs keymap, CSI-u from Kitty)
-  bindkey -M emacs $'\e[104;9u' fzf-history-widget  # Cmd+H: FZF history
-  bindkey -M emacs $'\e[105;9u' fzf-insert-path     # Cmd+I: FZF insert path
-  
-  # Bind keys to functions
-  #
-  bindkey -s '^@' "_cd-yazi && clear\n"
-  bindkey '^f' _fzf_ripgrep
-  bindkey '^M' _magic-enter
-  bindkey '^o' _cd-fzf
-  bindkey '^[g' _cd-fzf-legacy
+  # Kitty CSI-u keybindings
+  bindkey -M emacs $'\e[104;9u' fzf-history-widget  # Cmd+H
+  bindkey -M emacs $'\e[105;9u' fzf-insert-path     # Cmd+I
+  bindkey -M emacs $'\e[13;2u' _magic-enter         # Shift+Enter
+  bindkey -M viins $'\e[13;2u' _magic-enter
+
+  # Additional shortcuts
   bindkey '^[[1;9o' _cd-fzf
-  bindkey '^[j' _fzf-jump # Alt+J
-  bindkey '^[i' _fzf-insert-path
-  bindkey -s '^k' "clear\n"
-  bindkey -s '^l' "clear\n"
   bindkey '^T' fzf-file-widget
   bindkey '^D' fzf-dir-widget
   bindkey '^U' kill-whole-line
   bindkey '^R' fzf-history-widget
-  
-  # ~/.zshrc
 
   # BIND F20
-  open-finder-pwd() { open --reveal "$PWD" }
-  zle -N open-finder-pwd
-  # Prefer terminfo if available
   if [[ -n ${terminfo[kf20]} ]]; then
     bindkey -M emacs "${terminfo[kf20]}" open-finder-pwd
     bindkey -M viins "${terminfo[kf20]}" open-finder-pwd
