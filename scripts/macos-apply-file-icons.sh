@@ -4,7 +4,12 @@ set -euo pipefail
 
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/config}"
 ICON_DIR="$DOTFILES_DIR/assets/icons"
-APPLICATIONS_DIR="/Applications"
+
+SEARCH_DIRS=(
+  "/Applications"
+  "/System/Applications"
+  "$HOME/Applications"
+)
 
 if [[ "${OSTYPE:-}" != darwin* ]]; then
   exit 0
@@ -35,32 +40,49 @@ ICON_MAPPINGS=(
   "Spotify.app|spotify.icns"
   "Telegram.app|telegram.icns"
   "Terminal.app|term5.icns"
+  "iPhone Mirroring.app|iphone1.icns"
   "VirtualDJ.app|virtualdj.icns"
 )
 
+find_app_path() {
+  local app_name="$1"
+  local dir
+  for dir in "${SEARCH_DIRS[@]}"; do
+    if [[ -e "$dir/$app_name" ]]; then
+      printf '%s\n' "$dir/$app_name"
+      return 0
+    fi
+  done
+  return 1
+}
+
 applied=0
 failed=0
+missing_apps=0
+missing_icons=0
 
 for mapping in "${ICON_MAPPINGS[@]}"; do
   app_name="${mapping%%|*}"
   icon_name="${mapping##*|}"
-  app_path="$APPLICATIONS_DIR/$app_name"
   icon_path="$ICON_DIR/$icon_name"
-
-  if [[ ! -e "$app_path" ]]; then
-    continue
-  fi
 
   if [[ ! -f "$icon_path" ]]; then
     echo "Skipping $app_name: icon asset not found at $icon_path."
+    missing_icons=$((missing_icons + 1))
     continue
   fi
 
-  echo "$app_name: apply $icon_name"
+  if ! app_path="$(find_app_path "$app_name")"; then
+    echo "Skipping $app_name: app not found in expected locations."
+    missing_apps=$((missing_apps + 1))
+    continue
+  fi
+
+  echo "$app_name: apply $icon_name -> $app_path"
   if fileicon set "$app_path" "$icon_path"; then
     applied=$((applied + 1))
   else
-    echo "Warning: failed to apply icon for $app_name; continuing."
+    echo "Warning: failed to apply icon for $app_name at $app_path; continuing."
     failed=$((failed + 1))
   fi
 done
@@ -69,6 +91,10 @@ if (( applied == 0 )); then
   echo "No matching macOS apps found for icon overrides."
 fi
 
+echo "Applied: $applied"
+echo "Missing apps: $missing_apps"
+echo "Missing icons: $missing_icons"
+
 if (( failed > 0 )); then
-  echo "Skipped $failed app icon override(s) due to fileicon errors."
+  echo "Failed: $failed"
 fi

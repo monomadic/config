@@ -2,17 +2,19 @@
 
 export HOMEBREW_NO_ENV_HINTS=true
 
-eval "$(/opt/homebrew/bin/brew shellenv)"
-local BREW_PREFIX="$(brew --prefix)"
+typeset -U path manpath
+typeset _brew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
 
-path=(
-  $BREW_PREFIX/coreutils/libexec/gnubin
-  $BREW_PREFIX/gnu-sed/libexec/gnubin
-  $BREW_PREFIX/grep/libexec/gnubin
-  $path
-)
+if [[ -d "$_brew_prefix" ]]; then
+  path=(
+    $_brew_prefix/coreutils/libexec/gnubin
+    $_brew_prefix/gnu-sed/libexec/gnubin
+    $_brew_prefix/grep/libexec/gnubin
+    $path
+  )
 
-manpath=(
-  $BREW_PREFIX/coreutils/libexec/gnuman
-  $manpath
-)
+  manpath=(
+    $_brew_prefix/coreutils/libexec/gnuman
+    $manpath
+  )
+fi

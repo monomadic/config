@@ -158,11 +158,11 @@ mpv-play-visuals() {
 }
 
 mpv-select-all-v2() {
-  kitty-exec "  media" "#A442F3" ls-media | mpv-select
+  kitty-exec "  media" "#A442F3" --shell "ls-media | mpv-select"
 }
 
 kitty-mpv-tab() {
-  kitty @ launch --type=tab env PATH="$PATH" kitty-exec "  all" "#A442F3" $@
+  kitty @ launch --type=tab --cwd=current env PATH="$PATH" kitty-exec "  all" "#A442F3" "$@"
 }
 
 mpv-select-queue() {
