@@ -1,46 +1,86 @@
 #!/usr/bin/env zsh
-# chop-black-intro-lossless
-# Detect and trim black intros using stream copy only.
+# ffmpeg-cut-intro
+# Detect and cut black intros using ffmpeg stream copy only.
 #
 # Requires:
-#   detect-black-intro-length
+#   ffmpeg-detect-intro
 #     - prints: intro_seconds=<float>
 #
 # Notes:
 # - uses ffmpeg stream copy only: no re-encode
-# - trim accuracy depends on keyframe placement
-# - output is written beside source as *.trimmed.ext
+# - cut accuracy depends on keyframe placement
+# - output is written beside source as *.trimmed.ext by default
+# - prompt offers:
+#     1 = cut at detected+bias
+#     2 = cut at next keyframe at/after detected+bias
+#     3 = cut at keyframe +1 after detected+bias
+#
+# Batch modes:
+#   --yes                    => cut at detected+bias
+#   --yes-keyframe           => cut at next keyframe
+#   --yes-keyframe-plus-one  => cut at keyframe +1
+#   --yes-both               => write both next keyframe and keyframe +1 outputs
 
 emulate -L zsh
 set -euo pipefail
 
+USE_COLOR=true
+if [[ ! -t 2 || -n ${NO_COLOR:-} ]]; then
+  USE_COLOR=false
+fi
+
+color() {
+  local code=$1
+  shift
+  if [[ $USE_COLOR == true ]]; then
+    printf '\033[%sm%s\033[0m' "$code" "$*"
+  else
+    printf '%s' "$*"
+  fi
+}
+
+err()  { print -u2 -- "$(color '1;31' 'error:') $*"; }
+warn() { print -u2 -- "$(color '1;33' 'warning:') $*"; }
+info() { print -u2 -- "$(color '1;36' "$*")"; }
+ok()   { print -u2 -- "$(color '1;32' "$*")"; }
+
 usage() {
   cat <<'EOF'
 Usage:
-  chop-black-intro-lossless [--yes] [--force] [--bias seconds] <video> [video ...]
+  ffmpeg-cut-intro [mode] [--force] [--bias seconds] <video> [video ...]
+
+Modes:
+  --yes                    auto-cut using detected intro length (+ bias)
+  --yes-keyframe           auto-cut at next keyframe at/after detected+bias
+  --yes-keyframe-plus-one  auto-cut at keyframe +1 after detected+bias
+  --yes-both               auto-write both:
+                           - next keyframe output
+                           - keyframe +1 output
 
 Options:
-  --yes            auto-trim using detected intro length
   --force          overwrite existing outputs
-  --bias seconds   add extra seconds to detected trim point
-                   useful to avoid leaving a few black frames behind
+  --bias seconds   add extra seconds to detected cut point
+                   useful to avoid leaving a few intro frames behind
                    default: 0.0
 
 Examples:
-  chop-black-intro-lossless *.mp4
-  chop-black-intro-lossless --yes --bias 0.15 *.mkv
+  ffmpeg-cut-intro *.mp4
+  ffmpeg-cut-intro --yes --bias 0.15 *.mkv
+  ffmpeg-cut-intro --yes-keyframe *.mp4
+  ffmpeg-cut-intro --yes-keyframe-plus-one *.mp4
+  ffmpeg-cut-intro --yes-both --bias 0.15 *.mp4
 EOF
   exit 1
 }
 
-for cmd in ffmpeg detect-black-intro-length awk; do
+for cmd in ffmpeg ffprobe ffmpeg-detect-intro awk; do
   command -v "$cmd" >/dev/null 2>&1 || {
-    print -u2 "error: missing command: $cmd"
+    err "missing command: $cmd"
     exit 1
   }
 done
 
-auto_yes=false
+auto_mode="prompt"
 force=false
 bias="0.0"
 files=()
@@ -48,7 +88,19 @@ files=()
 while (( $# > 0 )); do
   case "$1" in
     --yes)
-      auto_yes=true
+      auto_mode="proposed"
+      shift
+      ;;
+    --yes-keyframe)
+      auto_mode="keyframe"
+      shift
+      ;;
+    --yes-keyframe-plus-one)
+      auto_mode="keyframe_plus_one"
+      shift
+      ;;
+    --yes-both)
+      auto_mode="both"
       shift
       ;;
     --force)
@@ -71,7 +123,7 @@ while (( $# > 0 )); do
       done
       ;;
     -*)
-      print -u2 "error: unknown option: $1"
+      err "unknown option: $1"
       usage
       ;;
     *)
@@ -88,14 +140,24 @@ float_gt_zero() {
 }
 
 float_add() {
-  awk -v a="$1" -v b="$2" 'BEGIN { printf "%.3f\n", a + b }'
+  awk -v a="$1" -v b="$2" 'BEGIN { printf "%.6f\n", a + b }'
 }
 
 detect_intro_seconds() {
   local input_file=$1
   local out intro
 
-  out=$(detect-black-intro-length "$input_file" 6 0.12 2>/dev/null || true)
+  print -u2 -- ""
+  info "=== Detecting intro ==="
+  print -u2 -- "File: $input_file"
+  print -u2 -- "Command: ffmpeg-detect-intro \"$input_file\" 6 0.12"
+  print -u2 -- ""
+
+  out=$(ffmpeg-detect-intro "$input_file" 6 0.12 2>&1 || true)
+
+  if [[ -n $out ]]; then
+    print -u2 -- "$out"
+  fi
 
   intro=$(
     print -r -- "$out" |
@@ -103,11 +165,18 @@ detect_intro_seconds() {
   )
 
   [[ -n ${intro:-} ]] || intro="0"
+
+  print -u2 -- ""
+  ok "Parsed intro_seconds=$intro"
+  info "=== Detection done ==="
+  print -u2 -- ""
+
   print -- "$intro"
 }
 
 make_output_name() {
   local input_file=$1
+  local suffix=${2:-trimmed}
   local dir base stem ext out
 
   dir=${input_file:h}
@@ -116,9 +185,9 @@ make_output_name() {
   if [[ $base == *.* ]]; then
     stem=${base:r}
     ext=${base:e}
-    out="${dir}/${stem}.trimmed.${ext}"
+    out="${dir}/${stem}.${suffix}.${ext}"
   else
-    out="${dir}/${base}.trimmed"
+    out="${dir}/${base}.${suffix}"
   fi
 
   print -- "$out"
@@ -136,47 +205,178 @@ trim_copy() {
     "$output_file"
 }
 
+find_keyframe_at_or_after() {
+  local input_file=$1
+  local target_time=$2
+  local ordinal=${3:-1}
+  local probe_window=${4:-30}
+  local ts
+
+  ts=$(
+    ffprobe -v error \
+      -select_streams v:0 \
+      -skip_frame nokey \
+      -read_intervals "${target_time}%+${probe_window}" \
+      -show_frames \
+      -show_entries frame=best_effort_timestamp_time \
+      -of default=nw=1:nk=1 \
+      -- "$input_file" 2>/dev/null |
+    awk -v start="$target_time" -v want="$ordinal" '
+      $1 ~ /^[0-9.]+$/ && ($1 + 0) >= start {
+        if (!seen[$1]++) {
+          count++
+          if (count == want) {
+            print $1
+            exit
+          }
+        }
+      }
+    '
+  )
+
+  if [[ -n $ts ]]; then
+    print -- "$ts"
+    return 0
+  fi
+
+  ts=$(
+    ffprobe -v error \
+      -select_streams v:0 \
+      -skip_frame nokey \
+      -show_frames \
+      -show_entries frame=best_effort_timestamp_time \
+      -of default=nw=1:nk=1 \
+      -- "$input_file" 2>/dev/null |
+    awk -v start="$target_time" -v want="$ordinal" '
+      $1 ~ /^[0-9.]+$/ && ($1 + 0) >= start {
+        if (!seen[$1]++) {
+          count++
+          if (count == want) {
+            print $1
+            exit
+          }
+        }
+      }
+    '
+  )
+
+  [[ -n $ts ]] || return 1
+  print -- "$ts"
+}
+
 prompt_action() {
   local input_file=$1
   local detected=$2
   local proposed=$3
+  local kf1=${4:-}
+  local kf2=${5:-}
+  local reply custom_secs
 
   while true; do
-    printf "\n%s\n" "File: $input_file"
-    printf "%s\n" "Detected intro: ${detected}s"
-    printf "%s\n" "Proposed trim: ${proposed}s"
-    printf "%s" "Action? [y] trim / [e] enter seconds / [s] skip / [q] quit: "
+    print -u2 -- ""
+    info "Review cut options"
+    print -u2 -- "File: $input_file"
+    print -u2 -- ""
+    print -u2 -- "Detected intro length: $(color '1;36' "${detected}s")"
+    print -u2 -- "Cut mode: $(color '1;32' 'stream copy only') (no re-encode)"
+    print -u2 -- ""
+
+    print -u2 -- "Actions:"
+    print -u2 -- "  1. Cut at detected intro end                 ($(color '1;36' "${proposed}s"))"
+    if [[ -n $kf1 ]]; then
+      print -u2 -- "  2. Cut at next keyframe after detection      ($(color '1;36' "${kf1}s"))"
+    else
+      print -u2 -- "  2. Cut at next keyframe after detection      ($(color '1;31' 'not available'))"
+    fi
+
+    if [[ -n $kf2 ]]; then
+      print -u2 -- "  3. Cut at following keyframe (+1)            ($(color '1;36' "${kf2}s"))"
+    else
+      print -u2 -- "  3. Cut at following keyframe (+1)            ($(color '1;31' 'not available'))"
+    fi
+
+    print -u2 -- "  4. Enter a custom cut time manually"
+    print -u2 -- "  5. Skip this file"
+    print -u2 -- "  6. Quit"
+    print -u2 -- ""
+
+    printf >&2 "%s" "$(color '1;33' 'Choose [1-6]: ')"
     read -r reply
 
-    case "${reply:l}" in
-      y|yes|'')
+    case "$reply" in
+      1|'')
+        ok "Selected: cut at detected intro end (${proposed}s)"
         print -- "trim:$proposed"
         return 0
         ;;
-      e|edit)
-        printf "%s" "Enter trim start seconds: "
+      2)
+        if [[ -n $kf1 ]]; then
+          ok "Selected: cut at next keyframe (${kf1}s)"
+          print -- "trim:$kf1"
+          return 0
+        else
+          warn "No next keyframe found."
+        fi
+        ;;
+      3)
+        if [[ -n $kf2 ]]; then
+          ok "Selected: cut at following keyframe (${kf2}s)"
+          print -- "trim:$kf2"
+          return 0
+        else
+          warn "No keyframe +1 found."
+        fi
+        ;;
+      4)
+        printf >&2 "%s" "$(color '1;33' 'Enter cut start time in seconds: ')"
         read -r custom_secs
+        ok "Selected: custom cut time (${custom_secs}s)"
         print -- "trim:$custom_secs"
         return 0
         ;;
-      s|skip)
+      5)
         print -- "skip"
         return 0
         ;;
-      q|quit)
+      6)
         print -- "quit"
         return 0
         ;;
       *)
-        print -- "Invalid choice."
+        warn "Invalid choice: $reply"
         ;;
     esac
   done
 }
 
+perform_cut() {
+  local input_file=$1
+  local start_time=$2
+  local output_file=$3
+
+  if ! float_gt_zero "$start_time"; then
+    warn "cut time <= 0, skipping: $input_file"
+    return 1
+  fi
+
+  if [[ -e $output_file && $force != true ]]; then
+    err "output already exists: $output_file"
+    warn "use --force to overwrite"
+    return 1
+  fi
+
+  ok "Cutting file with stream copy"
+  print -- "Input:  $input_file"
+  print -- "Start:  ${start_time}s"
+  print -- "Mode:   stream copy (no re-encode)"
+  print -- "Output: $output_file"
+
+  trim_copy "$input_file" "$start_time" "$output_file"
+}
+
 for input_file in "${files[@]}"; do
   [[ -f $input_file ]] || {
-    print -u2 "skip: not a file: $input_file"
+    err "not a file: $input_file"
     continue
   }
 
@@ -189,46 +389,94 @@ for input_file in "${files[@]}"; do
 
   proposed=$(float_add "$detected" "$bias")
 
-  if [[ $auto_yes == true ]]; then
-    action="trim:$proposed"
-  else
-    action=$(prompt_action "$input_file" "$detected" "$proposed")
+  next_keyframe=""
+  next_keyframe_plus_one=""
+
+  if float_gt_zero "$proposed"; then
+    next_keyframe=$(find_keyframe_at_or_after "$input_file" "$proposed" 1 30 || true)
+    next_keyframe_plus_one=$(find_keyframe_at_or_after "$input_file" "$proposed" 2 30 || true)
   fi
 
-  case "$action" in
-    skip)
-      print -- "Skipped: $input_file"
-      continue
+  case "$auto_mode" in
+    prompt)
+      action=$(prompt_action \
+        "$input_file" \
+        "$detected" \
+        "$proposed" \
+        "$next_keyframe" \
+        "$next_keyframe_plus_one")
+
+      case "$action" in
+        skip)
+          print -- "Skipped: $input_file"
+          continue
+          ;;
+        quit)
+          print -- "Quitting."
+          exit 0
+          ;;
+        trim:*)
+          start_time=${action#trim:}
+          output_file=$(make_output_name "$input_file" "trimmed")
+          perform_cut "$input_file" "$start_time" "$output_file" || true
+          ;;
+        *)
+          err "unexpected action: $action"
+          exit 1
+          ;;
+      esac
       ;;
-    quit)
-      print -- "Quitting."
-      exit 0
+    proposed)
+      ok "Auto mode: cut at detected intro end (${proposed}s)"
+      output_file=$(make_output_name "$input_file" "trimmed")
+      perform_cut "$input_file" "$proposed" "$output_file" || true
       ;;
-    trim:*)
-      start_time=${action#trim:}
+    keyframe)
+      if [[ -n $next_keyframe ]]; then
+        ok "Auto mode: cut at next keyframe (${next_keyframe}s)"
+        output_file=$(make_output_name "$input_file" "trimmed-kf")
+        perform_cut "$input_file" "$next_keyframe" "$output_file" || true
+      else
+        warn "no next keyframe found: $input_file"
+        continue
+      fi
+      ;;
+    keyframe_plus_one)
+      if [[ -n $next_keyframe_plus_one ]]; then
+        ok "Auto mode: cut at following keyframe (${next_keyframe_plus_one}s)"
+        output_file=$(make_output_name "$input_file" "trimmed-kf2")
+        perform_cut "$input_file" "$next_keyframe_plus_one" "$output_file" || true
+      else
+        warn "no keyframe +1 found: $input_file"
+        continue
+      fi
+      ;;
+    both)
+      wrote_any=false
+
+      if [[ -n $next_keyframe ]]; then
+        ok "Auto mode: writing next keyframe cut (${next_keyframe}s)"
+        output_file=$(make_output_name "$input_file" "trimmed-kf")
+        perform_cut "$input_file" "$next_keyframe" "$output_file" && wrote_any=true || true
+      else
+        warn "no next keyframe found: $input_file"
+      fi
+
+      if [[ -n $next_keyframe_plus_one ]]; then
+        ok "Auto mode: writing following keyframe cut (${next_keyframe_plus_one}s)"
+        output_file=$(make_output_name "$input_file" "trimmed-kf2")
+        perform_cut "$input_file" "$next_keyframe_plus_one" "$output_file" && wrote_any=true || true
+      else
+        warn "no keyframe +1 found: $input_file"
+      fi
+
+      if [[ $wrote_any != true ]]; then
+        warn "no outputs written for: $input_file"
+      fi
       ;;
     *)
-      print -u2 "error: unexpected action: $action"
+      err "unknown auto mode: $auto_mode"
       exit 1
       ;;
   esac
-
-  if ! float_gt_zero "$start_time"; then
-    print -- "Skip: trim time <= 0 for $input_file"
-    continue
-  fi
-
-  output_file=$(make_output_name "$input_file")
-
-  if [[ -e $output_file && $force != true ]]; then
-    print -u2 "skip: output exists: $output_file"
-    continue
-  fi
-
-  print -- "Trimming: $input_file"
-  print -- "Start at: ${start_time}s"
-  print -- "Mode: stream copy"
-  print -- "Output: $output_file"
-
-  trim_copy "$input_file" "$start_time" "$output_file"
 done

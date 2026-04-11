@@ -27,6 +27,8 @@ alias .select-and-play="fzf-select --color | mpv --playlist=-"
 #
 # ALIASES
 #
+alias .trim="ffmpeg-cut-intro --yes-both"
+
 alias .ls="ls-media"
 alias .ls-sorted="ls-media --sort=created"
 alias .ls-pwd="ls-media . ."

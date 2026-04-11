@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-# detect-black-intro-length
+# ffmpeg-detect-intro
 # Estimate black intro duration by sampling the first few seconds and
 # checking whether most corner crops are dark.
 #
@@ -9,6 +9,8 @@
 # - compute average luma (YAVG) for each crop
 # - mark frame as "black" if at least N corners are below threshold
 # - intro length = last consecutive passing sample from start
+# - fast-path: if nothing black is seen in the first early_window seconds,
+#   assume there is no black intro and stop early
 #
 # Dependencies:
 # - ffmpeg
@@ -22,11 +24,11 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  detect-black-intro-length <video-file> [scan_seconds] [step_seconds]
+  ffmpeg-detect-intro <video-file> [scan_seconds] [step_seconds]
 
 Examples:
-  detect-black-intro-length clip.mp4
-  detect-black-intro-length clip.mp4 5 0.1
+  ffmpeg-detect-intro clip.mp4
+  ffmpeg-detect-intro clip.mp4 5 0.1
 
 Defaults:
   scan_seconds = 5
@@ -76,11 +78,15 @@ crop_h=$(( height / 8 ))
 
 # Average luma threshold.
 # Y plane is typically 16..235 in limited range video.
-# Around 20-28 is a decent "black-ish" threshold.
 y_threshold=24
 
 # Require at least this many corners to be dark.
 required_black_corners=3
+
+# Early-exit window:
+# if no black frame is found at all in this opening span,
+# assume there is no black intro.
+early_window=1.0
 
 get_yavg() {
   local ts=$1
@@ -132,8 +138,17 @@ sample_is_black() {
   (( dark_count >= required_black_corners ))
 }
 
+float_le() {
+  awk -v a="$1" -v b="$2" 'BEGIN { exit !(a <= b + 1e-9) }'
+}
+
+float_add() {
+  awk -v a="$1" -v b="$2" 'BEGIN { printf "%.3f\n", a + b }'
+}
+
 intro_end=0
 started_black=false
+seen_any_early_black=false
 ts=0
 
 print -- "file=$video_file"
@@ -142,20 +157,37 @@ print -- "step_seconds=$step_seconds"
 print -- "corner_crop=${crop_w}x${crop_h}"
 print -- "y_threshold=$y_threshold"
 print -- "required_black_corners=$required_black_corners"
+print -- "early_window=$early_window"
 
-while awk -v a="$ts" -v b="$scan_seconds" 'BEGIN { exit !(a <= b + 1e-9) }'; do
+while float_le "$ts" "$scan_seconds"; do
   if sample_is_black "$ts"; then
+    print -- "sample t=${ts} black=yes"
+
+    if float_le "$ts" "$early_window"; then
+      seen_any_early_black=true
+    fi
+
     started_black=true
     intro_end=$ts
-    print -- "sample t=${ts} black=yes"
   else
     print -- "sample t=${ts} black=no"
+
     if [[ $started_black == true ]]; then
       break
     fi
   fi
 
-  ts=$(awk -v a="$ts" -v b="$step_seconds" 'BEGIN { printf "%.3f\n", a + b }')
+  # Fast-path:
+  # once we have finished checking the early window, if we have not seen
+  # any black frame at all, stop immediately.
+  if float_le "$early_window" "$ts" && [[ $seen_any_early_black == false ]]; then
+    print -- "early_exit=no_black_detected_in_first_${early_window}s"
+    print -- "intro_detected=no"
+    print -- "intro_seconds=0"
+    exit 1
+  fi
+
+  ts=$(float_add "$ts" "$step_seconds")
 done
 
 if [[ $started_black == true ]]; then
