@@ -1,0 +1,234 @@
+#!/usr/bin/env zsh
+# chop-black-intro-lossless
+# Detect and trim black intros using stream copy only.
+#
+# Requires:
+#   detect-black-intro-length
+#     - prints: intro_seconds=<float>
+#
+# Notes:
+# - uses ffmpeg stream copy only: no re-encode
+# - trim accuracy depends on keyframe placement
+# - output is written beside source as *.trimmed.ext
+
+emulate -L zsh
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  chop-black-intro-lossless [--yes] [--force] [--bias seconds] <video> [video ...]
+
+Options:
+  --yes            auto-trim using detected intro length
+  --force          overwrite existing outputs
+  --bias seconds   add extra seconds to detected trim point
+                   useful to avoid leaving a few black frames behind
+                   default: 0.0
+
+Examples:
+  chop-black-intro-lossless *.mp4
+  chop-black-intro-lossless --yes --bias 0.15 *.mkv
+EOF
+  exit 1
+}
+
+for cmd in ffmpeg detect-black-intro-length awk; do
+  command -v "$cmd" >/dev/null 2>&1 || {
+    print -u2 "error: missing command: $cmd"
+    exit 1
+  }
+done
+
+auto_yes=false
+force=false
+bias="0.0"
+files=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    --yes)
+      auto_yes=true
+      shift
+      ;;
+    --force)
+      force=true
+      shift
+      ;;
+    --bias)
+      [[ $# -ge 2 ]] || usage
+      bias=$2
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      ;;
+    --)
+      shift
+      while (( $# > 0 )); do
+        files+=("$1")
+        shift
+      done
+      ;;
+    -*)
+      print -u2 "error: unknown option: $1"
+      usage
+      ;;
+    *)
+      files+=("$1")
+      shift
+      ;;
+  esac
+done
+
+(( ${#files[@]} > 0 )) || usage
+
+float_gt_zero() {
+  awk -v v="$1" 'BEGIN { exit !(v > 0.0005) }'
+}
+
+float_add() {
+  awk -v a="$1" -v b="$2" 'BEGIN { printf "%.3f\n", a + b }'
+}
+
+detect_intro_seconds() {
+  local input_file=$1
+  local out intro
+
+  out=$(detect-black-intro-length "$input_file" 6 0.12 2>/dev/null || true)
+
+  intro=$(
+    print -r -- "$out" |
+      awk -F= '/^intro_seconds=/ { print $2; exit }'
+  )
+
+  [[ -n ${intro:-} ]] || intro="0"
+  print -- "$intro"
+}
+
+make_output_name() {
+  local input_file=$1
+  local dir base stem ext out
+
+  dir=${input_file:h}
+  base=${input_file:t}
+
+  if [[ $base == *.* ]]; then
+    stem=${base:r}
+    ext=${base:e}
+    out="${dir}/${stem}.trimmed.${ext}"
+  else
+    out="${dir}/${base}.trimmed"
+  fi
+
+  print -- "$out"
+}
+
+trim_copy() {
+  local input_file=$1
+  local start_time=$2
+  local output_file=$3
+
+  ffmpeg -hide_banner -y \
+    -ss "$start_time" -i "$input_file" \
+    -map 0 \
+    -c copy \
+    "$output_file"
+}
+
+prompt_action() {
+  local input_file=$1
+  local detected=$2
+  local proposed=$3
+
+  while true; do
+    printf "\n%s\n" "File: $input_file"
+    printf "%s\n" "Detected intro: ${detected}s"
+    printf "%s\n" "Proposed trim: ${proposed}s"
+    printf "%s" "Action? [y] trim / [e] enter seconds / [s] skip / [q] quit: "
+    read -r reply
+
+    case "${reply:l}" in
+      y|yes|'')
+        print -- "trim:$proposed"
+        return 0
+        ;;
+      e|edit)
+        printf "%s" "Enter trim start seconds: "
+        read -r custom_secs
+        print -- "trim:$custom_secs"
+        return 0
+        ;;
+      s|skip)
+        print -- "skip"
+        return 0
+        ;;
+      q|quit)
+        print -- "quit"
+        return 0
+        ;;
+      *)
+        print -- "Invalid choice."
+        ;;
+    esac
+  done
+}
+
+for input_file in "${files[@]}"; do
+  [[ -f $input_file ]] || {
+    print -u2 "skip: not a file: $input_file"
+    continue
+  }
+
+  detected=$(detect_intro_seconds "$input_file")
+
+  if ! float_gt_zero "$detected"; then
+    print -- "No intro detected: $input_file"
+    continue
+  fi
+
+  proposed=$(float_add "$detected" "$bias")
+
+  if [[ $auto_yes == true ]]; then
+    action="trim:$proposed"
+  else
+    action=$(prompt_action "$input_file" "$detected" "$proposed")
+  fi
+
+  case "$action" in
+    skip)
+      print -- "Skipped: $input_file"
+      continue
+      ;;
+    quit)
+      print -- "Quitting."
+      exit 0
+      ;;
+    trim:*)
+      start_time=${action#trim:}
+      ;;
+    *)
+      print -u2 "error: unexpected action: $action"
+      exit 1
+      ;;
+  esac
+
+  if ! float_gt_zero "$start_time"; then
+    print -- "Skip: trim time <= 0 for $input_file"
+    continue
+  fi
+
+  output_file=$(make_output_name "$input_file")
+
+  if [[ -e $output_file && $force != true ]]; then
+    print -u2 "skip: output exists: $output_file"
+    continue
+  fi
+
+  print -- "Trimming: $input_file"
+  print -- "Start at: ${start_time}s"
+  print -- "Mode: stream copy"
+  print -- "Output: $output_file"
+
+  trim_copy "$input_file" "$start_time" "$output_file"
+done
