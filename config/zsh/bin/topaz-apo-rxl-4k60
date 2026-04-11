@@ -1,0 +1,88 @@
+#!/usr/bin/env zsh
+emulate -L zsh
+set -euo pipefail
+
+script_name="${0:t}"
+TOPAZ_APP="${TOPAZ_APP:-/Applications/Topaz Video AI.app}"
+TOPAZ_MACOS_DIR="$TOPAZ_APP/Contents/MacOS"
+TOPAZ_FFMPEG="$TOPAZ_MACOS_DIR/ffmpeg"
+TOPAZ_MODELS_DIR="$TOPAZ_APP/Contents/Resources/models"
+
+usage() {
+  print -u2 "usage: $script_name input [output]"
+}
+
+(( $# >= 1 && $# <= 2 )) || {
+  usage
+  exit 1
+}
+
+input="$1"
+output="${2:-${input:r}_topaz_apo-rxl_4k60.mov}"
+
+[[ -x "$TOPAZ_FFMPEG" ]] || {
+  print -u2 "Topaz ffmpeg not found or not executable: $TOPAZ_FFMPEG"
+  exit 1
+}
+
+[[ -d "$TOPAZ_MODELS_DIR" ]] || {
+  print -u2 "Topaz models dir not found: $TOPAZ_MODELS_DIR"
+  exit 1
+}
+
+for model in apo-8 rxl-1; do
+  [[ -f "$TOPAZ_MODELS_DIR/$model.json" ]] || {
+    print -u2 "Topaz model metadata not found: $TOPAZ_MODELS_DIR/$model.json"
+    exit 1
+  }
+done
+
+[[ -f "$input" ]] || {
+  print -u2 "input not found: $input"
+  exit 1
+}
+
+mkdir -p "${output:h}"
+
+filter_complex="crop=w=1920:h=1080:x=0:y=0,tvai_fi=model=apo-8:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1,tvai_up=model=rxl-1:scale=0:w=3840:h=2160:preblur=0:noise=0:details=1:halo=0:blur=1:compression=-1:estimate=8:grain=0.06:gsize=2:device=0:vram=0.95:instances=1"
+videoai_metadata="Framerate changed to 60 using apo-8 replacing duplicate frames. Enhanced using rxl-1; mode: relative to auto; revert compression at -100; recover details at 100; sharpen at 100; reduce noise at 0; dehalo at 0; anti-alias/deblur at 0; focus fix Off; and recover original detail at 20. Changed resolution to 3840x2160"
+
+cmd=(
+  "$TOPAZ_FFMPEG"
+  -hide_banner
+  -i "$input"
+  -sws_flags "spline+accurate_rnd+full_chroma_int"
+  -filter_complex "$filter_complex"
+  -c:v hevc_videotoolbox
+  -profile:v main
+  -tag:v hvc1
+  -pix_fmt yuv420p
+  -allow_sw 1
+  -g 30
+  -b:v 30M
+  -an
+  -map_metadata 0
+  -map_metadata:s:v 0:s:v
+  -fps_mode:v passthrough
+  -movflags "frag_keyframe+empty_moov+delay_moov+use_metadata_tags+write_colr"
+  -bf 0
+  -metadata "videoai=$videoai_metadata"
+  "$output"
+)
+
+print -P -- "%F{cyan}Topaz ffmpeg:%f $TOPAZ_FFMPEG"
+print -P -- "%F{cyan}Topaz models:%f $TOPAZ_MODELS_DIR"
+print -P -- "%F{cyan}Input:%f        $input"
+print -P -- "%F{cyan}Output:%f       $output"
+print
+
+(
+  cd "$TOPAZ_MACOS_DIR"
+  env \
+    LC_ALL=C \
+    LC_NUMERIC=C \
+    LANG=C \
+    TVAI_MODEL_DIR="$TOPAZ_MODELS_DIR" \
+    TVAI_MODEL_DATA_DIR="$TOPAZ_MODELS_DIR" \
+    "${cmd[@]}"
+)
