@@ -123,8 +123,10 @@ alias .select-pwd-sorted=".ls-pwd-sorted | fzf-select | mpv-play"
 alias \%select="cat $HOME/.indexes/Tower | fzf-select | mpv --playlist=-"
 
 alias .play-downloads="fd-video --print0 . {/Users/nom/Library/Mobile\ Documents/com~apple~CloudDocs,/Users/nom,/Volumes/*}/Movies/Porn/Downloads(N) | mpv-send play -0"
-alias .play-local-downloads="fd-video . $HOME/Movies/Porn/Downloads | mpv-play"
-alias .play-local-downloads-sorted="fd-video-sort . $HOME/Movies/Porn/Downloads(N) | mpv-play"
+alias .play-local-downloads="mpv -- ~/Movies/Porn/Downloads/**/*.mp4"
+alias .play-newest-local-downloads="setopt extendedglob && mpv -- ~/Movies/Porn/Downloads/**/*.part~*Frag*(N.om)"
+alias .play-local-incomplete-downloads="fd -t f -g '*.part' -E '*Frag*.part' . ~/Movies/Porn/Downloads | mpv --playlist=-"
+#alias .play-local-incomplete-downloads="mpv -- ~/Movies/Porn/Downloads/**/*.part"
 
 alias .select-local="fd-video . $LOCAL_MEDIA_PATHS | fzf-select | mpv-play"
 
@@ -132,8 +134,6 @@ alias .select-downloads="fd-video . /Volumes/*/Movies/Porn/Downloads(N) $HOME/Mo
 alias .select-local-downloads-sort="fd-video-sort . $HOME/Movies/Porn/Downloads $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
 alias .select-downloads-sort="fd-video-sort . /Volumes/*/Movies/Porn/Downloads $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
 alias .select-local-downloads="fd-video . $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
-alias .play-local-downloads-incomplete="mpv $HOME/Movies/Porn/Downloads/**/*.part"
-alias .play-local-downloads-incomplete-sorted="mpv $HOME/Movies/Porn/Downloads/**/*.part"
 
 alias .play-suki="ls-media --match-string #suki | mpv-play"
 alias \#suki=.play-suki

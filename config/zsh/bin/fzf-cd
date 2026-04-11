@@ -26,49 +26,68 @@ FZF_COLOR_OPTS+="header:#66ddee"
 #--color=bg:-1,fg:blue,info:15,header:7,hl:red,hl+:red,gutter:-1,prompt:yellow,marker:-1,bg+:black,pointer:yellow,fg+:yellow
 
 handle_directory_selection() {
-  local pipe=$(mktemp -u)
-  mkfifo "$pipe" || return 1
+  local prompt='  '
+  local header=''
+  local height='50%'
+  local preview_cmd='eza --tree --level=2 --color=always {} 2>/dev/null || ls -la {}'
+  local -a extra_fzf_args=()
 
-  cleanup() {
-    local exit_code=$?
-    # Kill any remaining background processes in our group
-    kill $(jobs -p) 2>/dev/null
-    wait 2>/dev/null || true
-    rm -f "$pipe"
-    trap - INT TERM EXIT HUP
-    exit $exit_code
-  }
-
-  trap cleanup INT TERM EXIT HUP
-
-  # Read from stdin to pipe in background, but close when stdin closes
-  (cat >"$pipe") &
-  local input_pid=$!
+  while (( $# )); do
+    case "$1" in
+      --prompt)
+        prompt="${2:-$prompt}"
+        shift 2
+        ;;
+      --header)
+        header="${2:-$header}"
+        shift 2
+        ;;
+      --height)
+        height="${2:-$height}"
+        shift 2
+        ;;
+      --preview-cmd)
+        preview_cmd="${2:-$preview_cmd}"
+        shift 2
+        ;;
+      --)
+        shift
+        extra_fzf_args+=("$@")
+        break
+        ;;
+      *)
+        extra_fzf_args+=("$1")
+        shift
+        ;;
+    esac
+  done
 
   local dir
-  # Run fzf in a subshell so we can better control its termination
-  # --preview 'tree -C {} 2>/dev/null || lsd --icon always --long --depth 1 --ignore-config --group-directories-first --color always {}' \
+  # Read directly from stdin so fzf can exit immediately on selection without
+  # waiting for upstream producers to finish writing.
   dir=$(
     fzf \
       --color="$FZF_COLOR_OPTS" \
       --ansi \
       --gutter='󰉋' --pointer=' ' --marker='󰉋 ' \
-      --no-header \
-      --no-preview \
+      --header="$header" \
       --no-info \
       --no-clear \
       --border=block \
       --input-border=rounded \
       --margin=0 \
       --padding=0 \
-      --bind 'alt-n:preview-page-down,alt-p:preview-page-up' \
+      --preview "$preview_cmd" \
+      --preview-window='hidden,right,55%,border-left,wrap' \
+      --bind 'alt-n:preview-page-down,alt-u:preview-page-up' \
       --bind 'alt-r:execute-silent(open {})' \
       --bind 'ctrl-/:toggle-preview' \
       --bind 'alt-p:toggle-preview' \
       --bind 'ctrl-a:toggle-all' \
-      --height=50% \
+      --height="$height" \
       --exact \
-      --prompt="  " <"$pipe"
+      --prompt="$prompt" \
+      "${extra_fzf_args[@]}"
   )
   local ret=$?
 

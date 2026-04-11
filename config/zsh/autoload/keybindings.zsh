@@ -58,99 +58,50 @@ if [[ -o interactive ]]; then
     fd . --type=directory $HOME/Music $PWD | fzf | tr '\n' ' '
   }
 
-  # FZF directory navigation with ls-all
-  _cd-fzf() {
+  _cd-fzf-select() {
     local selected_dir
+    local picker_fn="$1"
 
-    # Save cursor position without clearing the line
-    #tput sc
-
-    # move up one line and clear it
     printf '\033[2K'
-    
     _ensure_fzf_loaded
 
-    # Use the shared picker rather than sourcing the standalone script.
-    selected_dir=$(ls-all 2>/dev/null | _cd_fzf_pick)
+    selected_dir="$($picker_fn)"
     local fzf_exit_status=$?
 
-    # Restore cursor position
-    #tput rc
-    #tput el # Clear to the end of the line to prevent leftover artifacts
-
     if ((fzf_exit_status != 0)); then
-      zle reset-prompt
-      return 0 # return ok exit status so no beep
-    fi
-
-    # If a directory was selected, change to it
-    if [[ -n "$selected_dir" && -d "$selected_dir" ]]; then
-      cd "$selected_dir" || return 1
       zle reset-prompt
       return 0
     fi
 
-    # Reset prompt if error selecting dir
+    selected_dir="${selected_dir%/}"
+
+    if [[ -n "$selected_dir" && -d "$selected_dir" ]]; then
+      cd -- "$selected_dir" || return 1
+      zle reset-prompt
+      return 0
+    fi
+
     zle reset-prompt
     return 1
   }
 
-  # Legacy directory navigation using the standalone `fzf-cd` script.
+  # Global pinned directory navigation.
+  _cd-fzf() {
+    _cd-fzf-select _cd_fzf_pick_global
+  }
+
+  # Keep the old legacy entrypoint, but route it through the shared picker.
   _cd-fzf-legacy() {
-    local selected_dir
-
-    _ensure_fzf_loaded
-
-    selected_dir=$(ls-all 2>/dev/null | fzf-cd)
-    local fzf_exit_status=$?
-
-    if ((fzf_exit_status != 0)); then
-      zle reset-prompt
-      return 0
-    fi
-
-    if [[ -n "$selected_dir" && -d "$selected_dir" ]]; then
-      cd "$selected_dir" || return 1
-      zle reset-prompt
-      return 0
-    fi
-
-    zle reset-prompt
-    return 1
+    _cd-fzf
   }
 
-  # FZF jump to subdirectories
+  # Recursive current-directory navigation.
+  _cd-fzf-local() {
+    _cd-fzf-select _cd_fzf_pick_local
+  }
+
   _fzf-jump() {
-    local selected_dir
-
-    # Save cursor position without clearing the line
-    tput sc
-
-    _ensure_fzf_loaded
-
-    # Use the shared picker rather than sourcing the standalone script.
-    selected_dir=$(fd --type d --no-hidden --max-depth 10 2>/dev/null | _cd_fzf_pick)
-    local fzf_exit_status=$?
-
-    # Restore cursor position
-    tput rc
-    tput el # Clear to the end of the line to prevent leftover artifacts
-
-    if ((fzf_exit_status != 0)); then
-      zle reset-prompt
-      return $fzf_exit_status
-    fi
-
-    # If a directory was selected, change to it
-    if [[ -n "$selected_dir" && -d "$selected_dir" ]]; then
-      cd "$selected_dir" || return 1
-      zle reset-prompt
-      return 0
-    fi
-
-    # Reset prompt if no directory was selected
-    zle reset-prompt
-    return 1
+    _cd-fzf-local
   }
 
   # Navigate up one directory
@@ -237,6 +188,7 @@ if [[ -o interactive ]]; then
   zle -N _clear-reset
   zle -N _cd-fzf
   zle -N _cd-fzf-legacy
+  zle -N _cd-fzf-local
   zle -N _cd-up
   zle -N _fzf-insert-path
   zle -N open-finder-pwd
@@ -254,9 +206,9 @@ if [[ -o interactive ]]; then
   bindkey -s '^@'      "_cd-yazi && clear\n"     # Ctrl+Space: Yazi file manager
   bindkey '^f'         _fzf_ripgrep              # Ctrl+F: FZF ripgrep
   bindkey '^M'         accept-line               # Enter: normal accept
-  bindkey '^o'         _cd-fzf                   # Ctrl+O: FZF directory navigation
-  bindkey '^[g'        _cd-fzf-legacy            # Alt+G: legacy fzf-cd navigation
-  bindkey '^[j'        _fzf-jump                 # Alt+J: FZF jump to subdirectory
+  bindkey '^o'         _cd-fzf                   # Ctrl+O: global directory jump
+  bindkey '^[g'        _cd-fzf-legacy            # Alt+G: global directory jump
+  bindkey '^[j'        _fzf-jump                 # Alt+J: local recursive jump
   bindkey '^[i'        _fzf-insert-path          # Alt+I: Insert path with FZF
   bindkey '^K'         kill-line                 # Ctrl+K: kill to end of line
   bindkey '^L'         clear-screen              # Ctrl+L: clear screen
@@ -265,6 +217,10 @@ if [[ -o interactive ]]; then
   # Kitty CSI-u keybindings
   bindkey -M emacs $'\e[104;9u' fzf-history-widget  # Cmd+H
   bindkey -M emacs $'\e[105;9u' fzf-insert-path     # Cmd+I
+  bindkey -M emacs $'\e[111;9u' _cd-fzf             # Cmd+O: global jump
+  bindkey -M viins $'\e[111;9u' _cd-fzf
+  bindkey -M emacs $'\e[111;10u' _cd-fzf-local      # Cmd+Shift+O: local jump
+  bindkey -M viins $'\e[111;10u' _cd-fzf-local
   bindkey -M emacs $'\e[13;2u' _magic-enter         # Shift+Enter
   bindkey -M viins $'\e[13;2u' _magic-enter
 
