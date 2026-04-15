@@ -24,6 +24,8 @@ alias @select="fzf-select | mpv-play"
 
 alias .select-and-play="fzf-select --color | mpv --playlist=-"
 
+alias .keyframe-cut="ffmpeg-lossless-cut-by-fzf-keyframe-select --force"
+
 #
 # ALIASES
 #
