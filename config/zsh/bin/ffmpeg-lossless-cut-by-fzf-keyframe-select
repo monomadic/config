@@ -1,0 +1,489 @@
+#!/usr/bin/env zsh
+# ============================================================
+# ffmpeg-lossless-cut-by-fzf-keyframe-select
+# Select a keyframe in fzf, then write a trimmed copy beside the
+# source file using ffmpeg stream copy only.
+#
+# Workflow:
+# - single file:
+#     always open keyframe selector
+# - multiple files:
+#     by default, run ffmpeg-detect-intro first
+#     * if intro detected: open selector starting at/after intro
+#     * if no intro detected: skip file
+#     * use --skip-intro-detection to always prompt every file
+#
+# Output:
+# - writes beside source as *.trimmed.ext
+# - never renames or trashes the original
+#
+# Requirements:
+# - zsh
+# - ffprobe
+# - ffmpeg
+# - fzf
+#
+# Optional:
+# - ffmpeg-detect-intro
+# - kitty, wezterm, imgcat, chafa
+# ============================================================
+
+emulate -L zsh
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ffmpeg-lossless-cut-by-fzf-keyframe-select [options] <video1> [video2 ...]
+
+Options:
+  -n, --count <n>           Number of keyframes to show (default: 5)
+  -w, --width <px>          Preview width for thumbnails (default: 480)
+  -y, --yes                 Skip confirmation after keyframe selection
+  -f, --force               Overwrite existing *.trimmed output
+  -k, --keep-previews       Keep temporary preview directories
+  --dry-run                 Show planned actions only
+  --skip-intro-detection    For multiple files, always prompt instead of auto-checking intros
+  --from <seconds>          Start selector at/after this timestamp
+  -h, --help                Show this help
+
+Examples:
+  ffmpeg-lossless-cut-by-fzf-keyframe-select clip.mp4
+  ffmpeg-lossless-cut-by-fzf-keyframe-select *.mp4
+  ffmpeg-lossless-cut-by-fzf-keyframe-select --skip-intro-detection *.mov
+  ffmpeg-lossless-cut-by-fzf-keyframe-select --from 12.5 clip.mp4
+EOF
+}
+
+die() {
+  print -u2 -- "error: $*"
+  exit 1
+}
+
+warn() {
+  print -u2 -- "warning: $*"
+}
+
+info() {
+  print -- "$*"
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+is_number() {
+  [[ "${1:-}" == <-> || "${1:-}" == <->.<-> ]]
+}
+
+float_gt_zero() {
+  awk -v v="$1" 'BEGIN { exit !(v > 0.0005) }'
+}
+
+format_ts() {
+  python3 - "$1" <<'PY'
+import sys
+s = float(sys.argv[1])
+h = int(s // 3600)
+m = int((s % 3600) // 60)
+sec = s % 60
+print(f"{h:02d}:{m:02d}:{sec:09.6f}")
+PY
+}
+
+make_output_name() {
+  local input_file="$1"
+  local suffix="${2:-trimmed}"
+  local dir base stem ext out
+
+  dir="${input_file:h}"
+  base="${input_file:t}"
+
+  if [[ "$base" == *.* ]]; then
+    stem="${base:r}"
+    ext="${base:e}"
+    out="${dir}/${stem}.${suffix}.${ext}"
+  else
+    out="${dir}/${base}.${suffix}"
+  fi
+
+  print -- "$out"
+}
+
+detect_intro_seconds() {
+  local input_file="$1"
+  local output line seconds
+
+  have ffmpeg-detect-intro || return 1
+
+  output="$(ffmpeg-detect-intro -- "$input_file" 2>&1 || true)"
+
+  while IFS= read -r line; do
+    if [[ "$line" == intro_seconds=* ]]; then
+      seconds="${line#intro_seconds=}"
+    elif [[ "$line:l" == *intro* ]]; then
+      seconds="$(print -r -- "$line" | perl -ne 'if (/([0-9]+(?:\.[0-9]+)?)\s*s?\b/) { print "$1\n"; exit }')"
+    else
+      continue
+    fi
+
+    if [[ -n "$seconds" ]] && is_number "$seconds"; then
+      python3 - "$seconds" <<'PY'
+import sys
+print(f"{float(sys.argv[1]):.6f}")
+PY
+      return 0
+    fi
+  done <<< "$output"
+
+  return 1
+}
+
+selector_embedded() {
+  local input_file="$1"
+  local count="$2"
+  local width="$3"
+  local keep="$4"
+  local from_ts="${5:-0}"
+
+  local tmp_dir
+  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/fzf-select-keyframe.XXXXXXXX")"
+
+  selector_cleanup() {
+    if [[ "$keep" == true ]]; then
+      print -u2 -- "kept previews in: $tmp_dir"
+    else
+      rm -rf -- "$tmp_dir"
+    fi
+  }
+
+  local -a key_ts=()
+  local ts
+  local from_num
+  from_num="$(python3 - "$from_ts" <<'PY'
+import sys
+print(float(sys.argv[1]))
+PY
+)"
+
+  while IFS= read -r ts; do
+    [[ -n "$ts" ]] || continue
+    awk -v ts="$ts" -v start="$from_num" 'BEGIN { exit !(ts + 0 >= start + 0) }' || continue
+    key_ts+=("$ts")
+    (( ${#key_ts[@]} >= count )) && break
+  done < <(
+    ffprobe -v error \
+      -select_streams v:0 \
+      -skip_frame nokey \
+      -show_frames \
+      -show_entries frame=best_effort_timestamp_time \
+      -of default=nw=1:nk=1 \
+      -- "$input_file" 2>/dev/null |
+    awk '
+      $1 ~ /^[0-9.]+$/ {
+        if (!seen[$1]++) {
+          print $1
+        }
+      }
+    '
+  )
+
+  if (( ${#key_ts[@]} == 0 )); then
+    selector_cleanup
+    return 1
+  fi
+
+  local list_file="$tmp_dir/list.tsv"
+  : > "$list_file"
+
+  local idx=1
+  local pretty_ts img_file
+  for ts in "${key_ts[@]}"; do
+    pretty_ts="$(format_ts "$ts")"
+    img_file="$tmp_dir/keyframe-${idx}.jpg"
+
+    ffmpeg -v error -y \
+      -ss "$ts" -i "$input_file" \
+      -frames:v 1 \
+      -vf "scale=${width}:-2:flags=lanczos" \
+      -q:v 3 \
+      -- "$img_file"
+
+    printf '%s\t%s\t%s\t%s\n' "$idx" "$ts" "$pretty_ts" "$img_file" >> "$list_file"
+    (( idx++ ))
+  done
+
+  local preview_script="$tmp_dir/preview.zsh"
+  cat > "$preview_script" <<'EOF'
+#!/usr/bin/env zsh
+emulate -L zsh
+set -euo pipefail
+
+idx="$1"
+raw_ts="$2"
+pretty_ts="$3"
+img="$4"
+
+preview_cols="${FZF_PREVIEW_COLUMNS:-80}"
+preview_lines="${FZF_PREVIEW_LINES:-24}"
+image_lines=$(( preview_lines > 4 ? preview_lines - 4 : preview_lines ))
+
+print -- "Keyframe #$idx"
+print -- "Raw:     $raw_ts"
+print -- "Display: $pretty_ts"
+print -- ""
+
+if [[ -n "${KITTY_WINDOW_ID:-}" ]] && command -v kitty >/dev/null 2>&1; then
+  kitty +kitten icat \
+    --clear \
+    --transfer-mode=stream \
+    --stdin=no \
+    --place="${preview_cols}x${image_lines}@0x4" \
+    -- "$img"
+elif [[ -n "${WEZTERM_PANE:-}" ]] && command -v wezterm >/dev/null 2>&1; then
+  wezterm imgcat --width "${preview_cols}" -- "$img"
+elif command -v imgcat >/dev/null 2>&1; then
+  imgcat "$img"
+elif command -v chafa >/dev/null 2>&1; then
+  chafa --animate=off --size="${preview_cols}x${image_lines}" -- "$img"
+else
+  print -- "$img"
+fi
+EOF
+  chmod +x "$preview_script"
+
+  local header
+  if awk -v start="$from_num" 'BEGIN { exit !(start > 0) }'; then
+    header="Select a keyframe at/after $(format_ts "$from_num") - ${input_file:t}"
+  else
+    header="Select a keyframe for lossless cut start - ${input_file:t}"
+  fi
+
+  local selection
+  selection="$(
+    fzf \
+      --delimiter=$'\t' \
+      --with-nth=1,3 \
+      --no-sort \
+      --layout=reverse \
+      --height=100% \
+      --border \
+      --prompt='keyframe> ' \
+      --header="$header" \
+      --preview-window='right,70%,border-left' \
+      --preview "zsh '$preview_script' {1} {2} {3} {4}" \
+      < "$list_file"
+  )" || {
+    rc=$?
+    selector_cleanup
+    return "$rc"
+  }
+
+  print -r -- "$selection" | awk -F $'\t' '{ print $2 }'
+  selector_cleanup
+}
+
+select_keyframe() {
+  local input_file="$1"
+  local count="$2"
+  local width="$3"
+  local keep="$4"
+  local from_ts="${5:-0}"
+
+  selector_embedded "$input_file" "$count" "$width" "$keep" "$from_ts"
+}
+
+trim_copy() {
+  local input_file="$1"
+  local start_time="$2"
+  local output_file="$3"
+
+  ffmpeg -hide_banner -y \
+    -ss "$start_time" -i "$input_file" \
+    -map 0 \
+    -c copy \
+    "$output_file"
+}
+
+perform_cut() {
+  local input_file="$1"
+  local start_time="$2"
+  local output_file="$3"
+  local force="$4"
+
+  if ! float_gt_zero "$start_time"; then
+    warn "cut time <= 0, skipping: $input_file"
+    return 1
+  fi
+
+  if [[ -e "$output_file" && "$force" != true ]]; then
+    warn "output already exists: $output_file"
+    warn "use --force to overwrite"
+    return 1
+  fi
+
+  info "Output:            $output_file"
+  trim_copy "$input_file" "$start_time" "$output_file"
+}
+
+count=5
+width=480
+yes=false
+force=false
+keep_previews=false
+dry_run=false
+skip_intro_detection=false
+from_ts="0"
+
+typeset -a files=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    -n|--count)
+      (( $# >= 2 )) || die "missing value for $1"
+      count="$2"
+      shift 2
+      ;;
+    -w|--width)
+      (( $# >= 2 )) || die "missing value for $1"
+      width="$2"
+      shift 2
+      ;;
+    -y|--yes)
+      yes=true
+      shift
+      ;;
+    -f|--force)
+      force=true
+      shift
+      ;;
+    -k|--keep-previews)
+      keep_previews=true
+      shift
+      ;;
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    --skip-intro-detection)
+      skip_intro_detection=true
+      shift
+      ;;
+    --from)
+      (( $# >= 2 )) || die "missing value for $1"
+      from_ts="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      files+=("$@")
+      break
+      ;;
+    -*)
+      die "unknown option: $1"
+      ;;
+    *)
+      files+=("$1")
+      shift
+      ;;
+  esac
+done
+
+(( ${#files[@]} > 0 )) || {
+  usage
+  exit 1
+}
+
+have ffprobe || die "ffprobe not found"
+have ffmpeg  || die "ffmpeg not found"
+have fzf     || die "fzf not found"
+
+[[ "$count" == <-> ]] || die "--count must be an integer"
+[[ "$width" == <-> ]] || die "--width must be an integer"
+is_number "$from_ts" || die "--from must be numeric seconds"
+
+integer ok_count=0
+integer skip_count=0
+integer fail_count=0
+
+local_multi=false
+(( ${#files[@]} > 1 )) && local_multi=true
+
+for input_file in "${files[@]}"; do
+  print
+  info "────────────────────────────────────────────────────────────"
+  info "File: $input_file"
+
+  if [[ ! -f "$input_file" ]]; then
+    warn "not a file, skipping"
+    (( skip_count++ ))
+    continue
+  fi
+
+  effective_from="$from_ts"
+
+  if [[ "$local_multi" == true && "$skip_intro_detection" != true ]]; then
+    if intro_ts="$(detect_intro_seconds "$input_file")"; then
+      effective_from="$intro_ts"
+      info "Intro detected at: $(format_ts "$intro_ts")"
+    else
+      info "No intro detected, skipping"
+      (( skip_count++ ))
+      continue
+    fi
+  fi
+
+  if [[ "$effective_from" != "0" ]]; then
+    info "Selector start:    $(format_ts "$effective_from")"
+  fi
+
+  ts=""
+  if ! ts="$(select_keyframe "$input_file" "$count" "$width" "$keep_previews" "$effective_from")"; then
+    rc=$?
+    if (( rc == 130 )); then
+      warn "selection cancelled, skipping"
+      (( skip_count++ ))
+      continue
+    fi
+    warn "failed to select keyframe, skipping"
+    (( fail_count++ ))
+    continue
+  fi
+
+  pretty_ts="$(format_ts "$ts")"
+  output_file="$(make_output_name "$input_file" "trimmed")"
+
+  info "Selected cut:      $pretty_ts  ($ts)"
+  info "Trimmed output:    $output_file"
+
+  if [[ "$yes" != true ]]; then
+    reply=""
+    read -r "?Write trimmed copy? [y/N] " reply
+    if [[ ! "$reply" == [Yy] && ! "$reply" == [Yy][Ee][Ss] ]]; then
+      warn "skipped"
+      (( skip_count++ ))
+      continue
+    fi
+  fi
+
+  if [[ "$dry_run" == true ]]; then
+    print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' -map 0 -c copy '$output_file'"
+    (( ok_count++ ))
+    continue
+  fi
+
+  if perform_cut "$input_file" "$ts" "$output_file" "$force"; then
+    info "Done: wrote trimmed copy"
+    (( ok_count++ ))
+  else
+    (( fail_count++ ))
+  fi
+done
+
+print
+info "Summary: ok=$ok_count skipped=$skip_count failed=$fail_count"
+(( fail_count == 0 ))
