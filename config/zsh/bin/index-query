@@ -1,0 +1,150 @@
+#!/usr/bin/env zsh
+
+emulate -L zsh
+set -euo pipefail
+setopt local_options null_glob pipefail no_aliases
+
+source "${0:A:h}/index-lib.zsh"
+
+usage() {
+  local script_name
+  script_name="$(index_script_name)"
+
+  print -u2 -- "Usage: $script_name [options] <filter-regex>"
+  print -u2 -- ""
+  print -u2 -- "Query saved drive indexes from: $(index_root_dir)"
+  print -u2 -- ""
+  print -u2 -- "Options:"
+  print -u2 -- "  --volume NAME | --volume=NAME   Restrict query to a volume name or path"
+  print -u2 -- "                                  Repeat to include multiple volumes"
+  print -u2 -- "  --ignore REGEX                  Exclude matches by regex"
+  print -u2 -- "  --limit N                       Stop after N emitted paths"
+  print -u2 -- "  --print0                        Output NUL-delimited paths"
+  print -u2 -- "  --help, -h                      Show this help"
+  print -u2 -- ""
+  print -u2 -- "Examples:"
+  print -u2 -- "  $script_name 'Porn/.+\\.mp4$'"
+  print -u2 -- "  $script_name --volume Tower --ignore '/Downloads/' --limit 50 '.mp4$'"
+  print -u2 -- "  $script_name --volume '/Volumes/4TB APFS' --print0 'Masters/'"
+}
+
+typeset print0=false
+typeset filter_regex="."
+typeset limit_raw=""
+typeset -i limit=0
+typeset -a ignore_regexes=()
+typeset -a volume_filters=()
+typeset -a index_files=()
+typeset -A seen_indexes=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    --volume|--volume=*)
+      value="$(index_parse_value_opt --volume "$1" "${2-}")" || { usage; exit 1; }
+      volume_filters+=("$value")
+      [[ "$1" == *=* ]] && shift || shift 2
+      ;;
+    --ignore|--ignore=*)
+      value="$(index_parse_value_opt --ignore "$1" "${2-}")" || { usage; exit 1; }
+      ignore_regexes+=("$value")
+      [[ "$1" == *=* ]] && shift || shift 2
+      ;;
+    --limit|--limit=*)
+      value="$(index_parse_value_opt --limit "$1" "${2-}")" || { usage; exit 1; }
+      limit_raw="$value"
+      [[ "$1" == *=* ]] && shift || shift 2
+      ;;
+    --print0)
+      print0=true
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      usage
+      index_die "Unknown option: $1"
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+if [[ -n "$limit_raw" ]]; then
+  [[ "$limit_raw" == <-> ]] || {
+    usage
+    index_die "Invalid --limit value: $limit_raw"
+  }
+  limit="$limit_raw"
+fi
+
+if (( $# > 1 )); then
+  usage
+  index_die "Expected at most one positional filter regex"
+fi
+
+(( $# == 1 )) && filter_regex="$1"
+
+if (( ${#volume_filters[@]} > 0 )); then
+  for volume_filter in "${volume_filters[@]}"; do
+    volume_name="$(index_volume_name_from_arg "$volume_filter")"
+    index_path="$(index_file_for_volume "$volume_name")"
+
+    if [[ -f "$index_path" ]]; then
+      [[ -n "${seen_indexes[$index_path]-}" ]] && continue
+      seen_indexes[$index_path]=1
+      index_files+=("$index_path")
+    else
+      index_log "Warning: index not found for volume '$volume_filter' ($index_path)"
+    fi
+  done
+else
+  index_files=("$(index_root_dir)"/*.txt(N))
+fi
+
+(( ${#index_files[@]} > 0 )) || index_die "No index files found in $(index_root_dir)"
+
+typeset -i emitted=0
+
+path_matches() {
+  local record_path="$1"
+  local ignore_regex
+
+  [[ "$record_path" =~ $filter_regex ]] || return 1
+
+  for ignore_regex in "${ignore_regexes[@]}"; do
+    [[ "$record_path" =~ $ignore_regex ]] && return 1
+  done
+
+  return 0
+}
+
+emit_path() {
+  local record_path="$1"
+
+  if $print0; then
+    printf '%s\0' "$record_path"
+  else
+    print -r -- "$record_path"
+  fi
+}
+
+for index_file in "${index_files[@]}"; do
+  while IFS= read -r record_path || [[ -n "$record_path" ]]; do
+    index_is_safe_text_path "$record_path" || continue
+    path_matches "$record_path" || continue
+
+    emit_path "$record_path"
+    (( ++emitted ))
+
+    if (( limit > 0 && emitted >= limit )); then
+      exit 0
+    fi
+  done < <(index_data_stream "$index_file")
+done

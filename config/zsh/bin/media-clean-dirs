@@ -1,0 +1,4 @@
+#!/bin/zsh
+
+mv $HOME/Movies/Porn/**/*.json "$ICLOUD_HOME/Sync/JSON"
+# trash $HOME/Movies/Porn/**/*.

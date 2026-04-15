@@ -1,0 +1,153 @@
+#!/usr/bin/env zsh
+
+emulate -L zsh
+set -euo pipefail
+setopt local_options pipefail no_aliases
+
+source "${0:A:h}/index-lib.zsh"
+
+usage() {
+  local script_name
+  script_name="$(index_script_name)"
+
+  print -u2 -- "Usage: $script_name [--sort SORT] <volume>"
+  print -u2 -- ""
+  print -u2 -- "Create a plain-text file index for a mounted volume or directory."
+  print -u2 -- "Indexes are written to: $(index_root_dir)"
+  print -u2 -- ""
+  print -u2 -- "Options:"
+  print -u2 -- "  --sort SORT | --sort=SORT   SORT: mtime | path | none"
+  print -u2 -- "                             Default: mtime"
+  print -u2 -- "  --help, -h                 Show this help"
+  print -u2 -- ""
+  print -u2 -- "Arguments:"
+  print -u2 -- "  <volume>                   /Volumes/<name>, a bare volume name,"
+  print -u2 -- "                             or any existing absolute directory path"
+}
+
+typeset sort_key="mtime"
+typeset volume_arg=""
+
+while (( $# > 0 )); do
+  case "$1" in
+    --sort|--sort=*)
+      value="$(index_parse_value_opt --sort "$1" "${2-}")" || { usage; exit 1; }
+      sort_key="$value"
+      [[ "$1" == *=* ]] && shift || shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      usage
+      index_die "Unknown option: $1"
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+(( $# == 1 )) || {
+  usage
+  index_die "Expected exactly one volume argument"
+}
+
+volume_arg="$1"
+
+index_sort_value_valid "$sort_key" || {
+  usage
+  index_die "Invalid --sort value: $sort_key (expected: mtime, path, or none)"
+}
+
+volume_path="$(index_resolve_source_path "$volume_arg")" || {
+  usage
+  index_die "Volume not found or not readable: $volume_arg"
+}
+
+volume_name="$(index_volume_name_from_arg "$volume_path")"
+
+index_ensure_root_dir || index_die "Failed to create index root: $(index_root_dir)"
+
+final_index="$(index_file_for_volume "$volume_name")"
+tmp_index="$(mktemp "$(index_root_dir)/.${volume_name}.index.XXXXXX")"
+tmp_records="$(mktemp "$(index_root_dir)/.${volume_name}.records.XXXXXX")"
+tmp_output="$(mktemp "$(index_root_dir)/.${volume_name}.output.XXXXXX")"
+
+cleanup() {
+  rm -f -- "$tmp_index" "$tmp_records" "$tmp_output"
+}
+trap cleanup EXIT
+
+typeset -i kept=0
+typeset -i skipped=0
+typeset -i stat_failed=0
+
+typeset -a find_cmd=()
+
+if (( $+commands[fd] )); then
+  find_cmd=(fd --type f --hidden --no-ignore --absolute-path --print0 . "$volume_path")
+else
+  find_cmd=(find "$volume_path" -type f -print0)
+fi
+
+while IFS= read -r -d '' file_path; do
+  if ! index_is_safe_text_path "$file_path"; then
+    (( ++skipped ))
+    continue
+  fi
+
+  case "$sort_key" in
+    mtime)
+      if ! file_mtime="$(stat -f '%m' -- "$file_path" 2>/dev/null)"; then
+        (( ++stat_failed ))
+        continue
+      fi
+      printf '%020d\t%s\n' "$file_mtime" "$file_path" >> "$tmp_records"
+      ;;
+    path|none)
+      print -r -- "$file_path" >> "$tmp_records"
+      ;;
+  esac
+
+  (( ++kept ))
+done < <("${find_cmd[@]}")
+
+case "$sort_key" in
+  mtime)
+    LC_ALL=C sort -t $'\t' -k1,1nr -k2,2 -- "$tmp_records" | cut -f2- > "$tmp_output"
+    ;;
+  path)
+    LC_ALL=C sort -- "$tmp_records" > "$tmp_output"
+    ;;
+  none)
+    cp -- "$tmp_records" "$tmp_output"
+    ;;
+esac
+
+{
+  print -r -- "# index-format: 1"
+  print -r -- "# volume-name: $volume_name"
+  print -r -- "# volume-path: $volume_path"
+  print -r -- "# sort: $sort_key"
+  print -r -- "# created-at: $(date '+%Y-%m-%dT%H:%M:%S%z')"
+  print -r -- "--"
+  cat -- "$tmp_output"
+} > "$tmp_index"
+
+mv -- "$tmp_index" "$final_index"
+
+index_log "Wrote index: $final_index"
+index_log "Saved paths: $kept"
+if (( skipped > 0 )); then
+  index_log "Skipped non-UTF-8 or multiline paths: $skipped"
+fi
+
+if (( stat_failed > 0 )); then
+  index_log "Skipped paths with unreadable metadata: $stat_failed"
+fi
