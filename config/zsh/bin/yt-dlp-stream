@@ -1,0 +1,217 @@
+#!/bin/zsh
+# ============================================================
+# ytdl-watch
+# Download a video with yt-dlp while simultaneously opening the
+# growing .part file in mpv.
+#
+# Good for "start watching now, keep downloading in background".
+#
+# Notes:
+# - Best effort only. Some sites/containers are less playable
+#   before the download completes.
+# - Seeking may be limited until more of the file exists.
+# - This works best when yt-dlp writes a normal file on disk.
+# ============================================================
+
+set -euo pipefail
+
+autoload -Uz colors && colors
+
+print_err() {
+  print -P "%F{196}error:%f $*" >&2
+}
+
+print_info() {
+  print -P "%F{39}info:%f $*"
+}
+
+print_ok() {
+  print -P "%F{82}ok:%f $*"
+}
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ytdl-watch [options] <url>
+
+Options:
+  -d, --dir DIR         Output directory (default: current directory)
+  -f, --format FORMAT   yt-dlp format selector
+                        default: bestvideo*+bestaudio/best
+  -n, --name TEMPLATE   Output template basename
+                        default: %(title)s [%(id)s].%(ext)s
+  --mpv-arg ARG         Extra mpv arg (repeatable)
+  --ytdlp-arg ARG       Extra yt-dlp arg (repeatable)
+  -h, --help            Show this help
+
+Examples:
+  ytdl-watch 'https://...'
+  ytdl-watch -d ~/Movies/Downloads 'https://...'
+  ytdl-watch -f 'b' --mpv-arg='--fs' 'https://...'
+EOF
+}
+
+out_dir="$PWD"
+format_selector="bestvideo*+bestaudio/best"
+name_template='%(title)s [%(id)s].%(ext)s'
+
+typeset -a mpv_args
+typeset -a ytdlp_extra
+typeset -a positionals
+
+while (( $# )); do
+  case "$1" in
+    -d|--dir)
+      out_dir="$2"
+      shift 2
+      ;;
+    -f|--format)
+      format_selector="$2"
+      shift 2
+      ;;
+    -n|--name)
+      name_template="$2"
+      shift 2
+      ;;
+    --mpv-arg)
+      mpv_args+=("$2")
+      shift 2
+      ;;
+    --ytdlp-arg)
+      ytdlp_extra+=("$2")
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      positionals+=("$@")
+      break
+      ;;
+    -*)
+      print_err "unknown option: $1"
+      usage >&2
+      exit 1
+      ;;
+    *)
+      positionals+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if (( ${#positionals[@]} != 1 )); then
+  usage >&2
+  exit 1
+fi
+
+url="${positionals[1]}"
+
+mkdir -p -- "$out_dir"
+
+if ! command -v yt-dlp >/dev/null 2>&1; then
+  print_err "yt-dlp not found"
+  exit 1
+fi
+
+if ! command -v mpv >/dev/null 2>&1; then
+  print_err "mpv not found"
+  exit 1
+fi
+
+# Resolve the final output path first using the exact same template logic.
+final_path="$(
+  yt-dlp \
+    --no-warnings \
+    --no-playlist \
+    -P "$out_dir" \
+    -o "$name_template" \
+    --get-filename \
+    "$url"
+)"
+
+if [[ -z "$final_path" ]]; then
+  print_err "could not resolve output filename"
+  exit 1
+fi
+
+part_path="${final_path}.part"
+
+print_info "output dir:   $out_dir"
+print_info "final file:   $final_path"
+print_info "part file:    $part_path"
+print_info "format:       $format_selector"
+
+# Start download in background.
+# Keep partial file enabled, avoid auto-renaming surprises.
+yt-dlp \
+  --no-playlist \
+  --format "$format_selector" \
+  --continue \
+  --part \
+  --newline \
+  -P "$out_dir" \
+  -o "$name_template" \
+  "${ytdlp_extra[@]}" \
+  "$url" &
+
+ytdlp_pid=$!
+
+cleanup() {
+  local ec=$?
+  if kill -0 "$ytdlp_pid" >/dev/null 2>&1; then
+    print_info "stopping yt-dlp..."
+    kill "$ytdlp_pid" >/dev/null 2>&1 || true
+  fi
+  return $ec
+}
+trap cleanup INT TERM
+
+# Wait for either .part or final file to appear.
+integer waited=0
+integer max_wait=60
+
+while (( waited < max_wait )); do
+  if [[ -e "$part_path" || -e "$final_path" ]]; then
+    break
+  fi
+  sleep 0.25
+  (( waited += 1 ))
+done
+
+if [[ ! -e "$part_path" && ! -e "$final_path" ]]; then
+  print_err "download file never appeared"
+  wait "$ytdlp_pid" || true
+  exit 1
+fi
+
+play_path="$part_path"
+[[ -e "$final_path" ]] && play_path="$final_path"
+
+print_ok "opening in mpv: $play_path"
+
+# Notes:
+# - --force-seekable=yes sometimes helps mpv behave more sanely with
+#   growing files, but seeking is still limited by what has downloaded.
+# - low-latency avoids mpv waiting too much before starting.
+mpv \
+  --force-window=immediate \
+  --force-seekable=yes \
+  --cache=yes \
+  --demuxer-readahead-secs=20 \
+  --profile=low-latency \
+  "${mpv_args[@]}" \
+  -- "$play_path"
+
+mpv_ec=$?
+
+if kill -0 "$ytdlp_pid" >/dev/null 2>&1; then
+  print_info "mpv exited; waiting for yt-dlp to finish..."
+  wait "$ytdlp_pid"
+else
+  wait "$ytdlp_pid" || true
+fi
+
+exit "$mpv_ec"

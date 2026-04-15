@@ -13,6 +13,7 @@ from yt_dlp.utils import (
 
 class FaphouseIE(InfoExtractor):
     IE_NAME = "faphouse"
+    _LOGIN_URL = "https://faphouse.com/#signin"
     _VALID_URL = r'''(?x)
         https?://(?:www\.)?faphouse\.com/
         (?:[a-z]{2}(?:-[a-z]{2})?/)?   # optional locale prefix, e.g. /vi/ or /pt-br/
@@ -104,7 +105,8 @@ class FaphouseIE(InfoExtractor):
 
         _search_next = getattr(self, "_search_nextjs_data", None)
         if callable(_search_next):
-            nextjs = _search_next(webpage, video_id, fatal=False)
+            # `fatal=False` still warns on recent yt-dlp; use an explicit default to stay quiet.
+            nextjs = _search_next(webpage, video_id, default={})
 
         _search_nuxt = getattr(self, "_search_nuxt_data", None)
         if callable(_search_nuxt):
@@ -150,6 +152,20 @@ class FaphouseIE(InfoExtractor):
             m3u8 = url_or_none(self._search_regex(self._M3U8_RE, webpage, "m3u8 url", default=None))
 
         if not m3u8:
+            paywall = self._search_json(
+                r'<script[^>]+id="video-paywall"[^>]*>\s*',
+                webpage, "video paywall data", video_id,
+                end_pattern=r'\s*</script>',
+                default={},
+                fatal=False,
+            )
+            if traverse_obj(paywall, ("user", "isGuest")):
+                raise ExtractorError(
+                    "This Faphouse video appears to require a logged-in session. "
+                    f"Sign in at {self._LOGIN_URL} and retry with browser cookies "
+                    "(for example, --cookies-from-browser brave).",
+                    expected=True,
+                )
             raise ExtractorError(
                 "Could not find HLS playlist URL (m3u8). "
                 "Use browser DevTools Network to locate the JSON/XHR that returns the HLS URL(s), "
@@ -226,20 +242,21 @@ class FaphouseModelIE(InfoExtractor):
         model_id = self._match_id(url)
         webpage = self._download_webpage_fallback(url, model_id)
 
-        # HTML scrape (works only if links are in server-rendered HTML)
-        video_paths = set(re.findall(r'href="(/videos/[^"?#]+)"', webpage))
-        video_paths = {p for p in video_paths if self._VIDEO_PATH_RE.match(p)}
+        # Model pages embed video paths in multiple places, not only in visible anchors.
+        raw_video_paths = re.findall(r'/videos/[^"\'?#&\s<>]+', webpage)
+        video_paths = list(dict.fromkeys(
+            p for p in raw_video_paths if self._VIDEO_PATH_RE.match(p)
+        ))
 
         if not video_paths:
             raise ExtractorError(
-                "No video links found in model/creator page HTML. "
-                "This page is probably JS-rendered; implement the model API pagination endpoint instead.",
+                "No video links found in model/creator page HTML.",
                 expected=True,
             )
 
         entries = [
             self.url_result(f"https://faphouse.com{p}", ie=FaphouseIE.ie_key())
-            for p in sorted(video_paths)
+            for p in video_paths
         ]
 
         title = self._og_search_title(webpage, default=None)
