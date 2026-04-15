@@ -1,0 +1,237 @@
+#!/usr/bin/env zsh
+# ============================================================
+# fzf-select-keyframe
+# Show the first N actual keyframes from a video in fzf with
+# thumbnail previews, then print the selected keyframe time.
+#
+# Intended for lossless cutting workflows:
+# - reads real keyframe timestamps from the video stream
+# - extracts the exact frame at each keyframe timestamp
+# - previews them in fzf
+# - prints the selected timestamp in seconds to stdout
+#
+# Requirements:
+# - ffprobe
+# - ffmpeg
+# - fzf
+# - kitty (preferred) or chafa
+# ============================================================
+
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  fzf-select-keyframe [options] <video-file>
+
+Options:
+  -n, --count <n>      Number of keyframes to show (default: 5)
+  -w, --width <px>     Preview image width in pixels (default: 480)
+  -k, --keep           Keep temporary preview directory
+  -h, --help           Show this help
+
+Output:
+  Prints the selected keyframe timestamp (seconds) to stdout.
+
+Examples:
+  fzf-select-keyframe input.mp4
+  fzf-select-keyframe -n 8 movie.mp4
+  ts="$(fzf-select-keyframe input.mp4)"
+  ffmpeg -ss "$ts" -i input.mp4 -c copy output.mp4
+EOF
+}
+
+die() {
+  print -u2 -- "error: $*"
+  exit 1
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+format_ts() {
+  python3 - "$1" <<'PY'
+import sys
+s = float(sys.argv[1])
+h = int(s // 3600)
+m = int((s % 3600) // 60)
+sec = s % 60
+print(f"{h:02d}:{m:02d}:{sec:09.6f}")
+PY
+}
+
+count=5
+width=480
+keep=false
+
+typeset -a positionals=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    -n|--count)
+      (( $# >= 2 )) || die "missing value for $1"
+      count="$2"
+      shift 2
+      ;;
+    -w|--width)
+      (( $# >= 2 )) || die "missing value for $1"
+      width="$2"
+      shift 2
+      ;;
+    -k|--keep)
+      keep=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      positionals+=("$@")
+      break
+      ;;
+    -*)
+      die "unknown option: $1"
+      ;;
+    *)
+      positionals+=("$1")
+      shift
+      ;;
+  esac
+done
+
+(( ${#positionals[@]} == 1 )) || {
+  usage
+  exit 1
+}
+
+input_file="${positionals[1]}"
+[[ -f "$input_file" ]] || die "file not found: $input_file"
+
+have ffprobe || die "ffprobe not found"
+have ffmpeg  || die "ffmpeg not found"
+have fzf     || die "fzf not found"
+
+[[ "$count" == <-> ]] || die "--count must be an integer"
+[[ "$width" == <-> ]] || die "--width must be an integer"
+
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/fzf-select-keyframe.XXXXXXXX")"
+
+cleanup() {
+  if [[ "$keep" == true ]]; then
+    print -u2 -- "kept previews in: $tmp_dir"
+  else
+    rm -rf -- "$tmp_dir"
+  fi
+}
+trap cleanup EXIT INT TERM
+
+# ------------------------------------------------------------
+# Collect the first N actual keyframe timestamps from v:0
+# ------------------------------------------------------------
+typeset -a key_ts=()
+
+while IFS=, read -r ts pict_type; do
+  [[ -n "$ts" ]] || continue
+  key_ts+=("$ts")
+  (( ${#key_ts[@]} >= count )) && break
+done < <(
+  ffprobe \
+    -v error \
+    -select_streams v:0 \
+    -skip_frame nokey \
+    -show_entries frame=best_effort_timestamp_time,pict_type \
+    -of csv=p=0 \
+    -- "$input_file"
+)
+
+(( ${#key_ts[@]} > 0 )) || die "no keyframes found"
+
+list_file="$tmp_dir/list.tsv"
+: > "$list_file"
+
+integer idx=1
+for ts in "${key_ts[@]}"; do
+  pretty_ts="$(format_ts "$ts")"
+  img_file="$tmp_dir/keyframe-${idx}.jpg"
+
+  # Decode exactly at the keyframe timestamp and save one frame.
+  ffmpeg \
+    -v error \
+    -ss "$ts" \
+    -i "$input_file" \
+    -frames:v 1 \
+    -vf "scale=${width}:-2:flags=lanczos" \
+    -q:v 3 \
+    -y \
+    -- "$img_file"
+
+  printf '%s\t%s\t%s\t%s\n' "$idx" "$ts" "$pretty_ts" "$img_file" >> "$list_file"
+  (( idx++ ))
+done
+
+# ------------------------------------------------------------
+# Preview script
+# Uses kitty first, then chafa.
+# Args:
+#   $1 index
+#   $2 raw seconds
+#   $3 pretty timestamp
+#   $4 image file
+# ------------------------------------------------------------
+preview_script="$tmp_dir/preview.zsh"
+cat > "$preview_script" <<'EOF'
+#!/usr/bin/env zsh
+set -euo pipefail
+
+idx="$1"
+raw_ts="$2"
+pretty_ts="$3"
+img="$4"
+
+preview_cols="${FZF_PREVIEW_COLUMNS:-80}"
+preview_lines="${FZF_PREVIEW_LINES:-24}"
+
+print -- "Keyframe #$idx"
+print -- "Raw:     $raw_ts"
+print -- "Display: $pretty_ts"
+print -- ""
+
+if [[ -n "${KITTY_WINDOW_ID:-}" ]] && command -v kitty >/dev/null 2>&1; then
+  kitty +kitten icat \
+    --clear \
+    --transfer-mode=stream \
+    --stdin=no \
+    --place="${preview_cols}x$(( preview_lines > 4 ? preview_lines - 4 : preview_lines ))@0x4" \
+    -- "$img"
+elif command -v chafa >/dev/null 2>&1; then
+  chafa \
+    --animate=off \
+    --size="${preview_cols}x$(( preview_lines > 4 ? preview_lines - 4 : preview_lines ))" \
+    -- "$img"
+else
+  print -- "$img"
+fi
+EOF
+chmod +x "$preview_script"
+
+selection="$(
+  fzf \
+    --delimiter=$'\t' \
+    --with-nth=1,3 \
+    --no-sort \
+    --layout=reverse \
+    --height=100% \
+    --border \
+    --prompt='keyframe> ' \
+    --header='Select a keyframe for lossless cut start' \
+    --preview-window='right,70%,border-left' \
+    --preview "zsh '$preview_script' {1} {2} {3} {4}" \
+    < "$list_file"
+)"
+
+[[ -n "$selection" ]] || exit 130
+
+print -r -- "$selection" | awk -F $'\t' '{ print $2 }'
