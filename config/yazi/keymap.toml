@@ -2,6 +2,46 @@
 # If you encounter any issues, please make an issue at https://github.com/yazi-rs/schemas.
 "$schema" = "https://yazi-rs.github.io/schemas/keymap.json"
 
+[[mgr.prepend_keymap]]
+on   = "<C-Space>"
+run  = "quit"
+desc = "Quit back to the shell"
+
+[[tasks.prepend_keymap]]
+on   = "<C-Space>"
+run  = [ "close", "mgr:quit" ]
+desc = "Close tasks and quit"
+
+[[spot.prepend_keymap]]
+on   = "<C-Space>"
+run  = [ "close", "mgr:quit" ]
+desc = "Close the spotter and quit"
+
+[[pick.prepend_keymap]]
+on   = "<C-Space>"
+run  = [ "close", "mgr:quit" ]
+desc = "Close the picker and quit"
+
+[[input.prepend_keymap]]
+on   = "<C-Space>"
+run  = [ "close", "mgr:quit" ]
+desc = "Close input and quit"
+
+[[confirm.prepend_keymap]]
+on   = "<C-Space>"
+run  = [ "close", "mgr:quit" ]
+desc = "Close the confirm dialog and quit"
+
+[[cmp.prepend_keymap]]
+on   = "<C-Space>"
+run  = [ "close", "input:close", "mgr:quit" ]
+desc = "Close completion and quit"
+
+[[help.prepend_keymap]]
+on   = "<C-Space>"
+run  = [ "close", "mgr:quit" ]
+desc = "Close help and quit"
+
 [[manager.prepend_keymap]]
 on   = ["}"]
 run  = "plugin --- @sync first-non-directory"
