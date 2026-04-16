@@ -29,11 +29,13 @@ if [[ -o interactive ]]; then
   # Yazi file manager with directory change on exit
   _cd-yazi() {
     local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd
+    zle -I 2>/dev/null
     kitty-exec '   yazi ' '#FF44CC' yazi "$@" --cwd-file="$tmp"
     if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
       builtin cd -- "$cwd"
     fi
     rm -f -- "$tmp"
+    zle reset-prompt 2>/dev/null
   }
 
   # Yazi jump widget for ZLE
@@ -43,7 +45,7 @@ if [[ -o interactive ]]; then
       return 1
     fi
 
-    echo "yazi \"$PWD\" --cwd-file=\"$tmp\""
+    zle -I 2>/dev/null
     yazi "$PWD" --cwd-file="$tmp"
 
     if cwd="$(cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
@@ -203,7 +205,7 @@ if [[ -o interactive ]]; then
   bindkey -r '\M-^?'
 
   # Primary key bindings
-  bindkey -s '^@'      "_cd-yazi && clear\n"     # Ctrl+Space: Yazi file manager
+  bindkey '^@'         _cd-yazi                  # Ctrl+Space: Yazi file manager
   bindkey '^f'         _fzf_ripgrep              # Ctrl+F: FZF ripgrep
   bindkey '^M'         accept-line               # Enter: normal accept
   bindkey '^o'         _cd-fzf                   # Ctrl+O: global directory jump
