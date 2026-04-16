@@ -1,38 +1,117 @@
+# VirtualDJ Example Pad XML Pages
+
+Sampler-focused pad page examples for files stored in `Documents/VirtualDJ/Pads`.
+
+These examples were checked against the current VirtualDJ manual plus recent forum guidance for sampler sub-pages, deck sync behavior, and custom sampler layouts.
+
+## Page-Aware 8-Pad Sampler
+
+Use this pattern when pads `1-8` should follow the current sampler sub-page (`1 to 8`, `9 to 16`, `17 to 24`, etc). The optional `"auto"` helper, used in current custom/default sampler page examples, keeps names, colors, loaded state, and trigger actions aligned with the visible sampler page.
+
+```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<page name="SAMPLER">
-  <pad1 name="`sampler_loaded 1  ? get_sample_name 1  : '(empty 1)'`" color="sampler_loaded 1 ? get_sample_color 1 : dim" query="sampler_play 1 ? blink 1bt : on" drop="sampler_assign 1">sampler_loaded 1 ? sampler_pad 1 : nothing</pad1>
-  <pad2 name="`sampler_loaded 2  ? get_sample_name 2  : '(empty 2)'`" color="sampler_loaded 2 ? get_sample_color 2 : dim" query="sampler_play 2 ? blink 1bt : on" drop="sampler_assign 2">sampler_loaded 2 ? sampler_pad 2 : nothing</pad2>
-  <pad3 name="`sampler_loaded 3  ? get_sample_name 3  : '(empty 3)'`" color="sampler_loaded 3 ? get_sample_color 3 : dim" query="sampler_play 3 ? blink 1bt : on" drop="sampler_assign 3">sampler_loaded 3 ? sampler_pad 3 : nothing</pad3>
-  <pad4 name="`sampler_loaded 4  ? get_sample_name 4  : '(empty 4)'`" color="sampler_loaded 4 ? get_sample_color 4 : dim" query="sampler_play 4 ? blink 1bt : on" drop="sampler_assign 4">sampler_loaded 4 ? sampler_pad 4 : nothing</pad4>
-  <pad5 name="`sampler_loaded 5  ? get_sample_name 5  : '(empty 5)'`" color="sampler_loaded 5 ? get_sample_color 5 : dim" query="sampler_play 5 ? blink 1bt : on" drop="sampler_assign 5">sampler_loaded 5 ? sampler_pad 5 : nothing</pad5>
-  <pad6 name="`sampler_loaded 6  ? get_sample_name 6  : '(empty 6)'`" color="sampler_loaded 6 ? get_sample_color 6 : dim" query="sampler_play 6 ? blink 1bt : on" drop="sampler_assign 6">sampler_loaded 6 ? sampler_pad 6 : nothing</pad6>
-  <pad7 name="`sampler_loaded 7  ? get_sample_name 7  : '(empty 7)'`" color="sampler_loaded 7 ? get_sample_color 7 : dim" query="sampler_play 7 ? blink 1bt : on" drop="sampler_assign 7">sampler_loaded 7 ? sampler_pad 7 : nothing</pad7>
-  <pad8 name="`sampler_loaded 8  ? get_sample_name 8  : '(empty 8)'`" color="sampler_loaded 8 ? get_sample_color 8 : dim" query="sampler_play 8 ? blink 1bt : on" drop="sampler_assign 8">sampler_loaded 8 ? sampler_pad 8 : nothing</pad8>
-  <pad9 name="`sampler_loaded 9  ? get_sample_name 9  : '(empty 9)'`" color="sampler_loaded 9 ? get_sample_color 9 : dim" query="sampler_play 9 ? blink 1bt : on" drop="sampler_assign 9">sampler_loaded 9 ? sampler_pad 9 : nothing</pad9>
-  <pad10 name="`sampler_loaded 10 ? get_sample_name 10 : '(empty 10)'`" color="sampler_loaded 10 ? get_sample_color 10 : dim" query="sampler_play 10 ? blink 1bt : on" drop="sampler_assign 10">sampler_loaded 10 ? sampler_pad 10 : nothing</pad10>
-  <pad11 name="`sampler_loaded 11 ? get_sample_name 11 : '(empty 11)'`" color="sampler_loaded 11 ? get_sample_color 11 : dim" query="sampler_play 11 ? blink 1bt : on" drop="sampler_assign 11">sampler_loaded 11 ? sampler_pad 11 : nothing</pad11>
-  <pad12 name="`sampler_loaded 12 ? get_sample_name 12 : '(empty 12)'`" color="sampler_loaded 12 ? get_sample_color 12 : dim" query="sampler_play 12 ? blink 1bt : on" drop="sampler_assign 12">sampler_loaded 12 ? sampler_pad 12 : nothing</pad12>
-  <pad13 name="`sampler_loaded 13 ? get_sample_name 13 : '(empty 13)'`" color="sampler_loaded 13 ? get_sample_color 13 : dim" query="sampler_play 13 ? blink 1bt : on" drop="sampler_assign 13">sampler_loaded 13 ? sampler_pad 13 : nothing</pad13>
-  <pad14 name="`sampler_loaded 14 ? get_sample_name 14 : '(empty 14)'`" color="sampler_loaded 14 ? get_sample_color 14 : dim" query="sampler_play 14 ? blink 1bt : on" drop="sampler_assign 14">sampler_loaded 14 ? sampler_pad 14 : nothing</pad14>
-  <pad15 name="`sampler_loaded 15 ? get_sample_name 15 : '(empty 15)'`" color="sampler_loaded 15 ? get_sample_color 15 : dim" query="sampler_play 15 ? blink 1bt : on" drop="sampler_assign 15">sampler_loaded 15 ? sampler_pad 15 : nothing</pad15>
-  <pad16 name="`sampler_loaded 16 ? get_sample_name 16 : '(empty 16)'`" color="sampler_loaded 16 ? get_sample_color 16 : dim" query="sampler_play 16 ? blink 1bt : on" drop="sampler_assign 16">sampler_loaded 16 ? sampler_pad 16 : nothing</pad16>
-  <shift_pad1 name="`sampler_loaded 1 ? get_sample_name 1`">sampler_loaded 1 ? sampler_edit 1</shift_pad1>
-  <shift_pad2 name="`sampler_loaded 2 ? get_sample_name 2`">sampler_loaded 2 ? sampler_edit 2</shift_pad2>
-  <shift_pad3 name="`sampler_loaded 3 ? get_sample_name 3`">sampler_loaded 3 ? sampler_edit 3</shift_pad3>
-  <shift_pad4 name="`sampler_loaded 4 ? get_sample_name 4`">sampler_loaded 4 ? sampler_edit 4</shift_pad4>
-  <shift_pad5 name="`sampler_loaded 5 ? get_sample_name 5`">sampler_loaded 5 ? sampler_edit 5</shift_pad5>
-  <shift_pad6 name="`sampler_loaded 6 ? get_sample_name 6`">sampler_loaded 6 ? sampler_edit 6</shift_pad6>
-  <shift_pad7 name="`sampler_loaded 7 ? get_sample_name 7`">sampler_loaded 7 ? sampler_edit 7</shift_pad7>
-  <shift_pad8 name="`sampler_loaded 8 ? get_sample_name 8`">sampler_loaded 8 ? sampler_edit 8</shift_pad8>
-  <shift_pad9 name="`sampler_loaded 9 ? get_sample_name 9`">sampler_loaded 9 ? sampler_edit 9</shift_pad9>
-  <shift_pad10 name="`sampler_loaded 10 ? get_sample_name 10`">sampler_loaded 10? sampler_edit 10</shift_pad10>
-  <shift_pad11 name="`sampler_loaded 11 ? get_sample_name 11`">sampler_loaded 11? sampler_edit 11</shift_pad11>
-  <shift_pad12 name="`sampler_loaded 12 ? get_sample_name 12`">sampler_loaded 12? sampler_edit 12</shift_pad12>
-  <shift_pad13 name="`sampler_loaded 13 ? get_sample_name 13`">sampler_loaded 13? sampler_edit 13</shift_pad13>
-  <shift_pad14 name="`sampler_loaded 14 ? get_sample_name 14`">sampler_loaded 14? sampler_edit 14</shift_pad14>
-  <shift_pad15 name="`sampler_loaded 15 ? get_sample_name 15`">sampler_loaded 15? sampler_edit 15</shift_pad15>
-  <shift_pad16 name="`sampler_loaded 16 ? get_sample_name 16`">sampler_loaded 16? sampler_edit 16</shift_pad16>
-  <param1 name="`get_sampler_bank`">sampler_bank</param1>
-  <param2 name="PAGE `sampler_pad_page`">sampler_pad_page</param2>
+<page name="SAMPLER PAGE-AWARE">
+  <pad1 name="`sampler_loaded 1 'auto' ? get_sample_name 1 'auto' : '(empty 1)'`" color="sampler_loaded 1 'auto' ? sampler_color 1 'auto' : dim" query="sampler_play 1 'auto' ? blink 1bt : on">sampler_loaded 1 'auto' ? sampler_pad 1 'auto' : sampler_rec 1 'auto'</pad1>
+  <pad2 name="`sampler_loaded 2 'auto' ? get_sample_name 2 'auto' : '(empty 2)'`" color="sampler_loaded 2 'auto' ? sampler_color 2 'auto' : dim" query="sampler_play 2 'auto' ? blink 1bt : on">sampler_loaded 2 'auto' ? sampler_pad 2 'auto' : sampler_rec 2 'auto'</pad2>
+  <pad3 name="`sampler_loaded 3 'auto' ? get_sample_name 3 'auto' : '(empty 3)'`" color="sampler_loaded 3 'auto' ? sampler_color 3 'auto' : dim" query="sampler_play 3 'auto' ? blink 1bt : on">sampler_loaded 3 'auto' ? sampler_pad 3 'auto' : sampler_rec 3 'auto'</pad3>
+  <pad4 name="`sampler_loaded 4 'auto' ? get_sample_name 4 'auto' : '(empty 4)'`" color="sampler_loaded 4 'auto' ? sampler_color 4 'auto' : dim" query="sampler_play 4 'auto' ? blink 1bt : on">sampler_loaded 4 'auto' ? sampler_pad 4 'auto' : sampler_rec 4 'auto'</pad4>
+  <pad5 name="`sampler_loaded 5 'auto' ? get_sample_name 5 'auto' : '(empty 5)'`" color="sampler_loaded 5 'auto' ? sampler_color 5 'auto' : dim" query="sampler_play 5 'auto' ? blink 1bt : on">sampler_loaded 5 'auto' ? sampler_pad 5 'auto' : sampler_rec 5 'auto'</pad5>
+  <pad6 name="`sampler_loaded 6 'auto' ? get_sample_name 6 'auto' : '(empty 6)'`" color="sampler_loaded 6 'auto' ? sampler_color 6 'auto' : dim" query="sampler_play 6 'auto' ? blink 1bt : on">sampler_loaded 6 'auto' ? sampler_pad 6 'auto' : sampler_rec 6 'auto'</pad6>
+  <pad7 name="`sampler_loaded 7 'auto' ? get_sample_name 7 'auto' : '(empty 7)'`" color="sampler_loaded 7 'auto' ? sampler_color 7 'auto' : dim" query="sampler_play 7 'auto' ? blink 1bt : on">sampler_loaded 7 'auto' ? sampler_pad 7 'auto' : sampler_rec 7 'auto'</pad7>
+  <pad8 name="`sampler_loaded 8 'auto' ? get_sample_name 8 'auto' : '(empty 8)'`" color="sampler_loaded 8 'auto' ? sampler_color 8 'auto' : dim" query="sampler_play 8 'auto' ? blink 1bt : on">sampler_loaded 8 'auto' ? sampler_pad 8 'auto' : sampler_rec 8 'auto'</pad8>
+
+  <param1 name="BANK `get_sampler_bank`">sampler_bank +1</param1>
+  <param2 name="PAGE `sampler_pad_page`">sampler_pad_page +1</param2>
   <menu>`sampler_options`</menu>
 </page>
+```
+
+### What This Example Does
+
+- Empty pads record into the currently visible sampler page.
+- Loaded pads trigger through `sampler_pad`, so the sample's own trigger mode still applies.
+- The pad colors follow the visible sampler page through `sampler_color`.
+- `param1` cycles banks and `param2` cycles sampler sub-pages.
+
+## Sampler Utility Page
+
+This is a compact companion page for common sampler tasks: lock/unlock the bank, switch StemSwap on/off, change routing, change trigger mode, and trim sampler master/PFL levels.
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="SAMPLER UTILITY">
+  <pad1 name="Lock / Unlock">sampler_options "locked"</pad1>
+  <pad2 name="StemSwap">sampler_options "stemswap"</pad2>
+  <pad3 name="Output">sampler_output "popup"</pad3>
+  <pad4 name="Trigger Mode">sampler_mode +1</pad4>
+  <pad5 name="Main +5%">sampler_volume_master +5%</pad5>
+  <pad6 name="Main -5%">sampler_volume_master -5%</pad6>
+  <pad7 name="HP +5%">sampler_pfl +5%</pad7>
+  <pad8 name="HP -5%">sampler_pfl -5%</pad8>
+</page>
+```
+
+## Useful Variations
+
+- Always sync sampler pads to the active deck:
+
+```text
+deck active sampler_pad 1 "auto"
+```
+
+- Always sync sampler pads to the master deck:
+
+```text
+deck master sampler_pad 1 "auto"
+```
+
+- Page the sampler bank forward or backward from a controller or custom button:
+
+```text
+sampler_pad_page +1
+sampler_pad_page -1
+```
+
+- Use the currently visible sampler pad volume instead of an absolute slot:
+
+```text
+sampler_pad_volume 1 75%
+```
+
+- Address a fixed absolute slot, regardless of the visible sampler page:
+
+```text
+sampler_volume 9 75%
+get_sample_name 9
+get_sample_color 9
+```
+
+- Add stock stop/delete shift behavior to a sampler pad:
+
+```xml
+<shift_pad1>sampler_pad_shift 1</shift_pad1>
+```
+
+- If you need an explicit custom matrix instead of Automatic layout, staff guidance shows patterns such as:
+
+```text
+sampler_pad 1 "4x4x1"
+```
+
+## Practical Notes
+
+- If you want deck 1 to expose `1-8` and deck 2 to expose `9-16` automatically, enable `samplerSpanAcrossDecks`.
+- If you want both decks to start on `1-8`, leave `samplerSpanAcrossDecks` off and page manually with `sampler_pad_page`.
+- `sampler_pad`, `sampler_color`, and `sampler_pad_volume` are the safest page-aware helpers.
+- `sampler_play`, `sampler_stop`, `sampler_volume`, `get_sample_name`, and `get_sample_color` are best treated as absolute-slot helpers unless you intentionally pass `"auto"` or a specific layout string.
+
+## Source Notes
+
+- Official pads behavior: [Pads manual](https://www.virtualdj.com/manuals/virtualdj/interface/decks/decksadvanced/pads.html)
+- Official sampler verbs: [VDJScript verbs](https://www.virtualdj.com/manuals/virtualdj/appendix/vdjscriptverbs.html)
+- Official sampler options: [Options list](https://www.virtualdj.com/manuals/virtualdj/appendix/optionslist.html)
+- Trigger modes and loop sync details: [Sample Editor](https://www.virtualdj.com/manuals/virtualdj/editors/sampleeditor.html)
+- Page-aware custom page examples: [Custom Sampler Pad Page](https://www.virtualdj.com/forums/253061/General_Discussion/Custom_Sampler_Pad_Page_%28Recording__Looping__Adjust_Beatgrid_and_more%29.html)
+- Deck sync guidance: [problem with (pad pages) pads sampler sync](https://virtualdj.com/forums/224203/VirtualDJ_Technical_Support/problem_with_%28pad_pages%29_pads_sampler_sync%21_please_help___is_it_a_bug%3F%3F.html)
+- Paging and `9-16` workflow: [No longer possible to access 16 samples from controllers with 8 x 2 pads?](https://virtualdj.com/forums/261416/VirtualDJ_Technical_Support/No_longer_possible_to_access_16_samples_from_controllers_with_8_x_2_pads_.html)
+- Matrix/layout hint: [Using Xone K2 to control the sampler](https://www.virtualdj.com/forums/261102/VirtualDJ_Technical_Support/Using_Xone_K2_to_control_the_sampler.html)

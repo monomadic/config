@@ -293,29 +293,29 @@ Comprehensive reference for VirtualDJ configuration options organized by categor
 
 ## Sampler
 
-| Option                            | Description               | Values                        |
-| --------------------------------- | ------------------------- | ----------------------------- |
-| `samplerBank`                     | Current sample bank       | bank name                     |
-| `samplerTriggerMode`              | Default trigger mode      | on/off, hold, stutter, unmute |
-| `samplerDefaultLoopMode`          | Default loop sync mode    | mode                          |
-| `samplerForceNbColumns`           | Force pad layout          | columns                       |
-| `samplerSpanAcrossDecks`          | 16 samples across 2 decks | yes, no                       |
-| `samplerExportLossless`           | Save as FLAC              | yes (FLAC), no (OGG)          |
-| `samplerDontSaveSource`           | Don't save source path    | yes, no                       |
-| `samplerRootFolder`               | Samples folder            | folder path                   |
-| `samplerHideDefaultBanks`         | Hide default banks        | yes, no                       |
-| `samplerHideLegacyBanks`          | Hide v8 banks             | yes, no                       |
-| `samplerOutputDeck`               | Sample output routing     | 0, -2, -1, 1, 2, etc          |
-| `samplerApplyEffectsOnDeckOutput` | Apply deck FX to sampler  | yes, no                       |
-| `samplerVideoVolumeLink`          | Video fades with volume   | yes, no                       |
-| `autoSideview`                    | Auto-switch sideview      | yes, no                       |
-| `samplerImageSize`                | Pad image size            | size                          |
-| `samplerHeadphones`               | Sampler to headphones     | yes, no                       |
-| `samplerShowEffects`              | Show effect toolbar       | yes, no                       |
-| `samplerShowWaveform`             | Show waveforms            | yes, no                       |
-| `samplerIndependentDeckBanks`     | Deck-specific banks       | yes, no                       |
-| `samplerRecordStemsPads`          | Record stems pads config  | config                        |
-| `samplerRecordLength`             | Stem record length        | duration                      |
+| Option                            | Description                                                                | Values                                            |
+| --------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------- |
+| `samplerBank`                     | Name of the sampler bank currently loaded                                  | bank name                                         |
+| `samplerTriggerMode`              | Default/global trigger mode for sampler playback                           | `on/off`, `hold`, `stutter`, `unmute`             |
+| `samplerDefaultLoopMode`          | Default loop sync/play mode used when a new loop sample is recorded        | flat, pitched, sync-start, sync-lock              |
+| `samplerForceNbColumns`           | Force the SideView sampler pad layout instead of Automatic                 | `auto`, `1`-`8`                                   |
+| `samplerSpanAcrossDecks`          | Automatically expose `9-16` on deck 2 when a bank has more than 8 samples  | yes, no                                           |
+| `samplerExportLossless`           | Save newly recorded samples as FLAC instead of OGG                         | yes (FLAC), no (OGG)                              |
+| `samplerDontSaveSource`           | Omit original source file paths from newly recorded samples                | yes, no                                           |
+| `samplerRootFolder`               | Root folder where sampler banks and recordings are stored                  | folder path                                       |
+| `samplerHideDefaultBanks`         | Hide the built-in default sampler banks                                    | yes, no                                           |
+| `samplerHideLegacyBanks`          | Hide legacy VirtualDJ 8 sampler banks                                      | yes, no                                           |
+| `samplerOutputDeck`               | Output routing for regular banks and SideView-triggered samples            | `0`, `-2`, `-1`, `1`, `2`, etc                    |
+| `samplerApplyEffectsOnDeckOutput` | Apply deck FX/EQ/filter when sampler output is routed to a fixed deck      | yes, no                                           |
+| `samplerVideoVolumeLink`          | Fade video samples with sample volume                                      | yes, no                                           |
+| `autoSideview`                    | Auto-switch SideView to the sampler when `sampler_bank` changes            | yes, no                                           |
+| `samplerImageSize`                | Image size used in sampler pad view                                        | small, large, full                                |
+| `samplerHeadphones`               | Allow sampler audio to be heard in headphones                              | yes, no                                           |
+| `samplerShowEffects`              | Show the sampler FX toolbar in SideView                                    | yes, no                                           |
+| `samplerShowWaveform`             | Show sample waveforms in the sampler SideView                              | yes, no                                           |
+| `samplerIndependentDeckBanks`     | Let each deck and master keep a separate active sampler bank               | yes, no                                           |
+| `samplerRecordStemsPads`          | Store which stems each pad records in StemSwap banks                       | config                                            |
+| `samplerRecordLength`             | Pad-record preset used for new samples from the Sampler pads               | Drop, Manual Loop, 4/8/16/32 beats, Follow Loop Size |
 
 ### Sampler Output Routing
 
@@ -323,6 +323,27 @@ Comprehensive reference for VirtualDJ configuration options organized by categor
 - **-2**: Trigger deck
 - **-1**: Headphones
 - **1, 2, etc**: Specific deck
+
+### Pad-Page Behavior
+
+- Turn on `samplerSpanAcrossDecks` if you want the classic deck 1 = `1-8`, deck 2 = `9-16` workflow for 16-slot banks.
+- Turn off `samplerSpanAcrossDecks` if you want both decks to start on `1-8` and page manually with `sampler_pad_page`.
+- Turn on `samplerIndependentDeckBanks` when each deck or master output should remember its own active bank.
+- Turn on `autoSideview` if changing banks should also pull focus to the Sampler SideView.
+
+### Recording & Storage
+
+- `samplerDefaultLoopMode` controls how newly recorded loop samples are saved in relation to tempo/phase.
+- `samplerRecordLength` matches the Sampler pad menu presets: Drop, Manual Loop, 4, 8, 16, 32 beats, and Follow Loop Size.
+- `samplerExportLossless` switches newly recorded samples from OGG to FLAC.
+- `samplerDontSaveSource` is useful when you want to share banks without exposing local source paths.
+
+### Sampler Source Notes
+
+- Official options: [Options list](https://www.virtualdj.com/manuals/virtualdj/appendix/optionslist.html)
+- Sampler SideView behavior and layout: [Sampler manual](https://www.virtualdj.com/manuals/virtualdj8/interface/browser/sideview/sampler.html)
+- Default pad behavior and record presets: [Pads manual](https://www.virtualdj.com/manuals/virtualdj/interface/decks/decksadvanced/pads.html)
+- Recent paging notes: [No longer possible to access 16 samples from controllers with 8 x 2 pads?](https://virtualdj.com/forums/261416/VirtualDJ_Technical_Support/No_longer_possible_to_access_16_samples_from_controllers_with_8_x_2_pads_.html)
 
 ## Browser
 

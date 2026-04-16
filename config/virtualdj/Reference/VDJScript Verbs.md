@@ -453,24 +453,90 @@ Comprehensive reference for VDJScript verbs organized by category.
 
 ## Sampler
 
-| Verb             | Description      | Example                              |
-| ---------------- | ---------------- | ------------------------------------ |
-| `sampler_play`   | Play sample      | `sampler_play 4`                     |
-| `sampler_stop`   | Stop sample      | `sampler_stop 4`, `sampler_stop all` |
-| `sampler_pad`    | Trigger sample   | `sampler_pad 1`                      |
-| `sampler_volume` | Set volume       | `sampler_volume 1`                   |
-| `sampler_rec`    | Record sample    | `sampler_rec "mic"`                  |
-| `sampler_loop`   | Set sample loop  | `sampler_loop 1 1`                   |
-| `sampler_bank`   | Select bank      | `sampler_bank "birthday"`            |
-| `sampler_mode`   | Set trigger mode | `sampler_mode 1 'stutter'`           |
-| `sampler_output` | Select output    | `sampler_output "headphones"`        |
+| Verb                         | Description                                                      | Example                                                   |
+| ---------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------- |
+| `sampler_play`               | Play the selected or specified sample slot                       | `sampler_play 4`                                          |
+| `sampler_play_stutter`       | Play sample and restart it from the beginning if already playing | `sampler_play_stutter 4`                                  |
+| `sampler_play_stop`          | Play sample if stopped, or stop it if already playing            | `sampler_play_stop 4`                                     |
+| `sampler_stop`               | Stop one sample or all currently playing samples                 | `sampler_stop 4`, `sampler_stop all`                      |
+| `sampler_pad`                | Trigger the currently exposed sampler pad slot                   | `sampler_pad 1`, `sampler_pad 1 "auto"`                   |
+| `sampler_pad_shift`          | Stop a sample if playing, delete it otherwise                    | `sampler_pad_shift 1`                                     |
+| `sampler_pad_page`           | Change/query the current 8-pad sampler window                    | `sampler_pad_page +1`, `sampler_pad_page -1`              |
+| `sampler_assign`             | Assign a `.vdjsample` file to a slot                             | `sampler_assign 1 "/Samples/horn.vdjsample"`              |
+| `sampler_loaded`             | Check whether a slot currently has a sample loaded               | `sampler_loaded 1`, `sampler_loaded 1 "auto"`             |
+| `sampler_color`              | Get the color of the visible sampler pad slot                    | `sampler_color 1`                                         |
+| `sampler_select`             | Select the default sampler slot for the deck                     | `sampler_select 5`, `sampler_select +1`                   |
+| `sampler_position`           | Get the current playback position of the selected sample         | `sampler_position`                                        |
+| `sampler_bank`               | Select or cycle sampler banks                                    | `sampler_bank "birthday"`, `sampler_bank +1`              |
+| `sampler_mute`               | Mute or unmute a sample                                          | `sampler_mute 4`                                          |
+| `sampler_edit`               | Open the Sample Editor for a sample                              | `sampler_edit 4`                                          |
+| `sampler_mode`               | Set global or per-sample trigger mode                            | `sampler_mode 1 'stutter'`, `sampler_mode +1`             |
+| `sampler_output`             | Route sampler output to master, trigger deck, headphones, etc.   | `sampler_output "headphones"`, `deck master sampler_output` |
+| `sampler_options`            | Open or toggle sampler bank options                              | `sampler_options`, `sampler_options "locked"`             |
+| `sampler_volume_master`      | Set the sampler master volume                                    | `sampler_volume_master +5%`                               |
+| `sampler_pfl`                | Send sampler to headphones or set sampler PFL volume             | `sampler_pfl 75%`                                         |
+| `sampler_volume`             | Set sample volume by absolute slot or sample name                | `sampler_volume 9 75%`, `sampler_volume "siren" 75%`      |
+| `sampler_pad_volume`         | Set sample volume by visible sampler pad position                | `sampler_pad_volume 1 75%`                                |
+| `sampler_volume_nogroup`     | Adjust one sample without also changing other samples in its group | `sampler_volume_nogroup 9 75%`                          |
+| `sampler_group_volume`       | Adjust all samples in a sampler group                            | `sampler_group_volume "horns" 75%`                        |
+| `sampler_loop`               | Change the loop length of a sample or set it explicitly          | `sampler_loop 1 1`, `sampler_loop +1`                     |
+| `sampler_rec`                | Record a sample from the deck, mic, or master                    | `sampler_rec`, `sampler_rec "mic"`, `sampler_rec 1`       |
+| `sampler_start_rec`          | Start recording a new sample                                     | `sampler_start_rec "master"`                              |
+| `sampler_stop_rec`           | Stop recording and save the sample                               | `sampler_stop_rec`                                        |
+| `sampler_abort_rec`          | Cancel recording and delete the unfinished sample                | `sampler_abort_rec`                                       |
+| `sampler_rec_delete`         | Delete a sample from the Recordings bank                         | `sampler_rec_delete 3`                                    |
+| `sampler_used` / `get_sampler_used` | Check whether any sample, or a specific count of samples, is playing | `sampler_used`, `sampler_used 4`                  |
+| `get_sampler_slot`           | Get the sampler slot that currently has focus                    | `get_sampler_slot`                                        |
+| `get_sampler_count`          | Get the number of slots in the current sampler bank              | `get_sampler_count`                                       |
+| `get_sample_name`            | Get the name of a sample                                         | `get_sample_name 9`, `get_sample_name 1 "auto"`           |
+| `get_sample_info`            | Read sample metadata such as `fullpath`, `group`, or `length`    | `get_sample_info 9 fullpath`                              |
+| `get_sampler_bank`           | Get the name of the active sampler bank                          | `get_sampler_bank`                                        |
+| `get_sampler_bank_id`        | Get the numeric id of the active sampler bank                    | `get_sampler_bank_id`                                     |
+| `get_sampler_bank_count`     | Get the total number of sampler banks                            | `get_sampler_bank_count`                                  |
+| `get_sample_color`           | Get the actual stored color of a sample slot                     | `get_sample_color 9`                                      |
 
 ### Sampler Modes
 
-- `on/off` - Toggle
-- `hold` - Play while held
-- `stutter` - Restart on press
-- `unmute` - Unmute mode
+- `on/off` - One press starts the sample, the next press stops it, or it stops when it reaches the end.
+- `hold` - The sample plays only while the pad is held.
+- `stutter` - Each press restarts the sample from the beginning.
+- `unmute` - The sample keeps running, but is only audible while the pad is held.
+
+### Sampler Notes
+
+- `sampler_pad_page` is the pager behind Parameter 2 on the default Sampler pad page and is the main way to reach `9-16`, `17-24`, and later sub-pages in banks with more than 8 samples.
+- `sampler_pad`, `sampler_color`, and `sampler_pad_volume` are the safest page-aware helpers when building sampler pad pages.
+- `sampler_play`, `sampler_stop`, `sampler_volume`, `get_sample_name`, `get_sample_info`, and `get_sample_color` are best treated as absolute slot helpers unless you intentionally pass the optional forum-backed `"auto"` layout argument used by the stock/custom sampler pages.
+- Use `sampler_color` when you want the color of the currently visible sampler pad. Use `get_sample_color` when you want the actual stored color of a specific bank slot.
+- Samples triggered from a deck sync to that deck. If you want a pad page to follow a predictable sync source, trigger through an explicit deck:
+
+```text
+deck active sampler_pad 1 "auto"
+deck master sampler_pad 1 "auto"
+```
+
+- If you want the traditional left-deck `1-8` and right-deck `9-16` behavior, either page the second deck manually with `sampler_pad_page +1` or enable the `samplerSpanAcrossDecks` option.
+
+### Working Sampler Examples
+
+```text
+sampler_loaded 1 "auto" ? sampler_pad 1 "auto" : sampler_rec 1 "auto"
+sampler_pad_page +1
+sampler_bank +1
+sampler_options "locked"
+sampler_pad_volume 1 75%
+sampler_volume 9 75%
+```
+
+### Sampler Source Notes
+
+- Official verbs: [VDJScript verbs](https://www.virtualdj.com/manuals/virtualdj/appendix/vdjscriptverbs.html)
+- Default sampler page behavior: [Pads manual](https://www.virtualdj.com/manuals/virtualdj/interface/decks/decksadvanced/pads.html)
+- Trigger modes and loop sync settings: [Sample Editor](https://www.virtualdj.com/manuals/virtualdj/editors/sampleeditor.html)
+- Page-aware custom pad page examples: [Custom Sampler Pad Page](https://www.virtualdj.com/forums/253061/General_Discussion/Custom_Sampler_Pad_Page_%28Recording__Looping__Adjust_Beatgrid_and_more%29.html)
+- Deck sync guidance: [problem with (pad pages) pads sampler sync](https://virtualdj.com/forums/224203/VirtualDJ_Technical_Support/problem_with_%28pad_pages%29_pads_sampler_sync%21_please_help___is_it_a_bug%3F%3F.html)
+- Paging and `9-16` behavior: [No longer possible to access 16 samples from controllers with 8 x 2 pads?](https://virtualdj.com/forums/261416/VirtualDJ_Technical_Support/No_longer_possible_to_access_16_samples_from_controllers_with_8_x_2_pads_.html)
+- Explicit matrix/layout argument: [Using Xone K2 to control the sampler](https://www.virtualdj.com/forums/261102/VirtualDJ_Technical_Support/Using_Xone_K2_to_control_the_sampler.html)
 
 ## Sync
 
