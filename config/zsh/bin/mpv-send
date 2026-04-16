@@ -3,6 +3,10 @@
 # Send files and simple control commands to a running mpv instance via JSON IPC.
 # Starts mpv automatically if needed, supports verbose debugging, and streams
 # playlist additions to the socket without waiting for upstream EOF.
+#
+# play supports:
+#   -0 | --read0   read NUL-delimited stdin
+#   --shuffle      shuffle once after all queued files have been sent
 
 set -euo pipefail
 
@@ -61,10 +65,13 @@ the configured IPC socket, then send control commands or replace/append files
 to the playlist.
 
 Commands:
-  play [files...]         Load files into mpv.
+  play [options] [files...]
+                          Load files into mpv.
                           Reads from stdin first (newline by default).
                           Falls back to args if stdin is empty.
-                          Options: -0|--read0 (NUL-delimited stdin)
+                          Options:
+                            -0|--read0   NUL-delimited stdin
+                            --shuffle    shuffle playlist after all files sent
   next                    Skip to next file
   prev                    Jump to previous file
   random                  Jump to a random file (shuffle + next)
@@ -232,27 +239,38 @@ focus_mpv() {
 
 play_cmd() {
   local read0=false
+  local shuffle_after=false
   local line f payload batch_count
   local sent=0
   local batch_size="$MPV_SEND_BATCH_SIZE"
 
   log "play_cmd: parsing options/inputs"
 
-  while [[ $# -gt 0 && "$1" == -* ]]; do
+  while [[ $# -gt 0 ]]; do
     case "$1" in
       -0|--read0)
         read0=true
         log "stdin mode: NUL-delimited"
+        shift
+        ;;
+      --shuffle)
+        shuffle_after=true
+        log "post-action: shuffle playlist"
+        shift
         ;;
       --)
         shift
         break
         ;;
+      -*)
+        echo "Error: unknown play option: $1" >&2
+        echo "Usage: mpv-send play [-0|--read0] [--shuffle] [--] [files...]" >&2
+        exit 1
+        ;;
       *)
         break
         ;;
     esac
-    shift
   done
 
   case "$batch_size" in
@@ -274,7 +292,7 @@ play_cmd() {
 
   queue_item() {
     local raw="$1"
-    local mode f
+    local mode item_payload
 
     [[ -n "$raw" ]] || return 0
 
@@ -283,19 +301,17 @@ play_cmd() {
     if (( sent == 0 )); then
       ensure_mpv
       mode="replace"
-      payload="$(mpv_cmd_json loadfile "$f" "$mode")"$'\n'
-      payload+="$(mpv_cmd_json set_property pause no)"$'\n'
-      log "send first file mode=$mode path=$f"
-      if ! send_ipc_many "$payload" >/dev/null 2>/dev/null; then
+      item_payload="$(mpv_cmd_json loadfile "$f" "$mode")"$'\n'
+      item_payload+="$(mpv_cmd_json set_property pause no)"$'\n'
+      log "send first file mode=$mode file=$f"
+      if ! send_ipc_many "$item_payload" >/dev/null 2>/dev/null; then
         log "first send failed; restarting mpv and retrying once"
         start_mpv
-        send_ipc_many "$payload" >/dev/null || return 1
+        send_ipc_many "$item_payload" >/dev/null || return 1
       fi
-      payload=""
-      batch_count=0
     else
       mode="append-play"
-      log "queue file #$(( sent + 1 )) mode=$mode path=$f"
+      log "queue file #$(( sent + 1 )) mode=$mode file=$f"
       payload+="$(mpv_cmd_json loadfile "$f" "$mode")"$'\n'
       (( ++batch_count ))
 
@@ -349,7 +365,20 @@ play_cmd() {
     exit 1
   }
 
-  echo "Sent $sent file(s) to mpv"
+  if $shuffle_after; then
+    log "sending post-action: playlist-shuffle"
+    mpv_cmd playlist-shuffle || {
+      echo "Error: failed to shuffle playlist" >&2
+      exit 1
+    }
+  fi
+
+  if $shuffle_after; then
+    echo "Sent $sent file(s) to mpv and shuffled playlist"
+  else
+    echo "Sent $sent file(s) to mpv"
+  fi
+
   focus_mpv
 }
 

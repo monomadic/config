@@ -1,4 +1,4 @@
---download-archive ~/.yt-dlp-archive
+--download-archive $HOME/Library/Mobile\ Documents/com~apple~CloudDocs/Sync/archive.txt
 --output-na-placeholder ""
 --no-mtime
 --continue
@@ -11,6 +11,7 @@
 --progress
 --console-title
 --trim-filenames 200
+--paths "temp:$HOME/.cache/yt-dlp-tmp"
 
 --alias print-name "-s --print filename -o {0} --trim-filenames 200 --output-na-placeholder ''"
---alias porn '-o "%(cast,uploader|)l%(cast& - |)s[%(channel,uploader|Unknown)s] %(title)s (%(extractor)s).%(ext)s" --write-info-json --embed-metadata --parse-metadata "%(webpage_url)s:(?P<meta_comment>.+)" --parse-metadata "%(webpage_url)s:(?P<meta_purl>.+)" --progress --console-title --trim-filenames 200'
+--alias porn '-o "%(cast,uploader|)l%(cast& - |)s[%(channel,uploader|Unknown)s] %(title)s (%(extractor)s).%(ext)s" --write-info-json --embed-metadata --parse-metadata "%(webpage_url)s:(?P<meta_comment>.+)" --parse-metadata "%(webpage_url)s:(?P<meta_purl>.+)" --progress --console-title --trim-filenames 200 --paths "home:$HOME/Movies/Porn/Downloads"'
