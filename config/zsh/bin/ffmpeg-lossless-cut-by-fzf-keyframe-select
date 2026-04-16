@@ -305,6 +305,14 @@ trim_copy() {
     "$output_file"
 }
 
+confirm_overwrite() {
+  local output_file="$1"
+  local reply=""
+
+  read -r "?Output exists. Overwrite '$output_file'? [y/N] " reply
+  [[ "$reply" == [Yy] || "$reply" == [Yy][Ee][Ss] ]]
+}
+
 perform_cut() {
   local input_file="$1"
   local start_time="$2"
@@ -317,9 +325,11 @@ perform_cut() {
   fi
 
   if [[ -e "$output_file" && "$force" != true ]]; then
-    warn "output already exists: $output_file"
-    warn "use --force to overwrite"
-    return 1
+    if ! confirm_overwrite "$output_file"; then
+      warn "output already exists: $output_file"
+      warn "skipped"
+      return 1
+    fi
   fi
 
   info "Output:            $output_file"
@@ -459,16 +469,6 @@ for input_file in "${files[@]}"; do
 
   info "Selected cut:      $pretty_ts  ($ts)"
   info "Trimmed output:    $output_file"
-
-  if [[ "$yes" != true ]]; then
-    reply=""
-    read -r "?Write trimmed copy? [y/N] " reply
-    if [[ ! "$reply" == [Yy] && ! "$reply" == [Yy][Ee][Ss] ]]; then
-      warn "skipped"
-      (( skip_count++ ))
-      continue
-    fi
-  fi
 
   if [[ "$dry_run" == true ]]; then
     print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' -map 0 -c copy '$output_file'"
