@@ -252,6 +252,12 @@ Define reusable element templates to avoid repetition.
 </button>
 ```
 
+**Class Name Casing:**
+
+- In practice, skin class matching is case-insensitive, so `class="SAMPLER_ROW"` and `class="sampler_row"` will resolve to the same define.
+- A useful house style is to write define names in uppercase when declaring them and lowercase when implementing them, because it makes the definition/call sites easier to visually distinguish.
+- This casing convention applies to the `class` name itself. Placeholder tokens should still stay uppercase inside brackets, e.g. `[WIDTH]`, because that is the established placeholder style shown in the SDK/forum examples.
+
 **Color Defines:**
 ```xml
 <define color="deckcolorbright" value="#1e7b96" deck="1"/>
