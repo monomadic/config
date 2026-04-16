@@ -1,6 +1,5 @@
 alias yt-json-dump="yt-dlp --write-info-json --skip-download "
 alias yt-json-description="jq '.description' "
-alias yt-batch-edit="$EDITOR $HOME/.ytdl-batch-porn"
 alias yt-thumbnail="yt-dlp --skip-download --write-thumbnail "
 alias yt-thumbnail-jpg="yt-dlp --skip-download --write-thumbnail --convert-thumbnails jpg "
 alias yt-porn="yt-dlp --porn"
@@ -98,7 +97,7 @@ function yt-fg-archive {
         --ignore-errors
         --no-continue
         --no-overwrites
-        --download-archive archive.log
+        --download-archive '$YT_DLP_ARCHIVE_FILE'
         --add-metadata
         --parse-metadata '%(title)s:%(meta_title)s'
         --parse-metadata '%(uploader)s:%(meta_artist)s'
@@ -117,7 +116,7 @@ function yt-fg-archive {
         --merge-output-format 'mkv'
         --datebefore '$(date --date="30 days ago" +%Y%m%d)'
         --throttled-rate 100K
-        --batch-file '$HOME/.ytdl-batch'
+        --batch-file '$YT_DLP_BATCH_FILE'
     "
 
   # Run yt-dlp with all options
