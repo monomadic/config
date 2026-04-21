@@ -459,11 +459,11 @@ Comprehensive reference for VDJScript verbs organized by category.
 | `sampler_play_stutter`       | Play sample and restart it from the beginning if already playing | `sampler_play_stutter 4`                                  |
 | `sampler_play_stop`          | Play sample if stopped, or stop it if already playing            | `sampler_play_stop 4`                                     |
 | `sampler_stop`               | Stop one sample or all currently playing samples                 | `sampler_stop 4`, `sampler_stop all`                      |
-| `sampler_pad`                | Trigger the currently exposed sampler pad slot                   | `sampler_pad 1`, `sampler_pad 1 "auto"`                   |
+| `sampler_pad`                | Trigger the currently exposed sampler pad slot; in display/name contexts it can also return the visible pad label | `sampler_pad 1`, `` `sampler_pad 1` `` |
 | `sampler_pad_shift`          | Stop a sample if playing, delete it otherwise                    | `sampler_pad_shift 1`                                     |
 | `sampler_pad_page`           | Change/query the current 8-pad sampler window                    | `sampler_pad_page +1`, `sampler_pad_page -1`              |
 | `sampler_assign`             | Assign a `.vdjsample` file to a slot                             | `sampler_assign 1 "/Samples/horn.vdjsample"`              |
-| `sampler_loaded`             | Check whether a slot currently has a sample loaded               | `sampler_loaded 1`, `sampler_loaded 1 "auto"`             |
+| `sampler_loaded`             | Check whether the visible sampler pad slot currently has a sample loaded | `sampler_loaded 1`, `sampler_loaded 1 "auto"`     |
 | `sampler_color`              | Get the color of the visible sampler pad slot                    | `sampler_color 1`                                         |
 | `sampler_select`             | Select the default sampler slot for the deck                     | `sampler_select 5`, `sampler_select +1`                   |
 | `sampler_position`           | Get the current playback position of the selected sample         | `sampler_position`                                        |
@@ -488,7 +488,7 @@ Comprehensive reference for VDJScript verbs organized by category.
 | `sampler_used` / `get_sampler_used` | Check whether any sample, or a specific count of samples, is playing | `sampler_used`, `sampler_used 4`                  |
 | `get_sampler_slot`           | Get the sampler slot that currently has focus                    | `get_sampler_slot`                                        |
 | `get_sampler_count`          | Get the number of slots in the current sampler bank              | `get_sampler_count`                                       |
-| `get_sample_name`            | Get the name of a sample                                         | `get_sample_name 9`, `get_sample_name 1 "auto"`           |
+| `get_sample_name`            | Get the name of an absolute sample slot                          | `get_sample_name 9`                                       |
 | `get_sample_info`            | Read sample metadata such as `fullpath`, `group`, or `length`    | `get_sample_info 9 fullpath`                              |
 | `get_sampler_bank`           | Get the name of the active sampler bank                          | `get_sampler_bank`                                        |
 | `get_sampler_bank_id`        | Get the numeric id of the active sampler bank                    | `get_sampler_bank_id`                                     |
@@ -505,8 +505,10 @@ Comprehensive reference for VDJScript verbs organized by category.
 ### Sampler Notes
 
 - `sampler_pad_page` is the pager behind Parameter 2 on the default Sampler pad page and is the main way to reach `9-16`, `17-24`, and later sub-pages in banks with more than 8 samples.
-- `sampler_pad`, `sampler_color`, and `sampler_pad_volume` are the safest page-aware helpers when building sampler pad pages.
-- `sampler_play`, `sampler_stop`, `sampler_volume`, `get_sample_name`, `get_sample_info`, and `get_sample_color` are best treated as absolute slot helpers unless you intentionally pass the optional forum-backed `"auto"` layout argument used by the stock/custom sampler pages.
+- `sampler_pad`, `sampler_loaded`, `sampler_color`, and `sampler_pad_volume` are the safest page-aware helpers when building sampler pad pages.
+- In display contexts such as pad `name=` fields and skin/text `format=` fields, `sampler_pad 1` through `sampler_pad 8` are the safest way to show the current visible sample names on the active sampler page.
+- For visibility and empty-slot checks in paged sampler UIs, `sampler_loaded 1` through `sampler_loaded 8` already follow the visible sampler page, so you usually do not need to infer emptiness from a blank `sampler_pad` label.
+- `sampler_play`, `sampler_stop`, `sampler_volume`, `get_sample_name`, `get_sample_info`, and `get_sample_color` are best treated as absolute-slot helpers.
 - Use `sampler_color` when you want the color of the currently visible sampler pad. Use `get_sample_color` when you want the actual stored color of a specific bank slot.
 - Samples triggered from a deck sync to that deck. If you want a pad page to follow a predictable sync source, trigger through an explicit deck:
 
@@ -515,11 +517,19 @@ deck active sampler_pad 1 "auto"
 deck master sampler_pad 1 "auto"
 ```
 
+- `deck master` means the current master deck context, not a separate global sampler namespace.
+- In skin XML, raw `deck master sampler_pad <n>` can be less reliable than an explicit deck number in some sampler title/query paths. If a paged sampler title shows the wrong slot, resolve the master deck explicitly:
+
+```text
+deck 1 masterdeck ? deck 1 sampler_pad 1 : deck 2 masterdeck ? deck 2 sampler_pad 1 : deck 3 masterdeck ? deck 3 sampler_pad 1 : deck 4 masterdeck ? deck 4 sampler_pad 1 : sampler_pad 1
+```
+
 - If you want the traditional left-deck `1-8` and right-deck `9-16` behavior, either page the second deck manually with `sampler_pad_page +1` or enable the `samplerSpanAcrossDecks` option.
 
 ### Working Sampler Examples
 
 ```text
+sampler_pad 1
 sampler_loaded 1 "auto" ? sampler_pad 1 "auto" : sampler_rec 1 "auto"
 sampler_pad_page +1
 sampler_bank +1
@@ -535,6 +545,7 @@ sampler_volume 9 75%
 - Trigger modes and loop sync settings: [Sample Editor](https://www.virtualdj.com/manuals/virtualdj/editors/sampleeditor.html)
 - Page-aware custom pad page examples: [Custom Sampler Pad Page](https://www.virtualdj.com/forums/253061/General_Discussion/Custom_Sampler_Pad_Page_%28Recording__Looping__Adjust_Beatgrid_and_more%29.html)
 - Deck sync guidance: [problem with (pad pages) pads sampler sync](https://virtualdj.com/forums/224203/VirtualDJ_Technical_Support/problem_with_%28pad_pages%29_pads_sampler_sync%21_please_help___is_it_a_bug%3F%3F.html)
+- Master-deck sampler quirks in newer builds: [Virtual Dj 2025 Sampler Sync](https://virtualdj.com/forums/265522/VirtualDJ_Technical_Support/Virtual_Dj_2025_Sampler_Sync.html)
 - Paging and `9-16` behavior: [No longer possible to access 16 samples from controllers with 8 x 2 pads?](https://virtualdj.com/forums/261416/VirtualDJ_Technical_Support/No_longer_possible_to_access_16_samples_from_controllers_with_8_x_2_pads_.html)
 - Explicit matrix/layout argument: [Using Xone K2 to control the sampler](https://www.virtualdj.com/forums/261102/VirtualDJ_Technical_Support/Using_Xone_K2_to_control_the_sampler.html)
 

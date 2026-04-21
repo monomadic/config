@@ -291,6 +291,11 @@ Clickable button with multiple states and support for image graphics or vector s
 - `dblclick=""` - Different action for double-click
 - `query=""` - VDJScript query that enables `<on>` graphics when true (alternative to `action` for state determination)
 
+**Confirmed Behavior Notes:**
+- `query=""` drives the button's `<on>` graphics, not `<selected>`. If a button should change appearance when a VDJScript condition is true, use `<off>`/`<on>` for the graphics state. Official reference: [VirtualDJ Skin Button](https://www.virtualdj.com/wiki/Skin%20Button.html)
+- Dynamic button border colors are not currently supported. Even though `border=""` is documented as a color field, official clarification from VirtualDJ CTO Adion says dynamic colors are not supported for border color. Use `visual type="color"` overlays or underlays when a border needs to follow `cue_color`, `sampler_color`, etc. Official reference: [Border Color using placeholder](https://virtualdj.com/forums/242871/VirtualDJ_Skins/Border_Color_using_placeholder.html)
+- For dynamic text colors, the most reliable documented pattern is to use a single `<text>` element with a dynamic `color="`...`"` expression, rather than relying on `colorselected=""` or other state-specific color attributes to evaluate VDJScript. Official references: [Skin Default Colors](https://www.virtualdj.com/wiki/Skin%20Default%20Colors.html), [Skin text action; visibility or visual?](https://www.virtualdj.com/forums/267953/VirtualDJ_Skins/Skin_text_action%3B_visibility_or_visual%3F.html)
+
 **Children:**
 - `<tooltip>` - Tooltip text (supports `\n` for multiple lines)
 - `<pos x="" y=""/>` - Position on screen
@@ -1108,6 +1113,49 @@ Colors can be specified as:
 - RGB: `"255,0,0"`
 - Named: `"red"`, `"white"`, `"blue"`, etc.
 - Defined: Use `<define color="" value="">` to create custom color names
+
+### Dynamic Color Rules
+
+Human-friendly rule of thumb:
+- `source=` is for actions that return a color. Example: `<visual type="color" source="cue_color 1"/>`
+- `color=` is for a color value. If you want to run VDJScript there, wrap the action in backticks. Example: `<text color="`get_key_color`"/>`
+- `border=` behaves like a static color field in practice. Dynamic border colors are not currently supported, so do not rely on `border="cue_color 1"` or `border="`cue_color 1`"` working on buttons.
+- `query=` changes the button's `on/off` graphics state. It does not automatically use the `selected` state.
+
+What we know for sure from official docs and staff replies:
+- `visual type="color"` is specifically designed to render a color returned by its `source=` action. Official reference: [VirtualDJ Skin SDK Visual](https://virtualdj.com/wiki/skinsdkvisual.html)
+- The official color docs distinguish between attributes that expect an action and attributes that expect a color value. `source=` expects an action that returns a color; `color=` expects a value and needs backticks around any action. Official reference: [Skin Default Colors](https://www.virtualdj.com/wiki/Skin%20Default%20Colors.html)
+- Button `border=` does not support dynamic colors according to VirtualDJ CTO Adion. Official reference: [Border Color using placeholder](https://virtualdj.com/forums/242871/VirtualDJ_Skins/Border_Color_using_placeholder.html)
+- VirtualDJ Development Manager djdad recommends a single `<text color="`...`">` when the text color itself needs to be dynamic. Official reference: [Skin text action; visibility or visual?](https://www.virtualdj.com/forums/267953/VirtualDJ_Skins/Skin_text_action%3B_visibility_or_visual%3F.html)
+
+Practical implication for hot cue colors:
+- If `cue_color` works in a `visual type="color"` but fails on a button border, that is expected behavior based on the official implementation notes above.
+- If a dynamic color appears black where a cue color was expected, that usually means the attribute accepted a literal color value but did not evaluate the action in that location. This is an inference from the documented behavior above, not an explicit SDK statement.
+
+Verified locally in this workspace:
+- `<text color="`cue_color [INDEX]`">` renders the current cue color correctly inside a button.
+- `<visual type="color" source="cue_color [INDEX]">` renders the current cue color correctly, including when used inside a reusable class instantiated via `<panel class="..."/>`.
+- Button `border=` still does not render the cue color dynamically in the same mini-cue tests, which matches the official limitation above.
+
+Recommended workaround for mini hot cue buttons:
+- If you want a cue-colored mini button, use a `visual type="color"` as the color layer and place a transparent or semi-transparent button on top for click handling, hover state, and text.
+
+Example:
+```xml
+<define class="MINI_CUE_BUTTON" placeholders="*index,*width=20,*height=20">
+  <visual type="color" source="cue_color [INDEX]" visibility="has_cue [INDEX] ? constant 0.6">
+    <size width="[WIDTH]" height="[HEIGHT]"/>
+  </visual>
+  <button action="hot_cue [INDEX]" rightclick="cue_name [INDEX]">
+    <size width="[WIDTH]" height="[HEIGHT]"/>
+    <off color="#99000000" border="transparent" border_size="1" radius="5"/>
+    <over color="#99000000" border="transparent" border_size="1" radius="5"/>
+    <text fontsize="12" color="`cue_color [INDEX]`" align="center" text="[INDEX]"/>
+  </button>
+</define>
+```
+
+This example is based on local verification in this workspace, not on an official SDK sample.
 
 ---
 

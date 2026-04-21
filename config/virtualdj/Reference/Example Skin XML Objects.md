@@ -16,6 +16,8 @@ This chunk is designed to be pasted inside a deck section such as `<deck deck="l
 
 Use this when you want a skin-native sampler panel instead of relying on the SideView or the deck Pads area.
 
+For the visible sample labels, this chunk uses `sampler_pad <n>` inside the text `format=` fields instead of `get_sample_name <n>`, so the text follows the current sampler page.
+
 ```xml
 <deck deck="left">
   <panel name="sampler_panel_left" visible="yes">
@@ -114,7 +116,7 @@ Use this when you want a skin-native sampler panel instead of relying on the Sid
       <textzone>
         <pos x="+8" y="+10"/>
         <size width="130" height="42"/>
-        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 1 'auto' ? sampler_color 1 'auto' : color '#8993A1'`" format="`sampler_loaded 1 'auto' ? get_sample_name 1 'auto' : '(empty 1)'`"/>
+        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 1 'auto' ? sampler_color 1 'auto' : color '#8993A1'`" format="`sampler_loaded 1 'auto' ? sampler_pad 1 : '(empty 1)'`"/>
       </textzone>
 
       <button action="sampler_loaded 2 'auto' ? sampler_pad 2 'auto' : sampler_rec 2 'auto'" query="sampler_play 2 'auto'">
@@ -128,7 +130,7 @@ Use this when you want a skin-native sampler panel instead of relying on the Sid
       <textzone>
         <pos x="+164" y="+10"/>
         <size width="130" height="42"/>
-        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 2 'auto' ? sampler_color 2 'auto' : color '#8993A1'`" format="`sampler_loaded 2 'auto' ? get_sample_name 2 'auto' : '(empty 2)'`"/>
+        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 2 'auto' ? sampler_color 2 'auto' : color '#8993A1'`" format="`sampler_loaded 2 'auto' ? sampler_pad 2 : '(empty 2)'`"/>
       </textzone>
 
       <button action="sampler_loaded 3 'auto' ? sampler_pad 3 'auto' : sampler_rec 3 'auto'" query="sampler_play 3 'auto'">
@@ -142,7 +144,7 @@ Use this when you want a skin-native sampler panel instead of relying on the Sid
       <textzone>
         <pos x="+320" y="+10"/>
         <size width="130" height="42"/>
-        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 3 'auto' ? sampler_color 3 'auto' : color '#8993A1'`" format="`sampler_loaded 3 'auto' ? get_sample_name 3 'auto' : '(empty 3)'`"/>
+        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 3 'auto' ? sampler_color 3 'auto' : color '#8993A1'`" format="`sampler_loaded 3 'auto' ? sampler_pad 3 : '(empty 3)'`"/>
       </textzone>
 
       <button action="sampler_loaded 4 'auto' ? sampler_pad 4 'auto' : sampler_rec 4 'auto'" query="sampler_play 4 'auto'">
@@ -156,7 +158,7 @@ Use this when you want a skin-native sampler panel instead of relying on the Sid
       <textzone>
         <pos x="+476" y="+10"/>
         <size width="130" height="42"/>
-        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 4 'auto' ? sampler_color 4 'auto' : color '#8993A1'`" format="`sampler_loaded 4 'auto' ? get_sample_name 4 'auto' : '(empty 4)'`"/>
+        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 4 'auto' ? sampler_color 4 'auto' : color '#8993A1'`" format="`sampler_loaded 4 'auto' ? sampler_pad 4 : '(empty 4)'`"/>
       </textzone>
 
       <button action="sampler_loaded 5 'auto' ? sampler_pad 5 'auto' : sampler_rec 5 'auto'" query="sampler_play 5 'auto'">
@@ -170,7 +172,7 @@ Use this when you want a skin-native sampler panel instead of relying on the Sid
       <textzone>
         <pos x="+8" y="+86"/>
         <size width="130" height="42"/>
-        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 5 'auto' ? sampler_color 5 'auto' : color '#8993A1'`" format="`sampler_loaded 5 'auto' ? get_sample_name 5 'auto' : '(empty 5)'`"/>
+        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 5 'auto' ? sampler_color 5 'auto' : color '#8993A1'`" format="`sampler_loaded 5 'auto' ? sampler_pad 5 : '(empty 5)'`"/>
       </textzone>
 
       <button action="sampler_loaded 6 'auto' ? sampler_pad 6 'auto' : sampler_rec 6 'auto'" query="sampler_play 6 'auto'">
@@ -184,7 +186,7 @@ Use this when you want a skin-native sampler panel instead of relying on the Sid
       <textzone>
         <pos x="+164" y="+86"/>
         <size width="130" height="42"/>
-        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 6 'auto' ? sampler_color 6 'auto' : color '#8993A1'`" format="`sampler_loaded 6 'auto' ? get_sample_name 6 'auto' : '(empty 6)'`"/>
+        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 6 'auto' ? sampler_color 6 'auto' : color '#8993A1'`" format="`sampler_loaded 6 'auto' ? sampler_pad 6 : '(empty 6)'`"/>
       </textzone>
 
       <button action="sampler_loaded 7 'auto' ? sampler_pad 7 'auto' : sampler_rec 7 'auto'" query="sampler_play 7 'auto'">
@@ -198,7 +200,7 @@ Use this when you want a skin-native sampler panel instead of relying on the Sid
       <textzone>
         <pos x="+320" y="+86"/>
         <size width="130" height="42"/>
-        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 7 'auto' ? sampler_color 7 'auto' : color '#8993A1'`" format="`sampler_loaded 7 'auto' ? get_sample_name 7 'auto' : '(empty 7)'`"/>
+        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 7 'auto' ? sampler_color 7 'auto' : color '#8993A1'`" format="`sampler_loaded 7 'auto' ? sampler_pad 7 : '(empty 7)'`"/>
       </textzone>
 
       <button action="sampler_loaded 8 'auto' ? sampler_pad 8 'auto' : sampler_rec 8 'auto'" query="sampler_play 8 'auto'">
@@ -212,7 +214,7 @@ Use this when you want a skin-native sampler panel instead of relying on the Sid
       <textzone>
         <pos x="+476" y="+86"/>
         <size width="130" height="42"/>
-        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 8 'auto' ? sampler_color 8 'auto' : color '#8993A1'`" format="`sampler_loaded 8 'auto' ? get_sample_name 8 'auto' : '(empty 8)'`"/>
+        <text font="Arial" fontsize="13" multiline="true" align="center" valign="center" color="`sampler_loaded 8 'auto' ? sampler_color 8 'auto' : color '#8993A1'`" format="`sampler_loaded 8 'auto' ? sampler_pad 8 : '(empty 8)'`"/>
       </textzone>
     </group>
   </panel>
@@ -225,6 +227,7 @@ Use this when you want a skin-native sampler panel instead of relying on the Sid
 - `sampler_pad 1 'auto'` through `sampler_pad 8 'auto'` follow the current sampler page instead of always hard-targeting slots `1-8`.
 - `sampler_pad_page -1` and `sampler_pad_page +1` move through sample ranges such as `1 to 8`, `9 to 16`, and later pages.
 - Empty pads call `sampler_rec n 'auto'` so unlocked banks can record directly from the skin panel, matching the stock sampler workflow.
+- The visible pad labels come from `sampler_pad <n>` in text `format=` fields, so the labels follow the current sampler page.
 - `query="sampler_play n 'auto'"` lights the pad while that visible sample is playing.
 
 ## Variations
@@ -240,6 +243,23 @@ deck master sampler_pad 1 "auto"
 
 - Use `deck active` if the sampler should follow the selected/working deck.
 - Use `deck master` if synced samples should always lock to the current master deck.
+
+### Follow the Current Master Deck Explicitly
+
+If a skin panel needs to follow the current master deck and raw `deck master` behaves oddly in sampler title or page text, resolve the master deck number explicitly instead of relying on the alias:
+
+```xml
+<textzone>
+  <size width="220" height="22"/>
+  <text font="Arial" fontsize="13" color="#D7DCE4" format="`deck 1 masterdeck ? deck 1 sampler_pad 1 : deck 2 masterdeck ? deck 2 sampler_pad 1 : deck 3 masterdeck ? deck 3 sampler_pad 1 : deck 4 masterdeck ? deck 4 sampler_pad 1 : sampler_pad 1`"/>
+</textzone>
+
+<button action="deck 1 masterdeck ? deck 1 sampler_pad_page +1 : deck 2 masterdeck ? deck 2 sampler_pad_page +1 : deck 3 masterdeck ? deck 3 sampler_pad_page +1 : deck 4 masterdeck ? deck 4 sampler_pad_page +1 : sampler_pad_page +1">
+  <size width="56" height="26"/>
+</button>
+```
+
+This is heavier than raw `deck master`, but it avoids the alias in the exact place where sampler title/page text has proven less reliable in recent testing.
 
 ### Add a Progress Bar to Each Pad
 
@@ -267,8 +287,10 @@ If you want the classic two-panel workflow:
 
 ## Practical Notes
 
-- `sampler_pad` and `sampler_color` are the safest page-aware helpers for skin-based sampler panels.
-- `get_sample_name 1 'auto'`, `sampler_loaded 1 'auto'`, and `sampler_rec 1 'auto'` are current working patterns used in recent sampler pad examples and are useful when you want skin text and actions to follow the visible sampler page.
+- `sampler_pad`, `sampler_loaded`, and `sampler_color` are the safest page-aware helpers for skin-based sampler panels.
+- In skin text `format=` fields, `sampler_pad <n>` is the safest way to show the currently visible sample name on the active sampler page.
+- `deck master` means the current master deck, not a separate global sampler scope. In some sampler title/query paths, an explicit `deck 1 masterdeck ? ... : deck 2 masterdeck ? ...` resolver is more reliable than raw `deck master`.
+- `sampler_loaded <n>` is the cleanest way to drive row visibility or empty-slot logic around that page-aware display pattern, while `sampler_rec <n> 'auto'` is still useful for direct recording into the visible slot.
 - If you need fixed absolute slots regardless of the current page, swap `sampler_pad` for `sampler_play`, and swap page-aware name/color helpers for absolute ones such as `get_sample_name 9` and `get_sample_color 9`.
 - Duplicate this chunk under `<deck deck="right">` if you want a second, independently positioned sampler panel.
 - Class names are matched case-insensitively in practice. A good convention is `class="SAMPLER_ROW"` in `<define>` and `class="sampler_row"` at the call site, while keeping placeholder tokens uppercase, e.g. `[INDEX]`.
@@ -283,3 +305,4 @@ If you want the classic two-panel workflow:
 - Page-aware custom sampler pad patterns: [Custom Sampler Pad Page](https://www.virtualdj.com/forums/253061/General_Discussion/Custom_Sampler_Pad_Page_%28Recording__Looping__Adjust_Beatgrid_and_more%29.html)
 - Skin-side sampler naming/color examples: [How to read the sample icon in a button?](https://virtualdj.com/forums/258227/VirtualDJ_Skins/How_to_read_the_sample_icon_in_a_button%3F.html)
 - Deck-sync guidance for sampler pads: [problem with (pad pages) pads sampler sync!](https://virtualdj.com/forums/224203/VirtualDJ_Technical_Support/problem_with_%28pad_pages%29_pads_sampler_sync%21_please_help___is_it_a_bug%3F%3F.html)
+- Master-deck sampler quirks in newer builds: [Virtual Dj 2025 Sampler Sync](https://virtualdj.com/forums/265522/VirtualDJ_Technical_Support/Virtual_Dj_2025_Sampler_Sync.html)
