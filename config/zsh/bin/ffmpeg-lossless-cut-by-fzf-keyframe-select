@@ -37,7 +37,7 @@ Usage:
   ffmpeg-lossless-cut-by-fzf-keyframe-select [options] <video1> [video2 ...]
 
 Options:
-  -n, --count <n>           Number of keyframes to show (default: 5)
+  -n, --keyframes <n>       Number of keyframes to show (default: 5)
   -w, --width <px>          Preview width for thumbnails (default: 480)
   -y, --yes                 Skip confirmation after keyframe selection
   -f, --force               Overwrite existing *.trimmed output
@@ -141,7 +141,7 @@ PY
 
 selector_embedded() {
   local input_file="$1"
-  local count="$2"
+  local keyframes="$2"
   local width="$3"
   local keep="$4"
   local from_ts="${5:-0}"
@@ -170,7 +170,7 @@ PY
     [[ -n "$ts" ]] || continue
     awk -v ts="$ts" -v start="$from_num" 'BEGIN { exit !(ts + 0 >= start + 0) }' || continue
     key_ts+=("$ts")
-    (( ${#key_ts[@]} >= count )) && break
+    (( ${#key_ts[@]} >= keyframes )) && break
   done < <(
     ffprobe -v error \
       -select_streams v:0 \
@@ -197,20 +197,31 @@ PY
   : > "$list_file"
 
   local idx=1
+  local -a ffmpeg_pids=()
   local pretty_ts img_file
   for ts in "${key_ts[@]}"; do
     pretty_ts="$(format_ts "$ts")"
     img_file="$tmp_dir/keyframe-${idx}.jpg"
 
-    ffmpeg -v error -y \
-      -ss "$ts" -i "$input_file" \
-      -frames:v 1 \
-      -vf "scale=${width}:-2:flags=lanczos" \
-      -q:v 3 \
-      -- "$img_file"
-
     printf '%s\t%s\t%s\t%s\n' "$idx" "$ts" "$pretty_ts" "$img_file" >> "$list_file"
+    (
+      ffmpeg -v error -y \
+        -ss "$ts" -i "$input_file" \
+        -frames:v 1 \
+        -vf "scale=${width}:-2:flags=lanczos" \
+        -q:v 3 \
+        -- "$img_file"
+    ) &
+    ffmpeg_pids+=("$!")
     (( idx++ ))
+  done
+
+  local pid
+  for pid in "${ffmpeg_pids[@]}"; do
+    wait "$pid" || {
+      selector_cleanup
+      return 1
+    }
   done
 
   local preview_script="$tmp_dir/preview.zsh"
@@ -285,12 +296,12 @@ EOF
 
 select_keyframe() {
   local input_file="$1"
-  local count="$2"
+  local keyframes="$2"
   local width="$3"
   local keep="$4"
   local from_ts="${5:-0}"
 
-  selector_embedded "$input_file" "$count" "$width" "$keep" "$from_ts"
+  selector_embedded "$input_file" "$keyframes" "$width" "$keep" "$from_ts"
 }
 
 trim_copy() {
@@ -336,7 +347,7 @@ perform_cut() {
   trim_copy "$input_file" "$start_time" "$output_file"
 }
 
-count=5
+keyframes=5
 width=480
 yes=false
 force=false
@@ -349,9 +360,15 @@ typeset -a files=()
 
 while (( $# > 0 )); do
   case "$1" in
-    -n|--count)
+    -n|--keyframes)
       (( $# >= 2 )) || die "missing value for $1"
-      count="$2"
+      keyframes="$2"
+      shift 2
+      ;;
+    --count)
+      (( $# >= 2 )) || die "missing value for $1"
+      warn "--count is deprecated; use --keyframes"
+      keyframes="$2"
       shift 2
       ;;
     -w|--width)
@@ -412,7 +429,7 @@ have ffprobe || die "ffprobe not found"
 have ffmpeg  || die "ffmpeg not found"
 have fzf     || die "fzf not found"
 
-[[ "$count" == <-> ]] || die "--count must be an integer"
+[[ "$keyframes" == <-> ]] || die "--keyframes must be an integer"
 [[ "$width" == <-> ]] || die "--width must be an integer"
 is_number "$from_ts" || die "--from must be numeric seconds"
 
@@ -452,7 +469,7 @@ for input_file in "${files[@]}"; do
   fi
 
   ts=""
-  if ! ts="$(select_keyframe "$input_file" "$count" "$width" "$keep_previews" "$effective_from")"; then
+  if ! ts="$(select_keyframe "$input_file" "$keyframes" "$width" "$keep_previews" "$effective_from")"; then
     rc=$?
     if (( rc == 130 )); then
       warn "selection cancelled, skipping"
