@@ -8,10 +8,10 @@
 # - single file:
 #     always open keyframe selector
 # - multiple files:
-#     by default, run ffmpeg-detect-intro first
+#     by default, run ffmpeg-detect-intro first in forward mode
 #     * if intro detected: open selector starting at/after intro
 #     * if no intro detected: skip file
-#     * use --skip-intro-detection to always prompt every file
+#     * use --skip-detection to always prompt every file
 #
 # Output:
 # - writes beside source as *.trimmed.ext
@@ -39,19 +39,21 @@ Usage:
 Options:
   -n, --keyframes <n>       Number of keyframes to show (default: 5)
   -w, --width <px>          Preview width for thumbnails (default: 480)
+  -r, --reverse             Trim from the end backward to remove an outro
   -y, --yes                 Skip confirmation after keyframe selection
   -f, --force               Overwrite existing *.trimmed output
   -k, --keep-previews       Keep temporary preview directories
   --dry-run                 Show planned actions only
-  --skip-intro-detection    For multiple files, always prompt instead of auto-checking intros
+  --skip-detection          For multiple files, always prompt instead of auto-checking intros
   --from <seconds>          Start selector at/after this timestamp
   -h, --help                Show this help
 
 Examples:
   ffmpeg-lossless-cut-by-fzf-keyframe-select clip.mp4
   ffmpeg-lossless-cut-by-fzf-keyframe-select *.mp4
-  ffmpeg-lossless-cut-by-fzf-keyframe-select --skip-intro-detection *.mov
+  ffmpeg-lossless-cut-by-fzf-keyframe-select --skip-detection *.mov
   ffmpeg-lossless-cut-by-fzf-keyframe-select --from 12.5 clip.mp4
+  ffmpeg-lossless-cut-by-fzf-keyframe-select --reverse clip.mp4
 EOF
 }
 
@@ -145,6 +147,7 @@ selector_embedded() {
   local width="$3"
   local keep="$4"
   local from_ts="${5:-0}"
+  local reverse_mode="${6:-false}"
 
   local tmp_dir
   tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/fzf-select-keyframe.XXXXXXXX")"
@@ -166,27 +169,60 @@ print(float(sys.argv[1]))
 PY
 )"
 
-  while IFS= read -r ts; do
-    [[ -n "$ts" ]] || continue
-    awk -v ts="$ts" -v start="$from_num" 'BEGIN { exit !(ts + 0 >= start + 0) }' || continue
-    key_ts+=("$ts")
-    (( ${#key_ts[@]} >= keyframes )) && break
-  done < <(
-    ffprobe -v error \
-      -select_streams v:0 \
-      -skip_frame nokey \
-      -show_frames \
-      -show_entries frame=best_effort_timestamp_time \
-      -of default=nw=1:nk=1 \
-      -- "$input_file" 2>/dev/null |
-    awk '
-      $1 ~ /^[0-9.]+$/ {
-        if (!seen[$1]++) {
-          print $1
+  if [[ "$reverse_mode" == true ]]; then
+    while IFS= read -r ts; do
+      [[ -n "$ts" ]] || continue
+      key_ts+=("$ts")
+    done < <(
+      ffprobe -v error \
+        -select_streams v:0 \
+        -skip_frame nokey \
+        -show_frames \
+        -show_entries frame=best_effort_timestamp_time \
+        -of default=nw=1:nk=1 \
+        -- "$input_file" 2>/dev/null |
+      awk -v keep="$keyframes" -v start="$from_num" '
+        $1 ~ /^[0-9.]+$/ {
+          if (seen[$1]++) {
+            next
+          }
+          if (($1 + 0) < (start + 0)) {
+            next
+          }
+          vals[count % keep] = $1
+          count++
         }
-      }
-    '
-  )
+        END {
+          begin = count > keep ? count - keep : 0
+          for (i = begin; i < count; i++) {
+            print vals[i % keep]
+          }
+        }
+      '
+    )
+  else
+    while IFS= read -r ts; do
+      [[ -n "$ts" ]] || continue
+      awk -v ts="$ts" -v start="$from_num" 'BEGIN { exit !(ts + 0 >= start + 0) }' || continue
+      key_ts+=("$ts")
+      (( ${#key_ts[@]} >= keyframes )) && break
+    done < <(
+      ffprobe -v error \
+        -select_streams v:0 \
+        -skip_frame nokey \
+        -show_frames \
+        -show_entries frame=best_effort_timestamp_time \
+        -of default=nw=1:nk=1 \
+        -- "$input_file" 2>/dev/null |
+      awk '
+        $1 ~ /^[0-9.]+$/ {
+          if (!seen[$1]++) {
+            print $1
+          }
+        }
+      '
+    )
+  fi
 
   if (( ${#key_ts[@]} == 0 )); then
     selector_cleanup
@@ -264,7 +300,9 @@ EOF
   chmod +x "$preview_script"
 
   local header
-  if awk -v start="$from_num" 'BEGIN { exit !(start > 0) }'; then
+  if [[ "$reverse_mode" == true ]]; then
+    header="Select an outro cut point - ${input_file:t}"
+  elif awk -v start="$from_num" 'BEGIN { exit !(start > 0) }'; then
     header="Select a keyframe at/after $(format_ts "$from_num") - ${input_file:t}"
   else
     header="Select a keyframe for lossless cut start - ${input_file:t}"
@@ -300,8 +338,9 @@ select_keyframe() {
   local width="$3"
   local keep="$4"
   local from_ts="${5:-0}"
+  local reverse_mode="${6:-false}"
 
-  selector_embedded "$input_file" "$keyframes" "$width" "$keep" "$from_ts"
+  selector_embedded "$input_file" "$keyframes" "$width" "$keep" "$from_ts" "$reverse_mode"
 }
 
 trim_copy() {
@@ -311,6 +350,18 @@ trim_copy() {
 
   ffmpeg -hide_banner -y \
     -ss "$start_time" -i "$input_file" \
+    -map 0 \
+    -c copy \
+    "$output_file"
+}
+
+trim_copy_reverse() {
+  local input_file="$1"
+  local end_time="$2"
+  local output_file="$3"
+
+  ffmpeg -hide_banner -y \
+    -to "$end_time" -i "$input_file" \
     -map 0 \
     -c copy \
     "$output_file"
@@ -326,11 +377,12 @@ confirm_overwrite() {
 
 perform_cut() {
   local input_file="$1"
-  local start_time="$2"
+  local cut_time="$2"
   local output_file="$3"
   local force="$4"
+  local reverse_mode="$5"
 
-  if ! float_gt_zero "$start_time"; then
+  if ! float_gt_zero "$cut_time"; then
     warn "cut time <= 0, skipping: $input_file"
     return 1
   fi
@@ -344,16 +396,21 @@ perform_cut() {
   fi
 
   info "Output:            $output_file"
-  trim_copy "$input_file" "$start_time" "$output_file"
+  if [[ "$reverse_mode" == true ]]; then
+    trim_copy_reverse "$input_file" "$cut_time" "$output_file"
+  else
+    trim_copy "$input_file" "$cut_time" "$output_file"
+  fi
 }
 
 keyframes=5
 width=480
+reverse_mode=false
 yes=false
 force=false
 keep_previews=false
 dry_run=false
-skip_intro_detection=false
+skip_detection=false
 from_ts="0"
 
 typeset -a files=()
@@ -376,6 +433,10 @@ while (( $# > 0 )); do
       width="$2"
       shift 2
       ;;
+    -r|--reverse)
+      reverse_mode=true
+      shift
+      ;;
     -y|--yes)
       yes=true
       shift
@@ -392,8 +453,13 @@ while (( $# > 0 )); do
       dry_run=true
       shift
       ;;
+    --skip-detection)
+      skip_detection=true
+      shift
+      ;;
     --skip-intro-detection)
-      skip_intro_detection=true
+      warn "--skip-intro-detection is deprecated; use --skip-detection"
+      skip_detection=true
       shift
       ;;
     --from)
@@ -431,6 +497,8 @@ have fzf     || die "fzf not found"
 
 [[ "$keyframes" == <-> ]] || die "--keyframes must be an integer"
 [[ "$width" == <-> ]] || die "--width must be an integer"
+(( keyframes > 0 )) || die "--keyframes must be > 0"
+(( width > 0 )) || die "--width must be > 0"
 is_number "$from_ts" || die "--from must be numeric seconds"
 
 integer ok_count=0
@@ -453,7 +521,7 @@ for input_file in "${files[@]}"; do
 
   effective_from="$from_ts"
 
-  if [[ "$local_multi" == true && "$skip_intro_detection" != true ]]; then
+  if [[ "$local_multi" == true && "$skip_detection" != true && "$reverse_mode" != true ]]; then
     if intro_ts="$(detect_intro_seconds "$input_file")"; then
       effective_from="$intro_ts"
       info "Intro detected at: $(format_ts "$intro_ts")"
@@ -464,12 +532,12 @@ for input_file in "${files[@]}"; do
     fi
   fi
 
-  if [[ "$effective_from" != "0" ]]; then
+  if [[ "$effective_from" != "0" && "$reverse_mode" != true ]]; then
     info "Selector start:    $(format_ts "$effective_from")"
   fi
 
   ts=""
-  if ! ts="$(select_keyframe "$input_file" "$keyframes" "$width" "$keep_previews" "$effective_from")"; then
+  if ! ts="$(select_keyframe "$input_file" "$keyframes" "$width" "$keep_previews" "$effective_from" "$reverse_mode")"; then
     rc=$?
     if (( rc == 130 )); then
       warn "selection cancelled, skipping"
@@ -484,16 +552,24 @@ for input_file in "${files[@]}"; do
   pretty_ts="$(format_ts "$ts")"
   output_file="$(make_output_name "$input_file" "trimmed")"
 
-  info "Selected cut:      $pretty_ts  ($ts)"
+  if [[ "$reverse_mode" == true ]]; then
+    info "Selected outro:    $pretty_ts  ($ts)"
+  else
+    info "Selected cut:      $pretty_ts  ($ts)"
+  fi
   info "Trimmed output:    $output_file"
 
   if [[ "$dry_run" == true ]]; then
-    print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' -map 0 -c copy '$output_file'"
+    if [[ "$reverse_mode" == true ]]; then
+      print -- "ffmpeg -hide_banner -y -to '$ts' -i '$input_file' -map 0 -c copy '$output_file'"
+    else
+      print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' -map 0 -c copy '$output_file'"
+    fi
     (( ok_count++ ))
     continue
   fi
 
-  if perform_cut "$input_file" "$ts" "$output_file" "$force"; then
+  if perform_cut "$input_file" "$ts" "$output_file" "$force" "$reverse_mode"; then
     info "Done: wrote trimmed copy"
     (( ok_count++ ))
   else

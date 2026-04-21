@@ -1,0 +1,155 @@
+#!/usr/bin/env zsh
+# davinci-resolve-interpolate-60fps
+# Render one or more input files through DaVinci Resolve as HEVC 60fps MP4.
+#
+# Expects a sibling Python script:
+#   davinci-resolve-interpolate-60fps.py
+#
+# Examples:
+#   davinci-resolve-interpolate-60fps input.mp4
+#   davinci-resolve-interpolate-60fps input.mp4 output.mp4
+#   davinci-resolve-interpolate-60fps a.mp4 b.mov c.mkv
+#   davinci-resolve-interpolate-60fps --speed-warp input.mp4
+#   davinci-resolve-interpolate-60fps --help
+
+set -euo pipefail
+
+print_help() {
+  cat <<'EOF'
+Usage:
+  davinci-resolve-interpolate-60fps [options] <input-file> [output-file]
+  davinci-resolve-interpolate-60fps [options] <input-file>...
+
+Render input file(s) through DaVinci Resolve to HEVC 60fps MP4.
+
+Arguments:
+  <input-file>     Input media file
+  [output-file]    Optional explicit output path, only valid when exactly one
+                   input file is provided
+
+Options:
+  -h, --help       Show this help
+  --speed-warp     Ask the Python script to use Speed Warp instead of
+                   Enhanced Better motion estimation
+
+Behavior:
+  - One input, no output:
+      Writes: input-file with ".hevc60.mp4" suffix
+  - One input + one output:
+      Writes exactly to the given output path
+  - Multiple inputs:
+      Writes one output per input beside the source file, using
+      ".hevc60.mp4" suffix
+
+Examples:
+  davinci-resolve-interpolate-60fps clip.mp4
+  davinci-resolve-interpolate-60fps clip.mp4 clip.60fps.mp4
+  davinci-resolve-interpolate-60fps a.mp4 b.mov c.mkv
+  davinci-resolve-interpolate-60fps --speed-warp clip.mp4
+EOF
+}
+
+script_dir=${0:A:h}
+python_script="${script_dir}/davinci-resolve-interpolate-60fps.py"
+
+if [[ ! -f "$python_script" ]]; then
+  print -u2 "error: Python script not found: $python_script"
+  exit 1
+fi
+
+export RESOLVE_SCRIPT_API="/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting"
+export RESOLVE_SCRIPT_LIB="/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Libraries/Fusion/fusionscript.so"
+export PYTHONPATH="${PYTHONPATH:-}:${RESOLVE_SCRIPT_API}/Modules"
+
+use_speed_warp=0
+typeset -a positional=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    -h|--help)
+      print_help
+      exit 0
+      ;;
+    --speed-warp)
+      use_speed_warp=1
+      shift
+      ;;
+    --)
+      shift
+      positional+=("$@")
+      break
+      ;;
+    -*)
+      print -u2 "error: unknown option: $1"
+      print -u2 "try: davinci-resolve-interpolate-60fps --help"
+      exit 1
+      ;;
+    *)
+      positional+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if (( ${#positional[@]} == 0 )); then
+  print -u2 "error: no input file provided"
+  print -u2 "try: davinci-resolve-interpolate-60fps --help"
+  exit 1
+fi
+
+if ! pgrep -xq "DaVinci Resolve"; then
+  open -a "DaVinci Resolve"
+  sleep 6
+fi
+
+run_one() {
+  local input_file output_file
+  input_file=${1:A}
+
+  if [[ ! -f "$input_file" ]]; then
+    print -u2 "error: input file not found: $input_file"
+    return 1
+  fi
+
+  if [[ -n "${2-}" ]]; then
+    output_file=${2:A}
+  else
+    output_file="${input_file:r}.hevc60.mp4"
+  fi
+
+  if (( use_speed_warp )); then
+    python3 "$python_script" --speed-warp "$input_file" "$output_file"
+  else
+    python3 "$python_script" "$input_file" "$output_file"
+  fi
+
+  print "done: $output_file"
+}
+
+if (( ${#positional[@]} == 2 )); then
+  # Ambiguous case:
+  # treat as explicit output only when second arg does not exist yet
+  # and its extension looks like a media file target.
+  if [[ -f "${positional[2]}" ]]; then
+    for input_file in "${positional[@]}"; do
+      run_one "$input_file"
+    done
+  else
+    case "${positional[2]:l}" in
+      *.mp4|*.mov|*.mkv|*.m4v)
+        run_one "${positional[1]}" "${positional[2]}"
+        ;;
+      *)
+        for input_file in "${positional[@]}"; do
+          run_one "$input_file"
+        done
+        ;;
+    esac
+  fi
+elif (( ${#positional[@]} > 2 )); then
+  for input_file in "${positional[@]}"; do
+    run_one "$input_file"
+  done
+else
+  run_one "${positional[1]}"
+fi
