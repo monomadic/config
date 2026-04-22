@@ -73,16 +73,12 @@ alias q-service-start="brew services start pueue"
 alias q-start="/opt/homebrew/opt/pueue/bin/pueued --verbose"
 alias q-log="q log"
 alias q-add="q add -- "
-alias q-add-adult="q add -- download-video adult"
-alias qp=q-add-adult
-alias q-restart-task="q add -- "
 alias q-status="q status"
 alias qs="pueue status"
 alias ql=q-status
 alias q-url="pueue add yt-url"
 alias qu=q-url
-alias yt-dlp-ignore-history="yt-dlp --no-download-archive"
-alias yt-porn="yt-dlp --trim-filenames 200 -o '%(cast,uploader|Unknown)s - [%(channel,uploader|Unknown)s] %(title)s (%(extractor)s) #%(tags.0)s_%(tags.1)s_%(tags.2)s_%(tags.3)s_%(tags.4)s.%(ext)s' $@"
+alias yt-dlp-ignore-archive="yt-dlp --no-download-archive"
 alias yt-list-fields="yt-dlp --skip-download --print \"%()#j\" "
 
 alias .hevc="ffmpeg-convert-to-hevc"
