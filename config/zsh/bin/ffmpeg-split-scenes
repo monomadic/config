@@ -1,59 +1,348 @@
-#!/bin/bash
+#!/usr/bin/env zsh
+# Split a video into scene-based segments with stream copy when possible.
+#
+# Notes:
+# - Scene detection uses ffmpeg's scene score filter.
+# - Output cuts are snapped to the nearest previous keyframe so segments can be
+#   copied losslessly. If a scene boundary is not itself a keyframe, the split is
+#   approximate and may start slightly before the detected scene change.
 
-# Check if input file is provided
-if [ $# -ne 1 ]; then
-    echo "Usage: $0 <input_video_file>"
-    exit 1
-fi
+emulate -L zsh
+set -euo pipefail
 
-input_file="$1"
-filename=$(basename "$input_file")
-filename_noext="${filename%.*}"
-extension="${filename##*.}"
+usage() {
+  cat <<'EOF'
+Usage:
+  ffmpeg-split-scenes [options] <input-video>
 
-# Create output directory
-output_dir="${filename_noext}_scenes"
-mkdir -p "$output_dir"
+Options:
+  -n, --dry-run            Print the cut plan and ffmpeg commands without writing files
+  -t, --threshold <value>  Scene threshold for ffmpeg's scene detector (default: 0.30)
+  -o, --output-dir <dir>   Output directory (default: <input_basename>.scenes)
+  -f, --force              Overwrite existing output files
+  -h, --help               Show this help
 
-# Detect scenes and save timestamps to a file
-echo "Detecting scenes..."
-ffmpeg -i "$input_file" \
-    -vf "select='gt(scene,0.3)',metadata=print:file=scenes.txt" \
-    -f null - 2>/dev/null
+Behavior:
+  - Detects scene changes from the first video stream
+  - Builds cut points at 0, each detected scene timestamp, and the file duration
+  - Snaps interior cut points to the nearest previous keyframe for stream-copy output
+  - Writes scene files as scene-001, scene-002, ...
 
-# Process the scenes.txt file to get timestamps
-echo "Processing scene timestamps..."
-grep "pts_time:" scenes.txt | cut -d ":" -f 2 | cut -d "," -f 1 > timestamps.txt
+Examples:
+  ffmpeg-split-scenes movie.mp4
+  ffmpeg-split-scenes --dry-run movie.mp4
+  ffmpeg-split-scenes --threshold 0.45 --output-dir /tmp/movie-scenes movie.mkv
+EOF
+}
 
-# Read timestamps into an array
-mapfile -t timestamps < timestamps.txt
+die() {
+  print -u2 -- "error: $*"
+  exit 1
+}
 
-# Add start time (0) and get video duration for end time
-duration=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$input_file")
-timestamps=("0" "${timestamps[@]}" "$duration")
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
 
-# Split video at scene changes
-echo "Splitting video into scenes..."
-for ((i=0; i<${#timestamps[@]}-1; i++)); do
-    start_time=${timestamps[i]}
-    end_time=${timestamps[i+1]}
+format_seconds() {
+  python3 - "$1" <<'PY'
+import sys
+s = float(sys.argv[1])
+h = int(s // 3600)
+m = int((s % 3600) // 60)
+sec = s % 60
+print(f"{h:02d}:{m:02d}:{sec:09.6f}")
+PY
+}
 
-    # Calculate duration
-    duration=$(echo "$end_time - $start_time" | bc)
+quote_cmd() {
+  printf '%q ' "$@"
+  printf '\n'
+}
 
-    # Format output filename with leading zeros
-    output_file="${output_dir}/${filename_noext}_scene_$(printf "%03d" $i).$extension"
+dry_run=false
+threshold="0.30"
+output_dir=""
+force=false
 
-    echo "Creating scene $i: $start_time to $end_time"
-    ffmpeg -y -hide_banner -loglevel warning \
-        -ss "$start_time" -i "$input_file" \
-        -t "$duration" \
-        -c copy \
-        "$output_file"
+typeset -a positionals=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    -n|--dry-run)
+      dry_run=true
+      shift
+      ;;
+    -t|--threshold)
+      (( $# >= 2 )) || die "missing value for $1"
+      threshold="$2"
+      shift 2
+      ;;
+    -o|--output-dir)
+      (( $# >= 2 )) || die "missing value for $1"
+      output_dir="$2"
+      shift 2
+      ;;
+    -f|--force)
+      force=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      while (( $# > 0 )); do
+        positionals+=("$1")
+        shift
+      done
+      ;;
+    -*)
+      die "unknown option: $1"
+      ;;
+    *)
+      positionals+=("$1")
+      shift
+      ;;
+  esac
 done
 
-# Cleanup temporary files
-rm scenes.txt timestamps.txt
+(( ${#positionals[@]} == 1 )) || {
+  usage >&2
+  exit 2
+}
 
-echo "Done! Scenes have been saved to $output_dir/"
-echo "Original file has been preserved."
+input_file="${positionals[1]}"
+[[ -f "$input_file" ]] || die "input not found: $input_file"
+
+[[ "$threshold" == <-> || "$threshold" == <->.<-> || "$threshold" == .<-> ]] || {
+  die "threshold must be numeric"
+}
+
+have ffmpeg || die "ffmpeg not found"
+have ffprobe || die "ffprobe not found"
+have python3 || die "python3 not found"
+
+base_name="${input_file:t}"
+if [[ "$base_name" == *.* ]]; then
+  stem="${base_name:r}"
+  ext="${base_name:e}"
+else
+  stem="$base_name"
+  ext="mkv"
+fi
+
+if [[ -z "$output_dir" ]]; then
+  output_dir="${input_file:h}/${stem}.scenes"
+fi
+
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/ffmpeg-split-scenes.XXXXXXXX")"
+cleanup() {
+  rm -rf -- "$tmp_dir"
+}
+trap cleanup EXIT INT TERM
+
+scene_meta_file="$tmp_dir/scenes.txt"
+keyframes_file="$tmp_dir/keyframes.txt"
+duration_file="$tmp_dir/duration.txt"
+plan_file="$tmp_dir/plan.tsv"
+
+print -- "Detecting scenes in: $input_file"
+ffmpeg -hide_banner -loglevel error \
+  -i "$input_file" \
+  -vf "select='gt(scene,${threshold})',metadata=print:file='${scene_meta_file//\'/\\\'}'" \
+  -an -f null - >/dev/null
+
+ffprobe -v error \
+  -select_streams v:0 \
+  -skip_frame nokey \
+  -show_frames \
+  -show_entries frame=best_effort_timestamp_time \
+  -of default=nw=1:nk=1 \
+  -- "$input_file" > "$keyframes_file"
+
+ffprobe -v error \
+  -show_entries format=duration \
+  -of default=nw=1:nk=1 \
+  -- "$input_file" > "$duration_file"
+
+python3 - "$scene_meta_file" "$keyframes_file" "$duration_file" "$plan_file" <<'PY'
+from bisect import bisect_right
+from pathlib import Path
+import math
+import re
+import sys
+
+scene_meta_path = Path(sys.argv[1])
+keyframes_path = Path(sys.argv[2])
+duration_path = Path(sys.argv[3])
+plan_path = Path(sys.argv[4])
+
+pts_re = re.compile(r"pts_time:([0-9]+(?:\.[0-9]+)?)")
+
+scene_times = []
+seen = set()
+if scene_meta_path.exists():
+    for line in scene_meta_path.read_text().splitlines():
+        match = pts_re.search(line)
+        if not match:
+            continue
+        ts = float(match.group(1))
+        key = round(ts, 6)
+        if key in seen:
+            continue
+        seen.add(key)
+        scene_times.append(ts)
+
+keyframes = []
+seen = set()
+numeric_re = re.compile(r"^[0-9]+(?:\.[0-9]+)?$")
+for raw in keyframes_path.read_text().splitlines():
+    raw = raw.strip()
+    if not raw or not numeric_re.match(raw):
+        continue
+    ts = float(raw)
+    key = round(ts, 6)
+    if key in seen:
+      continue
+    seen.add(key)
+    keyframes.append(ts)
+
+duration = float(duration_path.read_text().strip())
+if not math.isfinite(duration) or duration <= 0:
+    raise SystemExit("invalid duration")
+
+boundaries = [0.0]
+for ts in scene_times:
+    if 0.0 < ts < duration:
+        boundaries.append(ts)
+boundaries.append(duration)
+
+if not keyframes or keyframes[0] > 0.001:
+    keyframes = [0.0] + keyframes
+elif keyframes[0] != 0.0:
+    keyframes.insert(0, 0.0)
+
+adjusted = [0.0]
+for boundary in boundaries[1:-1]:
+    idx = bisect_right(keyframes, boundary + 1e-9) - 1
+    snapped = keyframes[max(idx, 0)]
+    adjusted.append(snapped)
+adjusted.append(duration)
+
+rows = []
+scene_idx = 1
+pending_raw_start = boundaries[0]
+for idx in range(len(boundaries) - 1):
+    start = adjusted[idx]
+    end = adjusted[idx + 1]
+    raw_end = boundaries[idx + 1]
+    if end - start <= 1e-6:
+        continue
+    raw_start = pending_raw_start
+    lossless_exact = abs(start - raw_start) <= 1e-6
+    rows.append(
+        (
+            scene_idx,
+            start,
+            end,
+            end - start,
+            raw_start,
+            raw_end,
+            1 if lossless_exact else 0,
+        )
+    )
+    scene_idx += 1
+    pending_raw_start = raw_end
+
+with plan_path.open("w", encoding="utf-8") as fh:
+    for row in rows:
+        fh.write("\t".join(
+            [
+                str(row[0]),
+                f"{row[1]:.6f}",
+                f"{row[2]:.6f}",
+                f"{row[3]:.6f}",
+                f"{row[4]:.6f}",
+                f"{row[5]:.6f}",
+                str(row[6]),
+            ]
+        ))
+        fh.write("\n")
+PY
+
+[[ -s "$plan_file" ]] || die "scene planning produced no segments"
+
+if [[ "$dry_run" == false ]]; then
+  mkdir -p -- "$output_dir"
+fi
+
+scene_count=0
+exact_count=0
+
+while IFS=$'\t' read -r idx start end duration raw_start raw_end exact; do
+  (( scene_count += 1 ))
+  (( exact_count += exact ))
+
+  output_file="${output_dir}/scene-$(printf '%03d' "$idx").${ext}"
+
+  if [[ -e "$output_file" && "$force" == false && "$dry_run" == false ]]; then
+    die "output exists: $output_file (use --force to overwrite)"
+  fi
+
+  start_fmt="$(format_seconds "$start")"
+  end_fmt="$(format_seconds "$end")"
+  raw_start_fmt="$(format_seconds "$raw_start")"
+  raw_end_fmt="$(format_seconds "$raw_end")"
+
+  if (( exact == 1 )); then
+    split_status="exact"
+  else
+    split_status="keyframe-adjusted"
+  fi
+
+  print -- "scene $(printf '%03d' "$idx"): ${start_fmt} -> ${end_fmt} (${split_status})"
+  if (( exact == 0 )); then
+    print -- "  detected scene range: ${raw_start_fmt} -> ${raw_end_fmt}"
+  fi
+
+  cmd=(
+    ffmpeg
+    -hide_banner
+    -loglevel error
+  )
+  if [[ "$force" == true ]]; then
+    cmd+=(-y)
+  else
+    cmd+=(-n)
+  fi
+  cmd+=(
+    -ss "$start"
+    -i "$input_file"
+    -t "$duration"
+    -map 0
+    -c copy
+    -reset_timestamps 1
+    "$output_file"
+  )
+
+  if [[ "$dry_run" == true ]]; then
+    print -- "  command:"
+    print -n -- "    "
+    quote_cmd "${cmd[@]}"
+  else
+    "${cmd[@]}"
+  fi
+done < "$plan_file"
+
+print -- ""
+print -- "Planned segments: $scene_count"
+print -- "Exact scene cuts: $exact_count"
+print -- "Adjusted to keyframes: $(( scene_count - exact_count ))"
+
+if [[ "$dry_run" == true ]]; then
+  print -- "Dry run only. No files were written."
+else
+  print -- "Wrote scene files to: $output_dir"
+fi

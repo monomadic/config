@@ -29,7 +29,7 @@ alias .keyframe-cut="ffmpeg-lossless-cut-by-fzf-keyframe-select --force"
 #
 # ALIASES
 #
-alias .trim="ffmpeg-cut-intro --yes-both"
+alias .trim="ffmpeg-lossless-cut-by-fzf-keyframe-select"
 
 alias .ls="ls-media"
 alias .ls-sorted="ls-media --sort=created"
