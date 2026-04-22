@@ -4,9 +4,11 @@ Merged reference for this repo's VirtualDJ notes, examples, and preferred implem
 
 Last reviewed against live VirtualDJ documentation and forum sources on 2026-04-22.
 
+For verb-by-verb API details, use [VDJScript Verbs](VDJScript%20Verbs.md).
+
 ## Scope
 
-This document replaces the older split reference pages with one source-backed reference that focuses on:
+This document is the source-backed overview and policy layer above the older split reference pages, which are still being folded into a more reliable local reference set. It focuses on:
 
 - Which methods to prefer
 - Why those methods are preferable
