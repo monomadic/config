@@ -92,11 +92,6 @@ image_bound      = [ 10000, 10000 ]
 suppress_preload = false
 
 [plugin]
-fetchers = [
-	{ url = "*/", run = "mime.dir", prio = "high", group = "mime" },
-	{ url = "local://*", run = "mime.local", prio = "high", group = "mime" },
-	{ url = "remote://*", run = "mime.remote", prio = "high", group = "mime" },
-]
 spotters = [
 	{ mime = "multi/*", run = "multi" },
 	{ url = "*/", run = "folder" },
