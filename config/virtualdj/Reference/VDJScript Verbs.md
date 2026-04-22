@@ -305,6 +305,57 @@ Comprehensive reference for VDJScript verbs organized by category.
 | `cue_loop`           | Jump and loop            | `cue_loop`               |
 | `lock_cues`          | Lock/unlock cues         | `lock_cues`              |
 
+### Cue Point Notes
+
+- `cue_pos <n>` returns the position of cue point `<n>` as a percentage of the track, which makes it especially useful anywhere a skin element expects a progress-style value.
+- `cue_pos` also supports alternate outputs such as `msec`, `sec`, `min`, `mseconly`, and `beats`.
+- In skin XML, pair `cue_pos` with `has_cue <n>` when you want a marker or fill to appear only after that cue exists.
+
+### Working `cue_pos` Examples
+
+Basic queries:
+
+```text
+cue_pos 1
+cue_pos 1 beats
+cue_pos 1 mseconly
+```
+
+Custom progress bar up to Hot Cue 1:
+
+```xml
+<group name="cue_1_progress">
+  <square color="#11161D">
+    <pos x="40" y="200"/>
+    <size width="300" height="6"/>
+  </square>
+
+  <visual source="cue_pos 1" type="linear" orientation="horizontal" visibility="has_cue 1">
+    <pos x="40" y="200"/>
+    <size width="300" height="6"/>
+    <off shape="square" color="transparent"/>
+    <on shape="square" color="`cue_color 1`"/>
+  </visual>
+</group>
+```
+
+This draws a thin bar from the start of the track up to Hot Cue 1. It is a simple way to turn `cue_pos` into a custom progress overlay above or below a `songpos` bar.
+
+Read-only cue marker driven by a slider:
+
+```xml
+<slider action="cue_pos 1" orientation="horizontal" visibility="has_cue 1">
+  <pos x="40" y="192"/>
+  <size width="300" height="18"/>
+  <fader>
+    <size width="3" height="18"/>
+    <off shape="square" color="`cue_color 1`"/>
+  </fader>
+</slider>
+```
+
+Here the slider range becomes a simple placement track, and the `fader` sits at the cue location. This works well as a thin overlay on top of a `songpos` bar when you want a marker instead of a fill.
+
 ## Deck Selection
 
 | Verb              | Description                | Example              |
