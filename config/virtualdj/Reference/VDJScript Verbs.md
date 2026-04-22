@@ -1,6 +1,3142 @@
-# VirtualDJ VDJScript Verbs Reference
+# VirtualDJ VDJScript API Reference
 
-Comprehensive reference for VDJScript verbs organized by category.
+Curated API-oriented reference for VDJScript used in skins, pad pages, custom buttons, and controller mappings.
+
+This file now has two layers:
+
+- The curated API layer at the top: canonical names, aliases, scripting surfaces, and reliability notes.
+- The broad catalog below: wide coverage tables that are still being normalized.
+
+## Status
+
+This is the first API pass, not the final exhaustive pass.
+
+The highest-confidence material in this file is the curated layer at the top. It is intentionally biased toward the verbs and patterns that matter most for:
+
+- skin XML
+- pad page XML
+- custom button actions
+- controller mappings
+- small inline query and text scripts
+
+Current curated coverage includes:
+
+- flow and timing verbs
+- variables and deck targeting
+- skin panels and settings
+- browser, search, and sideview actions
+- transport, cue, loop, and sync controls
+- filter and FX selection
+- sampler page-aware helpers
+- deck assignment and crossfader routing
+
+## Reliability Labels
+
+- `Official`: current VirtualDJ manual or VDJPedia
+- `Official forum`: VirtualDJ staff, Development Manager, or CTO forum guidance
+- `Community`: forum guidance from non-staff users
+- `Inference`: a conclusion drawn from official behavior plus repo usage
+
+## Surface Legend
+
+- `Map`: controller mapping
+- `Button`: custom button action
+- `Pad`: pad page action or query
+- `SkinAction`: skin `action=""`, inline button body, or interactive element action
+- `SkinQuery`: skin `query=""`, `visibility=""`, `condition=""`, or equivalent boolean/value query slot
+- `Text`: skin `text`, `format`, color backticks, or other string/value-returning query usage
+
+These are practical surfaces, not hard type-check guarantees. When a surface is listed, read it as "commonly useful and normally safe there", not "the only place the verb can run".
+
+## Alias Policy
+
+- Use the primary name shown in the current official verbs page as the canonical heading.
+- List official aliases explicitly.
+- Prefer canonical names in examples unless the alias is the name people are most likely to search for.
+- If a synonym is only found in community posts and not in the official manual, label it as community-only rather than treating it as an official alias.
+
+## High-Frequency Alias Index
+
+| Canonical | Official aliases | Notes |
+| --------- | ---------------- | ----- |
+| `param_bigger` | `param_greater` | Same official entry |
+| `skin_panel` | `skin_pannel` | Keep the official spelling as canonical |
+| `skin_panelgroup` | `skin_pannelgroup` | Same note as above |
+| `lock_panel` | `lock_pannel` | Acts on `<split>`, not `<panel>` |
+| `settings` | `config` | Opens the configuration window |
+| `filter` | `filter_slider` | Main deck filter / ColorFX amount control |
+| `pad_page` | `pad_pages` | Page activation / page menu |
+| `pad_page_select` | `pad_page_favorite_select` | Favorite pad-page slot selection |
+| `effect_active` | `effect_activate` | Slot activation |
+| `effect_slider` | `effect_slider_slider` | Slot slider control |
+| `play_button` | `play_3button` | Behavior depends on `playMode` |
+| `stop_button` | `stop_3button` | Behavior depends on `playMode` |
+| `cue_button` | `cue_3button` | Behavior depends on `cueMode` |
+| `smart_play` | `auto_sync` | Startup auto-sync behavior, not the same as `play_sync` |
+| `play_sync_onbeat` | `sync_nocbg` | Local-beat sync variant |
+| `is_fluid` | `has_variable_bpm` | Fluid-grid query |
+| `set_fluid` | `set_variable_bpm` | Fluid-grid toggle |
+| `get_sample_name` | `get_sample_slot_name` | Absolute sample-slot label |
+| `add_list` | `add_virtualfolder` | Virtual folder creation |
+| `info_options` | `infos_options` | Browser info-panel context menu |
+| `browser_zoom` | `browser` | Browser zoom control |
+
+## Core Execution Model
+
+### Action vs Query vs Dual Verbs
+
+- `Action` verbs primarily do something: `play_pause`, `load`, `skin_panel`
+- `Query` verbs primarily return information: `get_browsed_song`, `get_time`, `sampler_loaded`
+- `Dual` verbs are often used both ways: `filter`, `setting`, `var`
+
+When a verb is documented here as `Dual`, that means it is commonly used in both action chains and value/query contexts.
+
+### Deck Scoping
+
+VDJScript actions can be prefixed with deck context:
+
+```vdjscript
+deck 1 play
+deck 2 volume 50%
+deck master get_level
+```
+
+Use deck scoping whenever the result should be explicit instead of depending on the current focused deck.
+
+Notes:
+
+- `deck master` means "run this in the current master deck context".
+- In sampler title and text paths, explicit `deck 1 ... : deck 2 ...` resolution can be more reliable than raw `deck master ...`.
+
+Sources:
+
+- `Official`: current VDJScript verbs appendix, deck examples
+- `Official forum`: sampler sync/build-specific discussion around master-deck sampler routing
+
+## Curated High-Frequency Entries
+
+### `up`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Branch on press versus release
+
+Typical forms:
+
+```vdjscript
+up ? action_on_press : action_on_release
+```
+
+Use when:
+
+- you need separate press/release logic in controller mappings
+- you want momentary behavior without relying on vars
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `down`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Branch on press versus release
+
+Typical forms:
+
+```vdjscript
+down ? action_on_press : action_on_release
+```
+
+Preferred usage:
+
+- use for hold-style momentary effects and pad behaviors
+- pair with `filter 50%` or another neutral reset on the release side when the control is momentary
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `holding`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Branch based on whether the control was held long enough
+
+Typical forms:
+
+```vdjscript
+holding ? long_press_action : short_press_action
+holding 1000ms ? long_press_action : short_press_action
+```
+
+Notes:
+
+- The default threshold is documented as `500ms`.
+- Prefer this over hand-rolled timer vars when you only need short-press versus long-press behavior.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `doubleclick`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Branch based on whether the control was pressed twice within the allowed window
+
+Typical forms:
+
+```vdjscript
+doubleclick ? double_action : single_action
+doubleclick 1000ms ? double_action : single_action
+```
+
+Notes:
+
+- The default interval is documented as `300ms`.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `repeat_start`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Start a named repeating task after the first interval passes
+
+Typical forms:
+
+```vdjscript
+repeat_start 'scroll' 1000ms & browser_scroll +1
+repeat_start 'pulse' 1bt
+repeat_start 'name' `get_var interval_ms`
+```
+
+Preferred usage:
+
+- use named repeats for background animation, repeated browser movement, and timed FX patterns
+- always pair long-lived repeats with a clear `repeat_stop`
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `repeat_start_instant`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Start a named repeating task immediately, then keep repeating on the chosen interval
+
+Typical forms:
+
+```vdjscript
+repeat_start_instant 'scroll' 250ms & browser_scroll +1
+```
+
+Preferred usage:
+
+- use when the first action should happen right away rather than after the first delay
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `repeat_stop`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Stop a repeat created with `repeat_start` or `repeat_start_instant`
+
+Typical forms:
+
+```vdjscript
+repeat_stop 'scroll'
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `wait`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Delay the next action in a chain
+
+Typical forms:
+
+```vdjscript
+wait 1bt & pause
+wait 500ms & play
+```
+
+Notes:
+
+- Use it for simple timed chains.
+- If you need a persistent process, prefer named repeats instead of stacking many waits.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `blink`
+
+Aliases: none
+
+Kind: `Dual`
+
+Typical surfaces: `Map`, `Pad`, `SkinQuery`
+
+Official summary:
+
+- Toggle LED or visual state on and off at a configurable rate
+
+Typical forms:
+
+```vdjscript
+blink
+blink 1000ms
+blink 1bt
+blink 1bt 25%
+```
+
+Preferred usage:
+
+- use as the true branch in queries: `effect_active 1 ? blink 1bt : off`
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `param_bigger`
+
+Aliases: `param_greater`
+
+Kind: `Dual`
+
+Typical surfaces: `Map`, `Pad`, `SkinQuery`, `Text`
+
+Official summary:
+
+- Compare the caller value against a value or another action result
+
+Typical forms:
+
+```vdjscript
+param_bigger 0 ? action1 : action2
+param_bigger pitch pitch_slider
+```
+
+Preferred usage:
+
+- use the canonical manual name `param_bigger` in docs
+- mention `param_greater` when helping users search or migrate older scripts
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `param_equal`
+
+Aliases: none
+
+Kind: `Dual`
+
+Typical surfaces: `Map`, `Pad`, `SkinQuery`, `Text`
+
+Official summary:
+
+- Compare the caller value or the first parameter value against another value
+
+Typical forms:
+
+```vdjscript
+param_equal `get_browsed_song 'type'` "audio"
+param_equal 0.5 filter ? on : off
+```
+
+Preferred usage:
+
+- use backticks when the compared value comes from another action
+- prefer this over brittle string slicing or var mirrors when the source action already returns the value you need
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `var`
+
+Aliases: none
+
+Kind: `Dual`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinQuery`, `Text`
+
+Official summary:
+
+- Test whether a variable is true
+
+Typical forms:
+
+```vdjscript
+var "my_var" ? action1 : action2
+```
+
+Notes:
+
+- Use vars when you truly need stored state across events.
+- Do not reach for vars when a built-in query verb already answers the question directly.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Community`: experienced skin scripters repeatedly caution against overusing vars when a built-in UI/query path already exists
+
+### `set`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Set a variable to a value
+
+Typical forms:
+
+```vdjscript
+set 'varname' 5
+set 'page_fx_active' 1
+set 'remembered_filter' `filter`
+```
+
+Notes:
+
+- Use for stored state, not as a substitute for native UI or deck state queries.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix, variable section
+
+### `toggle`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Toggle a variable between true and false
+
+Typical forms:
+
+```vdjscript
+toggle "my_var"
+```
+
+Preferred usage:
+
+- good for explicit user modes
+- avoid using it when the target should mirror a built-in state such as `play`, `loop`, or `masterdeck`
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `get_var`
+
+Aliases: none
+
+Kind: `Query`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinQuery`, `Text`
+
+Official summary:
+
+- Return the value of a named variable
+
+Typical forms:
+
+```vdjscript
+get_var 'varname'
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `set_deck`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Use a script result or implicit value to decide which deck the following action applies to
+
+Typical forms:
+
+```vdjscript
+set_deck `get_var target_deck` & play
+```
+
+Preferred usage:
+
+- use in mappings when the target deck is computed at runtime
+- prefer explicit `deck 1 ...`, `deck 2 ...`, or `deck master ...` when the target is already known
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `skin_panel`
+
+Aliases: `skin_pannel`
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Show or hide a named panel
+
+Typical forms:
+
+```vdjscript
+skin_panel 'my_panel' on
+skin_panel 'my_panel' off
+```
+
+Preferred usage:
+
+- use for explicit panel toggles
+- if panel visibility should simply follow a live condition, prefer panel `visibility=""` or other query-driven skin logic instead of setting extra vars only to call `skin_panel`
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Official`: Skin SDK panel documentation
+
+### `skin_panelgroup`
+
+Aliases: `skin_pannelgroup`
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Switch which panel in a named group is shown
+
+Typical forms:
+
+```vdjscript
+skin_panelgroup 'rack' 'fx'
+skin_panelgroup 'rack' +1
+skin_panelgroup 'rack' 0.75
+```
+
+Preferred usage:
+
+- use when the user is deliberately switching between remembered panel modes
+- use `skin_panelgroup_available` to keep unavailable panels out of cycles
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Official`: Skin SDK panel documentation
+
+### `lock_panel`
+
+Aliases: `lock_pannel`
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Despite the name, this acts on `<split>` elements rather than `<panel>`
+
+Notes:
+
+- Document this quirk explicitly wherever the verb is mentioned.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `setting`
+
+Aliases: none
+
+Kind: `Dual`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`, `SkinQuery`, `Text`
+
+Official summary:
+
+- Read or write a specific VirtualDJ setting
+
+Typical forms:
+
+```vdjscript
+setting "jogSensitivityScratch" 80%
+setting "videoRandomTransition" on
+setting "filterDefaultResonance"
+```
+
+Preferred usage:
+
+- prefer it for actual program settings such as `filterDefaultResonance`
+- do not use settings as a substitute for temporary UI state that belongs in a script variable or a panel selection
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Official forum`: `setting filterDefaultResonance` recommended by CTO Adion for filter resonance scripting
+
+### `settings`
+
+Aliases: `config`
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- Open the configuration window
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `display_time`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Set the displayed time mode to `total`, `remain`, `elapsed`, `+1`, or `-1`
+
+Typical forms:
+
+```vdjscript
+display_time 'remain'
+display_time 'remain,elapsed'
+display_time +1
+```
+
+Preferred usage:
+
+- prefer this over custom elapsed/remain vars when the goal is simply to switch the time-display mode
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Inference`: prefer the built-in time-display mode before inventing a parallel time-mode variable
+
+### `get_time`
+
+Aliases: none
+
+Kind: `Query`
+
+Typical surfaces: `SkinQuery`, `Text`, `Map`, `Button`
+
+Official summary:
+
+- Return elapsed, remaining, or total time, with optional unit and target-point arguments
+
+Typical forms:
+
+```vdjscript
+get_time
+get_time 'remain'
+get_time 'remain' 'short'
+get_time 1000
+get_time 'absolute'
+```
+
+Notes:
+
+- `get_time` follows the current `display_time` mode unless you explicitly pass `elapsed`, `remain`, or `total`.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `get_browsed_song`
+
+Aliases: none
+
+Kind: `Query`
+
+Typical surfaces: `Button`, `Pad`, `SkinQuery`, `Text`
+
+Official summary:
+
+- Return a property from the currently browsed file
+
+Typical forms:
+
+```vdjscript
+get_browsed_song 'title'
+get_browsed_song 'type'
+```
+
+Preferred usage:
+
+- pair with `param_equal` when branching on browsed-file metadata
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `load`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Load the selected song, or a specified full path, onto the deck
+
+Typical forms:
+
+```vdjscript
+load
+load "/path/to/file.mp3"
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `play`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Start the deck
+
+Typical forms:
+
+```vdjscript
+play
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `play_stutter`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- If paused, start the deck. If playing, restart from the last stutter point.
+
+Typical forms:
+
+```vdjscript
+play_stutter
+```
+
+Preferred usage:
+
+- use when the control should deliberately retrigger from the stutter point
+- for ordinary transport start behavior, prefer plain `play` or `play_pause`
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `play_pause`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Start the deck if paused; pause it if playing
+
+Typical forms:
+
+```vdjscript
+play_pause
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `pause`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Pause the deck
+
+Typical forms:
+
+```vdjscript
+pause
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `stop`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Stop to the last cue point, then on second press to the beginning of the song, then cycle through the cue points
+
+Typical forms:
+
+```vdjscript
+stop
+```
+
+Important note:
+
+- This is not a simple synonym for `pause`.
+- For deterministic documentation, spell out `stop`, `pause`, or `pause_stop` based on the behavior you actually want.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `cue_stop`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- If playing, pause and go to the last cue point. If paused, set the current position as cue and preview while pressed.
+
+Typical forms:
+
+```vdjscript
+cue_stop
+cue_stop 1
+cue_stop 57
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `pad_page`
+
+Aliases: `pad_pages`
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Activate a pad page, override a page slot, or show the pad-page selector menu
+
+Typical forms:
+
+```vdjscript
+pad_page 1
+pad_page 1 hotcues
+pad_page btn1
+pad_page
+```
+
+Preferred usage:
+
+- use the canonical singular name `pad_page` in docs
+- call out `pad_pages` as the official alias for searchability
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `filter`
+
+Aliases: `filter_slider`
+
+Kind: `Dual`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`, `SkinQuery`, `Text`
+
+Official summary:
+
+- Apply the selected ColorFX to the sound; nothing is applied at `50%`, and more is applied the farther from center
+
+Typical forms:
+
+```vdjscript
+filter
+filter 50%
+filter 75%
+down ? filter 75% : filter 50%
+```
+
+Preferred usage:
+
+- for the main deck filter path, pair it with `filter_selectcolorfx`
+- document `50%` as neutral; do not normalize docs around `0%` as if it were the center-off value
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `filter_selectcolorfx`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Select the ColorFX controlled by the filter knob
+
+Typical forms:
+
+```vdjscript
+filter_selectcolorfx 'Echo'
+filter_selectcolorfx +1
+filter_selectcolorfx -1
+```
+
+Preferred usage:
+
+- use this as the main documented way to choose the deck's ColorFX
+- prefer it over ad-hoc `effect_show_gui 'colorfx'` workflows when the goal is simply to set the selected ColorFX
+
+Quirk:
+
+- CTO Adion explicitly recommends `filter_selectcolorfx` to avoid duplicated filter states when switching ColorFX/filter behaviors.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Official forum`: "Default filter and color fx filter", Adion, 2023-05-19
+
+### `filter_label`
+
+Aliases: none
+
+Kind: `Query`
+
+Typical surfaces: `SkinQuery`, `Text`, `Button`, `Pad`
+
+Official summary:
+
+- Return the label shown under the filter knob
+
+Typical forms:
+
+```vdjscript
+filter_label
+filter_label 'clean'
+filter_label 'name'
+```
+
+Preferred usage:
+
+- use `filter_label 'name'` when you specifically want the ColorFX name rather than the value-style label
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `filter_resonance`
+
+Aliases: none
+
+Kind: `Dual`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`, `SkinQuery`
+
+Official summary:
+
+- Change the filter resonance
+
+Typical forms:
+
+```vdjscript
+filter_resonance 50%
+filter_resonance +5%
+filter_resonance -5%
+```
+
+Preferred usage:
+
+- use for live control of resonance
+- use `setting 'filterDefaultResonance' ...` when what you really want is the program setting, not a one-off movement
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Official`: options list
+- `Official forum`: filter resonance discussion in the ColorFX/filter thread
+
+### `effect_select`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Select an effect in a slot and deactivate the previous effect in that slot
+
+Typical forms:
+
+```vdjscript
+effect_select 1 "echo"
+effect_select 1 -1
+effect_select +1
+effect_select 1 0.2
+```
+
+Preferred usage:
+
+- use slot-based effect selection for deterministic pad pages and skins
+- prefer this over name-only global assumptions when you care which slot owns the effect
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `effect_active`
+
+Aliases: `effect_activate`
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`, `SkinQuery`
+
+Official summary:
+
+- Activate or deactivate the effect on a specific slot
+
+Typical forms:
+
+```vdjscript
+effect_active 1
+effect_active 1 on
+effect_active 1 off
+effect_active 1 'flanger' on
+```
+
+Preferred usage:
+
+- keep docs slot-centric when describing normal deck FX behavior
+- mention the alias, but keep `effect_active` as canonical
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `effect_slider`
+
+Aliases: `effect_slider_slider`
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Move a specific slider on the effect loaded in a given slot
+
+Typical forms:
+
+```vdjscript
+effect_slider 1 2 50%
+effect_slider 1 0%
+```
+
+Preferred usage:
+
+- use explicit slot and slider numbers in docs and examples
+- pair with `effect_select` and `effect_active` for deterministic FX presets
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `effect_colorfx`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Select an effect for one of up to four custom ColorFX slots
+
+Typical forms:
+
+```vdjscript
+effect_colorfx 1 "echo"
+```
+
+Preferred usage:
+
+- use when building extra ColorFX-like controls that should not hijack the main deck filter path
+
+Quirk:
+
+- This is not the same thing as selecting the standard deck filter ColorFX. For that, prefer `filter_selectcolorfx`.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Official forum`: ColorFX/filter guidance from staff and CTO posts
+
+### `effect_colorslider`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Control an effect from a center-off position to full on left or right
+
+Typical forms:
+
+```vdjscript
+effect_colorslider 1
+```
+
+Preferred usage:
+
+- pair it with `effect_colorfx` for custom ColorFX-style controls
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `effect_show_gui`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Show the control window for an effect
+
+Typical forms:
+
+```vdjscript
+effect_show_gui 1
+effect_show_gui 'colorfx'
+```
+
+Notes:
+
+- Treat GUI access as separate from canonical selection logic. Opening a GUI does not make it the preferred API path for selection or activation.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `sampler_play`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Play the default sample or a specified absolute sample slot
+
+Typical forms:
+
+```vdjscript
+sampler_play
+sampler_play 4
+```
+
+Preferred usage:
+
+- use for absolute-slot sampler control
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `sampler_stop`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Stop one sample or all playing samples
+
+Typical forms:
+
+```vdjscript
+sampler_stop 4
+sampler_stop all
+```
+
+Preferred usage:
+
+- use for absolute-slot stop logic or global cleanup actions
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `sampler_pad`
+
+Aliases: none
+
+Kind: `Dual`
+
+Typical surfaces: `Pad`, `Button`, `SkinAction`, `SkinQuery`, `Text`
+
+Official summary:
+
+- Trigger the sample in the visible sampler pad position; in display contexts it can also return the visible pad label
+
+Typical forms:
+
+```vdjscript
+sampler_pad 1
+sampler_pad 1 "auto"
+`sampler_pad 1`
+```
+
+Preferred usage:
+
+- use this for page-aware sampler UI, not fixed absolute slot control
+
+Quirk:
+
+- In display contexts, `sampler_pad <n>` is often the safest way to show the visible sample label on the current page.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Official`: pads manual
+- `Inference`: current repo examples and current page-aware sampler usage patterns
+
+### `sampler_pad_page`
+
+Aliases: none
+
+Kind: `Dual`
+
+Typical surfaces: `Pad`, `Button`, `SkinAction`, `SkinQuery`, `Text`
+
+Official summary:
+
+- Change or query the current 8-pad sampler window
+
+Typical forms:
+
+```vdjscript
+sampler_pad_page +1
+sampler_pad_page -1
+sampler_pad_page
+```
+
+Preferred usage:
+
+- treat this as the official pager behind sampler `1-8`, `9-16`, `17-24`, and later windows
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Official`: pads manual
+
+### `sampler_loaded`
+
+Aliases: none
+
+Kind: `Query`
+
+Typical surfaces: `Pad`, `SkinQuery`, `Text`
+
+Official summary:
+
+- Return true when a sample is loaded in the target slot
+
+Typical forms:
+
+```vdjscript
+sampler_loaded 1
+sampler_loaded 1 "auto"
+```
+
+Quirk:
+
+- The manual explicitly documents fixed-slot behavior.
+- The page-aware `sampler_loaded <n> "auto"` pattern is widely used in practice and works with current custom sampler pad patterns, but it should still be labeled as build-sensitive rather than silently promoted to timeless official behavior.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Inference`: repo usage plus current custom-page practice
+
+### `sampler_color`
+
+Aliases: none
+
+Kind: `Query`
+
+Typical surfaces: `Pad`, `SkinQuery`, `Text`
+
+Official summary:
+
+- Return the sample color for the visible sampler pad slot
+
+Typical forms:
+
+```vdjscript
+sampler_color 1
+sampler_color 1 "auto"
+```
+
+Important note:
+
+- The official manual explicitly says the sample number takes `sampler_pad_page` into account, which makes `sampler_color` one of the safest documented page-aware helpers.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `get_sample_name`
+
+Aliases: `get_sample_slot_name`
+
+Kind: `Query`
+
+Typical surfaces: `Text`, `Pad`, `SkinQuery`
+
+Official summary:
+
+- Return the name of a specified absolute sample slot
+
+Typical forms:
+
+```vdjscript
+get_sample_name 9
+```
+
+Preferred usage:
+
+- use this for absolute-slot sampler UI
+- do not substitute it for `sampler_pad <n>` when the label should follow the currently visible page
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `swap_decks`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- Swap deck 1 and deck 2
+
+Typical forms:
+
+```vdjscript
+swap_decks
+```
+
+Preferred usage:
+
+- use as an explicit global deck-management command, not as a substitute for `leftdeck` or `rightdeck`
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `clone_deck`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- Clone the current deck to the other deck, keeping song and position aligned
+
+Typical forms:
+
+```vdjscript
+clone_deck
+```
+
+Preferred usage:
+
+- useful for beat-juggling or quick A/B duplication
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `clone_from_deck`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- Clone from the other deck into the current deck
+
+Typical forms:
+
+```vdjscript
+clone_from_deck
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `move_deck`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- Move the song from the called deck into the target deck and unload it from the caller
+
+Typical forms:
+
+```vdjscript
+move_deck 2
+```
+
+Notes:
+
+- treat this as a content-transfer action, not a cosmetic deck-side switch
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `get_deck`
+
+Aliases: none
+
+Kind: `Query`
+
+Typical surfaces: `Map`, `Button`, `SkinQuery`, `Text`
+
+Official summary:
+
+- Get the number of the deck
+
+Typical forms:
+
+```vdjscript
+get_deck
+```
+
+Preferred usage:
+
+- use for deck-aware text and conditions when the action should follow the current deck context instead of a hard-coded deck number
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `masterdeck`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Select or unselect this deck as the master deck
+
+Typical forms:
+
+```vdjscript
+masterdeck
+deck 3 masterdeck
+```
+
+Important note:
+
+- When a master deck is set, synchronization operations use it as the reference deck.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `leftdeck`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Select this deck to be the left deck
+
+Typical forms:
+
+```vdjscript
+deck 3 leftdeck
+leftdeck +1
+```
+
+Preferred usage:
+
+- most useful in skins and mappings that expose more than two decks at once
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `rightdeck`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Select this deck to be the right deck
+
+Typical forms:
+
+```vdjscript
+deck 3 rightdeck
+rightdeck +1
+```
+
+Preferred usage:
+
+- most useful in skins and mappings that expose more than two decks at once
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `invert_deck`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- Switch the left or right deck assignment
+
+Typical forms:
+
+```vdjscript
+invert_deck
+invert_deck 'left'
+invert_deck 'right'
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `leftcross`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- Assign this deck to the left of the crossfader
+
+Typical forms:
+
+```vdjscript
+deck 3 leftcross
+deck 3 leftcross 'only'
+leftcross 'none'
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `rightcross`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- Assign this deck to the right of the crossfader
+
+Typical forms:
+
+```vdjscript
+deck 3 rightcross
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `pfl`
+
+Aliases: none
+
+Kind: `Dual`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`, `SkinQuery`
+
+Official summary:
+
+- Select whether this deck is sent to the headphones
+
+Typical forms:
+
+```vdjscript
+pfl
+pfl 75%
+```
+
+Important note:
+
+- The official manual also documents slider or percent use for headphone level control.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `get_deck_color`
+
+Aliases: none
+
+Kind: `Query`
+
+Typical surfaces: `SkinQuery`, `Text`, `Button`
+
+Official summary:
+
+- Return blue or red if the deck is the left or right deck, and gray otherwise
+
+Typical forms:
+
+```vdjscript
+get_deck_color
+get_deck_color 50%
+get_deck_color "absolute"
+get_deck_color "absolute" 50%
+```
+
+Important note:
+
+- Use `"absolute"` when you want color based on the actual deck number rather than the current left/right assignment.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `play_button`
+
+Aliases: `play_3button`
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- Act like `play_stutter` or `play_pause` depending on the `playMode` setting
+
+Typical forms:
+
+```vdjscript
+play_button
+```
+
+Preferred usage:
+
+- use only when you intentionally want behavior that follows the user's `playMode`
+- for documentation and fixed examples, prefer `play_pause` or `play_stutter` explicitly
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `pause_stop`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- If playing, pause the deck. If already stopped, rewind to the beginning, then cycle cues on repeated presses.
+
+Typical forms:
+
+```vdjscript
+pause_stop
+```
+
+Preferred usage:
+
+- use when you intentionally want the classic Numark-style stop behavior
+- do not document it as interchangeable with plain `stop`
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `stop_button`
+
+Aliases: `stop_3button`
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- Act like `pause_stop` or `stop` depending on the `playMode` setting
+
+Typical forms:
+
+```vdjscript
+stop_button
+```
+
+Preferred usage:
+
+- use only when the mapping should follow `playMode`
+- for deterministic docs and examples, prefer `stop` or `pause_stop` explicitly
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `cue_play`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Like `cue_stop`, but if held long enough it continues playing when released
+
+Typical forms:
+
+```vdjscript
+cue_play
+cue_play 1 1000ms
+```
+
+Notes:
+
+- The manual documents the hold behavior and allows an explicit time argument.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `cue`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- If playing, jump to the last cue point and keep playing. If paused, set the cue and preview while pressed.
+
+Typical forms:
+
+```vdjscript
+cue
+cue 1
+cue 57
+```
+
+Notes:
+
+- In loops, the manual says `cue` changes `loop_in` to the cue point while keeping the loop length.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `cue_select`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Select the default cue point used by cue-related actions without jumping to it
+
+Typical forms:
+
+```vdjscript
+cue_select 1
+cue_select +1
+```
+
+Preferred usage:
+
+- use when you need cue-target selection separate from transport movement
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `cue_cup`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- If playing, rewind to the last cue and restart on release. If paused, set the current position as cue.
+
+Typical forms:
+
+```vdjscript
+cue_cup
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `cue_button`
+
+Aliases: `cue_3button`
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- Act like `cue_stop`, `cue_play`, or `cue_cup` depending on the `cueMode` setting
+
+Typical forms:
+
+```vdjscript
+cue_button
+```
+
+Preferred usage:
+
+- use when you intentionally want the mapping to follow `cueMode`
+- for deterministic examples, document `cue_stop`, `cue_play`, or `cue_cup` directly
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `goto_first_beat`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Jump to the first beat in the song
+
+Typical forms:
+
+```vdjscript
+goto_first_beat
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `goto_start`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Go to the start of the song
+
+Typical forms:
+
+```vdjscript
+goto_start
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `loop`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Set or remove a loop
+
+Typical forms:
+
+```vdjscript
+loop 4
+loop 0.5
+loop 10ms
+loop 200%
+loop
+```
+
+Preferred usage:
+
+- use when one control should create, resize, or toggle a loop directly
+- use `loop_in`, `loop_out`, `loop_length`, and `loop_move` when the UI has separate controls for loop lifecycle and loop size
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `loop_in`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- If not in loop, set the beginning of a loop. If already in loop, jump back to the loop start.
+
+Typical forms:
+
+```vdjscript
+loop_in
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `loop_out`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- If not in loop, enter a loop using the last `loop_in` point or stutter point. If already in loop, exit it.
+
+Typical forms:
+
+```vdjscript
+loop_out
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `loop_length`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Change the loop length in milliseconds, beats, or percentage of the current length
+
+Typical forms:
+
+```vdjscript
+loop_length 0.5
+loop_length 15ms
+loop_length +100%
+```
+
+Preferred usage:
+
+- use for deterministic loop-size controls and encoders
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `loop_move`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Move the loop while keeping its current length
+
+Typical forms:
+
+```vdjscript
+loop_move +2
+loop_move +10ms
+loop_move +50%
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `loop_double`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Double the current loop length
+
+Typical forms:
+
+```vdjscript
+loop_double
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `loop_half`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Halve the current loop length
+
+Typical forms:
+
+```vdjscript
+loop_half
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `loop_exit`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Remove the loop
+
+Typical forms:
+
+```vdjscript
+loop_exit
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `reloop`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Jump to the stored `loop_in` point
+
+Typical forms:
+
+```vdjscript
+reloop
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `reloop_exit`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- If in loop, remove it. Otherwise, reactivate the last used loop.
+
+Typical forms:
+
+```vdjscript
+reloop_exit
+```
+
+Notes:
+
+- The official text also notes that it highlights when a loop had been used.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `loop_roll`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Trigger a loop roll of the specified size
+
+Typical forms:
+
+```vdjscript
+loop_roll 0.25
+loop_roll video
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `pad_page_select`
+
+Aliases: `pad_page_favorite_select`
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Select the pad page assigned to a favorite slot
+
+Typical forms:
+
+```vdjscript
+pad_page_select 1
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `sync`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Smoothly synchronize the song with the other deck
+
+Typical forms:
+
+```vdjscript
+sync
+```
+
+Preferred usage:
+
+- use when you want standard sync behavior that follows the current sync engine rather than an immediate start-and-play action
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `match_bpm`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Set the pitch to match the BPM of the other deck
+
+Typical forms:
+
+```vdjscript
+match_bpm
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `play_sync`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Play the song instantly synchronized with the other deck
+
+Typical forms:
+
+```vdjscript
+play_sync
+```
+
+Preferred usage:
+
+- use when the action should both sync and start playback immediately
+- do not confuse this with the `smart_play` setting/action
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `play_sync_onbeat`
+
+Aliases: `sync_nocbg`
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Instantly synchronize using local beat information instead of the global beatgrid
+
+Typical forms:
+
+```vdjscript
+play_sync_onbeat
+```
+
+Preferred usage:
+
+- call out the alias because older scripts and forum posts often reference `sync_nocbg`
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `beatlock`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`, `SkinQuery`
+
+Official summary:
+
+- Keep songs synchronized even while moving pitch, scratching, and similar manipulations
+
+Typical forms:
+
+```vdjscript
+beatlock
+beatlock on
+beatlock off
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `smart_fader`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- Synchronize songs while using the crossfader and gradually move tempo toward the target side
+
+Typical forms:
+
+```vdjscript
+smart_fader
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `smart_play`
+
+Aliases: `auto_sync`
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- When enabled, songs are automatically synchronized when started
+
+Typical forms:
+
+```vdjscript
+smart_play
+smart_play on
+smart_play off
+```
+
+Important note:
+
+- This is a setting-like behavior toggle, not the same thing as the `play_sync` transport action.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `phrase_sync`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`
+
+Official summary:
+
+- Shift by a number of beats to match the phrase of the other deck
+
+Typical forms:
+
+```vdjscript
+phrase_sync
+phrase_sync 16
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `quantize_all`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- Set all quantize options
+
+Typical forms:
+
+```vdjscript
+quantize_all
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `is_fluid`
+
+Aliases: `has_variable_bpm`
+
+Kind: `Query`
+
+Typical surfaces: `Map`, `Button`, `SkinQuery`, `Text`
+
+Official summary:
+
+- Return true if the song uses a fluid grid
+
+Typical forms:
+
+```vdjscript
+is_fluid
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `set_fluid`
+
+Aliases: `set_variable_bpm`
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`
+
+Official summary:
+
+- Switch between fluid and rigid grids
+
+Typical forms:
+
+```vdjscript
+set_fluid
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `goto_last_folder`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Go back to the last browsed folder
+
+Typical forms:
+
+```vdjscript
+goto_last_folder
+```
+
+Preferred usage:
+
+- use when a mapping or skin action needs deterministic browser back-navigation without simulating repeated scrolls
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `browser_scroll`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Scroll through the songs or folders
+
+Typical forms:
+
+```vdjscript
+browser_scroll +1
+browser_scroll -1
+browser_scroll 'top'
+browser_scroll 'bottom'
+```
+
+Preferred usage:
+
+- use for encoders, list navigation buttons, and timed repeat browsing
+- pair with `repeat_start` or `repeat_start_instant` when the control should keep scrolling while held
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `browser_move`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Move the currently selected song inside a playlist
+
+Typical forms:
+
+```vdjscript
+browser_move +1
+browser_move 'top'
+browser_move 'bottom'
+```
+
+Important note:
+
+- Treat this as playlist reordering, not general browser navigation.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `browser_folder`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- If focus is on songs, change focus to folders. If focus is on folders, open or close the subfolders of the selected folder.
+
+Typical forms:
+
+```vdjscript
+browser_folder
+```
+
+Preferred usage:
+
+- use when you want a single control to hand off focus from song list to folder tree
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `browser_enter`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- If focus is on songs, load the selected song. If focus is on folders, change focus to songs.
+
+Typical forms:
+
+```vdjscript
+browser_enter
+```
+
+Important note:
+
+- This is focus-sensitive. If you need a guaranteed load action regardless of browser focus, prefer `load`.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Inference`: deterministic API guidance based on the documented focus-dependent behavior
+
+### `browser_open_folder`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Expand the selected folder when closed, or close it when opened
+
+Typical forms:
+
+```vdjscript
+browser_open_folder
+browser_open_folder on
+browser_open_folder off
+```
+
+Preferred usage:
+
+- use this when you need explicit folder-tree open or close behavior without also switching song focus
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `browser_remove`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Remove the selected song from playlist
+
+Typical forms:
+
+```vdjscript
+browser_remove
+```
+
+Important note:
+
+- The documented behavior is playlist removal, not deletion from the library or filesystem.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `browser_window`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Change the active browser zone
+
+Typical forms:
+
+```vdjscript
+browser_window 'folders'
+browser_window 'songs'
+browser_window 'sideview'
+browser_window 'automix'
+browser_window +1
+browser_window 'folders,songs'
+```
+
+Preferred usage:
+
+- use this to move focus between browser panes
+- use `sideview` when the goal is to choose which sideview is shown, not just move focus to the sideview pane
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `search`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Put keyboard focus on the search zone, or, if a text parameter is specified, search for this text
+
+Typical forms:
+
+```vdjscript
+search
+search 'house'
+```
+
+Preferred usage:
+
+- use `search 'text'` when you want deterministic scripted search input
+- use `edit_search` when you want keyboard focus without replacing the current query
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `search_add`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Add the specified text to the search query
+
+Typical forms:
+
+```vdjscript
+search_add 'acapella'
+```
+
+Preferred usage:
+
+- use when a button should append a token or fragment without discarding the existing search string
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `search_delete`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Remove the last character from the search query
+
+Typical forms:
+
+```vdjscript
+search_delete
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `clear_search`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Clear the search string
+
+Typical forms:
+
+```vdjscript
+clear_search
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `edit_search`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Put keyboard focus in the search zone but keep the actual search string
+
+Typical forms:
+
+```vdjscript
+edit_search
+```
+
+Preferred usage:
+
+- prefer this over plain `search` when the current query must be preserved
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `file_count`
+
+Aliases: none
+
+Kind: `Query`
+
+Typical surfaces: `Text`, `SkinQuery`, `Button`
+
+Official summary:
+
+- Get the number of files currently shown in browser
+
+Typical forms:
+
+```vdjscript
+`file_count`
+`file_count automix`
+```
+
+Important note:
+
+- The official verbs page also documents `automix`, `sideview`, `karaoke`, and `sidelist` as valid count targets.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `sideview`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Show a specific folder in the sideview
+
+Typical forms:
+
+```vdjscript
+sideview automix
+sideview sampler
+sideview +1
+sideview -1
+```
+
+Important note:
+
+- Use `sideview` to select the sideview content.
+- Use `browser_window 'sideview'` when the goal is to move focus to the sideview pane.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `sideview_title`
+
+Aliases: none
+
+Kind: `Query`
+
+Typical surfaces: `Text`, `SkinQuery`
+
+Official summary:
+
+- Show the title of the folder selected in sideview
+
+Typical forms:
+
+```vdjscript
+`sideview_title`
+```
+
+Preferred usage:
+
+- useful for skin labels and browser helper text that should reflect the active sideview source
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `rating`
+
+Aliases: none
+
+Kind: `Dual`
+
+Typical surfaces: `Map`, `Button`, `SkinAction`, `Text`
+
+Official summary:
+
+- Get or set the rating for the current song
+
+Typical forms:
+
+```vdjscript
+`rating`
+rating 4
+```
+
+Preferred usage:
+
+- use the query form for display
+- use the action form for explicit rating controls on the current song
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `add_list`
+
+Aliases: `add_virtualfolder`
+
+Kind: `Action`
+
+Typical surfaces: `Button`, `SkinAction`
+
+Official summary:
+
+- Create a new list (virtual folder)
+
+Typical forms:
+
+```vdjscript
+add_list
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `info_options`
+
+Aliases: `infos_options`
+
+Kind: `Action`
+
+Typical surfaces: `Button`, `SkinAction`
+
+Official summary:
+
+- Show the context menu about the info panel fields and prelisten behavior
+
+Typical forms:
+
+```vdjscript
+info_options
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `browser_options`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Button`, `SkinAction`
+
+Official summary:
+
+- Show the context menu about browser filters, root folders, database, and related browser settings
+
+Typical forms:
+
+```vdjscript
+browser_options
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `browser_export`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Button`, `SkinAction`
+
+Official summary:
+
+- Export the current list of files to a CSV or HTML file
+
+Typical forms:
+
+```vdjscript
+browser_export
+```
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+## Broad Verb Index
+
+The sections below remain useful as a wide local inventory. They are still being normalized to the same API standard used above, especially around aliases, surface notes, and source-status markers.
 
 ## Flow Control
 

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<skin xmlns:xi="http://www.w3.org/2001/XInclude" name="Reference Modular Skeleton" version="8" width="1600" height="900" author="Codex" image="skin.png" preview="preview.png" breakline="900" breakline2="900">
+  <define color="app_bg" value="#11151A" xml:base="defs/colors.xml"/>
+  <define color="panel_bg" value="#1A2129" xml:base="defs/colors.xml"/>
+  <define color="panel_border" value="#303A45" xml:base="defs/colors.xml"/>
+  <define color="text_main" value="#E7EEF7" xml:base="defs/colors.xml"/>
+  <define color="text_dim" value="#93A1B1" xml:base="defs/colors.xml"/>
+  <define color="accent_1" value="#63D2FF" deck="1" xml:base="defs/colors.xml"/>
+  <define color="accent_2" value="#FF9C6B" deck="2" xml:base="defs/colors.xml"/>
+  <define color="button_off" value="#202833" xml:base="defs/colors.xml"/>
+  <define color="button_text_on" value="#11151A" xml:base="defs/colors.xml"/>
+  <font name="Helvetica Neue" xml:base="defs/globals.xml"/>
+  <nbdecks value="2" xml:base="defs/globals.xml"/>
+  <tooltip size="14" color="#E7EEF7" back="#1A2129" shortcut="gray" localize="true" xml:base="defs/globals.xml"/>
+  <dialogs darkmode="true" xml:base="defs/globals.xml"/>
+  <define class="HEADER_TITLE" xml:base="defs/classes.xml">
+    <size width="520" height="28"/>
+    <text fontsize="20" color="text_main" weight="bold" align="left"/>
+  </define>
+  <define class="HEADER_SUBTITLE" xml:base="defs/classes.xml">
+    <size width="520" height="18"/>
+    <text fontsize="11" color="text_dim" align="left"/>
+  </define>
+  <define class="DECK_LABEL" xml:base="defs/classes.xml">
+    <size width="200" height="18"/>
+    <text fontsize="11" color="text_dim" weight="bold" align="left"/>
+  </define>
+  <define class="VALUE_TEXT" xml:base="defs/classes.xml">
+    <size width="220" height="22"/>
+    <text fontsize="18" color="text_main" align="left"/>
+  </define>
+  <define class="TRANSPORT_BUTTON" placeholders="*text,*accent" xml:base="defs/classes.xml">
+    <size width="120" height="42"/>
+    <off shape="square" radius="10" color="button_off" border="[ACCENT]" border_size="2"/>
+    <on shape="square" radius="10" color="[ACCENT]" border="[ACCENT]" border_size="2"/>
+    <text fontsize="14" weight="bold" align="center" text="[TEXT]" color="text_main" colorselected="button_text_on"/>
+  </define>
+  <panel name="main" visible="yes" xml:base="panels/background.xml">
+    <square color="app_bg">
+      <pos x="0" y="0"/>
+      <size width="1600" height="900"/>
+    </square>
+    <grabzone x="0" y="0" width="1600" height="48"/>
+  </panel>
+  <panel name="header" visible="yes" xml:base="panels/header.xml">
+    <square color="panel_bg" border="panel_border" radius="18">
+      <pos x="40" y="32"/>
+      <size width="1520" height="96"/>
+    </square>
+    <textzone class="HEADER_TITLE">
+      <pos x="72" y="58"/>
+      <text text="Reference Modular Skeleton"/>
+    </textzone>
+    <textzone class="HEADER_SUBTITLE">
+      <pos x="72" y="88"/>
+      <text text="Build-time modular source, flattened install output"/>
+    </textzone>
+  </panel>
+  <deck deck="1" xml:base="panels/decks.xml">
+    <square color="panel_bg" border="panel_border" radius="18">
+      <pos x="40" y="164"/>
+      <size width="720" height="696"/>
+    </square>
+    <textzone class="DECK_LABEL">
+      <pos x="72" y="196"/>
+      <text text="DECK 1"/>
+    </textzone>
+    <textzone class="VALUE_TEXT">
+      <pos x="72" y="226"/>
+      <text action="get_bpm"/>
+    </textzone>
+    <textzone class="HEADER_SUBTITLE">
+      <pos x="72" y="258"/>
+      <text text="Replace this panel with waveforms, pads, FX, and browser glue"/>
+    </textzone>
+    <button class="TRANSPORT_BUTTON" x="72" y="320" action="play_pause" query="play" accent="accent_1" text="PLAY"/>
+    <button class="TRANSPORT_BUTTON" x="208" y="320" action="cue_stop" query="cue_stop" accent="accent_1" text="CUE"/>
+    <visual source="get_level" type="linear" orientation="vertical" direction="up">
+      <pos x="680" y="220"/>
+      <size width="16" height="560"/>
+      <off color="#23303C"/>
+      <on color="accent_1"/>
+    </visual>
+  </deck>
+  <deck deck="2" xml:base="panels/decks.xml">
+    <square color="panel_bg" border="panel_border" radius="18">
+      <pos x="840" y="164"/>
+      <size width="720" height="696"/>
+    </square>
+    <textzone class="DECK_LABEL">
+      <pos x="872" y="196"/>
+      <text text="DECK 2"/>
+    </textzone>
+    <textzone class="VALUE_TEXT">
+      <pos x="872" y="226"/>
+      <text action="get_bpm"/>
+    </textzone>
+    <textzone class="HEADER_SUBTITLE">
+      <pos x="872" y="258"/>
+      <text text="Keep source XML modular, then flatten before install"/>
+    </textzone>
+    <button class="TRANSPORT_BUTTON" x="872" y="320" action="play_pause" query="play" accent="accent_2" text="PLAY"/>
+    <button class="TRANSPORT_BUTTON" x="1008" y="320" action="cue_stop" query="cue_stop" accent="accent_2" text="CUE"/>
+    <visual source="get_level" type="linear" orientation="vertical" direction="up">
+      <pos x="1480" y="220"/>
+      <size width="16" height="560"/>
+      <off color="#23303C"/>
+      <on color="accent_2"/>
+    </visual>
+  </deck>
+</skin>
