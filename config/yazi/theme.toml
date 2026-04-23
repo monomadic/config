@@ -72,7 +72,7 @@ progress_error  = { fg = "#ff5f87", bg = "#111114" }
 # Popups / pickers
 # ------------------------------------------------------------
 
-[select]
+[pick]
 border = { fg = "#0a0a0b" }
 active   = { fg = "#66e2ff", bold = true }
 inactive = { fg = "#9aa0aa" }
@@ -83,7 +83,7 @@ title    = { fg = "#66e2ff", bold = true }
 value    = { fg = "#d7dbe3" }
 selected = { bg = "#1a1d24" }
 
-[completion]
+[cmp]
 border = { fg = "#0a0a0b" }
 active   = { bg = "#1a1d24", bold = true }
 inactive = { fg = "#9aa0aa" }
@@ -132,7 +132,7 @@ rules = [
 
   # archives
   { mime = "application/{,g}zip", fg = "#ffb86c" },
-  { mime = "application/x-{tar,bzip*,7z-compressed,xz,rar}", fg = "#ffb86c" },
+  { mime = "application/{tar,bzip*,7z-compressed,xz,rar}", fg = "#ffb86c" },
 
   # documents
   { mime = "application/{pdf,doc,rtf,vnd.*}", fg = "#7df9aa" },

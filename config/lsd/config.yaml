@@ -1,0 +1,8 @@
+color:
+  when: auto
+  theme: custom
+
+icons:
+  when: auto
+  theme: fancy
+  separator: " "
