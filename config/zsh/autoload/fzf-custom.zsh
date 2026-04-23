@@ -81,7 +81,7 @@ ls_hidden() {
 fzf-lsd-cd() {
   # Run lsd with desired options and pipe to fzf
   # Use awk to extract just the directory name, removing the icon and any other prefixes
-  selected=$(lsd --icon always --long --ignore-config --blocks name --directory-only --color always |
+  selected=$(lsd --icon always --long --blocks name --directory-only --color always |
     fzf --ansi --reverse |
     awk '{
                    # Skip the first field (icon) and concatenate remaining fields

@@ -118,6 +118,9 @@ files = { "config/starship/starship.toml" = "~/.config/starship.toml" }
 "config/lf/icons" = "~/.config/lf/icons"
 "config/lf/colors" = "~/.config/lf/colors"
 
+[lsd.files]
+"config/lsd" = "~/.config/lsd"
+
 [zsh]
 [zsh.files]
 "config/zsh/zshrc.zsh" = "~/.zshrc"

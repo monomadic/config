@@ -47,6 +47,7 @@ add-zsh-hook precmd _lazy_fzf_precmd
 
 config_files=(
   $ZSH_AUTOLOAD_DIR/homebrew.zsh
+  $ZSH_AUTOLOAD_DIR/colors.zsh
   $ZSH_AUTOLOAD_DIR/completions.zsh
   $ZSH_AUTOLOAD_DIR/alias.zsh
   $ZSH_AUTOLOAD_DIR/broot.zsh

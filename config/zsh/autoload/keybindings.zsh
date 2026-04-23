@@ -30,7 +30,7 @@ if [[ -o interactive ]]; then
   _cd-yazi() {
     local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd
     zle -I 2>/dev/null
-    kitty-exec '   yazi ' '#FF44CC' yazi "$@" --cwd-file="$tmp"
+    kitty-exec '󰘳 yazi ' '#FF44CC' yazi "$@" --cwd-file="$tmp"
     if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
       builtin cd -- "$cwd"
     fi

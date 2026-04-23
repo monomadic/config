@@ -16,4 +16,4 @@ if [[ -z ${KITTY_WINDOW_ID:-} && -z ${KITTY_LISTEN_ON:-} ]]; then
   exec hx "$@"
 fi
 
-exec kitty-exec "  $base" "#04F273" hx "$@"
+exec kitty-exec " $base" "#04F273" hx "$@"
