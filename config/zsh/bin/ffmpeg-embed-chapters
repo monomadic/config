@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-# Review detected scenes, then split a video into per-scene clips.
+# Review detected scenes, then embed them as chapters in a copied file.
 
 emulate -L zsh
 set -euo pipefail
@@ -7,33 +7,29 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  ffmpeg-split-scenes [options] <input-video>
+  ffmpeg-embed-chapters [options] <input-video>
 
 Options:
-  -n, --dry-run            Print the split plan and ffmpeg commands without writing files
-  -o, --output-dir <dir>   Output directory (default: same directory as input)
+  -n, --dry-run            Print planned chapters and ffmpeg command without writing files
   -t, --threshold <value>  Scene sensitivity threshold passed to ffmpeg-detect-scenes
                            Lower values detect more cuts; higher values detect fewer.
-                           Start with 0.30 unless the detector is too noisy or too strict.
-  -e, --exact              Cut at the detected scene times instead of snapping backward
-                           to keyframes. This re-encodes video with libx264 so the visual
-                           cut can land exactly on the detected frame.
-                           Non-video streams are copied where possible.
-  -f, --force              Overwrite existing output files
+  -k, --snap-to-keyframe   Build chapter boundaries from keyframe-safe cut times instead
+                           of the exact detected scene times
+  -f, --force              Overwrite the output file if it already exists
   -w, --width <px>         Thumbnail preview width in fzf (default: 480)
-  -k, --keep-previews      Keep generated preview thumbnails instead of deleting them
+  -p, --title-prefix <s>   Chapter title prefix (default: Scene)
+  --keep-previews          Keep generated preview thumbnails instead of deleting them
   -h, --help               Show this help
 
 Behavior:
-  - Shows an fzf review of detected scene changes before writing anything
-  - By default, uses keyframe-safe stream-copy cuts for lossless output where possible
-  - Writes clips beside the source as <name>.scene-001.<ext>, <name>.scene-002.<ext>, ...
+  - Shows an fzf review of detected scenes before writing anything
+  - Saves a copy beside the source as <name>.chapters.<ext>
+  - Muxes chapter metadata without re-encoding the media streams
 
 Examples:
-  ffmpeg-split-scenes movie.mp4
-  ffmpeg-split-scenes --dry-run movie.mp4
-  ffmpeg-split-scenes --exact --threshold 0.4 movie.mp4
-  ffmpeg-split-scenes --output-dir /tmp/scenes movie.mkv
+  ffmpeg-embed-chapters movie.mp4
+  ffmpeg-embed-chapters --dry-run movie.mp4
+  ffmpeg-embed-chapters --snap-to-keyframe --title-prefix Cut movie.mkv
 EOF
 }
 
@@ -73,7 +69,7 @@ review_scenes() {
   local keep_previews="$4"
 
   local tmp_dir
-  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/ffmpeg-split-scenes-review.XXXXXXXX")"
+  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/ffmpeg-embed-chapters-review.XXXXXXXX")"
 
   review_cleanup() {
     if [[ "$keep_previews" == true ]]; then
@@ -182,12 +178,25 @@ EOF
   review_cleanup
 }
 
+escape_ffmeta() {
+  python3 - "$1" <<'PY'
+import sys
+s = sys.argv[1]
+s = s.replace("\\", "\\\\")
+s = s.replace("=", "\\=")
+s = s.replace(";", "\\;")
+s = s.replace("#", "\\#")
+s = s.replace("\n", " ")
+print(s)
+PY
+}
+
 dry_run=false
-output_dir=""
 threshold="0.30"
-exact=false
+snap_to_keyframe=false
 force=false
 width=480
+title_prefix="Scene"
 keep_previews=false
 typeset -a positionals=()
 
@@ -197,18 +206,13 @@ while (( $# > 0 )); do
       dry_run=true
       shift
       ;;
-    -o|--output-dir)
-      (( $# >= 2 )) || die "missing value for $1"
-      output_dir="$2"
-      shift 2
-      ;;
     -t|--threshold)
       (( $# >= 2 )) || die "missing value for $1"
       threshold="$2"
       shift 2
       ;;
-    -e|--exact)
-      exact=true
+    -k|--snap-to-keyframe)
+      snap_to_keyframe=true
       shift
       ;;
     -f|--force)
@@ -220,7 +224,12 @@ while (( $# > 0 )); do
       width="$2"
       shift 2
       ;;
-    -k|--keep-previews)
+    -p|--title-prefix)
+      (( $# >= 2 )) || die "missing value for $1"
+      title_prefix="$2"
+      shift 2
+      ;;
+    --keep-previews)
       keep_previews=true
       shift
       ;;
@@ -270,12 +279,9 @@ else
   stem="$base_name"
   ext="mkv"
 fi
+output_file="${dir_name}/${stem}.chapters.${ext}"
 
-if [[ -z "$output_dir" ]]; then
-  output_dir="$dir_name"
-fi
-
-tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/ffmpeg-split-scenes.XXXXXXXX")"
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/ffmpeg-embed-chapters.XXXXXXXX")"
 cleanup() {
   rm -rf -- "$tmp_dir"
 }
@@ -283,9 +289,14 @@ trap cleanup EXIT INT TERM
 
 detections_file="$tmp_dir/detections.tsv"
 duration_file="$tmp_dir/duration.txt"
-plan_file="$tmp_dir/plan.tsv"
+meta_file="$tmp_dir/chapters.ffmeta"
 
-ffmpeg-detect-scenes --snap-to-keyframe --threshold "$threshold" -- "$input_file" > "$detections_file"
+if [[ "$snap_to_keyframe" == true ]]; then
+  ffmpeg-detect-scenes --snap-to-keyframe --threshold "$threshold" -- "$input_file" > "$detections_file"
+else
+  ffmpeg-detect-scenes --threshold "$threshold" -- "$input_file" > "$detections_file"
+fi
+
 ffprobe -v error \
   -show_entries format=duration \
   -of default=nw=1:nk=1 \
@@ -295,186 +306,102 @@ if grep -qv '^#' "$detections_file"; then
   print -- "Reviewing detected scenes..."
   review_scenes "$input_file" "$detections_file" "$width" "$keep_previews" || exit $?
 else
-  warn "no scene changes detected; output will be a single clip covering the whole file"
+  warn "no scene changes detected; output will contain a single chapter covering the whole file"
 fi
 
-python3 - "$detections_file" "$duration_file" "$plan_file" "$exact" <<'PY'
-import csv
+python3 - "$detections_file" "$duration_file" "$meta_file" "$snap_to_keyframe" "$title_prefix" <<'PY'
 import math
 import sys
 
 detections_path = sys.argv[1]
 duration_path = sys.argv[2]
-plan_path = sys.argv[3]
-exact = sys.argv[4].lower() == "true"
+meta_path = sys.argv[3]
+snap = sys.argv[4].lower() == "true"
+title_prefix = sys.argv[5]
 
 duration = float(open(duration_path, "r", encoding="utf-8").read().strip())
 if not math.isfinite(duration) or duration <= 0:
     raise SystemExit("invalid duration")
 
-rows = []
+boundaries = [0.0]
 with open(detections_path, "r", encoding="utf-8") as fh:
     for line in fh:
         if not line.strip() or line.startswith("#"):
             continue
         idx, raw_frame, raw_time, cut_frame, cut_time, score = line.rstrip("\n").split("\t")
-        rows.append(
-            {
-                "idx": int(idx),
-                "raw_time": float(raw_time),
-                "cut_time": float(cut_time),
-            }
-        )
-
-boundaries = [0.0]
-for row in rows:
-    boundaries.append(row["raw_time"] if exact else row["cut_time"])
+        boundaries.append(float(cut_time if snap else raw_time))
 boundaries.append(duration)
 
-raw_boundaries = [0.0]
-for row in rows:
-    raw_boundaries.append(row["raw_time"])
-raw_boundaries.append(duration)
+deduped = [boundaries[0]]
+for ts in boundaries[1:]:
+    if ts - deduped[-1] > 1e-6:
+        deduped.append(ts)
 
-segments = []
-pending_raw_start = raw_boundaries[0]
-segment_idx = 1
-for idx in range(len(boundaries) - 1):
-    start = boundaries[idx]
-    end = boundaries[idx + 1]
-    raw_end = raw_boundaries[idx + 1]
-    if end - start <= 1e-6:
-        continue
-    raw_start = pending_raw_start
-    exact_cut = abs(start - raw_start) <= 1e-6
-    segments.append(
-        (
-            segment_idx,
-            start,
-            end,
-            end - start,
-            raw_start,
-            raw_end,
-            1 if exact_cut else 0,
-        )
-    )
-    pending_raw_start = raw_end
-    segment_idx += 1
-
-with open(plan_path, "w", encoding="utf-8", newline="") as fh:
-    writer = csv.writer(fh, delimiter="\t", lineterminator="\n")
-    for row in segments:
-        writer.writerow(
-            [
-                row[0],
-                f"{row[1]:.6f}",
-                f"{row[2]:.6f}",
-                f"{row[3]:.6f}",
-                f"{row[4]:.6f}",
-                f"{row[5]:.6f}",
-                row[6],
-            ]
-        )
+with open(meta_path, "w", encoding="utf-8") as fh:
+    fh.write(";FFMETADATA1\n")
+    for index, (start, end) in enumerate(zip(deduped, deduped[1:]), start=1):
+        start_ms = int(round(start * 1000))
+        end_ms = int(round(end * 1000))
+        fh.write("[CHAPTER]\n")
+        fh.write("TIMEBASE=1/1000\n")
+        fh.write(f"START={start_ms}\n")
+        fh.write(f"END={end_ms}\n")
+        fh.write(f"title={title_prefix} {index:03d}\n")
 PY
 
-[[ -s "$plan_file" ]] || die "scene planning produced no output"
-if [[ "$dry_run" == false ]]; then
-  mkdir -p -- "$output_dir"
-fi
+[[ -e "$output_file" && "$force" == false && "$dry_run" == false ]] && die "output exists: $output_file (use --force to overwrite)"
 
-scene_count=0
-exact_count=0
-while IFS=$'\t' read -r idx start end duration raw_start raw_end exact_cut; do
-  (( scene_count += 1 ))
-  (( exact_count += exact_cut ))
+print -- "Planned chapters:"
+python3 - "$meta_file" <<'PY'
+import sys
 
-  output_file="${output_dir}/${stem}.scene-$(printf '%03d' "$idx").${ext}"
-  if [[ -e "$output_file" && "$force" == false && "$dry_run" == false ]]; then
-    die "output exists: $output_file (use --force to overwrite)"
-  fi
+current = {}
+for line in open(sys.argv[1], "r", encoding="utf-8"):
+    line = line.strip()
+    if line == "[CHAPTER]":
+        current = {}
+        continue
+    if "=" not in line:
+        continue
+    key, value = line.split("=", 1)
+    current[key] = value
+    if key == "title":
+        start = int(current["START"]) / 1000.0
+        end = int(current["END"]) / 1000.0
+        print(f"{value}: {start:.3f}s -> {end:.3f}s")
+PY
 
-  start_fmt="$(format_ts "$start")"
-  end_fmt="$(format_ts "$end")"
-  raw_start_fmt="$(format_ts "$raw_start")"
-  raw_end_fmt="$(format_ts "$raw_end")"
-
-  if (( exact_cut == 1 )); then
-    split_status="exact"
-  else
-    split_status="keyframe-adjusted"
-  fi
-
-  print -- "scene $(printf '%03d' "$idx"): ${start_fmt} -> ${end_fmt} (${split_status})"
-  if (( exact_cut == 0 )); then
-    print -- "  detected scene range: ${raw_start_fmt} -> ${raw_end_fmt}"
-  fi
-
-  if [[ "$exact" == true ]]; then
-    cmd=(
-      ffmpeg
-      -hide_banner
-      -loglevel error
-    )
-    if [[ "$force" == true ]]; then
-      cmd+=(-y)
-    else
-      cmd+=(-n)
-    fi
-    cmd+=(
-      -i "$input_file"
-      -ss "$start"
-      -t "$duration"
-      -map 0
-      -c:v libx264
-      -preset medium
-      -crf 18
-      -c:a copy
-      -c:s copy
-      -c:d copy
-      "$output_file"
-    )
-  else
-    cmd=(
-      ffmpeg
-      -hide_banner
-      -loglevel error
-    )
-    if [[ "$force" == true ]]; then
-      cmd+=(-y)
-    else
-      cmd+=(-n)
-    fi
-    cmd+=(
-      -ss "$start"
-      -i "$input_file"
-      -t "$duration"
-      -map 0
-      -c copy
-      -reset_timestamps 1
-      "$output_file"
-    )
-  fi
-
-  if [[ "$dry_run" == true ]]; then
-    print -- "  command:"
-    print -n -- "    "
-    quote_cmd "${cmd[@]}"
-  else
-    "${cmd[@]}"
-  fi
-done < "$plan_file"
-
-print -- ""
-print -- "Planned segments: $scene_count"
-if [[ "$exact" == true ]]; then
-  print -- "Mode: exact re-encode"
+cmd=(
+  ffmpeg
+  -hide_banner
+  -loglevel error
+)
+if [[ "$force" == true ]]; then
+  cmd+=(-y)
 else
-  print -- "Exact scene cuts: $exact_count"
-  print -- "Adjusted to keyframes: $(( scene_count - exact_count ))"
+  cmd+=(-n)
 fi
+cmd+=(
+  -i "$input_file"
+  -f ffmetadata
+  -i "$meta_file"
+  -map 0
+  -c copy
+  -map_metadata 0
+  -map_chapters 1
+  "$output_file"
+)
 
 if [[ "$dry_run" == true ]]; then
+  print -- ""
+  print -- "ffmetadata:"
+  sed -n '1,200p' "$meta_file"
+  print -- ""
+  print -- "command:"
+  print -n -- "  "
+  quote_cmd "${cmd[@]}"
   print -- "Dry run only. No files were written."
 else
-  print -- "Wrote scene files to: $output_dir"
+  "${cmd[@]}"
+  print -- "Wrote chaptered file: $output_file"
 fi

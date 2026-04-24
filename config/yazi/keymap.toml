@@ -54,9 +54,23 @@ run  = "plugin smart-enter"
 desc = "Open files or enter directories"
 
 [[mgr.prepend_keymap]]
+on   = "<Space>"
+run  = '''shell -- for f in "$@"; do
+	case "$f" in
+		*.mp4|*.MP4|*.mov|*.MOV|*.m4v|*.M4V)
+			open -a "QuickTime Player" "$f"
+			;;
+		*)
+			qlmanage -p "$f"
+			;;
+	esac
+done'''
+desc = "Preview with Quick Look, or open videos in QuickTime"
+
+[[mgr.prepend_keymap]]
 on   = "<C-p>"
-run  = 'shell -- qlmanage -p "$@"'
-desc = "Preview with macOS Quick Look"
+run  = "arrow prev"
+desc = "Move up"
 
 [[mgr.prepend_keymap]]
 on   = "!"
@@ -103,6 +117,11 @@ desc = "Change directory interactively"
 on   = "R"
 run  = "open --reveal"
 desc = "Reveal selected files in Finder"
+
+[[mgr.prepend_keymap]]
+on   = "<C-n>"
+run  = "arrow next"
+desc = "Move down"
 
 [[mgr.prepend_keymap]]
 on   = "J"

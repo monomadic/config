@@ -1,0 +1,216 @@
+#!/usr/bin/env zsh
+# Detect scene changes and print them as tab-separated rows to stdout.
+
+emulate -L zsh
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ffmpeg-detect-scenes [options] <input-video>
+
+Output:
+  Writes tab-separated rows to stdout with this schema:
+    index  raw_frame  raw_time  cut_frame  cut_time  scene_score
+
+  - raw_*  : the scene-change frame/time reported by ffmpeg's scene detector
+  - cut_*  : the frame/time you would actually cut on
+             by default this matches raw_*
+             with --snap-to-keyframe it snaps backward to the nearest previous keyframe
+  - *_frame: derived from the first video stream's avg_frame_rate
+             useful for tooling, but only approximate on variable-frame-rate sources
+
+Options:
+  -k, --snap-to-keyframe  Make cut_* fields keyframe-safe for stream-copy workflows.
+                          This does not change the detected scene itself; it only adjusts
+                          the suggested cut point backward so later tools can split losslessly.
+  -t, --threshold <value> Scene sensitivity threshold, usually between 0.1 and 0.6.
+                          Lower values catch subtler visual changes and usually produce
+                          more scene breaks, but also more false positives.
+                          Higher values require a stronger visual jump and usually produce
+                          fewer, cleaner cuts.
+                          ffmpeg's default scene score is normalized near the 0..1 range.
+                          Practical starting points:
+                            0.20  aggressive, catches small edits
+                            0.30  balanced default
+                            0.40  conservative
+                            0.50+ very strict, hard cuts only
+  -h, --help              Show this help
+
+Examples:
+  ffmpeg-detect-scenes clip.mp4
+  ffmpeg-detect-scenes --threshold 0.4 clip.mp4
+  ffmpeg-detect-scenes --snap-to-keyframe clip.mp4
+EOF
+}
+
+die() {
+  print -u2 -- "error: $*"
+  exit 1
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+snap_to_keyframe=false
+threshold="0.30"
+typeset -a positionals=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    -k|--snap-to-keyframe)
+      snap_to_keyframe=true
+      shift
+      ;;
+    -t|--threshold)
+      (( $# >= 2 )) || die "missing value for $1"
+      threshold="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      while (( $# > 0 )); do
+        positionals+=("$1")
+        shift
+      done
+      ;;
+    -*)
+      die "unknown option: $1"
+      ;;
+    *)
+      positionals+=("$1")
+      shift
+      ;;
+  esac
+done
+
+(( ${#positionals[@]} == 1 )) || {
+  usage >&2
+  exit 2
+}
+
+input_file="${positionals[1]}"
+[[ -f "$input_file" ]] || die "input not found: $input_file"
+[[ "$threshold" == <-> || "$threshold" == <->.<-> || "$threshold" == .<-> ]] || die "threshold must be numeric"
+
+have ffmpeg || die "ffmpeg not found"
+have ffprobe || die "ffprobe not found"
+have python3 || die "python3 not found"
+
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/ffmpeg-detect-scenes.XXXXXXXX")"
+cleanup() {
+  rm -rf -- "$tmp_dir"
+}
+trap cleanup EXIT INT TERM
+
+scene_meta_file="$tmp_dir/scenes.txt"
+keyframes_file="$tmp_dir/keyframes.json"
+stream_file="$tmp_dir/stream.json"
+
+ffmpeg -hide_banner -loglevel error \
+  -i "$input_file" \
+  -vf "select='gt(scene,${threshold})',metadata=print:file='${scene_meta_file//\'/\\\'}'" \
+  -an -f null - >/dev/null
+
+ffprobe -v error \
+  -select_streams v:0 \
+  -skip_frame nokey \
+  -show_frames \
+  -show_entries frame=best_effort_timestamp_time \
+  -of json \
+  -- "$input_file" > "$keyframes_file"
+
+ffprobe -v error \
+  -select_streams v:0 \
+  -show_entries stream=avg_frame_rate \
+  -of json \
+  -- "$input_file" > "$stream_file"
+
+python3 - "$scene_meta_file" "$keyframes_file" "$stream_file" "$snap_to_keyframe" <<'PY'
+from bisect import bisect_right
+from fractions import Fraction
+import json
+import re
+import sys
+
+scene_meta_path = sys.argv[1]
+keyframes_path = sys.argv[2]
+stream_path = sys.argv[3]
+snap = sys.argv[4].lower() == "true"
+
+pts_re = re.compile(r"pts_time:([0-9]+(?:\.[0-9]+)?)")
+score_re = re.compile(r"lavfi\.scene_score=([0-9]+(?:\.[0-9]+)?)")
+
+with open(stream_path, "r", encoding="utf-8") as fh:
+    stream_info = json.load(fh)
+
+streams = stream_info.get("streams", [])
+if not streams:
+    raise SystemExit("no video stream found")
+
+fps_raw = streams[0].get("avg_frame_rate", "0/0")
+try:
+    fps = float(Fraction(fps_raw))
+except Exception:
+    fps = 0.0
+if fps <= 0:
+    raise SystemExit(f"could not determine avg_frame_rate: {fps_raw}")
+
+with open(keyframes_path, "r", encoding="utf-8") as fh:
+    keyframe_json = json.load(fh)
+
+keyframes = [0.0]
+seen = {0.0}
+for frame in keyframe_json.get("frames", []):
+    raw = frame.get("best_effort_timestamp_time")
+    if raw is None:
+        continue
+    ts = float(raw)
+    rounded = round(ts, 6)
+    if rounded in seen:
+        continue
+    seen.add(rounded)
+    keyframes.append(ts)
+
+scenes = []
+current_time = None
+with open(scene_meta_path, "r", encoding="utf-8") as fh:
+    for line in fh:
+        line = line.strip()
+        pts_match = pts_re.search(line)
+        if pts_match:
+            current_time = float(pts_match.group(1))
+            continue
+        score_match = score_re.search(line)
+        if score_match and current_time is not None:
+            scenes.append((current_time, float(score_match.group(1))))
+            current_time = None
+
+deduped = []
+seen = set()
+for raw_time, score in scenes:
+    rounded = round(raw_time, 6)
+    if rounded in seen:
+        continue
+    seen.add(rounded)
+    deduped.append((raw_time, score))
+
+print("# index\traw_frame\traw_time\tcut_frame\tcut_time\tscene_score")
+for idx, (raw_time, score) in enumerate(deduped, start=1):
+    if snap:
+        keyframe_idx = bisect_right(keyframes, raw_time + 1e-9) - 1
+        cut_time = keyframes[max(keyframe_idx, 0)]
+    else:
+        cut_time = raw_time
+
+    raw_frame = int(round(raw_time * fps))
+    cut_frame = int(round(cut_time * fps))
+    print(
+        f"{idx}\t{raw_frame}\t{raw_time:.6f}\t{cut_frame}\t{cut_time:.6f}\t{score:.6f}"
+    )
+PY
