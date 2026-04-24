@@ -34,6 +34,23 @@ Use this pattern when pads `1-8` should follow the current sampler sub-page (`1 
 - The pad colors follow the visible sampler page through `sampler_color`.
 - `param1` cycles banks and `param2` cycles sampler sub-pages.
 
+### Drag-and-Drop Assignment
+
+The stock sampler workflow also supports dropping a file onto a sampler pad to assign it to a slot. The working custom pad-page pattern is:
+
+```xml
+<pad1 drop="sampler_assign 1">...</pad1>
+```
+
+Keep these limits in mind:
+
+- Treat `sampler_assign` slot numbers as absolute-slot targets.
+- The current official docs show `sampler_assign` with explicit slot numbers and do not document a page-aware `"auto"` form.
+- `sampler_pad_page` is the official pager for the visible `1-8`, `9-16`, `17-24`, and later windows, but you should not assume `drop="sampler_assign 1"` follows that pager automatically.
+- If you want page-aware drag targets, map each visible pad to the correct absolute slot yourself, or verify build-specific behavior before relying on it.
+- The current stock/local sampler page in this repo uses this exact pattern in [3. SAMPLER.xml](../Pads/3.%20SAMPLER.xml).
+- The target bank must be unlocked for samples to be added by drag-and-drop.
+
 ## Sampler Utility Page
 
 This is a compact companion page for common sampler tasks: lock/unlock the bank, switch StemSwap on/off, change routing, change trigger mode, and trim sampler master/PFL levels.
@@ -116,6 +133,8 @@ sampler_pad 1 "4x4x1"
 - If you want deck 1 to expose `1-8` and deck 2 to expose `9-16` automatically, enable `samplerSpanAcrossDecks`.
 - If you want both decks to start on `1-8`, leave `samplerSpanAcrossDecks` off and page manually with `sampler_pad_page`.
 - `sampler_pad`, `sampler_color`, and `sampler_pad_volume` are the safest page-aware helpers.
+- Use pad `drop="sampler_assign <slot>"` when you want a custom sampler pad page to accept dragged files.
+- Treat `drop="sampler_assign <slot>"` as an absolute-slot mapping unless you have verified a different build-specific behavior.
 - In pad `name=` fields, `sampler_pad <n>` is the safest way to show the current visible sample name on the active page.
 - In recent testing, `sampler_pad <n>` has been most reliable for paged names when the deck context is explicit. If `deck master` behaves oddly, prefer an explicit deck number or an explicit `masterdeck` resolver.
 - `sampler_play`, `sampler_stop`, `sampler_volume`, `get_sample_name`, and `get_sample_color` are best treated as absolute-slot helpers.
@@ -123,6 +142,7 @@ sampler_pad 1 "4x4x1"
 ## Source Notes
 
 - Official pads behavior: [Pads manual](https://www.virtualdj.com/manuals/virtualdj/interface/decks/decksadvanced/pads.html)
+- Official sampler drag-and-drop and unlocked-bank behavior: [Sampler manual](https://www.virtualdj.com/manuals/virtualdj/interface/browser/sideview/sampler.html)
 - Official sampler verbs: [VDJScript verbs](https://www.virtualdj.com/manuals/virtualdj/appendix/vdjscriptverbs.html)
 - Official sampler options: [Options list](https://www.virtualdj.com/manuals/virtualdj/appendix/optionslist.html)
 - Trigger modes and loop sync details: [Sample Editor](https://www.virtualdj.com/manuals/virtualdj/editors/sampleeditor.html)

@@ -1366,6 +1366,44 @@ Sources:
 - `Official`: VDJScript verbs appendix
 - `Official`: pads manual
 
+### `sampler_assign`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Pad`, `Map`, `Button`, `SkinAction`
+
+Official summary:
+
+- Assign a `.vdjsample` file to a slot
+
+Typical forms:
+
+```vdjscript
+sampler_assign 1 "/Samples/horn.vdjsample"
+```
+
+Preferred usage:
+
+- use for explicit slot assignment when the destination slot is known
+- on custom pad pages, pair it with pad XML `drop=` to accept dragged files:
+
+```xml
+<pad1 drop="sampler_assign 1">...</pad1>
+```
+
+Quirk:
+
+- treat the target slot as absolute unless you have build-specific proof otherwise. The current official docs show fixed slot numbers and do not document a page-aware `"auto"` form for `sampler_assign`.
+- The current stock/local sampler page in this repo uses `drop="sampler_assign <slot>"`; see [3. SAMPLER.xml](../Pads/3.%20SAMPLER.xml).
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Official`: sampler manual
+- `Inference`: current repo sampler pad XML pattern
+
 ### `sampler_loaded`
 
 Aliases: none
@@ -3692,11 +3730,14 @@ Here the slider range becomes a simple placement track, and the `fader` sits at 
 ### Sampler Notes
 
 - `sampler_pad_page` is the pager behind Parameter 2 on the default Sampler pad page and is the main way to reach `9-16`, `17-24`, and later sub-pages in banks with more than 8 samples.
+- For drag-and-drop assignment on custom pad pages, use pad `drop="sampler_assign <absolute-slot>"`.
+- Treat `sampler_assign` as an absolute-slot helper unless you have verified a build-specific page-aware variant; the current official docs do not show an `"auto"` form for it.
 - `sampler_pad`, `sampler_loaded`, `sampler_color`, and `sampler_pad_volume` are the safest page-aware helpers when building sampler pad pages.
 - In display contexts such as pad `name=` fields and skin/text `format=` fields, `sampler_pad 1` through `sampler_pad 8` are the safest way to show the current visible sample names on the active sampler page.
 - For visibility and empty-slot checks in paged sampler UIs, `sampler_loaded 1` through `sampler_loaded 8` already follow the visible sampler page, so you usually do not need to infer emptiness from a blank `sampler_pad` label.
 - `sampler_play`, `sampler_stop`, `sampler_volume`, `get_sample_name`, `get_sample_info`, and `get_sample_color` are best treated as absolute-slot helpers.
 - Use `sampler_color` when you want the color of the currently visible sampler pad. Use `get_sample_color` when you want the actual stored color of a specific bank slot.
+- In skins, do not assume a normal `<button>` exposes a drag callback that mirrors pad `drop=`. The current skin docs describe click handlers on `<button>` and separate `<dropzone>` elements for drag targets.
 - Samples triggered from a deck sync to that deck. If you want a pad page to follow a predictable sync source, trigger through an explicit deck:
 
 ```text
@@ -3725,10 +3766,17 @@ sampler_pad_volume 1 75%
 sampler_volume 9 75%
 ```
 
+```xml
+<pad1 drop="sampler_assign 1">...</pad1>
+```
+
 ### Sampler Source Notes
 
 - Official verbs: [VDJScript verbs](https://www.virtualdj.com/manuals/virtualdj/appendix/vdjscriptverbs.html)
 - Default sampler page behavior: [Pads manual](https://www.virtualdj.com/manuals/virtualdj/interface/decks/decksadvanced/pads.html)
+- Sampler bank drag-and-drop and unlocked-bank behavior: [Sampler manual](https://www.virtualdj.com/manuals/virtualdj/interface/browser/sideview/sampler.html)
+- Skin drag targets: [Skin SDK Dropzone](https://www.virtualdj.com/wiki/Skin%20SDK%20Dropzone.html)
+- Skin button API: [Skin Button](https://virtualdj.com/wiki/Skin-Button.html)
 - Trigger modes and loop sync settings: [Sample Editor](https://www.virtualdj.com/manuals/virtualdj/editors/sampleeditor.html)
 - Page-aware custom pad page examples: [Custom Sampler Pad Page](https://www.virtualdj.com/forums/253061/General_Discussion/Custom_Sampler_Pad_Page_%28Recording__Looping__Adjust_Beatgrid_and_more%29.html)
 - Deck sync guidance: [problem with (pad pages) pads sampler sync](https://virtualdj.com/forums/224203/VirtualDJ_Technical_Support/problem_with_%28pad_pages%29_pads_sampler_sync%21_please_help___is_it_a_bug%3F%3F.html)
