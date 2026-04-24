@@ -30,7 +30,7 @@ if [[ -o interactive ]]; then
   _cd-yazi() {
     local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd
     zle -I 2>/dev/null
-    kitty-exec '󰘳 yazi ' '#FF44CC' yazi "$@" --cwd-file="$tmp"
+    kitty-exec '󰘳 yazi' '#FF44CC' yazi "$@" --cwd-file="$tmp"
     if cwd="$(command cat -- "$tmp")" && [ -n "$cwd" ] && [ "$cwd" != "$PWD" ]; then
       builtin cd -- "$cwd"
     fi
@@ -233,6 +233,9 @@ if [[ -o interactive ]]; then
   bindkey '^U' kill-whole-line
   bindkey '^R' fzf-history-widget
 
+  bindkey '^t' fzf-kitty-switch-tabs
+  zle -N fzf-kitty-switch-tabs
+  
   # BIND F20
   if [[ -n ${terminfo[kf20]} ]]; then
     bindkey -M emacs "${terminfo[kf20]}" open-finder-pwd

@@ -14,45 +14,40 @@ def draw_tab(
     extra_data: ExtraData,
 ) -> int:
     """
-    Custom separator-style tab renderer that preserves at least one trailing
-    padding cell even when the tab gets ellipsized.
+    Separator-style tab renderer that behaves like Kitty's stock renderer,
+    except truncated tabs end with '… ' instead of just '…'.
 
-    Based on Kitty's draw_tab_with_separator(), but with one intentional change:
-    always reserve >= 1 trailing space when possible.
+    This preserves normal tab sizing. The extra padding is only introduced
+    when a tab is actually ellipsized.
     """
 
-    # Preserve the stock leading padding behavior.
+    # Match stock separator renderer.
     if draw_data.leading_spaces:
         screen.draw(" " * draw_data.leading_spaces)
 
-    # Draw the title using kitty's own template engine so your
-    # tab_title_template / active_tab_title_template still apply.
     draw_title(draw_data, screen, tab, index, max_tab_length)
 
-    # Force at least one trailing space if the tab is wide enough to allow it.
-    # Kitty's stock code uses:
-    #   trailing_spaces = min(max_tab_length - 1, draw_data.trailing_spaces)
-    # We instead keep one cell of right padding alive whenever max_tab_length > 1.
-    if max_tab_length > 1:
-        trailing_spaces = max(1, min(max_tab_length - 1, draw_data.trailing_spaces))
-    else:
-        trailing_spaces = 0
+    trailing_spaces = min(max_tab_length - 1, draw_data.trailing_spaces)
+    available = max_tab_length - trailing_spaces
+    extra = screen.cursor.x - before - available
 
-    content_budget = max_tab_length - trailing_spaces
-    extra = screen.cursor.x - before - content_budget
-
-    # If the rendered title overflowed the available content width,
-    # back up and place an ellipsis, but leave the reserved trailing space intact.
     if extra > 0:
-        screen.cursor.x -= extra + 1
-        screen.draw("…")
-
-    if trailing_spaces:
+        # Normal Kitty behavior writes just '…' at:
+        #   screen.cursor.x -= extra + 1
+        #
+        # We want '… ' instead, while keeping the same total width.
+        # So move back one extra cell and draw two cells instead of one.
+        if available >= 2:
+            screen.cursor.x -= extra + 2
+            screen.draw("… ")
+        else:
+            screen.cursor.x -= extra + 1
+            screen.draw("…")
+    elif trailing_spaces:
         screen.draw(" " * trailing_spaces)
 
     end = screen.cursor.x
 
-    # Draw the inter-tab separator the same way Kitty's separator renderer does.
     screen.cursor.bold = False
     screen.cursor.italic = False
     screen.cursor.fg = 0

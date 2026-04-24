@@ -26,6 +26,7 @@ alias .select-and-play="fzf-select --color | mpv --playlist=-"
 
 alias .keyframe-cut="ffmpeg-lossless-cut-by-fzf-keyframe-select --force"
 
+alias .batch="yt-dlp-porn-batch-file /Users/nom/Library/Mobile\ Documents/com\~apple\~CloudDocs/Sync/links.txt"
 #
 # ALIASES
 #
