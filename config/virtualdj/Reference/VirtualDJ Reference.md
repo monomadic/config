@@ -43,6 +43,11 @@ Source labels used below:
   Why: `sampler_color` explicitly follows the visible sampler page, and the pads manual documents page cycling when a bank has more than eight samples.
   Source: `Official`
 
+- Sampler drag-and-drop assignment inside pads:
+  Prefer pad-page `drop="sampler_assign <absolute-slot>"` when you want a dragged file to populate a sampler slot from the Pads area.
+  Why: `sampler_assign` is the official assignment verb, and the sampler manual documents dragging files onto unlocked sampler pads. The current skin button docs only document click-oriented handlers, while skin drag targets are handled with `<dropzone>` rather than a generic button drag state.
+  Source: `Official`, `Inference`
+
 - Absolute sampler slots:
   Prefer `sampler_play`, `sampler_stop`, `get_sample_name`, and `get_sample_color` when you do not want the action to follow the currently visible sampler page.
   Why: these verbs target fixed slots rather than the visible pad page.
@@ -638,6 +643,7 @@ Official docs:
 
 - [VirtualDJ Skin SDK](https://www.virtualdj.com/wiki/Skin_SDK.html)
 - [Skin Button](https://virtualdj.com/wiki/Skin-Button.html)
+- [Skin SDK Dropzone](https://www.virtualdj.com/wiki/Skin%20SDK%20Dropzone.html)
 - [Skin Panel](https://www.virtualdj.com/wiki/Skin%20SDK%20Panel.html)
 - [Skin Default Colors](https://virtualdj.com/wiki/Skin%20Default%20Colors.html)
 - [Skin SDK Visual](https://virtualdj.com/wiki/skinsdkvisual.html)
@@ -645,6 +651,7 @@ Official docs:
 - [List of Options](https://www.virtualdj.com/manuals/virtualdj/appendix/optionslist/)
 - [List of Native Effects](https://www.virtualdj.com/manuals/virtualdj/appendix/nativeeffects/)
 - [Pads manual](https://www.virtualdj.com/manuals/virtualdj/interface/decks/decksadvanced/pads.html)
+- [Sampler manual](https://www.virtualdj.com/manuals/virtualdj/interface/browser/sideview/sampler.html)
 
 Official forum guidance cited for method choices:
 
