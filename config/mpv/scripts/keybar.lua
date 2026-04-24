@@ -16,6 +16,7 @@ local auto_landscape = false
 local metadata_enabled = true
 local progress_visible = true
 local stats_visible = false
+local edge_fade_enabled = false
 
 -- prevents observe_property("panscan") from treating our own writes as "external user changes"
 local applying_panscan = false
@@ -224,6 +225,16 @@ local keybar_items = {
         match = command_equals("script-binding toggle-pan-scan"),
     },
     {
+        id = "edge_fade",
+        section = "state",
+        fallback = "e",
+        prefer = { "e" },
+        desc = function(badge)
+            return " Edge Fade " .. badge(edge_fade_enabled)
+        end,
+        match = command_equals("script-binding toggle-edge-fade"),
+    },
+    {
         id = "progress",
         section = "state",
         fallback = "Ctrl+p",
@@ -416,6 +427,7 @@ mp.add_timeout(0, function()
     mp.commandv("script-message", "metadata-query")
     mp.commandv("script-message", "progress-bar-query")
     mp.commandv("script-message", "realtime-stats-query")
+    mp.commandv("script-message", "edge-fade-query")
 end)
 
 local function render_bar()
@@ -455,6 +467,7 @@ mp.register_event("file-loaded", function()
         mp.commandv("script-message", "metadata-query")
         mp.commandv("script-message", "progress-bar-query")
         mp.commandv("script-message", "realtime-stats-query")
+        mp.commandv("script-message", "edge-fade-query")
     end)
 end)
 
@@ -507,6 +520,11 @@ end)
 
 mp.register_script_message("realtime-stats-state", function(state)
     stats_visible = (state == "yes")
+    render_bar()
+end)
+
+mp.register_script_message("edge-fade-state", function(state)
+    edge_fade_enabled = (state == "yes")
     render_bar()
 end)
 
