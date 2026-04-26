@@ -22,19 +22,25 @@ class FaphouseIE(InfoExtractor):
     '''
 
     _M3U8_RE = r'(https?://[^\s"\'<>]+\.m3u8[^\s"\'<>]*)'
+    _HEADERS = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/147.0.0.0 Safari/537.36"
+        ),
+    }
+
+    def _headers(self, url):
+        return {
+            **self._HEADERS,
+            "Referer": url,
+        }
 
     def _download_webpage_fallback(self, url, video_id):
         try:
             return self._download_webpage(
                 url, video_id,
-                headers={
-                    "Referer": url,
-                    "User-Agent": (
-                        "Mozilla/5.0 (Macintosh; ARM Mac OS X) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/120 Safari/537.36"
-                    ),
-                },
+                headers=self._headers(url),
             )
         except ExtractorError as e:
             cause = getattr(e, "cause", None)
@@ -45,14 +51,7 @@ class FaphouseIE(InfoExtractor):
         url_www = re.sub(r'^https?://(?:www\.)?', 'https://www.', url)
         return self._download_webpage(
             url_www, video_id,
-            headers={
-                "Referer": url_www,
-                "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; ARM Mac OS X) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120 Safari/537.36"
-                ),
-            },
+            headers=self._headers(url_www),
         )
 
     def _real_extract(self, url):
@@ -133,7 +132,23 @@ class FaphouseIE(InfoExtractor):
                 fatal=False,
             )
 
-        data = nextjs or nuxt or {}
+        view_state = self._search_json(
+            r'<script[^>]+id="view-state-data"[^>]*>\s*',
+            webpage, "view state data", video_id,
+            end_pattern=r'\s*</script>',
+            default={},
+            fatal=False,
+        )
+
+        paywall = self._search_json(
+            r'<script[^>]+id="video-paywall"[^>]*>\s*',
+            webpage, "video paywall data", video_id,
+            end_pattern=r'\s*</script>',
+            default={},
+            fatal=False,
+        )
+
+        data = nextjs or nuxt or view_state or paywall or {}
 
         # Best-effort traversal for an HLS URL in those blobs (try common shapes first)
         m3u8 = (
@@ -144,6 +159,12 @@ class FaphouseIE(InfoExtractor):
             or traverse_obj(data, (..., "sources", ..., "src"), get_all=False)
             or traverse_obj(data, (..., "hls"), get_all=False)
             or traverse_obj(data, (..., "m3u8"), get_all=False)
+            or traverse_obj(view_state, (..., "sources", ..., "src"), get_all=False)
+            or traverse_obj(view_state, (..., "hls"), get_all=False)
+            or traverse_obj(view_state, (..., "m3u8"), get_all=False)
+            or traverse_obj(paywall, (..., "sources", ..., "src"), get_all=False)
+            or traverse_obj(paywall, (..., "hls"), get_all=False)
+            or traverse_obj(paywall, (..., "m3u8"), get_all=False)
         )
         m3u8 = url_or_none(m3u8)
 
@@ -152,18 +173,24 @@ class FaphouseIE(InfoExtractor):
             m3u8 = url_or_none(self._search_regex(self._M3U8_RE, webpage, "m3u8 url", default=None))
 
         if not m3u8:
-            paywall = self._search_json(
-                r'<script[^>]+id="video-paywall"[^>]*>\s*',
-                webpage, "video paywall data", video_id,
-                end_pattern=r'\s*</script>',
-                default={},
-                fatal=False,
+            is_guest = (
+                traverse_obj(paywall, ("user", "isGuest"))
+                or traverse_obj(view_state, ("user", "currentUserId")) is None
             )
-            if traverse_obj(paywall, ("user", "isGuest")):
+            has_access = traverse_obj(view_state, ("video", "videoViewAllowed"))
+            if is_guest:
                 raise ExtractorError(
-                    "This Faphouse video appears to require a logged-in session. "
-                    f"Sign in at {self._LOGIN_URL} and retry with browser cookies "
+                    "Faphouse returned a guest page for this request. "
+                    f"Sign in at {self._LOGIN_URL}, refresh the page in Brave, "
+                    "then retry with fresh browser cookies "
                     "(for example, --cookies-from-browser brave).",
+                    expected=True,
+                )
+            if has_access is False:
+                access_type = traverse_obj(view_state, ("video", "videoAccessTypeLabel"))
+                raise ExtractorError(
+                    "This Faphouse account does not appear to have access to the full video"
+                    f"{f' ({access_type})' if access_type else ''}.",
                     expected=True,
                 )
             raise ExtractorError(
@@ -178,7 +205,7 @@ class FaphouseIE(InfoExtractor):
             video_id,
             ext="mp4",
             m3u8_id="hls",
-            headers={"Referer": url},
+            headers=self._headers(url),
             fatal=False,
         )
 
@@ -207,18 +234,19 @@ class FaphouseModelIE(InfoExtractor):
     #  - /videos/some-slug-ABC123
     _VIDEO_PATH_RE = re.compile(r'^/videos/(?:[A-Za-z0-9]{6}|.+-[A-Za-z0-9]{6})$')
 
+    _HEADERS = FaphouseIE._HEADERS
+
+    def _headers(self, url):
+        return {
+            **self._HEADERS,
+            "Referer": url,
+        }
+
     def _download_webpage_fallback(self, url, page_id):
         try:
             return self._download_webpage(
                 url, page_id,
-                headers={
-                    "Referer": url,
-                    "User-Agent": (
-                        "Mozilla/5.0 (Macintosh; ARM Mac OS X) "
-                        "AppleWebKit/537.36 (KHTML, like Gecko) "
-                        "Chrome/120 Safari/537.36"
-                    ),
-                },
+                headers=self._headers(url),
             )
         except ExtractorError as e:
             cause = getattr(e, "cause", None)
@@ -228,14 +256,7 @@ class FaphouseModelIE(InfoExtractor):
         url_www = re.sub(r'^https?://(?:www\.)?', 'https://www.', url)
         return self._download_webpage(
             url_www, page_id,
-            headers={
-                "Referer": url_www,
-                "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; ARM Mac OS X) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120 Safari/537.36"
-                ),
-            },
+            headers=self._headers(url_www),
         )
 
     def _real_extract(self, url):
