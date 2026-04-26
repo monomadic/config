@@ -9,10 +9,10 @@
 --progress
 --console-title
 --trim-filenames 200
---paths "temp:$HOME/.cache/yt-dlp-tmp"
---paths "infojson:$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/JSON"
+--paths "temp:$YT_DLP_TEMP_DIR"
+--paths "infojson:$YT_DLP_JSON_DIR"
 --output "infojson:%(extractor)s_%(id)s"
---download-archive $HOME/Library/Mobile\ Documents/com~apple~CloudDocs/Sync/archive.txt
+--download-archive "$YT_DLP_ARCHIVE_FILE"
 
 --alias print-name "-s --print filename -o {0} --trim-filenames 200 --output-na-placeholder ''"
 --alias porn '-o "%(cast,uploader|)l%(cast& - |)s[%(channel,uploader|Unknown)s] %(title)s (%(extractor)s).%(ext)s" --write-info-json --embed-metadata --parse-metadata "%(webpage_url)s:(?P<meta_comment>.+)" --parse-metadata "%(webpage_url)s:(?P<meta_purl>.+)" --progress --console-title --trim-filenames 200 --paths "home:$HOME/Movies/Porn/Downloads"'
