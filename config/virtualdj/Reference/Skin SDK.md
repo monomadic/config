@@ -698,6 +698,43 @@ Display area for static or dynamic text.
 
 ---
 
+## Lyrics AI In Skins
+
+VirtualDJ 2026's AI lyrics are mainly controlled by the application engine and options, not by a skin-owned lyric text renderer.
+
+Skin-safe signals and actions:
+
+- `has_lyrics` - boolean query for whether the loaded deck has lyrics.
+- `get_lyrics_language` - text query for the detected lyric language on the loaded deck.
+- `edit_lyrics` - opens the Lyrics Editor for the loaded deck.
+- `setting 'showLyrics'` - toggle/query the built-in waveform lyric overlay.
+- `setting 'lyricsWaveformSize'` - adjust/query the waveform lyric text size multiplier.
+
+Important styling limit:
+
+- Skins can style lyric badges, editor buttons, language indicators, and waveform lyric option controls.
+- Skins do not appear to expose the current lyric line, per-word timing, AI confidence, censor matches, extraction progress, or independent colors/fonts for the built-in lyric renderer.
+
+Example:
+
+```xml
+<button action="setting 'showLyrics'" query="setting 'showLyrics'">
+  <size width="70" height="24"/>
+  <off color="#181818" border="#333333" radius="4"/>
+  <on color="#243246" border="#78a8ff" radius="4"/>
+  <text text="LYRICS" color="#eeeeee" fontsize="11" align="center"/>
+</button>
+
+<text action="has_lyrics ? get_lyrics_language : get_text ''"
+      color="#d8d8d8"
+      fontsize="11"
+      align="center"/>
+```
+
+See [Lyrics AI and Skins](Lyrics%20AI%20and%20Skins.md) for the focused reference, including AI cache behavior, stems requirements, browser-filter quirks, and low-documentation script verbs worth testing.
+
+---
+
 ### `<group>`
 
 Generic container for organizing elements.

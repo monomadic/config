@@ -27,6 +27,7 @@ Useful source links for maintaining this repo's VirtualDJ skin, pad, effect, and
 - [VDJScript Verbs](https://www.virtualdj.com/manuals/virtualdj/appendix/vdjscriptverbs.html) - Current verb reference.
 - [VDJScript Examples](https://www.virtualdj.com/wiki/VDJScript%20Examples) - Official example scripts.
 - [Options List](https://www.virtualdj.com/manuals/virtualdj/appendix/optionslist/) - Settings/options appendix.
+- [Lyrics Editor](https://www.virtualdj.com/manuals/virtualdj/editors/lyricseditor.html) - AI-generated lyric editing, re-analysis, and censoring UI.
 - [Native Effects](https://www.virtualdj.com/manuals/virtualdj/appendix/nativeeffects/) - Built-in effect reference.
 - [Pads Manual](https://www.virtualdj.com/manuals/virtualdj/interface/decks/decksadvanced/pads.html) - Pad pages and pad behavior.
 - [Sampler Manual](https://www.virtualdj.com/manuals/virtualdj/interface/browser/sideview/sampler.html) - Sampler sideview, banks, pages, and drag/drop behavior.
@@ -42,6 +43,14 @@ Useful source links for maintaining this repo's VirtualDJ skin, pad, effect, and
 - [effect_colorfx & effect_stems_color ?](https://www.virtualdj.com/forums/241078/VirtualDJ_Technical_Support/effect_colorfx___effect_stems_color__.html) - Staff discussion of extra ColorFX controls.
 - [Default filter and color fx filter](https://virtualdj.com/forums/252675/VirtualDJ_Technical_Support/Default_filter_and_color_fx_filter.html) - Staff guidance on filter and ColorFX behavior.
 - [Aditional xml for Skins](https://virtualdj.com/forums/248589/Wishes_and_new_features/Aditional_xml_for_Skins.html) - Staff/forum context for runtime XML includes versus build-time composition.
+- [Virtual DJ 2026](https://www.virtualdj.com/forums/266311/VirtualDJ_Technical_Support/Virtual_DJ_2026.html) - Staff launch-thread guidance on AI lyrics, prepared stems, re-analysis, and long-track limits.
+- [How Lyrics are analyzed???](https://virtualdj.com/forums/267223/VirtualDJ_Technical_Support/How_Lyrics_are_analyzed%3F%3F%3F.html) - Staff explanation of lyric audio signatures, stems requirement, server cache, and local edits.
+- [Lyrics issues with stems VDJ 2026](https://virtualdj.com/forums/266347/VirtualDJ_Technical_Support/Lyrics_issues_with_stems_VDJ_2026.html) - Early lyric/stems behavior reports and censor matching discussion.
+- [Stems 2.0](https://virtualdj.com/forums/266488/VirtualDJ_Technical_Support/Stems_2.0.html) - Forum guidance around the Stems 2.0 requirement message for lyric extraction.
+- [Bug in Instant Filters > Has Lyrics](https://virtualdj.com/forums/267592/VirtualDJ_Technical_Support/Bug_in_Instant_Filters_%3E_Has_Lyrics.html) - Forum workaround for "Has Lyrics" filter state matching.
+- [Undocumented scripts](https://virtualdj.com/forums/213099/VirtualDJ_Technical_Support/Undocumented_scripts.html) - Staff clarification of old `effect X active` and `var 'name' X` syntax.
+- [VDJ Script Verbs update](https://www.virtualdj.com/forums/205590/VirtualDJ_Skins/VDJ_Script_Verbs_update.html) - Staff clarification that skins and controllers share verbs, with the in-app editor as a discovery source.
+- [Where can I find a VDJ script reference?](https://virtualdj.com/forums/264082/VirtualDJ_Technical_Support/Where_can_I_find_a_VDJ_script_reference%253F.html) - Staff/community discussion of VDJScript's intentionally concise reference style and debugging approaches.
 
 ## Community And Unofficial Sources
 
@@ -53,6 +62,7 @@ Useful source links for maintaining this repo's VirtualDJ skin, pad, effect, and
 ## Local Repo References
 
 - [VirtualDJ Reference](VirtualDJ%20Reference.md) - Source-backed overview and preferred local patterns.
+- [Lyrics AI and Skins](Lyrics%20AI%20and%20Skins.md) - AI lyrics, skin styling surface, filters, and useful script quirks.
 - [Skin SDK](Skin%20SDK.md) - Local skin SDK reference.
 - [VDJScript Verbs](VDJScript%20Verbs.md) - Curated verb notes.
 - [Filter Syntax](Filter%20Syntax.md) - Browser filter notes.
