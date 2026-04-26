@@ -15,6 +15,7 @@ This repo should optimize for two things:
 - Do not keep the same command name implemented in both `bin/` and `config/zsh/bin/`; pick one canonical location.
 - `assets/` holds fonts, icons, and similar static resources.
 - `bin/` and `config/zsh/bin/` contain maintained executables and compatibility wrappers.
+- `utils/` contains small personal utility source trees that are maintained in this repo.
 - `vendor/bin/` contains retained third-party or custom-built binaries.
 - `archive/` contains kept-but-not-active material such as installers, app bundles, and old variants.
 - `config/neovim/` can remain in the tree as dormant source, but should not be part of active machine profiles unless revived.
@@ -34,6 +35,7 @@ Good fit for this repo:
 - thin wrappers around kept vendor binaries
 - package manifests
 - Dotter package definitions
+- small personal utility source trees with checked-in deployable binaries
 
 Poor fit for this repo:
 
@@ -61,6 +63,7 @@ The canonical shape is:
 - `config/<tool>/...`
 - `config/zsh/` for shell config plus `config/zsh/bin/` for zsh-specific commands
 - `config/neovim/` for dormant source that stays in the repo but is not normally enabled
+- `utils/<tool>/` for small personal utility source maintained directly in this repo
 
 Examples:
 
@@ -69,6 +72,7 @@ Examples:
 - `config/mpv`
 - `config/virtualdj`
 - `config/yazi`
+- `utils/free-disk-space-widget`
 
 Current source-only directories kept for reference or future Dotter wiring:
 
@@ -89,6 +93,7 @@ Current source-only directories kept for reference or future Dotter wiring:
 ## Current Holding Areas
 
 - `vendor/bin/` is the temporary home for binaries you still need to sort.
+- `utils/` holds small personal utility source when the source is intentionally maintained in this repo.
 - `archive/installers/` holds DMGs and installers.
 - `archive/apps/` holds app bundles and generated app artifacts.
 - `archive/config-variants/` holds backup or oversized config variants.
