@@ -60,6 +60,18 @@ Available elements as children of `<skin>`:
 - `<window>` - Popup/separate window
 - `<browser>` - File browser interface
 
+### Browser Elements
+- `<folderlist>` - Browser folder tree without the vertical toolbar
+- `<browsertoolbartree>` - Vertical toolbar for the folder tree
+- `<fileview>` - Combined song list area with list, coverflow, and search/edit toolbar
+- `<browsertoolbar>` - Horizontal browser search/edit toolbar
+- `<coverflow>` - Coverflow browser list
+- `<filelist>` - Song or sideview list without coverflow/search controls
+- `<sideview>` - Full sideview area
+- `<browserinfo>` - Selected-track info and prelisten area
+- `<pluginzone>` - Docked effect GUI area
+- `<sampler>` - Sampler trigger-pad view
+
 ### Simple Shapes
 - `<square>` - Rectangle/rounded rectangle
 - `<circle>` - Circle/ellipse
@@ -999,7 +1011,7 @@ Browser color children (all optional, VirtualDJ uses defaults if not specified):
 ```
 
 **Custom Browsers with `<split>` Panels:**
-Advanced skins can create custom browser layouts using `<split>` panels to arrange browser components in unique ways.
+Advanced skins can replace the single `<browser>` element with smaller browser components, usually arranged with nested `<split>` panels. This is useful when the folder tree, song list, sideview, info panel, sampler, or effect GUI dock need to live in separate regions of the skin.
 
 **Browser Sections:**
 - **Folder List** - Tree view of folders and playlists
@@ -1009,6 +1021,78 @@ Advanced skins can create custom browser layouts using `<split>` panels to arran
 - **Toolbar** - Left sidebar with navigation buttons
 - **Search Bar** - Search input at top of file list
 - **Effects Section** - Effect selection area
+
+**Custom Browser Component Elements:**
+
+| Element | Provides |
+|---------|----------|
+| `<folderlist>` | Folder list/tree, without the vertical folder toolbar |
+| `<browsertoolbartree>` | Vertical toolbar for the folder list |
+| `<fileview>` | Full songs area: file list, coverflow, and horizontal search/edit toolbar |
+| `<browsertoolbar>` | Horizontal search/edit toolbar for the songs area |
+| `<coverflow>` | Covers flow list |
+| `<filelist>` | Songs list without coverflow and search controls |
+| `<sideview>` | Full sideview area, including Automix, Sidelist, Karaoke, Sampler, Remixes, Shortcuts, list info, and bottom navigation |
+| `<browserinfo>` | Default browser info area for the selected song, including the prelisten player |
+| `<pluginzone>` | Dock for effect plugin GUIs |
+| `<sampler>` | Sampler trigger-pad view, without the top bank/mode menu |
+
+**Useful Decompositions:**
+
+- `<fileview>` is the compact official element for the whole songs area.
+- Replace `<fileview>` with `<browsertoolbar>`, `<coverflow>`, and `<filelist>` when you need to control the search bar, coverflow, and file list layout separately.
+- Use `<filelist source="sideview">` to show the currently selected sideview list without the top menu or bottom navigation.
+- Use `<filelist source="automix">`, `<filelist source="karaoke">`, `<filelist source="sidelist">`, or `<filelist source="sampler">` to pin a specific sideview list in a dedicated area.
+- If a `<pluginzone>` should resize automatically when an effect GUI is docked, put it in a split named `effects`.
+
+**Custom Browser Attributes:**
+
+These are documented for the browser list components above:
+
+- `attachX="left|right|both"` and `attachY="up|down|both"` - Anchor behavior when the element is inside a `<split>` panel.
+- `resizeX="yes|no"` and `resizeY="yes|no"` - Whether the element resizes with its split panel area.
+- `grid="yes"` - Force grid view. Without this, list elements follow the current Grid/List view selection.
+- `lineheight=""` - Browser list line-height multiplier. Example: `lineheight="1.5"` is 150% of normal row height.
+- `visibility=""` - `true`, `false`, or a VDJScript query controlling whether the element is displayed.
+
+**Custom Browser Children:**
+
+All custom browser components require only position and size children:
+
+```xml
+<pos x="" y=""/>
+<size width="" height=""/>
+```
+
+They can also use optional browser colors like `<browser>`.
+
+**Minimal Custom Browser Pattern:**
+
+```xml
+<split name="folders" type="horizontal" position="25%" grab="10">
+    <pos x="0" y="0"/>
+    <size width="1200" height="420"/>
+    <left>
+        <browsertoolbartree resizeX="no" attachX="left">
+            <pos x="0" y="0"/>
+            <size width="35" height="420"/>
+        </browsertoolbartree>
+        <folderlist resizeX="yes" attachX="both">
+            <pos x="37" y="0"/>
+            <size width="1200-37" height="420"/>
+        </folderlist>
+    </left>
+    <right>
+        <fileview attachX="both" attachY="both">
+            <pos x="0" y="0"/>
+            <size width="1200" height="420"/>
+        </fileview>
+    </right>
+    <separator close="left" size="16" closed="no"/>
+</split>
+```
+
+Official reference: [Custom Browser](https://virtualdj.com/wiki/custombrowser.html)
 
 **Skin Breaklines:**
 When using browser in skins, define breaklines in the `<skin>` element to specify where browser can stretch vertically when resizing:

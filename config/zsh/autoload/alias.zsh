@@ -80,6 +80,7 @@ alias q-url="pueue add yt-url"
 alias qu=q-url
 alias yt-dlp-ignore-archive="yt-dlp --no-download-archive"
 alias yt-list-fields="yt-dlp --skip-download --print \"%()#j\" "
+alias yt-batch-edit='$EDITOR $YT_DLP_BATCH_FILE'
 
 alias .hevc="ffmpeg-convert-to-hevc"
 
