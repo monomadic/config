@@ -1,0 +1,52 @@
+#!/usr/bin/env zsh
+
+set -euo pipefail
+
+for cmd in fc-query fzf jq pbcopy perl uni; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo "$cmd is not installed. Please install it first." >&2
+    exit 1
+  fi
+done
+
+font_file="${1:-/System/Library/Fonts/Apple Symbols.ttf}"
+
+if [[ ! -f "$font_file" ]]; then
+  echo "Font file not found: $font_file" >&2
+  exit 1
+fi
+
+codepoints_file="$(mktemp)"
+trap 'rm -f "$codepoints_file"' EXIT
+
+fc-query --format='%{charset}\n' "$font_file" 2>/dev/null |
+  tr ' ' '\n' |
+  perl -ne '
+    chomp;
+
+    if (/^([[:xdigit:]]+)$/) {
+      printf "U+%04X\n", hex($1);
+    } elsif (/^([[:xdigit:]]+)-([[:xdigit:]]+)$/) {
+      for my $codepoint (hex($1) .. hex($2)) {
+        printf "U+%04X\n", $codepoint;
+      }
+    }
+  ' > "$codepoints_file"
+
+uni print all --as json |
+  jq -r --rawfile codepoints "$codepoints_file" '
+    ($codepoints | split("\n") | map(select(length > 0)) | INDEX(.)) as $wanted |
+    .[] |
+    select($wanted[.cpoint]) |
+    "\(.char)\t\(.cpoint)\t\(.name)"
+  ' |
+  fzf --ansi --exact \
+    --prompt='apple-symbols> ' \
+    --with-nth=1,2,3 \
+    --delimiter='\t' \
+    --preview='cut -f1 <<< {}' \
+    --preview-window=up:3:wrap \
+    --bind 'enter:execute-silent(cut -f1 <<< {} | tr -d "\n" | pbcopy)+abort' \
+    --height=50% \
+    --layout=reverse \
+    --border

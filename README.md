@@ -59,6 +59,7 @@ The intended top-level layout is:
 - `assets/`: fonts and icons
 - `scripts/`: bootstrap and machine setup scripts
 - `bin/` and `config/zsh/bin/`: maintained user-facing executables
+- `utils/`: small personal utility source trees maintained in this repo
 - `vendor/bin/`: retained third-party or custom-built binaries
 - `archive/`: installers, app bundles, backups, and historical variants kept temporarily
 
