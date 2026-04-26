@@ -10,10 +10,14 @@ Start here:
 - [VDJScript Verbs](VDJScript%20Verbs.md)
   Curated API reference for high-frequency verbs, alias handling, and scripting surfaces.
 
+- [Resources](Resources.md)
+  Useful official, staff, community, and local sources for follow-up research.
+
 Current status:
 
 - `VirtualDJ Reference.md` is the policy and architecture layer.
 - `VDJScript Verbs.md` is the first API-focused pass.
+- `Resources.md` is the source index.
 - The other topical files still contain useful raw material, but they are not yet normalized to the same reliability standard.
 
 Source labels used in the curated docs:

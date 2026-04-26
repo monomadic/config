@@ -20,7 +20,7 @@
 
 source $HOME/.bin/init-path
 
-export ICLOUD_HOME="$HOME/Library/Mobile Documents/com~apple~CloudDocs"
+export ICLOUD_HOME=$HOME"/Library/Mobile Documents/com~apple~CloudDocs"
 export YT_DLP_ARCHIVE_FILE="$ICLOUD_HOME/Sync/archive.txt"
 export YT_DLP_BATCH_FILE="$ICLOUD_HOME/Sync/links.txt"
 export YT_DLP_JSON_DIR="$ICLOUD_HOME/Sync/JSON"

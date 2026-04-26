@@ -254,6 +254,26 @@ For larger skins, use `<pos>` and `<size>` consistently because:
 
 Source: `Official`
 
+### Custom Browser Layouts
+
+Use `<browser>` when the default browser arrangement is enough.
+Use the smaller browser elements when the skin needs custom placement:
+
+- `<folderlist>` plus `<browsertoolbartree>` for the folder tree and its vertical toolbar
+- `<fileview>` for the full songs area
+- `<browsertoolbar>`, `<coverflow>`, and `<filelist>` when the songs area needs custom composition
+- `<sideview>` or `filelist source="sideview"` for sideview layouts
+- `<filelist source="automix">`, `source="karaoke"`, `source="sidelist"`, or `source="sampler"` for pinned sideview lists
+- `<browserinfo>` for selected-track info and prelisten
+- `<pluginzone>` for docked effect GUIs
+- `<sampler>` for sampler trigger-pad view
+
+When composing these pieces inside `<split>` panels, use `attachX`, `attachY`, `resizeX`, and `resizeY` for anchoring/resizing. Use `grid="yes"` only when a list should always stay in grid view instead of following the user's current Grid/List selection.
+
+If the skin docks effect GUIs, put `<pluginzone>` in a split named `effects` so VirtualDJ can resize that area automatically when a plugin GUI appears.
+
+Source: `Official`
+
 ## VDJScript Patterns
 
 ### Core Syntax Worth Reaching For
@@ -642,6 +662,7 @@ It demonstrates:
 Official docs:
 
 - [VirtualDJ Skin SDK](https://www.virtualdj.com/wiki/Skin_SDK.html)
+- [Custom Browser](https://virtualdj.com/wiki/custombrowser.html)
 - [Skin Button](https://virtualdj.com/wiki/Skin-Button.html)
 - [Skin SDK Dropzone](https://www.virtualdj.com/wiki/Skin%20SDK%20Dropzone.html)
 - [Skin Panel](https://www.virtualdj.com/wiki/Skin%20SDK%20Panel.html)
