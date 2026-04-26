@@ -23,6 +23,7 @@ Quick reference for VirtualDJ filter folder syntax and examples.
 | `hascover=0`               | Files without cover art             |
 | `Precomputed Stems=1`      | Files with pre-computed stems       |
 | `bpm>120 and bpm<130`      | BPM range 120-130                   |
+| `Has Lyrics is not ""`     | Tracks with any non-blank lyric state, including edited lyrics on tested builds |
 
 ## Database Filters
 
@@ -88,3 +89,15 @@ Quick reference for VirtualDJ filter folder syntax and examples.
 - `top N <field>` - top N results by field
 - `group by <field>` - organize into nested folders
 - `is ""` - empty/missing field check
+
+## Lyrics Filters
+
+VirtualDJ 2026 adds AI lyric states, but forum reports show that the browser's "Has Lyrics" instant filter can be build-sensitive.
+
+Practical notes:
+
+- Prefer the UI equivalent of `Has Lyrics is not ""` when you want both `yes` and `edited` lyric states.
+- Treat `Has Lyrics = yes` as narrower than "has usable lyrics" until verified on your target build.
+- Use deck-level `has_lyrics` in skins only for the loaded deck. For browsed files, use browser filter syntax or a verified `quick_filter` expression.
+
+Source: [Bug in Instant Filters > Has Lyrics](https://virtualdj.com/forums/267592/VirtualDJ_Technical_Support/Bug_in_Instant_Filters_%3E_Has_Lyrics.html)

@@ -80,6 +80,7 @@ These are practical surfaces, not hard type-check guarantees. When a surface is 
 | `add_list` | `add_virtualfolder` | Virtual folder creation |
 | `info_options` | `infos_options` | Browser info-panel context menu |
 | `browser_zoom` | `browser` | Browser zoom control |
+| `sampler_unload_from_deck` | `scratchbank_unload` | Unload sample/scratchbank deck and restore previous song |
 
 ## Core Execution Model
 
@@ -725,6 +726,7 @@ get_time 'absolute'
 Notes:
 
 - `get_time` follows the current `display_time` mode unless you explicitly pass `elapsed`, `remain`, or `total`.
+- The official verbs appendix also lists target-point forms such as `get_time 'to_lyrics'`. Treat `to_lyrics` as useful but lightly documented; verify exact return behavior in the target skin/build before designing around it.
 
 Sources:
 
@@ -756,6 +758,146 @@ Preferred usage:
 Sources:
 
 - `Official`: VDJScript verbs appendix
+
+### `has_lyrics`
+
+Aliases: none
+
+Kind: `Query`
+
+Typical surfaces: `SkinQuery`, `Text`, `Button`, `Pad`
+
+Official summary:
+
+- Return true when the song loaded on the deck has lyrics.
+
+Typical forms:
+
+```vdjscript
+has_lyrics
+deck 1 has_lyrics
+has_lyrics ? edit_lyrics : nothing
+```
+
+Notes:
+
+- This is deck-scoped. Do not assume it tests the browsed browser row.
+- For browser filtering, use the browser/filter field such as the "Has Lyrics" instant filter.
+- In skins, this is the safest styling hook for lyric availability badges.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Official forum`: "Has Lyrics" browser filter quirks in VirtualDJ 2026 forum thread
+
+### `get_lyrics_language`
+
+Aliases: none
+
+Kind: `Query`
+
+Typical surfaces: `SkinQuery`, `Text`
+
+Official summary:
+
+- Return the language of the lyrics loaded on the deck.
+
+Typical forms:
+
+```vdjscript
+get_lyrics_language
+param_equal `get_lyrics_language` "en" ? action1 : action2
+```
+
+Notes:
+
+- Good for a compact language chip or conditional color.
+- It does not expose AI confidence, source, edited status, or translation details.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `edit_lyrics`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Open the Lyrics Editor for the track loaded on the deck.
+
+Typical forms:
+
+```vdjscript
+edit_lyrics
+```
+
+Notes:
+
+- The editor can be useful even when lyrics are missing or wrong, so do not automatically hide every editor control behind `has_lyrics`.
+- There is no documented separate "reanalyze lyrics" verb in the checked sources; re-analysis is exposed in the editor UI.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Official`: Lyrics Editor manual
+
+### `get_status`
+
+Aliases: none
+
+Kind: `Query`
+
+Typical surfaces: `Text`, `SkinQuery`
+
+Official summary:
+
+- Return information about background tasks.
+
+Typical forms:
+
+```vdjscript
+get_status
+```
+
+Notes:
+
+- Probe this in the target build before displaying it. It may be useful for generic analysis/stems status, but no checked source guarantees a stable lyrics-specific status string.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+
+### `var_list`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Button`, `Pad`, `Map`
+
+Official summary:
+
+- Show a window listing current variables and values.
+
+Typical forms:
+
+```vdjscript
+var_list
+```
+
+Notes:
+
+- A forum debugging pattern is to scatter temporary `set` calls through a complicated script, then inspect `var_list` to see which path ran.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Community`: scripting-reference forum debugging guidance
 
 ### `load`
 
@@ -3260,6 +3402,7 @@ The sections below remain useful as a wide local inventory. They are still being
 | `zoom` / `zoom_scratch`     | Zoom horizontal         | `zoom`                                    |
 | `zoom_vertical`             | Zoom vertical           | `zoom_vertical`                           |
 | `load_skin`                 | Load new skin/variation | `load_skin ':newvariation'`               |
+| `skin_empty_buttons`        | Query/toggle empty custom button space | `skin_empty_buttons`          |
 
 ## Custom Buttons & Multi-buttons
 
@@ -3446,6 +3589,9 @@ The sections below remain useful as a wide local inventory. They are still being
 | `file_info`            | Open tag editor             | `file_info`                  |
 | `browsed_file_color`   | Set file color              | `browsed_file_color "red"`   |
 | `browsed_file_analyze` | Reanalyze file              | `browsed_file_analyze`       |
+| `browsed_file_prepare_stems` | Prepare stems for selected browser file(s) | `browsed_file_prepare_stems` |
+| `quick_filter`         | Toggle browser quick filter | `quick_filter 'Has Lyrics is not ""'` |
+| `browser_padding`      | Change browser line padding | `browser_padding 50%`        |
 
 ## Loading
 
@@ -3588,6 +3734,9 @@ Here the slider range becomes a simple placement track, and the `fader` sits at 
 | `get_key`          | Song key              | `get_key "musical"`           |
 | `get_browsed_song` | Browsed file property | `get_browsed_song 'title'`    |
 | `get_loaded_song`  | Loaded file property  | `get_loaded_song 'album'`     |
+| `has_lyrics`       | Loaded deck has lyrics | `has_lyrics`                 |
+| `get_lyrics_language` | Loaded deck lyric language | `get_lyrics_language`      |
+| `get_status`       | Background task text  | `get_status`                  |
 
 ## Karaoke
 
@@ -3671,6 +3820,7 @@ Here the slider range becomes a simple placement track, and the `fader` sits at 
 | `beat_tap`      | Tap to set BPM   | `beat_tap`                     |
 | `edit_poi`      | Open POI editor  | `edit_poi`                     |
 | `edit_bpm`      | Open BPM editor  | `edit_bpm`                     |
+| `edit_lyrics`   | Open Lyrics Editor | `edit_lyrics`                 |
 | `set_bpm`       | Set BPM          | `set_bpm 129.3`, `set_bpm 50%` |
 | `adjust_cbg`    | Adjust beat grid | `adjust_cbg +2`                |
 | `set_firstbeat` | Set first beat   | `set_firstbeat`                |
