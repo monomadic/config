@@ -46,7 +46,8 @@ alias play-latest="fd-media --sort created --print0 . . | mpv-send play -0"
 alias .select="fd-media --print0 . {${HOME},/Volumes/*}/Movies/Porn(N) | fzf-select -0 --print0 --stream | mpv-send play -0"
 
 alias .play-all-sorted=".ls-sorted | mpv-play"
-alias .play-pwd=" | mpv-play"
+alias .play-pwd="fd-media . | mpv-send play"
+alias .pwd=.play-pwd
 alias .play-pwd-sorted=".ls-pwd | mpv-play"
 alias .play-local=".ls-local | mpv-play"
 alias .play-tower="fd-media --print0 . /Volumes/Tower/Movies/Porn(N) | mpv-send play -0"
