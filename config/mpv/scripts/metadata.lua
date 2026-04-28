@@ -3,13 +3,10 @@ local mp = require "mp"
 local enabled = true
 local TITLE_FONT = "Helvetica Neue"
 local TITLE_DURATION_MS = 2500
-local title_overlay = mp.create_osd_overlay("ass-events")
-title_overlay.z = 13
 local playlist_overlay = mp.create_osd_overlay("ass-events")
 playlist_overlay.z = 12
-local file_info_overlay = mp.create_osd_overlay("ass-events")
-file_info_overlay.z = 11
-local title_timer = nil
+local status_is_clear = true
+local last_status_msg = nil
 
 local function rounded_rect_path(x0, y0, x1, y1, r)
     local c = r * 0.55228475
@@ -29,6 +26,11 @@ end
 
 local function broadcast_state()
     mp.commandv("script-message", "metadata-state", enabled and "yes" or "no")
+end
+
+local function osd_visible()
+    local osd_level = mp.get_property_number("osd-level", 0)
+    return osd_level and osd_level > 0
 end
 
 local function ass_escape(text)
@@ -96,43 +98,21 @@ local function get_actor_line()
 end
 
 local function show_title_card()
-    local dim = mp.get_property_native("osd-dimensions")
-    if not dim or not dim.w or dim.w <= 0 or not dim.h or dim.h <= 0 then
+    if not enabled or not osd_visible() then
         return
     end
 
     local title = trim(mp.get_property("media-title") or mp.get_property("filename") or "Untitled")
     local actors = get_actor_line()
-    local w, h = dim.w, dim.h
-    local margin_x = math.floor(math.max(28, w * 0.03))
-    local margin_y = math.floor(math.max(42, h * 0.07))
-    local title_fs = math.floor(math.max(34, math.min(58, h * 0.052)))
-    local actor_fs = math.floor(title_fs * 0.56)
-    local actor_gap = actors and actors ~= "" and math.floor(title_fs * 0.95) or 0
-    local x = margin_x
-    local y = h - margin_y - actor_gap
     local lines = {
-        string.format("{\\an1\\pos(%d,%d)\\fn%s\\fs%d\\b0\\bord0\\shad1\\1c&HFFFFFF&\\4c&H000000&}%s",
-            x, y, TITLE_FONT, title_fs, ass_escape(title)),
+        string.format("{\\fn%s\\fs28\\b1}%s", TITLE_FONT, ass_escape(title)),
     }
 
     if actors and actors ~= "" then
-        table.insert(lines, string.format("{\\an1\\pos(%d,%d)\\fn%s\\fs%d\\b0\\bord0\\shad1\\1c&HB8B8B8&\\4c&H000000&}%s",
-            x, y + actor_gap, TITLE_FONT, actor_fs, ass_escape(actors)))
+        table.insert(lines, string.format("{\\fn%s\\fs18\\b0}%s", TITLE_FONT, ass_escape(actors)))
     end
 
-    title_overlay.data = table.concat(lines, "\n")
-    title_overlay.res_x = w
-    title_overlay.res_y = h
-    title_overlay:update()
-
-    if title_timer then
-        title_timer:kill()
-    end
-    title_timer = mp.add_timeout(TITLE_DURATION_MS / 1000, function()
-        title_overlay:remove()
-        title_timer = nil
-    end)
+    mp.commandv("show-text", table.concat(lines, "\n"), tostring(TITLE_DURATION_MS), "1")
 end
 
 local function get_orientation()
@@ -162,7 +142,7 @@ local function get_orientation()
 end
 
 local function update_playlist_overlay()
-    if not enabled then
+    if not enabled or not osd_visible() then
         playlist_overlay:remove()
         return
     end
@@ -208,46 +188,20 @@ local function update_playlist_overlay()
     playlist_overlay:update()
 end
 
-local function update_file_info_overlay(file_info)
-    if not enabled or not file_info or file_info == "" then
-        file_info_overlay:remove()
-        return
-    end
-
-    local osd_level = mp.get_property_number("osd-level", 1)
-    if not osd_level or osd_level <= 0 then
-        file_info_overlay:remove()
-        return
-    end
-
-    local dim = mp.get_property_native("osd-dimensions")
-    if not dim or not dim.w or dim.w <= 0 or not dim.h or dim.h <= 0 then
-        return
-    end
-
-    local y = osd_level <= 2 and 14 or 38
-    file_info_overlay.data = string.format(
-        "{\\an7\\pos(20,%d)\\fn%s\\fs12\\b1\\bord0\\shad0}%s",
-        y,
-        TITLE_FONT,
-        file_info
-    )
-    file_info_overlay.res_x = dim.w
-    file_info_overlay.res_y = dim.h
-    file_info_overlay:update()
-end
-
 local function format_osd_status()
-    if not enabled then
-        mp.set_property("osd-status-msg", "")
+    if not enabled or not osd_visible() then
+        if not status_is_clear then
+            mp.set_property("osd-status-msg", "")
+            status_is_clear = true
+            last_status_msg = nil
+        end
         update_playlist_overlay()
-        update_file_info_overlay()
         return
     end
 
     -- Human-readable file size
     local fsize = mp.get_property_number("file-size", 0)
-    local human_size = "unknown"
+    local human_size = "Unknown size"
     if fsize > 0 then
         local units = { "B", "KB", "MB", "GB", "TB" }
         local unit_index, size = 1, fsize
@@ -255,7 +209,7 @@ local function format_osd_status()
             size = size / 1024
             unit_index = unit_index + 1
         end
-        human_size = string.format("%d%s", math.floor(size + 0.5), units[unit_index]:lower())
+        human_size = string.format("%.1f%s", size, units[unit_index])
     end
 
     -- Simplified video codec
@@ -264,17 +218,14 @@ local function format_osd_status()
 
     -- Convert to common names
     local codec_map = {
-        h265 = "h265",
         hevc = "h265",
-        hev1 = "h265",
-        hvc1 = "h265",
         h264 = "h264",
-        avc1 = "h264",
-        av1 = "av1",
-        vp9 = "vp9",
-        vp8 = "vp8"
+        avc1 = "AVC1",
+        av1 = "AV1",
+        vp9 = "VP9",
+        vp8 = "VP8"
     }
-    codec = codec_map[codec:lower()] or codec:lower()
+    codec = codec_map[codec:lower()] or codec:upper()
 
     -- Resolution shorthand
     local height = mp.get_property_number("height", 0)
@@ -305,32 +256,28 @@ local function format_osd_status()
     -- Orientation (rotation-aware)
     local orient = get_orientation()
 
-    local function spec_item(color, icon, value)
-        return string.format("{\\1c&H%s&}%s %s{\\1c&HFFFFFF&}", color, icon, value)
-    end
-
-    local spec_gap = "      "
-    local file_info = spec_item("9CFF00", "", resolution .. (fps ~= "" and ("@" .. fps) or ""))
-        .. spec_gap
-        .. spec_item("00FFFF", "", codec)
-        .. spec_gap
-        .. spec_item("FFFFFF", "", human_size)
-        .. spec_gap
-        .. spec_item("8A8A8A", "", orient)
+    -- Format file info line
+    local file_info = string.format(" %s%s   %s   %s   %s",
+        resolution, (fps ~= "" and ("@" .. fps) or ""), codec, human_size, orient
+    )
 
     -- Format based on OSD level
     local osd_level = mp.get_property_number("osd-level", 1)
     local status_msg
 
     if osd_level <= 2 then
-        status_msg = ""
+        status_msg = file_info
     else
-        status_msg = artist .. title
+        local line1 = artist .. title
+        status_msg = line1 .. "\n" .. file_info
     end
 
-    mp.set_property("osd-status-msg", status_msg)
+    if status_msg ~= last_status_msg then
+        mp.set_property("osd-status-msg", status_msg)
+        last_status_msg = status_msg
+    end
+    status_is_clear = false
     update_playlist_overlay()
-    update_file_info_overlay(file_info)
 end
 
 mp.register_script_message("toggle", function()
@@ -343,7 +290,9 @@ mp.register_script_message("metadata-query", broadcast_state)
 
 mp.register_event("file-loaded", function()
     format_osd_status()
-    mp.add_timeout(0.05, show_title_card)
+    if enabled and osd_visible() then
+        mp.add_timeout(0.05, show_title_card)
+    end
 end)
 mp.observe_property("video-params", "native", format_osd_status)
 mp.observe_property("osd-level", "number", format_osd_status)
