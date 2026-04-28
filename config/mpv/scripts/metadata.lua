@@ -5,6 +5,8 @@ local TITLE_FONT = "Helvetica Neue"
 local TITLE_DURATION_MS = 2500
 local playlist_overlay = mp.create_osd_overlay("ass-events")
 playlist_overlay.z = 12
+local file_info_overlay = mp.create_osd_overlay("ass-events")
+file_info_overlay.z = 11
 
 local function rounded_rect_path(x0, y0, x1, y1, r)
     local c = r * 0.55228475
@@ -177,16 +179,46 @@ local function update_playlist_overlay()
     playlist_overlay:update()
 end
 
+local function update_file_info_overlay(file_info)
+    if not enabled or not file_info or file_info == "" then
+        file_info_overlay:remove()
+        return
+    end
+
+    local osd_level = mp.get_property_number("osd-level", 1)
+    if not osd_level or osd_level <= 0 then
+        file_info_overlay:remove()
+        return
+    end
+
+    local dim = mp.get_property_native("osd-dimensions")
+    if not dim or not dim.w or dim.w <= 0 or not dim.h or dim.h <= 0 then
+        return
+    end
+
+    local y = osd_level <= 2 and 14 or 38
+    file_info_overlay.data = string.format(
+        "{\\an7\\pos(20,%d)\\fn%s\\fs12\\b1\\bord0\\shad0}%s",
+        y,
+        TITLE_FONT,
+        file_info
+    )
+    file_info_overlay.res_x = dim.w
+    file_info_overlay.res_y = dim.h
+    file_info_overlay:update()
+end
+
 local function format_osd_status()
     if not enabled then
         mp.set_property("osd-status-msg", "")
         update_playlist_overlay()
+        update_file_info_overlay()
         return
     end
 
     -- Human-readable file size
     local fsize = mp.get_property_number("file-size", 0)
-    local human_size = "Unknown size"
+    local human_size = "unknown"
     if fsize > 0 then
         local units = { "B", "KB", "MB", "GB", "TB" }
         local unit_index, size = 1, fsize
@@ -194,7 +226,7 @@ local function format_osd_status()
             size = size / 1024
             unit_index = unit_index + 1
         end
-        human_size = string.format("%.1f%s", size, units[unit_index])
+        human_size = string.format("%d%s", math.floor(size + 0.5), units[unit_index]:lower())
     end
 
     -- Simplified video codec
@@ -203,14 +235,17 @@ local function format_osd_status()
 
     -- Convert to common names
     local codec_map = {
+        h265 = "h265",
         hevc = "h265",
+        hev1 = "h265",
+        hvc1 = "h265",
         h264 = "h264",
-        avc1 = "AVC1",
-        av1 = "AV1",
-        vp9 = "VP9",
-        vp8 = "VP8"
+        avc1 = "h264",
+        av1 = "av1",
+        vp9 = "vp9",
+        vp8 = "vp8"
     }
-    codec = codec_map[codec:lower()] or codec:upper()
+    codec = codec_map[codec:lower()] or codec:lower()
 
     -- Resolution shorthand
     local height = mp.get_property_number("height", 0)
@@ -241,24 +276,32 @@ local function format_osd_status()
     -- Orientation (rotation-aware)
     local orient = get_orientation()
 
-    -- Format file info line
-    local file_info = string.format(" %s%s   %s   %s   %s",
-        resolution, (fps ~= "" and ("@" .. fps) or ""), codec, human_size, orient
-    )
+    local function spec_item(color, icon, value)
+        return string.format("{\\1c&H%s&}%s %s{\\1c&HFFFFFF&}", color, icon, value)
+    end
+
+    local spec_gap = "      "
+    local file_info = spec_item("9CFF00", "", resolution .. (fps ~= "" and ("@" .. fps) or ""))
+        .. spec_gap
+        .. spec_item("00FFFF", "", codec)
+        .. spec_gap
+        .. spec_item("FFFFFF", "", human_size)
+        .. spec_gap
+        .. spec_item("8A8A8A", "", orient)
 
     -- Format based on OSD level
     local osd_level = mp.get_property_number("osd-level", 1)
     local status_msg
 
     if osd_level <= 2 then
-        status_msg = file_info
+        status_msg = ""
     else
-        local line1 = artist .. title
-        status_msg = line1 .. "\n" .. file_info
+        status_msg = artist .. title
     end
 
     mp.set_property("osd-status-msg", status_msg)
     update_playlist_overlay()
+    update_file_info_overlay(file_info)
 end
 
 mp.register_script_message("toggle", function()
