@@ -3,10 +3,13 @@ local mp = require "mp"
 local enabled = true
 local TITLE_FONT = "Helvetica Neue"
 local TITLE_DURATION_MS = 2500
+local title_overlay = mp.create_osd_overlay("ass-events")
+title_overlay.z = 13
 local playlist_overlay = mp.create_osd_overlay("ass-events")
 playlist_overlay.z = 12
 local file_info_overlay = mp.create_osd_overlay("ass-events")
 file_info_overlay.z = 11
+local title_timer = nil
 
 local function rounded_rect_path(x0, y0, x1, y1, r)
     local c = r * 0.55228475
@@ -93,17 +96,43 @@ local function get_actor_line()
 end
 
 local function show_title_card()
+    local dim = mp.get_property_native("osd-dimensions")
+    if not dim or not dim.w or dim.w <= 0 or not dim.h or dim.h <= 0 then
+        return
+    end
+
     local title = trim(mp.get_property("media-title") or mp.get_property("filename") or "Untitled")
     local actors = get_actor_line()
+    local w, h = dim.w, dim.h
+    local margin_x = math.floor(math.max(28, w * 0.03))
+    local margin_y = math.floor(math.max(42, h * 0.07))
+    local title_fs = math.floor(math.max(34, math.min(58, h * 0.052)))
+    local actor_fs = math.floor(title_fs * 0.56)
+    local actor_gap = actors and actors ~= "" and math.floor(title_fs * 0.95) or 0
+    local x = margin_x
+    local y = h - margin_y - actor_gap
     local lines = {
-        string.format("{\\fn%s\\fs28\\b1}%s", TITLE_FONT, ass_escape(title)),
+        string.format("{\\an1\\pos(%d,%d)\\fn%s\\fs%d\\b0\\bord0\\shad1\\1c&HFFFFFF&\\4c&H000000&}%s",
+            x, y, TITLE_FONT, title_fs, ass_escape(title)),
     }
 
     if actors and actors ~= "" then
-        table.insert(lines, string.format("{\\fn%s\\fs18\\b0}%s", TITLE_FONT, ass_escape(actors)))
+        table.insert(lines, string.format("{\\an1\\pos(%d,%d)\\fn%s\\fs%d\\b0\\bord0\\shad1\\1c&HB8B8B8&\\4c&H000000&}%s",
+            x, y + actor_gap, TITLE_FONT, actor_fs, ass_escape(actors)))
     end
 
-    mp.commandv("show-text", table.concat(lines, "\n"), tostring(TITLE_DURATION_MS), "1")
+    title_overlay.data = table.concat(lines, "\n")
+    title_overlay.res_x = w
+    title_overlay.res_y = h
+    title_overlay:update()
+
+    if title_timer then
+        title_timer:kill()
+    end
+    title_timer = mp.add_timeout(TITLE_DURATION_MS / 1000, function()
+        title_overlay:remove()
+        title_timer = nil
+    end)
 end
 
 local function get_orientation()
