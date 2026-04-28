@@ -17,6 +17,7 @@ local metadata_enabled = true
 local progress_visible = true
 local stats_visible = false
 local edge_fade_enabled = false
+local skip_intros_enabled = false
 
 -- prevents observe_property("panscan") from treating our own writes as "external user changes"
 local applying_panscan = false
@@ -275,6 +276,16 @@ local keybar_items = {
         match = command_equals("script-binding toggle_force_landscape"),
     },
     {
+        id = "skip_intros",
+        section = "state",
+        fallback = "3",
+        prefer = { "3" },
+        desc = function(badge)
+            return " Skip Intro " .. badge(skip_intros_enabled)
+        end,
+        match = command_equals("script-binding toggle-skip-intros"),
+    },
+    {
         id = "auto_jump",
         section = "state",
         fallback = "1",
@@ -428,6 +439,7 @@ mp.add_timeout(0, function()
     mp.commandv("script-message", "progress-bar-query")
     mp.commandv("script-message", "realtime-stats-query")
     mp.commandv("script-message", "edge-fade-query")
+    mp.commandv("script-message", "skip-intros-query")
 end)
 
 local function render_bar()
@@ -468,6 +480,7 @@ mp.register_event("file-loaded", function()
         mp.commandv("script-message", "progress-bar-query")
         mp.commandv("script-message", "realtime-stats-query")
         mp.commandv("script-message", "edge-fade-query")
+        mp.commandv("script-message", "skip-intros-query")
     end)
 end)
 
@@ -525,6 +538,11 @@ end)
 
 mp.register_script_message("edge-fade-state", function(state)
     edge_fade_enabled = (state == "yes")
+    render_bar()
+end)
+
+mp.register_script_message("skip-intros-state", function(state)
+    skip_intros_enabled = (state == "yes")
     render_bar()
 end)
 
