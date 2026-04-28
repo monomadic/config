@@ -138,7 +138,7 @@ alias .select-local-downloads-sort="fd-video-sort . $HOME/Movies/Porn/Downloads 
 alias .select-downloads-sort="fd-video-sort . /Volumes/*/Movies/Porn/Downloads $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
 alias .select-local-downloads="fd-video . $HOME/Movies/Porn/Downloads | fzf-select | mpv-play"
 
-alias .play-suki="ls-media --match-string #suki | mpv-play"
+alias .play-suki="ls-media --match-string #suki | mpv-send play"
 alias \#suki=.play-suki
 alias .select-suki="ls-media --match-string #suki | fzf-select | mpv-play"
 alias .play-60fps="ls-media --match-string 60fps | mpv-play"
