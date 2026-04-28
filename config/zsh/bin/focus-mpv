@@ -1,0 +1,10 @@
+#!/usr/bin/env osascript
+
+tell application "System Events"
+  if exists process "mpv" then
+    tell process "mpv"
+      set frontmost to true
+      if exists window 1 then perform action "AXRaise" of window 1
+    end tell
+  end if
+end tell
