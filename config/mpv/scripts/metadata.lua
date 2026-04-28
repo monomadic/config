@@ -33,13 +33,6 @@ local function osd_visible()
     return osd_level and osd_level > 0
 end
 
-local function ass_escape(text)
-    return tostring(text or "")
-        :gsub("\\", "\\\\")
-        :gsub("{", "\\{")
-        :gsub("}", "\\}")
-end
-
 local function trim(text)
     return tostring(text or ""):match("^%s*(.-)%s*$")
 end
@@ -104,12 +97,10 @@ local function show_title_card()
 
     local title = trim(mp.get_property("media-title") or mp.get_property("filename") or "Untitled")
     local actors = get_actor_line()
-    local lines = {
-        string.format("{\\fn%s\\fs28\\b1}%s", TITLE_FONT, ass_escape(title)),
-    }
+    local lines = { title }
 
     if actors and actors ~= "" then
-        table.insert(lines, string.format("{\\fn%s\\fs18\\b0}%s", TITLE_FONT, ass_escape(actors)))
+        table.insert(lines, actors)
     end
 
     mp.commandv("show-text", table.concat(lines, "\n"), tostring(TITLE_DURATION_MS), "1")
