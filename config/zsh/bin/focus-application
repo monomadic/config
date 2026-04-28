@@ -1,0 +1,2 @@
+#!/bin/sh
+osascript -e 'tell application "$@" to activate' >/dev/null 2>&1 || true

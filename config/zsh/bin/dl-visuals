@@ -3,21 +3,29 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: yt-bestvideo [options] URL [URL...] [-- yt-dlp-args...]
+Usage: dl-visuals [options] URL [URL...] [-- yt-dlp-args...]
 
 Download the highest-resolution format available, then make the final file video-only.
+
+Files are saved to:
+  $ICLOUD_HOME/Movies/Visuals/Downloads/
+
+Download history is stored at:
+  $ICLOUD_HOME/Movies/Visuals/Downloads/history.txt
 
 Final container rules:
   - VP9 / VP8 / AV1  -> .webm
   - H264 / HEVC      -> .mp4   (HEVC tagged hvc1 for Apple compatibility)
 
+Format selection prefers true video-only streams first, then falls back to
+video-containing formats when a site does not expose separate video.
+
 Options:
-  -O, --out DIR        Output directory (default: .)
   -t, --tmpl TEMPLATE  yt-dlp output template
                        (default: %(channel|Unknown Channel)s [%(id)s].%(ext)s)
   --no-playlist        Do not download playlists
   --keep-original      Keep original downloaded file if remux occurs
-  --force              Add --no-download-archive to yt-dlp
+  --force              Bypass history and overwrite existing target files
   -h, --help           Show help
 
 Passthrough:
@@ -26,7 +34,10 @@ EOF
   exit 1
 }
 
-out_dir="."
+: "${ICLOUD_HOME:?ICLOUD_HOME must be set}"
+
+out_dir="$ICLOUD_HOME/Movies/Visuals/Downloads"
+archive_file="$out_dir/history.txt"
 tmpl='%(channel|Unknown Channel)s [%(id)s].%(ext)s'
 no_playlist=0
 keep_original=0
@@ -34,11 +45,6 @@ force=0
 
 while (( $# )); do
   case "$1" in
-    -O|--out)
-      [[ $# -ge 2 ]] || usage
-      out_dir="$2"
-      shift 2
-      ;;
     -t|--tmpl)
       [[ $# -ge 2 ]] || usage
       tmpl="$2"
@@ -103,12 +109,18 @@ need ffmpeg
 need ffprobe
 need rg
 
+mkdir -p -- "$out_dir"
+touch -- "$archive_file"
+
 c_reset='%f%k'
 c_dim='%F{245}'
 c_blue='%F{39}'
 c_green='%F{70}'
 c_yellow='%F{178}'
 c_red='%F{160}'
+
+best_video_format='bv[vcodec!=none][acodec=none]/bv[acodec=none]/bv*[vcodec!=none]/bv*/b'
+best_video_sort='res,fps,tbr'
 
 header() { print -P "${c_blue}$*${c_reset}"; }
 ok()     { print -P "${c_green}✔${c_reset} $*"; }
@@ -170,6 +182,7 @@ codec_label() {
 }
 
 typeset -ga tmp_files=()
+typeset -ga final_files=()
 
 cleanup() {
   local f
@@ -182,21 +195,27 @@ trap cleanup EXIT
 for url in "${urls[@]}"; do
   extra_args=()
   (( no_playlist )) && extra_args+=(--no-playlist)
-  (( force )) && extra_args+=(--no-download-archive)
   extra_args+=("${user_extra_args[@]}")
 
-  paths_file="$(mktemp -t ytbestvideo.paths.XXXXXX)"
+  archive_args=(--download-archive "$archive_file")
+  (( force )) && archive_args+=(--no-download-archive --force-overwrites)
+
+  paths_file="$(mktemp -t dlvisuals.paths.XXXXXX)"
   tmp_files+=("$paths_file")
 
   header "Downloading highest-resolution format..."
+  yt_dlp_rc=0
   run yt-dlp \
-    -f 'bv*+ba/b' \
-    -S 'res,fps,tbr' \
-    --paths "$out_dir" \
+    -f "$best_video_format" \
+    -S "$best_video_sort" \
+    --format-sort-force \
+    --ignore-no-formats-error \
     -o "$tmpl" \
     --print-to-file 'after_move:filepath' "$paths_file" \
     "${extra_args[@]}" \
-    -- "$url"
+    --paths "$out_dir" \
+    "${archive_args[@]}" \
+    -- "$url" || yt_dlp_rc=$?
 
   downloaded_files=()
   while IFS= read -r line; do
@@ -204,11 +223,19 @@ for url in "${urls[@]}"; do
     [[ "$line" == /* ]] || continue
     [[ -f "$line" ]] || continue
     downloaded_files+=("$line")
-  done < "$paths_file"
+  done < "$paths_file" || true
 
   if (( ${#downloaded_files[@]} == 0 )); then
+    if (( yt_dlp_rc != 0 )); then
+      err "yt-dlp failed and did not report any downloaded files."
+      exit "$yt_dlp_rc"
+    fi
     warn "No files downloaded."
     continue
+  fi
+
+  if (( yt_dlp_rc != 0 )); then
+    warn "yt-dlp reported errors after saving file(s); continuing with saved file(s)."
   fi
 
   for file in "${downloaded_files[@]}"; do
@@ -248,6 +275,7 @@ for url in "${urls[@]}"; do
 
     if [[ "$target" == "$file" && $has_audio -eq 0 ]]; then
       ok "Final file already correct: ${file:t}"
+      final_files+=("$file")
       continue
     fi
 
@@ -259,7 +287,7 @@ for url in "${urls[@]}"; do
       header "Changing container and stripping audio..."
     fi
 
-    tmp="${base_no_ext}.ytbestvideo.tmp.$$.${target_ext}"
+    tmp="${base_no_ext}.dlvisuals.tmp.$$.${target_ext}"
     tmp_files+=("$tmp")
 
     ffmpeg_args=(
@@ -279,6 +307,7 @@ for url in "${urls[@]}"; do
 
     mv -f -- "$tmp" "$target"
     ok "Created: ${target:t}"
+    final_files+=("$target")
 
     if [[ $keep_original -eq 0 && "$target" != "$file" ]]; then
       rm -f -- "$file"
@@ -288,3 +317,15 @@ for url in "${urls[@]}"; do
     fi
   done
 done
+
+if (( ${#final_files[@]} > 0 )); then
+  print
+  if (( ${#final_files[@]} == 1 )); then
+    print -P "${c_green}Saved:${c_reset} ${c_blue}${final_files[1]:A}${c_reset}"
+  else
+    print -P "${c_green}Saved files:${c_reset}"
+    for file in "${final_files[@]}"; do
+      print -P "  ${c_blue}${file:A}${c_reset}"
+    done
+  fi
+fi

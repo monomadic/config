@@ -3,6 +3,24 @@ local mp = require "mp"
 local enabled = true
 local TITLE_FONT = "Helvetica Neue"
 local TITLE_DURATION_MS = 2500
+local playlist_overlay = mp.create_osd_overlay("ass-events")
+playlist_overlay.z = 12
+
+local function rounded_rect_path(x0, y0, x1, y1, r)
+    local c = r * 0.55228475
+
+    return table.concat({
+        string.format("m %.1f %.1f", x0 + r, y0),
+        string.format("l %.1f %.1f", x1 - r, y0),
+        string.format("b %.1f %.1f %.1f %.1f %.1f %.1f", x1 - r + c, y0, x1, y0 + r - c, x1, y0 + r),
+        string.format("l %.1f %.1f", x1, y1 - r),
+        string.format("b %.1f %.1f %.1f %.1f %.1f %.1f", x1, y1 - r + c, x1 - r + c, y1, x1 - r, y1),
+        string.format("l %.1f %.1f", x0 + r, y1),
+        string.format("b %.1f %.1f %.1f %.1f %.1f %.1f", x0 + r - c, y1, x0, y1 - r + c, x0, y1 - r),
+        string.format("l %.1f %.1f", x0, y0 + r),
+        string.format("b %.1f %.1f %.1f %.1f %.1f %.1f", x0, y0 + r - c, x0 + r - c, y0, x0 + r, y0),
+    }, " ")
+end
 
 local function broadcast_state()
     mp.commandv("script-message", "metadata-state", enabled and "yes" or "no")
@@ -112,9 +130,57 @@ local function get_orientation()
     return "unknown"
 end
 
+local function update_playlist_overlay()
+    if not enabled then
+        playlist_overlay:remove()
+        return
+    end
+
+    local osd_level = mp.get_property_number("osd-level", 1)
+    local pl_count = mp.get_property_number("playlist-count", 0)
+
+    if not osd_level or osd_level <= 2 or not pl_count or pl_count <= 1 then
+        playlist_overlay:remove()
+        return
+    end
+
+    local dim = mp.get_property_native("osd-dimensions")
+    if not dim or not dim.w or dim.w <= 0 or not dim.h or dim.h <= 0 then
+        return
+    end
+
+    local cur = mp.get_property_number("playlist-pos", 0)
+    local display_cur = (cur or 0) + 1
+    local label = string.format("%d of %d", display_cur, pl_count)
+    local w, h = dim.w, dim.h
+    local fs = math.floor(math.max(18, math.min(34, h * 0.021)))
+    local pill_h = math.floor(fs * 1.55)
+    local pill_w = math.floor(#label * fs * 0.54 + fs * 0.85)
+    local margin = math.floor(math.max(18, h * 0.026))
+    local x1 = w - margin
+    local x0 = x1 - pill_w
+    local y0 = margin
+    local y1 = y0 + pill_h
+    local radius = math.floor(pill_h / 2)
+    local text_x = math.floor((x0 + x1) / 2)
+    local text_y = math.floor(y0 + pill_h / 2 + fs * 0.08)
+
+    local pill = rounded_rect_path(x0, y0, x1, y1, radius)
+
+    playlist_overlay.data = table.concat({
+        "{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H000000&\\alpha&H58&\\p1}" .. pill .. "{\\p0}",
+        string.format("{\\an5\\pos(%d,%d)\\fn%s\\fs%d\\b1\\bord0\\shad0\\1c&HFFFFFF&}%d {\\1c&H8A8A8A&}of %d",
+            text_x, text_y, TITLE_FONT, fs, display_cur, pl_count),
+    }, "\n")
+    playlist_overlay.res_x = w
+    playlist_overlay.res_y = h
+    playlist_overlay:update()
+end
+
 local function format_osd_status()
     if not enabled then
         mp.set_property("osd-status-msg", "")
+        update_playlist_overlay()
         return
     end
 
@@ -171,11 +237,6 @@ local function format_osd_status()
 
     local title = mp.get_property("media-title") or "Untitled"
     local artist = mp.get_property("artist") or ""
-    local paused = mp.get_property_bool("pause", false)
-
-    local cur = mp.get_property_number("playlist-pos", 0)
-    local pl_count = mp.get_property_number("playlist-count", 0)
-    local display_cur = (pl_count > 0) and (cur + 1) or 0
 
     -- Orientation (rotation-aware)
     local orient = get_orientation()
@@ -192,11 +253,12 @@ local function format_osd_status()
     if osd_level <= 2 then
         status_msg = file_info
     else
-        local line1 = (paused and "PAUSED " or "") .. display_cur .. '/' .. pl_count .. ' ' .. artist .. title
+        local line1 = artist .. title
         status_msg = line1 .. "\n" .. file_info
     end
 
     mp.set_property("osd-status-msg", status_msg)
+    update_playlist_overlay()
 end
 
 mp.register_script_message("toggle", function()
@@ -214,6 +276,9 @@ end)
 mp.observe_property("video-params", "native", format_osd_status)
 mp.observe_property("osd-level", "number", format_osd_status)
 mp.observe_property("pause", "bool", format_osd_status)
+mp.observe_property("playlist-pos", "number", format_osd_status)
+mp.observe_property("playlist-count", "number", format_osd_status)
+mp.observe_property("osd-dimensions", "native", format_osd_status)
 
 if mp.get_property("path") then
     format_osd_status()
