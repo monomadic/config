@@ -78,6 +78,68 @@ _cd_fzf_pick() {
   command fzf-cd "$@"
 }
 
+_cd_fzf_collect_descendants() {
+  emulate -L zsh
+
+  local -a frontier next_frontier descendants
+  local parent child
+
+  frontier=("$@")
+  while (( ${#frontier} )); do
+    next_frontier=()
+    for parent in "${frontier[@]}"; do
+      while IFS= read -r child; do
+        [[ -n "$child" ]] || continue
+        descendants+=("$child")
+        next_frontier+=("$child")
+      done < <(ps -axo pid=,ppid= | awk -v parent="$parent" '$2 == parent { print $1 }')
+    done
+    frontier=("${next_frontier[@]}")
+  done
+
+  print -r -l -- "${descendants[@]}"
+}
+
+_cd_fzf_kill_tree() {
+  emulate -L zsh
+
+  local -a roots descendants pids
+  local pid
+
+  roots=("$@")
+  (( ${#roots} )) || return 0
+
+  descendants=("${(@f)$(_cd_fzf_collect_descendants "${roots[@]}")}")
+  pids=("${descendants[@]}" "${roots[@]}")
+
+  for pid in "${pids[@]}"; do
+    [[ "$pid" == <-> ]] || continue
+    kill -TERM "$pid" >/dev/null 2>&1 || true
+  done
+
+  sleep 0.05
+
+  for pid in "${pids[@]}"; do
+    [[ "$pid" == <-> ]] || continue
+    kill -KILL "$pid" >/dev/null 2>&1 || true
+  done
+}
+
+_cd_fzf_cleanup_streamed_picker() {
+  emulate -L zsh
+
+  local raw_fifo="$1" filtered_fifo="$2" result_file="$3" keepalive_fd="$4"
+  shift 4
+
+  if [[ "$keepalive_fd" == <-> ]]; then
+    eval "exec ${keepalive_fd}>&-" >/dev/null 2>&1 || true
+  fi
+
+  _cd_fzf_kill_tree "$@"
+  wait "$@" >/dev/null 2>&1 || true
+  rm -f "$raw_fifo" "$filtered_fifo" "$result_file"
+}
+
 _cd_fzf_run_streamed_picker() {
   emulate -L zsh
   setopt localoptions pipefail no_monitor
@@ -102,6 +164,7 @@ _cd_fzf_run_streamed_picker() {
   dedupe_pid=$!
 
   exec {keepalive_fd}> "$raw_fifo"
+  trap '_cd_fzf_cleanup_streamed_picker "$raw_fifo" "$filtered_fifo" "$result_file" "$keepalive_fd" "$picker_pid" "$dedupe_pid" "${producer_pids[@]}"; return 130' INT TERM HUP
 
   case "$mode" in
     global)
@@ -113,10 +176,8 @@ _cd_fzf_run_streamed_picker() {
       producer_pids=("${reply[@]}")
       ;;
     *)
-      exec {keepalive_fd}>&-
-      kill "$dedupe_pid" "$picker_pid" >/dev/null 2>&1 || true
-      wait "$dedupe_pid" "$picker_pid" >/dev/null 2>&1 || true
-      rm -f "$raw_fifo" "$filtered_fifo" "$result_file"
+      trap - INT TERM HUP
+      _cd_fzf_cleanup_streamed_picker "$raw_fifo" "$filtered_fifo" "$result_file" "$keepalive_fd" "$picker_pid" "$dedupe_pid" "${producer_pids[@]}"
       return 2
       ;;
   esac
@@ -130,11 +191,8 @@ _cd_fzf_run_streamed_picker() {
     IFS= read -r selected < "$result_file"
   fi
 
-  kill "$dedupe_pid" >/dev/null 2>&1 || true
-  for pid in "${producer_pids[@]}"; do
-    kill "$pid" >/dev/null 2>&1 || true
-  done
-  rm -f "$raw_fifo" "$filtered_fifo" "$result_file"
+  trap - INT TERM HUP
+  _cd_fzf_cleanup_streamed_picker "$raw_fifo" "$filtered_fifo" "$result_file" "" "$dedupe_pid" "${producer_pids[@]}"
 
   if [[ $exit_code -eq 0 && -n "$selected" ]]; then
     print -r -- "$selected"
@@ -143,7 +201,7 @@ _cd_fzf_run_streamed_picker() {
 }
 
 _cd_fzf_pick_global() {
-  _cd_fzf_run_streamed_picker global 'global ❯ ' 'Pinned directories'
+  _cd_fzf_run_streamed_picker global '' 'Pinned directories'
 }
 
 _cd_fzf_pick_local() {

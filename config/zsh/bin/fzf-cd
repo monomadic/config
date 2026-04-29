@@ -17,8 +17,7 @@ FZF_COLOR_OPTS+="info:#0f81ff,"    # Info line
 FZF_COLOR_OPTS+="border:#0040A0,"  # Border color
 FZF_COLOR_OPTS+="prompt:#FFFFFF,"  # Prompt
 FZF_COLOR_OPTS+="pointer:#FFe22e," # Pointer to the current line
-FZF_COLOR_OPTS+="marker:#a6e22e,"  # Multi-select marker
-FZF_COLOR_OPTS+="spinner:#FFFFFF,"
+FZF_COLOR_OPTS+="marker:#a6e22e,"  # Multi-select markerFZF_COLOR_OPTS+="spinner:#FFFFFF,"
 FZF_COLOR_OPTS+="preview-bg:#111111,"
 FZF_COLOR_OPTS+="preview-border:#111111,"
 FZF_COLOR_OPTS+="gutter:#44AADD,"  # non-selected icons

@@ -105,6 +105,9 @@ if (( $+commands[starship] )); then
   add-zsh-hook precmd _lazy_starship_precmd
 fi
 
+# television
+eval "$(tv init zsh)"
+
 # LM Studio PATH
 export PATH="$PATH:$HOME/.cache/lm-studio/bin"
 export PATH="$PATH:$HOME/.lmstudio/bin"
