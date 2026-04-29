@@ -189,22 +189,22 @@ local function update_playlist_overlay()
     local label = string.format("%d of %d", display_cur, pl_count)
     local w, h = dim.w, dim.h
     local fs = math.floor(math.max(18, math.min(34, h * 0.021)))
-    local pill_h = math.floor(fs * 1.55)
+    local pill_h = math.floor(fs * 1.20)
     local pill_w = math.floor(#label * fs * 0.54 + fs * 0.85)
-    local margin = math.floor(math.max(18, h * 0.026))
+    local margin = math.floor(math.max(10, h * 0.026))
     local x1 = w - margin
     local x0 = x1 - pill_w
     local y0 = margin
     local y1 = y0 + pill_h
     local radius = math.floor(pill_h / 2)
     local text_x = math.floor((x0 + x1) / 2)
-    local text_y = math.floor(y0 + pill_h / 2 + fs * 0.08)
+    local text_y = math.floor(y0 + pill_h / 2 + fs * 0.04)
 
     local pill = rounded_rect_path(x0, y0, x1, y1, radius)
 
     playlist_overlay.data = table.concat({
         "{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H000000&\\alpha&H30&\\p1}" .. pill .. "{\\p0}",
-        string.format("{\\an5\\pos(%d,%d)\\fn%s\\fs%d\\b1\\bord0\\shad0\\3a&HFF&\\4a&HFF&\\1c&HFFFFFF&}%d {\\1c&H8A8A8A&}of %d",
+        string.format("{\\r\\an5\\pos(%d,%d)\\fn%s\\fs%d\\b1\\bord0\\shad0\\1a&H00&\\3a&HFF&\\4a&HFF&\\1c&HFFFFFF&}%d {\\1c&H8A8A8A&}of %d",
             text_x, text_y, TITLE_FONT, fs, display_cur, pl_count),
     }, "\n")
     playlist_overlay.res_x = w
@@ -216,6 +216,7 @@ local function format_osd_status()
     if not enabled or not osd_visible() then
         if not status_is_clear then
             mp.set_property("osd-status-msg", "")
+            mp.set_property("osd-msg3", "")
             status_is_clear = true
             last_status_msg = nil
         end
@@ -295,7 +296,8 @@ local function format_osd_status()
     end
 
     if status_msg ~= last_status_msg then
-        mp.set_property("osd-status-msg", status_msg)
+        mp.set_property("osd-status-msg", "")
+        mp.set_property("osd-msg3", status_msg)
         last_status_msg = status_msg
     end
     status_is_clear = false
