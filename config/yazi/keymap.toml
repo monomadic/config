@@ -104,6 +104,11 @@ run  = "plugin smart-tab"
 desc = "Create a tab and enter the hovered directory"
 
 [[mgr.prepend_keymap]]
+on   = [ "m", "t" ]
+run  = "shell --block -- ffmpeg-lossless-cut-by-fzf-keyframe-select %s"
+desc = "Trim intros from selected movies"
+
+[[mgr.prepend_keymap]]
 on   = [ "g", "n" ]
 run  = "plugin first-non-directory"
 desc = "Jump to the first non-directory entry"

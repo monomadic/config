@@ -4,7 +4,9 @@ local enabled = true
 local TITLE_FONT = "Helvetica Neue"
 local TITLE_DURATION_MS = 2500
 local playlist_overlay = mp.create_osd_overlay("ass-events")
-playlist_overlay.z = 12
+local playlist_text_overlay = mp.create_osd_overlay("ass-events")
+playlist_overlay.z = 6
+playlist_text_overlay.z = 5
 local status_is_clear = true
 local last_status_msg = nil
 
@@ -168,14 +170,15 @@ end
 local function update_playlist_overlay()
     if not enabled or not osd_visible() then
         playlist_overlay:remove()
+        playlist_text_overlay:remove()
         return
     end
 
-    local osd_level = mp.get_property_number("osd-level", 1)
     local pl_count = mp.get_property_number("playlist-count", 0)
 
-    if not osd_level or osd_level <= 2 or not pl_count or pl_count <= 1 then
+    if not pl_count or pl_count <= 1 then
         playlist_overlay:remove()
+        playlist_text_overlay:remove()
         return
     end
 
@@ -202,14 +205,18 @@ local function update_playlist_overlay()
 
     local pill = rounded_rect_path(x0, y0, x1, y1, radius)
 
-    playlist_overlay.data = table.concat({
-        "{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H000000&\\alpha&H30&\\p1}" .. pill .. "{\\p0}",
-        string.format("{\\r\\an5\\pos(%d,%d)\\fn%s\\fs%d\\b1\\bord0\\shad0\\1a&H00&\\3a&HFF&\\4a&HFF&\\1c&HFFFFFF&}%d {\\1c&H8A8A8A&}of %d",
-            text_x, text_y, TITLE_FONT, fs, display_cur, pl_count),
-    }, "\n")
+    playlist_overlay.data = "{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H000000&\\alpha&HA0&\\p1}" .. pill .. "{\\p0}"
     playlist_overlay.res_x = w
     playlist_overlay.res_y = h
     playlist_overlay:update()
+
+    playlist_text_overlay.data = string.format(
+        "{\\an5\\pos(%d,%d)\\fn%s\\fs%d\\b1\\bord0\\shad0\\1a&H00&\\3a&HFF&\\4a&HFF&\\1c&HF2F2F2&}%d {\\1c&HE4E4E4&}of %d",
+        text_x, text_y, TITLE_FONT, fs, display_cur, pl_count
+    )
+    playlist_text_overlay.res_x = w
+    playlist_text_overlay.res_y = h
+    playlist_text_overlay:update()
 end
 
 local function format_osd_status()
