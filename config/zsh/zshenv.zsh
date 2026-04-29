@@ -26,6 +26,9 @@ export YT_DLP_BATCH_FILE="$ICLOUD_HOME/Sync/links.txt"
 export YT_DLP_JSON_DIR="$ICLOUD_HOME/Sync/JSON"
 export YT_DLP_TEMP_DIR="$HOME/.cache/yt-dlp-tmp"
 
+export COLOR_C64_DARK_BLUE=#030D43
+export COLOR_C64_LIGHT_BLUE=#7A86D1
+
 # MANPATH CONFIGURATION
 #
 typeset -U manpath

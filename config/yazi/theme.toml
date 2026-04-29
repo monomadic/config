@@ -20,9 +20,9 @@ find_keyword  = { fg = "#ffe66d", bold = true }
 # ------------------------------------------------------------
 
 [indicator]
-parent        = { fg = "#0f0f10", bg = "#66e2ff" }
-current       = { fg = "#0f0f10", bg = "#66e2ff" }
-preview       = { fg = "#ffe66d", underline = true }
+parent        = { fg = "#0f0f10", bg = "#7A86D1" }
+current       = { fg = "#0f0f10", bg = "#7A86D1" }
+preview       = { fg = "#ffe66d", underline = false }
 hovered       = { bg = "#151519" }
 
 # ------------------------------------------------------------
