@@ -101,10 +101,10 @@ local function format_key_label(binding)
         Shift = "⇧",
     }
     local keys = {
-        ESC = "Esc",
-        TAB = "Tab",
-        SPACE = "Space",
-        ENTER = "Enter",
+        ESC = "ESC",
+        TAB = "TAB",
+        SPACE = "SPACE",
+        ENTER = "ENTER",
         LEFT = "←",
         RIGHT = "→",
     }
@@ -156,7 +156,7 @@ local keybar_items = {
         section = "shortcut",
         fallback = "ESC",
         prefer = { "ESC" },
-        desc = " Menu",
+        desc = " MENU",
         match = command_equals("script-binding show-menu"),
     },
     {
@@ -168,36 +168,12 @@ local keybar_items = {
         match = command_equals("script-binding toggle-osd-full"),
     },
     {
-        id = "dir",
-        section = "shortcut",
-        fallback = "Meta+d",
-        prefer = { "Meta+d" },
-        desc = " Open Dir",
-        match = command_equals("script-binding replace-playlist"),
-    },
-    {
-        id = "sort",
-        section = "shortcut",
-        fallback = "Ctrl+s",
-        prefer = { "Ctrl+s" },
-        desc = " Sort",
-        match = command_equals("script-binding sort_playlist_by_mtime"),
-    },
-    {
-        id = "expand",
-        section = "shortcut",
-        fallback = "Ctrl+d",
-        prefer = { "Ctrl+d" },
-        desc = " Expand",
-        match = command_equals("script-binding expand_playlist_dirs"),
-    },
-    {
         id = "panscan",
         section = "state",
         fallback = "p",
         prefer = { "p" },
         desc = function(badge)
-            return " Pan " .. badge(panscan_on)
+            return " PAN " .. badge(panscan_on)
         end,
         match = command_equals("script-binding toggle-pan-scan"),
     },
@@ -207,7 +183,7 @@ local keybar_items = {
         fallback = "e",
         prefer = { "e" },
         desc = function(badge)
-            return " Edge Fade " .. badge(edge_fade_enabled)
+            return " EDGE FADE " .. badge(edge_fade_enabled)
         end,
         match = command_equals("script-binding toggle-edge-fade"),
     },
@@ -217,7 +193,7 @@ local keybar_items = {
         fallback = "Ctrl+p",
         prefer = { "Ctrl+p", "4" },
         desc = function(badge)
-            return " Progress " .. badge(progress_visible)
+            return " PROGRESS " .. badge(progress_visible)
         end,
         match = command_equals("script-binding progress-bar-minimal/toggle-progress"),
     },
@@ -227,7 +203,7 @@ local keybar_items = {
         fallback = "b",
         prefer = { "b" },
         desc = function(badge)
-            return " Meta " .. badge(metadata_enabled)
+            return " META " .. badge(metadata_enabled)
         end,
         match = command_equals("script-message-to metadata toggle"),
     },
@@ -237,7 +213,7 @@ local keybar_items = {
         fallback = "F7",
         prefer = { "F7" },
         desc = function(badge)
-            return " Stats " .. badge(stats_visible)
+            return " STATS " .. badge(stats_visible)
         end,
         match = command_equals("script-binding toggle_stats"),
     },
@@ -247,7 +223,7 @@ local keybar_items = {
         fallback = "2",
         prefer = { "2" },
         desc = function(badge)
-            return " Auto-Land " .. badge(auto_landscape)
+            return " FORCE-HORZ " .. badge(auto_landscape)
         end,
         match = command_equals("script-binding toggle_force_landscape"),
     },
@@ -257,7 +233,7 @@ local keybar_items = {
         fallback = "3",
         prefer = { "3" },
         desc = function(badge)
-            return " Skip Intro " .. badge(skip_intros_enabled)
+            return " SKIP INTRO " .. badge(skip_intros_enabled)
         end,
         match = command_equals("script-binding toggle-skip-intros"),
     },
@@ -267,7 +243,7 @@ local keybar_items = {
         fallback = "1",
         prefer = { "1" },
         desc = function(badge, fmt_delay)
-            return " Auto Jump " .. badge(rj_autojump_on) .. fmt_delay()
+            return " AUTOJUMP " .. badge(rj_autojump_on) .. fmt_delay()
         end,
         match = command_equals("script-binding toggle_auto_jump"),
     },
@@ -350,6 +326,11 @@ local function build_bar(dim)
     local scale = 9
     local progress_h = 5
     local text_y = h - progress_h
+    local bar_h = 26
+    local y0 = h - progress_h - bar_h
+    local bg = ("{\\an7\\pos(0,%d)\\bord0\\shad0\\1c&H000000&\\alpha&HA0&\\p1}"
+        .. "m 0 0 l %d 0 l %d %d l 0 %d"
+        .. "{\\p0}"):format(y0, w, w, bar_h, bar_h)
     local key_color  = "{\\1c&H9CFF00&}"
     local text_color = "{\\1c&HFFFFFF&}"
     local chip_color = "{\\1c&H181818&\\alpha&H00&}"
@@ -405,7 +386,7 @@ local function build_bar(dim)
         table.insert(rendered_groups, table.concat(group, sep_color .. "|" .. text_color))
     end
 
-    return s .. table.concat(rendered_groups, sep_color .. "  |  " .. text_color)
+    return bg .. "\n" .. s .. table.concat(rendered_groups, sep_color .. "  |  " .. text_color)
 end
 
 mp.add_timeout(0, function()
