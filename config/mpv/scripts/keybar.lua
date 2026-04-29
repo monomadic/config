@@ -335,6 +335,7 @@ local function build_bar(dim)
     local text_color = "{\\1c&HFFFFFF&}"
     local chip_color = "{\\1c&H181818&\\alpha&H00&}"
     local sep_color  = "{\\1c&H6A6A6A&}"
+    local separator = sep_color .. "|" .. text_color
 
     local function badge(on)
         local c = on and "{\\1c&H00FFFF&}" or "{\\1c&H777777&}"
@@ -351,8 +352,18 @@ local function build_bar(dim)
         return (" %ds"):format(math.floor(d + 0.5))
     end
 
+    local item_pad = "  "
+    local item_gap = " "
+
     local function key(label, desc)
-        return chip_color .. "  " .. key_color .. label .. text_color .. desc .. "  "
+        return chip_color
+            .. item_pad
+            .. key_color
+            .. trim(label)
+            .. text_color
+            .. item_gap
+            .. trim(desc)
+            .. item_pad
     end
 
     local function desc(item)
@@ -383,10 +394,10 @@ local function build_bar(dim)
 
     local rendered_groups = {}
     for _, group in ipairs(groups) do
-        table.insert(rendered_groups, table.concat(group, sep_color .. "|" .. text_color))
+        table.insert(rendered_groups, table.concat(group, separator))
     end
 
-    return bg .. "\n" .. s .. table.concat(rendered_groups, sep_color .. "  |  " .. text_color)
+    return bg .. "\n" .. s .. table.concat(rendered_groups, separator)
 end
 
 mp.add_timeout(0, function()
