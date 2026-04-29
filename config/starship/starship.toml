@@ -40,7 +40,6 @@ disabled = false
 # ---------- Disk Free (GB of current filesystem) ----------
 [custom.disk_free]
 command = "df -k . | tail -1 | awk '{print $4*1024}' | /opt/homebrew/opt/coreutils/libexec/gnubin/numfmt --to=iec --suffix=B --format=\"%.1f\" | tr '[:upper:]' '[:lower:]'"
-when = "true"
 format = "  [ $output](bold #AAAAFF) "
 
 # ---------- Uptime (warn ≥ 2 days) ----------
@@ -60,7 +59,6 @@ format = "[ $output](bold white) "
 
 [custom.uptime]
 command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
-when = "true"
 format = "  [󰍹 $output](bold #AAAAFF) "
 
 # ---------- Battery ----------
