@@ -371,16 +371,9 @@ local function build_bar(dim)
     local w = (dim and dim.w) or 1280
     local h = (dim and dim.h) or 720
 
-    local fs = math.floor(math.max(18, math.min(44, h * 0.017)))
-    local pad_y = math.floor(math.max(4, fs * 0.28))
-    local bar_h = math.floor(math.max(fs + pad_y * 2 + 6, h * 0.038))
-
-    local y0 = h - bar_h
-    local text_y = y0 + math.floor(bar_h / 2 + fs * 0.34)
-
-    local bg = ("{\\an7\\pos(0,%d)\\bord0\\shad0\\1c&H000000&\\alpha&H80&\\p1}"
-        .. "m 0 0 l %d 0 l %d %d l 0 %d"
-        .. "{\\p0}"):format(y0, w, w, bar_h, bar_h)
+    local scale = 10
+    local progress_h = 5
+    local text_y = h - progress_h - math.floor(math.max(3, scale * 0.15))
     local key_color  = "{\\1c&H9CFF00&}"
     local text_color = "{\\1c&HFFFFFF&}"
     local chip_color = "{\\1c&H181818&\\alpha&H00&}"
@@ -412,10 +405,10 @@ local function build_bar(dim)
         return item.desc
     end
 
-    local s = ("{\\an2\\pos(%d,%d)\\bord0\\shad0\\fs%d}"):format(
+    local s = ("{\\an2\\pos(%d,%d)\\bord0\\shad0\\scale%d}"):format(
         math.floor(w / 2),
         text_y,
-        fs
+        scale
     )
 
     local groups = {}
@@ -436,7 +429,7 @@ local function build_bar(dim)
         table.insert(rendered_groups, table.concat(group, sep_color .. "|" .. text_color))
     end
 
-    return bg .. "\n" .. s .. table.concat(rendered_groups, sep_color .. "  |  " .. text_color)
+    return s .. table.concat(rendered_groups, sep_color .. "  |  " .. text_color)
 end
 
 mp.add_timeout(0, function()
