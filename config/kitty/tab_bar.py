@@ -1,6 +1,51 @@
-from kitty.fast_data_types import Screen
-from kitty.tab_bar import DrawData, ExtraData, TabBarData, as_rgb, draw_title
+from kitty.fast_data_types import Screen, wcswidth
+from kitty.tab_bar import DrawData, ExtraData, TabBarData, as_rgb
 from kitty.utils import color_as_int
+
+
+MAX_TITLE_CELLS = 10
+ALERT_DOT = "󱐌"
+INDEX_FG = as_rgb(0x7A86D1)
+ALERT_FG = as_rgb(0x09FF00)
+
+
+SUPERSCRIPT = str.maketrans(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-=()",
+    "ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖqʳˢᵗᵘᵛʷˣʸᶻ"
+    "ᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾQᴿˢᵀᵁⱽᵂˣʸᶻ"
+    "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾",
+)
+
+
+def notification_marker(draw_data: DrawData, tab: TabBarData) -> str:
+    return ALERT_DOT if tab.needs_attention or tab.has_activity_since_last_focus else " "
+
+
+def fit_text(text: str, max_cells: int) -> str:
+    text = "".join(text.split())
+    if wcswidth(text) <= max_cells:
+        return text
+
+    ans = ""
+    for ch in text:
+        if wcswidth(ans + ch + "…") > max_cells:
+            break
+        ans += ch
+    return ans + "…"
+
+
+def icon_and_title(title: str) -> tuple[str, str]:
+    parts = title.split(maxsplit=1)
+    if len(parts) == 2:
+        return parts[0], parts[1]
+    return "", title
+
+
+def draw_colored(screen: Screen, text: str, fg: int) -> None:
+    old_fg = screen.cursor.fg
+    screen.cursor.fg = fg
+    screen.draw(text)
+    screen.cursor.fg = old_fg
 
 
 def draw_tab(
@@ -13,38 +58,24 @@ def draw_tab(
     is_last: bool,
     extra_data: ExtraData,
 ) -> int:
-    """
-    Separator-style tab renderer that behaves like Kitty's stock renderer,
-    except truncated tabs end with '… ' instead of just '…'.
+    marker = notification_marker(draw_data, tab)
+    icon, raw_title = icon_and_title(tab.title)
+    title = fit_text(raw_title, MAX_TITLE_CELLS)
+    index_text = str(index).translate(SUPERSCRIPT)
 
-    This preserves normal tab sizing. The extra padding is only introduced
-    when a tab is actually ellipsized.
-    """
+    screen.draw(" ")
+    if icon:
+        screen.draw(icon)
+        screen.draw(" ")
+    screen.draw(title)
 
-    # Match stock separator renderer.
-    if draw_data.leading_spaces:
-        screen.draw(" " * draw_data.leading_spaces)
+    if marker == " ":
+        screen.draw("")
+    else:
+        draw_colored(screen, marker, ALERT_FG)
 
-    draw_title(draw_data, screen, tab, index, max_tab_length)
-
-    trailing_spaces = min(max_tab_length - 1, draw_data.trailing_spaces)
-    available = max_tab_length - trailing_spaces
-    extra = screen.cursor.x - before - available
-
-    if extra > 0:
-        # Normal Kitty behavior writes just '…' at:
-        #   screen.cursor.x -= extra + 1
-        #
-        # We want '… ' instead, while keeping the same total width.
-        # So move back one extra cell and draw two cells instead of one.
-        if available >= 2:
-            screen.cursor.x -= extra + 2
-            screen.draw("… ")
-        else:
-            screen.cursor.x -= extra + 1
-            screen.draw("…")
-    elif trailing_spaces:
-        screen.draw(" " * trailing_spaces)
+    draw_colored(screen, index_text, INDEX_FG)
+    screen.draw(" ")
 
     end = screen.cursor.x
 
