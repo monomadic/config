@@ -176,30 +176,6 @@ local keybar_items = {
         match = command_equals("script-binding replace-playlist"),
     },
     {
-        id = "prev",
-        section = "shortcut",
-        fallback = "[",
-        prefer = { "[" },
-        desc = " Prev",
-        match = command_equals("playlist-prev"),
-    },
-    {
-        id = "next",
-        section = "shortcut",
-        fallback = "]",
-        prefer = { "]" },
-        desc = " Next",
-        match = command_equals("playlist-next"),
-    },
-    {
-        id = "next_dir",
-        section = "shortcut",
-        fallback = "}",
-        prefer = { "}", "Alt+]" },
-        desc = " Dir Next",
-        match = command_equals("script-binding next-file-dir"),
-    },
-    {
         id = "sort",
         section = "shortcut",
         fallback = "Ctrl+s",
@@ -371,9 +347,9 @@ local function build_bar(dim)
     local w = (dim and dim.w) or 1280
     local h = (dim and dim.h) or 720
 
-    local scale = 10
+    local scale = 9
     local progress_h = 5
-    local text_y = h - progress_h - math.floor(math.max(3, scale * 0.15))
+    local text_y = h - progress_h
     local key_color  = "{\\1c&H9CFF00&}"
     local text_color = "{\\1c&HFFFFFF&}"
     local chip_color = "{\\1c&H181818&\\alpha&H00&}"
