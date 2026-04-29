@@ -402,7 +402,7 @@ local function build_bar(dim)
     end
 
     local function key(label, desc)
-        return chip_color .. "  " .. key_color .. label .. text_color .. desc .. "  " .. sep_color .. "|" .. text_color
+        return chip_color .. "  " .. key_color .. label .. text_color .. desc .. "  "
     end
 
     local function desc(item)
@@ -418,18 +418,25 @@ local function build_bar(dim)
         fs
     )
 
+    local groups = {}
+    local current_group = nil
     local last_section = nil
+
     for _, item in ipairs(keybar_items) do
         if item.section ~= last_section then
-            if last_section ~= nil then
-                s = s .. sep_color .. "  ||  " .. text_color
-            end
+            current_group = {}
+            table.insert(groups, current_group)
             last_section = item.section
         end
-        s = s .. key(resolved_keys[item.id] or format_key_label(item.fallback), desc(item))
+        table.insert(current_group, key(resolved_keys[item.id] or format_key_label(item.fallback), desc(item)))
     end
 
-    return bg .. "\n" .. s
+    local rendered_groups = {}
+    for _, group in ipairs(groups) do
+        table.insert(rendered_groups, table.concat(group, sep_color .. "|" .. text_color))
+    end
+
+    return bg .. "\n" .. s .. table.concat(rendered_groups, sep_color .. "  |  " .. text_color)
 end
 
 mp.add_timeout(0, function()

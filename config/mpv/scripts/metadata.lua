@@ -90,14 +90,47 @@ local function get_actor_line()
     return nil
 end
 
+local function has_real_video()
+    local tracks = mp.get_property_native("current-tracks") or {}
+
+    for _, track in pairs(tracks) do
+        if track.type == "video" and track.selected then
+            return not track.albumart
+        end
+    end
+
+    return (mp.get_property_number("width", 0) or 0) > 0
+        and (mp.get_property_number("height", 0) or 0) > 0
+end
+
+local function is_song()
+    if not has_real_video() then
+        return true
+    end
+
+    local artist = trim(mp.get_property("artist"))
+    local album = trim(mp.get_property("album"))
+    return artist ~= "" or album ~= ""
+end
+
+local function get_title_line()
+    local title = trim(mp.get_property("media-title") or mp.get_property("filename") or "Untitled")
+    local artist = trim(mp.get_property("artist"))
+
+    if artist ~= "" then
+        return artist .. " - " .. title
+    end
+
+    return title
+end
+
 local function show_title_card()
-    if not enabled or not osd_visible() then
+    if not enabled or not osd_visible() or not is_song() then
         return
     end
 
-    local title = trim(mp.get_property("media-title") or mp.get_property("filename") or "Untitled")
     local actors = get_actor_line()
-    local lines = { title }
+    local lines = { get_title_line() }
 
     if actors and actors ~= "" then
         table.insert(lines, actors)
@@ -170,8 +203,8 @@ local function update_playlist_overlay()
     local pill = rounded_rect_path(x0, y0, x1, y1, radius)
 
     playlist_overlay.data = table.concat({
-        "{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H000000&\\alpha&H58&\\p1}" .. pill .. "{\\p0}",
-        string.format("{\\an5\\pos(%d,%d)\\fn%s\\fs%d\\b1\\bord0\\shad0\\1c&HFFFFFF&}%d {\\1c&H8A8A8A&}of %d",
+        "{\\an7\\pos(0,0)\\bord0\\shad0\\1c&H000000&\\alpha&H30&\\p1}" .. pill .. "{\\p0}",
+        string.format("{\\an5\\pos(%d,%d)\\fn%s\\fs%d\\b1\\bord0\\shad0\\3a&HFF&\\4a&HFF&\\1c&HFFFFFF&}%d {\\1c&H8A8A8A&}of %d",
             text_x, text_y, TITLE_FONT, fs, display_cur, pl_count),
     }, "\n")
     playlist_overlay.res_x = w
@@ -241,9 +274,6 @@ local function format_osd_status()
         end
     end
 
-    local title = mp.get_property("media-title") or "Untitled"
-    local artist = mp.get_property("artist") or ""
-
     -- Orientation (rotation-aware)
     local orient = get_orientation()
 
@@ -258,9 +288,10 @@ local function format_osd_status()
 
     if osd_level <= 2 then
         status_msg = file_info
+    elseif is_song() then
+        status_msg = get_title_line() .. "\n" .. file_info
     else
-        local line1 = artist .. title
-        status_msg = line1 .. "\n" .. file_info
+        status_msg = file_info
     end
 
     if status_msg ~= last_status_msg then
