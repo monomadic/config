@@ -7,11 +7,15 @@
 # play supports:
 #   -0 | --read0   read NUL-delimited stdin
 #   --shuffle      shuffle once after all queued files have been sent
+# start supports:
+#   --socket PATH   start/listen on a specific IPC socket
+#   --profile NAME  launch mpv with a specific mpv profile
 
 set -euo pipefail
 
 SOCKET="${SOCKET:-${MPV_SOCKET:-/tmp/mpv-socket}}"
 MPV_LOG="${MPV_LOG:-/tmp/mpv-ipc.log}"
+MPV_PROFILE="${MPV_PROFILE:-}"
 MPV_SEND_BATCH_SIZE="${MPV_SEND_BATCH_SIZE:-64}"
 VERBOSE=0
 
@@ -56,7 +60,7 @@ abs_path() {
 
 usage() {
   cat <<'USAGE'
-Usage: mpv-send [--verbose] <command> [args]
+Usage: mpv-send [options] <command> [args]
 
 Send files and simple control commands to a running mpv instance via IPC.
 
@@ -65,6 +69,10 @@ the configured IPC socket, then send control commands or replace/append files
 to the playlist.
 
 Commands:
+  start [options] [--] [mpv-args-or-file...]
+                          Start a background mpv instance and wait for IPC.
+                          Remaining args after -- are passed to mpv, so this
+                          can also load an initial splash image.
   play [options] [files...]
                           Load files into mpv.
                           Reads from stdin first (newline by default).
@@ -80,12 +88,21 @@ Commands:
                           Set/toggle pan&scan
 
 Options:
+  -s, --socket <path>     Use a specific mpv IPC socket
+  -p, --profile <name>    Profile to use when this script starts mpv
+  --log <path>            Log file for background mpv starts
   --verbose               Print IPC/debug messages
 
 Env:
   SOCKET=/tmp/mpv-socket or MPV_SOCKET=/tmp/mpv-socket
+  MPV_PROFILE=vj
   MPV_LOG=/tmp/mpv-ipc.log
   MPV_SEND_BATCH_SIZE=64
+
+Examples:
+  mpv-send --socket /tmp/mpv-vj.sock --profile vj start
+  mpv-send --socket /tmp/mpv-vj.sock play clip.mp4
+  mpv-send -s /tmp/mpv-vj.sock -p vj start -- --image-display-duration=inf splash.png
 USAGE
 }
 
@@ -159,10 +176,16 @@ test_socket() {
 start_mpv() {
   local ready=false
   local i
+  local -a mpv_args
+
+  mpv_args=(--idle=yes --force-window=immediate --input-ipc-server="$SOCKET")
+  [[ -n "$MPV_PROFILE" ]] && mpv_args=(--profile="$MPV_PROFILE" "${mpv_args[@]}")
+  (( $# > 0 )) && mpv_args+=("$@")
 
   log "starting mpv"
+  log "mpv args: ${(q)mpv_args}"
   rm -f -- "$SOCKET"
-  mpv --idle --force-window=yes --input-ipc-server="$SOCKET" >"$MPV_LOG" 2>&1 & disown
+  mpv "${mpv_args[@]}" >"$MPV_LOG" 2>&1 & disown
 
   for i in {1..50}; do
     if test_socket; then
@@ -209,6 +232,7 @@ ensure_mpv() {
 
   log "socket: $SOCKET"
   log "mpv log: $MPV_LOG"
+  log "mpv profile: ${MPV_PROFILE:-<default>}"
   log "verbose: $VERBOSE"
 
   require_ipc_client || exit 1
@@ -235,6 +259,71 @@ ensure_mpv() {
 
 focus_mpv() {
   osascript -e 'tell application "System Events" to set frontmost of process "mpv" to true' >/dev/null 2>&1 || true
+}
+
+start_cmd() {
+  local -a mpv_args=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -s|--socket)
+        [[ $# -ge 2 ]] || { echo "Error: $1 requires a socket path" >&2; exit 1; }
+        SOCKET="$2"
+        shift 2
+        ;;
+      --socket=*)
+        SOCKET="${1#*=}"
+        shift
+        ;;
+      -p|--profile)
+        [[ $# -ge 2 ]] || { echo "Error: $1 requires a profile name" >&2; exit 1; }
+        MPV_PROFILE="$2"
+        shift 2
+        ;;
+      --profile=*)
+        MPV_PROFILE="${1#*=}"
+        shift
+        ;;
+      --log)
+        [[ $# -ge 2 ]] || { echo "Error: $1 requires a log path" >&2; exit 1; }
+        MPV_LOG="$2"
+        shift 2
+        ;;
+      --log=*)
+        MPV_LOG="${1#*=}"
+        shift
+        ;;
+      --help|-h)
+        usage
+        exit 0
+        ;;
+      --)
+        shift
+        mpv_args+=("$@")
+        break
+        ;;
+      -*)
+        echo "Error: unknown start option: $1" >&2
+        echo "Usage: mpv-send start [-s socket] [-p profile] [--log path] [--] [mpv-args-or-file...]" >&2
+        exit 1
+        ;;
+      *)
+        mpv_args+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  require_ipc_client || exit 1
+
+  if test_socket; then
+    echo "mpv is already listening on $SOCKET"
+    return 0
+  fi
+
+  start_mpv "${mpv_args[@]}"
+  echo "Started mpv on $SOCKET${MPV_PROFILE:+ with profile $MPV_PROFILE}"
+  focus_mpv
 }
 
 play_cmd() {
@@ -384,6 +473,33 @@ play_cmd() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    -s|--socket)
+      [[ $# -ge 2 ]] || { echo "Error: $1 requires a socket path" >&2; exit 1; }
+      SOCKET="$2"
+      shift 2
+      ;;
+    --socket=*)
+      SOCKET="${1#*=}"
+      shift
+      ;;
+    -p|--profile)
+      [[ $# -ge 2 ]] || { echo "Error: $1 requires a profile name" >&2; exit 1; }
+      MPV_PROFILE="$2"
+      shift 2
+      ;;
+    --profile=*)
+      MPV_PROFILE="${1#*=}"
+      shift
+      ;;
+    --log)
+      [[ $# -ge 2 ]] || { echo "Error: $1 requires a log path" >&2; exit 1; }
+      MPV_LOG="$2"
+      shift 2
+      ;;
+    --log=*)
+      MPV_LOG="${1#*=}"
+      shift
+      ;;
     --verbose)
       VERBOSE=1
       shift
@@ -402,6 +518,10 @@ cmd="${1:-}"
 [[ -n "$cmd" ]] && shift || { usage; exit 1; }
 
 case "$cmd" in
+  start)
+    start_cmd "$@"
+    ;;
+
   play)
     play_cmd "$@"
     ;;
