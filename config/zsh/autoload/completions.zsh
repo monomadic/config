@@ -7,6 +7,9 @@
 # 1Password (dynamic completions are fine)
 eval "$(op completion zsh)"
 
+# tv
+eval "$(tv init zsh)"
+
 #eval "$(rmrfrs --completions zsh)" &> /dev/null
 
 # Ensure completions directory exists
