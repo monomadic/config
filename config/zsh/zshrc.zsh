@@ -74,7 +74,6 @@ for config_file in $config_files; do
     print -P "%F{red}Error sourcing $config_file. Skipping...%f"
   fi
 done
-# print -P "ok"
 
 # kitty tab colors
 #kitty @ set-tab-color --match title:"mpv-play" active_bg="#A85FFF" active_fg="#050F63" inactive_fg="#A85FFF" inactive_bg="#030D43"
@@ -115,3 +114,5 @@ export PATH="$PATH:$HOME/.lmstudio/bin"
 # Added by LM Studio CLI (lms)
 export PATH="$PATH:/Users/nom/.cache/lm-studio/bin"
 # End of LM Studio CLI section
+
+# print -P "ok"

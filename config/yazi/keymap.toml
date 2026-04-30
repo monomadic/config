@@ -55,17 +55,9 @@ desc = "Open files or enter directories"
 
 [[mgr.prepend_keymap]]
 on   = "<Space>"
-run  = '''shell -- for f in "$@"; do
-	case "$f" in
-		*.mp4|*.MP4|*.mov|*.MOV|*.m4v|*.M4V)
-			open -a "QuickTime Player" "$f"
-			;;
-		*)
-			qlmanage -p "$f"
-			;;
-	esac
-done'''
-desc = "Preview with Quick Look, or open videos in QuickTime"
+for  = "macos"
+run  = "shell --block -- /usr/bin/qlmanage -p %h"
+desc = "Preview hovered file with Quick Look"
 
 [[mgr.prepend_keymap]]
 on   = "<C-p>"
