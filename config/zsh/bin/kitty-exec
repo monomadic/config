@@ -65,5 +65,5 @@ else
   "$@"
 fi
 
-status=$?
-exit $status
+exit_status=$?
+exit $exit_status
