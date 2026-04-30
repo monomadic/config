@@ -60,6 +60,11 @@ run  = "shell --block -- /usr/bin/qlmanage -p %h"
 desc = "Preview hovered file with Quick Look"
 
 [[mgr.prepend_keymap]]
+on   = "<D-a>"
+run  = "toggle_all --state=on"
+desc = "Select all files"
+
+[[mgr.prepend_keymap]]
 on   = "<C-p>"
 run  = "arrow prev"
 desc = "Move up"
