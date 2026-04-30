@@ -28,6 +28,8 @@ Useful source links for maintaining this repo's VirtualDJ skin, pad, effect, and
 - [VDJScript Examples](https://www.virtualdj.com/wiki/VDJScript%20Examples) - Official example scripts.
 - [Options List](https://www.virtualdj.com/manuals/virtualdj/appendix/optionslist/) - Settings/options appendix.
 - [Lyrics Editor](https://www.virtualdj.com/manuals/virtualdj/editors/lyricseditor.html) - AI-generated lyric editing, re-analysis, and censoring UI.
+- [Stems Help](https://de.virtualdj.com/help/stems.html) - Official stems overview, stem controls, preparation behavior, and five-stem terminology.
+- [VDJPedia Lists](https://de.virtualdj.com/wiki/Lists.html) - XML list and virtual folder structure for VirtualDJ 2024 and onwards.
 - [Native Effects](https://www.virtualdj.com/manuals/virtualdj/appendix/nativeeffects/) - Built-in effect reference.
 - [Pads Manual](https://www.virtualdj.com/manuals/virtualdj/interface/decks/decksadvanced/pads.html) - Pad pages and pad behavior.
 - [Sampler Manual](https://www.virtualdj.com/manuals/virtualdj/interface/browser/sideview/sampler.html) - Sampler sideview, banks, pages, and drag/drop behavior.
@@ -47,6 +49,8 @@ Useful source links for maintaining this repo's VirtualDJ skin, pad, effect, and
 - [How Lyrics are analyzed???](https://virtualdj.com/forums/267223/VirtualDJ_Technical_Support/How_Lyrics_are_analyzed%3F%3F%3F.html) - Staff explanation of lyric audio signatures, stems requirement, server cache, and local edits.
 - [Lyrics issues with stems VDJ 2026](https://virtualdj.com/forums/266347/VirtualDJ_Technical_Support/Lyrics_issues_with_stems_VDJ_2026.html) - Early lyric/stems behavior reports and censor matching discussion.
 - [Stems 2.0](https://virtualdj.com/forums/266488/VirtualDJ_Technical_Support/Stems_2.0.html) - Forum guidance around the Stems 2.0 requirement message for lyric extraction.
+- [Where can I find the database.xml file on MacOS?](https://www.virtualdj.com/forums/261193/VirtualDJ_Technical_Support/Where_can_I_find_the_database_xml_file_on_MacOS_.html) - CTO reply plus user-confirmed macOS `database.xml` path under `~/Library/Application Support/VirtualDJ`.
+- [Machine specific settings.xml and licence.dat?](https://www.virtualdj.com/forums/223863/VirtualDJ_Technical_Support/Machine_specific_settings_xml_and_licence_dat_.html) - Staff explanation of the VirtualDJ home folder, master database, and per-drive local databases.
 - [Bug in Instant Filters > Has Lyrics](https://virtualdj.com/forums/267592/VirtualDJ_Technical_Support/Bug_in_Instant_Filters_%3E_Has_Lyrics.html) - Forum workaround for "Has Lyrics" filter state matching.
 - [Undocumented scripts](https://virtualdj.com/forums/213099/VirtualDJ_Technical_Support/Undocumented_scripts.html) - Staff clarification of old `effect X active` and `var 'name' X` syntax.
 - [VDJ Script Verbs update](https://www.virtualdj.com/forums/205590/VirtualDJ_Skins/VDJ_Script_Verbs_update.html) - Staff clarification that skins and controllers share verbs, with the in-app editor as a discovery source.
@@ -58,11 +62,13 @@ Useful source links for maintaining this repo's VirtualDJ skin, pad, effect, and
 - [VirtualDJ Skins forum, non-staff posts](https://www.virtualdj.com/forums/13/VirtualDJ_Skins.html) - Useful examples and troubleshooting, but source-label as `Community` unless staff confirms the behavior.
 - [r/virtualdj](https://www.reddit.com/r/virtualdj/) - Broad community troubleshooting. Useful for symptoms and user workflows, low authority for SDK details.
 - [GitHub code search: VirtualDJ skin XML](https://github.com/search?q=VirtualDJ+skin.xml&type=code) - Occasional public examples and tooling. Check licenses and verify against current official docs.
+- [Matroska Stem Files Internet-Draft](https://www.ietf.org/archive/id/draft-swhited-mka-stems-06.html) - External container-format context for multi-track stem files.
 
 ## Local Repo References
 
 - [VirtualDJ Reference](VirtualDJ%20Reference.md) - Source-backed overview and preferred local patterns.
 - [Lyrics AI and Skins](Lyrics%20AI%20and%20Skins.md) - AI lyrics, skin styling surface, filters, and useful script quirks.
+- [Application Internals](Application%20Internals.md) - Low-level macOS paths, file formats, databases, stem sidecars, and shell examples.
 - [Skin SDK](Skin%20SDK.md) - Local skin SDK reference.
 - [VDJScript Verbs](VDJScript%20Verbs.md) - Curated verb notes.
 - [Filter Syntax](Filter%20Syntax.md) - Browser filter notes.

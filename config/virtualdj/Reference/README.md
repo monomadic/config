@@ -13,6 +13,9 @@ Start here:
 - [Lyrics AI and Skins](Lyrics%20AI%20and%20Skins.md)
   Focused notes on VirtualDJ 2026 AI lyric detection, skin styling limits, lyric queries, filters, and forum-observed quirks.
 
+- [Application Internals](Application%20Internals.md)
+  Low-level macOS-first notes on VirtualDJ paths, databases, caches, stem sidecars, linked tracks, and shell tooling.
+
 - [Resources](Resources.md)
   Useful official, staff, community, and local sources for follow-up research.
 
@@ -21,6 +24,7 @@ Current status:
 - `VirtualDJ Reference.md` is the policy and architecture layer.
 - `VDJScript Verbs.md` is the first API-focused pass.
 - `Lyrics AI and Skins.md` is the focused lyric/autodetection reference.
+- `Application Internals.md` is the low-level file/database/stem architecture reference.
 - `Resources.md` is the source index.
 - The other topical files still contain useful raw material, but they are not yet normalized to the same reliability standard.
 
