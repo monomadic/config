@@ -7,9 +7,20 @@ ICON_DIR="$DOTFILES_DIR/assets/icons"
 
 SEARCH_DIRS=(
   "/Applications"
-  "/System/Applications"
   "$HOME/Applications"
 )
+
+if [[ -t 1 ]]; then
+  RED="$(tput setaf 1 2>/dev/null || true)"
+  RESET="$(tput sgr0 2>/dev/null || true)"
+else
+  RED=""
+  RESET=""
+fi
+
+warn() {
+  printf '%s%s%s\n' "$RED" "$*" "$RESET"
+}
 
 if [[ "${OSTYPE:-}" != darwin* ]]; then
   exit 0
@@ -34,13 +45,9 @@ ICON_MAPPINGS=(
   "ForkLift.app|forklift1.icns"
   "iTerm.app|term4.icns"
   "Kitty.app|term2.icns"
-  "Preview.app|preview-2.icns"
   "Numi.app|numi.icns"
-  "QuickTime Player.app|quicktime.icns"
   "Spotify.app|spotify.icns"
   "Telegram.app|telegram.icns"
-  "Terminal.app|term5.icns"
-  "iPhone Mirroring.app|iphone1.icns"
   "VirtualDJ.app|virtualdj.icns"
 )
 
@@ -57,6 +64,7 @@ find_app_path() {
 }
 
 applied=0
+attempted=0
 failed=0
 missing_apps=0
 missing_icons=0
@@ -67,28 +75,31 @@ for mapping in "${ICON_MAPPINGS[@]}"; do
   icon_path="$ICON_DIR/$icon_name"
 
   if [[ ! -f "$icon_path" ]]; then
-    echo "Skipping $app_name: icon asset not found at $icon_path."
+    warn "Skipping $app_name: icon asset not found at $icon_path."
     missing_icons=$((missing_icons + 1))
     continue
   fi
 
   if ! app_path="$(find_app_path "$app_name")"; then
-    echo "Skipping $app_name: app not found in expected locations."
+    warn "Skipping $app_name: app not found in expected locations."
     missing_apps=$((missing_apps + 1))
     continue
   fi
 
   echo "$app_name: apply $icon_name -> $app_path"
+  attempted=$((attempted + 1))
   if fileicon set "$app_path" "$icon_path"; then
     applied=$((applied + 1))
   else
-    echo "Warning: failed to apply icon for $app_name at $app_path; continuing."
+    warn "Warning: failed to apply icon for $app_name at $app_path; continuing."
     failed=$((failed + 1))
   fi
 done
 
-if (( applied == 0 )); then
-  echo "No matching macOS apps found for icon overrides."
+if (( attempted == 0 )); then
+  warn "No matching macOS apps found for icon overrides."
+elif (( applied == 0 )); then
+  warn "No macOS app icons were applied."
 fi
 
 echo "Applied: $applied"
@@ -96,5 +107,5 @@ echo "Missing apps: $missing_apps"
 echo "Missing icons: $missing_icons"
 
 if (( failed > 0 )); then
-  echo "Failed: $failed"
+  warn "Failed: $failed"
 fi
