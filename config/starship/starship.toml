@@ -1,7 +1,7 @@
 # ~/.config/starship.toml
 add_newline = false
 command_timeout = 500
-scan_timeout = 10
+#scan_timeout = 10
 
 format = "$line_break$os$hostname $directory${custom.disk_free}${custom.uptime}$battery$line_break$git_branch$character"
 
@@ -40,8 +40,8 @@ disabled = false
 # ---------- Disk Free (GB of current filesystem) ----------
 [custom.disk_free]
 when = true
-command = "df -k . | tail -1 | awk '{print $4*1024} ' | /opt/homebrew/opt/coreutils/libexec/gnubin/numfmt --to=iec --suffix=B --format='%.1f'"
-format = " [􀤂 $output](bold #AAAAFF)"
+command = "df -k . | tail -1 | awk '{print $4*1024} ' | /opt/homebrew/opt/coreutils/libexec/gnubin/numfmt --to=iec --suffix=b --format='%.1f'"
+format = "   [􀤂  $output](bold #AAAAFF)"
 
 # ---------- Uptime (warn ≥ 2 days) ----------
 # Red when >= 2 days
@@ -61,19 +61,19 @@ format = "[ $output](bold white)"
 [custom.uptime]
 when = true
 command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
-format = " [󰍹 $output](bold #AAAAFF)"
+format = "   [􀐱  $output](bold #AAAAFF)"
 
 # ---------- Battery ----------
 [battery]
-format = "  [$symbol$percentage]($style) "
+format = "   [$symbol$percentage]($style) "
 display = [
   { threshold = 101, style = "bold #AAAAFF" } # apply style at any charge
 ]
-full_symbol = " "
-charging_symbol = " "
-discharging_symbol = " "
+full_symbol = "  "
+charging_symbol = "  "
+discharging_symbol = "  "
 unknown_symbol = " "
-empty_symbol = " "
+empty_symbol = "  "
 
 # ---------- Time (right) ----------
 [time]
