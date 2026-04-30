@@ -39,8 +39,9 @@ disabled = false
 
 # ---------- Disk Free (GB of current filesystem) ----------
 [custom.disk_free]
+when = true
 command = "df -k . | tail -1 | awk '{print $4*1024} ' | /opt/homebrew/opt/coreutils/libexec/gnubin/numfmt --to=iec --suffix=B --format='%.1f'"
-format = "[􀤂 $output](bold #AAAAFF)"
+format = " [􀤂 $output](bold #AAAAFF)"
 
 # ---------- Uptime (warn ≥ 2 days) ----------
 # Red when >= 2 days
@@ -58,8 +59,9 @@ shell = ["bash", "-lc"]
 format = "[ $output](bold white)"
 
 [custom.uptime]
+when = true
 command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
-format = "[󰍹 $output](bold #AAAAFF)"
+format = " [󰍹 $output](bold #AAAAFF)"
 
 # ---------- Battery ----------
 [battery]

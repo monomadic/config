@@ -82,6 +82,9 @@ alias yt-dlp-ignore-archive="yt-dlp --no-download-archive"
 alias yt-list-fields="yt-dlp --skip-download --print \"%()#j\" "
 alias yt-batch-edit='$EDITOR $YT_DLP_BATCH_FILE'
 
+alias mpv-vj='mpv-send --socket /tmp/mpv-vj.sock --profile vj'
+alias mpv-vj-start='mpv-vj start -- --image-display-duration=inf splash.png'
+
 alias .hevc="ffmpeg-convert-to-hevc"
 
 yt-dlp-list-formats() {
