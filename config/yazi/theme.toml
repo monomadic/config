@@ -22,7 +22,7 @@ find_keyword  = { fg = "#ffe66d", bold = true }
 [indicator]
 parent        = { fg = "#0f0f10", bg = "#7A86D1" }
 current       = { fg = "#0f0f10", bg = "#7A86D1" }
-preview       = { fg = "#ffe66d", underline = false }
+preview       = { fg = "#ffe66d" }
 hovered       = { bg = "#151519" }
 
 # ------------------------------------------------------------
@@ -91,7 +91,7 @@ inactive = { fg = "#9aa0aa" }
 [tasks]
 border = { fg = "#0a0a0b" }
 title   = { fg = "#66e2ff", bold = true }
-hovered = { bg = "#151519", underline = true }
+hovered = { bg = "#151519" }
 
 [which]
 mask            = { bg = "#090909" }
@@ -120,9 +120,6 @@ title_error = { fg = "#ff5f87", bold = true }
 
 [filetype]
 rules = [
-  # directories
-  { url = "*/", fg = "#ffd75f" },
-
   # images
   { mime = "image/*", fg = "#c792ea" },
 
