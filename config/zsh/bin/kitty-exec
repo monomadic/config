@@ -58,6 +58,7 @@ trap restore_tab_state EXIT INT TERM HUP
 
 kitty @ set-tab-color active_bg="$color" inactive_fg="$color" >/dev/null 2>&1 || true
 kitty @ set-tab-title "$title" >/dev/null 2>&1 || true
+kitty @ set-window-title --temporary "$title" >/dev/null 2>&1 || true
 
 if [[ $mode == "shell" ]]; then
   /bin/zsh -lc "$shell_command"

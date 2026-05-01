@@ -11,6 +11,7 @@ VirtualDJ provides multiple independent effect engines that serve different purp
 | Effect Engine | Purpose                             | Location                  | Number of Slots           |
 | ------------- | ----------------------------------- | ------------------------- | ------------------------- |
 | **ColorFX**   | Quick filter/effect control         | Filter knob per deck      | 1 per deck (special slot) |
+| **Mix FX**    | Crossfader-linked transition effect | Mixer / supported skins   | 1 selected Mix FX         |
 | **Deck FX**   | Standard deck effects               | FX panel per deck         | 3-6 slots per deck        |
 | **Master FX** | Global effects on master output     | Master panel              | 3-6 slots                 |
 | **Video FX**  | Video effects and transitions       | Video panel               | Multiple slots            |
@@ -120,6 +121,87 @@ filter_label                    # Returns name of selected ColorFX
 - Only one ColorFX can be active per deck at a time
 - Some effects work better as ColorFX than others (check by testing parameter response)
 - Filter effect has special integration and may behave differently than other ColorFX
+
+---
+
+## Mix FX (Crossfader-Linked FX)
+
+### What is Mix FX?
+
+Mix FX is a transition-oriented effect path tied to crossfader movement. Official docs expose it through the `effect_mixfx*` verb family, and VirtualDJ forum context describes it as applying an effect to both decks with strength linked to the crossfader.
+
+This is **not** the same engine as ColorFX, Deck FX slots, or Master FX:
+
+- **ColorFX** is per-deck and driven by the deck filter amount.
+- **Deck FX** is slot-based and driven by `effect_select`, `effect_active`, and `effect_slider`.
+- **Master FX** is applied to the master output.
+- **Mix FX** selects a transition effect associated with crossfader movement.
+
+### VDJScript Commands
+
+**Select the Mix FX:**
+
+```
+effect_mixfx_select 'filter'
+effect_mixfx_select 'echo'
+effect_mixfx_select 'loop roll'
+effect_mixfx_select 'reverb'
+effect_mixfx_select 'noise'
+```
+
+**Toggle Mix FX on/off:**
+
+```
+effect_mixfx_activate
+effect_mixfx_activate ? on : off
+```
+
+**Select and activate:**
+
+```
+effect_mixfx_select 'echo' & effect_mixfx_activate
+```
+
+Published skin note: the Denon Prime 4 Deluxe skin uses the reverse order:
+
+```xml
+<panel
+  action="effect_mixfx_activate &amp; effect_mixfx_select 'FILTER'"
+  query="effect_mixfx_select 'FILTER' ? effect_mixfx_activate"/>
+```
+
+Treat the order and direct query form as **needs local test** before making them preferred patterns.
+
+### Querying the Selected Mix FX
+
+The no-parameter form can be used as a value-returning query:
+
+```
+effect_mixfx_select
+```
+
+For pad LED/color logic, older forum examples recommend comparing that returned value instead of relying on direct boolean parameter queries:
+
+```
+param_equal "`effect_mixfx_select`" "echo" ? blink 500ms : off
+```
+
+The Denon skin uses direct skin queries such as:
+
+```
+effect_mixfx_select 'FILTER' ? effect_mixfx_activate
+```
+
+Both forms should be tested in current VirtualDJ across custom buttons, pad `query`, skin `query`, skin `visibility`, and text contexts.
+
+### Source Status
+
+- `Official`: current VDJScript verbs appendix lists `effect_mixfx`, `effect_mixfx_activate`, and `effect_mixfx_select`.
+- `Official`: DDJ-FLX2 hardware manual recommends `effect_mixfx_select` for assigning Mix FX in skins without native Mix FX controls.
+- `Published skin`: Denon Prime 4 Deluxe skin uses `effect_mixfx_activate` and `effect_mixfx_select` for named Mix FX buttons.
+- `Community`: forum examples document query caveats and `param_equal` comparison patterns.
+
+See [Published Skin Findings](Published%20Skin%20Findings.md) for the provenance log and local test matrix.
 
 ---
 
@@ -977,6 +1059,17 @@ repeat_stop 'auto_filter'
 3. Filter knob is mapped correctly: `filter` with `frommiddle="true"`
 4. Effect is actually selected: `filter_selectcolorfx 'effectname'`
 
+### Mix FX Not Responding
+
+**Check:**
+
+1. The skin or custom button exposes Mix FX activation: `effect_mixfx_activate`
+2. The selected Mix FX is set with `effect_mixfx_select '<name>'`
+3. Query logic is using a tested form for the current context:
+   - `effect_mixfx_activate ? on : off` for activation state
+   - `param_equal "\`effect_mixfx_select\`" "<name>" ? on : off` for selected-name comparisons until direct queries are locally verified
+4. Crossfader movement is part of the intended behavior; Mix FX is not a normal static deck FX slot
+
 ### Effect Parameters Not Changing
 
 **Check:**
@@ -997,12 +1090,14 @@ repeat_stop 'auto_filter'
 effect_select 1 'echo'              # Select effect for slot 1
 effect_select 'colorfx' 'filter'    # Select ColorFX
 filter_selectcolorfx 'echo'         # Select ColorFX (alternative)
+effect_mixfx_select 'echo'          # Select Mix FX
 
 # ACTIVATION
 effect_active 1                     # Toggle slot 1
 effect_active 1 on                  # Turn on slot 1
 effect_active 'echo'                # Toggle Echo by name
 effect_active 'colorfx'             # Toggle ColorFX
+effect_mixfx_activate               # Toggle Mix FX
 
 # PARAMETERS
 effect_slider 1 1 50%               # Slot 1, param 1 = 50%
@@ -1043,6 +1138,7 @@ effect_active 1                     # Is slot 1 active?
 effect_stems                        # Is stems FX active?
 get_effect_name 1                   # Get name of effect in slot 1
 filter_label                        # Get ColorFX name
+effect_mixfx_select                 # Get selected Mix FX name
 ```
 
 ### Common Effect Values
@@ -1074,11 +1170,12 @@ filter_label                        # Get ColorFX name
 VirtualDJ's effect system is powerful and flexible:
 
 1. **ColorFX** - Quick one-knob filter/effects
-2. **Deck FX Slots** - Full multi-parameter effects (3-6 slots)
-3. **Master FX** - Global effects on master output
-4. **Video FX** - Visual effects and transitions
-5. **Stems FX** - Effects on individual stems
-6. **Pad FX** - Quick-trigger preset effects
+2. **Mix FX** - Crossfader-linked transition effects
+3. **Deck FX Slots** - Full multi-parameter effects (3-6 slots)
+4. **Master FX** - Global effects on master output
+5. **Video FX** - Visual effects and transitions
+6. **Stems FX** - Effects on individual stems
+7. **Pad FX** - Quick-trigger preset effects
 
 **Key Principles:**
 
@@ -1086,6 +1183,7 @@ VirtualDJ's effect system is powerful and flexible:
 - **Pre-fader** is default and recommended for most use cases
 - **Stems FX** requires pre-fader processing
 - **ColorFX** is always pre-fader (integrated with EQ engine)
+- **Mix FX** is selected with `effect_mixfx_select` and toggled with `effect_mixfx_activate`; test direct selection queries before using them for skin state
 - Effects can be **chained** for creative combinations
 - Use **variables** to track complex effect states
 

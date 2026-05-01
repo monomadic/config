@@ -7,6 +7,7 @@ Useful source links for maintaining this repo's VirtualDJ skin, pad, effect, and
 - Prefer current VirtualDJ manual and VDJPedia pages for syntax and supported behavior.
 - Treat VirtualDJ forum posts as official only when the answer is from VirtualDJ staff, Development Manager, CTO, or Support staff.
 - Treat community skins, forum replies, Reddit posts, and GitHub snippets as examples to verify locally, not as authority.
+- Treat working public skins as valuable provenance for discovery and searchability; record the exact skin, path, and line references before inferring semantics.
 - Keep local conclusions labeled as `Inference` when they combine official docs with repo testing.
 
 ## Official Documentation
@@ -55,6 +56,10 @@ Useful source links for maintaining this repo's VirtualDJ skin, pad, effect, and
 - [Undocumented scripts](https://virtualdj.com/forums/213099/VirtualDJ_Technical_Support/Undocumented_scripts.html) - Staff clarification of old `effect X active` and `var 'name' X` syntax.
 - [VDJ Script Verbs update](https://www.virtualdj.com/forums/205590/VirtualDJ_Skins/VDJ_Script_Verbs_update.html) - Staff clarification that skins and controllers share verbs, with the in-app editor as a discovery source.
 - [Where can I find a VDJ script reference?](https://virtualdj.com/forums/264082/VirtualDJ_Technical_Support/Where_can_I_find_a_VDJ_script_reference%253F.html) - Staff/community discussion of VDJScript's intentionally concise reference style and debugging approaches.
+- [Mix Assist in other skins](https://www.virtualdj.com/forums/231581/General_Discussion/Mix_Assist__in_other_skins.html) - Staff/community context for Mix FX, including the crossfader-linked effect behavior.
+- [Saving 'PluginPage' Settings between sessions](https://www.virtualdj.com/forums/232382/General_Discussion/Saving__PluginPage__Settings_between_sessions.html) - Community/moderator Mix FX scripting examples, including `effect_mixfx_select`, `effect_mixfx_activate`, and indirect `param_equal` query patterns.
+- [How to find the scripts behind a skin?](https://virtualdj.com/forums/261775/VirtualDJ_Technical_Support/How_to_find_the_scripts_behind_a_skin%3F.html) - Forum thread identifying the Mix FX verb family used by skins.
+- [DDJ-FLX2 Advanced Setup](https://www.virtualdj.com/manuals/hardware/alphatheta/ddjflx2/advanced/index.html) - Official hardware manual note that Mix FX can be selected from Starter/Essentials skins or assigned with `effect_mixfx_select`.
 
 ## Community And Unofficial Sources
 
@@ -71,6 +76,8 @@ Useful source links for maintaining this repo's VirtualDJ skin, pad, effect, and
 - [Application Internals](Application%20Internals.md) - Low-level macOS paths, file formats, databases, stem sidecars, and shell examples.
 - [Skin SDK](Skin%20SDK.md) - Local skin SDK reference.
 - [VDJScript Verbs](VDJScript%20Verbs.md) - Curated verb notes.
+- [Official VDJScript Coverage Audit](Official%20VDJScript%20Coverage%20Audit.md) - Names-only comparison against the live official VDJScript appendix.
+- [Published Skin Findings](Published%20Skin%20Findings.md) - Provenance log for commands and patterns mined from working public skins.
 - [Filter Syntax](Filter%20Syntax.md) - Browser filter notes.
 - [Example Skin XML Objects](Example%20Skin%20XML%20Objects.md) - Local skin XML examples.
 - [GraveRaver source skin](../Skins/GraveRaver/src/skin.xml) - Active modular skin source in this repo.
