@@ -9,6 +9,8 @@ typeset -ga _cd_fzf_global_static=(
   '$HOME/src/virtualdj-skin-graveraver'
   '$HOME/Library/Application\ Support/VirtualDJ'
   '$HOME/Movies/Private'
+  '$ICLOUD_HOME/Movies/Visuals'
+  '$ICLOUD_HOME/Movies/Visuals/Downloads'
 )
 
 typeset -ga _cd_fzf_global_commands=(
