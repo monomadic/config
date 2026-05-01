@@ -2,14 +2,33 @@
 # Open Helix with a temporary Kitty tab title/color when available.
 
 target="hx"
-if (( $# > 0 )); then
-  target="${argv[-1]}"
-fi
+skip_next=0
+for arg in "$@"; do
+  if (( skip_next )); then
+    skip_next=0
+    continue
+  fi
+
+  case "$arg" in
+    -c|--config|--log|-w|--working-dir)
+      skip_next=1
+      ;;
+    --config=*|--log=*|--working-dir=*|--health*|-g|--grammar|--tutor|--vsplit|--hsplit|-h|--help|-V|--version|-v|+*)
+      ;;
+    -*)
+      ;;
+    *)
+      target="$arg"
+      break
+      ;;
+  esac
+done
 
 if [[ "$target" == -* || "$target" == +* ]]; then
   base="hx"
 else
   base="${target:A:t}"
+  base="${base%%:[0-9]*}"
 fi
 
 if [[ -z ${KITTY_WINDOW_ID:-} && -z ${KITTY_LISTEN_ON:-} ]]; then

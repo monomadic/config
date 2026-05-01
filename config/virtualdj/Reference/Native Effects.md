@@ -191,6 +191,28 @@ effect_slider 'Echo' 1 50%
 effect_slider 'Echo' 2 1bt
 ```
 
+### Mix FX Routing
+
+Mix FX is not a separate native effect name. It is a crossfader-linked control path that can select native effects for assisted transitions.
+
+Official VDJScript exposes:
+
+```
+effect_mixfx_select 'Echo'
+effect_mixfx_select 'Loop Roll'
+effect_mixfx_activate
+```
+
+The Denon Prime 4 Deluxe skin uses Mix FX buttons for:
+
+- Filter
+- Echo
+- Loop Roll
+- Reverb
+- Noise
+
+Those names should be treated as native effects/presets usable through the Mix FX selector, not as proof that every native effect is Mix-FX-compatible. Test candidate names in VirtualDJ and record results in `Published Skin Findings.md`.
+
 ### Beat Synchronization
 
 Many effects support beat synchronization:

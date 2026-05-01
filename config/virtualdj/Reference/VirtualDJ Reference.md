@@ -18,7 +18,10 @@ This document is the source-backed overview and policy layer above the older spl
 Source labels used below:
 
 - `Official`: current VirtualDJ manual or VDJPedia
-- `Official forum`: post by VirtualDJ staff, Development Manager, or CTO
+- `Official forum`: post by VirtualDJ staff, Development Manager, CTO, or Support staff
+- `Community`: forum moderators, non-staff forum users, Reddit posts, or other community examples
+- `Published skin`: command or pattern observed in a working public skin
+- `Local test`: behavior reproduced in VirtualDJ locally
 - `Inference`: conclusion drawn from official docs plus this repo's build setup
 
 ## Quick Decisions
@@ -68,6 +71,11 @@ Source labels used below:
   Why: there is a dedicated verb for the job, and current forum guidance explicitly recommends using it instead of toggling your own skin vars for remain versus elapsed displays.
   Source: `Official`, `Official forum`
 
+- Pitch reset pad status:
+  For pad-page XML that colors a reset-pitch pad by distance from original BPM, use `get_pitch_value & param_bigger 125` / `param_smaller 75` with bare numeric thresholds, not `125%` / `75%`. Put the color thresholds in `color=""` and the blink/on/off state in `query=""`.
+  Why: local testing showed percent literals made the red branch match incorrectly, while bare values match the `get_pitch_value` scale where original pitch is `100`.
+  Source: `Official`, `Local test`
+
 - Panel visibility and persistent panel switching:
   Prefer `<panel visibility="...">` for pure query-driven UI and `name=""`, `group=""`, `visible=""`, plus `skin_panelgroup` when you want manual switching that persists across sessions.
   Why: this is exactly how the panel SDK page distinguishes the two patterns.
@@ -77,6 +85,11 @@ Source labels used below:
   Prefer build-time includes that flatten to one installed `skin.xml`.
   Why: the official SDK still describes skins as a flat package, while extra XML includes remain a forum wish rather than an official runtime feature. This repo already uses `xmllint --xinclude` to flatten modules before install.
   Source: `Official`, `Inference`
+
+- Published skin findings:
+  Preserve unfamiliar commands from working public skins in [Published Skin Findings](Published%20Skin%20Findings.md), then reconcile them against live official docs, forum context, and local tests.
+  Why: local docs can lag behind VirtualDJ's live manual, and users need searchable explanations for aliases and skin idioms they encounter in real skins.
+  Source: `Published skin`, `Official`, `Community`, `Inference`
 
 ## Real Examples In This Repo
 
@@ -347,6 +360,24 @@ Why:
 - it is easier to debug later
 
 Source: `Inference`
+
+### Pitch Reset Pad With Color and Blink
+
+Use this pad-page XML pattern when a reset-pitch pad should be green near original tempo, yellow when moderately shifted, and blinking red when far from original tempo:
+
+```xml
+<pad13 name="RESET PITCH `get_text '%Ppitch%'`" autodim="false" color="loaded ? get_pitch_value &amp; param_bigger 125 ? color 'red' : get_pitch_value &amp; param_smaller 75 ? color 'red' : get_pitch_value &amp; param_bigger 105 ? color 'yellow' : get_pitch_value &amp; param_smaller 95 ? color 'yellow' : color 'green' : color 'black'" query="loaded ? get_pitch_value &amp; param_bigger 125 ? blink 500ms : get_pitch_value &amp; param_smaller 75 ? blink 500ms : on : off">pitch_reset 4bt</pad13>
+```
+
+Rules from the working version:
+
+- `get_pitch_value` is centered on `100` for the original track BPM.
+- Use bare thresholds: `95`, `105`, `75`, `125`.
+- In XML, write chained VDJScript `&` as `&amp;`.
+- Put color selection in the pad `color=""` attribute.
+- Put blinking only in `query=""`: `... ? blink 500ms : on : off`.
+
+Source: `Official`, `Local test`
 
 ## Effects
 

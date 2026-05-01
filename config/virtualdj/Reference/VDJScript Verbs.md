@@ -33,8 +33,10 @@ Current curated coverage includes:
 ## Reliability Labels
 
 - `Official`: current VirtualDJ manual or VDJPedia
-- `Official forum`: VirtualDJ staff, Development Manager, or CTO forum guidance
+- `Official forum`: VirtualDJ staff, Development Manager, CTO, or Support staff forum guidance
 - `Community`: forum guidance from non-staff users
+- `Published skin`: observed in a working public skin; use as provenance and a prompt for testing, not as sole semantic authority
+- `Local test`: behavior reproduced in VirtualDJ locally
 - `Inference`: a conclusion drawn from official behavior plus repo usage
 
 ## Surface Legend
@@ -54,6 +56,20 @@ These are practical surfaces, not hard type-check guarantees. When a surface is 
 - List official aliases explicitly.
 - Prefer canonical names in examples unless the alias is the name people are most likely to search for.
 - If a synonym is only found in community posts and not in the official manual, label it as community-only rather than treating it as an official alias.
+
+## Published-Skin Evidence Policy
+
+- Preserve commands observed in working public skins even when older local docs do not mention them.
+- Always record the skin path, skin metadata, and exact line references before promoting a finding into the curated layer.
+- Search the current official manual and VirtualDJ forums for each term; the local Markdown files can lag behind the live docs.
+- Mark untested behavior as `Needs local test` instead of deleting or normalizing it away.
+- Keep empirical source notes in [Published Skin Findings](Published%20Skin%20Findings.md) so future edits can see why an unfamiliar verb is present.
+
+## Official Appendix Coverage
+
+The local curated layer is not yet a complete copy of the live official appendix. Use [Official VDJScript Coverage Audit](Official%20VDJScript%20Coverage%20Audit.md) as the names-only parity tracker before removing or dismissing any unfamiliar command.
+
+The broad catalog below should be expanded whenever a command is confirmed official or appears in a working public skin. Curated entries should then be added for commands that affect common skin, pad, mapping, or effect workflows.
 
 ## High-Frequency Alias Index
 
@@ -1066,6 +1082,74 @@ Sources:
 
 - `Official`: VDJScript verbs appendix
 
+### `pitch_reset`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Slowly bring the deck pitch back to zero/original speed
+
+Typical forms:
+
+```vdjscript
+pitch_reset
+pitch_reset 5%
+pitch_reset 500ms
+pitch_reset 4bt
+```
+
+Pad-page status pattern:
+
+```xml
+<pad13 name="RESET PITCH `get_text '%Ppitch%'`" autodim="false" color="loaded ? get_pitch_value &amp; param_bigger 125 ? color 'red' : get_pitch_value &amp; param_smaller 75 ? color 'red' : get_pitch_value &amp; param_bigger 105 ? color 'yellow' : get_pitch_value &amp; param_smaller 95 ? color 'yellow' : color 'green' : color 'black'" query="loaded ? get_pitch_value &amp; param_bigger 125 ? blink 500ms : get_pitch_value &amp; param_smaller 75 ? blink 500ms : on : off">pitch_reset 4bt</pad13>
+```
+
+Notes:
+
+- For `get_pitch_value` comparisons in pad-page XML, use bare numeric thresholds such as `125`, `75`, `105`, and `95`.
+- Do not write these thresholds as `125%` / `75%` in this pattern; local testing showed that can make the red branch match incorrectly.
+- Keep colors in `color=""` and blink state in `query=""`.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Local test`: 16-pad reset-pitch pad XML
+
+### `get_pitch_value`
+
+Aliases: none
+
+Kind: `Query`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinQuery`, `Text`
+
+Official summary:
+
+- Return pitch on a `0` to `200` scale, centered on `100` for original speed
+
+Typical forms:
+
+```vdjscript
+get_pitch_value
+get_pitch_value & param_bigger 125 ? action1 : action2
+get_pitch_value & param_smaller 75 ? action1 : action2
+```
+
+Preferred usage:
+
+- Use `get_pitch_value` rather than raw BPM math when the question is "how far is this deck from the track's original tempo?"
+- In pad-page XML comparisons, pair it with bare numeric thresholds and escape `&` as `&amp;`.
+
+Sources:
+
+- `Official`: VDJScript verbs appendix
+- `Local test`: 16-pad reset-pitch pad XML
+
 ### `pad_page`
 
 Aliases: `pad_pages`
@@ -1363,6 +1447,115 @@ Preferred usage:
 Sources:
 
 - `Official`: VDJScript verbs appendix
+
+### `effect_mixfx`
+
+Aliases: none
+
+Kind: `Action`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`
+
+Official summary:
+
+- Associate an effect with the crossfader
+
+Typical forms:
+
+```vdjscript
+effect_mixfx
+```
+
+Preferred usage:
+
+- use `effect_mixfx_select` when the goal is to choose a specific Mix FX by name
+- use `effect_mixfx_activate` when the goal is to toggle Mix FX on/off
+
+Notes:
+
+- Community/forum guidance describes Mix FX as applying an effect to both decks with strength linked to crossfader movement.
+- Older forum examples sometimes discuss Mix FX under the name "Mix Assist"; document both terms in prose for searchability.
+
+Sources:
+
+- `Official`: current VDJScript verbs appendix
+- `Official forum`: "Mix Assist in other skins", staff context for crossfader-linked behavior
+- `Community`: Mix FX examples from forum users and moderators
+- `Published skin`: `Skins/Haunting Pro Edit/Touch.xml` uses `effect_mixfx`
+
+### `effect_mixfx_activate`
+
+Aliases: none
+
+Kind: `Dual`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`, `SkinQuery`
+
+Official summary:
+
+- Toggle Mix FX on or off; use `effect_mixfx_select` to choose the Mix FX
+
+Typical forms:
+
+```vdjscript
+effect_mixfx_activate
+effect_mixfx_activate ? on : off
+effect_mixfx_select 'echo' & effect_mixfx_activate
+```
+
+Preferred usage:
+
+- use as the Mix FX on/off state, not as the effect selector
+- pair with `effect_mixfx_select '<name>'` when building a named Mix FX button
+
+Quirks:
+
+- A 2019 forum test reports that `effect_mixfx_activate '<name>'` behaves as a global on/off query rather than selecting or querying that named Mix FX. Keep that form out of examples until locally retested.
+- The Denon Prime 4 Deluxe skin uses `effect_mixfx_activate & effect_mixfx_select 'FILTER'` for named buttons. Test order-dependent behavior in the current VirtualDJ build before turning this into a preferred pattern.
+
+Sources:
+
+- `Official`: current VDJScript verbs appendix
+- `Community`: Mix FX forum examples and behavior notes
+- `Published skin`: Denon Prime 4 Deluxe skin, `PRIME 4.xml` lines 1149-1153
+
+### `effect_mixfx_select`
+
+Aliases: none
+
+Kind: `Dual`
+
+Typical surfaces: `Map`, `Button`, `Pad`, `SkinAction`, `SkinQuery`, `Text`
+
+Official summary:
+
+- Select the Mix FX used when moving the crossfader
+
+Typical forms:
+
+```vdjscript
+effect_mixfx_select
+effect_mixfx_select 'filter'
+param_equal "`effect_mixfx_select`" "filter" ? on : off
+```
+
+Preferred usage:
+
+- use the parameter form to select a named Mix FX
+- use the no-parameter form as a display/query value for the currently selected Mix FX
+- for pad LED/color logic, prefer the `param_equal "\`effect_mixfx_select\`" "<name>" ? ...` form until direct boolean queries are locally verified
+
+Quirks:
+
+- Older forum testing reported that direct queries such as `effect_mixfx_select 'echo' ? ...` did not return reliable boolean results in pad-page logic.
+- The Denon Prime 4 Deluxe skin does use direct skin queries such as `effect_mixfx_select 'FILTER' ? effect_mixfx_activate`; verify whether this now works in current skin XML, or whether it is skin-context-specific.
+
+Sources:
+
+- `Official`: current VDJScript verbs appendix
+- `Official`: DDJ-FLX2 hardware manual recommends assigning `effect_mixfx_select` to custom buttons when a skin lacks Mix FX controls
+- `Community`: Mix FX scripting examples and indirect query guidance
+- `Published skin`: Denon Prime 4 Deluxe skin, `PRIME 4.xml` lines 1149-1153
 
 ### `effect_show_gui`
 
@@ -3502,6 +3695,8 @@ The sections below remain useful as a wide local inventory. They are still being
 | `pause`          | Pause deck            | `pause`          |
 | `play_button`    | Depends on play_mode  | `play_button`    |
 | `stop_button`    | Depends on play_mode  | `stop_button`    |
+| `pioneer_play`   | Pioneer-style play LED/helper state | `pioneer_play` |
+| `pioneer_cue`    | Pioneer-style cue button/LED helper state | `pioneer_cue` |
 | `emergency_play` | Play something        | `emergency_play` |
 
 ## Audio Inputs
@@ -3510,11 +3705,15 @@ The sections below remain useful as a wide local inventory. They are still being
 | --------------------- | ------------------------- | ------------------------- |
 | `mic` / `microphone`  | Toggle microphone         | `mic`                     |
 | `mic_talkover`        | Lower decks, activate mic | `mic_talkover 20% 1000ms` |
-| `mic_eq_low/mid/high` | Mic EQ                    | `mic_eq_low`              |
+| `mic_eq_low`          | Microphone low EQ         | `mic_eq_low`              |
+| `mic_eq_mid`          | Microphone mid EQ         | `mic_eq_mid`              |
+| `mic_eq_high`         | Microphone high EQ        | `mic_eq_high`             |
 | `mic_volume`          | Set mic volume            | `mic_volume`              |
 | `linein`              | Activate line input       | `deck 1 linein 2 on`      |
 | `linein_rec`          | Record line input         | `linein_rec`              |
 | `mic_rec`             | Record microphone         | `mic_rec`                 |
+| `mic2_volume`         | Set second microphone volume | `mic2_volume`          |
+| `djc_mic`             | Controller/mic helper     | `djc_mic`                 |
 
 ## Scratch & Jogwheel
 
@@ -3532,7 +3731,12 @@ The sections below remain useful as a wide local inventory. They are still being
 | `nudge`                       | Nudge position         | `nudge +120ms`           |
 | `slip_mode`                   | Slip mode              | `slip_mode`              |
 | `slip`                        | Global slip mode       | `slip`                   |
+| `get_slip_active`             | Slip currently active  | `get_slip_active`        |
+| `get_slip_time`               | Time that will resume when slip exits | `get_slip_time "sec"` |
+| `get_rotation_slip`           | Slip point jog angle, otherwise normal rotation | `get_rotation_slip` |
+| `blink_play`                  | End-of-track/paused blink helper | `blink_play on`     |
 | `scratch_dna`                 | Execute DNA scratch    | `scratch_dna`            |
+| `scratch_dna_option`          | Configure Scratch DNA behavior | `scratch_dna_option "quantized"` |
 | `scratch_dna_editor`          | Open DNA editor        | `scratch_dna_editor`     |
 
 ## Volume & Mixing
@@ -3544,14 +3748,35 @@ The sections below remain useful as a wide local inventory. They are still being
 | `level` / `volume` | Set deck volume   | `level`                      |
 | `mute`             | Mute deck         | `mute`                       |
 | `gain`             | Set gain          | `gain`                       |
+| `gain_label`       | Gain label text   | `gain_label`                 |
+| `gain_relative`    | Move gain relative to software position | `gain_relative +1%` |
 | `set_gain`         | Set gain to dBA   | `set_gain 0`                 |
 | `master_volume`    | Master volume     | `master_volume`              |
+| `booth_volume`     | Booth volume      | `booth_volume 70%`           |
 | `headphone_volume` | Headphone volume  | `headphone_volume`           |
 | `headphone_mix`    | PFL mix           | `headphone_mix`              |
+| `headphone_crossfader` | PFL left/right fader | `headphone_crossfader 50%` |
+| `headphone_gain`   | PFL output gain   | `headphone_gain +1dB`        |
+| `master_balance`   | Master left/right balance | `master_balance 50%`    |
+| `mono_mix`         | Mix left/right channels together | `mono_mix`             |
 | `crossfader_curve` | Crossfader curve  | `crossfader_curve "scratch"` |
+| `crossfader_hamster` | Invert crossfader | `crossfader_hamster`       |
+| `crossfader_disable` | Disable crossfader | `crossfader_disable`       |
 | `get_limiter`      | Check compression | `get_limiter`                |
 | `get_level`        | Signal level      | `get_level`                  |
+| `get_level_log`    | Log-scaled signal level | `get_level_log`          |
+| `get_level_peak`   | Peak level before master volume | `get_level_peak`        |
+| `get_level_left`   | Left channel before master volume | `get_level_left 'master'` |
+| `get_level_right`  | Right channel before master volume | `get_level_right 'master'` |
+| `get_level_left_peak` | Left peak before master volume | `get_level_left_peak` |
+| `get_level_right_peak` | Right peak before master volume | `get_level_right_peak` |
 | `get_vu_meter`     | VU meter level    | `get_vu_meter`               |
+| `get_vu_meter_peak` | VU peak after master volume | `get_vu_meter_peak`     |
+| `get_vu_meter_left` | Left VU after master volume | `get_vu_meter_left 'master'` |
+| `get_vu_meter_right` | Right VU after master volume | `get_vu_meter_right 'master'` |
+| `get_vu_meter_left_peak` | Left VU peak after master volume | `get_vu_meter_left_peak` |
+| `get_vu_meter_right_peak` | Right VU peak after master volume | `get_vu_meter_right_peak` |
+| `get_crossfader_result` | Effective left/right deck mix after crossfader and levels | `get_crossfader_result` |
 | `is_audible`       | Deck on-air       | `is_audible`                 |
 
 ## Automix
@@ -3706,6 +3931,7 @@ Here the slider range becomes a simple placement track, and the `fader` sits at 
 | `stem`                 | Control stem amount   | `stem "vocal" 50%`                |
 | `eq_kill_high/mid/low` | Kill EQ band          | `eq_kill_high`                    |
 | `filter`               | Apply color FX        | `filter`                          |
+| `filter_activate`      | Enable/disable deck filter/ColorFX | `filter_activate`         |
 | `filter_selectcolorfx` | Select color effect   | `filter_selectcolorfx 'Reverb'`   |
 
 `filter_selectcolorfx`: pops up a gui selector for colorfx effects
@@ -3729,9 +3955,13 @@ Here the slider range becomes a simple placement track, and the `fader` sits at 
 | `get_deck`         | Deck number           | `get_deck`                    |
 | `get_artist`       | Artist tag            | `get_artist`                  |
 | `get_title`        | Title tag             | `get_title`                   |
+| `get_title_before_remix` | Title with remix/bracket handling | `get_title_before_remix` |
+| `get_remix_after_title` | Remix text split from title | `get_remix_after_title` |
 | `get_album`        | Album tag             | `get_album`                   |
 | `get_genre`        | Genre tag             | `get_genre`                   |
 | `get_key`          | Song key              | `get_key "musical"`           |
+| `get_harmonic`     | Harmonic key display  | `get_harmonic`                |
+| `get_key_color`    | Color for current key | `get_key_color`               |
 | `get_browsed_song` | Browsed file property | `get_browsed_song 'title'`    |
 | `get_loaded_song`  | Loaded file property  | `get_loaded_song 'album'`     |
 | `has_lyrics`       | Loaded deck has lyrics | `has_lyrics`                 |
@@ -3765,6 +3995,8 @@ Here the slider range becomes a simple placement track, and the `fader` sits at 
 | `pitch_bend`           | Temporary bend         | `pitch_bend +3%`            |
 | `master_tempo`         | Toggle master tempo    | `master_tempo`              |
 | `get_pitch`            | Get pitch value        | `get_pitch`                 |
+| `get_pitch_value`      | Get pitch on 0-200 scale centered on 100 | `get_pitch_value` |
+| `get_pitch_zero`       | Check whether pitch is zero/original | `get_pitch_zero 'absolute' 0.1%` |
 
 ## Loops
 
@@ -3786,6 +4018,22 @@ Here the slider range becomes a simple placement track, and the `fader` sits at 
 | `loop_roll`   | Loop roll            | `loop_roll 0.25`                   |
 | `slicer`      | Slicer effect        | `slicer 1`                         |
 | `loop_adjust` | Adjust loop with jog | `loop_adjust 'move'`               |
+| `loop_button` | Smart one-button loop control | `loop_button`              |
+| `pioneer_loop_in` | Pioneer-style loop in helper | `pioneer_loop_in`        |
+| `pioneer_loop_out` | Pioneer-style loop out helper | `pioneer_loop_out`     |
+| `pioneer_loop` | Pioneer-style loop helper | `pioneer_loop`               |
+| `loop_select` | Select/default loop size | `loop_select 4`                |
+| `loop_position` | Current position inside active loop | `loop_position`       |
+| `get_active_loop` | Current active loop length | `get_active_loop`          |
+| `get_loop` | Active loop length or default loop size | `get_loop`              |
+| `get_loop_in_time` | Loop start time | `get_loop_in_time "sec"`       |
+| `get_loop_out_time` | Loop end time | `get_loop_out_time "sec"`       |
+| `loop_pad` | Trigger predefined loop pad | `loop_pad 1`                    |
+| `loop_pad_page` | Cycle loop pad page | `loop_pad_page +1`             |
+| `loop_pad_mode` | Cycle loop pad behavior | `loop_pad_mode +1`           |
+| `loop_options` | Show loop options menu | `loop_options`                 |
+| `loop_back` | Toggle loop-back mode | `loop_back`                      |
+| `loop_roll_mode` | Toggle loop roll release behavior | `loop_roll_mode`     |
 
 ## Pads
 
@@ -3795,8 +4043,23 @@ Here the slider range becomes a simple placement track, and the `fader` sits at 
 | `pad_page`         | Activate page           | `pad_page 1`, `pad_page 'hotcues'` |
 | `pad_edit`         | Edit page               | `pad_edit`                         |
 | `pad_param`        | Change param 1          | `pad_param`                        |
+| `pad_param2`       | Change param 2          | `pad_param2`                       |
+| `pad_pressure`     | Pad pressure amount     | `pad_pressure 1`                   |
+| `pad_has_param`    | Check whether pad page exposes a parameter | `pad_has_param 1`      |
+| `pad_param_visible` | Check/display pad parameter visibility | `pad_param_visible 1` |
 | `pad_color`        | Get pad color           | `pad_color 1`                      |
 | `pad_button_color` | Controller button color | `pad_button_color 1`               |
+| `pad_pushed`       | Check whether pad is currently pressed | `pad_pushed 1`            |
+| `padshift`         | Force shifted pad action | `padshift 1`                      |
+| `padshift_pressure` | Force shifted pad pressure action | `padshift_pressure 1` |
+| `padshift_button_color` | Force shifted pad button color | `padshift_button_color 1` |
+| `pad_menu`         | Open current pad page menu | `pad_menu`                      |
+| `pad_has_action`   | Check whether pad has an action | `pad_has_action 1`          |
+| `pad_has_pressure` | Check whether pad has pressure behavior | `pad_has_pressure 1` |
+| `pad_has_color`    | Check whether pad has color behavior | `pad_has_color 1`       |
+| `pad_has_menu`     | Check whether pad page has menu | `pad_has_menu`             |
+| `pad_has_16pads`   | Controller exposes 4x4 pads | `pad_has_16pads`             |
+| `pad_bank2`        | Switch skin display between pads 1-8 and 9-16 | `pad_bank2` |
 | `padfx`            | Activate named effect   | `padfx "echo" 40% 90%`             |
 | `padfx_single`     | Activate single padfx   | `padfx_single "reverb"`            |
 
@@ -3806,12 +4069,67 @@ Here the slider range becomes a simple placement track, and the `fader` sits at 
 | --------------------- | ----------------------------------- | --------------------------------- |
 | `effect_select`       | Select effect (deactivate previous) | `effect_select 1 "echo"`          |
 | `effect_select_multi` | Select effect (keep previous)       | `effect_select_multi 2 "flanger"` |
+| `effect_select_toggle` | Select effect and keep activation continuity | `effect_select_toggle 1 "echo"` |
+| `effect_select_popup` | Select effect with temporary dropdown | `effect_select_popup 1` |
+| `effect_list`         | Select/cycle effect list            | `effect_list 1 +1`                |
+| `effect_list_edit`    | Edit an effect list                 | `effect_list_edit 1`              |
 | `effect_active`       | Activate/deactivate                 | `effect_active 1 on`              |
+| `effect_disable_all`  | Disable deck/master effects         | `effect_disable_all`              |
 | `effect_slider`       | Move effect slider                  | `effect_slider 1 2 50%`           |
+| `effect_slider_skip_length` | Move slider while skipping length slider | `effect_slider_skip_length 1 2 50%` |
+| `effect_slider_active` / `effect_slider_activate` | Move slider while activating effect | `effect_slider_active 1` |
+| `effect_slider_reset` | Reset effect slider to default      | `effect_slider_reset 1 2`         |
 | `effect_button`       | Press effect button                 | `effect_button 1 2`               |
+| `effect_mixfx`        | Associate effect with crossfader    | `effect_mixfx`                    |
+| `effect_mixfx_select` | Select Mix FX                       | `effect_mixfx_select "filter"`    |
+| `effect_mixfx_activate` | Toggle Mix FX                     | `effect_mixfx_activate`           |
+| `effect_bank_save`    | Save deck FX slots 1-6 to bank      | `effect_bank_save 1`              |
+| `effect_bank_load`    | Load deck FX slots 1-6 from bank    | `effect_bank_load 1`              |
+| `effect_clone`        | Clone all three FX slots from another deck | `effect_clone`            |
+| `effect_3slots_layout` | Toggle 1-slot/3-slot FX layout     | `effect_3slots_layout`            |
 | `video_fx_select`     | Select video effect                 | `video_fx_select "my_plugin"`     |
+| `video_fx`            | Activate/deactivate selected video effect | `video_fx`                |
+| `video_fx_clear`      | Deactivate all video effects        | `video_fx_clear`                  |
+| `video_fx_slider` / `video_fx_slider_slider` | Move video FX slider | `video_fx_slider 1 50%` |
+| `video_fx_button`     | Press video FX button               | `video_fx_button 1`               |
+| `video_source`        | Activate/select video source        | `video_source`                    |
+| `video_source_select` | Select video source plugin          | `video_source_select "webcam"`    |
+| `video_transition_select` | Select video transition plugin | `video_transition_select "fade"` |
+| `video_transition_slider` / `video_transition_slider_slider` | Move transition slider | `video_transition_slider 1 50%` |
+| `video_transition_button` | Press transition button         | `video_transition_button 1`       |
 | `effect_beats`        | Set beat parameter                  | `effect_beats`                    |
+| `effect_beats_all`    | Set beat parameter across slots/layouts | `effect_beats_all`          |
+| `effect_has_beats`    | Check effect beat parameter support | `effect_has_beats`                |
+| `effect_has_length`   | Check effect length parameter support | `effect_has_length`             |
+| `is_releasefx`        | Query release-FX slot state         | `is_releasefx`                    |
 | `get_effect_name`     | Get effect name                     | `get_effect_name`                 |
+| `get_effect_title`    | Get effect title                    | `get_effect_title`                |
+| `get_effect_string` / `effect_string` | Get/set effect string text | `get_effect_string`  |
+| `get_effect_string_name` | Get effect string label         | `get_effect_string_name`          |
+| `get_effect_button_name` | Get effect button name          | `get_effect_button_name 1`        |
+| `get_effect_slider_label_full` | Get full effect slider label | `get_effect_slider_label_full 1` |
+| `get_effect_slider_shortname` | Get compact effect slider label | `get_effect_slider_shortname 2` |
+| `get_effect_slider_name` | Get effect slider name          | `get_effect_slider_name 1`        |
+| `get_effect_slider_name_skip_length` | Get effect slider name while skipping length slider | `get_effect_slider_name_skip_length 1` |
+| `get_effect_slider_label` | Get effect slider label        | `get_effect_slider_label 1`       |
+| `get_effect_slider_label_skip_length` | Get effect slider label while skipping length slider | `get_effect_slider_label_skip_length 1` |
+| `get_effect_slider_text` | Get effect slider value text    | `get_effect_slider_text 1`        |
+| `get_effect_slider_text_skip_length` | Get slider text while skipping length slider | `get_effect_slider_text_skip_length 1` |
+| `get_effect_slider_default` | Get effect slider default value | `get_effect_slider_default 1` |
+| `get_effect_button_shortname` | Get compact effect button label | `get_effect_button_shortname 2` |
+| `get_effect_button_count` | Get number of effect buttons     | `get_effect_button_count`         |
+| `get_effect_slider_count` | Get number of effect sliders     | `get_effect_slider_count`         |
+| `effect_has_button`   | Check if effect has button          | `effect_has_button 2`             |
+| `effect_has_slider`   | Check if effect has slider          | `effect_has_slider 1 2`           |
+| `effects_used`        | Query whether effects are active    | `effects_used "deck"`             |
+| `get_effects_used`    | Count active effects                | `get_effects_used`                |
+| `effect_dock_gui`     | Dock/undock effect GUI              | `effect_dock_gui 1`               |
+| `show_pluginpage`     | Show/hide plugin control windows    | `show_pluginpage`                 |
+| `pluginsongpos`       | Plugin song position helper         | `pluginsongpos`                   |
+| `effect_command`      | Send command to effect/plugin       | `effect_command`                  |
+| `get_videofx_name`    | Get selected video effect name      | `get_videofx_name`                |
+| `get_videotrans_name` | Get selected video transition name  | `get_videotrans_name`             |
+| `get_video_fx_slider_label` | Get video FX slider label     | `get_video_fx_slider_label 1`     |
 
 ## POI & BPM
 
@@ -3940,11 +4258,19 @@ sampler_volume 9 75%
 | -------------- | --------------------------- | ---------------- |
 | `sync`         | Synchronize with other deck | `sync`           |
 | `match_bpm`    | Match BPM only              | `match_bpm`      |
+| `is_sync`      | Query synchronized BPM/phase state | `is_sync` |
+| `match_gain`   | Match gain to the other deck | `match_gain` |
 | `play_sync`    | Play synchronized           | `play_sync`      |
+| `play_onbeat`  | Play synchronized to local beat | `play_onbeat` |
 | `beatlock`     | Keep synchronized           | `beatlock`       |
 | `smart_fader`  | Sync while crossfading      | `smart_fader`    |
 | `phrase_sync`  | Match phrase                | `phrase_sync 16` |
 | `quantize_all` | Set all quantize options    | `quantize_all`   |
+| `auto_bpm_transition` | Gradually move BPM toward the other deck | `auto_bpm_transition` |
+| `auto_bpm_transition_options` | Configure auto BPM transition features | `auto_bpm_transition_options "length"` |
+| `get_bpm_match` | Return BPM match amount | `get_bpm_match` |
+| `sync_hint` | Query sync hint such as pitch or phase | `sync_hint "phase"` |
+| `bpm_stabilizer` | Lock fluid track to current BPM | `bpm_stabilizer` |
 
 ## Video
 
@@ -3977,6 +4303,25 @@ sampler_volume 9 75%
 | `assign_controller` | Assign controller to deck | `deck 1 assign_controller "CDJ400" 2`    |
 | `shift`             | Built-in shift variable   | `shift`                                  |
 | `menu_button`       | Changeable button         | `menu_button 1 "hotcue,sampler"`         |
+| `get_controller_name` | Controller name(s) assigned to deck | `get_controller_name`          |
+| `get_controller_image` | Cover art for controller screens | `get_controller_image`          |
+| `get_rotation_cue` | Cue point angle on jog display | `get_rotation_cue`                  |
+| `get_pioneer_loop_display` | Pioneer-style loop display helper | `get_pioneer_loop_display` |
+| `get_pioneer_display` | Pioneer-style display helper | `get_pioneer_display`              |
+| `numark_waveform_zoom` | Numark waveform zoom level | `numark_waveform_zoom +1`        |
+| `get_numark_waveform` | Numark waveform data helper | `get_numark_waveform`              |
+| `get_numark_beatgrid` | Numark beatgrid display helper | `get_numark_beatgrid`          |
+| `get_numark_songpos` | Numark song position display helper | `get_numark_songpos`          |
+| `get_denon_platter` | Denon platter display helper | `get_denon_platter`                |
+| `get_denon_cuepoints` | Denon cue point LED helper | `get_denon_cuepoints 100`         |
+| `get_gemini_display` | Gemini display helper | `get_gemini_display`                  |
+| `get_gemini_waveform` | Gemini waveform helper | `get_gemini_waveform`                |
+| `menu_cycledisplay` | Cycle single-line controller display | `menu_cycledisplay`          |
+| `show_text` | Show temporary controller display text | `show_text 'Line 1|Line 2' 3000ms` |
+| `invert_controllers` | Invert controller decks | `invert_controllers`                 |
+| `rescan_controllers` | Rescan connected controllers | `rescan_controllers`             |
+| `reinit_controller` | Reinitialize controller | `reinit_controller`                  |
+| `refresh_controller` | Refresh controller displays | `refresh_controller`               |
 
 ## Configuration
 
@@ -3990,6 +4335,13 @@ sampler_volume 9 75%
 | `auto_match_key`           | Auto-match key on load | `auto_match_key`                      |
 | `setting`                  | Read/write setting     | `setting "jogSensitivityScratch" 80%` |
 | `save_config`              | Save config now        | `save_config`                         |
+| `open_help`                | Open user guide        | `open_help`                           |
+| `play_options`             | Menu for play/cue/smart behavior | `play_options`              |
+| `auto_sync_options`        | Menu for auto-sync behavior | `auto_sync_options`                 |
+| `deck_options`             | Menu for deck behavior options | `deck_options`                    |
+| `eventscheduler`           | Open Event Scheduler   | `eventscheduler`                      |
+| `eventscheduler_start`     | Start Event Scheduler  | `eventscheduler_start 'summer_wedding'` |
+| `apply_audio_config`       | Apply current audio config | `apply_audio_config`              |
 
 ## Timecode
 
