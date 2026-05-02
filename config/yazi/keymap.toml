@@ -6,6 +6,11 @@ on   = "<C-Space>"
 run  = "quit"
 desc = "Quit back to the shell"
 
+[[mgr.prepend_keymap]]
+on   = "<Esc>"
+run  = "quit"
+desc = "Quit back to the shell"
+
 [[tasks.prepend_keymap]]
 on   = "<C-Space>"
 run  = [ "close", "mgr:quit" ]
