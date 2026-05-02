@@ -15,6 +15,15 @@ C-k = "jump_view_up"
 C-l = "jump_view_right"
 C-p = ["move_line_up", "scroll_up"]
 C-s = [":w!"]
+"Cmd-o" = [
+  ':sh rm -f /tmp/unique-ca1ea106',
+  ':insert-output yazi "%{buffer_name}" --chooser-file=/tmp/unique-ca1ea106',
+  ':sh printf "\x1b[?1049h\x1b[?2004h" > /dev/tty',
+  ':open %sh{cat /tmp/unique-ca1ea106}',
+  ':redraw',
+  ':set mouse false',
+  ':set mouse true',
+]
 y = ":clipboard-yank"
 Y = [":clipboard-yank"]
 C-n = ["move_line_down", "scroll_down"]
