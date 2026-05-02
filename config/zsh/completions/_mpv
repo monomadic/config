@@ -1,0 +1,29 @@
+#compdef mpv
+
+local _mpv_completion_source
+
+for _mpv_completion_source in \
+  "${HOMEBREW_PREFIX:-/opt/homebrew}/share/zsh/site-functions/_mpv" \
+  /opt/homebrew/share/zsh/site-functions/_mpv \
+  /usr/local/share/zsh/site-functions/_mpv; do
+  if [[ -r $_mpv_completion_source && $_mpv_completion_source != "${(%):-%x}" ]]; then
+    source "$_mpv_completion_source"
+    return $?
+  fi
+done
+
+_arguments -C -S -s \
+  '--start=[seek to a position]:time or percent:' \
+  '--no-audio[disable audio playback]' \
+  '--no-video[disable video playback]' \
+  '--fs[start in fullscreen]' \
+  '--playlist=[load a playlist file]:playlist file:_files' \
+  '--sub-file=[load an external subtitle file]:subtitle file:_files' \
+  '--audio-file=[load an external audio file]:audio file:_files' \
+  '--profile=[use a named profile]:profile:' \
+  '--input-ipc-server=[listen on an IPC socket]:socket path:_files' \
+  '--list-options[list all options]' \
+  '--list-protocols[list supported protocols]' \
+  '--version[show version]' \
+  '--help[show help]' \
+  '*:media file:_files'
