@@ -1,0 +1,160 @@
+#compdef fzf
+
+typeset -ga _fzf_cmd_completion_options
+typeset -g _fzf_cmd_completion_binary
+
+_fzf_cmd_generate_options() {
+  _fzf_cmd_completion_options=()
+
+  local line option_blob desc option candidate
+  local -a option_parts
+
+  for line in "${(@f)$(${commands[fzf]:-fzf} --help 2>/dev/null)}"; do
+    [[ $line == '    '[-+]* ]] || continue
+
+    line=${line#'    '}
+    if [[ $line =~ '^(.*[^[:space:]])[[:space:]]{2,}([^[:space:]].*)$' ]]; then
+      option_blob=$match[1]
+      desc=${match[2]//:/\\:}
+    else
+      continue
+    fi
+
+    option_parts=(${(s:, :)option_blob})
+    for option in $option_parts; do
+      # Some help entries use placeholders such as `--walker-root=DIR [...]`.
+      option=${option%% *}
+
+      if [[ $option == *'[='* ]]; then
+        candidate=${option%%\[*}
+        _fzf_cmd_completion_options+=(
+          "$candidate:$desc"
+          "$candidate=:$desc"
+        )
+      elif [[ $option == *=* ]]; then
+        candidate="${option%%=*}="
+        _fzf_cmd_completion_options+=("$candidate:$desc")
+      else
+        _fzf_cmd_completion_options+=("$option:$desc")
+      fi
+    done
+  done
+}
+
+_fzf_cmd_generate_if_changed() {
+  local binary="${commands[fzf]:-${~words[1]:c}}"
+  local signature="$binary"
+
+  if zmodload -F zsh/stat b:zstat 2>/dev/null && [[ -e $binary ]]; then
+    signature+=":$(zstat +mtime "$binary" 2>/dev/null)"
+  fi
+
+  if [[ $_fzf_cmd_completion_binary != "$signature" || ${#_fzf_cmd_completion_options} -eq 0 ]]; then
+    _fzf_cmd_generate_options
+    _fzf_cmd_completion_binary="$signature"
+  fi
+}
+
+_fzf_cmd_describe_options() {
+  _fzf_cmd_generate_if_changed
+  _describe -t options 'fzf option' _fzf_cmd_completion_options
+}
+
+_fzf_cmd_complete_value() {
+  local option=$1
+
+  case $option in
+    -q) option=--query ;;
+    -f) option=--filter ;;
+    -n) option=--nth ;;
+    -d) option=--delimiter ;;
+    -m) option=--multi ;;
+  esac
+
+  case $option in
+    --scheme)
+      _values 'scheme' default path history
+      ;;
+    --layout)
+      _values 'layout' default reverse reverse-list
+      ;;
+    --style)
+      _values 'style preset' default minimal full
+      ;;
+    --border|--list-border|--input-border|--header-border|--header-lines-border|--footer-border|--preview-border)
+      _values 'border style' rounded sharp bold block thinblock double horizontal vertical top bottom left right line none
+      ;;
+    --info)
+      _values 'info style' default right hidden inline inline-right
+      ;;
+    --color)
+      _values -s , 'color spec' dark light base16 bw no
+      ;;
+    --tmux)
+      _values -s , 'tmux popup option' center top bottom left right border-native
+      ;;
+    --walker)
+      _values -s , 'walker option' file dir follow hidden
+      ;;
+    --tiebreak)
+      _values -s , 'tiebreak criterion' length chunk pathname begin end index
+      ;;
+    --preview-window)
+      _values -s , 'preview window option' up down left right wrap nowrap wrap-word nowrap-word cycle nocycle follow nofollow info noinfo hidden nohidden default
+      ;;
+    --height|--min-height|--tail|--history-size|--header-lines|--tabstop|--scroll-off|--hscroll-off|--freeze-left|--freeze-right|--multi)
+      _message 'number'
+      ;;
+    --margin|--padding)
+      _message 'screen size'
+      ;;
+    --border-label-pos|--list-label-pos|--input-label-pos|--preview-label-pos|--header-label-pos|--footer-label-pos)
+      _message 'column position'
+      ;;
+    --history)
+      _files
+      ;;
+    --walker-root)
+      _path_files -/
+      ;;
+    --with-shell|--preview|--bind|--expect|--query|--filter|--delimiter|--nth|--with-nth|--accept-nth|--prompt|--header|--footer|--listen)
+      _message 'value'
+      ;;
+    *)
+      _default
+      ;;
+  esac
+}
+
+_fzf() {
+  local cur="${words[CURRENT]}"
+  local option
+
+  if [[ $cur == --*=* ]]; then
+    option=${cur%%=*}
+    compset -P "${option}="
+    _fzf_cmd_complete_value "$option"
+    return
+  fi
+
+  if (( CURRENT > 1 )); then
+    option=${words[CURRENT - 1]}
+    case $option in
+      -q|-f|-n|-d|-m|--scheme|--layout|--style|--border|--list-border|--input-border|--header-border|--header-lines-border|--footer-border|--preview-border|--info|--color|--tmux|--walker|--tiebreak|--preview-window|--height|--min-height|--tail|--history-size|--header-lines|--tabstop|--scroll-off|--hscroll-off|--freeze-left|--freeze-right|--multi|--margin|--padding|--border-label-pos|--list-label-pos|--input-label-pos|--preview-label-pos|--header-label-pos|--footer-label-pos|--history|--walker-root|--with-shell|--preview|--bind|--expect|--query|--filter|--delimiter|--nth|--with-nth|--accept-nth|--prompt|--header|--footer|--listen)
+        _fzf_cmd_complete_value "$option"
+        return
+        ;;
+    esac
+  fi
+
+  if [[ $cur == [-+]* ]]; then
+    _fzf_cmd_describe_options
+    return
+  fi
+
+  _alternative \
+    'options:fzf option:_fzf_cmd_describe_options' \
+    'files:file:_files'
+}
+
+_fzf "$@"

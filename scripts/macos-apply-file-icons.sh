@@ -38,16 +38,14 @@ fi
 
 ICON_MAPPINGS=(
   "1Password.app|1password.icns"
-  "Alacritty.app|alacritty1.png"
   "Brave Browser.app|brave.icns"
   "Codex.app|codex.icns"
   "Firefox.app|firefox1.icns"
   "ForkLift.app|forklift1.icns"
-  "iTerm.app|term4.icns"
   "Kitty.app|term2.icns"
   "Numi.app|numi.icns"
   "Spotify.app|spotify.icns"
-  "Telegram.app|telegram.icns"
+  "Telegram Desktop.app|telegram.icns"
   "VirtualDJ.app|virtualdj.icns"
 )
 

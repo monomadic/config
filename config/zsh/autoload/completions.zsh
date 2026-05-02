@@ -23,6 +23,16 @@ mkdir -p ~/.zsh/completions
 
 # `fpath` and `compinit` are handled centrally in `~/.zshrc`.
 
+# Cached compinit can miss newly added completion files. Register these
+# explicitly so they work immediately after deployment.
+for _completion_command in fzf mpv; do
+  if (( $+commands[$_completion_command] )); then
+    autoload -Uz "_$_completion_command"
+    compdef "_$_completion_command" "$_completion_command"
+  fi
+done
+unset _completion_command
+
 # yt-dlp ships its zsh completion through Homebrew; cached compinit can miss it.
 if (( $+commands[yt-dlp] )); then
   autoload -Uz _yt-dlp
