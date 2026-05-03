@@ -82,6 +82,7 @@ Commands:
                             --shuffle    shuffle playlist after all files sent
   next                    Skip to next file
   prev                    Jump to previous file
+  shuffle                 Shuffle the current playlist
   random                  Jump to a random file (shuffle + next)
   osd on|off|toggle|0..3  Control OSD (osd-level)
   panscan <0..1>|on|off|toggle
@@ -536,6 +537,12 @@ case "$cmd" in
     ensure_mpv
     mpv_cmd playlist-prev
     echo "Jumped to previous track"
+    ;;
+
+  shuffle)
+    ensure_mpv
+    mpv_cmd playlist-shuffle
+    echo "Shuffled playlist"
     ;;
 
   random)

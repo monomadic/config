@@ -70,6 +70,11 @@ run  = "toggle_all --state=on"
 desc = "Select all files"
 
 [[mgr.prepend_keymap]]
+on   = "<D-j>"
+run  = "plugin jumpdir -- 4"
+desc = "Jump to a nearby directory with fzf"
+
+[[mgr.prepend_keymap]]
 on   = "<C-p>"
 run  = "arrow prev"
 desc = "Move up"
