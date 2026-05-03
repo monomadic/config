@@ -1,5 +1,5 @@
 require("dual-pane"):setup()
 
 ps.sub("cd", function()
-	ya.mgr_emit("plugin", { "kitty-title", tostring(cx.active.current.cwd) })
+	ya.emit("plugin", { "kitty-title", tostring(cx.active.current.cwd) })
 end)
