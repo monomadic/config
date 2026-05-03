@@ -11,6 +11,7 @@
 --trim-filenames 200
 --paths "temp:$YT_DLP_TEMP_DIR"
 --paths "infojson:$YT_DLP_JSON_DIR"
+--output "%(channel,uploader|Unknown Channel)s/%(title)s [%(id)s].%(ext)s"
 --output "infojson:%(extractor)s_%(id)s"
 --download-archive "$YT_DLP_ARCHIVE_FILE"
 
@@ -21,4 +22,4 @@
 
 --alias print-name "-s --print filename -o {0} --trim-filenames 200 --output-na-placeholder ''"
 --alias best-video "-f bv[vcodec!=none][acodec=none]/bv[acodec=none]/bv*[vcodec!=none]/bv*/b -S res,fps,tbr --format-sort-force --ignore-no-formats-error"
---alias porn '-o "%(cast,uploader|)l%(cast& - |)s[%(channel,uploader|Unknown)s] %(title)s (%(extractor)s).%(ext)s" --progress --console-title --trim-filenames 200 --paths "home:$HOME/Movies/Porn/Downloads"'
+--alias porn '-o "[%(channel,uploader|Unknown)s]/%(cast,uploader|)l%(cast& - |)s[%(channel,uploader|Unknown)s] %(title)s (%(extractor)s).%(ext)s" --progress --console-title --trim-filenames 200 --paths "home:$HOME/Movies/Porn/Downloads"'
