@@ -110,6 +110,57 @@ on   = [ "t", "t" ]
 run  = "plugin smart-tab"
 desc = "Create a tab and enter the hovered directory"
 
+# Dual-pane navigation
+[[mgr.prepend_keymap]]
+on   = [ "b", "t" ]
+run  = "plugin --sync dual-pane --args=toggle"
+desc = "Dual-pane: toggle"
+
+[[mgr.prepend_keymap]]
+on   = [ "b", "b" ]
+run  = "plugin --sync dual-pane --args=toggle_zoom"
+desc = "Dual-pane: toggle zoom"
+
+[[mgr.prepend_keymap]]
+on   = "<Tab>"
+run  = "plugin --sync dual-pane --args=next_pane"
+desc = "Dual-pane: switch to the other pane"
+
+[[mgr.prepend_keymap]]
+on   = "["
+run  = "plugin --sync dual-pane --args='tab_switch -1 --relative'"
+desc = "Dual-pane: switch active to previous tab"
+
+[[mgr.prepend_keymap]]
+on   = "]"
+run  = "plugin --sync dual-pane --args='tab_switch 1 --relative'"
+desc = "Dual-pane: switch active to next tab"
+
+[[mgr.prepend_keymap]]
+on   = "<F5>"
+run  = "plugin --sync dual-pane --args='copy_files --follow'"
+desc = "Dual-pane: copy selected files from active to inactive pane"
+
+[[mgr.prepend_keymap]]
+on   = "<F6>"
+run  = "plugin --sync dual-pane --args='move_files --follow'"
+desc = "Dual-pane: move selected files from active to inactive pane"
+
+[[mgr.prepend_keymap]]
+on   = [ "b", "s" ]
+run  = "plugin --sync dual-pane --args=save_config"
+desc = "Dual-pane: save current configuration"
+
+[[mgr.prepend_keymap]]
+on   = [ "b", "l" ]
+run  = "plugin --sync dual-pane --args=load_config"
+desc = "Dual-pane: load saved configuration"
+
+[[mgr.prepend_keymap]]
+on   = [ "b", "r" ]
+run  = "plugin --sync dual-pane --args=reset_config"
+desc = "Dual-pane: reset saved configuration"
+
 [[mgr.prepend_keymap]]
 on   = [ "m", "t" ]
 run  = "shell --block -- ffmpeg-lossless-cut-by-fzf-keyframe-select %s"

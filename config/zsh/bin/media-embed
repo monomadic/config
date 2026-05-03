@@ -1,0 +1,94 @@
+# media-embed-tags: scrape yt-dlp metadata for a URL and embed it into an existing video file
+#
+# Usage:
+#   media-embed-tags "https://example.com/video-page" ./video.mp4
+#
+# Requires:
+#   yt-dlp jq ffmpeg
+
+embed-yt-url-metadata() {
+  emulate -L zsh
+  set -euo pipefail
+
+  local source_url="${1:?usage: embed-yt-url-metadata <url> <video-file>}"
+  local video_file="${2:?usage: embed-yt-url-metadata <url> <video-file>}"
+
+  [[ -f "$video_file" ]] || {
+    print -u2 -- "✘ file not found: $video_file"
+    return 1
+  }
+
+  local tmp_json tmp_video backup_file
+  tmp_json="$(mktemp -t ytmeta.XXXXXX.json)"
+  tmp_video="$(mktemp -t ytmeta.XXXXXX.mp4)"
+  backup_file="${video_file}.bak"
+
+  trap 'rm -f "$tmp_json" "$tmp_video"' EXIT
+
+  print -r -- "⏳ scraping metadata..."
+  yt-dlp \
+    --skip-download \
+    --dump-single-json \
+    --no-warnings \
+    "$source_url" > "$tmp_json"
+
+  local title uploader channel extractor webpage_url original_url description upload_date timestamp duration view_count like_count id
+
+  title="$(jq -r '.title // empty' "$tmp_json")"
+  uploader="$(jq -r '.uploader // empty' "$tmp_json")"
+  channel="$(jq -r '.channel // empty' "$tmp_json")"
+  extractor="$(jq -r '.extractor // empty' "$tmp_json")"
+  webpage_url="$(jq -r '.webpage_url // empty' "$tmp_json")"
+  original_url="$(jq -r '.original_url // empty' "$tmp_json")"
+  description="$(jq -r '.description // empty' "$tmp_json")"
+  upload_date="$(jq -r '.upload_date // empty' "$tmp_json")"
+  timestamp="$(jq -r '.timestamp // empty' "$tmp_json")"
+  duration="$(jq -r '.duration // empty' "$tmp_json")"
+  view_count="$(jq -r '.view_count // empty' "$tmp_json")"
+  like_count="$(jq -r '.like_count // empty' "$tmp_json")"
+  id="$(jq -r '.id // empty' "$tmp_json")"
+
+  [[ -n "$webpage_url" ]] || webpage_url="$source_url"
+  [[ -n "$original_url" ]] || original_url="$source_url"
+
+  local metadata_json_compact
+  metadata_json_compact="$(jq -c '.' "$tmp_json")"
+
+  local -a metadata_args
+  metadata_args=(
+    -metadata "title=$title"
+    -metadata "artist=${uploader:-$channel}"
+    -metadata "album_artist=$channel"
+    -metadata "description=$description"
+    -metadata "comment=$webpage_url"
+    -metadata "purl=$webpage_url"
+    -metadata "source_url=$webpage_url"
+    -metadata "webpage_url=$webpage_url"
+    -metadata "original_url=$original_url"
+    -metadata "yt_dlp_extractor=$extractor"
+    -metadata "yt_dlp_id=$id"
+    -metadata "yt_dlp_upload_date=$upload_date"
+    -metadata "yt_dlp_timestamp=$timestamp"
+    -metadata "yt_dlp_duration=$duration"
+    -metadata "yt_dlp_view_count=$view_count"
+    -metadata "yt_dlp_like_count=$like_count"
+    -metadata "yt_dlp_info_json=$metadata_json_compact"
+  )
+
+  print -r -- "🧬 embedding metadata..."
+
+  ffmpeg -hide_banner -loglevel error -y \
+    -i "$video_file" \
+    -map 0 \
+    -c copy \
+    -map_metadata 0 \
+    -movflags use_metadata_tags \
+    "${metadata_args[@]}" \
+    "$tmp_video"
+
+  cp -p "$video_file" "$backup_file"
+  mv "$tmp_video" "$video_file"
+
+  print -r -- "✓ embedded metadata into: $video_file"
+  print -r -- "↩ backup saved as: $backup_file"
+}
