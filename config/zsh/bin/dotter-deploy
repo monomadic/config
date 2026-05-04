@@ -58,6 +58,8 @@ prepare_yazi_package_dirs() {
     dir="$YAZI_PACKAGE_PLUGIN_DIR/$dir"
     if [[ -L "$dir" ]]; then
       rm -f "$dir"
+    elif [[ -d "$dir" ]]; then
+      find "$dir" -type l -delete
     fi
   done < <(
     awk -F '"' '
@@ -73,6 +75,9 @@ prepare_yazi_package_dirs() {
 }
 
 install_yazi_packages() {
+  local install_help
+  local -a install_args=()
+
   if [[ "${DOTTER_SKIP_YAZI_PACKAGES:-0}" == "1" ]]; then
     return
   fi
@@ -89,7 +94,11 @@ install_yazi_packages() {
   prepare_yazi_package_dirs
 
   echo "Installing Yazi packages from $YAZI_PACKAGE_MANIFEST..."
-  ya pkg install --discard
+  install_help="$(ya pkg install --help 2>&1 || true)"
+  if [[ "$install_help" == *"--discard"* ]]; then
+    install_args=(--discard)
+  fi
+  ya pkg install "${install_args[@]}"
 }
 
 prepare_yazi_package_manifest
