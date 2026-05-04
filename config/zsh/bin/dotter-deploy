@@ -11,6 +11,7 @@ LOCAL_CONFIG="$CONFIG_DIR/dotter/local.toml"
 MACOS_ICON_SCRIPT="$CONFIG_DIR/scripts/macos-apply-file-icons.sh"
 HEALTHCHECK_SCRIPT="$CONFIG_DIR/scripts/check-macos-bootstrap.sh"
 YAZI_PACKAGE_MANIFEST="$XDG_CONFIG_HOME/yazi/package.toml"
+YAZI_PACKAGE_PLUGIN_DIR="$XDG_CONFIG_HOME/yazi/plugins"
 
 if [[ ! -d "$CONFIG_DIR" ]]; then
   echo "Error: dotfiles directory not found: $CONFIG_DIR"
@@ -46,6 +47,31 @@ prepare_yazi_package_manifest() {
   fi
 }
 
+prepare_yazi_package_dirs() {
+  local dir
+
+  mkdir -p "$YAZI_PACKAGE_PLUGIN_DIR"
+
+  while IFS= read -r dir; do
+    [[ -n "$dir" ]] || continue
+
+    dir="$YAZI_PACKAGE_PLUGIN_DIR/$dir"
+    if [[ -L "$dir" ]]; then
+      rm -f "$dir"
+    fi
+  done < <(
+    awk -F '"' '
+      /^[[:space:]]*use[[:space:]]*=/ {
+        name = $2
+        sub(/^.*:/, "", name)
+        sub(/^.*\//, "", name)
+        if (name !~ /\.yazi$/) name = name ".yazi"
+        print name
+      }
+    ' "$YAZI_PACKAGE_MANIFEST"
+  )
+}
+
 install_yazi_packages() {
   if [[ "${DOTTER_SKIP_YAZI_PACKAGES:-0}" == "1" ]]; then
     return
@@ -60,8 +86,10 @@ install_yazi_packages() {
     return
   fi
 
+  prepare_yazi_package_dirs
+
   echo "Installing Yazi packages from $YAZI_PACKAGE_MANIFEST..."
-  ya pkg install
+  ya pkg install --discard
 }
 
 prepare_yazi_package_manifest
