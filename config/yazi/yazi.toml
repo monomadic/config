@@ -45,3 +45,26 @@ extract = [
 prepend_rules = [
 	{ url = "*/", use = [ "edit", "open", "reveal", "play_dir" ] },
 ]
+
+[plugin]
+append_previewers = [
+	{ url = "*", run = "file-extra-metadata" },
+]
+append_spotters = [
+	{ url = "*", run = "file-extra-metadata" },
+]
+
+[[plugin.prepend_fetchers]]
+group = "mactag"
+url   = "*"
+run   = "mactag"
+
+[[plugin.prepend_fetchers]]
+group = "mactag"
+url   = "*/"
+run   = "mactag"
+
+[[plugin.prepend_fetchers]]
+group = "ffmpeg_stats"
+url   = "*"
+run   = "ffmpeg-stats"

@@ -1,3 +1,4 @@
+---@sync entry
 local function basename(path)
 	path = tostring(path):gsub("/+$", "")
 	if path == "" then
@@ -12,29 +13,40 @@ local function basename(path)
 	return path:match("([^/]+)$") or path
 end
 
-local M = {}
-
-function M:entry(job)
-	if not (os.getenv("KITTY_WINDOW_ID") or os.getenv("KITTY_LISTEN_ON")) then
-		return
+local function shell_quote(value)
+	if ya and ya.quote then
+		return ya.quote(value)
 	end
 
-	local cwd = job.args[1]
-	if not cwd or cwd == "" then
-		return
-	end
-
-	local title = "󰘳 " .. basename(cwd)
-	Command("kitty")
-		:args({ "@", "set-tab-title", title })
-		:stdout(Command.PIPED)
-		:stderr(Command.PIPED)
-		:status()
-	Command("kitty")
-		:args({ "@", "set-window-title", "--temporary", title })
-		:stdout(Command.PIPED)
-		:stderr(Command.PIPED)
-		:status()
+	return "'" .. tostring(value):gsub("'", "'\"'\"'") .. "'"
 end
 
-return M
+local function kitty_title_command(cwd)
+	local title = "󰘳 " .. basename(cwd)
+	local quoted_title = shell_quote(title)
+
+	return table.concat({
+		'target="${KITTY_LISTEN_ON:-}"',
+		'if [ -z "$target" ]; then',
+		'for socket in /tmp/kitty-$USER /tmp/kitty /tmp/kitty-*; do',
+		'[ -S "$socket" ] || continue',
+		'target="unix:$socket"',
+		"break",
+		"done",
+		"fi",
+		'[ -n "$target" ] || exit 0',
+		'kitty @ --to "$target" set-tab-title --match state:focused ' .. quoted_title .. " >/dev/null 2>&1",
+		'kitty @ --to "$target" set-window-title --match state:focused --temporary ' .. quoted_title .. " >/dev/null 2>&1",
+	}, "; ")
+end
+
+return {
+	entry = function(_, job)
+		local cwd = job and job.args and job.args[1]
+		if not cwd or cwd == "" then
+			return
+		end
+
+		ya.emit("shell", { kitty_title_command(cwd), orphan = true })
+	end,
+}

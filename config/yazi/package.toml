@@ -1,0 +1,37 @@
+[[plugin.deps]]
+use = "yazi-rs/plugins:mactag"
+rev = "230b9c6"
+hash = "1f75c3efbba45c1289f06676145c0d98"
+
+[[plugin.deps]]
+use = "yazi-rs/plugins:smart-paste"
+rev = "230b9c6"
+hash = "75fd60b2df7115e0a6ca31a6a804d320"
+
+[[plugin.deps]]
+use = "dawsers/dual-pane"
+rev = "c2fed12"
+hash = "17ded107023ca534375c4f41c84f5a74"
+
+[[plugin.deps]]
+use = "Ape/simple-status"
+rev = "d0da104"
+hash = "68603fdd1dcaf415227e2c77a9317947"
+
+[[plugin.deps]]
+use = "boydaihungst/file-extra-metadata"
+rev = "044274c"
+hash = "14006064a6a53a1770fbdcefb97a8347"
+
+[[plugin.deps]]
+use = "grimandgreedy/ffmpeg-stats"
+rev = "ffa206f"
+hash = "79347431117e15939c4172d21b678dcb"
+
+[[plugin.deps]]
+use = "walldmtd/fs-usage"
+rev = "4f4992b"
+hash = "61410fb3409c22990a52767c738c2722"
+
+[flavor]
+deps = []
