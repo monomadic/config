@@ -19,23 +19,6 @@ DJ_VISUALS_PATHS=("$ICLOUD_HOME/Movies/Visuals")
   mpv --playlist="$MEDIA_PATH/.index"
 }
 
-media-open-url() {
-  emulate -L zsh
-
-  set -euo pipefail
-  local video_file="${1:?usage: media-open-url <video.mp4>}"
-  local url
-
-  url="$(
-    ffprobe -v error \
-      -show_entries format_tags=source_url,purl,comment,description \
-      -of default=nw=1:nk=1 \
-      "$video_file" |
-      rg -m1 "https?://[^[:space:]]+"
-  )"
-  open "$url"
-}
-
 alias @play="mpv-play"
 alias @select="fzf-select | mpv-play"
 alias .select-and-play="fzf-select --color | mpv --playlist=-"
