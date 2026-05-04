@@ -10,6 +10,7 @@ GLOBAL_CONFIG="$CONFIG_DIR/dotter/global.toml"
 LOCAL_CONFIG="$CONFIG_DIR/dotter/local.toml"
 MACOS_ICON_SCRIPT="$CONFIG_DIR/scripts/macos-apply-file-icons.sh"
 HEALTHCHECK_SCRIPT="$CONFIG_DIR/scripts/check-macos-bootstrap.sh"
+YAZI_PACKAGE_MANIFEST="$XDG_CONFIG_HOME/yazi/package.toml"
 
 if [[ ! -d "$CONFIG_DIR" ]]; then
   echo "Error: dotfiles directory not found: $CONFIG_DIR"
@@ -33,6 +34,38 @@ if [[ -x "$HEALTHCHECK_SCRIPT" ]] && [[ "${DOTTER_SKIP_HEALTHCHECK:-0}" != "1" ]
   "$HEALTHCHECK_SCRIPT"
 fi
 
+prepare_yazi_package_manifest() {
+  local source_manifest="$CONFIG_DIR/config/yazi/package.toml"
+
+  if [[ ! -f "$source_manifest" ]] || [[ ! -f "$YAZI_PACKAGE_MANIFEST" ]] || [[ -L "$YAZI_PACKAGE_MANIFEST" ]]; then
+    return
+  fi
+
+  if cmp -s "$source_manifest" "$YAZI_PACKAGE_MANIFEST"; then
+    rm -f "$YAZI_PACKAGE_MANIFEST"
+  fi
+}
+
+install_yazi_packages() {
+  if [[ "${DOTTER_SKIP_YAZI_PACKAGES:-0}" == "1" ]]; then
+    return
+  fi
+
+  if [[ ! -f "$YAZI_PACKAGE_MANIFEST" ]]; then
+    return
+  fi
+
+  if ! command -v ya >/dev/null 2>&1; then
+    echo "Skipping Yazi packages: ya is not installed."
+    return
+  fi
+
+  echo "Installing Yazi packages from $YAZI_PACKAGE_MANIFEST..."
+  ya pkg install
+}
+
+prepare_yazi_package_manifest
+
 (
   cd "$CONFIG_DIR"
   dotter \
@@ -42,6 +75,8 @@ fi
     --global-config "$GLOBAL_CONFIG" \
     --local-config "$LOCAL_CONFIG"
 )
+
+install_yazi_packages
 
 if [[ "$OSTYPE" == darwin* ]] && [[ -x "$MACOS_ICON_SCRIPT" ]]; then
   "$MACOS_ICON_SCRIPT"
