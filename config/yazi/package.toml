@@ -11,7 +11,7 @@ hash = "75fd60b2df7115e0a6ca31a6a804d320"
 [[plugin.deps]]
 use = "dawsers/dual-pane"
 rev = "c2fed12"
-hash = "99aa06d3014798d86001c324468d497f"
+hash = "17ded107023ca534375c4f41c84f5a74"
 
 [[plugin.deps]]
 use = "Ape/simple-status"
