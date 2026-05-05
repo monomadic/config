@@ -20,7 +20,13 @@
 
 source $HOME/.bin/init-path
 
+# ICLOUD
 export ICLOUD_HOME=$HOME"/Library/Mobile Documents/com~apple~CloudDocs"
+
+# TAILSCALE
+export TAILSCALE_DNS_NAME="eel-beardie.ts.net"
+
+# YT-DLP
 export YT_DLP_ARCHIVE_FILE="$ICLOUD_HOME/Sync/archive.txt"
 export YT_DLP_BATCH_FILE="$ICLOUD_HOME/Sync/links.txt"
 export YT_DLP_JSON_DIR="$ICLOUD_HOME/Sync/JSON"
