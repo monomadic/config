@@ -74,6 +74,23 @@ prepare_yazi_package_dirs() {
   )
 }
 
+repair_yazi_package_cache() {
+  local cache_dir
+  local init_file
+  local main_file
+
+  for cache_dir in "$HOME/.cache/yazi/packages" "$HOME/.local/state/yazi/packages"; do
+    [[ -d "$cache_dir" ]] || continue
+
+    while IFS= read -r init_file; do
+      main_file="${init_file:h}/main.lua"
+      [[ -e "$main_file" ]] && continue
+
+      cp "$init_file" "$main_file"
+    done < <(find "$cache_dir" -mindepth 2 -maxdepth 2 -name init.lua -type f)
+  done
+}
+
 install_yazi_packages() {
   local install_help
   local -a install_args=()
@@ -98,7 +115,10 @@ install_yazi_packages() {
   if [[ "$install_help" == *"--discard"* ]]; then
     install_args=(--discard)
   fi
-  ya pkg install "${install_args[@]}"
+  if ! ya pkg install "${install_args[@]}"; then
+    repair_yazi_package_cache
+    ya pkg install "${install_args[@]}"
+  fi
 }
 
 prepare_yazi_package_manifest

@@ -1,0 +1,18 @@
+#!/usr/bin/env zsh
+
+# finder-selection.zsh
+
+# Print selected Finder items as POSIX paths, one per line.
+
+osascript <<'APPLESCRIPT'
+
+tell application "Finder"
+
+	set selected_items to selection
+	repeat with item_ref in selected_items
+		POSIX path of (item_ref as alias)
+	end repeat
+
+end tell
+
+APPLESCRIPT
