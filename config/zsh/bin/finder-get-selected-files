@@ -1,18 +1,76 @@
 #!/usr/bin/env zsh
-
 # finder-selection.zsh
+# Print all selected Finder items as POSIX paths.
+#
+# Usage:
+#   finder-selection.zsh       # newline-delimited
+#   finder-selection.zsh -0    # NUL-delimited
+#
+# Notes:
+#   Requires Automation permission for your terminal to control Finder.
 
-# Print selected Finder items as POSIX paths, one per line.
+emulate -L zsh
+set -euo pipefail
 
-osascript <<'APPLESCRIPT'
+nul_output=false
+
+while (( $# )); do
+  case "$1" in
+    -0|--null)
+      nul_output=true
+      shift
+      ;;
+    -h|--help)
+      cat <<'EOF'
+finder-selection.zsh
+
+Print all selected Finder items as POSIX paths.
+
+Usage:
+  finder-selection.zsh       newline-delimited output
+  finder-selection.zsh -0    NUL-delimited output
+
+Options:
+  -0, --null   Output NUL-delimited paths
+  -h, --help   Show this help
+EOF
+      exit 0
+      ;;
+    *)
+      print -u2 -- "unknown option: $1"
+      print -u2 -- "try: finder-selection.zsh --help"
+      exit 2
+      ;;
+  esac
+done
+
+if $nul_output; then
+  osascript <<'APPLESCRIPT'
+set AppleScript's text item delimiters to character id 0
 
 tell application "Finder"
-
-	set selected_items to selection
+	set selected_items to selection as alias list
+	set out to {}
+	
 	repeat with item_ref in selected_items
-		POSIX path of (item_ref as alias)
+		set end of out to POSIX path of item_ref
 	end repeat
-
 end tell
 
+return out as text
 APPLESCRIPT
+else
+  osascript <<'APPLESCRIPT'
+set out to ""
+
+tell application "Finder"
+	set selected_items to selection as alias list
+	
+	repeat with item_ref in selected_items
+		set out to out & POSIX path of item_ref & linefeed
+	end repeat
+end tell
+
+return out
+APPLESCRIPT
+fi
