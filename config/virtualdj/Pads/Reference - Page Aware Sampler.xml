@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Reference - Page Aware Sampler.xml
+  Canonical page-aware sampler pad page.
+
+  Page-aware verbs follow the visible sampler sub-page (1-8, 9-16, 17-24, …):
+    sampler_pad <n>           — action/name for pad n on the current page
+    sampler_color <n> 'auto'  — color of pad n on the current page
+    sampler_loaded <n> 'auto' — whether pad n on the current page has a sample loaded
+    sampler_pad_page          — current page number (1, 2, 3, …)
+    sampler_pad_page +1       — advance to the next page
+
+  Absolute-slot verbs always target the same underlying sample regardless of page:
+    sampler_play <n>          — trigger/stop sample in absolute slot n
+    get_sample_name <n>       — name of absolute slot n
+    get_sample_color <n>      — color of absolute slot n
+
+  Rule: use page-aware for visible pad UI, absolute for fixed utility controls.
+
+  Empty pad behavior: if the slot is empty, trigger sampler_rec to record into it.
+  Loaded pad behavior: trigger the sample through sampler_pad (respects trigger mode).
+
+  Drag-and-drop: drop="sampler_assign <absolute-slot>" assigns a dragged file.
+  Note: sampler_assign slot numbers are absolute, not page-relative.
+  The target bank must be unlocked for drag-and-drop assignment to work.
+
+  Source: Official, Inference
+  See: Reference/VirtualDJ Reference.md — Sampler and Pads section
+-->
+<page name="REF: SAMPLER">
+
+  <!-- Pads 1-8: follow the current sampler sub-page.
+       name uses sampler_pad for page-aware label (not get_sample_name which is absolute).
+       color uses sampler_color 'auto' for page-aware color.
+       query blinks while the sample is playing on the current page.
+       action: if loaded, trigger via sampler_pad (honours trigger mode);
+               if empty, record into the slot via sampler_rec. -->
+
+  <pad1  name="`sampler_loaded 1 'auto' ? sampler_pad 1 : '(empty 1)'`"
+         color="sampler_loaded 1 'auto' ? sampler_color 1 'auto' : dim"
+         query="sampler_play 1 'auto' ? blink 1bt : on"
+         drop="sampler_assign 1">
+    sampler_loaded 1 'auto' ? sampler_pad 1 'auto' : sampler_rec 1 'auto'
+  </pad1>
+
+  <pad2  name="`sampler_loaded 2 'auto' ? sampler_pad 2 : '(empty 2)'`"
+         color="sampler_loaded 2 'auto' ? sampler_color 2 'auto' : dim"
+         query="sampler_play 2 'auto' ? blink 1bt : on"
+         drop="sampler_assign 2">
+    sampler_loaded 2 'auto' ? sampler_pad 2 'auto' : sampler_rec 2 'auto'
+  </pad2>
+
+  <pad3  name="`sampler_loaded 3 'auto' ? sampler_pad 3 : '(empty 3)'`"
+         color="sampler_loaded 3 'auto' ? sampler_color 3 'auto' : dim"
+         query="sampler_play 3 'auto' ? blink 1bt : on"
+         drop="sampler_assign 3">
+    sampler_loaded 3 'auto' ? sampler_pad 3 'auto' : sampler_rec 3 'auto'
+  </pad3>
+
+  <pad4  name="`sampler_loaded 4 'auto' ? sampler_pad 4 : '(empty 4)'`"
+         color="sampler_loaded 4 'auto' ? sampler_color 4 'auto' : dim"
+         query="sampler_play 4 'auto' ? blink 1bt : on"
+         drop="sampler_assign 4">
+    sampler_loaded 4 'auto' ? sampler_pad 4 'auto' : sampler_rec 4 'auto'
+  </pad4>
+
+  <pad5  name="`sampler_loaded 5 'auto' ? sampler_pad 5 : '(empty 5)'`"
+         color="sampler_loaded 5 'auto' ? sampler_color 5 'auto' : dim"
+         query="sampler_play 5 'auto' ? blink 1bt : on"
+         drop="sampler_assign 5">
+    sampler_loaded 5 'auto' ? sampler_pad 5 'auto' : sampler_rec 5 'auto'
+  </pad5>
+
+  <pad6  name="`sampler_loaded 6 'auto' ? sampler_pad 6 : '(empty 6)'`"
+         color="sampler_loaded 6 'auto' ? sampler_color 6 'auto' : dim"
+         query="sampler_play 6 'auto' ? blink 1bt : on"
+         drop="sampler_assign 6">
+    sampler_loaded 6 'auto' ? sampler_pad 6 'auto' : sampler_rec 6 'auto'
+  </pad6>
+
+  <pad7  name="`sampler_loaded 7 'auto' ? sampler_pad 7 : '(empty 7)'`"
+         color="sampler_loaded 7 'auto' ? sampler_color 7 'auto' : dim"
+         query="sampler_play 7 'auto' ? blink 1bt : on"
+         drop="sampler_assign 7">
+    sampler_loaded 7 'auto' ? sampler_pad 7 'auto' : sampler_rec 7 'auto'
+  </pad7>
+
+  <pad8  name="`sampler_loaded 8 'auto' ? sampler_pad 8 : '(empty 8)'`"
+         color="sampler_loaded 8 'auto' ? sampler_color 8 'auto' : dim"
+         query="sampler_play 8 'auto' ? blink 1bt : on"
+         drop="sampler_assign 8">
+    sampler_loaded 8 'auto' ? sampler_pad 8 'auto' : sampler_rec 8 'auto'
+  </pad8>
+
+  <!-- Shift: stop the playing sample in each slot (right-click equivalent) -->
+  <shift_pad1 name="STOP 1">sampler_stop 1 'auto'</shift_pad1>
+  <shift_pad2 name="STOP 2">sampler_stop 2 'auto'</shift_pad2>
+  <shift_pad3 name="STOP 3">sampler_stop 3 'auto'</shift_pad3>
+  <shift_pad4 name="STOP 4">sampler_stop 4 'auto'</shift_pad4>
+  <shift_pad5 name="STOP 5">sampler_stop 5 'auto'</shift_pad5>
+  <shift_pad6 name="STOP 6">sampler_stop 6 'auto'</shift_pad6>
+  <shift_pad7 name="STOP 7">sampler_stop 7 'auto'</shift_pad7>
+  <shift_pad8 name="STOP 8">sampler_stop 8 'auto'</shift_pad8>
+
+  <!-- Navigation: bank and sub-page cycling -->
+  <param1 name="BANK: `get_sampler_bank`">sampler_bank +1</param1>
+  <param2 name="PAGE: `sampler_pad_page`">sampler_pad_page +1</param2>
+
+  <!-- Options menu -->
+  <menu>`sampler_options`</menu>
+
+</page>

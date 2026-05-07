@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Reference - ColorFX.xml
+  Canonical filter and ColorFX selection pad page.
+
+  Two patterns are demonstrated here:
+
+  1. Main deck filter knob pattern (pads 1-8):
+     filter_selectcolorfx 'Name'  — selects which effect the filter knob controls
+     effect_active 'colorfx' on   — activates the ColorFX slot
+     The filter knob (or filter action) then drives the selected effect.
+     Nothing is applied at 50%. More effect is applied the further from center.
+
+  2. Extra dedicated ColorFX slots (pads 9-12):
+     effect_colorfx <1-4> 'Name'  — loads effect into an extra ColorFX slot
+     effect_colorslider <1-4>     — the center-off slider for that slot
+     These exist for dedicated controls that should not steal the main filter knob.
+     CTO guidance: up to 4 extra slots, more flexible than the main colorfx slot.
+
+  Which to use:
+    Main filter knob simulation → pattern 1
+    Extra dedicated ColorFX controls that shouldn't touch the filter → pattern 2
+    Normal audio FX with sliders → use slot FX instead (Reference - Slot FX.xml)
+
+  Source: Official, Official forum
+  See: Reference/VirtualDJ Reference.md — Filter and ColorFX section
+-->
+<page name="REF: COLOR FX">
+
+  <!-- PATTERN 1: Main filter knob ColorFX selection
+       Select the effect AND activate colorfx in one tap.
+       query blinks when this effect is selected AND colorfx is active.
+       Use filter action or the filter knob to actually drive the amount. -->
+
+  <pad1 name="FILTER" color="color 'magenta'"
+        query="filter_selectcolorfx 'Filter' &amp; effect_active 'colorfx' ? blink 500ms : off">
+    filter_selectcolorfx 'Filter' &amp; effect_active 'colorfx' on
+  </pad1>
+
+  <pad2 name="ECHO OUT" color="color 'magenta'"
+        query="filter_selectcolorfx 'Echo Out' &amp; effect_active 'colorfx' ? blink 500ms : off">
+    filter_selectcolorfx 'Echo Out' &amp; effect_active 'colorfx' on
+  </pad2>
+
+  <pad3 name="REVERB" color="color 'magenta'"
+        query="filter_selectcolorfx 'Reverb' &amp; effect_active 'colorfx' ? blink 500ms : off">
+    filter_selectcolorfx 'Reverb' &amp; effect_active 'colorfx' on
+  </pad3>
+
+  <pad4 name="FLANGER" color="color 'magenta'"
+        query="filter_selectcolorfx 'Flanger' &amp; effect_active 'colorfx' ? blink 500ms : off">
+    filter_selectcolorfx 'Flanger' &amp; effect_active 'colorfx' on
+  </pad4>
+
+  <pad5 name="LOOP ROLL" color="color 'magenta'"
+        query="filter_selectcolorfx 'Loop Roll' &amp; effect_active 'colorfx' ? blink 500ms : off">
+    filter_selectcolorfx 'Loop Roll' &amp; effect_active 'colorfx' on
+  </pad5>
+
+  <pad6 name="SLIP ROLL" color="color 'magenta'"
+        query="filter_selectcolorfx 'Slip Roll' &amp; effect_active 'colorfx' ? blink 500ms : off">
+    filter_selectcolorfx 'Slip Roll' &amp; effect_active 'colorfx' on
+  </pad6>
+
+  <pad7 name="CUT" color="color 'magenta'"
+        query="filter_selectcolorfx 'Cut' &amp; effect_active 'colorfx' ? blink 500ms : off">
+    filter_selectcolorfx 'Cut' &amp; effect_active 'colorfx' on
+  </pad7>
+
+  <!-- Master ColorFX on/off toggle. Useful when an effect is already selected. -->
+  <pad8 name="COLOR FX" color="color 'magenta'" query="effect_active 'colorfx' ? blink 500ms : off">
+    effect_active 'colorfx'
+  </pad8>
+
+  <!-- PATTERN 2: Extra dedicated ColorFX slots (independent of main filter knob)
+       effect_colorfx <1-4> loads an effect into an extra slot.
+       effect_colorslider is the center-off control verb for those slots.
+       These slots have separate query state from the main colorfx slot. -->
+
+  <pad9 name="EXTRA 1: ECHO" color="color 'cyan'"
+        query="effect_colorfx 1 'Echo' ? blink 500ms : off">
+    effect_colorfx 1 'Echo'
+  </pad9>
+
+  <pad10 name="EXTRA 2: REVERB" color="color 'cyan'"
+         query="effect_colorfx 2 'Reverb' ? blink 500ms : off">
+    effect_colorfx 2 'Reverb'
+  </pad10>
+
+  <!-- filter_label returns the name shown under the filter knob -->
+  <pad11 name="`filter_label`" color="color 'magenta'" query="effect_active 'colorfx' ? on : off">
+    nothing
+  </pad11>
+
+  <!-- filter_resonance: nudge resonance up/down -->
+  <pad12 name="RES +" color="color 'gray'">filter_resonance +10%</pad12>
+
+  <!-- Shift: open the GUI for the active ColorFX -->
+  <shift_pad1 name="EDIT FILTER" color="color 'magenta'">
+    filter_selectcolorfx 'Filter' &amp; effect_show_gui 'colorfx'
+  </shift_pad1>
+  <shift_pad2 name="EDIT ECHO OUT" color="color 'magenta'">
+    filter_selectcolorfx 'Echo Out' &amp; effect_show_gui 'colorfx'
+  </shift_pad2>
+  <shift_pad3 name="EDIT REVERB" color="color 'magenta'">
+    filter_selectcolorfx 'Reverb' &amp; effect_show_gui 'colorfx'
+  </shift_pad3>
+
+  <!-- Stems: route the active ColorFX to a specific stem -->
+  <pad13 name="VOCAL" color="stem_color 'Vocal'" query="effect_stems 'vocal' ? blink 500ms : off">
+    effect_stems 'vocal'
+  </pad13>
+  <pad14 name="MELODY" color="stem_color 'Melody'" query="effect_stems 'melody' ? blink 500ms : off">
+    effect_stems 'melody'
+  </pad14>
+  <pad15 name="DRUM" color="stem_color 'Rhythm'" query="effect_stems 'rhythm' ? blink 500ms : off">
+    effect_stems 'rhythm'
+  </pad15>
+  <pad16 name="ALL STEMS" color="color 'white'" query="effect_stems 'all' ? on : off">
+    effect_stems 'all'
+  </pad16>
+
+  <menu>FX =[pad_page "2. EFFECTS"]
+    SELECT =[filter_selectcolorfx]</menu>
+  <param1 name="COLOR FX">pad_page "2. EFFECTS"</param1>
+  <param2 name="FILTER: `filter_label`">filter_selectcolorfx</param2>
+
+</page>
