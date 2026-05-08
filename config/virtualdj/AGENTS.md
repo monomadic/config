@@ -49,7 +49,7 @@ Reference/                   — Markdown documentation
 | [Pads/Reference - ColorFX.xml](Pads/Reference%20-%20ColorFX.xml) | Canonical filter + ColorFX selection |
 | [Pads/Reference - Page Aware Sampler.xml](Pads/Reference%20-%20Page%20Aware%20Sampler.xml) | Page-aware sampler labels, colors, actions |
 | [Pads/EFFECTS.xml](Pads/EFFECTS.xml) | Name-based FX toggle page with stems routing |
-| [Pads/2. COLOR FX.xml](Pads/2.%20COLOR%20FX.xml) | ColorFX selection with stems context |
+| [Pads/COLOR FX.xml](Pads/COLOR%20FX.xml) | ColorFX selection with stems context |
 | [Skins/ModularSkeleton/build/skin.xml](Skins/ModularSkeleton/build/skin.xml) | Minimal modular skin scaffold |
 | [Skins/Haunting Pro Edit/Pro.xml](Skins/Haunting%20Pro%20Edit/Pro.xml) | Published full-size skin for reference |
 
