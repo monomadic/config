@@ -4,7 +4,7 @@
 #
 # Behavior:
 #   - If Kitty IPC is reachable, open a new Kitty window/tab via `kitten @ launch`.
-#   - If not reachable, start a new Kitty instance listening on the canonical socket.
+#   - If not reachable, start a new Kitty instance listening on the configured socket.
 #
 # Examples:
 #   kitty-launch --tab -- zsh -lc 'cd ~/src && hx .'
@@ -13,15 +13,16 @@
 #   kitty-launch --cwd "$PWD" --title "edit config" -- hx ~/.zshrc
 #
 # Requires kitty.conf:
-#   allow_remote_control socket-only
-#   listen_on unix:/tmp/kitty-${USER}
+#   allow_remote_control yes|socket|socket-only
+#   listen_on unix:/tmp/kitty
 
 emulate -L zsh
 set -euo pipefail
 
 script_name="${0:t}"
 
-socket_addr="${KITTY_LAUNCH_SOCKET:-unix:/tmp/kitty-${USER}}"
+socket_addr="${KITTY_LAUNCH_SOCKET:-}"
+socket_arg_provided=false
 launch_type="tab"
 cwd=""
 title=""
@@ -44,12 +45,12 @@ Options:
   --cwd DIR          Working directory for launched command
   --title TITLE      Window/tab title
   --keep-focus       Do not focus the newly launched Kitty window/tab
-  --socket ADDR      Kitty IPC address (default: $socket_addr)
+  --socket ADDR      Kitty IPC address (default: auto-detect)
   --no-detach        Do not detach when starting Kitty fallback
   -h, --help         Show help
 
 Environment:
-  KITTY_LAUNCH_SOCKET  Override socket address.
+  KITTY_LAUNCH_SOCKET  Prefer this socket address.
 
 Examples:
   $script_name --tab -- zsh -lc 'cd ~/src && hx .'
@@ -98,6 +99,7 @@ while (( $# )); do
         exit 2
       }
       socket_addr="$2"
+      socket_arg_provided=true
       shift 2
       ;;
     --no-detach)
@@ -146,25 +148,120 @@ else
   kitten_cmd=( kitty +kitten )
 fi
 
-launch_args=(
-  @
-  --to "$socket_addr"
-  launch
-  --type "$launch_type"
-)
+normalize_socket_addr() {
+  local addr="$1"
+  [[ -n "$addr" ]] || return 1
 
-[[ -n "$cwd" ]] && launch_args+=( --cwd "$cwd" )
-[[ -n "$title" ]] && launch_args+=( --title "$title" )
-$keep_focus && launch_args+=( --keep-focus )
+  if [[ "$addr" == unix:* || "$addr" == tcp:* ]]; then
+    print -r -- "$addr"
+  else
+    print -r -- "unix:$addr"
+  fi
+}
+
+add_socket_candidate() {
+  local addr normalized existing
+  addr="$1"
+  normalized="$(normalize_socket_addr "$addr")" || return 0
+
+  for existing in "${socket_candidates[@]}"; do
+    [[ "$existing" == "$normalized" ]] && return 0
+  done
+
+  socket_candidates+=( "$normalized" )
+}
+
+kitty_config_listen_on() {
+  local -a config_files xdg_dirs
+  local file line value dir
+
+  if [[ -n ${KITTY_CONFIG_DIRECTORY:-} ]]; then
+    config_files=( "$KITTY_CONFIG_DIRECTORY/kitty.conf" )
+  else
+    [[ -n ${XDG_CONFIG_HOME:-} ]] && config_files+=( "$XDG_CONFIG_HOME/kitty/kitty.conf" )
+    config_files+=( "$HOME/.config/kitty/kitty.conf" "$HOME/Library/Preferences/kitty/kitty.conf" )
+    xdg_dirs=( "${(@ps/:/)${XDG_CONFIG_DIRS:-/etc/xdg}}" )
+    for dir in "${xdg_dirs[@]}"; do
+      config_files+=( "$dir/kitty/kitty.conf" )
+    done
+  fi
+
+  for file in "${config_files[@]}"; do
+    [[ -r "$file" ]] || continue
+
+    while IFS= read -r line; do
+      line="${line%%#*}"
+      line="${line#"${line%%[![:space:]]*}"}"
+      [[ "$line" == listen_on[[:space:]]* ]] || continue
+
+      value="${line#listen_on}"
+      value="${value#"${value%%[![:space:]]*}"}"
+      value="${value%%[[:space:]]*}"
+      [[ -n "$value" ]] || continue
+
+      print -r -- "$value"
+      return 0
+    done < "$file"
+  done
+
+  return 1
+}
+
+add_runtime_kitty_sockets() {
+  local socket
+
+  for socket in /tmp/kitty*(N); do
+    [[ -S "$socket" && -O "$socket" ]] || continue
+    add_socket_candidate "unix:$socket"
+  done
+}
+
+launch_via_socket() {
+  local target="$1"
+  local -a launch_args
+
+  launch_args=(
+    @
+    --to "$target"
+    launch
+    --type "$launch_type"
+  )
+
+  [[ -n "$cwd" ]] && launch_args+=( --cwd "$cwd" )
+  [[ -n "$title" ]] && launch_args+=( --title "$title" )
+  $keep_focus && launch_args+=( --keep-focus )
+
+  exec "${kitten_cmd[@]}" "${launch_args[@]}" -- "${command_argv[@]}"
+}
+
+socket_candidates=()
+
+[[ -n "$socket_addr" ]] && add_socket_candidate "$socket_addr"
+
+if ! $socket_arg_provided; then
+  [[ -n ${KITTY_LISTEN_ON:-} ]] && add_socket_candidate "$KITTY_LISTEN_ON"
+
+  if config_socket="$(kitty_config_listen_on 2>/dev/null)"; then
+    add_socket_candidate "$config_socket"
+  fi
+
+  add_socket_candidate "unix:/tmp/kitty"
+  add_socket_candidate "unix:/tmp/kitty-$USER"
+  add_runtime_kitty_sockets
+fi
+
+fallback_socket="${socket_candidates[1]:-unix:/tmp/kitty}"
 
 # Probe IPC. `ls` is cheap and fails if Kitty is not reachable.
-if "${kitten_cmd[@]}" @ --to "$socket_addr" ls >/dev/null 2>&1; then
-  exec "${kitten_cmd[@]}" "${launch_args[@]}" -- "${command_argv[@]}"
-fi
+for socket_addr in "${socket_candidates[@]}"; do
+  if "${kitten_cmd[@]}" @ --to "$socket_addr" ls >/dev/null 2>&1; then
+    launch_via_socket "$socket_addr"
+  fi
+done
 
 # Fallback: no live IPC socket. Start a new Kitty instance with the same socket.
 kitty_args=(
-  --listen-on "$socket_addr"
+  --listen-on "$fallback_socket"
   -o allow_remote_control=socket-only
 )
 
