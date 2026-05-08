@@ -2,10 +2,30 @@
 emulate -L zsh
 set -euo pipefail
 
+script_name="${0:t}"
+
+usage() {
+  cat <<EOF
+usage:
+  $script_name file1 [file2 ...]
+  $script_name --help
+
+Pick a simple Topaz preset, then call:
+  topaz-run --preset_name name --filter_complex filter -- file1 [file2 ...]
+EOF
+}
+
 (( $# == 0 )) && {
-  print -u2 "usage: $0 file1 [file2 ...]"
+  usage >&2
   exit 1
 }
+
+case "${1:-}" in
+  -h|--help|help)
+    usage
+    exit 0
+    ;;
+esac
 
 for input in "$@"; do
   [[ -f "$input" ]] || {

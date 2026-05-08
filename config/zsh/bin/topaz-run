@@ -1,19 +1,139 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
+script_name="${0:t}"
+
+usage() {
+  cat <<EOF
+usage:
+  $script_name [--preset_name name --filter_complex filter] -- file1 [file2 ...]
+  $script_name file1 [file2 ...]
+
+With --preset_name and --filter_complex, runs the supplied Topaz filter directly.
+Without them, opens the interactive preset picker.
+EOF
+}
+
 (( $# == 0 )) && {
-  print -u2 "usage: $0 file1 [file2 ...]"
+  usage >&2
   exit 1
 }
 
-command -v fzf >/dev/null 2>&1 || {
-  print -u2 "fzf not found"
-  exit 1
-}
+case "${1:-}" in
+  -h|--help|help)
+    usage
+    exit 0
+    ;;
+esac
 
 TOPAZ_APP="/Applications/Topaz Video AI.app"
 TOPAZ_BIN="$TOPAZ_APP/Contents/MacOS/Topaz Video AI"
 LOG_DIR="${HOME}/Library/Logs/topaz-batch"
+
+preset_name=""
+preset_flag=""
+preset_value=""
+files=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    --preset_name)
+      (( $# >= 2 )) || {
+        print -u2 -- "--preset_name requires a value"
+        exit 1
+      }
+      preset_name="$2"
+      shift 2
+      ;;
+    --filter_complex)
+      (( $# >= 2 )) || {
+        print -u2 -- "--filter_complex requires a value"
+        exit 1
+      }
+      preset_flag="--filter_complex"
+      preset_value="$2"
+      shift 2
+      ;;
+    --)
+      shift
+      files+=("$@")
+      break
+      ;;
+    -*)
+      print -u2 "unknown option: $1"
+      usage >&2
+      exit 1
+      ;;
+    *)
+      files+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ -n "$preset_name" || -n "$preset_value" ]]; then
+  [[ -n "$preset_name" && -n "$preset_value" ]] || {
+    print -u2 -- "--preset_name and --filter_complex must be supplied together"
+    exit 1
+  }
+  (( ${#files[@]} > 0 )) || {
+    print -u2 "no input files supplied"
+    usage >&2
+    exit 1
+  }
+else
+  (( ${#files[@]} > 0 )) || {
+    usage >&2
+    exit 1
+  }
+
+  command -v fzf >/dev/null 2>&1 || {
+    print -u2 "fzf not found"
+    exit 1
+  }
+
+  selection="$(
+    printf '%s\n' \
+      $'4K Enhance - clean digital look without cartoonish output\t--filter_complex\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.10:details=0.30:halo=0.02:blur=0.06:compression=0.10:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
+      $'Prob-4 2x - medium enhancement\t--filter_complex\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.35:details=0.60:halo=0:blur=0.20:compression=0.30:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1' \
+      $'Prob-4 2x - strong detail recovery\t--filter_complex\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.55:details=0.90:halo=0:blur=0.50:compression=0.45:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1' \
+      $'1080p to 4K - balanced upscale\t--filter_complex\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.18:details=0.35:halo=0.02:blur=0.08:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
+      $'Focus Fix - mild recovery\t--filter_complex\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.15:details=0.55:halo=0.04:blur=0.18:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
+      $'Focus Fix - stronger recovery\t--filter_complex\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.22:details=0.80:halo=0.08:blur=0.28:compression=0.18:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
+      $'30fps to 60fps - Apollo / interpolation\t--filter_complex\ttvai_fi=model=apollo:slowmo=0:rdt=0.01:device=0:vram=0.95:instances=1,fps=60' \
+      $'24fps to 60fps - Apollo / interpolation\t--filter_complex\ttvai_fi=model=apollo:slowmo=0:rdt=0.01:device=0:vram=0.95:instances=1,fps=60' \
+      $'Iris MQ - moderate cleanup and sharpening\t--filter_complex\ttvai_up=model=iris-mq:scale=1:preblur=0:noise=0.25:details=0.50:halo=0:blur=0.15:compression=0.20:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
+      $'Artemis HQ - gentle enhancement for decent sources\t--filter_complex\ttvai_up=model=ahq-13:scale=1:preblur=0:noise=0.15:details=0.35:halo=0:blur=0.10:compression=0.15:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1' \
+      $'Nyx - strong denoise for dark/noisy footage\t--filter_complex\ttvai_up=model=nyx-3:scale=1:preblur=0:noise=0.80:details=0.25:halo=0:blur=0.20:compression=0.25:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1' \
+      $'Proteus manual - balanced recover + denoise\t--filter_complex\ttvai_up=model=prob-3:scale=1:preblur=0:noise=0.40:details=0.55:halo=0.05:blur=0.15:compression=0.25:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1' |
+      fzf \
+        --prompt='Topaz preset > ' \
+        --delimiter=$'\t' \
+        --with-nth=1 \
+        --height=50% \
+        --reverse \
+        --border \
+        --preview='printf "%s\n\n%s\n" {1} {3}' \
+        --preview-window='down:4:wrap'
+  )"
+
+  [[ -n "$selection" ]] || {
+    print -u2 "no preset selected"
+    exit 1
+  }
+
+  preset_name="${selection%%$'\t'*}"
+  rest="${selection#*$'\t'}"
+  preset_flag="${rest%%$'\t'*}"
+  preset_value="${rest#*$'\t'}"
+fi
+
+for input in "$files[@]"; do
+  [[ -f "$input" ]] || {
+    print -u2 "not a file: $input"
+    exit 1
+  }
+done
 
 [[ -x "$TOPAZ_BIN" ]] || {
   print -u2 "Topaz binary not found: $TOPAZ_BIN"
@@ -22,52 +142,10 @@ LOG_DIR="${HOME}/Library/Logs/topaz-batch"
 
 mkdir -p "$LOG_DIR"
 
-for input in "$@"; do
-  [[ -f "$input" ]] || {
-    print -u2 "not a file: $input"
-    exit 1
-  }
-done
-
-selection="$(
-  printf '%s\n' \
-    $'4K Enhance - clean digital look without cartoonish output\t--filter_complex\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.10:details=0.30:halo=0.02:blur=0.06:compression=0.10:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
-    $'Prob-4 2x - medium enhancement\t--filter_complex\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.35:details=0.60:halo=0:blur=0.20:compression=0.30:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1' \
-    $'Prob-4 2x - strong detail recovery\t--filter_complex\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.55:details=0.90:halo=0:blur=0.50:compression=0.45:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1' \
-    $'1080p to 4K - balanced upscale\t--filter_complex\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.18:details=0.35:halo=0.02:blur=0.08:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
-    $'Focus Fix - mild recovery\t--filter_complex\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.15:details=0.55:halo=0.04:blur=0.18:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
-    $'Focus Fix - stronger recovery\t--filter_complex\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.22:details=0.80:halo=0.08:blur=0.28:compression=0.18:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
-    $'30fps to 60fps - Apollo / interpolation\t--filter_complex\ttvai_fi=model=apollo:slowmo=0:rdt=0.01:device=0:vram=0.95:instances=1,fps=60' \
-    $'24fps to 60fps - Apollo / interpolation\t--filter_complex\ttvai_fi=model=apollo:slowmo=0:rdt=0.01:device=0:vram=0.95:instances=1,fps=60' \
-    $'Iris MQ - moderate cleanup and sharpening\t--filter_complex\ttvai_up=model=iris-mq:scale=1:preblur=0:noise=0.25:details=0.50:halo=0:blur=0.15:compression=0.20:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
-    $'Artemis HQ - gentle enhancement for decent sources\t--filter_complex\ttvai_up=model=ahq-13:scale=1:preblur=0:noise=0.15:details=0.35:halo=0:blur=0.10:compression=0.15:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1' \
-    $'Nyx - strong denoise for dark/noisy footage\t--filter_complex\ttvai_up=model=nyx-3:scale=1:preblur=0:noise=0.80:details=0.25:halo=0:blur=0.20:compression=0.25:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1' \
-    $'Proteus manual - balanced recover + denoise\t--filter_complex\ttvai_up=model=prob-3:scale=1:preblur=0:noise=0.40:details=0.55:halo=0.05:blur=0.15:compression=0.25:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1' |
-    fzf \
-      --prompt='Topaz preset > ' \
-      --delimiter=$'\t' \
-      --with-nth=1 \
-      --height=50% \
-      --reverse \
-      --border \
-      --preview='printf "%s\n\n%s\n" {1} {3}' \
-      --preview-window='down:4:wrap'
-)"
-
-[[ -n "$selection" ]] || {
-  print -u2 "no preset selected"
-  exit 1
-}
-
-preset_name="${selection%%$'\t'*}"
-rest="${selection#*$'\t'}"
-preset_flag="${rest%%$'\t'*}"
-preset_value="${rest#*$'\t'}"
-
 print "preset: $preset_name"
 print
 
-for input in "$@"; do
+for input in "$files[@]"; do
   ext="${input:e}"
   stem="${input:r}"
   base="${input:t:r}"

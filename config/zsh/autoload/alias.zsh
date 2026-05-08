@@ -64,6 +64,24 @@ pause() {
   echo
 }
 
+topaz-list-filters() {
+  "/Applications/Topaz Video.app/Contents/MacOS/ffmpeg" -hide_banner -filters | rg 'tvai|veai|topaz'
+}
+
+topaz-list-models() {  
+  fd -e json . "/Applications/Topaz Video.app/Contents/Resources" \
+    | rg '/(apo|rxl|amq|chr|prob|iris|nyx|theia|proteus)-[^/]+\.json$'
+}
+
+topaz-ai-list-models() {  
+  fd -e json . "/Applications/Topaz Video AI.app/Contents/Resources" \
+    | rg '/(apo|rxl|amq|chr|prob|iris|nyx|theia|proteus)-[^/]+\.json$'
+}
+
+topaz-ai-list-filters() {
+  "/Applications/Topaz Video AI.app/Contents/MacOS/ffmpeg" -hide_banner -filters | rg 'tvai|veai|topaz'
+}
+
 # ============================================================================
 # Queue Management Functions
 # ============================================================================
