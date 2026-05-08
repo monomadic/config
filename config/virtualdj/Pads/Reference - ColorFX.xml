@@ -120,9 +120,9 @@
     effect_stems 'all'
   </pad16>
 
-  <menu>FX =[pad_page "2. EFFECTS"]
+  <menu>FX =[pad_page "EFFECTS"]
     SELECT =[filter_selectcolorfx]</menu>
-  <param1 name="COLOR FX">pad_page "2. EFFECTS"</param1>
+  <param1 name="COLOR FX">pad_page "EFFECTS"</param1>
   <param2 name="FILTER: `filter_label`">filter_selectcolorfx</param2>
 
 </page>

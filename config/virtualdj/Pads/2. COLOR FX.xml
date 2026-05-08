@@ -34,7 +34,7 @@
     filter_selectcolorfx 'Echo Out' &amp; effect_show_gui 'colorfx'</shift_pad2>
   <shift_pad3 name="EDIT REVERB" color="color 'magenta'">
     filter_selectcolorfx 'Reverb' &amp; effect_show_gui 'colorfx'</shift_pad3>
-  <menu>FX =[pad_page "2. EFFECTS"]
+  <menu>FX =[pad_page "EFFECTS"]
     SELECT =[filter_selectcolorfx]</menu>
   <param1 name="COLOR FX">pad_page "2. PAD FX"</param1>
 </page>
