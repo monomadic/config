@@ -1,0 +1,37 @@
+#!/usr/bin/env zsh
+# split-audio-half.zsh
+# Split an audio file into two halves using ffmpeg/ffprobe.
+
+set -euo pipefail
+
+infile="${1:?usage: split-audio-half.zsh audiofile}"
+
+duration="$(
+  ffprobe -v error \
+    -show_entries format=duration \
+    -of default=noprint_wrappers=1:nokey=1 \
+    "$infile"
+)"
+
+half="$(
+  awk "BEGIN { printf \"%.3f\", $duration / 2 }"
+)"
+
+stem="${infile:r}"
+ext="${infile:e}"
+
+ffmpeg -hide_banner -y \
+  -i "$infile" \
+  -t "$half" \
+  -c copy \
+  "${stem}.part1.${ext}"
+
+ffmpeg -hide_banner -y \
+  -ss "$half" \
+  -i "$infile" \
+  -c copy \
+  "${stem}.part2.${ext}"
+
+print "Split at ${half}s"
+print "→ ${stem}.part1.${ext}"
+print "→ ${stem}.part2.${ext}"

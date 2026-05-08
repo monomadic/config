@@ -28,6 +28,7 @@ alias .batch="yt-dlp-porn-batch-file /Users/nom/Library/Mobile\ Documents/com\~a
 # ALIASES
 #
 alias .trim="ffmpeg-lossless-cut-by-fzf-keyframe-select"
+alias .trim-end="ffmpeg-lossless-cut-by-fzf-keyframe-select --reverse"
 
 alias .ls="ls-media"
 alias .ls-sorted="ls-media --sort=created"
