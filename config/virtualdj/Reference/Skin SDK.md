@@ -1,6 +1,8 @@
 # VirtualDJ Skin SDK Reference
 
-Comprehensive reference for creating and modifying VirtualDJ 8+ skins.
+> **Reliability note**: This file is raw reference material that has not been normalized to the same standard as `VirtualDJ Reference.md`. It does not use source labels and some entries may be incomplete or use element names that differ from the current official SDK. Use `VirtualDJ Reference.md` and `VDJScript Verbs.md` as the authoritative layer. This file is useful for broad scanning but verify specific details against the live SDK docs.
+
+Broad reference for VirtualDJ 8+ skin elements and attributes.
 
 ## Overview
 
