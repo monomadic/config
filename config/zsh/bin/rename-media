@@ -479,11 +479,11 @@ process_video() {
 
   local orientation_flag
   if (( display_width > display_height )); then
-    orientation_flag="􁻯 "
+    orientation_flag="􁻯"
   elif (( display_height > display_width )); then
-    orientation_flag="􁻮 "
+    orientation_flag="􁻮"
   else
-    orientation_flag="􀂒 "
+    orientation_flag="􀂒"
   fi
 
   local mbps="unknown"
