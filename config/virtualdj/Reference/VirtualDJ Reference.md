@@ -104,14 +104,24 @@ Recommended runnable examples:
 - [Reference - Page Aware Sampler](../Pads/Reference%20-%20Page%20Aware%20Sampler.xml)
   Page-aware sampler labels, colors, and actions.
 
-- [Modular skin skeleton](../Skins/ModularSkeleton/README.md)
-  Minimal build-time modular skin scaffold for this repo.
+- [ModularSkeleton README](../Skins/ModularSkeleton/README.md)
+  Build-time XInclude workflow, `<define class>` system, and named color patterns.
+
+- [ModularSkeleton built skin](../Skins/ModularSkeleton/build/skin.xml)
+  Flat installed output showing real `<define>`, `<panel>`, `<deck>`, and `<visual>` usage.
 
 Existing repo examples worth studying:
 
-- [GraveRaver root skin](../Skins/GraveRaver/src/skin.xml)
-- [GraveRaver build file](../Skins/GraveRaver/justfile)
 - [Current project FX page](../Pads/2.%20EFFECTS.xml)
+  Name-based FX toggle page with stems routing pads and a KILL ALL pad.
+
+- [Current project ColorFX page](../Pads/2.%20COLOR%20FX.xml)
+  ColorFX selection with stems context; demonstrates the same `filter_selectcolorfx` pattern as Reference - ColorFX.
+
+- [Haunting Pro Edit skin](../Skins/Haunting%20Pro%20Edit/Pro.xml)
+  Published full-size skin; useful for reading real-world skin element composition.
+
+Note: GraveRaver skin source is referenced in some docs but is not included in this repo.
 
 ## Skin SDK
 
@@ -667,7 +677,7 @@ Use build-time modularity:
 - compose with XInclude or another XML preprocessor locally
 - build one flattened `skin.xml` before install
 
-This is the pattern already used by [GraveRaver](../Skins/GraveRaver/justfile).
+This is the pattern demonstrated by [ModularSkeleton](../Skins/ModularSkeleton/README.md).
 
 Why:
 
@@ -684,9 +694,9 @@ Use [ModularSkeleton](../Skins/ModularSkeleton/README.md) as the starting point.
 It demonstrates:
 
 - build-time XInclude flattening with `xmllint --xinclude`
-- shared colors and classes in `src/defs/`
-- simple panel slices in `src/panels/`
-- a flat built output for installation
+- named color defines and reusable class defines with placeholders
+- `<panel>`, `<deck>`, and `<visual>` composition patterns
+- a flat `build/skin.xml` output ready for installation
 
 ## Sources
 
@@ -717,9 +727,10 @@ Official forum guidance cited for method choices:
 
 Repo examples:
 
-- [GraveRaver source skin](../Skins/GraveRaver/src/skin.xml)
-- [GraveRaver build file](../Skins/GraveRaver/justfile)
 - [Reference - Slot FX](../Pads/Reference%20-%20Slot%20FX.xml)
 - [Reference - ColorFX](../Pads/Reference%20-%20ColorFX.xml)
 - [Reference - Page Aware Sampler](../Pads/Reference%20-%20Page%20Aware%20Sampler.xml)
-- [ModularSkeleton](../Skins/ModularSkeleton/README.md)
+- [ModularSkeleton README](../Skins/ModularSkeleton/README.md)
+- [ModularSkeleton built skin](../Skins/ModularSkeleton/build/skin.xml)
+- [Current project FX page](../Pads/2.%20EFFECTS.xml)
+- [Haunting Pro Edit skin](../Skins/Haunting%20Pro%20Edit/Pro.xml)

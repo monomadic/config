@@ -75,7 +75,5 @@
     effect_stems 'rhythm'
   </pad15>
   <pad16 name="KILL" color="color 'red'">
-    effect_active 'Reverb' off &amp; effect_active 'Echo' off &amp; effect_active 'Delay' off &amp; effect_active 'Cut' off &amp; effect_active 'Echo Out' off &amp; effect_active 'Loop Roll' off &amp; effect_active 'Backspin' off &amp; effect_active 'Brake' off &amp; effect_active 'Spiral' off &amp; effect_active 'Phaser' off &amp; effect_active 'Beatgrid' off &amp; effect_active 'Gate' off" </pad16>
-  <menu>ColorFX =[pad_page "ColorFX"]</menu>
-  <param1 name="EFFECTS">pad_page "2. COLOR FX"</param1>
+    effect_active 'Reverb' off &amp; effect_active 'Echo' off &amp; effect_active 'Delay' off &amp; effect_active 'Cut' off &amp; effect_active 'Echo Out' off &amp; effect_active 'Loop Roll' off &amp; effect_active 'Backspin' off &amp; effect_active 'Brake' off &amp; effect_active 'Spiral' off &amp; effect_active 'Phaser' off &amp; effect_active 'Beatgrid' off &amp; effect_active 'Gate' off</pad16>
 </page>
