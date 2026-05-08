@@ -1,8 +1,75 @@
 #!/bin/zsh
-# Usage: kitty-exec <title> <color> [--shell <command>] <command> [args...]
+# kitty-exec
+#
+# Temporarily decorates the current Kitty tab/window while running a command.
+#
+# What it does:
+#   - Sets the current Kitty tab title to a supplied title
+#   - Sets the current Kitty window title temporarily
+#   - Tints the tab using a supplied color
+#   - Runs either:
+#       - a normal argv-style command, preserving arguments exactly
+#       - a zsh shell command via --shell
+#   - Restores the previous Kitty tab title/colors when the command exits
+#
+# Behavior outside Kitty:
+#   If the script is not running inside Kitty and has no Kitty remote-control
+#   environment, it simply execs the command without trying to decorate anything.
+#
+# Usage:
+#   kitty-exec <title> <color> <command> [args...]
+#   kitty-exec <title> <color> --shell <shell-command>
+#
+# Examples:
+#   kitty-exec "Build" "#ffcc00" cargo build --release
+#   kitty-exec "Index" "#00ffff" fd -e mp4 . /Volumes/Tower
+#   kitty-exec "Shell Task" "#ff66cc" --shell 'cd ~/src/project && just build'
+#
+# Notes:
+#   - <color> should be a Kitty-compatible color, usually "#rrggbb".
+#   - argv mode is preferred when possible because it avoids shell quoting issues.
+#   - --shell runs the supplied string through `/bin/zsh -lc`.
+#   - Requires Kitty remote control to be enabled for decoration commands to work.
+
+emulate -L zsh
+set -euo pipefail
+
+script_name="${0:t}"
+
+usage() {
+  cat >&2 <<EOF
+$script_name
+
+Temporarily decorates the current Kitty tab/window while running a command.
+
+The script sets the Kitty tab title, temporary window title, and tab color while
+the command is running, then restores the previous tab title/colors on exit.
+
+If it is not running inside Kitty, it simply execs the command normally.
+
+Usage:
+  $script_name <title> <color> <command> [args...]
+  $script_name <title> <color> --shell <shell-command>
+
+Arguments:
+  <title>    Title to show on the Kitty tab/window while the command runs.
+  <color>    Kitty-compatible color, usually "#rrggbb".
+  <command>  Program to execute.
+  [args...]  Arguments passed directly to <command>.
+
+Options:
+  --shell <shell-command>
+             Run a single shell command through /bin/zsh -lc.
+
+Examples:
+  $script_name "Build" "#ffcc00" cargo build --release
+  $script_name "Index" "#00ffff" fd -e mp4 . /Volumes/Tower
+  $script_name "Shell Task" "#ff66cc" --shell 'cd ~/src/project && just build'
+EOF
+}
 
 if (( $# < 3 )); then
-  print -u2 "Usage: kitty-exec <title> <color> [--shell <command>] <command> [args...]"
+  usage
   exit 2
 fi
 
@@ -15,15 +82,26 @@ shell_command=""
 
 if [[ ${1:-} == "--shell" ]]; then
   shift
+
   if [[ -z ${1:-} ]]; then
-    print -u2 "kitty-exec: missing shell command after --shell"
+    print -u2 -- "$script_name: missing shell command after --shell"
     exit 2
   fi
+
   mode="shell"
   shell_command="$1"
   shift
+
+  if (( $# )); then
+    print -u2 -- "$script_name: unexpected arguments after --shell command: $*"
+    exit 2
+  fi
 fi
 
+# Run the requested command, replacing this process when outside Kitty.
+#
+# In shell mode, the command is intentionally evaluated by zsh.
+# In argv mode, arguments are executed exactly as supplied.
 run_command() {
   if [[ $mode == "shell" ]]; then
     exec /bin/zsh -lc "$shell_command"
@@ -32,20 +110,32 @@ run_command() {
   fi
 }
 
+# If we are not inside a Kitty-controlled environment, do no decoration.
+# Just become the requested command.
 if [[ -z ${KITTY_WINDOW_ID:-} && -z ${KITTY_LISTEN_ON:-} ]]; then
   run_command "$@"
 fi
 
+# Capture the current tab color state so it can be restored later.
+# kitty @ get-colors emits lines like:
+#   active_tab_background #1e1e2e
+#   active_tab_foreground #cdd6f4
 colors="$(kitty @ get-colors 2>/dev/null || true)"
+
 default_active_bg="$(printf '%s\n' "$colors" | awk '/^active_tab_background / { print $2; exit }')"
 default_active_fg="$(printf '%s\n' "$colors" | awk '/^active_tab_foreground / { print $2; exit }')"
 default_inactive_bg="$(printf '%s\n' "$colors" | awk '/^inactive_tab_background / { print $2; exit }')"
 default_inactive_fg="$(printf '%s\n' "$colors" | awk '/^inactive_tab_foreground / { print $2; exit }')"
 
+# Restore the tab title and colors when the child command exits or the wrapper
+# receives a normal termination signal.
 restore_tab_state() {
   kitty @ set-tab-title >/dev/null 2>&1 || true
 
-  if [[ -n "$default_active_bg" && -n "$default_active_fg" && -n "$default_inactive_bg" && -n "$default_inactive_fg" ]]; then
+  if [[ -n "$default_active_bg" \
+     && -n "$default_active_fg" \
+     && -n "$default_inactive_bg" \
+     && -n "$default_inactive_fg" ]]; then
     kitty @ set-tab-color \
       active_bg="$default_active_bg" \
       active_fg="$default_active_fg" \
@@ -56,10 +146,15 @@ restore_tab_state() {
 
 trap restore_tab_state EXIT INT TERM HUP
 
-kitty @ set-tab-color active_bg="$color" inactive_fg="$color" >/dev/null 2>&1 || true
+# Apply temporary visual state for the running command.
+kitty @ set-tab-color \
+  active_bg="$color" \
+  inactive_fg="$color" >/dev/null 2>&1 || true
+
 kitty @ set-tab-title "$title" >/dev/null 2>&1 || true
 kitty @ set-window-title --temporary "$title" >/dev/null 2>&1 || true
 
+# Run the command without exec here so the EXIT trap can restore Kitty state.
 if [[ $mode == "shell" ]]; then
   /bin/zsh -lc "$shell_command"
 else
@@ -67,4 +162,4 @@ else
 fi
 
 exit_status=$?
-exit $exit_status
+exit "$exit_status"
