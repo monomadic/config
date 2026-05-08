@@ -21,7 +21,7 @@
           },
           "to": [
             {
-              "shell_command": "osascript -e 'tell application \"Finder\" to set currentDir to POSIX path of (target of front window as alias)' | xargs -I {} kitty --single-instance --directory=\"{}\" --start-as=maximized yazi"
+              "shell_command": "/bin/zsh -lc 'finder_dir=$(osascript -e '\\''tell application \"Finder\" to POSIX path of (target of front window as alias)'\\''); exec /Users/nom/.zsh/bin/kitty-launch --os-window --cwd \"$finder_dir\" --title \" yazi \" -- yazi'"
             }
           ]
         }
