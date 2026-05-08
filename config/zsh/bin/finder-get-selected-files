@@ -3,21 +3,28 @@
 # Print all selected Finder items as POSIX paths.
 #
 # Usage:
-#   finder-selection.zsh       # newline-delimited
-#   finder-selection.zsh -0    # NUL-delimited
+#   finder-selection.zsh                 # newline-delimited
+#   finder-selection.zsh -0              # NUL-delimited
+#   finder-selection.zsh --expand-dirs   # expand selected dirs into contained files
 #
 # Notes:
 #   Requires Automation permission for your terminal to control Finder.
+#   Directory expansion uses fd when available, otherwise falls back to zsh globbing.
 
 emulate -L zsh
 set -euo pipefail
 
 nul_output=false
+expand_dirs=false
 
 while (( $# )); do
   case "$1" in
     -0|--null)
       nul_output=true
+      shift
+      ;;
+    --expand-dirs)
+      expand_dirs=true
       shift
       ;;
     -h|--help)
@@ -27,12 +34,15 @@ finder-selection.zsh
 Print all selected Finder items as POSIX paths.
 
 Usage:
-  finder-selection.zsh       newline-delimited output
-  finder-selection.zsh -0    NUL-delimited output
+  finder-selection.zsh                 newline-delimited output
+  finder-selection.zsh -0              NUL-delimited output
+  finder-selection.zsh --expand-dirs   expand selected directories into files
+  finder-selection.zsh -0 --expand-dirs
 
 Options:
-  -0, --null   Output NUL-delimited paths
-  -h, --help   Show this help
+  -0, --null      Output NUL-delimited paths
+  --expand-dirs   Replace selected directories with contained files
+  -h, --help      Show this help
 EOF
       exit 0
       ;;
@@ -44,22 +54,7 @@ EOF
   esac
 done
 
-if $nul_output; then
-  osascript <<'APPLESCRIPT'
-set AppleScript's text item delimiters to character id 0
-
-tell application "Finder"
-	set selected_items to selection as alias list
-	set out to {}
-	
-	repeat with item_ref in selected_items
-		set end of out to POSIX path of item_ref
-	end repeat
-end tell
-
-return out as text
-APPLESCRIPT
-else
+finder_selection_newline() {
   osascript <<'APPLESCRIPT'
 set out to ""
 
@@ -73,4 +68,40 @@ end tell
 
 return out
 APPLESCRIPT
+}
+
+typeset -a files
+files=("${(@f)$(finder_selection_newline)}")
+
+if $expand_dirs; then
+  typeset -a expanded
+  expanded=()
+
+  for item_path in "${files[@]}"; do
+    [[ -e "$item_path" ]] || continue
+
+    if [[ -d "$item_path" ]]; then
+      if (( $+commands[fd] )); then
+        while IFS= read -r -d '' child_path; do
+          expanded+=("$child_path")
+        done < <(fd --type f --hidden --follow --absolute-path --print0 . "$item_path")
+      else
+        expanded+=("${item_path}"/**/*(.N))
+      fi
+    else
+      expanded+=("$item_path")
+    fi
+  done
+
+  files=("${expanded[@]}")
+fi
+
+if $nul_output; then
+  for item_path in "${files[@]}"; do
+    printf '%s\0' "$item_path"
+  done
+else
+  for item_path in "${files[@]}"; do
+    print -r -- "$item_path"
+  done
 fi

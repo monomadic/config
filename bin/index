@@ -1,0 +1,787 @@
+#!/usr/bin/env zsh
+
+set -euo pipefail
+setopt extended_glob null_glob no_nomatch
+
+PROGRAM=${0:t}
+VERSION="0.1.0"
+
+DEFAULT_EXTENSIONS=(
+  mp4 mov m4v mkv webm avi mpg mpeg ts m2ts
+  mp3 flac wav aiff aif m4a opus ogg
+  jpg jpeg png webp gif heic tiff
+  srt ass vtt lrc cue nfo txt json
+)
+
+HEADER_COLUMNS=(
+  scan_id
+  volume_id
+  volume_name
+  root_path_at_scan
+  relative_path
+  filename
+  extension
+  kind
+  size_bytes
+  birthtime_epoch
+  mtime_epoch
+  ctime_epoch
+  indexed_at_epoch
+  duration_seconds
+  width
+  height
+  fps
+  video_codec
+  audio_codec
+  pixel_format
+  bit_rate
+  rotation
+  color_space
+  has_audio
+  has_video
+)
+
+VIDEO_EXTENSIONS=(mp4 mov m4v mkv webm avi mpg mpeg ts m2ts)
+AUDIO_EXTENSIONS=(mp3 flac wav aiff aif m4a opus ogg)
+IMAGE_EXTENSIONS=(jpg jpeg png webp gif heic tiff)
+TEXT_EXTENSIONS=(srt ass vtt lrc cue nfo txt json)
+
+die() {
+  print -ru2 -- "$PROGRAM: $*"
+  exit 1
+}
+
+warn() {
+  print -ru2 -- "$PROGRAM: $*"
+}
+
+usage() {
+  cat <<'EOF'
+index: offline flat-file catalogs for removable drives and media folders
+
+Usage:
+  index scan [--ffprobe|--no-ffprobe] ROOT
+  index search [--all] QUERY
+  index browse [VOLUME]
+  index newest [--all] [--limit N]
+  index preview-row ROW
+  index open ROW
+  index reveal ROW
+  index home
+  index help
+
+Environment:
+  INDEX_HOME         Index root. Defaults to ${XDG_DATA_HOME:-$HOME/.local/share}/index
+  INDEX_CONFIG       zsh config file. Defaults to $INDEX_HOME/config.zsh
+  INDEX_EXTENSIONS   Space-separated whitelist, case-insensitive
+  INDEX_FFPROBE      1/0, whether scan collects ffprobe metadata. Defaults to 0
+  INDEX_FD_OPTS      Extra fd options used while walking
+EOF
+}
+
+init_config() {
+  : "${INDEX_HOME:=${XDG_DATA_HOME:-$HOME/.local/share}/index}"
+  : "${INDEX_CONFIG:=$INDEX_HOME/config.zsh}"
+  : "${INDEX_FFPROBE:=0}"
+
+  if [[ -r "$INDEX_CONFIG" ]]; then
+    source "$INDEX_CONFIG"
+    : "${INDEX_HOME:=${XDG_DATA_HOME:-$HOME/.local/share}/index}"
+    : "${INDEX_FFPROBE:=0}"
+  fi
+
+  SCANS_DIR="$INDEX_HOME/scans"
+  LATEST_DIR="$INDEX_HOME/latest"
+  MANIFESTS_DIR="$INDEX_HOME/manifests"
+  VOLUMES_MANIFEST="$MANIFESTS_DIR/volumes.tsv"
+}
+
+ensure_dirs() {
+  mkdir -p "$SCANS_DIR" "$LATEST_DIR" "$MANIFESTS_DIR"
+}
+
+tsv_clean() {
+  local value="${1-}"
+  value=${value//$'\t'/ }
+  value=${value//$'\n'/ }
+  value=${value//$'\r'/ }
+  print -r -- "$value"
+}
+
+join_tsv() {
+  local out="" field first=1
+  for field in "$@"; do
+    field=$(tsv_clean "$field")
+    if (( first )); then
+      out="$field"
+      first=0
+    else
+      out+=$'\t'"$field"
+    fi
+  done
+  print -r -- "$out"
+}
+
+header_line() {
+  join_tsv "${HEADER_COLUMNS[@]}"
+}
+
+safe_name() {
+  local value
+  value=$(tsv_clean "$1")
+  value=${value//\//_}
+  value=${value//:/_}
+  value=${value//\\/}
+  [[ -n "$value" ]] || value="root"
+  print -r -- "$value"
+}
+
+lower_ext() {
+  local filename="$1" ext=""
+  if [[ "$filename" == *.* && "$filename" != .* ]]; then
+    ext="${filename##*.}"
+  fi
+  print -r -- "${ext:l}"
+}
+
+in_array() {
+  local needle="$1" item
+  shift
+  for item in "$@"; do
+    [[ "$needle" == "$item" ]] && return 0
+  done
+  return 1
+}
+
+build_extension_whitelist() {
+  local ext
+  WHITELIST=()
+
+  if [[ -n "${INDEX_EXTENSIONS:-}" ]]; then
+    WHITELIST=(${=INDEX_EXTENSIONS})
+  else
+    WHITELIST=("${DEFAULT_EXTENSIONS[@]}")
+  fi
+
+  typeset -gA EXT_OK
+  EXT_OK=()
+  for ext in "${WHITELIST[@]}"; do
+    ext="${ext#.}"
+    ext="${ext:l}"
+    [[ -n "$ext" ]] && EXT_OK[$ext]=1
+  done
+}
+
+kind_for_ext() {
+  local ext="$1"
+  if in_array "$ext" "${VIDEO_EXTENSIONS[@]}"; then
+    print -r -- "video"
+  elif in_array "$ext" "${AUDIO_EXTENSIONS[@]}"; then
+    print -r -- "audio"
+  elif in_array "$ext" "${IMAGE_EXTENSIONS[@]}"; then
+    print -r -- "image"
+  elif in_array "$ext" "${TEXT_EXTENSIONS[@]}"; then
+    print -r -- "text"
+  else
+    print -r -- "other"
+  fi
+}
+
+human_size() {
+  awk -v n="${1:-0}" 'BEGIN {
+    split("B KiB MiB GiB TiB PiB", u, " ");
+    i = 1;
+    while (n >= 1024 && i < 6) { n /= 1024; i++ }
+    if (i == 1) printf "%.0f %s", n, u[i];
+    else printf "%.1f %s", n, u[i];
+  }'
+}
+
+epoch_date() {
+  local epoch="${1:-0}"
+  if [[ "$epoch" == <-> && "$epoch" -gt 0 ]]; then
+    date -r "$epoch" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || print -r -- "$epoch"
+  else
+    print -r -- ""
+  fi
+}
+
+stat_file() {
+  local item="$1"
+  if stat -f '%z	%B	%m	%c' "$item" >/dev/null 2>&1; then
+    stat -f '%z	%B	%m	%c' "$item"
+  else
+    stat -c '%s	%W	%Y	%Z' "$item"
+  fi
+}
+
+volume_id_for_root() {
+  local root_dir="$1" diskutil_out volume_uuid device_id inode_id
+
+  if command -v diskutil >/dev/null 2>&1; then
+    diskutil_out=$(diskutil info "$root_dir" 2>/dev/null || true)
+    volume_uuid=$(print -r -- "$diskutil_out" | awk -F': *' '/Volume UUID/ {print $2; exit}')
+    if [[ -n "$volume_uuid" && "$volume_uuid" != "Not applicable" ]]; then
+      print -r -- "$volume_uuid"
+      return
+    fi
+  fi
+
+  if stat -f '%d:%i' "$root_dir" >/dev/null 2>&1; then
+    stat -f '%d:%i' "$root_dir"
+  else
+    stat -c '%d:%i' "$root_dir"
+  fi
+}
+
+ffprobe_metadata() {
+  local media_file="$1"
+  local duration="" width="" height="" fps="" video_codec="" audio_codec=""
+  local pixel_format="" bit_rate="" rotation="" color_space="" has_audio="" has_video=""
+  local output line part key value codec_type="" avg_rate=""
+  local -A fields
+
+  if ! command -v ffprobe >/dev/null 2>&1; then
+    join_tsv "" "" "" "" "" "" "" "" "" "" "" ""
+    return
+  fi
+
+  output=$(
+    ffprobe -v error \
+      -show_entries format=duration,bit_rate:stream=index,codec_type,codec_name,width,height,avg_frame_rate,pix_fmt,color_space:stream_tags=rotate:stream_side_data=rotation \
+      -of compact=p=1:nk=0 "$media_file" 2>/dev/null || true
+  )
+
+  if [[ -z "$output" ]]; then
+    join_tsv "" "" "" "" "" "" "" "" "" "" "" ""
+    return
+  fi
+
+  while IFS= read -r line; do
+    fields=()
+    codec_type=""
+    for part in "${(@s:|:)line}"; do
+      [[ "$part" == *=* ]] || continue
+      key="${part%%=*}"
+      value="${part#*=}"
+      fields[$key]="$value"
+    done
+
+    if [[ "$line" == format\|* ]]; then
+      [[ -n "${fields[duration]:-}" && "${fields[duration]}" != "N/A" ]] && duration="${fields[duration]}"
+      [[ -n "${fields[bit_rate]:-}" && "${fields[bit_rate]}" != "N/A" ]] && bit_rate="${fields[bit_rate]}"
+      continue
+    fi
+
+    codec_type="${fields[codec_type]:-}"
+    if [[ "$codec_type" == "video" && -z "$has_video" ]]; then
+      has_video="1"
+      video_codec="${fields[codec_name]:-}"
+      width="${fields[width]:-}"
+      height="${fields[height]:-}"
+      avg_rate="${fields[avg_frame_rate]:-}"
+      pixel_format="${fields[pix_fmt]:-}"
+      color_space="${fields[color_space]:-}"
+      rotation="${fields[rotation]:-${fields[TAG:rotate]:-}}"
+
+      if [[ -n "$avg_rate" && "$avg_rate" != "0/0" && "$avg_rate" != "N/A" ]]; then
+        fps=$(awk -v r="$avg_rate" 'BEGIN {
+          split(r, a, "/");
+          if (a[2] && a[2] != 0) printf "%.3f", a[1] / a[2];
+          else print r;
+        }')
+      fi
+    elif [[ "$codec_type" == "audio" && -z "$has_audio" ]]; then
+      has_audio="1"
+      audio_codec="${fields[codec_name]:-}"
+    fi
+  done <<< "$output"
+
+  join_tsv "$duration" "$width" "$height" "$fps" "$video_codec" "$audio_codec" "$pixel_format" "$bit_rate" "$rotation" "$color_space" "$has_audio" "$has_video"
+}
+
+walk_files() {
+  local root_dir="$1"
+  local -a fd_opts
+
+  if command -v fd >/dev/null 2>&1; then
+    fd_opts=(--hidden --no-ignore --type f --print0)
+    if [[ -n "${INDEX_FD_OPTS:-}" ]]; then
+      fd_opts+=(${=INDEX_FD_OPTS})
+    fi
+    fd "${fd_opts[@]}" . "$root_dir"
+  elif command -v fdfind >/dev/null 2>&1; then
+    fd_opts=(--hidden --no-ignore --type f --print0)
+    if [[ -n "${INDEX_FD_OPTS:-}" ]]; then
+      fd_opts+=(${=INDEX_FD_OPTS})
+    fi
+    fdfind "${fd_opts[@]}" . "$root_dir"
+  else
+    find "$root_dir" -type f -print0
+  fi
+}
+
+write_manifest_header_if_needed() {
+  if [[ ! -s "$VOLUMES_MANIFEST" ]]; then
+    join_tsv scan_id volume_id volume_name root_path_at_scan scan_file indexed_at_epoch file_count ffprobe_enabled > "$VOLUMES_MANIFEST"
+  fi
+}
+
+scan_command() {
+  local use_ffprobe="$INDEX_FFPROBE" root_dir="" arg
+
+  while [[ $# -gt 0 ]]; do
+    arg="$1"
+    case "$arg" in
+      --ffprobe|--metadata)
+        use_ffprobe=1
+        shift
+        ;;
+      --no-ffprobe|--no-metadata)
+        use_ffprobe=0
+        shift
+        ;;
+      --help|-h)
+        usage
+        return
+        ;;
+      --*)
+        die "unknown scan option: $arg"
+        ;;
+      *)
+        root_dir="$arg"
+        shift
+        ;;
+    esac
+  done
+
+  [[ -n "$root_dir" ]] || die "scan needs a mounted volume or folder"
+  [[ -d "$root_dir" ]] || die "not a directory: $root_dir"
+
+  root_dir="${root_dir:A}"
+  ensure_dirs
+  build_extension_whitelist
+
+  local volume_name="${root_dir:t}"
+  [[ -n "$volume_name" ]] || volume_name="root"
+  local volume_id safe_volume timestamp scan_id scan_file tmp_rows tmp_scan indexed_at file_count
+  volume_id=$(volume_id_for_root "$root_dir")
+  safe_volume=$(safe_name "$volume_name")
+  timestamp=$(date "+%Y-%m-%d_%H%M%S")
+  scan_id="${safe_volume}-${timestamp}"
+  scan_file="$SCANS_DIR/${scan_id}.tsv"
+  tmp_rows="${scan_file}.rows.$$"
+  tmp_scan="${scan_file}.tmp.$$"
+  indexed_at=$(date "+%s")
+  file_count=0
+
+  : > "$tmp_rows"
+
+  local item rel filename ext kind stat_out size birth mtime ctime sort_epoch metadata row
+  while IFS= read -r -d $'\0' item; do
+    filename="${item:t}"
+    ext=$(lower_ext "$filename")
+    [[ -n "$ext" && -n "${EXT_OK[$ext]:-}" ]] || continue
+
+    rel="${item#$root_dir/}"
+    kind=$(kind_for_ext "$ext")
+    stat_out=$(stat_file "$item" 2>/dev/null || true)
+    [[ -n "$stat_out" ]] || {
+      warn "could not stat: $item"
+      continue
+    }
+
+    IFS=$'\t' read -r size birth mtime ctime <<< "$stat_out"
+    [[ "$birth" == <-> && "$birth" -gt 0 ]] || birth=""
+    sort_epoch="${birth:-$mtime}"
+
+    metadata=$(join_tsv "" "" "" "" "" "" "" "" "" "" "" "")
+    if [[ "$use_ffprobe" == "1" && "$kind" == "video" ]]; then
+      metadata=$(ffprobe_metadata "$item")
+    fi
+
+    row=$(join_tsv \
+      "$scan_id" \
+      "$volume_id" \
+      "$volume_name" \
+      "$root_dir" \
+      "$rel" \
+      "$filename" \
+      "$ext" \
+      "$kind" \
+      "$size" \
+      "$birth" \
+      "$mtime" \
+      "$ctime" \
+      "$indexed_at")
+
+    print -r -- "${sort_epoch}"$'\t'"${row}"$'\t'"${metadata}" >> "$tmp_rows"
+    (( file_count += 1 ))
+  done < <(walk_files "$root_dir")
+
+  {
+    header_line
+    sort -t $'\t' -k1,1nr "$tmp_rows" | cut -f2-
+  } > "$tmp_scan"
+
+  mv "$tmp_scan" "$scan_file"
+  rm -f "$tmp_rows"
+  ln -sfn "../scans/${scan_id}.tsv" "$LATEST_DIR/${safe_volume}.tsv"
+
+  write_manifest_header_if_needed
+  join_tsv "$scan_id" "$volume_id" "$volume_name" "$root_dir" "$scan_file" "$indexed_at" "$file_count" "$use_ffprobe" >> "$VOLUMES_MANIFEST"
+
+  print -r -- "scan_id: $scan_id"
+  print -r -- "files: $file_count"
+  print -r -- "scan: $scan_file"
+  print -r -- "latest: $LATEST_DIR/${safe_volume}.tsv"
+}
+
+catalog_files() {
+  local scope="${1:-latest}" volume="${2:-}"
+  local -a files
+
+  if [[ "$scope" == "all" ]]; then
+    files=("$SCANS_DIR"/*.tsv(N))
+  else
+    if [[ -n "$volume" ]]; then
+      files=("$LATEST_DIR/${volume}.tsv"(N))
+      if [[ ${#files[@]} -eq 0 ]]; then
+        files=("$LATEST_DIR"/*"${volume}"*.tsv(N))
+      fi
+    else
+      files=("$LATEST_DIR"/*.tsv(N))
+    fi
+  fi
+
+  print -rl -- "${files[@]}"
+}
+
+search_command() {
+  local scope="latest" query
+  if [[ "${1:-}" == "--all" ]]; then
+    scope="all"
+    shift
+  fi
+  [[ $# -gt 0 ]] || die "search needs a query"
+  query="$*"
+
+  ensure_dirs
+  local -a files
+  files=(${(f)"$(catalog_files "$scope")"})
+  [[ ${#files[@]} -gt 0 ]] || die "no catalogs found in $INDEX_HOME"
+
+  if command -v rg >/dev/null 2>&1; then
+    rg -i --fixed-strings --with-filename --line-number -- "$query" "${files[@]}"
+  else
+    warn "rg not found; falling back to grep"
+    grep -i -F -n -H -- "$query" "${files[@]}"
+  fi
+}
+
+effective_epoch_awk='
+function effective(birth, mtime) {
+  if (birth ~ /^[0-9]+$/ && birth > 0) return birth;
+  if (mtime ~ /^[0-9]+$/ && mtime > 0) return mtime;
+  return 0;
+}
+function hsize(n, i, u) {
+  split("B KiB MiB GiB TiB PiB", u, " ");
+  i = 1;
+  while (n >= 1024 && i < 6) { n /= 1024; i++ }
+  if (i == 1) return sprintf("%.0f %s", n, u[i]);
+  return sprintf("%.1f %s", n, u[i]);
+}
+function datefmt(e, cmd, out) {
+  if (e <= 0) return "";
+  cmd = "date -r " e " \"+%Y-%m-%d %H:%M:%S\"";
+  cmd | getline out;
+  close(cmd);
+  return out;
+}
+'
+
+newest_command() {
+  local scope="latest" limit=100 arg
+  while [[ $# -gt 0 ]]; do
+    arg="$1"
+    case "$arg" in
+      --all)
+        scope="all"
+        shift
+        ;;
+      --limit)
+        shift
+        [[ $# -gt 0 ]] || die "--limit needs a number"
+        limit="$1"
+        shift
+        ;;
+      --limit=*)
+        limit="${arg#--limit=}"
+        shift
+        ;;
+      --help|-h)
+        usage
+        return
+        ;;
+      *)
+        die "unknown newest option: $arg"
+        ;;
+    esac
+  done
+
+  ensure_dirs
+  local -a files
+  files=(${(f)"$(catalog_files "$scope")"})
+  [[ ${#files[@]} -gt 0 ]] || die "no catalogs found in $INDEX_HOME"
+
+  awk -F '\t' "$effective_epoch_awk"'
+    $1 == "scan_id" { next }
+    {
+      e = effective($10, $11);
+      print e "\t" $0;
+    }
+  ' "${files[@]}" |
+    sort -t $'\t' -k1,1nr |
+    head -n "$limit" |
+    cut -f2- |
+    awk -F '\t' "$effective_epoch_awk"'
+      BEGIN { OFS = "\t"; print "date", "volume", "size", "kind", "duration", "resolution", "relative_path" }
+      {
+        e = effective($10, $11);
+        res = ($15 && $16) ? $15 "x" $16 : "";
+        print datefmt(e), $3, hsize($9), $8, $14, res, $5;
+      }
+    '
+}
+
+fzf_rows() {
+  local scope="$1" volume="${2:-}"
+  local -a files
+  files=(${(f)"$(catalog_files "$scope" "$volume")"})
+  [[ ${#files[@]} -gt 0 ]] || die "no catalogs found"
+
+  awk -F '\t' "$effective_epoch_awk"'
+    $1 == "scan_id" { next }
+    {
+      e = effective($10, $11);
+      res = ($15 && $16) ? $15 "x" $16 : "";
+      duration = $14;
+      print e "\t" datefmt(e) "\t" $3 "\t" hsize($9) "\t" duration "\t" res "\t" $5 "\t" $0;
+    }
+  ' "${files[@]}" | sort -t $'\t' -k1,1nr
+}
+
+script_absolute() {
+  local script_file="$0"
+  if [[ "$script_file" != */* ]]; then
+    whence -p -- "$script_file"
+  elif [[ "$script_file" = /* ]]; then
+    print -r -- "$script_file"
+  else
+    print -r -- "${script_file:A}"
+  fi
+}
+
+browse_command() {
+  local volume="${1:-}"
+  ensure_dirs
+
+  command -v fzf >/dev/null 2>&1 || die "fzf is required for browse"
+
+  local self selected
+  self=$(script_absolute)
+  export INDEX_SELF="$self"
+
+  selected=$(
+    fzf_rows latest "$volume" |
+      fzf \
+        --ansi \
+        --delimiter=$'\t' \
+        --with-nth=2,3,4,5,6,7 \
+        --header=$'enter: open  ctrl-f: reveal in Finder  ctrl-y: print offline path' \
+        --preview='zsh "$INDEX_SELF" preview-row {}' \
+        --bind='enter:execute-silent(zsh "$INDEX_SELF" open {})+accept' \
+        --bind='ctrl-f:execute-silent(zsh "$INDEX_SELF" reveal {})' \
+        --bind='ctrl-y:execute(zsh "$INDEX_SELF" print-location {})' \
+        --preview-window='right,60%,wrap'
+  ) || return 0
+
+  [[ -n "$selected" ]] && preview_row "$selected"
+}
+
+raw_from_fzf_row() {
+  local row="$1"
+  local i
+  if [[ "$row" == scan_id$'\t'* || "$row" != *$'\t'* ]]; then
+    print -r -- "$row"
+    return
+  fi
+  for i in {1..7}; do
+    row="${row#*$'\t'}"
+  done
+  print -r -- "$row"
+}
+
+split_raw_row() {
+  local raw="$1"
+  FIELDS=()
+  IFS=$'\t' read -r -A FIELDS <<< "$raw"
+}
+
+reconstructed_file() {
+  local root_dir="$1" rel="$2"
+  print -r -- "$root_dir/$rel"
+}
+
+print_location() {
+  local raw row full
+  row="$1"
+  raw=$(raw_from_fzf_row "$row")
+  split_raw_row "$raw"
+  full=$(reconstructed_file "${FIELDS[4]:-}" "${FIELDS[5]:-}")
+
+  if [[ -e "$full" ]]; then
+    print -r -- "$full"
+  else
+    print -r -- "offline: ${FIELDS[3]:-} was last seen at ${FIELDS[4]:-}"
+    print -r -- "${FIELDS[5]:-}"
+  fi
+}
+
+media_preview() {
+  local full_file="$1" kind="$2" ext="$3"
+  local cols="${FZF_PREVIEW_COLUMNS:-80}" rows="${FZF_PREVIEW_LINES:-40}" image_rows thumb
+  image_rows=$(( rows > 16 ? rows / 2 : rows ))
+
+  [[ -e "$full_file" ]] || return 0
+
+  if [[ "$kind" == "image" ]]; then
+    if [[ -n "${KITTY_WINDOW_ID:-}" ]] && command -v kitty >/dev/null 2>&1; then
+      kitty +kitten icat --clear --transfer-mode=file --stdin=no --place="${cols}x${image_rows}@0x0" "$full_file" 2>/dev/null || true
+      print
+    elif command -v chafa >/dev/null 2>&1; then
+      chafa -s "${cols}x${image_rows}" "$full_file" 2>/dev/null || true
+    elif command -v viu >/dev/null 2>&1; then
+      viu -w "$cols" "$full_file" 2>/dev/null || true
+    fi
+  elif [[ "$kind" == "video" ]]; then
+    if command -v ffmpegthumbnailer >/dev/null 2>&1 && command -v chafa >/dev/null 2>&1; then
+      thumb="${TMPDIR:-/tmp}/index-thumb-${RANDOM}-${RANDOM}.jpg"
+      ffmpegthumbnailer -i "$full_file" -o "$thumb" -s 0 -q 6 >/dev/null 2>&1 || true
+      if [[ -s "$thumb" ]]; then
+        chafa -s "${cols}x${image_rows}" "$thumb" 2>/dev/null || true
+        rm -f "$thumb"
+      fi
+    fi
+  fi
+}
+
+preview_row() {
+  local row="$1" raw full size_h date_b date_m date_c date_i resolution
+  raw=$(raw_from_fzf_row "$row")
+  split_raw_row "$raw"
+
+  [[ "${FIELDS[1]:-}" != "scan_id" ]] || return 0
+
+  full=$(reconstructed_file "${FIELDS[4]:-}" "${FIELDS[5]:-}")
+  size_h=$(human_size "${FIELDS[9]:-0}")
+  date_b=$(epoch_date "${FIELDS[10]:-0}")
+  date_m=$(epoch_date "${FIELDS[11]:-0}")
+  date_c=$(epoch_date "${FIELDS[12]:-0}")
+  date_i=$(epoch_date "${FIELDS[13]:-0}")
+  resolution=""
+  [[ -n "${FIELDS[15]:-}" && -n "${FIELDS[16]:-}" ]] && resolution="${FIELDS[15]}x${FIELDS[16]}"
+
+  media_preview "$full" "${FIELDS[8]:-}" "${FIELDS[7]:-}"
+
+  if [[ -e "$full" ]]; then
+    print -r -- "mounted: $full"
+  else
+    print -r -- "offline: ${FIELDS[3]:-}"
+    print -r -- "last root: ${FIELDS[4]:-}"
+    print -r -- "relative: ${FIELDS[5]:-}"
+  fi
+
+  print -r -- "volume_id: ${FIELDS[2]:-}"
+  print -r -- "size: $size_h (${FIELDS[9]:-0} bytes)"
+  print -r -- "kind: ${FIELDS[8]:-}  extension: ${FIELDS[7]:-}"
+  print -r -- "birth: $date_b"
+  print -r -- "mtime: $date_m"
+  print -r -- "ctime: $date_c"
+  print -r -- "indexed: $date_i"
+
+  if [[ "${FIELDS[8]:-}" == "video" || -n "${FIELDS[14]:-}${FIELDS[15]:-}${FIELDS[18]:-}" ]]; then
+    print -r -- ""
+    print -r -- "duration: ${FIELDS[14]:-}"
+    print -r -- "resolution: $resolution"
+    print -r -- "fps: ${FIELDS[17]:-}"
+    print -r -- "video_codec: ${FIELDS[18]:-}"
+    print -r -- "audio_codec: ${FIELDS[19]:-}"
+    print -r -- "pixel_format: ${FIELDS[20]:-}"
+    print -r -- "bit_rate: ${FIELDS[21]:-}"
+    print -r -- "rotation: ${FIELDS[22]:-}"
+    print -r -- "color_space: ${FIELDS[23]:-}"
+    print -r -- "has_audio: ${FIELDS[24]:-}"
+    print -r -- "has_video: ${FIELDS[25]:-}"
+  fi
+}
+
+open_row() {
+  local row="$1" raw full kind
+  raw=$(raw_from_fzf_row "$row")
+  split_raw_row "$raw"
+  full=$(reconstructed_file "${FIELDS[4]:-}" "${FIELDS[5]:-}")
+  kind="${FIELDS[8]:-}"
+
+  [[ -e "$full" ]] || {
+    print_location "$row"
+    return 1
+  }
+
+  if [[ "$kind" == "video" || "$kind" == "audio" ]]; then
+    if command -v mpv >/dev/null 2>&1; then
+      nohup mpv "$full" >/dev/null 2>&1 &
+      return
+    fi
+  fi
+
+  open "$full"
+}
+
+reveal_row() {
+  local row="$1" raw full
+  raw=$(raw_from_fzf_row "$row")
+  split_raw_row "$raw"
+  full=$(reconstructed_file "${FIELDS[4]:-}" "${FIELDS[5]:-}")
+
+  [[ -e "$full" ]] || {
+    print_location "$row"
+    return 1
+  }
+
+  open -R "$full"
+}
+
+main() {
+  init_config
+  local cmd="${1:-help}"
+  [[ $# -gt 0 ]] && shift || true
+
+  case "$cmd" in
+    scan) scan_command "$@" ;;
+    search) search_command "$@" ;;
+    browse) browse_command "$@" ;;
+    newest) newest_command "$@" ;;
+    preview-row) preview_row "$*" ;;
+    print-location) print_location "$*" ;;
+    open) open_row "$*" ;;
+    reveal) reveal_row "$*" ;;
+    home) print -r -- "$INDEX_HOME" ;;
+    help|--help|-h) usage ;;
+    version|--version) print -r -- "$VERSION" ;;
+    *) die "unknown command: $cmd" ;;
+  esac
+}
+
+main "$@"

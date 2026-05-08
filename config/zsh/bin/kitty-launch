@@ -1,0 +1,180 @@
+#!/usr/bin/env zsh
+# kitty-launch
+# Launch a command in Kitty from an external environment.
+#
+# Behavior:
+#   - If Kitty IPC is reachable, open a new Kitty window/tab via `kitten @ launch`.
+#   - If not reachable, start a new Kitty instance listening on the canonical socket.
+#
+# Examples:
+#   kitty-launch --tab -- zsh -lc 'cd ~/src && hx .'
+#   kitty-launch --window -- yazi ~/Downloads
+#   kitty-launch --os-window -- mpv --idle
+#   kitty-launch --cwd "$PWD" --title "edit config" -- hx ~/.zshrc
+#
+# Requires kitty.conf:
+#   allow_remote_control socket-only
+#   listen_on unix:/tmp/kitty-${USER}
+
+emulate -L zsh
+set -euo pipefail
+
+script_name="${0:t}"
+
+socket_addr="${KITTY_LAUNCH_SOCKET:-unix:/tmp/kitty-${USER}}"
+launch_type="tab"
+cwd=""
+title=""
+keep_focus=false
+detach=true
+
+usage() {
+  cat <<EOF
+$script_name
+
+Launch a command in Kitty, using IPC if Kitty is already running.
+
+Usage:
+  $script_name [options] -- command [args...]
+
+Options:
+  --tab              Open in a new Kitty tab (default)
+  --window           Open in a new Kitty window inside current OS window
+  --os-window        Open in a new top-level OS window
+  --cwd DIR          Working directory for launched command
+  --title TITLE      Window/tab title
+  --keep-focus       Do not focus the newly launched Kitty window/tab
+  --socket ADDR      Kitty IPC address (default: $socket_addr)
+  --no-detach        Do not detach when starting Kitty fallback
+  -h, --help         Show help
+
+Environment:
+  KITTY_LAUNCH_SOCKET  Override socket address.
+
+Examples:
+  $script_name --tab -- zsh -lc 'cd ~/src && hx .'
+  $script_name --window -- yazi ~/Downloads
+  $script_name --os-window -- zsh -l
+EOF
+}
+
+while (( $# )); do
+  case "$1" in
+    --tab)
+      launch_type="tab"
+      shift
+      ;;
+    --window)
+      launch_type="window"
+      shift
+      ;;
+    --os-window|--os_window)
+      launch_type="os-window"
+      shift
+      ;;
+    --cwd)
+      (( $# >= 2 )) || {
+        print -u2 -- "missing argument for --cwd"
+        exit 2
+      }
+      cwd="$2"
+      shift 2
+      ;;
+    --title)
+      (( $# >= 2 )) || {
+        print -u2 -- "missing argument for --title"
+        exit 2
+      }
+      title="$2"
+      shift 2
+      ;;
+    --keep-focus)
+      keep_focus=true
+      shift
+      ;;
+    --socket)
+      (( $# >= 2 )) || {
+        print -u2 -- "missing argument for --socket"
+        exit 2
+      }
+      socket_addr="$2"
+      shift 2
+      ;;
+    --no-detach)
+      detach=false
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      print -u2 -- "unknown option: $1"
+      exit 2
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+(( $# )) || {
+  print -u2 -- "missing command"
+  print -u2 -- "try: $script_name -- zsh -l"
+  exit 2
+}
+
+command_argv=( "$@" )
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+have kitty || {
+  print -u2 -- "kitty not found in PATH"
+  exit 127
+}
+
+# Prefer standalone kitten if available, otherwise use `kitty +kitten`.
+if have kitten; then
+  kitten_cmd=( kitten )
+else
+  kitten_cmd=( kitty +kitten )
+fi
+
+launch_args=(
+  @
+  --to "$socket_addr"
+  launch
+  --type "$launch_type"
+)
+
+[[ -n "$cwd" ]] && launch_args+=( --cwd "$cwd" )
+[[ -n "$title" ]] && launch_args+=( --title "$title" )
+$keep_focus && launch_args+=( --keep-focus )
+
+# Probe IPC. `ls` is cheap and fails if Kitty is not reachable.
+if "${kitten_cmd[@]}" @ --to "$socket_addr" ls >/dev/null 2>&1; then
+  exec "${kitten_cmd[@]}" "${launch_args[@]}" -- "${command_argv[@]}"
+fi
+
+# Fallback: no live IPC socket. Start a new Kitty instance with the same socket.
+kitty_args=(
+  --listen-on "$socket_addr"
+  -o allow_remote_control=socket-only
+)
+
+[[ -n "$cwd" ]] && kitty_args+=( --directory "$cwd" )
+[[ -n "$title" ]] && kitty_args+=( --title "$title" )
+
+if $detach; then
+  # macOS-friendly detached launch from Shortcuts/ForkLift/other terminals.
+  nohup kitty "${kitty_args[@]}" -- "${command_argv[@]}" >/dev/null 2>&1 &
+  disown
+else
+  exec kitty "${kitty_args[@]}" -- "${command_argv[@]}"
+fi
