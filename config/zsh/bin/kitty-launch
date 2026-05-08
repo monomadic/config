@@ -4,30 +4,34 @@
 #
 # Behavior:
 #   - If Kitty IPC is reachable, open a new Kitty window/tab via `kitten @ launch`.
-#   - If not reachable, start a new Kitty instance listening on the configured socket.
+#   - If not reachable, start a new Kitty instance listening on the chosen socket.
+#   - If no command is provided, open an interactive login shell.
+#   - Activates Kitty.app on macOS by default after launching.
 #
-# Examples:
-#   kitty-launch --tab -- zsh -lc 'cd ~/src && hx .'
-#   kitty-launch --window -- yazi ~/Downloads
-#   kitty-launch --os-window -- mpv --idle
-#   kitty-launch --cwd "$PWD" --title "edit config" -- hx ~/.zshrc
-#
-# Requires kitty.conf:
-#   allow_remote_control yes|socket|socket-only
-#   listen_on unix:/tmp/kitty
+# Socket priority:
+#   1. KITTY_LAUNCH_SOCKET
+#   2. KITTY_LISTEN_ON, when launched from inside Kitty
+#   3. unix:/tmp/kitty-$USER
+#   4. reachable /tmp/kitty-* socket discovery
 
 emulate -L zsh
 set -euo pipefail
 
 script_name="${0:t}"
 
-socket_addr="${KITTY_LAUNCH_SOCKET:-}"
-socket_arg_provided=false
+user_name="${USER:-${LOGNAME:-$(id -un)}}"
+default_shell="${SHELL:-/bin/zsh}"
+
+configured_socket_addr="${KITTY_LAUNCH_SOCKET:-${KITTY_LISTEN_ON:-unix:/tmp/kitty-${user_name}}}"
+socket_addr="$configured_socket_addr"
+
 launch_type="tab"
 cwd=""
 title=""
 keep_focus=false
+activate=true
 detach=true
+debug=false
 
 usage() {
   cat <<EOF
@@ -35,8 +39,10 @@ $script_name
 
 Launch a command in Kitty, using IPC if Kitty is already running.
 
+If no command is provided, opens an interactive login shell.
+
 Usage:
-  $script_name [options] -- command [args...]
+  $script_name [options] [-- command [args...]]
 
 Options:
   --tab              Open in a new Kitty tab (default)
@@ -44,19 +50,60 @@ Options:
   --os-window        Open in a new top-level OS window
   --cwd DIR          Working directory for launched command
   --title TITLE      Window/tab title
-  --keep-focus       Do not focus the newly launched Kitty window/tab
-  --socket ADDR      Kitty IPC address (default: auto-detect)
+  --keep-focus       Do not focus the newly launched Kitty window/tab internally
+  --activate         Activate Kitty.app after launch (default)
+  --no-activate      Do not activate Kitty.app after launch
+  --socket ADDR      Kitty IPC address
   --no-detach        Do not detach when starting Kitty fallback
+  --debug            Print chosen socket and command
   -h, --help         Show help
 
 Environment:
-  KITTY_LAUNCH_SOCKET  Prefer this socket address.
+  KITTY_LAUNCH_SOCKET  Override socket address.
+  KITTY_LISTEN_ON      Used automatically when running inside Kitty.
+  SHELL                Shell used when no command is provided.
+
+Current defaults:
+  socket: $configured_socket_addr
+  shell:  $default_shell
 
 Examples:
+  $script_name
+  $script_name --cwd ~/Downloads
   $script_name --tab -- zsh -lc 'cd ~/src && hx .'
   $script_name --window -- yazi ~/Downloads
   $script_name --os-window -- zsh -l
 EOF
+}
+
+normalize_cwd() {
+  local input="${1:-}"
+  local resolved=""
+
+  # ForkLift may pass newline-separated selected paths.
+  # zsh: split scalar into lines.
+  local -a selected_paths
+  selected_paths=( "${(@f)input}" )
+
+  resolved="${selected_paths[1]:-}"
+
+  # Empty input: use HOME.
+  if [[ -z "$resolved" ]]; then
+    print -r -- "$HOME"
+    return 0
+  fi
+
+  # Trim trailing slash except root.
+  if [[ "$resolved" != "/" ]]; then
+    resolved="${resolved%/}"
+  fi
+
+  # If selected item is a file, use its containing directory.
+  if [[ -f "$resolved" ]]; then
+    resolved="${resolved:h}"
+  fi
+
+  print -r -- "$resolved"
 }
 
 while (( $# )); do
@@ -78,7 +125,7 @@ while (( $# )); do
         print -u2 -- "missing argument for --cwd"
         exit 2
       }
-      cwd="$2"
+      cwd="$(normalize_cwd "$2")"
       shift 2
       ;;
     --title)
@@ -93,17 +140,29 @@ while (( $# )); do
       keep_focus=true
       shift
       ;;
+    --activate)
+      activate=true
+      shift
+      ;;
+    --no-activate)
+      activate=false
+      shift
+      ;;
     --socket)
       (( $# >= 2 )) || {
         print -u2 -- "missing argument for --socket"
         exit 2
       }
+      configured_socket_addr="$2"
       socket_addr="$2"
-      socket_arg_provided=true
       shift 2
       ;;
     --no-detach)
       detach=false
+      shift
+      ;;
+    --debug)
+      debug=true
       shift
       ;;
     -h|--help)
@@ -124,16 +183,20 @@ while (( $# )); do
   esac
 done
 
-(( $# )) || {
-  print -u2 -- "missing command"
-  print -u2 -- "try: $script_name -- zsh -l"
-  exit 2
-}
-
-command_argv=( "$@" )
+if (( $# )); then
+  command_argv=( "$@" )
+else
+  command_argv=( "$default_shell" -l )
+fi
 
 have() {
   command -v "$1" >/dev/null 2>&1
+}
+
+activate_kitty() {
+  osascript -e 'tell application id "net.kovidgoyal.kitty" to activate' >/dev/null 2>&1 || \
+  osascript -e 'tell application "kitty" to activate' >/dev/null 2>&1 || \
+  true
 }
 
 have kitty || {
@@ -141,88 +204,65 @@ have kitty || {
   exit 127
 }
 
-# Prefer standalone kitten if available, otherwise use `kitty +kitten`.
 if have kitten; then
   kitten_cmd=( kitten )
 else
   kitten_cmd=( kitty +kitten )
 fi
 
-normalize_socket_addr() {
-  local addr="$1"
-  [[ -n "$addr" ]] || return 1
-
-  if [[ "$addr" == unix:* || "$addr" == tcp:* ]]; then
-    print -r -- "$addr"
-  else
-    print -r -- "unix:$addr"
-  fi
+reachable_socket() {
+  local candidate="$1"
+  "${kitten_cmd[@]}" @ --to "$candidate" ls >/dev/null 2>&1
 }
 
-add_socket_candidate() {
-  local addr normalized existing
-  addr="$1"
-  normalized="$(normalize_socket_addr "$addr")" || return 0
+discover_socket() {
+  local candidate
 
-  for existing in "${socket_candidates[@]}"; do
-    [[ "$existing" == "$normalized" ]] && return 0
-  done
-
-  socket_candidates+=( "$normalized" )
-}
-
-kitty_config_listen_on() {
-  local -a config_files xdg_dirs
-  local file line value dir
-
-  if [[ -n ${KITTY_CONFIG_DIRECTORY:-} ]]; then
-    config_files=( "$KITTY_CONFIG_DIRECTORY/kitty.conf" )
-  else
-    [[ -n ${XDG_CONFIG_HOME:-} ]] && config_files+=( "$XDG_CONFIG_HOME/kitty/kitty.conf" )
-    config_files+=( "$HOME/.config/kitty/kitty.conf" "$HOME/Library/Preferences/kitty/kitty.conf" )
-    xdg_dirs=( "${(@ps/:/)${XDG_CONFIG_DIRS:-/etc/xdg}}" )
-    for dir in "${xdg_dirs[@]}"; do
-      config_files+=( "$dir/kitty/kitty.conf" )
-    done
+  # 1. Explicit/configured socket first.
+  if reachable_socket "$configured_socket_addr"; then
+    print -r -- "$configured_socket_addr"
+    return 0
   fi
 
-  for file in "${config_files[@]}"; do
-    [[ -r "$file" ]] || continue
+  # 2. Common fixed socket.
+  candidate="unix:/tmp/kitty-${user_name}"
+  if [[ "$candidate" != "$configured_socket_addr" ]] && reachable_socket "$candidate"; then
+    print -r -- "$candidate"
+    return 0
+  fi
 
-    while IFS= read -r line; do
-      line="${line%%#*}"
-      line="${line#"${line%%[![:space:]]*}"}"
-      [[ "$line" == listen_on[[:space:]]* ]] || continue
+  # 3. Scan Kitty socket-looking files in /tmp.
+  local socket_file
+  for socket_file in /tmp/kitty-* /tmp/kitty.*(N); do
+    [[ -S "$socket_file" ]] || continue
 
-      value="${line#listen_on}"
-      value="${value#"${value%%[![:space:]]*}"}"
-      value="${value%%[[:space:]]*}"
-      [[ -n "$value" ]] || continue
-
-      print -r -- "$value"
+    candidate="unix:$socket_file"
+    if reachable_socket "$candidate"; then
+      print -r -- "$candidate"
       return 0
-    done < "$file"
+    fi
   done
 
   return 1
 }
 
-add_runtime_kitty_sockets() {
-  local socket
+if discovered_socket="$(discover_socket)"; then
+  socket_addr="$discovered_socket"
 
-  for socket in /tmp/kitty*(N); do
-    [[ -S "$socket" && -O "$socket" ]] || continue
-    add_socket_candidate "unix:$socket"
-  done
-}
-
-launch_via_socket() {
-  local target="$1"
-  local -a launch_args
+  $debug && {
+    print -u2 -- "mode:            ipc"
+    print -u2 -- "socket:          $socket_addr"
+    print -u2 -- "launch_type:     $launch_type"
+    print -u2 -- "cwd:             ${cwd:-}"
+    print -u2 -- "title:           ${title:-}"
+    print -u2 -- "keep_focus:      $keep_focus"
+    print -u2 -- "activate:        $activate"
+    print -u2 -- "command:         ${(q)command_argv[@]}"
+  }
 
   launch_args=(
     @
-    --to "$target"
+    --to "$socket_addr"
     launch
     --type "$launch_type"
   )
@@ -231,47 +271,50 @@ launch_via_socket() {
   [[ -n "$title" ]] && launch_args+=( --title "$title" )
   $keep_focus && launch_args+=( --keep-focus )
 
-  exec "${kitten_cmd[@]}" "${launch_args[@]}" -- "${command_argv[@]}"
-}
+  "${kitten_cmd[@]}" "${launch_args[@]}" -- "${command_argv[@]}"
 
-socket_candidates=()
+  $activate && activate_kitty
 
-[[ -n "$socket_addr" ]] && add_socket_candidate "$socket_addr"
-
-if ! $socket_arg_provided; then
-  [[ -n ${KITTY_LISTEN_ON:-} ]] && add_socket_candidate "$KITTY_LISTEN_ON"
-
-  if config_socket="$(kitty_config_listen_on 2>/dev/null)"; then
-    add_socket_candidate "$config_socket"
-  fi
-
-  add_socket_candidate "unix:/tmp/kitty"
-  add_socket_candidate "unix:/tmp/kitty-$USER"
-  add_runtime_kitty_sockets
+  exit 0
 fi
 
-fallback_socket="${socket_candidates[1]:-unix:/tmp/kitty}"
+$debug && {
+  print -u2 -- "mode:            fallback-new-kitty"
+  print -u2 -- "socket:          $socket_addr"
+  print -u2 -- "launch_type:     $launch_type"
+  print -u2 -- "cwd:             ${cwd:-}"
+  print -u2 -- "title:           ${title:-}"
+  print -u2 -- "activate:        $activate"
+  print -u2 -- "detach:          $detach"
+  print -u2 -- "command:         ${(q)command_argv[@]}"
+}
 
-# Probe IPC. `ls` is cheap and fails if Kitty is not reachable.
-for socket_addr in "${socket_candidates[@]}"; do
-  if "${kitten_cmd[@]}" @ --to "$socket_addr" ls >/dev/null 2>&1; then
-    launch_via_socket "$socket_addr"
-  fi
-done
-
-# Fallback: no live IPC socket. Start a new Kitty instance with the same socket.
 kitty_args=(
-  --listen-on "$fallback_socket"
+  --listen-on "$socket_addr"
   -o allow_remote_control=socket-only
 )
 
 [[ -n "$cwd" ]] && kitty_args+=( --directory "$cwd" )
 [[ -n "$title" ]] && kitty_args+=( --title "$title" )
 
+case "$launch_type" in
+  os-window)
+    # Starting a fresh Kitty app already creates an OS window.
+    ;;
+  tab|window)
+    # Fallback cannot create a tab/window inside a non-existent Kitty instance;
+    # this starts a fresh OS window instead.
+    ;;
+esac
+
 if $detach; then
-  # macOS-friendly detached launch from Shortcuts/ForkLift/other terminals.
   nohup kitty "${kitty_args[@]}" -- "${command_argv[@]}" >/dev/null 2>&1 &
   disown
+
+  $activate && activate_kitty
+
+  exit 0
 else
+  $activate && activate_kitty
   exec kitty "${kitty_args[@]}" -- "${command_argv[@]}"
 fi
