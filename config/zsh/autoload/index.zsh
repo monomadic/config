@@ -15,34 +15,34 @@ mpv-play-local() {
 alias .play-local=mpv-play-local
 
 
-index-update() {
-  emulate -L zsh
+# index-update() {
+#   emulate -L zsh
 
-  [[ -d "$1" ]] && {
-    fd --type f --hidden --exclude '.*' --search-path "$1" || {
-      echo "Error: Failed to index directory '$1'." >&2
-      return 1
-    }
-  } || {
-    echo "Warning: Directory '$1' does not exist." >&2
-    return 1
-  }
-}
+#   [[ -d "$1" ]] && {
+#     fd --type f --hidden --exclude '.*' --search-path "$1" || {
+#       echo "Error: Failed to index directory '$1'." >&2
+#       return 1
+#     }
+#   } || {
+#     echo "Warning: Directory '$1' does not exist." >&2
+#     return 1
+#   }
+# }
 
-index-cat() {
-  cat $INDEX_DIR/*.txt
-}
+# index-cat() {
+#   cat $INDEX_DIR/*.txt
+# }
 
-index-cat-checked() {
-  cat $INDEX_DIR/*.txt | while read -r filepath; do
-    [[ -f "$filepath" ]] && echo "$filepath"
-  done
-}
+# index-cat-checked() {
+#   cat $INDEX_DIR/*.txt | while read -r filepath; do
+#     [[ -f "$filepath" ]] && echo "$filepath"
+#   done
+# }
 
-index-play() {
-  index-cat | fzf-play
-}
-alias @play-index=index-play
+# index-play() {
+#   index-cat | fzf-play
+# }
+# alias @play-index=index-play
 
 grep-top() {
   grep -E '(?i)\[TOP\]|🎖️|\[\*\]|\#top'
