@@ -30,17 +30,11 @@ local function has_next_entry()
 end
 
 local function play_previous_entry()
-    if has_previous_entry() then
-        mp.commandv("playlist-prev", "force")
-    else
-        mp.commandv("seek", "0", "absolute")
-    end
+    mp.commandv("playlist-prev", "force")
 end
 
 local function play_next_entry()
-    if has_next_entry() then
-        mp.commandv("playlist-next", "force")
-    end
+    mp.commandv("playlist-next", "force")
 end
 
 local function get_chapter_count()
