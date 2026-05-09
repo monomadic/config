@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="PAD FX">
+  <pad1 name="ECHO" color="color 'yellow'" query="padfx 'Echo'"
+    right_click="popup 'Activate=[var_set pad1_fx Echo &amp; padfx &quot;Echo&quot; 30% 60%]\nDeactivate=[padfx_stop &quot;Echo&quot;]\nEdit=[effect_show_gui &quot;Echo&quot;]'">
+    var_set pad1_fx Echo &amp; padfx "Echo" 30% 60%
+  </pad1>
+
+  <pad2 name="ECHO OUT" color="color 'yellow'" query="padfx 'Echo Out'"
+    right_click="popup 'Activate=[var_set pad2_fx Echo_Out &amp; padfx &quot;Echo Out&quot; 90% 80% 10%]\nDeactivate=[padfx_stop &quot;Echo Out&quot;]\nEdit=[effect_show_gui &quot;Echo Out&quot;]'">
+    var_set pad2_fx Echo_Out &amp; padfx "Echo Out" 90% 80% 10%
+  </pad2>
+
+  <pad3 name="REVERB" color="color 'yellow'" query="padfx 'Reverb'"
+    right_click="popup 'Activate=[var_set pad3_fx Reverb &amp; padfx &quot;Reverb&quot; 45% 30%]\nDeactivate=[padfx_stop &quot;Reverb&quot;]\nEdit=[effect_show_gui &quot;Reverb&quot;]'">
+    var_set pad3_fx Reverb &amp; padfx "Reverb" 45% 30%
+  </pad3>
+
+  <pad4 name="DELAY" color="color 'yellow'" query="padfx 'Delay'"
+    right_click="popup 'Activate=[var_set pad4_fx Delay &amp; padfx &quot;Delay&quot; 40% 60%]\nDeactivate=[padfx_stop &quot;Delay&quot;]\nEdit=[effect_show_gui &quot;Delay&quot;]'">
+    var_set pad4_fx Delay &amp; padfx "Delay" 40% 60%
+  </pad4>
+
+  <pad5 name="LOOP ROLL 1" color="color 'yellow'" query="padfx 'Loop Roll'"
+    right_click="popup 'Activate=[var_set pad5_fx Loop_Roll &amp; padfx &quot;Loop Roll&quot; 60% 100%]\nDeactivate=[padfx_stop &quot;Loop Roll&quot;]\nEdit=[effect_show_gui &quot;Loop Roll&quot;]'">
+    var_set pad5_fx Loop_Roll &amp; padfx "Loop Roll" 60% 100%
+  </pad5>
+  <shift_pad5 name="[EDIT] LOOP ROLL" color="color 'yellow'" query="effect_show_gui 'loop roll'">effect_show_gui 'loop roll'</shift_pad5>
+
+  <pad6 name="LOOP ROLL 1/2" color="color 'yellow'" query="padfx 'Loop Roll'"
+    right_click="popup 'Activate=[var_set pad6_fx Loop_Roll &amp; padfx &quot;Loop Roll&quot; 60% 75%]\nDeactivate=[padfx_stop &quot;Loop Roll&quot;]\nEdit=[effect_show_gui &quot;Loop Roll&quot;]'">
+    var_set pad6_fx Loop_Roll &amp; padfx "Loop Roll" 60% 75%
+  </pad6>
+  <shift_pad6 name="[EDIT] LOOP ROLL" color="color 'yellow'" query="effect_show_gui 'loop roll'">effect_show_gui 'loop roll'</shift_pad6>
+
+  <!-- Cut: 1 strength %, 2 length bt, 3 duty %, 4 swing % -->
+  <pad7 name="CUT 1/2" color="color 'yellow'" query="padfx 'Cut'"
+    right_click="popup 'Activate=[var_set pad7_fx Cut &amp; padfx &quot;Cut&quot; 60% 50%]\nDeactivate=[padfx_stop &quot;Cut&quot;]\nEdit=[effect_show_gui &quot;Cut&quot;]'">
+    var_set pad7_fx Cut &amp; padfx "Cut" 60% 50%
+  </pad7>
+  <shift_pad7 name="[EDIT] CUT" color="color 'yellow'" query="effect_show_gui 'cut'">effect_show_gui 'cut'</shift_pad7>
+
+  <pad8 name="CUT 1/4" color="color 'yellow'" query="padfx 'Cut'"
+    right_click="popup 'Activate=[var_set pad8_fx Cut &amp; padfx &quot;Cut&quot; 65% 40%]\nDeactivate=[padfx_stop &quot;Cut&quot;]\nEdit=[effect_show_gui &quot;Cut&quot;]'">
+    var_set pad8_fx Cut &amp; padfx "Cut" 65% 40%
+  </pad8>
+  <shift_pad8 name="[EDIT] CUT" color="color 'yellow'" query="effect_show_gui 'cut'">effect_show_gui 'cut'</shift_pad8>
+
+  <pad12 name="SELECT" color="color white">effect_select</pad12>
+  <pad13 name="VOCAL FX" color="stem_color 'vocal'">effect_stems 'vocal'</pad13>
+  <pad14 name="INSTR FX" color="stem_color 'melody'">effect_stems 'melody'</pad14>
+  <pad15 name="DRUM FX" color="stem_color 'rhythm'">effect_stems 'rhythm'</pad15>
+  <pad16 name="PAD FX" color="color 'yellow'" query="effects_used 'padfx'">effect_disable_all 'padfx' &amp; filter 50%</pad16>
+
+  <menu>SELECT =[effect_select]
+    EDIT =[effect_show_gui 'padfx']</menu>
+  <param1 name="PAD FX">pad_page "COLOR FX"</param1>
+  <param2 name="SELECT FX">effect_select</param2>
+</page>

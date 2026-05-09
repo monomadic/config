@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="ENERGY">
+	<pad1 color="color &apos;#0042FF&apos;" name="INTRO">hotcue 17 ? play 17 : nothing</pad1>
+	<pad2 name="BUILD" color="color &apos;#0042FF&apos;">hotcue 18 ? play 18 : nothing</pad2>
+	<pad3 name="CUT">hotcue 19 ? play 19 : nothing</pad3>
+	<pad4 name="DROP">hotcue 20 ? play 20 : nothing</pad4>
+	<pad5 name="INTRO">hotcue 21 ? play 21 : nothing</pad5>
+	<pad6 name="BUILD">hotcue 22 ? play 22 : nothing</pad6>
+	<pad7 name="CUT">hotcue 23 ? play 23 : nothing</pad7>
+	<pad8 name="DROP">hotcue 24 ? play 24 : nothing</pad8>
+	<param1 name="JUMP">goto_cue</param1>
+	<param2 name="`setting hotcueMode &amp; param_uppercase`">setting hotcueMode</param2>
+</page>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="Groove">
+	<pad1 name="Groove 1">sampler_play 1 ? on &amp; sampler_used 1 ? stem &apos;FullRhythm&apos; 0.5 &amp; sampler_stop 1 : on &amp; sampler_stop 1 : off &amp; sampler_used 0 ? stem &apos;FullRhythm&apos; 0 &amp; sampler_play 1 &amp; sampler_select 1 : sampler_play 1 &amp; sampler_select 1</pad1>
+	<pad2 name="Groove 2">sampler_play 2 ? on &amp; sampler_used 1 ? stem &apos;FullRhythm&apos; 0.5 &amp; sampler_stop 2 : on &amp; sampler_stop 2 : off &amp; sampler_used 0 ? stem &apos;FullRhythm&apos; 0 &amp; sampler_play 2 &amp; sampler_select 2 : sampler_play 2 &amp; sampler_select 2</pad2>
+	<pad3 name="Groove 3">sampler_play 3 ? on &amp; sampler_used 1 ? stem &apos;FullRhythm&apos; 0.5 &amp; sampler_stop 3 : on &amp; sampler_stop 3 : off &amp; sampler_used 0 ? stem &apos;FullRhythm&apos; 0 &amp; sampler_play 3 &amp; sampler_select 3 : sampler_play 3 &amp; sampler_select 3</pad3>
+	<pad4 name="Groove 4">sampler_play 4 ? on &amp; sampler_used 1 ? stem &apos;FullRhythm&apos; 0.5 &amp; sampler_stop 4 : on &amp; sampler_stop 4 : off &amp; sampler_used 0 ? stem &apos;FullRhythm&apos; 0 &amp; sampler_play 4 &amp; sampler_select 4 : sampler_play 4 &amp; sampler_select 4</pad4>
+	<pad5 name="Groove 5">sampler_play 5 ? on &amp; sampler_used 1 ? stem &apos;FullRhythm&apos; 0.5 &amp; sampler_stop 5 : on &amp; sampler_stop 5 : off &amp; sampler_used 0 ? stem &apos;FullRhythm&apos; 0 &amp; sampler_play 5 &amp; sampler_select 5 : sampler_play 5 &amp; sampler_select 5</pad5>
+	<pad6 name="Groove 6">sampler_play 6 ? on &amp; sampler_used 1 ? stem &apos;FullRhythm&apos; 0.5 &amp; sampler_stop 6 : on &amp; sampler_stop 6 : off &amp; sampler_used 0 ? stem &apos;FullRhythm&apos; 0 &amp; sampler_play 6 &amp; sampler_select 6 : sampler_play 6 &amp; sampler_select 6</pad6>
+	<pad7 name="Groove 7">sampler_play 7 ? on &amp; sampler_used 1 ? stem &apos;FullRhythm&apos; 0.5 &amp; sampler_stop 7 : on &amp; sampler_stop 7 : off &amp; sampler_used 0 ? stem &apos;FullRhythm&apos; 0 &amp; sampler_play 7 &amp; sampler_select 7 : sampler_play 7 &amp; sampler_select 7</pad7>
+	<pad8 name="Groove 8">sampler_play 8 ? on &amp; sampler_used 1 ? stem &apos;FullRhythm&apos; 0.5 &amp; sampler_stop 8 : on &amp; sampler_stop 8 : off &amp; sampler_used 0 ? stem &apos;FullRhythm&apos; 0 &amp; sampler_play 8 &amp; sampler_select 8 : sampler_play 8 &amp; sampler_select 8</pad8>
+	<shift_pad1 name="ROLL">sampler_loop &quot;current&quot; 0.125 &quot;play&quot; while_pressed</shift_pad1>
+	<shift_pad2 name="ROLL">sampler_loop &quot;current&quot; 0.25 &quot;play&quot; while_pressed</shift_pad2>
+	<shift_pad3 name="ROLL">sampler_loop &quot;current&quot; 0.5 &quot;play&quot; while_pressed </shift_pad3>
+	<shift_pad4 name="ROLL">sampler_loop &quot;current&quot; 1 &quot;play&quot; while_pressed </shift_pad4>
+	<shift_pad5 name="ECHO">effect_active &quot;sampler&quot; &quot;echo out&quot; while_pressed </shift_pad5>
+	<shift_pad6 name="DELAY">effect_active &quot;sampler&quot; &quot;delay&quot; while_pressed </shift_pad6>
+	<shift_pad7 name=" " />
+	<shift_pad8 name="STOP" color="color &apos;red&apos;">sampler_stop all &amp; stem &apos;FullRhythm&apos; 0.5 </shift_pad8>
+	<param1 name="VOL `sampler_volume_master &amp;param_cast &apos;percentage&apos; ` ">sampler_volume_master</param1>
+	<param2 />
+</page>

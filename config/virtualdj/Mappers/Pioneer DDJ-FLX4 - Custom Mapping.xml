@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper device="PIFLX4" author="Atomix Productions" version="850" date="2025-11-19">
+	<info>https://www.virtualdj.com/manuals/hardware/pioneer/ddjflx4.html</info>
+	<map value="ONINIT" action="fake_hp on &amp; fake_master on &amp; fake_hpmix on" />
+	<map value="ONEXIT" action="fake_hp off &amp; fake_master off on &amp; fake_hpmix off" />
+	<map value="DNC_MODE" action="blink 200ms" />
+	<map value="JOG" action="pitch +1 bpm" />
+	<map value="JOG_OUT" action="touchwheel" />
+	<map value="SHIFT_JOG" action="touchwheel &apos;search&apos;" />
+	<map value="JOG_TOUCH" action="touchwheel_touch" />
+	<map value="SHIFT_JOG_TOUCH" action="touchwheel_touch &apos;search&apos;" />
+	<map value="SHIFT" action="shift" />
+	<map value="LED_VINYL" action="vinyl_mode" />
+	<map value="OPT_FADER_START" action="setting &apos;PIFLX4-FaderStartStop&apos; ? true : false" />
+	<map value="PLAY_PAUSE" action="pioneer_play" />
+	<map value="SHIFT_PLAY_PAUSE" action="play_stutter" />
+	<map value="SHIFT_CUE" action="goto_start" />
+	<map value="SYNC" action="sync" />
+	<map value="SYNC_LONG" action="masterdeck" />
+	<map value="SHIFT_SYNC" action="pitch_range +1" />
+	<map value="LED_SYNC" action="is_sync" />
+	<map value="4BEAT_LOOP" action="loop ? loop 4 ? loop off : loop_select 4 : loop 4" />
+	<map value="LOOP_IN" action="pitch -1 bpm" />
+	<map value="LOOP_OUT" action="pioneer_loop_out" />
+	<map value="SHIFT_LOOP_IN" action="loop_adjust &apos;in&apos;" />
+	<map value="SHIFT_LOOP_OUT" action="loop_adjust &apos;out&apos;" />
+	<map value="LED_LOOP_IN" action="loop_adjust &apos;in&apos; ? blink 300ms : pioneer_loop_in" />
+	<map value="LED_LOOP_OUT" action="loop_adjust &apos;out&apos; ? blink 300ms : pioneer_loop_out" />
+	<map value="SHIFT_LED_LOOP_IN" action="loop_adjust &apos;in&apos;" />
+	<map value="SHIFT_LED_LOOP_OUT" action="loop_adjust &apos;out&apos;" />
+	<map value="RELOOP" action="reloop_exit" />
+	<map value="LED_RELOOP" action="loop ? blink : reloop_exit" />
+	<map value="SHIFT_RELOOP" action="reloop_exit" />
+	<map value="CUE_CALL-" action="loop ? loop_half : saved_loop -1" />
+	<map value="CUE_CALL+" action="loop ? loop_double : saved_loop +1" />
+	<map value="SHIFT_CUE_CALL-" action="loop_delete" />
+	<map value="SHIFT_CUE_CALL+" action="loop_save" />
+	<map value="PITCH" action="pitch" />
+	<map value="LOAD" action="doubleclick ? clone_from_deck : load" />
+	<map value="SHIFT_LOAD" action="device_side &apos;left&apos; ? browser_window &apos;sideview&apos; : sideview +1" />
+	<map value="LED_LOADED" action="load_pulse" />
+	<map value="BROWSE_ENC" action="browser_scroll" />
+	<map value="BROWSE_ENC_PUSH" action="browser_window &apos;folders,songs&apos;" />
+	<map value="SHIFT_BROWSE_ENC" action="browser_scroll" />
+	<map value="SHIFT_BROWSE_ENC_PUSH" action="browser_folder" />
+	<map value="GAIN" action="gain" />
+	<map value="EQ_HIGH" action="eq_high" />
+	<map value="EQ_MID" action="eq_mid" />
+	<map value="EQ_LOW" action="eq_low" />
+	<map value="VOLUME" action="volume" />
+	<map value="FILTER" action="filter" />
+	<map value="PFL" action="pfl" />
+	<map value="SHIFT_PFL_MASTER" action="record" />
+	<map value="CROSSFADER" action="crossfader" />
+	<map value="MASTER_VOL" action="master_volume" />
+	<map value="HEADPHONES_VOL" action="headphone_volume" />
+	<map value="SHIFT_FADER_START_PLAY" action="loaded ? play : nothing" />
+	<map value="SHIFT_FADER_START_CUE" action="loaded ? stop : nothing" />
+	<map value="HEADPHONES_MIX" action="headphone_mix" />
+	<map value="VU_METER" action="get_level" />
+	<map value="FX_ASSIGN" action="down ? set &apos;DDJFLX4FX&apos; 1 : set &apos;DDJFLX4FX&apos; 0" />
+	<map value="FX_ON" action="deck left var &apos;DDJFLX4FX&apos; ? deck right var &apos;DDJFLX4FX&apos; ? deck all effect_active : deck left effect_active : deck right var &apos;DDJFLX4FX&apos; ? deck right effect_active : nothing" />
+	<map value="FX_LEVEL" action="deck all effect_slider 1" />
+	<map value="FX_SELECT" action="deck left var &apos;DDJFLX4FX&apos; ? deck right var &apos;DDJFLX4FX&apos; ? deck all effect_select +1 : deck left effect_select +1 : deck right var &apos;DDJFLX4FX&apos; ? deck right effect_select +1" />
+	<map value="SHIFT_FX_SELECT" action="deck left var &apos;DDJFLX4FX&apos; ? deck right var &apos;DDJFLX4FX&apos; ? deck all effect_select -1 : deck left effect_select -1 : deck right var &apos;DDJFLX4FX&apos; ? deck right effect_select -1" />
+	<map value="FX_BEATS-" action="deck left var &apos;DDJFLX4FX&apos; ? deck right var &apos;DDJFLX4FX&apos; ? deck all effect_beats -1 : deck left effect_beats -1 : deck right var &apos;DDJFLX4FX&apos; ? deck right effect_beats -1" />
+	<map value="FX_BEATS+" action="deck left var &apos;DDJFLX4FX&apos; ? deck right var &apos;DDJFLX4FX&apos; ? deck all effect_beats +1 : deck left effect_beats +1 : deck right var &apos;DDJFLX4FX&apos; ? deck right effect_beats +1" />
+	<map value="SHIFT_FX_BEATS-" action="deck left var &apos;DDJFLX4FX&apos; ? deck right var &apos;DDJFLX4FX&apos; ? deck all reanalyze : deck left reanalyze : deck right var &apos;DDJFLX4FX&apos; ? deck right reanalyze" />
+	<map value="SHIFT_FX_BEATS+" action="deck left var &apos;DDJFLX4FX&apos; ? deck right var &apos;DDJFLX4FX&apos; ? deck left beat_tap &amp; deck right beat_tap : deck left beat_tap : deck right var &apos;DDJFLX4FX&apos; ? deck right beat_tap" />
+	<map value="LED_SMART_COLOR" action="var &apos;$smcolor&apos;" />
+	<map value="SMART_FADER" action="smart_fader &amp; effect_mixfx_select &apos;Echo Out&apos; &amp; effect_mixfx_activate" />
+	<map value="LED_SMART_FADER" action="smart_fader &amp;&amp; effect_mixfx_select &apos;Echo Out&apos; &amp;&amp; effect_mixfx_activate" />
+	<map value="SHIFT_SMART_FADER" action="smart_fader &amp; effect_mixfx_select &apos;Reverb&apos; &amp; effect_mixfx_activate" />
+	<map value="LED_SMART_FADER_FLASH" action="smart_fader &amp;&amp; effect_mixfx_select &apos;Reverb&apos; &amp;&amp; effect_mixfx_activate" />
+	<map value="PAD_MODE_HOTCUE" action="pad_page 1" />
+	<map value="PAD_MODE_BEATLOOP" action="pad_page 7" />
+	<map value="PAD_MODE_BEATJUMP" action="pad_page 3" />
+	<map value="PAD_MODE_SAMPLER" action="pad_page 4" />
+	<map value="PAD_MODE_KEYBOARD" action="pad_page 5" />
+	<map value="PAD_MODE_PADFX1" action="pad_page 2" />
+	<map value="PAD_MODE_PADFX2" action="pad_page 6" />
+	<map value="PAD_MODE_KEYSHIFT" action="pad_page 8" />
+	<map value="HOTCUE_PAD1" action="pad 1" />
+	<map value="HOTCUE_PAD2" action="pad 2" />
+	<map value="HOTCUE_PAD3" action="pad 3" />
+	<map value="HOTCUE_PAD4" action="pad 4" />
+	<map value="HOTCUE_PAD5" action="pad 5" />
+	<map value="HOTCUE_PAD6" action="pad 6" />
+	<map value="HOTCUE_PAD7" action="pad 7" />
+	<map value="HOTCUE_PAD8" action="pad 8" />
+	<map value="SHIFT_HOTCUE_PAD1" action="padshift 1" />
+	<map value="SHIFT_HOTCUE_PAD2" action="padshift 2" />
+	<map value="SHIFT_HOTCUE_PAD3" action="padshift 3" />
+	<map value="SHIFT_HOTCUE_PAD4" action="padshift 4" />
+	<map value="SHIFT_HOTCUE_PAD5" action="padshift 5" />
+	<map value="SHIFT_HOTCUE_PAD6" action="padshift 6" />
+	<map value="SHIFT_HOTCUE_PAD7" action="padshift 7" />
+	<map value="SHIFT_HOTCUE_PAD8" action="padshift 8" />
+	<map value="PADFX1_PAD1" action="pad 1" />
+	<map value="PADFX1_PAD2" action="pad 2" />
+	<map value="PADFX1_PAD3" action="pad 3" />
+	<map value="PADFX1_PAD4" action="pad 4" />
+	<map value="PADFX1_PAD5" action="pad 5" />
+	<map value="PADFX1_PAD6" action="pad 6" />
+	<map value="PADFX1_PAD7" action="pad 7" />
+	<map value="PADFX1_PAD8" action="pad 8" />
+	<map value="SHIFT_PADFX1_PAD1" action="padshift 1" />
+	<map value="SHIFT_PADFX1_PAD2" action="padshift 2" />
+	<map value="SHIFT_PADFX1_PAD3" action="padshift 3" />
+	<map value="SHIFT_PADFX1_PAD4" action="padshift 4" />
+	<map value="SHIFT_PADFX1_PAD5" action="padshift 5" />
+	<map value="SHIFT_PADFX1_PAD6" action="padshift 6" />
+	<map value="SHIFT_PADFX1_PAD7" action="padshift 7" />
+	<map value="SHIFT_PADFX1_PAD8" action="padshift 8" />
+	<map value="BEATJUMP_PAD1" action="pad 1" />
+	<map value="BEATJUMP_PAD2" action="pad 2" />
+	<map value="BEATJUMP_PAD3" action="pad 3" />
+	<map value="BEATJUMP_PAD4" action="pad 4" />
+	<map value="BEATJUMP_PAD5" action="pad 5" />
+	<map value="BEATJUMP_PAD6" action="pad 6" />
+	<map value="BEATJUMP_PAD7" action="pad 7" />
+	<map value="BEATJUMP_PAD8" action="pad 8" />
+	<map value="SHIFT_BEATJUMP_PAD1" action="padshift 1" />
+	<map value="SHIFT_BEATJUMP_PAD2" action="padshift 2" />
+	<map value="SHIFT_BEATJUMP_PAD3" action="padshift 3" />
+	<map value="SHIFT_BEATJUMP_PAD4" action="padshift 4" />
+	<map value="SHIFT_BEATJUMP_PAD5" action="padshift 5" />
+	<map value="SHIFT_BEATJUMP_PAD6" action="padshift 6" />
+	<map value="SHIFT_BEATJUMP_PAD7" action="padshift 7" />
+	<map value="SHIFT_BEATJUMP_PAD8" action="padshift 8" />
+	<map value="SAMPLER_PAD1" action="pad 1" />
+	<map value="SAMPLER_PAD2" action="pad 2" />
+	<map value="SAMPLER_PAD3" action="pad 3" />
+	<map value="SAMPLER_PAD4" action="pad 4" />
+	<map value="SAMPLER_PAD5" action="pad 5" />
+	<map value="SAMPLER_PAD6" action="pad 6" />
+	<map value="SAMPLER_PAD7" action="pad 7" />
+	<map value="SAMPLER_PAD8" action="pad 8" />
+	<map value="SHIFT_SAMPLER_PAD1" action="padshift 1" />
+	<map value="SHIFT_SAMPLER_PAD2" action="padshift 2" />
+	<map value="SHIFT_SAMPLER_PAD3" action="padshift 3" />
+	<map value="SHIFT_SAMPLER_PAD4" action="padshift 4" />
+	<map value="SHIFT_SAMPLER_PAD5" action="padshift 5" />
+	<map value="SHIFT_SAMPLER_PAD6" action="padshift 6" />
+	<map value="SHIFT_SAMPLER_PAD7" action="padshift 7" />
+	<map value="SHIFT_SAMPLER_PAD8" action="padshift 8" />
+	<map value="KEYBOARD_PAD1" action="pad 1" />
+	<map value="KEYBOARD_PAD2" action="pad 2" />
+	<map value="KEYBOARD_PAD3" action="pad 3" />
+	<map value="KEYBOARD_PAD4" action="pad 4" />
+	<map value="KEYBOARD_PAD5" action="pad 5" />
+	<map value="KEYBOARD_PAD6" action="pad 6" />
+	<map value="KEYBOARD_PAD7" action="pad 7" />
+	<map value="KEYBOARD_PAD8" action="pad 8" />
+	<map value="SHIFT_KEYBOARD_PAD1" action="padshift 1" />
+	<map value="SHIFT_KEYBOARD_PAD2" action="padshift 2" />
+	<map value="SHIFT_KEYBOARD_PAD3" action="padshift 3" />
+	<map value="SHIFT_KEYBOARD_PAD4" action="padshift 4" />
+	<map value="SHIFT_KEYBOARD_PAD5" action="padshift 5" />
+	<map value="SHIFT_KEYBOARD_PAD6" action="padshift 6" />
+	<map value="SHIFT_KEYBOARD_PAD7" action="padshift 7" />
+	<map value="SHIFT_KEYBOARD_PAD8" action="padshift 8" />
+	<map value="PADFX2_PAD1" action="pad 1" />
+	<map value="PADFX2_PAD2" action="pad 2" />
+	<map value="PADFX2_PAD3" action="pad 3" />
+	<map value="PADFX2_PAD4" action="pad 4" />
+	<map value="PADFX2_PAD5" action="pad 5" />
+	<map value="PADFX2_PAD6" action="pad 6" />
+	<map value="PADFX2_PAD7" action="pad 7" />
+	<map value="PADFX2_PAD8" action="pad 8" />
+	<map value="SHIFT_PADFX2_PAD1" action="padshift 1" />
+	<map value="SHIFT_PADFX2_PAD2" action="padshift 2" />
+	<map value="SHIFT_PADFX2_PAD3" action="padshift 3" />
+	<map value="SHIFT_PADFX2_PAD4" action="padshift 4" />
+	<map value="SHIFT_PADFX2_PAD5" action="padshift 5" />
+	<map value="SHIFT_PADFX2_PAD6" action="padshift 6" />
+	<map value="SHIFT_PADFX2_PAD7" action="padshift 7" />
+	<map value="SHIFT_PADFX2_PAD8" action="padshift 8" />
+	<map value="BEATLOOP_PAD1" action="pad 1" />
+	<map value="BEATLOOP_PAD2" action="pad 2" />
+	<map value="BEATLOOP_PAD3" action="pad 3" />
+	<map value="BEATLOOP_PAD4" action="pad 4" />
+	<map value="BEATLOOP_PAD5" action="pad 5" />
+	<map value="BEATLOOP_PAD6" action="pad 6" />
+	<map value="BEATLOOP_PAD7" action="pad 7" />
+	<map value="BEATLOOP_PAD8" action="pad 8" />
+	<map value="SHIFT_BEATLOOP_PAD1" action="padshift 1" />
+	<map value="SHIFT_BEATLOOP_PAD2" action="padshift 2" />
+	<map value="SHIFT_BEATLOOP_PAD3" action="padshift 3" />
+	<map value="SHIFT_BEATLOOP_PAD4" action="padshift 4" />
+	<map value="SHIFT_BEATLOOP_PAD5" action="padshift 5" />
+	<map value="SHIFT_BEATLOOP_PAD6" action="padshift 6" />
+	<map value="SHIFT_BEATLOOP_PAD7" action="padshift 7" />
+	<map value="KEYSHIFT_PAD1" action="pad 1" />
+	<map value="KEYSHIFT_PAD2" action="pad 2" />
+	<map value="KEYSHIFT_PAD3" action="pad 3" />
+	<map value="KEYSHIFT_PAD4" action="pad 4" />
+	<map value="KEYSHIFT_PAD5" action="pad 5" />
+	<map value="KEYSHIFT_PAD6" action="pad 6" />
+	<map value="KEYSHIFT_PAD7" action="pad 7" />
+	<map value="KEYSHIFT_PAD8" action="pad 8" />
+	<map value="SHIFT_KEYSHIFT_PAD1" action="padshift 1" />
+	<map value="SHIFT_KEYSHIFT_PAD2" action="padshift 2" />
+	<map value="SHIFT_KEYSHIFT_PAD3" action="padshift 3" />
+	<map value="SHIFT_KEYSHIFT_PAD4" action="padshift 4" />
+	<map value="SHIFT_KEYSHIFT_PAD5" action="padshift 5" />
+	<map value="SHIFT_KEYSHIFT_PAD6" action="padshift 6" />
+	<map value="SHIFT_KEYSHIFT_PAD7" action="padshift 7" />
+	<map value="SHIFT_KEYSHIFT_PAD8" action="padshift 8" />
+	<map value="SHIFT_SMART_COLOR" action="deck 1 load deck 2 &amp; deck 2 load deck 1" />
+	<map value="CUE" action="pioneer_cue" />
+</mapper>

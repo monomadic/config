@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="Pad-Stutter">
+  <!-- Pad 1: 1st green cue -->
+  <pad1 name="`get_var 'idx'`" color="4278255360" autodim="false">
+sort_cues &
+set 'idx' 0 &
+repeat_start_instant 'scan_first_green' 1ms 64 &
+  set 'idx' +1 &
+  has_cue `get_var 'idx'` ?
+    param_equal `cue_color `get_var 'idx'`` "green" ?
+      repeat_stop 'scan_first_green' & goto_cue `get_var 'idx'`
+    : nothing
+  : nothing
+  </pad1>
+</page>

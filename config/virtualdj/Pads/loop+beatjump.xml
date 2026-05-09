@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="loop+beatjump">
+	<pad1 name="`loop_pad 3`" color="color &apos;green&apos;">loop_pad 3</pad1>
+	<pad2 name="`loop_pad 4`" color="color &apos;green&apos;">loop_pad 4</pad2>
+	<pad3 name="`loop_pad 5`" color="color &apos;green&apos;">loop_pad 5</pad3>
+	<pad4 name="`loop_pad 6`" color="color &apos;green&apos;">loop_pad 6</pad4>
+	<pad5 name="`beatjump_pad 1`" color="beatjump_pad 1 &apos;color&apos;">beatjump_pad 1</pad5>
+	<pad6 name="`beatjump_pad 2`" color="beatjump_pad 2 &apos;color&apos;">beatjump_pad 2</pad6>
+	<pad7 name="`beatjump_pad 3`" color="beatjump_pad 3 &apos;color&apos;">beatjump_pad 3</pad7>
+	<pad8 name="`beatjump_pad 4`" color="beatjump_pad 4 &apos;color&apos;">beatjump_pad 4</pad8>
+	<shift_pad1 name="`loop_pad 1`" color="color &apos;green&apos;">loop_pad 1</shift_pad1>
+	<shift_pad2 name="`loop_pad 2`" color="color &apos;green&apos;">loop_pad 2</shift_pad2>
+	<shift_pad3 name="`loop_pad 7`" color="color &apos;green&apos;">loop_pad 7</shift_pad3>
+	<shift_pad4 name="`loop_pad 8`" color="color &apos;green&apos;">loop_pad 8</shift_pad4>
+	<shift_pad5 name="`beatjump_pad 5`" color="beatjump_pad 5 &apos;color&apos;">beatjump_pad 5</shift_pad5>
+	<shift_pad6 name="`beatjump_pad 6`" color="beatjump_pad 6 &apos;color&apos;">beatjump_pad 6</shift_pad6>
+	<shift_pad7 name="`beatjump_pad 7`" color="beatjump_pad 7 &apos;color&apos;">beatjump_pad 7</shift_pad7>
+	<shift_pad8 name="`beatjump_pad 8`" color="beatjump_pad 8 &apos;color&apos;">beatjump_pad 8</shift_pad8>
+	<param1 name="`loop_pad_page`">loop_pad_page</param1>
+	<param2 name="`beatjump_page`">beatjump_page</param2>
+	<menu>--loop
+`loop_pad_mode`</menu>
+</page>

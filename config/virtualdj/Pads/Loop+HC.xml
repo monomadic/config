@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page>
+	<pad1>goto_start</pad1>
+	<pad4>play_button</pad4>
+	<pad3>cue_button</pad3>
+	<pad2>stop_button</pad2>
+</page>

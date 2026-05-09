@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="TRANSPORT">
+  <pad1 name="KEY `match_key_button`" color="loaded ? masterdeck ? color orange : match_key ? color green : color red : color white" autodim="true" query="loaded ? masterdeck ? true : match_key ? true : blink 500ms">match_key</pad1>
+  <pad2 name="BEAT" color="loaded ? masterdeck ? color orange : is_sync ? color green : color red : color white" autodim="true" query="loaded ? masterdeck ? true : is_sync ? true : blink 500ms">sync</pad2>
+  <pad3 name="PHRASE `var_equal $phrase_len 16 ? get_text '16' : get_text '32'`" color="loaded ? masterdeck ? color orange : is_sync ? color green : color red : color white" autodim="true" query="loaded ? masterdeck ? true : is_sync '`$phrase_len`' ? on : blink 1bt">sync &amp; var_equal '$phrase_len' 16 ? phrase_sync 16 : phrase_sync 32</pad3>
+  <pad4 name="`masterdeck ? masterdeck_auto ? get_text 'MASTER [AUTO]' : get_text 'MASTER' : get_text 'SLAVE'`" query="masterdeck ? masterdeck_auto ? blink 2bt : true" color="masterdeck ? color orange : color white">masterdeck ? masterdeck_auto : masterdeck</pad4>
+  <!-- ROW 2 -->
+  <pad5 name="◀ BAR" color="color '#AA00FF'" autodim="false">goto -4</pad5>
+  <pad6 name="◀ CUE" color="color '#FF00AA'" autodim="false">goto_cue -1</pad6>
+  <pad7 name="CUE ▶" color="color '#FF00AA'" autodim="false">goto_cue +1</pad7>
+  <pad8 name="BAR  ▶" color="color '#AA00FF'" autodim="false">goto +4</pad8>
+  <!-- ROW 3 -->
+  <!-- <pad9 name="◀ HOTLOAD">deck left load & deck left goto_cue 1 & deck left only_stem 'Rhythm' on & deck left match_key & & deck right phrase_sync 16 & deck left play_sync</pad9> -->
+  <!-- <pad9 name="◀ CUE 1" color="color '#FF2600'" autodim="false">goto_cue 1</pad9> -->
+  <pad9 name="▼ PITCH" color="color '#F5D5FF'" autodim="false">pitch -1 bpm</pad9>
+  <pad10 name="▼ BPM" color="color '#75D5FF'" autodim="false">pitch -1 bpm</pad10>
+  <pad11 name="BPM ▲" color="color '#75D5FF'" autodim="false">pitch +1 bpm</pad11>
+  <pad10 query="true" name="`param_contains &quot;DROP&quot; &quot;`cue_name 1`&quot; ? cue_name 1 : param_contains &quot;DROP&quot; &quot;`cue_name 2`&quot; ? cue_name 2 : param_contains &quot;DROP&quot; &quot;`cue_name 3`&quot; ? cue_name 3 : param_contains &quot;DROP&quot; &quot;`cue_name 4`&quot; ? cue_name 4 : param_contains &quot;DROP&quot; &quot;`cue_name 5`&quot; ? cue_name 5 : param_contains &quot;DROP&quot; &quot;`cue_name 6`&quot; ? cue_name 6 : param_contains &quot;DROP&quot; &quot;`cue_name 7`&quot; ? cue_name 7 : param_contains &quot;DROP&quot; &quot;`cue_name 8`&quot; ? cue_name 8 : get_text &quot;&quot;`" color="param_contains &quot;DROP&quot; &quot;`cue_name 1`&quot; ? cue_color 1 : param_contains &quot;DROP&quot; &quot;`cue_name 2`&quot; ? cue_color 2 : param_contains &quot;DROP&quot; &quot;`cue_name 3`&quot; ? cue_color 3 : param_contains &quot;DROP&quot; &quot;`cue_name 4`&quot; ? cue_color 4 : param_contains &quot;DROP&quot; &quot;`cue_name 5`&quot; ? cue_color 5 : param_contains &quot;DROP&quot; &quot;`cue_name 6`&quot; ? cue_color 6 : param_contains &quot;DROP&quot; &quot;`cue_name 7`&quot; ? cue_color 7 : param_contains &quot;DROP&quot; &quot;`cue_name 8`&quot; ? cue_color 8 : get_text &quot;none&quot;">param_contains "DROP" "`cue_name 1`" ? goto_cue 1 : param_contains "DROP" "`cue_name 2`" ? goto_cue 2 : param_contains "DROP" "`cue_name 3`" ? goto_cue 3 : param_contains "DROP" "`cue_name 4`" ? goto_cue 4 : param_contains "DROP" "`cue_name 5`" ? goto_cue 5 : param_contains "DROP" "`cue_name 6`" ? goto_cue 6 : param_contains "DROP" "`cue_name 7`" ? goto_cue 7 : param_contains "DROP" "`cue_name 8`" ? goto_cue 8 : nothing</pad10>
+  <pad12 name="PITCH ▲" color="color '#F5D5FF'" autodim="false">pitch +1 bpm</pad12>
+  <!-- <pad11 name="PAD FX" color="color 'yellow'">effect_stems +1</pad11> -->
+  <!-- <pad12 name="COLOR FX" color="color magenta" query="effect_active 'colorfx'">effect_active 'colorfx'</pad12> -->
+  <!-- ROW 4 -->
+  <!-- <pad13 name="RESET PITCH 4bt" color="color pink" autodim="false" query="loaded ? masterdeck ? dim : match_key ? blink 500ms : true">pitch_reset 4bt</pad13> -->
+  <!-- <pad13 name="RESET PITCH 4bt" color="color pink" autodim="false" query="loaded ? get_pitch_zero 'absolute' 0.1% ? off : param_bigger `get_pitch_value` 125% ? blink 500ms : param_smaller `get_pitch_value` 75% ? blink 500ms : on : off">pitch_reset 4bt</pad13> -->
+  <!-- <pad13 name="RESET PITCH `get_text '%Ppitch%'`" color="loaded ? param_bigger `get_pitch_value` 125% ? color 'red' : param_smaller `get_pitch_value` 75% ? color 'red' : param_bigger `get_pitch_value` 105% ? color 'yellow' : param_smaller `get_pitch_value` 95% ? color 'yellow' : color 'green' : color 'black'" autodim="false" query="loaded ? param_bigger `get_pitch_value` 125% ? blink 500ms : param_smaller `get_pitch_value` 75% ? blink 500ms : on : off">pitch_reset 4bt</pad13> -->
+  <!-- <pad13 name="RESET PITCH `get_text '%Ppitch%'`" autodim="false" query="loaded" color="loaded ? param_bigger `get_pitch_value` 125% ? blink 500ms ? color 'red' : color 'black' : param_smaller `get_pitch_value` 75% ? blink 500ms ? color 'red' : color 'black' : param_bigger `get_pitch_value` 105% ? color 'yellow' : param_smaller `get_pitch_value` 95% ? color 'yellow' : color 'green' : color 'black'">pitch_reset 4bt</pad13> -->
+  <!-- <pad13 name="RESET PITCH `get_text '%Ppitch%'`" autodim="false" color="loaded ? get_pitch_value &amp; param_bigger 125% ? blink 500ms ? color 'red' : color 'black' : get_pitch_value &amp; param_smaller 75% ? blink 500ms ? color 'red' : color 'black' : get_pitch_value &amp; param_bigger 105% ? color 'yellow' : get_pitch_value &amp; param_smaller 95% ? color 'yellow' : color 'green' : color 'black'" query="loaded">pitch_reset 4bt</pad13> -->
+  <pad13 name="RESET PITCH `get_text '%Ppitch%'`" autodim="false" color="loaded ? get_pitch_value &amp; param_bigger 125 ? color 'red' : get_pitch_value &amp; param_smaller 75 ? color 'red' : get_pitch_value &amp; param_bigger 105 ? color 'yellow' : get_pitch_value &amp; param_smaller 95 ? color 'yellow' : color 'green' : color 'black'" query="loaded ? get_pitch_value &amp; param_bigger 125 ? blink 500ms : get_pitch_value &amp; param_smaller 75 ? blink 500ms : on : off">pitch_reset 4bt</pad13>
+  <pad16 name="`play ? get_text 'PAUSE' : get_text '▶ PLAY'`" color="color &quot;green&quot;">play_button</pad16>
+  <!-- SHIFT PADS -->
+  <shift_pad5 name="◀ FIRST BEAT" color="color '#FF2600'" autodim="false">goto_first_beat</shift_pad5>
+  <shift_pad6 name="◀ BEAT" color="color '#FFFF44'" autodim="false">goto -1</shift_pad6>
+  <shift_pad7 name="BEAT ▶" color="color '#FFFF44'" autodim="false">goto +1</shift_pad7>
+  <shift_pad14 name="▼ BPM -5" color="color '#99FFAA'" autodim="false">pitch -5 bpm</shift_pad14>
+  <shift_pad15 name="BPM +5 ▲" color="color '#99ffAA'" autodim="false">pitch +5 bpm</shift_pad15>
+  <!-- <pad6 name="INSTRUMENTAL" color="color '#CC55FF'">stem_pad 'instrumental'</pad6> -->
+  <!-- <pad5 name="ACAPELLA" color="color '#35FF29'">stem_pad 'acapella'</pad5> -->
+  <!-- <pad16 name="-10 BPM `\n`4 Bars" color="color 'red'" query="var '$tempo_drop_10' ? blink 300ms : off"> -->
+  <!-- repeat_stop 'tempo_drop_10' &amp; -->
+  <!-- set '$tempo_drop_10' 1 &amp; -->
+  <!-- repeat_start_instant 'tempo_drop_10' 1bt 16 &amp; -->
+  <!-- pitch -0.625 bpm &amp; -->
+  <!-- wait 16bt &amp; -->
+  <!-- repeat_stop 'tempo_drop_10' &amp; -->
+  <!-- set '$tempo_drop_10' 0 -->
+  <!-- </pad16> -->
+  <shift_pad16 name="STOP" color="color &quot;red&quot;" query="true">pause_stop</shift_pad16>
+  <param1 name="BPM `get_bpm`">param_bigger 0 ? pitch +1 bpm : pitch -1 bpm</param1>
+  <param2 name="KEY `get_key`">param_bigger 0 ? key_move +1 : key_move -1</param2>
+</page>
+<!-- <pad5 name="BPM SRC" color="color '#8534FF'" autodim="false">var '@$abpmt_source' 1 ? auto_bpm_transition 'source_original' : auto_bpm_transition</pad5> -->
+<!-- <pad12 name="`filter_label 'name' &amp; param_uppercase`" color="color magenta" query="effect_active 'colorfx'">effect_active 'colorfx'</pad12> -->
+<!-- <pad5 name="`leftdeck ? get_text '◀SWAP' : get_text 'SWAP ▶'`" color="color white" autodim="false">rightdeck ? deck left volume 0% &amp; deck right volume 100% &amp; deck right play : deck right volume 0% &amp; deck left volume 100% &amp; deck left play</pad5> -->

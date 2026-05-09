@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page>
+	<pad1 name="Capture" query="pad_pushed 1 ? blink : off" color="pad_pushed 1 ? color &apos;white&apos; : color &apos;red&apos;" autodim="false">effect_slider &apos;echo&apos; 1 1 &amp; effect_slider &apos;echo&apos; 1 0 while_pressed &amp; effect_active &apos;echo&apos; on </pad1>
+	<pad2 name="1/2bt" query="effect_beats &apos;echo&apos; 0.5 ? blink : on" color="color &apos;yellow&apos;">effect_beats &apos;echo&apos; 0.5</pad2>
+	<pad3 name="1bt" query="effect_beats &apos;echo&apos; 1 ? blink : on" color="color &apos;green&apos;">effect_beats &apos;echo&apos; 1</pad3>
+	<pad4 name="4bt" query="effect_beats &apos;echo&apos; 4 ? blink : on" color="color &apos;cyan&apos;">effect_beats &apos;echo&apos; 4</pad4>
+	<pad5 name="1/4bt" query="effect_beats &apos;echo&apos; 0.25 ? blink : on" color="color &apos;orange&apos;">effect_beats &apos;echo&apos; 0.25</pad5>
+	<pad6 name="3/4bt" query="effect_beats &apos;echo&apos; 0.75 ? blink : on" color="color &apos;violet&apos;">effect_beats &apos;echo&apos; 0.75</pad6>
+	<pad7 name="2bt" query="effect_beats &apos;echo&apos; 2 ? blink : on" color="color &apos;pink&apos;">effect_beats &apos;echo&apos; 2</pad7>
+	<pad8 name="8bt" query="effect_beats &apos;echo&apos; 8 ? blink : on" color="color &apos;blue&apos;">effect_beats &apos;echo&apos; 8</pad8>
+	<shift_pad1 name="Capture While Pressed" color="pad_pushed 1 ? color &apos;white&apos; : color &apos;red&apos;" autodim="false">effect_active &apos;echo&apos; off  &amp; effect_slider &apos;echo&apos; 1 0.9 &amp; effect_active &apos;echo&apos; on while_pressed &amp; effect_slider &apos;echo&apos; 1 0 while_pressed</shift_pad1>
+	<shift_pad2 name="Echo Off" query="effect_active &apos;echo&apos; 0 ? off : blink " autodim="false" color="effect_active &apos;echo&apos; 0 ? off : color &apos;white&apos;">effect_active &apos;echo&apos; 0</shift_pad2>
+	<shift_pad3 name="Echo Lock" query="effect_slider &apos;echo&apos; 1 100% ? blink : off" color="effect_slider &apos;echo&apos; 1 100% ? blink 500ms ? color &apos;red&apos;  : color &apos;white&apos; : color &apos;red&apos;" autodim="false">effect_active &apos;echo&apos; 0 &amp; effect_slider &apos;echo&apos; 1 100%</shift_pad3>
+	<shift_pad4 name="Instant Off" query="effect_slider &apos;echo&apos; 1 0% ? blink : off" color="effect_slider &apos;echo&apos; 1 0% ? blink 500ms ? color &apos;gray&apos;  : color &apos;white&apos; :  color &apos;gray&apos;" autodim="false">effect_active &apos;echo&apos; 0 &amp; effect_slider &apos;echo&apos; 1 0%</shift_pad4>
+	<shift_pad5 name="1%" query="effect_slider &apos;echo&apos; 1 99% ? blink : off" color="effect_slider &apos;echo&apos; 1 99% ? blink 500ms ? color &apos;beige&apos;  : color &apos;white&apos; :  color &apos;beige&apos;" autodim="false">effect_active &apos;echo&apos; 0 &amp; effect_slider &apos;echo&apos; 1 99% </shift_pad5>
+	<shift_pad6 name="10%" query="effect_slider &apos;echo&apos; 1 90% ? blink : off" color="effect_slider &apos;echo&apos; 1 90% ? blink 500ms ? color &apos;darkgreen&apos;  : color &apos;white&apos; :  color &apos;darkgreen&apos;" autodim="false">effect_active &apos;echo&apos; 0 &amp; effect_slider &apos;echo&apos; 1 90%</shift_pad6>
+	<shift_pad7 name="30%" query="effect_slider &apos;echo&apos; 1 70% ? blink : off" color="effect_slider &apos;echo&apos; 1 70% ? blink 500ms ? color &apos;magenta&apos;  : color &apos;white&apos; :  color &apos;magenta&apos;" autodim="false">effect_active &apos;echo&apos; 0 &amp; effect_slider &apos;echo&apos; 1 70%</shift_pad7>
+	<shift_pad8 name="50%" query="effect_slider &apos;echo&apos; 1 50% ? blink : off" color="effect_slider &apos;echo&apos; 1 50% ? blink 500ms ? color &apos;marine&apos;  : color &apos;white&apos; :  color &apos;marine&apos;" autodim="false">effect_active &apos;echo&apos; 0 &amp; effect_slider &apos;echo&apos; 1 50%</shift_pad8>
+	<param1 visible="false" />
+	<param2 visible="false" />
+</page>

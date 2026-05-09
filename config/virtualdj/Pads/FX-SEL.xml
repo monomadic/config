@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="FX-SEL">
+  <pad1 name="ECHO OUT" color="param_equal `get_effect_name 1` 'Echo Out' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Echo Out' ?
+      effect_active 1 :
+      effect_select 1 'Echo Out' &amp; effect_active 1
+  </pad1>
+  <pad2 name="LOOP ROLL" color="param_equal `get_effect_name 1` 'loop roll' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'loop roll' ?
+      effect_active 1 :
+      effect_select 1 'loop roll' &amp; effect_active 1  </pad2>
+  <pad3 name="CUT" color="param_equal `get_effect_name 1` 'Cut' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Cut' ?
+      effect_active 1 :
+      effect_select 1 'Cut' &amp; effect_active 1
+  </pad3>
+  <pad4 name="FILTER" color="param_equal `get_effect_name 1` 'Filter' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Filter' ?
+      effect_active 1 :
+      effect_select 1 'Filter' &amp; effect_active 1 'Filter'
+  </pad4>
+  <pad5 name="REVERB" color="param_equal `get_effect_name 1` 'Reverb' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Reverb' ?
+      effect_active 1 :
+      effect_select 1 'Reverb' &amp; effect_active 1 'Reverb'
+  </pad5>
+  <pad6 name="NOISE" color="param_equal `get_effect_name 1` 'Noise' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Noise' ?
+      effect_active 1 :
+      effect_select 1 'Noise' &amp; effect_active 1 'Noise'
+  </pad6>
+  <pad7 name="DISTORTION" color="param_equal `get_effect_name 1` 'Distortion' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Distortion' ?
+      effect_active 1 :
+      effect_select 1 'Distortion' &amp; effect_active 1 'Distortion'
+  </pad7>
+  <pad8 name="FLANGER" color="param_equal `get_effect_name 1` 'Flanger' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Flanger' ?
+      effect_active 1 :
+      effect_select 1 'Flanger' &amp; effect_active 1 'Flanger'
+  </pad8>
+  <pad9 name="SPIRAL" color="param_equal `get_effect_name 1` 'Spiral' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Spiral' ?
+      effect_active 1 :
+      effect_select 1 'Spiral' &amp; effect_active 1 'Spiral'
+  </pad9>
+  <pad10 name="PITCH" color="param_equal `get_effect_name 1` 'Pitch' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Pitch' ?
+      effect_active 1 :
+      effect_select 1 'Pitch' &amp; effect_active 1 'Pitch'
+  </pad10>
+  <pad11 name="VOCALS" color="param_equal `get_effect_name 1` 'Vocals' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Vocals' ?
+      effect_active 1 :
+      effect_select 1 'Vocals' &amp; effect_active 1 'Vocals'
+  </pad11>
+  <pad12 name="DELAY" color="param_equal `get_effect_name 1` 'Delay' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Delay' ?
+      effect_active 1 :
+      effect_select 1 'Delay' &amp; effect_active 1 'Delay'
+  </pad12>
+  <menu/>
+  <shift_pad1 name="BEATGRID" color="param_equal `get_effect_name 1` 'Beatgrid' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Beatgrid' ?
+      effect_active 1 :
+      effect_select 1 'Beatgrid' &amp; effect_active 1 'Beatgrid'
+  </shift_pad1>
+  <shift_pad2 name="BACKSPIN" color="param_equal `get_effect_name 1` 'Backspin' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Backspin' ?
+      effect_active 1 :
+      effect_select 1 'Backspin' &amp; effect_active 1 'Backspin'
+  </shift_pad2>
+  <shift_pad3 name="BRAKE" color="param_equal `get_effect_name 1` 'Brake' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Brake' ?
+      effect_active 1 :
+      effect_select 1 'Brake' &amp; effect_active 1 'Brake'
+  </shift_pad3>
+  <shift_pad4 name="PHASER" color="param_equal `get_effect_name 1` 'Phaser' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Phaser' ?
+      effect_active 1 :
+      effect_select 1 'Phaser' &amp; effect_active 1 'Phaser'
+  </shift_pad4>
+  <shift_pad5 name="CRUSH" color="param_equal `get_effect_name 1` 'Crush' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Crush' ?
+      effect_active 1 :
+      effect_select 1 'Crush' &amp; effect_active 1 'Crush'
+  </shift_pad5>
+  <shift_pad6 name="GATE" color="param_equal `get_effect_name 1` 'Gate' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Gate' ?
+      effect_active 1 :
+      effect_select 1 'Gate' &amp; effect_active 1 'Gate'
+  </shift_pad6>
+  <shift_pad7 name="JET" color="param_equal `get_effect_name 1` 'Jet' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Jet' ?
+      effect_active 1 :
+      effect_select 1 'Jet' &amp; effect_active 1 'Jet'
+  </shift_pad7>
+  <shift_pad8 name="TRANSPOSE" color="param_equal `get_effect_name 1` 'Transpose' ? effect_active 1 ? color 'magenta' : color 'white' : color 'white'">
+    param_equal `get_effect_name 1` 'Transpose' ?
+      effect_active 1 :
+      effect_select 1 'Transpose' &amp; effect_active 1 'Transpose'
+  </shift_pad8>
+  <pad13 name="FX: VOCAL" color="stem_color vocal">  effect_stems 'vocal'  toggle</pad13>
+  <pad14 name="FX: MELODY" color="stem_color melody"> effect_stems 'melody' toggle</pad14>
+  <pad15 name="FX: BASS" color="stem_color bass">   effect_stems 'bass'   toggle</pad15>
+  <pad16 name="FX: DRUM" color="stem_color rhythm"> effect_stems 'rhythm' toggle</pad16>
+</page>

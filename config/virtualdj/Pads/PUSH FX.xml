@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="PUSH FX">
+  <!--
+    PUSH FX
+    16-pad performance FX page.
+
+    Query strategy:
+      - Momentary performance pads use query="false" so they never latch.
+      - Routing pads query the actual effect_stems state.
+      - Reset pad queries whether Stems FX is active.
+  -->
+  <!-- row 1: full-track / current stem-routing FX -->
+  <pad1 name="CUT`\n`1/2" color="color '#FFD84D'" query="false">
+    padfx 'Cut' 50% 0.5bt 'stemfx:stems'
+  </pad1>
+  <pad2 name="CUT`\n`1BT" color="color '#FFD84D'" query="false">
+    padfx 'Cut' 40% 1bt 'stemfx:stems'
+  </pad2>
+  <pad3 name="FLANGE`\n`SWEEP" color="color '#FFD84D'" query="false">
+    padfx 'Flanger' 70% 1bt 'stemfx:stems'
+  </pad3>
+  <pad4 name="GRID`\n`BREAK" color="color '#FFD84D'" query="false">
+    padfx 'BeatGrid' 'stemfx:stems'
+  </pad4>
+  <!-- row 2: vocal-focused FX -->
+  <pad5 name="VOCAL`\n`ECHO" color="stem_color 'vocal'" query="false">
+    padfx 'Echo' 50% 1bt 65% 75% 'stemfx:vocal'
+  </pad5>
+  <pad6 name="VOCAL`\n`SPACE" color="stem_color 'vocal'" query="false">
+    padfx 'Reverb' 55% 2bt 'stemfx:vocal'
+  </pad6>
+  <pad7 name="VOCAL`\n`FLANGE" color="stem_color 'vocal'" query="false">
+    padfx 'Flanger' 65% 1bt 'stemfx:vocal'
+  </pad7>
+  <pad8 name="VOCAL`\n`OUT" color="stem_color 'vocal'" query="false">
+    padfx_single 'Echo Out' 80% 1bt 'stemfx:vocal'
+  </pad8>
+  <!-- row 3: melody / rhythm FX -->
+  <pad9 name="INST`\n`SPACE" color="stem_color 'melody'" query="false">
+    padfx 'Reverb' 55% 2bt 'stemfx:melody'
+  </pad9>
+  <pad10 name="INST`\n`FLANGE" color="stem_color 'melody'" query="false">
+    padfx 'Flanger' 65% 1bt 'stemfx:melody'
+  </pad10>
+  <pad11 name="DRUM`\n`GRID" color="stem_color 'rhythm'" query="false">
+    padfx 'BeatGrid' 'stemfx:rhythm'
+  </pad11>
+  <pad12 name="DRUM`\n`ECHO" color="stem_color 'rhythm'" query="false">
+    padfx 'Echo' 45% 0.5bt 55% 70% 'stemfx:rhythm'
+  </pad12>
+  <!-- row 4: stem routing / cleanup -->
+  <pad13 name="FX TO`\n`VOCAL" color="stem_color 'vocal'" query="effect_stems 'vocal'">
+    effect_stems 'vocal'
+  </pad13>
+  <pad14 name="FX TO`\n`INST" color="stem_color 'melody'" query="effect_stems 'melody'">
+    effect_stems 'melody'
+  </pad14>
+  <pad15 name="FX TO`\n`DRUMS" color="stem_color 'rhythm'" query="effect_stems 'rhythm'">
+    effect_stems 'rhythm'
+  </pad15>
+  <pad16 name="FX`\n`RESET" color="color '#FFD84D'" query="effect_stems">
+    effect_stems off &amp;
+    effect_disable_all 'padfx' &amp;
+    filter 50%
+  </pad16>
+  <!-- shift row 1: full-track FX editors -->
+  <shift_pad1 name="EDIT`\n`CUT" color="color '#FFD84D'">
+    effect_show_gui 'stems' 'Cut'
+  </shift_pad1>
+  <shift_pad2 name="EDIT`\n`CUT" color="color '#FFD84D'">
+    effect_show_gui 'stems' 'Cut'
+  </shift_pad2>
+  <shift_pad3 name="EDIT`\n`FLANGE" color="color '#FFD84D'">
+    effect_show_gui 'stems' 'Flanger'
+  </shift_pad3>
+  <shift_pad4 name="EDIT`\n`GRID" color="color '#FFD84D'">
+    effect_show_gui 'stems' 'BeatGrid'
+  </shift_pad4>
+  <!-- shift row 2: vocal FX editors / vocal cleanup -->
+  <shift_pad5 name="VOCAL`\n`ECHO GUI" color="stem_color 'vocal'">
+    effect_show_gui 'vocal' 'Echo'
+  </shift_pad5>
+  <shift_pad6 name="VOCAL`\n`REV GUI" color="stem_color 'vocal'">
+    effect_show_gui 'vocal' 'Reverb'
+  </shift_pad6>
+  <shift_pad7 name="VOCAL`\n`FLANGE GUI" color="stem_color 'vocal'">
+    effect_show_gui 'vocal' 'Flanger'
+  </shift_pad7>
+  <shift_pad8 name="VOCAL`\n`CLEAR" color="stem_color 'vocal'">
+    effect_disable_all 'padfx'
+  </shift_pad8>
+  <!-- shift row 3: melody / rhythm FX editors -->
+  <shift_pad9 name="INST`\n`REV GUI" color="stem_color 'melody'">
+    effect_show_gui 'melody' 'Reverb'
+  </shift_pad9>
+  <shift_pad10 name="INST`\n`FLANGE GUI" color="stem_color 'melody'">
+    effect_show_gui 'melody' 'Flanger'
+  </shift_pad10>
+  <shift_pad11 name="DRUM`\n`GRID GUI" color="stem_color 'rhythm'">
+    effect_show_gui 'rhythm' 'BeatGrid'
+  </shift_pad11>
+  <shift_pad12 name="DRUM`\n`ECHO GUI" color="stem_color 'rhythm'">
+    effect_show_gui 'rhythm' 'Echo'
+  </shift_pad12>
+  <!-- shift row 4: alternate routing / hard kill -->
+  <shift_pad13 name="FULL`\n`TRACK" color="color '#FFD84D'" query="not effect_stems">
+    effect_stems off
+  </shift_pad13>
+  <shift_pad14 name="NO VOCAL`\n`FX" color="stem_color 'melody'" query="effect_stems 'melorhythm'">
+    effect_stems 'melorhythm'
+  </shift_pad14>
+  <shift_pad15 name="ACAPELLA`\n`FX" color="stem_color 'vocal'" query="effect_stems 'acapella'">
+    effect_stems 'acapella'
+  </shift_pad15>
+  <shift_pad16 name="KILL`\n`PAD FX" color="color '#FFD84D'">
+    effect_stems off &amp;
+    effect_disable_all 'padfx' &amp;
+    filter 50%
+  </shift_pad16>
+</page>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="STEMS 16">
+	<pad1 name="VOCAL" color="stem_color &apos;Vocal&apos;">stem_pad &apos;Vocal&apos;</pad1>
+	<pad2 name="INSTR" color="stem_color &apos;Instru&apos;">stem_pad &apos;Melody&apos;</pad2>
+	<pad3 name="BASS" color="stem_color &apos;Bass&apos;">stem_pad &apos;Bass&apos;</pad3>
+	<pad4 name="DRUM" color="stem_color &apos;Rhythm&apos;">only_stem &apos;Drum&apos;</pad4>
+	<pad5 name="FX:VOCAL" color="stem_color &apos;Vocal&apos;">effect_stems &apos;Vocal&apos; toggle</pad5>
+	<pad6 name="FX:INSTR" color="stem_color &apos;Instru&apos;">effect_stems &apos;Instru&apos; toggle</pad6>
+	<pad7 color="effect_stems_color &apos;Bass&apos;" name="FX:BASS">effect_stems &apos;Bass&apos; toggle</pad7>
+	<pad8 color="stem_color &apos;Rhythm&apos;" name="FX:DRUM">effect_stems &apos;Rhythm&apos; toggle</pad8>
+	<param2 name="`setting &apos;fxProcessing&apos; 0 ? get_text &apos;Pre-Fader&apos; : get_text &apos;Post-Fader&apos;`">setting &apos;fxProcessing&apos;</param2>
+	<param1 name="`stem_pad &apos;instrumental&apos; ? get_text &apos;INSTRUMENTAL&apos; : stem_pad &apos;acapella&apos; ? get_text &apos;ACAPELLA&apos; : has_stems &apos;ready&apos;` ">param_bigger 0 ? stem_pad &apos;instrumental&apos; : stem_pad &apos;acapella&apos;</param1>
+	<shift_pad1 name="vocal solo" color="stem_color &apos;Vocal&apos;">stem_pad isolate &apos;vocal&apos;</shift_pad1>
+	<shift_pad2 name="instr solo" color="stem_color &apos;Instru&apos;">stem_pad isolate &apos;instru&apos;</shift_pad2>
+	<shift_pad3 name="drum solo" color="stem_color &apos;Rhythm&apos;">stem_pad isolate &apos;rhythm&apos;</shift_pad3>
+	<shift_pad4>stem_pad isolate &apos;rhythm&apos;&apos;</shift_pad4>
+	<menu />
+	<pad9 name="`get_effect_name 1`">effect_active 1 &apos;reverb&apos; toggle</pad9>
+	<pad10 name="`get_effect_name 2` 1/2">effect_active 2 &apos;cut&apos; toggle &amp; effect_slider &apos;cut&apos; 1 90% &amp; effect_slider &apos;cut&apos; 2 50%</pad10>
+	<pad14 name="`get_effect_name 2` 65%">effect_active 6 &apos;cut&apos; toggle &amp; effect_slider &apos;cut&apos; 1 90% &amp; effect_slider &apos;cut&apos; 2 65%</pad14>
+	<pad15 name="SWEEP 1">effect_active &apos;cut&apos; 1 while_pressed &amp; effect_slider &apos;cut&apos; 1 70% &amp; effect_slider &apos;cut&apos; 2 35% &amp;&amp; effect_slider &apos;noise&apos; 1 20% &amp;&amp; effect_slider &apos;noise&apos; 2 20% &amp;&amp; effect_active &apos;noise&apos; 1 while_pressed &amp;&amp; repeat_start &apos;wait&apos; 300ms &amp; effect_slider &apos;noise&apos; 1 +1% &amp; effect_slider &apos;noise&apos; 2 +3% &amp; effect_slider &apos;noise&apos; 1 50% ? effect_active &apos;noise&apos; 0 &amp; repeat_stop &apos;wait&apos;</pad15>
+	<pad11 name="`get_effect_name 3`">effect_active 3 &apos;delay&apos; toggle &amp; effect_slider &apos;delay&apos; 1 25% &amp; effect_slider &apos;delay&apos; 2 6.25%</pad11>
+	<pad13 name="Echo">padfx &quot;echo&quot; 40% 90% smart_pressed</pad13>
+	<pad12 name="`get_effect_name 4`">effect_active 4 &apos;echo&apos; toggle</pad12>
+	<pad16 name="SWEEP 2">effect_slider &apos;noise&apos; 1 20% &amp;&amp; effect_slider &apos;noise&apos; 2 20% &amp;&amp; effect_active &apos;noise&apos; 1 while_pressed &amp;&amp; repeat_start &apos;wait&apos; 300ms &amp; effect_slider &apos;noise&apos; 1 +1% &amp; effect_slider &apos;noise&apos; 2 +3% &amp; effect_slider &apos;noise&apos; 1 50% ? effect_active &apos;noise&apos; 0 &amp; repeat_stop &apos;wait&apos;</pad16>
+</page>

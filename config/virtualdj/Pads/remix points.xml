@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page shortname="Remix" name="remix points">
+  <pad1 name="`cue_name 1 remix`" color="cue_color 1 remix" autodim="false">hot_cue 1 remix</pad1>
+  <pad2 name="`cue_name 2 remix`" color="cue_color 2 remix" autodim="false">hot_cue 2 remix</pad2>
+  <pad3 name="`cue_name 3 remix`" color="cue_color 3 remix" autodim="false">hot_cue 3 remix</pad3>
+  <pad4 name="`cue_name 4 remix`" color="cue_color 4 remix" autodim="false">hot_cue 4 remix</pad4>
+  <pad5 name="`cue_name 5 remix`" color="cue_color 5 remix" autodim="false">hot_cue 5 remix</pad5>
+  <pad6 name="`cue_name 6 remix`" color="cue_color 6 remix" autodim="false">hot_cue 6 remix</pad6>
+  <pad7 name="`cue_name 7 remix`" color="cue_color 7 remix" autodim="false">hot_cue 7 remix</pad7>
+  <pad8 name="`cue_name 8 remix`" color="cue_color 8 remix" autodim="false">hot_cue 8 remix</pad8>
+  <pad9 name="`cue_name 9 remix`" color="cue_color 9 remix" autodim="false">hot_cue 9 remix</pad9>
+  <pad10 name="`cue_name 10 remix`" color="cue_color 10 remix" autodim="false">hot_cue 10 remix</pad10>
+  <pad11 name="`cue_name 11 remix`" color="cue_color 11 remix" autodim="false">hot_cue 11 remix</pad11>
+  <pad12 name="`cue_name 12 remix`" color="cue_color 12 remix" autodim="false">hot_cue 12 remix</pad12>
+  <pad13 name="`cue_name 13 remix`" color="cue_color 13 remix" autodim="false">hot_cue 13 remix</pad13>
+  <pad14 name="`cue_name 14 remix`" color="cue_color 14 remix" autodim="false">hot_cue 14 remix</pad14>
+  <pad15 name="`cue_name 15 remix`" color="cue_color 15 remix" autodim="false">hot_cue 15 remix</pad15>
+  <pad16 name="`cue_name 16 remix`" color="cue_color 16 remix" autodim="false">hot_cue 16 remix</pad16>
+  <shift_pad1 name="EDIT" color="cue_color 1 remix" autodim="false">edit_poi 1 remix</shift_pad1>
+  <shift_pad2 name="EDIT" color="cue_color 2 remix" autodim="false">edit_poi 2 remix</shift_pad2>
+  <shift_pad3 name="EDIT" color="cue_color 3 remix" autodim="false">edit_poi 3 remix</shift_pad3>
+  <shift_pad4 name="EDIT" color="cue_color 4 remix" autodim="false">edit_poi 4 remix</shift_pad4>
+  <shift_pad5 name="EDIT" color="cue_color 5 remix" autodim="false">edit_poi 5 remix</shift_pad5>
+  <shift_pad6 name="EDIT" color="cue_color 6 remix" autodim="false">edit_poi 6 remix</shift_pad6>
+  <shift_pad7 name="EDIT" color="cue_color 7 remix" autodim="false">edit_poi 7 remix</shift_pad7>
+  <shift_pad8 name="EDIT" color="cue_color 8 remix" autodim="false">edit_poi 8 remix</shift_pad8>
+  <shift_pad9 name="EDIT" color="cue_color 9 remix" autodim="false">edit_poi 9 remix</shift_pad9>
+  <shift_pad10 name="EDIT" color="cue_color 10 remix" autodim="false">edit_poi 10 remix</shift_pad10>
+  <shift_pad11 name="EDIT" color="cue_color 11 remix" autodim="false">edit_poi 11 remix</shift_pad11>
+  <shift_pad12 name="EDIT" color="cue_color 12 remix" autodim="false">edit_poi 12 remix</shift_pad12>
+  <shift_pad13 name="EDIT" color="cue_color 13 remix" autodim="false">edit_poi 13 remix</shift_pad13>
+  <shift_pad14 name="EDIT" color="cue_color 14 remix" autodim="false">edit_poi 14 remix</shift_pad14>
+  <shift_pad15 name="EDIT" color="cue_color 15 remix" autodim="false">edit_poi 15 remix</shift_pad15>
+  <shift_pad16 name="EDIT" color="cue_color 16 remix" autodim="false">edit_poi 16 remix</shift_pad16>
+  <menu>Edit Remix Points and POIs... =[edit_poi]</menu>
+  <param2 name="CUE">param_bigger 0 ? goto_cue +1 remix : goto_cue -1 remix</param2>
+  <param1/>
+</page>

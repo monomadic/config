@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+	<page >
+		<pad1 name="`var &apos;hc_page&apos; ? cue_display 9 : cue_display 1`" color="var &apos;hc_page&apos; ? cue_color 9 : cue_color 1" autodim="false">var &apos;hc_page&apos; ? hot_cue 9 : hot_cue 1</pad1>
+		<pad2 name="`var &apos;hc_page&apos; ? cue_display 10 : cue_display 2`" color="var &apos;hc_page&apos; ? cue_color 10 : cue_color 2" autodim="false">var &apos;hc_page&apos; ? hot_cue 10 : hot_cue 2</pad2>
+		<pad3 name="`var &apos;hc_page&apos; ? cue_display 11 : cue_display 3`" color="var &apos;hc_page&apos; ? cue_color 11 : cue_color 3" autodim="false">var &apos;hc_page&apos; ? hot_cue 11 : hot_cue 3</pad3>
+		<pad4 name="`var &apos;hc_page&apos; ? cue_display 12 : cue_display 4`" color="var &apos;hc_page&apos; ? cue_color 12 : cue_color 4" autodim="false">var &apos;hc_page&apos; ? hot_cue 12 : hot_cue 4</pad4>
+		<pad5 name="`var &apos;hc_page&apos; ? cue_display 13 : cue_display 5`" color="var &apos;hc_page&apos; ? cue_color 13 : cue_color 5" autodim="false">var &apos;hc_page&apos; ? hot_cue 13 : hot_cue 5</pad5>
+		<pad6 name="`var &apos;hc_page&apos; ? cue_display 14 : cue_display 6`" color="var &apos;hc_page&apos; ? cue_color 14 : cue_color 6" autodim="false">var &apos;hc_page&apos; ? hot_cue 14 : hot_cue 6</pad6>
+		<pad7 name="`var &apos;hc_page&apos; ? cue_display 15 : cue_display 7`" color="var &apos;hc_page&apos; ? cue_color 15 : cue_color 7" autodim="false">var &apos;hc_page&apos; ? hot_cue 15 : hot_cue 7</pad7>
+		<pad8 name="`var &apos;hc_page&apos; ? cue_display 16 : cue_display 8`" color="var &apos;hc_page&apos; ? cue_color 16 : cue_color 8" autodim="false">var &apos;hc_page&apos; ? hot_cue 16 : hot_cue 8</pad8>
+		<shift_pad1 name="DELETE" color="var &apos;hc_page&apos; ? cue_color 9 : cue_color 1" autodim="false">var &apos;hc_page&apos; ? delete_cue 9 : delete_cue 1</shift_pad1>
+		<shift_pad2 name="DELETE" color="var &apos;hc_page&apos; ? cue_color 10 : cue_color 2" autodim="false">var &apos;hc_page&apos; ? delete_cue 10 : delete_cue 2</shift_pad2>
+		<shift_pad3 name="DELETE" color="var &apos;hc_page&apos; ? cue_color 11 : cue_color 3" autodim="false">var &apos;hc_page&apos; ? delete_cue 11 : delete_cue 3</shift_pad3>
+		<shift_pad4 name="DELETE" color="var &apos;hc_page&apos; ? cue_color 12 : cue_color 4" autodim="false">var &apos;hc_page&apos; ? delete_cue 12 : delete_cue 4</shift_pad4>
+		<shift_pad5 name="DELETE" color="var &apos;hc_page&apos; ? cue_color 13 : cue_color 5" autodim="false">var &apos;hc_page&apos; ? delete_cue 13 : delete_cue 5</shift_pad5>
+		<shift_pad6 name="DELETE" color="var &apos;hc_page&apos; ? cue_color 14 : cue_color 6" autodim="false">var &apos;hc_page&apos; ? delete_cue 14 : delete_cue 6</shift_pad6>
+		<shift_pad7 name="DELETE" color="var &apos;hc_page&apos; ? cue_color 15 : cue_color 7" autodim="false">var &apos;hc_page&apos; ? delete_cue 15 : delete_cue 7</shift_pad7>
+		<shift_pad8 name="DELETE" color="var &apos;hc_page&apos; ? cue_color 16 : cue_color 8" autodim="false">var &apos;hc_page&apos; ? delete_cue 16 : delete_cue 8</shift_pad8>
+		<param1 name="`var &apos;hc_page&apos; ? get_text &quot;HOTCUES 9-16&quot; : get_text &quot;HOTCUES 1-8&quot;`">param_bigger 0 ? off &amp; set  &apos;hc_page&apos; 1 : off &amp; set &apos;hc_page&apos; 0</param1>
+		<param2 name="CUE `get_cue`" visible="false">goto_cue</param2>
+	<menu>Edit CUEs and POIs... =[edit_poi]
+Read-only (Lock) +[lock_cues]
+Smart Cue +[smart_cue]
+Quantize on Set +[quantize_setcue]
+-
+Display mode &gt;&gt; Cue number +[cue_display &apos;number&apos;]
+Display mode &gt;&gt; Name +[cue_display &apos;name&apos;]
+Display mode &gt;&gt; Time Pos +[cue_display &apos;position&apos;]
+Display mode &gt;&gt; Time left +[cue_display &apos;distance&apos;]
+Display mode &gt;&gt; Beats left +[cue_display &apos;beat&apos;]</menu>
+</page>

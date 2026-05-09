@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page shortname="HC" name="hotcues">
+	<pad1 name="`cue_display 1`" color="cue_color 1" autodim="false">hot_cue 1</pad1>
+	<pad2 name="`cue_display 2`" color="cue_color 2" autodim="false">hot_cue 2</pad2>
+	<pad3 name="`cue_display 3`" color="cue_color 3" autodim="false">hot_cue 3</pad3>
+	<pad4 name="`cue_display 4`" color="cue_color 4" autodim="false">hot_cue 4</pad4>
+	<pad5 name="`cue_display 5`" color="cue_color 5" autodim="false">hot_cue 5</pad5>
+	<pad6 name="`cue_display 6`" color="cue_color 6" autodim="false">hot_cue 6</pad6>
+	<pad7 name="`cue_display 7`" color="cue_color 7" autodim="false">hot_cue 7</pad7>
+	<pad8 name="`cue_display 8`" color="cue_color 8" autodim="false">hot_cue 8</pad8>
+	<pad9 name="`cue_display 9`" color="cue_color 9" autodim="false">hot_cue 9</pad9>
+	<pad10 name="`cue_display 10`" color="cue_color 10" autodim="false">hot_cue 10</pad10>
+	<pad11 name="`cue_display 11`" color="cue_color 11" autodim="false">hot_cue 11</pad11>
+	<pad12 name="`cue_display 12`" color="cue_color 12" autodim="false">hot_cue 12</pad12>
+	<pad13 name="`cue_display 13`" color="cue_color 13" autodim="false">hot_cue 13</pad13>
+	<pad14 name="`cue_display 14`" color="cue_color 14" autodim="false">hot_cue 14</pad14>
+	<pad15 name="`cue_display 15`" color="cue_color 15" autodim="false">hot_cue 15</pad15>
+	<pad16 name="`cue_display 16`" color="cue_color 16" autodim="false">hot_cue 16</pad16>
+	<shift_pad1 name="DELETE" color="has_cue 1 ? color &apos;white&apos;" autodim="false">delete_cue 1</shift_pad1>
+	<shift_pad2 name="DELETE" color="has_cue 2 ? color &apos;white&apos;" autodim="false">delete_cue 2</shift_pad2>
+	<shift_pad3 name="DELETE" color="has_cue 3 ? color &apos;white&apos;" autodim="false">delete_cue 3</shift_pad3>
+	<shift_pad4 name="DELETE" color="has_cue 4 ? color &apos;white&apos;" autodim="false">delete_cue 4</shift_pad4>
+	<shift_pad5 name="DELETE" color="has_cue 5 ? color &apos;white&apos;" autodim="false">delete_cue 5</shift_pad5>
+	<shift_pad6 name="DELETE" color="has_cue 6 ? color &apos;white&apos;" autodim="false">delete_cue 6</shift_pad6>
+	<shift_pad7 name="DELETE" color="has_cue 7 ? color &apos;white&apos;" autodim="false">delete_cue 7</shift_pad7>
+	<shift_pad8 name="DELETE" color="has_cue 8 ? color &apos;white&apos;" autodim="false">delete_cue 8</shift_pad8>
+	<shift_pad9 name="DELETE" color="has_cue 9 ? color &apos;white&apos;" autodim="false">delete_cue 9</shift_pad9>
+	<shift_pad10 name="DELETE" color="has_cue 10 ? color &apos;white&apos;" autodim="false">delete_cue 10</shift_pad10>
+	<shift_pad11 name="DELETE" color="has_cue 11 ? color &apos;white&apos;" autodim="false">delete_cue 11</shift_pad11>
+	<shift_pad12 name="DELETE" color="has_cue 12 ? color &apos;white&apos;" autodim="false">delete_cue 12</shift_pad12>
+	<shift_pad13 name="DELETE" color="has_cue 13 ? color &apos;white&apos;" autodim="false">delete_cue 13</shift_pad13>
+	<shift_pad14 name="DELETE" color="has_cue 14 ? color &apos;white&apos;" autodim="false">delete_cue 14</shift_pad14>
+	<shift_pad15 name="DELETE" color="has_cue 15 ? color &apos;white&apos;" autodim="false">delete_cue 15</shift_pad15>
+	<shift_pad16 name="DELETE" color="has_cue 16 ? color &apos;white&apos;" autodim="false">delete_cue 16</shift_pad16>
+	<param1 name="CUE `get_cue`" visible="false">goto_cue</param1>
+	<param2 visible="false">goto</param2>
+	<menu>Edit CUEs and POIs... =[edit_poi]
+Read-only (Lock) +[lock_cues]
+Smart Cue +[smart_cue]
+Quantize on Set +[quantize_setcue]
+-
+Display mode &gt;&gt; Cue number +[cue_display &apos;number&apos;]
+Display mode &gt;&gt; Name +[cue_display &apos;name&apos;]
+Display mode &gt;&gt; Time Pos +[cue_display &apos;position&apos;]
+Display mode &gt;&gt; Time left +[cue_display &apos;distance&apos;]
+Display mode &gt;&gt; Beats left +[cue_display &apos;beat&apos;]</menu>
+</page>

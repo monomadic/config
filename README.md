@@ -77,7 +77,6 @@ Current source-only config directories that are kept in-tree but not deployed th
 - `config/python`
 - `config/refind`
 - `config/tag-media`
-- `config/virtualdj`
 - `config/weston`
 - `config/yofi`
 

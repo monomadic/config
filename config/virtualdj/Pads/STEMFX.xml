@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="OPEN FORMAT FX">
+  <!-- Row 1: stem on/off -->
+  <pad1 name="VOCAL" color="stem_color 'vocal'" query="stem_pad 'vocal'">
+    stem_pad 'vocal'
+  </pad1>
+  <pad2 name="MELODY" color="stem_color 'melody'" query="stem_pad 'instru'">
+    stem_pad 'instru'
+  </pad2>
+  <pad3 name="BASS" color="stem_color 'bass'" query="stem_pad 'bass'">
+    stem_pad 'bass'
+  </pad3>
+  <pad4 name="DRUM" color="stem_color 'rhythm'" query="stem_pad 'rhythm'">
+    stem_pad 'rhythm'
+  </pad4>
+  <!-- Row 2: stem fx routing. No armed targets = default all-on state. -->
+  <pad5 name="VOCAL FX" color="stem_color 'vocal'" query="effect_stems 'vocal' ? on : effect_stems ? off : on">
+    effect_stems ?
+      ( effect_stems 'vocal' ? effect_stems 'vocal' off : effect_stems 'vocal' on ) :
+      effect_stems 'vocal' on &amp;
+      effect_stems 'instru' on &amp;
+      effect_stems 'bass' on &amp;
+      effect_stems 'rhythm' on &amp;
+      effect_stems 'vocal' off
+  </pad5>
+  <pad6 name="MELODY FX" color="stem_color 'instru'" query="effect_stems 'instru' ? on : effect_stems ? off : on">
+    effect_stems ?
+      ( effect_stems 'instru' ? effect_stems 'instru' off : effect_stems 'instru' on ) :
+      effect_stems 'vocal' on &amp;
+      effect_stems 'instru' on &amp;
+      effect_stems 'bass' on &amp;
+      effect_stems 'rhythm' on &amp;
+      effect_stems 'instru' off
+  </pad6>
+  <pad7 name="BASS FX" color="stem_color 'bass'" query="effect_stems 'bass' ? on : effect_stems ? off : on">
+    effect_stems ?
+      ( effect_stems 'bass' ? effect_stems 'bass' off : effect_stems 'bass' on ) :
+      effect_stems 'vocal' on &amp;
+      effect_stems 'instru' on &amp;
+      effect_stems 'bass' on &amp;
+      effect_stems 'rhythm' on &amp;
+      effect_stems 'bass' off
+  </pad7>
+  <pad8 name="DRUM FX" color="stem_color 'rhythm'" query="effect_stems 'rhythm' ? on : effect_stems ? off : on">
+    effect_stems ?
+      ( effect_stems 'rhythm' ? effect_stems 'rhythm' off : effect_stems 'rhythm' on ) :
+      effect_stems 'vocal' on &amp;
+      effect_stems 'instru' on &amp;
+      effect_stems 'bass' on &amp;
+      effect_stems 'rhythm' on &amp;
+      effect_stems 'rhythm' off
+  </pad8>
+  <!-- Row 3: push fx -->
+  <pad9 name="FLIPPIN DOUBLE" color="color '#F4D35E'">
+    effect_stems ?
+      padfx 'Flippin Double' 'stemfx:stems' smart_pressed :
+      effect_stems 'vocal' on &amp;
+      effect_stems 'instru' on &amp;
+      effect_stems 'bass' on &amp;
+      effect_stems 'rhythm' on &amp;
+      padfx 'Flippin Double' 'stemfx:stems' smart_pressed
+  </pad9>
+  <pad10 name="CHOPPA" color="color '#EE964B'">
+    effect_stems ?
+      padfx 'Choppa' 72% 1bt 0% 'Quantize:on' 'stemfx:stems' smart_pressed :
+      effect_stems 'vocal' on &amp;
+      effect_stems 'instru' on &amp;
+      effect_stems 'bass' on &amp;
+      effect_stems 'rhythm' on &amp;
+      padfx 'Choppa' 72% 1bt 0% 'Quantize:on' 'stemfx:stems' smart_pressed
+  </pad10>
+  <pad11 name="CUT 1" color="color '#F95738'" query="padfx 'Cut' 20% 1/4bt 50% 0%">
+    padfx 'Cut' 20% 1/4bt 50% 0% 'stemfx:stems' smart_pressed
+  </pad11>
+  <pad12 name="CUT 1/2" color="color '#FA7921'" query="padfx 'Cut' 20% 1/2bt 50% 0%">
+    padfx 'Cut' 20% 1/2bt 50% 0% 'stemfx:stems' smart_pressed
+  </pad12>
+  <!-- Row 4: fades / exits -->
+  <pad13 name="ECHO OUT" color="color '#9BC53D'">
+    effect_stems ?
+      padfx_single 'Echo Out' 82% 1bt 'stemfx:stems' :
+      effect_stems 'vocal' on &amp;
+      effect_stems 'instru' on &amp;
+      effect_stems 'bass' on &amp;
+      effect_stems 'rhythm' on &amp;
+      padfx_single 'Echo Out' 82% 1bt 'stemfx:stems'
+  </pad13>
+  <pad14 name="LOOP OUT" color="color '#5BC0EB'">
+    effect_stems ?
+      padfx_single 'Loop Out' 1bt 70% 50% 'Stop:on' 'Slip:on' 'stemfx:stems' :
+      effect_stems 'vocal' on &amp;
+      effect_stems 'instru' on &amp;
+      effect_stems 'bass' on &amp;
+      effect_stems 'rhythm' on &amp;
+      padfx_single 'Loop Out' 1bt 70% 50% 'Stop:on' 'Slip:on' 'stemfx:stems'
+  </pad14>
+  <pad15 name="STUTTER OUT" color="color '#6FFFE9'">
+    effect_stems ?
+      padfx_single 'Stutter Out' 60% 25% 25% 'Quantize:on' 'stemfx:stems' :
+      effect_stems 'vocal' on &amp;
+      effect_stems 'instru' on &amp;
+      effect_stems 'bass' on &amp;
+      effect_stems 'rhythm' on &amp;
+      padfx_single 'Stutter Out' 60% 25% 25% 'Quantize:on' 'stemfx:stems'
+  </pad15>
+  <pad16 name="RESET" color="color '#FF5A5F'">
+    mute_stem 'vocal' off &amp;
+    mute_stem 'instru' off &amp;
+    mute_stem 'bass' off &amp;
+    mute_stem 'kick' off &amp;
+    mute_stem 'hihat' off &amp;
+    effect_disable_all &amp;
+    effect_active 'colorfx' off &amp;
+    effect_stems off &amp;
+    effect_stems 'vocal' on &amp;
+    effect_stems 'melody' on &amp;
+    effect_stems 'bass' on &amp;
+    effect_stems 'rhythm' on &amp;
+    filter 50%
+  </pad16>
+</page>

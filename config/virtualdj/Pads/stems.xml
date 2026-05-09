@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="stems">
+	<pad1 name="Vocal" color="stem_color &apos;vocal&apos;" autodim="query">stem_pad &apos;vocal&apos;</pad1>
+	<pad2 name="Instru" color="stem_color &apos;instru&apos;" autodim="query">stem_pad &apos;instru&apos;</pad2>
+	<pad3 name="Bass" color="stem_color &apos;bass&apos;" autodim="query">stem_pad &apos;bass&apos;</pad3>
+	<pad4 name="(Acapella)" color="color &apos;white&apos;" autodim="query">stem_pad &apos;acapella&apos;</pad4>
+	<pad5 name="Kick" color="stem_color &apos;kick&apos;" autodim="query">stem_pad &apos;kick&apos;</pad5>
+	<pad6 name="HiHat" color="stem_color &apos;hihat&apos;" autodim="query">stem_pad &apos;hihat&apos;</pad6>
+	<pad7 name="`effect_stems`" color="effect_stems_color">effect_stems +1</pad7>
+	<pad8 name="(Instrumental)" color="color &apos;white&apos;" autodim="query">stem_pad &apos;instrumental&apos;</pad8>
+	<shift_pad1 name="Vocal" color="stem_color &apos;vocal&apos;" autodim="query">stem_pad isolate &apos;vocal&apos;</shift_pad1>
+	<shift_pad2 name="Instru" color="stem_color &apos;instru&apos;" autodim="query">stem_pad isolate &apos;instru&apos;</shift_pad2>
+	<shift_pad3 name="Bass" color="stem_color &apos;bass&apos;" autodim="query">stem_pad isolate &apos;bass&apos;</shift_pad3>
+	<shift_pad5 name="Kick" color="stem_color &apos;kick&apos;" autodim="query">stem_pad isolate &apos;kick&apos;</shift_pad5>
+	<shift_pad6 name="HiHat" color="stem_color &apos;hihat&apos;" autodim="query">stem_pad isolate &apos;hihat&apos;</shift_pad6>
+	<shift_pad7 name="Stems FX">effect_stems off</shift_pad7>
+	<param1 name="`has_stems &apos;1.0&apos; ? stems_bleed : has_stems &apos;ready&apos;`" tooltip="[value]">has_stems &apos;1.0&apos; ? stems_bleed : nothing</param1>
+	<custompadsmode nb="4">
+		<pad1 name="Vocal" color="stem_color &apos;vocal&apos;" autodim="query">stem_pad &apos;vocal&apos;</pad1>
+		<pad2 name="Instru" color="stem_color &apos;instru&apos;" autodim="query">stem_pad &apos;instru&apos;</pad2>
+		<pad3 name="Bass" color="stem_color &apos;bass&apos;" autodim="query">stem_pad &apos;bass&apos;</pad3>
+		<pad4 name="Rhythm" color="stem_color &apos;kick&apos;" autodim="query">stem_pad &apos;rhythm&apos;</pad4>
+		<shift_pad1 name="Vocal" color="stem_color &apos;vocal&apos;" autodim="query">stem_pad isolate &apos;vocal&apos;</shift_pad1>
+		<shift_pad2 name="Instru" color="stem_color &apos;instru&apos;" autodim="query">stem_pad isolate &apos;instru&apos;</shift_pad2>
+		<shift_pad3 name="Bass" color="stem_color &apos;bass&apos;" autodim="query">stem_pad isolate &apos;bass&apos;</shift_pad3>
+		<shift_pad4 name="Rhythm" color="stem_color &apos;kick&apos;" autodim="query">stem_pad isolate &apos;rhythm&apos;</shift_pad4>
+	</custompadsmode>
+</page>

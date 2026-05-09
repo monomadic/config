@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="custom">
+	<pad1 name="`custom_button_name 300`">custom_button 300</pad1>
+	<shift_pad1 name="`custom_button_name 300`">custom_button_edit 300</shift_pad1>
+	<pad2 name="`custom_button_name 301`">custom_button 301</pad2>
+	<pad3 name="`custom_button_name 302`">custom_button 302</pad3>
+	<pad4 name="`custom_button_name 303`">custom_button 303</pad4>
+	<pad5 name="`custom_button_name 304`">custom_button 304</pad5>
+	<pad6 name="`custom_button_name 305`">custom_button 305</pad6>
+	<pad7 name="`custom_button_name 306`">custom_button 306</pad7>
+	<pad8 name="`custom_button_name 307`">custom_button 307</pad8>
+	<shift_pad2 name="`custom_button_name 301`">custom_button_edit 301</shift_pad2>
+	<shift_pad3 name="`custom_button_name 302`">custom_button_edit 302</shift_pad3>
+	<shift_pad4 name="`custom_button_name 303`">custom_button_edit 303</shift_pad4>
+	<shift_pad5 name="`custom_button_name 304`">custom_button_edit 304</shift_pad5>
+	<shift_pad6 name="`custom_button_name 305`">custom_button_edit 305</shift_pad6>
+	<shift_pad7 name="`custom_button_name 306`">custom_button_edit 306</shift_pad7>
+	<shift_pad8 name="`custom_button_name 307`">custom_button_edit 307</shift_pad8>
+</page>

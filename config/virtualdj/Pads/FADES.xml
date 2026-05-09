@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="FADES">
+	<pad1 name="VOC ECHO">stem_pad &apos;vocal&apos; ? effect_active &quot;echo&quot; on &amp; effect_slider &quot;echo&quot; 1 0% 100% &amp; fade_out</pad1>
+	<pad5 name="VOC VERB">stem_pad &apos;vocal&apos; ? effect_active &quot;reverb&quot; on &amp; effect_slider &quot;reverb&quot; 1 50% 100% &amp; fade_out</pad5>
+</page>

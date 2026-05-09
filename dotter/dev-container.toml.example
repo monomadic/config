@@ -19,7 +19,7 @@ packages = [
 
 # Tracked under `config/` but not wired into Dotter yet:
 # beatportdl, compressor, git, homebrew, iterm, mpv-vj, ollama, python,
-# refind, tag-media, virtualdj, weston, yofi
+# refind, tag-media, weston, yofi
 
 [variables]
 colorscheme = "nightfly"

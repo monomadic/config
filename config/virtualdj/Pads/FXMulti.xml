@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="FX1 16">
+  <!--
+    Each pad:
+      - If the effect is already active: turn it OFF
+      - Else: put it on FX slot 1 (multi) and turn it ON
+      - Pad color reflects effect_active "<name>"
+    Change the effect names to whatever you actually use.
+  -->
+  <pad1 name="Echo" color="effect_active 'echo' ? color 'orange' : color '#202020'">
+    effect_active 'echo' ?
+      effect_active 'echo' off :
+      effect_select_multi 1 'echo' &amp; effect_active 'echo' on
+  </pad1>
+  <pad2 name="Reverb" color="effect_active 'reverb' ? color 'orange' : color '#202020'">
+    effect_active 'reverb' ?
+      effect_active 'reverb' off :
+      effect_select_multi 1 'reverb' &amp; effect_active 'reverb' on
+  </pad2>
+  <pad3 name="Flanger" color="effect_active 'flanger' ? color 'orange' : color '#202020'">
+    effect_active 'flanger' ?
+      effect_active 'flanger' off :
+      effect_select_multi 1 'flanger' &amp; effect_active 'flanger' on
+  </pad3>
+  <pad4 name="Phaser" color="effect_active 'phaser' ? color 'orange' : color '#202020'">
+    effect_active 'phaser' ?
+      effect_active 'phaser' off :
+      effect_select_multi 1 'phaser' &amp; effect_active 'phaser' on
+  </pad4>
+  <pad5 name="Filt HP" color="effect_active 'filter hp' ? color 'orange' : color '#202020'">
+    effect_active 'filter hp' ?
+      effect_active 'filter hp' off :
+      effect_select_multi 1 'filter hp' &amp; effect_active 'filter hp' on
+  </pad5>
+  <pad6 name="Filt LP" color="effect_active 'filter lp' ? color 'orange' : color '#202020'">
+    effect_active 'filter lp' ?
+      effect_active 'filter lp' off :
+      effect_select_multi 1 'filter lp' &amp; effect_active 'filter lp' on
+  </pad6>
+  <pad7 name="Loop Roll" color="effect_active 'loop roll' ? color 'orange' : color '#202020'">
+    effect_active 'loop roll' ?
+      effect_active 'loop roll' off :
+      effect_select_multi 1 'loop roll' &amp; effect_active 'loop roll' on
+  </pad7>
+  <pad8 name="Beat Grid" color="effect_active 'beatgrid' ? color 'orange' : color '#202020'">
+    effect_active 'beatgrid' ?
+      effect_active 'beatgrid' off :
+      effect_select_multi 1 'beatgrid' &amp; effect_active 'beatgrid' on
+  </pad8>
+  <pad9 name="Brake" color="effect_active 'brakeStart' ? color 'orange' : color '#202020'">
+    effect_active 'brakeStart' ?
+      effect_active 'brakeStart' off :
+      effect_select_multi 1 'brakeStart' &amp; effect_active 'brakeStart' on
+  </pad9>
+  <pad10 name="Distort" color="effect_active 'distortion' ? color 'orange' : color '#202020'">
+    effect_active 'distortion' ?
+      effect_active 'distortion' off :
+      effect_select_multi 1 'distortion' &amp; effect_active 'distortion' on
+  </pad10>
+  <pad11 name="RingMod" color="effect_active 'ringmod' ? color 'orange' : color '#202020'">
+    effect_active 'ringmod' ?
+      effect_active 'ringmod' off :
+      effect_select_multi 1 'ringmod' &amp; effect_active 'ringmod' on
+  </pad11>
+  <pad12 name="BitCrush" color="effect_active 'bitcrusher' ? color 'orange' : color '#202020'">
+    effect_active 'bitcrusher' ?
+      effect_active 'bitcrusher' off :
+      effect_select_multi 1 'bitcrusher' &amp; effect_active 'bitcrusher' on
+  </pad12>
+  <pad13 name="Tremolo" color="effect_active 'tremolo' ? color 'orange' : color '#202020'">
+    effect_active 'tremolo' ?
+      effect_active 'tremolo' off :
+      effect_select_multi 1 'tremolo' &amp; effect_active 'tremolo' on
+  </pad13>
+  <pad14 name="WahWah" color="effect_active 'wahwah' ? color 'orange' : color '#202020'">
+    effect_active 'wahwah' ?
+      effect_active 'wahwah' off :
+      effect_select_multi 1 'wahwah' &amp; effect_active 'wahwah' on
+  </pad14>
+  <pad15 name="Backspin" color="effect_active 'backspin' ? color 'orange' : color '#202020'">
+    effect_active 'backspin' ?
+      effect_active 'backspin' off :
+      effect_select_multi 1 'backspin' &amp; effect_active 'backspin' on
+  </pad15>
+  <pad16 name="Echo Out" color="effect_active 'echo out' ? color 'orange' : color '#202020'">
+    effect_active 'echo out' ?
+      effect_active 'echo out' off :
+      effect_select_multi 1 'echo out' &amp; effect_active 'echo out' on
+  </pad16>
+</page>

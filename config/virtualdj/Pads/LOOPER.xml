@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="LOOPER PRO">
+  <!-- Row 1 : clean auto-loops -->
+  <pad1 name="1" query="loop" color="color '#4FC3F7'">
+    loop 1
+  </pad1>
+  <pad2 name="2" query="loop" color="color '#42A5F5'">
+    loop 2
+  </pad2>
+  <pad3 name="4" query="loop" color="color '#1E88E5'">
+    loop 4
+  </pad3>
+  <pad4 name="8" query="loop" color="color '#1565C0'">
+    loop 8
+  </pad4>
+  <!-- Row 2 : performance rolls -->
+  <pad5 name="ROLL 1/4" color="color '#66BB6A'">
+    loop_roll 0.25
+  </pad5>
+  <pad6 name="ROLL 1/2" color="color '#4CAF50'">
+    loop_roll 0.5
+  </pad6>
+  <pad7 name="ROLL 1" color="color '#43A047'">
+    loop_roll 1
+  </pad7>
+  <pad8 name="ROLL 2" color="color '#2E7D32'">
+    loop_roll 2
+  </pad8>
+  <!-- Row 3 : shape and move -->
+  <pad9 name="HALF" query="loop" color="color '#FFB74D'">
+    loop_half
+  </pad9>
+  <pad10 name="DOUBLE" query="loop" color="color '#FFA726'">
+    loop_double
+  </pad10>
+  <pad11 name="MOVE -1" query="loop" color="color '#FB8C00'">
+    loop_move -1
+  </pad11>
+  <pad12 name="MOVE +1" query="loop" color="color '#F57C00'">
+    loop_move +1
+  </pad12>
+  <!-- Row 4 : memory + manual -->
+  <pad13 name="SAVE 1" query="saved_loop 1" color="color '#BA68C8'">
+    loop ? loop_save 1 : nothing
+  </pad13>
+  <pad14 name="LOAD 1" query="saved_loop 1" color="color '#AB47BC'">
+    loop_load 1
+  </pad14>
+  <pad15 name="IN/RELOOP" query="loop" color="color '#EC407A'">
+    loop ? reloop_exit : loop_in
+  </pad15>
+  <pad16 name="OUT/EXIT" query="loop" color="color '#D81B60'">
+    loop ? loop_exit : loop_out
+  </pad16>
+  <!-- Shift layer -->
+  <shift1 name="16" query="loop" color="color '#90CAF9'">
+    loop 16
+  </shift1>
+  <shift2 name="32" query="loop" color="color '#64B5F6'">
+    loop 32
+  </shift2>
+  <shift3 name="1/8" query="loop" color="color '#2196F3'">
+    loop 0.125
+  </shift3>
+  <shift4 name="1/4" query="loop" color="color '#1976D2'">
+    loop 0.25
+  </shift4>
+  <shift5 name="ROLL 4" color="color '#81C784'">
+    loop_roll 4
+  </shift5>
+  <shift6 name="ROLL 8" color="color '#66BB6A'">
+    loop_roll 8
+  </shift6>
+  <shift7 name="MOVE -4" query="loop" color="color '#FFCC80'">
+    loop_move -4
+  </shift7>
+  <shift8 name="MOVE +4" query="loop" color="color '#FFB74D'">
+    loop_move +4
+  </shift8>
+  <shift9 name="SAVE 2" query="saved_loop 2" color="color '#CE93D8'">
+    loop ? loop_save 2 : nothing
+  </shift9>
+  <shift10 name="LOAD 2" query="saved_loop 2" color="color '#BA68C8'">
+    loop_load 2
+  </shift10>
+  <shift11 name="SAVE 3" query="saved_loop 3" color="color '#B39DDB'">
+    loop ? loop_save 3 : nothing
+  </shift11>
+  <shift12 name="LOAD 3" query="saved_loop 3" color="color '#9575CD'">
+    loop_load 3
+  </shift12>
+  <shift13 name="RELOOP" query="loop" color="color '#F48FB1'">
+    reloop
+  </shift13>
+  <shift14 name="EXIT" query="loop" color="color '#F06292'">
+    loop_exit
+  </shift14>
+  <shift15 name="IN" color="color '#E57373'">
+    loop_in
+  </shift15>
+  <shift16 name="OUT" color="color '#EF5350'">
+    loop_out
+  </shift16>
+</page>

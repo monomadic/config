@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="CUE-STUTTER">
+	<pad1 name="`cue_display 1`" color="cue_color 1" query="has_cue 1 ?              song_pos &amp; param_greater_equal `cue_pos 1` ?                has_cue 2 ?                  song_pos &amp; param_smaller `cue_pos 2` ? blink 500ms : on                : blink 500ms              : on            : off">setting &apos;quantizeSetCue&apos; no &amp; goto_cue 1 &amp; setting &apos;quantizeSetCue&apos; yes</pad1>
+	<pad2 name="`cue_display 2`" color="cue_color 2" query="has_cue 2 ?              song_pos &amp; param_greater_equal `cue_pos 2` ?                has_cue 3 ?                  song_pos &amp; param_smaller `cue_pos 3` ? blink 500ms : on                : blink 500ms              : on            : off">
+    hotcue 2 ? hotcue 2 : nothing
+  </pad2>
+	<pad3 name="`cue_display 3`" color="cue_color 3" query="has_cue 3 ?              song_pos &amp; param_greater_equal `cue_pos 3` ?                has_cue 4 ?                  song_pos &amp; param_smaller `cue_pos 4` ? blink 500ms : on                : blink 500ms              : on            : off">
+    hotcue 3 ? hotcue 3 : nothing
+  </pad3>
+	<pad4 name="`cue_display 4`" color="cue_color 4" query="has_cue 4 ?              song_pos &amp; param_greater_equal `cue_pos 4` ? blink 500ms : on            : off">
+    hotcue 4 ? hotcue 4 : nothing
+  </pad4>
+</page>

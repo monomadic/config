@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="SAMPLER8">
+  <pad1 name="`sampler_loaded 1 'auto' ? sampler_pad 1 'auto' : '(empty 1)'`" color="sampler_loaded 1 'auto' ? sampler_color 1 'auto' : dim" query="sampler_play 1 'auto' ? blink 500ms : on">
+    sampler_loaded 1 'auto' ? sampler_pad 1 'auto' : sampler_rec 1 'auto'
+  </pad1>
+  <pad2 name="`sampler_loaded 2 'auto' ? sampler_pad 2 'auto' : '(empty 2)'`" color="sampler_loaded 2 'auto' ? sampler_color 2 'auto' : dim" query="sampler_play 2 'auto' ? blink 500ms : on">
+    sampler_loaded 2 'auto' ? sampler_pad 2 'auto' : sampler_rec 2 'auto'
+  </pad2>
+  <pad3 name="`sampler_loaded 3 'auto' ? sampler_pad 3 'auto' : '(empty 3)'`" color="sampler_loaded 3 'auto' ? sampler_color 3 'auto' : dim" query="sampler_play 3 'auto' ? blink 500ms : on">
+    sampler_loaded 3 'auto' ? sampler_pad 3 'auto' : sampler_rec 3 'auto'
+  </pad3>
+  <pad4 name="`sampler_loaded 4 'auto' ? sampler_pad 4 'auto' : '(empty 4)'`" color="sampler_loaded 4 'auto' ? sampler_color 4 'auto' : dim" query="sampler_play 4 'auto' ? blink 500ms : on">
+    sampler_loaded 4 'auto' ? sampler_pad 4 'auto' : sampler_rec 4 'auto'
+  </pad4>
+  <pad5 name="`sampler_loaded 5 'auto' ? sampler_pad 5 'auto' : '(empty 5)'`" color="sampler_loaded 5 'auto' ? sampler_color 5 'auto' : dim" query="sampler_play 5 'auto' ? blink 500ms : on">
+    sampler_loaded 5 'auto' ? sampler_pad 5 'auto' : sampler_rec 5 'auto'
+  </pad5>
+  <pad6 name="`sampler_loaded 6 'auto' ? sampler_pad 6 'auto' : '(empty 6)'`" color="sampler_loaded 6 'auto' ? sampler_color 6 'auto' : dim" query="sampler_play 6 'auto' ? blink 500ms : on">
+    sampler_loaded 6 'auto' ? sampler_pad 6 'auto' : sampler_rec 6 'auto'
+  </pad6>
+  <pad7 name="`sampler_loaded 7 'auto' ? sampler_pad 7 'auto' : '(empty 7)'`" color="sampler_loaded 7 'auto' ? sampler_color 7 'auto' : dim" query="sampler_play 7 'auto' ? blink 500ms : on">
+    sampler_loaded 7 'auto' ? sampler_pad 7 'auto' : sampler_rec 7 'auto'
+  </pad7>
+  <pad8 name="`sampler_loaded 8 'auto' ? sampler_pad 8 'auto' : '(empty 8)'`" color="sampler_loaded 8 'auto' ? sampler_color 8 'auto' : dim" query="sampler_play 8 'auto' ? blink 500ms : on">
+    sampler_loaded 8 'auto' ? sampler_pad 8 'auto' : sampler_rec 8 'auto'
+  </pad8>
+  <shift_pad1 name="`sampler_loaded 1 'auto' ? sampler_pad 1 'auto' : ''`">sampler_edit 1</shift_pad1>
+  <shift_pad2 name="`sampler_loaded 2 'auto' ? sampler_pad 2 'auto' : ''`">sampler_edit 2</shift_pad2>
+  <shift_pad3 name="`sampler_loaded 3 'auto' ? sampler_pad 3 'auto' : ''`">sampler_edit 3</shift_pad3>
+  <shift_pad4 name="`sampler_loaded 4 'auto' ? sampler_pad 4 'auto' : ''`">sampler_edit 4</shift_pad4>
+  <shift_pad5 name="`sampler_loaded 5 'auto' ? sampler_pad 5 'auto' : ''`">sampler_edit 5</shift_pad5>
+  <shift_pad6 name="`sampler_loaded 6 'auto' ? sampler_pad 6 'auto' : ''`">sampler_edit 6</shift_pad6>
+  <shift_pad7 name="`sampler_loaded 7 'auto' ? sampler_pad 7 'auto' : ''`">sampler_edit 7</shift_pad7>
+  <shift_pad8 name="`sampler_loaded 8 'auto' ? sampler_pad 8 'auto' : ''`">sampler_edit 8</shift_pad8>
+  <param1 name="BANK `get_sampler_bank`">sampler_bank</param1>
+  <param2 name="PAGE `sampler_pad_page`">sampler_pad_page</param2>
+  <menu>`sampler_options`</menu>
+</page>
