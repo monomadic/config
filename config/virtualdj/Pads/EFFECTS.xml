@@ -1,121 +1,116 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<page name="FX-SEL">
-  <!-- ROW 1: ECHO, REVERB, DELAY, CUT -->
-  <pad1 name="ECHO" query="effect_active 'Echo' ? blink 500ms" color="var 'FX_MODE_COLOR' ? color 'magenta' : color 'yellow'">
-    var 'FX_MODE_COLOR' ?
-      filter_selectcolorfx 'Echo' :
-      effect_active 'Echo' ?
-        effect_active 'Echo' :
-        effect_slider 'Echo' 1 75% &amp; effect_slider 'Echo' 2 50% &amp; effect_active 'Echo'
+<page name="EFFECTS">
+  <!--
+    Slot-based FX toggles.
+
+    Pads 1-11 use slot 1 as a shared, programmable FX lane. That keeps a large
+    pad matrix predictable: every pad knows which slot it will replace, which
+    sliders it will set, and which slot state should light the pad. Press the
+    same active effect pad again to turn slot 1 off.
+
+    State checks use get_effect_name 1, not bare effect_select 1. Bare
+    effect_select 1 can open the effect selector; effect_select belongs in the
+    loading branch where an explicit effect name is provided.
+    Same-pad toggles use nested conditionals instead of && in the action body.
+
+    Use a dedicated slot design instead when the page is meant to keep several
+    effects active at once. See Reference - Slot FX.xml for both patterns.
+  -->
+  <pad1 name="ECHO" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'echo' ? effect_active 1 ? blink 500ms : off : off" color="color yellow">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'echo' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 75% &amp; effect_slider 1 2 50% &amp; effect_active 1 on :
+      effect_select 1 'Echo' &amp; effect_slider 1 1 75% &amp; effect_slider 1 2 50% &amp; effect_active 1 on
   </pad1>
-  <pad2 name="REVERB" query="effect_active 'Reverb' ? blink 500ms" color="var 'FX_MODE_COLOR' ? color 'magenta' : color 'yellow'">
-    var 'FX_MODE_COLOR' ?
-      filter_selectcolorfx 'Reverb' :
-      effect_active 'Reverb' ?
-        effect_active 'Reverb' :
-        effect_slider 'Reverb' 1 75% &amp; effect_slider 'Reverb' 2 50% &amp; effect_active 'Reverb'
+  <pad2 name="REVERB" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'reverb' ? effect_active 1 ? blink 500ms : off : off" color="color cyan">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'reverb' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 45% &amp; effect_slider 1 2 50% &amp; effect_active 1 on :
+      effect_select 1 'Reverb' &amp; effect_slider 1 1 45% &amp; effect_slider 1 2 50% &amp; effect_active 1 on
   </pad2>
-  <pad3 name="DELAY" query="effect_active 'Delay' ? blink 500ms" color="var 'FX_MODE_COLOR' ? color 'magenta' : color 'yellow'">
-    var 'FX_MODE_COLOR' ?
-      filter_selectcolorfx 'Delay' :
-      effect_active 'Delay' ?
-        effect_active 'Delay' :
-        effect_slider 'Delay' 1 75% &amp; effect_slider 'Delay' 2 50% &amp; effect_active 'Delay'
+  <pad3 name="DELAY" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'delay' ? effect_active 1 ? blink 500ms : off : off" color="color green">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'delay' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 75% &amp; effect_slider 1 2 50% &amp; effect_active 1 on :
+      effect_select 1 'Delay' &amp; effect_slider 1 1 75% &amp; effect_slider 1 2 50% &amp; effect_active 1 on
   </pad3>
-  <pad4 name="CUT" query="effect_active 'Cut' ? blink 500ms" color="var 'FX_MODE_COLOR' ? color 'magenta' : color 'yellow'">
-    var 'FX_MODE_COLOR' ?
-      filter_selectcolorfx 'Cut' :
-      effect_active 'Cut' ?
-        effect_active 'Cut' :
-        effect_slider 'Cut' 1 75% &amp; effect_slider 'Cut' 2 50% &amp; effect_active 'Cut'
+  <pad4 name="CUT" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'cut' ? effect_active 1 ? blink 500ms : off : off" color="color blue">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'cut' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 75% &amp; effect_slider 1 2 50% &amp; effect_active 1 on :
+      effect_select 1 'Cut' &amp; effect_slider 1 1 75% &amp; effect_slider 1 2 50% &amp; effect_active 1 on
   </pad4>
-  <!-- ROW 2: ECHO OUT, LOOP ROLL, BACKSPIN, BRAKE -->
-  <pad5 name="ECHO OUT" query="effect_active 'Echo Out' ? blink 500ms" color="var 'FX_MODE_COLOR' ? color 'magenta' : color 'yellow'">
-    var 'FX_MODE_COLOR' ?
-      filter_selectcolorfx 'Echo Out' :
-      effect_active 'Echo Out' ?
-        effect_active 'Echo Out' :
-        effect_slider 'Echo Out' 1 75% &amp; effect_slider 'Echo Out' 2 50% &amp; effect_active 'Echo Out'
+  <pad5 name="ECHO OUT" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'echo out' ? effect_active 1 ? blink 500ms : off : off" color="color orange">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'echo out' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 80% &amp; effect_slider 1 2 50% &amp; effect_active 1 on :
+      effect_select 1 'Echo Out' &amp; effect_slider 1 1 80% &amp; effect_slider 1 2 50% &amp; effect_active 1 on
   </pad5>
-  <pad6 name="LOOP ROLL" query="effect_active 'Loop Roll' ? blink 500ms" color="var 'FX_MODE_COLOR' ? color 'magenta' : color 'yellow'">
-    var 'FX_MODE_COLOR' ?
-      filter_selectcolorfx 'Loop Roll' :
-      effect_active 'loop roll' ?
-        effect_active 'loop roll' :
-        effect_slider 'loop roll' 1 75% &amp; effect_slider 'loop roll' 2 50% &amp; effect_active 'loop roll'
+  <pad6 name="LOOP ROLL" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'loop roll' ? effect_active 1 ? blink 500ms : off : off" color="color orange">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'loop roll' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 50% &amp; effect_active 1 on :
+      effect_select 1 'Loop Roll' &amp; effect_slider 1 1 50% &amp; effect_active 1 on
   </pad6>
-  <pad7 name="BACKSPIN" query="effect_active 'Backspin' ? blink 500ms" color="var 'FX_MODE_COLOR' ? color 'magenta' : color 'yellow'">
-    var 'FX_MODE_COLOR' ?
-      filter_selectcolorfx 'Backspin' :
-      effect_active 'Backspin' ?
-        effect_active 'Backspin' :
-        effect_slider 'Backspin' 1 75% &amp; effect_slider 'Backspin' 2 50% &amp; effect_active 'Backspin'
+  <pad7 name="BACKSPIN" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'backspin' ? effect_active 1 ? blink 500ms : off : off" color="color orange">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'backspin' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 75% &amp; effect_active 1 on :
+      effect_select 1 'Backspin' &amp; effect_slider 1 1 75% &amp; effect_active 1 on
   </pad7>
-  <pad8 name="BRAKE" query="effect_active 'Brake' ? blink 500ms" color="var 'FX_MODE_COLOR' ? color 'magenta' : color 'yellow'">
-    var 'FX_MODE_COLOR' ?
-      filter_selectcolorfx 'Brake' :
-      effect_active 'Brake' ?
-        effect_active 'Brake' :
-        effect_slider 'Brake' 1 75% &amp; effect_slider 'Brake' 2 50% &amp; effect_active 'Brake'
+  <pad8 name="BRAKE" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'brake' ? effect_active 1 ? blink 500ms : off : off" color="color orange">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'brake' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 75% &amp; effect_active 1 on :
+      effect_select 1 'Brake' &amp; effect_slider 1 1 75% &amp; effect_active 1 on
   </pad8>
-  <!-- ROW 3: SPIRAL, PHASER, BEATGRID, GATE -->
-  <pad9 name="SPIRAL" query="effect_active 'Spiral' ? blink 500ms" color="var 'FX_MODE_COLOR' ? color 'magenta' : color 'yellow'">
-    var 'FX_MODE_COLOR' ?
-      filter_selectcolorfx 'Spiral' :
-      effect_active 'Spiral' ?
-        effect_active 'Spiral' :
-        effect_slider 'Spiral' 1 75% &amp; effect_slider 'Spiral' 2 50% &amp; effect_active 'Spiral'
+  <pad9 name="SPIRAL" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'spiral' ? effect_active 1 ? blink 500ms : off : off" color="color magenta">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'spiral' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 75% &amp; effect_slider 1 2 50% &amp; effect_active 1 on :
+      effect_select 1 'Spiral' &amp; effect_slider 1 1 75% &amp; effect_slider 1 2 50% &amp; effect_active 1 on
   </pad9>
-  <pad10 name="PHASER" query="effect_active 'Phaser' ? blink 500ms" color="var 'FX_MODE_COLOR' ? color 'magenta' : color 'yellow'">
-    var 'FX_MODE_COLOR' ?
-      filter_selectcolorfx 'Phaser' :
-      effect_active 'Phaser' ?
-        effect_active 'Phaser' :
-        effect_slider 'Phaser' 1 75% &amp; effect_slider 'Phaser' 2 50% &amp; effect_active 'Phaser'
+  <pad10 name="PHASER" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'phaser' ? effect_active 1 ? blink 500ms : off : off" color="color magenta">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'phaser' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 50% &amp; effect_active 1 on :
+      effect_select 1 'Phaser' &amp; effect_slider 1 1 50% &amp; effect_active 1 on
   </pad10>
-  <pad11 name="BEATGRID" query="effect_active 'Beatgrid' ? blink 500ms" color="var 'FX_MODE_COLOR' ? color 'magenta' : color 'yellow'">
-    var 'FX_MODE_COLOR' ?
-      filter_selectcolorfx 'Beatgrid' :
-      effect_active 'Beatgrid' ?
-        effect_active 'Beatgrid' :
-        effect_slider 'Beatgrid' 1 75% &amp; effect_slider 'Beatgrid' 2 50% &amp; effect_active 'Beatgrid'
+  <pad11 name="BEATGRID" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'beatgrid' ? effect_active 1 ? blink 500ms : off : off" color="color magenta">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'beatgrid' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 75% &amp; effect_active 1 on :
+      effect_select 1 'BeatGrid' &amp; effect_slider 1 1 75% &amp; effect_active 1 on
   </pad11>
-  <pad12 name="GATE" query="effect_active 'Gate' ? blink 500ms" color="var 'FX_MODE_COLOR' ? color 'magenta' : color 'yellow'">
-    var 'FX_MODE_COLOR' ?
-      filter_selectcolorfx 'Gate' :
-      effect_active 'Gate' ?
-        effect_active 'Gate' :
-        effect_slider 'Gate' 1 75% &amp; effect_slider 'Gate' 2 50% &amp; effect_active 'Gate'
-  </pad12>
-  <!-- STEM FX PADS: VOCAL, MELODY, DRUM, KILL FX -->
-  <pad13 name="FX: VOCAL" color="stem_color vocal">
+  <pad12 name="EDIT S1" color="color white">effect_show_gui 1</pad12>
+  <shift_pad1 name="VOCAL ECHO OUT" color="stem_color 'vocal'" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'echo out' ? effect_active 1 ? blink 500ms : off : off">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'echo out' ?
+      effect_active 1 ?
+        effect_active 1 off &amp; effect_stems off :
+        effect_stems 'vocal' &amp; effect_slider 1 1 80% &amp; effect_slider 1 2 50% &amp; effect_active 1 on :
+      effect_stems 'vocal' &amp; effect_select 1 'Echo Out' &amp; effect_slider 1 1 80% &amp; effect_slider 1 2 50% &amp; effect_active 1 on
+  </shift_pad1>
+  <pad13 name="FX: VOCAL" color="stem_color 'vocal'" query="effect_stems 'vocal' ? blink 500ms : off">
     effect_stems 'vocal'
   </pad13>
-  <pad14 name="FX: MELODY" color="stem_color melody">
+  <pad14 name="FX: MELODY" color="stem_color 'melody'" query="effect_stems 'melody' ? blink 500ms : off">
     effect_stems 'melody'
   </pad14>
-  <pad15 name="FX: DRUM" color="stem_color rhythm">
+  <pad15 name="FX: DRUM" color="stem_color 'rhythm'" query="effect_stems 'rhythm' ? blink 500ms : off">
     effect_stems 'rhythm'
   </pad15>
-  <pad16 name="KILL FX" color="color 'red'">
-    effect_active 'Echo' off &amp;
-    effect_active 'Reverb' off &amp;
-    effect_active 'Delay' off &amp;
-    effect_active 'Cut' off &amp;
-    effect_active 'Echo Out' off &amp;
-    effect_active 'loop roll' off &amp;
-    effect_active 'Backspin' off &amp;
-    effect_active 'Brake' off &amp;
-    effect_active 'Spiral' off &amp;
-    effect_active 'Phaser' off &amp;
-    effect_active 'Beatgrid' off &amp;
-    effect_active 'Gate' off
+  <pad16 name="S1 OFF" color="color 'red'">
+    effect_active 1 off &amp; effect_stems off
   </pad16>
-  <!-- MENU + PARAM: SWITCH BETWEEN FX / COLOR FX MODES -->
-  <menu>MODE =[toggle 'FX_MODE_COLOR']
-  </menu>
-  <!-- Dynamic label: FX / COLORFX -->
-  <param1 name="`var 'FX_MODE_COLOR' ? get_text 'COLOR FX' : get_text 'DECK FX'`">
-    var 'FX_MODE_COLOR' ? set 'FX_MODE_COLOR' 0 : set 'FX_MODE_COLOR' 1
-  </param1>
 </page>
