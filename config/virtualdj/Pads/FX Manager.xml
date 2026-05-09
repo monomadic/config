@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="FX Manager">
+	<pad1 color="color &apos;red&apos;" query="effect_bank_load 1" name="BANK 1">var &apos;@$fxbankmode&apos; 1 ? effect_bank_load 1 : deck all effect_bank_load 1</pad1>
+	<pad2 name="BANK 2" color="color &apos;green&apos;" query="effect_bank_load 2">var &apos;@$fxbankmode&apos; 1 ? effect_bank_load 2 : deck all effect_bank_load 2</pad2>
+	<pad3 name="BANK 3" color="color &apos;blue&apos;" query="effect_bank_load 3">var &apos;@$fxbankmode&apos; 1 ? effect_bank_load 3 : deck all effect_bank_load 3</pad3>
+	<pad4 name="BANK 4" color="color &apos;yellow&apos;" query="effect_bank_load 4">var &apos;@$fxbankmode&apos; 1 ? effect_bank_load 4 : deck all effect_bank_load 4</pad4>
+	<pad5 name="BANK 5" color="color &apos;orange&apos;" query="effect_bank_load 5">var &apos;@$fxbankmode&apos; 1 ? effect_bank_load 5 : deck all effect_bank_load 5</pad5>
+	<pad6 name="BANK 6" color="color &apos;violet&apos;" query="effect_bank_load 6">var &apos;@$fxbankmode&apos; 1 ? effect_bank_load 6 : deck all effect_bank_load 6</pad6>
+	<pad7 name="BANK 7" color="color &apos;cyan&apos;" query="effect_bank_load 7">var &apos;@$fxbankmode&apos; 1 ? effect_bank_load 7 : deck all effect_bank_load 7</pad7>
+	<pad8 name="BANK 8" color="color &apos;magenta&apos;" query="effect_bank_load 8">var &apos;@$fxbankmode&apos; 1 ? effect_bank_load 8 : deck all effect_bank_load 8</pad8>
+	<shift_pad1 name="SAVE 1" color="color &apos;red&apos;">effect_bank_save 1 &amp; var &apos;@$fxbankmode&apos; 1 ? nothing : deck all effect_bank_load 1</shift_pad1>
+	<shift_pad2 name="SAVE 2" color="color &apos;green&apos;">effect_bank_save 2 &amp; var &apos;@$fxbankmode&apos; 1 ? nothing : deck all effect_bank_load 2</shift_pad2>
+	<shift_pad3 name="SAVE 3" color="color &apos;blue&apos;">effect_bank_save 3 &amp; var &apos;@$fxbankmode&apos; 1 ? nothing : deck all effect_bank_load 3</shift_pad3>
+	<shift_pad4 name="SAVE 4" color="color &apos;yellow&apos;">effect_bank_save 4 &amp; var &apos;@$fxbankmode&apos; 1 ? nothing : deck all effect_bank_load 4</shift_pad4>
+	<shift_pad5 name="SAVE 5" color="color &apos;orange&apos;">effect_bank_save 5 &amp; var &apos;@$fxbankmode&apos; 1 ? nothing : deck all effect_bank_load 5</shift_pad5>
+	<shift_pad6 name="SAVE 6" color="color &apos;violet&apos;">effect_bank_save 6 &amp; var &apos;@$fxbankmode&apos; 1 ? nothing : deck all effect_bank_load 6</shift_pad6>
+	<shift_pad7 name="SAVE 7" color="color &apos;cyan&apos;">effect_bank_save 7 &amp; var &apos;@$fxbankmode&apos; 1 ? nothing : deck all effect_bank_load 7</shift_pad7>
+	<shift_pad8 name="SAVE 8" color="color &apos;magenta&apos;">effect_bank_save 8 &amp; var &apos;@$fxbankmode&apos; 1 ? nothing : deck all effect_bank_load 8</shift_pad8>
+	<param1 name="`var &apos;@$fxbankmode&apos; 1 ? get_text &apos;PER DECK&apos; : get_text &apos;GLOBAL&apos;`">cycle &apos;@$fxbankmode&apos; 2</param1>
+	<param2 />
+</page>

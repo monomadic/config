@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper device="KEYBOARD" author="Atomix Productions" version="850" date="2025-09-29">
+	<info>https://www.virtualdj.com/manuals/hardware/keyboard/index.html</info>
+	<map value="UNMAPPED" action="search" />
+	<map value="ALT" action="keyboard_shortcuts" name="" />
+	<map value="RIGHT ALT" action="keyboard_shortcuts" name="" />
+	<map value="ALT+1" action="deck 1 select" />
+	<map value="ALT+2" action="deck 2 select" />
+	<map value="ALT+3" action="deck 3 select" />
+	<map value="ALT+4" action="deck 4 select" />
+	<map value="ALT+5" action="deck left loop_half" name="Loop /2" />
+	<map value="ALT+6" action="deck left loop_double" name="Loop x2" />
+	<map value="ALT+Q" action="deck left sync" name="SYNC" />
+	<map value="ALT+W" action="deck left pitch_bend +2% 200ms" name="NUDGE LEFT" />
+	<map value="ALT+E" action="deck left pitch_bend -2% 200ms" name="NUDGE RIGHT" />
+	<map value="ALT+R" action="deck left pitch -0.2%" name="PITCH -" />
+	<map value="ALT+T" action="deck left pitch +0.2%" name="PITCH +" />
+	<map value="ALT+Y" action="deck left pitch_reset" name="PITCH RESET" />
+	<map value="ALT+A" action="deck left pad 1" name="PAD 1" />
+	<map value="ALT+S" action="deck left pad 2" name="PAD 2" />
+	<map value="ALT+D" action="deck left pad 3" name="PAD 3" />
+	<map value="ALT+F" action="deck left pad 4" name="PAD 4" />
+	<map value="ALT+G" action="deck left pad_page +1" name="PAD PAGE" />
+	<map value="ALT+Z" action="deck left pad 5" name="PAD 5" />
+	<map value="ALT+X" action="deck left pad 6" name="PAD 6" />
+	<map value="ALT+C" action="deck left pad 7" name="PAD 7" />
+	<map value="ALT+V" action="deck left pad 8" name="PAD 8" />
+	<map value="ALT+SHIFT+A" action="deck left padshift 1" name="SHIFT_PAD 1" />
+	<map value="ALT+SHIFT+S" action="deck left padshift 2" name="SHIFT_PAD 2" />
+	<map value="ALT+SHIFT+D" action="deck left padshift 3" name="SHIFT_PAD 3" />
+	<map value="ALT+SHIFT+F" action="deck left padshift 4" name="SHIFT_PAD 4" />
+	<map value="ALT+SHIFT+Z" action="deck left padshift 5" name="SHIFT_PAD 5" />
+	<map value="ALT+SHIFT+X" action="deck left padshift 6" name="SHIFT_PAD 6" />
+	<map value="ALT+SHIFT+C" action="deck left padshift 7" name="SHIFT_PAD 7" />
+	<map value="ALT+SHIFT+V" action="deck left padshift 8" name="SHIFT_PAD 8" />
+	<map value="ALT+7" action="deck right play_button" name="PLAY" />
+	<map value="ALT+8" action="deck right cue_button" name="CUE" />
+	<map value="ALT+9" action="deck right stop_button" name="STOP" />
+	<map value="ALT+0" action="deck right loop_button" name="LOOP" />
+	<map value="ALT+-" action="deck right loop_half" name="Loop /2" />
+	<map value="ALT+=" action="deck right loop_double" name="Loop x2" />
+	<map value="ALT+U" action="deck right sync" name="SYNC" />
+	<map value="ALT+I" action="deck right pitch_bend +2% 200ms" name="NUDGE LEFT" />
+	<map value="ALT+O" action="deck right pitch_bend -2% 200ms" name="NUDGE RIGHT" />
+	<map value="ALT+P" action="deck right pitch -0.2%" name="PITCH -" />
+	<map value="ALT+[" action="deck right pitch +0.2%" name="PITCH +" />
+	<map value="ALT+]" action="deck right pitch_reset" name="PITCH RESET" />
+	<map value="ALT+J" action="deck right pad 1" name="PAD 1" />
+	<map value="ALT+K" action="deck right pad 2" name="PAD 2" />
+	<map value="ALT+L" action="deck right pad 3" name="PAD 3" />
+	<map value="ALT+;" action="deck right pad 4" name="PAD 4" />
+	<map value="ALT+&apos;" action="deck right pad_page +1" name="PAD PAGE" />
+	<map value="ALT+M" action="deck right pad 5" name="PAD 5" />
+	<map value="ALT+," action="deck right pad 6" name="PAD 6" />
+	<map value="ALT+." action="deck right pad 7" name="PAD 7" />
+	<map value="ALT+/" action="deck right pad 8" name="PAD 8" />
+	<map value="ALT+SHIFT+J" action="deck right padshift 1" name="SHIFT_PAD 1" />
+	<map value="ALT+SHIFT+K" action="deck right padshift 2" name="SHIFT_PAD 2" />
+	<map value="ALT+SHIFT+L" action="deck right padshift 3" name="SHIFT_PAD 3" />
+	<map value="ALT+SHIFT+;" action="deck right padshift 4" name="SHIFT_PAD 4" />
+	<map value="ALT+SHIFT+M" action="deck right padshift 5" name="SHIFT_PAD 5" />
+	<map value="ALT+SHIFT+," action="deck right padshift 6" name="SHIFT_PAD 6" />
+	<map value="ALT+SHIFT+." action="deck right padshift 7" name="SHIFT_PAD 7" />
+	<map value="ALT+SHIFT+/" action="deck right padshift 8" name="SHIFT_PAD 8" />
+	<map value="ALT+BACK" action="mix_now" name="MIX NOW" />
+	<map value="ALT+SPACE" action="play_button" />
+	<map value="ALT+LEFT" action="crossfader -10%" name="CROSS &lt;" />
+	<map value="ALT+RIGHT" action="crossfader +10%" name="CROSS &gt;" />
+	<map value="ALT+UP" action="pitch -0.2% locked" name="ALL PITCH -" />
+	<map value="ALT+DOWN" action="pitch +0.2% locked" name="ALL PITCH +" />
+	<map value="CMD+LEFT" action="deck left load" name="LOAD LEFT" />
+	<map value="CMD+RIGHT" action="deck right load" name="LOAD RIGHT" />
+	<map value="CMD+UP" action="browser_folder -1" name="FOLDER UP" />
+	<map value="CMD+DOWN" action="browser_folder +1" name="FOLDER DOWN" />
+	<map value="CMD+RETURN" action="browser_open_folder" name="SUBFOLDERS" />
+	<map value="CMD+BACK" action="goto_last_folder" name="PREVIOUS FOLDER" />
+	<map value="CMD+TAB" action="sideview +1" name="SWITCH SIDEVIEW" />
+	<map value="SHIFT+ESCAPE" action="settings" name="SETTINGS" />
+	<map value="SHIFT" action="shift" />
+	<map value="RIGHT SHIFT" action="shift" />
+	<map value="ALT+SHIFT" action="shift" />
+	<map value="CMD+," action="settings" name="SETTINGS" />
+	<map value="CMD+1" action="deck 1 leftside" />
+	<map value="CMD+2" action="goto_cue 2 &amp; sync" />
+	<map value="CMD+SHIFT+," action="setting &apos;skin&apos;" />
+	<map value="CTRL+O" action="goto_last_folder" name="PREVIOUS FOLDER" />
+	<map value="CMD+S" action="sync &amp; phrase_sync 16" />
+	<map value="CMD+R" action="browsed_file_reveal" />
+	<map value="CMD+SHIFT+LEFT" action="deck 3 load" />
+	<map value="CMD+SHIFT+RIGHT" action="deck 4 load" />
+	<map value="CMD+Q" action="close" />
+	<map value="CMD+SHIFT+M" action="maximize" />
+	<map value="CMD+I" action="browsed_file_info" />
+	<map value="SPACE" action="play_button" />
+	<map value="CMD+SHIFT+F" action="maximize" />
+	<map value="CMD+SHIFT+RETURN" action="maximize" />
+	<map value="SHIFT+SPACE" action="deck left play &amp; deck right play &amp; sync" />
+	<map value="CMD+B" action="show_splitpanel &apos;info&apos; off &amp; browser_zoom" />
+	<map value="CMD+SHIFT+2" action="pad 10" />
+	<map value="CMD+W" action="toggle &apos;browser_window&apos; &amp; toggle &apos;skin_panel waves&apos;" />
+	<map value="`" action="pad_page +1" />
+	<map value="CMD+E" action="unload 1" />
+	<map value="ALT+RETURN" action="play_button deck 2" />
+	<map value="RETURN" action="deck right play_button" name="PLAY" />
+	<map value="CMD+SHIFT+1" action="pad 9" />
+	<map value="TAB" action="select deck" />
+	<map value="ALT+TAB" action="select deck" />
+	<map value="F1" action="pad 1" />
+	<map value="F2" action="pad 2" />
+	<map value="CTRL+F1" action="pad 1" />
+	<map value="CTRL+F2" action="pad 2" />
+	<map value="CTRL+F3" action="pad 3" />
+	<map value="CTRL+F4" action="pad 4" />
+	<map value="CTRL+F5" action="pad 5" />
+	<map value="CTRL+F6" action="pad 6" />
+	<map value="CTRL+F7" action="pad 7" />
+	<map value="CTRL+F8" action="pad 8" />
+	<map value="BACK" action="unload" />
+	<map value="CMD+L" action="search &quot;`get_loaded_song &apos;filename&apos;`&quot; &amp; browsed_file_reload_tag " />
+	<map value="CMD+3" action="goto_cue 3 &amp; sync" />
+	<map value="CMD+4" action="goto_cue 4 &amp; sync" />
+	<map value="CMD+5" action="pad 5" />
+	<map value="CMD+6" action="pad 6" />
+	<map value="CMD+7" action="pad 7" />
+	<map value="CMD+8" action="pad 8" />
+	<map value="CMD+SHIFT+G" action="browser_gotofolder `deck active`" />
+	<map value="ALT+B" action="browser_gotofolder &quot;$HOME/Music/DJ-Library/Tracks/&quot;" />
+	<map value="CMD+SHIFT+N" action="add_list" />
+	<map value="CMD+F" action="maximize" />
+	<map value="CMD+SHIFT+B" action="repeat_stop &apos;rsi_CollapseFolders&apos; &amp; browser_window &apos;folders&apos; &amp; browser_scroll &apos;bottom&apos; &amp; param_equal get_browsed_folder_tab 0 ? set &apos;$BRPreviousLevel&apos; 0 &amp; repeat_start_instant &apos;rsi_CollapseFolders&apos; 50ms &amp; browser_window &apos;folders&apos; &amp; browser_scroll - 1 &amp; param_equal get_browsed_folder_tab 0 ? var_equal &apos;$BRPreviousLevel&apos; 0 ? browser_scroll &apos;top&apos; ? repeat_stop &apos;rsi_CollapseFolders&apos; : nothing : browser_folder &amp; set &apos;$BRPreviousLevel&apos; 0 &amp; browser_scroll &apos;top&apos; ? repeat_stop &apos;rsi_CollapseFolders&apos; : nothing : get_browsed_folder_tab &amp; set &apos;$BRPreviousLevel&apos; &amp; browser_scroll &apos;top&apos; ? repeat_stop &apos;rsi_CollapseFolders&apos; : nothing : set &apos;$BRPreviousLevel&apos; 1 &amp; repeat_start_instant &apos;rsi_CollapseFolders&apos; 50ms &amp; browser_window &apos;folders&apos; &amp; browser_scroll - 1 &amp; param_equal get_browsed_folder_tab 0 ? var_equal &apos;$BRPreviousLevel&apos; 0 ? browser_scroll &apos;top&apos; ? repeat_stop &apos;rsi_CollapseFolders&apos; : nothing : browser_folder &amp; set &apos;$BRPreviousLevel&apos; 0 &amp; browser_scroll &apos;top&apos; ? repeat_stop &apos;rsi_CollapseFolders&apos; : nothing : get_browsed_folder_tab &amp; set &apos;$BRPreviousLevel&apos; &amp; browser_scroll &apos;top&apos; ? repeat_stop &apos;rsi_CollapseFolders&apos; : nothing" />
+	<map value="CMD+F1" action="deck 1 load" />
+	<map value="CMD+F2" action="deck 2 load" />
+	<map value="CMD+F4" action="deck 4 load" />
+	<map value="SHIFT+[" action="invert_deck left" />
+	<map value="SHIFT+]" action="invert_deck right" />
+	<map value="[" action="deck left select" />
+	<map value="]" action="deck right select" />
+	<map value="F11" action="maximize" />
+	<map value="," action="deck left play_button" name="PLAY" />
+	<map value="." action="deck right play_button" name="PLAY" />
+	<map value="SHIFT+," action="goto_cue -1" />
+	<map value="SHIFT+." action="goto_cue +1" />
+	<map value="CMD+M" action="mute" />
+	<map value="&apos;" action="goto +1" />
+	<map value=";" action="goto -4" />
+	<map value="SHIFT+&apos;" action="goto +4" />
+	<map value="SHIFT+;" action="goto -1" />
+	<map value="CMD+&apos;" action="goto +16" />
+	<map value="CMD+;" action="goto -16" />
+	<map value="CMD+SHIFT+&apos;" action="goto +32" />
+	<map value="CMD+SHIFT+;" action="goto -32" />
+	<map value="CMD+=" action="zoom -0.1" />
+	<map value="CMD+-" action="zoom +0.1" />
+	<map value="CMD+0" action="zoom 0.5" />
+	<map value="CMD+SHIFT+S" action="sync &amp; phrase_sync 32" />
+	<map value="CTRL+2" action="stem_pad &apos;Melody&apos;" />
+	<map value="CTRL+3" action="stem_pad &apos;Rhythm&apos;" />
+	<map value="CTRL+1" action="stem_pad &apos;Vocals&apos;" />
+	<map value="CTRL+L" action="deck right select" />
+	<map value="CTRL+H" action="deck left select" />
+	<map value="CTRL+J" action="invert_deck &amp; select" />
+	<map value="CTRL+K" action="invert_deck" />
+</mapper>

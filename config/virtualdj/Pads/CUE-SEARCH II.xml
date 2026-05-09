@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="CUE-SEARCH">
+  <pad1 color="has_cue &quot;MIX IN 1&quot; ? cue_color &quot;MIX IN 1&quot; : has_cue &quot;INTRO 1&quot; ? cue_color &quot;INTRO 1&quot; : has_cue &quot;INTRO 1&quot; ? cue_color &quot;INTRO 1&quot; : has_cue &quot;INTRO&quot; ? cue_color &quot;INTRO&quot; : offcolor" name="`has_cue &quot;MIX IN 1&quot; ? get_text &quot;MIX IN 1&quot; : has_cue &quot;INTRO 1&quot; ? get_text &quot;INTRO 1&quot; : has_cue &quot;MIX IN&quot; ? get_text &quot;MIX IN&quot; : has_cue &quot;INTRO 1&quot; ? get_text &quot;INTRO 1&quot; : has_cue &quot;INTRO&quot; ? get_text &quot;INTRO&quot; : &quot;&quot;`" autodim="false">has_cue "MIX IN 1" ? goto_cue "MIX IN 1" &amp; play : has_cue "INTRO 1" ? goto_cue "INTRO 1" &amp; play : has_cue "MIX IN" ? goto_cue "MIX IN" &amp; play : has_cue "INTRO" ? goto_cue "INTRO" &amp; play : nothing</pad1>
+  <pad2 name="`has_cue &quot;BUILD 1&quot; ? get_text &quot;BUILD 1&quot; : has_cue &quot;BUILD&quot; ? get_text &quot;BUILD 1&quot; : &quot;&quot;`" color="has_cue &quot;BUILD&quot; ? color '#01E8F0' : offcolor" autodim="false">has_cue "BUILD 1" ? goto_cue "BUILD 1" &amp; play : has_cue "BUILD" ? goto_cue "BUILD" &amp; play : nothing</pad2>
+  <pad3 name="`has_cue &quot;CUT 1&quot; ? get_text &quot;CUT 1&quot; : has_cue &quot;CUT&quot; ? get_text &quot;CUT 1&quot; : &quot;&quot;`" color="has_cue &quot;CUT&quot; ? color '#F31456' : offcolor" autodim="false">has_cue "CUT" ? goto_cue "CUT" &amp; play : nothing</pad3>
+  <pad4 color="has_cue &quot;DROP&quot; ? color '#00FF37' : offcolor" name="`has_cue &quot;DROP 1&quot; ? get_text &quot;DROP&quot; : has_cue &quot;DROP&quot; ? get_text &quot;DROP 1&quot; : &quot;&quot;`" autodim="false">has_cue "DROP" ? goto_cue "DROP" &amp; play : nothing</pad4>
+  <pad5 name="`has_cue &quot;MIX IN 2&quot; ? get_text &quot;MIX IN 2&quot; : has_cue &quot;INTRO 2&quot; ? get_text &quot;INTRO 2&quot; : &quot;&quot;`" color="has_cue &quot;MIX IN 2&quot; ? cue_color &quot;MIX IN 2&quot; : has_cue &quot;INTRO 2&quot; ? cue_color &quot;INTRO 2&quot; : offcolor" autodim="false">has_cue "MIX IN 2" ? goto_cue "MIX IN 2" &amp; play : has_cue "INTRO 2" ? goto_cue "INTRO 2" &amp; play : nothing</pad5>
+  <pad6 name="`has_cue &quot;BUILD 2&quot; ? get_text &quot;BUILD 2&quot; : &quot;&quot;`" color="has_cue &quot;BUILD 2&quot; ? color '#01E8F0' : offcolor" autodim="false">has_cue "BUILD 2" ? goto_cue "BUILD 2" &amp; play : nothing</pad6>
+  <pad7 name="`has_cue &quot;CUT 2&quot; ? get_text &quot;CUT 2&quot; : &quot;&quot;`" color="has_cue &quot;CUT 2&quot; ? color '#F31456' : offcolor" autodim="false">has_cue "CUT 2" ? goto_cue "CUT 2" &amp; play : nothing</pad7>
+  <pad8 name="`has_cue &quot;DROP 2&quot; ? get_text &quot;DROP 2&quot; : &quot;&quot;`" color="has_cue &quot;DROP 2&quot; ? color '#00FF37' : offcolor" autodim="false">has_cue "DROP 2" ? goto_cue "DROP 2" &amp; play : nothing</pad8>
+  <pad12 color="has_cue &quot;DROP 3&quot; ? color '#00FF37' : offcolor" name="`has_cue &quot;DROP 3&quot; ? get_text &quot;DROP 3&quot; : &quot;&quot;`" autodim="false">has_cue "DROP 3" ? goto_cue "DROP 3" &amp; play : nothing</pad12>
+  <pad16 color="has_cue &quot;DROP 4&quot; ? color '#00FF37' : offcolor" name="`has_cue &quot;DROP 4&quot; ? get_text &quot;DROP 4&quot; : &quot;&quot;`" autodim="false">has_cue "DROP 4" ? goto_cue "DROP 4" &amp; play : nothing</pad16>
+  <pad11 name="`has_cue &quot;CUT 3&quot; ? get_text &quot;CUT 3&quot; : &quot;&quot;`" color="has_cue &quot;CUT 3&quot; ? color '#F31456' : offcolor" autodim="false">has_cue "CUT 3" ? goto_cue "CUT 3" &amp; play : nothing</pad11>
+  <pad15 name="`has_cue &quot;CUT 4&quot; ? get_text &quot;CUT 4&quot; : &quot;&quot;`" color="has_cue &quot;CUT 4&quot; ? color '#F31456' : offcolor" autodim="false">has_cue "CUT 4" ? goto_cue "CUT 4" &amp; play : nothing</pad15>
+  <pad10 name="`has_cue &quot;BUILD 3&quot; ? get_text &quot;BUILD 3&quot; : &quot;&quot;`" color="has_cue &quot;BUILD 3&quot; ? color '#01E8F0' : offcolor" autodim="false">has_cue "BUILD 3" ? goto_cue "BUILD 3" &amp; play : nothing</pad10>
+  <pad14 name="`has_cue &quot;BUILD 4&quot; ? get_text &quot;BUILD 4&quot; : &quot;&quot;`" color="has_cue &quot;BUILD 4&quot; ? color '#01E8F0' : offcolor" autodim="false">has_cue "BUILD 4" ? goto_cue "BUILD 4" &amp; play : nothing</pad14>
+  <pad9 name="`has_cue &quot;MIX IN 3&quot; ? get_text &quot;MIX IN 3&quot; : has_cue &quot;INTRO 3&quot; ? get_text &quot;INTRO 3&quot; : &quot;&quot;`" color="has_cue &quot;MIX IN 3&quot; ? cue_color &quot;MIX IN 3&quot; : has_cue &quot;INTRO 3&quot; ? cue_color &quot;INTRO 3&quot; : offcolor" autodim="false">has_cue "MIX IN 3" ? goto_cue "MIX IN 3" &amp; play : has_cue "INTRO 3" ? goto_cue "INTRO 3" &amp; play : nothing</pad9>
+  <pad13 name="`has_cue &quot;MIX IN 4&quot; ? get_text &quot;MIX IN 4&quot; : has_cue &quot;INTRO 4&quot; ? get_text &quot;INTRO 4&quot; : &quot;&quot;`" color="has_cue &quot;MIX IN 4&quot; ? cue_color &quot;MIX IN 4&quot; : has_cue &quot;INTRO 4&quot; ? cue_color &quot;INTRO 4&quot; : offcolor" autodim="false">has_cue "MIX IN 4" ? goto_cue "MIX IN 4" &amp; play : has_cue "INTRO 4" ? goto_cue "INTRO 4" &amp; play : nothing</pad13>
+  <param2 name="`setting hotcueMode &amp; param_uppercase`">setting hotcueMode</param2>
+  <param1 name="CUE">goto_cue</param1>
+  <shift_pad1 name="`has_cue &quot;MIX IN 3&quot; ? get_text &quot;MIX IN 3 : has_cue &quot;INTRO 3&quot; ? get_text &quot;INTRO 3&quot; : &quot;&quot;`" color="has_cue &quot;MIX IN 3&quot; ? cue_color &quot;MIX IN 3&quot; : has_cue &quot;INTRO 3&quot; ? cue_color &quot;INTRO 3&quot; : offcolor" autodim="false">has_cue "MIX IN 3" ? goto_cue "MIX IN 3" &amp; play : has_cue "INTRO 3" ? goto_cue "INTRO 3" &amp; play : nothing</shift_pad1>
+  <shift_pad9/>
+  <shift_pad2 name="`has_cue &quot;BUILD 3&quot; ? get_text &quot;BUILD 3&quot; : &quot;&quot;`" color="has_cue &quot;BUILD 3&quot; ? color '#01E8F0' : offcolor" autodim="false">has_cue "BUILD 3" ? goto_cue "BUILD 3" &amp; play : nothing</shift_pad2>
+  <shift_pad10/>
+  <shift_pad3 name="`has_cue &quot;CUT 3&quot; ? get_text &quot;CUT 3&quot; : &quot;&quot;`" color="has_cue &quot;CUT 3&quot; ? color '#F31456' : offcolor" autodim="false">has_cue "CUT 3" ? goto_cue "CUT 3" &amp; play : nothing</shift_pad3>
+  <shift_pad12/>
+  <shift_pad5/>
+  <shift_pad8/>
+  <shift_pad13 color="has_cue &quot;MIX IN 4&quot; ? cue_color &quot;MIX IN 4&quot; : has_cue &quot;INTRO 4&quot; ? cue_color &quot;INTRO 4&quot; : offcolor"/>
+  <shift_pad11/>
+  <shift_pad7/>
+  <shift_pad4 name="`has_cue &quot;DROP 3&quot; ? get_text &quot;DROP 3&quot; : &quot;&quot;`" color="has_cue &quot;DROP 3&quot; ? color '#00FF37' : offcolor" autodim="false">has_cue "DROP 3" ? goto_cue "DROP 3" &amp; play : nothing</shift_pad4>
+  <shift_pad14/>
+  <shift_pad6/>
+</page>

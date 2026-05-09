@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="FX">
+  <!-- row 1: full-track persistent fx -->
+  <pad1 name="ECHO" color="color 'yellow'" query="effect_stems ? off : effect_active 'echo'">
+    effect_stems off &amp; effect_active 'echo'
+  </pad1>
+  <pad2 name="REVERB" color="color 'yellow'" query="effect_stems ? off : effect_active 'reverb'">
+    effect_stems off &amp; effect_active 'reverb'
+  </pad2>
+  <pad3 name="FLANGER" color="color 'yellow'" query="effect_stems ? off : effect_active 'flanger'">
+    effect_stems off &amp; effect_active 'flanger'
+  </pad3>
+  <pad4 name="BEATGRID" color="color 'yellow'" query="effect_stems ? off : effect_active 'beatgrid'">
+    effect_stems off &amp; effect_active 'beatgrid'
+  </pad4>
+  <!-- row 2: vocal-only persistent fx -->
+  <pad5 name="ECHO - Vocals" color="stem_color 'vocal'" query="effect_stems 'vocal' ? effect_active 'echo' : off">
+    effect_stems 'vocal' &amp; effect_active 'echo'
+  </pad5>
+  <pad6 name="REVERB - Vocals" color="stem_color 'vocal'" query="effect_stems 'vocal' ? effect_active 'reverb' : off">
+    effect_stems 'vocal' &amp; effect_active 'reverb'
+  </pad6>
+  <pad7 name="FLANGER - Vocals" color="stem_color 'vocal'" query="effect_stems 'vocal' ? effect_active 'flanger' : off">
+    effect_stems 'vocal' &amp; effect_active 'flanger'
+  </pad7>
+  <pad8 name="ECHO OUT - Vocals" color="stem_color 'vocal'">
+    effect_stems 'vocal' &amp; effect_active 'echo out' on
+  </pad8>
+  <!-- row 3: melody/rhythm -->
+  <pad9 name="REVERB - Melody" color="stem_color 'melody'" query="effect_stems 'melody' ? effect_active 'reverb' : off">
+    effect_stems 'melody' &amp; effect_active 'reverb'
+  </pad9>
+  <pad10 name="FLANGER - Melody" color="stem_color 'melody'" query="effect_stems 'melody' ? effect_active 'flanger' : off">
+    effect_stems 'melody' &amp; effect_active 'flanger'
+  </pad10>
+  <pad11 name="BEATGRID - Drums" color="stem_color 'rhythm'" query="effect_stems 'rhythm' ? effect_active 'beatgrid' : off">
+    effect_stems 'rhythm' &amp; effect_active 'beatgrid'
+  </pad11>
+  <pad12 name="ECHO - Drums" color="stem_color 'rhythm'" query="effect_stems 'rhythm' ? effect_active 'echo' : off">
+    effect_stems 'rhythm' &amp; effect_active 'echo'
+  </pad12>
+  <!-- row 4: stem mode / off -->
+  <pad13 name="VocalFX" color="stem_color 'vocal'" query="effect_stems 'vocal'">
+    effect_stems 'vocal'
+  </pad13>
+  <pad14 name="MelodyFX" color="stem_color 'melody'" query="effect_stems 'melody'">
+    effect_stems 'melody'
+  </pad14>
+  <pad15 name="DrumFX" color="stem_color 'rhythm'" query="effect_stems 'rhythm'">
+    effect_stems 'rhythm'
+  </pad15>
+  <pad16 name="FX OFF`\n`RESET" color="color 'yellow'" query="effect_stems ? on : effect_active 'echo' | effect_active 'reverb' | effect_active 'flanger' | effect_active 'beatgrid' | effect_active 'echo out'">
+    effect_stems off &amp;
+    effect_active 'echo' off &amp;
+    effect_active 'reverb' off &amp;
+    effect_active 'flanger' off &amp;
+    effect_active 'beatgrid' off &amp;
+    effect_active 'echo out' off &amp;
+    filter 50%
+  </pad16>
+  <!-- shift: edit GUIs -->
+  <shift_pad1 name="EDIT`\n`ECHO" color="color 'yellow'">effect_show_gui 'echo'</shift_pad1>
+  <shift_pad2 name="EDIT`\n`REVERB" color="color 'yellow'">effect_show_gui 'reverb'</shift_pad2>
+  <shift_pad3 name="EDIT`\n`FLANGER" color="color 'yellow'">effect_show_gui 'flanger'</shift_pad3>
+  <shift_pad4 name="EDIT`\n`BEATGRID" color="color 'yellow'">effect_show_gui 'beatgrid'</shift_pad4>
+  <shift_pad5 name="VOCAL`\n`EDIT ECHO" color="stem_color 'vocal'">effect_show_gui 'vocal' 'echo'</shift_pad5>
+  <shift_pad6 name="VOCAL`\n`EDIT REV" color="stem_color 'vocal'">effect_show_gui 'vocal' 'reverb'</shift_pad6>
+  <shift_pad7 name="VOCAL`\n`EDIT FLANG" color="stem_color 'vocal'">effect_show_gui 'vocal' 'flanger'</shift_pad7>
+  <shift_pad8 name="VOCAL`\n`OFF" color="stem_color 'vocal'">effect_stems 'vocal' &amp; effect_active 'echo out' off</shift_pad8>
+  <shift_pad9 name="INST`\n`EDIT REV" color="stem_color 'melody'">effect_show_gui 'melody' 'reverb'</shift_pad9>
+  <shift_pad10 name="INST`\n`EDIT FLANG" color="stem_color 'melody'">effect_show_gui 'melody' 'flanger'</shift_pad10>
+  <shift_pad11 name="DRUM`\n`EDIT GRID" color="stem_color 'rhythm'">effect_show_gui 'rhythm' 'beatgrid'</shift_pad11>
+  <shift_pad12 name="DRUM`\n`EDIT ECHO" color="stem_color 'rhythm'">effect_show_gui 'rhythm' 'echo'</shift_pad12>
+  <shift_pad13 name="FULL TRACK" color="color 'yellow'">effect_stems off</shift_pad13>
+  <shift_pad14 name="MELO+RHY" color="stem_color 'melody'">effect_stems 'melorhythm'</shift_pad14>
+  <shift_pad15 name="ACAPELLA" color="stem_color 'vocal'">effect_stems 'acapella'</shift_pad15>
+  <shift_pad16 name="KILL ALL FX" color="color 'yellow'">
+    effect_stems off &amp;
+    effect_active 'echo' off &amp;
+    effect_active 'reverb' off &amp;
+    effect_active 'flanger' off &amp;
+    effect_active 'beatgrid' off &amp;
+    effect_active 'echo out' off
+  </shift_pad16>
+</page>

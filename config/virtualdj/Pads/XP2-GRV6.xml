@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="XP2-GRV6">
+	<pad1 color="color &apos;magenta&apos;" name="Vocal">effect_arm_stem &apos;Vocal&apos;</pad1>
+	<pad2 name="Melody" color="color &apos;cyan&apos;">effect_arm_stem &apos;Instru&apos;</pad2>
+	<pad3 name="Bass" color="color &apos;red&apos;">effect_arm_stem &apos;Bass&apos;</pad3>
+	<pad4 name="Kick + HH" color="color &apos;green&apos;">effect_arm_stem &apos;Kick+HiHat&apos;</pad4>
+	<pad5 name="Roll 1 Bt." color="color &apos;yellow&apos;">var &apos;drumtoggle&apos; ? padfx &apos;Loop Roll&apos; 100% 1bt &quot;stemfx:stems&quot; : padfx &apos;Loop Roll&apos; 100% 1bt &quot;stemfx:stems&quot; smart_pressed</pad5>
+	<pad6 name="Roll 1/2 Bt." color="color &apos;yellow&apos;">var &apos;drumtoggle&apos; ? padfx &apos;Loop Roll&apos; 100% 0.5bt &quot;stemfx:stems&quot; : padfx &apos;Loop Roll&apos; 100% 0.5bt &quot;stemfx:stems&quot; smart_pressed</pad6>
+	<pad8 name="Roll 1/8 Bt." color="color &apos;yellow&apos;">var &apos;drumtoggle&apos; ? padfx &apos;Loop Roll&apos; 100% 0.125bt &quot;stemfx:stems&quot; : padfx &apos;Loop Roll&apos; 100% 0.125bt &quot;stemfx:stems&quot; smart_pressed</pad8>
+	<pad9 color="color &apos;yellow&apos;" name="FX Toggle">var &apos;drumtoggle&apos; ? padfx &apos;Loop Roll&apos; 100% 0.0625bt &quot;stemfx:stems&quot; : padfx &apos;Loop Roll&apos; 100% 0.0625bt &quot;stemfx:stems&quot; smart_pressed</pad9>
+	<pad7 name="Roll 1/4 Bt." color="color &apos;yellow&apos;">var &apos;drumtoggle&apos; ? padfx &apos;Loop Roll&apos; 100% 0.25bt &quot;stemfx:stems&quot; : padfx &apos;Loop Roll&apos; 100% 0.25bt &quot;stemfx:stems&quot; smart_pressed</pad7>
+	<pad10 color="color &apos;white&apos;">toggle &apos;drumtoggle&apos;</pad10>
+	<pad11 name="BRAKE" color="color &apos;blue&apos;">effect_active &apos;stems&apos; &apos;VinylBrake&apos; while_pressed</pad11>
+	<pad12 name="BRAKE" color="color &apos;blue&apos;">effect_active &apos;stems&apos; &apos;VinylBrake&apos;</pad12>
+	<shift_pad8 name="Trans 1/8Bt." color="color &apos;orange&apos;">var &apos;drumtoggle&apos; ? padfx &apos;Cut&apos; 100% 0.125bt &quot;stemfx:stems&quot; : padfx &apos;Cut&apos; 100% 0.125bt &quot;stemfx:stems&quot; smart_pressed</shift_pad8>
+	<shift_pad12 color="color &apos;blue&apos;" name="BRAKE">effect_active &apos;stems&apos; &apos;VinylBrake&apos;</shift_pad12>
+	<shift_pad5 name="Trans 1Bt." color="color &apos;orange&apos;">var &apos;drumtoggle&apos; ? padfx &apos;Cut&apos; 100% 1bt &quot;stemfx:stems&quot; : padfx &apos;Cut&apos; 100% 1bt &quot;stemfx:stems&quot; smart_pressed</shift_pad5>
+	<shift_pad6 name="Trans 1/2Bt." color="color &apos;orange&apos;">var &apos;drumtoggle&apos; ? padfx &apos;Cut&apos; 100% 0.5bt &quot;stemfx:stems&quot; : padfx &apos;Cut&apos; 100% 0.5bt &quot;stemfx:stems&quot; smart_pressed</shift_pad6>
+	<shift_pad7 name="Trans 1/4Bt." color="color &apos;orange&apos;">var &apos;drumtoggle&apos; ? padfx &apos;Cut&apos; 100% 0.25bt &quot;stemfx:stems&quot; : padfx &apos;Cut&apos; 100% 0.25bt &quot;stemfx:stems&quot; smart_pressed</shift_pad7>
+	<shift_pad1 name="Echo Out" color="color &apos;white&apos;">effect_select_toggle &apos;stems&apos; &apos;Echo Out&apos;</shift_pad1>
+	<shift_pad2 name="Trans" color="color &apos;white&apos;">effect_select_toggle &apos;stems&apos; &apos;Cut&apos;</shift_pad2>
+	<shift_pad3 name="Braker" color="color &apos;white&apos;">effect_select_toggle &apos;stems&apos; &apos;VinylBrake&apos;</shift_pad3>
+	<shift_pad4 name="Delay" color="color &apos;white&apos;">effect_select_toggle &apos;stems&apos; &apos;Delay&apos;</shift_pad4>
+	<shift_pad9 color="color &apos;white&apos;" name="FX Toggle">toggle &apos;drumtoggle&apos;</shift_pad9>
+	<pad13 />
+	<pad14 />
+	<pad15 />
+	<pad16 />
+	<shift_pad10 />
+	<shift_pad11 color="color &apos;blue&apos;">effect_active &apos;stems&apos; &apos;VinylBrake&apos; while_pressed</shift_pad11>
+	<shift_pad14 />
+</page>

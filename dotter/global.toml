@@ -150,3 +150,7 @@ files = { "config/gitui/vim.ron" = "~/.config/gitui/key_bindings.ron" }
 "config/marta/conf.marco" = "~/Library/Application Support/org.yanex.marta/conf.marco"
 "config/marta/favorites.marco" = "~/Library/Application Support/org.yanex.marta/favorites.marco"
 "config/marta/Themes/Black.theme" = "~/Library/Application Support/org.yanex.marta/Themes/Black.theme"
+
+[virtualdj.files]
+"config/virtualdj/Mappers" = { target = "~/Library/Application Support/VirtualDJ/Mappers", type = "symbolic" }
+"config/virtualdj/Pads" = { target = "~/Library/Application Support/VirtualDJ/Pads", type = "symbolic" }

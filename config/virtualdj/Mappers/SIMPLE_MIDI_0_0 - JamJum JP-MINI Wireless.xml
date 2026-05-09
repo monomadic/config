@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper device="SIMPLE_MIDI_0_0" version="850" date="2026-04-23">
+	<map value="9-BUTTON32" action="pad 1" />
+	<map value="9-BUTTON16" action="pad 1" />
+	<map value="9-BUTTON17" action="pad 2" />
+	<map value="9-BUTTON36" action="pad 13" />
+	<map value="9-BUTTON48" action="pad 1" />
+	<map value="9-BUTTON49" action="pad 2" />
+	<map value="9-BUTTON50" action="pad 3" />
+	<map value="9-BUTTON51" action="pad 4" />
+	<map value="9-BUTTON44" action="pad 5" />
+	<map value="9-BUTTON45" action="pad 6" />
+	<map value="9-BUTTON46" action="pad 7" />
+	<map value="9-BUTTON47" action="pad 8" />
+	<map value="9-BUTTON40" action="pad 9" />
+	<map value="9-BUTTON41" action="pad 10" />
+	<map value="9-BUTTON42" action="pad 11" />
+	<map value="9-BUTTON43" action="pad 12" />
+	<map value="9-BUTTON37" action="pad 14" />
+	<map value="9-BUTTON38" action="pad 15" />
+	<map value="9-BUTTON39" action="pad 16" />
+	<map value="0-SLIDER24" action="pad_page +1" />
+	<map value="0-SLIDER23" action="pad_page -1" />
+	<map value="9-BUTTON64" action="goto_cue 1" />
+	<map value="0-ENCODER22" action="play_button" />
+	<map value="9-BUTTON65" action="goto_cue 2" />
+</mapper>

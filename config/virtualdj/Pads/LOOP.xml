@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="LOOP">
+  <pad1 name="1" action="loop 1" query="loop" color="color '#4FC3F7'"/>
+  <pad2 name="2" action="loop 2" query="loop" color="color '#42A5F5'"/>
+  <pad3 name="4" action="loop 4" query="loop" color="color '#1E88E5'"/>
+  <pad4 name="8" action="loop 8" query="loop" color="color '#1565C0'"/>
+  <pad5 name="ROLL 1/4" action="loop_roll 0.25" color="color '#66BB6A'"/>
+  <pad6 name="ROLL 1/2" action="loop_roll 0.5" color="color '#4CAF50'"/>
+  <pad7 name="ROLL 1" action="loop_roll 1" color="color '#43A047'"/>
+  <pad8 name="ROLL 2" action="loop_roll 2" color="color '#2E7D32'"/>
+  <pad9 name="HALF" action="loop_half" query="loop" color="color '#FFB74D'"/>
+  <pad10 name="DOUBLE" action="loop_double" query="loop" color="color '#FFA726'"/>
+  <pad11 name="MOVE -1" action="loop_move -1" query="loop" color="color '#FB8C00'"/>
+  <pad12 name="MOVE +1" action="loop_move +1" query="loop" color="color '#F57C00'"/>
+  <pad13 name="SAVE 1" action="loop ? loop_save 1 : nothing" query="saved_loop 1" color="color '#BA68C8'"/>
+  <pad14 name="LOAD 1" action="loop_load 1" query="saved_loop 1" color="color '#AB47BC'"/>
+  <pad15 name="IN/OUT" action="loop ? reloop_exit : loop_in" query="loop" color="color '#EC407A'"/>
+  <pad16 name="OUT/EXIT" action="loop ? loop_exit : loop_out" query="loop" color="color '#D81B60'"/>
+  <shift1 name="16" action="loop 16" query="loop" color="color '#90CAF9'"/>
+  <shift2 name="32" action="loop 32" query="loop" color="color '#64B5F6'"/>
+  <shift3 name="1/8" action="loop 0.125" query="loop" color="color '#2196F3'"/>
+  <shift4 name="1/4" action="loop 0.25" query="loop" color="color '#1976D2'"/>
+  <shift5 name="ROLL 4" action="loop_roll 4" color="color '#81C784'"/>
+  <shift6 name="ROLL 8" action="loop_roll 8" color="color '#66BB6A'"/>
+  <shift7 name="MOVE -4" action="loop_move -4" query="loop" color="color '#FFCC80'"/>
+  <shift8 name="MOVE +4" action="loop_move +4" query="loop" color="color '#FFB74D'"/>
+  <shift9 name="SAVE 2" action="loop ? loop_save 2 : nothing" query="saved_loop 2" color="color '#CE93D8'"/>
+  <shift10 name="LOAD 2" action="loop_load 2" query="saved_loop 2" color="color '#BA68C8'"/>
+  <shift11 name="SAVE 3" action="loop ? loop_save 3 : nothing" query="saved_loop 3" color="color '#B39DDB'"/>
+  <shift12 name="LOAD 3" action="loop_load 3" query="saved_loop 3" color="color '#9575CD'"/>
+  <shift13 name="RELOOP" action="reloop" query="loop" color="color '#F48FB1'"/>
+  <shift14 name="EXIT" action="loop_exit" query="loop" color="color '#F06292'"/>
+  <shift15 name="IN" action="loop_in" color="color '#E57373'"/>
+  <shift16 name="OUT" action="loop_out" color="color '#EF5350'"/>
+</page>

@@ -86,7 +86,6 @@ Current source-only directories kept for reference or future Dotter wiring:
 - `config/python`
 - `config/refind`
 - `config/tag-media`
-- `config/virtualdj`
 - `config/weston`
 - `config/yofi`
 

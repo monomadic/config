@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="hotcues 9-16">
+	<pad1 name="`cue_display 9`" color="cue_color 9">hot_cue 9</pad1>
+	<pad2 name="`cue_display 10`" color="cue_color 10">hot_cue 10</pad2>
+	<pad3 color="cue_color 11" name="`cue_display 11`">hot_cue 11</pad3>
+	<pad4 color="cue_color 12" name="`cue_display 12`">hot_cue 12</pad4>
+	<pad5 color="cue_color 13" name="`cue_display 13`">hot_cue 13</pad5>
+	<pad6 color="cue_color 14" name="`cue_display 14`">hot_cue 14</pad6>
+	<pad7 color="cue_color 15" name="`cue_display 15`">hot_cue 15</pad7>
+	<pad8 color="cue_color 16" name="`cue_display 16`">hot_cue 16</pad8>
+</page>

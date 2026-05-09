@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="ColorFX">
+  <pad1 name="cut" color=" filter_selectcolorfx 'cut' ? color 'blue' : color 'transparent'">filter_selectcolorfx 'cut'</pad1>
+  <pad2 name="distortion" color=" filter_selectcolorfx 'distortion' ? color '#FFFF00' : color 'transparent'">filter_selectcolorfx 'distortion'</pad2>
+  <pad3 name="echo" color=" filter_selectcolorfx 'echo' ? color 'green' : color 'transparent'">filter_selectcolorfx 'echo'</pad3>
+  <pad4 name="flanger" color=" filter_selectcolorfx 'flanger' ? color 'orange' : color 'transparent'"> filter_selectcolorfx 'flanger'</pad4>
+  <pad5 name="filter" color=" filter_selectcolorfx 'filter' ? color 'red' : color 'transparent'"> filter_selectcolorfx 'filter'</pad5>
+  <pad6 name="noise" color=" filter_selectcolorfx 'noise' ? color 'pink' : color 'transparent'">filter_selectcolorfx 'noise'</pad6>
+  <pad7 name="loop roll" color="filter_selectcolorfx 'loop roll' ? color '#7A4DFF' : color 'transparent'">filter_selectcolorfx 'loop roll'</pad7>
+  <pad8 name="pitch" color="filter_selectcolorfx 'pitch' ? color '#26C9FF' : color 'transparent'">filter_selectcolorfx 'pitch'</pad8>
+  <shift_pad1 name="reverb" color=" filter_selectcolorfx 'reverb' ? color '#400000' : color 'transparent'">filter_selectcolorfx 'reverb'</shift_pad1>
+  <shift_pad2 name="spiral" color=" filter_selectcolorfx 'spiral' ? color '#FFFFFFF' : color 'transparent'">filter_selectcolorfx 'spiral'</shift_pad2>
+  <shift_pad3 color=" filter_selectcolorfx 'Mobius' ? color 'magenta' : color 'transparent'" name="Mobius">filter_selectcolorfx 'Mobius'</shift_pad3>
+  <shift_pad4 name="Vocals" color=" filter_selectcolorfx 'Vocals' ? color '#FFBF00' : color 'transparent'">filter_selectcolorfx 'Vocals'</shift_pad4>
+  <shift_pad5/>
+  <shift_pad6/>
+  <shift_pad7/>
+  <shift_pad8/>
+  <param1 name="`filter_label`">filter_selectcolorfx</param1>
+  <menu/>
+  <param2/>
+</page>

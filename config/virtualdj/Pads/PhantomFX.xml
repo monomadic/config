@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page>
+	<pad1 name="`get_effect_name 1`" color="effect_active 1 on ? var_equal &apos;FX1MomPush&apos; 0 ? color &apos;green&apos; : color &apos;blue&apos; : color &apos;blue&apos;" query="var_equal &apos;FX1MomPush&apos; 0 ? effect_active 1" autodim="false">effect_active 1</pad1>
+	<pad2 name="`get_effect_name 2`" color="effect_active 2 on ? var_equal &apos;FX2MomPush&apos; 0 ? color &apos;green&apos; : color &apos;violet&apos; : color &apos;violet&apos;" query="var_equal &apos;FX2MomPush&apos; 0 ? effect_active 2" autodim="false">effect_active 2</pad2>
+	<pad3 name="`get_effect_name 3`" color="effect_active 3 on ? var_equal &apos;FX3MomPush&apos; 0 ? color &apos;green&apos; : color &apos;magenta&apos; : color &apos;magenta&apos;" query="var_equal &apos;FX3MomPush&apos; 0 ? effect_active 3" autodim="false">effect_active 3</pad3>
+	<pad4 name="BrakeStart" color="effect_active &apos;brakestart&apos; on ? blink 250ms ? color &apos;red&apos; : color &apos;black&apos; : color &apos;red&apos;" query="effect_active &apos;brakestart&apos; on ? blink 250ms" autodim="false">effect_active &apos;brakestart&apos;</pad4>
+	<pad5 name="^ MP" color="effect_active 1 on ? var_equal &apos;FX1MomPush&apos; 1 ? color &apos;green&apos; : color &apos;blue&apos; : color &apos;blue&apos;" query="var_equal &apos;FX1MomPush&apos; 1 ? effect_active 1" autodim="false">effect_active 1 on while_pressed &amp; set &apos;FX1MomPush&apos; 1 while_pressed</pad5>
+	<pad6 name="^ MP" color="effect_active 2 on ? var_equal &apos;FX2MomPush&apos; 1 ? color &apos;green&apos; : color &apos;violet&apos; : color &apos;violet&apos;" query="var_equal &apos;FX2MomPush&apos; 1 ? effect_active 2" autodim="false">effect_active 2 on while_pressed &amp; set &apos;FX2MomPush&apos; 1 while_pressed</pad6>
+	<pad7 name="^ MP" color="effect_active 3 on ? var_equal &apos;FX3MomPush&apos; 1 ? color &apos;green&apos; : color &apos;magenta&apos; : color &apos;magenta&apos;" query="var_equal &apos;FX3MomPush&apos; 1 ? effect_active 3" autodim="false">effect_active 3 on while_pressed &amp; set &apos;FX3MomPush&apos; 1 while_pressed</pad7>
+	<pad8 name="Backspin" color="effect_active &apos;backspin&apos; on ? blink 250ms ? color &apos;red&apos; : color &apos;black&apos; : color &apos;red&apos;" query="effect_active &apos;backspin&apos; on ? blink 250ms" autodim="false">effect_active &apos;backspin&apos;</pad8>
+	<shift_pad1 name="`get_effect_name 1`" color="color &apos;black&apos;" query="off" autodim="false">nothing</shift_pad1>
+	<shift_pad2 name="`get_effect_name 2`" color="color &apos;black&apos;" query="off" autodim="false">nothing</shift_pad2>
+	<shift_pad3 name="`get_effect_name 3`" color="color &apos;black&apos;" query="off" autodim="false">nothing</shift_pad3>
+	<shift_pad4 name="BrakeStart" color="color &apos;black&apos;" query="off" autodim="false">nothing</shift_pad4>
+	<shift_pad5 name="^ Select" color="color &apos;blue&apos;" query="off" autodim="false">effect_select 1 +1</shift_pad5>
+	<shift_pad6 name="^ Select" color="color &apos;violet&apos;" query="off" autodim="false">effect_select 2 +1</shift_pad6>
+	<shift_pad7 name="^ Select" color="color &apos;magenta&apos;" query="off" autodim="false">effect_select 3 +1</shift_pad7>
+	<shift_pad8 name="Backspin" color="color &apos;black&apos;" query="off" autodim="false">nothing</shift_pad8>
+</page>

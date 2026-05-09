@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="loopTiming">
+	<pad1 name="EXIT" color="repeat_start_instant righttime ? blink 0.25bt ? color green : color white : loop ? color green : color darkgreen" tooltip="EXIT LOOP AT RIGHT TIME TO PLAY" autodim="false">off &amp; loop ? set $deckthis `get_deck` &amp; set $deckother `param_mod 2 get_deck &amp; param_add 1 &amp; param_cast int` &amp; repeat_start_instant righttime 25ms -1 &amp; 
+set $bar `get_beat_bar 16 &amp; param_multiply 16` &amp; 
+set $barbottom `param_add &apos;param_multiply loop_postion -1&apos; &apos;get_var $bar&apos;` &amp; set $bartop `param_add &apos;get_var $barbottom&apos; &apos;get_loop&apos;` &amp; 
+( var_smaller $bartop 0 ? set $bartop +16 : var_greater $bartop 16 ? set $bartop -16 : ) &amp; 
+( var_smaller $barbottom 0 ? set $barbottom +16 : var_greater $barbottom 16 ? set $barbottom -16 : ) &amp; 
+( var_greater $bartop $barbottom ? set $convention 1 : set $convention 0 ) &amp; 
+set_deck `get_var $deckother` &amp; set $barother `get_beat_bar 16 &amp; param_multiply 16` &amp; 
+var $convention 1 ? 
+get_var $barother &amp; param_bigger &apos;get_var $bartop&apos; ? : get_var $barother &amp; param_smaller &apos;get_var $barbottom&apos; ? : set_deck `get_var $deckthis` &amp; loop 0 &amp; sync &amp; repeat_stop righttime &amp; var slipmode 1 ? slip_mode on :  : 
+get_var $barother &amp; param_bigger &apos;get_var $bartop&apos; ? get_var $barother &amp;  param_smaller &apos;get_var $barbottom&apos; ? : set_deck `get_var $deckthis` &amp; loop 0 &amp; sync &amp; repeat_stop righttime &amp; var slipmode 1 ? slip_mode on :  :  set_deck `get_var $deckthis` &amp; sync &amp; repeat_stop righttime &amp; var slipmode 1 ? slip_mode on : : nothing</pad1>
+	<pad2 name="½&amp;🡺" color="loop ? color yellow : color &apos;#a3981f&apos;" tooltip="LOOP HALF &amp; MOVE FORWARD" autodim="false">off &amp; loop_move +50% &amp; loop_half</pad2>
+	<pad3 name="0.5X" color="loop ? color blue : color darkblue" tooltip="LOOP HALF" autodim="false">off &amp; loop_half</pad3>
+	<pad4 name="2X" color="loop ? color red : color darkred" tooltip="LOOP DOUBLE" autodim="false">off &amp; set $deckthis `get_deck` &amp; set $deckother `param_mod 2 get_deck &amp; param_add 1 &amp; param_cast int` &amp; loop 1 ? get_beat_bar 2 &amp; param_equal  &apos;set_deck `get_var $deckother` &amp; get_beat_bar 2&apos; ? loop_double : wait 0.99bt &amp; loop_double : 
+loop 2 ? get_beat_bar 4 &amp; param_equal  &apos;set_deck `get_var $deckother` &amp; get_beat_bar 4&apos; ? loop_double : wait 1.99bt &amp; loop_double : 
+loop 2 ? get_beat_bar 8 &amp; param_equal  &apos;set_deck `get_var $deckother` &amp; get_beat_bar 8&apos; ? loop_double : wait 3.99bt &amp; loop_double : 
+loop 0.5 ? get_beat_bar 1 &amp; param_equal  &apos;set_deck `get_var $deckother` &amp; get_beat_bar 1&apos; ? loop_double : wait 0.49bt &amp; loop_double : 
+loop 0.25 ? get_beat_bar 1 &amp; param_multiply 2 &amp; param_cast frac &amp; param_equal  &apos;set_deck `get_var $deckother` &amp; get_beat_bar 1 &amp;param_multiply 2 &amp; param_cast frac&apos; ? loop_double : wait 0.24bt &amp; loop_double : 
+loop 0.125 ? get_beat_bar 1 &amp; param_multiply 4 &amp; param_cast frac &amp; param_equal  &apos;set_deck `get_var $deckother` &amp; get_beat_bar 1 &amp;param_multiply 4 &amp; param_cast frac&apos; ? loop_double : wait 0.124bt &amp; loop_double : loop_double</pad4>
+	<pad5 name="`loop ? get_text &quot;LOOP OFF&quot; : get_text &quot;LOOP 8&quot;`" color="loop ? color pink : color magenta" tooltip="CALL LOOP" autodim="false">( loop ?  blink 1bt ? blink 0.5bt ? blink 0.25bt ? on : off : off : off ) &amp; loop ? loop 0 &amp; var slipmode 1 ? slip_mode on :  : loop 8 &amp; slip_mode ? set slipmode 1 &amp; slip_mode off : set slipmode 0</pad5>
+	<pad6 name="🡻&amp;½" color="loop ? color cyan :  color darkcyan" tooltip="UPDATE LOOP POSITION &amp; LOOP HALF" autodim="false">off &amp; loop 0 &amp; loop_half &amp; loop</pad6>
+	<pad7 name="🡻" color="loop ? color orange : color darkorange" tooltip="UPDATE LOOP POSITION" autodim="false">off &amp; loop 0 &amp; loop</pad7>
+	<pad8 name="🡸" color="loop ? color violet : color &apos;#5f1f87&apos;" tooltip="MOVE LOOP BACKWARDS" autodim="false">off &amp; loop_move -100%</pad8>
+	<param1 name="LOOP NUDGE">repeat 25ms &amp; param_bigger 0 ? loop_move +0.0625 : loop_move -0.0625</param1>
+	<shift_pad1 name="CALC" color="repeat_start_instant righttime ? blink 0.25bt ? color red : color white : loop ? color red : color darkred" autodim="false" tooltip="EXIT AT RIGHT TIME WITH JUMP">off &amp; loop ?  
+set $deckthis `get_deck` &amp; set $deckother `param_mod 2 get_deck &amp; param_add 1 &amp; param_cast int` &amp; 
+repeat_start_instant righttime 25ms -1 &amp; 
+set_deck `get_var $deckother` &amp; param_equal 0 `param_add &quot;param_smaller 0.00390625 &apos;get_beat_bar 16&apos;&quot; &quot;param_bigger 0.99609375 &apos;get_beat_bar 16&apos;&quot;` ? : 
+set_deck `get_var $deckthis` &amp; repeat_stop righttime &amp; loop 0 &amp; wait 25ms &amp; 
+param_smaller 0.5 `get_beat_bar 16` ? 
+set $bar `get_beat_bar 8 &amp; param_multiply -8` &amp; get_var $bar &amp; param_cast relative &amp; goto &amp; sync &amp; var slipmode 1 ? slip_mode on : : 
+set $bar `get_beat_bar 8 &amp; param_multiply -8 &amp; param_add 8` &amp; get_var $bar &amp; param_cast relative &amp; goto &amp; sync &amp; var slipmode 1 ? slip_mode on : : </shift_pad1>
+	<shift_pad2 name="½&amp;🡸" tooltip="LOOP HALF &amp; MOVE BACKWARDS" color="loop ? color &apos;#aaaaaa&apos; : color &apos;#444444&apos;">off &amp; loop_move -50% &amp; loop_half</shift_pad2>
+	<shift_pad3 name="0.25X" color="loop ? blink 250ms ? color blue : blink 125ms ? color green : color blue : blink 250ms ? color darkblue : blink 125ms ? color darkgreen : color darkblue" tooltip="LOOP SIZE QUARTER">off &amp; loop 25%</shift_pad3>
+	<shift_pad4 name="4X" color="loop ? blink 500ms ? color green : blink 250ms ? color green : color red :  blink 500ms ? color darkgreen : blink 250ms ? color darkgreen : color darkred" tooltip="LOOP SIZE QUADRUPLE">off &amp; set $deckthis `get_deck` &amp; set $deckother `param_mod 2 get_deck &amp; param_add 1` &amp; 
+loop 1 ?  get_beat_bar 4 &amp; param_equal &apos;set_deck `get_var $deckother` &amp; get_beat_bar 4&apos; ? loop 400% : param_add &apos;get_beat_bar 4 &amp; param_multiply 4&apos; &apos;set_deck `get_var $deckother` &amp; get_beat_bar 4 &amp; param_multiply -4&apos; &amp; param_pow 2 &amp; param_pow 0.5 &amp; param_multiply -1 &amp; param_add 4 &amp; param_cast beats &amp; wait &amp; loop 400% : 
+
+loop 2 ?  get_beat_bar 8 &amp; param_equal &apos;set_deck `get_var $deckother` &amp; get_beat_bar 8&apos; ? loop 400% : param_add &apos;get_beat_bar 8 &amp; param_multiply 8&apos; &apos;set_deck `get_var $deckother` &amp; get_beat_bar 8 &amp; param_multiply -8&apos; &amp; param_pow 2 &amp; param_pow 0.5 &amp; param_multiply -1 &amp; param_add 8 &amp; param_cast beats &amp; wait &amp; loop 400% : 
+
+ loop 0.5 ? get_beat_bar 2 &amp; param_equal &apos;set_deck `get_var $deckother` &amp; get_beat_bar 2&apos; ? loop 400% : 
+set $loopBottom `param_add get_beatpos &apos;loop_position &amp; param_multiply get_loop &amp; param_multiply -1&apos; &amp;  param_mod 2 &amp; param_multiply 0.5` &amp; 
+set $loopTop `param_add get_beatpos &apos;loop_position &amp; param_invert &amp; param_multiply get_loop&apos; &amp;  param_mod 2 &amp; param_multiply 0.5` &amp; 
+repeat_start_instant rsiLoopquad 25ms -1 &amp; var_greater $LoopBottom $LoopTop ? param_smaller &apos;get_var $LoopBottom&apos; &apos;set_deck `get_var $deckother` &amp; get_beat_bar 2&apos; ! ? loop 400% &amp; repeat_stop rsiloopquad : param_smaller &apos;get_var $LoopTop&apos; &apos;set_deck `get_var $deckother` &amp; get_beat_bar 2&apos; ? loop 400% &amp; repeat_stop rsiloopquad : : 
+param_bigger &apos;get_var $LoopBottom&apos; &apos;set_deck `get_var $deckother` &amp; get_beat_bar 2&apos; ? param_smaller &apos;get_var $LoopTop&apos; &apos;set_deck `get_var $deckother` &amp; get_beat_bar 2&apos; ? loop 400% &amp; repeat_stop rsiloopquad : : : 
+
+loop 0.25 ? get_beat_bar 1 &amp; param_equal &apos;set_deck `get_var $deckother` &amp; get_beat_bar 1&apos; ? loop 400% : 
+set $loopBottom `param_add get_beatpos &apos;loop_position &amp; param_multiply get_loop &amp; param_multiply -1&apos; &amp;  param_mod 1` &amp; 
+set $loopTop `param_add get_beatpos &apos;loop_position &amp; param_invert &amp; param_multiply get_loop&apos; &amp;  param_mod 1` &amp; 
+repeat_start_instant rsiLoopquad 25ms -1 &amp; var_greater $LoopBottom $LoopTop ? param_smaller &apos;get_var $LoopBottom&apos; &apos;set_deck `get_var $deckother` &amp; get_beat_bar 1&apos; ! ? loop 400% &amp; repeat_stop rsiloopquad : param_smaller &apos;get_var $LoopTop&apos; &apos;set_deck `get_var $deckother` &amp; get_beat_bar 1&apos; ? loop 400% &amp; repeat_stop rsiloopquad : : 
+param_bigger &apos;get_var $LoopBottom&apos; &apos;set_deck `get_var $deckother` &amp; get_beat_bar 1&apos; ? param_smaller &apos;get_var $LoopTop&apos; &apos;set_deck `get_var $deckother` &amp; get_beat_bar 1&apos; ? loop 400% &amp; repeat_stop rsiloopquad : : : 
+loop 400%</shift_pad4>
+	<shift_pad8 name="🡺🡻" tooltip="LOOP MOVE FORWARD 1BT" color="loop ? color &apos;#88FF32&apos; : color &apos;#55AD12&apos;">off &amp; down ? slip on : loop 0 &amp; slip off &amp; loop</shift_pad8>
+	<shift_pad7 />
+	<shift_pad6 />
+</page>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="PLAY 8">
+	<pad1 name="◀ CUE" color="color white" autodim="false">goto_cue -1</pad1>
+	<pad2 name="CUE ▶" color="color white" autodim="false">goto_cue +1</pad2>
+	<pad3 name="ABPM-TR" color="color white" autodim="false">var &apos;@$abpmt_source&apos; 1 ? auto_bpm_transition &apos;source_original&apos; : auto_bpm_transition</pad3>
+	<pad4 name="SYNC" color="color white">sync &amp; phrase_sync 16</pad4>
+	<pad5 name="VOCAL" color="stem_color &apos;Vocal&apos;" autodim="false">stem_pad &apos;Vocal&apos;</pad5>
+	<pad6 name="MELODY" color="stem_color &apos;Melody&apos;" autodim="false">stem_pad &apos;Melody&apos;</pad6>
+	<pad7 name="DRUM" color="stem_color &apos;Rhythm&apos;" autodim="false">stem_pad &apos;Rhythm&apos;</pad7>
+	<pad8 name="PLAY" color="color &apos;green&apos;">play_button</pad8>
+	<shift_pad1 name="◀ PHRASE" color="color white">goto_cue -16</shift_pad1>
+	<shift_pad2 name="PHRASE ▶" color="color white">goto_cue +16</shift_pad2>
+	<shift_pad3 name="◀ PAGE" color="color white">goto_cue 3 &amp; play</shift_pad3>
+	<shift_pad4 name="PAGE ▶" color="color white">goto_cue 4 &amp; play</shift_pad4>
+	<shift_pad5 name="VOCAL ISO" color="stem_color &apos;Vocal&apos;">action_deck 1 ? deck 1 mute_stem vocal off &amp; deck 2 mute_stem vocal on &amp; deck 3 mute_stem vocal on &amp; deck 4 mute_stem vocal on : action_deck 2 ? deck 1 mute_stem vocal on &amp; deck 2 mute_stem vocal off &amp; deck 3 mute_stem vocal on &amp; deck 4 mute_stem vocal on : action_deck 3 ? deck 1 mute_stem vocal on &amp; deck 2 mute_stem vocal on &amp; deck 3 mute_stem vocal off &amp; deck 4 mute_stem vocal on : deck 1 mute_stem vocal on &amp; deck 2 mute_stem vocal on &amp; deck 3 mute_stem vocal on &amp; deck 4 mute_stem vocal off</shift_pad5>
+	<shift_pad6 name="SOLO" color="stem_color &apos;Melody&apos;">deck all mute_stem &apos;Melody&apos; 1</shift_pad6>
+	<shift_pad7 name="SOLO" color="stem_color &apos;Rhythm&apos;">deck all mute_stem &apos;Rhythm&apos; 1</shift_pad7>
+	<shift_pad8 name="REWIND" color="color &apos;#F31456&apos;">goto_first_beat</shift_pad8>
+	<param1 name="`pad_has_16pads ?   var_equal &apos;hcpage&apos; 0 ? get_text &apos;CUES 1-16&apos; :   var_equal &apos;hcpage&apos; 1 ? get_text &apos;CUES 17-32&apos; :   var_equal &apos;hcpage&apos; 2 ? get_text &apos;CUES 33-48&apos; :   var_equal &apos;hcpage&apos; 3 ? get_text &apos;CUES 49-64&apos; :   var_equal &apos;hcpage&apos; 4 ? get_text &apos;CUES 65-80&apos; :   var_equal &apos;hcpage&apos; 5 ? get_text &apos;CUES 81-96&apos; :   var_equal &apos;hcpage&apos; 6 ? get_text &apos;CUES 97-112&apos; : nothing :   var_equal &apos;hcpage&apos; 0 ? get_text &apos;CUES 1-8&apos; :   var_equal &apos;hcpage&apos; 1 ? get_text &apos;CUES 9-16&apos; :   var_equal &apos;hcpage&apos; 2 ? get_text &apos;CUES 17-24&apos; :   var_equal &apos;hcpage&apos; 3 ? get_text &apos;CUES 25-32&apos; :   var_equal &apos;hcpage&apos; 4 ? get_text &apos;CUES 33-40&apos; :   var_equal &apos;hcpage&apos; 5 ? get_text &apos;CUES 41-48&apos; :   var_equal &apos;hcpage&apos; 6 ? get_text &apos;CUES 49-56&apos; :   var_equal &apos;hcpage&apos; 7 ? get_text &apos;CUES 57-64&apos; :   var_equal &apos;hcpage&apos; 8 ? get_text &apos;CUES 65-72&apos; :   var_equal &apos;hcpage&apos; 9 ? get_text &apos;CUES 73-80&apos; :   var_equal &apos;hcpage&apos; 10 ? get_text &apos;CUES 81-88&apos; :   var_equal &apos;hcpage&apos; 11 ? get_text &apos;CUES 89-96&apos; :   var_equal &apos;hcpage&apos; 12 ? get_text &apos;CUES 97-104&apos; :   var_equal &apos;hcpage&apos; 13 ? get_text &apos;CUES 105-112&apos;`">
+		pad_has_16pads ?
+			param_smaller 0 ? var_equal &apos;hcpage&apos; 0 ? nothing : cycle &apos;hcpage&apos; -7 : var_equal &apos;hcpage&apos; 6 ? nothing : cycle &apos;hcpage&apos; +7 :
+			param_smaller 0 ? var_equal &apos;hcpage&apos; 0 ? nothing : cycle &apos;hcpage&apos; -15 : var_equal &apos;hcpage&apos; 13 ? nothing : cycle &apos;hcpage&apos; +15
+	</param1>
+	<param2 name="PHRASE">param_greater 0 ? goto +16bt : goto -16bt</param2>
+</page>

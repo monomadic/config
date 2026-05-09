@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page>
+	<pad1 name="`var &apos;HCpage&apos; ? cue_display 5 : cue_display 1`" color="var &apos;HCPage&apos; ? cue_color 5 : cue_color 1" tooltip="Click to assign or trigger Hotcue\nRight-click to Delete" autodim="false">var &apos;HCpage&apos; 1 ? hot_cue 5 : hot_cue 1</pad1>
+	<pad2 name="`var &apos;HCpage&apos; ? cue_display 6 : cue_display 2`" color="var &apos;HCPage&apos; ? cue_color 6 : cue_color 2" tooltip="Click to assign or trigger Hotcue\nRight-click to Delete" autodim="false">var &apos;HCpage&apos; 1 ? hot_cue 6 : hot_cue 2</pad2>
+	<pad3 name="`var &apos;HCpage&apos; ? cue_display 7 : cue_display 3`" color="var &apos;HCPage&apos; ? cue_color 7 : cue_color 3" tooltip="Click to assign or trigger Hotcue\nRight-click to Delete" autodim="false">var &apos;HCpage&apos; 1 ? hot_cue 7 : hot_cue 3</pad3>
+	<pad4 name="`var &apos;HCpage&apos; ? cue_display 8 : cue_display 4`" color="var &apos;HCPage&apos; ? cue_color 8 : cue_color 4" tooltip="Click to assign or trigger Hotcue\nRight-click to Delete" autodim="false">var &apos;HCpage&apos; 1 ? hot_cue 8 :hot_cue 4</pad4>
+	<pad5 color="var &apos;LOPage&apos; ? loop_color 5 : loop_color 1" autodim="false" name="`var &apos;LOPage&apos; ? saved_loop 5 ? get_saved_loop 5 &apos;pos&apos; : get_text &quot;5 ./.&quot; : saved_loop 1 ? get_saved_loop 1 &apos;pos&apos; : get_text &quot;1 ./.&quot;`">var &apos;LOPage&apos; ? holding ? loop_delete 5 : loop_load 5 ? loop_load_prepare 5 : loop_save 5 : holding ? loop_delete 1 : loop_load 1 ? loop_load_prepare 1 : loop_save 1
+</pad5>
+	<pad6 color="var &apos;LOPage&apos; ? loop_color 6 : loop_color 2" autodim="false" name="`var &apos;LOPage&apos; ? saved_loop 6 ? get_saved_loop 6 &apos;pos&apos; : get_text &quot;6 ./.&quot; : saved_loop 2 ? get_saved_loop 2 &apos;pos&apos; : get_text &quot;2 ./.&quot;`">var &apos;LOPage&apos; ? holding ? loop_delete 6 : loop_load 6 ? loop_load_prepare 6 : loop_save 6 : holding ? loop_delete 2 : loop_load 2 ? loop_load_prepare 2 : loop_save 2</pad6>
+	<pad7 color="var &apos;LOPage&apos; ? loop_color 7 : loop_color 3" autodim="false" name="`var &apos;LOPage&apos; ? saved_loop 7 ? get_saved_loop 7 &apos;pos&apos; : get_text &quot;7 ./.&quot; : saved_loop 3 ? get_saved_loop 3 &apos;pos&apos; : get_text &quot;3 ./.&quot;`">var &apos;LOPage&apos; ? holding ? loop_delete 7 : loop_load 7 ? loop_load_prepare 7 : loop_save 7 : holding ? loop_delete 3 : loop_load 3 ? loop_load_prepare 3 : loop_save 3</pad7>
+	<pad8 color="var &apos;LOPage&apos; ? loop_color 8 : loop_color 4" autodim="false" name="`var &apos;LOPage&apos; ? saved_loop 8 ? get_saved_loop 8 &apos;pos&apos; : get_text &quot;8 ./.&quot; : saved_loop 4 ? get_saved_loop 4 &apos;pos&apos; : get_text &quot;4 ./.&quot;`">var &apos;LOPage&apos; ? holding ? loop_delete 8 : loop_load 8 ? loop_load_prepare 8 : loop_save 8 : holding ? loop_delete 4 : loop_load 4 ? loop_load_prepare 4 : loop_save 4</pad8>
+	<shift_pad1 name="DELETE" color="var &apos;HCPage&apos; ? has_cue 5 ? color &apos;white&apos; : color &apos;transparent&apos; : has_cue 1 ? color &apos;white&apos;" tooltip="Click to Delete HotCue" autodim="false">var &apos;HCPage&apos; ? holding ? delete_cue 5 : cue_name 5 : holding ? delete_cue 1 : cue_name 1</shift_pad1>
+	<shift_pad2 name="DELETE" color="var &apos;HCPage&apos; ? has_cue 6 ? color &apos;white&apos; : color &apos;transparent&apos; : has_cue 2 ? color &apos;white&apos;" tooltip="Click to Delete HotCue" autodim="false">var &apos;HCPage&apos; ? holding ? delete_cue 6 : cue_name 6 : holding ? delete_cue 2 : cue_name 2</shift_pad2>
+	<shift_pad3 name="DELETE" color="var &apos;HCPage&apos; ? has_cue 7 ? color &apos;white&apos; : color &apos;transparent&apos; : has_cue 3 ? color &apos;white&apos;" tooltip="Click to Delete HotCue" autodim="false">var &apos;HCPage&apos; ? holding ? delete_cue 7 : cue_name 7 : holding ? delete_cue 3 : cue_name 3</shift_pad3>
+	<shift_pad4 name="DELETE" color="var &apos;HCPage&apos; ? has_cue 8 ? color &apos;white&apos; : color &apos;transparent&apos; : has_cue 4 ? color &apos;white&apos;" tooltip="Click to Delete HotCue" autodim="false">var &apos;HCPage&apos; ? holding ? delete_cue 8 : cue_name 8 : holding ? delete_cue 4 : cue_name 4</shift_pad4>
+	<shift_pad5 name="DELETE" color="var &apos;LOPage&apos; ? loop_color 5 : loop_color 1" autodim="false">var &apos;LOPage&apos; ? holding ? loop_delete 5 : nothing : holding ? loop_delete 1 : nothing</shift_pad5>
+	<shift_pad6 name="DELETE" color="var &apos;LOPage&apos; ? loop_color 6 : loop_color 2" autodim="false">var &apos;LOPage&apos; ? holding ? loop_delete 6 : nothing : holding ? loop_delete 2 : nothing</shift_pad6>
+	<shift_pad7 name="DELETE" color="var &apos;LOPage&apos; ? loop_color 7 : loop_color 3" autodim="false">var &apos;LOPage&apos; ? holding ? loop_delete 7 : nothing : holding ? loop_delete 3 : nothing</shift_pad7>
+	<shift_pad8 name="DELETE" color="var &apos;LOPage&apos; ? loop_color 8 : loop_color 4" autodim="false">var &apos;LOPage&apos; ? holding ? loop_delete 8 : nothing : holding ? loop_delete 4 : nothing</shift_pad8>
+	<param2 name="`var &apos;LOPage&apos; 1 ? get_text &quot;LOOP 5-8&quot; : get_text &quot;LOOP 1-4&quot;`">cycle &apos;LOpage&apos; 2</param2>
+	<param1 name="`var &apos;HCPage&apos; 1 ? get_text &quot;CUES 5-8&quot; : get_text &quot;CUES 1-4&quot;`">cycle &apos;HCpage&apos; 2</param1>
+	<menu>Display CUE mode &gt;&gt; Cue number +[cue_display &apos;number&apos;] 
+Display CUE mode &gt;&gt; Name +[cue_display &apos;name&apos;] 
+Display CUE mode &gt;&gt; Time Pos +[cue_display &apos;position&apos;] 
+Display CUE mode &gt;&gt; Time left +[cue_display &apos;distance&apos;] 
+Display CUE mode &gt;&gt; Beats left +[cue_display &apos;beat&apos;] 
+
+Edit CUEs and POIs... =[edit_poi]
+Read-only (Lock) +[lock_cues]
+Smart Cue +[smart_cue]
+Quantize on Set +[quantize_setcue]
+-
+Loop Mode &gt;&gt; On/Off +[loop_pad_mode 1]
+Loop Mode &gt;&gt; Hold +[loop_pad_mode 2]
+Loop Mode &gt;&gt; Roll +[loop_pad_mode 3]
+Quantize Loop +[quantize_loop]</menu>
+</page>

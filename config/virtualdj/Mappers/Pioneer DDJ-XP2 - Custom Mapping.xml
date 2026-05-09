@@ -1,0 +1,622 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mapper device="DDJXP2" author="Atomix Productions" version="850" date="2025-05-31">
+	<info>http://www.virtualdj.com/manuals/hardware/pioneer/ddjxp2/index.html</info>
+	<map value="ONINIT" action="deck all effect_3slots_layout on" />
+	<map value="DNC_MODE" action="blink 150ms" />
+	<map value="DECK_LEFT" action="deck 3 leftdeck ? deck 1 leftdeck : deck 3 leftdeck" />
+	<map value="DECK_RIGHT" action="deck 4 rightdeck ? deck 2 rightdeck : deck 4 rightdeck" />
+	<map value="LED_DECK_LEFT" action="deck 3 leftdeck" />
+	<map value="LED_DECK_RIGHT" action="deck 4 rightdeck" />
+	<map value="SHIFT" action="shift" />
+	<map value="DNC_LOADED" action="load_pulse" />
+	<map value="BROWSE" action="browser_scroll" />
+	<map value="BROWSE_PUSH" action="browser_window &apos;folders&apos; ? browser_enter : browser_window &apos;folders&apos;" />
+	<map value="SHIFT_BROWSE" action="browser_scroll" />
+	<map value="SHIFT_BROWSE_PUSH" action="browser_folder" />
+	<map value="4BEAT_LOOP" action="loop ? loop_exit : loop 4" />
+	<map value="LOOP_HALF" action="loop_half" />
+	<map value="LOOP_DOUBLE" action="loop_double" />
+	<map value="QUANTIZE" action="quantize_all" />
+	<map value="SLIP_REVERSE" action="dump while_pressed" />
+	<map value="SILENT_CUE" action="silent_cue" />
+	<map value="LOAD" action="doubleclick ? clone_from_deck : load" />
+	<map value="MASTER_TEMPO" action="master_tempo" />
+	<map value="BEAT_SYNC" action="holding ? pitch_reset : sync" />
+	<map value="KEY-" action="key_move -1" />
+	<map value="KEY+" action="key_move +1" />
+	<map value="INT" action="timecode_active" />
+	<map value="LED_INT" action="not timecode_active" />
+	<map value="SHIFT_4BEAT_LOOP" action="holding ? loop_delete : loop_save" />
+	<map value="SHIFT_LOOP_HALF" action="loop_in" />
+	<map value="SHIFT_LOOP_DOUBLE" action="loop_out" />
+	<map value="SHIFT_SLIP_REVERSE" action="reverse" />
+	<map value="SHIFT_LOAD" action="load_next &apos;keepplay&apos;" />
+	<map value="SHIFT_MASTER_TEMPO" action="pitch_range &apos;8,16,50&apos; +1" />
+	<map value="SHIFT_BEAT_SYNC" action="holding ? masterdeck_auto : masterdeck" />
+	<map value="SHIFT_KEY-" action="match_key" />
+	<map value="SHIFT_KEY+" action="key 0" />
+	<map value="LED_4BEAT_LOOP" action="loop" />
+	<map value="LED_LOOP_HALF" action="loop" />
+	<map value="LED_LOOP_DOUBLE" action="loop" />
+	<map value="LED_BEAT_SYNC" action="pitch_reset ? blink : is_sync" />
+	<map value="LED_KEY-" action="get_key_modifier &amp; param_smaller 0" />
+	<map value="LED_KEY+" action="get_key_modifier &amp; param_bigger 0" />
+	<map value="SHIFT_LED_4BEAT_LOOP" action="loop_load" />
+	<map value="SHIFT_LED_LOOP_HALF" action="loop_in" />
+	<map value="SHIFT_LED_LOOP_DOUBLE" action="loop" />
+	<map value="SHIFT_LED_BEAT_SYNC" action="masterdeck_auto ? masterdeck : masterdeck ? blink" />
+	<map value="FX2" action="stem_pad &quot;Rhythm&quot;" />
+	<map value="FX3" action="stem_pad &quot;Kick&quot;" />
+	<map value="SHIFT_FX1" action="effect_select 1 +1" />
+	<map value="SHIFT_FX2" action="effect_select 2 +1" />
+	<map value="SHIFT_FX3" action="effect_select 3 +1" />
+	<map value="LED_FX1" action="get_var &apos;xp2_slotselect1&apos;" />
+	<map value="LED_FX2" action="get_var &apos;xp2_slotselect2&apos;" />
+	<map value="LED_FX3" action="get_var &apos;xp2_slotselect3&apos;" />
+	<map value="FX1_STRIP_TOUCH" action="down ? set &apos;fxtouch&apos; 1 &amp; var_equal &apos;xp2_slotselect1&apos; 1 ? effect_active 1 on : nothing : set &apos;fxtouch&apos; 0 &amp; var_equal &apos;xp2_slotselect1&apos; 1 ? effect_active 1 off : nothing" />
+	<map value="FX2_STRIP_TOUCH" action="down ? set &apos;fxtouch&apos; 1 &amp; var_equal &apos;xp2_slotselect2&apos; 1 ? effect_active 2 on : nothing : set &apos;fxtouch&apos; 0 &amp; var_equal &apos;xp2_slotselect2&apos; 1 ? effect_active 2 off : nothing" />
+	<map value="FX3_STRIP_TOUCH" action="down ? set &apos;fxtouch&apos; 1 &amp; var_equal &apos;xp2_slotselect3&apos; 1 ? effect_active 3 on : nothing : set &apos;fxtouch&apos; 0 &amp; var_equal &apos;xp2_slotselect3&apos; 1 ? effect_active 3 off : nothing" />
+	<map value="FX_STRIP" action="shift ? var_equal &apos;xp2_slotselect1&apos; 1 ? var_equal &apos;xp2_slotselect2&apos; 1 ? var_equal &apos;xp2_slotselect3&apos; 1 ? effect_slider 1 2 &amp; effect_slider 2 2 &amp; effect_slider 3 2 : effect_slider 1 2 &amp; effect_slider 2 2 : var_equal &apos;xp2_slotselect3&apos; 1 ? effect_slider 1 2 &amp; effect_slider 3 2 : effect_slider 1 2 : var_equal &apos;xp2_slotselect2&apos; 1 ? var_equal &apos;xp2_slotselect3&apos; 1 ? effect_slider 2 2 &amp; effect_slider 3 2 : effect_slider 2 2 : var_equal &apos;xp2_slotselect3&apos; 1 ? effect_slider 3 2 : nothing : var_equal &apos;xp2_slotselect1&apos; 1 ? var_equal &apos;xp2_slotselect2&apos; 1 ? var_equal &apos;xp2_slotselect3&apos; 1 ? effect_slider 1 1 &amp; effect_slider 2 1 &amp; effect_slider 3 1 : effect_slider 1 1 &amp; effect_slider 2 1 : var_equal &apos;xp2_slotselect3&apos; 1 ? effect_slider 1 1 &amp; effect_slider 3 1 : effect_slider 1 1 : var_equal &apos;xp2_slotselect2&apos; 1 ? var_equal &apos;xp2_slotselect3&apos; 1 ? effect_slider 2 1 &amp; effect_slider 3 1 : effect_slider 2 1 : var_equal &apos;xp2_slotselect3&apos; 1 ? effect_slider 3 1 : nothing" />
+	<map value="PADMODE_1" action="pad_pages 1 ? pad_bank2 : pad_pages 1 &amp; pad_bank2 off" />
+	<map value="PADMODE_2" action="pad_pages 2 ? pad_bank2 : pad_pages 2 &amp; pad_bank2 off" />
+	<map value="PADMODE_3" action="pad_pages 3 ? pad_bank2 : pad_pages 3 &amp; pad_bank2 off" />
+	<map value="PADMODE_4" action="pad_pages 4 ? pad_bank2 : pad_pages 4 &amp; pad_bank2 off" />
+	<map value="PADMODE_5" action="pad_pages 5 ? pad_bank2 : pad_pages 5 &amp; pad_bank2 off" />
+	<map value="PADMODE_6" action="pad_pages 6 ? pad_bank2 : pad_pages 6 &amp; pad_bank2 off" />
+	<map value="PADMODE_7" action="pad_pages 7 ? pad_bank2 : pad_pages 7 &amp; pad_bank2 off" />
+	<map value="PADMODE_8" action="pad_pages 8 ? pad_bank2 : pad_pages 8 &amp; pad_bank2 off" />
+	<map value="LED_PADMODE_1" action="pad_pages 1 ? color &apos;white&apos; : off" />
+	<map value="LED_PADMODE_2" action="pad_pages 2 ? color &apos;cyan&apos; : off" />
+	<map value="LED_PADMODE_3" action="pad_pages 3 ? color &apos;#ff4000&apos; : off" />
+	<map value="LED_PADMODE_4" action="pad_pages 4 ? color &apos;orange&apos; : off" />
+	<map value="LED_PADMODE_5" action="pad_pages 5 ? color &apos;yellow&apos; : off" />
+	<map value="LED_PADMODE_6" action="pad_pages 6 ? color &apos;yellow&apos; : off" />
+	<map value="LED_PADMODE_7" action="pad_pages 7 ? color &apos;yellow&apos; : off " />
+	<map value="LED_PADMODE_8" action="pad_pages 8 ? color &apos;yellow&apos; : off" />
+	<map value="PADMODE_1_PAD1" action="pad 1" />
+	<map value="PADMODE_1_PAD2" action="pad 2" />
+	<map value="PADMODE_1_PAD3" action="pad 3" />
+	<map value="PADMODE_1_PAD4" action="pad 4" />
+	<map value="PADMODE_1_PAD5" action="pad 5" />
+	<map value="PADMODE_1_PAD6" action="pad 6" />
+	<map value="PADMODE_1_PAD7" action="pad 7" />
+	<map value="PADMODE_1_PAD8" action="pad 8" />
+	<map value="PADMODE_1_PAD9" action="pad 9" />
+	<map value="PADMODE_1_PAD10" action="pad 10" />
+	<map value="PADMODE_1_PAD11" action="pad 11" />
+	<map value="PADMODE_1_PAD12" action="pad 12" />
+	<map value="PADMODE_1_PAD13" action="pad 13" />
+	<map value="PADMODE_1_PAD14" action="pad 14" />
+	<map value="PADMODE_1_PAD15" action="pad 15" />
+	<map value="PADMODE_1_PAD16" action="pad 16" />
+	<map value="SHIFT_PADMODE_1_PAD1" action="padshift 1" />
+	<map value="SHIFT_PADMODE_1_PAD2" action="padshift 2" />
+	<map value="SHIFT_PADMODE_1_PAD3" action="padshift 3" />
+	<map value="SHIFT_PADMODE_1_PAD4" action="padshift 4" />
+	<map value="SHIFT_PADMODE_1_PAD5" action="padshift 5" />
+	<map value="SHIFT_PADMODE_1_PAD6" action="padshift 6" />
+	<map value="SHIFT_PADMODE_1_PAD7" action="padshift 7" />
+	<map value="SHIFT_PADMODE_1_PAD8" action="padshift 8" />
+	<map value="SHIFT_PADMODE_1_PAD9" action="padshift 9" />
+	<map value="SHIFT_PADMODE_1_PAD10" action="padshift 10" />
+	<map value="SHIFT_PADMODE_1_PAD11" action="padshift 11" />
+	<map value="SHIFT_PADMODE_1_PAD12" action="padshift 12" />
+	<map value="SHIFT_PADMODE_1_PAD13" action="padshift 13" />
+	<map value="SHIFT_PADMODE_1_PAD14" action="padshift 14" />
+	<map value="SHIFT_PADMODE_1_PAD15" action="padshift 15" />
+	<map value="SHIFT_PADMODE_1_PAD16" action="padshift 16" />
+	<map value="LED_PADMODE_1_PAD1" action="pad_button_color 1" />
+	<map value="LED_PADMODE_1_PAD2" action="pad_button_color 2" />
+	<map value="LED_PADMODE_1_PAD3" action="pad_button_color 3" />
+	<map value="LED_PADMODE_1_PAD4" action="pad_button_color 4" />
+	<map value="LED_PADMODE_1_PAD5" action="pad_button_color 5" />
+	<map value="LED_PADMODE_1_PAD6" action="pad_button_color 6" />
+	<map value="LED_PADMODE_1_PAD7" action="pad_button_color 7" />
+	<map value="LED_PADMODE_1_PAD8" action="pad_button_color 8" />
+	<map value="LED_PADMODE_1_PAD9" action="pad_button_color 9" />
+	<map value="LED_PADMODE_1_PAD10" action="pad_button_color 10" />
+	<map value="LED_PADMODE_1_PAD11" action="pad_button_color 11" />
+	<map value="LED_PADMODE_1_PAD12" action="pad_button_color 12" />
+	<map value="LED_PADMODE_1_PAD13" action="pad_button_color 13" />
+	<map value="LED_PADMODE_1_PAD14" action="pad_button_color 14" />
+	<map value="LED_PADMODE_1_PAD15" action="pad_button_color 15" />
+	<map value="LED_PADMODE_1_PAD16" action="pad_button_color 16" />
+	<map value="SHIFT_LED_PADMODE_1_PAD1" action="padshift_button_color 1" />
+	<map value="SHIFT_LED_PADMODE_1_PAD2" action="padshift_button_color 2" />
+	<map value="SHIFT_LED_PADMODE_1_PAD3" action="padshift_button_color 3" />
+	<map value="SHIFT_LED_PADMODE_1_PAD4" action="padshift_button_color 4" />
+	<map value="SHIFT_LED_PADMODE_1_PAD5" action="padshift_button_color 5" />
+	<map value="SHIFT_LED_PADMODE_1_PAD6" action="padshift_button_color 6" />
+	<map value="SHIFT_LED_PADMODE_1_PAD7" action="padshift_button_color 7" />
+	<map value="SHIFT_LED_PADMODE_1_PAD8" action="padshift_button_color 8" />
+	<map value="SHIFT_LED_PADMODE_1_PAD9" action="padshift_button_color 9" />
+	<map value="SHIFT_LED_PADMODE_1_PAD10" action="padshift_button_color 10" />
+	<map value="SHIFT_LED_PADMODE_1_PAD11" action="padshift_button_color 11" />
+	<map value="SHIFT_LED_PADMODE_1_PAD12" action="padshift_button_color 12" />
+	<map value="SHIFT_LED_PADMODE_1_PAD13" action="padshift_button_color 13" />
+	<map value="SHIFT_LED_PADMODE_1_PAD14" action="padshift_button_color 14" />
+	<map value="SHIFT_LED_PADMODE_1_PAD15" action="padshift_button_color 15" />
+	<map value="SHIFT_LED_PADMODE_1_PAD16" action="padshift_button_color 16" />
+	<map value="PADMODE_1_PARAM-" action="pad_param -1" />
+	<map value="PADMODE_1_PARAM+" action="pad_param +1" />
+	<map value="SHIFT_PADMODE_1_PARAM-" action="pad_param2 -1" />
+	<map value="SHIFT_PADMODE_1_PARAM+" action="pad_param2 +1" />
+	<map value="PADMODE_2_PAD1" action="pad 1" />
+	<map value="PADMODE_2_PAD2" action="pad 2" />
+	<map value="PADMODE_2_PAD3" action="pad 3" />
+	<map value="PADMODE_2_PAD4" action="pad 4" />
+	<map value="PADMODE_2_PAD5" action="pad 5" />
+	<map value="PADMODE_2_PAD6" action="pad 6" />
+	<map value="PADMODE_2_PAD7" action="pad 7" />
+	<map value="PADMODE_2_PAD8" action="pad 8" />
+	<map value="PADMODE_2_PAD9" action="pad 9" />
+	<map value="PADMODE_2_PAD10" action="pad 10" />
+	<map value="PADMODE_2_PAD11" action="pad 11" />
+	<map value="PADMODE_2_PAD12" action="pad 12" />
+	<map value="PADMODE_2_PAD13" action="pad 13" />
+	<map value="PADMODE_2_PAD14" action="pad 14" />
+	<map value="PADMODE_2_PAD15" action="pad 15" />
+	<map value="PADMODE_2_PAD16" action="pad 16" />
+	<map value="SHIFT_PADMODE_2_PAD1" action="padshift 1" />
+	<map value="SHIFT_PADMODE_2_PAD2" action="padshift 2" />
+	<map value="SHIFT_PADMODE_2_PAD3" action="padshift 3" />
+	<map value="SHIFT_PADMODE_2_PAD4" action="padshift 4" />
+	<map value="SHIFT_PADMODE_2_PAD5" action="padshift 5" />
+	<map value="SHIFT_PADMODE_2_PAD6" action="padshift 6" />
+	<map value="SHIFT_PADMODE_2_PAD7" action="padshift 7" />
+	<map value="SHIFT_PADMODE_2_PAD8" action="padshift 8" />
+	<map value="SHIFT_PADMODE_2_PAD9" action="padshift 9" />
+	<map value="SHIFT_PADMODE_2_PAD10" action="padshift 10" />
+	<map value="SHIFT_PADMODE_2_PAD11" action="padshift 11" />
+	<map value="SHIFT_PADMODE_2_PAD12" action="padshift 12" />
+	<map value="SHIFT_PADMODE_2_PAD13" action="padshift 13" />
+	<map value="SHIFT_PADMODE_2_PAD14" action="padshift 14" />
+	<map value="SHIFT_PADMODE_2_PAD15" action="padshift 15" />
+	<map value="SHIFT_PADMODE_2_PAD16" action="padshift 16" />
+	<map value="LED_PADMODE_2_PAD1" action="pad_button_color 1" />
+	<map value="LED_PADMODE_2_PAD2" action="pad_button_color 2" />
+	<map value="LED_PADMODE_2_PAD3" action="pad_button_color 3" />
+	<map value="LED_PADMODE_2_PAD4" action="pad_button_color 4" />
+	<map value="LED_PADMODE_2_PAD5" action="pad_button_color 5" />
+	<map value="LED_PADMODE_2_PAD6" action="pad_button_color 6" />
+	<map value="LED_PADMODE_2_PAD7" action="pad_button_color 7" />
+	<map value="LED_PADMODE_2_PAD8" action="pad_button_color 8" />
+	<map value="LED_PADMODE_2_PAD9" action="pad_button_color 9" />
+	<map value="LED_PADMODE_2_PAD10" action="pad_button_color 10" />
+	<map value="LED_PADMODE_2_PAD11" action="pad_button_color 11" />
+	<map value="LED_PADMODE_2_PAD12" action="pad_button_color 12" />
+	<map value="LED_PADMODE_2_PAD13" action="pad_button_color 13" />
+	<map value="LED_PADMODE_2_PAD14" action="pad_button_color 14" />
+	<map value="LED_PADMODE_2_PAD15" action="pad_button_color 15" />
+	<map value="LED_PADMODE_2_PAD16" action="pad_button_color 16" />
+	<map value="SHIFT_LED_PADMODE_2_PAD1" action="padshift_button_color 1" />
+	<map value="SHIFT_LED_PADMODE_2_PAD2" action="padshift_button_color 2" />
+	<map value="SHIFT_LED_PADMODE_2_PAD3" action="padshift_button_color 3" />
+	<map value="SHIFT_LED_PADMODE_2_PAD4" action="padshift_button_color 4" />
+	<map value="SHIFT_LED_PADMODE_2_PAD5" action="padshift_button_color 5" />
+	<map value="SHIFT_LED_PADMODE_2_PAD6" action="padshift_button_color 6" />
+	<map value="SHIFT_LED_PADMODE_2_PAD7" action="padshift_button_color 7" />
+	<map value="SHIFT_LED_PADMODE_2_PAD8" action="padshift_button_color 8" />
+	<map value="SHIFT_LED_PADMODE_2_PAD9" action="padshift_button_color 9" />
+	<map value="SHIFT_LED_PADMODE_2_PAD10" action="padshift_button_color 10" />
+	<map value="SHIFT_LED_PADMODE_2_PAD11" action="padshift_button_color 11" />
+	<map value="SHIFT_LED_PADMODE_2_PAD12" action="padshift_button_color 12" />
+	<map value="SHIFT_LED_PADMODE_2_PAD13" action="padshift_button_color 13" />
+	<map value="SHIFT_LED_PADMODE_2_PAD14" action="padshift_button_color 14" />
+	<map value="SHIFT_LED_PADMODE_2_PAD15" action="padshift_button_color 15" />
+	<map value="SHIFT_LED_PADMODE_2_PAD16" action="padshift_button_color 16" />
+	<map value="PADMODE_2_PARAM-" action="pad_param -1" />
+	<map value="PADMODE_2_PARAM+" action="pad_param +1" />
+	<map value="SHIFT_PADMODE_2_PARAM-" action="pad_param2 -1" />
+	<map value="SHIFT_PADMODE_2_PARAM+" action="pad_param2 +1" />
+	<map value="PADMODE_3_PAD1" action="pad 1" />
+	<map value="PADMODE_3_PAD2" action="pad 2" />
+	<map value="PADMODE_3_PAD3" action="pad 3" />
+	<map value="PADMODE_3_PAD4" action="pad 4" />
+	<map value="PADMODE_3_PAD5" action="pad 5" />
+	<map value="PADMODE_3_PAD6" action="pad 6" />
+	<map value="PADMODE_3_PAD7" action="pad 7" />
+	<map value="PADMODE_3_PAD8" action="pad 8" />
+	<map value="PADMODE_3_PAD9" action="pad 9" />
+	<map value="PADMODE_3_PAD10" action="pad 10" />
+	<map value="PADMODE_3_PAD11" action="pad 11" />
+	<map value="PADMODE_3_PAD12" action="pad 12" />
+	<map value="PADMODE_3_PAD13" action="pad 13" />
+	<map value="PADMODE_3_PAD14" action="pad 14" />
+	<map value="PADMODE_3_PAD15" action="pad 15" />
+	<map value="PADMODE_3_PAD16" action="pad 16" />
+	<map value="SHIFT_PADMODE_3_PAD1" action="padshift 1" />
+	<map value="SHIFT_PADMODE_3_PAD2" action="padshift 2" />
+	<map value="SHIFT_PADMODE_3_PAD3" action="padshift 3" />
+	<map value="SHIFT_PADMODE_3_PAD4" action="padshift 4" />
+	<map value="SHIFT_PADMODE_3_PAD5" action="padshift 5" />
+	<map value="SHIFT_PADMODE_3_PAD6" action="padshift 6" />
+	<map value="SHIFT_PADMODE_3_PAD7" action="padshift 7" />
+	<map value="SHIFT_PADMODE_3_PAD8" action="padshift 8" />
+	<map value="SHIFT_PADMODE_3_PAD9" action="padshift 9" />
+	<map value="SHIFT_PADMODE_3_PAD10" action="padshift 10" />
+	<map value="SHIFT_PADMODE_3_PAD11" action="padshift 11" />
+	<map value="SHIFT_PADMODE_3_PAD12" action="padshift 12" />
+	<map value="SHIFT_PADMODE_3_PAD13" action="padshift 13" />
+	<map value="SHIFT_PADMODE_3_PAD14" action="padshift 14" />
+	<map value="SHIFT_PADMODE_3_PAD15" action="padshift 15" />
+	<map value="SHIFT_PADMODE_3_PAD16" action="padshift 16" />
+	<map value="LED_PADMODE_3_PAD1" action="pad_button_color 1" />
+	<map value="LED_PADMODE_3_PAD2" action="pad_button_color 2" />
+	<map value="LED_PADMODE_3_PAD3" action="pad_button_color 3" />
+	<map value="LED_PADMODE_3_PAD4" action="pad_button_color 4" />
+	<map value="LED_PADMODE_3_PAD5" action="pad_button_color 5" />
+	<map value="LED_PADMODE_3_PAD6" action="pad_button_color 6" />
+	<map value="LED_PADMODE_3_PAD7" action="pad_button_color 7" />
+	<map value="LED_PADMODE_3_PAD8" action="pad_button_color 8" />
+	<map value="LED_PADMODE_3_PAD9" action="pad_button_color 9" />
+	<map value="LED_PADMODE_3_PAD10" action="pad_button_color 10" />
+	<map value="LED_PADMODE_3_PAD11" action="pad_button_color 11" />
+	<map value="LED_PADMODE_3_PAD12" action="pad_button_color 12" />
+	<map value="LED_PADMODE_3_PAD13" action="pad_button_color 13" />
+	<map value="LED_PADMODE_3_PAD14" action="pad_button_color 14" />
+	<map value="LED_PADMODE_3_PAD15" action="pad_button_color 15" />
+	<map value="LED_PADMODE_3_PAD16" action="pad_button_color 16" />
+	<map value="SHIFT_LED_PADMODE_3_PAD1" action="padshift_button_color 1" />
+	<map value="SHIFT_LED_PADMODE_3_PAD2" action="padshift_button_color 2" />
+	<map value="SHIFT_LED_PADMODE_3_PAD3" action="padshift_button_color 3" />
+	<map value="SHIFT_LED_PADMODE_3_PAD4" action="padshift_button_color 4" />
+	<map value="SHIFT_LED_PADMODE_3_PAD5" action="padshift_button_color 5" />
+	<map value="SHIFT_LED_PADMODE_3_PAD6" action="padshift_button_color 6" />
+	<map value="SHIFT_LED_PADMODE_3_PAD7" action="padshift_button_color 7" />
+	<map value="SHIFT_LED_PADMODE_3_PAD8" action="padshift_button_color 8" />
+	<map value="SHIFT_LED_PADMODE_3_PAD9" action="padshift_button_color 9" />
+	<map value="SHIFT_LED_PADMODE_3_PAD10" action="padshift_button_color 10" />
+	<map value="SHIFT_LED_PADMODE_3_PAD11" action="padshift_button_color 11" />
+	<map value="SHIFT_LED_PADMODE_3_PAD12" action="padshift_button_color 12" />
+	<map value="SHIFT_LED_PADMODE_3_PAD13" action="padshift_button_color 13" />
+	<map value="SHIFT_LED_PADMODE_3_PAD14" action="padshift_button_color 14" />
+	<map value="SHIFT_LED_PADMODE_3_PAD15" action="padshift_button_color 15" />
+	<map value="SHIFT_LED_PADMODE_3_PAD16" action="padshift_button_color 16" />
+	<map value="PADMODE_3_PARAM-" action="pad_param -1" />
+	<map value="PADMODE_3_PARAM+" action="pad_param +1" />
+	<map value="SHIFT_PADMODE_3_PARAM-" action="pad_param2 -1" />
+	<map value="SHIFT_PADMODE_3_PARAM+" action="pad_param2 +1" />
+	<map value="PADMODE_4_PAD1" action="pad 1" />
+	<map value="PADMODE_4_PAD2" action="pad 2" />
+	<map value="PADMODE_4_PAD3" action="pad 3" />
+	<map value="PADMODE_4_PAD4" action="pad 4" />
+	<map value="PADMODE_4_PAD5" action="pad 5" />
+	<map value="PADMODE_4_PAD6" action="pad 6" />
+	<map value="PADMODE_4_PAD7" action="pad 7" />
+	<map value="PADMODE_4_PAD8" action="pad 8" />
+	<map value="PADMODE_4_PAD9" action="pad 9" />
+	<map value="PADMODE_4_PAD10" action="pad 10" />
+	<map value="PADMODE_4_PAD11" action="pad 11" />
+	<map value="PADMODE_4_PAD12" action="pad 12" />
+	<map value="PADMODE_4_PAD13" action="pad 13" />
+	<map value="PADMODE_4_PAD14" action="pad 14" />
+	<map value="PADMODE_4_PAD15" action="pad 15" />
+	<map value="PADMODE_4_PAD16" action="pad 16" />
+	<map value="SHIFT_PADMODE_4_PAD1" action="padshift 1" />
+	<map value="SHIFT_PADMODE_4_PAD2" action="padshift 2" />
+	<map value="SHIFT_PADMODE_4_PAD3" action="padshift 3" />
+	<map value="SHIFT_PADMODE_4_PAD4" action="padshift 4" />
+	<map value="SHIFT_PADMODE_4_PAD5" action="padshift 5" />
+	<map value="SHIFT_PADMODE_4_PAD6" action="padshift 6" />
+	<map value="SHIFT_PADMODE_4_PAD7" action="padshift 7" />
+	<map value="SHIFT_PADMODE_4_PAD8" action="padshift 8" />
+	<map value="SHIFT_PADMODE_4_PAD9" action="padshift 9" />
+	<map value="SHIFT_PADMODE_4_PAD10" action="padshift 10" />
+	<map value="SHIFT_PADMODE_4_PAD11" action="padshift 11" />
+	<map value="SHIFT_PADMODE_4_PAD12" action="padshift 12" />
+	<map value="SHIFT_PADMODE_4_PAD13" action="padshift 13" />
+	<map value="SHIFT_PADMODE_4_PAD14" action="padshift 14" />
+	<map value="SHIFT_PADMODE_4_PAD15" action="padshift 15" />
+	<map value="SHIFT_PADMODE_4_PAD16" action="padshift 16" />
+	<map value="LED_PADMODE_4_PAD1" action="pad_button_color 1" />
+	<map value="LED_PADMODE_4_PAD2" action="pad_button_color 2" />
+	<map value="LED_PADMODE_4_PAD3" action="pad_button_color 3" />
+	<map value="LED_PADMODE_4_PAD4" action="pad_button_color 4" />
+	<map value="LED_PADMODE_4_PAD5" action="pad_button_color 5" />
+	<map value="LED_PADMODE_4_PAD6" action="pad_button_color 6" />
+	<map value="LED_PADMODE_4_PAD7" action="pad_button_color 7" />
+	<map value="LED_PADMODE_4_PAD8" action="pad_button_color 8" />
+	<map value="LED_PADMODE_4_PAD9" action="pad_button_color 9" />
+	<map value="LED_PADMODE_4_PAD10" action="pad_button_color 10" />
+	<map value="LED_PADMODE_4_PAD11" action="pad_button_color 11" />
+	<map value="LED_PADMODE_4_PAD12" action="pad_button_color 12" />
+	<map value="LED_PADMODE_4_PAD13" action="pad_button_color 13" />
+	<map value="LED_PADMODE_4_PAD14" action="pad_button_color 14" />
+	<map value="LED_PADMODE_4_PAD15" action="pad_button_color 15" />
+	<map value="LED_PADMODE_4_PAD16" action="pad_button_color 16" />
+	<map value="SHIFT_LED_PADMODE_4_PAD1" action="padshift_button_color 1" />
+	<map value="SHIFT_LED_PADMODE_4_PAD2" action="padshift_button_color 2" />
+	<map value="SHIFT_LED_PADMODE_4_PAD3" action="padshift_button_color 3" />
+	<map value="SHIFT_LED_PADMODE_4_PAD4" action="padshift_button_color 4" />
+	<map value="SHIFT_LED_PADMODE_4_PAD5" action="padshift_button_color 5" />
+	<map value="SHIFT_LED_PADMODE_4_PAD6" action="padshift_button_color 6" />
+	<map value="SHIFT_LED_PADMODE_4_PAD7" action="padshift_button_color 7" />
+	<map value="SHIFT_LED_PADMODE_4_PAD8" action="padshift_button_color 8" />
+	<map value="SHIFT_LED_PADMODE_4_PAD9" action="padshift_button_color 9" />
+	<map value="SHIFT_LED_PADMODE_4_PAD10" action="padshift_button_color 10" />
+	<map value="SHIFT_LED_PADMODE_4_PAD11" action="padshift_button_color 11" />
+	<map value="SHIFT_LED_PADMODE_4_PAD12" action="padshift_button_color 12" />
+	<map value="SHIFT_LED_PADMODE_4_PAD13" action="padshift_button_color 13" />
+	<map value="SHIFT_LED_PADMODE_4_PAD14" action="padshift_button_color 14" />
+	<map value="SHIFT_LED_PADMODE_4_PAD15" action="padshift_button_color 15" />
+	<map value="SHIFT_LED_PADMODE_4_PAD16" action="padshift_button_color 16" />
+	<map value="PADMODE_4_PARAM-" action="pad_param -1" />
+	<map value="PADMODE_4_PARAM+" action="pad_param +1" />
+	<map value="SHIFT_PADMODE_4_PARAM-" action="pad_param2 -1" />
+	<map value="SHIFT_PADMODE_4_PARAM+" action="pad_param2 +1" />
+	<map value="PADMODE_5_PAD1" action="pad 1" />
+	<map value="PADMODE_5_PAD2" action="pad 2" />
+	<map value="PADMODE_5_PAD3" action="pad 3" />
+	<map value="PADMODE_5_PAD4" action="pad 4" />
+	<map value="PADMODE_5_PAD5" action="pad 5" />
+	<map value="PADMODE_5_PAD6" action="pad 6" />
+	<map value="PADMODE_5_PAD7" action="pad 7" />
+	<map value="PADMODE_5_PAD8" action="pad 8" />
+	<map value="PADMODE_5_PAD9" action="pad 9" />
+	<map value="PADMODE_5_PAD10" action="pad 10" />
+	<map value="PADMODE_5_PAD11" action="pad 11" />
+	<map value="PADMODE_5_PAD12" action="pad 12" />
+	<map value="PADMODE_5_PAD13" action="pad 13" />
+	<map value="PADMODE_5_PAD14" action="pad 14" />
+	<map value="PADMODE_5_PAD15" action="pad 15" />
+	<map value="PADMODE_5_PAD16" action="pad 16" />
+	<map value="SHIFT_PADMODE_5_PAD1" action="padshift 1" />
+	<map value="SHIFT_PADMODE_5_PAD2" action="padshift 2" />
+	<map value="SHIFT_PADMODE_5_PAD3" action="padshift 3" />
+	<map value="SHIFT_PADMODE_5_PAD4" action="padshift 4" />
+	<map value="SHIFT_PADMODE_5_PAD5" action="padshift 5" />
+	<map value="SHIFT_PADMODE_5_PAD6" action="padshift 6" />
+	<map value="SHIFT_PADMODE_5_PAD7" action="padshift 7" />
+	<map value="SHIFT_PADMODE_5_PAD8" action="padshift 8" />
+	<map value="SHIFT_PADMODE_5_PAD9" action="padshift 9" />
+	<map value="SHIFT_PADMODE_5_PAD10" action="padshift 10" />
+	<map value="SHIFT_PADMODE_5_PAD11" action="padshift 11" />
+	<map value="SHIFT_PADMODE_5_PAD12" action="padshift 12" />
+	<map value="SHIFT_PADMODE_5_PAD13" action="padshift 13" />
+	<map value="SHIFT_PADMODE_5_PAD14" action="padshift 14" />
+	<map value="SHIFT_PADMODE_5_PAD15" action="padshift 15" />
+	<map value="SHIFT_PADMODE_5_PAD16" action="padshift 16" />
+	<map value="LED_PADMODE_5_PAD1" action="pad_button_color 1" />
+	<map value="LED_PADMODE_5_PAD2" action="pad_button_color 2" />
+	<map value="LED_PADMODE_5_PAD3" action="pad_button_color 3" />
+	<map value="LED_PADMODE_5_PAD4" action="pad_button_color 4" />
+	<map value="LED_PADMODE_5_PAD5" action="pad_button_color 5" />
+	<map value="LED_PADMODE_5_PAD6" action="pad_button_color 6" />
+	<map value="LED_PADMODE_5_PAD7" action="pad_button_color 7" />
+	<map value="LED_PADMODE_5_PAD8" action="pad_button_color 8" />
+	<map value="LED_PADMODE_5_PAD9" action="pad_button_color 9" />
+	<map value="LED_PADMODE_5_PAD10" action="pad_button_color 10" />
+	<map value="LED_PADMODE_5_PAD11" action="pad_button_color 11" />
+	<map value="LED_PADMODE_5_PAD12" action="pad_button_color 12" />
+	<map value="LED_PADMODE_5_PAD13" action="pad_button_color 13" />
+	<map value="LED_PADMODE_5_PAD14" action="pad_button_color 14" />
+	<map value="LED_PADMODE_5_PAD15" action="pad_button_color 15" />
+	<map value="LED_PADMODE_5_PAD16" action="pad_button_color 16" />
+	<map value="SHIFT_LED_PADMODE_5_PAD1" action="padshift_button_color 1" />
+	<map value="SHIFT_LED_PADMODE_5_PAD2" action="padshift_button_color 2" />
+	<map value="SHIFT_LED_PADMODE_5_PAD3" action="padshift_button_color 3" />
+	<map value="SHIFT_LED_PADMODE_5_PAD4" action="padshift_button_color 4" />
+	<map value="SHIFT_LED_PADMODE_5_PAD5" action="padshift_button_color 5" />
+	<map value="SHIFT_LED_PADMODE_5_PAD6" action="padshift_button_color 6" />
+	<map value="SHIFT_LED_PADMODE_5_PAD7" action="padshift_button_color 7" />
+	<map value="SHIFT_LED_PADMODE_5_PAD8" action="padshift_button_color 8" />
+	<map value="SHIFT_LED_PADMODE_5_PAD9" action="padshift_button_color 9" />
+	<map value="SHIFT_LED_PADMODE_5_PAD10" action="padshift_button_color 10" />
+	<map value="SHIFT_LED_PADMODE_5_PAD11" action="padshift_button_color 11" />
+	<map value="SHIFT_LED_PADMODE_5_PAD12" action="padshift_button_color 12" />
+	<map value="SHIFT_LED_PADMODE_5_PAD13" action="padshift_button_color 13" />
+	<map value="SHIFT_LED_PADMODE_5_PAD14" action="padshift_button_color 14" />
+	<map value="SHIFT_LED_PADMODE_5_PAD15" action="padshift_button_color 15" />
+	<map value="SHIFT_LED_PADMODE_5_PAD16" action="padshift_button_color 16" />
+	<map value="PADMODE_5_PARAM-" action="pad_param -1" />
+	<map value="PADMODE_5_PARAM+" action="pad_param +1" />
+	<map value="SHIFT_PADMODE_5_PARAM-" action="pad_param2 -1" />
+	<map value="SHIFT_PADMODE_5_PARAM+" action="pad_param2 +1" />
+	<map value="PADMODE_6_PAD1" action="pad 1" />
+	<map value="PADMODE_6_PAD2" action="pad 2" />
+	<map value="PADMODE_6_PAD3" action="pad 3" />
+	<map value="PADMODE_6_PAD4" action="pad 4" />
+	<map value="PADMODE_6_PAD5" action="pad 5" />
+	<map value="PADMODE_6_PAD6" action="pad 6" />
+	<map value="PADMODE_6_PAD7" action="pad 7" />
+	<map value="PADMODE_6_PAD8" action="pad 8" />
+	<map value="PADMODE_6_PAD9" action="pad 9" />
+	<map value="PADMODE_6_PAD10" action="pad 10" />
+	<map value="PADMODE_6_PAD11" action="pad 11" />
+	<map value="PADMODE_6_PAD12" action="pad 12" />
+	<map value="PADMODE_6_PAD13" action="pad 13" />
+	<map value="PADMODE_6_PAD14" action="pad 14" />
+	<map value="PADMODE_6_PAD15" action="pad 15" />
+	<map value="PADMODE_6_PAD16" action="pad 16" />
+	<map value="SHIFT_PADMODE_6_PAD1" action="padshift 1" />
+	<map value="SHIFT_PADMODE_6_PAD2" action="padshift 2" />
+	<map value="SHIFT_PADMODE_6_PAD3" action="padshift 3" />
+	<map value="SHIFT_PADMODE_6_PAD4" action="padshift 4" />
+	<map value="SHIFT_PADMODE_6_PAD5" action="padshift 5" />
+	<map value="SHIFT_PADMODE_6_PAD6" action="padshift 6" />
+	<map value="SHIFT_PADMODE_6_PAD7" action="padshift 7" />
+	<map value="SHIFT_PADMODE_6_PAD8" action="padshift 8" />
+	<map value="SHIFT_PADMODE_6_PAD9" action="padshift 9" />
+	<map value="SHIFT_PADMODE_6_PAD10" action="padshift 10" />
+	<map value="SHIFT_PADMODE_6_PAD11" action="padshift 11" />
+	<map value="SHIFT_PADMODE_6_PAD12" action="padshift 12" />
+	<map value="SHIFT_PADMODE_6_PAD13" action="padshift 13" />
+	<map value="SHIFT_PADMODE_6_PAD14" action="padshift 14" />
+	<map value="SHIFT_PADMODE_6_PAD15" action="padshift 15" />
+	<map value="SHIFT_PADMODE_6_PAD16" action="padshift 16" />
+	<map value="LED_PADMODE_6_PAD1" action="pad_button_color 1" />
+	<map value="LED_PADMODE_6_PAD2" action="pad_button_color 2" />
+	<map value="LED_PADMODE_6_PAD3" action="pad_button_color 3" />
+	<map value="LED_PADMODE_6_PAD4" action="pad_button_color 4" />
+	<map value="LED_PADMODE_6_PAD5" action="pad_button_color 5" />
+	<map value="LED_PADMODE_6_PAD6" action="pad_button_color 6" />
+	<map value="LED_PADMODE_6_PAD7" action="pad_button_color 7" />
+	<map value="LED_PADMODE_6_PAD8" action="pad_button_color 8" />
+	<map value="LED_PADMODE_6_PAD9" action="pad_button_color 9" />
+	<map value="LED_PADMODE_6_PAD10" action="pad_button_color 10" />
+	<map value="LED_PADMODE_6_PAD11" action="pad_button_color 11" />
+	<map value="LED_PADMODE_6_PAD12" action="pad_button_color 12" />
+	<map value="LED_PADMODE_6_PAD13" action="pad_button_color 13" />
+	<map value="LED_PADMODE_6_PAD14" action="pad_button_color 14" />
+	<map value="LED_PADMODE_6_PAD15" action="pad_button_color 15" />
+	<map value="LED_PADMODE_6_PAD16" action="pad_button_color 16" />
+	<map value="SHIFT_LED_PADMODE_6_PAD1" action="padshift_button_color 1" />
+	<map value="SHIFT_LED_PADMODE_6_PAD2" action="padshift_button_color 2" />
+	<map value="SHIFT_LED_PADMODE_6_PAD3" action="padshift_button_color 3" />
+	<map value="SHIFT_LED_PADMODE_6_PAD4" action="padshift_button_color 4" />
+	<map value="SHIFT_LED_PADMODE_6_PAD5" action="padshift_button_color 5" />
+	<map value="SHIFT_LED_PADMODE_6_PAD6" action="padshift_button_color 6" />
+	<map value="SHIFT_LED_PADMODE_6_PAD7" action="padshift_button_color 7" />
+	<map value="SHIFT_LED_PADMODE_6_PAD8" action="padshift_button_color 8" />
+	<map value="SHIFT_LED_PADMODE_6_PAD9" action="padshift_button_color 9" />
+	<map value="SHIFT_LED_PADMODE_6_PAD10" action="padshift_button_color 10" />
+	<map value="SHIFT_LED_PADMODE_6_PAD11" action="padshift_button_color 11" />
+	<map value="SHIFT_LED_PADMODE_6_PAD12" action="padshift_button_color 12" />
+	<map value="SHIFT_LED_PADMODE_6_PAD13" action="padshift_button_color 13" />
+	<map value="SHIFT_LED_PADMODE_6_PAD14" action="padshift_button_color 14" />
+	<map value="SHIFT_LED_PADMODE_6_PAD15" action="padshift_button_color 15" />
+	<map value="SHIFT_LED_PADMODE_6_PAD16" action="padshift_button_color 16" />
+	<map value="PADMODE_6_PARAM-" action="pad_param -1" />
+	<map value="PADMODE_6_PARAM+" action="pad_param +1" />
+	<map value="SHIFT_PADMODE_6_PARAM-" action="pad_param2 -1" />
+	<map value="SHIFT_PADMODE_6_PARAM+" action="pad_param2 +1" />
+	<map value="PADMODE_7_PAD1" action="pad 1" />
+	<map value="PADMODE_7_PAD2" action="pad 2" />
+	<map value="PADMODE_7_PAD3" action="pad 3" />
+	<map value="PADMODE_7_PAD4" action="pad 4" />
+	<map value="PADMODE_7_PAD5" action="pad 5" />
+	<map value="PADMODE_7_PAD6" action="pad 6" />
+	<map value="PADMODE_7_PAD7" action="pad 7" />
+	<map value="PADMODE_7_PAD8" action="pad 8" />
+	<map value="PADMODE_7_PAD9" action="pad 9" />
+	<map value="PADMODE_7_PAD10" action="pad 10" />
+	<map value="PADMODE_7_PAD11" action="pad 11" />
+	<map value="PADMODE_7_PAD12" action="pad 12" />
+	<map value="PADMODE_7_PAD13" action="pad 13" />
+	<map value="PADMODE_7_PAD14" action="pad 14" />
+	<map value="PADMODE_7_PAD15" action="pad 15" />
+	<map value="PADMODE_7_PAD16" action="pad 16" />
+	<map value="SHIFT_PADMODE_7_PAD1" action="padshift 1" />
+	<map value="SHIFT_PADMODE_7_PAD2" action="padshift 2" />
+	<map value="SHIFT_PADMODE_7_PAD3" action="padshift 3" />
+	<map value="SHIFT_PADMODE_7_PAD4" action="padshift 4" />
+	<map value="SHIFT_PADMODE_7_PAD5" action="padshift 5" />
+	<map value="SHIFT_PADMODE_7_PAD6" action="padshift 6" />
+	<map value="SHIFT_PADMODE_7_PAD7" action="padshift 7" />
+	<map value="SHIFT_PADMODE_7_PAD8" action="padshift 8" />
+	<map value="SHIFT_PADMODE_7_PAD9" action="padshift 9" />
+	<map value="SHIFT_PADMODE_7_PAD10" action="padshift 10" />
+	<map value="SHIFT_PADMODE_7_PAD11" action="padshift 11" />
+	<map value="SHIFT_PADMODE_7_PAD12" action="padshift 12" />
+	<map value="SHIFT_PADMODE_7_PAD13" action="padshift 13" />
+	<map value="SHIFT_PADMODE_7_PAD14" action="padshift 14" />
+	<map value="SHIFT_PADMODE_7_PAD15" action="padshift 15" />
+	<map value="SHIFT_PADMODE_7_PAD16" action="padshift 16" />
+	<map value="LED_PADMODE_7_PAD1" action="pad_button_color 1" />
+	<map value="LED_PADMODE_7_PAD2" action="pad_button_color 2" />
+	<map value="LED_PADMODE_7_PAD3" action="pad_button_color 3" />
+	<map value="LED_PADMODE_7_PAD4" action="pad_button_color 4" />
+	<map value="LED_PADMODE_7_PAD5" action="pad_button_color 5" />
+	<map value="LED_PADMODE_7_PAD6" action="pad_button_color 6" />
+	<map value="LED_PADMODE_7_PAD7" action="pad_button_color 7" />
+	<map value="LED_PADMODE_7_PAD8" action="pad_button_color 8" />
+	<map value="LED_PADMODE_7_PAD9" action="pad_button_color 9" />
+	<map value="LED_PADMODE_7_PAD10" action="pad_button_color 10" />
+	<map value="LED_PADMODE_7_PAD11" action="pad_button_color 11" />
+	<map value="LED_PADMODE_7_PAD12" action="pad_button_color 12" />
+	<map value="LED_PADMODE_7_PAD13" action="pad_button_color 13" />
+	<map value="LED_PADMODE_7_PAD14" action="pad_button_color 14" />
+	<map value="LED_PADMODE_7_PAD15" action="pad_button_color 15" />
+	<map value="LED_PADMODE_7_PAD16" action="pad_button_color 16" />
+	<map value="SHIFT_LED_PADMODE_7_PAD1" action="padshift_button_color 1" />
+	<map value="SHIFT_LED_PADMODE_7_PAD2" action="padshift_button_color 2" />
+	<map value="SHIFT_LED_PADMODE_7_PAD3" action="padshift_button_color 3" />
+	<map value="SHIFT_LED_PADMODE_7_PAD4" action="padshift_button_color 4" />
+	<map value="SHIFT_LED_PADMODE_7_PAD5" action="padshift_button_color 5" />
+	<map value="SHIFT_LED_PADMODE_7_PAD6" action="padshift_button_color 6" />
+	<map value="SHIFT_LED_PADMODE_7_PAD7" action="padshift_button_color 7" />
+	<map value="SHIFT_LED_PADMODE_7_PAD8" action="padshift_button_color 8" />
+	<map value="SHIFT_LED_PADMODE_7_PAD9" action="padshift_button_color 9" />
+	<map value="SHIFT_LED_PADMODE_7_PAD10" action="padshift_button_color 10" />
+	<map value="SHIFT_LED_PADMODE_7_PAD11" action="padshift_button_color 11" />
+	<map value="SHIFT_LED_PADMODE_7_PAD12" action="padshift_button_color 12" />
+	<map value="SHIFT_LED_PADMODE_7_PAD13" action="padshift_button_color 13" />
+	<map value="SHIFT_LED_PADMODE_7_PAD14" action="padshift_button_color 14" />
+	<map value="SHIFT_LED_PADMODE_7_PAD15" action="padshift_button_color 15" />
+	<map value="SHIFT_LED_PADMODE_7_PAD16" action="padshift_button_color 16" />
+	<map value="PADMODE_7_PARAM-" action="pad_param -1" />
+	<map value="PADMODE_7_PARAM+" action="pad_param +1" />
+	<map value="SHIFT_PADMODE_7_PARAM-" action="pad_param2 -1" />
+	<map value="SHIFT_PADMODE_7_PARAM+" action="pad_param2 +1" />
+	<map value="PADMODE_8_PAD1" action="pad 1" />
+	<map value="PADMODE_8_PAD2" action="pad 2" />
+	<map value="PADMODE_8_PAD3" action="pad 3" />
+	<map value="PADMODE_8_PAD4" action="pad 4" />
+	<map value="PADMODE_8_PAD5" action="pad 5" />
+	<map value="PADMODE_8_PAD6" action="pad 6" />
+	<map value="PADMODE_8_PAD7" action="pad 7" />
+	<map value="PADMODE_8_PAD8" action="pad 8" />
+	<map value="PADMODE_8_PAD9" action="pad 9" />
+	<map value="PADMODE_8_PAD10" action="pad 10" />
+	<map value="PADMODE_8_PAD11" action="pad 11" />
+	<map value="PADMODE_8_PAD12" action="pad 12" />
+	<map value="PADMODE_8_PAD13" action="pad 13" />
+	<map value="PADMODE_8_PAD14" action="pad 14" />
+	<map value="PADMODE_8_PAD15" action="pad 15" />
+	<map value="PADMODE_8_PAD16" action="pad 16" />
+	<map value="SHIFT_PADMODE_8_PAD1" action="padshift 1" />
+	<map value="SHIFT_PADMODE_8_PAD2" action="padshift 2" />
+	<map value="SHIFT_PADMODE_8_PAD3" action="padshift 3" />
+	<map value="SHIFT_PADMODE_8_PAD4" action="padshift 4" />
+	<map value="SHIFT_PADMODE_8_PAD5" action="padshift 5" />
+	<map value="SHIFT_PADMODE_8_PAD6" action="padshift 6" />
+	<map value="SHIFT_PADMODE_8_PAD7" action="padshift 7" />
+	<map value="SHIFT_PADMODE_8_PAD8" action="padshift 8" />
+	<map value="SHIFT_PADMODE_8_PAD9" action="padshift 9" />
+	<map value="SHIFT_PADMODE_8_PAD10" action="padshift 10" />
+	<map value="SHIFT_PADMODE_8_PAD11" action="padshift 11" />
+	<map value="SHIFT_PADMODE_8_PAD12" action="padshift 12" />
+	<map value="SHIFT_PADMODE_8_PAD13" action="padshift 13" />
+	<map value="SHIFT_PADMODE_8_PAD14" action="padshift 14" />
+	<map value="SHIFT_PADMODE_8_PAD15" action="padshift 15" />
+	<map value="SHIFT_PADMODE_8_PAD16" action="padshift 16" />
+	<map value="LED_PADMODE_8_PAD1" action="pad_button_color 1" />
+	<map value="LED_PADMODE_8_PAD2" action="pad_button_color 2" />
+	<map value="LED_PADMODE_8_PAD3" action="pad_button_color 3" />
+	<map value="LED_PADMODE_8_PAD4" action="pad_button_color 4" />
+	<map value="LED_PADMODE_8_PAD5" action="pad_button_color 5" />
+	<map value="LED_PADMODE_8_PAD6" action="pad_button_color 6" />
+	<map value="LED_PADMODE_8_PAD7" action="pad_button_color 7" />
+	<map value="LED_PADMODE_8_PAD8" action="pad_button_color 8" />
+	<map value="LED_PADMODE_8_PAD9" action="pad_button_color 9" />
+	<map value="LED_PADMODE_8_PAD10" action="pad_button_color 10" />
+	<map value="LED_PADMODE_8_PAD11" action="pad_button_color 11" />
+	<map value="LED_PADMODE_8_PAD12" action="pad_button_color 12" />
+	<map value="LED_PADMODE_8_PAD13" action="pad_button_color 13" />
+	<map value="LED_PADMODE_8_PAD14" action="pad_button_color 14" />
+	<map value="LED_PADMODE_8_PAD15" action="pad_button_color 15" />
+	<map value="LED_PADMODE_8_PAD16" action="pad_button_color 16" />
+	<map value="SHIFT_LED_PADMODE_8_PAD1" action="padshift_button_color 1" />
+	<map value="SHIFT_LED_PADMODE_8_PAD2" action="padshift_button_color 2" />
+	<map value="SHIFT_LED_PADMODE_8_PAD3" action="padshift_button_color 3" />
+	<map value="SHIFT_LED_PADMODE_8_PAD4" action="padshift_button_color 4" />
+	<map value="SHIFT_LED_PADMODE_8_PAD5" action="padshift_button_color 5" />
+	<map value="SHIFT_LED_PADMODE_8_PAD6" action="padshift_button_color 6" />
+	<map value="SHIFT_LED_PADMODE_8_PAD7" action="padshift_button_color 7" />
+	<map value="SHIFT_LED_PADMODE_8_PAD8" action="padshift_button_color 8" />
+	<map value="SHIFT_LED_PADMODE_8_PAD9" action="padshift_button_color 9" />
+	<map value="SHIFT_LED_PADMODE_8_PAD10" action="padshift_button_color 10" />
+	<map value="SHIFT_LED_PADMODE_8_PAD11" action="padshift_button_color 11" />
+	<map value="SHIFT_LED_PADMODE_8_PAD12" action="padshift_button_color 12" />
+	<map value="SHIFT_LED_PADMODE_8_PAD13" action="padshift_button_color 13" />
+	<map value="SHIFT_LED_PADMODE_8_PAD14" action="padshift_button_color 14" />
+	<map value="SHIFT_LED_PADMODE_8_PAD15" action="padshift_button_color 15" />
+	<map value="SHIFT_LED_PADMODE_8_PAD16" action="padshift_button_color 16" />
+	<map value="PADMODE_8_PARAM-" action="pad_param -1" />
+	<map value="PADMODE_8_PARAM+" action="pad_param +1" />
+	<map value="SHIFT_PADMODE_8_PARAM-" action="pad_param2 -1" />
+	<map value="SHIFT_PADMODE_8_PARAM+" action="pad_param2 +1" />
+	<map value="HOLD" action="play_button" />
+	<map value="FX1" action="stem_pad &quot;Vocal&quot;" />
+</mapper>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page>
+  <pad1 name="ON" color="color 'green'">var '@$abpmt_source' 1 ? auto_bpm_transition 'source_original' : auto_bpm_transition</pad1>
+  <pad2 name="AUTO-START" color="color 'marine'">auto_bpm_transition_options 'autostart'</pad2>
+  <pad3 name="MT" color="color 'orange'">auto_bpm_transition_options master_tempo</pad3>
+  <pad4 name="LOOP" color="color 'cyan'">auto_bpm_transition_options loop</pad4>
+  <pad5 name="VOCALS" color="color 'blue'">auto_bpm_transition_options stems vocal</pad5>
+  <pad6 name="INSTRU" color="color 'green'">auto_bpm_transition_options stems instru</pad6>
+  <pad7 name="BASS" color="color 'violet'">auto_bpm_transition_options stems bass</pad7>
+  <pad8 name="DRUMS" color="color 'red'">auto_bpm_transition_options stems rhythm</pad8>
+  <param1 name="`auto_bpm_transition_options length`">auto_bpm_transition_options length</param1>
+  <param2 name="`var '@$abpmt_source' 1 ? get_text 'SOURCE' : get_text 'TARGET'`">cycle '@$abpmt_source' 2</param2>
+</page>

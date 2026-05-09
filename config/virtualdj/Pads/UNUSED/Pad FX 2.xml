@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="Pad FX">
+	<pad1 name="ECHO 1/2bt" color="color &apos;green&apos;">padfx &apos;Echo&apos; &apos;Strength:52%&apos; &apos;Feedback:52%&apos; 0.5bt smart_pressed</pad1>
+	<pad2 name="ECHO 1bt" color="color &apos;green&apos;">padfx &apos;Echo&apos; &apos;Strength:52%&apos; &apos;Feedback:52%&apos; 1bt smart_pressed</pad2>
+	<pad3 name="ECHO 2bt" color="color &apos;green&apos;">padfx &apos;Echo&apos; &apos;Strength:52%&apos; &apos;Feedback:52%&apos; 2bt smart_pressed</pad3>
+	<pad5 name="CUT 1/4bt" color="color &apos;orange&apos;">padfx &apos;Cut&apos; &apos;Strength:50%&apos; &apos;Duty:50%&apos; &apos;Swing:50%&apos; 0.25bt smart_pressed</pad5>
+	<pad6 name="CUT 1/2bt" color="color &apos;orange&apos;">padfx &apos;Cut&apos; &apos;Strength:50%&apos; &apos;Duty:50%&apos; &apos;Swing:50%&apos; 0.5bt smart_pressed</pad6>
+	<pad7 name="CUT 1bt" color="color &apos;orange&apos;">padfx &apos;Cut&apos; &apos;Strength:50%&apos; &apos;Duty:50%&apos; &apos;Swing:50%&apos; 1bt smart_pressed</pad7>
+	<pad4 color="color &apos;blue&apos;" name="PHASER">padfx &apos;Phaser&apos; &apos;Strength:60%&apos; 16bt smart_pressed</pad4>
+	<pad8 color="color &apos;yellow&apos;" name="FLANGER">padfx &quot;Flanger&quot; &apos;Strength:0.9&apos; &apos;Feedback:50%&apos; 8bt smart_pressed</pad8>
+</page>

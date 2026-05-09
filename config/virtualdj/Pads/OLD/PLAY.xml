@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="PLAY">
+	<pad1 name="MASTER" color="color &apos;#FF0000&apos;">masterdeck</pad1>
+	<pad4 name="sync phrase" color="color &apos;#FF0000&apos;" autodim="false">phrase_sync 16</pad4>
+	<pad3 name="sync bar" color="color &apos;#FFFF44&apos;" autodim="false">phrase_sync 4</pad3>
+	<pad2 name="sync" color="color &apos;#FFFF44&apos;" autodim="false">sync</pad2>
+	<pad5 name="◀ BAR" color="color &apos;#FF2600&apos;" autodim="false">goto -4</pad5>
+	<pad6 name="◀  BEAT" color="color &apos;#FF8888&apos;" autodim="false">goto -1</pad6>
+	<pad7 name="BEAT  ▶" color="color &apos;#FF8888&apos;" autodim="false">goto +1</pad7>
+	<pad8 name="BAR  ▶" color="color &apos;#FF2600&apos;" autodim="false">goto +4</pad8>
+	<pad12 color="color &apos;#F31456&apos;" name="+ 64  ▶" autodim="false">goto +64</pad12>
+	<pad11 name="+ 32  ▶" color="color &apos;#FF2FD9&apos;" autodim="false">goto +32</pad11>
+	<pad10 name="◀  - 32" color="color &apos;#FF2FD9&apos;" autodim="false">goto -32</pad10>
+	<pad9 name="◀  - 64" color="color &apos;#F31456&apos;" autodim="false">goto -64</pad9>
+	<param2 name="+ 1 ▶">goto +1</param2>
+	<param1 name="- 1  ▶">goto -1</param1>
+	<pad16 name="▶ PLAY" color="color &quot;green&quot;">play_button</pad16>
+	<pad15 name="▲ BPM " color="color &apos;#75D5FF&apos;" autodim="false">pitch -1 bpm</pad15>
+	<pad14 name="▼ BPM" color="color &apos;#75D5FF&apos;" autodim="false">pitch -1 bpm</pad14>
+	<pad13 color="color &apos;#424242&apos;" autodim="false" name="REWIND">goto_first_beat</pad13>
+</page>

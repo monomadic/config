@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="FX STEMS PRO 16">
+  <!-- ROW 1 : VOCAL FX (GREEN) -->
+  <pad1 name="VOC ECHO OUT" color="color '#4ADE80'">
+    padfx_single 'echo out' 80% 1bt 'stemfx:vocal'
+  </pad1>
+  <pad2 name="VOC VERB" color="color '#34D399'">
+    padfx 'reverb' 55% 'stemfx:vocal'
+  </pad2>
+  <pad3 name="VOC ECHO" color="color '#22C55E'">
+    padfx 'echo' 50% 1bt 'stemfx:vocal'
+  </pad3>
+  <pad4 name="VOC FLANGER" color="color '#16A34A'">
+    padfx 'flanger' 45% 'stemfx:vocal'
+  </pad4>
+  <!-- ROW 2 : DRUM / RHYTHM FX (BLUE) -->
+  <pad5 name="DRUM ECHO OUT" color="color '#60A5FA'">
+    padfx_single 'echo out' 80% 1bt 'stemfx:rhythm'
+  </pad5>
+  <pad6 name="DRUM VERB" color="color '#3B82F6'">
+    padfx 'reverb' 50% 'stemfx:rhythm'
+  </pad6>
+  <pad7 name="DRUM ECHO" color="color '#2563EB'">
+    padfx 'echo' 50% 1bt 'stemfx:rhythm'
+  </pad7>
+  <pad8 name="DRUM PHASER" color="color '#1D4ED8'">
+    padfx 'phaser' 45% 'stemfx:rhythm'
+  </pad8>
+  <!-- ROW 3 : FULL FX (YELLOW) -->
+  <pad9 name="FULL ECHO OUT" color="color '#FDE047'">
+    padfx_single 'echo out' 80% 1bt
+  </pad9>
+  <pad10 name="FULL VERB" color="color '#FACC15'">
+    padfx 'reverb' 55%
+  </pad10>
+  <pad11 name="FULL ECHO" color="color '#EAB308'">
+    padfx 'echo' 50% 1bt
+  </pad11>
+  <pad12 name="FULL FLANGER" color="color '#CA8A04'">
+    padfx 'flanger' 45%
+  </pad12>
+  <!-- ROW 4 : TOOLS -->
+  <pad13 name="FX RESET" color="color '#EF4444'">
+    effect_active 'echo out' off &amp;
+    effect_active 'echo' off &amp;
+    effect_active 'reverb' off &amp;
+    effect_active 'flanger' off &amp;
+    effect_active 'phaser' off &amp;
+    effect_stems off
+  </pad13>
+  <pad14 name="STEMS RESET" color="color '#94A3B8'">
+    mute_stem 'vocal' off &amp;
+    mute_stem 'rhythm' off &amp;
+    mute_stem 'bass' off &amp;
+    mute_stem 'hihat' off &amp;
+    mute_stem 'kick' off &amp;
+    mute_stem 'instru' off &amp;
+    effect_stems off
+  </pad14>
+  <pad15 name="FILTER RESET" color="color '#A1A1AA'">
+    filter 50%
+  </pad15>
+  <pad16 name="BRAKE" color="color '#78716C'">
+    padfx 'backspin'
+  </pad16>
+  <menu/>
+</page>

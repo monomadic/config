@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="CUE-SEARCH">
+
+  <!-- 1–4 -->
+  <pad1 autodim="false"
+        query="has_cue &apos;MIX IN 1&apos; ? on : has_cue &apos;INTRO 1&apos; ? on : has_cue &apos;MIX IN&apos; ? on : has_cue &apos;INTRO&apos;"
+        color="has_cue &quot;MIX IN 1&quot; ? cue_color &quot;MIX IN 1&quot; : has_cue &quot;INTRO 1&quot; ? cue_color &quot;INTRO 1&quot; : has_cue &quot;MIX IN&quot; ? cue_color &quot;MIX IN&quot; : has_cue &quot;INTRO&quot; ? cue_color &quot;INTRO&quot; : offcolor"
+        name="`has_cue &quot;MIX IN 1&quot; ? get_text &quot;MIX IN 1&quot; : has_cue &quot;INTRO 1&quot; ? get_text &quot;INTRO 1&quot; : has_cue &quot;MIX IN&quot; ? get_text &quot;MIX IN&quot; : has_cue &quot;INTRO&quot; ? get_text &quot;INTRO&quot; : &quot;&quot;`">has_cue "MIX IN 1" ? goto_cue "MIX IN 1" & play : has_cue "INTRO 1" ? goto_cue "INTRO 1" & play : has_cue "MIX IN" ? goto_cue "MIX IN" & play : has_cue "INTRO" ? goto_cue "INTRO" & play : nothing</pad1>
+
+  <pad2 autodim="false"
+        query="has_cue &apos;BUILD 1&apos; ? on : has_cue &apos;BUILD&apos;"
+        color="has_cue &quot;BUILD 1&quot; ? cue_color &quot;BUILD 1&quot; : has_cue &quot;BUILD&quot; ? cue_color &quot;BUILD&quot; : offcolor"
+        name="`has_cue &quot;BUILD 1&quot; ? get_text &quot;BUILD 1&quot; : has_cue &quot;BUILD&quot; ? get_text &quot;BUILD&quot; : &quot;&quot;`">has_cue "BUILD 1" ? goto_cue "BUILD 1" & play : has_cue "BUILD" ? goto_cue "BUILD" & play : nothing</pad2>
+
+  <pad3 autodim="false"
+        query="has_cue &apos;CUT 1&apos; ? on : has_cue &apos;CUT&apos;"
+        color="has_cue &quot;CUT 1&quot; ? cue_color &quot;CUT 1&quot; : has_cue &quot;CUT&quot; ? cue_color &quot;CUT&quot; : offcolor"
+        name="`has_cue &quot;CUT 1&quot; ? get_text &quot;CUT 1&quot; : has_cue &quot;CUT&quot; ? get_text &quot;CUT&quot; : &quot;&quot;`">has_cue "CUT 1" ? goto_cue "CUT 1" & play : has_cue "CUT" ? goto_cue "CUT" & play : nothing</pad3>
+
+  <pad4 autodim="false"
+        query="has_cue &apos;DROP 1&apos; ? on : has_cue &apos;DROP&apos;"
+        color="has_cue &quot;DROP 1&quot; ? cue_color &quot;DROP 1&quot; : has_cue &quot;DROP&quot; ? cue_color &quot;DROP&quot; : offcolor"
+        name="`has_cue &quot;DROP 1&quot; ? get_text &quot;DROP 1&quot; : has_cue &quot;DROP&quot; ? get_text &quot;DROP&quot; : &quot;&quot;`">has_cue "DROP 1" ? goto_cue "DROP 1" & play : has_cue "DROP" ? goto_cue "DROP" & play : nothing</pad4>
+
+  <!-- 5–8 -->
+  <pad5 autodim="false"
+        query="has_cue &apos;MIX IN 2&apos; ? on : has_cue &apos;INTRO 2&apos;"
+        color="has_cue &quot;MIX IN 2&quot; ? cue_color &quot;MIX IN 2&quot; : has_cue &quot;INTRO 2&quot; ? cue_color &quot;INTRO 2&quot; : offcolor"
+        name="`has_cue &quot;MIX IN 2&quot; ? get_text &quot;MIX IN 2&quot; : has_cue &quot;INTRO 2&quot; ? get_text &quot;INTRO 2&quot; : &quot;&quot;`">has_cue "MIX IN 2" ? goto_cue "MIX IN 2" & play : has_cue "INTRO 2" ? goto_cue "INTRO 2" & play : nothing</pad5>
+
+  <pad6 autodim="false"
+        query="has_cue &apos;BUILD 2&apos;"
+        color="has_cue &quot;BUILD 2&quot; ? cue_color &quot;BUILD 2&quot; : offcolor"
+        name="`has_cue &quot;BUILD 2&quot; ? get_text &quot;BUILD 2&quot; : &quot;&quot;`">has_cue "BUILD 2" ? goto_cue "BUILD 2" & play : nothing</pad6>
+
+  <pad7 autodim="false"
+        query="has_cue &apos;CUT 2&apos;"
+        color="has_cue &quot;CUT 2&quot; ? cue_color &quot;CUT 2&quot; : offcolor"
+        name="`has_cue &quot;CUT 2&quot; ? get_text &quot;CUT 2&quot; : &quot;&quot;`">has_cue "CUT 2" ? goto_cue "CUT 2" & play : nothing</pad7>
+
+  <pad8 autodim="false"
+        query="has_cue &apos;DROP 2&apos;"
+        color="has_cue &quot;DROP 2&quot; ? cue_color &quot;DROP 2&quot; : offcolor"
+        name="`has_cue &quot;DROP 2&quot; ? get_text &quot;DROP 2&quot; : &quot;&quot;`">has_cue "DROP 2" ? goto_cue "DROP 2" & play : nothing</pad8>
+
+  <!-- 9–12 -->
+  <pad9 autodim="false"
+        query="has_cue &apos;MIX IN 3&apos; ? on : has_cue &apos;INTRO 3&apos;"
+        color="has_cue &quot;MIX IN 3&quot; ? cue_color &quot;MIX IN 3&quot; : has_cue &quot;INTRO 3&quot; ? cue_color &quot;INTRO 3&quot; : offcolor"
+        name="`has_cue &quot;MIX IN 3&quot; ? get_text &quot;MIX IN 3&quot; : has_cue &quot;INTRO 3&quot; ? get_text &quot;INTRO 3&quot; : &quot;&quot;`">has_cue "MIX IN 3" ? goto_cue "MIX IN 3" & play : has_cue "INTRO 3" ? goto_cue "INTRO 3" & play : nothing</pad9>
+
+  <pad10 autodim="false"
+         query="has_cue &apos;BUILD 3&apos;"
+         color="has_cue &quot;BUILD 3&quot; ? cue_color &quot;BUILD 3&quot; : offcolor"
+         name="`has_cue &quot;BUILD 3&quot; ? get_text &quot;BUILD 3&quot; : &quot;&quot;`">has_cue "BUILD 3" ? goto_cue "BUILD 3" & play : nothing</pad10>
+
+  <pad11 autodim="false"
+         query="has_cue &apos;CUT 3&apos;"
+         color="has_cue &quot;CUT 3&quot; ? cue_color &quot;CUT 3&quot; : offcolor"
+         name="`has_cue &quot;CUT 3&quot; ? get_text &quot;CUT 3&quot; : &quot;&quot;`">has_cue "CUT 3" ? goto_cue "CUT 3" & play : nothing</pad11>
+
+  <pad12 autodim="false"
+         query="has_cue &apos;DROP 3&apos;"
+         color="has_cue &quot;DROP 3&quot; ? cue_color &quot;DROP 3&quot; : offcolor"
+         name="`has_cue &quot;DROP 3&quot; ? get_text &quot;DROP 3&quot; : &quot;&quot;`">has_cue "DROP 3" ? goto_cue "DROP 3" & play : nothing</pad12>
+
+  <!-- 13–16 -->
+  <pad13 autodim="false"
+         query="has_cue &apos;MIX IN 4&apos; ? on : has_cue &apos;INTRO 4&apos;"
+         color="has_cue &quot;MIX IN 4&quot; ? cue_color &quot;MIX IN 4&quot; : has_cue &quot;INTRO 4&quot; ? cue_color &quot;INTRO 4&quot; : offcolor"
+         name="`has_cue &quot;MIX IN 4&quot; ? get_text &quot;MIX IN 4&quot; : has_cue &quot;INTRO 4&quot; ? get_text &quot;INTRO 4&quot; : &quot;&quot;`">has_cue "MIX IN 4" ? goto_cue "MIX IN 4" & play : has_cue "INTRO 4" ? goto_cue "INTRO 4" & play : nothing</pad13>
+
+  <pad14 autodim="false"
+         query="has_cue &apos;BUILD 4&apos;"
+         color="has_cue &quot;BUILD 4&quot; ? cue_color &quot;BUILD 4&quot; : offcolor"
+         name="`has_cue &quot;BUILD 4&quot; ? get_text &quot;BUILD 4&quot; : &quot;&quot;`">has_cue "BUILD 4" ? goto_cue "BUILD 4" & play : nothing</pad14>
+
+  <pad15 autodim="false"
+         query="has_cue &apos;CUT 4&apos;"
+         color="has_cue &quot;CUT 4&quot; ? cue_color &quot;CUT 4&quot; : offcolor"
+         name="`has_cue &quot;CUT 4&quot; ? get_text &quot;CUT 4&quot; : &quot;&quot;`">has_cue "CUT 4" ? goto_cue "CUT 4" & play : nothing</pad15>
+
+  <pad16 autodim="false"
+         query="has_cue &apos;DROP 4&apos;"
+         color="has_cue &quot;DROP 4&quot; ? cue_color &quot;DROP 4&quot; : offcolor"
+         name="`has_cue &quot;DROP 4&quot; ? get_text &quot;DROP 4&quot; : &quot;&quot;`">has_cue "DROP 4" ? goto_cue "DROP 4" & play : nothing</pad16>
+
+  <!-- PARAMS -->
+  <param1 name="CUE">goto_cue</param1>
+  <param2 name="`setting hotcueMode &amp; param_uppercase`">setting hotcueMode</param2>
+
+  <!-- SHIFT (mirrors *3/*4 access) -->
+  <shift_pad1 autodim="false"
+              query="has_cue &apos;MIX IN 3&apos; ? on : has_cue &apos;INTRO 3&apos;"
+              color="has_cue &quot;MIX IN 3&quot; ? cue_color &quot;MIX IN 3&quot; : has_cue &quot;INTRO 3&quot; ? cue_color &quot;INTRO 3&quot; : offcolor"
+              name="`has_cue &quot;MIX IN 3&quot; ? get_text &quot;MIX IN 3&quot; : has_cue &quot;INTRO 3&quot; ? get_text &quot;INTRO 3&quot; : &quot;&quot;`">has_cue "MIX IN 3" ? goto_cue "MIX IN 3" & play : has_cue "INTRO 3" ? goto_cue "INTRO 3" & play : nothing</shift_pad1>
+
+  <shift_pad2 autodim="false"
+              query="has_cue &apos;BUILD 3&apos;"
+              color="has_cue &quot;BUILD 3&quot; ? cue_color &quot;BUILD 3&quot; : offcolor"
+              name="`has_cue &quot;BUILD 3&quot; ? get_text &quot;BUILD 3&quot; : &quot;&quot;`">has_cue "BUILD 3" ? goto_cue "BUILD 3" & play : nothing</shift_pad2>
+
+  <shift_pad3 autodim="false"
+              query="has_cue &apos;CUT 3&apos;"
+              color="has_cue &quot;CUT 3&quot; ? cue_color &quot;CUT 3&quot; : offcolor"
+              name="`has_cue &quot;CUT 3&quot; ? get_text &quot;CUT 3&quot; : &quot;&quot;`">has_cue "CUT 3" ? goto_cue "CUT 3" & play : nothing</shift_pad3>
+
+  <shift_pad4 autodim="false"
+              query="has_cue &apos;DROP 3&apos;"
+              color="has_cue &quot;DROP 3&quot; ? cue_color &quot;DROP 3&quot; : offcolor"
+              name="`has_cue &quot;DROP 3&quot; ? get_text &quot;DROP 3&quot; : &quot;&quot;`">has_cue "DROP 3" ? goto_cue "DROP 3" & play : nothing</shift_pad4>
+
+  <shift_pad5 autodim="false"
+              query="has_cue &apos;MIX IN 4&apos; ? on : has_cue &apos;INTRO 4&apos;"
+              color="has_cue &quot;MIX IN 4&quot; ? cue_color &quot;MIX IN 4&quot; : has_cue &quot;INTRO 4&quot; ? cue_color &quot;INTRO 4&quot; : offcolor"
+              name="`has_cue &quot;MIX IN 4&quot; ? get_text &quot;MIX IN 4&quot; : has_cue &quot;INTRO 4&quot; ? get_text &quot;INTRO 4&quot; : &quot;&quot;`">has_cue "MIX IN 4" ? goto_cue "MIX IN 4" & play : has_cue "INTRO 4" ? goto_cue "INTRO 4" & play : nothing</shift_pad5>
+
+  <shift_pad6 autodim="false"
+              query="has_cue &apos;BUILD 4&apos;"
+              color="has_cue &quot;BUILD 4&quot; ? cue_color &quot;BUILD 4&quot; : offcolor"
+              name="`has_cue &quot;BUILD 4&quot; ? get_text &quot;BUILD 4&quot; : &quot;&quot;`">has_cue "BUILD 4" ? goto_cue "BUILD 4" & play : nothing</shift_pad6>
+
+  <shift_pad7 autodim="false"
+              query="has_cue &apos;CUT 4&apos;"
+              color="has_cue &quot;CUT 4&quot; ? cue_color &quot;CUT 4&quot; : offcolor"
+              name="`has_cue &quot;CUT 4&quot; ? get_text &quot;CUT 4&quot; : &quot;&quot;`">has_cue "CUT 4" ? goto_cue "CUT 4" & play : nothing</shift_pad7>
+
+  <shift_pad8 autodim="false"
+              query="has_cue &apos;DROP 4&apos;"
+              color="has_cue &quot;DROP 4&quot; ? cue_color &quot;DROP 4&quot; : offcolor"
+              name="`has_cue &quot;DROP 4&quot; ? get_text &quot;DROP 4&quot; : &quot;&quot;`">has_cue "DROP 4" ? goto_cue "DROP 4" & play : nothing</shift_pad8>
+
+</page>

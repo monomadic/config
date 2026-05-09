@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="Stems FX">
+	<pad1 name="Vocals" color="color &apos;cyan&apos;">stem_pad &apos;vocal&apos;</pad1>
+	<pad2 name="Melody" color="color &apos;pink&apos;">stem_pad &apos;instru&apos; &amp; stem_pad &apos;bass&apos; </pad2>
+	<pad3 name="Beats" color="color &apos;marine&apos;">stem_pad &apos;kick&apos; &amp; stem_pad &apos;hihat&apos; </pad3>
+	<pad5 name="FX Vocal" color="color &apos;#FFFF92FF&apos;">effect_stems &apos;vocal&apos;</pad5>
+	<pad6 name="FX Melody" color="color &apos;#FFFF92FF&apos;">effect_stems &apos;melody&apos;</pad6>
+	<pad7 name="FX Beats" color="color &apos;#FFFF92FF&apos;">effect_stems &apos;rhythm&apos;</pad7>
+	<pad4 color="color &apos;orange&apos;" name="`get_effect_name 1`">effect_active 1 while_pressed</pad4>
+	<pad8 color="color &apos;orange&apos;" name="`get_effect_name 2`">effect_active 2 while_pressed</pad8>
+	<shift_pad1 name="FX Vocal">stem_pad isolate &apos;vocal&apos;</shift_pad1>
+	<shift_pad2>stem_pad isolate &apos;instru&apos; &amp; stem_pad isolate &apos;bass&apos;</shift_pad2>
+	<shift_pad3>stem_pad isolate &apos;kick&apos; &amp; stem_pad isolate &apos;hihat&apos; </shift_pad3>
+	<shift_pad4 name="`get_effect_name 1`">effect_active 1</shift_pad4>
+	<shift_pad8 name="`get_effect_name 2`">effect_active 2 </shift_pad8>
+	<param1 name="`setting &apos;fxProcessing&apos;`&amp; param_cast &apos;text&apos;`"> setting &apos;fxProcessing&apos; </param1>
+	<param2 name="`stems_bleed`">stems_bleed</param2>
+</page>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="Automix Cues">
+	<pad1 name="`var &apos;@$automixcues_type&apos; 0 ? get_text &apos;Start Mix&apos;  : get_text &apos;Start Mix&apos;`   " color="color &apos;cyan&apos;">var &apos;@$automixcues_type&apos; 0 ? set_mixpoint &quot;StartTempo&quot; :  set_mixpoint &quot;StartTempo&quot; &amp; set_mixpoint &quot;StartFade&quot;</pad1>
+	<pad5 name="`var &apos;@$automixcues_type&apos; 0 ? get_text &apos;Start Fade&apos;  : get_text &apos;&apos;`   " color="var &apos;@$automixcues_type&apos; 0 ? color &apos;cyan&apos; : color &apos;black&apos;">var &apos;@$automixcues_type&apos; 0 ? set_mixpoint &quot;StartFade&quot; : nothing</pad5>
+	<pad2 name="`var &apos;@$automixcues_type&apos; 0 ? get_text &apos;Start Cut&apos;  : get_text &apos;Start&apos;`   " color="color &apos;green&apos;">var &apos;@$automixcues_type&apos; 0 ? set_mixpoint &quot;StartCut&quot; :  set_mixpoint &quot;StartCut&quot; &amp; set_mixpoint &quot;StartSound&quot;</pad2>
+	<pad6 name="`var &apos;@$automixcues_type&apos; 0 ? get_text &apos;Start Sound&apos;  : get_text &apos;&apos;`   " color="var &apos;@$automixcues_type&apos; 0 ? color &apos;green&apos; : color &apos;black&apos;">var &apos;@$automixcues_type&apos; 0 ? set_mixpoint &quot;StartSound&quot; : nothing</pad6>
+	<pad7 color="var &apos;@$automixcues_type&apos; 0 ? color &apos;orange&apos; : color &apos;black&apos;" name="`var &apos;@$automixcues_type&apos; 0 ? get_text &apos;End Fade&apos;  : get_text &apos;&apos;`   ">var &apos;@$automixcues_type&apos; 0 ? set_mixpoint &quot;EndFade&quot; : nothing</pad7>
+	<pad3 color="color &apos;orange&apos;" name="`var &apos;@$automixcues_type&apos; 0 ? get_text &apos;End Mix&apos;  : get_text &apos;End Mix&apos;`   ">var &apos;@$automixcues_type&apos; 0 ? set_mixpoint &quot;EndTempo&quot; :  set_mixpoint &quot;EndTempo&quot; &amp; set_mixpoint &quot;EndFade&quot;</pad3>
+	<pad4 color="color &apos;red&apos;" name="`var &apos;@$automixcues_type&apos; 0 ? get_text &apos;End Cut&apos;  : get_text &apos;End&apos;`   ">var &apos;@$automixcues_type&apos; 0 ? set_mixpoint &quot;EndCut&quot; :  set_mixpoint &quot;EndCut&quot; &amp; set_mixpoint &quot;EndSound&quot;</pad4>
+	<pad8 color="var &apos;@$automixcues_type&apos; 0 ? color &apos;red&apos; : color &apos;black&apos;" name="`var &apos;@$automixcues_type&apos; 0 ? get_text &apos;End Sound&apos;  : get_text &apos;&apos;`   ">var &apos;@$automixcues_type&apos; 0 ? set_mixpoint &quot;EndSound&quot; : nothing</pad8>
+	<menu />
+	<param1 name="`var &apos;@$automixcues_type&apos; 0 ?  get_text &apos;ADVANCED&apos;  : get_text &apos;BASIC&apos;`">var &apos;@$automixcues_type&apos; 0 ? set  &apos;@$automixcues_type&apos;  1  : set &apos;@$automixcues_type&apos; 0</param1>
+	<param2 />
+	<shift_pad1 name="Goto Mix" color="color &apos;green&apos;">goto_mixpoint &quot;StartTempo&quot;</shift_pad1>
+	<shift_pad5 name="Goto Fade" color="color &apos;green&apos;">goto_mixpoint  &quot;StartFade&quot;</shift_pad5>
+	<shift_pad2 name="Goto Cut" color="color &apos;green&apos;">goto_mixpoint &quot;StartCut&quot;</shift_pad2>
+	<shift_pad6 name="Goto Sound" color="color &apos;green&apos;">goto_mixpoint &quot;StartSound&quot;</shift_pad6>
+	<shift_pad3 name="Goto Mix" color="color &apos;magenta&apos;">goto_mixpoint &quot;EndTempo&quot;</shift_pad3>
+	<shift_pad7 name="Goto Fade" color="color &apos;magenta&apos;">goto_mixpoint &quot;EndFade&quot;</shift_pad7>
+	<shift_pad4 name="Goto Cut" color="color &apos;magenta&apos;">goto_mixpoint &quot;EndCut&quot;</shift_pad4>
+	<shift_pad8 name="Goto Sound" color="color &apos;magenta&apos;">goto_mixpoint  &quot;EndSound&quot;</shift_pad8>
+</page>
