@@ -1,0 +1,138 @@
+#compdef mpv-send
+
+local -a commands
+commands=(
+  'start:Start a background mpv instance and wait for IPC'
+  'play:Load files into mpv'
+  'next:Skip to next file'
+  'prev:Jump to previous file'
+  'shuffle:Shuffle the current playlist'
+  'sort:Sort the current playlist using mpv script binding'
+  'random:Shuffle and jump to a random file'
+  'osd:Control OSD level'
+  'panscan:Set or toggle pan-and-scan'
+  'pan-scan:Set or toggle pan-and-scan'
+)
+
+_mpv_send_profiles() {
+  local profile_file profile
+  local -a profile_files profiles
+
+  profiles=(fast)
+  profile_files=(
+    "$HOME/.config/mpv/mpv.conf"
+    "${ZSH_CONFIG_DIR:h}/mpv/mpv.conf"
+    "$HOME/config/config/mpv/mpv.conf"
+  )
+
+  for profile_file in "${profile_files[@]}"; do
+    [[ -r "$profile_file" ]] || continue
+    while IFS= read -r profile; do
+      [[ -n "$profile" ]] && profiles+=("$profile")
+    done < <(sed -n 's/^\[\([^]]*\)\]$/\1/p' "$profile_file")
+  done
+
+  profiles=("${(@u)profiles}")
+  _describe -t profiles 'mpv profile' profiles
+}
+
+_mpv_send_socket_path() {
+  _files
+}
+
+_mpv_send_global_options=(
+  '(-s --socket)'{-s,--socket}'[Use a specific mpv IPC socket]:socket path:_mpv_send_socket_path'
+  '--socket=[Use a specific mpv IPC socket]:socket path:_mpv_send_socket_path'
+  '(-p --profile)'{-p,--profile}'[Profile to use when starting mpv]:profile:_mpv_send_profiles'
+  '--profile=[Profile to use when starting mpv]:profile:_mpv_send_profiles'
+  '--log[Log file for background mpv starts]:log file:_files'
+  '--log=[Log file for background mpv starts]:log file:_files'
+  '--verbose[Print IPC/debug messages]'
+  '(-h --help)'{-h,--help}'[Show help]'
+)
+
+_mpv_send_start_args() {
+  local -a start_options
+  start_options=(
+    "${_mpv_send_global_options[@]}"
+    '--[Stop option parsing and pass remaining args to mpv]'
+  )
+
+  _arguments -s "${start_options[@]}" '*:mpv arg or file:_files'
+}
+
+_mpv_send_play_args() {
+  local -a play_options
+  play_options=(
+    '(-0 --read0)'{-0,--read0}'[Read NUL-delimited stdin]'
+    '--shuffle[Shuffle playlist after all files are sent]'
+    '--[Stop option parsing]'
+  )
+
+  _arguments -s "${play_options[@]}" '*:media file:_files'
+}
+
+_mpv_send_osd_args() {
+  _values 'osd level' \
+    'on[Set OSD level to 3]' \
+    'off[Set OSD level to 0]' \
+    'toggle[Toggle OSD between 0 and 3]' \
+    '0[No OSD]' \
+    '1[Minimal OSD]' \
+    '2[Normal OSD]' \
+    '3[Full OSD]'
+}
+
+_mpv_send_panscan_args() {
+  _values 'panscan value' \
+    'on[Set pan-and-scan to 1]' \
+    'off[Set pan-and-scan to 0]' \
+    'toggle[Toggle pan-and-scan]' \
+    '0[No pan-and-scan]' \
+    '0.25' \
+    '0.5' \
+    '0.75' \
+    '1[Full pan-and-scan]'
+}
+
+_mpv_send() {
+  local curcontext="$curcontext" state
+  local -a line
+  typeset -A opt_args
+
+  _arguments -C -s \
+    "${_mpv_send_global_options[@]}" \
+    '1:command:->command' \
+    '*::argument:->argument'
+
+  case "$state" in
+    command)
+      _describe -t commands 'mpv-send command' commands
+      ;;
+    argument)
+      curcontext="${curcontext%:*:*}:mpv-send-${line[1]}:"
+      (( CURRENT-- ))
+      shift words
+
+      case "$line[1]" in
+        start)
+          _mpv_send_start_args
+          ;;
+        play)
+          _mpv_send_play_args
+          ;;
+        osd)
+          _mpv_send_osd_args
+          ;;
+        panscan|pan-scan)
+          _mpv_send_panscan_args
+          ;;
+        next|prev|shuffle|sort|random)
+          _message 'no more arguments'
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_mpv_send "$@"

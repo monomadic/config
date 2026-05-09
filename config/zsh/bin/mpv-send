@@ -73,10 +73,12 @@ Commands:
                           Start a background mpv instance and wait for IPC.
                           Remaining args after -- are passed to mpv, so this
                           can also load an initial splash image.
-  play [options] [files...]
+  play [options] [track-number|files...]
                           Load files into mpv.
                           Reads from stdin first (newline by default).
                           Falls back to args if stdin is empty.
+                          With one positive integer arg, plays that existing
+                          playlist item using one-based track numbering.
                           Options:
                             -0|--read0   NUL-delimited stdin
                             --shuffle    shuffle playlist after all files sent
@@ -331,6 +333,8 @@ start_cmd() {
 play_cmd() {
   local read0=false
   local shuffle_after=false
+  local track_number=""
+  local track_index
   local line f payload batch_count
   local sent=0
   local batch_size="$MPV_SEND_BATCH_SIZE"
@@ -355,7 +359,7 @@ play_cmd() {
         ;;
       -*)
         echo "Error: unknown play option: $1" >&2
-        echo "Usage: mpv-send play [-0|--read0] [--shuffle] [--] [files...]" >&2
+        echo "Usage: mpv-send play [-0|--read0] [--shuffle] [--] [track-number|files...]" >&2
         exit 1
         ;;
       *)
@@ -363,6 +367,16 @@ play_cmd() {
         ;;
     esac
   done
+
+  if (( $# == 1 )) && [[ "$1" == <-> ]]; then
+    if (( 10#$1 < 1 )); then
+      echo "Error: track numbers are one-based; use 1 or greater" >&2
+      exit 1
+    fi
+
+    track_number="$1"
+    shift
+  fi
 
   case "$batch_size" in
     ""|*[!0-9]*) batch_size=64 ;;
@@ -415,6 +429,21 @@ play_cmd() {
     return 0
   }
 
+  play_track_number() {
+    (( track_index = 10#$track_number - 1 ))
+    ensure_mpv
+
+    mpv_cmd playlist-play-index "$track_index" || {
+      echo "Error: failed to play playlist track $track_number" >&2
+      exit 1
+    }
+
+    mpv_cmd set_property pause no || {
+      echo "Error: failed to resume playback" >&2
+      exit 1
+    }
+  }
+
   if [[ ! -t 0 ]]; then
     log "stdin detected"
     if $read0; then
@@ -446,7 +475,7 @@ play_cmd() {
     done
   fi
 
-  if (( sent == 0 )); then
+  if (( sent == 0 && -z "$track_number" )); then
     echo "Error: no input. Pipe paths on stdin or pass files as arguments." >&2
     exit 1
   fi
@@ -464,8 +493,18 @@ play_cmd() {
     }
   fi
 
-  if $shuffle_after; then
+  if [[ -n "$track_number" ]]; then
+    play_track_number
+  fi
+
+  if (( sent > 0 )) && $shuffle_after && [[ -n "$track_number" ]]; then
+    echo "Sent $sent file(s) to mpv, shuffled playlist, and played track $track_number"
+  elif (( sent > 0 )) && $shuffle_after; then
     echo "Sent $sent file(s) to mpv and shuffled playlist"
+  elif (( sent > 0 )) && [[ -n "$track_number" ]]; then
+    echo "Sent $sent file(s) to mpv and played track $track_number"
+  elif [[ -n "$track_number" ]]; then
+    echo "Playing playlist track $track_number"
   else
     echo "Sent $sent file(s) to mpv"
   fi
