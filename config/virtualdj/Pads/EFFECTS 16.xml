@@ -1,56 +1,56 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <page name="EFFECTS 16">
 	<pad1 name="FILTER">effect_select_toggle colorfx filter</pad1>
-	<pad1led>param_equal `effect_name &apos;colorfx&apos;` &quot;echo&quot;</pad1led>
+	<pad1led>param_equal `effect_name &apos;colorfx&apos;` &quot;filter&quot; ? (effect_active &apos;colorfx&apos; ? blink 500ms : on) : off</pad1led>
 	<shift_pad1>effect_colorfx </shift_pad1>
 	<shift_pad1led>`effect_active &apos;colorfx&apos;`</shift_pad1led>
 	<pad2 name="ECHO">effect_select_toggle colorfx echo</pad2>
-	<pad2led>param_equal `effect_name &apos;colorfx&apos;` &quot;filter&quot;</pad2led>
+	<pad2led>param_equal `effect_name &apos;colorfx&apos;` &quot;echo&quot; ? (effect_active &apos;colorfx&apos; ? blink 500ms : on) : off</pad2led>
 	<shift_pad2>effect_active &apos;colorfx&apos; off</shift_pad2>
 	<shift_pad2led>`effect_active &apos;colorfx&apos;`</shift_pad2led>
 	<pad3 name="REVERB">effect_select_toggle colorfx reverb</pad3>
-	<pad3led>param_equal `effect_name &apos;colorfx&apos;` &quot;noise&quot;</pad3led>
+	<pad3led>param_equal `effect_name &apos;colorfx&apos;` &quot;reverb&quot; ? (effect_active &apos;colorfx&apos; ? blink 500ms : on) : off</pad3led>
 	<shift_pad3>effect_active &apos;colorfx&apos; off</shift_pad3>
 	<shift_pad3led>`effect_active &apos;colorfx&apos;`</shift_pad3led>
 	<pad4 name="LOOP ROLL">effect_select_toggle colorfx &apos;loop roll&apos;</pad4>
-	<pad4led>param_equal `effect_name &apos;colorfx&apos;` &quot;crush&quot;</pad4led>
+	<pad4led>param_equal `effect_name &apos;colorfx&apos;` &quot;loop roll&quot; ? (effect_active &apos;colorfx&apos; ? blink 500ms : on) : off</pad4led>
 	<shift_pad4>effect_active &apos;colorfx&apos; off</shift_pad4>
 	<shift_pad4led>`effect_active &apos;colorfx&apos;`</shift_pad4led>
 	<pad5 name="CUT">effect_select_toggle colorfx &apos;cut&apos;</pad5>
-	<pad5led>param_equal `effect_name &apos;colorfx&apos;` &quot;gate&quot;</pad5led>
+	<pad5led>param_equal `effect_name &apos;colorfx&apos;` &quot;cut&quot; ? (effect_active &apos;colorfx&apos; ? blink 500ms : on) : off</pad5led>
 	<shift_pad5>effect_active &apos;colorfx&apos; off</shift_pad5>
 	<shift_pad5led>`effect_active &apos;colorfx&apos;`</shift_pad5led>
 	<pad6 name="NOISE">effect_select_toggle colorfx &apos;noise&apos;</pad6>
-	<pad6led>param_equal `effect_name &apos;colorfx&apos;` &quot;reverb&quot;</pad6led>
+	<pad6led>param_equal `effect_name &apos;colorfx&apos;` &quot;noise&quot; ? (effect_active &apos;colorfx&apos; ? blink 500ms : on) : off</pad6led>
 	<shift_pad6>effect_active &apos;colorfx&apos; off</shift_pad6>
 	<shift_pad6led>`effect_active &apos;colorfx&apos;`</shift_pad6led>
 	<pad7 name="ECHO OUT">padfx_single &quot;echo out&quot; 70% 1bt &amp; set_var &quot;StemEcho&quot; 2</pad7>
-	<pad7led>param_equal `effect_name &apos;colorfx&apos;` &quot;flanger&quot;</pad7led>
+	<pad7led>padfx &apos;echo out&apos; ? blink 500ms : off</pad7led>
 	<shift_pad7>effect_active &apos;colorfx&apos; off</shift_pad7>
 	<shift_pad7led>`effect_active &apos;colorfx&apos;`</shift_pad7led>
 	<pad8 name="ECHO OUT VOC" color="stem_color &apos;vocals&apos;">padfx_single &quot;echo out&quot; 70% 1bt &quot;stemfx:Vocal&quot; &amp; set_var &quot;StemEcho&quot; 2</pad8>
-	<pad8led>param_equal `effect_name &apos;colorfx&apos;` &quot;phaser&quot;</pad8led>
+	<pad8led>padfx &apos;echo out&apos; ? blink 500ms : off</pad8led>
 	<shift_pad8>effect_active &apos;colorfx&apos; off</shift_pad8>
 	<shift_pad8led>`effect_active &apos;colorfx&apos;`</shift_pad8led>
 	<pad9 name="VOC ECHO">effect_stems vocal toggle</pad9>
-	<pad9led>param_equal `effect_name &apos;colorfx&apos;` &quot;echo&quot; &amp; `effect_stems &apos;vocal&apos; ?`</pad9led>
-	<pad10 name="VOC REVERB">effect_select &apos;colorfx&apos; &quot;reverb&quot; &amp; effect_stems vocal on &amp; effect_active &apos;colorfx&apos; on</pad10>
-	<pad10led>param_equal `effect_name &apos;colorfx&apos;` &quot;reverb&quot; &amp; `effect_stems &apos;vocal&apos; ?`</pad10led>
-	<pad11 name="RINGMOD">effect_select &apos;colorfx&apos; &quot;ringmod&quot; &amp; effect_active &apos;colorfx&apos; on</pad11>
-	<pad11led>param_equal `effect_name &apos;colorfx&apos;` &quot;ringmod&quot;</pad11led>
+	<pad9led>effect_stems &apos;vocal&apos; ? (effect_active &apos;colorfx&apos; ? blink 500ms : on) : off</pad9led>
+	<pad10 name="VOC REVERB">effect_select &apos;colorfx&apos; &quot;reverb&quot; &amp; effect_stems vocal on</pad10>
+	<pad10led>param_equal `effect_name &apos;colorfx&apos;` &quot;reverb&quot; &amp; effect_stems &apos;vocal&apos; ? (effect_active &apos;colorfx&apos; ? blink 500ms : on) : off</pad10led>
+	<pad11 name="RINGMOD">effect_select &apos;colorfx&apos; &quot;ringmod&quot;</pad11>
+	<pad11led>param_equal `effect_name &apos;colorfx&apos;` &quot;ringmod&quot; ? (effect_active &apos;colorfx&apos; ? blink 500ms : on) : off</pad11led>
 	<shift_pad11>effect_active &apos;colorfx&apos; off</shift_pad11>
 	<shift_pad11led>`effect_active &apos;colorfx&apos;`</shift_pad11led>
-	<pad12 name="TRANS">effect_select &apos;colorfx&apos; &quot;trans&quot; &amp; effect_active &apos;colorfx&apos; on</pad12>
-	<pad12led>param_equal `effect_name &apos;colorfx&apos;` &quot;trans&quot;</pad12led>
+	<pad12 name="TRANS">effect_select &apos;colorfx&apos; &quot;trans&quot;</pad12>
+	<pad12led>param_equal `effect_name &apos;colorfx&apos;` &quot;trans&quot; ? (effect_active &apos;colorfx&apos; ? blink 500ms : on) : off</pad12led>
 	<shift_pad12>effect_active &apos;colorfx&apos; off</shift_pad12>
 	<shift_pad12led>`effect_active &apos;colorfx&apos;`</shift_pad12led>
 	<pad13 name="FX: VOCAL" color="stem_color vocal">effect_stems vocal toggle</pad13>
-	<pad13led>param_equal `effect_name &apos;colorfx&apos;` &quot;lpf&quot;</pad13led>
+	<pad13led>effect_stems &apos;vocal&apos; ? (effect_active &apos;colorfx&apos; ? blink 500ms : on) : off</pad13led>
 	<pad14 name="FX: MELODY" color="stem_color instru">effect_stems melody toggle</pad14>
-	<pad14led>param_equal `effect_name &apos;colorfx&apos;` &quot;hpf&quot;</pad14led>
+	<pad14led>effect_stems &apos;melody&apos; ? (effect_active &apos;colorfx&apos; ? blink 500ms : on) : off</pad14led>
 	<pad15 name="FX: DRUM" color="stem_color rhythm">effect_stems rhythm toggle</pad15>
-	<pad15led>param_equal `effect_name &apos;colorfx&apos;` &quot;bitcrush&quot;</pad15led>
+	<pad15led>effect_stems &apos;rhythm&apos; ? (effect_active &apos;colorfx&apos; ? blink 500ms : on) : off</pad15led>
 	<pad16 color="stem_color rhythm" name="`param_equal &apos;fx_toggle&apos; 1 ? get_text &apos;FX1&apos; : get_text &apos;COLORFX&apos;`">toggle &apos;fx_toggle&apos;</pad16>
-	<pad16led>param_equal `effect_name &apos;colorfx&apos;` &quot;chorus&quot;</pad16led>
+	<pad16led>var &apos;fx_toggle&apos; ? on : off</pad16led>
 	<param1 />
 </page>
