@@ -9,6 +9,7 @@ commands=(
   'shuffle:Shuffle the current playlist'
   'sort:Sort the current playlist using mpv script binding'
   'random:Shuffle and jump to a random file'
+  'goto:Play a playlist track by one-based number'
   'osd:Control OSD level'
   'panscan:Set or toggle pan-and-scan'
   'pan-scan:Set or toggle pan-and-scan'
@@ -72,6 +73,12 @@ _mpv_send_play_args() {
   _arguments -s "${play_options[@]}" '*:media file:_files'
 }
 
+_mpv_send_goto_args() {
+  _arguments \
+    '1:track number:' \
+    '*:: :->none'
+}
+
 _mpv_send_osd_args() {
   _values 'osd level' \
     'on[Set OSD level to 3]' \
@@ -120,6 +127,9 @@ _mpv_send() {
           ;;
         play)
           _mpv_send_play_args
+          ;;
+        goto)
+          _mpv_send_goto_args
           ;;
         osd)
           _mpv_send_osd_args
