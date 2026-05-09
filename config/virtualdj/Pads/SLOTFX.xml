@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Reference - Slot FX.xml
+  Reliable slot-based audio FX pad page.
+
+  Why slots for pads?
+    effect_active 'Echo' is valid VDJScript, but it asks for Echo by name
+    wherever VirtualDJ represents it. A reference pad page usually needs a
+    stricter contract: which slot owns the effect, which sliders are being set,
+    and which state should light the pad.
+
+  This page demonstrates two dependable designs:
+
+    1. Dedicated slot pads (pads 1-4)
+       Each pad owns one FX slot. This is best when you want several effects
+       available at the same time, like a small FX rack. Pressing the same
+       active effect pad again turns that slot off.
+
+    2. Shared slot preset pads (pads 5-8)
+       Several pads program slot 1. This is best when the pads are an effect
+       picker: pressing a pad replaces whatever is in slot 1, applies a known
+       preset, and activates the slot. Pressing the same active preset again
+       turns slot 1 off.
+
+  Important state rule:
+    A pad labeled ECHO should not blink just because slot 1 is active. It should
+    blink only when slot 1 contains Echo and slot 1 is active. These examples
+    therefore check get_effect_name <slot>, then nest effect_active <slot>.
+    Do not use bare effect_select <slot> for this check; in pad actions it can
+    open the effect selector instead of returning a harmless value.
+    Same-pad toggles use nested conditionals instead of && in the action body:
+    if the slot already contains this effect and is active, turn the slot off;
+    otherwise load/select the effect, set sliders, and turn the slot on.
+
+  Source: Official
+  See: Reference/VirtualDJ Reference.md - Deck FX Slots section
+-->
+<page name="REF: SLOT FX">
+  <!-- Dedicated slots: these pads can run together because each owns a slot. -->
+  <pad1 name="S1 ECHO" color="color 'yellow'" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'echo' ? effect_active 1 ? blink 500ms : off : off">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'echo' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 75% &amp; effect_slider 1 2 50% &amp; effect_active 1 on :
+      effect_select 1 'Echo' &amp; effect_slider 1 1 75% &amp; effect_slider 1 2 50% &amp; effect_active 1 on
+  </pad1>
+  <pad2 name="S2 REVERB" color="color 'cyan'" query="get_effect_name 2 &amp; param_lowercase &amp; param_equal 'reverb' ? effect_active 2 ? blink 500ms : off : off">
+    get_effect_name 2 &amp; param_lowercase &amp; param_equal 'reverb' ?
+      effect_active 2 ?
+        effect_active 2 off :
+        effect_slider 2 1 45% &amp; effect_slider 2 2 50% &amp; effect_active 2 on :
+      effect_select 2 'Reverb' &amp; effect_slider 2 1 45% &amp; effect_slider 2 2 50% &amp; effect_active 2 on
+  </pad2>
+  <pad3 name="S3 DELAY" color="color 'green'" query="get_effect_name 3 &amp; param_lowercase &amp; param_equal 'delay' ? effect_active 3 ? blink 500ms : off : off">
+    get_effect_name 3 &amp; param_lowercase &amp; param_equal 'delay' ?
+      effect_active 3 ?
+        effect_active 3 off :
+        effect_slider 3 1 75% &amp; effect_slider 3 2 50% &amp; effect_active 3 on :
+      effect_select 3 'Delay' &amp; effect_slider 3 1 75% &amp; effect_slider 3 2 50% &amp; effect_active 3 on
+  </pad3>
+  <pad4 name="S4 FLANGE" color="color 'blue'" query="get_effect_name 4 &amp; param_lowercase &amp; param_equal 'flanger' ? effect_active 4 ? blink 500ms : off : off">
+    get_effect_name 4 &amp; param_lowercase &amp; param_equal 'flanger' ?
+      effect_active 4 ?
+        effect_active 4 off :
+        effect_slider 4 1 50% &amp; effect_active 4 on :
+      effect_select 4 'Flanger' &amp; effect_slider 4 1 50% &amp; effect_active 4 on
+  </pad4>
+  <!-- Shared slot picker: these pads intentionally replace whatever is in slot 1. -->
+  <pad5 name="S1 ECHO OUT" color="color 'orange'" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'echo out' ? effect_active 1 ? blink 500ms : off : off">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'echo out' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 80% &amp; effect_slider 1 2 50% &amp; effect_active 1 on :
+      effect_select 1 'Echo Out' &amp; effect_slider 1 1 80% &amp; effect_slider 1 2 50% &amp; effect_active 1 on
+  </pad5>
+  <pad6 name="S1 LOOP ROLL" color="color 'orange'" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'loop roll' ? effect_active 1 ? blink 500ms : off : off">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'loop roll' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 50% &amp; effect_active 1 on :
+      effect_select 1 'Loop Roll' &amp; effect_slider 1 1 50% &amp; effect_active 1 on
+  </pad6>
+  <pad7 name="S1 PHASER" color="color 'orange'" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'phaser' ? effect_active 1 ? blink 500ms : off : off">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'phaser' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 50% &amp; effect_active 1 on :
+      effect_select 1 'Phaser' &amp; effect_slider 1 1 50% &amp; effect_active 1 on
+  </pad7>
+  <pad8 name="S1 BEATGRID" color="color 'orange'" query="get_effect_name 1 &amp; param_lowercase &amp; param_equal 'beatgrid' ? effect_active 1 ? blink 500ms : off : off">
+    get_effect_name 1 &amp; param_lowercase &amp; param_equal 'beatgrid' ?
+      effect_active 1 ?
+        effect_active 1 off :
+        effect_slider 1 1 75% &amp; effect_active 1 on :
+      effect_select 1 'BeatGrid' &amp; effect_slider 1 1 75% &amp; effect_active 1 on
+  </pad8>
+  <!-- Slot 1 parameter nudges. These always affect the slot, not an effect name. -->
+  <pad9 name="S1 P1 +" color="color 'yellow'">effect_slider 1 1 +10%</pad9>
+  <pad10 name="S1 P1 -" color="color 'yellow'">effect_slider 1 1 -10%</pad10>
+  <pad11 name="S1 P2 +" color="color 'yellow'">effect_slider 1 2 +10%</pad11>
+  <pad12 name="S1 P2 -" color="color 'yellow'">effect_slider 1 2 -10%</pad12>
+  <!-- Cleanup for the slots demonstrated on this page. -->
+  <pad13 name="KILL ALL" color="color 'red'">
+    effect_active 1 off &amp; effect_active 2 off &amp; effect_active 3 off &amp; effect_active 4 off &amp; effect_stems off
+  </pad13>
+  <!-- Informational slot pads: label shows what is actually loaded. -->
+  <pad14 name="SLOT 1: `get_effect_name 1`" color="color 'yellow'" query="effect_active 1 ? on : off">
+    effect_active 1
+  </pad14>
+  <pad15 name="SLOT 2: `get_effect_name 2`" color="color 'cyan'" query="effect_active 2 ? on : off">
+    effect_active 2
+  </pad15>
+  <pad16 name="EDIT S1" color="color 'white'">effect_show_gui 1</pad16>
+  <!-- Shift variants load effects without activating, useful before tuning sliders. -->
+  <shift_pad1 name="LOAD ECHO" color="color 'yellow'">effect_select 1 'Echo'</shift_pad1>
+  <shift_pad2 name="LOAD REVERB" color="color 'cyan'">effect_select 2 'Reverb'</shift_pad2>
+  <shift_pad3 name="LOAD DELAY" color="color 'green'">effect_select 3 'Delay'</shift_pad3>
+  <shift_pad4 name="LOAD FLANGE" color="color 'blue'">effect_select 4 'Flanger'</shift_pad4>
+  <shift_pad5 name="LOAD ECHO OUT" color="color 'orange'">effect_select 1 'Echo Out'</shift_pad5>
+  <shift_pad6 name="LOAD LOOP ROLL" color="color 'orange'">effect_select 1 'Loop Roll'</shift_pad6>
+  <!-- Param buttons open effect selection popups for slots. -->
+  <param1 name="SLOT 1: `get_effect_name 1`">effect_select_popup 1</param1>
+  <param2 name="SLOT 2: `get_effect_name 2`">effect_select_popup 2</param2>
+</page>
