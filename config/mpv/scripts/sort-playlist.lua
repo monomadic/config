@@ -5,6 +5,7 @@ local RECURSIVE = true
 local SKIP_DOTFILES = true
 local OSD_SECS = 4
 local pending_restore = nil
+local suppress_osd = false
 
 local VIDEO_EXT = {
   ["mp4"]=true, ["mkv"]=true, ["webm"]=true, ["mov"]=true, ["m4v"]=true,
@@ -14,8 +15,33 @@ local VIDEO_EXT = {
 }
 
 local function osd(msg, secs)
-  mp.osd_message(msg, secs or OSD_SECS)
+  if not suppress_osd then
+    mp.osd_message(msg, secs or OSD_SECS)
+  end
   mp.msg.warn(msg)
+end
+
+local function clear_osd()
+  mp.osd_message("", 0)
+end
+
+local function run_with_busy_osd(message, fn)
+  mp.osd_message(message, 3600)
+  mp.msg.warn(message)
+
+  mp.add_timeout(0, function()
+    suppress_osd = true
+    local ok, msg = pcall(fn)
+    suppress_osd = false
+    clear_osd()
+
+    if not ok then
+      mp.msg.error(tostring(msg))
+      osd(("sort failed:\n%s"):format(tostring(msg)), 4)
+    elseif msg then
+      osd(tostring(msg), 4)
+    end
+  end)
 end
 
 local function lower(s)
@@ -326,15 +352,16 @@ mp.register_event("file-loaded", function()
 end)
 
 local function action_sort_playlist()
-  local files = select(1, collect_playlist_entries(false))
-  if not files or #files == 0 then
-    osd("sort: collector returned 0 files", 4)
-    return
-  end
+  run_with_busy_osd("sorting...", function()
+    local files = select(1, collect_playlist_entries(false))
+    if not files or #files == 0 then
+      return "sort: collector returned 0 files"
+    end
 
-  local sorted = sort_paths_by_mtime(files)
-  reload_playlist(sorted, false)
-  osd(("sorted playlist by mtime: %d items"):format(#sorted), 4)
+    local sorted = sort_paths_by_mtime(files)
+    reload_playlist(sorted, false)
+    mp.msg.warn(("sorted playlist by mtime: %d items"):format(#sorted))
+  end)
 end
 
 local function action_expand_playlist()
