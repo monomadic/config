@@ -73,12 +73,10 @@ Commands:
                           Start a background mpv instance and wait for IPC.
                           Remaining args after -- are passed to mpv, so this
                           can also load an initial splash image.
-  play [options] [track-number|files...]
+  play [options] [files...]
                           Load files into mpv.
                           Reads from stdin first (newline by default).
                           Falls back to args if stdin is empty.
-                          With one positive integer arg, plays that existing
-                          playlist item using one-based track numbering.
                           Options:
                             -0|--read0   NUL-delimited stdin
                             --shuffle    shuffle playlist after all files sent
@@ -87,6 +85,7 @@ Commands:
   shuffle                 Shuffle the current playlist
   sort                    Sort the current playlist using mpv's sort script
   random                  Jump to a random file (shuffle + next)
+  goto <track-number>     Play a playlist item by one-based track number
   osd on|off|toggle|0..3  Control OSD (osd-level)
   panscan <0..1>|on|off|toggle
                           Set/toggle pan&scan
@@ -333,8 +332,6 @@ start_cmd() {
 play_cmd() {
   local read0=false
   local shuffle_after=false
-  local track_number=""
-  local track_index
   local line f payload batch_count
   local sent=0
   local batch_size="$MPV_SEND_BATCH_SIZE"
@@ -359,7 +356,7 @@ play_cmd() {
         ;;
       -*)
         echo "Error: unknown play option: $1" >&2
-        echo "Usage: mpv-send play [-0|--read0] [--shuffle] [--] [track-number|files...]" >&2
+        echo "Usage: mpv-send play [-0|--read0] [--shuffle] [--] [files...]" >&2
         exit 1
         ;;
       *)
@@ -367,16 +364,6 @@ play_cmd() {
         ;;
     esac
   done
-
-  if (( $# == 1 )) && [[ "$1" == <-> ]]; then
-    if (( 10#$1 < 1 )); then
-      echo "Error: track numbers are one-based; use 1 or greater" >&2
-      exit 1
-    fi
-
-    track_number="$1"
-    shift
-  fi
 
   case "$batch_size" in
     ""|*[!0-9]*) batch_size=64 ;;
@@ -429,21 +416,6 @@ play_cmd() {
     return 0
   }
 
-  play_track_number() {
-    (( track_index = 10#$track_number - 1 ))
-    ensure_mpv
-
-    mpv_cmd playlist-play-index "$track_index" || {
-      echo "Error: failed to play playlist track $track_number" >&2
-      exit 1
-    }
-
-    mpv_cmd set_property pause no || {
-      echo "Error: failed to resume playback" >&2
-      exit 1
-    }
-  }
-
   if [[ ! -t 0 ]]; then
     log "stdin detected"
     if $read0; then
@@ -475,7 +447,7 @@ play_cmd() {
     done
   fi
 
-  if (( sent == 0 && -z "$track_number" )); then
+  if (( sent == 0 )); then
     echo "Error: no input. Pipe paths on stdin or pass files as arguments." >&2
     exit 1
   fi
@@ -493,18 +465,8 @@ play_cmd() {
     }
   fi
 
-  if [[ -n "$track_number" ]]; then
-    play_track_number
-  fi
-
-  if (( sent > 0 )) && $shuffle_after && [[ -n "$track_number" ]]; then
-    echo "Sent $sent file(s) to mpv, shuffled playlist, and played track $track_number"
-  elif (( sent > 0 )) && $shuffle_after; then
+  if $shuffle_after; then
     echo "Sent $sent file(s) to mpv and shuffled playlist"
-  elif (( sent > 0 )) && [[ -n "$track_number" ]]; then
-    echo "Sent $sent file(s) to mpv and played track $track_number"
-  elif [[ -n "$track_number" ]]; then
-    echo "Playing playlist track $track_number"
   else
     echo "Sent $sent file(s) to mpv"
   fi
@@ -519,6 +481,36 @@ sort_cmd() {
     exit 1
   }
   echo "Triggered mpv playlist sort"
+}
+
+goto_cmd() {
+  local track_number="${1:-}"
+  local track_index
+
+  if (( $# != 1 )) || [[ "$track_number" != <-> ]]; then
+    echo "Usage: mpv-send goto <track-number>" >&2
+    exit 1
+  fi
+
+  if (( 10#$track_number < 1 )); then
+    echo "Error: track numbers are one-based; use 1 or greater" >&2
+    exit 1
+  fi
+
+  track_index=$(( 10#$track_number - 1 ))
+
+  ensure_mpv
+  mpv_cmd playlist-play-index "$track_index" || {
+    echo "Error: failed to play playlist track $track_number" >&2
+    exit 1
+  }
+  mpv_cmd set_property pause no || {
+    echo "Error: failed to resume playback" >&2
+    exit 1
+  }
+
+  echo "Playing playlist track $track_number"
+  focus_mpv
 }
 
 while [[ $# -gt 0 ]]; do
@@ -603,6 +595,10 @@ case "$cmd" in
     mpv_cmd playlist-shuffle
     mpv_cmd playlist-next force
     echo "Jumped to a random track"
+    ;;
+
+  goto)
+    goto_cmd "$@"
     ;;
 
   osd)
