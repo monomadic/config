@@ -85,6 +85,7 @@ brew "viu"
 brew "zellij"
 tap "itchyny/tap"
 brew "itchyny/tap/mmv"
+cask "markedit"
 
 # Media and content tooling
 brew "aria2"
