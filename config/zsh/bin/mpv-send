@@ -83,6 +83,7 @@ Commands:
   next                    Skip to next file
   prev                    Jump to previous file
   shuffle                 Shuffle the current playlist
+  sort                    Sort the current playlist using mpv's sort script
   random                  Jump to a random file (shuffle + next)
   osd on|off|toggle|0..3  Control OSD (osd-level)
   panscan <0..1>|on|off|toggle
@@ -472,6 +473,15 @@ play_cmd() {
   focus_mpv
 }
 
+sort_cmd() {
+  ensure_mpv
+  mpv_cmd script-binding sort_playlist_by_mtime || {
+    echo "Error: failed to trigger mpv playlist sort" >&2
+    exit 1
+  }
+  echo "Triggered mpv playlist sort"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -s|--socket)
@@ -543,6 +553,10 @@ case "$cmd" in
     ensure_mpv
     mpv_cmd playlist-shuffle
     echo "Shuffled playlist"
+    ;;
+
+  sort)
+    sort_cmd "$@"
     ;;
 
   random)

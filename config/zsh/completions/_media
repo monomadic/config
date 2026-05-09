@@ -24,7 +24,6 @@ video_types=(
 local -a options
 options=(
   '--shuffle:Shuffle videos during playback'
-  '--start-random:Start playback from a random position'
   '--verbose:Enable verbose output'
 )
 

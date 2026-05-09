@@ -18,7 +18,6 @@ print_usage() {
   echo "  #tag          - Match videos with '#tag'"
   echo "  [Tag]         - Match videos with '[Tag]'"
   echo "  --shuffle     - Shuffle videos during playback (only for 'play' command)"
-  echo "  --start-random - Start playback from a random position in playlist"
   echo "  --verbose     - Enable verbose output"
 }
 
@@ -28,7 +27,6 @@ video_type=""
 base_command="ls-media"
 additional_args=()
 shuffle_enabled=false
-start_random=false
 verbose=false
 
 # Parse command
@@ -91,10 +89,6 @@ while [[ $# -gt 0 ]]; do
     shuffle_enabled=true
     shift
     ;;
-  --start-random)
-    start_random=true
-    shift
-    ;;
   --verbose)
     verbose=true
     shift
@@ -121,16 +115,9 @@ done
 final_command="$base_command ${additional_args[@]}"
 case $command in
 play)
-  if [[ "$video_type" == "loops" ]]; then
-    final_command+=" | tr '\0' '\n' | mpv-play --loop-mode 5" # Convert nulls to newlines for mpv
-  else
-    final_command+=" | tr '\0' '\n' | mpv-play" # Convert nulls to newlines for mpv
-  fi
+  final_command="$base_command --print0 ${additional_args[@]} | mpv-send play -0"
   if $shuffle_enabled; then
     final_command+=" --shuffle"
-  fi
-  if $start_random; then
-    final_command+=" --start-random"
   fi
   ;;
 search)

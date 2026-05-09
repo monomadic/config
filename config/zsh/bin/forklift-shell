@@ -1,0 +1,206 @@
+#!/usr/bin/env zsh
+# forklift-shell
+#
+# Run ForkLift Tools inside a repaired zsh environment.
+#
+# Usage in ForkLift:
+#
+#   /Users/nom/.zsh/bin/forklift-shell -- 'file -- "$SOURCE_SELECTION_PATH"'
+#   /Users/nom/.zsh/bin/forklift-shell -- 'file -- "$SOURCE_SELECTION_PATHS_ARRAY[@]"'
+#   /Users/nom/.zsh/bin/forklift-shell -- 'mpv --shuffle "$SOURCE_SELECTION_PATHS_ARRAY[@]"'
+#
+# Debug:
+#
+#   FORKLIFT_SHELL_DEBUG=1 /Users/nom/.zsh/bin/forklift-shell -- 'file -- "$SOURCE_SELECTION_PATH"'
+
+emulate -L zsh
+set -euo pipefail
+
+script_name="${0:t}"
+
+usage() {
+  cat <<'EOF'
+forklift-shell
+
+Run a command inside a repaired zsh environment for ForkLift Tools.
+
+Usage:
+  forklift-shell -- 'command here'
+
+Useful variables inside command:
+
+  SOURCE_PATH
+  TARGET_PATH
+
+  SOURCE_SELECTION_PATH       first selected source path
+  TARGET_SELECTION_PATH       first selected target path
+
+  SOURCE_SELECTION_PATHS      newline-separated selected source paths
+  TARGET_SELECTION_PATHS      newline-separated selected target paths
+
+  SOURCE_SELECTION_PATHS_ARRAY[@]
+  TARGET_SELECTION_PATHS_ARRAY[@]
+
+  SOURCE_SELECTION_NAME
+  TARGET_SELECTION_NAME
+
+  SOURCE_SELECTION_NAMES_ARRAY[@]
+  TARGET_SELECTION_NAMES_ARRAY[@]
+
+Examples:
+  forklift-shell -- 'file -- "$SOURCE_SELECTION_PATH"'
+  forklift-shell -- 'file -- "$SOURCE_SELECTION_PATHS_ARRAY[@]"'
+  forklift-shell -- 'mpv --shuffle "$SOURCE_SELECTION_PATHS_ARRAY[@]"'
+  forklift-shell -- 'yazi "$SOURCE_PATH"'
+EOF
+}
+
+die() {
+  print -u2 -- "󰅚 $script_name: $*"
+  exit 1
+}
+
+debug() {
+  [[ "${FORKLIFT_SHELL_DEBUG:-0}" == 1 ]] || return 0
+  print -u2 -- "󰀪 $script_name: $*"
+}
+
+# Parse one ForkLift shell-escaped value.
+#
+# ForkLift may provide:
+#   /some/path/File\ Name.mp4
+#
+# We need:
+#   /some/path/File Name.mp4
+#
+# ${(z)...} uses zsh lexical shell parsing without executing anything.
+decode_one() {
+  local raw="${1:-}"
+  local -a parsed
+
+  [[ -n "$raw" ]] || return 0
+
+  parsed=("${(@z)raw}")
+
+  # Normally exactly one parsed word. Join defensively.
+  print -r -- "${(j: :)parsed}"
+}
+
+# Decode newline-separated ForkLift values into newline-separated clean values.
+decode_lines() {
+  local raw="${1:-}"
+  local -a lines
+  local -a out
+  local -a parsed
+  local line
+
+  [[ -n "$raw" ]] || return 0
+
+  lines=("${(@f)raw}")
+
+  for line in "${lines[@]}"; do
+    [[ -n "$line" ]] || continue
+    parsed=("${(@z)line}")
+    out+=("${(j: :)parsed}")
+  done
+
+  print -r -- "${(F)out}"
+}
+
+# Repair missing external-launch environment.
+export USER="${USER:-$(id -un)}"
+export LOGNAME="${LOGNAME:-$USER}"
+export HOME="${HOME:-$(dscl . -read "/Users/$USER" NFSHomeDirectory 2>/dev/null | awk '{print $2}')}"
+export SHELL="${SHELL:-/bin/zsh}"
+
+# Rebuild PATH sanely.
+typeset -a repaired_path
+repaired_path=(
+  /opt/homebrew/bin
+  /opt/homebrew/sbin
+  /usr/local/bin
+  /usr/local/sbin
+  "$HOME/.zsh/bin"
+  "$HOME/.local/bin"
+  "$HOME/.cargo/bin"
+  "$HOME/.deno/bin"
+  "$HOME/go/bin"
+  /usr/bin
+  /bin
+  /usr/sbin
+  /sbin
+)
+
+if [[ -n "${PATH:-}" ]]; then
+  repaired_path+=("${(@s/:/)PATH}")
+fi
+
+typeset -U repaired_path
+export PATH="${(j/:/)repaired_path}"
+
+# Preserve raw ForkLift values.
+export FORKLIFT_RAW_SOURCE_PATH="${SOURCE_PATH:-}"
+export FORKLIFT_RAW_TARGET_PATH="${TARGET_PATH:-}"
+export FORKLIFT_RAW_SOURCE_SELECTION_PATHS="${SOURCE_SELECTION_PATHS:-}"
+export FORKLIFT_RAW_TARGET_SELECTION_PATHS="${TARGET_SELECTION_PATHS:-}"
+export FORKLIFT_RAW_SOURCE_SELECTION_NAMES="${SOURCE_SELECTION_NAMES:-}"
+export FORKLIFT_RAW_TARGET_SELECTION_NAMES="${TARGET_SELECTION_NAMES:-}"
+
+# Decode scalar folder paths.
+export SOURCE_PATH="$(decode_one "$FORKLIFT_RAW_SOURCE_PATH")"
+export TARGET_PATH="$(decode_one "$FORKLIFT_RAW_TARGET_PATH")"
+
+# Decode possibly multi-selection values.
+export SOURCE_SELECTION_PATHS="$(decode_lines "$FORKLIFT_RAW_SOURCE_SELECTION_PATHS")"
+export TARGET_SELECTION_PATHS="$(decode_lines "$FORKLIFT_RAW_TARGET_SELECTION_PATHS")"
+export SOURCE_SELECTION_NAMES="$(decode_lines "$FORKLIFT_RAW_SOURCE_SELECTION_NAMES")"
+export TARGET_SELECTION_NAMES="$(decode_lines "$FORKLIFT_RAW_TARGET_SELECTION_NAMES")"
+
+# Arrays are available because we run the command in this same zsh process.
+typeset -a SOURCE_SELECTION_PATHS_ARRAY
+typeset -a TARGET_SELECTION_PATHS_ARRAY
+typeset -a SOURCE_SELECTION_NAMES_ARRAY
+typeset -a TARGET_SELECTION_NAMES_ARRAY
+
+SOURCE_SELECTION_PATHS_ARRAY=("${(@f)SOURCE_SELECTION_PATHS}")
+TARGET_SELECTION_PATHS_ARRAY=("${(@f)TARGET_SELECTION_PATHS}")
+SOURCE_SELECTION_NAMES_ARRAY=("${(@f)SOURCE_SELECTION_NAMES}")
+TARGET_SELECTION_NAMES_ARRAY=("${(@f)TARGET_SELECTION_NAMES}")
+
+# Convenience first-selection vars.
+export SOURCE_SELECTION_PATH="${SOURCE_SELECTION_PATHS_ARRAY[1]:-}"
+export TARGET_SELECTION_PATH="${TARGET_SELECTION_PATHS_ARRAY[1]:-}"
+export SOURCE_SELECTION_NAME="${SOURCE_SELECTION_NAMES_ARRAY[1]:-}"
+export TARGET_SELECTION_NAME="${TARGET_SELECTION_NAMES_ARRAY[1]:-}"
+
+case "${1:-}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+
+  --)
+    shift
+    ;;
+
+  "")
+    usage
+    exit 1
+    ;;
+
+  *)
+    die "expected -- before command"
+    ;;
+esac
+
+(( $# )) || die "missing command after --"
+
+command_string="$*"
+
+debug "USER=$USER"
+debug "PATH=$PATH"
+debug "raw source selection: $FORKLIFT_RAW_SOURCE_SELECTION_PATHS"
+debug "decoded source selection: $SOURCE_SELECTION_PATH"
+debug "command: $command_string"
+
+eval "$command_string"
