@@ -136,6 +136,21 @@ run  = "plugin --sync dual-pane --args=next_pane"
 desc = "Dual-pane: switch to the other pane"
 
 [[mgr.prepend_keymap]]
+on   = "<C-1>"
+run  = "plugin --sync toggle-view --args=parent"
+desc = "Toggle parent pane"
+
+[[mgr.prepend_keymap]]
+on   = "<C-2>"
+run  = "plugin --sync toggle-view --args=current"
+desc = "Toggle current pane"
+
+[[mgr.prepend_keymap]]
+on   = "<C-3>"
+run  = "plugin --sync toggle-view --args=preview"
+desc = "Toggle preview pane"
+
+[[mgr.prepend_keymap]]
 on   = "["
 run  = "plugin --sync dual-pane --args='tab_switch -1 --relative'"
 desc = "Dual-pane: switch active to previous tab"
