@@ -46,46 +46,14 @@ alias .play-new-local="fd-media --sort created --print0 . $HOME/Movies/Porn | mp
 alias .select="fd-media --print0 . {${HOME},/Volumes/*}/Movies/Porn(N) | fzf-select -0 --print0 --stream | mpv-send play -0"
 
 alias .play-all-sorted=".ls-sorted | mpv-play"
-alias .play-pwd="fd-media . | mpv-send play"
+alias .play-pwd="fd-media --print0 . . | mpv-send play -0 && mpv-send sort && mpv-send goto 1"
 alias .pwd=.play-pwd
-alias .play-pwd-sorted=".ls-pwd | mpv-play"
 alias .play-local=".ls-local | mpv-play"
 alias .play-tower="fd-media --print0 . /Volumes/Tower/Movies/Porn(N) | mpv-send play -0"
 alias .play-tower-downloads="fd-media --print0 . /Volumes/Tower/Movies/Porn/Downloads(N) | mpv-send play -0"
 alias .play-tower-masters="fd-media --print0 . /Volumes/Tower/Movies/Porn/Masters(N) | mpv-send play -0"
 alias .play-tower-clips="fd-media --print0 . /Volumes/Tower/Movies/Porn/Clips(N) | mpv-send play -0"
 alias .play-tower-clips-landscape="fd-media --print0 . /Volumes/Tower/Movies/Porn/Clips/Landscape(N) | mpv-send play -0"
-
-alias cat-indexes="cat $HOME/.indexes/*"
-alias cat-index-tower="cat $HOME/.indexes/tower-porn"
-
-alias .index-play="cat-indexes | mpv --playlist=-"
-alias .index-play-tower="mpv --playlist=/Volumes/Tower/Movies/Porn/.index"
-alias \%play-tower=".index-play-tower"
-alias \%select-tower="cat /Volumes/Tower/Movies/Porn/.index | fzf-select | mpv-play --playlist=-"
-
-# alias .index-create-tower="fd . /Volumes/Tower/Movies/Porn/ > $HOME/.indexes/Tower"
-alias .index-select-tower="%select-tower"
-alias .index-select-tower-masters="cat-index-tower | grep 'Masters' | .select-and-play"
-alias .index-select-tower-downloads="cat-index-tower | grep 'Downloads' | .select-and-play"
-
-.create-index() {
-  echo "Building index for $1"
-  ls-media --path $1 --sort created > $1/.index
-}
-
-.create-all-indexes() {
-  .create-index /Volumes/Tower/Movies/Porn
-  .create-index /Volumes/Tower/Movies/Porn/Downloads
-  .create-index /Volumes/Tower/Movies/Porn/Masters
-  .create-index /Volumes/Tower/Movies/Porn/Masters/Clips
-  .create-index /Volumes/Tower/Movies/Porn/Masters/Clips/Full
-  .create-index "$HOME/Tower/Movies/Porn"
-  .create-index "$HOME/Tower/Movies/Porn/Downloads"
-  .create-index "$HOME/Tower/Movies/Porn/Masters"
-  .create-index "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Movies/Visuals"
-}
-alias .update-all-indexes=.create-all-indexes
 
 .play-tower-downloads-indexed() {
   MOUNT_PATH="/Volumes/Tower"
