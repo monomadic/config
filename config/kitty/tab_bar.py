@@ -69,10 +69,10 @@ def draw_tab(
         screen.draw(" ")
     screen.draw(title)
 
-    if marker == " ":
-        screen.draw("")
-    else:
-        draw_colored(screen, marker, ALERT_FG)
+    # if marker == " ":
+    #     screen.draw("")
+    # else:
+    #     draw_colored(screen, marker, ALERT_FG)
 
     draw_colored(screen, index_text, INDEX_FG)
     screen.draw(" ")
