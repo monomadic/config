@@ -30,11 +30,17 @@ local function has_next_entry()
 end
 
 local function play_previous_entry()
-    mp.commandv("playlist-prev", "force")
+    if has_previous_entry() then
+        mp.commandv("playlist-prev", "force")
+    else
+        mp.commandv("seek", "0", "absolute")
+    end
 end
 
 local function play_next_entry()
-    mp.commandv("playlist-next", "force")
+    if has_next_entry() then
+        mp.commandv("playlist-next", "force")
+    end
 end
 
 local function get_chapter_count()
@@ -103,8 +109,34 @@ local function random_playlist_entry()
     mp.commandv("playlist-play-index", tostring(target))
 end
 
+local function random_chapter_or_seek()
+    local chapter_count = get_chapter_count()
+    if chapter_count > 0 then
+        if chapter_count == 1 then
+            return
+        end
+
+        local current = get_number("chapter", 0)
+        local target = current
+        while target == current do
+            target = math.random(0, chapter_count - 1)
+        end
+
+        mp.commandv("set", "chapter", tostring(target))
+        return
+    end
+
+    local duration = get_number("duration", nil)
+    if duration == nil or duration <= 0 then
+        return
+    end
+
+    mp.commandv("seek", tostring(math.random() * duration), "absolute")
+end
+
 mp.add_forced_key_binding("[", "smart-back", smart_back)
 mp.add_forced_key_binding("]", "smart-forward", smart_forward)
 mp.add_forced_key_binding("{", "playlist-prev-track", play_previous_entry)
 mp.add_forced_key_binding("}", "playlist-next-track", play_next_entry)
-mp.add_forced_key_binding("\\", "playlist-random-track", random_playlist_entry)
+mp.add_forced_key_binding("\\", "smart-random-position", random_chapter_or_seek)
+mp.add_forced_key_binding("|", "playlist-random-track", random_playlist_entry)
