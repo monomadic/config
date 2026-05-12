@@ -44,20 +44,21 @@ command -v topaz-run >/dev/null 2>&1 || {
   exit 1
 }
 
+PRESET_CATALOG="${0:A:h}/topaz-preset-catalog.zsh"
+
+[[ -r "$PRESET_CATALOG" ]] || {
+  print -u2 "Topaz preset catalog not found: $PRESET_CATALOG"
+  exit 1
+}
+
+source "$PRESET_CATALOG"
+
 selection="$(
-  printf '%s\n' \
-    "4K Conservative Cleanup" \
-    "4K Balanced Enhancement" \
-    "4K Aggressive Artifact Cleanup" \
-    "4K Focus Fix Light" \
-    "4K Focus Fix Strong" \
-    "1080p -> 4K Clean Upscale" \
-    "1080p -> 4K Medium Enhancement" \
-    "1080p -> 4K Strong Recovery" \
-    "30fps -> 60fps Interpolation" \
-    "1080p30 -> 4K60" |
+  topaz_preset_picker_rows simple |
     fzf \
       --prompt='󰎆 Topaz preset > ' \
+      --delimiter=$'\t' \
+      --with-nth=1 \
       --height=40% \
       --reverse \
       --border
@@ -69,76 +70,26 @@ selection="$(
 }
 
 preset_name=""
+preset_flag=""
 filter_complex=""
 
-case "$selection" in
-  "4K Conservative Cleanup")
-    preset_name="4k-conservative-cleanup"
-    filter_complex="scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.20:details=0.22:halo=0.03:blur=0.08:compression=0.18:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1"
-    ;;
-
-  "4K Balanced Enhancement")
-    preset_name="4k-balanced-enhancement"
-    filter_complex="scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.32:details=0.36:halo=0.05:blur=0.14:compression=0.30:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1"
-    ;;
-
-  "4K Aggressive Artifact Cleanup")
-    preset_name="4k-aggressive-artifact-cleanup"
-    filter_complex="scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.50:details=0.28:halo=0.10:blur=0.18:compression=0.42:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1"
-    ;;
-
-  "4K Focus Fix Light")
-    preset_name="4k-focus-fix-light"
-    filter_complex="scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.12:details=0.26:halo=0.02:blur=0.18:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1"
-    ;;
-
-  "4K Focus Fix Strong")
-    preset_name="4k-focus-fix-strong"
-    filter_complex="scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.18:details=0.34:halo=0.03:blur=0.34:compression=0.16:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1"
-    ;;
-
-  "1080p -> 4K Clean Upscale")
-    preset_name="1080p-to-4k-clean"
-    filter_complex="tvai_up=model=prob-4:scale=2:preblur=0:noise=0.16:details=0.26:halo=0.02:blur=0.08:compression=0.12:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1"
-    ;;
-
-  "1080p -> 4K Medium Enhancement")
-    preset_name="1080p-to-4k-medium"
-    filter_complex="tvai_up=model=prob-4:scale=2:preblur=0:noise=0.28:details=0.34:halo=0.04:blur=0.12:compression=0.22:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1"
-    ;;
-
-  "1080p -> 4K Strong Recovery")
-    preset_name="1080p-to-4k-strong"
-    filter_complex="tvai_up=model=prob-4:scale=2:preblur=0:noise=0.42:details=0.44:halo=0.06:blur=0.20:compression=0.30:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1"
-    ;;
-
-  "30fps -> 60fps Interpolation")
-    preset_name="30fps-to-60fps"
-    filter_complex="tvai_fi=model=chf-3:slowmo=0:rdt=0.01:fps=60:device=0:vram=0.95:instances=1"
-    ;;
-
-  "1080p30 -> 4K60")
-    preset_name="1080p30-to-4k60"
-    filter_complex="tvai_up=model=prob-4:scale=2:preblur=0:noise=0.26:details=0.32:halo=0.03:blur=0.10:compression=0.20:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1,tvai_fi=model=chf-3:slowmo=0:rdt=0.01:fps=60:device=0:vram=0.95:instances=1"
-    ;;
-
-  *)
-    print -u2 "unknown preset selected"
-    exit 1
-    ;;
-esac
+topaz_parse_preset_row "$selection"
+preset_label="$TOPAZ_PRESET_DISPLAY"
+preset_name="$TOPAZ_PRESET_NAME"
+preset_flag="$TOPAZ_PRESET_FLAG"
+filter_complex="$TOPAZ_PRESET_FILTER"
 
 cmd_preview=(
   topaz-run
   --preset_name "$preset_name"
-  --filter_complex "$filter_complex"
+  "$preset_flag" "$filter_complex"
   --
   "$@"
 )
 
-print -P -- "%F{cyan}󰏬%f preset: $selection"
-print -P -- "%F{242}slug:%f   $preset_name"
-print -P -- "%F{242}cmd:%f    ${(q+)cmd_preview}"
+print -P -- "%F{cyan}󰏬%f preset: $preset_label"
+print -P -- "%F{white}slug:%f   $preset_name"
+print -P -- "%F{white}cmd:%f    ${(q+)cmd_preview}"
 print
 
 "${cmd_preview[@]}"

@@ -27,8 +27,102 @@ case "${1:-}" in
 esac
 
 TOPAZ_APP="/Applications/Topaz Video AI.app"
-TOPAZ_BIN="$TOPAZ_APP/Contents/MacOS/Topaz Video AI"
+TOPAZ_MACOS_DIR="$TOPAZ_APP/Contents/MacOS"
+TOPAZ_FFMPEG="$TOPAZ_MACOS_DIR/ffmpeg"
+TOPAZ_MODELS_DIR="$TOPAZ_APP/Contents/Resources/models"
 LOG_DIR="${HOME}/Library/Logs/topaz-batch"
+PRESET_CATALOG="${0:A:h}/topaz-preset-catalog.zsh"
+
+[[ -r "$PRESET_CATALOG" ]] || {
+  print -u2 "Topaz preset catalog not found: $PRESET_CATALOG"
+  exit 1
+}
+
+source "$PRESET_CATALOG"
+
+topaz_escape_prompt() {
+  print -r -- "${1//\%/%%}"
+}
+
+topaz_file_preset_label() {
+  emulate -L zsh
+  local label="$1"
+
+  label="${label//\// - }"
+  label="${label//->/to}"
+  [[ "$label" != *" "* ]] && label="${label//-/ }"
+  label="${label//  / }"
+  label="${label## }"
+  label="${label%% }"
+
+  print -r -- "$label"
+}
+
+topaz_safe_log_label() {
+  emulate -L zsh
+  local label="${1:l}"
+
+  label="${label// /-}"
+  label="${label//[^a-z0-9._-]/}"
+  label="${label//---/-}"
+  label="${label//--/-}"
+  label="${label#-}"
+  label="${label%-}"
+
+  print -r -- "$label"
+}
+
+topaz_open_log_tail() {
+  emulate -L zsh
+  local log_file="$1"
+  local title="topaz log: ${log_file:t}"
+  local -a kitty_cmd
+
+  command -v kitty >/dev/null 2>&1 || return 0
+  [[ -n "${KITTY_WINDOW_ID:-}" || -n "${KITTY_LISTEN_ON:-}" ]] || return 0
+
+  kitty_cmd=(kitty @)
+  [[ -z "${KITTY_LISTEN_ON:-}" ]] && kitty_cmd+=(--to "unix:/tmp/kitty-$USER")
+
+  "${kitty_cmd[@]}" launch \
+    --type=window \
+    --location=hsplit \
+    --bias=30 \
+    --cwd=current \
+    --keep-focus \
+    --title "$title" \
+    zsh -lc 'print -P "%F{white}tailing:%f %F{blue}${1//\%/%%}%f\n"; tail -n +1 -F "$1"' \
+    topaz-tail "$log_file" >/dev/null 2>&1 || true
+}
+
+topaz_open_output_preview() {
+  emulate -L zsh
+  local output="$1"
+  local -a kitty_cmd
+  local preview_script='for _ in {1..900}; do
+  if [[ -s "$1" ]]; then
+    exec mpv --force-window=immediate --keep-open=yes -- "$1"
+  fi
+  sleep 1
+done'
+
+  [[ "${TOPAZ_PREVIEW:-1}" == "0" ]] && return 0
+  command -v mpv >/dev/null 2>&1 || return 0
+
+  if command -v kitty >/dev/null 2>&1 && [[ -n "${KITTY_WINDOW_ID:-}" || -n "${KITTY_LISTEN_ON:-}" ]]; then
+    kitty_cmd=(kitty @)
+    [[ -z "${KITTY_LISTEN_ON:-}" ]] && kitty_cmd+=(--to "unix:/tmp/kitty-$USER")
+
+    "${kitty_cmd[@]}" launch \
+      --type=background \
+      --cwd=current \
+      zsh -lc "$preview_script" \
+      topaz-preview "$output" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  zsh -lc "$preview_script" topaz-preview "$output" >/dev/null 2>&1 &!
+}
 
 preset_name=""
 preset_flag=""
@@ -93,19 +187,7 @@ else
   }
 
   selection="$(
-    printf '%s\n' \
-      $'4K Enhance - clean digital look without cartoonish output\t--filter_complex\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.10:details=0.30:halo=0.02:blur=0.06:compression=0.10:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
-      $'Prob-4 2x - medium enhancement\t--filter_complex\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.35:details=0.60:halo=0:blur=0.20:compression=0.30:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1' \
-      $'Prob-4 2x - strong detail recovery\t--filter_complex\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.55:details=0.90:halo=0:blur=0.50:compression=0.45:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1' \
-      $'1080p to 4K - balanced upscale\t--filter_complex\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.18:details=0.35:halo=0.02:blur=0.08:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
-      $'Focus Fix - mild recovery\t--filter_complex\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.15:details=0.55:halo=0.04:blur=0.18:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
-      $'Focus Fix - stronger recovery\t--filter_complex\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.22:details=0.80:halo=0.08:blur=0.28:compression=0.18:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
-      $'30fps to 60fps - Apollo / interpolation\t--filter_complex\ttvai_fi=model=apollo:slowmo=0:rdt=0.01:device=0:vram=0.95:instances=1,fps=60' \
-      $'24fps to 60fps - Apollo / interpolation\t--filter_complex\ttvai_fi=model=apollo:slowmo=0:rdt=0.01:device=0:vram=0.95:instances=1,fps=60' \
-      $'Iris MQ - moderate cleanup and sharpening\t--filter_complex\ttvai_up=model=iris-mq:scale=1:preblur=0:noise=0.25:details=0.50:halo=0:blur=0.15:compression=0.20:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1' \
-      $'Artemis HQ - gentle enhancement for decent sources\t--filter_complex\ttvai_up=model=ahq-13:scale=1:preblur=0:noise=0.15:details=0.35:halo=0:blur=0.10:compression=0.15:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1' \
-      $'Nyx - strong denoise for dark/noisy footage\t--filter_complex\ttvai_up=model=nyx-3:scale=1:preblur=0:noise=0.80:details=0.25:halo=0:blur=0.20:compression=0.25:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1' \
-      $'Proteus manual - balanced recover + denoise\t--filter_complex\ttvai_up=model=prob-3:scale=1:preblur=0:noise=0.40:details=0.55:halo=0.05:blur=0.15:compression=0.25:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1' |
+    topaz_preset_picker_rows run |
       fzf \
         --prompt='Topaz preset > ' \
         --delimiter=$'\t' \
@@ -113,7 +195,7 @@ else
         --height=50% \
         --reverse \
         --border \
-        --preview='printf "%s\n\n%s\n" {1} {3}' \
+        --preview='printf "%s\n\n%s\n" {1} {4}' \
         --preview-window='down:4:wrap'
   )"
 
@@ -122,10 +204,10 @@ else
     exit 1
   }
 
-  preset_name="${selection%%$'\t'*}"
-  rest="${selection#*$'\t'}"
-  preset_flag="${rest%%$'\t'*}"
-  preset_value="${rest#*$'\t'}"
+  topaz_parse_preset_row "$selection"
+  preset_name="$TOPAZ_PRESET_NAME"
+  preset_flag="$TOPAZ_PRESET_FLAG"
+  preset_value="$TOPAZ_PRESET_FILTER"
 fi
 
 for input in "$files[@]"; do
@@ -135,14 +217,20 @@ for input in "$files[@]"; do
   }
 done
 
-[[ -x "$TOPAZ_BIN" ]] || {
-  print -u2 "Topaz binary not found: $TOPAZ_BIN"
+[[ -x "$TOPAZ_FFMPEG" ]] || {
+  print -u2 "Topaz ffmpeg not found: $TOPAZ_FFMPEG"
+  exit 1
+}
+
+[[ -d "$TOPAZ_MODELS_DIR" ]] || {
+  print -u2 "Topaz models dir not found: $TOPAZ_MODELS_DIR"
   exit 1
 }
 
 mkdir -p "$LOG_DIR"
 
-print "preset: $preset_name"
+print -P -- "%F{blue}%BTopaz batch%b%f"
+print -P -- "  %F{white}preset:%f %F{magenta}$(topaz_escape_prompt "$preset_name")%f"
 print
 
 for input in "$files[@]"; do
@@ -150,39 +238,99 @@ for input in "$files[@]"; do
   stem="${input:r}"
   base="${input:t:r}"
 
-  safe_preset="${preset_name:l}"
-  safe_preset="${safe_preset// /-}"
-  safe_preset="${safe_preset//[^a-z0-9._-]/}"
+  filename_preset="$(topaz_file_preset_label "$preset_name")"
+  safe_preset="$(topaz_safe_log_label "$filename_preset")"
 
-  output="${stem}_${safe_preset}_topaz.${ext}"
-  log_file="${LOG_DIR}/${base}_${safe_preset}.log"
+  output="${stem} [Topaz - ${filename_preset}].${ext}"
+  log_file="${LOG_DIR}/${base} [Topaz - ${safe_preset}].log"
 
   [[ -e "$output" ]] && {
-    print "skip: output exists: $output"
+    print -P -- "%F{yellow}skip:%f output exists"
+    print -P -- "  %F{white}file:%f %F{blue}$(topaz_escape_prompt "$output")%f"
     continue
   }
 
-  topaz_cmd=(
-    "$TOPAZ_BIN"
-    --input "$input"
-    --output "$output"
+  ffmpeg_cmd=(
+    "$TOPAZ_FFMPEG"
+    -hide_banner
+    -i "$input"
+    -sws_flags "spline+accurate_rnd+full_chroma_int"
     "$preset_flag" "$preset_value"
+    -c:v hevc_videotoolbox
+    -profile:v main
+    -tag:v hvc1
+    -pix_fmt yuv420p
+    -allow_sw 1
+    -g 30
+    -b:v 30M
+    -map 0:a?
+    -c:a copy
+    -map_metadata 0
+    -map_metadata:s:v 0:s:v
+    -fps_mode:v passthrough
+    -movflags "frag_keyframe+empty_moov+delay_moov+use_metadata_tags+write_colr"
+    -bf 0
+    "$output"
   )
 
-  print "==> $input"
-  print "    -> $output"
-  print "    preset: $preset_name"
-  print "    log: $log_file"
+  topaz_env=(
+    env
+    LC_ALL=C
+    LC_NUMERIC=C
+    LANG=C
+    TVAI_MODEL_DIR="$TOPAZ_MODELS_DIR"
+    TVAI_MODEL_DATA_DIR="$TOPAZ_MODELS_DIR"
+  )
 
+  log_cmd=(
+    cd "$TOPAZ_MACOS_DIR"
+    "&&"
+    "${topaz_env[@]}"
+    "${ffmpeg_cmd[@]}"
+  )
+
+  : >| "$log_file"
+  topaz_open_log_tail "$log_file"
+  topaz_open_output_preview "$output"
+
+  print -P -- "%F{cyan}%BEncoding%b%f"
+  print -P -- "  %F{white}engine:%f %F{magenta}Topaz ffmpeg%f"
+  print -P -- "  %F{white}input:%f  %F{white}$(topaz_escape_prompt "$input")%f"
+  print -P -- "  %F{white}output:%f %F{green}%B$(topaz_escape_prompt "$output")%b%f"
+  print -P -- "  %F{white}log:%f    %F{blue}$(topaz_escape_prompt "$log_file")%f"
+  print -P -- "  %F{white}preview:%f %F{magenta}mpv opens when output starts writing%f"
+  print -P -- "  %F{white}copy:%f   %F{green}$(topaz_escape_prompt "${(q)output}")%f"
+  print
+
+  topaz_result=0
   {
     print "[$(date '+%F %T')] START $input"
     print "PRESET: $preset_name"
-    print "CMD: ${(q+)topaz_cmd}"
-    "${topaz_cmd[@]}"
-    print "[$(date '+%F %T')] DONE $output"
+    print "TOPAZ_FFMPEG: $TOPAZ_FFMPEG"
+    print "TOPAZ_MODELS_DIR: $TOPAZ_MODELS_DIR"
+    print "CMD: ${(q+)log_cmd}"
+    topaz_status=0
+    (
+      cd "$TOPAZ_MACOS_DIR"
+      "${topaz_env[@]}" "${ffmpeg_cmd[@]}"
+    ) || topaz_status=$?
+
+    if (( topaz_status != 0 )); then
+      print "[$(date '+%F %T')] FAILED status=$topaz_status"
+      topaz_result="$topaz_status"
+    elif [[ ! -s "$output" ]]; then
+      print "[$(date '+%F %T')] FAILED missing output: $output"
+      topaz_result=1
+    else
+      print "[$(date '+%F %T')] DONE $output"
+    fi
+
+    (( topaz_result == 0 ))
   } >"$log_file" 2>&1 || {
-    print -u2 "failed: $input"
-    print -u2 "see log: $log_file"
+    print -P -u2 -- "%F{red}failed:%f $(topaz_escape_prompt "$input")"
+    print -P -u2 -- "  %F{white}see log:%f %F{blue}$(topaz_escape_prompt "$log_file")%f"
     exit 1
   }
+
+  print -P -- "%F{green}%Bdone:%b%f %F{green}$(topaz_escape_prompt "$output")%f"
 done
