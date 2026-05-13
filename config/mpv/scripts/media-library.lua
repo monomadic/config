@@ -1,10 +1,10 @@
 -- media-library.lua
--- CMD+A: replace playlist with output of ls-media
+-- CMD+A: replace playlist with output of fd-media
 
 mp.add_key_binding(nil, "load-all-media", function()
-    local handle = io.popen("/Users/nom/.zsh/bin/ls-media")
+    local handle = io.popen("/Users/nom/.zsh/bin/fd-media")
     if not handle then
-        mp.osd_message("load-all-media: failed to run ls-media", 3)
+        mp.osd_message("load-all-media: failed to run fd-media", 3)
         return
     end
 

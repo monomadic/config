@@ -1,16 +1,16 @@
 # Indexing and offline searching for non-persistent volumes
 
 mpv-stdin() {
-  mpv --macos-fs-animation-duration=0 --no-native-fs --fs --input-ipc-server=/tmp/mpvsocket --mute=yes $@ --playlist=- >/dev/null 2>&1 &
+  mpv-send play "$@"
 }
 
 mpv-play-local() {
-  expand-paths $LOCAL_MEDIA_PATHS | mpv-stdin
+  expand-paths $LOCAL_MEDIA_PATHS | mpv-send play
 }
 alias .local=mpv-play-local
 
 mpv-play-local() {
-  expand-paths $LOCAL_MEDIA_PATHS | mpv-stdin
+  expand-paths $LOCAL_MEDIA_PATHS | mpv-send play
 }
 alias .play-local=mpv-play-local
 
@@ -58,15 +58,15 @@ grep-unsafe() {
 }
 
 index-play-top() {
-  index-cat | grep-top | fzf-play
+  index-cat | grep-top | fzf-select | mpv-send play
 }
 
 # list available files from the index and play them
 index-play-checked() {
-  index-cat-checked | grep-safe | fzf-play
+  index-cat-checked | grep-safe | fzf-select | mpv-send play
 }
 alias @play-index-checked=index-play-checked
 
 index-play-checked-top() {
-  index-cat-checked | index-grep-top | fzf-play
+  index-cat-checked | index-grep-top | fzf-select | mpv-send play
 }

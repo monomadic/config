@@ -11,9 +11,8 @@ socket_path="$(ls /tmp/kitty*)"
 
 # launch a new tab that feeds NUL-delimited args into fzf --read0
 /Applications/kitty.app/Contents/MacOS/kitty @ --to "unix:$socket_path" \
-  launch --type=tab --title="mpv-play" zsh -i -c '
-    #printf "%s\0" "$@" | fzf-play --hide-path
-    fd-video -0 "$@" | fzf-play --hide-path
+  launch --type=tab --title="mpv-send" zsh -i -c '
+    fd-media --print0 . "$@" | fzf-select -0 --print0 --color | mpv-send play -0
     # keep tab open (optional)
     exec zsh
   ' _ "$@"

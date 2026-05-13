@@ -154,10 +154,11 @@ if [[ -o interactive ]]; then
     zle redisplay
   }
 
-  # FZF insert path using ls-media
+  # FZF insert path using fd-media
   _fzf-insert-path() {
     local selected
-    selected="$(ls-media | fzf -0)" || return
+    selected="$(fd-media --print0 | fzf-select -0 --print0 | tr '\0' ' ')" || return
+    [[ -n "$selected" ]] || return
     LBUFFER+="${selected}"
   }
 
