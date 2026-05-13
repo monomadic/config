@@ -1,14 +1,15 @@
 #!/usr/bin/env zsh
-# finder-selection.zsh
-# Print all selected Finder items as POSIX paths.
+# finder-get-selected-files
+# Print selected file-manager items as POSIX paths.
 #
 # Usage:
-#   finder-selection.zsh                 # newline-delimited
-#   finder-selection.zsh -0              # NUL-delimited
-#   finder-selection.zsh --expand-dirs   # expand selected dirs into contained files
+#   finder-get-selected-files                 # newline-delimited
+#   finder-get-selected-files -0              # NUL-delimited
+#   finder-get-selected-files --expand-dirs   # expand selected dirs into contained files
 #
 # Notes:
-#   Requires Automation permission for your terminal to control Finder.
+#   Finder selection requires Automation permission for your terminal to control Finder.
+#   ForkLift selection is read from ForkLift Tools environment variables.
 #   Directory expansion uses fd when available, otherwise falls back to zsh globbing.
 
 emulate -L zsh
@@ -16,6 +17,7 @@ set -euo pipefail
 
 nul_output=false
 expand_dirs=false
+file_manager=auto
 
 while (( $# )); do
   case "$1" in
@@ -27,28 +29,47 @@ while (( $# )); do
       expand_dirs=true
       shift
       ;;
+    --app|--file-manager)
+      (( $# >= 2 )) || {
+        print -u2 -- "missing argument for $1"
+        exit 2
+      }
+      case "$2" in
+        auto|finder|forklift)
+          file_manager="$2"
+          ;;
+        *)
+          print -u2 -- "unknown file manager: $2"
+          print -u2 -- "expected: auto, finder, or forklift"
+          exit 2
+          ;;
+      esac
+      shift 2
+      ;;
     -h|--help)
       cat <<'EOF'
-finder-selection.zsh
+finder-get-selected-files
 
-Print all selected Finder items as POSIX paths.
+Print selected Finder or ForkLift items as POSIX paths.
 
 Usage:
-  finder-selection.zsh                 newline-delimited output
-  finder-selection.zsh -0              NUL-delimited output
-  finder-selection.zsh --expand-dirs   expand selected directories into files
-  finder-selection.zsh -0 --expand-dirs
+  finder-get-selected-files                 newline-delimited output
+  finder-get-selected-files -0              NUL-delimited output
+  finder-get-selected-files --expand-dirs   expand selected directories into files
+  finder-get-selected-files -0 --expand-dirs
+  finder-get-selected-files --app forklift
 
 Options:
-  -0, --null      Output NUL-delimited paths
-  --expand-dirs   Replace selected directories with contained files
-  -h, --help      Show this help
+  -0, --null              Output NUL-delimited paths
+  --expand-dirs           Replace selected directories with contained files
+  --app, --file-manager   Select source: auto, finder, or forklift
+  -h, --help              Show this help
 EOF
       exit 0
       ;;
     *)
       print -u2 -- "unknown option: $1"
-      print -u2 -- "try: finder-selection.zsh --help"
+      print -u2 -- "try: finder-get-selected-files --help"
       exit 2
       ;;
   esac
@@ -70,8 +91,98 @@ return out
 APPLESCRIPT
 }
 
+frontmost_file_manager() {
+  osascript <<'APPLESCRIPT' 2>/dev/null
+tell application "System Events"
+	set front_process to first application process whose frontmost is true
+	set front_bundle_id to bundle identifier of front_process
+	set front_name to name of front_process
+end tell
+
+if front_bundle_id is "com.apple.finder" or front_name is "Finder" then
+	return "finder"
+else if front_bundle_id is "com.binarynights.ForkLift" or front_name is "ForkLift" then
+	return "forklift"
+else
+	return ""
+end if
+APPLESCRIPT
+}
+
+# Parse one ForkLift shell-escaped path. ForkLift Tools may pass
+# /some/path/File\ Name.mp4, while forklift-shell may already pass clean paths.
+decode_forklift_path() {
+  local raw="${1:-}"
+  local -a parsed
+
+  [[ -n "$raw" ]] || return 0
+
+  parsed=("${(@Q)${(z)raw}}")
+  print -r -- "${(j: :)parsed}"
+}
+
+forklift_selection_from_lines() {
+  local raw="${1:-}"
+  local line
+
+  [[ -n "$raw" ]] || return 0
+
+  for line in "${(@f)raw}"; do
+    [[ -n "$line" ]] || continue
+    decode_forklift_path "$line"
+  done
+}
+
+forklift_selection_newline() {
+  if [[ -n "${SOURCE_SELECTION_PATHS:-}" ]]; then
+    forklift_selection_from_lines "$SOURCE_SELECTION_PATHS"
+  elif [[ -n "${TARGET_SELECTION_PATHS:-}" ]]; then
+    forklift_selection_from_lines "$TARGET_SELECTION_PATHS"
+  elif [[ -n "${SOURCE_SELECTION_PATH:-}" ]]; then
+    decode_forklift_path "$SOURCE_SELECTION_PATH"
+  elif [[ -n "${TARGET_SELECTION_PATH:-}" ]]; then
+    decode_forklift_path "$TARGET_SELECTION_PATH"
+  fi
+}
+
+select_file_manager() {
+  local selected="$file_manager"
+
+  if [[ "$selected" == auto ]]; then
+    selected="$(frontmost_file_manager || true)"
+
+    if [[ -z "$selected" ]]; then
+      if [[ -n "${SOURCE_SELECTION_PATHS:-}${TARGET_SELECTION_PATHS:-}${SOURCE_SELECTION_PATH:-}${TARGET_SELECTION_PATH:-}" ]]; then
+        selected=forklift
+      else
+        selected=finder
+      fi
+    fi
+  fi
+
+  print -r -- "$selected"
+}
+
 typeset -a files
-files=("${(@f)$(finder_selection_newline)}")
+selection_output=""
+
+case "$(select_file_manager)" in
+  finder)
+    selection_output="$(finder_selection_newline)"
+    ;;
+  forklift)
+    selection_output="$(forklift_selection_newline)"
+    ;;
+  *)
+    selection_output=""
+    ;;
+esac
+
+if [[ -n "$selection_output" ]]; then
+  files=("${(@f)selection_output}")
+else
+  files=()
+fi
 
 if $expand_dirs; then
   typeset -a expanded

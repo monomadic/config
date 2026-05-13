@@ -12,7 +12,7 @@ obj.author = "DeathDisco"
 obj.license = "MIT"
 
 -- Socket path where MPV will listen
-obj.socketPath = "/tmp/.mpv-socket"
+obj.socketPath = os.getenv("MPV_SOCKET") or "/tmp/mpv-socket"
 
 function obj:sendCommand(command)
 	-- Create a new Unix domain socket

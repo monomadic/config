@@ -12,6 +12,7 @@ local state = {
 }
 
 local pending_restore = nil
+local random_nav_script = "smart_playlist_nav/"
 
 local aspect_display = {
     ["16:9"] = "16:9",
@@ -172,20 +173,20 @@ local function toggle_stats()
 end
 
 local function toggle_auto_jump()
-    mp.commandv("script-binding", "toggle_auto_jump")
+    mp.commandv("script-binding", random_nav_script .. "toggle_auto_jump")
 end
 
 local function toggle_auto_seek()
-    mp.commandv("script-binding", "toggle_auto_seek_within_file")
+    mp.commandv("script-binding", random_nav_script .. "toggle_auto_seek_within_file")
 end
 
 local function cycle_jump_delay()
     local options = {
-        { label = "1s", action = "set_delay_1" },
-        { label = "3s", action = "set_delay_3" },
-        { label = "5s", action = "set_delay_5" },
-        { label = "10s", action = "set_delay_10" },
-        { label = "20s", action = "set_delay_20" },
+        { label = "1s", action = random_nav_script .. "set_delay_1" },
+        { label = "3s", action = random_nav_script .. "set_delay_3" },
+        { label = "5s", action = random_nav_script .. "set_delay_5" },
+        { label = "10s", action = random_nav_script .. "set_delay_10" },
+        { label = "20s", action = random_nav_script .. "set_delay_20" },
     }
     local current = format_delay(state.jump_delay)
     local next_idx = 1

@@ -45,6 +45,7 @@ end
 local rj_autojump_on = false
 local rj_autoseek_on = false
 local rj_delay = nil
+local random_nav_script = "smart_playlist_nav/"
 
 local function trim(s)
     return (s or ""):match("^%s*(.-)%s*$")
@@ -245,7 +246,7 @@ local keybar_items = {
         desc = function(badge, fmt_delay)
             return " AUTOJUMP " .. badge(rj_autojump_on) .. fmt_delay()
         end,
-        match = command_equals("script-binding toggle_auto_jump"),
+        match = command_equals("script-binding " .. random_nav_script .. "toggle_auto_jump"),
     },
 }
 
@@ -428,7 +429,7 @@ local function render_bar()
     overlay:update()
 end
 
--- receive random-jump state updates
+-- receive smart random navigation state updates
 mp.register_script_message("keybar-randjump-state", function(a, f, d)
     rj_autojump_on = (a == "1" or a == "true")
     rj_autoseek_on = (f == "1" or f == "true")

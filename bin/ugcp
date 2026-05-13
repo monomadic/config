@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo="${UG_CHORDPRO_REPO:-$HOME/src/tab-scraper}"
+venv="${UG_CHORDPRO_VENV:-$repo/.venv}"
+python="${PYTHON:-python3}"
+deps_stamp="$venv/.ugcp-deps-installed"
+
+if [[ ! -d "$repo" ]]; then
+  echo "ugcp: repo not found: $repo" >&2
+  echo "Set UG_CHORDPRO_REPO=/path/to/tab-scraper if it lives elsewhere." >&2
+  exit 1
+fi
+
+if [[ ! -x "$venv/bin/python" ]]; then
+  "$python" -m venv "$venv"
+fi
+
+if [[ ! -f "$deps_stamp" || "$repo/requirements.txt" -nt "$deps_stamp" || "$repo/pyproject.toml" -nt "$deps_stamp" ]]; then
+  "$venv/bin/python" -m pip install --upgrade pip >/dev/null
+  "$venv/bin/python" -m pip install -r "$repo/requirements.txt"
+  mkdir -p "$(dirname "$deps_stamp")"
+  touch "$deps_stamp"
+fi
+
+PYTHONPATH="$repo${PYTHONPATH:+:$PYTHONPATH}" exec "$venv/bin/python" -m ug_chordpro.cli "$@"
