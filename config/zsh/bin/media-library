@@ -246,6 +246,38 @@ quote_command() {
   print -r -- "${(j: :)${(q)@}}"
 }
 
+print_generated_command() {
+  local source_part playback_part
+
+  source_part="$(quote_command "${fd_cmd[@]}")"
+
+  if $print_only; then
+    print -ru2 -- "media-library: $source_part | tr '\\0' '\\n'"
+    return 0
+  fi
+
+  case "$select_mode" in
+    "")
+      ;;
+    fzf)
+      source_part+=" | fzf-select -0 --print0 --stream"
+      ;;
+    tv)
+      source_part+=" > ${(q)source_tmp}; tv --source-command ${(q)${:-cat ${(q)source_tmp}}} --source-entry-delimiter '\\0' --source-display '{split:/:-1}' --source-output '{}' --no-sort | tr '\\n' '\\0'"
+      ;;
+  esac
+
+  if $vj; then
+    playback_cmd=(mpv-send --socket /tmp/mpv-vj.sock --profile vj play -0)
+  else
+    playback_cmd=(mpv-send play -0)
+  fi
+
+  $shuffle && playback_cmd+=(--shuffle)
+  playback_part="$(quote_command "${playback_cmd[@]}")"
+  print -ru2 -- "media-library: $source_part | $playback_part"
+}
+
 typeset -a collections=()
 typeset -a roots=()
 typeset -a filters=()
@@ -417,16 +449,14 @@ done
 fd_cmd+=(.)
 fd_cmd+=("${search_paths[@]}")
 
-if $verbose; then
-  print -u2 -- "media-library: fd command: $(quote_command "${fd_cmd[@]}")"
-fi
-
 tmp="${TMPDIR:-/tmp}/media-library.$$.$RANDOM.selected"
 source_tmp="${TMPDIR:-/tmp}/media-library.$$.$RANDOM.source"
 cleanup() {
   rm -f -- "$tmp" "$source_tmp"
 }
 trap cleanup EXIT INT TERM
+
+print_generated_command
 
 if $print_only; then
   "${fd_cmd[@]}" | tr '\0' '\n'
@@ -446,7 +476,7 @@ case "$select_mode" in
     [[ -s "$source_tmp" ]] || exit 0
     source_cmd="cat ${(q)source_tmp}"
     if $verbose; then
-      print -u2 -- "media-library: tv source: $source_cmd"
+      print -ru2 -- "media-library: tv source: $source_cmd"
     fi
     tv \
       --source-command "$source_cmd" \
@@ -472,7 +502,7 @@ fi
 $shuffle && playback_cmd+=(--shuffle)
 
 if $verbose; then
-  print -u2 -- "media-library: playback command: $(quote_command "${playback_cmd[@]}")"
+  print -ru2 -- "media-library: playback command: $(quote_command "${playback_cmd[@]}")"
 fi
 
 "${playback_cmd[@]}" < "$tmp"
