@@ -6,15 +6,16 @@
 typeset -ga _cd_fzf_global_static=(
   '$HOME'
   '$HOME/config'
-  '$HOME/src/virtualdj-skin-graveraver'
   '$HOME/Library/Application\ Support/VirtualDJ'
   '$HOME/Movies/Private'
+  '$ICLOUD_HOME/Music/Tablature'
   '$ICLOUD_HOME/Movies/Visuals'
   '$ICLOUD_HOME/Movies/Visuals/Downloads'
 )
 
 typeset -ga _cd_fzf_global_commands=(
   'fd --type d --absolute-path --max-depth 1 . "$HOME" 2>/dev/null'
+  'fd --type d --absolute-path --max-depth 1 . "$HOME/src" 2>/dev/null'
   'fd --type d --absolute-path --max-depth 1 . "$HOME/Music" 2>/dev/null'
   'fd --type d --absolute-path --max-depth 2 . "$HOME/Movies/Porn" 2>/dev/null'
   'fd --type d --absolute-path --max-depth 1 . "$HOME/Library/Application Support/VirtualDJ" 2>/dev/null'

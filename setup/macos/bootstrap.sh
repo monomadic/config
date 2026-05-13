@@ -7,7 +7,7 @@ DOTFILES_DIR="${DOTFILES_DIR:-$HOME/config}"
 XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 DOTTER_LOCAL_CONFIG="$DOTFILES_DIR/dotter/local.toml"
 DOTTER_PROFILE_SOURCE="${DOTTER_PROFILE_SOURCE:-$DOTFILES_DIR/dotter/macos.toml.example}"
-HEALTHCHECK_SCRIPT="$DOTFILES_DIR/scripts/check-macos-bootstrap.sh"
+HEALTHCHECK_SCRIPT="$DOTFILES_DIR/setup/macos/check.sh"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then

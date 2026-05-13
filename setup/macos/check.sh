@@ -5,7 +5,7 @@ set -euo pipefail
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/config}"
 GLOBAL_CONFIG="$DOTFILES_DIR/dotter/global.toml"
 LOCAL_CONFIG="$DOTFILES_DIR/dotter/local.toml"
-ICON_SCRIPT="$DOTFILES_DIR/scripts/macos-apply-file-icons.sh"
+ICON_SCRIPT="$DOTFILES_DIR/setup/macos/apply-file-icons.sh"
 
 errors=0
 warnings=0
