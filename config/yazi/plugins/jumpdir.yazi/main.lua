@@ -85,6 +85,6 @@ return {
 			return
 		end
 
-		ya.mgr_emit("cd", { target })
+		ya.emit("cd", { target })
 	end,
 }
