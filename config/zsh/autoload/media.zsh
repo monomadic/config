@@ -127,8 +127,8 @@ alias .select-clips="fd-clips | strip-slash | fzf-select | mpv-send play"
 
 alias .select-visuals="fd-media . {${ICLOUD_HOME},${HOME},/Volumes/*}/Movies/Visuals(N) | fzf-select | mpv-send play"
 
-alias .play-visuals="fd-media --print0 . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Visuals(N) | mpv-send play -0"
-alias .play-visuals-bg-black="fd-media . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Visuals(N) | grep '#bg-black' | mpv-send play"
+alias .play-visuals="fd-media --print0 . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Visuals(N) | mpv-vj play -0"
+alias .play-visuals-bg-black="fd-media . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Visuals(N) | grep '#bg-black' | mpv-vj play"
 alias \#bg-black=".play-visuals-bg-black"
 
 alias .select-external="fd-media . /Volumes/*/Movies/Porn(N) | fzf-select | mpv-send play"
