@@ -182,7 +182,7 @@ _validate() {
 }
 
 # ── main ──────────────────────────────────────────────────────────────────────
-# If no files provided via stdin, fall back to `ls-media`.
+# If no files provided via stdin, fall back to `fd-media`.
 
 typeset -i _processed=0
 
@@ -195,13 +195,13 @@ _process_stream() {
 }
 
 if [[ -t 0 ]]; then
-    _info "No stdin provided; using ls-media as input"
-    ls-media | _process_stream
+    _info "No stdin provided; using fd-media as input"
+    fd-media | _process_stream
 else
     _process_stream
     if (( _processed == 0 )); then
-        _info "Stdin empty; using ls-media as input"
-        ls-media | _process_stream
+        _info "Stdin empty; using fd-media as input"
+        fd-media | _process_stream
     fi
 fi
 

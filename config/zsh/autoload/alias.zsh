@@ -147,16 +147,27 @@ fd-video-color() {
 }
 
 fd-visuals() {
-  local query=$1
+  local print0=false
+  if [[ ${1:-} == "-0" || ${1:-} == "--print0" ]]; then
+    print0=true
+    shift
+  fi
+
+  local query=${1:-.}
   local -a roots
   [[ -n $DJ_VISUALS_PATH ]] && roots+=($DJ_VISUALS_PATH)
   roots+=($HOME/Movies/Visuals(N) /Volumes/*/Movies/Visuals(N))
-  fd-video --absolute-path -- "$query" "${roots[@]}"
+
+  if $print0; then
+    fd-media --print0 -- "$query" "${roots[@]}"
+  else
+    fd-media -- "$query" "${roots[@]}"
+  fi
 }
 
 select-visuals() {
   local query=$1
-  fd-visuals "$query" | mpv-socket
+  fd-visuals "$query" | fzf-select | mpv-vj play --shuffle
 }
 
 # ============================================================================
@@ -166,21 +177,15 @@ select-visuals() {
 mpv-play-visuals() {
   local query=$1
   local -a files
-  while IFS= read -r -d '' f; do files+=("$f"); done < <(fd-visuals "$query")
+  while IFS= read -r -d '' f; do files+=("$f"); done < <(fd-visuals -0 "$query")
 
   (( ${#files} )) || { print -r -- "no visuals found"; return 1 }
 
-  mpv-play \
-    --player-operation-mode=pseudo-gui \
-    --loop-file=inf --loop-playlist=inf \
-    --image-display-duration=5 \
-    --osd-bar=no --osd-duration=0 \
-    --mute=yes \
-    -- "${files[@]}"
+  mpv-vj play --shuffle -- "${files[@]}"
 }
 
 mpv-select-all-v2() {
-  kitty-exec "  media" "#A442F3" --shell "ls-media | mpv-select"
+  kitty-exec "  fd-media" "#A442F3" --shell "fd-media | fzf-select | mpv-send play"
 }
 
 kitty-mpv-tab() {
@@ -190,7 +195,7 @@ kitty-mpv-tab() {
 mpv-select-queue() {
   kitty @ set-tab-title "mpv:queue"
   kitty @ set-tab-color --match title:"mpv" active_bg="#A442F3" active_fg="#050F63" inactive_fg="#A442F3" inactive_bg="#030D43"
-  ls-media | mpv-select
+  fd-media | fzf-select | mpv-send play
 }
 
 # ============================================================================
@@ -397,9 +402,9 @@ mpv-focus() {
 alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
 
 
-alias mpv-play-porn="setopt local_options null_glob && mpv-play $~MEDIA_GLOBS"
-alias mpv-play-volumes="mpv-play /Volumes/*/Movies/Porn/**/*.mp4"
-alias mpv-play-tower="mpv-play /Volumes/Tower/Movies/Porn"
+alias mpv-play-porn="setopt local_options null_glob && mpv-send play $~MEDIA_GLOBS"
+alias mpv-play-volumes="fd-media --print0 . /Volumes/*/Movies/Porn(N) | mpv-send play -0"
+alias mpv-play-tower="fd-media --print0 . /Volumes/Tower/Movies/Porn | mpv-send play -0"
 alias .tower=mpv-play-tower
 
 

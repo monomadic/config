@@ -81,8 +81,8 @@ exec fzf \
   --bind 'alt-p:toggle-preview' \
   --bind 'ctrl-alt-r:execute-silent(kitty @ launch --type=background --cwd=current open --reveal {})' \
   --bind 'ctrl-alt-p:execute-silent(kitty @ launch --type=background --cwd=current qlmanage -p {})' \
-  --bind 'ctrl-alt-p:execute-silent(kitty @ launch --type=background --cwd=current mpv --no-fs {})' \
-  --bind 'ctrl-alt-p:select-all+execute-silent(kitty @ launch --type=background mpv --shuffle --loop-playlist {+} &)+deselect-all' \
+  --bind 'ctrl-alt-p:execute-silent(kitty @ launch --type=background --cwd=current mpv-send play -- {q})' \
+  --bind 'ctrl-alt-p:select-all+execute-silent(kitty @ launch --type=background mpv-vj play --shuffle -- {+q} &)+deselect-all' \
   --bind 'alt-o:execute(echo "exec: reveal {}" && reveal {})' \
   --bind 'ctrl-s:accept' \
   --header "${HEADER_TEXT}" \

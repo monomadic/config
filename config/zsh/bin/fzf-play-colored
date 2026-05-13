@@ -84,11 +84,11 @@ fzf \
   --preview-window="$PREVIEW_WINDOW" \
   --delimiter=$'\t' \
   --with-nth=2 \
-  --bind 'enter:select-all+execute-silent(mpv-play {+1} &)+deselect-all' \
-  --bind 'alt-enter:select-all+execute-silent(mpv-play --loop-file=1 --length=10 --shuffle {+1})+deselect-all' \
-  --bind 'alt-o:execute-silent(mpv-play {+1q})' \
-  --bind 'alt-L:select-all+execute-silent(mpv-play --loop-file=1 --length=2 --shuffle {+1})+deselect-all' \
-  --bind 'alt-m:select-all+execute-silent(mpv-play {+1})+deselect-all' \
+  --bind 'enter:select-all+execute-silent(mpv-send play -- {+1q} &)+deselect-all' \
+  --bind 'alt-enter:select-all+execute-silent(mpv-vj play --shuffle -- {+1q})+deselect-all' \
+  --bind 'alt-o:execute-silent(mpv-send play -- {+1q})' \
+  --bind 'alt-L:select-all+execute-silent(mpv-vj play --shuffle -- {+1q})+deselect-all' \
+  --bind 'alt-m:select-all+execute-silent(mpv-send play -- {+1q})+deselect-all' \
   --bind 'alt-c:execute-silent(echo "{+1}" | pbcopy)' \
   --bind 'alt-t:execute-silent(kitty @ launch --cwd "$(dirname {1})")' \
   --bind 'alt-a:select-all,alt-d:deselect-all' \
@@ -98,8 +98,8 @@ fzf \
   --bind 'ctrl-r:execute(echo "exec: open --reveal {1}" && open --reveal {1})' \
   --bind 'ctrl-alt-r:execute-silent(kitty @ launch --type=background --cwd=current open --reveal {1})' \
   --bind 'ctrl-alt-p:execute-silent(kitty @ launch --type=background --cwd=current qlmanage -p {1})' \
-  --bind 'ctrl-alt-p:execute-silent(kitty @ launch --type=background --cwd=current mpv --no-fs {1})' \
-  --bind 'ctrl-alt-p:select-all+execute-silent(kitty @ launch --type=background mpv --shuffle --loop-playlist {+1} &)+deselect-all' \
+  --bind 'ctrl-alt-p:execute-silent(kitty @ launch --type=background --cwd=current mpv-send play -- {1q})' \
+  --bind 'ctrl-alt-p:select-all+execute-silent(kitty @ launch --type=background mpv-vj play --shuffle -- {+1q} &)+deselect-all' \
   --bind 'alt-o:execute(echo "exec: reveal {1}" && reveal {1})' \
   --bind 'ctrl-s:accept' \
   --bind 'ctrl-d:execute-silent(ls -t {1} | xargs -r -d "\n" echo > /tmp/fzf-sorted; cat /tmp/fzf-sorted)' \

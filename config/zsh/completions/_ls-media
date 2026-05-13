@@ -1,13 +1,19 @@
-#compdef ls-media
+#compdef fd-media ls-media
 
-__ls-media() {
+__fd_media() {
   _arguments -s \
+    '--path[Add a search path]:path:_files -/' \
+    '--path=[Add a search path]:path:_files -/' \
     '--match-string[Only list files where the path contains all the given strings (case-insensitive). Can be used multiple times]:string: ' \
     '--match-regex[Only list files where the path matches all the given regex patterns (case-insensitive). Can be used multiple times]:regex: ' \
-    '--sort[Sort files by the given option (modified, size, name)]:sort-option:(modified size name)' \
-    '--reverse[Reverse the sort order and the final list]' \
-    '--verbose[Enable verbose logging]' \
+    '--sort[Sort files by timestamp]:sort-option:(modified created)' \
+    '--sort-created[Sort files by creation time]' \
+    '--reverse[Reverse the sort order]' \
+    '--print0[Output NUL-delimited paths]' \
+    '--absolute-path[Compatibility no-op; fd-video already emits absolute paths]' \
+    '--verbose[Print debug logs to stderr]' \
+    '(-h --help)'{-h,--help}'[Show help]' \
     '*:filename:_files'
 }
 
-__ls-media "$@"
+__fd_media "$@"
