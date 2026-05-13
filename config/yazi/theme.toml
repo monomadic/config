@@ -145,7 +145,7 @@ rules = [
 
 [icon]
 dirs = [
-  { name = "*",         text = "", fg = "#ffd75f" },
+  { name = "*",         text = "􀈕 ", fg = "#ffd75f" },
   { name = ".git",      text = "", fg = "#ff7ad9" },
   { name = ".config",   text = "", fg = "#66e2ff" },
   { name = "Desktop",   text = "", fg = "#66e2ff" },
@@ -161,7 +161,7 @@ dirs = [
 
 exts = [
   # media
-  { name = "mp4",  text = "󰈫", fg = "#66e2ff" },
+  { name = "mp4",  text = "􀊄 ", fg = "#66e2ff" },
   { name = "mkv",  text = "󰈫", fg = "#66e2ff" },
   { name = "mov",  text = "󰈫", fg = "#66e2ff" },
   { name = "webm", text = "󰈫", fg = "#66e2ff" },
