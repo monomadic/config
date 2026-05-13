@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo="${UG_CHORDPRO_REPO:-$HOME/src/tab-scraper}"
-venv="${UG_CHORDPRO_VENV:-$repo/.venv}"
+repo="${TAB_SCRAPER_REPO:-${UG_CHORDPRO_REPO:-$HOME/src/tab-scraper}}"
+venv="${TAB_SCRAPER_VENV:-${UG_CHORDPRO_VENV:-$repo/.venv}}"
 python="${PYTHON:-python3}"
-deps_stamp="$venv/.ugcp-deps-installed"
+deps_stamp="$venv/.tab-scraper-deps-installed"
 
 if [[ ! -d "$repo" ]]; then
-  echo "ugcp: repo not found: $repo" >&2
-  echo "Set UG_CHORDPRO_REPO=/path/to/tab-scraper if it lives elsewhere." >&2
+  echo "tab-scraper: repo not found: $repo" >&2
+  echo "Set TAB_SCRAPER_REPO=/path/to/tab-scraper if it lives elsewhere." >&2
   exit 1
 fi
 
