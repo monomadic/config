@@ -18,7 +18,7 @@ packages = [
 ]
 
 # Tracked under `config/` but not wired into Dotter yet:
-# beatportdl, compressor, git, homebrew, iterm, mpv-vj, ollama, python,
+# beatportdl, compressor, git, homebrew, iterm, ollama, python,
 # refind, tag-media, weston, yofi
 
 [variables]

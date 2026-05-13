@@ -13,7 +13,13 @@ This repo is now organized around one rule:
 
 ```bash
 git clone https://github.com/monomadic/config "$HOME/config"
-bash "$HOME/config/scripts/setup-macos.sh"
+bash "$HOME/config/setup/macos/bootstrap.sh"
+```
+
+Fresh macOS install, without cloning first:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/monomadic/config/master/setup/macos/bootstrap.sh | bash
 ```
 
 That script will:
@@ -36,18 +42,18 @@ That script will:
 Manual deploy:
 
 ```bash
-~/config/config/zsh/bin/dotter-deploy
+~/config/setup/macos/deploy.sh
 ```
 
-On macOS, `dotter-deploy` also runs [scripts/macos-apply-file-icons.sh](/Users/nom/config/scripts/macos-apply-file-icons.sh) after Dotter finishes. Edit the `ICON_MAPPINGS` array there to change which apps get custom icons.
+On macOS, deploy also runs [setup/macos/apply-file-icons.sh](/Users/nom/config/setup/macos/apply-file-icons.sh) after Dotter finishes. Edit the `ICON_MAPPINGS` array there to change which apps get custom icons.
 
 Preflight check:
 
 ```bash
-~/config/scripts/check-macos-bootstrap.sh
+~/config/setup/macos/check.sh
 ```
 
-`dotter-deploy` runs this health check automatically unless `DOTTER_SKIP_HEALTHCHECK=1` is set.
+Deploy runs this health check automatically unless `DOTTER_SKIP_HEALTHCHECK=1` is set.
 
 ## Structure
 
@@ -57,7 +63,8 @@ The intended top-level layout is:
 - `config/zsh/`: shell config, autoloads, and zsh-specific executables
 - `config/neovim/`: dormant editor source kept in-tree for later revival
 - `assets/`: fonts and icons
-- `scripts/`: bootstrap and machine setup scripts
+- `setup/`: bootstrap, deploy, and machine setup scripts
+- `scripts/`: miscellaneous helper scripts and sourceable shell snippets
 - `bin/` and `config/zsh/bin/`: maintained user-facing executables
 - `utils/`: small personal utility source trees maintained in this repo
 - `vendor/bin/`: retained third-party or custom-built binaries
@@ -72,7 +79,6 @@ Current source-only config directories that are kept in-tree but not deployed th
 - `config/git`
 - `config/homebrew`
 - `config/iterm`
-- `config/mpv-vj`
 - `config/ollama`
 - `config/python`
 - `config/refind`

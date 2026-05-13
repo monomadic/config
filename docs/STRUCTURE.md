@@ -8,7 +8,8 @@ This repo should optimize for two things:
 ## Rules
 
 - `dotter/` contains deployment manifests only.
-- `scripts/` contains bootstrap and machine-setup entrypoints.
+- `setup/` contains bootstrap, deploy, and machine-setup entrypoints.
+- `scripts/` contains miscellaneous helper scripts and sourceable shell snippets.
 - `config/` contains active source config in a flat layout; each direct child should describe one tool or app.
 - Do not add new domain buckets under `config/` such as `editors/`, `media/`, or `windowing/`.
 - Prefer directory names that match the tool or app itself, such as `config/zsh`, `config/helix`, or `config/virtualdj`.
@@ -81,7 +82,6 @@ Current source-only directories kept for reference or future Dotter wiring:
 - `config/git`
 - `config/homebrew`
 - `config/iterm`
-- `config/mpv-vj`
 - `config/ollama`
 - `config/python`
 - `config/refind`

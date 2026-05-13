@@ -20,7 +20,7 @@ find_keyword  = { fg = "#ffe66d", bold = true }
 [indicator]
 parent        = { fg = "#0f0f10", bg = "#7A86D1" }
 current       = { fg = "#0f0f10", bg = "#7A86D1" }
-preview       = { fg = "#ffe66d" }
+preview       = { underline = false }
 hovered       = { bg = "#151519" }
 
 # ------------------------------------------------------------
@@ -118,24 +118,11 @@ title_error = { fg = "#ff5f87", bold = true }
 
 [filetype]
 rules = [
-  # images
-  { mime = "image/*", fg = "#c792ea" },
-
-  # audio / video
-  { mime = "audio/*", fg = "#66e2ff" },
-  { mime = "video/*", fg = "#66e2ff" },
-
-  # archives
-  { mime = "application/{,g}zip", fg = "#ffb86c" },
-  { mime = "application/{tar,bzip*,7z-compressed,xz,rar}", fg = "#ffb86c" },
-
-  # documents
-  { mime = "application/{pdf,doc,rtf,vnd.*}", fg = "#7df9aa" },
-
-  # executables / special
-  { url = "*", is = "exec",   fg = "#7df9aa" },
+  # Keep filename text neutral
   { url = "*", is = "orphan", fg = "#ff5f87" },
   { url = "*", is = "dummy",  fg = "#ff5f87" },
+  { url = "*/", fg = "#f8f8f2" },
+  { url = "*",  fg = "#f8f8f2" },
 ]
 
 # ------------------------------------------------------------
@@ -160,11 +147,21 @@ dirs = [
 ]
 
 exts = [
-  # media
-  { name = "mp4",  text = "􀊄 ", fg = "#66e2ff" },
-  { name = "mkv",  text = "󰈫", fg = "#66e2ff" },
-  { name = "mov",  text = "󰈫", fg = "#66e2ff" },
-  { name = "webm", text = "󰈫", fg = "#66e2ff" },
+  # video
+  { name = "mp4",  text = "􀊕 ", fg = "#7df9aa" },
+  { name = "mkv",  text = "󰈫", fg = "#7df9aa" },
+  { name = "mov",  text = "󰈫", fg = "#7df9aa" },
+  { name = "webm", text = "󰈫", fg = "#7df9aa" },
+  { name = "m4v",  text = "󰈫", fg = "#7df9aa" },
+  { name = "avi",  text = "󰈫", fg = "#7df9aa" },
+  { name = "wmv",  text = "󰈫", fg = "#7df9aa" },
+  { name = "flv",  text = "󰈫", fg = "#7df9aa" },
+  { name = "mpg",  text = "󰈫", fg = "#7df9aa" },
+  { name = "mpeg", text = "󰈫", fg = "#7df9aa" },
+  { name = "ts",   text = "󰈫", fg = "#7df9aa" },
+  { name = "m2ts", text = "󰈫", fg = "#7df9aa" },
+
+  # audio
   { name = "mp3",  text = "󰎆", fg = "#66e2ff" },
   { name = "flac", text = "󰎆", fg = "#66e2ff" },
   { name = "wav",  text = "󰎆", fg = "#66e2ff" },
@@ -200,5 +197,5 @@ conds = [
   { if = "char",   text = "󰆼", fg = "#ffb86c" },
   { if = "fifo",   text = "󰟦", fg = "#c792ea" },
   { if = "sock",   text = "󰣨", fg = "#c792ea" },
-  { if = "!dir",   text = "󰈔", fg = "#8f96a3" },
+  { if = "!dir",   text = "󰈔", fg = "#66e2ff" },
 ]

@@ -16,11 +16,17 @@ if [[ ! -x "$venv/bin/python" ]]; then
   "$python" -m venv "$venv"
 fi
 
-if [[ ! -f "$deps_stamp" || "$repo/requirements.txt" -nt "$deps_stamp" || "$repo/pyproject.toml" -nt "$deps_stamp" ]]; then
-  "$venv/bin/python" -m pip install --upgrade pip >/dev/null
-  "$venv/bin/python" -m pip install -r "$repo/requirements.txt"
-  mkdir -p "$(dirname "$deps_stamp")"
-  touch "$deps_stamp"
-fi
+case "${1:-}" in
+  ""|-h|--help|help)
+    ;;
+  *)
+    if [[ ! -f "$deps_stamp" || "$repo/requirements.txt" -nt "$deps_stamp" || "$repo/pyproject.toml" -nt "$deps_stamp" ]]; then
+      "$venv/bin/python" -m pip install --upgrade pip --quiet >/dev/null
+      "$venv/bin/python" -m pip install --quiet -r "$repo/requirements.txt"
+      mkdir -p "$(dirname "$deps_stamp")"
+      touch "$deps_stamp"
+    fi
+    ;;
+esac
 
 PYTHONPATH="$repo${PYTHONPATH:+:$PYTHONPATH}" exec "$venv/bin/python" -m ug_chordpro.cli "$@"
