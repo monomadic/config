@@ -243,6 +243,7 @@ for input in "$files[@]"; do
 
   output="${stem} [Topaz - ${filename_preset}].${ext}"
   log_file="${LOG_DIR}/${base} [Topaz - ${safe_preset}].log"
+  ffmpeg_preset_flag="-${preset_flag#--}"
 
   [[ -e "$output" ]] && {
     print -P -- "%F{yellow}skip:%f output exists"
@@ -255,7 +256,7 @@ for input in "$files[@]"; do
     -hide_banner
     -i "$input"
     -sws_flags "spline+accurate_rnd+full_chroma_int"
-    "$preset_flag" "$preset_value"
+    "$ffmpeg_preset_flag" "$preset_value"
     -c:v hevc_videotoolbox
     -profile:v main
     -tag:v hvc1
@@ -263,7 +264,7 @@ for input in "$files[@]"; do
     -allow_sw 1
     -g 30
     -b:v 30M
-    -map 0:a?
+    -map "0:a?"
     -c:a copy
     -map_metadata 0
     -map_metadata:s:v 0:s:v
