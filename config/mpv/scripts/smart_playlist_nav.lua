@@ -304,6 +304,7 @@ mp.add_forced_key_binding("}", "playlist-next-track", play_next_entry)
 mp.add_forced_key_binding("\\", "smart-random-position", random_chapter_or_seek)
 mp.add_forced_key_binding("|", "playlist-random-track", random_playlist_entry)
 
+mp.add_key_binding(nil, "playlist-random-chapter", random_chapter)
 mp.add_key_binding(nil, "random_playlist_jump", random_playlist_jump)
 mp.add_key_binding(nil, "toggle_auto_jump", toggle_auto_jump)
 mp.add_key_binding(nil, "toggle_auto_seek_within_file", toggle_auto_seek_within_file)

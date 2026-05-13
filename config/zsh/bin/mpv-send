@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-SOCKET="${SOCKET:-${MPV_SOCKET:-/tmp/mpv-socket}}"
+SOCKET="${MPV_SOCKET:-${SOCKET:-/tmp/mpv-socket}}"
 MPV_LOG="${MPV_LOG:-/tmp/mpv-ipc.log}"
 MPV_PROFILE="${MPV_PROFILE:-}"
 MPV_SEND_BATCH_SIZE="${MPV_SEND_BATCH_SIZE:-64}"
@@ -97,7 +97,8 @@ Options:
   --verbose               Print IPC/debug messages
 
 Env:
-  SOCKET=/tmp/mpv-socket or MPV_SOCKET=/tmp/mpv-socket
+  MPV_SOCKET=/tmp/mpv-socket
+  SOCKET=/tmp/mpv-socket is also accepted for compatibility
   MPV_PROFILE=vj
   MPV_LOG=/tmp/mpv-ipc.log
   MPV_SEND_BATCH_SIZE=64

@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-SOCKET="/tmp/mpv-socket"
+SOCKET="${MPV_SOCKET:-/tmp/mpv-socket}"
 
 # --- Argument parsing ---
 show_absolute=false

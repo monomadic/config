@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 
-SOCKET="${TMPDIR:-/tmp}/mpv-socket"
+SOCKET="${MPV_SOCKET:-/tmp/mpv-socket}"
 rm -f -- "$SOCKET" 2>/dev/null || true
 
 mpv --idle=yes \
