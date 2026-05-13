@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mapper device="DDJGRV6" version="850" date="2026-05-05">
+<mapper device="DDJGRV6" version="850" date="2026-05-11">
 	<info>http://www.virtualdj.com/manuals/hardware/pioneer/ddjGRV6/index.html</info>
 	<map value="ONINIT" action="fake_master on &amp; fake_hp on &amp; fake_hpmix on &amp; setting_setsession &apos;eqModeDual&apos; &apos;None&apos; &amp; setting_setsession &apos;exclusiveAudioAccess&apos; &apos;Yes&apos; &amp; deck 2 effect_clone 1 &amp; deck 3 effect_clone 1 &amp; deck 4 effect_clone 1 &amp; deck all effect_select_toggle &apos;stems&apos; &apos;Echo Out&apos; &amp; effect_beats &apos;stems&apos; 1bt &amp; deck all effect_active colorfx off &amp; deck all filter_activate off &amp; deck all filter 50%" />
 	<map value="ONEXIT" action="fake_master off &amp; fake_hp off &amp; fake_hpmix off" />
@@ -38,7 +38,7 @@
 	<map value="SHIFT_CALL+" action="loop_double" />
 	<map value="MEMORY" action="holding ? loop_delete : loop_load ? loop_load_prepare : loop_save" />
 	<map value="SHIFT_MEMORY" action="loop_load" />
-	<map value="SYNC" action="phrase_sync 16 &amp; sync &amp; match_key &amp; match_bpm" />
+	<map value="SYNC" action="phrase_sync 16 &amp; sync &amp; match_key &amp; match_bpm &amp; phrase_sync 16" />
 	<map value="SHIFT_SYNC" action="pitch_reset" />
 	<map value="LED_SYNC" action="loaded ? is_sync ? on : blink 200ms" />
 	<map value="SHIFT_LED_SYNC" action="loaded ? pitch_reset ? blink 300ms : is_sync" />
