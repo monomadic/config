@@ -131,6 +131,21 @@ rules = [
 # ------------------------------------------------------------
 
 [icon]
+prepend_globs = [
+  { url = "*.mp4",  text = "􀊕 ", fg = "#7df9aa" },
+  { url = "*.mkv",  text = "󰈫", fg = "#7df9aa" },
+  { url = "*.mov",  text = "󰈫", fg = "#7df9aa" },
+  { url = "*.webm", text = "󰈫", fg = "#7df9aa" },
+  { url = "*.m4v",  text = "󰈫", fg = "#7df9aa" },
+  { url = "*.avi",  text = "󰈫", fg = "#7df9aa" },
+  { url = "*.wmv",  text = "󰈫", fg = "#7df9aa" },
+  { url = "*.flv",  text = "󰈫", fg = "#7df9aa" },
+  { url = "*.mpg",  text = "󰈫", fg = "#7df9aa" },
+  { url = "*.mpeg", text = "󰈫", fg = "#7df9aa" },
+  { url = "*.ts",   text = "󰈫", fg = "#7df9aa" },
+  { url = "*.m2ts", text = "󰈫", fg = "#7df9aa" },
+]
+
 dirs = [
   { name = "*",         text = "􀈕 ", fg = "#ffd75f" },
   { name = ".git",      text = "", fg = "#ff7ad9" },
@@ -189,6 +204,7 @@ exts = [
 ]
 
 conds = [
+  { if = "!dir",   text = "󰈔", fg = "#66e2ff" },
   { if = "dir",    text = "", fg = "#ffd75f" },
   { if = "exec",   text = "󰆍", fg = "#7df9aa" },
   { if = "link",   text = "", fg = "#66e2ff" },
@@ -197,5 +213,4 @@ conds = [
   { if = "char",   text = "󰆼", fg = "#ffb86c" },
   { if = "fifo",   text = "󰟦", fg = "#c792ea" },
   { if = "sock",   text = "󰣨", fg = "#c792ea" },
-  { if = "!dir",   text = "󰈔", fg = "#66e2ff" },
 ]
