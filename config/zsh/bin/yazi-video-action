@@ -1,0 +1,69 @@
+#!/usr/bin/env zsh
+emulate -L zsh
+set -euo pipefail
+
+usage() {
+  print -u2 -- "Usage: ${0:t} <trim-intro|trim-outro|rename-media> <hovered-path> [selected-path ...]"
+}
+
+is_video_file() {
+  local path="$1"
+  local mime
+
+  [[ -f "$path" ]] || return 1
+
+  mime="$(file --brief --mime-type -- "$path" 2>/dev/null || true)"
+  [[ "$mime" == video/* ]]
+}
+
+(( $# >= 2 )) || {
+  usage
+  exit 2
+}
+
+action="$1"
+shift
+hovered="$1"
+shift
+
+paths=( "$@" )
+if (( ${#paths} == 0 )); then
+  paths=( "$hovered" )
+fi
+
+videos=()
+skipped=0
+
+for path in "${paths[@]}"; do
+  if is_video_file "$path"; then
+    videos+=( "$path" )
+  else
+    (( skipped += 1 ))
+  fi
+done
+
+if (( ${#videos} == 0 )); then
+  print -u2 -- "No video files selected or hovered."
+  exit 1
+fi
+
+if (( skipped > 0 )); then
+  print -u2 -- "Skipping ${skipped} non-video item(s)."
+fi
+
+case "$action" in
+  trim-intro)
+    exec ffmpeg-lossless-cut-by-fzf-keyframe-select "${videos[@]}"
+    ;;
+  trim-outro)
+    exec ffmpeg-lossless-cut-by-fzf-keyframe-select --reverse "${videos[@]}"
+    ;;
+  rename-media)
+    exec rename-media "${videos[@]}"
+    ;;
+  *)
+    print -u2 -- "Unknown action: $action"
+    usage
+    exit 2
+    ;;
+esac

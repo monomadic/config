@@ -18,6 +18,6 @@ return {
 		end
 
 		local delta = target_index - cur.cursor
-		ya.mgr_emit("arrow", { delta - 1 })
+		ya.emit("arrow", { delta - 1 })
 	end,
 }

@@ -74,6 +74,26 @@ run  = "shell --orphan -- /usr/bin/open -R %h"
 desc = "Reveal hovered file in Finder"
 
 [[mgr.prepend_keymap]]
+on   = [ "<Space>", "t" ]
+run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d --title " trim intro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-video-action trim-intro "$@"; printf "\nPress enter to close "; read -r _' zsh %h %s'''
+desc = "trim intro"
+
+[[mgr.prepend_keymap]]
+on   = [ "<Space>", "T" ]
+run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d --title " trim outro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-video-action trim-outro "$@"; printf "\nPress enter to close "; read -r _' zsh %h %s'''
+desc = "trim outro"
+
+[[mgr.prepend_keymap]]
+on   = [ "<Space>", "m" ]
+run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d --title " rename media " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-video-action rename-media "$@"; printf "\nPress enter to close "; read -r _' zsh %h %s'''
+desc = "rename media"
+
+[[mgr.prepend_keymap]]
+on   = "\\"
+run  = [ "toggle", "arrow 1" ]
+desc = "Select hovered file"
+
+[[mgr.prepend_keymap]]
 on   = "<D-a>"
 run  = "toggle_all --state=on"
 desc = "Select all files"
