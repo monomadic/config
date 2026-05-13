@@ -41,7 +41,7 @@ ICON_MAPPINGS=(
   "Brave Browser.app|brave.icns"
   "Codex.app|codex.icns"
   "Firefox.app|firefox1.icns"
-  "ForkLift.app|forklift1.icns"
+  "ForkLift.app|finder-02.icns"
   "Kitty.app|term2.icns"
   "Numi.app|numi.icns"
   "Spotify.app|spotify.icns"

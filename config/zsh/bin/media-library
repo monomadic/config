@@ -1,0 +1,478 @@
+#!/usr/bin/env zsh
+
+set -euo pipefail
+setopt extended_glob null_glob
+
+script_dir="${0:A:h}"
+path=("$script_dir" $path)
+
+typeset -ga COLLECTION_ORDER ROOT_ORDER FILTER_ORDER SELECT_ORDER SORT_ORDER DEFAULT_ROOTS
+typeset -gA COLLECTION_SUFFIX COLLECTION_DESC ROOT_DESC FILTER_DESC SELECT_DESC SORT_DESC SORT_FD_KEY
+
+COLLECTION_ORDER=(masters clips downloads visuals private)
+COLLECTION_SUFFIX=(
+  masters   "Porn/Masters/Full"
+  clips     "Porn/Masters/Clips"
+  downloads "Porn/Masters/Downloads"
+  visuals   "Visuals"
+  private   "Private"
+)
+COLLECTION_DESC=(
+  masters   "Porn/Masters/Full"
+  clips     "Porn/Masters/Clips"
+  downloads "Porn/Masters/Downloads"
+  visuals   "Visuals"
+  private   "Private"
+)
+
+ROOT_ORDER=(local icloud tower volumes)
+ROOT_DESC=(
+  local   "\$HOME/Movies"
+  icloud  "\$ICLOUD_HOME/Movies"
+  tower   "/Volumes/Tower/Movies"
+  volumes "/Volumes/*/Movies"
+)
+DEFAULT_ROOTS=(local icloud volumes)
+
+FILTER_ORDER=(quality top-quality best good)
+FILTER_DESC=(
+  quality     "4k+ or 60fps+ or 5 star+"
+  top-quality "4k+ and 60fps+ and 4 star+"
+  best        "4 star+"
+  good        "3 star+"
+)
+
+SELECT_ORDER=(fzf tv)
+SELECT_DESC=(
+  fzf "fzf-select"
+  tv  "television"
+)
+
+SORT_ORDER=(mtime ctime)
+SORT_DESC=(
+  mtime "modified time"
+  ctime "creation time"
+)
+SORT_FD_KEY=(
+  mtime "modified"
+  ctime "created"
+)
+
+typeset -r REGEX_4K_PLUS='(2160p?|4320p?|[48]k)'
+typeset -r REGEX_60FPS_PLUS='(60[ _-]?fps|120[ _-]?fps|240[ _-]?fps)'
+typeset -r REGEX_3STAR_PLUS='(★★★|★★★★|★★★★★)'
+typeset -r REGEX_4STAR_PLUS='(★★★★|★★★★★)'
+typeset -r REGEX_5STAR_PLUS='★★★★★'
+
+usage() {
+  cat >&2 <<'EOF'
+Usage: media-library [collection...] [options]
+
+Build a media file list from named collections and roots, optionally select
+from it, then send it to mpv.
+
+With no arguments, this uses fd-media's default paths and plays the result.
+
+Collections:
+  masters      Porn/Masters/Full
+  clips        Porn/Masters/Clips
+  downloads    Porn/Masters/Downloads
+  visuals      Visuals
+  private      Private
+
+Root options:
+  --local      $HOME/Movies
+  --icloud     $ICLOUD_HOME/Movies
+  --tower      /Volumes/Tower/Movies
+  --volumes    /Volumes/*/Movies
+
+Selection:
+  --select         Select with fzf-select
+  --select=fzf     Select with fzf-select
+  --select=tv      Select with television
+
+Sort:
+  --sort=mtime     Sort by modified time (default)
+  --sort=ctime     Sort by creation time
+  --no-sort        Preserve fd-media order
+
+Filters:
+  --quality        4k+ or 60fps+ or 5 star+
+  --top-quality    4k+ and 60fps+ and 4 star+
+  --best           4 star+
+  --good           3 star+
+  --filter NAME    Apply a named filter
+
+Playback:
+  --vj             Use the VJ mpv socket/profile
+  --shuffle        Shuffle after loading
+  --no-shuffle     Disable implicit shuffle from --vj
+  --print          Print matching paths instead of playing
+
+Examples:
+  media-library --local
+  media-library clips
+  media-library clips masters --local
+  media-library masters --best --select
+  media-library visuals --sort=mtime --select=tv --vj
+EOF
+}
+
+die() {
+  print -u2 -- "media-library: $*"
+  exit 1
+}
+
+contains_key() {
+  local key="$1"
+  shift
+  local item
+  for item in "$@"; do
+    [[ "$item" == "$key" ]] && return 0
+  done
+  return 1
+}
+
+list_values() {
+  local kind="$1"
+  local item
+
+  case "$kind" in
+    collections|collection)
+      for item in "${COLLECTION_ORDER[@]}"; do
+        print -r -- "$item:${COLLECTION_DESC[$item]}"
+      done
+      ;;
+    roots|root)
+      for item in "${ROOT_ORDER[@]}"; do
+        print -r -- "$item:${ROOT_DESC[$item]}"
+      done
+      ;;
+    filters|filter)
+      for item in "${FILTER_ORDER[@]}"; do
+        print -r -- "$item:${FILTER_DESC[$item]}"
+      done
+      ;;
+    select|selectors|selector)
+      for item in "${SELECT_ORDER[@]}"; do
+        print -r -- "$item:${SELECT_DESC[$item]}"
+      done
+      ;;
+    sort|sorts)
+      for item in "${SORT_ORDER[@]}"; do
+        print -r -- "$item:${SORT_DESC[$item]}"
+      done
+      ;;
+    *)
+      die "unknown list kind: $kind"
+      ;;
+  esac
+}
+
+resolve_root() {
+  local root="$1"
+  local icloud_home="${ICLOUD_HOME:-$HOME/Library/Mobile Documents/com~apple~CloudDocs}"
+
+  case "$root" in
+    local)
+      print -r -- "$HOME/Movies"
+      ;;
+    icloud)
+      print -r -- "$icloud_home/Movies"
+      ;;
+    tower)
+      print -r -- "/Volumes/Tower/Movies"
+      ;;
+    volumes)
+      print -rl -- /Volumes/*/Movies(N)
+      ;;
+    *)
+      die "unknown root: $root"
+      ;;
+  esac
+}
+
+add_unique() {
+  local target_name="$1"
+  local value="$2"
+
+  [[ -n "$value" ]] || return 0
+
+  case "$target_name" in
+    collections)
+      contains_key "$value" "${collections[@]}" || collections+=("$value")
+      ;;
+    roots)
+      contains_key "$value" "${roots[@]}" || roots+=("$value")
+      ;;
+    filters)
+      contains_key "$value" "${filters[@]}" || filters+=("$value")
+      ;;
+    root_paths)
+      contains_key "$value" "${root_paths[@]}" || root_paths+=("$value")
+      ;;
+    search_paths)
+      contains_key "$value" "${search_paths[@]}" || search_paths+=("$value")
+      ;;
+    *)
+      die "internal error: unknown add_unique target: $target_name"
+      ;;
+  esac
+}
+
+append_filter_regexes() {
+  local filter="$1"
+
+  case "$filter" in
+    quality)
+      fd_regexes+=("(${REGEX_4K_PLUS}|${REGEX_60FPS_PLUS}|${REGEX_5STAR_PLUS})")
+      ;;
+    top-quality)
+      fd_regexes+=("$REGEX_4K_PLUS" "$REGEX_60FPS_PLUS" "$REGEX_4STAR_PLUS")
+      ;;
+    best)
+      fd_regexes+=("$REGEX_4STAR_PLUS")
+      ;;
+    good)
+      fd_regexes+=("$REGEX_3STAR_PLUS")
+      ;;
+    *)
+      die "unknown filter: $filter"
+      ;;
+  esac
+}
+
+quote_command() {
+  print -r -- "${(j: :)${(q)@}}"
+}
+
+typeset -a collections=()
+typeset -a roots=()
+typeset -a filters=()
+typeset -a root_paths=()
+typeset -a search_paths=()
+typeset -a fd_regexes=()
+typeset -a fd_cmd=()
+typeset -a playback_cmd=()
+typeset select_mode=""
+typeset sort_key="mtime"
+typeset print_only=false
+typeset verbose=false
+typeset vj=false
+typeset shuffle=false
+
+while (( $# > 0 )); do
+  case "$1" in
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --list)
+      (( $# >= 2 )) || die "missing value for --list"
+      list_values "$2"
+      exit 0
+      ;;
+    --list=*)
+      list_values "${1#*=}"
+      exit 0
+      ;;
+    --local|--icloud|--tower|--volumes)
+      add_unique roots "${1#--}"
+      shift
+      ;;
+    --root)
+      (( $# >= 2 )) || die "missing value for --root"
+      add_unique roots "$2"
+      shift 2
+      ;;
+    --root=*)
+      add_unique roots "${1#*=}"
+      shift
+      ;;
+    --select)
+      select_mode="fzf"
+      shift
+      ;;
+    --select=*)
+      select_mode="${1#*=}"
+      shift
+      ;;
+    --filter)
+      (( $# >= 2 )) || die "missing value for --filter"
+      add_unique filters "$2"
+      shift 2
+      ;;
+    --filter=*)
+      add_unique filters "${1#*=}"
+      shift
+      ;;
+    --quality|--top-quality|--best|--good)
+      add_unique filters "${1#--}"
+      shift
+      ;;
+    --sort)
+      (( $# >= 2 )) || die "missing value for --sort"
+      sort_key="$2"
+      shift 2
+      ;;
+    --sort=*)
+      sort_key="${1#*=}"
+      shift
+      ;;
+    --no-sort)
+      sort_key=""
+      shift
+      ;;
+    --vj)
+      vj=true
+      shuffle=true
+      shift
+      ;;
+    --shuffle)
+      shuffle=true
+      shift
+      ;;
+    --no-shuffle)
+      shuffle=false
+      shift
+      ;;
+    --print|--dry-run)
+      print_only=true
+      shift
+      ;;
+    --verbose)
+      verbose=true
+      shift
+      ;;
+    --)
+      shift
+      while (( $# > 0 )); do
+        add_unique collections "$1"
+        shift
+      done
+      ;;
+    -*)
+      die "unknown option: $1"
+      ;;
+    *)
+      add_unique collections "$1"
+      shift
+      ;;
+  esac
+done
+
+for collection in "${collections[@]}"; do
+  (( ${+COLLECTION_SUFFIX[$collection]} )) || die "unknown collection: $collection"
+done
+
+for root in "${roots[@]}"; do
+  contains_key "$root" "${ROOT_ORDER[@]}" || die "unknown root: $root"
+done
+
+for filter in "${filters[@]}"; do
+  contains_key "$filter" "${FILTER_ORDER[@]}" || die "unknown filter: $filter"
+  append_filter_regexes "$filter"
+done
+
+if [[ -n "$select_mode" ]]; then
+  contains_key "$select_mode" "${SELECT_ORDER[@]}" || die "unknown selector: $select_mode"
+fi
+
+if [[ -n "$sort_key" ]]; then
+  contains_key "$sort_key" "${SORT_ORDER[@]}" || die "unknown sort: $sort_key"
+fi
+
+if (( ${#collections[@]} > 0 || ${#roots[@]} > 0 )); then
+  if (( ${#roots[@]} == 0 )); then
+    roots=("${DEFAULT_ROOTS[@]}")
+  fi
+
+  for root in "${roots[@]}"; do
+    while IFS= read -r root_path; do
+      add_unique root_paths "$root_path"
+    done < <(resolve_root "$root")
+  done
+
+  if (( ${#collections[@]} > 0 )); then
+    for root_path in "${root_paths[@]}"; do
+      for collection in "${collections[@]}"; do
+        add_unique search_paths "$root_path/${COLLECTION_SUFFIX[$collection]}"
+      done
+    done
+  else
+    search_paths=("${root_paths[@]}")
+  fi
+fi
+
+fd_cmd=(fd-media --print0)
+
+if [[ -n "$sort_key" ]]; then
+  fd_cmd+=(--sort "${SORT_FD_KEY[$sort_key]}")
+fi
+
+for regex in "${fd_regexes[@]}"; do
+  fd_cmd+=(--match-regex "$regex")
+done
+
+fd_cmd+=(.)
+fd_cmd+=("${search_paths[@]}")
+
+if $verbose; then
+  print -u2 -- "media-library: fd command: $(quote_command "${fd_cmd[@]}")"
+fi
+
+tmp="${TMPDIR:-/tmp}/media-library.$$.$RANDOM.selected"
+source_tmp="${TMPDIR:-/tmp}/media-library.$$.$RANDOM.source"
+cleanup() {
+  rm -f -- "$tmp" "$source_tmp"
+}
+trap cleanup EXIT INT TERM
+
+if $print_only; then
+  "${fd_cmd[@]}" | tr '\0' '\n'
+  exit 0
+fi
+
+case "$select_mode" in
+  "")
+    "${fd_cmd[@]}" > "$tmp"
+    ;;
+  fzf)
+    "${fd_cmd[@]}" | fzf-select -0 --print0 --stream > "$tmp"
+    ;;
+  tv)
+    command -v tv >/dev/null 2>&1 || die "tv not found"
+    "${fd_cmd[@]}" > "$source_tmp"
+    [[ -s "$source_tmp" ]] || exit 0
+    source_cmd="cat ${(q)source_tmp}"
+    if $verbose; then
+      print -u2 -- "media-library: tv source: $source_cmd"
+    fi
+    tv \
+      --source-command "$source_cmd" \
+      --source-entry-delimiter '\0' \
+      --source-display '{split:/:-1}' \
+      --source-output '{}' \
+      --no-sort |
+      tr '\n' '\0' > "$tmp"
+    ;;
+esac
+
+if [[ ! -s "$tmp" ]]; then
+  $verbose && print -u2 -- "media-library: no files selected"
+  exit 0
+fi
+
+if $vj; then
+  playback_cmd=(mpv-send --socket /tmp/mpv-vj.sock --profile vj play -0)
+else
+  playback_cmd=(mpv-send play -0)
+fi
+
+$shuffle && playback_cmd+=(--shuffle)
+
+if $verbose; then
+  print -u2 -- "media-library: playback command: $(quote_command "${playback_cmd[@]}")"
+fi
+
+"${playback_cmd[@]}" < "$tmp"

@@ -25,7 +25,7 @@ mkdir -p ~/.zsh/completions
 
 # Cached compinit can miss newly added completion files. Register these
 # explicitly so they work immediately after deployment.
-for _completion_command in fzf mpv; do
+for _completion_command in fzf mpv media-library; do
   if (( $+commands[$_completion_command] )); then
     autoload -Uz "_$_completion_command"
     compdef "_$_completion_command" "$_completion_command"

@@ -1,0 +1,91 @@
+#compdef media-library
+
+_media_library_list() {
+  local kind="$1"
+  media-library --list "$kind" 2>/dev/null
+}
+
+_media_library_describe() {
+  local tag="$1"
+  local label="$2"
+  shift 2
+  local -a values
+  values=("$@")
+  _describe -t "$tag" "$label" values
+}
+
+_media_library() {
+  local curcontext="$curcontext" state
+  local -a collections roots filters selectors sorts root_options filter_options selector_names sort_names
+  typeset -A opt_args
+
+  collections=("${(@f)$(_media_library_list collections)}")
+  roots=("${(@f)$(_media_library_list roots)}")
+  filters=("${(@f)$(_media_library_list filters)}")
+  selectors=("${(@f)$(_media_library_list select)}")
+  sorts=("${(@f)$(_media_library_list sort)}")
+
+  local entry name desc
+  for entry in "${roots[@]}"; do
+    name="${entry%%:*}"
+    desc="${entry#*:}"
+    root_options+=("--${name}[${desc}]")
+  done
+
+  for entry in "${filters[@]}"; do
+    name="${entry%%:*}"
+    desc="${entry#*:}"
+    filter_options+=("--${name}[${desc}]")
+  done
+
+  for entry in "${selectors[@]}"; do
+    selector_names+=("${entry%%:*}")
+  done
+
+  for entry in "${sorts[@]}"; do
+    sort_names+=("${entry%%:*}")
+  done
+
+  _arguments -C -s \
+    '(-h --help)'{-h,--help}'[Show help]' \
+    '--list[Print preset vocabulary]:kind:(collections roots filters select sort)' \
+    '--list=[Print preset vocabulary]:kind:(collections roots filters select sort)' \
+    "${root_options[@]}" \
+    '--root[Add a root]:root:->root' \
+    '--root=[Add a root]:root:->root' \
+    '--select[Select before playback with fzf-select]' \
+    '--select=[Select before playback]:selector:->selector' \
+    '--filter[Apply a named filter]:filter:->filter' \
+    '--filter=[Apply a named filter]:filter:->filter' \
+    "${filter_options[@]}" \
+    '--sort[Sort files]:sort:->sort' \
+    '--sort=[Sort files]:sort:->sort' \
+    '--no-sort[Preserve fd-media order]' \
+    '--vj[Use the VJ mpv socket/profile]' \
+    '--shuffle[Shuffle after loading]' \
+    '--no-shuffle[Disable implicit shuffle from --vj]' \
+    '--print[Print matching paths instead of playing]' \
+    '--dry-run[Alias for --print]' \
+    '--verbose[Print generated commands]' \
+    '*:collection:->collection'
+
+  case "$state" in
+    collection)
+      _media_library_describe collections 'media collection' "${collections[@]}"
+      ;;
+    root)
+      _media_library_describe roots 'media root' "${roots[@]}"
+      ;;
+    filter)
+      _media_library_describe filters 'media filter' "${filters[@]}"
+      ;;
+    selector)
+      _values 'selector' "${selector_names[@]}"
+      ;;
+    sort)
+      _values 'sort' "${sort_names[@]}"
+      ;;
+  esac
+}
+
+_media_library "$@"
