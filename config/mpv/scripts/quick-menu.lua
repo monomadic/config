@@ -257,6 +257,7 @@ local function show_menu()
     local items = {
         "Open Dir",
         "Load Library",
+        "Reveal in Yazi",
         "────────────────────",
         "Pan+Scan:      " .. on_off(panscan > 0),
         "Aspect:        " .. (aspect_display[aspect] or aspect),
@@ -279,6 +280,9 @@ local function show_menu()
         with_resume(load_directory_files),
         with_resume(function()
             mp.commandv("script-binding", "load-all-media")
+        end),
+        with_resume(function()
+            mp.commandv("script-binding", "reveal_in_yazi")
         end),
         nil,  -- Separator (no action)
         with_resume(toggle_panscan),
