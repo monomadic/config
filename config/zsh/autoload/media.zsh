@@ -2,6 +2,21 @@
 # Media Selection & Playback
 # ============================================================================
 
+mpv-compare() {
+  if [[ $# -ne 2 || $1 == (-h|--help) ]]; then
+    echo "Usage: mpv-ab <file1> <file2>"
+    echo ""
+    echo "Play file1 and file2 in A/B test mode, comparing the two against each other."
+    echo ""
+    echo "Arguments:"
+    echo "  file1  First file (usually original)"
+    echo "  file2  Second file (usually new master)"
+    return ${${(M)$#:#0}:+1}  # return 1 if wrong arg count, 0 if --help
+  fi
+
+  mpv --profile=ab --external-file="$1" "$2"
+}
+
 typeset -ga DJ_VISUALS_PATHS
 DJ_VISUALS_PATHS=("$ICLOUD_HOME/Movies/Visuals")
 
