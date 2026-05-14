@@ -15,7 +15,7 @@
 #
 # Output:
 # - writes beside source as *.trimmed.ext
-# - never renames or trashes the original
+# - prompts before moving the original to Trash after a successful cut
 #
 # Requirements:
 # - zsh
@@ -47,6 +47,9 @@ Options:
   --skip-detection          For multiple files, always prompt instead of auto-checking intros
   --from <seconds>          Start selector at/after this timestamp
   -h, --help                Show this help
+
+After a successful cut, prompts before moving the original file to Trash.
+The default answer is no.
 
 Examples:
   ffmpeg-lossless-cut-by-fzf-keyframe-select clip.mp4
@@ -249,7 +252,7 @@ PY
         -- "$img_file"
     ) &
     ffmpeg_pids+=("$!")
-    (( idx++ ))
+    (( ++idx ))
   done
 
   local pid
@@ -373,6 +376,57 @@ confirm_overwrite() {
 
   read -r "?Output exists. Overwrite '$output_file'? [y/N] " reply
   [[ "$reply" == [Yy] || "$reply" == [Yy][Ee][Ss] ]]
+}
+
+confirm_trash_original() {
+  local input_file="$1"
+  local reply=""
+
+  read -r "?Trash original file '$input_file'? [y/N] " reply
+  [[ "$reply" == [Yy] || "$reply" == [Yy][Ee][Ss] ]]
+}
+
+trash_original() {
+  local input_file="$1"
+  local target="$input_file"
+
+  if have trash; then
+    [[ "$target" != /* && "${target:t}" == -* ]] && target="./$target"
+    trash "$target"
+    return
+  fi
+
+  local trash_dir="$HOME/.Trash"
+  local base dst stamp n
+
+  mkdir -p -- "$trash_dir"
+  base="${input_file:t}"
+  dst="$trash_dir/$base"
+
+  if [[ -e "$dst" ]]; then
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    n=1
+    while [[ -e "$trash_dir/${base} (${stamp}-${n})" ]]; do
+      (( ++n ))
+    done
+    dst="$trash_dir/${base} (${stamp}-${n})"
+  fi
+
+  mv -n -- "$input_file" "$dst"
+}
+
+maybe_trash_original() {
+  local input_file="$1"
+
+  confirm_trash_original "$input_file" || return 0
+
+  if trash_original "$input_file"; then
+    info "Trashed original:  $input_file"
+    return 0
+  fi
+
+  warn "failed to trash original: $input_file"
+  return 1
 }
 
 perform_cut() {
@@ -504,6 +558,7 @@ is_number "$from_ts" || die "--from must be numeric seconds"
 integer ok_count=0
 integer skip_count=0
 integer fail_count=0
+integer trash_fail_count=0
 
 local_multi=false
 (( ${#files[@]} > 1 )) && local_multi=true
@@ -515,7 +570,7 @@ for input_file in "${files[@]}"; do
 
   if [[ ! -f "$input_file" ]]; then
     warn "not a file, skipping"
-    (( skip_count++ ))
+    (( ++skip_count ))
     continue
   fi
 
@@ -527,7 +582,7 @@ for input_file in "${files[@]}"; do
       info "Intro detected at: $(format_ts "$intro_ts")"
     else
       info "No intro detected, skipping"
-      (( skip_count++ ))
+      (( ++skip_count ))
       continue
     fi
   fi
@@ -541,11 +596,11 @@ for input_file in "${files[@]}"; do
     rc=$?
     if (( rc == 130 )); then
       warn "selection cancelled, skipping"
-      (( skip_count++ ))
+      (( ++skip_count ))
       continue
     fi
     warn "failed to select keyframe, skipping"
-    (( fail_count++ ))
+    (( ++fail_count ))
     continue
   fi
 
@@ -565,18 +620,19 @@ for input_file in "${files[@]}"; do
     else
       print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' -map 0 -c copy '$output_file'"
     fi
-    (( ok_count++ ))
+    (( ++ok_count ))
     continue
   fi
 
   if perform_cut "$input_file" "$ts" "$output_file" "$force" "$reverse_mode"; then
     info "Done: wrote trimmed copy"
-    (( ok_count++ ))
+    (( ++ok_count ))
+    maybe_trash_original "$input_file" || (( ++trash_fail_count ))
   else
-    (( fail_count++ ))
+    (( ++fail_count ))
   fi
 done
 
 print
-info "Summary: ok=$ok_count skipped=$skip_count failed=$fail_count"
-(( fail_count == 0 ))
+info "Summary: ok=$ok_count skipped=$skip_count failed=$fail_count trash_failed=$trash_fail_count"
+(( fail_count == 0 && trash_fail_count == 0 ))
