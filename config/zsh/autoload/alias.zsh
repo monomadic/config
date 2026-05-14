@@ -39,6 +39,10 @@ strip-slash() {
 #   done | LC_ALL=C sort -z -n -r -k1,1 | perl -0pe 's/^\d+\t//'
 # }
 
+lock() {
+  ssh "$1" 'open -a ScreenSaverEngine'
+}
+
 # check filenames are valid utf-8
 validate-filenames-stdin() {
   while IFS= read -r f; do

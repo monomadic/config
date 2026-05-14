@@ -258,6 +258,7 @@ local function show_menu()
         "Open Dir",
         "Load Library",
         "Reveal in Yazi",
+        "Reveal in ForkLift",
         "────────────────────",
         "Pan+Scan:      " .. on_off(panscan > 0),
         "Aspect:        " .. (aspect_display[aspect] or aspect),
@@ -283,6 +284,9 @@ local function show_menu()
         end),
         with_resume(function()
             mp.commandv("script-binding", "reveal_in_yazi")
+        end),
+        with_resume(function()
+            mp.commandv("script-binding", "reveal_in_forklift")
         end),
         nil,  -- Separator (no action)
         with_resume(toggle_panscan),
