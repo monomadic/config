@@ -11,6 +11,10 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 ]]
 
 local options = {
+    -- Enable thumbnail integration. Profiles can set thumbfast-enabled=no
+    -- to avoid even the lightweight observer/setup cost.
+    enabled = true,
+
     -- Socket path (leave empty for auto)
     socket = "",
 
@@ -57,6 +61,10 @@ local options = {
 mp.utils = require "mp.utils"
 mp.options = require "mp.options"
 mp.options.read_options(options, "thumbfast")
+
+if not options.enabled then
+    return
+end
 
 local properties = {}
 local pre_0_30_0 = mp.command_native_async == nil
