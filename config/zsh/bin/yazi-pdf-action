@@ -3,7 +3,7 @@ emulate -L zsh
 set -euo pipefail
 
 usage() {
-  print -u2 -- "Usage: ${0:t} <chordpro> <hovered-path> [selected-path ...]"
+  print -u2 -- "Usage: ${0:t} <chordpro> <path> [path ...]"
 }
 
 is_pdf_file() {
@@ -23,13 +23,7 @@ is_pdf_file() {
 
 action="$1"
 shift
-hovered="$1"
-shift
-
 paths=( "$@" )
-if (( ${#paths} == 0 )); then
-  paths=( "$hovered" )
-fi
 
 pdfs=()
 skipped=0
