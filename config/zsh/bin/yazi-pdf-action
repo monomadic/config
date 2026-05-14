@@ -1,0 +1,79 @@
+#!/usr/bin/env zsh
+emulate -L zsh
+set -euo pipefail
+
+usage() {
+  print -u2 -- "Usage: ${0:t} <chordpro> <hovered-path> [selected-path ...]"
+}
+
+is_pdf_file() {
+  local path="$1"
+  local mime
+
+  [[ -f "$path" ]] || return 1
+
+  mime="$(file --brief --mime-type -- "$path" 2>/dev/null || true)"
+  [[ "$mime" == "application/pdf" ]] || [[ "${path:l}" == *.pdf ]]
+}
+
+(( $# >= 2 )) || {
+  usage
+  exit 2
+}
+
+action="$1"
+shift
+hovered="$1"
+shift
+
+paths=( "$@" )
+if (( ${#paths} == 0 )); then
+  paths=( "$hovered" )
+fi
+
+pdfs=()
+skipped=0
+
+for path in "${paths[@]}"; do
+  if is_pdf_file "$path"; then
+    pdfs+=( "$path" )
+  else
+    (( skipped += 1 ))
+  fi
+done
+
+if (( ${#pdfs} == 0 )); then
+  print -u2 -- "No PDF files selected or hovered."
+  exit 1
+fi
+
+if (( skipped > 0 )); then
+  print -u2 -- "Skipping ${skipped} non-PDF item(s)."
+fi
+
+case "$action" in
+  chordpro)
+    command -v tab-scraper >/dev/null || {
+      print -u2 -- "tab-scraper is not available in PATH."
+      exit 127
+    }
+
+    failures=0
+    for pdf in "${pdfs[@]}"; do
+      print -- "Converting ${pdf}"
+      if ! tab-scraper pdf "$pdf"; then
+        (( failures += 1 ))
+      fi
+    done
+
+    if (( failures > 0 )); then
+      print -u2 -- "${failures} conversion(s) failed."
+      exit 1
+    fi
+    ;;
+  *)
+    print -u2 -- "Unknown action: $action"
+    usage
+    exit 2
+    ;;
+esac
