@@ -89,6 +89,11 @@ run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d -
 desc = "rename media"
 
 [[mgr.prepend_keymap]]
+on   = [ "<Space>", "c" ]
+run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d --title " pdf to chordpro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %h %s'''
+desc = "PDF to ChordPro"
+
+[[mgr.prepend_keymap]]
 on   = "\\"
 run  = [ "toggle", "arrow 1" ]
 desc = "Select hovered file"
