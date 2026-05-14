@@ -32,6 +32,7 @@ keep_focus=false
 activate=true
 detach=true
 debug=false
+hold=false
 
 usage() {
   cat <<EOF
@@ -51,6 +52,7 @@ Options:
   --cwd DIR          Working directory for launched command
   --title TITLE      Window/tab title
   --keep-focus       Do not focus the newly launched Kitty window/tab internally
+  --hold             Keep the Kitty window open after the command exits
   --activate         Activate Kitty.app after launch (default)
   --no-activate      Do not activate Kitty.app after launch
   --socket ADDR      Kitty IPC address
@@ -138,6 +140,10 @@ while (( $# )); do
       ;;
     --keep-focus)
       keep_focus=true
+      shift
+      ;;
+    --hold)
+      hold=true
       shift
       ;;
     --activate)
@@ -256,6 +262,7 @@ if discovered_socket="$(discover_socket)"; then
     print -u2 -- "cwd:             ${cwd:-}"
     print -u2 -- "title:           ${title:-}"
     print -u2 -- "keep_focus:      $keep_focus"
+    print -u2 -- "hold:            $hold"
     print -u2 -- "activate:        $activate"
     print -u2 -- "command:         ${(q)command_argv[@]}"
   }
@@ -270,6 +277,7 @@ if discovered_socket="$(discover_socket)"; then
   [[ -n "$cwd" ]] && launch_args+=( --cwd "$cwd" )
   [[ -n "$title" ]] && launch_args+=( --title "$title" )
   $keep_focus && launch_args+=( --keep-focus )
+  $hold && launch_args+=( --hold )
 
   "${kitten_cmd[@]}" "${launch_args[@]}" -- "${command_argv[@]}"
 
@@ -284,6 +292,7 @@ $debug && {
   print -u2 -- "launch_type:     $launch_type"
   print -u2 -- "cwd:             ${cwd:-}"
   print -u2 -- "title:           ${title:-}"
+  print -u2 -- "hold:            $hold"
   print -u2 -- "activate:        $activate"
   print -u2 -- "detach:          $detach"
   print -u2 -- "command:         ${(q)command_argv[@]}"
@@ -296,6 +305,7 @@ kitty_args=(
 
 [[ -n "$cwd" ]] && kitty_args+=( --directory "$cwd" )
 [[ -n "$title" ]] && kitty_args+=( --title "$title" )
+$hold && kitty_args+=( --hold )
 
 case "$launch_type" in
   os-window)

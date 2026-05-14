@@ -61,16 +61,16 @@ EOF
 }
 
 die() {
-  print -u2 -- "error: $*"
+  print -r -u2 -- "error: $*"
   exit 1
 }
 
 warn() {
-  print -u2 -- "warning: $*"
+  print -r -u2 -- "warning: $*"
 }
 
 info() {
-  print -- "$*"
+  print -r -- "$*"
 }
 
 have() {

@@ -2,6 +2,7 @@
 <mapper device="KEYBOARD" author="Atomix Productions" version="850" date="2026-03-14">
 	<info>https://www.virtualdj.com/manuals/hardware/keyboard/index.html</info>
 	<map value="UNMAPPED" action="search" />
+	<map value="ONINIT" action="deck all effect_active colorfx off &amp; deck all filter_activate off &amp; deck all filter 50%" />
 	<map value="ALT" action="keyboard_shortcuts" name="" />
 	<map value="RIGHT ALT" action="keyboard_shortcuts" name="" />
 	<map value="ALT+1" action="deck 1 select" />
@@ -10,7 +11,7 @@
 	<map value="ALT+4" action="deck 4 select" />
 	<map value="ALT+5" action="deck left loop_half" name="Loop /2" />
 	<map value="ALT+6" action="deck left loop_double" name="Loop x2" />
-	<map value="ALT+Q" action="deck left sync" name="SYNC" />
+	<map value="ALT+Q" action="deck left phrase_sync 16 &amp; deck left sync &amp; deck left match_key &amp; deck left match_bpm &amp; deck left phrase_sync 16" name="SYNC" />
 	<map value="ALT+W" action="deck left pitch_bend +2% 200ms" name="NUDGE LEFT" />
 	<map value="ALT+E" action="deck left pitch_bend -2% 200ms" name="NUDGE RIGHT" />
 	<map value="ALT+R" action="deck left pitch -0.2%" name="PITCH -" />
@@ -39,7 +40,7 @@
 	<map value="ALT+0" action="deck right loop_button" name="LOOP" />
 	<map value="ALT+-" action="deck right loop_half" name="Loop /2" />
 	<map value="ALT+=" action="deck right loop_double" name="Loop x2" />
-	<map value="ALT+U" action="deck right sync" name="SYNC" />
+	<map value="ALT+U" action="deck right phrase_sync 16 &amp; deck right sync &amp; deck right match_key &amp; deck right match_bpm &amp; deck right phrase_sync 16" name="SYNC" />
 	<map value="ALT+I" action="deck right pitch_bend +2% 200ms" name="NUDGE LEFT" />
 	<map value="ALT+O" action="deck right pitch_bend -2% 200ms" name="NUDGE RIGHT" />
 	<map value="ALT+P" action="deck right pitch -0.2%" name="PITCH -" />
@@ -68,8 +69,8 @@
 	<map value="ALT+RIGHT" action="crossfader +10%" name="CROSS &gt;" />
 	<map value="ALT+UP" action="pitch -0.2% locked" name="ALL PITCH -" />
 	<map value="ALT+DOWN" action="pitch +0.2% locked" name="ALL PITCH +" />
-	<map value="CMD+LEFT" action="deck left load &amp; wait 100ms &amp; has_linked_tracks ? (show_splitpanel &apos;sidelist&apos; on &amp; sideview &apos;remixes&apos;) : nothing" />
-	<map value="CMD+RIGHT" action="deck right load" />
+	<map value="CMD+LEFT" action="deck left load &amp; wait 100ms &amp; deck left has_linked_tracks ? (show_splitpanel &apos;sidelist&apos; on &amp; sideview &apos;remixes&apos;) : nothing" />
+	<map value="CMD+RIGHT" action="deck right load &amp; wait 100ms &amp; deck right has_linked_tracks ? (show_splitpanel &apos;sidelist&apos; on &amp; sideview &apos;remixes&apos;) : nothing" />
 	<map value="CMD+UP" action="browser_folder -1" name="FOLDER UP" />
 	<map value="CMD+DOWN" action="browser_folder +1" name="FOLDER DOWN" />
 	<map value="CMD+RETURN" action="browser_open_folder" name="SUBFOLDERS" />
@@ -84,15 +85,15 @@
 	<map value="CMD+2" action="pad_page 2" />
 	<map value="CMD+SHIFT+," action="setting &apos;skin&apos;" />
 	<map value="CTRL+O" action="goto_last_folder" name="PREVIOUS FOLDER" />
-	<map value="CMD+S" action="sync &amp; phrase_sync 16" />
+	<map value="CMD+S" action="phrase_sync 16 &amp; sync &amp; match_key &amp; match_bpm &amp; phrase_sync 16" />
 	<map value="CMD+R" action="browsed_file_reveal" />
-	<map value="CMD+SHIFT+LEFT" action="deck 3 load" />
-	<map value="CMD+SHIFT+RIGHT" action="deck 4 load" />
+	<map value="CMD+SHIFT+LEFT" action="deck left load &amp; deck left goto_cue 1 &amp; deck left only_stem &apos;Rhythm&apos; on &amp; deck left match_key &amp; deck left phrase_sync 16 &amp; deck left play_sync &amp; deck left effect_active colorfx off" />
+	<map value="CMD+SHIFT+RIGHT" action="deck right load &amp; deck right goto_cue 1 &amp; deck right only_stem &apos;Rhythm&apos; on &amp; deck right match_key &amp; deck right phrase_sync 16 &amp; deck right play_sync &amp; deck right effect_active colorfx off" />
 	<map value="CMD+Q" action="close" />
 	<map value="CMD+SHIFT+M" action="maximize" />
 	<map value="SPACE" action="play_button" />
 	<map value="CMD+SHIFT+RETURN" action="maximize" />
-	<map value="SHIFT+SPACE" action="deck left play &amp; deck right play &amp; sync" />
+	<map value="SHIFT+SPACE" action="deck left play &amp; deck right play &amp; deck all phrase_sync 16 &amp; deck all sync &amp; deck all match_key &amp; deck all match_bpm &amp; deck all phrase_sync 16" />
 	<map value="CMD+B" action="toggle &apos;@$dd_bordermode&apos;" />
 	<map value="CMD+SHIFT+2" action="pad_page 6" />
 	<map value="CMD+W" action="goto_cue 1" />
@@ -148,7 +149,7 @@
 	<map value="CMD+=" action="zoom -0.1" />
 	<map value="CMD+-" action="zoom +0.1" />
 	<map value="CMD+0" action="zoom 0.5" />
-	<map value="CMD+SHIFT+S" action="deck all sync &amp; deck all phrase_sync 32 &amp; match_key" />
+	<map value="CMD+SHIFT+S" action="deck all phrase_sync 16 &amp; deck all sync &amp; deck all match_key &amp; deck all match_bpm &amp; deck all phrase_sync 16" />
 	<map value="CTRL+2" action="deck 2 rightdeck &amp; select" />
 	<map value="CTRL+3" action="deck 3 leftdeck &amp; select" />
 	<map value="CTRL+1" action="deck 1 leftdeck &amp; select" />
@@ -158,8 +159,8 @@ get_deck 4 ? deck 2 select :
 get_deck 1 ? deck 3 select :
 get_deck 2 ? deck 4 select : nothing" />
 	<map value="CMD+SHIFT+F" action="search" />
-	<map value="CMD+]" action="deck right load &amp; sync" />
-	<map value="CMD+[" action="deck left load" name="LOAD LEFT" />
+	<map value="CMD+]" action="deck right load &amp; wait 100ms &amp; deck right has_linked_tracks ? (show_splitpanel &apos;sidelist&apos; on &amp; sideview &apos;remixes&apos;) : nothing" />
+	<map value="CMD+[" action="deck left load &amp; wait 100ms &amp; deck left has_linked_tracks ? (show_splitpanel &apos;sidelist&apos; on &amp; sideview &apos;remixes&apos;) : nothing" name="LOAD LEFT" />
 	<map value="CTRL+J" action="get_deck 3 ? deck 1 select :
 get_deck 4 ? deck 2 select :
 get_deck 1 ? deck 3 select :
@@ -214,5 +215,5 @@ get_deck 2 ? deck 4 select : nothing" />
 	<map value="CTRL+-" action="pitch -1 bpm" />
 	<map value="CTRL+=" action="pitch +1 bpm" />
 	<map value="CTRL+SPACE" action="deck left play &amp; deck right play" />
-	<map value="ONSONGLOAD" action="sync &amp; match_key &amp; match_bpm &amp; has_linked_tracks ? (show_splitpanel &apos;sidelist&apos; on &amp; sideview &apos;remixes&apos;) : nothing" />
+	<map value="ONSONGLOAD" action="match_key &amp; phrase_sync 16" />
 </mapper>

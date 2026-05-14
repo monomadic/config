@@ -5,13 +5,14 @@
 #
 # Usage in ForkLift:
 #
-#   /Users/nom/.zsh/bin/forklift-shell -- 'file -- "$SOURCE_SELECTION_PATH"'
-#   /Users/nom/.zsh/bin/forklift-shell -- 'file -- "$SOURCE_SELECTION_PATHS_ARRAY[@]"'
-#   /Users/nom/.zsh/bin/forklift-shell -- 'mpv --shuffle "$SOURCE_SELECTION_PATHS_ARRAY[@]"'
+#   /Users/nom/.zsh/bin/forklift-shell --argv -- /usr/bin/file -- @source-selection-paths
+#   /Users/nom/.zsh/bin/forklift-shell -- 'file -- "$FL_SOURCE_SELECTION_PATH"'
+#   /Users/nom/.zsh/bin/forklift-shell -- 'mpv --shuffle "$FL_SOURCE_SELECTION_PATHS_ARRAY[@]"'
+#   /Users/nom/.zsh/bin/forklift-shell --argv -- /usr/bin/file -- /tmp/example.mov
 #
 # Debug:
 #
-#   FORKLIFT_SHELL_DEBUG=1 /Users/nom/.zsh/bin/forklift-shell -- 'file -- "$SOURCE_SELECTION_PATH"'
+#   FORKLIFT_SHELL_DEBUG=1 /Users/nom/.zsh/bin/forklift-shell -- 'file -- "$FL_SOURCE_SELECTION_PATH"'
 
 emulate -L zsh
 set -euo pipefail
@@ -25,9 +26,36 @@ forklift-shell
 Run a command inside a repaired zsh environment for ForkLift Tools.
 
 Usage:
-  forklift-shell -- 'command here'
+  forklift-shell [--eval] -- 'command here'
+  forklift-shell --argv -- command [args...]
+
+Modes:
+  --eval      Run a zsh command string with repaired ForkLift variables.
+              This is the default and supports *_ARRAY[@] expansion.
+  --argv      Execute command [args...] directly without eval. Also expands
+              safe @tokens such as @source-selection-paths.
 
 Useful variables inside command:
+
+  FL_SOURCE_PATH
+  FL_TARGET_PATH
+
+  FL_SOURCE_SELECTION_PATH       first selected source path
+  FL_TARGET_SELECTION_PATH       first selected target path
+
+  FL_SOURCE_SELECTION_PATHS      newline-separated selected source paths
+  FL_TARGET_SELECTION_PATHS      newline-separated selected target paths
+
+  FL_SOURCE_SELECTION_PATHS_ARRAY[@]
+  FL_TARGET_SELECTION_PATHS_ARRAY[@]
+
+  FL_SOURCE_SELECTION_NAME
+  FL_TARGET_SELECTION_NAME
+
+  FL_SOURCE_SELECTION_NAMES_ARRAY[@]
+  FL_TARGET_SELECTION_NAMES_ARRAY[@]
+
+Legacy aliases:
 
   SOURCE_PATH
   TARGET_PATH
@@ -48,10 +76,24 @@ Useful variables inside command:
   TARGET_SELECTION_NAMES_ARRAY[@]
 
 Examples:
-  forklift-shell -- 'file -- "$SOURCE_SELECTION_PATH"'
-  forklift-shell -- 'file -- "$SOURCE_SELECTION_PATHS_ARRAY[@]"'
-  forklift-shell -- 'mpv --shuffle "$SOURCE_SELECTION_PATHS_ARRAY[@]"'
-  forklift-shell -- 'yazi "$SOURCE_PATH"'
+  forklift-shell --argv -- /usr/bin/file -- @source-selection-paths
+  forklift-shell -- 'file -- "$FL_SOURCE_SELECTION_PATH"'
+  forklift-shell -- 'file -- "$FL_SOURCE_SELECTION_PATHS_ARRAY[@]"'
+  forklift-shell -- 'mpv --shuffle "$FL_SOURCE_SELECTION_PATHS_ARRAY[@]"'
+  forklift-shell -- 'yazi "$FL_SOURCE_PATH"'
+  forklift-shell -- '/Users/nom/.zsh/bin/kitty-launch --os-window --cwd "$FL_SOURCE_PATH" -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut-by-fzf-keyframe-select --keyframes 10 -- "$FL_SOURCE_SELECTION_PATHS_ARRAY[@]"'
+
+Safe argv tokens:
+  @source-path
+  @target-path
+  @source-selection-path
+  @target-selection-path
+  @source-selection-paths
+  @target-selection-paths
+  @source-selection-name
+  @target-selection-name
+  @source-selection-names
+  @target-selection-names
 EOF
 }
 
@@ -62,7 +104,69 @@ die() {
 
 debug() {
   [[ "${FORKLIFT_SHELL_DEBUG:-0}" == 1 ]] || return 0
-  print -u2 -- "󰀪 $script_name: $*"
+  print -r -u2 -- "󰀪 $script_name: $*"
+}
+
+decode_forklift_escape() {
+  local raw="${1:-}"
+  local out=""
+  local ch
+  local i
+
+  for (( i = 1; i <= ${#raw}; i++ )); do
+    ch="${raw[i]}"
+
+    if [[ "$ch" == "\\" && $i -lt ${#raw} ]]; then
+      (( i++ ))
+      out+="${raw[i]}"
+      continue
+    fi
+
+    [[ "$ch" == $'\r' ]] && continue
+    out+="$ch"
+  done
+
+  print -r -- "$out"
+}
+
+append_token_expansion() {
+  local token="$1"
+
+  case "$token" in
+    @source-path)
+      expanded_argv+=( "$SOURCE_PATH" )
+      ;;
+    @target-path)
+      expanded_argv+=( "$TARGET_PATH" )
+      ;;
+    @source-selection-path)
+      expanded_argv+=( "$SOURCE_SELECTION_PATH" )
+      ;;
+    @target-selection-path)
+      expanded_argv+=( "$TARGET_SELECTION_PATH" )
+      ;;
+    @source-selection-paths)
+      expanded_argv+=( "${SOURCE_SELECTION_PATHS_ARRAY[@]}" )
+      ;;
+    @target-selection-paths)
+      expanded_argv+=( "${TARGET_SELECTION_PATHS_ARRAY[@]}" )
+      ;;
+    @source-selection-name)
+      expanded_argv+=( "$SOURCE_SELECTION_NAME" )
+      ;;
+    @target-selection-name)
+      expanded_argv+=( "$TARGET_SELECTION_NAME" )
+      ;;
+    @source-selection-names)
+      expanded_argv+=( "${SOURCE_SELECTION_NAMES_ARRAY[@]}" )
+      ;;
+    @target-selection-names)
+      expanded_argv+=( "${TARGET_SELECTION_NAMES_ARRAY[@]}" )
+      ;;
+    *)
+      expanded_argv+=( "$token" )
+      ;;
+  esac
 }
 
 # Parse one ForkLift shell-escaped value.
@@ -73,17 +177,14 @@ debug() {
 # We need:
 #   /some/path/File Name.mp4
 #
-# ${(z)...} uses zsh lexical shell parsing without executing anything.
+# ForkLift provides these values with backslash escaping, but not always as
+# fully shell-quoted strings. Decode backslash-next-character directly.
 decode_one() {
   local raw="${1:-}"
-  local -a parsed
 
   [[ -n "$raw" ]] || return 0
 
-  parsed=("${(@z)raw}")
-
-  # Normally exactly one parsed word. Join defensively.
-  print -r -- "${(j: :)parsed}"
+  decode_forklift_escape "$raw"
 }
 
 # Decode newline-separated ForkLift values into newline-separated clean values.
@@ -91,7 +192,6 @@ decode_lines() {
   local raw="${1:-}"
   local -a lines
   local -a out
-  local -a parsed
   local line
 
   [[ -n "$raw" ]] || return 0
@@ -100,8 +200,7 @@ decode_lines() {
 
   for line in "${lines[@]}"; do
     [[ -n "$line" ]] || continue
-    parsed=("${(@z)line}")
-    out+=("${(j: :)parsed}")
+    out+=("$(decode_forklift_escape "$line")")
   done
 
   print -r -- "${(F)out}"
@@ -173,34 +272,81 @@ export TARGET_SELECTION_PATH="${TARGET_SELECTION_PATHS_ARRAY[1]:-}"
 export SOURCE_SELECTION_NAME="${SOURCE_SELECTION_NAMES_ARRAY[1]:-}"
 export TARGET_SELECTION_NAME="${TARGET_SELECTION_NAMES_ARRAY[1]:-}"
 
-case "${1:-}" in
-  -h|--help)
-    usage
-    exit 0
-    ;;
+# ForkLift-safe aliases for command strings entered in the Tools editor.
+# These names avoid the literal $SOURCE_* / $TARGET_* placeholder prefixes.
+export FL_SOURCE_PATH="$SOURCE_PATH"
+export FL_TARGET_PATH="$TARGET_PATH"
+export FL_SOURCE_SELECTION_PATHS="$SOURCE_SELECTION_PATHS"
+export FL_TARGET_SELECTION_PATHS="$TARGET_SELECTION_PATHS"
+export FL_SOURCE_SELECTION_NAMES="$SOURCE_SELECTION_NAMES"
+export FL_TARGET_SELECTION_NAMES="$TARGET_SELECTION_NAMES"
+export FL_SOURCE_SELECTION_PATH="$SOURCE_SELECTION_PATH"
+export FL_TARGET_SELECTION_PATH="$TARGET_SELECTION_PATH"
+export FL_SOURCE_SELECTION_NAME="$SOURCE_SELECTION_NAME"
+export FL_TARGET_SELECTION_NAME="$TARGET_SELECTION_NAME"
 
-  --)
-    shift
-    ;;
+typeset -a FL_SOURCE_SELECTION_PATHS_ARRAY
+typeset -a FL_TARGET_SELECTION_PATHS_ARRAY
+typeset -a FL_SOURCE_SELECTION_NAMES_ARRAY
+typeset -a FL_TARGET_SELECTION_NAMES_ARRAY
 
-  "")
-    usage
-    exit 1
-    ;;
+FL_SOURCE_SELECTION_PATHS_ARRAY=("${SOURCE_SELECTION_PATHS_ARRAY[@]}")
+FL_TARGET_SELECTION_PATHS_ARRAY=("${TARGET_SELECTION_PATHS_ARRAY[@]}")
+FL_SOURCE_SELECTION_NAMES_ARRAY=("${SOURCE_SELECTION_NAMES_ARRAY[@]}")
+FL_TARGET_SELECTION_NAMES_ARRAY=("${TARGET_SELECTION_NAMES_ARRAY[@]}")
 
-  *)
-    die "expected -- before command"
-    ;;
-esac
+mode="eval"
+
+while (( $# )); do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+
+    --eval)
+      mode="eval"
+      shift
+      ;;
+
+    --argv)
+      mode="argv"
+      shift
+      ;;
+
+    --)
+      shift
+      break
+      ;;
+
+    *)
+      die "expected -- before command"
+      ;;
+  esac
+done
 
 (( $# )) || die "missing command after --"
-
-command_string="$*"
 
 debug "USER=$USER"
 debug "PATH=$PATH"
 debug "raw source selection: $FORKLIFT_RAW_SOURCE_SELECTION_PATHS"
 debug "decoded source selection: $SOURCE_SELECTION_PATH"
-debug "command: $command_string"
 
-eval "$command_string"
+case "$mode" in
+  eval)
+    command_string="$*"
+    debug "eval command: $command_string"
+    eval "$command_string"
+    ;;
+
+  argv)
+    typeset -a expanded_argv
+    expanded_argv=()
+    for arg in "$@"; do
+      append_token_expansion "$arg"
+    done
+    command_argv=( "${expanded_argv[@]}" )
+    debug "argv command: ${(q)command_argv[@]}"
+    exec "${command_argv[@]}"
+    ;;
+esac

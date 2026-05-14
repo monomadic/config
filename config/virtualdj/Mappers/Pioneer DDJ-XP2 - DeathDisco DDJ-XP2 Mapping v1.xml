@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <mapper device="DDJXP2" author="Atomix Productions" version="850" date="2026-04-28">
 	<info>http://www.virtualdj.com/manuals/hardware/pioneer/ddjxp2/index.html</info>
-	<map value="ONINIT" action="deck all effect_3slots_layout on" />
+	<map value="ONINIT" action="deck all effect_3slots_layout on &amp; deck all effect_active colorfx off &amp; deck all filter_activate off &amp; deck all filter 50%" />
 	<map value="DNC_MODE" action="blink 150ms" />
 	<map value="DECK_LEFT" action="deck 3 leftdeck ? deck 1 leftdeck : deck 3 leftdeck" />
 	<map value="DECK_RIGHT" action="deck 4 rightdeck ? deck 2 rightdeck : deck 4 rightdeck" />
@@ -18,15 +18,15 @@
 	<map value="LOOP_DOUBLE" action="loop_double" />
 	<map value="QUANTIZE" action="quantize_all &amp; master_tempo" />
 	<map value="SLIP_REVERSE" action="pitch_reset 4bt" />
-	<map value="LOAD" action="doubleclick ? (load &amp; goto_first_beat &amp; only_stem &apos;Rhythm&apos; on &amp; match_key &amp; phrase_sync 16 &amp; play_sync &amp; effect_active colorfx off) : load" />
+	<map value="LOAD" action="doubleclick ? (load &amp; goto_cue 1 &amp; only_stem &apos;Rhythm&apos; on &amp; match_key &amp; phrase_sync 16 &amp; play_sync &amp; effect_active colorfx off) : load" />
 	<map value="MASTER_TEMPO" action="master_tempo" />
-	<map value="BEAT_SYNC" action="sync &amp; phrase_sync 32" />
+	<map value="BEAT_SYNC" action="phrase_sync 16 &amp; sync &amp; match_key &amp; match_bpm &amp; phrase_sync 16" />
 	<map value="KEY-" action="keylock on &amp; pitch -0.5%" />
 	<map value="SHIFT_4BEAT_LOOP" action="holding ? loop_delete : loop_save" />
 	<map value="SHIFT_LOOP_HALF" action="loop_in" />
 	<map value="SHIFT_LOOP_DOUBLE" action="loop_out" />
 	<map value="SHIFT_SLIP_REVERSE" action="reverse" />
-	<map value="SHIFT_LOAD" action="doubleclick ? clone_from_deck : load &amp; play &amp; sync &amp; phrase_sync 16" />
+	<map value="SHIFT_LOAD" action="doubleclick ? clone_from_deck : load &amp; goto_cue 1 &amp; only_stem &apos;Rhythm&apos; on &amp; match_key &amp; phrase_sync 16 &amp; play_sync &amp; effect_active colorfx off" />
 	<map value="SHIFT_MASTER_TEMPO" action="pitch_range &apos;8,16,50&apos; +1" />
 	<map value="SHIFT_BEAT_SYNC" action="holding ? masterdeck_auto : masterdeck" />
 	<map value="SHIFT_KEY-" action="match_key" />
@@ -614,5 +614,6 @@
 	<map value="PADMODE_1" action="pad_page 1" />
 	<map value="LED_PADMODE_1" action="pad_page 1 ? color &apos;#44AA99&apos;" />
 	<map value="LED_SILENT_CUE" action="is_sync ? sync_hint &apos;phase&apos; ? sync_hint &apos;pitch&apos;" />
-	<map value="SILENT_CUE" action="sync &amp; phrase_sync 32 &amp; beatlock on &amp; match_key" />
+	<map value="SILENT_CUE" action="phrase_sync 16 &amp; sync &amp; match_key &amp; match_bpm &amp; phrase_sync 16 &amp; beatlock on" />
+	<map value="ONSONGLOAD" action="match_key &amp; phrase_sync 16" />
 </mapper>

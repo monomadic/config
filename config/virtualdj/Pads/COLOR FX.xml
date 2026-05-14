@@ -1,28 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <page name="COLOR FX">
-  <!-- Pads 1-12 select ColorFX only. Pad 16 owns the actual ColorFX on/off state. -->
-  <pad1 name="FILTER" color="color 'magenta'" query="param_equal `filter_label` 'Filter' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
+  <!--
+    Pads 1-12 select ColorFX only. Pad 16 owns the actual ColorFX on/off state.
+    Queries must stay read-only: use filter_label 'name' for selected ColorFX,
+    and keep selectors / GUI actions out of query attributes.
+    In-app verification passed 2026-05-14: labels match, page/shift rendering
+    does not auto-enable ColorFX, shift-edit opens GUI only, and stem routing works.
+    Stem aliases used here: Melody = Instru+Bass; Rhythm = HiHat+Kick.
+  -->
+  <pad1 name="FILTER" color="color 'magenta'" query="param_equal `filter_label 'name'` 'Filter' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
     filter_selectcolorfx 'Filter'</pad1>
-  <pad2 name="DELAY" color="color 'magenta'" query="param_equal `filter_label` 'Delay' ? (effect_active 'colorfx' ? blink 500ms : on) : off">filter_selectcolorfx 'Delay'</pad2>
-  <pad3 name="ECHO" color="color 'magenta'" query="param_equal `filter_label` 'Echo' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
+  <pad2 name="DELAY" color="color 'magenta'" query="param_equal `filter_label 'name'` 'Delay' ? (effect_active 'colorfx' ? blink 500ms : on) : off">filter_selectcolorfx 'Delay'</pad2>
+  <pad3 name="ECHO" color="color 'magenta'" query="param_equal `filter_label 'name'` 'Echo' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
     filter_selectcolorfx 'Echo'</pad3>
-  <pad4 name="LOOP ROLL" color="color 'magenta'" query="param_equal `filter_label` 'Loop Roll' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
+  <pad4 name="LOOP ROLL" color="color 'magenta'" query="param_equal `filter_label 'name'` 'Loop Roll' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
     filter_selectcolorfx 'Loop Roll'</pad4>
-  <pad5 name="SWEEP" color="color 'magenta'" query="param_equal `filter_label` 'Sweep' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
+  <pad5 name="SWEEP" color="color 'magenta'" query="param_equal `filter_label 'name'` 'Sweep' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
     filter_selectcolorfx 'Sweep'</pad5>
-  <pad6 name="SPIRAL" color="color 'magenta'" query="param_equal `filter_label` 'Spiral' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
-    filter_selectcolorfx 'spiral'</pad6>
-  <pad7 name="NOISE" color="color 'magenta'" query="param_equal `filter_label` 'Noise' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
-    filter_selectcolorfx 'noise'</pad7>
-  <pad8 name="SLIP ROLL" color="color 'magenta'" query="param_equal `filter_label` 'Slip Roll' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
+  <pad6 name="SPIRAL" color="color 'magenta'" query="param_equal `filter_label 'name'` 'Spiral' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
+    filter_selectcolorfx 'Spiral'</pad6>
+  <pad7 name="NOISE" color="color 'magenta'" query="param_equal `filter_label 'name'` 'Noise' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
+    filter_selectcolorfx 'Noise'</pad7>
+  <pad8 name="SLIP ROLL" color="color 'magenta'" query="param_equal `filter_label 'name'` 'Slip Roll' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
     filter_selectcolorfx 'Slip Roll'</pad8>
-  <pad9 name="FLANGER" color="color 'magenta'" query="param_equal `filter_label` 'Flanger' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
+  <pad9 name="FLANGER" color="color 'magenta'" query="param_equal `filter_label 'name'` 'Flanger' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
     filter_selectcolorfx 'Flanger'</pad9>
-  <pad10 name="REVERB" color="color 'magenta'" query="param_equal `filter_label` 'Reverb' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
+  <pad10 name="REVERB" color="color 'magenta'" query="param_equal `filter_label 'name'` 'Reverb' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
     filter_selectcolorfx 'Reverb'</pad10>
-  <pad11 name="CUT" color="color 'magenta'" query="param_equal `filter_label` 'Cut' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
+  <pad11 name="CUT" color="color 'magenta'" query="param_equal `filter_label 'name'` 'Cut' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
     filter_selectcolorfx 'Cut'</pad11>
-  <pad12 name="ECHO OUT" color="color 'magenta'" query="param_equal `filter_label` 'Echo Out' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
+  <pad12 name="ECHO OUT" color="color 'magenta'" query="param_equal `filter_label 'name'` 'Echo Out' ? (effect_active 'colorfx' ? blink 500ms : on) : off">
     filter_selectcolorfx 'Echo Out'</pad12>
   <!-- Stems context for ColorFX: route effect to a specific stem -->
   <pad13 name="VOCAL FX\n`effect_stems 'vocal' ? get_text 'on' : get_text 'off'`" color="stem_color 'Vocal'" query="effect_stems 'vocal' ? blink 500ms : off">
@@ -32,17 +39,17 @@
   <pad15 name="DRUM FX\n`effect_stems 'rhythm' ? get_text 'on' : get_text 'off'`" color="stem_color 'Rhythm'" query="effect_stems 'rhythm' ? blink 500ms : off">
     effect_stems 'rhythm'</pad15>
   <!-- Master ColorFX on/off toggle -->
-  <pad16 name="COLOR FX\n`effect_active 'colorfx' ? filter_label &amp; param_lowercase : get_text 'off'`" color="color 'magenta'" query="effect_active 'colorfx' ? blink 500ms : off">
+  <pad16 name="COLOR FX\n`effect_active 'colorfx' ? filter_label 'name' : get_text 'off'`" color="color 'magenta'" query="effect_active 'colorfx' ? blink 500ms : off">
     effect_active 'colorfx'</pad16>
   <shift_pad16 name="COLOR FX\n`effect_active 'colorfx'`" color="color 'magenta'" query="effect_active 'colorfx' ? blink 500ms : off">
     filter_selectcolorfx</shift_pad16>
   <!-- Shift pads: select effect and open its GUI for parameter editing -->
-  <shift_pad1 name="`get_text 'FILTER\nedit'`" color="color 'magenta'" query="filter_selectcolorfx 'filter' ? effect_show_gui 'colorfx'">
-    filter_selectcolorfx 'filter' &amp; effect_show_gui 'colorfx'</shift_pad1>
-  <shift_pad2 name="`get_text 'ECHO OUT\nedit'`" color="color 'magenta'" query="filter_selectcolorfx 'echo out' ? effect_show_gui 'colorfx'">
-    filter_selectcolorfx 'echo out' &amp; effect_show_gui 'colorfx'</shift_pad2>
-  <shift_pad3 name="`get_text 'REVERB\nedit'`" color="color 'magenta'" query="filter_selectcolorfx 'reverb' ? effect_show_gui 'colorfx'">
-    filter_selectcolorfx 'reverb' &amp; effect_show_gui 'colorfx'</shift_pad3>
+  <shift_pad1 name="`get_text 'FILTER\nedit'`" color="color 'magenta'" query="param_equal `filter_label 'name'` 'Filter' ? on : off">
+    filter_selectcolorfx 'Filter' &amp; effect_show_gui 'colorfx'</shift_pad1>
+  <shift_pad2 name="`get_text 'ECHO OUT\nedit'`" color="color 'magenta'" query="param_equal `filter_label 'name'` 'Echo Out' ? on : off">
+    filter_selectcolorfx 'Echo Out' &amp; effect_show_gui 'colorfx'</shift_pad2>
+  <shift_pad3 name="`get_text 'REVERB\nedit'`" color="color 'magenta'" query="param_equal `filter_label 'name'` 'Reverb' ? on : off">
+    filter_selectcolorfx 'Reverb' &amp; effect_show_gui 'colorfx'</shift_pad3>
   <menu>FX =[pad_page "EFFECTS"]
     SELECT =[filter_selectcolorfx]</menu>
   <param1 name="COLOR FX">pad_page "PAD FX"</param1>
