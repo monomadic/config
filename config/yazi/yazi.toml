@@ -34,12 +34,16 @@ reveal = [
 	{ run = "explorer /select,%s1", desc = "Reveal", for = "windows", orphan = true },
 	{ run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", desc = "Show EXIF", for = "unix", block = true },
 ]
+pdf_chordpro = [
+	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " pdf to chordpro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "PDF to ChordPro", for = "unix", orphan = true },
+]
 extract = [
 	{ run = "ya pub extract --list %s", desc = "Extract here" },
 ]
 
 [open]
 prepend_rules = [
+	{ mime = "application/pdf", use = [ "open", "reveal", "pdf_chordpro" ] },
 	{ url = "*/", use = [ "edit", "open", "reveal", "play_dir" ] },
 ]
 
