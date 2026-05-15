@@ -29,7 +29,7 @@ fi
 # Parse the JSON file and extract glyphs and names
 glyph_data=$(jq -r '
     to_entries[] |
-    "\(.value.char)\t\(.key)"
+    "\(.value.char)  \(.key)"
 ' "$GLYPHS_FILE")
 
 # Check if glyph_data is empty

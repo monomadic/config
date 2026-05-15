@@ -108,6 +108,16 @@ if [[ -o interactive ]]; then
     _cd-fzf-select _cd_fzf_pick_local
   }
 
+  # Global pinned directory navigation with television.
+  _cd-tv() {
+    _cd-fzf-select _cd_tv_pick_global
+  }
+
+  # Recursive current-directory navigation with television.
+  _cd-tv-local() {
+    _cd-fzf-select _cd_tv_pick_local
+  }
+
   _fzf-jump() {
     _cd-fzf-local
   }
@@ -198,6 +208,8 @@ if [[ -o interactive ]]; then
   zle -N _cd-fzf
   zle -N _cd-fzf-legacy
   zle -N _cd-fzf-local
+  zle -N _cd-tv
+  zle -N _cd-tv-local
   zle -N _cd-up
   zle -N _fzf-insert-path
   zle -N open-finder-pwd
@@ -230,6 +242,10 @@ if [[ -o interactive ]]; then
   bindkey -M viins $'\e[111;9u' _cd-fzf
   bindkey -M emacs $'\e[111;10u' _cd-fzf-local      # Cmd+Shift+O: local jump
   bindkey -M viins $'\e[111;10u' _cd-fzf-local
+  bindkey -M emacs $'\e[106;9u' _cd-tv              # Cmd+J: tv global jump
+  bindkey -M viins $'\e[106;9u' _cd-tv
+  bindkey -M emacs $'\e[106;10u' _cd-tv-local       # Cmd+Shift+J: tv local jump
+  bindkey -M viins $'\e[106;10u' _cd-tv-local
   bindkey -M emacs $'\e[13;2u' _magic-enter         # Shift+Enter
   bindkey -M viins $'\e[13;2u' _magic-enter
 

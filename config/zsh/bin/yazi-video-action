@@ -3,7 +3,7 @@ emulate -L zsh
 set -euo pipefail
 
 usage() {
-  print -u2 -- "Usage: ${0:t} <trim-intro|trim-outro|rename-media> <hovered-path> [selected-path ...]"
+  print -u2 -- "Usage: ${0:t} <trim-intro|trim-outro|rename-media> <path> [path ...]"
 }
 
 is_video_file() {
@@ -23,13 +23,7 @@ is_video_file() {
 
 action="$1"
 shift
-hovered="$1"
-shift
-
 paths=( "$@" )
-if (( ${#paths} == 0 )); then
-  paths=( "$hovered" )
-fi
 
 videos=()
 skipped=0
@@ -43,7 +37,7 @@ for path in "${paths[@]}"; do
 done
 
 if (( ${#videos} == 0 )); then
-  print -u2 -- "No video files selected or hovered."
+  print -u2 -- "No video files selected."
   exit 1
 fi
 

@@ -37,6 +37,15 @@ reveal = [
 pdf_chordpro = [
 	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " pdf to chordpro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "PDF to ChordPro", for = "unix", orphan = true },
 ]
+video_trim_intro = [
+	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-video-action trim-intro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "Trim intro", for = "unix", orphan = true },
+]
+video_trim_outro = [
+	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-video-action trim-outro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "Trim outro", for = "unix", orphan = true },
+]
+video_rename_media = [
+	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " rename media " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-video-action rename-media "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "Rename media", for = "unix", orphan = true },
+]
 extract = [
 	{ run = "ya pub extract --list %s", desc = "Extract here" },
 ]
@@ -44,6 +53,7 @@ extract = [
 [open]
 prepend_rules = [
 	{ mime = "application/pdf", use = [ "open", "reveal", "pdf_chordpro" ] },
+	{ mime = "video/*", use = [ "play", "open", "reveal", "video_trim_intro", "video_trim_outro", "video_rename_media" ] },
 	{ url = "*/", use = [ "edit", "open", "reveal", "play_dir" ] },
 ]
 
