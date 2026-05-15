@@ -18,9 +18,9 @@ find_keyword  = { fg = "#ffe66d", bold = true }
 # ------------------------------------------------------------
 
 [indicator]
-parent        = { fg = "#0f0f10", bg = "#7A86D1" }
-current       = { fg = "#0f0f10", bg = "#7A86D1" }
-preview       = { underline = false }
+parent        = { fg = "#AAEEFF", bg = "#000088" }
+current       = { fg = "#AAEEFF", bg = "#0000FF" }
+preview       = { underline = false, fg = "#AAEEFF", bg="#000088" }
 hovered       = { bg = "#151519" }
 
 # ------------------------------------------------------------
@@ -197,6 +197,8 @@ exts = [
   { name = "flac", text = "􀞈 ", fg = "#66e2ff" },
   { name = "wav",  text = "􀞈 ", fg = "#66e2ff" },
   { name = "aiff", text = "􀞈 ", fg = "#66e2ff" },
+
+  { name = "vdjstems", text = "􀐟 ", fg = "#86229f" },
 
   # tablature
   { name = "cho",  text = "􀞈 ", fg = "#66e2ff" },
