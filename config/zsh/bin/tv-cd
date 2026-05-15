@@ -1,0 +1,104 @@
+#!/bin/zsh
+set +o monitor
+
+handle_directory_selection() {
+  local prompt='  '
+  local header=''
+  local height='50%'
+  local preview_cmd='eza --tree --level=2 --color=always {} 2>/dev/null || ls -la {}'
+  local source_cmd=''
+  local source_tmp=''
+  local -a extra_tv_args=()
+
+  while (( $# )); do
+    case "$1" in
+      --prompt)
+        prompt="${2:-$prompt}"
+        shift 2
+        ;;
+      --header)
+        header="${2:-$header}"
+        shift 2
+        ;;
+      --height)
+        height="${2:-$height}"
+        shift 2
+        ;;
+      --preview-cmd)
+        preview_cmd="${2:-$preview_cmd}"
+        shift 2
+        ;;
+      --source-command)
+        source_cmd="${2:-}"
+        shift 2
+        ;;
+      --)
+        shift
+        extra_tv_args+=("$@")
+        break
+        ;;
+      *)
+        extra_tv_args+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  if ! command -v tv >/dev/null 2>&1; then
+    print -u2 "tv-cd: tv not found"
+    return 127
+  fi
+
+  if [[ -z "$source_cmd" ]]; then
+    source_tmp="$(mktemp "${TMPDIR:-/tmp}/tv-cd-source.XXXXXX")" || return 1
+    cat > "$source_tmp"
+    [[ -s "$source_tmp" ]] || {
+      rm -f "$source_tmp"
+      return 1
+    }
+    source_cmd="cat ${(q)source_tmp}"
+  fi
+
+  local height_lines="$height"
+  if [[ "$height" == <->% ]]; then
+    local percent="${height%\%}"
+    height_lines=$(( (${LINES:-40} * percent) / 100 ))
+    (( height_lines < 10 )) && height_lines=10
+  fi
+
+  local -a tv_cmd=(
+    tv
+    --source-command "$source_cmd"
+    --source-display '{}'
+    --source-output '{}'
+    --preview-command "$preview_cmd"
+    --preview-size 55
+    --preview-word-wrap
+    --hide-preview
+    --input-prompt "$prompt"
+    --input-header "$header"
+    --height "$height_lines"
+    --no-remote
+    --hide-help-panel
+    --no-status-bar
+    --no-sort
+    "${extra_tv_args[@]}"
+  )
+
+  local dir
+  if [[ -r /dev/tty ]]; then
+    dir=$("${tv_cmd[@]}" < /dev/tty)
+  else
+    dir=$("${tv_cmd[@]}")
+  fi
+  local ret=$?
+
+  [[ -n "$source_tmp" ]] && rm -f "$source_tmp"
+
+  if [[ $ret -eq 0 && -n "$dir" ]]; then
+    printf '%s\n' "$dir"
+  fi
+  return $ret
+}
+
+handle_directory_selection "$@"
