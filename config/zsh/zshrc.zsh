@@ -116,3 +116,5 @@ export PATH="$PATH:/Users/nom/.cache/lm-studio/bin"
 # End of LM Studio CLI section
 
 # print -P "ok"
+
+fpath+=~/.zfunc; autoload -Uz compinit; compinit
