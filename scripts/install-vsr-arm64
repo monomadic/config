@@ -1,0 +1,403 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo="YaoFANGUK/video-subtitle-remover"
+asset_regex='macos.*arm64.*\.dmg$'
+app_dir="/Applications"
+target_app_name="VideoSubtitleRemover.app"
+ffmpeg_path="${VSR_FFMPEG:-/opt/homebrew/bin/ffmpeg}"
+patch_only=0
+dry_run=0
+keep_backup=0
+tmp_dir=""
+mount_dir=""
+mounted=0
+
+usage() {
+  cat <<'EOF'
+Usage: install-vsr-arm64 [options]
+
+Download the latest macOS arm64 VideoSubtitleRemover DMG, install the app,
+replace its bundled Intel ffmpeg with a wrapper to native Homebrew ffmpeg,
+and re-sign the app bundle locally.
+
+Options:
+  --patch-only          Patch /Applications/VideoSubtitleRemover.app in place.
+  --ffmpeg PATH         Native ffmpeg to wrap. Default: /opt/homebrew/bin/ffmpeg
+  --app-dir DIR         Install destination. Default: /Applications
+  --repo OWNER/REPO     GitHub repo. Default: YaoFANGUK/video-subtitle-remover
+  --asset-regex REGEX   Case-insensitive release asset regex.
+                        Default: macos.*arm64.*\.dmg$
+  --keep-backup         Keep the previous app bundle after replacement.
+  -n, --dry-run         Print planned work without writing.
+  -h, --help            Show this help.
+
+Environment:
+  VSR_FFMPEG            Overrides the ffmpeg path.
+  GITHUB_TOKEN          Optional GitHub API token for higher rate limits.
+EOF
+}
+
+log() {
+  printf '==> %s\n' "$*"
+}
+
+warn() {
+  printf 'warning: %s\n' "$*" >&2
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
+}
+
+run() {
+  if [[ "$dry_run" -eq 1 ]]; then
+    printf '+'
+    printf ' %q' "$@"
+    printf '\n'
+  else
+    "$@"
+  fi
+}
+
+run_in_app_dir() {
+  if [[ "$dry_run" -eq 1 ]]; then
+    run "$@"
+    return
+  fi
+
+  if [[ -w "$app_dir" ]]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+target_is_running() {
+  [[ -d "$target_app" ]] || return 1
+  pgrep -f "$target_app/Contents/MacOS" >/dev/null 2>&1
+}
+
+ensure_target_not_running() {
+  local attempt=""
+
+  if [[ "$dry_run" -eq 1 ]]; then
+    return
+  fi
+
+  if ! target_is_running; then
+    return
+  fi
+
+  log "Asking running app to quit"
+  osascript -e 'tell application id "com.yaofang.video-subtitle-remover" to quit' >/dev/null 2>&1 \
+    || osascript -e 'tell application "VideoSubtitleRemover" to quit' >/dev/null 2>&1 \
+    || true
+
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    target_is_running || return
+    sleep 1
+  done
+
+  die "VideoSubtitleRemover is still running; quit it and rerun"
+}
+
+cleanup() {
+  if [[ "$mounted" -eq 1 && -n "$mount_dir" && -d "$mount_dir" ]]; then
+    hdiutil detach "$mount_dir" -quiet >/dev/null 2>&1 || true
+  fi
+
+  if [[ -n "$tmp_dir" && -d "$tmp_dir" ]]; then
+    rm -rf "$tmp_dir"
+  fi
+}
+
+trap cleanup EXIT
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --patch-only)
+      patch_only=1
+      ;;
+    --ffmpeg)
+      shift
+      [[ $# -gt 0 ]] || die "--ffmpeg requires a path"
+      ffmpeg_path="$1"
+      ;;
+    --app-dir)
+      shift
+      [[ $# -gt 0 ]] || die "--app-dir requires a path"
+      app_dir="${1%/}"
+      ;;
+    --repo)
+      shift
+      [[ $# -gt 0 ]] || die "--repo requires OWNER/REPO"
+      repo="$1"
+      ;;
+    --asset-regex)
+      shift
+      [[ $# -gt 0 ]] || die "--asset-regex requires a regex"
+      asset_regex="$1"
+      ;;
+    --keep-backup)
+      keep_backup=1
+      ;;
+    -n|--dry-run)
+      dry_run=1
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown option: $1"
+      ;;
+  esac
+  shift
+done
+
+target_app="$app_dir/$target_app_name"
+
+assert_macos_arm64() {
+  [[ "$(uname -s)" == "Darwin" ]] || die "this installer is only for macOS"
+  [[ "$(uname -m)" == "arm64" ]] || die "this installer is only for Apple Silicon Macs"
+}
+
+assert_native_ffmpeg() {
+  [[ -x "$ffmpeg_path" ]] || die "ffmpeg is not executable: $ffmpeg_path"
+
+  local arches=""
+  arches="$(lipo -archs "$ffmpeg_path" 2>/dev/null || true)"
+  if [[ " $arches " != *" arm64 "* ]]; then
+    die "ffmpeg is not arm64: $ffmpeg_path ($arches)"
+  fi
+
+  "$ffmpeg_path" -hide_banner -version >/dev/null
+}
+
+curl_json() {
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "$1"
+  else
+    curl -fsSL "$1"
+  fi
+}
+
+download_file() {
+  local url="$1"
+  local out="$2"
+
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    curl -fL --progress-bar -H "Authorization: Bearer $GITHUB_TOKEN" -o "$out" "$url"
+  else
+    curl -fL --progress-bar -o "$out" "$url"
+  fi
+}
+
+find_app_bundle() {
+  local root="$1"
+  local candidate=""
+
+  while IFS= read -r candidate; do
+    printf '%s\n' "$candidate"
+    return 0
+  done < <(find "$root" -name "$target_app_name" -type d -prune -print 2>/dev/null)
+
+  while IFS= read -r candidate; do
+    printf '%s\n' "$candidate"
+    return 0
+  done < <(find "$root" -name '*.app' -type d -prune -print 2>/dev/null)
+
+  return 1
+}
+
+ffmpeg_slot_for_app() {
+  local app="$1"
+  local expected="$app/Contents/Frameworks/backend/ffmpeg/macos/ffmpeg"
+  local found=""
+
+  if [[ -e "$expected" ]]; then
+    printf '%s\n' "$expected"
+    return 0
+  fi
+
+  while IFS= read -r found; do
+    printf '%s\n' "$found"
+    return 0
+  done < <(find "$app" -path '*/backend/ffmpeg/macos/ffmpeg' -type f -print 2>/dev/null)
+
+  return 1
+}
+
+inject_ffmpeg_wrapper() {
+  local app="$1"
+  local ffmpeg_slot=""
+  ffmpeg_slot="$(ffmpeg_slot_for_app "$app")" || die "could not find bundled ffmpeg slot in $app"
+
+  log "Replacing bundled ffmpeg with wrapper"
+  if [[ "$dry_run" -eq 1 ]]; then
+    run sh -c "printf wrapper > '$ffmpeg_slot'"
+  else
+    printf '#!/bin/sh\nexec "%s" "$@"\n' "$ffmpeg_path" > "$ffmpeg_slot"
+    chmod 755 "$ffmpeg_slot"
+  fi
+}
+
+resign_app() {
+  local app="$1"
+  log "Re-signing app bundle locally"
+  run codesign --force --deep --sign - "$app"
+
+  if [[ "$dry_run" -eq 0 ]]; then
+    codesign --verify --deep --strict "$app"
+  fi
+}
+
+patch_app() {
+  local app="$1"
+  [[ -d "$app" ]] || die "app bundle not found: $app"
+  inject_ffmpeg_wrapper "$app"
+  resign_app "$app"
+}
+
+install_staged_app() {
+  local staged_app="$1"
+  local backup_app=""
+  local timestamp=""
+
+  timestamp="$(date +%Y%m%d-%H%M%S)"
+  ensure_target_not_running
+
+  if [[ -d "$target_app" ]]; then
+    backup_app="$app_dir/$target_app_name.previous.$timestamp"
+    log "Moving existing app aside"
+    run_in_app_dir mv "$target_app" "$backup_app"
+  fi
+
+  log "Installing $target_app_name to $app_dir"
+  if ! run_in_app_dir ditto "$staged_app" "$target_app"; then
+    if [[ -n "$backup_app" && -d "$backup_app" && ! -d "$target_app" ]]; then
+      warn "install failed; restoring previous app"
+      run_in_app_dir mv "$backup_app" "$target_app"
+    fi
+    die "failed to install app"
+  fi
+
+  if [[ "$dry_run" -eq 0 ]]; then
+    run_in_app_dir xattr -dr com.apple.quarantine "$target_app" >/dev/null 2>&1 || true
+  fi
+
+  if [[ -n "$backup_app" ]]; then
+    if [[ "$keep_backup" -eq 1 ]]; then
+      log "Previous app kept at $backup_app"
+    else
+      log "Removing previous app backup"
+      run_in_app_dir rm -rf "$backup_app"
+    fi
+  fi
+}
+
+download_and_install_latest() {
+  local api_url="https://api.github.com/repos/$repo/releases/latest"
+  local release_json=""
+  local tag_name=""
+  local asset_name=""
+  local asset_url=""
+  local dmg_path=""
+  local source_app=""
+  local staged_app=""
+
+  log "Looking up latest release from $repo"
+  release_json="$(curl_json "$api_url")"
+  tag_name="$(printf '%s' "$release_json" | jq -r '.tag_name // empty')"
+  asset_name="$(printf '%s' "$release_json" | jq -r --arg re "$asset_regex" '[.assets[] | select(.name | test($re; "i"))][0].name // empty')"
+  asset_url="$(printf '%s' "$release_json" | jq -r --arg re "$asset_regex" '[.assets[] | select(.name | test($re; "i"))][0].browser_download_url // empty')"
+
+  [[ -n "$tag_name" ]] || die "could not read latest release tag"
+  [[ -n "$asset_name" && -n "$asset_url" ]] || die "no release asset matched regex: $asset_regex"
+
+  log "Latest release: $tag_name"
+  log "Matched asset: $asset_name"
+
+  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/vsr-install.XXXXXX")"
+  dmg_path="$tmp_dir/$asset_name"
+  mount_dir="$tmp_dir/mount"
+  mkdir -p "$mount_dir"
+
+  if [[ "$dry_run" -eq 1 ]]; then
+    run download "$asset_url" "$dmg_path"
+    run hdiutil attach "$dmg_path" -nobrowse -readonly -mountpoint "$mount_dir"
+    run find "$mount_dir" -name "$target_app_name"
+    staged_app="$tmp_dir/$target_app_name"
+    run ditto "$mount_dir/$target_app_name" "$staged_app"
+    run replace "$staged_app/Contents/Frameworks/backend/ffmpeg/macos/ffmpeg" "with wrapper to $ffmpeg_path"
+    run codesign --force --deep --sign - "$staged_app"
+    run install "$staged_app" "$target_app"
+    return
+  fi
+
+  log "Downloading DMG"
+  download_file "$asset_url" "$dmg_path"
+
+  log "Mounting DMG"
+  hdiutil attach "$dmg_path" -nobrowse -readonly -mountpoint "$mount_dir" >/dev/null
+  mounted=1
+
+  source_app="$(find_app_bundle "$mount_dir")" || die "could not find an app bundle inside the DMG"
+  staged_app="$tmp_dir/$target_app_name"
+
+  log "Staging app from DMG"
+  ditto "$source_app" "$staged_app"
+
+  patch_app "$staged_app"
+  install_staged_app "$staged_app"
+}
+
+verify_install() {
+  local installed_ffmpeg=""
+
+  if [[ "$dry_run" -eq 1 ]]; then
+    return
+  fi
+
+  installed_ffmpeg="$(ffmpeg_slot_for_app "$target_app")" || die "installed app has no ffmpeg slot"
+
+  log "Verifying installed ffmpeg wrapper"
+  file "$installed_ffmpeg"
+  "$installed_ffmpeg" -hide_banner -version | sed -n '1,3p'
+
+  if file "$installed_ffmpeg" | grep -q 'x86_64'; then
+    die "installed ffmpeg slot is still x86_64"
+  fi
+}
+
+main() {
+  assert_macos_arm64
+  for cmd in lipo codesign ditto file osascript pgrep sed xattr; do
+    need_cmd "$cmd"
+  done
+  if [[ "$patch_only" -eq 0 ]]; then
+    for cmd in curl jq hdiutil; do
+      need_cmd "$cmd"
+    done
+  fi
+  assert_native_ffmpeg
+
+  if [[ "$patch_only" -eq 1 ]]; then
+    log "Patching existing app"
+    ensure_target_not_running
+    patch_app "$target_app"
+  else
+    download_and_install_latest
+  fi
+
+  verify_install
+  log "Done"
+}
+
+main "$@"

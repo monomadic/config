@@ -6,6 +6,10 @@ export DJ_VISUALS_PATH=$ICLOUD_HOME/Movies/Visuals
 
 alias .send-incoming-flac-to-mixed-in-key="open -a /Applications/Mixed\ In\ Key\ 11.app ~/Music/Mixed\ In\ Key/**/*.flac"
 
+alias .tidal-download="tiddl download --track-quality=max --video-quality=fhd --path $HOME/Music/Downloads --scan-path $HOME/Music/Downloads --output \"{item.title} - {item.artist} \({item.bpm}\)\" url "
+alias .tidal-music-search="tiddl download --track-quality=max --video-quality=fhd --path $HOME/Music/Downloads --scan-path $HOME/Music/Downloads --output \"{item.title} - {item.artist} \({item.bpm}\)\" --videos=none search"
+alias .tidal-video-search="tiddl download --track-quality=max --video-quality=fhd --path $HOME/Music/Downloads --scan-path $HOME/Music/Downloads --output \"{item.title} - {item.artist} \({item.bpm}\)\" --videos=only search"
+
 # ============================================================================
 # Utility Functions
 # ============================================================================
