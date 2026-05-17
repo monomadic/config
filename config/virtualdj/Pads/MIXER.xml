@@ -1,27 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <page name="MIXER">
-  <pad1 name="`deck 3 mute_stem 'vocal' ? get_text 'INSTRUMENTAL' : deck 3 mute_stem 'melody' ? get_text 'ACAPELLA' : get_text 'ALL STEMS'`" color="`deck 3 mute_stem 'vocal' ? color 'yellow' : deck 3 mute_stem 'melody' ? color 'green' : color 'blue'`" autodim="false">
+  <pad1 name="`deck 3 mute_stem 'vocal' ? get_text 'INSTRUMENTAL' : deck 3 mute_stem 'melody' ? get_text 'ACAPELLA' : get_text 'ALL STEMS'`" color="`deck 3 mute_stem 'vocal' ? color 'yellow' : deck 3 mute_stem 'instrumental' ? color 'green' : color 'black'`" autodim="false">
     deck 3 mute_stem 'vocal' ?
       deck 3 mute_stem 'vocal' :
     deck 3 mute_stem 'melody' ?
       deck 3 mute_stem 'melody' &amp; deck 3 mute_stem 'rhythm' &amp; deck 3 mute_stem 'vocal' :
       deck 3 mute_stem 'melody' &amp; deck 3 mute_stem 'rhythm'
   </pad1>
-  <pad2 name="`deck 1 mute_stem 'vocal' ? get_text 'INSTRUMENTAL' : deck 1 mute_stem 'melody' ? get_text 'ACAPELLA' : get_text 'ALL STEMS'`" color="`deck 1 mute_stem 'vocal' ? color 'yellow' : deck 1 mute_stem 'melody' ? color 'green' : color 'blue'`" autodim="false">
+  <pad2 name="`deck 1 mute_stem 'vocal' ? get_text 'INSTRUMENTAL' : deck 1 mute_stem 'melody' ? get_text 'ACAPELLA' : get_text 'ALL STEMS'`" color="`deck 1 stem_pad 'acapella' ? color 'green' : deck 1 stem_pad 'instrumental' ? color 'blue' : color 'yellow'`" autodim="false">
     deck 1 mute_stem 'vocal' ?
       deck 1 mute_stem 'vocal' :
     deck 1 mute_stem 'melody' ?
       deck 1 mute_stem 'melody' &amp; deck 1 mute_stem 'rhythm' &amp; deck 1 mute_stem 'vocal' :
       deck 1 mute_stem 'melody' &amp; deck 1 mute_stem 'rhythm'
   </pad2>
-  <pad3 name="`deck 2 mute_stem 'vocal' ? get_text 'INSTRUMENTAL' : deck 2 mute_stem 'melody' ? get_text 'ACAPELLA' : get_text 'ALL STEMS'`" color="`deck 2 mute_stem 'vocal' ? color 'yellow' : deck 2 mute_stem 'melody' ? color 'green' : color 'blue'`" autodim="false">
+  <pad3 name="`deck 2 mute_stem 'vocal' ? get_text 'INSTRUMENTAL' : deck 2 mute_stem 'melody' ? get_text 'ACAPELLA' : get_text 'ALL STEMS'`" color="`deck 2 mute_stem 'vocal' ? color 'yellow' : deck 2 mute_stem 'instrumental' ? color 'green' : color 'black'`" autodim="false">
     deck 2 mute_stem 'vocal' ?
       deck 2 mute_stem 'vocal' :
     deck 2 mute_stem 'melody' ?
       deck 2 mute_stem 'melody' &amp; deck 2 mute_stem 'rhythm' &amp; deck 2 mute_stem 'vocal' :
       deck 2 mute_stem 'melody' &amp; deck 2 mute_stem 'rhythm'
   </pad3>
-  <pad4 name="`deck 4 mute_stem 'vocal' ? get_text 'INSTRUMENTAL' : deck 4 mute_stem 'melody' ? get_text 'ACAPELLA' : get_text 'ALL STEMS'`" color="`deck 4 mute_stem 'vocal' ? color 'yellow' : deck 4 mute_stem 'melody' ? color 'green' : color 'blue'`" autodim="false">
+  <pad4 name="`deck 4 mute_stem 'vocal' ? get_text 'INSTRUMENTAL' : deck 4 mute_stem 'melody' ? get_text 'ACAPELLA' : get_text 'ALL STEMS'`" color="`deck 4 mute_stem 'vocal' ? color 'yellow' : deck 4 mute_stem 'instrumental' ? color 'green' : color 'black'`" autodim="false">
     deck 4 mute_stem 'vocal' ?
       deck 4 mute_stem 'vocal' :
     deck 4 mute_stem 'melody' ?
