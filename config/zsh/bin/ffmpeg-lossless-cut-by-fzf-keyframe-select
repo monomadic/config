@@ -15,6 +15,7 @@
 #
 # Output:
 # - writes beside source as *.trimmed.ext
+# - copies embedded/container metadata, including source date tags
 # - copies the source filesystem creation date to the trimmed output
 # - moves the original to Trash after a successful cut
 #
@@ -49,8 +50,9 @@ Options:
   --from <seconds>          Start selector at/after this timestamp
   -h, --help                Show this help
 
-After a successful cut, copies the original file creation date to the trimmed
-output, then moves the original file to Trash.
+After a successful cut, copies embedded/container metadata and the original
+file creation date to the trimmed output, then moves the original file to
+Trash.
 
 Examples:
   ffmpeg-lossless-cut-by-fzf-keyframe-select clip.mp4
@@ -355,6 +357,8 @@ trim_copy() {
   ffmpeg -hide_banner -y \
     -ss "$start_time" -i "$input_file" \
     -map 0 \
+    -map_metadata 0 \
+    -movflags use_metadata_tags \
     -c copy \
     "$output_file"
 }
@@ -367,6 +371,8 @@ trim_copy_reverse() {
   ffmpeg -hide_banner -y \
     -to "$end_time" -i "$input_file" \
     -map 0 \
+    -map_metadata 0 \
+    -movflags use_metadata_tags \
     -c copy \
     "$output_file"
 }
@@ -654,10 +660,11 @@ for input_file in "${files[@]}"; do
 
   if [[ "$dry_run" == true ]]; then
     if [[ "$reverse_mode" == true ]]; then
-      print -- "ffmpeg -hide_banner -y -to '$ts' -i '$input_file' -map 0 -c copy '$output_file'"
+      print -- "ffmpeg -hide_banner -y -to '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags use_metadata_tags -c copy '$output_file'"
     else
-      print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' -map 0 -c copy '$output_file'"
+      print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags use_metadata_tags -c copy '$output_file'"
     fi
+    print -- "copy embedded/container metadata from '$input_file' to '$output_file'"
     print -- "copy creation date from '$input_file' to '$output_file'"
     print -- "trash '$input_file'"
     (( ++ok_count ))
