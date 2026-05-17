@@ -1,23 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <page name="MIXER">
-  <pad1 name="◀   CUE 1" color="color red">deck 3 goto_cue -1</pad1>
-  <pad2 name="◀   CUE 1" color="color red">deck 1 goto_cue -1</pad2>
-  <pad3 name="◀   CUE 1" color="color red">deck 2 goto_cue -1</pad3>
-  <pad4 name="◀   CUE 1" color="color red">deck 4 goto_cue -1</pad4>
+  <pad1 name="`deck 3 mute_stem 'vocal' ? get_text 'INSTRUMENTAL' : deck 3 mute_stem 'melody' ? get_text 'ACAPELLA' : get_text 'ALL STEMS'`" color="`deck 3 mute_stem 'vocal' ? color 'yellow' : deck 3 mute_stem 'melody' ? color 'green' : color 'blue'`" autodim="false">
+    deck 3 mute_stem 'vocal' ?
+      deck 3 mute_stem 'vocal' :
+    deck 3 mute_stem 'melody' ?
+      deck 3 mute_stem 'melody' &amp; deck 3 mute_stem 'rhythm' &amp; deck 3 mute_stem 'vocal' :
+      deck 3 mute_stem 'melody' &amp; deck 3 mute_stem 'rhythm'
+  </pad1>
+  <pad2 name="`deck 1 mute_stem 'vocal' ? get_text 'INSTRUMENTAL' : deck 1 mute_stem 'melody' ? get_text 'ACAPELLA' : get_text 'ALL STEMS'`" color="`deck 1 mute_stem 'vocal' ? color 'yellow' : deck 1 mute_stem 'melody' ? color 'green' : color 'blue'`" autodim="false">
+    deck 1 mute_stem 'vocal' ?
+      deck 1 mute_stem 'vocal' :
+    deck 1 mute_stem 'melody' ?
+      deck 1 mute_stem 'melody' &amp; deck 1 mute_stem 'rhythm' &amp; deck 1 mute_stem 'vocal' :
+      deck 1 mute_stem 'melody' &amp; deck 1 mute_stem 'rhythm'
+  </pad2>
+  <pad3 name="`deck 2 mute_stem 'vocal' ? get_text 'INSTRUMENTAL' : deck 2 mute_stem 'melody' ? get_text 'ACAPELLA' : get_text 'ALL STEMS'`" color="`deck 2 mute_stem 'vocal' ? color 'yellow' : deck 2 mute_stem 'melody' ? color 'green' : color 'blue'`" autodim="false">
+    deck 2 mute_stem 'vocal' ?
+      deck 2 mute_stem 'vocal' :
+    deck 2 mute_stem 'melody' ?
+      deck 2 mute_stem 'melody' &amp; deck 2 mute_stem 'rhythm' &amp; deck 2 mute_stem 'vocal' :
+      deck 2 mute_stem 'melody' &amp; deck 2 mute_stem 'rhythm'
+  </pad3>
+  <pad4 name="`deck 4 mute_stem 'vocal' ? get_text 'INSTRUMENTAL' : deck 4 mute_stem 'melody' ? get_text 'ACAPELLA' : get_text 'ALL STEMS'`" color="`deck 4 mute_stem 'vocal' ? color 'yellow' : deck 4 mute_stem 'melody' ? color 'green' : color 'blue'`" autodim="false">
+    deck 4 mute_stem 'vocal' ?
+      deck 4 mute_stem 'vocal' :
+    deck 4 mute_stem 'melody' ?
+      deck 4 mute_stem 'melody' &amp; deck 4 mute_stem 'rhythm' &amp; deck 4 mute_stem 'vocal' :
+      deck 4 mute_stem 'melody' &amp; deck 4 mute_stem 'rhythm'
+  </pad4>
   <pad5 name="MASTER" color="color orange" query="deck 3 masterdeck">deck 3 masterdeck</pad5>
   <pad6 name="MASTER" color="color orange" query="deck 1 masterdeck">deck 1 masterdeck</pad6>
   <pad7 name="MASTER" color="color orange" query="deck 2 masterdeck">deck 2 masterdeck</pad7>
   <pad8 name="MASTER" color="color orange" query="deck 4 masterdeck">deck 4 masterdeck</pad8>
-  <pad9 name="SYNC" color="color white" query="deck 3 is_sync">deck 3 sync &amp; phrase_sync &amp; match_key</pad9>
-  <pad10 name="SYNC" color="color white" query="deck 1 is_sync">deck 1 sync &amp; phrase_sync &amp; match_key</pad10>
-  <pad11 name="SYNC" color="color white" query="deck 2 is_sync">deck 2 sync &amp; phrase_sync &amp; match_key</pad11>
-  <pad12 name="SYNC" color="color white" query="deck 4 is_sync">deck 4 sync &amp; phrase_sync &amp; match_key</pad12>
-  <shift_pad13 name="EJECT 3" color="color red" query="deck 3 loaded">deck 3 unload</shift_pad13>
-  <shift_pad14 name="EJECT 1" color="color red" query="deck 1 loaded">deck 1 unload</shift_pad14>
-  <shift_pad15 name="EJECT 2" color="color red" query="deck 2 loaded">deck 2 unload</shift_pad15>
-  <shift_pad16 name="EJECT 4" color="color red" query="deck 4 loaded">deck 4 unload</shift_pad16>
-  <pad13 name="   3  ▶" color="color green" drop="load 4" query="deck 3 loaded ? (deck 3 play ? blink 1bt : on) : off">deck 3 play_button &amp; sync</pad13>
-  <pad14 name="   1  ▶" color="color green" drop="load 4" query="deck 1 loaded ? (deck 1 play ? blink 1bt : on) : off">deck 1 play_button &amp; sync</pad14>
-  <pad15 name="   2  ▶" color="color green" drop="load 4" query="deck 2 loaded ? (deck 2 play ? blink 1bt : on) : off">deck 2 play_button &amp; sync</pad15>
-  <pad16 name="   4  ▶" color="color green" drop="load 4" query="deck 4 loaded ? (deck 4 play ? blink 1bt : on) : off">deck 4 play_button &amp; sync</pad16>
+  <pad9 name="SYNC" color="color '#A834D3'" query="deck 3 is_sync">deck 3 sync &amp; phrase_sync &amp; match_key</pad9>
+  <pad10 name="SYNC" color="color '#A834D3'" query="deck 1 is_sync">deck 1 sync &amp; phrase_sync &amp; match_key</pad10>
+  <pad11 name="SYNC" color="color '#A834D3'" query="deck 2 is_sync">deck 2 sync &amp; phrase_sync &amp; match_key</pad11>
+  <pad12 name="SYNC" color="color '#A834D3'" query="deck 4 is_sync">deck 4 sync &amp; phrase_sync &amp; match_key</pad12>
+  <pad13 name="3. PLAY ▶" color="color green" drop="load 4" query="deck 3 loaded ? (deck 3 play ? blink 1bt : on) : off">deck 3 play_button &amp; sync</pad13>
+  <pad14 name="1. PLAY ▶" color="color green" drop="load 4" query="deck 1 loaded ? (deck 1 play ? blink 1bt : on) : off">deck 1 play_button &amp; sync</pad14>
+  <pad15 name="2. PLAY ▶" color="color green" drop="load 4" query="deck 2 loaded ? (deck 2 play ? blink 1bt : on) : off">deck 2 play_button &amp; sync</pad15>
+  <pad16 name="4. PLAY ▶" color="color green" drop="load 4" query="deck 4 loaded ? (deck 4 play ? blink 1bt : on) : off">deck 4 play_button &amp; sync</pad16>
+  <shift_pad13 name="3. NEXT ▶" color="color '#00AFEF'" query="deck 3 loaded">deck 3 load_next keepplay</shift_pad13>
+  <shift_pad14 name="1. NEXT ▶" color="color '#00AFEF'" query="deck 1 loaded">deck 1 load_next keepplay</shift_pad14>
+  <shift_pad15 name="2. NEXT ▶" color="color '#00AFEF'" query="deck 2 loaded">deck 2 load_next keepplay</shift_pad15>
+  <shift_pad16 name="4. NEXT ▶" color="color '#00AFEF'" query="deck 4 loaded">deck 4 load_next keepplay</shift_pad16>
 </page>

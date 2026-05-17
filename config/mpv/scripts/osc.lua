@@ -39,6 +39,8 @@ local user_opts = {
     deadzonesize = 0.5,         -- size of deadzone
     minmousemove = 0,           -- minimum amount of pixels the mouse has to
                                 -- move between ticks to make the OSC show up
+    tickdelay = 0.03,           -- minimum seconds between OSC redraws while
+                                -- visible; higher values reduce OSD overhead
     iamaprogrammer = false,     -- use native mpv values and disable OSC
                                 -- internal track list management (and some
                                 -- functions that depend on it)
@@ -157,7 +159,14 @@ local thumbfast = {
 }
 
 local window_control_box_width = 80
-local tick_delay = 0.03
+
+local function get_tick_delay()
+    local delay = tonumber(user_opts.tickdelay) or 0.03
+    if delay < 0 then
+        return 0
+    end
+    return delay
+end
 
 local is_december = os.date("*t").month == 12
 
@@ -2444,7 +2453,7 @@ function request_tick()
 
     if not state.tick_timer:is_enabled() then
         local now = mp.get_time()
-        local timeout = tick_delay - (now - state.tick_last_time)
+        local timeout = get_tick_delay() - (now - state.tick_last_time)
         if timeout < 0 then
             timeout = 0
         end
