@@ -54,6 +54,9 @@ prepend_rules = [
 ]
 
 [plugin]
+prepend_previewers = [
+	{ mime = "video/*", run = "video-thumb-info" },
+]
 append_previewers = [
 	{ url = "*", run = "file-extra-metadata" },
 ]
