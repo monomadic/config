@@ -1,0 +1,16 @@
+#!/usr/bin/env zsh
+emulate -L zsh
+set -euo pipefail
+
+forklift_shell="${HOME}/.zsh/bin/forklift-shell"
+[[ -x "$forklift_shell" ]] || forklift_shell="${0:A:h}/forklift-shell"
+
+exec "$forklift_shell" --argv -- \
+  /Users/nom/.zsh/bin/kitty-launch \
+  --os-window \
+  --cwd @source-path \
+  --title " topaz presets " \
+  -- \
+  zsh -lc '/Users/nom/config/config/zsh/bin/topaz-simple-presets "$@"; status=$?; printf "\nPress enter to close "; read -r _; exit "$status"' \
+  zsh \
+  @source-selection-paths

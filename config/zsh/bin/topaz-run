@@ -6,7 +6,7 @@ script_name="${0:t}"
 usage() {
   cat <<EOF
 usage:
-  $script_name [--preset_name name --filter_complex filter] -- file1 [file2 ...]
+  $script_name [--preset_name name --filter_complex filter] [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
   $script_name file1 [file2 ...]
 
 With --preset_name and --filter_complex, runs the supplied Topaz filter directly.
@@ -127,6 +127,9 @@ done'
 preset_name=""
 preset_flag=""
 preset_value=""
+preset_output_ext=""
+preset_video_args=""
+preset_metadata=""
 files=()
 
 while (( $# > 0 )); do
@@ -146,6 +149,30 @@ while (( $# > 0 )); do
       }
       preset_flag="--filter_complex"
       preset_value="$2"
+      shift 2
+      ;;
+    --output_ext)
+      (( $# >= 2 )) || {
+        print -u2 -- "--output_ext requires a value"
+        exit 1
+      }
+      preset_output_ext="$2"
+      shift 2
+      ;;
+    --video_args)
+      (( $# >= 2 )) || {
+        print -u2 -- "--video_args requires a value"
+        exit 1
+      }
+      preset_video_args="$2"
+      shift 2
+      ;;
+    --metadata)
+      (( $# >= 2 )) || {
+        print -u2 -- "--metadata requires a value"
+        exit 1
+      }
+      preset_metadata="$2"
       shift 2
       ;;
     --)
@@ -208,6 +235,9 @@ else
   preset_name="$TOPAZ_PRESET_NAME"
   preset_flag="$TOPAZ_PRESET_FLAG"
   preset_value="$TOPAZ_PRESET_FILTER"
+  preset_output_ext="$TOPAZ_PRESET_OUTPUT_EXT"
+  preset_video_args="$TOPAZ_PRESET_VIDEO_ARGS"
+  preset_metadata="$TOPAZ_PRESET_METADATA"
 fi
 
 for input in "$files[@]"; do
@@ -237,11 +267,29 @@ for input in "$files[@]"; do
   ext="${input:e}"
   stem="${input:r}"
   base="${input:t:r}"
+  output_ext="${preset_output_ext:-$ext}"
+  output_ext="${output_ext#.}"
+  video_args=(${(z)preset_video_args:-})
+
+  (( ${#video_args[@]} > 0 )) || {
+    video_args=(
+      -c:v hevc_videotoolbox
+      -profile:v main
+      -tag:v hvc1
+      -pix_fmt yuv420p
+      -allow_sw 1
+      -g 30
+      -b:v 30M
+    )
+  }
+
+  metadata_args=()
+  [[ -n "$preset_metadata" ]] && metadata_args=(-metadata "$preset_metadata")
 
   filename_preset="$(topaz_file_preset_label "$preset_name")"
   safe_preset="$(topaz_safe_log_label "$filename_preset")"
 
-  output="${stem} [Topaz - ${filename_preset}].${ext}"
+  output="${stem} [Topaz - ${filename_preset}].${output_ext}"
   log_file="${LOG_DIR}/${base} [Topaz - ${safe_preset}].log"
   ffmpeg_preset_flag="-${preset_flag#--}"
 
@@ -257,13 +305,7 @@ for input in "$files[@]"; do
     -i "$input"
     -sws_flags "spline+accurate_rnd+full_chroma_int"
     "$ffmpeg_preset_flag" "$preset_value"
-    -c:v hevc_videotoolbox
-    -profile:v main
-    -tag:v hvc1
-    -pix_fmt yuv420p
-    -allow_sw 1
-    -g 30
-    -b:v 30M
+    "${video_args[@]}"
     -map "0:a?"
     -c:a copy
     -map_metadata 0
@@ -271,6 +313,7 @@ for input in "$files[@]"; do
     -fps_mode:v passthrough
     -movflags "frag_keyframe+empty_moov+delay_moov+use_metadata_tags+write_colr"
     -bf 0
+    "${metadata_args[@]}"
     "$output"
   )
 
@@ -296,6 +339,7 @@ for input in "$files[@]"; do
 
   print -P -- "%F{cyan}%BEncoding%b%f"
   print -P -- "  %F{white}engine:%f %F{magenta}Topaz ffmpeg%f"
+  print -P -- "  %F{white}video:%f  %F{magenta}$(topaz_escape_prompt "${(j: :)video_args}")%f"
   print -P -- "  %F{white}input:%f  %F{white}$(topaz_escape_prompt "$input")%f"
   print -P -- "  %F{white}output:%f %F{green}%B$(topaz_escape_prompt "$output")%b%f"
   print -P -- "  %F{white}log:%f    %F{blue}$(topaz_escape_prompt "$log_file")%f"

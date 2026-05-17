@@ -1,6 +1,37 @@
 #!/bin/zsh
 set +o monitor
 
+typeset -g _tv_cd_sources_file="${ZSH_DOTFILES_DIR:-$HOME/config/config/zsh}/fzf-cd-sources.zsh"
+[[ -r "$_tv_cd_sources_file" ]] && source "$_tv_cd_sources_file"
+
+typeset -ga _cd_fzf_global_static
+typeset -ga _cd_fzf_global_commands
+
+(( ${#_cd_fzf_global_static} )) || _cd_fzf_global_static=(
+  '$HOME/Movies'
+  '$HOME/Pictures'
+)
+(( ${#_cd_fzf_global_commands} )) || _cd_fzf_global_commands=()
+
+emit_static_directories() {
+  local entry path
+  for entry in "${_cd_fzf_global_static[@]}"; do
+    local -a expanded
+    eval "expanded=( ${entry} )" 2>/dev/null
+    for path in "${expanded[@]}"; do
+      [[ -d "$path" ]] && print -r -- "${path%/}"
+    done
+  done
+}
+
+emit_default_directories() {
+  local cmd
+  emit_static_directories
+  for cmd in "${_cd_fzf_global_commands[@]}"; do
+    /bin/zsh -lc "$cmd" 2>/dev/null
+  done
+}
+
 handle_directory_selection() {
   local prompt='  '
   local header=''
@@ -49,7 +80,15 @@ handle_directory_selection() {
     return 127
   fi
 
-  if [[ -z "$source_cmd" ]]; then
+  if [[ -z "$source_cmd" && -t 0 ]]; then
+    source_tmp="$(mktemp "${TMPDIR:-/tmp}/tv-cd-source.XXXXXX")" || return 1
+    emit_default_directories > "$source_tmp"
+    [[ -s "$source_tmp" ]] || {
+      rm -f "$source_tmp"
+      return 1
+    }
+    source_cmd="cat ${(q)source_tmp}"
+  elif [[ -z "$source_cmd" ]]; then
     source_tmp="$(mktemp "${TMPDIR:-/tmp}/tv-cd-source.XXXXXX")" || return 1
     cat > "$source_tmp"
     [[ -s "$source_tmp" ]] || {

@@ -9,6 +9,7 @@
 #   /Users/nom/.zsh/bin/forklift-shell -- 'file -- "$FL_SOURCE_SELECTION_PATH"'
 #   /Users/nom/.zsh/bin/forklift-shell -- 'mpv --shuffle "$FL_SOURCE_SELECTION_PATHS_ARRAY[@]"'
 #   /Users/nom/.zsh/bin/forklift-shell --argv -- /usr/bin/file -- /tmp/example.mov
+#   /Users/nom/config/config/zsh/bin/forklift-topaz-simple-presets
 #
 # Debug:
 #
@@ -82,6 +83,7 @@ Examples:
   forklift-shell -- 'mpv --shuffle "$FL_SOURCE_SELECTION_PATHS_ARRAY[@]"'
   forklift-shell -- 'yazi "$FL_SOURCE_PATH"'
   forklift-shell -- '/Users/nom/.zsh/bin/kitty-launch --os-window --cwd "$FL_SOURCE_PATH" -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut-by-fzf-keyframe-select --keyframes 10 -- "$FL_SOURCE_SELECTION_PATHS_ARRAY[@]"'
+  /Users/nom/config/config/zsh/bin/forklift-topaz-simple-presets
 
 Safe argv tokens:
   @source-path
