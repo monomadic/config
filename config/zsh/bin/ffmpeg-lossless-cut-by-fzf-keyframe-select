@@ -15,7 +15,8 @@
 #
 # Output:
 # - writes beside source as *.trimmed.ext
-# - prompts before moving the original to Trash after a successful cut
+# - copies the source filesystem creation date to the trimmed output
+# - moves the original to Trash after a successful cut
 #
 # Requirements:
 # - zsh
@@ -48,8 +49,8 @@ Options:
   --from <seconds>          Start selector at/after this timestamp
   -h, --help                Show this help
 
-After a successful cut, prompts before moving the original file to Trash.
-The default answer is no.
+After a successful cut, copies the original file creation date to the trimmed
+output, then moves the original file to Trash.
 
 Examples:
   ffmpeg-lossless-cut-by-fzf-keyframe-select clip.mp4
@@ -378,12 +379,50 @@ confirm_overwrite() {
   [[ "$reply" == [Yy] || "$reply" == [Yy][Ee][Ss] ]]
 }
 
-confirm_trash_original() {
-  local input_file="$1"
-  local reply=""
+setfile_path_arg() {
+  local file_path="$1"
 
-  read -r "?Trash original file '$input_file'? [y/N] " reply
-  [[ "$reply" == [Yy] || "$reply" == [Yy][Ee][Ss] ]]
+  if [[ "$file_path" != /* && "${file_path:t}" == -* ]]; then
+    print -r -- "./$file_path"
+  else
+    print -r -- "$file_path"
+  fi
+}
+
+creation_date_for_setfile() {
+  local input_file="$1"
+  local epoch
+
+  epoch="$(stat -f '%B' -- "$input_file" 2>/dev/null)" || return 1
+  [[ "$epoch" == <-> ]] || return 1
+  (( epoch > 0 )) || return 1
+
+  date -r "$epoch" '+%m/%d/%Y %H:%M:%S'
+}
+
+copy_creation_date() {
+  local input_file="$1"
+  local output_file="$2"
+  local created output_arg
+
+  if ! have SetFile; then
+    warn "SetFile not found; could not copy creation date"
+    return 1
+  fi
+
+  if ! created="$(creation_date_for_setfile "$input_file")"; then
+    warn "could not read creation date: $input_file"
+    return 1
+  fi
+
+  output_arg="$(setfile_path_arg "$output_file")"
+  if SetFile -d "$created" "$output_arg"; then
+    info "Copied creation date: $created"
+    return 0
+  fi
+
+  warn "failed to copy creation date to: $output_file"
+  return 1
 }
 
 trash_original() {
@@ -417,8 +456,6 @@ trash_original() {
 
 maybe_trash_original() {
   local input_file="$1"
-
-  confirm_trash_original "$input_file" || return 0
 
   if trash_original "$input_file"; then
     info "Trashed original:  $input_file"
@@ -558,6 +595,7 @@ is_number "$from_ts" || die "--from must be numeric seconds"
 integer ok_count=0
 integer skip_count=0
 integer fail_count=0
+integer creation_date_fail_count=0
 integer trash_fail_count=0
 
 local_multi=false
@@ -620,12 +658,15 @@ for input_file in "${files[@]}"; do
     else
       print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' -map 0 -c copy '$output_file'"
     fi
+    print -- "copy creation date from '$input_file' to '$output_file'"
+    print -- "trash '$input_file'"
     (( ++ok_count ))
     continue
   fi
 
   if perform_cut "$input_file" "$ts" "$output_file" "$force" "$reverse_mode"; then
     info "Done: wrote trimmed copy"
+    copy_creation_date "$input_file" "$output_file" || (( ++creation_date_fail_count ))
     (( ++ok_count ))
     maybe_trash_original "$input_file" || (( ++trash_fail_count ))
   else
@@ -634,5 +675,5 @@ for input_file in "${files[@]}"; do
 done
 
 print
-info "Summary: ok=$ok_count skipped=$skip_count failed=$fail_count trash_failed=$trash_fail_count"
-(( fail_count == 0 && trash_fail_count == 0 ))
+info "Summary: ok=$ok_count skipped=$skip_count failed=$fail_count creation_date_failed=$creation_date_fail_count trash_failed=$trash_fail_count"
+(( fail_count == 0 && creation_date_fail_count == 0 && trash_fail_count == 0 ))
