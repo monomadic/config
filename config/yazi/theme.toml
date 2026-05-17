@@ -222,6 +222,9 @@ exts = [
   { name = "sh",   text = "􀩼 ", fg = "#7df9aa" },
   { name = "zsh",  text = "􀩼 ", fg = "#7df9aa" },
 
+  # web
+  { name = "xml",   text = "􀤏 ", fg = "#0fb86c" },
+
   # config
   { name = "toml", text = "􀍟 ", fg = "#ffe66d" },
   { name = "json", text = "􀍟 ", fg = "#ffe66d" },
