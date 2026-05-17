@@ -2,10 +2,16 @@
 
 # Shared Topaz preset catalog for wrappers in this directory.
 # Row format:
-#   picker<TAB>display_label<TAB>preset_name<TAB>preset_flag<TAB>filter_complex
+#   picker<TAB>display_label<TAB>preset_name<TAB>preset_flag<TAB>filter_complex<TAB>output_ext<TAB>video_args<TAB>metadata
 
 topaz_preset_catalog_rows() {
   emulate -L zsh
+
+  print -r -- $'run\tVJ 1080p-ish to 4K60 ProRes Proxy\tVJ 1080p-ish to 4K60 ProRes Proxy\t--filter_complex\ttvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0:noise=0.10:details=0.38:halo=-0.04:blur=0.18:compression=0.20:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1,tvai_fi=model=apollo:slowmo=0:rdt=0.01:device=0:vram=0.95:instances=1,fps=60,scale=w=3840:h=2160:flags=lanczos:threads=0\tmov\t-c:v prores_ks -profile:v proxy -pix_fmt yuv422p10le -vendor apl0\tvideoai=VJ 4K60 ProRes Proxy. Proteus keeps graphics clean while Apollo creates 60fps motion for projection and live visual workflows.'
+  print -r -- $'run\tVJ mixed 720p/random to 4K ProRes Proxy\tVJ mixed 720p/random to 4K ProRes Proxy\t--filter_complex\ttvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0.03:noise=0.18:details=0.48:halo=-0.05:blur=0.28:compression=0.30:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1,scale=w=3840:h=2160:flags=lanczos:threads=0\tmov\t-c:v prores_ks -profile:v proxy -pix_fmt yuv422p10le -vendor apl0\tvideoai=VJ mixed-source 4K ProRes Proxy. Stronger compression cleanup and deblur for 720p or irregular graphics sources.'
+  print -r -- $'run\tHQ 1080p to clean sharp 4K HEVC\tHQ 1080p to clean sharp 4K HEVC\t--filter_complex\ttvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0:noise=0.06:details=0.42:halo=-0.03:blur=0.10:compression=0.08:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1,scale=w=3840:h=2160:flags=lanczos:threads=0\tmp4\t-c:v hevc_videotoolbox -profile:v main -tag:v hvc1 -pix_fmt yuv420p -allow_sw 1 -g 30 -b:v 40M\tvideoai=HQ 1080p to 4K. Light Proteus enhancement for already-good sources: restrained denoise, compression repair, and detail recovery.'
+  print -r -- $'run\tLow-light iPhone 1080p to 4K 35Mbps HEVC\tLow-light iPhone 1080p to 4K 35Mbps HEVC\t--filter_complex\ttvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0.05:noise=0.45:details=0.32:halo=-0.04:blur=0.24:compression=0.28:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1,scale=w=3840:h=2160:flags=lanczos:threads=0\tmp4\t-c:v hevc_videotoolbox -profile:v main -tag:v hvc1 -pix_fmt yuv420p -allow_sw 1 -g 30 -b:v 35M\tvideoai=Low-light iPhone 1080p to 4K. Proteus denoise and moderate recovery, preserving a little grain to avoid waxy faces.'
+  print -r -- $'run\tOvercompressed 4K cleanup HEVC\tOvercompressed 4K cleanup HEVC\t--filter_complex\ttvai_up=model=prob-4:scale=1:preblur=0.02:noise=0.20:details=0.22:halo=-0.08:blur=0.16:compression=0.62:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tmp4\t-c:v hevc_videotoolbox -profile:v main -tag:v hvc1 -pix_fmt yuv420p -allow_sw 1 -g 30 -b:v 35M\tvideoai=Overcompressed 4K cleanup. Same-size Proteus pass prioritizing compression repair, reduced halos, and restrained detail recovery.'
 
   print -r -- $'run\t4K Enhance - clean digital look without cartoonish output\t4K Enhance - clean digital look without cartoonish output\t--filter_complex\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.10:details=0.30:halo=0.02:blur=0.06:compression=0.10:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1'
   print -r -- $'run\tProb-4 2x - medium enhancement\tProb-4 2x - medium enhancement\t--filter_complex\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.35:details=0.60:halo=0:blur=0.20:compression=0.30:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
@@ -20,6 +26,12 @@ topaz_preset_catalog_rows() {
   print -r -- $'run\tArtemis HQ - gentle enhancement for decent sources\tArtemis HQ - gentle enhancement for decent sources\t--filter_complex\ttvai_up=model=ahq-13:scale=1:preblur=0:noise=0.15:details=0.35:halo=0:blur=0.10:compression=0.15:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1'
   print -r -- $'run\tNyx - strong denoise for dark/noisy footage\tNyx - strong denoise for dark/noisy footage\t--filter_complex\ttvai_up=model=nyx-3:scale=1:preblur=0:noise=0.80:details=0.25:halo=0:blur=0.20:compression=0.25:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1'
   print -r -- $'run\tProteus manual - balanced recover + denoise\tProteus manual - balanced recover + denoise\t--filter_complex\ttvai_up=model=prob-3:scale=1:preblur=0:noise=0.40:details=0.55:halo=0.05:blur=0.15:compression=0.25:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
+
+  print -r -- $'simple\tVJ 1080p-ish -> 4K60 ProRes Proxy\tvj-1080p-ish-to-4k60-prores-proxy\t--filter_complex\ttvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0:noise=0.10:details=0.38:halo=-0.04:blur=0.18:compression=0.20:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1,tvai_fi=model=apollo:slowmo=0:rdt=0.01:device=0:vram=0.95:instances=1,fps=60,scale=w=3840:h=2160:flags=lanczos:threads=0\tmov\t-c:v prores_ks -profile:v proxy -pix_fmt yuv422p10le -vendor apl0\tvideoai=VJ 4K60 ProRes Proxy. Proteus keeps graphics clean while Apollo creates 60fps motion for projection and live visual workflows.'
+  print -r -- $'simple\tVJ mixed 720p/random -> 4K ProRes Proxy\tvj-mixed-720p-random-to-4k-prores-proxy\t--filter_complex\ttvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0.03:noise=0.18:details=0.48:halo=-0.05:blur=0.28:compression=0.30:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1,scale=w=3840:h=2160:flags=lanczos:threads=0\tmov\t-c:v prores_ks -profile:v proxy -pix_fmt yuv422p10le -vendor apl0\tvideoai=VJ mixed-source 4K ProRes Proxy. Stronger compression cleanup and deblur for 720p or irregular graphics sources.'
+  print -r -- $'simple\tHQ 1080p -> Clean Sharp 4K HEVC\t1080p-hq-to-clean-sharp-4k-hevc\t--filter_complex\ttvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0:noise=0.06:details=0.42:halo=-0.03:blur=0.10:compression=0.08:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1,scale=w=3840:h=2160:flags=lanczos:threads=0\tmp4\t-c:v hevc_videotoolbox -profile:v main -tag:v hvc1 -pix_fmt yuv420p -allow_sw 1 -g 30 -b:v 40M\tvideoai=HQ 1080p to 4K. Light Proteus enhancement for already-good sources: restrained denoise, compression repair, and detail recovery.'
+  print -r -- $'simple\tLow-light iPhone 1080p -> 4K 35Mbps HEVC\tlow-light-iphone-1080p-to-4k-35mbps-hevc\t--filter_complex\ttvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0.05:noise=0.45:details=0.32:halo=-0.04:blur=0.24:compression=0.28:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1,scale=w=3840:h=2160:flags=lanczos:threads=0\tmp4\t-c:v hevc_videotoolbox -profile:v main -tag:v hvc1 -pix_fmt yuv420p -allow_sw 1 -g 30 -b:v 35M\tvideoai=Low-light iPhone 1080p to 4K. Proteus denoise and moderate recovery, preserving a little grain to avoid waxy faces.'
+  print -r -- $'simple\tOvercompressed 4K Cleanup HEVC\tcompressed-4k-cleanup-hevc\t--filter_complex\ttvai_up=model=prob-4:scale=1:preblur=0.02:noise=0.20:details=0.22:halo=-0.08:blur=0.16:compression=0.62:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tmp4\t-c:v hevc_videotoolbox -profile:v main -tag:v hvc1 -pix_fmt yuv420p -allow_sw 1 -g 30 -b:v 35M\tvideoai=Overcompressed 4K cleanup. Same-size Proteus pass prioritizing compression repair, reduced halos, and restrained detail recovery.'
 
   print -r -- $'simple\t4K Conservative Cleanup\t4k-conservative-cleanup\t--filter_complex\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.20:details=0.22:halo=0.03:blur=0.08:compression=0.18:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
   print -r -- $'simple\t4K Balanced Enhancement\t4k-balanced-enhancement\t--filter_complex\tscale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.32:details=0.36:halo=0.05:blur=0.14:compression=0.30:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1'
@@ -37,11 +49,11 @@ topaz_preset_catalog_rows() {
 topaz_preset_picker_rows() {
   emulate -L zsh
   local picker="$1"
-  local row_picker display preset_name preset_flag filter_complex
+  local row_picker display preset_name preset_flag filter_complex output_ext video_args metadata
 
-  topaz_preset_catalog_rows | while IFS=$'\t' read -r row_picker display preset_name preset_flag filter_complex; do
+  topaz_preset_catalog_rows | while IFS=$'\t' read -r row_picker display preset_name preset_flag filter_complex output_ext video_args metadata; do
     [[ "$row_picker" == "$picker" ]] || continue
-    print -r -- "${display}"$'\t'"${preset_name}"$'\t'"${preset_flag}"$'\t'"${filter_complex}"
+    print -r -- "${display}"$'\t'"${preset_name}"$'\t'"${preset_flag}"$'\t'"${filter_complex}"$'\t'"${output_ext}"$'\t'"${video_args}"$'\t'"${metadata}"
   done
 }
 
@@ -49,10 +61,12 @@ topaz_parse_preset_row() {
   emulate -L zsh
   local row="$1"
 
-  TOPAZ_PRESET_DISPLAY="${row%%$'\t'*}"
-  row="${row#*$'\t'}"
-  TOPAZ_PRESET_NAME="${row%%$'\t'*}"
-  row="${row#*$'\t'}"
-  TOPAZ_PRESET_FLAG="${row%%$'\t'*}"
-  TOPAZ_PRESET_FILTER="${row#*$'\t'}"
+  IFS=$'\t' read -r \
+    TOPAZ_PRESET_DISPLAY \
+    TOPAZ_PRESET_NAME \
+    TOPAZ_PRESET_FLAG \
+    TOPAZ_PRESET_FILTER \
+    TOPAZ_PRESET_OUTPUT_EXT \
+    TOPAZ_PRESET_VIDEO_ARGS \
+    TOPAZ_PRESET_METADATA <<< "$row"
 }

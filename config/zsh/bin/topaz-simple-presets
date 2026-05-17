@@ -11,7 +11,7 @@ usage:
   $script_name --help
 
 Pick a simple Topaz preset, then call:
-  topaz-run --preset_name name --filter_complex filter -- file1 [file2 ...]
+  topaz-run --preset_name name --filter_complex filter [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
 EOF
 }
 
@@ -72,20 +72,30 @@ selection="$(
 preset_name=""
 preset_flag=""
 filter_complex=""
+output_ext=""
+video_args=""
+metadata=""
 
 topaz_parse_preset_row "$selection"
 preset_label="$TOPAZ_PRESET_DISPLAY"
 preset_name="$TOPAZ_PRESET_NAME"
 preset_flag="$TOPAZ_PRESET_FLAG"
 filter_complex="$TOPAZ_PRESET_FILTER"
+output_ext="$TOPAZ_PRESET_OUTPUT_EXT"
+video_args="$TOPAZ_PRESET_VIDEO_ARGS"
+metadata="$TOPAZ_PRESET_METADATA"
 
 cmd_preview=(
   topaz-run
   --preset_name "$preset_name"
   "$preset_flag" "$filter_complex"
-  --
-  "$@"
 )
+
+[[ -n "$output_ext" ]] && cmd_preview+=(--output_ext "$output_ext")
+[[ -n "$video_args" ]] && cmd_preview+=(--video_args "$video_args")
+[[ -n "$metadata" ]] && cmd_preview+=(--metadata "$metadata")
+
+cmd_preview+=(-- "$@")
 
 print -P -- "%F{cyan}󰏬%f preset: $preset_label"
 print -P -- "%F{white}slug:%f   $preset_name"
