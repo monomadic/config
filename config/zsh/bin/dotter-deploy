@@ -74,6 +74,25 @@ prepare_yazi_package_dirs() {
   )
 }
 
+prepare_yazi_local_plugin_dirs() {
+  local source_plugins="$CONFIG_DIR/config/yazi/plugins"
+  local source_dir
+  local target_dir
+
+  [[ -d "$source_plugins" ]] || return
+
+  mkdir -p "$YAZI_PACKAGE_PLUGIN_DIR"
+
+  for source_dir in "$source_plugins"/*.yazi(N/); do
+    target_dir="$YAZI_PACKAGE_PLUGIN_DIR/${source_dir:t}"
+
+    if [[ -L "$target_dir" && "${target_dir:A}" == "${source_dir:A}" ]]; then
+      rm -f "$target_dir"
+      mkdir -p "$target_dir"
+    fi
+  done
+}
+
 repair_yazi_package_cache() {
   local cache_dir
   local init_file
@@ -122,6 +141,7 @@ install_yazi_packages() {
 }
 
 prepare_yazi_package_manifest
+prepare_yazi_local_plugin_dirs
 
 (
   cd "$CONFIG_DIR"
