@@ -1,0 +1,116 @@
+#!/usr/bin/env zsh
+# =============================================================================
+# ffmpeg-normalize-vocals
+# High-quality loudness-normalize audio files for DJ stem/acapella use.
+#
+# - Uses ffmpeg loudnorm in 2-pass mode for better accuracy than single-pass
+# - Exports FLAC by default
+# - Targets vocal stems/acapellas around -12 LUFS, -1 dBTP
+#
+# Usage:
+#   ffmpeg-normalize-vocals file1.wav file2.flac
+#   ffmpeg-normalize-vocals -i -11 *.wav
+#   ffmpeg-normalize-vocals -o ./normalized *.wav
+#
+# Options:
+#   -i LUFS      Integrated loudness target, default: -12
+#   -t DBTP      True peak target, default: -1
+#   -l LRA       Loudness range target, default: 7
+#   -o DIR       Output directory, default: same as input
+#   -h           Show help
+# =============================================================================
+
+set -euo pipefail
+
+target_i="-12"
+target_tp="-1"
+target_lra="7"
+output_dir=""
+
+usage() {
+  sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+while getopts ":i:t:l:o:h" opt; do
+  case "$opt" in
+    i) target_i="$OPTARG" ;;
+    t) target_tp="$OPTARG" ;;
+    l) target_lra="$OPTARG" ;;
+    o) output_dir="$OPTARG" ;;
+    h)
+      usage
+      exit 0
+      ;;
+    :)
+      print -u2 "Missing argument for -$OPTARG"
+      exit 2
+      ;;
+    \?)
+      print -u2 "Unknown option: -$OPTARG"
+      exit 2
+      ;;
+  esac
+done
+
+shift $((OPTIND - 1))
+
+if (( $# == 0 )); then
+  usage
+  exit 2
+fi
+
+command -v ffmpeg >/dev/null || {
+  print -u2 "ffmpeg not found"
+  exit 1
+}
+
+command -v jq >/dev/null || {
+  print -u2 "jq not found; required for parsing loudnorm pass 1"
+  exit 1
+}
+
+[[ -n "$output_dir" ]] && mkdir -p "$output_dir"
+
+for input_file in "$@"; do
+  if [[ ! -f "$input_file" ]]; then
+    print -P "%F{yellow}⚠ skipping missing file:%f $input_file"
+    continue
+  fi
+
+  input_dir="${input_file:h}"
+  input_name="${input_file:t}"
+  stem_name="${input_name:r}"
+
+  if [[ -n "$output_dir" ]]; then
+    final_file="${output_dir}/${stem_name}.norm.flac"
+  else
+    final_file="${input_dir}/${stem_name}.norm.flac"
+  fi
+
+  print -P "%F{cyan}🎙 analyzing:%f $input_file"
+
+  analysis_json="$(
+    ffmpeg -hide_banner -nostats \
+      -i "$input_file" \
+      -af "loudnorm=I=${target_i}:TP=${target_tp}:LRA=${target_lra}:print_format=json" \
+      -f null - 2>&1 |
+    sed -n '/^{/,/^}/p'
+  )"
+
+  input_i="$(jq -r '.input_i' <<< "$analysis_json")"
+  input_tp="$(jq -r '.input_tp' <<< "$analysis_json")"
+  input_lra="$(jq -r '.input_lra' <<< "$analysis_json")"
+  input_thresh="$(jq -r '.input_thresh' <<< "$analysis_json")"
+  target_offset="$(jq -r '.target_offset' <<< "$analysis_json")"
+
+  print -P "%F{magenta}↳ rendering:%f $final_file"
+
+  ffmpeg -hide_banner -y \
+    -i "$input_file" \
+    -af "loudnorm=I=${target_i}:TP=${target_tp}:LRA=${target_lra}:measured_I=${input_i}:measured_TP=${input_tp}:measured_LRA=${input_lra}:measured_thresh=${input_thresh}:offset=${target_offset}:linear=true:print_format=summary" \
+    -c:a flac \
+    -compression_level 12 \
+    "$final_file"
+
+  print -P "%F{green}✓ done:%f $final_file"
+done
