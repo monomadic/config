@@ -271,6 +271,11 @@ run  = "cd --interactive"
 desc = "Change directory interactively"
 
 [[mgr.prepend_keymap]]
+on   = "r"
+run  = "bulk_rename"
+desc = "Bulk rename selected files with Helix"
+
+[[mgr.prepend_keymap]]
 on   = "R"
 for  = "macos"
 run  = "shell --orphan -- /usr/bin/open -R %h"

@@ -13,6 +13,9 @@ edit = [
 	{ run = "code %s", desc = "code", for = "windows", orphan = true },
 	{ run = "code -w %s", desc = "code (block)", for = "windows", block = true },
 ]
+bulk-rename = [
+	{ run = "hx %s", desc = "helix", for = "unix", block = true },
+]
 play = [
 	{ run = "mpv --force-window %s", desc = "MPV", for = "unix", orphan = true },
 	{ run = "vlc %s .", desc = "VLC", for = "unix", orphan = true },
@@ -48,6 +51,7 @@ extract = [
 
 [open]
 prepend_rules = [
+	{ url = "bulk-rename.txt", use = "bulk-rename" },
 	{ mime = "application/pdf", use = [ "open", "reveal", "pdf_chordpro" ] },
 	{ mime = "video/*", use = [ "play", "open", "reveal", "video_tools" ] },
 	{ url = "*/", use = [ "edit", "open", "reveal", "play_dir" ] },
