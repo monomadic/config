@@ -1,0 +1,277 @@
+#!/usr/bin/env zsh
+# Publish a USB/UVC OBSBot camera as an RTSP stream on macOS.
+
+emulate -L zsh
+set -euo pipefail
+
+script_name="${0:t}"
+
+rtsp_host="0.0.0.0"
+rtsp_port="8554"
+path_name="obsbot"
+device="${OBSBOT_RTSP_DEVICE:-}"
+device_match="${OBSBOT_RTSP_MATCH:-OBSBot|OBSBOT}"
+size="${OBSBOT_RTSP_SIZE:-1920x1080}"
+fps="${OBSBOT_RTSP_FPS:-30}"
+bitrate="${OBSBOT_RTSP_BITRATE:-6000k}"
+pixel_format="${OBSBOT_RTSP_PIXEL_FORMAT:-nv12}"
+audio_device="${OBSBOT_RTSP_AUDIO:-none}"
+start_server=true
+list_only=false
+
+usage() {
+  cat <<EOF
+$script_name
+
+Publish a macOS AVFoundation camera to RTSP via MediaMTX.
+
+Usage:
+  $script_name [options]
+
+Options:
+  -l, --list              List ffmpeg AVFoundation devices and exit
+  -d, --device DEVICE     AVFoundation video device name or index
+                          default: auto-match "$device_match"
+  --match REGEX           Regex used when auto-selecting a device
+  -a, --audio DEVICE      AVFoundation audio device name/index, or none
+                          default: none
+  -s, --size WxH          Capture size, default: $size
+  -r, --fps FPS           Capture frame rate, default: $fps
+  -b, --bitrate RATE      H.264 bitrate, default: $bitrate
+  --pixel-format FORMAT   AVFoundation input pixel format, default: $pixel_format
+  -p, --path PATH         RTSP path, default: $path_name
+  --port PORT             RTSP port, default: $rtsp_port
+  --host HOST             RTSP bind host, default: $rtsp_host
+  --no-server             Do not start MediaMTX; publish to an existing server
+  -h, --help              Show this help
+
+Environment:
+  OBSBOT_RTSP_DEVICE      Default video device name or index
+  OBSBOT_RTSP_MATCH       Default auto-detect regex
+  OBSBOT_RTSP_SIZE        Default capture size
+  OBSBOT_RTSP_FPS         Default frame rate
+  OBSBOT_RTSP_BITRATE     Default H.264 bitrate
+  OBSBOT_RTSP_PIXEL_FORMAT
+                          Default AVFoundation input pixel format
+  OBSBOT_RTSP_AUDIO       Default audio device name/index, or none
+
+Examples:
+  $script_name --list
+  $script_name --device "OBSBOT Tiny 2"
+  OBSBOT_RTSP_DEVICE=0 $script_name --size 1280x720 --fps 60
+
+View from another machine on the LAN:
+  rtsp://<this-mac-ip>:$rtsp_port/$path_name
+EOF
+}
+
+die() {
+  print -u2 -- "error: $*"
+  exit 1
+}
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || die "$1 not found in PATH"
+}
+
+list_devices() {
+  ffmpeg -hide_banner -f avfoundation -list_devices true -i "" 2>&1 || true
+}
+
+auto_device() {
+  list_devices | awk -v re="$device_match" '
+    /AVFoundation audio devices:/ { in_video = 0 }
+    /AVFoundation video devices:/ { in_video = 1; next }
+    in_video && match($0, /\[[0-9]+\] .*/) {
+      line = substr($0, RSTART, RLENGTH)
+      if (line ~ re) {
+        sub(/^\[[0-9]+\] /, "", line)
+        print line
+        exit
+      }
+    }
+  '
+}
+
+lan_ip() {
+  ipconfig getifaddr en0 2>/dev/null \
+    || ipconfig getifaddr en1 2>/dev/null \
+    || print -r -- "127.0.0.1"
+}
+
+port_open() {
+  nc -z 127.0.0.1 "$rtsp_port" >/dev/null 2>&1
+}
+
+while (( $# )); do
+  case "$1" in
+    -l|--list)
+      list_only=true
+      shift
+      ;;
+    -d|--device)
+      (( $# >= 2 )) || die "--device requires a value"
+      device="$2"
+      shift 2
+      ;;
+    --match)
+      (( $# >= 2 )) || die "--match requires a value"
+      device_match="$2"
+      shift 2
+      ;;
+    -a|--audio)
+      (( $# >= 2 )) || die "--audio requires a value"
+      audio_device="$2"
+      shift 2
+      ;;
+    -s|--size)
+      (( $# >= 2 )) || die "--size requires a value"
+      size="$2"
+      shift 2
+      ;;
+    -r|--fps)
+      (( $# >= 2 )) || die "--fps requires a value"
+      fps="$2"
+      shift 2
+      ;;
+    -b|--bitrate)
+      (( $# >= 2 )) || die "--bitrate requires a value"
+      bitrate="$2"
+      shift 2
+      ;;
+    --pixel-format)
+      (( $# >= 2 )) || die "--pixel-format requires a value"
+      pixel_format="$2"
+      shift 2
+      ;;
+    -p|--path)
+      (( $# >= 2 )) || die "--path requires a value"
+      path_name="$2"
+      shift 2
+      ;;
+    --port)
+      (( $# >= 2 )) || die "--port requires a value"
+      rtsp_port="$2"
+      shift 2
+      ;;
+    --host)
+      (( $# >= 2 )) || die "--host requires a value"
+      rtsp_host="$2"
+      shift 2
+      ;;
+    --no-server)
+      start_server=false
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown option: $1"
+      ;;
+  esac
+done
+
+need_cmd ffmpeg
+need_cmd mediamtx
+need_cmd nc
+
+if $list_only; then
+  list_devices
+  exit 0
+fi
+
+if [[ -z "$device" ]]; then
+  device="$(auto_device)"
+fi
+
+if [[ -z "$device" ]]; then
+  print -u2 -- "No matching camera found for regex: $device_match"
+  print -u2 -- ""
+  list_devices >&2
+  print -u2 -- ""
+  die "set OBSBOT_RTSP_DEVICE or pass --device with the exact camera name/index"
+fi
+
+publish_url="rtsp://127.0.0.1:${rtsp_port}/${path_name}"
+client_url="rtsp://$(lan_ip):${rtsp_port}/${path_name}"
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/obsbot-rtsp.XXXXXXXX")"
+server_pid=""
+
+cleanup() {
+  if [[ -n "$server_pid" ]]; then
+    kill "$server_pid" >/dev/null 2>&1 || true
+  fi
+  rm -rf -- "$tmp_dir"
+}
+trap cleanup EXIT INT TERM
+
+if $start_server; then
+  if port_open; then
+    print -u2 -- "info: RTSP port $rtsp_port is already open; using existing MediaMTX/server"
+  else
+    config_file="$tmp_dir/mediamtx.yml"
+    cat > "$config_file" <<EOF
+logLevel: info
+rtsp: yes
+rtspAddress: ${rtsp_host}:${rtsp_port}
+rtspTransports: [tcp]
+rtmp: no
+hls: no
+webrtc: no
+srt: no
+paths:
+  ${path_name}:
+    source: publisher
+EOF
+    mediamtx "$config_file" &
+    server_pid="$!"
+    sleep 1
+    if ! kill -0 "$server_pid" >/dev/null 2>&1; then
+      die "MediaMTX failed to start on ${rtsp_host}:${rtsp_port}"
+    fi
+  fi
+fi
+
+print -- "camera:  $device"
+print -- "input:   ${device}:${audio_device}"
+print -- "format:  ${size} ${fps}fps ${pixel_format}"
+print -- "stream:  $client_url"
+print -- "local:   rtsp://127.0.0.1:${rtsp_port}/${path_name}"
+print -- ""
+
+typeset -a audio_args
+if [[ "$audio_device" == "none" ]]; then
+  audio_args=(-an)
+else
+  audio_args=(-c:a aac -b:a 128k -ar 48000 -ac 2)
+fi
+
+ffmpeg \
+  -hide_banner \
+  -loglevel info \
+  -fflags +genpts+nobuffer \
+  -f avfoundation \
+  -framerate "$fps" \
+  -video_size "$size" \
+  -pixel_format "$pixel_format" \
+  -use_wallclock_as_timestamps 1 \
+  -i "${device}:${audio_device}" \
+  "${audio_args[@]}" \
+  -vf "fps=${fps},setpts=N/(${fps}*TB),format=yuv420p" \
+  -fps_mode cfr \
+  -c:v h264_videotoolbox \
+  -b:v "$bitrate" \
+  -maxrate "$bitrate" \
+  -g "$fps" \
+  -bf 0 \
+  -pix_fmt yuv420p \
+  -color_range tv \
+  -colorspace bt709 \
+  -color_primaries bt709 \
+  -color_trc bt709 \
+  -f rtsp \
+  -rtsp_transport tcp \
+  -pkt_size 1200 \
+  "$publish_url"

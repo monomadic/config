@@ -72,22 +72,38 @@ pause() {
   echo
 }
 
+[[ -r "${ZSH_DOTFILES_DIR:-${DOTFILES_DIR:-$HOME/config}/config/zsh}/bin/topaz-app.zsh" ]] &&
+  source "${ZSH_DOTFILES_DIR:-${DOTFILES_DIR:-$HOME/config}/config/zsh}/bin/topaz-app.zsh"
+
 topaz-list-filters() {
-  "/Applications/Topaz Video.app/Contents/MacOS/ffmpeg" -hide_banner -filters | rg 'tvai|veai|topaz'
+  local ffmpeg
+  ffmpeg="$(topaz_resolve_ffmpeg)" || return
+  [[ -x "$ffmpeg" ]] || {
+    print -u2 "Topaz ffmpeg not found or not executable: $ffmpeg"
+    topaz_app_help >&2
+    return 1
+  }
+  "$ffmpeg" -hide_banner -filters | rg 'tvai|veai|topaz'
 }
 
 topaz-list-models() {  
-  fd -e json . "/Applications/Topaz Video.app/Contents/Resources" \
+  local resources
+  resources="$(topaz_resolve_resources_dir)" || return
+  [[ -d "$resources" ]] || {
+    print -u2 "Topaz resources dir not found: $resources"
+    topaz_app_help >&2
+    return 1
+  }
+  fd -e json . "$resources" \
     | rg '/(apo|rxl|amq|chr|prob|iris|nyx|theia|proteus)-[^/]+\.json$'
 }
 
-topaz-ai-list-models() {  
-  fd -e json . "/Applications/Topaz Video AI.app/Contents/Resources" \
-    | rg '/(apo|rxl|amq|chr|prob|iris|nyx|theia|proteus)-[^/]+\.json$'
+topaz-ai-list-models() {
+  topaz-list-models "$@"
 }
 
 topaz-ai-list-filters() {
-  "/Applications/Topaz Video AI.app/Contents/MacOS/ffmpeg" -hide_banner -filters | rg 'tvai|veai|topaz'
+  topaz-list-filters "$@"
 }
 
 # ============================================================================
@@ -488,7 +504,16 @@ alias passwordless-reboot="sudo fdesetup authrestart"
 alias .clear-notifications="killall NotificationCenter"
 alias battery='pmset -g batt'
 
-alias topaz-video="env LC_ALL=C LC_NUMERIC=C LANG=C /Applications/Topaz\ Video\ AI.app/Contents/MacOS/Topaz\ Video\ AI"
+topaz-video() {
+  local binary
+  binary="$(topaz_resolve_gui_binary)" || return
+  [[ -x "$binary" ]] || {
+    print -u2 "Topaz GUI binary not found or not executable: $binary"
+    topaz_app_help >&2
+    return 1
+  }
+  env LC_ALL=C LC_NUMERIC=C LANG=C "$binary" "$@"
+}
 alias .topaz-video=topaz-video
 alias .brave-mp4-support="/Applications/Brave\ Browser.app/Contents/MacOS/Brave\ Browser --disable-features=MediaSource,UseModernMediaControls"
 

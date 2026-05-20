@@ -11,6 +11,11 @@ usage:
 
 With --preset_name and --filter_complex, runs the supplied Topaz filter directly.
 Without them, opens the interactive preset picker.
+
+Uses the first installed Topaz bundle by default:
+  /Applications/Topaz Video.app
+  /Applications/Topaz Video AI.app
+Set TOPAZ_APP to override.
 EOF
 }
 
@@ -26,10 +31,17 @@ case "${1:-}" in
     ;;
 esac
 
-TOPAZ_APP="/Applications/Topaz Video AI.app"
-TOPAZ_MACOS_DIR="$TOPAZ_APP/Contents/MacOS"
-TOPAZ_FFMPEG="$TOPAZ_MACOS_DIR/ffmpeg"
-TOPAZ_MODELS_DIR="$TOPAZ_APP/Contents/Resources/models"
+TOPAZ_APP_LIB="${0:A:h}/topaz-app.zsh"
+[[ -r "$TOPAZ_APP_LIB" ]] || {
+  print -u2 "Topaz app resolver not found: $TOPAZ_APP_LIB"
+  exit 1
+}
+source "$TOPAZ_APP_LIB"
+
+TOPAZ_APP="$(topaz_resolve_app)" || exit 1
+TOPAZ_MACOS_DIR="$(topaz_resolve_macos_dir "$TOPAZ_APP")"
+TOPAZ_FFMPEG="$(topaz_resolve_ffmpeg "$TOPAZ_APP")"
+TOPAZ_MODELS_DIR="$(topaz_resolve_models_dir "$TOPAZ_APP")"
 LOG_DIR="${HOME}/Library/Logs/topaz-batch"
 PRESET_CATALOG="${0:A:h}/topaz-preset-catalog.zsh"
 
@@ -248,12 +260,14 @@ for input in "$files[@]"; do
 done
 
 [[ -x "$TOPAZ_FFMPEG" ]] || {
-  print -u2 "Topaz ffmpeg not found: $TOPAZ_FFMPEG"
+  print -u2 "Topaz ffmpeg not found or not executable: $TOPAZ_FFMPEG"
+  topaz_app_help >&2
   exit 1
 }
 
 [[ -d "$TOPAZ_MODELS_DIR" ]] || {
   print -u2 "Topaz models dir not found: $TOPAZ_MODELS_DIR"
+  topaz_app_help >&2
   exit 1
 }
 
@@ -338,6 +352,7 @@ for input in "$files[@]"; do
   topaz_open_output_preview "$output"
 
   print -P -- "%F{cyan}%BEncoding%b%f"
+  print -P -- "  %F{white}app:%f    %F{magenta}$(topaz_escape_prompt "$TOPAZ_APP")%f"
   print -P -- "  %F{white}engine:%f %F{magenta}Topaz ffmpeg%f"
   print -P -- "  %F{white}video:%f  %F{magenta}$(topaz_escape_prompt "${(j: :)video_args}")%f"
   print -P -- "  %F{white}input:%f  %F{white}$(topaz_escape_prompt "$input")%f"
@@ -351,6 +366,7 @@ for input in "$files[@]"; do
   {
     print "[$(date '+%F %T')] START $input"
     print "PRESET: $preset_name"
+    print "TOPAZ_APP: $TOPAZ_APP"
     print "TOPAZ_FFMPEG: $TOPAZ_FFMPEG"
     print "TOPAZ_MODELS_DIR: $TOPAZ_MODELS_DIR"
     print "CMD: ${(q+)log_cmd}"

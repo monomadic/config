@@ -3,30 +3,54 @@ emulate -L zsh
 set -euo pipefail
 
 script_name="${0:t}"
-TOPAZ_APP="${TOPAZ_APP:-/Applications/Topaz Video AI.app}"
-TOPAZ_MACOS_DIR="$TOPAZ_APP/Contents/MacOS"
-TOPAZ_FFMPEG="$TOPAZ_MACOS_DIR/ffmpeg"
-TOPAZ_MODELS_DIR="$TOPAZ_APP/Contents/Resources/models"
 
 usage() {
-  print -u2 "usage: $script_name input [output]"
+  cat <<EOF
+usage: $script_name input [output]
+
+Uses the first installed Topaz bundle by default:
+  /Applications/Topaz Video.app
+  /Applications/Topaz Video AI.app
+Set TOPAZ_APP to override.
+EOF
 }
 
+case "${1:-}" in
+  -h|--help|help)
+    usage
+    exit 0
+    ;;
+esac
+
 (( $# >= 1 && $# <= 2 )) || {
-  usage
+  usage >&2
   exit 1
 }
+
+TOPAZ_APP_LIB="${0:A:h}/topaz-app.zsh"
+[[ -r "$TOPAZ_APP_LIB" ]] || {
+  print -u2 "Topaz app resolver not found: $TOPAZ_APP_LIB"
+  exit 1
+}
+source "$TOPAZ_APP_LIB"
+
+TOPAZ_APP="$(topaz_resolve_app)" || exit 1
+TOPAZ_MACOS_DIR="$(topaz_resolve_macos_dir "$TOPAZ_APP")"
+TOPAZ_FFMPEG="$(topaz_resolve_ffmpeg "$TOPAZ_APP")"
+TOPAZ_MODELS_DIR="$(topaz_resolve_models_dir "$TOPAZ_APP")"
 
 input="$1"
 output="${2:-${input:r}_topaz_apo-rxl_4k60.mov}"
 
 [[ -x "$TOPAZ_FFMPEG" ]] || {
   print -u2 "Topaz ffmpeg not found or not executable: $TOPAZ_FFMPEG"
+  topaz_app_help >&2
   exit 1
 }
 
 [[ -d "$TOPAZ_MODELS_DIR" ]] || {
   print -u2 "Topaz models dir not found: $TOPAZ_MODELS_DIR"
+  topaz_app_help >&2
   exit 1
 }
 
@@ -70,6 +94,7 @@ cmd=(
   "$output"
 )
 
+print -P -- "%F{cyan}Topaz app:%f    $TOPAZ_APP"
 print -P -- "%F{cyan}Topaz ffmpeg:%f $TOPAZ_FFMPEG"
 print -P -- "%F{cyan}Topaz models:%f $TOPAZ_MODELS_DIR"
 print -P -- "%F{cyan}Input:%f        $input"
