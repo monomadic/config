@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page shortname="CUE-EDIT" name="Cue Editor">
+  <!-- template: prints phrase cues -->
+  <pad1 name="FIRST BEAT">
+  <pad1_shift name="TEMPLATE`\n`AUTOPHRASE" color="color 'red'" autodim="false">goto_first_beat & </pad1_shift>
+</page>

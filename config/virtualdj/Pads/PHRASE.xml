@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Phrase Jump.xml
+
+  Jump landmarks are measured from goto_first_beat:
+    - param1 selects a 16-beat or 32-beat phrase size.
+    - param2 offsets the "bar 1" anchor by -1, 0, or +1 bar.
+
+  Default state is phrase size 16 and offset 0 when the vars have not been set.
+-->
+<page shortname="PHRASE" name="Phrase Jump">
+  <!-- <pad1 name="BAR 1" color="color 'white'" autodim="false"> -->
+  <!-- var_equal 'phrase_bar1_offset' -4 ? -->
+  <!-- goto_first_beat &amp; goto -4bt : -->
+  <!-- var_equal 'phrase_bar1_offset' 4 ? -->
+  <!-- goto_first_beat &amp; goto +4bt : -->
+  <!-- goto_first_beat -->
+  <!-- </pad1> -->
+  <pad1 name="INTRO 01" color="color 'red'" autodim="false">goto_first_beat & play_sync</pad1>
+  <pad2 name="INTRO 02" color="color 'red'" autodim="false">goto_first_beat & goto +8 & play_sync</pad2>
+  <pad3 name="CUT 02" color="color '#FF00FF'" autodim="false">goto_first_beat & goto +28 & play</pad3>
+  <pad4 name="PHRASE 02" color="color 'green'" autodim="false">goto_first_beat & goto +32 & play_sync</pad4>
+  <pad5 name="CUT 03" color="color '#FF00FF'" autodim="false">goto_first_beat & goto +60 & play</pad5>
+  <pad6 name="PHRASE 03" color="color 'green'" autodim="false">goto_first_beat & goto +64 & play_sync</pad6>
+
+  <pad7 name="CUT 04" color="color '#FF00FF'" autodim="false">goto_first_beat & goto +92 & play</pad7>
+  <pad8 name="PHRASE 04" color="color 'green'" autodim="false">goto_first_beat & goto +96 & play_sync</pad8>
+
+  <pad9 name="CUT 05" color="color '#FF00FF'" autodim="false">goto_first_beat & goto +124 & play</pad9>
+  <pad10 name="PHRASE 05" color="color 'green'" autodim="false">goto_first_beat & goto +128 & play_sync</pad10>
+
+  <pad11 name="CUT 06" color="color '#FF00FF'" autodim="false">goto_first_beat & goto +156 & play</pad11>
+  <pad12 name="PHRASE 06" color="color 'green'" autodim="false">goto_first_beat & goto +160 & play_sync</pad12>
+  <!-- <pad2 name="P1 -1 BAR" color="color '#ffb000'" autodim="false"> -->
+    <!-- var_equal 'phrase_jump_size' 32 ? -->
+      <!-- var_equal 'phrase_bar1_offset' -4 ? -->
+        <!-- goto_first_beat &amp; goto +24bt : -->
+      <!-- var_equal 'phrase_bar1_offset' 4 ? -->
+        <!-- goto_first_beat &amp; goto +32bt : -->
+        <!-- goto_first_beat &amp; goto +28bt : -->
+      <!-- var_equal 'phrase_bar1_offset' -4 ? -->
+        <!-- goto_first_beat &amp; goto +8bt : -->
+      <!-- var_equal 'phrase_bar1_offset' 4 ? -->
+        <!-- goto_first_beat &amp; goto +16bt : -->
+        <!-- goto_first_beat &amp; goto +12bt -->
+  <!-- </pad2> -->
+  <!-- <pad3 name="PHRASE 1" color="color '#43a8ff'" autodim="false"> -->
+    <!-- var_equal 'phrase_jump_size' 32 ? -->
+      <!-- var_equal 'phrase_bar1_offset' -4 ? -->
+        <!-- goto_first_beat &amp; goto +28bt : -->
+      <!-- var_equal 'phrase_bar1_offset' 4 ? -->
+        <!-- goto_first_beat &amp; goto +36bt : -->
+        <!-- goto_first_beat &amp; goto +32bt : -->
+      <!-- var_equal 'phrase_bar1_offset' -4 ? -->
+        <!-- goto_first_beat &amp; goto +12bt : -->
+      <!-- var_equal 'phrase_bar1_offset' 4 ? -->
+        <!-- goto_first_beat &amp; goto +20bt : -->
+        <!-- goto_first_beat &amp; goto +16bt -->
+  <!-- </pad3> -->
+  <!-- <pad4 name="P2 -1 BAR" color="color '#ffb000'" autodim="false"> -->
+    <!-- var_equal 'phrase_jump_size' 32 ? -->
+      <!-- var_equal 'phrase_bar1_offset' -4 ? -->
+        <!-- goto_first_beat &amp; goto +56bt : -->
+      <!-- var_equal 'phrase_bar1_offset' 4 ? -->
+        <!-- goto_first_beat &amp; goto +64bt : -->
+        <!-- goto_first_beat &amp; goto +60bt : -->
+      <!-- var_equal 'phrase_bar1_offset' -4 ? -->
+        <!-- goto_first_beat &amp; goto +24bt : -->
+      <!-- var_equal 'phrase_bar1_offset' 4 ? -->
+        <!-- goto_first_beat &amp; goto +32bt : -->
+        <!-- goto_first_beat &amp; goto +28bt -->
+  <!-- </pad4> -->
+  <!-- <pad5 name="PHRASE 2" color="color '#43a8ff'" autodim="false"> -->
+    <!-- var_equal 'phrase_jump_size' 32 ? -->
+      <!-- var_equal 'phrase_bar1_offset' -4 ? -->
+        <!-- goto_first_beat &amp; goto +60bt : -->
+      <!-- var_equal 'phrase_bar1_offset' 4 ? -->
+        <!-- goto_first_beat &amp; goto +68bt : -->
+        <!-- goto_first_beat &amp; goto +64bt : -->
+      <!-- var_equal 'phrase_bar1_offset' -4 ? -->
+        <!-- goto_first_beat &amp; goto +28bt : -->
+      <!-- var_equal 'phrase_bar1_offset' 4 ? -->
+        <!-- goto_first_beat &amp; goto +36bt : -->
+        <!-- goto_first_beat &amp; goto +32bt -->
+  <!-- </pad5> -->
+  <!-- <pad6 name="P3 -1 BAR" color="color '#ffb000'" autodim="false"> -->
+    <!-- var_equal 'phrase_jump_size' 32 ? -->
+      <!-- var_equal 'phrase_bar1_offset' -4 ? -->
+        <!-- goto_first_beat &amp; goto +88bt : -->
+      <!-- var_equal 'phrase_bar1_offset' 4 ? -->
+        <!-- goto_first_beat &amp; goto +96bt : -->
+        <!-- goto_first_beat &amp; goto +92bt : -->
+      <!-- var_equal 'phrase_bar1_offset' -4 ? -->
+        <!-- goto_first_beat &amp; goto +40bt : -->
+      <!-- var_equal 'phrase_bar1_offset' 4 ? -->
+        <!-- goto_first_beat &amp; goto +48bt : -->
+        <!-- goto_first_beat &amp; goto +44bt -->
+  <!-- </pad6> -->
+  <!-- <pad7 name="PHRASE 3" color="color '#43a8ff'" autodim="false"> -->
+    <!-- var_equal 'phrase_jump_size' 32 ? -->
+      <!-- var_equal 'phrase_bar1_offset' -4 ? -->
+        <!-- goto_first_beat &amp; goto +92bt : -->
+      <!-- var_equal 'phrase_bar1_offset' 4 ? -->
+        <!-- goto_first_beat &amp; goto +100bt : -->
+        <!-- goto_first_beat &amp; goto +96bt : -->
+      <!-- var_equal 'phrase_bar1_offset' -4 ? -->
+        <!-- goto_first_beat &amp; goto +44bt : -->
+      <!-- var_equal 'phrase_bar1_offset' 4 ? -->
+        <!-- goto_first_beat &amp; goto +52bt : -->
+        <!-- goto_first_beat &amp; goto +48bt -->
+  <!-- </pad7> -->
+  <!-- <pad8 name="P4 -1 BAR" color="color '#ffb000'" autodim="false"> -->
+    <!-- var_equal 'phrase_jump_size' 32 ? -->
+      <!-- var_equal 'phrase_bar1_offset' -4 ? -->
+        <!-- goto_first_beat &amp; goto +120bt : -->
+      <!-- var_equal 'phrase_bar1_offset' 4 ? -->
+        <!-- goto_first_beat &amp; goto +128bt : -->
+        <!-- goto_first_beat &amp; goto +124bt : -->
+      <!-- var_equal 'phrase_bar1_offset' -4 ? -->
+        <!-- goto_first_beat &amp; goto +56bt : -->
+      <!-- var_equal 'phrase_bar1_offset' 4 ? -->
+        <!-- goto_first_beat &amp; goto +64bt : -->
+        <!-- goto_first_beat &amp; goto +60bt -->
+  <!-- </pad8> -->
+  <shift_pad1 name="PHRASE 4" color="color '#43a8ff'" autodim="false">
+    var_equal 'phrase_jump_size' 32 ?
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +124bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +132bt :
+        goto_first_beat &amp; goto +128bt :
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +60bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +68bt :
+        goto_first_beat &amp; goto +64bt
+  </shift_pad1>
+  <shift_pad2 name="P5 -1 BAR" color="color '#ffb000'" autodim="false">
+    var_equal 'phrase_jump_size' 32 ?
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +152bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +160bt :
+        goto_first_beat &amp; goto +156bt :
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +72bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +80bt :
+        goto_first_beat &amp; goto +76bt
+  </shift_pad2>
+  <shift_pad3 name="PHRASE 5" color="color '#43a8ff'" autodim="false">
+    var_equal 'phrase_jump_size' 32 ?
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +156bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +164bt :
+        goto_first_beat &amp; goto +160bt :
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +76bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +84bt :
+        goto_first_beat &amp; goto +80bt
+  </shift_pad3>
+  <shift_pad4 name="P6 -1 BAR" color="color '#ffb000'" autodim="false">
+    var_equal 'phrase_jump_size' 32 ?
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +184bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +192bt :
+        goto_first_beat &amp; goto +188bt :
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +88bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +96bt :
+        goto_first_beat &amp; goto +92bt
+  </shift_pad4>
+  <shift_pad5 name="PHRASE 6" color="color '#43a8ff'" autodim="false">
+    var_equal 'phrase_jump_size' 32 ?
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +188bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +196bt :
+        goto_first_beat &amp; goto +192bt :
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +92bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +100bt :
+        goto_first_beat &amp; goto +96bt
+  </shift_pad5>
+  <shift_pad6 name="P7 -1 BAR" color="color '#ffb000'" autodim="false">
+    var_equal 'phrase_jump_size' 32 ?
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +216bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +224bt :
+        goto_first_beat &amp; goto +220bt :
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +104bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +112bt :
+        goto_first_beat &amp; goto +108bt
+  </shift_pad6>
+  <shift_pad7 name="PHRASE 7" color="color '#43a8ff'" autodim="false">
+    var_equal 'phrase_jump_size' 32 ?
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +220bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +228bt :
+        goto_first_beat &amp; goto +224bt :
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +108bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +116bt :
+        goto_first_beat &amp; goto +112bt
+  </shift_pad7>
+  <shift_pad8 name="P8 -1 BAR" color="color '#ffb000'" autodim="false">
+    var_equal 'phrase_jump_size' 32 ?
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +248bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +256bt :
+        goto_first_beat &amp; goto +252bt :
+      var_equal 'phrase_bar1_offset' -4 ?
+        goto_first_beat &amp; goto +120bt :
+      var_equal 'phrase_bar1_offset' 4 ?
+        goto_first_beat &amp; goto +128bt :
+        goto_first_beat &amp; goto +124bt
+  </shift_pad8>
+  <param1 name="`var_equal 'phrase_jump_size' 32 ? get_text 'SIZE 32' : get_text 'SIZE 16'`">
+    param_smaller 0 ?
+      set 'phrase_jump_size' 16 :
+    var_equal 'phrase_jump_size' 32 ?
+      set 'phrase_jump_size' 16 :
+      set 'phrase_jump_size' 32
+  </param1>
+  <param2 name="`var_equal 'phrase_bar1_offset' -4 ? get_text 'BAR1 -1' : var_equal 'phrase_bar1_offset' 4 ? get_text 'BAR1 +1' : get_text 'BAR1 0'`">
+    param_smaller 0 ?
+      var_equal 'phrase_bar1_offset' -4 ?
+        nothing :
+      var_equal 'phrase_bar1_offset' 4 ?
+        set 'phrase_bar1_offset' 0 :
+        set 'phrase_bar1_offset' -4 :
+      var_equal 'phrase_bar1_offset' 4 ?
+        nothing :
+      var_equal 'phrase_bar1_offset' -4 ?
+        set 'phrase_bar1_offset' 0 :
+        set 'phrase_bar1_offset' 4
+  </param2>
+</page>

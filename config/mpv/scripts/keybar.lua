@@ -1,10 +1,23 @@
 local mp = require "mp"
 
+local function load_keybar_component()
+    local path = mp.find_config_file("script-modules/keybar_component.lua")
+    if not path then
+        local source = debug.getinfo(1, "S").source
+        local script_dir = source and source:match("^@(.+)/[^/]+$")
+        path = script_dir and (script_dir .. "/../script-modules/keybar_component.lua")
+    end
+    return assert(loadfile(assert(path, "keybar_component.lua not found")))()
+end
+
+local keybar_component = load_keybar_component()
+
 local overlay = mp.create_osd_overlay("ass-events")
 overlay.z = 10
 
 local keybar_enabled = true  -- what Tab toggles
 local osd_ok = false -- derived from osd-level
+local suppressors = {}
 
 -- PAN & SCAN state
 local panscan = 0.0
@@ -319,86 +332,34 @@ end
 
 refresh_resolved_keys()
 
+local function fmt_delay()
+    if not rj_delay then return "" end
+    local d = tonumber(rj_delay)
+    if not d or d <= 0 then return "" end
+    if d >= 60 then
+        return (" %dm"):format(math.floor(d / 60 + 0.5))
+    end
+    return (" %ds"):format(math.floor(d + 0.5))
+end
+
+local function has_suppressor()
+    for _, on in pairs(suppressors) do
+        if on then
+            return true
+        end
+    end
+    return false
+end
+
 local function build_bar(dim)
     dim = dim or mp.get_property_native("osd-dimensions")
-    local w = (dim and dim.w) or 1280
-    local h = (dim and dim.h) or 720
-
-    local scale = 9
-    local progress_h = 5
-    local text_y = h - progress_h
-    local bar_h = 26
-    local y0 = h - progress_h - bar_h
-    local bg = ("{\\an7\\pos(0,%d)\\bord0\\shad0\\1c&H000000&\\alpha&HA0&\\p1}"
-        .. "m 0 0 l %d 0 l %d %d l 0 %d"
-        .. "{\\p0}"):format(y0, w, w, bar_h, bar_h)
-    local key_color  = "{\\1c&H9CFF00&}"
-    local text_color = "{\\1c&HFFFFFF&}"
-    local chip_color = "{\\1c&H181818&\\alpha&H00&}"
-    local sep_color  = "{\\1c&H6A6A6A&}"
-    local separator = sep_color .. "|" .. text_color
-
-    local function badge(on)
-        local c = on and "{\\1c&H00FFFF&}" or "{\\1c&H777777&}"
-        return c .. (on and "ON" or "OFF") .. text_color
-    end
-
-    local function fmt_delay()
-        if not rj_delay then return "" end
-        local d = tonumber(rj_delay)
-        if not d or d <= 0 then return "" end
-        if d >= 60 then
-            return (" %dm"):format(math.floor(d / 60 + 0.5))
-        end
-        return (" %ds"):format(math.floor(d + 0.5))
-    end
-
-    local item_pad = "  "
-    local item_gap = " "
-
-    local function key(label, desc)
-        return chip_color
-            .. item_pad
-            .. key_color
-            .. trim(label)
-            .. text_color
-            .. item_gap
-            .. trim(desc)
-            .. item_pad
-    end
-
-    local function desc(item)
-        if type(item.desc) == "function" then
-            return item.desc(badge, fmt_delay)
-        end
-        return item.desc
-    end
-
-    local s = ("{\\an2\\pos(%d,%d)\\bord0\\shad0\\scale%d}"):format(
-        math.floor(w / 2),
-        text_y,
-        scale
-    )
-
-    local groups = {}
-    local current_group = nil
-    local last_section = nil
-
-    for _, item in ipairs(keybar_items) do
-        if item.section ~= last_section then
-            current_group = {}
-            table.insert(groups, current_group)
-            last_section = item.section
-        end
-        table.insert(current_group, key(resolved_keys[item.id] or format_key_label(item.fallback), desc(item)))
-    end
-
-    local rendered_groups = {}
-    for _, group in ipairs(groups) do
-        table.insert(rendered_groups, table.concat(group, separator))
-    end
-
-    return bg .. "\n" .. s .. table.concat(rendered_groups, separator)
+    return keybar_component.build_bar(keybar_items, {
+        dim = dim,
+        resolved_keys = resolved_keys,
+        context = {
+            fmt_delay = fmt_delay,
+        },
+    })
 end
 
 mp.add_timeout(0, function()
@@ -412,7 +373,7 @@ mp.add_timeout(0, function()
 end)
 
 local function render_bar()
-    local visible = osd_ok and keybar_enabled
+    local visible = osd_ok and keybar_enabled and not has_suppressor()
     if not visible then
         overlay:remove()
         return
@@ -487,6 +448,15 @@ end)
 
 mp.register_script_message("keybar-toggle", function()
     keybar_enabled = not keybar_enabled
+    render_bar()
+end)
+
+mp.register_script_message("keybar-suppress", function(name, state)
+    if not name or name == "" then
+        return
+    end
+
+    suppressors[name] = (state == "yes" or state == "true" or state == "1")
     render_bar()
 end)
 
