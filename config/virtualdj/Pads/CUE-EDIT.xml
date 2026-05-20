@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  CUE-EDIT.xml
+
+  Utility pad page for cue editing and automatic phrase cue placement.
+
+  AUTO CUE starts one bar before VirtualDJ's first beat marker, then writes
+  cue points in the requested 3-bar / 1-bar alternating pattern:
+    cue 1 at bar 0, cue 2 after 3 bars, cue 3 after 1 more bar, and so on.
+-->
+<page name="CUE-EDIT">
+  <pad1 name="FIRST BEAT" color="color '#43a8ff'" autodim="false">goto_first_beat</pad1>
+  <pad2 name="TRACK START" color="color '#ffffff'" autodim="false">goto_start</pad2>
+  <pad3 name="SET BAR 1" color="color '#ffb000'" autodim="false">set_firstbeat</pad3>
+  <pad4 name="AUTO CUE" color="color '#2bd976'" autodim="false">
+    goto_first_beat &amp; set_cue 1 &amp;
+    goto +48bt &amp; set_cue 2 &amp;
+    goto +48bt &amp; set_cue 3 &amp;
+    goto +48bt &amp; set_cue 4 &amp;
+    goto +48bt &amp; set_cue 5 &amp;
+    goto_cue 1
+  </pad4>
+  <pad5 name="CLEAR CUES">
+    delete_cue 1 &amp;
+    delete_cue 2 &amp;
+    delete_cue 3 &amp;
+    delete_cue 4 &amp;
+    delete_cue 5 &amp;
+    delete_cue 6 &amp;
+    delete_cue 7 &amp;
+    delete_cue 8 &amp;
+    delete_cue 9 &amp;
+    delete_cue 10 &amp;
+    delete_cue 11 &amp;
+    delete_cue 12 &amp;
+    delete_cue 13 &amp;
+    delete_cue 14 &amp;
+    delete_cue 15 &amp;
+    delete_cue 16 &amp;
+  </pad5>
+</page>
