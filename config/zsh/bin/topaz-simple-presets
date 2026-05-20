@@ -39,10 +39,13 @@ command -v fzf >/dev/null 2>&1 || {
   exit 1
 }
 
-command -v topaz-run >/dev/null 2>&1 || {
-  print -u2 "topaz-run not found in PATH"
+TOPAZ_RUN="${0:A:h}/topaz-run"
+if command -v topaz-run >/dev/null 2>&1; then
+  TOPAZ_RUN="$(command -v topaz-run)"
+elif [[ ! -x "$TOPAZ_RUN" ]]; then
+  print -u2 "topaz-run not found in PATH or next to $script_name: $TOPAZ_RUN"
   exit 1
-}
+fi
 
 PRESET_CATALOG="${0:A:h}/topaz-preset-catalog.zsh"
 
@@ -86,7 +89,7 @@ video_args="$TOPAZ_PRESET_VIDEO_ARGS"
 metadata="$TOPAZ_PRESET_METADATA"
 
 cmd_preview=(
-  topaz-run
+  "$TOPAZ_RUN"
   --preset_name "$preset_name"
   "$preset_flag" "$filter_complex"
 )
