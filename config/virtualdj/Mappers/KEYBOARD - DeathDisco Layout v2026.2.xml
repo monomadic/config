@@ -73,7 +73,6 @@
 	<map value="CMD+UP" action="browser_folder -1" name="FOLDER UP" />
 	<map value="CMD+DOWN" action="browser_folder +1" name="FOLDER DOWN" />
 	<map value="CMD+RETURN" action="maximize" />
-	<map value="CMD+BACK" action="unload" />
 	<map value="CMD+TAB" action="sideview +1" name="SWITCH SIDEVIEW" />
 	<map value="SHIFT+ESCAPE" action="settings" name="SETTINGS" />
 	<map value="SHIFT" action="shift" />
@@ -170,7 +169,6 @@ get_deck 2 ? deck 4 select : nothing" />
 get_deck 4 ? deck 2 select :
 get_deck 1 ? deck 3 select :
 get_deck 2 ? deck 4 select : nothing" />
-	<map value="CMD+SHIFT+BACK" action="browser_filter &quot;&quot; &amp; browser_search &quot;&quot;" />
 	<map value="CTRL+R" action="wait 1s &amp; load_skin" />
 	<map value="CMD+F5" action="wait 1s &amp; load_skin" />
 	<map value="CMD+SHIFT+F1" action="browser_gotofolder 1" />
@@ -216,4 +214,6 @@ browser_zoom off" />
 	<map value="CMD+F" action="browser_zoom &amp; browser_open_folder on" />
 	<map value="BACK" action="clear_search" />
 	<map value="CTRL+S" action="swap_decks" />
+	<map value="CMD+BACK" action="browser_filter &quot;&quot; &amp; browser_search &quot;&quot; &amp; clear_search &amp; browser_gotofolder &apos;My Library/Database/All Files&apos;" />
+	<map value="CMD+SHIFT+BACK" action="unload" />
 </mapper>
