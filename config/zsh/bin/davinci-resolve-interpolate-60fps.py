@@ -3,12 +3,14 @@
 davinci-resolve-interpolate-60fps.py
 
 Import one input clip into DaVinci Resolve, apply Optical Flow interpolation,
-and render to HEVC MP4. Attempts to make the project/timeline 60 fps as early
-as possible, but tolerates Resolve builds that lock frame rate unexpectedly.
+and render to HEVC MP4 or ProRes 422 Proxy MOV. Attempts to make the
+project/timeline 60 fps as early as possible, but tolerates Resolve builds
+that lock frame rate unexpectedly.
 
 Usage:
   davinci-resolve-interpolate-60fps.py /absolute/input.mp4 /absolute/output.mp4
   davinci-resolve-interpolate-60fps.py --speed-warp /absolute/input.mp4 /absolute/output.mp4
+  davinci-resolve-interpolate-60fps.py --prores /absolute/input.mp4 /absolute/output.mov
   davinci-resolve-interpolate-60fps.py --debug-formats /absolute/input.mp4 /absolute/output.mp4
 """
 
@@ -56,7 +58,7 @@ def wait_for_render(project, poll_s: float = 1.0) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Render one input clip through DaVinci Resolve as HEVC 60fps MP4."
+        description="Render one input clip through DaVinci Resolve as HEVC 60fps MP4 or ProRes 422 Proxy 60fps MOV."
     )
     parser.add_argument(
         "--speed-warp",
@@ -67,6 +69,11 @@ def parse_args() -> argparse.Namespace:
         "--debug-formats",
         action="store_true",
         help="Print available render formats/codecs before rendering",
+    )
+    parser.add_argument(
+        "--prores",
+        action="store_true",
+        help="Render QuickTime/MOV using ProRes 422 Proxy, the lowest bitrate ProRes profile",
     )
     parser.add_argument("input_file", help="Absolute input file path")
     parser.add_argument("output_file", help="Absolute output file path")
@@ -89,6 +96,28 @@ def find_hevc_codec_token(project, format_token: str) -> str:
         if "265" in t or "hevc" in t or "265" in d or "hevc" in d:
             return str(token)
     fail(f"could not find H.265/HEVC codec in {format_token} codecs: {codecs}")
+
+
+def find_quicktime_format_token(project) -> str:
+    formats = project.GetRenderFormats() or {}
+    for desc, token in formats.items():
+        t = str(token).lower()
+        d = str(desc).lower()
+        if t in {"mov", "quicktime"} or "quicktime" in d:
+            return str(token)
+    fail(f"could not find QuickTime/MOV render format; available formats: {formats}")
+
+
+def find_prores_proxy_codec_token(project, format_token: str) -> str:
+    codecs = project.GetRenderCodecs(format_token) or {}
+    for desc, token in codecs.items():
+        t = str(token).lower()
+        d = str(desc).lower()
+        if "prores" in t and "proxy" in t:
+            return str(token)
+        if "prores" in d and "proxy" in d:
+            return str(token)
+    fail(f"could not find ProRes 422 Proxy codec in {format_token} codecs: {codecs}")
 
 
 def debug_render_formats(project) -> None:
@@ -236,8 +265,14 @@ def main() -> None:
 
         project.DeleteAllRenderJobs()
 
-        format_token = find_format_token(project, "mp4")
-        codec_token = find_hevc_codec_token(project, format_token)
+        if args.prores:
+            format_token = find_quicktime_format_token(project)
+            codec_token = find_prores_proxy_codec_token(project, format_token)
+            output_extension = ".mov"
+        else:
+            format_token = find_format_token(project, "mp4")
+            codec_token = find_hevc_codec_token(project, format_token)
+            output_extension = ".mp4"
 
         if not project.SetCurrentRenderFormatAndCodec(format_token, codec_token):
             fail(f"failed to set render format/codec: {format_token}/{codec_token}")
@@ -274,7 +309,7 @@ def main() -> None:
         print(status)
 
         # Resolve usually appends the container extension itself.
-        output_candidate = output_dir / f"{output_name}.mp4"
+        output_candidate = output_dir / f"{output_name}{output_extension}"
         if output_candidate.exists():
             print(f"done: {output_candidate}")
         else:
