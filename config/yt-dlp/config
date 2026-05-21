@@ -9,11 +9,11 @@
 --progress
 --console-title
 --trim-filenames 200
---paths "temp:$YT_DLP_TEMP_DIR"
---paths "infojson:$YT_DLP_JSON_DIR"
+--paths "temp:~/.cache/yt-dlp-tmp"
+--paths "infojson:~/Library/Mobile Documents/com~apple~CloudDocs/Sync/JSON"
 --output "%(channel,uploader|Unknown Channel)s/%(title)s [%(id)s].%(ext)s"
 --output "infojson:%(extractor)s_%(id)s"
---download-archive "$YT_DLP_ARCHIVE_FILE"
+--download-archive "~/Library/Mobile Documents/com~apple~CloudDocs/Sync/archive.txt"
 
 --embed-metadata
 --parse-metadata "%(webpage_url)s:(?P<meta_comment>.+)"

@@ -1,0 +1,30 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+usage() {
+  print -u2 "usage: ${0:t} <url> [yt-dlp args...]"
+}
+
+(( $# >= 1 )) || {
+  usage
+  exit 2
+}
+
+if [[ -z ${YT_DLP_ARCHIVE_FILE:-} ]]; then
+  print -u2 "error: YT_DLP_ARCHIVE_FILE is not set"
+  exit 1
+fi
+
+url=$1
+shift
+archive_file=$YT_DLP_ARCHIVE_FILE
+
+mkdir -p -- "${archive_file:h}"
+
+yt-dlp \
+  --ignore-config \
+  --download-archive "$archive_file" \
+  --skip-download \
+  --force-write-archive \
+  "$@" \
+  "$url"

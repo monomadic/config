@@ -18,6 +18,7 @@ overlay.z = 10
 local keybar_enabled = true  -- what Tab toggles
 local osd_ok = false -- derived from osd-level
 local suppressors = {}
+local CHAPTER_EDIT_SUPPRESSOR = "chapter-edit-mode"
 
 -- PAN & SCAN state
 local panscan = 0.0
@@ -60,108 +61,11 @@ local rj_autoseek_on = false
 local rj_delay = nil
 local random_nav_script = "smart_playlist_nav/"
 
-local function trim(s)
-    return (s or ""):match("^%s*(.-)%s*$")
-end
+local command_equals = keybar_component.command_equals
 
-local function normalize_command(command)
-    command = trim(command)
-    command = command:gsub("^script_binding%s+", "script-binding ")
-    command = command:gsub("%s+", " ")
-    return command
-end
-
-local function normalize_binding_key(binding)
-    local parts = {}
-
-    for part in tostring(binding or ""):gmatch("[^+]+") do
-        table.insert(parts, trim(part))
-    end
-
-    for i = 1, math.max(#parts - 1, 0) do
-        local lower = parts[i]:lower()
-        if lower == "meta" then
-            parts[i] = "Meta"
-        elseif lower == "ctrl" then
-            parts[i] = "Ctrl"
-        elseif lower == "alt" then
-            parts[i] = "Alt"
-        elseif lower == "shift" then
-            parts[i] = "Shift"
-        end
-    end
-
-    if #parts > 0 then
-        local lower = parts[#parts]:lower()
-        local special_keys = {
-            esc = "ESC",
-            tab = "TAB",
-            space = "SPACE",
-            enter = "ENTER",
-            left = "LEFT",
-            right = "RIGHT",
-        }
-        parts[#parts] = special_keys[lower] or parts[#parts]
-    end
-
-    return table.concat(parts, "+")
-end
-
-local function format_key_label(binding)
-    local mods = {
-        Meta = "⌘",
-        Ctrl = "⌃",
-        Alt = "⌥",
-        Shift = "⇧",
-    }
-    local keys = {
-        ESC = "ESC",
-        TAB = "TAB",
-        SPACE = "SPACE",
-        ENTER = "ENTER",
-        LEFT = "←",
-        RIGHT = "→",
-    }
-    local parts = {}
-    local out = {}
-
-    binding = normalize_binding_key(binding)
-
-    for part in binding:gmatch("[^+]+") do
-        table.insert(parts, part)
-    end
-
-    for _, part in ipairs(parts) do
-        table.insert(out, mods[part] or keys[part] or part)
-    end
-
-    return table.concat(out)
-end
-
-local function command_equals(target)
-    target = normalize_command(target)
-    return function(entry)
-        return entry.command == target
-    end
-end
-
-local function command_prefix(prefix)
-    prefix = normalize_command(prefix)
-    return function(entry)
-        return entry.command:sub(1, #prefix) == prefix
-    end
-end
-
-local function command_contains(...)
-    local needles = { ... }
-    return function(entry)
-        for _, needle in ipairs(needles) do
-            if not entry.command:find(needle, 1, true) then
-                return false
-            end
-        end
-        return true
-    end
+local function matches_chapter_edit_toggle(entry)
+    return command_equals("script-binding chapter-edit-mode/toggle")(entry)
+        or command_equals("script-binding chapter_edit_mode/toggle")(entry)
 end
 
 local keybar_items = {
@@ -180,6 +84,14 @@ local keybar_items = {
         prefer = { "TAB" },
         desc = " OSD",
         match = command_equals("script-binding toggle-osd-full"),
+    },
+    {
+        id = "chapter_edit",
+        section = "shortcut",
+        fallback = "c",
+        prefer = { "c" },
+        desc = " CHAPTERS",
+        match = matches_chapter_edit_toggle,
     },
     {
         id = "panscan",
@@ -265,69 +177,12 @@ local keybar_items = {
 
 local resolved_keys = {}
 
-local function read_input_bindings()
-    local path = mp.find_config_file("input.conf")
-    local bindings = {}
-
-    if not path then
-        return bindings
-    end
-
-    local file = io.open(path, "r")
-    if not file then
-        return bindings
-    end
-
-    for line in file:lines() do
-        local cleaned = trim(line)
-        if cleaned ~= "" and not cleaned:match("^#") then
-            local key, command = cleaned:match("^(%S+)%s+(.+)$")
-            if key and command then
-                table.insert(bindings, {
-                    key = normalize_binding_key(key),
-                    command = normalize_command(command),
-                })
-            end
-        end
-    end
-
-    file:close()
-    return bindings
-end
-
-local function resolve_item_key(item, bindings)
-    local matches = {}
-
-    for _, entry in ipairs(bindings) do
-        if item.match(entry) then
-            table.insert(matches, entry.key)
-        end
-    end
-
-    if item.prefer then
-        for _, preferred in ipairs(item.prefer) do
-            preferred = normalize_binding_key(preferred)
-            for _, candidate in ipairs(matches) do
-                if candidate == preferred then
-                    return format_key_label(candidate)
-                end
-            end
-        end
-    end
-
-    if #matches > 0 then
-        return format_key_label(matches[1])
-    end
-
-    return format_key_label(item.fallback)
-end
-
 local function refresh_resolved_keys()
-    local bindings = read_input_bindings()
-
-    for _, item in ipairs(keybar_items) do
-        resolved_keys[item.id] = resolve_item_key(item, bindings)
-    end
+    local path = mp.find_config_file("input.conf")
+    resolved_keys = keybar_component.resolve_item_keys(
+        keybar_items,
+        keybar_component.read_input_bindings(path)
+    )
 end
 
 refresh_resolved_keys()
@@ -351,6 +206,19 @@ local function has_suppressor()
     return false
 end
 
+local render_bar
+
+local function set_suppressor(name, on)
+    if not name or name == "" then
+        return
+    end
+
+    suppressors[name] = on or nil
+    if render_bar then
+        render_bar()
+    end
+end
+
 local function build_bar(dim)
     dim = dim or mp.get_property_native("osd-dimensions")
     return keybar_component.build_bar(keybar_items, {
@@ -370,9 +238,10 @@ mp.add_timeout(0, function()
     mp.commandv("script-message", "realtime-stats-query")
     mp.commandv("script-message", "edge-fade-query")
     mp.commandv("script-message", "skip-intros-query")
+    mp.commandv("script-message", "chapter-edit-mode-query")
 end)
 
-local function render_bar()
+function render_bar()
     local visible = osd_ok and keybar_enabled and not has_suppressor()
     if not visible then
         overlay:remove()
@@ -411,6 +280,7 @@ mp.register_event("file-loaded", function()
         mp.commandv("script-message", "realtime-stats-query")
         mp.commandv("script-message", "edge-fade-query")
         mp.commandv("script-message", "skip-intros-query")
+        mp.commandv("script-message", "chapter-edit-mode-query")
     end)
 end)
 
@@ -452,12 +322,11 @@ mp.register_script_message("keybar-toggle", function()
 end)
 
 mp.register_script_message("keybar-suppress", function(name, state)
-    if not name or name == "" then
-        return
-    end
+    set_suppressor(name, state == "yes" or state == "true" or state == "1")
+end)
 
-    suppressors[name] = (state == "yes" or state == "true" or state == "1")
-    render_bar()
+mp.register_script_message("chapter-edit-mode-state", function(state)
+    set_suppressor(CHAPTER_EDIT_SUPPRESSOR, state == "yes" or state == "true" or state == "1")
 end)
 
 mp.register_script_message("metadata-state", function(state)
