@@ -1,2 +1,18 @@
-#!/bin/sh
-osascript -e 'tell application "$@" to activate' >/dev/null 2>&1 || true
+#!/bin/zsh
+# focus-application
+# Activate a macOS application by display name.
+
+emulate -L zsh
+set -euo pipefail
+
+app_name=${1:?usage: focus-application <application-name>}
+
+osascript \
+  -e 'on run argv' \
+  -e 'set appName to item 1 of argv' \
+  -e 'tell application appName to activate' \
+  -e 'tell application "System Events"' \
+  -e '  set frontmost of process appName to true' \
+  -e 'end tell' \
+  -e 'end run' \
+  "$app_name"
