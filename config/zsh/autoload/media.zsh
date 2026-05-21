@@ -54,8 +54,8 @@ alias .ls-local="fd-media . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDo
 # alias .play="fd-media --print0 . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Porn(N) | mpv-send play -0"
 alias .play="fd-media --print0 . {${HOME},/Volumes/*}/Movies/Porn(N) | mpv-send play -0"
 alias play="fd-media --print0 . . | mpv-send play -0"
-alias .play-new="fd-media --sort created --print0 . . | mpv-send play -0"
-alias .play-new-local="fd-media --sort created --print0 . $HOME/Movies/Porn | mpv-send play -0"
+alias .new="fd-media --sort created --print0 . . | mpv-send play -0"
+alias .new-local="fd-media --sort created --print0 . $HOME/Movies/Porn | mpv-send play -0"
 
 # alias .select="fd-media --print0 . {${HOME}/Library/Mobile\ Documents/com~apple~CloudDocs,${HOME},/Volumes/*}/Movies/Porn(N) | fzf-select -0 --print0 --stream | mpv-send play -0"
 alias .select="fd-media --print0 . {${HOME},/Volumes/*}/Movies/Porn(N) | fzf-select -0 --print0 --stream | mpv-send play -0"

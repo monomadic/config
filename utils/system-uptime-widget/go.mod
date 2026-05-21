@@ -1,4 +1,4 @@
-module jayu/free-disk-space-widget
+module jayu/system-uptime-widget
 
 go 1.23.6
 
@@ -17,5 +17,3 @@ require (
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 )
-
-replace github.com/getlantern/systray => ./third_party/systray
