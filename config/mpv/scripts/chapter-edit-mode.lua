@@ -26,10 +26,28 @@ local forced_bindings = {}
 local DELETE_THRESHOLD_SECONDS = 3
 local DELETE_THRESHOLD_PERCENT = 0.005
 local DELETE_THRESHOLD_MAX_SECONDS = 10
+local SUPPRESSOR_NAME = "chapter-edit-mode"
+
+local function state_value(on)
+    return on and "yes" or "no"
+end
 
 local function matches_toggle_binding(entry)
     return keybar_component.command_equals("script-binding chapter_edit_mode/toggle")(entry)
         or keybar_component.command_equals("script-binding chapter-edit-mode/toggle")(entry)
+end
+
+local function matches_script_binding(...)
+    local names = { ... }
+    return function(entry)
+        for _, name in ipairs(names) do
+            if keybar_component.command_equals("script-binding " .. name)(entry) then
+                return true
+            end
+        end
+
+        return false
+    end
 end
 
 local control_items = {
@@ -44,25 +62,36 @@ local control_items = {
     {
         id = "add",
         section = "mode",
-        key = keybar_component.format_key_label("+"),
+        fallback = "+",
+        prefer = { "+", "KP_ADD" },
         desc = " ADD",
+        match = matches_script_binding("chapter-edit-mode/add", "chapter_edit_mode/add"),
     },
     {
         id = "delete",
         section = "mode",
-        key = keybar_component.format_key_label("Meta+BS"),
+        fallback = "Meta+BS",
+        prefer = { "Meta+BS", "Meta+DEL" },
         desc = " DELETE NEAREST",
+        match = matches_script_binding("chapter-edit-mode/delete-nearest", "chapter_edit_mode/delete-nearest"),
     },
     {
         id = "delete_all",
         section = "mode",
-        key = keybar_component.format_key_label("Meta+Shift+BS"),
+        fallback = "Meta+Shift+BS",
+        prefer = { "Meta+Shift+BS", "Meta+Shift+DEL" },
         desc = " DELETE ALL",
+        match = matches_script_binding("chapter-edit-mode/delete-all", "chapter_edit_mode/delete-all"),
     },
 }
 
 local function broadcast_state()
-    mp.commandv("script-message", "chapter-edit-mode-state", enabled and "yes" or "no")
+    mp.commandv("script-message", "chapter-edit-mode-state", state_value(enabled))
+end
+
+local function set_keybar_suppressed(on)
+    mp.commandv("script-message-to", "keybar", "keybar-suppress", SUPPRESSOR_NAME, state_value(on))
+    broadcast_state()
 end
 
 local function refresh_resolved_keys()
@@ -160,6 +189,7 @@ local function render_progress(dim)
 
     local w, h = dim.w, dim.h
     local bar_h = 5
+    local duration = mp.get_property_number("duration", 0) or 0
     local ass = assdraw.ass_new()
 
     ass:new_event()
@@ -175,6 +205,20 @@ local function render_progress(dim)
     ass:draw_start()
     ass:rect_cw(0, 0, w * pos / 100, bar_h)
     ass:draw_stop()
+
+    if duration > 0 then
+        ass:new_event()
+        ass:append("{\\bord0\\shad0\\1c&H00FFFF&}")
+        ass:pos(0, h - bar_h)
+        ass:draw_start()
+        for _, chapter in ipairs(chapter_list()) do
+            if chapter.time >= 0 and chapter.time <= duration then
+                local x = math.floor(w * chapter.time / duration)
+                ass:rect_cw(x - 1, -7, x + 1, bar_h)
+            end
+        end
+        ass:draw_stop()
+    end
 
     progress_overlay.data = ass.text
     progress_overlay.res_x = w
@@ -212,6 +256,11 @@ local function render()
 end
 
 local function add_chapter()
+    if not enabled then
+        mp.osd_message("Chapter edit mode is off", 1.5)
+        return
+    end
+
     local pos = mp.get_property_number("time-pos")
     if not pos then
         mp.osd_message("Chapter edit: no playback position", 2)
@@ -234,6 +283,11 @@ local function add_chapter()
 end
 
 local function delete_nearest_chapter()
+    if not enabled then
+        mp.osd_message("Chapter edit mode is off", 1.5)
+        return
+    end
+
     local pos = mp.get_property_number("time-pos")
     if not pos then
         mp.osd_message("Chapter edit: no playback position", 2)
@@ -260,6 +314,11 @@ local function delete_nearest_chapter()
 end
 
 local function delete_all_chapters()
+    if not enabled then
+        mp.osd_message("Chapter edit mode is off", 1.5)
+        return
+    end
+
     local chapters = chapter_list()
     if #chapters == 0 then
         mp.osd_message("Chapter edit: no chapters", 2)
@@ -306,18 +365,16 @@ function set_enabled(next_enabled)
     if enabled then
         refresh_resolved_keys()
         enable_bindings()
-        mp.commandv("script-message-to", "keybar", "keybar-suppress", "chapter-edit-mode", "yes")
+        set_keybar_suppressed(true)
         mp.osd_message("chapter edit mode", 1.5)
         render()
     else
         disable_bindings()
         bar_overlay:remove()
         progress_overlay:remove()
-        mp.commandv("script-message-to", "keybar", "keybar-suppress", "chapter-edit-mode", "no")
+        set_keybar_suppressed(false)
         mp.osd_message("chapter edit mode off", 1.5)
     end
-
-    broadcast_state()
 end
 
 local function toggle()
@@ -350,6 +407,15 @@ mp.register_script_message("add", add_chapter)
 mp.register_script_message("delete-nearest", delete_nearest_chapter)
 mp.register_script_message("delete-all", delete_all_chapters)
 mp.register_script_message("query", broadcast_state)
+mp.register_script_message("chapter-edit-mode-query", broadcast_state)
 
 mp.add_key_binding(nil, "toggle", toggle)
+mp.add_key_binding(nil, "add", add_chapter)
+mp.add_key_binding(nil, "delete-nearest", delete_nearest_chapter)
+mp.add_key_binding(nil, "delete-all", delete_all_chapters)
+mp.register_event("shutdown", function()
+    if enabled then
+        set_keybar_suppressed(false)
+    end
+end)
 mp.add_timeout(0, broadcast_state)

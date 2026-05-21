@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mapper device="KEYBOARD" author="Atomix Productions" version="850" date="2026-05-14">
+<mapper device="KEYBOARD" author="Atomix Productions" version="850" date="2026-05-21">
 	<info>https://www.virtualdj.com/manuals/hardware/keyboard/index.html</info>
 	<map value="UNMAPPED" action="search" />
 	<map value="ALT" action="keyboard_shortcuts" name="" />
@@ -72,8 +72,8 @@
 	<map value="CMD+RIGHT" action="deck right load &amp; deck right sync &amp; goto_cue 1 &amp; wait 100ms &amp; deck right has_linked_tracks ? (show_splitpanel &apos;sidelist&apos; on &amp; sideview &apos;remixes&apos;) : nothing" />
 	<map value="CMD+UP" action="browser_folder -1" name="FOLDER UP" />
 	<map value="CMD+DOWN" action="browser_folder +1" name="FOLDER DOWN" />
-	<map value="CMD+RETURN" action="browser_open_folder" name="SUBFOLDERS" />
-	<map value="CMD+BACK" action="goto_last_folder" name="PREVIOUS FOLDER" />
+	<map value="CMD+RETURN" action="maximize" />
+	<map value="CMD+BACK" action="unload" />
 	<map value="CMD+TAB" action="sideview +1" name="SWITCH SIDEVIEW" />
 	<map value="SHIFT+ESCAPE" action="settings" name="SETTINGS" />
 	<map value="SHIFT" action="shift" />
@@ -112,7 +112,6 @@
 	<map value="CTRL+F6" action="pad 6" />
 	<map value="CTRL+F7" action="pad 7" />
 	<map value="CTRL+F8" action="pad 8" />
-	<map value="BACK" action="unload" />
 	<map value="CMD+3" action="pad_page 3" />
 	<map value="CMD+4" action="pad_page 4" />
 	<map value="CMD+5" action="deck right pad_page 1" />
@@ -122,7 +121,6 @@
 	<map value="CMD+SHIFT+G" action="browser_gotofolder `deck active`" />
 	<map value="ALT+B" action="browser_gotofolder &quot;$HOME/Music/DJ-Library/Tracks/&quot;" />
 	<map value="CMD+SHIFT+N" action="browser_gotofolder &quot;New&quot;" />
-	<map value="CMD+F" action="maximize" />
 	<map value="CMD+SHIFT+B" action="repeat_stop &apos;rsi_CollapseFolders&apos; &amp; browser_window &apos;folders&apos; &amp; browser_scroll &apos;bottom&apos; &amp; param_equal get_browsed_folder_tab 0 ? set &apos;$BRPreviousLevel&apos; 0 &amp; repeat_start_instant &apos;rsi_CollapseFolders&apos; 50ms &amp; browser_window &apos;folders&apos; &amp; browser_scroll - 1 &amp; param_equal get_browsed_folder_tab 0 ? var_equal &apos;$BRPreviousLevel&apos; 0 ? browser_scroll &apos;top&apos; ? repeat_stop &apos;rsi_CollapseFolders&apos; : nothing : browser_folder &amp; set &apos;$BRPreviousLevel&apos; 0 &amp; browser_scroll &apos;top&apos; ? repeat_stop &apos;rsi_CollapseFolders&apos; : nothing : get_browsed_folder_tab &amp; set &apos;$BRPreviousLevel&apos; &amp; browser_scroll &apos;top&apos; ? repeat_stop &apos;rsi_CollapseFolders&apos; : nothing : set &apos;$BRPreviousLevel&apos; 1 &amp; repeat_start_instant &apos;rsi_CollapseFolders&apos; 50ms &amp; browser_window &apos;folders&apos; &amp; browser_scroll - 1 &amp; param_equal get_browsed_folder_tab 0 ? var_equal &apos;$BRPreviousLevel&apos; 0 ? browser_scroll &apos;top&apos; ? repeat_stop &apos;rsi_CollapseFolders&apos; : nothing : browser_folder &amp; set &apos;$BRPreviousLevel&apos; 0 &amp; browser_scroll &apos;top&apos; ? repeat_stop &apos;rsi_CollapseFolders&apos; : nothing : get_browsed_folder_tab &amp; set &apos;$BRPreviousLevel&apos; &amp; browser_scroll &apos;top&apos; ? repeat_stop &apos;rsi_CollapseFolders&apos; : nothing" />
 	<map value="CMD+F1" action="deck 1 load" />
 	<map value="CMD+F2" action="deck 2 load" />
@@ -215,4 +213,7 @@ get_deck 2 ? deck 4 select : nothing" />
 	<map value="CMD+J" action="cycle &apos;@$hauntingjogtype&apos; 4" />
 	<map value="ESCAPE" action="deck all effect_disable_all &amp;
 browser_zoom off" />
+	<map value="CMD+F" action="browser_zoom &amp; browser_open_folder on" />
+	<map value="BACK" action="clear_search" />
+	<map value="CTRL+S" action="swap_decks" />
 </mapper>

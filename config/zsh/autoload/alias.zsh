@@ -252,9 +252,11 @@ yt-queue-add() {
 }
 
 yt-queue-run() {
+  local archive_file="${YT_DLP_ARCHIVE_FILE:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/archive.txt}"
+
   yt-dlp \
     -a ~/.yt-dlp-queue \
-    --download-archive ~/.yt-dlp-archive \
+    --download-archive "$archive_file" \
     -P ~/Movies/Porn/Downloads \
     --ignore-errors \
     --newline \
@@ -263,9 +265,11 @@ yt-queue-run() {
 }
 
 yt-queue-run-ext() {
+  local archive_file="${YT_DLP_ARCHIVE_FILE:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/archive.txt}"
+
   yt-dlp \
     -a ~/.yt-dlp-queue \
-    --download-archive ~/.yt-dlp-archive \
+    --download-archive "$archive_file" \
     -P "/Volumes/Footage 1tb/" \
     --ignore-errors \
     --newline \

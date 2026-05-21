@@ -28,6 +28,11 @@ local function get_playlist_info()
 end
 
 local function get_chapter_count()
+    local count = get_number("chapters", nil)
+    if count ~= nil then
+        return count
+    end
+
     local chapters = mp.get_property_native("chapter-list")
     if type(chapters) == "table" then
         return #chapters
