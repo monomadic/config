@@ -61,7 +61,7 @@ alias .new-local="fd-media --sort created --print0 . $HOME/Movies/Porn | mpv-sen
 alias .select="fd-media --print0 . {${HOME},/Volumes/*}/Movies/Porn(N) | fzf-select -0 --print0 --stream | mpv-send play -0"
 
 alias .play-all-sorted=".ls-sorted | mpv-send play"
-alias .play-pwd="fd-media --print0 . . | mpv-send play -0 && mpv-send sort && mpv-send goto 1"
+alias .play-pwd="fd-media --sort-created --print0 . . | mpv-send play -0 && mpv-send sort && mpv-send goto 1"
 alias .pwd=.play-pwd
 alias .play-local=".ls-local | mpv-send play"
 alias .play-tower="fd-media --print0 . /Volumes/Tower/Movies/Porn(N) | mpv-send play -0"
