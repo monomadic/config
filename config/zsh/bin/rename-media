@@ -70,6 +70,10 @@ while (( $# > 0 )); do
       enable_icons
       shift
       ;;
+    --)
+      shift
+      break
+      ;;
     -h|--help)
       usage
       exit 0

@@ -266,7 +266,7 @@ local function show_menu()
         "Progress:      " .. on_off(state.progress),
         "Stats:         " .. on_off(state.stats),
         "────────────────────",
-        "Auto-Land:     " .. on_off(state.auto_landscape),
+        "Auto-Rotate:   " .. on_off(state.auto_landscape),
         "Metadata:      " .. on_off(state.metadata),
         "Auto Jump:     " .. on_off(state.auto_jump),
         "Auto Seek:     " .. on_off(state.auto_seek),
