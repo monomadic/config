@@ -129,8 +129,6 @@ if uname and uname.status and uname.status.success and uname.stdout:match("Linux
 	require("fs-usage"):setup()
 end
 
-require("dual-pane"):setup()
-
 local function basename(path)
 	path = tostring(path):gsub("/+$", "")
 	if path == "" then
