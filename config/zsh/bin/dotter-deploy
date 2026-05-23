@@ -77,7 +77,9 @@ prepare_yazi_package_dirs() {
 prepare_yazi_local_plugin_dirs() {
   local source_plugins="$CONFIG_DIR/config/yazi/plugins"
   local source_dir
+  local source_file
   local target_dir
+  local target_file
 
   [[ -d "$source_plugins" ]] || return
 
@@ -89,24 +91,18 @@ prepare_yazi_local_plugin_dirs() {
     if [[ -L "$target_dir" && "${target_dir:A}" == "${source_dir:A}" ]]; then
       rm -f "$target_dir"
       mkdir -p "$target_dir"
+    elif [[ -d "$target_dir" && ! -L "$target_dir" ]]; then
+      for source_file in "$source_dir"/*(N); do
+        [[ -f "$source_file" || -L "$source_file" ]] || continue
+
+        target_file="$target_dir/${source_file:t}"
+        [[ -e "$target_file" || -L "$target_file" ]] || continue
+
+        if [[ ! -L "$target_file" ]] || [[ "${target_file:A}" != "${source_file:A}" ]]; then
+          rm -f "$target_file"
+        fi
+      done
     fi
-  done
-}
-
-repair_yazi_package_cache() {
-  local cache_dir
-  local init_file
-  local main_file
-
-  for cache_dir in "$HOME/.cache/yazi/packages" "$HOME/.local/state/yazi/packages"; do
-    [[ -d "$cache_dir" ]] || continue
-
-    while IFS= read -r init_file; do
-      main_file="${init_file:h}/main.lua"
-      [[ -e "$main_file" ]] && continue
-
-      cp "$init_file" "$main_file"
-    done < <(find "$cache_dir" -mindepth 2 -maxdepth 2 -name init.lua -type f)
   done
 }
 
@@ -134,10 +130,7 @@ install_yazi_packages() {
   if [[ "$install_help" == *"--discard"* ]]; then
     install_args=(--discard)
   fi
-  if ! ya pkg install "${install_args[@]}"; then
-    repair_yazi_package_cache
-    ya pkg install "${install_args[@]}"
-  fi
+  ya pkg install "${install_args[@]}"
 }
 
 prepare_yazi_package_manifest

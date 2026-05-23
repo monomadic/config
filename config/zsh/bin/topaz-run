@@ -6,11 +6,18 @@ script_name="${0:t}"
 usage() {
   cat <<EOF
 usage:
-  $script_name [--preset_name name --filter_complex filter] [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
+  $script_name [--preview [seconds]] [--trash-originals] [--preset_name name --filter_complex filter] [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
   $script_name file1 [file2 ...]
 
 With --preset_name and --filter_complex, runs the supplied Topaz filter directly.
 Without them, opens the interactive preset picker.
+
+With --preview, encodes only the first seconds of each input with the selected
+preset. The preview length defaults to 1 second.
+
+After each successful encode, copies source metadata tags and filesystem creation
+date to the Topaz output. With --trash-originals, moves successfully encoded
+source files to Trash.
 
 Uses the first installed Topaz bundle by default:
   /Applications/Topaz Video.app
@@ -136,16 +143,179 @@ done'
   zsh -lc "$preview_script" topaz-preview "$output" >/dev/null 2>&1 &!
 }
 
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+warn() {
+  print -r -u2 -- "warning: $*"
+}
+
+info() {
+  print -r -- "$*"
+}
+
+is_number() {
+  [[ "${1:-}" == <-> || "${1:-}" == <->.<-> ]]
+}
+
+number_gt_zero() {
+  awk -v v="$1" 'BEGIN { exit !(v > 0) }'
+}
+
+setfile_path_arg() {
+  local file_path="$1"
+
+  if [[ "$file_path" != /* && "${file_path:t}" == -* ]]; then
+    print -r -- "./$file_path"
+  else
+    print -r -- "$file_path"
+  fi
+}
+
+creation_date_for_setfile() {
+  local input_file="$1"
+  local epoch
+
+  epoch="$(stat -f '%B' -- "$input_file" 2>/dev/null)" || return 1
+  [[ "$epoch" == <-> ]] || return 1
+  (( epoch > 0 )) || return 1
+
+  date -r "$epoch" '+%m/%d/%Y %H:%M:%S'
+}
+
+copy_creation_date() {
+  local input_file="$1"
+  local output_file="$2"
+  local created output_arg
+
+  if ! have SetFile; then
+    warn "SetFile not found; could not copy creation date"
+    return 1
+  fi
+
+  if ! created="$(creation_date_for_setfile "$input_file")"; then
+    warn "could not read creation date: $input_file"
+    return 1
+  fi
+
+  output_arg="$(setfile_path_arg "$output_file")"
+  if SetFile -d "$created" "$output_arg"; then
+    info "Copied creation date: $created"
+    return 0
+  fi
+
+  warn "failed to copy creation date to: $output_file"
+  return 1
+}
+
+trash_original() {
+  local input_file="$1"
+  local target="$input_file"
+
+  if have trash; then
+    [[ "$target" != /* && "${target:t}" == -* ]] && target="./$target"
+    trash "$target"
+    return
+  fi
+
+  local trash_dir="$HOME/.Trash"
+  local base dst stamp n
+
+  mkdir -p -- "$trash_dir"
+  base="${input_file:t}"
+  dst="$trash_dir/$base"
+
+  if [[ -e "$dst" ]]; then
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    n=1
+    while [[ -e "$trash_dir/${base} (${stamp}-${n})" ]]; do
+      (( ++n ))
+    done
+    dst="$trash_dir/${base} (${stamp}-${n})"
+  fi
+
+  mv -n -- "$input_file" "$dst"
+}
+
+maybe_trash_original() {
+  local input_file="$1"
+
+  if trash_original "$input_file"; then
+    info "Trashed original:  $input_file"
+    return 0
+  fi
+
+  warn "failed to trash original: $input_file"
+  return 1
+}
+
+confirm_open_preview() {
+  local input_file="$1"
+  local output_file="$2"
+  local reply=""
+
+  read -r "?Open preview beside original in mpv-preview? [y/N] " reply
+  [[ "$reply" == [Yy] || "$reply" == [Yy][Ee][Ss] ]]
+}
+
+open_preview_pair() {
+  local input_file="$1"
+  local output_file="$2"
+
+  if have mpv-preview; then
+    mpv-preview "$input_file" "$output_file"
+    return
+  fi
+
+  if have mpv; then
+    mpv --force-window=immediate --keep-open=yes -- "$input_file" "$output_file"
+    return
+  fi
+
+  warn "mpv-preview and mpv not found; could not open preview"
+  return 1
+}
+
+maybe_open_preview_pair() {
+  local input_file="$1"
+  local output_file="$2"
+
+  confirm_open_preview "$input_file" "$output_file" || return 0
+  open_preview_pair "$input_file" "$output_file"
+}
+
 preset_name=""
 preset_flag=""
 preset_value=""
 preset_output_ext=""
 preset_video_args=""
 preset_metadata=""
+trash_originals=false
+preview_mode=false
+preview_seconds="1"
 files=()
 
 while (( $# > 0 )); do
   case "$1" in
+    --preview=*)
+      preview_mode=true
+      preview_seconds="${1#--preview=}"
+      shift
+      ;;
+    --preview)
+      preview_mode=true
+      if (( $# >= 2 )) && [[ "${2:-}" != -* ]] && is_number "$2"; then
+        preview_seconds="$2"
+        shift 2
+      else
+        shift
+      fi
+      ;;
+    --trash-originals|--trash-original)
+      trash_originals=true
+      shift
+      ;;
     --preset_name)
       (( $# >= 2 )) || {
         print -u2 -- "--preset_name requires a value"
@@ -203,6 +373,15 @@ while (( $# > 0 )); do
       ;;
   esac
 done
+
+is_number "$preview_seconds" || {
+  print -u2 -- "--preview length must be numeric seconds"
+  exit 1
+}
+number_gt_zero "$preview_seconds" || {
+  print -u2 -- "--preview length must be greater than 0"
+  exit 1
+}
 
 if [[ -n "$preset_name" || -n "$preset_value" ]]; then
   [[ -n "$preset_name" && -n "$preset_value" ]] || {
@@ -275,7 +454,19 @@ mkdir -p "$LOG_DIR"
 
 print -P -- "%F{blue}%BTopaz batch%b%f"
 print -P -- "  %F{white}preset:%f %F{magenta}$(topaz_escape_prompt "$preset_name")%f"
+[[ "$preview_mode" == true ]] && print -P -- "  %F{white}preview:%f %F{yellow}${preview_seconds}s sample encode%f"
+if [[ "$trash_originals" == true && "$preview_mode" == true ]]; then
+  print -P -- "  %F{white}cleanup:%f %F{yellow}ignored during preview%f"
+elif [[ "$trash_originals" == true ]]; then
+  print -P -- "  %F{white}cleanup:%f %F{yellow}trash originals after successful encodes%f"
+fi
 print
+
+integer ok_count=0
+integer skip_count=0
+integer fail_count=0
+integer creation_date_fail_count=0
+integer trash_fail_count=0
 
 for input in "$files[@]"; do
   ext="${input:e}"
@@ -303,20 +494,30 @@ for input in "$files[@]"; do
   filename_preset="$(topaz_file_preset_label "$preset_name")"
   safe_preset="$(topaz_safe_log_label "$filename_preset")"
 
-  output="${stem} [Topaz - ${filename_preset}].${output_ext}"
-  log_file="${LOG_DIR}/${base} [Topaz - ${safe_preset}].log"
+  if [[ "$preview_mode" == true ]]; then
+    output="${stem} [Topaz Preview ${preview_seconds}s - ${filename_preset}].${output_ext}"
+    log_file="${LOG_DIR}/${base} [Topaz Preview ${preview_seconds}s - ${safe_preset}].log"
+  else
+    output="${stem} [Topaz - ${filename_preset}].${output_ext}"
+    log_file="${LOG_DIR}/${base} [Topaz - ${safe_preset}].log"
+  fi
   ffmpeg_preset_flag="-${preset_flag#--}"
+  duration_args=()
+  [[ "$preview_mode" == true ]] && duration_args=(-t "$preview_seconds")
 
-  [[ -e "$output" ]] && {
+  [[ "$preview_mode" != true && -e "$output" ]] && {
     print -P -- "%F{yellow}skip:%f output exists"
     print -P -- "  %F{white}file:%f %F{blue}$(topaz_escape_prompt "$output")%f"
+    (( ++skip_count ))
     continue
   }
 
   ffmpeg_cmd=(
     "$TOPAZ_FFMPEG"
     -hide_banner
+    -y
     -i "$input"
+    "${duration_args[@]}"
     -sws_flags "spline+accurate_rnd+full_chroma_int"
     "$ffmpeg_preset_flag" "$preset_value"
     "${video_args[@]}"
@@ -324,6 +525,7 @@ for input in "$files[@]"; do
     -c:a copy
     -map_metadata 0
     -map_metadata:s:v 0:s:v
+    -map_chapters 0
     -fps_mode:v passthrough
     -movflags "frag_keyframe+empty_moov+delay_moov+use_metadata_tags+write_colr"
     -bf 0
@@ -349,16 +551,26 @@ for input in "$files[@]"; do
 
   : >| "$log_file"
   topaz_open_log_tail "$log_file"
-  topaz_open_output_preview "$output"
+  [[ "$preview_mode" != true ]] && topaz_open_output_preview "$output"
 
-  print -P -- "%F{cyan}%BEncoding%b%f"
+  if [[ "$preview_mode" == true ]]; then
+    print -P -- "%F{cyan}%BEncoding preview%b%f"
+  else
+    print -P -- "%F{cyan}%BEncoding%b%f"
+  fi
   print -P -- "  %F{white}app:%f    %F{magenta}$(topaz_escape_prompt "$TOPAZ_APP")%f"
   print -P -- "  %F{white}engine:%f %F{magenta}Topaz ffmpeg%f"
   print -P -- "  %F{white}video:%f  %F{magenta}$(topaz_escape_prompt "${(j: :)video_args}")%f"
   print -P -- "  %F{white}input:%f  %F{white}$(topaz_escape_prompt "$input")%f"
   print -P -- "  %F{white}output:%f %F{green}%B$(topaz_escape_prompt "$output")%b%f"
   print -P -- "  %F{white}log:%f    %F{blue}$(topaz_escape_prompt "$log_file")%f"
-  print -P -- "  %F{white}preview:%f %F{magenta}mpv opens when output starts writing%f"
+  if [[ "$preview_mode" == true ]]; then
+    print -P -- "  %F{white}sample:%f %F{yellow}${preview_seconds}s from start%f"
+  else
+    print -P -- "  %F{white}preview:%f %F{magenta}mpv opens when output starts writing%f"
+  fi
+  print -P -- "  %F{white}metadata:%f %F{green}copy source tags and creation date%f"
+  [[ "$trash_originals" == true && "$preview_mode" != true ]] && print -P -- "  %F{white}cleanup:%f %F{yellow}trash original after success%f"
   print -P -- "  %F{white}copy:%f   %F{green}$(topaz_escape_prompt "${(q)output}")%f"
   print
 
@@ -390,8 +602,19 @@ for input in "$files[@]"; do
   } >"$log_file" 2>&1 || {
     print -P -u2 -- "%F{red}failed:%f $(topaz_escape_prompt "$input")"
     print -P -u2 -- "  %F{white}see log:%f %F{blue}$(topaz_escape_prompt "$log_file")%f"
-    exit 1
+    (( ++fail_count ))
+    continue
   }
 
+  copy_creation_date "$input" "$output" || (( ++creation_date_fail_count ))
+  [[ "$preview_mode" == true ]] && maybe_open_preview_pair "$input" "$output" || true
+  if [[ "$trash_originals" == true && "$preview_mode" != true ]]; then
+    maybe_trash_original "$input" || (( ++trash_fail_count ))
+  fi
+  (( ++ok_count ))
   print -P -- "%F{green}%Bdone:%b%f %F{green}$(topaz_escape_prompt "$output")%f"
 done
+
+print
+info "Summary: ok=$ok_count skipped=$skip_count failed=$fail_count creation_date_failed=$creation_date_fail_count trash_failed=$trash_fail_count"
+(( fail_count == 0 && creation_date_fail_count == 0 && trash_fail_count == 0 ))

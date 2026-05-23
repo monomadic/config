@@ -9,11 +9,6 @@ rev = "230b9c6"
 hash = "75fd60b2df7115e0a6ca31a6a804d320"
 
 [[plugin.deps]]
-use = "dawsers/dual-pane"
-rev = "c2fed12"
-hash = "17ded107023ca534375c4f41c84f5a74"
-
-[[plugin.deps]]
 use = "boydaihungst/file-extra-metadata"
 rev = "044274c"
 hash = "14006064a6a53a1770fbdcefb97a8347"

@@ -7,11 +7,11 @@ script_name="${0:t}"
 usage() {
   cat <<EOF
 usage:
-  $script_name file1 [file2 ...]
+  $script_name [--preview [seconds]] [--trash-originals] file1 [file2 ...]
   $script_name --help
 
 Pick a simple Topaz preset, then call:
-  topaz-run --preset_name name --filter_complex filter [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
+  topaz-run [--preview [seconds]] [--trash-originals] --preset_name name --filter_complex filter [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
 EOF
 }
 
@@ -27,7 +27,71 @@ case "${1:-}" in
     ;;
 esac
 
-for input in "$@"; do
+is_number() {
+  [[ "${1:-}" == <-> || "${1:-}" == <->.<-> ]]
+}
+
+number_gt_zero() {
+  awk -v v="$1" 'BEGIN { exit !(v > 0) }'
+}
+
+trash_originals=false
+preview_mode=false
+preview_seconds="1"
+files=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    --preview=*)
+      preview_mode=true
+      preview_seconds="${1#--preview=}"
+      shift
+      ;;
+    --preview)
+      preview_mode=true
+      if (( $# >= 2 )) && [[ "${2:-}" != -* ]] && is_number "$2"; then
+        preview_seconds="$2"
+        shift 2
+      else
+        shift
+      fi
+      ;;
+    --trash-originals|--trash-original)
+      trash_originals=true
+      shift
+      ;;
+    --)
+      shift
+      files+=("$@")
+      break
+      ;;
+    -*)
+      print -u2 "unknown option: $1"
+      usage >&2
+      exit 1
+      ;;
+    *)
+      files+=("$1")
+      shift
+      ;;
+  esac
+done
+
+is_number "$preview_seconds" || {
+  print -u2 -- "--preview length must be numeric seconds"
+  exit 1
+}
+number_gt_zero "$preview_seconds" || {
+  print -u2 -- "--preview length must be greater than 0"
+  exit 1
+}
+
+(( ${#files[@]} > 0 )) || {
+  usage >&2
+  exit 1
+}
+
+for input in "${files[@]}"; do
   [[ -f "$input" ]] || {
     print -u2 "not a file: $input"
     exit 1
@@ -94,11 +158,15 @@ cmd_preview=(
   "$preset_flag" "$filter_complex"
 )
 
+if [[ "$preview_mode" == true ]]; then
+  cmd_preview+=(--preview "$preview_seconds")
+fi
+[[ "$trash_originals" == true ]] && cmd_preview+=(--trash-originals)
 [[ -n "$output_ext" ]] && cmd_preview+=(--output_ext "$output_ext")
 [[ -n "$video_args" ]] && cmd_preview+=(--video_args "$video_args")
 [[ -n "$metadata" ]] && cmd_preview+=(--metadata "$metadata")
 
-cmd_preview+=(-- "$@")
+cmd_preview+=(-- "${files[@]}")
 
 print -P -- "%F{cyan}󰏬%f preset: $preset_label"
 print -P -- "%F{white}slug:%f   $preset_name"
