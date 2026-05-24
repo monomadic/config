@@ -617,12 +617,12 @@ for input in "$files[@]"; do
   input_duration_args=()
   [[ "$preview_mode" == true ]] && input_duration_args=(-t "$preview_seconds")
 
-  [[ "$preview_mode" != true && -e "$output" ]] && {
+  if [[ "$preview_mode" != true && -e "$output" ]]; then
     print -P -- "%F{yellow}skip:%f output exists"
     print -P -- "  %F{white}file:%f %F{blue}$(topaz_escape_prompt "$output")%f"
     (( ++skip_count ))
     continue
-  }
+  fi
 
   ffmpeg_cmd=(
     "$TOPAZ_FFMPEG"

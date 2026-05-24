@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>Open In Forklift</string>
+
+	<key>CFBundleDisplayName</key>
+	<string>Open In Forklift</string>
+
+	<key>CFBundleIdentifier</key>
+	<string>com.rob.finder-first-selection-to-forklift</string>
+
+	<key>CFBundleExecutable</key>
+	<string>finder-first-to-forklift</string>
+
+	<key>CFBundleIconFile</key>
+	<string>forklift1.icns</string>
+
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+
+	<key>CFBundleSignature</key>
+	<string>????</string>
+
+	<key>CFBundleVersion</key>
+	<string>1</string>
+
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+
+	<key>LSMinimumSystemVersion</key>
+	<string>12.0</string>
+
+	<key>LSUIElement</key>
+	<true/>
+
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Open the first selected Finder item in ForkLift.</string>
+</dict>
+</plist>

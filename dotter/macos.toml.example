@@ -24,6 +24,7 @@ packages = [
   "mpv",
   # "nvim",
   # "onagre",
+  "open-in-forklift",
   # "rclone",
   "skhd",
   "starship",

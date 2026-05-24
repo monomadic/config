@@ -33,6 +33,9 @@ depends = []
 [hammerspoon.files]
 "config/hammerspoon" = "~/.hammerspoon"
 
+[open-in-forklift.files]
+"utils/open-in-forklift/Open In Forklift.app" = { target = "~/Applications/Open In Forklift.app", type = "symbolic", recurse = false }
+
 [broot.files]
 "config/broot" = "~/.config/broot"
 
