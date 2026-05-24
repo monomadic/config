@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Reference - Sparse Helper Tests.xml
+  Manual-test pad page for official verbs that are documented sparsely and
+  currently marked "Needs local test".
+
+  This page is a harness, not proof. Do not mark a tracker row Pass merely
+  because the page loads. Press a pad, record the VirtualDJ build, account or
+  deck state, visible UI/result, and any returned label/query value in:
+    Reference/VDJScript Local Test Tracker.md
+
+  Suggested first pass:
+    1. Load this pad page in VirtualDJ.
+    2. Record the VirtualDJ build.
+    3. Test logged-out and logged-in `connect` states.
+    4. Test `system`, `open_stem_creator`, and `karaoke_venue_name`.
+    5. Enable dual-deck mode and observe `dualdeckmode_decks`.
+
+  Source: Official, Published skin, Inference
+-->
+<page name="REF: SPARSE TEST">
+
+  <pad1 name="CONNECT: `connect`"
+        color="connect ? color 'green' : color 'orange'"
+        query="connect ? on : off">
+    connect
+  </pad1>
+
+  <pad2 name="USER: `get_username`"
+        color="connect ? color 'green' : color 'orange'"
+        query="connect ? on : off">
+    connect
+  </pad2>
+
+  <pad3 name="SYSTEM: `system`"
+        color="color 'white'">
+    system
+  </pad3>
+
+  <pad4 name="STEM CREATOR"
+        color="color 'blue'">
+    open_stem_creator
+  </pad4>
+
+  <pad5 name="KARAOKE: `karaoke_venue_name`"
+        color="color 'magenta'">
+    karaoke_options
+  </pad5>
+
+  <pad6 name="DUAL MODE: `dualdeckmode`"
+        color="dualdeckmode ? color 'cyan' : color 'gray'"
+        query="dualdeckmode ? on : off">
+    dualdeckmode
+  </pad6>
+
+  <pad7 name="DUALDECKS: `dualdeckmode_decks`"
+        color="color 'cyan'">
+    dualdeckmode_decks
+  </pad7>
+
+  <pad8 name="MIXER: `mixermode 'internal' ? get_text 'internal' : get_text 'external'`"
+        color="mixermode 'internal' ? color 'green' : color 'orange'"
+        query="mixermode 'internal' ? on : off">
+    nothing
+  </pad8>
+
+  <shift_pad1 name="LOG CONNECT" color="color 'orange'">debug `connect`</shift_pad1>
+  <shift_pad2 name="LOG USER" color="color 'orange'">debug `get_username`</shift_pad2>
+  <shift_pad3 name="LOG SYSTEM" color="color 'white'">debug `system`</shift_pad3>
+  <shift_pad4 name="OPEN STEMS" color="color 'blue'">open_stem_creator</shift_pad4>
+  <shift_pad5 name="KARAOKE OPTS" color="color 'magenta'">karaoke_options</shift_pad5>
+  <shift_pad6 name="DUAL TOGGLE" color="color 'cyan'">dualdeckmode</shift_pad6>
+  <shift_pad7 name="LOG DUAL" color="color 'cyan'">debug `dualdeckmode_decks`</shift_pad7>
+  <shift_pad8 name="LOG MIXER" color="color 'green'">debug `mixermode 'internal'`</shift_pad8>
+
+  <param1 name="KARAOKE OPTIONS">karaoke_options</param1>
+  <param2 name="ACCOUNT / CONNECT">connect</param2>
+
+</page>

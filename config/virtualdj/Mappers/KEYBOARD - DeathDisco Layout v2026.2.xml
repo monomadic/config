@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mapper device="KEYBOARD" author="Atomix Productions" version="850" date="2026-05-22">
+<mapper device="KEYBOARD" author="Atomix Productions" version="850" date="2026-05-24">
 	<info>https://www.virtualdj.com/manuals/hardware/keyboard/index.html</info>
 	<map value="UNMAPPED" action="search" />
-	<map value="ALT" action="keyboard_shortcuts" name="" />
 	<map value="RIGHT ALT" action="keyboard_shortcuts" name="" />
 	<map value="ALT+1" action="deck 1 select" />
 	<map value="ALT+2" action="deck 2 select" />
@@ -196,7 +195,6 @@ get_deck 2 ? deck 4 select : nothing" />
 	<map value="CMD+O" action="show_splitpanel &apos;info&apos; off &amp; browser_zoom" />
 	<map value="CMD+SHIFT+I" action="browsed_file_info" />
 	<map value="CMD+A" action="mute_stem &quot;MeloRhythm&quot;" />
-	<map value="CTRL" action="keyboard_shortcuts" name="" />
 	<map value="CMD+ALT" action="keyboard_shortcuts" name="" />
 	<map value="CMD+SHIFT" action="shift" />
 	<map value="CMD+SHIFT+3" action="pad_page 7" />

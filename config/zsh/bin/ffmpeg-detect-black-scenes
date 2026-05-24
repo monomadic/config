@@ -1,0 +1,39 @@
+#!/usr/bin/env zsh
+# -------------------------------------------------------------------
+# ffmpeg-detect-black-scene
+# Detect black scenes in a video using ffmpeg blackdetect.
+#
+# Prints lines like:
+#   black_start:0.066 black_end:3.166 black_duration:3.1
+#
+# Prints nothing if no black scene is detected.
+#
+# Usage:
+#   ffmpeg-detect-black-scene input.mp4
+#
+# Optional tuning:
+#   BLACK_SCAN_DURATION=10   ffmpeg-detect-black-scene input.mp4
+#   BLACK_MIN_DURATION=0.2   ffmpeg-detect-black-scene input.mp4
+#   BLACK_PIXEL_THRESH=0.08  ffmpeg-detect-black-scene input.mp4
+#   BLACK_PIC_THRESH=0.98    ffmpeg-detect-black-scene input.mp4
+# -------------------------------------------------------------------
+
+emulate -L zsh
+set -o pipefail
+
+input_file="${1:-}"
+
+if [[ -z "$input_file" || ! -f "$input_file" ]]; then
+  print -u2 "usage: ${0:t} <video-file>"
+  exit 2
+fi
+
+: "${BLACK_SCAN_DURATION:=10}"
+: "${BLACK_MIN_DURATION:=0.2}"
+: "${BLACK_PIXEL_THRESH:=0.08}"
+: "${BLACK_PIC_THRESH:=0.98}"
+
+ffmpeg -hide_banner -nostats -t "$BLACK_SCAN_DURATION" -i "$input_file" \
+  -vf "blackdetect=d=${BLACK_MIN_DURATION}:pix_th=${BLACK_PIXEL_THRESH}:pic_th=${BLACK_PIC_THRESH}" \
+  -an -f null - 2>&1 |
+  rg -o 'black_start:[0-9.]+ black_end:[0-9.]+ black_duration:[0-9.]+'

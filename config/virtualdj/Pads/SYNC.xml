@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <page name="TRANSPORT">
-  <pad1 name="KEY `match_key_button`" color="loaded ? masterdeck ? color orange : match_key ? color green : color red : color white" autodim="true" query="loaded ? masterdeck ? true : match_key ? true : blink 500ms">match_key</pad1>
-  <pad2 name="BEAT" color="loaded ? masterdeck ? color orange : is_sync ? color green : color red : color white" autodim="true" query="loaded ? masterdeck ? true : is_sync ? true : blink 500ms">sync</pad2>
+  <pad1 name="KEY `match_key_button`" color="loaded ? masterdeck ? color orange : match_key ? color green : color red : color white" autodim="true" query="loaded ? masterdeck ? true : match_key ? true : blink 1bt">match_key</pad1>
+  <pad2 name="BEAT" color="loaded ? masterdeck ? color orange : is_sync ? color green : color red : color white" autodim="true" query="loaded ? masterdeck ? true : is_sync ? true : blink 1bt">sync</pad2>
   <pad3 name="PHRASE `var_equal $phrase_len 16 ? get_text '16' : get_text '32'`" color="loaded ? masterdeck ? color orange : is_sync ? color green : color red : color white" autodim="true" query="loaded ? masterdeck ? true : is_sync '`$phrase_len`' ? on : blink 1bt">sync &amp; var_equal '$phrase_len' 16 ? phrase_sync 16 : phrase_sync 32</pad3>
-  <pad4 name="`masterdeck ? masterdeck_auto ? get_text 'MASTER [AUTO]' : get_text 'MASTER' : get_text 'SLAVE'`" query="masterdeck ? masterdeck_auto ? blink 2bt : true" color="masterdeck ? color orange : color white">masterdeck ? masterdeck_auto : masterdeck</pad4>
+  <pad4 name="`masterdeck ? masterdeck_auto ? get_text 'MASTER [AUTO]' : get_text 'MASTER' : get_text 'SLAVE'`" query="masterdeck ? masterdeck_auto ? blink 1bt : true" color="masterdeck ? color orange : color white">masterdeck ? masterdeck_auto : masterdeck</pad4>
   <!-- ROW 2 -->
   <pad5 name="◀ BAR" color="color '#AA00FF'" autodim="false">goto -4</pad5>
   <pad6 name="◀ CUE" color="color '#FF00AA'" autodim="false">goto_cue -1</pad6>

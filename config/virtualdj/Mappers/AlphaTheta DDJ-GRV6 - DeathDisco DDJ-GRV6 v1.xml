@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mapper device="DDJGRV6" version="850" date="2026-05-18">
+<mapper device="DDJGRV6" version="850" date="2026-05-24">
 	<info>http://www.virtualdj.com/manuals/hardware/pioneer/ddjGRV6/index.html</info>
 	<map value="ONINIT" action="fake_master on &amp; fake_hp on &amp; fake_hpmix on &amp; setting_setsession &apos;eqModeDual&apos; &apos;None&apos; &amp; setting_setsession &apos;exclusiveAudioAccess&apos; &apos;Yes&apos; &amp; deck 2 effect_clone 1 &amp; deck 3 effect_clone 1 &amp; deck 4 effect_clone 1 &amp; deck all effect_select_toggle &apos;stems&apos; &apos;Echo Out&apos; &amp; effect_beats &apos;stems&apos; 1bt &amp; deck all effect_active colorfx off &amp; deck all filter_activate off &amp; deck all filter 50%" />
 	<map value="ONEXIT" action="fake_master off &amp; fake_hp off &amp; fake_hpmix off" />
@@ -52,7 +52,7 @@
 	<map value="LED_SLIP" action="get_slip_active ? blink : slip_mode" />
 	<map value="DNC_SLIP" action="slip_mode" />
 	<map value="SHIFT_SLIP" action="vinyl_mode" />
-	<map value="BROWSE" action="browser_scroll" />
+	<map value="BROWSE" action="param_bigger 0 ? browser_scroll +1 : param_smaller 0 ? browser_scroll -1 : nothing" />
 	<map value="BROWSE_PUSH" action="browser_window +1" />
 	<map value="SHIFT_BROWSE" action="param_bigger 0 ? browser_scroll +5 : browser_scroll -5" />
 	<map value="SHIFT_BROWSE_PUSH" action="browser_zoom" />
@@ -297,5 +297,5 @@
 	<map value="ONSONGLOAD" action="match_key &amp; phrase_sync 16" />
 	<map value="SHIFT_DRUM_FX_ON" action="param_equal `get_effect_name 6` `get_var &apos;$grv6_drum_fx&apos;` ? effect_active 6 : effect_select 6 `get_var &apos;$grv6_drum_fx&apos;` &amp; effect_active 6 on
 " />
-	<map value="DRUM_FX_ON" action="effect_select 6 &apos;Echo Out&apos; &amp; effect_active 6 while_pressed" />
+	<map value="DRUM_FX_ON" action="effect_active 6 while_pressed" />
 </mapper>
