@@ -48,6 +48,10 @@ source "$TOPAZ_APP_LIB"
 TOPAZ_APP="$(topaz_resolve_app)" || exit 1
 TOPAZ_MACOS_DIR="$(topaz_resolve_macos_dir "$TOPAZ_APP")"
 TOPAZ_FFMPEG="$(topaz_resolve_ffmpeg "$TOPAZ_APP")"
+TOPAZ_FFPROBE="$TOPAZ_MACOS_DIR/ffprobe"
+if [[ ! -x "$TOPAZ_FFPROBE" ]] && command -v ffprobe >/dev/null 2>&1; then
+  TOPAZ_FFPROBE="$(command -v ffprobe)"
+fi
 TOPAZ_MODELS_DIR="$(topaz_resolve_models_dir "$TOPAZ_APP")"
 LOG_DIR="${HOME}/Library/Logs/topaz-batch"
 PRESET_CATALOG="${0:A:h}/topaz-preset-catalog.zsh"
@@ -161,6 +165,102 @@ is_number() {
 
 number_gt_zero() {
   awk -v v="$1" 'BEGIN { exit !(v > 0) }'
+}
+
+format_frame_rate() {
+  local rate="${1:-}"
+
+  [[ -n "$rate" && "$rate" != "0/0" ]] || {
+    print -r -- "unknown"
+    return
+  }
+
+  awk -v rate="$rate" '
+    BEGIN {
+      split(rate, parts, "/")
+      if (parts[2] == "" || parts[2] == 0) {
+        value = parts[1]
+      } else {
+        value = parts[1] / parts[2]
+      }
+
+      if (value == int(value)) {
+        printf "%dfps\n", value
+      } else {
+        printf "%.2ffps\n", value
+      }
+    }
+  '
+}
+
+media_orientation() {
+  local width="${1:-}"
+  local height="${2:-}"
+
+  [[ "$width" == <-> && "$height" == <-> ]] || {
+    print -r -- "unknown"
+    return
+  }
+
+  if (( width > height )); then
+    print -r -- "landscape"
+  elif (( height > width )); then
+    print -r -- "portrait"
+  else
+    print -r -- "square"
+  fi
+}
+
+media_summary_for_file() {
+  local input_file="$1"
+  local width="" height="" codec="" avg_frame_rate="" r_frame_rate=""
+  local key value line resolution orientation framerate
+
+  if [[ ! -x "$TOPAZ_FFPROBE" ]]; then
+    print -r -- "${input_file:t}: media info unavailable"
+    return
+  fi
+
+  while IFS= read -r line; do
+    key="${line%%=*}"
+    value="${line#*=}"
+    case "$key" in
+      width) width="$value" ;;
+      height) height="$value" ;;
+      codec_name) codec="$value" ;;
+      avg_frame_rate) avg_frame_rate="$value" ;;
+      r_frame_rate) r_frame_rate="$value" ;;
+    esac
+  done < <(
+    "$TOPAZ_FFPROBE" \
+      -v error \
+      -select_streams v:0 \
+      -show_entries stream=width,height,codec_name,avg_frame_rate,r_frame_rate \
+      -of default=noprint_wrappers=1 \
+      -- "$input_file" 2>/dev/null
+  )
+
+  if [[ -n "$width" && -n "$height" ]]; then
+    resolution="${width}x${height}"
+    orientation="$(media_orientation "$width" "$height")"
+  else
+    resolution="unknown"
+    orientation="unknown"
+  fi
+
+  framerate="$(format_frame_rate "${avg_frame_rate:-$r_frame_rate}")"
+  print -r -- "${resolution} (${orientation}), ${framerate}, ${codec:-unknown}"
+}
+
+media_header_summary() {
+  local first_summary
+
+  first_summary="$(media_summary_for_file "$files[1]")"
+  if (( ${#files[@]} > 1 )); then
+    print -r -- "${first_summary}  [+$((${#files[@]} - 1)) more]"
+  else
+    print -r -- "$first_summary"
+  fi
 }
 
 setfile_path_arg() {
@@ -291,6 +391,7 @@ preset_value=""
 preset_output_ext=""
 preset_video_args=""
 preset_metadata=""
+media_header=""
 trash_originals=false
 preview_mode=false
 preview_seconds="1"
@@ -399,10 +500,19 @@ else
     exit 1
   }
 
+  for input in "$files[@]"; do
+    [[ -f "$input" ]] || {
+      print -u2 "not a file: $input"
+      exit 1
+    }
+  done
+
   command -v fzf >/dev/null 2>&1 || {
     print -u2 "fzf not found"
     exit 1
   }
+
+  media_header="$(media_header_summary)"
 
   selection="$(
     topaz_preset_picker_rows run |
@@ -413,8 +523,10 @@ else
         --height=50% \
         --reverse \
         --border \
-        --preview='printf "%s\n\n%s\n" {1} {4}' \
-        --preview-window='down:4:wrap'
+        --header="$media_header" \
+        --header-first \
+        --preview='printf "%s\n" {4}' \
+        --preview-window='down:6:wrap'
   )"
 
   [[ -n "$selection" ]] || {
@@ -502,8 +614,8 @@ for input in "$files[@]"; do
     log_file="${LOG_DIR}/${base} [Topaz - ${safe_preset}].log"
   fi
   ffmpeg_preset_flag="-${preset_flag#--}"
-  duration_args=()
-  [[ "$preview_mode" == true ]] && duration_args=(-t "$preview_seconds")
+  input_duration_args=()
+  [[ "$preview_mode" == true ]] && input_duration_args=(-t "$preview_seconds")
 
   [[ "$preview_mode" != true && -e "$output" ]] && {
     print -P -- "%F{yellow}skip:%f output exists"
@@ -516,8 +628,8 @@ for input in "$files[@]"; do
     "$TOPAZ_FFMPEG"
     -hide_banner
     -y
+    "${input_duration_args[@]}"
     -i "$input"
-    "${duration_args[@]}"
     -sws_flags "spline+accurate_rnd+full_chroma_int"
     "$ffmpeg_preset_flag" "$preset_value"
     "${video_args[@]}"
