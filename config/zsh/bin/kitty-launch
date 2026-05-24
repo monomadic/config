@@ -6,7 +6,7 @@
 #   - If Kitty IPC is reachable, open a new Kitty window/tab via `kitten @ launch`.
 #   - If not reachable, start a new Kitty instance listening on the chosen socket.
 #   - If no command is provided, open an interactive login shell.
-#   - Activates Kitty.app on macOS by default after launching.
+#   - Focuses/shows the launched Kitty window by default after launching.
 #
 # Socket priority:
 #   1. KITTY_LAUNCH_SOCKET
@@ -33,6 +33,7 @@ activate=true
 detach=true
 debug=false
 hold=false
+auto_hide=false
 
 usage() {
   cat <<EOF
@@ -53,8 +54,9 @@ Options:
   --title TITLE      Window/tab title
   --keep-focus       Do not focus the newly launched Kitty window/tab internally
   --hold             Keep the Kitty window open after the command exits
-  --activate         Activate Kitty.app after launch (default)
-  --no-activate      Do not activate Kitty.app after launch
+  --auto-hide        Hide Kitty.app after the launched command exits
+  --activate         Focus/show the launched Kitty window after launch (default)
+  --no-activate      Do not focus/show the launched Kitty window after launch
   --socket ADDR      Kitty IPC address
   --no-detach        Do not detach when starting Kitty fallback
   --debug            Print chosen socket and command
@@ -74,6 +76,7 @@ Examples:
   $script_name --cwd ~/Downloads
   $script_name --tab -- zsh -lc 'cd ~/src && hx .'
   $script_name --window -- yazi ~/Downloads
+  $script_name --auto-hide -- zsh -lc 'make test'
   $script_name --os-window -- zsh -l
 EOF
 }
@@ -146,6 +149,10 @@ while (( $# )); do
       hold=true
       shift
       ;;
+    --auto-hide)
+      auto_hide=true
+      shift
+      ;;
     --activate)
       activate=true
       shift
@@ -216,6 +223,34 @@ else
   kitten_cmd=( kitty +kitten )
 fi
 
+hide_kitty_app() {
+  osascript -e 'tell application "System Events" to set visible of first application process whose bundle identifier is "net.kovidgoyal.kitty" to false' >/dev/null 2>&1 || \
+  osascript -e 'tell application "System Events" to set visible of application process "kitty" to false' >/dev/null 2>&1 || \
+  true
+}
+
+focus_launched_window() {
+  local window_id="${1:-}"
+  [[ "$window_id" == <-> ]] || return 1
+
+  "${kitten_cmd[@]}" @ --to "$socket_addr" resize-os-window --match "id:$window_id" --action=show >/dev/null 2>&1 || true
+  "${kitten_cmd[@]}" @ --to "$socket_addr" focus-window --match "id:$window_id" >/dev/null 2>&1
+}
+
+auto_hide_when_window_closes() {
+  local window_id="${1:-}"
+  [[ "$window_id" == <-> ]] || return 1
+
+  (
+    while "${kitten_cmd[@]}" @ --to "$socket_addr" ls --match "id:$window_id" >/dev/null 2>&1; do
+      sleep 0.2
+    done
+
+    sleep 0.1
+    hide_kitty_app
+  ) >/dev/null 2>&1 &!
+}
+
 reachable_socket() {
   local candidate="$1"
   "${kitten_cmd[@]}" @ --to "$candidate" ls >/dev/null 2>&1
@@ -263,6 +298,7 @@ if discovered_socket="$(discover_socket)"; then
     print -u2 -- "title:           ${title:-}"
     print -u2 -- "keep_focus:      $keep_focus"
     print -u2 -- "hold:            $hold"
+    print -u2 -- "auto_hide:       $auto_hide"
     print -u2 -- "activate:        $activate"
     print -u2 -- "command:         ${(q)command_argv[@]}"
   }
@@ -279,9 +315,14 @@ if discovered_socket="$(discover_socket)"; then
   $keep_focus && launch_args+=( --keep-focus )
   $hold && launch_args+=( --hold )
 
-  "${kitten_cmd[@]}" "${launch_args[@]}" -- "${command_argv[@]}"
+  launched_window_id="$("${kitten_cmd[@]}" "${launch_args[@]}" -- "${command_argv[@]}")"
+  [[ -n "$launched_window_id" ]] && print -r -- "$launched_window_id"
 
-  $activate && activate_kitty
+  if $activate && ! $keep_focus; then
+    focus_launched_window "$launched_window_id"
+  fi
+
+  $auto_hide && auto_hide_when_window_closes "$launched_window_id"
 
   exit 0
 fi
@@ -293,6 +334,7 @@ $debug && {
   print -u2 -- "cwd:             ${cwd:-}"
   print -u2 -- "title:           ${title:-}"
   print -u2 -- "hold:            $hold"
+  print -u2 -- "auto_hide:       $auto_hide"
   print -u2 -- "activate:        $activate"
   print -u2 -- "detach:          $detach"
   print -u2 -- "command:         ${(q)command_argv[@]}"
