@@ -3,20 +3,35 @@ emulate -L zsh
 
 # rename-media
 # Analyze common video metadata, normalize MP4/MOV containers, and rename files.
-# Dependencies: ffprobe (ffmpeg), ffmpeg, awk, sed, head, grep, perl, mktemp, mv, rm
+#
+# Defaults:
+#   - Faststart repair is enabled.
+#   - Container normalization is enabled.
+#
+# Options:
+#   --skip-faststart    Do not check/fix MP4/MOV faststart
+#   --fix-normalize     Enable container normalization, default already enabled
+#   --dry-run           Show what would be renamed/rebuilt
+#   --verbose           Print debug information
+#   --color             Enable ANSI colors
+#   --icons             Use Nerd Font icons
+#
+# Dependencies:
+#   ffprobe, ffmpeg, awk, head, grep, perl, mktemp, mv, rm, iconv
 
 DRY_RUN=false
 VERBOSE=false
 USE_COLOR=false
 USE_ICONS=false
 
-# Default plain Unicode symbols
+FIX_FASTSTART=true
+NORMALIZE_CONTAINER=true
+
 ICON_VIDEO="▶ "
 ICON_OK="✓ "
 ICON_WARN="⚠ "
 ICON_SKIP="• "
 
-# Color handling (disabled by default)
 RESET=""
 GREEN=""
 YELLOW=""
@@ -44,64 +59,34 @@ usage() {
   print -r -- "Analyze video files with ffprobe and rename them to include:"
   print -r -- "resolution, frame rate, duration, bitrate, orientation, and optional star rating."
   print -r -- ""
+  print -r -- "Defaults:"
+  print -r -- "  Faststart repair:       enabled"
+  print -r -- "  Container normalization: enabled"
+  print -r -- ""
   print -r -- "Options:"
-  print -r -- "  --dry-run    Show what would be renamed without changing files"
-  print -r -- "  --verbose    Print debug information about probe and rename decisions"
-  print -r -- "  --color      Enable ANSI colors in output"
-  print -r -- "  --icons      Use Nerd Font icons instead of plain Unicode symbols"
-  print -r -- "  -h, --help   Show this message"
+  print -r -- "  --skip-faststart   Do not check/fix MP4/MOV faststart"
+  print -r -- "  --fix-normalize    Enable container normalization, default already enabled"
+  print -r -- "  --dry-run          Show what would be renamed/rebuilt without changing files"
+  print -r -- "  --verbose          Print debug information about probe and rename decisions"
+  print -r -- "  --color            Enable ANSI colors in output"
+  print -r -- "  --icons            Use Nerd Font icons instead of plain Unicode symbols"
+  print -r -- "  -h, --help         Show this message"
 }
-
-while (( $# > 0 )); do
-  case "$1" in
-    --dry-run)
-      DRY_RUN=true
-      shift
-      ;;
-    --verbose)
-      VERBOSE=true
-      shift
-      ;;
-    --color)
-      enable_color
-      shift
-      ;;
-    --icons)
-      enable_icons
-      shift
-      ;;
-    --)
-      shift
-      break
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    -*)
-      print -u2 -r -- "${YELLOW}${ICON_WARN}Unknown option: $1${RESET}"
-      exit 1
-      ;;
-    *)
-      break
-      ;;
-  esac
-done
-
-if ! command -v ffprobe >/dev/null 2>&1; then
-  print -u2 -r -- "${YELLOW}${ICON_WARN}ffprobe is required but not installed.${RESET}"
-  exit 1
-fi
-
-if ! command -v ffmpeg >/dev/null 2>&1; then
-  print -u2 -r -- "${YELLOW}${ICON_WARN}ffmpeg is required but not installed.${RESET}"
-  exit 1
-fi
 
 trim_whitespace() {
   local s="$1"
 
-  s="$(printf '%s' "$s" | sed -E 's/[[:space:]]+/ /g; s/^[[:space:]]+//; s/[[:space:]]+$//')"
+  s="${s//$'\t'/ }"
+  s="${s//$'\n'/ }"
+  s="${s//$'\r'/ }"
+
+  while [[ "$s" == *"  "* ]]; do
+    s="${s//  / }"
+  done
+
+  s="${s##[[:space:]]##}"
+  s="${s%%[[:space:]]##}"
+
   print -r -- "$s"
 }
 
@@ -111,19 +96,19 @@ log_verbose() {
 }
 
 repair_utf8_path_if_needed() {
-  local path="$1"
-  local dirname="${path:h}"
-  local filename="${path:t}"
+  local file="$1"
+  local dirname="${file:h}"
+  local filename="${file:t}"
 
   if ! command -v iconv >/dev/null 2>&1; then
     log_verbose "iconv unavailable; skipping UTF-8 filename check for ${filename}"
-    print -r -- "$path"
+    print -r -- "$file"
     return 0
   fi
 
   if printf '%s' "$filename" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
     log_verbose "UTF-8 filename check passed: ${filename}"
-    print -r -- "$path"
+    print -r -- "$file"
     return 0
   fi
 
@@ -137,14 +122,15 @@ repair_utf8_path_if_needed() {
 
   if [[ -z "$repaired_filename" || "$repaired_filename" == "$filename" ]]; then
     log_verbose "UTF-8 repair produced no usable change for ${filename}"
-    print -r -- "$path"
+    print -r -- "$file"
     return 0
   fi
 
   local repaired_path="${dirname}/${repaired_filename}"
+
   if [[ -e "$repaired_path" ]]; then
     print -u2 -r -- "${YELLOW}${ICON_WARN}UTF-8 repair target exists: ${repaired_filename}${RESET}"
-    print -r -- "$path"
+    print -r -- "$file"
     return 0
   fi
 
@@ -153,7 +139,7 @@ repair_utf8_path_if_needed() {
     print -u2 -r -- "${CYAN}${ICON_VIDEO}${repaired_filename}${RESET}"
   else
     log_verbose "repairing UTF-8 filename: ${filename} -> ${repaired_filename}"
-    mv -- "$path" "$repaired_path"
+    mv -- "$file" "$repaired_path"
     print -u2 -r -- "${GREEN}${ICON_OK}${repaired_filename}${RESET}"
   fi
 
@@ -163,21 +149,22 @@ repair_utf8_path_if_needed() {
 clean_name() {
   local name="$1"
   local tags=(1080p 1080 720p 4k 60fps 30fps 25fps)
+  local t
 
-  # remove every non-nested {...} block early since the script rebuilds it.
-  name="$(printf '%s' "$name" | sed -E 's/\{[^}]*\}//g')"
-
-  # remove legacy suffixes from editor/export pipelines
   name="${name//.trimmed/}"
 
-  # remove a few known technical tags if present as hashtags
-  local t
+  # remove every non-nested {...} block since the script rebuilds it
+  while [[ "$name" == *\{*\}* ]]; do
+    name="${name%%\{*\}}${name#*\}}"
+  done
+
   for t in $tags; do
     name="${name//\#$t/}"
   done
 
-  # remove trailing " s01"
-  name="$(printf '%s' "$name" | sed -E 's/[[:space:]]s01$//I')"
+  if [[ "${name:l}" == *" s01" ]]; then
+    name="${name[1,-5]}"
+  fi
 
   trim_whitespace "$name"
 }
@@ -190,14 +177,9 @@ extract_rating() {
     rating="${match[1]}"
   fi
 
-  # remove all 5-char star blocks from the main title
   s="${s//[★☆][★☆][★☆][★☆][★☆]/}"
-
   s="$(trim_whitespace "$s")"
 
-  # always emit two lines:
-  # 1. title without rating
-  # 2. rating or empty string
   print -r -- "$s"
   print -r -- "$rating"
 }
@@ -205,7 +187,7 @@ extract_rating() {
 get_resolution_label() {
   local d=${1:-0}
 
-  if   (( d <= 480 )); then
+  if (( d <= 480 )); then
     print -r -- "480p"
   elif (( d <= 720 )); then
     print -r -- "720p"
@@ -316,24 +298,26 @@ normalize_container_if_needed() {
   local file="$1"
   local target_extension="$2"
   local needs_faststart="$3"
+
   local dirname="${file:h}"
   local filename="${file:t}"
   local stem="${filename:r}"
-  local current_extension="${filename:e:l}"
   local target_path="${dirname}/${stem}.${target_extension}"
 
   if $DRY_RUN; then
-    log_verbose "would rewrite container: ${filename} -> ${target_path:t} (faststart=${needs_faststart})"
+    log_verbose "would rewrite container: ${filename} -> ${target_path:t} faststart=${needs_faststart}"
     print -r -- "$target_path"
     return 0
   fi
 
   local temp_path
   temp_path="$(mktemp "${dirname}/.${stem}.rewrite.XXXXXX.${target_extension}")" || return 1
-  log_verbose "rewriting container: ${filename} -> ${target_path:t} via ${temp_path:t} (faststart=${needs_faststart})"
+
+  log_verbose "rewriting container: ${filename} -> ${target_path:t} via ${temp_path:t} faststart=${needs_faststart}"
 
   local -a ffmpeg_args
   ffmpeg_args=(-v error -nostdin -y -i "$file" -map 0 -c copy)
+
   $needs_faststart && ffmpeg_args+=(-movflags +faststart)
 
   if ! ffmpeg "${ffmpeg_args[@]}" "$temp_path" >/dev/null 2>&1; then
@@ -352,7 +336,9 @@ normalize_container_if_needed() {
 
   if [[ "$target_path" == "$file" ]]; then
     local backup_path="${dirname}/.${filename}.bak.$$"
+
     mv -- "$file" "$backup_path"
+
     if mv -- "$temp_path" "$target_path"; then
       rm -f -- "$backup_path"
       print -u2 -r -- "${GREEN}${ICON_OK}${target_path:t}${RESET}"
@@ -362,6 +348,7 @@ normalize_container_if_needed() {
 
     mv -- "$backup_path" "$file"
     rm -f -- "$temp_path"
+
     print -u2 -r -- "${YELLOW}${ICON_WARN}Could not replace container: $filename${RESET}"
     print -r -- "$file"
     return 0
@@ -381,8 +368,11 @@ normalize_container_if_needed() {
 
 process_video() {
   local file="$1"
+
   log_verbose "processing file: $file"
+
   file="$(repair_utf8_path_if_needed "$file")"
+
   local filename="${file:t}"
   local dirname="${file:h}"
   local extension="${filename:e}"
@@ -398,6 +388,7 @@ process_video() {
   rating="${parts[2]-}"
 
   name_without_ext="$(clean_name "$extracted_name")"
+
   log_verbose "title parse: extracted='${extracted_name}' cleaned='${name_without_ext}' rating='${rating}'"
 
   local video_info
@@ -409,6 +400,7 @@ process_video() {
     print -r -- "${YELLOW}${ICON_WARN}Could not read video info: $file${RESET}"
     return 0
   fi
+
   log_verbose "ffprobe stream info for ${filename}: ${(qqq)video_info}"
 
   local rotation
@@ -421,7 +413,9 @@ process_video() {
   )"; then
     duration_secs="0"
   fi
+
   duration_secs="$(awk -v d="$duration_secs" 'BEGIN{printf("%d", d+0.5)}')"
+
   log_verbose "duration seconds for ${filename}: ${duration_secs}"
 
   local has_chapters=false
@@ -435,14 +429,17 @@ process_video() {
       -of default=noprint_wrappers=1:nokey=1 -- "$file" 2>/dev/null | head -1 || true
   )"
   title_tag="$(trim_whitespace "$title_tag")"
+
   log_verbose "title tag for ${filename}: ${title_tag:-<empty>}"
 
   local width="" height="" frame_rate="" bit_rate="" codec_name=""
   local color_transfer="" color_primaries="" pix_fmt=""
   local line key value
+
   while IFS= read -r line; do
     key="${line%%=*}"
     value="${line#*=}"
+
     case "$key" in
       codec_name) codec_name="$value" ;;
       width) width="$value" ;;
@@ -454,17 +451,20 @@ process_video() {
       pix_fmt) pix_fmt="$value" ;;
     esac
   done <<< "$video_info"
+
   log_verbose "parsed video fields for ${filename}: codec=${codec_name:-?} width=${width:-?} height=${height:-?} fps=${frame_rate:-?} bitrate=${bit_rate:-?} transfer=${color_transfer:-?} primaries=${color_primaries:-?} pix_fmt=${pix_fmt:-?}"
 
   if [[ "$frame_rate" == */* ]]; then
     local num=${frame_rate%%/*}
     local denom=${frame_rate##*/}
+
     if (( denom > 0 )); then
       frame_rate=$(( (num + denom / 2) / denom ))
     else
       frame_rate=0
     fi
   fi
+
   log_verbose "normalized frame rate for ${filename}: ${frame_rate}"
 
   local display_width=$width
@@ -475,9 +475,11 @@ process_video() {
     display_width=$height
     display_height=$width
   fi
+
   log_verbose "display geometry for ${filename}: width=${display_width} height=${display_height} rotation=${rotation}"
 
   local smaller_dim=$(( display_width < display_height ? display_width : display_height ))
+
   local resolution
   resolution="$(get_resolution_label "$smaller_dim")"
 
@@ -523,16 +525,21 @@ process_video() {
       hdr_flag=true
       ;;
   esac
+
   if ! $hdr_flag; then
     if [[ "${color_primaries:l}" == "bt2020" && ( "${pix_fmt:l}" == *10* || "${pix_fmt:l}" == *12* || "${pix_fmt:l}" == *16* ) ]]; then
       hdr_flag=true
     fi
   fi
+
   log_verbose "derived flags for ${filename}: codec_flag=${codec_flag:-<none>} orientation=${orientation_flag} chapters=${has_chapters} meta=$([[ -n "$title_tag" ]] && print yes || print no) hdr=${hdr_flag}"
 
-  local target_extension="${extension:l}"
+  local original_extension_l="${filename:e:l}"
+  local target_extension="${original_extension_l}"
+
   [[ "$target_extension" == "m4v" ]] && target_extension="mp4"
-  if [[ "$target_extension" == "mov" ]]; then
+
+  if $NORMALIZE_CONTAINER && [[ "$target_extension" == "mov" ]]; then
     case "${codec_name:l}" in
       hevc|h265|h264|avc1)
         target_extension="mp4"
@@ -540,26 +547,40 @@ process_video() {
     esac
   fi
 
+  local needs_container_normalize=false
   local needs_faststart=false
-  if [[ "$target_extension" == "mp4" || "$target_extension" == "mov" ]]; then
+
+  if $NORMALIZE_CONTAINER && [[ "$target_extension" != "$original_extension_l" ]]; then
+    needs_container_normalize=true
+  fi
+
+  if $FIX_FASTSTART && [[ "$target_extension" == "mp4" || "$target_extension" == "mov" ]]; then
     if ! has_faststart "$file"; then
       needs_faststart=true
     fi
   fi
-  if [[ "$target_extension" == "mp4" && "$target_extension" != "${extension:l}" ]]; then
+
+  # If we are normalizing into MP4 and faststart is enabled, write the result faststarted.
+  if $NORMALIZE_CONTAINER && $FIX_FASTSTART && [[ "$target_extension" == "mp4" && "$target_extension" != "$original_extension_l" ]]; then
     needs_faststart=true
   fi
-  log_verbose "container decision for ${filename}: current_ext=${extension:l} target_ext=${target_extension} needs_faststart=${needs_faststart}"
 
-  if [[ "$target_extension" != "${extension:l}" || "$needs_faststart" == true ]]; then
+  log_verbose "container decision for ${filename}: current_ext=${original_extension_l} target_ext=${target_extension} normalize=${needs_container_normalize} faststart=${needs_faststart}"
+
+  if $needs_container_normalize || $needs_faststart; then
     file="$(normalize_container_if_needed "$file" "$target_extension" "$needs_faststart")"
+
     filename="${file:t}"
     dirname="${file:h}"
     extension="${filename:e}"
+
     log_verbose "container-normalized path: $file"
+  else
+    extension="${filename:e}"
   fi
 
   local -a meta_flags
+
   [[ -n "$codec_flag" ]] && meta_flags+=("$codec_flag")
   meta_flags+=("$orientation_flag")
   $has_chapters && meta_flags+=("CH")
@@ -567,17 +588,17 @@ process_video() {
   $hdr_flag && meta_flags+=("HDR")
 
   local details_block="${resolution}@${frame_rate}fps ${duration}@${mbps}"
+
   if (( ${#meta_flags[@]} > 0 )); then
     details_block+=" ${meta_flags[*]}"
   fi
 
   local rating_suffix=""
-  if [[ -n "$rating" ]]; then
-    rating_suffix=" ${rating}"
-  fi
+  [[ -n "$rating" ]] && rating_suffix=" ${rating}"
 
   local new_filename="${name_without_ext} {${details_block}}${rating_suffix}.${extension}"
   local new_path="${dirname}/${new_filename}"
+
   log_verbose "rename target for ${filename}: ${new_filename}"
 
   if [[ "$filename" == "$new_filename" ]]; then
@@ -603,6 +624,7 @@ normalize_input_path() {
   fi
 
   local unescaped="${(Q)s}"
+
   if [[ -e "$unescaped" ]]; then
     print -r -- "$unescaped"
     return 0
@@ -611,20 +633,79 @@ normalize_input_path() {
   print -r -- "$s"
 }
 
-for raw_file in "$@"; do
-  local file
-  file="$(normalize_input_path "$raw_file")"
-
-  if [[ -f "$file" ]]; then
-    case "${file:l}" in
-      *.mp4|*.mov|*.avi|*.mkv|*.wmv|*.flv|*.webm|*.m4v)
-        process_video "$file"
+main() {
+  while (( $# > 0 )); do
+    case "$1" in
+      --dry-run)
+        DRY_RUN=true
+        shift
+        ;;
+      --verbose)
+        VERBOSE=true
+        shift
+        ;;
+      --color)
+        enable_color
+        shift
+        ;;
+      --icons)
+        enable_icons
+        shift
+        ;;
+      --skip-faststart)
+        FIX_FASTSTART=false
+        shift
+        ;;
+      --fix-normalize)
+        NORMALIZE_CONTAINER=true
+        shift
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      -*)
+        print -u2 -r -- "${YELLOW}${ICON_WARN}Unknown option: $1${RESET}"
+        exit 1
         ;;
       *)
-        print -r -- "${YELLOW}${ICON_SKIP}${file:t}${RESET}"
+        break
         ;;
     esac
-  else
-    print -r -- "${YELLOW}${ICON_SKIP}${file:t}${RESET}"
+  done
+
+  if ! command -v ffprobe >/dev/null 2>&1; then
+    print -u2 -r -- "${YELLOW}${ICON_WARN}ffprobe is required but not installed.${RESET}"
+    exit 1
   fi
-done
+
+  if ! command -v ffmpeg >/dev/null 2>&1; then
+    print -u2 -r -- "${YELLOW}${ICON_WARN}ffmpeg is required but not installed.${RESET}"
+    exit 1
+  fi
+
+  local raw_file file
+
+  for raw_file in "$@"; do
+    file="$(normalize_input_path "$raw_file")"
+
+    if [[ -f "$file" ]]; then
+      case "${file:l}" in
+        *.mp4|*.mov|*.avi|*.mkv|*.wmv|*.flv|*.webm|*.m4v)
+          process_video "$file"
+          ;;
+        *)
+          print -r -- "${YELLOW}${ICON_SKIP}${file:t}${RESET}"
+          ;;
+      esac
+    else
+      print -r -- "${YELLOW}${ICON_SKIP}${file:t}${RESET}"
+    fi
+  done
+}
+
+main "$@"
