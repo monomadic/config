@@ -1,0 +1,20 @@
+#!/usr/bin/env osascript
+
+tell application "Finder"
+	set selected_items to selection
+	
+	if selected_items is {} then
+		try
+			set target_item to target of front window as alias
+		on error
+			return
+		end try
+	else
+		set target_item to item 1 of selected_items as alias
+	end if
+end tell
+
+tell application "ForkLift"
+	activate
+	open target_item
+end tell
