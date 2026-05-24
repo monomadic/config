@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-APP_NAME="free-disk-space-widget"
-LABEL="${LABEL:-com.jayu.free-disk-space-widget}"
+APP_NAME="system-uptime-widget"
+LABEL="${LABEL:-com.jayu.system-uptime-widget}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
 SOURCE_BINARY="${SOURCE_BINARY:-$DOTFILES_DIR/vendor/bin/$APP_NAME}"
