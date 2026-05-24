@@ -147,6 +147,278 @@ PY
   return 1
 }
 
+probe_keyframes_after() {
+  local input_file="$1"
+  local start="$2"
+  local want="$3"
+  local window="$4"
+
+  ffprobe -v error \
+    -select_streams v:0 \
+    -read_intervals "${start}%+${window}" \
+    -show_packets \
+    -show_entries packet=pts_time,flags \
+    -of csv=p=0 \
+    -- "$input_file" 2>/dev/null |
+  awk -F, -v start="$start" -v want="$want" '
+    $1 ~ /^[0-9.]+$/ && $2 ~ /K/ && ($1 + 0) >= (start + 0) {
+      if (!seen[$1]++) {
+        print $1
+        count++
+        if (count >= want) {
+          exit
+        }
+      }
+    }
+  '
+}
+
+probe_keyframes_after_full() {
+  local input_file="$1"
+  local start="$2"
+  local want="$3"
+
+  ffprobe -v error \
+    -select_streams v:0 \
+    -show_packets \
+    -show_entries packet=pts_time,flags \
+    -of csv=p=0 \
+    -- "$input_file" 2>/dev/null |
+  awk -F, -v start="$start" -v want="$want" '
+    $1 ~ /^[0-9.]+$/ && $2 ~ /K/ && ($1 + 0) >= (start + 0) {
+      if (!seen[$1]++) {
+        print $1
+        count++
+        if (count >= want) {
+          exit
+        }
+      }
+    }
+  '
+}
+
+probe_keyframes_after_frames_full() {
+  local input_file="$1"
+  local start="$2"
+  local want="$3"
+
+  ffprobe -v error \
+    -select_streams v:0 \
+    -skip_frame nokey \
+    -show_frames \
+    -show_entries frame=best_effort_timestamp_time \
+    -of default=nw=1:nk=1 \
+    -- "$input_file" 2>/dev/null |
+  awk -v start="$start" -v want="$want" '
+    $1 ~ /^[0-9.]+$/ && ($1 + 0) >= (start + 0) {
+      if (!seen[$1]++) {
+        print $1
+        count++
+        if (count >= want) {
+          exit
+        }
+      }
+    }
+  '
+}
+
+probe_last_keyframes_in_interval() {
+  local input_file="$1"
+  local start="$2"
+  local window="$3"
+  local keep="$4"
+
+  ffprobe -v error \
+    -select_streams v:0 \
+    -read_intervals "${start}%+${window}" \
+    -show_packets \
+    -show_entries packet=pts_time,flags \
+    -of csv=p=0 \
+    -- "$input_file" 2>/dev/null |
+  awk -F, -v start="$start" -v keep="$keep" '
+    $1 ~ /^[0-9.]+$/ && $2 ~ /K/ && ($1 + 0) >= (start + 0) {
+      if (seen[$1]++) {
+        next
+      }
+      vals[count % keep] = $1
+      count++
+    }
+    END {
+      begin = count > keep ? count - keep : 0
+      for (i = begin; i < count; i++) {
+        print vals[i % keep]
+      }
+    }
+  '
+}
+
+probe_last_keyframes_full() {
+  local input_file="$1"
+  local start="$2"
+  local keep="$3"
+
+  ffprobe -v error \
+    -select_streams v:0 \
+    -show_packets \
+    -show_entries packet=pts_time,flags \
+    -of csv=p=0 \
+    -- "$input_file" 2>/dev/null |
+  awk -F, -v start="$start" -v keep="$keep" '
+    $1 ~ /^[0-9.]+$/ && $2 ~ /K/ && ($1 + 0) >= (start + 0) {
+      if (seen[$1]++) {
+        next
+      }
+      vals[count % keep] = $1
+      count++
+    }
+    END {
+      begin = count > keep ? count - keep : 0
+      for (i = begin; i < count; i++) {
+        print vals[i % keep]
+      }
+    }
+  '
+}
+
+probe_last_keyframes_frames_full() {
+  local input_file="$1"
+  local start="$2"
+  local keep="$3"
+
+  ffprobe -v error \
+    -select_streams v:0 \
+    -skip_frame nokey \
+    -show_frames \
+    -show_entries frame=best_effort_timestamp_time \
+    -of default=nw=1:nk=1 \
+    -- "$input_file" 2>/dev/null |
+  awk -v start="$start" -v keep="$keep" '
+    $1 ~ /^[0-9.]+$/ && ($1 + 0) >= (start + 0) {
+      if (seen[$1]++) {
+        next
+      }
+      vals[count % keep] = $1
+      count++
+    }
+    END {
+      begin = count > keep ? count - keep : 0
+      for (i = begin; i < count; i++) {
+        print vals[i % keep]
+      }
+    }
+  '
+}
+
+video_duration_seconds() {
+  local input_file="$1"
+
+  ffprobe -v error \
+    -show_entries format=duration \
+    -of default=nw=1:nk=1 \
+    -- "$input_file" 2>/dev/null |
+  awk 'NR == 1 && $1 ~ /^[0-9.]+$/ { print $1 }'
+}
+
+interval_start_for_tail() {
+  local duration="$1"
+  local window="$2"
+  local minimum="$3"
+
+  awk -v duration="$duration" -v window="$window" -v minimum="$minimum" '
+    BEGIN {
+      start = duration - window
+      if (start < minimum) {
+        start = minimum
+      }
+      if (start < 0) {
+        start = 0
+      }
+      printf "%.6f\n", start
+    }
+  '
+}
+
+keyframes_forward() {
+  local input_file="$1"
+  local start="$2"
+  local want="$3"
+  local window ts
+  local -a vals=()
+  local -a windows=(30 120 600 1800)
+
+  for window in "${windows[@]}"; do
+    vals=()
+    while IFS= read -r ts; do
+      [[ -n "$ts" ]] || continue
+      vals+=("$ts")
+    done < <(probe_keyframes_after "$input_file" "$start" "$want" "$window")
+
+    if (( ${#vals[@]} >= want )); then
+      print -r -- "${(@F)vals}"
+      return 0
+    fi
+  done
+
+  vals=()
+  while IFS= read -r ts; do
+    [[ -n "$ts" ]] || continue
+    vals+=("$ts")
+  done < <(probe_keyframes_after_full "$input_file" "$start" "$want")
+
+  if (( ${#vals[@]} == 0 )); then
+    while IFS= read -r ts; do
+      [[ -n "$ts" ]] || continue
+      vals+=("$ts")
+    done < <(probe_keyframes_after_frames_full "$input_file" "$start" "$want")
+  fi
+
+  (( ${#vals[@]} > 0 )) || return 1
+  print -r -- "${(@F)vals}"
+}
+
+keyframes_reverse() {
+  local input_file="$1"
+  local start="$2"
+  local want="$3"
+  local duration interval_start window ts
+  local -a vals=()
+  local -a windows=(60 300 900 1800 3600)
+
+  duration="$(video_duration_seconds "$input_file")"
+
+  if [[ -n "$duration" ]]; then
+    for window in "${windows[@]}"; do
+      interval_start="$(interval_start_for_tail "$duration" "$window" "$start")"
+      vals=()
+      while IFS= read -r ts; do
+        [[ -n "$ts" ]] || continue
+        vals+=("$ts")
+      done < <(probe_last_keyframes_in_interval "$input_file" "$interval_start" "$window" "$want")
+
+      if (( ${#vals[@]} >= want )); then
+        print -r -- "${(@F)vals}"
+        return 0
+      fi
+    done
+  fi
+
+  vals=()
+  while IFS= read -r ts; do
+    [[ -n "$ts" ]] || continue
+    vals+=("$ts")
+  done < <(probe_last_keyframes_full "$input_file" "$start" "$want")
+
+  if (( ${#vals[@]} == 0 )); then
+    while IFS= read -r ts; do
+      [[ -n "$ts" ]] || continue
+      vals+=("$ts")
+    done < <(probe_last_keyframes_frames_full "$input_file" "$start" "$want")
+  fi
+
+  (( ${#vals[@]} > 0 )) || return 1
+  print -r -- "${(@F)vals}"
+}
+
 selector_embedded() {
   local input_file="$1"
   local keyframes="$2"
@@ -179,55 +451,12 @@ PY
     while IFS= read -r ts; do
       [[ -n "$ts" ]] || continue
       key_ts+=("$ts")
-    done < <(
-      ffprobe -v error \
-        -select_streams v:0 \
-        -skip_frame nokey \
-        -show_frames \
-        -show_entries frame=best_effort_timestamp_time \
-        -of default=nw=1:nk=1 \
-        -- "$input_file" 2>/dev/null |
-      awk -v keep="$keyframes" -v start="$from_num" '
-        $1 ~ /^[0-9.]+$/ {
-          if (seen[$1]++) {
-            next
-          }
-          if (($1 + 0) < (start + 0)) {
-            next
-          }
-          vals[count % keep] = $1
-          count++
-        }
-        END {
-          begin = count > keep ? count - keep : 0
-          for (i = begin; i < count; i++) {
-            print vals[i % keep]
-          }
-        }
-      '
-    )
+    done < <(keyframes_reverse "$input_file" "$from_num" "$keyframes")
   else
     while IFS= read -r ts; do
       [[ -n "$ts" ]] || continue
-      awk -v ts="$ts" -v start="$from_num" 'BEGIN { exit !(ts + 0 >= start + 0) }' || continue
       key_ts+=("$ts")
-      (( ${#key_ts[@]} >= keyframes )) && break
-    done < <(
-      ffprobe -v error \
-        -select_streams v:0 \
-        -skip_frame nokey \
-        -show_frames \
-        -show_entries frame=best_effort_timestamp_time \
-        -of default=nw=1:nk=1 \
-        -- "$input_file" 2>/dev/null |
-      awk '
-        $1 ~ /^[0-9.]+$/ {
-          if (!seen[$1]++) {
-            print $1
-          }
-        }
-      '
-    )
+    done < <(keyframes_forward "$input_file" "$from_num" "$keyframes")
   fi
 
   if (( ${#key_ts[@]} == 0 )); then
@@ -237,33 +466,17 @@ PY
 
   local list_file="$tmp_dir/list.tsv"
   : > "$list_file"
+  print -r -- "$input_file" > "$tmp_dir/input.path"
+  print -r -- "$width" > "$tmp_dir/preview.width"
 
   local idx=1
-  local -a ffmpeg_pids=()
   local pretty_ts img_file
   for ts in "${key_ts[@]}"; do
     pretty_ts="$(format_ts "$ts")"
     img_file="$tmp_dir/keyframe-${idx}.jpg"
 
     printf '%s\t%s\t%s\t%s\n' "$idx" "$ts" "$pretty_ts" "$img_file" >> "$list_file"
-    (
-      ffmpeg -v error -y \
-        -ss "$ts" -i "$input_file" \
-        -frames:v 1 \
-        -vf "scale=${width}:-2:flags=lanczos" \
-        -q:v 3 \
-        -- "$img_file"
-    ) &
-    ffmpeg_pids+=("$!")
     (( ++idx ))
-  done
-
-  local pid
-  for pid in "${ffmpeg_pids[@]}"; do
-    wait "$pid" || {
-      selector_cleanup
-      return 1
-    }
   done
 
   local preview_script="$tmp_dir/preview.zsh"
@@ -277,6 +490,10 @@ raw_ts="$2"
 pretty_ts="$3"
 img="$4"
 
+cache_dir="${0:h}"
+input_file="$(< "$cache_dir/input.path")"
+width="$(< "$cache_dir/preview.width")"
+
 preview_cols="${FZF_PREVIEW_COLUMNS:-80}"
 preview_lines="${FZF_PREVIEW_LINES:-24}"
 image_lines=$(( preview_lines > 4 ? preview_lines - 4 : preview_lines ))
@@ -285,6 +502,28 @@ print -- "Keyframe #$idx"
 print -- "Raw:     $raw_ts"
 print -- "Display: $pretty_ts"
 print -- ""
+
+ensure_preview() {
+  [[ -s "$img" ]] && return 0
+
+  local tmp="${img}.$$.jpg"
+
+  trap 'rm -f -- "$tmp"' EXIT INT TERM HUP
+  ffmpeg -v error -y \
+    -ss "$raw_ts" -i "$input_file" \
+    -frames:v 1 \
+    -vf "scale=${width}:-2:flags=lanczos" \
+    -q:v 3 \
+    -- "$tmp" &&
+  mv -f -- "$tmp" "$img"
+  trap - EXIT INT TERM HUP
+}
+
+if ! ensure_preview; then
+  print -- "Preview unavailable"
+  print -- "$img"
+  exit 0
+fi
 
 if [[ -n "${KITTY_WINDOW_ID:-}" ]] && command -v kitty >/dev/null 2>&1; then
   kitty +kitten icat \
