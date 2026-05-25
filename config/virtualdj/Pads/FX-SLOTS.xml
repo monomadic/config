@@ -22,23 +22,23 @@
   <shift_pad9 name="`effect_select 'vocals' &amp; param_uppercase`" color="color 'yellow'" query="effect_active 'vocals'" right_click="effect_select 'vocals'">
     effect_select 'vocals'
   </shift_pad9>
-  <pad10 name="FX-RHYTHM\n`effect_select 'rhythm' &amp; param_uppercase`" color="stem_color 'rhythm'" query="effect_active 'rhythm'" right_click="effect_select 'rhythm'">
-    effect_active "rhythm"
-  </pad10>
-  <shift_pad10 name="`effect_select 'rhythm' &amp; param_uppercase`" color="stem_color 'rhythm'" query="effect_active 'rhythm'" right_click="effect_select 'rhythm'">
-    effect_select 'rhythm'
-  </shift_pad10>
-  <pad11 name="FX-INSTRU\n`effect_select 'instru' &amp; param_uppercase`" color="stem_color 'instru'" query="effect_active 'instru'" right_click="effect_select 'instru'">
+  <pad10 name="FX-INSTRU\n`effect_select 'instru' &amp; param_uppercase`" color="stem_color 'instru'" query="effect_active 'instru'" right_click="effect_select 'instru'">
     effect_active "instru"
-  </pad11>
-  <shift_pad11 name="`effect_select 'instru' &amp; param_uppercase`" color="stem_color 'instru'" query="effect_active 'instru'" right_click="effect_show_gui 'instru'">
+  </pad10>
+  <shift_pad10 name="`effect_select 'instru' &amp; param_uppercase`" color="stem_color 'instru'" query="effect_active 'instru'" right_click="effect_show_gui 'instru'">
     effect_select 'instru'
-  </shift_pad11>
-  <pad12 name="FX-BASS\n`effect_select 'bass' &amp; param_uppercase`" color="stem_color 'bass'" query="effect_active 'bass'" right_click="effect_select 'bass'">
+  </shift_pad10>
+  <pad11 name="FX-BASS\n`effect_select 'bass' &amp; param_uppercase`" color="stem_color 'bass'" query="effect_active 'bass'" right_click="effect_select 'bass'">
     effect_active "bass"
-  </pad12>
-  <shift_pad12 name="`effect_select 'bass' &amp; param_uppercase`" color="stem_color 'bass'" query="effect_active 'bass'" right_click="effect_select 'bass'">
+  </pad11>
+  <shift_pad11 name="`effect_select 'bass' &amp; param_uppercase`" color="stem_color 'bass'" query="effect_active 'bass'" right_click="effect_select 'bass'">
     effect_select 'bass'
+  </shift_pad11>
+  <pad12 name="FX-RHYTHM\n`effect_select 'rhythm' &amp; param_uppercase`" color="stem_color 'rhythm'" query="effect_active 'rhythm'" right_click="effect_select 'rhythm'">
+    effect_active "rhythm"
+  </pad12>
+  <shift_pad12 name="`effect_select 'rhythm' &amp; param_uppercase`" color="stem_color 'rhythm'" query="effect_active 'rhythm'" right_click="effect_select 'rhythm'">
+    effect_select 'rhythm'
   </shift_pad12>
   <pad13 name="VOCAL FX" color="stem_color 'vocal'">effect_stems 'vocal'</pad13>
   <pad14 name="INSTRU FX" query="effect_stems 'instru'" color="stem_color 'instru'">effect_stems 'instru'</pad14>
