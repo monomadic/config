@@ -170,7 +170,9 @@ local function seek_time(job)
 	if skip > 0 then
 		return duration * skip / 100
 	end
-	return math.min(1, duration / 10)
+	-- thumbnail frame time
+	-- return math.min(1, duration / 10)
+	return 0
 end
 
 local function split_preview(area, info)
