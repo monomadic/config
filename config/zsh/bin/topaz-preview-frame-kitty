@@ -1,0 +1,46 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+script_name="${0:t}"
+
+usage() {
+  cat <<EOF
+usage:
+  $script_name --input file --preset-name name --preset-flag flag --filter filter
+
+Launch topaz-preview-frame in a separate Kitty pane without stealing focus from
+the current fzf picker.
+EOF
+}
+
+case "${1:-}" in
+  -h|--help|help)
+    usage
+    exit 0
+    ;;
+esac
+
+preview_frame="${0:A:h}/topaz-preview-frame"
+[[ -x "$preview_frame" ]] || {
+  print -u2 -- "topaz-preview-frame not executable: $preview_frame"
+  exit 1
+}
+
+if command -v kitty-launch >/dev/null 2>&1; then
+  kitty_launch="$(command -v kitty-launch)"
+else
+  kitty_launch="/Users/nom/.zsh/bin/kitty-launch"
+fi
+
+[[ -x "$kitty_launch" ]] || {
+  print -u2 -- "kitty-launch not found"
+  exit 1
+}
+
+"$kitty_launch" \
+  --window \
+  --keep-focus \
+  --no-activate \
+  --title " topaz frame preview " \
+  --cwd "${PWD:-$HOME}" \
+  -- "$preview_frame" "$@"
