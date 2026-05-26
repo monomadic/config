@@ -112,6 +112,7 @@ elif [[ ! -x "$TOPAZ_RUN" ]]; then
 fi
 
 PRESET_CATALOG="${0:A:h}/topaz-preset-catalog.zsh"
+TOPAZ_PREVIEW_FRAME_KITTY="${0:A:h}/topaz-preview-frame-kitty"
 
 [[ -r "$PRESET_CATALOG" ]] || {
   print -u2 "Topaz preset catalog not found: $PRESET_CATALOG"
@@ -119,6 +120,11 @@ PRESET_CATALOG="${0:A:h}/topaz-preset-catalog.zsh"
 }
 
 source "$PRESET_CATALOG"
+
+preview_frame_bind=""
+if [[ -x "$TOPAZ_PREVIEW_FRAME_KITTY" ]]; then
+  preview_frame_bind="alt-p:execute-silent(${(q)TOPAZ_PREVIEW_FRAME_KITTY} --input ${(q)files[1]} --preset-name {2} --preset-flag {3} --filter {4})"
+fi
 
 selection="$(
   topaz_preset_picker_rows simple |
@@ -128,7 +134,8 @@ selection="$(
       --with-nth=1 \
       --height=40% \
       --reverse \
-      --border
+      --border \
+      ${preview_frame_bind:+--bind="$preview_frame_bind"}
 )"
 
 [[ -n "$selection" ]] || {

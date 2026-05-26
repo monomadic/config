@@ -61,6 +61,8 @@ prepend_rules = [
 
 [plugin]
 prepend_previewers = [
+	{ url = "*.mov", run = "video-thumb-info" },
+	{ url = "*.MOV", run = "video-thumb-info" },
 	{ mime = "video/*", run = "video-thumb-info" },
 ]
 append_previewers = [

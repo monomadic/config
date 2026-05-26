@@ -1,0 +1,384 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+script_name="${0:t}"
+
+usage() {
+  cat <<EOF
+usage:
+  $script_name --input file --preset-name name --preset-flag flag --filter filter [--time seconds] [--times seconds[,seconds...]] [--no-open] [--prompt-open]
+
+Render Topaz still-frame preview JPEGs for one or more timestamps.
+
+For each timestamp, writes:
+  original JPEG
+  Topaz JPEG
+  side-by-side A/B JPEG
+
+The original and Topaz JPEGs open automatically in mpv as a playlist, so you can
+flip between matching frames. With --prompt-open, the render finishes first and
+asks before opening. Set TOPAZ_PREVIEW_FRAME_TIMES to a comma-separated list, for
+example:
+  TOPAZ_PREVIEW_FRAME_TIMES=5,30,90 topaz-simple-presets file.mp4
+EOF
+}
+
+die() {
+  print -u2 -- "$*"
+  exit 1
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+is_number() {
+  [[ "${1:-}" == <-> || "${1:-}" == <->.<-> ]]
+}
+
+slugify() {
+  local value="${1:l}"
+  value="${value// /-}"
+  value="${value//[^a-z0-9._-]/}"
+  value="${value//---/-}"
+  value="${value//--/-}"
+  value="${value#-}"
+  value="${value%-}"
+  [[ -n "$value" ]] || value="preview"
+  print -r -- "$value"
+}
+
+format_time_label() {
+  local value="$1"
+  value="${value//:/-}"
+  value="${value//./p}"
+  print -r -- "$value"
+}
+
+media_rotation() {
+  local file="$1"
+  local probe="$2"
+  local rotation=""
+
+  if [[ -x "$probe" ]]; then
+    rotation="$("$probe" -v error -select_streams v:0 -show_entries stream_side_data=rotation -of default=noprint_wrappers=1:nokey=1 -- "$file" 2>/dev/null | head -1 || true)"
+    if [[ -z "$rotation" ]]; then
+      rotation="$("$probe" -v error -select_streams v:0 -show_entries stream_tags=rotate -of default=noprint_wrappers=1:nokey=1 -- "$file" 2>/dev/null | head -1 || true)"
+    fi
+    if [[ -z "$rotation" ]]; then
+      rotation="$("$probe" -v error -show_entries format_tags=rotate -of default=noprint_wrappers=1:nokey=1 -- "$file" 2>/dev/null | head -1 || true)"
+    fi
+  fi
+
+  [[ -n "$rotation" ]] || rotation="0"
+  print -r -- "$rotation"
+}
+
+media_display_orientation() {
+  local file="$1"
+  local probe="$2"
+  local width="" height="" rotation="" abs_rotation=""
+  local line key value display_width display_height
+
+  if [[ -x "$probe" ]]; then
+    while IFS= read -r line; do
+      key="${line%%=*}"
+      value="${line#*=}"
+      case "$key" in
+        width) width="$value" ;;
+        height) height="$value" ;;
+      esac
+    done < <(
+      "$probe" -v error -select_streams v:0 -show_entries stream=width,height -of default=noprint_wrappers=1 -- "$file" 2>/dev/null
+    )
+  fi
+
+  [[ "$width" == <-> && "$height" == <-> ]] || {
+    print -r -- "unknown"
+    return
+  }
+
+  rotation="$(media_rotation "$file" "$probe")"
+  abs_rotation="${rotation#-}"
+  display_width="$width"
+  display_height="$height"
+  if [[ "$abs_rotation" == "90" || "$abs_rotation" == "270" ]]; then
+    display_width="$height"
+    display_height="$width"
+  fi
+
+  if (( display_height > display_width )); then
+    print -r -- "portrait"
+  elif (( display_width > display_height )); then
+    print -r -- "landscape"
+  else
+    print -r -- "square"
+  fi
+}
+
+adapt_filter_for_orientation() {
+  local filter="$1"
+  local orientation="$2"
+
+  if [[ "$orientation" == "portrait" ]]; then
+    filter="${filter//w=3840:h=2160/w=2160:h=3840}"
+    filter="${filter//h=2160:w=3840/h=3840:w=2160}"
+    filter="${filter//scale=w=3840:h=2160/scale=w=2160:h=3840}"
+    filter="${filter//scale=h=2160:w=3840/scale=h=3840:w=2160}"
+  fi
+
+  print -r -- "$filter"
+}
+
+still_preview_filter() {
+  local filter="$1"
+  local orientation="$2"
+  local part
+  local -a parts kept
+
+  filter="$(adapt_filter_for_orientation "$filter" "$orientation")"
+  parts=("${(@s:,:)filter}")
+  kept=()
+  for part in "${parts[@]}"; do
+    [[ "$part" == tvai_fi=* ]] && continue
+    [[ -n "$part" ]] && kept+=("$part")
+  done
+
+  if (( ${#kept[@]} == 0 )); then
+    print -r -- "format=yuvj420p"
+  else
+    print -r -- "${(j:,:)kept},format=yuvj420p"
+  fi
+}
+
+media_duration() {
+  local file="$1"
+  local probe="$2"
+  local duration=""
+
+  if [[ -x "$probe" ]]; then
+    duration="$("$probe" -v error -show_entries format=duration -of default=nokey=1:noprint_wrappers=1 -- "$file" 2>/dev/null || true)"
+  elif have ffprobe; then
+    duration="$(ffprobe -v error -show_entries format=duration -of default=nokey=1:noprint_wrappers=1 -- "$file" 2>/dev/null || true)"
+  fi
+
+  print -r -- "$duration"
+}
+
+clamp_time_to_duration() {
+  local value="$1"
+  local duration="$2"
+
+  awk -v t="$value" -v d="$duration" 'BEGIN {
+    if (!(d > 0)) {
+      print t
+      exit
+    }
+
+    if (t < 0) {
+      print 0
+      exit
+    }
+
+    if (t >= d) {
+      t = d / 2
+      if (t < 0.1) {
+        t = 0
+      }
+    }
+
+    printf "%.3f\n", t
+  }'
+}
+
+open_images() {
+  local -a images=("$@")
+  (( ${#images[@]} > 0 )) || return 0
+
+  if have mpv; then
+    mpv \
+      --fs \
+      --force-window=immediate \
+      --keep-open=yes \
+      --image-display-duration=inf \
+      --osd-level=1 \
+      -- "${images[@]}" >/dev/null 2>&1 &!
+    return 0
+  fi
+
+  qlmanage -p -- "${images[@]}" >/dev/null 2>&1 &!
+}
+
+input=""
+preset_name=""
+preset_flag=""
+filter_complex=""
+open_after=true
+prompt_open=false
+times=()
+
+if [[ -n "${TOPAZ_PREVIEW_FRAME_TIMES:-}" ]]; then
+  times=("${(@s:,:)TOPAZ_PREVIEW_FRAME_TIMES}")
+fi
+
+while (( $# > 0 )); do
+  case "$1" in
+    -h|--help|help)
+      usage
+      exit 0
+      ;;
+    --input)
+      (( $# >= 2 )) || die "--input needs a file"
+      input="$2"
+      shift 2
+      ;;
+    --preset-name)
+      (( $# >= 2 )) || die "--preset-name needs a value"
+      preset_name="$2"
+      shift 2
+      ;;
+    --preset-flag)
+      (( $# >= 2 )) || die "--preset-flag needs a value"
+      preset_flag="$2"
+      shift 2
+      ;;
+    --filter)
+      (( $# >= 2 )) || die "--filter needs a value"
+      filter_complex="$2"
+      shift 2
+      ;;
+    --time)
+      (( $# >= 2 )) || die "--time needs seconds"
+      times+=("$2")
+      shift 2
+      ;;
+    --times)
+      (( $# >= 2 )) || die "--times needs seconds"
+      times+=("${(@s:,:)$2}")
+      shift 2
+      ;;
+    --no-open)
+      open_after=false
+      shift
+      ;;
+    --prompt-open)
+      prompt_open=true
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      die "unknown option: $1"
+      ;;
+  esac
+done
+
+[[ -n "$input" ]] || die "--input is required"
+[[ -f "$input" ]] || die "not a file: $input"
+[[ -n "$preset_name" ]] || die "--preset-name is required"
+[[ -n "$preset_flag" ]] || die "--preset-flag is required"
+[[ -n "$filter_complex" ]] || die "--filter is required"
+
+(( ${#times[@]} > 0 )) || times=("10")
+for time_value in "${times[@]}"; do
+  is_number "$time_value" || die "time must be numeric seconds: $time_value"
+done
+
+TOPAZ_APP_LIB="${0:A:h}/topaz-app.zsh"
+[[ -r "$TOPAZ_APP_LIB" ]] || die "Topaz app resolver not found: $TOPAZ_APP_LIB"
+source "$TOPAZ_APP_LIB"
+
+TOPAZ_APP="$(topaz_resolve_app)"
+TOPAZ_MACOS_DIR="$(topaz_resolve_macos_dir "$TOPAZ_APP")"
+TOPAZ_FFMPEG="$(topaz_resolve_ffmpeg "$TOPAZ_APP")"
+TOPAZ_FFPROBE="$TOPAZ_MACOS_DIR/ffprobe"
+TOPAZ_MODELS_DIR="$(topaz_resolve_models_dir "$TOPAZ_APP")"
+[[ -x "$TOPAZ_FFMPEG" ]] || die "Topaz ffmpeg not executable: $TOPAZ_FFMPEG"
+
+safe_preset="$(slugify "$preset_name")"
+safe_input="$(slugify "${input:t:r}")"
+stamp="$(date +%Y%m%d-%H%M%S)"
+out_dir="${HOME}/Library/Caches/topaz-preview-frames/${safe_input}/${safe_preset}/${stamp}"
+mkdir -p "$out_dir"
+
+ffmpeg_preset_flag="-${preset_flag#--}"
+display_orientation="$(media_display_orientation "$input" "$TOPAZ_FFPROBE")"
+preview_filter_complex="$(still_preview_filter "$filter_complex" "$display_orientation")"
+duration="$(media_duration "$input" "$TOPAZ_FFPROBE")"
+topaz_env=(
+  env
+  LC_NUMERIC=C
+  LANG="${LANG:-en_US.UTF-8}"
+  LC_CTYPE="${LC_CTYPE:-${LANG:-en_US.UTF-8}}"
+  TVAI_MODEL_DIR="$TOPAZ_MODELS_DIR"
+  TVAI_MODEL_DATA_DIR="$TOPAZ_MODELS_DIR"
+)
+
+mpv_images=()
+
+print -P -- "%F{cyan}Topaz frame preview%f"
+print -P -- "  %F{white}input:%f  $input"
+print -P -- "  %F{white}preset:%f $preset_name"
+print -P -- "  %F{white}dir:%f    $out_dir"
+[[ "$display_orientation" != "unknown" ]] && print -P -- "  %F{white}shape:%f  $display_orientation"
+if [[ "$preview_filter_complex" != "${filter_complex},format=yuvj420p" ]]; then
+  print -P -- "  %F{white}still:%f  adapted filter for JPEG preview"
+fi
+
+for time_value in "${times[@]}"; do
+  time_value="$(clamp_time_to_duration "$time_value" "$duration")"
+  time_label="$(format_time_label "$time_value")"
+  original_jpg="$out_dir/${safe_input} [original ${time_label}s].jpg"
+  topaz_jpg="$out_dir/${safe_input} [topaz ${time_label}s - ${safe_preset}].jpg"
+  compare_jpg="$out_dir/${safe_input} [A-B ${time_label}s - ${safe_preset}].jpg"
+
+  print -P -- "  %F{white}time:%f   ${time_value}s"
+
+  (
+    cd "$TOPAZ_MACOS_DIR"
+    "${topaz_env[@]}" "$TOPAZ_FFMPEG" -hide_banner -loglevel error -y \
+      -ss "$time_value" \
+      -autorotate \
+      -i "$input" \
+      -vf "format=yuvj420p" \
+      -frames:v 1 \
+      -color_range pc \
+      -q:v 2 \
+      "$original_jpg"
+
+    "${topaz_env[@]}" "$TOPAZ_FFMPEG" -hide_banner -loglevel error -y \
+      -ss "$time_value" \
+      -autorotate \
+      -i "$input" \
+      -sws_flags "spline+accurate_rnd+full_chroma_int" \
+      "$ffmpeg_preset_flag" "$preview_filter_complex" \
+      -frames:v 1 \
+      -color_range pc \
+      -q:v 2 \
+      "$topaz_jpg"
+
+    "${topaz_env[@]}" "$TOPAZ_FFMPEG" -hide_banner -loglevel error -y \
+      -i "$original_jpg" \
+      -i "$topaz_jpg" \
+      -filter_complex "[0:v]scale=-2:1440,format=yuvj420p[left];[1:v]scale=-2:1440,format=yuvj420p[right];[left][right]hstack=inputs=2,format=yuvj420p" \
+      -frames:v 1 \
+      -color_range pc \
+      -q:v 2 \
+      "$compare_jpg"
+  )
+
+  mpv_images+=("$original_jpg" "$topaz_jpg")
+done
+
+print -P -- "  %F{white}open:%f   ${(j: :)mpv_images}"
+if [[ "$open_after" == true ]]; then
+  if [[ "$prompt_open" == true ]]; then
+    reply=""
+    read -r "?Open original/Topaz frames in preview viewer? [Y/n] " reply
+    [[ "$reply" == [Nn] || "$reply" == [Nn][Oo] ]] && exit 0
+  fi
+
+  open_images "${mpv_images[@]}"
+fi

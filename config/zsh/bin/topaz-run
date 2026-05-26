@@ -55,6 +55,7 @@ fi
 TOPAZ_MODELS_DIR="$(topaz_resolve_models_dir "$TOPAZ_APP")"
 LOG_DIR="${HOME}/Library/Logs/topaz-batch"
 PRESET_CATALOG="${0:A:h}/topaz-preset-catalog.zsh"
+TOPAZ_PREVIEW_FRAME_KITTY="${0:A:h}/topaz-preview-frame-kitty"
 
 [[ -r "$PRESET_CATALOG" ]] || {
   print -u2 "Topaz preset catalog not found: $PRESET_CATALOG"
@@ -513,6 +514,10 @@ else
   }
 
   media_header="$(media_header_summary)"
+  preview_frame_bind=""
+  if [[ -x "$TOPAZ_PREVIEW_FRAME_KITTY" ]]; then
+    preview_frame_bind="alt-p:execute-silent(${(q)TOPAZ_PREVIEW_FRAME_KITTY} --input ${(q)files[1]} --preset-name {2} --preset-flag {3} --filter {4})"
+  fi
 
   selection="$(
     topaz_preset_picker_rows run |
@@ -526,7 +531,8 @@ else
         --header="$media_header" \
         --header-first \
         --preview='printf "%s\n" {4}' \
-        --preview-window='down:6:wrap'
+        --preview-window='down:6:wrap' \
+        ${preview_frame_bind:+--bind="$preview_frame_bind"}
   )"
 
   [[ -n "$selection" ]] || {

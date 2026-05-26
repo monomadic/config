@@ -11,7 +11,7 @@ rtsp_port="8554"
 path_name="obsbot"
 device="${OBSBOT_RTSP_DEVICE:-}"
 device_match="${OBSBOT_RTSP_MATCH:-OBSBot|OBSBOT}"
-size="${OBSBOT_RTSP_SIZE:-1920x1080}"
+size="${OBSBOT_RTSP_SIZE:-auto}"
 fps="${OBSBOT_RTSP_FPS:-30}"
 bitrate="${OBSBOT_RTSP_BITRATE:-6000k}"
 pixel_format="${OBSBOT_RTSP_PIXEL_FORMAT:-nv12}"
@@ -35,7 +35,7 @@ Options:
   --match REGEX           Regex used when auto-selecting a device
   -a, --audio DEVICE      AVFoundation audio device name/index, or none
                           default: none
-  -s, --size WxH          Capture size, default: $size
+  -s, --size WxH|auto     Capture size, default: $size
   -r, --fps FPS           Capture frame rate, default: $fps
   -b, --bitrate RATE      H.264 bitrate, default: $bitrate
   --pixel-format FORMAT   AVFoundation input pixel format, default: $pixel_format
@@ -187,11 +187,17 @@ if [[ -z "$device" ]]; then
 fi
 
 if [[ -z "$device" ]]; then
-  print -u2 -- "No matching camera found for regex: $device_match"
+  devices_output="$(list_devices)"
+  print -u2 -- "error: OBSBot camera not found; halting."
   print -u2 -- ""
-  list_devices >&2
+  print -u2 -- "Expected an AVFoundation video device matching: $device_match"
+  print -u2 -- "Check that the camera is attached, powered on, and visible in System Information > Camera."
+  print -u2 -- "Detected AVFoundation devices:"
   print -u2 -- ""
-  die "set OBSBOT_RTSP_DEVICE or pass --device with the exact camera name/index"
+  print -u2 -- "$devices_output"
+  print -u2 -- ""
+  print -u2 -- "If the device has a different name, run '$script_name --list' and pass it with --device."
+  exit 2
 fi
 
 publish_url="rtsp://127.0.0.1:${rtsp_port}/${path_name}"
@@ -241,6 +247,12 @@ print -- "stream:  $client_url"
 print -- "local:   rtsp://127.0.0.1:${rtsp_port}/${path_name}"
 print -- ""
 
+typeset -a capture_args
+capture_args=(-framerate "$fps" -pixel_format "$pixel_format" -use_wallclock_as_timestamps 1)
+if [[ "$size" != "auto" ]]; then
+  capture_args=(-video_size "$size" "${capture_args[@]}")
+fi
+
 typeset -a audio_args
 if [[ "$audio_device" == "none" ]]; then
   audio_args=(-an)
@@ -253,10 +265,7 @@ ffmpeg \
   -loglevel info \
   -fflags +genpts+nobuffer \
   -f avfoundation \
-  -framerate "$fps" \
-  -video_size "$size" \
-  -pixel_format "$pixel_format" \
-  -use_wallclock_as_timestamps 1 \
+  "${capture_args[@]}" \
   -i "${device}:${audio_device}" \
   "${audio_args[@]}" \
   -vf "fps=${fps},setpts=N/(${fps}*TB),format=yuv420p" \

@@ -1,8 +1,6 @@
-# Free-disk-space-widget
+# Free Disk Space Widget
 
-Simple MacOS app to show free disk space in menubar.
-
-
+Simple macOS menu bar app that shows free disk space.
 
 <img src="demo.png" alt="Free disk space widget" width="400">
 
@@ -12,20 +10,20 @@ Simple MacOS app to show free disk space in menubar.
 go build -ldflags="-s -w" .
 ```
 
+To update the repo-managed startup binary:
+
+```bash
+go build -ldflags="-s -w" -o ../../vendor/bin/free-disk-space-widget .
+```
+
 ## Run on login
 
-```bash
-./create-autosta-file.sh
-```
-This creates a `free-disk-space-widget.autostart.plist` file in `~/Library/LaunchAgents/` directory.
-
-Then add the plist to launchctl:
+From the dotfiles repo:
 
 ```bash
-launchctl load ~/Library/LaunchAgents/free-disk-space-widget.autostart.plist
+setup/install/free-disk-space-widget.sh
 ```
 
-To revert that, remove the plist from launchctl:
-```bash
-launchctl unload ~/Library/LaunchAgents/free-disk-space-widget.autostart.plist
-```
+This installs the repo-managed binary to `~/.local/bin/free-disk-space-widget`,
+writes `~/Library/LaunchAgents/com.jayu.free-disk-space-widget.plist`, and
+starts it with `launchctl`.

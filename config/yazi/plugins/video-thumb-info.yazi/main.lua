@@ -1,7 +1,10 @@
 local M = {}
 
 local COLOR_FILENAME = "#66e2ff"
+local COLOR_SPECS = "#39ff14"
 local COLOR_TAG = "#ffe66d"
+local MAX_THUMB_ROWS = 25
+local MIN_TEXT_ROWS = 5
 
 local TAG_ORDER = {
 	"title",
@@ -175,15 +178,61 @@ local function seek_time(job)
 	return 0
 end
 
+local function write_thumbnail_with_ffmpeg(job, cache)
+	local status = Command("ffmpeg")
+		:arg({
+			"-hide_banner",
+			"-loglevel",
+			"error",
+			"-y",
+			"-ss",
+			string.format("%.3f", seek_time(job)),
+			"-i",
+			tostring(job.file.url),
+			"-map",
+			"0:v:0",
+			"-frames:v",
+			"1",
+			"-vf",
+			"format=rgba",
+			"-f",
+			"image2",
+			"-vcodec",
+			"png",
+			tostring(cache),
+		})
+		:status()
+
+	return status and status.success
+end
+
+local function write_thumbnail_with_ffmpegthumbnailer(job, cache)
+	local status = Command("ffmpegthumbnailer")
+		:arg({
+			"-i",
+			tostring(job.file.url),
+			"-o",
+			tostring(cache),
+			"-s",
+			"0",
+			"-t",
+			string.format("%.3f", seek_time(job)),
+			"-q",
+			"10",
+		})
+		:status()
+
+	return status and status.success
+end
+
 local function split_preview(area, info)
-	local text_h = math.min(9, math.max(5, math.floor(area.h / 3)))
-	local image_h = math.max(1, area.h - text_h)
+	local image_h = math.min(MAX_THUMB_ROWS, math.max(1, area.h - MIN_TEXT_ROWS))
 	if info.width and info.height and info.width > 0 and info.height > 0 then
-		local cell_w, cell_h = rt.term.cell_size()
-		if cell_w and cell_h and cell_h > 0 then
-			local fit_h = math.ceil(area.w * info.height / info.width * cell_w / cell_h)
-			image_h = math.max(1, math.min(image_h, fit_h))
+		local max_rows = MAX_THUMB_ROWS
+		if info.width > info.height then
+			max_rows = math.floor(MAX_THUMB_ROWS / 2)
 		end
+		image_h = math.min(max_rows, math.max(1, area.h - MIN_TEXT_ROWS))
 	end
 
 	return ui.Rect({
@@ -250,13 +299,14 @@ local function info_widget(job, area, info)
 		widgets[#widgets + 1] = ui.Text(table.concat(name_lines, "\n"))
 			:area(ui.Rect({ x = area.x, y = y, w = area.w, h = name_h }))
 			:fg(COLOR_FILENAME)
-		y = y + name_h + 1
+		y = y + name_h
 	end
 
 	if #compact_specs > 0 and y < area.y + area.h then
 		widgets[#widgets + 1] = ui.Text(table.concat(compact_specs, "  "))
 			:area(ui.Rect({ x = area.x, y = y, w = area.w, h = 1 }))
-		y = y + 1
+			:fg(COLOR_SPECS)
+		y = y + 2
 	end
 
 	local tags = tag_lines(info.tags or {})
@@ -296,27 +346,7 @@ function M:preload(job)
 		fs.create("dir_all", cache.parent)
 	end
 
-	local status = Command("ffmpeg")
-		:arg({
-			"-hide_banner",
-			"-loglevel",
-			"error",
-			"-y",
-			"-ss",
-			string.format("%.3f", seek_time(job)),
-			"-i",
-			tostring(job.file.url),
-			"-frames:v",
-			"1",
-			"-f",
-			"image2",
-			"-vcodec",
-			"png",
-			tostring(cache),
-		})
-		:status()
-
-	return status and status.success
+	return write_thumbnail_with_ffmpeg(job, cache) or write_thumbnail_with_ffmpegthumbnailer(job, cache)
 end
 
 function M:peek(job)
