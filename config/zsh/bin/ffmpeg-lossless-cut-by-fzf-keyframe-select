@@ -597,7 +597,7 @@ trim_copy() {
     -ss "$start_time" -i "$input_file" \
     -map 0 \
     -map_metadata 0 \
-    -movflags use_metadata_tags \
+    -movflags +faststart+use_metadata_tags \
     -c copy \
     "$output_file"
 }
@@ -611,7 +611,7 @@ trim_copy_reverse() {
     -to "$end_time" -i "$input_file" \
     -map 0 \
     -map_metadata 0 \
-    -movflags use_metadata_tags \
+    -movflags +faststart+use_metadata_tags \
     -c copy \
     "$output_file"
 }
@@ -899,9 +899,9 @@ for input_file in "${files[@]}"; do
 
   if [[ "$dry_run" == true ]]; then
     if [[ "$reverse_mode" == true ]]; then
-      print -- "ffmpeg -hide_banner -y -to '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags use_metadata_tags -c copy '$output_file'"
+      print -- "ffmpeg -hide_banner -y -to '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags +faststart+use_metadata_tags -c copy '$output_file'"
     else
-      print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags use_metadata_tags -c copy '$output_file'"
+      print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags +faststart+use_metadata_tags -c copy '$output_file'"
     fi
     print -- "copy embedded/container metadata from '$input_file' to '$output_file'"
     print -- "copy creation date from '$input_file' to '$output_file'"
