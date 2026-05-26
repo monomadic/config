@@ -1,0 +1,338 @@
+#!/bin/zsh
+
+emulate -L zsh
+setopt EXTENDED_GLOB NULL_GLOB NO_UNSET PIPE_FAIL
+
+drop_dir="${MIXED_IN_KEY_DROP_DIR:-$HOME/Music/Mixed In Key Drop}"
+app_path="${MIXED_IN_KEY_APP:-/Applications/Mixed In Key 11.app}"
+virtualdj_app="${VIRTUALDJ_APP:-/Applications/VirtualDJ.app}"
+done_dir="${MIXED_IN_KEY_DONE_DIR:-${MUSIC:-$HOME/Music}/Downloads}"
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/mixed-in-key-drop"
+state_file="$state_dir/seen.tsv"
+init_file="$state_dir/initialized"
+done_file="$state_dir/done.tsv"
+settle_seconds="${MIXED_IN_KEY_DROP_SETTLE_SECONDS:-3}"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  mixed-in-key-drop scan          Open new, settled FLACs in Mixed In Key 11
+  mixed-in-key-drop send FILE...  Open specific new FLACs in Mixed In Key 11
+  mixed-in-key-drop tagged FILE... Return success when files have Mixed In Key tags
+  mixed-in-key-drop finish FILE... Move tagged FLACs to Downloads and open VirtualDJ
+  mixed-in-key-drop mark          Mark current FLACs as already seen
+  mixed-in-key-drop list          Print new, settled FLACs without opening them
+
+Environment:
+  MIXED_IN_KEY_DROP_DIR           Defaults to ~/Music/Mixed In Key Drop
+  MIXED_IN_KEY_APP                Defaults to /Applications/Mixed In Key 11.app
+  MIXED_IN_KEY_DONE_DIR           Defaults to ${MUSIC:-$HOME/Music}/Downloads
+  VIRTUALDJ_APP                   Defaults to /Applications/VirtualDJ.app
+  MIXED_IN_KEY_DROP_SETTLE_SECONDS Defaults to 3
+EOF
+}
+
+info() { print -P "%F{blue}→%f $*" >&2 }
+pass() { print -P "%F{green}✓%f $*" >&2 }
+warn() { print -P "%F{yellow}!%f $*" >&2 }
+fail() { print -P "%F{red}✗%f $*" >&2 }
+
+ensure_ready() {
+  if [[ ! -d "$drop_dir" ]]; then
+    fail "Drop folder not found: $drop_dir"
+    return 1
+  fi
+
+  if [[ ! -d "$app_path" ]]; then
+    fail "Mixed In Key app not found: $app_path"
+    return 1
+  fi
+
+  if [[ ! -d "$virtualdj_app" ]]; then
+    fail "VirtualDJ app not found: $virtualdj_app"
+    return 1
+  fi
+
+  mkdir -p -- "$done_dir"
+  mkdir -p -- "$state_dir"
+  touch -- "$state_file"
+  touch -- "$done_file"
+}
+
+flac_paths() {
+  find "$drop_dir" -type f \( -iname '*.flac' \) -print0 2>/dev/null
+}
+
+file_id() {
+  local file=$1 dev inode
+  dev=$(stat -f '%d' -- "$file" 2>/dev/null) || return 1
+  inode=$(stat -f '%i' -- "$file" 2>/dev/null) || return 1
+  print -r -- "${dev}:${inode}"
+}
+
+file_size() {
+  stat -f '%z' -- "$1" 2>/dev/null
+}
+
+file_age() {
+  local now mtime
+  now=$(date +%s)
+  mtime=$(stat -f '%m' -- "$1" 2>/dev/null) || return 1
+  print -r -- $((now - mtime))
+}
+
+is_seen() {
+  local id=$1
+  grep -F -q -x -- "$id" "$state_file" 2>/dev/null
+}
+
+mark_seen_id() {
+  local id=$1
+  is_seen "$id" || print -r -- "$id" >>"$state_file"
+}
+
+is_done() {
+  local id=$1
+  grep -F -q -x -- "$id" "$done_file" 2>/dev/null
+}
+
+mark_done_id() {
+  local id=$1
+  is_done "$id" || print -r -- "$id" >>"$done_file"
+}
+
+is_settled() {
+  local file=$1 size_a size_b age
+  age=$(file_age "$file") || return 1
+  (( age >= settle_seconds )) || return 1
+
+  size_a=$(file_size "$file") || return 1
+  sleep 1
+  size_b=$(file_size "$file") || return 1
+
+  [[ "$size_a" == "$size_b" && "$size_a" != "0" ]]
+}
+
+mixed_in_key_tags_present() {
+  local file=$1 tags
+  tags=$(metaflac --export-tags-to=- -- "$file" 2>/dev/null) || return 1
+
+  print -r -- "$tags" | grep -Eiq '^(INITIALKEY|KEY|MIXEDINKEY|MIXED_IN_KEY)='
+}
+
+unique_destination() {
+  local src=$1 base ext stem candidate i
+  base="${src:t}"
+  ext="${base:e}"
+  stem="${base:r}"
+  candidate="$done_dir/$base"
+  i=1
+
+  while [[ -e "$candidate" ]]; do
+    if [[ -n "$ext" && "$base" == *.* ]]; then
+      candidate="$done_dir/${stem} ${i}.${ext}"
+    else
+      candidate="$done_dir/${base} ${i}"
+    fi
+    (( i++ ))
+  done
+
+  print -r -- "$candidate"
+}
+
+finish_tagged_file() {
+  local file=$1 id dest
+
+  [[ -f "$file" ]] || return 0
+  [[ "${file:l}" == *.flac ]] || return 0
+
+  id=$(file_id "$file") || return 1
+  is_done "$id" && return 0
+
+  if ! mixed_in_key_tags_present "$file"; then
+    warn "Mixed In Key tags not found yet: $file"
+    return 1
+  fi
+
+  if ! is_settled "$file"; then
+    warn "Tagged FLAC is still changing: $file"
+    return 1
+  fi
+
+  dest=$(unique_destination "$file") || return 1
+  mv -- "$file" "$dest" || return 1
+
+  info "Opening tagged FLAC in VirtualDJ: ${dest:t}"
+  open -a "$virtualdj_app" -- "$dest" || return 1
+
+  mark_done_id "$id"
+  pass "Moved to $done_dir and opened in VirtualDJ: ${dest:t}"
+}
+
+collect_new_settled() {
+  local file id
+  local -a fresh
+  fresh=()
+
+  while IFS= read -r -d '' file; do
+    id=$(file_id "$file") || continue
+    is_seen "$id" && continue
+    is_settled "$file" || continue
+    fresh+=("$file")
+  done < <(flac_paths)
+
+  print -r -N -- "$fresh[@]"
+}
+
+send_files() {
+  local file id
+  local -a fresh
+  ensure_ready || return 1
+
+  fresh=()
+
+  for file in "$@"; do
+    [[ -f "$file" ]] || continue
+    [[ "${file:l}" == *.flac ]] || continue
+
+    id=$(file_id "$file") || continue
+    is_seen "$id" && continue
+
+    if is_settled "$file"; then
+      fresh+=("$file")
+    else
+      warn "Skipped FLAC that is still changing: $file"
+    fi
+  done
+
+  if (( ${#fresh[@]} == 0 )); then
+    info "No new FLACs to send."
+    return 0
+  fi
+
+  info "Opening ${#fresh[@]} new FLAC(s) in Mixed In Key 11..."
+  open -a "$app_path" -- "$fresh[@]" || return 1
+
+  for file in "$fresh[@]"; do
+    id=$(file_id "$file") || continue
+    mark_seen_id "$id"
+  done
+
+  touch -- "$init_file"
+  pass "Sent ${#fresh[@]} FLAC(s) to Mixed In Key 11."
+}
+
+finish_files() {
+  local file failed=0
+  ensure_ready || return 1
+
+  for file in "$@"; do
+    finish_tagged_file "$file" || failed=1
+  done
+
+  return "$failed"
+}
+
+tagged_files() {
+  local file
+
+  for file in "$@"; do
+    [[ -f "$file" ]] || return 1
+    [[ "${file:l}" == *.flac ]] || return 1
+    mixed_in_key_tags_present "$file" || return 1
+  done
+
+  return 0
+}
+
+mark_current() {
+  local file id count=0
+  ensure_ready || return 1
+
+  while IFS= read -r -d '' file; do
+    id=$(file_id "$file") || continue
+    if ! is_seen "$id"; then
+      mark_seen_id "$id"
+      (( count++ ))
+    fi
+  done < <(flac_paths)
+
+  touch -- "$init_file"
+  pass "Marked $count current FLAC(s) as seen."
+}
+
+scan_once() {
+  local dry_run=${1:-0}
+  local file id
+  local -a fresh
+  local had_seen_state=0
+
+  [[ -e "$init_file" ]] && had_seen_state=1
+  ensure_ready || return 1
+
+  if (( ! had_seen_state )); then
+    mark_current >/dev/null 2>&1
+    info "Initialized Mixed In Key drop baseline. Future scans will send only new FLACs."
+    return 0
+  fi
+
+  fresh=()
+  while IFS= read -r -d '' file; do
+    fresh+=("$file")
+  done < <(collect_new_settled)
+
+  if (( ${#fresh[@]} == 0 )); then
+    info "No new settled FLACs in $drop_dir"
+    return 0
+  fi
+
+  if (( dry_run )); then
+    print -r -- "$fresh[@]"
+    return 0
+  fi
+
+  send_files "$fresh[@]"
+}
+
+case "${1:-scan}" in
+  scan)
+    scan_once
+    ;;
+  send)
+    shift
+    if (( $# == 0 )); then
+      fail "send needs one or more file paths."
+      exit 2
+    fi
+    send_files "$@"
+    ;;
+  tagged)
+    shift
+    if (( $# == 0 )); then
+      fail "tagged needs one or more file paths."
+      exit 2
+    fi
+    tagged_files "$@"
+    ;;
+  finish)
+    shift
+    if (( $# == 0 )); then
+      fail "finish needs one or more file paths."
+      exit 2
+    fi
+    finish_files "$@"
+    ;;
+  mark)
+    mark_current
+    ;;
+  list)
+    scan_once 1
+    ;;
+  -h|--help|help)
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac

@@ -1,0 +1,25 @@
+#!/usr/bin/env zsh
+
+setopt errexit nounset pipefail
+
+if (( $# == 0 )); then
+  print -u2 "Usage: ${0:t} <file>"
+  exit 2
+fi
+
+target="${1:A}"
+
+if [[ ! -e "$target" ]]; then
+  print -u2 "Not found: $target"
+  exit 1
+fi
+
+app="/Users/nom/config/utils/yazi-quicklook/YaziQLPanel2.app"
+binary="$app/Contents/MacOS/YaziQuickLookPanel"
+standalone="/Users/nom/config/utils/yazi-quicklook/YaziQuickLookPanel"
+
+if [[ -x "$standalone" ]]; then
+  exec "$standalone" "$target"
+fi
+
+/usr/bin/open -n "$app" --args "$target" 2>/dev/null || exec "$binary" "$target"
