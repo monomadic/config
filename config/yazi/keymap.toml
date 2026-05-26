@@ -64,7 +64,7 @@ desc = "Open files or enter directories"
 [[mgr.prepend_keymap]]
 on   = [ "<Space>" ]
 for  = "macos"
-run  = "shell --block -- /Users/nom/config/config/zsh/bin/yazi-quicklook %h"
+run  = "shell -- /Users/nom/config/config/zsh/bin/yazi-quicklook %h"
 desc = "Preview hovered file"
 
 [[mgr.prepend_keymap]]
