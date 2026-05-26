@@ -12,6 +12,9 @@
 #     * if intro detected: open selector starting at/after intro
 #     * if no intro detected: skip file
 #     * use --skip-detection to always prompt every file
+# - --detect-black-scenes:
+#     first try ffmpeg-detect-black-scenes; if a leading black scene is
+#     found, open selector starting after it, otherwise keep the normal flow
 #
 # Output:
 # - writes beside source as *.trimmed.ext
@@ -27,6 +30,7 @@
 #
 # Optional:
 # - ffmpeg-detect-intro
+# - ffmpeg-detect-black-scenes
 # - kitty, wezterm, imgcat, chafa
 # ============================================================
 
@@ -46,7 +50,8 @@ Options:
   -f, --force               Overwrite existing *.trimmed output
   -k, --keep-previews       Keep temporary preview directories
   --dry-run                 Show planned actions only
-  --skip-detection          For multiple files, always prompt instead of auto-checking intros
+  --skip-detection          Disable auto-detection; for multiple files, always prompt
+  --detect-black-scenes     Auto-start after a leading black scene when found
   --from <seconds>          Start selector at/after this timestamp
   -h, --help                Show this help
 
@@ -57,6 +62,7 @@ Trash.
 Examples:
   ffmpeg-lossless-cut-by-fzf-keyframe-select clip.mp4
   ffmpeg-lossless-cut-by-fzf-keyframe-select *.mp4
+  ffmpeg-lossless-cut-by-fzf-keyframe-select --detect-black-scenes *.mp4
   ffmpeg-lossless-cut-by-fzf-keyframe-select --skip-detection *.mov
   ffmpeg-lossless-cut-by-fzf-keyframe-select --from 12.5 clip.mp4
   ffmpeg-lossless-cut-by-fzf-keyframe-select --reverse clip.mp4
@@ -86,6 +92,17 @@ is_number() {
 
 float_gt_zero() {
   awk -v v="$1" 'BEGIN { exit !(v > 0.0005) }'
+}
+
+float_le() {
+  awk -v a="$1" -v b="$2" 'BEGIN { exit !(a <= b + 1e-9) }'
+}
+
+normalize_seconds() {
+  python3 - "$1" <<'PY'
+import sys
+print(f"{float(sys.argv[1]):.6f}")
+PY
 }
 
 format_ts() {
@@ -118,13 +135,24 @@ make_output_name() {
   print -- "$out"
 }
 
+command_path_arg() {
+  local file_path="$1"
+
+  if [[ "$file_path" != /* && "${file_path:t}" == -* ]]; then
+    print -r -- "./$file_path"
+  else
+    print -r -- "$file_path"
+  fi
+}
+
 detect_intro_seconds() {
   local input_file="$1"
-  local output line seconds
+  local input_arg output line seconds
 
   have ffmpeg-detect-intro || return 1
 
-  output="$(ffmpeg-detect-intro -- "$input_file" 2>&1 || true)"
+  input_arg="$(command_path_arg "$input_file")"
+  output="$(ffmpeg-detect-intro "$input_arg" 2>&1 || true)"
 
   while IFS= read -r line; do
     if [[ "$line" == intro_seconds=* ]]; then
@@ -135,12 +163,35 @@ detect_intro_seconds() {
       continue
     fi
 
-    if [[ -n "$seconds" ]] && is_number "$seconds"; then
-      python3 - "$seconds" <<'PY'
-import sys
-print(f"{float(sys.argv[1]):.6f}")
-PY
+    if [[ -n "$seconds" ]] && is_number "$seconds" && float_gt_zero "$seconds"; then
+      normalize_seconds "$seconds"
       return 0
+    fi
+  done <<< "$output"
+
+  return 1
+}
+
+detect_black_leader_seconds() {
+  local input_file="$1"
+  local tolerance="$2"
+  local input_arg output line start end
+  local black_re='black_start:([0-9]+([.][0-9]+)?)[[:space:]]+black_end:([0-9]+([.][0-9]+)?)'
+
+  have ffmpeg-detect-black-scenes || return 1
+
+  input_arg="$(command_path_arg "$input_file")"
+  output="$(ffmpeg-detect-black-scenes "$input_arg" 2>&1 || true)"
+
+  while IFS= read -r line; do
+    if [[ "$line" =~ $black_re ]]; then
+      start="${match[1]}"
+      end="${match[3]}"
+
+      if float_le "$start" "$tolerance" && float_gt_zero "$end"; then
+        normalize_seconds "$end"
+        return 0
+      fi
     fi
   done <<< "$output"
 
@@ -627,11 +678,7 @@ confirm_overwrite() {
 setfile_path_arg() {
   local file_path="$1"
 
-  if [[ "$file_path" != /* && "${file_path:t}" == -* ]]; then
-    print -r -- "./$file_path"
-  else
-    print -r -- "$file_path"
-  fi
+  command_path_arg "$file_path"
 }
 
 creation_date_for_setfile() {
@@ -747,6 +794,8 @@ force=false
 keep_previews=false
 dry_run=false
 skip_detection=false
+detect_black_leader=false
+black_leader_start_tolerance="${BLACK_LEADER_START_TOLERANCE:-0.25}"
 from_ts="0"
 
 typeset -a files=()
@@ -793,6 +842,10 @@ while (( $# > 0 )); do
       skip_detection=true
       shift
       ;;
+    --detect-black-scenes|--detect-black-leader)
+      detect_black_leader=true
+      shift
+      ;;
     --skip-intro-detection)
       warn "--skip-intro-detection is deprecated; use --skip-detection"
       skip_detection=true
@@ -836,6 +889,7 @@ have fzf     || die "fzf not found"
 (( keyframes > 0 )) || die "--keyframes must be > 0"
 (( width > 0 )) || die "--width must be > 0"
 is_number "$from_ts" || die "--from must be numeric seconds"
+is_number "$black_leader_start_tolerance" || die "BLACK_LEADER_START_TOLERANCE must be numeric seconds"
 
 integer ok_count=0
 integer skip_count=0
@@ -858,8 +912,18 @@ for input_file in "${files[@]}"; do
   fi
 
   effective_from="$from_ts"
+  effective_from_label=""
 
-  if [[ "$local_multi" == true && "$skip_detection" != true && "$reverse_mode" != true ]]; then
+  if [[ "$detect_black_leader" == true && "$skip_detection" != true && "$reverse_mode" != true ]]; then
+    if black_ts="$(detect_black_leader_seconds "$input_file" "$black_leader_start_tolerance")"; then
+      effective_from="$black_ts"
+      effective_from_label="Leading black ends at"
+    fi
+  fi
+
+  if [[ -n "$effective_from_label" ]]; then
+    info "${effective_from_label}: $(format_ts "$effective_from")"
+  elif [[ "$local_multi" == true && "$skip_detection" != true && "$reverse_mode" != true ]]; then
     if intro_ts="$(detect_intro_seconds "$input_file")"; then
       effective_from="$intro_ts"
       info "Intro detected at: $(format_ts "$intro_ts")"
