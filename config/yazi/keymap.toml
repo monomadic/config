@@ -56,19 +56,19 @@ on   = "<Enter>"
 run  = "plugin smart-enter"
 desc = "Open files or enter directories"
 
-[[mgr.prepend_keymap]]
-on   = [ "<Space>", "o" ]
-run  = "plugin smart-enter"
-desc = "Open files or enter directories"
+# [[mgr.prepend_keymap]]
+# on   = [ "<Space>", "o" ]
+# run  = "plugin smart-enter"
+# desc = "Open files or enter directories"
 
 [[mgr.prepend_keymap]]
-on   = [ "<Space>", "p" ]
+on   = [ "<Space>" ]
 for  = "macos"
-run  = "shell --block -- /usr/bin/qlmanage -p %h"
-desc = "Preview hovered file with Quick Look"
+run  = "shell --block -- /Users/nom/config/config/zsh/bin/yazi-quicklook %h"
+desc = "Preview hovered file"
 
 [[mgr.prepend_keymap]]
-on   = [ "<Space>", "r" ]
+on   = [ "<C-r>" ]
 for  = "macos"
 run  = "shell --orphan -- /usr/bin/open -R %h"
 desc = "Reveal hovered file in Finder"

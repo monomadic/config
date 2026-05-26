@@ -1,21 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <page name="FX-SLOTS">
-  <pad1 name="`param_equal '`effect_stems`' 'Stems FX' ? get_text 'FX1\n`effect_select 1 &amp; param_uppercase`' : get_text '`effect_stems`\n`effect_select 1 &amp; param_uppercase`'`" color="color 'yellow'" query="effect_active 1" right_click="effect_select 1">effect_active 1</pad1>
-  <shift_pad1 name="`effect_select 1 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 1" right_click="effect_select 1">effect_select 1</shift_pad1>
-  <pad2 name="FX2\n`effect_select 2 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 2" right_click="effect_select 2">effect_active 2</pad2>
-  <shift_pad2 name="`effect_select 2 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 2" right_click="effect_select 2">effect_select 2</shift_pad2>
-  <pad3 name="FX3\n`effect_select 3 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 3" right_click="effect_select 3">effect_active 3</pad3>
-  <shift_pad3 name="`effect_select 3 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 3" right_click="effect_select 3">effect_select 3</shift_pad3>
-  <pad4 name="FX4\n`effect_select 4 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 4" right_click="effect_select 4">effect_active 4</pad4>
-  <shift_pad4 name="`effect_select 4 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 4" right_click="effect_select 4">effect_select 4</shift_pad4>
-  <pad5 name="FX5\n`effect_select 5 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 5" right_click="effect_select 5">effect_active 5</pad5>
-  <shift_pad5 name="`effect_select 5 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 5" right_click="effect_select 5">effect_select 5</shift_pad5>
-  <pad6 name="FX6\n`effect_select 6 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 6" right_click="effect_select 6">effect_active 6</pad6>
-  <shift_pad6 name="`effect_select 6 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 6" right_click="effect_select 6">effect_select 6</shift_pad6>
-  <pad7 name="FX7\n`effect_select 7 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 7" right_click="effect_select 7">effect_active 7</pad7>
-  <shift_pad7 name="`effect_select 7 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 7" right_click="effect_select 7">effect_select 7</shift_pad7>
-  <pad8 name="FX8\n`effect_select 8 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 8" right_click="effect_select 8">effect_active 8</pad8>
-  <shift_pad8 name="`effect_select 8 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 8" right_click="effect_select 8">effect_select 8</shift_pad8>
+  <pad1 name="FX-VOCALS``\n``ECHO OUT" color="stem_color 'vocal'" query="effect_active 'vocals' 'echo out'">
+    effect_select_multi 'vocals' 'echo out' &amp; effect_active 'vocals' 'echo out'
+  </pad1>
+  <shift_pad1 name="VOCAL ECHO OUT``\n``[EDIT]" color="stem_color 'vocal'">
+    effect_show_gui 'vocals' 'echo out'
+  </shift_pad1>
+  <pad2 name="FX-VOCALS``\n``REVERB" color="stem_color 'vocal'" query="effect_active 'vocals' 'reverb' 50% 20% 25% 50%">
+    effect_select_multi 'vocals' 'reverb'  &amp; effect_active 'vocals' 'reverb' 50% 20% 25% 50%
+  </pad2>
+  <shift_pad2 name="VOCAL REVERB [EDIT]" color="stem_color 'vocal'">
+    effect_show_gui 'vocals' 'reverb'
+  </shift_pad2>
+  <pad8 name="FX-VOCALS``\n``REVERB" color="stem_color 'vocal'" query="effect_active 'vocals' 'reverb'">
+    effect_select_multi 'vocals' 'reverb' &amp; effect_active 'vocals' 'reverb'
+  </pad8>
   <pad9 name="FX-VOCALS\n`effect_select 'vocals' &amp; param_uppercase`" color="stem_color 'vocal'" query="effect_active 'vocals'" right_click="effect_select 'vocals'">
     effect_active "vocals"
   </pad9>
@@ -31,9 +30,6 @@
   <pad11 name="FX-INSTRU\n`effect_select 'instru' &amp; param_uppercase`" color="stem_color 'instru'" query="effect_active 'instru'" right_click="effect_select 'instru'">
     effect_active "instru"
   </pad11>
-  <shift_pad11 name="`effect_select 'instru' &amp; param_uppercase`" color="stem_color 'instru'" query="effect_active 'instru'" right_click="effect_show_gui 'instru'">
-    effect_select 'instru'
-  </shift_pad11>
   <pad12 name="FX-BASS\n`effect_select 'bass' &amp; param_uppercase`" color="stem_color 'bass'" query="effect_active 'bass'" right_click="effect_select 'bass'">
     effect_active "bass"
   </pad12>
