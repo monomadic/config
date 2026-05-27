@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,12 +20,18 @@ const (
 	warningIcon = "􀇿"
 )
 
+type serviceConfig struct {
+	Name      string
+	Label     string
+	PlistPath string
+}
+
 type appConfig struct {
-	ServiceLabel string
-	PlistPath    string
-	LogPath      string
-	RTSPURL      string
-	ScryptedURL  string
+	RTSP        serviceConfig
+	Scrypted    serviceConfig
+	LogPath     string
+	RTSPURL     string
+	ScryptedURL string
 }
 
 type serviceStatus struct {
@@ -33,13 +41,19 @@ type serviceStatus struct {
 	Detail  string
 }
 
+type serviceMenu struct {
+	status  *systray.MenuItem
+	start   *systray.MenuItem
+	stop    *systray.MenuItem
+	restart *systray.MenuItem
+}
+
 var (
-	cfg         appConfig
-	statusItem  *systray.MenuItem
-	startItem   *systray.MenuItem
-	stopItem    *systray.MenuItem
-	restartItem *systray.MenuItem
-	probeItem   *systray.MenuItem
+	cfg               appConfig
+	rtspMenu          serviceMenu
+	scryptedMenu      serviceMenu
+	probeRTSPItem     *systray.MenuItem
+	probeScryptedItem *systray.MenuItem
 )
 
 func main() {
@@ -54,11 +68,19 @@ func loadConfig() appConfig {
 	}
 
 	return appConfig{
-		ServiceLabel: env("OBSBOT_RTSP_SERVICE_LABEL", "local.obsbot-rtsp"),
-		PlistPath:    env("OBSBOT_RTSP_SERVICE_PLIST", filepath.Join(home, "Library/LaunchAgents/local.obsbot-rtsp.plist")),
-		LogPath:      env("OBSBOT_RTSP_LOG", filepath.Join(home, "Library/Logs/obsbot-rtsp.log")),
-		RTSPURL:      env("OBSBOT_RTSP_URL", "rtsp://127.0.0.1:8554/obsbot"),
-		ScryptedURL:  env("SCRYPTED_URL", "https://localhost:10443/"),
+		RTSP: serviceConfig{
+			Name:      "OBSBot RTSP",
+			Label:     env("OBSBOT_RTSP_SERVICE_LABEL", "local.obsbot-rtsp"),
+			PlistPath: env("OBSBOT_RTSP_SERVICE_PLIST", filepath.Join(home, "Library/LaunchAgents/local.obsbot-rtsp.plist")),
+		},
+		Scrypted: serviceConfig{
+			Name:      "Scrypted",
+			Label:     env("SCRYPTED_SERVICE_LABEL", "app.scrypted.server"),
+			PlistPath: env("SCRYPTED_SERVICE_PLIST", filepath.Join(home, "Library/LaunchAgents/app.scrypted.server.plist")),
+		},
+		LogPath:     env("OBSBOT_RTSP_LOG", filepath.Join(home, "Library/Logs/obsbot-rtsp.log")),
+		RTSPURL:     env("OBSBOT_RTSP_URL", "rtsp://127.0.0.1:8554/obsbot"),
+		ScryptedURL: env("SCRYPTED_URL", "https://localhost:10443/"),
 	}
 }
 
@@ -74,8 +96,8 @@ func guiDomain() string {
 	return fmt.Sprintf("gui/%d", os.Getuid())
 }
 
-func serviceTarget() string {
-	return fmt.Sprintf("%s/%s", guiDomain(), cfg.ServiceLabel)
+func serviceTarget(service serviceConfig) string {
+	return fmt.Sprintf("%s/%s", guiDomain(), service.Label)
 }
 
 func runLaunchctl(args ...string) error {
@@ -87,8 +109,8 @@ func runLaunchctl(args ...string) error {
 	return nil
 }
 
-func readServiceStatus() serviceStatus {
-	cmd := exec.Command("launchctl", "print", serviceTarget())
+func readServiceStatus(service serviceConfig) serviceStatus {
+	cmd := exec.Command("launchctl", "print", serviceTarget(service))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return serviceStatus{
@@ -107,7 +129,7 @@ func readServiceStatus() serviceStatus {
 		Loaded:  true,
 		Running: state == "running",
 		State:   state,
-		Detail:  fmt.Sprintf("%s is %s", cfg.ServiceLabel, state),
+		Detail:  fmt.Sprintf("%s is %s", service.Name, state),
 	}
 }
 
@@ -121,94 +143,96 @@ func parseLaunchState(output string) string {
 	return ""
 }
 
-func titleForStatus(status serviceStatus) string {
+func titleForStatuses(rtsp, scrypted serviceStatus) string {
 	switch {
-	case status.Running:
+	case rtsp.Running && scrypted.Running:
 		return fmt.Sprintf("%s RTSP", runningIcon)
-	case status.Loaded:
+	case rtsp.Running || scrypted.Running || rtsp.Loaded || scrypted.Loaded:
 		return fmt.Sprintf("%s RTSP", warningIcon)
 	default:
 		return fmt.Sprintf("%s RTSP", stoppedIcon)
 	}
 }
 
-func tooltipForStatus(status serviceStatus) string {
-	switch {
-	case status.Running:
-		return fmt.Sprintf("OBSBot RTSP is running: %s", cfg.RTSPURL)
-	case status.Loaded:
-		return fmt.Sprintf("OBSBot RTSP is loaded but %s", status.State)
-	default:
-		return "OBSBot RTSP is not loaded"
+func tooltipForStatuses(rtsp, scrypted serviceStatus) string {
+	return fmt.Sprintf("OBSBot RTSP: %s; Scrypted: %s", rtsp.State, scrypted.State)
+}
+
+func updateServiceMenu(menu serviceMenu, service serviceConfig, status serviceStatus) {
+	menu.status.SetTitle(fmt.Sprintf("%s: %s", service.Name, status.State))
+	menu.status.SetTooltip(status.Detail)
+
+	if status.Running {
+		menu.start.Disable()
+		menu.stop.Enable()
+		menu.restart.Enable()
+		return
+	}
+
+	menu.start.Enable()
+	if status.Loaded {
+		menu.stop.Enable()
+		menu.restart.Enable()
+	} else {
+		menu.stop.Disable()
+		menu.restart.Enable()
 	}
 }
 
-func updateStatus(message string) serviceStatus {
-	status := readServiceStatus()
-	title := titleForStatus(status)
-	tooltip := tooltipForStatus(status)
+func updateStatus(message string) (serviceStatus, serviceStatus) {
+	rtsp := readServiceStatus(cfg.RTSP)
+	scrypted := readServiceStatus(cfg.Scrypted)
+
+	title := titleForStatuses(rtsp, scrypted)
+	tooltip := tooltipForStatuses(rtsp, scrypted)
 	if message != "" {
 		tooltip = message
 	}
 
 	systray.SetTitle(title)
 	systray.SetTooltip(tooltip)
-	statusItem.SetTitle(fmt.Sprintf("Status: %s", status.State))
-	statusItem.SetTooltip(tooltip)
+	updateServiceMenu(rtspMenu, cfg.RTSP, rtsp)
+	updateServiceMenu(scryptedMenu, cfg.Scrypted, scrypted)
+	probeRTSPItem.Enable()
+	probeScryptedItem.Enable()
 
-	if status.Running {
-		startItem.Disable()
-		stopItem.Enable()
-		restartItem.Enable()
-	} else {
-		startItem.Enable()
-		if status.Loaded {
-			stopItem.Enable()
-			restartItem.Enable()
-		} else {
-			stopItem.Disable()
-			restartItem.Enable()
-		}
-	}
-
-	probeItem.Enable()
-	return status
+	return rtsp, scrypted
 }
 
-func startService() error {
-	if _, err := os.Stat(cfg.PlistPath); err != nil {
-		return fmt.Errorf("missing LaunchAgent plist: %s", cfg.PlistPath)
+func startService(service serviceConfig) error {
+	if _, err := os.Stat(service.PlistPath); err != nil {
+		return fmt.Errorf("missing LaunchAgent plist: %s", service.PlistPath)
 	}
 
-	if err := runLaunchctl("bootstrap", guiDomain(), cfg.PlistPath); err != nil {
-		if !readServiceStatus().Loaded {
+	if err := runLaunchctl("bootstrap", guiDomain(), service.PlistPath); err != nil {
+		if !readServiceStatus(service).Loaded {
 			return err
 		}
 	}
-	if err := runLaunchctl("enable", serviceTarget()); err != nil {
+	if err := runLaunchctl("enable", serviceTarget(service)); err != nil {
 		return err
 	}
-	return runLaunchctl("kickstart", "-k", serviceTarget())
+	return runLaunchctl("kickstart", "-k", serviceTarget(service))
 }
 
-func stopService() error {
-	err := runLaunchctl("bootout", serviceTarget())
-	if err == nil || !readServiceStatus().Loaded {
+func stopService(service serviceConfig) error {
+	err := runLaunchctl("bootout", serviceTarget(service))
+	if err == nil || !readServiceStatus(service).Loaded {
 		return nil
 	}
 
-	if plistErr := runLaunchctl("bootout", guiDomain(), cfg.PlistPath); plistErr != nil && readServiceStatus().Loaded {
+	if plistErr := runLaunchctl("bootout", guiDomain(), service.PlistPath); plistErr != nil && readServiceStatus(service).Loaded {
 		return err
 	}
 	return nil
 }
 
-func restartService() error {
-	if err := stopService(); err != nil {
+func restartService(service serviceConfig) error {
+	if err := stopService(service); err != nil {
 		return err
 	}
 	time.Sleep(500 * time.Millisecond)
-	return startService()
+	return startService(service)
 }
 
 func copyRTSPURL() error {
@@ -266,6 +290,34 @@ func probeRTSP() error {
 	return nil
 }
 
+func probeScrypted() error {
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := http.Client{
+		Timeout:   5 * time.Second,
+		Transport: transport,
+	}
+
+	request, err := http.NewRequest(http.MethodHead, cfg.ScryptedURL, nil)
+	if err != nil {
+		return err
+	}
+
+	response, err := client.Do(request)
+	if err != nil {
+		return fmt.Errorf("Scrypted probe failed: %w", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode < 200 || response.StatusCode >= 400 {
+		return fmt.Errorf("Scrypted probe returned %s", response.Status)
+	}
+
+	updateStatus(fmt.Sprintf("Scrypted OK: %s", response.Status))
+	return nil
+}
+
 func handleMenu(item *systray.MenuItem, action func() error, success string) {
 	go func() {
 		for range item.ClickedCh {
@@ -276,25 +328,45 @@ func handleMenu(item *systray.MenuItem, action func() error, success string) {
 			} else {
 				updateStatus(success)
 			}
-			if item != startItem && item != stopItem && item != restartItem && item != probeItem {
+			if !isManagedServiceItem(item) {
 				item.Enable()
 			}
 		}
 	}()
 }
 
+func isManagedServiceItem(item *systray.MenuItem) bool {
+	return item == rtspMenu.start ||
+		item == rtspMenu.stop ||
+		item == rtspMenu.restart ||
+		item == scryptedMenu.start ||
+		item == scryptedMenu.stop ||
+		item == scryptedMenu.restart ||
+		item == probeRTSPItem ||
+		item == probeScryptedItem
+}
+
+func addServiceMenu(service serviceConfig) serviceMenu {
+	menu := serviceMenu{
+		status:  systray.AddMenuItem(fmt.Sprintf("%s: checking", service.Name), fmt.Sprintf("Current %s launchd status", service.Name)),
+		start:   systray.AddMenuItem(fmt.Sprintf("Start %s", service.Name), fmt.Sprintf("Start %s", service.Label)),
+		stop:    systray.AddMenuItem(fmt.Sprintf("Stop %s", service.Name), fmt.Sprintf("Stop %s", service.Label)),
+		restart: systray.AddMenuItem(fmt.Sprintf("Restart %s", service.Name), fmt.Sprintf("Restart %s", service.Label)),
+	}
+	menu.status.Disable()
+	return menu
+}
+
 func onReady() {
 	systray.SetTitle(fmt.Sprintf("%s RTSP", warningIcon))
-	systray.SetTooltip("Checking OBSBot RTSP")
+	systray.SetTooltip("Checking OBSBot RTSP and Scrypted")
 
-	statusItem = systray.AddMenuItem("Status: checking", "Current launchd status")
-	statusItem.Disable()
+	rtspMenu = addServiceMenu(cfg.RTSP)
+	probeRTSPItem = systray.AddMenuItem("Probe RTSP Now", "Run a one-shot ffprobe against the local stream")
 	systray.AddSeparator()
 
-	startItem = systray.AddMenuItem("Start OBSBot RTSP", "Start the local.obsbot-rtsp LaunchAgent")
-	stopItem = systray.AddMenuItem("Stop OBSBot RTSP", "Stop the local.obsbot-rtsp LaunchAgent")
-	restartItem = systray.AddMenuItem("Restart OBSBot RTSP", "Restart the local.obsbot-rtsp LaunchAgent")
-	probeItem = systray.AddMenuItem("Probe RTSP Now", "Run a one-shot ffprobe against the local stream")
+	scryptedMenu = addServiceMenu(cfg.Scrypted)
+	probeScryptedItem = systray.AddMenuItem("Probe Scrypted Now", "Run a one-shot HTTPS probe against Scrypted")
 	systray.AddSeparator()
 
 	copyItem := systray.AddMenuItem("Copy RTSP URL", cfg.RTSPURL)
@@ -304,10 +376,14 @@ func onReady() {
 
 	quitItem := systray.AddMenuItem("Quit", "Quit the OBSBot RTSP widget")
 
-	handleMenu(startItem, startService, "Started OBSBot RTSP")
-	handleMenu(stopItem, stopService, "Stopped OBSBot RTSP")
-	handleMenu(restartItem, restartService, "Restarted OBSBot RTSP")
-	handleMenu(probeItem, probeRTSP, "RTSP probe completed")
+	handleMenu(rtspMenu.start, func() error { return startService(cfg.RTSP) }, "Started OBSBot RTSP")
+	handleMenu(rtspMenu.stop, func() error { return stopService(cfg.RTSP) }, "Stopped OBSBot RTSP")
+	handleMenu(rtspMenu.restart, func() error { return restartService(cfg.RTSP) }, "Restarted OBSBot RTSP")
+	handleMenu(probeRTSPItem, probeRTSP, "RTSP probe completed")
+	handleMenu(scryptedMenu.start, func() error { return startService(cfg.Scrypted) }, "Started Scrypted")
+	handleMenu(scryptedMenu.stop, func() error { return stopService(cfg.Scrypted) }, "Stopped Scrypted")
+	handleMenu(scryptedMenu.restart, func() error { return restartService(cfg.Scrypted) }, "Restarted Scrypted")
+	handleMenu(probeScryptedItem, probeScrypted, "Scrypted probe completed")
 	handleMenu(copyItem, copyRTSPURL, "Copied RTSP URL")
 	handleMenu(openScryptedItem, func() error { return openPath(cfg.ScryptedURL) }, "Opened Scrypted")
 	handleMenu(openLogItem, openLog, "Opened publisher log")

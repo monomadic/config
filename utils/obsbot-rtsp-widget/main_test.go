@@ -14,14 +14,21 @@ func TestParseLaunchState(t *testing.T) {
 	}
 }
 
-func TestTitleForStatus(t *testing.T) {
-	if got := titleForStatus(serviceStatus{Loaded: true, Running: true}); got != runningIcon+" RTSP" {
-		t.Fatalf("running title = %q", got)
+func TestTitleForStatuses(t *testing.T) {
+	running := serviceStatus{Loaded: true, Running: true, State: "running"}
+	loaded := serviceStatus{Loaded: true, State: "exited"}
+	stopped := serviceStatus{}
+
+	if got := titleForStatuses(running, running); got != runningIcon+" RTSP" {
+		t.Fatalf("all running title = %q", got)
 	}
-	if got := titleForStatus(serviceStatus{Loaded: true, State: "exited"}); got != warningIcon+" RTSP" {
+	if got := titleForStatuses(running, stopped); got != warningIcon+" RTSP" {
+		t.Fatalf("partial running title = %q", got)
+	}
+	if got := titleForStatuses(stopped, loaded); got != warningIcon+" RTSP" {
 		t.Fatalf("loaded non-running title = %q", got)
 	}
-	if got := titleForStatus(serviceStatus{}); got != stoppedIcon+" RTSP" {
+	if got := titleForStatuses(stopped, stopped); got != stoppedIcon+" RTSP" {
 		t.Fatalf("stopped title = %q", got)
 	}
 }
