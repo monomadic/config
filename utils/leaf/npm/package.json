@@ -1,0 +1,27 @@
+{
+  "name": "@rivolink/leaf",
+  "version": "0.0.0",
+  "description": "Terminal Markdown previewer — GUI-like experience.",
+  "keywords": ["markdown", "terminal", "tui", "cli", "preview"],
+  "homepage": "https://github.com/RivoLink/leaf",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RivoLink/leaf.git"
+  },
+  "license": "MIT",
+  "bin": {
+    "leaf": "./bin/leaf.js"
+  },
+  "files": ["bin/leaf.js", "README.md"],
+  "optionalDependencies": {
+    "@rivolink/leaf-linux-x64": "0.0.0",
+    "@rivolink/leaf-linux-arm64": "0.0.0",
+    "@rivolink/leaf-darwin-x64": "0.0.0",
+    "@rivolink/leaf-darwin-arm64": "0.0.0",
+    "@rivolink/leaf-win32-x64": "0.0.0",
+    "@rivolink/leaf-android-arm64": "0.0.0"
+  },
+  "engines": {
+    "node": ">=14"
+  }
+}

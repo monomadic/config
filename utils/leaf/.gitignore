@@ -1,0 +1,15 @@
+# Custom
+*.rl
+/.notes
+
+# Rust/Cargo
+/debug
+/target
+**/*.rs.bk
+
+# npm platform binaries
+npm/platforms/*/leaf
+npm/platforms/*/leaf.exe
+
+# Logs
+*.log

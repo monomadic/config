@@ -1,0 +1,105 @@
+name: Release Cut
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump type
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      branch:
+        description: Branch to release from
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release-cut:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require release push token
+        env:
+          WORKFLOW_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
+        run: |
+          if [ -z "$WORKFLOW_TOKEN" ]; then
+            echo "Missing secret WORKFLOW_TOKEN" >&2
+            echo "Create this secret so the pushed tag can trigger Release Build." >&2
+            exit 1
+          fi
+
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Import GPG key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+
+      - name: Configure GPG agent
+        run: |
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
+          gpgconf --kill gpg-agent
+
+      - name: Preset GPG passphrase
+        env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          KEYGRIP=$(gpg --list-secret-keys --with-keygrip --with-colons \
+            | grep '^grp' | head -1 | cut -d: -f10)
+          if [ -z "$KEYGRIP" ]; then
+            echo "Failed to extract GPG keygrip" >&2
+            exit 1
+          fi
+          gpg-connect-agent "PRESET_PASSPHRASE $KEYGRIP -1 \
+            $(echo -n "$GPG_PASSPHRASE" | xxd -p -c 256)" /bye
+
+      - name: Configure git author
+        run: |
+          git config user.name "RivoLink"
+          git config user.email "rivo.link@gmail.com"
+
+      - name: Configure signing key
+        run: |
+          KEY_ID=$(gpg --list-secret-keys --keyid-format long \
+            | grep '^sec' | head -1 | awk '{print $2}' \
+            | cut -d'/' -f2)
+          if [ -z "$KEY_ID" ]; then
+            echo "Failed to extract GPG key ID" >&2
+            exit 1
+          fi
+          git config user.signingkey "$KEY_ID"
+
+      - name: Enable commit and tag signing
+        run: |
+          git config commit.gpgsign true
+          git config tag.gpgsign true
+
+      - name: Validate release candidate
+        run: |
+          cargo test
+          cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Restore clean working tree
+        run: |
+          git reset --hard HEAD
+          git clean -fd
+
+      - name: Cut release
+        run: ./scripts/release-cut.sh "${{ inputs.bump }}" "${{ inputs.branch }}"

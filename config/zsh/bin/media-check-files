@@ -1,208 +1,1080 @@
-#!/bin/zsh
-# validate-filenames — validate and optionally fix filenames read from stdin
-# Usage: printf '%s\n' /path/to/file1 /path/to/file2 | validate-filenames
-#        find . -maxdepth 1 -type f | validate-filenames
+#!/usr/bin/env zsh
 
-setopt EXTENDED_GLOB NO_UNSET
+emulate -L zsh
+set -u
+setopt pipefail extended_glob
 
 TTY=/dev/tty
-
-# ── output helpers ────────────────────────────────────────────────────────────
-_pass() { print -P "  %F{green}✓%f $*" >$TTY }
-_fail() { print -P "  %F{red}✗%f $*" >$TTY }
-_info() { print -P "  %F{blue}→%f $*" >$TTY }
-_warn() { print -P "  %F{yellow}!%f $*" >$TTY }
-
-# ── rename prompt ─────────────────────────────────────────────────────────────
-# Result (new or unchanged path) is written to $_renamed
-_renamed=''
-_prompt_rename() {
-    local src=$1 newname=$2
-    _info "Suggested fix:"
-    print "      was: ${src:t}" >$TTY
-    print "      now: ${newname}" >$TTY
-    printf '  Rename? [Y/n] ' >$TTY
-    local ans; IFS= read -r ans <$TTY
-    case ${ans:-Y} in
-        [Yy]|'')
-            local dest="${src:h}/${newname}"
-            if mv -n -- "$src" "$dest"; then
-                _pass "Renamed."
-                _renamed=$dest
-            else
-                _fail "Rename failed (permissions or target exists)."
-                _renamed=$src
-            fi ;;
-        *)
-            _info "Skipped."
-            _renamed=$src ;;
-    esac
-}
-
-# ── check 1: valid utf-8 ──────────────────────────────────────────────────────
-# Uses iconv to validate; strips invalid bytes as a suggested fix.
-# Note: if the shell itself garbled the path reading it, use find-invalid-filenames
-# or convmv-stdin instead — shell can't reliably hold non-UTF-8 paths in variables.
-_check_utf8() {
-    local path=$1 name=${1:t}
-
-    if printf '%s' "$name" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
-        _pass "UTF-8: valid"
-        _renamed=$path; return 0
-    fi
-
-    _fail "UTF-8: invalid byte sequences in filename"
-    _warn "Shell limitation: under a UTF-8 locale, zsh stores paths as Unicode."
-    _warn "If a filename contains non‑UTF‑8 bytes, reading it into a shell"
-    _warn "variable can corrupt or drop those bytes. Once that happens, the"
-    _warn "exact on‑disk byte sequence is no longer available to safely rename."
-    _warn "Use a byte‑safe tool (e.g. convmv, find -print0 + convmv, or a small"
-    _warn "Perl/Python helper that operates on raw bytes) to repair these names."
-
-    local fixed
-    fixed=$(printf '%s' "$name" | iconv -f UTF-8 -t UTF-8 -c 2>/dev/null)
-
-    if [[ -z $fixed || $fixed == $name ]]; then
-        _warn "Cannot safely auto-fix here because the shell may not hold the"
-        _warn "original bytes for this path. Suggest: find DIR -depth -print0 |"
-        _warn "  convmv -f UTF-8 -t UTF-8 -c --notest --unz --list -0"
-        _warn "Then re-run with clean names."
-        _renamed=$path; return 1
-    fi
-
-    _prompt_rename "$path" "$fixed"
-    return 1
-}
-
-# ── check 2: no brackets in actor field (before first ' - ') ──────────────────
-# Valid transforms:
-#   (Name) rest          → Name - rest
-#   (Name)[Extra] rest   → Name, Extra - rest
-#   (A, B)[C] rest       → A, B, C - rest
-#   (Name)               → Name -
-# Unfixable:
-#   word[bracket]        → error (bare [ without leading () group)
-_check_brackets() {
-    local path=$1 name=${1:t}
-    local pre post
-
-    if [[ $name == *' - '* ]]; then
-        pre=${name%% - *}
-        post=${name#* - }
-    else
-        pre=$name
-        post=''
-    fi
-
-    if [[ $pre != *'('* && $pre != *'['* ]]; then
-        _pass "Actor brackets: none before first ' - '"
-        _renamed=$path; return 0
-    fi
-
-    _fail "Actor brackets: ( or [ found in actor field '${pre}'"
-
-    # Must start with (actors), optionally followed by [extra], then optional title text
-    if [[ $pre =~ '^\(([^)]*)\)([[:space:]]*\[([^]]*)\])?[[:space:]]*(.*)?$' ]]; then
-        local actors=${match[1]}
-        local extra=${match[3]}    # may be empty if no [..] present
-        local remainder=${match[4]} # text after parens/brackets within pre
-
-        [[ -n $extra ]] && actors="${actors}, ${extra}"
-
-        # Reconstruct full title from intra-pre remainder + post-dash content
-        local title=''
-        if   [[ -n $remainder && -n $post ]]; then title="${remainder} - ${post}"
-        elif [[ -n $remainder ]];              then title=$remainder
-        elif [[ -n $post ]];                   then title=$post
-        fi
-
-        local fixed
-        if [[ -n $title ]]; then
-            fixed="${actors} - ${title}"
-        else
-            fixed="${actors} -"
-        fi
-
-        _prompt_rename "$path" "$fixed"
-        return 1
-    fi
-
-    # [ present but no leading () group — ambiguous, cannot safely extract actors
-    if [[ $pre == *'['* ]]; then
-        _fail "Actor brackets: bare [ without leading () group — cannot auto-fix"
-    else
-        _fail "Actor brackets: unrecognised bracket pattern — cannot auto-fix"
-    fi
-
-    _renamed=$path; return 1
-}
-
-# ── check 3: actor field character set ───────────────────────────────────────
-# Before the first ' - ', only A-Za-z, spaces, and commas are valid.
-# Expects comma-separated names, e.g.: "Firstname Lastname, Other Name"
-_check_actors() {
-    local path=$1 name=${1:t}
-    local pre
-
-    if [[ $name != *' - '* ]]; then
-        _warn "Actor field: no ' - ' separator — skipping actor format check"
-        _renamed=$path; return 1
-    fi
-
-    pre=${name%% - *}
-
-    # Residual brackets mean check 2 fix was declined — flag explicitly
-    if [[ $pre == *'('* || $pre == *')'* || $pre == *'['* || $pre == *']'* ]]; then
-        _fail "Actor field: bracket characters remain in '${pre}' (check 2 fix not applied)"
-        _renamed=$path; return 1
-    fi
-
-    if [[ $pre =~ '^[A-Za-z ,]+$' ]]; then
-        _pass "Actor field: '${pre}'"
-        _renamed=$path; return 0
-    fi
-
-    _fail "Actor field: unexpected characters in '${pre}'"
-    _fail "         only [A-Za-z], spaces, and commas allowed before first ' - '"
-    _renamed=$path; return 1
-}
-
-# ── validate one path ─────────────────────────────────────────────────────────
-_validate() {
-    local path=$1
-    print -P "\n%B%F{white}${path}%f%b" >$TTY
-
-    if [[ ! -e $path ]]; then
-        _fail "File not found"; return
-    fi
-
-    _check_utf8     "$path"; path=$_renamed
-    _check_brackets "$path"; path=$_renamed
-    _check_actors   "$path"; path=$_renamed
-}
-
-# ── main ──────────────────────────────────────────────────────────────────────
-# If no files provided via stdin, fall back to `fd-media`.
-
-typeset -i _processed=0
-
-_process_stream() {
-    while IFS= read -r line; do
-        [[ -z $line ]] && continue
-        (( _processed++ ))
-        _validate "$line"
-    done
-}
-
-if [[ -t 0 ]]; then
-    _info "No stdin provided; using fd-media as input"
-    fd-media | _process_stream
+if { exec 3< "$TTY" } 2>/dev/null && { exec 4> "$TTY" } 2>/dev/null; then
+  :
 else
-    _process_stream
-    if (( _processed == 0 )); then
-        _info "Stdin empty; using fd-media as input"
-        fd-media | _process_stream
-    fi
+  exec 3<&0
+  exec 4>&2
 fi
 
-print >$TTY
+CHECK_UTF8=true
+CHECK_FASTSTART=true
+CHECK_BLACKFRAMES=true
+CHECK_URL=true
+CHECK_METADATA=true
+CHECK_RENAME=true
+CHECK_LENGTH=true
+
+MAX_FILENAME_BYTES=240
+
+typeset -a INPUT_FILES=()
+typeset -i processed_count=0
+typeset -i total_count=0
+typeset -i clean_count=0
+typeset -i issue_file_count=0
+typeset -i fix_count=0
+typeset -i skip_count=0
+typeset -i fail_count=0
+
+C_RESET=$'\033[0m'
+C_DIM=$'\033[2m'
+C_CYAN=$'\033[36m'
+C_GREEN=$'\033[32m'
+C_RED=$'\033[31m'
+C_YELLOW=$'\033[33m'
+LOADED_CHECKS_LABEL=""
+
+usage() {
+  cat >&2 <<'EOF'
+Usage:
+  media-check-files [options] [file ...]
+
+Audits a media library. With no file arguments it streams files from fd-media.
+When files are provided, only those files are checked.
+
+Checks:
+  MP4/MOV/M4V FastStart
+  black frames at the start of video
+  embedded source URL
+  embedded title metadata
+  filename health: invalid UTF-8, rename-media canonical syntax, length
+
+Options:
+  --bypass-check-utf8
+  --bypass-check-faststart
+  --bypass-check-blackframes, --bypass-check-black-frames
+  --bypass-check-url
+  --bypass-check-metadata
+  --bypass-check-rename
+  --bypass-check-length
+  --bypass-check-filename       Bypass UTF-8, rename, and length checks
+  --max-filename-bytes N        Default: 240
+  -h, --help
+EOF
+}
+
+say() {
+  print -P -u4 -- "$*"
+}
+
+say_raw() {
+  print -r -u4 -- "$*"
+}
+
+warn() {
+  say "%F{yellow}!%f $*"
+}
+
+fail() {
+  say "%F{red}x%f $*"
+}
+
+pass() {
+  say "%F{green}ok%f $*"
+}
+
+display_path() {
+  local s="$1"
+  local reserved="${2:-14}"
+  local width="${COLUMNS:-100}"
+  local max=$(( width - reserved ))
+
+  (( max < 30 )) && max=30
+
+  if (( ${#s} > max )); then
+    local keep=$(( max - 3 ))
+    print -r -- "...${s[-$keep,-1]}"
+  else
+    print -r -- "$s"
+  fi
+}
+
+status_line() {
+  [[ -t 4 ]] || return 0
+
+  local shown stats prefix_plain
+
+  stats="${processed_count} total, ${clean_count} pass, ${issue_file_count} fail"
+  prefix_plain="${stats}  Checking "
+  shown="$(display_path "$1" "${#prefix_plain}")"
+  print -n -u4 -- $'\r\033[K'
+  print -n -u4 -- "${C_DIM}${stats}${C_RESET}  Checking ${C_CYAN}${shown}${C_RESET}"
+}
+
+clear_status() {
+  [[ -t 4 ]] || return 0
+  print -n -u4 -- $'\r\033[K'
+}
+
+stats_line() {
+  say "${processed_count} total, ${clean_count} pass, ${issue_file_count} fail"
+}
+
+draw_header() {
+  say "%B%F{cyan}MEDIA LIBRARY FILE CHECK v1%f%b"
+  say ""
+  say "%B${C_DIM}CHECKS LOADED:${C_RESET}%b ${LOADED_CHECKS_LABEL}"
+  say ""
+  stats_line
+  say ""
+}
+
+redraw_screen() {
+  [[ -t 4 ]] || return 0
+  print -n -u4 -- $'\033[2J\033[H'
+  draw_header
+}
+
+colored_path() {
+  local file="$1"
+  local dir="${file:h}"
+  local base="${file:t}"
+
+  if [[ "$dir" == "." ]]; then
+    print -r -- "${C_CYAN}${base}${C_RESET}"
+  else
+    print -r -- "${C_DIM}${dir}/${C_RESET}${C_CYAN}${base}${C_RESET}"
+  fi
+}
+
+show_checking_path() {
+  local file="$1"
+
+  print -r -u4 -- "Checking $(colored_path "$file")"
+}
+
+issue_screen() {
+  local check="$1"
+  local file="$2"
+
+  if [[ -t 4 ]]; then
+    print -n -u4 -- $'\033[2J\033[H'
+    draw_header
+  fi
+  clear_status
+  say ""
+  show_checking_path "$file"
+  say ""
+  say "%B%F{red}FAIL%f%b"
+  say ""
+}
+
+mark_fixed() {
+  local message="${1:-Fixed.}"
+
+  (( fix_count++ ))
+
+  if [[ -t 4 ]]; then
+    redraw_screen
+  else
+    pass "$message"
+  fi
+}
+
+mark_unresolved() {
+  (( FILE_UNRESOLVED++ ))
+}
+
+prompt_yes_no() {
+  local prompt="$1"
+  local default="${2:-Y}"
+  local ans suffix
+
+  if [[ "$default" == Y ]]; then
+    suffix="(Y/n)"
+  else
+    suffix="(y/N)"
+  fi
+
+  while true; do
+    print -n -P -u4 -- "${prompt} ${suffix} "
+    IFS= read -r -u 3 ans || return 1
+    ans="${ans:-$default}"
+
+    case "$ans" in
+      [Yy]|[Yy][Ee][Ss]) return 0 ;;
+      [Nn]|[Nn][Oo]) return 1 ;;
+      *) warn "Please answer y or n." ;;
+    esac
+  done
+}
+
+PROMPT_REPLY=""
+prompt_input_or_skip() {
+  local prompt="$1"
+  local ans rc
+
+  PROMPT_REPLY=""
+  trap 'print -u4; return 130' INT
+  print -n -P -u4 -- "${prompt} "
+  IFS= read -r -u 3 ans
+  rc=$?
+  trap - INT
+
+  (( rc == 0 )) || return 130
+  PROMPT_REPLY="$ans"
+  return 0
+}
+
+is_video_path() {
+  case "${1:l}" in
+    *.mp4|*.mov|*.m4v|*.avi|*.mkv|*.wmv|*.flv|*.webm) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_faststart_path() {
+  case "${1:l}" in
+    *.mp4|*.mov|*.m4v) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_url() {
+  [[ "$1" == http://* || "$1" == https://* ]]
+}
+
+normalize_audit_path() {
+  local path="$1"
+
+  if [[ -e "$path" || "$path" == /* ]]; then
+    print -r -- "$path"
+    return 0
+  fi
+
+  if [[ -e "/$path" ]]; then
+    print -r -- "/$path"
+    return 0
+  fi
+
+  print -r -- "$path"
+}
+
+loaded_checks_label() {
+  local -a loaded=()
+
+  $CHECK_FASTSTART && loaded+=("faststart")
+  $CHECK_BLACKFRAMES && loaded+=("black-frames")
+  $CHECK_URL && loaded+=("source-url")
+  $CHECK_METADATA && loaded+=("metadata")
+
+  if $CHECK_UTF8 || $CHECK_RENAME || $CHECK_LENGTH; then
+    loaded+=("filename")
+  fi
+
+  if (( ${#loaded[@]} == 0 )); then
+    print -r -- "none"
+  else
+    print -r -- "${(j:, :)loaded}"
+  fi
+}
+
+filename_byte_length() {
+  LC_ALL=C printf '%s' "$1" | wc -c | tr -d '[:space:]'
+}
+
+shorten_filename() {
+  local filename="$1"
+  local max_bytes="$2"
+
+  python3 - "$filename" "$max_bytes" <<'PY'
+import os
+import sys
+
+name = sys.argv[1]
+max_bytes = int(sys.argv[2])
+stem, ext = os.path.splitext(name)
+marker = "..."
+suffix_bytes = len(ext.encode("utf-8"))
+marker_bytes = len(marker.encode("utf-8"))
+available = max_bytes - suffix_bytes - marker_bytes
+
+if available < 12:
+    available = max(1, max_bytes - suffix_bytes)
+    marker = ""
+
+out = ""
+for ch in stem:
+    if len((out + ch).encode("utf-8")) > available:
+        break
+    out += ch
+
+out = out.rstrip()
+if marker and out:
+    out += marker
+
+print(out + ext)
+PY
+}
+
+color_filename_diff() {
+  local source_name="$1"
+  local target_name="$2"
+
+  python3 - "$source_name" "$target_name" <<'PY'
+import difflib
+import re
+import sys
+
+red = "\033[31m"
+green = "\033[32m"
+reset = "\033[0m"
+
+source = sys.argv[1]
+target = sys.argv[2]
+
+def tokens(value):
+    return re.findall(r"\s+|\S+", value)
+
+source_tokens = tokens(source)
+target_tokens = tokens(target)
+matcher = difflib.SequenceMatcher(None, source_tokens, target_tokens)
+source_out = []
+target_out = []
+
+for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+    source_part = "".join(source_tokens[i1:i2])
+    target_part = "".join(target_tokens[j1:j2])
+
+    if tag == "equal":
+        source_out.append(source_part)
+        target_out.append(target_part)
+    elif tag == "delete":
+        source_out.append(red + source_part + reset)
+    elif tag == "insert":
+        target_out.append(green + target_part + reset)
+    else:
+        source_out.append(red + source_part + reset)
+        target_out.append(green + target_part + reset)
+
+print("".join(source_out))
+print("".join(target_out))
+PY
+}
+
+prompt_rename_path() {
+  local current="$1"
+  local target="$2"
+  local reason="${3:-filename}"
+  local -a diff_lines=()
+
+  [[ -n "$target" && "$current" != "$target" ]] || return 0
+
+  (( FILE_ISSUES++ ))
+  issue_screen "$reason" "$current"
+  diff_lines=("${(@f)$(color_filename_diff "${current:t}" "${target:t}")}")
+  print -r -u4 -- "filename:  ${diff_lines[1]-${current:t}}"
+  print -r -u4 -- "proposed:  ${diff_lines[2]-${target:t}}"
+  say ""
+
+  if [[ -e "$target" ]]; then
+    fail "Cannot rename because the target already exists."
+    say_raw "$target"
+    (( fail_count++ ))
+    mark_unresolved
+    return 1
+  fi
+
+  if prompt_yes_no "Validate Filename?" "Y"; then
+    if mv -n -- "$current" "$target"; then
+      AUDIT_PATH="$target"
+      mark_fixed "Renamed."
+      return 0
+    fi
+
+    fail "Rename failed."
+    (( fail_count++ ))
+    mark_unresolved
+    return 1
+  fi
+
+  warn "Skipped rename."
+  (( skip_count++ ))
+  mark_unresolved
+  return 1
+}
+
+check_utf8_filename() {
+  local file="$1"
+  local filename="${file:t}"
+  local fixed target
+
+  $CHECK_UTF8 || return 0
+  command -v iconv >/dev/null 2>&1 || return 0
+
+  if printf '%s' "$filename" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
+    return 0
+  fi
+
+  fixed="$(printf '%s' "$filename" | iconv -f UTF-8 -t UTF-8 -c 2>/dev/null)"
+  fixed="${fixed##[[:space:]]##}"
+  fixed="${fixed%%[[:space:]]##}"
+
+  if [[ -z "$fixed" || "$fixed" == "$filename" ]]; then
+    (( FILE_ISSUES++ ))
+    issue_screen "filename" "$file"
+    say "filename: invalid UTF-8"
+    warn "The shell cannot safely recover the original byte sequence for this filename."
+    warn "Use a byte-safe rename tool such as convmv, then re-run this audit."
+    (( fail_count++ ))
+    mark_unresolved
+    return 1
+  fi
+
+  target="${file:h}/${fixed}"
+  prompt_rename_path "$file" "$target" "filename"
+}
+
+faststart_state() {
+  local file="$1"
+
+  python3 - "$file" <<'PY'
+import os
+import struct
+import sys
+
+path = sys.argv[1]
+try:
+    size = os.path.getsize(path)
+    with open(path, "rb") as fh:
+        pos = 0
+        for _ in range(100000):
+            if pos + 8 > size:
+                sys.exit(2)
+            fh.seek(pos)
+            header = fh.read(8)
+            if len(header) < 8:
+                sys.exit(2)
+            atom_size, atom_type = struct.unpack(">I4s", header)
+            atom_type = atom_type.decode("latin-1")
+            header_len = 8
+            if atom_size == 1:
+                ext = fh.read(8)
+                if len(ext) < 8:
+                    sys.exit(2)
+                atom_size = struct.unpack(">Q", ext)[0]
+                header_len = 16
+            elif atom_size == 0:
+                atom_size = size - pos
+            if atom_size < header_len:
+                sys.exit(2)
+            if atom_type == "moov":
+                sys.exit(0)
+            if atom_type == "mdat":
+                sys.exit(1)
+            pos += atom_size
+    sys.exit(2)
+except Exception:
+    sys.exit(2)
+PY
+}
+
+enable_faststart() {
+  local file="$1"
+  local dir="${file:h}"
+  local base="${file:t:r}"
+  local ext="${file:e}"
+  local tmp
+
+  command -v ffmpeg >/dev/null 2>&1 || return 1
+  tmp="$(mktemp "${dir}/.${base}.faststart.XXXXXX.${ext}")" || return 1
+
+  if ffmpeg -hide_banner -loglevel error -nostdin -y \
+      -i "$file" \
+      -map 0 \
+      -map_metadata 0 \
+      -c copy \
+      -movflags +faststart+use_metadata_tags \
+      "$tmp"; then
+    touch -r "$file" "$tmp" 2>/dev/null || true
+    mv -f -- "$tmp" "$file"
+    return 0
+  fi
+
+  rm -f -- "$tmp" 2>/dev/null || true
+  return 1
+}
+
+check_faststart() {
+  local file="$1"
+  local state
+
+  $CHECK_FASTSTART || return 0
+  is_faststart_path "$file" || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+
+  faststart_state "$file"
+  state=$?
+
+  case "$state" in
+    0)
+      return 0
+      ;;
+    1)
+      (( FILE_ISSUES++ ))
+      issue_screen "faststart" "$file"
+      say "faststart: not enabled"
+      say "auto-fix: enabling FastStart with ffmpeg stream copy."
+      if enable_faststart "$file" && faststart_state "$file"; then
+        mark_fixed "FastStart enabled."
+        return 0
+      fi
+      fail "FastStart repair failed."
+      (( fail_count++ ))
+      mark_unresolved
+      return 1
+      ;;
+    *)
+      (( FILE_ISSUES++ ))
+      issue_screen "faststart" "$file"
+      say "faststart: inconclusive"
+      warn "Could not read the top-level MP4/MOV atoms; leaving the file unchanged."
+      (( fail_count++ ))
+      mark_unresolved
+      return 1
+      ;;
+  esac
+}
+
+detect_black_leader_seconds() {
+  local file="$1"
+  local output line start end
+  local black_re='black_start:([0-9]+([.][0-9]+)?)[[:space:]]+black_end:([0-9]+([.][0-9]+)?)'
+
+  command -v ffmpeg-detect-black-scenes >/dev/null 2>&1 || return 1
+
+  output="$(BLACK_SCAN_DURATION=10 ffmpeg-detect-black-scenes "$file" 2>/dev/null || true)"
+
+  while IFS= read -r line; do
+    if [[ "$line" =~ $black_re ]]; then
+      start="${match[1]}"
+      end="${match[3]}"
+
+      if awk -v s="$start" -v e="$end" 'BEGIN { exit !(s <= 0.25 && e > 0.05) }'; then
+        print -r -- "$end"
+        return 0
+      fi
+    fi
+  done <<< "$output"
+
+  return 1
+}
+
+trimmed_path_for() {
+  local file="$1"
+  local dir="${file:h}"
+  local base="${file:t}"
+
+  if [[ "$base" == *.* ]]; then
+    print -r -- "${dir}/${base:r}.trimmed.${base:e}"
+  else
+    print -r -- "${dir}/${base}.trimmed"
+  fi
+}
+
+check_black_frames() {
+  local file="$1"
+  local seconds trimmed
+
+  $CHECK_BLACKFRAMES || return 0
+  is_video_path "$file" || return 0
+
+  seconds="$(detect_black_leader_seconds "$file")" || return 0
+
+  (( FILE_ISSUES++ ))
+  issue_screen "black-frames" "$file"
+  say "black-frames: leading black detected (${seconds}s)"
+  say ""
+
+  if prompt_yes_no "Trim File?" "N"; then
+    if ffmpeg-lossless-cut-by-fzf-keyframe-select --from "$seconds" "$file" < "$TTY" > "$TTY" 2>&1; then
+      trimmed="$(trimmed_path_for "$file")"
+      if [[ -f "$trimmed" ]]; then
+        AUDIT_PATH="$trimmed"
+      fi
+      mark_fixed "Trim complete."
+      return 0
+    fi
+
+    fail "Trim workflow did not complete."
+    (( fail_count++ ))
+    mark_unresolved
+    return 1
+  fi
+
+  warn "Skipped trim."
+  (( skip_count++ ))
+  mark_unresolved
+  return 1
+}
+
+PROBE_TITLE=""
+PROBE_URL=""
+probe_media_tags() {
+  local file="$1"
+  local tags_json
+
+  PROBE_TITLE=""
+  PROBE_URL=""
+
+  command -v ffprobe >/dev/null 2>&1 || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+
+  tags_json="$(ffprobe -v error -show_entries format_tags -of json -- "$file" 2>/dev/null)" || return 1
+
+  PROBE_TITLE="$(
+    jq -r '(.format.tags // {}) | with_entries(.key |= ascii_downcase) | .title // empty' <<< "$tags_json"
+  )"
+
+  PROBE_URL="$(
+    jq -r '(.format.tags // {}) | with_entries(.key |= ascii_downcase) as $t |
+      [$t.source_url, $t.webpage_url, $t.purl, $t.url, $t.comment, $t.description] |
+      [.[]? | strings | (try capture("(?<url>https?://[^[:space:]\"<>]+)").url catch empty)] |
+      .[0] // empty' <<< "$tags_json"
+  )"
+
+  return 0
+}
+
+rewrite_with_metadata() {
+  local file="$1"
+  shift
+
+  local dir="${file:h}"
+  local base="${file:t:r}"
+  local ext="${file:e}"
+  local tmp
+  local -a ffmpeg_args metadata_args
+
+  metadata_args=("$@")
+
+  command -v ffmpeg >/dev/null 2>&1 || return 1
+  tmp="$(mktemp "${dir}/.${base}.metadata.XXXXXX.${ext}")" || return 1
+
+  ffmpeg_args=(
+    -hide_banner -loglevel error -nostdin -y
+    -i "$file"
+    -map 0
+    -c copy
+    -map_metadata 0
+  )
+
+  if is_faststart_path "$file"; then
+    ffmpeg_args+=(-movflags use_metadata_tags)
+  fi
+
+  ffmpeg_args+=("${metadata_args[@]}" "$tmp")
+
+  if ffmpeg "${ffmpeg_args[@]}"; then
+    touch -r "$file" "$tmp" 2>/dev/null || true
+    mv -f -- "$tmp" "$file"
+    return 0
+  fi
+
+  rm -f -- "$tmp" 2>/dev/null || true
+  return 1
+}
+
+embed_source_url() {
+  local file="$1"
+  local url="$2"
+
+  rewrite_with_metadata "$file" \
+    -metadata "source_url=$url" \
+    -metadata "webpage_url=$url" \
+    -metadata "purl=$url" \
+    -metadata "comment=$url"
+}
+
+fetch_and_embed_metadata() {
+  local file="$1"
+  local url="$2"
+  local tmp_json title uploader channel webpage_url original_url description upload_date timestamp duration id extractor
+  local -a metadata_args
+
+  command -v yt-dlp >/dev/null 2>&1 || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+
+  tmp_json="$(mktemp -t media-check-ytmeta.XXXXXX.json)" || return 1
+
+  if ! yt-dlp --skip-download --dump-single-json --no-warnings "$url" > "$tmp_json"; then
+    rm -f -- "$tmp_json"
+    return 1
+  fi
+
+  title="$(jq -r '.title // empty' "$tmp_json")"
+  uploader="$(jq -r '.uploader // empty' "$tmp_json")"
+  channel="$(jq -r '.channel // empty' "$tmp_json")"
+  webpage_url="$(jq -r '.webpage_url // empty' "$tmp_json")"
+  original_url="$(jq -r '.original_url // empty' "$tmp_json")"
+  description="$(jq -r '.description // empty' "$tmp_json")"
+  upload_date="$(jq -r '.upload_date // empty' "$tmp_json")"
+  timestamp="$(jq -r '.timestamp // empty' "$tmp_json")"
+  duration="$(jq -r '.duration // empty' "$tmp_json")"
+  id="$(jq -r '.id // empty' "$tmp_json")"
+  extractor="$(jq -r '.extractor // empty' "$tmp_json")"
+
+  [[ -n "$webpage_url" ]] || webpage_url="$url"
+  [[ -n "$original_url" ]] || original_url="$url"
+
+  metadata_args=(
+    -metadata "source_url=$webpage_url"
+    -metadata "webpage_url=$webpage_url"
+    -metadata "original_url=$original_url"
+    -metadata "purl=$webpage_url"
+    -metadata "comment=$webpage_url"
+    -metadata "artist=${uploader:-$channel}"
+    -metadata "album_artist=$channel"
+    -metadata "description=$description"
+    -metadata "yt_dlp_extractor=$extractor"
+    -metadata "yt_dlp_id=$id"
+    -metadata "yt_dlp_upload_date=$upload_date"
+    -metadata "yt_dlp_timestamp=$timestamp"
+    -metadata "yt_dlp_duration=$duration"
+  )
+
+  [[ -n "$title" ]] && metadata_args+=(-metadata "title=$title")
+
+  if rewrite_with_metadata "$file" "${metadata_args[@]}"; then
+    rm -f -- "$tmp_json"
+    return 0
+  fi
+
+  rm -f -- "$tmp_json"
+  return 1
+}
+
+check_source_url() {
+  local file="$1"
+  local url
+
+  $CHECK_URL || return 0
+
+  [[ -n "$PROBE_URL" ]] && return 0
+
+  (( FILE_ISSUES++ ))
+  issue_screen "source-url" "$file"
+  say "source-url: missing"
+  say ""
+
+  while true; do
+    if ! prompt_input_or_skip "Source URL (Ctrl-C to skip):"; then
+      warn "Skipped source URL."
+      (( skip_count++ ))
+      mark_unresolved
+      return 1
+    fi
+
+    url="$PROMPT_REPLY"
+    if [[ -z "$url" ]]; then
+      warn "Blank URL ignored. Press Ctrl-C to skip."
+      continue
+    fi
+
+    if ! is_url "$url"; then
+      warn "Expected http:// or https:// URL."
+      continue
+    fi
+
+    break
+  done
+
+  if embed_source_url "$file" "$url"; then
+    PROBE_URL="$url"
+    mark_fixed "Source URL embedded."
+    return 0
+  fi
+
+  fail "Could not embed source URL."
+  (( fail_count++ ))
+  mark_unresolved
+  return 1
+}
+
+check_title_metadata() {
+  local file="$1"
+
+  $CHECK_METADATA || return 0
+
+  [[ -n "$PROBE_TITLE" ]] && return 0
+
+  (( FILE_ISSUES++ ))
+  issue_screen "metadata" "$file"
+  say "metadata: missing title"
+  say ""
+
+  if [[ -z "$PROBE_URL" ]]; then
+    warn "No embedded source URL is available, so yt-dlp metadata cannot be fetched."
+    (( fail_count++ ))
+    mark_unresolved
+    return 1
+  fi
+
+  say "%BSOURCE URL:%b"
+  say_raw "$PROBE_URL"
+  say ""
+
+  if prompt_yes_no "Fetch Metadata?" "Y"; then
+    if fetch_and_embed_metadata "$file" "$PROBE_URL"; then
+      probe_media_tags "$file" >/dev/null 2>&1 || true
+      mark_fixed "Metadata embedded."
+      return 0
+    fi
+
+    fail "Could not fetch/embed metadata."
+    (( fail_count++ ))
+    mark_unresolved
+    return 1
+  fi
+
+  warn "Skipped metadata fetch."
+  (( skip_count++ ))
+  mark_unresolved
+  return 1
+}
+
+check_canonical_name() {
+  local file="$1"
+  local target
+
+  $CHECK_RENAME || return 0
+  is_video_path "$file" || return 0
+  command -v rename-media >/dev/null 2>&1 || return 0
+
+  target="$(rename-media --print-target "$file" 2>/dev/null | tail -n 1)"
+  [[ -n "$target" ]] || return 0
+
+  prompt_rename_path "$file" "$target" "filename"
+}
+
+check_filename_length() {
+  local file="$1"
+  local name="${file:t}"
+  local bytes target_name target
+
+  $CHECK_LENGTH || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+
+  bytes="$(filename_byte_length "$name")"
+  [[ "$bytes" == <-> ]] || return 0
+  (( bytes <= MAX_FILENAME_BYTES )) && return 0
+
+  target_name="$(shorten_filename "$name" "$MAX_FILENAME_BYTES")"
+  [[ -n "$target_name" && "$target_name" != "$name" ]] || {
+    (( FILE_ISSUES++ ))
+    issue_screen "filename" "$file"
+    say "filename: too long (${bytes} bytes)"
+    warn "Filename is ${bytes} bytes; could not build a safe shorter proposal."
+    (( fail_count++ ))
+    mark_unresolved
+    return 1
+  }
+
+  target="${file:h}/${target_name}"
+  prompt_rename_path "$file" "$target" "filename"
+}
+
+audit_file() {
+  local file="$1"
+  integer FILE_ISSUES=0
+  integer FILE_UNRESOLVED=0
+
+  [[ -n "$file" ]] || return 0
+  file="$(normalize_audit_path "$file")"
+
+  (( processed_count++ ))
+  AUDIT_PATH="$file"
+
+  status_line "$AUDIT_PATH"
+
+  if [[ ! -f "$AUDIT_PATH" ]]; then
+    (( FILE_ISSUES++ ))
+    issue_screen "file" "$AUDIT_PATH"
+    say "file: not found"
+    (( fail_count++ ))
+    mark_unresolved
+    (( issue_file_count++ ))
+    return 1
+  fi
+
+  if is_video_path "$AUDIT_PATH"; then
+    check_faststart "$AUDIT_PATH"
+    status_line "$AUDIT_PATH"
+
+    check_black_frames "$AUDIT_PATH"
+    status_line "$AUDIT_PATH"
+
+    if $CHECK_URL || $CHECK_METADATA; then
+      if probe_media_tags "$AUDIT_PATH"; then
+        check_source_url "$AUDIT_PATH"
+        status_line "$AUDIT_PATH"
+        check_title_metadata "$AUDIT_PATH"
+        status_line "$AUDIT_PATH"
+      else
+        (( FILE_ISSUES++ ))
+        issue_screen "metadata" "$AUDIT_PATH"
+        say "metadata: probe failed"
+        warn "Could not read format tags with ffprobe/jq."
+        (( fail_count++ ))
+        mark_unresolved
+      fi
+    fi
+  fi
+
+  check_utf8_filename "$AUDIT_PATH"
+  status_line "$AUDIT_PATH"
+
+  check_canonical_name "$AUDIT_PATH"
+  status_line "$AUDIT_PATH"
+
+  check_filename_length "$AUDIT_PATH"
+
+  if (( FILE_UNRESOLVED == 0 )); then
+    (( clean_count++ ))
+  else
+    (( issue_file_count++ ))
+  fi
+}
+
+parse_args() {
+  while (( $# > 0 )); do
+    case "$1" in
+      --bypass-check-utf8)
+        CHECK_UTF8=false
+        shift
+        ;;
+      --bypass-check-faststart)
+        CHECK_FASTSTART=false
+        shift
+        ;;
+      --bypass-check-blackframes|--bypass-check-black-frames)
+        CHECK_BLACKFRAMES=false
+        shift
+        ;;
+      --bypass-check-url)
+        CHECK_URL=false
+        shift
+        ;;
+      --bypass-check-metadata)
+        CHECK_METADATA=false
+        shift
+        ;;
+      --bypass-check-rename)
+        CHECK_RENAME=false
+        shift
+        ;;
+      --bypass-check-length)
+        CHECK_LENGTH=false
+        shift
+        ;;
+      --bypass-check-filename)
+        CHECK_UTF8=false
+        CHECK_RENAME=false
+        CHECK_LENGTH=false
+        shift
+        ;;
+      --max-filename-bytes)
+        (( $# >= 2 )) || {
+          fail "Missing value for --max-filename-bytes"
+          exit 1
+        }
+        MAX_FILENAME_BYTES="$2"
+        [[ "$MAX_FILENAME_BYTES" == <-> ]] || {
+          fail "--max-filename-bytes must be an integer"
+          exit 1
+        }
+        shift 2
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      --)
+        shift
+        INPUT_FILES+=("$@")
+        break
+        ;;
+      -*)
+        usage
+        fail "Unknown option: $1"
+        exit 1
+        ;;
+      *)
+        INPUT_FILES+=("$1")
+        shift
+        ;;
+    esac
+  done
+}
+
+process_fd_media() {
+  command -v fd-media >/dev/null 2>&1 || {
+    fail "fd-media not found."
+    exit 1
+  }
+
+  while IFS= read -r -d $'\0' file; do
+    audit_file "$file"
+  done < <(fd-media --print0)
+}
+
+process_stdin_or_fd_media() {
+  local line
+  local saw_stdin=false
+
+  if [[ ! -t 0 ]]; then
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      saw_stdin=true
+      audit_file "$line"
+    done
+  fi
+
+  $saw_stdin && return 0
+  process_fd_media
+}
+
+main() {
+  local checks_label
+  local file
+
+  parse_args "$@"
+
+  if (( ${#INPUT_FILES[@]} > 0 )); then
+    total_count="${#INPUT_FILES[@]}"
+  fi
+
+  checks_label="$(loaded_checks_label)"
+  LOADED_CHECKS_LABEL="$checks_label"
+  draw_header
+
+  if (( ${#INPUT_FILES[@]} > 0 )); then
+    for file in "${INPUT_FILES[@]}"; do
+      audit_file "$file"
+    done
+  else
+    process_stdin_or_fd_media
+  fi
+
+  clear_status
+  say ""
+  say "%B%F{green}DONE%f%b"
+  say "CHECKED: ${processed_count}  CLEAN: ${clean_count}  ATTENTION: ${issue_file_count}  FIXES: ${fix_count}  SKIPPED: ${skip_count}  FAILED: ${fail_count}"
+}
+
+main "$@"

@@ -1,0 +1,12 @@
+{
+  "name": "@rivolink/leaf-linux-x64",
+  "version": "0.0.0",
+  "description": "leaf binary for linux x64",
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RivoLink/leaf.git"
+  }
+}
