@@ -52,14 +52,14 @@
 	<map value="PADMODE_3" action="pad_page 3" />
 	<map value="PADMODE_4" action="pad_page 4" />
 	<map value="PADMODE_5" action="pad_page btn5" />
-	<map value="PADMODE_6" action="pad_page btn6" />
+	<map value="PADMODE_6" action="pad_page &apos;FX-MULTISLOTS&apos;" />
 	<map value="PADMODE_7" action="pad_page btn7" />
 	<map value="PADMODE_8" action="pad_page btn8" />
 	<map value="LED_PADMODE_2" action="pad_page 2 ? color &apos;magenta&apos; : off" />
 	<map value="LED_PADMODE_3" action="pad_page 3 ? color &apos;#5577FF&apos; : off" />
 	<map value="LED_PADMODE_4" action="pad_pages 4 ? color &apos;white&apos; : off" />
 	<map value="LED_PADMODE_5" action="pad_pages 5 ? color &apos;#FFA0A0&apos; : off" />
-	<map value="LED_PADMODE_6" action="pad_pages 6 ? color &apos;yellow&apos; : off" />
+	<map value="LED_PADMODE_6" action="pad_page &apos;FX-MULTISLOTS&apos; ? color &apos;yellow&apos; : off" />
 	<map value="LED_PADMODE_7" action="pad_pages 7 ? color &apos;blue&apos; : off " />
 	<map value="LED_PADMODE_8" action="pad_pages 8 ? color &apos;#558822&apos; : off" />
 	<map value="PADMODE_1_PAD1" action="pad 1" />
