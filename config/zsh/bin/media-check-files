@@ -37,7 +37,15 @@ C_CYAN=$'\033[36m'
 C_GREEN=$'\033[32m'
 C_RED=$'\033[31m'
 C_YELLOW=$'\033[33m'
-LOADED_CHECKS_LABEL=""
+ICON_PASS="✓"
+ICON_FAIL="✕"
+CURRENT_FILE=""
+CURRENT_CHECK=""
+CURRENT_TOTAL=0
+CURRENT_PASS=0
+CURRENT_FAIL=0
+typeset -a ENABLED_CHECKS=()
+typeset -A CHECK_STATUS=()
 
 usage() {
   cat >&2 <<'EOF'
@@ -107,13 +115,12 @@ display_path() {
 status_line() {
   [[ -t 4 ]] || return 0
 
-  local shown stats prefix_plain
+  local shown prefix_plain
 
-  stats="${processed_count} total, ${clean_count} pass, ${issue_file_count} fail"
-  prefix_plain="${stats}  Checking "
-  shown="$(display_path "$1" "${#prefix_plain}")"
+  prefix_plain="Checking "
+  shown="$(display_path "${1:t}" "${#prefix_plain}")"
   print -n -u4 -- $'\r\033[K'
-  print -n -u4 -- "${C_DIM}${stats}${C_RESET}  Checking ${C_CYAN}${shown}${C_RESET}"
+  print -n -u4 -- "Checking ${C_CYAN}${shown}${C_RESET}"
 }
 
 clear_status() {
@@ -122,14 +129,102 @@ clear_status() {
 }
 
 stats_line() {
-  say "${processed_count} total, ${clean_count} pass, ${issue_file_count} fail"
+  say "${CURRENT_TOTAL} total, ${CURRENT_PASS} pass, ${CURRENT_FAIL} fail"
+}
+
+build_enabled_checks() {
+  ENABLED_CHECKS=()
+
+  $CHECK_FASTSTART && ENABLED_CHECKS+=("faststart")
+  $CHECK_BLACKFRAMES && ENABLED_CHECKS+=("black-frames")
+  $CHECK_URL && ENABLED_CHECKS+=("source-url")
+  $CHECK_METADATA && ENABLED_CHECKS+=("metadata")
+
+  if $CHECK_UTF8 || $CHECK_RENAME || $CHECK_LENGTH; then
+    ENABLED_CHECKS+=("filename")
+  fi
+}
+
+check_enabled() {
+  local check="$1"
+  local item
+
+  for item in "${ENABLED_CHECKS[@]}"; do
+    [[ "$item" == "$check" ]] && return 0
+  done
+
+  return 1
+}
+
+reset_file_checks() {
+  local item
+
+  CHECK_STATUS=()
+  CURRENT_TOTAL=0
+  CURRENT_PASS=0
+  CURRENT_FAIL=0
+
+  for item in "${ENABLED_CHECKS[@]}"; do
+    CHECK_STATUS[$item]=""
+  done
+}
+
+refresh_current_counts() {
+  local item check_state
+
+  CURRENT_TOTAL=0
+  CURRENT_PASS=0
+  CURRENT_FAIL=0
+
+  for item in "${ENABLED_CHECKS[@]}"; do
+    check_state="${CHECK_STATUS[$item]-}"
+    [[ -n "$check_state" ]] || continue
+    (( CURRENT_TOTAL++ ))
+    case "$check_state" in
+      pass) (( CURRENT_PASS++ )) ;;
+      fail) (( CURRENT_FAIL++ )) ;;
+    esac
+  done
+}
+
+set_check_status() {
+  local check="$1"
+  local check_state="$2"
+
+  check_enabled "$check" || return 0
+  CHECK_STATUS[$check]="$check_state"
+  refresh_current_counts
+}
+
+check_icon() {
+  local check_state="$1"
+
+  case "$check_state" in
+    pass) print -r -- "${C_GREEN}${ICON_PASS}${C_RESET}" ;;
+    fail) print -r -- "${C_RED}${ICON_FAIL}${C_RESET}" ;;
+    *) print -r -- "" ;;
+  esac
+}
+
+draw_checks() {
+  local item check_state icon
+
+  say "%BCHECKS:%b"
+  say ""
+
+  for item in "${ENABLED_CHECKS[@]}"; do
+    check_state="${CHECK_STATUS[$item]-}"
+    icon="$(check_icon "$check_state")"
+    printf "%-22s %b\n" "$item" "$icon" >&4
+  done
+
+  say ""
 }
 
 draw_header() {
   say "%B%F{cyan}MEDIA LIBRARY FILE CHECK v1%f%b"
   say ""
-  say "%B${C_DIM}CHECKS LOADED:${C_RESET}%b ${LOADED_CHECKS_LABEL}"
-  say ""
+  draw_checks
   stats_line
   say ""
 }
@@ -138,6 +233,10 @@ redraw_screen() {
   [[ -t 4 ]] || return 0
   print -n -u4 -- $'\033[2J\033[H'
   draw_header
+
+  if [[ -n "$CURRENT_FILE" ]]; then
+    show_checking_path "$CURRENT_FILE"
+  fi
 }
 
 colored_path() {
@@ -155,12 +254,15 @@ colored_path() {
 show_checking_path() {
   local file="$1"
 
-  print -r -u4 -- "Checking $(colored_path "$file")"
+  print -r -u4 -- "Checking ${C_CYAN}${file:t}${C_RESET}"
 }
 
 issue_screen() {
   local check="$1"
   local file="$2"
+
+  CURRENT_CHECK="$check"
+  set_check_status "$check" "fail"
 
   if [[ -t 4 ]]; then
     print -n -u4 -- $'\033[2J\033[H'
@@ -170,7 +272,7 @@ issue_screen() {
   say ""
   show_checking_path "$file"
   say ""
-  say "%B%F{red}FAIL%f%b"
+  say "%B%F{red}FAIL%f%b ${C_RED}${ICON_FAIL}${C_RESET}"
   say ""
 }
 
@@ -178,6 +280,7 @@ mark_fixed() {
   local message="${1:-Fixed.}"
 
   (( fix_count++ ))
+  [[ -n "$CURRENT_CHECK" ]] && set_check_status "$CURRENT_CHECK" "pass"
 
   if [[ -t 4 ]]; then
     redraw_screen
@@ -188,6 +291,27 @@ mark_fixed() {
 
 mark_unresolved() {
   (( FILE_UNRESOLVED++ ))
+  [[ -n "$CURRENT_CHECK" ]] && set_check_status "$CURRENT_CHECK" "fail"
+}
+
+run_check() {
+  local check="$1"
+  shift
+
+  check_enabled "$check" || return 0
+  CURRENT_CHECK="$check"
+
+  "$@"
+  local rc=$?
+
+  if (( rc == 0 )); then
+    set_check_status "$check" "pass"
+    [[ -t 4 ]] && redraw_screen
+  else
+    set_check_status "$check" "fail"
+  fi
+
+  return "$rc"
 }
 
 prompt_yes_no() {
@@ -263,25 +387,6 @@ normalize_audit_path() {
   fi
 
   print -r -- "$path"
-}
-
-loaded_checks_label() {
-  local -a loaded=()
-
-  $CHECK_FASTSTART && loaded+=("faststart")
-  $CHECK_BLACKFRAMES && loaded+=("black-frames")
-  $CHECK_URL && loaded+=("source-url")
-  $CHECK_METADATA && loaded+=("metadata")
-
-  if $CHECK_UTF8 || $CHECK_RENAME || $CHECK_LENGTH; then
-    loaded+=("filename")
-  fi
-
-  if (( ${#loaded[@]} == 0 )); then
-    print -r -- "none"
-  else
-    print -r -- "${(j:, :)loaded}"
-  fi
 }
 
 filename_byte_length() {
@@ -383,28 +488,22 @@ prompt_rename_path() {
   say ""
 
   if [[ -e "$target" ]]; then
-    fail "Cannot rename because the target already exists."
+    fail "filename: cannot rename because the target already exists"
     say_raw "$target"
     (( fail_count++ ))
     mark_unresolved
     return 1
   fi
 
-  if prompt_yes_no "Validate Filename?" "Y"; then
-    if mv -n -- "$current" "$target"; then
-      AUDIT_PATH="$target"
-      mark_fixed "Renamed."
-      return 0
-    fi
-
-    fail "Rename failed."
-    (( fail_count++ ))
-    mark_unresolved
-    return 1
+  if mv -n -- "$current" "$target"; then
+    AUDIT_PATH="$target"
+    CURRENT_FILE="$target"
+    mark_fixed "Renamed: ${target:t}"
+    return 0
   fi
 
-  warn "Skipped rename."
-  (( skip_count++ ))
+  fail "filename: rename failed"
+  (( fail_count++ ))
   mark_unresolved
   return 1
 }
@@ -889,6 +988,16 @@ check_filename_length() {
   prompt_rename_path "$file" "$target" "filename"
 }
 
+check_filename_checks() {
+  local rc=0
+
+  check_utf8_filename "$AUDIT_PATH" || rc=1
+  check_canonical_name "$AUDIT_PATH" || rc=1
+  check_filename_length "$AUDIT_PATH" || rc=1
+
+  return "$rc"
+}
+
 audit_file() {
   local file="$1"
   integer FILE_ISSUES=0
@@ -899,6 +1008,13 @@ audit_file() {
 
   (( processed_count++ ))
   AUDIT_PATH="$file"
+  CURRENT_FILE="$AUDIT_PATH"
+  CURRENT_CHECK=""
+  reset_file_checks
+
+  if [[ -t 4 ]]; then
+    redraw_screen
+  fi
 
   status_line "$AUDIT_PATH"
 
@@ -913,17 +1029,17 @@ audit_file() {
   fi
 
   if is_video_path "$AUDIT_PATH"; then
-    check_faststart "$AUDIT_PATH"
+    run_check "faststart" check_faststart "$AUDIT_PATH"
     status_line "$AUDIT_PATH"
 
-    check_black_frames "$AUDIT_PATH"
+    run_check "black-frames" check_black_frames "$AUDIT_PATH"
     status_line "$AUDIT_PATH"
 
     if $CHECK_URL || $CHECK_METADATA; then
       if probe_media_tags "$AUDIT_PATH"; then
-        check_source_url "$AUDIT_PATH"
+        run_check "source-url" check_source_url "$AUDIT_PATH"
         status_line "$AUDIT_PATH"
-        check_title_metadata "$AUDIT_PATH"
+        run_check "metadata" check_title_metadata "$AUDIT_PATH"
         status_line "$AUDIT_PATH"
       else
         (( FILE_ISSUES++ ))
@@ -936,13 +1052,8 @@ audit_file() {
     fi
   fi
 
-  check_utf8_filename "$AUDIT_PATH"
+  run_check "filename" check_filename_checks
   status_line "$AUDIT_PATH"
-
-  check_canonical_name "$AUDIT_PATH"
-  status_line "$AUDIT_PATH"
-
-  check_filename_length "$AUDIT_PATH"
 
   if (( FILE_UNRESOLVED == 0 )); then
     (( clean_count++ ))
@@ -1050,17 +1161,16 @@ process_stdin_or_fd_media() {
 }
 
 main() {
-  local checks_label
   local file
 
   parse_args "$@"
+  build_enabled_checks
+  reset_file_checks
 
   if (( ${#INPUT_FILES[@]} > 0 )); then
     total_count="${#INPUT_FILES[@]}"
   fi
 
-  checks_label="$(loaded_checks_label)"
-  LOADED_CHECKS_LABEL="$checks_label"
   draw_header
 
   if (( ${#INPUT_FILES[@]} > 0 )); then
