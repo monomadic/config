@@ -113,7 +113,7 @@
 	<map value="PAD_MODE_STEMS" action="shift ? pad_page 6 : pad_page 2" />
 	<map value="PAD_MODE_BEATJUMP" action="shift ? pad_page 7 : pad_page 3" />
 	<map value="PAD_MODE_KEYBOARD" action="pad_page 5" />
-	<map value="PAD_MODE_PADFX" action="pad_page 6" />
+	<map value="PAD_MODE_PADFX" action="shift ? pad_page &apos;FX-MULTISLOTS&apos; : pad_page &apos;FX-SLOTS&apos;" />
 	<map value="PAD_MODE_BEATLOOP" action="pad_page 7" />
 	<map value="PAD_MODE_KEYSHIFT" action="pad_page 8" />
 	<map value="HOTCUE_PAD1" action="pad 1" />
