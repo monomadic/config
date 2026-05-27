@@ -2,30 +2,29 @@
 emulate -L zsh
 
 # rename-media
-# Analyze common video metadata, normalize MP4/MOV containers, and rename files.
+# Analyze common video metadata and rename files to the canonical media-library
+# filename syntax.
 #
 # Defaults:
-#   - Faststart repair is enabled.
-#   - Container normalization is enabled.
+#   - No container repair or metadata repair is performed here.
+#   - Use media-check-files for media-library health checks and fixes.
 #
 # Options:
-#   --skip-faststart    Do not check/fix MP4/MOV faststart
-#   --fix-normalize     Enable container normalization, default already enabled
+#   --print-target      Print the canonical target path only
 #   --dry-run           Show what would be renamed/rebuilt
 #   --verbose           Print debug information
 #   --color             Enable ANSI colors
 #   --icons             Use Nerd Font icons
 #
 # Dependencies:
-#   ffprobe, ffmpeg, awk, head, grep, perl, mktemp, mv, rm, iconv
+#   ffprobe, awk, head, grep, mv
 
 DRY_RUN=false
 VERBOSE=false
 USE_COLOR=false
 USE_ICONS=false
-
-FIX_FASTSTART=true
-NORMALIZE_CONTAINER=true
+PRINT_TARGET=false
+SCRIPT_NAME="${0:t}"
 
 ICON_VIDEO="▶ "
 ICON_OK="✓ "
@@ -54,19 +53,17 @@ enable_icons() {
 }
 
 usage() {
-  print -r -- "Usage: ${0:t} [OPTIONS] video_file..."
+  print -r -- "Usage: ${SCRIPT_NAME} [OPTIONS] video_file..."
   print -r -- ""
-  print -r -- "Analyze video files with ffprobe and rename them to include:"
+  print -r -- "Analyze video files with ffprobe and rename them to canonical syntax:"
   print -r -- "resolution, frame rate, duration, bitrate, orientation, and optional star rating."
   print -r -- ""
   print -r -- "Defaults:"
-  print -r -- "  Faststart repair:       enabled"
-  print -r -- "  Container normalization: enabled"
+  print -r -- "  File repair: disabled; use media-check-files for media-library audits."
   print -r -- ""
   print -r -- "Options:"
-  print -r -- "  --skip-faststart   Do not check/fix MP4/MOV faststart"
-  print -r -- "  --fix-normalize    Enable container normalization, default already enabled"
-  print -r -- "  --dry-run          Show what would be renamed/rebuilt without changing files"
+  print -r -- "  --print-target     Print only the canonical target path"
+  print -r -- "  --dry-run          Show what would be renamed without changing files"
   print -r -- "  --verbose          Print debug information about probe and rename decisions"
   print -r -- "  --color            Enable ANSI colors in output"
   print -r -- "  --icons            Use Nerd Font icons instead of plain Unicode symbols"
@@ -84,8 +81,13 @@ trim_whitespace() {
     s="${s//  / }"
   done
 
-  s="${s##[[:space:]]##}"
-  s="${s%%[[:space:]]##}"
+  while [[ "$s" == [[:space:]]* ]]; do
+    s="${s[2,-1]}"
+  done
+
+  while [[ "$s" == *[[:space:]] ]]; do
+    s="${s[1,-2]}"
+  done
 
   print -r -- "$s"
 }
@@ -93,57 +95,6 @@ trim_whitespace() {
 log_verbose() {
   $VERBOSE || return 0
   print -u2 -r -- "${CYAN}${ICON_SKIP}$*${RESET}"
-}
-
-repair_utf8_path_if_needed() {
-  local file="$1"
-  local dirname="${file:h}"
-  local filename="${file:t}"
-
-  if ! command -v iconv >/dev/null 2>&1; then
-    log_verbose "iconv unavailable; skipping UTF-8 filename check for ${filename}"
-    print -r -- "$file"
-    return 0
-  fi
-
-  if printf '%s' "$filename" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
-    log_verbose "UTF-8 filename check passed: ${filename}"
-    print -r -- "$file"
-    return 0
-  fi
-
-  log_verbose "invalid UTF-8 filename detected: ${filename}"
-
-  local repaired_filename
-  repaired_filename="$(
-    printf '%s' "$filename" | iconv -f UTF-8 -t UTF-8 -c 2>/dev/null
-  )"
-  repaired_filename="$(trim_whitespace "$repaired_filename")"
-
-  if [[ -z "$repaired_filename" || "$repaired_filename" == "$filename" ]]; then
-    log_verbose "UTF-8 repair produced no usable change for ${filename}"
-    print -r -- "$file"
-    return 0
-  fi
-
-  local repaired_path="${dirname}/${repaired_filename}"
-
-  if [[ -e "$repaired_path" ]]; then
-    print -u2 -r -- "${YELLOW}${ICON_WARN}UTF-8 repair target exists: ${repaired_filename}${RESET}"
-    print -r -- "$file"
-    return 0
-  fi
-
-  if $DRY_RUN; then
-    log_verbose "would repair UTF-8 filename: ${filename} -> ${repaired_filename}"
-    print -u2 -r -- "${CYAN}${ICON_VIDEO}${repaired_filename}${RESET}"
-  else
-    log_verbose "repairing UTF-8 filename: ${filename} -> ${repaired_filename}"
-    mv -- "$file" "$repaired_path"
-    print -u2 -r -- "${GREEN}${ICON_OK}${repaired_filename}${RESET}"
-  fi
-
-  print -r -- "$repaired_path"
 }
 
 clean_name() {
@@ -246,139 +197,15 @@ get_rotation() {
   print -r -- "$rotation"
 }
 
-has_faststart() {
-  local file="$1"
-  local result=""
-
-  result="$(
-    perl -e '
-      use strict;
-      use warnings;
-
-      my $file = shift @ARGV;
-      open my $fh, "<:raw", $file or exit 2;
-
-      while (read($fh, my $hdr, 8) == 8) {
-        my ($size32, $type) = unpack("Na4", $hdr);
-        my $header_size = 8;
-        my $size = $size32;
-
-        if ($size32 == 1) {
-          read($fh, my $ext, 8) == 8 or last;
-          $size = unpack("Q>", $ext);
-          $header_size = 16;
-        } elsif ($size32 == 0) {
-          last;
-        }
-
-        if ($type eq "moov") {
-          print "yes\n";
-          exit 0;
-        }
-
-        if ($type eq "mdat") {
-          print "no\n";
-          exit 0;
-        }
-
-        my $skip = $size - $header_size;
-        last if $skip < 0;
-        seek($fh, $skip, 1) or last;
-      }
-
-      print "unknown\n";
-    ' -- "$file" 2>/dev/null
-  )"
-
-  log_verbose "faststart check for ${file:t}: ${result:-unknown}"
-  [[ "$result" == "yes" ]]
-}
-
-normalize_container_if_needed() {
-  local file="$1"
-  local target_extension="$2"
-  local needs_faststart="$3"
-
-  local dirname="${file:h}"
-  local filename="${file:t}"
-  local stem="${filename:r}"
-  local target_path="${dirname}/${stem}.${target_extension}"
-
-  if $DRY_RUN; then
-    log_verbose "would rewrite container: ${filename} -> ${target_path:t} faststart=${needs_faststart}"
-    print -r -- "$target_path"
-    return 0
-  fi
-
-  local temp_path
-  temp_path="$(mktemp "${dirname}/.${stem}.rewrite.XXXXXX.${target_extension}")" || return 1
-
-  log_verbose "rewriting container: ${filename} -> ${target_path:t} via ${temp_path:t} faststart=${needs_faststart}"
-
-  local -a ffmpeg_args
-  ffmpeg_args=(-v error -nostdin -y -i "$file" -map 0 -c copy)
-
-  $needs_faststart && ffmpeg_args+=(-movflags +faststart)
-
-  if ! ffmpeg "${ffmpeg_args[@]}" "$temp_path" >/dev/null 2>&1; then
-    rm -f -- "$temp_path"
-    print -u2 -r -- "${YELLOW}${ICON_WARN}Could not rewrite container: $filename${RESET}"
-    print -r -- "$file"
-    return 0
-  fi
-
-  if [[ "$target_path" != "$file" && -e "$target_path" ]]; then
-    rm -f -- "$temp_path"
-    print -u2 -r -- "${YELLOW}${ICON_WARN}Container target exists: ${target_path:t}${RESET}"
-    print -r -- "$file"
-    return 0
-  fi
-
-  if [[ "$target_path" == "$file" ]]; then
-    local backup_path="${dirname}/.${filename}.bak.$$"
-
-    mv -- "$file" "$backup_path"
-
-    if mv -- "$temp_path" "$target_path"; then
-      rm -f -- "$backup_path"
-      print -u2 -r -- "${GREEN}${ICON_OK}${target_path:t}${RESET}"
-      print -r -- "$target_path"
-      return 0
-    fi
-
-    mv -- "$backup_path" "$file"
-    rm -f -- "$temp_path"
-
-    print -u2 -r -- "${YELLOW}${ICON_WARN}Could not replace container: $filename${RESET}"
-    print -r -- "$file"
-    return 0
-  fi
-
-  if mv -- "$temp_path" "$target_path"; then
-    rm -f -- "$file"
-    print -u2 -r -- "${GREEN}${ICON_OK}${target_path:t}${RESET}"
-    print -r -- "$target_path"
-    return 0
-  fi
-
-  rm -f -- "$temp_path"
-  print -u2 -r -- "${YELLOW}${ICON_WARN}Could not move rewritten container: ${target_path:t}${RESET}"
-  print -r -- "$file"
-}
-
 process_video() {
   local file="$1"
 
   log_verbose "processing file: $file"
 
-  file="$(repair_utf8_path_if_needed "$file")"
-
   local filename="${file:t}"
   local dirname="${file:h}"
   local extension="${filename:e}"
   local name_without_ext="${filename:r}"
-
-  [[ "${extension:l}" == "m4v" ]] && extension="mp4"
 
   local extracted_name rating
   local -a parts
@@ -534,50 +361,7 @@ process_video() {
 
   log_verbose "derived flags for ${filename}: codec_flag=${codec_flag:-<none>} orientation=${orientation_flag} chapters=${has_chapters} meta=$([[ -n "$title_tag" ]] && print yes || print no) hdr=${hdr_flag}"
 
-  local original_extension_l="${filename:e:l}"
-  local target_extension="${original_extension_l}"
-
-  [[ "$target_extension" == "m4v" ]] && target_extension="mp4"
-
-  if $NORMALIZE_CONTAINER && [[ "$target_extension" == "mov" ]]; then
-    case "${codec_name:l}" in
-      hevc|h265|h264|avc1)
-        target_extension="mp4"
-        ;;
-    esac
-  fi
-
-  local needs_container_normalize=false
-  local needs_faststart=false
-
-  if $NORMALIZE_CONTAINER && [[ "$target_extension" != "$original_extension_l" ]]; then
-    needs_container_normalize=true
-  fi
-
-  if $FIX_FASTSTART && [[ "$target_extension" == "mp4" || "$target_extension" == "mov" ]]; then
-    if ! has_faststart "$file"; then
-      needs_faststart=true
-    fi
-  fi
-
-  # If we are normalizing into MP4 and faststart is enabled, write the result faststarted.
-  if $NORMALIZE_CONTAINER && $FIX_FASTSTART && [[ "$target_extension" == "mp4" && "$target_extension" != "$original_extension_l" ]]; then
-    needs_faststart=true
-  fi
-
-  log_verbose "container decision for ${filename}: current_ext=${original_extension_l} target_ext=${target_extension} normalize=${needs_container_normalize} faststart=${needs_faststart}"
-
-  if $needs_container_normalize || $needs_faststart; then
-    file="$(normalize_container_if_needed "$file" "$target_extension" "$needs_faststart")"
-
-    filename="${file:t}"
-    dirname="${file:h}"
-    extension="${filename:e}"
-
-    log_verbose "container-normalized path: $file"
-  else
-    extension="${filename:e}"
-  fi
+  extension="${filename:e}"
 
   local -a meta_flags
 
@@ -600,6 +384,11 @@ process_video() {
   local new_path="${dirname}/${new_filename}"
 
   log_verbose "rename target for ${filename}: ${new_filename}"
+
+  if $PRINT_TARGET; then
+    print -r -- "$new_path"
+    return 0
+  fi
 
   if [[ "$filename" == "$new_filename" ]]; then
     print -r -- "${YELLOW}${ICON_SKIP}${filename}${RESET}"
@@ -652,12 +441,16 @@ main() {
         enable_icons
         shift
         ;;
+      --print-target|--target-path)
+        PRINT_TARGET=true
+        shift
+        ;;
       --skip-faststart)
-        FIX_FASTSTART=false
+        log_verbose "--skip-faststart is kept for compatibility; rename-media no longer repairs FastStart"
         shift
         ;;
       --fix-normalize)
-        NORMALIZE_CONTAINER=true
+        log_verbose "--fix-normalize is kept for compatibility; rename-media no longer normalizes containers"
         shift
         ;;
       --)
@@ -680,11 +473,6 @@ main() {
 
   if ! command -v ffprobe >/dev/null 2>&1; then
     print -u2 -r -- "${YELLOW}${ICON_WARN}ffprobe is required but not installed.${RESET}"
-    exit 1
-  fi
-
-  if ! command -v ffmpeg >/dev/null 2>&1; then
-    print -u2 -r -- "${YELLOW}${ICON_WARN}ffmpeg is required but not installed.${RESET}"
     exit 1
   fi
 
