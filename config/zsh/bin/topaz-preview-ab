@@ -1,0 +1,355 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+script_name="${0:t}"
+
+usage() {
+  cat <<EOF
+usage:
+  $script_name --input file --preset-name name --filter filter --mode static|motion --frames count [--no-open]
+
+Render an A/B preview for a Topaz transform.
+
+Modes:
+  static   Render matching JPEG frames and open them in mpv as a playlist.
+  motion   Render matching movie clips and open them with mpv --profile=ab.
+EOF
+}
+
+die() {
+  print -u2 -- "$*"
+  exit 1
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+is_integer() {
+  [[ "${1:-}" == <-> ]]
+}
+
+slugify() {
+  local value="${1:l}"
+  value="${value// /-}"
+  value="${value//[^a-z0-9._-]/}"
+  value="${value//---/-}"
+  value="${value//--/-}"
+  value="${value#-}"
+  value="${value%-}"
+  [[ -n "$value" ]] || value="preview"
+  print -r -- "$value"
+}
+
+media_duration() {
+  local file="$1"
+  local probe="$2"
+  local duration=""
+
+  if [[ -x "$probe" ]]; then
+    duration="$("$probe" -v error -show_entries format=duration -of default=nokey=1:noprint_wrappers=1 -- "$file" 2>/dev/null || true)"
+  elif have ffprobe; then
+    duration="$(ffprobe -v error -show_entries format=duration -of default=nokey=1:noprint_wrappers=1 -- "$file" 2>/dev/null || true)"
+  fi
+
+  print -r -- "$duration"
+}
+
+media_frame_rate() {
+  local file="$1"
+  local probe="$2"
+  local rate=""
+
+  if [[ -x "$probe" ]]; then
+    rate="$("$probe" -v error -select_streams v:0 -show_entries stream=avg_frame_rate,r_frame_rate -of default=nokey=1:noprint_wrappers=1 -- "$file" 2>/dev/null | awk 'NR == 1 && $0 != "0/0" { print; exit } NR == 2 { print; exit }' || true)"
+  elif have ffprobe; then
+    rate="$(ffprobe -v error -select_streams v:0 -show_entries stream=avg_frame_rate,r_frame_rate -of default=nokey=1:noprint_wrappers=1 -- "$file" 2>/dev/null | awk 'NR == 1 && $0 != "0/0" { print; exit } NR == 2 { print; exit }' || true)"
+  fi
+
+  awk -v rate="$rate" 'BEGIN {
+    split(rate, parts, "/")
+    if (parts[2] > 0) {
+      value = parts[1] / parts[2]
+    } else {
+      value = rate + 0
+    }
+
+    if (!(value > 0)) value = 30
+    printf "%.3f\n", value
+  }'
+}
+
+media_rotation() {
+  local file="$1"
+  local probe="$2"
+  local rotation=""
+
+  if [[ -x "$probe" ]]; then
+    rotation="$("$probe" -v error -select_streams v:0 -show_entries stream_side_data=rotation -of default=noprint_wrappers=1:nokey=1 -- "$file" 2>/dev/null | head -1 || true)"
+    [[ -n "$rotation" ]] || rotation="$("$probe" -v error -select_streams v:0 -show_entries stream_tags=rotate -of default=noprint_wrappers=1:nokey=1 -- "$file" 2>/dev/null | head -1 || true)"
+    [[ -n "$rotation" ]] || rotation="$("$probe" -v error -show_entries format_tags=rotate -of default=noprint_wrappers=1:nokey=1 -- "$file" 2>/dev/null | head -1 || true)"
+  fi
+
+  [[ -n "$rotation" ]] || rotation="0"
+  print -r -- "$rotation"
+}
+
+media_display_orientation() {
+  local file="$1"
+  local probe="$2"
+  local width="" height="" rotation="" abs_rotation=""
+  local line key value display_width display_height
+
+  if [[ -x "$probe" ]]; then
+    while IFS= read -r line; do
+      key="${line%%=*}"
+      value="${line#*=}"
+      case "$key" in
+        width) width="$value" ;;
+        height) height="$value" ;;
+      esac
+    done < <("$probe" -v error -select_streams v:0 -show_entries stream=width,height -of default=noprint_wrappers=1 -- "$file" 2>/dev/null)
+  fi
+
+  [[ "$width" == <-> && "$height" == <-> ]] || {
+    print -r -- "unknown"
+    return
+  }
+
+  rotation="$(media_rotation "$file" "$probe")"
+  abs_rotation="${rotation#-}"
+  display_width="$width"
+  display_height="$height"
+  if [[ "$abs_rotation" == "90" || "$abs_rotation" == "270" ]]; then
+    display_width="$height"
+    display_height="$width"
+  fi
+
+  if (( display_height > display_width )); then
+    print -r -- "portrait"
+  elif (( display_width > display_height )); then
+    print -r -- "landscape"
+  else
+    print -r -- "square"
+  fi
+}
+
+adapt_filter_for_orientation() {
+  local filter="$1"
+  local orientation="$2"
+
+  if [[ "$orientation" == "portrait" ]]; then
+    filter="${filter//w=3840:h=2160/w=2160:h=3840}"
+    filter="${filter//h=2160:w=3840/h=3840:w=2160}"
+    filter="${filter//scale=w=3840:h=2160/scale=w=2160:h=3840}"
+    filter="${filter//scale=h=2160:w=3840/scale=h=3840:w=2160}"
+  fi
+
+  print -r -- "$filter"
+}
+
+target_fps_from_filter() {
+  local filter="$1"
+
+  if [[ "$filter" =~ 'fps=([0-9]+([.][0-9]+)?)' ]]; then
+    print -r -- "$match[1]"
+    return
+  fi
+
+  print -r -- ""
+}
+
+sample_times() {
+  local count="$1"
+  local duration="$2"
+
+  awk -v n="$count" -v d="$duration" 'BEGIN {
+    if (!(n > 0)) n = 1
+    if (!(d > 0)) {
+      for (i = 0; i < n; i++) printf "%s%.3f", (i ? "," : ""), i
+      print ""
+      exit
+    }
+
+    if (n == 1) {
+      t = d > 20 ? 10 : d / 2
+      printf "%.3f\n", t
+      exit
+    }
+
+    for (i = 1; i <= n; i++) {
+      t = d * i / (n + 1)
+      printf "%s%.3f", (i == 1 ? "" : ","), t
+    }
+    print ""
+  }'
+}
+
+open_motion_pair() {
+  local topaz_clip="$1"
+  local original_clip="$2"
+
+  if have mpv; then
+    mpv --profile=ab --external-file="$original_clip" -- "$topaz_clip" >/dev/null 2>&1 &!
+    return 0
+  fi
+
+  qlmanage -p -- "$topaz_clip" "$original_clip" >/dev/null 2>&1 &!
+}
+
+input=""
+preset_name=""
+filter_complex=""
+mode="static"
+frames="1"
+open_after=true
+
+while (( $# > 0 )); do
+  case "$1" in
+    -h|--help|help)
+      usage
+      exit 0
+      ;;
+    --input)
+      (( $# >= 2 )) || die "--input needs a file"
+      input="$2"
+      shift 2
+      ;;
+    --preset-name)
+      (( $# >= 2 )) || die "--preset-name needs a value"
+      preset_name="$2"
+      shift 2
+      ;;
+    --filter)
+      (( $# >= 2 )) || die "--filter needs a value"
+      filter_complex="$2"
+      shift 2
+      ;;
+    --mode)
+      (( $# >= 2 )) || die "--mode needs static or motion"
+      mode="$2"
+      shift 2
+      ;;
+    --frames)
+      (( $# >= 2 )) || die "--frames needs a count"
+      frames="$2"
+      shift 2
+      ;;
+    --no-open)
+      open_after=false
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      die "unknown option: $1"
+      ;;
+  esac
+done
+
+[[ -n "$input" ]] || die "--input is required"
+[[ -f "$input" ]] || die "not a file: $input"
+[[ -n "$preset_name" ]] || die "--preset-name is required"
+[[ -n "$filter_complex" ]] || die "--filter is required"
+case "$mode" in static|motion) ;; *) die "--mode must be static or motion" ;; esac
+is_integer "$frames" || die "--frames must be an integer"
+(( frames > 0 )) || die "--frames must be greater than 0"
+
+TOPAZ_APP_LIB="${0:A:h}/topaz-app.zsh"
+[[ -r "$TOPAZ_APP_LIB" ]] || die "Topaz app resolver not found: $TOPAZ_APP_LIB"
+source "$TOPAZ_APP_LIB"
+
+TOPAZ_APP="$(topaz_resolve_app)"
+TOPAZ_MACOS_DIR="$(topaz_resolve_macos_dir "$TOPAZ_APP")"
+TOPAZ_FFMPEG="$(topaz_resolve_ffmpeg "$TOPAZ_APP")"
+TOPAZ_FFPROBE="$TOPAZ_MACOS_DIR/ffprobe"
+TOPAZ_MODELS_DIR="$(topaz_resolve_models_dir "$TOPAZ_APP")"
+[[ -x "$TOPAZ_FFMPEG" ]] || die "Topaz ffmpeg not executable: $TOPAZ_FFMPEG"
+
+duration="$(media_duration "$input" "$TOPAZ_FFPROBE")"
+
+if [[ "$mode" == "static" ]]; then
+  times="$(sample_times "$frames" "$duration")"
+  static_args=(
+    "${0:A:h}/topaz-preview-frame"
+    --input "$input" \
+    --preset-name "$preset_name" \
+    --preset-flag --filter_complex \
+    --filter "$filter_complex" \
+    --times "$times"
+  )
+  [[ "$open_after" != true ]] && static_args+=(--no-open)
+  exec "${static_args[@]}"
+fi
+
+safe_preset="$(slugify "$preset_name")"
+safe_input="$(slugify "${input:t:r}")"
+stamp="$(date +%Y%m%d-%H%M%S)"
+out_dir="${HOME}/Library/Caches/topaz-preview-motion/${safe_input}/${safe_preset}/${stamp}"
+mkdir -p "$out_dir"
+
+source_fps="$(media_frame_rate "$input" "$TOPAZ_FFPROBE")"
+target_fps="$(target_fps_from_filter "$filter_complex")"
+[[ -n "$target_fps" ]] || target_fps="$source_fps"
+start_time="$(sample_times 1 "$duration")"
+display_orientation="$(media_display_orientation "$input" "$TOPAZ_FFPROBE")"
+motion_filter="$(adapt_filter_for_orientation "$filter_complex" "$display_orientation")"
+original_filter="fps=${target_fps},format=yuv420p"
+
+topaz_clip="$out_dir/${safe_input} [topaz ${frames}f - ${safe_preset}].mp4"
+original_clip="$out_dir/${safe_input} [original ${frames}f].mp4"
+
+topaz_env=(
+  env
+  LC_NUMERIC=C
+  LANG="${LANG:-en_US.UTF-8}"
+  LC_CTYPE="${LC_CTYPE:-${LANG:-en_US.UTF-8}}"
+  TVAI_MODEL_DIR="$TOPAZ_MODELS_DIR"
+  TVAI_MODEL_DATA_DIR="$TOPAZ_MODELS_DIR"
+)
+
+print -P -- "%F{cyan}Topaz motion preview%f"
+print -P -- "  %F{white}input:%f  $input"
+print -P -- "  %F{white}preset:%f $preset_name"
+print -P -- "  %F{white}frames:%f $frames"
+print -P -- "  %F{white}fps:%f    $target_fps"
+print -P -- "  %F{white}dir:%f    $out_dir"
+
+(
+  cd "$TOPAZ_MACOS_DIR"
+  "${topaz_env[@]}" "$TOPAZ_FFMPEG" -hide_banner -loglevel error -y \
+    -ss "$start_time" \
+    -autorotate \
+    -i "$input" \
+    -vf "$original_filter" \
+    -frames:v "$frames" \
+    -an \
+    -c:v hevc_videotoolbox \
+    -profile:v main \
+    -tag:v hvc1 \
+    -pix_fmt yuv420p \
+    -allow_sw 1 \
+    -b:v 25M \
+    "$original_clip"
+
+  "${topaz_env[@]}" "$TOPAZ_FFMPEG" -hide_banner -loglevel error -y \
+    -ss "$start_time" \
+    -autorotate \
+    -i "$input" \
+    -sws_flags "spline+accurate_rnd+full_chroma_int" \
+    -filter_complex "${motion_filter},format=yuv420p" \
+    -frames:v "$frames" \
+    -an \
+    -c:v hevc_videotoolbox \
+    -profile:v main \
+    -tag:v hvc1 \
+    -pix_fmt yuv420p \
+    -allow_sw 1 \
+    -b:v 25M \
+    "$topaz_clip"
+)
+
+print -P -- "  %F{white}open:%f   $topaz_clip"
+[[ "$open_after" == true ]] && open_motion_pair "$topaz_clip" "$original_clip"

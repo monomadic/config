@@ -1,0 +1,174 @@
+#!/usr/bin/env zsh
+emulate -L zsh
+set -euo pipefail
+
+script_name="${0:t}"
+
+usage() {
+  cat <<EOF
+usage:
+  $script_name [--trash-originals] file1 [file2 ...]
+  $script_name --help
+
+Two-step Topaz flow:
+  1. Pick a transform preset.
+  2. Pick an output profile.
+
+In the transform picker, preview shortcuts are:
+  alt-1  1f Static
+  alt-4  4f Static
+  alt-0  10f Motion
+  alt-3  30f Motion
+EOF
+}
+
+trash_originals=false
+files=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    -h|--help|help)
+      usage
+      exit 0
+      ;;
+    --trash-originals|--trash-original)
+      trash_originals=true
+      shift
+      ;;
+    --)
+      shift
+      files+=("$@")
+      break
+      ;;
+    -*)
+      print -u2 -- "unknown option: $1"
+      usage >&2
+      exit 1
+      ;;
+    *)
+      files+=("$1")
+      shift
+      ;;
+  esac
+done
+
+(( ${#files[@]} > 0 )) || {
+  usage >&2
+  exit 1
+}
+
+for input in "${files[@]}"; do
+  [[ -f "$input" ]] || {
+    print -u2 -- "not a file: $input"
+    exit 1
+  }
+done
+
+command -v fzf >/dev/null 2>&1 || {
+  print -u2 -- "fzf not found"
+  exit 1
+}
+
+script_dir="${0:A:h}"
+TOPAZ_RUN="$script_dir/topaz-run"
+if command -v topaz-run >/dev/null 2>&1; then
+  TOPAZ_RUN="$(command -v topaz-run)"
+elif [[ ! -x "$TOPAZ_RUN" ]]; then
+  print -u2 -- "topaz-run not found in PATH or next to $script_name: $TOPAZ_RUN"
+  exit 1
+fi
+
+PRESET_CATALOG="$script_dir/topaz-preset-catalog.zsh"
+TOPAZ_PREVIEW_AB_KITTY="$script_dir/topaz-preview-ab-kitty"
+
+[[ -r "$PRESET_CATALOG" ]] || {
+  print -u2 -- "Topaz preset catalog not found: $PRESET_CATALOG"
+  exit 1
+}
+
+source "$PRESET_CATALOG"
+
+preview_bind_1=""
+preview_bind_4=""
+preview_bind_10=""
+preview_bind_30=""
+if [[ -x "$TOPAZ_PREVIEW_AB_KITTY" ]]; then
+  preview_base="${(q)TOPAZ_PREVIEW_AB_KITTY} --input ${(q)files[1]} --preset-name {3} --filter {4}"
+  preview_bind_1="alt-1:execute-silent(${preview_base} --mode static --frames 1)"
+  preview_bind_4="alt-4:execute-silent(${preview_base} --mode static --frames 4)"
+  preview_bind_10="alt-0:execute-silent(${preview_base} --mode motion --frames 10)"
+  preview_bind_30="alt-3:execute-silent(${preview_base} --mode motion --frames 30)"
+fi
+
+transform_selection="$(
+  topaz_transform_preset_rows |
+    fzf \
+      --prompt='Topaz transform > ' \
+      --delimiter=$'\t' \
+      --with-nth=1,2 \
+      --height=70% \
+      --reverse \
+      --border \
+      --header='enter: choose transform | alt-1: 1f Static | alt-4: 4f Static | alt-0: 10f Motion | alt-3: 30f Motion' \
+      --header-first \
+      --preview='printf "categories: %s\nslug: %s\n\nfilter:\n%s\n" {2} {3} {4}' \
+      --preview-window='down:8:wrap' \
+      ${preview_bind_1:+--bind="$preview_bind_1"} \
+      ${preview_bind_4:+--bind="$preview_bind_4"} \
+      ${preview_bind_10:+--bind="$preview_bind_10"} \
+      ${preview_bind_30:+--bind="$preview_bind_30"}
+)"
+
+[[ -n "$transform_selection" ]] || {
+  print -u2 -- "no transform selected"
+  exit 1
+}
+
+IFS=$'\t' read -r transform_display transform_categories transform_slug transform_filter transform_metadata <<< "$transform_selection"
+
+output_selection="$(
+  topaz_output_profile_rows |
+    fzf \
+      --prompt='Topaz output > ' \
+      --delimiter=$'\t' \
+      --with-nth=1 \
+      --height=40% \
+      --reverse \
+      --border \
+      --header="transform: $transform_display" \
+      --header-first \
+      --preview='printf "slug:   %s\next:    .%s\nvideo:\n%s\n" {2} {3} {4}' \
+      --preview-window='down:6:wrap'
+)"
+
+[[ -n "$output_selection" ]] || {
+  print -u2 -- "no output selected"
+  exit 1
+}
+
+IFS=$'\t' read -r output_display output_slug output_ext output_video_args <<< "$output_selection"
+
+preset_label="${transform_display} - ${output_display}"
+metadata="$transform_metadata"
+[[ -n "$metadata" ]] || metadata="videoai=$transform_display"
+
+cmd=(
+  "$TOPAZ_RUN"
+  --preset_name "$preset_label"
+  --filter_complex "$transform_filter"
+  --output_ext "$output_ext"
+  --video_args "$output_video_args"
+  --metadata "$metadata"
+)
+
+[[ "$trash_originals" == true ]] && cmd+=(--trash-originals)
+cmd+=(-- "${files[@]}")
+
+print -P -- "%F{cyan}Topaz workflow%f"
+print -P -- "  %F{white}transform:%f $transform_display"
+print -P -- "  %F{white}categories:%f $transform_categories"
+print -P -- "  %F{white}output:%f    $output_display"
+print -P -- "  %F{white}cmd:%f       ${(q+)cmd}"
+print
+
+"${cmd[@]}"

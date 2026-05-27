@@ -254,7 +254,7 @@ while (( $# > 0 )); do
       ;;
     --times)
       (( $# >= 2 )) || die "--times needs seconds"
-      times+=("${(@s:,:)$2}")
+      times+=("${(@s:,:)2}")
       shift 2
       ;;
     --no-open)
@@ -369,7 +369,7 @@ for time_value in "${times[@]}"; do
       "$compare_jpg"
   )
 
-  mpv_images+=("$original_jpg" "$topaz_jpg")
+  mpv_images+=("$topaz_jpg" "$original_jpg")
 done
 
 print -P -- "  %F{white}open:%f   ${(j: :)mpv_images}"
