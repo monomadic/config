@@ -123,6 +123,7 @@ alias qu=q-url
 alias yt-dlp-ignore-archive="yt-dlp --no-download-archive"
 alias yt-list-fields="yt-dlp --skip-download --print \"%()#j\" "
 alias yt-batch-edit='$EDITOR $YT_DLP_BATCH_FILE'
+alias md-leaf=leaf
 
 alias mpv-vj='mpv-send --socket /tmp/mpv-vj.sock --profile vj'
 alias mpv-vj-start='mpv-vj start -- --image-display-duration=inf splash.png'

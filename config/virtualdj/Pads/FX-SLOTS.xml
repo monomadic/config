@@ -44,8 +44,9 @@
   <pad14 name="INSTRU FX" query="effect_stems 'instru'" color="stem_color 'instru'">effect_stems 'instru'</pad14>
   <pad15 name="DRUM FX" color="stem_color 'rhythm'">effect_stems 'rhythm'</pad15>
   <pad16 name="ON/OFF\n`get_effects_used 'deck'` ACTIVE" color="color 'yellow'" query="effects_used 'padfx'">effect_disable_all 'padfx' &amp; filter 50%</pad16>
-  <menu>SELECT =[effect_select]
-    EDIT =[effect_show_gui 'padfx']</menu>
-  <param1 name="PAD FX">pad_page "COLOR FX"</param1>
+  <menu>PRESETS =[pad_page "FX-PRESETS"]
+    PADFX =[pad_page "FX-PADFX"]
+    SELECT =[effect_select]</menu>
+  <param1 name="FX-PRESETS">pad_page "FX-PRESETS"</param1>
   <param2 name="SELECT FX">effect_select</param2>
 </page>

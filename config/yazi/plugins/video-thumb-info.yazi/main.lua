@@ -152,6 +152,10 @@ end
 
 local function seek_time(job)
 	local skip = math.max(0, math.min(100, tonumber(job.skip) or 0))
+	if skip <= 0 then
+		return 0
+	end
+
 	local output = Command("ffprobe")
 		:arg({
 			"-v",
@@ -167,18 +171,37 @@ local function seek_time(job)
 
 	local duration = output and output.status and output.status.success and tonumber(output.stdout) or nil
 	if not duration or duration <= 0 then
-		return 1
+		return 0
 	end
 
-	if skip > 0 then
-		return duration * skip / 100
-	end
-	-- thumbnail frame time
-	-- return math.min(1, duration / 10)
-	return 0
+	return duration * skip / 100
 end
 
-local function write_thumbnail_with_ffmpeg(job, cache)
+local function cache_marker(cache)
+	return tostring(cache) .. ".video-thumb-info-first-frame"
+end
+
+local function has_marker(cache)
+	local status = Command("/usr/bin/test")
+		:arg({ "-f", cache_marker(cache) })
+		:status()
+
+	return status and status.success
+end
+
+local function touch_marker(cache)
+	Command("/usr/bin/touch")
+		:arg({ cache_marker(cache) })
+		:status()
+end
+
+local function remove_marker(cache)
+	Command("/bin/rm")
+		:arg({ "-f", cache_marker(cache) })
+		:status()
+end
+
+local function write_thumbnail_with_ffmpeg(job, cache, at)
 	local status = Command("ffmpeg")
 		:arg({
 			"-hide_banner",
@@ -186,7 +209,7 @@ local function write_thumbnail_with_ffmpeg(job, cache)
 			"error",
 			"-y",
 			"-ss",
-			string.format("%.3f", seek_time(job)),
+			string.format("%.3f", at),
 			"-i",
 			tostring(job.file.url),
 			"-map",
@@ -206,7 +229,7 @@ local function write_thumbnail_with_ffmpeg(job, cache)
 	return status and status.success
 end
 
-local function write_thumbnail_with_ffmpegthumbnailer(job, cache)
+local function write_thumbnail_with_ffmpegthumbnailer(job, cache, at)
 	local status = Command("ffmpegthumbnailer")
 		:arg({
 			"-i",
@@ -216,7 +239,7 @@ local function write_thumbnail_with_ffmpegthumbnailer(job, cache)
 			"-s",
 			"0",
 			"-t",
-			string.format("%.3f", seek_time(job)),
+			string.format("%.3f", at),
 			"-q",
 			"10",
 		})
@@ -338,7 +361,8 @@ function M:preload(job)
 		return false
 	end
 
-	if fs.cha(cache) then
+	local at = seek_time(job)
+	if at == 0 and fs.cha(cache) and has_marker(cache) then
 		return true
 	end
 
@@ -346,7 +370,15 @@ function M:preload(job)
 		fs.create("dir_all", cache.parent)
 	end
 
-	return write_thumbnail_with_ffmpeg(job, cache) or write_thumbnail_with_ffmpegthumbnailer(job, cache)
+	local ok = write_thumbnail_with_ffmpeg(job, cache, at) or write_thumbnail_with_ffmpegthumbnailer(job, cache, at)
+	if ok then
+		if at == 0 then
+			touch_marker(cache)
+		else
+			remove_marker(cache)
+		end
+	end
+	return ok
 end
 
 function M:peek(job)

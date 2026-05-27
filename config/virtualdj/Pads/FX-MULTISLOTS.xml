@@ -71,9 +71,9 @@
     effect_disable_all &amp; effect_disable_all 'sampler' &amp; effect_stems off &amp; filter 50%
   </shift_pad16>
 
-  <menu>SLOTS =[pad_page "FX-SLOTS"]
-    PAD FX =[pad_page "PAD FX"]
-    COLOR FX =[pad_page "COLOR FX"]</menu>
-  <param1 name="FX-SLOTS">pad_page "FX-SLOTS"</param1>
-  <param2 name="SELECT FX">effect_select_multi</param2>
+  <menu>PRESETS =[pad_page "FX-PRESETS"]
+    PADFX =[pad_page "FX-PADFX"]
+    SLOTS =[pad_page "FX-SLOTS"]</menu>
+  <param1 name="FX-PRESETS">pad_page "FX-PRESETS"</param1>
+  <param2 name="FX-PADFX">pad_page "FX-PADFX"</param2>
 </page>

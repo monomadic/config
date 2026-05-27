@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="FX-PADFX">
+  <pad1 name="VOCAL&#10;VERB OUT" color="stem_color 'vocal'">
+    padfx 'echo out' 80% 1bt 50% 0% 'stemfx:vocal' &amp;
+    padfx 'reverb' 50% 20% 25% 50% 'stemfx:vocal'
+  </pad1>
+  <pad2 name="VOCAL&#10;VERB OUT XL" color="stem_color 'vocal'">
+    padfx 'echo out' 80% 2bt 50% 0% 'stemfx:vocal' &amp;
+    padfx 'reverb' 60% 10% 25% 50% 'stemfx:vocal' &amp;
+    padfx 'delay' 60% 10% 25% 50% 'stemfx:vocal'
+  </pad2>
+  <pad3 name="VOCAL&#10;ECHOVERB" color="stem_color 'vocal'">
+    padfx 'echo' 50% 1bt 35% 20% 'stemfx:vocal' &amp;
+    padfx 'reverb' 50% 20% 25% 50% 'stemfx:vocal'
+  </pad3>
+  <pad4 name="VOCAL&#10;CUT VERB" color="stem_color 'vocal'">
+    padfx 'cut' 90% 0.5bt 50% 'stemfx:vocal' &amp;
+    padfx 'reverb' 45% 20% 25% 50% 'stemfx:vocal'
+  </pad4>
+
+  <pad5 name="DRUM&#10;ECHO OUT" color="stem_color 'rhythm'">
+    padfx 'echo out' 80% 1bt 50% 0% 'stemfx:rhythm'
+  </pad5>
+  <pad6 name="DRUM&#10;ROLLCAKE" color="stem_color 'rhythm'">
+    padfx 'loop roll' 50% 1bt 60% 0% 'stemfx:rhythm' &amp;
+    padfx 'reverb' 50% 20% 25% 50% 'stemfx:rhythm'
+  </pad6>
+  <pad7 name="DRUM&#10;CUT ROLL" color="stem_color 'rhythm'">
+    padfx 'cut' 100% 0.25bt 'stemfx:rhythm' &amp;
+    padfx 'loop roll' 50% 0.5bt 60% 0% 'stemfx:rhythm'
+  </pad7>
+  <pad8 name="DRUM&#10;BEATGRID" color="stem_color 'rhythm'">
+    padfx 'beatgrid' 75% 'stemfx:rhythm'
+  </pad8>
+
+  <pad9 name="MELODY&#10;SHIMMER" color="stem_color 'instru'">
+    padfx 'echo' 45% 1bt 35% 20% 'stemfx:instru' &amp;
+    padfx 'reverb' 50% 30% 25% 50% 'stemfx:instru'
+  </pad9>
+  <pad10 name="MELODY&#10;ECHO OUT" color="stem_color 'instru'">
+    padfx 'echo out' 75% 1bt 50% 0% 'stemfx:instru'
+  </pad10>
+  <pad11 name="MELODY&#10;PHASER" color="stem_color 'instru'">
+    padfx 'phaser' 50% 'stemfx:instru' &amp;
+    padfx 'reverb' 35% 25% 25% 45% 'stemfx:instru'
+  </pad11>
+  <pad12 name="MELODY&#10;FLANGER" color="stem_color 'instru'">
+    padfx 'flanger' 45% 'stemfx:instru' &amp;
+    padfx 'echo' 35% 0.5bt 35% 20% 'stemfx:instru'
+  </pad12>
+
+  <pad13 name="BASS&#10;ECHO OUT" color="stem_color 'bass'">
+    padfx 'echo out' 70% 1bt 50% 0% 'stemfx:bass'
+  </pad13>
+  <pad14 name="BASS&#10;FILTER ROLL" color="stem_color 'bass'">
+    padfx 'filter' 60% 'stemfx:bass' &amp;
+    padfx 'loop roll' 45% 0.5bt 60% 0% 'stemfx:bass'
+  </pad14>
+  <pad15 name="FULL&#10;BRAKE" color="color '#FF8A65'">
+    effect_stems off &amp; padfx 'vinylbrake' 50% 4bt 0% 0%
+  </pad15>
+  <pad16 name="PADFX&#10;OFF" color="color 'red'">
+    effect_disable_all 'padfx' &amp; effect_stems off &amp; filter 50%
+  </pad16>
+
+  <menu>PRESETS =[pad_page "FX-PRESETS"]
+    SLOTS =[pad_page "FX-SLOTS"]
+    MULTISLOTS =[pad_page "FX-MULTISLOTS"]</menu>
+  <param1 name="FX-PRESETS">pad_page "FX-PRESETS"</param1>
+  <param2 name="FX-SLOTS">pad_page "FX-SLOTS"</param2>
+</page>
