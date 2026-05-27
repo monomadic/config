@@ -14,6 +14,7 @@ packages = [
   "helix",
   # "i3",
   # "joshuto",
+  # "leaf",
   "lf",
   "kitty",
   # "micro",

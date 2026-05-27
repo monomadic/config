@@ -100,16 +100,21 @@ if [[ -x "$TOPAZ_PREVIEW_AB_KITTY" ]]; then
   preview_bind_30="alt-3:execute-silent(${preview_base} --mode motion --frames 30)"
 fi
 
+fzf_select_mode=(
+  --no-input
+  --bind='j:down,k:up,h:page-up,l:page-down,g:first,G:last'
+)
+
 transform_selection="$(
   topaz_transform_preset_rows |
     fzf \
-      --prompt='Topaz transform > ' \
+      "${fzf_select_mode[@]}" \
       --delimiter=$'\t' \
       --with-nth=1,2 \
       --height=70% \
       --reverse \
       --border \
-      --header='enter: choose transform | alt-1: 1f Static | alt-4: 4f Static | alt-0: 10f Motion | alt-3: 30f Motion' \
+      --header='j/k: move | h/l: page | g/G: first/last | enter: choose transform | alt-1: 1f Static | alt-4: 4f Static | alt-0: 10f Motion | alt-3: 30f Motion' \
       --header-first \
       --preview='printf "categories: %s\nslug: %s\n\nfilter:\n%s\n" {2} {3} {4}' \
       --preview-window='down:8:wrap' \
@@ -129,13 +134,13 @@ IFS=$'\t' read -r transform_display transform_categories transform_slug transfor
 output_selection="$(
   topaz_output_profile_rows |
     fzf \
-      --prompt='Topaz output > ' \
+      "${fzf_select_mode[@]}" \
       --delimiter=$'\t' \
       --with-nth=1 \
       --height=40% \
       --reverse \
       --border \
-      --header="transform: $transform_display" \
+      --header="j/k: move | h/l: page | g/G: first/last | enter: choose | transform: $transform_display" \
       --header-first \
       --preview='printf "slug:   %s\next:    .%s\nvideo:\n%s\n" {2} {3} {4}' \
       --preview-window='down:6:wrap'

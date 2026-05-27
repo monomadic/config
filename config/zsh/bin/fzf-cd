@@ -8,7 +8,7 @@ set +o monitor
 # Color Scheme
 FZF_COLOR_OPTS=""
 FZF_COLOR_OPTS+="fg:#00A0F0,"      # Regular foreground
-FZF_COLOR_OPTS+="bg:#002080,"      # Regular background
+# FZF_COLOR_OPTS+="bg:#002080,"      # Regular background
 FZF_COLOR_OPTS+="hl:#FFe22e,"      # Highlighted text (foreground)
 FZF_COLOR_OPTS+="hl+:#FFe22e,"     # Highlighted text in selected line (foreground)
 FZF_COLOR_OPTS+="fg+:#DDFFAA,"     # Selected line (foreground)
@@ -25,7 +25,7 @@ FZF_COLOR_OPTS+="header:#66ddee"
 #--color=bg:-1,fg:blue,info:15,header:7,hl:red,hl+:red,gutter:-1,prompt:yellow,marker:-1,bg+:black,pointer:yellow,fg+:yellow
 
 handle_directory_selection() {
-  local prompt='  '
+  local prompt='􀊫  '
   local header=''
   local height='50%'
   local preview_cmd='eza --tree --level=2 --color=always {} 2>/dev/null || ls -la {}'
@@ -68,11 +68,11 @@ handle_directory_selection() {
     fzf \
       --color="$FZF_COLOR_OPTS" \
       --ansi \
-      --gutter='󰉋' --pointer=' ' --marker='󰉋 ' \
+      --gutter='􀈕' --pointer='􃀪 ' --marker='􃀩 ' \
       --header="$header" \
       --no-info \
       --no-clear \
-      --border=block \
+      --border=none \
       --input-border=rounded \
       --margin=0 \
       --padding=0 \

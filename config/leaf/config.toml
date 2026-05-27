@@ -1,0 +1,35 @@
+# Leaf terminal Markdown viewer defaults.
+# All options are optional; CLI flags and LEAF_* environment variables override them.
+
+# Built-in themes: arctic, forest, ocean, solarized-dark.
+theme = "ocean"
+
+# Ctrl+E opens the current file in Helix. Use "nano" as a portable fallback
+# if Helix is not installed on a target machine.
+editor = "hx"
+
+# Keep rendered Markdown comfortable to scan in wide terminal windows.
+width = 96
+
+# Leave live reload opt-in so one-off reads and stdin previews stay quiet.
+watch = false
+
+# Extra extensions to show in Leaf's file picker. Markdown is always included.
+extras = [
+  "txt",
+  "log",
+  "csv",
+  "json",
+  "jsonc",
+  "toml",
+  "yaml",
+  "yml",
+  "kdl",
+  "ron",
+  "lua",
+  "py",
+  "rs",
+  "go",
+  "sh",
+  "zsh",
+]

@@ -97,7 +97,6 @@ class XVideosRedIE(XVideosIE):
                 'height': height,
                 'format_note': resolution or note,
                 'quality': quality,
-                'preference': 100,
             })
 
         return formats
@@ -113,9 +112,27 @@ class XVideosRedIE(XVideosIE):
 
         direct_formats = self._extract_download_formats(url, video_id)
         if direct_formats:
-            for fmt in info.get('formats') or []:
-                if fmt.get('protocol', '').startswith('m3u8') or fmt.get('format_id', '').startswith('hls-'):
+            self._check_formats(direct_formats, video_id)
+
+        if direct_formats:
+            formats = info.get('formats') or []
+            hls_formats = [
+                fmt for fmt in formats
+                if fmt.get('protocol', '').startswith('m3u8') or fmt.get('format_id', '').startswith('hls-')
+            ]
+            best_direct_height = max((fmt.get('height') or 0 for fmt in direct_formats), default=0)
+            best_hls_height = max((fmt.get('height') or 0 for fmt in hls_formats), default=0)
+            prefer_direct = best_direct_height and best_direct_height >= best_hls_height
+
+            if prefer_direct:
+                for fmt in direct_formats:
+                    fmt['preference'] = 100
+                for fmt in hls_formats:
                     fmt['preference'] = min(fmt.get('preference') or 0, -100)
+            else:
+                for fmt in direct_formats:
+                    fmt['preference'] = min(fmt.get('preference') or 0, -100)
+
             info['formats'] = direct_formats + (info.get('formats') or [])
 
         uploader, uploader_id, cast = self._extract_people(webpage)

@@ -128,6 +128,9 @@ files = { "config/starship/starship.toml" = "~/.config/starship.toml" }
 "config/lf/icons" = "~/.config/lf/icons"
 "config/lf/colors" = "~/.config/lf/colors"
 
+[leaf.files]
+"config/leaf/config.toml" = "~/.config/leaf/config.toml"
+
 [lsd.files]
 "config/lsd" = "~/.config/lsd"
 

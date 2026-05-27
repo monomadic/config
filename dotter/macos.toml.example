@@ -18,6 +18,7 @@ packages = [
   "joshuto",
   "karabiner",
   "kitty",
+  "leaf",
   "lf",
   "marta",
   # "micro",

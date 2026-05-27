@@ -209,7 +209,7 @@ _cd_fzf_run_streamed_picker() {
 }
 
 _cd_fzf_pick_global() {
-  _cd_fzf_run_streamed_picker _cd_fzf_pick global '' 'Pinned directories'
+  _cd_fzf_run_streamed_picker _cd_fzf_pick global '' ''
 }
 
 _cd_fzf_pick_local() {

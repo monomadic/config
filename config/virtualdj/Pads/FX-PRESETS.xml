@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page name="FX-PRESETS">
+  <pad1 name="VOCAL&#10;ECHOVERB OUT" color="stem_color 'vocal'" query="effect_active 'vocals' 'echo out'">
+    effect_select_multi 'vocals' 'echo' &amp; effect_active 'vocals' 'echo' &amp;
+    effect_select_multi 'vocals' 'echo out' &amp; effect_active 'vocals' 'echo out'
+  </pad1>
+  <pad2 name="VOCAL&#10;SHIMMER" color="stem_color 'vocal'" query="effect_active 'vocals' 'echo' ? effect_active 'vocals' 'reverb' ? effect_active 'vocals' 'delay'">
+    effect_select_multi 'vocals' 'echo' &amp;
+    effect_select_multi 'vocals' 'reverb' &amp;
+    effect_select_multi 'vocals' 'delay' &amp;
+    effect_active 'vocals' 'echo' &amp;
+    effect_active 'vocals' 'reverb' &amp;
+    effect_active 'vocals' 'delay'
+  </pad2>
+  <pad3 name="VOCAL&#10;VERB OUT" color="stem_color 'vocal'" query="effect_active 'vocals' 'echo out' ? effect_active 'vocals' 'reverb'">
+    effect_select_multi 'vocals' 'echo out' &amp;
+    effect_select_multi 'vocals' 'reverb' &amp;
+    effect_active 'vocals' 'echo out' &amp;
+    effect_active 'vocals' 'reverb'
+  </pad3>
+  <pad4 name="VOCAL&#10;CUT VERB" color="stem_color 'vocal'" query="effect_active 'vocals' 'cut' ? effect_active 'vocals' 'reverb'">
+    effect_select_multi 'vocals' 'cut' &amp;
+    effect_select_multi 'vocals' 'reverb' &amp;
+    effect_active 'vocals' 'cut' &amp;
+    effect_active 'vocals' 'reverb'
+  </pad4>
+
+  <pad5 name="DRUM&#10;ROLL VERB" color="stem_color 'rhythm'" query="effect_active 'rhythm' 'loop roll' ? effect_active 'rhythm' 'reverb'">
+    effect_select_multi 'rhythm' 'loop roll' &amp;
+    effect_select_multi 'rhythm' 'reverb' &amp;
+    effect_active 'rhythm' 'loop roll' &amp;
+    effect_active 'rhythm' 'reverb'
+  </pad5>
+  <pad6 name="DRUM&#10;ECHO OUT" color="stem_color 'rhythm'" query="effect_active 'rhythm' 'echo out'">
+    effect_select_multi 'rhythm' 'echo out' &amp; effect_active 'rhythm' 'echo out'
+  </pad6>
+  <pad7 name="DRUM&#10;CUT ROLL" color="stem_color 'rhythm'" query="effect_active 'rhythm' 'cut' ? effect_active 'rhythm' 'loop roll'">
+    effect_select_multi 'rhythm' 'cut' &amp;
+    effect_select_multi 'rhythm' 'loop roll' &amp;
+    effect_active 'rhythm' 'cut' &amp;
+    effect_active 'rhythm' 'loop roll'
+  </pad7>
+  <pad8 name="DRUM&#10;GRID ECHO" color="stem_color 'rhythm'" query="effect_active 'rhythm' 'beatgrid' ? effect_active 'rhythm' 'echo'">
+    effect_select_multi 'rhythm' 'beatgrid' &amp;
+    effect_select_multi 'rhythm' 'echo' &amp;
+    effect_active 'rhythm' 'beatgrid' &amp;
+    effect_active 'rhythm' 'echo'
+  </pad8>
+
+  <pad9 name="MELODY&#10;SHIMMER" color="stem_color 'instru'" query="effect_active 'instru' 'echo' ? effect_active 'instru' 'reverb'">
+    effect_select_multi 'instru' 'echo' &amp;
+    effect_select_multi 'instru' 'reverb' &amp;
+    effect_active 'instru' 'echo' &amp;
+    effect_active 'instru' 'reverb'
+  </pad9>
+  <pad10 name="MELODY&#10;PHASER VERB" color="stem_color 'instru'" query="effect_active 'instru' 'phaser' ? effect_active 'instru' 'reverb'">
+    effect_select_multi 'instru' 'phaser' &amp;
+    effect_select_multi 'instru' 'reverb' &amp;
+    effect_active 'instru' 'phaser' &amp;
+    effect_active 'instru' 'reverb'
+  </pad10>
+  <pad11 name="MELODY&#10;FLANGE ECHO" color="stem_color 'instru'" query="effect_active 'instru' 'flanger' ? effect_active 'instru' 'echo'">
+    effect_select_multi 'instru' 'flanger' &amp;
+    effect_select_multi 'instru' 'echo' &amp;
+    effect_active 'instru' 'flanger' &amp;
+    effect_active 'instru' 'echo'
+  </pad11>
+  <pad12 name="MELODY&#10;ECHO OUT" color="stem_color 'instru'" query="effect_active 'instru' 'echo out'">
+    effect_select_multi 'instru' 'echo out' &amp; effect_active 'instru' 'echo out'
+  </pad12>
+
+  <pad13 name="BASS&#10;OUT FILTER" color="stem_color 'bass'" query="effect_active 'bass' 'echo out' ? effect_active 'bass' 'filter'">
+    effect_select_multi 'bass' 'echo out' &amp;
+    effect_select_multi 'bass' 'filter' &amp;
+    effect_active 'bass' 'echo out' &amp;
+    effect_active 'bass' 'filter'
+  </pad13>
+  <pad14 name="BASS&#10;ROLL FILTER" color="stem_color 'bass'" query="effect_active 'bass' 'loop roll' ? effect_active 'bass' 'filter'">
+    effect_select_multi 'bass' 'loop roll' &amp;
+    effect_select_multi 'bass' 'filter' &amp;
+    effect_active 'bass' 'loop roll' &amp;
+    effect_active 'bass' 'filter'
+  </pad14>
+  <pad15 name="BASS&#10;DIST FILTER" color="stem_color 'bass'" query="effect_active 'bass' 'distortion' ? effect_active 'bass' 'filter'">
+    effect_select_multi 'bass' 'distortion' &amp;
+    effect_select_multi 'bass' 'filter' &amp;
+    effect_active 'bass' 'distortion' &amp;
+    effect_active 'bass' 'filter'
+  </pad15>
+  <pad16 name="FX&#10;ALL OFF" color="color 'red'">
+    effect_disable_all &amp; effect_disable_all 'sampler' &amp; effect_stems off &amp; filter 50%
+  </pad16>
+
+  <shift_pad1 name="EDIT&#10;VOC ECHO" color="stem_color 'vocal'">effect_show_gui 'vocals' 'echo'</shift_pad1>
+  <shift_pad2 name="EDIT&#10;VOC VERB" color="stem_color 'vocal'">effect_show_gui 'vocals' 'reverb'</shift_pad2>
+  <shift_pad3 name="EDIT&#10;VOC OUT" color="stem_color 'vocal'">effect_show_gui 'vocals' 'echo out'</shift_pad3>
+  <shift_pad4 name="EDIT&#10;VOC CUT" color="stem_color 'vocal'">effect_show_gui 'vocals' 'cut'</shift_pad4>
+  <shift_pad5 name="EDIT&#10;DRM ROLL" color="stem_color 'rhythm'">effect_show_gui 'rhythm' 'loop roll'</shift_pad5>
+  <shift_pad6 name="EDIT&#10;DRM OUT" color="stem_color 'rhythm'">effect_show_gui 'rhythm' 'echo out'</shift_pad6>
+  <shift_pad7 name="EDIT&#10;DRM CUT" color="stem_color 'rhythm'">effect_show_gui 'rhythm' 'cut'</shift_pad7>
+  <shift_pad8 name="EDIT&#10;DRM GRID" color="stem_color 'rhythm'">effect_show_gui 'rhythm' 'beatgrid'</shift_pad8>
+  <shift_pad9 name="EDIT&#10;MEL ECHO" color="stem_color 'instru'">effect_show_gui 'instru' 'echo'</shift_pad9>
+  <shift_pad10 name="EDIT&#10;MEL PHASER" color="stem_color 'instru'">effect_show_gui 'instru' 'phaser'</shift_pad10>
+  <shift_pad11 name="EDIT&#10;MEL FLANGE" color="stem_color 'instru'">effect_show_gui 'instru' 'flanger'</shift_pad11>
+  <shift_pad12 name="EDIT&#10;MEL OUT" color="stem_color 'instru'">effect_show_gui 'instru' 'echo out'</shift_pad12>
+  <shift_pad13 name="EDIT&#10;BASS OUT" color="stem_color 'bass'">effect_show_gui 'bass' 'echo out'</shift_pad13>
+  <shift_pad14 name="EDIT&#10;BASS ROLL" color="stem_color 'bass'">effect_show_gui 'bass' 'loop roll'</shift_pad14>
+  <shift_pad15 name="EDIT&#10;BASS DIST" color="stem_color 'bass'">effect_show_gui 'bass' 'distortion'</shift_pad15>
+  <shift_pad16 name="FX&#10;ALL OFF" color="color 'red'">
+    effect_disable_all &amp; effect_disable_all 'sampler' &amp; effect_stems off &amp; filter 50%
+  </shift_pad16>
+
+  <menu>PADFX =[pad_page "FX-PADFX"]
+    SLOTS =[pad_page "FX-SLOTS"]
+    MULTISLOTS =[pad_page "FX-MULTISLOTS"]</menu>
+  <param1 name="FX-PADFX">pad_page "FX-PADFX"</param1>
+  <param2 name="FX-SLOTS">pad_page "FX-SLOTS"</param2>
+</page>

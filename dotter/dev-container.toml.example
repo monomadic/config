@@ -2,6 +2,7 @@ packages = [
   "default",
   "helix",
   "bash",
+  # "leaf",
   "lf",
   # "bin",
   # "broot",
