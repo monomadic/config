@@ -398,8 +398,12 @@ process_video() {
     if $DRY_RUN; then
       print -r -- "${CYAN}${ICON_VIDEO}${new_filename}${RESET}"
     else
-      mv -- "$file" "$new_path"
-      print -r -- "${GREEN}${ICON_OK}${new_filename}${RESET}"
+      if mv -- "$file" "$new_path"; then
+        print -r -- "${GREEN}${ICON_OK}${new_filename}${RESET}"
+      else
+        print -r -- "${YELLOW}${ICON_WARN}Could not rename: ${filename} -> ${new_filename}${RESET}"
+        return 1
+      fi
     fi
   fi
 }
