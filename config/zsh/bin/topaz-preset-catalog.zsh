@@ -70,3 +70,33 @@ topaz_parse_preset_row() {
     TOPAZ_PRESET_VIDEO_ARGS \
     TOPAZ_PRESET_METADATA <<< "$row"
 }
+
+# Transform rows used by the newer two-step workflow.
+# Row format:
+#   display_label<TAB>categories<TAB>slug<TAB>filter_complex<TAB>metadata
+topaz_transform_preset_rows() {
+  emulate -L zsh
+
+  print -r -- $'[Proteus] 4K, Grain, Sharpen\tUpscale, Enhance\tproteus-4k-grain-sharpen\ttvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0:noise=0.10:details=0.38:halo=-0.04:blur=0.18:compression=0.20:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1,scale=w=3840:h=2160:flags=lanczos:threads=0\tvideoai=[Proteus] 4K, Grain, Sharpen'
+  print -r -- $'[Proteus] Upscale 2x, Sharpen\tUpscale, Enhance\tproteus-upscale-2x-sharpen\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.18:details=0.35:halo=0.02:blur=0.10:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Proteus] Upscale 2x, Sharpen'
+  print -r -- $'[Proteus] Upscale 2x, Sharpen [Chronos Fast] Interpolate 60fps\tUpscale, Enhance, Interpolate\tproteus-upscale-2x-sharpen-chronos-fast-60fps\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.18:details=0.35:halo=0.02:blur=0.10:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1,tvai_fi=model=chf-3:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1\tvideoai=[Proteus] Upscale 2x, Sharpen [Chronos Fast] Interpolate 60fps'
+  print -r -- $'[Starlight Precise] Upscale 2x\tUpscale, Enhance\tstarlight-precise-upscale-2x\ttvai_up=model=slp-2.5:scale=2:device=0:vram=0.95:instances=1\tvideoai=[Starlight Precise] Upscale 2x'
+  print -r -- $'[Proteus] Compression Cleanup\tEnhance\tproteus-compression-cleanup\ttvai_up=model=prob-4:scale=1:preblur=0.02:noise=0.20:details=0.22:halo=-0.08:blur=0.16:compression=0.62:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Proteus] Compression Cleanup'
+  print -r -- $'[Proteus] Focus Fix Light\tFocus Fix, Enhance\tproteus-focus-fix-light\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.15:details=0.55:halo=0.04:blur=0.18:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Proteus] Focus Fix Light'
+  print -r -- $'[Proteus] Focus Fix Strong\tFocus Fix, Enhance\tproteus-focus-fix-strong\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.22:details=0.80:halo=0.08:blur=0.28:compression=0.18:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Proteus] Focus Fix Strong'
+  print -r -- $'[Iris MQ] Enhance, Sharpen\tEnhance\tiris-mq-enhance-sharpen\ttvai_up=model=iris-mq:scale=1:preblur=0:noise=0.25:details=0.50:halo=0:blur=0.15:compression=0.20:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Iris MQ] Enhance, Sharpen'
+  print -r -- $'[Nyx] Denoise Dark Footage\tEnhance\tnyx-denoise-dark-footage\ttvai_up=model=nyx-3:scale=1:preblur=0:noise=0.80:details=0.25:halo=0:blur=0.20:compression=0.25:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Nyx] Denoise Dark Footage'
+  print -r -- $'[Chronos Fast] Interpolate 60fps\tInterpolate\tchronos-fast-interpolate-60fps\ttvai_fi=model=chf-3:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1\tvideoai=[Chronos Fast] Interpolate 60fps'
+  print -r -- $'[Apollo] Interpolate 60fps\tInterpolate\tapollo-interpolate-60fps\ttvai_fi=model=apollo:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1\tvideoai=[Apollo] Interpolate 60fps'
+}
+
+# Output profile rows used by the newer two-step workflow.
+# Row format:
+#   display_label<TAB>slug<TAB>output_ext<TAB>video_args
+topaz_output_profile_rows() {
+  emulate -L zsh
+
+  print -r -- $'HEVC constant bitrate 40mbps\thevc-cbr-40mbps\tmp4\t-c:v hevc_videotoolbox -profile:v main -tag:v hvc1 -pix_fmt yuv420p -allow_sw 1 -g 30 -b:v 40M -constant_bit_rate 1'
+  print -r -- $'HEVC variable bitrate\thevc-vbr\tmp4\t-c:v hevc_videotoolbox -profile:v main -tag:v hvc1 -pix_fmt yuv420p -allow_sw 1 -g 30 -q:v 65 -spatial_aq 1'
+  print -r -- $'ProRes 422 Proxy\tprores-422-proxy\tmov\t-c:v prores_ks -profile:v proxy -pix_fmt yuv422p10le -vendor apl0'
+}
