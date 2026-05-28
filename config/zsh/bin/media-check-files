@@ -128,7 +128,18 @@ clear_status() {
   print -n -u4 -- $'\r\033[K'
 }
 
-stats_line() {
+session_stats_line() {
+  local files_word="files"
+  local corrections_word="corrections"
+
+  (( processed_count == 1 )) && files_word="file"
+  (( fix_count == 1 )) && corrections_word="correction"
+
+  say "${processed_count} ${files_word} checked: ${C_GREEN}${clean_count} pass${C_RESET}, ${C_RED}${issue_file_count} fail${C_RESET}"
+  say "- ${fix_count} ${corrections_word} made this session"
+}
+
+check_stats_line() {
   say "${CURRENT_TOTAL} total, ${CURRENT_PASS} pass, ${CURRENT_FAIL} fail"
 }
 
@@ -224,8 +235,10 @@ draw_checks() {
 draw_header() {
   say "%B%F{cyan}MEDIA LIBRARY FILE CHECK v1%f%b"
   say ""
+  session_stats_line
+  say ""
   draw_checks
-  stats_line
+  check_stats_line
   say ""
 }
 
@@ -700,7 +713,7 @@ check_black_frames() {
   say "black-frames: leading black detected (${seconds}s)"
   say ""
 
-  if prompt_yes_no "Trim File?" "N"; then
+  if prompt_yes_no "Trim File?" "Y"; then
     if ffmpeg-lossless-cut-by-fzf-keyframe-select --from "$seconds" "$file" < "$TTY" > "$TTY" 2>&1; then
       trimmed="$(trimmed_path_for "$file")"
       if [[ -f "$trimmed" ]]; then
