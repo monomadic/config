@@ -259,6 +259,8 @@ local function show_menu()
         "Load Library",
         "Reveal in Yazi",
         "Reveal in ForkLift",
+        "Trim with Keyframes",
+        "Topaz Workflow",
         "────────────────────",
         "Pan+Scan:      " .. on_off(panscan > 0),
         "Aspect:        " .. (aspect_display[aspect] or aspect),
@@ -287,6 +289,12 @@ local function show_menu()
         end),
         with_resume(function()
             mp.commandv("script-binding", "reveal_in_forklift")
+        end),
+        with_resume(function()
+            mp.commandv("script-binding", "trim_current_file")
+        end),
+        with_resume(function()
+            mp.commandv("script-binding", "topaz_workflow_current_file")
         end),
         nil,  -- Separator (no action)
         with_resume(toggle_panscan),
