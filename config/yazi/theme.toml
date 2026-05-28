@@ -18,9 +18,9 @@ find_keyword  = { fg = "#ffe66d", bold = true }
 # ------------------------------------------------------------
 
 [indicator]
-parent        = { fg = "#AAEEFF", bg = "#000088" }
-current       = { fg = "#AAEEFF", bg = "#0000FF" }
-preview       = { underline = false, fg = "#AAEEFF", bg="#000088" }
+parent        = { fg = "#88BBFF", bg = "#000044" }
+current       = { fg = "#FFFF22", bg = "#1144BB" }
+preview       = { underline = false, fg = "#88BBFF", bg="#000044" }
 hovered       = { bg = "#151519" }
 
 # ------------------------------------------------------------
@@ -28,8 +28,8 @@ hovered       = { bg = "#151519" }
 # ------------------------------------------------------------
 
 [tabs]
-active   = { fg = "#0a0a0b", bg = "#66e2ff", bold = true }
-inactive = { fg = "#8b8f98", bg = "#111114" }
+active   = { fg = "#0a0a0b", bg = "#88BBFF", bold = true }
+inactive = { fg = "#8b8f98" }
 sep_inner = { open = "", close = "" }
 sep_outer = { open = "", close = "" }
 
