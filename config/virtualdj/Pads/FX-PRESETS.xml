@@ -24,7 +24,6 @@
     effect_active 'vocals' 'cut' &amp;
     effect_active 'vocals' 'reverb'
   </pad4>
-
   <pad5 name="DRUM&#10;ROLL VERB" color="stem_color 'rhythm'" query="effect_active 'rhythm' 'loop roll' ? effect_active 'rhythm' 'reverb'">
     effect_select_multi 'rhythm' 'loop roll' &amp;
     effect_select_multi 'rhythm' 'reverb' &amp;
@@ -34,19 +33,24 @@
   <pad6 name="DRUM&#10;ECHO OUT" color="stem_color 'rhythm'" query="effect_active 'rhythm' 'echo out'">
     effect_select_multi 'rhythm' 'echo out' &amp; effect_active 'rhythm' 'echo out'
   </pad6>
-  <pad7 name="DRUM&#10;CUT ROLL" color="stem_color 'rhythm'" query="effect_active 'rhythm' 'cut' ? effect_active 'rhythm' 'loop roll'">
-    effect_select_multi 'rhythm' 'cut' &amp;
-    effect_select_multi 'rhythm' 'loop roll' &amp;
-    effect_active 'rhythm' 'cut' &amp;
-    effect_active 'rhythm' 'loop roll'
+  <pad7 name="FX6&#10;CUT" color="color yellow" query="effect_active 6 'cut' 10% 1bt 10% 10% ? effect_active 6 'loop roll'">
+    effect_select_multi 6 'cut' 10% 1bt 10% 10% &amp;
+    effect_select_multi 6 'loop roll' &amp;
+    effect_active 6 'cut' &amp;
+    effect_active 6 'loop roll'
   </pad7>
+  <pad8 name="FX6&#10;CUT" color="color yellow" query="effect_active 6 'cut' 10% 1bt 20% 20% ? effect_active 6 'loop roll'">
+    effect_select_multi 6 'cut' 10% 1bt 20% 20% &amp;
+    effect_select_multi 6 'loop roll' &amp;
+    effect_active 6 'cut' &amp;
+    effect_active 6 'loop roll'
+  </pad8>
   <pad8 name="DRUM&#10;GRID ECHO" color="stem_color 'rhythm'" query="effect_active 'rhythm' 'beatgrid' ? effect_active 'rhythm' 'echo'">
     effect_select_multi 'rhythm' 'beatgrid' &amp;
     effect_select_multi 'rhythm' 'echo' &amp;
     effect_active 'rhythm' 'beatgrid' &amp;
     effect_active 'rhythm' 'echo'
   </pad8>
-
   <pad9 name="MELODY&#10;SHIMMER" color="stem_color 'instru'" query="effect_active 'instru' 'echo' ? effect_active 'instru' 'reverb'">
     effect_select_multi 'instru' 'echo' &amp;
     effect_select_multi 'instru' 'reverb' &amp;
@@ -68,7 +72,6 @@
   <pad12 name="MELODY&#10;ECHO OUT" color="stem_color 'instru'" query="effect_active 'instru' 'echo out'">
     effect_select_multi 'instru' 'echo out' &amp; effect_active 'instru' 'echo out'
   </pad12>
-
   <pad13 name="BASS&#10;OUT FILTER" color="stem_color 'bass'" query="effect_active 'bass' 'echo out' ? effect_active 'bass' 'filter'">
     effect_select_multi 'bass' 'echo out' &amp;
     effect_select_multi 'bass' 'filter' &amp;
@@ -90,7 +93,6 @@
   <pad16 name="FX&#10;ALL OFF" color="color 'red'">
     effect_disable_all &amp; effect_disable_all 'sampler' &amp; effect_stems off &amp; filter 50%
   </pad16>
-
   <shift_pad1 name="EDIT&#10;VOC ECHO" color="stem_color 'vocal'">effect_show_gui 'vocals' 'echo'</shift_pad1>
   <shift_pad2 name="EDIT&#10;VOC VERB" color="stem_color 'vocal'">effect_show_gui 'vocals' 'reverb'</shift_pad2>
   <shift_pad3 name="EDIT&#10;VOC OUT" color="stem_color 'vocal'">effect_show_gui 'vocals' 'echo out'</shift_pad3>
@@ -109,7 +111,6 @@
   <shift_pad16 name="FX&#10;ALL OFF" color="color 'red'">
     effect_disable_all &amp; effect_disable_all 'sampler' &amp; effect_stems off &amp; filter 50%
   </shift_pad16>
-
   <menu>PADFX =[pad_page "FX-PADFX"]
     SLOTS =[pad_page "FX-SLOTS"]
     MULTISLOTS =[pad_page "FX-MULTISLOTS"]</menu>
