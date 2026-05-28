@@ -6,7 +6,7 @@ emulate -L zsh
 # filename syntax.
 #
 # Defaults:
-#   - No container repair or metadata repair is performed here.
+#   - Rename only; no container repair or metadata repair is performed here.
 #   - Use media-check-files for media-library health checks and fixes.
 #
 # Options:
@@ -58,9 +58,6 @@ usage() {
   print -r -- "Analyze video files with ffprobe and rename them to canonical syntax:"
   print -r -- "resolution, frame rate, duration, bitrate, orientation, and optional star rating."
   print -r -- ""
-  print -r -- "Defaults:"
-  print -r -- "  File repair: disabled; use media-check-files for media-library audits."
-  print -r -- ""
   print -r -- "Options:"
   print -r -- "  --print-target     Print only the canonical target path"
   print -r -- "  --dry-run          Show what would be renamed without changing files"
@@ -95,6 +92,12 @@ trim_whitespace() {
 log_verbose() {
   $VERBOSE || return 0
   print -u2 -r -- "${CYAN}${ICON_SKIP}$*${RESET}"
+}
+
+touch_modified_now() {
+  local file="$1"
+
+  touch "$file" 2>/dev/null || true
 }
 
 clean_name() {
@@ -399,6 +402,7 @@ process_video() {
       print -r -- "${CYAN}${ICON_VIDEO}${new_filename}${RESET}"
     else
       if mv -- "$file" "$new_path"; then
+        touch_modified_now "$new_path"
         print -r -- "${GREEN}${ICON_OK}${new_filename}${RESET}"
       else
         print -r -- "${YELLOW}${ICON_WARN}Could not rename: ${filename} -> ${new_filename}${RESET}"
@@ -447,14 +451,6 @@ main() {
         ;;
       --print-target|--target-path)
         PRINT_TARGET=true
-        shift
-        ;;
-      --skip-faststart)
-        log_verbose "--skip-faststart is kept for compatibility; rename-media no longer repairs FastStart"
-        shift
-        ;;
-      --fix-normalize)
-        log_verbose "--fix-normalize is kept for compatibility; rename-media no longer normalizes containers"
         shift
         ;;
       --)

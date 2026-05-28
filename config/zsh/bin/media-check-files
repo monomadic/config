@@ -21,6 +21,7 @@ CHECK_RENAME=true
 CHECK_LENGTH=true
 
 MAX_FILENAME_BYTES=240
+RENAME_MEDIA_TIMEOUT="${RENAME_MEDIA_TIMEOUT:-20}"
 
 typeset -a INPUT_FILES=()
 typeset -i processed_count=0
@@ -146,7 +147,6 @@ check_stats_line() {
 build_enabled_checks() {
   ENABLED_CHECKS=()
 
-  $CHECK_FASTSTART && ENABLED_CHECKS+=("faststart")
   $CHECK_BLACKFRAMES && ENABLED_CHECKS+=("black-frames")
   $CHECK_URL && ENABLED_CHECKS+=("source-url")
   $CHECK_METADATA && ENABLED_CHECKS+=("metadata")
@@ -154,6 +154,8 @@ build_enabled_checks() {
   if $CHECK_UTF8 || $CHECK_RENAME || $CHECK_LENGTH; then
     ENABLED_CHECKS+=("filename")
   fi
+
+  $CHECK_FASTSTART && ENABLED_CHECKS+=("faststart")
 }
 
 check_enabled() {
@@ -462,6 +464,33 @@ normalize_audit_path() {
   print -r -- "$path"
 }
 
+creation_date_for_setfile() {
+  local file="$1"
+  local epoch
+
+  epoch="$(stat -f '%B' -- "$file" 2>/dev/null)" || return 1
+  [[ "$epoch" == <-> ]] || return 1
+  (( epoch > 0 )) || return 1
+
+  date -r "$epoch" '+%m/%d/%Y %H:%M:%S'
+}
+
+copy_creation_date() {
+  local source="$1"
+  local target="$2"
+  local created
+
+  command -v SetFile >/dev/null 2>&1 || return 1
+  created="$(creation_date_for_setfile "$source")" || return 1
+  SetFile -d "$created" "$target" >/dev/null 2>&1
+}
+
+touch_modified_now() {
+  local file="$1"
+
+  touch "$file" 2>/dev/null || true
+}
+
 filename_byte_length() {
   LC_ALL=C printf '%s' "$1" | wc -c | tr -d '[:space:]'
 }
@@ -571,6 +600,7 @@ prompt_rename_path() {
   if mv -n -- "$current" "$target"; then
     AUDIT_PATH="$target"
     CURRENT_FILE="$target"
+    touch_modified_now "$target"
     mark_fixed "Renamed: ${target:t}"
     return 0
   fi
@@ -673,8 +703,12 @@ enable_faststart() {
       -c copy \
       -movflags +faststart+use_metadata_tags \
       "$tmp"; then
-    touch -r "$file" "$tmp" 2>/dev/null || true
+    copy_creation_date "$file" "$tmp" || {
+      rm -f -- "$tmp" 2>/dev/null || true
+      return 1
+    }
     mv -f -- "$tmp" "$file"
+    touch_modified_now "$file"
     return 0
   fi
 
@@ -853,8 +887,12 @@ rewrite_with_metadata() {
   ffmpeg_args+=("${metadata_args[@]}" "$tmp")
 
   if ffmpeg "${ffmpeg_args[@]}"; then
-    touch -r "$file" "$tmp" 2>/dev/null || true
+    copy_creation_date "$file" "$tmp" || {
+      rm -f -- "$tmp" 2>/dev/null || true
+      return 1
+    }
     mv -f -- "$tmp" "$file"
+    touch_modified_now "$file"
     return 0
   fi
 
@@ -1022,13 +1060,75 @@ check_title_metadata() {
 
 check_canonical_name() {
   local file="$1"
-  local target
+  local rename_media_cmd target rc
 
   $CHECK_RENAME || return 0
   is_video_path "$file" || return 0
-  command -v rename-media >/dev/null 2>&1 || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+  rename_media_cmd="$(command -v rename-media 2>/dev/null)" || return 0
 
-  target="$(rename-media --print-target "$file" 2>/dev/null | tail -n 1)"
+  target="$(
+    python3 - "$RENAME_MEDIA_TIMEOUT" "$rename_media_cmd" "$file" <<'PY'
+import os
+import signal
+import subprocess
+import sys
+import time
+
+timeout = float(sys.argv[1])
+cmd = [sys.argv[2], "--print-target", sys.argv[3]]
+
+proc = subprocess.Popen(
+    cmd,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.DEVNULL,
+    text=True,
+    start_new_session=True,
+)
+
+try:
+    stdout, _ = proc.communicate(timeout=timeout)
+except subprocess.TimeoutExpired:
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+
+    deadline = time.monotonic() + 2
+    while proc.poll() is None and time.monotonic() < deadline:
+        time.sleep(0.05)
+
+    if proc.poll() is None:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+    proc.wait()
+    sys.exit(124)
+
+if proc.returncode != 0:
+    sys.exit(proc.returncode)
+
+lines = [line for line in stdout.splitlines() if line]
+if lines:
+    print(lines[-1])
+PY
+  )"
+  rc=$?
+
+  if (( rc == 124 )); then
+    (( FILE_ISSUES++ ))
+    issue_screen "filename" "$file"
+    say "filename: rename-media timed out"
+    warn "Skipped canonical rename check after ${RENAME_MEDIA_TIMEOUT}s."
+    (( fail_count++ ))
+    mark_unresolved
+    return 1
+  elif (( rc != 0 )); then
+    return 0
+  fi
+
   [[ -n "$target" ]] || return 0
 
   prompt_rename_path "$file" "$target" "filename"
@@ -1102,9 +1202,6 @@ audit_file() {
   fi
 
   if is_video_path "$AUDIT_PATH"; then
-    run_check "faststart" check_faststart "$AUDIT_PATH"
-    status_line "$AUDIT_PATH"
-
     run_check "black-frames" check_black_frames "$AUDIT_PATH"
     status_line "$AUDIT_PATH"
 
@@ -1127,6 +1224,11 @@ audit_file() {
 
   run_check "filename" check_filename_checks
   status_line "$AUDIT_PATH"
+
+  if is_video_path "$AUDIT_PATH"; then
+    run_check "faststart" check_faststart "$AUDIT_PATH"
+    status_line "$AUDIT_PATH"
+  fi
 
   if (( FILE_UNRESOLVED == 0 )); then
     (( clean_count++ ))

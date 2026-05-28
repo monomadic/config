@@ -76,6 +76,33 @@ _is_video_path() {
   [[ "${f:l}" == *.mp4 || "${f:l}" == *.mov || "${f:l}" == *.m4v ]]
 }
 
+_creation_date_for_setfile() {
+  local file="$1"
+  local epoch
+
+  epoch="$(stat -f '%B' -- "$file" 2>/dev/null)" || return 1
+  [[ "$epoch" == <-> ]] || return 1
+  (( epoch > 0 )) || return 1
+
+  date -r "$epoch" '+%m/%d/%Y %H:%M:%S'
+}
+
+_copy_creation_date() {
+  local source="$1"
+  local target="$2"
+  local created
+
+  command -v SetFile >/dev/null 2>&1 || return 1
+  created="$(_creation_date_for_setfile "$source")" || return 1
+  SetFile -d "$created" "$target" >/dev/null 2>&1
+}
+
+_touch_modified_now() {
+  local file="$1"
+
+  touch "$file" 2>/dev/null || true
+}
+
 # Collect files from args (files, globs, dirs). Writes results into global array: FILES
 # Uses fd when available for dirs / quoted patterns / when user passes "*" etc.
 _collect_files() {
@@ -236,8 +263,15 @@ _cmd_enable() {
     _info "processing…"
     if ffmpeg -hide_banner -loglevel error -nostdin \
         -i "$f" -c copy -movflags +faststart -y "$tmp"; then
-      touch -r "$f" "$tmp" 2>/dev/null || true
+      if ! _copy_creation_date "$f" "$tmp"; then
+        _warn "could not preserve creation date: $f"
+        rm -f -- "$tmp" 2>/dev/null || true
+        any_fail=1
+        continue
+      fi
+
       mv -f -- "$tmp" "$f"
+      _touch_modified_now "$f"
 
       _is_faststart "$f"; st=$?
       if (( st == 0 )); then
