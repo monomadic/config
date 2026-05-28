@@ -246,10 +246,6 @@ redraw_screen() {
   [[ -t 4 ]] || return 0
   print -n -u4 -- $'\033[2J\033[H'
   draw_header
-
-  if [[ -n "$CURRENT_FILE" ]]; then
-    show_checking_path "$CURRENT_FILE"
-  fi
 }
 
 colored_path() {
