@@ -69,6 +69,109 @@ command -v fzf >/dev/null 2>&1 || {
   exit 1
 }
 
+format_frame_rate() {
+  emulate -L zsh
+  local rate="${1:-}"
+
+  [[ -n "$rate" && "$rate" != "0/0" ]] || {
+    print -r -- "unknown fps"
+    return
+  }
+
+  awk -v rate="$rate" '
+    BEGIN {
+      split(rate, parts, "/")
+      if (parts[2] == "" || parts[2] == 0) {
+        value = parts[1]
+      } else {
+        value = parts[1] / parts[2]
+      }
+
+      if (value == int(value)) {
+        printf "%dfps\n", value
+      } else {
+        printf "%.2ffps\n", value
+      }
+    }
+  '
+}
+
+format_duration() {
+  emulate -L zsh
+  local seconds="${1:-}"
+
+  [[ "$seconds" == <-> || "$seconds" == <->.<-> ]] || {
+    print -r -- "unknown"
+    return
+  }
+
+  awk -v seconds="$seconds" '
+    BEGIN {
+      total = int(seconds + 0.5)
+      hours = int(total / 3600)
+      minutes = int((total % 3600) / 60)
+      secs = total % 60
+
+      if (hours > 0) {
+        printf "%dh %dm\n", hours, minutes
+      } else if (minutes > 0) {
+        printf "%d min\n", minutes
+      } else {
+        printf "%d sec\n", secs
+      }
+    }
+  '
+}
+
+media_preview_summary() {
+  emulate -L zsh
+  local input_file="$1"
+  local ffprobe="${FFPROBE:-}"
+  local width="" height="" codec="" avg_frame_rate="" r_frame_rate="" duration=""
+  local key value line resolution framerate runtime
+
+  if [[ -z "$ffprobe" ]] && command -v ffprobe >/dev/null 2>&1; then
+    ffprobe="$(command -v ffprobe)"
+  fi
+
+  if [[ -z "$ffprobe" || ! -x "$ffprobe" ]]; then
+    print -r -- "${input_file:t}"$'\n'"media info unavailable"
+    return
+  fi
+
+  while IFS= read -r line; do
+    key="${line%%=*}"
+    value="${line#*=}"
+    case "$key" in
+      width) width="$value" ;;
+      height) height="$value" ;;
+      codec_name) codec="$value" ;;
+      avg_frame_rate) avg_frame_rate="$value" ;;
+      r_frame_rate) r_frame_rate="$value" ;;
+      duration) duration="$value" ;;
+    esac
+  done < <(
+    "$ffprobe" \
+      -v error \
+      -select_streams v:0 \
+      -show_entries stream=width,height,codec_name,avg_frame_rate,r_frame_rate:format=duration \
+      -of default=noprint_wrappers=1 \
+      -- "$input_file" 2>/dev/null
+  )
+
+  if [[ "$width" == <-> && "$height" == <-> ]]; then
+    resolution="${height}p"
+  else
+    resolution="unknown"
+  fi
+
+  framerate="$(format_frame_rate "${avg_frame_rate:-$r_frame_rate}")"
+  runtime="$(format_duration "$duration")"
+
+  print -r -- "${input_file:t}"
+  print -r -- "${resolution}, ${framerate}, ${codec:-unknown}, ${runtime}"
+}
+
 script_dir="${0:A:h}"
 TOPAZ_RUN="$script_dir/topaz-run"
 if command -v topaz-run >/dev/null 2>&1; then
@@ -87,6 +190,42 @@ TOPAZ_PREVIEW_AB_KITTY="$script_dir/topaz-preview-ab-kitty"
 }
 
 source "$PRESET_CATALOG"
+
+workflow_tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/topaz-workflow.XXXXXXXX")"
+trap 'rm -rf "$workflow_tmp_dir"' EXIT
+
+media_summary_file="$workflow_tmp_dir/media-summary.txt"
+media_preview_summary "$files[1]" > "$media_summary_file"
+
+transform_preview_script="$workflow_tmp_dir/transform-preview.zsh"
+cat > "$transform_preview_script" <<'EOF'
+#!/usr/bin/env zsh
+emulate -L zsh
+
+summary_file="$1"
+filter_complex="$2"
+
+cyan=$'\033[1;36m'
+dim=$'\033[2m'
+yellow=$'\033[1;33m'
+reset=$'\033[0m'
+
+filename="unknown file"
+details="media info unavailable"
+
+if [[ -r "$summary_file" ]]; then
+  {
+    IFS= read -r filename || true
+    IFS= read -r details || true
+  } < "$summary_file"
+fi
+
+printf "%s%s%s\n" "$cyan" "$filename" "$reset"
+printf "%s%s%s\n\n" "$dim" "$details" "$reset"
+printf "%sfilter%s\n" "$yellow" "$reset"
+printf "%s\n" "$filter_complex"
+EOF
+chmod +x "$transform_preview_script"
 
 preview_bind_1=""
 preview_bind_4=""
@@ -110,13 +249,13 @@ transform_selection="$(
     fzf \
       "${fzf_select_mode[@]}" \
       --delimiter=$'\t' \
-      --with-nth=1,2 \
       --height=70% \
       --reverse \
       --border \
       --header='j/k: move | h/l: page | g/G: first/last | enter: choose transform | alt-1: 1f Static | alt-4: 4f Static | alt-0: 10f Motion | alt-3: 30f Motion' \
       --header-first \
-      --preview='printf "categories: %s\nslug: %s\n\nfilter:\n%s\n" {2} {3} {4}' \
+      --with-nth=1 \
+      --preview="zsh ${(q)transform_preview_script} ${(q)media_summary_file} {4q}" \
       --preview-window='down:8:wrap' \
       ${preview_bind_1:+--bind="$preview_bind_1"} \
       ${preview_bind_4:+--bind="$preview_bind_4"} \

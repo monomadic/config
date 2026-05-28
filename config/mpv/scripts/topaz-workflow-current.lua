@@ -1,7 +1,7 @@
 local utils = require "mp.utils"
 
 local kitty_launch = "/Users/nom/.zsh/bin/kitty-launch"
-local trim_command = "/Users/nom/.zsh/bin/ffmpeg-lossless-cut-by-fzf-keyframe-select"
+local topaz_workflow = "/Users/nom/.zsh/bin/topaz-workflow"
 
 local function absolute_media_path()
     local media_path = mp.get_property("path")
@@ -18,7 +18,7 @@ local function absolute_media_path()
     return utils.join_path(mp.get_property("working-directory") or "", media_path)
 end
 
-local function trim_current_file()
+local function topaz_workflow_current_file()
     local abs, err = absolute_media_path()
     if not abs then
         mp.osd_message(err, 2)
@@ -28,7 +28,7 @@ local function trim_current_file()
     local info = utils.file_info(abs)
     if not info then
         mp.osd_message("File no longer exists:\n" .. abs, 3)
-        mp.msg.warn("Trim failed, file missing: " .. abs)
+        mp.msg.warn("Topaz workflow failed, file missing: " .. abs)
         return
     end
 
@@ -37,20 +37,21 @@ local function trim_current_file()
         args = {
             kitty_launch,
             "--tab",
+            "--hold",
             "--cwd", directory,
-            "--title", " trim ",
+            "--title", " topaz workflow ",
             "--",
-            trim_command, abs,
+            topaz_workflow, abs,
         },
     })
 
     if result == false then
-        mp.osd_message("Trim launch failed", 2)
-        mp.msg.error("Failed to launch trim for: " .. abs)
+        mp.osd_message("Topaz workflow launch failed", 2)
+        mp.msg.error("Failed to launch Topaz workflow for: " .. abs)
         return
     end
 
-    mp.osd_message("Opening trim", 1.5)
+    mp.osd_message("Opening Topaz workflow", 1.5)
 end
 
-mp.add_key_binding(nil, "trim_current_file", trim_current_file)
+mp.add_key_binding(nil, "topaz_workflow_current_file", topaz_workflow_current_file)
