@@ -336,7 +336,8 @@ prompt_yes_no() {
 
   while true; do
     print -n -P -u4 -- "${prompt} ${suffix} "
-    IFS= read -r -u 3 ans || return 1
+    read_prompt_line || return 1
+    ans="$READ_PROMPT_REPLY"
     ans="${ans:-$default}"
 
     case "$ans" in
@@ -347,20 +348,83 @@ prompt_yes_no() {
   done
 }
 
+READ_PROMPT_REPLY=""
+read_prompt_line() {
+  local saved_stty rc ch buffer
+
+  READ_PROMPT_REPLY=""
+  saved_stty=""
+  buffer=""
+
+  if [[ ! -t 3 ]]; then
+    IFS= read -r -u 3 READ_PROMPT_REPLY
+    return $?
+  fi
+
+  if command -v stty >/dev/null 2>&1; then
+    saved_stty="$(stty -g <&3 2>/dev/null || true)"
+    stty -echo -icanon min 1 time 0 <&3 2>/dev/null || true
+  fi
+
+  trap '[[ -n "$saved_stty" ]] && stty "$saved_stty" <&3 2>/dev/null; trap - INT; print -u4; return 130' INT
+
+  while true; do
+    IFS= read -r -k 1 -u 3 ch
+    rc=$?
+    (( rc == 0 )) || break
+
+    case "$ch" in
+      $'\003')
+        [[ -n "$saved_stty" ]] && stty "$saved_stty" <&3 2>/dev/null || true
+        trap - INT
+        print -u4
+        return 130
+        ;;
+      $'\004')
+        [[ -n "$buffer" ]] || {
+          rc=1
+          break
+        }
+        ;;
+      $'\n'|$'\r')
+        print -u4
+        READ_PROMPT_REPLY="$buffer"
+        rc=0
+        break
+        ;;
+      $'\177'|$'\010')
+        if [[ -n "$buffer" ]]; then
+          buffer="${buffer[1,-2]}"
+          print -n -u4 -- $'\b \b'
+        fi
+        ;;
+      $'\025')
+        while [[ -n "$buffer" ]]; do
+          buffer="${buffer[1,-2]}"
+          print -n -u4 -- $'\b \b'
+        done
+        ;;
+      *)
+        buffer+="$ch"
+        print -n -u4 -- "$ch"
+        ;;
+    esac
+  done
+
+  trap - INT
+
+  [[ -n "$saved_stty" ]] && stty "$saved_stty" <&3 2>/dev/null || true
+  return "$rc"
+}
+
 PROMPT_REPLY=""
 prompt_input_or_skip() {
   local prompt="$1"
-  local ans rc
 
   PROMPT_REPLY=""
-  trap 'print -u4; return 130' INT
   print -n -P -u4 -- "${prompt} "
-  IFS= read -r -u 3 ans
-  rc=$?
-  trap - INT
-
-  (( rc == 0 )) || return 130
-  PROMPT_REPLY="$ans"
+  read_prompt_line || return 130
+  PROMPT_REPLY="$READ_PROMPT_REPLY"
   return 0
 }
 
