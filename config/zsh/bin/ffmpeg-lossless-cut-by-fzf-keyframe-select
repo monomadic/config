@@ -50,6 +50,7 @@ Options:
   -f, --force               Overwrite existing *.trimmed output
   -k, --keep-previews       Keep temporary preview directories
   --dry-run                 Show planned actions only
+  --mov-faststart           Enable MP4/MOV FastStart on the trimmed output
   --skip-detection          Disable auto-detection; for multiple files, always prompt
   --detect-black-scenes     Auto-start after a leading black scene when found
   --from <seconds>          Start selector at/after this timestamp
@@ -644,12 +645,16 @@ trim_copy() {
   local input_file="$1"
   local start_time="$2"
   local output_file="$3"
+  local mov_faststart="$4"
+  local movflags="use_metadata_tags"
+
+  [[ "$mov_faststart" == true ]] && movflags="+faststart+use_metadata_tags"
 
   ffmpeg -hide_banner -y \
     -ss "$start_time" -i "$input_file" \
     -map 0 \
     -map_metadata 0 \
-    -movflags +faststart+use_metadata_tags \
+    -movflags "$movflags" \
     -c copy \
     "$output_file"
 }
@@ -658,12 +663,16 @@ trim_copy_reverse() {
   local input_file="$1"
   local end_time="$2"
   local output_file="$3"
+  local mov_faststart="$4"
+  local movflags="use_metadata_tags"
+
+  [[ "$mov_faststart" == true ]] && movflags="+faststart+use_metadata_tags"
 
   ffmpeg -hide_banner -y \
     -to "$end_time" -i "$input_file" \
     -map 0 \
     -map_metadata 0 \
-    -movflags +faststart+use_metadata_tags \
+    -movflags "$movflags" \
     -c copy \
     "$output_file"
 }
@@ -718,6 +727,12 @@ copy_creation_date() {
   return 1
 }
 
+touch_modified_now() {
+  local file="$1"
+
+  touch "$file" 2>/dev/null || true
+}
+
 trash_original() {
   local input_file="$1"
   local target="$input_file"
@@ -765,6 +780,7 @@ perform_cut() {
   local output_file="$3"
   local force="$4"
   local reverse_mode="$5"
+  local mov_faststart="$6"
 
   if ! float_gt_zero "$cut_time"; then
     warn "cut time <= 0, skipping: $input_file"
@@ -781,9 +797,9 @@ perform_cut() {
 
   info "Output:            $output_file"
   if [[ "$reverse_mode" == true ]]; then
-    trim_copy_reverse "$input_file" "$cut_time" "$output_file"
+    trim_copy_reverse "$input_file" "$cut_time" "$output_file" "$mov_faststart"
   else
-    trim_copy "$input_file" "$cut_time" "$output_file"
+    trim_copy "$input_file" "$cut_time" "$output_file" "$mov_faststart"
   fi
 }
 
@@ -794,6 +810,7 @@ yes=false
 force=false
 keep_previews=false
 dry_run=false
+mov_faststart=false
 skip_detection=false
 detect_black_leader=false
 black_leader_start_tolerance="${BLACK_LEADER_START_TOLERANCE:-0.25}"
@@ -837,6 +854,10 @@ while (( $# > 0 )); do
       ;;
     --dry-run)
       dry_run=true
+      shift
+      ;;
+    --mov-faststart|--faststart)
+      mov_faststart=true
       shift
       ;;
     --skip-detection)
@@ -963,10 +984,13 @@ for input_file in "${files[@]}"; do
   info "Trimmed output:    $output_file"
 
   if [[ "$dry_run" == true ]]; then
+    dry_run_movflags="use_metadata_tags"
+    [[ "$mov_faststart" == true ]] && dry_run_movflags="+faststart+use_metadata_tags"
+
     if [[ "$reverse_mode" == true ]]; then
-      print -- "ffmpeg -hide_banner -y -to '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags +faststart+use_metadata_tags -c copy '$output_file'"
+      print -- "ffmpeg -hide_banner -y -to '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags '$dry_run_movflags' -c copy '$output_file'"
     else
-      print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags +faststart+use_metadata_tags -c copy '$output_file'"
+      print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags '$dry_run_movflags' -c copy '$output_file'"
     fi
     print -- "copy embedded/container metadata from '$input_file' to '$output_file'"
     print -- "copy creation date from '$input_file' to '$output_file'"
@@ -975,9 +999,10 @@ for input_file in "${files[@]}"; do
     continue
   fi
 
-  if perform_cut "$input_file" "$ts" "$output_file" "$force" "$reverse_mode"; then
+  if perform_cut "$input_file" "$ts" "$output_file" "$force" "$reverse_mode" "$mov_faststart"; then
     info "Done: wrote trimmed copy"
     copy_creation_date "$input_file" "$output_file" || (( ++creation_date_fail_count ))
+    touch_modified_now "$output_file"
     (( ++ok_count ))
     maybe_trash_original "$input_file" || (( ++trash_fail_count ))
   else

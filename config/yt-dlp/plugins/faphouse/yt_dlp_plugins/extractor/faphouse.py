@@ -81,6 +81,15 @@ class FaphouseIE(InfoExtractor):
         if description:
             description = clean_html(description).strip()
 
+        thumbnail = (
+            self._og_search_thumbnail(webpage, default=None)
+            or self._html_search_meta(
+                ["twitter:image", "twitter:image:src", "thumbnail", "thumbnailUrl"],
+                webpage, default=None,
+            )
+        )
+        thumbnail = url_or_none(thumbnail)
+
         # Extract cast/actors (vid-c vid-c_image links)
         cast = re.findall(
             r'(?s)<a[^>]+class="vid-c vid-c_image"[^>]*>.*?<span[^>]+class="[^"]*studio-seo-improvements__category-btn-title[^"]*"[^>]*>\s*([^<]+?)\s*</span>',
@@ -214,6 +223,7 @@ class FaphouseIE(InfoExtractor):
             "title": title,
             "channel": channel,
             "description": description,
+            "thumbnail": thumbnail,
             "cast": cast if cast else None,
             "tags": tags if tags else None,
             "formats": formats,
