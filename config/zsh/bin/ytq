@@ -1,0 +1,275 @@
+#!/usr/bin/env zsh
+# -----------------------------------------------------------------------------
+# ytq - yt-dlp queue manager
+#
+# Environment:
+#   YT_DLP_BATCH_FILE=/path/to/queue.txt
+#
+# Examples:
+#   ytq add https://youtu.be/foo
+#   ytq next https://youtu.be/bar
+#   ytq addclip
+#   ytq queue
+#   ytq run
+# -----------------------------------------------------------------------------
+
+setopt pipefail
+
+require_batch_file() {
+  if [[ -z "$YT_DLP_BATCH_FILE" ]]; then
+    print -u2 "❌ YT_DLP_BATCH_FILE is not set"
+    exit 1
+  fi
+
+  mkdir -p "${YT_DLP_BATCH_FILE:h}"
+  touch "$YT_DLP_BATCH_FILE"
+}
+
+is_url() {
+  [[ "$1" =~ '^https?://[^[:space:]]+$' ]]
+}
+
+load_queue() {
+  typeset -gA QUEUED
+
+  local line
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && QUEUED[$line]=1
+  done < "$YT_DLP_BATCH_FILE"
+}
+
+cmd_add() {
+  require_batch_file
+  load_queue
+
+  (( $# > 0 )) || {
+    print -u2 "Usage: ytq add <url> [url ...]"
+    exit 1
+  }
+
+  local added=0
+  local skipped=0
+  local url
+
+  for url in "$@"; do
+    if ! is_url "$url"; then
+      print -u2 "❌ Invalid URL: $url"
+      ((skipped++))
+      continue
+    fi
+
+    if [[ -n ${QUEUED[$url]} ]]; then
+      print "⚠️  Already queued: $url"
+      ((skipped++))
+      continue
+    fi
+
+    print -r -- "$url" >> "$YT_DLP_BATCH_FILE"
+    QUEUED[$url]=1
+
+    print "➕ Added: $url"
+    ((added++))
+  done
+
+  print ""
+  print "Added:   $added"
+  print "Skipped: $skipped"
+}
+
+cmd_next() {
+  require_batch_file
+  load_queue
+
+  (( $# > 0 )) || {
+    print -u2 "Usage: ytq next <url> [url ...]"
+    exit 1
+  }
+
+  local tmp_file
+  tmp_file="$(mktemp)" || exit 1
+
+  local added=0
+  local skipped=0
+  local url
+
+  {
+    for url in "$@"; do
+      if ! is_url "$url"; then
+        print -u2 "❌ Invalid URL: $url"
+        ((skipped++))
+        continue
+      fi
+
+      if [[ -n ${QUEUED[$url]} ]]; then
+        print "⚠️  Already queued: $url" > /dev/tty
+        ((skipped++))
+        continue
+      fi
+
+      print -r -- "$url"
+      QUEUED[$url]=1
+
+      print "⬆️  Next: $url" > /dev/tty
+      ((added++))
+    done
+
+    cat "$YT_DLP_BATCH_FILE"
+  } > "$tmp_file"
+
+  mv "$tmp_file" "$YT_DLP_BATCH_FILE"
+
+  print ""
+  print "Added next: $added"
+  print "Skipped:    $skipped"
+}
+
+cmd_addclip() {
+  local clip
+  clip="$(pbpaste)"
+
+  [[ -n "$clip" ]] || {
+    print -u2 "❌ Clipboard is empty"
+    exit 1
+  }
+
+  cmd_add ${(f)clip}
+}
+
+cmd_queue() {
+  require_batch_file
+
+  if [[ ! -s "$YT_DLP_BATCH_FILE" ]]; then
+    print "📭 Queue is empty"
+    return
+  fi
+
+  nl -ba "$YT_DLP_BATCH_FILE"
+}
+
+cmd_run() {
+  require_batch_file
+
+  if [[ ! -s "$YT_DLP_BATCH_FILE" ]]; then
+    print "📭 Queue is empty"
+    return
+  fi
+
+  yt-dlp --batch-file "$YT_DLP_BATCH_FILE"
+}
+
+cmd_runclear() {
+  require_batch_file
+
+  yt-dlp --batch-file "$YT_DLP_BATCH_FILE" || exit $?
+
+  : > "$YT_DLP_BATCH_FILE"
+  print "🗑️  Queue cleared"
+}
+
+cmd_clear() {
+  require_batch_file
+  : > "$YT_DLP_BATCH_FILE"
+  print "🗑️  Queue cleared"
+}
+
+cmd_rm() {
+  require_batch_file
+
+  local url="$1"
+
+  [[ -n "$url" ]] || {
+    print -u2 "Usage: ytq rm <url>"
+    exit 1
+  }
+
+  local tmp_file
+  tmp_file="$(mktemp)" || exit 1
+
+  grep -Fvx -- "$url" "$YT_DLP_BATCH_FILE" > "$tmp_file"
+  mv "$tmp_file" "$YT_DLP_BATCH_FILE"
+
+  print "➖ Removed: $url"
+}
+
+cmd_dedupe() {
+  require_batch_file
+
+  local tmp_file
+  tmp_file="$(mktemp)" || exit 1
+
+  awk 'NF && !seen[$0]++' "$YT_DLP_BATCH_FILE" > "$tmp_file"
+  mv "$tmp_file" "$YT_DLP_BATCH_FILE"
+
+  print "🧹 Queue deduped"
+}
+
+cmd_edit() {
+  require_batch_file
+  "${EDITOR:-nvim}" "$YT_DLP_BATCH_FILE"
+}
+
+cmd_path() {
+  require_batch_file
+  print "$YT_DLP_BATCH_FILE"
+}
+
+usage() {
+  cat <<EOF
+Usage:
+  ytq add <url> [url ...]     Add URL(s) to end of queue
+  ytq next <url> [url ...]    Add URL(s) to start of queue
+  ytq addclip                 Add URL(s) from clipboard
+  ytq queue                   Show queue
+  ytq run                     Run yt-dlp
+  ytq runclear                Run then clear queue
+  ytq clear                   Clear queue
+  ytq rm <url>                Remove URL
+  ytq dedupe                  Remove duplicate entries
+  ytq edit                    Edit queue file
+  ytq path                    Show queue file path
+EOF
+}
+
+case "$1" in
+  add)
+    shift
+    cmd_add "$@"
+    ;;
+  next)
+    shift
+    cmd_next "$@"
+    ;;
+  addclip)
+    shift
+    cmd_addclip "$@"
+    ;;
+  queue|ls)
+    cmd_queue
+    ;;
+  run)
+    cmd_run
+    ;;
+  runclear)
+    cmd_runclear
+    ;;
+  clear)
+    cmd_clear
+    ;;
+  rm)
+    shift
+    cmd_rm "$@"
+    ;;
+  dedupe)
+    cmd_dedupe
+    ;;
+  edit)
+    cmd_edit
+    ;;
+  path)
+    cmd_path
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac
