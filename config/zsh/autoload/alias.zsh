@@ -13,6 +13,8 @@ alias .tidal-video-search="tiddl download --track-quality=max --video-quality=fh
 alias flac-print-tags="metaflac --list --block-type=VORBIS_COMMENT"
 alias .flac-print-tags=flac-print-tags
 
+alias rtsp-url-brute="nmap --script=/opt/homebrew/share/nmap/scripts/rtsp-url-brute.nse -p554"
+
 # ============================================================================
 # Utility Functions
 # ============================================================================
