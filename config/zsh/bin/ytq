@@ -10,10 +10,11 @@
 # Examples:
 #   ytq add https://youtu.be/foo
 #   ytq next https://youtu.be/bar
-#   ytq addclip
-#   ytq queue
-#   ytq list
-#   ytq run
+#   ytq paste
+#   ytq print
+#   ytq list --visuals
+#   ytq clean
+#   ytq run --visuals
 # -----------------------------------------------------------------------------
 
 setopt pipefail
@@ -236,14 +237,94 @@ cmd_queue() {
   nl -ba "$YT_DLP_BATCH_FILE"
 }
 
+cmd_clean_completed() {
+  require_batch_file
+
+  local quiet=false
+
+  if [[ "${1:-}" == "--quiet" ]]; then
+    quiet=true
+    shift
+  fi
+
+  if [[ -z "${YT_DLP_ARCHIVE_FILE:-}" ]]; then
+    print -u2 "❌ YT_DLP_ARCHIVE_FILE is not set; cannot identify completed downloads"
+    return 1
+  fi
+
+  if [[ ! -r "$YT_DLP_ARCHIVE_FILE" ]]; then
+    print -u2 "❌ Archive file is not readable: $YT_DLP_ARCHIVE_FILE"
+    return 1
+  fi
+
+  load_archive
+
+  local tmp_file
+  tmp_file="$(mktemp)" || return 1
+
+  local line kept=0 removed=0
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+
+    if is_archived_url "$line"; then
+      ((removed++))
+      continue
+    fi
+
+    print -r -- "$line" >> "$tmp_file"
+    ((kept++))
+  done < "$YT_DLP_BATCH_FILE"
+
+  mv "$tmp_file" "$YT_DLP_BATCH_FILE"
+
+  $quiet || {
+    print "🧹 Removed completed: $removed"
+    print "Remaining fresh:   $kept"
+  }
+}
+
 queue_list_item() {
   local url="$1"
+  local index="$2"
 
   if is_archived_url "$url"; then
-    printf '%s\t\033[32m✓\033[0m \033[2m%s\033[0m\n' "$url" "$url"
+    printf '%s\t%s\t\033[32m✓\033[0m \033[2m%4s %s\033[0m\n' "$url" "$index" "$index" "$url"
   else
-    printf '%s\t\033[34m▶\033[0m %s\n' "$url" "$url"
+    printf '%s\t%s\t\033[34m▶\033[0m \033[2m%4s\033[0m %s\n' "$url" "$index" "$index" "$url"
   fi
+}
+
+cmd_list_rows() {
+  require_batch_file
+  load_archive
+
+  local line index=0
+  while IFS= read -r line; do
+    ((index++))
+    [[ -n "$line" ]] && queue_list_item "$line" "$index"
+  done < "$YT_DLP_BATCH_FILE"
+}
+
+cmd_rm_index() {
+  require_batch_file
+
+  local index="$1"
+
+  [[ -n "$index" ]] || {
+    print -u2 "Usage: ytq __rm_index <number>"
+    return 1
+  }
+
+  [[ "$index" == <-> && "$index" -gt 0 ]] || {
+    print -u2 "❌ Invalid queue number: $index"
+    return 1
+  }
+
+  local tmp_file
+  tmp_file="$(mktemp)" || return 1
+
+  awk -v target="$index" 'NR != target { print }' "$YT_DLP_BATCH_FILE" > "$tmp_file"
+  mv "$tmp_file" "$YT_DLP_BATCH_FILE"
 }
 
 ytq_cache_dir() {
@@ -680,24 +761,35 @@ cmd_list() {
   load_archive
 
   local archive_note="archive: ${YT_DLP_ARCHIVE_FILE:-unset}"
+  local rows_cmd="${(q)YTQ_SELF} __list_rows"
+  local clean_cmd="${(q)YTQ_SELF} __clean_completed --quiet"
+  local rm_cmd="${(q)YTQ_SELF} __rm_index"
+  local get_play_args get_play_bind get_play_prefix
   local selected fzf_status
 
   [[ -n "${YT_DLP_ARCHIVE_FILE:-}" && -r "$YT_DLP_ARCHIVE_FILE" ]] || archive_note="archive: unavailable"
 
+  get_play_prefix="${(q)YTQ_SELF} __kitty_get_play"
+  get_play_args="$(shell_join "$@")"
+  get_play_bind="ctrl-s:execute-silent($get_play_prefix {2q}"
+  [[ -n "$get_play_args" ]] && get_play_bind+=" $get_play_args"
+  get_play_bind+=")"
+
   selected="$(
-    while IFS= read -r line; do
-      [[ -n "$line" ]] && queue_list_item "$line"
-    done < "$YT_DLP_BATCH_FILE" |
+    cmd_list_rows |
       fzf \
         --ansi \
         --no-sort \
         --tiebreak=index \
         --delimiter=$'\t' \
-        --with-nth=2 \
+        --with-nth=3 \
         --accept-nth=1 \
         --prompt='ytq list> ' \
-        --header="enter: move to top | esc: cancel | ✓: already in archive | $archive_note" \
-        --preview="${(q)YTQ_SELF} __preview {1}" \
+        --header="enter: download here | ctrl-s: download in pane + play | ctrl-d: delete row | ctrl-x: clean completed | esc: cancel | ✓: archived | $archive_note" \
+        --bind="ctrl-d:execute-silent($rm_cmd {2q})+reload($rows_cmd)" \
+        --bind="$get_play_bind" \
+        --bind="ctrl-x:execute-silent($clean_cmd)+reload($rows_cmd)" \
+        --preview="${(q)YTQ_SELF} __preview {1q}" \
         --preview-window='right,60%,wrap,border-left'
   )"
   fzf_status=$?
@@ -710,8 +802,7 @@ cmd_list() {
   esac
 
   [[ -n "$selected" ]] || return 0
-  cmd_next "$selected"
-  cmd_get 1 "$@"
+  yt-dlp "$@" "$selected"
 }
 
 cmd_run() {
@@ -725,37 +816,152 @@ cmd_run() {
   yt-dlp "$@" --batch-file "$YT_DLP_BATCH_FILE"
 }
 
-cmd_get() {
+queue_url_at_index() {
   require_batch_file
 
   local index="$1"
 
   [[ -n "$index" ]] || {
     print -u2 "Usage: ytq get <number> [yt-dlp args ...]"
-    exit 1
+    return 1
   }
 
   [[ "$index" == <-> && "$index" -gt 0 ]] || {
     print -u2 "❌ Invalid queue number: $index"
-    exit 1
+    return 1
   }
-
-  shift
 
   local url
   url="$(sed -n "${index}p" "$YT_DLP_BATCH_FILE")"
 
   [[ -n "$url" ]] || {
     print -u2 "❌ No queue item at position $index"
-    exit 1
+    return 1
   }
 
   if ! is_url "$url"; then
     print -u2 "❌ Queue item $index is not a URL: $url"
-    exit 1
+    return 1
   fi
 
+  print -r -- "$url"
+}
+
+cmd_get() {
+  local index="$1"
+  local url
+
+  [[ -n "$index" ]] || {
+    print -u2 "Usage: ytq get <number> [yt-dlp args ...]"
+    exit 1
+  }
+
+  shift
+  url="$(queue_url_at_index "$index")" || exit 1
+
   yt-dlp "$@" "$url"
+}
+
+cmd_get_play() {
+  local index="$1"
+  local url
+
+  [[ -n "$index" ]] || {
+    print -u2 "Usage: ytq __get_play <number> [yt-dlp args ...]"
+    return 1
+  }
+
+  shift
+  url="$(queue_url_at_index "$index")" || return 1
+
+  require_command yt-dlp
+  require_command mpv-send
+
+  local paths_file
+  paths_file="$(mktemp -t ytq-get-paths.XXXXXX)" || return 1
+
+  {
+    print "ytq get $index"
+    print "URL: $url"
+    print ""
+
+    yt-dlp \
+      --print-to-file 'after_move:filepath' "$paths_file" \
+      "$@" \
+      "$url" || return $?
+
+    local file
+    local -a files
+    typeset -A seen
+    files=()
+    seen=()
+
+    while IFS= read -r file; do
+      [[ -n "$file" ]] || continue
+      [[ -f "$file" ]] || continue
+      [[ -n "${seen[$file]:-}" ]] && continue
+
+      seen[$file]=1
+      files+=("$file")
+    done < "$paths_file"
+
+    (( ${#files[@]} )) || {
+      print -u2 "❌ Download completed, but yt-dlp did not report a playable file path"
+      return 1
+    }
+
+    print ""
+    print "Playing in mpv:"
+    printf '  %s\n' "${files[@]}"
+
+    mpv-send play -- "${files[@]}"
+  } always {
+    [[ -n "${paths_file:-}" && -e "$paths_file" ]] && rm -f -- "$paths_file"
+  }
+}
+
+shell_join() {
+  local arg
+  local -a quoted
+
+  quoted=()
+  for arg in "$@"; do
+    quoted+=("${(q)arg}")
+  done
+
+  print -r -- "${(j: :)quoted}"
+}
+
+kitty_launch_bin() {
+  if command -v kitty-launch >/dev/null 2>&1; then
+    command -v kitty-launch
+  elif [[ -x "$HOME/.zsh/bin/kitty-launch" ]]; then
+    print -r -- "$HOME/.zsh/bin/kitty-launch"
+  else
+    return 1
+  fi
+}
+
+cmd_kitty_get_play() {
+  local index="$1"
+  local kitty_launch
+
+  [[ -n "$index" ]] || {
+    print -u2 "Usage: ytq __kitty_get_play <number> [yt-dlp args ...]"
+    return 1
+  }
+
+  shift
+  kitty_launch="$(kitty_launch_bin)" || {
+    print -u2 "❌ Missing dependency: kitty-launch"
+    return 1
+  }
+
+  "$kitty_launch" \
+    --window \
+    --cwd "$PWD" \
+    --title " ytq get $index " \
+    -- "$YTQ_SELF" __get_play "$index" "$@"
 }
 
 cmd_runclear() {
@@ -819,24 +1025,49 @@ cmd_path() {
 
 usage() {
   cat <<EOF
+ytq - small yt-dlp queue manager
+
+Queue file:   ${YT_DLP_BATCH_FILE:-<YT_DLP_BATCH_FILE is not set>}
+Archive file: ${YT_DLP_ARCHIVE_FILE:-<YT_DLP_ARCHIVE_FILE is not set>}
+JSON cache:   ${YT_DLP_JSON_DIR:-<YT_DLP_JSON_DIR is not set>}
+
 Usage:
-  ytq add <url> [url ...]     Add URL(s) to end of queue
-  ytq next <url> [url ...]    Move URL(s) to front of queue
-  ytq addclip                 Add URL(s) from clipboard
-  ytq queue                   Show queue
-  ytq list [yt-dlp args ...]  Pick a queue item, move it to top, then get it
-  ytq run [yt-dlp args ...]   Run yt-dlp
-  ytq get <n> [yt-dlp args]   Download only queue item n
-  ytq runclear [args ...]     Run then clear queue
-  ytq clear                   Clear queue
-  ytq rm <url>                Remove URL
-  ytq dedupe                  Remove duplicate entries
-  ytq edit                    Edit queue file
-  ytq path                    Show queue file path
+  ytq <command> [arguments]
+
+Queue editing:
+  ytq add <url> [url ...]       Add URL(s) to the bottom of the queue.
+  ytq next <url> [url ...]      Move URL(s) to the top of the queue.
+  ytq paste                     Add URL(s) from the clipboard.
+  ytq rm <url>                  Remove one exact URL from the queue.
+  ytq dedupe                    Remove duplicate and blank queue entries.
+  ytq clean                     Remove archived/completed URLs from the queue.
+  ytq clear                     Empty the whole queue.
+  ytq edit                      Open the queue file in \$EDITOR.
+
+Viewing and picking:
+  ytq print                     Print the numbered queue.
+  ytq list [yt-dlp args ...]    Pick one queue item in fzf and download it.
+                                In fzf: Enter downloads here; Ctrl-S downloads
+                                in a Kitty pane and plays it in mpv; Ctrl-D
+                                deletes a row; Ctrl-X removes archived rows.
+  ytq path                      Print the queue file path.
+
+Downloading:
+  ytq run [yt-dlp args ...]     Run yt-dlp with --batch-file.
+  ytq get <n> [yt-dlp args ...] Download only queue item n, without --batch-file.
+  ytq runclear [args ...]       Run the queue with yt-dlp, then clear it.
+
+Compatibility aliases:
+  ytq addclip                   Same as paste.
+  ytq queue, ytq ls             Same as print.
+  ytq prune                     Same as clean.
 EOF
 }
 
 case "$1" in
+  ""|-h|--help|help)
+    usage
+    ;;
   add)
     shift
     cmd_add "$@"
@@ -845,11 +1076,11 @@ case "$1" in
     shift
     cmd_next "$@"
     ;;
-  addclip)
+  paste|addclip)
     shift
     cmd_addclip "$@"
     ;;
-  queue|ls)
+  print|queue|ls)
     cmd_queue
     ;;
   list)
@@ -871,6 +1102,10 @@ case "$1" in
   clear)
     cmd_clear
     ;;
+  clean|prune)
+    shift
+    cmd_clean_completed "$@"
+    ;;
   rm)
     shift
     cmd_rm "$@"
@@ -887,6 +1122,26 @@ case "$1" in
   __preview)
     shift
     cmd_preview "$@"
+    ;;
+  __list_rows)
+    shift
+    cmd_list_rows "$@"
+    ;;
+  __clean_completed)
+    shift
+    cmd_clean_completed "$@"
+    ;;
+  __rm_index)
+    shift
+    cmd_rm_index "$@"
+    ;;
+  __get_play)
+    shift
+    cmd_get_play "$@"
+    ;;
+  __kitty_get_play)
+    shift
+    cmd_kitty_get_play "$@"
     ;;
   *)
     usage
