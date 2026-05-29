@@ -1,0 +1,397 @@
+#!/usr/bin/env zsh
+
+emulate -L zsh
+set -euo pipefail
+
+script_name="${0:t}"
+script_path="${0:A}"
+user_name="${USER:-${LOGNAME:-$(id -un)}}"
+
+usage() {
+  cat <<EOF
+$script_name
+
+Launch a two-pane Yazi pair in Kitty and copy from either pane to the other.
+
+Usage:
+  $script_name launch [LEFT_DIR [RIGHT_DIR]]
+  $script_name pane <left|right> <SESSION_DIR> <START_DIR>
+  $script_name copy <PATH>...
+  $script_name copy-run <TARGET_DIR_OR_REMOTE> <PATH>...
+  $script_name peer-cwd
+
+Keys are wired from Yazi, but the commands are useful directly:
+  yazi-dual launch
+  yazi-dual copy file1 file2
+
+The launch command gives each Yazi pane a YAZI_DUAL_TARGET_WINDOW_ID pointing
+at the other Kitty window. The copy command asks Kitty for that window's current
+cwd at transfer time.
+EOF
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+normalize_dir() {
+  local input="${1:-$PWD}"
+
+  [[ -f "$input" ]] && input="${input:h}"
+  [[ -d "$input" ]] || {
+    print -u2 -- "$script_name: not a directory: $input"
+    return 1
+  }
+
+  print -r -- "${input:A}"
+}
+
+candidate_sockets() {
+  [[ -n "${YAZI_DUAL_KITTY_SOCKET:-}" ]] && print -r -- "$YAZI_DUAL_KITTY_SOCKET"
+  [[ -n "${KITTY_LISTEN_ON:-}" ]] && print -r -- "$KITTY_LISTEN_ON"
+
+  local socket_file
+  for socket_file in /tmp/kitty /tmp/kitty-"$user_name" /tmp/kitty-* /tmp/kitty.*(N); do
+    [[ -S "$socket_file" ]] || continue
+    print -r -- "unix:$socket_file"
+  done
+}
+
+discover_socket() {
+  local candidate
+  local -a seen
+  seen=()
+
+  while IFS= read -r candidate; do
+    [[ -n "$candidate" ]] || continue
+    (( ${seen[(Ie)$candidate]} )) && continue
+    seen+=( "$candidate" )
+
+    if kitty @ --to "$candidate" ls >/dev/null 2>&1; then
+      print -r -- "$candidate"
+      return 0
+    fi
+  done < <(candidate_sockets)
+
+  if kitty @ ls >/dev/null 2>&1; then
+    print -r -- ""
+    return 0
+  fi
+
+  return 1
+}
+
+kitty_remote() {
+  local socket="$1"
+  shift
+
+  if [[ -n "$socket" ]]; then
+    command kitty @ --to "$socket" "$@"
+  else
+    command kitty @ "$@"
+  fi
+}
+
+decode_cwd() {
+  local cwd="$1"
+
+  if [[ "$cwd" == file://* ]] && have python3; then
+    python3 - "$cwd" <<'PY'
+import sys
+from urllib.parse import unquote, urlparse
+
+url = urlparse(sys.argv[1])
+print(unquote(url.path))
+PY
+    return
+  fi
+
+  print -r -- "$cwd"
+}
+
+window_cwd() {
+  local window_id="$1"
+  local socket
+  socket="$(discover_socket)" || {
+    print -u2 -- "$script_name: cannot reach Kitty remote control"
+    return 1
+  }
+
+  local cwd
+  cwd="$(
+    kitty_remote "$socket" ls |
+      jq -r --arg id "$window_id" '
+        def cwd_value:
+          if .cwd == null then empty
+          elif (.cwd | type) == "string" then .cwd
+          elif (.cwd | type) == "object" then (.cwd.path // .cwd.uri // .cwd.file // empty)
+          else empty end;
+
+        [.[].tabs[]?.windows[]? | select((.id | tostring) == $id) | cwd_value][0] // empty
+      '
+  )"
+
+  [[ -n "$cwd" ]] || {
+    print -u2 -- "$script_name: Kitty window not found or has no cwd: $window_id"
+    return 1
+  }
+
+  decode_cwd "$cwd"
+}
+
+wait_for_peer_id() {
+  local file="$1"
+
+  for _ in {1..200}; do
+    [[ -s "$file" ]] && {
+      <"$file"
+      return 0
+    }
+    sleep 0.05
+  done
+
+  return 1
+}
+
+pane() {
+  (( $# == 3 )) || {
+    print -u2 -- "Usage: $script_name pane <left|right> <SESSION_DIR> <START_DIR>"
+    return 2
+  }
+
+  local side="$1"
+  local session_dir="$2"
+  local start_dir="$3"
+  local peer
+
+  case "$side" in
+    left) peer="right" ;;
+    right) peer="left" ;;
+    *)
+      print -u2 -- "$script_name: pane side must be left or right"
+      return 2
+      ;;
+  esac
+
+  local peer_id
+  peer_id="$(wait_for_peer_id "$session_dir/$peer.id")" || {
+    print -u2 -- "$script_name: timed out waiting for $peer pane"
+    exec "${SHELL:-/bin/zsh}" -l
+  }
+
+  export YAZI_DUAL_SIDE="$side"
+  export YAZI_DUAL_SESSION="$session_dir"
+  export YAZI_DUAL_SELF_WINDOW_ID="${KITTY_WINDOW_ID:-}"
+  export YAZI_DUAL_TARGET_WINDOW_ID="$peer_id"
+
+  exec yazi "$start_dir"
+}
+
+launch_pair() {
+  local left_dir
+  local right_dir
+  left_dir="$(normalize_dir "${1:-$PWD}")"
+  right_dir="$(normalize_dir "${2:-$left_dir}")"
+
+  have kitty || {
+    print -u2 -- "$script_name: kitty not found in PATH"
+    return 127
+  }
+
+  local socket
+  socket="$(discover_socket)" || {
+    print -u2 -- "$script_name: cannot reach Kitty remote control"
+    print -u2 -- "$script_name: start Kitty with allow_remote_control/listen_on, then retry"
+    return 1
+  }
+
+  local session_dir
+  session_dir="$(mktemp -d "${TMPDIR:-/tmp}/yazi-dual.XXXXXX")"
+
+  local left_id
+  left_id="$(
+    kitty_remote "$socket" launch \
+      --type=tab \
+      --tab-title " yazi dual " \
+      --title " yazi left " \
+      --cwd "$left_dir" \
+      --env "YAZI_DUAL_KITTY_SOCKET=$socket" \
+      --env "YAZI_DUAL_SESSION=$session_dir" \
+      --env "YAZI_DUAL_SIDE=left" \
+      -- "$script_path" pane left "$session_dir" "$left_dir"
+  )"
+  [[ "$left_id" == <-> ]] || {
+    print -u2 -- "$script_name: failed to launch left pane"
+    return 1
+  }
+  print -r -- "$left_id" >| "$session_dir/left.id"
+
+  kitty_remote "$socket" goto-layout splits --match "window_id:$left_id" >/dev/null 2>&1 || true
+
+  local right_id
+  right_id="$(
+    kitty_remote "$socket" launch \
+      --type=window \
+      --match "window_id:$left_id" \
+      --next-to "id:$left_id" \
+      --location=hsplit \
+      --bias=50 \
+      --title " yazi right " \
+      --cwd "$right_dir" \
+      --env "YAZI_DUAL_KITTY_SOCKET=$socket" \
+      --env "YAZI_DUAL_SESSION=$session_dir" \
+      --env "YAZI_DUAL_SIDE=right" \
+      -- "$script_path" pane right "$session_dir" "$right_dir"
+  )"
+  [[ "$right_id" == <-> ]] || {
+    print -u2 -- "$script_name: failed to launch right pane"
+    return 1
+  }
+  print -r -- "$right_id" >| "$session_dir/right.id"
+
+  kitty_remote "$socket" focus-window --match "id:$left_id" >/dev/null 2>&1 || true
+}
+
+rsync_bin() {
+  if [[ -x /opt/homebrew/bin/rsync ]]; then
+    print -r -- /opt/homebrew/bin/rsync
+  else
+    print -r -- rsync
+  fi
+}
+
+copy_with_rsync() {
+  local target="$1"
+  shift
+
+  [[ -d "$target" ]] || {
+    print -u2 -- "$script_name: target is not a local directory: $target"
+    return 1
+  }
+
+  local rsync
+  rsync="$(rsync_bin)"
+
+  local -a progress_opts
+  if "$rsync" --version | awk 'NR==1{split($3,v,"."); exit !((v[1]>3)|| (v[1]==3 && v[2]>=1))}'; then
+    progress_opts=( --info=progress2 )
+  else
+    progress_opts=( --progress )
+  fi
+
+  print -r -- "rsync target: $target"
+  "$rsync" -a -h "${progress_opts[@]}" --protect-args -- "$@" "${target%/}/"
+}
+
+copy_with_rclone() {
+  local target="$1"
+  shift
+
+  have rclone || {
+    print -u2 -- "$script_name: rclone not found in PATH"
+    return 127
+  }
+
+  local source
+  print -r -- "rclone target: $target"
+  for source in "$@"; do
+    if [[ -d "$source" ]]; then
+      rclone copy --progress -- "$source" "${target%/}/${source:t}"
+    else
+      rclone copy --progress -- "$source" "$target"
+    fi
+  done
+}
+
+copy_run() {
+  (( $# >= 2 )) || {
+    print -u2 -- "Usage: $script_name copy-run <TARGET_DIR_OR_REMOTE> <PATH>..."
+    return 2
+  }
+
+  local target="$1"
+  shift
+
+  local source
+  for source in "$@"; do
+    [[ -e "$source" ]] || {
+      print -u2 -- "$script_name: source does not exist: $source"
+      return 1
+    }
+  done
+
+  if [[ "$target" != /* && "$target" == *:* ]]; then
+    copy_with_rclone "$target" "$@"
+  else
+    copy_with_rsync "$target" "$@"
+  fi
+}
+
+copy_to_peer() {
+  (( $# )) || {
+    print -u2 -- "$script_name: no selected paths to copy"
+    return 1
+  }
+
+  local target_id="${YAZI_DUAL_TARGET_WINDOW_ID:-}"
+  [[ -n "$target_id" ]] || {
+    print -u2 -- "$script_name: this Yazi was not launched by yazi-dual"
+    return 1
+  }
+
+  local target
+  target="$(window_cwd "$target_id")"
+
+  local socket
+  socket="$(discover_socket || true)"
+
+  if [[ -n "$socket" || -n "${KITTY_WINDOW_ID:-}" ]]; then
+    local -a launch_args
+    launch_args=(
+      launch
+      --type=window
+      --location=hsplit
+      --bias=30
+      --hold
+      --title " yazi copy "
+      --cwd "$PWD"
+    )
+
+    [[ -n "${KITTY_WINDOW_ID:-}" ]] && launch_args+=( --match "window_id:$KITTY_WINDOW_ID" --next-to "id:$KITTY_WINDOW_ID" )
+
+    kitty_remote "$socket" "${launch_args[@]}" -- "$script_path" copy-run "$target" "$@" >/dev/null
+  else
+    copy_run "$target" "$@"
+  fi
+}
+
+peer_cwd() {
+  local target_id="${YAZI_DUAL_TARGET_WINDOW_ID:-}"
+  [[ -n "$target_id" ]] || {
+    print -u2 -- "$script_name: this Yazi was not launched by yazi-dual"
+    return 1
+  }
+
+  window_cwd "$target_id"
+}
+
+main() {
+  local command_name="${1:-}"
+  [[ $# -gt 0 ]] && shift
+
+  case "$command_name" in
+    launch) launch_pair "$@" ;;
+    pane) pane "$@" ;;
+    copy) copy_to_peer "$@" ;;
+    copy-run) copy_run "$@" ;;
+    peer-cwd) peer_cwd "$@" ;;
+    -h|--help|"") usage ;;
+    *)
+      print -u2 -- "$script_name: unknown command: $command_name"
+      usage >&2
+      return 2
+      ;;
+  esac
+}
+
+main "$@"

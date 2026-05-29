@@ -35,3 +35,6 @@ The menu bar title rounds to the nearest useful unit:
 5h
 2d
 ```
+
+The menu includes `Reboot`, `Shutdown`, and `Quit`. Reboot and Shutdown ask
+for confirmation before telling macOS to perform the power action.
