@@ -1,0 +1,162 @@
+#compdef ytq
+
+_ytq_queue_urls() {
+  local queue_file="${YT_DLP_BATCH_FILE:-}"
+  local -a urls
+
+  [[ -r "$queue_file" ]] || {
+    _message 'YT_DLP_BATCH_FILE is not readable'
+    return 1
+  }
+
+  urls=("${(@f)$(sed '/^[[:space:]]*$/d' "$queue_file")}")
+  (( ${#urls[@]} )) || {
+    _message 'queue is empty'
+    return 1
+  }
+
+  compadd -Q -- "${urls[@]}"
+}
+
+_ytq_queue_numbers() {
+  local queue_file="${YT_DLP_BATCH_FILE:-}"
+  local line
+  local -a items
+  integer i=1
+
+  [[ -r "$queue_file" ]] || {
+    _message 'YT_DLP_BATCH_FILE is not readable'
+    return 1
+  }
+
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    items+=("${i}:${line}")
+    ((i++))
+  done < "$queue_file"
+
+  (( ${#items[@]} )) || {
+    _message 'queue is empty'
+    return 1
+  }
+
+  _describe -t queue-items 'queue item' items
+}
+
+_ytq_ytdlp_args() {
+  local -a options
+
+  options=(
+    '--visuals[Use local yt-dlp visual preset/alias]'
+    '--porn[Use local yt-dlp porn preset/alias]'
+    '--tower[Use local yt-dlp tower preset/alias]'
+    '(-f --format)'{-f,--format}'[Video format selector]:format:'
+    '--format=[Video format selector]:format:'
+    '(-o --output)'{-o,--output}'[Output filename template]:template:'
+    '--output=[Output filename template]:template:'
+    '--paths[Set output paths]:paths:'
+    '--paths=[Set output paths]:paths:'
+    '--cookies[Read cookies from file]:cookie file:_files'
+    '--cookies=[Read cookies from file]:cookie file:_files'
+    '--cookies-from-browser[Read cookies from browser]:browser:(brave chrome chromium firefox safari edge)'
+    '--cookies-from-browser=[Read cookies from browser]:browser:(brave chrome chromium firefox safari edge)'
+    '--download-archive[Use archive file]:archive file:_files'
+    '--download-archive=[Use archive file]:archive file:_files'
+    '--no-download-archive[Ignore configured download archive]'
+    '--write-thumbnail[Write thumbnail]'
+    '--write-info-json[Write metadata JSON]'
+    '--no-write-info-json[Do not write metadata JSON]'
+    '--embed-metadata[Embed metadata into output file]'
+    '--no-playlist[Download only the given video]'
+    '--yes-playlist[Download playlist if URL points to one]'
+    '--playlist-items[Playlist item range]:items:'
+    '--playlist-items=[Playlist item range]:items:'
+    '(-N --concurrent-fragments)'{-N,--concurrent-fragments}'[Number of fragments to download concurrently]:count:'
+    '--merge-output-format[Container for merged output]:format:(mp4 mkv webm mov flv)'
+    '--merge-output-format=[Container for merged output]:format:(mp4 mkv webm mov flv)'
+    '(-S --format-sort)'{-S,--format-sort}'[Format sort fields]:sort:'
+    '--format-sort=[Format sort fields]:sort:'
+    '--match-filter[Generic filter expression]:filter:'
+    '--match-filter=[Generic filter expression]:filter:'
+    '--dateafter[Download only videos after date]:date:'
+    '--dateafter=[Download only videos after date]:date:'
+    '--datebefore[Download only videos before date]:date:'
+    '--datebefore=[Download only videos before date]:date:'
+    '--ignore-config[Do not read yt-dlp config files]'
+    '--verbose[Print debug output]'
+    '--simulate[Do not download]'
+    '--skip-download[Do not download media]'
+    '--progress[Show progress]'
+    '--no-progress[Hide progress]'
+    '--[Stop option parsing]'
+  )
+
+  _describe -t yt-dlp-options 'yt-dlp option' options || _files
+}
+
+_ytq() {
+  local curcontext="$curcontext" state
+  local -a commands
+  typeset -A opt_args
+
+  commands=(
+    'add:Add URL(s) to the bottom of the queue'
+    'next:Move URL(s) to the top of the queue'
+    'paste:Add URL(s) from the clipboard'
+    'print:Print the numbered queue'
+    'list:Pick one queue item in fzf and download it'
+    'run:Run yt-dlp with --batch-file'
+    'get:Download only queue item n'
+    'runclear:Run yt-dlp with --batch-file, then clear the queue'
+    'clean:Remove archived/completed URLs from the queue'
+    'prune:Alias for clean'
+    'clear:Empty the whole queue'
+    'rm:Remove one exact URL from the queue'
+    'dedupe:Remove duplicate and blank queue entries'
+    'edit:Open the queue file in $EDITOR'
+    'path:Print the queue file path'
+    'help:Show help'
+    'addclip:Alias for paste'
+    'queue:Alias for print'
+    'ls:Alias for print'
+  )
+
+  _arguments -C -s \
+    '(-h --help)'{-h,--help}'[Show help]' \
+    '1:command:->command' \
+    '*::argument:->argument'
+
+  case "$state" in
+    command)
+      _describe -t commands 'ytq command' commands
+      ;;
+    argument)
+      case "$words[2]" in
+        add|next)
+          _message 'URL'
+          ;;
+        rm)
+          _ytq_queue_urls
+          ;;
+        get)
+          if (( CURRENT == 3 )); then
+            _ytq_queue_numbers
+          else
+            _ytq_ytdlp_args
+          fi
+          ;;
+        list|run|runclear)
+          _ytq_ytdlp_args
+          ;;
+        clean|prune)
+          _arguments '--quiet[Suppress cleanup summary]'
+          ;;
+        edit|path|print|queue|ls|paste|addclip|dedupe|clear|help)
+          _message 'no arguments'
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_ytq "$@"

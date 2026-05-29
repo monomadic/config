@@ -1,0 +1,468 @@
+#!/usr/bin/env zsh
+
+# ============================================================================
+# 🎚 normalize-audio
+#
+# Normalize audio files using loudnorm, peak normalization, or limiting.
+# Designed for Demucs/UVR acapellas, stems, DJ edits, and batch catalog cleanup.
+# ============================================================================
+
+set -euo pipefail
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Colors
+# ─────────────────────────────────────────────────────────────────────────────
+
+autoload -Uz colors && colors
+
+c_reset="%f%k"
+c_dim="%F{244}"
+c_red="%F{160}"
+c_green="%F{76}"
+c_yellow="%F{220}"
+c_blue="%F{39}"
+c_purple="%F{141}"
+c_cyan="%F{81}"
+c_bold="%B"
+c_normal="%b"
+
+info()    { print -P -- "${c_blue}󰋼${c_reset} $*"; }
+ok()      { print -P -- "${c_green}✓${c_reset} $*"; }
+warn()    { print -P -- "${c_yellow}⚠${c_reset} $*"; }
+err()     { print -P -u2 -- "${c_red}✗${c_reset} $*"; }
+heading() { print -P -- "\n${c_purple}${c_bold}$*${c_normal}${c_reset}"; }
+
+die() {
+    err "$*"
+    exit 1
+}
+
+require() {
+    command -v "$1" >/dev/null 2>&1 || die "$1 not found"
+}
+
+usage() {
+cat <<'EOF'
+🎚 normalize-audio
+
+Usage:
+    normalize-audio <method> <file...>
+
+Methods:
+
+    loudnorm
+        Single-pass FFmpeg EBU R128 loudness normalization.
+        Target: -16 LUFS, -1 dBTP, LRA 8.
+
+        Good default for:
+            - Demucs vocals
+            - Acapellas
+            - General listening
+
+    loudnorm2
+        Two-pass FFmpeg EBU R128 loudness normalization.
+        Same target as loudnorm, but more accurate.
+
+        Best automated choice for:
+            - weird extracted stems
+            - large vocal catalogs
+            - inconsistent acapella levels
+
+    dj
+        Single-pass louder loudness normalization.
+        Target: -12 LUFS, -1 dBTP, LRA 8.
+
+        Good for:
+            - DJ acapellas
+            - mashups
+            - remix prep
+
+    dj2
+        Two-pass DJ normalization.
+        More accurate than dj.
+
+    peak
+        SoX peak normalization.
+        Target: -3 dBFS peak.
+
+        Fast and simple, but does not normalize perceived loudness.
+
+    limiter
+        FFmpeg limiter only.
+        Ceiling around -1 dBFS.
+
+        Useful when files are already roughly consistent and you mainly
+        want to prevent overs.
+
+    auphonic
+        Shows recommended Auphonic settings.
+        Does not process locally.
+
+Examples:
+    normalize-audio loudnorm2 *.flac
+    normalize-audio dj2 vocals/*.wav
+    normalize-audio peak song.wav
+    normalize-audio limiter *.mp3
+
+Output:
+    song.flac -> song.loudnorm2.flac
+    song.wav  -> song.dj2.wav
+
+Notes:
+    Audio filters require re-encoding.
+    This script preserves the original extension and tries to preserve the
+    original audio codec, bitrate, metadata, and chapters where practical.
+EOF
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+codec_for_file() {
+    local input_file="$1"
+
+    ffprobe \
+        -v error \
+        -select_streams a:0 \
+        -show_entries stream=codec_name \
+        -of default=noprint_wrappers=1:nokey=1 \
+        "$input_file"
+}
+
+bitrate_for_file() {
+    local input_file="$1"
+
+    ffprobe \
+        -v error \
+        -select_streams a:0 \
+        -show_entries stream=bit_rate \
+        -of default=noprint_wrappers=1:nokey=1 \
+        "$input_file" 2>/dev/null || true
+}
+
+sample_fmt_for_file() {
+    local input_file="$1"
+
+    ffprobe \
+        -v error \
+        -select_streams a:0 \
+        -show_entries stream=sample_fmt \
+        -of default=noprint_wrappers=1:nokey=1 \
+        "$input_file" 2>/dev/null || true
+}
+
+encoder_for_codec() {
+    local codec="$1"
+
+    case "$codec" in
+        mp3)
+            print -- "libmp3lame"
+            ;;
+        opus)
+            print -- "libopus"
+            ;;
+        vorbis)
+            print -- "libvorbis"
+            ;;
+        aac)
+            print -- "aac"
+            ;;
+        flac)
+            print -- "flac"
+            ;;
+        alac)
+            print -- "alac"
+            ;;
+        pcm_s16le|pcm_s24le|pcm_s32le|pcm_f32le|pcm_f64le)
+            print -- "$codec"
+            ;;
+        wav)
+            print -- "pcm_s24le"
+            ;;
+        *)
+            print -- "$codec"
+            ;;
+    esac
+}
+
+output_path() {
+    local input_file="$1"
+    local method_name="$2"
+
+    local base="${input_file:r}"
+    local ext="${input_file:e}"
+
+    print -- "${base}.${method_name}.${ext}"
+}
+
+ffmpeg_audio_args_for_file() {
+    local input_file="$1"
+    local codec="$2"
+    local encoder="$3"
+    local bitrate="$4"
+
+    local args=()
+
+    args+=("-c:a" "$encoder")
+
+    case "$codec" in
+        mp3|aac|opus|vorbis)
+            if [[ -n "$bitrate" && "$bitrate" != "N/A" ]]; then
+                args+=("-b:a" "$bitrate")
+            fi
+            ;;
+        flac)
+            args+=("-compression_level" "8")
+            ;;
+    esac
+
+    print -r -- "${args[@]}"
+}
+
+run_ffmpeg_filter() {
+    local input_file="$1"
+    local output_file="$2"
+    local filter="$3"
+
+    local codec encoder bitrate audio_args
+    codec="$(codec_for_file "$input_file")"
+    encoder="$(encoder_for_codec "$codec")"
+    bitrate="$(bitrate_for_file "$input_file")"
+    audio_args=("${(@f)$(ffmpeg_audio_args_for_file "$input_file" "$codec" "$encoder" "$bitrate")}")
+
+    info "${c_dim}codec:${c_reset} $codec ${c_dim}-> encoder:${c_reset} $encoder"
+
+    ffmpeg \
+        -hide_banner \
+        -y \
+        -i "$input_file" \
+        -map_metadata 0 \
+        -map_chapters 0 \
+        -vn \
+        -af "$filter" \
+        "${audio_args[@]}" \
+        "$output_file"
+}
+
+run_loudnorm_single() {
+    local input_file="$1"
+    local method_name="$2"
+    local target_lufs="$3"
+
+    local out
+    out="$(output_path "$input_file" "$method_name")"
+
+    heading "🎚 $method_name"
+    info "${c_cyan}$input_file${c_reset} ${c_dim}->${c_reset} ${c_green}$out${c_reset}"
+    info "target ${target_lufs} LUFS / -1 dBTP / LRA 8"
+
+    run_ffmpeg_filter \
+        "$input_file" \
+        "$out" \
+        "loudnorm=I=${target_lufs}:TP=-1:LRA=8"
+
+    ok "$out"
+}
+
+run_loudnorm_two_pass() {
+    local input_file="$1"
+    local method_name="$2"
+    local target_lufs="$3"
+
+    require jq
+
+    local out stats measured_i measured_tp measured_lra measured_thresh offset
+
+    out="$(output_path "$input_file" "$method_name")"
+
+    heading "🎚 $method_name"
+    info "${c_cyan}$input_file${c_reset} ${c_dim}->${c_reset} ${c_green}$out${c_reset}"
+    info "target ${target_lufs} LUFS / -1 dBTP / LRA 8"
+
+    info "pass 1: measuring loudness"
+
+    stats="$(
+        ffmpeg \
+            -hide_banner \
+            -i "$input_file" \
+            -af "loudnorm=I=${target_lufs}:TP=-1:LRA=8:print_format=json" \
+            -f null - \
+            2>&1 \
+            | sed -n '/^{/,/^}/p'
+    )"
+
+    [[ -n "$stats" ]] || die "failed to parse loudnorm stats for: $input_file"
+
+    measured_i="$(jq -r '.input_i' <<< "$stats")"
+    measured_tp="$(jq -r '.input_tp' <<< "$stats")"
+    measured_lra="$(jq -r '.input_lra' <<< "$stats")"
+    measured_thresh="$(jq -r '.input_thresh' <<< "$stats")"
+    offset="$(jq -r '.target_offset' <<< "$stats")"
+
+    print -P -- "${c_dim}measured:${c_reset} I=${measured_i}, TP=${measured_tp}, LRA=${measured_lra}, thresh=${measured_thresh}, offset=${offset}"
+
+    info "pass 2: applying measured normalization"
+
+    run_ffmpeg_filter \
+        "$input_file" \
+        "$out" \
+        "loudnorm=I=${target_lufs}:TP=-1:LRA=8:measured_I=${measured_i}:measured_TP=${measured_tp}:measured_LRA=${measured_lra}:measured_thresh=${measured_thresh}:offset=${offset}:linear=true:print_format=summary"
+
+    ok "$out"
+}
+
+run_peak() {
+    local input_file="$1"
+    local out
+
+    out="$(output_path "$input_file" "peak")"
+
+    heading "🎚 peak"
+    info "${c_cyan}$input_file${c_reset} ${c_dim}->${c_reset} ${c_green}$out${c_reset}"
+    info "SoX peak normalize to -3 dBFS"
+
+    sox \
+        "$input_file" \
+        "$out" \
+        gain -n -3
+
+    ok "$out"
+}
+
+run_limiter() {
+    local input_file="$1"
+    local out
+
+    out="$(output_path "$input_file" "limiter")"
+
+    heading "🎚 limiter"
+    info "${c_cyan}$input_file${c_reset} ${c_dim}->${c_reset} ${c_green}$out${c_reset}"
+    info "FFmpeg limiter ceiling around -1 dBFS"
+
+    run_ffmpeg_filter \
+        "$input_file" \
+        "$out" \
+        "alimiter=limit=0.89"
+
+    ok "$out"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Main
+# ─────────────────────────────────────────────────────────────────────────────
+
+[[ $# -lt 1 ]] && {
+    usage
+    exit 1
+}
+
+method="$1"
+shift
+
+case "$method" in
+    help|-h|--help)
+        usage
+        exit 0
+        ;;
+esac
+
+[[ $# -lt 1 ]] && die "missing input file(s)"
+
+case "$method" in
+    loudnorm)
+        require ffmpeg
+        require ffprobe
+
+        for input_file in "$@"; do
+            [[ -f "$input_file" ]] || die "file not found: $input_file"
+            run_loudnorm_single "$input_file" "loudnorm" "-16"
+        done
+        ;;
+
+    loudnorm2|2pass)
+        require ffmpeg
+        require ffprobe
+        require jq
+
+        for input_file in "$@"; do
+            [[ -f "$input_file" ]] || die "file not found: $input_file"
+            run_loudnorm_two_pass "$input_file" "loudnorm2" "-16"
+        done
+        ;;
+
+    dj)
+        require ffmpeg
+        require ffprobe
+
+        for input_file in "$@"; do
+            [[ -f "$input_file" ]] || die "file not found: $input_file"
+            run_loudnorm_single "$input_file" "dj" "-12"
+        done
+        ;;
+
+    dj2)
+        require ffmpeg
+        require ffprobe
+        require jq
+
+        for input_file in "$@"; do
+            [[ -f "$input_file" ]] || die "file not found: $input_file"
+            run_loudnorm_two_pass "$input_file" "dj2" "-12"
+        done
+        ;;
+
+    peak)
+        require sox
+
+        for input_file in "$@"; do
+            [[ -f "$input_file" ]] || die "file not found: $input_file"
+            run_peak "$input_file"
+        done
+        ;;
+
+    limiter)
+        require ffmpeg
+        require ffprobe
+
+        for input_file in "$@"; do
+            [[ -f "$input_file" ]] || die "file not found: $input_file"
+            run_limiter "$input_file"
+        done
+        ;;
+
+    auphonic)
+        cat <<'EOF'
+
+Recommended Auphonic profile:
+
+    Loudness Target:
+        -16 LUFS
+
+    Adaptive Leveler:
+        ON
+
+    True Peak Limiter:
+        ON
+
+    Noise Reduction:
+        OFF
+
+    Hum Reduction:
+        OFF
+
+    Filtering:
+        OFF
+
+Use this when:
+    - stems are very inconsistent
+    - you want the least hands-on batch process
+    - extracted vocals need gentle automatic leveling
+
+EOF
+        ;;
+
+    *)
+        die "unknown method: $method"
+        ;;
+esac
