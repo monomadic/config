@@ -6,6 +6,7 @@
 #   export YT_DLP_BATCH_FILE=~/.local/share/yt-dlp/queue.txt
 #   export YT_DLP_ARCHIVE_FILE=~/.local/share/yt-dlp/archive.txt
 #   export YT_DLP_JSON_DIR=~/.local/share/yt-dlp/json
+#   export YT_DLP_THUMBCACHE_DIR=~/.local/share/yt-dlp/thumbs
 #
 # Examples:
 #   ytq add https://youtu.be/foo
@@ -340,6 +341,14 @@ ytq_json_dir() {
   print -r -- "${~YT_DLP_JSON_DIR}"
 }
 
+ytq_thumbcache_dir() {
+  if [[ -n "${YT_DLP_THUMBCACHE_DIR:-}" ]]; then
+    print -r -- "${~YT_DLP_THUMBCACHE_DIR}"
+  else
+    ytq_cache_dir
+  fi
+}
+
 metadata_json_candidates() {
   local url="$1"
   local dir="$2"
@@ -422,19 +431,124 @@ metadata_json_has_thumbnail() {
   ' "$json" >/dev/null 2>&1
 }
 
-find_preview_thumbnail() {
-  local base="$1"
-  local ext candidate
+thumbnail_is_valid() {
+  local file="$1"
+  local mime=""
+  local mime_checked=false
 
-  for ext in jpg jpeg png webp avif; do
-    candidate="${base}.${ext}"
-    [[ -s "$candidate" ]] && {
-      print -r -- "$candidate"
-      return 0
-    }
+  [[ -s "$file" ]] || return 1
+
+  if command -v file >/dev/null 2>&1; then
+    mime="$(file -b --mime-type "$file" 2>/dev/null || file -b -I "$file" 2>/dev/null)" || mime=""
+    mime="${mime%%;*}"
+    mime_checked=true
+    [[ "$mime" == image/* ]] || return 1
+  fi
+
+  if command -v sips >/dev/null 2>&1 && sips -g pixelWidth -g pixelHeight "$file" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if command -v magick >/dev/null 2>&1 && magick identify "$file" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if command -v identify >/dev/null 2>&1 && identify "$file" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  $mime_checked
+}
+
+find_preview_thumbnail() {
+  local base ext candidate
+
+  for base in "$@"; do
+    [[ -n "$base" ]] || continue
+
+    for ext in jpg jpeg png webp avif; do
+      candidate="${base}.${ext}"
+      [[ -e "$candidate" ]] || continue
+
+      if thumbnail_is_valid "$candidate"; then
+        print -r -- "$candidate"
+        return 0
+      fi
+
+      rm -f -- "$candidate"
+    done
   done
 
   return 1
+}
+
+thumbnail_stem_from_json() {
+  local json="$1"
+
+  [[ -s "$json" ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+
+  jq -r '
+    (.extractor // (.extractor_key // "" | tostring | ascii_downcase) | tostring) as $extractor
+    | (.id // "" | tostring) as $id
+    | select($extractor != "" and $id != "")
+    | "\($extractor)_\($id)"
+  ' "$json" 2>/dev/null
+}
+
+thumbnail_base_candidates() {
+  local url="$1"
+  local key="$2"
+  local json="${3:-}"
+  local fallback_base="${4:-}"
+  local thumb_dir stem video_id base
+  typeset -A seen
+
+  thumb_dir="$(ytq_thumbcache_dir 2>/dev/null)" || return 1
+  seen=()
+
+  if stem="$(thumbnail_stem_from_json "$json" 2>/dev/null)" && [[ -n "$stem" ]]; then
+    base="$thumb_dir/$stem"
+    [[ -z "${seen[$base]:-}" ]] && print -r -- "$base" && seen[$base]=1
+  fi
+
+  if video_id="$(youtube_id_from_url "$url" 2>/dev/null)"; then
+    base="$thumb_dir/youtube_$video_id"
+    [[ -z "${seen[$base]:-}" ]] && print -r -- "$base" && seen[$base]=1
+  fi
+
+  if video_id="$(faphouse_id_from_url "$url" 2>/dev/null)"; then
+    base="$thumb_dir/faphouse_$video_id"
+    [[ -z "${seen[$base]:-}" ]] && print -r -- "$base" && seen[$base]=1
+  fi
+
+  base="$thumb_dir/$key"
+  [[ -z "${seen[$base]:-}" ]] && print -r -- "$base" && seen[$base]=1
+
+  if [[ -n "$fallback_base" ]]; then
+    [[ -z "${seen[$fallback_base]:-}" ]] && print -r -- "$fallback_base"
+  fi
+}
+
+find_cached_thumbnail() {
+  local url="$1"
+  local key="$2"
+  local json="${3:-}"
+  local fallback_base="${4:-}"
+  local -a bases
+
+  bases=("${(@f)$(thumbnail_base_candidates "$url" "$key" "$json" "$fallback_base")}")
+  find_preview_thumbnail "${bases[@]}"
+}
+
+thumbnail_output_template() {
+  local fallback_template="$1"
+
+  if [[ -n "${YT_DLP_THUMBCACHE_DIR:-}" ]]; then
+    print -r -- '%(extractor)s_%(id)s.%(ext)s'
+  else
+    print -r -- "$fallback_template"
+  fi
 }
 
 preview_error_cache_fresh() {
@@ -459,18 +573,23 @@ preview_error_cache_fresh() {
 fetch_preview_cache() {
   local url="$1"
   local base="$2"
+  local key="${base:t}"
   local json="${base}.info.json"
   local error_file="${base}.error"
   local cache_dir="${base:h}"
   local cache_template="${base:t}.%(ext)s"
-  local metadata_json json_dir fetch_status tmp_log
+  local thumb_dir thumb_template metadata_json json_dir fetch_status tmp_log
   local -a metadata_args
+
+  thumb_dir="$(ytq_thumbcache_dir)"
+  thumb_template="$(thumbnail_output_template "$cache_template")"
+  mkdir -p "$thumb_dir" 2>/dev/null
 
   metadata_json="$(find_cached_metadata_json "$url" 2>/dev/null)" || metadata_json=""
   if [[ -s "$metadata_json" ]]; then
-    find_preview_thumbnail "$base" >/dev/null 2>&1 && return 0
-    fetch_preview_thumbnail_from_json "$metadata_json" "$base"
-    find_preview_thumbnail "$base" >/dev/null 2>&1 && return 0
+    find_cached_thumbnail "$url" "$key" "$metadata_json" "$base" >/dev/null 2>&1 && return 0
+    fetch_preview_thumbnail_from_json "$metadata_json" "$thumb_dir" "$thumb_template"
+    find_cached_thumbnail "$url" "$key" "$metadata_json" "$base" >/dev/null 2>&1 && return 0
     metadata_json_has_thumbnail "$metadata_json" && return 0
   fi
 
@@ -510,9 +629,9 @@ fetch_preview_cache() {
     "${metadata_args[@]}" \
     --paths "home:$cache_dir" \
     --paths "temp:$cache_dir" \
-    --paths "thumbnail:$cache_dir" \
+    --paths "thumbnail:$thumb_dir" \
     --output "$cache_template" \
-    --output "thumbnail:$cache_template" \
+    --output "thumbnail:$thumb_template" \
     "$url" > "$tmp_log" 2>&1
   fetch_status=$?
 
@@ -533,12 +652,12 @@ fetch_preview_cache() {
 
 fetch_preview_thumbnail_from_json() {
   local json="$1"
-  local base="$2"
-  local cache_dir="${base:h}"
-  local cache_template="${base:t}.%(ext)s"
+  local thumb_dir="$2"
+  local thumb_template="$3"
 
   [[ -s "$json" ]] || return 1
   command -v yt-dlp >/dev/null 2>&1 || return 1
+  mkdir -p "$thumb_dir" 2>/dev/null
 
   yt-dlp \
     --load-info-json "$json" \
@@ -548,11 +667,11 @@ fetch_preview_thumbnail_from_json() {
     --no-download-archive \
     --no-warnings \
     --no-progress \
-    --paths "home:$cache_dir" \
-    --paths "temp:$cache_dir" \
-    --paths "thumbnail:$cache_dir" \
-    --output "$cache_template" \
-    --output "thumbnail:$cache_template" \
+    --paths "home:$thumb_dir" \
+    --paths "temp:$thumb_dir" \
+    --paths "thumbnail:$thumb_dir" \
+    --output "$thumb_template" \
+    --output "thumbnail:$thumb_template" \
     >/dev/null 2>&1
 }
 
@@ -736,7 +855,7 @@ cmd_preview() {
     return 0
   fi
 
-  thumbnail="$(find_preview_thumbnail "$base" 2>/dev/null)" || thumbnail=""
+  thumbnail="$(find_cached_thumbnail "$url" "$key" "$json" "$base" 2>/dev/null)" || thumbnail=""
   if [[ -n "$thumbnail" ]]; then
     render_preview_image "$thumbnail"
     print ""
@@ -771,7 +890,7 @@ cmd_list() {
 
   get_play_prefix="${(q)YTQ_SELF} __kitty_get_play"
   get_play_args="$(shell_join "$@")"
-  get_play_bind="ctrl-s:execute-silent($get_play_prefix {2q}"
+  get_play_bind="ctrl-s:execute-silent($get_play_prefix {2}"
   [[ -n "$get_play_args" ]] && get_play_bind+=" $get_play_args"
   get_play_bind+=")"
 
@@ -786,10 +905,10 @@ cmd_list() {
         --accept-nth=1 \
         --prompt='ytq list> ' \
         --header="enter: download here | ctrl-s: download in pane + play | ctrl-d: delete row | ctrl-x: clean completed | esc: cancel | ✓: archived | $archive_note" \
-        --bind="ctrl-d:execute-silent($rm_cmd {2q})+reload($rows_cmd)" \
+        --bind="ctrl-d:execute-silent($rm_cmd {2})+reload($rows_cmd)" \
         --bind="$get_play_bind" \
         --bind="ctrl-x:execute-silent($clean_cmd)+reload($rows_cmd)" \
-        --preview="${(q)YTQ_SELF} __preview {1q}" \
+        --preview="${(q)YTQ_SELF} __preview {1}" \
         --preview-window='right,60%,wrap,border-left'
   )"
   fzf_status=$?
@@ -1030,6 +1149,7 @@ ytq - small yt-dlp queue manager
 Queue file:   ${YT_DLP_BATCH_FILE:-<YT_DLP_BATCH_FILE is not set>}
 Archive file: ${YT_DLP_ARCHIVE_FILE:-<YT_DLP_ARCHIVE_FILE is not set>}
 JSON cache:   ${YT_DLP_JSON_DIR:-<YT_DLP_JSON_DIR is not set>}
+Thumb cache:  ${YT_DLP_THUMBCACHE_DIR:-<YT_DLP_THUMBCACHE_DIR is not set; using ytq preview cache>}
 
 Usage:
   ytq <command> [arguments]
