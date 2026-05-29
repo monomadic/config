@@ -1,0 +1,103 @@
+#!/usr/bin/env zsh
+
+# ─────────────────────────────────────────────────────────────
+# 📷 rtsp-hunt
+#
+# Bruteforce RTSP endpoints on mystery Chinese IP cameras.
+#
+# Usage:
+#   rtsp-hunt 192.168.1.123
+#
+# Requirements:
+#   ffprobe
+#   parallel
+#
+# ─────────────────────────────────────────────────────────────
+
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+    echo "usage: $0 <camera-ip>"
+    exit 1
+fi
+
+CAMERA_IP="$1"
+
+typeset -a PORTS=(
+    554
+    8554
+    10554
+)
+
+typeset -a USERS=(
+    admin
+    root
+    user
+    camera
+)
+
+typeset -a PASSWORDS=(
+    admin
+    123456
+    password
+    root
+    ""
+)
+
+typeset -a PATHS=(
+    "/11"
+    "/12"
+    "/stream1"
+    "/stream2"
+    "/live/ch00_0"
+    "/live/ch00_1"
+    "/live/ch01_0"
+    "/live/ch01_1"
+    "/h264Preview_01_main"
+    "/h264Preview_01_sub"
+    "/cam/realmonitor?channel=1&subtype=0"
+    "/cam/realmonitor?channel=1&subtype=1"
+    "/videoMain"
+    "/videoSub"
+    "/0"
+    "/1"
+    "/live"
+    "/mpeg4"
+)
+
+tmpfile="$(mktemp)"
+
+for port in "${PORTS[@]}"; do
+    for user in "${USERS[@]}"; do
+        for pass in "${PASSWORDS[@]}"; do
+            for rtsp_path in "${PATHS[@]}"; do
+
+                if [[ -z "$pass" ]]; then
+                    url="rtsp://${user}@${CAMERA_IP}:${port}${rtsp_path}"
+                else
+                    url="rtsp://${user}:${pass}@${CAMERA_IP}:${port}${rtsp_path}"
+                fi
+
+                echo "$url" >> "$tmpfile"
+
+            done
+        done
+    done
+done
+
+echo "🔍 Testing $(wc -l < "$tmpfile") RTSP combinations..."
+echo
+
+cat "$tmpfile" | parallel -j32 '
+    ffprobe \
+        -v quiet \
+        -rtsp_transport tcp \
+        -show_streams \
+        "{}" >/dev/null 2>&1
+
+    if [[ $? -eq 0 ]]; then
+        echo "✅ {}"
+    fi
+'
+
+rm -f "$tmpfile"
