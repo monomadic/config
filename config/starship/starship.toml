@@ -3,7 +3,7 @@ add_newline = false
 command_timeout = 500
 #scan_timeout = 10
 
-format = "$line_break$os$hostname $directory${custom.disk_free}${custom.uptime}$battery$line_break$git_branch$git_status$character"
+format = "$directory$git_branch$git_status${custom.uptime}${custom.disk_free}$battery$line_break$os$hostname $character"
 
 # ---------- OS + Host ----------
 [os]
@@ -19,9 +19,15 @@ format = "[$hostname]($style)"
 style="bold white"
 disabled = false
 
+[custom.folder_icon]
+symbol = "􀈕 "
+style = "bold green"
+format = " [$symbol]($style)"
+disabled = false
+
 # ---------- Directory (absolute path) ----------
 [directory]
-style = "bold blue"
+style = "yellow"
 format = "[$path]($style)"
 truncation_length = 0
 truncate_to_repo = false
@@ -30,18 +36,18 @@ truncate_to_repo = false
 [git_branch]
 symbol = " "
 style = "bold green"
-format = "[$symbol$branch]($style) "
+format = " [$symbol$branch]($style)"
 
 [git_status]
 style = "bold red"
-format = "[$all_status$ahead_behind]($style) "
+format = " [$all_status$ahead_behind]($style)"
 disabled = false
 
 # ---------- Disk Free (GB of current filesystem) ----------
 [custom.disk_free]
 when = true
 command = "df -k . | tail -1 | awk '{print $4*1024} ' | /opt/homebrew/opt/coreutils/libexec/gnubin/numfmt --to=iec --suffix=b --format='%.1f'"
-format = "   [􀤂  $output](bold #AAAAFF)"
+format = "  [􀤂  $output](bold #0AAAFF)"
 
 # ---------- Uptime (warn ≥ 2 days) ----------
 # Red when >= 2 days
@@ -61,19 +67,19 @@ format = "[ $output](bold white)"
 [custom.uptime]
 when = true
 command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
-format = "   [􀐱  $output](bold #AAAAFF)"
+format = "  [􀐱  $output](bold #0ACAFF)"
 
 # ---------- Battery ----------
 [battery]
-format = "   [$symbol$percentage]($style) "
+format = "  [$symbol$percentage]($style) "
 display = [
-  { threshold = 101, style = "bold #AAAAFF" } # apply style at any charge
+  { threshold = 101, style = "bold #0A7AFF" } # apply style at any charge
 ]
-full_symbol = "  "
-charging_symbol = "  "
-discharging_symbol = "  "
+full_symbol = "􀛨  "
+charging_symbol = "􀢋  "
+discharging_symbol = "􀺶  "
 unknown_symbol = " "
-empty_symbol = "  "
+empty_symbol = "􀛪  "
 
 # ---------- Time (right) ----------
 [time]
@@ -83,6 +89,6 @@ time_format = "%H:%M:%S"
 
 # ---------- Prompt char ----------
 [character]
-success_symbol = "[󱞩 ](bold green)"
+success_symbol = "[󱞩](bold green)"
 error_symbol = "[❯](bold red)"
 vicmd_symbol = "[❮](bold yellow)"
