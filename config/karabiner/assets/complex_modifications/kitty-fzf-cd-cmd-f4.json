@@ -1,0 +1,25 @@
+{
+  "title": "Open Kitty fzf-cd with Command+F4",
+  "rules": [
+    {
+      "description": "Command+F4 opens a new Kitty OS window with fzf-cd",
+      "manipulators": [
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "f4",
+            "modifiers": {
+              "mandatory": ["command"],
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.zsh/bin/kitty-launch --os-window --cwd \"$HOME\" --title \" fzf-cd \" -- /Users/nom/.zsh/bin/fzf-cd-shell'"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
