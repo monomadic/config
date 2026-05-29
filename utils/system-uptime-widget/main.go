@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math"
+	"os/exec"
 	"time"
 
 	"github.com/getlantern/systray"
@@ -65,13 +66,37 @@ func updateUptime() {
 	systray.SetTooltip(fmt.Sprintf("System uptime is %s", formatted))
 }
 
+func runPowerAction(label, command string) {
+	script := fmt.Sprintf(`display dialog "Are you sure you want to %s this Mac?" buttons {"Cancel", "%s"} default button "Cancel" cancel button "Cancel" with icon caution
+tell application "System Events" to %s`, label, label, command)
+
+	if err := exec.Command("osascript", "-e", script).Run(); err != nil {
+		fmt.Printf("error running %s action: %v\n", label, err)
+	}
+}
+
 func onReady() {
 	systray.SetTitle(fmt.Sprintf("%s init", uptimeIcon))
+	mReboot := systray.AddMenuItem("Reboot", "Reboot this Mac")
+	mShutdown := systray.AddMenuItem("Shutdown", "Shut down this Mac")
+	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Quit", "Quit the uptime widget")
 
 	go func() {
 		<-mQuit.ClickedCh
 		systray.Quit()
+	}()
+
+	go func() {
+		for range mReboot.ClickedCh {
+			go runPowerAction("Reboot", "restart")
+		}
+	}()
+
+	go func() {
+		for range mShutdown.ClickedCh {
+			go runPowerAction("Shutdown", "shut down")
+		}
 	}()
 
 	go func() {

@@ -186,6 +186,12 @@ run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --hold --c
 desc = "Rename selected media"
 
 [[mgr.prepend_keymap]]
+on   = [ "T", "c" ]
+for  = "unix"
+run  = '''shell --block -- /Users/nom/.zsh/bin/yazi-dual copy %s'''
+desc = "Copy selected files to the other Yazi pane"
+
+[[mgr.prepend_keymap]]
 on   = [ "m", "t" ]
 run  = "shell --block -- ffmpeg-lossless-cut-by-fzf-keyframe-select %s"
 desc = "Trim intros from selected movies"
