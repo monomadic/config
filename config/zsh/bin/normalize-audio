@@ -196,28 +196,30 @@ output_path() {
     print -- "${base}.${method_name}.${ext}"
 }
 
-ffmpeg_audio_args_for_file() {
+
+copy_metadata_postprocess() {
     local input_file="$1"
-    local codec="$2"
-    local encoder="$3"
-    local bitrate="$4"
-
-    local args=()
-
-    args+=("-c:a" "$encoder")
+    local output_file="$2"
+    local codec="$3"
 
     case "$codec" in
-        mp3|aac|opus|vorbis)
-            if [[ -n "$bitrate" && "$bitrate" != "N/A" ]]; then
-                args+=("-b:a" "$bitrate")
+        flac)
+            if command -v metaflac >/dev/null 2>&1; then
+                metaflac --remove-all-tags "$output_file"
+                metaflac --export-tags-to=- "$input_file" | metaflac --import-tags-from=- "$output_file"
+
+                metaflac --remove --block-type=PICTURE "$output_file" >/dev/null 2>&1 || true
+                metaflac --export-picture-to=/tmp/normalize-audio-cover.$$ "$input_file" >/dev/null 2>&1 || true
+
+                if [[ -s "/tmp/normalize-audio-cover.$$" ]]; then
+                    metaflac --import-picture-from="/tmp/normalize-audio-cover.$$" "$output_file" >/dev/null 2>&1 || true
+                    rm -f "/tmp/normalize-audio-cover.$$"
+                fi
+            else
+                warn "metaflac not found; FLAC custom metadata may not be fully preserved"
             fi
             ;;
-        flac)
-            args+=("-compression_level" "8")
-            ;;
     esac
-
-    print -r -- "${args[@]}"
 }
 
 run_ffmpeg_filter() {
@@ -225,11 +227,25 @@ run_ffmpeg_filter() {
     local output_file="$2"
     local filter="$3"
 
-    local codec encoder bitrate audio_args
+    local codec encoder bitrate
+    local -a audio_args
+
     codec="$(codec_for_file "$input_file")"
     encoder="$(encoder_for_codec "$codec")"
     bitrate="$(bitrate_for_file "$input_file")"
-    audio_args=("${(@f)$(ffmpeg_audio_args_for_file "$input_file" "$codec" "$encoder" "$bitrate")}")
+
+    audio_args=("-c:a" "$encoder")
+
+    case "$codec" in
+        mp3|aac|opus|vorbis)
+            if [[ -n "$bitrate" && "$bitrate" != "N/A" ]]; then
+                audio_args+=("-b:a" "$bitrate")
+            fi
+            ;;
+        flac)
+            audio_args+=("-compression_level" "8")
+            ;;
+    esac
 
     info "${c_dim}codec:${c_reset} $codec ${c_dim}-> encoder:${c_reset} $encoder"
 
@@ -237,12 +253,15 @@ run_ffmpeg_filter() {
         -hide_banner \
         -y \
         -i "$input_file" \
+        -map 0 \
         -map_metadata 0 \
         -map_chapters 0 \
-        -vn \
+        -c:v copy \
         -af "$filter" \
         "${audio_args[@]}" \
         "$output_file"
+
+    copy_metadata_postprocess "$input_file" "$output_file" "$codec"
 }
 
 run_loudnorm_single() {

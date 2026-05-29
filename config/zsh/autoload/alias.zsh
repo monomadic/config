@@ -10,6 +10,9 @@ alias .tidal-download="tiddl download --track-quality=max --video-quality=fhd --
 alias .tidal-music-search="tiddl download --track-quality=max --video-quality=fhd --path $HOME/Music/Downloads --scan-path $HOME/Music/Downloads --output \"{item.title} - {item.artist} \({item.bpm}\)\" --videos=none search"
 alias .tidal-video-search="tiddl download --track-quality=max --video-quality=fhd --path $HOME/Music/Downloads --scan-path $HOME/Music/Downloads --output \"{item.title} - {item.artist} \({item.bpm}\)\" --videos=only search"
 
+alias flac-print-tags="metaflac --list --block-type=VORBIS_COMMENT"
+alias .flac-print-tags=flac-print-tags
+
 # ============================================================================
 # Utility Functions
 # ============================================================================
