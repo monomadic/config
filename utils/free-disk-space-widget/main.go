@@ -2,11 +2,10 @@ package main
 
 import (
 	"fmt"
-	"math"
+	"os/exec"
 	"time"
 
 	"github.com/getlantern/systray"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -19,18 +18,7 @@ func main() {
 }
 
 func formatBytesToGb(bytes int64) string {
-	freeGB := int64(math.Round(float64(bytes) / 1024 / 1024 / 1024))
-	return fmt.Sprintf("%d GB", freeGB)
-}
-
-func diskSpace() (freeBytes uint64, totalBytes uint64, err error) {
-	var stat unix.Statfs_t
-	if err := unix.Statfs("/", &stat); err != nil {
-		return 0, 0, err
-	}
-
-	blockSize := uint64(stat.Bsize)
-	return stat.Bavail * blockSize, stat.Blocks * blockSize, nil
+	return fmt.Sprintf("%.2f GB", float64(bytes)/1_000_000_000)
 }
 
 func iconForFreeSpace(freeBytes, totalBytes uint64) string {
@@ -59,11 +47,33 @@ func updateFreeSpace() {
 
 }
 
+func openApplication(appName string) {
+	cmd := exec.Command("open", "-a", appName)
+	if err := cmd.Start(); err != nil {
+		fmt.Printf("error opening %s: %v\n", appName, err)
+	}
+}
+
 func onReady() {
 
 	systray.SetTitleFont(12, true)
 	systray.SetTitle(fmt.Sprintf("%s init", diskIcon))
+	mDiskUtility := systray.AddMenuItem("Open Disk Utility", "Open Disk Utility")
+	mDaisyDisk := systray.AddMenuItem("Open DaisyDisk", "Open DaisyDisk")
+	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("Quit", "Quit the whole app")
+
+	go func() {
+		for range mDiskUtility.ClickedCh {
+			openApplication("Disk Utility")
+		}
+	}()
+
+	go func() {
+		for range mDaisyDisk.ClickedCh {
+			openApplication("DaisyDisk")
+		}
+	}()
 
 	go func() {
 		<-mQuit.ClickedCh
