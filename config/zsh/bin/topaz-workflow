@@ -204,6 +204,7 @@ emulate -L zsh
 
 summary_file="$1"
 filter_complex="$2"
+metadata="${3:-}"
 
 cyan=$'\033[1;36m'
 dim=$'\033[2m'
@@ -222,6 +223,10 @@ fi
 
 printf "%s%s%s\n" "$cyan" "$filename" "$reset"
 printf "%s%s%s\n\n" "$dim" "$details" "$reset"
+if [[ -n "$metadata" ]]; then
+  printf "%ssummary%s\n" "$yellow" "$reset"
+  printf "%s\n\n" "${metadata#videoai=}"
+fi
 printf "%sfilter%s\n" "$yellow" "$reset"
 printf "%s\n" "$filter_complex"
 EOF
@@ -255,8 +260,8 @@ transform_selection="$(
       --header='j/k: move | h/l: page | g/G: first/last | enter: choose transform | alt-1: 1f Static | alt-4: 4f Static | alt-0: 10f Motion | alt-3: 30f Motion' \
       --header-first \
       --with-nth=1 \
-      --preview="zsh ${(q)transform_preview_script} ${(q)media_summary_file} {4q}" \
-      --preview-window='down:8:wrap' \
+      --preview="zsh ${(q)transform_preview_script} ${(q)media_summary_file} {4q} {5q}" \
+      --preview-window='down:10:wrap' \
       ${preview_bind_1:+--bind="$preview_bind_1"} \
       ${preview_bind_4:+--bind="$preview_bind_4"} \
       ${preview_bind_10:+--bind="$preview_bind_10"} \
