@@ -131,6 +131,7 @@ function M.read_input_bindings(path)
         if cleaned ~= "" and not cleaned:match("^#") then
             local key, command = cleaned:match("^(%S+)%s+(.+)$")
             if key and command then
+                command = command:gsub("^%b{}%s+", "")
                 table.insert(bindings, {
                     key = M.normalize_binding_key(key),
                     command = M.normalize_command(command),
