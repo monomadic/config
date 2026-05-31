@@ -5,6 +5,7 @@
 -- or:
 --   mpv --profile=ab --external-file=/path/to/B.mp4 /path/to/A.mp4
 
+local mp = require "mp"
 local msg = require "mp.msg"
 
 local state = {
@@ -19,6 +20,7 @@ local state = {
 
 local OSD_SHORT = 1.2
 local OSD_LONG = 5.0
+local INPUT_SECTION = "ab-compare"
 local status_overlay = mp.create_osd_overlay("ass-events")
 local keybar_overlay = mp.create_osd_overlay("ass-events")
 
@@ -684,31 +686,17 @@ mp.add_key_binding(nil, "stack", function() set_comparison_mode("stack") end)
 mp.add_key_binding(nil, "vstack", function() set_comparison_mode("vstack") end)
 mp.add_key_binding(nil, "split", function() set_comparison_mode("split") end)
 mp.add_key_binding(nil, "cycle-layout", function() cycle_layout(1) end)
+mp.add_key_binding(nil, "cycle-layout-back", function() cycle_layout(-1) end)
 mp.add_key_binding(nil, "nudge-back", function() nudge(-1) end)
 mp.add_key_binding(nil, "nudge-forward", function() nudge(1) end)
+mp.add_key_binding(nil, "nudge-back-5", function() nudge(-5) end)
+mp.add_key_binding(nil, "nudge-forward-5", function() nudge(5) end)
 mp.add_key_binding(nil, "reset-offset", reset_offset)
 mp.add_key_binding(nil, "help", help)
 mp.add_key_binding(nil, "toggle-keybar", toggle_keybar)
 mp.add_key_binding(nil, "toggle-osd", toggle_osd)
 
-mp.add_forced_key_binding("TAB", "ab-toggle-osd", toggle_osd)
-mp.add_forced_key_binding("ENTER", "ab-toggle-enter", toggle)
-mp.add_forced_key_binding("KP_ENTER", "ab-toggle-kp-enter", toggle)
-mp.add_forced_key_binding("_", "ab-toggle-underscore", toggle)
-mp.add_forced_key_binding("a", "ab-toggle", toggle)
-mp.add_forced_key_binding("1", "ab-show-a", function() select_side("a") end)
-mp.add_forced_key_binding("2", "ab-show-b", function() select_side("b") end)
-mp.add_forced_key_binding("d", "ab-diff", function() set_comparison_mode("diff") end)
-mp.add_forced_key_binding("v", "ab-stack", function() set_comparison_mode("stack") end)
-mp.add_forced_key_binding("t", "ab-vstack", function() set_comparison_mode("vstack") end)
-mp.add_forced_key_binding("s", "ab-split", function() set_comparison_mode("split") end)
-mp.add_forced_key_binding("l", "ab-cycle-layout", function() cycle_layout(1) end)
-mp.add_forced_key_binding("L", "ab-cycle-layout-back", function() cycle_layout(-1) end)
-mp.add_forced_key_binding("[", "ab-nudge-back", function() nudge(-1) end)
-mp.add_forced_key_binding("]", "ab-nudge-forward", function() nudge(1) end)
-mp.add_forced_key_binding("{", "ab-nudge-back-5", function() nudge(-5) end)
-mp.add_forced_key_binding("}", "ab-nudge-forward-5", function() nudge(5) end)
-mp.add_forced_key_binding("0", "ab-reset-offset", reset_offset)
-mp.add_forced_key_binding("k", "ab-toggle-keybar", toggle_keybar)
-mp.add_forced_key_binding("?", "ab-help-question", help)
-mp.add_forced_key_binding("SHIFT+?", "ab-help", help)
+mp.commandv("enable-section", INPUT_SECTION)
+mp.register_event("shutdown", function()
+    mp.commandv("disable-section", INPUT_SECTION)
+end)

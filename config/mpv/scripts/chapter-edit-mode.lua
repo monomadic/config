@@ -21,11 +21,11 @@ progress_overlay.z = 205
 
 local enabled = false
 local resolved_keys = {}
-local forced_bindings = {}
 
 local DELETE_THRESHOLD_SECONDS = 3
 local DELETE_THRESHOLD_PERCENT = 0.005
 local DELETE_THRESHOLD_MAX_SECONDS = 10
+local INPUT_SECTION = "chapter-edit-mode"
 local SUPPRESSOR_NAME = "chapter-edit-mode"
 
 local function state_value(on)
@@ -331,28 +331,14 @@ local function delete_all_chapters()
     end
 end
 
-local function add_forced(key, name, fn)
-    mp.add_forced_key_binding(key, name, fn)
-    table.insert(forced_bindings, name)
-end
-
 local set_enabled
 
 local function enable_bindings()
-    add_forced("+", "chapter-edit-add", add_chapter)
-    add_forced("KP_ADD", "chapter-edit-add-kp", add_chapter)
-    add_forced("Meta+BS", "chapter-edit-delete-nearest-bs", delete_nearest_chapter)
-    add_forced("Meta+DEL", "chapter-edit-delete-nearest-del", delete_nearest_chapter)
-    add_forced("Meta+Shift+BS", "chapter-edit-delete-all-bs", delete_all_chapters)
-    add_forced("Meta+Shift+DEL", "chapter-edit-delete-all-del", delete_all_chapters)
-    add_forced("ESC", "chapter-edit-exit-esc", function() set_enabled(false) end)
+    mp.commandv("enable-section", INPUT_SECTION)
 end
 
 local function disable_bindings()
-    for _, name in ipairs(forced_bindings) do
-        mp.remove_key_binding(name)
-    end
-    forced_bindings = {}
+    mp.commandv("disable-section", INPUT_SECTION)
 end
 
 function set_enabled(next_enabled)
@@ -413,8 +399,10 @@ mp.add_key_binding(nil, "toggle", toggle)
 mp.add_key_binding(nil, "add", add_chapter)
 mp.add_key_binding(nil, "delete-nearest", delete_nearest_chapter)
 mp.add_key_binding(nil, "delete-all", delete_all_chapters)
+mp.add_key_binding(nil, "exit", function() set_enabled(false) end)
 mp.register_event("shutdown", function()
     if enabled then
+        disable_bindings()
         set_keybar_suppressed(false)
     end
 end)

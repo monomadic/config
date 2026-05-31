@@ -104,6 +104,16 @@ if (( $+commands[starship] )); then
   add-zsh-hook precmd _lazy_starship_precmd
 fi
 
+typeset -g _prompt_spacer_seen=0
+_prompt_spacer_precmd() {
+  if (( _prompt_spacer_seen )); then
+    print
+  else
+    _prompt_spacer_seen=1
+  fi
+}
+add-zsh-hook precmd _prompt_spacer_precmd
+
 # television
 eval "$(tv init zsh)"
 

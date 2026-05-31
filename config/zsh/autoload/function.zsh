@@ -66,12 +66,12 @@ apple-music-dl() {
   gamdl \
 		--cookies-path="$HOME/.config/music.apple.com_cookies.txt" \
 		--output-path='.' \
-    --template-folder-album='' \
-    --template-folder-compilation='' \
-    --template-folder-no-album='' \
-    --template-file-single-disc='{artist} - {title}' \
-    --template-file-multi-disc='{artist} - {title}' \
-    --template-file-no-album='{artist} - {title}' \
+    --album-folder-template='' \
+    --compilation-folder-template='' \
+    --no-album-folder-template='' \
+    --single-disc-file-template='{artist} - {title}' \
+    --multi-disc-file-template='{artist} - {title}' \
+    --no-album-file-template='{artist} - {title}' \
     $@
 }
 
@@ -79,14 +79,14 @@ apple-music-dl-hq() {
   gamdl \
 		--cookies-path="$HOME/.config/music.apple.com_cookies.txt" \
 		--output-path='.' \
-    --template-folder-album='' \
-    --template-folder-compilation='' \
-    --template-folder-no-album='' \
-    --template-file-single-disc='{artist} - {title}' \
-    --template-file-multi-disc='{artist} - {title}' \
-    --template-file-no-album='{artist} - {title}' \
-		--codec-music-video='h265' \
-		--codec-song='ask' \
+    --album-folder-template='' \
+    --compilation-folder-template='' \
+    --no-album-folder-template='' \
+    --single-disc-file-template='{artist} - {title}' \
+    --multi-disc-file-template='{artist} - {title}' \
+    --no-album-file-template='{artist} - {title}' \
+		--music-video-codec-priority='h265' \
+		--song-codec-priority='ask' \
     $@
 }
 
