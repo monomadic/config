@@ -260,7 +260,7 @@ local function show_menu()
         "Reveal in Yazi",
         "Reveal in ForkLift",
         "Trim with Keyframes",
-        "Topaz Workflow",
+        "Topaz Preview",
         "────────────────────",
         "Pan+Scan:      " .. on_off(panscan > 0),
         "Aspect:        " .. (aspect_display[aspect] or aspect),

@@ -260,7 +260,7 @@ transform_selection="$(
       --header='j/k: move | h/l: page | g/G: first/last | enter: choose transform | alt-1: 1f Static | alt-4: 4f Static | alt-0: 10f Motion | alt-3: 30f Motion' \
       --header-first \
       --with-nth=1 \
-      --preview="zsh ${(q)transform_preview_script} ${(q)media_summary_file} {4q} {5q}" \
+      --preview="zsh ${(q)transform_preview_script} ${(q)media_summary_file} {4} {5}" \
       --preview-window='down:10:wrap' \
       ${preview_bind_1:+--bind="$preview_bind_1"} \
       ${preview_bind_4:+--bind="$preview_bind_4"} \

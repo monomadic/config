@@ -8,34 +8,34 @@ max_height = 900
 
 [opener]
 edit = [
-	{ run = "${EDITOR:-vi} %s", desc = "$EDITOR", for = "unix", block = true },
-	{ run = "hx %s", desc = "helix", for = "unix", block = true },
-	{ run = "code %s", desc = "code", for = "windows", orphan = true },
-	{ run = "code -w %s", desc = "code (block)", for = "windows", block = true },
+	{ run = "${EDITOR:-vi} %s", desc = "􁹛  $EDITOR", for = "unix", block = true },
+	{ run = "hx %s", desc = "􀤘 Helix", for = "unix", block = true },
+	{ run = "code %s", desc = "Code", for = "windows", orphan = true },
+	{ run = "code -w %s", desc = "Code (block)", for = "windows", block = true },
 ]
 bulk-rename = [
-	{ run = "hx %s", desc = "helix", for = "unix", block = true },
+	{ run = "hx %s", desc = "􀤘 Helix", for = "unix", block = true },
 ]
 play = [
-	{ run = "mpv --force-window %s", desc = "MPV", for = "unix", orphan = true },
-	{ run = "vlc %s .", desc = "VLC", for = "unix", orphan = true },
-	{ run = "mediainfo %s1; echo 'Press enter to exit'; read _", desc = "Info", for = "unix", block = true },
+	{ run = "mpv --force-window %s", desc = "􀾭  MPV", for = "unix", orphan = true },
+	{ run = "vlc %s .", desc = "􀵨  VLC", for = "unix", orphan = true },
+	{ run = "mediainfo %s1; echo 'Press enter to exit'; read _", desc = "􀅴  MediaInfo", for = "unix", block = true },
 ]
 play_dir = [
-	{ run = "mpv --force-window %s", desc = "mpv", for = "unix", orphan = true },
-	{ run = "vlc %s .", desc = "vlc", for = "unix", orphan = true },
+	{ run = "mpv --force-window %s", desc = "􀾭  MPV", for = "unix", orphan = true },
+	{ run = "vlc %s .", desc = "􀵨  VLC", for = "unix", orphan = true },
 ]
 open = [
 	{ run = "xdg-open %s1", desc = "Open", for = "linux" },
-	{ run = "open %s", desc = "Open", for = "macos" },
-	{ run = "/Users/nom/.zsh/bin/yazi-shortcut-open %s", desc = "Run Shortcut", for = "macos", block = true },
+	{ run = "open %s", desc = "􀭅 Open", for = "macos" },
+	{ run = "/Users/nom/.zsh/bin/yazi-shortcut-open %s", desc = "􂅛 Run Shortcut", for = "macos", block = true },
 	{ run = 'start "" %s1', desc = "Open", for = "windows", orphan = true },
 ]
 reveal = [
 	{ run = "xdg-open %d1", desc = "Reveal", for = "linux" },
-	{ run = "open -R %s1", desc = "Reveal", for = "macos" },
+	{ run = "open -R %s1", desc = "􀥯 Reveal", for = "macos" },
 	{ run = "explorer /select,%s1", desc = "Reveal", for = "windows", orphan = true },
-	{ run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", desc = "Show EXIF", for = "unix", block = true },
+	{ run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", desc = "􂷐  Show EXIF", for = "unix", block = true },
 ]
 pdf_chordpro = [
 	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " pdf to chordpro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "PDF to ChordPro", for = "unix", orphan = true },

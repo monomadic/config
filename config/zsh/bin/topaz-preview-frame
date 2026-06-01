@@ -6,7 +6,7 @@ script_name="${0:t}"
 usage() {
   cat <<EOF
 usage:
-  $script_name --input file --preset-name name --preset-flag flag --filter filter [--time seconds] [--times seconds[,seconds...]] [--no-open] [--prompt-open]
+  $script_name --input file --preset-name name --preset-flag flag --filter filter [--time seconds] [--times seconds[,seconds...]] [--no-open] [--prompt-open] [--print-paths]
 
 Render Topaz still-frame preview JPEGs for one or more timestamps.
 
@@ -17,8 +17,9 @@ For each timestamp, writes:
 
 The original and Topaz JPEGs open automatically in mpv as a playlist, so you can
 flip between matching frames. With --prompt-open, the render finishes first and
-asks before opening. Set TOPAZ_PREVIEW_FRAME_TIMES to a comma-separated list, for
-example:
+asks before opening. With --print-paths, machine-readable preview paths are
+printed for mpv scripts. Set TOPAZ_PREVIEW_FRAME_TIMES to a comma-separated
+list, for example:
   TOPAZ_PREVIEW_FRAME_TIMES=5,30,90 topaz-simple-presets file.mp4
 EOF
 }
@@ -215,6 +216,7 @@ preset_flag=""
 filter_complex=""
 open_after=true
 prompt_open=false
+print_paths=false
 times=()
 
 if [[ -n "${TOPAZ_PREVIEW_FRAME_TIMES:-}" ]]; then
@@ -263,6 +265,10 @@ while (( $# > 0 )); do
       ;;
     --prompt-open)
       prompt_open=true
+      shift
+      ;;
+    --print-paths)
+      print_paths=true
       shift
       ;;
     --)
@@ -368,6 +374,12 @@ for time_value in "${times[@]}"; do
       -q:v 2 \
       "$compare_jpg"
   )
+
+  if [[ "$print_paths" == true ]]; then
+    print -r -- "TOPAZ_PREVIEW_ORIGINAL=$original_jpg"
+    print -r -- "TOPAZ_PREVIEW_TOPAZ=$topaz_jpg"
+    print -r -- "TOPAZ_PREVIEW_COMPARE=$compare_jpg"
+  fi
 
   mpv_images+=("$topaz_jpg" "$original_jpg")
 done
