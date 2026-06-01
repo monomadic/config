@@ -1,0 +1,42 @@
+#!/usr/bin/env zsh
+emulate -L zsh
+set -euo pipefail
+
+usage() {
+  print -u2 -- "Usage: ${0:t} <path> [path ...]"
+}
+
+(( $# > 0 )) || {
+  usage
+  exit 2
+}
+
+command -v shortcuts >/dev/null || {
+  print -u2 -- "shortcuts is not available in PATH."
+  exit 127
+}
+
+command -v fzf >/dev/null || {
+  print -u2 -- "fzf is not available in PATH."
+  exit 127
+}
+
+selection="$(
+  shortcuts list --show-identifiers |
+    sed '/^[[:space:]]*$/d' |
+    fzf --prompt='shortcut > ' --height=80% --border
+)" || exit $?
+
+[[ -n "$selection" ]] || exit 0
+
+shortcut="$selection"
+if [[ "$selection" =~ ' \(([0-9A-Fa-f-]{36})\)$' ]]; then
+  shortcut="${match[1]}"
+fi
+
+input_args=()
+for input_path in "$@"; do
+  input_args+=( --input-path "$input_path" )
+done
+
+shortcuts run "$shortcut" "${input_args[@]}"

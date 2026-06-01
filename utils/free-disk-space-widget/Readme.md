@@ -4,6 +4,18 @@ Simple macOS menu bar app that shows free disk space.
 
 <img src="demo.png" alt="Free disk space widget" width="400">
 
+## Menu options
+
+The widget menu includes layout styles for Text, Icon and Text, Bar and Text,
+Bar and Icon, and Bar. Layouts with text can show free space as either GB or a
+percentage.
+
+Selections are saved to:
+
+```text
+~/Library/Application Support/free-disk-space-widget/settings.json
+```
+
 ## Build
 
 ```bash

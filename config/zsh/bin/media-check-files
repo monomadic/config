@@ -19,6 +19,7 @@ CHECK_URL=true
 CHECK_METADATA=true
 CHECK_RENAME=true
 CHECK_LENGTH=true
+READ_STDIN0=false
 
 MAX_FILENAME_BYTES=240
 RENAME_MEDIA_TIMEOUT="${RENAME_MEDIA_TIMEOUT:-20}"
@@ -53,8 +54,9 @@ usage() {
 Usage:
   media-check-files [options] [file ...]
 
-Audits a media library. With no file arguments it streams files from fd-media.
-When files are provided, only those files are checked.
+Audits a media library. With no file arguments it reads file paths from stdin
+when piped; otherwise it streams files from fd-media. Stdin is newline-delimited
+by default; use -0/--read0 for NUL-delimited paths.
 
 Checks:
   MP4/MOV/M4V FastStart
@@ -73,6 +75,7 @@ Options:
   --bypass-check-length
   --bypass-check-filename       Bypass UTF-8, rename, and length checks
   --max-filename-bytes N        Default: 240
+  -0, --read0                   Read NUL-delimited file paths from stdin
   -h, --help
 EOF
 }
@@ -1286,6 +1289,10 @@ parse_args() {
         }
         shift 2
         ;;
+      -0|--read0)
+        READ_STDIN0=true
+        shift
+        ;;
       -h|--help)
         usage
         exit 0
@@ -1319,19 +1326,34 @@ process_fd_media() {
   done < <(fd-media --print0)
 }
 
-process_stdin_or_fd_media() {
-  local line
+process_stdin_files() {
+  local file
   local saw_stdin=false
 
-  if [[ ! -t 0 ]]; then
-    while IFS= read -r line; do
-      [[ -n "$line" ]] || continue
+  if $READ_STDIN0; then
+    while IFS= read -r -d $'\0' file || [[ -n "$file" ]]; do
+      [[ -n "$file" ]] || continue
       saw_stdin=true
-      audit_file "$line"
+      audit_file "$file"
+      file=""
+    done
+  else
+    while IFS= read -r file || [[ -n "$file" ]]; do
+      [[ -n "$file" ]] || continue
+      saw_stdin=true
+      audit_file "$file"
+      file=""
     done
   fi
 
-  $saw_stdin && return 0
+  $saw_stdin
+}
+
+process_stdin_or_fd_media() {
+  if [[ ! -t 0 ]]; then
+    process_stdin_files && return 0
+  fi
+
   process_fd_media
 }
 
