@@ -8,7 +8,7 @@
 [mgr]
 cwd = { fg = "#66e2ff", bold = true }
 border_symbol = " "
-border_style = { fg = "#0a0a0b" }
+border_style = { fg = "#FaFaFb" }
 
 find_position = { fg = "#ff7ad9", bold = true }
 find_keyword  = { fg = "#ffe66d", bold = true }
@@ -71,7 +71,7 @@ progress_error  = { fg = "#ff5f87", bg = "#111114" }
 # ------------------------------------------------------------
 
 [pick]
-border = { fg = "#0a0a0b" }
+border = { fg = "#66e2ff" }
 active   = { fg = "#66e2ff", bold = true }
 inactive = { fg = "#9aa0aa" }
 
