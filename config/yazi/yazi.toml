@@ -28,6 +28,7 @@ play_dir = [
 open = [
 	{ run = "xdg-open %s1", desc = "Open", for = "linux" },
 	{ run = "open %s", desc = "Open", for = "macos" },
+	{ run = "/Users/nom/.zsh/bin/yazi-shortcut-open %s", desc = "Run Shortcut", for = "macos", block = true },
 	{ run = 'start "" %s1', desc = "Open", for = "windows", orphan = true },
 ]
 reveal = [

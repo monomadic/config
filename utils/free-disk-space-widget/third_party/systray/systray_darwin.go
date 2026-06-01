@@ -21,6 +21,18 @@ func SetTemplateIcon(templateIconBytes []byte, regularIconBytes []byte) {
 	C.setIcon(cstr, (C.int)(len(templateIconBytes)), true)
 }
 
+// SetTemplateIconWithSize sets the systray icon as a template icon with a
+// custom point size. It is useful for wider menu bar glyphs.
+func SetTemplateIconWithSize(templateIconBytes []byte, regularIconBytes []byte, width float64, height float64) {
+	cstr := (*C.char)(unsafe.Pointer(&templateIconBytes[0]))
+	C.setIconWithSize(cstr, (C.int)(len(templateIconBytes)), true, C.double(width), C.double(height))
+}
+
+// ClearIcon removes the systray icon while keeping the title.
+func ClearIcon() {
+	C.clearIcon()
+}
+
 // SetSystemSymbolIcon sets the status item icon from an SF Symbols name on
 // macOS 11 and newer.
 func SetSystemSymbolIcon(symbolName string) bool {

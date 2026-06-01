@@ -1,47 +1,261 @@
-#!/bin/bash
+#!/usr/bin/env zsh
 
-# Step 1: Check if OpenAI API key is set
-if [ -z "$OPENAI_API_KEY" ]; then
-    echo "OpenAI API key is not set. Please export it as OPENAI_API_KEY."
-    exit 1
+set -euo pipefail
+
+typeset -r SCRIPT_NAME="${CHATGPT_COMMIT_SCRIPT_NAME:-${0:t}}"
+
+typeset ALL=0
+typeset DRY_RUN=0
+typeset PUSH=0
+typeset YES=0
+typeset NO_VERIFY=0
+typeset AMEND=0
+typeset MODEL="${CHATGPT_COMMIT_MODEL:-}"
+typeset AI_CMD="${CHATGPT_COMMIT_CMD:-}"
+typeset -a PATHS=()
+
+usage() {
+  cat <<EOF
+Usage: $SCRIPT_NAME [options] [--] [file ...]
+
+Stages selected files, asks ChatGPT for a commit message from the staged diff,
+shows the message for approval, then runs git commit.
+
+Without file arguments, the script uses the files already staged in git.
+
+Options:
+  -a, --all           Stage all tracked, untracked, and deleted files first
+  -m, --model MODEL   Model for llm/aichat (default: tool-configured default)
+  -c, --cmd CMD       Command that reads the prompt on stdin and prints a message
+  -y, --yes           Commit with the generated message without prompting
+      --amend         Amend the previous commit instead of creating a new one
+      --dry-run       Print the generated message and staged files, but do not commit
+      --no-verify     Pass --no-verify to git commit
+      --push          Push after a successful commit
+  -h, --help          Show this help
+
+Environment:
+  CHATGPT_COMMIT_MODEL  Model used by llm or aichat
+  CHATGPT_COMMIT_CMD    Full command to generate a message from stdin
+  CHATGPT_COMMIT_CHARS  Max diff characters sent to ChatGPT (default: 20000)
+
+Examples:
+  $SCRIPT_NAME --all
+  $SCRIPT_NAME config/zsh/bin/openai-commit
+  CHATGPT_COMMIT_MODEL=gpt-4o-mini $SCRIPT_NAME --all --push
+EOF
+}
+
+die() {
+  print -u2 "Error: $*"
+  exit 1
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+run_git() {
+  git "$@"
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+    -a|--all)
+      ALL=1
+      ;;
+    -m|--model)
+      shift
+      (( $# > 0 )) || die "--model needs a value"
+      MODEL="$1"
+      ;;
+    --model=*)
+      MODEL="${1#--model=}"
+      ;;
+    -c|--cmd)
+      shift
+      (( $# > 0 )) || die "--cmd needs a value"
+      AI_CMD="$1"
+      ;;
+    --cmd=*)
+      AI_CMD="${1#--cmd=}"
+      ;;
+    -y|--yes)
+      YES=1
+      ;;
+    --amend)
+      AMEND=1
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      ;;
+    --no-verify)
+      NO_VERIFY=1
+      ;;
+    --push)
+      PUSH=1
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      PATHS+=("$@")
+      break
+      ;;
+    -*)
+      die "unknown option: $1"
+      ;;
+    *)
+      PATHS+=("$1")
+      ;;
+  esac
+  shift
+done
+
+run_git rev-parse --is-inside-work-tree >/dev/null 2>&1 ||
+  die "not inside a git repository"
+
+if (( ALL )) && (( ${#PATHS} > 0 )); then
+  die "use either --all or explicit files, not both"
 fi
 
-# Step 2: Assess the staged changes
-staged_changes=$(git diff --cached --name-only)
-
-if [ -z "$staged_changes" ]; then
-    echo "No changes to commit."
-    exit 1
+if (( ALL )); then
+  print "Staging all changes..."
+  run_git add --all
+elif (( ${#PATHS} > 0 )); then
+  print "Staging selected files..."
+  run_git add -- "${PATHS[@]}"
 fi
 
-# Step 3: Prepare prompt for GPT
-prompt="Generate a concise Git commit message for the following staged changes:\n\n$staged_changes"
+typeset staged_names
+staged_names="$(run_git diff --cached --name-status)"
 
-# Step 4: Send prompt to OpenAI GPT API to generate commit message
-response=$(curl https://api.openai.com/v1/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $OPENAI_API_KEY" \
-  -d '{
-    "model": "gpt-4",
-    "prompt": "'"$prompt"'",
-    "max_tokens": 50,
-    "temperature": 0.7
-  }')
+if [[ -z "$staged_names" ]]; then
+  die "no staged changes. Use --all, pass files, or stage files with git add first."
+fi
 
-# Step 5: Extract commit message from GPT response
-commit_message=$(echo "$response" | jq -r '.choices[0].text' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+typeset staged_stat
+typeset staged_diff
+typeset max_chars="${CHATGPT_COMMIT_CHARS:-20000}"
 
-# Step 6: Prompt user for approval of the generated commit message
-echo "Generated commit message:"
-echo "$commit_message"
-read -p "Is this commit message ok? [y/N]: " user_input
+[[ "$max_chars" == <-> ]] && (( max_chars > 0 )) ||
+  die "CHATGPT_COMMIT_CHARS must be a positive integer"
 
-# Step 7: Commit and push if user approves
-if [[ "$user_input" == "y" || "$user_input" == "Y" ]]; then
-    git commit -m "$commit_message"
-    git push
-    echo "Changes committed and pushed."
-else
-    echo "Commit canceled."
-    exit 1
+staged_stat="$(run_git diff --cached --stat)"
+staged_diff="$(run_git diff --cached --no-ext-diff --unified=3)"
+
+if (( ${#staged_diff} > max_chars )); then
+  staged_diff="${staged_diff[1,$max_chars]}
+
+[diff truncated at ${max_chars} characters]"
+fi
+
+typeset ai_prompt
+ai_prompt="$(cat <<EOF
+Write a concise git commit message for these staged changes.
+
+Rules:
+- Return exactly one commit message.
+- Use one line only.
+- Use imperative mood.
+- Keep it under 72 characters.
+- Do not wrap the message in quotes.
+- Do not include markdown.
+
+Staged files:
+$staged_names
+
+Diff stat:
+$staged_stat
+
+Staged diff:
+$staged_diff
+EOF
+)"
+
+generate_message() {
+  if [[ -n "$AI_CMD" ]]; then
+    print -rn -- "$ai_prompt" | eval "$AI_CMD"
+    return
+  fi
+
+  if have llm; then
+    if [[ -n "$MODEL" ]]; then
+      print -rn -- "$ai_prompt" | llm prompt --no-stream -n -m "$MODEL"
+    else
+      print -rn -- "$ai_prompt" | llm prompt --no-stream -n
+    fi
+    return
+  fi
+
+  if have aichat; then
+    if [[ -n "$MODEL" ]]; then
+      print -rn -- "$ai_prompt" | aichat --no-stream --model "$MODEL"
+    else
+      print -rn -- "$ai_prompt" | aichat --no-stream
+    fi
+    return
+  fi
+
+  die "no AI command found. Install/configure llm or aichat, or set CHATGPT_COMMIT_CMD."
+}
+
+print "Asking ChatGPT for a commit message..."
+
+typeset commit_message
+commit_message="$(generate_message | sed -e 's/^[[:space:]"'\'']*//' -e 's/[[:space:]"'\'']*$//')"
+commit_message="${commit_message%%$'\n'*}"
+
+if [[ -z "$commit_message" ]]; then
+  die "ChatGPT returned an empty commit message"
+fi
+
+print
+print "Staged files:"
+print -- "$staged_names"
+print
+print "Generated commit message:"
+print "  $commit_message"
+print
+
+if (( DRY_RUN )); then
+  print "Dry run: no commit created."
+  exit 0
+fi
+
+if (( ! YES )); then
+  print -n "Commit with this message? [y/N/edit] "
+  typeset answer
+  read -r answer
+
+  case "$answer" in
+    y|Y|yes|YES)
+      ;;
+    e|E|edit|EDIT)
+      print -n "Message: "
+      read -r commit_message
+      [[ -n "$commit_message" ]] || die "empty commit message"
+      ;;
+    *)
+      die "commit canceled"
+      ;;
+  esac
+fi
+
+typeset -a commit_args=(-m "$commit_message")
+
+if (( AMEND )); then
+  commit_args=(--amend "${commit_args[@]}")
+fi
+
+if (( NO_VERIFY )); then
+  commit_args=(--no-verify "${commit_args[@]}")
+fi
+
+run_git commit "${commit_args[@]}"
+
+if (( PUSH )); then
+  run_git push
 fi

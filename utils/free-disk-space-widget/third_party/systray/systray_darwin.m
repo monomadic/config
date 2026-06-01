@@ -84,6 +84,11 @@ withParentMenuId: (int)theParentMenuId
   [self updateTitleButtonStyle];
 }
 
+- (void)clearIcon {
+  statusItem.button.image = nil;
+  [self updateTitleButtonStyle];
+}
+
 - (void)setTitle:(NSString *)title {
   statusItem.button.title = title;
   [self updateTitleButtonStyle];
@@ -245,12 +250,20 @@ void runInMainThread(SEL method, id object) {
                   waitUntilDone: YES];
 }
 
-void setIcon(const char* iconBytes, int length, bool template) {
+void setIconWithSize(const char* iconBytes, int length, bool template, double width, double height) {
   NSData* buffer = [NSData dataWithBytes: iconBytes length:length];
   NSImage *image = [[NSImage alloc] initWithData:buffer];
-  [image setSize:NSMakeSize(16, 16)];
+  [image setSize:NSMakeSize(width, height)];
   image.template = template;
   runInMainThread(@selector(setIcon:), (id)image);
+}
+
+void setIcon(const char* iconBytes, int length, bool template) {
+  setIconWithSize(iconBytes, length, template, 16, 16);
+}
+
+void clearIcon(void) {
+  runInMainThread(@selector(clearIcon), nil);
 }
 
 bool setSystemSymbolIcon(char* symbolName) {
