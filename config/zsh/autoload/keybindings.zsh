@@ -242,10 +242,10 @@ if [[ -o interactive ]]; then
   bindkey -M viins $'\e[111;9u' _cd-fzf
   bindkey -M emacs $'\e[111;10u' _cd-fzf-local      # Cmd+Shift+O: local jump
   bindkey -M viins $'\e[111;10u' _cd-fzf-local
-  bindkey -M emacs $'\e[106;9u' _cd-tv              # Cmd+J: tv global jump
-  bindkey -M viins $'\e[106;9u' _cd-tv
-  bindkey -M emacs $'\e[106;10u' _cd-tv-local       # Cmd+Shift+J: tv local jump
-  bindkey -M viins $'\e[106;10u' _cd-tv-local
+  # bindkey -M emacs $'\e[106;9u' _cd-tv              # Cmd+J: tv global jump
+  # bindkey -M viins $'\e[106;9u' _cd-tv
+  # bindkey -M emacs $'\e[106;10u' _cd-tv-local       # Cmd+Shift+J: tv local jump
+  # bindkey -M viins $'\e[106;10u' _cd-tv-local
   bindkey -M emacs $'\e[13;2u' _magic-enter         # Shift+Enter
   bindkey -M viins $'\e[13;2u' _magic-enter
 

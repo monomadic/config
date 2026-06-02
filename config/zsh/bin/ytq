@@ -909,7 +909,7 @@ cmd_list() {
         --bind="$get_play_bind" \
         --bind="ctrl-x:execute-silent($clean_cmd)+reload($rows_cmd)" \
         --preview="${(q)YTQ_SELF} __preview {1}" \
-        --preview-window='right,60%,wrap,border-left'
+        --preview-window='right,40%,wrap,border-left'
   )"
   fzf_status=$?
 

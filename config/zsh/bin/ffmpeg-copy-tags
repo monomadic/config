@@ -1,0 +1,96 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+script_name="${0:t}"
+
+usage() {
+  cat <<EOF
+Usage:
+  $script_name <tag-source.mp4> <target.mp4>
+  $script_name <tag-source.mp4> <target.mp4> <output.mp4>
+
+Copy container metadata tags from the source file to the target file while
+keeping the target file's audio/video/subtitle streams unchanged.
+Data streams such as MP4 timecode tracks are skipped because ffmpeg can report
+some of them as codec "none", which MP4 cannot remux.
+
+With two files, the target is rewritten in place through a same-directory temp
+file. With three files, a new output file is written and the target is left
+unchanged.
+EOF
+}
+
+die() {
+  print -u2 -- "Error: $*"
+  exit 1
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+  esac
+done
+
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  die "ffmpeg not found in PATH"
+fi
+
+if (( $# != 2 && $# != 3 )); then
+  usage >&2
+  exit 1
+fi
+
+source_file="$1"
+target_file="$2"
+output_file="${3:-}"
+
+[[ -f "$source_file" ]] || die "source file not found: $source_file"
+[[ -f "$target_file" ]] || die "target file not found: $target_file"
+
+if [[ "$source_file" == "$target_file" ]]; then
+  die "source and target must be different files"
+fi
+
+tmp_file=""
+cleanup() {
+  if [[ -n "${tmp_file:-}" && -f "$tmp_file" ]]; then
+    rm -f -- "$tmp_file"
+  fi
+}
+trap cleanup EXIT HUP INT TERM
+
+if [[ -n "$output_file" ]]; then
+  [[ ! -e "$output_file" ]] || die "output file already exists: $output_file"
+  output_dir="${output_file:h}"
+  [[ -d "$output_dir" ]] || die "output directory not found: $output_dir"
+  final_file="$output_file"
+else
+  output_dir="${target_file:h}"
+  target_base="${target_file:t}"
+  target_ext="${target_base##*.}"
+  target_stem="${target_base%.*}"
+  tmp_file="${output_dir}/.${target_stem}.copy-tags.$$.${target_ext}"
+  final_file="$tmp_file"
+fi
+
+ffmpeg -hide_banner -loglevel error -y \
+  -i "$target_file" \
+  -i "$source_file" \
+  -map '0:v?' \
+  -map '0:a?' \
+  -map '0:s?' \
+  -map_metadata 1 \
+  -c copy \
+  -movflags use_metadata_tags \
+  -- "$final_file"
+
+if [[ -z "$output_file" ]]; then
+  mv -f -- "$tmp_file" "$target_file"
+  tmp_file=""
+  print -r -- "Copied metadata tags from '$source_file' to '$target_file'."
+else
+  print -r -- "Copied metadata tags from '$source_file' into '$output_file'."
+fi

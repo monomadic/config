@@ -164,6 +164,7 @@ reveal_bind="execute-silent(zsh -c 'path=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"
 
 fzf_args=(
   --multi
+  --preview-window=next
   --exact
   --cycle
   --delimiter=$'\t'
