@@ -109,7 +109,7 @@ clean_name() {
 
   # remove every non-nested {...} block since the script rebuilds it
   while [[ "$name" == *\{*\}* ]]; do
-    name="${name%%\{*\}}${name#*\}}"
+    name="${name%%\{*}${name#*\}}"
   done
 
   for t in $tags; do

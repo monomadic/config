@@ -19,7 +19,6 @@ CHECK_URL=true
 CHECK_METADATA=true
 CHECK_RENAME=true
 CHECK_LENGTH=true
-READ_STDIN0=false
 
 MAX_FILENAME_BYTES=240
 RENAME_MEDIA_TIMEOUT="${RENAME_MEDIA_TIMEOUT:-20}"
@@ -54,9 +53,8 @@ usage() {
 Usage:
   media-check-files [options] [file ...]
 
-Audits a media library. With no file arguments it reads file paths from stdin
-when piped; otherwise it streams files from fd-media. Stdin is newline-delimited
-by default; use -0/--read0 for NUL-delimited paths.
+Audits a media library. With no file arguments it streams files from fd-media.
+When files are provided, only those files are checked.
 
 Checks:
   MP4/MOV/M4V FastStart
@@ -75,7 +73,6 @@ Options:
   --bypass-check-length
   --bypass-check-filename       Bypass UTF-8, rename, and length checks
   --max-filename-bytes N        Default: 240
-  -0, --read0                   Read NUL-delimited file paths from stdin
   -h, --help
 EOF
 }
@@ -153,12 +150,11 @@ build_enabled_checks() {
   $CHECK_BLACKFRAMES && ENABLED_CHECKS+=("black-frames")
   $CHECK_URL && ENABLED_CHECKS+=("source-url")
   $CHECK_METADATA && ENABLED_CHECKS+=("metadata")
+  $CHECK_FASTSTART && ENABLED_CHECKS+=("faststart")
 
   if $CHECK_UTF8 || $CHECK_RENAME || $CHECK_LENGTH; then
     ENABLED_CHECKS+=("filename")
   fi
-
-  $CHECK_FASTSTART && ENABLED_CHECKS+=("faststart")
 }
 
 check_enabled() {
@@ -701,7 +697,9 @@ enable_faststart() {
 
   if ffmpeg -hide_banner -loglevel error -nostdin -y \
       -i "$file" \
-      -map 0 \
+      -map '0:v?' \
+      -map '0:a?' \
+      -map '0:s?' \
       -map_metadata 0 \
       -c copy \
       -movflags +faststart+use_metadata_tags \
@@ -811,7 +809,7 @@ check_black_frames() {
   say ""
 
   if prompt_yes_no "Trim File?" "Y"; then
-    if ffmpeg-lossless-cut --from "$seconds" "$file" < "$TTY" > "$TTY" 2>&1; then
+    if ffmpeg-lossless-cut-by-fzf-keyframe-select --from "$seconds" "$file" < "$TTY" > "$TTY" 2>&1; then
       trimmed="$(trimmed_path_for "$file")"
       if [[ -f "$trimmed" ]]; then
         AUDIT_PATH="$trimmed"
@@ -878,7 +876,9 @@ rewrite_with_metadata() {
   ffmpeg_args=(
     -hide_banner -loglevel error -nostdin -y
     -i "$file"
-    -map 0
+    -map '0:v?'
+    -map '0:a?'
+    -map '0:s?'
     -c copy
     -map_metadata 0
   )
@@ -1225,13 +1225,13 @@ audit_file() {
     fi
   fi
 
-  run_check "filename" check_filename_checks
-  status_line "$AUDIT_PATH"
-
   if is_video_path "$AUDIT_PATH"; then
     run_check "faststart" check_faststart "$AUDIT_PATH"
     status_line "$AUDIT_PATH"
   fi
+
+  run_check "filename" check_filename_checks
+  status_line "$AUDIT_PATH"
 
   if (( FILE_UNRESOLVED == 0 )); then
     (( clean_count++ ))
@@ -1289,10 +1289,6 @@ parse_args() {
         }
         shift 2
         ;;
-      -0|--read0)
-        READ_STDIN0=true
-        shift
-        ;;
       -h|--help)
         usage
         exit 0
@@ -1326,34 +1322,19 @@ process_fd_media() {
   done < <(fd-media --print0)
 }
 
-process_stdin_files() {
-  local file
+process_stdin_or_fd_media() {
+  local line
   local saw_stdin=false
 
-  if $READ_STDIN0; then
-    while IFS= read -r -d $'\0' file || [[ -n "$file" ]]; do
-      [[ -n "$file" ]] || continue
-      saw_stdin=true
-      audit_file "$file"
-      file=""
-    done
-  else
-    while IFS= read -r file || [[ -n "$file" ]]; do
-      [[ -n "$file" ]] || continue
-      saw_stdin=true
-      audit_file "$file"
-      file=""
-    done
-  fi
-
-  $saw_stdin
-}
-
-process_stdin_or_fd_media() {
   if [[ ! -t 0 ]]; then
-    process_stdin_files && return 0
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      saw_stdin=true
+      audit_file "$line"
+    done
   fi
 
+  $saw_stdin && return 0
   process_fd_media
 }
 
