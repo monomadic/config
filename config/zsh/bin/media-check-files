@@ -811,7 +811,7 @@ check_black_frames() {
   say ""
 
   if prompt_yes_no "Trim File?" "Y"; then
-    if ffmpeg-lossless-cut-by-fzf-keyframe-select --from "$seconds" "$file" < "$TTY" > "$TTY" 2>&1; then
+    if ffmpeg-lossless-cut --from "$seconds" "$file" < "$TTY" > "$TTY" 2>&1; then
       trimmed="$(trimmed_path_for "$file")"
       if [[ -f "$trimmed" ]]; then
         AUDIT_PATH="$trimmed"

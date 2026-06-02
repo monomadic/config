@@ -14,25 +14,25 @@
   <shift_pad6 name="`effect_select 6 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 6" right_click="effect_select 6">effect_select 6</shift_pad6>
   <pad7 name="FX7\n`effect_select 7 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 7" right_click="effect_select 7">effect_active 7</pad7>
   <shift_pad7 name="`effect_select 7 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 7" right_click="effect_select 7">effect_select 7</shift_pad7>
-  <pad8 name="FX8\n`effect_select 8 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 8" right_click="effect_select 8">effect_active 8</pad8>
-  <shift_pad8 name="`effect_select 8 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 8" right_click="effect_select 8">effect_select 8</shift_pad8>
+  <pad8 name="FX-SAMPLER\n`effect_select sampler &amp; param_uppercase`" color="color 'yellow'" query="effect_active sampler" right_click="effect_select sampler">effect_active sampler</pad8>
+  <shift_pad8 name="`effect_select sampler &amp; param_uppercase`" color="color 'yellow'" query="effect_active sampler" right_click="effect_select sampler">effect_select sampler</shift_pad8>
   <pad9 name="FX-VOCALS\n`effect_select 'vocals' &amp; param_uppercase`" color="stem_color 'vocal'" query="effect_active 'vocals'" right_click="effect_select 'vocals'">
     effect_active "vocals"
   </pad9>
   <shift_pad9 name="`effect_select 'vocals' &amp; param_uppercase`" color="color 'yellow'" query="effect_active 'vocals'" right_click="effect_select 'vocals'">
     effect_select 'vocals'
   </shift_pad9>
-  <pad10 name="FX-RHYTHM\n`effect_select 'rhythm' &amp; param_uppercase`" color="stem_color 'rhythm'" query="effect_active 'rhythm'" right_click="effect_select 'rhythm'">
-    effect_active "rhythm"
-  </pad10>
-  <shift_pad10 name="`effect_select 'rhythm' &amp; param_uppercase`" color="stem_color 'rhythm'" query="effect_active 'rhythm'" right_click="effect_select 'rhythm'">
-    effect_select 'rhythm'
-  </shift_pad10>
-  <pad11 name="FX-INSTRU\n`effect_select 'instru' &amp; param_uppercase`" color="stem_color 'instru'" query="effect_active 'instru'" right_click="effect_select 'instru'">
+  <pad10 name="FX-INSTRU\n`effect_select 'instru' &amp; param_uppercase`" color="stem_color 'instru'" query="effect_active 'instru'" right_click="effect_select 'instru'">
     effect_active "instru"
-  </pad11>
-  <shift_pad11 name="`effect_select 'instru' &amp; param_uppercase`" color="stem_color 'instru'" query="effect_active 'instru'" right_click="effect_show_gui 'instru'">
+  </pad10>
+  <shift_pad10 name="`effect_select 'instru' &amp; param_uppercase`" color="stem_color 'instru'" query="effect_active 'instru'" right_click="effect_show_gui 'instru'">
     effect_select 'instru'
+  </shift_pad10>
+  <pad11 name="FX-RHYTHM\n`effect_select 'rhythm' &amp; param_uppercase`" color="stem_color 'rhythm'" query="effect_active 'rhythm'" right_click="effect_select 'rhythm'">
+    effect_active "rhythm"
+  </pad11>
+  <shift_pad11 name="`effect_select 'rhythm' &amp; param_uppercase`" color="stem_color 'rhythm'" query="effect_active 'rhythm'" right_click="effect_select 'rhythm'">
+    effect_select 'rhythm'
   </shift_pad11>
   <pad12 name="FX-BASS\n`effect_select 'bass' &amp; param_uppercase`" color="stem_color 'bass'" query="effect_active 'bass'" right_click="effect_select 'bass'">
     effect_active "bass"
@@ -43,7 +43,7 @@
   <pad13 name="VOCAL FX" color="stem_color 'vocal'">effect_stems 'vocal'</pad13>
   <pad14 name="INSTRU FX" query="effect_stems 'instru'" color="stem_color 'instru'">effect_stems 'instru'</pad14>
   <pad15 name="DRUM FX" color="stem_color 'rhythm'">effect_stems 'rhythm'</pad15>
-  <pad16 name="ON/OFF\n`get_effects_used 'deck'` ACTIVE" color="color 'yellow'" query="effects_used 'padfx'">effect_disable_all 'padfx' &amp; filter 50%</pad16>
+  <pad16 name="ON/OFF\n`get_effects_used 'deck'` ACTIVE" color="color 'yellow'" query="effects_used 'padfx'">effect_disable_all &amp; filter 50%</pad16>
   <menu>PRESETS =[pad_page "FX-PRESETS"]
     PADFX =[pad_page "FX-PADFX"]
     SELECT =[effect_select]</menu>
