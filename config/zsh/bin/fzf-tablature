@@ -65,6 +65,8 @@ FETCH_COMMAND="reload($SCRIPT_PATH --fetch)"
 # start with empty stdin, then load via start:reload(...)
 : | fzf --margin="0%,0%" \
   --prompt ' ' --color="prompt:#ffffff,bg:#111111" \
+  --header-border dashed --header-first \
+  --header-lines-border inline --footer-border inline \
   --gutter=' ' \
   --exact --reverse --ansi --cycle \
   --marker=" " --pointer="󰋆" \

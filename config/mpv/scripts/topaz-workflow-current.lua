@@ -26,6 +26,19 @@ local function basename(path)
     return path and path:match("([^/\\]+)$") or path
 end
 
+local function format_time(seconds)
+    local total = tonumber(seconds) or 0
+    local hours = math.floor(total / 3600)
+    local minutes = math.floor((total % 3600) / 60)
+    local secs = total % 60
+
+    if hours > 0 then
+        return string.format("%d:%02d:%06.3f", hours, minutes, secs)
+    end
+
+    return string.format("%d:%06.3f", minutes, secs)
+end
+
 local function absolute_media_path()
     local media_path = mp.get_property("path")
 
@@ -160,7 +173,7 @@ local function select_items(rows)
 end
 
 local function preview_key_message()
-    return "Topaz preview\nEnter/e encode whole video\nEsc return to source"
+    return "Topaz frame preview in this mpv window\nLeft: original | Right: Topaz\nEnter/e: choose output + encode\nEsc/BS: return to source"
 end
 
 local function remove_preview_keys()
@@ -209,11 +222,13 @@ local function restore_source(message)
     end
 end
 
-local function topaz_preset_label(transform, output)
+local function topaz_encode_label(transform, output)
     return transform.display .. " - " .. output.display
 end
 
-local function launch_encode()
+local enable_preview_keys
+
+local function start_encode(output)
     if not preview_state then
         return
     end
@@ -235,7 +250,7 @@ local function launch_encode()
         "--title", " topaz encode ",
         "--",
         topaz_run,
-        "--preset_name", topaz_preset_label(transform, output),
+        "--preset_name", topaz_encode_label(transform, output),
         "--filter_complex", transform.filter,
         "--output_ext", output.output_ext,
         "--video_args", output.video_args,
@@ -254,10 +269,36 @@ local function launch_encode()
     restore_source("Topaz encode started")
 end
 
-local function enable_preview_keys()
-    mp.add_forced_key_binding("e", "topaz_mpv_encode_e", launch_encode)
-    mp.add_forced_key_binding("ENTER", "topaz_mpv_encode_enter", launch_encode)
-    mp.add_forced_key_binding("KP_ENTER", "topaz_mpv_encode_kp_enter", launch_encode)
+local function choose_encode_output()
+    if not preview_state then
+        return
+    end
+
+    local outputs, err = load_output_rows()
+    if not outputs then
+        mp.osd_message(err, 3)
+        return
+    end
+
+    remove_preview_keys()
+    input.select({
+        prompt = "Encode Output Format",
+        items = select_items(outputs),
+        submit = function(index)
+            if not index then
+                enable_preview_keys()
+                mp.osd_message(preview_key_message(), 4)
+                return
+            end
+            start_encode(outputs[index])
+        end,
+    })
+end
+
+function enable_preview_keys()
+    mp.add_forced_key_binding("e", "topaz_mpv_encode_e", choose_encode_output)
+    mp.add_forced_key_binding("ENTER", "topaz_mpv_encode_enter", choose_encode_output)
+    mp.add_forced_key_binding("KP_ENTER", "topaz_mpv_encode_kp_enter", choose_encode_output)
     mp.add_forced_key_binding("ESC", "topaz_mpv_restore_esc", function()
         restore_source("Topaz preview closed")
     end)
@@ -266,7 +307,7 @@ local function enable_preview_keys()
     end)
 end
 
-local function load_preview_image(image_path, source, transform, output)
+local function load_preview_image(image_path, context, transform)
     if preview_state then
         restore_source()
     end
@@ -275,12 +316,11 @@ local function load_preview_image(image_path, source, transform, output)
     local original_pos = mp.get_property_number("playlist-pos")
 
     preview_state = {
-        source = source,
-        source_name = basename(source),
+        source = context.source,
+        source_name = basename(context.source),
         transform = transform,
-        output = output,
-        time_pos = mp.get_property_number("time-pos", 0) or 0,
-        pause = mp.get_property_bool("pause"),
+        time_pos = context.time_pos,
+        pause = true,
         original_pos = original_pos,
         preview_index = playlist_count,
         old_image_display_duration = mp.get_property("image-display-duration"),
@@ -311,18 +351,17 @@ local function parse_preview_paths(stdout)
     return paths
 end
 
-local function run_preview(source, transform, output)
-    local time_pos = mp.get_property_number("time-pos", 0) or 0
-    local preset_name = topaz_preset_label(transform, output)
-    local time_arg = string.format("%.3f", time_pos)
+local function run_preview(context, transform)
+    local preset_name = transform.display
+    local time_arg = string.format("%.3f", context.time_pos)
 
-    mp.osd_message("Rendering Topaz preview frame...", 3)
+    mp.osd_message("Rendering Topaz preview at " .. format_time(context.time_pos), 3)
 
     mp.command_native_async({
         name = "subprocess",
         args = {
             topaz_preview_frame,
-            "--input", source,
+            "--input", context.source,
             "--preset-name", preset_name,
             "--preset-flag", "--filter_complex",
             "--filter", transform.filter,
@@ -350,27 +389,8 @@ local function run_preview(source, transform, output)
             return
         end
 
-        load_preview_image(image, source, transform, output)
+        load_preview_image(image, context, transform)
     end)
-end
-
-local function show_output_menu(source, transform)
-    local outputs, err = load_output_rows()
-    if not outputs then
-        mp.osd_message(err, 3)
-        return
-    end
-
-    input.select({
-        prompt = "Topaz Output",
-        items = select_items(outputs),
-        submit = function(index)
-            if not index then
-                return
-            end
-            run_preview(source, transform, outputs[index])
-        end,
-    })
 end
 
 local function show_transform_menu()
@@ -380,6 +400,13 @@ local function show_transform_menu()
         return
     end
 
+    mp.set_property_bool("pause", true)
+
+    local context = {
+        source = source,
+        time_pos = mp.get_property_number("time-pos", 0) or 0,
+    }
+
     local transforms
     transforms, err = load_transform_rows()
     if not transforms then
@@ -388,7 +415,7 @@ local function show_transform_menu()
     end
 
     input.select({
-        prompt = "Topaz Transform",
+        prompt = "Topaz Transform @ " .. format_time(context.time_pos),
         items = select_items(transforms),
         submit = function(index)
             if not index then
@@ -401,7 +428,7 @@ local function show_transform_menu()
                 mp.osd_message(summary, 4)
             end
             mp.add_timeout(0, function()
-                show_output_menu(source, transform)
+                run_preview(context, transform)
             end)
         end,
     })
