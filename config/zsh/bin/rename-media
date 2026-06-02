@@ -103,9 +103,17 @@ touch_modified_now() {
 clean_name() {
   local name="$1"
   local tags=(1080p 1080 720p 4k 60fps 30fps 25fps)
-  local t
+  local t source_label before after
 
   name="${name//.trimmed/}"
+
+  # Convert source prefixes like "[xHamster - ..." to "(xHamster) ...".
+  while [[ "$name" =~ '\[([^][]+) - ' ]]; do
+    source_label="${match[1]}"
+    before="${name[1,$(( MBEGIN - 1 ))]}"
+    after="${name[$(( MEND + 1 )),-1]}"
+    name="${before}(${source_label}) ${after}"
+  done
 
   # remove every non-nested {...} block since the script rebuilds it
   while [[ "$name" == *\{*\}* ]]; do

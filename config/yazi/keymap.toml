@@ -125,6 +125,16 @@ run  = "plugin smart-tab"
 desc = "Create a tab and enter the hovered directory"
 
 [[mgr.prepend_keymap]]
+on   = [ "t", "p" ]
+run  = "plugin --sync pane-layout --args=toggle-parent"
+desc = "Toggle parent pane"
+
+[[mgr.prepend_keymap]]
+on   = [ "t", "P" ]
+run  = "plugin --sync pane-layout --args=cycle-preview"
+desc = "Cycle preview pane size"
+
+[[mgr.prepend_keymap]]
 on   = "<C-1>"
 run  = "plugin --sync toggle-view --args=parent"
 desc = "Toggle parent pane"
@@ -265,6 +275,11 @@ desc = "Disable all media stats"
 on   = [ "g", "n" ]
 run  = "plugin first-non-directory"
 desc = "Jump to the first non-directory entry"
+
+[[mgr.prepend_keymap]]
+on   = [ "g", "T" ]
+run  = "cd /Volumes/Tower/Movies"
+desc = "Go to Tower"
 
 [[mgr.prepend_keymap]]
 on   = "<A-c>"
