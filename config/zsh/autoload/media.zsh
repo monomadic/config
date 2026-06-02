@@ -37,13 +37,13 @@ DJ_VISUALS_PATHS=("$ICLOUD_HOME/Movies/Visuals")
 alias @play="mpv-send play"
 alias @select="fzf-select | mpv-send play"
 alias .select-and-play="fzf-select --color | mpv-send play"
-alias .keyframe-cut="ffmpeg-lossless-cut-by-fzf-keyframe-select --force"
+alias .keyframe-cut="ffmpeg-lossless-cut --force"
 alias .batch="yt-dlp-porn-batch-file /Users/nom/Library/Mobile\ Documents/com\~apple\~CloudDocs/Sync/links.txt"
 #
 # ALIASES
 #
-alias .trim="ffmpeg-lossless-cut-by-fzf-keyframe-select"
-alias .trim-end="ffmpeg-lossless-cut-by-fzf-keyframe-select --reverse"
+alias .trim="ffmpeg-lossless-cut"
+alias .trim-end="ffmpeg-lossless-cut --reverse"
 
 alias .ls="fd-media"
 alias .ls-sorted="fd-media --sort=created"

@@ -17,11 +17,11 @@
   <shift_pad7 name="`custom_button_name 306`">custom_button_edit 306</shift_pad7>
   <shift_pad8 name="`custom_button_name 307`">custom_button_edit 307</shift_pad8>
   <pad9 name="DRUM: `stem_pad isolate 'rhythm' ? get_text 'YES' : get_text 'NO'`">stem_pad isolate 'rhythm'</pad9>
-  <pad10 name="`mute_stem 'vocal'  ? get_text 'INSTRUMENTAL' :          mute_stem 'melody' ? get_text 'ACAPELLA'     :                               get_text 'ALL STEMS'`" color="mute_stem 'vocal'  ? color '#CC55FF' :          mute_stem 'melody' ? color '#00FFAA' :                               color yellow" autodim="false">
-  mute_stem 'vocal' ?
-    mute_stem 'vocal' :
-  mute_stem 'melody' ?
-    mute_stem 'melody' &amp; mute_stem 'rhythm' &amp; mute_stem 'vocal' :
-    mute_stem 'melody' &amp; mute_stem 'rhythm'
-</pad10>
+  <pad10 name="`mute_stem 'vocal' ? get_text 'INSTRUMENTAL' : mute_stem 'melody' ? get_text 'ACAPELLA' : get_text 'ALL STEMS'`" color="mute_stem 'vocal' ? color '#CC55FF' : mute_stem 'melody' ? color '#00FFAA' : color yellow" autodim="false">
+    mute_stem 'vocal' ?
+      mute_stem 'vocal' :
+    mute_stem 'melody' ?
+      mute_stem 'melody' &amp; mute_stem 'rhythm' &amp; mute_stem 'vocal' :
+      mute_stem 'melody' &amp; mute_stem 'rhythm'
+  </pad10>
 </page>

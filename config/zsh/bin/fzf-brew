@@ -1,0 +1,268 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+script_name="${0:t}"
+typeset -r SELF="${0:A}"
+
+usage() {
+  cat <<'USAGE'
+Usage: fzf-brew [options] [initial query] [-- fzf args...]
+
+Search all Homebrew formulae and casks in fzf. Matching covers package names
+and one-line descriptions.
+
+Options:
+  -i, --install        Install the selected package instead of printing a command.
+  -n, --name           Print only the selected package name.
+      --command        Print a shell-ready brew install command. This is the default.
+      --formulae       Show formulae only.
+      --casks          Show casks only.
+      --list           Print the searchable TSV package list and exit.
+      --no-preview     Do not wire the ctrl-v brew-info preview.
+  -h, --help           Show this help.
+
+Keys:
+  enter                Accept selection.
+  ctrl-v               Toggle brew info preview.
+  ctrl-y               Copy a shell-ready install command, when pbcopy is available.
+USAGE
+}
+
+die() {
+  print -u2 -r -- "Error: $*"
+  exit 1
+}
+
+require_command() {
+  local bin="$1"
+
+  command -v "$bin" >/dev/null 2>&1 || die "missing dependency: $bin"
+}
+
+install_command() {
+  local type="$1"
+  local name="$2"
+
+  case "$type" in
+    formula) print -r -- "brew install ${(q)name}" ;;
+    cask)    print -r -- "brew install --cask ${(q)name}" ;;
+    *)       die "unknown package type: $type" ;;
+  esac
+}
+
+preview_entry() {
+  local type="$1"
+  local name="$2"
+
+  case "$type" in
+    formula) brew info --formula -- "$name" 2>&1 ;;
+    cask)    brew info --cask -- "$name" 2>&1 ;;
+    *)       die "unknown package type: $type" ;;
+  esac
+}
+
+list_entries() {
+  local type_filter="$1"
+
+  brew desc --eval-all --search /./ 2>/dev/null |
+    LC_ALL=C awk -v want="$type_filter" '
+      /^==> Formulae$/ { type = "formula"; next }
+      /^==> Casks$/ { type = "cask"; next }
+      /^==>/ { type = ""; next }
+      type == "" { next }
+      $0 !~ /: / { next }
+      {
+        name = $0
+        sub(/:.*/, "", name)
+        desc = $0
+        sub(/^[^:]+:[[:space:]]*/, "", desc)
+        gsub(/\t/, " ", name)
+        gsub(/\t/, " ", desc)
+        if (name != "" && (want == "" || type == want)) {
+          print type "\t" name "\t" desc
+        }
+      }
+    '
+}
+
+emit_names() {
+  local type name desc
+
+  while IFS=$'\t' read -r type name desc; do
+    [[ -n "${name:-}" ]] && print -r -- "$name"
+  done
+}
+
+emit_install_commands() {
+  local type name desc
+
+  while IFS=$'\t' read -r type name desc; do
+    [[ -n "${type:-}" && -n "${name:-}" ]] && install_command "$type" "$name"
+  done
+}
+
+install_entries() {
+  local type name desc
+
+  while IFS=$'\t' read -r type name desc; do
+    [[ -n "${type:-}" && -n "${name:-}" ]] || continue
+
+    case "$type" in
+      formula) brew install -- "$name" ;;
+      cask)    brew install --cask -- "$name" ;;
+      *)       die "unknown package type: $type" ;;
+    esac
+  done
+}
+
+case "${1:-}" in
+  --install-command-entry)
+    shift
+    (( $# == 2 )) || die "--install-command-entry requires type and name"
+    install_command "$1" "$2"
+    exit 0
+    ;;
+  --preview-entry)
+    shift
+    (( $# == 2 )) || die "--preview-entry requires type and name"
+    require_command brew
+    preview_entry "$1" "$2"
+    exit 0
+    ;;
+esac
+
+action=command
+type_filter=""
+list_only=false
+preview=true
+initial_query=""
+fzf_passthrough_args=()
+
+while (( $# )); do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    -i|--install)
+      action=install
+      ;;
+    -n|--name|--names)
+      action=name
+      ;;
+    --command|--print-command|--print-commands)
+      action=command
+      ;;
+    --formula|--formulae)
+      type_filter=formula
+      ;;
+    --cask|--casks)
+      type_filter=cask
+      ;;
+    --list)
+      list_only=true
+      ;;
+    --no-preview)
+      preview=false
+      ;;
+    --)
+      shift
+      fzf_passthrough_args=("$@")
+      break
+      ;;
+    -*)
+      fzf_passthrough_args+=("$1")
+      ;;
+    *)
+      if [[ -z "$initial_query" ]]; then
+        initial_query="$1"
+      else
+        fzf_passthrough_args+=("$1")
+      fi
+      ;;
+  esac
+  shift
+done
+
+case "$type_filter" in
+  ""|formula|cask) ;;
+  *) die "unknown package type filter: $type_filter" ;;
+esac
+
+require_command brew
+
+entries="$(list_entries "$type_filter")"
+[[ -n "$entries" ]] || die "no Homebrew packages found"
+
+if $list_only; then
+  print -r -- "$entries"
+  exit 0
+fi
+
+require_command fzf
+
+case "$action" in
+  command) enter_action="print install command" ;;
+  name)    enter_action="print name" ;;
+  install) enter_action="install" ;;
+  *)       die "unknown action: $action" ;;
+esac
+
+fzf_header="enter $enter_action"
+copy_bind=()
+if command -v pbcopy >/dev/null 2>&1; then
+  fzf_header="$fzf_header | ctrl-y copy command"
+  copy_bind=(--bind="ctrl-y:execute-silent(${(q)SELF} --install-command-entry {1} {2} | pbcopy)")
+fi
+
+$preview && fzf_header="$fzf_header | ctrl-v info"
+
+fzf_args=(
+  --cycle
+  --exact
+  --exit-0
+  --delimiter=$'\t'
+  --with-nth=1,2,3
+  --nth=2,3
+  --prompt='brew > '
+  --header="$fzf_header"
+)
+
+if [[ -n "$initial_query" ]]; then
+  fzf_args+=(--query="$initial_query")
+fi
+
+if $preview; then
+  fzf_args+=(
+    --preview="${(q)SELF} --preview-entry {1} {2}"
+    --preview-window='right:60%:wrap:hidden'
+    --bind='ctrl-v:toggle-preview'
+  )
+fi
+
+fzf_args+=("${copy_bind[@]}")
+fzf_args+=("${fzf_passthrough_args[@]}")
+
+set +e
+selected="$(
+  printf '%s\n' "$entries" |
+    fzf "${fzf_args[@]}"
+)"
+fzf_status=$?
+set -e
+
+case "$fzf_status" in
+  0) ;;
+  1) exit 0 ;;
+  130) exit 130 ;;
+  *) exit "$fzf_status" ;;
+esac
+
+[[ -n "$selected" ]] || exit 0
+
+case "$action" in
+  command) printf '%s\n' "$selected" | emit_install_commands ;;
+  name)    printf '%s\n' "$selected" | emit_names ;;
+  install) printf '%s\n' "$selected" | install_entries ;;
+  *)       die "unknown action: $action" ;;
+esac

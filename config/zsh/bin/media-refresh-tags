@@ -1,0 +1,387 @@
+#!/usr/bin/env zsh
+emulate -L zsh
+set -euo pipefail
+setopt extended_glob
+
+SCRIPT_NAME="${0:t}"
+DRY_RUN=false
+RENAME=true
+URL_OVERRIDE=""
+PORN_OUTPUT_TEMPLATE='%(channel,uploader|Unknown)s/%(cast,uploader|)l%(cast& - |)s[%(channel,uploader|Unknown)s] %(title)s (%(extractor)s).%(ext)s'
+typeset -ga TMP_FILES=()
+
+cleanup_tmp_files() {
+  local tmp
+
+  for tmp in "${TMP_FILES[@]}"; do
+    [[ -n "${tmp:-}" ]] && rm -f -- "$tmp" 2>/dev/null || true
+  done
+}
+
+trap cleanup_tmp_files EXIT
+
+usage() {
+  print -r -- "Usage: ${SCRIPT_NAME} [OPTIONS] <file.mp4>..."
+  print -r -- ""
+  print -r -- "Fetch yt-dlp metadata for an existing MP4, embed it, and rename it"
+  print -r -- "with the local --porn output template. No video is downloaded."
+  print -r -- ""
+  print -r -- "Options:"
+  print -r -- "  -u, --url URL     Use this URL instead of probing/prompting"
+  print -r -- "  --no-rename       Keep the existing filename"
+  print -r -- "  --dry-run         Show URL and target name without changing the file"
+  print -r -- "  -h, --help        Show this help"
+}
+
+die() {
+  print -u2 -r -- "Error: $*"
+  exit 1
+}
+
+warn() {
+  print -u2 -r -- "Warning: $*"
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || die "$1 not found in PATH"
+}
+
+is_url() {
+  [[ "$1" == http://* || "$1" == https://* ]]
+}
+
+is_faststart_path() {
+  case "${1:l}" in
+    *.mp4|*.m4v|*.mov) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+probe_embedded_url() {
+  local file="$1"
+  local tags_json
+
+  tags_json="$(ffprobe -v error -show_entries format_tags -of json -- "$file" 2>/dev/null)" || return 1
+
+  jq -r '
+    (.format.tags // {}) | with_entries(.key |= ascii_downcase) as $t |
+    [$t.source_url, $t.webpage_url, $t.purl, $t.url, $t.comment, $t.description] |
+    [.[]? | strings | (try capture("(?<url>https?://[^[:space:]\"<>]+)").url catch empty)] |
+    .[0] // empty
+  ' <<< "$tags_json"
+}
+
+prompt_for_url() {
+  local file="$1"
+  local reply=""
+
+  if [[ ! -r /dev/tty ]]; then
+    die "no embedded URL found for $file and /dev/tty is not available for prompting"
+  fi
+
+  while true; do
+    print -n -u2 -- "Source URL for ${file:t}: "
+    IFS= read -r reply </dev/tty || return 130
+    reply="${reply##[[:space:]]#}"
+    reply="${reply%%[[:space:]]#}"
+
+    if [[ -z "$reply" ]]; then
+      warn "blank URL ignored"
+      continue
+    fi
+
+    if ! is_url "$reply"; then
+      warn "expected http:// or https:// URL"
+      continue
+    fi
+
+    print -r -- "$reply"
+    return 0
+  done
+}
+
+fetch_info_json() {
+  local url="$1"
+  local json_file="$2"
+
+  yt-dlp \
+    --no-download-archive \
+    --ignore-no-formats-error \
+    --skip-download \
+    --dump-single-json \
+    --no-playlist \
+    --no-warnings \
+    --no-progress \
+    --porn \
+    --replace-in-metadata "tags" "[ _]+" "-" \
+    --parse-metadata "%(webpage_url)s:(?P<meta_comment>.+)" \
+    --parse-metadata "%(webpage_url)s:(?P<meta_purl>.+)" \
+    --parse-metadata "%(webpage_url)s:(?P<meta_source_url>.+)" \
+    "$url" > "$json_file"
+}
+
+target_path_from_info_json() {
+  local file="$1"
+  local json_file="$2"
+  local dir="${file:A:h}"
+  local ext="${file:e}"
+  local target
+
+  target="$(
+    yt-dlp \
+      --ignore-config \
+      --ignore-no-formats-error \
+      --load-info-json "$json_file" \
+      --simulate \
+      --no-warnings \
+      --no-progress \
+      --output "$PORN_OUTPUT_TEMPLATE" \
+      --paths "home:$dir" \
+      --trim-filenames 200 \
+      --output-na-placeholder "" \
+      --print filename | sed -n '1p'
+  )"
+
+  [[ -n "$target" ]] || return 1
+  [[ "$target" = /* ]] || target="$dir/$target"
+  [[ -n "$ext" ]] && target="${target%.*}.${ext}"
+
+  print -r -- "$target"
+}
+
+metadata_lines_from_json() {
+  local json_file="$1"
+  local fallback_url="$2"
+
+  jq -r --arg fallback_url "$fallback_url" '
+    def as_text:
+      if type == "array" then map(tostring) | join(", ")
+      else tostring
+      end;
+
+    def clean:
+      as_text | gsub("\u0000"; "");
+
+    def emit($name; $value):
+      if $value == null or ($value | clean) == "" then empty
+      else [$name, ($value | clean)] | @tsv
+      end;
+
+    def clean_tags:
+      if .tags == null then null
+      elif (.tags | type) == "array" then [.tags[] | tostring | gsub("[ _]+"; "-")]
+      else (.tags | tostring | gsub("[ _]+"; "-"))
+      end;
+
+    . as $info |
+    ($info.webpage_url // $fallback_url) as $webpage_url |
+    ($info.original_url // $fallback_url) as $original_url |
+    emit("title"; ($info.track // $info.title)),
+    emit("date"; $info.upload_date),
+    emit("description"; $info.description),
+    emit("synopsis"; $info.description),
+    emit("purl"; ($info.meta_purl // $webpage_url)),
+    emit("comment"; ($info.meta_comment // $webpage_url)),
+    emit("source_url"; ($info.meta_source_url // $webpage_url)),
+    emit("url"; $fallback_url),
+    emit("webpage_url"; $webpage_url),
+    emit("original_url"; $original_url),
+    emit("track"; $info.track_number),
+    emit("artist"; ($info.artist // $info.artists // $info.creator // $info.creators // $info.uploader // $info.uploader_id)),
+    emit("composer"; ($info.composer // $info.composers)),
+    emit("genre"; ($info.genre // $info.genres // $info.categories // ($info | clean_tags))),
+    emit("album"; ($info.album // $info.series)),
+    emit("album_artist"; ($info.album_artist // $info.album_artists)),
+    emit("disc"; $info.disc_number),
+    emit("show"; $info.series),
+    emit("season_number"; $info.season_number),
+    emit("episode_id"; ($info.episode // $info.episode_id)),
+    emit("episode_sort"; $info.episode_number),
+    (
+      $info | to_entries[] |
+      select(.key | test("^meta[0-9]*_")) |
+      .key as $key |
+      .value as $value |
+      ($key | capture("^meta(?<idx>[0-9]*)_(?<name>.+)$")) as $match |
+      select($match.idx == "") |
+      emit($match.name; $value)
+    )
+  ' "$json_file"
+}
+
+build_metadata_args() {
+  local json_file="$1"
+  local url="$2"
+  local key value
+
+  METADATA_ARGS=()
+
+  while IFS=$'\t' read -r key value; do
+    [[ -n "${key:-}" && -n "${value:-}" ]] || continue
+    METADATA_ARGS+=(-metadata "${key}=${value}")
+  done < <(metadata_lines_from_json "$json_file" "$url")
+}
+
+validate_info_json() {
+  local json_file="$1"
+
+  jq -e 'type == "object" and length > 0' "$json_file" >/dev/null 2>&1
+}
+
+copy_creation_date_best_effort() {
+  local source="$1"
+  local target="$2"
+  local created
+
+  command -v SetFile >/dev/null 2>&1 || return 0
+  created="$(stat -f '%B' -- "$source" 2>/dev/null)" || return 0
+  [[ "$created" == <-> && "$created" -gt 0 ]] || return 0
+  SetFile -d "$(date -r "$created" '+%m/%d/%Y %H:%M:%S')" "$target" >/dev/null 2>&1 || true
+}
+
+rewrite_with_metadata() {
+  local file="$1"
+  shift
+
+  local dir="${file:A:h}"
+  local base="${file:t:r}"
+  local ext="${file:e}"
+  local tmp
+  local -a ffmpeg_args
+
+  tmp="$(mktemp "${dir}/.${base}.ytmeta.XXXXXX.${ext}")" || return 1
+
+  ffmpeg_args=(
+    -hide_banner -loglevel error -nostdin -y
+    -i "$file"
+    -map 0
+    -c copy
+    -map_metadata -1
+    -write_id3v1 1
+  )
+
+  if is_faststart_path "$file"; then
+    ffmpeg_args+=(-movflags use_metadata_tags)
+  fi
+
+  ffmpeg_args+=("$@" "$tmp")
+
+  if ffmpeg "${ffmpeg_args[@]}"; then
+    copy_creation_date_best_effort "$file" "$tmp"
+    mv -f -- "$tmp" "$file"
+    touch "$file" 2>/dev/null || true
+    return 0
+  fi
+
+  rm -f -- "$tmp" 2>/dev/null || true
+  return 1
+}
+
+process_file() {
+  local file="$1"
+  local url target json_file
+
+  [[ -f "$file" ]] || die "file not found: $file"
+  file="${file:A}"
+
+  url="$URL_OVERRIDE"
+  if [[ -z "$url" ]]; then
+    url="$(probe_embedded_url "$file" || true)"
+  fi
+
+  if [[ -z "$url" ]]; then
+    url="$(prompt_for_url "$file")"
+  fi
+
+  is_url "$url" || die "invalid URL for $file: $url"
+
+  json_file="$(mktemp -t media-refresh-tags.XXXXXX.json)" || return 1
+  TMP_FILES+=("$json_file")
+
+  print -u2 -r -- "Fetching metadata: $url"
+  if ! fetch_info_json "$url" "$json_file"; then
+    die "could not fetch yt-dlp metadata for $url"
+  fi
+
+  if ! validate_info_json "$json_file"; then
+    die "yt-dlp did not return usable metadata for $url"
+  fi
+
+  target="$file"
+  if $RENAME; then
+    target="$(target_path_from_info_json "$file" "$json_file")" || die "could not resolve yt-dlp filename for $url"
+  fi
+
+  if [[ "$target:A" != "$file:A" && -e "$target" ]]; then
+    die "target already exists: $target"
+  fi
+
+  if $DRY_RUN; then
+    print -r -- "file:   $file"
+    print -r -- "url:    $url"
+    print -r -- "target: $target"
+    rm -f -- "$json_file"
+    return 0
+  fi
+
+  build_metadata_args "$json_file" "$url"
+  (( ${#METADATA_ARGS} > 0 )) || die "yt-dlp returned no metadata fields for $url"
+
+  rewrite_with_metadata "$file" "${METADATA_ARGS[@]}" || die "failed to write metadata: $file"
+
+  if [[ "$target:A" != "$file:A" ]]; then
+    mkdir -p -- "${target:h}"
+    mv -- "$file" "$target"
+  fi
+
+  rm -f -- "$json_file"
+
+  print -r -- "$target"
+}
+
+files=()
+while (( $# )); do
+  case "$1" in
+    -u|--url)
+      shift
+      [[ -n "${1:-}" ]] || die "--url requires a value"
+      URL_OVERRIDE="$1"
+      ;;
+    --no-rename)
+      RENAME=false
+      ;;
+    --dry-run)
+      DRY_RUN=true
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      files+=("$@")
+      break
+      ;;
+    -*)
+      die "unknown option: $1"
+      ;;
+    *)
+      files+=("$1")
+      ;;
+  esac
+  shift
+done
+
+(( ${#files} > 0 )) || {
+  usage
+  exit 1
+}
+
+require_command ffmpeg
+require_command ffprobe
+require_command jq
+require_command yt-dlp
+
+for file in "${files[@]}"; do
+  process_file "$file"
+done
