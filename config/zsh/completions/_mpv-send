@@ -53,13 +53,29 @@ _mpv_send_global_options=(
 )
 
 _mpv_send_start_args() {
-  local -a start_options
+  local state
+  local -a start_options start_actions
   start_options=(
     "${_mpv_send_global_options[@]}"
+    '--focus[Focus mpv after start]'
+    '--hide[Hide mpv after a new launch]'
     '--[Stop option parsing and pass remaining args to mpv]'
   )
+  start_actions=(
+    'focus:Focus mpv after start'
+    'hide:Hide mpv after a new launch'
+  )
 
-  _arguments -s "${start_options[@]}" '*:mpv arg or file:_files'
+  _arguments -s "${start_options[@]}" \
+    '1::window action or mpv arg:->start-first' \
+    '*:mpv arg or file:_files'
+
+  case "$state" in
+    start-first)
+      _describe -t start-actions 'mpv-start action' start_actions
+      _files
+      ;;
+  esac
 }
 
 _mpv_send_play_args() {

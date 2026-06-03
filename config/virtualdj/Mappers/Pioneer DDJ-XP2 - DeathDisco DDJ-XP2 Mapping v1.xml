@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mapper device="DDJXP2" author="Atomix Productions" version="850" date="2026-04-28">
+<mapper device="DDJXP2" author="Atomix Productions" version="850" date="2026-06-03">
 	<info>http://www.virtualdj.com/manuals/hardware/pioneer/ddjxp2/index.html</info>
 	<map value="ONINIT" action="deck all effect_3slots_layout on &amp; deck all effect_active colorfx off &amp; deck all filter_activate off &amp; deck all filter 50%" />
 	<map value="DNC_MODE" action="blink 150ms" />
@@ -48,16 +48,15 @@
 	<map value="SHIFT_FX3" action="stem_pad &quot;Rhythm&quot;" />
 	<map value="LED_FX2" action="stem_pad &quot;Melody&quot;" />
 	<map value="LED_FX3" action="stem_pad &quot;Rhythm&quot;" />
-	<map value="PADMODE_2" action="pad_page 2" />
-	<map value="PADMODE_3" action="pad_page 3" />
-	<map value="PADMODE_4" action="pad_page 4" />
-	<map value="PADMODE_5" action="pad_page btn5" />
+	<map value="PADMODE_3" action="pad_page 3 &amp; deck right pad_page 3" />
+	<map value="PADMODE_4" action="pad_page 4 &amp; deck right pad_page 4" />
+	<map value="PADMODE_5" action="pad_page 5 &amp; deck left pad_page 5" />
 	<map value="PADMODE_6" action="pad_page &apos;FX-PRESETS&apos; ? pad_page &apos;FX-PADFX&apos; : pad_page &apos;FX-PADFX&apos; ? pad_page &apos;FX-SLOTS&apos; : pad_page &apos;FX-PRESETS&apos;" />
 	<map value="PADMODE_7" action="pad_page btn7" />
 	<map value="PADMODE_8" action="pad_page btn8" />
 	<map value="LED_PADMODE_2" action="pad_page 2 ? color &apos;magenta&apos; : off" />
 	<map value="LED_PADMODE_3" action="pad_page 3 ? color &apos;#5577FF&apos; : off" />
-	<map value="LED_PADMODE_4" action="pad_pages 4 ? color &apos;white&apos; : off" />
+	<map value="LED_PADMODE_4" action="pad_pages 4 ? color blue : off" />
 	<map value="LED_PADMODE_5" action="pad_pages 5 ? color &apos;#FFA0A0&apos; : off" />
 	<map value="LED_PADMODE_6" action="pad_page &apos;FX-PRESETS&apos; ? color &apos;yellow&apos; : pad_page &apos;FX-PADFX&apos; ? color &apos;yellow&apos; : pad_page &apos;FX-SLOTS&apos; ? color &apos;yellow&apos; : off" />
 	<map value="LED_PADMODE_7" action="pad_pages 7 ? color &apos;blue&apos; : off " />
@@ -611,9 +610,10 @@
 	<map value="LED_FX1" action="stem_pad &quot;Vocal&quot;" />
 	<map value="INT" action="deck 3 leftdeck ? deck 1 leftdeck : deck 3 leftdeck" />
 	<map value="KEY+" action="keylock on &amp; pitch +0.5%" />
-	<map value="PADMODE_1" action="pad_page 1" />
-	<map value="LED_PADMODE_1" action="pad_page 1 ? color &apos;#44AA99&apos;" />
-	<map value="LED_SILENT_CUE" action="is_sync ? sync_hint &apos;phase&apos; ? sync_hint &apos;pitch&apos;" />
-	<map value="SILENT_CUE" action="phrase_sync 16 &amp; sync &amp; match_key &amp; match_bpm &amp; phrase_sync 16 &amp; beatlock on" />
+	<map value="PADMODE_1" action="pad_page 1 &amp; deck right pad_page 1" />
+	<map value="LED_PADMODE_1" action="pad_pages 1 ? color &apos;green&apos; : off" />
+	<map value="LED_SILENT_CUE" action="masterdeck" />
+	<map value="SILENT_CUE" action="masterdeck" />
 	<map value="ONSONGLOAD" action="match_key &amp; phrase_sync 16" />
+	<map value="PADMODE_2" action="pad_page 2 &amp; deck right pad_page 2" />
 </mapper>
