@@ -1,0 +1,32 @@
+#!/usr/bin/env zsh
+
+set -euo pipefail
+
+MPV_SEND="${MPV_SEND:-/Users/nom/.zsh/bin/mpv-send}"
+FD_MEDIA="${FD_MEDIA:-/Users/nom/.zsh/bin/fd-media}"
+
+if ! result="$(
+  osascript <<'APPLESCRIPT'
+tell application "System Events"
+  if not (exists process "mpv") then return "not-running"
+
+  tell process "mpv"
+    if frontmost then
+      set visible to false
+      return "hidden"
+    else
+      set visible to true
+      set frontmost to true
+      if exists window 1 then perform action "AXRaise" of window 1
+      return "focused"
+    end if
+  end tell
+end tell
+APPLESCRIPT
+)"; then
+  result="not-running"
+fi
+
+if [[ "$result" == "not-running" ]]; then
+  "$FD_MEDIA" --print0 . {${HOME},/Volumes/*}/Movies/Porn/Downloads(N) | "$MPV_SEND" play -0
+fi

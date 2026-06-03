@@ -15,6 +15,7 @@
 #   ytq print
 #   ytq list --visuals
 #   ytq clean
+#   ytq pop --visuals
 #   ytq run --visuals
 # -----------------------------------------------------------------------------
 
@@ -325,6 +326,39 @@ cmd_rm_index() {
   tmp_file="$(mktemp)" || return 1
 
   awk -v target="$index" 'NR != target { print }' "$YT_DLP_BATCH_FILE" > "$tmp_file"
+  mv "$tmp_file" "$YT_DLP_BATCH_FILE"
+}
+
+next_unarchived_queue_item() {
+  require_batch_file
+  load_archive
+
+  local line index=0
+  while IFS= read -r line; do
+    ((index++))
+    [[ -n "$line" ]] || continue
+    is_archived_url "$line" && continue
+
+    printf '%s\t%s\n' "$index" "$line"
+    return 0
+  done < "$YT_DLP_BATCH_FILE"
+
+  return 1
+}
+
+queue_push_top() {
+  require_batch_file
+
+  local url="$1"
+  local tmp_file
+
+  tmp_file="$(mktemp)" || return 1
+
+  {
+    print -r -- "$url"
+    cat "$YT_DLP_BATCH_FILE"
+  } > "$tmp_file"
+
   mv "$tmp_file" "$YT_DLP_BATCH_FILE"
 }
 
@@ -981,6 +1015,49 @@ cmd_get() {
   yt-dlp "$@" "$url"
 }
 
+cmd_pop() {
+  require_batch_file
+  require_command yt-dlp
+
+  if [[ ! -s "$YT_DLP_BATCH_FILE" ]]; then
+    print "📭 Queue is empty"
+    return 0
+  fi
+
+  local item index url tab download_status
+  tab=$'\t'
+
+  item="$(next_unarchived_queue_item)" || {
+    print "📭 No unarchived queue items"
+    return 0
+  }
+
+  index="${item%%${tab}*}"
+  url="${item#*${tab}}"
+
+  if ! is_url "$url"; then
+    print -u2 "❌ Queue item $index is not a URL: $url"
+    return 1
+  fi
+
+  cmd_rm_index "$index" || return 1
+
+  print "⬇️  Popped #$index: $url"
+  yt-dlp "$@" "$url"
+  download_status=$?
+
+  if (( download_status != 0 )); then
+    if queue_push_top "$url"; then
+      print -u2 "↩️  Download failed; re-added at top of queue"
+    else
+      print -u2 "❌ Download failed and could not re-add queue item: $url"
+    fi
+    return "$download_status"
+  fi
+
+  print "✅ Downloaded and removed: $url"
+}
+
 cmd_get_play() {
   local index="$1"
   local url
@@ -1175,6 +1252,8 @@ Viewing and picking:
 Downloading:
   ytq run [yt-dlp args ...]     Run yt-dlp with --batch-file.
   ytq get <n> [yt-dlp args ...] Download only queue item n, without --batch-file.
+  ytq pop [yt-dlp args ...]     Download the next unarchived queue item, removing
+                                it unless the transfer fails.
   ytq runclear [args ...]       Run the queue with yt-dlp, then clear it.
 
 Compatibility aliases:
@@ -1214,6 +1293,10 @@ case "$1" in
   get)
     shift
     cmd_get "$@"
+    ;;
+  pop)
+    shift
+    cmd_pop "$@"
     ;;
   runclear)
     shift
