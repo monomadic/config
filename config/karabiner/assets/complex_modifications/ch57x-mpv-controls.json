@@ -1,0 +1,94 @@
+{
+  "title": "CH57x mpv controls",
+  "rules": [
+    {
+      "description": "CH57x: F13-F18 control mpv",
+      "manipulators": [
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "f18",
+            "modifiers": {
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.zsh/bin/mpv-toggle-or-start'"
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "f13",
+            "modifiers": {
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.zsh/bin/mpv-send prev'"
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "f14",
+            "modifiers": {
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.zsh/bin/mpv-send random'"
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "f15",
+            "modifiers": {
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.zsh/bin/mpv-send next'"
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "f16",
+            "modifiers": {
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "key_code": "open_bracket"
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "f17",
+            "modifiers": {
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "key_code": "close_bracket"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
