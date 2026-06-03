@@ -8,6 +8,7 @@
 #   -0 | --read0   read NUL-delimited stdin
 #   --shuffle      shuffle once after all queued files have been sent
 # start supports:
+#   focus|hide      focus a new/existing mpv window, or hide a newly launched one
 #   --socket PATH   start/listen on a specific IPC socket
 #   --profile NAME  launch mpv with a specific mpv profile
 
@@ -69,8 +70,11 @@ the configured IPC socket, then send control commands or replace/append files
 to the playlist.
 
 Commands:
-  start [options] [--] [mpv-args-or-file...]
+  start [focus|hide] [options] [--] [mpv-args-or-file...]
                           Start a background mpv instance and wait for IPC.
+                          focus brings mpv forward after start.
+                          hide hides mpv after a new launch; an already-running
+                          instance is brought forward instead.
                           Remaining args after -- are passed to mpv, so this
                           can also load an initial splash image.
   play [options] [files...]
@@ -104,7 +108,8 @@ Env:
   MPV_SEND_BATCH_SIZE=64
 
 Examples:
-  mpv-send --socket /tmp/mpv-vj.sock --profile vj start
+  mpv-send --socket /tmp/mpv-vj.sock --profile vj start focus
+  mpv-send --socket /tmp/mpv-vj.sock --profile vj start hide
   mpv-send --socket /tmp/mpv-vj.sock play clip.mp4
   mpv-send -s /tmp/mpv-vj.sock -p vj start -- --image-display-duration=inf splash.png
 USAGE
@@ -261,15 +266,67 @@ ensure_mpv() {
   start_mpv
 }
 
+mpv_pid() {
+  local response
+  response="$(send_ipc '{ "command": ["get_property", "pid"] }' 2>/dev/null || true)"
+  print -r -- "$response" | sed -n 's/.*"data":[[:space:]]*\([0-9][0-9]*\).*/\1/p' | head -n 1
+}
+
 focus_mpv() {
-  osascript -e 'tell application "System Events" to set frontmost of process "mpv" to true' >/dev/null 2>&1 || true
+  local pid="${1:-$(mpv_pid)}"
+
+  if [[ "$pid" == <-> ]]; then
+    osascript \
+      -e 'tell application "System Events"' \
+      -e "set mpvProcess to first process whose unix id is $pid" \
+      -e 'set visible of mpvProcess to true' \
+      -e 'set frontmost of mpvProcess to true' \
+      -e 'if exists window 1 of mpvProcess then perform action "AXRaise" of window 1 of mpvProcess' \
+      -e 'end tell' >/dev/null 2>&1 && return 0
+  fi
+
+  osascript \
+    -e 'tell application "System Events"' \
+    -e 'if exists process "mpv" then' \
+    -e 'tell process "mpv"' \
+    -e 'set visible to true' \
+    -e 'set frontmost to true' \
+    -e 'if exists window 1 then perform action "AXRaise" of window 1' \
+    -e 'end tell' \
+    -e 'end if' \
+    -e 'end tell' >/dev/null 2>&1 || true
+}
+
+hide_mpv() {
+  local pid="${1:-$(mpv_pid)}"
+
+  if [[ "$pid" == <-> ]]; then
+    osascript \
+      -e 'tell application "System Events"' \
+      -e "set visible of first process whose unix id is $pid to false" \
+      -e 'end tell' >/dev/null 2>&1 && return 0
+  fi
+
+  osascript \
+    -e 'tell application "System Events"' \
+    -e 'if exists process "mpv" then set visible of process "mpv" to false' \
+    -e 'end tell' >/dev/null 2>&1 || true
 }
 
 start_cmd() {
   local -a mpv_args=()
+  local window_action=focus
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      focus|--focus)
+        window_action=focus
+        shift
+        ;;
+      hide|--hide)
+        window_action=hide
+        shift
+        ;;
       -s|--socket)
         [[ $# -ge 2 ]] || { echo "Error: $1 requires a socket path" >&2; exit 1; }
         SOCKET="$2"
@@ -308,7 +365,7 @@ start_cmd() {
         ;;
       -*)
         echo "Error: unknown start option: $1" >&2
-        echo "Usage: mpv-send start [-s socket] [-p profile] [--log path] [--] [mpv-args-or-file...]" >&2
+        echo "Usage: mpv-send start [focus|hide] [-s socket] [-p profile] [--log path] [--] [mpv-args-or-file...]" >&2
         exit 1
         ;;
       *)
@@ -322,12 +379,16 @@ start_cmd() {
 
   if test_socket; then
     echo "mpv is already listening on $SOCKET"
+    focus_mpv
     return 0
   fi
 
   start_mpv "${mpv_args[@]}"
   echo "Started mpv on $SOCKET${MPV_PROFILE:+ with profile $MPV_PROFILE}"
-  focus_mpv
+  case "$window_action" in
+    hide) hide_mpv ;;
+    *)    focus_mpv ;;
+  esac
 }
 
 play_cmd() {

@@ -1,0 +1,15 @@
+orientation: normal
+
+rows: 3
+columns: 1
+knobs: 1
+
+layers:
+  - buttons:
+      - ["f13"]
+      - ["f14"]
+      - ["f15"]
+    knobs:
+      - ccw: "f16"
+        cw: "f17"
+        press: "f18"
