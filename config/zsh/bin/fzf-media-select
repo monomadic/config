@@ -2,7 +2,7 @@
 
 # Initialize default settings
 PREVIEW_WINDOW="down:50%:hidden:border"
-HEADER_TEXT='''󰌑 play all · 󰘵 o play selected · 󰘵 󰌑 loop-mode (10 sec) · 󰘵 r reveal in finder · 󰘵 t shell · 󰘵 p preview · 󰘵 i iina · 󰘵 e elmedia · 󰘵 A airflow · 󰘵 l lf · 󰘵 s stdout
+HEADER_TEXT='''󰌑 play all · 󰘵 o play selected · 󰘵 󰌑 loop-mode (10 sec) · 󰘵 r reveal in finder · 󰘵 t shell · 󰘵 p preview · 󰘵 i iina · 󰘵 e elmedia · 󰘵 A airflow · 󰘵 s stdout
 
 '''
 FZF_DEFAULT_OPTS="--prompt '' --border --reverse --ansi --no-sort --delimiter=/ --header-first"

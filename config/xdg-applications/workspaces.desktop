@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=workspaces (lf)
-Comment=Open workspaces in lf
+Name=workspaces (Yazi)
+Comment=Open workspaces in Yazi
 Icon=utilities-terminal
 Terminal=true
-Exec=lf /mnt/data/workspaces
+Exec=yazi /mnt/data/workspaces
 Categories=ConsoleOnly;System;FileTools;FileManager
 MimeType=inode/directory;

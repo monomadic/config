@@ -4,7 +4,7 @@ mp.add_key_binding(nil, "open_in_kitty", function()
 	local path = mp.get_property("path")
 	if path then
 		local directory = utils.split_path(path)
-		utils.subprocess_detached({ args = { "kitty", "-e", "lf", directory } })
+			utils.subprocess_detached({ args = { "kitty", "-e", "yazi", directory } })
 	else
 		mp.msg.warn("No file currently playing")
 	end

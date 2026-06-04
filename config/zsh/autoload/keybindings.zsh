@@ -193,6 +193,18 @@ if [[ -o interactive ]]; then
     zle reset-prompt
   }
 
+  _zellij-session() {
+    zle -I 2>/dev/null
+
+    if [[ -n "${ZELLIJ:-}" ]]; then
+      zellij action launch-or-focus-plugin --floating --move-to-focused-tab zellij:session-manager
+    else
+      zellij attach --create main
+    fi
+
+    zle reset-prompt 2>/dev/null
+  }
+
   # ===============================================================================
   # ZLE Widget Registration
   # ===============================================================================
@@ -213,6 +225,7 @@ if [[ -o interactive ]]; then
   zle -N _cd-up
   zle -N _fzf-insert-path
   zle -N open-finder-pwd
+  zle -N _zellij-session
   zle -N fzf-dir-widget
 
   # ===============================================================================
@@ -242,6 +255,8 @@ if [[ -o interactive ]]; then
   bindkey -M viins $'\e[111;9u' _cd-fzf
   bindkey -M emacs $'\e[111;10u' _cd-fzf-local      # Cmd+Shift+O: local jump
   bindkey -M viins $'\e[111;10u' _cd-fzf-local
+  bindkey -M emacs $'\e[122;9u' _zellij-session     # Cmd+Z: attach/create Zellij
+  bindkey -M viins $'\e[122;9u' _zellij-session
   # bindkey -M emacs $'\e[106;9u' _cd-tv              # Cmd+J: tv global jump
   # bindkey -M viins $'\e[106;9u' _cd-tv
   # bindkey -M emacs $'\e[106;10u' _cd-tv-local       # Cmd+Shift+J: tv local jump

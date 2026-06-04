@@ -10,7 +10,7 @@ local map = vim.keymap.set
 local keymap = vim.keymap.set
 local utils = require 'utils'
 local key = utils.key
-local lf = require 'lf'
+local yazi = require 'yazi'
 local term = require 'term'
 local icons = require 'icons'
 local templates = require 'templates'
@@ -220,7 +220,7 @@ keymap('n', "<C-a>", ":AerialToggle<CR>", { desc = "aerial" })
 keymap('n', "<leader>Tl", ToggleLineNumbers, { desc = "line numbers" })
 keymap('n', "<leader>Tt", ":TransparentToggle<CR>", { desc = "tranparency" })
 
-keymap('n', '<leader>f', lf.show, { desc = "lf" })
+keymap('n', '<leader>f', yazi.show, { desc = "yazi" })
 
 -- settings
 keymap('n', "<leader>,l", ToggleLineNumbers, { desc = "toggle line numbers" })
@@ -233,8 +233,7 @@ keymap('n', '<leader>,u', '<cmd>Lazy update<cr>', { desc = "update plugins" })
 keymap('n', '<C-S-Space>', term.show, { desc = "term", remap = false })
 keymap('n', '<C-,>', term.show, { desc = "term", remap = false })
 keymap('t', 'Esc', term.close, { desc = "close", remap = false })
-keymap('n', '<C-Space>', lf.show, { desc = "term", remap = false })
--- keymap('n', '<C-Space>', lf.show, { desc = "lf", remap = false })
+keymap('n', '<C-Space>', yazi.show, { desc = "yazi", remap = false })
 keymap('t', '<C-Space>', function()
 	vim.api.nvim_win_hide(0)
 end)

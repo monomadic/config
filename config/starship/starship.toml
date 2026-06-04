@@ -3,7 +3,7 @@ add_newline = false
 command_timeout = 500
 #scan_timeout = 10
 
-format = "$directory$git_branch$git_status${custom.uptime}${custom.disk_free}$battery$line_break$os$hostname $character"
+format = "$directory$git_branch$git_status${custom.uptime}${custom.disk_free}${custom.battery}$line_break$os$hostname $character"
 
 # ---------- OS + Host ----------
 [os]
@@ -43,43 +43,21 @@ style = "bold red"
 format = " [$all_status$ahead_behind]($style)"
 disabled = false
 
-# ---------- Disk Free (GB of current filesystem) ----------
-[custom.disk_free]
-when = true
-command = "df -k . | tail -1 | awk '{print $4*1024} ' | /opt/homebrew/opt/coreutils/libexec/gnubin/numfmt --to=iec --suffix=b --format='%.1f'"
-format = "  [􀤂  $output](bold #0AAAFF)"
-
-# ---------- Uptime (warn ≥ 2 days) ----------
-# Red when >= 2 days
-[custom.uptime_warn]
-when = 'boot=$(sysctl -n kern.boottime | awk "{print \$4}" | tr -d ","); now=$(date +%s); (( now - boot >= 172800 ))'
-command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
-shell = ["bash", "-lc"]
-format = "[ $output](bold red)"
-
-# Yellow when < 2 days
-[custom.uptime_ok]
-when = 'boot=$(sysctl -n kern.boottime | awk "{print \$4}" | tr -d ","); now=$(date +%s); (( now - boot < 172800 ))'
-command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
-shell = ["bash", "-lc"]
-format = "[ $output](bold white)"
-
+# ---------- Session stats ----------
 [custom.uptime]
-when = true
+when = '[ -z "${ZELLIJ:-}" ]'
 command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
 format = "  [􀐱  $output](bold #0ACAFF)"
 
-# ---------- Battery ----------
-[battery]
-format = "  [$symbol$percentage]($style) "
-display = [
-  { threshold = 101, style = "bold #0A7AFF" } # apply style at any charge
-]
-full_symbol = "􀛨  "
-charging_symbol = "􀢋  "
-discharging_symbol = "􀺶  "
-unknown_symbol = " "
-empty_symbol = "􀛪  "
+[custom.disk_free]
+when = '[ -z "${ZELLIJ:-}" ]'
+command = "df -k . | tail -1 | awk '{print $4*1024}' | /opt/homebrew/opt/coreutils/libexec/gnubin/numfmt --to=iec --suffix=b --format='%.1f'"
+format = "  [􀤂  $output](bold #0AAAFF)"
+
+[custom.battery]
+when = '[ -z "${ZELLIJ:-}" ] && pmset -g batt | grep -q InternalBattery'
+command = "/Users/nom/config/config/zsh/bin/zellij-status-segment battery"
+format = "  [$output](bold #0A7AFF) "
 
 # ---------- Time (right) ----------
 [time]

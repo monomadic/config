@@ -10,19 +10,19 @@ IFS=$'\n'
 set -o noclobber -o noglob -o nounset -o pipefail
 
 ## If the option `use_preview_script` is set to `true`,
-## then this script will be called and its output will be displayed in ranger.
+## then this script will be called and its output will be displayed in Joshuto.
 ## ANSI color codes are supported.
 ## STDIN is disabled, so interactive scripts won't work properly
 
 ## This script is considered a configuration file and must be updated manually.
-## It will be left untouched if you upgrade ranger.
+## It will be left untouched if you upgrade Joshuto.
 
 ## Because of some automated testing we do on the script #'s for comments need
 ## to be doubled up. Code that is commented out, because it's an alternative for
 ## example, gets only one #.
 
 ## Meanings of exit codes:
-## code | meaning    | action of ranger
+## code | meaning    | action of Joshuto
 ## -----+------------+-------------------------------------------
 ## 0    | success    | Display stdout as preview
 ## 1    | no preview | Display no preview at all

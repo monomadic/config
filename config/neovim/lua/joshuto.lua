@@ -15,9 +15,9 @@ M.show = function()
 	M.buf = utils.create_floating_window()
 
 	vim.cmd.startinsert() -- start in insert mode
-	local lf_tmpfile = vim.fn.tempname()
+	local chooser_tmpfile = vim.fn.tempname()
 
-	local process_cmd = 'joshuto --file-chooser --output-file ' .. lf_tmpfile
+	local process_cmd = 'joshuto --file-chooser --output-file ' .. chooser_tmpfile
 
 	if selected_file ~= "" then
 		process_cmd = process_cmd .. '"' .. selected_file .. '"'
@@ -25,7 +25,7 @@ M.show = function()
 
 	local win = vim.api.nvim_get_current_win()
 
-	-- launch lf process
+		-- launch file chooser process
 	vim.fn.termopen(process_cmd, {
 		on_exit = function() -- job_id, exit_code, event_type
 			-- if window is a float, close the window
@@ -33,11 +33,11 @@ M.show = function()
 				vim.api.nvim_win_close(win, true)
 			end
 
-			-- if lf correctly left us a tempfile
-			if vim.loop.fs_stat(lf_tmpfile) then
+			-- if the chooser correctly left us a tempfile
+			if vim.loop.fs_stat(chooser_tmpfile) then
 				local contents = {}
 				-- grab the entries that were selected (one per line)
-				for line in io.lines(lf_tmpfile) do
+				for line in io.lines(chooser_tmpfile) do
 					table.insert(contents, line)
 				end
 				if not vim.tbl_isempty(contents) then

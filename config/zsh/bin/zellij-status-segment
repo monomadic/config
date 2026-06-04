@@ -1,0 +1,63 @@
+#!/bin/zsh
+set -euo pipefail
+
+human_bytes() {
+  awk -v bytes="$1" '
+    BEGIN {
+      split("B KiB MiB GiB TiB", unit, " ")
+      value = bytes
+      unit_index = 1
+      while (value >= 1024 && unit_index < 5) {
+        value = value / 1024
+        unit_index++
+      }
+      if (value >= 10 || unit_index == 1) {
+        printf "%.0f%s", value, unit[unit_index]
+      } else {
+        printf "%.1f%s", value, unit[unit_index]
+      }
+    }
+  '
+}
+
+case "${1:-}" in
+  machine)
+    printf '󰀵 %s' "$(hostname -s)"
+    ;;
+  uptime)
+    boot="$(sysctl -n kern.boottime | awk '{print $4}' | tr -d ',')"
+    now="$(date +%s)"
+    seconds=$(( now - boot ))
+    days=$(( seconds / 86400 ))
+    hours=$(( (seconds % 86400) / 3600 ))
+    minutes=$(( (seconds % 3600) / 60 ))
+
+    if (( days > 0 )); then
+      printf '%dd%02dh' "$days" "$hours"
+    elif (( hours > 0 )); then
+      printf '%dh%02dm' "$hours" "$minutes"
+    else
+      printf '%dm' "$minutes"
+    fi
+    ;;
+  disk)
+    free_kb="$(df -k . | awk 'NR == 2 {print $4}')"
+    human_bytes "$(( free_kb * 1024 ))"
+    ;;
+  battery)
+    battery_line="$(pmset -g batt | awk '/InternalBattery/ {print; exit}')"
+    [[ -n "$battery_line" ]] || exit 0
+
+    percent="$(printf '%s\n' "$battery_line" | grep -Eo '[0-9]+%' | head -1)"
+    case "$battery_line" in
+      *discharging*) icon='􀺶' ;;
+      *charging*) icon='􀢋' ;;
+      *) icon='􀛨' ;;
+    esac
+    printf '%s %s' "$icon" "$percent"
+    ;;
+  *)
+    print -u2 "usage: ${0:t} machine|uptime|disk|battery"
+    exit 64
+    ;;
+esac

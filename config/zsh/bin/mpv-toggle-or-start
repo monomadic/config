@@ -28,5 +28,5 @@ APPLESCRIPT
 fi
 
 if [[ "$result" == "not-running" ]]; then
-  "$FD_MEDIA" --print0 . {${HOME},/Volumes/*}/Movies/Porn/Downloads(N) | "$MPV_SEND" play -0
+  "$FD_MEDIA" --sort created --print0 . {${HOME},/Volumes/*}/Movies/Porn/Downloads(N) | "$MPV_SEND" play -0
 fi

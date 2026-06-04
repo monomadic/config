@@ -23,7 +23,7 @@
 ##
 ## Meanings of exit codes:
 ##
-## code | meaning    | action of ranger
+## code | meaning    | action of Joshuto
 ## -----+------------+-------------------------------------------
 ## 0    | success    | Display stdout as preview
 ## 1    | no preview | Display no preview at all

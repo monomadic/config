@@ -1,3 +1,0 @@
-#!/usr/bin/env sh
-
-exec "$HOME/config/vendor/bin/lf" "$@"
