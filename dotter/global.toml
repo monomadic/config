@@ -121,14 +121,6 @@ files = { "config/starship/starship.toml" = "~/.config/starship.toml" }
 "config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xvideos_red.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xvideos_red.py"
 # "config/yt-dlp/" = "~/.config/yt_dlp/plugins/sites/yt_dlp_plugins/extractorplugins/mysites/yt_dlp_plugins/extractor"
 
-
-[lf]
-[lf.files]
-"config/lf/lfrc.conf" = { target = "~/.config/lf/lfrc", type = "symbolic" }
-"config/lf/pv.sh" = "~/.config/lf/pv.sh"
-"config/lf/icons" = "~/.config/lf/icons"
-"config/lf/colors" = "~/.config/lf/colors"
-
 [leaf.files]
 "config/leaf/config.toml" = "~/.config/leaf/config.toml"
 

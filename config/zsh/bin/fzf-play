@@ -2,7 +2,7 @@
 
 # Initialize default settings
 PREVIEW_WINDOW="down:50%:hidden:border"
-HEADER_TEXT='''󰌑 play all · 󰘵 o play · 󰘵 p windowed · 󰘵 󰌑 loop-mode · 󰘵 r reveal · 󰘵 t shell · 󰘵 / preview · 󰘵 l lf · 󰘵 s stdout
+HEADER_TEXT='''󰌑 play all · 󰘵 o play · 󰘵 p windowed · 󰘵 󰌑 loop-mode · 󰘵 r reveal · 󰘵 t shell · 󰘵 / preview · 󰘵 s stdout
 
 '''
 

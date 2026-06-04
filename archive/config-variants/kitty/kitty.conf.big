@@ -1136,7 +1136,7 @@ macos_custom_beam_cursor yes
 action_alias launch_tab launch --type=tab --cwd=current
 
 map f1 launch_tab nvim
-map f2 launch_tab lf
+map f2 launch_tab yazi
 
 #: Similarly, to alias kitten invocation::
 

@@ -1,0 +1,4 @@
+#!/bin/zsh
+current_dir=${1:-$PWD}
+
+kitty @ launch --type=overlay --cwd="$current_dir" --title="Yazi File Manager" yazi

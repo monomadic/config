@@ -30,7 +30,7 @@ rustPlatform.buildRustPackage rec {
   cargoSha256 = "1ylb7alnkfzb9xqdzkdc1q1lfnqzgqcp7bjmih5h1ylai8h34sdb";
 
   meta = with lib; {
-    description = "Rust-based ranger replacement";
+    description = "Rust terminal file manager";
     homepage = "https://github.com/rabite0/hunter";
     license = licenses.unlicense;
     maintainers = [ maintainers.tailhook ];
