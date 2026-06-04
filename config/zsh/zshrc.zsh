@@ -94,7 +94,9 @@ _zellij_kitty_spacing() {
   (( $+commands[kitty] )) || return 1
 
   local -a remote_args=()
-  [[ -n "${KITTY_LISTEN_ON:-}" ]] && remote_args=(--to "$KITTY_LISTEN_ON")
+  local listen_on="${KITTY_LISTEN_ON:-}"
+  [[ -z "$listen_on" && -S /tmp/kitty ]] && listen_on="unix:/tmp/kitty"
+  [[ -n "$listen_on" ]] && remote_args=(--to "$listen_on")
 
   kitty @ "${remote_args[@]}" set-spacing --match "id:$KITTY_WINDOW_ID" "$@" >/dev/null 2>&1 ||
     kitty @ "${remote_args[@]}" set-spacing --match "state:self" "$@" >/dev/null 2>&1
