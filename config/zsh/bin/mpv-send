@@ -77,6 +77,9 @@ Commands:
                           instance is brought forward instead.
                           Remaining args after -- are passed to mpv, so this
                           can also load an initial splash image.
+  focus [options] [--] [mpv-args-or-file...]
+                          Focus an existing mpv process, or start and focus one.
+                          Start options match the start command.
   play [options] [files...]
                           Load files into mpv.
                           Reads from stdin first (newline by default).
@@ -313,6 +316,12 @@ hide_mpv() {
     -e 'end tell' >/dev/null 2>&1 || true
 }
 
+mpv_process_running() {
+  local exists
+  exists="$(osascript -e 'tell application "System Events" to exists (process "mpv")' 2>/dev/null || true)"
+  [[ "$exists" == "true" ]]
+}
+
 start_cmd() {
   local -a mpv_args=()
   local window_action=focus
@@ -389,6 +398,16 @@ start_cmd() {
     hide) hide_mpv ;;
     *)    focus_mpv ;;
   esac
+}
+
+focus_cmd() {
+  if mpv_process_running; then
+    focus_mpv
+    echo "Focused mpv"
+    return 0
+  fi
+
+  start_cmd "$@"
 }
 
 play_cmd() {
@@ -624,6 +643,10 @@ cmd="${1:-}"
 case "$cmd" in
   start)
     start_cmd "$@"
+    ;;
+
+  focus)
+    focus_cmd "$@"
     ;;
 
   play)
