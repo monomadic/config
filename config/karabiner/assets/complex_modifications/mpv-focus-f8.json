@@ -1,0 +1,24 @@
+{
+  "title": "mpv F8 focus/start",
+  "rules": [
+    {
+      "description": "mpv: focus existing mpv or start one with F8",
+      "manipulators": [
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "f8",
+            "modifiers": {
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "/bin/zsh -lc '/Users/nom/.zsh/bin/mpv-send focus >/dev/null 2>&1'"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

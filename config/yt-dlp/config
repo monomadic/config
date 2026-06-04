@@ -19,6 +19,9 @@
 --parse-metadata "%(webpage_url)s:(?P<meta_comment>.+)"
 --parse-metadata "%(webpage_url)s:(?P<meta_purl>.+)"
 --parse-metadata "%(webpage_url)s:(?P<meta_source_url>.+)"
+--parse-metadata "%(extractor)s:(?P<meta_yt_dlp_extractor>.+)"
+--parse-metadata "%(id)s:(?P<meta_yt_dlp_id>.+)"
+--parse-metadata "%(display_id)s:(?P<meta_yt_dlp_slug>.+)"
 
 --alias print-name "-s --print filename -o {0} --trim-filenames 200 --output-na-placeholder ''"
 --alias best-video "-f bv[vcodec!=none][acodec=none]/bv[acodec=none]/bv*[vcodec!=none]/bv*/b -S res,fps,tbr --format-sort-force --ignore-no-formats-error"
