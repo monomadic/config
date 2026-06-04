@@ -5,7 +5,7 @@ from kitty.utils import color_as_int
 
 MAX_TITLE_CELLS = 10
 ALERT_DOT = "󱐌"
-INDEX_FG = as_rgb(0x7A86D1)
+INDEX_FG = as_rgb(0x44CACA)
 ALERT_FG = as_rgb(0x09FF00)
 
 
@@ -74,7 +74,8 @@ def draw_tab(
     # else:
     #     draw_colored(screen, marker, ALERT_FG)
 
-    draw_colored(screen, index_text, INDEX_FG)
+    #draw_colored(screen, index_text, as_rgb(color_as_int(draw_data.active_fg)))
+    screen.draw(index_text)
     screen.draw(" ")
 
     end = screen.cursor.x

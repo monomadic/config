@@ -2,7 +2,7 @@ local mp = require("mp")
 local math = require("math")
 
 local EDGE_FRACTION = 0.10
-local SEEK_FRACTION = 0.10
+local SEEK_FRACTION = 0.07
 local RANDOM_SEEK_MARGIN = 0.10
 local DEFAULT_JUMP_DELAY = 15
 
