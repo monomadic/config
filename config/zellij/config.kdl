@@ -22,6 +22,16 @@ load_plugins {
     "zellij:link"
 }
 
+keybinds {
+    normal {
+        // Forward Kitty CSI-u shortcuts that zsh binds as widgets.
+        bind "Super i" { Write 27; WriteChars "[105;9u"; }
+        bind "Super o" { Write 27; WriteChars "[111;9u"; }
+        bind "Super Shift o" { Write 27; WriteChars "[111;10u"; }
+        bind "Super z" { Write 27; WriteChars "[122;9u"; }
+    }
+}
+
 themes {
     neon-dark {
         fg 207 211 220
