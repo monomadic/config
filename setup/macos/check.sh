@@ -52,7 +52,7 @@ collect_selected_packages() {
   local file="$1"
 
   awk '
-    /^\s*packages\s*=\s*\[/ { in_packages = 1; next }
+    /^[[:space:]]*packages[[:space:]]*=[[:space:]]*\[/ { in_packages = 1; next }
     in_packages {
       line = $0
       sub(/#.*/, "", line)
@@ -74,7 +74,7 @@ collect_mapped_sources() {
   awk '
     function print_inline_sources(text, rest, entry, parts) {
       rest = text
-      while (match(rest, /"[^"]+"\s*=/)) {
+      while (match(rest, /"[^"]+"[[:space:]]*=/)) {
         entry = substr(rest, RSTART, RLENGTH)
         split(entry, parts, "=")
         gsub(/^[[:space:]]*"/, "", parts[1])
