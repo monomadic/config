@@ -50,11 +50,11 @@ case "${1:-}" in
 
     percent="$(printf '%s\n' "$battery_line" | grep -Eo '[0-9]+%' | head -1)"
     case "$battery_line" in
-      *discharging*) icon='􀺶' ;;
-      *charging*) icon='􀢋' ;;
-      *) icon='􀛨' ;;
+      *discharging*) icon='􀺶  ' ;;
+      *charging*) icon='􀢋  ' ;;
+      *) icon='􀛨  ' ;;
     esac
-    printf '%s %s' "$icon" "$percent"
+    printf '%s%s' "$icon" "$percent"
     ;;
   *)
     print -u2 "usage: ${0:t} machine|uptime|disk|battery"
