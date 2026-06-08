@@ -6,30 +6,30 @@
 
 
 [mgr]
-cwd = { fg = "#66e2ff", bold = true }
+cwd = { fg = "#ffd75f", bold = false }
 border_symbol = " "
 border_style = { fg = "#FaFaFb" }
 
-find_position = { fg = "#ff7ad9", bold = true }
-find_keyword  = { fg = "#ffe66d", bold = true }
+find_position = { fg = "#ff7ad9", bold = false }
+find_keyword  = { fg = "#ffe66d", bold = false }
 
 # ------------------------------------------------------------
 # Selection / cursor indicators
 # ------------------------------------------------------------
 
 [indicator]
-parent        = { fg = "#88BBFF", bg = "#000044" }
-current       = { fg = "#FFFF22", bg = "#1144BB" }
-preview       = { underline = false, fg = "#88BBFF", bg="#000044" }
-hovered       = { bg = "#151519" }
+parent        = { fg = "#77FFBB", bg = "#000055" }
+current       = { fg = "#77FFBB", bg = "#000033" }
+preview       = { underline = false, fg = "#77FFBB", bg="#000055" }
+hovered       = { bg = "#FF1519" }
 
 # ------------------------------------------------------------
 # Tabs
 # ------------------------------------------------------------
 
 [tabs]
-active   = { fg = "#0a0a0b", bg = "#88BBFF", bold = true }
-inactive = { fg = "#8b8f98" }
+active   = { fg = "#0a0a0b", bg = "#88BBFF", bold = false }
+inactive = { fg = "#8b8f98", bg = "#000044" }
 sep_inner = { open = "", close = "" }
 sep_outer = { open = "", close = "" }
 
@@ -38,13 +38,13 @@ sep_outer = { open = "", close = "" }
 # ------------------------------------------------------------
 
 [mode]
-normal_main = { fg = "#0a0a0b", bg = "#66e2ff", bold = true }
+normal_main = { fg = "#0a0a0b", bg = "#88FF33", bold = false }
 normal_alt  = { fg = "#cfd3dc", bg = "#111114" }
 
-select_main = { fg = "#0a0a0b", bg = "#ff7ad9", bold = true }
+select_main = { fg = "#0a0a0b", bg = "#ff7ad9", bold = false }
 select_alt  = { fg = "#cfd3dc", bg = "#111114" }
 
-unset_main  = { fg = "#0a0a0b", bg = "#ffe66d", bold = true }
+unset_main  = { fg = "#0a0a0b", bg = "#ffe66d", bold = false }
 unset_alt   = { fg = "#cfd3dc", bg = "#111114" }
 
 # ------------------------------------------------------------
@@ -62,7 +62,7 @@ perm_write = { fg = "#ffe66d" }
 perm_exec = { fg = "#ff7ad9" }
 perm_sep = { fg = "#3a3d46" }
 
-progress_label  = { fg = "#cfd3dc", bold = true }
+progress_label  = { fg = "#cfd3dc", bold = false }
 progress_normal = { fg = "#66e2ff", bg = "#111114" }
 progress_error  = { fg = "#ff5f87", bg = "#111114" }
 
@@ -71,24 +71,24 @@ progress_error  = { fg = "#ff5f87", bg = "#111114" }
 # ------------------------------------------------------------
 
 [pick]
-border = { fg = "#66e2ff" }
-active   = { fg = "#66e2ff", bold = true }
-inactive = { fg = "#9aa0aa" }
+border = { fg = "#88AAFF" }
+active   = { fg = "#AAFFFF", bold = false }
+inactive = { fg = "#99AAAA" }
 
 [input]
-border = { fg = "#0a0a0b" }
-title    = { fg = "#66e2ff", bold = true }
+border = { fg = "#88AAFF" }
+title    = { fg = "#66e2ff", bold = false }
 value    = { fg = "#d7dbe3" }
 selected = { bg = "#1a1d24" }
 
 [cmp]
 border = { fg = "#0a0a0b" }
-active   = { bg = "#1a1d24", bold = true }
+active   = { bg = "#1a1d24", bold = false }
 inactive = { fg = "#9aa0aa" }
 
 [tasks]
 border = { fg = "#0a0a0b" }
-title   = { fg = "#66e2ff", bold = true }
+title   = { fg = "#66e2ff", bold = false }
 hovered = { bg = "#151519" }
 
 [which]
@@ -100,16 +100,16 @@ separator       = "  →  "
 separator_style = { fg = "#3a3d46" }
 
 [help]
-on      = { fg = "#66e2ff", bold = true }
-run     = { fg = "#ff7ad9", bold = true }
+on      = { fg = "#66e2ff", bold = false }
+run     = { fg = "#ff7ad9", bold = false }
 desc    = { fg = "#cfd3dc" }
-hovered = { bg = "#151519", bold = true }
+hovered = { bg = "#151519", bold = false }
 footer  = { fg = "#0a0a0b", bg = "#66e2ff" }
 
 [notify]
-title_info  = { fg = "#66e2ff", bold = true }
-title_warn  = { fg = "#ffe66d", bold = true }
-title_error = { fg = "#ff5f87", bold = true }
+title_info  = { fg = "#66e2ff", bold = false }
+title_warn  = { fg = "#ffe66d", bold = false }
+title_error = { fg = "#ff5f87", bold = false }
 
 # ------------------------------------------------------------
 # Filetype coloring

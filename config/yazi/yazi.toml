@@ -8,10 +8,9 @@ max_height = 900
 
 [opener]
 edit = [
-	{ run = "${EDITOR:-vi} %s", desc = "􁹛  $EDITOR", for = "unix", block = true },
-	{ run = "hx %s", desc = "􀤘 Helix", for = "unix", block = true },
+	{ run = "${EDITOR:-vi} %s", desc = "􁹛  edit", for = "unix", block = true },
+	{ run = "hx %s", desc = "􀤘  hx", for = "unix", block = true },
 	{ run = "code %s", desc = "Code", for = "windows", orphan = true },
-	{ run = "code -w %s", desc = "Code (block)", for = "windows", block = true },
 ]
 bulk-rename = [
 	{ run = "hx %s", desc = "􀤘 Helix", for = "unix", block = true },
