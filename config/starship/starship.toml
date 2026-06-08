@@ -46,12 +46,12 @@ disabled = false
 # ---------- Session stats ----------
 [custom.uptime]
 when = '[ -z "${ZELLIJ:-}" ]'
-command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//"'
-format = "  [􀐱  $output](bold #0ACAFF)"
+command = 'uptime | awk -F"up " "{print \$2}" | sed "s/, .*//" | sed "s/ days/d/"'
+format = "  [􀐱 $output](bold #0ACAFF)"
 
 [custom.disk_free]
 when = '[ -z "${ZELLIJ:-}" ]'
-command = "df -k . | tail -1 | awk '{print $4*1024}' | /opt/homebrew/opt/coreutils/libexec/gnubin/numfmt --to=iec --suffix=b --format='%.1f'"
+command = "df -k . | tail -1 | awk '{print $4*1024}' | /opt/homebrew/opt/coreutils/libexec/gnubin/numfmt --to=iec --suffix=b --round=down"
 format = "  [􀤂  $output](bold #0AAAFF)"
 
 [custom.battery]

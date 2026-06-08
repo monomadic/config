@@ -1,0 +1,16 @@
+orientation: normal
+model: ch57x-2
+
+rows: 3
+columns: 1
+knobs: 1
+
+layers:
+  - buttons:
+      - ["cmd-left"]
+      - ["space"]
+      - ["cmd-right"]
+    knobs:
+      - ccw: "left"
+        cw: "f17"
+        press: "right"
