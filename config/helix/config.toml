@@ -15,7 +15,7 @@ C-k = "jump_view_up"
 C-l = "jump_view_right"
 C-p = ["move_line_up", "scroll_up"]
 C-s = [":w!"]
-"Cmd-o" = [
+"C-space" = [
   ':sh rm -f /tmp/unique-ca1ea106',
   ':insert-output yazi "%{buffer_name}" --chooser-file=/tmp/unique-ca1ea106',
   ':sh printf "\x1b[?1049h\x1b[?2004h" > /dev/tty',
@@ -60,6 +60,8 @@ K = [
 ]
 "C-=" = "expand_selection"
 "C-minus" = "shrink_selection"
+# overwrite a normal-mode selection (made with w/e/b/x/mouse) with the clipboard
+R = ["replace_selections_with_clipboard"]
 "Cmd-c" = ["yank_main_selection_to_clipboard"]
 "Cmd-v" = [":clipboard-paste-after"]
 
@@ -90,10 +92,9 @@ J = ["delete_selection", "paste_after"]
 K = ["delete_selection", "move_visual_line_up", "paste_before"]
 # make “p” replace the current selection with the system clipboard
 p = [":clipboard-paste-replace", "collapse_selection"]
-# full-line extend down
-j = "extend_line_below"
-# full-line extend up
-k = "extend_line_above"
+# full-line extend down/up, shrinking again when retreating past the anchor (vim-like)
+j = "select_line_below"
+k = "select_line_above"
 R = ["replace_selections_with_clipboard"]
 "C-+" = "expand_selection"
 "C-minus" = "shrink_selection"

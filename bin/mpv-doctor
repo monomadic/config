@@ -1,0 +1,192 @@
+#!/usr/bin/env zsh
+# mpv-doctor — find out why an mpv key binding "does nothing".
+#
+# Checks, in the order such bugs usually hide:
+#   deploy    every file in the repo mpv config is actually linked into
+#             ~/.config/mpv (dotter creates per-file symlinks; new files
+#             silently do nothing until `dotter deploy` is run)
+#   load      every Lua script loads without errors under the real config
+#   bindings  every script-binding / script-message target in input.conf is
+#             registered by some script (mpv renames script clients by
+#             replacing non-alphanumerics with "_", so e.g.
+#             "script-binding open-panel/show" never resolves for
+#             open-panel.lua — it must be "open_panel/show")
+#
+# usage: mpv-doctor [all|deploy|load|bindings|key <KEY>|input-test]
+#   key <KEY>   show what input.conf binds KEY to and whether it resolves
+#   input-test  launch mpv in interactive input-test mode: press any key and
+#               the OSD shows exactly what it is bound to
+
+emulate -L zsh
+setopt pipe_fail extended_glob
+
+REPO=${MPV_DOCTOR_REPO:-$HOME/config/config/mpv}
+LIVE=${MPV_DOCTOR_LIVE:-$HOME/.config/mpv}
+rc=0
+
+sect() { print -- "\n== $* ==" }
+ok()   { print -r -- "  ok: $*" }
+bad()  { print -r -- "  FAIL: $*"; rc=1 }
+
+# ---------------------------------------------------------------- deploy ----
+check_deploy() {
+    sect "deploy: $REPO -> $LIVE"
+    local f rel live_target found=0
+    for f in $REPO/**/*(.N); do
+        rel=${f#$REPO/}
+        if [[ ! -e $LIVE/$rel ]]; then
+            bad "not deployed: $rel"
+            found=1
+        else
+            live_target=$LIVE/$rel
+            live_target=${live_target:A}
+            if [[ $live_target != ${f:A} ]]; then
+                bad "diverges: $rel (live resolves to $live_target)"
+                found=1
+            fi
+        fi
+    done
+    (( found )) && print -r -- "  fix: dotter deploy"
+    (( found )) || ok "all repo files linked"
+}
+
+# ------------------------------------------------------------------ load ----
+check_load() {
+    sect "load: headless mpv with real config"
+    local drv out
+    drv=$(mktemp -t mpv-doctor-XXXXXX).lua
+    print 'local mp = require "mp"\nmp.add_timeout(1.2, function() mp.command("quit") end)' > $drv
+
+    out=$(mpv --config-dir=$LIVE --vo=null --ao=null --force-window=no \
+              --fullscreen=no --input-ipc-server='' --idle=yes \
+              --script=$drv --msg-level=all=warn 2>&1)
+    rm -f $drv
+
+    local errs
+    errs=$(print -r -- $out | grep -iE "lua error|error running|error loading|failed to load|stack traceback" || true)
+    if [[ -n $errs ]]; then
+        bad "script errors:"
+        print -r -- $errs | sed 's/^/      /'
+    else
+        ok "all scripts loaded cleanly"
+    fi
+}
+
+# -------------------------------------------------------------- bindings ----
+# mpv client name for a script file: basename, no .lua, non-alnum -> _
+client_name() { print -r -- ${${${1:t}%.lua}//[^a-zA-Z0-9]/_} }
+
+typeset -A REGISTERED        # "client/name" -> 1
+typeset -A REGISTERED_ANY    # "name" -> "client client ..."
+typeset -A MESSAGES          # script-message name -> "client ..."
+typeset -A CLIENTS           # client -> source file
+
+collect_registrations() {
+    local s client name
+    # optional-scripts are loaded by profiles (e.g. --profile=ab), so their
+    # registrations count for resolving section bindings too
+    for s in $LIVE/scripts/*.lua(N) $LIVE/optional-scripts/*.lua(N); do
+        client=$(client_name $s)
+        CLIENTS[$client]=${s:A}
+        for name in $(grep -oE 'add(_forced)?_key_binding\([^,)]*,[[:space:]]*"[^"]+"' ${s:A} 2>/dev/null \
+                          | sed -E 's/.*"([^"]+)"$/\1/'); do
+            REGISTERED[$client/$name]=1
+            REGISTERED_ANY[$name]+="$client "
+        done
+        for name in $(grep -oE 'register_script_message\([[:space:]]*"[^"]+"' ${s:A} 2>/dev/null \
+                          | sed -E 's/.*"([^"]+)"$/\1/'); do
+            MESSAGES[$name]+="$client "
+        done
+    done
+}
+
+check_binding_target() {
+    local where=$1 target=$2 pre name
+    if [[ $target == */* ]]; then
+        pre=${target%%/*}
+        name=${target#*/}
+        if [[ -z ${CLIENTS[$pre]:-} ]]; then
+            if [[ -n ${CLIENTS[${pre//[^a-zA-Z0-9]/_}]:-} ]]; then
+                bad "$where: no client '$pre' — mpv names it '${pre//[^a-zA-Z0-9]/_}' (use that prefix)"
+            else
+                bad "$where: no script client named '$pre'"
+            fi
+        elif [[ -z ${REGISTERED[$pre/$name]:-} ]]; then
+            bad "$where: script '$pre' does not register binding '$name'"
+        fi
+    elif [[ -z ${REGISTERED_ANY[$target]:-} ]]; then
+        bad "$where: no script registers binding '$target'"
+    fi
+}
+
+check_bindings() {
+    sect "bindings: input.conf targets"
+    collect_registrations
+
+    local line key cmd target msg_name n=0 found=$rc
+    while IFS= read -r line; do
+        (( n++ ))
+        line=${line## #}
+        [[ -z ${line//[[:space:]]/} || ${line:0:1} == '#' ]] && continue
+        key=${line%% *}
+
+        if [[ $line =~ 'script-binding[[:space:]]+([^[:space:]]+)' ]]; then
+            check_binding_target "line $n ($key)" $match[1]
+        fi
+
+        if [[ $line =~ 'script-message-to[[:space:]]+([^[:space:]]+)[[:space:]]+([^[:space:]]+)' ]]; then
+            if [[ -z ${CLIENTS[$match[1]]:-} ]]; then
+                bad "line $n ($key): script-message-to: no client '$match[1]'"
+            elif [[ ${MESSAGES[$match[2]]:-} != *"$match[1] "* ]]; then
+                bad "line $n ($key): script '$match[1]' does not handle message '$match[2]'"
+            fi
+        elif [[ $line =~ '(^|[[:space:];])script-message[[:space:]]+([^[:space:]]+)' ]]; then
+            msg_name=$match[2]
+            if [[ -z ${MESSAGES[$msg_name]:-} ]]; then
+                bad "line $n ($key): no script handles message '$msg_name'"
+            fi
+        fi
+    done < $LIVE/input.conf
+
+    [[ $rc == $found ]] && ok "every input.conf target resolves"
+}
+
+# ------------------------------------------------------------------- key ----
+check_key() {
+    local key=$1
+    sect "key: '$key' in input.conf"
+    local hits
+    hits=$(grep -nE "^${key} |^${key}	" $LIVE/input.conf | grep -v '^[0-9]*:#' || true)
+    if [[ -z $hits ]]; then
+        print -r -- "  '$key' is not bound in input.conf (mpv default or unbound)"
+        print -r -- "  try: mpv-doctor input-test"
+        return
+    fi
+    print -r -- $hits | sed 's/^/  /'
+    collect_registrations
+    local line
+    while IFS= read -r line; do
+        line=${line#*:}
+        if [[ $line =~ 'script-binding[[:space:]]+([^[:space:]]+)' ]]; then
+            check_binding_target "'$key'" $match[1]
+        fi
+        if [[ $line =~ '(^|[[:space:];])script-message[[:space:]]+([^[:space:]]+)' ]]; then
+            [[ -z ${MESSAGES[$match[2]]:-} ]] && bad "'$key': no script handles message '$match[2]'"
+        fi
+    done <<< $hits
+    (( rc == 0 )) && ok "target resolves (if it still does nothing, check 'mpv-doctor load')"
+}
+
+# ------------------------------------------------------------------ main ----
+case ${1:-all} in
+    deploy)     check_deploy ;;
+    load)       check_load ;;
+    bindings)   check_bindings ;;
+    key)        [[ -n ${2:-} ]] || { print -u2 "usage: mpv-doctor key <KEY>"; exit 2 }
+                check_key $2 ;;
+    input-test) exec mpv --config-dir=$LIVE --input-test --force-window=yes --idle=yes ;;
+    all)        check_deploy; check_load; check_bindings ;;
+    *)          print -u2 "usage: mpv-doctor [all|deploy|load|bindings|key <KEY>|input-test]"; exit 2 ;;
+esac
+
+exit $rc
