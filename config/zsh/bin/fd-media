@@ -211,7 +211,7 @@ process_files() {
   (( ${#valid_dirs[@]} > 0 )) || return 0
 
   # Assumes fd-video behaves like fd and accepts: pattern [path...]
-  fd_cmd=(fd-video -t f --full-path --ignore-case -0 "$pattern" "${valid_dirs[@]}")
+  fd_cmd=(fd-video --type file --exclude '_*' --full-path --ignore-case -0 "$pattern" "${valid_dirs[@]}")
   log_verbose "Executing: ${fd_cmd[*]}"
 
   while IFS= read -r -d $'\0' file; do

@@ -1,0 +1,499 @@
+#!/usr/bin/env zsh
+# 🎬 Detect scenes with PySceneDetect, review cuts, and embed MP4/MKV chapters.
+#
+# Usage:
+#   scenedetect-embed-chapters [options] <input-video>
+#
+# Requires:
+#   ffmpeg ffprobe scenedetect fzf python3
+#
+# Output:
+#   <name>.chapters.<ext>
+
+emulate -L zsh
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  scenedetect-embed-chapters [options] <input-video>
+
+Options:
+  -n, --dry-run             Print chapters and ffmpeg command without writing output
+  -t, --threshold <value>   PySceneDetect content threshold (default: 27)
+                            Lower = more cuts, higher = fewer cuts
+  -m, --method <name>       Detection method: content or adaptive (default: content)
+  -f, --force               Overwrite output file if it exists
+  -w, --width <px>          Thumbnail preview width in fzf (default: 480)
+  -p, --title-prefix <s>    Chapter title prefix (default: Scene)
+  --no-review               Skip fzf review
+  --keep-previews           Keep generated preview thumbnails
+  -h, --help                Show help
+
+Examples:
+  scenedetect-embed-chapters movie.mp4
+  scenedetect-embed-chapters --method adaptive movie.mp4
+  scenedetect-embed-chapters --threshold 22 --force movie.mp4
+EOF
+}
+
+die() {
+  print -u2 -- "error: $*"
+  exit 1
+}
+
+warn() {
+  print -u2 -- "warning: $*"
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+quote_cmd() {
+  printf '%q ' "$@"
+  printf '\n'
+}
+
+format_ts() {
+  python3 - "$1" <<'PY'
+import sys
+s = float(sys.argv[1])
+h = int(s // 3600)
+m = int((s % 3600) // 60)
+sec = s % 60
+print(f"{h:02d}:{m:02d}:{sec:09.6f}")
+PY
+}
+
+review_scenes() {
+  local input_file="$1"
+  local detections_file="$2"
+  local width="$3"
+  local keep_previews="$4"
+
+  local tmp_dir
+  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/scenedetect-review.XXXXXXXX")"
+
+  review_cleanup() {
+    if [[ "$keep_previews" == true ]]; then
+      print -u2 -- "kept previews in: $tmp_dir"
+    else
+      rm -rf -- "$tmp_dir"
+    fi
+  }
+
+  local list_file="$tmp_dir/list.tsv"
+  : > "$list_file"
+
+  local idx cut_time pretty_ts img_file
+  local -a ffmpeg_pids=()
+
+  while IFS=$'\t' read -r idx cut_time; do
+    [[ -n "$idx" && -n "$cut_time" ]] || continue
+
+    pretty_ts="$(format_ts "$cut_time")"
+    img_file="$tmp_dir/scene-${idx}.jpg"
+
+    printf '%s\t%s\t%s\t%s\n' \
+      "$idx" "$cut_time" "$pretty_ts" "$img_file" >> "$list_file"
+
+    (
+      ffmpeg -v error -y \
+        -ss "$cut_time" \
+        -i "$input_file" \
+        -frames:v 1 \
+        -vf "scale=${width}:-2:flags=lanczos" \
+        -q:v 3 \
+        -- "$img_file"
+    ) &
+
+    ffmpeg_pids+=("$!")
+  done < "$detections_file"
+
+  if [[ ! -s "$list_file" ]]; then
+    review_cleanup
+    return 0
+  fi
+
+  local pid
+  for pid in "${ffmpeg_pids[@]}"; do
+    wait "$pid" || {
+      review_cleanup
+      return 1
+    }
+  done
+
+  local preview_script="$tmp_dir/preview.zsh"
+  cat > "$preview_script" <<'EOF'
+#!/usr/bin/env zsh
+emulate -L zsh
+set -euo pipefail
+
+idx="$1"
+raw_ts="$2"
+pretty_ts="$3"
+img="$4"
+
+preview_cols="${FZF_PREVIEW_COLUMNS:-80}"
+preview_lines="${FZF_PREVIEW_LINES:-24}"
+image_lines=$(( preview_lines > 4 ? preview_lines - 4 : preview_lines ))
+
+print -- "Scene break #$idx"
+print -- "Detected time: $pretty_ts ($raw_ts)"
+print -- ""
+
+if [[ -n "${KITTY_WINDOW_ID:-}" ]] && command -v kitty >/dev/null 2>&1; then
+  kitty +kitten icat \
+    --clear \
+    --transfer-mode=stream \
+    --stdin=no \
+    --place="${preview_cols}x${image_lines}@0x3" \
+    -- "$img"
+elif [[ -n "${WEZTERM_PANE:-}" ]] && command -v wezterm >/dev/null 2>&1; then
+  wezterm imgcat --width "${preview_cols}" -- "$img"
+elif command -v imgcat >/dev/null 2>&1; then
+  imgcat "$img"
+elif command -v chafa >/dev/null 2>&1; then
+  chafa --animate=off --size="${preview_cols}x${image_lines}" -- "$img"
+else
+  print -- "$img"
+fi
+EOF
+
+  chmod +x "$preview_script"
+
+  fzf \
+    --delimiter=$'\t' \
+    --with-nth=1,3 \
+    --no-sort \
+    --layout=reverse \
+    --height=100% \
+    --border \
+    --prompt='scene> ' \
+    --header="Review detected scenes for ${input_file:t} - Enter to continue, Esc to cancel" \
+    --preview-window='right,70%,border-left' \
+    --preview "zsh '$preview_script' {1} {2} {3} {4}" \
+    < "$list_file" >/dev/null || {
+      local rc=$?
+      review_cleanup
+      return "$rc"
+    }
+
+  review_cleanup
+}
+
+dry_run=false
+threshold="27"
+method="content"
+force=false
+width=480
+title_prefix="Scene"
+review=true
+keep_previews=false
+typeset -a positionals=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    -n|--dry-run)
+      dry_run=true
+      shift
+      ;;
+    -t|--threshold)
+      (( $# >= 2 )) || die "missing value for $1"
+      threshold="$2"
+      shift 2
+      ;;
+    -m|--method)
+      (( $# >= 2 )) || die "missing value for $1"
+      method="$2"
+      shift 2
+      ;;
+    -f|--force)
+      force=true
+      shift
+      ;;
+    -w|--width)
+      (( $# >= 2 )) || die "missing value for $1"
+      width="$2"
+      shift 2
+      ;;
+    -p|--title-prefix)
+      (( $# >= 2 )) || die "missing value for $1"
+      title_prefix="$2"
+      shift 2
+      ;;
+    --no-review)
+      review=false
+      shift
+      ;;
+    --keep-previews)
+      keep_previews=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      while (( $# > 0 )); do
+        positionals+=("$1")
+        shift
+      done
+      ;;
+    -*)
+      die "unknown option: $1"
+      ;;
+    *)
+      positionals+=("$1")
+      shift
+      ;;
+  esac
+done
+
+(( ${#positionals[@]} == 1 )) || {
+  usage >&2
+  exit 2
+}
+
+input_file="${positionals[1]}"
+
+[[ -f "$input_file" ]] || die "input not found: $input_file"
+[[ "$threshold" == <-> || "$threshold" == <->.<-> || "$threshold" == .<-> ]] || die "threshold must be numeric"
+[[ "$width" == <-> ]] || die "width must be an integer"
+
+case "$method" in
+  content|adaptive) ;;
+  *) die "method must be content or adaptive" ;;
+esac
+
+have ffmpeg || die "ffmpeg not found"
+have ffprobe || die "ffprobe not found"
+have scenedetect || die "scenedetect not found"
+have python3 || die "python3 not found"
+
+if [[ "$review" == true ]]; then
+  have fzf || die "fzf not found"
+fi
+
+base_name="${input_file:t}"
+dir_name="${input_file:h}"
+
+if [[ "$base_name" == *.* ]]; then
+  stem="${base_name:r}"
+  ext="${base_name:e}"
+else
+  stem="$base_name"
+  ext="mkv"
+fi
+
+output_file="${dir_name}/${stem}.chapters.${ext}"
+
+tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/scenedetect-embed-chapters.XXXXXXXX")"
+
+cleanup() {
+  rm -rf -- "$tmp_dir"
+}
+
+trap cleanup EXIT INT TERM
+
+pyscene_output="$tmp_dir/scenedetect.txt"
+detections_file="$tmp_dir/detections.tsv"
+duration_file="$tmp_dir/duration.txt"
+meta_file="$tmp_dir/chapters.ffmeta"
+
+ffprobe -v error \
+  -show_entries format=duration \
+  -of default=nw=1:nk=1 \
+  -- "$input_file" > "$duration_file"
+
+case "$method" in
+  content)
+    scenedetect \
+      --input "$input_file" \
+      detect-content --threshold "$threshold" \
+      list-scenes \
+      > "$pyscene_output"
+    ;;
+  adaptive)
+    scenedetect \
+      --input "$input_file" \
+      detect-adaptive --threshold "$threshold" \
+      list-scenes \
+      > "$pyscene_output"
+    ;;
+esac
+
+python3 - "$pyscene_output" "$detections_file" <<'PY'
+import re
+import sys
+
+pyscene_path, out_path = sys.argv[1:]
+
+def ts_to_seconds(ts: str) -> float:
+    h, m, rest = ts.split(":")
+    return int(h) * 3600 + int(m) * 60 + float(rest)
+
+text = open(pyscene_path, "r", encoding="utf-8", errors="replace").read()
+
+match = re.search(
+    r"Comma-separated timecode list:\s*\n\s*([0-9:.,\s]+)",
+    text,
+)
+
+with open(out_path, "w", encoding="utf-8") as fh:
+    if not match:
+        sys.exit(0)
+
+    timecodes = [x.strip() for x in match.group(1).split(",") if x.strip()]
+
+    for idx, tc in enumerate(timecodes, start=1):
+        seconds = ts_to_seconds(tc)
+        fh.write(f"{idx}\t{seconds:.6f}\n")
+PY
+
+if [[ -s "$detections_file" ]]; then
+  if [[ "$review" == true ]]; then
+    print -- "Reviewing detected scenes..."
+    review_scenes "$input_file" "$detections_file" "$width" "$keep_previews" || exit $?
+  fi
+else
+  warn "no scene changes detected; output will contain a single chapter covering the whole file"
+fi
+
+python3 - "$detections_file" "$duration_file" "$meta_file" "$title_prefix" <<'PY'
+import math
+import sys
+
+detections_path = sys.argv[1]
+duration_path = sys.argv[2]
+meta_path = sys.argv[3]
+title_prefix = sys.argv[4]
+
+duration = float(open(duration_path, "r", encoding="utf-8").read().strip())
+
+if not math.isfinite(duration) or duration <= 0:
+    raise SystemExit("invalid duration")
+
+boundaries = [0.0]
+
+with open(detections_path, "r", encoding="utf-8") as fh:
+    for line in fh:
+        if not line.strip():
+            continue
+        _, raw_time = line.rstrip("\n").split("\t")
+        ts = float(raw_time)
+        if 0 < ts < duration:
+            boundaries.append(ts)
+
+boundaries.append(duration)
+
+boundaries = sorted(boundaries)
+
+deduped = [boundaries[0]]
+for ts in boundaries[1:]:
+    if ts - deduped[-1] > 0.001:
+        deduped.append(ts)
+
+def escape_ffmeta(value: str) -> str:
+    return (
+        value
+        .replace("\\", "\\\\")
+        .replace("=", "\\=")
+        .replace(";", "\\;")
+        .replace("#", "\\#")
+        .replace("\n", " ")
+    )
+
+with open(meta_path, "w", encoding="utf-8") as fh:
+    fh.write(";FFMETADATA1\n\n")
+
+    for index, (start, end) in enumerate(zip(deduped, deduped[1:]), start=1):
+        start_ms = int(round(start * 1000))
+        end_ms = int(round(end * 1000))
+
+        if end_ms <= start_ms:
+            continue
+
+        fh.write("[CHAPTER]\n")
+        fh.write("TIMEBASE=1/1000\n")
+        fh.write(f"START={start_ms}\n")
+        fh.write(f"END={end_ms}\n")
+        fh.write(f"title={escape_ffmeta(title_prefix)} {index:03d}\n\n")
+PY
+
+[[ -e "$output_file" && "$force" == false && "$dry_run" == false ]] && \
+  die "output exists: $output_file (use --force to overwrite)"
+
+print -- "Planned chapters:"
+
+python3 - "$meta_file" <<'PY'
+import sys
+
+def fmt(seconds: float) -> str:
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = seconds % 60
+    return f"{h:02d}:{m:02d}:{s:06.3f}"
+
+current = {}
+
+for raw_line in open(sys.argv[1], "r", encoding="utf-8"):
+    line = raw_line.strip()
+
+    if line == "[CHAPTER]":
+        current = {}
+        continue
+
+    if "=" not in line:
+        continue
+
+    key, value = line.split("=", 1)
+    current[key] = value
+
+    if key == "title":
+        start = int(current["START"]) / 1000.0
+        end = int(current["END"]) / 1000.0
+        print(f"{value}: {fmt(start)} -> {fmt(end)}")
+PY
+
+cmd=(
+  ffmpeg
+  -hide_banner
+  -loglevel error
+)
+
+if [[ "$force" == true ]]; then
+  cmd+=(-y)
+else
+  cmd+=(-n)
+fi
+
+cmd+=(
+  -i "$input_file"
+  -f ffmetadata
+  -i "$meta_file"
+  -map 0
+  -c copy
+  -map_metadata 0
+  -map_chapters 1
+  "$output_file"
+)
+
+if [[ "$dry_run" == true ]]; then
+  print -- ""
+  print -- "ffmetadata:"
+  sed -n '1,240p' "$meta_file"
+
+  print -- ""
+  print -- "command:"
+  print -n -- "  "
+  quote_cmd "${cmd[@]}"
+
+  print -- ""
+  print -- "Dry run only. No files were written."
+else
+  "${cmd[@]}"
+  print -- "Wrote chaptered file: $output_file"
+fi

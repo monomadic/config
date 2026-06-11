@@ -1,7 +1,18 @@
 local mp = require "mp"
-local assdraw = require "mp.assdraw"
 local options = require "mp.options"
 local utils = require "mp.utils"
+
+local function load_chord_panel()
+    local path = mp.find_config_file("script-modules/chord_panel.lua")
+    if not path then
+        local source = debug.getinfo(1, "S").source
+        local script_dir = source and source:match("^@(.+)/[^/]+$")
+        path = script_dir and (script_dir .. "/../script-modules/chord_panel.lua")
+    end
+    return assert(loadfile(assert(path, "chord_panel.lua not found")))()
+end
+
+local chord_panel = load_chord_panel()
 
 local opts = {
     visuals_dir = "/Users/nom/Movies/Visuals",
@@ -10,14 +21,8 @@ local opts = {
 
 options.read_options(opts, "open-panel")
 
-local INPUT_SECTION = "open-panel"
 local KITTY_LAUNCH = "/Users/nom/.zsh/bin/kitty-launch"
 
-local overlay = mp.create_osd_overlay("ass-events")
-overlay.z = 220
-
-local active = false
-local hide_timer = nil
 local pending_restore = nil
 
 local media_extensions = {
@@ -26,16 +31,6 @@ local media_extensions = {
     mp3 = true, m4a = true, flac = true, wav = true, aiff = true, aif = true,
     opus = true, ogg = true, oga = true, wv = true,
     jpg = true, jpeg = true, png = true, gif = true, webp = true, heic = true,
-}
-
-local actions = {
-    { key = "d", label = "open current directory" },
-    { key = "p", label = "open parent directory" },
-    { key = "t", label = "open in kitty" },
-    { key = "y", label = "reveal in yazi" },
-    { key = "f", label = "reveal in Finder" },
-    { key = "l", label = "open library" },
-    { key = "v", label = "open visuals" },
 }
 
 local function basename(path)
@@ -182,157 +177,137 @@ local function load_directory(dir, target_path)
     mp.osd_message(string.format("Opened %s (%d items)", basename(dir) or dir, #files), 2)
 end
 
-local function stop_timer()
-    if hide_timer then
-        hide_timer:kill()
-        hide_timer = nil
-    end
-end
-
-local function clear_panel()
-    stop_timer()
-    overlay:remove()
-    if active then
-        mp.commandv("disable-section", INPUT_SECTION)
-    end
-    active = false
-end
-
-local function render_panel()
-    local dim = mp.get_property_native("osd-dimensions")
-    if not dim or not dim.w or dim.w <= 0 or not dim.h or dim.h <= 0 then
-        local lines = { "open" }
-        for _, item in ipairs(actions) do
-            table.insert(lines, item.key .. " " .. item.label)
-        end
-        table.insert(lines, "ESC cancel")
-        mp.osd_message(table.concat(lines, "\n"), opts.timeout)
+local function open_current_directory()
+    local dir, target, err = current_directory()
+    if not dir then
+        mp.osd_message(err, 3)
         return
     end
-
-    local w, h = dim.w, dim.h
-    local panel_w = math.min(560, math.floor(w * 0.76))
-    local row_h = 30
-    local panel_h = 64 + (#actions * row_h) + 20
-    local x = math.floor((w - panel_w) / 2)
-    local y = math.floor(math.max(40, h * 0.15))
-    local ass = assdraw.ass_new()
-
-    ass:new_event()
-    ass:append(("{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&H111111&\\alpha&H20&}"):format(x, y))
-    ass:draw_start()
-    ass:rect_cw(0, 0, panel_w, panel_h)
-    ass:draw_stop()
-
-    ass:new_event()
-    ass:append(("{\\an7\\pos(%d,%d)\\bord0\\shad0\\fs24\\1c&H00FFFF&}open\\N"):format(x + 24, y + 18))
-    ass:append("{\\fs16\\1c&HAAAAAA&}press a key")
-
-    for i, item in ipairs(actions) do
-        local row_y = y + 58 + ((i - 1) * row_h)
-        ass:new_event()
-        ass:append(("{\\an7\\pos(%d,%d)\\bord0\\shad0\\fs20\\1c&H9CFF00&}%s"):format(x + 26, row_y, item.key))
-        ass:append(("{\\1c&HFFFFFF&}  %s"):format(item.label))
-    end
-
-    ass:new_event()
-    ass:append(("{\\an7\\pos(%d,%d)\\bord0\\shad0\\fs16\\1c&H777777&}ESC cancel"):format(x + 26, y + panel_h - 28))
-
-    overlay.data = ass.text
-    overlay.res_x = w
-    overlay.res_y = h
-    overlay:update()
-end
-
-local function show_panel()
-    active = true
-    mp.commandv("enable-section", INPUT_SECTION, "exclusive")
-    render_panel()
-    stop_timer()
-    hide_timer = mp.add_timeout(tonumber(opts.timeout) or 10, clear_panel)
-end
-
-local function run_action(fn)
-    clear_panel()
-    fn()
-end
-
-local function open_current_directory()
-    run_action(function()
-        local dir, target, err = current_directory()
-        if not dir then
-            mp.osd_message(err, 3)
-            return
-        end
-        load_directory(dir, target)
-    end)
+    load_directory(dir, target)
 end
 
 local function open_parent_directory()
-    run_action(function()
-        local dir, target, err = parent_directory()
-        if not dir then
-            mp.osd_message(err, 3)
-            return
-        end
-        load_directory(dir, target)
-    end)
+    local dir, target, err = parent_directory()
+    if not dir then
+        mp.osd_message(err, 3)
+        return
+    end
+    load_directory(dir, target)
 end
 
 local function open_in_kitty()
-    run_action(function()
-        local dir, _, err = current_directory()
-        if not dir then
-            mp.osd_message(err, 3)
-            return
-        end
+    local dir, _, err = current_directory()
+    if not dir then
+        mp.osd_message(err, 3)
+        return
+    end
 
-        local result = utils.subprocess_detached({
-            args = {
-                KITTY_LAUNCH,
-                "--cwd", dir,
-                "--title", " mpv ",
-            },
-        })
+    local result = utils.subprocess_detached({
+        args = {
+            KITTY_LAUNCH,
+            "--cwd", dir,
+            "--title", " mpv ",
+        },
+    })
 
-        if result == false then
-            mp.osd_message("Failed to open kitty", 2)
-            return
-        end
+    if result == false then
+        mp.osd_message("Failed to open kitty", 2)
+        return
+    end
 
-        mp.osd_message("Opened kitty", 1.5)
-    end)
+    mp.osd_message("Opened kitty", 1.5)
 end
 
 local function reveal_in_yazi()
-    run_action(function()
-        mp.commandv("script-binding", "reveal_in_yazi")
-    end)
+    mp.commandv("script-binding", "reveal_in_yazi")
 end
 
 local function reveal_in_finder()
-    run_action(function()
-        mp.commandv("script-binding", "reveal_in_finder")
-    end)
+    mp.commandv("script-binding", "reveal_in_finder")
 end
 
 local function open_library()
-    run_action(function()
-        mp.commandv("script-binding", "load-all-media")
-    end)
+    mp.commandv("script-binding", "load-all-media")
 end
 
 local function open_visuals()
-    run_action(function()
-        load_directory(opts.visuals_dir)
-    end)
+    load_directory(opts.visuals_dir)
 end
 
-mp.observe_property("osd-dimensions", "native", function()
-    if active then
-        render_panel()
+local function extract_url(value)
+    if type(value) ~= "table" then
+        return tostring(value or ""):match("https?://[^%s\"'<>]+")
     end
-end)
+    for _, item in pairs(value) do
+        local url = extract_url(item)
+        if url then
+            return url
+        end
+    end
+    return nil
+end
+
+local function find_metadata_url()
+    local preferred_keys = { "purl", "url", "webpageurl", "comment", "description", "synopsis" }
+    local sources = {
+        mp.get_property_native("metadata") or {},
+        mp.get_property_native("filtered-metadata") or {},
+    }
+
+    for _, source in ipairs(sources) do
+        local normalized = {}
+        for key, value in pairs(source) do
+            normalized[tostring(key):lower():gsub("[^%w]", "")] = value
+        end
+        for _, key in ipairs(preferred_keys) do
+            local url = extract_url(normalized[key])
+            if url then
+                return url
+            end
+        end
+        -- no url-ish key matched; take a url from any metadata value
+        for _, value in pairs(source) do
+            local url = extract_url(value)
+            if url then
+                return url
+            end
+        end
+    end
+
+    return nil
+end
+
+local function open_metadata_url()
+    local url = find_metadata_url()
+    if not url then
+        mp.osd_message("No URL found in metadata", 2)
+        return
+    end
+
+    local result = utils.subprocess_detached({ args = { "open", url } })
+    if result == false then
+        mp.osd_message("Failed to open URL", 2)
+        return
+    end
+
+    mp.osd_message("Opened " .. url, 1.5)
+end
+
+local panel = chord_panel.new({
+    name = "open-panel",
+    title = "open",
+    timeout = opts.timeout,
+    actions = {
+        { key = "d", label = "open current directory", fn = open_current_directory },
+        { key = "p", label = "open parent directory", fn = open_parent_directory },
+        { key = "t", label = "open in kitty", fn = open_in_kitty },
+        { key = "y", label = "reveal in yazi", fn = reveal_in_yazi },
+        { key = "f", label = "reveal in Finder", fn = reveal_in_finder },
+        { key = "l", label = "open library", fn = open_library },
+        { key = "v", label = "open visuals", fn = open_visuals },
+        { key = "u", label = "open embedded URL", fn = open_metadata_url },
+    },
+})
 
 mp.register_event("file-loaded", function()
     if not pending_restore then
@@ -356,14 +331,20 @@ mp.register_event("file-loaded", function()
     end
 end)
 
-mp.register_event("shutdown", stop_timer)
+local function run_action(fn)
+    return function()
+        panel:hide()
+        fn()
+    end
+end
 
-mp.add_key_binding(nil, "open_panel_show", show_panel)
-mp.add_key_binding(nil, "open_panel_exit", clear_panel)
-mp.add_key_binding(nil, "open_panel_current_directory", open_current_directory)
-mp.add_key_binding(nil, "open_panel_parent_directory", open_parent_directory)
-mp.add_key_binding(nil, "open_panel_kitty", open_in_kitty)
-mp.add_key_binding(nil, "open_panel_yazi", reveal_in_yazi)
-mp.add_key_binding(nil, "open_panel_finder", reveal_in_finder)
-mp.add_key_binding(nil, "open_panel_library", open_library)
-mp.add_key_binding(nil, "open_panel_visuals", open_visuals)
+mp.add_key_binding(nil, "open_panel_show", function() panel:show() end)
+mp.add_key_binding(nil, "open_panel_exit", function() panel:hide() end)
+mp.add_key_binding(nil, "open_panel_current_directory", run_action(open_current_directory))
+mp.add_key_binding(nil, "open_panel_parent_directory", run_action(open_parent_directory))
+mp.add_key_binding(nil, "open_panel_kitty", run_action(open_in_kitty))
+mp.add_key_binding(nil, "open_panel_yazi", run_action(reveal_in_yazi))
+mp.add_key_binding(nil, "open_panel_finder", run_action(reveal_in_finder))
+mp.add_key_binding(nil, "open_panel_library", run_action(open_library))
+mp.add_key_binding(nil, "open_panel_visuals", run_action(open_visuals))
+mp.add_key_binding(nil, "open_panel_url", run_action(open_metadata_url))

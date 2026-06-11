@@ -7,7 +7,7 @@ SCRIPT_NAME="${0:t}"
 DRY_RUN=false
 RENAME=true
 URL_OVERRIDE=""
-PORN_OUTPUT_TEMPLATE='%(channel,uploader|Unknown)s/%(cast,uploader|)l%(cast& - |)s[%(channel,uploader|Unknown)s] %(title)s (%(extractor)s).%(ext)s'
+PORN_OUTPUT_TEMPLATE='%(channel,uploader|Unknown)s/%(cast,uploader|)l%(cast& - |)s[%(channel,uploader|Unknown)s] (%(extractor)s)-%(id)s.%(ext)s'
 typeset -ga TMP_FILES=()
 
 cleanup_tmp_files() {

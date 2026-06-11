@@ -121,7 +121,10 @@ local keybar_items = {
         desc = function(badge)
             return " PROGRESS " .. badge(progress_visible)
         end,
-        match = command_equals("script-binding progress-bar-minimal/toggle-progress"),
+        match = function(entry)
+            return command_equals("script-binding progress_bar_minimal/toggle-progress")(entry)
+                or command_equals("script-binding progress-bar-minimal/toggle-progress")(entry)
+        end,
     },
     {
         id = "metadata",

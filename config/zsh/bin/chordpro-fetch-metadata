@@ -1,0 +1,197 @@
+#!/bin/zsh
+
+# chordpro-fetch-metadata — fill in missing metadata in a chordpro file from
+# online sources. Seeks: tempo, key, duration, year. Existing directives are
+# never overwritten. Tuning has no reliable free API, so it is only reported.
+#
+# Sources: Deezer (tempo/duration/year), MusicBrainz + AcousticBrainz (key,
+# tempo fallback).
+#
+# Usage: chordpro-fetch-metadata [-n] <file.cho>
+#   -n  dry run: print what would be added without touching the file
+
+set -o pipefail
+
+UA="chordpro-fetch-metadata/1.0 (sookmedia@gmail.com)"
+
+dry_run=0
+if [[ "$1" == "-n" || "$1" == "--dry-run" ]]; then
+  dry_run=1
+  shift
+fi
+
+file="$1"
+if [[ -z "$file" || ! -f "$file" ]]; then
+  echo "Usage: ${0:t} [-n] <file.cho>" >&2
+  exit 1
+fi
+
+for dep in curl jq; do
+  command -v $dep >/dev/null || { echo "error: $dep not found" >&2; exit 1; }
+done
+
+# --- read existing directives ------------------------------------------------
+
+# Handles both {name: value} and {meta: name value}
+get_meta() {
+  local name=$1
+  sed -nE \
+    -e "s/^\{${name}:[[:space:]]*([^}]*)\}.*/\1/p" \
+    -e "s/^\{meta:[[:space:]]*${name}[[:space:]]+([^}]*)\}.*/\1/p" \
+    "$file" | head -1 | sed -E 's/[[:space:]]+$//'
+}
+
+title=$(get_meta title)
+[[ -z "$title" ]] && title=$(get_meta t)
+artist=$(get_meta artist)
+[[ -z "$artist" ]] && artist=$(get_meta subtitle)
+[[ -z "$artist" ]] && artist=$(get_meta st)
+have_title="$title" have_artist="$artist"
+
+# Fall back to "Artist - Title" filename convention
+if [[ -z "$title" || -z "$artist" ]]; then
+  base="${${file:t}%.*}"
+  if [[ "$base" == *" - "* ]]; then
+    [[ -z "$artist" ]] && artist="${base%% - *}"
+    [[ -z "$title" ]] && title="${base#* - }"
+  fi
+fi
+
+if [[ -z "$title" ]]; then
+  echo "error: no {title:} directive and filename is not 'Artist - Title'" >&2
+  exit 1
+fi
+
+echo "Looking up: ${artist:-?} - $title"
+
+have_tempo=$(get_meta tempo)
+have_key=$(get_meta key)
+have_duration=$(get_meta duration)
+have_year=$(get_meta year)
+have_tuning=$(get_meta tuning)
+
+tempo="" key="" duration="" year=""
+
+# --- Deezer: tempo, duration, year -------------------------------------------
+
+if [[ -z "$have_tempo" || -z "$have_duration" || -z "$have_year" ]]; then
+  q=$(jq -rn --arg a "$artist" --arg t "$title" \
+    'if $a != "" then "artist:\"\($a)\" track:\"\($t)\"" else $t end | @uri')
+  track_id=$(curl -sf --max-time 10 "https://api.deezer.com/search?q=$q&limit=1" \
+    | jq -r '.data[0].id // empty')
+  if [[ -z "$track_id" ]]; then
+    # strict field search found nothing; retry as plain text
+    q=$(jq -rn --arg q "$artist $title" '$q | @uri')
+    track_id=$(curl -sf --max-time 10 "https://api.deezer.com/search?q=$q&limit=1" \
+      | jq -r '.data[0].id // empty')
+  fi
+  if [[ -n "$track_id" ]]; then
+    track=$(curl -sf --max-time 10 "https://api.deezer.com/track/$track_id")
+    tempo=$(echo "$track" | jq -r '.bpm // 0 | if . > 0 then round else empty end')
+    secs=$(echo "$track" | jq -r '.duration // empty')
+    [[ -n "$secs" ]] && duration=$(printf '%d:%02d' $((secs / 60)) $((secs % 60)))
+    year=$(echo "$track" | jq -r '.release_date // empty | split("-")[0] // empty')
+  fi
+fi
+
+# --- MusicBrainz: year; -> AcousticBrainz: key (and tempo fallback) -----------
+
+if [[ -z "$have_key" || -z "$have_year" ]]; then
+  mq="recording:\"$title\" AND NOT secondarytype:live AND NOT comment:live"
+  [[ -n "$artist" ]] && mq+=" AND artist:\"$artist\""
+  mb=$(curl -sf --max-time 10 -A "$UA" --get \
+    'https://musicbrainz.org/ws/2/recording' \
+    --data-urlencode "query=$mq" --data 'fmt=json&limit=100')
+
+  # earliest first-release-date beats Deezer's, which is often a remaster
+  mb_year=$(echo "$mb" | jq -r \
+    '[.recordings[] | select(.score >= 95) | .["first-release-date"] // empty
+      | split("-")[0] | tonumber? // empty] | min // empty')
+  [[ -n "$mb_year" ]] && year="$mb_year"
+
+  if [[ -z "$have_key" || ( -z "$have_tempo" && -z "$tempo" ) ]]; then
+    mbids=("${(@f)$(echo "$mb" | jq -r '.recordings[:25][].id')}")
+    for mbid in $mbids; do
+      [[ -z "$mbid" ]] && continue
+      ab=$(curl -sf --max-time 10 "https://acousticbrainz.org/api/v1/$mbid/low-level") || continue
+      k=$(echo "$ab" | jq -r '.tonal.key_key // empty')
+      [[ -z "$k" ]] && continue
+      if [[ -z "$have_key" ]]; then
+        scale=$(echo "$ab" | jq -r '.tonal.key_scale // empty')
+        [[ "$scale" == "minor" ]] && key="${k}m" || key="$k"
+      fi
+      [[ -z "$tempo" ]] && tempo=$(echo "$ab" | jq -r '.rhythm.bpm // 0 | if . > 0 then round else empty end')
+      break
+    done
+  fi
+fi
+
+# --- assemble missing directives ----------------------------------------------
+
+typeset -a additions
+report() { printf '  %-9s %s\n' "$1" "$2"; }
+
+# title/artist derived from the filename get written in too
+if [[ -z "$have_title" ]]; then
+  additions+=("{title: $title}")
+  report title "from filename: $title"
+fi
+if [[ -z "$have_artist" && -n "$artist" ]]; then
+  additions+=("{artist: $artist}")
+  report artist "from filename: $artist"
+fi
+
+check_field() {
+  local name=$1 have=$2 found=$3
+  if [[ -n "$have" ]]; then
+    report "$name" "already set: $have"
+  elif [[ -n "$found" ]]; then
+    additions+=("{$name: $found}")
+    report "$name" "found: $found"
+  else
+    report "$name" "not found"
+  fi
+}
+
+check_field tempo "$have_tempo" "$tempo"
+check_field key "$have_key" "$key"
+check_field duration "$have_duration" "$duration"
+check_field year "$have_year" "$year"
+if [[ -n "$have_tuning" ]]; then
+  report tuning "already set: $have_tuning"
+else
+  report tuning "not found (no free online source; add manually)"
+fi
+
+if (( ${#additions} == 0 )); then
+  echo "Nothing to add."
+  exit 0
+fi
+
+if (( dry_run )); then
+  echo "Dry run; would add after the header directives:"
+  printf '  %s\n' "${additions[@]}"
+  exit 0
+fi
+
+# Insert after the last directive in the leading header block (before the
+# first non-blank, non-directive line), or at the top if there is none.
+lines=("${(@f)$(<$file)}")
+insert_at=0
+i=1
+for line in "${lines[@]}"; do
+  if [[ "$line" == \{*\}* ]]; then
+    insert_at=$i
+  elif [[ -n "${line//[[:space:]]/}" ]]; then
+    break
+  fi
+  ((i++))
+done
+
+{
+  (( insert_at > 0 )) && printf '%s\n' "${lines[@]:0:$insert_at}"
+  printf '%s\n' "${additions[@]}"
+  printf '%s\n' "${lines[@]:$insert_at}"
+} > "$file.tmp" && mv "$file.tmp" "$file"
+
+echo "Updated $file"

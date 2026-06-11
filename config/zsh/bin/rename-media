@@ -105,8 +105,6 @@ clean_name() {
   local tags=(1080p 1080 720p 4k 60fps 30fps 25fps)
   local t source_label before after
 
-  name="${name//.trimmed/}"
-
   # Convert source prefixes like "[xHamster - ..." to "(xHamster) ...".
   while [[ "$name" =~ '\[([^][]+) - ' ]]; do
     source_label="${match[1]}"
@@ -118,6 +116,17 @@ clean_name() {
   # remove every non-nested {...} block since the script rebuilds it
   while [[ "$name" == *\{*\}* ]]; do
     name="${name%%\{*}${name#*\}}"
+  done
+
+  # braces are never allowed in filenames; drop any stray ones
+  name="${name//[\{\}]/}"
+
+  # strip canonical [tag] brackets so reruns rebuild them cleanly
+  local tag_re='\[([0-9]+p|4k|[0-9]+fps|[0-9]+(hr|min|sec)|[0-9]+mbps|unknown|h264|h265|HEVC|AVC1|PRO|VP9|AV1|CH|CHAP|META|HDR|H|V|S|􁻯|􁻮|􀂒)\]'
+  while [[ "$name" =~ $tag_re ]]; do
+    before="${name[1,$(( MBEGIN - 1 ))]}"
+    after="${name[$(( MEND + 1 )),-1]}"
+    name="${before}${after}"
   done
 
   for t in $tags; do
@@ -158,7 +167,7 @@ get_resolution_label() {
   elif (( d <= 1440 )); then
     print -r -- "1440p"
   elif (( d <= 2160 )); then
-    print -r -- "2160p"
+    print -r -- "4k"
   else
     print -r -- "${d}p"
   fi
@@ -217,6 +226,12 @@ process_video() {
   local dirname="${file:h}"
   local extension="${filename:e}"
   local name_without_ext="${filename:r}"
+
+  # drop single-word suffix extensions directly before the real extension,
+  # e.g. "x.info.mp4" -> "x.mp4"; a ".info" elsewhere in the name stays
+  while [[ "$name_without_ext" =~ '\.[A-Za-z0-9_-]+$' ]]; do
+    name_without_ext="${name_without_ext[1,$(( MBEGIN - 1 ))]}"
+  done
 
   local extracted_name rating
   local -a parts
@@ -323,11 +338,11 @@ process_video() {
 
   local orientation_flag
   if (( display_width > display_height )); then
-    orientation_flag="􁻯"
+    orientation_flag="H"
   elif (( display_height > display_width )); then
-    orientation_flag="􁻮"
+    orientation_flag="V"
   else
-    orientation_flag="􀂒"
+    orientation_flag="S"
   fi
 
   local mbps="unknown"
@@ -341,10 +356,10 @@ process_video() {
   local codec_flag=""
   case "${codec_name:l}" in
     hevc|h265)
-      codec_flag="HEVC"
+      codec_flag="h265"
       ;;
     h264|avc1)
-      codec_flag="AVC1"
+      codec_flag="h264"
       ;;
     prores)
       codec_flag="PRO"
@@ -374,24 +389,27 @@ process_video() {
 
   extension="${filename:e}"
 
-  local -a meta_flags
+  local -a tags
 
-  [[ -n "$codec_flag" ]] && meta_flags+=("$codec_flag")
-  meta_flags+=("$orientation_flag")
-  $has_chapters && meta_flags+=("CH")
-  [[ -n "$title_tag" ]] && meta_flags+=("META")
-  $hdr_flag && meta_flags+=("HDR")
+  tags+=("$resolution")
+  tags+=("${frame_rate}fps")
+  [[ -n "$codec_flag" ]] && tags+=("$codec_flag")
+  tags+=("$duration")
+  [[ "$mbps" != "unknown" ]] && tags+=("$mbps")
+  tags+=("$orientation_flag")
+  $has_chapters && tags+=("CHAP")
+  [[ -n "$title_tag" ]] && tags+=("META")
+  $hdr_flag && tags+=("HDR")
 
-  local details_block="${resolution}@${frame_rate}fps ${duration}@${mbps}"
-
-  if (( ${#meta_flags[@]} > 0 )); then
-    details_block+=" ${meta_flags[*]}"
-  fi
+  local tags_block="" tag
+  for tag in "${tags[@]}"; do
+    tags_block+="[${tag}]"
+  done
 
   local rating_suffix=""
   [[ -n "$rating" ]] && rating_suffix=" ${rating}"
 
-  local new_filename="${name_without_ext} {${details_block}}${rating_suffix}.${extension}"
+  local new_filename="${name_without_ext} ${tags_block}${rating_suffix}.${extension}"
   local new_path="${dirname}/${new_filename}"
 
   log_verbose "rename target for ${filename}: ${new_filename}"
