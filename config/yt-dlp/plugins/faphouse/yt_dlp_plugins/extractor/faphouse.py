@@ -231,7 +231,7 @@ class FaphouseIE(InfoExtractor):
 
 
 class FaphouseModelIE(InfoExtractor):
-    IE_NAME = "faphouse:model"
+    IE_NAME = "faphouse-model"
     _VALID_URL = r'''(?x)
          https?://(?:www\.)?faphouse\.com/
          (?:[a-z]{2}(?:-[a-z]{2})?/)?   # optional locale prefix

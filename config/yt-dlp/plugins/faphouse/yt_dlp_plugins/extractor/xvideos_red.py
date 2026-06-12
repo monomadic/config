@@ -12,7 +12,7 @@ from yt_dlp.utils import (
 
 
 class XVideosRedIE(XVideosIE):
-    IE_NAME = "xvideos:red"
+    IE_NAME = "xvideos-red"
     _VALID_URL = r'https?://(?:www\.)?xvideos\.red/video\.[^/?#]+/.+'
 
     def _canonical_url(self, url):
@@ -21,6 +21,24 @@ class XVideosRedIE(XVideosIE):
 
     def _clean_name(self, html):
         return clean_html(html or '').strip() or None
+
+    def _extract_conf(self, webpage, video_id):
+        # window.xv.conf JSON: dyn.video_tags is the full tag list,
+        # data.video_models maps model id -> {name, profile, uri}
+        return self._search_json(
+            r'window\.xv\.conf\s*=', webpage, 'xv conf', video_id,
+            fatal=False, default={})
+
+    def _extract_tags(self, webpage, conf):
+        tags = traverse_obj(conf, ('dyn', 'video_tags', ..., {str}))
+        if not tags:
+            tags = [
+                clean_html(tag) for tag in re.findall(
+                    r'<a[^>]+class=(?:["\'])[^"\']*\bis-keyword\b[^"\']*["\'][^>]*>(.*?)</a>',
+                    webpage)
+                if clean_html(tag)
+            ]
+        return tags or None
 
     def _extract_people(self, webpage):
         uploader = uploader_id = None
@@ -135,7 +153,21 @@ class XVideosRedIE(XVideosIE):
 
             info['formats'] = direct_formats + (info.get('formats') or [])
 
+        conf = self._extract_conf(webpage, video_id)
+
         uploader, uploader_id, cast = self._extract_people(webpage)
+        json_cast = traverse_obj(conf, ('data', 'video_models', ..., 'name', {str}))
+        if json_cast:
+            cast = json_cast + [name for name in cast if name not in json_cast]
+
+        tags = self._extract_tags(webpage, conf)
+        if tags:
+            info['tags'] = tags
+
+        title = traverse_obj(conf, ('dyn', 'video_title', {str}))
+        if title:
+            info['title'] = title
+
         if uploader:
             info.update({
                 'uploader': uploader,

@@ -17,6 +17,18 @@ require("mactag"):setup({
 	},
 })
 
+-- Right-click opens the "open with" picker instead of opening the file directly
+function Entity:click(event, up)
+	if up or event.is_middle then
+		return
+	end
+
+	ya.emit("reveal", { self._file.url })
+	if event.is_right then
+		ya.emit("open", { interactive = true })
+	end
+end
+
 Status:children_remove(2, Status.LEFT) -- length
 Status:children_remove(4, Status.RIGHT) -- permissions
 Status:children_remove(5, Status.RIGHT) -- percentage
