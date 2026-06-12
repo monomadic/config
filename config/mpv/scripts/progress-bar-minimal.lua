@@ -5,6 +5,9 @@ local ov = mp.create_osd_overlay("ass-events")
 ov.z = 100            -- behind keybar
 
 local visible = true
+local flash_timer = nil
+local flash_active = false
+local FLASH_SECONDS = 1.2
 
 local function broadcast_state()
   mp.commandv("script-message", "progress_bar_state", visible and "yes" or "no")
@@ -12,7 +15,7 @@ end
 
 local function draw_bar()
   local osd_level = mp.get_property_number("osd-level", 1)
-  if not visible or osd_level == 0 then
+  if not flash_active and (not visible or osd_level == 0) then
     ov:remove()
     return
   end
@@ -43,11 +46,32 @@ local function draw_bar()
   ov:update()
 end
 
+local function stop_flash()
+  flash_active = false
+  flash_timer = nil
+  draw_bar()
+end
+
+local function flash_bar()
+  flash_active = true
+  if flash_timer then
+    flash_timer:kill()
+  end
+  flash_timer = mp.add_timeout(FLASH_SECONDS, stop_flash)
+  draw_bar()
+end
+
 mp.observe_property("percent-pos", "number", draw_bar)
 mp.observe_property("osd-dimensions", "native", draw_bar)
 mp.observe_property("osd-level", "number", draw_bar)
+mp.observe_property("seeking", "bool", function(_, seeking)
+  if seeking then
+    flash_bar()
+  end
+end)
 
 mp.register_script_message("progress-bar-query", broadcast_state)
+mp.register_script_message("progress-bar-flash", flash_bar)
 
 mp.add_key_binding(nil, "toggle-progress", function()
   visible = not visible

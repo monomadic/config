@@ -23,6 +23,10 @@ local function get_number(name, fallback)
     return value
 end
 
+local function flash_progress()
+    mp.commandv("script-message", "progress-bar-flash")
+end
+
 local function get_playlist_info()
     return get_number("playlist-pos", 0), get_number("playlist-count", 1)
 end
@@ -76,6 +80,7 @@ end
 local function seek_absolute(seconds)
     if seconds ~= nil then
         mp.commandv("seek", tostring(seconds), "absolute")
+        flash_progress()
     end
 end
 
@@ -108,12 +113,14 @@ local function play_previous_entry()
     else
         mp.commandv("seek", "0", "absolute")
     end
+    flash_progress()
 end
 
 local function play_next_entry()
     local pos, count = get_playlist_info()
     if pos < count - 1 then
         mp.commandv("playlist-next", "force")
+        flash_progress()
     end
 end
 
@@ -135,6 +142,7 @@ end
 local function smart_back()
     if get_chapter_count() > 0 then
         mp.commandv("add", "chapter", "-1")
+        flash_progress()
         return
     end
 
@@ -145,11 +153,13 @@ local function smart_back()
     end
 
     mp.commandv("seek", string.format("-%d", SEEK_FRACTION * 100), "relative-percent")
+    flash_progress()
 end
 
 local function smart_forward()
     if get_chapter_count() > 0 then
         mp.commandv("add", "chapter", "1")
+        flash_progress()
         return
     end
 
@@ -160,6 +170,7 @@ local function smart_forward()
     end
 
     mp.commandv("seek", string.format("%d", SEEK_FRACTION * 100), "relative-percent")
+    flash_progress()
 end
 
 local function random_playlist_entry()
