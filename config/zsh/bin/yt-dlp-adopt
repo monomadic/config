@@ -1,0 +1,102 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+# Adopt an existing media file as if yt-dlp had downloaded it from <url>:
+# fetch metadata once (info.json lands in the usual JSON cache), copy the
+# file to the configured output filename, then run the normal post-processing
+# pipeline (embed metadata etc.) on it via --load-info-json — no re-download.
+
+# mirrors --paths/--output "infojson:" in ~/.config/yt-dlp/config
+JSON_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/JSON"
+
+script_name=${0:t}
+
+usage() {
+  print -u2 "usage: ${script_name} [--direct-write] [--info-json FILE] <url> <existing-file> [yt-dlp args...]"
+  print -u2 ""
+  print -u2 "  --direct-write    move the original into place instead of working on a copy"
+  print -u2 "  --info-json FILE  reuse a cached info.json (skips the metadata fetch)"
+}
+
+direct_write=0
+info_json=""
+
+while (( $# )); do
+  case $1 in
+    --direct-write) direct_write=1; shift ;;
+    --info-json) info_json=$2; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) break ;;
+  esac
+done
+
+(( $# >= 2 )) || {
+  usage
+  exit 2
+}
+
+url=$1
+src=$2
+shift 2
+# remaining args are passed through to every yt-dlp invocation
+
+[[ -f $src ]] || {
+  print -u2 "error: no such file: $src"
+  exit 1
+}
+[[ -n ${src:e} ]] || {
+  print -u2 "error: ${src:t} has no file extension"
+  exit 1
+}
+
+if [[ -z $info_json ]]; then
+  print -u2 "fetching metadata for $url"
+  # --print with a bare template avoids --paths/-o prefixes; this template
+  # must stay in sync with the infojson output template in the config
+  key=$(yt-dlp --skip-download --no-simulate --no-playlist --no-download-archive \
+    --write-info-json "$@" --print "%(extractor)s_%(id)s" "$url")
+  key_lines=("${(f)key}")
+  if (( ${#key_lines} != 1 )); then
+    print -u2 "error: URL resolved to ${#key_lines} videos"
+    exit 1
+  fi
+  info_json="$JSON_DIR/$key.info.json"
+fi
+
+[[ -f $info_json ]] || {
+  print -u2 "error: info.json not found: $info_json"
+  exit 1
+}
+
+# expected output path per the normal config, keeping the source extension
+fname=$(yt-dlp --load-info-json "$info_json" --no-download-archive --print filename "$@")
+[[ -n $fname ]] || {
+  print -u2 "error: could not determine target filename"
+  exit 1
+}
+target="${fname:r}.${src:e}"
+
+if [[ ${fname:e} != ${src:e} ]]; then
+  print -u2 "note: yt-dlp would have produced .${fname:e}, keeping .${src:e}"
+fi
+
+if [[ $target -ef $src ]]; then
+  print -u2 "file already in place: $target"
+elif [[ -e $target ]]; then
+  print -u2 "error: target already exists: $target"
+  exit 1
+else
+  mkdir -p -- "${target:h}"
+  if (( direct_write )); then
+    mv -- "$src" "$target"
+  else
+    cp -p -- "$src" "$target"
+  fi
+fi
+
+# a literal -o (% escaped) makes yt-dlp see the file as already downloaded,
+# so it skips the download and runs only the post-processors
+yt-dlp --load-info-json "$info_json" --no-download-archive "$@" \
+  -o "${target//\%/%%}"
+
+print -- "$target"
