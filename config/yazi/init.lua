@@ -173,3 +173,14 @@ end
 ps.sub("cd", function()
 	ya.emit("shell", { kitty_title_command(cx.active.current.cwd), orphan = true })
 end)
+
+Status:children_add(function()
+	local handle = io.popen("df -h . | awk 'NR==2 {print $4}'")
+	if not handle then
+		return ""
+	end
+
+	local result = handle:read("*a"):gsub("%s+", "")
+	handle:close()
+	return "􀤂  " .. result .. " "
+end, 500, Status.RIGHT)

@@ -93,4 +93,4 @@ Things that should eventually move out of the main dotfiles path:
 - secrets, keys, and private machine state
 - backups and abandoned variants
 
-See [docs/STRUCTURE.md](/Users/nom/config/docs/STRUCTURE.md) for the opinionated layout rules.
+See [docs/STRUCTURE.md](/Users/nom/config/docs/STRUCTURE.md) for the opinionated layout rules, and [AGENTS.md](/Users/nom/config/AGENTS.md) for the coding-agent orientation guide (`CLAUDE.md` is a symlink to it).

@@ -1,0 +1,26 @@
+#!/usr/bin/env zsh
+# test-args.zsh
+# Print argv and stdin for testing launcher/GUI argument passing.
+
+emulate -L zsh
+
+print "=== ARGS (${#argv}) ==="
+
+if (( $# )); then
+  local i=1
+  for arg in "$@"; do
+    print "argv[$i]: \"$arg\""
+    ((i++))
+  done
+else
+  print "(none)"
+fi
+
+print
+print "=== STDIN ==="
+
+if [[ ! -t 0 ]]; then
+  cat
+else
+  print "(no stdin)"
+fi
