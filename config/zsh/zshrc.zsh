@@ -176,3 +176,31 @@ export PATH="$PATH:/Users/nom/.cache/lm-studio/bin"
 # print -P "ok"
 
 fpath+=~/.zfunc; autoload -Uz compinit; compinit
+
+# >>> elio shell integration >>>
+elio() {
+    case "${1-}" in
+        shell|-*)
+            command elio "$@"
+            return $?
+            ;;
+    esac
+
+    local tmp cwd status_code
+    tmp="$(mktemp -t "elio-cwd.XXXXXX")" || return
+    command elio --cwd-file "$tmp" "$@"
+    status_code=$?
+
+    if [ -s "$tmp" ]; then
+        cwd="$(cat -- "$tmp")"
+        rm -f -- "$tmp"
+        if [ -n "$cwd" ] && [ "$cwd" != "$PWD" ] && [ -d "$cwd" ]; then
+            cd -- "$cwd" || return $?
+        fi
+    else
+        rm -f -- "$tmp"
+    fi
+
+    return "$status_code"
+}
+# <<< elio shell integration <<<

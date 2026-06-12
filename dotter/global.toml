@@ -21,6 +21,9 @@ depends = []
 [bin.files]
 "bin" = { target = "~/.bin/", type = "symbolic" }
 
+[elio.files]
+"config/elio" = "~/Library/Application Support/elio/"
+
 [karabiner.files]
 "config/karabiner/assets/complex_modifications" = { target = "~/.config/karabiner/assets/complex_modifications", type = "symbolic" }
 
