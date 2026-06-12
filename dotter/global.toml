@@ -54,9 +54,6 @@ depends = []
 [joshuto.files]
 "config/joshuto" = "~/.config/joshuto"
 
-[i3.files]
-"config/i3/i3.conf" = "~/.config/i3/config"
-
 [yazi.files]
 "config/yazi" = { target = "~/.config/yazi", type = "symbolic" }
 
