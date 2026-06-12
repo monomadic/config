@@ -1,0 +1,19 @@
+#!/usr/bin/env zsh
+# Launch rename-media in kitty with cwd from argv[1], passing argv[2..n].
+
+emulate -L zsh
+set -euo pipefail
+
+cwd=$1
+shift
+
+/Users/nom/.zsh/bin/kitty-launch \
+  --os-window \
+  --auto-hide \
+  --cwd "$cwd" \
+  -- \
+  /Users/nom/.zsh/bin/rename-media \
+  --verbose \
+  --color \
+  -- \
+  "$@"
