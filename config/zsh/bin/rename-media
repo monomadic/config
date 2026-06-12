@@ -440,15 +440,44 @@ process_video() {
 
 normalize_input_path() {
   local s="$1"
+  local unescaped candidate cwd_name
 
   if [[ -e "$s" ]]; then
-    print -r -- "$s"
+    print -r -- "${s:a}"
     return 0
   fi
 
-  local unescaped="${(Q)s}"
+  unescaped="${(Q)s}"
 
   if [[ -e "$unescaped" ]]; then
+    print -r -- "${unescaped:a}"
+    return 0
+  fi
+
+  # Some callers launch from the selected file's directory while still passing
+  # a relative path that includes that directory name, e.g. Files/Movie.mov
+  # with cwd already set to .../Files. In that case, the basename is the file.
+  cwd_name="${PWD:t}"
+
+  if [[ "$unescaped" != /* && "$unescaped" == */* && "${unescaped:h:t}" == "$cwd_name" ]]; then
+    candidate="${unescaped:t}"
+
+    if [[ -e "$candidate" ]]; then
+      print -r -- "${candidate:a}"
+      return 0
+    fi
+  fi
+
+  if [[ "$s" != /* && "$s" == */* && "${s:h:t}" == "$cwd_name" ]]; then
+    candidate="${s:t}"
+
+    if [[ -e "$candidate" ]]; then
+      print -r -- "${candidate:a}"
+      return 0
+    fi
+  fi
+
+  if [[ "$unescaped" != "$s" ]]; then
     print -r -- "$unescaped"
     return 0
   fi

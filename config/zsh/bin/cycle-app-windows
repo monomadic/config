@@ -1,0 +1,248 @@
+#!/usr/bin/env zsh
+# Cycle through visible standard windows of the frontmost application.
+
+set -euo pipefail
+
+STATE_DIR="${TMPDIR:-/tmp}/cycle-app-windows"
+mkdir -p -- "$STATE_DIR"
+
+snapshot="$(
+  /usr/bin/osascript <<'APPLESCRIPT'
+on replaceText(rawText, searchText, replacementText)
+  set oldDelimiters to AppleScript's text item delimiters
+  set AppleScript's text item delimiters to searchText
+  set textItems to text items of (rawText as text)
+  set AppleScript's text item delimiters to replacementText
+  set replacedText to textItems as text
+  set AppleScript's text item delimiters to oldDelimiters
+  return replacedText
+end replaceText
+
+on cleanText(rawText)
+  set cleanedText to rawText as text
+  set cleanedText to my replaceText(cleanedText, tab, " ")
+  set cleanedText to my replaceText(cleanedText, linefeed, " ")
+  set cleanedText to my replaceText(cleanedText, return, " ")
+  return cleanedText
+end cleanText
+
+on safeAttr(theWindow, attrName)
+  tell application "System Events"
+    try
+      set attrValue to value of attribute attrName of theWindow
+      if attrValue is missing value then return ""
+      return attrValue as text
+    on error
+      return ""
+    end try
+  end tell
+end safeAttr
+
+on isCyclableWindow(theWindow)
+  tell application "System Events"
+    try
+      set windowSubrole to value of attribute "AXSubrole" of theWindow
+      if windowSubrole is not equal to "AXStandardWindow" then return false
+    on error
+      return false
+    end try
+
+    try
+      set windowMinimized to value of attribute "AXMinimized" of theWindow
+      if windowMinimized is true then return false
+    end try
+
+    try
+      set windowModal to value of attribute "AXModal" of theWindow
+      if windowModal is true then return false
+    end try
+
+    return true
+  end tell
+end isCyclableWindow
+
+tell application "System Events"
+  set frontProcess to first application process whose frontmost is true
+  tell frontProcess
+    set processName to name
+    try
+      set bundleID to bundle identifier
+    on error
+      set bundleID to processName
+    end try
+
+    set outputText to (my cleanText(bundleID)) & tab & (my cleanText(processName))
+    set visibleIndex to 0
+
+    repeat with theWindow in windows
+      if my isCyclableWindow(theWindow) then
+        set visibleIndex to visibleIndex + 1
+        set windowTitle to my safeAttr(theWindow, "AXTitle")
+        set windowDocument to my safeAttr(theWindow, "AXDocument")
+        set windowPosition to my safeAttr(theWindow, "AXPosition")
+        set windowSize to my safeAttr(theWindow, "AXSize")
+        set signature to my cleanText(windowTitle & tab & windowDocument & tab & windowPosition & tab & windowSize)
+        set outputText to outputText & linefeed & visibleIndex & tab & signature
+      end if
+    end repeat
+
+    return outputText
+  end tell
+end tell
+APPLESCRIPT
+)" || exit 0
+
+lines=("${(@f)snapshot}")
+(( ${#lines} >= 3 )) || exit 0
+
+header="$lines[1]"
+bundle="${header%%$'\t'*}"
+process_name="${header#*$'\t'}"
+[[ "$process_name" == "$header" ]] && process_name="$bundle"
+[[ -n "$bundle" ]] || bundle="$process_name"
+
+typeset -a current_sigs order
+typeset -A current_seen order_seen
+
+for ((i = 2; i <= ${#lines}; i++)); do
+  line="$lines[$i]"
+  [[ "$line" == *$'\t'* ]] || continue
+
+  signature="${line#*$'\t'}"
+  [[ -n "$signature" ]] || continue
+
+  current_sigs+=("$signature")
+  current_seen[$signature]=1
+done
+
+(( ${#current_sigs} >= 2 )) || exit 0
+
+safe_bundle="${bundle//[^A-Za-z0-9_.-]/_}"
+state_file="$STATE_DIR/$safe_bundle.order"
+
+if [[ -r "$state_file" ]]; then
+  while IFS= read -r saved_signature; do
+    [[ -n "$saved_signature" ]] || continue
+    [[ -n "${current_seen[$saved_signature]-}" ]] || continue
+    [[ -z "${order_seen[$saved_signature]-}" ]] || continue
+
+    order+=("$saved_signature")
+    order_seen[$saved_signature]=1
+  done < "$state_file"
+fi
+
+for signature in "$current_sigs[@]"; do
+  [[ -z "${order_seen[$signature]-}" ]] || continue
+
+  order+=("$signature")
+  order_seen[$signature]=1
+done
+
+front_signature="$current_sigs[1]"
+anchor_index=1
+
+for ((i = 1; i <= ${#order}; i++)); do
+  if [[ "$order[$i]" == "$front_signature" ]]; then
+    anchor_index=$i
+    break
+  fi
+done
+
+target_order_index=$((anchor_index + 1))
+(( target_order_index > ${#order} )) && target_order_index=1
+target_signature="$order[$target_order_index]"
+
+if [[ "$target_signature" == "$front_signature" ]]; then
+  for ((i = 1; i <= ${#order}; i++)); do
+    candidate_index=$(( (target_order_index + i - 1) % ${#order} + 1 ))
+    if [[ "$order[$candidate_index]" != "$front_signature" ]]; then
+      target_order_index=$candidate_index
+      target_signature="$order[$target_order_index]"
+      break
+    fi
+  done
+fi
+
+target_window_index=0
+for ((i = 1; i <= ${#current_sigs}; i++)); do
+  if [[ "$current_sigs[$i]" == "$target_signature" ]]; then
+    target_window_index=$i
+    break
+  fi
+done
+
+(( target_window_index > 0 )) || exit 0
+
+{
+  for signature in "$order[@]"; do
+    print -r -- "$signature"
+  done
+} >| "$state_file"
+
+if [[ "${CYCLE_APP_WINDOWS_DRY_RUN:-0}" == "1" ]]; then
+  print -r -- "$bundle"$'\t'"$target_window_index"$'\t'"$target_signature"
+  exit 0
+fi
+
+/usr/bin/osascript - "$target_window_index" "$bundle" <<'APPLESCRIPT'
+on isCyclableWindow(theWindow)
+  tell application "System Events"
+    try
+      set windowSubrole to value of attribute "AXSubrole" of theWindow
+      if windowSubrole is not equal to "AXStandardWindow" then return false
+    on error
+      return false
+    end try
+
+    try
+      set windowMinimized to value of attribute "AXMinimized" of theWindow
+      if windowMinimized is true then return false
+    end try
+
+    try
+      set windowModal to value of attribute "AXModal" of theWindow
+      if windowModal is true then return false
+    end try
+
+    return true
+  end tell
+end isCyclableWindow
+
+on run argv
+  set targetIndex to (item 1 of argv) as integer
+  set expectedBundleID to item 2 of argv
+
+  tell application "System Events"
+    set frontProcess to first application process whose frontmost is true
+    tell frontProcess
+      try
+        set bundleID to bundle identifier
+      on error
+        set bundleID to name
+      end try
+
+      if bundleID is not expectedBundleID then return
+
+      set visibleIndex to 0
+      repeat with theWindow in windows
+        if my isCyclableWindow(theWindow) then
+          set visibleIndex to visibleIndex + 1
+          if visibleIndex is targetIndex then
+            set frontmost to true
+            try
+              perform action "AXRaise" of theWindow
+            end try
+            try
+              set value of attribute "AXMain" of theWindow to true
+            end try
+            try
+              set value of attribute "AXFocused" of theWindow to true
+            end try
+            return
+          end if
+        end if
+      end repeat
+    end tell
+  end tell
+end run
+APPLESCRIPT
