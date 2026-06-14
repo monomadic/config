@@ -1,0 +1,157 @@
+#!/usr/bin/env zsh
+# gc
+#
+# AI-powered git commits using Codex + Gum.
+#
+# Commands:
+#   gc staged
+#   gc all
+#   gc push
+
+emulate -L zsh
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  gc staged
+  gc all
+  gc push
+EOF
+}
+
+die() {
+  gum style --foreground 196 --bold "✘ $*"
+  exit 1
+}
+
+info() {
+  gum style --foreground 81 --bold "◆ $*"
+}
+
+ok() {
+  gum style --foreground 82 --bold "✓ $*"
+}
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || die "Missing dependency: $1"
+}
+
+main() {
+  need git
+  need gum
+  need codex
+
+  local mode=${1:-}
+
+  [[ "$mode" == "staged" || "$mode" == "all" || "$mode" == "push" ]] || {
+    usage
+    exit 1
+  }
+
+  local repo_root
+  repo_root=$(git rev-parse --show-toplevel 2>/dev/null) \
+    || die "Not inside a git repository"
+
+  cd "$repo_root"
+
+  gum style \
+    --border rounded \
+    --padding "0 1" \
+    --border-foreground 63 \
+    --bold \
+    "󰊢 AI Git Commit · ${repo_root:t} · $mode"
+
+  if [[ "$mode" == "all" || "$mode" == "push" ]]; then
+    info "Staging all changes"
+    git add -A
+  fi
+
+  git diff --cached --quiet && die "No staged changes"
+
+  local work_dir
+  work_dir=$(mktemp -d)
+
+  {
+    local diff_file="$work_dir/diff.patch"
+    local prompt_file="$work_dir/prompt.txt"
+    local output_file="$work_dir/message.txt"
+
+    git diff --cached > "$diff_file"
+
+    cat > "$prompt_file" <<EOF
+Generate a single conventional commit message for the attached git diff.
+
+Requirements:
+- Return only the commit message.
+- No markdown.
+- No code fences.
+- No explanation.
+- One line only.
+- Prefer: type(scope): summary
+- Keep under 80 characters.
+
+Git diff:
+
+$(cat "$diff_file")
+EOF
+
+    info "Generating commit message"
+
+    if ! gum spin \
+      --spinner dot \
+      --title "Thinking..." \
+      -- \
+      codex exec \
+        --output-last-message "$output_file" \
+        - < "$prompt_file"
+    then
+      die "Codex failed"
+    fi
+
+    local msg
+    msg=$(<"$output_file")
+
+    [[ -n "$msg" ]] || die "Codex returned an empty message"
+
+    gum style \
+      --border rounded \
+      --border-foreground 63 \
+      --padding "0 1" \
+      --bold \
+      "$msg"
+
+    if ! gum confirm "Use this commit message?"; then
+      msg=$(
+        gum write \
+          --value "$msg" \
+          --width 100 \
+          --height 3
+      )
+    fi
+  
+    [[ -n "$msg" ]] || die "Commit cancelled"
+
+    print
+    git diff --cached --stat
+    print
+
+    gum confirm "Commit with this message?" \
+      || die "Commit cancelled"
+
+    git commit -m "$msg"
+
+    ok "Committed"
+
+    if [[ "$mode" == "push" ]]; then
+      info "Pushing"
+      git push
+      ok "Pushed"
+    fi
+
+  } always {
+    rm -rf "$work_dir"
+  }
+}
+
+main "$@"
