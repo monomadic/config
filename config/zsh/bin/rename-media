@@ -105,13 +105,19 @@ clean_name() {
   local tags=(1080p 1080 720p 4k 60fps 30fps 25fps)
   local t source_label before after
 
-  # Convert source prefixes like "[xHamster - ..." to "(xHamster) ...".
+  # Convert source prefixes like "[xHamster - ..." to "(xHamster) - ...".
   while [[ "$name" =~ '\[([^][]+) - ' ]]; do
     source_label="${match[1]}"
     before="${name[1,$(( MBEGIN - 1 ))]}"
     after="${name[$(( MEND + 1 )),-1]}"
-    name="${before}(${source_label}) ${after}"
+    name="${before}(${source_label}) - ${after}"
   done
+
+  # Migrate the old "Actors - [Channel] Title" shape to
+  # "Actors (Channel) - Title" before removing other bracketed sections.
+  if [[ "$name" =~ '^(.+) - \[([^][]+)\] (.+)$' ]]; then
+    name="${match[1]} (${match[2]}) - ${match[3]}"
+  fi
 
   # remove every non-nested {...} block since the script rebuilds it
   while [[ "$name" == *\{*\}* ]]; do
@@ -121,13 +127,13 @@ clean_name() {
   # braces are never allowed in filenames; drop any stray ones
   name="${name//[\{\}]/}"
 
-  # strip canonical [tag] brackets so reruns rebuild them cleanly
-  local tag_re='\[([0-9]+p|4k|[0-9]+fps|[0-9]+(hr|min|sec)|[0-9]+mbps|unknown|h264|h265|HEVC|AVC1|PRO|VP9|AV1|CH|CHAP|META|HDR|H|V|S|􁻯|􁻮|􀂒)\]'
-  while [[ "$name" =~ $tag_re ]]; do
+  # Square brackets are reserved for the one generated metadata block.
+  while [[ "$name" =~ '\[[^][]*\]' ]]; do
     before="${name[1,$(( MBEGIN - 1 ))]}"
     after="${name[$(( MEND + 1 )),-1]}"
     name="${before}${after}"
   done
+  name="${name//[\[\]]/}"
 
   for t in $tags; do
     name="${name//\#$t/}"
@@ -138,6 +144,53 @@ clean_name() {
   fi
 
   trim_whitespace "$name"
+}
+
+truncate_text() {
+  local s="$1"
+  local max="${2:-140}"
+
+  if (( ${#s} <= max )); then
+    print -r -- "$s"
+  elif (( max <= 3 )); then
+    print -r -- "${s[1,$max]}"
+  else
+    print -r -- "${s[1,$(( max - 3 ))]}..."
+  fi
+}
+
+truncate_title_segment() {
+  local name="$1"
+  local max="${2:-140}"
+  local prefix="" tail="$name" title="" suffix=""
+  local -a tokens keep suffix_tokens
+  local tok
+
+  if [[ "$name" =~ '^(.* - )(.+)$' ]]; then
+    prefix="${match[1]}"
+    tail="${match[2]}"
+  fi
+
+  tokens=(${(z)tail})
+  for tok in "${tokens[@]}"; do
+    if [[ "$tok" == \#* || "$tok" =~ '^[[:alnum:]][[:alnum:]_-]*_[[:alnum:]][[:alnum:]_-]*$' ]]; then
+      suffix_tokens+=("$tok")
+    elif (( ${#suffix_tokens[@]} > 0 )); then
+      suffix_tokens+=("$tok")
+    else
+      keep+=("$tok")
+    fi
+  done
+
+  title="$(trim_whitespace "${(j: :)keep}")"
+  suffix="$(trim_whitespace "${(j: :)suffix_tokens}")"
+  title="$(truncate_text "$title" "$max")"
+
+  if [[ -n "$suffix" ]]; then
+    print -r -- "$(trim_whitespace "${prefix}${title} ${suffix}")"
+  else
+    print -r -- "$(trim_whitespace "${prefix}${title}")"
+  fi
 }
 
 extract_rating() {
@@ -271,20 +324,6 @@ process_video() {
 
   log_verbose "duration seconds for ${filename}: ${duration_secs}"
 
-  local has_chapters=false
-  if ffprobe -v error -show_chapters -of csv=p=0 -- "$file" 2>/dev/null | grep -q .; then
-    has_chapters=true
-  fi
-
-  local title_tag=""
-  title_tag="$(
-    ffprobe -v error -show_entries format_tags=title \
-      -of default=noprint_wrappers=1:nokey=1 -- "$file" 2>/dev/null | head -1 || true
-  )"
-  title_tag="$(trim_whitespace "$title_tag")"
-
-  log_verbose "title tag for ${filename}: ${title_tag:-<empty>}"
-
   local width="" height="" frame_rate="" bit_rate="" codec_name=""
   local color_transfer="" color_primaries="" pix_fmt=""
   local line key value
@@ -385,9 +424,10 @@ process_video() {
     fi
   fi
 
-  log_verbose "derived flags for ${filename}: codec_flag=${codec_flag:-<none>} orientation=${orientation_flag} chapters=${has_chapters} meta=$([[ -n "$title_tag" ]] && print yes || print no) hdr=${hdr_flag}"
+  log_verbose "derived flags for ${filename}: codec_flag=${codec_flag:-<none>} orientation=${orientation_flag} hdr=${hdr_flag}"
 
   extension="${filename:e}"
+  name_without_ext="$(truncate_title_segment "$name_without_ext" 140)"
 
   local -a tags
 
@@ -397,14 +437,8 @@ process_video() {
   tags+=("$duration")
   [[ "$mbps" != "unknown" ]] && tags+=("$mbps")
   tags+=("$orientation_flag")
-  $has_chapters && tags+=("CHAP")
-  [[ -n "$title_tag" ]] && tags+=("META")
-  $hdr_flag && tags+=("HDR")
 
-  local tags_block="" tag
-  for tag in "${tags[@]}"; do
-    tags_block+="[${tag}]"
-  done
+  local tags_block="[${(j: :)tags}]"
 
   local rating_suffix=""
   [[ -n "$rating" ]] && rating_suffix=" ${rating}"
