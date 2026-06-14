@@ -3,10 +3,11 @@
 #
 # AI-powered git commits using Codex + Gum.
 #
-# Commands:
-#   gc staged
-#   gc all
-#   gc push
+# Usage:
+#   gc
+#   gc --multi
+#   gc --stage
+#   gc --multi --stage
 
 emulate -L zsh
 set -euo pipefail
@@ -14,9 +15,18 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  gc staged
-  gc all
-  gc push
+  gc [options]
+
+Options:
+  --multi    Generate a multiline conventional commit message
+  --stage    Stage all changes before committing
+  -h, --help Show this help
+
+Examples:
+  gc
+  gc --multi
+  gc --stage
+  gc --multi --stage
 EOF
 }
 
@@ -37,17 +47,166 @@ need() {
   command -v "$1" >/dev/null 2>&1 || die "Missing dependency: $1"
 }
 
+build_prompt() {
+  local diff_file=$1
+  local previous_message=${2:-}
+
+  if [[ -n "$previous_message" ]]; then
+    cat <<EOF
+Generate a better conventional commit message for this git diff.
+
+The previous message was not satisfactory:
+
+$previous_message
+
+Improve it. Be more accurate, specific, and useful.
+
+$(prompt_rules)
+
+Git diff:
+
+$(cat "$diff_file")
+EOF
+  else
+    cat <<EOF
+Generate a conventional commit message for this git diff.
+
+$(prompt_rules)
+
+Git diff:
+
+$(cat "$diff_file")
+EOF
+  fi
+}
+
+prompt_rules() {
+  if [[ "${GC_MULTI:-false}" == "true" ]]; then
+    cat <<'EOF'
+Format:
+
+<type>[optional scope]: <short summary>
+
+<body>
+
+Rules:
+- Return only the commit message.
+- No markdown.
+- No code fences.
+- No explanation outside the commit message.
+- First line must be conventional commit format.
+- First line should be under 80 characters.
+- Body should be 1-4 bullet points.
+- Body should explain meaningful changes, not restate filenames.
+- Use present tense.
+- Use types like feat, fix, refactor, chore, docs, test, build, ci, perf.
+- Add BREAKING CHANGE footer only if the diff clearly introduces one.
+EOF
+  else
+    cat <<'EOF'
+Rules:
+- Return only the commit message.
+- No markdown.
+- No code fences.
+- No explanation.
+- One line only.
+- Use format: <type>[optional scope]: <summary>
+- Keep under 80 characters if possible.
+- Use types like feat, fix, refactor, chore, docs, test, build, ci, perf.
+EOF
+  fi
+}
+
+generate_message() {
+  local diff_file=$1
+  local output_file=$2
+  local previous_message=${3:-}
+
+  local prompt_file="${output_file}.prompt"
+
+  build_prompt "$diff_file" "$previous_message" > "$prompt_file"
+
+  : > "$output_file"
+
+  if ! gum spin \
+    --spinner dot \
+    --title "Thinking..." \
+    -- \
+    codex exec \
+      --output-last-message "$output_file" \
+      - < "$prompt_file"
+  then
+    die "Codex failed"
+  fi
+
+  [[ -s "$output_file" ]] || die "Codex returned an empty message"
+}
+
+show_message() {
+  local msg_file=$1
+
+  gum style \
+    --border rounded \
+    --border-foreground 63 \
+    --padding "0 1" \
+    --width 100 \
+    "$(<"$msg_file")"
+}
+
+edit_message() {
+  local msg_file=$1
+  local editor_cmd=${EDITOR:-vim}
+
+  "$editor_cmd" "$msg_file"
+
+  [[ -s "$msg_file" ]] || die "Commit cancelled: empty message"
+}
+
+commit_now() {
+  local msg_file=$1
+  local should_push=$2
+
+  print
+  git diff --cached --stat
+  print
+
+  git commit -F "$msg_file"
+
+  ok "Committed"
+
+  if [[ "$should_push" == "true" ]]; then
+    info "Pushing"
+    git push
+    ok "Pushed"
+  fi
+}
+
 main() {
   need git
   need gum
   need codex
 
-  local mode=${1:-}
+  local stage=false
+  export GC_MULTI=false
 
-  [[ "$mode" == "staged" || "$mode" == "all" || "$mode" == "push" ]] || {
-    usage
-    exit 1
-  }
+  while (( $# )); do
+    case "$1" in
+      --multi)
+        export GC_MULTI=true
+        ;;
+      --stage)
+        stage=true
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        die "Unknown option: $1"
+        ;;
+    esac
+    shift
+  done
 
   local repo_root
   repo_root=$(git rev-parse --show-toplevel 2>/dev/null) \
@@ -55,14 +214,18 @@ main() {
 
   cd "$repo_root"
 
+  local flags=()
+  [[ "$GC_MULTI" == "true" ]] && flags+=(multi) || flags+=(single)
+  $stage && flags+=(stage)
+
   gum style \
     --border rounded \
     --padding "0 1" \
     --border-foreground 63 \
     --bold \
-    "󰊢 AI Git Commit · ${repo_root:t} · $mode"
+    "󰊢 git commit · ${repo_root:t} · ${(j: :)flags}"
 
-  if [[ "$mode" == "all" || "$mode" == "push" ]]; then
+  if $stage; then
     info "Staging all changes"
     git add -A
   fi
@@ -74,80 +237,52 @@ main() {
 
   {
     local diff_file="$work_dir/diff.patch"
-    local prompt_file="$work_dir/prompt.txt"
-    local output_file="$work_dir/message.txt"
+    local msg_file="$work_dir/message.txt"
 
     git diff --cached > "$diff_file"
 
-    cat > "$prompt_file" <<EOF
-Generate a single conventional commit message for the attached git diff.
-
-Requirements:
-- Return only the commit message.
-- No markdown.
-- No code fences.
-- No explanation.
-- One line only.
-- Prefer: type(scope): summary
-- Keep under 80 characters.
-
-Git diff:
-
-$(cat "$diff_file")
-EOF
-
     info "Generating commit message"
+    generate_message "$diff_file" "$msg_file"
 
-    if ! gum spin \
-      --spinner dot \
-      --title "Thinking..." \
-      -- \
-      codex exec \
-        --output-last-message "$output_file" \
-        - < "$prompt_file"
-    then
-      die "Codex failed"
-    fi
+    while true; do
+      show_message "$msg_file"
 
-    local msg
-    msg=$(<"$output_file")
-
-    [[ -n "$msg" ]] || die "Codex returned an empty message"
-
-    gum style \
-      --border rounded \
-      --border-foreground 63 \
-      --padding "0 1" \
-      --bold \
-      "$msg"
-
-    if ! gum confirm "Use this commit message?"; then
-      msg=$(
-        gum write \
-          --value "$msg" \
-          --width 100 \
-          --height 3
+      local action
+      action=$(
+        gum choose \
+          --cursor "› " \
+          --selected-prefix "● " \
+          --unselected-prefix "○ " \
+          "edit" \
+          "regenerate" \
+          "commit" \
+          "commit + push"
       )
-    fi
-  
-    [[ -n "$msg" ]] || die "Commit cancelled"
 
-    print
-    git diff --cached --stat
-    print
+      case "$action" in
+        edit)
+          edit_message "$msg_file"
+          ;;
+        regenerate)
+          local previous_message
+          previous_message=$(<"$msg_file")
 
-    gum confirm "Commit with this message?" \
-      || die "Commit cancelled"
-
-    git commit -m "$msg"
-
-    ok "Committed"
-
-    if [[ "$mode" == "push" ]]; then
-      info "Pushing"
-      git push
-      ok "Pushed"
-    fi
+          info "Regenerating commit message"
+          generate_message "$diff_file" "$msg_file" "$previous_message"
+          ;;
+        commit)
+          commit_now "$msg_file" false
+          break
+          ;;
+        "commit + push")
+          commit_now "$msg_file" true
+          break
+          ;;
+        *)
+          die "Commit cancelled"
+          ;;
+      esac
+    done
 
   } always {
     rm -rf "$work_dir"
