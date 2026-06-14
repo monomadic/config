@@ -17,6 +17,8 @@ require("mactag"):setup({
 	},
 })
 
+require("ls-deluxe-colors"):setup()
+
 -- Right-click opens the "open with" picker instead of opening the file directly
 function Entity:click(event, up)
 	if up or event.is_middle then

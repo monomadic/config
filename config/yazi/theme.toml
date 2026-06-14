@@ -201,8 +201,9 @@ exts = [
   { name = "vdjstems", text = "􀐟 ", fg = "#86229f" },
 
   # tablature
-  { name = "cho",  text = "􀞈 ", fg = "#66e2ff" },
-  { name = "chordpro", text = "􀞈 ", fg = "#66e2ff" },
+  { name = "cho",  text = "􃁯 ", fg = "#66e2ff" },
+  { name = "chopro", text = "􃁯 ", fg = "#76ecff" },
+  { name = "chordpro", text = "􃁯 ", fg = "#F6e24f" },
 
   # images
   { name = "png",  text = "􀏅 ", fg = "#c792ea" },

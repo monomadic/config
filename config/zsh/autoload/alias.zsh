@@ -417,6 +417,7 @@ alias .network-quality="networkQuality -v"
 # Media Player Aliases
 # ============================================================================
 
+alias mp="mpv-send play"
 alias configure-mpv="cd $DOTFILES_DIR/config/mpv && kitty-exec '   mpv.conf ' '#A442F3' hx ."
 alias configure-helix="cd $DOTFILES_DIR/config/helix && $EDITOR ."
 

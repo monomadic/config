@@ -653,7 +653,7 @@ fzf_args=(
   --bind "alt-r:$reveal_bind"
   --bind "ctrl-r:$reveal_bind"
   --preview="$preview_cmd"
-  --preview-window='right,60%,wrap,border-left'
+  --preview-window='right,40%,wrap,border-left'
 )
 
 $print_color && fzf_args+=(--ansi)

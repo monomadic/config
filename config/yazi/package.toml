@@ -28,5 +28,15 @@ use = "dawsers/toggle-view"
 rev = "9ae57f9"
 hash = "a5fefd7e796960eea67cebb29d77912a"
 
+[[plugin.deps]]
+use = "yazi-rs/plugins:piper"
+rev = "598cdb6"
+hash = "d99cfbc3812e7738505f9e4bedb759cd"
+
+[[plugin.deps]]
+use = "faethon/ls-deluxe-colors"
+rev = "f237fd3"
+hash = "b62f2a9e5088576c220f3afa03ee3532"
+
 [flavor]
 deps = []

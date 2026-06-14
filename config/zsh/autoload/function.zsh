@@ -367,13 +367,13 @@ function fzf-multi {
 	fzf --exact --multi --bind "enter:select-all+accept,ctrl-c:abort" --header "search type: multi-select, fuzzy search, smart case" --color=header:#888888
 }
 
-# microcommit
-function gc () {
-	git add . &&
-	git commit -a -m "$@" &&
-	git pull &&
-	git push
-}
+# # microcommit
+# function gc () {
+# 	git add . &&
+# 	git commit -a -m "$@" &&
+# 	git pull &&
+# 	git push
+# }
 
 function clear-reset {
 	clear

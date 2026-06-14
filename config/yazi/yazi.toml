@@ -1,6 +1,7 @@
 [mgr]
 ratio     = [ 1, 4, 3 ]
 scrolloff = 5
+linemode  = "lsd_size_mtime"
 
 [preview]
 max_width  = 1200
@@ -16,12 +17,12 @@ bulk-rename = [
 	{ run = "hx %s", desc = "􀤘 Helix", for = "unix", block = true },
 ]
 play = [
-	{ run = "mpv --force-window %s", desc = "􀾭  MPV", for = "unix", orphan = true },
+	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀾭  MPV", for = "unix", orphan = true },
 	{ run = "vlc %s .", desc = "􀵨  VLC", for = "unix", orphan = true },
 	{ run = "mediainfo %s1; echo 'Press enter to exit'; read _", desc = "􀅴  MediaInfo", for = "unix", block = true },
 ]
 play_dir = [
-	{ run = "mpv --force-window %s", desc = "􀾭  MPV", for = "unix", orphan = true },
+	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀾭  MPV", for = "unix", orphan = true },
 	{ run = "vlc %s .", desc = "􀵨  VLC", for = "unix", orphan = true },
 ]
 open = [
@@ -35,6 +36,9 @@ reveal = [
 	{ run = "open -R %s1", desc = "􀥯 Reveal", for = "macos" },
 	{ run = "explorer /select,%s1", desc = "Reveal", for = "windows", orphan = true },
 	{ run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", desc = "􂷐  Show EXIF", for = "unix", block = true },
+]
+chordpro = [
+	{ run = "chordpro-tui %s1", desc = "ChordPro TUI", for = "unix", block = true },
 ]
 pdf_chordpro = [
 	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " pdf to chordpro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "PDF to ChordPro", for = "unix", orphan = true },
@@ -55,6 +59,9 @@ extract = [
 [open]
 prepend_rules = [
 	{ url = "bulk-rename.txt", use = "bulk-rename" },
+	{ url = "*.cho", use = [ "chordpro", "edit", "open", "reveal" ] },
+	{ url = "*.chopro", use = [ "chordpro", "edit", "open", "reveal" ] },
+	{ url = "*.chordpro", use = [ "chordpro", "edit", "open", "reveal" ] },
 	{ mime = "application/pdf", use = [ "open", "reveal", "pdf_chordpro" ] },
 	{ mime = "video/*", use = [ "play", "open", "reveal", "video_tools" ] },
 	{ url = "*/", use = [ "edit", "open", "reveal", "play_dir" ] },
@@ -62,6 +69,9 @@ prepend_rules = [
 
 [plugin]
 prepend_previewers = [
+	{ url = "*.cho", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
+	{ url = "*.chopro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
+	{ url = "*.chordpro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
 	{ url = "*.mov", run = "video-thumb-info" },
 	{ url = "*.MOV", run = "video-thumb-info" },
 	{ mime = "video/*", run = "video-thumb-info" },

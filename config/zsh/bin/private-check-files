@@ -1,0 +1,1166 @@
+#!/usr/bin/env zsh
+
+emulate -L zsh
+set -u
+setopt pipefail extended_glob
+
+TTY=/dev/tty
+if { exec 3< "$TTY" } 2>/dev/null && { exec 4> "$TTY" } 2>/dev/null; then
+  :
+else
+  exec 3<&0
+  exec 4>&2
+fi
+
+CHECK_CONTAINER=true
+CHECK_METADATA=true
+CHECK_FASTSTART=true
+CHECK_UTF8=true
+CHECK_FILENAME=true
+CHECK_LENGTH=true
+
+MAX_FILENAME_BYTES=240
+
+typeset -a INPUT_FILES=()
+typeset -i processed_count=0
+typeset -i clean_count=0
+typeset -i issue_file_count=0
+typeset -i fix_count=0
+typeset -i skip_count=0
+typeset -i fail_count=0
+
+C_RESET=$'\033[0m'
+C_DIM=$'\033[2m'
+C_CYAN=$'\033[36m'
+C_GREEN=$'\033[32m'
+C_RED=$'\033[31m'
+C_YELLOW=$'\033[33m'
+ICON_PASS="✓"
+ICON_FAIL="✕"
+CURRENT_CHECK=""
+CURRENT_TOTAL=0
+CURRENT_PASS=0
+CURRENT_FAIL=0
+typeset -a ENABLED_CHECKS=()
+typeset -A CHECK_STATUS=()
+
+usage() {
+  cat >&2 <<'EOF'
+Usage:
+  private-check-files [options] [file ...]
+
+Audits private video files. With no file arguments it streams video files from
+fd-media. When files are provided, only those files are checked.
+
+Filename convention:
+  YYYY-MM-DD HHHHh <Person, Person, ..> <Location, Location, ..> <#tag, #tag, ..> [RES FPS LEN BITRATE] <Rating>.mp4
+
+Example:
+  2025-08-22 1020h Person, Person, Location #tag #tag [4k 60fps 5min 4mbps] ★★★★☆.mp4
+
+Checks:
+  MP4 container only; MOV files are remuxed to MP4 when ffmpeg can do it safely
+  embedded metadata: date, people, locations, tags, rating, type=private
+  MP4/MOV FastStart
+  filename health: invalid UTF-8, private filename syntax, length
+
+Options:
+  --bypass-check-container
+  --bypass-check-metadata
+  --bypass-check-faststart
+  --bypass-check-utf8
+  --bypass-check-filename
+  --bypass-check-length
+  --max-filename-bytes N        Default: 240
+  -h, --help
+EOF
+}
+
+say() {
+  print -P -u4 -- "$*"
+}
+
+say_raw() {
+  print -r -u4 -- "$*"
+}
+
+warn() {
+  say "%F{yellow}!%f $*"
+}
+
+fail() {
+  say "%F{red}x%f $*"
+}
+
+pass() {
+  say "%F{green}ok%f $*"
+}
+
+display_path() {
+  local s="$1"
+  local reserved="${2:-14}"
+  local width="${COLUMNS:-100}"
+  local max=$(( width - reserved ))
+
+  (( max < 30 )) && max=30
+
+  if (( ${#s} > max )); then
+    local keep=$(( max - 3 ))
+    print -r -- "...${s[-$keep,-1]}"
+  else
+    print -r -- "$s"
+  fi
+}
+
+status_line() {
+  [[ -t 4 ]] || return 0
+
+  local shown prefix_plain
+  prefix_plain="Checking "
+  shown="$(display_path "${1:t}" "${#prefix_plain}")"
+  print -n -u4 -- $'\r\033[K'
+  print -n -u4 -- "Checking ${C_CYAN}${shown}${C_RESET}"
+}
+
+clear_status() {
+  [[ -t 4 ]] || return 0
+  print -n -u4 -- $'\r\033[K'
+}
+
+session_stats_line() {
+  local files_word="files"
+  local corrections_word="corrections"
+
+  (( processed_count == 1 )) && files_word="file"
+  (( fix_count == 1 )) && corrections_word="correction"
+
+  say "${processed_count} ${files_word} checked: ${C_GREEN}${clean_count} pass${C_RESET}, ${C_RED}${issue_file_count} fail${C_RESET}"
+  say "- ${fix_count} ${corrections_word} made this session"
+}
+
+check_stats_line() {
+  say "${CURRENT_TOTAL} total, ${CURRENT_PASS} pass, ${CURRENT_FAIL} fail"
+}
+
+build_enabled_checks() {
+  ENABLED_CHECKS=()
+
+  $CHECK_CONTAINER && ENABLED_CHECKS+=("mp4-container")
+  $CHECK_METADATA && ENABLED_CHECKS+=("private-metadata")
+  $CHECK_FASTSTART && ENABLED_CHECKS+=("faststart")
+
+  if $CHECK_UTF8 || $CHECK_FILENAME || $CHECK_LENGTH; then
+    ENABLED_CHECKS+=("filename")
+  fi
+}
+
+check_enabled() {
+  local check="$1"
+  local item
+
+  for item in "${ENABLED_CHECKS[@]}"; do
+    [[ "$item" == "$check" ]] && return 0
+  done
+
+  return 1
+}
+
+reset_file_checks() {
+  local item
+
+  CHECK_STATUS=()
+  CURRENT_TOTAL=0
+  CURRENT_PASS=0
+  CURRENT_FAIL=0
+
+  for item in "${ENABLED_CHECKS[@]}"; do
+    CHECK_STATUS[$item]=""
+  done
+}
+
+refresh_current_counts() {
+  local item check_state
+
+  CURRENT_TOTAL=0
+  CURRENT_PASS=0
+  CURRENT_FAIL=0
+
+  for item in "${ENABLED_CHECKS[@]}"; do
+    check_state="${CHECK_STATUS[$item]-}"
+    [[ -n "$check_state" ]] || continue
+    (( CURRENT_TOTAL++ ))
+    case "$check_state" in
+      pass) (( CURRENT_PASS++ )) ;;
+      fail) (( CURRENT_FAIL++ )) ;;
+    esac
+  done
+}
+
+set_check_status() {
+  local check="$1"
+  local check_state="$2"
+
+  check_enabled "$check" || return 0
+  CHECK_STATUS[$check]="$check_state"
+  refresh_current_counts
+}
+
+check_icon() {
+  local check_state="$1"
+
+  case "$check_state" in
+    pass) print -r -- "${C_GREEN}${ICON_PASS}${C_RESET}" ;;
+    fail) print -r -- "${C_RED}${ICON_FAIL}${C_RESET}" ;;
+    *) print -r -- "" ;;
+  esac
+}
+
+draw_checks() {
+  local item check_state icon
+
+  say "%BCHECKS:%b"
+  say ""
+
+  for item in "${ENABLED_CHECKS[@]}"; do
+    check_state="${CHECK_STATUS[$item]-}"
+    icon="$(check_icon "$check_state")"
+    printf "%-22s %b\n" "$item" "$icon" >&4
+  done
+
+  say ""
+}
+
+draw_header() {
+  say "%B%F{cyan}PRIVATE FILE CHECK v1%f%b"
+  say ""
+  session_stats_line
+  say ""
+  draw_checks
+  check_stats_line
+  say ""
+}
+
+redraw_screen() {
+  [[ -t 4 ]] || return 0
+  print -n -u4 -- $'\033[2J\033[H'
+  draw_header
+}
+
+show_checking_path() {
+  local file="$1"
+
+  print -r -u4 -- "Checking ${C_CYAN}${file:t}${C_RESET}"
+}
+
+issue_screen() {
+  local check="$1"
+  local file="$2"
+
+  CURRENT_CHECK="$check"
+  set_check_status "$check" "fail"
+
+  if [[ -t 4 ]]; then
+    print -n -u4 -- $'\033[2J\033[H'
+    draw_header
+  fi
+  clear_status
+  say ""
+  show_checking_path "$file"
+  say ""
+  say "%B%F{red}FAIL%f%b ${C_RED}${ICON_FAIL}${C_RESET}"
+  say ""
+}
+
+mark_fixed() {
+  local message="${1:-Fixed.}"
+
+  (( fix_count++ ))
+  [[ -n "$CURRENT_CHECK" ]] && set_check_status "$CURRENT_CHECK" "pass"
+
+  if [[ -t 4 ]]; then
+    redraw_screen
+  else
+    pass "$message"
+  fi
+}
+
+mark_unresolved() {
+  (( FILE_UNRESOLVED++ ))
+  [[ -n "$CURRENT_CHECK" ]] && set_check_status "$CURRENT_CHECK" "fail"
+}
+
+run_check() {
+  local check="$1"
+  shift
+
+  check_enabled "$check" || return 0
+  CURRENT_CHECK="$check"
+
+  "$@"
+  local rc=$?
+
+  if (( rc == 0 )); then
+    set_check_status "$check" "pass"
+    [[ -t 4 ]] && redraw_screen
+  else
+    set_check_status "$check" "fail"
+  fi
+
+  return "$rc"
+}
+
+normalize_audit_path() {
+  local path="$1"
+
+  if [[ -e "$path" || "$path" == /* ]]; then
+    print -r -- "$path"
+    return 0
+  fi
+
+  if [[ -e "/$path" ]]; then
+    print -r -- "/$path"
+    return 0
+  fi
+
+  print -r -- "$path"
+}
+
+is_video_path() {
+  case "${1:l}" in
+    *.mp4|*.mov) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_faststart_path() {
+  case "${1:l}" in
+    *.mp4|*.mov|*.m4v) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+creation_date_for_setfile() {
+  local file="$1"
+  local epoch
+
+  epoch="$(stat -f '%B' -- "$file" 2>/dev/null)" || return 1
+  [[ "$epoch" == <-> ]] || return 1
+  (( epoch > 0 )) || return 1
+
+  date -r "$epoch" '+%m/%d/%Y %H:%M:%S'
+}
+
+copy_creation_date() {
+  local source="$1"
+  local target="$2"
+  local created
+
+  command -v SetFile >/dev/null 2>&1 || return 1
+  created="$(creation_date_for_setfile "$source")" || return 1
+  SetFile -d "$created" "$target" >/dev/null 2>&1
+}
+
+touch_modified_now() {
+  local file="$1"
+
+  touch "$file" 2>/dev/null || true
+}
+
+filename_byte_length() {
+  LC_ALL=C printf '%s' "$1" | wc -c | tr -d '[:space:]'
+}
+
+parse_private_filename_json() {
+  local file="$1"
+
+  python3 - "$file" <<'PY'
+import json
+import os
+import re
+import sys
+
+path = sys.argv[1]
+name = os.path.basename(path)
+stem, ext = os.path.splitext(name)
+
+out = {
+    "valid": False,
+    "error": "",
+    "filename": name,
+    "ext": ext[1:].lower(),
+    "date": "",
+    "time": "",
+    "people": [],
+    "locations": [],
+    "tags": [],
+    "specs": {
+        "resolution": "",
+        "fps": "",
+        "length": "",
+        "bitrate": "",
+    },
+    "rating": 0,
+    "rating_stars": "",
+    "type": "private",
+}
+
+rating_map = {
+    "★☆☆☆☆": 1,
+    "★★☆☆☆": 2,
+    "★★★☆☆": 3,
+    "★★★★☆": 4,
+    "★★★★★": 5,
+}
+
+if out["ext"] not in {"mp4", "mov"}:
+    out["error"] = "extension must be .mp4 or .mov"
+    print(json.dumps(out, ensure_ascii=False))
+    sys.exit(1)
+
+match = re.match(
+    r"^(?P<date>\d{4}-\d{2}-\d{2}) (?P<time>\d{4}h) (?P<body>.+?) "
+    r"\[(?P<specs>[^\[\]]+)\] (?P<rating>[★☆]{5})$",
+    stem,
+)
+if not match:
+    out["error"] = "expected YYYY-MM-DD HHHHh people locations #tags [RES FPS LEN BITRATE] ★★★★★"
+    print(json.dumps(out, ensure_ascii=False))
+    sys.exit(1)
+
+body = match.group("body").strip()
+tokens = body.split()
+first_tag = next((idx for idx, token in enumerate(tokens) if token.startswith("#")), -1)
+if first_tag < 0:
+    out["error"] = "missing one or more #tags"
+    print(json.dumps(out, ensure_ascii=False))
+    sys.exit(1)
+
+name_tokens = tokens[:first_tag]
+tag_tokens = tokens[first_tag:]
+if not name_tokens:
+    out["error"] = "missing people and locations"
+    print(json.dumps(out, ensure_ascii=False))
+    sys.exit(1)
+
+names_blob = " ".join(name_tokens)
+names = [part.strip() for part in names_blob.split(",")]
+if any(not part for part in names):
+    out["error"] = "empty person/location segment around comma"
+    print(json.dumps(out, ensure_ascii=False))
+    sys.exit(1)
+if len(names) < 2:
+    out["error"] = "need at least one person and one location before tags"
+    print(json.dumps(out, ensure_ascii=False))
+    sys.exit(1)
+
+tags = []
+for token in tag_tokens:
+    if not re.match(r"^#[A-Za-z0-9_][A-Za-z0-9_-]*$", token):
+        out["error"] = f"invalid tag token: {token}"
+        print(json.dumps(out, ensure_ascii=False))
+        sys.exit(1)
+    tags.append(token)
+
+spec_tokens = match.group("specs").split()
+if len(spec_tokens) != 4:
+    out["error"] = "spec block must contain RES FPS LEN BITRATE"
+    print(json.dumps(out, ensure_ascii=False))
+    sys.exit(1)
+
+res, fps, length, bitrate = spec_tokens
+checks = [
+    (re.match(r"^(\d{3,4}p|[248]k)$", res, re.I), "resolution"),
+    (re.match(r"^\d{1,3}fps$", fps, re.I), "fps"),
+    (re.match(r"^(\d+(?:\.\d+)?(?:min|mins|m|s|sec|secs|h|hr|hrs)|\d{1,2}:\d{2}(?::\d{2})?)$", length, re.I), "length"),
+    (re.match(r"^\d+(?:\.\d+)?mbps$", bitrate, re.I), "bitrate"),
+]
+for ok, label in checks:
+    if not ok:
+        out["error"] = f"invalid {label} in spec block"
+        print(json.dumps(out, ensure_ascii=False))
+        sys.exit(1)
+
+rating_stars = match.group("rating")
+rating = rating_map.get(rating_stars, 0)
+if rating == 0:
+    out["error"] = "rating must be one to five leading stars followed by empty stars"
+    print(json.dumps(out, ensure_ascii=False))
+    sys.exit(1)
+
+out.update(
+    {
+        "valid": True,
+        "date": match.group("date"),
+        "time": match.group("time"),
+        "people": names[:-1],
+        "locations": [names[-1]],
+        "tags": tags,
+        "specs": {
+            "resolution": res,
+            "fps": fps,
+            "length": length,
+            "bitrate": bitrate,
+        },
+        "rating": rating,
+        "rating_stars": rating_stars,
+    }
+)
+print(json.dumps(out, ensure_ascii=False))
+PY
+}
+
+PRIVATE_JSON=""
+PRIVATE_PARSE_ERROR=""
+PRIVATE_DATE=""
+PRIVATE_TIME=""
+PRIVATE_PEOPLE_JSON="[]"
+PRIVATE_LOCATIONS_JSON="[]"
+PRIVATE_TAGS_JSON="[]"
+PRIVATE_RATING=""
+PRIVATE_RATING_STARS=""
+PRIVATE_TYPE="private"
+PRIVATE_TITLE=""
+PRIVATE_RESOLUTION=""
+PRIVATE_FPS=""
+PRIVATE_LENGTH=""
+PRIVATE_BITRATE=""
+
+load_private_filename() {
+  local file="$1"
+  local rc
+
+  PRIVATE_JSON="$(parse_private_filename_json "$file")"
+  rc=$?
+
+  PRIVATE_PARSE_ERROR="$(jq -r '.error // empty' <<< "$PRIVATE_JSON" 2>/dev/null || true)"
+  PRIVATE_DATE="$(jq -r '.date // empty' <<< "$PRIVATE_JSON" 2>/dev/null || true)"
+  PRIVATE_TIME="$(jq -r '.time // empty' <<< "$PRIVATE_JSON" 2>/dev/null || true)"
+  PRIVATE_PEOPLE_JSON="$(jq -c '.people // []' <<< "$PRIVATE_JSON" 2>/dev/null || print -r -- "[]")"
+  PRIVATE_LOCATIONS_JSON="$(jq -c '.locations // []' <<< "$PRIVATE_JSON" 2>/dev/null || print -r -- "[]")"
+  PRIVATE_TAGS_JSON="$(jq -c '.tags // []' <<< "$PRIVATE_JSON" 2>/dev/null || print -r -- "[]")"
+  PRIVATE_RATING="$(jq -r '.rating // empty' <<< "$PRIVATE_JSON" 2>/dev/null || true)"
+  PRIVATE_RATING_STARS="$(jq -r '.rating_stars // empty' <<< "$PRIVATE_JSON" 2>/dev/null || true)"
+  PRIVATE_RESOLUTION="$(jq -r '.specs.resolution // empty' <<< "$PRIVATE_JSON" 2>/dev/null || true)"
+  PRIVATE_FPS="$(jq -r '.specs.fps // empty' <<< "$PRIVATE_JSON" 2>/dev/null || true)"
+  PRIVATE_LENGTH="$(jq -r '.specs.length // empty' <<< "$PRIVATE_JSON" 2>/dev/null || true)"
+  PRIVATE_BITRATE="$(jq -r '.specs.bitrate // empty' <<< "$PRIVATE_JSON" 2>/dev/null || true)"
+  PRIVATE_TITLE="${file:t:r}"
+
+  return "$rc"
+}
+
+metadata_comment_json() {
+  jq -cn \
+    --arg type "$PRIVATE_TYPE" \
+    --arg date "$PRIVATE_DATE" \
+    --arg time "$PRIVATE_TIME" \
+    --argjson people "$PRIVATE_PEOPLE_JSON" \
+    --argjson locations "$PRIVATE_LOCATIONS_JSON" \
+    --argjson tags "$PRIVATE_TAGS_JSON" \
+    --arg rating "$PRIVATE_RATING" \
+    --arg rating_stars "$PRIVATE_RATING_STARS" \
+    --arg resolution "$PRIVATE_RESOLUTION" \
+    --arg fps "$PRIVATE_FPS" \
+    --arg length "$PRIVATE_LENGTH" \
+    --arg bitrate "$PRIVATE_BITRATE" \
+    '{
+      type: $type,
+      date: $date,
+      time: $time,
+      people: $people,
+      locations: $locations,
+      tags: $tags,
+      rating: ($rating | tonumber),
+      rating_stars: $rating_stars,
+      specs: {
+        resolution: $resolution,
+        fps: $fps,
+        length: $length,
+        bitrate: $bitrate
+      }
+    }'
+}
+
+rewrite_with_metadata() {
+  local file="$1"
+  shift
+
+  local dir="${file:h}"
+  local base="${file:t:r}"
+  local ext="${file:e}"
+  local tmp
+  local -a ffmpeg_args metadata_args
+
+  metadata_args=("$@")
+
+  command -v ffmpeg >/dev/null 2>&1 || return 1
+  tmp="$(mktemp "${dir}/.${base}.metadata.XXXXXX.${ext}")" || return 1
+
+  ffmpeg_args=(
+    -hide_banner -loglevel error -nostdin -y
+    -i "$file"
+    -map '0:v?'
+    -map '0:a?'
+    -map '0:s?'
+    -c copy
+    -map_metadata 0
+    -movflags +faststart+use_metadata_tags
+    "${metadata_args[@]}"
+    "$tmp"
+  )
+
+  if ffmpeg "${ffmpeg_args[@]}"; then
+    copy_creation_date "$file" "$tmp" || {
+      rm -f -- "$tmp" 2>/dev/null || true
+      return 1
+    }
+    mv -f -- "$tmp" "$file"
+    touch_modified_now "$file"
+    return 0
+  fi
+
+  rm -f -- "$tmp" 2>/dev/null || true
+  return 1
+}
+
+embed_private_metadata() {
+  local file="$1"
+  local comment_json
+
+  comment_json="$(metadata_comment_json)" || return 1
+
+  rewrite_with_metadata "$file" \
+    -metadata "title=$PRIVATE_TITLE" \
+    -metadata "type=$PRIVATE_TYPE" \
+    -metadata "media_type=$PRIVATE_TYPE" \
+    -metadata "date=$PRIVATE_DATE" \
+    -metadata "creation_time=${PRIVATE_DATE}T${PRIVATE_TIME[1,2]}:${PRIVATE_TIME[3,4]}:00" \
+    -metadata "people=$PRIVATE_PEOPLE_JSON" \
+    -metadata "locations=$PRIVATE_LOCATIONS_JSON" \
+    -metadata "tags=$PRIVATE_TAGS_JSON" \
+    -metadata "rating=$PRIVATE_RATING" \
+    -metadata "rating_stars=$PRIVATE_RATING_STARS" \
+    -metadata "private_json=$comment_json" \
+    -metadata "comment=$comment_json"
+}
+
+check_private_metadata() {
+  local file="$1"
+  local tags_json expected_json current_json ok
+
+  $CHECK_METADATA || return 0
+  [[ "${file:l}" == *.mp4 ]] || return 0
+  command -v ffprobe >/dev/null 2>&1 || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+
+  if [[ -z "$PRIVATE_JSON" ]]; then
+    load_private_filename "$file" >/dev/null || true
+  fi
+
+  [[ -z "$PRIVATE_PARSE_ERROR" ]] || {
+    (( FILE_ISSUES++ ))
+    issue_screen "private-metadata" "$file"
+    say "metadata: cannot derive metadata from filename"
+    say_raw "$PRIVATE_PARSE_ERROR"
+    (( fail_count++ ))
+    mark_unresolved
+    return 1
+  }
+
+  tags_json="$(ffprobe -v error -show_entries format_tags -of json -- "$file" 2>/dev/null)" || {
+    (( FILE_ISSUES++ ))
+    issue_screen "private-metadata" "$file"
+    say "metadata: probe failed"
+    warn "Could not read format tags with ffprobe."
+    (( fail_count++ ))
+    mark_unresolved
+    return 1
+  }
+
+  expected_json="$(metadata_comment_json)" || return 1
+  current_json="$(
+    jq -c '(.format.tags // {}) | with_entries(.key |= ascii_downcase)' <<< "$tags_json"
+  )"
+
+  ok="$(
+    jq -n \
+      --argjson tags "$current_json" \
+      --argjson expected "$expected_json" \
+      --arg title "$PRIVATE_TITLE" '
+      def maybe_json($v):
+        if ($v | type) == "string" then
+          (try ($v | fromjson) catch $v)
+        else
+          $v
+        end;
+
+      ($tags.type == "private" or $tags.media_type == "private")
+      and (($tags.date // "") == $expected.date)
+      and ((maybe_json($tags.people // "[]")) == $expected.people)
+      and ((maybe_json($tags.locations // "[]")) == $expected.locations)
+      and ((maybe_json($tags.tags // "[]")) == $expected.tags)
+      and (((($tags.rating // "") | tostring) == ($expected.rating | tostring)))
+      and (($tags.title // "") == $title)
+    ' 2>/dev/null
+  )"
+
+  [[ "$ok" == "true" ]] && return 0
+
+  (( FILE_ISSUES++ ))
+  issue_screen "private-metadata" "$file"
+  say "metadata: missing or stale private metadata"
+  say ""
+  say "%BEXPECTED:%b"
+  say_raw "$expected_json"
+  say ""
+  say "auto-fix: embedding private metadata from filename."
+
+  if embed_private_metadata "$file"; then
+    mark_fixed "Private metadata embedded."
+    return 0
+  fi
+
+  fail "Could not embed private metadata."
+  (( fail_count++ ))
+  mark_unresolved
+  return 1
+}
+
+faststart_state() {
+  local file="$1"
+
+  python3 - "$file" <<'PY'
+import os
+import struct
+import sys
+
+path = sys.argv[1]
+try:
+    size = os.path.getsize(path)
+    with open(path, "rb") as fh:
+        pos = 0
+        for _ in range(100000):
+            if pos + 8 > size:
+                sys.exit(2)
+            fh.seek(pos)
+            header = fh.read(8)
+            if len(header) < 8:
+                sys.exit(2)
+            atom_size, atom_type = struct.unpack(">I4s", header)
+            atom_type = atom_type.decode("latin-1")
+            header_len = 8
+            if atom_size == 1:
+                ext = fh.read(8)
+                if len(ext) < 8:
+                    sys.exit(2)
+                atom_size = struct.unpack(">Q", ext)[0]
+                header_len = 16
+            elif atom_size == 0:
+                atom_size = size - pos
+            if atom_size < header_len:
+                sys.exit(2)
+            if atom_type == "moov":
+                sys.exit(0)
+            if atom_type == "mdat":
+                sys.exit(1)
+            pos += atom_size
+    sys.exit(2)
+except Exception:
+    sys.exit(2)
+PY
+}
+
+enable_faststart() {
+  local file="$1"
+  local dir="${file:h}"
+  local base="${file:t:r}"
+  local ext="${file:e}"
+  local tmp
+
+  command -v ffmpeg >/dev/null 2>&1 || return 1
+  tmp="$(mktemp "${dir}/.${base}.faststart.XXXXXX.${ext}")" || return 1
+
+  if ffmpeg -hide_banner -loglevel error -nostdin -y \
+      -i "$file" \
+      -map '0:v?' \
+      -map '0:a?' \
+      -map '0:s?' \
+      -map_metadata 0 \
+      -c copy \
+      -movflags +faststart+use_metadata_tags \
+      "$tmp"; then
+    copy_creation_date "$file" "$tmp" || {
+      rm -f -- "$tmp" 2>/dev/null || true
+      return 1
+    }
+    mv -f -- "$tmp" "$file"
+    touch_modified_now "$file"
+    return 0
+  fi
+
+  rm -f -- "$tmp" 2>/dev/null || true
+  return 1
+}
+
+check_faststart() {
+  local file="$1"
+  local state
+
+  $CHECK_FASTSTART || return 0
+  is_faststart_path "$file" || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+
+  faststart_state "$file"
+  state=$?
+
+  case "$state" in
+    0)
+      return 0
+      ;;
+    1)
+      (( FILE_ISSUES++ ))
+      issue_screen "faststart" "$file"
+      say "faststart: moov atom is after mdat"
+      say "auto-fix: enabling FastStart with ffmpeg stream copy."
+      if enable_faststart "$file" && faststart_state "$file"; then
+        mark_fixed "FastStart enabled."
+        return 0
+      fi
+      fail "FastStart repair failed."
+      (( fail_count++ ))
+      mark_unresolved
+      return 1
+      ;;
+    *)
+      (( FILE_ISSUES++ ))
+      issue_screen "faststart" "$file"
+      say "faststart: inconclusive"
+      warn "Could not read the top-level MP4/MOV atoms; leaving the file unchanged."
+      (( fail_count++ ))
+      mark_unresolved
+      return 1
+      ;;
+  esac
+}
+
+convert_mov_to_mp4() {
+  local file="$1"
+  local target="${file:r}.mp4"
+  local dir="${file:h}"
+  local base="${file:t:r}"
+  local tmp
+
+  command -v ffmpeg >/dev/null 2>&1 || return 1
+  [[ ! -e "$target" ]] || return 2
+
+  tmp="$(mktemp "${dir}/.${base}.convert.XXXXXX.mp4")" || return 1
+
+  if ffmpeg -hide_banner -loglevel error -nostdin -y \
+      -i "$file" \
+      -map '0:v?' \
+      -map '0:a?' \
+      -map '0:s?' \
+      -map_metadata 0 \
+      -c copy \
+      -movflags +faststart+use_metadata_tags \
+      "$tmp"; then
+    ffprobe -v error -show_format -show_streams -- "$tmp" >/dev/null 2>&1 || {
+      rm -f -- "$tmp" 2>/dev/null || true
+      return 1
+    }
+    copy_creation_date "$file" "$tmp" || {
+      rm -f -- "$tmp" 2>/dev/null || true
+      return 1
+    }
+    mv -f -- "$tmp" "$target"
+    rm -f -- "$file"
+    AUDIT_PATH="$target"
+    touch_modified_now "$target"
+    return 0
+  fi
+
+  rm -f -- "$tmp" 2>/dev/null || true
+  return 1
+}
+
+check_container() {
+  local file="$1"
+  local rc
+
+  $CHECK_CONTAINER || return 0
+
+  case "${file:l}" in
+    *.mp4)
+      return 0
+      ;;
+    *.mov)
+      (( FILE_ISSUES++ ))
+      issue_screen "mp4-container" "$file"
+      say "container: MOV"
+      say "auto-fix: remuxing to MP4 with ffmpeg stream copy."
+      convert_mov_to_mp4 "$file"
+      rc=$?
+      case "$rc" in
+        0)
+          mark_fixed "Converted to MP4."
+          return 0
+          ;;
+        2)
+          fail "Cannot convert: target MP4 already exists."
+          ;;
+        *)
+          fail "MOV could not be safely remuxed to MP4."
+          ;;
+      esac
+      (( fail_count++ ))
+      mark_unresolved
+      return 1
+      ;;
+    *)
+      (( FILE_ISSUES++ ))
+      issue_screen "mp4-container" "$file"
+      say "container: unsupported"
+      warn "Expected .mp4, or .mov that can be safely remuxed to .mp4."
+      (( fail_count++ ))
+      mark_unresolved
+      return 1
+      ;;
+  esac
+}
+
+check_utf8_filename() {
+  local file="$1"
+  local filename="${file:t}"
+
+  $CHECK_UTF8 || return 0
+  command -v iconv >/dev/null 2>&1 || return 0
+
+  if printf '%s' "$filename" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
+    return 0
+  fi
+
+  (( FILE_ISSUES++ ))
+  issue_screen "filename" "$file"
+  say "filename: invalid UTF-8"
+  warn "Use a byte-safe rename tool such as convmv, then re-run this audit."
+  (( fail_count++ ))
+  mark_unresolved
+  return 1
+}
+
+check_private_filename() {
+  local file="$1"
+
+  $CHECK_FILENAME || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+
+  load_private_filename "$file" && return 0
+
+  (( FILE_ISSUES++ ))
+  issue_screen "filename" "$file"
+  say "filename: does not match private convention"
+  say_raw "${PRIVATE_PARSE_ERROR:-unknown parse error}"
+  say ""
+  say "Expected:"
+  say "YYYY-MM-DD HHHHh Person, Person, Location #tag #tag [4k 60fps 5min 4mbps] ★★★★☆.mp4"
+  (( fail_count++ ))
+  mark_unresolved
+  return 1
+}
+
+check_filename_length() {
+  local file="$1"
+  local name="${file:t}"
+  local bytes
+
+  $CHECK_LENGTH || return 0
+
+  bytes="$(filename_byte_length "$name")"
+  [[ "$bytes" == <-> ]] || return 0
+  (( bytes <= MAX_FILENAME_BYTES )) && return 0
+
+  (( FILE_ISSUES++ ))
+  issue_screen "filename" "$file"
+  say "filename: too long (${bytes} bytes)"
+  warn "Filename should be ${MAX_FILENAME_BYTES} bytes or less."
+  (( fail_count++ ))
+  mark_unresolved
+  return 1
+}
+
+check_filename_checks() {
+  local rc=0
+
+  check_utf8_filename "$AUDIT_PATH" || rc=1
+  check_private_filename "$AUDIT_PATH" || rc=1
+  check_filename_length "$AUDIT_PATH" || rc=1
+
+  return "$rc"
+}
+
+audit_file() {
+  local file="$1"
+  integer FILE_ISSUES=0
+  integer FILE_UNRESOLVED=0
+
+  [[ -n "$file" ]] || return 0
+  file="$(normalize_audit_path "$file")"
+
+  (( processed_count++ ))
+  AUDIT_PATH="$file"
+  PRIVATE_JSON=""
+  PRIVATE_PARSE_ERROR=""
+  CURRENT_CHECK=""
+  reset_file_checks
+
+  if [[ -t 4 ]]; then
+    redraw_screen
+  fi
+
+  status_line "$AUDIT_PATH"
+
+  if [[ ! -f "$AUDIT_PATH" ]]; then
+    (( FILE_ISSUES++ ))
+    issue_screen "file" "$AUDIT_PATH"
+    say "file: not found"
+    (( fail_count++ ))
+    mark_unresolved
+    (( issue_file_count++ ))
+    return 1
+  fi
+
+  run_check "mp4-container" check_container "$AUDIT_PATH"
+  status_line "$AUDIT_PATH"
+
+  run_check "filename" check_filename_checks
+  status_line "$AUDIT_PATH"
+
+  run_check "private-metadata" check_private_metadata "$AUDIT_PATH"
+  status_line "$AUDIT_PATH"
+
+  run_check "faststart" check_faststart "$AUDIT_PATH"
+  status_line "$AUDIT_PATH"
+
+  if (( FILE_UNRESOLVED == 0 )); then
+    (( clean_count++ ))
+  else
+    (( issue_file_count++ ))
+  fi
+}
+
+parse_args() {
+  while (( $# > 0 )); do
+    case "$1" in
+      --bypass-check-container)
+        CHECK_CONTAINER=false
+        shift
+        ;;
+      --bypass-check-metadata)
+        CHECK_METADATA=false
+        shift
+        ;;
+      --bypass-check-faststart)
+        CHECK_FASTSTART=false
+        shift
+        ;;
+      --bypass-check-utf8)
+        CHECK_UTF8=false
+        shift
+        ;;
+      --bypass-check-filename)
+        CHECK_UTF8=false
+        CHECK_FILENAME=false
+        CHECK_LENGTH=false
+        shift
+        ;;
+      --bypass-check-length)
+        CHECK_LENGTH=false
+        shift
+        ;;
+      --max-filename-bytes)
+        (( $# >= 2 )) || {
+          fail "Missing value for --max-filename-bytes"
+          exit 1
+        }
+        MAX_FILENAME_BYTES="$2"
+        [[ "$MAX_FILENAME_BYTES" == <-> ]] || {
+          fail "--max-filename-bytes must be an integer"
+          exit 1
+        }
+        shift 2
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      --)
+        shift
+        INPUT_FILES+=("$@")
+        break
+        ;;
+      -*)
+        usage
+        fail "Unknown option: $1"
+        exit 1
+        ;;
+      *)
+        INPUT_FILES+=("$1")
+        shift
+        ;;
+    esac
+  done
+}
+
+process_fd_media() {
+  command -v fd-media >/dev/null 2>&1 || {
+    fail "fd-media not found."
+    exit 1
+  }
+
+  while IFS= read -r -d $'\0' file; do
+    is_video_path "$file" || continue
+    audit_file "$file"
+  done < <(fd-media --print0)
+}
+
+process_stdin_or_fd_media() {
+  local line
+  local saw_stdin=false
+
+  if [[ ! -t 0 ]]; then
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      saw_stdin=true
+      audit_file "$line"
+    done
+  fi
+
+  $saw_stdin && return 0
+  process_fd_media
+}
+
+main() {
+  local file
+
+  parse_args "$@"
+  build_enabled_checks
+  reset_file_checks
+
+  draw_header
+
+  if (( ${#INPUT_FILES[@]} > 0 )); then
+    for file in "${INPUT_FILES[@]}"; do
+      audit_file "$file"
+    done
+  else
+    process_stdin_or_fd_media
+  fi
+
+  clear_status
+  say ""
+  say "%B%F{green}DONE%f%b"
+  say "CHECKED: ${processed_count}  CLEAN: ${clean_count}  ATTENTION: ${issue_file_count}  FIXES: ${fix_count}  SKIPPED: ${skip_count}  FAILED: ${fail_count}"
+}
+
+main "$@"
