@@ -13,9 +13,10 @@ from yt_dlp.utils import (
 
 class FaphouseIE(InfoExtractor):
     IE_NAME = "faphouse"
+    _HOST_RE = r'(?:faphouse\.com|fhaccess\.com)'
     _LOGIN_URL = "https://faphouse.com/#signin"
     _VALID_URL = r'''(?x)
-        https?://(?:www\.)?faphouse\.com/
+        https?://(?:www\.)?''' + _HOST_RE + r'''/
         (?:[a-z]{2}(?:-[a-z]{2})?/)?   # optional locale prefix, e.g. /vi/ or /pt-br/
         (?:(?:videos?|watch))/
         (?P<id>[^/?#&]+)
@@ -233,7 +234,7 @@ class FaphouseIE(InfoExtractor):
 class FaphouseModelIE(InfoExtractor):
     IE_NAME = "faphouse-model"
     _VALID_URL = r'''(?x)
-         https?://(?:www\.)?faphouse\.com/
+         https?://(?:www\.)?''' + FaphouseIE._HOST_RE + r'''/
          (?:[a-z]{2}(?:-[a-z]{2})?/)?   # optional locale prefix
          (?:models|creators?)/
          (?P<id>[^/?#&]+)
@@ -272,6 +273,7 @@ class FaphouseModelIE(InfoExtractor):
     def _real_extract(self, url):
         model_id = self._match_id(url)
         webpage = self._download_webpage_fallback(url, model_id)
+        origin = self._search_regex(r'^(https?://(?:www\.)?%s)' % FaphouseIE._HOST_RE, url, 'origin')
 
         # Model pages embed video paths in multiple places, not only in visible anchors.
         raw_video_paths = re.findall(r'/videos/[^"\'?#&\s<>]+', webpage)
@@ -286,7 +288,7 @@ class FaphouseModelIE(InfoExtractor):
             )
 
         entries = [
-            self.url_result(f"https://faphouse.com{p}", ie=FaphouseIE.ie_key())
+            self.url_result(f"{origin}{p}", ie=FaphouseIE.ie_key())
             for p in video_paths
         ]
 

@@ -58,7 +58,7 @@ When files are provided, only those files are checked.
 
 Checks:
   MP4/MOV/M4V FastStart
-  black frames at the start of video
+  black screens/scenes at the start of video
   embedded source URL
   embedded title metadata
   filename health: invalid UTF-8, rename-media canonical syntax, length
@@ -212,9 +212,9 @@ check_icon() {
   local check_state="$1"
 
   case "$check_state" in
-    pass) print -r -- "${C_GREEN}${ICON_PASS}${C_RESET}" ;;
-    fail) print -r -- "${C_RED}${ICON_FAIL}${C_RESET}" ;;
-    *) print -r -- "" ;;
+    pass) print -r -- "${C_GREEN}${ICON_PASS}" ;;
+    fail) print -r -- "${C_RED}${ICON_FAIL}" ;;
+    *) print -r -- "${C_DIM}${ICON_PASS}${C_RESET}" ;;
   esac
 }
 
@@ -227,7 +227,7 @@ draw_checks() {
   for item in "${ENABLED_CHECKS[@]}"; do
     check_state="${CHECK_STATUS[$item]-}"
     icon="$(check_icon "$check_state")"
-    printf "%-22s %b\n" "$item" "$icon" >&4
+    printf "%b %-22s\n" "$icon" "$item" >&4
   done
 
   say ""
@@ -768,7 +768,7 @@ detect_black_leader_seconds() {
   local output line start end
   local black_re='black_start:([0-9]+([.][0-9]+)?)[[:space:]]+black_end:([0-9]+([.][0-9]+)?)'
 
-  command -v ffmpeg-detect-black-scenes >/dev/null 2>&1 || return 1
+  command -v ffmpeg-detect-black-scenes >/dev/null 2>&1 || return 2
 
   output="$(BLACK_SCAN_DURATION=10 ffmpeg-detect-black-scenes "$file" 2>/dev/null || true)"
 
@@ -801,12 +801,27 @@ trimmed_path_for() {
 
 check_black_frames() {
   local file="$1"
-  local seconds trimmed
+  local seconds trimmed rc
 
   $CHECK_BLACKFRAMES || return 0
   is_video_path "$file" || return 0
 
-  seconds="$(detect_black_leader_seconds "$file")" || return 0
+  seconds="$(detect_black_leader_seconds "$file")"
+  rc=$?
+
+  if (( rc == 1 )); then
+    return 0
+  fi
+
+  if (( rc != 0 )); then
+    (( FILE_ISSUES++ ))
+    issue_screen "black-frames" "$file"
+    say "black-frames: check could not run"
+    warn "ffmpeg-detect-black-scenes is required for the black-screen audit."
+    (( fail_count++ ))
+    mark_unresolved
+    return 1
+  fi
 
   (( FILE_ISSUES++ ))
   issue_screen "black-frames" "$file"
