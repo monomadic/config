@@ -15,6 +15,10 @@ alias .flac-print-tags=flac-print-tags
 
 alias rtsp-url-brute="nmap --script=/opt/homebrew/share/nmap/scripts/rtsp-url-brute.nse -p554"
 
+gh-repo-create() {
+  gh repo create $1 --private --source=. --remote=upstream
+}
+
 # ============================================================================
 # Utility Functions
 # ============================================================================
