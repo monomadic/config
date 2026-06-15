@@ -450,8 +450,13 @@ is_url() {
 normalize_audit_path() {
   local path="$1"
 
-  if [[ -e "$path" || "$path" == /* ]]; then
+  if [[ "$path" == /* ]]; then
     print -r -- "$path"
+    return 0
+  fi
+
+  if [[ -e "$path" ]]; then
+    print -r -- "${path:A}"
     return 0
   fi
 
@@ -460,7 +465,7 @@ normalize_audit_path() {
     return 0
   fi
 
-  print -r -- "$path"
+  print -r -- "${path:A}"
 }
 
 creation_date_for_setfile() {
