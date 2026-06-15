@@ -35,7 +35,7 @@ local function reveal_in_yazi()
     local result = utils.subprocess_detached({
         args = {
             kitty_launch,
-            "--window",
+            "--os-window",
             "--cwd", directory,
             "--title", " yazi ",
             "--",

@@ -5,13 +5,7 @@
 # source file using ffmpeg stream copy only.
 #
 # Workflow:
-# - single file:
-#     always open keyframe selector
-# - multiple files:
-#     by default, run ffmpeg-detect-intro first in forward mode
-#     * if intro detected: open selector starting at/after intro
-#     * if no intro detected: skip file
-#     * use --skip-detection to always prompt every file
+# - always open keyframe selector
 # - --detect-black-scenes:
 #     first try ffmpeg-detect-black-scenes; if a leading black scene is
 #     found, open selector starting after it, otherwise keep the normal flow
@@ -29,7 +23,6 @@
 # - fzf
 #
 # Optional:
-# - ffmpeg-detect-intro
 # - ffmpeg-detect-black-scenes
 # - kitty, wezterm, imgcat, chafa
 # ============================================================
@@ -51,7 +44,7 @@ Options:
   -k, --keep-previews       Keep temporary preview directories
   --dry-run                 Show planned actions only
   --mov-faststart           Enable MP4/MOV FastStart on the trimmed output
-  --skip-detection          Disable auto-detection; for multiple files, always prompt
+  --skip-detection          Deprecated no-op; detection is off unless requested
   --detect-black-scenes     Auto-start after a leading black scene when found
   --from <seconds>          Start selector at/after this timestamp
   -h, --help                Show this help
@@ -64,7 +57,6 @@ Examples:
   ffmpeg-lossless-cut clip.mp4
   ffmpeg-lossless-cut *.mp4
   ffmpeg-lossless-cut --detect-black-scenes *.mp4
-  ffmpeg-lossless-cut --skip-detection *.mov
   ffmpeg-lossless-cut --from 12.5 clip.mp4
   ffmpeg-lossless-cut --reverse clip.mp4
 EOF
@@ -144,33 +136,6 @@ command_path_arg() {
   else
     print -r -- "$file_path"
   fi
-}
-
-detect_intro_seconds() {
-  local input_file="$1"
-  local input_arg output line seconds
-
-  have ffmpeg-detect-intro || return 1
-
-  input_arg="$(command_path_arg "$input_file")"
-  output="$(ffmpeg-detect-intro "$input_arg" 2>&1 || true)"
-
-  while IFS= read -r line; do
-    if [[ "$line" == intro_seconds=* ]]; then
-      seconds="${line#intro_seconds=}"
-    elif [[ "$line:l" == *intro* ]]; then
-      seconds="$(print -r -- "$line" | perl -ne 'if (/([0-9]+(?:\.[0-9]+)?)\s*s?\b/) { print "$1\n"; exit }')"
-    else
-      continue
-    fi
-
-    if [[ -n "$seconds" ]] && is_number "$seconds" && float_gt_zero "$seconds"; then
-      normalize_seconds "$seconds"
-      return 0
-    fi
-  done <<< "$output"
-
-  return 1
 }
 
 detect_black_leader_seconds() {
@@ -550,6 +515,7 @@ preview_cols="${FZF_PREVIEW_COLUMNS:-80}"
 preview_lines="${FZF_PREVIEW_LINES:-24}"
 image_lines=$(( preview_lines > 4 ? preview_lines - 4 : preview_lines ))
 
+print -- "$input_file\n"
 print -- "Keyframe #$idx"
 print -- "Raw:     $raw_ts"
 print -- "Display: $pretty_ts"
@@ -811,7 +777,6 @@ force=false
 keep_previews=false
 dry_run=false
 mov_faststart=false
-skip_detection=false
 detect_black_leader=false
 black_leader_start_tolerance="${BLACK_LEADER_START_TOLERANCE:-0.25}"
 from_ts="0"
@@ -861,7 +826,7 @@ while (( $# > 0 )); do
       shift
       ;;
     --skip-detection)
-      skip_detection=true
+      warn "--skip-detection is deprecated; detection is off unless --detect-black-scenes is set"
       shift
       ;;
     --detect-black-scenes|--detect-black-leader)
@@ -869,8 +834,7 @@ while (( $# > 0 )); do
       shift
       ;;
     --skip-intro-detection)
-      warn "--skip-intro-detection is deprecated; use --skip-detection"
-      skip_detection=true
+      warn "--skip-intro-detection is deprecated; detection is off unless --detect-black-scenes is set"
       shift
       ;;
     --from)
@@ -919,9 +883,6 @@ integer fail_count=0
 integer creation_date_fail_count=0
 integer trash_fail_count=0
 
-local_multi=false
-(( ${#files[@]} > 1 )) && local_multi=true
-
 for input_file in "${files[@]}"; do
   print
   info "────────────────────────────────────────────────────────────"
@@ -936,7 +897,7 @@ for input_file in "${files[@]}"; do
   effective_from="$from_ts"
   effective_from_label=""
 
-  if [[ "$detect_black_leader" == true && "$skip_detection" != true && "$reverse_mode" != true ]]; then
+  if [[ "$detect_black_leader" == true && "$reverse_mode" != true ]]; then
     if black_ts="$(detect_black_leader_seconds "$input_file" "$black_leader_start_tolerance")"; then
       effective_from="$black_ts"
       effective_from_label="Leading black ends at"
@@ -945,15 +906,6 @@ for input_file in "${files[@]}"; do
 
   if [[ -n "$effective_from_label" ]]; then
     info "${effective_from_label}: $(format_ts "$effective_from")"
-  elif [[ "$local_multi" == true && "$skip_detection" != true && "$reverse_mode" != true ]]; then
-    if intro_ts="$(detect_intro_seconds "$input_file")"; then
-      effective_from="$intro_ts"
-      info "Intro detected at: $(format_ts "$intro_ts")"
-    else
-      info "No intro detected, skipping"
-      (( ++skip_count ))
-      continue
-    fi
   fi
 
   if [[ "$effective_from" != "0" && "$reverse_mode" != true ]]; then
