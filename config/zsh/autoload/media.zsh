@@ -34,6 +34,10 @@ DJ_VISUALS_PATHS=("$ICLOUD_HOME/Movies/Visuals")
   mpv-send play < "$MEDIA_PATH/.index"
 }
 
+fd-tower() {
+  fd-media $@ /Volumes/Tower/Movies/Porn/
+}
+
 alias @play="mpv-send play"
 alias @select="fzf-select | mpv-send play"
 alias .select-and-play="fzf-select --color | mpv-send play"

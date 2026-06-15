@@ -6,8 +6,8 @@
 # Usage:
 #   gc
 #   gc --multi
-#   gc --stage
-#   gc --multi --stage
+#   gc --staged-only
+#   gc --multi --staged-only
 
 emulate -L zsh
 set -euo pipefail
@@ -19,14 +19,15 @@ Usage:
 
 Options:
   --multi    Generate a multiline conventional commit message
-  --stage    Stage all changes before committing
+  --staged-only
+             Commit only already-staged changes
   -h, --help Show this help
 
 Examples:
   gc
   gc --multi
-  gc --stage
-  gc --multi --stage
+  gc --staged-only
+  gc --multi --staged-only
 EOF
 }
 
@@ -186,7 +187,7 @@ main() {
   need gum
   need codex
 
-  local stage=false
+  local staged_only=false
   export GC_MULTI=false
 
   while (( $# )); do
@@ -194,8 +195,8 @@ main() {
       --multi)
         export GC_MULTI=true
         ;;
-      --stage)
-        stage=true
+      --staged-only)
+        staged_only=true
         ;;
       -h|--help)
         usage
@@ -216,7 +217,7 @@ main() {
 
   local flags=()
   [[ "$GC_MULTI" == "true" ]] && flags+=(multi) || flags+=(single)
-  $stage && flags+=(stage)
+  $staged_only && flags+=(staged-only) || flags+=(stage)
 
   gum style \
     --border rounded \
@@ -225,7 +226,7 @@ main() {
     --bold \
     "󰊢 git commit · ${repo_root:t} · ${(j: :)flags}"
 
-  if $stage; then
+  if ! $staged_only; then
     info "Staging all changes"
     git add -A
   fi
