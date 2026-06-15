@@ -1,0 +1,40 @@
+#!/usr/bin/env zsh
+# flatten-copy
+#
+# Read NUL-delimited file paths from stdin and copy them into a
+# single destination directory without preserving directory structure.
+#
+# Examples:
+#   fd -0 . ~/Videos | flatten-copy ~/Collected
+#   rg -0 -l 'TODO' . | flatten-copy ~/todo-files
+#   fd -0 '\.mp4$' . | flatten-copy ~/all-videos
+
+emulate -L zsh
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  <producer> | flatten-copy <dest-dir>
+
+Examples:
+  fd -0 . ~/Videos | flatten-copy ~/Collected
+  fd -0 '\.mp4$' . | flatten-copy ~/all-videos
+EOF
+  exit 1
+}
+
+(( $# == 1 )) || usage
+
+dest_dir=$1
+
+mkdir -p "$dest_dir"
+
+count=0
+
+while IFS= read -r -d '' file; do
+  rsync -a --ignore-existing "$file" "$dest_dir/"
+  (( ++count ))
+done
+
+print "✓ Copied $count file(s) to $dest_dir"
