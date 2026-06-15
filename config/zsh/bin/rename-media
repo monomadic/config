@@ -104,6 +104,9 @@ clean_name() {
   local name="$1"
   local tags=(1080p 1080 720p 4k 60fps 30fps 25fps)
   local t source_label before after
+  local old_brace_format=false
+  local open_paren="("
+  local close_paren=")"
 
   # Convert source prefixes like "[xHamster - ..." to "(xHamster) - ...".
   while [[ "$name" =~ '\[([^][]+) - ' ]]; do
@@ -113,11 +116,7 @@ clean_name() {
     name="${before}(${source_label}) - ${after}"
   done
 
-  # Migrate the old "Actors - [Channel] Title" shape to
-  # "Actors (Channel) - Title" before removing other bracketed sections.
-  if [[ "$name" =~ '^(.+) - \[([^][]+)\] (.+)$' ]]; then
-    name="${match[1]} (${match[2]}) - ${match[3]}"
-  fi
+  [[ "$name" == *\{*\}* ]] && old_brace_format=true
 
   # remove every non-nested {...} block since the script rebuilds it
   while [[ "$name" == *\{*\}* ]]; do
@@ -127,13 +126,26 @@ clean_name() {
   # braces are never allowed in filenames; drop any stray ones
   name="${name//[\{\}]/}"
 
-  # Square brackets are reserved for the one generated metadata block.
-  while [[ "$name" =~ '\[[^][]*\]' ]]; do
-    before="${name[1,$(( MBEGIN - 1 ))]}"
-    after="${name[$(( MEND + 1 )),-1]}"
-    name="${before}${after}"
-  done
-  name="${name//[\[\]]/}"
+  if $old_brace_format; then
+    # Old brace-format files used brackets as plain inline labels.
+    name="${name//\[/}"
+    name="${name//\]/}"
+  else
+    # If this is already a new-format generated metadata block, rebuild it
+    # instead of preserving a stale copy as parenthesized title text.
+    while [[ "$name" =~ ' \[((480p|720p|1080p|1440p|4k|[0-9]+p) [0-9]+fps( [^][]+)* [HVS])\]$' ]]; do
+      name="${name[1,$(( MBEGIN - 1 ))]}"
+    done
+
+    # New-format source/channel brackets are kept, but normalized to parens.
+    name="${name//\[/$open_paren}"
+    name="${name//\]/$close_paren}"
+
+    # Migrate "Actors - (Channel) Title" to "Actors (Channel) - Title".
+    if [[ "$name" =~ '^(.+) - \(([^()]*)\) (.+)$' ]]; then
+      name="${match[1]} (${match[2]}) - ${match[3]}"
+    fi
+  fi
 
   for t in $tags; do
     name="${name//\#$t/}"
@@ -144,6 +156,22 @@ clean_name() {
   fi
 
   trim_whitespace "$name"
+}
+
+capital_case_text() {
+  local s="$1"
+  local -a words out
+  local word lower
+
+  words=(${(z)s})
+  for word in "${words[@]}"; do
+    lower="${word:l}"
+    if (( ${#lower} > 0 )); then
+      out+=("${(U)lower[1]}${lower[2,-1]}")
+    fi
+  done
+
+  print -r -- "${(j: :)out}"
 }
 
 truncate_text() {
@@ -184,6 +212,7 @@ truncate_title_segment() {
 
   title="$(trim_whitespace "${(j: :)keep}")"
   suffix="$(trim_whitespace "${(j: :)suffix_tokens}")"
+  title="$(capital_case_text "$title")"
   title="$(truncate_text "$title" "$max")"
 
   if [[ -n "$suffix" ]]; then
