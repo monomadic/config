@@ -1,0 +1,34 @@
+# Native macOS keyboard shortcuts (com.apple.symbolichotkeys), declaratively.
+#
+#   macos-shortcuts apply              # apply this file, reload settings
+#   macos-shortcuts apply --dry-run    # preview changes
+#   macos-shortcuts dump               # print the live machine state as TOML
+#   macos-shortcuts dump -o FILE       # ...snapshot it to a file
+#   macos-shortcuts list               # known friendly names + modifier aliases
+#
+# This file lists only the shortcuts we intentionally override; IDs not
+# mentioned here are left untouched. Each table needs an `id`; provide either
+# `params = [char, key_code, mask]` (authoritative, from `dump`) or the
+# human-friendly `key` + `mods`. Modifiers: command, option, control, shift
+# (aliases: cmd, opt/alt, ctrl). The table title is just a label.
+
+# Cmd+`  — cycle windows of the frontmost app (forward; Shift for reverse).
+# Replaces the old osascript cycle-app-windows hack with the native feature.
+[next_window_in_app]
+id = 27
+enabled = true
+key = "`"
+mods = ["command"]
+
+# --- examples (uncomment / edit to manage more) ---------------------------
+# [spotlight]
+# id = 64
+# enabled = true
+# key = "space"
+# mods = ["command"]
+#
+# [mission_control]
+# id = 32
+# enabled = true
+# key = "up"
+# mods = ["control"]

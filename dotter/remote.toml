@@ -13,7 +13,6 @@ packages = [
   # "gomu",
   "helix",
   # "i3",
-  # "joshuto",
   # "leaf",
 	  "kitty",
   # "micro",

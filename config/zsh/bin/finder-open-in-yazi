@@ -1,0 +1,35 @@
+on run argv
+	set socketAddr to "unix:/tmp/kitty-" & do shell script "id -un"
+	
+	tell application "Finder"
+		set selectedItems to selection
+		if selectedItems is {} then return
+		
+		set argList to {}
+		repeat with anItem in selectedItems
+			set end of argList to quoted form of POSIX path of (anItem as alias)
+		end repeat
+	end tell
+	
+	set yaziArgs to my joinList(argList, " ")
+	
+	set cmd to "kitten @ --to " & quoted form of socketAddr & " launch --type tab -- yazi " & yaziArgs
+	
+	try
+		set winId to do shell script cmd
+		do shell script "kitten @ --to " & quoted form of socketAddr & " focus-window --match " & quoted form of ("id:" & winId)
+		tell application id "net.kovidgoyal.kitty" to activate
+	on error
+		-- fallback: start kitty if IPC socket isn't reachable
+		do shell script "nohup kitty --listen-on " & quoted form of socketAddr & " -o allow_remote_control=socket-only -- yazi " & yaziArgs & " >/dev/null 2>&1 &"
+		tell application id "net.kovidgoyal.kitty" to activate
+	end try
+end run
+
+on joinList(theList, delimiter)
+	set oldTID to AppleScript's text item delimiters
+	set AppleScript's text item delimiters to delimiter
+	set joinedText to theList as text
+	set AppleScript's text item delimiters to oldTID
+	return joinedText
+end joinList
