@@ -1,34 +1,23 @@
 # Native macOS keyboard shortcuts (com.apple.symbolichotkeys), declaratively.
 #
-#   macos-shortcuts apply              # apply this file, reload settings
-#   macos-shortcuts apply --dry-run    # preview changes
-#   macos-shortcuts dump               # print the live machine state as TOML
-#   macos-shortcuts dump -o FILE       # ...snapshot it to a file
-#   macos-shortcuts list               # known friendly names + modifier aliases
+#   macos-shortcuts list             # bound shortcuts as TOML (stdout)
+#   macos-shortcuts list --all       # every known shortcut, bound or not
+#   macos-shortcuts export FILE      # save `list` output to FILE
+#   macos-shortcuts import FILE      # apply a saved file (default: this one)
+#   macos-shortcuts import --dry-run FILE
 #
-# This file lists only the shortcuts we intentionally override; IDs not
-# mentioned here are left untouched. Each table needs an `id`; provide either
-# `params = [char, key_code, mask]` (authoritative, from `dump`) or the
-# human-friendly `key` + `mods`. Modifiers: command, option, control, shift
-# (aliases: cmd, opt/alt, ctrl). The table title is just a label.
+# One [keys] table maps a name (or raw numeric id) to a binding. Listing an
+# entry implies enabled = true; add `enabled = false` to disable. Modifiers:
+# cmd/command, opt/option/alt, ctrl/control, shift. Function keys (f1-f20) and
+# arrows pick up the macOS fn modifier automatically. Only the IDs named here
+# are touched on import — everything else is left alone.
 
-# Cmd+`  — cycle windows of the frontmost app (forward; Shift for reverse).
+[keys]
+# Cmd+`  cycle windows of the frontmost app (Shift to reverse).
 # Replaces the old osascript cycle-app-windows hack with the native feature.
-[next_window_in_app]
-id = 27
-enabled = true
-key = "`"
-mods = ["command"]
+next_window_in_app = { key = "`", mods = ["cmd"] }
 
-# --- examples (uncomment / edit to manage more) ---------------------------
-# [spotlight]
-# id = 64
-# enabled = true
-# key = "space"
-# mods = ["command"]
-#
-# [mission_control]
-# id = 32
-# enabled = true
-# key = "up"
-# mods = ["control"]
+# Examples — uncomment / edit to manage more:
+# spotlight = { key = "space", mods = ["cmd"] }
+# select_previous_input_source = { key = "f7", mods = ["ctrl", "shift"] }
+# 56 = { key = "f20", mods = ["cmd"] }
