@@ -1,13 +1,15 @@
 #!/usr/bin/env zsh
 # gc
 #
-# AI-powered git commits using Codex + Gum.
+# AI-powered git commits using Codex or Claude + Gum.
 #
 # Usage:
 #   gc
 #   gc --multi
 #   gc --staged-only
-#   gc --multi --staged-only
+#   gc --claude
+#   gc --codex
+#   gc --multi --staged-only --claude
 
 emulate -L zsh
 set -euo pipefail
@@ -21,12 +23,17 @@ Options:
   --multi    Generate a multiline conventional commit message
   --staged-only
              Commit only already-staged changes
+  --codex    Use Codex to generate the message (default)
+  --claude   Use Claude to generate the message
   -h, --help Show this help
+
+The backend can also be set with GC_BACKEND=codex|claude.
 
 Examples:
   gc
   gc --multi
   gc --staged-only
+  gc --claude
   gc --multi --staged-only
 EOF
 }
@@ -129,18 +136,35 @@ generate_message() {
 
   : > "$output_file"
 
-  if ! gum spin \
-    --spinner dot \
-    --title "Thinking..." \
-    -- \
-    codex exec \
-      --output-last-message "$output_file" \
-      - < "$prompt_file"
-  then
-    die "Codex failed"
-  fi
-
-  [[ -s "$output_file" ]] || die "Codex returned an empty message"
+  case "${GC_BACKEND:-codex}" in
+    claude)
+      if ! gum spin \
+        --spinner dot \
+        --title "Thinking..." \
+        -- \
+        zsh -c "claude --print < ${(q)prompt_file} > ${(q)output_file}"
+      then
+        die "Claude failed"
+      fi
+      [[ -s "$output_file" ]] || die "Claude returned an empty message"
+      ;;
+    codex)
+      if ! gum spin \
+        --spinner dot \
+        --title "Thinking..." \
+        -- \
+        codex exec \
+          --output-last-message "$output_file" \
+          - < "$prompt_file"
+      then
+        die "Codex failed"
+      fi
+      [[ -s "$output_file" ]] || die "Codex returned an empty message"
+      ;;
+    *)
+      die "Unknown backend: ${GC_BACKEND}"
+      ;;
+  esac
 }
 
 show_message() {
@@ -185,10 +209,10 @@ commit_now() {
 main() {
   need git
   need gum
-  need codex
 
   local staged_only=false
   export GC_MULTI=false
+  export GC_BACKEND=${GC_BACKEND:-codex}
 
   while (( $# )); do
     case "$1" in
@@ -197,6 +221,12 @@ main() {
         ;;
       --staged-only)
         staged_only=true
+        ;;
+      --codex)
+        export GC_BACKEND=codex
+        ;;
+      --claude)
+        export GC_BACKEND=claude
         ;;
       -h|--help)
         usage
@@ -209,13 +239,19 @@ main() {
     shift
   done
 
+  case "$GC_BACKEND" in
+    codex)  need codex ;;
+    claude) need claude ;;
+    *)      die "Unknown backend: $GC_BACKEND" ;;
+  esac
+
   local repo_root
   repo_root=$(git rev-parse --show-toplevel 2>/dev/null) \
     || die "Not inside a git repository"
 
   cd "$repo_root"
 
-  local flags=()
+  local flags=("$GC_BACKEND")
   [[ "$GC_MULTI" == "true" ]] && flags+=(multi) || flags+=(single)
   $staged_only && flags+=(staged-only) || flags+=(stage)
 
