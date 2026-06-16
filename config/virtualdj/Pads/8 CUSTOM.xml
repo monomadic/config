@@ -1,27 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <page name="custom">
-	<pad1 name="`custom_button_name 300`" color="color green">custom_button 300</pad1>
-	<shift_pad1 name="`custom_button_name 300`">custom_button_edit 300</shift_pad1>
-	<pad2 name="`custom_button_name 301`" color="color white">custom_button 301</pad2>
-	<pad3 name="`custom_button_name 302`" color="color white">custom_button 302</pad3>
-	<pad4 name="`custom_button_name 303`" color="color white">custom_button 303</pad4>
-	<pad5 name="`custom_button_name 304`" color="color white">custom_button 304</pad5>
-	<pad6 name="`custom_button_name 305`" color="color white">custom_button 305</pad6>
-	<pad7 name="`custom_button_name 306`" color="color white">custom_button 306</pad7>
-	<pad8 name="`custom_button_name 307`" color="color white">custom_button 307</pad8>
-	<shift_pad2 name="`custom_button_name 301`">custom_button_edit 301</shift_pad2>
-	<shift_pad3 name="`custom_button_name 302`">custom_button_edit 302</shift_pad3>
-	<shift_pad4 name="`custom_button_name 303`">custom_button_edit 303</shift_pad4>
-	<shift_pad5 name="`custom_button_name 304`">custom_button_edit 304</shift_pad5>
-	<shift_pad6 name="`custom_button_name 305`">custom_button_edit 305</shift_pad6>
-	<shift_pad7 name="`custom_button_name 306`">custom_button_edit 306</shift_pad7>
-	<shift_pad8 name="`custom_button_name 307`">custom_button_edit 307</shift_pad8>
-	<pad9 name="DRUM: `stem_pad isolate &apos;rhythm&apos; ? get_text &apos;YES&apos; : get_text &apos;NO&apos;`">stem_pad isolate &apos;rhythm&apos;</pad9>
-	<pad10 name="`mute_stem &apos;vocal&apos; ? get_text &apos;INSTRUMENTAL&apos; : mute_stem &apos;melody&apos; ? get_text &apos;ACAPELLA&apos; : get_text &apos;ALL STEMS&apos;`" color="mute_stem &apos;vocal&apos; ? color &apos;#CC55FF&apos; : mute_stem &apos;melody&apos; ? color &apos;#00FFAA&apos; : color yellow" autodim="false">
-    mute_stem &apos;vocal&apos; ?
-      mute_stem &apos;vocal&apos; :
-    mute_stem &apos;melody&apos; ?
-      mute_stem &apos;melody&apos; &amp; mute_stem &apos;rhythm&apos; &amp; mute_stem &apos;vocal&apos; :
-      mute_stem &apos;melody&apos; &amp; mute_stem &apos;rhythm&apos;
+  <pad1 name="`custom_button_name 300`" color="color green">custom_button 300</pad1>
+  <pad2 name="`custom_button_name 301`" color="color white">custom_button 301</pad2>
+  <pad3 name="`custom_button_name 302`" color="color white">custom_button 302</pad3>
+  <pad4 name="`custom_button_name 303`" color="color white">custom_button 303</pad4>
+  <pad5 name="`custom_button_name 304`" color="color white">custom_button 304</pad5>
+  <pad6 name="`custom_button_name 305`" color="color white">custom_button 305</pad6>
+  <pad7 name="`custom_button_name 306`" color="color white">custom_button 306</pad7>
+  <pad8 name="`custom_button_name 307`" color="color white">custom_button 307</pad8>
+  <pad9 name="`custom_button_name 308`" color="color green">custom_button 308</pad9>
+  <pad10 name="`custom_button_name 309`" color="color white">custom_button 309</pad10>
+  <pad11 name="`custom_button_name 310`" color="color white">custom_button 310</pad11>
+  <pad12 name="`custom_button_name 311`" color="color white">custom_button 311</pad12>
+  <pad13 name="`custom_button_name 312`" color="color white">custom_button 312</pad13>
+  <pad14 name="`custom_button_name 313`" color="color white">custom_button 313</pad14>
+  <pad15 name="`custom_button_name 314`" color="color white">custom_button 314</pad15>
+  <pad16 name="`custom_button_name 315`" color="color white">custom_button 315</pad16>
+  <shift_pad1 name="`custom_button_name 300`">custom_button_edit 300</shift_pad1>
+  <shift_pad2 name="`custom_button_name 301`">custom_button_edit 301</shift_pad2>
+  <shift_pad3 name="`custom_button_name 302`">custom_button_edit 302</shift_pad3>
+  <shift_pad4 name="`custom_button_name 303`">custom_button_edit 303</shift_pad4>
+  <shift_pad5 name="`custom_button_name 304`">custom_button_edit 304</shift_pad5>
+  <shift_pad6 name="`custom_button_name 305`">custom_button_edit 305</shift_pad6>
+  <shift_pad7 name="`custom_button_name 306`">custom_button_edit 306</shift_pad7>
+  <shift_pad8 name="`custom_button_name 307`">custom_button_edit 307</shift_pad8>
+  <shift_pad9 name="`custom_button_name 308`">custom_button_edit 300</shift_pad9>
+  <shift_pad10 name="`custom_button_name 309`">custom_button_edit 309</shift_pad10>
+  <shift_pad11 name="`custom_button_name 310`">custom_button_edit 310</shift_pad11>
+  <shift_pad12 name="`custom_button_name 311`">custom_button_edit 311</shift_pad12>
+  <shift_pad13 name="`custom_button_name 312`">custom_button_edit 312</shift_pad13>
+  <shift_pad14 name="`custom_button_name 313`">custom_button_edit 313</shift_pad14>
+  <shift_pad15 name="`custom_button_name 314`">custom_button_edit 314</shift_pad15>
+  <shift_pad16 name="`custom_button_name 315`">custom_button_edit 315</shift_pad16>
+  <pad9 name="DRUM: `stem_pad isolate 'rhythm' ? get_text 'YES' : get_text 'NO'`">stem_pad isolate 'rhythm'</pad9>
+  <pad10 name="`mute_stem 'vocal' ? get_text 'INSTRUMENTAL' : mute_stem 'melody' ? get_text 'ACAPELLA' : get_text 'ALL STEMS'`" color="mute_stem 'vocal' ? color '#CC55FF' : mute_stem 'melody' ? color '#00FFAA' : color yellow" autodim="false">
+    mute_stem 'vocal' ?
+      mute_stem 'vocal' :
+    mute_stem 'melody' ?
+      mute_stem 'melody' &amp; mute_stem 'rhythm' &amp; mute_stem 'vocal' :
+      mute_stem 'melody' &amp; mute_stem 'rhythm'
   </pad10>
 </page>
