@@ -1,0 +1,29 @@
+#!/bin/sh
+# kitty-tab-select — fuzzy-switch between kitty tabs across all OS windows.
+# Launched from kitty.conf as an overlay so fzf fills the current window;
+# selecting a tab focuses it (and raises its OS window) via remote control.
+set -eu
+
+# id <TAB> marker <TAB> title — id stays hidden from fzf (--with-nth=2,3).
+list=$(kitty @ ls | jq -r '
+  .[]
+  | .tabs[]
+  | [ (.id | tostring),
+      (if .is_focused then "●" else " " end),
+      .title
+    ] | @tsv
+')
+
+[ -n "$list" ] || exit 0
+
+choice=$(printf '%s\n' "$list" | fzf \
+  --delimiter='\t' \
+  --with-nth=2,3 \
+  --prompt='tab ❯ ' \
+  --reverse \
+  --cycle \
+  --no-multi \
+  --header='switch tab') || exit 0
+
+id=$(printf '%s' "$choice" | cut -f1)
+[ -n "$id" ] && exec kitty @ focus-tab --match "id:$id"

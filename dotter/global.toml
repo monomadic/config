@@ -27,6 +27,9 @@ depends = []
 [karabiner.files]
 "config/karabiner/assets/complex_modifications" = { target = "~/.config/karabiner/assets/complex_modifications", type = "symbolic" }
 
+[macos-shortcuts.files]
+"config/macos-shortcuts/shortcuts.toml" = "~/.config/macos-shortcuts/shortcuts.toml"
+
 [switch.files]
 "config/switch" = "~/.switch"
 
@@ -50,9 +53,6 @@ depends = []
 
 [gomu.files]
 "config/gomu/gomu.conf" = "~/.config/gomu/gomu.conf"
-
-[joshuto.files]
-"config/joshuto" = "~/.config/joshuto"
 
 [yazi.files]
 "config/yazi" = { target = "~/.config/yazi", type = "symbolic" }

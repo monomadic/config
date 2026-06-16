@@ -503,8 +503,6 @@ alias .kitty-kill-all-nvim=.kitty-kill-all-editor
 alias .nvim-kill-all=.kitty-kill-all-editor
 alias .kitty-close-idle-tabs="kitty @ close-tab --match 'env:PROC=zsh'"
 
-alias kitty-joshuto="kitty --override background=#000 --working-directory=$HOME/workspaces --single-instance joshuto"
-
 # ============================================================================
 # macOS Specific
 # ============================================================================

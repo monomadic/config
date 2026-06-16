@@ -1,7 +1,7 @@
 [mgr]
 ratio     = [ 1, 4, 3 ]
 scrolloff = 5
-linemode  = "lsd_size_mtime"
+linemode  = "lsd_mtime"
 
 [preview]
 max_width  = 1200
@@ -9,33 +9,30 @@ max_height = 900
 
 [opener]
 edit = [
-	{ run = "${EDITOR:-vi} %s", desc = "􁹛  edit", for = "unix", block = true },
-	{ run = "hx %s", desc = "􀤘  hx", for = "unix", block = true },
-	{ run = "code %s", desc = "Code", for = "windows", orphan = true },
+	# { run = "${EDITOR:-vi} %s", desc = "􁹛  edit", for = "unix", block = true },
+	{ run = "hx %s", desc = "􀤘  edit (helix)", for = "unix", block = true },
 ]
 bulk-rename = [
-	{ run = "hx %s", desc = "􀤘 Helix", for = "unix", block = true },
+	{ run = "hx %s", desc = "􀤘  helix", for = "unix", block = true },
 ]
 play = [
 	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀾭  MPV", for = "unix", orphan = true },
 	{ run = "vlc %s .", desc = "􀵨  VLC", for = "unix", orphan = true },
-	{ run = "mediainfo %s1; echo 'Press enter to exit'; read _", desc = "􀅴  MediaInfo", for = "unix", block = true },
+	{ run = "mediainfo %s1; echo 'Press enter to exit'; read _", desc = "􀅴  mediainfo", for = "unix", block = true },
 ]
 play_dir = [
 	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀾭  MPV", for = "unix", orphan = true },
 	{ run = "vlc %s .", desc = "􀵨  VLC", for = "unix", orphan = true },
 ]
 open = [
-	{ run = "xdg-open %s1", desc = "Open", for = "linux" },
-	{ run = "open %s", desc = "􀭅 Open", for = "macos" },
-	{ run = "/Users/nom/.zsh/bin/yazi-shortcut-open %s", desc = "􂅛 Run Shortcut", for = "macos", block = true },
-	{ run = 'start "" %s1', desc = "Open", for = "windows", orphan = true },
+	{ run = "open %s", desc = "􀭅  open" },
+	{ run = "/Users/nom/.zsh/bin/yazi-shortcut-open %s", desc = "􂅛  open shortcut", for = "macos", block = true },
 ]
+# 􀭅 􂇕
 reveal = [
-	{ run = "xdg-open %d1", desc = "Reveal", for = "linux" },
-	{ run = "open -R %s1", desc = "􀥯 Reveal", for = "macos" },
-	{ run = "explorer /select,%s1", desc = "Reveal", for = "windows", orphan = true },
-	{ run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", desc = "􂷐  Show EXIF", for = "unix", block = true },
+	{ run = "open %s1", desc = "􀭅  open" },
+	{ run = "open -R %s1", desc = "􀥯  reveal" },
+	{ run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", desc = "􂷐  exiftool", block = true },
 ]
 chordpro = [
 	{ run = "chordpro-tui %s1", desc = "ChordPro TUI", for = "unix", block = true },

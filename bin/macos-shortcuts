@@ -1,0 +1,387 @@
+#!/usr/bin/env python3
+"""macos-shortcuts — save/restore native macOS keyboard shortcuts.
+
+macOS stores its system keyboard shortcuts (System Settings -> Keyboard ->
+Keyboard Shortcuts) in the `com.apple.symbolichotkeys` defaults domain, keyed by
+opaque numeric IDs. This tool round-trips that dictionary through a readable TOML
+file so it can live in version control.
+
+    macos-shortcuts dump            # print current shortcuts as TOML (stdout)
+    macos-shortcuts dump -o FILE    # ...or write to FILE
+    macos-shortcuts apply           # apply ~/.config/macos-shortcuts/shortcuts.toml
+    macos-shortcuts apply -f FILE   # ...from a specific file
+    macos-shortcuts apply --dry-run # show what would change, touch nothing
+    macos-shortcuts list            # list the friendly names this tool knows
+
+Each shortcut table carries an explicit `id` and authoritative `params`, so the
+friendly title is only a label — applying always targets the real slot. `params`
+is `[char, key_code, modifier_mask]`; when present it is used verbatim, otherwise
+the tool computes it from `key` + `mods`.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import plistlib
+import subprocess
+import sys
+
+DOMAIN = "com.apple.symbolichotkeys"
+ROOT_KEY = "AppleSymbolicHotKeys"
+ACTIVATE = (
+    "/System/Library/PrivateFrameworks/SystemAdministration.framework"
+    "/Resources/activateSettings"
+)
+DEFAULT_PATH = os.path.expanduser(
+    os.path.join(
+        os.environ.get("XDG_CONFIG_HOME", "~/.config"),
+        "macos-shortcuts",
+        "shortcuts.toml",
+    )
+)
+
+# --- modifier bitmask -------------------------------------------------------
+MODS = {
+    "shift": 0x20000,    # 131072
+    "control": 0x40000,  # 262144
+    "option": 0x80000,   # 524288
+    "command": 0x100000, # 1048576
+}
+MOD_ALIASES = {
+    "ctrl": "control", "ctl": "control", "^": "control",
+    "alt": "option", "opt": "option",
+    "cmd": "command", "super": "command", "win": "command",
+    "shft": "shift",
+}
+# canonical print order
+MOD_ORDER = ["control", "option", "shift", "command"]
+
+NO_CHAR = 65535  # 0xFFFF — "no ASCII character" (used for arrows, F-keys, etc.)
+
+# --- printable single-char keys -> virtual key code (US ANSI) ---------------
+CHAR_KEYCODE = {
+    "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7, "c": 8,
+    "v": 9, "b": 11, "q": 12, "w": 13, "e": 14, "r": 15, "y": 16, "t": 17,
+    "1": 18, "2": 19, "3": 20, "4": 21, "6": 22, "5": 23, "=": 24, "9": 25,
+    "7": 26, "-": 27, "8": 28, "0": 29, "]": 30, "o": 31, "u": 32, "[": 33,
+    "i": 34, "p": 35, "l": 37, "j": 38, "'": 39, "k": 40, ";": 41, "\\": 42,
+    ",": 43, "/": 44, "n": 45, "m": 46, ".": 47, "`": 50,
+}
+# named non-printable keys -> (char, key_code)
+NAMED_KEY = {
+    "space": (32, 49), "tab": (NO_CHAR, 48), "return": (NO_CHAR, 36),
+    "enter": (NO_CHAR, 76), "escape": (NO_CHAR, 53), "esc": (NO_CHAR, 53),
+    "delete": (NO_CHAR, 51), "backspace": (NO_CHAR, 51),
+    "forward_delete": (NO_CHAR, 117),
+    "left": (NO_CHAR, 123), "right": (NO_CHAR, 124),
+    "down": (NO_CHAR, 125), "up": (NO_CHAR, 126),
+    "f1": (NO_CHAR, 122), "f2": (NO_CHAR, 120), "f3": (NO_CHAR, 99),
+    "f4": (NO_CHAR, 118), "f5": (NO_CHAR, 96), "f6": (NO_CHAR, 97),
+    "f7": (NO_CHAR, 98), "f8": (NO_CHAR, 100), "f9": (NO_CHAR, 101),
+    "f10": (NO_CHAR, 109), "f11": (NO_CHAR, 103), "f12": (NO_CHAR, 111),
+}
+KEYCODE_NAME = {kc: name for name, (_c, kc) in NAMED_KEY.items()}
+KEYCODE_CHAR = {kc: ch for ch, kc in CHAR_KEYCODE.items()}
+
+# --- friendly labels for well-known shortcut IDs (cosmetic only) ------------
+KNOWN_IDS = {
+    27: "next_window_in_app",
+    28: "screenshot_to_file",
+    29: "screenshot_to_clipboard",
+    30: "screenshot_area_to_file",
+    31: "screenshot_area_to_clipboard",
+    32: "mission_control",
+    33: "application_windows",
+    60: "select_previous_input_source",
+    61: "select_next_input_source",
+    64: "spotlight",
+    65: "finder_search",
+    79: "move_left_a_space",
+    81: "move_right_a_space",
+}
+
+
+def die(msg: str) -> "NoReturn":  # type: ignore[name-defined]
+    print(f"macos-shortcuts: {msg}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+# --------------------------------------------------------------------------- #
+# reading / writing the live defaults domain
+# --------------------------------------------------------------------------- #
+def read_domain() -> dict:
+    out = subprocess.run(
+        ["defaults", "export", DOMAIN, "-"], capture_output=True
+    ).stdout
+    if not out:
+        return {}
+    try:
+        return plistlib.loads(out).get(ROOT_KEY, {})
+    except Exception:  # pragma: no cover - corrupt/empty domain
+        return {}
+
+
+def write_domain(hotkeys: dict) -> None:
+    blob = plistlib.dumps({ROOT_KEY: hotkeys})
+    subprocess.run(["defaults", "import", DOMAIN, "-"], input=blob, check=True)
+
+
+def activate_settings() -> None:
+    subprocess.run([ACTIVATE, "-u"], check=False)
+
+
+# --------------------------------------------------------------------------- #
+# decoding helpers
+# --------------------------------------------------------------------------- #
+def mask_to_mods(mask: int) -> list[str]:
+    return [name for name in MOD_ORDER if mask & MODS[name]]
+
+
+def mods_to_mask(mods: list[str]) -> int:
+    mask = 0
+    for m in mods:
+        name = MOD_ALIASES.get(m.lower(), m.lower())
+        if name not in MODS:
+            die(f"unknown modifier: {m!r}")
+        mask |= MODS[name]
+    return mask
+
+
+def decode_key(char: int, key_code: int) -> str | None:
+    """Best-effort human label for a (char, key_code) pair."""
+    if key_code in KEYCODE_NAME:
+        return KEYCODE_NAME[key_code]
+    if char != NO_CHAR and 32 <= char <= 126:
+        return chr(char)
+    if key_code in KEYCODE_CHAR:
+        return KEYCODE_CHAR[key_code]
+    return None
+
+
+def encode_key(key: str) -> tuple[int, int]:
+    """Resolve a key name/char to (char, key_code)."""
+    k = key.lower()
+    if k in NAMED_KEY:
+        return NAMED_KEY[k]
+    if len(key) == 1 and k in CHAR_KEYCODE:
+        # store the literal character; shift is expressed via mods
+        return (ord(k), CHAR_KEYCODE[k])
+    die(f"don't know how to encode key {key!r} (add it to NAMED_KEY/CHAR_KEYCODE)")
+
+
+# --------------------------------------------------------------------------- #
+# TOML: minimal reader (used when tomllib is unavailable) + writer
+# --------------------------------------------------------------------------- #
+def load_toml(path: str) -> dict:
+    with open(path, "rb") as fh:
+        data = fh.read()
+    try:
+        import tomllib  # py3.11+
+        return tomllib.loads(data.decode("utf-8"))
+    except ModuleNotFoundError:
+        return _mini_toml(data.decode("utf-8"))
+
+
+def _mini_toml(text: str) -> dict:
+    """Tiny TOML subset parser: [table] headers and key = scalar/array/string.
+
+    Supports the shape this tool emits: strings, ints, bools, and arrays of
+    strings/ints. Not a general TOML implementation.
+    """
+    root: dict = {}
+    cur = root
+    for raw in text.splitlines():
+        line = raw.split("#", 1)[0].strip() if not raw.strip().startswith('"') else raw
+        line = raw
+        # strip trailing comment that isn't inside a string (good enough here)
+        if "#" in line and '"' not in line.split("#", 1)[0]:
+            line = line.split("#", 1)[0]
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            name = line[1:-1].strip().strip('"')
+            cur = root.setdefault(name, {})
+            continue
+        if "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        cur[key.strip()] = _mini_value(val.strip())
+    return root
+
+
+def _mini_value(v: str):
+    if v.startswith("[") and v.endswith("]"):
+        inner = v[1:-1].strip()
+        if not inner:
+            return []
+        return [_mini_value(p.strip()) for p in inner.split(",") if p.strip()]
+    if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+        return v[1:-1].replace('\\\\', '\\')
+    if v in ("true", "false"):
+        return v == "true"
+    try:
+        return int(v)
+    except ValueError:
+        return v
+
+
+def _toml_str(s: str) -> str:
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def dump_toml(hotkeys: dict) -> str:
+    lines = [
+        "# macOS native keyboard shortcuts (com.apple.symbolichotkeys).",
+        "# Generated by `macos-shortcuts dump`. Edit and re-apply with",
+        "# `macos-shortcuts apply`. `params` = [char, key_code, modifier_mask]",
+        "# and is authoritative; `key`/`mods` are the human-readable view.",
+        "",
+    ]
+    for sid in sorted(hotkeys, key=lambda x: int(x)):
+        entry = hotkeys[sid]
+        if not isinstance(entry, dict):
+            continue
+        title = KNOWN_IDS.get(int(sid), f"id_{sid}")
+        enabled = bool(entry.get("enabled", False))
+        value = entry.get("value", {}) or {}
+        params = value.get("parameters")
+        vtype = value.get("type", "standard")
+
+        lines.append(f"[{title}]")
+        lines.append(f"id = {sid}")
+        lines.append(f"enabled = {'true' if enabled else 'false'}")
+        if isinstance(params, (list, tuple)) and len(params) == 3:
+            char, key_code, mask = (int(params[0]), int(params[1]), int(params[2]))
+            keylabel = decode_key(char, key_code)
+            mods = mask_to_mods(mask)
+            if keylabel is not None:
+                lines.append(f"key = {_toml_str(keylabel)}")
+                lines.append("mods = [" + ", ".join(_toml_str(m) for m in mods) + "]")
+            lines.append(f"params = [{char}, {key_code}, {mask}]")
+        if vtype != "standard":
+            lines.append(f"type = {_toml_str(vtype)}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+# --------------------------------------------------------------------------- #
+# subcommands
+# --------------------------------------------------------------------------- #
+def cmd_dump(args) -> int:
+    text = dump_toml(read_domain())
+    if args.output:
+        os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
+        with open(args.output, "w") as fh:
+            fh.write(text)
+        print(f"wrote {args.output}", file=sys.stderr)
+    else:
+        sys.stdout.write(text)
+    return 0
+
+
+def _entry_from_table(title: str, tbl: dict, live: dict) -> tuple[str, dict]:
+    if "id" not in tbl:
+        die(f"[{title}] is missing required `id`")
+    sid = str(int(tbl["id"]))
+    enabled = bool(tbl.get("enabled", False))
+    vtype = tbl.get("type", "standard")
+
+    if "params" in tbl:
+        params = [int(x) for x in tbl["params"]]
+        if len(params) != 3:
+            die(f"[{title}] params must have 3 elements")
+    elif "key" in tbl:
+        char, key_code = encode_key(str(tbl["key"]))
+        mask = mods_to_mask(list(tbl.get("mods", [])))
+        params = [char, key_code, mask]
+    else:
+        # Toggle-only: no key binding given. Preserve whatever value the live
+        # entry has (some slots are just {'enabled': bool} with no value).
+        old = live.get(sid)
+        entry = {"enabled": enabled}
+        if isinstance(old, dict) and "value" in old:
+            entry["value"] = old["value"]
+        return sid, entry
+
+    return sid, {
+        "enabled": enabled,
+        "value": {"parameters": params, "type": vtype},
+    }
+
+
+def cmd_apply(args) -> int:
+    path = args.file or DEFAULT_PATH
+    if not os.path.exists(path):
+        die(f"config not found: {path}")
+    config = load_toml(path)
+
+    live = read_domain()
+    desired = dict(live)  # preserve IDs the file doesn't mention
+    changes = []
+    for title, tbl in config.items():
+        if not isinstance(tbl, dict):
+            continue
+        sid, new_entry = _entry_from_table(title, tbl, live)
+        old = live.get(sid)
+        if old != new_entry:
+            changes.append((title, sid, old, new_entry))
+        desired[sid] = new_entry
+
+    if not changes:
+        print("no changes — system already matches config")
+        return 0
+
+    for title, sid, old, new in changes:
+        old_en = old.get("enabled") if isinstance(old, dict) else None
+        verb = "set" if old is None else "update"
+        print(
+            f"  {verb} [{title}] id={sid} "
+            f"enabled {old_en} -> {new['enabled']} params={new['value']['parameters']}"
+        )
+
+    if args.dry_run:
+        print(f"\n--dry-run: {len(changes)} change(s) not applied")
+        return 0
+
+    write_domain(desired)
+    activate_settings()
+    print(f"\napplied {len(changes)} change(s) and reloaded settings")
+    return 0
+
+
+def cmd_list(_args) -> int:
+    print("Known friendly names (id -> name):")
+    for sid in sorted(KNOWN_IDS):
+        print(f"  {sid:>4}  {KNOWN_IDS[sid]}")
+    print("\nModifiers:", ", ".join(MOD_ORDER))
+    print("Aliases:  ", ", ".join(f"{k}={v}" for k, v in MOD_ALIASES.items()))
+    return 0
+
+
+def main(argv=None) -> int:
+    p = argparse.ArgumentParser(
+        prog="macos-shortcuts",
+        description="Save/restore native macOS keyboard shortcuts via TOML.",
+    )
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    d = sub.add_parser("dump", help="read current shortcuts and print TOML")
+    d.add_argument("-o", "--output", help="write TOML to this file instead of stdout")
+    d.set_defaults(func=cmd_dump)
+
+    a = sub.add_parser("apply", help="apply shortcuts from a TOML file")
+    a.add_argument("-f", "--file", help=f"TOML file (default: {DEFAULT_PATH})")
+    a.add_argument("--dry-run", action="store_true", help="show changes, apply nothing")
+    a.set_defaults(func=cmd_apply)
+
+    l = sub.add_parser("list", help="list known friendly names")
+    l.set_defaults(func=cmd_list)
+
+    args = p.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
