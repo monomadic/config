@@ -12,17 +12,19 @@ set -u
 script_name="${0:t}"
 
 usage() {
-  print -u2 -- "Usage: $script_name [--index] [--no-sort] [fzf-args...]"
+  print -u2 -- "Usage: $script_name [--index] [--index-only] [--no-sort] [--raw] [fzf-args...]"
   print -u2 -- ""
   print -u2 -- "Pick a media file with fzf and play it in mpv."
   print -u2 -- "Builds a cached index of media files on first run, then reuses it."
   print -u2 -- ""
   print -u2 -- "Options:"
-  print -u2 -- "  --index      Force a rebuild of the index, ignoring the cache"
-  print -u2 -- "  --no-sort    Build the index without sorting (default: newest first)"
-  print -u2 -- "  --help, -h   Show this help"
+  print -u2 -- "  --index        Force a rebuild of the index, ignoring the cache"
+  print -u2 -- "  --index-only   Build the index and stop (don't launch the picker)"
+  print -u2 -- "  --no-sort      Build the index without sorting (default: newest first)"
+  print -u2 -- "  --raw          Use the plain fzf-select picker instead of fzf-metaselect"
+  print -u2 -- "  --help, -h     Show this help"
   print -u2 -- ""
-  print -u2 -- "Any other arguments are passed through to fzf-select (e.g. --query foo)."
+  print -u2 -- "Any other arguments are passed through to the picker (e.g. --query foo)."
 }
 
 die() {
@@ -31,28 +33,38 @@ die() {
 }
 
 typeset force_index=false
+typeset index_only=false
 typeset sort=true
+typeset raw=false
 typeset -a fzf_args=()
 
 while (( $# > 0 )); do
   case "$1" in
-    --index)   force_index=true; shift ;;
-    --no-sort) sort=false; shift ;;
-    --help|-h) usage; exit 0 ;;
-    --)        shift; fzf_args+=("$@"); break ;;
-    *)         fzf_args+=("$1"); shift ;;
+    --index)      force_index=true; shift ;;
+    --index-only) index_only=true; shift ;;
+    --no-sort)    sort=false; shift ;;
+    --raw)        raw=true; shift ;;
+    --help|-h)    usage; exit 0 ;;
+    --)           shift; fzf_args+=("$@"); break ;;
+    *)            fzf_args+=("$1"); shift ;;
   esac
 done
 
-for bin in fd-media fzf-select mpv-send mktemp; do
+# --raw uses the plain single-line picker; default is the multi-line one.
+typeset picker=fzf-metaselect
+$raw && picker=fzf-select
+
+typeset -a required=(fd-media mktemp)
+$index_only || required+=("$picker" mpv-send)
+for bin in "${required[@]}"; do
   command -v "$bin" >/dev/null 2>&1 || die "missing dependency: $bin"
 done
 
 tmp_dir="${TMPDIR:-/tmp}"
 if $sort; then
-  cache="$tmp_dir/media-play-index.cache"
+  cache="$tmp_dir/media-index.cache"
 else
-  cache="$tmp_dir/media-play-index-nosort.cache"
+  cache="$tmp_dir/media-index-nosort.cache"
 fi
 
 # Count NUL-delimited records in a file.
@@ -84,7 +96,7 @@ index_progress() {
 
 build_index() {
   local tmp_cache
-  tmp_cache="$(mktemp -t media-play-index.XXXXXX)" || die "could not create temp file"
+  tmp_cache="$(mktemp -t media-index.XXXXXX)" || die "could not create temp file"
 
   # Clean up a half-written index if we are interrupted mid-build.
   trap 'rm -f -- "$tmp_cache"; exit 130' INT TERM
@@ -116,12 +128,17 @@ else
   print -u2 -- "Using cached index: $(count_records "$cache") files found (--index to refresh)"
 fi
 
+if $index_only; then
+  print -u2 -- "Index ready: $(count_records "$cache") files at $cache"
+  exit 0
+fi
+
 # Select with fzf, then hand the choice to mpv. Capture the selection first so a
 # cancelled picker doesn't launch mpv with an empty playlist.
-selection="$(mktemp -t media-play-selection.XXXXXX)" || die "could not create temp file"
+selection="$(mktemp -t media-index-selection.XXXXXX)" || die "could not create temp file"
 trap 'rm -f -- "$selection"' EXIT
 
-fzf-select -0 --print0 "${fzf_args[@]}" < "$cache" > "$selection"
+"$picker" -0 --print0 "${fzf_args[@]}" < "$cache" > "$selection"
 
 if [[ -s "$selection" ]]; then
   mpv-send play -0 < "$selection"
