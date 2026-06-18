@@ -168,11 +168,16 @@ generate_message() {
       [[ -s "$output_file" ]] || die "Claude returned an empty message"
       ;;
     codex)
+      # Writing a one-line commit message needs no deep reasoning. The user's
+      # global ~/.codex/config.toml may set a high reasoning effort, which makes
+      # every message slow to generate; override it low here just for gc.
+      # ("minimal" is rejected when web_search/image_gen tools are enabled.)
       if ! gum spin \
         --spinner dot \
         --title "Thinking..." \
         -- \
         codex exec \
+          -c model_reasoning_effort="${GC_REASONING:-low}" \
           --output-last-message "$output_file" \
           - < "$prompt_file"
       then
