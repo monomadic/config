@@ -309,30 +309,30 @@ main() {
           --cursor "› " \
           --selected-prefix "● " \
           --unselected-prefix "○ " \
-          "edit" \
-          "regenerate" \
-          "commit" \
-          "commit + push"
+          "commit and push" \
+          "edit commit message" \
+          "commit only" \
+          "regenerate commit message"
       )
 
       case "$action" in
-        edit)
+        "commit and push")
+          commit_now "$msg_file" true
+          break
+          ;;
+        "edit commit message")
           edit_message "$msg_file"
           ;;
-        regenerate)
+        "commit only")
+          commit_now "$msg_file" false
+          break
+          ;;
+        "regenerate commit message")
           local previous_message
           previous_message=$(<"$msg_file")
 
           info "Regenerating commit message"
           generate_message "$diff_file" "$msg_file" "$previous_message"
-          ;;
-        commit)
-          commit_now "$msg_file" false
-          break
-          ;;
-        "commit + push")
-          commit_now "$msg_file" true
-          break
           ;;
         *)
           die "Commit cancelled"
