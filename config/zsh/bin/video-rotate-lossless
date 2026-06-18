@@ -1,0 +1,106 @@
+#!/usr/bin/env zsh
+# ============================================================
+# video-rotate-lossless
+# Losslessly rotate QuickTime-based videos (.mov/.mp4/.m4v) by
+# adjusting the container's display-rotation flag — no re-encode.
+#
+# The pixels are untouched; only the rotation value in the track
+# header matrix changes. Players that honor the flag (QuickTime,
+# Finder/Quick Look, mpv, VLC, ffmpeg autorotate) display the
+# video rotated.
+#
+# Rotation is relative to each file's current rotation:
+#   --right  rotate 90° clockwise          (default)
+#   --left   rotate 90° counter-clockwise
+#
+# Output:
+# - edits files in place; preserves filesystem modified time (-P)
+# - leaves no *_original backup behind (-overwrite_original)
+#
+# Requirements:
+# - zsh
+# - exiftool
+# ============================================================
+
+emulate -L zsh
+set -euo pipefail
+
+script_name="${0:t}"
+
+usage() {
+  cat <<EOF
+Usage:
+  $script_name [--left | --right] <video1> [video2 ...]
+
+Losslessly rotate .mov/.mp4/.m4v videos by adjusting the container
+display-rotation flag (no re-encode). Rotation is relative to each
+file's current rotation.
+
+Options:
+  -r, --right   Rotate 90° clockwise (default)
+  -l, --left    Rotate 90° counter-clockwise
+  -h, --help    Show this help
+EOF
+}
+
+die()  { print -r -u2 -- "error: $*"; exit 1; }
+warn() { print -r -u2 -- "warning: $*"; }
+info() { print -r -- "$*"; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+supported_ext() {
+  case "${1:l}" in
+    mov|mp4|m4v) return 0 ;;
+    *)           return 1 ;;
+  esac
+}
+
+delta=90            # clockwise
+direction="right"
+typeset -a files=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    -r|--right) delta=90;  direction="right"; shift ;;
+    -l|--left)  delta=270; direction="left";  shift ;;
+    -h|--help)  usage; exit 0 ;;
+    --)         shift; files+=("$@"); break ;;
+    -*)         die "unknown option: $1" ;;
+    *)          files+=("$1"); shift ;;
+  esac
+done
+
+(( ${#files[@]} > 0 )) || { usage; exit 1; }
+have exiftool || die "exiftool not found"
+
+integer ok_count=0 skip_count=0 fail_count=0
+
+for file in "${files[@]}"; do
+  if [[ ! -f "$file" ]]; then
+    warn "not a file, skipping: $file"
+    (( ++skip_count ))
+    continue
+  fi
+
+  if ! supported_ext "${file:e}"; then
+    warn "unsupported format (need .mov/.mp4/.m4v), skipping: ${file:t}"
+    (( ++skip_count ))
+    continue
+  fi
+
+  current="$(exiftool -s3 -Rotation -- "$file" 2>/dev/null)"
+  [[ "$current" == <-> ]] || current=0
+
+  new=$(( (current + delta) % 360 ))
+
+  if exiftool -P -overwrite_original -Rotation="$new" -- "$file" >/dev/null 2>&1; then
+    info "Rotated ${direction}: ${file:t}  (${current}° → ${new}°)"
+    (( ++ok_count ))
+  else
+    warn "failed to rotate: ${file:t}"
+    (( ++fail_count ))
+  fi
+done
+
+info "Summary: ok=$ok_count skipped=$skip_count failed=$fail_count"
+(( fail_count == 0 ))
