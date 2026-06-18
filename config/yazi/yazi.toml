@@ -16,19 +16,11 @@ bulk-rename = [
 	{ run = "hx %s", desc = "􀤘  helix", for = "unix", block = true },
 ]
 play = [
-<<<<<<< HEAD
-	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀾭  MPV", for = "unix", orphan = true },
-	{ run = "vlc %s .", desc = "􀵨  VLC", for = "unix", orphan = true },
-	{ run = "convert-to-pro-res %s .", desc = "􀵨  convert: prores", orphan = true },
-||||||| parent of 7c0672f4 (feat(media): add A/B previews and enriched yt-dlp metadata)
-	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀾭  MPV", for = "unix", orphan = true },
-	{ run = "vlc %s .", desc = "􀵨  VLC", for = "unix", orphan = true },
-=======
-	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀾭  mpv", for = "unix", orphan = true },
+	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀍌  mpv", for = "unix", orphan = true },
+	{ run = "vlc %s .", desc = "􀍋  vlc", for = "unix", orphan = true },
+	{ run = "convert-to-pro-res %s .", desc = "􀍑  convert: prores", orphan = true },
 	{ run = "media-open-url %s", desc = "􀉣  open url" },
-	{ run = "vlc %s .", desc = "􀵨  vlc", for = "unix", orphan = true },
->>>>>>> 7c0672f4 (feat(media): add A/B previews and enriched yt-dlp metadata)
-	{ run = "mediainfo %s1; echo 'Press enter to exit'; read _", desc = "􀅴  mediainfo", for = "unix", block = true },
+	{ run = "mediainfo %s1; echo 'Press enter to exit'; read _", desc = "􀍓  mediainfo", for = "unix", block = true },
 ]
 play_dir = [
 	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀾭  mpv", for = "unix", orphan = true },
