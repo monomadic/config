@@ -90,15 +90,19 @@ local function apply_layout(st, ratio)
 	ya.emit("app:resize", {})
 end
 
-local function cycle_preview(st, ratio)
-	local small = small_preview(ratio)
+local function large_preview(ratio)
+	return math.max(ratio.preview * 3, ratio.preview + 1)
+end
 
+-- yazi.toml's configured preview width is the default (medium). The cycle
+-- expands to a larger preview, then hides, then returns to the default.
+local function cycle_preview(st, ratio)
 	if st.preview == 0 then
 		st.preview = ratio.preview
-	elseif st.preview < ratio.preview then
-		st.preview = 0
+	elseif st.preview == ratio.preview then
+		st.preview = large_preview(ratio)
 	else
-		st.preview = small
+		st.preview = 0
 	end
 end
 

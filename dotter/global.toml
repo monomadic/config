@@ -119,6 +119,7 @@ files = { "config/starship/starship.toml" = "~/.config/starship.toml" }
 "config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/faphouse.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/faphouse.py"
 "config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/hdsex.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/hdsex.py"
 "config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/onlyfans.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/onlyfans.py"
+"config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xhamster.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xhamster.py"
 "config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xvideos_red.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xvideos_red.py"
 "config/yt-dlp/plugins/faphouse/yt_dlp_plugins/postprocessor/titlecase.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/postprocessor/titlecase.py"
 # "config/yt-dlp/" = "~/.config/yt_dlp/plugins/sites/yt_dlp_plugins/extractorplugins/mysites/yt_dlp_plugins/extractor"

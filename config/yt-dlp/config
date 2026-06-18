@@ -22,10 +22,10 @@
 --parse-metadata "%(webpage_url)s:(?P<meta_source_url>.+)"
 --parse-metadata "%(extractor)s:(?P<meta_yt_dlp_extractor>.+)"
 --parse-metadata "%(id)s:(?P<meta_yt_dlp_id>.+)"
---parse-metadata "%(slug)s:(?P<meta_yt_dlp_slug>.+)"
+--parse-metadata "%(display_id)s:(?P<meta_yt_dlp_slug>.+)"
 --parse-metadata "%(tags)l:(?P<meta_keywords>.+)"
---parse-metadata "%(cast)l:(?P<meta_artist>.+)"
---parse-metadata "%(cast)l:(?P<meta_actors>.+)"
+--parse-metadata "%(cast,uploader)l:(?P<meta_artist>.+)"
+--parse-metadata "%(cast,uploader)l:(?P<meta_actors>.+)"
 --parse-metadata "%(channel,uploader)s:(?P<meta_album_artist>.+)"
 
 # let MP4 store non-standard tag names (actors, yt_dlp_*, source_url, ...)
