@@ -1,0 +1,128 @@
+#!/usr/bin/env zsh
+#
+#   Index media files (via fd-media), pick from them with fzf-select, and send
+#   the selection to mpv (via mpv-send play).
+#
+#   The file list is cached in the temp dir so subsequent runs are instant.
+#   The pipeline is NUL-delimited end to end so paths with spaces/newlines
+#   survive intact.
+
+set -u
+
+script_name="${0:t}"
+
+usage() {
+  print -u2 -- "Usage: $script_name [--index] [--no-sort] [fzf-args...]"
+  print -u2 -- ""
+  print -u2 -- "Pick a media file with fzf and play it in mpv."
+  print -u2 -- "Builds a cached index of media files on first run, then reuses it."
+  print -u2 -- ""
+  print -u2 -- "Options:"
+  print -u2 -- "  --index      Force a rebuild of the index, ignoring the cache"
+  print -u2 -- "  --no-sort    Build the index without sorting (default: newest first)"
+  print -u2 -- "  --help, -h   Show this help"
+  print -u2 -- ""
+  print -u2 -- "Any other arguments are passed through to fzf-select (e.g. --query foo)."
+}
+
+die() {
+  print -u2 -- "$script_name: $*"
+  exit 1
+}
+
+typeset force_index=false
+typeset sort=true
+typeset -a fzf_args=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    --index)   force_index=true; shift ;;
+    --no-sort) sort=false; shift ;;
+    --help|-h) usage; exit 0 ;;
+    --)        shift; fzf_args+=("$@"); break ;;
+    *)         fzf_args+=("$1"); shift ;;
+  esac
+done
+
+for bin in fd-media fzf-select mpv-send mktemp; do
+  command -v "$bin" >/dev/null 2>&1 || die "missing dependency: $bin"
+done
+
+tmp_dir="${TMPDIR:-/tmp}"
+if $sort; then
+  cache="$tmp_dir/media-play-index.cache"
+else
+  cache="$tmp_dir/media-play-index-nosort.cache"
+fi
+
+# Count NUL-delimited records in a file.
+count_records() {
+  local file="$1"
+  [[ -s "$file" ]] || { print -r -- 0; return 0 }
+  tr -cd '\0' < "$file" | wc -c | tr -d ' '
+}
+
+# Read NUL records on stdin, write them through to stdout, and report a running
+# count on a single, self-updating stderr line.
+index_progress() {
+  local rec count=0
+  local tty=false
+  [[ -t 2 ]] && tty=true
+
+  while IFS= read -r -d $'\0' rec; do
+    printf '%s\0' "$rec"
+    (( ++count ))
+    if $tty && (( count % 25 == 0 )); then
+      printf '\r\033[KCreating index: %d files found' "$count" >&2
+    fi
+  done
+
+  if $tty; then
+    printf '\r\033[KCreating index: %d files found\n' "$count" >&2
+  fi
+}
+
+build_index() {
+  local tmp_cache
+  tmp_cache="$(mktemp -t media-play-index.XXXXXX)" || die "could not create temp file"
+
+  # Clean up a half-written index if we are interrupted mid-build.
+  trap 'rm -f -- "$tmp_cache"; exit 130' INT TERM
+
+  local -a fd_cmd=(fd-media --print0)
+  $sort && fd_cmd+=(--sort created)   # newest first (fd-media default order)
+
+  "${fd_cmd[@]}" | index_progress > "$tmp_cache"
+  local fd_status=$pipestatus[1]
+
+  trap - INT TERM
+
+  if (( fd_status != 0 )); then
+    rm -f -- "$tmp_cache"
+    die "fd-media failed (exit $fd_status)"
+  fi
+
+  if [[ ! -s "$tmp_cache" ]]; then
+    rm -f -- "$tmp_cache"
+    die "no media files found"
+  fi
+
+  mv -f -- "$tmp_cache" "$cache"
+}
+
+if $force_index || [[ ! -s "$cache" ]]; then
+  build_index
+else
+  print -u2 -- "Using cached index: $(count_records "$cache") files found (--index to refresh)"
+fi
+
+# Select with fzf, then hand the choice to mpv. Capture the selection first so a
+# cancelled picker doesn't launch mpv with an empty playlist.
+selection="$(mktemp -t media-play-selection.XXXXXX)" || die "could not create temp file"
+trap 'rm -f -- "$selection"' EXIT
+
+fzf-select -0 --print0 "${fzf_args[@]}" < "$cache" > "$selection"
+
+if [[ -s "$selection" ]]; then
+  mpv-send play -0 < "$selection"
+fi
