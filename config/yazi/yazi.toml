@@ -18,6 +18,7 @@ bulk-rename = [
 play = [
 	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀾭  MPV", for = "unix", orphan = true },
 	{ run = "vlc %s .", desc = "􀵨  VLC", for = "unix", orphan = true },
+	{ run = "convert-to-pro-res %s .", desc = "􀵨  convert: prores", orphan = true },
 	{ run = "mediainfo %s1; echo 'Press enter to exit'; read _", desc = "􀅴  mediainfo", for = "unix", block = true },
 ]
 play_dir = [

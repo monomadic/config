@@ -138,13 +138,32 @@ generate_message() {
 
   case "${GC_BACKEND:-codex}" in
     claude)
+      local err_file="${output_file}.err"
+      # When gc is invoked from inside a Claude Code session, the parent
+      # injects session env (nested-session guard, staging OAuth, proxy
+      # base URL) that makes a plain `claude` refuse to run or hit a 401.
+      # Strip that env so claude authenticates as a normal standalone CLI.
+      local claude_env=(
+        CLAUDECODE
+        CLAUDE_CODE_ENTRYPOINT
+        CLAUDE_CODE_SESSION_ID
+        CLAUDE_CODE_CHILD_SESSION
+        CLAUDE_CODE_EXECPATH
+        CLAUDE_AGENT_SDK_VERSION
+        CLAUDE_CODE_OAUTH_SCOPES
+        CLAUDE_CODE_SDK_HAS_OAUTH_REFRESH
+        CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH
+        ANTHROPIC_BASE_URL
+        USE_STAGING_OAUTH
+        USE_LOCAL_OAUTH
+      )
       if ! gum spin \
         --spinner dot \
         --title "Thinking..." \
         -- \
-        zsh -c "claude --print < ${(q)prompt_file} > ${(q)output_file}"
+        zsh -c "env ${(j: :)${(@)claude_env/#/-u }} claude --print < ${(q)prompt_file} > ${(q)output_file} 2> ${(q)err_file}"
       then
-        die "Claude failed"
+        die "Claude failed: $(<"$err_file")$(<"$output_file")"
       fi
       [[ -s "$output_file" ]] || die "Claude returned an empty message"
       ;;
