@@ -132,27 +132,22 @@ desc = "Create a tab and enter the hovered directory"
 
 [[mgr.prepend_keymap]]
 on   = [ "t", "p" ]
-run  = "plugin toggle-view --args=preview"
+run  = "plugin pane-layout -- cycle-preview"
 desc = "Toggle preview pane"
 
 [[mgr.prepend_keymap]]
 on   = [ "t", "P" ]
-run  = "plugin toggle-view --args=parent"
+run  = "plugin pane-layout -- toggle-parent"
 desc = "Toggle parent pane"
 
 [[mgr.prepend_keymap]]
 on   = "<C-1>"
-run  = "plugin toggle-view --args=parent"
+run  = "plugin pane-layout -- toggle-parent"
 desc = "Toggle parent pane"
 
 [[mgr.prepend_keymap]]
-on   = "<C-2>"
-run  = "plugin toggle-view --args=current"
-desc = "Toggle current pane"
-
-[[mgr.prepend_keymap]]
 on   = "<C-3>"
-run  = "plugin toggle-view --args=preview"
+run  = "plugin pane-layout -- cycle-preview"
 desc = "Toggle preview pane"
 
 # Native tab navigation
@@ -324,6 +319,11 @@ run  = "plugin ffmpeg-stats -- disable-all"
 desc = "Disable all media stats"
 
 [[mgr.prepend_keymap]]
+on   = [ "g", "m" ]
+run  = "cd --interactive"
+desc = "Goto menu"
+
+[[mgr.prepend_keymap]]
 on   = [ "g", "n" ]
 run  = "plugin first-non-directory"
 desc = "Jump to the first non-directory entry"
@@ -332,6 +332,11 @@ desc = "Jump to the first non-directory entry"
 on   = [ "g", "T" ]
 run  = "cd /Volumes/Tower/Movies"
 desc = "Go to Tower"
+
+[[mgr.prepend_keymap]]
+on   = [ "g", "v" ]
+run  = "cd /Volumes"
+desc = "Go to Volumes"
 
 [[mgr.prepend_keymap]]
 on   = "<A-c>"

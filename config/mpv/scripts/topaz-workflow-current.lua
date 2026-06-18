@@ -9,6 +9,8 @@ local preset_catalog = "/Users/nom/config/config/zsh/bin/topaz-preset-catalog.zs
 
 local preview_state = nil
 local pending_restore = nil
+local ab_badge = mp.create_osd_overlay("ass-events")
+ab_badge.z = 30
 
 local function shell_quote(value)
     return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
@@ -173,7 +175,61 @@ local function select_items(rows)
 end
 
 local function preview_key_message()
-    return "Topaz frame preview in this mpv window\nLeft: original | Right: Topaz\nEnter/e: choose output + encode\nEsc/BS: return to source"
+    return "Topaz A/B preview in this mpv window\na / TAB: flip A (original) / B (Topaz)  ·  1: A  2: B\nEnter/e: choose output + encode  ·  Esc/BS: return to source"
+end
+
+local function ab_badge_text()
+    if not preview_state then
+        return ""
+    end
+
+    local active = "{\\1c&H66FF66&\\b1}"
+    local idle = "{\\1c&HBBBBBB&\\b0}"
+    local hint = "{\\1c&HBBBBBB&\\b0\\fs20}"
+    local a_tag = preview_state.side == "a" and active or idle
+    local b_tag = preview_state.side == "b" and active or idle
+
+    return string.format(
+        "{\\an7\\pos(24,24)\\fs30\\bord2\\3c&H000000&\\1c&HFFFFFF&\\b1}A/B MODE   "
+            .. "%s[1] A · original   %s[2] B · Topaz\\N"
+            .. "%sa / TAB flip   ·   e / Enter encode   ·   Esc close",
+        a_tag,
+        b_tag,
+        hint
+    )
+end
+
+local function update_ab_badge()
+    if not preview_state then
+        ab_badge:remove()
+        return
+    end
+
+    ab_badge.res_x = 1280
+    ab_badge.res_y = 720
+    ab_badge.data = ab_badge_text()
+    ab_badge:update()
+end
+
+local function show_preview_side(side)
+    if not preview_state then
+        return
+    end
+
+    preview_state.side = side
+    local index = side == "a" and preview_state.index_a or preview_state.index_b
+    if index then
+        mp.commandv("playlist-play-index", tostring(index))
+    end
+    update_ab_badge()
+end
+
+local function flip_preview_side()
+    if not preview_state then
+        return
+    end
+
+    show_preview_side(preview_state.side == "a" and "b" or "a")
 end
 
 local function remove_preview_keys()
@@ -182,6 +238,11 @@ local function remove_preview_keys()
     mp.remove_key_binding("topaz_mpv_encode_kp_enter")
     mp.remove_key_binding("topaz_mpv_restore_esc")
     mp.remove_key_binding("topaz_mpv_restore_bs")
+    mp.remove_key_binding("topaz_mpv_flip_a")
+    mp.remove_key_binding("topaz_mpv_flip_tab")
+    mp.remove_key_binding("topaz_mpv_flip_underscore")
+    mp.remove_key_binding("topaz_mpv_show_a")
+    mp.remove_key_binding("topaz_mpv_show_b")
 end
 
 local function restore_source(message)
@@ -192,6 +253,7 @@ local function restore_source(message)
     local state = preview_state
     preview_state = nil
     remove_preview_keys()
+    ab_badge:remove()
 
     if state.old_image_display_duration then
         mp.set_property("image-display-duration", state.old_image_display_duration)
@@ -205,11 +267,13 @@ local function restore_source(message)
     local count = mp.get_property_number("playlist-count", 0)
     if state.original_pos and count > state.original_pos then
         mp.commandv("playlist-play-index", tostring(state.original_pos))
-        if state.preview_index and count > state.preview_index then
+        if state.preview_first and state.preview_count then
             mp.add_timeout(0.1, function()
                 local current_count = mp.get_property_number("playlist-count", 0)
-                if current_count > state.preview_index then
-                    mp.commandv("playlist-remove", tostring(state.preview_index))
+                for index = state.preview_first + state.preview_count - 1, state.preview_first, -1 do
+                    if index >= 0 and current_count > index then
+                        mp.commandv("playlist-remove", tostring(index))
+                    end
                 end
             end)
         end
@@ -235,7 +299,6 @@ local function start_encode(output)
 
     local state = preview_state
     local transform = state.transform
-    local output = state.output
     local directory = utils.split_path(state.source)
     local metadata = transform.metadata
     if metadata == "" then
@@ -305,9 +368,18 @@ function enable_preview_keys()
     mp.add_forced_key_binding("BS", "topaz_mpv_restore_bs", function()
         restore_source("Topaz preview closed")
     end)
+    mp.add_forced_key_binding("a", "topaz_mpv_flip_a", flip_preview_side)
+    mp.add_forced_key_binding("TAB", "topaz_mpv_flip_tab", flip_preview_side)
+    mp.add_forced_key_binding("_", "topaz_mpv_flip_underscore", flip_preview_side)
+    mp.add_forced_key_binding("1", "topaz_mpv_show_a", function()
+        show_preview_side("a")
+    end)
+    mp.add_forced_key_binding("2", "topaz_mpv_show_b", function()
+        show_preview_side("b")
+    end)
 end
 
-local function load_preview_image(image_path, context, transform)
+local function load_preview_pair(original_path, topaz_path, context, transform)
     if preview_state then
         restore_source()
     end
@@ -322,17 +394,22 @@ local function load_preview_image(image_path, context, transform)
         time_pos = context.time_pos,
         pause = true,
         original_pos = original_pos,
-        preview_index = playlist_count,
+        preview_first = playlist_count,
+        preview_count = 2,
+        index_a = playlist_count,
+        index_b = playlist_count + 1,
+        side = "b",
         old_image_display_duration = mp.get_property("image-display-duration"),
     }
 
     mp.set_property("image-display-duration", "inf")
-    mp.commandv("loadfile", image_path, "append")
+    mp.commandv("loadfile", original_path, "append")
+    mp.commandv("loadfile", topaz_path, "append")
     mp.add_timeout(0.05, function()
         if not preview_state then
             return
         end
-        mp.commandv("playlist-play-index", tostring(preview_state.preview_index))
+        show_preview_side(preview_state.side)
         enable_preview_keys()
         mp.osd_message(preview_key_message(), 6)
     end)
@@ -382,14 +459,19 @@ local function run_preview(context, transform)
         end
 
         local paths = parse_preview_paths(result.stdout)
-        local image = paths.compare or paths.topaz
-        if not image or image == "" then
+        local topaz_image = paths.topaz or paths.compare
+        if not topaz_image or topaz_image == "" then
             mp.osd_message("Topaz preview did not return an image", 3)
             mp.msg.error("Topaz preview stdout:\n" .. (result.stdout or ""))
             return
         end
 
-        load_preview_image(image, context, transform)
+        local original_image = paths.original
+        if not original_image or original_image == "" then
+            original_image = topaz_image
+        end
+
+        load_preview_pair(original_image, topaz_image, context, transform)
     end)
 end
 
@@ -480,7 +562,10 @@ mp.register_event("file-loaded", function()
     end
 end)
 
-mp.register_event("shutdown", remove_preview_keys)
+mp.register_event("shutdown", function()
+    remove_preview_keys()
+    ab_badge:remove()
+end)
 
 mp.add_key_binding(nil, "topaz_workflow_current_file", show_transform_menu)
 mp.add_key_binding(nil, "topaz_workflow_external_file", topaz_workflow_external_file)
