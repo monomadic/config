@@ -39,4 +39,4 @@
 --alias tower '--porn --paths home:/Volumes/Tower/Movies/Porn/Downloads'
 # visuals aliases
 # video-only track, highest resolution, transcoded to ProRes Proxy (.mov)
---alias visuals '-f bv -S res,fps,tbr --format-sort-force -o "%(cast,uploader|)l%(cast& - |) s[%(channel_cc,uploader_cc,channel,uploader|Unknown)s] %(extractor)s_%(id)s.%(ext)s" --ignore-no-formats-error --recode-video mov --ppa "VideoConvertor:-c:v prores_videotoolbox -profile:v proxy -allow_sw 1 -pix_fmt p210le" --paths "home:~/Library/Mobile Documents/com~apple~CloudDocs/Movies/Visuals/Downloads"'
+--alias visuals '-f bv -S res,fps,tbr --format-sort-force -o "%(channel_cc,uploader_cc,channel,uploader|Unknown)s (%(id)s) %(tags)s.%(ext)s" --ignore-no-formats-error --recode-video mov --ppa "VideoConvertor:-c:v prores_videotoolbox -profile:v proxy -allow_sw 1 -pix_fmt p210le" --paths "home:~/Library/Mobile Documents/com~apple~CloudDocs/Movies/Visuals/Downloads"'

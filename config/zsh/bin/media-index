@@ -8,6 +8,7 @@
 #   survive intact.
 
 set -u
+zmodload zsh/datetime   # EPOCHREALTIME, for timing the index build
 
 script_name="${0:t}"
 
@@ -95,7 +96,8 @@ index_progress() {
 }
 
 build_index() {
-  local tmp_cache
+  local tmp_cache start elapsed
+  start=$EPOCHREALTIME
   tmp_cache="$(mktemp -t media-index.XXXXXX)" || die "could not create temp file"
 
   # Clean up a half-written index if we are interrupted mid-build.
@@ -120,6 +122,9 @@ build_index() {
   fi
 
   mv -f -- "$tmp_cache" "$cache"
+
+  elapsed=$(( EPOCHREALTIME - start ))
+  printf 'Indexed %s files in %.2fs\n' "$(count_records "$cache")" "$elapsed"
 }
 
 if $force_index || [[ ! -s "$cache" ]]; then
@@ -138,7 +143,10 @@ fi
 selection="$(mktemp -t media-index-selection.XXXXXX)" || die "could not create temp file"
 trap 'rm -f -- "$selection"' EXIT
 
-"$picker" -0 --print0 "${fzf_args[@]}" < "$cache" > "$selection"
+# fzf-metaselect persists rename/trim edits back into the cache; fzf-select can't.
+picker_opts=(-0 --print0)
+$raw || picker_opts+=("--cache-file=$cache")
+"$picker" "${picker_opts[@]}" "${fzf_args[@]}" < "$cache" > "$selection"
 
 if [[ -s "$selection" ]]; then
   mpv-send play -0 < "$selection"

@@ -17,15 +17,49 @@ set -euo pipefail
 #   zsh builtins, the index table is written via a dedicated fd), and UTF-8
 #   sanitisation runs once over the whole stream rather than once per file.
 
-# Colors for the filename parts (edit to taste). The display is colored by
-# delimiter: text inside [ … ] and ( … ) get their own colors (and the brackets
-# are stripped), rating stars go yellow, and #tags get their own color. The
-# extension is removed. Everything else keeps the terminal default.
-bracket_color=$'\033[38;5;108m'  # text inside [ … ]
-paren_color=$'\033[38;5;111m'    # text inside ( … )
-star_color=$'\033[38;5;220m'     # ★☆ rating stars (yellow)
-tag_color=$'\033[38;5;114m'      # #tags
-path_color=$'\033[38;5;244m'     # grey — path (line 2)
+# Internal mode used by the rename/trim key binds: rewrite one path in the live
+# index map (newline-delimited) and in the persistent cache (NUL-delimited) so a
+# renamed/trimmed item stays selectable in this session and shows up correctly
+# next launch. Usage: fzf-metaselect --update-path OLD NEW MAPFILE [CACHEFILE]
+_fms_update_path() {
+  emulate -L zsh
+  local old="$1" new="$2" mapf="$3" cachef="${4:-}" tmpf rec ln
+  [[ -n "$new" && "$new" != "$old" ]] || return 0
+  if [[ -n "$mapf" && -f "$mapf" ]]; then
+    tmpf="$(mktemp)" || return 0
+    while IFS= read -r ln; do
+      [[ "$ln" == "$old" ]] && ln="$new"
+      print -r -- "$ln"
+    done < "$mapf" > "$tmpf"
+    mv -f -- "$tmpf" "$mapf"
+  fi
+  if [[ -n "$cachef" && -f "$cachef" ]]; then
+    tmpf="$(mktemp)" || return 0
+    while IFS= read -r -d $'\0' rec || [[ -n "$rec" ]]; do
+      [[ -z "$rec" ]] && { rec=""; continue; }
+      [[ "$rec" == "$old" ]] && rec="$new"
+      printf '%s\0' "$rec"
+      rec=""
+    done < "$cachef" > "$tmpf"
+    mv -f -- "$tmpf" "$cachef"
+  fi
+  return 0
+}
+if [[ "${1:-}" == "--update-path" ]]; then
+  _fms_update_path "${2:-}" "${3:-}" "${4:-}" "${5:-}"
+  exit 0
+fi
+
+# Colors for the parsed fields (edit to taste). Layout:
+#   line 1:  <Title> <Rating> <res> <fps> <length>
+#   line 2:  <Actors>  <directory>
+# The title is deliberately high-contrast; metadata and path are dimmer. The
+# match-highlight and selected-row colors are set on the fzf command below.
+title_color=$'\033[1;38;5;231m'   # bright white, bold — title/name (stands out)
+rating_color=$'\033[38;5;220m'    # yellow — rating stars
+meta_color=$'\033[38;5;79m'       # teal — resolution / fps / length
+actor_color=$'\033[38;5;176m'     # mauve — actors
+path_color=$'\033[38;5;244m'      # grey — directory path
 reset=$'\033[0m'
 
 show_absolute=false
@@ -33,6 +67,7 @@ read0=false
 print0=false
 stream=false
 colorize=true
+cache_file=""
 passthrough_args=()
 records_loaded=0
 
@@ -44,13 +79,14 @@ for arg in "$@"; do
     -0|--read0)       read0=true ;;
     --print0)         print0=true ;;
     --stream)         stream=true ;;
+    --cache-file=*)   cache_file="${arg#*=}" ;;  # persist rename/trim edits here
     *)                passthrough_args+=("$arg") ;;
   esac
 done
 
-# With --no-color the same code still strips the delimiters, just without color.
+# With --no-color the same code emits the fields plain, just without color.
 if ! $colorize; then
-  bracket_color="" paren_color="" star_color="" tag_color="" path_color="" reset=""
+  title_color="" rating_color="" meta_color="" actor_color="" path_color="" reset=""
 fi
 
 if [[ -t 0 ]]; then
@@ -92,27 +128,82 @@ sanitize_utf8() {
   fi
 }
 
-# Color a string by delimiter and store the result in $_cz. Fork-free: each step
-# is a single zsh global substitution that re-evaluates $match per match. Purely
-# syntactic, so it handles old and new filename formats alike — it colors text
-# inside [ … ] and ( … ) (stripping the brackets), rating stars, and #tags.
-typeset -g _cz=""
-colorize_str() {
+# Parse a basename into fields (sets the F_* globals). Fork-free and best-effort:
+# actors = text before the first " - "; everything spec-like (rating, resolution,
+# fps, length) is pulled out of the trailing " [ … ] " block and the stars; the
+# id "(…_…)", #tags, a leading "[Channel]" and a trailing "(Channel)" are dropped;
+# whatever descriptive text remains is the title.
+typeset -g F_TITLE="" F_RATING="" F_RES="" F_FPS="" F_LEN="" F_ACTORS=""
+parse_fields() {
   setopt local_options extended_glob
-  local o="$1"
-  o="${o//(#b)\[([^][]##)\]/${bracket_color}${match[1]}${reset}}"   # [ … ]
-  o="${o//(#b)\(([^()]##)\)/${paren_color}${match[1]}${reset}}"     # ( … )
-  o="${o//(#b)([★☆]##)/${star_color}${match[1]}${reset}}"          # ★ rating
-  o="${o//(#b)(\#[[:alnum:]_-]##)/${tag_color}${match[1]}${reset}}" # #tags
-  _cz="$o"
+  local fname="$1" stem rest specs b bl tok vid
+  local -a keep
+  F_TITLE="" F_RATING="" F_RES="" F_FPS="" F_LEN="" F_ACTORS=""
+
+  # strip the final extension, then a secondary marker ext (.trimmed/.original/…)
+  stem="${fname%.*}"
+  case "${stem##*.}" in
+    trimmed|original|cut|edit|final|fixed) stem="${stem%.*}" ;;
+  esac
+
+  # rating stars
+  if [[ "$stem" == *[★☆] && "$stem" =~ ' ([★☆]+)$' ]]; then
+    F_RATING="$match[1]"; stem="${stem% $F_RATING}"
+  fi
+
+  # trailing "[ … ]" — pull resolution / fps / length out of a spec-like block
+  if [[ "$stem" == *'['*']' ]]; then
+    b="${stem##*\[}"; b="${b%\]}"; bl="${(L)b}"
+    if [[ "$bl" =~ '[0-9]+(p|k)|fps|mbps|h26[45]|av1|[0-9]+(min|sec)' ]]; then
+      specs="$b"; stem="${stem% \[$b\]}"
+      for tok in ${(s: :)specs}; do
+        [[ -z "$tok" ]] && continue
+        if [[ -z "$F_RES" && "${(L)tok}" == ([0-9]##p|[0-9]##k) ]]; then F_RES="$tok"; continue; fi
+        if [[ -z "$F_FPS" && "${(L)tok}" == [0-9]##fps ]]; then F_FPS="$tok"; continue; fi
+        if [[ -z "$F_LEN" ]]; then
+          if [[ "$tok" == [0-9]##:[0-9][0-9](:[0-9][0-9])# ]]; then F_LEN="$tok"; continue; fi
+          if [[ "${(L)tok}" == [0-9]##(min|mins|sec|secs|s|m|h|hr|hrs) ]]; then F_LEN="$tok"; continue; fi
+        fi
+      done
+    fi
+  fi
+
+  # drop the provider id "(…_…)"
+  if [[ "$stem" == *'('*'_'*')'* && "$stem" =~ '\(([^()]*_[^()]*)\)' ]]; then
+    vid="$match[1]"; stem="${stem/ \(${vid}\)/}"; stem="${stem/\(${vid}\)/}"
+  fi
+
+  # actors = before the first " - ";  rest = after it
+  if [[ "$stem" == *' - '* ]]; then
+    F_ACTORS="${stem%% - *}"; rest="${stem#* - }"
+  else
+    rest="$stem"
+  fi
+
+  # drop a trailing "(Channel)" from actors and a leading "[Channel]" from rest
+  if [[ "$F_ACTORS" == *')' && "$F_ACTORS" =~ ' \(([^()]+)\)$' ]]; then
+    F_ACTORS="${F_ACTORS% \($match[1]\)}"
+  fi
+  if [[ "$rest" == \[* && "$rest" =~ '^\[([^][]+)\] (.+)$' ]]; then
+    rest="$match[2]"
+  fi
+
+  # drop #tags; whatever non-empty tokens remain make the title
+  keep=()
+  for tok in ${(s: :)rest}; do
+    [[ -z "$tok" || "$tok" == '#'* ]] && continue
+    keep+=("$tok")
+  done
+  F_TITLE="${(j: :)keep}"
+  [[ -n "$F_TITLE" ]] || F_TITLE="${fname%.*}"
 }
 
 # Emit one NUL-delimited two-line record to stdout and record its raw path on
-# $map_fd. The text before the first " - " becomes line 2 (the dash is dropped);
-# everything after it is line 1. Filenames without a " - " fall back to showing
-# the directory on line 2.
+# $map_fd:
+#   line 1:  <Title> <Rating> <res> <fps> <length>
+#   line 2:  <Actors>  <directory>
 emit_one() {
-  local raw="$1" idx="$2" base dir stem line1 line2
+  local raw="$1" idx="$2" base dir line1 line2
 
   print -r -u $map_fd -- "$raw"
 
@@ -122,20 +213,20 @@ emit_one() {
   fi
 
   base=${raw:t}; dir=${raw:h}
+  parse_fields "$base"
 
-  # strip the final extension, then a secondary marker ext (.trimmed/.original/…)
-  stem="${base%.*}"
-  case "${stem##*.}" in
-    trimmed|original|cut|edit|final|fixed) stem="${stem%.*}" ;;
-  esac
-
-  if [[ "$stem" == *' - '* ]]; then
-    colorize_str "${stem#* - }";  line1="$_cz"        # after the first " - "
-    colorize_str "${stem%% - *}"; line2="$_cz"        # before the first " - "
-  else
-    colorize_str "$stem"; line1="$_cz"
-    line2="${path_color}${dir}${reset}"               # no dash → show the path
+  line1="${title_color}${F_TITLE}${reset}"
+  if [[ -n "$F_RATING" ]]; then
+    local stars="${F_RATING//★/􀋃 }"; stars="${stars//☆/􀋂 }"
+    line1+=" ${rating_color}${stars}${reset}"
   fi
+  [[ -n "$F_RES" ]]    && line1+=" ${meta_color}${F_RES}${reset}"
+  [[ -n "$F_FPS" ]]    && line1+=" ${meta_color}${F_FPS}${reset}"
+  [[ -n "$F_LEN" ]]    && line1+=" ${meta_color}${F_LEN}${reset}"
+
+  line2=""
+  [[ -n "$F_ACTORS" ]] && line2="${actor_color}${F_ACTORS}${reset}"
+  line2+="${line2:+  }${path_color}${dir}${reset}"
 
   printf '%s\t%s\n%s\0' "$idx" "$line1" "$line2"
 }
@@ -178,13 +269,14 @@ map_selection() {
   fi
 }
 
-# Each bind resolves the highlighted row's real path from the index map (field
-# {1} is the index, $2 is the map file), then acts on it. The reveal bind is
-# silent; the rest hand the terminal to a TUI/editor via execute().
+# Each bind resolves the highlighted row's real path from the index map ($1 is
+# the index field {1}, $2 the map file, $3 the cache file), then acts on it. The
+# reveal bind is silent; the rest hand the terminal to a TUI/editor via execute().
+# After a rename/trim, --update-path rewrites the path in the live map and cache.
 reveal_bind="execute-silent(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] && open --reveal \"\$p\"' _ {1} ${(q)tmp_map})"
 yazi_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] && yazi \"\$p\"' _ {1} ${(q)tmp_map})"
-trim_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] && ffmpeg-lossless-cut \"\$p\"' _ {1} ${(q)tmp_map})"
-rename_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] || exit 0; d=\${p:h}; o=\${p:t}; t=\$(mktemp -t fms-rename.XXXXXX) || exit 1; print -r -- \"\$o\" >| \"\$t\"; \${EDITOR:-vi} \"\$t\"; n=\$(sed -n 1p \"\$t\"); rm -f \"\$t\"; [[ -n \"\$n\" && \"\$n\" != \"\$o\" ]] && mv -i -- \"\$p\" \"\$d/\$n\"' _ {1} ${(q)tmp_map})"
+trim_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] || exit 0; ffmpeg-lossless-cut \"\$p\"; n=\"\${p:r}.trimmed.\${p:e}\"; [[ ! -e \"\$p\" && -f \"\$n\" ]] && fzf-metaselect --update-path \"\$p\" \"\$n\" \"\$2\" \"\$3\"' _ {1} ${(q)tmp_map} ${(q)cache_file})"
+rename_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] || exit 0; d=\${p:h}; o=\${p:t}; t=\$(mktemp -t fms-rename.XXXXXX) || exit 1; print -r -- \"\$o\" >| \"\$t\"; \${EDITOR:-vi} \"\$t\"; n=\$(sed -n 1p \"\$t\"); rm -f \"\$t\"; [[ -n \"\$n\" && \"\$n\" != \"\$o\" ]] || exit 0; mv -i -- \"\$p\" \"\$d/\$n\" && fzf-metaselect --update-path \"\$p\" \"\$d/\$n\" \"\$2\" \"\$3\"' _ {1} ${(q)tmp_map} ${(q)cache_file})"
 
 fzf_args=(
   --multi
@@ -198,8 +290,10 @@ fzf_args=(
   --with-nth='2..'
   --accept-nth=1
   --preview-window=next
+  --color=hl:bold:#FFD75F,hl+:bold:#FFFF5F,fg+:bold:#FFFFFF,bg+:#4E2A6E,pointer:#FF5FAF,marker:#87FF5F
   --bind 'enter:select-all+accept'
-  --bind 'ctrl-p:toggle-preview'
+  --bind 'ctrl-p:up'
+  --bind 'alt-p:toggle-preview'
   --bind "alt-r:$reveal_bind"
   --bind "ctrl-y:$yazi_bind"
   --bind "ctrl-r:$rename_bind"

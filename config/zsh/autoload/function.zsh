@@ -14,6 +14,25 @@ disk-speed-test() {
   rm -f "$tmp"
 }
 
+# Show negotiated Ethernet link speed
+get-eth-speed() {
+  local iface
+
+  iface=$(networksetup -listallhardwareports |
+    awk '/Hardware Port: Ethernet|Hardware Port: USB 10\/100\/1000 LAN|Hardware Port: Thunderbolt Ethernet/{getline; print $2; exit}')
+
+  [[ -z $iface ]] && {
+    echo "No Ethernet interface found"
+    return 1
+  }
+
+  ifconfig "$iface" | awk '
+    /media:/ {
+      match($0, /[0-9]+(baseT|GbaseT)/)
+      print substr($0, RSTART, RLENGTH)
+    }'
+}
+
 diff-filenames() {
   emulate -L zsh
   setopt pipefail
