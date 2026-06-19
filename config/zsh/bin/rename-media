@@ -102,7 +102,7 @@ touch_modified_now() {
 
 clean_name() {
   local name="$1"
-  local tags=(1080p 1080 720p 4k 60fps 30fps 25fps)
+  local tags=(1080p 1080 720p 2160p 60fps 30fps 25fps)
   local t source_label before after
   local old_brace_format=false
   local open_paren="("
@@ -133,7 +133,7 @@ clean_name() {
   else
     # If this is already a new-format generated metadata block, rebuild it
     # instead of preserving a stale copy as parenthesized title text.
-    while [[ "$name" =~ ' \[((480p|720p|1080p|1440p|4k|[0-9]+p) [0-9]+fps( [^][]+)* [HVS])\]$' ]]; do
+    while [[ "$name" =~ ' \[((480p|720p|1080p|1440p|2160p|[0-9]+p) [0-9]+fps( [^][]+)* [HVS])\]$' ]]; do
       name="${name[1,$(( MBEGIN - 1 ))]}"
     done
 
@@ -249,7 +249,7 @@ get_resolution_label() {
   elif (( d <= 1440 )); then
     print -r -- "1440p"
   elif (( d <= 2160 )); then
-    print -r -- "4k"
+    print -r -- "2160p"
   else
     print -r -- "${d}p"
   fi

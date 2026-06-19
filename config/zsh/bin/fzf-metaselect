@@ -57,8 +57,8 @@ fi
 # match-highlight and selected-row colors are set on the fzf command below.
 title_color=$'\033[1;38;5;231m'   # bright white, bold — title/name (stands out)
 rating_color=$'\033[38;5;220m'    # yellow — rating stars
-meta_color=$'\033[38;5;79m'       # teal — resolution / fps / length
-actor_color=$'\033[38;5;176m'     # mauve — actors
+meta_color=$'\033[38;5;79m'          # teal — resolution / fps / length
+actor_color=$'\033[38;2;80;250;123m' # green — actors
 path_color=$'\033[38;5;244m'      # grey — directory path
 reset=$'\033[0m'
 
@@ -284,13 +284,14 @@ fzf_args=(
   --ansi
   --highlight-line
   --gap
+  --gap-line=' '
   --exact
   --cycle
   --delimiter=$'\t'
   --with-nth='2..'
   --accept-nth=1
   --preview-window=next
-  --color=hl:bold:#FFD75F,hl+:bold:#FFFF5F,fg+:bold:#FFFFFF,bg+:#4E2A6E,pointer:#FF5FAF,marker:#87FF5F
+  --color=hl:bold:#FE2A6E,hl+:bold:#FFFF5F,fg+:bold:#FFFFFF,bg+:#5E0A6E,pointer:#FF5FAF,marker:#87FF5F
   --bind 'enter:select-all+accept'
   --bind 'ctrl-p:up'
   --bind 'alt-p:toggle-preview'

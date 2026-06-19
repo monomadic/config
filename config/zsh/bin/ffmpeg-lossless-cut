@@ -11,9 +11,10 @@
 #     found, open selector starting after it, otherwise keep the normal flow
 #
 # Output:
-# - writes beside source as *.trimmed.ext
+# - replaces the source in place, keeping its original name
+# - writes to a hidden temp file beside the source, then renames into place
 # - copies embedded/container metadata, including source date tags
-# - copies the source filesystem creation date to the trimmed output
+# - copies the source filesystem creation date to the output
 # - moves the original to Trash after a successful cut
 #
 # Requirements:
@@ -40,18 +41,18 @@ Options:
   -w, --width <px>          Preview width for thumbnails (default: 480)
   -r, --reverse             Trim from the end backward to remove an outro
   -y, --yes                 Skip confirmation after keyframe selection
-  -f, --force               Overwrite existing *.trimmed output
+  -f, --force               Replace the source without the overwrite prompt
   -k, --keep-previews       Keep temporary preview directories
   --dry-run                 Show planned actions only
-  --mov-faststart           Enable MP4/MOV FastStart on the trimmed output
+  --mov-faststart           Enable MP4/MOV FastStart on the output
   --skip-detection          Deprecated no-op; detection is off unless requested
   --detect-black-scenes     Auto-start after a leading black scene when found
   --from <seconds>          Start selector at/after this timestamp
   -h, --help                Show this help
 
 After a successful cut, copies embedded/container metadata and the original
-file creation date to the trimmed output, then moves the original file to
-Trash.
+file creation date to the output, moves the original file to Trash, then
+renames the output onto the original's name (replacing it in place).
 
 Examples:
   ffmpeg-lossless-cut clip.mp4
@@ -109,23 +110,31 @@ print(f"{h:02d}:{m:02d}:{sec:09.6f}")
 PY
 }
 
-make_output_name() {
+make_work_output() {
+  # Hidden, uniquely named temp beside the source. The extension is preserved
+  # so ffmpeg selects the right muxer; the file is renamed onto the original
+  # name only after a successful cut and trash.
   local input_file="$1"
-  local suffix="${2:-trimmed}"
-  local dir base stem ext out
+  local dir base stem ext candidate n=0
 
   dir="${input_file:h}"
   base="${input_file:t}"
 
   if [[ "$base" == *.* ]]; then
     stem="${base:r}"
-    ext="${base:e}"
-    out="${dir}/${stem}.${suffix}.${ext}"
+    ext=".${base:e}"
   else
-    out="${dir}/${base}.${suffix}"
+    stem="$base"
+    ext=""
   fi
 
-  print -- "$out"
+  candidate="${dir}/.${stem}.cut-$$${ext}"
+  while [[ -e "$candidate" ]]; do
+    (( ++n ))
+    candidate="${dir}/.${stem}.cut-$$-${n}${ext}"
+  done
+
+  print -r -- "$candidate"
 }
 
 command_path_arg() {
@@ -926,38 +935,55 @@ for input_file in "${files[@]}"; do
   fi
 
   pretty_ts="$(format_ts "$ts")"
-  output_file="$(make_output_name "$input_file" "trimmed")"
+  final_output="$input_file"
+  work_output="$(make_work_output "$input_file")"
 
   if [[ "$reverse_mode" == true ]]; then
     info "Selected outro:    $pretty_ts  ($ts)"
   else
     info "Selected cut:      $pretty_ts  ($ts)"
   fi
-  info "Trimmed output:    $output_file"
+  info "Output (in place): $final_output"
 
   if [[ "$dry_run" == true ]]; then
     dry_run_movflags="use_metadata_tags"
     [[ "$mov_faststart" == true ]] && dry_run_movflags="+faststart+use_metadata_tags"
 
     if [[ "$reverse_mode" == true ]]; then
-      print -- "ffmpeg -hide_banner -y -to '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags '$dry_run_movflags' -c copy '$output_file'"
+      print -- "ffmpeg -hide_banner -y -to '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags '$dry_run_movflags' -c copy '$work_output'"
     else
-      print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags '$dry_run_movflags' -c copy '$output_file'"
+      print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags '$dry_run_movflags' -c copy '$work_output'"
     fi
-    print -- "copy embedded/container metadata from '$input_file' to '$output_file'"
-    print -- "copy creation date from '$input_file' to '$output_file'"
+    print -- "copy embedded/container metadata from '$input_file' to '$work_output'"
+    print -- "copy creation date from '$input_file' to '$work_output'"
     print -- "trash '$input_file'"
+    print -- "rename '$work_output' to '$final_output'"
     (( ++ok_count ))
     continue
   fi
 
-  if perform_cut "$input_file" "$ts" "$output_file" "$force" "$reverse_mode" "$mov_faststart"; then
-    info "Done: wrote trimmed copy"
-    copy_creation_date "$input_file" "$output_file" || (( ++creation_date_fail_count ))
-    touch_modified_now "$output_file"
-    (( ++ok_count ))
-    maybe_trash_original "$input_file" || (( ++trash_fail_count ))
+  if perform_cut "$input_file" "$ts" "$work_output" "$force" "$reverse_mode" "$mov_faststart"; then
+    info "Wrote trimmed copy"
+    copy_creation_date "$input_file" "$work_output" || (( ++creation_date_fail_count ))
+    touch_modified_now "$work_output"
+
+    # Trash must free the original's name before the rename can take it; the
+    # original therefore stays recoverable in Trash if the rename ever fails.
+    if maybe_trash_original "$input_file"; then
+      if mv -f -- "$work_output" "$final_output"; then
+        info "Replaced original: $final_output"
+        (( ++ok_count ))
+      else
+        warn "failed to rename output into place; left at: $work_output"
+        (( ++fail_count ))
+      fi
+    else
+      (( ++trash_fail_count ))
+      warn "original not trashed; left output at: $work_output"
+      (( ++fail_count ))
+    fi
   else
+    rm -f -- "$work_output"
     (( ++fail_count ))
   fi
 done
