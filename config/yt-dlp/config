@@ -35,7 +35,7 @@
 --alias print-name "-s --print filename -o {0} --trim-filenames 200 --output-na-placeholder ''"
 --alias best-video "-f bv[vcodec!=none][acodec=none]/bv[acodec=none]/bv*[vcodec!=none]/bv*/b -S res,fps,tbr --format-sort-force --ignore-no-formats-error"
 # media aliases
---alias porn '--use-postprocessor "Titlecase:when=pre_process" -o "%(channel_cc,uploader_cc,channel,uploader|?)s/%(cast,uploader|)l%(cast& - |)s[%(channel_cc,uploader_cc,channel,uploader|Unknown)s] %(title_cc,title).50s (%(extractor)s_%(id)s).%(ext)s" --progress --console-title --trim-filenames 200 --paths "home:$HOME/Movies/Porn/Downloads"'
+--alias porn '--use-postprocessor "Titlecase:when=pre_process" -o "%(channel_cc,uploader_cc,channel,uploader|?)s/%(cast,uploader|)l (%(channel_cc,uploader_cc,channel,uploader|Unknown)s) %(cast& - |)s %(title_cc,title).50s (%(extractor)s_%(id)s).%(ext)s" --progress --console-title --trim-filenames 200 --paths "home:$HOME/Movies/Porn/Downloads"'
 --alias tower '--porn --paths home:/Volumes/Tower/Movies/Porn/Downloads'
 # visuals aliases
 # video-only track, highest resolution, transcoded to ProRes Proxy (.mov)
