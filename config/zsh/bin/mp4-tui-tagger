@@ -1,0 +1,548 @@
+#!/usr/bin/env zsh
+# -----------------------------------------------------------------------------
+# mp4-tui-tagger — fzf-driven MP4 metadata tag editor
+#
+# View, edit, create and delete container metadata tags on one or more mp4
+# files at once. The UI is fzf with search disabled, driven entirely by
+# shortcut keys (vim hjkl movement). Tags edit through $EDITOR.
+#
+# Multiple files are aggregated like an mp3 tagger: a tag whose value differs
+# between files shows "<multiple values>"; setting it writes the same value to
+# every file, while tags you leave untouched keep their per-file values.
+#
+# Nothing is written to disk until you press `w` (write), which remuxes each
+# file losslessly (-c copy, faststart) via ffmpeg.
+#
+# Usage:
+#   mp4-tui-tagger FILE.mp4 [FILE2.mp4 ...]
+#
+# Keys (in the fzf UI):
+#   j / k        move down / up        g / G   top / bottom
+#   a            add a tag (pick a preset or "custom")
+#   e or ↵       edit selected tag in $EDITOR (rename by editing the key)
+#   E            edit ALL tags at once in $EDITOR
+#   d            delete selected tag
+#   w            write staged changes to the files (with confirmation)
+#   r            revert — reload tags from disk, discarding staged edits
+#   ctrl-/       toggle preview (shows per-file values for the selected tag)
+#   q / esc      quit (staged-but-unwritten edits are discarded)
+#
+# Dependencies: ffmpeg, ffprobe, fzf, jq
+# -----------------------------------------------------------------------------
+set -euo pipefail
+
+typeset -r SELF="${0:A}"
+
+# Container-level keys ffmpeg generates itself; never shown or rewritten.
+typeset -gra JUNK_KEYS=(major_brand minor_version compatible_brands encoder)
+
+# Offered by the "add" picker (plus a "custom" entry for arbitrary names).
+typeset -gra PRESET_TAGS=(
+  title artist album album_artist composer
+  genre date year comment description synopsis
+  show episode_id season_number episode_sort network
+  director producer writer actors cast
+  studio publisher copyright rating keywords
+  language grouping lyrics location
+)
+
+# ANSI
+typeset -gr C_KEY=$'\e[36m' C_DIM=$'\e[2m' C_MULT=$'\e[2;3m' \
+            C_SET=$'\e[32m' C_DEL=$'\e[31m' C_HEAD=$'\e[1m' R=$'\e[0m'
+
+# Workspace paths (MP4TT_DIR is exported by the parent before launching fzf,
+# so every internal subcommand shares the same staging directory).
+MP4TT_DIR="${MP4TT_DIR:-}"
+STAGED="$MP4TT_DIR/staged"
+ORIG_DIR="$MP4TT_DIR/orig"
+FILESLIST="$MP4TT_DIR/files"
+
+die() { print -ru2 -- "Error: $*"; exit 1; }
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || die "missing dependency: $1"
+}
+
+# --- base64 helpers (jq, so values may contain newlines/tabs safely) ---------
+enc() { jq -rn --arg s "$1" '$s|@base64'; }
+dec() { jq -rn --arg s "$1" '$s|@base64d'; }
+
+# Print a file's real tags as "b64key<TAB>b64value" lines, junk filtered.
+probe_file() {
+  ffprobe -v error -show_entries format_tags -of json -- "$1" \
+    | jq -r --argjson junk "$(printf '%s\n' "${JUNK_KEYS[@]}" | jq -R . | jq -cs .)" '
+        (.format.tags // {})
+        | to_entries[]
+        | select((.key | ascii_downcase) as $k | ($junk | index($k)) | not)
+        | (.key | @base64) + "\t" + (.value | tostring | @base64)'
+}
+
+# Read the file list into the `files` array.
+load_files() { files=("${(@f)$(<$FILESLIST)}"); }
+
+# -----------------------------------------------------------------------------
+# Staging model
+#
+# staged file: one "status<TAB>b64key<TAB>b64value" record per tag, where
+#   same  present & identical in every file       -> value = the shared value
+#   mult  differs or only in some files            -> value unused (shows <multiple>)
+#   set   user assigned a unified value to all      -> value = what to write
+#   del   user deleted it                           -> removed from every file
+# `same`/`mult` are clean; `set`/`del` are staged (dirty) changes.
+#
+# On write, each file's final tag set is, per record:
+#   set            -> value, to every file
+#   del            -> omitted
+#   same | mult    -> that file's own original value (preserving differences)
+# -----------------------------------------------------------------------------
+
+# Build orig/<n> snapshots and the initial staged set from the files on disk.
+init_state() {
+  load_files
+  rm -rf -- "$ORIG_DIR"; mkdir -p -- "$ORIG_DIR"
+
+  local -a order
+  local -A count firstval mixed haveval
+  local i raw k v b64k b64v
+
+  for i in {1..${#files}}; do
+    raw="$(probe_file "${files[$i]}")"
+    print -r -- "$raw" > "$ORIG_DIR/$i"
+    while IFS=$'\t' read -r b64k b64v; do
+      [[ -z "$b64k" ]] && continue
+      k="$(dec "$b64k")"; v="$(dec "$b64v")"
+      if [[ -z "${count[$k]:-}" ]]; then
+        order+=("$k"); count[$k]=0; firstval[$k]="$v"; haveval[$k]=1
+      elif [[ "${firstval[$k]}" != "$v" ]]; then
+        mixed[$k]=1
+      fi
+      count[$k]=$(( count[$k] + 1 ))
+    done <<< "$raw"
+  done
+
+  : > "$STAGED"
+  for k in "${order[@]}"; do
+    if (( count[$k] == ${#files} )) && [[ -z "${mixed[$k]:-}" ]]; then
+      print -r -- "same"$'\t'"$(enc "$k")"$'\t'"$(enc "${firstval[$k]}")" >> "$STAGED"
+    else
+      print -r -- "mult"$'\t'"$(enc "$k")"$'\t'"$(enc "")" >> "$STAGED"
+    fi
+  done
+}
+
+# Load staged records into parallel arrays (values decoded).
+load_staged() {
+  ST_STATUS=(); ST_KEY=(); ST_VAL=()
+  local st bk bv
+  while IFS=$'\t' read -r st bk bv; do
+    [[ -z "$st" ]] && continue
+    ST_STATUS+=("$st"); ST_KEY+=("$(dec "$bk")"); ST_VAL+=("$(dec "$bv")")
+  done < "$STAGED"
+}
+
+save_staged() {
+  : > "$STAGED"
+  local i
+  for i in {1..${#ST_STATUS}}; do
+    print -r -- "${ST_STATUS[$i]}"$'\t'"$(enc "${ST_KEY[$i]}")"$'\t'"$(enc "${ST_VAL[$i]}")" >> "$STAGED"
+  done
+}
+
+idx_of() {
+  local k="$1" i
+  for i in {1..${#ST_KEY}}; do
+    [[ "${ST_KEY[$i]}" == "$k" ]] && { print -r -- "$i"; return 0; }
+  done
+  return 1
+}
+
+# stage_set KEY VALUE  — assign a unified value (overrides any prior status).
+stage_set() {
+  local k="$1" v="$2" i
+  if i="$(idx_of "$k")"; then
+    ST_STATUS[$i]="set"; ST_VAL[$i]="$v"
+  else
+    ST_STATUS+=("set"); ST_KEY+=("$k"); ST_VAL+=("$v")
+  fi
+}
+
+# stage_del KEY — mark for removal (or drop outright if it was never on disk).
+stage_del() {
+  local k="$1" i
+  i="$(idx_of "$k")" || return 0
+  if key_in_any_orig "$k"; then
+    ST_STATUS[$i]="del"
+  else
+    ST_STATUS[$i]=(); ST_KEY[$i]=(); ST_VAL[$i]=()
+  fi
+}
+
+key_in_any_orig() {
+  local k="$1" i bk
+  for i in {1..${#files}}; do
+    [[ -f "$ORIG_DIR/$i" ]] || continue
+    while IFS=$'\t' read -r bk _; do
+      [[ -z "$bk" ]] && continue
+      [[ "$(dec "$bk")" == "$k" ]] && return 0
+    done < "$ORIG_DIR/$i"
+  done
+  return 1
+}
+
+# --- $EDITOR round-trip -------------------------------------------------------
+# Seed a temp file, open it in $EDITOR (which inherits the terminal fzf hands
+# over via execute()), and leave the saved text in the global EDIT_TEXT.
+# Returns non-zero if the buffer was left unchanged.
+open_editor() {
+  local seed="$1" tmp before
+  tmp="$MP4TT_DIR/edit.$$.conf"
+  print -rn -- "$seed" > "$tmp"
+  before="$(<$tmp)"
+  ${EDITOR:-vi} "$tmp"
+  EDIT_TEXT="$(<$tmp)"
+  rm -f -- "$tmp"
+  [[ "$EDIT_TEXT" == "$before" ]] && return 1
+  return 0
+}
+
+# Split "key=value" text. Sets PK_KEY / PK_VAL. value keeps internal newlines.
+parse_kv() {
+  local content="$1"
+  content="${content%$'\n'}"
+  if [[ "$content" == *=* ]]; then
+    PK_KEY="${content%%=*}"; PK_VAL="${content#*=}"
+  else
+    PK_KEY="$content"; PK_VAL=""
+  fi
+  PK_KEY="${PK_KEY//[$'\t\r\n']/}"
+  while [[ "$PK_KEY" == ' '* ]]; do PK_KEY="${PK_KEY# }"; done
+  while [[ "$PK_KEY" == *' ' ]]; do PK_KEY="${PK_KEY% }"; done
+}
+
+# =============================================================================
+# Internal subcommands (invoked from fzf binds; share MP4TT_DIR via the env)
+# =============================================================================
+
+cmd_list() {
+  load_staged
+  local i maxk=0 st k v padk vv disp
+  for i in {1..${#ST_KEY}}; do
+    [[ "${ST_STATUS[$i]}" == "del" ]] && continue
+    (( ${#ST_KEY[$i]} > maxk )) && maxk=${#ST_KEY[$i]}
+  done
+  for i in {1..${#ST_KEY}}; do
+    st="${ST_STATUS[$i]}"; k="${ST_KEY[$i]}"; v="${ST_VAL[$i]}"
+    [[ "$st" == "del" ]] && continue
+    padk="$(printf "%-${maxk}s" "$k")"
+    vv="${v//$'\n'/ ⏎ }"
+    case "$st" in
+      same) disp="  ${C_KEY}${padk}${R} ${C_DIM}=${R} ${vv}" ;;
+      mult) disp="  ${C_KEY}${padk}${R} ${C_DIM}=${R} ${C_MULT}<multiple values>${R}" ;;
+      set)  disp="${C_SET}●${R} ${C_KEY}${padk}${R} ${C_DIM}=${R} ${C_SET}${vv}${R}" ;;
+    esac
+    print -r -- "${k}"$'\t'"${disp}"
+  done
+}
+
+cmd_add() {
+  load_files
+  local pick prefill
+  pick="$(printf '%s\n' "${PRESET_TAGS[@]}" 'custom' \
+    | fzf --reverse --height='~60%' --border=rounded \
+          --prompt='add tag › ' --header='pick a tag to add (or custom)' \
+          </dev/tty >/dev/tty 2>&1)" || return 0
+  [[ -z "$pick" ]] && return 0
+  prefill="${pick}="
+
+  open_editor "$prefill" || return 0
+  parse_kv "$EDIT_TEXT"
+  [[ -z "$PK_KEY" ]] && return 0
+  load_staged
+  stage_set "$PK_KEY" "$PK_VAL"
+  save_staged
+}
+
+cmd_edit() {
+  local key="${1:-}"
+  [[ -z "$key" ]] && return 0
+  load_files
+  load_staged
+  local i seed=""
+  if i="$(idx_of "$key")"; then
+    case "${ST_STATUS[$i]}" in
+      mult) seed="${key}=" ;;          # values differ — type one to unify
+      *)    seed="${key}=${ST_VAL[$i]}" ;;
+    esac
+  else
+    seed="${key}="
+  fi
+
+  open_editor "$seed" || return 0
+  parse_kv "$EDIT_TEXT"
+  [[ -z "$PK_KEY" ]] && return 0
+
+  if [[ "$PK_KEY" != "$key" ]]; then
+    stage_del "$key"          # renamed: drop the old, add the new
+    stage_set "$PK_KEY" "$PK_VAL"
+  else
+    stage_set "$key" "$PK_VAL"
+  fi
+  save_staged
+}
+
+cmd_editall() {
+  load_files
+  load_staged
+
+  local buf i k st
+  buf=$'# Edit all tags. One "key=value" per line.\n'
+  buf+=$'# Delete a line to remove that tag. Lines starting with # are ignored.\n'
+  buf+=$'# "<multiple values>" tags are commented out — uncomment to unify them.\n#\n'
+
+  local -a concrete commented
+  for i in {1..${#ST_KEY}}; do
+    st="${ST_STATUS[$i]}"; k="${ST_KEY[$i]}"
+    [[ "$st" == "del" ]] && continue
+    if [[ "$st" == "mult" ]]; then
+      buf+="# ${k}="$'\n'
+      commented+=("$k")
+    else
+      buf+="${k}=${ST_VAL[$i]//$'\n'/ }"$'\n'
+      concrete+=("$k")
+    fi
+  done
+
+  open_editor "$buf" || return 0
+
+  # Collect "key=value" lines from the saved buffer.
+  local -A newmap
+  local -a neworder
+  local line
+  while IFS= read -r line; do
+    [[ "$line" == '#'* || -z "${line// }" ]] && continue
+    [[ "$line" == *=* ]] || continue
+    parse_kv "$line"
+    [[ -z "$PK_KEY" ]] && continue
+    [[ -z "${newmap[$PK_KEY]+x}" ]] && neworder+=("$PK_KEY")
+    newmap[$PK_KEY]="$PK_VAL"
+  done <<< "$EDIT_TEXT"
+
+  # Reconcile -> list of pending sets/deletes for confirmation.
+  local -a do_set do_del
+  for k in "${neworder[@]}"; do
+    if i="$(idx_of "$k")"; then
+      case "${ST_STATUS[$i]}" in
+        same) [[ "${ST_VAL[$i]}" != "${newmap[$k]}" ]] && do_set+=("$k") ;;
+        set)  [[ "${ST_VAL[$i]}" != "${newmap[$k]}" ]] && do_set+=("$k") ;;
+        *)    do_set+=("$k") ;;   # mult/del -> now explicitly set
+      esac
+    else
+      do_set+=("$k")
+    fi
+  done
+  for k in "${concrete[@]}"; do
+    [[ -z "${newmap[$k]+x}" ]] && do_del+=("$k")
+  done
+
+  if (( ${#do_set} == 0 && ${#do_del} == 0 )); then
+    print -r -- "No changes."; sleep 0.6; return 0
+  fi
+
+  print -r -- "${C_HEAD}Staged changes:${R}"
+  for k in "${do_set[@]}"; do
+    print -r -- "  ${C_SET}set${R} ${k} = ${newmap[$k]//$'\n'/ }"
+  done
+  for k in "${do_del[@]}"; do
+    print -r -- "  ${C_DEL}del${R} ${k}"
+  done
+  print -rn -- "Apply? [y/N] "
+  local reply
+  if ! read -q reply </dev/tty; then print; print -r -- "Cancelled."; sleep 0.5; return 0; fi
+  print
+
+  for k in "${do_set[@]}"; do stage_set "$k" "${newmap[$k]}"; done
+  for k in "${do_del[@]}"; do stage_del "$k"; done
+  save_staged
+}
+
+cmd_delete() {
+  local key="${1:-}"
+  [[ -z "$key" ]] && return 0
+  load_files
+  load_staged
+  stage_del "$key"
+  save_staged
+}
+
+cmd_reload() { init_state; }
+
+cmd_write() {
+  load_files
+  load_staged
+
+  local -a do_set do_del
+  local i
+  for i in {1..${#ST_STATUS}}; do
+    case "${ST_STATUS[$i]}" in
+      set) do_set+=("${ST_KEY[$i]}") ;;
+      del) do_del+=("${ST_KEY[$i]}") ;;
+    esac
+  done
+
+  if (( ${#do_set} == 0 && ${#do_del} == 0 )); then
+    print -r -- "No staged changes to write."; sleep 0.7; return 0
+  fi
+
+  print -r -- "${C_HEAD}Write to ${#files} file(s):${R}"
+  for i in {1..${#ST_STATUS}}; do
+    [[ "${ST_STATUS[$i]}" == "set" ]] && \
+      print -r -- "  ${C_SET}set${R} ${ST_KEY[$i]} = ${ST_VAL[$i]//$'\n'/ }"
+  done
+  for i in {1..${#ST_STATUS}}; do
+    [[ "${ST_STATUS[$i]}" == "del" ]] && \
+      print -r -- "  ${C_DEL}del${R} ${ST_KEY[$i]}"
+  done
+  print -rn -- "Proceed? [y/N] "
+  local reply
+  if ! read -q reply </dev/tty; then print; print -r -- "Cancelled."; sleep 0.5; return 0; fi
+  print
+
+  local f n="${#files}" bk bv j st k v dir base tmp
+  local -A OA
+  local -a metaargs
+  for i in {1..$n}; do
+    f="${files[$i]}"
+    OA=()
+    while IFS=$'\t' read -r bk bv; do
+      [[ -z "$bk" ]] && continue
+      OA[$(dec "$bk")]="$(dec "$bv")"
+    done < "$ORIG_DIR/$i"
+
+    metaargs=()
+    for j in {1..${#ST_STATUS}}; do
+      st="${ST_STATUS[$j]}"; k="${ST_KEY[$j]}"; v="${ST_VAL[$j]}"
+      case "$st" in
+        del) ;;
+        set) metaargs+=(-metadata "${k}=${v}") ;;
+        same|mult) [[ -n "${OA[$k]+x}" ]] && metaargs+=(-metadata "${k}=${OA[$k]}") ;;
+      esac
+    done
+
+    dir="${f:h}"; base="${f:t}"
+    tmp="${dir}/.${base:r}.mp4tt.$$.${base:e}"
+    print -rn -- "  [${i}/${n}] ${base} … "
+    if ffmpeg -hide_banner -loglevel error -y -i "$f" \
+        -map '0:v?' -map '0:a?' -map '0:s?' \
+        -map_metadata -1 "${metaargs[@]}" \
+        -c copy -movflags +faststart+use_metadata_tags -- "$tmp"; then
+      mv -f -- "$tmp" "$f"
+      print -r -- "${C_SET}done${R}"
+    else
+      rm -f -- "$tmp"
+      print -r -- "${C_DEL}failed${R}"
+    fi
+  done
+
+  init_state          # re-read so the UI reflects what's now on disk
+  print -r -- "Wrote ${n} file(s)."
+  sleep 0.6
+}
+
+cmd_preview() {
+  local key="${1:-}"
+  load_files
+  print -r -- "${C_HEAD}Files (${#files}):${R}"
+  local i
+  for i in {1..${#files}}; do print -r -- "  ${files[$i]:t}"; done
+  [[ -z "$key" ]] && return 0
+  print
+  print -r -- "${C_HEAD}${key}${R}"
+  local bk bv val
+  for i in {1..${#files}}; do
+    val="${C_DIM}(absent)${R}"
+    while IFS=$'\t' read -r bk bv; do
+      [[ -z "$bk" ]] && continue
+      [[ "$(dec "$bk")" == "$key" ]] && val="$(dec "$bv")"
+    done < "$ORIG_DIR/$i"
+    print -r -- "  ${C_KEY}${files[$i]:t}${R}: ${val}"
+  done
+}
+
+# =============================================================================
+# Dispatch / main
+# =============================================================================
+
+case "${1:-}" in
+  __list)    cmd_list;            exit 0 ;;
+  __add)     cmd_add;             exit 0 ;;
+  __edit)    shift; cmd_edit "${1:-}";   exit 0 ;;
+  __editall) cmd_editall;         exit 0 ;;
+  __delete)  shift; cmd_delete "${1:-}"; exit 0 ;;
+  __write)   cmd_write;           exit 0 ;;
+  __reload)  cmd_reload;          exit 0 ;;
+  __preview) shift; cmd_preview "${1:-}"; exit 0 ;;
+esac
+
+usage() {
+  sed -n '5,30p' "$SELF" | sed 's/^# \{0,1\}//'
+}
+
+main() {
+  case "${1:-}" in
+    -h|--help|'') usage; exit 0 ;;
+  esac
+
+  require_command ffmpeg
+  require_command ffprobe
+  require_command fzf
+  require_command jq
+
+  local -a files
+  local arg
+  for arg in "$@"; do
+    [[ -f "$arg" ]] || die "not a file: $arg"
+    files+=("${arg:A}")
+  done
+
+  MP4TT_DIR="$(mktemp -d -t mp4-tui-tagger)"
+  STAGED="$MP4TT_DIR/staged"; ORIG_DIR="$MP4TT_DIR/orig"; FILESLIST="$MP4TT_DIR/files"
+  export MP4TT_DIR
+  trap 'rm -rf -- "$MP4TT_DIR"' EXIT HUP INT TERM
+
+  print -rl -- "${files[@]}" > "$FILESLIST"
+  print -r  -- "Reading tags from ${#files} file(s)…" >&2
+  init_state
+
+  local label header
+  if (( ${#files} == 1 )); then
+    label=" 󰈫 ${files[1]:t} "
+  else
+    label=" 󰈫 ${#files} files "
+  fi
+  header=" 󰓹 mp4-tui-tagger   ${C_DIM}j/k${R} move · ${C_DIM}a${R} add · ${C_DIM}e${R} edit · ${C_DIM}E${R} edit-all · ${C_DIM}d${R} delete · ${C_DIM}w${R} write · ${C_DIM}r${R} revert · ${C_DIM}^/${R} preview · ${C_DIM}q${R} quit"
+
+  : | fzf \
+    --disabled --reverse --ansi --cycle --no-info \
+    --delimiter=$'\t' --with-nth=2 \
+    --pointer='󰋆' --marker=' ' --prompt=' ' \
+    --border=horizontal --border-label="$label" --border-label-pos=3 \
+    --header="$header" --header-first \
+    --color='border:#444444,label:#888888,pointer:#5fd7ff' \
+    --preview="'$SELF' __preview {1}" \
+    --preview-window='right,50%,border-left,wrap,hidden' \
+    --bind 'j:down' --bind 'k:up' \
+    --bind 'g:first' --bind 'G:last' \
+    --bind 'ctrl-d:half-page-down' --bind 'ctrl-u:half-page-up' \
+    --bind 'ctrl-/:toggle-preview' \
+    --bind 'q:abort' \
+    --bind "start:reload('$SELF' __list)" \
+    --bind "a:execute('$SELF' __add)+reload('$SELF' __list)+refresh-preview" \
+    --bind "enter:execute('$SELF' __edit {1})+reload('$SELF' __list)+refresh-preview" \
+    --bind "e:execute('$SELF' __edit {1})+reload('$SELF' __list)+refresh-preview" \
+    --bind "E:execute('$SELF' __editall)+reload('$SELF' __list)+refresh-preview" \
+    --bind "d:execute('$SELF' __delete {1})+reload('$SELF' __list)+refresh-preview" \
+    --bind "w:execute('$SELF' __write)+reload('$SELF' __list)+refresh-preview" \
+    --bind "r:execute('$SELF' __reload)+reload('$SELF' __list)+refresh-preview"
+}
+
+main "$@"
