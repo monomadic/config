@@ -17,9 +17,15 @@ set -euo pipefail
 #   zsh builtins, the index table is written via a dedicated fd), and UTF-8
 #   sanitisation runs once over the whole stream rather than once per file.
 
-# Colors for the two display lines (edit to taste).
-name_color=$'\033[1;38;5;81m'   # bold light blue — filename
-path_color=$'\033[38;5;244m'    # grey — path
+# Colors for the filename parts (edit to taste). The display is colored by
+# delimiter: text inside [ … ] and ( … ) get their own colors (and the brackets
+# are stripped), rating stars go yellow, and #tags get their own color. The
+# extension is removed. Everything else keeps the terminal default.
+bracket_color=$'\033[38;5;108m'  # text inside [ … ]
+paren_color=$'\033[38;5;111m'    # text inside ( … )
+star_color=$'\033[38;5;220m'     # ★☆ rating stars (yellow)
+tag_color=$'\033[38;5;114m'      # #tags
+path_color=$'\033[38;5;244m'     # grey — path (line 2)
 reset=$'\033[0m'
 
 show_absolute=false
@@ -41,6 +47,11 @@ for arg in "$@"; do
     *)                passthrough_args+=("$arg") ;;
   esac
 done
+
+# With --no-color the same code still strips the delimiters, just without color.
+if ! $colorize; then
+  bracket_color="" paren_color="" star_color="" tag_color="" path_color="" reset=""
+fi
 
 if [[ -t 0 ]]; then
   print -u2 "Error: expected piped input"
@@ -81,32 +92,45 @@ sanitize_utf8() {
   fi
 }
 
+# Color a basename by delimiter and store the result in $fmt_line. Fork-free:
+# each step is a single zsh global substitution that re-evaluates $match per
+# match. Handles old and new filename formats alike since it is purely syntactic
+# — it colors whatever is inside [ … ] / ( … ), the rating stars, and #tags, and
+# strips the brackets/parens and the extension.
+typeset -g fmt_line=""
+format_name() {
+  setopt local_options extended_glob
+  local fname="$1" o
+
+  # strip the final extension, then a secondary marker ext (.trimmed/.original/…)
+  o="${fname%.*}"
+  case "${o##*.}" in
+    trimmed|original|cut|edit|final|fixed) o="${o%.*}" ;;
+  esac
+
+  o="${o//(#b)\[([^][]##)\]/${bracket_color}${match[1]}${reset}}"   # [ … ]
+  o="${o//(#b)\(([^()]##)\)/${paren_color}${match[1]}${reset}}"     # ( … )
+  o="${o//(#b)([★☆]##)/${star_color}${match[1]}${reset}}"          # ★ rating
+  o="${o//(#b)(\#[[:alnum:]_-]##)/${tag_color}${match[1]}${reset}}" # #tags
+
+  fmt_line="$o"
+}
+
 # Emit one NUL-delimited multi-line record to stdout and record its raw path on
-# $map_fd. Fork-free: everything here is a zsh builtin.
+# $map_fd. Line 1 is the colored filename, line 2 the directory.
 emit_one() {
   local raw="$1" idx="$2" base dir
 
-  if $show_absolute; then
-    base=$raw; dir=""
-  else
-    base=${raw:t}; dir=${raw:h}
-  fi
-
   print -r -u $map_fd -- "$raw"
 
-  if $colorize; then
-    if [[ -n "$dir" ]]; then
-      printf '%s\t%s%s%s\n%s%s%s\0' "$idx" "$name_color" "$base" "$reset" "$path_color" "$dir" "$reset"
-    else
-      printf '%s\t%s%s%s\0' "$idx" "$name_color" "$base" "$reset"
-    fi
-  else
-    if [[ -n "$dir" ]]; then
-      printf '%s\t%s\n%s\0' "$idx" "$base" "$dir"
-    else
-      printf '%s\t%s\0' "$idx" "$base"
-    fi
+  if $show_absolute; then
+    printf '%s\t%s\0' "$idx" "$raw"
+    return 0
   fi
+
+  base=${raw:t}; dir=${raw:h}
+  format_name "$base"
+  printf '%s\t%s\n%s%s%s\0' "$idx" "$fmt_line" "$path_color" "$dir" "$reset"
 }
 
 # Read stdin (NUL or newline) and emit records to stdout. The index advances
