@@ -92,34 +92,27 @@ sanitize_utf8() {
   fi
 }
 
-# Color a basename by delimiter and store the result in $fmt_line. Fork-free:
-# each step is a single zsh global substitution that re-evaluates $match per
-# match. Handles old and new filename formats alike since it is purely syntactic
-# — it colors whatever is inside [ … ] / ( … ), the rating stars, and #tags, and
-# strips the brackets/parens and the extension.
-typeset -g fmt_line=""
-format_name() {
+# Color a string by delimiter and store the result in $_cz. Fork-free: each step
+# is a single zsh global substitution that re-evaluates $match per match. Purely
+# syntactic, so it handles old and new filename formats alike — it colors text
+# inside [ … ] and ( … ) (stripping the brackets), rating stars, and #tags.
+typeset -g _cz=""
+colorize_str() {
   setopt local_options extended_glob
-  local fname="$1" o
-
-  # strip the final extension, then a secondary marker ext (.trimmed/.original/…)
-  o="${fname%.*}"
-  case "${o##*.}" in
-    trimmed|original|cut|edit|final|fixed) o="${o%.*}" ;;
-  esac
-
+  local o="$1"
   o="${o//(#b)\[([^][]##)\]/${bracket_color}${match[1]}${reset}}"   # [ … ]
   o="${o//(#b)\(([^()]##)\)/${paren_color}${match[1]}${reset}}"     # ( … )
   o="${o//(#b)([★☆]##)/${star_color}${match[1]}${reset}}"          # ★ rating
   o="${o//(#b)(\#[[:alnum:]_-]##)/${tag_color}${match[1]}${reset}}" # #tags
-
-  fmt_line="$o"
+  _cz="$o"
 }
 
-# Emit one NUL-delimited multi-line record to stdout and record its raw path on
-# $map_fd. Line 1 is the colored filename, line 2 the directory.
+# Emit one NUL-delimited two-line record to stdout and record its raw path on
+# $map_fd. The text before the first " - " becomes line 2 (the dash is dropped);
+# everything after it is line 1. Filenames without a " - " fall back to showing
+# the directory on line 2.
 emit_one() {
-  local raw="$1" idx="$2" base dir
+  local raw="$1" idx="$2" base dir stem line1 line2
 
   print -r -u $map_fd -- "$raw"
 
@@ -129,8 +122,22 @@ emit_one() {
   fi
 
   base=${raw:t}; dir=${raw:h}
-  format_name "$base"
-  printf '%s\t%s\n%s%s%s\0' "$idx" "$fmt_line" "$path_color" "$dir" "$reset"
+
+  # strip the final extension, then a secondary marker ext (.trimmed/.original/…)
+  stem="${base%.*}"
+  case "${stem##*.}" in
+    trimmed|original|cut|edit|final|fixed) stem="${stem%.*}" ;;
+  esac
+
+  if [[ "$stem" == *' - '* ]]; then
+    colorize_str "${stem#* - }";  line1="$_cz"        # after the first " - "
+    colorize_str "${stem%% - *}"; line2="$_cz"        # before the first " - "
+  else
+    colorize_str "$stem"; line1="$_cz"
+    line2="${path_color}${dir}${reset}"               # no dash → show the path
+  fi
+
+  printf '%s\t%s\n%s\0' "$idx" "$line1" "$line2"
 }
 
 # Read stdin (NUL or newline) and emit records to stdout. The index advances
@@ -171,7 +178,13 @@ map_selection() {
   fi
 }
 
-reveal_bind="execute-silent(zsh -c 'path=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$path\" ]] && open --reveal \"\$path\"' _ {1} ${(q)tmp_map})"
+# Each bind resolves the highlighted row's real path from the index map (field
+# {1} is the index, $2 is the map file), then acts on it. The reveal bind is
+# silent; the rest hand the terminal to a TUI/editor via execute().
+reveal_bind="execute-silent(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] && open --reveal \"\$p\"' _ {1} ${(q)tmp_map})"
+yazi_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] && yazi \"\$p\"' _ {1} ${(q)tmp_map})"
+trim_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] && ffmpeg-lossless-cut \"\$p\"' _ {1} ${(q)tmp_map})"
+rename_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] || exit 0; d=\${p:h}; o=\${p:t}; t=\$(mktemp -t fms-rename.XXXXXX) || exit 1; print -r -- \"\$o\" >| \"\$t\"; \${EDITOR:-vi} \"\$t\"; n=\$(sed -n 1p \"\$t\"); rm -f \"\$t\"; [[ -n \"\$n\" && \"\$n\" != \"\$o\" ]] && mv -i -- \"\$p\" \"\$d/\$n\"' _ {1} ${(q)tmp_map})"
 
 fzf_args=(
   --multi
@@ -186,8 +199,11 @@ fzf_args=(
   --accept-nth=1
   --preview-window=next
   --bind 'enter:select-all+accept'
+  --bind 'ctrl-p:toggle-preview'
   --bind "alt-r:$reveal_bind"
-  --bind "ctrl-r:$reveal_bind"
+  --bind "ctrl-y:$yazi_bind"
+  --bind "ctrl-r:$rename_bind"
+  --bind "ctrl-t:$trim_bind"
 )
 
 $print0 && fzf_args+=(--print0)
