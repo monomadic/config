@@ -2,24 +2,29 @@
 # ============================================================
 # video-rotate-lossless
 # Losslessly rotate QuickTime-based videos (.mov/.mp4/.m4v) by
-# adjusting the container's display-rotation flag — no re-encode.
+# rewriting the container's display-rotation flag — no re-encode.
 #
-# The pixels are untouched; only the rotation value in the track
-# header matrix changes. Players that honor the flag (QuickTime,
-# Finder/Quick Look, mpv, VLC, ffmpeg autorotate) display the
-# video rotated.
+# Pixels are copied verbatim (ffmpeg stream copy); only the display
+# matrix changes, so players that honor it (QuickTime, Finder/Quick
+# Look, mpv, VLC, ffmpeg autorotate) show the video rotated. ffmpeg
+# re-muxes the file, so unlike an in-place metadata edit this also
+# works on fragmented MP4 (e.g. processed iPhone clips), which is
+# why a plain exiftool/metadata rewrite is not used here.
 #
 # Rotation is relative to each file's current rotation:
 #   --right  rotate 90° clockwise          (default)
 #   --left   rotate 90° counter-clockwise
 #
 # Output:
-# - edits files in place; preserves filesystem modified time (-P)
-# - leaves no *_original backup behind (-overwrite_original)
+# - replaces each file in place (atomic mv from a temp beside it)
+# - preserves the filesystem modified time, and creation date on macOS
 #
 # Requirements:
 # - zsh
-# - exiftool
+# - ffmpeg / ffprobe
+#
+# Optional:
+# - SetFile   (restores macOS creation date)
 # ============================================================
 
 emulate -L zsh
@@ -32,9 +37,9 @@ usage() {
 Usage:
   $script_name [--left | --right] <video1> [video2 ...]
 
-Losslessly rotate .mov/.mp4/.m4v videos by adjusting the container
-display-rotation flag (no re-encode). Rotation is relative to each
-file's current rotation.
+Losslessly rotate .mov/.mp4/.m4v videos by rewriting the container
+display-rotation flag (ffmpeg stream copy, no re-encode). Rotation is
+relative to each file's current rotation.
 
 Options:
   -r, --right   Rotate 90° clockwise (default)
@@ -55,6 +60,73 @@ supported_ext() {
   esac
 }
 
+muxer_for() {
+  case "${1:l}" in
+    mov) print -- mov ;;
+    *)   print -- mp4 ;;
+  esac
+}
+
+# Current display rotation in clockwise degrees (0/90/180/270), 0 if none.
+# ffprobe reports the display-matrix rotation counter-clockwise, so the
+# clockwise value is its negation.
+current_rotation_cw() {
+  local file="$1" raw intval
+  raw="$(ffprobe -v error -select_streams v:0 \
+        -show_entries stream_side_data=rotation \
+        -of default=nw=1:nk=1 -- "$file" 2>/dev/null)" || raw=""
+  [[ -n "$raw" ]] || { print -- 0; return; }
+  intval="${raw%%.*}"                       # drop any fractional part
+  [[ "$intval" == -<-> || "$intval" == <-> ]] || { print -- 0; return; }
+  print -- $(( ( -intval % 360 + 360 ) % 360 ))
+}
+
+restore_creation_date() {
+  local src_epoch="$1" dst="$2" created
+  have SetFile || return 0
+  [[ "$src_epoch" == <-> ]] || return 0
+  (( src_epoch > 0 )) || return 0
+  created="$(date -r "$src_epoch" '+%m/%d/%Y %H:%M:%S')" || return 0
+  SetFile -d "$created" "$dst" 2>/dev/null \
+    || warn "could not restore creation date: ${dst:t}"
+}
+
+rotate_one() {
+  local file="$1" delta="$2" direction="$3"
+  local dir="${file:h}" base="${file:t}" ext="${file:e}"
+  local cur new dr fmt tmp btime
+
+  cur="$(current_rotation_cw "$file")"
+  new=$(( (cur + delta) % 360 ))
+  dr=$(( (360 - new) % 360 ))     # ffmpeg display_rotation (CCW) for target CW angle
+  fmt="$(muxer_for "$ext")"
+
+  btime="$(stat -f '%B' -- "$file" 2>/dev/null)" || btime=""
+  tmp="${dir}/.${base:r}.rotate.$$.${ext}"
+
+  if ! ffmpeg -hide_banner -loglevel error -y \
+        -display_rotation:v:0 "$dr" \
+        -i "$file" \
+        -map 0 -map_metadata 0 -movflags use_metadata_tags \
+        -c copy \
+        -f "$fmt" \
+        -- "$tmp"; then
+    rm -f -- "$tmp"
+    warn "ffmpeg failed to rotate: $base"
+    return 1
+  fi
+
+  touch -r "$file" "$tmp" 2>/dev/null || true
+  if ! mv -f -- "$tmp" "$file"; then
+    rm -f -- "$tmp"
+    warn "failed to replace: $base"
+    return 1
+  fi
+  restore_creation_date "$btime" "$file"
+
+  info "Rotated ${direction}: $base  (${cur}° → ${new}°)"
+}
+
 delta=90            # clockwise
 direction="right"
 typeset -a files=()
@@ -71,7 +143,8 @@ while (( $# > 0 )); do
 done
 
 (( ${#files[@]} > 0 )) || { usage; exit 1; }
-have exiftool || die "exiftool not found"
+have ffmpeg  || die "ffmpeg not found"
+have ffprobe || die "ffprobe not found"
 
 integer ok_count=0 skip_count=0 fail_count=0
 
@@ -88,16 +161,9 @@ for file in "${files[@]}"; do
     continue
   fi
 
-  current="$(exiftool -s3 -Rotation -- "$file" 2>/dev/null)"
-  [[ "$current" == <-> ]] || current=0
-
-  new=$(( (current + delta) % 360 ))
-
-  if exiftool -P -overwrite_original -Rotation="$new" -- "$file" >/dev/null 2>&1; then
-    info "Rotated ${direction}: ${file:t}  (${current}° → ${new}°)"
+  if rotate_one "$file" "$delta" "$direction"; then
     (( ++ok_count ))
   else
-    warn "failed to rotate: ${file:t}"
     (( ++fail_count ))
   fi
 done

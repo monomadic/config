@@ -51,6 +51,10 @@ ok() {
   gum style --foreground 82 --bold "✓ $*"
 }
 
+warn() {
+  gum style --foreground 214 --bold "▲ $*"
+}
+
 need() {
   command -v "$1" >/dev/null 2>&1 || die "Missing dependency: $1"
 }
@@ -213,7 +217,6 @@ edit_message() {
 
 commit_now() {
   local msg_file=$1
-  local should_push=$2
 
   print
   git diff --cached --stat
@@ -222,12 +225,149 @@ commit_now() {
   git commit -F "$msg_file"
 
   ok "Committed"
+}
 
-  if [[ "$should_push" == "true" ]]; then
-    info "Pushing"
-    git push
-    ok "Pushed"
+rebase_in_progress() {
+  local git_dir
+  git_dir=$(git rev-parse --git-dir)
+  [[ -d "$git_dir/rebase-merge" || -d "$git_dir/rebase-apply" ]]
+}
+
+has_conflicts() {
+  [[ -n "$(git diff --name-only --diff-filter=U)" ]]
+}
+
+push_now() {
+  info "Pushing"
+  git push
+  ok "Pushed"
+}
+
+# Ask the configured backend to edit the currently-conflicted files in place.
+# Its only job is to remove the conflict markers — staging and continuing the
+# rebase is handled by resolve_rebase_with_ai, not the model.
+ai_resolve_conflicts() {
+  local files
+  files=$(git diff --name-only --diff-filter=U)
+
+  local prompt
+  prompt=$(cat <<EOF
+Resolve the git merge conflicts in this repository.
+
+These files contain conflict markers (<<<<<<<, |||||||, =======, >>>>>>>):
+$files
+
+Edit each file in place to produce a correct merge that preserves the intent of
+both sides, removing every conflict marker. Do not run git commands, do not
+stage, do not commit — only edit the files.
+EOF
+)
+
+  local rc=0
+  case "$GC_BACKEND" in
+    claude)
+      # Same session-env strip as generate_message so claude authenticates as a
+      # standalone CLI. acceptEdits lets it write files without prompting.
+      local -a unset_args
+      local v
+      for v in \
+        CLAUDECODE CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_SESSION_ID \
+        CLAUDE_CODE_CHILD_SESSION CLAUDE_CODE_EXECPATH CLAUDE_AGENT_SDK_VERSION \
+        CLAUDE_CODE_OAUTH_SCOPES CLAUDE_CODE_SDK_HAS_OAUTH_REFRESH \
+        CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH ANTHROPIC_BASE_URL \
+        USE_STAGING_OAUTH USE_LOCAL_OAUTH
+      do
+        unset_args+=(-u "$v")
+      done
+      gum spin --spinner dot --title "Resolving conflicts..." -- \
+        env "${unset_args[@]}" \
+          claude --print --permission-mode acceptEdits "$prompt" \
+        || rc=$?
+      ;;
+    codex)
+      gum spin --spinner dot --title "Resolving conflicts..." -- \
+        codex exec -s workspace-write -c approval_policy="never" "$prompt" \
+        || rc=$?
+      ;;
+  esac
+
+  return $rc
+}
+
+# Drive a conflicted rebase to completion with the AI: resolve markers, stage,
+# continue, and repeat for each commit the rebase replays.
+resolve_rebase_with_ai() {
+  while rebase_in_progress; do
+    if has_conflicts; then
+      local files
+      files=$(git diff --name-only --diff-filter=U)
+      info "Resolving conflicts: ${files//$'\n'/, }"
+
+      ai_resolve_conflicts || return 1
+
+      if has_conflicts; then
+        return 1   # backend left markers behind — bail to manual
+      fi
+
+      git add -A
+      GIT_EDITOR=true git rebase --continue >/dev/null 2>&1 || true
+    else
+      # Mid-rebase with nothing to merge: the replayed commit became empty
+      # (its change is already upstream), so drop it and carry on.
+      GIT_EDITOR=true git rebase --skip >/dev/null 2>&1 || return 1
+    fi
+  done
+
+  return 0
+}
+
+# Commit, rebase onto the remote, then push. On conflict, offer AI or manual.
+sync_repo() {
+  info "Syncing with remote (pull --rebase)"
+
+  if git pull --rebase --autostash; then
+    push_now
+    return
   fi
+
+  # pull --rebase exited non-zero. Only a genuine rebase conflict is something
+  # we can offer to resolve; anything else (no upstream, network) is the user's.
+  if ! rebase_in_progress || ! has_conflicts; then
+    die "Sync failed — resolve manually, then push (see 'git status')"
+  fi
+
+  warn "Merge conflicts while rebasing onto the remote:"
+  git diff --name-only --diff-filter=U | sed 's/^/  • /'
+
+  local choice
+  choice=$(
+    gum choose \
+      --cursor "› " \
+      --selected-prefix "● " \
+      --unselected-prefix "○ " \
+      --header "Resolve conflicts:" \
+      "automatically (AI)" \
+      "manually (exit)"
+  )
+
+  if [[ "$choice" != "automatically (AI)" ]]; then
+    info "Stopping so you can resolve manually."
+    info "When done:  git rebase --continue  &&  git push"
+    exit 0
+  fi
+
+  resolve_rebase_with_ai \
+    || die "AI could not finish the rebase — resolve manually (see 'git status')"
+
+  ok "Conflicts resolved, rebase complete"
+  push_now
+}
+
+commit_and_sync() {
+  local msg_file=$1
+
+  commit_now "$msg_file"
+  sync_repo
 }
 
 main() {
@@ -314,22 +454,22 @@ main() {
           --cursor "› " \
           --selected-prefix "● " \
           --unselected-prefix "○ " \
-          "commit and push" \
+          "commit and sync" \
           "edit commit message" \
           "commit only" \
           "regenerate commit message"
       )
 
       case "$action" in
-        "commit and push")
-          commit_now "$msg_file" true
+        "commit and sync")
+          commit_and_sync "$msg_file"
           break
           ;;
         "edit commit message")
           edit_message "$msg_file"
           ;;
         "commit only")
-          commit_now "$msg_file" false
+          commit_now "$msg_file"
           break
           ;;
         "regenerate commit message")

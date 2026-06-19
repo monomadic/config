@@ -1,7 +1,7 @@
 # ~/.config/starship.toml
 add_newline = false
 command_timeout = 500
-#scan_timeout = 10
+scan_timeout = 100  # default 30ms; raised to avoid timeouts in slow dirs (iCloud, network mounts)
 
 format = "$directory$git_branch$git_status${custom.uptime}${custom.disk_free}${custom.battery}$line_break$os$hostname $character"
 
