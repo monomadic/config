@@ -20,10 +20,10 @@
   <pad6 name="Vocals``\nREVERB" color="stem_color 'vocal'">
     padfx 'reverb' 20% 32% 11% 50% 'stemfx:vocal'
   </pad6>
-  <pad7 name="Vocals``\nLOOP ROLL 2bt" color="stem_color 'vocal'">
+  <pad7 name="Vocals``\nLOOP ROLL 2bt" color="stem_color 'vocal'" query="padfx 'loop roll' 100% 2bt 50% 50% 'stemfx:vocal'">
     padfx 'loop roll' 100% 2bt 50% 50% 'stemfx:vocal'
   </pad7>
-  <pad8 name="Vocals``\nECHO OUT 1bt" color="stem_color 'vocal'">
+  <pad8 name="Vocals``\nECHO OUT 1bt" color="stem_color 'vocal'" query="padfx 'echo out' 80% 1bt 50% 0% 'stemfx:vocal'">
     padfx 'echo out' 80% 1bt 50% 0% 'stemfx:vocal'
   </pad8>
   <!-- row 3: melody/rhythm -->
