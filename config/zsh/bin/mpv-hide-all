@@ -1,0 +1,39 @@
+#!/usr/bin/env zsh
+# hide-mpv
+#
+# Hide all running CLI/binary mpv instances, excluding mpv.app bundle launches.
+# Works better than window minimising and should hide fullscreen mpv windows too.
+
+osascript -l JavaScript <<'JXA'
+ObjC.import('AppKit')
+
+const apps = $.NSWorkspace.sharedWorkspace.runningApplications
+const count = apps.count
+let hidden = 0
+
+for (let i = 0; i < count; i++) {
+  const app = apps.objectAtIndex(i)
+
+  const name = ObjC.unwrap(app.localizedName) || ''
+  const exeURL = app.executableURL
+  const bundleURL = app.bundleURL
+
+  const exePath = exeURL ? ObjC.unwrap(exeURL.path) : ''
+  const bundlePath = bundleURL ? ObjC.unwrap(bundleURL.path) : ''
+
+  const isMpv =
+    name === 'mpv' ||
+    exePath.endsWith('/mpv')
+
+  const isAppBundle =
+    bundlePath.endsWith('.app') ||
+    exePath.includes('.app/Contents/MacOS/')
+
+  if (isMpv && !isAppBundle) {
+    app.hide()
+    hidden++
+  }
+}
+
+hidden
+JXA

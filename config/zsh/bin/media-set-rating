@@ -1,0 +1,216 @@
+#!/usr/bin/env zsh
+# -----------------------------------------------------------------------------
+# media-set-rating — set a 0–5 star rating on a media file, stored in its name
+#
+# The rating lives in the filename as a trailing " ★★★☆☆" (a single space then
+# exactly five of ★/☆) just before the extension — the same convention parsed
+# by media-parse-filename-to-json, rename-media and private-check-files:
+#
+#   filename example.mp4   ->   filename example ★★★★☆.mp4   (4 stars)
+#
+# The UI is a rounded input box of five stars that updates in place. Any
+# existing rating on the file is loaded; otherwise it starts at 3/5 so you can
+# go either direction quickly.
+#
+# Usage:
+#   media-set-rating FILE [FILE ...]
+#
+# Keys:
+#   1-5      set that many stars        0   clear (no rating)
+#   l / →    add a star                 h / ←   remove a star
+#   k / ↑    full (5 stars)             j / ↓   clear (0 stars)
+#   ⏎        save: rename the file      ^C / q / esc   cancel without writing
+#
+# Saving with 0 stars removes any existing rating from the name.
+# -----------------------------------------------------------------------------
+emulate -L zsh
+setopt pipefail
+
+typeset -gr \
+  C_STAR=$'\e[33m'    \
+  C_EMPTY=$'\e[2m'    \
+  C_BORDER=$'\e[90m'  \
+  C_KEY=$'\e[97m'     \
+  C_DESC=$'\e[90m'    \
+  C_FILE=$'\e[1;36m'  \
+  C_OK=$'\e[32m'      \
+  C_ERR=$'\e[31m'     \
+  C_RESET=$'\e[0m'
+
+# Box geometry: inner content is always 19 visible columns, and the box block
+# (top, content, bottom, blank, hints) is 5 lines tall for the in-place redraw.
+typeset -gr BOX_LINES=5
+printf -v BAR '─%.0s' {1..19}
+typeset -g HINTS="  ${C_KEY}1-5${C_DESC} rate   ${C_KEY}h/l${C_DESC} ±1   ${C_KEY}j/k${C_DESC} clear/full   ${C_KEY}⏎${C_DESC} save   ${C_KEY}^C${C_DESC} cancel${C_RESET}"
+
+# fd connected to the controlling terminal, and its saved settings. Global so
+# the EXIT/INT traps and restore_term always see them, whatever scope fires.
+typeset -g TTYFD="" SAVED_STTY=""
+
+die() { print -ru2 -- "media-set-rating: $*"; exit 1; }
+
+usage() {
+  print -r -- "Usage: media-set-rating FILE [FILE ...]"
+  print -r -- ""
+  print -r -- "Interactively set a 0–5 star rating, stored in the filename as a"
+  print -r -- "trailing \" ★★★☆☆\" before the extension."
+  print -r -- ""
+  print -r -- "Keys: 1-5 set · 0 clear · h/l ±1 · j/k clear/full · arrows · ⏎ save · ^C cancel"
+}
+
+# Filename form: exactly five ★/☆, no spaces (e.g. ★★★☆☆).
+stars_plain() {
+  local n=$1 i out=""
+  for (( i = 1; i <= 5; i++ )); do
+    (( i <= n )) && out+="★" || out+="☆"
+  done
+  print -rn -- "$out"
+}
+
+# Display form: spaced and colored (e.g. ★ ★ ★ ☆ ☆), 9 visible columns.
+stars_colored() {
+  local n=$1 i out=""
+  for (( i = 1; i <= 5; i++ )); do
+    if (( i <= n )); then
+      out+="${C_STAR}★${C_RESET}"
+    else
+      out+="${C_EMPTY}☆${C_RESET}"
+    fi
+    (( i < 5 )) && out+=" "
+  done
+  print -rn -- "$out"
+}
+
+restore_term() {
+  [[ -n "$TTYFD" && -n "$SAVED_STTY" ]] && stty "$SAVED_STTY" <&$TTYFD 2>/dev/null
+  [[ -n "$TTYFD" ]] && printf '\e[?25h' >&$TTYFD 2>/dev/null   # show cursor
+}
+
+# Redraw the rounded box + hints (BOX_LINES lines), each line cleared first.
+draw_box() {
+  local n=$1
+  local content="  $(stars_colored $n)   ${C_DESC}${n}/5${C_RESET}  "
+  printf '\r\e[2K  %s╭%s╮%s\n'   "$C_BORDER" "$BAR" "$C_RESET" >&$TTYFD
+  printf '\r\e[2K  %s│%s%s%s│%s\n' "$C_BORDER" "$C_RESET" "$content" "$C_BORDER" "$C_RESET" >&$TTYFD
+  printf '\r\e[2K  %s╰%s╯%s\n'   "$C_BORDER" "$BAR" "$C_RESET" >&$TTYFD
+  printf '\r\e[2K\n'                                            >&$TTYFD
+  printf '\r\e[2K%s\n'           "$HINTS"                       >&$TTYFD
+}
+
+# Prompt for, and apply, a rating to one file.
+rate_one() {
+  local file="$1" idx="$2" total="$3"
+  local dir="${file:h}" base="${file:t}" ext="${file:t:e}" stem="${file:t:r}"
+
+  # Load an existing trailing rating; otherwise default to 3/5.
+  local rating=3 stars filled
+  if [[ "$stem" =~ ' ([★☆]{5})$' ]]; then
+    stars="$match[1]"
+    filled="${stars//[^★]/}"
+    rating=${#filled}
+    stem="${stem% ${stars}}"
+  fi
+
+  print -u $TTYFD -r ""
+  if (( total > 1 )); then
+    print -u $TTYFD -r -- "  ${C_DESC}[$idx/$total]${C_RESET} ${C_FILE}${base}${C_RESET}"
+  else
+    print -u $TTYFD -r -- "  ${C_FILE}${base}${C_RESET}"
+  fi
+  print -u $TTYFD -r ""
+
+  local key a b confirm=0
+  draw_box $rating
+  while true; do
+    read -k 1 -u $TTYFD key || { confirm=0; break; }
+    case "$key" in
+      0)            rating=0 ;;
+      [1-5])        rating=$key ;;
+      h|H)          (( rating = rating > 0 ? rating - 1 : 0 )) ;;
+      l|L)          (( rating = rating < 5 ? rating + 1 : 5 )) ;;
+      k|K)          rating=5 ;;
+      j|J)          rating=0 ;;
+      $'\r'|$'\n')  confirm=1; break ;;
+      q|Q)          confirm=0; break ;;
+      $'\e')        # escape: arrow key, or a bare ESC that cancels
+        a=""; b=""
+        read -t 0.05 -k 1 -u $TTYFD a 2>/dev/null
+        if [[ "$a" == "[" || "$a" == "O" ]]; then
+          read -t 0.05 -k 1 -u $TTYFD b 2>/dev/null
+          case "$b" in
+            C) (( rating = rating < 5 ? rating + 1 : 5 )) ;;   # right
+            D) (( rating = rating > 0 ? rating - 1 : 0 )) ;;   # left
+            A) rating=5 ;;                                     # up
+            B) rating=0 ;;                                     # down
+          esac
+        else
+          confirm=0; break
+        fi
+        ;;
+    esac
+    printf '\e[%dA' "$BOX_LINES" >&$TTYFD   # back to top of box block
+    draw_box $rating
+  done
+
+  print -u $TTYFD -r ""   # space below the hints before the result line
+
+  if (( ! confirm )); then
+    print -u $TTYFD -r -- "  ${C_DESC}cancelled${C_RESET}"
+    return 0
+  fi
+
+  local newstem="$stem" newbase newpath
+  (( rating > 0 )) && newstem="$stem $(stars_plain $rating)"
+  if [[ -n "$ext" ]]; then
+    newbase="$newstem.$ext"
+  else
+    newbase="$newstem"
+  fi
+  newpath="$dir/$newbase"
+
+  if [[ "$newbase" == "$base" ]]; then
+    print -u $TTYFD -r -- "  ${C_DESC}unchanged${C_RESET}  ${C_FILE}${base}${C_RESET}"
+    return 0
+  fi
+  if [[ -e "$newpath" ]]; then
+    print -u $TTYFD -r -- "  ${C_ERR}exists, skipped:${C_RESET} $newbase"
+    return 1
+  fi
+  if mv -n -- "$file" "$newpath"; then
+    print -u $TTYFD -r -- "  ${C_OK}✓${C_RESET} ${C_FILE}${newbase}${C_RESET}"
+  else
+    print -u $TTYFD -r -- "  ${C_ERR}rename failed:${C_RESET} $newbase"
+    return 1
+  fi
+}
+
+main() {
+  (( $# )) || { usage >&2; return 1; }
+  [[ "$1" == -h || "$1" == --help ]] && { usage; return 0; }
+
+  local f
+  for f in "$@"; do
+    [[ -e "$f" ]] || die "no such file: $f"
+    [[ -d "$f" ]] && die "is a directory: $f"
+  done
+
+  exec {TTYFD}<>/dev/tty || die "no controlling terminal"
+
+  # Put the terminal into single-key (cbreak), no-echo mode ourselves rather
+  # than relying on `read -k`, which only does so when fd 0 is a tty — and this
+  # tool may be launched from a file manager / picker where stdin is not.
+  SAVED_STTY=$(stty -g <&$TTYFD 2>/dev/null) || SAVED_STTY=""
+  stty -icanon -echo min 1 time 0 <&$TTYFD 2>/dev/null
+  printf '\e[?25l' >&$TTYFD   # hide cursor
+
+  trap 'restore_term' EXIT
+  trap 'restore_term; printf "\n" >&$TTYFD 2>/dev/null; exit 130' INT
+
+  local idx=0 total=$#
+  for f in "$@"; do
+    (( idx++ ))
+    rate_one "$f" "$idx" "$total"
+  done
+}
+
+main "$@"

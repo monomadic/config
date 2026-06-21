@@ -13,7 +13,7 @@ zmodload zsh/datetime   # EPOCHREALTIME, for timing the index build
 script_name="${0:t}"
 
 usage() {
-  print -u2 -- "Usage: $script_name [--index] [--index-only] [--no-sort] [--raw] [fzf-args...]"
+  print -u2 -- "Usage: $script_name [--index] [--index-only] [--no-sort] [--raw] [--persistent] [fzf-args...]"
   print -u2 -- ""
   print -u2 -- "Pick a media file with fzf and play it in mpv."
   print -u2 -- "Builds a cached index of media files on first run, then reuses it."
@@ -23,6 +23,7 @@ usage() {
   print -u2 -- "  --index-only   Build the index and stop (don't launch the picker)"
   print -u2 -- "  --no-sort      Build the index without sorting (default: newest first)"
   print -u2 -- "  --raw          Use the plain fzf-select picker instead of fzf-metaselect"
+  print -u2 -- "  --persistent   Keep the picker open after playing (Enter plays, Esc exits)"
   print -u2 -- "  --help, -h     Show this help"
   print -u2 -- ""
   print -u2 -- "Any other arguments are passed through to the picker (e.g. --query foo)."
@@ -37,6 +38,7 @@ typeset force_index=false
 typeset index_only=false
 typeset sort=true
 typeset raw=false
+typeset persistent=false
 typeset -a fzf_args=()
 
 while (( $# > 0 )); do
@@ -45,11 +47,14 @@ while (( $# > 0 )); do
     --index-only) index_only=true; shift ;;
     --no-sort)    sort=false; shift ;;
     --raw)        raw=true; shift ;;
+    --persistent) persistent=true; shift ;;
     --help|-h)    usage; exit 0 ;;
     --)           shift; fzf_args+=("$@"); break ;;
     *)            fzf_args+=("$1"); shift ;;
   esac
 done
+
+$raw && $persistent && die "--persistent is not supported with --raw"
 
 # --raw uses the plain single-line picker; default is the multi-line one.
 typeset picker=fzf-metaselect
@@ -75,56 +80,60 @@ count_records() {
   tr -cd '\0' < "$file" | wc -c | tr -d ' '
 }
 
-# Read NUL records on stdin, write them through to stdout, and report a running
-# count on a single, self-updating stderr line.
-index_progress() {
-  local rec count=0
-  local tty=false
+build_index() {
+  local start=$EPOCHREALTIME tmp_cache status_file rec fd_status elapsed n=0 tty=false
+  local -a recs fd_cmd
+  tmp_cache="$(mktemp -t media-index.XXXXXX)" || die "could not create temp file"
+  status_file="$(mktemp -t media-index-status.XXXXXX)" || die "could not create temp file"
+
+  # Clean up half-written files if we are interrupted mid-build.
+  trap 'rm -f -- "$tmp_cache" "$status_file"; exit 130' INT TERM
+
+  if $sort; then
+    fd_cmd=(fd-media --sort created --keyed)   # streams "<ts>\t<path>\0" as found
+  else
+    fd_cmd=(fd-media --print0)                 # streams "<path>\0" as found
+  fi
+
   [[ -t 2 ]] && tty=true
 
-  while IFS= read -r -d $'\0' rec; do
-    printf '%s\0' "$rec"
-    (( ++count ))
-    if $tty && (( count % 25 == 0 )); then
-      printf '\r\033[KCreating index: %d files found' "$count" >&2
+  # Read records as they stream in so the count ticks live (especially through
+  # the slow stat phase when sorting); collect them for a fast in-memory sort.
+  while IFS= read -r -d $'\0' rec || [[ -n "$rec" ]]; do
+    [[ -z "$rec" ]] && { rec=""; continue; }
+    recs+=("$rec"); (( ++n ))
+    if $tty && (( n % 50 == 0 )); then
+      printf '\r\033[KCreating index: %d files found' "$n" >&2
     fi
-  done
+    rec=""
+  done < <("${fd_cmd[@]}"; print -r -- "$?" > "$status_file")
 
-  if $tty; then
-    printf '\r\033[KCreating index: %d files found\n' "$count" >&2
-  fi
-}
-
-build_index() {
-  local tmp_cache start elapsed
-  start=$EPOCHREALTIME
-  tmp_cache="$(mktemp -t media-index.XXXXXX)" || die "could not create temp file"
-
-  # Clean up a half-written index if we are interrupted mid-build.
-  trap 'rm -f -- "$tmp_cache"; exit 130' INT TERM
-
-  local -a fd_cmd=(fd-media --print0)
-  $sort && fd_cmd+=(--sort created)   # newest first (fd-media default order)
-
-  "${fd_cmd[@]}" | index_progress > "$tmp_cache"
-  local fd_status=$pipestatus[1]
+  $tty && printf '\r\033[KCreating index: %d files found\n' "$n" >&2
 
   trap - INT TERM
+  fd_status="$(<"$status_file")"; rm -f -- "$status_file"
+  [[ -n "$fd_status" ]] || fd_status=0
 
   if (( fd_status != 0 )); then
     rm -f -- "$tmp_cache"
     die "fd-media failed (exit $fd_status)"
   fi
-
-  if [[ ! -s "$tmp_cache" ]]; then
+  if (( n == 0 )); then
     rm -f -- "$tmp_cache"
     die "no media files found"
+  fi
+
+  if $sort; then
+    recs=("${(On)recs[@]}")                        # newest first (numeric-desc by leading ts)
+    print -rN -- "${recs[@]#*$'\t'}" > "$tmp_cache"  # strip the "<ts>\t" prefix
+  else
+    print -rN -- "${recs[@]}" > "$tmp_cache"
   fi
 
   mv -f -- "$tmp_cache" "$cache"
 
   elapsed=$(( EPOCHREALTIME - start ))
-  printf 'Indexed %s files in %.2fs\n' "$(count_records "$cache")" "$elapsed"
+  printf 'Indexed %d files in %.2fs\n' "$n" "$elapsed"
 }
 
 if $force_index || [[ ! -s "$cache" ]]; then
@@ -145,7 +154,10 @@ trap 'rm -f -- "$selection"' EXIT
 
 # fzf-metaselect persists rename/trim edits back into the cache; fzf-select can't.
 picker_opts=(-0 --print0)
-$raw || picker_opts+=("--cache-file=$cache")
+if ! $raw; then
+  picker_opts+=("--cache-file=$cache")
+  $persistent && picker_opts+=(--persistent)
+fi
 "$picker" "${picker_opts[@]}" "${fzf_args[@]}" < "$cache" > "$selection"
 
 if [[ -s "$selection" ]]; then

@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# kitty-theme — fzf theme picker for kitty with live preview.
+#
+# Highlighting a theme applies it live to every kitty window (via remote
+# control), the way Helix previews themes as you move through the list.
+# Enter persists the choice; Esc restores the colors you started with.
+#
+# Themes come from two places:
+#   ★ your own files in ~/.config/kitty/themes/   (listed first, starred)
+#     the ~400 official themes from the kitty-themes collection
+#
+# Persistence: the chosen theme is copied to ~/.config/kitty/current-theme.conf,
+# which kitty.conf pulls in via `include current-theme.conf`. So the selection
+# survives restarts without rewriting any tracked dotfile.
+#
+# Subcommands (used internally by the fzf binds, but safe to call directly):
+#   kitty-theme --apply   <file>   live-apply a theme to all windows (preview)
+#   kitty-theme --preview <file>   render the color swatch shown in the sidebar
+#   kitty-theme --persist <file>   copy to current-theme.conf + reload config
+set -euo pipefail
+
+SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+KITTY_CONF_DIR="${KITTY_CONFIG_DIRECTORY:-$HOME/.config/kitty}"
+CURRENT_THEME="$KITTY_CONF_DIR/current-theme.conf"
+USER_THEMES="$KITTY_CONF_DIR/themes"
+CACHE_DIR="$HOME/.cache/kitty/themes-collection"
+ZIP="$HOME/Library/Caches/kitty/kitty-themes.zip"
+
+# Run a kitty remote-control command against the instance we live in.
+remote() { kitty @ ${KITTY_LISTEN_ON:+--to "$KITTY_LISTEN_ON"} "$@"; }
+
+# "#rrggbb" -> "r;g;b" for ANSI truecolor escapes.
+hex2rgb() {
+  local h=${1#\#}
+  printf '%d;%d;%d' "0x${h:0:2}" "0x${h:2:2}" "0x${h:4:2}"
+}
+
+# Pull a single setting's value out of a kitty theme file.
+conf_value() { awk -v k="$2" '$1==k {print $2; exit}' "$1"; }
+
+render_preview() {
+  local f="$1" name fg bg c i
+  [ -f "$f" ] || { echo "missing: $f"; return; }
+  name="$(basename "$f")"; name="${name%.conf}"
+
+  printf '\033[1m%s\033[0m\n\n' "$name"
+
+  fg="$(conf_value "$f" foreground)"; fg="${fg:-#cccccc}"
+  bg="$(conf_value "$f" background)"; bg="${bg:-#000000}"
+
+  # A line of sample text rendered in the theme's fg-on-bg.
+  printf '\033[48;2;%s;38;2;%sm  The quick brown fox  \033[0m\n\n' \
+    "$(hex2rgb "$bg")" "$(hex2rgb "$fg")"
+
+  # The 16 ANSI colors, two rows of eight.
+  for i in $(seq 0 15); do
+    c="$(conf_value "$f" "color$i")"
+    if [ -n "$c" ]; then
+      printf '\033[48;2;%sm    \033[0m' "$(hex2rgb "$c")"
+    else
+      printf '     '
+    fi
+    [ $(((i + 1) % 8)) -eq 0 ] && echo
+  done
+  echo
+
+  # fg / bg / cursor / selection swatches with labels.
+  local key
+  for key in foreground background cursor selection_background; do
+    c="$(conf_value "$f" "$key")"
+    [ -n "$c" ] || continue
+    printf '\033[48;2;%sm  \033[0m %-22s %s\n' "$(hex2rgb "$c")" "$key" "$c"
+  done
+}
+
+# Make sure the official collection is extracted into CACHE_DIR.
+ensure_collection() {
+  if ls "$CACHE_DIR"/*.conf >/dev/null 2>&1; then return; fi
+  if [ ! -f "$ZIP" ]; then
+    echo "Fetching kitty theme collection..." >&2
+    kitten themes --dump-theme Default >/dev/null 2>&1 || true
+  fi
+  [ -f "$ZIP" ] || { echo "Could not download kitty themes collection." >&2; return; }
+  mkdir -p "$CACHE_DIR"
+  local tmp; tmp="$(mktemp -d)"
+  unzip -qo "$ZIP" 'kitty-themes-master/themes/*.conf' -d "$tmp" || true
+  cp "$tmp"/kitty-themes-master/themes/*.conf "$CACHE_DIR"/ 2>/dev/null || true
+  rm -rf "$tmp"
+}
+
+# Emit "displayname<TAB>fullpath" lines: user themes first (starred), then the collection.
+list_themes() {
+  local f n
+  if [ -d "$USER_THEMES" ]; then
+    for f in "$USER_THEMES"/*; do
+      [ -f "$f" ] || continue
+      n="$(basename "$f")"; n="${n%.conf}"
+      printf '\033[33m★ %s\033[0m\t%s\n' "$n" "$f"
+    done
+  fi
+  for f in "$CACHE_DIR"/*.conf; do
+    [ -f "$f" ] || continue
+    n="$(basename "$f")"; n="${n%.conf}"
+    printf '%s\t%s\n' "$n" "$f"
+  done
+}
+
+case "${1:-}" in
+  --apply)
+    remote set-colors --all "$2" >/dev/null 2>&1 || true
+    exit 0 ;;
+  --preview)
+    render_preview "$2"; exit 0 ;;
+  --persist)
+    cp "$2" "$CURRENT_THEME"
+    remote set-colors --all --configured "$2" >/dev/null 2>&1 || true
+    # Full reload so non-dynamic bits (tab bar colors, etc.) pick up the theme.
+    kill -USR1 $(pgrep -x kitty) >/dev/null 2>&1 || true
+    exit 0 ;;
+  -h|--help)
+    sed -n '2,30p' "$SELF" | sed 's/^# \{0,1\}//'; exit 0 ;;
+esac
+
+command -v fzf >/dev/null || { echo "fzf is required." >&2; exit 1; }
+ensure_collection
+
+# Snapshot current colors so Esc can roll back.
+SAVED="$(mktemp)"
+trap 'rm -f "$SAVED"' EXIT
+remote get-colors >"$SAVED" 2>/dev/null || true
+
+selection="$(
+  list_themes | fzf \
+    --ansi \
+    --delimiter='\t' --with-nth=1 \
+    --prompt='kitty theme ❯ ' \
+    --info=inline \
+    --preview="$SELF --preview {2}" \
+    --preview-window='right:55%:wrap' \
+    --bind="focus:execute-silent($SELF --apply {2})" \
+    --bind='ctrl-/:toggle-preview' \
+    --header='enter: keep  ·  esc: revert  ·  ctrl-/: toggle preview'
+)" && rc=0 || rc=$?
+
+if [ "${rc:-0}" -eq 0 ] && [ -n "$selection" ]; then
+  path="${selection#*$'\t'}"
+  "$SELF" --persist "$path"
+  echo "Theme set: $(basename "${path%.conf}")"
+else
+  if [ -s "$SAVED" ]; then
+    remote set-colors --all "$SAVED" >/dev/null 2>&1 || true
+  fi
+  echo "Cancelled — restored previous colors."
+fi
