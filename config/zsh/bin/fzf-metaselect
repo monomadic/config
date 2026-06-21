@@ -67,6 +67,7 @@ read0=false
 print0=false
 stream=false
 colorize=true
+persistent=false
 cache_file=""
 passthrough_args=()
 records_loaded=0
@@ -79,6 +80,7 @@ for arg in "$@"; do
     -0|--read0)       read0=true ;;
     --print0)         print0=true ;;
     --stream)         stream=true ;;
+    --persistent)     persistent=true ;;  # Enter plays via mpv but keeps fzf open
     --cache-file=*)   cache_file="${arg#*=}" ;;  # persist rename/trim edits here
     *)                passthrough_args+=("$arg") ;;
   esac
@@ -278,6 +280,15 @@ yazi_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] && 
 trim_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] || exit 0; ffmpeg-lossless-cut \"\$p\"; n=\"\${p:r}.trimmed.\${p:e}\"; [[ ! -e \"\$p\" && -f \"\$n\" ]] && fzf-metaselect --update-path \"\$p\" \"\$n\" \"\$2\" \"\$3\"' _ {1} ${(q)tmp_map} ${(q)cache_file})"
 rename_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] || exit 0; d=\${p:h}; o=\${p:t}; t=\$(mktemp -t fms-rename.XXXXXX) || exit 1; print -r -- \"\$o\" >| \"\$t\"; \${EDITOR:-vi} \"\$t\"; n=\$(sed -n 1p \"\$t\"); rm -f \"\$t\"; [[ -n \"\$n\" && \"\$n\" != \"\$o\" ]] || exit 0; mv -i -- \"\$p\" \"\$d/\$n\" && fzf-metaselect --update-path \"\$p\" \"\$d/\$n\" \"\$2\" \"\$3\"' _ {1} ${(q)tmp_map} ${(q)cache_file})"
 
+# Enter: by default select everything and accept (closes fzf, caller plays it).
+# With --persistent, play the marked/current row(s) via mpv-send and stay open;
+# {+1} gives the index field of each selected row, resolved against the map.
+if $persistent; then
+  enter_bind="execute-silent(zsh -c 'm=\$1; shift; for i in \"\$@\"; do sed -n \"\${i}p\" \"\$m\"; done | mpv-send play' _ ${(q)tmp_map} {+1})"
+else
+  enter_bind="select-all+accept"
+fi
+
 fzf_args=(
   --multi
   --read0
@@ -292,7 +303,7 @@ fzf_args=(
   --accept-nth=1
   --preview-window=next
   --color=hl:bold:#FE2A6E,hl+:bold:#FFFF5F,fg+:bold:#FFFFFF,bg+:#5E0A6E,pointer:#FF5FAF,marker:#87FF5F
-  --bind 'enter:select-all+accept'
+  --bind "enter:$enter_bind"
   --bind 'ctrl-p:up'
   --bind 'alt-p:toggle-preview'
   --bind "alt-r:$reveal_bind"

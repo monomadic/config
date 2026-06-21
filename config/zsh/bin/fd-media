@@ -19,6 +19,7 @@ usage() {
   print -u2 -- "  --sort-created                    Alias for --sort created"
   print -u2 -- "  --reverse                         Reverse sort order (only applies with --sort)"
   print -u2 -- "  --print0                          Output NUL-delimited paths"
+  print -u2 -- "  --keyed                           Stream NUL '<ts>\\t<path>' records unsorted (needs --sort)"
   print -u2 -- "  --path PATH | --path=PATH         Add a search path"
   print -u2 -- "  --match-string STRING             Require a case-insensitive literal match"
   print -u2 -- "  --match-regex REGEX               Require a case-insensitive regex match"
@@ -43,6 +44,7 @@ typeset -a match_regexes=()
 typeset verbose=false
 typeset print0=false
 typeset reverse=false
+typeset keyed=false
 typeset sort_key=""
 typeset pattern="."
 
@@ -92,6 +94,10 @@ while (( $# > 0 )); do
       ;;
     --print0)
       print0=true
+      shift
+      ;;
+    --keyed)
+      keyed=true
       shift
       ;;
     --path|--path=*)
@@ -237,6 +243,15 @@ emit_path() {
     print -r -- "$rec"
   fi
 }
+
+if $keyed; then
+  # Stream NUL-delimited "<timestamp>\t<path>" records as files are found, so a
+  # caller can show live progress and do its own (fast, in-memory) sort.
+  [[ -n "$sort_key" ]] || die "--keyed requires --sort"
+  process_files
+  log_verbose "Execution complete."
+  exit 0
+fi
 
 if [[ -z "$sort_key" ]]; then
   if $print0; then

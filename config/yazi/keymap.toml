@@ -203,6 +203,12 @@ run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 
 desc = "Rename selected media"
 
 [[mgr.prepend_keymap]]
+on   = [ "e", "s" ]
+for  = "unix"
+run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " set rating " -- /Users/nom/.zsh/bin/media-set-rating %s'''
+desc = "Set star rating on selected media"
+
+[[mgr.prepend_keymap]]
 on   = [ "e", "]" ]
 run  = "shell --block -- /Users/nom/.zsh/bin/video-rotate-lossless --right %s"
 desc = "Rotate selected videos right (lossless)"
