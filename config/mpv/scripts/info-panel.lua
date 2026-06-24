@@ -12,6 +12,15 @@ local WRAP_CHARS = 54
 local MAX_VALUE_LINES = 6 -- per field, keeps long descriptions in check
 local BG_ALPHA = "&H70&"
 
+-- Metadata keys already surfaced by the curated fields above; these are
+-- excluded from the "extra tags" dump so nothing shows twice. Keys are stored
+-- in the same normalized form metadata_lookup uses (lowercase, alphanumerics).
+local CONSUMED_KEYS = {
+    title = true,
+    description = true, comment = true, synopsis = true, plot = true, summary = true,
+    actors = true, actor = true, cast = true, starring = true, performer = true,
+}
+
 local TITLE_COLOR = "{\\1c&HF8F8F8&}"
 local DESC_COLOR = "{\\1c&HC8C8C8&}"
 local LABEL_COLOR = "{\\1c&H00FFFF&}"
@@ -134,6 +143,29 @@ local function get_location()
     return dir
 end
 
+-- Any container metadata tags not already shown by the curated fields, sorted
+-- alphabetically so ordering is stable between files.
+local function collect_extra_tags()
+    local meta = mp.get_property_native("metadata") or {}
+    local seen = {}
+    local extras = {}
+
+    for key, value in pairs(meta) do
+        local norm = tostring(key):lower():gsub("[^%w]", "")
+        if not CONSUMED_KEYS[norm] and not seen[norm] then
+            local text = metadata_value_to_text(value)
+            if text ~= "" then
+                seen[norm] = true
+                table.insert(extras, { label = trim(key), value = text })
+            end
+        end
+    end
+
+    table.sort(extras, function(a, b) return a.label:lower() < b.label:lower() end)
+
+    return extras
+end
+
 local function collect_fields()
     local fields = {}
 
@@ -148,6 +180,10 @@ local function collect_fields()
     add("Actors", metadata_lookup({ "actors", "actor", "cast", "starring", "performer" }))
     add("Filename", mp.get_property("filename"))
     add("Location", get_location())
+
+    for _, extra in ipairs(collect_extra_tags()) do
+        add(extra.label, extra.value)
+    end
 
     return fields
 end

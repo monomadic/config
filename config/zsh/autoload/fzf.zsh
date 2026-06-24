@@ -29,7 +29,7 @@ function fzf-ssh() {
 
 # kill processes
 function fzf-kill() {
-  kill -9 $(ps -ef | fzf | awk '{print $2}')
+  kill -9 $(ps -ef | fzf --exact | awk '{print $2}')
 }
 
 # set environment variables
