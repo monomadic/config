@@ -1,0 +1,176 @@
+#!/usr/bin/env zsh
+# fpscheck — does this video really run at its claimed frame rate?
+#
+# Reports container/nominal vs average vs *unique* frame rate, detects VFR
+# and duplicate-padded frames (the "claims 60fps but feels like 30" case).
+#
+# Deps: ffprobe, ffmpeg (brew install ffmpeg)
+# Usage: fpscheck [-q|--quick] [-h|--help] <file>
+#   -q  skip the full-decode duplicate scan (fast, metadata only)
+
+emulate -L zsh
+set -o pipefail
+
+# ── colors ──────────────────────────────────────────────────────────────────
+if [[ -t 1 && -z $NO_COLOR ]]; then
+  C_RST=$'\e[0m'; C_B=$'\e[1m'; C_DIM=$'\e[2m'
+  C_RED=$'\e[31m'; C_GRN=$'\e[32m'; C_YLW=$'\e[33m'
+  C_BLU=$'\e[34m'; C_CYN=$'\e[36m'; C_MAG=$'\e[35m'
+else
+  C_RST= C_B= C_DIM= C_RED= C_GRN= C_YLW= C_BLU= C_CYN= C_MAG=
+fi
+
+die()  { print -u2 -- "${C_RED}error:${C_RST} $*"; exit 1 }
+hdr()  { print -- "\n${C_B}${C_CYN}$1${C_RST}" }
+kv()   { printf "  ${C_DIM}%-16s${C_RST} %s\n" "$1" "$2" }
+note() { print -- "${C_DIM}$1${C_RST}" }
+
+usage() {
+  print -- "${C_B}fpscheck${C_RST} — verify a video's real frame rate
+${C_DIM}usage:${C_RST} fpscheck [-q|--quick] <file>
+  -q, --quick   metadata only; skip the full-decode duplicate scan"
+}
+
+# ── args ──────────────────────────────────────────────────────────────────────
+local quick=0 file=
+while (( $# )); do
+  case $1 in
+    -q|--quick) quick=1 ;;
+    -h|--help)  usage; exit 0 ;;
+    -*)         die "unknown option: $1" ;;
+    *)          file=$1 ;;
+  esac
+  shift
+done
+
+[[ -n $file ]] || { usage; exit 1 }
+[[ -f $file ]] || die "no such file: $file"
+for bin in ffprobe ffmpeg; do
+  (( $+commands[$bin] )) || die "$bin not found (brew install ffmpeg)"
+done
+
+# ── helpers ───────────────────────────────────────────────────────────────────
+frac() {  # "60000/1001" -> 59.940 ; "30" -> 30.000 ; "N/A"/0 -> 0
+  local f=$1
+  [[ -z $f || $f == N/A || $f == 0/0 ]] && { print -- 0; return }
+  if [[ $f == */* ]]; then
+    local n=${f%%/*} d=${f##*/}
+    (( d == 0 )) && { print -- 0; return }
+    printf '%.3f' $(( ${n}.0 / ${d} ))
+  else
+    printf '%.3f' $(( ${f}.0 ))
+  fi
+}
+
+human_size() {  # bytes -> human
+  local b=$1
+  [[ -z $b || $b == N/A ]] && { print -- "N/A"; return }
+  if   (( b >= 1073741824 )); then printf '%.2f GiB' $(( b / 1073741824.0 ))
+  elif (( b >= 1048576 ));    then printf '%.1f MiB' $(( b / 1048576.0 ))
+  else printf '%d KiB' $(( b / 1024 )); fi
+}
+
+human_time() {  # seconds -> H:MM:SS
+  local s=$(( int($1) ))
+  printf '%d:%02d:%02d' $(( s/3600 )) $(( (s%3600)/60 )) $(( s%60 ))
+}
+
+# ── gather metadata (fast) ────────────────────────────────────────────────────
+typeset -A S F
+local line
+while IFS='=' read -r k v; do [[ -n $k ]] && S[$k]=$v; done < <(
+  ffprobe -v error -select_streams v:0 \
+    -show_entries stream=codec_name,width,height,r_frame_rate,avg_frame_rate,nb_frames,duration,bit_rate \
+    -of default=noprint_wrappers=1 -- "$file"
+)
+while IFS='=' read -r k v; do [[ -n $k ]] && F[$k]=$v; done < <(
+  ffprobe -v error \
+    -show_entries format=duration,size,bit_rate,format_name \
+    -of default=noprint_wrappers=1 -- "$file"
+)
+
+[[ -n ${S[codec_name]} ]] || die "no video stream found in: $file"
+
+local nominal=$(frac ${S[r_frame_rate]})
+local avg=$(frac ${S[avg_frame_rate]})
+local dur=${S[duration]:-${F[duration]}}
+[[ -z $dur || $dur == N/A ]] && dur=0
+local nb=${S[nb_frames]:-N/A}
+
+# ── report: file & rates ──────────────────────────────────────────────────────
+print -- "${C_B}${C_MAG}━━ fpscheck ━━${C_RST} ${C_B}${file:t}${C_RST}"
+
+hdr "File"
+kv "Container"  "${F[format_name]:-?}"
+kv "Codec"      "${S[codec_name]:-?}"
+kv "Resolution" "${S[width]:-?}×${S[height]:-?}"
+kv "Duration"   "$( [[ $dur != 0 ]] && human_time $dur || print N/A )  ${C_DIM}(${dur}s)${C_RST}"
+kv "Size"       "$(human_size ${F[size]})"
+
+hdr "Frame rate"
+kv "Nominal (r_frame_rate)"  "${C_B}${nominal}${C_RST} fps   ${C_DIM}${S[r_frame_rate]}${C_RST}"
+kv "Average (avg_frame_rate)" "${C_B}${avg}${C_RST} fps   ${C_DIM}${S[avg_frame_rate]}${C_RST}"
+kv "Frame count"             "$nb"
+
+# computed avg as cross-check
+local computed=0
+if [[ $nb != N/A && $dur != 0 ]]; then
+  computed=$(printf '%.3f' $(( ${nb}.0 / ${dur} )))
+  kv "Computed (frames/dur)" "${computed} fps"
+fi
+
+# ── nominal vs average divergence ─────────────────────────────────────────────
+local -a flags
+local div_pct=0
+if (( nominal > 0 )); then
+  div_pct=$(( (nominal - avg) / nominal * 100 ))
+  (( div_pct < 0 )) && div_pct=$(( -div_pct ))
+fi
+local vfr=0
+(( div_pct > 5 )) && vfr=1
+
+# ── full-decode duplicate scan ────────────────────────────────────────────────
+local kept=0 dropped=0 total=0 unique=0 dupe_pct=0 scanned=0
+if (( quick )); then
+  note "\n(skipped duplicate scan — quick mode)"
+else
+  hdr "Duplicate-frame scan"
+  note "Decoding full stream with mpdecimate… (slow on large files)"
+  local out
+  out=$(ffmpeg -nostats -hide_banner -loglevel debug -i "$file" \
+        -vf mpdecimate -an -f null - 2>&1)
+  kept=$(print -- "$out"   | grep -c 'keep pts:')
+  dropped=$(print -- "$out" | grep -c 'drop pts:')
+  total=$(( kept + dropped ))
+  if (( total > 0 )); then
+    scanned=1
+    (( dur != 0 )) && unique=$(printf '%.3f' $(( ${kept}.0 / ${dur} )))
+    dupe_pct=$(printf '%.1f' $(( ${dropped}.0 / ${total} * 100 )))
+    kv "Frames decoded" "$total"
+    kv "Unique frames"  "${C_B}${kept}${C_RST}  ${C_DIM}(${dropped} redundant, ${dupe_pct}%)${C_RST}"
+    kv "Unique rate"    "${C_B}${unique}${C_RST} fps"
+  else
+    note "scan produced no frames — codec/filter issue?"
+  fi
+fi
+
+# ── verdict ───────────────────────────────────────────────────────────────────
+hdr "Verdict"
+
+if (( scanned )); then
+  if (( unique < nominal * 0.6 )); then
+    print -- "  ${C_RED}${C_B}✗ Padded.${C_RST} Container says ${nominal}fps but real motion is ${C_B}~${unique}fps${C_RST} — ${dupe_pct}% of frames are duplicates. This is why it feels like ~${unique%.*}."
+  elif (( unique < nominal * 0.9 )); then
+    print -- "  ${C_YLW}${C_B}△ Mixed.${C_RST} Some duplicate frames (${dupe_pct}%); effective motion ~${C_B}${unique}fps${C_RST} vs ${nominal}fps claimed."
+  else
+    print -- "  ${C_GRN}${C_B}✓ Genuine.${C_RST} Unique frames (~${unique}fps) match the ${nominal}fps container."
+  fi
+fi
+
+if (( vfr )); then
+  print -- "  ${C_YLW}△ VFR/divergent:${C_RST} nominal ${nominal} vs average ${avg} fps differ by ${div_pct%.*}% — variable frame rate or padded timestamps."
+elif (( ! scanned )); then
+  print -- "  ${C_GRN}✓${C_RST} Nominal and average rates agree (${nominal} fps). Run without -q to confirm unique frames."
+fi
+
+print
