@@ -1,165 +1,93 @@
 #!/usr/bin/env zsh
 #
-#   Index media files (via fd-media), pick from them with fzf-select, and send
-#   the selection to mpv (via mpv-send play).
+#   media-index — manage the media index: a newline-delimited list of file
+#   paths stored at $MEDIA_INDEX (default: $TMPDIR/media-index.cache).
 #
-#   The file list is cached in the temp dir so subsequent runs are instant.
-#   The pipeline is NUL-delimited end to end so paths with spaces/newlines
-#   survive intact.
+#   This tool is ONLY concerned with the index. Building it and consuming it
+#   live elsewhere, e.g.:
+#       fd-media --sort created --progress | media-index write
+#       media-index get | fzf-metaselect --persistent
+#
+#   Commands:
+#     write          Replace the index with the paths read on stdin
+#     get            Print the index to stdout
+#     add PATH...    Append path(s) to the index
+#     prune          Drop entries whose file no longer exists
 
 set -u
-zmodload zsh/datetime   # EPOCHREALTIME, for timing the index build
 
 script_name="${0:t}"
-
-usage() {
-  print -u2 -- "Usage: $script_name [--index] [--index-only] [--no-sort] [--raw] [--persistent] [fzf-args...]"
-  print -u2 -- ""
-  print -u2 -- "Pick a media file with fzf and play it in mpv."
-  print -u2 -- "Builds a cached index of media files on first run, then reuses it."
-  print -u2 -- ""
-  print -u2 -- "Options:"
-  print -u2 -- "  --index        Force a rebuild of the index, ignoring the cache"
-  print -u2 -- "  --index-only   Build the index and stop (don't launch the picker)"
-  print -u2 -- "  --no-sort      Build the index without sorting (default: newest first)"
-  print -u2 -- "  --raw          Use the plain fzf-select picker instead of fzf-metaselect"
-  print -u2 -- "  --persistent   Keep the picker open after playing (Enter plays, Esc exits)"
-  print -u2 -- "  --help, -h     Show this help"
-  print -u2 -- ""
-  print -u2 -- "Any other arguments are passed through to the picker (e.g. --query foo)."
-}
+index_file="${MEDIA_INDEX:-${TMPDIR:-/tmp}/media-index.cache}"
 
 die() {
   print -u2 -- "$script_name: $*"
   exit 1
 }
 
-typeset force_index=false
-typeset index_only=false
-typeset sort=true
-typeset raw=false
-typeset persistent=false
-typeset -a fzf_args=()
-
-while (( $# > 0 )); do
-  case "$1" in
-    --index)      force_index=true; shift ;;
-    --index-only) index_only=true; shift ;;
-    --no-sort)    sort=false; shift ;;
-    --raw)        raw=true; shift ;;
-    --persistent) persistent=true; shift ;;
-    --help|-h)    usage; exit 0 ;;
-    --)           shift; fzf_args+=("$@"); break ;;
-    *)            fzf_args+=("$1"); shift ;;
-  esac
-done
-
-$raw && $persistent && die "--persistent is not supported with --raw"
-
-# --raw uses the plain single-line picker; default is the multi-line one.
-typeset picker=fzf-metaselect
-$raw && picker=fzf-select
-
-typeset -a required=(fd-media mktemp)
-$index_only || required+=("$picker" mpv-send)
-for bin in "${required[@]}"; do
-  command -v "$bin" >/dev/null 2>&1 || die "missing dependency: $bin"
-done
-
-tmp_dir="${TMPDIR:-/tmp}"
-if $sort; then
-  cache="$tmp_dir/media-index.cache"
-else
-  cache="$tmp_dir/media-index-nosort.cache"
-fi
-
-# Count NUL-delimited records in a file.
-count_records() {
-  local file="$1"
-  [[ -s "$file" ]] || { print -r -- 0; return 0 }
-  tr -cd '\0' < "$file" | wc -c | tr -d ' '
+usage() {
+  print -u2 -- "Usage: $script_name <write|get|add|prune> [args]"
+  print -u2 -- ""
+  print -u2 -- "Manage the media index ($index_file)."
+  print -u2 -- ""
+  print -u2 -- "Commands:"
+  print -u2 -- "  write          Replace the index with the paths read on stdin"
+  print -u2 -- "  get            Print the index to stdout"
+  print -u2 -- "  add PATH...    Append path(s) to the index"
+  print -u2 -- "  prune          Drop entries whose file no longer exists"
+  print -u2 -- ""
+  print -u2 -- "Examples:"
+  print -u2 -- "  fd-media --sort created --progress | $script_name write"
+  print -u2 -- "  $script_name get | fzf-metaselect --persistent"
+  print -u2 -- "  $script_name add /Movies/clip.mp4"
+  print -u2 -- "  $script_name prune"
 }
 
-build_index() {
-  local start=$EPOCHREALTIME tmp_cache status_file rec fd_status elapsed n=0 tty=false
-  local -a recs fd_cmd
-  tmp_cache="$(mktemp -t media-index.XXXXXX)" || die "could not create temp file"
-  status_file="$(mktemp -t media-index-status.XXXXXX)" || die "could not create temp file"
-
-  # Clean up half-written files if we are interrupted mid-build.
-  trap 'rm -f -- "$tmp_cache" "$status_file"; exit 130' INT TERM
-
-  if $sort; then
-    fd_cmd=(fd-media --sort created --keyed)   # streams "<ts>\t<path>\0" as found
-  else
-    fd_cmd=(fd-media --print0)                 # streams "<path>\0" as found
+cmd_write() {
+  local tmp
+  tmp="$(mktemp -t media-index.XXXXXX)" || die "could not create temp file"
+  cat > "$tmp"
+  if [[ ! -s "$tmp" ]]; then
+    rm -f -- "$tmp"
+    die "refusing to write an empty index (nothing on stdin)"
   fi
+  mv -f -- "$tmp" "$index_file"
+}
 
-  [[ -t 2 ]] && tty=true
+cmd_get() {
+  [[ -f "$index_file" ]] || return 0
+  cat -- "$index_file"
+}
 
-  # Read records as they stream in so the count ticks live (especially through
-  # the slow stat phase when sorting); collect them for a fast in-memory sort.
-  while IFS= read -r -d $'\0' rec || [[ -n "$rec" ]]; do
-    [[ -z "$rec" ]] && { rec=""; continue; }
-    recs+=("$rec"); (( ++n ))
-    if $tty && (( n % 50 == 0 )); then
-      printf '\r\033[KCreating index: %d files found' "$n" >&2
+cmd_add() {
+  (( $# > 0 )) || die "add: need at least one path"
+  print -rl -- "$@" >> "$index_file"
+}
+
+cmd_prune() {
+  [[ -f "$index_file" ]] || return 0
+  local tmp line kept=0 removed=0
+  tmp="$(mktemp -t media-index.XXXXXX)" || die "could not create temp file"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" ]] && continue
+    if [[ -e "$line" ]]; then
+      print -r -- "$line"
+      (( ++kept ))
+    else
+      (( ++removed ))
     fi
-    rec=""
-  done < <("${fd_cmd[@]}"; print -r -- "$?" > "$status_file")
-
-  $tty && printf '\r\033[KCreating index: %d files found\n' "$n" >&2
-
-  trap - INT TERM
-  fd_status="$(<"$status_file")"; rm -f -- "$status_file"
-  [[ -n "$fd_status" ]] || fd_status=0
-
-  if (( fd_status != 0 )); then
-    rm -f -- "$tmp_cache"
-    die "fd-media failed (exit $fd_status)"
-  fi
-  if (( n == 0 )); then
-    rm -f -- "$tmp_cache"
-    die "no media files found"
-  fi
-
-  if $sort; then
-    recs=("${(On)recs[@]}")                        # newest first (numeric-desc by leading ts)
-    print -rN -- "${recs[@]#*$'\t'}" > "$tmp_cache"  # strip the "<ts>\t" prefix
-  else
-    print -rN -- "${recs[@]}" > "$tmp_cache"
-  fi
-
-  mv -f -- "$tmp_cache" "$cache"
-
-  elapsed=$(( EPOCHREALTIME - start ))
-  printf 'Indexed %d files in %.2fs\n' "$n" "$elapsed"
+  done < "$index_file" > "$tmp"
+  mv -f -- "$tmp" "$index_file"
+  print -u2 -- "pruned $removed missing, kept $kept"
 }
 
-if $force_index || [[ ! -s "$cache" ]]; then
-  build_index
-else
-  print -u2 -- "Using cached index: $(count_records "$cache") files found (--index to refresh)"
-fi
+(( $# > 0 )) || { usage; exit 1; }
+cmd="$1"; shift
 
-if $index_only; then
-  print -u2 -- "Index ready: $(count_records "$cache") files at $cache"
-  exit 0
-fi
-
-# Select with fzf, then hand the choice to mpv. Capture the selection first so a
-# cancelled picker doesn't launch mpv with an empty playlist.
-selection="$(mktemp -t media-index-selection.XXXXXX)" || die "could not create temp file"
-trap 'rm -f -- "$selection"' EXIT
-
-# fzf-metaselect persists rename/trim edits back into the cache; fzf-select can't.
-picker_opts=(-0 --print0)
-if ! $raw; then
-  picker_opts+=("--cache-file=$cache")
-  $persistent && picker_opts+=(--persistent)
-fi
-"$picker" "${picker_opts[@]}" "${fzf_args[@]}" < "$cache" > "$selection"
-
-if [[ -s "$selection" ]]; then
-  mpv-send play -0 < "$selection"
-fi
+case "$cmd" in
+  write) cmd_write "$@" ;;
+  get)   cmd_get   "$@" ;;
+  add)   cmd_add   "$@" ;;
+  prune) cmd_prune "$@" ;;
+  -h|--help|help) usage ;;
+  *) die "unknown command: $cmd (try: write, get, add, prune)" ;;
+esac
