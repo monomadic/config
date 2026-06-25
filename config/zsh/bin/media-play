@@ -1,0 +1,76 @@
+#!/usr/bin/env zsh
+#
+#   media-play — convenience wrapper over the media index.
+#
+#     media-play                 Play the newest file in mpv (no picker)
+#     media-play --search        Browse with fzf-metaselect (rich, stays open)
+#     media-play --quicksearch   Browse with the plain fzf-select picker
+#     media-play --index         Rebuild the index first
+#
+#   The index is built automatically when empty. Any other arguments are passed
+#   through to the picker (e.g. media-play --search --query concert).
+#
+#   This is just glue over the underlying tools:
+#     fd-media --sort created --progress | media-index write
+#     media-index get | fzf-metaselect --persistent
+
+set -u
+
+script_name="${0:t}"
+
+die() { print -u2 -- "$script_name: $*"; exit 1; }
+
+usage() {
+  print -u2 -- "Usage: $script_name [--index] [--search | --quicksearch] [picker-args...]"
+  print -u2 -- ""
+  print -u2 -- "  (no flags)         Play the newest file in mpv"
+  print -u2 -- "  --search, -s       Browse with fzf-metaselect (stays open)"
+  print -u2 -- "  --quicksearch, -q  Browse with the plain fzf-select picker"
+  print -u2 -- "  --index, -i        Rebuild the index first"
+  print -u2 -- "  --help, -h         Show this help"
+}
+
+mode=play
+rebuild=false
+typeset -a pass=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    --index|-i)       rebuild=true; shift ;;
+    --search|-s)      mode=search; shift ;;
+    --quicksearch|-q) mode=quicksearch; shift ;;
+    --help|-h)        usage; exit 0 ;;
+    --)               shift; pass+=("$@"); break ;;
+    *)                pass+=("$1"); shift ;;
+  esac
+done
+
+for bin in fd-media media-index mpv-send; do
+  command -v "$bin" >/dev/null 2>&1 || die "missing dependency: $bin"
+done
+case "$mode" in
+  search)      command -v fzf-metaselect >/dev/null 2>&1 || die "missing dependency: fzf-metaselect" ;;
+  quicksearch) command -v fzf-select     >/dev/null 2>&1 || die "missing dependency: fzf-select" ;;
+esac
+
+# Build the index when asked, or when it is currently empty.
+if $rebuild || [[ -z "$(media-index get | head -c1)" ]]; then
+  fd-media --sort created --progress | media-index write
+fi
+
+[[ -n "$(media-index get | head -c1)" ]] || die "index is empty (no media found)"
+
+case "$mode" in
+  play)
+    media-index get | head -n1 | mpv-send play
+    ;;
+  search)
+    media-index get | fzf-metaselect --persistent "${pass[@]}"
+    ;;
+  quicksearch)
+    sel="$(mktemp -t media-play-sel.XXXXXX)" || die "could not create temp file"
+    trap 'rm -f -- "$sel"' EXIT
+    media-index get | fzf-select "${pass[@]}" > "$sel"
+    [[ -s "$sel" ]] && mpv-send play < "$sel"
+    ;;
+esac

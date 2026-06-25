@@ -17,39 +17,6 @@ set -euo pipefail
 #   zsh builtins, the index table is written via a dedicated fd), and UTF-8
 #   sanitisation runs once over the whole stream rather than once per file.
 
-# Internal mode used by the rename/trim key binds: rewrite one path in the live
-# index map (newline-delimited) and in the persistent cache (NUL-delimited) so a
-# renamed/trimmed item stays selectable in this session and shows up correctly
-# next launch. Usage: fzf-metaselect --update-path OLD NEW MAPFILE [CACHEFILE]
-_fms_update_path() {
-  emulate -L zsh
-  local old="$1" new="$2" mapf="$3" cachef="${4:-}" tmpf rec ln
-  [[ -n "$new" && "$new" != "$old" ]] || return 0
-  if [[ -n "$mapf" && -f "$mapf" ]]; then
-    tmpf="$(mktemp)" || return 0
-    while IFS= read -r ln; do
-      [[ "$ln" == "$old" ]] && ln="$new"
-      print -r -- "$ln"
-    done < "$mapf" > "$tmpf"
-    mv -f -- "$tmpf" "$mapf"
-  fi
-  if [[ -n "$cachef" && -f "$cachef" ]]; then
-    tmpf="$(mktemp)" || return 0
-    while IFS= read -r -d $'\0' rec || [[ -n "$rec" ]]; do
-      [[ -z "$rec" ]] && { rec=""; continue; }
-      [[ "$rec" == "$old" ]] && rec="$new"
-      printf '%s\0' "$rec"
-      rec=""
-    done < "$cachef" > "$tmpf"
-    mv -f -- "$tmpf" "$cachef"
-  fi
-  return 0
-}
-if [[ "${1:-}" == "--update-path" ]]; then
-  _fms_update_path "${2:-}" "${3:-}" "${4:-}" "${5:-}"
-  exit 0
-fi
-
 # Colors for the parsed fields (edit to taste). Layout:
 #   line 1:  <Title> <Rating> <res> <fps> <length>
 #   line 2:  <Actors>  <directory>
@@ -68,7 +35,6 @@ print0=false
 stream=false
 colorize=true
 persistent=false
-cache_file=""
 passthrough_args=()
 records_loaded=0
 
@@ -81,7 +47,6 @@ for arg in "$@"; do
     --print0)         print0=true ;;
     --stream)         stream=true ;;
     --persistent)     persistent=true ;;  # Enter plays via mpv but keeps fzf open
-    --cache-file=*)   cache_file="${arg#*=}" ;;  # persist rename/trim edits here
     *)                passthrough_args+=("$arg") ;;
   esac
 done
@@ -272,13 +237,14 @@ map_selection() {
 }
 
 # Each bind resolves the highlighted row's real path from the index map ($1 is
-# the index field {1}, $2 the map file, $3 the cache file), then acts on it. The
-# reveal bind is silent; the rest hand the terminal to a TUI/editor via execute().
-# After a rename/trim, --update-path rewrites the path in the live map and cache.
+# the index field {1}, $2 the map file), then acts on it. The reveal bind is
+# silent; the rest hand the terminal to a TUI/editor via execute(). After a
+# rename/trim the new path is appended with `media-index add` (the stale entry is
+# left for mpv to skip / `media-index prune` to clean up).
 reveal_bind="execute-silent(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] && open --reveal \"\$p\"' _ {1} ${(q)tmp_map})"
 yazi_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] && yazi \"\$p\"' _ {1} ${(q)tmp_map})"
-trim_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] || exit 0; ffmpeg-lossless-cut \"\$p\"; n=\"\${p:r}.trimmed.\${p:e}\"; [[ ! -e \"\$p\" && -f \"\$n\" ]] && fzf-metaselect --update-path \"\$p\" \"\$n\" \"\$2\" \"\$3\"' _ {1} ${(q)tmp_map} ${(q)cache_file})"
-rename_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] || exit 0; d=\${p:h}; o=\${p:t}; t=\$(mktemp -t fms-rename.XXXXXX) || exit 1; print -r -- \"\$o\" >| \"\$t\"; \${EDITOR:-vi} \"\$t\"; n=\$(sed -n 1p \"\$t\"); rm -f \"\$t\"; [[ -n \"\$n\" && \"\$n\" != \"\$o\" ]] || exit 0; mv -i -- \"\$p\" \"\$d/\$n\" && fzf-metaselect --update-path \"\$p\" \"\$d/\$n\" \"\$2\" \"\$3\"' _ {1} ${(q)tmp_map} ${(q)cache_file})"
+trim_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] || exit 0; ffmpeg-lossless-cut \"\$p\"; n=\"\${p:r}.trimmed.\${p:e}\"; [[ ! -e \"\$p\" && -f \"\$n\" ]] && media-index add \"\$n\"' _ {1} ${(q)tmp_map})"
+rename_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] || exit 0; d=\${p:h}; o=\${p:t}; t=\$(mktemp -t fms-rename.XXXXXX) || exit 1; print -r -- \"\$o\" >| \"\$t\"; \${EDITOR:-vi} \"\$t\"; n=\$(sed -n 1p \"\$t\"); rm -f \"\$t\"; [[ -n \"\$n\" && \"\$n\" != \"\$o\" ]] || exit 0; mv -i -- \"\$p\" \"\$d/\$n\" && media-index add \"\$d/\$n\"' _ {1} ${(q)tmp_map})"
 
 # Enter: by default select everything and accept (closes fzf, caller plays it).
 # With --persistent, play the marked/current row(s) via mpv-send and stay open;

@@ -19,7 +19,7 @@ usage() {
   print -u2 -- "  --sort-created                    Alias for --sort created"
   print -u2 -- "  --reverse                         Reverse sort order (only applies with --sort)"
   print -u2 -- "  --print0                          Output NUL-delimited paths"
-  print -u2 -- "  --keyed                           Stream NUL '<ts>\\t<path>' records unsorted (needs --sort)"
+  print -u2 -- "  --progress                        Show a live 'Indexing: N files' count on stderr"
   print -u2 -- "  --path PATH | --path=PATH         Add a search path"
   print -u2 -- "  --match-string STRING             Require a case-insensitive literal match"
   print -u2 -- "  --match-regex REGEX               Require a case-insensitive regex match"
@@ -44,7 +44,7 @@ typeset -a match_regexes=()
 typeset verbose=false
 typeset print0=false
 typeset reverse=false
-typeset keyed=false
+typeset progress=false
 typeset sort_key=""
 typeset pattern="."
 
@@ -96,8 +96,8 @@ while (( $# > 0 )); do
       print0=true
       shift
       ;;
-    --keyed)
-      keyed=true
+    --progress)
+      progress=true
       shift
       ;;
     --path|--path=*)
@@ -202,9 +202,11 @@ path_matches() {
 }
 
 process_files() {
-  local file ts
+  local file ts count=0
   local -a fd_cmd
   local -a valid_dirs=()
+  local prog=false
+  $progress && [[ -t 2 ]] && prog=true
 
   for dir in "${directories[@]}"; do
     if [[ -d "$dir" && -r "$dir" ]]; then
@@ -220,6 +222,8 @@ process_files() {
   fd_cmd=(fd-video --type file --exclude '_*' --full-path --ignore-case -0 "$pattern" "${valid_dirs[@]}")
   log_verbose "Executing: ${fd_cmd[*]}"
 
+  # The count ticks live here, during the (slow) per-file stat phase, even when
+  # the caller buffers our output to sort it.
   while IFS= read -r -d $'\0' file; do
     path_matches "$file" || continue
 
@@ -229,7 +233,14 @@ process_files() {
     else
       printf '%s\0' "$file"
     fi
+
+    (( ++count ))
+    if $prog && (( count % 50 == 0 )); then
+      printf '\r\033[KIndexing: %d files' "$count" >&2
+    fi
   done < <("${fd_cmd[@]}")
+
+  $prog && printf '\r\033[KIndexing: %d files\n' "$count" >&2
 }
 
 emit_path() {
@@ -243,15 +254,6 @@ emit_path() {
     print -r -- "$rec"
   fi
 }
-
-if $keyed; then
-  # Stream NUL-delimited "<timestamp>\t<path>" records as files are found, so a
-  # caller can show live progress and do its own (fast, in-memory) sort.
-  [[ -n "$sort_key" ]] || die "--keyed requires --sort"
-  process_files
-  log_verbose "Execution complete."
-  exit 0
-fi
 
 if [[ -z "$sort_key" ]]; then
   if $print0; then
