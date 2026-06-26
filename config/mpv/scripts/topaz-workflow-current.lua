@@ -37,7 +37,7 @@ local draw_menu, show_original, render_or_show, move_cursor, select_number
 local render_cursor, choose_enhancement, choose_interpolation, choose_output
 local start_encode, close_menu, enable_menu_keys, remove_menu_keys
 local draw_picker, open_picker, remove_picker_keys
-local toggle_ab, tab_cycle_cached
+local space_toggle, show_render, show_orig, toggle_ui
 
 local function shell_quote(value)
     return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
@@ -94,12 +94,15 @@ end
 -- Coordinates are in the 1280x720 virtual space used by every overlay here.
 
 local LIST_X = 24       -- left edge of the selectable row / selection box
-local ROW_W = 604       -- selection box width
-local RH = 32           -- preset / picker row height
-local HH = 30           -- category header row height
+local ROW_W = 360       -- selection box width
+local RH = 36           -- preset / picker row height (two text lines)
+local HH = 28           -- category header row advance
 local LIST_TOP = 92     -- y where the row list starts
-local CHIP_W = 28
-local CHIP_H = 22
+local CHIP_W = 24
+local CHIP_H = 20
+local PANEL_X = 12      -- left menu backing panel
+local PANEL_W = 384
+local PANEL_TOP = 12
 
 -- Rectangle drawing path (origin at the event \pos).
 local function ass_rect(w, h)
@@ -121,18 +124,19 @@ local function ass_round_rect(w, h, r)
     }, " ")
 end
 
--- The accent index "chip" (filled rounded box + centred number) drawn at row top `y`.
--- Returns two ASS events (box, number) and the x where the row text should start.
-local function chip_events(y, number)
-    local chip_x = LIST_X + 12
-    local chip_y = y + math.floor((RH - CHIP_H) / 2)
+-- The accent index "chip" (filled rounded box + centred number), vertically centred
+-- on `center_y` so it aligns to the middle of the whole row unit. Returns two ASS
+-- events (box, number) and the x where the row text should start.
+local function chip_events(center_y, number)
+    local chip_x = LIST_X + 10
+    local chip_y = center_y - math.floor(CHIP_H / 2)
     local box = string.format(
         "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&HCC6600&\\p1}%s{\\p0}",
-        chip_x, chip_y, ass_round_rect(CHIP_W, CHIP_H, 6))
+        chip_x, chip_y, ass_round_rect(CHIP_W, CHIP_H, 5))
     local num = string.format(
-        "{\\an5\\pos(%d,%d)\\bord1\\shad0\\3c&H000000&\\fs16\\b1\\1c&HFFFFFF&}%d",
-        chip_x + math.floor(CHIP_W / 2), chip_y + math.floor(CHIP_H / 2), number)
-    return box, num, chip_x + CHIP_W + 14
+        "{\\an5\\pos(%d,%d)\\bord1\\shad0\\3c&H000000&\\fs13\\b1\\1c&HFFFFFF&}%d",
+        chip_x + math.floor(CHIP_W / 2), center_y, number)
+    return box, num, chip_x + CHIP_W + 12
 end
 
 -- White outline box around the selected row (drawn with a transparent fill so the
@@ -143,10 +147,19 @@ local function selection_box_event(y)
         LIST_X, y, ass_round_rect(ROW_W, RH, 6))
 end
 
--- Bottom parameter pane: a semi-transparent black strip plus title + wrapped body,
--- so the text stays legible over light video. Shared by the menu and the picker.
-local function draw_params(title, body)
-    if not title or title == "" then
+-- Semi-transparent dark backing panel for the menu / picker list.
+local function panel_bg_event(top, bottom)
+    return string.format(
+        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&H000000&\\1a&H66&\\p1}%s{\\p0}",
+        PANEL_X, top, ass_round_rect(PANEL_W, bottom - top, 10))
+end
+
+-- Bottom parameter pane: a semi-transparent black strip plus title + wrapped body
+-- (left), and an optional bottom-right "pill" showing a bold value (e.g. output
+-- resolution) over a smaller label (e.g. the preset type). Shared by menu + picker.
+local function draw_params(title, body, right_value, right_label)
+    local has_pill = right_value and right_value ~= ""
+    if (not title or title == "") and not has_pill then
         params_badge:remove()
         return
     end
@@ -155,15 +168,40 @@ local function draw_params(title, body)
     params_badge.res_y = 720
 
     local ev = {}
-    ev[#ev + 1] = "{\\an7\\pos(0,640)\\bord0\\shad0\\1c&H000000&\\1a&H44&\\p1}"
-        .. ass_rect(1280, 80) .. "{\\p0}"
-    ev[#ev + 1] = string.format(
-        "{\\an7\\pos(24,646)\\bord1\\shad0\\3c&H000000&\\fs17\\b1\\1c&HFFFFFF&}%s",
-        ass_escape(title))
+    ev[#ev + 1] = "{\\an7\\pos(0,648)\\bord0\\shad0\\1c&H000000&\\1a&H44&\\p1}"
+        .. ass_rect(1280, 72) .. "{\\p0}"
+    if title and title ~= "" then
+        ev[#ev + 1] = string.format(
+            "{\\an7\\pos(24,654)\\bord1\\shad0\\3c&H000000&\\fs15\\b1\\1c&HFFFFFF&}%s",
+            ass_escape(title))
+    end
     if body and body ~= "" then
         ev[#ev + 1] = string.format(
-            "{\\an7\\pos(24,668)\\bord1\\shad0\\3c&H000000&\\fs13\\1c&HAAAAAA&}%s",
+            "{\\an7\\pos(24,674)\\bord1\\shad0\\3c&H000000&\\fs12\\1c&HAAAAAA&}%s",
             wrap_commas(ass_escape(body)))
+    end
+
+    if has_pill then
+        local label = right_label or ""
+        local w = math.max(#right_value * 13, #label * 7) + 30
+        if w < 96 then
+            w = 96
+        end
+        local h = (label ~= "") and 50 or 34
+        local right = 1268
+        local px = right - w
+        local top = 712 - h
+        ev[#ev + 1] = string.format(
+            "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&H222222&\\1a&H1A&\\p1}%s{\\p0}",
+            px, top, ass_round_rect(w, h, 12))
+        ev[#ev + 1] = string.format(
+            "{\\an6\\pos(%d,%d)\\bord1\\shad0\\3c&H000000&\\fs22\\b1\\1c&H66FF66&}%s",
+            right - 14, top + (label ~= "" and 17 or math.floor(h / 2)), ass_escape(right_value))
+        if label ~= "" then
+            ev[#ev + 1] = string.format(
+                "{\\an6\\pos(%d,%d)\\bord1\\shad0\\3c&H000000&\\fs13\\1c&HCCCCCC&}%s",
+                right - 14, top + 36, ass_escape(label))
+        end
     end
 
     params_badge.data = table.concat(ev, "\n")
@@ -316,7 +354,7 @@ local function load_enhancement_presets(profile)
     local by_cat = {}
     for line in stdout:gmatch("[^\r\n]+") do
         local f = split_tsv(line)
-        -- category, display, slug, filter_body, metadata
+        -- category, display, slug, filter_body, blurb, metadata
         if #f >= 4 then
             local cat = f[1]
             by_cat[cat] = by_cat[cat] or {}
@@ -325,7 +363,8 @@ local function load_enhancement_presets(profile)
                 display = f[2],
                 slug = f[3],
                 filter_body = f[4] or "",
-                metadata = f[5] or "",
+                blurb = f[5] or "",
+                metadata = f[6] or "",
             })
         end
     end
@@ -333,6 +372,7 @@ local function load_enhancement_presets(profile)
     local target_w, target_h = target_4k_dims(profile.width, profile.height)
     local up = string.format("scale=0:w=%d:h=%d", target_w, target_h)
     local tail = string.format(",scale=w=%d:h=%d:flags=lanczos:threads=0", target_w, target_h)
+    local sw, sh = profile.width, profile.height
 
     local items = {}
     local presets = {}
@@ -344,6 +384,7 @@ local function load_enhancement_presets(profile)
             if rows and #rows > 0 then
                 table.insert(items, { kind = "header", label = cat.label })
                 for _, p in ipairs(rows) do
+                    p.cat_label = cat.label
                     local has_4k = p.filter_body:find("@4K@", 1, true) ~= nil
                     -- enhancement-only filter (no lanczos tail yet); tail kept separate
                     -- so interpolation can be inserted before it at encode time.
@@ -351,6 +392,16 @@ local function load_enhancement_presets(profile)
                     p.enh_tail = has_4k and tail or ""
                     -- still preview = enhancement + tail (tvai_fi is irrelevant to stills)
                     p.preview_filter = p.enh_filter .. p.enh_tail
+
+                    -- predicted output resolution, for the bottom-right readout
+                    if has_4k then
+                        p.out_w, p.out_h = target_w, target_h
+                    elseif p.filter_body:find("scale=2", 1, true) and sw and sh then
+                        p.out_w, p.out_h = sw * 2, sh * 2
+                    else
+                        p.out_w, p.out_h = sw, sh
+                    end
+
                     number = number + 1
                     p.number = number
                     table.insert(presets, p)
@@ -400,12 +451,11 @@ local function update_encode_badge(label)
     encode_badge.res_y = 720
     local elapsed = encode_start and (mp.get_time() - encode_start) or 0
     local dots = string.rep(".", (math.floor(elapsed) % 3) + 1)
+    -- bottom-right corner, compact
     encode_badge.data = string.format(
-        "{\\an8\\pos(640,28)\\fs28\\bord2\\3c&H000000&\\1c&H66CCFF&\\b1}"
-            .. "Rendering Topaz preview%s\\N"
-            .. "{\\fs20\\1c&HDDDDDD&\\b0}%s   ·   %.0fs",
+        "{\\an3\\pos(1264,706)\\fs17\\bord2\\shad0\\3c&H000000&\\1c&H66CCFF&\\b1}"
+            .. "Rendering preview%s  %.0fs",
         dots,
-        ass_escape(label),
         elapsed
     )
     encode_badge:update()
@@ -434,7 +484,7 @@ end
 -- ===== menu drawing =====
 
 function draw_menu()
-    if not menu then
+    if not menu or menu.ui_hidden then
         list_badge:remove()
         params_badge:remove()
         return
@@ -443,26 +493,16 @@ function draw_menu()
     list_badge.res_x = 1280
     list_badge.res_y = 720
 
-    local ev = {}
-    ev[#ev + 1] = string.format(
-        "{\\an7\\pos(%d,26)\\bord2\\shad0\\3c&H000000&\\b1\\fs26\\1c&H66CCFF&}TOPAZ ENHANCE",
-        LIST_X)
-    ev[#ev + 1] = string.format(
-        "{\\an7\\pos(%d,56)\\bord2\\shad0\\3c&H000000&\\fs15\\1c&HBBBBBB&}%s",
-        LIST_X, ass_escape(profile_summary(menu.profile)))
-    ev[#ev + 1] = string.format(
-        "{\\an7\\pos(%d,74)\\bord2\\shad0\\3c&H000000&\\fs14\\1c&H888888&}"
-            .. "@ %s   ·   1-9 / R render · j/k move · Enter pick · Esc cancel",
-        LIST_X, format_time(menu.time_pos))
-
     local cursor_preset = menu.presets[menu.cursor]
+
+    -- Pass 1: lay out the rows (so we know the panel height before drawing it).
+    local body = {}
     local y = LIST_TOP
 
     for _, item in ipairs(menu.items) do
         if item.kind == "header" then
-            y = y + 6
-            ev[#ev + 1] = string.format(
-                "{\\an4\\pos(%d,%d)\\bord2\\shad0\\3c&H000000&\\b1\\fs18\\1c&H99DDDD&}%s",
+            body[#body + 1] = string.format(
+                "{\\an4\\pos(%d,%d)\\bord2\\shad0\\3c&H000000&\\b1\\fs15\\1c&H99DDDD&}%s",
                 LIST_X + 4, y + math.floor(HH / 2), ass_escape(item.label))
             y = y + HH
         else
@@ -472,45 +512,89 @@ function draw_menu()
             local is_shown = (menu.shown_slug == p.slug)
             local is_rendering = (menu.rendering_slug == p.slug)
 
+            local center = y + 19  -- vertical centre of the two-line row unit
+
             if is_cursor then
-                ev[#ev + 1] = selection_box_event(y)
+                body[#body + 1] = selection_box_event(y)
             end
 
-            local box, num, text_x = chip_events(y, p.number)
-            ev[#ev + 1] = box
-            ev[#ev + 1] = num
+            local box, num, text_x = chip_events(center, p.number)
+            body[#body + 1] = box
+            body[#body + 1] = num
 
-            local color = cached and "&H66FF66&" or "&HFFFFFF&"
+            local namecolor = is_rendering and "&H66CCFF&"
+                or (cached and "&H66FF66&" or "&HFFFFFF&")
             local bold = is_cursor and "\\b1" or "\\b0"
             local suffix = ""
-            if is_rendering then
-                suffix = "  {\\fs13\\1c&H66CCFF&}rendering…"
-            elseif is_shown then
-                suffix = "  {\\fs13\\1c&H66FF66&}● shown"
+            if is_shown and not is_rendering then
+                suffix = "  {\\fs12\\1c&H66FF66&}● shown"
             end
 
-            ev[#ev + 1] = string.format(
-                "{\\an4\\pos(%d,%d)\\bord2\\shad0\\3c&H000000&\\fs20%s\\1c%s}%s%s",
-                text_x, y + math.floor(RH / 2), bold, color, ass_escape(p.display), suffix)
+            -- line 1: name (+ shown marker)
+            body[#body + 1] = string.format(
+                "{\\an4\\pos(%d,%d)\\bord2\\shad0\\3c&H000000&\\fs17%s\\1c%s}%s%s",
+                text_x, y + 12, bold, namecolor, ass_escape(p.display), suffix)
+            -- line 2: short description
+            body[#body + 1] = string.format(
+                "{\\an4\\pos(%d,%d)\\bord1\\shad0\\3c&H000000&\\fs12\\1c&H9A9A9A&}%s",
+                text_x, y + 27, ass_escape(p.blurb))
 
-            -- cached-render badge, right-aligned within the row
+            -- cached badge (small check), centred on the row unit at the right edge
             if cached then
-                ev[#ev + 1] = string.format(
-                    "{\\an6\\pos(%d,%d)\\bord2\\shad0\\3c&H000000&\\fs17\\1c&H66FF66&}✓ rendered",
-                    LIST_X + ROW_W - 12, y + math.floor(RH / 2))
+                body[#body + 1] = string.format(
+                    "{\\an6\\pos(%d,%d)\\bord2\\shad0\\3c&H000000&\\fs14\\1c&H66FF66&}✓",
+                    LIST_X + ROW_W - 12, center)
             end
 
             y = y + RH
         end
     end
 
+    -- Pass 2: panel backing, header text, then the rows on top.
+    local ev = {}
+    ev[#ev + 1] = panel_bg_event(PANEL_TOP, y + 8)
+    ev[#ev + 1] = string.format(
+        "{\\an7\\pos(%d,20)\\bord2\\shad0\\3c&H000000&\\b1\\fs22\\1c&H66CCFF&}TOPAZ ENHANCE",
+        LIST_X)
+    ev[#ev + 1] = string.format(
+        "{\\an7\\pos(%d,45)\\bord2\\shad0\\3c&H000000&\\fs12\\1c&HBBBBBB&}%s  @ %s",
+        LIST_X, ass_escape(profile_summary(menu.profile)), format_time(menu.time_pos))
+    ev[#ev + 1] = string.format(
+        "{\\an7\\pos(%d,61)\\bord2\\shad0\\3c&H000000&\\fs11\\1c&H888888&}%s",
+        LIST_X, "1-9/R/Enter render · j/k move · Tab fullscreen")
+    ev[#ev + 1] = string.format(
+        "{\\an7\\pos(%d,75)\\bord2\\shad0\\3c&H000000&\\fs11\\1c&H888888&}%s",
+        LIST_X, "Space or h/l: A/B vs original · c proceed · Esc")
+    for _, e in ipairs(body) do
+        ev[#ev + 1] = e
+    end
+
     list_badge.data = table.concat(ev, "\n")
     list_badge:update()
 
+    -- Bottom-right pill: on-screen resolution (bold) + what produced it (label).
+    local res_value, res_label = nil, nil
+    if not menu.rendering_slug then
+        if menu.shown_slug then
+            for _, p in ipairs(menu.presets) do
+                if p.slug == menu.shown_slug then
+                    if p.out_w and p.out_h then
+                        res_value = string.format("%d×%d", p.out_w, p.out_h)
+                        res_label = p.cat_label
+                    end
+                    break
+                end
+            end
+        elseif menu.profile.width then
+            res_value = string.format("%d×%d", menu.profile.width, menu.profile.height)
+            res_label = "source"
+        end
+    end
+
     if cursor_preset then
-        draw_params(cursor_preset.display, cursor_preset.enh_filter)
+        draw_params(cursor_preset.display, cursor_preset.enh_filter, res_value, res_label)
     else
-        params_badge:remove()
+        draw_params(nil, nil, res_value, res_label)
     end
 end
 
@@ -552,6 +636,7 @@ function render_or_show(preset)
     local cached = menu.cache.by_slug[preset.slug]
     if cached then
         menu.shown_slug = preset.slug
+        menu.last_render_slug = preset.slug
         mp.commandv("playlist-play-index", tostring(cached.plindex))
         draw_menu()
         return
@@ -617,6 +702,7 @@ function render_or_show(preset)
         table.insert(menu.appended, plindex)
         menu.cache.by_slug[preset.slug] = { image = topaz_image, plindex = plindex }
         menu.shown_slug = preset.slug
+        menu.last_render_slug = preset.slug
 
         mp.add_timeout(0.03, function()
             if menu and menu.shown_slug == preset.slug then
@@ -645,6 +731,7 @@ function move_cursor(delta)
     local cached = preset and menu.cache.by_slug[preset.slug]
     if cached and not menu.rendering_slug and menu.shown_slug ~= preset.slug then
         menu.shown_slug = preset.slug
+        menu.last_render_slug = preset.slug
         mp.commandv("playlist-play-index", tostring(cached.plindex))
     end
 
@@ -674,51 +761,76 @@ function choose_enhancement()
     if not menu then
         return
     end
+    menu.ui_hidden = false
     choose_interpolation(menu.presets[menu.cursor])
 end
 
--- A/B flick: if the cursor preset's render is currently shown, flip to the original;
--- otherwise flip (back) to its render. Only meaningful once the preset is cached.
-function toggle_ab()
+-- The render currently being compared: the cursor preset if it is cached, else the
+-- most recently displayed render.
+local function current_render_slug()
+    if not menu then
+        return nil
+    end
+    local cp = menu.presets[menu.cursor]
+    if cp and menu.cache.by_slug[cp.slug] then
+        return cp.slug
+    end
+    if menu.last_render_slug and menu.cache.by_slug[menu.last_render_slug] then
+        return menu.last_render_slug
+    end
+    return nil
+end
+
+-- Show the active render (l / RIGHT). No-op if nothing is rendered yet.
+function show_render()
     if not menu then
         return
     end
-    local preset = menu.presets[menu.cursor]
-    local cached = preset and menu.cache.by_slug[preset.slug]
-    if not cached then
-        mp.osd_message("Render this preset first (R) to A/B it", 1.5)
+    local slug = current_render_slug()
+    if not slug then
         return
     end
-
-    if menu.shown_slug == preset.slug then
-        show_original()
-    else
-        menu.shown_slug = preset.slug
-        mp.commandv("playlist-play-index", tostring(cached.plindex))
-    end
+    menu.shown_slug = slug
+    menu.last_render_slug = slug
+    mp.commandv("playlist-play-index", tostring(menu.cache.by_slug[slug].plindex))
     draw_menu()
 end
 
--- Cycle the cursor through the presets that already have a cached render, showing
--- each as we land on it.
-function tab_cycle_cached()
+-- Show the original (h / LEFT). No-op if the original is already showing.
+function show_orig()
+    if not menu or not menu.shown_slug then
+        return
+    end
+    show_original()
+    draw_menu()
+end
+
+-- Space: flip between the active render and the original.
+function space_toggle()
     if not menu then
         return
     end
-    local n = #menu.presets
-    for step = 1, n do
-        local idx = ((menu.cursor - 1 + step) % n) + 1
-        local preset = menu.presets[idx]
-        local cached = menu.cache.by_slug[preset.slug]
-        if cached then
-            menu.cursor = idx
-            menu.shown_slug = preset.slug
-            mp.commandv("playlist-play-index", tostring(cached.plindex))
-            draw_menu()
-            return
-        end
+    if menu.shown_slug then
+        show_original()
+        draw_menu()
+    else
+        show_render()
     end
-    mp.osd_message("No rendered presets yet", 1.5)
+end
+
+-- Tab: hide/show the whole menu UI for a clean fullscreen preview. Navigation and
+-- A/B keys still work while hidden, so you can flick presets at full size.
+function toggle_ui()
+    if not menu then
+        return
+    end
+    menu.ui_hidden = not menu.ui_hidden
+    if menu.ui_hidden then
+        list_badge:remove()
+        params_badge:remove()
+    else
+        draw_menu()
+    end
 end
 
 -- ===== generic left-docked picker (interpolation / output steps) =====
@@ -745,32 +857,40 @@ function draw_picker()
     list_badge.res_x = 1280
     list_badge.res_y = 720
 
-    local ev = {}
-    ev[#ev + 1] = string.format(
-        "{\\an7\\pos(%d,26)\\bord2\\shad0\\3c&H000000&\\b1\\fs26\\1c&H66CCFF&}%s",
-        LIST_X, ass_escape(picker.title))
-    if picker.subtitle and picker.subtitle ~= "" then
-        ev[#ev + 1] = string.format(
-            "{\\an7\\pos(%d,58)\\bord2\\shad0\\3c&H000000&\\fs14\\1c&H888888&}%s",
-            LIST_X, ass_escape(picker.subtitle))
-    end
-
+    -- Pass 1: rows.
+    local body = {}
     local y = LIST_TOP
     for i, row in ipairs(picker.rows) do
         if i == picker.cursor then
-            ev[#ev + 1] = selection_box_event(y)
+            body[#body + 1] = selection_box_event(y)
         end
 
-        local box, num, text_x = chip_events(y, i)
-        ev[#ev + 1] = box
-        ev[#ev + 1] = num
+        local center = y + 18
+        local box, num, text_x = chip_events(center, i)
+        body[#body + 1] = box
+        body[#body + 1] = num
 
         local bold = (i == picker.cursor) and "\\b1" or "\\b0"
-        ev[#ev + 1] = string.format(
-            "{\\an4\\pos(%d,%d)\\bord2\\shad0\\3c&H000000&\\fs20%s\\1c&HFFFFFF&}%s",
-            text_x, y + math.floor(RH / 2), bold, ass_escape(row.display))
+        body[#body + 1] = string.format(
+            "{\\an4\\pos(%d,%d)\\bord2\\shad0\\3c&H000000&\\fs17%s\\1c&HFFFFFF&}%s",
+            text_x, center, bold, ass_escape(row.display))
 
         y = y + RH
+    end
+
+    -- Pass 2: panel + heading on top.
+    local ev = {}
+    ev[#ev + 1] = panel_bg_event(PANEL_TOP, y + 8)
+    ev[#ev + 1] = string.format(
+        "{\\an7\\pos(%d,22)\\bord2\\shad0\\3c&H000000&\\b1\\fs22\\1c&H66CCFF&}%s",
+        LIST_X, ass_escape(picker.title))
+    if picker.subtitle and picker.subtitle ~= "" then
+        ev[#ev + 1] = string.format(
+            "{\\an7\\pos(%d,50)\\bord2\\shad0\\3c&H000000&\\fs12\\1c&H888888&}%s",
+            LIST_X, ass_escape(picker.subtitle))
+    end
+    for _, e in ipairs(body) do
+        ev[#ev + 1] = e
     end
 
     list_badge.data = table.concat(ev, "\n")
@@ -898,7 +1018,7 @@ function choose_interpolation(enh_preset)
 
     open_picker({
         title = "INTERPOLATION",
-        subtitle = "Apollo is best at fixing duplicate/repeated frames · 1-9 / Enter pick · Esc back",
+        subtitle = "Apollo fixes duplicate frames · Enter pick · Esc back",
         rows = rows,
         submit = function(index)
             choose_output(enh_preset, rows[index])
@@ -935,7 +1055,7 @@ function choose_output(enh_preset, interp)
 
     open_picker({
         title = "OUTPUT FORMAT",
-        subtitle = "1-9 / Enter pick · Esc back to interpolation",
+        subtitle = "Enter pick · Esc back",
         rows = outputs,
         submit = function(index)
             start_encode(enh_preset, interp, outputs[index])
@@ -1003,8 +1123,11 @@ local MENU_KEY_NAMES = {
     "topaz_menu_down", "topaz_menu_down2",
     "topaz_menu_up", "topaz_menu_up2",
     "topaz_menu_render_r", "topaz_menu_render_R",
-    "topaz_menu_ab_enter", "topaz_menu_ab_kp_enter",
-    "topaz_menu_tab", "topaz_menu_proceed_c", "topaz_menu_proceed_right",
+    "topaz_menu_render_enter", "topaz_menu_render_kp_enter",
+    "topaz_menu_space", "topaz_menu_tab",
+    "topaz_menu_show_render_l", "topaz_menu_show_render_right",
+    "topaz_menu_show_orig_h", "topaz_menu_show_orig_left",
+    "topaz_menu_proceed_c",
     "topaz_menu_block_n", "topaz_menu_block_N",
     "topaz_menu_esc", "topaz_menu_bs",
 }
@@ -1019,16 +1142,21 @@ function enable_menu_keys()
             select_number(i)
         end)
     end
+    -- Render (or show cached render of) the cursor preset.
     mp.add_forced_key_binding("r", "topaz_menu_render_r", render_cursor)
     mp.add_forced_key_binding("R", "topaz_menu_render_R", render_cursor)
-    -- Enter flicks the shown preset against the original for A/B comparison.
-    mp.add_forced_key_binding("ENTER", "topaz_menu_ab_enter", toggle_ab)
-    mp.add_forced_key_binding("KP_ENTER", "topaz_menu_ab_kp_enter", toggle_ab)
-    -- Tab cycles through the presets that already have a cached render.
-    mp.add_forced_key_binding("TAB", "topaz_menu_tab", tab_cycle_cached)
+    mp.add_forced_key_binding("ENTER", "topaz_menu_render_enter", render_cursor)
+    mp.add_forced_key_binding("KP_ENTER", "topaz_menu_render_kp_enter", render_cursor)
+    -- A/B: Space toggles render vs original; l/→ show render, h/← show original.
+    mp.add_forced_key_binding("SPACE", "topaz_menu_space", space_toggle)
+    mp.add_forced_key_binding("l", "topaz_menu_show_render_l", show_render)
+    mp.add_forced_key_binding("RIGHT", "topaz_menu_show_render_right", show_render)
+    mp.add_forced_key_binding("h", "topaz_menu_show_orig_h", show_orig)
+    mp.add_forced_key_binding("LEFT", "topaz_menu_show_orig_left", show_orig)
+    -- Tab hides/shows the UI for a clean fullscreen preview.
+    mp.add_forced_key_binding("TAB", "topaz_menu_tab", toggle_ui)
     -- Proceed to the interpolation step with the highlighted preset.
     mp.add_forced_key_binding("c", "topaz_menu_proceed_c", choose_enhancement)
-    mp.add_forced_key_binding("RIGHT", "topaz_menu_proceed_right", choose_enhancement)
     -- Swallow playlist-next/prev so preview stills don't get navigated away.
     mp.add_forced_key_binding("n", "topaz_menu_block_n", function() end)
     mp.add_forced_key_binding("N", "topaz_menu_block_N", function() end)
