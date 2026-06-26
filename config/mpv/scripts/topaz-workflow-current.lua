@@ -11,6 +11,10 @@ local preview_state = nil
 local pending_restore = nil
 local ab_badge = mp.create_osd_overlay("ass-events")
 ab_badge.z = 30
+local encode_badge = mp.create_osd_overlay("ass-events")
+encode_badge.z = 31
+local encode_timer = nil
+local encode_start = nil
 
 local function shell_quote(value)
     return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
@@ -39,6 +43,93 @@ local function format_time(seconds)
     end
 
     return string.format("%d:%06.3f", minutes, secs)
+end
+
+-- Detected source video properties, used to adapt the transform menu.
+local function source_profile()
+    local w = mp.get_property_number("width")
+    local h = mp.get_property_number("height")
+    local fps = mp.get_property_number("container-fps")
+        or mp.get_property_number("estimated-vf-fps")
+
+    if not (w and h and w > 0 and h > 0) then
+        return { show_all = true }
+    end
+
+    local long_edge = math.max(w, h)
+    return {
+        width = w,
+        height = h,
+        fps = fps,
+        long_edge = long_edge,
+        portrait = h > w,
+        -- long-edge bands: <=2560 treated as "1080p-ish", >2560 as "4K"
+        is_4k = long_edge > 2560,
+    }
+end
+
+-- Orientation-aware 4K target: long edge -> 3840, aspect preserved, even dims.
+local function target_4k_dims(w, h)
+    if not (w and h and w > 0 and h > 0) then
+        return 3840, 2160
+    end
+
+    local function even(value)
+        return math.max(2, math.floor(value / 2 + 0.5) * 2)
+    end
+
+    if w >= h then
+        return 3840, even(h * 3840 / w)
+    end
+    return even(w * 3840 / h), 3840
+end
+
+local function render_filter(template, target_w, target_h)
+    local up = string.format("scale=0:w=%d:h=%d", target_w, target_h)
+    local tail = string.format(",scale=w=%d:h=%d:flags=lanczos:threads=0", target_w, target_h)
+    local out = template:gsub("@4K@", up):gsub("@4KTAIL@", tail)
+    return out
+end
+
+local function res_band_ok(band, profile)
+    if band == "any" or profile.show_all then
+        return true
+    end
+    if band == "upto1080" then
+        return not profile.is_4k
+    end
+    if band == "atleast4k" then
+        return profile.is_4k == true
+    end
+    return true
+end
+
+local function fps_band_ok(band, profile)
+    if band == "any" or profile.show_all then
+        return true
+    end
+
+    local fps = profile.fps
+    if not fps or fps <= 0 then
+        return true -- unknown fps: don't hide interpolation options
+    end
+    if band == "under60" then
+        return fps < 59.5
+    end
+    if band == "atleast60" then
+        return fps >= 59.5
+    end
+    return true
+end
+
+local function profile_summary(profile)
+    if profile.show_all or not profile.long_edge then
+        return "source unknown — all presets"
+    end
+
+    local res = profile.is_4k and "4K → cleanup/sharpen 1x" or "≤1080p → upscale to 4K"
+    local fps = profile.fps and string.format("%.0ffps", profile.fps) or "fps?"
+    return string.format("%dx%d · %s · %s", profile.width, profile.height, fps, res)
 end
 
 local function absolute_media_path()
@@ -113,28 +204,35 @@ local function catalog_stdout(function_name)
     return result.stdout or ""
 end
 
-local function load_transform_rows()
-    local stdout, err = catalog_stdout("topaz_transform_preset_rows")
+local function load_transform_rows(profile)
+    local stdout, err = catalog_stdout("topaz_adaptive_transform_rows")
     if not stdout then
         return nil, err
     end
 
+    local target_w, target_h = target_4k_dims(profile.width, profile.height)
+
     local rows = {}
     for line in stdout:gmatch("[^\r\n]+") do
         local fields = split_tsv(line)
-        if #fields >= 4 then
-            table.insert(rows, {
-                display = fields[1],
-                categories = fields[2] or "",
-                slug = fields[3] or "",
-                filter = fields[4] or "",
-                metadata = fields[5] or "",
-            })
+        -- res_band, fps_band, display, categories, slug, filter, metadata
+        if #fields >= 6 then
+            local res_band = fields[1] or "any"
+            local fps_band = fields[2] or "any"
+            if res_band_ok(res_band, profile) and fps_band_ok(fps_band, profile) then
+                table.insert(rows, {
+                    display = fields[3],
+                    categories = fields[4] or "",
+                    slug = fields[5] or "",
+                    filter = render_filter(fields[6] or "", target_w, target_h),
+                    metadata = fields[7] or "",
+                })
+            end
         end
     end
 
     if #rows == 0 then
-        return nil, "No Topaz transform presets found"
+        return nil, "No Topaz presets matched this source"
     end
 
     return rows
@@ -428,11 +526,47 @@ local function parse_preview_paths(stdout)
     return paths
 end
 
+local function update_encode_badge(label)
+    encode_badge.res_x = 1280
+    encode_badge.res_y = 720
+    local elapsed = encode_start and (mp.get_time() - encode_start) or 0
+    local dots = string.rep(".", (math.floor(elapsed) % 3) + 1)
+    encode_badge.data = string.format(
+        "{\\an8\\pos(640,28)\\fs28\\bord2\\3c&H000000&\\1c&H66CCFF&\\b1}"
+            .. "Rendering Topaz preview%s\\N"
+            .. "{\\fs20\\1c&HDDDDDD&\\b0}%s   ·   %.0fs",
+        dots,
+        label,
+        elapsed
+    )
+    encode_badge:update()
+end
+
+local function start_encode_badge(label)
+    encode_start = mp.get_time()
+    update_encode_badge(label)
+    if encode_timer then
+        encode_timer:kill()
+    end
+    encode_timer = mp.add_periodic_timer(0.5, function()
+        update_encode_badge(label)
+    end)
+end
+
+local function stop_encode_badge()
+    if encode_timer then
+        encode_timer:kill()
+        encode_timer = nil
+    end
+    encode_start = nil
+    encode_badge:remove()
+end
+
 local function run_preview(context, transform)
     local preset_name = transform.display
     local time_arg = string.format("%.3f", context.time_pos)
 
-    mp.osd_message("Rendering Topaz preview at " .. format_time(context.time_pos), 3)
+    start_encode_badge(string.format("%s  @ %s", preset_name, format_time(context.time_pos)))
 
     mp.command_native_async({
         name = "subprocess",
@@ -450,6 +584,7 @@ local function run_preview(context, transform)
         capture_stdout = true,
         capture_stderr = true,
     }, function(success, result, error)
+        stop_encode_badge()
         if not success or not result or result.status ~= 0 then
             local stderr = result and trim(result.stderr) or ""
             local detail = stderr ~= "" and stderr or tostring(error or "unknown error")
@@ -484,20 +619,26 @@ local function show_transform_menu()
 
     mp.set_property_bool("pause", true)
 
+    local profile = source_profile()
+
     local context = {
         source = source,
         time_pos = mp.get_property_number("time-pos", 0) or 0,
     }
 
     local transforms
-    transforms, err = load_transform_rows()
+    transforms, err = load_transform_rows(profile)
     if not transforms then
         mp.osd_message(err, 3)
         return
     end
 
     input.select({
-        prompt = "Topaz Transform @ " .. format_time(context.time_pos),
+        prompt = string.format(
+            "Topaz @ %s  [%s]",
+            format_time(context.time_pos),
+            profile_summary(profile)
+        ),
         items = select_items(transforms),
         submit = function(index)
             if not index then
@@ -565,6 +706,11 @@ end)
 mp.register_event("shutdown", function()
     remove_preview_keys()
     ab_badge:remove()
+    if encode_timer then
+        encode_timer:kill()
+        encode_timer = nil
+    end
+    encode_badge:remove()
 end)
 
 mp.add_key_binding(nil, "topaz_workflow_current_file", show_transform_menu)
