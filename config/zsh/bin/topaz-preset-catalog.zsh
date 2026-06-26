@@ -92,42 +92,46 @@ topaz_transform_preset_rows() {
   print -r -- $'[Upscale, Interpolate] Proteus 4K, Apollo 60fps\tUpscale, Interpolate\tproteus-4k-apollo-60fps\ttvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0:noise=0.10:details=0.38:halo=-0.04:blur=0.18:compression=0.20:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1,tvai_fi=model=apollo:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1,scale=w=3840:h=2160:flags=lanczos:threads=0\tvideoai=[Upscale, Interpolate] Proteus 4K, Apollo 60fps. Forced 3840x2160 Proteus plus Apollo 60fps: polished 4K upscale, light denoise, medium detail/sharpening, subtle grain, higher-quality motion interpolation. Best all-in-one quality path when motion preview looks clean.'
 }
 
-# Adaptive transform templates used by the mpv on-the-fly workflow.
-# The mpv Lua reads the source width/height/fps and:
-#   - hides rows whose res_band / fps_band do not match the source
-#   - substitutes @4K@ / @4KTAIL@ with orientation-aware 4K scale specs
+# Enhancement preset rows for the mpv interactive render menu.
+# The Lua groups these by category, hides the upscale categories on >=4K sources,
+# and (for @4K@ rows) substitutes an orientation-aware 4K scale plus appends a matching
+# lanczos tail. filter_body carries NO trailing scale tail.
 # Row format:
-#   res_band<TAB>fps_band<TAB>display<TAB>categories<TAB>slug<TAB>filter<TAB>metadata
-# res_band: any | upto1080 (<=2560 long edge) | atleast4k (>2560 long edge)
-# fps_band: any | under60 | atleast60
-# Tokens (upscale rows only):
-#   @4K@     -> scale=0:w=<W>:h=<H>   (forced, orientation-aware 4K target)
-#   @4KTAIL@ -> ,scale=w=<W>:h=<H>:flags=lanczos:threads=0
-topaz_adaptive_transform_rows() {
+#   category<TAB>display<TAB>slug<TAB>filter_body<TAB>metadata
+# category: upscale-2x | upscale-4k | repair | sharpen | focus-fix
+topaz_enhancement_preset_rows() {
   emulate -L zsh
 
-  # --- Upscale to 4K (shown for <=1080p-ish sources) ---
-  print -r -- $'upto1080\tany\t[Upscale] Proteus 2x, Sharpen -> 4K\tUpscale\tproteus-upscale-2x-sharpen\ttvai_up=model=prob-4:@4K@:preblur=0:noise=0.18:details=0.35:halo=0.02:blur=0.10:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1@4KTAIL@\tvideoai=[Upscale] Proteus 2x Sharpen to 4K. Conservative upscale of decent 1080p sources: light denoise, medium detail recovery, mild sharpening, light compression cleanup, tiny grain.'
-  print -r -- $'upto1080\tany\t[Upscale] Proteus 4K, Grain, Sharpen\tUpscale\tproteus-4k-grain-sharpen\ttvai_up=model=prob-4:@4K@:preblur=0:noise=0.10:details=0.38:halo=-0.04:blur=0.18:compression=0.20:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1@4KTAIL@\tvideoai=[Upscale] Proteus 4K Grain Sharpen. Polished 4K target: light denoise, medium detail/sharpening, light compression cleanup, light dehalo, subtle grain.'
-  print -r -- $'upto1080\tany\t[Upscale] Starlight Mini 2x\tUpscale\tstarlight-mini-upscale-2x\ttvai_up=model=slm-1:scale=2:device=0:vram=0.95:instances=1\tvideoai=[Upscale] Starlight Mini 2x. 2x Starlight Mini with model defaults. Try on small/soft/low-detail sources where Proteus feels too manual; compare for texture changes.'
+  # --- Upscale 2x (literal scale=2; shown only for <4K sources) ---
+  print -r -- $'upscale-2x\tProteus 2x, Sharpen\tproteus-upscale-2x-sharpen\ttvai_up=model=prob-4:scale=2:preblur=0:noise=0.18:details=0.35:halo=0.02:blur=0.10:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Upscale 2x] Proteus 2x Sharpen. 2x Proteus upscale: light denoise, medium detail recovery, mild sharpening, light compression cleanup, tiny grain. Conservative default for decent sources.'
+  print -r -- $'upscale-2x\tStarlight Mini 2x\tstarlight-mini-upscale-2x\ttvai_up=model=slm-1:scale=2:device=0:vram=0.95:instances=1\tvideoai=[Upscale 2x] Starlight Mini 2x. 2x Starlight Mini with model defaults. Try on small/soft/low-detail sources where Proteus feels too manual; compare for texture changes.'
 
-  # --- Same-size cleanup / sharpen (shown for 4K sources) ---
-  print -r -- $'atleast4k\tany\t[Cleanup] Proteus Compression Cleanup (1x)\tCleanup\tproteus-compression-cleanup\ttvai_up=model=prob-4:scale=1:preblur=0.02:noise=0.20:details=0.22:halo=-0.08:blur=0.16:compression=0.62:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Cleanup] Proteus Compression Cleanup 1x. Same-size Proteus pass: heavy compression repair, light denoise, mild detail recovery, stronger dehalo. Good for blocky 4K.'
-  print -r -- $'atleast4k\tany\t[Denoise] Nyx Dark Footage (1x)\tDenoise\tnyx-denoise-dark-footage\ttvai_up=model=nyx-3:scale=1:preblur=0:noise=0.80:details=0.25:halo=0:blur=0.20:compression=0.25:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Denoise] Nyx Dark Footage 1x. Same-size Nyx pass: very heavy denoise, low detail recovery, medium sharpening. Best for dark/noisy 4K; can look waxy on clean skin.'
-  print -r -- $'atleast4k\tany\t[Enhance] Iris MQ, Sharpen (1x)\tEnhance\tiris-mq-enhance-sharpen\ttvai_up=model=iris-mq:scale=1:preblur=0:noise=0.25:details=0.50:halo=0:blur=0.15:compression=0.20:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Enhance] Iris MQ Sharpen 1x. Same-size Iris MQ pass: moderate denoise, strong detail recovery, light-medium sharpening. Good for faces and soft detail; watch for hallucination.'
-  print -r -- $'atleast4k\tany\t[Focus Fix] Proteus Light (1x)\tFocus Fix\tproteus-focus-fix-light\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.15:details=0.55:halo=0.04:blur=0.18:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Focus Fix] Proteus Light 1x. Same-size focus-style pass: light denoise, strong detail recovery, medium sharpening/deblur. Good first try for soft 4K.'
-  print -r -- $'atleast4k\tany\t[Focus Fix] Proteus Strong (1x)\tFocus Fix\tproteus-focus-fix-strong\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.22:details=0.80:halo=0.08:blur=0.28:compression=0.18:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Focus Fix] Proteus Strong 1x. Same-size focus-style pass: very strong detail recovery, heavy sharpening/deblur. Use when Light still looks soft; higher risk of crunchy edges.'
+  # --- Upscale to 4K (forced orientation-aware 4K via @4K@; shown only for <4K sources) ---
+  print -r -- $'upscale-4k\tProteus 4K, Sharpen\tproteus-4k-sharpen\ttvai_up=model=prob-4:@4K@:preblur=0:noise=0.18:details=0.35:halo=0.02:blur=0.10:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Upscale to 4K] Proteus 4K Sharpen. Forced 4K Proteus upscale: light denoise, medium detail recovery, mild sharpening, light compression cleanup, tiny grain.'
+  print -r -- $'upscale-4k\tProteus 4K, Grain, Sharpen\tproteus-4k-grain-sharpen\ttvai_up=model=prob-4:@4K@:preblur=0:noise=0.10:details=0.38:halo=-0.04:blur=0.18:compression=0.20:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Upscale to 4K] Proteus 4K Grain Sharpen. Forced 4K Proteus upscale: light denoise, medium detail/sharpening, light compression cleanup, light dehalo, subtle grain. Polished 4K target.'
 
-  # --- Interpolation: sources under 60fps -> 60fps ---
-  print -r -- $'any\tunder60\t[Interpolate] Apollo 60fps\tInterpolate\tapollo-interpolate-60fps\ttvai_fi=model=apollo:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1\tvideoai=[Interpolate] Apollo 60fps. Motion-only Apollo pass to 60fps. Slower, higher-quality interpolation for natural motion; inspect hands, hair, cuts, fast pans.'
-  print -r -- $'any\tunder60\t[Interpolate] Chronos Fast 60fps\tInterpolate\tchronos-fast-interpolate-60fps\ttvai_fi=model=chf-3:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1\tvideoai=[Interpolate] Chronos Fast 60fps. Motion-only Chronos Fast pass to 60fps. Faster/lighter than Apollo; good for previews or simpler motion.'
+  # --- Repair (same-size compression / noise repair) ---
+  print -r -- $'repair\tProteus Compression Cleanup\tproteus-compression-cleanup\ttvai_up=model=prob-4:scale=1:preblur=0.02:noise=0.20:details=0.22:halo=-0.08:blur=0.16:compression=0.62:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Repair] Proteus Compression Cleanup. Same-size Proteus pass: heavy compression repair, light denoise, mild detail recovery, stronger dehalo. Good for blocky or already-upscaled footage.'
+  print -r -- $'repair\tNyx Dark Denoise\tnyx-denoise-dark-footage\ttvai_up=model=nyx-3:scale=1:preblur=0:noise=0.80:details=0.25:halo=0:blur=0.20:compression=0.25:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Repair] Nyx Dark Denoise. Same-size Nyx pass: very heavy denoise, low detail recovery, medium sharpening. Best for dark/noisy clips; can look waxy on clean skin.'
 
-  # --- Interpolation: already 60fps -> Apollo duplicate-frame repair ---
-  print -r -- $'any\tatleast60\t[Interpolate] Apollo 60fps, Duplicate Fix\tInterpolate\tapollo-duplicate-fix-60fps\ttvai_fi=model=apollo:slowmo=1:rdt=0.05:fps=60:device=0:vram=0.95:instances=1\tvideoai=[Interpolate] Apollo 60fps Duplicate Fix. Regenerates true 60fps motion and replaces duplicate/stuttered frames common in 60fps captures of 30fps content. Higher rdt detects more dupes.'
+  # --- Sharpen (detail recovery / sharpening emphasis) ---
+  print -r -- $'sharpen\tIris MQ, Sharpen\tiris-mq-enhance-sharpen\ttvai_up=model=iris-mq:scale=1:preblur=0:noise=0.25:details=0.50:halo=0:blur=0.15:compression=0.20:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Sharpen] Iris MQ Sharpen. Same-size Iris MQ pass: moderate denoise, strong detail recovery, light-medium sharpening. Good for faces and soft detail; watch for hallucination.'
+  print -r -- $'sharpen\tProteus Sharpen\tproteus-sharpen\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.20:details=0.55:halo=0.04:blur=0.30:compression=0.15:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Sharpen] Proteus Sharpen. Same-size Proteus pass: light denoise, strong detail recovery, heavy sharpening/deblur. Crisper edges on soft-but-clean sources.'
 
-  # --- Combined upscale + interpolate (<=1080p, under 60fps) ---
-  print -r -- $'upto1080\tunder60\t[Upscale, Interpolate] Proteus 4K, Apollo 60fps\tUpscale, Interpolate\tproteus-4k-apollo-60fps\ttvai_up=model=prob-4:@4K@:preblur=0:noise=0.10:details=0.38:halo=-0.04:blur=0.18:compression=0.20:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1,tvai_fi=model=apollo:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1@4KTAIL@\tvideoai=[Upscale, Interpolate] Proteus 4K + Apollo 60fps. Polished 4K upscale plus high-quality 60fps motion. Best all-in-one when the motion preview looks clean.'
-  print -r -- $'upto1080\tunder60\t[Upscale, Interpolate] Proteus 4K, Chronos Fast 60fps\tUpscale, Interpolate\tproteus-4k-chronos-fast-60fps\ttvai_up=model=prob-4:@4K@:preblur=0:noise=0.18:details=0.35:halo=0.02:blur=0.10:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1,tvai_fi=model=chf-3:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1@4KTAIL@\tvideoai=[Upscale, Interpolate] Proteus 4K + Chronos Fast 60fps. Conservative 4K upscale plus faster 60fps interpolation. Good quick 1080p30 -> 4K60 path.'
+  # --- Focus Fix (recover soft / slightly out-of-focus footage) ---
+  print -r -- $'focus-fix\tProteus Light\tproteus-focus-fix-light\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.15:details=0.55:halo=0.04:blur=0.18:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Focus Fix] Proteus Light. Same-size focus-style pass: light denoise, strong detail recovery, medium sharpening/deblur. Good first try for soft footage.'
+  print -r -- $'focus-fix\tProteus Strong\tproteus-focus-fix-strong\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.22:details=0.80:halo=0.08:blur=0.28:compression=0.18:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tvideoai=[Focus Fix] Proteus Strong. Same-size focus-style pass: very strong detail recovery, heavy sharpening/deblur. Use when Light still looks soft; higher risk of crunchy edges.'
+}
+
+# Interpolation preset rows for the mpv interactive workflow (frame-rate stage).
+# The Lua injects a "None" option ahead of these motion models.
+# Row format:
+#   display<TAB>slug<TAB>fi_filter<TAB>metadata
+topaz_interpolation_preset_rows() {
+  emulate -L zsh
+
+  print -r -- $'Apollo 60fps\tapollo-interpolate-60fps\ttvai_fi=model=apollo:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1\tvideoai=[Interpolate] Apollo 60fps. Higher-quality motion; best at detecting and replacing duplicate/repeated frames. Inspect hands, hair, cuts, fast pans.'
+  print -r -- $'Chronos Fast 60fps\tchronos-fast-interpolate-60fps\ttvai_fi=model=chf-3:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1\tvideoai=[Interpolate] Chronos Fast 60fps. Faster and usually lighter than Apollo; good for simpler motion, more risk on complex motion.'
 }
 
 # Output profile rows used by the newer two-step workflow.
