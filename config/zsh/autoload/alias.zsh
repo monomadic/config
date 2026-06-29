@@ -9,6 +9,7 @@ alias .send-incoming-flac-to-mixed-in-key="mixed-in-key-drop scan"
 alias .tidal-download="tiddl download --track-quality=max --video-quality=fhd --path \"$HOME/Music/Mixed In Key Drop\" --scan-path $HOME/Music/Downloads --output \"{item.title} - {item.artist} \({item.bpm}\)\" url "
 alias .tidal-music-search="tiddl download --track-quality=max --video-quality=fhd --path $HOME/Music/Downloads --scan-path $HOME/Music/Downloads --output \"{item.title} - {item.artist} \({item.bpm}\)\" --videos=none search"
 alias .tidal-video-search="tiddl download --track-quality=max --video-quality=fhd --path $HOME/Music/Downloads --scan-path $HOME/Music/Downloads --output \"{item.title} - {item.artist} \({item.bpm}\)\" --videos=only search"
+alias .tidal-dl-video="tiddl download --videos=allow url"
 
 alias flac-print-tags="metaflac --list --block-type=VORBIS_COMMENT"
 alias .flac-print-tags=flac-print-tags
@@ -683,16 +684,9 @@ alias lr='recent . 10 --reverse'
 
 alias up="cd .."
 alias gr="cd /"
-cd-relative() { cd "$(fd -t directory | fzf-cd)"; }
+cdd() { cd "$(fd -t directory | fzf-cd)"; }
 alias fd-dirs="fd -t d -d 15 -E '.*' -E 'Library'"
 alias fd-empty="fd --type empty"
-
-alias src="cd ~/src && l"
-alias workspaces="cd ~/workspaces && l"
-alias org='cd ~/org && e index.md'
-alias wiki="cd ~/wiki && e index.md"
-alias w=wiki
-alias snippets="cd ~/config/config/neovim/snippets/ && ll"
 
 # ============================================================================
 # Editor & Tools
@@ -711,6 +705,7 @@ alias prev="fzf --layout=reverse --preview 'bat --style=numbers --color=always -
 
 alias .tab=fzf-tablature
 alias t=fzf-tablature
+alias .chordpro="cd '${TABLATURE_DIR}/ChordPro' && chordpro-tui ."
 
 # ============================================================================
 # Media & Image Tools

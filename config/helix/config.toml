@@ -7,6 +7,7 @@ bufferline = "always"
 
 [keys.normal]
 Cmd-a = "select_all"
+C-c = "toggle_comments"
 "C-[" = "goto_previous_buffer"
 "C-]" = "goto_next_buffer"
 C-h = "jump_view_left"
@@ -76,6 +77,7 @@ C-p = ["move_line_up", "scroll_up"]
 C-n = ["move_line_down", "scroll_down"]
 
 [keys.select]
+C-c = "toggle_comments"
 D = ["yank_main_selection_to_clipboard", "delete_selection"]
 S-backspace = "delete_selection"
 Cmd-backspace = "delete_selection"
