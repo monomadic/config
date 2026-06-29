@@ -132,18 +132,18 @@ rules = [
 
 [icon]
 prepend_globs = [
-  { url = "*.mp4",  text = "􀊕 ", fg = "#7df9aa" },
-  { url = "*.mkv",  text = "􀊕 ", fg = "#5df9aa" },
-  { url = "*.mov",  text = "􀊕 ", fg = "#7df9Fa" },
-  { url = "*.webm", text = "􀊕 ", fg = "#Ed89Ca" },
-  { url = "*.m4v",  text = "􀊕 ", fg = "#7df9aa" },
-  { url = "*.avi",  text = "􀊕 ", fg = "#7df9aa" },
-  { url = "*.wmv",  text = "􀊕 ", fg = "#7df9aa" },
-  { url = "*.flv",  text = "􀊕 ", fg = "#7df9aa" },
-  { url = "*.mpg",  text = "􀊕 ", fg = "#7df9aa" },
-  { url = "*.mpeg", text = "􀊕 ", fg = "#7df9aa" },
-  { url = "*.ts",   text = "􀊕 ", fg = "#7df9aa" },
-  { url = "*.m2ts", text = "􀊕 ", fg = "#7df9aa" },
+  { url = "*.mp4",  text = "􀽎 ", fg = "#55AAFF" },
+  { url = "*.mkv",  text = "􀽎 ", fg = "#5df9aa" },
+  { url = "*.mov",  text = "􀽎 ", fg = "#7df9Fa" },
+  { url = "*.webm", text = "􀽎 ", fg = "#Ed89Ca" },
+  { url = "*.m4v",  text = "􀽎 ", fg = "#7df9aa" },
+  { url = "*.avi",  text = "􀽎 ", fg = "#7df9aa" },
+  { url = "*.wmv",  text = "􀽎 ", fg = "#7df9aa" },
+  { url = "*.flv",  text = "􀽎 ", fg = "#7df9aa" },
+  { url = "*.mpg",  text = "􀽎 ", fg = "#7df9aa" },
+  { url = "*.mpeg", text = "􀽎 ", fg = "#7df9aa" },
+  { url = "*.ts",   text = "􀽎 ", fg = "#7df9aa" },
+  { url = "*.m2ts", text = "􀽎 ", fg = "#7df9aa" },
 ]
 
 dirs = [
@@ -155,14 +155,14 @@ dirs = [
   { name = "Documents", text = "􀈕 ", fg = "#7df9aa" },
   { name = "Downloads", text = "􀤁 ", fg = "#66e2ff" },
   { name = "Library",   text = "􀣍 ", fg = "#c792ea" },
-  { name = "Movies",    text = "􀾬 ", fg = "#66e2ff" },
+  { name = "Movies",    text = "􀾬", fg = "#66e2ff" },
   { name = "Music",     text = "􃐹 ", fg = "#66e2ff" },
   { name = "Pictures",  text = "􀏯 ", fg = "#c792ea" },
   { name = "Public",    text = "􃀧 ", fg = "#7df9aa" },
   { name = "Videos",    text = "􁟼 ", fg = "#66e2ff" },
   { name = "Visuals",   text = "􀲳 ", fg = "#66e2ff" },
   { name = "Contacts",  text = "􀏻 ", fg = "#66e2ff" },
-  { name = "src",       text = "􃑷 ", fg = "#66e2ff" },
+  { name = "src",       text = "􃀩 ", fg = "#66e2ff" },
   { name = "Footage",   text = "􁒗 ", fg = "#66e2ff" },
   { name = "Private",   text = "􀢱 ", fg = "#66e2ff" },
   { name = "Porn",      text = "􁃪 ", fg = "#E6528f" },
@@ -175,7 +175,7 @@ dirs = [
 
 exts = [
   # video
-  { name = "mp4",  text = "􀊕 ", fg = "#7df9aa" },
+  { name = "mp4",  text = "􀽎 ", fg = "#7d59FF" },
   { name = "mkv",  text = "􀊕 ", fg = "#7df9aa" },
   { name = "mov",  text = "􀊕 ", fg = "#7df9aa" },
   { name = "webm", text = "􀊕 ", fg = "#7df9aa" },
@@ -201,6 +201,7 @@ exts = [
   { name = "vdjstems", text = "􀐟 ", fg = "#86229f" },
 
   # tablature
+  { name = "pro",  text = "􃁯 ", fg = "#AF92Ef" },
   { name = "cho",  text = "􃁯 ", fg = "#66e2ff" },
   { name = "chopro", text = "􃁯 ", fg = "#76ecff" },
   { name = "chordpro", text = "􃁯 ", fg = "#F6e24f" },
@@ -212,7 +213,7 @@ exts = [
   { name = "webp", text = "􀏅 ", fg = "#c792ea" },
 
   # docs
-  { name = "pdf",  text = "􀉅 ", fg = "#FF498a" },
+  { name = "pdf",  text = "􀻢 ", fg = "#FF498a" },
   { name = "txt",  text = "􀈿 ", fg = "#b8bcc6" },
   { name = "md",   text = "􀈿 ", fg = "#b8bcc6" },
 

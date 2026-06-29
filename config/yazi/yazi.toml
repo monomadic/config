@@ -10,38 +10,38 @@ max_height = 900
 [opener]
 edit = [
 	# { run = "${EDITOR:-vi} %s", desc = "􁹛  edit", for = "unix", block = true },
-	{ run = "hx %s", desc = "􀤘  edit (helix)", for = "unix", block = true },
+	{ run = "hx %s", desc = "􀤘 edit (helix)", for = "unix", block = true },
 ]
 bulk-rename = [
-	{ run = "hx %s", desc = "􀤘  helix", for = "unix", block = true },
+	{ run = "hx %s", desc = "􀃫 helix", for = "unix", block = true },
 ]
 play = [
-	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀍌  mpv", for = "unix", orphan = true },
-	{ run = "vlc %s .", desc = "􀍋  vlc", for = "unix", orphan = true },
-	{ run = "convert-to-pro-res %s .", desc = "􀍑  convert: prores", orphan = true },
-	{ run = "media-open-url %s", desc = "􀉣  open url" },
-	{ run = "mediainfo %s1; echo 'Press enter to exit'; read _", desc = "􀍓  mediainfo", for = "unix", block = true },
+	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀽍 mpv", for = "unix", orphan = true },
+	{ run = "vlc %s .", desc = "􀽎 vlc", for = "unix", orphan = true },
+	{ run = "convert-to-pro-res %s .", desc = "􁾕 convert: prores", orphan = true },
+	{ run = "media-open-url %s", desc = "􀼹 open url" },
+	{ run = "mediainfo %s1; echo 'Press enter to exit'; read _", desc = "􁊇 mediainfo", for = "unix", block = true },
 ]
 play_dir = [
-	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀾭  mpv", for = "unix", orphan = true },
-	{ run = "vlc %s .", desc = "􀵨  vlc", for = "unix", orphan = true },
+	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀽍 mpv", for = "unix", orphan = true },
+	{ run = "vlc %s .", desc = "􀽎 vlc", for = "unix", orphan = true },
 	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-check-files %s''', desc = "􀇺  check", for = "unix", orphan = true },
 ]
 open = [
-	{ run = "open %s", desc = "􀭅  open" },
-	{ run = "/Users/nom/.zsh/bin/yazi-shortcut-open %s", desc = "􂅛  open shortcut", for = "macos", block = true },
+	{ run = "open %s", desc = "􀭅 open" },
+	{ run = "/Users/nom/.zsh/bin/yazi-shortcut-open %s", desc = "􂅛 open shortcut", for = "macos", block = true },
 ]
 # 􀭅 􂇕
 reveal = [
-	{ run = "open %s1", desc = "􀭅  open" },
-	{ run = "open -R %s1", desc = "􀥯  reveal" },
-	{ run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", desc = "􂷐  exiftool", block = true },
+	{ run = "open %s1", desc = "􀭅 open" },
+	{ run = "open -R %s1", desc = "􀥯 reveal" },
+	{ run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", desc = "􁊇 exiftool", block = true },
 ]
 chordpro = [
-	{ run = "chordpro-tui %s1", desc = "ChordPro TUI", for = "unix", block = true },
+	{ run = "chordpro-tui %s1", desc = "􃐹 chordpro-tui", for = "unix", block = true },
 ]
 pdf_chordpro = [
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " pdf to chordpro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "PDF to ChordPro", for = "unix", orphan = true },
+	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " pdf to chordpro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "􃐹 pdf->chordpro", for = "unix", orphan = true },
 ]
 video_tools = [
 	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut %s''', desc = "Trim intro", for = "unix", orphan = true },
@@ -53,12 +53,13 @@ video_tools = [
 	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 60fps prores " -- /Users/nom/.zsh/bin/davinci-resolve-interpolate-60fps --prores %s''', desc = "Resolve 60fps ProRes", for = "unix", orphan = true },
 ]
 extract = [
-	{ run = "ya pub extract --list %s", desc = "Extract here" },
+	{ run = "ya pub extract --list %s", desc = "􃀩 extract" },
 ]
 
 [open]
 prepend_rules = [
 	{ url = "bulk-rename.txt", use = "bulk-rename" },
+	{ url = "*.pro", use = [ "chordpro", "edit", "open", "reveal" ] },
 	{ url = "*.cho", use = [ "chordpro", "edit", "open", "reveal" ] },
 	{ url = "*.chopro", use = [ "chordpro", "edit", "open", "reveal" ] },
 	{ url = "*.chordpro", use = [ "chordpro", "edit", "open", "reveal" ] },
@@ -69,6 +70,7 @@ prepend_rules = [
 
 [plugin]
 prepend_previewers = [
+	{ url = "*.pro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
 	{ url = "*.cho", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
 	{ url = "*.chopro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
 	{ url = "*.chordpro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
