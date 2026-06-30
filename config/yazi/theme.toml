@@ -132,6 +132,9 @@ rules = [
 
 [icon]
 prepend_globs = [
+  { url = "README.md", text = "􀈿 ", fg = "#b8bcFF" },
+  { url = "justfile",  text = "􀩼 ", fg = "#ff7ad9" },
+  { url = "Justfile",  text = "􀩼 ", fg = "#ff7ad9" },
   { url = "*.mp4",  text = "􀽎 ", fg = "#55AAFF" },
   { url = "*.mkv",  text = "􀽎 ", fg = "#5df9aa" },
   { url = "*.mov",  text = "􀽎 ", fg = "#7df9Fa" },
@@ -214,7 +217,7 @@ exts = [
 
   # docs
   { name = "pdf",  text = "􀻢 ", fg = "#FF498a" },
-  { name = "txt",  text = "􀈿 ", fg = "#b8bcc6" },
+  { name = "txt",  text = "􀈿 ", fg = "#BBBBBB" },
   { name = "md",   text = "􀈿 ", fg = "#b8bcc6" },
 
   # code
