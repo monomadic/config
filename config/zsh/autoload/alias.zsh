@@ -20,6 +20,9 @@ gh-repo-create() {
   gh repo create $1 --private --source=. --remote=upstream
 }
 
+alias rclone-diff-size="rclone check --size-only"
+alias diff-dir="diff -rq "
+
 # ============================================================================
 # Utility Functions
 # ============================================================================
