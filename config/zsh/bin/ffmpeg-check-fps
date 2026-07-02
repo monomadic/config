@@ -5,11 +5,13 @@
 # and duplicate-padded frames (the "claims 60fps but feels like 30" case).
 #
 # Deps: ffprobe, ffmpeg (brew install ffmpeg)
-# Usage: fpscheck [-q|--quick] [-h|--help] <file>
-#   -q  skip the full-decode duplicate scan (fast, metadata only)
+# Usage: fpscheck [-q|--quick] [--full] [-h|--help] <file>
+#   -q      skip the duplicate scan entirely (metadata only)
+#   --full  decode the whole stream; default samples 6x20s windows on long files
 
 emulate -L zsh
 set -o pipefail
+zmodload zsh/mathfunc 2>/dev/null || true  # int(), used in window math
 
 # ── colors ──────────────────────────────────────────────────────────────────
 if [[ -t 1 && -z $NO_COLOR ]]; then
@@ -27,15 +29,17 @@ note() { print -- "${C_DIM}$1${C_RST}" }
 
 usage() {
   print -- "${C_B}fpscheck${C_RST} — verify a video's real frame rate
-${C_DIM}usage:${C_RST} fpscheck [-q|--quick] <file>
-  -q, --quick   metadata only; skip the full-decode duplicate scan"
+${C_DIM}usage:${C_RST} fpscheck [-q|--quick] [--full] <file>
+  -q, --quick   metadata only; skip the duplicate scan
+  --full        decode the whole stream (default: sample windows on long files)"
 }
 
 # ── args ──────────────────────────────────────────────────────────────────────
-local quick=0 file=
+local quick=0 full=0 file=
 while (( $# )); do
   case $1 in
     -q|--quick) quick=1 ;;
+    --full)     full=1 ;;
     -h|--help)  usage; exit 0 ;;
     -*)         die "unknown option: $1" ;;
     *)          file=$1 ;;
@@ -71,7 +75,7 @@ human_size() {  # bytes -> human
 }
 
 human_time() {  # seconds -> H:MM:SS
-  local s=$(( int($1) ))
+  local s=${1%%.*}   # zsh arithmetic has no int(); truncate the string
   printf '%d:%02d:%02d' $(( s/3600 )) $(( (s%3600)/60 )) $(( s%60 ))
 }
 
@@ -129,21 +133,68 @@ fi
 local vfr=0
 (( div_pct > 5 )) && vfr=1
 
-# ── full-decode duplicate scan ────────────────────────────────────────────────
+# ── duplicate scan ────────────────────────────────────────────────────────────
+# Counts frames surviving mpdecimate via -progress (machine-readable), instead
+# of grepping a full -loglevel debug dump — that captured per-frame debug text
+# from every ffmpeg component into a variable, hundreds of MB on long files.
+# Decodes with VideoToolbox when possible; falls back to software.
+scan_kept() {  # $1=seek offset ('' = start)  $2=duration ('' = to end)
+  local -a seek=() span=()
+  [[ -n $1 ]] && seek=(-ss $1)
+  [[ -n $2 ]] && span=(-t $2)
+  local out
+  out=$(ffmpeg -hide_banner -nostats -loglevel error -progress /dev/stdout \
+        -hwaccel videotoolbox "${seek[@]}" -i "$file" "${span[@]}" \
+        -vf mpdecimate -an -fps_mode vfr -f null - 2>/dev/null) ||
+  out=$(ffmpeg -hide_banner -nostats -loglevel error -progress /dev/stdout \
+        "${seek[@]}" -i "$file" "${span[@]}" \
+        -vf mpdecimate -an -fps_mode vfr -f null - 2>/dev/null) || return 1
+  local -a lines
+  lines=(${(f)out})                       # unquoted: (f) only splits outside quotes
+  local last=${${(M)lines:#frame=*}[-1]}
+  [[ -n $last ]] || return 1
+  print -- ${${last#frame=}%%[^0-9]*}     # digits only, tolerate trailing keys
+}
+
 local kept=0 dropped=0 total=0 unique=0 dupe_pct=0 scanned=0
+local nwin=6 win=20
 if (( quick )); then
   note "\n(skipped duplicate scan — quick mode)"
-else
+elif (( ! full )) && (( dur > nwin * win * 1.5 )); then
   hdr "Duplicate-frame scan"
-  note "Decoding full stream with mpdecimate… (slow on large files)"
-  local out
-  out=$(ffmpeg -nostats -hide_banner -loglevel debug -i "$file" \
-        -vf mpdecimate -an -f null - 2>&1)
-  kept=$(print -- "$out"   | grep -c 'keep pts:')
-  dropped=$(print -- "$out" | grep -c 'drop pts:')
-  total=$(( kept + dropped ))
+  note "Sampling ${nwin}×${win}s windows… (--full for a whole-stream scan)"
+  local i off k
+  for i in {1..$nwin}; do
+    off=$(printf '%.2f' $(( dur * i / (nwin + 1.0) )))
+    k=$(scan_kept $off $win) || continue
+    kept=$(( kept + k ))
+    total=$(( total + int(win * (avg > 0 ? avg : nominal) + 0.5) ))
+  done
   if (( total > 0 )); then
     scanned=1
+    (( kept > total )) && kept=$total
+    dropped=$(( total - kept ))
+    unique=$(printf '%.3f' $(( ${kept}.0 / (nwin * win) )))
+    dupe_pct=$(printf '%.1f' $(( ${dropped}.0 / ${total} * 100 )))
+    kv "Frames sampled" "$total  ${C_DIM}(${nwin}×${win}s of ${dur%%.*}s)${C_RST}"
+    kv "Unique frames"  "${C_B}${kept}${C_RST}  ${C_DIM}(~${dropped} redundant, ${dupe_pct}%)${C_RST}"
+    kv "Unique rate"    "${C_B}${unique}${C_RST} fps"
+  else
+    note "scan produced no frames — codec/filter issue?"
+  fi
+else
+  hdr "Duplicate-frame scan"
+  note "Decoding full stream with mpdecimate…"
+  kept=$(scan_kept '' '') || kept=0
+  total=$nb
+  if [[ $total == N/A || -z $total ]]; then
+    total=$(ffprobe -v error -select_streams v:0 -count_packets \
+            -show_entries stream=nb_read_packets -of csv=p=0 -- "$file")
+  fi
+  if [[ -n $total && $total != N/A ]] && (( kept > 0 )); then
+    scanned=1
+    (( kept > total )) && kept=$total
+    dropped=$(( total - kept ))
     (( dur != 0 )) && unique=$(printf '%.3f' $(( ${kept}.0 / ${dur} )))
     dupe_pct=$(printf '%.1f' $(( ${dropped}.0 / ${total} * 100 )))
     kv "Frames decoded" "$total"
