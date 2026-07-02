@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo="nihui/rife-ncnn-vulkan"
+asset_regex='macos.*\.zip$'
+prefix="${RIFE_PREFIX:-$HOME/.local}"
+models="rife-v4.6"
+dry_run=0
+tmp_dir=""
+
+usage() {
+  cat <<'EOF'
+Usage: install-rife-arm64 [options]
+
+Download the latest macOS rife-ncnn-vulkan release, thin the universal
+binary to arm64, and install it with the selected model(s) to
+$PREFIX/share/rife-ncnn-vulkan with a symlink at $PREFIX/bin/rife-ncnn-vulkan.
+
+The model dirs are installed next to the binary, which is where motionfix
+(and rife itself, given an absolute -m path) expects to find them.
+
+Options:
+  --prefix DIR        Install prefix. Default: ~/.local
+  --models a,b,c      Comma-separated model dirs to install. Default: rife-v4.6
+  --repo OWNER/REPO   GitHub repo. Default: nihui/rife-ncnn-vulkan
+  -n, --dry-run       Print planned work without writing.
+  -h, --help          Show this help.
+
+Environment:
+  RIFE_PREFIX         Overrides the install prefix.
+  GITHUB_TOKEN        Optional GitHub API token for higher rate limits.
+EOF
+}
+
+log() {
+  printf '==> %s\n' "$*"
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
+}
+
+run() {
+  if [[ "$dry_run" -eq 1 ]]; then
+    printf '+'
+    printf ' %q' "$@"
+    printf '\n'
+  else
+    "$@"
+  fi
+}
+
+cleanup() {
+  if [[ -n "$tmp_dir" && -d "$tmp_dir" ]]; then
+    rm -rf "$tmp_dir"
+  fi
+}
+
+trap cleanup EXIT
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --prefix)
+      shift
+      [[ $# -gt 0 ]] || die "--prefix requires a path"
+      prefix="${1%/}"
+      ;;
+    --models)
+      shift
+      [[ $# -gt 0 ]] || die "--models requires a comma-separated list"
+      models="$1"
+      ;;
+    --repo)
+      shift
+      [[ $# -gt 0 ]] || die "--repo requires OWNER/REPO"
+      repo="$1"
+      ;;
+    -n|--dry-run)
+      dry_run=1
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "unknown option: $1"
+      ;;
+  esac
+  shift
+done
+
+share_dir="$prefix/share/rife-ncnn-vulkan"
+bin_link="$prefix/bin/rife-ncnn-vulkan"
+
+curl_json() {
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "$1"
+  else
+    curl -fsSL "$1"
+  fi
+}
+
+download_file() {
+  local url="$1"
+  local out="$2"
+
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    curl -fL --progress-bar -H "Authorization: Bearer $GITHUB_TOKEN" -o "$out" "$url"
+  else
+    curl -fL --progress-bar -o "$out" "$url"
+  fi
+}
+
+main() {
+  [[ "$(uname -s)" == "Darwin" ]] || die "this installer is only for macOS"
+  [[ "$(uname -m)" == "arm64" ]] || die "this installer is only for Apple Silicon Macs"
+  for cmd in curl jq unzip lipo codesign xattr; do
+    need_cmd "$cmd"
+  done
+
+  local api_url="https://api.github.com/repos/$repo/releases/latest"
+  local release_json tag_name asset_name asset_url
+
+  log "Looking up latest release from $repo"
+  release_json="$(curl_json "$api_url")"
+  tag_name="$(printf '%s' "$release_json" | jq -r '.tag_name // empty')"
+  asset_name="$(printf '%s' "$release_json" | jq -r --arg re "$asset_regex" '[.assets[] | select(.name | test($re; "i"))][0].name // empty')"
+  asset_url="$(printf '%s' "$release_json" | jq -r --arg re "$asset_regex" '[.assets[] | select(.name | test($re; "i"))][0].browser_download_url // empty')"
+
+  [[ -n "$tag_name" ]] || die "could not read latest release tag"
+  [[ -n "$asset_name" && -n "$asset_url" ]] || die "no release asset matched regex: $asset_regex"
+
+  log "Latest release: $tag_name"
+  log "Matched asset: $asset_name"
+
+  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/rife-install.XXXXXX")"
+  local zip_path="$tmp_dir/$asset_name"
+
+  log "Downloading"
+  if [[ "$dry_run" -eq 1 ]]; then
+    run download "$asset_url" "$zip_path"
+  else
+    download_file "$asset_url" "$zip_path"
+  fi
+
+  log "Extracting"
+  run unzip -q "$zip_path" -d "$tmp_dir/extract"
+
+  local src_bin src_dir
+  if [[ "$dry_run" -eq 1 ]]; then
+    src_dir="$tmp_dir/extract/<release>"
+    src_bin="$src_dir/rife-ncnn-vulkan"
+  else
+    src_bin="$(find "$tmp_dir/extract" -name rife-ncnn-vulkan -type f | head -1)"
+    [[ -n "$src_bin" ]] || die "no rife-ncnn-vulkan binary found in the archive"
+    src_dir="$(dirname "$src_bin")"
+  fi
+
+  log "Thinning universal binary to arm64"
+  run lipo -thin arm64 "$src_bin" -output "$src_bin.arm64"
+  run codesign --force --sign - "$src_bin.arm64"
+
+  log "Installing to $share_dir"
+  run rm -rf "$share_dir"
+  run mkdir -p "$share_dir" "$prefix/bin"
+  run cp "$src_bin.arm64" "$share_dir/rife-ncnn-vulkan"
+  run chmod 755 "$share_dir/rife-ncnn-vulkan"
+
+  local model
+  for model in ${models//,/ }; do
+    if [[ "$dry_run" -eq 0 && ! -d "$src_dir/$model" ]]; then
+      die "model not found in release: $model"
+    fi
+    log "Installing model $model"
+    run cp -R "$src_dir/$model" "$share_dir/$model"
+  done
+
+  run ln -sfn "$share_dir/rife-ncnn-vulkan" "$bin_link"
+
+  if [[ "$dry_run" -eq 0 ]]; then
+    xattr -dr com.apple.quarantine "$share_dir" >/dev/null 2>&1 || true
+
+    log "Verifying"
+    lipo -archs "$share_dir/rife-ncnn-vulkan" | grep -qw arm64 || die "installed binary is not arm64"
+    # rife exits nonzero when run without args, so don't pipe it under pipefail
+    local usage_out
+    usage_out="$("$bin_link" 2>&1 || true)"
+    printf '%s' "$usage_out" | grep -q "Usage:" || die "installed binary did not print usage"
+
+    case ":$PATH:" in
+      *":$prefix/bin:"*) ;;
+      *) printf 'note: %s is not on your PATH\n' "$prefix/bin" >&2 ;;
+    esac
+  fi
+
+  log "Done: $bin_link ($tag_name, models: $models)"
+}
+
+main "$@"
