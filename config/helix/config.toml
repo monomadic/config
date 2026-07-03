@@ -10,12 +10,14 @@ Cmd-a = "select_all"
 C-c = "toggle_comments"
 "C-[" = "goto_previous_buffer"
 "C-]" = "goto_next_buffer"
+"Cmd-[" = "goto_previous_buffer"
+"Cmd-]" = "goto_next_buffer"
 C-h = "jump_view_left"
 C-j = "jump_view_down"
 C-k = "jump_view_up"
 C-l = "jump_view_right"
 C-p = ["move_line_up", "scroll_up"]
-C-s = [":w!"]
+C-s = [":write"]
 "C-space" = [
   ':sh rm -f /tmp/unique-ca1ea106',
   ':insert-output yazi "%{buffer_name}" --chooser-file=/tmp/unique-ca1ea106',
@@ -40,7 +42,7 @@ L = ["goto_line_end"]
 V = ["extend_line", "select_mode"]
 "{" = ["goto_prev_paragraph", "collapse_selection", "normal_mode"]
 "}" = ["goto_next_paragraph", "move_line_down", "collapse_selection", "normal_mode"]
-Q = ":wq!"
+q = ":quit"
 backspace = "goto_last_accessed_file"
 # Move current line down (Shift+J)
 G = "goto_last_line"
@@ -70,6 +72,15 @@ R = ["replace_selections_with_clipboard"]
 # Requires kitty remote control enabled (allow_remote_control + listen_on)
 # and the kitty-repl helper at config/kitty/bin/kitty-repl
 F20 = [":sh $HOME/config/config/kitty/bin/kitty-repl toggle"]
+
+[keys.normal.t]
+t = ":new"
+o = [":new", "file_picker"]
+"]" = "goto_next_buffer"
+"[" = "goto_previous_buffer"
+q = ":buffer-close"
+s = "vsplit"
+Q = ":buffer-close-others"
 
 [keys.insert]
 C-s = [":write", "normal_mode"]

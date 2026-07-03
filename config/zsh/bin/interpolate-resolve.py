@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
-davinci-resolve-interpolate-60fps.py
+interpolate-resolve.py
 
 Import one input clip into DaVinci Resolve, apply Optical Flow interpolation,
 and render to HEVC MP4 or ProRes 422 Proxy MOV. Attempts to make the
-project/timeline 60 fps as early as possible, but tolerates Resolve builds
-that lock frame rate unexpectedly.
+project/timeline target fps as early as possible, but tolerates Resolve builds
+that lock frame rate unexpectedly. Defaults to 60 fps.
 
 Usage:
-  davinci-resolve-interpolate-60fps.py /absolute/input.mp4 /absolute/output.mp4
-  davinci-resolve-interpolate-60fps.py --speed-warp /absolute/input.mp4 /absolute/output.mp4
-  davinci-resolve-interpolate-60fps.py --prores /absolute/input.mp4 /absolute/output.mov
-  davinci-resolve-interpolate-60fps.py --debug-formats /absolute/input.mp4 /absolute/output.mp4
+  interpolate-resolve.py /absolute/input.mp4 /absolute/output.mp4
+  interpolate-resolve.py --fps 120 /absolute/input.mp4 /absolute/output.mp4
+  interpolate-resolve.py --quality speed-warp /absolute/input.mp4 /absolute/output.mp4
+  interpolate-resolve.py --prores /absolute/input.mp4 /absolute/output.mov
+  interpolate-resolve.py --debug-formats /absolute/input.mp4 /absolute/output.mp4
 """
 
 from __future__ import annotations
@@ -58,12 +59,24 @@ def wait_for_render(project, poll_s: float = 1.0) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Render one input clip through DaVinci Resolve as HEVC 60fps MP4 or ProRes 422 Proxy 60fps MOV."
+        description="Render one input clip through DaVinci Resolve as HEVC MP4 or ProRes 422 Proxy MOV with Optical Flow interpolation."
     )
     parser.add_argument(
+        "--fps",
+        default="60",
+        help="Target output frame rate. Defaults to 60.",
+    )
+    quality = parser.add_mutually_exclusive_group()
+    quality.add_argument(
+        "--quality",
+        choices=("enhanced-better", "speed-warp"),
+        default="enhanced-better",
+        help="Optical Flow motion estimation quality. Defaults to enhanced-better.",
+    )
+    quality.add_argument(
         "--speed-warp",
         action="store_true",
-        help="Use Speed Warp motion estimation instead of Enhanced Better",
+        help="Shortcut for --quality speed-warp",
     )
     parser.add_argument(
         "--debug-formats",
@@ -77,7 +90,24 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("input_file", help="Absolute input file path")
     parser.add_argument("output_file", help="Absolute output file path")
-    return parser.parse_args()
+    args = parser.parse_args()
+    args.fps = normalize_fps(args.fps)
+    if args.speed_warp:
+        args.quality = "speed-warp"
+    return args
+
+
+def normalize_fps(value: str) -> str:
+    fps = value.lower().removesuffix("fps")
+    try:
+        parsed = float(fps)
+    except ValueError:
+        fail(f"invalid fps: {value}")
+    if parsed <= 0:
+        fail(f"fps must be greater than zero: {value}")
+    if parsed.is_integer():
+        return str(int(parsed))
+    return str(parsed)
 
 
 def find_format_token(project, wanted_token: str) -> str:
@@ -213,9 +243,9 @@ def main() -> None:
             debug_render_formats(project)
 
         # Critical: try to set project FPS before importing media or creating a timeline.
-        project_fps_set = try_set_project_fps(project, "60")
+        project_fps_set = try_set_project_fps(project, args.fps)
         if not project_fps_set:
-            warn("could not set project timelineFrameRate=60 before import; continuing")
+            warn(f"could not set project timelineFrameRate={args.fps} before import; continuing")
 
         media_storage = resolve.GetMediaStorage()
         media_pool = project.GetMediaPool()
@@ -236,9 +266,9 @@ def main() -> None:
 
         project.SetCurrentTimeline(timeline)
 
-        timeline_fps_set = try_set_timeline_fps(timeline, "60")
+        timeline_fps_set = try_set_timeline_fps(timeline, args.fps)
         if not timeline_fps_set and not project_fps_set:
-            warn("could not explicitly force timeline FPS to 60; render may still succeed at 60 if allowed by your build")
+            warn(f"could not explicitly force timeline FPS to {args.fps}; render may still succeed at {args.fps} if allowed by your build")
 
         items = timeline.GetItemListInTrack("video", 1)
         if not items:
@@ -253,9 +283,10 @@ def main() -> None:
         MOTION_EST_ENHANCED_BETTER = 4
         MOTION_EST_SPEED_WARP = 5
 
-        motion_estimation = (
-            MOTION_EST_SPEED_WARP if args.speed_warp else MOTION_EST_ENHANCED_BETTER
-        )
+        motion_estimation = {
+            "enhanced-better": MOTION_EST_ENHANCED_BETTER,
+            "speed-warp": MOTION_EST_SPEED_WARP,
+        }[args.quality]
 
         ok = True
         ok &= bool(clip.SetProperty("RetimeProcess", RETIME_OPTICAL_FLOW))
@@ -289,10 +320,10 @@ def main() -> None:
         # Some builds accept render frame rate as an explicit deliver setting, some reject it.
         # Try it, then fall back silently.
         try_with_fps = dict(render_settings)
-        try_with_fps["FrameRate"] = 60.0
+        try_with_fps["FrameRate"] = float(args.fps)
 
         if not project.SetRenderSettings(try_with_fps):
-            warn("render setting FrameRate=60 rejected by this build; retrying with minimal settings")
+            warn(f"render setting FrameRate={args.fps} rejected by this build; retrying with minimal settings")
             if not project.SetRenderSettings(render_settings):
                 fail("SetRenderSettings failed")
 

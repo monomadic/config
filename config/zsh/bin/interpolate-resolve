@@ -1,0 +1,237 @@
+#!/usr/bin/env zsh
+# interpolate-resolve
+# Render one or more input files through DaVinci Resolve as HEVC MP4
+# or ProRes 422 Proxy MOV with Optical Flow interpolation.
+#
+# Expects a sibling Python script:
+#   interpolate-resolve.py
+#
+# Examples:
+#   interpolate-resolve input.mp4
+#   interpolate-resolve 120 input.mp4
+#   interpolate-resolve --fps 120 input.mp4 output.mp4
+#   interpolate-resolve a.mp4 b.mov c.mkv
+#   interpolate-resolve --quality speed-warp input.mp4
+#   interpolate-resolve --prores input.mp4
+#   interpolate-resolve --help
+
+set -euo pipefail
+
+print_help() {
+  cat <<'EOF'
+Usage:
+  interpolate-resolve [options] [fps] <input-file> [output-file]
+  interpolate-resolve [options] [fps] <input-file>...
+
+Render input file(s) through DaVinci Resolve to HEVC MP4, or to
+ProRes 422 Proxy MOV with --prores. Optical Flow is always used.
+
+Arguments:
+  [fps]            Optional target FPS as the first positional argument
+                   (examples: 60, 120, 23.976, 120fps). Defaults to 60.
+  <input-file>     Input media file
+  [output-file]    Optional explicit output path, only valid when exactly one
+                   input file is provided
+
+Options:
+  -h, --help       Show this help
+  --fps <fps>      Target FPS. Overrides the positional FPS.
+  --quality <mode> Optical Flow motion estimation quality:
+                   enhanced-better, speed-warp
+  --speed-warp     Shortcut for --quality speed-warp
+  --prores         Render QuickTime/MOV using ProRes 422 Proxy, the lowest
+                   bitrate ProRes profile
+
+Behavior:
+  - One input, no output:
+      Writes: input-file with ".hevc<FPS>.mp4" suffix, or ".prores<FPS>.mov"
+      with --prores
+  - One input + one output:
+      Writes exactly to the given output path; with --prores, a non-.mov
+      target is normalized to .mov
+  - Multiple inputs:
+      Writes one output per input beside the source file, using
+      ".hevc<FPS>.mp4" suffix, or ".prores<FPS>.mov" with --prores
+
+Examples:
+  interpolate-resolve clip.mp4
+  interpolate-resolve 120 clip.mp4
+  interpolate-resolve clip.mp4 clip.60fps.mp4
+  interpolate-resolve a.mp4 b.mov c.mkv
+  interpolate-resolve --quality speed-warp clip.mp4
+  interpolate-resolve --prores clip.mp4
+EOF
+}
+
+script_dir=${0:A:h}
+python_script="${script_dir}/interpolate-resolve.py"
+
+if [[ ! -f "$python_script" ]]; then
+  print -u2 "error: Python script not found: $python_script"
+  exit 1
+fi
+
+export RESOLVE_SCRIPT_API="/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting"
+export RESOLVE_SCRIPT_LIB="/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Libraries/Fusion/fusionscript.so"
+export PYTHONPATH="${PYTHONPATH:-}:${RESOLVE_SCRIPT_API}/Modules"
+
+use_speed_warp=0
+use_prores=0
+target_fps=60
+quality=enhanced-better
+typeset -a positional=()
+
+normalize_fps() {
+  local fps="${1:l}"
+  fps="${fps%fps}"
+  if [[ ! "$fps" =~ '^[0-9]+([.][0-9]+)?$' ]]; then
+    print -u2 "error: invalid fps: $1"
+    exit 1
+  fi
+  if [[ "$fps" == "0" || "$fps" == "0."* ]]; then
+    print -u2 "error: fps must be greater than zero: $1"
+    exit 1
+  fi
+  print -r -- "$fps"
+}
+
+fps_label() {
+  local fps="$1"
+  print -r -- "${fps//./p}"
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+    -h|--help)
+      print_help
+      exit 0
+      ;;
+    --speed-warp)
+      use_speed_warp=1
+      quality=speed-warp
+      shift
+      ;;
+    --quality)
+      if (( $# < 2 )); then
+        print -u2 "error: --quality requires a value"
+        exit 1
+      fi
+      case "$2" in
+        enhanced-better|speed-warp)
+          quality="$2"
+          ;;
+        *)
+          print -u2 "error: unknown quality: $2"
+          print -u2 "try: interpolate-resolve --help"
+          exit 1
+          ;;
+      esac
+      if [[ "$quality" == "speed-warp" ]]; then
+        use_speed_warp=1
+      else
+        use_speed_warp=0
+      fi
+      shift 2
+      ;;
+    --fps)
+      if (( $# < 2 )); then
+        print -u2 "error: --fps requires a value"
+        exit 1
+      fi
+      target_fps="$(normalize_fps "$2")"
+      shift 2
+      ;;
+    --prores)
+      use_prores=1
+      shift
+      ;;
+    --)
+      shift
+      positional+=("$@")
+      break
+      ;;
+    -*)
+      print -u2 "error: unknown option: $1"
+      print -u2 "try: interpolate-resolve --help"
+      exit 1
+      ;;
+    *)
+      positional+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if (( ${#positional[@]} > 0 )) && [[ "${positional[1]:l}" =~ '^[0-9]+([.][0-9]+)?(fps)?$' ]]; then
+  target_fps="$(normalize_fps "${positional[1]}")"
+  positional=("${positional[@]:1}")
+fi
+
+if (( ${#positional[@]} == 0 )); then
+  print -u2 "error: no input file provided"
+  print -u2 "try: interpolate-resolve --help"
+  exit 1
+fi
+
+if ! pgrep -xq "DaVinci Resolve"; then
+  open -a "DaVinci Resolve"
+  sleep 6
+fi
+
+run_one() {
+  local input_file output_file suffix_fps
+  local -a python_args=()
+  input_file=${1:A}
+  suffix_fps="$(fps_label "$target_fps")"
+
+  if [[ ! -f "$input_file" ]]; then
+    print -u2 "error: input file not found: $input_file"
+    return 1
+  fi
+
+  if [[ -n "${2-}" ]]; then
+    output_file=${2:A}
+    if (( use_prores )) && [[ "${output_file:e:l}" != "mov" ]]; then
+      output_file="${output_file:r}.mov"
+    fi
+  elif (( use_prores )); then
+    output_file="${input_file:r}.prores${suffix_fps}.mov"
+  else
+    output_file="${input_file:r}.hevc${suffix_fps}.mp4"
+  fi
+
+  python_args+=(--fps "$target_fps" --quality "$quality")
+  (( use_prores )) && python_args+=(--prores)
+
+  python3 "$python_script" "${python_args[@]}" "$input_file" "$output_file"
+
+  print "done: $output_file"
+}
+
+if (( ${#positional[@]} == 2 )); then
+  # Ambiguous case:
+  # treat as explicit output only when second arg does not exist yet
+  # and its extension looks like a media file target.
+  if [[ -f "${positional[2]}" ]]; then
+    for input_file in "${positional[@]}"; do
+      run_one "$input_file"
+    done
+  else
+    case "${positional[2]:l}" in
+      *.mp4|*.mov|*.mkv|*.m4v)
+        run_one "${positional[1]}" "${positional[2]}"
+        ;;
+      *)
+        for input_file in "${positional[@]}"; do
+          run_one "$input_file"
+        done
+        ;;
+    esac
+  fi
+elif (( ${#positional[@]} > 2 )); then
+  for input_file in "${positional[@]}"; do
+    run_one "$input_file"
+  done
+else
+  run_one "${positional[1]}"
+fi
