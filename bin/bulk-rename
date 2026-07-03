@@ -1,29 +1,400 @@
 #!/bin/bash
+#
+# bulk-rename — edit a list of filenames in $EDITOR, then apply renames safely.
+#
+# A drop-in replacement for yazi's built-in `bulk_rename` that gives us control
+# over the confirmation screen (a proper modal dialog) while being *safer* than
+# both yazi's built-in and the old ls|awk one-liner:
+#
+#   - line-count validation: if the editor changes the number of lines, we abort
+#     rather than guess which old name maps to which new name (prevents the
+#     classic "reordered a line → renamed the wrong file" data loss).
+#   - never clobbers: a rename whose target already exists (and isn't itself
+#     being moved out of the way) is SKIPPED, never overwritten.
+#   - collision-safe: two files mapped to the same name are skipped, not raced.
+#   - swap/chain-safe: renames run in two phases through unique staging names,
+#     so a↔b swaps and a→b→c chains work without stepping on each other.
+#
+# Usage:
+#   bulk-rename [FILE...]   rename the given files (yazi passes selected via %s)
+#   bulk-rename DIR         rename the contents of DIR
+#   bulk-rename             rename the contents of the current directory
 
-# Check if a directory is provided
-if [ -z "$1" ]; then
-    echo "Usage: $(basename "$0") <directory>"
-    exit 1
+set -u
+
+# ---------------------------------------------------------------------------
+# styling
+# ---------------------------------------------------------------------------
+if [[ -t 1 ]]; then
+	C_RESET=$'\e[0m'; C_BOLD=$'\e[1m'; C_DIM=$'\e[2m'
+	C_RED=$'\e[31m'; C_GREEN=$'\e[32m'; C_YELLOW=$'\e[33m'
+	C_BLUE=$'\e[34m'; C_CYAN=$'\e[36m'; C_GREY=$'\e[90m'
+else
+	C_RESET=; C_BOLD=; C_DIM=; C_RED=; C_GREEN=; C_YELLOW=; C_BLUE=; C_CYAN=; C_GREY=
 fi
 
-DIRECTORY=$(realpath "$1")  # Get the absolute path of the directory
+# Nerd Font glyphs (swap these if your terminal font lacks them).
+ICON_TITLE=$''   #
+ICON_OK=$''      #
+ICON_WARN=$''    #
+ICON_SKIP=$''    #
+ICON_ARROW=$'→'   # →
 
-# Create a temporary file
-TMPFILE=$(mktemp)
+die() { printf '%s%s bulk-rename:%s %s\n' "$C_RED" "$ICON_WARN" "$C_RESET" "$*" >&2; exit 1; }
 
-# List all files in the provided directory and create an editable column next to it
-ls "$DIRECTORY" | awk '{print $0 "\t" $0}' > "$TMPFILE"
+# visible width of a string with ANSI escapes stripped
+strip_ansi() {
+	local in=$1 out=""
+	while [[ $in == *$'\e['* ]]; do
+		out+=${in%%$'\e['*}
+		in=${in#*$'\e['}
+		in=${in#*m}
+	done
+	out+=$in
+	printf '%s' "$out"
+}
+dwidth() { local s; s=$(strip_ansi "$1"); printf '%s' "${#s}"; }
 
-# Open the temporary file in the configured editor
-"${EDITOR:-hx}" "$TMPFILE"
+# ---------------------------------------------------------------------------
+# collect sources
+# ---------------------------------------------------------------------------
+declare -a src_path=() src_base=()
+DIR=""
 
-# Process renaming
-while IFS=$'\t' read -r oldname newname; do
-    # Rename the file if new name is provided and different from old
-    if [[ -n "$newname" && "$oldname" != "$newname" && -e "$DIRECTORY/$oldname" ]]; then
-        mv -v -- "$DIRECTORY/$oldname" "$DIRECTORY/$newname"
-    fi
-done < "$TMPFILE"
+add_source() {
+	local p=$1 d b
+	d=$(cd -- "$(dirname -- "$p")" >/dev/null 2>&1 && pwd -P) || die "cannot resolve directory of: $p"
+	b=$(basename -- "$p")
+	if [[ -z $DIR ]]; then
+		DIR=$d
+	elif [[ $d != "$DIR" ]]; then
+		die "all files must be in the same directory (got $d and $DIR)"
+	fi
+	src_path+=("$DIR/$b")
+	src_base+=("$b")
+}
 
-# Remove the temporary file
-rm "$TMPFILE"
+if [[ $# -eq 0 ]]; then
+	DIR=$(pwd -P)
+	while IFS= read -r -d '' entry; do
+		add_source "$entry"
+	done < <(cd -- "$DIR" && find . -mindepth 1 -maxdepth 1 -print0 | sort -z)
+elif [[ $# -eq 1 && -d $1 ]]; then
+	DIR=$(cd -- "$1" >/dev/null 2>&1 && pwd -P) || die "no such directory: $1"
+	while IFS= read -r -d '' entry; do
+		add_source "$DIR/$(basename -- "$entry")"
+	done < <(cd -- "$DIR" && find . -mindepth 1 -maxdepth 1 -print0 | sort -z)
+else
+	for f in "$@"; do
+		[[ -e $f || -L $f ]] || die "no such file: $f"
+		add_source "$f"
+	done
+fi
+
+n=${#src_base[@]}
+[[ $n -gt 0 ]] || die "nothing to rename"
+
+# ---------------------------------------------------------------------------
+# edit in $EDITOR
+# ---------------------------------------------------------------------------
+tmp=$(mktemp "${TMPDIR:-/tmp}/bulk-rename.XXXXXX") || die "cannot create temp file"
+cleanup() { rm -f -- "$tmp"; }
+trap cleanup EXIT
+
+printf '%s\n' "${src_base[@]}" > "$tmp"
+
+# Prefer the controlling terminal (yazi runs us with `--block`, so it exists).
+# Fall back to inherited stdio when there's no tty (e.g. non-interactive runs).
+tty=""
+if { : >/dev/tty; } 2>/dev/null; then
+	tty=/dev/tty
+fi
+
+if [[ -n $tty ]]; then
+	"${EDITOR:-hx}" "$tmp" <"$tty" >"$tty" 2>&1 || die "editor exited with an error; no files changed"
+else
+	"${EDITOR:-hx}" "$tmp" || die "editor exited with an error; no files changed"
+fi
+
+# read new names back (do NOT strip: filenames may legitimately have spaces)
+declare -a new_base=()
+while IFS= read -r line || [[ -n $line ]]; do
+	new_base+=("$line")
+done < "$tmp"
+
+# ---------------------------------------------------------------------------
+# safety: line-count validation
+# ---------------------------------------------------------------------------
+if [[ ${#new_base[@]} -ne $n ]]; then
+	die "line count changed ($n → ${#new_base[@]}). To keep names aligned, don't add or remove lines. No files changed."
+fi
+
+# ---------------------------------------------------------------------------
+# build the rename plan  (bash 3.2 compatible — no associative arrays)
+# status codes: same | blank | subpath | collision | exists | rename
+# ---------------------------------------------------------------------------
+declare -a status=()
+
+# pass 1: classify obvious cases
+for ((i = 0; i < n; i++)); do
+	local_new=${new_base[i]}
+	if [[ -z $local_new ]]; then
+		status[i]="blank"
+	elif [[ $local_new == */* ]]; then
+		status[i]="subpath"
+	elif [[ $local_new == "${src_base[i]}" ]]; then
+		status[i]="same"
+	else
+		status[i]="rename"
+	fi
+done
+
+# how many rename candidates aim at this exact name (for collision detection)?
+count_targeting() {
+	local name=$1 j c=0
+	for ((j = 0; j < n; j++)); do
+		[[ ${status[j]} == "rename" && ${new_base[j]} == "$name" ]] && ((c++))
+	done
+	printf '%s' "$c"
+}
+
+# pass 2: demote collisions (two+ sources → one name).
+# Decide first, mutate after — otherwise demoting the first of a pair changes
+# the count seen by the second and lets it slip through.
+declare -a is_collision=()
+for ((i = 0; i < n; i++)); do
+	is_collision[i]=0
+	[[ ${status[i]} == "rename" ]] || continue
+	[[ $(count_targeting "${new_base[i]}") -gt 1 ]] && is_collision[i]=1
+done
+for ((i = 0; i < n; i++)); do
+	[[ ${is_collision[i]} == 1 ]] && status[i]="collision"
+done
+
+# Would a file named $1 survive the operation and thus block a rename into it?
+# It survives if something exists at that path AND that something is not one of
+# the sources we're moving away. The `-ef` (same inode) check is what makes
+# case-only renames work on case-insensitive filesystems (macOS APFS): there,
+# "$DIR/My Song.mp3" -e matches the source "my song.mp3", but they share an
+# inode, so we recognise it as the vacating source rather than a clobber target.
+survives() {
+	local name=$1 target=$DIR/$1 j
+	[[ -e $target || -L $target ]] || return 1        # nothing there → free
+	for ((j = 0; j < n; j++)); do
+		[[ ${status[j]} == "rename" ]] || continue
+		[[ ${src_path[j]} -ef $target ]] && return 1  # it's a source we vacate → free
+	done
+	return 0                                           # a distinct file lives there
+}
+
+# pass 3: demote renames whose target would clobber a surviving file
+for ((i = 0; i < n; i++)); do
+	[[ ${status[i]} == "rename" ]] || continue
+	survives "${new_base[i]}" && status[i]="exists"
+done
+
+# ---------------------------------------------------------------------------
+# render the modal dialog
+# ---------------------------------------------------------------------------
+term_cols=$(tput cols 2>/dev/null || echo 80)
+maxw=$(( term_cols - 6 )); (( maxw > 100 )) && maxw=100; (( maxw < 30 )) && maxw=30
+
+declare -a body=()          # rendered content lines (may contain ANSI)
+n_rename=0; n_skip=0; n_same=0
+have_exists=0; have_collision=0; have_blank=0; have_subpath=0
+
+truncate_mid() {  # keep the string within $1 display cols, ellipsis in middle
+	local s=$2 w=$1 keep tail len
+	len=${#s}
+	(( len <= w )) && { printf '%s' "$s"; return; }
+	keep=$(( (w - 1) / 2 ))
+	tail=$(( w - 1 - keep ))
+	printf '%s…%s' "${s:0:keep}" "${s:len-tail}"
+}
+
+colw=$(( (maxw - 4) / 2 ))
+for ((i = 0; i < n; i++)); do
+	old=${src_base[i]}; new=${new_base[i]}
+	case ${status[i]} in
+	rename)
+		((n_rename++))
+		o=$(truncate_mid "$colw" "$old"); nw=$(truncate_mid "$colw" "$new")
+		body+=("  ${C_GREEN}${ICON_OK}${C_RESET} ${C_DIM}${o}${C_RESET} ${C_GREY}${ICON_ARROW}${C_RESET} ${C_GREEN}${nw}${C_RESET}")
+		;;
+	same) ((n_same++));;
+	blank)
+		((n_skip++)); have_blank=1
+		o=$(truncate_mid "$colw" "$old")
+		body+=("  ${C_YELLOW}${ICON_SKIP}${C_RESET} ${C_DIM}${o}${C_RESET} ${C_YELLOW}left as-is (blank name)${C_RESET}")
+		;;
+	subpath)
+		((n_skip++)); have_subpath=1
+		o=$(truncate_mid "$colw" "$old")
+		body+=("  ${C_YELLOW}${ICON_SKIP}${C_RESET} ${C_DIM}${o}${C_RESET} ${C_YELLOW}skipped (name contains '/')${C_RESET}")
+		;;
+	collision)
+		((n_skip++)); have_collision=1
+		o=$(truncate_mid "$colw" "$old"); nw=$(truncate_mid "$colw" "$new")
+		body+=("  ${C_RED}${ICON_WARN}${C_RESET} ${C_DIM}${o}${C_RESET} ${C_GREY}${ICON_ARROW}${C_RESET} ${C_RED}${nw}${C_RESET} ${C_RED}(collision)${C_RESET}")
+		;;
+	exists)
+		((n_skip++)); have_exists=1
+		o=$(truncate_mid "$colw" "$old"); nw=$(truncate_mid "$colw" "$new")
+		body+=("  ${C_RED}${ICON_WARN}${C_RESET} ${C_DIM}${o}${C_RESET} ${C_GREY}${ICON_ARROW}${C_RESET} ${C_RED}${nw}${C_RESET} ${C_RED}(target exists)${C_RESET}")
+		;;
+	esac
+done
+
+# warning / explanation lines
+declare -a warn=()
+if (( have_exists )); then
+	warn+=("${C_RED}${ICON_WARN} Some targets already exist — those renames are SKIPPED${C_RESET}")
+	warn+=("${C_RED}  so no existing file is ever overwritten.${C_RESET}")
+fi
+if (( have_collision )); then
+	warn+=("${C_RED}${ICON_WARN} Two or more files map to the same name — SKIPPED to avoid loss.${C_RESET}")
+fi
+if (( have_blank || have_subpath )); then
+	warn+=("${C_YELLOW}${ICON_SKIP} Blank names and names with '/' are left untouched.${C_RESET}")
+fi
+
+# compute box inner width
+inner=0
+dir_disp=${DIR/#$HOME/\~}
+dir_avail=$(( maxw - 18 )); (( dir_avail < 12 )) && dir_avail=12
+dir_disp=$(truncate_mid "$dir_avail" "$dir_disp")
+header="${C_CYAN}${C_BOLD}${ICON_TITLE} Bulk rename${C_RESET}${C_DIM} — ${dir_disp}${C_RESET}"
+summary="${C_BOLD}${n_rename}${C_RESET} to rename"
+(( n_skip )) && summary+="${C_DIM},${C_RESET} ${C_RED}${n_skip} skipped${C_RESET}"
+(( n_same )) && summary+="${C_DIM},${C_RESET} ${C_DIM}${n_same} unchanged${C_RESET}"
+
+for l in "$header" "$summary" ${body[@]+"${body[@]}"} ${warn[@]+"${warn[@]}"}; do
+	w=$(dwidth "$l"); (( w > inner )) && inner=$w
+done
+(( inner < 34 )) && inner=34
+(( inner > maxw )) && inner=maxw
+
+pad_line() {  # print "│ <content padded to inner> │"
+	local content=$1 w
+	w=$(dwidth "$content")
+	local pad=$(( inner - w )); (( pad < 0 )) && pad=0
+	printf '%s│%s %s%*s %s│%s\n' "$C_BLUE" "$C_RESET" "$content" "$pad" "" "$C_BLUE" "$C_RESET"
+}
+rule() {  # top/bottom rule; $1 = left corner, $2 = right corner
+	local i line=""
+	for ((i = 0; i < inner + 2; i++)); do line+="─"; done
+	printf '%s%s%s%s%s\n' "$C_BLUE" "$1" "$line" "$2" "$C_RESET"
+}
+
+draw() {
+	printf '\n'
+	rule "╭" "╮"
+	pad_line "$header"
+	pad_line "$summary"
+	pad_line ""
+	local l
+	for l in ${body[@]+"${body[@]}"}; do pad_line "$l"; done
+	if (( ${#warn[@]} )); then
+		pad_line ""
+		for l in "${warn[@]}"; do pad_line "$l"; done
+	fi
+	pad_line ""
+	if (( n_rename > 0 )); then
+		pad_line "${C_GREEN}${C_BOLD}  [ Enter: Apply ]${C_RESET}   ${C_DIM}Esc: cancel${C_RESET}"
+	else
+		pad_line "${C_DIM}  Nothing to apply — press any key to close${C_RESET}"
+	fi
+	rule "╰" "╯"
+}
+
+draw
+
+# ---------------------------------------------------------------------------
+# read the decision
+#   Enter / y  → apply (default OK)     Esc / n / q → cancel
+#   BULK_RENAME_YES=1 applies without prompting (for scripting/tests).
+# ---------------------------------------------------------------------------
+decision=""
+if [[ ${BULK_RENAME_YES:-} == 1 ]]; then
+	decision="apply"
+elif [[ -z $tty ]]; then
+	# no terminal to confirm at → refuse rather than guess
+	printf '%s%s no terminal to confirm — cancelled (set BULK_RENAME_YES=1 to apply).%s\n' \
+		"$C_YELLOW" "$ICON_SKIP" "$C_RESET" >&2
+	exit 0
+else
+	printf '%s' $'\e[?25l'   # hide cursor
+	restore_cursor() { printf '%s' $'\e[?25h'; }
+	trap 'restore_cursor; cleanup' EXIT
+
+	if (( n_rename == 0 )); then
+		IFS= read -rsn1 _ <"$tty"
+		exit 0
+	fi
+
+	while [[ -z $decision ]]; do
+		IFS= read -rsn1 key <"$tty"
+		case $key in
+			"" | $'\n' | $'\r' | y | Y) decision="apply" ;;
+			$'\e')
+				read -rsn8 -t 1 _ <"$tty"   # drain any arrow-key tail (instant if present)
+				decision="cancel" ;;
+			n | N | q | Q) decision="cancel" ;;
+			*) : ;;
+		esac
+	done
+fi
+
+if (( n_rename == 0 )); then exit 0; fi
+
+if [[ $decision == "cancel" ]]; then
+	printf '%s%s cancelled — no files changed.%s\n' "$C_YELLOW" "$ICON_SKIP" "$C_RESET"
+	exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# apply: two-phase staging so swaps/chains never clobber
+# ---------------------------------------------------------------------------
+declare -a stage_from=() stage_to=() stage_final=()
+stage_prefix="$DIR/.bulk-rename.$$"
+
+rollback() {  # move any staged files back to their originals
+	local k
+	for ((k = ${#stage_to[@]} - 1; k >= 0; k--)); do
+		[[ -e ${stage_to[k]} ]] && mv -- "${stage_to[k]}" "${stage_from[k]}" 2>/dev/null
+	done
+}
+
+# phase A: originals → unique staging names
+idx=0
+for ((i = 0; i < n; i++)); do
+	[[ ${status[i]} == "rename" ]] || continue
+	from="${src_path[i]}"
+	to="${stage_prefix}.${idx}"
+	if ! mv -- "$from" "$to" 2>/dev/null; then
+		printf '%s%s failed to stage %s — rolling back.%s\n' "$C_RED" "$ICON_WARN" "${src_base[i]}" "$C_RESET" >&2
+		rollback
+		exit 1
+	fi
+	stage_from+=("$from"); stage_to+=("$to"); stage_final+=("$DIR/${new_base[i]}")
+	((idx++))
+done
+
+# phase B: staging names → final targets
+done_count=0
+for ((k = 0; k < ${#stage_to[@]}; k++)); do
+	if [[ -e ${stage_final[k]} || -L ${stage_final[k]} ]]; then
+		# should not happen (we filtered these), but never clobber: put it back
+		mv -- "${stage_to[k]}" "${stage_from[k]}" 2>/dev/null
+		printf '%s%s %s already exists — skipped.%s\n' "$C_RED" "$ICON_WARN" "${stage_final[k]##*/}" "$C_RESET" >&2
+		continue
+	fi
+	if mv -- "${stage_to[k]}" "${stage_final[k]}" 2>/dev/null; then
+		((done_count++))
+	else
+		mv -- "${stage_to[k]}" "${stage_from[k]}" 2>/dev/null
+		printf '%s%s failed to rename to %s — left unchanged.%s\n' "$C_RED" "$ICON_WARN" "${stage_final[k]##*/}" "$C_RESET" >&2
+	fi
+done
+
+printf '%s%s renamed %d file(s).%s\n' "$C_GREEN" "$ICON_OK" "$done_count" "$C_RESET"

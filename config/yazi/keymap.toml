@@ -361,8 +361,8 @@ desc = "Change directory interactively"
 
 [[mgr.prepend_keymap]]
 on   = "r"
-run  = "bulk_rename"
-desc = "Bulk rename selected files with Helix"
+run  = "shell --block -- /Users/nom/.bin/bulk-rename %s"
+desc = "Bulk rename selected files (editor + confirm dialog)"
 
 [[mgr.prepend_keymap]]
 on   = "R"
