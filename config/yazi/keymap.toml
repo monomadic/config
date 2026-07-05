@@ -101,8 +101,8 @@ desc = "Jump to a nearby directory with fzf"
 
 [[mgr.prepend_keymap]]
 on   = "<C-p>"
-run  = "arrow prev"
-desc = "Move up"
+run  = "seek -1"
+desc = "Scroll preview up"
 
 [[mgr.prepend_keymap]]
 on   = "!"
@@ -147,13 +147,18 @@ desc = "Toggle sidebar"
 
 [[mgr.prepend_keymap]]
 on   = "<C-1>"
-run  = "plugin pane-layout -- toggle-parent"
-desc = "Toggle parent pane"
+run  = "plugin pane-layout -- preset default"
+desc = "View: parent on, preview small"
+
+[[mgr.prepend_keymap]]
+on   = "<C-2>"
+run  = "plugin pane-layout -- preset preview"
+desc = "View: parent off, 50/50 files/preview"
 
 [[mgr.prepend_keymap]]
 on   = "<C-3>"
-run  = "plugin pane-layout -- cycle-preview"
-desc = "Toggle preview pane"
+run  = "plugin pane-layout -- preset minimal"
+desc = "View: parent off, preview off"
 
 # Native tab navigation
 [[mgr.prepend_keymap]]
@@ -383,8 +388,8 @@ desc = "Reveal hovered file in Finder"
 
 [[mgr.prepend_keymap]]
 on   = "<C-n>"
-run  = "arrow next"
-desc = "Move down"
+run  = "seek 1"
+desc = "Scroll preview down"
 
 [[mgr.prepend_keymap]]
 on   = "J"

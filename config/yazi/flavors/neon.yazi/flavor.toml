@@ -1,0 +1,6 @@
+# neon flavor — syntax highlighting only.
+#
+# This flavor deliberately defines NO UI colors. Yazi applies flavor.toml
+# first, then merges the user's theme.toml on top, so leaving this empty keeps
+# the "neon-dark" theme.toml fully in control of the UI. The only thing this
+# flavor contributes is tmtheme.xml, which colors the code preview to match.

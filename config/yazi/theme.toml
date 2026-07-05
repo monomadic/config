@@ -4,6 +4,12 @@
 # Use this as a clean starting point and extend from here.
 # ============================================================
 
+# Code-preview syntax highlighting. The "neon" flavor is a local flavor with an
+# empty flavor.toml (no UI colors), so only its tmtheme.xml applies here — the
+# UI below stays fully in control.
+[flavor]
+dark = "neon"
+
 
 [mgr]
 cwd = { fg = "#ffd75f", bold = false }

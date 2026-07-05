@@ -2,7 +2,7 @@
 <page name="TRANSPORT">
   <pad1 name="KEY `match_key_button`" color="loaded ? masterdeck ? color orange : match_key ? color green : color red : color white" autodim="true" query="loaded ? masterdeck ? true : match_key ? true : blink 1bt">match_key</pad1>
   <pad2 name="BEAT" color="loaded ? masterdeck ? color orange : is_sync ? color green : color red : color white" autodim="true" query="loaded ? masterdeck ? true : is_sync ? true : blink 1bt">sync</pad2>
-  <pad3 name="PHRASE `var_equal $phrase_len 16 ? get_text '16' : get_text '32'`" color="loaded ? masterdeck ? color orange : is_sync ? color green : color red : color white" autodim="true" query="loaded ? masterdeck ? true : is_sync '`$phrase_len`' ? on : blink 1bt">sync &amp; var_equal '$phrase_len' 16 ? phrase_sync 16 : phrase_sync 32</pad3>
+  <pad3 name="PHRASE `var_equal $phrase_len 16 ? get_text '16' : get_text '32'`" color="loaded ? masterdeck ? color orange : is_sync ? color green : color red : color white" autodim="true" query="loaded ? masterdeck ? true : is_sync '`$phrase_len`' ? on : blink 1bt">var_equal '$phrase_len' 16 ? phrase_sync 16 &amp; sync : phrase_sync 32 &amp; sync</pad3>
   <pad4 name="`masterdeck ? masterdeck_auto ? get_text 'MASTER [AUTO]' : get_text 'MASTER' : get_text 'SLAVE'`" query="masterdeck ? masterdeck_auto ? blink 1bt : true" color="masterdeck ? color orange : color white">masterdeck ? masterdeck_auto : masterdeck</pad4>
   <pad5 name="▲  BPM" color="color '#F5D5FF'" autodim="false">pitch +1 bpm</pad5>
   <!-- ROW 2 -->

@@ -110,6 +110,22 @@ local function toggle_parent(st, ratio)
 	st.parent = st.parent == 0 and ratio.parent or 0
 end
 
+-- Absolute presets: parent on/off + preview "default" (configured), "large",
+-- or "off". Used by the Ctrl-1/2/3 view bindings.
+local function apply_preset(st, ratio, parent_on, preview_mode)
+	st.parent = parent_on and ratio.parent or 0
+	st.current = ratio.current
+	if preview_mode == "off" then
+		st.preview = 0
+	elseif preview_mode == "half" then
+		st.preview = ratio.current
+	elseif preview_mode == "large" then
+		st.preview = large_preview(ratio)
+	else
+		st.preview = ratio.preview
+	end
+end
+
 local function entry(st, job)
 	local ratio = init_state(st)
 	local args = type(job) == "table" and (job.args or job) or { job }
@@ -119,6 +135,17 @@ local function entry(st, job)
 		cycle_preview(st, ratio)
 	elseif action == "toggle-parent" then
 		toggle_parent(st, ratio)
+	elseif action == "preset" then
+		local name = args[2]
+		if name == "default" then
+			apply_preset(st, ratio, true, "default")
+		elseif name == "preview" then
+			apply_preset(st, ratio, false, "half")
+		elseif name == "minimal" then
+			apply_preset(st, ratio, false, "off")
+		else
+			return
+		end
 	else
 		return
 	end
