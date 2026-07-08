@@ -18,6 +18,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
+import shutil
+import subprocess
 import sys
 import time
 import uuid
@@ -79,6 +82,16 @@ def parse_args() -> argparse.Namespace:
         help="Shortcut for --quality speed-warp",
     )
     parser.add_argument(
+        "--orientation",
+        choices=("auto", "portrait", "landscape"),
+        default="auto",
+        help=(
+            "Output canvas orientation. 'auto' (default) matches the input clip's "
+            "resolution and orientation. 'portrait'/'landscape' force the canvas, "
+            "swapping the detected dimensions if needed."
+        ),
+    )
+    parser.add_argument(
         "--debug-formats",
         action="store_true",
         help="Print available render formats/codecs before rendering",
@@ -108,6 +121,103 @@ def normalize_fps(value: str) -> str:
     if parsed.is_integer():
         return str(int(parsed))
     return str(parsed)
+
+
+def probe_dimensions(input_file: Path) -> tuple[int, int] | None:
+    """
+    Return the input clip's effective (width, height) using ffprobe, accounting
+    for rotation metadata (phones store portrait video as a rotated landscape
+    frame). Returns None if ffprobe is unavailable or the probe fails, in which
+    case the caller falls back to Resolve's default canvas.
+    """
+    ffprobe = shutil.which("ffprobe")
+    if ffprobe is None:
+        return None
+
+    cmd = [
+        ffprobe,
+        "-v", "error",
+        "-select_streams", "v:0",
+        "-show_streams",
+        "-of", "json",
+        str(input_file),
+    ]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        data = json.loads(proc.stdout)
+    except (subprocess.CalledProcessError, json.JSONDecodeError, OSError):
+        return None
+
+    streams = data.get("streams") or []
+    if not streams:
+        return None
+    stream = streams[0]
+
+    try:
+        width = int(stream["width"])
+        height = int(stream["height"])
+    except (KeyError, ValueError, TypeError):
+        return None
+
+    rotation = 0
+    for side_data in stream.get("side_data_list") or []:
+        if "rotation" in side_data:
+            try:
+                rotation = int(side_data["rotation"])
+            except (ValueError, TypeError):
+                rotation = 0
+            break
+    else:
+        # Older containers expose rotation as a stream tag instead of side data.
+        tag = (stream.get("tags") or {}).get("rotate")
+        try:
+            rotation = int(tag) if tag is not None else 0
+        except (ValueError, TypeError):
+            rotation = 0
+
+    if abs(rotation) % 180 == 90:
+        width, height = height, width
+
+    if width <= 0 or height <= 0:
+        return None
+    return width, height
+
+
+def orient_dimensions(width: int, height: int, orientation: str) -> tuple[int, int]:
+    """
+    Force (width, height) to the requested orientation, swapping if the detected
+    dimensions disagree. 'auto' leaves them untouched.
+    """
+    if orientation == "portrait" and width > height:
+        return height, width
+    if orientation == "landscape" and height > width:
+        return height, width
+    return width, height
+
+
+def try_set_project_resolution(project, width: int, height: int) -> bool:
+    """
+    Set the timeline/canvas resolution before timeline creation so the new
+    timeline inherits it. As with FPS, some builds may reject this.
+    """
+    ok = False
+    try:
+        ok = bool(project.SetSetting("timelineResolutionWidth", str(width)))
+        ok = bool(project.SetSetting("timelineResolutionHeight", str(height))) and ok
+    except Exception:
+        ok = False
+
+    # Keep delivery resolution matched to the timeline; ignore failures.
+    for key, value in (
+        ("timelineOutputResolutionWidth", str(width)),
+        ("timelineOutputResolutionHeight", str(height)),
+    ):
+        try:
+            project.SetSetting(key, value)
+        except Exception:
+            pass
+
+    return ok
 
 
 def find_format_token(project, wanted_token: str) -> str:
@@ -202,6 +312,20 @@ def try_set_timeline_fps(timeline, fps: str) -> bool:
     return ok_any
 
 
+def unique_output_name(output_dir: Path, base_name: str, extension: str) -> str:
+    """
+    Return a name (without extension) that does not collide with an existing
+    file in output_dir. If base_name+extension is free, return base_name as-is;
+    otherwise append -1, -2, ... until a free name is found.
+    """
+    candidate = base_name
+    counter = 1
+    while (output_dir / f"{candidate}{extension}").exists():
+        candidate = f"{base_name}-{counter}"
+        counter += 1
+    return candidate
+
+
 def ensure_empty_dir_exists(dir_path: Path) -> None:
     if not dir_path.exists():
         dir_path.mkdir(parents=True, exist_ok=True)
@@ -246,6 +370,16 @@ def main() -> None:
         project_fps_set = try_set_project_fps(project, args.fps)
         if not project_fps_set:
             warn(f"could not set project timelineFrameRate={args.fps} before import; continuing")
+
+        # Detect input resolution/orientation and set the canvas before timeline
+        # creation so a portrait clip renders portrait instead of pillarboxed.
+        dims = probe_dimensions(input_file)
+        if dims is None:
+            warn("could not detect input resolution (ffprobe missing or probe failed); using Resolve's default canvas")
+        else:
+            width, height = orient_dimensions(dims[0], dims[1], args.orientation)
+            if not try_set_project_resolution(project, width, height):
+                warn(f"could not set project resolution to {width}x{height} before import; render may use the default canvas")
 
         media_storage = resolve.GetMediaStorage()
         media_pool = project.GetMediaPool()
@@ -304,6 +438,15 @@ def main() -> None:
             format_token = find_format_token(project, "mp4")
             codec_token = find_hevc_codec_token(project, format_token)
             output_extension = ".mp4"
+
+        # Avoid clobbering an existing render; pick a free name if needed.
+        resolved_name = unique_output_name(output_dir, output_name, output_extension)
+        if resolved_name != output_name:
+            warn(
+                f"{output_name}{output_extension} exists; writing to "
+                f"{resolved_name}{output_extension} instead"
+            )
+        output_name = resolved_name
 
         if not project.SetCurrentRenderFormatAndCodec(format_token, codec_token):
             fail(f"failed to set render format/codec: {format_token}/{codec_token}")

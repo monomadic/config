@@ -6,7 +6,7 @@ script_name="${0:t}"
 usage() {
   cat <<EOF
 usage:
-  $script_name [--preview [seconds]] [--trash-originals] [--preset_name name --filter_complex filter] [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
+  $script_name [--preview [seconds]] [--trash-originals] [--resume] [--copy-cmd] [--preset_name name --filter_complex filter] [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
   $script_name file1 [file2 ...]
 
 With --preset_name and --filter_complex, runs the supplied Topaz filter directly.
@@ -14,6 +14,14 @@ Without them, opens the interactive preset picker.
 
 With --preview, encodes only the first seconds of each input with the selected
 preset. The preview length defaults to 1 second.
+
+If the output file already exists but is shorter than expected (an interrupted
+encode), $script_name offers to resume it: the tail is re-encoded from the last
+keyframe of the partial and losslessly concatenated onto it. --resume skips the
+prompt and resumes automatically.
+
+With --copy-cmd, prints the exact $script_name command for each input (and copies
+it to the clipboard) instead of encoding — paste it later to rerun or resume.
 
 After each successful encode, copies source metadata tags and filesystem creation
 date to the Topaz output. With --trash-originals, moves successfully encoded
@@ -271,6 +279,75 @@ media_duration_seconds() {
   else
     print -r -- ""
   fi
+}
+
+topaz_format_clock() {
+  emulate -L zsh
+  awk -v s="${1:-0}" 'BEGIN {
+    if (s < 0) s = 0
+    h = int(s / 3600); s -= h * 3600
+    m = int(s / 60);   sec = int(s - m * 60)
+    if (h > 0) printf "%d:%02d:%02d", h, m, sec
+    else printf "%d:%02d", m, sec
+  }'
+}
+
+# Duration multiplier a slow-motion interpolation applies to the output
+# (tvai_fi slowmo=N stretches the timeline by N).
+topaz_slowmo_factor() {
+  emulate -L zsh
+  local filter="$1"
+
+  if [[ "$filter" == *tvai_fi=* && "$filter" =~ 'slowmo=([0-9]+(\.[0-9]+)?)' ]]; then
+    print -r -- "${match[1]}"
+  else
+    print -r -- "1"
+  fi
+}
+
+# Timestamp (seconds) of the last video keyframe in `file` at or before `max_t`,
+# searched within the final ~60s window. Empty output on failure.
+topaz_last_keyframe_before() {
+  emulate -L zsh
+  local file="$1" max_t="$2" start
+
+  [[ -x "$TOPAZ_FFPROBE" ]] || { print -r -- ""; return; }
+
+  start="$(awk -v m="$max_t" 'BEGIN { s = m - 60; if (s < 0) s = 0; print s }')"
+  "$TOPAZ_FFPROBE" -v error -select_streams v:0 \
+    -read_intervals "${start}%" \
+    -show_entries packet=pts_time,flags -of csv=p=0 -- "$file" 2>/dev/null |
+    awk -F, -v max="$max_t" '
+      $2 ~ /K/ && $1 != "N/A" && $1 + 0 <= max { k = $1 }
+      END { if (k != "") print k }
+    '
+}
+
+# The exact wrapper invocation that reproduces the current encode for one input.
+# Printing this (rather than the raw ffmpeg command) is what makes resume easy:
+# rerunning it detects the partial output and offers to continue.
+topaz_wrapper_cmd() {
+  emulate -L zsh
+  local input_file="$1"
+  local -a cmd
+
+  cmd=("$script_name")
+  [[ "$preview_mode" == true ]] && cmd+=(--preview "$preview_seconds")
+  [[ "$trash_originals" == true ]] && cmd+=(--trash-originals)
+  cmd+=(--preset_name "$preset_name" --filter_complex "$preset_value")
+  [[ -n "$preset_output_ext" ]] && cmd+=(--output_ext "$preset_output_ext")
+  [[ -n "$preset_video_args" ]] && cmd+=(--video_args "$preset_video_args")
+  [[ -n "$preset_metadata" ]] && cmd+=(--metadata "$preset_metadata")
+  cmd+=(-- "$input_file")
+
+  print -r -- "${(j: :)${(@q-)cmd}}"
+}
+
+# Escape a path for an ffmpeg concat-demuxer list entry (single-quoted).
+topaz_concat_escape() {
+  emulate -L zsh
+  local p="$1"
+  print -r -- "${p//\'/\'\\\'\'}"
 }
 
 topaz_output_summary_line() {
@@ -536,6 +613,8 @@ media_header=""
 trash_originals=false
 preview_mode=false
 preview_seconds="1"
+resume_mode=false
+copy_cmd_mode=false
 files=()
 
 while (( $# > 0 )); do
@@ -556,6 +635,14 @@ while (( $# > 0 )); do
       ;;
     --trash-originals|--trash-original)
       trash_originals=true
+      shift
+      ;;
+    --resume)
+      resume_mode=true
+      shift
+      ;;
+    --copy-cmd)
+      copy_cmd_mode=true
       shift
       ;;
     --preset_name)
@@ -689,12 +776,33 @@ else
   preset_metadata="$TOPAZ_PRESET_METADATA"
 fi
 
+# Absolutize inputs: the encode runs from the Topaz app dir, and resume/rerun
+# commands must work from any cwd.
+abs_files=()
 for input in "$files[@]"; do
   [[ -f "$input" ]] || {
     print -u2 "not a file: $input"
     exit 1
   }
+  abs_files+=("${input:A}")
 done
+files=("${abs_files[@]}")
+
+if [[ "$copy_cmd_mode" == true ]]; then
+  cmd_lines=""
+  for input in "$files[@]"; do
+    line="$(topaz_wrapper_cmd "$input")"
+    print -r -- "$line"
+    cmd_lines+="${cmd_lines:+$'\n'}$line"
+  done
+  if have pbcopy; then
+    print -rn -- "$cmd_lines" | pbcopy
+    print -P -- "%F{green}✓ command copied to clipboard%f"
+  else
+    print -P -u2 -- "%F{yellow}⚠ pbcopy not found — command printed only%f"
+  fi
+  exit 0
+fi
 
 [[ -x "$TOPAZ_FFMPEG" ]] || {
   print -u2 "Topaz ffmpeg not found or not executable: $TOPAZ_FFMPEG"
@@ -767,11 +875,64 @@ for input in "$files[@]"; do
   input_duration_args=()
   [[ "$preview_mode" == true ]] && input_duration_args=(-t "$preview_seconds")
 
+  # Existing-output handling: complete outputs are skipped; short outputs are
+  # interrupted encodes and can be resumed (tail re-encode + lossless concat).
+  resume_kf=""            # set to the resume keyframe time when resuming
+  expected_duration=""
   if [[ "$preview_mode" != true && -e "$output" ]]; then
-    print -P -- "%F{yellow}skip:%f output exists"
-    print -P -- "  %F{white}file:%f %F{blue}$(topaz_escape_prompt "$output")%f"
-    (( ++skip_count ))
-    continue
+    src_duration="$(media_duration_seconds "$input")"
+    out_duration="$(media_duration_seconds "$output")"
+    slowmo_factor="$(topaz_slowmo_factor "$preset_value")"
+    [[ -n "$src_duration" ]] && expected_duration="$(
+      awk -v d="$src_duration" -v f="$slowmo_factor" 'BEGIN { print d * f }'
+    )"
+
+    if [[ -z "$expected_duration" || -z "$out_duration" ]] ||
+        awk -v o="$out_duration" -v e="$expected_duration" 'BEGIN { exit !(o >= e - 5) }'; then
+      print -P -- "%F{yellow}✓ skip:%f output already complete"
+      print -P -- "  %F{white}file:%f %F{blue}$(topaz_escape_prompt "$output")%f"
+      (( ++skip_count ))
+      continue
+    fi
+
+    pct="$(awk -v o="$out_duration" -v e="$expected_duration" 'BEGIN { printf "%d", o / e * 100 }')"
+    print -P -- "%F{yellow}%B⚠ partial encode detected%b%f"
+    print -P -- "  %F{white}output:%f   %F{blue}$(topaz_escape_prompt "${output:t}")%f"
+    print -P -- "  %F{white}progress:%f %F{yellow}$(topaz_format_clock "$out_duration") of $(topaz_format_clock "$expected_duration") (${pct}%%)%f"
+
+    if [[ "$resume_mode" == true ]]; then
+      resume_choice="r"
+    else
+      resume_choice=""
+      read -k 1 "resume_choice?  ↻ [r]esume · [R]estart from scratch · [s]kip? " || resume_choice="s"
+      print
+    fi
+
+    case "$resume_choice" in
+      r)
+        resume_kf="$(topaz_last_keyframe_before "$output" \
+          "$(awk -v o="$out_duration" 'BEGIN { print o - 2 }')")"
+        if [[ -z "$resume_kf" ]]; then
+          print -P -u2 -- "%F{red}✗ could not find a resume keyframe in the partial — not touching it%f"
+          (( ++fail_count ))
+          continue
+        fi
+        print -P -- "  %F{cyan}↻ resuming from $(topaz_format_clock "$resume_kf")%f"
+        ;;
+      R)
+        print -P -- "  %F{yellow}restarting from scratch (partial moved to Trash)%f"
+        trash_original "$output" || {
+          print -P -u2 -- "%F{red}✗ could not trash partial output — aborting this file%f"
+          (( ++fail_count ))
+          continue
+        }
+        ;;
+      *)
+        print -P -- "  %F{yellow}skipped%f"
+        (( ++skip_count ))
+        continue
+        ;;
+    esac
   fi
 
   progress_total_seconds="$(media_duration_seconds "$input")"
@@ -783,6 +944,17 @@ for input in "$files[@]"; do
     else
       progress_total_seconds="$preview_seconds"
     fi
+  fi
+
+  # Resume: encode only the tail (source seek = output keyframe time mapped back
+  # through any slow-motion factor), writing to a sidecar tail file that is later
+  # concatenated onto the partial.
+  encode_target="$output"
+  if [[ -n "$resume_kf" ]]; then
+    encode_target="${output:r} [resume tail].${output_ext}"
+    input_seek="$(awk -v k="$resume_kf" -v f="$slowmo_factor" 'BEGIN { print k / f }')"
+    input_duration_args=(-ss "$input_seek")
+    progress_total_seconds="$(awk -v e="$expected_duration" -v k="$resume_kf" 'BEGIN { print e - k }')"
   fi
 
   ffmpeg_cmd=(
@@ -804,7 +976,7 @@ for input in "$files[@]"; do
     -movflags "frag_keyframe+empty_moov+delay_moov+use_metadata_tags+write_colr"
     -bf 0
     "${metadata_args[@]}"
-    "$output"
+    "$encode_target"
   )
 
   topaz_env=(
@@ -825,12 +997,14 @@ for input in "$files[@]"; do
 
   : >| "$log_file"
   topaz_open_log_tail "$log_file"
-  [[ "$preview_mode" != true ]] && topaz_open_output_preview "$output"
+  [[ "$preview_mode" != true && -z "$resume_kf" ]] && topaz_open_output_preview "$output"
 
-  if [[ "$preview_mode" == true ]]; then
-    print -P -- "%F{cyan}%BEncoding preview%b%f"
+  if [[ -n "$resume_kf" ]]; then
+    print -P -- "%F{cyan}%B↻ Resuming encode%b%f"
+  elif [[ "$preview_mode" == true ]]; then
+    print -P -- "%F{cyan}%B▶ Encoding preview%b%f"
   else
-    print -P -- "%F{cyan}%BEncoding%b%f"
+    print -P -- "%F{cyan}%B▶ Encoding%b%f"
   fi
   print -P -- "  %F{white}app:%f    %F{magenta}$(topaz_escape_prompt "$TOPAZ_APP")%f"
   print -P -- "  %F{white}engine:%f %F{magenta}Topaz ffmpeg%f"
@@ -838,14 +1012,17 @@ for input in "$files[@]"; do
   print -P -- "  %F{white}input:%f  %F{white}$(topaz_escape_prompt "$input")%f"
   print -P -- "  %F{white}output:%f %F{green}%B$(topaz_escape_prompt "$output")%b%f"
   print -P -- "  %F{white}log:%f    %F{blue}$(topaz_escape_prompt "$log_file")%f"
-  if [[ "$preview_mode" == true ]]; then
+  if [[ -n "$resume_kf" ]]; then
+    print -P -- "  %F{white}resume:%f %F{cyan}tail from $(topaz_format_clock "$resume_kf"), then lossless join%f"
+  elif [[ "$preview_mode" == true ]]; then
     print -P -- "  %F{white}sample:%f %F{yellow}${preview_seconds}s from start%f"
   else
     print -P -- "  %F{white}preview:%f %F{magenta}mpv opens when output starts writing%f"
   fi
   print -P -- "  %F{white}metadata:%f %F{green}copy source tags and creation date%f"
   [[ "$trash_originals" == true && "$preview_mode" != true ]] && print -P -- "  %F{white}cleanup:%f %F{yellow}trash original after success%f"
-  print -P -- "  %F{white}copy:%f   %F{green}$(topaz_escape_prompt "${(q)output}")%f"
+  print -P -- "  %F{white}rerun/resume with:%f"
+  print -r -- "    $(topaz_wrapper_cmd "$input")"
   print
 
   topaz_result=0
@@ -868,19 +1045,70 @@ for input in "$files[@]"; do
     if (( topaz_status != 0 )); then
       print "[$(date '+%F %T')] FAILED status=$topaz_status"
       topaz_result="$topaz_status"
-    elif [[ ! -s "$output" ]]; then
-      print "[$(date '+%F %T')] FAILED missing output: $output"
+    elif [[ ! -s "$encode_target" ]]; then
+      print "[$(date '+%F %T')] FAILED missing output: $encode_target"
       topaz_result=1
     else
-      print "[$(date '+%F %T')] DONE $output"
+      print "[$(date '+%F %T')] DONE $encode_target"
     fi
   } >>"$log_file" 2>&1
 
   if (( topaz_result != 0 )); then
-    print -P -u2 -- "%F{red}failed:%f $(topaz_escape_prompt "$input")"
+    print -P -u2 -- "%F{red}✗ failed:%f $(topaz_escape_prompt "$input")"
     print -P -u2 -- "  %F{white}see log:%f %F{blue}$(topaz_escape_prompt "$log_file")%f"
+    if [[ -n "$resume_kf" ]]; then
+      print -P -u2 -- "  %F{white}partial output untouched:%f %F{blue}$(topaz_escape_prompt "$output")%f"
+      [[ -s "$encode_target" ]] || rm -f -- "$encode_target"
+    fi
     (( ++fail_count ))
     continue
+  fi
+
+  # Resume: losslessly join partial[0..keyframe] + freshly encoded tail, verify
+  # the joined duration, then swap it into place. The partial is never modified
+  # until the verified replacement exists.
+  if [[ -n "$resume_kf" ]]; then
+    print -P -- "  %F{cyan}↻ joining partial + tail…%f"
+    concat_list="$(mktemp "${TMPDIR:-/tmp}/topaz-concat.XXXXXX")"
+    joined="${${output:A}:r} [resume joined].${output_ext}"
+    {
+      print -r -- "file '$(topaz_concat_escape "${output:A}")'"
+      print -r -- "outpoint $resume_kf"
+      print -r -- "file '$(topaz_concat_escape "${encode_target:A}")'"
+    } >| "$concat_list"
+
+    concat_status=0
+    (
+      cd "$TOPAZ_MACOS_DIR"
+      "$TOPAZ_FFMPEG" -hide_banner -y -f concat -safe 0 -i "$concat_list" \
+        -map 0 -c copy "${metadata_args[@]}" -- "$joined"
+    ) >>"$log_file" 2>&1 || concat_status=$?
+    rm -f -- "$concat_list"
+
+    joined_duration="$(media_duration_seconds "$joined")"
+    duration_ok=false
+    if (( concat_status == 0 )) && [[ -n "$joined_duration" ]] &&
+        awk -v j="$joined_duration" -v e="$expected_duration" \
+          'BEGIN { d = j - e; if (d < 0) d = -d; exit !(d <= 5) }'; then
+      duration_ok=true
+    fi
+
+    if [[ "$duration_ok" != true ]]; then
+      print "[$(date '+%F %T')] RESUME JOIN FAILED status=$concat_status joined_duration=${joined_duration:-?} expected=$expected_duration" >>"$log_file"
+      print -P -u2 -- "%F{red}✗ resume join failed or duration mismatch — nothing was deleted%f"
+      print -P -u2 -- "  %F{white}partial:%f %F{blue}$(topaz_escape_prompt "$output")%f"
+      print -P -u2 -- "  %F{white}tail:%f    %F{blue}$(topaz_escape_prompt "$encode_target")%f"
+      [[ -e "$joined" ]] && print -P -u2 -- "  %F{white}joined:%f  %F{blue}$(topaz_escape_prompt "$joined")%f"
+      print -P -u2 -- "  %F{white}see log:%f %F{blue}$(topaz_escape_prompt "$log_file")%f"
+      (( ++fail_count ))
+      continue
+    fi
+
+    trash_original "$output" || warn "could not trash partial; overwriting in place"
+    mv -f -- "$joined" "$output"
+    rm -f -- "$encode_target"
+    print "[$(date '+%F %T')] RESUME DONE $output" >>"$log_file"
+    print -P -- "  %F{green}✓ resumed encode verified ($(topaz_format_clock "$joined_duration") ≈ $(topaz_format_clock "$expected_duration"))%f"
   fi
 
   copy_creation_date "$input" "$output" || (( ++creation_date_fail_count ))
@@ -889,10 +1117,10 @@ for input in "$files[@]"; do
     maybe_trash_original "$input" || (( ++trash_fail_count ))
   fi
   (( ++ok_count ))
-  print -P -- "%F{green}%B$(topaz_escape_prompt "${output:t}")%b%f"
+  print -P -- "%F{green}%B✓ $(topaz_escape_prompt "${output:t}")%b%f"
   print -P -- "  %F{8}$(topaz_escape_prompt "$(topaz_output_summary_line "$output")")%f"
 done
 
 print
-info "Summary: ok=$ok_count skipped=$skip_count failed=$fail_count creation_date_failed=$creation_date_fail_count trash_failed=$trash_fail_count"
+print -P -- "%F{white}%BSummary%b%f  %F{green}✓ $ok_count ok%f · %F{yellow}$skip_count skipped%f · %F{red}$fail_count failed%f${creation_date_fail_count:+ · }%F{8}dates failed: $creation_date_fail_count, trash failed: $trash_fail_count%f"
 (( fail_count == 0 && creation_date_fail_count == 0 && trash_fail_count == 0 ))

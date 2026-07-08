@@ -137,16 +137,17 @@ local function ass_circle(r)
         0, r - k, r - k, 0, r, 0)
 end
 
--- The accent index "chip" (filled circle + centred number), vertically centred on
--- `center_y` so it aligns to the middle of the whole row unit. `fill` is the circle
--- colour (BGR). Returns two ASS events (circle, number) and the row-text start x.
-local function chip_events(center_y, number, fill)
+-- The index "chip": a transparent circle with a thin border plus a centred number,
+-- vertically centred on `center_y` so it aligns to the middle of the whole row unit.
+-- `border` overrides the ring colour (BGR; default white). Returns two ASS events
+-- (circle, number) and the row-text start x.
+local function chip_events(center_y, number, border)
     local cx = LIST_X + 11
     local circle = string.format(
-        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c%s\\p1}%s{\\p0}",
-        cx - CHIP_R, center_y - CHIP_R, fill or "&HCC6600&", ass_circle(CHIP_R))
+        "{\\an7\\pos(%d,%d)\\bord1.2\\shad0\\1a&HFF&\\3c%s\\3a&H00&\\p1}%s{\\p0}",
+        cx - CHIP_R, center_y - CHIP_R, border or "&HFFFFFF&", ass_circle(CHIP_R))
     local num = string.format(
-        "{\\an5\\pos(%d,%d)\\bord1\\shad0\\3c&H000000&\\fn%s\\fs13\\b1\\1c&HFFFFFF&}%s",
+        "{\\an5\\pos(%d,%d)\\bord1\\shad0\\3c&H000000&\\fn%s\\fs12\\b0\\1c&HFFFFFF&}%s",
         cx, center_y, FONT, tostring(number))
     return circle, num, cx + CHIP_R + 10
 end
@@ -382,11 +383,15 @@ local function load_enhancement_presets(profile)
     local tail = string.format(",scale=w=%d:h=%d:flags=lanczos:threads=0", target_w, target_h)
     local sw, sh = profile.width, profile.height
 
+    -- For exactly-1080p sources (either orientation) 2x IS the 4K target, so the
+    -- two upscale categories collapse into a single "Upscale to 4K" group.
+    local two_x_is_4k = sw and sh and sw * 2 == target_w and sh * 2 == target_h
+
     -- Orientation/target-aware category labels (never claim "4K" on a 4K source —
     -- the upscale categories are hidden there anyway, but show the real target dims).
     local function cat_label(cat)
         if cat.key == "upscale-4k" then
-            return string.format("Upscale → %d×%d", target_w, target_h)
+            return string.format("Upscale to 4K → %d×%d", target_w, target_h)
         elseif cat.key == "upscale-2x" and sw and sh then
             return string.format("Upscale 2x → %d×%d", sw * 2, sh * 2)
         end
@@ -419,8 +424,20 @@ local function load_enhancement_presets(profile)
     end
 
     for _, cat in ipairs(CATEGORY_ORDER) do
-        if not (cat.upscale and profile.is_4k) then
+        local skip = (cat.upscale and profile.is_4k)
+            or (cat.key == "upscale-2x" and two_x_is_4k)
+        if not skip then
             local rows = by_cat[cat.key]
+            if cat.key == "upscale-4k" and two_x_is_4k then
+                -- 2x == 4K here: fold the 2x presets into this group.
+                rows = {}
+                for _, r in ipairs(by_cat["upscale-2x"] or {}) do
+                    rows[#rows + 1] = r
+                end
+                for _, r in ipairs(by_cat["upscale-4k"] or {}) do
+                    rows[#rows + 1] = r
+                end
+            end
             if rows and #rows > 0 then
                 local label = cat_label(cat)
                 table.insert(items, { kind = "header", label = label })
@@ -544,13 +561,15 @@ function draw_menu()
     local cursor_preset = menu.presets[menu.cursor]
 
     -- Pass 1: lay out the rows (so we know the panel height before drawing it).
+    -- Also records per-row hitboxes (virtual 1280x720 coords) for mouse clicks.
     local body = {}
     local y = LIST_TOP
+    menu.hitboxes = {}
 
     for _, item in ipairs(menu.items) do
         if item.kind == "header" then
             body[#body + 1] = string.format(
-                "{\\an4\\pos(%d,%d)\\bord2\\shad0\\3c&H000000&\\fn%s\\b1\\fs13\\1c&H99DDDD&}%s",
+                "{\\an4\\pos(%d,%d)\\bord2\\shad0\\3c&H000000&\\fn%s\\b1\\fs12\\1c&H99DDDD&}%s",
                 LIST_X + 2, y + math.floor(HH / 2), FONT, ass_escape(item.label))
             y = y + HH
         else
@@ -562,13 +581,14 @@ function draw_menu()
             local is_rendering = (menu.rendering_slug == p.slug)
 
             local center = y + 15  -- vertical centre of the two-line row unit
+            table.insert(menu.hitboxes, { y0 = y, y1 = y + RH, preset = p })
 
             if is_cursor then
                 body[#body + 1] = selection_box_event(y)
             end
 
-            local chip_fill = p.is_original and "&H555555&" or "&HCC6600&"
-            local box, num, text_x = chip_events(center, p.number, chip_fill)
+            local chip_border = p.is_original and "&H888888&" or "&HFFFFFF&"
+            local box, num, text_x = chip_events(center, p.number, chip_border)
             body[#body + 1] = box
             body[#body + 1] = num
 
@@ -584,9 +604,9 @@ function draw_menu()
             body[#body + 1] = string.format(
                 "{\\an4\\pos(%d,%d)\\bord2\\shad0\\3c&H000000&\\fn%s\\fs15%s\\1c%s}%s%s",
                 text_x, y + 10, FONT, bold, namecolor, ass_escape(p.display), suffix)
-            -- line 2: short description
+            -- line 2: short description (never bold, even on the cursor row)
             body[#body + 1] = string.format(
-                "{\\an4\\pos(%d,%d)\\bord1\\shad0\\3c&H000000&\\fn%s\\fs11\\1c&H9A9A9A&}%s",
+                "{\\an4\\pos(%d,%d)\\bord1\\shad0\\3c&H000000&\\fn%s\\fs11\\b0\\1c&H9A9A9A&}%s",
                 text_x, y + 22, FONT, ass_escape(p.blurb))
 
             -- cached badge (small check), centred on the row unit at the right edge
@@ -770,6 +790,35 @@ end
 
 -- ===== navigation / key actions =====
 
+-- Mouse position mapped into the 1280x720 virtual overlay space (nil if unknown).
+local function mouse_virtual_pos()
+    local pos = mp.get_property_native("mouse-pos")
+    local ow = mp.get_property_number("osd-width")
+    local oh = mp.get_property_number("osd-height")
+    if not (pos and pos.x and ow and oh and ow > 0 and oh > 0) then
+        return nil
+    end
+    return pos.x * 1280 / ow, pos.y * 720 / oh
+end
+
+-- Click on a preset row = select it (same as pressing its number).
+local function menu_click()
+    if not menu or menu.ui_hidden then
+        return
+    end
+    local mx, my = mouse_virtual_pos()
+    if not mx or mx < LIST_X or mx > LIST_X + ROW_W then
+        return
+    end
+    for _, hb in ipairs(menu.hitboxes or {}) do
+        if my >= hb.y0 and my < hb.y1 then
+            menu.cursor = hb.preset.index
+            render_or_show(hb.preset)
+            return
+        end
+    end
+end
+
 function move_cursor(delta)
     if not menu then
         return
@@ -808,6 +857,7 @@ function select_number(num)
     if not preset then
         return
     end
+    menu.cursor = preset.index
     render_or_show(preset)
 end
 
@@ -905,6 +955,7 @@ local PICKER_KEY_NAMES = {
     "topaz_pick_up", "topaz_pick_up2",
     "topaz_pick_enter", "topaz_pick_kp_enter",
     "topaz_pick_block_n", "topaz_pick_block_N",
+    "topaz_pick_click",
     "topaz_pick_esc", "topaz_pick_bs",
 }
 
@@ -918,13 +969,15 @@ function draw_picker()
     list_badge.res_x = 1280
     list_badge.res_y = 720
 
-    -- Pass 1: rows.
+    -- Pass 1: rows (recording hitboxes for mouse clicks).
     local body = {}
     local y = LIST_TOP
+    picker.hitboxes = {}
     for i, row in ipairs(picker.rows) do
         if i == picker.cursor then
             body[#body + 1] = selection_box_event(y)
         end
+        table.insert(picker.hitboxes, { y0 = y, y1 = y + RH, index = i })
 
         local center = y + 15
         local box, num, text_x = chip_events(center, i)
@@ -1009,6 +1062,24 @@ local function picker_cancel()
     end
 end
 
+-- Click a picker row = choose it (same as pressing its number).
+local function picker_click()
+    if not picker then
+        return
+    end
+    local mx, my = mouse_virtual_pos()
+    if not mx or mx < LIST_X or mx > LIST_X + ROW_W then
+        return
+    end
+    for _, hb in ipairs(picker.hitboxes or {}) do
+        if my >= hb.y0 and my < hb.y1 then
+            picker.cursor = hb.index
+            picker_submit(hb.index)
+            return
+        end
+    end
+end
+
 local function enable_picker_keys()
     mp.add_forced_key_binding("j", "topaz_pick_down", function() picker_move(1) end)
     mp.add_forced_key_binding("DOWN", "topaz_pick_down2", function() picker_move(1) end)
@@ -1031,6 +1102,7 @@ local function enable_picker_keys()
     -- Swallow playlist-next/prev: preview stills are still in the playlist here.
     mp.add_forced_key_binding("n", "topaz_pick_block_n", function() end)
     mp.add_forced_key_binding("N", "topaz_pick_block_N", function() end)
+    mp.add_forced_key_binding("MBTN_LEFT", "topaz_pick_click", picker_click)
     mp.add_forced_key_binding("ESC", "topaz_pick_esc", picker_cancel)
     mp.add_forced_key_binding("BS", "topaz_pick_bs", picker_cancel)
 end
@@ -1199,6 +1271,7 @@ local MENU_KEY_NAMES = {
     "topaz_menu_show_orig_h", "topaz_menu_show_orig_left",
     "topaz_menu_proceed_c",
     "topaz_menu_block_n", "topaz_menu_block_N",
+    "topaz_menu_click",
     "topaz_menu_esc", "topaz_menu_bs",
 }
 
@@ -1230,6 +1303,8 @@ function enable_menu_keys()
     -- Swallow playlist-next/prev so preview stills don't get navigated away.
     mp.add_forced_key_binding("n", "topaz_menu_block_n", function() end)
     mp.add_forced_key_binding("N", "topaz_menu_block_N", function() end)
+    -- Click a preset row to select it.
+    mp.add_forced_key_binding("MBTN_LEFT", "topaz_menu_click", menu_click)
     mp.add_forced_key_binding("ESC", "topaz_menu_esc", function()
         close_menu("Topaz menu closed")
     end)

@@ -1,0 +1,306 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+# Offline Topaz encode picker: the same three-step flow as the mpv `z` menu
+# (enhancement -> interpolation -> output format), driven by fzf, handing off to
+# topaz-run for the actual encode (which handles resume, logging, progress).
+
+script_name="${0:t}"
+
+usage() {
+  cat <<EOF
+usage:
+  $script_name [--preview [seconds]] [--resume] [--copy-cmd] [--trash-originals] file1 [file2 ...]
+
+Interactive three-step Topaz encode for the terminal:
+  1. enhancement preset (upscale categories offered only for <4K sources)
+  2. frame interpolation (or none)
+  3. output format
+
+Composes the filter exactly like the mpv Topaz menu (orientation-aware 4K
+targets, interpolation inserted before the lanczos tail) and runs topaz-run,
+so interrupted encodes can be resumed by rerunning the same command.
+
+--copy-cmd prints/copies the final topaz-run command instead of encoding.
+Other flags are passed through to topaz-run.
+EOF
+}
+
+(( $# == 0 )) && {
+  usage >&2
+  exit 1
+}
+
+case "${1:-}" in
+  -h|--help|help)
+    usage
+    exit 0
+    ;;
+esac
+
+PRESET_CATALOG="${0:A:h}/topaz-preset-catalog.zsh"
+TOPAZ_RUN="${0:A:h}/topaz-run"
+
+[[ -r "$PRESET_CATALOG" ]] || {
+  print -u2 "Topaz preset catalog not found: $PRESET_CATALOG"
+  exit 1
+}
+[[ -x "$TOPAZ_RUN" ]] || {
+  print -u2 "topaz-run not found: $TOPAZ_RUN"
+  exit 1
+}
+command -v fzf >/dev/null 2>&1 || {
+  print -u2 "fzf not found"
+  exit 1
+}
+
+source "$PRESET_CATALOG"
+
+passthrough_args=()
+files=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    --preview=*|--resume|--copy-cmd|--trash-originals|--trash-original)
+      passthrough_args+=("$1")
+      shift
+      ;;
+    --preview)
+      passthrough_args+=("$1")
+      if (( $# >= 2 )) && [[ "${2:-}" != -* ]]; then
+        passthrough_args+=("$2")
+        shift
+      fi
+      shift
+      ;;
+    --)
+      shift
+      files+=("$@")
+      break
+      ;;
+    -*)
+      print -u2 "unknown option: $1"
+      usage >&2
+      exit 1
+      ;;
+    *)
+      files+=("$1")
+      shift
+      ;;
+  esac
+done
+
+(( ${#files[@]} > 0 )) || {
+  usage >&2
+  exit 1
+}
+
+for input in "$files[@]"; do
+  [[ -f "$input" ]] || {
+    print -u2 "not a file: $input"
+    exit 1
+  }
+done
+
+# ---- source profile (first file drives category gating and 4K targets) ----
+
+probe_bin="ffprobe"
+command -v ffprobe >/dev/null 2>&1 || probe_bin=""
+
+src_w="" src_h="" src_fps=""
+if [[ -n "$probe_bin" ]]; then
+  while IFS='=' read -r key value; do
+    case "$key" in
+      width) src_w="$value" ;;
+      height) src_h="$value" ;;
+      avg_frame_rate)
+        src_fps="$(awk -v r="$value" 'BEGIN {
+          split(r, p, "/")
+          if (p[2] == "" || p[2] == 0) { if (p[1] != "") printf "%.0f", p[1] }
+          else printf "%.0f", p[1] / p[2]
+        }')"
+        ;;
+    esac
+  done < <(
+    "$probe_bin" -v error -select_streams v:0 \
+      -show_entries stream=width,height,avg_frame_rate \
+      -of default=noprint_wrappers=1 -- "$files[1]" 2>/dev/null
+  )
+fi
+
+# Orientation-aware 4K target: long edge -> 3840, aspect preserved, even dims.
+target_w=3840 target_h=2160
+if [[ "$src_w" == <-> && "$src_h" == <-> ]]; then
+  read -r target_w target_h < <(awk -v w="$src_w" -v h="$src_h" 'BEGIN {
+    if (w >= h) { tw = 3840; th = h * 3840 / w } else { th = 3840; tw = w * 3840 / h }
+    tw = int(tw / 2 + 0.5) * 2; th = int(th / 2 + 0.5) * 2
+    print tw, th
+  }')
+fi
+
+is_4k=false
+if [[ "$src_w" == <-> && "$src_h" == <-> ]]; then
+  long_edge=$(( src_w > src_h ? src_w : src_h ))
+  (( long_edge > 2560 )) && is_4k=true
+fi
+
+# 2x of an exactly-1080p source IS the 4K target -> merge the upscale groups.
+two_x_is_4k=false
+if [[ "$src_w" == <-> && "$src_h" == <-> ]] &&
+    (( src_w * 2 == target_w && src_h * 2 == target_h )); then
+  two_x_is_4k=true
+fi
+
+if [[ -n "$src_w" ]]; then
+  media_header="${files[1]:t}  ${src_w}x${src_h} @ ${src_fps:-?}fps"
+  (( ${#files[@]} > 1 )) && media_header+="  [+$(( ${#files[@]} - 1 )) more]"
+else
+  media_header="${files[1]:t}  (unprobed — all presets shown)"
+fi
+
+up_scale_token="scale=0:w=${target_w}:h=${target_h}"
+lanczos_tail=",scale=w=${target_w}:h=${target_h}:flags=lanczos:threads=0"
+
+category_label() {
+  case "$1" in
+    upscale-2x)
+      if [[ "$src_w" == <-> ]]; then
+        print -r -- "Upscale 2x → $(( src_w * 2 ))×$(( src_h * 2 ))"
+      else
+        print -r -- "Upscale 2x"
+      fi
+      ;;
+    upscale-4k) print -r -- "Upscale to 4K → ${target_w}×${target_h}" ;;
+    repair) print -r -- "Repair" ;;
+    sharpen) print -r -- "Sharpen" ;;
+    focus-fix) print -r -- "Focus Fix" ;;
+    *) print -r -- "$1" ;;
+  esac
+}
+
+# ---- step 1: enhancement ----
+# fzf rows: label<TAB>slug<TAB>enh_filter<TAB>enh_tail<TAB>blurb<TAB>metadata
+# Empty fields carry a "-" placeholder: tab-IFS `read` collapses consecutive
+# tabs, which would silently shift fields.
+
+enhancement_rows() {
+  emulate -L zsh
+  local category display slug filter_body blurb metadata
+  local label enh_filter enh_tail
+
+  print -r -- $'[Original] Original (no enhancement)\t__original__\t-\t-\tSkip enhance — interpolate / re-encode only\tvideoai=Original (no enhancement)'
+
+  topaz_enhancement_preset_rows |
+  while IFS=$'\t' read -r category display slug filter_body blurb metadata; do
+    if [[ "$is_4k" == true ]]; then
+      [[ "$category" == upscale-2x || "$category" == upscale-4k ]] && continue
+    fi
+    if [[ "$two_x_is_4k" == true && "$category" == upscale-2x ]]; then
+      category="upscale-4k"
+    fi
+
+    enh_filter="${filter_body//@4K@/$up_scale_token}"
+    enh_tail=""
+    [[ "$filter_body" == *@4K@* ]] && enh_tail="$lanczos_tail"
+
+    label="[$(category_label "$category")] ${display}"
+    print -r -- "${label}"$'\t'"${slug}"$'\t'"${enh_filter:--}"$'\t'"${enh_tail:--}"$'\t'"${blurb}"$'\t'"${metadata}"
+  done
+}
+
+enh_selection="$(
+  enhancement_rows | fzf \
+    --prompt='enhancement > ' \
+    --delimiter=$'\t' \
+    --with-nth=1 \
+    --height=60% \
+    --reverse \
+    --border \
+    --header="$media_header" \
+    --header-first \
+    --preview='printf "%s\n\n%s\n" {5} {3}' \
+    --preview-window='down:5:wrap'
+)" || true
+[[ -n "$enh_selection" ]] || {
+  print -u2 "no enhancement selected"
+  exit 1
+}
+
+IFS=$'\t' read -r enh_label enh_slug enh_filter enh_tail enh_blurb enh_metadata <<< "$enh_selection"
+[[ "$enh_filter" == "-" ]] && enh_filter=""
+[[ "$enh_tail" == "-" ]] && enh_tail=""
+enh_display="${enh_label#\[*\] }"
+
+# ---- step 2: interpolation ----
+# fzf rows: display<TAB>slug<TAB>fi_filter<TAB>metadata
+
+interp_selection="$(
+  {
+    print -r -- $'None (keep source frame rate)\t__none__\t-\tEncode the enhancement as-is.'
+    topaz_interpolation_preset_rows
+  } | fzf \
+    --prompt='interpolation > ' \
+    --delimiter=$'\t' \
+    --with-nth=1 \
+    --height=50% \
+    --reverse \
+    --border \
+    --header="$media_header" \
+    --header-first \
+    --preview='printf "%s\n" {4}' \
+    --preview-window='down:4:wrap'
+)" || true
+[[ -n "$interp_selection" ]] || {
+  print -u2 "no interpolation selected"
+  exit 1
+}
+
+IFS=$'\t' read -r interp_display interp_slug interp_filter interp_metadata <<< "$interp_selection"
+[[ "$interp_slug" == "__none__" || "$interp_filter" == "-" ]] && interp_filter=""
+
+# ---- step 3: output format ----
+# rows: display<TAB>slug<TAB>output_ext<TAB>video_args
+
+output_selection="$(
+  topaz_output_profile_rows | fzf \
+    --prompt='output > ' \
+    --delimiter=$'\t' \
+    --with-nth=1 \
+    --height=40% \
+    --reverse \
+    --border \
+    --header="$media_header" \
+    --header-first \
+    --preview='printf "%s\n" {4}' \
+    --preview-window='down:3:wrap'
+)" || true
+[[ -n "$output_selection" ]] || {
+  print -u2 "no output format selected"
+  exit 1
+}
+
+IFS=$'\t' read -r output_display output_slug output_ext output_video_args <<< "$output_selection"
+
+# ---- compose and hand off (interpolation goes before the lanczos tail) ----
+
+filter_parts=()
+[[ -n "$enh_filter" ]] && filter_parts+=("$enh_filter")
+[[ -n "$interp_filter" ]] && filter_parts+=("$interp_filter")
+final_filter="${(j:,:)filter_parts}${enh_tail}"
+[[ -n "$final_filter" ]] || final_filter="null"
+
+preset_name="$enh_display"
+[[ -n "$interp_filter" ]] && preset_name+=" + ${interp_display}"
+preset_name+=" - ${output_display}"
+
+metadata="$enh_metadata"
+[[ -n "$metadata" ]] || metadata="videoai=${enh_display}"
+
+exec "$TOPAZ_RUN" \
+  "${passthrough_args[@]}" \
+  --preset_name "$preset_name" \
+  --filter_complex "$final_filter" \
+  --output_ext "$output_ext" \
+  --video_args "$output_video_args" \
+  --metadata "$metadata" \
+  -- "$files[@]"

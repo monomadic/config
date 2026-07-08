@@ -219,6 +219,12 @@ run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 
 desc = "Rename selected media"
 
 [[mgr.prepend_keymap]]
+on   = [ "e", "f" ]
+for  = "unix"
+run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " rename footage " -- /Users/nom/.zsh/bin/rename-footage %s'''
+desc = "Rename selected footage"
+
+[[mgr.prepend_keymap]]
 on   = [ "e", "s" ]
 for  = "unix"
 run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " set rating " -- /Users/nom/.zsh/bin/media-set-rating %s'''
