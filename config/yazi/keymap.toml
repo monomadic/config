@@ -56,11 +56,6 @@ on   = "<Enter>"
 run  = "plugin smart-enter"
 desc = "Open files or enter directories"
 
-# [[mgr.prepend_keymap]]
-# on   = [ "<Space>", "o" ]
-# run  = "plugin smart-enter"
-# desc = "Open files or enter directories"
-
 [[mgr.prepend_keymap]]
 on   = [ "<Space>" ]
 for  = "macos"

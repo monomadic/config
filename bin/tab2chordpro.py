@@ -16,6 +16,7 @@ class Tab2ChordPro:
         self.lines = []
         self.metadata = {}
         self.output = []
+        self._open = None  # currently open ChordPro environment, if any
 
     def read_input(self, text: str) -> None:
         """Parse input text into lines."""
@@ -62,31 +63,29 @@ class Tab2ChordPro:
                 if match:
                     self.metadata['tempo'] = match.group(1)
 
+    # A single, fully-anchored chord token (e.g. F, Bb, Dm7, Fsus2, G/B).
+    _CHORD_TOKEN = re.compile(
+        r'^[A-G][#b]?(?:m|mi|min|aug|\+|dim|0|h)?(?:maj)?(?:\d+)?'
+        r'(?:sus\d?)?(?:add\d)?(?:[b#]\d)?(?:/[A-G][#b]?)?$'
+    )
+
     def is_chord_line(self, line: str) -> bool:
-        """Detect if line is mostly chords (sparse non-chord content)."""
-        if not line.strip():
-            return False
-        stripped = line.lstrip()
-        if not stripped or len(stripped) < 3:
+        """A chord line is one whose every token is a complete chord.
+
+        This treats a lone chord (``F``, ``Bb``) the same as a row of them,
+        and never mistakes a lyric that merely contains chord letters for a
+        chord line.
+        """
+        stripped = line.strip()
+        if not stripped:
             return False
         if stripped.startswith('[') and stripped.endswith(']'):
             return False
         if any(x in stripped for x in [' by ', 'Tuning:', 'Key:', 'views', 'saves']):
             return False
 
-        # Strict chord pattern: chord must have letter + optional qual/ext
-        chord_pattern = r'[A-G][#b]?(?:m|mi|min|aug|\+|dim|0|h)?(?:maj|7|9|sus|add)?(?:\d+)?(?:[b#]\d)?(?:/[A-G][#b]?)?'
-        chords = re.findall(chord_pattern, stripped)
-
-        # Heuristic: if 60%+ of non-space chars are chord chars, it's a chord line
-        if not chords:
-            return False
-
-        chord_text = ''.join(chords)
-        non_space = len(re.sub(r'\s', '', stripped))
-
-        # Must have at least 2 chords or be all/mostly chords
-        return len(chords) >= 2 or (non_space > 0 and len(chord_text) / non_space > 0.6)
+        tokens = stripped.split()
+        return bool(tokens) and all(self._CHORD_TOKEN.match(t) for t in tokens)
 
     def extract_chords_with_positions(self, chord_line: str) -> List[Tuple[str, int]]:
         """Extract chord names and their column positions."""
@@ -102,48 +101,53 @@ class Tab2ChordPro:
         return chords
 
     def merge_chord_lyric(self, chord_line: str, lyric_line: str) -> str:
-        """Merge chord line with lyric line using column positions."""
+        """Merge chord line with lyric line by monospaced column position.
+
+        Chord and lyric lines are assumed to share a monospaced coordinate
+        system: a chord at column N belongs over whatever the lyric has at
+        column N. Chords whose column falls within a word are anchored to the
+        start of that word; chords landing on whitespace attach to the next
+        word; chords past the end of the lyric are appended at the end.
+        """
         chords = self.extract_chords_with_positions(chord_line)
         if not chords:
-            return lyric_line.strip()
+            return lyric_line.rstrip()
 
-        # Strip leading spaces from lyric for alignment
-        lyric_stripped = lyric_line.lstrip()
-        lyric_lead_spaces = len(lyric_line) - len(lyric_stripped)
+        # Absolute columns matter, so don't strip leading whitespace.
+        result = lyric_line.rstrip()
+        end = len(result)
 
-        # Build result by inserting chords from right to left (preserve indices)
-        result = lyric_stripped
+        inserts = []   # (anchor_column, chord)
+        trailing = []  # chords past the end of the lyric
 
-        for chord, pos in reversed(chords):
-            # Adjust position for stripped leading spaces
-            adj_pos = max(0, pos - lyric_lead_spaces)
-
-            # Clamp to lyric length
-            if adj_pos >= len(result):
-                # Chord is past end of lyric
-                result += f' [{chord}]'
+        for chord, pos in chords:
+            if pos >= end:
+                trailing.append(chord)
             else:
-                # Try to snap to word boundary (prefer start of word)
-                snap_pos = self._snap_to_word_boundary(result, adj_pos)
-                result = result[:snap_pos] + f'[{chord}]' + result[snap_pos:]
+                inserts.append((self._word_anchor(result, pos), chord))
 
-        return result
+        # Insert right-to-left so earlier indices stay valid.
+        for pos, chord in sorted(inserts, key=lambda x: x[0], reverse=True):
+            result = result[:pos] + f'[{chord}]' + result[pos:]
 
-    def _snap_to_word_boundary(self, text: str, pos: int) -> int:
-        """Snap position to nearest word boundary (prefer word start)."""
-        if pos >= len(text):
-            return pos
+        if trailing:
+            result = result.rstrip() + ' ' + ''.join(f'[{c}]' for c in trailing)
 
-        # Check if we're already at a word boundary
-        if pos == 0 or text[pos - 1].isspace():
-            return pos
+        return result.lstrip()
 
-        # Look back for word start (max 3 chars)
-        for i in range(max(0, pos - 3), pos):
-            if text[i].isspace() or i == 0:
-                return i + (0 if i == 0 and not text[i].isspace() else 1)
-
-        # If no boundary found, use original position
+    def _word_anchor(self, text: str, pos: int) -> int:
+        """Return the start column of the word at/after ``pos``."""
+        n = len(text)
+        if pos >= n:
+            return n
+        # Landed on whitespace: move forward to the next word.
+        while pos < n and text[pos].isspace():
+            pos += 1
+        if pos >= n:
+            return n
+        # Landed inside a word: move back to its start.
+        while pos > 0 and not text[pos - 1].isspace():
+            pos -= 1
         return pos
 
     def process(self) -> None:
@@ -181,12 +185,7 @@ class Tab2ChordPro:
             # Section header: [Verse 1], [Chorus], etc
             if stripped.startswith('[') and stripped.endswith(']') and not self.is_chord_line(stripped):
                 section = stripped[1:-1]
-                section_type = self._parse_section_type(section)
-
-                if section_type in ['verse', 'chorus', 'bridge', 'intro', 'outro']:
-                    self.output.append(f'{{start_of_{section_type}: label="{section}"}}')
-                else:
-                    self.output.append(f'{{comment: {section}}}')
+                self._open_section(section)
                 i += 1
                 continue
 
@@ -196,8 +195,9 @@ class Tab2ChordPro:
                 next_stripped = next_line.strip()
 
                 if next_stripped and not self.is_chord_line(next_stripped):
-                    # This is a chord-over-lyric pair
-                    merged = self.merge_chord_lyric(stripped, next_stripped)
+                    # Chord-over-lyric pair. Pass the RAW lines so the
+                    # monospaced column alignment is preserved.
+                    merged = self.merge_chord_lyric(line, next_line)
                     self.output.append(merged)
                     i += 2
                     continue
@@ -216,10 +216,19 @@ class Tab2ChordPro:
                 self.output.append(stripped)
             i += 1
 
-        self._finalize_sections()
+        # Close whatever section is still open at the end of the song.
+        self._close_section()
+        # Drop any trailing blank left behind.
+        while self.output and self.output[-1] == '':
+            self.output.pop()
+
+    # ChordPro environments we wrap in start_of_/end_of_ tags. Everything
+    # else (intro, outro, interlude, tab, solo, ...) is left sectionless —
+    # the ChordPro docs recommend not fabricating environments for these.
+    ENVIRONMENTS = {'verse', 'chorus', 'bridge'}
 
     def _parse_section_type(self, section: str) -> str:
-        """Map section name to ChordPro type."""
+        """Map a section label to a ChordPro environment name, or ''."""
         section_lower = section.lower()
         if 'verse' in section_lower:
             return 'verse'
@@ -227,56 +236,37 @@ class Tab2ChordPro:
             return 'chorus'
         elif 'bridge' in section_lower:
             return 'bridge'
-        elif 'intro' in section_lower:
-            return 'intro'
-        elif 'outro' in section_lower:
-            return 'outro'
-        elif 'interlude' in section_lower:
-            return 'bridge'  # Map interlude to bridge for now
         else:
-            return 'comment'
+            return ''
 
-    def _finalize_sections(self) -> None:
-        """Add section ends and track open sections properly."""
-        open_sections = []
-        finalized = []
+    def _open_section(self, section: str) -> None:
+        """Close any open section and open the new one.
 
-        for line in self.output:
-            if line.startswith('{start_of_'):
-                # Close previous section if needed
-                if open_sections and not any(x in open_sections[-1] for x in ['intro', 'outro']):
-                    section = open_sections.pop()
-                    finalized.append(f'{{end_of_{section}}}')
+        Environment sections (verse/chorus/bridge) are wrapped; chorus needs
+        no label. Anything else becomes a plain comment and stays sectionless.
+        """
+        self._close_section()
+        section_type = self._parse_section_type(section)
 
-                match = re.search(r'\{start_of_(\w+)', line)
-                if match:
-                    section_type = match.group(1)
-                    open_sections.append(section_type)
-                finalized.append(line)
+        if section_type == 'chorus':
+            self.output.append('{start_of_chorus}')
+            self._open = 'chorus'
+        elif section_type in self.ENVIRONMENTS:
+            self.output.append(f'{{start_of_{section_type}: label="{section}"}}')
+            self._open = section_type
+        else:
+            self.output.append(f'{{comment: {section}}}')
 
-            elif line.startswith('{end_of_'):
-                # Already has end tag
-                if open_sections:
-                    open_sections.pop()
-                finalized.append(line)
-
-            elif line.startswith('{comment:'):
-                finalized.append(line)
-
-            elif not line.strip():
-                # Empty line - don't close section yet
-                finalized.append(line)
-
-            else:
-                # Regular content line
-                finalized.append(line)
-
-        # Close any remaining open sections
-        while open_sections:
-            section = open_sections.pop()
-            finalized.append(f'{{end_of_{section}}}')
-
-        self.output = finalized
+    def _close_section(self) -> None:
+        """Emit an end tag for the currently open environment, if any."""
+        if not getattr(self, '_open', None):
+            return
+        # Don't let trailing blank lines land inside the environment.
+        while self.output and self.output[-1] == '':
+            self.output.pop()
+        self.output.append(f'{{end_of_{self._open}}}')
+        self.output.append('')
+        self._open = None
 
     def add_metadata_header(self) -> None:
         """Prepend metadata to output."""

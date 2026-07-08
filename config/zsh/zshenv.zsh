@@ -92,7 +92,7 @@ fi
 export VISUAL="$EDITOR"
 export TEMPLATE_BASE_DIR=$DOTFILES_DIR/config/neovim/templates
 
-export TABLATURE_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature/"
+export TABLATURE_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature"
 export TUTORIALS_PATH=$HOME/Movies/Tutorials
 
 # Media

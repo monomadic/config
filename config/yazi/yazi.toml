@@ -18,7 +18,7 @@ bulk-rename = [
 play = [
 	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀽍  mpv", for = "unix", orphan = true },
 	{ run = "mpv-send play %s", desc = "􀽍  mpv-send", orphan = true },
-	{ run = "vlc %s .", desc = "􀽎  vlc", for = "unix", orphan = true },
+	{ run = "vlc %s .", desc = "􀽎  vlc", orphan = true },
 	{ run = "convert-to-pro-res %s .", desc = "􁾕  convert: prores", orphan = true },
 	{ run = "media-open-url %s", desc = "􀼹  open url" },
 	{ run = "mediainfo %s1; echo 'Press enter to exit'; read _", desc = "􁊇  mediainfo", for = "unix", block = true },
@@ -40,14 +40,16 @@ reveal = [
 ]
 chordpro = [
 	{ run = "chordpro-tui %s1", desc = "􃐹  chordpro-tui", for = "unix", block = true },
+	{ run = "chordpro-pdf --preset ipad-mini %s1", desc = "􀡢  convert to pdf (iPad Mini)", for = "unix", block = true },
+	{ run = "chordpro-pdf --preset ipad-mini --inverted %s1", desc = "􀎾  convert to pdf (iPad Mini, Inverted)", for = "unix", block = true },
 ]
 pdf_chordpro = [
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " pdf to chordpro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "􃐹 pdf->chordpro", for = "unix", orphan = true },
+	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " pdf to chordpro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "􃐹  pdf->chordpro", for = "unix", orphan = true },
 ]
 video_tools = [
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut %s''', desc = "trim (start)", for = "unix", orphan = true },
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut --reverse %s''', desc = "trim (end)", for = "unix", orphan = true },
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " rename media " -- /Users/nom/.zsh/bin/rename-media %s''', desc = "rename media", for = "unix", orphan = true },
+	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut %s''', desc = "􂅓  trim (start)", for = "unix", orphan = true },
+	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut --reverse %s''', desc = "􂅗  trim (end)", for = "unix", orphan = true },
+	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " rename media " -- /Users/nom/.zsh/bin/rename-media %s''', desc = "􀈏  rename media", for = "unix", orphan = true },
 	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " topaz workflow " -- /Users/nom/.zsh/bin/topaz-workflow %s''', desc = "topaz", for = "unix", orphan = true },
 	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " topaz presets " -- /Users/nom/.zsh/bin/topaz-simple-presets %s''', desc = "Topaz presets", for = "unix", orphan = true },
 	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 60fps " -- /Users/nom/.zsh/bin/interpolate-resolve %s''', desc = "interpolate: 60fps (hevc)", for = "unix", orphan = true },
