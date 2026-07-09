@@ -1,0 +1,80 @@
+#!/bin/zsh
+# spotlight-manager — one switch for all of macOS Spotlight:
+# volume indexing (mds/mdworker) AND the Apple Intelligence knowledge/
+# embedding daemons (spotlightknowledged*, the periodic CPU burner).
+#
+# stop/start survive reboots. mdutil needs sudo (password prompt).
+# Note: `launchctl bootout` of Apple agents is SIP-blocked; disabling
+# first and then killing works — a disabled service stays dead.
+
+# The user-domain knowledge daemons (verified burning CPU via `sample`:
+# SKDEmbeddingProcessor running embedding inference over mail/contacts).
+SERVICES=(
+  com.apple.spotlightknowledged
+  com.apple.spotlightknowledged.updater
+  com.apple.spotlightknowledged.importer
+)
+
+cmd_stop() {
+  echo "── disabling volume indexing (mds) ──"
+  sudo mdutil -a -i off
+  echo "── disabling knowledge daemons ──"
+  local s
+  for s in $SERVICES; do
+    launchctl disable "gui/$UID/$s" && echo "disabled $s"
+  done
+  # Disabled services stay dead once killed (launchd won't respawn them).
+  pkill -f spotlightknowledged 2>/dev/null && echo "killed running instances"
+  echo "spotlight: OFF (persists across reboots; '$(basename $0) start' to undo)"
+}
+
+cmd_start() {
+  echo "── enabling volume indexing (mds) ──"
+  sudo mdutil -a -i on
+  echo "── enabling knowledge daemons ──"
+  local s
+  for s in $SERVICES; do
+    launchctl enable "gui/$UID/$s" && echo "enabled $s"
+  done
+  echo "spotlight: ON (daemons relaunch on demand; index rebuilds as needed)"
+}
+
+cmd_status() {
+  echo "── volume indexing ──"
+  mdutil -a -s
+  echo "── disabled knowledge agents ──"
+  launchctl print-disabled "gui/$UID" | grep spotlightknowledged || echo "(none — all enabled)"
+  echo "── spotlight processes right now (%cpu, elapsed) ──"
+  ps axo pcpu,etime,comm | grep -iE "spotlightknow|mds|mdworker" | grep -v grep | sort -rn | head -8
+  [[ $(ps axo comm | grep -c -iE "spotlightknow|mds") -eq 0 ]] && echo "(nothing running)"
+}
+
+case "$1" in
+  stop)    cmd_stop ;;
+  start)   cmd_start ;;
+  restart) cmd_stop && echo && cmd_start ;;
+  status)  cmd_status ;;
+  *)
+    cat <<EOF
+spotlight-manager — enable/disable macOS Spotlight entirely
+
+USAGE:
+  spotlight-manager <command>
+
+COMMANDS:
+  stop      turn Spotlight OFF: volume indexing (mds) off on all
+            volumes + disable & kill the Apple Intelligence knowledge/
+            embedding daemons (spotlightknowledged*). Survives reboots.
+  start     turn everything back ON
+  restart   stop, then start (kick a wedged indexer)
+  status    index state per volume, disabled agents, live processes
+
+NOTES:
+  * mdutil requires sudo — you'll get a password prompt.
+  * While stopped: Finder/Spotlight search and cmd-space app launching
+    stop working; 'open -a Name' still does.
+  * 'sudo mdutil -a -E' erases the index entirely (reclaims disk;
+    rebuilds from scratch on the next 'start').
+EOF
+    ;;
+esac
