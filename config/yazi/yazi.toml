@@ -18,6 +18,7 @@ bulk-rename = [
 play = [
 	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀽍  mpv", for = "unix", orphan = true },
 	{ run = "mpv-send play %s", desc = "􀽍  mpv-send", orphan = true },
+	{ run = "switchblade %s", desc = "􀫐  switchblade", orphan = true },
 	{ run = "vlc %s .", desc = "􀽎  vlc", orphan = true },
 	{ run = "convert-to-pro-res %s .", desc = "􁾕  convert: prores", orphan = true },
 	{ run = "media-open-url %s", desc = "􀼹  open url" },
@@ -25,8 +26,10 @@ play = [
 ]
 play_dir = [
 	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀽍  mpv", for = "unix", orphan = true },
+	{ run = "switchblade %s", desc = "􀫐  switchblade", orphan = true },
 	{ run = "vlc %s .", desc = "􀽎  vlc", for = "unix", orphan = true },
 	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-check-files %s''', desc = "􀇺  check", for = "unix", orphan = true },
+	{ run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", desc = "􁊇  exiftool", block = true },
 ]
 open = [
 	{ run = "open %s", desc = "􀭅  open" },
@@ -36,7 +39,6 @@ open = [
 reveal = [
 	{ run = "open %s1", desc = "􀭅  open" },
 	{ run = "open -R %s1", desc = "􀥯  reveal" },
-	{ run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", desc = "􁊇  exiftool", block = true },
 ]
 chordpro = [
 	{ run = "chordpro-tui %s1", desc = "􃐹  chordpro-tui", for = "unix", block = true },
@@ -70,7 +72,7 @@ prepend_rules = [
 	{ url = "*.chordpro", use = [ "chordpro", "edit", "open", "reveal" ] },
 	{ mime = "application/pdf", use = [ "open", "reveal", "pdf_chordpro" ] },
 	{ mime = "video/*", use = [ "play", "open", "reveal", "video_tools" ] },
-	{ url = "*/", use = [ "edit", "open", "reveal", "play_dir" ] },
+	{ url = "*/", use = [ "reveal", "play_dir", "edit", "open" ] },
 ]
 
 [plugin]
