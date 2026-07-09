@@ -703,7 +703,7 @@ alias eb="edit-bin"
 alias es="edit-script"
 
 alias f="noglob fetch"
-alias sb="fzf-scrollback"
+alias sb=switchblade
 alias prev="fzf --layout=reverse --preview 'bat --style=numbers --color=always --line-range :500 {}'"
 
 alias .tab=fzf-tablature
