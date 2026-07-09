@@ -1,0 +1,183 @@
+# Switchblade hot-tuning config (PLAN.md §10).
+# Edit while the app is running — it reloads within ~250ms. Every feel
+# constant lives here; if you find yourself hardcoding one, add it instead.
+
+[tuning]
+# Ideal tile size: width picks the column count, then tiles stretch so the
+# columns exactly fill the window (the background should barely show).
+# Width:height sets the aspect ratio (240:135 = 16:9).
+tile_width = 240.0
+tile_height = 135.0
+gap = 0.5
+
+# Scroll delta multiplier; negative flips direction if pan feels inverted.
+pan_sensitivity = 2.0
+# Extra inertia (0 = off). macOS trackpads already send momentum events,
+# so leave at 0 there or flicks will double-glide.
+pan_inertia = 0.0
+
+# 0..1 fractions covered per frame at 60fps (higher = snappier).
+snap_strength = 0.22       # trackpad pan chase
+key_snap_strength = 0.12   # keyboard move chase — lower = gentler glide
+rubber_band = 0.25
+scale_smoothing = 0.35
+zoom_smoothing = 0.35
+
+# Pinch-to-zoom (also -/=/0 keys). Zoom scales the ideal tile width,
+# so columns reflow; the reflow crossfades over zoom_fade_ms.
+pinch_sensitivity = 1.0
+zoom_min = 0.35
+zoom_max = 3.0
+zoom_fade_ms = 180.0
+
+# Selected tile scales up and overlaps neighbors; the boost exponent makes
+# it stand out even more as you zoom out (0 = off).
+selection_scale = 1.15
+selection_zoom_boost = 0.35
+hover_scale = 1.06
+
+corner_radius = 0.0
+selection_corner_radius = 20.0
+border_width = 2.0
+fade_in_ms = 20.0
+
+# How much moves — each level includes everything below it:
+#   none    snap everything: no tweens, no live video, no sheets
+#   minimal UI tweens back on; still no video
+#   normal  + live video (quickview, selected + hovered tiles)  [default]
+#   full    + background sprite-sheet animation in the grid
+# CLI --animation overrides this. 'a' still toggles sheets at full.
+animation = "normal"
+
+# Live playback starts after the target settles for live_delay_ms (so
+# flying across the grid doesn't spawn a decoder per keypress).
+live_delay_ms = 100.0
+
+# Pause live playback + sheet animation while the window is unfocused
+# (the grid stays visible, just still — big CPU saver). Toggle at
+# runtime with 'p'.
+pause_unfocused = true
+
+# Directories given as inputs (CLI args or piped in) are walked for
+# video files when true, skipped entirely when false. Non-video files
+# never show either way. Startup-only.
+recurse = true
+
+# ── Media quality (read at startup — restart to apply) ─────────────────
+# Thumbnails are generated at exactly thumb_width x thumb_height — any
+# resolution works, nothing needs to be a multiple of anything. The GPU
+# atlas (atlas_width x atlas_height below) is carved into fixed slots of
+# that same size, so the only real trade-off is slot count: bigger thumbs
+# = fewer clips resident on the GPU at once (640x360 -> 144 slots,
+# 960x540 -> 64). Fewer slots only bites when zoomed way out on a big
+# library (more thumbnail churn); bigger thumbs = sharper selected/zoomed
+# tiles. thumb_quality is 1..10: 10 ≈ visually lossless, 1 = heavily
+# compressed but still presentable. Changing any of these regenerates
+# thumbnails (cache files are named by recipe; old ones are kept).
+thumb_width = 960
+thumb_height = 540
+thumb_quality = 9
+# Anim sheet grid: frames = grid², frame size = thumb/grid.
+# 3 = 9 smaller frames (more motion), 2 = 4 crisper frames.
+anim_grid = 3
+atlas_width = 7680
+atlas_height = 4320
+# The selected clip decodes ONCE at up to this size (never above the
+# source's own resolution): the tile shows it downscaled (mipmapped) and
+# quickview shows the same stream big — so quickview opens instantly
+# with zero skip. Higher = sharper + more decode CPU while selected.
+quickview_max_width = 1920
+quickview_max_height = 1080
+# Quickview filmstrip: chip height (16:9), spacing, and how hard the
+# strip chases the selection per 60fps frame (same curve family as
+# key_snap_strength; 0.99 ≈ instant snap). The selected chip's border
+# takes its color from selection_border, size/rounding from these.
+strip_height = 92.0
+strip_gap = 10.0
+strip_snap_strength = 0.5
+strip_corner_radius = 5.0
+strip_border_width = 4.0
+# Selected / hovered chips scale up and overlap their neighbors (drawn
+# on top, like the grid). Hovered chips also play video at animation
+# level "normal"+.
+strip_selection_scale = 1.35
+strip_hover_scale = 1.15
+# Quickview backdrop: black dim strength (0..1) and frosted-glass blur
+# level — the grid is downsampled 2^level before drawing back, so
+# 1 = subtle, 4 = heavy frost, 0 = no blur. GPU-cheap either way.
+# (Both hot-reload.)
+quickview_dim = 0.90
+quickview_blur = 3.0
+
+# Animated thumbnails (sprite sheets, 9 frames sampled across each clip)
+# — these only run at animation = "full". One full cycle takes
+# anim_cycle_s; frames crossfade into each other for anim_crossfade of
+# each interval (0 = hard cuts). Tiles narrower than anim_min_tile_w
+# stay static. Sheets generate strictly AFTER every file has a thumbnail.
+anim_cycle_s = 10.8
+anim_crossfade = 1.0
+anim_min_tile_w = 140.0
+
+# Aspect cap (long:short) for the selected/hovered tile. Clips beyond it
+# get pan-and-scan cropped: portrait loses top/bottom, ultrawide loses
+# sides. 1.5 also gently crops 16:9; set 1.78 to leave landscape untouched.
+max_display_aspect = 1.5
+selection_border = [0.0, 0.0, 0.0]
+hover_border = [0.0, 0.0, 0.0]
+# Thin outline for tiles that have no thumbnail yet (fill is transparent).
+empty_border = [0.10, 0.10, 0.13]
+
+# global background
+background = [0.004, 0.004, 0.006]
+
+# ── Keys & commands (PLAN.md §11) ────────────────────────────────────────
+# Built-in defaults: enter/o = open (mpv) · space = preview (looping mpv)
+# · c = copy_path · q = quit · f = fullscreen · -/=/0 = zoom.
+# hjkl/arrows are reserved for movement. Entries here override defaults.
+# {path}, {dir}, {name} expand against the selected clip.
+# Built-in internal actions: quit, fullscreen, copy_path,
+# zoom_in, zoom_out, zoom_reset.
+
+[keys]
+enter = "open"
+o = "open"
+space = "quickview"   # internal preview; Esc or Space closes, arrows browse
+# space = "preview"   # alternative: external looping mpv
+c = "copy_path"
+a = "toggle_anim"       # background tile animation on/off
+p = "toggle_focus_pause" # pause-when-unfocused on/off
+r = "reveal"            # reveal in Finder (open -R)
+# n = "rename_script"   # any key -> any launched program; see below
+
+# "open" is just a command like any other — swap mpv for whatever you
+# like, or add more commands and bind keys to them.
+[commands.open]
+type = "launch"
+program = "mpv"
+args = ["{path}"]
+
+# Quick-Look-ish peek: windowed (never fullscreen), floats on top,
+# loops, opens instantly, capped at 70% of the screen.
+[commands.preview]
+type = "launch"
+program = "mpv"
+args = [
+  "--no-fs",
+  "--loop-file=inf",
+  "--ontop",
+  "--no-terminal",
+  "--force-window=immediate",
+  "--autofit-larger=70%x70%",
+  "{path}",
+]
+
+# Built-in default, shown for reference — override to change it:
+# [commands.reveal]
+# type = "launch"
+# program = "open"
+# args = ["-R", "{path}"]
+
+# [commands.rename_script]
+# type = "launch"
+# program = "~/bin/rename-media"
+# args = ["{path}"]

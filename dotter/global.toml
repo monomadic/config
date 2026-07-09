@@ -113,6 +113,9 @@ files = { "config/helix" = "~/.config/helix" }
 [starship]
 files = { "config/starship/starship.toml" = "~/.config/starship.toml" }
 
+[switchblade]
+files = { "config/switchblade/switchblade.toml" = "~/.config/switchblade.toml" }
+
 [yt-dlp.files]
 "config/yt-dlp/config" = "~/.config/yt-dlp/config"
 "config/yt-dlp/plugins/__init__.py" = "~/.config/yt-dlp/plugins/__init__.py"

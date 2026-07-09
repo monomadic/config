@@ -29,6 +29,7 @@ packages = [
   "skhd",
   "starship",
   "switch",
+  "switchblade",
   "virtualdj",
   # "sway",
   # "tmux",
