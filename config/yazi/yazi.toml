@@ -10,35 +10,37 @@ max_height = 900
 [opener]
 edit = [
 	# { run = "${EDITOR:-vi} %s", desc = "􁹛  edit", for = "unix", block = true },
-	{ run = "hx %s", desc = "􀤘  edit (helix)", for = "unix", block = true },
+	{ run = "hx %s", desc = "􀤘  helix", for = "unix", block = true },
 ]
 bulk-rename = [
 	{ run = "hx %s", desc = "􀃫  helix", for = "unix", block = true },
 ]
 play = [
-	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀽍  mpv", for = "unix", orphan = true },
-	{ run = "mpv-send play %s", desc = "􀽍  mpv-send", orphan = true },
-	{ run = "switchblade %s", desc = "􀫐  switchblade", orphan = true },
-	{ run = "vlc %s .", desc = "􀽎  vlc", orphan = true },
-	{ run = "convert-to-pro-res %s .", desc = "􁾕  convert: prores", orphan = true },
-	{ run = "media-open-url %s", desc = "􀼹  open url" },
-	{ run = "mediainfo %s1; echo 'Press enter to exit'; read _", desc = "􁊇  mediainfo", for = "unix", block = true },
+	{ desc = "􀽍  mpv", run = "mpv --force-window --fullscreen --no-native-fs %s", orphan = true },
+	{ desc = "􀽍  mpv: socket", run = "mpv-send play %s", orphan = true },
+	{ desc = "􀫐  switchblade", run = "switchblade %s", orphan = true },
+	{ desc = "􀼹  open-url", run = "media-open-url %s" },
+	{ desc = "􁾕  convert: prores", run = "convert-to-pro-res %s .", orphan = true },
+	{ desc = "􁊇  info", run = "mediainfo %s1; echo 'Press enter to exit'; read _", block = true },
+	{ desc = "􀽎  vlc", run = "vlc %s .", orphan = true },
+	{ desc = "􀇺  check: media", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-check-files %s''', orphan = true },
 ]
 play_dir = [
-	{ run = "mpv --force-window --fullscreen --no-native-fs %s", desc = "􀽍  mpv", for = "unix", orphan = true },
-	{ run = "switchblade %s", desc = "􀫐  switchblade", orphan = true },
-	{ run = "vlc %s .", desc = "􀽎  vlc", for = "unix", orphan = true },
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-check-files %s''', desc = "􀇺  check", for = "unix", orphan = true },
-	{ run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", desc = "􁊇  exiftool", block = true },
+	{ desc = "􀽍  mpv", run = "mpv --force-window --fullscreen --no-native-fs %s", orphan = true },
+	{ desc = "􀫐  switchblade", run = "switchblade %s", orphan = true },
+	{ desc = "􀽎  vlc", run = "vlc %s .", orphan = true },
+	{ desc = "􀇺  check: media", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-check-files %s''', orphan = true },
+	{ desc = "􁊇  exiftool", run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", block = true },
 ]
 open = [
 	{ run = "open %s", desc = "􀭅  open" },
-	{ run = "/Users/nom/.zsh/bin/yazi-shortcut-open %s", desc = "􂅛  open shortcut", for = "macos", block = true },
+	# { run = "/Users/nom/.zsh/bin/yazi-shortcut-open %s", desc = "􂅛  open shortcut", for = "macos", block = true },
 ]
 # 􀭅 􂇕
 reveal = [
 	{ run = "open %s1", desc = "􀭅  open" },
-	{ run = "open -R %s1", desc = "􀥯  reveal" },
+	{ run = "open --reveal %s1", desc = "􀥯  finder" },
+	# { run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", desc = "􁊇  exiftool", block = true },
 ]
 chordpro = [
 	{ run = "chordpro-tui %s1", desc = "􃐹  chordpro-tui", for = "unix", block = true },
@@ -72,7 +74,7 @@ prepend_rules = [
 	{ url = "*.chordpro", use = [ "chordpro", "edit", "open", "reveal" ] },
 	{ mime = "application/pdf", use = [ "open", "reveal", "pdf_chordpro" ] },
 	{ mime = "video/*", use = [ "play", "open", "reveal", "video_tools" ] },
-	{ url = "*/", use = [ "reveal", "play_dir", "edit", "open" ] },
+	{ url = "*/", use = [ "edit", "reveal", "play_dir", "open" ] },
 ]
 
 [plugin]

@@ -36,9 +36,9 @@ selection_scale = 1.15
 selection_zoom_boost = 0.35
 hover_scale = 1.06
 
-corner_radius = 0.0
-selection_corner_radius = 20.0
-border_width = 2.0
+corner_radius = 2.0
+selection_corner_radius = 5.0
+border_width = 1.0
 fade_in_ms = 20.0
 
 # How much moves — each level includes everything below it:
@@ -122,7 +122,7 @@ anim_min_tile_w = 140.0
 # get pan-and-scan cropped: portrait loses top/bottom, ultrawide loses
 # sides. 1.5 also gently crops 16:9; set 1.78 to leave landscape untouched.
 max_display_aspect = 1.5
-selection_border = [0.0, 0.0, 0.0]
+selection_border = [1.0, 1.0, 1.0]
 hover_border = [0.0, 0.0, 0.0]
 # Thin outline for tiles that have no thumbnail yet (fill is transparent).
 empty_border = [0.10, 0.10, 0.13]
