@@ -85,7 +85,7 @@ run  = "toggle_all --state=on"
 desc = "Select all files"
 
 [[mgr.prepend_keymap]]
-on   = "<BackTab>"
+on   = "<D-A>"
 run  = "toggle_all --state=off"
 desc = "Deselect all files"
 
