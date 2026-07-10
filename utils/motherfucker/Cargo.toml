@@ -1,0 +1,54 @@
+[package]
+name = "motherfucker"
+version = "0.1.0"
+edition = "2021"
+description = "Cache-free minimalist Spotlight replacement: app launcher and switcher"
+
+[dependencies]
+objc2 = "0.5"
+block2 = "0.5"
+objc2-foundation = { version = "0.2", features = [
+    "NSString",
+    "NSArray",
+    "NSURL",
+    "NSNotification",
+    "NSGeometry",
+    "NSObjCRuntime",
+    "NSEnumerator",
+    "NSError",
+    "NSThread",
+    "NSAttributedString",
+    "NSDictionary",
+] }
+objc2-app-kit = { version = "0.2", features = [
+    "NSApplication",
+    "NSResponder",
+    "NSWindow",
+    "NSPanel",
+    "NSView",
+    "NSVisualEffectView",
+    "NSControl",
+    "NSTextField",
+    "NSText",
+    "NSTextView",
+    "NSFont",
+    "NSColor",
+    "NSScreen",
+    "NSWorkspace",
+    "NSRunningApplication",
+    "NSAppearance",
+    "NSEvent",
+    "NSGraphics",
+    "NSCell",
+    "NSFontDescriptor",
+    "NSAttributedString",
+    "objc2-quartz-core",
+    "block2",
+    "libc",
+] }
+objc2-quartz-core = { version = "0.2", features = ["CALayer"] }
+
+[profile.release]
+lto = true
+strip = true
+panic = "abort"

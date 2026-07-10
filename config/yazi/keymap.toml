@@ -235,7 +235,7 @@ run  = "shell --block -- /Users/nom/.zsh/bin/video-rotate-lossless --left %s"
 desc = "Rotate selected videos left (lossless)"
 
 [[mgr.prepend_keymap]]
-on   = [ "T", "c" ]
+on   = [ "e", "c" ]
 for  = "unix"
 run  = '''shell --block -- /Users/nom/.zsh/bin/yazi-dual copy %s'''
 desc = "Copy selected files to the other Yazi pane"
@@ -244,6 +244,11 @@ desc = "Copy selected files to the other Yazi pane"
 on   = [ "m", "t" ]
 run  = "shell --block -- ffmpeg-lossless-cut %s"
 desc = "Trim intros from selected movies"
+
+[[mgr.prepend_keymap]]
+on   = [ "T" ]
+run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut %s'''
+desc = "Trim intro from selected videos"
 
 [[mgr.prepend_keymap]]
 on   = [ "m", "a" ]
