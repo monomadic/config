@@ -25,16 +25,15 @@ pub struct EventHotKeyID {
 pub const CLASS_KEYBOARD: u32 = fourcc(b"keyb");
 pub const HOT_KEY_PRESSED: u32 = 5;
 
-// Kept even when unused: these are the values to reach for when changing
-// SUMMON_MODS in main.rs.
-#[allow(dead_code)]
 pub const MOD_CMD: u32 = 0x0100;
-#[allow(dead_code)]
 pub const MOD_SHIFT: u32 = 0x0200;
 pub const MOD_OPTION: u32 = 0x0800;
-#[allow(dead_code)]
 pub const MOD_CONTROL: u32 = 0x1000;
 pub const VK_SPACE: u32 = 0x31;
+
+const SIGNATURE: u32 = fourcc(b"mfkr");
+const PARAM_DIRECT_OBJECT: u32 = fourcc(b"----");
+const TYPE_EVENT_HOTKEY_ID: u32 = fourcc(b"hkid");
 
 const fn fourcc(b: &[u8; 4]) -> u32 {
     u32::from_be_bytes(*b)
@@ -62,11 +61,28 @@ extern "C" {
         options: u32,
         out_hot_key_ref: *mut *mut c_void,
     ) -> OSStatus;
+    fn GetEventParameter(
+        event: *mut c_void,
+        name: u32,
+        desired_type: u32,
+        actual_type: *mut u32,
+        buffer_size: usize,
+        actual_size: *mut usize,
+        data: *mut c_void,
+    ) -> OSStatus;
 }
 
-/// Register `handler` for a single global hotkey. `user` is passed through to
-/// the handler and must stay valid for the life of the process.
-pub unsafe fn register(key_code: u32, modifiers: u32, handler: HotKeyHandler, user: *mut c_void) -> Result<(), OSStatus> {
+/// Register `handler` for a list of `(key_code, modifiers)` global hotkeys.
+/// Hotkey N in the list fires with id N+1 (recover it in the handler via
+/// [`event_hotkey_id`]). `user` is passed through to the handler and must
+/// stay valid for the life of the process. Individual registration failures
+/// (e.g. a chord another app owns) are reported and skipped; errors only if
+/// the handler can't install or no hotkey registered at all.
+pub unsafe fn register_all(
+    keys: &[(u32, u32)],
+    handler: HotKeyHandler,
+    user: *mut c_void,
+) -> Result<(), OSStatus> {
     let target = GetApplicationEventTarget();
 
     let spec = EventTypeSpec {
@@ -79,14 +95,39 @@ pub unsafe fn register(key_code: u32, modifiers: u32, handler: HotKeyHandler, us
         return Err(status);
     }
 
-    let id = EventHotKeyID {
-        signature: fourcc(b"mfkr"),
-        id: 1,
-    };
-    let mut hot_key_ref: *mut c_void = ptr::null_mut();
-    let status = RegisterEventHotKey(key_code, modifiers, id, target, 0, &mut hot_key_ref);
-    if status != 0 {
-        return Err(status);
+    let mut registered = 0;
+    let mut last_err = 0;
+    for (i, &(key_code, modifiers)) in keys.iter().enumerate() {
+        let id = EventHotKeyID {
+            signature: SIGNATURE,
+            id: i as u32 + 1,
+        };
+        let mut hot_key_ref: *mut c_void = ptr::null_mut();
+        let status = RegisterEventHotKey(key_code, modifiers, id, target, 0, &mut hot_key_ref);
+        if status != 0 {
+            eprintln!("motherfucker: hotkey #{} failed to register (OSStatus {status})", i + 1);
+            last_err = status;
+        } else {
+            registered += 1;
+        }
+    }
+    if registered == 0 {
+        return Err(last_err);
     }
     Ok(())
+}
+
+/// The 1-based hotkey id carried by a HOT_KEY_PRESSED event.
+pub unsafe fn event_hotkey_id(event: *mut c_void) -> Option<u32> {
+    let mut id = EventHotKeyID { signature: 0, id: 0 };
+    let status = GetEventParameter(
+        event,
+        PARAM_DIRECT_OBJECT,
+        TYPE_EVENT_HOTKEY_ID,
+        ptr::null_mut(),
+        std::mem::size_of::<EventHotKeyID>(),
+        ptr::null_mut(),
+        &mut id as *mut _ as *mut c_void,
+    );
+    (status == 0 && id.signature == SIGNATURE).then_some(id.id)
 }

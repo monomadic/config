@@ -1,0 +1,43 @@
+# motherfucker — user config (~/.config/motherfucker/config.toml)
+#
+# Read once at startup. To apply changes, restart the agent:
+#   launchctl kickstart -k gui/$UID/com.nom.motherfucker
+# Every key is optional; anything missing falls back to the built-in default.
+# The values below ARE the defaults, spelled out as living documentation.
+
+# Global summon triggers: chord = mode. Multiple triggers are fine, and each
+# names the mode it opens ("launcher" is the only mode so far).
+# Modifiers: cmd, ctrl, opt, shift. Keys: a-z, 0-9, punctuation, space,
+# enter, escape, tab, up, down, left, right, backspace.
+[hotkeys]
+"cmd+space" = "launcher"
+# "cmd+space" = "launcher"   # once Spotlight's shortcut is off
+
+# In-panel bindings: chord = action. Entries here override the defaults for
+# the same chord; "none" unbinds one. Actions: open, launch-new, reveal,
+# clear, dismiss, select-all, move-up, move-down.
+[keys]
+"enter" = "open"            # activate running app / launch installed one
+#"cmd+enter" = "launch-new"  # real open (reopen event) even if running
+"cmd+enter" = "reveal"          # reveal the app bundle in Finder
+"cmd+r" = "reveal"          # reveal the app bundle in Finder
+"ctrl+u" = "clear"
+"ctrl+c" = "dismiss"
+"escape" = "dismiss"
+"cmd+a" = "select-all"
+"up" = "move-up"
+"down" = "move-down"
+
+# Black-glass look. Colors are "#rrggbb"; alphas 0.0–1.0.
+[style]
+width = 620
+tint = "#000000"            # wash over the glass material
+tint_alpha = 0.80
+selection = "#0963F6"       # selected-row tint (subtle cool hue)
+selection_alpha = 0.4
+accent = "#F1FF0F"          # matched query characters (yellow)
+input_font_size = 24
+row_font_size = 15
+
+[stats]
+interval = 1.0              # seconds between cpu/ram refreshes while open

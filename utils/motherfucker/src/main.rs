@@ -10,8 +10,11 @@
 #![allow(unused_unsafe)] // AppKit bindings are unsafe-heavy; whole bodies are wrapped
 
 mod apps;
+mod config;
 mod hotkey;
 mod stats;
+
+use config::{Action, Config, Mode};
 
 use std::cell::{Cell, OnceCell, RefCell};
 use std::ffi::c_void;
@@ -41,22 +44,14 @@ use objc2_foundation::{
 use objc2_quartz_core::CALayer;
 
 // ---- visual spec (black glass) ----
-const PANEL_W: f64 = 620.0;
+// Colors, panel width, and font sizes moved to config::Style (same defaults);
+// the structural metrics below stay compiled in.
 const RADIUS: f64 = 18.0;
 const INPUT_H: f64 = 58.0;
 const ROW_H: f64 = 40.0;
 const ROWS_PAD: f64 = 12.0;
 const BOTTOM_PAD: f64 = 12.0;
 const MAX_ROWS: usize = 6;
-// Tint over the glass: deep black ("even blacker is okay").
-const TINT_ALPHA: f64 = 0.70;
-const TINT_RGB: (f64, f64, f64) = (0.0, 0.0, 0.0);
-// Selection: a touch darker than the old pure-white tint, with a subtle
-// cool hue so it reads as chosen rather than default.
-const SEL_RGB: (f64, f64, f64) = (0.60, 0.70, 0.90);
-const SEL_ALPHA: f64 = 0.085;
-// Matched query characters render in this accent (ice blue).
-const HI_RGB: (f64, f64, f64) = (0.38, 0.75, 1.0);
 // CPU sampling: minimum interval for a trustworthy percentage.
 const CPU_MIN_INTERVAL: f64 = 0.25;
 
@@ -68,14 +63,10 @@ const GLYPH_OFF: &str = "\u{100943}"; // installed, launchable
 const GLYPH_COL_W: f64 = 24.0;
 const GLYPH_PT: f64 = 16.0;
 
-// Slim stat bars: small, out of the way.
-const BAR_W: f64 = 24.0;
-const BAR_H: f64 = 2.5;
-const STAT_GAP: f64 = 14.0;
-
-// ---- summon key: ⌥Space (change to MOD_CMD for ⌘Space once Spotlight is off)
-const SUMMON_KEY: u32 = hotkey::VK_SPACE;
-const SUMMON_MODS: u32 = hotkey::MOD_OPTION;
+// Stat bars: minimal outlined gauges — transparent track, 1px hairline.
+const BAR_W: f64 = 44.0;
+const BAR_H: f64 = 7.0;
+const STAT_GAP: f64 = 16.0;
 
 struct Entry {
     name: String,
@@ -129,6 +120,7 @@ struct CpuSample {
 
 #[derive(Default)]
 struct State {
+    config: Config,
     panel: OnceCell<Retained<Panel>>,
     field: OnceCell<Retained<NSTextField>>,
     glyph: OnceCell<Retained<NSTextField>>,
@@ -139,6 +131,8 @@ struct State {
     hiding: Cell<bool>,
     cpu_samples: RefCell<std::collections::HashMap<i32, CpuSample>>,
     total_mem: Cell<u64>,
+    /// Repeating stats-refresh timer, alive only while the panel is visible.
+    stats_timer: RefCell<Option<Retained<objc2::runtime::AnyObject>>>,
 }
 
 declare_class!(
@@ -237,7 +231,7 @@ declare_class!(
                 self.move_selection(1);
                 true
             } else if command == sel!(insertNewline:) {
-                self.execute();
+                self.execute(false);
                 true
             } else if command == sel!(cancelOperation:) {
                 self.hide();
@@ -251,7 +245,8 @@ declare_class!(
     unsafe impl NSTextFieldDelegate for Delegate {}
 
     unsafe impl Delegate {
-        /// One-shot follow-up render once CPU has a second sample.
+        /// Re-render while visible: fired one-shot when CPU needs a second
+        /// sample, and by the repeating stats timer (~1s) so gauges stay live.
         #[method(refreshTick)]
         fn refresh_tick(&self) {
             if self.ivars().panel.get().is_some_and(|p| p.isVisible()) {
@@ -331,8 +326,11 @@ fn make_label(
 }
 
 impl Delegate {
-    fn new(mtm: MainThreadMarker) -> Retained<Self> {
-        let this = mtm.alloc::<Self>().set_ivars(State::default());
+    fn new(mtm: MainThreadMarker, config: Config) -> Retained<Self> {
+        let this = mtm.alloc::<Self>().set_ivars(State {
+            config,
+            ..State::default()
+        });
         unsafe { msg_send_id![super(this), init] }
     }
 
@@ -342,8 +340,9 @@ impl Delegate {
 
     unsafe fn setup_impl(&self) {
         let mtm = MainThreadMarker::new().unwrap();
+        let cfg = &self.ivars().config;
         let style = NSWindowStyleMask::Borderless | NSWindowStyleMask::NonactivatingPanel;
-        let rect = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(PANEL_W, 200.0));
+        let rect = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(cfg.style.width, 200.0));
         let panel: Retained<Panel> = unsafe {
             msg_send_id![
                 mtm.alloc::<Panel>(),
@@ -417,9 +416,9 @@ impl Delegate {
             glass.setAutoresizingMask(resize_mask);
             unsafe {
                 let _: () = msg_send![&**glass, setCornerRadius: RADIUS + RIM_CLIP];
-                let (r, g, b) = TINT_RGB;
+                let (r, g, b) = cfg.style.tint;
                 let tint_color =
-                    NSColor::colorWithSRGBRed_green_blue_alpha(r, g, b, TINT_ALPHA);
+                    NSColor::colorWithSRGBRed_green_blue_alpha(r, g, b, cfg.style.tint_alpha);
                 let _: () = msg_send![&**glass, setTintColor: &*tint_color];
             }
             wrapper.addSubview(glass);
@@ -447,9 +446,9 @@ impl Delegate {
             tint.setAutoresizingMask(resize_mask);
             tint.setWantsLayer(true);
             if let Some(layer) = tint.layer() {
-                let (r, g, b) = TINT_RGB;
+                let (r, g, b) = cfg.style.tint;
                 set_layer_bg(&layer, unsafe {
-                    &NSColor::colorWithSRGBRed_green_blue_alpha(r, g, b, TINT_ALPHA)
+                    &NSColor::colorWithSRGBRed_green_blue_alpha(r, g, b, cfg.style.tint_alpha)
                 });
             }
             effect.addSubview(&tint);
@@ -466,7 +465,7 @@ impl Delegate {
             field.setBezeled(false);
             field.setBordered(false);
             field.setDrawsBackground(false);
-            field.setFont(Some(&NSFont::systemFontOfSize(24.0)));
+            field.setFont(Some(&NSFont::systemFontOfSize(cfg.style.input_font_size)));
             field.setTextColor(Some(&NSColor::whiteColor()));
             field.setFocusRingType(NSFocusRingType::None);
             field.setDelegate(Some(ProtocolObject::from_ref(self)));
@@ -485,9 +484,10 @@ impl Delegate {
         ivars.rows_area.set(rows_area).ok();
         ivars.total_mem.set(stats::total_memory().max(1));
 
-        // Key monitor for shortcuts the text system doesn't route reliably in
-        // a borderless, menu-less panel: ⌃U (clear), ⌃C (dismiss), ⌘A
-        // (select all). Local monitor = our process only, our key window only.
+        // Key monitor for the configurable in-panel bindings ([keys] in the
+        // config): chords with modifiers don't route reliably through the
+        // text system in a borderless, menu-less panel. Local monitor = our
+        // process only, our key window only.
         let this_ptr = self as *const Delegate as usize;
         let block = block2::RcBlock::new(
             move |event: std::ptr::NonNull<NSEvent>| -> *mut NSEvent {
@@ -507,44 +507,71 @@ impl Delegate {
         std::mem::forget(monitor);
     }
 
-    /// Returns true if the event was handled and should be swallowed.
+    /// Returns true if the event matched a configured binding and should be
+    /// swallowed.
     fn handle_key_event(&self, event: &NSEvent) -> bool {
         let ivars = self.ivars();
-        let (Some(panel), Some(field)) = (ivars.panel.get(), ivars.field.get()) else {
+        let Some(panel) = ivars.panel.get() else {
             return false;
         };
         if !panel.isVisible() || !panel.isKeyWindow() {
             return false;
         }
         let flags = unsafe { event.modifierFlags() };
-        let ctrl = flags.contains(NSEventModifierFlags::NSEventModifierFlagControl);
         let cmd = flags.contains(NSEventModifierFlags::NSEventModifierFlagCommand);
+        let ctrl = flags.contains(NSEventModifierFlags::NSEventModifierFlagControl);
+        let opt = flags.contains(NSEventModifierFlags::NSEventModifierFlagOption);
+        let shift = flags.contains(NSEventModifierFlags::NSEventModifierFlagShift);
         let chars = unsafe { event.charactersIgnoringModifiers() }
-            .map(|s| s.to_string())
+            .map(|s| s.to_string().to_lowercase())
             .unwrap_or_default();
 
-        if ctrl && chars == "u" {
-            unsafe { field.setStringValue(&NSString::from_str("")) };
-            ivars.selected.set(0);
-            self.refresh();
-            return true;
+        let action = ivars.config.binds.iter().find_map(|(chord, action)| {
+            (chord.cmd == cmd
+                && chord.ctrl == ctrl
+                && chord.opt == opt
+                && chord.shift == shift
+                && config::event_chars(chord.key) == chars)
+                .then_some(*action)
+        });
+        match action {
+            Some(a) => {
+                self.perform(a);
+                true
+            }
+            None => false,
         }
-        if ctrl && chars == "c" {
-            self.hide();
-            return true;
-        }
-        if cmd && chars == "a" {
-            unsafe {
-                if let Some(editor) = panel.fieldEditor_forObject(true, Some(field)) {
-                    let _: () = msg_send![
-                        &*editor,
-                        selectAll: std::ptr::null::<objc2::runtime::AnyObject>()
-                    ];
+    }
+
+    fn perform(&self, action: Action) {
+        let ivars = self.ivars();
+        match action {
+            Action::Open => self.execute(false),
+            Action::LaunchNew => self.execute(true),
+            Action::Reveal => self.reveal(),
+            Action::Clear => {
+                if let Some(field) = ivars.field.get() {
+                    unsafe { field.setStringValue(&NSString::from_str("")) };
+                    ivars.selected.set(0);
+                    self.refresh();
                 }
             }
-            return true;
+            Action::Dismiss => self.hide(),
+            Action::SelectAll => {
+                if let (Some(panel), Some(field)) = (ivars.panel.get(), ivars.field.get()) {
+                    unsafe {
+                        if let Some(editor) = panel.fieldEditor_forObject(true, Some(field)) {
+                            let _: () = msg_send![
+                                &*editor,
+                                selectAll: std::ptr::null::<objc2::runtime::AnyObject>()
+                            ];
+                        }
+                    }
+                }
+            }
+            Action::MoveUp => self.move_selection(-1),
+            Action::MoveDown => self.move_selection(1),
         }
-        false
     }
 
     fn toggle(&self) {
@@ -579,8 +606,22 @@ impl Delegate {
         ivars.top_y.set(vf.origin.y + vf.size.height * 0.72);
         self.refresh();
         let h = panel.frame().size.height;
-        let x = vf.origin.x + (vf.size.width - PANEL_W) / 2.0;
+        let x = vf.origin.x + (vf.size.width - ivars.config.style.width) / 2.0;
         panel.setFrameOrigin(NSPoint::new(x, ivars.top_y.get() - h));
+
+        // Live stats: refresh on an interval while the panel is up.
+        if ivars.stats_timer.borrow().is_none() {
+            let nil = std::ptr::null::<objc2::runtime::AnyObject>();
+            let timer: Retained<objc2::runtime::AnyObject> = msg_send_id![
+                objc2::class!(NSTimer),
+                scheduledTimerWithTimeInterval: ivars.config.stats_interval,
+                target: self,
+                selector: sel!(refreshTick),
+                userInfo: nil,
+                repeats: true
+            ];
+            *ivars.stats_timer.borrow_mut() = Some(timer);
+        }
 
         panel.makeKeyAndOrderFront(None);
         panel.makeFirstResponder(Some(field));
@@ -595,6 +636,9 @@ impl Delegate {
         let ivars = self.ivars();
         if ivars.hiding.replace(true) {
             return;
+        }
+        if let Some(timer) = ivars.stats_timer.borrow_mut().take() {
+            let _: () = unsafe { msg_send![&*timer, invalidate] };
         }
         if let Some(panel) = ivars.panel.get() {
             panel.orderOut(None);
@@ -701,10 +745,10 @@ impl Delegate {
                             }
                         };
                         let (cpu_text, cpu_frac) = match pct {
-                            Some(p) => (format!("{p:.0}%"), (p / 100.0).clamp(0.0, 1.0)),
+                            Some(p) => (format!("{p:.0}% cpu"), (p / 100.0).clamp(0.0, 1.0)),
                             None => {
                                 cpu_pending = true;
-                                ("…".to_string(), 0.0)
+                                ("… cpu".to_string(), 0.0)
                             }
                         };
                         entry.stats = Some(RowStats {
@@ -781,12 +825,13 @@ impl Delegate {
         };
         let h = INPUT_H + rows_h + BOTTOM_PAD;
 
+        let panel_w = ivars.config.style.width;
         let old = panel.frame();
         let top = ivars.top_y.get();
         panel.setFrame_display(
             NSRect::new(
                 NSPoint::new(old.origin.x, top - h),
-                NSSize::new(PANEL_W, h),
+                NSSize::new(panel_w, h),
             ),
             true,
         );
@@ -801,13 +846,13 @@ impl Delegate {
         let field_h = field.frame().size.height.max(30.0);
         field.setFrame(NSRect::new(
             NSPoint::new(field_x, h - INPUT_H + (INPUT_H - field_h) / 2.0),
-            NSSize::new(PANEL_W - field_x - 22.0, field_h),
+            NSSize::new(panel_w - field_x - 22.0, field_h),
         ));
 
         // Rows fill the space below the input; no footer.
         rows_area.setFrame(NSRect::new(
             NSPoint::new(0.0, BOTTOM_PAD),
-            NSSize::new(PANEL_W, rows_h),
+            NSSize::new(panel_w, rows_h),
         ));
         for view in rows_area.subviews().iter() {
             unsafe { view.removeFromSuperview() };
@@ -838,7 +883,8 @@ impl Delegate {
         entry: &Entry,
         selected: bool,
     ) {
-        let row_w = PANEL_W - 20.0;
+        let style = &self.ivars().config.style;
+        let row_w = style.width - 20.0;
         let row: Retained<RowView> = {
             let this = mtm.alloc::<RowView>().set_ivars(RowIvars {
                 index: Cell::new(index),
@@ -858,9 +904,9 @@ impl Delegate {
             row.setWantsLayer(true);
             if let Some(layer) = row.layer() {
                 layer.setCornerRadius(8.0);
-                let (r, g, b) = SEL_RGB;
+                let (r, g, b) = style.selection;
                 set_layer_bg(&layer, unsafe {
-                    &NSColor::colorWithSRGBRed_green_blue_alpha(r, g, b, SEL_ALPHA)
+                    &NSColor::colorWithSRGBRed_green_blue_alpha(r, g, b, style.selection_alpha)
                 });
             }
         }
@@ -882,7 +928,7 @@ impl Delegate {
         row.addSubview(&glyph);
 
         let name_x = 12.0 + GLYPH_COL_W + 10.0;
-        let name_font = unsafe { NSFont::systemFontOfSize(13.5) };
+        let name_font = unsafe { NSFont::systemFontOfSize(style.row_font_size) };
         let name_alpha = if selected {
             1.0
         } else if is_running {
@@ -894,7 +940,7 @@ impl Delegate {
         // Matched characters render in the accent color.
         if !entry.matched.is_empty() {
             let base = white(name_alpha * 0.75);
-            let (hr, hg, hb) = HI_RGB;
+            let (hr, hg, hb) = style.accent;
             let hi = unsafe { NSColor::colorWithSRGBRed_green_blue_alpha(hr, hg, hb, 1.0) };
             let attr = attributed_name(&entry.name, &entry.matched, &name_font, &base, &hi);
             unsafe {
@@ -907,7 +953,7 @@ impl Delegate {
         row.addSubview(&name);
 
         if let Some(rs) = &entry.stats {
-            // Two slim gauges, right-aligned: value text under a 24px bar.
+            // Two outlined gauges, right-aligned: value text under each bar.
             let cpu_right = row_w - 12.0;
             let ram_right = cpu_right - BAR_W - STAT_GAP;
             self.build_gauge(mtm, &row, ram_right, &rs.ram_text, rs.ram_frac, selected);
@@ -954,7 +1000,8 @@ impl Delegate {
         parent.addSubview(&row);
     }
 
-    /// One slim gauge: a 24×2.5 bar with its value beneath, right edge at `right_x`.
+    /// One minimal gauge: an outlined transparent bar (no track fill) with
+    /// its value beneath, right edge at `right_x`.
     unsafe fn build_gauge(
         &self,
         mtm: MainThreadMarker,
@@ -977,19 +1024,28 @@ impl Delegate {
         track.setWantsLayer(true);
         if let Some(layer) = track.layer() {
             layer.setCornerRadius(BAR_H / 2.0);
-            set_layer_bg(&layer, &white(0.12));
+            layer.setMasksToBounds(true);
+            let outline = white(if selected { 0.38 } else { 0.24 });
+            unsafe {
+                let cg: *mut c_void = msg_send![&*outline, CGColor];
+                let _: () = msg_send![&*layer, setBorderColor: cg];
+                let _: () = msg_send![&*layer, setBorderWidth: 1.0f64];
+            }
         }
-        let fill_w = (BAR_W * frac.clamp(0.0, 1.0)).max(1.0);
+        // Fill floats inside the outline with a 2px inset all around.
+        const INSET: f64 = 2.0;
+        let fill_h = BAR_H - 2.0 * INSET;
+        let fill_w = ((BAR_W - 2.0 * INSET) * frac.clamp(0.0, 1.0)).max(1.0);
         let fill = unsafe {
             NSView::initWithFrame(
                 mtm.alloc(),
-                NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(fill_w, BAR_H)),
+                NSRect::new(NSPoint::new(INSET, INSET), NSSize::new(fill_w, fill_h)),
             )
         };
         fill.setWantsLayer(true);
         if let Some(layer) = fill.layer() {
-            layer.setCornerRadius(BAR_H / 2.0);
-            set_layer_bg(&layer, &white(if selected { 0.8 } else { 0.5 }));
+            layer.setCornerRadius(fill_h / 2.0);
+            set_layer_bg(&layer, &white(if selected { 0.85 } else { 0.55 }));
         }
         track.addSubview(&fill);
         row.addSubview(&track);
@@ -1005,15 +1061,10 @@ impl Delegate {
         row.addSubview(&value);
     }
 
-    fn execute(&self) {
-        let force_open = unsafe {
-            NSApplication::sharedApplication(MainThreadMarker::new().unwrap())
-                .currentEvent()
-                .is_some_and(|e| {
-                    e.modifierFlags()
-                        .contains(objc2_app_kit::NSEventModifierFlags::NSEventModifierFlagCommand)
-                })
-        };
+    /// Activate the selected running app, or launch it. `force_open` skips
+    /// the activate path and sends a real open (reopen event) even when the
+    /// app is already running.
+    fn execute(&self, force_open: bool) {
         let entry_data = {
             let entries = self.ivars().entries.borrow();
             let Some(entry) = entries.get(self.ivars().selected.get()) else {
@@ -1058,6 +1109,35 @@ impl Delegate {
             }
         }
     }
+
+    /// Reveal the selected app's bundle in Finder (like `open --reveal`).
+    fn reveal(&self) {
+        let entry_data = {
+            let entries = self.ivars().entries.borrow();
+            let Some(entry) = entries.get(self.ivars().selected.get()) else {
+                return;
+            };
+            (entry.path.clone(), entry.running.clone())
+        };
+        self.hide();
+
+        let (path, running) = entry_data;
+        let reveal_path = path.or_else(|| {
+            running
+                .as_ref()
+                .and_then(|a| unsafe { a.bundleURL() })
+                .and_then(|u| unsafe { u.path() }.map(|p| PathBuf::from(p.to_string())))
+        });
+        let Some(s) = reveal_path.as_ref().and_then(|p| p.to_str()) else {
+            return;
+        };
+        unsafe {
+            let url = NSURL::fileURLWithPath(&NSString::from_str(s));
+            let urls = objc2_foundation::NSArray::from_vec(vec![url]);
+            let ws = NSWorkspace::sharedWorkspace();
+            let _: () = msg_send![&*ws, activateFileViewerSelectingURLs: &*urls];
+        }
+    }
 }
 
 /// Running apps with a Dock presence (Regular activation policy), current
@@ -1096,25 +1176,48 @@ unsafe fn running_apps_impl() -> Vec<Entry> {
     out
 }
 
-extern "C" fn hotkey_pressed(_next: *mut c_void, _event: *mut c_void, user: *mut c_void) -> i32 {
+extern "C" fn hotkey_pressed(_next: *mut c_void, event: *mut c_void, user: *mut c_void) -> i32 {
     // Carbon dispatches this on the main run loop.
     let delegate = unsafe { &*(user as *const Delegate) };
-    delegate.toggle();
+    let id = unsafe { hotkey::event_hotkey_id(event) }.unwrap_or(1);
+    let mode = delegate
+        .ivars()
+        .config
+        .hotkeys
+        .get(id.saturating_sub(1) as usize)
+        .map(|(_, mode)| *mode)
+        .unwrap_or(Mode::Launcher);
+    match mode {
+        Mode::Launcher => delegate.toggle(),
+    }
     0
 }
 
 fn main() {
+    let cfg = config::load();
     let mtm = MainThreadMarker::new().unwrap();
     let app = NSApplication::sharedApplication(mtm);
     app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
 
-    let delegate = Delegate::new(mtm);
+    // (vk, mods) per configured trigger; ids follow list order (1-based).
+    let mut triggers: Vec<(u32, u32)> = cfg
+        .hotkeys
+        .iter()
+        .filter_map(|(chord, _)| {
+            config::carbon_vk(chord.key).map(|vk| (vk, config::carbon_mods(chord)))
+        })
+        .collect();
+    if triggers.is_empty() {
+        eprintln!("motherfucker: no usable hotkeys in config; falling back to ⌥Space");
+        triggers.push((hotkey::VK_SPACE, hotkey::MOD_OPTION));
+    }
+
+    let delegate = Delegate::new(mtm, cfg);
     app.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
 
     unsafe {
-        hotkey::register(
-            SUMMON_KEY,
-            SUMMON_MODS,
+        hotkey::register_all(
+            &triggers,
             hotkey_pressed,
             Retained::as_ptr(&delegate) as *mut c_void,
         )

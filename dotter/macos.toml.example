@@ -21,6 +21,7 @@ packages = [
   "macos-shortcuts",
 	  "marta",
   # "micro",
+  "motherfucker",
   "mpv",
   # "nvim",
   # "onagre",
