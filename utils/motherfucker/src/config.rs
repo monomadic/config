@@ -63,26 +63,71 @@ pub enum Action {
 
 pub struct Style {
     pub width: f64,
-    pub tint: (f64, f64, f64),
-    pub tint_alpha: f64,
-    pub selection: (f64, f64, f64),
-    pub selection_alpha: f64,
-    pub accent: (f64, f64, f64),
+    pub panel_background: (f64, f64, f64),
+    pub panel_foreground: (f64, f64, f64),
+    pub panel_opacity: f64,
+    pub panel_padding: f64,
+    pub panel_corner_radius: f64,
+    pub item_foreground: (f64, f64, f64),
+    pub item_font_size: f64,
+    pub selected_item_background: (f64, f64, f64),
+    pub selected_item_foreground: (f64, f64, f64),
+    pub selected_item_opacity: f64,
+    pub selected_item_corner_radius: f64,
+    pub item_foreground_highlight: (f64, f64, f64),
+    pub selected_item_foreground_highlight: (f64, f64, f64),
     pub input_font_size: f64,
-    pub row_font_size: f64,
 }
 
 impl Default for Style {
     fn default() -> Self {
         Style {
             width: 620.0,
-            tint: (0.0, 0.0, 0.0),
-            tint_alpha: 0.70,
-            selection: (0.60, 0.70, 0.90),
-            selection_alpha: 0.085,
-            accent: (0.38, 0.75, 1.0),
+            panel_background: (0.0, 0.0, 0.0),
+            panel_foreground: (1.0, 1.0, 1.0),
+            panel_opacity: 0.70,
+            panel_padding: 10.0,
+            panel_corner_radius: 18.0,
+            item_foreground: (1.0, 1.0, 1.0),
+            item_font_size: 13.5,
+            selected_item_background: (0.60, 0.70, 0.90),
+            selected_item_foreground: (1.0, 1.0, 1.0),
+            selected_item_opacity: 0.085,
+            selected_item_corner_radius: 8.0,
+            item_foreground_highlight: (0.38, 0.75, 1.0),
+            selected_item_foreground_highlight: (0.38, 0.75, 1.0),
             input_font_size: 24.0,
-            row_font_size: 13.5,
+        }
+    }
+}
+
+/// Customizable glyphs. `search` and the four row-state glyphs are literal
+/// strings (SF Symbols pasted as text); the location entries are SF Symbol
+/// *names* rendered through NSImage for the installed-row location tag.
+pub struct Icons {
+    pub search: String,
+    pub running_many: String,
+    pub running_one: String,
+    pub running_none: String,
+    pub installed: String,
+    pub utilities: String,
+    pub system: String,
+    pub applications: String,
+    pub shortcut: String,
+}
+
+impl Default for Icons {
+    fn default() -> Self {
+        Icons {
+            search: "⌕".into(),
+            running_many: "\u{10088C}".into(), // running, 2+ windows
+            running_one: "\u{1003DC}".into(),  // running, one window
+            running_none: "\u{100941}".into(), // running, no windows
+            installed: "\u{100943}".into(),    // installed, launchable
+            utilities: "wrench.and.screwdriver".into(),
+            system: "gearshape".into(),
+            applications: "app.fill".into(),
+            shortcut: "terminal".into(),
         }
     }
 }
@@ -93,6 +138,13 @@ pub struct Config {
     pub hotkeys: Vec<(Chord, Mode)>,
     pub binds: Vec<(Chord, Action)>,
     pub style: Style,
+    pub icons: Icons,
+    /// Per-name glyph overrides from `[icons.apps]`: (lowercased entry
+    /// name, glyph). Replaces the leading state glyph for matching rows.
+    pub icon_overrides: Vec<(String, String)>,
+    /// `[shortcuts]`: (display name, shell command). Matched like apps;
+    /// selecting one runs the command via `sh -c`.
+    pub shortcuts: Vec<(String, String)>,
     /// Seconds between stat refreshes while the panel is up.
     pub stats_interval: f64,
 }
@@ -106,6 +158,9 @@ impl Default for Config {
             )],
             binds: default_binds(),
             style: Style::default(),
+            icons: Icons::default(),
+            icon_overrides: Vec::new(),
+            shortcuts: Vec::new(),
             stats_interval: 1.0,
         }
     }
@@ -261,6 +316,16 @@ fn parse_into(cfg: &mut Config, text: &str) {
                 cfg.binds.push((chord, action));
             }
             "style" => apply_style(&mut cfg.style, &key, &val, &line),
+            "icons" => apply_icon(&mut cfg.icons, &key, &val, &line),
+            "icons.apps" => {
+                let name = key.to_lowercase();
+                cfg.icon_overrides.retain(|(n, _)| *n != name);
+                cfg.icon_overrides.push((name, val));
+            }
+            "shortcuts" => {
+                cfg.shortcuts.retain(|(n, _)| !n.eq_ignore_ascii_case(&key));
+                cfg.shortcuts.push((key, val));
+            }
             "stats" => {
                 if key.replace('-', "_") == "interval" {
                     match val.parse::<f64>() {
@@ -286,36 +351,83 @@ fn apply_style(style: &mut Style, key: &str, val: &str, line: &str) {
             Ok(v) => style.width = v.clamp(320.0, 1600.0),
             Err(_) => warn(line, "expected a number"),
         },
-        "tint_alpha" => match num() {
-            Ok(v) => style.tint_alpha = v.clamp(0.0, 1.0),
+        "panel_opacity" => match num() {
+            Ok(v) => style.panel_opacity = v.clamp(0.0, 1.0),
             Err(_) => warn(line, "expected a number"),
         },
-        "selection_alpha" => match num() {
-            Ok(v) => style.selection_alpha = v.clamp(0.0, 1.0),
+        "panel_padding" => match num() {
+            Ok(v) => style.panel_padding = v.clamp(0.0, 100.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "panel_corner_radius" => match num() {
+            Ok(v) => style.panel_corner_radius = v.clamp(0.0, 60.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "selected_item_opacity" => match num() {
+            Ok(v) => style.selected_item_opacity = v.clamp(0.0, 1.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "selected_item_corner_radius" => match num() {
+            Ok(v) => style.selected_item_corner_radius = v.clamp(0.0, 40.0),
             Err(_) => warn(line, "expected a number"),
         },
         "input_font_size" => match num() {
             Ok(v) => style.input_font_size = v.clamp(9.0, 64.0),
             Err(_) => warn(line, "expected a number"),
         },
-        "row_font_size" => match num() {
-            Ok(v) => style.row_font_size = v.clamp(8.0, 32.0),
+        "item_font_size" => match num() {
+            Ok(v) => style.item_font_size = v.clamp(8.0, 32.0),
             Err(_) => warn(line, "expected a number"),
         },
-        "tint" => match parse_color(val) {
-            Some(c) => style.tint = c,
+        "panel_background" => match parse_color(val) {
+            Some(c) => style.panel_background = c,
             None => warn(line, "expected \"#rrggbb\""),
         },
-        "selection" => match parse_color(val) {
-            Some(c) => style.selection = c,
+        "panel_foreground" => match parse_color(val) {
+            Some(c) => style.panel_foreground = c,
             None => warn(line, "expected \"#rrggbb\""),
         },
-        "accent" => match parse_color(val) {
-            Some(c) => style.accent = c,
+        "item_foreground" => match parse_color(val) {
+            Some(c) => style.item_foreground = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "selected_item_background" => match parse_color(val) {
+            Some(c) => style.selected_item_background = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "selected_item_foreground" => match parse_color(val) {
+            Some(c) => style.selected_item_foreground = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "item_foreground_highlight" => match parse_color(val) {
+            Some(c) => style.item_foreground_highlight = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "selected_item_foreground_highlight" => match parse_color(val) {
+            Some(c) => style.selected_item_foreground_highlight = c,
             None => warn(line, "expected \"#rrggbb\""),
         },
         _ => warn(line, "unknown style key"),
     }
+}
+
+fn apply_icon(icons: &mut Icons, key: &str, val: &str, line: &str) {
+    let slot = match key.replace('-', "_").as_str() {
+        "search" => &mut icons.search,
+        "running_many" => &mut icons.running_many,
+        "running_one" => &mut icons.running_one,
+        "running_none" => &mut icons.running_none,
+        "installed" => &mut icons.installed,
+        "utilities" => &mut icons.utilities,
+        "system" => &mut icons.system,
+        "applications" => &mut icons.applications,
+        "shortcut" => &mut icons.shortcut,
+        _ => {
+            warn(line, "unknown icon key");
+            return;
+        }
+    };
+    *slot = val.to_string();
 }
 
 /// Drop a trailing `# comment`, respecting double-quoted strings (colors
@@ -455,18 +567,36 @@ mod tests {
             &mut cfg,
             r##"
 [style]
-accent = "#ff8800"
-tint_alpha = 0.5
+item_foreground_highlight = "#ff8800"
+panel_opacity = 0.5
 width = 700
+
+[icons]
+search = "*"
+running_many = "M"
+
+[icons.apps]
+"Forklift" = "F"
+
+[shortcuts]
+"Movies" = "open -R ~/Movies"
 
 [stats]
 interval = 2.0
 "##,
         );
-        assert!((cfg.style.accent.0 - 1.0).abs() < 1e-9);
-        assert!((cfg.style.tint_alpha - 0.5).abs() < 1e-9);
+        assert!((cfg.style.item_foreground_highlight.0 - 1.0).abs() < 1e-9);
+        assert!((cfg.style.panel_opacity - 0.5).abs() < 1e-9);
         assert!((cfg.style.width - 700.0).abs() < 1e-9);
         assert!((cfg.stats_interval - 2.0).abs() < 1e-9);
+        assert_eq!(cfg.icons.search, "*");
+        assert_eq!(cfg.icons.running_many, "M");
+        assert_eq!(cfg.icons.installed, "\u{100943}"); // untouched default
+        assert_eq!(cfg.icon_overrides, vec![("forklift".to_string(), "F".to_string())]);
+        assert_eq!(
+            cfg.shortcuts,
+            vec![("Movies".to_string(), "open -R ~/Movies".to_string())]
+        );
     }
 
     #[test]

@@ -11,7 +11,6 @@
 # enter, escape, tab, up, down, left, right, backspace.
 [hotkeys]
 "cmd+space" = "launcher"
-# "cmd+space" = "launcher"   # once Spotlight's shortcut is off
 
 # In-panel bindings: chord = action. Entries here override the defaults for
 # the same chord; "none" unbinds one. Actions: open, launch-new, reveal,
@@ -28,16 +27,57 @@
 "up" = "move-up"
 "down" = "move-down"
 
-# Black-glass look. Colors are "#rrggbb"; alphas 0.0–1.0.
+# Black-glass look. Colors are "#rrggbb"; opacities 0.0–1.0; sizes in points.
 [style]
 width = 620
-tint = "#000000"            # wash over the glass material
-tint_alpha = 0.80
-selection = "#0963F6"       # selected-row tint (subtle cool hue)
-selection_alpha = 0.4
-accent = "#F1FF0F"          # matched query characters (yellow)
+panel_background = "#000000"        # wash over the glass material
+panel_foreground = "#ffffff"        # search text + search icon
+panel_opacity = 0.80
+panel_padding = 10                  # inset from the panel edge to content
+panel_corner_radius = 18
+item_foreground = "#ffffff"         # non-selected row text, icons, location tag
+item_font_size = 14
+selected_item_background = "#FFFFFF"
+selected_item_foreground = "#FFFFFF" # selected row text, icons, stat gauges
+selected_item_opacity = 0.05
+selected_item_corner_radius = 8
+item_foreground_highlight = "#F1FF0F"          # matched query chars, normal rows
+selected_item_foreground_highlight = "#F1FF0F" # matched query chars, selected row
 input_font_size = 24
-row_font_size = 15
+
+# Glyphs. search and the four row-state glyphs are literal strings (SF
+# Symbols pasted as text work); utilities/system/applications are SF
+# Symbol *names* used for the installed-row location tag.
+[icons]
+search = "⌕"                # magnifier in the input band
+running_many = "􀢌"          # running, 2+ windows
+running_one = "􀏜"           # running, one window
+running_none = "􀥁"          # running, no windows
+installed = "􀥃"             # installed, launchable
+utilities = "wrench.and.screwdriver"
+system = "gearshape"
+applications = "app.badge"
+shortcut = "terminal"       # SF Symbol name for the "Shortcut" tag pill
+
+# Per-app glyph overrides: "App Name" = "glyph" (name match is
+# case-insensitive; the glyph replaces the row-state glyph).
+[icons.apps]
+"Finder" = "􀈕 "
+"Kitty" = "􀩼 "
+"Signal" = "􂄹 "
+"FaceTime" = "􀱰 "
+"iPhone Mirroring" = "􀟞 "
+"System Settings" = "􀍟 "
+"Brave Browser" = "􀤆 "
+
+# Custom entries matched like apps; selecting one runs the command via
+# `sh -c` (loaded once at startup — zero cost while typing). Only the
+# outer quotes are trimmed, so inner quotes are written bare, not escaped.
+[shortcuts]
+#"Movies" = "open -R ~/Movies"
+"Shutdown" = "osascript -e 'tell app \"System Events\" to shut down'"
+"Restart" = "osascript -e 'tell app \"System Events\" to restart'"
+"Restart Motherfucker" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
 
 [stats]
 interval = 1.0              # seconds between cpu/ram refreshes while open

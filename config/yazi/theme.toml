@@ -164,7 +164,7 @@ dirs = [
   { name = "Documents", text = "􀈕 ", fg = "#7df9aa" },
   { name = "Downloads", text = "􀤁 ", fg = "#66e2ff" },
   { name = "Library",   text = "􀣍 ", fg = "#c792ea" },
-  { name = "Movies",    text = "􀾬", fg = "#66e2ff" },
+  { name = "Movies",    text = "􀾬 ", fg = "#66e2ff" },
   { name = "Music",     text = "􃐹 ", fg = "#66e2ff" },
   { name = "Pictures",  text = "􀏯 ", fg = "#c792ea" },
   { name = "Public",    text = "􃀧 ", fg = "#7df9aa" },

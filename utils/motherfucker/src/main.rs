@@ -38,34 +38,29 @@ use objc2_app_kit::{
     NSWindowDelegate, NSWindowStyleMask, NSWorkspace, NSWorkspaceOpenConfiguration,
 };
 use objc2_foundation::{
-    MainThreadMarker, NSMutableAttributedString, NSNotification, NSObject, NSObjectProtocol,
-    NSPoint, NSRange, NSRect, NSSize, NSString, NSURL,
+    MainThreadMarker, NSData, NSMutableAttributedString, NSNotification, NSObject,
+    NSObjectProtocol, NSPoint, NSRange, NSRect, NSSize, NSString, NSURL,
 };
 use objc2_quartz_core::CALayer;
 
 // ---- visual spec (black glass) ----
-// Colors, panel width, and font sizes moved to config::Style (same defaults);
-// the structural metrics below stay compiled in.
-const RADIUS: f64 = 18.0;
+// Colors, panel width, padding, corner radii, and font sizes moved to
+// config::Style (same defaults); the structural metrics below stay compiled in.
 const INPUT_H: f64 = 58.0;
 const ROW_H: f64 = 40.0;
 const ROWS_PAD: f64 = 12.0;
-const BOTTOM_PAD: f64 = 12.0;
 const MAX_ROWS: usize = 6;
 // CPU sampling: minimum interval for a trustworthy percentage.
 const CPU_MIN_INTERVAL: f64 = 0.25;
 
-// State glyph vocabulary (SF Symbols as text — zero I/O).
-const GLYPH_RUN_MULTI: &str = "\u{10088C}"; // running, 2+ windows
-const GLYPH_RUN_ONE: &str = "\u{1003DC}"; // running, one window
-const GLYPH_RUN_ZERO: &str = "\u{100941}"; // running, no windows
-const GLYPH_OFF: &str = "\u{100943}"; // installed, launchable
+// State glyph column metrics (glyph strings themselves live in
+// config::Icons — SF Symbols as text, zero I/O).
 const GLYPH_COL_W: f64 = 24.0;
 const GLYPH_PT: f64 = 16.0;
 
-// Stat bars: minimal outlined gauges — transparent track, 1px hairline.
+// Stat gauges: solid pill bars with the value beside them.
 const BAR_W: f64 = 44.0;
-const BAR_H: f64 = 7.0;
+const BAR_H: f64 = 6.0;
 const STAT_GAP: f64 = 16.0;
 
 struct Entry {
@@ -78,6 +73,8 @@ struct Entry {
     windows: u32,
     /// Slim RAM/CPU gauges, running apps only.
     stats: Option<RowStats>,
+    /// `[shortcuts]` entry: shell command run via `sh -c` on activation.
+    command: Option<String>,
 }
 
 struct RowStats {
@@ -87,27 +84,30 @@ struct RowStats {
     cpu_frac: f64,
 }
 
-fn state_glyph(entry: &Entry) -> &'static str {
+fn state_glyph<'a>(entry: &Entry, icons: &'a config::Icons) -> &'a str {
     if entry.running.is_some() {
         match entry.windows {
-            0 => GLYPH_RUN_ZERO,
-            1 => GLYPH_RUN_ONE,
-            _ => GLYPH_RUN_MULTI,
+            0 => &icons.running_none,
+            1 => &icons.running_one,
+            _ => &icons.running_many,
         }
     } else {
-        GLYPH_OFF
+        &icons.installed
     }
 }
 
 /// Location tag for installed rows: label + SF Symbol name.
-fn location_for(path: &std::path::Path) -> (&'static str, &'static str) {
+fn location_for<'a>(
+    path: &std::path::Path,
+    icons: &'a config::Icons,
+) -> (&'static str, &'a str) {
     let s = path.to_string_lossy();
     if s.contains("/Utilities/") {
-        ("Utilities", "wrench.and.screwdriver")
+        ("Utilities", &icons.utilities)
     } else if s.starts_with("/System/") {
-        ("System", "gearshape")
+        ("System", &icons.system)
     } else {
-        ("Applications", "app.fill")
+        ("Applications", &icons.applications)
     }
 }
 
@@ -256,8 +256,9 @@ declare_class!(
     }
 );
 
-fn white(alpha: f64) -> Retained<NSColor> {
-    unsafe { NSColor::colorWithWhite_alpha(1.0, alpha) }
+/// Configured `(r, g, b)` at the given alpha.
+fn rgba(c: (f64, f64, f64), alpha: f64) -> Retained<NSColor> {
+    unsafe { NSColor::colorWithSRGBRed_green_blue_alpha(c.0, c.1, c.2, alpha) }
 }
 
 fn set_layer_bg(layer: &CALayer, color: &NSColor) {
@@ -401,7 +402,7 @@ impl Delegate {
             wrapper.setAutoresizingMask(resize_mask);
             wrapper.setWantsLayer(true);
             if let Some(layer) = wrapper.layer() {
-                layer.setCornerRadius(RADIUS);
+                layer.setCornerRadius(cfg.style.panel_corner_radius);
                 layer.setMasksToBounds(true);
                 let curve = NSString::from_str("continuous");
                 let _: () = msg_send![&*layer, setCornerCurve: &*curve];
@@ -415,10 +416,9 @@ impl Delegate {
             ));
             glass.setAutoresizingMask(resize_mask);
             unsafe {
-                let _: () = msg_send![&**glass, setCornerRadius: RADIUS + RIM_CLIP];
-                let (r, g, b) = cfg.style.tint;
-                let tint_color =
-                    NSColor::colorWithSRGBRed_green_blue_alpha(r, g, b, cfg.style.tint_alpha);
+                let radius = cfg.style.panel_corner_radius + RIM_CLIP;
+                let _: () = msg_send![&**glass, setCornerRadius: radius];
+                let tint_color = rgba(cfg.style.panel_background, cfg.style.panel_opacity);
                 let _: () = msg_send![&**glass, setTintColor: &*tint_color];
             }
             wrapper.addSubview(glass);
@@ -434,7 +434,7 @@ impl Delegate {
             effect.setAutoresizingMask(resize_mask);
             effect.setWantsLayer(true);
             if let Some(layer) = effect.layer() {
-                layer.setCornerRadius(RADIUS);
+                layer.setCornerRadius(cfg.style.panel_corner_radius);
                 layer.setMasksToBounds(true);
                 // Apple's continuous corner curve — squircle, not circular arc.
                 let curve = NSString::from_str("continuous");
@@ -446,10 +446,10 @@ impl Delegate {
             tint.setAutoresizingMask(resize_mask);
             tint.setWantsLayer(true);
             if let Some(layer) = tint.layer() {
-                let (r, g, b) = cfg.style.tint;
-                set_layer_bg(&layer, unsafe {
-                    &NSColor::colorWithSRGBRed_green_blue_alpha(r, g, b, cfg.style.tint_alpha)
-                });
+                set_layer_bg(
+                    &layer,
+                    &rgba(cfg.style.panel_background, cfg.style.panel_opacity),
+                );
             }
             effect.addSubview(&tint);
             content.addSubview(&container);
@@ -457,7 +457,12 @@ impl Delegate {
 
         // Input: glyph + borderless field.
         let glyph_font = unsafe { NSFont::systemFontOfSize(34.0) };
-        let glyph = make_label(mtm, "⌕", &glyph_font, &white(0.85));
+        let glyph = make_label(
+            mtm,
+            &cfg.icons.search,
+            &glyph_font,
+            &rgba(cfg.style.panel_foreground, 0.85),
+        );
         container.addSubview(&glyph);
 
         let field = unsafe { NSTextField::new(mtm) };
@@ -466,7 +471,7 @@ impl Delegate {
             field.setBordered(false);
             field.setDrawsBackground(false);
             field.setFont(Some(&NSFont::systemFontOfSize(cfg.style.input_font_size)));
-            field.setTextColor(Some(&NSColor::whiteColor()));
+            field.setTextColor(Some(&rgba(cfg.style.panel_foreground, 1.0)));
             field.setFocusRingType(NSFocusRingType::None);
             field.setDelegate(Some(ProtocolObject::from_ref(self)));
         }
@@ -625,10 +630,15 @@ impl Delegate {
 
         panel.makeKeyAndOrderFront(None);
         panel.makeFirstResponder(Some(field));
-        // White caret to match the design.
+        // Caret matches the search text color.
         if let Some(editor) = panel.fieldEditor_forObject(true, Some(field)) {
             let text_view: Retained<NSTextView> = unsafe { Retained::cast(editor) };
-            unsafe { text_view.setInsertionPointColor(Some(&NSColor::whiteColor())) };
+            unsafe {
+                text_view.setInsertionPointColor(Some(&rgba(
+                    ivars.config.style.panel_foreground,
+                    1.0,
+                )))
+            };
         }
     }
 
@@ -689,6 +699,26 @@ impl Delegate {
                             matched: positions,
                             windows: 0,
                             stats: None,
+                            command: None,
+                        },
+                    ));
+                }
+            }
+            for (name, cmd) in &self.ivars().config.shortcuts {
+                if seen.contains(&name.to_lowercase()) {
+                    continue;
+                }
+                if let Some((s, positions)) = apps::match_positions(&query, name) {
+                    scored.push((
+                        s,
+                        Entry {
+                            name: display_name(name),
+                            path: None,
+                            running: None,
+                            matched: positions,
+                            windows: 0,
+                            stats: None,
+                            command: Some(cmd.clone()),
                         },
                     ));
                 }
@@ -751,9 +781,10 @@ impl Delegate {
                                 ("… cpu".to_string(), 0.0)
                             }
                         };
+                        let ram_frac = (ram as f64 / total_mem).clamp(0.0, 1.0);
                         entry.stats = Some(RowStats {
-                            ram_text: stats::fmt_ram(ram),
-                            ram_frac: (ram as f64 / total_mem).clamp(0.0, 1.0),
+                            ram_text: format!("{:.0}% mem", ram_frac * 100.0),
+                            ram_frac,
                             cpu_text,
                             cpu_frac,
                         });
@@ -818,12 +849,13 @@ impl Delegate {
 
         let entries = ivars.entries.borrow();
         let n = entries.len();
+        let pad = ivars.config.style.panel_padding;
         let rows_h = if n > 0 {
             n as f64 * ROW_H + ROWS_PAD
         } else {
             0.0
         };
-        let h = INPUT_H + rows_h + BOTTOM_PAD;
+        let h = INPUT_H + rows_h + pad;
 
         let panel_w = ivars.config.style.width;
         let old = panel.frame();
@@ -836,22 +868,24 @@ impl Delegate {
             true,
         );
 
-        // Input band at the top.
+        // Input band at the top. The extra 12px keeps the search glyph
+        // aligned with the row glyphs (rows inset their content by 12px).
+        let input_inset = pad + 12.0;
         let glyph_size = glyph.frame().size;
         glyph.setFrameOrigin(NSPoint::new(
-            22.0,
+            input_inset,
             h - INPUT_H + (INPUT_H - glyph_size.height) / 2.0,
         ));
-        let field_x = 22.0 + glyph_size.width + 14.0;
+        let field_x = input_inset + glyph_size.width + 14.0;
         let field_h = field.frame().size.height.max(30.0);
         field.setFrame(NSRect::new(
             NSPoint::new(field_x, h - INPUT_H + (INPUT_H - field_h) / 2.0),
-            NSSize::new(panel_w - field_x - 22.0, field_h),
+            NSSize::new(panel_w - field_x - input_inset, field_h),
         ));
 
         // Rows fill the space below the input; no footer.
         rows_area.setFrame(NSRect::new(
-            NSPoint::new(0.0, BOTTOM_PAD),
+            NSPoint::new(0.0, pad),
             NSSize::new(panel_w, rows_h),
         ));
         for view in rows_area.subviews().iter() {
@@ -884,7 +918,8 @@ impl Delegate {
         selected: bool,
     ) {
         let style = &self.ivars().config.style;
-        let row_w = style.width - 20.0;
+        let icons = &self.ivars().config.icons;
+        let row_w = style.width - 2.0 * style.panel_padding;
         let row: Retained<RowView> = {
             let this = mtm.alloc::<RowView>().set_ivars(RowIvars {
                 index: Cell::new(index),
@@ -894,7 +929,7 @@ impl Delegate {
                 msg_send_id![
                     super(this),
                     initWithFrame: NSRect::new(
-                        NSPoint::new(10.0, y),
+                        NSPoint::new(style.panel_padding, y),
                         NSSize::new(row_w, ROW_H),
                     ),
                 ]
@@ -903,17 +938,32 @@ impl Delegate {
         if selected {
             row.setWantsLayer(true);
             if let Some(layer) = row.layer() {
-                layer.setCornerRadius(8.0);
-                let (r, g, b) = style.selection;
-                set_layer_bg(&layer, unsafe {
-                    &NSColor::colorWithSRGBRed_green_blue_alpha(r, g, b, style.selection_alpha)
-                });
+                layer.setCornerRadius(style.selected_item_corner_radius);
+                set_layer_bg(
+                    &layer,
+                    &rgba(style.selected_item_background, style.selected_item_opacity),
+                );
             }
         }
 
         let is_running = entry.running.is_some();
+        // All row content takes its hue from one foreground per state; the
+        // original design's brightness steps carry over as alphas.
+        let fg = if selected {
+            style.selected_item_foreground
+        } else {
+            style.item_foreground
+        };
 
-        // Leading state glyph column.
+        // Leading state glyph column; `[icons.apps]` overrides win.
+        let entry_lower = entry.name.to_lowercase();
+        let glyph_text = self
+            .ivars()
+            .config
+            .icon_overrides
+            .iter()
+            .find_map(|(n, g)| (*n == entry_lower).then_some(g.as_str()))
+            .unwrap_or_else(|| state_glyph(entry, icons));
         let glyph_font = unsafe { NSFont::systemFontOfSize(GLYPH_PT) };
         let glyph_alpha = if is_running {
             0.85
@@ -922,13 +972,13 @@ impl Delegate {
         } else {
             0.30
         };
-        let glyph = make_label(mtm, state_glyph(entry), &glyph_font, &white(glyph_alpha));
+        let glyph = make_label(mtm, glyph_text, &glyph_font, &rgba(fg, glyph_alpha));
         let glyph_h = glyph.frame().size.height;
         glyph.setFrameOrigin(NSPoint::new(12.0, (ROW_H - glyph_h) / 2.0));
         row.addSubview(&glyph);
 
         let name_x = 12.0 + GLYPH_COL_W + 10.0;
-        let name_font = unsafe { NSFont::systemFontOfSize(style.row_font_size) };
+        let name_font = unsafe { NSFont::systemFontOfSize(style.item_font_size) };
         let name_alpha = if selected {
             1.0
         } else if is_running {
@@ -936,12 +986,18 @@ impl Delegate {
         } else {
             0.42
         };
-        let name = make_label(mtm, &entry.name, &name_font, &white(name_alpha));
-        // Matched characters render in the accent color.
+        let name = make_label(mtm, &entry.name, &name_font, &rgba(fg, name_alpha));
+        // Matched characters render in the highlight color for the row state.
         if !entry.matched.is_empty() {
-            let base = white(name_alpha * 0.75);
-            let (hr, hg, hb) = style.accent;
-            let hi = unsafe { NSColor::colorWithSRGBRed_green_blue_alpha(hr, hg, hb, 1.0) };
+            let base = rgba(fg, name_alpha * 0.75);
+            let hi = rgba(
+                if selected {
+                    style.selected_item_foreground_highlight
+                } else {
+                    style.item_foreground_highlight
+                },
+                1.0,
+            );
             let attr = attributed_name(&entry.name, &entry.matched, &name_font, &base, &hi);
             unsafe {
                 name.setAttributedStringValue(&attr);
@@ -959,49 +1015,101 @@ impl Delegate {
             self.build_gauge(mtm, &row, ram_right, &rs.ram_text, rs.ram_frac, selected);
             self.build_gauge(mtm, &row, cpu_right, &rs.cpu_text, rs.cpu_frac, selected);
         } else if let Some(path) = &entry.path {
-            // Installed rows: location tag with symbol.
-            let (label_text, symbol) = location_for(path);
-            let loc_font = unsafe { NSFont::systemFontOfSize(10.5) };
-            let loc_alpha = if selected { 0.55 } else { 0.35 };
-            let label = make_label(mtm, label_text, &loc_font, &white(loc_alpha));
-            let label_size = label.frame().size;
-            let label_x = row_w - 12.0 - label_size.width;
-            label.setFrameOrigin(NSPoint::new(
-                label_x,
-                (ROW_H - label_size.height) / 2.0,
-            ));
-            row.addSubview(&label);
-
-            let icon_d = 11.0;
-            if let Some(image) = unsafe {
-                objc2_app_kit::NSImage::imageWithSystemSymbolName_accessibilityDescription(
-                    &NSString::from_str(symbol),
-                    None,
-                )
-            } {
-                let iv = unsafe {
-                    objc2_app_kit::NSImageView::initWithFrame(
-                        mtm.alloc(),
-                        NSRect::new(
-                            NSPoint::new(label_x - 5.0 - icon_d, (ROW_H - icon_d) / 2.0),
-                            NSSize::new(icon_d, icon_d),
-                        ),
-                    )
-                };
-                unsafe {
-                    iv.setImage(Some(&image));
-                    iv.setImageScaling(objc2_app_kit::NSImageScaling::NSImageScaleProportionallyUpOrDown);
-                    iv.setContentTintColor(Some(&white(loc_alpha)));
-                }
-                row.addSubview(&iv);
-            }
+            // Installed rows: location tag pill with symbol.
+            let (label_text, symbol) = location_for(path, icons);
+            self.build_tag_pill(mtm, &row, row_w, label_text, symbol, selected);
+        } else if entry.command.is_some() {
+            self.build_tag_pill(mtm, &row, row_w, "Shortcut", &icons.shortcut, selected);
         }
 
         parent.addSubview(&row);
     }
 
-    /// One minimal gauge: an outlined transparent bar (no track fill) with
-    /// its value beneath, right edge at `right_x`.
+    /// Right-aligned outlined pill: SF Symbol icon + label. Location tag on
+    /// installed rows, "Shortcut" tag on command rows.
+    unsafe fn build_tag_pill(
+        &self,
+        mtm: MainThreadMarker,
+        row: &NSView,
+        row_w: f64,
+        label_text: &str,
+        symbol: &str,
+        selected: bool,
+    ) {
+        let style = &self.ivars().config.style;
+        let fg = if selected {
+            style.selected_item_foreground
+        } else {
+            style.item_foreground
+        };
+        let alpha = if selected { 0.80 } else { 0.55 };
+
+        let font = unsafe { NSFont::systemFontOfSize(11.0) };
+        let label = make_label(mtm, label_text, &font, &rgba(fg, alpha));
+        let label_size = label.frame().size;
+
+        let icon_d = 12.0;
+        let gap = 5.0;
+        let pad_h = 9.0;
+        let pill_h = 22.0;
+        let image = unsafe {
+            objc2_app_kit::NSImage::imageWithSystemSymbolName_accessibilityDescription(
+                &NSString::from_str(symbol),
+                None,
+            )
+        };
+        let content_w =
+            if image.is_some() { icon_d + gap } else { 0.0 } + label_size.width;
+        let pill_w = content_w + 2.0 * pad_h;
+
+        let pill = unsafe {
+            NSView::initWithFrame(
+                mtm.alloc(),
+                NSRect::new(
+                    NSPoint::new(row_w - 12.0 - pill_w, (ROW_H - pill_h) / 2.0),
+                    NSSize::new(pill_w, pill_h),
+                ),
+            )
+        };
+        pill.setWantsLayer(true);
+        if let Some(layer) = pill.layer() {
+            layer.setCornerRadius(pill_h / 2.0);
+            let border = rgba(fg, if selected { 0.35 } else { 0.20 });
+            unsafe {
+                let cg: *mut c_void = msg_send![&*border, CGColor];
+                let _: () = msg_send![&*layer, setBorderColor: cg];
+                let _: () = msg_send![&*layer, setBorderWidth: 1.0f64];
+            }
+        }
+
+        let mut x = pad_h;
+        if let Some(image) = image {
+            let iv = unsafe {
+                objc2_app_kit::NSImageView::initWithFrame(
+                    mtm.alloc(),
+                    NSRect::new(
+                        NSPoint::new(x, (pill_h - icon_d) / 2.0),
+                        NSSize::new(icon_d, icon_d),
+                    ),
+                )
+            };
+            unsafe {
+                iv.setImage(Some(&image));
+                iv.setImageScaling(
+                    objc2_app_kit::NSImageScaling::NSImageScaleProportionallyUpOrDown,
+                );
+                iv.setContentTintColor(Some(&rgba(fg, alpha)));
+            }
+            pill.addSubview(&iv);
+            x += icon_d + gap;
+        }
+        label.setFrameOrigin(NSPoint::new(x, (pill_h - label_size.height) / 2.0));
+        pill.addSubview(&label);
+        row.addSubview(&pill);
+    }
+
+    /// One minimal gauge: a solid pill bar on a faint solid track (no
+    /// outline) with its value beneath, right edge at `right_x`.
     unsafe fn build_gauge(
         &self,
         mtm: MainThreadMarker,
@@ -1011,6 +1119,12 @@ impl Delegate {
         frac: f64,
         selected: bool,
     ) {
+        let style = &self.ivars().config.style;
+        let fg = if selected {
+            style.selected_item_foreground
+        } else {
+            style.item_foreground
+        };
         let bar_y = ROW_H / 2.0 + 3.0;
         let track = unsafe {
             NSView::initWithFrame(
@@ -1025,34 +1139,39 @@ impl Delegate {
         if let Some(layer) = track.layer() {
             layer.setCornerRadius(BAR_H / 2.0);
             layer.setMasksToBounds(true);
-            let outline = white(if selected { 0.38 } else { 0.24 });
-            unsafe {
-                let cg: *mut c_void = msg_send![&*outline, CGColor];
-                let _: () = msg_send![&*layer, setBorderColor: cg];
-                let _: () = msg_send![&*layer, setBorderWidth: 1.0f64];
+            set_layer_bg(&layer, &rgba(fg, if selected { 0.22 } else { 0.14 }));
+        }
+        // Full-height solid fill; at 0% the track stays empty, otherwise the
+        // fill is never narrower than its own end caps.
+        let frac = frac.clamp(0.0, 1.0);
+        if frac > 0.0 {
+            let fill_w = (BAR_W * frac).max(BAR_H);
+            let fill = unsafe {
+                NSView::initWithFrame(
+                    mtm.alloc(),
+                    NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(fill_w, BAR_H)),
+                )
+            };
+            fill.setWantsLayer(true);
+            if let Some(layer) = fill.layer() {
+                layer.setCornerRadius(BAR_H / 2.0);
+                set_layer_bg(&layer, &rgba(fg, if selected { 0.95 } else { 0.65 }));
             }
+            track.addSubview(&fill);
         }
-        // Fill floats inside the outline with a 2px inset all around.
-        const INSET: f64 = 2.0;
-        let fill_h = BAR_H - 2.0 * INSET;
-        let fill_w = ((BAR_W - 2.0 * INSET) * frac.clamp(0.0, 1.0)).max(1.0);
-        let fill = unsafe {
-            NSView::initWithFrame(
-                mtm.alloc(),
-                NSRect::new(NSPoint::new(INSET, INSET), NSSize::new(fill_w, fill_h)),
-            )
-        };
-        fill.setWantsLayer(true);
-        if let Some(layer) = fill.layer() {
-            layer.setCornerRadius(fill_h / 2.0);
-            set_layer_bg(&layer, &white(if selected { 0.85 } else { 0.55 }));
-        }
-        track.addSubview(&fill);
         row.addSubview(&track);
 
-        let value_font = unsafe { NSFont::systemFontOfSize(9.0) };
-        let value_alpha = if selected { 0.70 } else { 0.45 };
-        let value = make_label(mtm, text, &value_font, &white(value_alpha));
+        // Value: medium-weight monospaced digits so live numbers read
+        // clearly and don't jitter as they update.
+        let value_font: Retained<NSFont> = unsafe {
+            msg_send_id![
+                NSFont::class(),
+                monospacedDigitSystemFontOfSize: 10.0f64,
+                weight: 0.23f64 // NSFontWeightMedium
+            ]
+        };
+        let value_alpha = if selected { 0.90 } else { 0.60 };
+        let value = make_label(mtm, text, &value_font, &rgba(fg, value_alpha));
         let value_size = value.frame().size;
         value.setFrameOrigin(NSPoint::new(
             right_x - value_size.width,
@@ -1070,11 +1189,16 @@ impl Delegate {
             let Some(entry) = entries.get(self.ivars().selected.get()) else {
                 return;
             };
-            (entry.path.clone(), entry.running.clone())
+            (entry.path.clone(), entry.running.clone(), entry.command.clone())
         };
         self.hide();
 
-        let (path, running) = entry_data;
+        let (path, running, command) = entry_data;
+        if let Some(cmd) = command {
+            // Fire-and-forget; the shell owns the child from here.
+            let _ = std::process::Command::new("/bin/sh").arg("-c").arg(&cmd).spawn();
+            return;
+        }
         if !force_open {
             if let Some(app) = &running {
                 unsafe {
@@ -1171,9 +1295,41 @@ unsafe fn running_apps_impl() -> Vec<Entry> {
             matched: Vec::new(),
             windows: 0,
             stats: None,
+            command: None,
         });
     }
     out
+}
+
+extern "C" {
+    fn getxattr(
+        path: *const std::ffi::c_char,
+        name: *const std::ffi::c_char,
+        value: *mut c_void,
+        size: usize,
+        position: u32,
+        options: std::ffi::c_int,
+    ) -> isize;
+}
+
+/// FinderInfo finderFlags bit 0x0400 = kHasCustomIcon. Cheap idempotence
+/// check so the resource fork isn't rewritten on every launch.
+fn file_has_custom_icon(path: &str) -> bool {
+    let Ok(cpath) = std::ffi::CString::new(path) else {
+        return false;
+    };
+    let mut info = [0u8; 32];
+    let n = unsafe {
+        getxattr(
+            cpath.as_ptr(),
+            b"com.apple.FinderInfo\0".as_ptr().cast(),
+            info.as_mut_ptr().cast(),
+            info.len(),
+            0,
+            0,
+        )
+    };
+    n == 32 && u16::from_be_bytes([info[8], info[9]]) & 0x0400 != 0
 }
 
 extern "C" fn hotkey_pressed(_next: *mut c_void, event: *mut c_void, user: *mut c_void) -> i32 {
@@ -1198,6 +1354,35 @@ fn main() {
     let mtm = MainThreadMarker::new().unwrap();
     let app = NSApplication::sharedApplication(mtm);
     app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+
+    // Bare binary, no .app bundle: Activity Monitor and friends take the
+    // process icon from the executable file's Finder icon, not from anything
+    // set at runtime. Stamp the embedded icon onto our own file once —
+    // resource fork + FinderInfo only, so the Mach-O data (and its code
+    // signature) is untouched. setApplicationIconImage covers any transient
+    // dock-tile contexts.
+    let icon_data = NSData::with_bytes(include_bytes!("../assets/icon.png"));
+    if let Some(icon) = objc2_app_kit::NSImage::initWithData(
+        mtm.alloc::<objc2_app_kit::NSImage>(),
+        &icon_data,
+    ) {
+        unsafe { app.setApplicationIconImage(Some(&icon)) };
+        let exe = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.to_str().map(String::from));
+        if let Some(exe) = exe {
+            if !file_has_custom_icon(&exe) {
+                let ws = unsafe { NSWorkspace::sharedWorkspace() };
+                unsafe {
+                    ws.setIcon_forFile_options(
+                        Some(&icon),
+                        &NSString::from_str(&exe),
+                        objc2_app_kit::NSWorkspaceIconCreationOptions(0),
+                    )
+                };
+            }
+        }
+    }
 
     // (vk, mods) per configured trigger; ids follow list order (1-based).
     let mut triggers: Vec<(u32, u32)> = cfg

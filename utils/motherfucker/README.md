@@ -36,8 +36,21 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
 - `[keys]` — in-panel bindings, `"chord" = "action"`. Actions: `open`,
   `launch-new`, `reveal`, `clear`, `dismiss`, `select-all`, `move-up`,
   `move-down`; `"none"` unbinds a default.
-- `[style]` — `width`, `tint`/`tint_alpha`, `selection`/`selection_alpha`,
-  `accent`, `input_font_size`, `row_font_size`. Colors are `"#rrggbb"`.
+- `[style]` — `width`, `panel_background`/`panel_foreground`/`panel_opacity`/
+  `panel_padding`/`panel_corner_radius`, `item_foreground`/`item_font_size`/
+  `item_foreground_highlight`, `selected_item_background`/
+  `selected_item_foreground`/`selected_item_opacity`/
+  `selected_item_corner_radius`/`selected_item_foreground_highlight`,
+  `input_font_size`. Colors are `"#rrggbb"`; the highlight keys color the
+  query-matched characters.
+- `[icons]` — `search`, `running_many`/`running_one`/`running_none`/
+  `installed` (literal glyph strings; SF Symbols pasted as text work), and
+  `utilities`/`system`/`applications`/`shortcut` (SF Symbol names for the
+  tag pills).
+- `[icons.apps]` — `"App Name" = "glyph"` per-app overrides for the
+  row-state glyph (case-insensitive name match).
+- `[shortcuts]` — `"Name" = "shell command"` custom entries, matched like
+  apps and run via `sh -c` on activation.
 - `[stats]` — `interval`, seconds between gauge refreshes while visible.
 
 The parser is a ~100-line hand-rolled TOML subset (sections + `key =

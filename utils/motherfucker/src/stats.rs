@@ -142,7 +142,8 @@ pub fn window_counts() -> HashMap<i32, u32> {
     map
 }
 
-/// Lowercase-compact RAM value per the design spec: "1.2 gb", "840 mb".
+/// Lowercase-compact RAM value: "1.2 gb", "840 mb".
+#[allow(dead_code)] // kept: absolute-size formatting, may return as an option
 pub fn fmt_ram(bytes: u64) -> String {
     const MIB: f64 = 1024.0 * 1024.0;
     const GIB: f64 = MIB * 1024.0;
