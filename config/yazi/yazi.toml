@@ -85,6 +85,11 @@ prepend_rules = [
 prepend_preloaders = [
 	{ url = "*.icloud", run = "noop" },
 	{ url = ".*.icloud", run = "noop" },
+	# Don't decode video thumbnails ahead of the cursor. The built-in `video`
+	# preloader fires on every file in view — brutal on large 4K/HEVC dirs.
+	# The video-thumb-info previewer self-generates its thumbnail on hover, so
+	# nothing is lost; previews just render when you land on a file.
+	{ mime = "video/*", run = "noop" },
 ]
 prepend_spotters = [
 	{ url = "*.icloud", run = "noop" },
