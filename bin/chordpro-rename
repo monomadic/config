@@ -1,0 +1,234 @@
+#!/bin/zsh
+#
+# chordpro-rename — rename ChordPro files from their embedded metadata.
+#
+# Reads directives out of each file ({title:}, {artist:}, ...) and renames
+# the file according to a template. Never overwrites: if the target name is
+# taken, an error is reported and a " (2)"-style suffix is added instead.
+#
+# Usage:
+#   chordpro-rename [--template TPL] [--caps] [--dry-run] FILE...
+#
+# Template fields (from the file's directives):
+#   {title}  {t}   from {title: ...} or {t: ...}
+#   {artist}       from {artist: ...}
+#   {bpm}          from {bpm: ...} or {tempo: ...}
+#   {key}          from {key: ...}
+#   {capo}         from {capo: ...}
+#
+# Examples:
+#   chordpro-rename --template "{title} - {artist}.chopro" *.chopro
+#   chordpro-rename --template "{artist} - {title} ({bpm}bpm).pro" --caps *.pro
+
+set -u
+setopt extended_glob
+
+# ---------------------------------------------------------------------------
+# styling
+# ---------------------------------------------------------------------------
+if [[ -t 1 ]]; then
+	C_RESET=$'\e[0m'; C_BOLD=$'\e[1m'; C_DIM=$'\e[2m'
+	C_RED=$'\e[31m'; C_GREEN=$'\e[32m'; C_YELLOW=$'\e[33m'
+	C_CYAN=$'\e[36m'; C_GREY=$'\e[90m'
+else
+	C_RESET=; C_BOLD=; C_DIM=; C_RED=; C_GREEN=; C_YELLOW=; C_CYAN=; C_GREY=
+fi
+
+# Nerd Font glyphs (swap these if your terminal font lacks them).
+ICON_TITLE=$''   #
+ICON_OK=$''      #
+ICON_WARN=$''    #
+ICON_FAIL=$''    #
+ICON_SAME=$'·'
+ICON_ARROW=$'→'
+
+die() { print -u2 -- "${C_RED}${ICON_FAIL} chordpro-rename:${C_RESET} $*"; exit 1; }
+
+usage() {
+	cat <<EOF
+${C_CYAN}${C_BOLD}${ICON_TITLE} chordpro-rename${C_RESET} — rename ChordPro files from their metadata
+
+${C_BOLD}Usage:${C_RESET}
+  chordpro-rename [options] FILE...
+
+${C_BOLD}Options:${C_RESET}
+  -t, --template TPL   naming template (default: "{title} - {artist}.chordpro")
+  -c, --caps           Caps-Case Each Word in {title} and {artist}
+  -n, --dry-run        show what would happen without renaming
+  -p, --porcelain      machine-readable output: STATUS<TAB>OLD<TAB>NEW per file
+  -h, --help           show this help
+
+${C_BOLD}Template fields:${C_RESET}
+  {title} / {t}        from {title: ...} or {t: ...}
+  {artist}             from {artist: ...}
+  {bpm}                from {bpm: ...} or {tempo: ...}
+  {key}                from {key: ...}
+  {capo}               from {capo: ...}
+
+${C_BOLD}Examples:${C_RESET}
+  chordpro-rename --template "{title} - {artist}.chopro" *.chopro
+  chordpro-rename --template "{artist} - {title} ({bpm}bpm).pro" --caps *.pro
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# arguments
+# ---------------------------------------------------------------------------
+template="{title} - {artist}.chordpro"
+caps=0 dry=0 porcelain=0
+typeset -a files
+
+while (( $# )); do
+	case $1 in
+		-t|--template)
+			[[ $# -ge 2 ]] || die "$1 requires a value"
+			template=$2; shift 2 ;;
+		--template=*) template=${1#*=}; shift ;;
+		-c|--caps)    caps=1; shift ;;
+		-n|--dry-run) dry=1; shift ;;
+		-p|--porcelain) porcelain=1; shift ;;
+		-h|--help)    usage; exit 0 ;;
+		--)           shift; files+=("$@"); break ;;
+		-*)           die "unknown option: $1 (see --help)" ;;
+		*)            files+=("$1"); shift ;;
+	esac
+done
+
+(( ${#files} )) || { usage; exit 1 }
+[[ -n $template ]] || die "template is empty"
+[[ $template == */* ]] && die "template must be a filename, not a path"
+
+# ---------------------------------------------------------------------------
+# metadata extraction
+# ---------------------------------------------------------------------------
+
+# First matching directive value in $1 for the alternation in $2 (ERE, e.g.
+# "title|t"). Prints the trimmed value; fails if no directive is present.
+directive() {
+	local file=$1 names=$2 line val
+	line=$(grep -i -m1 -E "^[[:space:]]*\{[[:space:]]*(${names})[[:space:]]*:" -- "$file") || return 1
+	val=${line#*:}
+	val=${val%%\}*}
+	val=${val##[[:space:]]#}
+	val=${val%%[[:space:]]#}
+	[[ -n $val ]] || return 1
+	print -r -- "$val"
+}
+
+# Expand $template for $1. Result in $REPLY; on failure, the missing field
+# name is in $render_err and the function returns non-zero.
+render_err=""
+render() {
+	local file=$1 rest=$template out="" field names capsable val
+	while [[ $rest == *\{* ]]; do
+		out+=${rest%%\{*}
+		rest=${rest#*\{}
+		[[ $rest == *\}* ]] || die "unbalanced '{' in template"
+		field=${rest%%\}*}
+		rest=${rest#*\}}
+		capsable=0
+		case ${(L)field} in
+			title|t) names='title|t'; capsable=1 ;;
+			artist)  names='artist';  capsable=1 ;;
+			bpm)     names='bpm|tempo' ;;
+			key)     names='key' ;;
+			capo)    names='capo' ;;
+			*)       die "unknown template field: {$field}" ;;
+		esac
+		if ! val=$(directive "$file" "$names"); then
+			render_err="{${(L)field}}"
+			return 1
+		fi
+		(( caps && capsable )) && val=${(C)val}
+		out+=$val
+	done
+	out+=$rest
+	out=${out//\//-}   # '/' is illegal in a filename
+	REPLY=$out
+}
+
+# ---------------------------------------------------------------------------
+# plan + apply
+# ---------------------------------------------------------------------------
+# STATUS<TAB>OLD<TAB>NEW-or-reason, for scripts that wrap this tool
+emit() { (( porcelain )) && print -r -- "${1}"$'\t'"${2}"$'\t'"${3}"; }
+
+(( porcelain )) || print -- "${C_CYAN}${C_BOLD}${ICON_TITLE} chordpro-rename${C_RESET}${C_DIM} — ${#files} file(s) ${ICON_ARROW} \"${template}\"$( (( dry )) && print -n ' (dry run)' )${C_RESET}"
+
+typeset -a planned          # target paths already claimed in this batch
+n_renamed=0 n_same=0 n_suffixed=0 n_failed=0
+
+for src in "${files[@]}"; do
+	base=${src:t}
+
+	if [[ ! -f $src ]]; then
+		emit failed "$base" "not a readable file"
+		(( porcelain )) || print -u2 -- "  ${C_RED}${ICON_FAIL}${C_RESET} ${C_DIM}${base}${C_RESET}  ${C_RED}not a readable file${C_RESET}"
+		(( n_failed++ )); continue
+	fi
+
+	if ! render "$src"; then
+		emit failed "$base" "missing ${render_err} directive"
+		(( porcelain )) || print -u2 -- "  ${C_RED}${ICON_FAIL}${C_RESET} ${C_DIM}${base}${C_RESET}  ${C_RED}missing ${render_err} directive${C_RESET}"
+		(( n_failed++ )); continue
+	fi
+	name=$REPLY
+	dir=${src:h}
+
+	if [[ $name == "$base" ]]; then
+		emit unchanged "$base" "$base"
+		(( porcelain )) || print -- "  ${C_GREY}${ICON_SAME}${C_RESET} ${C_DIM}${base}  already named correctly${C_RESET}"
+		(( n_same++ )); continue
+	fi
+
+	# never overwrite: on collision, report it and find a free " (N)" suffix.
+	# `-ef` exempts the source itself so case-only renames work on APFS.
+	target=$dir/$name
+	collided=0
+	if { [[ -e $target && ! $target -ef $src ]] } || (( ${planned[(Ie)$target]} )); then
+		collided=1
+		stem=${name%.*}; ext=${name##*.}
+		[[ $stem == "$name" ]] && ext=""      # no extension in template
+		i=2
+		while :; do
+			name="${stem} (${i})${ext:+.$ext}"
+			target=$dir/$name
+			{ [[ -e $target && ! $target -ef $src ]] } || (( ${planned[(Ie)$target]} )) || break
+			(( i++ ))
+		done
+	fi
+	planned+=("$target")
+
+	if (( ! porcelain )); then
+		if (( collided )); then
+			print -u2 -- "  ${C_YELLOW}${ICON_WARN}${C_RESET} ${C_DIM}${base}${C_RESET} ${C_GREY}${ICON_ARROW}${C_RESET} ${C_YELLOW}${name}${C_RESET}  ${C_YELLOW}(target exists — suffixed)${C_RESET}"
+		else
+			print -- "  ${C_GREEN}${ICON_OK}${C_RESET} ${C_DIM}${base}${C_RESET} ${C_GREY}${ICON_ARROW}${C_RESET} ${C_GREEN}${name}${C_RESET}"
+		fi
+	fi
+
+	if (( ! dry )); then
+		if ! mv -n -- "$src" "$target"; then
+			emit failed "$base" "rename failed"
+			(( porcelain )) || print -u2 -- "  ${C_RED}${ICON_FAIL}${C_RESET} ${C_DIM}${base}${C_RESET}  ${C_RED}rename failed${C_RESET}"
+			(( n_failed++ )); continue
+		fi
+	fi
+	if (( collided )); then emit suffixed "$base" "$name"; else emit renamed "$base" "$name"; fi
+	if (( collided )); then (( n_suffixed++ )); else (( n_renamed++ )); fi
+done
+
+# ---------------------------------------------------------------------------
+# summary
+# ---------------------------------------------------------------------------
+(( porcelain )) && { (( n_failed )) && exit 1; exit 0 }
+
+verb=renamed; (( dry )) && verb="to rename"
+summary="${C_BOLD}${n_renamed}${C_RESET} ${verb}"
+(( n_suffixed )) && summary+="${C_DIM},${C_RESET} ${C_YELLOW}${n_suffixed} suffixed${C_RESET}"
+(( n_same ))     && summary+="${C_DIM},${C_RESET} ${C_DIM}${n_same} unchanged${C_RESET}"
+(( n_failed ))   && summary+="${C_DIM},${C_RESET} ${C_RED}${n_failed} failed${C_RESET}"
+print -- "  $summary"
+
+(( n_failed )) && exit 1
+exit 0

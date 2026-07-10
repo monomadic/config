@@ -43,7 +43,8 @@ reveal = [
 	# { run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", desc = "􁊇  exiftool", block = true },
 ]
 chordpro = [
-	{ run = "chordpro-tui %s1", desc = "􃐹  chordpro-tui", for = "unix", block = true },
+	{ run = "chordpro-tui %s1", desc = "􃐹  chordpro-tui", block = true },
+	{ run = "chordpro-rename %s1", desc = "􀈏  chordpro-rename", block = true },
 	{ run = "chordpro-pdf --preset ipad-mini %s1", desc = "􀡢  convert to pdf (iPad Mini)", for = "unix", block = true },
 	{ run = "chordpro-pdf --preset ipad-mini --inverted %s1", desc = "􀎾  convert to pdf (iPad Mini, Inverted)", for = "unix", block = true },
 ]

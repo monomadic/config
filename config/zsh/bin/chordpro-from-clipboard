@@ -1,0 +1,181 @@
+#!/usr/bin/env zsh
+#
+# chordpro-import — turn a copied guitar tab into a chart in the ChordPro library.
+#
+# Pipeline:
+#   clipboard ── tab2chordpro.py ──▶ chordpro-rename ──▶ $TABLATURE_DIR/ChordPro/
+#   then opens the new chart in chordpro-tui in a new kitty pane (focused).
+#
+# The conversion is written straight into the library under a hidden temp name
+# and renamed in place, so chordpro-rename's collision handling ("Name (2).ext")
+# covers the move as well — nothing is ever overwritten.
+#
+# Usage:
+#   chordpro-import [options]
+#
+# Options:
+#   -t, --template TPL  chordpro-rename template (default: "{title} - {artist}.chordpro")
+#       --library DIR   file the chart in DIR (default: $TABLATURE_DIR/ChordPro)
+#       --no-caps       don't Caps-Case Each Word in title/artist
+#       --stdin         read the tab from stdin instead of the clipboard
+#       --no-open       don't open the result in chordpro-tui
+#   -h, --help          show this help
+
+emulate -L zsh
+set -u
+setopt extended_glob
+
+# ---------------------------------------------------------------------------
+# styling
+# ---------------------------------------------------------------------------
+if [[ -t 1 ]]; then
+	C_RESET=$'\e[0m'; C_BOLD=$'\e[1m'; C_DIM=$'\e[2m'
+	C_RED=$'\e[31m'; C_GREEN=$'\e[32m'; C_YELLOW=$'\e[33m'
+	C_CYAN=$'\e[36m'; C_GREY=$'\e[90m'
+else
+	C_RESET=; C_BOLD=; C_DIM=; C_RED=; C_GREEN=; C_YELLOW=; C_CYAN=; C_GREY=
+fi
+
+ICON_TITLE=$''   #
+ICON_OK=$''      #
+ICON_WARN=$''    #
+ICON_FAIL=$''    #
+ICON_ARROW=$'→'
+
+# aligned pipeline steps:  "  ✓ label      detail"
+step()      { print -- "  ${C_GREEN}${ICON_OK}${C_RESET} ${C_DIM}${(r:10:)1}${C_RESET} $2" }
+step_warn() { print -u2 -- "  ${C_YELLOW}${ICON_WARN}${C_RESET} ${C_DIM}${(r:10:)1}${C_RESET} ${C_YELLOW}$2${C_RESET}" }
+die() {
+	print -u2 -- "  ${C_RED}${ICON_FAIL}${C_RESET} ${C_DIM}${(r:10:)1}${C_RESET} ${C_RED}$2${C_RESET}"
+	exit 1
+}
+
+usage() {
+	cat <<EOF
+${C_CYAN}${C_BOLD}${ICON_TITLE} chordpro-import${C_RESET} — clipboard tab ${ICON_ARROW} ChordPro library
+
+Converts a guitar tab from the clipboard with tab2chordpro, names it from its
+metadata, files it in \$TABLATURE_DIR/ChordPro/, and opens it in chordpro-tui.
+
+${C_BOLD}Usage:${C_RESET}
+  chordpro-import [options]
+
+${C_BOLD}Options:${C_RESET}
+  -t, --template TPL  chordpro-rename template (default: "{title} - {artist}.chordpro")
+      --library DIR   file the chart in DIR (default: \$TABLATURE_DIR/ChordPro)
+      --no-caps       don't Caps-Case Each Word in title/artist
+      --stdin         read the tab from stdin instead of the clipboard
+      --no-open       don't open the result in chordpro-tui
+  -h, --help          show this help
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# arguments
+# ---------------------------------------------------------------------------
+template="{title} - {artist}.chordpro"
+caps=1 open_it=1 from_stdin=0 library=""
+
+while (( $# )); do
+	case $1 in
+		-t|--template)
+			[[ $# -ge 2 ]] || die import "$1 requires a value"
+			template=$2; shift 2 ;;
+		--template=*) template=${1#*=}; shift ;;
+		--library)
+			[[ $# -ge 2 ]] || die import "$1 requires a value"
+			library=$2; shift 2 ;;
+		--library=*)  library=${1#*=}; shift ;;
+		--no-caps)    caps=0; shift ;;
+		--stdin)      from_stdin=1; shift ;;
+		--no-open)    open_it=0; shift ;;
+		-h|--help)    usage; exit 0 ;;
+		*)            die import "unknown option: $1 (see --help)" ;;
+	esac
+done
+
+# ---------------------------------------------------------------------------
+# tools + destination
+# ---------------------------------------------------------------------------
+resolve() {  # find a helper on PATH or at its known home
+	local name=$1 fallback=$2
+	if command -v -- "$name" >/dev/null 2>&1; then command -v -- "$name"
+	elif [[ -x $fallback ]]; then print -r -- "$fallback"
+	else return 1; fi
+}
+
+print -- "${C_CYAN}${C_BOLD}${ICON_TITLE} chordpro-import${C_RESET}${C_DIM} — clipboard ${ICON_ARROW} ChordPro library${C_RESET}"
+
+TAB2CHORDPRO=$(resolve tab2chordpro.py "$HOME/.bin/tab2chordpro.py") || die tools "tab2chordpro.py not found"
+RENAME=$(resolve chordpro-rename "$HOME/.bin/chordpro-rename")      || die tools "chordpro-rename not found"
+CHORDPRO_TUI=$(resolve chordpro-tui "$HOME/go/bin/chordpro-tui")    || die tools "chordpro-tui not found"
+KITTY_LAUNCH=$(resolve kitty-launch "$HOME/.zsh/bin/kitty-launch")  || die tools "kitty-launch not found"
+
+lib="${library:-${TABLATURE_DIR:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature}/ChordPro}"
+[[ -d $lib ]] || die library "not a directory: $lib"
+lib_disp="${lib/#$HOME/~}"
+
+# ---------------------------------------------------------------------------
+# 1. clipboard
+# ---------------------------------------------------------------------------
+if (( from_stdin )); then
+	tab=$(cat) || die clipboard "could not read stdin"
+	source_label="stdin"
+else
+	tab=$(pbpaste) || die clipboard "pbpaste failed"
+	source_label="clipboard"
+fi
+[[ -n ${tab//[[:space:]]/} ]] && [[ $tab == *$'\n'* ]] || die clipboard "$source_label is empty (copy a tab first)"
+tab_lines=${#${(f)tab}}
+step clipboard "captured ${C_BOLD}${tab_lines}${C_RESET} lines from ${source_label}"
+
+# ---------------------------------------------------------------------------
+# 2. convert  (straight into the library under a temp name — see header)
+# ---------------------------------------------------------------------------
+tmp="$lib/.chordpro-import.$$.chordpro"
+trap '[[ -e $tmp ]] && rm -f -- "$tmp"' EXIT
+
+if ! print -r -- "$tab" | "$TAB2CHORDPRO" > "$tmp" || [[ ! -s $tmp ]]; then
+	die convert "tab2chordpro produced no output"
+fi
+step convert "tab2chordpro ${ICON_ARROW} ChordPro"
+
+# ---------------------------------------------------------------------------
+# 3. name it from its own metadata
+# ---------------------------------------------------------------------------
+caps_flag=(); (( caps )) && caps_flag=(--caps)
+result=$("$RENAME" --porcelain "${caps_flag[@]}" --template "$template" -- "$tmp" 2>/dev/null)
+IFS=$'\t' read -r st _old new <<< "${result%%$'\n'*}"
+
+case $st in
+	renamed)
+		name=$new
+		step rename "${C_CYAN}${C_BOLD}${name}${C_RESET}"
+		;;
+	suffixed)
+		name=$new
+		step_warn rename "chart already in library — saved as ${C_BOLD}${name}${C_RESET}"
+		;;
+	*)
+		# converter found no usable {title}/{artist}: keep the chart anyway
+		name="Imported $(date '+%Y-%m-%d %H.%M.%S').chordpro"
+		mv -n -- "$tmp" "$lib/$name" || die rename "could not save $name"
+		step_warn rename "no title/artist detected — saved as ${C_BOLD}${name}${C_RESET}"
+		;;
+esac
+final="$lib/$name"
+[[ -f $final ]] || die rename "expected file missing: $final"
+step library "${C_DIM}${lib_disp}/${C_RESET}"
+
+# ---------------------------------------------------------------------------
+# 4. open in chordpro-tui, in a new focused kitty pane
+# ---------------------------------------------------------------------------
+if (( open_it )); then
+	if "$KITTY_LAUNCH" --window --title "${name%.*}" -- "$CHORDPRO_TUI" "$final" >/dev/null; then
+		step open "chordpro-tui ${C_DIM}(kitty pane, focused)${C_RESET}"
+	else
+		step_warn open "kitty-launch failed — open manually: chordpro-tui \"$final\""
+	fi
+fi
+
+print -- "  ${C_GREEN}${C_BOLD}${ICON_OK} done${C_RESET} ${C_DIM}${ICON_ARROW}${C_RESET} ${C_BOLD}${name}${C_RESET}"

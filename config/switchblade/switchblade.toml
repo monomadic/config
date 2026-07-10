@@ -37,8 +37,8 @@ selection_zoom_boost = 0.35
 hover_scale = 1.06
 
 corner_radius = 2.0
-selection_corner_radius = 5.0
-border_width = 1.0
+selection_corner_radius = 10.0
+border_width = 2.0
 fade_in_ms = 20.0
 
 # How much moves — each level includes everything below it:
@@ -74,34 +74,36 @@ recurse = true
 # tiles. thumb_quality is 1..10: 10 ≈ visually lossless, 1 = heavily
 # compressed but still presentable. Changing any of these regenerates
 # thumbnails (cache files are named by recipe; old ones are kept).
-thumb_width = 960
-thumb_height = 540
-thumb_quality = 9
+thumb_width = 768
+thumb_height = 432
+thumb_quality = 7
 # Anim sheet grid: frames = grid², frame size = thumb/grid.
 # 3 = 9 smaller frames (more motion), 2 = 4 crisper frames.
 anim_grid = 3
-atlas_width = 7680
-atlas_height = 4320
+# Maxed to the 16384/side hardware texture cap: 21x37 = 777 slots of
+# 768x432 ≈ 1 GB — the single-texture ceiling.
+atlas_width = 16384
+atlas_height = 16384
 # The selected clip decodes ONCE at up to this size (never above the
 # source's own resolution): the tile shows it downscaled (mipmapped) and
 # quickview shows the same stream big — so quickview opens instantly
 # with zero skip. Higher = sharper + more decode CPU while selected.
-quickview_max_width = 1920
-quickview_max_height = 1080
+quickview_max_width = 2560
+quickview_max_height = 1440
 # Quickview filmstrip: chip height (16:9), spacing, and how hard the
 # strip chases the selection per 60fps frame (same curve family as
 # key_snap_strength; 0.99 ≈ instant snap). The selected chip's border
 # takes its color from selection_border, size/rounding from these.
-strip_height = 92.0
-strip_gap = 10.0
+strip_height = 80.0
+strip_gap = 2.0
 strip_snap_strength = 0.5
-strip_corner_radius = 5.0
-strip_border_width = 4.0
+strip_corner_radius = 9.0
+strip_border_width = 0.2
 # Selected / hovered chips scale up and overlap their neighbors (drawn
 # on top, like the grid). Hovered chips also play video at animation
 # level "normal"+.
-strip_selection_scale = 1.35
-strip_hover_scale = 1.15
+strip_selection_scale = 1.30
+strip_hover_scale = 1.20
 # Quickview backdrop: black dim strength (0..1) and frosted-glass blur
 # level — the grid is downsampled 2^level before drawing back, so
 # 1 = subtle, 4 = heavy frost, 0 = no blur. GPU-cheap either way.
@@ -123,7 +125,7 @@ anim_min_tile_w = 140.0
 # sides. 1.5 also gently crops 16:9; set 1.78 to leave landscape untouched.
 max_display_aspect = 1.5
 selection_border = [1.0, 1.0, 1.0]
-hover_border = [0.0, 0.0, 0.0]
+hover_border = [1.0, 1.0, 1.0]
 # Thin outline for tiles that have no thumbnail yet (fill is transparent).
 empty_border = [0.10, 0.10, 0.13]
 
