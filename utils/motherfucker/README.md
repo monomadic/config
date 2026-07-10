@@ -11,7 +11,11 @@ Run the binary; it sits resident (a few MB, zero idle CPU) and waits for
 force-open (reopen event), `⎋` or clicking away dismisses. Summoning with an
 empty query lists running apps — it's an app switcher by default.
 
-Install: `setup/install/motherfucker.sh` (builds release, copies to `~/.bin`).
+Install: `setup/install/motherfucker.sh` — builds release, installs to
+`~/.bin`, and loads a LaunchAgent (`com.nom.motherfucker`) so it starts at
+login and relaunches if it ever dies. Re-run the script after code changes;
+it reloads the agent. Uninstall: `launchctl bootout gui/$(id -u)
+~/Library/LaunchAgents/com.nom.motherfucker.plist` and delete the plist.
 
 To take over **⌘Space**, disable Spotlight's shortcut first (see
 `spotlight-manager` in `config/zsh`), then change `SUMMON_MODS` in
@@ -53,6 +57,6 @@ no divider lines, bordered hint chips (`↩ switch · ⌘↩ open · ⎋ dismiss
 
 ## Not yet
 
-- LaunchAgent plist for auto-start
-- window count / multi-window pick on switch (needs AX permission)
+- multi-window pick on switch (needs AX permission)
 - configurable hotkey (currently a constant)
+- per-item commands on the selected row (⌘Q quit, ⌘R reveal, ...)
