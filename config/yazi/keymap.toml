@@ -173,6 +173,7 @@ desc = "Switch to next tab"
 
 [[mgr.prepend_keymap]]
 on   = [ "T" ]
+for  = "unix"
 run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title "trim intro" -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut %s'''
 desc = "Trim intro from selected videos"
 
@@ -244,11 +245,6 @@ desc = "Copy selected files to the other Yazi pane"
 on   = [ "m", "t" ]
 run  = "shell --block -- ffmpeg-lossless-cut %s"
 desc = "Trim intros from selected movies"
-
-[[mgr.prepend_keymap]]
-on   = [ "T" ]
-run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut %s'''
-desc = "Trim intro from selected videos"
 
 [[mgr.prepend_keymap]]
 on   = [ "m", "a" ]
