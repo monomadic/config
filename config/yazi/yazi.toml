@@ -79,7 +79,20 @@ prepend_rules = [
 ]
 
 [plugin]
+# iCloud eviction guard: evicted files become hidden `.Name.ext.icloud` stubs.
+# Never preview/preload/spot them so Yazi never touches (and never materializes)
+# an evicted file while browsing. Must precede the catch-all rules below.
+prepend_preloaders = [
+	{ url = "*.icloud", run = "noop" },
+	{ url = ".*.icloud", run = "noop" },
+]
+prepend_spotters = [
+	{ url = "*.icloud", run = "noop" },
+	{ url = ".*.icloud", run = "noop" },
+]
 prepend_previewers = [
+	{ url = "*.icloud", run = "noop" },
+	{ url = ".*.icloud", run = "noop" },
 	{ url = "*.pro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
 	{ url = "*.cho", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
 	{ url = "*.chopro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
