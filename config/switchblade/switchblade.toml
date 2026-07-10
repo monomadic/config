@@ -53,6 +53,10 @@ animation = "normal"
 # flying across the grid doesn't spawn a decoder per keypress).
 live_delay_ms = 100.0
 
+# [ / ] jump the playing clip by this fraction of its duration (wraps at
+# the ends). A binding can override the amount per key — see [keys] below.
+skip_fraction = 0.10
+
 # Pause live playback + sheet animation while the window is unfocused
 # (the grid stays visible, just still — big CPU saver). Toggle at
 # runtime with 'p'.
@@ -137,23 +141,33 @@ empty_border = [0.05, 0.05, 0.05]
 background = [0.007, 0.007, 0.007]
 
 # ── Keys & commands (PLAN.md §11) ────────────────────────────────────────
-# Built-in defaults: enter/o = open (mpv) · space = preview (looping mpv)
-# · c = copy_path · q = quit · f = fullscreen · -/=/0 = zoom.
-# hjkl/arrows are reserved for movement. Entries here override defaults.
-# {path}, {dir}, {name} expand against the selected clip.
-# Built-in internal actions: quit, fullscreen, copy_path,
-# zoom_in, zoom_out, zoom_reset.
+# hjkl / arrows are reserved for movement; every other key is remappable.
+# Built-in defaults: enter/o = open · space = quickview · c = copy_path ·
+# q = quit · f = fullscreen · a = toggle_anim · p = toggle_focus_pause ·
+# r = reveal · -/=/0 = zoom · [ / ] = skip back/fwd through the playing
+# clip · D = browse the selected clip's parent dir. Entries here override
+# them.
+#
+# A key can name an internal action (quit, fullscreen, copy_path,
+# quickview, toggle_anim, toggle_focus_pause, zoom_in, zoom_out,
+# zoom_reset, skip_forward, skip_back, open_parent) or any [commands.*]
+# entry below. In command args, {path}, {dir} and {name} expand against the
+# selected clip.
 
 [keys]
 enter = "open"
 o = "open"
-space = "quickview"   # internal preview; Esc or Space closes, arrows browse
-# space = "preview"   # alternative: external looping mpv
+space = "quickview"      # internal preview; Esc or Space closes, arrows browse
+# space = "preview"      # alternative: external looping mpv (defined below)
 c = "copy_path"
-a = "toggle_anim"       # background tile animation on/off
+a = "toggle_anim"        # animated thumbnails on/off
 p = "toggle_focus_pause" # pause-when-unfocused on/off
-r = "reveal"            # reveal in Finder (open -R)
-# n = "rename_script"   # any key -> any launched program; see below
+r = "reveal"             # reveal in Finder (open -R)
+"[" = "skip_back"        # jump by skip_fraction; wraps at the ends
+"]" = "skip_forward"
+D = "open_parent"        # re-ingest from the selected clip's parent dir
+# n = "rename_script"    # any key -> any launched program; example below
+# "{" = "skip_back_big"  # a skip with its own amount; see below
 
 # "open" is just a command like any other — swap mpv for whatever you
 # like, or add more commands and bind keys to them.
@@ -183,7 +197,15 @@ args = [
 # program = "open"
 # args = ["-R", "{path}"]
 
+# Example: bind a key to your own script.
 # [commands.rename_script]
 # type = "launch"
 # program = "~/bin/rename-media"
 # args = ["{path}"]
+
+# Internal actions take parameters too — a skip command with `amount`
+# jumps by that fraction instead of skip_fraction:
+# [commands.skip_back_big]
+# type = "internal"
+# action = "skip_back"
+# amount = 0.25
