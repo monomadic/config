@@ -53,6 +53,33 @@ extern "C" {
         buffersize: c_int,
     ) -> c_int;
     fn mach_timebase_info(info: *mut MachTimebaseInfo) -> c_int;
+    fn sysctlbyname(
+        name: *const std::ffi::c_char,
+        oldp: *mut c_void,
+        oldlenp: *mut usize,
+        newp: *mut c_void,
+        newlen: usize,
+    ) -> c_int;
+}
+
+/// Physical RAM in bytes (a hardware constant, read once at startup).
+pub fn total_memory() -> u64 {
+    let mut size: u64 = 0;
+    let mut len = std::mem::size_of::<u64>();
+    let r = unsafe {
+        sysctlbyname(
+            c"hw.memsize".as_ptr(),
+            &mut size as *mut _ as *mut c_void,
+            &mut len,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if r == 0 {
+        size
+    } else {
+        0
+    }
 }
 
 #[link(name = "CoreGraphics", kind = "framework")]
@@ -115,14 +142,15 @@ pub fn window_counts() -> HashMap<i32, u32> {
     map
 }
 
+/// Lowercase-compact RAM value per the design spec: "1.2 gb", "840 mb".
 pub fn fmt_ram(bytes: u64) -> String {
     const MIB: f64 = 1024.0 * 1024.0;
     const GIB: f64 = MIB * 1024.0;
     let b = bytes as f64;
     if b >= GIB {
-        format!("{:.1} GB", b / GIB)
+        format!("{:.1} gb", b / GIB)
     } else {
-        format!("{:.0} MB", b / MIB)
+        format!("{:.0} mb", b / MIB)
     }
 }
 

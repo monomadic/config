@@ -44,22 +44,34 @@ use objc2_quartz_core::CALayer;
 const PANEL_W: f64 = 620.0;
 const RADIUS: f64 = 18.0;
 const INPUT_H: f64 = 58.0;
-const ROW_H: f64 = 32.0;
+const ROW_H: f64 = 40.0;
 const ROWS_PAD: f64 = 12.0;
-const HINTS_H: f64 = 44.0;
+const BOTTOM_PAD: f64 = 12.0;
 const MAX_ROWS: usize = 6;
-// Tint over the glass: deep pure black.
-const TINT_ALPHA: f64 = 0.50;
+// Tint over the glass: deep black ("even blacker is okay").
+const TINT_ALPHA: f64 = 0.70;
 const TINT_RGB: (f64, f64, f64) = (0.0, 0.0, 0.0);
-// Selection: slightly lighter than the panel.
-const SEL_RGB: (f64, f64, f64) = (1.0, 1.0, 1.0);
-const SEL_ALPHA: f64 = 0.10;
-// Chips: solid black pill, outline on the key box only.
-const KEYBOX_BORDER_ALPHA: f64 = 0.30;
+// Selection: a touch darker than the old pure-white tint, with a subtle
+// cool hue so it reads as chosen rather than default.
+const SEL_RGB: (f64, f64, f64) = (0.60, 0.70, 0.90);
+const SEL_ALPHA: f64 = 0.085;
 // Matched query characters render in this accent (ice blue).
 const HI_RGB: (f64, f64, f64) = (0.38, 0.75, 1.0);
 // CPU sampling: minimum interval for a trustworthy percentage.
 const CPU_MIN_INTERVAL: f64 = 0.25;
+
+// State glyph vocabulary (SF Symbols as text — zero I/O).
+const GLYPH_RUN_MULTI: &str = "\u{10088C}"; // running, 2+ windows
+const GLYPH_RUN_ONE: &str = "\u{1003DC}"; // running, one window
+const GLYPH_RUN_ZERO: &str = "\u{100941}"; // running, no windows
+const GLYPH_OFF: &str = "\u{100943}"; // installed, launchable
+const GLYPH_COL_W: f64 = 24.0;
+const GLYPH_PT: f64 = 16.0;
+
+// Slim stat bars: small, out of the way.
+const BAR_W: f64 = 24.0;
+const BAR_H: f64 = 2.5;
+const STAT_GAP: f64 = 14.0;
 
 // ---- summon key: ⌥Space (change to MOD_CMD for ⌘Space once Spotlight is off)
 const SUMMON_KEY: u32 = hotkey::VK_SPACE;
@@ -71,8 +83,41 @@ struct Entry {
     running: Option<Retained<NSRunningApplication>>,
     /// Char indices in `name` matched by the query (for highlighting).
     matched: Vec<usize>,
-    /// Right-aligned stats for running apps: "1.2 GB  12%  􀏜 3".
-    stats_line: Option<String>,
+    /// On-screen window count (running apps; picks the state glyph).
+    windows: u32,
+    /// Slim RAM/CPU gauges, running apps only.
+    stats: Option<RowStats>,
+}
+
+struct RowStats {
+    ram_text: String,
+    ram_frac: f64,
+    cpu_text: String,
+    cpu_frac: f64,
+}
+
+fn state_glyph(entry: &Entry) -> &'static str {
+    if entry.running.is_some() {
+        match entry.windows {
+            0 => GLYPH_RUN_ZERO,
+            1 => GLYPH_RUN_ONE,
+            _ => GLYPH_RUN_MULTI,
+        }
+    } else {
+        GLYPH_OFF
+    }
+}
+
+/// Location tag for installed rows: label + SF Symbol name.
+fn location_for(path: &std::path::Path) -> (&'static str, &'static str) {
+    let s = path.to_string_lossy();
+    if s.contains("/Utilities/") {
+        ("Utilities", "wrench.and.screwdriver")
+    } else if s.starts_with("/System/") {
+        ("System", "gearshape")
+    } else {
+        ("Applications", "app.fill")
+    }
 }
 
 /// Last CPU-time sample per pid, for computing a percentage between looks.
@@ -88,12 +133,12 @@ struct State {
     field: OnceCell<Retained<NSTextField>>,
     glyph: OnceCell<Retained<NSTextField>>,
     rows_area: OnceCell<Retained<NSView>>,
-    hints: OnceCell<Retained<NSView>>,
     entries: RefCell<Vec<Entry>>,
     selected: Cell<usize>,
     top_y: Cell<f64>,
     hiding: Cell<bool>,
     cpu_samples: RefCell<std::collections::HashMap<i32, CpuSample>>,
+    total_mem: Cell<u64>,
 }
 
 declare_class!(
@@ -111,6 +156,38 @@ declare_class!(
         #[method(canBecomeKeyWindow)]
         fn can_become_key_window(&self) -> bool {
             true
+        }
+    }
+);
+
+#[derive(Default)]
+struct RowIvars {
+    index: Cell<usize>,
+    /// Raw pointer to the Delegate (alive for the process lifetime).
+    delegate: Cell<usize>,
+}
+
+declare_class!(
+    struct RowView;
+
+    unsafe impl ClassType for RowView {
+        type Super = NSView;
+        type Mutability = MainThreadOnly;
+        const NAME: &'static str = "MFRowView";
+    }
+
+    impl DeclaredClass for RowView {
+        type Ivars = RowIvars;
+    }
+
+    unsafe impl RowView {
+        #[method(mouseDown:)]
+        fn mouse_down(&self, _event: &NSEvent) {
+            let ptr = self.ivars().delegate.get();
+            if ptr != 0 {
+                let delegate = unsafe { &*(ptr as *const Delegate) };
+                delegate.select_row(self.ivars().index.get());
+            }
         }
     }
 );
@@ -193,14 +270,6 @@ fn set_layer_bg(layer: &CALayer, color: &NSColor) {
         let cg: *mut c_void = msg_send![color, CGColor];
         let _: () = msg_send![layer, setBackgroundColor: cg];
     }
-}
-
-fn set_layer_border(layer: &CALayer, color: &NSColor, width: f64) {
-    unsafe {
-        let cg: *mut c_void = msg_send![color, CGColor];
-        let _: () = msg_send![layer, setBorderColor: cg];
-    }
-    layer.setBorderWidth(width);
 }
 
 /// App titles display with a capitalized first letter ("kitty" → "Kitty").
@@ -409,20 +478,12 @@ impl Delegate {
         let rows_area = unsafe { NSView::initWithFrame(mtm.alloc(), bounds) };
         container.addSubview(&rows_area);
 
-        // Hint chips.
-        let hints = unsafe { NSView::initWithFrame(mtm.alloc(), bounds) };
-        let mut x = 20.0;
-        for (key, action) in [("↩", "switch"), ("⌘↩", "open"), ("⎋", "dismiss")] {
-            x += self.build_chip(mtm, &hints, x, key, action) + 10.0;
-        }
-        container.addSubview(&hints);
-
         let ivars = self.ivars();
         ivars.panel.set(panel).ok();
         ivars.field.set(field).ok();
         ivars.glyph.set(glyph).ok();
         ivars.rows_area.set(rows_area).ok();
-        ivars.hints.set(hints).ok();
+        ivars.total_mem.set(stats::total_memory().max(1));
 
         // Key monitor for shortcuts the text system doesn't route reliably in
         // a borderless, menu-less panel: ⌃U (clear), ⌃C (dismiss), ⌘A
@@ -484,82 +545,6 @@ impl Delegate {
             return true;
         }
         false
-    }
-
-    /// Builds one bordered rounded chip; returns its width.
-    unsafe fn build_chip(
-        &self,
-        mtm: MainThreadMarker,
-        parent: &NSView,
-        x: f64,
-        key: &str,
-        action: &str,
-    ) -> f64 {
-        let key_font = unsafe { NSFont::monospacedSystemFontOfSize_weight(12.0, 0.0) };
-        let action_font = unsafe { NSFont::systemFontOfSize(12.5) };
-        let key_label = make_label(mtm, key, &key_font, &white(0.90));
-        let action_label = make_label(mtm, action, &action_font, &white(0.75));
-
-        let key_w = key_label.frame().size.width;
-        let key_h = key_label.frame().size.height;
-        let action_w = action_label.frame().size.width;
-        let action_h = action_label.frame().size.height;
-
-        let chip_h = 26.0;
-        let box_h = 19.0;
-        let box_w = key_w + 12.0;
-        let pad = 5.0; // chip padding around the key box
-        let gap = 8.0;
-        let end_pad = 12.0;
-        let chip_w = pad + box_w + gap + action_w + end_pad;
-
-        let chip = unsafe {
-            NSView::initWithFrame(
-                mtm.alloc(),
-                NSRect::new(
-                    NSPoint::new(x, (HINTS_H - chip_h) / 2.0),
-                    NSSize::new(chip_w, chip_h),
-                ),
-            )
-        };
-        // Solid black pill, no outline.
-        chip.setWantsLayer(true);
-        if let Some(layer) = chip.layer() {
-            layer.setCornerRadius(chip_h / 2.0);
-            set_layer_bg(&layer, unsafe {
-                &NSColor::colorWithSRGBRed_green_blue_alpha(0.0, 0.0, 0.0, 1.0)
-            });
-        }
-
-        // Key shortcut gets the outline instead.
-        let key_box = unsafe {
-            NSView::initWithFrame(
-                mtm.alloc(),
-                NSRect::new(
-                    NSPoint::new(pad, (chip_h - box_h) / 2.0),
-                    NSSize::new(box_w, box_h),
-                ),
-            )
-        };
-        key_box.setWantsLayer(true);
-        if let Some(layer) = key_box.layer() {
-            layer.setCornerRadius(6.0);
-            set_layer_border(&layer, &white(KEYBOX_BORDER_ALPHA), 1.0);
-        }
-        key_label.setFrameOrigin(NSPoint::new(
-            (box_w - key_w) / 2.0,
-            (box_h - key_h) / 2.0,
-        ));
-        key_box.addSubview(&key_label);
-
-        action_label.setFrameOrigin(NSPoint::new(
-            pad + box_w + gap,
-            (chip_h - action_h) / 2.0,
-        ));
-        chip.addSubview(&key_box);
-        chip.addSubview(&action_label);
-        parent.addSubview(&chip);
-        chip_w
     }
 
     fn toggle(&self) {
@@ -643,7 +628,7 @@ impl Delegate {
                 if let Some((s, positions)) = apps::match_positions(&query, &entry.name) {
                     seen.push(entry.name.to_lowercase());
                     entry.matched = positions;
-                    scored.push((s + 15, entry)); // running apps rank first
+                    scored.push((s, entry));
                 }
             }
             for app in installed {
@@ -658,12 +643,20 @@ impl Delegate {
                             path: Some(app.path),
                             running: None,
                             matched: positions,
-                            stats_line: None,
+                            windows: 0,
+                            stats: None,
                         },
                     ));
                 }
             }
-            scored.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.name.cmp(&b.1.name)));
+            // Hard rule: running apps always sort above installed ones.
+            scored.sort_by(|a, b| {
+                b.1.running
+                    .is_some()
+                    .cmp(&a.1.running.is_some())
+                    .then(b.0.cmp(&a.0))
+                    .then(a.1.name.cmp(&b.1.name))
+            });
             entries.extend(scored.into_iter().map(|(_, e)| e));
         }
         entries.truncate(MAX_ROWS);
@@ -677,12 +670,12 @@ impl Delegate {
         {
             let mut samples = self.ivars().cpu_samples.borrow_mut();
             let now = std::time::Instant::now();
+            let total_mem = self.ivars().total_mem.get().max(1) as f64;
             for entry in entries.iter_mut() {
                 if let Some(app) = &entry.running {
                     let pid = unsafe { app.processIdentifier() };
-                    let mut parts: Vec<String> = Vec::new();
+                    entry.windows = window_counts.get(&pid).copied().unwrap_or(0);
                     if let Some((ram, cpu_secs)) = stats::proc_stats(pid) {
-                        parts.push(stats::fmt_ram(ram));
                         let pct = match samples.get(&pid) {
                             Some(prev) => {
                                 let dt = now.duration_since(prev.at).as_secs_f64();
@@ -707,17 +700,20 @@ impl Delegate {
                                 None
                             }
                         };
-                        match pct {
-                            Some(p) => parts.push(format!("{p:.0}%")),
+                        let (cpu_text, cpu_frac) = match pct {
+                            Some(p) => (format!("{p:.0}%"), (p / 100.0).clamp(0.0, 1.0)),
                             None => {
-                                parts.push("…".to_string());
                                 cpu_pending = true;
+                                ("…".to_string(), 0.0)
                             }
-                        }
+                        };
+                        entry.stats = Some(RowStats {
+                            ram_text: stats::fmt_ram(ram),
+                            ram_frac: (ram as f64 / total_mem).clamp(0.0, 1.0),
+                            cpu_text,
+                            cpu_frac,
+                        });
                     }
-                    let windows = window_counts.get(&pid).copied().unwrap_or(0);
-                    parts.push(format!("\u{1003DC} {windows}")); // SF Symbol: macwindow
-                    entry.stats_line = Some(parts.join("   "));
                 }
             }
         }
@@ -767,12 +763,11 @@ impl Delegate {
     unsafe fn relayout_impl(&self) {
         let mtm = MainThreadMarker::new().unwrap();
         let ivars = self.ivars();
-        let (Some(panel), Some(field), Some(glyph), Some(rows_area), Some(hints)) = (
+        let (Some(panel), Some(field), Some(glyph), Some(rows_area)) = (
             ivars.panel.get(),
             ivars.field.get(),
             ivars.glyph.get(),
             ivars.rows_area.get(),
-            ivars.hints.get(),
         ) else {
             return;
         };
@@ -784,7 +779,7 @@ impl Delegate {
         } else {
             0.0
         };
-        let h = INPUT_H + rows_h + HINTS_H;
+        let h = INPUT_H + rows_h + BOTTOM_PAD;
 
         let old = panel.frame();
         let top = ivars.top_y.get();
@@ -809,15 +804,9 @@ impl Delegate {
             NSSize::new(PANEL_W - field_x - 22.0, field_h),
         ));
 
-        // Hints pinned to the bottom.
-        hints.setFrame(NSRect::new(
-            NSPoint::new(0.0, 0.0),
-            NSSize::new(PANEL_W, HINTS_H),
-        ));
-
-        // Rows between them.
+        // Rows fill the space below the input; no footer.
         rows_area.setFrame(NSRect::new(
-            NSPoint::new(0.0, HINTS_H),
+            NSPoint::new(0.0, BOTTOM_PAD),
             NSSize::new(PANEL_W, rows_h),
         ));
         for view in rows_area.subviews().iter() {
@@ -826,7 +815,17 @@ impl Delegate {
         let selected = ivars.selected.get();
         for (i, entry) in entries.iter().enumerate() {
             let y = rows_h - ROWS_PAD / 2.0 - (i as f64 + 1.0) * ROW_H;
-            self.build_row(mtm, rows_area, y, entry, i == selected);
+            self.build_row(mtm, rows_area, y, i, entry, i == selected);
+        }
+    }
+
+    /// Mouse selection; typing afterwards resets it (controlTextDidChange
+    /// zeroes the selection), so the keyboard always wins.
+    fn select_row(&self, index: usize) {
+        let len = self.ivars().entries.borrow().len();
+        if index < len && self.ivars().selected.get() != index {
+            self.ivars().selected.set(index);
+            self.relayout();
         }
     }
 
@@ -835,15 +834,25 @@ impl Delegate {
         mtm: MainThreadMarker,
         parent: &NSView,
         y: f64,
+        index: usize,
         entry: &Entry,
         selected: bool,
     ) {
         let row_w = PANEL_W - 20.0;
-        let row = unsafe {
-            NSView::initWithFrame(
-                mtm.alloc(),
-                NSRect::new(NSPoint::new(10.0, y), NSSize::new(row_w, ROW_H)),
-            )
+        let row: Retained<RowView> = {
+            let this = mtm.alloc::<RowView>().set_ivars(RowIvars {
+                index: Cell::new(index),
+                delegate: Cell::new(self as *const Delegate as usize),
+            });
+            unsafe {
+                msg_send_id![
+                    super(this),
+                    initWithFrame: NSRect::new(
+                        NSPoint::new(10.0, y),
+                        NSSize::new(row_w, ROW_H),
+                    ),
+                ]
+            }
         };
         if selected {
             row.setWantsLayer(true);
@@ -856,12 +865,35 @@ impl Delegate {
             }
         }
 
+        let is_running = entry.running.is_some();
+
+        // Leading state glyph column.
+        let glyph_font = unsafe { NSFont::systemFontOfSize(GLYPH_PT) };
+        let glyph_alpha = if is_running {
+            0.85
+        } else if selected {
+            0.45
+        } else {
+            0.30
+        };
+        let glyph = make_label(mtm, state_glyph(entry), &glyph_font, &white(glyph_alpha));
+        let glyph_h = glyph.frame().size.height;
+        glyph.setFrameOrigin(NSPoint::new(12.0, (ROW_H - glyph_h) / 2.0));
+        row.addSubview(&glyph);
+
+        let name_x = 12.0 + GLYPH_COL_W + 10.0;
         let name_font = unsafe { NSFont::systemFontOfSize(13.5) };
-        let name_color = if selected { white(1.0) } else { white(0.68) };
-        let name = make_label(mtm, &entry.name, &name_font, &name_color);
+        let name_alpha = if selected {
+            1.0
+        } else if is_running {
+            0.78
+        } else {
+            0.42
+        };
+        let name = make_label(mtm, &entry.name, &name_font, &white(name_alpha));
         // Matched characters render in the accent color.
         if !entry.matched.is_empty() {
-            let base = if selected { white(0.85) } else { white(0.55) };
+            let base = white(name_alpha * 0.75);
             let (hr, hg, hb) = HI_RGB;
             let hi = unsafe { NSColor::colorWithSRGBRed_green_blue_alpha(hr, hg, hb, 1.0) };
             let attr = attributed_name(&entry.name, &entry.matched, &name_font, &base, &hi);
@@ -871,23 +903,106 @@ impl Delegate {
             }
         }
         let name_h = name.frame().size.height;
-        name.setFrameOrigin(NSPoint::new(13.0, (ROW_H - name_h) / 2.0));
+        name.setFrameOrigin(NSPoint::new(name_x, (ROW_H - name_h) / 2.0));
         row.addSubview(&name);
 
-        // Stats sit on the right of the same line.
-        if let Some(line) = &entry.stats_line {
-            let stats_font = unsafe { NSFont::systemFontOfSize(11.0) };
-            let stats_color = if selected { white(0.60) } else { white(0.38) };
-            let stats = make_label(mtm, line, &stats_font, &stats_color);
-            let stats_size = stats.frame().size;
-            stats.setFrameOrigin(NSPoint::new(
-                row_w - 13.0 - stats_size.width,
-                (ROW_H - stats_size.height) / 2.0,
+        if let Some(rs) = &entry.stats {
+            // Two slim gauges, right-aligned: value text under a 24px bar.
+            let cpu_right = row_w - 12.0;
+            let ram_right = cpu_right - BAR_W - STAT_GAP;
+            self.build_gauge(mtm, &row, ram_right, &rs.ram_text, rs.ram_frac, selected);
+            self.build_gauge(mtm, &row, cpu_right, &rs.cpu_text, rs.cpu_frac, selected);
+        } else if let Some(path) = &entry.path {
+            // Installed rows: location tag with symbol.
+            let (label_text, symbol) = location_for(path);
+            let loc_font = unsafe { NSFont::systemFontOfSize(10.5) };
+            let loc_alpha = if selected { 0.55 } else { 0.35 };
+            let label = make_label(mtm, label_text, &loc_font, &white(loc_alpha));
+            let label_size = label.frame().size;
+            let label_x = row_w - 12.0 - label_size.width;
+            label.setFrameOrigin(NSPoint::new(
+                label_x,
+                (ROW_H - label_size.height) / 2.0,
             ));
-            row.addSubview(&stats);
+            row.addSubview(&label);
+
+            let icon_d = 11.0;
+            if let Some(image) = unsafe {
+                objc2_app_kit::NSImage::imageWithSystemSymbolName_accessibilityDescription(
+                    &NSString::from_str(symbol),
+                    None,
+                )
+            } {
+                let iv = unsafe {
+                    objc2_app_kit::NSImageView::initWithFrame(
+                        mtm.alloc(),
+                        NSRect::new(
+                            NSPoint::new(label_x - 5.0 - icon_d, (ROW_H - icon_d) / 2.0),
+                            NSSize::new(icon_d, icon_d),
+                        ),
+                    )
+                };
+                unsafe {
+                    iv.setImage(Some(&image));
+                    iv.setImageScaling(objc2_app_kit::NSImageScaling::NSImageScaleProportionallyUpOrDown);
+                    iv.setContentTintColor(Some(&white(loc_alpha)));
+                }
+                row.addSubview(&iv);
+            }
         }
 
         parent.addSubview(&row);
+    }
+
+    /// One slim gauge: a 24×2.5 bar with its value beneath, right edge at `right_x`.
+    unsafe fn build_gauge(
+        &self,
+        mtm: MainThreadMarker,
+        row: &NSView,
+        right_x: f64,
+        text: &str,
+        frac: f64,
+        selected: bool,
+    ) {
+        let bar_y = ROW_H / 2.0 + 3.0;
+        let track = unsafe {
+            NSView::initWithFrame(
+                mtm.alloc(),
+                NSRect::new(
+                    NSPoint::new(right_x - BAR_W, bar_y),
+                    NSSize::new(BAR_W, BAR_H),
+                ),
+            )
+        };
+        track.setWantsLayer(true);
+        if let Some(layer) = track.layer() {
+            layer.setCornerRadius(BAR_H / 2.0);
+            set_layer_bg(&layer, &white(0.12));
+        }
+        let fill_w = (BAR_W * frac.clamp(0.0, 1.0)).max(1.0);
+        let fill = unsafe {
+            NSView::initWithFrame(
+                mtm.alloc(),
+                NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(fill_w, BAR_H)),
+            )
+        };
+        fill.setWantsLayer(true);
+        if let Some(layer) = fill.layer() {
+            layer.setCornerRadius(BAR_H / 2.0);
+            set_layer_bg(&layer, &white(if selected { 0.8 } else { 0.5 }));
+        }
+        track.addSubview(&fill);
+        row.addSubview(&track);
+
+        let value_font = unsafe { NSFont::systemFontOfSize(9.0) };
+        let value_alpha = if selected { 0.70 } else { 0.45 };
+        let value = make_label(mtm, text, &value_font, &white(value_alpha));
+        let value_size = value.frame().size;
+        value.setFrameOrigin(NSPoint::new(
+            right_x - value_size.width,
+            bar_y - 4.0 - value_size.height,
+        ));
+        row.addSubview(&value);
     }
 
     fn execute(&self) {
@@ -974,7 +1089,8 @@ unsafe fn running_apps_impl() -> Vec<Entry> {
             path: None,
             running: Some(app),
             matched: Vec::new(),
-            stats_line: None,
+            windows: 0,
+            stats: None,
         });
     }
     out
