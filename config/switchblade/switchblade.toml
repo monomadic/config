@@ -8,7 +8,7 @@
 # Width:height sets the aspect ratio (240:135 = 16:9).
 tile_width = 240.0
 tile_height = 135.0
-gap = 0.5
+gap = 1.0
 
 # Scroll delta multiplier; negative flips direction if pan feels inverted.
 pan_sensitivity = 2.0
@@ -34,11 +34,11 @@ zoom_fade_ms = 180.0
 # it stand out even more as you zoom out (0 = off).
 selection_scale = 1.15
 selection_zoom_boost = 0.35
-hover_scale = 1.06
+hover_scale = 1.02
 
 corner_radius = 0.0
-selection_corner_radius = 20.0
-border_width = 2.0
+selection_corner_radius = 10.0
+border_width = 0.0
 fade_in_ms = 20.0
 
 # How much moves — each level includes everything below it:
@@ -74,9 +74,9 @@ recurse = true
 # tiles. thumb_quality is 1..10: 10 ≈ visually lossless, 1 = heavily
 # compressed but still presentable. Changing any of these regenerates
 # thumbnails (cache files are named by recipe; old ones are kept).
-thumb_width = 960
-thumb_height = 540
-thumb_quality = 9
+thumb_width = 768
+thumb_height = 432
+thumb_quality = 8
 # Anim sheet grid: frames = grid², frame size = thumb/grid.
 # 3 = 9 smaller frames (more motion), 2 = 4 crisper frames.
 anim_grid = 3
@@ -86,8 +86,8 @@ anim_grid = 3
 # Too few slots for the viewport = black tiles at the screen edges and
 # reload churn when scrolling back. Cost is linear VRAM only; rendering
 # speed doesn't change with atlas size. Hardware cap 16384 per side.
-atlas_width = 15360
-atlas_height = 8640
+atlas_width = 16128
+atlas_height = 15984
 # The selected clip decodes ONCE at up to this size (never above the
 # source's own resolution): the tile shows it downscaled (mipmapped) and
 # quickview shows the same stream big — so quickview opens instantly
@@ -101,7 +101,7 @@ quickview_max_height = 1440
 strip_height = 92.0
 strip_gap = 10.0
 strip_snap_strength = 0.5
-strip_corner_radius = 5.0
+strip_corner_radius = 10.0
 strip_border_width = 4.0
 # Selected / hovered chips scale up and overlap their neighbors (drawn
 # on top, like the grid). Hovered chips also play video at animation
@@ -128,13 +128,13 @@ anim_min_tile_w = 140.0
 # get pan-and-scan cropped: portrait loses top/bottom, ultrawide loses
 # sides. 1.5 also gently crops 16:9; set 1.78 to leave landscape untouched.
 max_display_aspect = 1.5
-selection_border = [0.0, 0.0, 0.0]
-hover_border = [0.0, 0.0, 0.0]
+selection_border = [1.0, 1.0, 1.0]
+hover_border = [1.0, 1.0, 1.0]
 # Thin outline for tiles that have no thumbnail yet (fill is transparent).
-empty_border = [0.10, 0.10, 0.13]
+empty_border = [0.05, 0.05, 0.05]
 
 # global background
-background = [0.004, 0.004, 0.006]
+background = [0.007, 0.007, 0.007]
 
 # ── Keys & commands (PLAN.md §11) ────────────────────────────────────────
 # Built-in defaults: enter/o = open (mpv) · space = preview (looping mpv)
