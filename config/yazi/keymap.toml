@@ -247,16 +247,6 @@ run  = "shell --block -- ffmpeg-lossless-cut %s"
 desc = "Trim intros from selected movies"
 
 [[mgr.prepend_keymap]]
-on   = [ "m", "a" ]
-run  = "plugin mactag add"
-desc = "Add macOS tags to selected files"
-
-[[mgr.prepend_keymap]]
-on   = [ "m", "u" ]
-run  = "plugin mactag remove"
-desc = "Remove macOS tags from selected files"
-
-[[mgr.prepend_keymap]]
 on   = [ "m", "l" ]
 run  = "linemode lsd_size_mtime"
 desc = "Linemode: lsd size + mtime"
@@ -295,61 +285,6 @@ desc = "Sort by size"
 on   = [ ",", "S" ]
 run  = "sort size --reverse=yes"
 desc = "Sort by size reverse"
-
-[[mgr.prepend_keymap]]
-on   = [ "m", "f", "d" ]
-run  = "plugin ffmpeg-stats -- toggle-duration"
-desc = "Toggle media duration"
-
-[[mgr.prepend_keymap]]
-on   = [ "m", "f", "r" ]
-run  = "plugin ffmpeg-stats -- toggle-resolution"
-desc = "Toggle media resolution"
-
-[[mgr.prepend_keymap]]
-on   = [ "m", "f", "c" ]
-run  = "plugin ffmpeg-stats -- toggle-codec"
-desc = "Toggle media codec"
-
-[[mgr.prepend_keymap]]
-on   = [ "m", "f", "f" ]
-run  = "plugin ffmpeg-stats -- toggle-fps"
-desc = "Toggle media FPS"
-
-[[mgr.prepend_keymap]]
-on   = [ "m", "f", "b" ]
-run  = "plugin ffmpeg-stats -- toggle-bitrate"
-desc = "Toggle media bitrate"
-
-[[mgr.prepend_keymap]]
-on   = [ "m", "f", "a" ]
-run  = "plugin ffmpeg-stats -- toggle-audio-codec"
-desc = "Toggle media audio codec"
-
-[[mgr.prepend_keymap]]
-on   = [ "m", "f", "h" ]
-run  = "plugin ffmpeg-stats -- toggle-audio-channels"
-desc = "Toggle media audio channels"
-
-[[mgr.prepend_keymap]]
-on   = [ "m", "f", "o" ]
-run  = "plugin ffmpeg-stats -- toggle-format"
-desc = "Toggle media format"
-
-[[mgr.prepend_keymap]]
-on   = [ "m", "f", "s" ]
-run  = "plugin ffmpeg-stats -- toggle-aspect"
-desc = "Toggle media aspect ratio"
-
-[[mgr.prepend_keymap]]
-on   = [ "m", "f", "A" ]
-run  = "plugin ffmpeg-stats -- toggle-all"
-desc = "Toggle all media stats"
-
-[[mgr.prepend_keymap]]
-on   = [ "m", "f", "D" ]
-run  = "plugin ffmpeg-stats -- disable-all"
-desc = "Disable all media stats"
 
 [[mgr.prepend_keymap]]
 on   = [ "g", "m" ]

@@ -1,22 +1,3 @@
-require("mactag"):setup({
-	keys = {
-		r = "Red",
-		o = "Orange",
-		y = "Yellow",
-		g = "Green",
-		b = "Blue",
-		p = "Purple",
-	},
-	colors = {
-		Red = "#ee7b70",
-		Orange = "#f5bd5c",
-		Yellow = "#fbe764",
-		Green = "#91fc87",
-		Blue = "#5fa3f8",
-		Purple = "#cb88f8",
-	},
-})
-
 require("ls-deluxe-colors"):setup()
 
 -- Right-click opens the "open with" picker instead of opening the file directly
@@ -125,18 +106,6 @@ local function file_size_status()
 end
 
 Status:children_add(file_size_status, 1000, Status.RIGHT)
-
-require("ffmpeg-stats"):setup({
-	duration = false,
-	resolution = false,
-	codec = false,
-	fps = false,
-	bitrate = false,
-	audio_codec = false,
-	audio_channels = false,
-	format = false,
-	aspect = false,
-})
 
 local uname = Command("uname"):arg("-s"):output()
 if uname and uname.status and uname.status.success and uname.stdout:match("Linux") then
