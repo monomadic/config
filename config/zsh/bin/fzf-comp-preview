@@ -42,29 +42,31 @@ _is_text() {
   [[ -n $first && $first != *[$'\1'-$'\10'$'\13'$'\14'$'\16'-$'\37']* ]]
 }
 
-path=$(_resolve "$val") || path=
+# NB: never name this `path` — in zsh that is the special array bound to $PATH,
+# and assigning a scalar to it wipes out the command search path.
+target=$(_resolve "$val") || target=
 
 case $action in
   window)
     # emit an fzf action for a `focus:transform(...)` bind: reveal the preview
     # pane for previewable files, hide it otherwise.
-    if [[ -n $path ]] && _is_text "$path"; then
+    if [[ -n $target ]] && _is_text "$target"; then
       print -r -- 'change-preview-window(right,55%,border-left)'
     else
       print -r -- 'change-preview-window(hidden)'
     fi
     ;;
   preview)
-    [[ -n $path ]] && _is_text "$path" || exit 0
-    bat --color=always --style=numbers --paging=never -- "$path" 2>/dev/null \
-      || cat -- "$path"
+    [[ -n $target ]] && _is_text "$target" || exit 0
+    bat --color=always --style=numbers --paging=never -- "$target" 2>/dev/null \
+      || cat -- "$target"
     ;;
   edit)
-    [[ -n $path ]] || exit 0
-    "${(@s: :)${EDITOR:-hx}}" "$path"
+    [[ -n $target ]] || exit 0
+    "${(@s: :)${EDITOR:-hx}}" "$target"
     ;;
   copy)
-    [[ -n $path ]] || exit 0
-    printf '%s' "$path" | pbcopy
+    [[ -n $target ]] || exit 0
+    printf '%s' "$target" | pbcopy
     ;;
 esac

@@ -56,11 +56,55 @@ on   = "<Enter>"
 run  = "plugin smart-enter"
 desc = "Open files or enter directories"
 
+# ─────────────────────────────────────────────────────────────────────────
+# <Space> root menu — top-level hub that funnels into sub-menus.
+#   <Space><Space>  quicklook       m  media…      o  open…      e  encode/edit…
+# ─────────────────────────────────────────────────────────────────────────
+
 [[mgr.prepend_keymap]]
-on   = [ "<Space>" ]
+on   = [ "<Space>", "<Space>" ]
 for  = "macos"
 run  = "shell -- /Users/nom/config/config/zsh/bin/yazi-quicklook %h"
-desc = "Preview hovered file"
+desc = "Quicklook hovered file"
+
+# <Space> m — media
+[[mgr.prepend_keymap]]
+on   = [ "<Space>", "m", "r" ]
+for  = "unix"
+run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " rename media " -- /Users/nom/.zsh/bin/rename-media %s'''
+desc = "Media: rename selected media"
+
+# <Space> o — open
+[[mgr.prepend_keymap]]
+on   = [ "<Space>", "o", "d" ]
+for  = "macos"
+run  = 'shell -- open "%d"'
+desc = "Open: current directory in Finder"
+
+[[mgr.prepend_keymap]]
+on   = [ "<Space>", "o", "p" ]
+for  = "macos"
+run  = 'shell -- open "%d/.."'
+desc = "Open: parent directory in Finder"
+
+# <Space> e — encode / edit
+[[mgr.prepend_keymap]]
+on   = [ "<Space>", "e", "t" ]
+for  = "unix"
+run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut %s'''
+desc = "Encode: trim (start)"
+
+[[mgr.prepend_keymap]]
+on   = [ "<Space>", "e", "T" ]
+for  = "unix"
+run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut --reverse %s'''
+desc = "Encode: trim (end)"
+
+[[mgr.prepend_keymap]]
+on   = [ "<Space>", "e", "c" ]
+for  = "unix"
+run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-check-files %s'''
+desc = "Encode: media-check-files"
 
 [[mgr.prepend_keymap]]
 on   = "<C-r>"

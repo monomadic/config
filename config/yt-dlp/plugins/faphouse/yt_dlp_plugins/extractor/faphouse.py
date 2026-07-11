@@ -236,7 +236,7 @@ class FaphouseModelIE(InfoExtractor):
     _VALID_URL = r'''(?x)
          https?://(?:www\.)?''' + FaphouseIE._HOST_RE + r'''/
          (?:[a-z]{2}(?:-[a-z]{2})?/)?   # optional locale prefix
-         (?:models|creators?)/
+         (?:models|creators?|pornstars)/
          (?P<id>[^/?#&]+)
     '''
 
