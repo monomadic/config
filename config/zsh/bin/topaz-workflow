@@ -173,15 +173,15 @@ media_preview_summary() {
 }
 
 script_dir="${0:A:h}"
-TOPAZ_RUN="$script_dir/topaz-run"
-if command -v topaz-run >/dev/null 2>&1; then
-  TOPAZ_RUN="$(command -v topaz-run)"
+TOPAZ_RUN="$script_dir/topaz-encode"
+if command -v topaz-encode >/dev/null 2>&1; then
+  TOPAZ_RUN="$(command -v topaz-encode)"
 elif [[ ! -x "$TOPAZ_RUN" ]]; then
-  print -u2 -- "topaz-run not found in PATH or next to $script_name: $TOPAZ_RUN"
+  print -u2 -- "topaz-encode not found in PATH or next to $script_name: $TOPAZ_RUN"
   exit 1
 fi
 
-PRESET_CATALOG="$script_dir/topaz-preset-catalog.zsh"
+PRESET_CATALOG="$script_dir/lib/topaz-preset-catalog.zsh"
 TOPAZ_PREVIEW_AB_KITTY="$script_dir/topaz-preview-ab-kitty"
 
 [[ -r "$PRESET_CATALOG" ]] || {

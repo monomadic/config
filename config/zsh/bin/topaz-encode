@@ -1,28 +1,42 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-# Offline Topaz encode picker: the same three-step flow as the mpv `z` menu
-# (enhancement -> interpolation -> output format), driven by fzf, handing off to
-# topaz-run for the actual encode (which handles resume, logging, progress).
-
 script_name="${0:t}"
 
 usage() {
   cat <<EOF
 usage:
-  $script_name [--preview [seconds]] [--resume] [--copy-cmd] [--trash-originals] file1 [file2 ...]
+  $script_name [--preview [seconds]] [--trash-originals] [--resume] [--copy-cmd] [--preset_name name --filter_complex filter] [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
+  $script_name file1 [file2 ...]
 
-Interactive three-step Topaz encode for the terminal:
-  1. enhancement preset (upscale categories offered only for <4K sources)
-  2. frame interpolation (or none)
-  3. output format
+With --preset_name and --filter_complex, runs the supplied Topaz filter directly.
+Without them, opens the interactive preset picker.
 
-Composes the filter exactly like the mpv Topaz menu (orientation-aware 4K
-targets, interpolation inserted before the lanczos tail) and runs topaz-run,
-so interrupted encodes can be resumed by rerunning the same command.
+With --preview, encodes only the first seconds of each input with the selected
+preset. The preview length defaults to 1 second.
 
---copy-cmd prints/copies the final topaz-run command instead of encoding.
-Other flags are passed through to topaz-run.
+If the output file already exists but is shorter than expected (an interrupted
+encode), $script_name offers to resume it: the tail is re-encoded from the last
+keyframe of the partial and losslessly concatenated onto it. --resume skips the
+prompt and resumes automatically.
+
+Every encode embeds its job (source path, preset, filter, video args) as
+metadata tags in the output, and fragmented outputs keep those tags even when
+an encode crashes. Passing such a file as the only argument, with no preset
+flags, reconstructs the job from the file itself:
+  $script_name --resume 'partial [Topaz - ...].mp4'
+
+With --copy-cmd, prints the exact $script_name command for each input (and copies
+it to the clipboard) instead of encoding — paste it later to rerun or resume.
+
+After each successful encode, copies source metadata tags and filesystem creation
+date to the Topaz output. With --trash-originals, moves successfully encoded
+source files to Trash.
+
+Uses the first installed Topaz bundle by default:
+  /Applications/Topaz Video.app
+  /Applications/Topaz Video AI.app
+Set TOPAZ_APP to override.
 EOF
 }
 
@@ -38,40 +52,646 @@ case "${1:-}" in
     ;;
 esac
 
-PRESET_CATALOG="${0:A:h}/topaz-preset-catalog.zsh"
-TOPAZ_RUN="${0:A:h}/topaz-run"
+TOPAZ_APP_LIB="${0:A:h}/lib/topaz-app.zsh"
+[[ -r "$TOPAZ_APP_LIB" ]] || {
+  print -u2 "Topaz app resolver not found: $TOPAZ_APP_LIB"
+  exit 1
+}
+source "$TOPAZ_APP_LIB"
+
+TOPAZ_APP="$(topaz_resolve_app)" || exit 1
+TOPAZ_MACOS_DIR="$(topaz_resolve_macos_dir "$TOPAZ_APP")"
+TOPAZ_FFMPEG="$(topaz_resolve_ffmpeg "$TOPAZ_APP")"
+TOPAZ_FFPROBE="$TOPAZ_MACOS_DIR/ffprobe"
+if [[ ! -x "$TOPAZ_FFPROBE" ]] && command -v ffprobe >/dev/null 2>&1; then
+  TOPAZ_FFPROBE="$(command -v ffprobe)"
+fi
+TOPAZ_MODELS_DIR="$(topaz_resolve_models_dir "$TOPAZ_APP")"
+LOG_DIR="${HOME}/Library/Logs/topaz-batch"
+PRESET_CATALOG="${0:A:h}/lib/topaz-preset-catalog.zsh"
+TOPAZ_PREVIEW_FRAME_KITTY="${0:A:h}/topaz-preview-frame-kitty"
 
 [[ -r "$PRESET_CATALOG" ]] || {
   print -u2 "Topaz preset catalog not found: $PRESET_CATALOG"
   exit 1
 }
-[[ -x "$TOPAZ_RUN" ]] || {
-  print -u2 "topaz-run not found: $TOPAZ_RUN"
-  exit 1
-}
-command -v fzf >/dev/null 2>&1 || {
-  print -u2 "fzf not found"
-  exit 1
-}
 
 source "$PRESET_CATALOG"
 
-passthrough_args=()
+topaz_escape_prompt() {
+  print -r -- "${1//\%/%%}"
+}
+
+topaz_file_preset_label() {
+  emulate -L zsh
+  local label="$1"
+
+  label="${label//\// - }"
+  label="${label//->/to}"
+  [[ "$label" != *" "* ]] && label="${label//-/ }"
+  label="${label//  / }"
+  label="${label## }"
+  label="${label%% }"
+
+  print -r -- "$label"
+}
+
+topaz_safe_log_label() {
+  emulate -L zsh
+  local label="${1:l}"
+
+  label="${label// /-}"
+  label="${label//[^a-z0-9._-]/}"
+  label="${label//---/-}"
+  label="${label//--/-}"
+  label="${label#-}"
+  label="${label%-}"
+
+  print -r -- "$label"
+}
+
+topaz_open_log_tail() {
+  emulate -L zsh
+  local log_file="$1"
+  local title="topaz log: ${log_file:t}"
+  local -a kitty_cmd
+
+  command -v kitty >/dev/null 2>&1 || return 0
+  [[ -n "${KITTY_WINDOW_ID:-}" || -n "${KITTY_LISTEN_ON:-}" ]] || return 0
+
+  kitty_cmd=(kitty @)
+  [[ -z "${KITTY_LISTEN_ON:-}" ]] && kitty_cmd+=(--to "unix:/tmp/kitty-$USER")
+
+  "${kitty_cmd[@]}" launch \
+    --type=window \
+    --location=hsplit \
+    --bias=30 \
+    --cwd=current \
+    --keep-focus \
+    --title "$title" \
+    zsh -lc 'print -P "%F{white}tailing:%f %F{blue}${1//\%/%%}%f\n"; tail -n +1 -F "$1"' \
+    topaz-tail "$log_file" >/dev/null 2>&1 || true
+}
+
+topaz_open_output_preview() {
+  emulate -L zsh
+  local output="$1"
+  local -a kitty_cmd
+  local preview_script='for _ in {1..900}; do
+  if [[ -s "$1" ]]; then
+    exec mpv --force-window=immediate --keep-open=yes -- "$1"
+  fi
+  sleep 1
+done'
+
+  [[ "${TOPAZ_PREVIEW:-1}" == "0" ]] && return 0
+  command -v mpv >/dev/null 2>&1 || return 0
+
+  if command -v kitty >/dev/null 2>&1 && [[ -n "${KITTY_WINDOW_ID:-}" || -n "${KITTY_LISTEN_ON:-}" ]]; then
+    kitty_cmd=(kitty @)
+    [[ -z "${KITTY_LISTEN_ON:-}" ]] && kitty_cmd+=(--to "unix:/tmp/kitty-$USER")
+
+    "${kitty_cmd[@]}" launch \
+      --type=background \
+      --cwd=current \
+      zsh -lc "$preview_script" \
+      topaz-preview "$output" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  zsh -lc "$preview_script" topaz-preview "$output" >/dev/null 2>&1 &!
+}
+
+have() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+warn() {
+  print -r -u2 -- "warning: $*"
+}
+
+info() {
+  print -r -- "$*"
+}
+
+is_number() {
+  [[ "${1:-}" == <-> || "${1:-}" == <->.<-> ]]
+}
+
+number_gt_zero() {
+  awk -v v="$1" 'BEGIN { exit !(v > 0) }'
+}
+
+format_frame_rate() {
+  local rate="${1:-}"
+
+  [[ -n "$rate" && "$rate" != "0/0" ]] || {
+    print -r -- "unknown"
+    return
+  }
+
+  awk -v rate="$rate" '
+    BEGIN {
+      split(rate, parts, "/")
+      if (parts[2] == "" || parts[2] == 0) {
+        value = parts[1]
+      } else {
+        value = parts[1] / parts[2]
+      }
+
+      if (value == int(value)) {
+        printf "%dfps\n", value
+      } else {
+        printf "%.2ffps\n", value
+      }
+    }
+  '
+}
+
+media_orientation() {
+  local width="${1:-}"
+  local height="${2:-}"
+
+  [[ "$width" == <-> && "$height" == <-> ]] || {
+    print -r -- "unknown"
+    return
+  }
+
+  if (( width > height )); then
+    print -r -- "landscape"
+  elif (( height > width )); then
+    print -r -- "portrait"
+  else
+    print -r -- "square"
+  fi
+}
+
+media_summary_for_file() {
+  local input_file="$1"
+  local width="" height="" codec="" avg_frame_rate="" r_frame_rate=""
+  local key value line resolution orientation framerate
+
+  if [[ ! -x "$TOPAZ_FFPROBE" ]]; then
+    print -r -- "${input_file:t}: media info unavailable"
+    return
+  fi
+
+  while IFS= read -r line; do
+    key="${line%%=*}"
+    value="${line#*=}"
+    case "$key" in
+      width) width="$value" ;;
+      height) height="$value" ;;
+      codec_name) codec="$value" ;;
+      avg_frame_rate) avg_frame_rate="$value" ;;
+      r_frame_rate) r_frame_rate="$value" ;;
+    esac
+  done < <(
+    "$TOPAZ_FFPROBE" \
+      -v error \
+      -select_streams v:0 \
+      -show_entries stream=width,height,codec_name,avg_frame_rate,r_frame_rate \
+      -of default=noprint_wrappers=1 \
+      -- "$input_file" 2>/dev/null
+  )
+
+  if [[ -n "$width" && -n "$height" ]]; then
+    resolution="${width}x${height}"
+    orientation="$(media_orientation "$width" "$height")"
+  else
+    resolution="unknown"
+    orientation="unknown"
+  fi
+
+  framerate="$(format_frame_rate "${avg_frame_rate:-$r_frame_rate}")"
+  print -r -- "${resolution} (${orientation}), ${framerate}, ${codec:-unknown}"
+}
+
+media_duration_seconds() {
+  emulate -L zsh
+  local input_file="$1" dur=""
+
+  [[ -x "$TOPAZ_FFPROBE" ]] || { print -r -- ""; return; }
+
+  dur="$(
+    "$TOPAZ_FFPROBE" -v error \
+      -show_entries format=duration \
+      -of default=noprint_wrappers=1:nokey=1 \
+      -- "$input_file" 2>/dev/null
+  )"
+
+  if [[ "$dur" == <-> || "$dur" == <->.<-> ]]; then
+    print -r -- "$dur"
+  else
+    print -r -- ""
+  fi
+}
+
+topaz_format_clock() {
+  emulate -L zsh
+  awk -v s="${1:-0}" 'BEGIN {
+    if (s < 0) s = 0
+    h = int(s / 3600); s -= h * 3600
+    m = int(s / 60);   sec = int(s - m * 60)
+    if (h > 0) printf "%d:%02d:%02d", h, m, sec
+    else printf "%d:%02d", m, sec
+  }'
+}
+
+# Duration multiplier a slow-motion interpolation applies to the output
+# (tvai_fi slowmo=N stretches the timeline by N).
+topaz_slowmo_factor() {
+  emulate -L zsh
+  local filter="$1"
+
+  if [[ "$filter" == *tvai_fi=* && "$filter" =~ 'slowmo=([0-9]+(\.[0-9]+)?)' ]]; then
+    print -r -- "${match[1]}"
+  else
+    print -r -- "1"
+  fi
+}
+
+# Timestamp (seconds) of the last video keyframe in `file` at or before `max_t`,
+# searched within the final ~60s window. Empty output on failure.
+topaz_last_keyframe_before() {
+  emulate -L zsh
+  local file="$1" max_t="$2" start
+
+  [[ -x "$TOPAZ_FFPROBE" ]] || { print -r -- ""; return; }
+
+  start="$(awk -v m="$max_t" 'BEGIN { s = m - 60; if (s < 0) s = 0; print s }')"
+  "$TOPAZ_FFPROBE" -v error -select_streams v:0 \
+    -read_intervals "${start}%" \
+    -show_entries packet=pts_time,flags -of csv=p=0 -- "$file" 2>/dev/null |
+    awk -F, -v max="$max_t" '
+      $2 ~ /K/ && $1 != "N/A" && $1 + 0 <= max { k = $1 }
+      END { if (k != "") print k }
+    '
+}
+
+# The exact wrapper invocation that reproduces the current encode for one input.
+# Printing this (rather than the raw ffmpeg command) is what makes resume easy:
+# rerunning it detects the partial output and offers to continue.
+topaz_wrapper_cmd() {
+  emulate -L zsh
+  local input_file="$1"
+  local -a cmd
+
+  cmd=("$script_name")
+  [[ "$preview_mode" == true ]] && cmd+=(--preview "$preview_seconds")
+  [[ "$trash_originals" == true ]] && cmd+=(--trash-originals)
+  cmd+=(--preset_name "$preset_name" --filter_complex "$preset_value")
+  [[ -n "$preset_output_ext" ]] && cmd+=(--output_ext "$preset_output_ext")
+  [[ -n "$preset_video_args" ]] && cmd+=(--video_args "$preset_video_args")
+  [[ -n "$preset_metadata" ]] && cmd+=(--metadata "$preset_metadata")
+  cmd+=(-- "$input_file")
+
+  print -r -- "${(j: :)${(@q-)cmd}}"
+}
+
+# Escape a path for an ffmpeg concat-demuxer list entry (single-quoted).
+topaz_concat_escape() {
+  emulate -L zsh
+  local p="$1"
+  print -r -- "${p//\'/\'\\\'\'}"
+}
+
+topaz_output_summary_line() {
+  emulate -L zsh
+  local file="$1"
+  local width="" height="" codec="" avg="" rfr="" line key value
+  local size_bytes res fps size_str
+
+  if [[ -x "$TOPAZ_FFPROBE" ]]; then
+    while IFS= read -r line; do
+      key="${line%%=*}"
+      value="${line#*=}"
+      case "$key" in
+        width) width="$value" ;;
+        height) height="$value" ;;
+        codec_name) codec="$value" ;;
+        avg_frame_rate) avg="$value" ;;
+        r_frame_rate) rfr="$value" ;;
+      esac
+    done < <(
+      "$TOPAZ_FFPROBE" -v error -select_streams v:0 \
+        -show_entries stream=width,height,codec_name,avg_frame_rate,r_frame_rate \
+        -of default=noprint_wrappers=1 -- "$file" 2>/dev/null
+    )
+  fi
+
+  if [[ "$width" == <-> && "$height" == <-> ]]; then
+    res="${width}x${height}"
+  else
+    res="unknown"
+  fi
+  fps="$(format_frame_rate "${avg:-$rfr}")"
+
+  size_bytes="$(stat -f '%z' -- "$file" 2>/dev/null)"
+  if [[ "$size_bytes" == <-> ]]; then
+    size_str="$(awk -v b="$size_bytes" 'BEGIN {
+      b = b + 0
+      if (b < 1024) { printf "%d B", b; exit }
+      split("KB MB GB TB PB", u, " ")
+      s = b; i = 0
+      do { s /= 1024; i++ } while (s >= 1024 && i < 5)
+      printf "%.1f %s", s, u[i]
+    }')"
+  else
+    size_str="unknown size"
+  fi
+
+  print -r -- "${size_str}, ${res}, ${fps}, ${codec:-unknown}"
+}
+
+# Draw a single in-place progress bar frame from ffmpeg -progress values.
+topaz_draw_progress_bar() {
+  emulate -L zsh
+  local total="$1" out_time="$2" speed="$3" state="${4:-}" cols="${5:-80}"
+
+  awk -v total="$total" -v t="$out_time" -v speed="$speed" -v state="$state" -v cols="$cols" '
+    function clk(s,   h, m, sec) {
+      if (s < 0) s = 0
+      h = int(s / 3600); s -= h * 3600
+      m = int(s / 60);   sec = int(s - m * 60)
+      return (h > 0) ? sprintf("%d:%02d:%02d", h, m, sec) : sprintf("%02d:%02d", m, sec)
+    }
+    BEGIN {
+      esc = sprintf("%c", 27)
+      cyan = esc "[1;36m"; dim = esc "[2m"; green = esc "[1;32m"
+      yellow = esc "[1;33m"; reset = esc "[0m"; clr = esc "[K"
+
+      n = split(t, p, ":")
+      elapsed = (n == 3) ? p[1] * 3600 + p[2] * 60 + p[3] : t + 0
+      sp = speed; gsub(/[^0-9.]/, "", sp); sp = sp + 0
+      total = total + 0
+      if (state == "end" && total > 0) elapsed = total
+
+      if (total > 0) {
+        pct = elapsed / total * 100
+        if (pct < 0) pct = 0; if (pct > 100) pct = 100
+        eta = (sp > 0 && total > elapsed) ? (total - elapsed) / sp : 0
+        barw = cols - 44
+        if (barw < 10) barw = 10; if (barw > 48) barw = 48
+        filled = int(pct / 100 * barw + 0.5)
+        if (filled > barw) filled = barw; if (filled < 0) filled = 0
+        fill = ""; for (i = 0; i < filled; i++) fill = fill "█"
+        emp = "";  for (i = 0; i < barw - filled; i++) emp = emp "░"
+        printf "\r  %s%3d%%%s  %s%s%s%s%s  %s / %s  %sETA %s%s  %s%.2fx%s%s",
+          cyan, pct, reset,
+          green, fill, dim, emp, reset,
+          clk(elapsed), clk(total),
+          dim, clk(eta), reset,
+          yellow, sp, reset, clr
+      } else {
+        sps = (sp > 0) ? sprintf("  %s%.2fx%s", yellow, sp, reset) : ""
+        printf "\r  %s⏳ encoding…%s  %s%s elapsed%s%s%s",
+          cyan, reset, dim, clk(elapsed), reset, sps, clr
+      }
+    }
+  '
+}
+
+# Consume ffmpeg -progress key=value stream on stdin, redrawing the bar.
+topaz_render_progress() {
+  emulate -L zsh
+  local total="${1:-}" cols="${2:-80}"
+  local line key value out_time="" speed="" state="" drew=false
+
+  while IFS= read -r line; do
+    key="${line%%=*}"
+    value="${line#*=}"
+    case "$key" in
+      out_time) out_time="$value" ;;
+      speed) speed="$value" ;;
+      progress)
+        state="$value"
+        topaz_draw_progress_bar "$total" "$out_time" "$speed" "$state" "$cols"
+        drew=true
+        ;;
+    esac
+  done
+
+  [[ "$drew" == true ]] && print -- ""
+  return 0
+}
+
+media_header_summary() {
+  local first_summary
+
+  first_summary="$(media_summary_for_file "$files[1]")"
+  if (( ${#files[@]} > 1 )); then
+    print -r -- "${first_summary}  [+$((${#files[@]} - 1)) more]"
+  else
+    print -r -- "$first_summary"
+  fi
+}
+
+setfile_path_arg() {
+  local file_path="$1"
+
+  if [[ "$file_path" != /* && "${file_path:t}" == -* ]]; then
+    print -r -- "./$file_path"
+  else
+    print -r -- "$file_path"
+  fi
+}
+
+creation_date_for_setfile() {
+  local input_file="$1"
+  local epoch
+
+  epoch="$(stat -f '%B' -- "$input_file" 2>/dev/null)" || return 1
+  [[ "$epoch" == <-> ]] || return 1
+  (( epoch > 0 )) || return 1
+
+  date -r "$epoch" '+%m/%d/%Y %H:%M:%S'
+}
+
+copy_creation_date() {
+  local input_file="$1"
+  local output_file="$2"
+  local created output_arg
+
+  if ! have SetFile; then
+    warn "SetFile not found; could not copy creation date"
+    return 1
+  fi
+
+  if ! created="$(creation_date_for_setfile "$input_file")"; then
+    warn "could not read creation date: $input_file"
+    return 1
+  fi
+
+  output_arg="$(setfile_path_arg "$output_file")"
+  if SetFile -d "$created" "$output_arg"; then
+    info "Copied creation date: $created"
+    return 0
+  fi
+
+  warn "failed to copy creation date to: $output_file"
+  return 1
+}
+
+trash_original() {
+  local input_file="$1"
+  local target="$input_file"
+
+  if have trash; then
+    [[ "$target" != /* && "${target:t}" == -* ]] && target="./$target"
+    trash "$target"
+    return
+  fi
+
+  local trash_dir="$HOME/.Trash"
+  local base dst stamp n
+
+  mkdir -p -- "$trash_dir"
+  base="${input_file:t}"
+  dst="$trash_dir/$base"
+
+  if [[ -e "$dst" ]]; then
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    n=1
+    while [[ -e "$trash_dir/${base} (${stamp}-${n})" ]]; do
+      (( ++n ))
+    done
+    dst="$trash_dir/${base} (${stamp}-${n})"
+  fi
+
+  mv -n -- "$input_file" "$dst"
+}
+
+maybe_trash_original() {
+  local input_file="$1"
+
+  if trash_original "$input_file"; then
+    info "Trashed original:  $input_file"
+    return 0
+  fi
+
+  warn "failed to trash original: $input_file"
+  return 1
+}
+
+confirm_open_preview() {
+  local input_file="$1"
+  local output_file="$2"
+  local reply=""
+
+  read -r "?Open preview beside original in mpv-preview? [y/N] " reply
+  [[ "$reply" == [Yy] || "$reply" == [Yy][Ee][Ss] ]]
+}
+
+open_preview_pair() {
+  local input_file="$1"
+  local output_file="$2"
+
+  if have mpv-preview; then
+    mpv-preview "$input_file" "$output_file"
+    return
+  fi
+
+  if have mpv; then
+    mpv --force-window=immediate --keep-open=yes -- "$input_file" "$output_file"
+    return
+  fi
+
+  warn "mpv-preview and mpv not found; could not open preview"
+  return 1
+}
+
+maybe_open_preview_pair() {
+  local input_file="$1"
+  local output_file="$2"
+
+  confirm_open_preview "$input_file" "$output_file" || return 0
+  open_preview_pair "$input_file" "$output_file"
+}
+
+preset_name=""
+preset_flag=""
+preset_value=""
+preset_output_ext=""
+preset_video_args=""
+preset_metadata=""
+media_header=""
+trash_originals=false
+preview_mode=false
+preview_seconds="1"
+resume_mode=false
+copy_cmd_mode=false
+output_override=""
 files=()
 
 while (( $# > 0 )); do
   case "$1" in
-    --preview=*|--resume|--copy-cmd|--trash-originals|--trash-original)
-      passthrough_args+=("$1")
+    --preview=*)
+      preview_mode=true
+      preview_seconds="${1#--preview=}"
       shift
       ;;
     --preview)
-      passthrough_args+=("$1")
-      if (( $# >= 2 )) && [[ "${2:-}" != -* ]]; then
-        passthrough_args+=("$2")
+      preview_mode=true
+      if (( $# >= 2 )) && [[ "${2:-}" != -* ]] && is_number "$2"; then
+        preview_seconds="$2"
+        shift 2
+      else
         shift
       fi
+      ;;
+    --trash-originals|--trash-original)
+      trash_originals=true
       shift
+      ;;
+    --resume)
+      resume_mode=true
+      shift
+      ;;
+    --copy-cmd)
+      copy_cmd_mode=true
+      shift
+      ;;
+    --preset_name)
+      (( $# >= 2 )) || {
+        print -u2 -- "--preset_name requires a value"
+        exit 1
+      }
+      preset_name="$2"
+      shift 2
+      ;;
+    --filter_complex)
+      (( $# >= 2 )) || {
+        print -u2 -- "--filter_complex requires a value"
+        exit 1
+      }
+      preset_flag="--filter_complex"
+      preset_value="$2"
+      shift 2
+      ;;
+    --output_ext)
+      (( $# >= 2 )) || {
+        print -u2 -- "--output_ext requires a value"
+        exit 1
+      }
+      preset_output_ext="$2"
+      shift 2
+      ;;
+    --video_args)
+      (( $# >= 2 )) || {
+        print -u2 -- "--video_args requires a value"
+        exit 1
+      }
+      preset_video_args="$2"
+      shift 2
+      ;;
+    --metadata)
+      (( $# >= 2 )) || {
+        print -u2 -- "--metadata requires a value"
+        exit 1
+      }
+      preset_metadata="$2"
+      shift 2
       ;;
     --)
       shift
@@ -90,217 +710,481 @@ while (( $# > 0 )); do
   esac
 done
 
-(( ${#files[@]} > 0 )) || {
-  usage >&2
+is_number "$preview_seconds" || {
+  print -u2 -- "--preview length must be numeric seconds"
+  exit 1
+}
+number_gt_zero "$preview_seconds" || {
+  print -u2 -- "--preview length must be greater than 0"
   exit 1
 }
 
+if [[ -n "$preset_name" || -n "$preset_value" ]]; then
+  [[ -n "$preset_name" && -n "$preset_value" ]] || {
+    print -u2 -- "--preset_name and --filter_complex must be supplied together"
+    exit 1
+  }
+  (( ${#files[@]} > 0 )) || {
+    print -u2 "no input files supplied"
+    usage >&2
+    exit 1
+  }
+else
+  (( ${#files[@]} > 0 )) || {
+    usage >&2
+    exit 1
+  }
+
+  for input in "$files[@]"; do
+    [[ -f "$input" ]] || {
+      print -u2 "not a file: $input"
+      exit 1
+    }
+  done
+
+  # Self-describing partial: every Topaz output embeds its job in metadata
+  # tags, so a lone file argument that carries them reconstructs the whole
+  # encode — no preset flags needed, even after the preset is long forgotten.
+  if (( ${#files[@]} == 1 )) && [[ -x "$TOPAZ_FFPROBE" ]]; then
+    typeset -A embedded_job
+    while IFS= read -r line; do
+      line="${line#TAG:}"
+      key="${line%%=*}"
+      case "$key" in
+        topaz_source|topaz_filter|topaz_preset_name|topaz_video_args|videoai)
+          embedded_job[$key]="${line#*=}"
+          ;;
+      esac
+    done < <(
+      "$TOPAZ_FFPROBE" -v error \
+        -show_entries format_tags=topaz_source,topaz_filter,topaz_preset_name,topaz_video_args,videoai \
+        -of default=noprint_wrappers=1 -- "$files[1]" 2>/dev/null
+    )
+
+    if [[ -n "${embedded_job[topaz_filter]:-}" && -n "${embedded_job[topaz_source]:-}" ]]; then
+      [[ -f "${embedded_job[topaz_source]}" ]] || {
+        print -u2 -- "embedded Topaz job found, but its source is missing:"
+        print -u2 -- "  ${embedded_job[topaz_source]}"
+        exit 1
+      }
+      preset_name="${embedded_job[topaz_preset_name]:-resumed encode}"
+      preset_flag="--filter_complex"
+      preset_value="${embedded_job[topaz_filter]}"
+      preset_video_args="${embedded_job[topaz_video_args]:-}"
+      [[ -n "${embedded_job[videoai]:-}" ]] && preset_metadata="videoai=${embedded_job[videoai]}"
+      preset_output_ext="${files[1]:e}"
+      output_override="${files[1]:A}"
+      files=("${embedded_job[topaz_source]}")
+      print -P -- "%F{cyan}%B↻ embedded Topaz job found%b%f"
+      print -P -- "  %F{white}preset:%f %F{magenta}$(topaz_escape_prompt "$preset_name")%f"
+      print -P -- "  %F{white}source:%f %F{white}$(topaz_escape_prompt "${files[1]}")%f"
+      print
+    fi
+  fi
+fi
+
+if [[ -z "$preset_value" ]]; then
+  command -v fzf >/dev/null 2>&1 || {
+    print -u2 "fzf not found"
+    exit 1
+  }
+
+  media_header="$(media_header_summary)"
+  preview_frame_bind=""
+  if [[ -x "$TOPAZ_PREVIEW_FRAME_KITTY" ]]; then
+    preview_frame_bind="alt-p:execute-silent(${(q)TOPAZ_PREVIEW_FRAME_KITTY} --input ${(q)files[1]} --preset-name {2} --preset-flag {3} --filter {4})"
+  fi
+
+  selection="$(
+    topaz_preset_picker_rows encode |
+      fzf \
+        --prompt='Topaz preset > ' \
+        --delimiter=$'\t' \
+        --with-nth=1 \
+        --height=50% \
+        --reverse \
+        --border \
+        --header="$media_header" \
+        --header-first \
+        --preview='printf "%s\n" {4}' \
+        --preview-window='down:6:wrap' \
+        ${preview_frame_bind:+--bind="$preview_frame_bind"}
+  )"
+
+  [[ -n "$selection" ]] || {
+    print -u2 "no preset selected"
+    exit 1
+  }
+
+  topaz_parse_preset_row "$selection"
+  preset_name="$TOPAZ_PRESET_NAME"
+  preset_flag="$TOPAZ_PRESET_FLAG"
+  preset_value="$TOPAZ_PRESET_FILTER"
+  preset_output_ext="$TOPAZ_PRESET_OUTPUT_EXT"
+  preset_video_args="$TOPAZ_PRESET_VIDEO_ARGS"
+  preset_metadata="$TOPAZ_PRESET_METADATA"
+fi
+
+# Absolutize inputs: the encode runs from the Topaz app dir, and resume/rerun
+# commands must work from any cwd.
+abs_files=()
 for input in "$files[@]"; do
   [[ -f "$input" ]] || {
     print -u2 "not a file: $input"
     exit 1
   }
+  abs_files+=("${input:A}")
 done
+files=("${abs_files[@]}")
 
-# ---- source profile (first file drives category gating and 4K targets) ----
+if [[ "$copy_cmd_mode" == true ]]; then
+  cmd_lines=""
+  for input in "$files[@]"; do
+    line="$(topaz_wrapper_cmd "$input")"
+    print -r -- "$line"
+    cmd_lines+="${cmd_lines:+$'\n'}$line"
+  done
+  if have pbcopy; then
+    print -rn -- "$cmd_lines" | pbcopy
+    print -P -- "%F{green}✓ command copied to clipboard%f"
+  else
+    print -P -u2 -- "%F{yellow}⚠ pbcopy not found — command printed only%f"
+  fi
+  exit 0
+fi
 
-probe_bin="ffprobe"
-command -v ffprobe >/dev/null 2>&1 || probe_bin=""
+[[ -x "$TOPAZ_FFMPEG" ]] || {
+  print -u2 "Topaz ffmpeg not found or not executable: $TOPAZ_FFMPEG"
+  topaz_app_help >&2
+  exit 1
+}
 
-src_w="" src_h="" src_fps=""
-if [[ -n "$probe_bin" ]]; then
-  while IFS='=' read -r key value; do
-    case "$key" in
-      width) src_w="$value" ;;
-      height) src_h="$value" ;;
-      avg_frame_rate)
-        src_fps="$(awk -v r="$value" 'BEGIN {
-          split(r, p, "/")
-          if (p[2] == "" || p[2] == 0) { if (p[1] != "") printf "%.0f", p[1] }
-          else printf "%.0f", p[1] / p[2]
-        }')"
+[[ -d "$TOPAZ_MODELS_DIR" ]] || {
+  print -u2 "Topaz models dir not found: $TOPAZ_MODELS_DIR"
+  topaz_app_help >&2
+  exit 1
+}
+
+mkdir -p "$LOG_DIR"
+
+term_cols="$(tput cols 2>/dev/null || true)"
+[[ "$term_cols" == <1-> ]] || term_cols="${COLUMNS:-80}"
+[[ "$term_cols" == <1-> ]] || term_cols=80
+
+print -P -- "%F{blue}%BTopaz batch%b%f"
+print -P -- "  %F{white}preset:%f %F{magenta}$(topaz_escape_prompt "$preset_name")%f"
+[[ "$preview_mode" == true ]] && print -P -- "  %F{white}preview:%f %F{yellow}${preview_seconds}s sample encode%f"
+if [[ "$trash_originals" == true && "$preview_mode" == true ]]; then
+  print -P -- "  %F{white}cleanup:%f %F{yellow}ignored during preview%f"
+elif [[ "$trash_originals" == true ]]; then
+  print -P -- "  %F{white}cleanup:%f %F{yellow}trash originals after successful encodes%f"
+fi
+print
+
+integer ok_count=0
+integer skip_count=0
+integer fail_count=0
+integer creation_date_fail_count=0
+integer trash_fail_count=0
+
+for input in "$files[@]"; do
+  ext="${input:e}"
+  stem="${input:r}"
+  base="${input:t:r}"
+  output_ext="${preset_output_ext:-$ext}"
+  output_ext="${output_ext#.}"
+  video_args=(${(z)preset_video_args:-})
+
+  (( ${#video_args[@]} > 0 )) || {
+    video_args=(
+      -c:v hevc_videotoolbox
+      -profile:v main
+      -tag:v hvc1
+      -pix_fmt yuv420p
+      -allow_sw 1
+      -g 30
+      -b:v 30M
+    )
+  }
+
+  metadata_args=()
+  [[ -n "$preset_metadata" ]] && metadata_args=(-metadata "$preset_metadata")
+
+  # Embed the full job in the output so a crashed partial is self-describing:
+  # `topaz-encode --resume <partial>` reconstructs everything from these tags.
+  if [[ "$preview_mode" != true ]]; then
+    metadata_args+=(
+      -metadata "topaz_source=$input"
+      -metadata "topaz_preset_name=$preset_name"
+      -metadata "topaz_filter=$preset_value"
+      -metadata "topaz_video_args=${(j: :)video_args}"
+    )
+  fi
+
+  filename_preset="$(topaz_file_preset_label "$preset_name")"
+  safe_preset="$(topaz_safe_log_label "$filename_preset")"
+
+  if [[ "$preview_mode" == true ]]; then
+    output="${stem} [Topaz Preview ${preview_seconds}s - ${filename_preset}].${output_ext}"
+    log_file="${LOG_DIR}/${base} [Topaz Preview ${preview_seconds}s - ${safe_preset}].log"
+  else
+    output="${stem} [Topaz - ${filename_preset}].${output_ext}"
+    log_file="${LOG_DIR}/${base} [Topaz - ${safe_preset}].log"
+  fi
+  # Embedded-job resume targets the exact file that was passed in, even if it
+  # was renamed or moved since the original encode.
+  [[ -n "$output_override" ]] && output="$output_override"
+  ffmpeg_preset_flag="-${preset_flag#--}"
+  input_duration_args=()
+  [[ "$preview_mode" == true ]] && input_duration_args=(-t "$preview_seconds")
+
+  # Existing-output handling: complete outputs are skipped; short outputs are
+  # interrupted encodes and can be resumed (tail re-encode + lossless concat).
+  resume_kf=""            # set to the resume keyframe time when resuming
+  expected_duration=""
+  if [[ "$preview_mode" != true && -e "$output" ]]; then
+    src_duration="$(media_duration_seconds "$input")"
+    out_duration="$(media_duration_seconds "$output")"
+    slowmo_factor="$(topaz_slowmo_factor "$preset_value")"
+    [[ -n "$src_duration" ]] && expected_duration="$(
+      awk -v d="$src_duration" -v f="$slowmo_factor" 'BEGIN { print d * f }'
+    )"
+
+    if [[ -z "$expected_duration" || -z "$out_duration" ]] ||
+        awk -v o="$out_duration" -v e="$expected_duration" 'BEGIN { exit !(o >= e - 5) }'; then
+      print -P -- "%F{yellow}✓ skip:%f output already complete"
+      print -P -- "  %F{white}file:%f %F{blue}$(topaz_escape_prompt "$output")%f"
+      (( ++skip_count ))
+      continue
+    fi
+
+    pct="$(awk -v o="$out_duration" -v e="$expected_duration" 'BEGIN { printf "%d", o / e * 100 }')"
+    print -P -- "%F{yellow}%B⚠ partial encode detected%b%f"
+    print -P -- "  %F{white}output:%f   %F{blue}$(topaz_escape_prompt "${output:t}")%f"
+    print -P -- "  %F{white}progress:%f %F{yellow}$(topaz_format_clock "$out_duration") of $(topaz_format_clock "$expected_duration") (${pct}%%)%f"
+
+    if [[ "$resume_mode" == true ]]; then
+      resume_choice="r"
+    else
+      resume_choice=""
+      read -k 1 "resume_choice?  ↻ [r]esume · [R]estart from scratch · [s]kip? " || resume_choice="s"
+      print
+    fi
+
+    case "$resume_choice" in
+      r)
+        resume_kf="$(topaz_last_keyframe_before "$output" \
+          "$(awk -v o="$out_duration" 'BEGIN { print o - 2 }')")"
+        if [[ -z "$resume_kf" ]]; then
+          print -P -u2 -- "%F{red}✗ could not find a resume keyframe in the partial — not touching it%f"
+          (( ++fail_count ))
+          continue
+        fi
+        print -P -- "  %F{cyan}↻ resuming from $(topaz_format_clock "$resume_kf")%f"
+        ;;
+      R)
+        print -P -- "  %F{yellow}restarting from scratch (partial moved to Trash)%f"
+        trash_original "$output" || {
+          print -P -u2 -- "%F{red}✗ could not trash partial output — aborting this file%f"
+          (( ++fail_count ))
+          continue
+        }
+        ;;
+      *)
+        print -P -- "  %F{yellow}skipped%f"
+        (( ++skip_count ))
+        continue
         ;;
     esac
-  done < <(
-    "$probe_bin" -v error -select_streams v:0 \
-      -show_entries stream=width,height,avg_frame_rate \
-      -of default=noprint_wrappers=1 -- "$files[1]" 2>/dev/null
+  fi
+
+  progress_total_seconds="$(media_duration_seconds "$input")"
+  if [[ "$preview_mode" == true ]]; then
+    if [[ -n "$progress_total_seconds" ]]; then
+      progress_total_seconds="$(
+        awk -v a="$progress_total_seconds" -v b="$preview_seconds" 'BEGIN { print (a < b) ? a : b }'
+      )"
+    else
+      progress_total_seconds="$preview_seconds"
+    fi
+  fi
+
+  # Resume: encode only the tail (source seek = output keyframe time mapped back
+  # through any slow-motion factor), writing to a sidecar tail file that is later
+  # concatenated onto the partial.
+  encode_target="$output"
+  if [[ -n "$resume_kf" ]]; then
+    encode_target="${output:r} [resume tail].${output_ext}"
+    input_seek="$(awk -v k="$resume_kf" -v f="$slowmo_factor" 'BEGIN { print k / f }')"
+    input_duration_args=(-ss "$input_seek")
+    progress_total_seconds="$(awk -v e="$expected_duration" -v k="$resume_kf" 'BEGIN { print e - k }')"
+  fi
+
+  ffmpeg_cmd=(
+    "$TOPAZ_FFMPEG"
+    -hide_banner
+    -y
+    -progress pipe:1
+    "${input_duration_args[@]}"
+    -i "$input"
+    -sws_flags "spline+accurate_rnd+full_chroma_int"
+    "$ffmpeg_preset_flag" "$preset_value"
+    "${video_args[@]}"
+    -map "0:a?"
+    -c:a copy
+    -map_metadata 0
+    -map_metadata:s:v 0:s:v
+    -map_chapters 0
+    -fps_mode:v passthrough
+    -movflags "frag_keyframe+empty_moov+delay_moov+use_metadata_tags+write_colr"
+    -bf 0
+    "${metadata_args[@]}"
+    "$encode_target"
   )
-fi
 
-# Orientation-aware 4K target: long edge -> 3840, aspect preserved, even dims.
-target_w=3840 target_h=2160
-if [[ "$src_w" == <-> && "$src_h" == <-> ]]; then
-  read -r target_w target_h < <(awk -v w="$src_w" -v h="$src_h" 'BEGIN {
-    if (w >= h) { tw = 3840; th = h * 3840 / w } else { th = 3840; tw = w * 3840 / h }
-    tw = int(tw / 2 + 0.5) * 2; th = int(th / 2 + 0.5) * 2
-    print tw, th
-  }')
-fi
+  topaz_env=(
+    env
+    LC_ALL=C
+    LC_NUMERIC=C
+    LANG=C
+    TVAI_MODEL_DIR="$TOPAZ_MODELS_DIR"
+    TVAI_MODEL_DATA_DIR="$TOPAZ_MODELS_DIR"
+  )
 
-is_4k=false
-if [[ "$src_w" == <-> && "$src_h" == <-> ]]; then
-  long_edge=$(( src_w > src_h ? src_w : src_h ))
-  (( long_edge > 2560 )) && is_4k=true
-fi
+  log_cmd=(
+    cd "$TOPAZ_MACOS_DIR"
+    "&&"
+    "${topaz_env[@]}"
+    "${ffmpeg_cmd[@]}"
+  )
 
-# 2x of an exactly-1080p source IS the 4K target -> merge the upscale groups.
-two_x_is_4k=false
-if [[ "$src_w" == <-> && "$src_h" == <-> ]] &&
-    (( src_w * 2 == target_w && src_h * 2 == target_h )); then
-  two_x_is_4k=true
-fi
+  : >| "$log_file"
+  topaz_open_log_tail "$log_file"
+  [[ "$preview_mode" != true && -z "$resume_kf" ]] && topaz_open_output_preview "$output"
 
-if [[ -n "$src_w" ]]; then
-  media_header="${files[1]:t}  ${src_w}x${src_h} @ ${src_fps:-?}fps"
-  (( ${#files[@]} > 1 )) && media_header+="  [+$(( ${#files[@]} - 1 )) more]"
-else
-  media_header="${files[1]:t}  (unprobed — all presets shown)"
-fi
+  if [[ -n "$resume_kf" ]]; then
+    print -P -- "%F{cyan}%B↻ Resuming encode%b%f"
+  elif [[ "$preview_mode" == true ]]; then
+    print -P -- "%F{cyan}%B▶ Encoding preview%b%f"
+  else
+    print -P -- "%F{cyan}%B▶ Encoding%b%f"
+  fi
+  print -P -- "  %F{white}app:%f    %F{magenta}$(topaz_escape_prompt "$TOPAZ_APP")%f"
+  print -P -- "  %F{white}engine:%f %F{magenta}Topaz ffmpeg%f"
+  print -P -- "  %F{white}video:%f  %F{magenta}$(topaz_escape_prompt "${(j: :)video_args}")%f"
+  print -P -- "  %F{white}input:%f  %F{white}$(topaz_escape_prompt "$input")%f"
+  print -P -- "  %F{white}output:%f %F{green}%B$(topaz_escape_prompt "$output")%b%f"
+  print -P -- "  %F{white}log:%f    %F{blue}$(topaz_escape_prompt "$log_file")%f"
+  if [[ -n "$resume_kf" ]]; then
+    print -P -- "  %F{white}resume:%f %F{cyan}tail from $(topaz_format_clock "$resume_kf"), then lossless join%f"
+  elif [[ "$preview_mode" == true ]]; then
+    print -P -- "  %F{white}sample:%f %F{yellow}${preview_seconds}s from start%f"
+  else
+    print -P -- "  %F{white}preview:%f %F{magenta}mpv opens when output starts writing%f"
+  fi
+  print -P -- "  %F{white}metadata:%f %F{green}copy source tags and creation date%f"
+  [[ "$trash_originals" == true && "$preview_mode" != true ]] && print -P -- "  %F{white}cleanup:%f %F{yellow}trash original after success%f"
+  print -P -- "  %F{white}rerun/resume with:%f"
+  print -r -- "    $(topaz_wrapper_cmd "$input")"
+  print
 
-up_scale_token="scale=0:w=${target_w}:h=${target_h}"
-lanczos_tail=",scale=w=${target_w}:h=${target_h}:flags=lanczos:threads=0"
-
-category_label() {
-  case "$1" in
-    upscale-2x)
-      if [[ "$src_w" == <-> ]]; then
-        print -r -- "Upscale 2x → $(( src_w * 2 ))×$(( src_h * 2 ))"
-      else
-        print -r -- "Upscale 2x"
-      fi
-      ;;
-    upscale-4k) print -r -- "Upscale to 4K → ${target_w}×${target_h}" ;;
-    repair) print -r -- "Repair" ;;
-    sharpen) print -r -- "Sharpen" ;;
-    focus-fix) print -r -- "Focus Fix" ;;
-    *) print -r -- "$1" ;;
-  esac
-}
-
-# ---- step 1: enhancement ----
-# fzf rows: label<TAB>slug<TAB>enh_filter<TAB>enh_tail<TAB>blurb<TAB>metadata
-# Empty fields carry a "-" placeholder: tab-IFS `read` collapses consecutive
-# tabs, which would silently shift fields.
-
-enhancement_rows() {
-  emulate -L zsh
-  local category display slug filter_body blurb metadata
-  local label enh_filter enh_tail
-
-  print -r -- $'[Original] Original (no enhancement)\t__original__\t-\t-\tSkip enhance — interpolate / re-encode only\tvideoai=Original (no enhancement)'
-
-  topaz_enhancement_preset_rows |
-  while IFS=$'\t' read -r category display slug filter_body blurb metadata; do
-    if [[ "$is_4k" == true ]]; then
-      [[ "$category" == upscale-2x || "$category" == upscale-4k ]] && continue
-    fi
-    if [[ "$two_x_is_4k" == true && "$category" == upscale-2x ]]; then
-      category="upscale-4k"
-    fi
-
-    enh_filter="${filter_body//@4K@/$up_scale_token}"
-    enh_tail=""
-    [[ "$filter_body" == *@4K@* ]] && enh_tail="$lanczos_tail"
-
-    label="[$(category_label "$category")] ${display}"
-    print -r -- "${label}"$'\t'"${slug}"$'\t'"${enh_filter:--}"$'\t'"${enh_tail:--}"$'\t'"${blurb}"$'\t'"${metadata}"
-  done
-}
-
-enh_selection="$(
-  enhancement_rows | fzf \
-    --prompt='enhancement > ' \
-    --delimiter=$'\t' \
-    --with-nth=1 \
-    --height=60% \
-    --reverse \
-    --border \
-    --header="$media_header" \
-    --header-first \
-    --preview='printf "%s\n\n%s\n" {5} {3}' \
-    --preview-window='down:5:wrap'
-)" || true
-[[ -n "$enh_selection" ]] || {
-  print -u2 "no enhancement selected"
-  exit 1
-}
-
-IFS=$'\t' read -r enh_label enh_slug enh_filter enh_tail enh_blurb enh_metadata <<< "$enh_selection"
-[[ "$enh_filter" == "-" ]] && enh_filter=""
-[[ "$enh_tail" == "-" ]] && enh_tail=""
-enh_display="${enh_label#\[*\] }"
-
-# ---- step 2: interpolation ----
-# fzf rows: display<TAB>slug<TAB>fi_filter<TAB>metadata
-
-interp_selection="$(
+  topaz_result=0
   {
-    print -r -- $'None (keep source frame rate)\t__none__\t-\tEncode the enhancement as-is.'
-    topaz_interpolation_preset_rows
-  } | fzf \
-    --prompt='interpolation > ' \
-    --delimiter=$'\t' \
-    --with-nth=1 \
-    --height=50% \
-    --reverse \
-    --border \
-    --header="$media_header" \
-    --header-first \
-    --preview='printf "%s\n" {4}' \
-    --preview-window='down:4:wrap'
-)" || true
-[[ -n "$interp_selection" ]] || {
-  print -u2 "no interpolation selected"
-  exit 1
-}
+    print "[$(date '+%F %T')] START $input"
+    print "PRESET: $preset_name"
+    print "TOPAZ_APP: $TOPAZ_APP"
+    print "TOPAZ_FFMPEG: $TOPAZ_FFMPEG"
+    print "TOPAZ_MODELS_DIR: $TOPAZ_MODELS_DIR"
+    print "CMD: ${(q+)log_cmd}"
+  } >"$log_file" 2>&1
 
-IFS=$'\t' read -r interp_display interp_slug interp_filter interp_metadata <<< "$interp_selection"
-[[ "$interp_slug" == "__none__" || "$interp_filter" == "-" ]] && interp_filter=""
+  topaz_status=0
+  (
+    cd "$TOPAZ_MACOS_DIR"
+    "${topaz_env[@]}" "${ffmpeg_cmd[@]}"
+  ) 2>>"$log_file" | topaz_render_progress "$progress_total_seconds" "$term_cols" || topaz_status=$?
 
-# ---- step 3: output format ----
-# rows: display<TAB>slug<TAB>output_ext<TAB>video_args
+  {
+    if (( topaz_status != 0 )); then
+      print "[$(date '+%F %T')] FAILED status=$topaz_status"
+      topaz_result="$topaz_status"
+    elif [[ ! -s "$encode_target" ]]; then
+      print "[$(date '+%F %T')] FAILED missing output: $encode_target"
+      topaz_result=1
+    else
+      print "[$(date '+%F %T')] DONE $encode_target"
+    fi
+  } >>"$log_file" 2>&1
 
-output_selection="$(
-  topaz_output_profile_rows | fzf \
-    --prompt='output > ' \
-    --delimiter=$'\t' \
-    --with-nth=1 \
-    --height=40% \
-    --reverse \
-    --border \
-    --header="$media_header" \
-    --header-first \
-    --preview='printf "%s\n" {4}' \
-    --preview-window='down:3:wrap'
-)" || true
-[[ -n "$output_selection" ]] || {
-  print -u2 "no output format selected"
-  exit 1
-}
+  if (( topaz_result != 0 )); then
+    print -P -u2 -- "%F{red}✗ failed:%f $(topaz_escape_prompt "$input")"
+    print -P -u2 -- "  %F{white}see log:%f %F{blue}$(topaz_escape_prompt "$log_file")%f"
+    if [[ -n "$resume_kf" ]]; then
+      print -P -u2 -- "  %F{white}partial output untouched:%f %F{blue}$(topaz_escape_prompt "$output")%f"
+      [[ -s "$encode_target" ]] || rm -f -- "$encode_target"
+    fi
+    (( ++fail_count ))
+    continue
+  fi
 
-IFS=$'\t' read -r output_display output_slug output_ext output_video_args <<< "$output_selection"
+  # Resume: losslessly join partial[0..keyframe] + freshly encoded tail, verify
+  # the joined duration, then swap it into place. The partial is never modified
+  # until the verified replacement exists.
+  if [[ -n "$resume_kf" ]]; then
+    print -P -- "  %F{cyan}↻ joining partial + tail…%f"
+    concat_list="$(mktemp "${TMPDIR:-/tmp}/topaz-concat.XXXXXX")"
+    joined="${${output:A}:r} [resume joined].${output_ext}"
+    {
+      print -r -- "file '$(topaz_concat_escape "${output:A}")'"
+      print -r -- "outpoint $resume_kf"
+      print -r -- "file '$(topaz_concat_escape "${encode_target:A}")'"
+    } >| "$concat_list"
 
-# ---- compose and hand off (interpolation goes before the lanczos tail) ----
+    concat_status=0
+    (
+      cd "$TOPAZ_MACOS_DIR"
+      "$TOPAZ_FFMPEG" -hide_banner -y -f concat -safe 0 -i "$concat_list" \
+        -map 0 -c copy -movflags "use_metadata_tags+faststart" \
+        "${metadata_args[@]}" -- "$joined"
+    ) >>"$log_file" 2>&1 || concat_status=$?
+    rm -f -- "$concat_list"
 
-filter_parts=()
-[[ -n "$enh_filter" ]] && filter_parts+=("$enh_filter")
-[[ -n "$interp_filter" ]] && filter_parts+=("$interp_filter")
-final_filter="${(j:,:)filter_parts}${enh_tail}"
-[[ -n "$final_filter" ]] || final_filter="null"
+    joined_duration="$(media_duration_seconds "$joined")"
+    duration_ok=false
+    if (( concat_status == 0 )) && [[ -n "$joined_duration" ]] &&
+        awk -v j="$joined_duration" -v e="$expected_duration" \
+          'BEGIN { d = j - e; if (d < 0) d = -d; exit !(d <= 5) }'; then
+      duration_ok=true
+    fi
 
-preset_name="$enh_display"
-[[ -n "$interp_filter" ]] && preset_name+=" + ${interp_display}"
-preset_name+=" - ${output_display}"
+    if [[ "$duration_ok" != true ]]; then
+      print "[$(date '+%F %T')] RESUME JOIN FAILED status=$concat_status joined_duration=${joined_duration:-?} expected=$expected_duration" >>"$log_file"
+      print -P -u2 -- "%F{red}✗ resume join failed or duration mismatch — nothing was deleted%f"
+      print -P -u2 -- "  %F{white}partial:%f %F{blue}$(topaz_escape_prompt "$output")%f"
+      print -P -u2 -- "  %F{white}tail:%f    %F{blue}$(topaz_escape_prompt "$encode_target")%f"
+      [[ -e "$joined" ]] && print -P -u2 -- "  %F{white}joined:%f  %F{blue}$(topaz_escape_prompt "$joined")%f"
+      print -P -u2 -- "  %F{white}see log:%f %F{blue}$(topaz_escape_prompt "$log_file")%f"
+      (( ++fail_count ))
+      continue
+    fi
 
-metadata="$enh_metadata"
-[[ -n "$metadata" ]] || metadata="videoai=${enh_display}"
+    trash_original "$output" || warn "could not trash partial; overwriting in place"
+    mv -f -- "$joined" "$output"
+    rm -f -- "$encode_target"
+    print "[$(date '+%F %T')] RESUME DONE $output" >>"$log_file"
+    print -P -- "  %F{green}✓ resumed encode verified ($(topaz_format_clock "$joined_duration") ≈ $(topaz_format_clock "$expected_duration"))%f"
+  fi
 
-exec "$TOPAZ_RUN" \
-  "${passthrough_args[@]}" \
-  --preset_name "$preset_name" \
-  --filter_complex "$final_filter" \
-  --output_ext "$output_ext" \
-  --video_args "$output_video_args" \
-  --metadata "$metadata" \
-  -- "$files[@]"
+  copy_creation_date "$input" "$output" || (( ++creation_date_fail_count ))
+  [[ "$preview_mode" == true ]] && maybe_open_preview_pair "$input" "$output" || true
+  if [[ "$trash_originals" == true && "$preview_mode" != true ]]; then
+    maybe_trash_original "$input" || (( ++trash_fail_count ))
+  fi
+  (( ++ok_count ))
+  print -P -- "%F{green}%B✓ $(topaz_escape_prompt "${output:t}")%b%f"
+  print -P -- "  %F{8}$(topaz_escape_prompt "$(topaz_output_summary_line "$output")")%f"
+done
+
+print
+print -P -- "%F{white}%BSummary%b%f  %F{green}✓ $ok_count ok%f · %F{yellow}$skip_count skipped%f · %F{red}$fail_count failed%f${creation_date_fail_count:+ · }%F{8}dates failed: $creation_date_fail_count, trash failed: $trash_fail_count%f"
+(( fail_count == 0 && creation_date_fail_count == 0 && trash_fail_count == 0 ))

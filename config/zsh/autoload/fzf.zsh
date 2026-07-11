@@ -3,7 +3,15 @@
 # Official fzf key bindings and fuzzy completion
 
 export FZF_COMPLETION_TRIGGER='\t' # Keep Tab on the custom zsh completion picker
-export FZF_COMPLETION_OPTS='--preview "bat --color=always --no-info --exact --ignore-case {} 2>/dev/null || cat {} 2>/dev/null"'
+
+# Tab-completion picker (config/zsh/autoload/fzf-completions.zsh) appends this to
+# its fzf invocation. Field {1} is the completion value; fzf-comp-preview resolves
+# it to a real path and drives the preview / edit / copy behaviour.
+#   - taller window, no scrollbar, minimal chrome
+#   - script/text files reveal a bat preview on focus (binaries stay hidden)
+#   - ctrl-e  edit the resolved script in $EDITOR
+#   - ctrl-y  copy the resolved absolute path to the clipboard
+export FZF_COMPLETION_OPTS='--height 80% --no-scrollbar --info=hidden --pointer=" " --marker=" " --preview-window "hidden" --preview "fzf-comp-preview preview {1}" --bind "focus:transform(fzf-comp-preview window {1})" --bind "ctrl-e:execute(fzf-comp-preview edit {1})" --bind "ctrl-y:execute-silent(fzf-comp-preview copy {1})"'
 
 if (( $+commands[fzf] )); then
   _fzf_shell_dir="${HOMEBREW_PREFIX:-/opt/homebrew}/opt/fzf/shell"

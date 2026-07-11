@@ -2,9 +2,9 @@ local utils = require "mp.utils"
 
 local kitty_launch = "/Users/nom/.zsh/bin/kitty-launch"
 local topaz_workflow = "/Users/nom/.zsh/bin/topaz-workflow"
-local topaz_run = "/Users/nom/.zsh/bin/topaz-run"
+local topaz_run = "/Users/nom/.zsh/bin/topaz-encode"
 local topaz_preview_frame = "/Users/nom/.zsh/bin/topaz-preview-frame"
-local preset_catalog = "/Users/nom/config/config/zsh/bin/topaz-preset-catalog.zsh"
+local preset_catalog = "/Users/nom/config/config/zsh/bin/lib/topaz-preset-catalog.zsh"
 
 -- Active enhancement render-menu session (nil when closed). Persists across the
 -- interpolation and output steps so appended preview images can be cleaned up at the end.

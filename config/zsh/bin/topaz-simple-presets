@@ -11,7 +11,7 @@ usage:
   $script_name --help
 
 Pick a simple Topaz preset, then call:
-  topaz-run [--preview [seconds]] [--trash-originals] --preset_name name --filter_complex filter [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
+  topaz-encode [--preview [seconds]] [--trash-originals] --preset_name name --filter_complex filter [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
 EOF
 }
 
@@ -103,15 +103,15 @@ command -v fzf >/dev/null 2>&1 || {
   exit 1
 }
 
-TOPAZ_RUN="${0:A:h}/topaz-run"
-if command -v topaz-run >/dev/null 2>&1; then
-  TOPAZ_RUN="$(command -v topaz-run)"
+TOPAZ_RUN="${0:A:h}/topaz-encode"
+if command -v topaz-encode >/dev/null 2>&1; then
+  TOPAZ_RUN="$(command -v topaz-encode)"
 elif [[ ! -x "$TOPAZ_RUN" ]]; then
-  print -u2 "topaz-run not found in PATH or next to $script_name: $TOPAZ_RUN"
+  print -u2 "topaz-encode not found in PATH or next to $script_name: $TOPAZ_RUN"
   exit 1
 fi
 
-PRESET_CATALOG="${0:A:h}/topaz-preset-catalog.zsh"
+PRESET_CATALOG="${0:A:h}/lib/topaz-preset-catalog.zsh"
 TOPAZ_PREVIEW_FRAME_KITTY="${0:A:h}/topaz-preview-frame-kitty"
 
 [[ -r "$PRESET_CATALOG" ]] || {

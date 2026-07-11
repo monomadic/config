@@ -85,8 +85,8 @@ pause() {
   echo
 }
 
-[[ -r "${ZSH_DOTFILES_DIR:-${DOTFILES_DIR:-$HOME/config}/config/zsh}/bin/topaz-app.zsh" ]] &&
-  source "${ZSH_DOTFILES_DIR:-${DOTFILES_DIR:-$HOME/config}/config/zsh}/bin/topaz-app.zsh"
+[[ -r "${ZSH_DOTFILES_DIR:-${DOTFILES_DIR:-$HOME/config}/config/zsh}/bin/lib/topaz-app.zsh" ]] &&
+  source "${ZSH_DOTFILES_DIR:-${DOTFILES_DIR:-$HOME/config}/config/zsh}/bin/lib/topaz-app.zsh"
 
 topaz-list-filters() {
   local ffmpeg
@@ -109,14 +109,6 @@ topaz-list-models() {
   }
   fd -e json . "$resources" \
     | rg '/(apo|rxl|amq|chr|prob|iris|nyx|theia|proteus)-[^/]+\.json$'
-}
-
-topaz-ai-list-models() {
-  topaz-list-models "$@"
-}
-
-topaz-ai-list-filters() {
-  topaz-list-filters "$@"
 }
 
 # ============================================================================

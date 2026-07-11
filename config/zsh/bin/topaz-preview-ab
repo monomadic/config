@@ -257,7 +257,7 @@ case "$mode" in static|motion) ;; *) die "--mode must be static or motion" ;; es
 is_integer "$frames" || die "--frames must be an integer"
 (( frames > 0 )) || die "--frames must be greater than 0"
 
-TOPAZ_APP_LIB="${0:A:h}/topaz-app.zsh"
+TOPAZ_APP_LIB="${0:A:h}/lib/topaz-app.zsh"
 [[ -r "$TOPAZ_APP_LIB" ]] || die "Topaz app resolver not found: $TOPAZ_APP_LIB"
 source "$TOPAZ_APP_LIB"
 

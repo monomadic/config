@@ -17,8 +17,14 @@ Usage:
   $script_name launch [LEFT_DIR [RIGHT_DIR]]
   $script_name pane <left|right> <SESSION_DIR> <START_DIR>
   $script_name copy <PATH>...
+  $script_name move <PATH>...
   $script_name copy-run <TARGET_DIR_OR_REMOTE> <PATH>...
+  $script_name move-run <TARGET_DIR_OR_REMOTE> <PATH>...
   $script_name peer-cwd
+
+The copy/move commands auto-detect the peer pane: the other Kitty window in
+the current tab. No yazi-dual launch required — works for any Yazi in any
+split. If launched via 'yazi-dual launch', that peer is preferred.
 
 Keys are wired from Yazi, but the commands are useful directly:
   yazi-dual launch
@@ -327,23 +333,73 @@ copy_run() {
   fi
 }
 
-copy_to_peer() {
-  (( $# )) || {
-    print -u2 -- "$script_name: no selected paths to copy"
+# Auto-detect the peer: the other window in whichever tab holds this Yazi.
+# No launch-time setup needed — works for any Yazi in any Kitty split.
+auto_peer_id() {
+  local self="${KITTY_WINDOW_ID:-}"
+  [[ -n "$self" ]] || {
+    print -u2 -- "$script_name: KITTY_WINDOW_ID unset (not running inside Kitty?)"
     return 1
   }
 
-  local target_id="${YAZI_DUAL_TARGET_WINDOW_ID:-}"
-  [[ -n "$target_id" ]] || {
-    print -u2 -- "$script_name: this Yazi was not launched by yazi-dual"
+  local socket
+  socket="$(discover_socket)" || {
+    print -u2 -- "$script_name: cannot reach Kitty remote control"
     return 1
   }
+
+  local -a ids
+  ids=( ${(f)"$(
+    kitty_remote "$socket" ls |
+      jq -r --arg self "$self" '
+        [ .[].tabs[]? | select(any(.windows[]?; (.id | tostring) == $self)) ][0] as $tab
+        | ($tab.windows // [])
+        | [ .[] | select((.id | tostring) != $self) ]
+        | ( [ .[] | select(.is_active) ][0] // .[0] )
+        | .id // empty
+      '
+  )"} )
+
+  [[ -n "${ids[1]:-}" ]] || {
+    print -u2 -- "$script_name: no other pane found in this tab"
+    return 1
+  }
+
+  print -r -- "${ids[1]}"
+}
+
+resolve_target_id() {
+  local target_id="${YAZI_DUAL_TARGET_WINDOW_ID:-}"
+
+  # Trust a launch-time peer only if it still exists; else auto-detect.
+  if [[ -n "$target_id" ]] && window_cwd "$target_id" >/dev/null 2>&1; then
+    print -r -- "$target_id"
+    return 0
+  fi
+
+  auto_peer_id
+}
+
+transfer_to_peer() {
+  local mode="$1"
+  shift
+
+  (( $# )) || {
+    print -u2 -- "$script_name: no selected paths to $mode"
+    return 1
+  }
+
+  local target_id
+  target_id="$(resolve_target_id)" || return 1
 
   local target
-  target="$(window_cwd "$target_id")"
+  target="$(window_cwd "$target_id")" || return 1
 
   local socket
   socket="$(discover_socket || true)"
+
+  local title=" yazi copy "
+  [[ "$mode" == move ]] && title=" yazi move "
 
   if [[ -n "$socket" || -n "${KITTY_WINDOW_ID:-}" ]]; then
     local -a launch_args
@@ -353,25 +409,42 @@ copy_to_peer() {
       --location=hsplit
       --bias=30
       --hold
-      --title " yazi copy "
+      --title "$title"
       --cwd "$PWD"
     )
 
     [[ -n "${KITTY_WINDOW_ID:-}" ]] && launch_args+=( --match "window_id:$KITTY_WINDOW_ID" --next-to "id:$KITTY_WINDOW_ID" )
 
-    kitty_remote "$socket" "${launch_args[@]}" -- "$script_path" copy-run "$target" "$@" >/dev/null
+    kitty_remote "$socket" "${launch_args[@]}" -- "$script_path" "$mode-run" "$target" "$@" >/dev/null
   else
-    copy_run "$target" "$@"
+    "${mode}_run" "$target" "$@"
   fi
 }
 
-peer_cwd() {
-  local target_id="${YAZI_DUAL_TARGET_WINDOW_ID:-}"
-  [[ -n "$target_id" ]] || {
-    print -u2 -- "$script_name: this Yazi was not launched by yazi-dual"
-    return 1
+copy_to_peer() { transfer_to_peer copy "$@"; }
+move_to_peer() { transfer_to_peer move "$@"; }
+
+move_run() {
+  (( $# >= 2 )) || {
+    print -u2 -- "Usage: $script_name move-run <TARGET_DIR_OR_REMOTE> <PATH>..."
+    return 2
   }
 
+  local target="$1"
+  shift
+
+  # Copy first; only remove the sources once the copy has fully succeeded.
+  copy_run "$target" "$@" || return 1
+
+  local source
+  for source in "$@"; do
+    rm -rf -- "$source"
+  done
+}
+
+peer_cwd() {
+  local target_id
+  target_id="$(resolve_target_id)" || return 1
   window_cwd "$target_id"
 }
 
@@ -383,7 +456,9 @@ main() {
     launch) launch_pair "$@" ;;
     pane) pane "$@" ;;
     copy) copy_to_peer "$@" ;;
+    move) move_to_peer "$@" ;;
     copy-run) copy_run "$@" ;;
+    move-run) move_run "$@" ;;
     peer-cwd) peer_cwd "$@" ;;
     -h|--help|"") usage ;;
     *)

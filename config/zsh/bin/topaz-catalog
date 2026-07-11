@@ -7,7 +7,7 @@ script_name="${0:t}"
 usage() {
   cat <<EOF
 usage:
-  $script_name [--picker run|simple|all] [--fzf] [query ...]
+  $script_name [--picker encode|simple|all] [--fzf] [query ...]
   $script_name --help
 
 Print readable summaries of presets from topaz-preset-catalog.zsh.
@@ -32,7 +32,7 @@ while (( $# > 0 )); do
       ;;
     --picker)
       (( $# >= 2 )) || {
-        print -u2 -- "--picker requires run, simple, or all"
+        print -u2 -- "--picker requires encode, simple, or all"
         exit 1
       }
       picker="$2"
@@ -60,14 +60,14 @@ while (( $# > 0 )); do
 done
 
 case "$picker" in
-  run|simple|all) ;;
+  encode|simple|all) ;;
   *)
-    print -u2 -- "--picker must be run, simple, or all"
+    print -u2 -- "--picker must be encode, simple, or all"
     exit 1
     ;;
 esac
 
-PRESET_CATALOG="${0:A:h}/topaz-preset-catalog.zsh"
+PRESET_CATALOG="${0:A:h}/lib/topaz-preset-catalog.zsh"
 [[ -r "$PRESET_CATALOG" ]] || {
   print -u2 -- "Topaz preset catalog not found: $PRESET_CATALOG"
   exit 1
@@ -141,7 +141,7 @@ print_preset_summary() {
   if [[ -n "$output_ext" ]]; then
     print -r -- "  output: .$output_ext"
   else
-    print -r -- "  output: topaz-run default"
+    print -r -- "  output: topaz-encode default"
   fi
 
   if [[ -n "$video_args" ]]; then

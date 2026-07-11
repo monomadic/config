@@ -292,7 +292,7 @@ for time_value in "${times[@]}"; do
   is_number "$time_value" || die "time must be numeric seconds: $time_value"
 done
 
-TOPAZ_APP_LIB="${0:A:h}/topaz-app.zsh"
+TOPAZ_APP_LIB="${0:A:h}/lib/topaz-app.zsh"
 [[ -r "$TOPAZ_APP_LIB" ]] || die "Topaz app resolver not found: $TOPAZ_APP_LIB"
 source "$TOPAZ_APP_LIB"
 

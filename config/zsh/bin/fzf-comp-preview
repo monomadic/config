@@ -1,0 +1,70 @@
+#!/usr/bin/env zsh
+# Helper for the fzf Tab-completion picker.
+# Wired in via FZF_COMPLETION_OPTS in config/zsh/autoload/fzf.zsh, and driven by
+# the picker in config/zsh/autoload/fzf-completions.zsh (lincheney/fzf-tab-completion).
+#
+# The picker's fzf gets a bunch of packed fields per line; field {1} is the full
+# completion value, (q)-quoted. We resolve it to a real file path and use it to:
+#   window   -> emit a preview-window spec (reveal for text files, else hidden)
+#   preview  -> bat the file
+#   edit     -> open it in $EDITOR
+#   copy     -> copy its absolute path to the clipboard
+#
+# Usage: fzf-comp-preview <window|preview|edit|copy> {1}
+emulate -L zsh
+
+action=$1
+val=${(Q)2}   # field {1} is (q)-quoted; strip one level of quoting
+
+# Resolve a completion value to an absolute file path, or fail.
+_resolve() {
+  local v=$1 p
+  [[ -z $v ]] && return 1
+  if [[ -e $v ]]; then
+    print -r -- ${v:A}
+    return 0
+  fi
+  # command completions: only accept a real external binary/script, not
+  # builtins/functions/aliases (command -v returns a bare name for those).
+  p=$(command -v -- "$v" 2>/dev/null)
+  [[ -n $p && $p == /* && -f $p ]] && { print -r -- ${p:A}; return 0 }
+  return 1
+}
+
+# True if the path is a previewable text file (script, config, etc).
+# Pure zsh, no external commands: reveal for a shebang or a first line that
+# holds no NUL/control bytes; compiled binaries fail both checks.
+_is_text() {
+  [[ -f $1 ]] || return 1
+  local first
+  IFS= read -r first < "$1" 2>/dev/null
+  [[ $first == '#!'* ]] && return 0
+  [[ -n $first && $first != *[$'\1'-$'\10'$'\13'$'\14'$'\16'-$'\37']* ]]
+}
+
+path=$(_resolve "$val") || path=
+
+case $action in
+  window)
+    # emit an fzf action for a `focus:transform(...)` bind: reveal the preview
+    # pane for previewable files, hide it otherwise.
+    if [[ -n $path ]] && _is_text "$path"; then
+      print -r -- 'change-preview-window(right,55%,border-left)'
+    else
+      print -r -- 'change-preview-window(hidden)'
+    fi
+    ;;
+  preview)
+    [[ -n $path ]] && _is_text "$path" || exit 0
+    bat --color=always --style=numbers --paging=never -- "$path" 2>/dev/null \
+      || cat -- "$path"
+    ;;
+  edit)
+    [[ -n $path ]] || exit 0
+    "${(@s: :)${EDITOR:-hx}}" "$path"
+    ;;
+  copy)
+    [[ -n $path ]] || exit 0
+    printf '%s' "$path" | pbcopy
+    ;;
+esac

@@ -239,7 +239,13 @@ desc = "Rotate selected videos left (lossless)"
 on   = [ "e", "c" ]
 for  = "unix"
 run  = '''shell --block -- /Users/nom/.zsh/bin/yazi-dual copy %s'''
-desc = "Copy selected files to the other Yazi pane"
+desc = "Copy selected files to the other pane's cwd"
+
+[[mgr.prepend_keymap]]
+on   = [ "e", "m" ]
+for  = "unix"
+run  = '''shell --block -- /Users/nom/.zsh/bin/yazi-dual move %s'''
+desc = "Move selected files to the other pane's cwd"
 
 [[mgr.prepend_keymap]]
 on   = [ "m", "t" ]
