@@ -1,8 +1,0 @@
-#!/usr/bin/env zsh
-# Compatibility wrapper for the former long command name.
-
-emulate -L zsh
-set -euo pipefail
-
-script_dir="${0:A:h}"
-exec "$script_dir/ffmpeg-lossless-cut" "$@"
