@@ -1,0 +1,10 @@
+<svg width="480" height="120" viewBox="0 0 480 120" xmlns="http://www.w3.org/2000/svg">
+  <!-- wordmark — lowercase mono, the bolt sits in the f's character cell.
+       Volt yellow on transparent: for dark surfaces only. On yellow or light
+       surfaces swap every fill for glass black #0D0D10. -->
+  <g font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="56" fill="#F1FF0F">
+    <text x="40" y="78" textLength="201.6">mother</text>
+    <text x="275.2" y="78" textLength="168">ucker</text>
+  </g>
+  <polygon points="263.9,32 245.9,59 255.9,59 250.9,78 270.9,50 259.9,50" fill="#F1FF0F"/>
+</svg>

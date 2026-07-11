@@ -1,0 +1,7 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- knockout bolt — canonical mark. Apple Big Sur icon grid: 824px squircle
+       centered on a 1024 canvas, corner radius 185. assets/genicon.swift
+       renders the same geometry to icon.png (the copy embedded in the binary). -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#F1FF0F"/>
+  <polygon points="573.8,275.1 388.4,553.2 491.4,553.2 439.9,748.9 645.9,460.5 532.6,460.5" fill="#0D0D10"/>
+</svg>
