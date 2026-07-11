@@ -2,14 +2,15 @@
 ratio     = [ 1, 4, 1 ]
 scrolloff = 5
 linemode  = "size"
+shared_clipboard = true
 
 [preview]
 max_width  = 1200
 max_height = 900
+cache_dir = "~/.cache/yazi"
 
 [opener]
 edit = [
-	# { run = "${EDITOR:-vi} %s", desc = "􁹛  edit", for = "unix", block = true },
 	{ run = "hx %s", desc = "􀤘  helix", for = "unix", block = true },
 ]
 bulk-rename = [

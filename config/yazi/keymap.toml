@@ -292,6 +292,18 @@ run  = '''shell --block -- /Users/nom/.zsh/bin/yazi-dual move %s'''
 desc = "Move selected files to the other pane's cwd"
 
 [[mgr.prepend_keymap]]
+on   = [ "e", "j" ]
+for  = "unix"
+run  = '''shell --block -- /Users/nom/.zsh/bin/yazi-dual jump'''
+desc = "Jump to the other pane's cwd"
+
+[[mgr.prepend_keymap]]
+on   = [ "e", "p" ]
+for  = "unix"
+run  = '''shell --block -- /Users/nom/.zsh/bin/yazi-dual push'''
+desc = "Push (clone) current path to the other pane"
+
+[[mgr.prepend_keymap]]
 on   = [ "m", "t" ]
 run  = "shell --block -- ffmpeg-lossless-cut %s"
 desc = "Trim intros from selected movies"

@@ -18,9 +18,15 @@ Usage:
   $script_name pane <left|right> <SESSION_DIR> <START_DIR>
   $script_name copy <PATH>...
   $script_name move <PATH>...
+  $script_name jump
+  $script_name push
   $script_name copy-run <TARGET_DIR_OR_REMOTE> <PATH>...
   $script_name move-run <TARGET_DIR_OR_REMOTE> <PATH>...
   $script_name peer-cwd
+
+  copy/move  transfer selected paths to the sibling pane's cwd
+  jump       cd this Yazi to the sibling pane's cwd
+  push       make the sibling shell cd to this pane's cwd
 
 The copy/move commands auto-detect the peer pane: the other Kitty window in
 the current tab. No yazi-dual launch required — works for any Yazi in any
@@ -38,6 +44,11 @@ EOF
 
 have() {
   command -v "$1" >/dev/null 2>&1
+}
+
+# POSIX single-quote a string so it survives being typed into a shell.
+squote() {
+  print -r -- "${(qq)1}"
 }
 
 normalize_dir() {
@@ -143,6 +154,56 @@ window_cwd() {
   }
 
   decode_cwd "$cwd"
+}
+
+# Basename of the program running in the foreground of a Kitty window
+# (e.g. zsh, ssh, docker). Empty if it can't be determined.
+window_fg_cmd() {
+  local window_id="$1"
+  local socket
+  socket="$(discover_socket)" || return 1
+
+  kitty_remote "$socket" ls |
+    jq -r --arg id "$window_id" '
+      [ .[].tabs[]?.windows[]? | select((.id | tostring) == $id)
+        | (.foreground_processes // [])
+        | (.[-1].cmdline // [])
+        | (.[0] // empty) ][0] // empty
+    '
+}
+
+# Resolve and validate the peer pane cwd. Prints a usable local directory on
+# stdout, or aborts (non-zero) with a message when the reported cwd is stale
+# or misleading. This is the guard against copying into thin air.
+peer_target_dir() {
+  local target_id="$1"
+
+  local target
+  target="$(window_cwd "$target_id")" || return 1
+
+  # A remote/nested session reports the LOCAL launch dir, not where you really
+  # are — copying there would silently land in the wrong place.
+  local fg fg_base
+  fg="$(window_fg_cmd "$target_id" 2>/dev/null)"
+  fg_base="${fg:t}"
+  case "$fg_base" in
+    ssh|mosh|mosh-client|autossh|et|eternal-terminal|docker|podman|kubectl|distrobox-enter|nsenter)
+      print -u2 -- "$script_name: peer pane is running '$fg_base' — its reported cwd"
+      print -u2 -- "  ($target) is the local launch dir, not the remote/container path."
+      print -u2 -- "  Aborting to avoid a surprise transfer. cd to a real local dir there first."
+      return 1
+      ;;
+  esac
+
+  # Stale / gone: the reported cwd must be a reachable local directory.
+  [[ -d "$target" ]] || {
+    print -u2 -- "$script_name: peer cwd is not a reachable directory:"
+    print -u2 -- "  $target"
+    print -u2 -- "  (the pane may be on an unmounted volume or a since-deleted path)"
+    return 1
+  }
+
+  print -r -- "$target"
 }
 
 wait_for_peer_id() {
@@ -393,7 +454,7 @@ transfer_to_peer() {
   target_id="$(resolve_target_id)" || return 1
 
   local target
-  target="$(window_cwd "$target_id")" || return 1
+  target="$(peer_target_dir "$target_id")" || return 1
 
   local socket
   socket="$(discover_socket || true)"
@@ -442,6 +503,53 @@ move_run() {
   done
 }
 
+# Jump: cd THIS Yazi to the sibling pane's cwd.
+cd_to_peer() {
+  [[ -n "${YAZI_ID:-}" ]] || {
+    print -u2 -- "$script_name: YAZI_ID unset — 'jump' must be run from within Yazi"
+    return 1
+  }
+
+  local target_id
+  target_id="$(resolve_target_id)" || return 1
+
+  local target
+  target="$(peer_target_dir "$target_id")" || return 1
+
+  ya emit cd "$target"
+}
+
+# Clone/push: make the sibling shell cd to THIS pane's cwd, by typing the
+# command into it. Only fires when the sibling is actually at a shell prompt.
+push_cwd_to_peer() {
+  local target_id
+  target_id="$(resolve_target_id)" || return 1
+
+  local fg fg_base
+  fg="$(window_fg_cmd "$target_id" 2>/dev/null)"
+  fg_base="${fg:t}"
+  fg_base="${fg_base#-}"   # strip login-shell leading dash (e.g. -zsh)
+  case "$fg_base" in
+    zsh|bash|fish|sh|dash|ksh|mksh|tcsh|csh|nu|xonsh|elvish) : ;;
+    *)
+      print -u2 -- "$script_name: sibling isn't at a shell prompt (running: ${fg_base:-unknown});"
+      print -u2 -- "  can't push a 'cd' into it. Focus a shell in that pane and retry."
+      return 1
+      ;;
+  esac
+
+  local socket
+  socket="$(discover_socket)" || {
+    print -u2 -- "$script_name: cannot reach Kitty remote control"
+    return 1
+  }
+
+  # --stdin sends bytes as-is (no escape interpretation), so shell-quoting in
+  # the path survives intact; the trailing newline runs the cd.
+  print -r -- "cd $(squote "$PWD")" |
+    kitty_remote "$socket" send-text --match "id:$target_id" --stdin
+}
+
 peer_cwd() {
   local target_id
   target_id="$(resolve_target_id)" || return 1
@@ -457,6 +565,8 @@ main() {
     pane) pane "$@" ;;
     copy) copy_to_peer "$@" ;;
     move) move_to_peer "$@" ;;
+    jump) cd_to_peer "$@" ;;
+    push) push_cwd_to_peer "$@" ;;
     copy-run) copy_run "$@" ;;
     move-run) move_run "$@" ;;
     peer-cwd) peer_cwd "$@" ;;
