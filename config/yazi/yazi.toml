@@ -112,3 +112,19 @@ append_previewers = [
 append_spotters = [
 	{ url = "*", run = "file-extra-metadata" },
 ]
+
+# Resolve MIME types by file extension instead of spawning file(1) per entry.
+# Much faster on large media dirs; no fallback, so unknown/extensionless files
+# get application/octet-stream. `group = "mime"` overrides the builtin fetcher
+# (Yazi > v26.1.22 — no `id` needed).
+[[plugin.prepend_fetchers]]
+url   = "local://*"
+run   = "mime-ext.local"
+prio  = "high"
+group = "mime"
+
+[[plugin.prepend_fetchers]]
+url   = "remote://*"
+run   = "mime-ext.remote"
+prio  = "high"
+group = "mime"
