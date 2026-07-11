@@ -20,6 +20,12 @@ encode), $script_name offers to resume it: the tail is re-encoded from the last
 keyframe of the partial and losslessly concatenated onto it. --resume skips the
 prompt and resumes automatically.
 
+Every encode embeds its job (source path, preset, filter, video args) as
+metadata tags in the output, and fragmented outputs keep those tags even when
+an encode crashes. Passing such a file as the only argument, with no preset
+flags, reconstructs the job from the file itself:
+  $script_name --resume 'partial [Topaz - ...].mp4'
+
 With --copy-cmd, prints the exact $script_name command for each input (and copies
 it to the clipboard) instead of encoding — paste it later to rerun or resume.
 
@@ -615,6 +621,7 @@ preview_mode=false
 preview_seconds="1"
 resume_mode=false
 copy_cmd_mode=false
+output_override=""
 files=()
 
 while (( $# > 0 )); do
@@ -735,6 +742,48 @@ else
     }
   done
 
+  # Self-describing partial: every Topaz output embeds its job in metadata
+  # tags, so a lone file argument that carries them reconstructs the whole
+  # encode — no preset flags needed, even after the preset is long forgotten.
+  if (( ${#files[@]} == 1 )) && [[ -x "$TOPAZ_FFPROBE" ]]; then
+    typeset -A embedded_job
+    while IFS= read -r line; do
+      line="${line#TAG:}"
+      key="${line%%=*}"
+      case "$key" in
+        topaz_source|topaz_filter|topaz_preset_name|topaz_video_args|videoai)
+          embedded_job[$key]="${line#*=}"
+          ;;
+      esac
+    done < <(
+      "$TOPAZ_FFPROBE" -v error \
+        -show_entries format_tags=topaz_source,topaz_filter,topaz_preset_name,topaz_video_args,videoai \
+        -of default=noprint_wrappers=1 -- "$files[1]" 2>/dev/null
+    )
+
+    if [[ -n "${embedded_job[topaz_filter]:-}" && -n "${embedded_job[topaz_source]:-}" ]]; then
+      [[ -f "${embedded_job[topaz_source]}" ]] || {
+        print -u2 -- "embedded Topaz job found, but its source is missing:"
+        print -u2 -- "  ${embedded_job[topaz_source]}"
+        exit 1
+      }
+      preset_name="${embedded_job[topaz_preset_name]:-resumed encode}"
+      preset_flag="--filter_complex"
+      preset_value="${embedded_job[topaz_filter]}"
+      preset_video_args="${embedded_job[topaz_video_args]:-}"
+      [[ -n "${embedded_job[videoai]:-}" ]] && preset_metadata="videoai=${embedded_job[videoai]}"
+      preset_output_ext="${files[1]:e}"
+      output_override="${files[1]:A}"
+      files=("${embedded_job[topaz_source]}")
+      print -P -- "%F{cyan}%B↻ embedded Topaz job found%b%f"
+      print -P -- "  %F{white}preset:%f %F{magenta}$(topaz_escape_prompt "$preset_name")%f"
+      print -P -- "  %F{white}source:%f %F{white}$(topaz_escape_prompt "${files[1]}")%f"
+      print
+    fi
+  fi
+fi
+
+if [[ -z "$preset_value" ]]; then
   command -v fzf >/dev/null 2>&1 || {
     print -u2 "fzf not found"
     exit 1
@@ -861,6 +910,17 @@ for input in "$files[@]"; do
   metadata_args=()
   [[ -n "$preset_metadata" ]] && metadata_args=(-metadata "$preset_metadata")
 
+  # Embed the full job in the output so a crashed partial is self-describing:
+  # `topaz-run --resume <partial>` reconstructs everything from these tags.
+  if [[ "$preview_mode" != true ]]; then
+    metadata_args+=(
+      -metadata "topaz_source=$input"
+      -metadata "topaz_preset_name=$preset_name"
+      -metadata "topaz_filter=$preset_value"
+      -metadata "topaz_video_args=${(j: :)video_args}"
+    )
+  fi
+
   filename_preset="$(topaz_file_preset_label "$preset_name")"
   safe_preset="$(topaz_safe_log_label "$filename_preset")"
 
@@ -871,6 +931,9 @@ for input in "$files[@]"; do
     output="${stem} [Topaz - ${filename_preset}].${output_ext}"
     log_file="${LOG_DIR}/${base} [Topaz - ${safe_preset}].log"
   fi
+  # Embedded-job resume targets the exact file that was passed in, even if it
+  # was renamed or moved since the original encode.
+  [[ -n "$output_override" ]] && output="$output_override"
   ffmpeg_preset_flag="-${preset_flag#--}"
   input_duration_args=()
   [[ "$preview_mode" == true ]] && input_duration_args=(-t "$preview_seconds")
@@ -1081,7 +1144,8 @@ for input in "$files[@]"; do
     (
       cd "$TOPAZ_MACOS_DIR"
       "$TOPAZ_FFMPEG" -hide_banner -y -f concat -safe 0 -i "$concat_list" \
-        -map 0 -c copy "${metadata_args[@]}" -- "$joined"
+        -map 0 -c copy -movflags "use_metadata_tags+faststart" \
+        "${metadata_args[@]}" -- "$joined"
     ) >>"$log_file" 2>&1 || concat_status=$?
     rm -f -- "$concat_list"
 
