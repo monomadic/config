@@ -1,8 +1,7 @@
 #!/bin/zsh
 
 # Official fzf key bindings and fuzzy completion
-
-export FZF_COMPLETION_TRIGGER='\t' # Keep Tab on the custom zsh completion picker
+# (FZF_COMPLETION_TRIGGER is exported from zshenv.zsh)
 
 # Tab-completion picker (config/zsh/autoload/fzf-completions.zsh) appends this to
 # its fzf invocation. Field {1} is the completion value; fzf-comp-preview resolves

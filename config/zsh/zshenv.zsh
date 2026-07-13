@@ -101,7 +101,7 @@ export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn/"
 export INDEX_DIR="$HOME/.indexes"
 export PRIVATE_PHOTOS_LIBRARY="$HOME/Media/Private/Private.photoslibrary"
 
-export HOSTNAME=$(hostname)
+export HOSTNAME=$HOST  # zsh builtin; $(hostname) forked on every zsh invocation
 
 # Helix
 export HELIX_USE_OSC52=true

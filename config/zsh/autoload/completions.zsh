@@ -4,11 +4,26 @@
 #		- https://github.com/zsh-users/zsh-completions
 #
 
-# 1Password (dynamic completions are fine)
-eval "$(op completion zsh)"
+# 1Password — cached; spawning `op` costs ~40ms per shell
+if (( $+commands[op] )); then
+  _op_init="$ZSH_CACHE_DIR/op-completion.zsh"
+  if [[ ! -s $_op_init || $(command -v op) -nt $_op_init ]]; then
+    command op completion zsh >! "$_op_init"
+  fi
+  source "$_op_init"
+  unset _op_init
+fi
 
-# tv
-eval "$(tv init zsh)"
+# television — cached. Note: this binds ^R, which keybindings.zsh (sourced
+# later) and the lazy fzf loader both deliberately override.
+if (( $+commands[tv] )); then
+  _tv_init="$ZSH_CACHE_DIR/tv-init.zsh"
+  if [[ ! -s $_tv_init || $(command -v tv) -nt $_tv_init ]]; then
+    command tv init zsh >! "$_tv_init"
+  fi
+  source "$_tv_init"
+  unset _tv_init
+fi
 
 #eval "$(rmrfrs --completions zsh)" &> /dev/null
 
@@ -21,23 +36,8 @@ mkdir -p ~/.zsh/completions
 [[ ! -f ~/.zsh/completions/_dotter ]] && dotter gen-completions --shell zsh >~/.zsh/completions/_dotter
 [[ ! -f ~/.zsh/completions/_bat ]] && bat --completion zsh >~/.zsh/completions/_bat
 
-# `fpath` and `compinit` are handled centrally in `~/.zshrc`.
-
-# Cached compinit can miss newly added completion files. Register these
-# explicitly so they work immediately after deployment.
-for _completion_command in fzf mpv media-library; do
-  if (( $+commands[$_completion_command] )); then
-    autoload -Uz "_$_completion_command"
-    compdef "_$_completion_command" "$_completion_command"
-  fi
-done
-unset _completion_command
-
-# yt-dlp ships its zsh completion through Homebrew; cached compinit can miss it.
-if (( $+commands[yt-dlp] )); then
-  autoload -Uz _yt-dlp
-  compdef _yt-dlp yt-dlp
-fi
+# `fpath` and `compinit` are handled centrally in `~/.zshrc`; the dump is
+# rebuilt automatically when a completion dir changes, so no manual compdefs.
 
 # --- command: e <file> -> open in default editor ---
 e() {

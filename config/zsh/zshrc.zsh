@@ -9,9 +9,12 @@ setopt autocd autopushd
 typeset -g ZSH_CACHE_DIR="$XDG_CACHE_HOME/zsh"
 mkdir -p "$ZSH_CACHE_DIR"
 
-# Completion search path FIRST, then a single compinit
+# Completion search path FIRST, then a single compinit.
+# site-functions must be present here: brew shellenv (sourced later) also adds
+# it, but compinit only registers completions from dirs in fpath at this point.
 fpath=(
   "$ZSH_CONFIG_DIR/completions"
+  "${HOMEBREW_PREFIX:-/opt/homebrew}/share/zsh/site-functions"
   $fpath
 )
 
@@ -22,13 +25,20 @@ zstyle ':completion:*' special-dirs true
 zstyle ':completion:*' list-dirs first
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Z}'
 
-# Init completion once, with cached dump
+# Init completion once, with cached dump.
+# Fast path (-C) trusts the dump; full rebuild only when a completion dir has
+# gained/lost files since the dump was written, so new completions are picked
+# up on the next shell without any manual compdef bookkeeping.
 autoload -Uz compinit
 typeset -g COMPDUMP="$ZSH_CACHE_DIR/.zcompdump-$ZSH_VERSION"
-# -C: skip security scan after first trusted run; -i: ignore insecure dirs instead of prompting
-compinit -d "$COMPDUMP" -C -i
-# Compile ONLY the dump (safe & common)
-[[ -s $COMPDUMP && ! -e $COMPDUMP.zwc ]] && zcompile -U -- "$COMPDUMP"
+if [[ -s $COMPDUMP
+   && ! $ZSH_CONFIG_DIR/completions -nt $COMPDUMP
+   && ! ${HOMEBREW_PREFIX:-/opt/homebrew}/share/zsh/site-functions -nt $COMPDUMP ]]; then
+  compinit -d "$COMPDUMP" -C -i
+else
+  compinit -d "$COMPDUMP" -i
+fi
+[[ -s $COMPDUMP && (! -e $COMPDUMP.zwc || $COMPDUMP -nt $COMPDUMP.zwc) ]] && zcompile -U -- "$COMPDUMP"
 
 # Autoload common helper module
 autoload -Uz add-zsh-hook
@@ -73,6 +83,7 @@ for config_file in $config_files; do
     print -P "%F{red}Error sourcing $config_file. Skipping...%f"
   fi
 done
+unset config_file config_files
 
 # kitty tab colors
 #kitty @ set-tab-color --match title:"mpv-play" active_bg="#A85FFF" active_fg="#050F63" inactive_fg="#A85FFF" inactive_bg="#030D43"
@@ -161,20 +172,8 @@ _prompt_spacer_precmd() {
 }
 add-zsh-hook precmd _prompt_spacer_precmd
 
-# television
-eval "$(tv init zsh)"
-
-# LM Studio PATH
-export PATH="$PATH:$HOME/.cache/lm-studio/bin"
-export PATH="$PATH:$HOME/.lmstudio/bin"
-
-# Added by LM Studio CLI (lms)
-export PATH="$PATH:/Users/nom/.cache/lm-studio/bin"
-# End of LM Studio CLI section
-
-# print -P "ok"
-
-fpath+=~/.zfunc; autoload -Uz compinit; compinit
+# television init lives in autoload/completions.zsh (cached).
+# LM Studio PATH entries come from ~/.bin/init-path.
 
 # >>> elio shell integration >>>
 elio() {
