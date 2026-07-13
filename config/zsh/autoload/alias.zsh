@@ -14,6 +14,9 @@ alias .tidal-dl-video="tiddl download --videos=allow url"
 alias flac-print-tags="metaflac --list --block-type=VORBIS_COMMENT"
 alias .flac-print-tags=flac-print-tags
 
+alias kitty-cwd-opposite-pane="kitty @ ls | jq -r '  .[] | select(.is_active)  | .tabs[] | select(.is_active)  | .windows[] | select(.is_active | not)  | .foreground_processes[-1].cwd // .cwd'"
+alias .kitty-cwd-opposite-pane=kitty-cwd-opposite-pane
+
 alias rtsp-url-brute="nmap --script=/opt/homebrew/share/nmap/scripts/rtsp-url-brute.nse -p554"
 
 gh-repo-create() {

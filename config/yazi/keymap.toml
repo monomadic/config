@@ -58,7 +58,7 @@ desc = "Open files or enter directories"
 
 # ─────────────────────────────────────────────────────────────────────────
 # <Space> root menu — top-level hub that funnels into sub-menus.
-#   <Space><Space>  quicklook       m  media…      o  open…      e  encode/edit…
+#   <Space><Space>  quicklook    f  file→pane…    m  media…    o  open…    e  encode/edit…
 # ─────────────────────────────────────────────────────────────────────────
 
 [[mgr.prepend_keymap]]
@@ -66,6 +66,25 @@ on   = [ "<Space>", "<Space>" ]
 for  = "macos"
 run  = "shell -- /Users/nom/config/config/zsh/bin/yazi-quicklook %h"
 desc = "Quicklook hovered file"
+
+# <Space> f — transfer selected files to the next Kitty pane's cwd
+[[mgr.prepend_keymap]]
+on   = [ "<Space>", "f", "c" ]
+for  = "unix"
+run  = '''shell --block -- /Users/nom/.zsh/bin/copy-kitty-next-pane %s'''
+desc = "File: copy to next pane's cwd"
+
+[[mgr.prepend_keymap]]
+on   = [ "<Space>", "f", "m" ]
+for  = "unix"
+run  = '''shell --block -- /Users/nom/.zsh/bin/copy-kitty-next-pane --move %s'''
+desc = "File: move to next pane's cwd"
+
+[[mgr.prepend_keymap]]
+on   = [ "<Space>", "f", "s" ]
+for  = "unix"
+run  = '''shell --block -- /Users/nom/.zsh/bin/copy-kitty-next-pane --move --check %s'''
+desc = "File: safe-move (verify, then move) to next pane's cwd"
 
 # <Space> m — media
 [[mgr.prepend_keymap]]
@@ -283,30 +302,6 @@ desc = "Rotate selected videos right (lossless)"
 on   = [ "e", "[" ]
 run  = "shell --block -- /Users/nom/.zsh/bin/video-rotate-lossless --left %s"
 desc = "Rotate selected videos left (lossless)"
-
-[[mgr.prepend_keymap]]
-on   = [ "e", "c" ]
-for  = "unix"
-run  = '''shell --block -- /Users/nom/.zsh/bin/yazi-dual copy %s'''
-desc = "Copy selected files to the other pane's cwd"
-
-[[mgr.prepend_keymap]]
-on   = [ "e", "m" ]
-for  = "unix"
-run  = '''shell --block -- /Users/nom/.zsh/bin/yazi-dual move %s'''
-desc = "Move selected files to the other pane's cwd"
-
-[[mgr.prepend_keymap]]
-on   = [ "e", "j" ]
-for  = "unix"
-run  = '''shell --block -- /Users/nom/.zsh/bin/yazi-dual jump'''
-desc = "Jump to the other pane's cwd"
-
-[[mgr.prepend_keymap]]
-on   = [ "e", "p" ]
-for  = "unix"
-run  = '''shell --block -- /Users/nom/.zsh/bin/yazi-dual push'''
-desc = "Push (clone) current path to the other pane"
 
 [[mgr.prepend_keymap]]
 on   = [ "m", "t" ]

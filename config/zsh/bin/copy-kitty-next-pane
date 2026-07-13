@@ -1,14 +1,15 @@
 #!/usr/bin/env zsh
 #
-# cp-next-pane — copy (or move) files into the *next* Kitty pane's cwd.
+# copy-kitty-next-pane — copy (or move) files into the next Kitty pane's cwd.
 #
 # Run it from a shell in one Kitty split. It finds the next window in the
-# current tab, asks Kitty for that window's working directory, and rsyncs
-# your files there with a live progress bar and transfer speed.
+# current tab whose cwd differs from yours (same-directory panes are skipped),
+# asks Kitty for that window's working directory, and rsyncs your files there
+# with a live progress bar and transfer speed.
 #
 # Usage:
-#   cp-next-pane [--move] [--check] [--] <path>...
-#   <producer> | cp-next-pane [--move] [--check]     # one path per line on stdin
+#   copy-kitty-next-pane [--move] [--check] [--] <path>...
+#   <producer> | copy-kitty-next-pane [--move] [--check]   # one path per line on stdin
 #
 # Options:
 #   --move    remove each source once it has copied successfully
@@ -23,7 +24,18 @@ set -euo pipefail
 script_name=${0:t}
 user_name=${USER:-${LOGNAME:-$(id -un)}}
 
-die()  { print -u2 -- "$script_name: $*"; exit 1; }
+# --- colors (tasteful; disabled when piped or NO_COLOR is set) --------------
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  c_reset=$'\e[0m'; c_bold=$'\e[1m'; c_dim=$'\e[2m'
+  c_label=$'\e[36m'; c_path=$'\e[1;34m'; c_ok=$'\e[32m'
+  c_barfill=$'\e[32m'      # progress-bar filled blocks (green)
+  c_bardim=$'\e[90m'       # progress-bar empty track (grey)
+else
+  c_reset= c_bold= c_dim= c_label= c_path= c_ok= c_barfill= c_bardim=
+fi
+if [[ -t 2 && -z "${NO_COLOR:-}" ]]; then c_err=$'\e[31m'; else c_err=; fi
+
+die()  { print -u2 -- "${c_err}${script_name}:${c_reset} $*"; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
 usage() {
@@ -105,26 +117,27 @@ PY
   fi
 }
 
-# Next window after self in this tab's clockwise order (wrapping); emit its
-# cwd and foreground command, tab-separated. Empty when there is no sibling.
+# Identify the active window (this shell) in the active tab, then choose the
+# target: the first OTHER window whose cwd differs from ours. Copying into our
+# own cwd is a no-op, and silently choosing a same-dir pane is exactly what led
+# to data loss before — so same-dir panes are skipped. cwd is read from each
+# window's live foreground process (more accurate than the cached window cwd).
+# Emit the chosen window's cwd and foreground command, tab-separated.
 info=$(
-  kitty_ls | jq -r --arg self "$self" '
-    ([ .[].tabs[]? | select(any(.windows[]?; (.id | tostring) == $self)) ][0].windows // []) as $w
-    | ($w | length) as $n
-    | ([ range(0; $n) | select(($w[.].id | tostring) == $self) ][0]) as $i
-    | if ($i == null or $n < 2) then ""
-      else
-        $w[(($i + 1) % $n)] as $t
-        | ( if   ($t.cwd | type) == "string" then $t.cwd
-            elif ($t.cwd | type) == "object" then ($t.cwd.path // $t.cwd.uri // $t.cwd.file // "")
-            else "" end ) as $cwd
-        | ( ($t.foreground_processes // [])[-1].cmdline // [] | (.[0] // "") ) as $fg
-        | [$cwd, $fg] | @tsv
-      end
+  kitty_ls | jq -r '
+    def cwdof: (.foreground_processes[-1].cwd // .cwd // "");
+    def fgof:  (.foreground_processes[-1].cmdline // [] | (.[0] // ""));
+    ( [ .[] | select(.is_active) | .tabs[] | select(.is_active) ] | first ) as $tab
+    | ($tab.windows // []) as $w
+    | ( $w | map(select(.is_active)) | first | cwdof ) as $selfcwd
+    | ( [ $w[] | select(.is_active | not)
+          | select((cwdof) as $c | $c != "" and $c != $selfcwd) ] | first ) as $t
+    | if $t == null then "" else [ ($t | cwdof), ($t | fgof) ] | @tsv end
   '
 ) || die "cannot reach Kitty remote control (allow_remote_control + listen_on?)"
 
-[[ -n "$info" ]] || die "no next pane found in this tab (need at least 2 splits)"
+[[ -n "$info" ]] || die "no eligible next pane found in this tab — need another split
+  whose cwd differs from yours ($PWD). (Same-directory panes are skipped on purpose.)"
 
 dest=$(decode_url "${info%%$'\t'*}")
 fg=${info#*$'\t'}
@@ -160,10 +173,15 @@ done
 
 # --- copy ------------------------------------------------------------------
 
+use_bar=0
 if [[ -x /opt/homebrew/bin/rsync ]]; then
   rsync_bin=/opt/homebrew/bin/rsync
   copy_opts=(-ah --info=progress2 --protect-args)
   verify_opts=(-an --checksum --itemize-changes --protect-args)
+  # For the live bar: raw byte counts (no -h), full file list up front for an
+  # accurate percentage, and unbuffered output so \r updates arrive promptly.
+  bar_opts=(-a --info=progress2 --no-inc-recursive --outbuf=N --protect-args)
+  [[ -t 1 ]] && use_bar=1
 else
   rsync_bin=rsync
   copy_opts=(-ah --progress)
@@ -172,9 +190,98 @@ fi
 
 dest=${dest%/}/
 verb="Copying"; (( move )) && verb="Moving"
-print -r -- "$verb ${#sources[@]} item(s) → $dest"
 
-"$rsync_bin" "${copy_opts[@]}" -- "${sources[@]}" "$dest"
+# Human-readable bytes (1024-based): 1234567 -> 1.2M
+humanize() {
+  local b=${1:-0}
+  if   (( b >= 1073741824 )); then printf '%.2fG' "$(( b / 1073741824.0 ))"
+  elif (( b >= 1048576 ));    then printf '%.1fM' "$(( b / 1048576.0 ))"
+  elif (( b >= 1024 ));       then printf '%.1fK' "$(( b / 1024.0 ))"
+  else                             printf '%dB'   "$b"
+  fi
+}
+
+# Render a contained progress bar on one line: an indented [████░░░] bar plus
+# percent, transferred/total, speed and ETA. Kept well under the terminal width
+# (a full-width line would auto-wrap and scroll the labels off screen), redrawn
+# in place with \r and cleared to end-of-line with \e[K.
+draw_progress() {
+  local cols=$1 pct=$2 bytes=$3 rate=$4 eta=$5
+  (( pct > 100 )) && pct=100
+  (( pct < 0 ))   && pct=0
+
+  local barw=$(( cols - 62 ))
+  (( barw > 28 )) && barw=28
+  (( barw < 6 ))  && barw=6
+  local filled=$(( barw * pct / 100 ))
+  (( filled > barw )) && filled=barw
+  (( filled < 0 ))    && filled=0
+  local empty=$(( barw - filled ))
+
+  local pad= fbar ebar          # pad is set-but-empty so nounset (set -u) is happy
+  fbar=${(l:filled:: :)pad}; ebar=${(l:empty:: :)pad}
+  fbar=${fbar// /█}; ebar=${ebar// /░}
+
+  local xfer tot
+  xfer=$(humanize "$bytes"); tot=$(humanize "$total_bytes")
+
+  local L="  ${c_dim}▕${c_reset}${c_barfill}${fbar}${c_bardim}${ebar}${c_dim}▏${c_reset}"
+  L+=" ${c_bold}${(l:3:)pct}%${c_reset}"
+  L+="   ${xfer} / ${tot}"
+  L+="   ${c_dim}${rate}   ETA ${eta}${c_reset}"
+
+  printf '\r%s\e[K' "$L"
+}
+
+# Drive rsync and paint the bar from its progress stream.
+copy_with_bar() {
+  # errexit OFF for this whole display path. Transient non-zero returns here
+  # (tput on a dumb TERM, a false arithmetic clamp, a draw hiccup) must never
+  # abort — otherwise the read loop dies and rsync's next progress write hits a
+  # closed pipe (rsync exit 13 + SIGUSR1). rsync's real status is captured in
+  # $st below and returned, so a genuine copy failure still propagates.
+  setopt localoptions noerrexit
+
+  local cols=80
+  cols=$(tput cols 2>/dev/null) || cols=80
+  [[ "$cols" == <-> ]] || cols=80
+
+  local st
+  "$rsync_bin" "${bar_opts[@]}" -- "${sources[@]}" "$dest" | {
+    local chunk
+    local -a f
+    while IFS= read -r -d $'\r' chunk || [[ -n "$chunk" ]]; do
+      f=( ${=chunk} )                       # split on whitespace
+      [[ ${f[2]:-} == *% ]] || continue     # progress lines look like: BYTES NN% RATE ETA
+      local pct=${f[2]%\%}
+      [[ $pct == <-> ]] || continue
+      draw_progress "$cols" "$pct" "${f[1]//,/}" "${f[3]:-}" "${f[4]:-}"
+    done
+    :                                        # group exits 0 so pipefail reflects rsync's status
+  }
+  st=$?                                      # pipeline status (pipefail-aware): rsync's exit
+  print -r -- ""                             # end the bar line
+  return $st                                 # propagate copy failure even without set -e
+}
+
+print -r -- ""
+print -r -- "${c_bold}${c_label}Destination:${c_reset}"
+print -r -- "  ${c_path}${dest}${c_reset}"
+print -r -- "${c_bold}${c_label}${verb} ${#sources[@]} item(s):${c_reset}"
+
+if (( use_bar )); then
+  total_bytes=0
+  for src in "${sources[@]}"; do
+    if [[ -d "$src" ]]; then
+      total_bytes=$(( total_bytes + $(du -sk -- "$src" | awk '{print $1}') * 1024 ))
+    else
+      total_bytes=$(( total_bytes + $(stat -f%z -- "$src") ))
+    fi
+  done
+  copy_with_bar
+else
+  "$rsync_bin" "${copy_opts[@]}" -- "${sources[@]}" "$dest"
+fi
 
 # Per-source checksum verification: empty output == destination is byte-for-byte
 # identical to the source. Returns non-zero if anything differs.
@@ -187,13 +294,13 @@ verify_one() {
 # --- verify (--check) ------------------------------------------------------
 
 if (( check )); then
-  print -r -- "Verifying (checksum)…"
+  print -r -- "${c_dim}Verifying (checksum)…${c_reset}"
   bad=0
   for src in "${sources[@]}"; do
     verify_one "$src" || { bad=1; print -u2 -- "  differs after copy: ${src:t}"; }
   done
   (( bad )) && die "verification FAILED — destination does not match source"
-  print -r -- "✓ verified: destination matches source"
+  print -r -- "  ${c_ok}✓${c_reset} verified — destination matches source"
 fi
 
 # --- move: delete each source ONLY after proving a distinct, identical copy --
@@ -208,7 +315,7 @@ if (( move )); then
     verify_one "$src"               || die "not deleting '${src:t}': destination copy differs (checksum)"
     rm -rf -- "$src"
   done
-  print -r -- "✓ moved ${#sources[@]} item(s) → $dest"
+  print -r -- "${c_ok}${c_bold}✓ moved ${#sources[@]} item(s)${c_reset}"
 else
-  print -r -- "✓ copied ${#sources[@]} item(s) → $dest"
+  print -r -- "${c_ok}${c_bold}✓ copied ${#sources[@]} item(s)${c_reset}"
 fi

@@ -47,6 +47,9 @@ CURRENT_PASS=0
 CURRENT_FAIL=0
 typeset -a ENABLED_CHECKS=()
 typeset -A CHECK_STATUS=()
+typeset -a PENDING_METADATA_ARGS=()
+typeset -a PENDING_FIXES=()
+PENDING_FASTSTART=false
 
 usage() {
   cat >&2 <<'EOF'
@@ -690,38 +693,6 @@ except Exception:
 PY
 }
 
-enable_faststart() {
-  local file="$1"
-  local dir="${file:h}"
-  local base="${file:t:r}"
-  local ext="${file:e}"
-  local tmp
-
-  command -v ffmpeg >/dev/null 2>&1 || return 1
-  tmp="$(mktemp "${dir}/.${base}.faststart.XXXXXX.${ext}")" || return 1
-
-  if ffmpeg -hide_banner -loglevel error -nostdin -y \
-      -i "$file" \
-      -map '0:v?' \
-      -map '0:a?' \
-      -map '0:s?' \
-      -map_metadata 0 \
-      -c copy \
-      -movflags +faststart+use_metadata_tags \
-      "$tmp"; then
-    copy_creation_date "$file" "$tmp" || {
-      rm -f -- "$tmp" 2>/dev/null || true
-      return 1
-    }
-    mv -f -- "$tmp" "$file"
-    touch_modified_now "$file"
-    return 0
-  fi
-
-  rm -f -- "$tmp" 2>/dev/null || true
-  return 1
-}
-
 check_faststart() {
   local file="$1"
   local state
@@ -741,15 +712,10 @@ check_faststart() {
       (( FILE_ISSUES++ ))
       issue_screen "faststart" "$file"
       say "faststart: not enabled"
-      say "auto-fix: enabling FastStart with ffmpeg stream copy."
-      if enable_faststart "$file" && faststart_state "$file"; then
-        mark_fixed "FastStart enabled."
-        return 0
-      fi
-      fail "FastStart repair failed."
-      (( fail_count++ ))
-      mark_unresolved
-      return 1
+      say "auto-fix: queued for the combined ffmpeg rewrite."
+      PENDING_FASTSTART=true
+      PENDING_FIXES+=("faststart")
+      return 0
       ;;
     *)
       (( FILE_ISSUES++ ))
@@ -904,7 +870,7 @@ rewrite_with_metadata() {
   )
 
   if is_faststart_path "$file"; then
-    ffmpeg_args+=(-movflags use_metadata_tags)
+    ffmpeg_args+=(-movflags +faststart+use_metadata_tags)
   fi
 
   ffmpeg_args+=("${metadata_args[@]}" "$tmp")
@@ -923,22 +889,20 @@ rewrite_with_metadata() {
   return 1
 }
 
-embed_source_url() {
-  local file="$1"
-  local url="$2"
+queue_source_url() {
+  local url="$1"
 
-  rewrite_with_metadata "$file" \
-    -metadata "source_url=$url" \
-    -metadata "webpage_url=$url" \
-    -metadata "purl=$url" \
+  PENDING_METADATA_ARGS+=(
+    -metadata "source_url=$url"
+    -metadata "webpage_url=$url"
+    -metadata "purl=$url"
     -metadata "comment=$url"
+  )
 }
 
-fetch_and_embed_metadata() {
-  local file="$1"
-  local url="$2"
+queue_fetched_metadata() {
+  local url="$1"
   local tmp_json title uploader channel webpage_url original_url description upload_date timestamp duration id extractor
-  local -a metadata_args
 
   command -v yt-dlp >/dev/null 2>&1 || return 1
   command -v jq >/dev/null 2>&1 || return 1
@@ -965,7 +929,7 @@ fetch_and_embed_metadata() {
   [[ -n "$webpage_url" ]] || webpage_url="$url"
   [[ -n "$original_url" ]] || original_url="$url"
 
-  metadata_args=(
+  PENDING_METADATA_ARGS+=(
     -metadata "source_url=$webpage_url"
     -metadata "webpage_url=$webpage_url"
     -metadata "original_url=$original_url"
@@ -981,20 +945,85 @@ fetch_and_embed_metadata() {
     -metadata "yt_dlp_duration=$duration"
   )
 
-  [[ -n "$title" ]] && metadata_args+=(-metadata "title=$title")
+  [[ -n "$title" ]] && PENDING_METADATA_ARGS+=(-metadata "title=$title")
 
-  if rewrite_with_metadata "$file" "${metadata_args[@]}"; then
-    rm -f -- "$tmp_json"
+  PROBE_TITLE="$title"
+  PROBE_URL="$webpage_url"
+
+  rm -f -- "$tmp_json"
+  return 0
+}
+
+apply_pending_rewrite() {
+  local file="$1"
+  local item
+
+  (( ${#PENDING_FIXES[@]} > 0 )) || return 0
+
+  status_line "$file"
+
+  if rewrite_with_metadata "$file" "${PENDING_METADATA_ARGS[@]}"; then
+    if $PENDING_FASTSTART && ! faststart_state "$file"; then
+      CURRENT_CHECK="faststart"
+      (( fail_count++ ))
+      mark_unresolved
+      (( fix_count += ${#PENDING_FIXES[@]} - 1 ))
+      clear_status
+      fail "FastStart verification failed after rewrite."
+      return 1
+    fi
+
+    (( fix_count += ${#PENDING_FIXES[@]} ))
+    [[ -t 4 ]] && redraw_screen
     return 0
   fi
 
-  rm -f -- "$tmp_json"
+  clear_status
+  fail "Combined ffmpeg rewrite failed; queued fixes were not applied."
+  for item in "${PENDING_FIXES[@]}"; do
+    CURRENT_CHECK="$item"
+    (( fail_count++ ))
+    mark_unresolved
+  done
+  CURRENT_CHECK=""
   return 1
+}
+
+filename_search_query() {
+  local name="$1"
+
+  python3 - "$name" <<'PY'
+import os
+import re
+import sys
+import urllib.parse
+
+stem = os.path.splitext(sys.argv[1])[0]
+stem = re.sub(r"\[[^\]]*\]|\{[^}]*\}", " ", stem)
+stem = re.sub(r"\s+", " ", stem).strip()
+
+print(stem)
+print("https://www.google.com/search?q=" + urllib.parse.quote_plus(stem))
+PY
+}
+
+open_in_browser() {
+  local url="$1"
+
+  if command -v open >/dev/null 2>&1; then
+    open "$url" >/dev/null 2>&1
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$url" >/dev/null 2>&1
+  else
+    warn "No browser opener (open/xdg-open) found."
+    return 1
+  fi
 }
 
 check_source_url() {
   local file="$1"
-  local url
+  local url query search_url choice
+  local -a search_info
 
   $CHECK_URL || return 0
 
@@ -1003,6 +1032,55 @@ check_source_url() {
   (( FILE_ISSUES++ ))
   issue_screen "source-url" "$file"
   say "source-url: missing"
+  say ""
+
+  query=""
+  search_url=""
+  if command -v python3 >/dev/null 2>&1; then
+    search_info=("${(@f)$(filename_search_query "${file:t}")}")
+    query="${search_info[1]-}"
+    search_url="${search_info[2]-}"
+  fi
+
+  while true; do
+    if [[ -n "$query" ]]; then
+      say_raw "  s) search browser for: ${query}"
+    fi
+    say_raw "  m) enter URL manually"
+    say_raw "  k) skip this file"
+    say ""
+
+    if ! prompt_input_or_skip "Choice (S/m/k):"; then
+      choice="k"
+    else
+      choice="${PROMPT_REPLY:l}"
+      [[ -z "$choice" ]] && choice="s"
+    fi
+
+    case "$choice" in
+      s)
+        if [[ -z "$search_url" ]]; then
+          warn "No search query could be built from this filename."
+          continue
+        fi
+        open_in_browser "$search_url" || continue
+        break
+        ;;
+      m)
+        break
+        ;;
+      k)
+        warn "Skipped source URL."
+        (( skip_count++ ))
+        mark_unresolved
+        return 1
+        ;;
+      *)
+        warn "Please answer s, m, or k."
+        ;;
+    esac
+  done
+
   say ""
 
   while true; do
@@ -1027,16 +1105,10 @@ check_source_url() {
     break
   done
 
-  if embed_source_url "$file" "$url"; then
-    PROBE_URL="$url"
-    mark_fixed "Source URL embedded."
-    return 0
-  fi
-
-  fail "Could not embed source URL."
-  (( fail_count++ ))
-  mark_unresolved
-  return 1
+  queue_source_url "$url"
+  PENDING_FIXES+=("source-url")
+  PROBE_URL="$url"
+  return 0
 }
 
 check_title_metadata() {
@@ -1063,13 +1135,12 @@ check_title_metadata() {
   say ""
 
   if prompt_yes_no "Fetch Metadata?" "Y"; then
-    if fetch_and_embed_metadata "$file" "$PROBE_URL"; then
-      probe_media_tags "$file" >/dev/null 2>&1 || true
-      mark_fixed "Metadata embedded."
+    if queue_fetched_metadata "$PROBE_URL"; then
+      PENDING_FIXES+=("metadata")
       return 0
     fi
 
-    fail "Could not fetch/embed metadata."
+    fail "Could not fetch metadata."
     (( fail_count++ ))
     mark_unresolved
     return 1
@@ -1206,6 +1277,9 @@ audit_file() {
   AUDIT_PATH="$file"
   CURRENT_FILE="$AUDIT_PATH"
   CURRENT_CHECK=""
+  PENDING_METADATA_ARGS=()
+  PENDING_FIXES=()
+  PENDING_FASTSTART=false
   reset_file_checks
 
   if [[ -t 4 ]]; then
@@ -1249,6 +1323,9 @@ audit_file() {
     run_check "faststart" check_faststart "$AUDIT_PATH"
     status_line "$AUDIT_PATH"
   fi
+
+  apply_pending_rewrite "$AUDIT_PATH"
+  status_line "$AUDIT_PATH"
 
   run_check "filename" check_filename_checks
   status_line "$AUDIT_PATH"
