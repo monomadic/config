@@ -249,7 +249,8 @@ if [[ -o interactive ]]; then
   bindkey "\e\x12"     open-finder-pwd           # Legacy fallback: open Finder
 
   # Kitty CSI-u keybindings
-  bindkey -M emacs $'\e[104;9u' fzf-history-widget  # Cmd+H
+  bindkey -M emacs $'\e[104;10u' fzf-history-widget  # Cmd+Shift+H
+  bindkey -M viins $'\e[104;10u' fzf-history-widget
   bindkey -M emacs $'\e[105;9u' fzf-insert-path     # Cmd+I
   bindkey -M emacs $'\e[111;9u' _cd-fzf             # Cmd+O: global jump
   bindkey -M viins $'\e[111;9u' _cd-fzf
