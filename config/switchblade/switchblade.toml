@@ -162,6 +162,7 @@ enter = "open"
 o = "open"
 space = "quickview"      # internal preview; Esc or Space closes, arrows browse
 # space = "preview"      # alternative: external looping mpv (defined below)
+f = "fast_fullscreen"
 c = "copy_path"
 a = "toggle_anim"        # animated thumbnails on/off
 p = "toggle_focus_pause" # pause-when-unfocused on/off
@@ -176,8 +177,8 @@ D = "open_parent"        # re-ingest from the selected clip's parent dir
 # like, or add more commands and bind keys to them.
 [commands.open]
 type = "launch"
-program = "mpv"
-args = ["{path}"]
+program = "mpv-send"
+args = ["play", "{path}"]
 
 # Quick-Look-ish peek: windowed (never fullscreen), floats on top,
 # loops, opens instantly, capped at 70% of the screen.

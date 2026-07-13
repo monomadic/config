@@ -184,7 +184,7 @@ alias @queue="fd-media --print0 . $HOME/Movies/Porn/Queue/(N) | fzf-select -0 --
 alias @tutorials="fd-media . $TUTORIALS_PATH | fzf-select | mpv-send play"
 alias @external=@volumes
 
-alias mount-tower="open smb://nom@m4.local/Tower"
+alias mount-tower="open -j smb://nom@m4.local/Tower"
 alias .mount-tower=mount-tower
 alias unmount-tower="diskutil unmount /Volumes/Tower"
 

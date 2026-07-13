@@ -50,28 +50,34 @@ input_font_size = 24
 # Symbol *names* used for the installed-row location tag.
 [icons]
 search = "⌕"                # magnifier in the input band
-running_many = "􀢌"          # running, 2+ windows
-running_one = "􀏜"           # running, one window
-running_none = "􀥁"          # running, no windows
-installed = "􀥃"             # installed, launchable
+running_many = "􀢌 "          # running, 2+ windows
+running_one = "􀏜 "           # running, one window
+running_none = "􀥁 "          # running, no windows
+installed = "􀥃 "             # installed, launchable
 utilities = "wrench.and.screwdriver"
 system = "gearshape"
 applications = "app.badge"
-shortcut = "terminal"       # SF Symbol name for the "Shortcut" tag pill
+shortcut = "􀩼 "       # SF Symbol name for the "Shortcut" tag pill
 
 # Per-app glyph overrides: "App Name" = "glyph" (name match is
 # case-insensitive; the glyph replaces the row-state glyph).
 [icons.apps]
+"Activity Monitor" = "􀟪 "
+"BetterDisplay" = "􃒘 "
+"Brave Browser" = "􀤆 "
+"ChatGPT" = "􂮢 "
+"Claude" = "􂮢 "
+"Disk Utility" = "􀤂 "
+"FaceTime" = "􀱰 "
 "Finder" = "􀣰 "
 "Kitty" = "􀩼 "
+"Notes" = "􁜾 "
+"Remote Desktop" = "􀢹 "
 "Signal" = "􂄹 "
-"FaceTime" = "􀱰 "
-"iPhone Mirroring" = "􀟞 "
 "System Settings" = "􀍟 "
-"Brave Browser" = "􀤆 "
-"Claude" = "􂮢 "
-"ChatGPT" = "􂮢 "
+"Telegram" = "􀈡 "
 "VirtualDJ" = "􀢸 "
+"iPhone Mirroring" = "􀟞"
 
 # Custom entries matched like apps; selecting one runs the command via
 # `sh -c` (loaded once at startup — zero cost while typing). Only the
@@ -81,6 +87,9 @@ shortcut = "terminal"       # SF Symbol name for the "Shortcut" tag pill
 "Shutdown" = "osascript -e 'tell app \"System Events\" to shut down'"
 "Restart" = "osascript -e 'tell app \"System Events\" to restart'"
 "Restart Motherfucker" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
+"M4.local: mount tower" = "open -j smb://nom@m4.local/Tower"
+"SwitchBlade: downloads" = "~/.cargo/bin/switchblade --fast-fullscreen /Users/nom/Movies/Porn/Downloads"
+"SwitchBlade: new downloads" = "$HOME/.zsh/bin/fd-media --fast-fullscreen --sort-created --path $HOME/Movies/Porn/Downloads | $HOME/.cargo/bin/switchblade"
 
 [stats]
 interval = 1.0              # seconds between cpu/ram refreshes while open

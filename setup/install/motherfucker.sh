@@ -22,6 +22,13 @@ cat > "$PLIST" <<EOF
 	<array>
 		<string>$HOME/.bin/motherfucker</string>
 	</array>
+	<!-- launchd's default PATH is bare /usr/bin:/bin:/usr/sbin:/sbin;
+	     [shortcuts] children (switchblade, ffmpeg, ...) need the real one. -->
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>$HOME/.bin:$HOME/.zsh/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>KeepAlive</key>
