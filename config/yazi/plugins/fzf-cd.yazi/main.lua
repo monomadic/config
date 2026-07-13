@@ -11,15 +11,13 @@ local function fail(s, ...)
 	})
 end
 
--- Same picker fzf-cd-shell uses: pinned dirs + global sources streamed into fzf-cd.
+-- Same picker fzf-cd-shell uses: pinned dirs + global sources via fzf-open.
 local command = [=[
-picker_config="${ZSH_AUTOLOAD_DIR:-$HOME/.zsh/autoload}/fzf-cd.zsh"
-if [[ ! -r "$picker_config" ]]; then
-	print -u2 -- "fzf-cd: missing picker config: $picker_config"
+if ! command -v fzf-open >/dev/null 2>&1; then
+	print -u2 -- "fzf-cd: fzf-open not found on PATH"
 	exit 2
 fi
-source "$picker_config"
-_cd_fzf_pick_global
+fzf-open
 ]=]
 
 return {

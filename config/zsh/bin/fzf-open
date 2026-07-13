@@ -1,0 +1,185 @@
+#!/bin/zsh
+# fzf-open — experimental directory picker; testbed for replacing the
+# FIFO/kill-tree streaming layer in autoload/fzf-cd.zsh.
+#
+# Differences from fzf-cd + _cd_fzf_run_streamed_picker:
+#   - fzf owns the source process: `--bind start:reload:<this script> --emit`.
+#     fzf kills the producer's process group when it exits, so there are no
+#     FIFOs, no dedupe subprocess, and no manual process-tree killing.
+#   - no --no-clear: fzf restores the screen itself on exit.
+#   - source commands run in-process (no /bin/zsh -lc login shell per source).
+#
+# Usage:
+#   fzf-open                 global picker (pinned dirs + fd sources)
+#   fzf-open --local         directories under $PWD (depth from sources file)
+#   fzf-open --emit <mode>   print the candidate list (used by the reload bind)
+#   cmd | fzf-open           filter piped candidates instead (caller owns producer)
+#   cd "$(fzf-open)"
+
+set +o monitor
+
+typeset -g _sources_file="${ZSH_DOTFILES_DIR:-$HOME/config/config/zsh}/fzf-cd-sources.zsh"
+
+# Resolved at top level: inside a function $0 becomes the function name
+# (FUNCTION_ARGZERO), which would break the reload bind's self-reference.
+typeset -g _self="${0:A}"
+
+# Dedupe and strip trailing slashes without a separate zsh read-loop process.
+# fflush keeps items streaming into fzf line-by-line instead of in 4KB blocks.
+_dedupe() {
+  awk '{ sub(/\/+$/, ""); if ($0 != "" && !seen[$0]++) { print; fflush() } }'
+}
+
+_emit_global() {
+  emulate -L zsh
+  [[ -r "$_sources_file" ]] && source "$_sources_file"
+  (( ${#_cd_fzf_global_static} )) || _cd_fzf_global_static=(
+    '$HOME/Movies'
+    '$HOME/Pictures'
+  )
+
+  # Static entries first so the list renders on the first frame.
+  # NB: loop var must not be named `path` — in zsh that is tied to PATH,
+  # and clobbering it would break command lookup for the fd producers below.
+  local entry dir cmd
+  for entry in "${_cd_fzf_global_static[@]}"; do
+    local -a expanded
+    eval "expanded=( ${entry} )" 2>/dev/null
+    for dir in "${expanded[@]}"; do
+      [[ -d "$dir" ]] && print -r -- "${dir%/}"
+    done
+  done
+
+  for cmd in "${_cd_fzf_global_commands[@]}"; do
+    eval "$cmd" 2>/dev/null
+  done
+}
+
+_emit_local() {
+  emulate -L zsh
+  [[ -r "$_sources_file" ]] && source "$_sources_file"
+  local -i depth=${_cd_fzf_local_max_depth:-0}
+  (( depth > 0 )) || depth=5
+  fd --type d --absolute-path --max-depth "$depth" . "$PWD" 2>/dev/null
+}
+
+if [[ "$1" == '--emit' ]]; then
+  case "$2" in
+    local) _emit_local | _dedupe ;;
+    *)     _emit_global | _dedupe ;;
+  esac
+  exit 0
+fi
+
+# Color scheme (same as fzf-cd)
+FZF_COLOR_OPTS=""
+FZF_COLOR_OPTS+="fg:#00A0F0,"      # Regular foreground
+FZF_COLOR_OPTS+="hl:#FFe22e,"      # Highlighted text (foreground)
+FZF_COLOR_OPTS+="hl+:#FFe22e,"     # Highlighted text in selected line (foreground)
+FZF_COLOR_OPTS+="fg+:#DDFFAA,"     # Selected line (foreground)
+FZF_COLOR_OPTS+="bg+:#40609F,"     # Selected line (background)
+FZF_COLOR_OPTS+="info:#0f81ff,"    # Info line
+FZF_COLOR_OPTS+="border:#0040A0,"  # Border color
+FZF_COLOR_OPTS+="prompt:#FFFFFF,"  # Prompt
+FZF_COLOR_OPTS+="pointer:#FFe22e," # Pointer to the current line
+FZF_COLOR_OPTS+="marker:#a6e22e,"  # Multi-select marker
+FZF_COLOR_OPTS+="preview-bg:#111111,"
+FZF_COLOR_OPTS+="preview-border:#111111,"
+FZF_COLOR_OPTS+="gutter:#44AADD,"  # non-selected icons
+FZF_COLOR_OPTS+="header:#66ddee"
+
+handle_directory_selection() {
+  local mode='global'
+  local prompt='􀊫  '
+  local header=''
+  local height='50%'
+  local preview_cmd='eza --tree --level=2 --color=always {} 2>/dev/null || ls -la {}'
+  local prompt_set=0 header_set=0
+  local -a extra_fzf_args=()
+
+  while (( $# )); do
+    case "$1" in
+      --local)
+        mode='local'
+        shift
+        ;;
+      --prompt)
+        prompt="${2:-$prompt}"
+        prompt_set=1
+        shift 2
+        ;;
+      --header)
+        header="${2:-$header}"
+        header_set=1
+        shift 2
+        ;;
+      --height)
+        height="${2:-$height}"
+        shift 2
+        ;;
+      --preview-cmd)
+        preview_cmd="${2:-$preview_cmd}"
+        shift 2
+        ;;
+      --)
+        shift
+        extra_fzf_args+=("$@")
+        break
+        ;;
+      *)
+        extra_fzf_args+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  if [[ "$mode" == 'local' ]]; then
+    (( prompt_set )) || prompt='local ❯ '
+    (( header_set )) || header="Children of ${PWD/#$HOME/~}"
+  fi
+
+  local -a fzf_cmd=(
+    fzf
+    --color="$FZF_COLOR_OPTS"
+    --ansi
+    --gutter='􀈕' --pointer='􃀪 ' --marker='􃀩 '
+    --header="$header"
+    --no-info
+    --border=none
+    --input-border=rounded
+    --margin=0
+    --padding=0
+    --preview "$preview_cmd"
+    --preview-window='hidden,right,55%,border-left,wrap'
+    --bind 'alt-n:preview-page-down,alt-u:preview-page-up'
+    --bind 'alt-r:execute-silent(open {})'
+    --bind 'ctrl-/:toggle-preview'
+    --bind 'alt-p:toggle-preview'
+    --bind 'ctrl-a:toggle-all'
+    --height="$height"
+    --exact
+    --prompt="$prompt"
+    "${extra_fzf_args[@]}"
+  )
+
+  local dir
+  # Pipe-filter mode only for an actual pipe or file on stdin. A tty check is
+  # not enough: ZLE widgets run with stdin from /dev/null, which must still
+  # get reload mode or the picker would read an empty list.
+  if [[ -p /dev/stdin || -f /dev/stdin ]]; then
+    # Piped input: act as a plain filter; the caller owns the producer.
+    dir=$("${fzf_cmd[@]}")
+  else
+    # fzf owns the producer via the reload bind and kills its process group
+    # on exit. stdin is /dev/null so no default command runs.
+    dir=$("${fzf_cmd[@]}" --bind "start:reload:${(q)_self} --emit ${(q)mode}" < /dev/null)
+  fi
+  local ret=$?
+
+  if [[ $ret -eq 0 && -n "$dir" ]]; then
+    printf '%s\n' "$dir"
+  fi
+  return $ret
+}
+
+handle_directory_selection "$@"

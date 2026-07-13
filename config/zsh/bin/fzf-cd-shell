@@ -1,20 +1,11 @@
 #!/usr/bin/env zsh
+# Kitty entrypoint (karabiner Cmd+F4): pick a directory with fzf-open,
+# then drop into a login shell there.
 
 emulate -L zsh
 
-picker_config="${ZSH_AUTOLOAD_DIR:-$HOME/.zsh/autoload}/fzf-cd.zsh"
-selected_dir=""
-picker_status=1
-
-if [[ -r "$picker_config" ]]; then
-  source "$picker_config"
-  selected_dir="$(_cd_fzf_pick_global)"
-  picker_status=$?
-else
-  print -u2 -- "fzf-cd-shell: missing picker config: $picker_config"
-fi
-
-if (( picker_status == 0 )) && [[ -n "$selected_dir" && -d "$selected_dir" ]]; then
+selected_dir="$(fzf-open)"
+if [[ $? -eq 0 && -n "$selected_dir" && -d "$selected_dir" ]]; then
   builtin cd -- "$selected_dir" || true
 fi
 

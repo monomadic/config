@@ -27,8 +27,8 @@ else
 		-not -path "$PWD" \
 		-not -path '*/.git/*' \
 		-not -path '*/node_modules/*'
-fi | if command -v fzf-cd >/dev/null 2>&1; then
-	fzf-cd --prompt 'local > ' --header "Children of $PWD (depth %d)" --height 80%%
+fi | if command -v fzf-open >/dev/null 2>&1; then
+	fzf-open --prompt 'local > ' --header "Children of $PWD (depth %d)" --height 80%%
 else
 	fzf \
 		--prompt='jumpdir> ' \

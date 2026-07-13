@@ -141,7 +141,7 @@ desc = "Jump to a nearby directory with fzf"
 [[mgr.prepend_keymap]]
 on   = "<D-o>"
 run  = "plugin fzf-cd"
-desc = "cd to a pinned directory with fzf-cd"
+desc = "cd to a pinned directory with fzf-open"
 
 [[mgr.prepend_keymap]]
 on   = "<C-p>"

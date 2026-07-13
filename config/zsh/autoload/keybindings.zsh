@@ -68,12 +68,11 @@ if [[ -o interactive ]]; then
 
   _cd-fzf-select() {
     local selected_dir
-    local picker_fn="$1"
 
     printf '\033[2K'
     _ensure_fzf_loaded
 
-    selected_dir="$($picker_fn)"
+    selected_dir="$("$@")"
     local fzf_exit_status=$?
 
     if ((fzf_exit_status != 0)); then
@@ -95,7 +94,7 @@ if [[ -o interactive ]]; then
 
   # Global pinned directory navigation.
   _cd-fzf() {
-    _cd-fzf-select _cd_fzf_pick_global
+    _cd-fzf-select fzf-open
   }
 
   # Keep the old legacy entrypoint, but route it through the shared picker.
@@ -105,17 +104,7 @@ if [[ -o interactive ]]; then
 
   # Recursive current-directory navigation.
   _cd-fzf-local() {
-    _cd-fzf-select _cd_fzf_pick_local
-  }
-
-  # Global pinned directory navigation with television.
-  _cd-tv() {
-    _cd-fzf-select _cd_tv_pick_global
-  }
-
-  # Recursive current-directory navigation with television.
-  _cd-tv-local() {
-    _cd-fzf-select _cd_tv_pick_local
+    _cd-fzf-select fzf-open --local
   }
 
   _fzf-jump() {
@@ -220,8 +209,6 @@ if [[ -o interactive ]]; then
   zle -N _cd-fzf
   zle -N _cd-fzf-legacy
   zle -N _cd-fzf-local
-  zle -N _cd-tv
-  zle -N _cd-tv-local
   zle -N _cd-up
   zle -N _fzf-insert-path
   zle -N open-finder-pwd
@@ -258,10 +245,6 @@ if [[ -o interactive ]]; then
   bindkey -M viins $'\e[111;10u' _cd-fzf-local
   bindkey -M emacs $'\e[122;9u' _zellij-session     # Cmd+Z: attach/create Zellij
   bindkey -M viins $'\e[122;9u' _zellij-session
-  # bindkey -M emacs $'\e[106;9u' _cd-tv              # Cmd+J: tv global jump
-  # bindkey -M viins $'\e[106;9u' _cd-tv
-  # bindkey -M emacs $'\e[106;10u' _cd-tv-local       # Cmd+Shift+J: tv local jump
-  # bindkey -M viins $'\e[106;10u' _cd-tv-local
   bindkey -M emacs $'\e[13;2u' _magic-enter         # Shift+Enter
   bindkey -M viins $'\e[13;2u' _magic-enter
 

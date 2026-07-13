@@ -679,7 +679,7 @@ alias lr='recent . 10 --reverse'
 
 alias up="cd .."
 alias gr="cd /"
-cdd() { cd "$(fd -t directory | fzf-cd)"; }
+cdd() { local d; d="$(fzf-open --local)" && cd -- "$d"; }
 alias fd-dirs="fd -t d -d 15 -E '.*' -E 'Library'"
 alias fd-empty="fd --type empty"
 
