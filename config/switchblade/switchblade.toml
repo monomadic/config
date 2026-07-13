@@ -161,15 +161,16 @@ background = [0.007, 0.007, 0.007]
 enter = "open"
 o = "open"
 space = "quickview"      # internal preview; Esc or Space closes, arrows browse
-# space = "preview"      # alternative: external looping mpv (defined below)
 f = "fast_fullscreen"
 c = "copy_path"
 a = "toggle_anim"        # animated thumbnails on/off
 p = "toggle_focus_pause" # pause-when-unfocused on/off
 r = "reveal"             # reveal in Finder (open -R)
+t = "trim"
 "[" = "skip_back"        # jump by skip_fraction; wraps at the ends
 "]" = "skip_forward"
 D = "open_parent"        # re-ingest from the selected clip's parent dir
+
 # n = "rename_script"    # any key -> any launched program; example below
 # "{" = "skip_back_big"  # a skip with its own amount; see below
 
@@ -200,6 +201,11 @@ args = [
 # type = "launch"
 # program = "open"
 # args = ["-R", "{path}"]
+
+[commands.trim]
+type = "launch"
+program = "/Users/nom/.zsh/bin/ffmpeg-lossless-cut"
+args = ["{path}"]
 
 # Example: bind a key to your own script.
 # [commands.rename_script]
