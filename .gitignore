@@ -14,3 +14,6 @@ __pycache__/
 *.lock.json
 vendor/bin/beatportdl-config.yml
 vendor/bin/beatportdl-credentials.json
+
+# browser profiles must never be tracked
+.ug-browser-profile/
