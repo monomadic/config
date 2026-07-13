@@ -56,26 +56,19 @@ return {
 		job = job or self
 		local args = job and job.args or {}
 		local max_depth = tonumber(args[1]) or 4
-		local permit = ya.hide()
-		local child, err = Command(shell_name())
-			:args({ "-c", command(max_depth) })
+		-- ya.hide() was renamed to ui.hide() in Yazi 26.x
+		local permit = (ui.hide or ya.hide)()
+		local output, err = Command(shell_name())
+			:arg({ "-c", command(max_depth) })
 			:cwd(cwd())
 			:stdin(Command.INHERIT)
 			:stdout(Command.PIPED)
 			:stderr(Command.INHERIT)
-			:spawn()
-
-		if not child then
-			permit:drop()
-			return fail("Spawn `fzf` failed: %s", err)
-		end
-
-		local output
-		output, err = child:wait_with_output()
+			:output()
 		permit:drop()
 
 		if not output then
-			return fail("Cannot read `fzf` output: %s", err)
+			return fail("Run `fzf` failed: %s", err)
 		elseif not output.status.success and output.status.code ~= 1 and output.status.code ~= 130 then
 			return fail("`fzf` exited with code %s", output.status.code)
 		end

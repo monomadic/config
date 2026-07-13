@@ -1,0 +1,214 @@
+#!/usr/bin/env zsh
+#
+# cp-next-pane — copy (or move) files into the *next* Kitty pane's cwd.
+#
+# Run it from a shell in one Kitty split. It finds the next window in the
+# current tab, asks Kitty for that window's working directory, and rsyncs
+# your files there with a live progress bar and transfer speed.
+#
+# Usage:
+#   cp-next-pane [--move] [--check] [--] <path>...
+#   <producer> | cp-next-pane [--move] [--check]     # one path per line on stdin
+#
+# Options:
+#   --move    remove each source once it has copied successfully
+#   --check   verify the copy afterwards (checksum pass; nothing should differ)
+#   -h|--help show this help
+#
+# Requires: Kitty with allow_remote_control + listen_on, jq, rsync.
+
+emulate -L zsh
+set -euo pipefail
+
+script_name=${0:t}
+user_name=${USER:-${LOGNAME:-$(id -un)}}
+
+die()  { print -u2 -- "$script_name: $*"; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+usage() {
+  cat <<EOF
+$script_name — copy/move files into the next Kitty pane's cwd
+
+Usage:
+  $script_name [--move] [--check] [--] <path>...
+  <producer> | $script_name [--move] [--check]
+
+Options:
+  --move    remove each source once it has copied successfully
+  --check   verify the copy afterwards (checksum pass; nothing should differ)
+  -h|--help show this help
+EOF
+  exit "${1:-0}"
+}
+
+# --- parse arguments -------------------------------------------------------
+
+move=0
+check=0
+sources=()
+
+while (( $# )); do
+  case "$1" in
+    --move)     move=1 ;;
+    --check)    check=1 ;;
+    -h|--help)  usage 0 ;;
+    --)         shift; sources+=("$@"); break ;;
+    -*)         die "unknown option: $1 (try --help)" ;;
+    *)          sources+=("$1") ;;
+  esac
+  shift
+done
+
+# Fall back to newline-delimited paths on stdin when none were passed.
+if (( ${#sources[@]} == 0 )); then
+  [[ -t 0 ]] && usage 1
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && sources+=("$line")
+  done
+fi
+
+(( ${#sources[@]} )) || die "no source paths given"
+
+have jq || die "jq not found in PATH"
+
+for src in "${sources[@]}"; do
+  [[ -e "$src" ]] || die "source does not exist: $src"
+done
+
+# --- find the next pane and its cwd ----------------------------------------
+
+self=${KITTY_WINDOW_ID:-}
+[[ -n "$self" ]] || die "KITTY_WINDOW_ID unset — run this inside a Kitty window"
+
+kitty_ls() {
+  # Prefer the controlling terminal, then known listen sockets.
+  kitty @ ls 2>/dev/null && return 0
+  local sock
+  for sock in "${KITTY_LISTEN_ON:-}" unix:/tmp/kitty "unix:/tmp/kitty-$user_name"; do
+    [[ -n "$sock" ]] || continue
+    kitty @ --to "$sock" ls 2>/dev/null && return 0
+  done
+  return 1
+}
+
+decode_url() {
+  local u=$1
+  [[ "$u" == file://* ]] || { print -r -- "$u"; return; }
+  if have python3; then
+    python3 - "$u" <<'PY'
+import sys, urllib.parse as p
+print(p.unquote(p.urlparse(sys.argv[1]).path))
+PY
+  else
+    print -r -- "${u#file://}"
+  fi
+}
+
+# Next window after self in this tab's clockwise order (wrapping); emit its
+# cwd and foreground command, tab-separated. Empty when there is no sibling.
+info=$(
+  kitty_ls | jq -r --arg self "$self" '
+    ([ .[].tabs[]? | select(any(.windows[]?; (.id | tostring) == $self)) ][0].windows // []) as $w
+    | ($w | length) as $n
+    | ([ range(0; $n) | select(($w[.].id | tostring) == $self) ][0]) as $i
+    | if ($i == null or $n < 2) then ""
+      else
+        $w[(($i + 1) % $n)] as $t
+        | ( if   ($t.cwd | type) == "string" then $t.cwd
+            elif ($t.cwd | type) == "object" then ($t.cwd.path // $t.cwd.uri // $t.cwd.file // "")
+            else "" end ) as $cwd
+        | ( ($t.foreground_processes // [])[-1].cmdline // [] | (.[0] // "") ) as $fg
+        | [$cwd, $fg] | @tsv
+      end
+  '
+) || die "cannot reach Kitty remote control (allow_remote_control + listen_on?)"
+
+[[ -n "$info" ]] || die "no next pane found in this tab (need at least 2 splits)"
+
+dest=$(decode_url "${info%%$'\t'*}")
+fg=${info#*$'\t'}
+fg_base=${fg:t}
+
+# --- staleness guard -------------------------------------------------------
+# A remote/nested session reports its LOCAL launch dir, not where you really
+# are — refuse rather than copying somewhere surprising.
+case "$fg_base" in
+  ssh|mosh|mosh-client|autossh|et|eternal-terminal|docker|podman|kubectl|distrobox-enter|nsenter)
+    die "next pane is running '$fg_base' — its reported cwd ($dest) is the local
+  launch dir, not the remote/container path. cd to a real local dir there first." ;;
+esac
+
+[[ -n "$dest" ]] || die "next pane has no reported cwd"
+[[ -d "$dest" ]] || die "next pane cwd is not a reachable directory: $dest
+  (the pane may be on an unmounted volume or a since-deleted path)"
+
+# --- same-directory guard --------------------------------------------------
+# If the destination resolves to a source's own directory, an rsync "copy"
+# moves nothing and a naive verify compares the file to itself — after which
+# --move would delete the only copy. Refuse outright; this is a data-loss trap.
+dest_real=${dest:A}
+for src in "${sources[@]}"; do
+  src_real=${src:A}
+  if [[ "${src_real:h}" == "$dest_real" || "$src_real" == "$dest_real" ]]; then
+    die "destination is the source's own directory:
+    $dest_real
+  Nothing would be copied, and --move would delete '${src:t}'. Refusing.
+  (The next pane is in the same folder as the file — pick a different pane.)"
+  fi
+done
+
+# --- copy ------------------------------------------------------------------
+
+if [[ -x /opt/homebrew/bin/rsync ]]; then
+  rsync_bin=/opt/homebrew/bin/rsync
+  copy_opts=(-ah --info=progress2 --protect-args)
+  verify_opts=(-an --checksum --itemize-changes --protect-args)
+else
+  rsync_bin=rsync
+  copy_opts=(-ah --progress)
+  verify_opts=(-an --checksum --itemize-changes)
+fi
+
+dest=${dest%/}/
+verb="Copying"; (( move )) && verb="Moving"
+print -r -- "$verb ${#sources[@]} item(s) → $dest"
+
+"$rsync_bin" "${copy_opts[@]}" -- "${sources[@]}" "$dest"
+
+# Per-source checksum verification: empty output == destination is byte-for-byte
+# identical to the source. Returns non-zero if anything differs.
+verify_one() {
+  local src=$1 out
+  out=$("$rsync_bin" "${verify_opts[@]}" -- "$src" "$dest") || return 2
+  [[ -z "$out" ]]
+}
+
+# --- verify (--check) ------------------------------------------------------
+
+if (( check )); then
+  print -r -- "Verifying (checksum)…"
+  bad=0
+  for src in "${sources[@]}"; do
+    verify_one "$src" || { bad=1; print -u2 -- "  differs after copy: ${src:t}"; }
+  done
+  (( bad )) && die "verification FAILED — destination does not match source"
+  print -r -- "✓ verified: destination matches source"
+fi
+
+# --- move: delete each source ONLY after proving a distinct, identical copy --
+# This is unconditional — it runs even without --check. A source is removed
+# only when its counterpart at the destination (a) exists, (b) is a different
+# real path, and (c) is confirmed byte-identical by checksum.
+if (( move )); then
+  for src in "${sources[@]}"; do
+    tgt=${dest}${src:t}
+    [[ -e "$tgt" ]]                 || die "not deleting '${src:t}': no copy found at destination"
+    [[ "${src:A}" != "${tgt:A}" ]]  || die "not deleting '${src:t}': destination is the same file"
+    verify_one "$src"               || die "not deleting '${src:t}': destination copy differs (checksum)"
+    rm -rf -- "$src"
+  done
+  print -r -- "✓ moved ${#sources[@]} item(s) → $dest"
+else
+  print -r -- "✓ copied ${#sources[@]} item(s) → $dest"
+fi

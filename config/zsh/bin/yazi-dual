@@ -456,6 +456,19 @@ transfer_to_peer() {
   local target
   target="$(peer_target_dir "$target_id")" || return 1
 
+  # Refuse when the peer cwd is a source's own directory (local targets only):
+  # a self-copy transfers nothing and 'move' would then delete the only copy.
+  if [[ "$target" == /* || "$target" != *:* ]]; then
+    local s
+    for s in "$@"; do
+      if [[ "${s:A:h}" == "${target:A}" || "${s:A}" == "${target:A}" ]]; then
+        print -u2 -- "$script_name: peer cwd is the source's own directory ($target) —"
+        print -u2 -- "  nothing would transfer and 'move' would delete '${s:t}'. Refusing."
+        return 1
+      fi
+    done
+  fi
+
   local socket
   socket="$(discover_socket || true)"
 
@@ -497,8 +510,28 @@ move_run() {
   # Copy first; only remove the sources once the copy has fully succeeded.
   copy_run "$target" "$@" || return 1
 
-  local source
+  local source tgt rsync
+  rsync="$(rsync_bin)"
   for source in "$@"; do
+    if [[ "$target" != /* && "$target" == *:* ]]; then
+      # rclone remote: copy_run already verifies hashes on transfer.
+      rm -rf -- "$source"
+      continue
+    fi
+
+    tgt="${target%/}/${source:t}"
+    [[ -e "$tgt" ]] || {
+      print -u2 -- "$script_name: not deleting '${source:t}': no copy at target"
+      continue
+    }
+    [[ "${source:A}" != "${tgt:A}" ]] || {
+      print -u2 -- "$script_name: not deleting '${source:t}': same file as target"
+      continue
+    }
+    if [[ -n "$("$rsync" -an --checksum --itemize-changes --protect-args -- "$source" "${target%/}/")" ]]; then
+      print -u2 -- "$script_name: not deleting '${source:t}': target copy differs (checksum)"
+      continue
+    fi
     rm -rf -- "$source"
   done
 }

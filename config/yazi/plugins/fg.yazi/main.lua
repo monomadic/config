@@ -112,7 +112,8 @@ local function fail(s, ...) ya.notify { title = "Fzf", content = string.format(s
 
 function M:entry(job)
 	local args = job.args
-	local _permit = ya.hide()
+	-- ya.hide() was renamed to ui.hide() in Yazi 26.x
+	local _permit = (ui.hide or ya.hide)()
 	local cwd = state()
 	local shell_value = ya.target_family() == "windows" and "powershell" or os.getenv("SHELL"):match(".*/(.*)")
 	local cmd_args = ""
@@ -164,14 +165,9 @@ function M:entry(job)
 		cmd_args = [[rg --color=always --line-number --no-heading --smart-case '' | fzf --ansi --preview=']] .. preview_cmd .. [[' --delimiter=':' --preview-window='up:60%' --nth='3..']]
 	end
 
-	local child, err =
-		Command(shell_value):args({"-c", cmd_args}):cwd(cwd):stdin(Command.INHERIT):stdout(Command.PIPED):stderr(Command.INHERIT):spawn()
+	local output, err =
+		Command(shell_value):arg({"-c", cmd_args}):cwd(cwd):stdin(Command.INHERIT):stdout(Command.PIPED):stderr(Command.INHERIT):output()
 
-	if not child then
-		return fail("Spawn `rfzf` failed with error code %s. Do you have it installed?", err)
-	end
-
-	local output, err = child:wait_with_output()
 	if not output then
 		return fail("Cannot read `fzf` output, error code %s", err)
 	elseif not output.status.success and output.status.code ~= 130 then
@@ -211,7 +207,7 @@ function M:entry(job)
 				end
 			end
 		end
-		_permit = ya.hide()
+		_permit = (ui.hide or ya.hide)()
 	end
 
 	if (default_action == "nvim" or get_option() == "nvim" ) and args[1] ~= "fzf" then

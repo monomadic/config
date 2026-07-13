@@ -139,6 +139,11 @@ run  = "plugin jumpdir -- 4"
 desc = "Jump to a nearby directory with fzf"
 
 [[mgr.prepend_keymap]]
+on   = "<D-o>"
+run  = "plugin fzf-cd"
+desc = "cd to a pinned directory with fzf-cd"
+
+[[mgr.prepend_keymap]]
 on   = "<C-p>"
 run  = "seek -1"
 desc = "Scroll preview up"
