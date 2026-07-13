@@ -62,10 +62,6 @@ if [[ -o interactive ]]; then
     zle reset-prompt
   }
 
-  fzf-dir-widget() {
-    fd . --type=directory $HOME/Music $PWD | fzf | tr '\n' ' '
-  }
-
   _cd-fzf-select() {
     local selected_dir
 
@@ -121,18 +117,8 @@ if [[ -o interactive ]]; then
   # FZF Widgets
   # ===============================================================================
 
-  # FZF history picker (insert selected command)
-  fzf-history-widget() {
-    setopt localoptions pipefail
-    _ensure_fzf_loaded
-
-    # Reverse chronological, strip numbers
-    local sel
-    sel=$(fc -rl 1 | sed 's/^[[:space:]]*[0-9[:space:]]*//' | fzf --tac --no-sort --exact --ansi \
-           --prompt='history> ' --height=40% --border) || return
-    LBUFFER=$sel
-    zle redisplay
-  }
+  # History search uses fzf's own `fzf-history-widget`, defined when the lazy
+  # loader sources fzf's key-bindings.zsh (always before the first prompt).
 
   # Insert file path(s) from fzf (current dir; multi-select)
   fzf-insert-path() {
@@ -199,7 +185,6 @@ if [[ -o interactive ]]; then
   # ===============================================================================
 
   # Register all functions with ZLE
-  zle -N fzf-history-widget
   zle -N fzf-insert-path
   zle -N _cd-yazi
   zle -N _yazi-jump
@@ -213,7 +198,6 @@ if [[ -o interactive ]]; then
   zle -N _fzf-insert-path
   zle -N open-finder-pwd
   zle -N _zellij-session
-  zle -N fzf-dir-widget
 
   # ===============================================================================
   # Key Bindings
@@ -248,16 +232,13 @@ if [[ -o interactive ]]; then
   bindkey -M emacs $'\e[13;2u' _magic-enter         # Shift+Enter
   bindkey -M viins $'\e[13;2u' _magic-enter
 
-  # Additional shortcuts
+  # Additional shortcuts (^T/^R match what fzf's key-bindings.zsh sets anyway;
+  # kept explicit so ownership is visible in one place)
   bindkey '^[[1;9o' _cd-fzf
   bindkey '^T' fzf-file-widget
-  bindkey '^D' fzf-dir-widget
   bindkey '^U' kill-whole-line
   bindkey '^R' fzf-history-widget
 
-  bindkey '^t' fzf-kitty-switch-tabs
-  zle -N fzf-kitty-switch-tabs
-  
   # BIND F20
   if [[ -n ${terminfo[kf20]} ]]; then
     bindkey -M emacs "${terminfo[kf20]}" open-finder-pwd
