@@ -75,8 +75,8 @@ chars = "\u0012"  # This is ^R, same as Ctrl+R
 
 [[keyboard.bindings]]
 key = "H"
-mods = "Command"
-chars = "\u001b[104;9u"  # fzf history widget (zsh binds \e[104;9u)
+mods = "Command|Shift"
+chars = "\u001b[104;10u"  # fzf history widget (zsh binds \e[104;10u)
 
 #[[keyboard.bindings]]
 #key = "K"
