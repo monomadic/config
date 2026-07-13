@@ -2,8 +2,34 @@
 
 Assessed 2026-07-13. Startup numbers measured on this machine with `hyperfine`
 (20 runs, warmed) and a timestamped `xtrace` trace of a full interactive startup.
-Benchmark variants used for the numbers below live only in the session scratchpad;
-**nothing in the repo has been changed yet.**
+
+## Status — applied 2026-07-13
+
+- **P0 done (repo side):** all three profile copies (`config/zsh/.ug-browser-profile`,
+  `config/zsh/bin/.ug-browser-profile`, `config/zsh/bin/songs/.ug-browser-profile` —
+  1494 files total) untracked, gitignored, purged from history with `git filter-repo`,
+  and force-pushed. Remote tree and full history verified clean; the repo has **no
+  forks**. Pre-scrub backup: `~/config-pre-scrub-20260713.bundle`.
+  **Still on you:** (1) rotate sessions for sites used with that profile
+  (Ultimate Guitar at minimum); (2) optionally ask GitHub Support to purge cached
+  commit views; (3) any other machine with a clone (one pushed `a27f536b` recently)
+  must re-clone or `git fetch && git reset --hard origin/master` — a habitual
+  `push --force` from an old clone would resurrect the leak; (4) delete the on-disk
+  profile dirs when ready (they remain, gitignored).
+- **P1 done:** measured `zsh -i -c exit` **109 ms → 27 ms**. Extra finding while
+  applying: the stray second compinit was accidentally load-bearing — it ran after
+  `brew shellenv` and was what registered Homebrew site-functions completions
+  (`_yt-dlp`, `_atuin`, …). Fixed properly by adding site-functions to the fpath
+  block before the single compinit.
+- **P2 done:** fzf owns `^R`/`^T` (dead custom widget removed, tv's `^R` rebind is
+  overridden by keybindings.zsh, `^D` restored to default), history options fixed,
+  prompt-middle reduced to `_magic-enter`, dormant `python.zsh`/`starship.zsh`/
+  `vi-mode.zsh` deleted.
+- **P3 done:** broken/duplicate aliases fixed or removed as listed below;
+  `index.zsh` reduced to its live helpers; stray `gh` file deleted. `songs/` and
+  `lua/` left in place — relocation is a user call.
+- **P4 deferred:** alias.zsh re-homing, zshenv slimming, `autoload/` rename — larger
+  churn, best done as its own reviewed change.
 
 ## TL;DR
 

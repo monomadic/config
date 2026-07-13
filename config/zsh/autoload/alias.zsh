@@ -437,7 +437,7 @@ mpv-focus() {
 alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
 
 
-alias mpv-play-porn="setopt local_options null_glob && mpv-send play $~MEDIA_GLOBS"
+alias mpv-play-porn="setopt local_options null_glob && mpv-send play $~ADULT_GLOBS"
 alias mpv-play-volumes="fd-media --print0 . /Volumes/*/Movies/Porn(N) | mpv-send play -0"
 alias mpv-play-tower="fd-media --print0 . /Volumes/Tower/Movies/Porn | mpv-send play -0"
 alias .tower=mpv-play-tower
@@ -559,7 +559,7 @@ alias .config=e-zsh
 alias .config-zsh=e-zsh
 alias .config-aliases=.config-env
 alias .config-bin="cd $DOTFILES_DIR/bin && $EDITOR ."
-alias .config-env="cd $ZSH_DOTFILES_DIR && $EDITOR scripts/autoload/alias.zsh"
+alias .config-env="cd $ZSH_DOTFILES_DIR && $EDITOR autoload/alias.zsh"
 alias config-dotfiles="cd $DOTFILES_DIR && fd --type directory --max-depth=2 | fzf | xargs $EDITOR"
 
 alias e-homebrew="cd $DOTFILES_DIR && $EDITOR Brewfile"

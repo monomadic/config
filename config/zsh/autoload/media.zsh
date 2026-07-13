@@ -73,8 +73,6 @@ alias .play-pwd="fd-media --sort-created --print0 . . | mpv-send play -0 && mpv-
 alias .pwd=.play-pwd
 alias .play-local=".ls-local | mpv-send play"
 alias .play-tower="fd-media --print0 . /Volumes/Tower/Movies/Porn(N) | mpv-send play -0"
-alias .play-tower-downloads="fd-media --print0 . /Volumes/Tower/Movies/Porn/Downloads(N) | mpv-send play -0"
-alias .play-tower-masters="fd-media --print0 . /Volumes/Tower/Movies/Porn/Masters(N) | mpv-send play -0"
 alias .play-tower-clips="fd-media --print0 . /Volumes/Tower/Movies/Porn/Clips(N) | mpv-send play -0"
 alias .play-tower-clips-landscape="fd-media --print0 . /Volumes/Tower/Movies/Porn/Clips/Landscape(N) | mpv-send play -0"
 
@@ -110,10 +108,9 @@ filter-icloud-files() {
   done
 }
 
-alias .select="fd-media --print0 . {${HOME},/Volumes/*}/Movies/Porn(N) | fzf-select -0 --print0 --stream | mpv-send play -0"
 alias .select-all-sorted=".ls-sorted | fzf-select | mpv-send play"
 alias .select-pwd=".ls-pwd | fzf-select | mpv-send play"
-alias .select-pwd-sorted=".ls-pwd-sorted | fzf-select | mpv-send play"
+alias .select-pwd-sorted=".ls-sorted-pwd | fzf-select | mpv-send play"
 
 alias \%select="cat $HOME/.indexes/Tower | fzf-select | mpv-send play"
 
@@ -146,7 +143,7 @@ alias \$=.select
 alias \$.=.select-pwd
 
 alias .play-clips="fd-media --match-string /Clips/ | mpv-send play"
-alias .select-clips="fd-clips | strip-slash | fzf-select | mpv-send play"
+alias .select-clips="fd-media --match-string /Clips/ | fzf-select | mpv-send play"
 
 alias .select-visuals="fd-media . {${ICLOUD_HOME},${HOME},/Volumes/*}/Movies/Visuals(N) | fzf-select | mpv-send play"
 
@@ -169,8 +166,8 @@ alias .play-local-sorted="fd-media --sort created . $LOCAL_MEDIA_PATHS | fzf-sel
 
 # Media search shortcuts
 alias @=".play"
-alias @@=".play-sort"
-alias @@@="setopt local_options null_glob && printf '%s\0' $~MEDIA_GLOBS | fzf-select -0 --print0 --color | mpv-send play -0"
+alias @@=".play-all-sorted"
+alias @@@="setopt local_options null_glob && printf '%s\0' $~ADULT_GLOBS | fzf-select -0 --print0 --color | mpv-send play -0"
 alias @unc="fd-media . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-send play"
 alias @towerlocal="fd-media . /Volumes/Tower/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-send play"
 alias @unique='fd-media . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | awk -F/ '"'"'!seen[$NF]++'"'"' | mpv-send play'
@@ -182,7 +179,6 @@ alias @loop="fselect-porn -0 | fzf-select -0 --print0 --tac | mpv-vj play -0 --s
 alias @pwd-sort="fselect-pwd-sort -0 | fzf-play --hide-path --tac"
 alias @queue="fd-media --print0 . $HOME/Movies/Porn/Queue/(N) | fzf-select -0 --print0 | mpv-send play -0"
 alias @tutorials="fd-media . $TUTORIALS_PATH | fzf-select | mpv-send play"
-alias @external=@volumes
 
 alias mount-tower="open -j smb://nom@m4.local/Tower"
 alias .mount-tower=mount-tower
