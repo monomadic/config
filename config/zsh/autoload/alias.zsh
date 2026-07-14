@@ -585,8 +585,6 @@ alias .fonts="kitty list-fonts"
 # ============================================================================
 
 alias g=git
-alias ga="git add . && git commit --amend --no-edit"
-alias gca="git add . && git commit --amend"
 alias gc-update="gc update:"
 alias gd="git diff"
 alias gl="fzf-git-log"
@@ -745,7 +743,7 @@ alias .ssh-m3="kitty kitten ssh nom@m3.local"
 # Dotter (dotfile manager)
 # ============================================================================
 
-alias dd='dotter-deploy'
+alias deploy='dotter-deploy'
 alias dd-force='cd ~/config/ && dotter --force --cache-directory ~/.config/dotter/cache --cache-file ~/.config/dotter/cache.toml deploy --global-config dotter/global.toml --local-config dotter/local.toml'
 alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache --cache-file ~/.config/dotter/cache.toml watch --global-config dotter/global.toml --local-config dotter/local.toml'
 
@@ -756,7 +754,6 @@ alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache --cach
 alias monitor="btm"
 #alias top="btm"
 alias cp-pwd='echo $PWD|pbcopy'
-alias ~=grep
 alias ls-colors='for x in {0..8}; do for i in {30..37}; do for a in {40..47}; do echo -ne "\e[$x;$i;$a""m\\\e[$x;$i;$a""m\e[0;37;40m "; done; echo; done; done; echo ""'
 
 pandoc-yfm() {
