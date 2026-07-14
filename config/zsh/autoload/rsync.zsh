@@ -116,3 +116,10 @@ function rsync-from-stdio {
   # Clean up the temporary file
   rm "$temp_file"
 }
+
+# ============================================================================
+# rsync aliases (re-homed from alias.zsh)
+# ============================================================================
+alias rsync-copy='rsync -a --ignore-existing --progress'
+alias cp-skip=rsync-copy
+alias backup-tower="rsync-backup --delete /Volumes/Tower/ /Volumes/Tower\ Backup"

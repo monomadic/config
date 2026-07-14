@@ -79,3 +79,24 @@ if [[ -o interactive ]]; then
   add-zsh-hook chpwd _kitty_sync_shell_title
   _kitty_sync_shell_title
 fi
+
+# ============================================================================
+# Kitty aliases (re-homed from alias.zsh)
+# ============================================================================
+alias kitty-cwd-opposite-pane="kitty @ ls | jq -r '  .[] | select(.is_active)  | .tabs[] | select(.is_active)  | .windows[] | select(.is_active | not)  | .foreground_processes[-1].cwd // .cwd'"
+alias .kitty-cwd-opposite-pane=kitty-cwd-opposite-pane
+# ============================================================================
+# Kitty Terminal
+# ============================================================================
+
+alias .kitty-mark-current-tab-orange="kitty @ set-tab-color active_bg=orange active_fg=white inactive_bg=orange inactive_fg=black"
+alias .kitty-mark-current-tab-red="kitty @ set-tab-color inactive_bg=red inactive_fg=black"
+alias .kitty-set-tab-color-orange="kitty @ set-tab-color --match id:$KITTY_WINDOW_ID active_bg=#FFA500 active_fg=#050F63 inactive_fg=#FFA500 inactive_bg=#030D43"
+alias .kitty-set-tab-color-green="kitty @ set-tab-color --match id:$KITTY_WINDOW_ID active_bg=#38F273 active_fg=#050F63 inactive_fg=#38F273 inactive_bg=#030D43"
+alias .kitty-reload="kitty @ set-colors --all ~/.config/kitty/kitty.conf"
+alias .kitty-configure="e-kitty"
+alias .kitty-kill-all-editor="kitten @ close-tab --match 'env:PROC=hx'"
+alias .kitty-kill-all-nvim=.kitty-kill-all-editor
+alias .nvim-kill-all=.kitty-kill-all-editor
+alias .kitty-close-idle-tabs="kitty @ close-tab --match 'env:PROC=zsh'"
+alias .fonts="kitty list-fonts"

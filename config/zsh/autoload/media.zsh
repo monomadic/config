@@ -210,3 +210,181 @@ cd-creators() {
 media-cache-clear() {
   cd $LOCAL_CACHE_PATH && rm -rf **/*
 }
+
+# ============================================================================
+# MPV / Media / FFmpeg (re-homed from alias.zsh)
+# ============================================================================
+alias mpv-vj='mpv-send --socket /tmp/mpv-vj.sock --profile vj'
+alias mpv-vj-start='mpv-vj start -- --image-display-duration=inf splash.png'
+
+alias .hevc="ffmpeg-convert-to-hevc"
+# ============================================================================
+# Media Discovery Functions
+# ============================================================================
+
+fd-video-color() {
+  { fd -e mp4 $1 } | sd '\]\[' '] [' | sd '\[([^\]]+)\]' $'\e[32m''$1'$'\e[0m' | sd '\{([^}]*)\}' $'\e[33m''$1'$'\e[0m' | sd '(^|/)\(([^)]*)\)' '${1}'$'\e[36m''$2'$'\e[0m' | rg --passthru --color=always -N -r '$0' -e '#\S+' --colors 'match:fg:magenta'
+}
+
+fd-visuals() {
+  local print0=false
+  if [[ ${1:-} == "-0" || ${1:-} == "--print0" ]]; then
+    print0=true
+    shift
+  fi
+
+  local query=${1:-.}
+  local -a roots
+  [[ -n $DJ_VISUALS_PATH ]] && roots+=($DJ_VISUALS_PATH)
+  roots+=($HOME/Movies/Visuals(N) /Volumes/*/Movies/Visuals(N))
+
+  if $print0; then
+    fd-media --print0 -- "$query" "${roots[@]}"
+  else
+    fd-media -- "$query" "${roots[@]}"
+  fi
+}
+
+select-visuals() {
+  local query=$1
+  fd-visuals "$query" | fzf-select | mpv-vj play --shuffle
+}
+
+# ============================================================================
+# MPV Functions
+# ============================================================================
+
+mpv-play-visuals() {
+  local query=$1
+  local -a files
+  while IFS= read -r -d '' f; do files+=("$f"); done < <(fd-visuals -0 "$query")
+
+  (( ${#files} )) || { print -r -- "no visuals found"; return 1 }
+
+  mpv-vj play --shuffle -- "${files[@]}"
+}
+
+mpv-select-all-v2() {
+  kitty-exec "  fd-media" "#A442F3" --shell "fd-media | fzf-select | mpv-send play"
+}
+
+kitty-mpv-tab() {
+  kitty @ launch --type=tab --cwd=current env PATH="$PATH" kitty-exec "  all" "#A442F3" "$@"
+}
+
+mpv-select-queue() {
+  kitty @ set-tab-title "mpv:queue"
+  kitty @ set-tab-color --match title:"mpv" active_bg="#A442F3" active_fg="#050F63" inactive_fg="#A442F3" inactive_bg="#030D43"
+  fd-media | fzf-select | mpv-send play
+}
+# ============================================================================
+# FFmpeg/FFprobe Functions
+# ============================================================================
+
+vp9-repack-to-webm() {
+  local count=0
+  for file in *.mp4(N); do
+    local codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$file" 2>/dev/null)
+    if [[ $codec == vp9 ]]; then
+      print "Repacking: $file"
+      mv "$file" "${file:r}.webm"
+      (( count++ ))
+    fi
+  done
+  print "Repacked $count file(s)"
+}
+alias .repack=vp9-repack-to-webm
+
+ffprobe-tags-as-json() {
+  local file="$1"
+  ffprobe -v quiet -show_entries format_tags -of json $file
+}
+
+ffmpeg-tags-write-artist() {
+  local artist="$1" input="$2" output="$3"
+  ffmpeg -i $input -c copy -metadata artist="$artist" $output
+}
+
+mp4-check-faststart() {
+  if xxd "$1" | head -n 640 | grep -q moov; then
+    echo -e "\e[32m✓ FastStart enabled\e[0m"
+    return 0
+  else
+    echo -e "\e[31m✗ FastStart NOT enabled (moov at end)\e[0m"
+    return 1
+  fi
+}
+
+mp4-enable-faststart() {
+  local file="$1"
+  
+  if xxd "$file" | head -n 640 | grep -q moov; then
+    echo -e "\e[32m✓ FastStart already enabled\e[0m"
+    return 0
+  fi
+  
+  echo -e "\e[31m✗ FastStart not enabled\e[0m"
+  read -p "Enable faststart for $file? (y/N): " confirm
+  
+  if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
+    local temp="${file%.*}_faststart.${file##*.}"
+    echo "Processing..."
+    
+    if ffmpeg -i "$file" -c copy -movflags +faststart "$temp" -y 2>/dev/null; then
+      mv "$temp" "$file"
+      echo -e "\e[32m✓ FastStart enabled successfully\e[0m"
+    else
+      echo -e "\e[31m✗ Failed to enable faststart\e[0m"
+      rm -f "$temp"
+      return 1
+    fi
+  else
+    echo "Cancelled"
+    return 1
+  fi
+}
+# ============================================================================
+# Media Player Aliases
+# ============================================================================
+
+alias mp="mpv-send play"
+
+alias mpv-with-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
+alias mpv-without-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --no-config --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
+alias mpv-auto-safe="mpv --hwdec=auto-safe --vo=libmpv"
+alias mpv-fs="mpv --macos-fs-animation-duration=0 --no-native-fs --fs"
+alias mpv-debug="mpv --msg-level=all=debug"
+alias mpv-verbose="mpv --msg-level=all=v"
+alias mpv-image-viewer='mpv-stdin --image-display-duration=inf'
+alias mpv-image-slideshow='mpv-stdin --image-display-duration=5'
+
+mpv-focus() {
+  osascript -e 'tell application "System Events" to set frontmost of process "mpv" to true'
+}
+
+alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
+
+
+alias mpv-play-porn="setopt local_options null_glob && mpv-send play $~ADULT_GLOBS"
+alias mpv-play-volumes="fd-media --print0 . /Volumes/*/Movies/Porn(N) | mpv-send play -0"
+alias mpv-play-tower="fd-media --print0 . /Volumes/Tower/Movies/Porn | mpv-send play -0"
+alias .tower=mpv-play-tower
+
+# ============================================================================
+# Media & Image Tools
+# ============================================================================
+
+alias img="chafa --format=symbols"
+alias sixel="chafa --clear --format=symbol --center=on --scale=max"
+alias sixel-sixel="chafa --clear --format=sixel --center=on --scale=max"
+alias sixel-kitty="chafa --clear --format=kitty --center=on --scale=max"
+alias v="viu --height 20"
+
+alias sips-to-webp-lossy='sips -s format webp -s formatOptions 75'
+# ============================================================================
+# FFmpeg Shortcuts
+# ============================================================================
+
+alias .demux="ffmpeg-demux"
+alias .demux-video="ffmpeg-demux --video"
+alias .demux-audio="ffmpeg-demux --audio"

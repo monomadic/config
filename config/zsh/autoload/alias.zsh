@@ -14,8 +14,6 @@ alias .tidal-dl-video="tiddl download --videos=allow url"
 alias flac-print-tags="metaflac --list --block-type=VORBIS_COMMENT"
 alias .flac-print-tags=flac-print-tags
 
-alias kitty-cwd-opposite-pane="kitty @ ls | jq -r '  .[] | select(.is_active)  | .tabs[] | select(.is_active)  | .windows[] | select(.is_active | not)  | .foreground_processes[-1].cwd // .cwd'"
-alias .kitty-cwd-opposite-pane=kitty-cwd-opposite-pane
 
 alias rtsp-url-brute="nmap --script=/opt/homebrew/share/nmap/scripts/rtsp-url-brute.nse -p554"
 
@@ -128,26 +126,9 @@ alias qs="pueue status"
 alias ql=q-status
 alias q-url="pueue add yt-url"
 alias qu=q-url
-alias yt-dlp-ignore-archive="yt-dlp --no-download-archive"
-alias yt-list-fields="yt-dlp --skip-download --print \"%()#j\" "
-alias yt-batch-edit='$EDITOR $YT_DLP_BATCH_FILE'
 alias md-leaf=leaf
 
-alias mpv-vj='mpv-send --socket /tmp/mpv-vj.sock --profile vj'
-alias mpv-vj-start='mpv-vj start -- --image-display-duration=inf splash.png'
 
-alias .hevc="ffmpeg-convert-to-hevc"
-
-yt-dlp-list-formats() {
-  (( $# )) || { print -u2 "usage: yt-dlp-list-formats <yt-dlp args>"; return 2; }
-  yt-dlp --no-download-archive --list-formats "$@"
-}
-
-yt-dlp-porn-batch-file() {
-  (( $# )) || { print -u2 "usage: dl-porn-batch-file <batch_file> ...<yt-dlp args>"; return 2; }
-  local batch_file=$1; shift
-  yt-dlp --porn --batch-file="$batch_file" "$@"
-}
 
 # ============================================================================
 # File Management Functions
@@ -171,190 +152,8 @@ rename-m4v-to-mp4() {
   rename-extension m4v mp4
 }
 
-# ============================================================================
-# Media Discovery Functions
-# ============================================================================
 
-fd-video-color() {
-  { fd -e mp4 $1 } | sd '\]\[' '] [' | sd '\[([^\]]+)\]' $'\e[32m''$1'$'\e[0m' | sd '\{([^}]*)\}' $'\e[33m''$1'$'\e[0m' | sd '(^|/)\(([^)]*)\)' '${1}'$'\e[36m''$2'$'\e[0m' | rg --passthru --color=always -N -r '$0' -e '#\S+' --colors 'match:fg:magenta'
-}
 
-fd-visuals() {
-  local print0=false
-  if [[ ${1:-} == "-0" || ${1:-} == "--print0" ]]; then
-    print0=true
-    shift
-  fi
-
-  local query=${1:-.}
-  local -a roots
-  [[ -n $DJ_VISUALS_PATH ]] && roots+=($DJ_VISUALS_PATH)
-  roots+=($HOME/Movies/Visuals(N) /Volumes/*/Movies/Visuals(N))
-
-  if $print0; then
-    fd-media --print0 -- "$query" "${roots[@]}"
-  else
-    fd-media -- "$query" "${roots[@]}"
-  fi
-}
-
-select-visuals() {
-  local query=$1
-  fd-visuals "$query" | fzf-select | mpv-vj play --shuffle
-}
-
-# ============================================================================
-# MPV Functions
-# ============================================================================
-
-mpv-play-visuals() {
-  local query=$1
-  local -a files
-  while IFS= read -r -d '' f; do files+=("$f"); done < <(fd-visuals -0 "$query")
-
-  (( ${#files} )) || { print -r -- "no visuals found"; return 1 }
-
-  mpv-vj play --shuffle -- "${files[@]}"
-}
-
-mpv-select-all-v2() {
-  kitty-exec "  fd-media" "#A442F3" --shell "fd-media | fzf-select | mpv-send play"
-}
-
-kitty-mpv-tab() {
-  kitty @ launch --type=tab --cwd=current env PATH="$PATH" kitty-exec "  all" "#A442F3" "$@"
-}
-
-mpv-select-queue() {
-  kitty @ set-tab-title "mpv:queue"
-  kitty @ set-tab-color --match title:"mpv" active_bg="#A442F3" active_fg="#050F63" inactive_fg="#A442F3" inactive_bg="#030D43"
-  fd-media | fzf-select | mpv-send play
-}
-
-# ============================================================================
-# YT-DLP
-# ============================================================================
-
-yt-retag() {
-  emulate -L zsh; set -euo pipefail
-  local url="$1" src="$2" tpl="${3:-'%(title)s (%(extractor)s).%(ext)s'}"
-  local dir="${src:A:h}" ext="${src:A:e}"
-
-  local target
-  target="$(yt-dlp --print-name --alias porn "$tpl" "$url")"
-  target="${target%%$'\n'*}"
-  [[ "$target" = /* ]] || target="$dir/$target"
-
-  # keep existing ext by default
-  target="${target%.*}.$ext"
-  mv -- "${src:A}" "$target"
-  print -r -- "$target"
-}
-
-yt-debug-extract() {
-  yt-dlp -j -v "$@" \
-  | jq '{title, fulltitle, description, channel, uploader, creator, creators, cast, tags, categories}'
-}
-
-yt-queue-add() {
-  print -r -- "$@" >> ~/.yt-dlp-queue
-}
-
-yt-queue-run() {
-  local archive_file="${YT_DLP_ARCHIVE_FILE:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/archive.txt}"
-
-  yt-dlp \
-    -a ~/.yt-dlp-queue \
-    --download-archive "$archive_file" \
-    -P ~/Movies/Porn/Downloads \
-    --ignore-errors \
-    --newline \
-    -R 20 --fragment-retries 20 --retry-sleep 2 \
-    --concurrent-fragments 4
-}
-
-yt-queue-run-ext() {
-  local archive_file="${YT_DLP_ARCHIVE_FILE:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/archive.txt}"
-
-  yt-dlp \
-    -a ~/.yt-dlp-queue \
-    --download-archive "$archive_file" \
-    -P "/Volumes/Footage 1tb/" \
-    --ignore-errors \
-    --newline \
-    -R 20 --fragment-retries 20 --retry-sleep 2 \
-    --concurrent-fragments 4
-}
-
-alias .qa=yt-queue-add
-alias .qr=yt-queue-run-ext
-
-# ============================================================================
-# FFmpeg/FFprobe Functions
-# ============================================================================
-
-vp9-repack-to-webm() {
-  local count=0
-  for file in *.mp4(N); do
-    local codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$file" 2>/dev/null)
-    if [[ $codec == vp9 ]]; then
-      print "Repacking: $file"
-      mv "$file" "${file:r}.webm"
-      (( count++ ))
-    fi
-  done
-  print "Repacked $count file(s)"
-}
-alias .repack=vp9-repack-to-webm
-
-ffprobe-tags-as-json() {
-  local file="$1"
-  ffprobe -v quiet -show_entries format_tags -of json $file
-}
-
-ffmpeg-tags-write-artist() {
-  local artist="$1" input="$2" output="$3"
-  ffmpeg -i $input -c copy -metadata artist="$artist" $output
-}
-
-mp4-check-faststart() {
-  if xxd "$1" | head -n 640 | grep -q moov; then
-    echo -e "\e[32m✓ FastStart enabled\e[0m"
-    return 0
-  else
-    echo -e "\e[31m✗ FastStart NOT enabled (moov at end)\e[0m"
-    return 1
-  fi
-}
-
-mp4-enable-faststart() {
-  local file="$1"
-  
-  if xxd "$file" | head -n 640 | grep -q moov; then
-    echo -e "\e[32m✓ FastStart already enabled\e[0m"
-    return 0
-  fi
-  
-  echo -e "\e[31m✗ FastStart not enabled\e[0m"
-  read -p "Enable faststart for $file? (y/N): " confirm
-  
-  if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
-    local temp="${file%.*}_faststart.${file##*.}"
-    echo "Processing..."
-    
-    if ffmpeg -i "$file" -c copy -movflags +faststart "$temp" -y 2>/dev/null; then
-      mv "$temp" "$file"
-      echo -e "\e[32m✓ FastStart enabled successfully\e[0m"
-    else
-      echo -e "\e[31m✗ Failed to enable faststart\e[0m"
-      rm -f "$temp"
-      return 1
-    fi
-  else
-    echo "Cancelled"
-    return 1
-  fi
-}
 
 # ============================================================================
 # Audio Stem Separation
@@ -397,8 +196,6 @@ vdjstems-check-wav-lengths() {
 # Download & Media Aliases
 # ============================================================================
 
-alias yt-dlp-youtube-embedded="yt-dlp --cookies-from-browser brave --continue --progress --verbose --retries infinite --fragment-retries infinite --socket-timeout 15 -f bestvideo+ba/best --embed-metadata --extractor-args 'youtube:player-client=tv_embedded'"
-alias yt-dlp-tui="auto-ytdlp --concurrent 2 --download-dir $HOME/Movies/Porn/Downloads --archive-file $ICLOUD_HOME/Movies/Porn/archive.txt"
 alias dp="dl-porn"
 
 alias d=download-video
@@ -416,35 +213,6 @@ alias .dl-N_m3u8DL-RE=N_m3u8DL-RE
 
 alias .network-quality="networkQuality -v"
 
-# ============================================================================
-# Media Player Aliases
-# ============================================================================
-
-alias mp="mpv-send play"
-alias configure-mpv="cd $DOTFILES_DIR/config/mpv && kitty-exec '   mpv.conf ' '#A442F3' hx ."
-alias configure-helix="cd $DOTFILES_DIR/config/helix && $EDITOR ."
-
-alias mpv-with-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
-alias mpv-without-config="mpv --profile=fast --video-sync=display-resample --hwdec=auto-safe --no-config --shuffle --no-native-fs --macos-fs-animation-duration=0 --mute"
-alias mpv-auto-safe="mpv --hwdec=auto-safe --vo=libmpv"
-alias mpv-fs="mpv --macos-fs-animation-duration=0 --no-native-fs --fs"
-alias mpv-debug="mpv --msg-level=all=debug"
-alias mpv-verbose="mpv --msg-level=all=v"
-alias mpv-image-viewer='mpv-stdin --image-display-duration=inf'
-alias mpv-image-slideshow='mpv-stdin --image-display-duration=5'
-
-mpv-focus() {
-  osascript -e 'tell application "System Events" to set frontmost of process "mpv" to true'
-}
-
-alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
-
-
-alias mpv-play-porn="setopt local_options null_glob && mpv-send play $~ADULT_GLOBS"
-alias mpv-play-volumes="fd-media --print0 . /Volumes/*/Movies/Porn(N) | mpv-send play -0"
-alias mpv-play-tower="fd-media --print0 . /Volumes/Tower/Movies/Porn | mpv-send play -0"
-alias .tower=mpv-play-tower
-
 
 # ============================================================================
 # Stem Separation Aliases
@@ -461,9 +229,6 @@ alias vdjstems-split-mdx23=stem-mdx23
 alias rm="rm -i"
 alias df="df -h"
 
-alias rsync-copy='rsync -a --ignore-existing --progress'
-alias cp-skip=rsync-copy
-alias backup-tower="rsync-backup --delete /Volumes/Tower/ /Volumes/Tower\ Backup"
 
 alias tag=rename-media
 alias .tag=tag
@@ -487,20 +252,6 @@ alias .python-venv-create="python3 -m venv .venv && source .venv/bin/activate"
 alias .python-venv-activate="source .venv/bin/activate"
 alias .python-pip-install-requirements="pip install -r requirements.txt"
 
-# ============================================================================
-# Kitty Terminal
-# ============================================================================
-
-alias .kitty-mark-current-tab-orange="kitty @ set-tab-color active_bg=orange active_fg=white inactive_bg=orange inactive_fg=black"
-alias .kitty-mark-current-tab-red="kitty @ set-tab-color inactive_bg=red inactive_fg=black"
-alias .kitty-set-tab-color-orange="kitty @ set-tab-color --match id:$KITTY_WINDOW_ID active_bg=#FFA500 active_fg=#050F63 inactive_fg=#FFA500 inactive_bg=#030D43"
-alias .kitty-set-tab-color-green="kitty @ set-tab-color --match id:$KITTY_WINDOW_ID active_bg=#38F273 active_fg=#050F63 inactive_fg=#38F273 inactive_bg=#030D43"
-alias .kitty-reload="kitty @ set-colors --all ~/.config/kitty/kitty.conf"
-alias .kitty-configure="e-kitty"
-alias .kitty-kill-all-editor="kitten @ close-tab --match 'env:PROC=hx'"
-alias .kitty-kill-all-nvim=.kitty-kill-all-editor
-alias .nvim-kill-all=.kitty-kill-all-editor
-alias .kitty-close-idle-tabs="kitty @ close-tab --match 'env:PROC=zsh'"
 
 # ============================================================================
 # macOS Specific
@@ -564,6 +315,8 @@ alias .config-aliases=.config-env
 alias .config-bin="cd $DOTFILES_DIR/bin && $EDITOR ."
 alias .config-env="cd $ZSH_DOTFILES_DIR && $EDITOR autoload/alias.zsh"
 alias config-dotfiles="cd $DOTFILES_DIR && fd --type directory --max-depth=2 | fzf | xargs $EDITOR"
+alias configure-mpv="cd $DOTFILES_DIR/config/mpv && kitty-exec '   mpv.conf ' '#A442F3' hx ."
+alias configure-helix="cd $DOTFILES_DIR/config/helix && $EDITOR ."
 
 alias e-homebrew="cd $DOTFILES_DIR && $EDITOR Brewfile"
 alias .brewfile="cd $DOTFILES_DIR && e Brewfile"
@@ -578,7 +331,6 @@ alias e-zsh="cd $DOTFILES_DIR && $EDITOR config/zsh/zshrc.zsh"
 alias zsh-config="cd $DOTFILES_DIR/config/zsh/ && $EDITOR zshrc.zsh"
 alias zsh-reload="source ~/.zshrc"
 
-alias .fonts="kitty list-fonts"
 
 # ============================================================================
 # Git Shortcuts
@@ -703,25 +455,7 @@ alias .tab=fzf-tablature
 alias t=fzf-tablature
 alias .chordpro="cd '${TABLATURE_DIR}/ChordPro' && chordpro-tui ."
 
-# ============================================================================
-# Media & Image Tools
-# ============================================================================
 
-alias img="chafa --format=symbols"
-alias sixel="chafa --clear --format=symbol --center=on --scale=max"
-alias sixel-sixel="chafa --clear --format=sixel --center=on --scale=max"
-alias sixel-kitty="chafa --clear --format=kitty --center=on --scale=max"
-alias v="viu --height 20"
-
-alias sips-to-webp-lossy='sips -s format webp -s formatOptions 75'
-
-# ============================================================================
-# FFmpeg Shortcuts
-# ============================================================================
-
-alias .demux="ffmpeg-demux"
-alias .demux-video="ffmpeg-demux --video"
-alias .demux-audio="ffmpeg-demux --audio"
 
 # ============================================================================
 # Music Download

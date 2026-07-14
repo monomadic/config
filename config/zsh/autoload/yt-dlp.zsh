@@ -173,3 +173,79 @@ function tag-embed() {
 #	%(bitrate)s: The bitrate of the video.
 #	%(filesize)s: The filesize of the video.
 #	%(filesize_approx)s: The approximate filesize of the video.
+
+# ============================================================================
+# yt-dlp aliases & functions (re-homed from alias.zsh)
+# ============================================================================
+alias yt-dlp-ignore-archive="yt-dlp --no-download-archive"
+alias yt-list-fields="yt-dlp --skip-download --print \"%()#j\" "
+alias yt-batch-edit='$EDITOR $YT_DLP_BATCH_FILE'
+yt-dlp-list-formats() {
+  (( $# )) || { print -u2 "usage: yt-dlp-list-formats <yt-dlp args>"; return 2; }
+  yt-dlp --no-download-archive --list-formats "$@"
+}
+
+yt-dlp-porn-batch-file() {
+  (( $# )) || { print -u2 "usage: dl-porn-batch-file <batch_file> ...<yt-dlp args>"; return 2; }
+  local batch_file=$1; shift
+  yt-dlp --porn --batch-file="$batch_file" "$@"
+}
+# ============================================================================
+# YT-DLP
+# ============================================================================
+
+yt-retag() {
+  emulate -L zsh; set -euo pipefail
+  local url="$1" src="$2" tpl="${3:-'%(title)s (%(extractor)s).%(ext)s'}"
+  local dir="${src:A:h}" ext="${src:A:e}"
+
+  local target
+  target="$(yt-dlp --print-name --alias porn "$tpl" "$url")"
+  target="${target%%$'\n'*}"
+  [[ "$target" = /* ]] || target="$dir/$target"
+
+  # keep existing ext by default
+  target="${target%.*}.$ext"
+  mv -- "${src:A}" "$target"
+  print -r -- "$target"
+}
+
+yt-debug-extract() {
+  yt-dlp -j -v "$@" \
+  | jq '{title, fulltitle, description, channel, uploader, creator, creators, cast, tags, categories}'
+}
+
+yt-queue-add() {
+  print -r -- "$@" >> ~/.yt-dlp-queue
+}
+
+yt-queue-run() {
+  local archive_file="${YT_DLP_ARCHIVE_FILE:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/archive.txt}"
+
+  yt-dlp \
+    -a ~/.yt-dlp-queue \
+    --download-archive "$archive_file" \
+    -P ~/Movies/Porn/Downloads \
+    --ignore-errors \
+    --newline \
+    -R 20 --fragment-retries 20 --retry-sleep 2 \
+    --concurrent-fragments 4
+}
+
+yt-queue-run-ext() {
+  local archive_file="${YT_DLP_ARCHIVE_FILE:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/archive.txt}"
+
+  yt-dlp \
+    -a ~/.yt-dlp-queue \
+    --download-archive "$archive_file" \
+    -P "/Volumes/Footage 1tb/" \
+    --ignore-errors \
+    --newline \
+    -R 20 --fragment-retries 20 --retry-sleep 2 \
+    --concurrent-fragments 4
+}
+
+alias .qa=yt-queue-add
+alias .qr=yt-queue-run-ext
+alias yt-dlp-youtube-embedded="yt-dlp --cookies-from-browser brave --continue --progress --verbose --retries infinite --fragment-retries infinite --socket-timeout 15 -f bestvideo+ba/best --embed-metadata --extractor-args 'youtube:player-client=tv_embedded'"
+alias yt-dlp-tui="auto-ytdlp --concurrent 2 --download-dir $HOME/Movies/Porn/Downloads --archive-file $ICLOUD_HOME/Movies/Porn/archive.txt"
