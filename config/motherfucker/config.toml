@@ -78,6 +78,17 @@ shortcut = "􀩼 "       # SF Symbol name for the "Shortcut" tag pill
 "Telegram" = "􀈡 "
 "VirtualDJ" = "􀢸 "
 "iPhone Mirroring" = "􀟞"
+"Shortcuts" = "􀐟 "
+"Shutdown" = "􀆨 "
+"Motherfucker: restart" = "􀼶 "
+"System Settings: displays" = "􀢹 "
+"System Settings: keyboard" = "􀇳 "
+"System Settings: wallpaper" = "􀵪 "
+"System Settings: wifi" = "􀙇 "
+"System Settings: bluetooth" = " 󰂯"
+"System Settings: privacy" = "􃇞 "
+"System Settings: login items" = "􁎕 "
+"System Settings: disk access" = "􁘥 "
 
 # Custom entries matched like apps; selecting one runs the command via
 # `sh -c` (loaded once at startup — zero cost while typing). Only the
@@ -86,10 +97,18 @@ shortcut = "􀩼 "       # SF Symbol name for the "Shortcut" tag pill
 #"Movies" = "open -R ~/Movies"
 "Shutdown" = "osascript -e 'tell app \"System Events\" to shut down'"
 "Restart" = "osascript -e 'tell app \"System Events\" to restart'"
-"Restart Motherfucker" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
+"Motherfucker: restart" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
 "M4.local: mount tower" = "open -j smb://nom@m4.local/Tower"
 "SwitchBlade: downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Porn/Downloads"
 "SwitchBlade: new downloads" = "$HOME/.zsh/bin/fd-media --fast-fullscreen --sort-created --path $HOME/Movies/Porn/Downloads | $HOME/.cargo/bin/switchblade"
+"System Settings: displays" = "open 'x-apple.systempreferences:com.apple.preference.displays'"
+"System Settings: keyboard" = "open 'x-apple.systempreferences:com.apple.Keyboard-Settings.extension'"
+"System Settings: wallpaper" = "open 'x-apple.systempreferences:com.apple.Wallpaper-Settings.extension'"
+"System Settings: wifi" = "open 'x-apple.systempreferences:com.apple.wifi-settings-extension'"
+"System Settings: bluetooth" = "open 'x-apple.systempreferences:com.apple.BluetoothSettings'"
+"System Settings: privacy" = "open 'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension'"
+"System Settings: login items" = "open 'x-apple.systempreferences:com.apple.LoginItems-Settings.extension'"
+"System Settings: disk access" = "open 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles'"
 
 [stats]
 interval = 1.0              # seconds between cpu/ram refreshes while open

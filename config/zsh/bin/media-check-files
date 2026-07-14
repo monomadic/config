@@ -33,6 +33,7 @@ typeset -i total_count=0
 typeset -i clean_count=0
 typeset -i issue_file_count=0
 typeset -i fix_count=0
+typeset -i repaired_file_count=0
 typeset -i skip_count=0
 typeset -i fail_count=0
 
@@ -53,6 +54,10 @@ CURRENT_PASS=0
 CURRENT_FAIL=0
 typeset -a ENABLED_CHECKS=()
 typeset -A CHECK_STATUS=()
+MENU_CHECK=""
+typeset -a MENU_OPTIONS=()
+MENU_INDEX=0
+CHECKS_HEADER_ROW=0
 typeset -a PENDING_METADATA_ARGS=()
 typeset -a PENDING_FIXES=()
 PENDING_FASTSTART=false
@@ -146,19 +151,14 @@ clear_status() {
   print -n -u4 -- $'\r\033[K'
 }
 
-session_stats_line() {
+session_summary_line() {
+  local issues_word="issues"
   local files_word="files"
-  local corrections_word="corrections"
 
-  (( processed_count == 1 )) && files_word="file"
-  (( fix_count == 1 )) && corrections_word="correction"
+  (( fix_count == 1 )) && issues_word="issue"
+  (( repaired_file_count == 1 )) && files_word="file"
 
-  say "${processed_count} ${files_word} checked: ${C_GREEN}${clean_count} pass${C_RESET}, ${C_RED}${issue_file_count} fail${C_RESET}"
-  say "- ${fix_count} ${corrections_word} made this session"
-}
-
-check_stats_line() {
-  say "${CURRENT_TOTAL} total, ${CURRENT_PASS} pass, ${CURRENT_FAIL} fail"
+  say "Successfully repaired ${C_GREEN}${fix_count}${C_RESET} ${issues_word} on ${C_GREEN}${repaired_file_count}${C_RESET} ${files_word}."
 }
 
 build_enabled_checks() {
@@ -235,29 +235,105 @@ check_icon() {
   esac
 }
 
-draw_checks() {
-  local item check_state icon
+# A check's list label carries its own state: dim name while pending, then
+# "name: <word>" in green (good) or red (problem) once it has been evaluated.
+check_label() {
+  local item="$1" state="$2"
+  local good bad
 
-  say "%BCHECKS:%b"
-  say ""
+  case "$item" in
+    black-frames) good="none";    bad="found" ;;
+    source-url)   good="found";   bad="missing" ;;
+    metadata)     good="found";   bad="missing" ;;
+    faststart)    good="enabled"; bad="disabled" ;;
+    filename)     good="ok";      bad="issues" ;;
+    *)            good="ok";      bad="issue" ;;
+  esac
+
+  case "$state" in
+    pass) print -r -- "${C_GREEN}${item}: ${good}${C_RESET}" ;;
+    fail) print -r -- "${C_RED}${item}: ${bad}${C_RESET}" ;;
+    *)    print -r -- "${C_DIM}${item}${C_RESET}" ;;
+  esac
+}
+
+# Truncate a menu option to fit within the checklist indent.
+menu_option_text() {
+  local text="$1" fw="$2"
+  (( ${#text} > fw )) && text="${text[1,fw-1]}…"
+  print -r -- "$text"
+}
+
+draw_checks_block() {
+  local item check_state icon label i text width fw
+
+  width="${COLUMNS:-100}"
+  fw=$(( width - 9 ))
+  (( fw < 20 )) && fw=20
+
+  say "%Bchecks:%b"
 
   for item in "${ENABLED_CHECKS[@]}"; do
     check_state="${CHECK_STATUS[$item]-}"
     icon="$(check_icon "$check_state")"
-    printf "%b %-22s\n" "$icon" "$item" >&4
-  done
+    label="$(check_label "$item" "$check_state")"
+    print -rn -u4 -- $'\r\033[K'" ${icon}${C_RESET} ${label}"
+    print -u4 -- ""
 
-  say ""
+    # Draw the active menu directly beneath its check, indented.
+    if [[ -n "$MENU_CHECK" && "$item" == "$MENU_CHECK" ]]; then
+      for (( i = 1; i <= ${#MENU_OPTIONS[@]}; i++ )); do
+        text="$(menu_option_text "${MENU_OPTIONS[i]}" "$fw")"
+        if (( i == MENU_INDEX )); then
+          print -rn -u4 -- $'\r\033[K'"    ${C_REVERSE}${C_BOLD} ❯ ${text} ${C_RESET}"
+        else
+          print -rn -u4 -- $'\r\033[K'"       ${C_DIM}${text}${C_RESET}"
+        fi
+        print -u4 -- ""
+      done
+      print -u4 -- ""
+    fi
+  done
+}
+
+draw_filename() {
+  local name max
+
+  [[ -n "$CURRENT_FILE" ]] || return 0
+  name="${CURRENT_FILE:t}"
+  max=$(( ${COLUMNS:-100} - 2 ))
+  (( max < 20 )) && max=20
+  (( ${#name} > max )) && name="${name[1,max-1]}…"
+
+  say_raw "${C_BOLD}${C_YELLOW}${name}${C_RESET}"
+}
+
+# Row (1-based) of the "checks:" header, so the checklist region can be
+# repainted without disturbing the thumbnail band above it.
+checks_header_row() {
+  local band=0
+  $THUMB_ENABLE && [[ -n "$THUMB_CURRENT_IMG" ]] && band=$THUMB_ROWS
+  print -r -- $(( band + 6 ))
 }
 
 draw_header() {
-  say "%B%F{cyan}MEDIA LIBRARY FILE CHECK v1%f%b"
+  say_raw "${C_REVERSE}${C_BOLD} MEDIA LIBRARY FILE CHECK v1 ${C_RESET}"
+  session_summary_line
   say ""
-  session_stats_line
+  CHECKS_HEADER_ROW="$(checks_header_row)"
+  render_thumb_band
+  draw_filename
   say ""
-  draw_checks
-  check_stats_line
+  draw_checks_block
   say ""
+}
+
+# Repaint only the checklist (and any inline menu) in place, leaving the
+# title, summary and thumbnail untouched — used for menu navigation.
+render_checks_region() {
+  [[ -t 4 ]] || return 0
+  print -n -u4 -- $'\033['"${CHECKS_HEADER_ROW}"$';1H\033[J'
+  draw_checks_block
 }
 
 # Pick an image backend the same way ffmpeg-lossless-cut's fzf preview does:
@@ -362,24 +438,21 @@ set_current_thumb() {
   THUMB_CURRENT_IMG="$img"
 }
 
+# Three header rows sit above the thumbnail: title, summary, blank.
+THUMB_ABOVE=3
 render_thumb_band() {
   $THUMB_ENABLE || return 0
 
-  if [[ "$THUMB_BACKEND" == kitty ]]; then
-    if [[ -n "$THUMB_CURRENT_IMG" ]]; then
-      kitty +kitten icat --clear --transfer-mode=stream --stdin=no \
-        --place="${THUMB_COLS}x${THUMB_ROWS}@0x0" -- "$THUMB_CURRENT_IMG" >&4 2>/dev/null
-      # icat --place leaves the cursor at home; drop below the reserved band.
-      print -n -u4 -- $'\033['"$(( THUMB_ROWS + 1 ))"$'H'
-    else
-      kitty +kitten icat --clear --stdin=no >&4 2>/dev/null
-    fi
+  if [[ -z "$THUMB_CURRENT_IMG" ]]; then
+    [[ "$THUMB_BACKEND" == kitty ]] && kitty +kitten icat --clear --stdin=no >&4 2>/dev/null
     return 0
   fi
 
-  [[ -n "$THUMB_CURRENT_IMG" ]] || return 0
-
   case "$THUMB_BACKEND" in
+    kitty)
+      kitty +kitten icat --clear --transfer-mode=stream --stdin=no --align=left \
+        --place="${THUMB_COLS}x${THUMB_ROWS}@0x${THUMB_ABOVE}" -- "$THUMB_CURRENT_IMG" >&4 2>/dev/null
+      ;;
     wezterm)
       wezterm imgcat --width "${THUMB_COLS}" -- "$THUMB_CURRENT_IMG" >&4 2>/dev/null
       ;;
@@ -387,11 +460,14 @@ render_thumb_band() {
       imgcat "$THUMB_CURRENT_IMG" >&4 2>/dev/null
       ;;
     chafa)
-      chafa --animate=off --size="${THUMB_COLS}x${THUMB_ROWS}" \
+      chafa --animate=off --align=left --size="${THUMB_COLS}x${THUMB_ROWS}" \
         -- "$THUMB_CURRENT_IMG" >&4 2>/dev/null
       ;;
   esac
-  print -u4 -- ""
+
+  # Land the cursor just below a fixed-height band so the layout below the
+  # thumbnail is deterministic regardless of the image's aspect ratio.
+  print -n -u4 -- $'\033['"$(( THUMB_ABOVE + THUMB_ROWS + 1 ))"$';1H'
 }
 
 clear_thumb() {
@@ -403,7 +479,6 @@ clear_thumb() {
 redraw_screen() {
   [[ -t 4 ]] || return 0
   print -n -u4 -- $'\033[2J\033[H'
-  render_thumb_band
   draw_header
 }
 
@@ -419,12 +494,6 @@ colored_path() {
   fi
 }
 
-show_checking_path() {
-  local file="$1"
-
-  print -r -u4 -- "Checking ${C_CYAN}${file:t}${C_RESET}"
-}
-
 issue_screen() {
   local check="$1"
   local file="$2"
@@ -434,21 +503,24 @@ issue_screen() {
 
   if [[ -t 4 ]]; then
     print -n -u4 -- $'\033[2J\033[H'
-    render_thumb_band
     draw_header
   fi
   clear_status
-  say ""
-  show_checking_path "$file"
-  say ""
-  say "%B%F{red}FAIL%f%b ${C_RED}${ICON_FAIL}${C_RESET}"
-  say ""
+}
+
+# Count this file toward the repaired total once, on its first applied fix.
+# FILE_REPAIRED is an audit_file local, visible here via zsh dynamic scope.
+note_repaired_file() {
+  ${FILE_REPAIRED:-true} && return 0
+  FILE_REPAIRED=true
+  (( repaired_file_count++ ))
 }
 
 mark_fixed() {
   local message="${1:-Fixed.}"
 
   (( fix_count++ ))
+  note_repaired_file
   [[ -n "$CURRENT_CHECK" ]] && set_check_status "$CURRENT_CHECK" "pass"
 
   if [[ -t 4 ]]; then
@@ -584,9 +656,7 @@ SELECT_INDEX=0
 prompt_select() {
   local -a options=("$@")
   local count=${#options[@]}
-  local idx=1 i key seq saved_stty line
-  local width fw text hint first=true
-  local -a lines
+  local i key seq saved_stty line
 
   SELECT_INDEX=0
   (( count > 0 )) || return 1
@@ -601,13 +671,6 @@ prompt_select() {
     return 0
   fi
 
-  # Each row must occupy exactly one physical line, or the redraw's
-  # cursor-up count desyncs and smears text. Truncate to the tty width.
-  width="$(stty size <&3 2>/dev/null | awk '{print $2}')"
-  [[ "$width" == <-> ]] && (( width >= 40 )) || width="${COLUMNS:-100}"
-  fw=$(( width - 7 ))
-  (( fw < 20 )) && fw=20
-
   saved_stty=""
   if command -v stty >/dev/null 2>&1; then
     saved_stty="$(stty -g <&3 2>/dev/null || true)"
@@ -615,40 +678,25 @@ prompt_select() {
   fi
   print -n -u4 -- $'\033[?25l'
 
+  # Host the menu inside the checklist, under the check being resolved.
+  MENU_CHECK="$CURRENT_CHECK"
+  MENU_OPTIONS=("${options[@]}")
+  MENU_INDEX=1
+
   select_restore() {
     [[ -n "$saved_stty" ]] && stty "$saved_stty" <&3 2>/dev/null || true
     print -n -u4 -- $'\033[?25h'
+    MENU_CHECK=""
+    MENU_OPTIONS=()
+    MENU_INDEX=0
+    render_checks_region
     trap - INT
   }
 
-  trap 'select_restore; print -u4; return 130' INT
-
-  hint="↑↓/jk move · 1-${count} jump · enter select · ctrl-c skip"
-  (( ${#hint} > width - 3 )) && hint="${hint[1,width-4]}…"
+  trap 'select_restore; return 130' INT
 
   while true; do
-    lines=()
-    for (( i = 1; i <= count; i++ )); do
-      text="${options[i]}"
-      (( ${#text} > fw )) && text="${text[1,fw-1]}…"
-      if (( i == idx )); then
-        lines+=( "  ${C_REVERSE}${C_BOLD} ❯ ${(r:fw:)text} ${C_RESET}" )
-      else
-        lines+=( "     ${C_DIM}${text}${C_RESET}" )
-      fi
-    done
-    lines+=( "" )
-    lines+=( "  ${C_DIM}${hint}${C_RESET}" )
-
-    if [[ "$first" == true ]]; then
-      first=false
-    else
-      printf '\033[%dA' "${#lines[@]}" >&4
-    fi
-    for (( i = 1; i <= ${#lines[@]}; i++ )); do
-      print -rn -u4 -- $'\r\033[K'"${lines[i]}"
-      print -u4 -- ""
-    done
+    render_checks_region
 
     IFS= read -r -k 1 -u 3 key || {
       select_restore
@@ -663,21 +711,20 @@ prompt_select() {
           seq=""
           IFS= read -r -k 1 -t 0.05 -u 3 seq 2>/dev/null || seq=""
           case "$seq" in
-            A) (( idx > 1 )) && (( idx-- )) ;;
-            B) (( idx < count )) && (( idx++ )) ;;
+            A) (( MENU_INDEX > 1 )) && (( MENU_INDEX-- )) ;;
+            B) (( MENU_INDEX < count )) && (( MENU_INDEX++ )) ;;
           esac
         fi
         ;;
-      j) (( idx < count )) && (( idx++ )) ;;
-      k) (( idx > 1 )) && (( idx-- )) ;;
+      j) (( MENU_INDEX < count )) && (( MENU_INDEX++ )) ;;
+      k) (( MENU_INDEX > 1 )) && (( MENU_INDEX-- )) ;;
       $'\n'|$'\r')
-        SELECT_INDEX=$idx
+        SELECT_INDEX=$MENU_INDEX
         select_restore
         return 0
         ;;
       $'\003')
         select_restore
-        print -u4
         return 130
         ;;
       [1-9])
@@ -1029,8 +1076,6 @@ check_faststart() {
     1)
       (( FILE_ISSUES++ ))
       issue_screen "faststart" "$file"
-      say "faststart: not enabled"
-      say "auto-fix: queued for the combined ffmpeg rewrite."
       PENDING_FASTSTART=true
       PENDING_FIXES+=("faststart")
       return 0
@@ -1097,10 +1142,8 @@ check_black_frames() {
 
   (( FILE_ISSUES++ ))
   issue_screen "black-frames" "$file"
-  say "black-frames: leading black detected (${seconds}s)"
-  say ""
 
-  if prompt_yes_no "Trim File?" "Y"; then
+  if prompt_yes_no "Trim leading black (${seconds}s)?" "Y"; then
     output="$(ffmpeg-lossless-cut --print-start --from "$seconds" -- "$file" < "$TTY" 2> "$TTY")"
     rc=$?
 
@@ -1422,12 +1465,14 @@ apply_pending_rewrite() {
       (( fail_count++ ))
       mark_unresolved
       (( fix_count += ${#PENDING_FIXES[@]} - 1 ))
+      (( ${#PENDING_FIXES[@]} > 1 )) && note_repaired_file
       clear_status
       fail "FastStart verification failed after rewrite."
       return 1
     fi
 
     (( fix_count += ${#PENDING_FIXES[@]} ))
+    note_repaired_file
     [[ -t 4 ]] && redraw_screen
     return 0
   fi
@@ -1492,8 +1537,6 @@ check_source_url() {
 
   (( FILE_ISSUES++ ))
   issue_screen "source-url" "$file"
-  say "source-url: missing"
-  say ""
 
   options=()
   actions=()
@@ -1559,8 +1602,6 @@ check_title_metadata() {
 
   (( FILE_ISSUES++ ))
   issue_screen "metadata" "$file"
-  say "metadata: missing title"
-  say ""
 
   if [[ -z "$PROBE_URL" ]]; then
     warn "No embedded source URL is available, so yt-dlp metadata cannot be fetched."
@@ -1574,10 +1615,6 @@ check_title_metadata() {
   url="$PROBE_URL"
 
   while true; do
-    say "%BSOURCE URL:%b"
-    say_raw "$url"
-    say ""
-
     if queue_fetched_metadata "$url"; then
       PENDING_FIXES+=("metadata")
       return 0
@@ -1731,6 +1768,7 @@ audit_file() {
   local file="$1"
   integer FILE_ISSUES=0
   integer FILE_UNRESOLVED=0
+  local FILE_REPAIRED=false
 
   [[ -n "$file" ]] || return 0
   file="$(normalize_audit_path "$file")"
