@@ -202,10 +202,19 @@ args = [
 # program = "open"
 # args = ["-R", "{path}"]
 
+# ffmpeg-lossless-cut is a terminal program, so it needs a TTY — launch it
+# in a Kitty window rather than firing it into the void from this GUI app.
 [commands.trim]
 type = "launch"
-program = "/Users/nom/.zsh/bin/ffmpeg-lossless-cut"
-args = ["{path}"]
+program = "/Users/nom/.zsh/bin/kitty-launch"
+args = [
+  "--os-window",
+  "--auto-hide",
+  "--cwd", "{dir}",
+  "--",
+  "/Users/nom/.zsh/bin/ffmpeg-lossless-cut",
+  "{path}",
+]
 
 # Example: bind a key to your own script.
 # [commands.rename_script]

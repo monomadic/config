@@ -171,7 +171,7 @@ step library "${C_DIM}${lib_disp}/${C_RESET}"
 # 4. open in chordpro-tui, in a new focused kitty pane
 # ---------------------------------------------------------------------------
 if (( open_it )); then
-	if "$KITTY_LAUNCH" --window --title "${name%.*}" -- "$CHORDPRO_TUI" "$final" >/dev/null; then
+	if "$KITTY_LAUNCH" --tab --title "${name%.*}" -- "$CHORDPRO_TUI" "$final" >/dev/null; then
 		step open "chordpro-tui ${C_DIM}(kitty pane, focused)${C_RESET}"
 	else
 		step_warn open "kitty-launch failed — open manually: chordpro-tui \"$final\""

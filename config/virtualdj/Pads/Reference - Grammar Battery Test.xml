@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Reference - Grammar Battery Test.xml
+
+  Purpose: resolve the three documented-as-unresolved VDJScript grammar
+  questions (see docs/VDJScript Syntax Evidence.md, "precedence" notes):
+
+    A. Does an `&` chain segment after a ternary false-branch belong to the
+       false branch, or continue the whole statement?
+    B. How do nested ternaries associate: a ? b ? c : d : e
+    C. Are backtick-computed arguments accepted by actions
+       (Local Test Tracker recorded one FAILURE: phrase_sync `get_var ...`),
+       and does implicit param-chaining (action & param_* & action) work as
+       the general alternative?
+
+  How to run:
+    1. Load this page on any deck pad grid (no track needed for most tests).
+    2. Press SETUP first, then each test pad once, and read the RESULT pads.
+    3. Record build, observed values, and conclusions in
+       docs/VDJScript Local Test Tracker.md.
+
+  Interpretation tables are in the comment above each pad.
+
+  Source: fixture only; establishes `Local test` evidence when run.
+-->
+<page name="REF: GRAMMAR BATTERY">
+
+  <!-- SETUP: reset all battery variables. Run before each test. -->
+  <pad1 name="SETUP: reset vars" color="color 'white'">set '$gb_true' 1 &amp; set '$gb_false' 0 &amp; set '$gb_a' 0 &amp; set '$gb_b' 0 &amp; set '$gb_c' 0 &amp; set '$gb_r' 0 &amp; set '$gb_src' 42 &amp; set '$gb_dst' 0 &amp; set '$gb_n' 0</pad1>
+
+  <!--
+    TEST A1: trailing & after false branch, with TRUE condition.
+      action: cond(true) ? set a=1 : set b=1 & set c=1
+      If trailing "& set c=1" continues the whole statement: a=1 b=0 c=1
+      If it binds inside the false branch only:              a=1 b=0 c=0
+  -->
+  <pad2 name="A1: true-cond trailing &amp;" color="color 'orange'">var_equal '$gb_true' 1 ? set '$gb_a' 1 : set '$gb_b' 1 &amp; set '$gb_c' 1</pad2>
+
+  <!--
+    TEST A2: same statement, FALSE condition.
+      If trailing chain is statement-level: a=0 b=1 c=1
+      If false-branch-local:                a=0 b=1 c=1  (same!)
+      A2 alone cannot discriminate; run it after A1+SETUP for symmetry and to
+      confirm the false branch itself runs.
+  -->
+  <pad3 name="A2: false-cond trailing &amp;" color="color 'orange'">var_equal '$gb_false' 1 ? set '$gb_a' 1 : set '$gb_b' 1 &amp; set '$gb_c' 1</pad3>
+
+  <!--
+    TEST A3: leading chain before a ternary, TRUE condition.
+      action: set a=1 & cond(true) ? set b=1 : set c=1
+      If `&` splits statements first: a=1, then ternary runs: b=1, c=0.
+      If the ternary captures the whole left side as condition, behavior may
+      differ (e.g. a set as condition); record whatever happens.
+  -->
+  <pad4 name="A3: leading &amp; then ternary" color="color 'orange'">set '$gb_a' 1 &amp; var_equal '$gb_true' 1 ? set '$gb_b' 1 : set '$gb_c' 1</pad4>
+
+  <!--
+    TEST B1: nested ternary, outer TRUE, inner FALSE.
+      action: cond(true) ? cond(false) ? r=1 : r=2 : r=3
+      Numeric codes (1='X', 2='Y', 3='Z') because string values set by `set`
+      display blank via `get_var` in pad labels (observed v2026-m).
+      Standard nesting predicts r=2.
+      If the parser mis-associates (inner colon consumed by outer), r may be
+      3 or a parse failure (r stays 0).
+  -->
+  <pad5 name="B1: nested ternary t/f" color="color 'cyan'">var_equal '$gb_true' 1 ? var_equal '$gb_false' 1 ? set '$gb_r' 1 : set '$gb_r' 2 : set '$gb_r' 3</pad5>
+
+  <!--
+    TEST B2: nested ternary, outer FALSE.
+      Standard nesting predicts r=3. Mis-association may give 2.
+  -->
+  <pad6 name="B2: nested ternary f/-" color="color 'cyan'">var_equal '$gb_false' 1 ? var_equal '$gb_true' 1 ? set '$gb_r' 1 : set '$gb_r' 2 : set '$gb_r' 3</pad6>
+
+  <!--
+    TEST C1: backtick-computed argument to set.
+      action: set dst = `get_var src`  (src was set to 42 by SETUP)
+      Pass: dst shows 42. Fail: dst stays 0 / blank / literal text.
+  -->
+  <pad7 name="C1: set from backtick" color="color 'green'">set '$gb_dst' `get_var '$gb_src'`</pad7>
+
+  <!--
+    TEST C2: backtick-computed numeric argument to a transport action.
+      Requires a loaded, playing track. SETUP put 4 in $gb_n? No - set it here.
+      Pass: a 4-beat loop engages. Fail: no loop or wrong length.
+  -->
+  <pad8 name="C2: loop `get_var`" color="color 'green'">set '$gb_n' 4 &amp; loop `get_var '$gb_n'`</pad8>
+
+  <!--
+    TEST C3: implicit param chaining as the alternative pattern
+      (same idiom as SAMPLER.xml page arithmetic):
+      get_var -> param_multiply -> feed into set.
+      Pass: dst shows 84 (42*2).
+  -->
+  <pad9 name="C3: param chain 42*2" color="color 'green'">get_var '$gb_src' &amp; param_multiply 2 &amp; set '$gb_dst'</pad9>
+
+  <!--
+    TEST C4: backtick argument to beatjump (requires playing track).
+      Stores '+4' as a string because unsigned literal `beatjump 4` is itself
+      a no-op on v2026-m b9482 (only the signed form `beatjump +4` jumps), so
+      an unsigned interpolated value could not discriminate backtick handling.
+      Pass: playhead jumps 4 beats. Compare against yellow `beatjump +4`.
+  -->
+  <pad10 name="C4: beatjump `get_var`" color="color 'green'">set '$gb_n' '+4' &amp; beatjump `get_var '$gb_n'`</pad10>
+
+  <!-- RESULT pads: read-only displays of the battery variables. -->
+  <pad11 name="`get_var '$gb_a'`-`get_var '$gb_b'`-`get_var '$gb_c'` (a-b-c)" color="color 'blue'" query="on">nothing</pad11>
+  <pad12 name="r=`get_var '$gb_r'` (1=X 2=Y 3=Z)" color="color 'blue'" query="on">nothing</pad12>
+  <pad13 name="dst=`get_var '$gb_dst'`" color="color 'blue'" query="on">nothing</pad13>
+  <pad14 name="src=`get_var '$gb_src'` n=`get_var '$gb_n'`" color="color 'blue'" query="on">nothing</pad14>
+
+  <!-- Controls for C2/C4 comparison. `beatjump 4` (unsigned) produced no jump
+       on v2026-m b9482; the official example form is signed (`beatjump +1`),
+       so the control tests the signed form. -->
+  <pad15 name="literal loop 4" color="color 'yellow'">loop 4</pad15>
+  <pad16 name="literal beatjump +4" color="color 'yellow'">beatjump +4</pad16>
+
+</page>

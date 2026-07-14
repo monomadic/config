@@ -31,3 +31,10 @@ command = "lemminx-osx-aarch_64"
 [[language]]
 name = "markdown"
 formatter = { command = "dprint", args = ["fmt", "--stdin", "md"]}
+
+[[language]]
+name = "bash"
+language-servers = ["bashls"]
+
+[language-server.bashls]
+command = "bashls"

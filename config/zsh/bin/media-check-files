@@ -57,7 +57,8 @@ Usage:
   media-check-files [options] [file ...]
 
 Audits a media library. With no file arguments it streams files from fd-media.
-When files are provided, only those files are checked.
+When files are provided, only those files are checked. A directory argument is
+recursed for media files via fd-media.
 
 Checks:
   MP4/MOV/M4V FastStart
@@ -1419,6 +1420,29 @@ process_fd_media() {
   done < <(fd-media --print0)
 }
 
+audit_dir() {
+  local dir="$1"
+
+  command -v fd-media >/dev/null 2>&1 || {
+    fail "fd-media not found; cannot recurse ${dir}"
+    exit 1
+  }
+
+  while IFS= read -r -d $'\0' file; do
+    audit_file "$file"
+  done < <(fd-media --print0 . "$dir")
+}
+
+audit_arg() {
+  local arg="$1"
+
+  if [[ -d "$arg" ]]; then
+    audit_dir "$arg"
+  else
+    audit_file "$arg"
+  fi
+}
+
 process_stdin_or_fd_media() {
   local line
   local saw_stdin=false
@@ -1427,7 +1451,7 @@ process_stdin_or_fd_media() {
     while IFS= read -r line; do
       [[ -n "$line" ]] || continue
       saw_stdin=true
-      audit_file "$line"
+      audit_arg "$line"
     done
   fi
 
@@ -1450,7 +1474,7 @@ main() {
 
   if (( ${#INPUT_FILES[@]} > 0 )); then
     for file in "${INPUT_FILES[@]}"; do
-      audit_file "$file"
+      audit_arg "$file"
     done
   else
     process_stdin_or_fd_media
