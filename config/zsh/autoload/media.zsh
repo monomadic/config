@@ -38,8 +38,9 @@ fd-tower() {
   fd-media $@ /Volumes/Tower/Movies/Porn/
 }
 
-alias media-index-fetch="fd-media --progress | media-index write"
+alias media-index-update="fd-media --progress | media-index write"
 alias media-index-play="media-index get | mpv-send play"
+alias media-index-switchblade="media-index get | switchblade"
 alias media-index-search="media-index get | fzf-multiselect"
 
 alias @play="mpv-send play"
