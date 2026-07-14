@@ -880,8 +880,11 @@ check_black_frames() {
   if prompt_yes_no "Trim File?" "Y"; then
     output="$(ffmpeg-lossless-cut --print-start --from "$seconds" -- "$file" < "$TTY" 2> "$TTY")"
     rc=$?
+
+    local -a marker_lines
+    marker_lines=("${(@M)${(@f)output}:#FLC_START=*}")
     trim_start=""
-    [[ -n "$output" ]] && trim_start="${${(M)${(f)output}:#FLC_START=*}[-1]#FLC_START=}"
+    (( ${#marker_lines[@]} > 0 )) && trim_start="${marker_lines[-1]#FLC_START=}"
 
     if (( rc == 0 )) && [[ -n "$trim_start" ]]; then
       PENDING_TRIM_START="$trim_start"
