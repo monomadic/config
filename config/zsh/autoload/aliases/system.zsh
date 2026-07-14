@@ -71,6 +71,8 @@ alias .detect-captive-portal=detect-captive-portal
 alias ns="network-status.zsh"
 alias .uptime="display-uptime"
 
+alias ls-network-interfaces='for i in $(ifconfig -l); do ip=$(ipconfig getifaddr $i); [ -n "$ip" ] && echo "$i -> $ip"; done'
+
 alias p8="ping 8.8.8.8"
 alias pc="ping cloudflare.com"
 alias pg="ping google.com"
