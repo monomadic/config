@@ -50,6 +50,7 @@ typeset -A CHECK_STATUS=()
 typeset -a PENDING_METADATA_ARGS=()
 typeset -a PENDING_FIXES=()
 PENDING_FASTSTART=false
+PENDING_TRIM_START=""
 
 usage() {
   cat >&2 <<'EOF'
@@ -422,6 +423,99 @@ read_prompt_line() {
   return "$rc"
 }
 
+# Arrow/vim-key select control on fds 3 (input) and 4 (output).
+# Sets SELECT_INDEX (1-based). Returns 130 on Ctrl-C.
+# Non-TTY fallback reads a 1-based index as a line from fd 3.
+SELECT_INDEX=0
+prompt_select() {
+  local -a options=("$@")
+  local count=${#options[@]}
+  local idx=1 i key seq saved_stty line
+  local drawn=false
+
+  SELECT_INDEX=0
+  (( count > 0 )) || return 1
+
+  if [[ ! -t 3 ]]; then
+    for (( i = 1; i <= count; i++ )); do
+      say_raw "  ${i}) ${options[i]}"
+    done
+    IFS= read -r -u 3 line || return 130
+    [[ "$line" == <-> ]] && (( line >= 1 && line <= count )) || return 130
+    SELECT_INDEX=$line
+    return 0
+  fi
+
+  saved_stty=""
+  if command -v stty >/dev/null 2>&1; then
+    saved_stty="$(stty -g <&3 2>/dev/null || true)"
+    stty -echo -icanon min 1 time 0 <&3 2>/dev/null || true
+  fi
+  print -n -u4 -- $'\033[?25l'
+
+  select_restore() {
+    [[ -n "$saved_stty" ]] && stty "$saved_stty" <&3 2>/dev/null || true
+    print -n -u4 -- $'\033[?25h'
+    trap - INT
+  }
+
+  trap 'select_restore; print -u4; return 130' INT
+
+  while true; do
+    if $drawn; then
+      print -n -u4 -- "\033[${count}A"
+    fi
+    for (( i = 1; i <= count; i++ )); do
+      print -n -u4 -- $'\r\033[K'
+      if (( i == idx )); then
+        print -u4 -- "  ${C_CYAN}❯ ${options[i]}${C_RESET}"
+      else
+        print -u4 -- "    ${C_DIM}${options[i]}${C_RESET}"
+      fi
+    done
+    drawn=true
+
+    IFS= read -r -k 1 -u 3 key || {
+      select_restore
+      return 130
+    }
+
+    case "$key" in
+      $'\033')
+        seq=""
+        IFS= read -r -k 1 -t 0.05 -u 3 seq 2>/dev/null || seq=""
+        if [[ "$seq" == "[" ]]; then
+          seq=""
+          IFS= read -r -k 1 -t 0.05 -u 3 seq 2>/dev/null || seq=""
+          case "$seq" in
+            A) (( idx > 1 )) && (( idx-- )) ;;
+            B) (( idx < count )) && (( idx++ )) ;;
+          esac
+        fi
+        ;;
+      j) (( idx < count )) && (( idx++ )) ;;
+      k) (( idx > 1 )) && (( idx-- )) ;;
+      $'\n'|$'\r')
+        SELECT_INDEX=$idx
+        select_restore
+        return 0
+        ;;
+      $'\003')
+        select_restore
+        print -u4
+        return 130
+        ;;
+      [1-9])
+        if (( key <= count )); then
+          SELECT_INDEX=$key
+          select_restore
+          return 0
+        fi
+        ;;
+    esac
+  done
+}
+
 PROMPT_REPLY=""
 prompt_input_or_skip() {
   local prompt="$1"
@@ -754,21 +848,9 @@ detect_black_leader_seconds() {
   return 1
 }
 
-trimmed_path_for() {
-  local file="$1"
-  local dir="${file:h}"
-  local base="${file:t}"
-
-  if [[ "$base" == *.* ]]; then
-    print -r -- "${dir}/${base:r}.trimmed.${base:e}"
-  else
-    print -r -- "${dir}/${base}.trimmed"
-  fi
-}
-
 check_black_frames() {
   local file="$1"
-  local seconds trimmed rc
+  local seconds rc output trim_start
 
   $CHECK_BLACKFRAMES || return 0
   is_video_path "$file" || return 0
@@ -796,16 +878,25 @@ check_black_frames() {
   say ""
 
   if prompt_yes_no "Trim File?" "Y"; then
-    if ffmpeg-lossless-cut --from "$seconds" "$file" < "$TTY" > "$TTY" 2>&1; then
-      trimmed="$(trimmed_path_for "$file")"
-      if [[ -f "$trimmed" ]]; then
-        AUDIT_PATH="$trimmed"
-      fi
-      mark_fixed "Trim complete."
+    output="$(ffmpeg-lossless-cut --print-start --from "$seconds" -- "$file" < "$TTY" 2> "$TTY")"
+    rc=$?
+    trim_start=""
+    [[ -n "$output" ]] && trim_start="${${(M)${(f)output}:#FLC_START=*}[-1]#FLC_START=}"
+
+    if (( rc == 0 )) && [[ -n "$trim_start" ]]; then
+      PENDING_TRIM_START="$trim_start"
+      PENDING_FIXES+=("black-frames")
       return 0
     fi
 
-    fail "Trim workflow did not complete."
+    if (( rc == 0 )); then
+      warn "Keyframe selection cancelled; skipped trim."
+      (( skip_count++ ))
+      mark_unresolved
+      return 1
+    fi
+
+    fail "Keyframe selection did not complete."
     (( fail_count++ ))
     mark_unresolved
     return 1
@@ -845,6 +936,78 @@ probe_media_tags() {
   return 0
 }
 
+media_duration_seconds() {
+  ffprobe -v error -show_entries format=duration \
+    -of default=noprint_wrappers=1:nokey=1 -- "$1" 2>/dev/null
+}
+
+# Draw a single in-place progress bar frame from ffmpeg -progress values.
+draw_rewrite_progress_bar() {
+  local total="$1" out_time="$2" speed="$3" state="${4:-}" cols="${5:-80}"
+
+  awk -v total="$total" -v t="$out_time" -v speed="$speed" -v state="$state" -v cols="$cols" '
+    function clk(s,   h, m, sec) {
+      if (s < 0) s = 0
+      h = int(s / 3600); s -= h * 3600
+      m = int(s / 60);   sec = int(s - m * 60)
+      return (h > 0) ? sprintf("%d:%02d:%02d", h, m, sec) : sprintf("%02d:%02d", m, sec)
+    }
+    BEGIN {
+      esc = sprintf("%c", 27)
+      cyan = esc "[1;36m"; dim = esc "[2m"; green = esc "[1;32m"
+      yellow = esc "[1;33m"; reset = esc "[0m"; clr = esc "[K"
+
+      n = split(t, p, ":")
+      elapsed = (n == 3) ? p[1] * 3600 + p[2] * 60 + p[3] : t + 0
+      sp = speed; gsub(/[^0-9.]/, "", sp); sp = sp + 0
+      total = total + 0
+      if (state == "end" && total > 0) elapsed = total
+
+      if (total > 0) {
+        pct = elapsed / total * 100
+        if (pct < 0) pct = 0; if (pct > 100) pct = 100
+        barw = cols - 40
+        if (barw < 10) barw = 10; if (barw > 48) barw = 48
+        filled = int(pct / 100 * barw + 0.5)
+        if (filled > barw) filled = barw; if (filled < 0) filled = 0
+        fill = ""; for (i = 0; i < filled; i++) fill = fill "█"
+        emp = "";  for (i = 0; i < barw - filled; i++) emp = emp "░"
+        printf "\r  %s%3d%%%s  %s%s%s%s%s  %s / %s  %s%.2fx%s%s",
+          cyan, pct, reset,
+          green, fill, dim, emp, reset,
+          clk(elapsed), clk(total),
+          yellow, sp, reset, clr
+      } else {
+        printf "\r  %scopying…%s  %s%s elapsed%s%s",
+          cyan, reset, dim, clk(elapsed), reset, clr
+      }
+    }
+  ' >&4
+}
+
+# Consume ffmpeg -progress key=value stream on stdin, redrawing the bar.
+render_rewrite_progress() {
+  local total="${1:-}" cols="${2:-80}"
+  local line key value out_time="" speed="" state="" drew=false
+
+  while IFS= read -r line; do
+    key="${line%%=*}"
+    value="${line#*=}"
+    case "$key" in
+      out_time) out_time="$value" ;;
+      speed) speed="$value" ;;
+      progress)
+        state="$value"
+        draw_rewrite_progress_bar "$total" "$out_time" "$speed" "$state" "$cols"
+        drew=true
+        ;;
+    esac
+  done
+
+  [[ "$drew" == true ]] && print -n -u4 -- $'\r\033[K'
+  return 0
+}
+
 rewrite_with_metadata() {
   local file="$1"
   shift
@@ -852,16 +1015,20 @@ rewrite_with_metadata() {
   local dir="${file:h}"
   local base="${file:t:r}"
   local ext="${file:e}"
-  local tmp
+  local tmp total errlog
   local -a ffmpeg_args metadata_args
+  integer rc=0
 
   metadata_args=("$@")
 
   command -v ffmpeg >/dev/null 2>&1 || return 1
   tmp="$(mktemp "${dir}/.${base}.metadata.XXXXXX.${ext}")" || return 1
 
-  ffmpeg_args=(
-    -hide_banner -loglevel error -nostdin -y
+  ffmpeg_args=(-hide_banner -loglevel error -nostdin -y)
+
+  [[ -n "$PENDING_TRIM_START" ]] && ffmpeg_args+=(-ss "$PENDING_TRIM_START")
+
+  ffmpeg_args+=(
     -i "$file"
     -map '0:v?'
     -map '0:a?'
@@ -876,7 +1043,26 @@ rewrite_with_metadata() {
 
   ffmpeg_args+=("${metadata_args[@]}" "$tmp")
 
-  if ffmpeg "${ffmpeg_args[@]}"; then
+  if [[ -t 4 ]]; then
+    total="$(media_duration_seconds "$file")"
+    if [[ -n "$total" && -n "$PENDING_TRIM_START" ]]; then
+      total="$(awk -v t="$total" -v s="$PENDING_TRIM_START" 'BEGIN { d = t - s; if (d < 0) d = 0; print d }')"
+    fi
+
+    errlog="$(mktemp -t media-check-ffmpeg.XXXXXX)" || errlog=""
+    clear_status
+    ffmpeg -progress pipe:1 "${ffmpeg_args[@]}" 2>"${errlog:-/dev/null}" \
+      | render_rewrite_progress "$total" "${COLUMNS:-80}" || rc=$?
+
+    if (( rc != 0 )) && [[ -n "$errlog" ]]; then
+      cat -- "$errlog" >&4
+    fi
+    [[ -n "$errlog" ]] && rm -f -- "$errlog"
+  else
+    ffmpeg "${ffmpeg_args[@]}" || rc=$?
+  fi
+
+  if (( rc == 0 )); then
     copy_creation_date "$file" "$tmp" || {
       rm -f -- "$tmp" 2>/dev/null || true
       return 1
@@ -990,6 +1176,8 @@ apply_pending_rewrite() {
   return 1
 }
 
+# Prints four lines: full-strip query, its search URL,
+# braces-only-strip query, its search URL.
 filename_search_query() {
   local name="$1"
 
@@ -1000,11 +1188,16 @@ import sys
 import urllib.parse
 
 stem = os.path.splitext(sys.argv[1])[0]
-stem = re.sub(r"\[[^\]]*\]|\{[^}]*\}", " ", stem)
-stem = re.sub(r"\s+", " ", stem).strip()
 
-print(stem)
-print("https://www.google.com/search?q=" + urllib.parse.quote_plus(stem))
+def clean(value):
+    return re.sub(r"\s+", " ", value).strip()
+
+braces_only = clean(re.sub(r"\{[^}]*\}", " ", stem))
+full = clean(re.sub(r"\[[^\]]*\]", " ", braces_only))
+
+for query in (full, braces_only):
+    print(query)
+    print("https://www.google.com/search?q=" + urllib.parse.quote_plus(query))
 PY
 }
 
@@ -1023,8 +1216,8 @@ open_in_browser() {
 
 check_source_url() {
   local file="$1"
-  local url query search_url choice
-  local -a search_info
+  local url action
+  local -a search_info options actions
 
   $CHECK_URL || return 0
 
@@ -1035,52 +1228,43 @@ check_source_url() {
   say "source-url: missing"
   say ""
 
-  query=""
-  search_url=""
+  options=()
+  actions=()
+
   if command -v python3 >/dev/null 2>&1; then
     search_info=("${(@f)$(filename_search_query "${file:t}")}")
-    query="${search_info[1]-}"
-    search_url="${search_info[2]-}"
+    if [[ -n "${search_info[1]-}" ]]; then
+      options+=("search browser: ${search_info[1]}")
+      actions+=("open:${search_info[2]}")
+    fi
+    if [[ -n "${search_info[3]-}" && "${search_info[3]-}" != "${search_info[1]-}" ]]; then
+      options+=("search browser: ${search_info[3]}")
+      actions+=("open:${search_info[4]}")
+    fi
   fi
 
-  while true; do
-    if [[ -n "$query" ]]; then
-      say_raw "  s) search browser for: ${query}"
-    fi
-    say_raw "  m) enter URL manually"
-    say_raw "  k) skip this file"
-    say ""
+  options+=("enter URL manually" "skip this file")
+  actions+=("manual" "skip")
 
-    if ! prompt_input_or_skip "Choice (S/m/k):"; then
-      choice="k"
-    else
-      choice="${PROMPT_REPLY:l}"
-      [[ -z "$choice" ]] && choice="s"
-    fi
+  if ! prompt_select "${options[@]}"; then
+    action="skip"
+  else
+    action="${actions[$SELECT_INDEX]}"
+  fi
 
-    case "$choice" in
-      s)
-        if [[ -z "$search_url" ]]; then
-          warn "No search query could be built from this filename."
-          continue
-        fi
-        open_in_browser "$search_url" || continue
-        break
-        ;;
-      m)
-        break
-        ;;
-      k)
-        warn "Skipped source URL."
-        (( skip_count++ ))
-        mark_unresolved
-        return 1
-        ;;
-      *)
-        warn "Please answer s, m, or k."
-        ;;
-    esac
-  done
+  case "$action" in
+    open:*)
+      open_in_browser "${action#open:}" || true
+      ;;
+    manual)
+      ;;
+    skip)
+      warn "Skipped source URL."
+      (( skip_count++ ))
+      mark_unresolved
+      return 1
+      ;;
+  esac
 
   say ""
 
@@ -1281,6 +1465,7 @@ audit_file() {
   PENDING_METADATA_ARGS=()
   PENDING_FIXES=()
   PENDING_FASTSTART=false
+  PENDING_TRIM_START=""
   reset_file_checks
 
   if [[ -t 4 ]]; then

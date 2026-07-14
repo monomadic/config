@@ -44,6 +44,8 @@ Options:
   -f, --force               Replace the source without the overwrite prompt
   -k, --keep-previews       Keep temporary preview directories
   --dry-run                 Show planned actions only
+  --print-start             Select a keyframe, print FLC_START=<seconds> to
+                            stdout, and exit without cutting anything
   --mov-faststart           Enable MP4/MOV FastStart on the output
   --skip-detection          Deprecated no-op; detection is off unless requested
   --detect-black-scenes     Auto-start after a leading black scene when found
@@ -1070,6 +1072,7 @@ yes=false
 force=false
 keep_previews=false
 dry_run=false
+print_start=false
 mov_faststart=false
 detect_black_leader=false
 black_leader_start_tolerance="${BLACK_LEADER_START_TOLERANCE:-0.25}"
@@ -1113,6 +1116,10 @@ while (( $# > 0 )); do
       ;;
     --dry-run)
       dry_run=true
+      shift
+      ;;
+    --print-start)
+      print_start=true
       shift
       ;;
     --mov-faststart|--faststart)
@@ -1218,6 +1225,13 @@ for input_file in "${files[@]}"; do
   fi
 
   pretty_ts="$(format_ts "$ts")"
+
+  if [[ "$print_start" == true ]]; then
+    print -r -- "FLC_START=$ts"
+    (( ++ok_count ))
+    continue
+  fi
+
   final_output="$input_file"
   work_output="$(make_work_output "$input_file")"
 
