@@ -1,32 +1,21 @@
 # Zsh Config — Outstanding Tasks
 
-P0 (leak scrub) and the P1–P3 assessment (startup 109 ms → 27 ms, keybinding/history
-conflicts, dead aliases) are done and pushed. The footgun aliases (`ga`/`gca`/`~=grep`),
-the `dd`→`deploy` rename, and the stray `songs/`/`lua/` dirs are also cleared. What's
-left is the P4 structural work, none of which is a clean unprompted win — notes below.
+P0 (leak scrub), P1–P3 (startup 109 ms → 27 ms, keybinding/history conflicts, dead
+aliases), the footgun-alias cleanup, and the P4 `alias.zsh` re-home are all done and
+pushed. Nothing is outstanding. The two remaining P4 ideas were considered and
+deliberately left alone — rationale kept here so they don't get re-raised:
 
-## P4 — structure
-
-### Re-home `alias.zsh` (770 lines) — worth doing, needs a focused pass
-
-Its yt-dlp / ffmpeg / rsync / kitty / mpv sections duplicate the domain files that
-already exist. Verified conflict-free: no alias/function name in `alias.zsh` collides
-with one in `ffmpeg.zsh`, `media.zsh`, `yt-dlp.zsh`, `kitty.zsh`, or `rsync.zsh`, so a
-move overrides nothing, and aliases/functions load lazily so source order is safe.
-
-The catch is categorization, not safety: the yt-dlp and rsync sections move cleanly
-into their files, but the mpv/media/download/ffmpeg aliases blur together and
-`media.zsh` is already 200+ lines — deciding where the fuzzy ones live is a taste call.
-Best done as its own commit (easy to review/revert), unambiguous sections first.
+## Considered and declined
 
 ### Slim `zshenv.zsh` — not worth it
 
-Rationale was to stop interactive-only exports (media glob arrays, `JUMP_DIRS`, FZF
-options) loading for every non-interactive zsh. But **zero `bin/` scripts read any of
-them**, and startup is already 27 ms, so moving them is cosmetic with a small risk of
-breaking a subshell that relies on the export. Recommend leaving as-is.
-(One real bug to fix if touched: `ZSH_SCRIPT_PATHS` is declared as an exported array —
-zsh can't export arrays, so it silently exports a scalar. `configure-bin` reads it.)
+The idea was to stop interactive-only exports (media glob arrays, `JUMP_DIRS`, FZF
+options) from loading for every non-interactive zsh. But **zero `bin/` scripts read any
+of them**, and startup is already 27 ms, so moving them is cosmetic with a small risk
+of breaking a subshell that relies on the export.
+(If ever touched: `ZSH_SCRIPT_PATHS` is declared as an exported array — zsh can't export
+arrays, so it silently exports a scalar. `configure-bin` reads it. That's the one real
+bug in zshenv worth fixing.)
 
 ### Rename `autoload/` — skip
 
