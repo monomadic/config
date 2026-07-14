@@ -13,13 +13,8 @@ if [[ -o interactive ]]; then
   # Helper Functions
   # ===============================================================================
 
-  # Optional lazy loader for fzf initialization
   _ensure_fzf_loaded() {
-    # If you used a precmd deferral, call it here once when a widget is hit
-    typeset -f _lazy_fzf_precmd >/dev/null && {
-      add-zsh-hook -d precmd _lazy_fzf_precmd 2>/dev/null
-      _lazy_fzf_precmd
-    }
+    typeset -f _load_fzf_once >/dev/null && _load_fzf_once
   }
 
   # ===============================================================================
@@ -29,11 +24,7 @@ if [[ -o interactive ]]; then
   # Yazi file manager with directory change on exit
   _cd-yazi() {
     local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd title
-    if (( $+functions[_kitty_shell_label] )); then
-      title="󰘳 $(_kitty_shell_label)"
-    else
-      title="󰘳 ${PWD:t}"
-    fi
+    title="yazi"
 
     zle -I 2>/dev/null
     kitty-exec "$title" '#FF44CC' yazi "$@" --cwd-file="$tmp"
@@ -209,7 +200,7 @@ if [[ -o interactive ]]; then
 
   # Primary key bindings
   bindkey '^@'         _cd-yazi                  # Ctrl+Space: Yazi file manager
-  bindkey '^f'         _fzf_ripgrep              # Ctrl+F: FZF ripgrep
+  bindkey '^f'         forward-char              # Ctrl+F: emacs forward-char
   bindkey '^M'         accept-line               # Enter: normal accept
   bindkey '^o'         _cd-fzf                   # Ctrl+O: global directory jump
   bindkey '^[g'        _cd-fzf-legacy            # Alt+G: global directory jump
@@ -223,6 +214,8 @@ if [[ -o interactive ]]; then
   bindkey -M emacs $'\e[104;10u' fzf-history-widget  # Cmd+Shift+H
   bindkey -M viins $'\e[104;10u' fzf-history-widget
   bindkey -M emacs $'\e[105;9u' fzf-insert-path     # Cmd+I
+  bindkey -M emacs $'\e[102;9u' _fzf_ripgrep         # Cmd+F: FZF ripgrep
+  bindkey -M viins $'\e[102;9u' _fzf_ripgrep
   bindkey -M emacs $'\e[111;9u' _cd-fzf             # Cmd+O: global jump
   bindkey -M viins $'\e[111;9u' _cd-fzf
   bindkey -M emacs $'\e[111;10u' _cd-fzf-local      # Cmd+Shift+O: local jump
@@ -236,6 +229,7 @@ if [[ -o interactive ]]; then
   # kept explicit so ownership is visible in one place)
   bindkey '^[[1;9o' _cd-fzf
   bindkey '^T' fzf-file-widget
+  bindkey '^I' fzf_completion
   bindkey '^U' kill-whole-line
   bindkey '^R' fzf-history-widget
 

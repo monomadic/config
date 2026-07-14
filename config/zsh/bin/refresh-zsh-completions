@@ -1,0 +1,23 @@
+#!/bin/zsh
+set -euo pipefail
+
+completion_dir="${ZSH_COMPLETIONS_DIR:-$HOME/.zsh/completions}"
+mkdir -p -- "$completion_dir"
+
+if (( $+commands[fd] )); then
+  fd --gen-completions=zsh >! "$completion_dir/_fd"
+fi
+
+if (( $+commands[rg] )); then
+  rg --generate complete-zsh >! "$completion_dir/_rg"
+fi
+
+if (( $+commands[dotter] )); then
+  dotter gen-completions --shell zsh >! "$completion_dir/_dotter"
+fi
+
+if (( $+commands[bat] )); then
+  bat --completion zsh >! "$completion_dir/_bat"
+fi
+
+print -r -- "Refreshed generated zsh completions in $completion_dir"

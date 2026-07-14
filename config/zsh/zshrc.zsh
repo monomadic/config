@@ -9,6 +9,72 @@ setopt autocd autopushd
 typeset -g ZSH_CACHE_DIR="$XDG_CACHE_HOME/zsh"
 mkdir -p "$ZSH_CACHE_DIR"
 
+export ICLOUD_HOME=$HOME"/Library/Mobile Documents/com~apple~CloudDocs"
+export TAILSCALE_DNS_NAME="eel-beardie.ts.net"
+
+export YT_DLP_ARCHIVE_FILE="$ICLOUD_HOME/Sync/archive.txt"
+export YT_DLP_BATCH_FILE="$ICLOUD_HOME/Sync/links.txt"
+export YT_DLP_JSON_DIR="$ICLOUD_HOME/Sync/JSON"
+export YT_DLP_TEMP_DIR="$HOME/.cache/yt-dlp-tmp"
+export YT_DLP_THUMBCACHE_DIR="$ICLOUD_HOME/Sync/ThumbCache"
+
+export COLOR_C64_DARK_BLUE=#030D43
+export COLOR_C64_LIGHT_BLUE=#7A86D1
+
+typeset -U manpath
+manpath=($manpath)
+
+JUMP_DIRS=(
+  "/Volumes/**/Movies/**/*.mp4"
+  "$HOME/Movies/**/*.mp4"
+)
+
+BASE_GLOBS=(
+  "/Volumes/*/"
+  "$HOME/"
+  "$ICLOUD_HOME"
+)
+
+ADULT_GLOBS=(
+  "/Volumes/*/Movies/Porn/**/*.mp4"
+  "$HOME/Movies/Porn/**/*.mp4"
+)
+
+TABLATURE_GLOBS=(
+  "/Volumes/*/Tablature/**/*.pdf"
+  "$HOME/Music/Tablature/**/*.pdf"
+)
+
+export ZSH_SCRIPT_PATHS=(
+  $ZSH_CONFIG_DIR/bin
+)
+
+if [[ -n ${KITTY_WINDOW_ID:-} || -n ${KITTY_LISTEN_ON:-} ]]; then
+  export EDITOR=kitty-helix
+else
+  export EDITOR=hx
+fi
+export VISUAL="$EDITOR"
+export TEMPLATE_BASE_DIR=$DOTFILES_DIR/config/neovim/templates
+
+export TABLATURE_DIR="$ICLOUD_HOME/Music/Tablature"
+export TUTORIALS_PATH=$HOME/Movies/Tutorials
+
+export LOCAL_MEDIA_PATHS="$HOME/Movies/Porn/"
+export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn/"
+export INDEX_DIR="$HOME/.indexes"
+export PRIVATE_PHOTOS_LIBRARY="$HOME/Media/Private/Private.photoslibrary"
+
+export HELIX_USE_OSC52=true
+export WASMTIME_HOME=$HOME/.wasmtime
+path+=($WASMTIME_HOME/bin)
+export GHQ_ROOT=$HOME/src
+
+export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS --bind 'ctrl-a:select-all' --layout=reverse --cycle --preview-window=noborder --highlight-line --no-separator --gutter=' ' --no-border --inline-info --bind 'ctrl-u:unix-line-discard'"
+export FZF_COMPLETION_TRIGGER='\t'
+export FZF_PREVIEW_COMMAND='fzf-preview {}'
+export SKIM_DEFAULT_COMMAND="fd . --max-depth=3"
+
 # Completion search path FIRST, then a single compinit.
 # site-functions must be present here: brew shellenv (sourced later) also adds
 # it, but compinit only registers completions from dirs in fpath at this point.
@@ -43,17 +109,41 @@ fi
 # Autoload common helper module
 autoload -Uz add-zsh-hook
 
-# --- Lazy fzf init on first prompt ---
-_lazy_fzf_precmd() {
-  # only source if files exist
-  [[ -r "$ZSH_AUTOLOAD_DIR/fzf.zsh" ]]             && source "$ZSH_AUTOLOAD_DIR/fzf.zsh"
-  [[ -r "$ZSH_AUTOLOAD_DIR/fzf-completions.zsh" ]] && source "$ZSH_AUTOLOAD_DIR/fzf-completions.zsh"
-  [[ -r "$ZSH_AUTOLOAD_DIR/fzf-custom.zsh" ]]      && source "$ZSH_AUTOLOAD_DIR/fzf-custom.zsh"
-  [[ -r "$ZSH_AUTOLOAD_DIR/fzf-marks.zsh" ]]       && source "$ZSH_AUTOLOAD_DIR/fzf-marks.zsh"  # optional
+_source_zsh_module() {
+  local name="$1"
+  local file
 
-  add-zsh-hook -d precmd _lazy_fzf_precmd
+  for file in "$ZSH_AUTOLOAD_DIR/$name" "$ZSH_DOTFILES_DIR/autoload/$name"; do
+    [[ -r "$file" ]] || continue
+    source "$file"
+    return
+  done
+
+  print -P "%F{red}Missing zsh module: $name%f"
+  return 1
 }
-add-zsh-hook precmd _lazy_fzf_precmd
+
+_load_fzf_once() {
+  [[ "${_FZF_SHELL_LOADED:-0}" == 1 ]] && return 0
+
+  _source_zsh_module fzf.zsh
+  _source_zsh_module fzf-completions.zsh
+  _source_zsh_module fzf-custom.zsh
+  _source_zsh_module fzf-marks.zsh
+  typeset -g _FZF_SHELL_LOADED=1
+}
+
+_fzf_lazy_widget() {
+  local widget="$WIDGET"
+  _load_fzf_once || return
+  zle "$widget" "$@"
+}
+
+if [[ -o interactive ]]; then
+  zle -N fzf-file-widget _fzf_lazy_widget
+  zle -N fzf-history-widget _fzf_lazy_widget
+  zle -N fzf_completion _fzf_lazy_widget
+fi
 
 config_files=(
   $ZSH_AUTOLOAD_DIR/homebrew.zsh
@@ -79,7 +169,7 @@ config_files=(
 )
 for config_file in $config_files; do
   # print -nP "%F{green}.%f"
-  if ! source $config_file; then
+  if ! _source_zsh_module "${config_file:t}"; then
     print -P "%F{red}Error sourcing $config_file. Skipping...%f"
   fi
 done

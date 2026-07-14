@@ -20,58 +20,6 @@
 
 source $HOME/.bin/init-path
 
-# ICLOUD
-export ICLOUD_HOME=$HOME"/Library/Mobile Documents/com~apple~CloudDocs"
-
-# TAILSCALE
-export TAILSCALE_DNS_NAME="eel-beardie.ts.net"
-
-# YT-DLP
-export YT_DLP_ARCHIVE_FILE="$ICLOUD_HOME/Sync/archive.txt"
-export YT_DLP_BATCH_FILE="$ICLOUD_HOME/Sync/links.txt"
-export YT_DLP_JSON_DIR="$ICLOUD_HOME/Sync/JSON"
-export YT_DLP_TEMP_DIR="$HOME/.cache/yt-dlp-tmp"
-export YT_DLP_THUMBCACHE_DIR="$ICLOUD_HOME/Sync/ThumbCache"
-
-export COLOR_C64_DARK_BLUE=#030D43
-export COLOR_C64_LIGHT_BLUE=#7A86D1
-
-# MANPATH CONFIGURATION
-#
-typeset -U manpath
-manpath=(
-  $manpath
-)
-
-JUMP_DIRS=(
-  "/Volumes/**/Movies/**/*.mp4"
-  "$HOME/Movies/**/*.mp4"
-)
-
-BASE_GLOBS=(
-  "/Volumes/*/"
-  "$HOME/"
-  "$ICLOUD_HOME"
-)
-
-# usage:
-# setopt local_options null_glob
-# mpv $~ADULT_GLOBS
-# print -rl -- $^ADULT_GLOBS
-# print -rl -- $~ADULT_GLOBS
-#
-# null safe:
-# printf '%s\0' $~MEDIA_GLOBS | fzf --read0 -m
-ADULT_GLOBS=(
-  "/Volumes/*/Movies/Porn/**/*.mp4"
-  "$HOME/Movies/Porn/**/*.mp4"
-)
-
-TABLATURE_GLOBS=(
-  "/Volumes/*/Tablature/**/*.pdf"
-  "$HOME/Music/Tablature/**/*.pdf"
-)
-
 export ZSH_CONFIG_DIR=$HOME/.zsh
 export ZSH_COMPLETIONS_DIR=$ZSH_CONFIG_DIR/completions
 export ZSH_AUTOLOAD_DIR=$ZSH_CONFIG_DIR/autoload
@@ -80,47 +28,8 @@ export XDG_CONFIG_HOME=$CONFIG_DIR
 export DOTFILES_DIR=$HOME/config
 export ZSH_DOTFILES_DIR=$DOTFILES_DIR/config/zsh
 
-export ZSH_SCRIPT_PATHS=(
-  $ZSH_CONFIG_DIR/bin
-)
-
-if [[ -n ${KITTY_WINDOW_ID:-} || -n ${KITTY_LISTEN_ON:-} ]]; then
-  export EDITOR=kitty-helix
-else
-  export EDITOR=hx
-fi
-export VISUAL="$EDITOR"
-export TEMPLATE_BASE_DIR=$DOTFILES_DIR/config/neovim/templates
-
-export TABLATURE_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature"
-export TUTORIALS_PATH=$HOME/Movies/Tutorials
-
-# Media
-export LOCAL_MEDIA_PATHS="$HOME/Movies/Porn/"
-export EXTERNAL_MEDIA_PATHS="/Volumes/*/Movies/Porn/"
-export INDEX_DIR="$HOME/.indexes"
-export PRIVATE_PHOTOS_LIBRARY="$HOME/Media/Private/Private.photoslibrary"
-
 export HOSTNAME=$HOST  # zsh builtin; $(hostname) forked on every zsh invocation
-
-# Helix
-export HELIX_USE_OSC52=true
-
-# WASMTime
-export WASMTIME_HOME=$HOME/.wasmtime
-export PATH=$PATH:$WASMTIME_HOME/bin
 
 # Set default language and character encoding
 export LANG="en_US.UTF-8"
 export LC_ALL="en_US.UTF-8"
-
-export GHQ_ROOT=$HOME/src
-
-# FZF / Skim
-#export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS --bind 'alt-r:execute-silent(open --reveal {1})' --bind 'alt-s:select-all+accept' --layout=reverse --cycle --preview-window=noborder --highlight-line --no-separator --gutter=' ' --no-border --inline-info --bind 'ctrl-u:unix-line-discard' --color=bg:-1,fg:blue,info:15,header:7,hl:red,hl+:red,gutter:-1,prompt:yellow,marker:-1,bg+:black,pointer:yellow,fg+:yellow"
-export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS --bind 'ctrl-a:select-all' --layout=reverse --cycle --preview-window=noborder --highlight-line --no-separator --gutter=' ' --no-border --inline-info --bind 'ctrl-u:unix-line-discard'"
-export FZF_COMPLETION_TRIGGER='\t' # Keep Tab on the custom zsh completion picker
-# FZF_COMPLETION_OPTS is defined in autoload/fzf.zsh (sourced later, so it owns it).
-export FZF_PREVIEW_COMMAND='fzf-preview {}'
-#export SKIM_DEFAULT_OPTIONS=$FZF_DEFAULT_OPTS
-export SKIM_DEFAULT_COMMAND="fd . --max-depth=3"

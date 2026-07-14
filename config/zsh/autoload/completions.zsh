@@ -27,14 +27,7 @@ fi
 
 #eval "$(rmrfrs --completions zsh)" &> /dev/null
 
-# Ensure completions directory exists
-mkdir -p ~/.zsh/completions
-
-# Generate completions once if missing
-[[ ! -f ~/.zsh/completions/_fd ]] && fd --gen-completions=zsh >~/.zsh/completions/_fd
-[[ ! -f ~/.zsh/completions/_rg ]] && rg --generate complete-zsh >~/.zsh/completions/_rg
-[[ ! -f ~/.zsh/completions/_dotter ]] && dotter gen-completions --shell zsh >~/.zsh/completions/_dotter
-[[ ! -f ~/.zsh/completions/_bat ]] && bat --completion zsh >~/.zsh/completions/_bat
+# Generated completions are refreshed explicitly with `refresh-zsh-completions`.
 
 # `fpath` and `compinit` are handled centrally in `~/.zshrc`; the dump is
 # rebuilt automatically when a completion dir changes, so no manual compdefs.

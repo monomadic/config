@@ -117,7 +117,11 @@ alias \%select="cat $HOME/.indexes/Tower | fzf-select | mpv-send play"
 
 alias .play-downloads="fd-media --print0 . {/Users/nom/Library/Mobile\ Documents/com~apple~CloudDocs,/Users/nom,/Volumes/*}/Movies/Porn/Downloads(N) | mpv-send play -0"
 alias .play-local-downloads="fd-media --print0 . ~/Movies/Porn/Downloads | mpv-send play -0"
-alias .play-newest-local-downloads="setopt extendedglob && printf '%s\n' ~/Movies/Porn/Downloads/**/*.part~*Frag*(N.om) | mpv-send play"
+.play-newest-local-downloads() {
+  emulate -L zsh
+  setopt extended_glob
+  printf '%s\n' ~/Movies/Porn/Downloads/**/*.part~*Frag*(N.om) | mpv-send play
+}
 alias .play-local-incomplete-downloads="fd -t f -g '*.part' -E '*Frag*.part' . ~/Movies/Porn/Downloads | mpv-send play"
 
 alias .select-local="fd-media . $LOCAL_MEDIA_PATHS | fzf-select | mpv-send play"
@@ -168,7 +172,11 @@ alias .play-local-sorted="fd-media --sort created . $LOCAL_MEDIA_PATHS | fzf-sel
 # Media search shortcuts
 alias @=".play"
 alias @@=".play-all-sorted"
-alias @@@="setopt local_options null_glob && printf '%s\0' $~ADULT_GLOBS | fzf-select -0 --print0 --color | mpv-send play -0"
+@@@() {
+  emulate -L zsh
+  setopt null_glob
+  printf '%s\0' $~ADULT_GLOBS | fzf-select -0 --print0 --color | mpv-send play -0
+}
 alias @unc="fd-media . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-send play"
 alias @towerlocal="fd-media . /Volumes/Tower/Movies/Porn/(N) $HOME/Movies/Porn/(N) | mpv-send play"
 alias @unique='fd-media . /Volumes/*/Movies/Porn/(N) $HOME/Movies/Porn/(N) | awk -F/ '"'"'!seen[$NF]++'"'"' | mpv-send play'
@@ -365,7 +373,11 @@ mpv-focus() {
 alias iina-shuffle="iina --mpv-shuffle --mpv-loop-playlist"
 
 
-alias mpv-play-porn="setopt local_options null_glob && mpv-send play $~ADULT_GLOBS"
+mpv-play-porn() {
+  emulate -L zsh
+  setopt null_glob
+  mpv-send play $~ADULT_GLOBS
+}
 alias mpv-play-volumes="fd-media --print0 . /Volumes/*/Movies/Porn(N) | mpv-send play -0"
 alias mpv-play-tower="fd-media --print0 . /Volumes/Tower/Movies/Porn | mpv-send play -0"
 alias .tower=mpv-play-tower
