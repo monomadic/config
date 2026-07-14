@@ -329,11 +329,19 @@ draw_header() {
 }
 
 # Repaint only the checklist (and any inline menu) in place, leaving the
-# title, summary and thumbnail untouched — used for menu navigation.
+# title, summary and thumbnail untouched — used for menu navigation and for
+# per-check updates, so the screen never fully clears and flickers.
 render_checks_region() {
   [[ -t 4 ]] || return 0
   print -n -u4 -- $'\033['"${CHECKS_HEADER_ROW}"$';1H\033[J'
   draw_checks_block
+}
+
+# Repaint just the summary line (row 2); the fix tally changes as fixes land.
+render_summary_line() {
+  [[ -t 4 ]] || return 0
+  print -n -u4 -- $'\033[2;1H\033[K'
+  session_summary_line
 }
 
 # Pick an image backend the same way ffmpeg-lossless-cut's fzf preview does:
@@ -501,10 +509,7 @@ issue_screen() {
   CURRENT_CHECK="$check"
   set_check_status "$check" "fail"
 
-  if [[ -t 4 ]]; then
-    print -n -u4 -- $'\033[2J\033[H'
-    draw_header
-  fi
+  [[ -t 4 ]] && render_checks_region
   clear_status
 }
 
@@ -524,7 +529,8 @@ mark_fixed() {
   [[ -n "$CURRENT_CHECK" ]] && set_check_status "$CURRENT_CHECK" "pass"
 
   if [[ -t 4 ]]; then
-    redraw_screen
+    render_summary_line
+    render_checks_region
   else
     pass "$message"
   fi
@@ -547,7 +553,7 @@ run_check() {
 
   if (( rc == 0 )); then
     set_check_status "$check" "pass"
-    [[ -t 4 ]] && redraw_screen
+    [[ -t 4 ]] && render_checks_region
   else
     set_check_status "$check" "fail"
   fi
@@ -1473,7 +1479,10 @@ apply_pending_rewrite() {
 
     (( fix_count += ${#PENDING_FIXES[@]} ))
     note_repaired_file
-    [[ -t 4 ]] && redraw_screen
+    if [[ -t 4 ]]; then
+      render_summary_line
+      render_checks_region
+    fi
     return 0
   fi
 
