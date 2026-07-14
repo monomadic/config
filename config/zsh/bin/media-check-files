@@ -20,6 +20,10 @@ CHECK_METADATA=true
 CHECK_RENAME=true
 CHECK_LENGTH=true
 
+SHOW_THUMBNAIL=true
+THUMB_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/media-check-files/thumbs"
+THUMB_PX=480
+
 MAX_FILENAME_BYTES=240
 RENAME_MEDIA_TIMEOUT="${RENAME_MEDIA_TIMEOUT:-20}"
 
@@ -34,6 +38,8 @@ typeset -i fail_count=0
 
 C_RESET=$'\033[0m'
 C_DIM=$'\033[2m'
+C_BOLD=$'\033[1m'
+C_REVERSE=$'\033[7m'
 C_CYAN=$'\033[36m'
 C_GREEN=$'\033[32m'
 C_RED=$'\033[31m'
@@ -51,6 +57,11 @@ typeset -a PENDING_METADATA_ARGS=()
 typeset -a PENDING_FIXES=()
 PENDING_FASTSTART=false
 PENDING_TRIM_START=""
+THUMB_ENABLE=false
+THUMB_BACKEND=""
+THUMB_ROWS=0
+THUMB_COLS=0
+THUMB_CURRENT_IMG=""
 
 usage() {
   cat >&2 <<'EOF'
@@ -78,6 +89,7 @@ Options:
   --bypass-check-length
   --bypass-check-filename       Bypass UTF-8, rename, and length checks
   --max-filename-bytes N        Default: 240
+  --no-thumbnail                Do not render a video thumbnail at the top
   -h, --help
 EOF
 }
@@ -248,9 +260,150 @@ draw_header() {
   say ""
 }
 
+# Pick an image backend the same way ffmpeg-lossless-cut's fzf preview does:
+# kitty icat when in kitty, else wezterm/imgcat/chafa. Sized to the tty so the
+# thumbnail band never crowds out the checks panel below it.
+detect_thumb_backend() {
+  local size rows cols
+
+  THUMB_BACKEND=""
+  THUMB_ROWS=0
+  THUMB_COLS=0
+  THUMB_ENABLE=false
+
+  $SHOW_THUMBNAIL || return 0
+  [[ -t 4 ]] || return 0
+  command -v ffmpeg >/dev/null 2>&1 || return 0
+
+  if [[ -n "${KITTY_WINDOW_ID:-}" ]] && command -v kitty >/dev/null 2>&1; then
+    THUMB_BACKEND=kitty
+  elif [[ -n "${WEZTERM_PANE:-}" ]] && command -v wezterm >/dev/null 2>&1; then
+    THUMB_BACKEND=wezterm
+  elif command -v imgcat >/dev/null 2>&1; then
+    THUMB_BACKEND=imgcat
+  elif command -v chafa >/dev/null 2>&1; then
+    THUMB_BACKEND=chafa
+  else
+    return 0
+  fi
+
+  size="$(stty size <&3 2>/dev/null)"
+  rows="${size%% *}"
+  cols="${size##* }"
+  { [[ "$rows" == <-> ]] && (( rows > 0 )) } || rows="${LINES:-40}"
+  { [[ "$cols" == <-> ]] && (( cols > 0 )) } || cols="${COLUMNS:-100}"
+
+  THUMB_ROWS=12
+  (( THUMB_ROWS > rows - 18 )) && THUMB_ROWS=$(( rows - 18 ))
+  if (( THUMB_ROWS < 6 )); then
+    THUMB_ROWS=0
+    return 0
+  fi
+
+  THUMB_COLS=$(( cols / 3 ))
+  (( THUMB_COLS < 16 )) && THUMB_COLS=16
+  (( THUMB_COLS > 44 )) && THUMB_COLS=44
+
+  THUMB_ENABLE=true
+}
+
+thumb_cache_path() {
+  local file="$1"
+  local mtime size key
+
+  mtime="$(stat -f '%m' -- "$file" 2>/dev/null)"
+  size="$(stat -f '%z' -- "$file" 2>/dev/null)"
+  key="$(printf '%s:%s:%s' "$file" "$mtime" "$size" | md5 -q 2>/dev/null)"
+  [[ -n "$key" ]] || key="$(printf '%s' "${file:t}" | md5 -q 2>/dev/null)"
+  [[ -n "$key" ]] || return 1
+
+  print -r -- "$THUMB_CACHE_DIR/${key}.jpg"
+}
+
+generate_thumb() {
+  local file="$1"
+  local img="$2"
+  local tmp
+
+  [[ -s "$img" ]] && return 0
+  mkdir -p -- "${img:h}" 2>/dev/null || return 1
+  tmp="${img}.$$.jpg"
+
+  # A few seconds in usually clears any black leader; fall back to frame 0.
+  if ffmpeg -v error -y -ss 2 -i "$file" -frames:v 1 \
+      -vf "scale=${THUMB_PX}:-2:flags=lanczos" -q:v 3 -- "$tmp" 2>/dev/null \
+      && [[ -s "$tmp" ]]; then
+    mv -f -- "$tmp" "$img"
+    return 0
+  fi
+
+  rm -f -- "$tmp" 2>/dev/null || true
+  if ffmpeg -v error -y -i "$file" -frames:v 1 \
+      -vf "scale=${THUMB_PX}:-2:flags=lanczos" -q:v 3 -- "$tmp" 2>/dev/null \
+      && [[ -s "$tmp" ]]; then
+    mv -f -- "$tmp" "$img"
+    return 0
+  fi
+
+  rm -f -- "$tmp" 2>/dev/null || true
+  return 1
+}
+
+set_current_thumb() {
+  local file="$1"
+  local img
+
+  THUMB_CURRENT_IMG=""
+  $THUMB_ENABLE || return 0
+  is_video_path "$file" || return 0
+
+  img="$(thumb_cache_path "$file")" || return 0
+  generate_thumb "$file" "$img" || return 0
+  THUMB_CURRENT_IMG="$img"
+}
+
+render_thumb_band() {
+  $THUMB_ENABLE || return 0
+
+  if [[ "$THUMB_BACKEND" == kitty ]]; then
+    if [[ -n "$THUMB_CURRENT_IMG" ]]; then
+      kitty +kitten icat --clear --transfer-mode=stream --stdin=no \
+        --place="${THUMB_COLS}x${THUMB_ROWS}@0x0" -- "$THUMB_CURRENT_IMG" >&4 2>/dev/null
+      # icat --place leaves the cursor at home; drop below the reserved band.
+      print -n -u4 -- $'\033['"$(( THUMB_ROWS + 1 ))"$'H'
+    else
+      kitty +kitten icat --clear --stdin=no >&4 2>/dev/null
+    fi
+    return 0
+  fi
+
+  [[ -n "$THUMB_CURRENT_IMG" ]] || return 0
+
+  case "$THUMB_BACKEND" in
+    wezterm)
+      wezterm imgcat --width "${THUMB_COLS}" -- "$THUMB_CURRENT_IMG" >&4 2>/dev/null
+      ;;
+    imgcat)
+      imgcat "$THUMB_CURRENT_IMG" >&4 2>/dev/null
+      ;;
+    chafa)
+      chafa --animate=off --size="${THUMB_COLS}x${THUMB_ROWS}" \
+        -- "$THUMB_CURRENT_IMG" >&4 2>/dev/null
+      ;;
+  esac
+  print -u4 -- ""
+}
+
+clear_thumb() {
+  $THUMB_ENABLE || return 0
+  [[ "$THUMB_BACKEND" == kitty ]] || return 0
+  kitty +kitten icat --clear --stdin=no >&4 2>/dev/null || true
+}
+
 redraw_screen() {
   [[ -t 4 ]] || return 0
   print -n -u4 -- $'\033[2J\033[H'
+  render_thumb_band
   draw_header
 }
 
@@ -281,6 +434,7 @@ issue_screen() {
 
   if [[ -t 4 ]]; then
     print -n -u4 -- $'\033[2J\033[H'
+    render_thumb_band
     draw_header
   fi
   clear_status
@@ -431,7 +585,8 @@ prompt_select() {
   local -a options=("$@")
   local count=${#options[@]}
   local idx=1 i key seq saved_stty line
-  local drawn=false
+  local width fw text hint first=true
+  local -a lines
 
   SELECT_INDEX=0
   (( count > 0 )) || return 1
@@ -445,6 +600,13 @@ prompt_select() {
     SELECT_INDEX=$line
     return 0
   fi
+
+  # Each row must occupy exactly one physical line, or the redraw's
+  # cursor-up count desyncs and smears text. Truncate to the tty width.
+  width="$(stty size <&3 2>/dev/null | awk '{print $2}')"
+  [[ "$width" == <-> ]] && (( width >= 40 )) || width="${COLUMNS:-100}"
+  fw=$(( width - 7 ))
+  (( fw < 20 )) && fw=20
 
   saved_stty=""
   if command -v stty >/dev/null 2>&1; then
@@ -461,19 +623,32 @@ prompt_select() {
 
   trap 'select_restore; print -u4; return 130' INT
 
+  hint="↑↓/jk move · 1-${count} jump · enter select · ctrl-c skip"
+  (( ${#hint} > width - 3 )) && hint="${hint[1,width-4]}…"
+
   while true; do
-    if $drawn; then
-      print -n -u4 -- "\033[${count}A"
-    fi
+    lines=()
     for (( i = 1; i <= count; i++ )); do
-      print -n -u4 -- $'\r\033[K'
+      text="${options[i]}"
+      (( ${#text} > fw )) && text="${text[1,fw-1]}…"
       if (( i == idx )); then
-        print -u4 -- "  ${C_CYAN}❯ ${options[i]}${C_RESET}"
+        lines+=( "  ${C_REVERSE}${C_BOLD} ❯ ${(r:fw:)text} ${C_RESET}" )
       else
-        print -u4 -- "    ${C_DIM}${options[i]}${C_RESET}"
+        lines+=( "     ${C_DIM}${text}${C_RESET}" )
       fi
     done
-    drawn=true
+    lines+=( "" )
+    lines+=( "  ${C_DIM}${hint}${C_RESET}" )
+
+    if [[ "$first" == true ]]; then
+      first=false
+    else
+      printf '\033[%dA' "${#lines[@]}" >&4
+    fi
+    for (( i = 1; i <= ${#lines[@]}; i++ )); do
+      print -rn -u4 -- $'\r\033[K'"${lines[i]}"
+      print -u4 -- ""
+    done
 
     IFS= read -r -k 1 -u 3 key || {
       select_restore
@@ -525,6 +700,54 @@ prompt_input_or_skip() {
   read_prompt_line || return 130
   PROMPT_REPLY="$READ_PROMPT_REPLY"
   return 0
+}
+
+# Prompts until a valid http(s) URL is entered. Sets PROMPT_URL and returns 0,
+# or returns 1 if the user pressed Ctrl-C to skip.
+PROMPT_URL=""
+prompt_valid_url() {
+  PROMPT_URL=""
+
+  while true; do
+    if ! prompt_input_or_skip "Source URL (Ctrl-C to skip):"; then
+      return 1
+    fi
+    if [[ -z "$PROMPT_REPLY" ]]; then
+      warn "Blank URL ignored. Press Ctrl-C to skip."
+      continue
+    fi
+    if ! is_url "$PROMPT_REPLY"; then
+      warn "Expected http:// or https:// URL."
+      continue
+    fi
+    PROMPT_URL="$PROMPT_REPLY"
+    return 0
+  done
+}
+
+# Animate a spinner on fd 4 until $1 (a background PID) exits; returns its
+# exit status. Falls back to a plain wait when fd 4 is not a terminal.
+spin_until_pid() {
+  local pid="$1"
+  local label="${2:-working…}"
+  local start=$SECONDS
+  integer i=0
+  local -a spin=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+
+  if [[ ! -t 4 ]]; then
+    wait "$pid"
+    return $?
+  fi
+
+  while kill -0 "$pid" 2>/dev/null; do
+    print -n -u4 -- $'\r\033[K'"  ${C_CYAN}${spin[i % 10 + 1]}${C_RESET}  ${label} ${C_DIM}$(( SECONDS - start ))s${C_RESET}"
+    (( i++ ))
+    sleep 0.15
+  done
+
+  print -n -u4 -- $'\r\033[K'
+  wait "$pid"
+  return $?
 }
 
 is_video_path() {
@@ -988,27 +1211,50 @@ draw_rewrite_progress_bar() {
   ' >&4
 }
 
-# Consume ffmpeg -progress key=value stream on stdin, redrawing the bar.
-render_rewrite_progress() {
-  local total="${1:-}" cols="${2:-80}"
-  local line key value out_time="" speed="" state="" drew=false
+# Poll ffmpeg's -progress file while it runs. Once the muxed data hits ~100%,
+# ffmpeg's faststart pass rewrites the whole file to move the moov atom to the
+# front and emits no further progress, so animate a spinner for that phase
+# instead of freezing the bar at 99%.
+monitor_ffmpeg_progress() {
+  local pid="$1" pfile="$2" total="$3" cols="$4"
+  local tail_label="${5:-finalizing…}"
+  local block out_time speed pct
+  local start=$SECONDS
+  integer spin_i=0
+  local -a spin=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
 
-  while IFS= read -r line; do
-    key="${line%%=*}"
-    value="${line#*=}"
-    case "$key" in
-      out_time) out_time="$value" ;;
-      speed) speed="$value" ;;
-      progress)
-        state="$value"
-        draw_rewrite_progress_bar "$total" "$out_time" "$speed" "$state" "$cols"
-        drew=true
-        ;;
-    esac
+  while kill -0 "$pid" 2>/dev/null; do
+    out_time=""
+    speed=""
+    pct=0
+
+    if [[ -n "$pfile" && -s "$pfile" ]]; then
+      local -a plines
+      plines=("${(@f)$(tail -n 16 -- "$pfile" 2>/dev/null)}")
+      out_time="${${(@M)plines:#out_time=*}[-1]#out_time=}"
+      speed="${${(@M)plines:#speed=*}[-1]#speed=}"
+    fi
+
+    if [[ -n "$out_time" ]]; then
+      pct="$(awk -v t="$out_time" -v tot="$total" 'BEGIN {
+        n = split(t, p, ":")
+        e = (n == 3) ? p[1] * 3600 + p[2] * 60 + p[3] : t + 0
+        if (tot + 0 > 0) { x = e / tot * 100; if (x > 100) x = 100; printf "%d", x }
+        else { print 0 }
+      }')"
+    fi
+
+    if (( pct >= 99 )); then
+      print -n -u4 -- $'\r\033[K'"  ${C_CYAN}${spin[spin_i % 10 + 1]}${C_RESET}  ${tail_label} ${C_DIM}$(( SECONDS - start ))s${C_RESET}"
+      (( spin_i++ ))
+    else
+      draw_rewrite_progress_bar "$total" "$out_time" "$speed" "continue" "$cols"
+    fi
+
+    sleep 0.15
   done
 
-  [[ "$drew" == true ]] && print -n -u4 -- $'\r\033[K'
-  return 0
+  print -n -u4 -- $'\r\033[K'
 }
 
 rewrite_with_metadata() {
@@ -1047,20 +1293,30 @@ rewrite_with_metadata() {
   ffmpeg_args+=("${metadata_args[@]}" "$tmp")
 
   if [[ -t 4 ]]; then
+    local pfile pid tail_label
     total="$(media_duration_seconds "$file")"
     if [[ -n "$total" && -n "$PENDING_TRIM_START" ]]; then
       total="$(awk -v t="$total" -v s="$PENDING_TRIM_START" 'BEGIN { d = t - s; if (d < 0) d = 0; print d }')"
     fi
 
+    tail_label="finalizing…"
+    is_faststart_path "$file" && tail_label="finalizing (faststart)…"
+
     errlog="$(mktemp -t media-check-ffmpeg.XXXXXX)" || errlog=""
+    pfile="$(mktemp -t media-check-progress.XXXXXX)" || pfile=""
     clear_status
-    ffmpeg -progress pipe:1 "${ffmpeg_args[@]}" 2>"${errlog:-/dev/null}" \
-      | render_rewrite_progress "$total" "${COLUMNS:-80}" || rc=$?
+    ffmpeg -progress "${pfile:-/dev/null}" "${ffmpeg_args[@]}" \
+      >/dev/null 2>"${errlog:-/dev/null}" &
+    pid=$!
+    monitor_ffmpeg_progress "$pid" "$pfile" "$total" "${COLUMNS:-80}" "$tail_label"
+    wait "$pid"
+    rc=$?
 
     if (( rc != 0 )) && [[ -n "$errlog" ]]; then
       cat -- "$errlog" >&4
     fi
     [[ -n "$errlog" ]] && rm -f -- "$errlog"
+    [[ -n "$pfile" ]] && rm -f -- "$pfile"
   else
     ffmpeg "${ffmpeg_args[@]}" || rc=$?
   fi
@@ -1092,17 +1348,25 @@ queue_source_url() {
 
 queue_fetched_metadata() {
   local url="$1"
-  local tmp_json title uploader channel webpage_url original_url description upload_date timestamp duration id extractor
+  local tmp_json errlog title uploader channel webpage_url original_url description upload_date timestamp duration id extractor
+  integer rc=0
 
   command -v yt-dlp >/dev/null 2>&1 || return 1
   command -v jq >/dev/null 2>&1 || return 1
 
   tmp_json="$(mktemp -t media-check-ytmeta.XXXXXX.json)" || return 1
+  errlog="$(mktemp -t media-check-ytmeta-err.XXXXXX)" || errlog=""
 
-  if ! yt-dlp --skip-download --dump-single-json --no-warnings "$url" > "$tmp_json"; then
+  yt-dlp --skip-download --dump-single-json --no-warnings "$url" \
+    > "$tmp_json" 2>"${errlog:-/dev/null}" &
+  spin_until_pid $! "Fetching metadata…" || rc=$?
+
+  if (( rc != 0 )); then
+    [[ -n "$errlog" ]] && rm -f -- "$errlog"
     rm -f -- "$tmp_json"
     return 1
   fi
+  [[ -n "$errlog" ]] && rm -f -- "$errlog"
 
   title="$(jq -r '.title // empty' "$tmp_json")"
   uploader="$(jq -r '.uploader // empty' "$tmp_json")"
@@ -1271,27 +1535,13 @@ check_source_url() {
 
   say ""
 
-  while true; do
-    if ! prompt_input_or_skip "Source URL (Ctrl-C to skip):"; then
-      warn "Skipped source URL."
-      (( skip_count++ ))
-      mark_unresolved
-      return 1
-    fi
-
-    url="$PROMPT_REPLY"
-    if [[ -z "$url" ]]; then
-      warn "Blank URL ignored. Press Ctrl-C to skip."
-      continue
-    fi
-
-    if ! is_url "$url"; then
-      warn "Expected http:// or https:// URL."
-      continue
-    fi
-
-    break
-  done
+  if ! prompt_valid_url; then
+    warn "Skipped source URL."
+    (( skip_count++ ))
+    mark_unresolved
+    return 1
+  fi
+  url="$PROMPT_URL"
 
   queue_source_url "$url"
   PENDING_FIXES+=("source-url")
@@ -1301,6 +1551,7 @@ check_source_url() {
 
 check_title_metadata() {
   local file="$1"
+  local url
 
   $CHECK_METADATA || return 0
 
@@ -1318,26 +1569,49 @@ check_title_metadata() {
     return 1
   fi
 
-  say "%BSOURCE URL:%b"
-  say_raw "$PROBE_URL"
-  say ""
+  # A source URL is present, so try to pull metadata automatically. Only fall
+  # back to a prompt when the fetch fails.
+  url="$PROBE_URL"
 
-  if prompt_yes_no "Fetch Metadata?" "Y"; then
-    if queue_fetched_metadata "$PROBE_URL"; then
+  while true; do
+    say "%BSOURCE URL:%b"
+    say_raw "$url"
+    say ""
+
+    if queue_fetched_metadata "$url"; then
       PENDING_FIXES+=("metadata")
       return 0
     fi
 
-    fail "Could not fetch metadata."
-    (( fail_count++ ))
-    mark_unresolved
-    return 1
-  fi
+    fail "Could not fetch metadata for that URL."
+    say ""
 
-  warn "Skipped metadata fetch."
-  (( skip_count++ ))
-  mark_unresolved
-  return 1
+    if ! prompt_select "try a different URL" "skip metadata"; then
+      warn "Skipped metadata fetch."
+      (( skip_count++ ))
+      mark_unresolved
+      return 1
+    fi
+
+    if (( SELECT_INDEX == 2 )); then
+      warn "Skipped metadata fetch."
+      (( skip_count++ ))
+      mark_unresolved
+      return 1
+    fi
+
+    if ! prompt_valid_url; then
+      warn "Skipped metadata fetch."
+      (( skip_count++ ))
+      mark_unresolved
+      return 1
+    fi
+    url="$PROMPT_URL"
+
+    issue_screen "metadata" "$file"
+    say "metadata: missing title"
+    say ""
+  done
 }
 
 check_canonical_name() {
@@ -1470,6 +1744,7 @@ audit_file() {
   PENDING_FASTSTART=false
   PENDING_TRIM_START=""
   reset_file_checks
+  set_current_thumb "$AUDIT_PATH"
 
   if [[ -t 4 ]]; then
     redraw_screen
@@ -1555,6 +1830,10 @@ parse_args() {
         ;;
       --bypass-check-length)
         CHECK_LENGTH=false
+        shift
+        ;;
+      --no-thumbnail|--no-thumb)
+        SHOW_THUMBNAIL=false
         shift
         ;;
       --bypass-check-filename)
@@ -1652,6 +1931,7 @@ main() {
 
   parse_args "$@"
   build_enabled_checks
+  detect_thumb_backend
   reset_file_checks
 
   if (( ${#INPUT_FILES[@]} > 0 )); then
@@ -1669,6 +1949,7 @@ main() {
   fi
 
   clear_status
+  clear_thumb
   say ""
   say "%B%F{green}DONE%f%b"
   say "CHECKED: ${processed_count}  CLEAN: ${clean_count}  ATTENTION: ${issue_file_count}  FIXES: ${fix_count}  SKIPPED: ${skip_count}  FAILED: ${fail_count}"
