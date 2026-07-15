@@ -239,12 +239,12 @@ map_selection() {
 # Each bind resolves the highlighted row's real path from the index map ($1 is
 # the index field {1}, $2 the map file), then acts on it. The reveal bind is
 # silent; the rest hand the terminal to a TUI/editor via execute(). After a
-# rename/trim the new path is appended with `media-index add` (the stale entry is
+# rename/trim the new path is appended with `media-index insert` (the stale entry is
 # left for mpv to skip / `media-index prune` to clean up).
 reveal_bind="execute-silent(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] && open --reveal \"\$p\"' _ {1} ${(q)tmp_map})"
 yazi_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] && yazi \"\$p\"' _ {1} ${(q)tmp_map})"
-trim_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] || exit 0; ffmpeg-lossless-cut \"\$p\"; n=\"\${p:r}.trimmed.\${p:e}\"; [[ ! -e \"\$p\" && -f \"\$n\" ]] && media-index add \"\$n\"' _ {1} ${(q)tmp_map})"
-rename_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] || exit 0; d=\${p:h}; o=\${p:t}; t=\$(mktemp -t fms-rename.XXXXXX) || exit 1; print -r -- \"\$o\" >| \"\$t\"; \${EDITOR:-vi} \"\$t\"; n=\$(sed -n 1p \"\$t\"); rm -f \"\$t\"; [[ -n \"\$n\" && \"\$n\" != \"\$o\" ]] || exit 0; mv -i -- \"\$p\" \"\$d/\$n\" && media-index add \"\$d/\$n\"' _ {1} ${(q)tmp_map})"
+trim_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] || exit 0; ffmpeg-lossless-cut \"\$p\"; n=\"\${p:r}.trimmed.\${p:e}\"; [[ ! -e \"\$p\" && -f \"\$n\" ]] && media-index insert \"\$n\"' _ {1} ${(q)tmp_map})"
+rename_bind="execute(zsh -c 'p=\$(sed -n \"\${1}p\" \"\$2\"); [[ -n \"\$p\" ]] || exit 0; d=\${p:h}; o=\${p:t}; t=\$(mktemp -t fms-rename.XXXXXX) || exit 1; print -r -- \"\$o\" >| \"\$t\"; \${EDITOR:-vi} \"\$t\"; n=\$(sed -n 1p \"\$t\"); rm -f \"\$t\"; [[ -n \"\$n\" && \"\$n\" != \"\$o\" ]] || exit 0; mv -i -- \"\$p\" \"\$d/\$n\" && media-index insert \"\$d/\$n\"' _ {1} ${(q)tmp_map})"
 
 # Enter: by default select everything and accept (closes fzf, caller plays it).
 # With --persistent, play the marked/current row(s) via mpv-send and stay open;

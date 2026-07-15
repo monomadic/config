@@ -12,7 +12,7 @@
 #
 #   This is just glue over the underlying tools:
 #     fd-media --sort created --progress | media-index write
-#     media-index get | fzf-metaselect --persistent
+#     media-index read | fzf-metaselect --persistent
 
 set -u
 
@@ -54,23 +54,23 @@ case "$mode" in
 esac
 
 # Build the index when asked, or when it is currently empty.
-if $rebuild || [[ -z "$(media-index get | head -c1)" ]]; then
+if $rebuild || [[ -z "$(media-index read | head -c1)" ]]; then
   fd-media --sort created --progress | media-index write
 fi
 
-[[ -n "$(media-index get | head -c1)" ]] || die "index is empty (no media found)"
+[[ -n "$(media-index read | head -c1)" ]] || die "index is empty (no media found)"
 
 case "$mode" in
   play)
-    media-index get | head -n1 | mpv-send play
+    media-index read | head -n1 | mpv-send play
     ;;
   search)
-    media-index get | fzf-metaselect --persistent "${pass[@]}"
+    media-index read | fzf-metaselect --persistent "${pass[@]}"
     ;;
   quicksearch)
     sel="$(mktemp -t media-play-sel.XXXXXX)" || die "could not create temp file"
     trap 'rm -f -- "$sel"' EXIT
-    media-index get | fzf-select "${pass[@]}" > "$sel"
+    media-index read | fzf-select "${pass[@]}" > "$sel"
     [[ -s "$sel" ]] && mpv-send play < "$sel"
     ;;
 esac

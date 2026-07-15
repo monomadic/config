@@ -6,12 +6,12 @@
 #   This tool is ONLY concerned with the index. Building it and consuming it
 #   live elsewhere, e.g.:
 #       fd-media --sort created --progress | media-index write
-#       media-index get | fzf-metaselect --persistent
+#       media-index read | fzf-metaselect --persistent
 #
 #   Commands:
 #     write          Replace the index with the paths read on stdin
-#     get            Print the index to stdout
-#     add PATH...    Append path(s) to the index
+#     read           Print the index to stdout
+#     insert PATH... Append path(s) to the index
 #     prune          Drop entries whose file no longer exists
 
 set -u
@@ -25,20 +25,20 @@ die() {
 }
 
 usage() {
-  print -u2 -- "Usage: $script_name <write|get|add|prune> [args]"
+  print -u2 -- "Usage: $script_name <write|read|insert|prune> [args]"
   print -u2 -- ""
   print -u2 -- "Manage the media index ($index_file)."
   print -u2 -- ""
   print -u2 -- "Commands:"
   print -u2 -- "  write          Replace the index with the paths read on stdin"
-  print -u2 -- "  get            Print the index to stdout"
-  print -u2 -- "  add PATH...    Append path(s) to the index"
+  print -u2 -- "  read           Print the index to stdout"
+  print -u2 -- "  insert PATH... Append path(s) to the index"
   print -u2 -- "  prune          Drop entries whose file no longer exists"
   print -u2 -- ""
   print -u2 -- "Examples:"
   print -u2 -- "  fd-media --sort created --progress | $script_name write"
-  print -u2 -- "  $script_name get | fzf-metaselect --persistent"
-  print -u2 -- "  $script_name add /Movies/clip.mp4"
+  print -u2 -- "  $script_name read | fzf-metaselect --persistent"
+  print -u2 -- "  $script_name insert /Movies/clip.mp4"
   print -u2 -- "  $script_name prune"
 }
 
@@ -53,13 +53,13 @@ cmd_write() {
   mv -f -- "$tmp" "$index_file"
 }
 
-cmd_get() {
+cmd_read() {
   [[ -f "$index_file" ]] || return 0
   cat -- "$index_file"
 }
 
-cmd_add() {
-  (( $# > 0 )) || die "add: need at least one path"
+cmd_insert() {
+  (( $# > 0 )) || die "insert: need at least one path"
   print -rl -- "$@" >> "$index_file"
 }
 
@@ -85,9 +85,9 @@ cmd="$1"; shift
 
 case "$cmd" in
   write) cmd_write "$@" ;;
-  get)   cmd_get   "$@" ;;
-  add)   cmd_add   "$@" ;;
+  read)  cmd_read  "$@" ;;
+  insert) cmd_insert "$@" ;;
   prune) cmd_prune "$@" ;;
   -h|--help|help) usage ;;
-  *) die "unknown command: $cmd (try: write, get, add, prune)" ;;
+  *) die "unknown command: $cmd (try: write, read, insert, prune)" ;;
 esac

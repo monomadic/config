@@ -39,9 +39,9 @@ fd-tower() {
 }
 
 alias media-index-update="fd-media --progress | media-index write"
-alias media-index-play="media-index get | mpv-send play"
-alias media-index-switchblade="media-index get | switchblade"
-alias media-index-search="media-index get | fzf-multiselect"
+alias media-index-play="media-index read | mpv-send play"
+alias media-index-switchblade="media-index read | switchblade"
+alias media-index-search="media-index read | fzf-multiselect"
 
 alias @play="mpv-send play"
 alias @select="fzf-select | mpv-send play"
