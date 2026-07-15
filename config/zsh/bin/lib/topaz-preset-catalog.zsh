@@ -93,12 +93,13 @@ topaz_transform_preset_rows() {
 }
 
 # Enhancement preset rows for the mpv interactive render menu.
-# The Lua groups these by category, hides the upscale categories on >=4K sources,
-# and (for @4K@ rows) substitutes an orientation-aware 4K scale plus appends a matching
-# lanczos tail. filter_body carries NO trailing scale tail.
+# Presets are resolution-agnostic: each filter body carries an @SCALE@ token that the
+# Lua substitutes from the Output tab's resolution choice (scale=1 / scale=2 /
+# scale=0:w=..:h=.. plus a lanczos tail for the forced-4K form). `scales` declares
+# which resolutions the model supports: a comma list drawn from {1, 2, 4k}.
 # Row format:
-#   category<TAB>display<TAB>slug<TAB>filter_body<TAB>blurb<TAB>metadata
-# category: upscale-2x | upscale-4k | repair | sharpen
+#   category<TAB>display<TAB>slug<TAB>scales<TAB>filter_body<TAB>blurb<TAB>metadata
+# category: detail | repair | sharpen | focus-fix
 # blurb: short one-line description shown as the preset's second menu line.
 topaz_enhancement_preset_rows() {
   emulate -L zsh
@@ -112,28 +113,91 @@ topaz_enhancement_preset_rows() {
   # main source of crunch and ringing. Non-Proteus models run on their own character
   # (scale only). All model codes verified present in the bundle.
 
-  # --- Upscale 2x (literal scale=2; shown only for <4K sources; folds into the
-  # --- 4K group on exactly-1080p sources) ---
-  print -r -- $'upscale-2x\tStarlight Mini 2x\tstarlight-mini-2x\ttvai_up=model=slm-1:scale=2:device=0:vram=0.95:instances=1\tGenerative 2x; strongest true detail invention\tvideoai=[Upscale 2x] Starlight Mini. Diffusion-style 2x reconstruction — the strongest genuine detail generation here, and it fails differently from Proteus (texture/face hallucination rather than halos). Compare carefully on faces and text.'
-  print -r -- $'upscale-2x\tGaia HQ 2x — Animation\tgaia-hq-2x\ttvai_up=model=ghq-5:scale=2:device=0:vram=0.95:instances=1\tClean, smooth 2x; best for CG / animation\tvideoai=[Upscale 2x] Gaia HQ. Clean, smooth, low-noise 2x upscale. Softer and more poster-like than Proteus; best for graphics, animation, CG and already-clean footage.'
+  # --- Detail (generative / reconstruction models and Proteus detail recipes) ---
+  print -r -- $'detail\tStarlight Mini\tstarlight-mini\t2\ttvai_up=model=slm-1:@SCALE@:device=0:vram=0.95:instances=1\tGenerative; strongest true detail invention (2x only)\tvideoai=[Detail] Starlight Mini. Diffusion-style reconstruction — the strongest genuine detail generation here, and it fails differently from Proteus (texture/face hallucination rather than halos). Compare carefully on faces and text.'
+  print -r -- $'detail\tGaia HQ — Animation\tgaia-hq\t2\ttvai_up=model=ghq-5:@SCALE@:device=0:vram=0.95:instances=1\tClean, smooth; best for CG / animation (2x only)\tvideoai=[Detail] Gaia HQ. Clean, smooth, low-noise upscale. Softer and more poster-like than Proteus; best for graphics, animation, CG and already-clean footage.'
+  print -r -- $'detail\tIris — Faces\tiris-faces\t1,2,4k\ttvai_up=model=iris-3:@SCALE@:device=0:vram=0.95:instances=1\tFace & compressed-source model; rebuilds skin/eyes\tvideoai=[Detail] Iris. Tuned for faces and compressed/streamed sources — reconstructs skin, eyes and hair. Very different texture from Proteus; watch for facial hallucination.'
+  print -r -- $'detail\tProteus — Detail Max\tproteus-detail-max\t1,2,4k\ttvai_up=model=prob-4:@SCALE@:preblur=0:noise=0.08:details=1:halo=0.15:blur=0.12:compression=0.85:estimate=0:grain=0.03:gsize=2:device=0:vram=0.95:instances=1\tMax invention + compression fix, minimal sharpen\tvideoai=[Detail] Proteus Detail Max. Manual Proteus: maxed detail generation and heavy compression repair with sharpening kept low and dehalo engaged — the aggressive invented-detail look without the crunch and halos.'
+  print -r -- $'detail\tProteus — Max + Regrain\tproteus-max-regrain\t1,2,4k\ttvai_up=model=prob-4:@SCALE@:preblur=0:noise=0.20:details=0.90:halo=0.10:blur=0.10:compression=0.75:estimate=0:grain=0.09:gsize=2.5:device=0:vram=0.95:instances=1\tHigh detail under film grain; hides ringing + plastic\tvideoai=[Detail] Proteus Max + Regrain. High detail generation and strong compression repair finished with a visible grain layer — the grain reads as fine texture and masks any residual ringing or plastic smoothing. Filmic alternative to Detail Max.'
 
-  # --- Upscale to 4K (forced orientation-aware 4K via @4K@; shown only for <4K sources) ---
-  print -r -- $'upscale-4k\tProteus 4K — Detail Max\tproteus-4k-detail-max\ttvai_up=model=prob-4:@4K@:preblur=0:noise=0.08:details=1:halo=0.15:blur=0.12:compression=0.85:estimate=0:grain=0.03:gsize=2:device=0:vram=0.95:instances=1\tMax invention + compression fix, minimal sharpen\tvideoai=[Upscale to 4K] Proteus Detail Max. Manual Proteus: maxed detail generation and heavy compression repair with sharpening kept low and dehalo engaged — the aggressive invented-detail look without the crunch and halos.'
-  print -r -- $'upscale-4k\tProteus 4K — Max + Regrain\tproteus-4k-max-regrain\ttvai_up=model=prob-4:@4K@:preblur=0:noise=0.20:details=0.90:halo=0.10:blur=0.10:compression=0.75:estimate=0:grain=0.09:gsize=2.5:device=0:vram=0.95:instances=1\tHigh detail under film grain; hides ringing + plastic\tvideoai=[Upscale to 4K] Proteus Max + Regrain. High detail generation and strong compression repair finished with a visible grain layer — the grain reads as fine texture and masks any residual ringing or plastic smoothing. Filmic alternative to Detail Max.'
-  print -r -- $'upscale-4k\tProteus 4K — Deblur\tproteus-4k-deblur\ttvai_up=model=prob-4:@4K@:preblur=0.10:noise=0.15:details=0.55:halo=0.20:blur=0.60:compression=0.30:estimate=0:grain=0.02:gsize=2:device=0:vram=0.95:instances=1\tHeavy sharpen/deblur — for genuinely soft sources\tvideoai=[Upscale to 4K] Proteus Deblur. Manual Proteus led by heavy sharpening/deblur with moderate detail recovery and dehalo raised to compensate. For soft or slightly out-of-focus sources; will crunch footage that is already sharp.'
-  print -r -- $'upscale-4k\tIris 4K — Faces\tiris-4k-faces\ttvai_up=model=iris-3:@4K@:device=0:vram=0.95:instances=1\tFace & compressed-source 4K; rebuilds skin/eyes\tvideoai=[Upscale to 4K] Iris. Tuned for faces and compressed/streamed sources — reconstructs skin, eyes and hair. Very different texture from Proteus; watch for facial hallucination.'
+  # --- Repair (compression / noise repair) ---
+  print -r -- $'repair\tProteus — Max Compression Repair\tproteus-max-compression-repair\t1,2,4k\ttvai_up=model=prob-4:@SCALE@:preblur=0.05:noise=0.25:details=0.40:halo=0.25:blur=0.08:compression=1:estimate=0:grain=0.02:gsize=2:device=0:vram=0.95:instances=1\tCompression repair maxed; keeps moderate detail\tvideoai=[Repair] Proteus Max Compression Repair. Compression repair at maximum and strong dehalo, but moderate detail recovery kept in so blocking and mosquito noise clean up without going waxy-soft.'
+  print -r -- $'repair\tNyx — Heavy Denoise\tnyx-heavy-denoise\t1\ttvai_up=model=nyx-3:@SCALE@:device=0:vram=0.95:instances=1\tHeavy denoise for dark / grainy footage\tvideoai=[Repair] Nyx Heavy Denoise. Dedicated denoise model for dark/grainy/high-ISO footage. Very smooth output; can wax skin and erase fine texture — use where noise is the main problem.'
+  print -r -- $'repair\tProteus — Clean + Regrain\tproteus-clean-regrain\t1,2,4k\ttvai_up=model=prob-4:@SCALE@:preblur=0:noise=0.40:details=0.30:halo=0.15:blur=0.12:compression=0.70:estimate=0:grain=0.08:gsize=2.5:device=0:vram=0.95:instances=1\tDeep clean, then re-grain to hide smoothing\tvideoai=[Repair] Proteus Clean + Regrain. Strong compression/noise cleanup then a re-grain layer to hide the smoothing — restores a filmic texture on waxy or over-cleaned sources.'
 
-  # --- Repair (same-size compression / noise repair) ---
-  print -r -- $'repair\tProteus Max Compression Repair\tproteus-max-compression-repair\ttvai_up=model=prob-4:scale=1:preblur=0.05:noise=0.25:details=0.40:halo=0.25:blur=0.08:compression=1:estimate=0:grain=0.02:gsize=2:device=0:vram=0.95:instances=1\tCompression repair maxed; keeps moderate detail\tvideoai=[Repair] Proteus Max Compression Repair. Same-size pass with compression repair at maximum and strong dehalo, but moderate detail recovery kept in so blocking and mosquito noise clean up without going waxy-soft.'
-  print -r -- $'repair\tNyx Heavy Denoise\tnyx-heavy-denoise\ttvai_up=model=nyx-3:scale=1:device=0:vram=0.95:instances=1\tHeavy denoise for dark / grainy footage\tvideoai=[Repair] Nyx Heavy Denoise. Dedicated denoise model for dark/grainy/high-ISO footage. Very smooth output; can wax skin and erase fine texture — use where noise is the main problem.'
-  print -r -- $'repair\tProteus Clean + Regrain\tproteus-clean-regrain\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.40:details=0.30:halo=0.15:blur=0.12:compression=0.70:estimate=0:grain=0.08:gsize=2.5:device=0:vram=0.95:instances=1\tDeep clean, then re-grain to hide smoothing\tvideoai=[Repair] Proteus Clean + Regrain. Strong compression/noise cleanup then a re-grain layer to hide the smoothing — restores a filmic texture on waxy or over-cleaned sources.'
+  # --- Sharpen & Texture (micro-detail and stylized texture passes) ---
+  print -r -- $'sharpen\tTheia — Fine Detail\ttheia-fine-detail\t1\ttvai_up=model=thd-3:@SCALE@:device=0:vram=0.95:instances=1\tMicro-detail sharpen; less plastic than Proteus\tvideoai=[Sharpen] Theia Detail. Fine micro-detail/sharpen model. Crisp textures and edges with a different character (and less plastic look) than Proteus sharpening.'
+  print -r -- $'sharpen\tProteus — Heavy Grain Texture\tproteus-heavy-grain-texture\t1,2,4k\ttvai_up=model=prob-4:@SCALE@:preblur=0:noise=0.10:details=0.50:halo=0.10:blur=0.20:compression=0.30:estimate=0:grain=0.14:gsize=3:device=0:vram=0.95:instances=1\tStrong film-grain look; stylized texture\tvideoai=[Sharpen] Proteus Heavy Grain Texture. Moderate enhancement under a strong film-grain layer (gsize 3) — a deliberately stylized, filmic texture pass that masks smoothing and generates perceived detail.'
 
-  # --- Sharpen & Deblur (same-size detail / sharpening / rescue passes) ---
-  print -r -- $'sharpen\tProteus Detail Max — Same-size\tproteus-detail-max-1x\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.08:details=1:halo=0.15:blur=0.12:compression=0.85:estimate=0:grain=0.03:gsize=2:device=0:vram=0.95:instances=1\tThe Detail Max look for already-4K sources\tvideoai=[Sharpen] Proteus Detail Max, same-size. Maxed detail generation and heavy compression repair at source resolution, sharpening kept low, dehalo engaged. The signature invented-detail pass for footage that is already 4K.'
-  print -r -- $'sharpen\tTheia Fine Detail\ttheia-fine-detail\ttvai_up=model=thd-3:scale=1:device=0:vram=0.95:instances=1\tMicro-detail sharpen; less plastic than Proteus\tvideoai=[Sharpen] Theia Detail. Same-size fine micro-detail/sharpen model. Crisp textures and edges with a different character (and less plastic look) than Proteus sharpening.'
-  print -r -- $'sharpen\tProteus Deblur — Strong\tproteus-deblur-strong\ttvai_up=model=prob-4:scale=1:preblur=0.15:noise=0.18:details=0.80:halo=0.20:blur=0.80:compression=0.20:estimate=0:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tHeavy deblur for soft / missed-focus footage\tvideoai=[Sharpen] Proteus Deblur Strong. Heavy sharpening/deblur with high detail recovery and dehalo raised to fight the resulting halos. For clearly soft or slightly missed-focus shots; expect edge artifacts on sharp sources.'
-  print -r -- $'sharpen\tProteus Deblur — Max Rescue\tproteus-deblur-max-rescue\ttvai_up=model=prob-4:scale=1:preblur=0.35:noise=0.10:details=1:halo=0.30:blur=1:compression=0.50:estimate=0:grain=0:gsize=2:device=0:vram=0.95:instances=1\tLast-resort rescue; everything maxed, stylized\tvideoai=[Sharpen] Proteus Deblur Max Rescue. Deblur, detail and anti-alias all maxed with dehalo at its strongest — a last-resort rescue for badly out-of-focus or motion-blurred footage. Heavily stylized; expect ringing and crunch.'
-  print -r -- $'sharpen\tProteus Heavy Grain Texture\tproteus-heavy-grain-texture\ttvai_up=model=prob-4:scale=1:preblur=0:noise=0.10:details=0.50:halo=0.10:blur=0.20:compression=0.30:estimate=0:grain=0.14:gsize=3:device=0:vram=0.95:instances=1\tStrong film-grain look; stylized texture\tvideoai=[Sharpen] Proteus Heavy Grain Texture. Moderate enhancement under a strong film-grain layer (gsize 3) — a deliberately stylized, filmic texture pass that masks smoothing and generates perceived detail.'
+  # --- Focus Fix (deblur rescue ladder; Proteus-based, so any resolution works —
+  # --- deblur artifacts do magnify when upscaled, judge the preview carefully) ---
+  print -r -- $'focus-fix\tProteus Deblur — Light\tproteus-deblur-light\t1,2,4k\ttvai_up=model=prob-4:@SCALE@:preblur=0.10:noise=0.15:details=0.55:halo=0.20:blur=0.60:compression=0.30:estimate=0:grain=0.02:gsize=2:device=0:vram=0.95:instances=1\tModerate deblur for slightly soft footage\tvideoai=[Focus Fix] Proteus Deblur Light. Manual Proteus led by firm sharpening/deblur with moderate detail recovery and dehalo raised to compensate. For soft or slightly out-of-focus sources; will crunch footage that is already sharp.'
+  print -r -- $'focus-fix\tProteus Deblur — Strong\tproteus-deblur-strong\t1,2,4k\ttvai_up=model=prob-4:@SCALE@:preblur=0.15:noise=0.18:details=0.80:halo=0.20:blur=0.80:compression=0.20:estimate=0:grain=0.01:gsize=2:device=0:vram=0.95:instances=1\tHeavy deblur for soft / missed-focus footage\tvideoai=[Focus Fix] Proteus Deblur Strong. Heavy sharpening/deblur with high detail recovery and dehalo raised to fight the resulting halos. For clearly soft or slightly missed-focus shots; expect edge artifacts on sharp sources.'
+  print -r -- $'focus-fix\tProteus Deblur — Max Rescue\tproteus-deblur-max-rescue\t1,2,4k\ttvai_up=model=prob-4:@SCALE@:preblur=0.35:noise=0.10:details=1:halo=0.30:blur=1:compression=0.50:estimate=0:grain=0:gsize=2:device=0:vram=0.95:instances=1\tLast-resort rescue; everything maxed, stylized\tvideoai=[Focus Fix] Proteus Deblur Max Rescue. Deblur, detail and anti-alias all maxed with dehalo at its strongest — a last-resort rescue for badly out-of-focus or motion-blurred footage. Heavily stylized; expect ringing and crunch.'
+}
+
+# Advanced insight rows for the mpv preset-details companion sheet (toggled with
+# `d` in the render menu). Keyed by enhancement preset slug — one blob of preset-level
+# knowledge per preset (no per-parameter annotations). Row kinds:
+#   <slug>\tstrategy\t<text>               — why the recipe works (top callout)
+#   <slug>\twatch\t<text>                  — the failure mode to inspect for
+#   <slug>\tvs\t<other slug>\t<text>       — when to pick this vs its neighbour
+topaz_preset_insights() {
+  emulate -L zsh
+
+  print -r -- $'__original__\tstrategy\tThe control. Every preset is judged against this frame — flick Space often to keep your eye honest before trusting a render.'
+
+  print -r -- $'starlight-mini\tstrategy\tDiffusion-style reconstruction: it re-imagines pixels rather than filtering them, so it generates texture that Proteus can only sharpen toward. 2x only — on 1080p that is the full 4K target.'
+  print -r -- $'starlight-mini\twatch\tHallucination — faces, text and logos can change identity, not just clarity. Inspect anything a viewer would recognise.'
+  print -r -- $'starlight-mini\tvs\tproteus-detail-max\tDetail Max amplifies what exists; Starlight invents. When it wins it wins big, but it is slower and less predictable.'
+
+  print -r -- $'gaia-hq\tstrategy\tTrained on CG and animation: preserves line art and flat fills without inventing photographic texture. On graphics, invention is a bug — this is the anti-hallucination pick.'
+  print -r -- $'gaia-hq\twatch\tLive footage comes out soft and poster-like — edges survive but skin and fabric flatten.'
+  print -r -- $'gaia-hq\tvs\tstarlight-mini\tDrawn or rendered source: Gaia. Photographic source: Starlight.'
+
+  print -r -- $'proteus-detail-max\tstrategy\tThe thesis preset: invention and compression repair near max, sharpening almost off. Detail comes from the model generating structure, not from edge contrast — so it stays clean where crunchy presets ring. Works at any output size; same-size passes are subtle at fit-to-window zoom, so judge at 100%.'
+  print -r -- $'proteus-detail-max\twatch\tOn pristine sources max invention can over-texture flat areas (skin, sky). If surfaces look busy, this is why.'
+  print -r -- $'proteus-detail-max\tvs\tproteus-max-regrain\tSame idea finished with grain. Pick Max + Regrain when this reads too clean or plastic.'
+
+  print -r -- $'proteus-max-regrain\tstrategy\tGrain is your friend twice over: it reads as invented fine texture, and it masks the ringing and plastic smoothing that heavy enhancement leaves behind. gsize 2.5 is coarse enough to read as film rather than sensor noise.'
+  print -r -- $'proteus-max-regrain\twatch\tGrain is baked in — it cannot be removed later, and HEVC spends real bitrate encoding it.'
+  print -r -- $'proteus-max-regrain\tvs\tproteus-detail-max\tTrades peak invention for texture that hides the plastic look. Pick this when Detail Max reads too clean.'
+
+  print -r -- $'iris-faces\tstrategy\tA face-trained network: rebuilds eyes, skin and hair from priors about what faces look like — priors that survive compression heavy enough to destroy generic detail.'
+  print -r -- $'iris-faces\twatch\tThe same priors are the risk: a face can drift toward a generic face rather than the real one. Check identity on people you know.'
+  print -r -- $'iris-faces\tvs\tstarlight-mini\tBoth hallucinate; Iris is specialised. Faces prominent: Iris. Everything else: Starlight.'
+
+  print -r -- $'proteus-max-compression-repair\tstrategy\tCompression repair at 1.0 with detail held moderate: kills blocking and mosquito noise without the waxy look of a pure repair pass. Artifacts read as detail to other presets — clean first.'
+  print -r -- $'proteus-max-compression-repair\twatch\tAt maximum repair some legitimate fine texture goes with the artifacts — check hair, fabric and foliage.'
+  print -r -- $'proteus-max-compression-repair\tvs\tproteus-detail-max\tDetail Max already carries 0.85 repair. Reach for this only when artifacts, not detail, are the problem.'
+
+  print -r -- $'nyx-heavy-denoise\tstrategy\tA dedicated denoiser, not an enhancer — noise modelling that the generic Proteus noise slider cannot match on high-ISO or low-light footage.'
+  print -r -- $'nyx-heavy-denoise\twatch\tWaxes skin and erases fine texture — whatever it cannot distinguish from noise is gone for good.'
+  print -r -- $'nyx-heavy-denoise\tvs\tproteus-clean-regrain\tNyx removes; Clean + Regrain removes then re-textures. If the result must still look like film, pick that.'
+
+  print -r -- $'proteus-clean-regrain\tstrategy\tTwo moves in one pass: scrub compression and noise hard, then lay uniform grain over the scrubbed surface. The grain unifies patches the cleanup smoothed unevenly — the classic restoration trick. gsize 2.5 matches Max + Regrain, so cleaned and upscaled clips cut together.'
+  print -r -- $'proteus-clean-regrain\twatch\tIf damage varies shot to shot the cleanup varies too, and the grain hides it unevenly.'
+  print -r -- $'proteus-clean-regrain\tvs\tproteus-max-compression-repair\tSame cleanup instinct; Max Compression Repair keeps the honest scrubbed look, this one dresses it.'
+
+  print -r -- $'theia-fine-detail\tstrategy\tA micro-contrast model: enhances existing fine structure rather than generating new texture, so it reads crisp without the AI-plastic signature.'
+  print -r -- $'theia-fine-detail\twatch\tIt cannot create — on genuinely soft or damaged sources there is nothing for it to work with.'
+  print -r -- $'theia-fine-detail\tvs\tproteus-detail-max\tGeneration vs enhancement: a good source that wants bite takes Theia; missing texture takes Detail Max.'
+
+  print -r -- $'proteus-heavy-grain-texture\tstrategy\tA look, not a fix: moderate enhancement buried under heavy gsize-3 grain. The grain does aesthetic work — film emulation — as much as masking.'
+  print -r -- $'proteus-heavy-grain-texture\twatch\tExpensive to encode and impossible to undo — grade before this pass, not after.'
+  print -r -- $'proteus-heavy-grain-texture\tvs\tproteus-max-regrain\tMax + Regrain uses grain as seasoning; this uses it as the dish.'
+
+  print -r -- $'proteus-deblur-light\tstrategy\tLed by the sharpen slider the other presets suppress. Right when softness is the defect — missed focus, generational loss — because no amount of detail generation fixes an unsharp edge. Upscaling works but magnifies the edge work — prefer Original unless the preview holds up.'
+  print -r -- $'proteus-deblur-light\twatch\tOn already-sharp footage this is pure crunch — it can look worse than the source.'
+  print -r -- $'proteus-deblur-light\tvs\tproteus-deblur-strong\tStart here. Step up to Strong only when edges are still visibly soft.'
+
+  print -r -- $'proteus-deblur-strong\tstrategy\tThe rescue for soft-but-usable footage: heavy deblur and high detail, with dehalo raised to cancel the ringing the sharpening creates.'
+  print -r -- $'proteus-deblur-strong\twatch\tCheck high-contrast edges — rooflines, text, speculars — at 100%; that is where ringing shows first.'
+  print -r -- $'proteus-deblur-strong\tvs\tproteus-deblur-max-rescue\tTry this first. Max Rescue is the same idea with nothing held back, at triple the artifacts.'
+
+  print -r -- $'proteus-deblur-max-rescue\tstrategy\tEverything at the stops: deblur, detail and anti-alias maxed, dehalo at its ceiling fighting the fallout. For footage you would otherwise delete — stylised-sharp beats honestly-unusable.'
+  print -r -- $'proteus-deblur-max-rescue\twatch\tEdges gain a drawn, illustrated quality. If this still is not enough, the shot is gone.'
+  print -r -- $'proteus-deblur-max-rescue\tvs\tproteus-deblur-strong\tIf Strong got you 80% of the way, stop — this buys the last 20% at triple the artifacts.'
 }
 
 # Interpolation preset rows for the mpv interactive workflow (frame-rate stage).
