@@ -1,3 +1,7 @@
+function sb-search() {
+  fd-media --match-string $1 | sb --fast-fullscreen
+}
+
 function yt-avc-format-filename() {
   yt-dlp -f 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=aac]/bestvideo[vcodec^=avc1]+bestaudio/best' \
     --cookies-from-browser brave \

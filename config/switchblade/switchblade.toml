@@ -119,7 +119,7 @@ strip_hover_scale = 1.15
 # level — the grid is downsampled 2^level before drawing back, so
 # 1 = subtle, 4 = heavy frost, 0 = no blur. GPU-cheap either way.
 # (Both hot-reload.)
-quickview_dim = 0.90
+quickview_dim = 0.94
 quickview_blur = 3.0
 
 # Animated thumbnails (sprite sheets, 9 frames sampled across each clip)

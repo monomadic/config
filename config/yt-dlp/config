@@ -34,9 +34,22 @@
 # general aliases
 --alias print-name "-s --print filename -o {0} --trim-filenames 200 --output-na-placeholder ''"
 --alias best-video "-f bv[vcodec!=none][acodec=none]/bv[acodec=none]/bv*[vcodec!=none]/bv*/b -S res,fps,tbr --format-sort-force --ignore-no-formats-error"
+
+# genre
+--alias media '--embed-metadata --parse-metadata "Media:%(meta_genre)s"'
+--alias footage '--embed-metadata --parse-metadata "Camera Footage:%(meta_genre)s"'
+--alias karaoke '--embed-metadata --parse-metadata "Karaoke:%(meta_genre)s"'
+--alias vj '--parse-metadata "VJ Clip:%(meta_genre)s"'
+
+# type
+--alias clip '--embed-metadata --parse-metadata "Clip:%(meta_type)s"'
+--alias master '--embed-metadata --parse-metadata "Master:%(meta_type)s"'
+--alias original '--embed-metadata --parse-metadata "Original:%(meta_type)s"'
+
 # media aliases
 --alias porn '--use-postprocessor "Titlecase:when=pre_process" -o "%(channel_cc,uploader_cc,channel,uploader|?)s/%(cast,uploader|)l (%(channel_cc,uploader_cc,channel,uploader|Unknown)s) %(cast& - |)s %(title_cc,title).50s (%(extractor)s_%(id)s).%(ext)s" --progress --console-title --trim-filenames 200 --paths "home:$HOME/Movies/Porn/Downloads"'
 --alias tower '--porn --paths home:/Volumes/Tower/Movies/Porn/Downloads'
-# visuals aliases
+
+# vj aliases
 # video-only track, highest resolution, transcoded to ProRes Proxy (.mov)
---alias visuals '--best-video -S res,fps,tbr --format-sort-force -o "%(channel_cc,uploader_cc,channel,uploader|Unknown)s (%(id)s) %(tags)s.%(ext)s" --ignore-no-formats-error --recode-video mov --ppa "VideoConvertor:-c:v prores_videotoolbox -profile:v proxy -allow_sw 1 -pix_fmt p210le" --paths "home:~/Library/Mobile Documents/com~apple~CloudDocs/Movies/Visuals/Downloads"'
+--alias visuals '--vj --best-video -S res,fps,tbr --format-sort-force -o "%(channel_cc,uploader_cc,channel,uploader|Unknown)s (%(id)s) %(tags)s.%(ext)s" --ignore-no-formats-error --recode-video mov --ppa "VideoConvertor:-c:v prores_videotoolbox -profile:v proxy -allow_sw 1 -pix_fmt p210le" --paths "home:~/Library/Mobile Documents/com~apple~CloudDocs/Movies/Visuals/Downloads"'
