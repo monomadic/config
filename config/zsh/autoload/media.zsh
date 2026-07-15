@@ -127,7 +127,7 @@ alias .play-local-incomplete-downloads="fd -t f -g '*.part' -E '*Frag*.part' . ~
 alias .select-local="fd-media . $LOCAL_MEDIA_PATHS | fzf-select | mpv-send play"
 
 alias .select-downloads="fd-media . /Volumes/*/Movies/Porn/Downloads(N) $HOME/Movies/Porn/Downloads | fzf-select | mpv-send play"
-alias .select-local-downloads-sort="fd-media --sort created . $HOME/Movies/Porn/Downloads $HOME/Movies/Porn/Downloads | fzf-select | mpv-send play"
+alias .select-local-downloads-sort="fd-media --sort created . $HOME/Movies/Porn/Downloads | fzf-select | mpv-send play"
 alias .select-downloads-sort="fd-media --sort created . /Volumes/*/Movies/Porn/Downloads(N) $HOME/Movies/Porn/Downloads | fzf-select | mpv-send play"
 alias .select-local-downloads="fd-media . $HOME/Movies/Porn/Downloads | fzf-select | mpv-send play"
 

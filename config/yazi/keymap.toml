@@ -65,46 +65,53 @@ desc = "Open files or enter directories"
 on   = [ "<Space>", "<Space>" ]
 for  = "macos"
 run  = "shell -- /Users/nom/config/config/zsh/bin/yazi-quicklook %h"
-desc = "Quicklook hovered file"
+desc = "Quicklook"
 
 # <Space> f — transfer selected files to the next Kitty pane's cwd
 [[mgr.prepend_keymap]]
 on   = [ "<Space>", "f", "c" ]
 for  = "unix"
 run  = '''shell --block -- /Users/nom/.zsh/bin/copy-kitty-next-pane %s'''
-desc = "File: copy to next pane's cwd"
+desc = "File: copy to next kitty pane"
 
 [[mgr.prepend_keymap]]
 on   = [ "<Space>", "f", "m" ]
 for  = "unix"
 run  = '''shell --block -- /Users/nom/.zsh/bin/copy-kitty-next-pane --move %s'''
-desc = "File: move to next pane's cwd"
+desc = "File: move to next kitty pane"
 
 [[mgr.prepend_keymap]]
 on   = [ "<Space>", "f", "s" ]
 for  = "unix"
 run  = '''shell --block -- /Users/nom/.zsh/bin/copy-kitty-next-pane --move --check %s'''
-desc = "File: safe-move (verify, then move) to next pane's cwd"
+desc = "File: safe-move to next kitty pane"
 
 # <Space> m — media
 [[mgr.prepend_keymap]]
 on   = [ "<Space>", "m", "r" ]
 for  = "unix"
 run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " rename media " -- /Users/nom/.zsh/bin/rename-media %s'''
-desc = "Media: rename selected media"
+desc = "Media: auto-rename"
+
+[[mgr.prepend_keymap]]
+on   = [ "<Space>", "m", "a" ]
+for  = "unix"
+run  = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " media-audit " -- /Users/nom/.zsh/bin/media-check-files %s'''
+desc = "Media: audit"
+
 
 # <Space> o — open
 [[mgr.prepend_keymap]]
 on   = [ "<Space>", "o", "d" ]
 for  = "macos"
 run  = 'shell -- open "%d"'
-desc = "Open: current directory in Finder"
+desc = "Open: reveal in finder"
 
 [[mgr.prepend_keymap]]
 on   = [ "<Space>", "o", "p" ]
 for  = "macos"
 run  = 'shell -- open "%d/.."'
-desc = "Open: parent directory in Finder"
+desc = "Open: reveal parent directory in finder"
 
 # <Space> e — encode / edit
 [[mgr.prepend_keymap]]

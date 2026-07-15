@@ -29,8 +29,24 @@ if [[ -t 1 ]]; then
 	C_RESET=$'\e[0m'; C_BOLD=$'\e[1m'; C_DIM=$'\e[2m'
 	C_RED=$'\e[31m'; C_GREEN=$'\e[32m'; C_YELLOW=$'\e[33m'
 	C_BLUE=$'\e[34m'; C_CYAN=$'\e[36m'; C_GREY=$'\e[90m'
+
+	# truecolor diff palette (GitHub-style: light row background, darker on the
+	# changed span, dark text on top). Buttons are solid flat blocks.
+	FG_INK=$'\e[38;2;28;28;30m'                 # near-black text for colored rows
+	BG_OLD=$'\e[48;2;250;207;207m'              # light red row
+	BG_OLD_GUT=$'\e[48;2;236;176;176m'          # darker index gutter on old row
+	BG_OLD_HI=$'\e[48;2;244;155;155m'           # changed span on the old row
+	BG_NEW=$'\e[48;2;198;240;204m'              # light green row
+	BG_NEW_GUT=$'\e[48;2;172;216;180m'          # darker index gutter on new row
+	BG_NEW_HI=$'\e[48;2;134;220;150m'           # changed span on the new row
+	C_EOL=$'\e[K'                               # paint to the real line end with active bg
+	FG_ON_BTN=$'\e[38;2;255;255;255m'
+	BG_APPLY=$'\e[48;2;46;160;86m'              # green apply button
+	BG_CANCEL=$'\e[48;2;92;98;115m'             # slate cancel button
 else
 	C_RESET=; C_BOLD=; C_DIM=; C_RED=; C_GREEN=; C_YELLOW=; C_BLUE=; C_CYAN=; C_GREY=
+	FG_INK=; BG_OLD=; BG_OLD_GUT=; BG_OLD_HI=; BG_NEW=; BG_NEW_GUT=; BG_NEW_HI=; C_EOL=
+	FG_ON_BTN=; BG_APPLY=; BG_CANCEL=
 fi
 
 # Nerd Font glyphs (swap these if your terminal font lacks them).
@@ -41,19 +57,6 @@ ICON_SKIP=$''    #
 ICON_ARROW=$'→'   # →
 
 die() { printf '%s%s bulk-rename:%s %s\n' "$C_RED" "$ICON_WARN" "$C_RESET" "$*" >&2; exit 1; }
-
-# visible width of a string with ANSI escapes stripped
-strip_ansi() {
-	local in=$1 out=""
-	while [[ $in == *$'\e['* ]]; do
-		out+=${in%%$'\e['*}
-		in=${in#*$'\e['}
-		in=${in#*m}
-	done
-	out+=$in
-	printf '%s' "$out"
-}
-dwidth() { local s; s=$(strip_ansi "$1"); printf '%s' "${#s}"; }
 
 # ---------------------------------------------------------------------------
 # collect sources
@@ -194,53 +197,78 @@ for ((i = 0; i < n; i++)); do
 done
 
 # ---------------------------------------------------------------------------
-# render the modal dialog
+# render  (GitHub-style diff: full-width coloured rows, one file-pair per block)
 # ---------------------------------------------------------------------------
-term_cols=$(tput cols 2>/dev/null || echo 80)
-maxw=$(( term_cols - 6 )); (( maxw > 100 )) && maxw=100; (( maxw < 30 )) && maxw=30
 
-declare -a body=()          # rendered content lines (may contain ANSI)
+# longest common prefix length (in characters) of $1 and $2
+common_prefix() {
+	local a=$1 b=$2 i=0 m=${#1}
+	(( ${#2} < m )) && m=${#2}
+	while (( i < m )) && [[ ${a:i:1} == "${b:i:1}" ]]; do ((i++)); done
+	printf '%s' "$i"
+}
+
+# longest common suffix length not overlapping the prefix region ($3 = prefix len)
+common_suffix() {
+	local a=$1 b=$2 p=$3 i=0 la=${#1} lb=${#2} m
+	m=$(( la - p )); (( lb - p < m )) && m=$(( lb - p ))
+	while (( i < m )) && [[ ${a:la-1-i:1} == "${b:lb-1-i:1}" ]]; do ((i++)); done
+	printf '%s' "$i"
+}
+
+idxw=${#n}   # gutter width = digits in the largest index
+
+# Build a coloured two-row diff for one rename. The whole old row is light red,
+# the whole new row light green; the index gutter is a shade darker (header
+# vibe) and the span that actually changed is darker still so the eye lands on
+# it. Each row ends with C_EOL (\e[K), which fills to the true right edge with
+# the active background — so rows always span the whole line, wrap or not, with
+# no dependence on a possibly-wrong column count. Sets RP_OLD / RP_NEW.
+RP_OLD=""; RP_NEW=""
+render_pair() {
+	local num=$1 old=$2 new=$3 p s pre om nm suf og np
+	p=$(common_prefix "$old" "$new")
+	s=$(common_suffix "$old" "$new" "$p")
+	pre=${old:0:p}
+	om=${old:p:${#old}-p-s}
+	nm=${new:p:${#new}-p-s}
+	suf=${old:${#old}-s}
+
+	og=$(printf '%*s  ' "$idxw" "$num")   # "12  " — index gutter
+	np=$(printf '%*s  ' "$idxw" "")        # blank gutter, same width
+
+	RP_OLD="${BG_OLD_GUT}${FG_INK}${og}${BG_OLD}${pre}${BG_OLD_HI}${om}${BG_OLD}${suf}${C_EOL}${C_RESET}"
+	RP_NEW="${BG_NEW_GUT}${FG_INK}${np}${BG_NEW}${pre}${BG_NEW_HI}${nm}${BG_NEW}${suf}${C_EOL}${C_RESET}"
+}
+
+declare -a body=()          # rendered rows, printed verbatim (already full-width)
 n_rename=0; n_skip=0; n_same=0
 have_exists=0; have_collision=0; have_blank=0; have_subpath=0
 
-truncate_mid() {  # keep the string within $1 display cols, ellipsis in middle
-	local s=$2 w=$1 keep tail len
-	len=${#s}
-	(( len <= w )) && { printf '%s' "$s"; return; }
-	keep=$(( (w - 1) / 2 ))
-	tail=$(( w - 1 - keep ))
-	printf '%s…%s' "${s:0:keep}" "${s:len-tail}"
-}
-
-colw=$(( (maxw - 4) / 2 ))
 for ((i = 0; i < n; i++)); do
 	old=${src_base[i]}; new=${new_base[i]}
 	case ${status[i]} in
 	rename)
 		((n_rename++))
-		o=$(truncate_mid "$colw" "$old"); nw=$(truncate_mid "$colw" "$new")
-		body+=("  ${C_GREEN}${ICON_OK}${C_RESET} ${C_DIM}${o}${C_RESET} ${C_GREY}${ICON_ARROW}${C_RESET} ${C_GREEN}${nw}${C_RESET}")
+		render_pair "$((i + 1))" "$old" "$new"
+		body+=("$RP_OLD" "$RP_NEW" "")
 		;;
 	same) ((n_same++));;
 	blank)
 		((n_skip++)); have_blank=1
-		o=$(truncate_mid "$colw" "$old")
-		body+=("  ${C_YELLOW}${ICON_SKIP}${C_RESET} ${C_DIM}${o}${C_RESET} ${C_YELLOW}left as-is (blank name)${C_RESET}")
+		body+=("${C_YELLOW}!${C_RESET} $((i + 1)). ${C_DIM}${old}${C_RESET} ${C_YELLOW}(left as-is: blank)${C_RESET}" "")
 		;;
 	subpath)
 		((n_skip++)); have_subpath=1
-		o=$(truncate_mid "$colw" "$old")
-		body+=("  ${C_YELLOW}${ICON_SKIP}${C_RESET} ${C_DIM}${o}${C_RESET} ${C_YELLOW}skipped (name contains '/')${C_RESET}")
+		body+=("${C_YELLOW}!${C_RESET} $((i + 1)). ${C_DIM}${old}${C_RESET} ${C_YELLOW}(skipped: contains '/')${C_RESET}" "")
 		;;
 	collision)
 		((n_skip++)); have_collision=1
-		o=$(truncate_mid "$colw" "$old"); nw=$(truncate_mid "$colw" "$new")
-		body+=("  ${C_RED}${ICON_WARN}${C_RESET} ${C_DIM}${o}${C_RESET} ${C_GREY}${ICON_ARROW}${C_RESET} ${C_RED}${nw}${C_RESET} ${C_RED}(collision)${C_RESET}")
+		body+=("${C_RED}!${C_RESET} $((i + 1)). ${C_DIM}${old}${C_RESET} ${C_GREY}${ICON_ARROW}${C_RESET} ${C_RED}${new}${C_RESET} ${C_RED}(collision)${C_RESET}" "")
 		;;
 	exists)
 		((n_skip++)); have_exists=1
-		o=$(truncate_mid "$colw" "$old"); nw=$(truncate_mid "$colw" "$new")
-		body+=("  ${C_RED}${ICON_WARN}${C_RESET} ${C_DIM}${o}${C_RESET} ${C_GREY}${ICON_ARROW}${C_RESET} ${C_RED}${nw}${C_RESET} ${C_RED}(target exists)${C_RESET}")
+		body+=("${C_RED}!${C_RESET} $((i + 1)). ${C_DIM}${old}${C_RESET} ${C_GREY}${ICON_ARROW}${C_RESET} ${C_RED}${new}${C_RESET} ${C_RED}(target exists)${C_RESET}" "")
 		;;
 	esac
 done
@@ -248,66 +276,54 @@ done
 # warning / explanation lines
 declare -a warn=()
 if (( have_exists )); then
-	warn+=("${C_RED}${ICON_WARN} Some targets already exist — those renames are SKIPPED${C_RESET}")
-	warn+=("${C_RED}  so no existing file is ever overwritten.${C_RESET}")
+	warn+=("${C_RED}${ICON_WARN} Some targets already exist — those renames are skipped so nothing is overwritten.${C_RESET}")
 fi
 if (( have_collision )); then
-	warn+=("${C_RED}${ICON_WARN} Two or more files map to the same name — SKIPPED to avoid loss.${C_RESET}")
+	warn+=("${C_RED}${ICON_WARN} Two or more files map to the same name — skipped to avoid loss.${C_RESET}")
 fi
 if (( have_blank || have_subpath )); then
 	warn+=("${C_YELLOW}${ICON_SKIP} Blank names and names with '/' are left untouched.${C_RESET}")
 fi
 
-# compute box inner width
-inner=0
 dir_disp=${DIR/#$HOME/\~}
-dir_avail=$(( maxw - 18 )); (( dir_avail < 12 )) && dir_avail=12
-dir_disp=$(truncate_mid "$dir_avail" "$dir_disp")
 header="${C_CYAN}${C_BOLD}${ICON_TITLE} Bulk rename${C_RESET}${C_DIM} — ${dir_disp}${C_RESET}"
 summary="${C_BOLD}${n_rename}${C_RESET} to rename"
-(( n_skip )) && summary+="${C_DIM},${C_RESET} ${C_RED}${n_skip} skipped${C_RESET}"
-(( n_same )) && summary+="${C_DIM},${C_RESET} ${C_DIM}${n_same} unchanged${C_RESET}"
+(( n_skip )) && summary+="${C_DIM} · ${C_RESET}${C_RED}${n_skip} skipped${C_RESET}"
+(( n_same )) && summary+="${C_DIM} · ${n_same} unchanged${C_RESET}"
 
-for l in "$header" "$summary" ${body[@]+"${body[@]}"} ${warn[@]+"${warn[@]}"}; do
-	w=$(dwidth "$l"); (( w > inner )) && inner=$w
-done
-(( inner < 34 )) && inner=34
-(( inner > maxw )) && inner=maxw
-
-pad_line() {  # print "│ <content padded to inner> │"
-	local content=$1 w
-	w=$(dwidth "$content")
-	local pad=$(( inner - w )); (( pad < 0 )) && pad=0
-	printf '%s│%s %s%*s %s│%s\n' "$C_BLUE" "$C_RESET" "$content" "$pad" "" "$C_BLUE" "$C_RESET"
-}
-rule() {  # top/bottom rule; $1 = left corner, $2 = right corner
-	local i line=""
-	for ((i = 0; i < inner + 2; i++)); do line+="─"; done
-	printf '%s%s%s%s%s\n' "$C_BLUE" "$1" "$line" "$2" "$C_RESET"
-}
-
-draw() {
-	printf '\n'
-	rule "╭" "╮"
-	pad_line "$header"
-	pad_line "$summary"
-	pad_line ""
-	local l
-	for l in ${body[@]+"${body[@]}"}; do pad_line "$l"; done
-	if (( ${#warn[@]} )); then
-		pad_line ""
-		for l in "${warn[@]}"; do pad_line "$l"; done
-	fi
-	pad_line ""
-	if (( n_rename > 0 )); then
-		pad_line "${C_GREEN}${C_BOLD}  [ Enter: Apply ]${C_RESET}   ${C_DIM}Esc: cancel${C_RESET}"
+# a pair of big flat buttons, three rows tall, side by side.
+# ⏎ = Enter key, ⎋ = Esc key (swap these if your font lacks the glyphs).
+render_buttons() {
+	local a="  ⏎  APPLY  " c="  ⎋  CANCEL  " sa sc
+	sa=$(printf '%*s' "${#a}" ""); sc=$(printf '%*s' "${#c}" "")
+	if [[ -n $BG_APPLY ]]; then
+		printf '%s%s%s   %s%s%s\n' "$BG_APPLY" "$sa" "$C_RESET" "$BG_CANCEL" "$sc" "$C_RESET"
+		printf '%s%s%s%s%s   %s%s%s%s%s\n' \
+			"$BG_APPLY" "$FG_ON_BTN" "$C_BOLD" "$a" "$C_RESET" \
+			"$BG_CANCEL" "$FG_ON_BTN" "$C_BOLD" "$c" "$C_RESET"
+		printf '%s%s%s   %s%s%s\n' "$BG_APPLY" "$sa" "$C_RESET" "$BG_CANCEL" "$sc" "$C_RESET"
 	else
-		pad_line "${C_DIM}  Nothing to apply — press any key to close${C_RESET}"
+		printf '[ ⏎ APPLY ]   [ ⎋ CANCEL ]\n'
 	fi
-	rule "╰" "╯"
 }
 
-draw
+print_screen() {
+	printf '\n%s\n%s\n\n' "$header" "$summary"
+	local l
+	for l in ${body[@]+"${body[@]}"}; do printf '%s\n' "$l"; done
+	if (( ${#warn[@]} )); then
+		for l in "${warn[@]}"; do printf '%s\n' "$l"; done
+		printf '\n'
+	fi
+}
+
+print_screen
+
+# nothing to apply → show the result, never block on input
+if (( n_rename == 0 )); then
+	printf '\n'
+	exit 0
+fi
 
 # ---------------------------------------------------------------------------
 # read the decision
@@ -323,14 +339,10 @@ elif [[ -z $tty ]]; then
 		"$C_YELLOW" "$ICON_SKIP" "$C_RESET" >&2
 	exit 0
 else
+	render_buttons
 	printf '%s' $'\e[?25l'   # hide cursor
 	restore_cursor() { printf '%s' $'\e[?25h'; }
 	trap 'restore_cursor; cleanup' EXIT
-
-	if (( n_rename == 0 )); then
-		IFS= read -rsn1 _ <"$tty"
-		exit 0
-	fi
 
 	while [[ -z $decision ]]; do
 		IFS= read -rsn1 key <"$tty"
@@ -344,8 +356,6 @@ else
 		esac
 	done
 fi
-
-if (( n_rename == 0 )); then exit 0; fi
 
 if [[ $decision == "cancel" ]]; then
 	printf '%s%s cancelled — no files changed.%s\n' "$C_YELLOW" "$ICON_SKIP" "$C_RESET"

@@ -12,6 +12,8 @@ alias lll="lsd --icon always --long --depth 1 --group-directories-first --color 
 alias lln="eza --icons --all -l --sort=date"
 alias ll-fzf="eza --icons --color=always --group-directories-first --no-permissions --no-user -l --ignore-glob '.DS_Store' | fzf --ansi"
 
+alias new="print -rl -- **/*(.om[1,200])"
+
 # 10 most-recent files (newest first by default)
 # --reverse => newest at bottom
 # recent
@@ -76,6 +78,7 @@ alias es="edit-script"
 alias f="noglob fetch"
 alias sb=switchblade
 alias prev="fzf --layout=reverse --preview 'bat --style=numbers --color=always --line-range :500 {}'"
+alias sb-fast-new="print -rl -- **/*(.om[1,200]) | sb"
 
 alias .tab=fzf-tablature
 alias t=fzf-tablature

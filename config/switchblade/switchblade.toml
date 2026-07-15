@@ -18,8 +18,8 @@ pan_inertia = 0.0
 
 # 0..1 fractions covered per frame at 60fps (higher = snappier).
 snap_strength = 0.22       # trackpad pan chase
-key_snap_strength = 0.12   # keyboard move chase — lower = gentler glide
-rubber_band = 0.25
+key_snap_strength = 0.15   # keyboard move chase — lower = gentler glide
+rubber_band = 0.15
 scale_smoothing = 0.35
 zoom_smoothing = 0.35
 
