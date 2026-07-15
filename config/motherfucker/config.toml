@@ -72,6 +72,7 @@ shortcut = "􀩼 "       # SF Symbol name for the "Shortcut" tag pill
 "Finder" = "􀣰 "
 "Kitty" = "􀩼 "
 "Notes" = "􁜾 "
+"Messages" = "􂄹 "
 "Remote Desktop" = "􀢹 "
 "Signal" = "􂄹 "
 "System Settings" = "􀍟 "
@@ -79,7 +80,6 @@ shortcut = "􀩼 "       # SF Symbol name for the "Shortcut" tag pill
 "VirtualDJ" = "􀢸 "
 "iPhone Mirroring" = "􀟞"
 "Shortcuts" = "􀐟 "
-"Shutdown" = "􀆨 "
 "Motherfucker: restart" = "􀼶 "
 "System Settings: displays" = "􀢹 "
 "System Settings: keyboard" = "􀇳 "
@@ -89,14 +89,16 @@ shortcut = "􀩼 "       # SF Symbol name for the "Shortcut" tag pill
 "System Settings: privacy" = "􃇞 "
 "System Settings: login items" = "􁎕 "
 "System Settings: disk access" = "􁘥 "
+"System: lock" = "􀎠 "
+"System: shutdown" = "􀆨 "
+"System: restart" = "􀥣 "
+"Volume: mute" = "􀊣 "
 
 # Custom entries matched like apps; selecting one runs the command via
 # `sh -c` (loaded once at startup — zero cost while typing). Only the
 # outer quotes are trimmed, so inner quotes are written bare, not escaped.
 [shortcuts]
 #"Movies" = "open -R ~/Movies"
-"Shutdown" = "osascript -e 'tell app \"System Events\" to shut down'"
-"Restart" = "osascript -e 'tell app \"System Events\" to restart'"
 "Motherfucker: restart" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
 "M4.local: mount tower" = "open -j smb://nom@m4.local/Tower"
 "SwitchBlade: downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Porn/Downloads"
@@ -109,6 +111,10 @@ shortcut = "􀩼 "       # SF Symbol name for the "Shortcut" tag pill
 "System Settings: privacy" = "open 'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension'"
 "System Settings: login items" = "open 'x-apple.systempreferences:com.apple.LoginItems-Settings.extension'"
 "System Settings: disk access" = "open 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles'"
+"Volume: mute" = "osascript -e 'set volume with output muted'"
+"System: lock" = "open -a ScreenSaverEngine"
+"System: shutdown" = "osascript -e 'tell app \"System Events\" to shut down'"
+"System: restart" = "osascript -e 'tell app \"System Events\" to restart'"
 
 [stats]
 interval = 1.0              # seconds between cpu/ram refreshes while open
