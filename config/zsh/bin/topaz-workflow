@@ -1,4 +1,8 @@
 #!/usr/bin/env zsh
+# Purpose: preview-oriented interactive Topaz workflow.
+# Use this when you want to compare transform presets with short visual A/B
+# previews, then choose an output profile. It hands the final job to
+# topaz-encode; use topaz-pick for the quicker mpv-style three-step picker.
 emulate -L zsh
 set -euo pipefail
 

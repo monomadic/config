@@ -1,4 +1,8 @@
 #!/usr/bin/env zsh
+# Purpose: quick interactive picker matching the mpv `z` menu.
+# Use this when you want the guided three-step choice of enhancement, frame
+# interpolation, and output format. It hands the resulting job to topaz-encode;
+# use topaz-workflow instead when transform A/B previews are the priority.
 set -euo pipefail
 
 # Offline Topaz encode picker: the same three-step flow as the mpv `z` menu

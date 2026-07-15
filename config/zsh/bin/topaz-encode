@@ -1,4 +1,8 @@
 #!/usr/bin/env zsh
+# Purpose: low-level Topaz encode runner and shared execution engine.
+# Use this directly for scripted/repeatable jobs, explicit filters, resume,
+# previews, or copied commands. For an interactive preset picker, prefer
+# topaz-pick (mpv-style choices) or topaz-workflow (visual A/B previews).
 set -euo pipefail
 
 script_name="${0:t}"

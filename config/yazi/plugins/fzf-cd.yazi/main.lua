@@ -17,7 +17,10 @@ if ! command -v fzf-open >/dev/null 2>&1; then
 	print -u2 -- "fzf-cd: fzf-open not found on PATH"
 	exit 2
 fi
-fzf-open
+# --fullscreen: run fzf on the alternate screen. Inline mode (--height) leaves
+# Yazi's Kitty image previews in the graphics layer, bleeding through below the
+# picker; the alt screen hides them cleanly.
+fzf-open --fullscreen
 ]=]
 
 return {

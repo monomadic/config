@@ -94,13 +94,21 @@ handle_directory_selection() {
   local header=''
   local height='50%'
   local preview_cmd='eza --tree --level=2 --color=always {} 2>/dev/null || ls -la {}'
-  local prompt_set=0 header_set=0
+  local prompt_set=0 header_set=0 fullscreen=0
   local -a extra_fzf_args=()
 
   while (( $# )); do
     case "$1" in
       --local)
         mode='local'
+        shift
+        ;;
+      --fullscreen)
+        # Run fzf on the alternate screen (omit --height) instead of inline.
+        # Callers on a Kitty graphics screen (the fzf-cd Yazi plugin) need this:
+        # inline mode leaves Yazi's leftover image placements in the graphics
+        # layer, which bleed through below the picker. Alt-screen hides them.
+        fullscreen=1
         shift
         ;;
       --prompt)
@@ -156,11 +164,20 @@ handle_directory_selection() {
     --bind 'ctrl-/:toggle-preview'
     --bind 'alt-p:toggle-preview'
     --bind 'ctrl-a:toggle-all'
-    --height="$height"
     --exact
     --prompt="$prompt"
-    "${extra_fzf_args[@]}"
   )
+  # Inline (--height) only when NOT fullscreen; alt-screen mode omits it so fzf
+  # takes over the whole screen and no Kitty graphics leak below the picker.
+  (( fullscreen )) || fzf_cmd+=( --height="$height" )
+  fzf_cmd+=( "${extra_fzf_args[@]}" )
+
+  # Clear leftover Kitty graphics placements (e.g. a Yazi image/waveform preview
+  # that was on screen when this launched). Inline-mode fzf (--height) never
+  # takes the alternate screen, so it won't overpaint the graphics layer and the
+  # old image bleeds through below the picker. Goes to /dev/tty because stdout is
+  # captured by callers (the fzf-cd plugin) to read the selected directory.
+  printf '\e_Ga=d\e\\' > /dev/tty 2>/dev/null
 
   local dir
   # Pipe-filter mode only for an actual pipe or file on stdin. A tty check is

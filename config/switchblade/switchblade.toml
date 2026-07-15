@@ -32,15 +32,15 @@ zoom_fade_ms = 180.0
 
 # Selected tile scales up and overlaps neighbors; the boost exponent makes
 # it stand out even more as you zoom out (0 = off).
-selection_scale = 1.15
+selection_scale = 1.02
 selection_zoom_boost = 0.35
-hover_scale = 1.02
+hover_scale = 1.05
 
 corner_radius = 0.0
 selection_corner_radius = 10.0
 # Border widths of the selected / hovered tile; 0 = none. Colors come
 # from selection_border / hover_border below.
-selection_border_width = 0.0
+selection_border_width = 5.0
 hover_border_width = 1.0
 fade_in_ms = 20.0
 
