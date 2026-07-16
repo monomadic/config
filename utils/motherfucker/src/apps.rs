@@ -138,4 +138,14 @@ mod tests {
     fn word_boundaries_score() {
         assert!(score("al", "Ableton Live 12 Suite").is_some());
     }
+
+    // "sig" is a clean prefix of Signal but only a gap-penalized scatter in
+    // "System Settings". The gap must exceed main::RUNNING_BONUS (12) so a
+    // running System Settings can't leapfrog a cold Signal on that soft bonus.
+    #[test]
+    fn strong_prefix_beats_running_scatter() {
+        let signal = score("sig", "Signal").unwrap();
+        let settings = score("sig", "System Settings").unwrap();
+        assert!(signal - settings > 12, "signal={signal} settings={settings}");
+    }
 }

@@ -161,6 +161,7 @@ background = [0.007, 0.007, 0.007]
 space = "quickview"  # internal preview; Esc or Space closes, arrows browse
 enter = "fullview"
 o = "open"
+F = "fullscreen"
 f = "fast_fullscreen"
 c = "copy_path"
 a = "toggle_anim"  # animated thumbnails on/off

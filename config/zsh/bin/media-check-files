@@ -1511,6 +1511,9 @@ import urllib.parse
 stem = os.path.splitext(sys.argv[1])[0]
 
 def clean(value):
+    # Strip any stray bracket/brace/paren characters and hyphens so they can
+    # never leak into the search query.
+    value = re.sub(r"[][(){}-]", "", value)
     return re.sub(r"\s+", " ", value).strip()
 
 braces_only = clean(re.sub(r"\{[^}]*\}", " ", stem))

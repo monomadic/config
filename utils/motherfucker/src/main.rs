@@ -50,6 +50,10 @@ const INPUT_H: f64 = 58.0;
 const ROW_H: f64 = 40.0;
 const ROWS_PAD: f64 = 12.0;
 const MAX_ROWS: usize = 6;
+// Soft ranking bonus for already-running apps. Comparable to a "matches start"
+// hit, so a running app wins when matches are close, but a clearly stronger
+// match on a cold app (a clean prefix vs a gap-penalized scatter) still wins.
+const RUNNING_BONUS: i32 = 12;
 // CPU sampling: minimum interval for a trustworthy percentage.
 const CPU_MIN_INTERVAL: f64 = 0.25;
 
@@ -682,7 +686,7 @@ impl Delegate {
                 if let Some((s, positions)) = apps::match_positions(&query, &entry.name) {
                     seen.push(entry.name.to_lowercase());
                     entry.matched = positions;
-                    scored.push((s, entry));
+                    scored.push((s + RUNNING_BONUS, entry));
                 }
             }
             for app in installed {
@@ -723,14 +727,10 @@ impl Delegate {
                     ));
                 }
             }
-            // Hard rule: running apps always sort above installed ones.
-            scored.sort_by(|a, b| {
-                b.1.running
-                    .is_some()
-                    .cmp(&a.1.running.is_some())
-                    .then(b.0.cmp(&a.0))
-                    .then(a.1.name.cmp(&b.1.name))
-            });
+            // Sort by score (running apps carry a soft RUNNING_BONUS baked in),
+            // then alphabetically. Running is a preference, not an override: a
+            // clearly stronger match on a cold app can outrank a warm one.
+            scored.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.name.cmp(&b.1.name)));
             entries.extend(scored.into_iter().map(|(_, e)| e));
         }
         entries.truncate(MAX_ROWS);

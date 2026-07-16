@@ -6,7 +6,9 @@ from yt_dlp.extractor.common import InfoExtractor
 from yt_dlp.utils import (
     ExtractorError,
     clean_html,
+    int_or_none,
     traverse_obj,
+    unified_strdate,
     url_or_none,
 )
 
@@ -158,6 +160,21 @@ class FaphouseIE(InfoExtractor):
             fatal=False,
         )
 
+        # Structured metadata from the embedded view-state blob. This is present even
+        # for paywalled videos the current account cannot watch, and is more reliable
+        # than the HTML regexes above, so use it to fill any gaps.
+        vstate = traverse_obj(view_state, "video") or {}
+
+        channel = channel or traverse_obj(vstate, "studioName")
+        if not cast:
+            cast = [
+                clean_html(name).strip()
+                for name in traverse_obj(vstate, ("pornstarNames", ...)) or []
+                if name and name.strip()
+            ]
+        duration = int_or_none(traverse_obj(vstate, "duration"))
+        upload_date = unified_strdate(traverse_obj(vstate, "publishedAt"))
+
         data = nextjs or nuxt or view_state or paywall or {}
 
         # Best-effort traversal for an HLS URL in those blobs (try common shapes first)
@@ -182,49 +199,58 @@ class FaphouseIE(InfoExtractor):
         if not m3u8:
             m3u8 = url_or_none(self._search_regex(self._M3U8_RE, webpage, "m3u8 url", default=None))
 
-        if not m3u8:
+        formats = []
+        if m3u8:
+            formats = self._extract_m3u8_formats(
+                m3u8,
+                video_id,
+                ext="mp4",
+                m3u8_id="hls",
+                headers=self._headers(url),
+                fatal=False,
+            )
+        else:
+            # No playable stream. This is expected for paywalled videos the current
+            # account cannot watch. The page still carries full metadata, so emit it
+            # rather than aborting: raise_no_formats() honours --ignore-no-formats-error,
+            # letting `--skip-download --ignore-no-formats-error` (or --write-info-json)
+            # capture the metadata, while still failing by default when a download was
+            # actually intended.
             is_guest = (
                 traverse_obj(paywall, ("user", "isGuest"))
                 or traverse_obj(view_state, ("user", "currentUserId")) is None
             )
             has_access = traverse_obj(view_state, ("video", "videoViewAllowed"))
+            access_type = traverse_obj(view_state, ("video", "videoAccessTypeLabel"))
             if is_guest:
-                raise ExtractorError(
+                msg = (
                     "Faphouse returned a guest page for this request. "
                     f"Sign in at {self._LOGIN_URL}, refresh the page in Brave, "
                     "then retry with fresh browser cookies "
-                    "(for example, --cookies-from-browser brave).",
-                    expected=True,
+                    "(for example, --cookies-from-browser brave)."
                 )
-            if has_access is False:
-                access_type = traverse_obj(view_state, ("video", "videoAccessTypeLabel"))
-                raise ExtractorError(
+            elif has_access is False:
+                msg = (
                     "This Faphouse account does not appear to have access to the full video"
-                    f"{f' ({access_type})' if access_type else ''}.",
-                    expected=True,
+                    f"{f' ({access_type})' if access_type else ''}."
                 )
-            raise ExtractorError(
-                "Could not find HLS playlist URL (m3u8). "
-                "Use browser DevTools Network to locate the JSON/XHR that returns the HLS URL(s), "
-                "then implement _download_json() here.",
-                expected=True,
-            )
-
-        formats = self._extract_m3u8_formats(
-            m3u8,
-            video_id,
-            ext="mp4",
-            m3u8_id="hls",
-            headers=self._headers(url),
-            fatal=False,
-        )
+            else:
+                msg = (
+                    "Could not find HLS playlist URL (m3u8). "
+                    "Use browser DevTools Network to locate the JSON/XHR that returns the "
+                    "HLS URL(s), then implement _download_json() here."
+                )
+            self.raise_no_formats(msg, expected=True, video_id=video_id)
 
         return {
             "id": video_id,
             "title": title,
             "channel": channel,
+            "uploader": channel,
             "description": description,
             "thumbnail": thumbnail,
+            "duration": duration,
+            "upload_date": upload_date,
             "cast": cast if cast else None,
             "tags": tags if tags else None,
             "formats": formats,
