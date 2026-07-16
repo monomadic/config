@@ -103,6 +103,10 @@ prepend_previewers = [
   { url = "*.cho", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
   { url = "*.chopro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
   { url = "*.chordpro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
+  # mime-ext deliberately avoids file(1), so XML and unknown/extensionless
+  # files miss Yazi's default text/* preview rule. Render them as code only
+  # when hovered; this adds no preloading or background MIME probing.
+  { mime = "application/{xml,xml-dtd,sql,octet-stream}", run = "code" },
   { url = "*.mov", run = "video-thumb-info" },
   { url = "*.MOV", run = "video-thumb-info" },
   { mime = "video/*", run = "video-thumb-info" },

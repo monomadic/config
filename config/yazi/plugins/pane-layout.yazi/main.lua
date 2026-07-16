@@ -110,8 +110,8 @@ local function toggle_parent(st, ratio)
 	st.parent = st.parent == 0 and ratio.parent or 0
 end
 
--- Absolute presets: parent on/off + preview "default" (configured), "large",
--- or "off". Used by the Ctrl-1/2/3 view bindings.
+-- Absolute presets: parent on/off + preview "default", "half", "two-thirds",
+-- "large", or "off". Used by the Ctrl-1/2/3/4 view bindings.
 local function apply_preset(st, ratio, parent_on, preview_mode)
 	st.parent = parent_on and ratio.parent or 0
 	st.current = ratio.current
@@ -119,6 +119,8 @@ local function apply_preset(st, ratio, parent_on, preview_mode)
 		st.preview = 0
 	elseif preview_mode == "half" then
 		st.preview = ratio.current
+	elseif preview_mode == "two-thirds" then
+		st.preview = ratio.current * 2
 	elseif preview_mode == "large" then
 		st.preview = large_preview(ratio)
 	else
@@ -141,6 +143,8 @@ local function entry(st, job)
 			apply_preset(st, ratio, true, "default")
 		elseif name == "preview" then
 			apply_preset(st, ratio, false, "half")
+		elseif name == "preview-wide" then
+			apply_preset(st, ratio, false, "two-thirds")
 		elseif name == "minimal" then
 			apply_preset(st, ratio, false, "off")
 		else

@@ -17,8 +17,8 @@ pan_sensitivity = 2.0
 pan_inertia = 0.0
 
 # 0..1 fractions covered per frame at 60fps (higher = snappier).
-snap_strength = 0.22       # trackpad pan chase
-key_snap_strength = 0.15   # keyboard move chase — lower = gentler glide
+snap_strength = 0.22  # trackpad pan chase
+key_snap_strength = 0.15  # keyboard move chase — lower = gentler glide
 rubber_band = 0.15
 scale_smoothing = 0.35
 zoom_smoothing = 0.35
@@ -158,18 +158,18 @@ background = [0.007, 0.007, 0.007]
 # selected clip.
 
 [keys]
-enter = "open"
+space = "quickview"  # internal preview; Esc or Space closes, arrows browse
+enter = "fullview"
 o = "open"
-space = "quickview"      # internal preview; Esc or Space closes, arrows browse
 f = "fast_fullscreen"
 c = "copy_path"
-a = "toggle_anim"        # animated thumbnails on/off
-p = "toggle_focus_pause" # pause-when-unfocused on/off
-r = "reveal"             # reveal in Finder (open -R)
+a = "toggle_anim"  # animated thumbnails on/off
+p = "toggle_focus_pause"  # pause-when-unfocused on/off
+r = "reveal"  # reveal in Finder (open -R)
 t = "trim"
-"[" = "skip_back"        # jump by skip_fraction; wraps at the ends
+"[" = "skip_back"  # jump by skip_fraction; wraps at the ends
 "]" = "skip_forward"
-D = "open_parent"        # re-ingest from the selected clip's parent dir
+D = "open_parent"  # re-ingest from the selected clip's parent dir
 
 # n = "rename_script"    # any key -> any launched program; example below
 # "{" = "skip_back_big"  # a skip with its own amount; see below
@@ -210,7 +210,8 @@ program = "/Users/nom/.zsh/bin/kitty-launch"
 args = [
   "--os-window",
   "--auto-hide",
-  "--cwd", "{dir}",
+  "--cwd",
+  "{dir}",
   "--",
   "/Users/nom/.zsh/bin/ffmpeg-lossless-cut",
   "{path}",
