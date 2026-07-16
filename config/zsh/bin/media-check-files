@@ -1412,15 +1412,22 @@ queue_fetched_metadata() {
   tmp_json="$(mktemp -t media-check-ytmeta.XXXXXX.json)" || return 1
   errlog="$(mktemp -t media-check-ytmeta-err.XXXXXX)" || errlog=""
 
-  yt-dlp --skip-download --dump-single-json --no-warnings "$url" \
+  # --ignore-no-formats-error lets metadata come back even when the video's
+  # formats are gated (e.g. faphouse fan/VOD the account can't access); we only
+  # want the tags anyway (--skip-download).
+  yt-dlp --skip-download --dump-single-json --no-warnings --ignore-no-formats-error "$url" \
     > "$tmp_json" 2>"${errlog:-/dev/null}" &
   spin_until_pid $! "Fetching metadata…" || rc=$?
 
-  if (( rc != 0 )); then
+  title="$(jq -r '.title // empty' "$tmp_json" 2>/dev/null)"
+
+  # Success is "we got a title", not exit status — yt-dlp may exit non-zero over
+  # missing formats while still returning perfectly good metadata.
+  if [[ -z "$title" ]]; then
     FETCH_ERROR=""
     if [[ -n "$errlog" && -s "$errlog" ]]; then
       # Keep the last real line of yt-dlp's stderr (usually the ERROR: line) so
-      # the caller can surface why the fetch failed (e.g. cookies-from-browser).
+      # the caller can surface why the fetch failed.
       FETCH_ERROR="$(grep -a . -- "$errlog" | tail -n 1)"
     fi
     [[ -n "$errlog" ]] && rm -f -- "$errlog"
@@ -1429,7 +1436,6 @@ queue_fetched_metadata() {
   fi
   [[ -n "$errlog" ]] && rm -f -- "$errlog"
 
-  title="$(jq -r '.title // empty' "$tmp_json")"
   uploader="$(jq -r '.uploader // empty' "$tmp_json")"
   channel="$(jq -r '.channel // empty' "$tmp_json")"
   webpage_url="$(jq -r '.webpage_url // empty' "$tmp_json")"
