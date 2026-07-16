@@ -20,7 +20,7 @@ play = [
   { desc = "􀽍  mpv", run = "mpv --force-window --fullscreen --no-native-fs %s", orphan = true },
   { desc = "􀽍  mpv-ipc", run = "mpv-send play %s", orphan = true },
   { desc = "􀫐  switchblade", run = "switchblade %s", orphan = true },
-  { desc = "􀇺  check: media", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-check-files %s''', orphan = true },
+  { desc = "􀇺  check: media", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-audit %s''', orphan = true },
   { desc = "􀼹  open-url", run = "media-open-url %s" },
   { desc = "􁾕  convert: prores", run = "convert-to-pro-res %s .", orphan = true },
   { desc = "􁊇  info", run = "mediainfo %s1; echo 'Press enter to exit'; read _", block = true },
@@ -30,7 +30,7 @@ play_dir = [
   { desc = "􀽍  mpv", run = "mpv --force-window --fullscreen --no-native-fs %s", orphan = true },
   { desc = "􀫐  switchblade", run = "switchblade %s", orphan = true },
   { desc = "􀽎  vlc", run = "vlc %s .", orphan = true },
-  { desc = "􀇺  check: media", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-check-files %s''', orphan = true },
+  { desc = "􀇺  check: media", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-audit %s''', orphan = true },
   { desc = "􁊇  exiftool", run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", block = true },
 ]
 open = [

@@ -48,7 +48,7 @@ desc = "File: safe-move to next kitty pane"
 [[mgr.prepend_keymap]]
 on = ["<Space>", "m", "a"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " media-audit " -- /Users/nom/.zsh/bin/media-check-files %s'''
+run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " media-audit " -- /Users/nom/.zsh/bin/media-audit %s'''
 desc = "Media: audit"
 
 # <Space> m — media

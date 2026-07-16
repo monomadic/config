@@ -7,7 +7,7 @@ emulate -L zsh
 #
 # Defaults:
 #   - Rename only; no container repair or metadata repair is performed here.
-#   - Use media-check-files for media-library health checks and fixes.
+#   - Use media-audit for media-library health checks and fixes.
 #
 # Options:
 #   --print-target      Print the canonical target path only

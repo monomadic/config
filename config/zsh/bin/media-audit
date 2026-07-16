@@ -21,7 +21,7 @@ CHECK_RENAME=true
 CHECK_LENGTH=true
 
 SHOW_THUMBNAIL=true
-THUMB_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/media-check-files/thumbs"
+THUMB_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/media-audit/thumbs"
 THUMB_PX=480
 
 MAX_FILENAME_BYTES=240
@@ -73,7 +73,7 @@ THUMB_CURRENT_IMG=""
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  media-check-files [options] [file ...]
+  media-audit [options] [file ...]
 
 Audits a media library. With no file arguments it streams files from fd-media.
 When files are provided, only those files are checked. A directory argument is
