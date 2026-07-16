@@ -16,10 +16,10 @@
 # the same chord; "none" unbinds one. Actions: open, launch-new, reveal,
 # clear, dismiss, select-all, move-up, move-down.
 [keys]
-"enter" = "open"            # activate running app / launch installed one
-#"cmd+enter" = "launch-new"  # real open (reopen event) even if running
-"cmd+enter" = "reveal"          # reveal the app bundle in Finder
-"cmd+r" = "reveal"          # reveal the app bundle in Finder
+"enter" = "open"              # activate running app / launch installed one
+#"cmd+enter" = "launch-new"   # real open (reopen event) even if running
+"cmd+enter" = "reveal"        # reveal the app bundle in Finder
+"cmd+r" = "reveal"            # reveal the app bundle in Finder
 "ctrl+u" = "clear"
 "ctrl+c" = "dismiss"
 "escape" = "dismiss"
