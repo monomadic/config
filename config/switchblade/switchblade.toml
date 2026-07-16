@@ -6,9 +6,10 @@
 # Ideal tile size: width picks the column count, then tiles stretch so the
 # columns exactly fill the window (the background should barely show).
 # Width:height sets the aspect ratio (240:135 = 16:9).
-tile_width = 240.0
-tile_height = 135.0
-gap = 1.0
+tile_width = 150.0
+#tile_height = 135.0
+tile_height = 150.0
+gap = 2.0
 
 # Scroll delta multiplier; negative flips direction if pan feels inverted.
 pan_sensitivity = 2.0

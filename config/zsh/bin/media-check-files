@@ -57,6 +57,8 @@ typeset -A CHECK_STATUS=()
 MENU_CHECK=""
 typeset -a MENU_OPTIONS=()
 MENU_INDEX=0
+MENU_NOTE=""
+FETCH_ERROR=""
 CHECKS_HEADER_ROW=0
 typeset -a PENDING_METADATA_ARGS=()
 typeset -a PENDING_FIXES=()
@@ -282,6 +284,10 @@ draw_checks_block() {
 
     # Draw the active menu directly beneath its check, indented.
     if [[ -n "$MENU_CHECK" && "$item" == "$MENU_CHECK" ]]; then
+      if [[ -n "$MENU_NOTE" ]]; then
+        print -rn -u4 -- $'\r\033[K'"    ${C_RED}$(menu_option_text "$MENU_NOTE" "$fw")${C_RESET}"
+        print -u4 -- ""
+      fi
       for (( i = 1; i <= ${#MENU_OPTIONS[@]}; i++ )); do
         text="$(menu_option_text "${MENU_OPTIONS[i]}" "$fw")"
         if (( i == MENU_INDEX )); then
@@ -1411,6 +1417,12 @@ queue_fetched_metadata() {
   spin_until_pid $! "Fetching metadata…" || rc=$?
 
   if (( rc != 0 )); then
+    FETCH_ERROR=""
+    if [[ -n "$errlog" && -s "$errlog" ]]; then
+      # Keep the last real line of yt-dlp's stderr (usually the ERROR: line) so
+      # the caller can surface why the fetch failed (e.g. cookies-from-browser).
+      FETCH_ERROR="$(grep -a . -- "$errlog" | tail -n 1)"
+    fi
     [[ -n "$errlog" ]] && rm -f -- "$errlog"
     rm -f -- "$tmp_json"
     return 1
@@ -1628,21 +1640,17 @@ check_title_metadata() {
 
   while true; do
     if queue_fetched_metadata "$url"; then
+      MENU_NOTE=""
       PENDING_FIXES+=("metadata")
       return 0
     fi
 
-    fail "Could not fetch metadata for that URL."
-    say ""
+    # Surface yt-dlp's own error under the check so a config problem (e.g. a
+    # locked cookies-from-browser database) is visible instead of a silent fail.
+    MENU_NOTE="${FETCH_ERROR:-yt-dlp could not fetch metadata for that URL.}"
 
-    if ! prompt_select "try a different URL" "skip metadata"; then
-      warn "Skipped metadata fetch."
-      (( skip_count++ ))
-      mark_unresolved
-      return 1
-    fi
-
-    if (( SELECT_INDEX == 2 )); then
+    if ! prompt_select "try a different URL" "skip metadata" || (( SELECT_INDEX == 2 )); then
+      MENU_NOTE=""
       warn "Skipped metadata fetch."
       (( skip_count++ ))
       mark_unresolved
@@ -1650,16 +1658,13 @@ check_title_metadata() {
     fi
 
     if ! prompt_valid_url; then
+      MENU_NOTE=""
       warn "Skipped metadata fetch."
       (( skip_count++ ))
       mark_unresolved
       return 1
     fi
     url="$PROMPT_URL"
-
-    issue_screen "metadata" "$file"
-    say "metadata: missing title"
-    say ""
   done
 }
 
@@ -1793,6 +1798,7 @@ audit_file() {
   PENDING_FIXES=()
   PENDING_FASTSTART=false
   PENDING_TRIM_START=""
+  MENU_NOTE=""
   reset_file_checks
   set_current_thumb "$AUDIT_PATH"
 
