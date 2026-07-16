@@ -1,82 +1,82 @@
 [mgr]
-ratio     = [ 1, 4, 1 ]
+ratio = [1, 4, 1]
 scrolloff = 5
-linemode  = "size"
+linemode = "size"
 shared_clipboard = true
 
 [preview]
-max_width  = 1200
+max_width = 1200
 max_height = 900
 cache_dir = "~/.cache/yazi"
 
 [opener]
 edit = [
-	{ run = "hx %s", desc = "􀤘  helix", for = "unix", block = true },
+  { run = "hx %s", desc = "􀤘  helix", for = "unix", block = true },
 ]
 bulk-rename = [
-	{ run = "hx %s", desc = "􀃫  helix", for = "unix", block = true },
+  { run = "hx %s", desc = "􀃫  helix", for = "unix", block = true },
 ]
 play = [
-	{ desc = "􀽍  mpv", run = "mpv --force-window --fullscreen --no-native-fs %s", orphan = true },
-	{ desc = "􀽍  mpv-ipc", run = "mpv-send play %s", orphan = true },
-	{ desc = "􀫐  switchblade", run = "switchblade %s", orphan = true },
-	{ desc = "􀇺  check: media", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-check-files %s''', orphan = true },
-	{ desc = "􀼹  open-url", run = "media-open-url %s" },
-	{ desc = "􁾕  convert: prores", run = "convert-to-pro-res %s .", orphan = true },
-	{ desc = "􁊇  info", run = "mediainfo %s1; echo 'Press enter to exit'; read _", block = true },
-	{ desc = "􀽎  vlc", run = "vlc %s .", orphan = true },
+  { desc = "􀽍  mpv", run = "mpv --force-window --fullscreen --no-native-fs %s", orphan = true },
+  { desc = "􀽍  mpv-ipc", run = "mpv-send play %s", orphan = true },
+  { desc = "􀫐  switchblade", run = "switchblade %s", orphan = true },
+  { desc = "􀇺  check: media", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-check-files %s''', orphan = true },
+  { desc = "􀼹  open-url", run = "media-open-url %s" },
+  { desc = "􁾕  convert: prores", run = "convert-to-pro-res %s .", orphan = true },
+  { desc = "􁊇  info", run = "mediainfo %s1; echo 'Press enter to exit'; read _", block = true },
+  { desc = "􀽎  vlc", run = "vlc %s .", orphan = true },
 ]
 play_dir = [
-	{ desc = "􀽍  mpv", run = "mpv --force-window --fullscreen --no-native-fs %s", orphan = true },
-	{ desc = "􀫐  switchblade", run = "switchblade %s", orphan = true },
-	{ desc = "􀽎  vlc", run = "vlc %s .", orphan = true },
-	{ desc = "􀇺  check: media", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-check-files %s''', orphan = true },
-	{ desc = "􁊇  exiftool", run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", block = true },
+  { desc = "􀽍  mpv", run = "mpv --force-window --fullscreen --no-native-fs %s", orphan = true },
+  { desc = "􀫐  switchblade", run = "switchblade %s", orphan = true },
+  { desc = "􀽎  vlc", run = "vlc %s .", orphan = true },
+  { desc = "􀇺  check: media", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-check-files %s''', orphan = true },
+  { desc = "􁊇  exiftool", run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", block = true },
 ]
 open = [
-	{ run = "open %s", desc = "􀭅  open" },
-	# { run = "/Users/nom/.zsh/bin/yazi-shortcut-open %s", desc = "􂅛  open shortcut", for = "macos", block = true },
+  { run = "open %s", desc = "􀭅  open" },
+  # { run = "/Users/nom/.zsh/bin/yazi-shortcut-open %s", desc = "􂅛  open shortcut", for = "macos", block = true },
 ]
 # 􀭅 􂇕
 reveal = [
-	{ run = "open %s1", desc = "􀭅  open" },
-	{ run = "open --reveal %s1", desc = "􀥯  finder" },
-	# { run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", desc = "􁊇  exiftool", block = true },
+  { run = "open %s1", desc = "􀭅  open" },
+  { run = "open --reveal %s1", desc = "􀥯  finder" },
+  # { run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", desc = "􁊇  exiftool", block = true },
 ]
 chordpro = [
-	{ run = "chordpro-tui %s1", desc = "􃐹  chordpro-tui", block = true },
-	{ run = "chordpro-rename %s1", desc = "􀈏  chordpro-rename", block = true },
-	{ run = "chordpro-pdf --preset ipad-mini %s1", desc = "􀡢  convert to pdf (iPad Mini)", for = "unix", block = true },
-	{ run = "chordpro-pdf --preset ipad-mini --inverted %s1", desc = "􀎾  convert to pdf (iPad Mini, Inverted)", for = "unix", block = true },
+  { run = "chordpro-tui %s1", desc = "􃐹  chordpro-tui", block = true },
+  { run = "chordpro-rename %s1", desc = "􀈏  chordpro-rename", block = true },
+  { run = "chordpro-pdf --preset ipad-mini %s1", desc = "􀡢  convert to pdf (iPad Mini)", for = "unix", block = true },
+  { run = "chordpro-pdf --preset ipad-mini --inverted %s1", desc = "􀎾  convert to pdf (iPad Mini, Inverted)", for = "unix", block = true },
 ]
 pdf_chordpro = [
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " pdf to chordpro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "􃐹  pdf->chordpro", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " pdf to chordpro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "􃐹  pdf->chordpro", for = "unix", orphan = true },
 ]
 video_tools = [
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut %s''', desc = "􂅓  trim (start)", for = "unix", orphan = true },
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut --reverse %s''', desc = "􂅗  trim (end)", for = "unix", orphan = true },
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " rename media " -- /Users/nom/.zsh/bin/rename-media %s''', desc = "􀈏  rename media", for = "unix", orphan = true },
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " topaz workflow " -- /Users/nom/.zsh/bin/topaz-workflow %s''', desc = "topaz", for = "unix", orphan = true },
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " topaz presets " -- /Users/nom/.zsh/bin/topaz-simple-presets %s''', desc = "Topaz presets", for = "unix", orphan = true },
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 60fps " -- /Users/nom/.zsh/bin/interpolate-resolve %s''', desc = "interpolate: 60fps (hevc)", for = "unix", orphan = true },
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 60fps prores " -- /Users/nom/.zsh/bin/interpolate-resolve --prores %s''', desc = "interpolate: 60fps (prores)", for = "unix", orphan = true },
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 120fps " -- /Users/nom/.zsh/bin/interpolate-resolve 120 %s''', desc = "interpolate: 120fps (hevc)", for = "unix", orphan = true },
-	{ run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 120fps prores " -- /Users/nom/.zsh/bin/interpolate-resolve --prores 120 %s''', desc = "interpolate: 120fps (prores)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut %s''', desc = "􂅓  trim (start)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut --reverse %s''', desc = "􂅗  trim (end)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " rename media " -- /Users/nom/.zsh/bin/rename-media %s''', desc = "􀈏  rename media", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " topaz workflow " -- /Users/nom/.zsh/bin/topaz-workflow %s''', desc = "􃖦  topaz", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " topaz presets " -- /Users/nom/.zsh/bin/topaz-simple-presets %s''', desc = "􀰙  topaz presets", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 60fps " -- /Users/nom/.zsh/bin/interpolate-resolve %s''', desc = "􀲳  interpolate: 60fps (hevc)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 60fps prores " -- /Users/nom/.zsh/bin/interpolate-resolve --prores %s''', desc = "􀲳  interpolate: 60fps (prores)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 120fps " -- /Users/nom/.zsh/bin/interpolate-resolve 120 %s''', desc = "􀲳  interpolate: 120fps (hevc)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 120fps prores " -- /Users/nom/.zsh/bin/interpolate-resolve --prores 120 %s''', desc = "􀲳  interpolate: 120fps (prores)", for = "unix", orphan = true },
 ]
 extract = [
-	{ run = "ya pub extract --list %s", desc = "􃀩  extract" },
+  { run = "ya pub extract --list %s", desc = "􃀩  extract" },
 ]
 
 [open]
 prepend_rules = [
-	{ url = "bulk-rename.txt", use = "bulk-rename" },
-	{ url = "*.pro", use = [ "chordpro", "edit", "open", "reveal" ] },
-	{ url = "*.cho", use = [ "chordpro", "edit", "open", "reveal" ] },
-	{ url = "*.chopro", use = [ "chordpro", "edit", "open", "reveal" ] },
-	{ url = "*.chordpro", use = [ "chordpro", "edit", "open", "reveal" ] },
-	{ mime = "application/pdf", use = [ "open", "reveal", "pdf_chordpro" ] },
-	{ mime = "video/*", use = [ "play", "open", "reveal", "video_tools" ] },
-	{ url = "*/", use = [ "edit", "reveal", "play_dir", "open" ] },
+  { url = "bulk-rename.txt", use = "bulk-rename" },
+  { url = "*.pro", use = ["chordpro", "edit", "open", "reveal"] },
+  { url = "*.cho", use = ["chordpro", "edit", "open", "reveal"] },
+  { url = "*.chopro", use = ["chordpro", "edit", "open", "reveal"] },
+  { url = "*.chordpro", use = ["chordpro", "edit", "open", "reveal"] },
+  { mime = "application/pdf", use = ["open", "reveal", "pdf_chordpro"] },
+  { mime = "video/*", use = ["play", "open", "reveal", "video_tools"] },
+  { url = "*/", use = ["edit", "reveal", "play_dir", "open"] },
 ]
 
 [plugin]
@@ -84,34 +84,34 @@ prepend_rules = [
 # Never preview/preload/spot them so Yazi never touches (and never materializes)
 # an evicted file while browsing. Must precede the catch-all rules below.
 prepend_preloaders = [
-	{ url = "*.icloud", run = "noop" },
-	{ url = ".*.icloud", run = "noop" },
-	# Don't decode video thumbnails ahead of the cursor. The built-in `video`
-	# preloader fires on every file in view — brutal on large 4K/HEVC dirs.
-	# The video-thumb-info previewer self-generates its thumbnail on hover, so
-	# nothing is lost; previews just render when you land on a file.
-	{ mime = "video/*", run = "noop" },
+  { url = "*.icloud", run = "noop" },
+  { url = ".*.icloud", run = "noop" },
+  # Don't decode video thumbnails ahead of the cursor. The built-in `video`
+  # preloader fires on every file in view — brutal on large 4K/HEVC dirs.
+  # The video-thumb-info previewer self-generates its thumbnail on hover, so
+  # nothing is lost; previews just render when you land on a file.
+  { mime = "video/*", run = "noop" },
 ]
 prepend_spotters = [
-	{ url = "*.icloud", run = "noop" },
-	{ url = ".*.icloud", run = "noop" },
+  { url = "*.icloud", run = "noop" },
+  { url = ".*.icloud", run = "noop" },
 ]
 prepend_previewers = [
-	{ url = "*.icloud", run = "noop" },
-	{ url = ".*.icloud", run = "noop" },
-	{ url = "*.pro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
-	{ url = "*.cho", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
-	{ url = "*.chopro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
-	{ url = "*.chordpro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
-	{ url = "*.mov", run = "video-thumb-info" },
-	{ url = "*.MOV", run = "video-thumb-info" },
-	{ mime = "video/*", run = "video-thumb-info" },
+  { url = "*.icloud", run = "noop" },
+  { url = ".*.icloud", run = "noop" },
+  { url = "*.pro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
+  { url = "*.cho", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
+  { url = "*.chopro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
+  { url = "*.chordpro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
+  { url = "*.mov", run = "video-thumb-info" },
+  { url = "*.MOV", run = "video-thumb-info" },
+  { mime = "video/*", run = "video-thumb-info" },
 ]
 append_previewers = [
-	{ url = "*", run = "file-extra-metadata" },
+  { url = "*", run = "file-extra-metadata" },
 ]
 append_spotters = [
-	{ url = "*", run = "file-extra-metadata" },
+  { url = "*", run = "file-extra-metadata" },
 ]
 
 # Resolve MIME types by file extension instead of spawning file(1) per entry.
@@ -119,13 +119,13 @@ append_spotters = [
 # get application/octet-stream. `group = "mime"` overrides the builtin fetcher
 # (Yazi > v26.1.22 — no `id` needed).
 [[plugin.prepend_fetchers]]
-url   = "local://*"
-run   = "mime-ext.local"
-prio  = "high"
+url = "local://*"
+run = "mime-ext.local"
+prio = "high"
 group = "mime"
 
 [[plugin.prepend_fetchers]]
-url   = "remote://*"
-run   = "mime-ext.remote"
-prio  = "high"
+url = "remote://*"
+run = "mime-ext.remote"
+prio = "high"
 group = "mime"
