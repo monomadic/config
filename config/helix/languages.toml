@@ -20,21 +20,29 @@ indent = { tab-width = 2, unit = "\t" }
 
 [[language]]
 name = "xml"
-file-types = [ "xml", "svg", "xsd", "xslt", "xsl" ]
+file-types = ["xml", "svg", "xsd", "xslt", "xsl"]
 auto-format = true
 formatter = { command = "xmllint", args = ["--format", "-"] }
-language-servers = [ "xml" ]
-
-[language-server.xml]
-command = "lemminx-osx-aarch_64"
+language-servers = ["xml"]
 
 [[language]]
 name = "markdown"
-formatter = { command = "dprint", args = ["fmt", "--stdin", "md"]}
+formatter = { command = "dprint", args = ["fmt", "--stdin", "md"] }
 
 [[language]]
 name = "bash"
 language-servers = ["bashls"]
 
+[[language]]
+name = "toml"
+language-servers = ["tombi"]
+auto-format = true
+
 [language-server.bashls]
 command = "bashls"
+
+[language-server.tombi]
+command = "tombi"
+
+[language-server.xml]
+command = "lemminx-osx-aarch_64"
