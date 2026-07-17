@@ -34,6 +34,7 @@
 # general aliases
 --alias print-name "-s --print filename -o {0} --trim-filenames 200 --output-na-placeholder ''"
 --alias best-video "-f bv[vcodec!=none][acodec=none]/bv[acodec=none]/bv*[vcodec!=none]/bv*/b -S res,fps,tbr --format-sort-force --ignore-no-formats-error"
+--alias metadata "--ignore-no-formats-error --skip-download --write-info-json --no-download-archive"
 
 # genre
 --alias media '--embed-metadata --parse-metadata "Media:%(meta_genre)s"'

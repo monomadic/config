@@ -48,7 +48,12 @@ C_YELLOW=$'\033[33m'
 ICON_PASS="✓"
 ICON_FAIL="✕"
 CURRENT_FILE=""
+CURRENT_STATS=""
 CURRENT_CHECK=""
+# Number of rows draw_fileinfo prints (working-dir label+value, blank,
+# current-file label+value, stats). Keep in sync with draw_fileinfo and
+# checks_header_row.
+INFO_ROWS=6
 CURRENT_TOTAL=0
 CURRENT_PASS=0
 CURRENT_FAIL=0
@@ -302,16 +307,110 @@ draw_checks_block() {
   done
 }
 
-draw_filename() {
-  local name max
+human_size() {
+  awk -v b="$1" 'BEGIN {
+    split("B KB MB GB TB PB", u, " ")
+    i = 1; s = b
+    while (s >= 1024 && i < 6) { s /= 1024; i++ }
+    if (i == 1)          printf "%d %s", s, u[i]
+    else if (s >= 100)   printf "%.0f %s", s, u[i]
+    else if (s >= 10)    printf "%.1f %s", s, u[i]
+    else                 printf "%.2f %s", s, u[i]
+  }'
+}
+
+# Round an ffprobe r_frame_rate ("60000/1001", "30/1", "25") to a tidy fps
+# string: an integer when it lands within 0.05 of one, else two decimals.
+fps_from_rate() {
+  local rate="$1"
+  [[ -n "$rate" && "$rate" != "0/0" ]] || return 0
+  awk -v r="$rate" 'BEGIN {
+    n = split(r, a, "/")
+    v = (n == 2 && a[2] + 0 > 0) ? a[1] / a[2] : r + 0
+    if (v <= 0) exit
+    rv = int(v + 0.5)
+    # Snap NTSC rates (59.94, 29.97, 23.976, ...) to their nominal integer.
+    if (v >= rv - 0.1 && v <= rv + 0.1) printf "%d", rv
+    else printf "%.2f", v
+  }'
+}
+
+human_age() {
+  local secs="$1"
+  (( secs < 0 )) && secs=0
+  awk -v s="$secs" 'BEGIN {
+    day = 86400; mon = day * 30.4375; yr = day * 365.25
+    if (s < 60)     { printf "just now"; exit }
+    if (s < 3600)   { m = int(s / 60);   printf "%d minute%s old", m, (m == 1 ? "" : "s"); exit }
+    if (s < day)    { h = int(s / 3600); printf "%d hour%s old",   h, (h == 1 ? "" : "s"); exit }
+    if (s < mon)    { d = int(s / day);  printf "%d day%s old",    d, (d == 1 ? "" : "s"); exit }
+    if (s < yr)     { o = int(s / mon); if (o < 1) o = 1; printf "%d month%s old", o, (o == 1 ? "" : "s"); exit }
+    y = int(s / yr); printf "%d year%s old", y, (y == 1 ? "" : "s")
+  }'
+}
+
+# Build the one-line "560 MB · 2160p 60fps · 4 months old" stats string for the
+# current file into CURRENT_STATS. Each part is best-effort; missing pieces are
+# simply dropped.
+build_file_stats() {
+  local file="$1"
+  local bytes mtime now probe height rfr res fps
+  local -a parts=()
+
+  CURRENT_STATS=""
+  [[ -f "$file" ]] || return 0
+
+  bytes="$(stat -f '%z' -- "$file" 2>/dev/null)"
+  [[ "$bytes" == <-> ]] && parts+=("$(human_size "$bytes")")
+
+  if is_video_path "$file" && command -v ffprobe >/dev/null 2>&1; then
+    probe="$(ffprobe -v error -select_streams v:0 \
+      -show_entries stream=height,r_frame_rate \
+      -of default=noprint_wrappers=1:nokey=1 -- "$file" 2>/dev/null)"
+    local -a pv=("${(@f)probe}")
+    height="${pv[1]-}"
+    rfr="${pv[2]-}"
+    if [[ "$height" == <-> ]] && (( height > 0 )); then
+      res="${height}p"
+      fps="$(fps_from_rate "$rfr")"
+      [[ -n "$fps" ]] && res="${res} ${fps}fps"
+      parts+=("$res")
+    fi
+  fi
+
+  mtime="$(stat -f '%m' -- "$file" 2>/dev/null)"
+  if [[ "$mtime" == <-> ]]; then
+    now="$(date +%s)"
+    parts+=("$(human_age $(( now - mtime )))")
+  fi
+
+  (( ${#parts[@]} > 0 )) && CURRENT_STATS="${(j: · :)parts}"
+}
+
+# Working directory and current filename on their own colored lines, plus a
+# stats line. Prints exactly INFO_ROWS rows so the checklist below keeps a
+# deterministic screen position (see checks_header_row).
+draw_fileinfo() {
+  local dir name max
 
   [[ -n "$CURRENT_FILE" ]] || return 0
+  dir="${CURRENT_FILE:h}"
   name="${CURRENT_FILE:t}"
   max=$(( ${COLUMNS:-100} - 2 ))
   (( max < 20 )) && max=20
+  (( ${#dir} > max )) && dir="…${dir[-(max-1),-1]}"
   (( ${#name} > max )) && name="${name[1,max-1]}…"
 
+  say "%Bworking directory:%b"
+  say_raw "${C_CYAN}${dir}${C_RESET}"
+  say ""
+  say "%Bcurrent file:%b"
   say_raw "${C_BOLD}${C_YELLOW}${name}${C_RESET}"
+  if [[ -n "$CURRENT_STATS" ]]; then
+    say_raw "${C_DIM}${CURRENT_STATS}${C_RESET}"
+  else
+    say ""
+  fi
 }
 
 # Row (1-based) of the "checks:" header, so the checklist region can be
@@ -319,7 +418,9 @@ draw_filename() {
 checks_header_row() {
   local band=0
   $THUMB_ENABLE && [[ -n "$THUMB_CURRENT_IMG" ]] && band=$THUMB_ROWS
-  print -r -- $(( band + 6 ))
+  # 3 header rows + INFO_ROWS + 1 trailing blank + 1 (checks: sits on next row),
+  # minus the header row already counted in the band offset.
+  print -r -- $(( band + INFO_ROWS + 5 ))
 }
 
 draw_header() {
@@ -328,7 +429,7 @@ draw_header() {
   say ""
   CHECKS_HEADER_ROW="$(checks_header_row)"
   render_thumb_band
-  draw_filename
+  draw_fileinfo
   say ""
   draw_checks_block
   say ""
@@ -452,6 +553,40 @@ set_current_thumb() {
   THUMB_CURRENT_IMG="$img"
 }
 
+# Re-point the current thumbnail at a specific timestamp (e.g. the frame the
+# user picked as the new start when trimming leading black) and repaint the
+# band. Cached per (file, timestamp) so re-visits are instant; best-effort, so
+# a failure leaves the existing thumbnail in place.
+set_thumb_at_time() {
+  local file="$1"
+  local ss="$2"
+  local img tmp key
+
+  $THUMB_ENABLE || return 0
+  is_video_path "$file" || return 0
+  [[ -n "$ss" ]] || return 0
+
+  img="$(thumb_cache_path "$file")" || return 0
+  key="${ss//[^0-9]/_}"
+  img="${img%.jpg}.t${key}.jpg"
+
+  if [[ ! -s "$img" ]]; then
+    mkdir -p -- "${img:h}" 2>/dev/null || return 0
+    tmp="${img}.$$.jpg"
+    if ffmpeg -v error -y -ss "$ss" -i "$file" -frames:v 1 \
+        -vf "scale=${THUMB_PX}:-2:flags=lanczos" -q:v 3 -- "$tmp" 2>/dev/null \
+        && [[ -s "$tmp" ]]; then
+      mv -f -- "$tmp" "$img"
+    else
+      rm -f -- "$tmp" 2>/dev/null || true
+      return 0
+    fi
+  fi
+
+  THUMB_CURRENT_IMG="$img"
+  render_thumb_band
+}
+
 # Three header rows sit above the thumbnail: title, summary, blank.
 THUMB_ABOVE=3
 render_thumb_band() {
@@ -488,6 +623,17 @@ clear_thumb() {
   $THUMB_ENABLE || return 0
   [[ "$THUMB_BACKEND" == kitty ]] || return 0
   kitty +kitten icat --clear --stdin=no >&4 2>/dev/null || true
+}
+
+# Ctrl-C anywhere aborts the whole run (not just the current file). Restore the
+# cursor, wipe any thumbnail, and exit. Prompt handlers call this after undoing
+# their own raw-mode stty tweaks.
+finish_interrupt() {
+  print -n -u4 -- $'\033[?25h' 2>/dev/null || true
+  clear_thumb 2>/dev/null || true
+  print -u4 '' 2>/dev/null || true
+  say "%F{yellow}Interrupted.%f"
+  exit 130
 }
 
 redraw_screen() {
@@ -610,7 +756,7 @@ read_prompt_line() {
     stty -echo -icanon min 1 time 0 <&3 2>/dev/null || true
   fi
 
-  trap '[[ -n "$saved_stty" ]] && stty "$saved_stty" <&3 2>/dev/null; trap - INT; print -u4; return 130' INT
+  trap '[[ -n "$saved_stty" ]] && stty "$saved_stty" <&3 2>/dev/null; finish_interrupt' INT
 
   while true; do
     IFS= read -r -k 1 -u 3 ch
@@ -620,9 +766,7 @@ read_prompt_line() {
     case "$ch" in
       $'\003')
         [[ -n "$saved_stty" ]] && stty "$saved_stty" <&3 2>/dev/null || true
-        trap - INT
-        print -u4
-        return 130
+        finish_interrupt
         ;;
       $'\004')
         [[ -n "$buffer" ]] || {
@@ -655,7 +799,7 @@ read_prompt_line() {
     esac
   done
 
-  trap - INT
+  trap finish_interrupt INT
 
   [[ -n "$saved_stty" ]] && stty "$saved_stty" <&3 2>/dev/null || true
   return "$rc"
@@ -702,10 +846,10 @@ prompt_select() {
     MENU_OPTIONS=()
     MENU_INDEX=0
     render_checks_region
-    trap - INT
+    trap finish_interrupt INT
   }
 
-  trap 'select_restore; return 130' INT
+  trap 'select_restore; finish_interrupt' INT
 
   while true; do
     render_checks_region
@@ -737,7 +881,7 @@ prompt_select() {
         ;;
       $'\003')
         select_restore
-        return 130
+        finish_interrupt
         ;;
       [1-9])
         if (( key <= count )); then
@@ -762,18 +906,18 @@ prompt_input_or_skip() {
 }
 
 # Prompts until a valid http(s) URL is entered. Sets PROMPT_URL and returns 0,
-# or returns 1 if the user pressed Ctrl-C to skip.
+# or returns 1 when the user submits a blank line to skip. (Ctrl-C aborts the
+# whole run.)
 PROMPT_URL=""
 prompt_valid_url() {
   PROMPT_URL=""
 
   while true; do
-    if ! prompt_input_or_skip "Source URL (Ctrl-C to skip):"; then
+    if ! prompt_input_or_skip "Source URL (blank to skip):"; then
       return 1
     fi
     if [[ -z "$PROMPT_REPLY" ]]; then
-      warn "Blank URL ignored. Press Ctrl-C to skip."
-      continue
+      return 1
     fi
     if ! is_url "$PROMPT_REPLY"; then
       warn "Expected http:// or https:// URL."
@@ -1167,6 +1311,8 @@ check_black_frames() {
     if (( rc == 0 )) && [[ -n "$trim_start" ]]; then
       PENDING_TRIM_START="$trim_start"
       PENDING_FIXES+=("black-frames")
+      # Preview the chosen start frame as the thumbnail from here on.
+      set_thumb_at_time "$file" "$trim_start"
       return 0
     fi
 
@@ -1415,7 +1561,12 @@ queue_fetched_metadata() {
   # --ignore-no-formats-error lets metadata come back even when the video's
   # formats are gated (e.g. faphouse fan/VOD the account can't access); we only
   # want the tags anyway (--skip-download).
-  yt-dlp --skip-download --dump-single-json --no-warnings --ignore-no-formats-error "$url" \
+  # --no-download-archive is essential: the user's yt-dlp config sets a
+  # --download-archive, and every file we audit is already downloaded (hence
+  # recorded there). Without this, yt-dlp skips the URL as "already recorded"
+  # and emits no JSON, so the metadata fetch silently comes back empty.
+  yt-dlp --skip-download --dump-single-json --no-warnings \
+    --ignore-no-formats-error --no-download-archive "$url" \
     > "$tmp_json" 2>"${errlog:-/dev/null}" &
   spin_until_pid $! "Fetching metadata…" || rc=$?
 
@@ -1807,6 +1958,7 @@ audit_file() {
   MENU_NOTE=""
   reset_file_checks
   set_current_thumb "$AUDIT_PATH"
+  build_file_stats "$AUDIT_PATH"
 
   if [[ -t 4 ]]; then
     redraw_screen
@@ -1995,6 +2147,9 @@ main() {
   build_enabled_checks
   detect_thumb_backend
   reset_file_checks
+
+  # Ctrl-C aborts the whole run, even outside an interactive prompt.
+  trap finish_interrupt INT
 
   if (( ${#INPUT_FILES[@]} > 0 )); then
     total_count="${#INPUT_FILES[@]}"
