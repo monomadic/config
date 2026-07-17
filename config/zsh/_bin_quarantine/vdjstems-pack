@@ -1,0 +1,152 @@
+#!/usr/bin/env zsh
+# vdjstems-pack-m4a — mux pre-encoded .m4a stems into a VDJ-style multi-track M4A
+# Requires: ffmpeg, MP4Box (GPAC)
+# Inputs (files can be anywhere):
+#   --vocal VOCAL.m4a
+#   --hihat HIHAT.m4a
+#   --bass  BASS.m4a
+#   --instr INSTRUMENTS.m4a
+#   --kick  KICK.m4a
+# Optional mixed/all-on track (becomes default track 0):
+#   --mix MIXED.m4a          # pre-encoded mixed track
+#   or
+#   --orig ORIGINAL.m4a      # your original full song (copied as track 0)
+#
+# Output:
+#   <OUT>.m4a with track order:
+#     0 mixed track (default) | 1 vocal | 2 hihat | 3 bass | 4 instruments | 5 kick
+# Track UDTA names set via MP4Box; brands flattened, mp42/ mp41 compatibility flags set.
+
+set -euo pipefail
+
+die() { print -r -- "ERROR: $*" >&2; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+have ffmpeg  || die "ffmpeg not found"
+have MP4Box  || die "MP4Box not found (install GPAC)"
+
+# ---- args ----
+VOCAL=""; HIHAT=""; BASS=""; INSTR=""; KICK=""; MIX=""; ORIG=""; OUT="vdjstems"
+while (( $# )); do
+  case "$1" in
+    --vocal)  VOCAL="${2:A}"; shift 2;;
+    --hihat)  HIHAT="${2:A}"; shift 2;;
+    --bass)   BASS="${2:A}";  shift 2;;
+    --instr|--instruments) INSTR="${2:A}"; shift 2;;
+    --kick)   KICK="${2:A}";  shift 2;;
+    --mix)    MIX="${2:A}";   shift 2;;
+    --orig)   ORIG="${2:A}";  shift 2;;
+    -o|--out) OUT="${2}";     shift 2;;
+    -h|--help)
+      cat <<EOF
+Usage: ${0:t} --vocal v.m4a --hihat hh.m4a --bass b.m4a --instr i.m4a --kick k.m4a [--mix mix.m4a | --orig original.m4a] [-o OUTNAME]
+EOF
+      exit 0;;
+    *) die "Unknown arg: $1";;
+  esac
+done
+
+# Require stems
+[[ -n "$VOCAL" && -n "$HIHAT" && -n "$BASS" && -n "$INSTR" && -n "$KICK" ]] \
+  || die "Provide all 5 stems via --vocal/--hihat/--bass/--instr/--kick"
+
+# Choose mixed track source (optional but recommended for standalone)
+MIXSRC=""
+if [[ -n "$MIX" && -n "$ORIG" ]]; then
+  die "Use only one of --mix or --orig"
+elif [[ -n "$MIX" ]]; then
+  MIXSRC="$MIX"
+elif [[ -n "$ORIG" ]]; then
+  MIXSRC="$ORIG"
+else
+  print "No --mix/--orig provided → creating a *sidecar-like* file with no default 'mixed track'."
+fi
+
+# Sanity: files exist
+for f in "$VOCAL" "$HIHAT" "$BASS" "$INSTR" "$KICK"; do [[ -s "$f" ]] || die "Missing: $f"; done
+[[ -z "$MIXSRC" || -s "$MIXSRC" ]]
+
+# ---- temp ----
+tmpdir="$(mktemp -d 2>/dev/null || mktemp -d -t vdjpack)"
+trap 'rm -rf "$tmpdir"' EXIT
+out_ffmpeg="$tmpdir/pack.m4a"
+out_final="${OUT%.m4a}.m4a"
+
+# ---- build ffmpeg command (all inputs stream-copied) ----
+# We’ll load inputs in this order:
+#   0 kick | 1 instruments | 2 vocal | 3 bass | 4 hihat | [5 mixed(if provided)]
+# Then map to output order required by VirtualDJ convention:
+#   mixed -> a:0 (default), vocal -> a:1, hihat -> a:2, bass -> a:3, instruments -> a:4, kick -> a:5
+typeset -a in_args=()
+in_args+=(-i "$KICK")
+in_args+=(-i "$INSTR")
+in_args+=(-i "$VOCAL")
+in_args+=(-i "$BASS")
+in_args+=(-i "$HIHAT")
+if [[ -n "$MIXSRC" ]]; then
+  in_args+=(-i "$MIXSRC")
+fi
+
+typeset -a map_args=()
+if [[ -n "$MIXSRC" ]]; then
+  # inputs: 0..5; maps: 5,2,4,3,1,0
+  map_args=(-map 5:a -map 2:a -map 4:a -map 3:a -map 1:a -map 0:a)
+else
+  # No mixed: keep 5 stems only, map to the 5 non-mixed slots while still ordering as if mixed existed
+  # Output will be: vocal, hihat, bass, instruments, kick  (no track 0 default)
+  map_args=(-map 2:a -map 4:a -map 3:a -map 1:a -map 0:a)
+fi
+
+typeset -a disp_args=()
+if [[ -n "$MIXSRC" ]]; then
+  disp_args=(-disposition:a:0 default -disposition:a:1 0 -disposition:a:2 0 -disposition:a:3 0 -disposition:a:4 0 -disposition:a:5 0)
+else
+  # no defaults if there's no mixed track
+  disp_args=(-disposition:a:0 0 -disposition:a:1 0 -disposition:a:2 0 -disposition:a:3 0 -disposition:a:4 0)
+fi
+
+ffmpeg -hide_banner -y "${in_args[@]}" \
+  "${map_args[@]}" \
+  -c:a copy \
+  -metadata title="virtualdj" \
+  -metadata artist="output" \
+  -brand isom \
+  "$out_ffmpeg" >/dev/null 2>&1 || die "ffmpeg mux failed"
+
+# ---- MP4Box tagging (track names, brands, flatten) ----
+# Track names expected by VDJ
+typeset -a NAMES=("mixed track" "vocal" "hihat" "bass" "instruments" "kick")
+
+typeset -a mp4box_args
+mp4box_args+=(MP4Box)
+
+if [[ -n "$MIXSRC" ]]; then
+  # 6 tracks
+  for i in {1..6}; do
+    mp4box_args+=(-udta "${i}:type=name" -udta "${i}:type=name:str=${NAMES[$i]}")
+  done
+else
+  # 5 tracks (no mixed). Name by position: 1 vocal, 2 hihat, 3 bass, 4 instruments, 5 kick
+  mp4box_args+=(-udta "1:type=name" -udta "1:type=name:str=vocal")
+  mp4box_args+=(-udta "2:type=name" -udta "2:type=name:str=hihat")
+  mp4box_args+=(-udta "3:type=name" -udta "3:type=name:str=bass")
+  mp4box_args+=(-udta "4:type=name" -udta "4:type=name:str=instruments")
+  mp4box_args+=(-udta "5:type=name" -udta "5:type=name:str=kick")
+fi
+
+meta_txt="$tmpdir/itags.txt"
+cat > "$meta_txt" <<EOF
+tool=VirtualDJ 2023.7544
+created=0
+tempo=127
+INITIALKEY=F
+rate=0
+EOF
+
+mp4box_args+=(-itags "$meta_txt")
+mp4box_args+=(-flat -brand isom:512 -rb mp42 -ab mp41)
+mp4box_args+=(-out "$out_final" "$out_ffmpeg")
+
+"${mp4box_args[@]}" >/dev/null 2>&1 || die "MP4Box failed"
+
+print "OK → $out_final"

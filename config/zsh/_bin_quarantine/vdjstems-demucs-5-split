@@ -1,7 +1,32 @@
 #!/usr/bin/env zsh
-# split5 – 4-stem + drum-element split → vocals, kick, hihat, instru, bass
-# Usage: split5 [-e demucs|uvr-mdx23] [-d larsnet|drumsep] [-r 44100] input_audio [outdir]
+# ============================================================================
+# vdjstems-demucs-5-split — separate a track into 5 VDJ-ready stem WAVs
+# ============================================================================
+#
+# Two-stage source separation: a 4-stem model splits the track, then a drum
+# model splits the drum stem further, yielding the five WAVs the vdjstems
+# packers expect: vocals, bass, instru(ments), kick, hihat.
+#
+# How it works:
+#   1. Normalizes the input to 44.1 kHz stereo PCM (model-friendly).
+#   2. Stage 1 — 4-stem split via demucs (default; model from $DEMUCS_MODEL,
+#      falling back to htdemucs_ft) or uvr-mdx23 → vocals/drums/bass/other.
+#   3. Stage 2 — drum sub-split via larsnet (default) or drumsep →
+#      kick + hihat; a missing element is synthesized as silence so the
+#      packers always get a full stem set.
+#   4. Finalizes: renames other → instru, conforms sample rate, applies
+#      light loudness normalization (loudnorm I=-18, TP=-1).
+#
+# Feed the output directory to vdjstems-pack or vdjstems-create.
+#
+# Usage: vdjstems-demucs-5-split [-e demucs|uvr-mdx23] [-d larsnet|drumsep]
+#                                [-r 44100] input_audio [outdir]
 # Defaults: -e demucs  -d larsnet  -r 44100
+#
+# Dependencies: ffmpeg, ffprobe, demucs (pipx install demucs), plus the
+#               chosen drum splitter (larsnet-separate or drumsep)
+# See also: vdjstems-split-mdx23 (MVSEP-MDX23 alternative, in downloads.zsh)
+# ============================================================================
 
 set -euo pipefail
 
@@ -40,12 +65,11 @@ stage1() {
 
   case "$engine" in
     demucs)
-      # Demucs v4 / RoFormer 4 stems (pick your model; bs_roformer-4stems is common)
-      # Outputs in ./separated/<model>/mix/
-      MODEL="${DEMUCS_MODEL:-htdemucs_ft}"   # or htdemucs / htdemucs_6s / hdemucs_mmi      local stemdir
+      # Demucs writes to <out>/<model>/<trackname>/
+      local MODEL="${DEMUCS_MODEL:-htdemucs_ft}"   # or htdemucs / htdemucs_6s / hdemucs_mmi
       demucs -n "$MODEL" -o "$work" "$tmpmix" >/dev/null
-      stemdir="$(fd -t d "^bs_roformer-4stems$" "$work" -x echo {} -1 | head -n1)/mix"
-      [[ -d "$stemdir" ]] || { echo "demucs output not found"; exit 1; }
+      local stemdir="$work/$MODEL/${tmpmix:t:r}"
+      [[ -d "$stemdir" ]] || { echo "demucs output not found: $stemdir"; exit 1; }
       cp "$stemdir/vocals.wav" "$work/vocals.wav"
       cp "$stemdir/drums.wav"  "$work/drums.wav"
       cp "$stemdir/bass.wav"   "$work/bass.wav"

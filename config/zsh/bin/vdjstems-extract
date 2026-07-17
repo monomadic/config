@@ -1,5 +1,25 @@
 #!/usr/bin/env zsh
+# ============================================================================
 # vdjstems-extract — lossless per-stream extractor for stem containers
+# ============================================================================
+#
+# Pulls the individual audio streams out of any multi-track stem container
+# (.vdjstems, NI .stem.mp4, or plain multi-stream M4A) into separate files,
+# one per stem, named after each stream's embedded title.
+#
+# How it works:
+#   1. ffprobe lists every audio stream (index, codec, channels, title).
+#   2. Each stream is stream-copied by default — bit-exact, no re-encode —
+#      with the output extension chosen to match the source codec
+#      (alac/aac → .m4a, flac → .flac, opus → .opus, pcm → .wav, …).
+#      With --wav, streams are decoded to 16-bit PCM WAV instead.
+#   3. Titles are slugged for the filesystem and de-duplicated; untitled
+#      streams fall back to their stream index (a0, a1, …).
+#
+# Dependencies: ffmpeg, ffprobe  (brew install ffmpeg)
+# See also: vdjstems-pack, vdjstems-create (the reverse direction),
+#           vdjstems-info
+# ============================================================================
 set -euo pipefail
 
 die(){ print -r -- "ERROR: $*" >&2; exit 1; }

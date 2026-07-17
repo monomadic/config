@@ -1,0 +1,201 @@
+#!/usr/bin/env zsh
+# ============================================================================
+# vdjstems-split — separate a track into 5 VDJ-ready stem WAVs (RoFormer era)
+# ============================================================================
+#
+# Multi-pass source separation tuned for Apple Silicon, producing the five
+# WAVs the vdjstems packers expect: vocals, drums→(kick, hihat), bass, other.
+#
+# How it works (each pass uses the best current model for that job):
+#   1. Vocals — BS-RoFormer (Viperx 1297, SDR ~11.8) splits vocals from
+#      instrumental. Clearly better than demucs for vocal bleed.
+#   2. Band split — htdemucs_ft runs on the *instrumental* (vocals already
+#      removed) to give drums / bass / other.
+#   3. Drum split — MDX23C-DrumSep splits drums into kick, snare, toms,
+#      hh, ride, crash. kick.wav = kick; hihat.wav = the other five summed,
+#      so kick + hihat reconstructs the full drum stem.
+#
+# --sw mode: BS-Roformer-SW (jarredou; tops the 2026 MVSEP 6-stem
+# leaderboard) replaces passes 1+2 with a single 6-stem pass — vocals,
+# drums, bass, guitar, piano, other — roughly 10× faster than the two-pass
+# chain; guitar + piano are summed back into other.wav since VirtualDJ has
+# a single "instruments" stem. DrumSep still provides kick/hihat.
+#
+# All passes run through mlx-audio-separator — MLX-native on Apple Silicon,
+# no PyTorch/ONNX at inference. Falls back to the flag-compatible
+# audio-separator (torch/onnx) if MLX isn't installed. Models (~2 GB total)
+# download on first use into $VDJSTEMS_MODEL_DIR (default
+# ~/.cache/audio-separator-models) and are reused after that.
+#
+# Install (needs Python ≤3.12; torch is only used once, to convert each
+# downloaded .ckpt to MLX safetensors — inference never touches it):
+#   pipx install --python /opt/homebrew/bin/python3.12 mlx-audio-separator
+#   pipx inject mlx-audio-separator torch 'demucs-mlx[convert]'
+#
+# Output dir is ready for: cd OUTDIR && vdjstems-create
+#
+# Usage: vdjstems-split [-o OUTDIR] [--fast] [--keep-work] INPUT
+#   --fast       Skip the RoFormer vocal pass; single htdemucs_ft pass on
+#                the original (faster, lower quality vocals)
+#   --keep-work  Keep intermediate separation files for inspection
+#
+# Dependencies: mlx-audio-separator (pipx; or audio-separator), ffmpeg
+# See also: vdjstems-create, vdjstems-pack (packers)
+# ============================================================================
+set -euo pipefail
+SELF="${0:t}"
+
+die() { print -r -- "ERROR: $*" >&2; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+have ffmpeg || die "ffmpeg not found"
+
+# Prefer the MLX-native separator (Apple Silicon, no torch/onnx); fall back
+# to the original torch/onnx implementation — the flags used here are
+# identical in both.
+if have mlx-audio-separator; then
+  SEP_BIN="mlx-audio-separator"
+elif have audio-separator; then
+  SEP_BIN="audio-separator"
+else
+  die "no separator found (pipx install mlx-audio-separator)"
+fi
+
+VOCAL_MODEL="model_bs_roformer_ep_317_sdr_12.9755.ckpt"
+BAND_MODEL="htdemucs_ft.yaml"
+SW_MODEL="BS-Roformer-SW.ckpt"
+DRUM_MODEL="MDX23C-DrumSep-aufr33-jarredou.ckpt"
+MODEL_DIR="${VDJSTEMS_MODEL_DIR:-$HOME/.cache/audio-separator-models}"
+
+usage() {
+  cat <<EOF
+Usage: $SELF [-o OUTDIR] [--sw] [--fast] [--keep-work] INPUT
+Separates INPUT into vocals/bass/other/kick/hihat WAVs for the vdjstems packers.
+  -o OUTDIR    Output directory (default: ./<input name>.stems)
+  --sw         Use BS-Roformer-SW: one 6-stem pass replaces the vocal +
+               band passes (much faster; guitar/piano fold into other)
+  --fast       Skip the RoFormer vocal pass (htdemucs_ft only, faster)
+  --keep-work  Keep intermediate separation files
+EOF
+  exit 2
+}
+
+OUTDIR=""; SW=false; FAST=false; KEEP_WORK=false
+while (( $# )); do
+  case "${1:-}" in
+    -h|--help) usage ;;
+    -o) OUTDIR="${2:-}"; [[ -n "$OUTDIR" ]] || die "-o requires a value"; shift 2 ;;
+    --sw) SW=true; shift ;;
+    --fast) FAST=true; shift ;;
+    --keep-work) KEEP_WORK=true; shift ;;
+    -*) die "Unknown option: $1" ;;
+    *) break ;;
+  esac
+done
+(( $# == 1 )) || usage
+IN="${1:A}"
+[[ -f "$IN" ]] || die "No such file: $IN"
+
+OUTDIR="${OUTDIR:-${IN:t:r}.stems}"
+mkdir -p "$OUTDIR"
+OUTDIR="${OUTDIR:A}"
+work="$OUTDIR/_work"
+mkdir -p "$work"
+cleanup() { [[ "$KEEP_WORK" == "true" ]] || rm -rf "$work"; }
+trap cleanup EXIT
+
+mkdir -p "$MODEL_DIR"
+
+sep() {  # sep MODEL OUTPUT_SUBDIR INPUT [EXTRA_FLAGS...]
+  local model="$1" out="$2" in="$3"; shift 3
+  mkdir -p "$out"
+  "$SEP_BIN" -m "$model" --model_file_dir "$MODEL_DIR" \
+    --output_dir "$out" --output_format WAV "$@" "$in" >/dev/null 2>&1 \
+    || die "$SEP_BIN failed: model=$model input=${in:t}"
+}
+
+# RoFormer models run ~25% faster under MLX's latency_safe_v3 scheduling
+# (identical output); the flag only exists in mlx-audio-separator.
+roformer_flags=()
+[[ "$SEP_BIN" == "mlx-audio-separator" ]] && roformer_flags=(--speed_mode latency_safe_v3)
+
+# Find the one output file of a pass whose name contains the stem label
+pick() {  # pick DIR LABEL
+  local d="$1" label="$2" f
+  for f in "$d"/*(N); do
+    [[ "${f:t:l}" == *"(${label:l})"* ]] && { print -r -- "$f"; return 0; }
+  done
+  return 1
+}
+
+# Sum several WAVs sample-accurately into one (no per-input attenuation)
+sum_wavs() {  # sum_wavs OUT IN...
+  local out="$1"; shift
+  local args=() f
+  for f in "$@"; do args+=(-i "$f"); done
+  ffmpeg -y -loglevel error "${args[@]}" \
+    -filter_complex "amix=inputs=$#:normalize=0:duration=longest" \
+    -c:a pcm_s16le "$out"
+}
+
+if [[ "$SW" == "true" ]]; then
+  print "→ Pass 1/2: 6-stem split (BS-Roformer-SW)…"
+  sep "$SW_MODEL" "$work/p1" "$IN" "${roformer_flags[@]}"
+  vocals_f="$(pick "$work/p1" vocals)" || die "vocals output not found"
+  drums_f="$(pick "$work/p1" drums)"   || die "drums output not found"
+  bass_f="$(pick "$work/p1" bass)"     || die "bass output not found"
+  cp "$vocals_f" "$OUTDIR/vocals.wav"
+  cp "$bass_f"   "$OUTDIR/bass.wav"
+  cp "$drums_f"  "$OUTDIR/drums.wav"
+  # VDJ has one "instruments" stem: fold guitar + piano back into other
+  melodic=()
+  for label in other guitar piano; do
+    f="$(pick "$work/p1" "$label")" && melodic+=("$f")
+  done
+  (( ${#melodic[@]} )) || die "other output not found"
+  sum_wavs "$OUTDIR/other.wav" "${melodic[@]}" || die "other mix failed"
+  drum_pass="Pass 2/2"
+else
+  print "→ Pass 1/3: vocals (BS-RoFormer)…"
+  if [[ "$FAST" == "true" ]]; then
+    band_input="$IN"
+  else
+    sep "$VOCAL_MODEL" "$work/p1" "$IN" "${roformer_flags[@]}"
+    vocals_f="$(pick "$work/p1" vocals)"       || die "vocals output not found"
+    band_input="$(pick "$work/p1" instrumental)" || die "instrumental output not found"
+    cp "$vocals_f" "$OUTDIR/vocals.wav"
+  fi
+
+  print "→ Pass 2/3: drums/bass/other (htdemucs_ft)…"
+  sep "$BAND_MODEL" "$work/p2" "$band_input"
+  drums_f="$(pick "$work/p2" drums)" || die "drums output not found"
+  bass_f="$(pick "$work/p2" bass)"   || die "bass output not found"
+  other_f="$(pick "$work/p2" other)" || die "other output not found"
+  cp "$bass_f"  "$OUTDIR/bass.wav"
+  cp "$other_f" "$OUTDIR/other.wav"
+  cp "$drums_f" "$OUTDIR/drums.wav"
+  if [[ "$FAST" == "true" ]]; then
+    vocals_f="$(pick "$work/p2" vocals)" || die "vocals output not found"
+    cp "$vocals_f" "$OUTDIR/vocals.wav"
+  fi
+  drum_pass="Pass 3/3"
+fi
+
+print "→ ${drum_pass}: kick/hihat (MDX23C-DrumSep)…"
+sep "$DRUM_MODEL" "$work/p3" "$drums_f"
+kick_f="$(pick "$work/p3" kick)" || die "kick output not found"
+cp "$kick_f" "$OUTDIR/kick.wav"
+
+# hihat.wav = drums minus kick: sum the remaining elements so that
+# kick + hihat reconstructs the full drum stem.
+rest=()
+for label in snare toms hh ride crash; do
+  f="$(pick "$work/p3" "$label")" && rest+=("$f")
+done
+(( ${#rest[@]} )) || die "no non-kick drum elements found"
+sum_wavs "$OUTDIR/hihat.wav" "${rest[@]}" || die "hihat mix failed"
+
+print "✅ Stems → $OUTDIR"
+for f in vocals drums bass other kick hihat; do
+  [[ -f "$OUTDIR/$f.wav" ]] && print "   $f.wav"
+done
+print "\nNext: cd '$OUTDIR' && vdjstems-create   (or: vdjstems-pack '$OUTDIR')"
