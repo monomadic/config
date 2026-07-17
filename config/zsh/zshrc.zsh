@@ -239,6 +239,34 @@ _zellij_auto_attach_ssh
 
 # --- Lazy starship (first prompt render) ---
 if (( $+commands[starship] )); then
+  # Starship stat-walks $PWD (git repo scan) on every render. On a stale SMB /
+  # network CWD that syscall can wedge and hang the whole prompt — and new kitty
+  # tabs inherit the parent's CWD, so a tab spawned from a /Volumes dir starts
+  # there. While CWD is on a network mount, point starship at a generated clone
+  # of the config with the git modules disabled (single source of truth: the
+  # clone is derived from the live config and regenerated when it changes).
+  typeset -g _STARSHIP_CONF_MAIN="$HOME/.config/starship.toml"
+  typeset -g _STARSHIP_CONF_NOGIT="$ZSH_CACHE_DIR/starship-nogit.toml"
+  _starship_regen_nogit() {
+    [[ -r $_STARSHIP_CONF_MAIN ]] || return
+    [[ -s $_STARSHIP_CONF_NOGIT && ! $_STARSHIP_CONF_MAIN -nt $_STARSHIP_CONF_NOGIT ]] && return
+    awk '
+      /^\[/ { ingit = ($0=="[git_branch]" || $0=="[git_status]"); print; if (ingit) print "disabled = true"; next }
+      ingit && /^[[:space:]]*disabled[[:space:]]*=/ { next }
+      { print }
+    ' "$_STARSHIP_CONF_MAIN" >! "$_STARSHIP_CONF_NOGIT"
+  }
+  _starship_pwd_config() {
+    if [[ $PWD == /Volumes/* ]]; then
+      _starship_regen_nogit
+      export STARSHIP_CONFIG="$_STARSHIP_CONF_NOGIT"
+    else
+      export STARSHIP_CONFIG="$_STARSHIP_CONF_MAIN"
+    fi
+  }
+  _starship_pwd_config              # correct config for the initial (inherited) CWD
+  add-zsh-hook precmd _starship_pwd_config
+
   _lazy_starship_precmd() {
     local _star_init="$ZSH_CACHE_DIR/starship-init.zsh"
     if [[ ! -s $_star_init || $(command -v starship) -nt $_star_init ]]; then

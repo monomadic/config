@@ -51,7 +51,10 @@ format = "  [􀐱 $output](bold #0ACAFF)"
 
 [custom.disk_free]
 when = '[ -z "${ZELLIJ:-}" ]'
-command = "df -k . | tail -1 | awk '{print $4*1024}' | /opt/homebrew/opt/coreutils/libexec/gnubin/numfmt --to=iec --suffix=b --round=down"
+# `df .` stats the CWD's filesystem; on a stale SMB/network CWD that syscall can
+# wedge for seconds and block the whole prompt. Hard-cap it: if df doesn't answer
+# fast the segment just goes blank instead of hanging the shell.
+command = "/opt/homebrew/opt/coreutils/libexec/gnubin/timeout --signal=KILL 0.4 df -k . 2>/dev/null | tail -1 | awk '{print $4*1024}' | /opt/homebrew/opt/coreutils/libexec/gnubin/numfmt --to=iec --suffix=b --round=down"
 format = "  [􀤂  $output](bold #0AAAFF)"
 
 [custom.battery]
