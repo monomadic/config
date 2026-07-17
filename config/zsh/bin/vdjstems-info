@@ -1,4 +1,36 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
+# ============================================================================
+# vdjstems-info — inspect the stream and track metadata of a stem container
+# ============================================================================
+#
+# Diagnostic viewer for .vdjstems / .stem.mp4 / multi-track M4A files.
+# Shows the two metadata layers a stem file carries, which is usually enough
+# to tell why VirtualDJ does or doesn't recognize one:
+#
+#   1. ffmpeg-level stream tags — index, codec, sample format, channels,
+#      title, handler_name for every audio stream.
+#   2. MP4Box-level UDTA 'name' atoms — the per-track names VirtualDJ
+#      actually reads for stem labels — plus any file-level (moov) name.
+#
+# Read-only; never modifies the file.
+#
+# Dependencies: ffprobe, MP4Box  (brew install ffmpeg gpac)
+# See also: vdjstems-pack, vdjstems-create, vdjstems-extract
+# ============================================================================
+set -euo pipefail
+SELF="${0:t}"
+
+die() { print -r -- "ERROR: $*" >&2; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+have ffprobe || die "ffprobe not found"
+have MP4Box  || die "MP4Box not found"
+
+usage() {
+  print "Usage: $SELF FILE"
+  exit 2
+}
+[[ "${1:-}" == "-h" || "${1:-}" == "--help" || -z "${1:-}" ]] && usage
+[[ -f "$1" ]] || die "No such file: $1"
 
 print "\n🔎 ffprobe stream tags (index|codec|sample_fmt|ch|title|handler_name):"
 ffprobe -v error -select_streams a \
@@ -7,10 +39,11 @@ ffprobe -v error -select_streams a \
 
 print "\n🔎 MP4Box UDTA names (per track):"
 for i in 0 1 2 3 4 5; do
-  # This dumps the UDTA 'name' fourcc attached to track $i (if present)
-  echo "Track $i:"
-  MP4Box -dump-udta "${i}:name" "$1" 2>/dev/null || echo "  (no udta name on track $i)"
+  # Dump the UDTA 'name' fourcc attached to track $i (if present)
+  print "Track $i:"
+  MP4Box -dump-udta "${i}:name" "$1" 2>/dev/null || print "  (no udta name on track $i)"
 done
+
 # Also show any file-level/moov UDTA 'name' just in case:
-echo "File-level UDTA 'name' (moov):"
-MP4Box -dump-udta name "$1" 2>/dev/null || echo "  (none)"
+print "File-level UDTA 'name' (moov):"
+MP4Box -dump-udta name "$1" 2>/dev/null || print "  (none)"

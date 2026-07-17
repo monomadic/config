@@ -1,0 +1,93 @@
+#!/usr/bin/env zsh
+# ============================================================================
+# vdjstems — umbrella command for the VirtualDJ stem toolchain
+# ============================================================================
+#
+# One entry point for the whole family. `make` is the full pipeline —
+# audio file in, .vdjstems out; every other subcommand delegates to its
+# standalone vdjstems-<cmd> tool (which remains directly invocable).
+#
+#   vdjstems make song.flac        separate + pack in one shot
+#   vdjstems split song.flac       → 5 stem WAVs (vdjstems-split)
+#   vdjstems pack DIR              → pack stem WAVs (vdjstems-pack)
+#   vdjstems create [OUT]          → pack CWD, lossless (vdjstems-create)
+#   vdjstems info FILE             → inspect a stem container
+#   vdjstems extract FILE          → pull streams out of a stem container
+#   vdjstems from-nistem FILE      → convert NI .stem.mp4
+#
+# make options: --sw / --fast are passed to vdjstems-split;
+#               -l/--lossless, -b/--bpm, -k/--key to vdjstems-pack.
+#               Output: <input name>.vdjstems next to the input file
+#               (stem WAVs are kept in <input name>.stems/).
+#
+# Dependencies: the vdjstems-* tools and their deps (see each tool's header)
+# ============================================================================
+set -euo pipefail
+SELF="${0:t}"
+
+die() { print -r -- "ERROR: $*" >&2; exit 1; }
+
+usage() {
+  cat <<EOF
+Usage: $SELF <command> [args]
+
+Commands:
+  make [--sw|--fast] [-l] [-b BPM] [-k KEY] INPUT
+               separate INPUT and pack straight to <input>.vdjstems
+  split        separate an audio file into 5 stem WAVs
+  pack         pack a directory of stem WAVs into a .vdjstems
+  create       pack the CWD losslessly (vdjstems-create)
+  info         inspect a stem container's metadata
+  extract      extract individual streams from a stem container
+  from-nistem  convert a Native Instruments .stem.mp4
+
+Run '$SELF <command> --help' for command-specific options.
+EOF
+  exit 2
+}
+
+(( $# )) || usage
+cmd="$1"; shift
+
+case "$cmd" in
+  -h|--help) usage ;;
+
+  split|pack|create|info|extract|from-nistem)
+    exec "vdjstems-$cmd" "$@"
+    ;;
+
+  make)
+    split_flags=()
+    pack_flags=()
+    input=""
+    while (( $# )); do
+      case "${1:-}" in
+        -h|--help) usage ;;
+        --sw|--fast) split_flags+=("$1"); shift ;;
+        -l|--lossless) pack_flags+=("$1"); shift ;;
+        -b|--bpm|-k|--key)
+          [[ -n "${2:-}" ]] || die "$1 requires a value"
+          pack_flags+=("$1" "$2"); shift 2 ;;
+        -*) die "Unknown make option: $1" ;;
+        *)
+          [[ -z "$input" ]] || die "make takes exactly one input file"
+          input="$1"; shift ;;
+      esac
+    done
+    [[ -n "$input" ]] || usage
+    [[ -f "$input" ]] || die "No such file: $input"
+    input="${input:A}"
+
+    stems_dir="${input:r}.stems"
+    out="${input:r}.vdjstems"
+
+    vdjstems-split "${split_flags[@]}" -o "$stems_dir" "$input"
+    print ""
+    vdjstems-pack "${pack_flags[@]}" --out "$out" "$stems_dir"
+    print "\n🎧 ${out}"
+    ;;
+
+  *)
+    die "Unknown command: $cmd (see $SELF --help)"
+    ;;
+esac

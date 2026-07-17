@@ -1,23 +1,39 @@
-#!/bin/zsh
-# ni-stem-to-vdjstems
-# Convert Native Instruments .stem.mp4 -> VirtualDJ .vdjstems using ffmpeg.
-# Requirements: ffmpeg, ffprobe
+#!/usr/bin/env zsh
+# ============================================================================
+# vdjstems-from-nistem — convert Native Instruments .stem.mp4 to .vdjstems
+# ============================================================================
 #
-# Default mapping (NI standard):
-#   0: Full/Master, 1: Drums, 2: Bass, 3: Melody, 4: Vocals
+# Re-maps and re-titles the audio streams of an NI STEMS container (as made
+# by stemgen, Traktor, or Beatport) into the layout VirtualDJ recognizes,
+# re-encoding as ALAC (lossless, default) or AAC 256k.
 #
-# VirtualDJ 4-stem layout (plus Full):
-#   a:0 Full, a:1 Vocal, a:2 Instrument, a:3 Bass, a:4 Drums
+# How it works:
+#   1. Probes the input and assumes the NI standard stream order —
+#      0: Full/Master, 1: Drums, 2: Bass, 3: Melody, 4: Vocals —
+#      overridable per-stream with --map when a file deviates.
+#   2. Re-maps to the VirtualDJ 4-stem layout (plus Full):
+#      a:0 Full, a:1 Vocal, a:2 Instrument, a:3 Bass, a:4 Drums.
+#      With --five, Drums is duplicated into Kick + Hihat instead:
+#      a:0 Full, a:1 Vocal, a:2 Instrument, a:3 Bass, a:4 Kick, a:5 Hihat.
+#   3. Writes a faststart MP4 with forced stereo layout and per-stream
+#      titles, then verifies the result with ffprobe.
 #
-# Optional 5-stem: duplicate Drums into Kick & Hihat
-#   a:0 Full, a:1 Vocal, a:2 Instrument, a:3 Bass, a:4 Kick, a:5 Hihat
+# Dependencies: ffmpeg, ffprobe  (brew install ffmpeg)
+# See also: vdjstems-pack, vdjstems-create (pack from WAV stems),
+#           vdjstems-extract, vdjstems-info
+# ============================================================================
 
 set -euo pipefail
+
+die() { print -r -- "ERROR: $*" >&2; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+have ffmpeg  || die "ffmpeg not found"
+have ffprobe || die "ffprobe not found"
 
 usage() {
   cat <<'EOF'
 Usage:
-  ni-stem-to-vdjstems [-o OUTFILE] [--aac] [--five] [--map X:Y ...] INPUT.stem.mp4
+  vdjstems-from-nistem [-o OUTFILE] [--aac] [--five] [--map X:Y ...] INPUT.stem.mp4
 
 Options:
   -o OUTFILE   Output path (default: input basename with .vdjstems)
@@ -35,8 +51,8 @@ EOF
 # Defaults
 codec="alac"
 five=false
-declare -A ni_to_kind
-ni_to_kind=([0]=full [1]=drums [2]=bass [3]=melody [4]=vocals)
+typeset -A ni_to_kind
+ni_to_kind=(0 full 1 drums 2 bass 3 melody 4 vocals)
 outfile=""
 
 # Parse args
@@ -50,10 +66,10 @@ while (( $# )); do
     --map)
       shift
       pair="${1:-}"
-      [[ "$pair" == *:* ]] || { echo "Bad --map value: $pair" >&2; exit 1; }
+      [[ "$pair" == *:* ]] || die "Bad --map value: $pair"
       ni="${pair%%:*}"; kind="${pair##*:}"
-      [[ "$ni" == <-> ]] || { echo "NI index must be numeric: $ni" >&2; exit 1; }
-      case "$kind" in full|drums|bass|melody|vocals) ;; *) echo "Bad kind: $kind" >&2; exit 1;; esac
+      [[ "$ni" == <-> ]] || die "NI index must be numeric: $ni"
+      case "$kind" in full|drums|bass|melody|vocals) ;; *) die "Bad kind: $kind";; esac
       ni_to_kind[$ni]="$kind"
       ;;
     --) shift; break ;;
@@ -69,7 +85,7 @@ done
 (( ${#args[@]} == 1 )) || { usage; exit 1; }
 infile="${args[1]}"
 
-[[ -f "$infile" ]] || { echo "No such file: $infile" >&2; exit 1; }
+[[ -f "$infile" ]] || die "No such file: $infile"
 base="${infile:t:r}"
 out="${outfile:-${infile:h}/${base}.vdjstems}"
 
@@ -97,11 +113,11 @@ idx_melody=$(first_index_of melody || true)
 idx_vocals=$(first_index_of vocals || true)
 
 # Validate presence of critical stems
-[[ -n "$idx_full"   ]] || { echo "Missing NI 'full' mapping." >&2; exit 1; }
-[[ -n "$idx_vocals" ]] || { echo "Missing NI 'vocals' mapping." >&2; exit 1; }
-[[ -n "$idx_melody" ]] || { echo "Missing NI 'melody' mapping." >&2; exit 1; }
-[[ -n "$idx_bass"   ]] || { echo "Missing NI 'bass' mapping." >&2; exit 1; }
-[[ -n "$idx_drums"  ]] || { echo "Missing NI 'drums' mapping." >&2; exit 1; }
+[[ -n "$idx_full"   ]] || die "Missing NI 'full' mapping."
+[[ -n "$idx_vocals" ]] || die "Missing NI 'vocals' mapping."
+[[ -n "$idx_melody" ]] || die "Missing NI 'melody' mapping."
+[[ -n "$idx_bass"   ]] || die "Missing NI 'bass' mapping."
+[[ -n "$idx_drums"  ]] || die "Missing NI 'drums' mapping."
 
 # Audio codec settings
 # - For ALAC we keep lossless and force stereo layout to avoid 'unknown' channel layouts some builds show.

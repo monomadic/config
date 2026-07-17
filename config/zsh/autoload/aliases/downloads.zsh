@@ -2,34 +2,15 @@
 # Audio Stem Separation
 # ============================================================================
 
-stem-mdx23() {
-  local input_file="$1"
-  local basename=$(basename "$input_file")
-  local output_dir="$HOME/Music/Stems/$basename"
+# Stem splitting lives in ~/.zsh/bin/vdjstems-split (MLX RoFormer pipeline);
+# the old MVSEP-MDX23 function it replaced is in git history (downloads.zsh,
+# pre-July-2026).
 
-  mkdir -p "$output_dir"
-
-  cd "$HOME/Music/Stems/MVSEP-MDX23-Colab_v2.1" || { print -u2 "missing MVSEP-MDX23 dir"; return 1; }
-  source .venv/bin/activate &&
-    time python inference_2.2_b1.5.1_voc_ft.py \
-      --input_audio "$input_file" \
-      --output_folder "$output_dir" \
-      --large_gpu \
-      --chunk_size 500000
-
-  cd "$output_dir" || return 1
-
-  # Rename files
-  mv *vocals.wav vocals.wav 2>/dev/null
-  mv *drums.wav drums.wav 2>/dev/null
-  mv *bass.wav bass.wav 2>/dev/null
-  mv *other.wav other.wav 2>/dev/null
-  mv *instrum.wav instrumental.wav 2>/dev/null
-  rm -f *instrum2.wav
-}
-
+# Print the duration of every WAV in the CWD — quick sanity check that a
+# stem set is aligned before packing (mismatched lengths → drifting stems).
 vdjstems-check-wav-lengths() {
-  for f in kick.wav other.wav vocals.wav bass.wav hihat.wav mixed.wav; do
+  local f dur
+  for f in *.wav(N); do
     dur=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$f")
     printf "%s: %s\n" "$f" "$dur"
   done
@@ -63,4 +44,3 @@ alias .network-quality="networkQuality -v"
 
 alias .stem-split="demucs -d mps -n htdemucs --flac -o stems_output"
 alias .stem-split-vocals="demucs -d mps -n htdemucs --flac -o stems_output --two-stems=vocals"
-alias vdjstems-split-mdx23=stem-mdx23
