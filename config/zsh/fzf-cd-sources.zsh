@@ -8,7 +8,9 @@ typeset -ga _cd_fzf_global_static=(
   '$HOME/config'
   '$HOME/Library/Application\ Support/VirtualDJ'
   '$HOME/Movies/Private'
+  '$HOME/Movies/Porn'
   '$ICLOUD_HOME/Music/Tablature'
+  '$ICLOUD_HOME/Music/Tablature/ChordPro'
   '$ICLOUD_HOME/Movies/Visuals'
   '$ICLOUD_HOME/Movies/Visuals/Downloads'
 )

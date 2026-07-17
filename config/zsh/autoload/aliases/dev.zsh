@@ -12,6 +12,7 @@ alias .config-env="cd $ZSH_DOTFILES_DIR && $EDITOR autoload/alias.zsh"
 alias config-dotfiles="cd $DOTFILES_DIR && fd --type directory --max-depth=2 | fzf | xargs $EDITOR"
 alias configure-mpv="cd $DOTFILES_DIR/config/mpv && kitty-exec '   mpv.conf ' '#A442F3' hx ."
 alias configure-helix="cd $DOTFILES_DIR/config/helix && $EDITOR ."
+alias .configure-fzf-cd="cd $DOTFILES_DIR/config/zsh && $EDITOR ./fzf-cd-sources.zsh"
 
 alias e-homebrew="cd $DOTFILES_DIR && $EDITOR Brewfile"
 alias .brewfile="cd $DOTFILES_DIR && e Brewfile"

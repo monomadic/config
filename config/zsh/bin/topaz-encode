@@ -19,6 +19,10 @@ Without them, opens the interactive preset picker.
 With --preview, encodes only the first seconds of each input with the selected
 preset. The preview length defaults to 1 second.
 
+During an interactive encode, press p to suspend the live encoder and p again
+to continue it from the exact same process state. Press q to stop the encode.
+This live pause is separate from --resume, which recovers a partial output.
+
 If the output file already exists but is shorter than expected (an interrupted
 encode), $script_name offers to resume it: the tail is re-encoded from the last
 keyframe of the partial and losslessly concatenated onto it. --resume skips the
@@ -478,6 +482,134 @@ topaz_render_progress() {
 
   [[ "$drew" == true ]] && print -- ""
   return 0
+}
+
+# Run an encoder while retaining stdin for single-key controls. The encoder and
+# progress renderer run separately so p can SIGSTOP/SIGCONT the live process
+# without turning the pause into a partial-file resume.
+topaz_run_with_controls() {
+  emulate -L zsh
+  setopt localoptions localtraps
+  unsetopt bg_nice
+
+  local total="${1:-}" cols="${2:-80}" log_file="$3" work_dir="$4"
+  local control_dir progress_fifo encoder_pid progress_pid
+  local key="" caught_signal="" encoder_status=0 progress_status=0
+  local stop_wait_status=$((127 + ${signals[(i)STOP]}))
+  local paused=false interactive=false stop_requested=false
+  shift 4
+
+  [[ -t 0 && -t 1 ]] && interactive=true
+
+  control_dir="$(mktemp -d "${TMPDIR:-/tmp}/topaz-controls.XXXXXX")" || return 1
+  progress_fifo="$control_dir/progress"
+  if ! mkfifo "$progress_fifo"; then
+    rmdir "$control_dir" 2>/dev/null || true
+    return 1
+  fi
+
+  topaz_render_progress "$total" "$cols" <"$progress_fifo" &
+  progress_pid=$!
+
+  # Reset inherited signal handlers before exec so q/Ctrl-C reaches ffmpeg even
+  # though it is an asynchronous child. stdin belongs to this control loop.
+  (
+    cd "$work_dir" || exit 1
+    trap - INT TERM HUP
+    exec "$@" </dev/null
+  ) >"$progress_fifo" 2>>"$log_file" &
+  encoder_pid=$!
+
+  trap 'caught_signal=INT' INT
+  trap 'caught_signal=TERM' TERM
+  trap 'caught_signal=HUP' HUP
+
+  if [[ "$interactive" == true ]]; then
+    print -P -- "  %F{white}controls:%f %F{cyan}[p] pause/continue%f · %F{yellow}[q] stop%f"
+  fi
+
+  while kill -0 "$encoder_pid" 2>/dev/null; do
+    if [[ -n "$caught_signal" ]]; then
+      if [[ "$paused" == true ]]; then
+        kill -CONT "$progress_pid" 2>/dev/null || true
+        kill -CONT "$encoder_pid" 2>/dev/null || true
+        paused=false
+      fi
+      kill "-$caught_signal" "$encoder_pid" 2>/dev/null || true
+      break
+    fi
+
+    if [[ "$interactive" != true ]]; then
+      sleep 0.2
+      continue
+    fi
+
+    key=""
+    if read -r -s -k 1 -t 0.2 key; then
+      case "${key:l}" in
+        p)
+          if [[ "$paused" == true ]]; then
+            kill -CONT "$progress_pid" 2>/dev/null || true
+            if kill -CONT "$encoder_pid" 2>/dev/null; then
+              paused=false
+              print -P -- "\r%F{green}%B▶ Encode resumed%b%f"
+            fi
+          elif kill -STOP "$encoder_pid" 2>/dev/null; then
+            kill -STOP "$progress_pid" 2>/dev/null || true
+            paused=true
+            print
+            print -P -- "%F{yellow}%B⏸ Encode paused%b%f — press %B[p]%b to continue or %B[q]%b to stop"
+          fi
+          ;;
+        q)
+          if [[ "$paused" == true ]]; then
+            kill -CONT "$progress_pid" 2>/dev/null || true
+            kill -CONT "$encoder_pid" 2>/dev/null || true
+            paused=false
+          fi
+          print
+          print -P -- "%F{yellow}■ Stopping encode…%f"
+          kill -INT "$encoder_pid" 2>/dev/null || true
+          stop_requested=true
+          break
+          ;;
+      esac
+    fi
+  done
+
+  if [[ "$paused" == true ]]; then
+    kill -CONT "$progress_pid" 2>/dev/null || true
+    paused=false
+  fi
+
+  # zsh records each child STOP as a wait status. Consume those notifications
+  # until wait reports the encoder's real final status after it was continued.
+  while true; do
+    encoder_status=0
+    wait "$encoder_pid" || encoder_status=$?
+    (( encoder_status == stop_wait_status )) || break
+  done
+  while true; do
+    progress_status=0
+    wait "$progress_pid" 2>/dev/null || progress_status=$?
+    (( progress_status == stop_wait_status )) || break
+  done
+
+  rm -f -- "$progress_fifo"
+  rmdir "$control_dir" 2>/dev/null || true
+  trap - INT TERM HUP
+
+  if [[ -n "$caught_signal" ]]; then
+    case "$caught_signal" in
+      INT) encoder_status=130 ;;
+      TERM) encoder_status=143 ;;
+      HUP) encoder_status=129 ;;
+    esac
+  elif [[ "$stop_requested" == true ]]; then
+    encoder_status=130
+  fi
+
+  return "$encoder_status"
 }
 
 media_header_summary() {
@@ -1027,6 +1159,7 @@ for input in "$files[@]"; do
   ffmpeg_cmd=(
     "$TOPAZ_FFMPEG"
     -hide_banner
+    -nostdin
     -y
     -progress pipe:1
     "${input_duration_args[@]}"
@@ -1103,10 +1236,9 @@ for input in "$files[@]"; do
   } >"$log_file" 2>&1
 
   topaz_status=0
-  (
-    cd "$TOPAZ_MACOS_DIR"
-    "${topaz_env[@]}" "${ffmpeg_cmd[@]}"
-  ) 2>>"$log_file" | topaz_render_progress "$progress_total_seconds" "$term_cols" || topaz_status=$?
+  topaz_run_with_controls \
+    "$progress_total_seconds" "$term_cols" "$log_file" "$TOPAZ_MACOS_DIR" \
+    "${topaz_env[@]}" "${ffmpeg_cmd[@]}" || topaz_status=$?
 
   {
     if (( topaz_status != 0 )); then

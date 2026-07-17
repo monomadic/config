@@ -39,6 +39,7 @@ local draw_menu, show_original, render_or_show, move_cursor, select_number
 local render_cursor, start_encode_now, close_menu, enable_menu_keys, remove_menu_keys
 local space_toggle, show_render, show_orig, toggle_ui, menu_seek
 local draw_details, toggle_details, set_tab, interp_select, output_select
+local save_job_file, copy_encode_command
 
 local function shell_quote(value)
     return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
@@ -309,7 +310,6 @@ local ENHANCE_HINTS = {
     { keys = { "D" }, label = "details" },
     { keys = { "Tab" }, label = "tabs" },
     { keys = { "F" }, label = "hide UI" },
-    { keys = { "C" }, label = "encode" },
     { keys = { "Esc" }, label = "close" },
 }
 local OPTION_HINTS = {
@@ -318,9 +318,30 @@ local OPTION_HINTS = {
     { keys = { "Enter" }, label = "select" },
     { keys = { "Space" }, label = "A/B" },
     { keys = { "Tab" }, label = "tabs" },
-    { keys = { "C" }, label = "encode" },
     { keys = { "Esc" }, label = "back" },
 }
+-- Finalize actions, right-aligned in the bar on every tab. Each closes the menu.
+local FINALIZE_HINTS = {
+    { keys = { "⌘S" }, label = "save to file" },
+    { keys = { "⌘↩" }, label = "start encoding now" },
+    { keys = { "⌘C" }, label = "copy CLI command" },
+}
+
+-- Approximate rendered width of a hint-segment run (mirrors draw_hint_segments),
+-- so a run can be right-aligned against the bar's right padding.
+local function measure_hint_segments(segments)
+    local x = 0
+    for _, seg in ipairs(segments) do
+        for _, key in ipairs(seg.keys) do
+            x = x + math.max(16, 8 + disp_len(key) * 7) + 4
+        end
+        if seg.label and seg.label ~= "" then
+            x = x + 3 + disp_len(seg.label) * 6 + 12
+        end
+        x = x + 8
+    end
+    return x
+end
 
 -- A single full-width bar pinned to the bottom of the screen: shortcut keys on the
 -- left, and on the right either the on-screen resolution (Enhance tab) or the
@@ -328,12 +349,13 @@ local OPTION_HINTS = {
 local function draw_bottom(opts)
     opts = opts or {}
     local hints = opts.hints
+    local right_hints = opts.right_hints
     local right_value = opts.right_value
     local right_label = opts.right_label or ""
     local right_text = trim(opts.right_text or "")
     local has_res = right_value and right_value ~= ""
 
-    if not hints and not has_res and right_text == "" then
+    if not hints and not right_hints and not has_res and right_text == "" then
         params_badge:remove()
         return
     end
@@ -357,7 +379,10 @@ local function draw_bottom(opts)
         draw_hint_segments(ev, left + pad, cy, hints)
     end
 
-    if has_res then
+    if right_hints then
+        -- +8: the trailing segment gap doesn't render, so reclaim it when aligning.
+        draw_hint_segments(ev, rx - measure_hint_segments(right_hints) + 8, cy, right_hints)
+    elseif has_res then
         ev[#ev + 1] = string.format(
             "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs13\\b1\\1c&HFFFFFF&}%s",
             rx, cy, FONT, ass_escape(right_value))
@@ -881,21 +906,6 @@ local function paint_option_row(pills, fg, o)
     end
 end
 
--- One-line summary of what pressing C will encode.
-local function encode_summary()
-    local enh = chosen_enh()
-    local res = effective_res(enh)
-    local interp = menu.interp_rows[menu.interp_sel]
-    local fmt = menu.out_formats and menu.out_formats[menu.fmt_sel]
-    local parts = {
-        enh.is_original and "Original" or enh.display,
-        res.key == "orig" and res.short or res.label,
-        (interp and interp.fi) and interp.title or "no interp",
-        fmt and fmt.display or "?",
-    }
-    return table.concat(parts, "  ·  ")
-end
-
 -- The segmented Enhance / Interpolate / Output control under the title.
 local function draw_tab_bar(ev)
     ev[#ev + 1] = string.format(
@@ -1209,29 +1219,11 @@ function draw_menu()
     list_badge.data = table.concat(ev, "\n")
     list_badge:update()
 
-    -- Bottom bar: on the Enhance tab the right side shows the on-screen resolution;
-    -- on the other tabs it shows what pressing C will encode.
-    if menu.tab == 1 then
-        local res_value, res_label = nil, nil
-        if not menu.rendering_slug then
-            local sp = menu.shown_slug and chosen_enh() or nil
-            if sp and not sp.is_original then
-                local res = effective_res(sp)
-                if res.key == "orig" then
-                    res_value = string.format("%d×%d", prof.width or 0, prof.height or 0)
-                else
-                    res_value = string.format("%d×%d", res.w, res.h)
-                end
-                res_label = res.label
-            elseif prof.width then
-                res_value = string.format("%d×%d", prof.width, prof.height)
-                res_label = "source"
-            end
-        end
-        draw_bottom({ hints = ENHANCE_HINTS, right_value = res_value, right_label = res_label })
-    else
-        draw_bottom({ hints = OPTION_HINTS, right_text = encode_summary() })
-    end
+    -- Bottom bar: per-tab shortcuts on the left, the finalize actions far right.
+    draw_bottom({
+        hints = menu.tab == 1 and ENHANCE_HINTS or OPTION_HINTS,
+        right_hints = FINALIZE_HINTS,
+    })
 
     draw_details()
 end
@@ -1957,19 +1949,14 @@ function toggle_ui()
     end
 end
 
--- ===== encode =====
+-- ===== finalize: encode now / save job / copy command =====
 
-function start_encode_now()
-    if not menu then
-        return
-    end
-    if menu.rendering_slug then
-        mp.osd_message("Wait for the preview render to finish", 1.5)
-        return
-    end
+-- Everything needed to run the encode outside mpv, built from the current tab
+-- selections: the topaz-encode argv, a human preset name, and the source
+-- location. Returns nil + message when the catalog gave us nothing to encode with.
+local function build_encode_plan()
     if not menu.out_formats or #menu.out_formats == 0 then
-        mp.osd_message("No output formats available (catalog error)", 2)
-        return
+        return nil, "No output formats available (catalog error)"
     end
 
     local enh = chosen_enh()
@@ -2004,32 +1991,122 @@ function start_encode_now()
     end
 
     local source = menu.source
-    local directory = utils.split_path(source)
+    return {
+        source = source,
+        directory = utils.split_path(source),
+        preset_name = preset_name,
+        argv = {
+            topaz_run,
+            "--preset_name", preset_name,
+            "--filter_complex", final_filter,
+            "--output_ext", output.output_ext,
+            "--video_args", output.video_args,
+            "--metadata", metadata,
+            "--",
+            source,
+        },
+    }
+end
+
+-- The plan's argv as one copy-pasteable zsh command line.
+local function shell_command(argv)
+    local quoted = {}
+    for _, a in ipairs(argv) do
+        quoted[#quoted + 1] = shell_quote(a)
+    end
+    return table.concat(quoted, " ")
+end
+
+-- ⌘↩ (also c): launch the encode in a kitty tab and close the menu.
+function start_encode_now()
+    if not menu then
+        return
+    end
+    if menu.rendering_slug then
+        mp.osd_message("Wait for the preview render to finish", 1.5)
+        return
+    end
+    local plan, err = build_encode_plan()
+    if not plan then
+        mp.osd_message(err, 2)
+        return
+    end
+
     local args = {
         kitty_launch,
         "--tab",
         "--hold",
-        "--cwd", directory,
+        "--cwd", plan.directory,
         "--title", " topaz encode ",
         "--",
-        topaz_run,
-        "--preset_name", preset_name,
-        "--filter_complex", final_filter,
-        "--output_ext", output.output_ext,
-        "--video_args", output.video_args,
-        "--metadata", metadata,
-        "--",
-        source,
     }
+    for _, a in ipairs(plan.argv) do
+        args[#args + 1] = a
+    end
 
     local result = utils.subprocess_detached({ args = args })
     if result == false then
         mp.osd_message("Topaz encode launch failed", 2)
-        mp.msg.error("Failed to launch Topaz encode for: " .. source)
+        mp.msg.error("Failed to launch Topaz encode for: " .. plan.source)
         return
     end
 
     close_menu("Topaz encode started")
+end
+
+-- ⌘S: write a runnable .job script (the encode command) next to the video and
+-- close the menu. Run it later with `zsh <file>.job` or straight from a shell.
+function save_job_file()
+    if not menu then
+        return
+    end
+    local plan, err = build_encode_plan()
+    if not plan then
+        mp.osd_message(err, 2)
+        return
+    end
+
+    local job_path = plan.source .. ".job"
+    local f, ferr = io.open(job_path, "w")
+    if not f then
+        mp.osd_message("Could not write job file", 2)
+        mp.msg.error("Job write failed: " .. tostring(ferr))
+        return
+    end
+    f:write("#!/bin/zsh\n")
+    f:write("# Topaz encode job — generated by the mpv Topaz workflow\n")
+    f:write("# " .. plan.preset_name .. "\n")
+    f:write("cd " .. shell_quote(plan.directory) .. "\n")
+    f:write("exec " .. shell_command(plan.argv) .. "\n")
+    f:close()
+    utils.subprocess({ args = { "chmod", "+x", job_path }, cancellable = false })
+
+    close_menu("Job saved: " .. basename(job_path))
+end
+
+-- ⌘C: copy the encode command line to the clipboard and close the menu.
+function copy_encode_command()
+    if not menu then
+        return
+    end
+    local plan, err = build_encode_plan()
+    if not plan then
+        mp.osd_message(err, 2)
+        return
+    end
+
+    local result = mp.command_native({
+        name = "subprocess",
+        args = { "pbcopy" },
+        stdin_data = shell_command(plan.argv),
+        playback_only = false,
+    })
+    if not result or result.status ~= 0 then
+        mp.osd_message("Clipboard copy failed", 2)
+        return
+    end
+
+    close_menu("Encode command copied")
 end
 
 -- Skip the preview point ±`delta` seconds without leaving the renderer. Every
@@ -2101,6 +2178,7 @@ local MENU_KEY_NAMES = {
     "topaz_menu_show_render_l", "topaz_menu_show_render_right",
     "topaz_menu_show_orig_h", "topaz_menu_show_orig_left",
     "topaz_menu_proceed_c",
+    "topaz_menu_save_job", "topaz_menu_encode_meta", "topaz_menu_copy_cmd",
     "topaz_menu_block_n", "topaz_menu_block_N",
     "topaz_menu_click",
     "topaz_menu_esc", "topaz_menu_bs",
@@ -2145,7 +2223,11 @@ function enable_menu_keys()
     -- Skip the preview point ±10s without leaving the renderer.
     mp.add_forced_key_binding("Shift+RIGHT", "topaz_menu_seek_fwd", function() menu_seek(10) end)
     mp.add_forced_key_binding("Shift+LEFT", "topaz_menu_seek_back", function() menu_seek(-10) end)
-    -- Launch the encode with the current selections.
+    -- Finalize: ⌘S saves a .job file, ⌘↩ launches the encode, ⌘C copies the
+    -- command line. Each closes the menu. `c` stays as an encode alias.
+    mp.add_forced_key_binding("Meta+s", "topaz_menu_save_job", save_job_file)
+    mp.add_forced_key_binding("Meta+ENTER", "topaz_menu_encode_meta", start_encode_now)
+    mp.add_forced_key_binding("Meta+c", "topaz_menu_copy_cmd", copy_encode_command)
     mp.add_forced_key_binding("c", "topaz_menu_proceed_c", start_encode_now)
     -- Swallow playlist-next/prev so preview stills don't get navigated away.
     mp.add_forced_key_binding("n", "topaz_menu_block_n", function() end)

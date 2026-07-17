@@ -7,7 +7,6 @@
 # columns exactly fill the window (the background should barely show).
 # Width:height sets the aspect ratio (240:135 = 16:9).
 tile_width = 150.0
-#tile_height = 135.0
 tile_height = 150.0
 gap = 2.0
 
@@ -82,8 +81,8 @@ recurse = true
 # tiles. thumb_quality is 1..10: 10 ≈ visually lossless, 1 = heavily
 # compressed but still presentable. Changing any of these regenerates
 # thumbnails (cache files are named by recipe; old ones are kept).
-thumb_width = 768
-thumb_height = 432
+thumb_width = 640
+thumb_height = 640
 thumb_quality = 8
 # Anim sheet grid: frames = grid², frame size = thumb/grid.
 # 3 = 9 smaller frames (more motion), 2 = 4 crisper frames.
@@ -94,8 +93,8 @@ anim_grid = 3
 # Too few slots for the viewport = black tiles at the screen edges and
 # reload churn when scrolling back. Cost is linear VRAM only; rendering
 # speed doesn't change with atlas size. Hardware cap 16384 per side.
-atlas_width = 16128
-atlas_height = 15984
+atlas_width = 19200
+atlas_height = 12800
 # The selected clip decodes ONCE at up to this size (never above the
 # source's own resolution): the tile shows it downscaled (mipmapped) and
 # quickview shows the same stream big — so quickview opens instantly
@@ -168,10 +167,13 @@ c = "copy_path"
 a = "toggle_anim"  # animated thumbnails on/off
 p = "toggle_focus_pause"  # pause-when-unfocused on/off
 r = "reveal"  # reveal in Finder (open -R)
-t = "trim"
+T = "trim"
 "[" = "skip_back"  # jump by skip_fraction; wraps at the ends
 "]" = "skip_forward"
 D = "open_parent"  # re-ingest from the selected clip's parent dir
+R = "jump_random"  # select a random clip ("jump_to_random" also works)
+s = "shuffle_library"  # shuffle the whole grid in place ("shuffle" also works)
+t = "toggle_skip_timer"  # auto-advance every skip_timer_s of playback
 
 # n = "rename_script"    # any key -> any launched program; example below
 # "{" = "skip_back_big"  # a skip with its own amount; see below
