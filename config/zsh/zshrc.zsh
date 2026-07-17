@@ -223,11 +223,13 @@ zellij() {
   return "$zellij_status"
 }
 
+# Opt-in only: SSH logins get a plain shell unless ZELLIJ_AUTO_ATTACH_SSH=1
+# (e.g. ssh -o SetEnv=ZELLIJ_AUTO_ATTACH_SSH=1, or exported on the remote).
 _zellij_auto_attach_ssh() {
   [[ -o interactive ]] || return
   [[ -n "${SSH_CONNECTION:-}${SSH_TTY:-}" ]] || return
   [[ -z "${ZELLIJ:-}" ]] || return
-  [[ "${ZELLIJ_AUTO_ATTACH_SSH:-1}" != "0" ]] || return
+  [[ "${ZELLIJ_AUTO_ATTACH_SSH:-0}" == "1" ]] || return
   [[ -t 0 && -t 1 ]] || return
   [[ "${TERM:-}" != "dumb" ]] || return
   (( $+commands[zellij] )) || return
