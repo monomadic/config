@@ -241,17 +241,21 @@ _zellij_auto_attach_ssh
 # A static Rust binary: renders in well under a millisecond, spawns no
 # subprocesses, and skips git entirely on /Volumes mounts, so a stale SMB share
 # can never wedge the prompt. Falls back to starship where the binary isn't built.
-# One precmd captures $? on its first line, so hook ordering can't clobber the
-# exit status; the blank-line spacer is folded in for the same reason.
+# PROMPT holds the $(pimped …) call itself under prompt_subst, so it re-renders on
+# every redraw — including `zle reset-prompt` from cd widgets (fzf-cd, yazi) that
+# don't fire precmd. The exit status is captured in precmd (before any hook can
+# clobber $?) into a global the subst reads; the blank-line spacer lives there too.
 typeset -g _prompt_spacer_seen=0
 if (( $+commands[pimped] )); then
+  setopt prompt_subst
+  typeset -gi _pimped_status=0
   _prompt_render_precmd() {
-    local exit_status=$?
+    _pimped_status=$?
     if (( _prompt_spacer_seen )); then print; else _prompt_spacer_seen=1; fi
-    PROMPT="$(command pimped "$exit_status" "${(%):-%m}")"
-    RPROMPT=''
   }
   add-zsh-hook precmd _prompt_render_precmd
+  PROMPT='$(command pimped "$_pimped_status" "${(%):-%m}")'
+  RPROMPT=''
 elif (( $+commands[starship] )); then
   _lazy_starship_precmd() {
     local _star_init="$ZSH_CACHE_DIR/starship-init.zsh"

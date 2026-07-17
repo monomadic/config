@@ -71,6 +71,7 @@ PENDING_FASTSTART=false
 PENDING_TRIM_START=""
 THUMB_ENABLE=false
 THUMB_BACKEND=""
+typeset -a THUMB_ICAT=()
 THUMB_ROWS=0
 THUMB_COLS=0
 THUMB_CURRENT_IMG=""
@@ -458,6 +459,7 @@ detect_thumb_backend() {
   local size rows cols
 
   THUMB_BACKEND=""
+  THUMB_ICAT=()
   THUMB_ROWS=0
   THUMB_COLS=0
   THUMB_ENABLE=false
@@ -466,11 +468,20 @@ detect_thumb_backend() {
   [[ -t 4 ]] || return 0
   command -v ffmpeg >/dev/null 2>&1 || return 0
 
-  if [[ -n "${KITTY_WINDOW_ID:-}" ]] && command -v kitty >/dev/null 2>&1; then
+  # Detect kitty by TERM, not KITTY_WINDOW_ID: plain ssh forwards TERM but not
+  # kitty's env vars, and icat's stream transfer mode works fine over ssh.
+  # Prefer the standalone `kitten` binary (present wherever kitty is, and easy
+  # to install alone on remotes); imgcat is iTerm2's protocol, so only trust it
+  # inside iTerm — a stray imgcat on a remote host renders nothing in kitty.
+  if [[ "$TERM" == *kitty* || -n "${KITTY_WINDOW_ID:-}" ]] && command -v kitten >/dev/null 2>&1; then
     THUMB_BACKEND=kitty
+    THUMB_ICAT=(kitten icat)
+  elif [[ -n "${KITTY_WINDOW_ID:-}" ]] && command -v kitty >/dev/null 2>&1; then
+    THUMB_BACKEND=kitty
+    THUMB_ICAT=(kitty +kitten icat)
   elif [[ -n "${WEZTERM_PANE:-}" ]] && command -v wezterm >/dev/null 2>&1; then
     THUMB_BACKEND=wezterm
-  elif command -v imgcat >/dev/null 2>&1; then
+  elif [[ "${TERM_PROGRAM:-}" == "iTerm.app" ]] && command -v imgcat >/dev/null 2>&1; then
     THUMB_BACKEND=imgcat
   elif command -v chafa >/dev/null 2>&1; then
     THUMB_BACKEND=chafa
@@ -593,13 +604,13 @@ render_thumb_band() {
   $THUMB_ENABLE || return 0
 
   if [[ -z "$THUMB_CURRENT_IMG" ]]; then
-    [[ "$THUMB_BACKEND" == kitty ]] && kitty +kitten icat --clear --stdin=no >&4 2>/dev/null
+    [[ "$THUMB_BACKEND" == kitty ]] && "${THUMB_ICAT[@]}" --clear --stdin=no >&4 2>/dev/null
     return 0
   fi
 
   case "$THUMB_BACKEND" in
     kitty)
-      kitty +kitten icat --clear --transfer-mode=stream --stdin=no --align=left \
+      "${THUMB_ICAT[@]}" --clear --transfer-mode=stream --stdin=no --align=left \
         --place="${THUMB_COLS}x${THUMB_ROWS}@0x${THUMB_ABOVE}" -- "$THUMB_CURRENT_IMG" >&4 2>/dev/null
       ;;
     wezterm)
@@ -622,7 +633,7 @@ render_thumb_band() {
 clear_thumb() {
   $THUMB_ENABLE || return 0
   [[ "$THUMB_BACKEND" == kitty ]] || return 0
-  kitty +kitten icat --clear --stdin=no >&4 2>/dev/null || true
+  "${THUMB_ICAT[@]}" --clear --stdin=no >&4 2>/dev/null || true
 }
 
 # Ctrl-C anywhere aborts the whole run (not just the current file). Restore the
