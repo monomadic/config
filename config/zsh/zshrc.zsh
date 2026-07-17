@@ -237,58 +237,37 @@ _zellij_auto_attach_ssh() {
 }
 _zellij_auto_attach_ssh
 
-# --- Lazy starship (first prompt render) ---
-if (( $+commands[starship] )); then
-  # Starship stat-walks $PWD (git repo scan) on every render. On a stale SMB /
-  # network CWD that syscall can wedge and hang the whole prompt — and new kitty
-  # tabs inherit the parent's CWD, so a tab spawned from a /Volumes dir starts
-  # there. While CWD is on a network mount, point starship at a generated clone
-  # of the config with the git modules disabled (single source of truth: the
-  # clone is derived from the live config and regenerated when it changes).
-  typeset -g _STARSHIP_CONF_MAIN="$HOME/.config/starship.toml"
-  typeset -g _STARSHIP_CONF_NOGIT="$ZSH_CACHE_DIR/starship-nogit.toml"
-  _starship_regen_nogit() {
-    [[ -r $_STARSHIP_CONF_MAIN ]] || return
-    [[ -s $_STARSHIP_CONF_NOGIT && ! $_STARSHIP_CONF_MAIN -nt $_STARSHIP_CONF_NOGIT ]] && return
-    awk '
-      /^\[/ { ingit = ($0=="[git_branch]" || $0=="[git_status]"); print; if (ingit) print "disabled = true"; next }
-      ingit && /^[[:space:]]*disabled[[:space:]]*=/ { next }
-      { print }
-    ' "$_STARSHIP_CONF_MAIN" >! "$_STARSHIP_CONF_NOGIT"
+# --- Prompt: pimped, a fast native renderer (utils/pimped → ~/.local/bin/pimped) ---
+# A static Rust binary: renders in well under a millisecond, spawns no
+# subprocesses, and skips git entirely on /Volumes mounts, so a stale SMB share
+# can never wedge the prompt. Falls back to starship where the binary isn't built.
+# One precmd captures $? on its first line, so hook ordering can't clobber the
+# exit status; the blank-line spacer is folded in for the same reason.
+typeset -g _prompt_spacer_seen=0
+if (( $+commands[pimped] )); then
+  _prompt_render_precmd() {
+    local exit_status=$?
+    if (( _prompt_spacer_seen )); then print; else _prompt_spacer_seen=1; fi
+    PROMPT="$(command pimped "$exit_status" "${(%):-%m}")"
+    RPROMPT=''
   }
-  _starship_pwd_config() {
-    if [[ $PWD == /Volumes/* ]]; then
-      _starship_regen_nogit
-      export STARSHIP_CONFIG="$_STARSHIP_CONF_NOGIT"
-    else
-      export STARSHIP_CONFIG="$_STARSHIP_CONF_MAIN"
-    fi
-  }
-  _starship_pwd_config              # correct config for the initial (inherited) CWD
-  add-zsh-hook precmd _starship_pwd_config
-
+  add-zsh-hook precmd _prompt_render_precmd
+elif (( $+commands[starship] )); then
   _lazy_starship_precmd() {
     local _star_init="$ZSH_CACHE_DIR/starship-init.zsh"
     if [[ ! -s $_star_init || $(command -v starship) -nt $_star_init ]]; then
       command starship init zsh >! "$_star_init"
     fi
     source "$_star_init"
-    # run the real precmds starship registered (if any), then unhook ourselves
     add-zsh-hook -d precmd _lazy_starship_precmd
     typeset -pm precmd_functions >/dev/null 2>&1  # touch to rebuild widgets
   }
   add-zsh-hook precmd _lazy_starship_precmd
+  _prompt_spacer_precmd() {
+    if (( _prompt_spacer_seen )); then print; else _prompt_spacer_seen=1; fi
+  }
+  add-zsh-hook precmd _prompt_spacer_precmd
 fi
-
-typeset -g _prompt_spacer_seen=0
-_prompt_spacer_precmd() {
-  if (( _prompt_spacer_seen )); then
-    print
-  else
-    _prompt_spacer_seen=1
-  fi
-}
-add-zsh-hook precmd _prompt_spacer_precmd
 
 # television init lives in autoload/completions.zsh (cached).
 # LM Studio PATH entries come from ~/.bin/init-path.
