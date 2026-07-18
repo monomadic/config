@@ -1,0 +1,254 @@
+#!/usr/bin/env zsh
+# ============================================================================
+# vdjstems-audit — fzf audit of prepared-stems status for VirtualDJ tracks
+# ============================================================================
+#
+# Pipe audio file paths on stdin; get an fzf list showing each track's
+# prepared-stems status:
+#
+#   • whether stems exist, as a SIDECAR (<track>.vdjstems Matroska next to
+#     the file) or a STANDALONE multi-track M4A (the track itself)
+#   • the stem codec (aac / flac / alac)
+#   • provenance — who made the stems:
+#       vdj    AAC sidecar (what VirtualDJ itself writes)
+#       tool   lossless sidecar or any standalone (vdjstems toolchain;
+#              VDJ never writes FLAC/ALAC stems or standalone M4As)
+#       BAD!   sidecar missing the "VirtualDJ …stems2" writing-application
+#              stamp — VirtualDJ silently ignores it (see docs)
+#
+#   Provenance is a codec heuristic: both VDJ and vdjstems-pack stamp the
+#   same writing-application, so an AAC sidecar made with the tool (no -l)
+#   is indistinguishable from a genuine one and shows as "vdj".
+#
+# Keys inside fzf:
+#   tab        select multiple tracks
+#   ctrl-s     make FLAC sidecar stems (vdjstems make -l) for the selected
+#              tracks, or the hovered one if none selected; list reloads
+#   ctrl-r     re-probe / reload the list
+#   enter      print the selected/hovered file path(s) to stdout
+#
+# Example:
+#   fd -e flac -e m4a . ~/Music/Tracks | vdjstems-audit
+#
+# Dependencies: fzf, ffprobe; mkvmerge + jq for the stamp check (optional —
+#               without them stamp status shows as unknown, not BAD)
+# See also: vdjstems (make/split/pack), vdjstems-info,
+#           docs in ~/src/virtualdj-api-reference/docs/Stem File Format.md
+# ============================================================================
+set -euo pipefail
+SELF="${0:t}"
+SELF_PATH="${0:A}"
+
+die() { print -r -- "ERROR: $*" >&2; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# Colors
+RED=$'\033[31m'   GREEN=$'\033[32m'  YELLOW=$'\033[33m'
+CYAN=$'\033[36m'  MAGENTA=$'\033[35m'
+DIM=$'\033[2m'    BOLD=$'\033[1m'    RESET=$'\033[0m'
+
+usage() {
+  cat <<EOF
+Usage: <file-list> | $SELF
+
+Audit VirtualDJ prepared-stems status for a list of audio files.
+Pipe one path per line on stdin. Inside fzf:
+
+  tab      select multiple
+  ctrl-s   create FLAC sidecar stems for selected/hovered (vdjstems make -l)
+  ctrl-r   reload
+  enter    print selected path(s)
+EOF
+  exit 2
+}
+
+# ── writing-application of a Matroska sidecar ("" if tools missing) ─────────
+stamp_of() {
+  local f="$1"
+  if have mkvmerge && have jq; then
+    mkvmerge -J "$f" 2>/dev/null \
+      | jq -r '.container.properties.writing_application // ""' 2>/dev/null \
+      || true
+  fi
+}
+
+# ── probe one track and emit its display line ───────────────────────────────
+# arg: "index<TAB>path"; emits "index<TAB>path<TAB>colored display"
+probe_line() {
+  local idx="${1%%$'\t'*}" trk="${1#*$'\t'}"
+  local sidecar="${trk}.vdjstems"
+  local kind="—" codec="—" origin="—" icon="${RED}○${RESET}"
+  local name_color="$DIM" origin_color="$DIM"
+
+  if [[ -f "$sidecar" ]]; then
+    kind="sidecar"
+    local codecs
+    codecs=("${(@f)$(ffprobe -v error -select_streams a \
+      -show_entries stream=codec_name -of csv=p=0 "$sidecar" 2>/dev/null || true)}")
+    codec="${codecs[1]:-?}"
+    local stamp; stamp="$(stamp_of "$sidecar")"
+    if [[ -n "$stamp" && "$stamp" != VirtualDJ* ]]; then
+      origin="BAD!" origin_color="$MAGENTA"   # VDJ silently ignores it
+      icon="${MAGENTA}⚠${RESET}"
+      name_color="$MAGENTA"
+    elif [[ "$codec" == "aac" ]]; then
+      origin="vdj" origin_color="$CYAN"
+      icon="${YELLOW}●${RESET}"
+      name_color=""
+    else
+      origin="tool" origin_color="$GREEN"
+      icon="${GREEN}●${RESET}"
+      name_color=""
+    fi
+    (( ${#codecs} != 5 )) && { origin="BAD!"; origin_color="$MAGENTA"; icon="${MAGENTA}⚠${RESET}"; }
+  else
+    # No sidecar — is the track itself a standalone multi-track stem file?
+    local codecs
+    codecs=("${(@f)$(ffprobe -v error -select_streams a \
+      -show_entries stream=codec_name -of csv=p=0 "$trk" 2>/dev/null || true)}")
+    if (( ${#codecs} >= 2 )); then
+      kind="standalone"
+      codec="${codecs[2]:-${codecs[1]}}"   # stream 0 is the mixed track
+      origin="tool" origin_color="$GREEN"
+      if [[ "$codec" == "alac" || "$codec" == "flac" ]]; then
+        icon="${GREEN}●${RESET}"
+      else
+        icon="${YELLOW}●${RESET}"
+      fi
+      name_color=""
+    fi
+  fi
+
+  local codec_color=""
+  case "$codec" in
+    flac|alac) codec_color="$GREEN" ;;
+    aac)       codec_color="$YELLOW" ;;
+    —)         codec_color="$DIM" ;;
+  esac
+
+  local dir="${trk:h:t}"
+  printf '%s\t%s\t%s %s%-10s%s %s%-5s%s %s%-5s%s %s%s%s %s%s%s\n' \
+    "$idx" "$trk" \
+    "$icon" \
+    "$DIM" "$kind" "$RESET" \
+    "$codec_color" "$codec" "$RESET" \
+    "$origin_color" "$origin" "$RESET" \
+    "$name_color" "${trk:t}" "$RESET" \
+    "$DIM" "$dir/" "$RESET"
+}
+
+# ── re-probe the whole saved list (initial view + ctrl-r/ctrl-s reload) ─────
+relist() {
+  local listfile="$1" i=0 p
+  while IFS= read -r p; do
+    printf '%d\t%s\0' $((++i)) "$p"
+  done < "$listfile" \
+    | xargs -0 -P 8 -n 1 "$SELF_PATH" --line \
+    | sort -t$'\t' -k1,1n \
+    | cut -f2-
+}
+
+# ── fzf preview pane ────────────────────────────────────────────────────────
+preview() {
+  local trk="$1" sidecar="${1}.vdjstems"
+  print -P "%B${trk:t}%b"
+  ffprobe -v error -select_streams a:0 \
+    -show_entries stream=codec_name,sample_rate,channels \
+    -of csv=p=0 "$trk" 2>/dev/null \
+    | IFS=, read -r c r ch && print "${DIM}track: $c ${r} Hz ${ch}ch${RESET}" || true
+  print ""
+
+  local target=""
+  if [[ -f "$sidecar" ]]; then
+    print "${BOLD}SIDECAR${RESET} ${DIM}${sidecar:t}${RESET}"
+    target="$sidecar"
+  else
+    local n
+    n="$(ffprobe -v error -select_streams a -show_entries stream=index \
+          -of csv=p=0 "$trk" 2>/dev/null | wc -l | tr -d ' ')"
+    if (( n >= 2 )); then
+      print "${BOLD}STANDALONE${RESET} ${DIM}($n audio streams)${RESET}"
+      target="$trk"
+    else
+      print "${RED}no prepared stems${RESET}"
+      print "${DIM}ctrl-s creates a FLAC sidecar with vdjstems make -l${RESET}"
+      return 0
+    fi
+  fi
+
+  print "${DIM}codec|rate|ch|title:${RESET}"
+  ffprobe -v error -select_streams a \
+    -show_entries stream=codec_name,sample_rate,channels:stream_tags=title \
+    -of compact=p=0:nk=1 "$target" 2>/dev/null | sed 's/^/  /'
+
+  if [[ "$target" == "$sidecar" ]]; then
+    local stamp; stamp="$(stamp_of "$sidecar")"
+    if [[ -z "$stamp" ]]; then
+      print "${DIM}writing app: (mkvmerge/jq not available)${RESET}"
+    elif [[ "$stamp" == VirtualDJ* ]]; then
+      print "${GREEN}writing app: $stamp${RESET}"
+    else
+      print "${MAGENTA}writing app: $stamp — NOT stamped, VDJ ignores this sidecar${RESET}"
+    fi
+    # Sample-rate contract: sidecar must match the original or playback breaks
+    local orig_sr side_sr
+    orig_sr="$(ffprobe -v error -select_streams a:0 -show_entries stream=sample_rate \
+      -of csv=p=0 "$trk" 2>/dev/null)"
+    side_sr="$(ffprobe -v error -select_streams a:0 -show_entries stream=sample_rate \
+      -of csv=p=0 "$sidecar" 2>/dev/null)"
+    if [[ -n "$orig_sr" && -n "$side_sr" && "$orig_sr" != "$side_sr" ]]; then
+      (( orig_sr > 96000 )) ||
+        print "${RED}⚠ rate mismatch: sidecar ${side_sr} Hz vs original ${orig_sr} Hz — plays broken${RESET}"
+    fi
+  fi
+}
+
+# ── ctrl-s action: make FLAC sidecars (runs in fzf's execute terminal) ──────
+make_stems() {
+  local f rc=0
+  for f in "$@"; do
+    print -P "\n%F{cyan}%B── vdjstems make -l ──%b %f${f:t}"
+    if [[ -f "${f}.vdjstems" ]]; then
+      print -P "%F{yellow}replacing existing sidecar ${f:t}.vdjstems%f"
+    fi
+    vdjstems make -l "$f" || { rc=1; print -P "%F{red}FAILED: ${f:t}%f" }
+  done
+  print -P "\n%F{244}done — press any key to return%f"
+  read -k1 -s || true
+  return $rc
+}
+
+# ── entry points ────────────────────────────────────────────────────────────
+case "${1:-}" in
+  -h|--help)  usage ;;
+  --line)     probe_line "${2:?}"; exit 0 ;;
+  --relist)   relist "${2:?}"; exit 0 ;;
+  --preview)  preview "${2:?}"; exit 0 ;;
+  --make)     shift; make_stems "$@"; exit 0 ;;
+  -*)         die "Unknown option: $1" ;;
+esac
+
+have fzf     || die "fzf not found"
+have ffprobe || die "ffprobe not found (brew install ffmpeg)"
+[[ -t 0 ]] && usage
+
+# Collect input paths: one per line, must exist; skip stray .vdjstems and dirs
+listfile="$(mktemp -t vdjstems-audit)"
+trap 'rm -f "$listfile"' EXIT
+while IFS= read -r p; do
+  [[ -n "$p" && -f "$p" && "$p" != *.vdjstems ]] || continue
+  print -r -- "${p:A}"
+done > "$listfile"
+[[ -s "$listfile" ]] || die "no audio files on stdin"
+
+header="stems audit — ${GREEN}●${RESET} lossless  ${YELLOW}●${RESET} aac  ${RED}○${RESET} none  ${MAGENTA}⚠${RESET} broken
+tab select · ctrl-s make FLAC sidecar · ctrl-r reload · enter print path"
+
+"$SELF_PATH" --relist "$listfile" | fzf \
+  --ansi --multi \
+  --delimiter $'\t' --with-nth 2 --accept-nth 1 \
+  --header "$header" --header-first \
+  --preview "$SELF_PATH --preview {1}" \
+  --preview-window 'down,10,border-top' \
+  --bind "ctrl-s:execute($SELF_PATH --make {+1})+reload($SELF_PATH --relist $listfile)" \
+  --bind "ctrl-r:reload($SELF_PATH --relist $listfile)"
