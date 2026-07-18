@@ -23,6 +23,8 @@ rubber_band = 0.15
 scale_smoothing = 0.35
 zoom_smoothing = 0.35
 
+interaction = "attention"
+
 # Pinch-to-zoom (also -/=/0 keys). Zoom scales the ideal tile width,
 # so columns reflow; the reflow crossfades over zoom_fade_ms.
 pinch_sensitivity = 1.0
@@ -101,6 +103,7 @@ atlas_height = 12800
 # with zero skip. Higher = sharper + more decode CPU while selected.
 quickview_max_width = 2560
 quickview_max_height = 1440
+
 # Quickview filmstrip: chip height (16:9), spacing, and how hard the
 # strip chases the selection per 60fps frame (same curve family as
 # key_snap_strength; 0.99 ≈ instant snap). The selected chip's border
@@ -140,6 +143,20 @@ strip_scroll_selects = false
 anim_cycle_s = 10.8
 anim_crossfade = 1.0
 anim_min_tile_w = 140.0
+
+# The seekbar over the quickview/fullview video: pointer motion over the
+# video reveals it, seekbar_hide_s of stillness fades it out over
+# seekbar_fade_ms. It thickens from seekbar_height to
+# seekbar_hover_height under the pointer (the click/drag target is a
+# taller invisible band either way). Click to seek; hold and drag to
+# scrub — coarse keyframe hops while dragging, an exact landing on
+# release. Hovering the bar previews the nearest animated-thumbnail
+# frame at seekbar_thumb_width px wide (0 hides the preview).
+seekbar_hide_s = 1.0
+seekbar_fade_ms = 200.0
+seekbar_height = 15.0
+seekbar_hover_height = 18.0
+seekbar_thumb_width = 190.0
 
 # Aspect cap (long:short) for the selected/hovered tile. Clips beyond it
 # get pan-and-scan cropped: portrait loses top/bottom, ultrawide loses
