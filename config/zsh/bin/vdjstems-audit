@@ -208,10 +208,14 @@ preview() {
     print "${DIM}download it in Finder (or: brctl download) then ctrl-r${RESET}"
     return 0
   fi
-  ffprobe -v error -select_streams a:0 \
+  # default=nw=1:nk=1 prints one clean value per line. Don't use csv here: a
+  # FLAC with embedded cover art (a video stream) makes ffprobe's csv writer
+  # append a trailing comma (44100, / flac,44100,2,), which corrupts the read.
+  local c r ch
+  { read -r c; read -r r; read -r ch } < <(ffprobe -v error -select_streams a:0 \
     -show_entries stream=codec_name,sample_rate,channels \
-    -of csv=p=0 "$trk" 2>/dev/null \
-    | IFS=, read -r c r ch && print "${DIM}track: $c ${r} Hz ${ch}ch${RESET}" || true
+    -of default=nw=1:nk=1 "$trk" 2>/dev/null)
+  [[ -n "$c" ]] && print "${DIM}track: $c ${r} Hz ${ch}ch${RESET}"
   print ""
 
   local target=""
@@ -254,9 +258,9 @@ preview() {
     # Sample-rate contract: sidecar must match the original or playback breaks
     local orig_sr side_sr
     orig_sr="$(ffprobe -v error -select_streams a:0 -show_entries stream=sample_rate \
-      -of csv=p=0 "$trk" 2>/dev/null)"
+      -of default=nw=1:nk=1 "$trk" 2>/dev/null)"
     side_sr="$(ffprobe -v error -select_streams a:0 -show_entries stream=sample_rate \
-      -of csv=p=0 "$sidecar" 2>/dev/null)"
+      -of default=nw=1:nk=1 "$sidecar" 2>/dev/null)"
     if [[ -n "$orig_sr" && -n "$side_sr" && "$orig_sr" != "$side_sr" ]]; then
       (( orig_sr > 96000 )) ||
         print "${RED}⚠ rate mismatch: sidecar ${side_sr} Hz vs original ${orig_sr} Hz — plays broken${RESET}"
