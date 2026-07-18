@@ -6,20 +6,22 @@
 # Multi-pass source separation tuned for Apple Silicon, producing the five
 # WAVs the vdjstems packers expect: vocals, drums→(kick, hihat), bass, other.
 #
-# How it works (each pass uses the best current model for that job):
-#   1. Vocals — BS-RoFormer (Viperx 1297, SDR ~11.8) splits vocals from
-#      instrumental. Clearly better than demucs for vocal bleed.
-#   2. Band split — htdemucs_ft runs on the *instrumental* (vocals already
-#      removed) to give drums / bass / other.
-#   3. Drum split — MDX23C-DrumSep splits drums into kick, snare, toms,
-#      hh, ride, crash. kick.wav = kick; hihat.wav = the other five summed,
-#      so kick + hihat reconstructs the full drum stem.
+# Three separation modes, all finished by the same drum split:
 #
-# --sw mode: BS-Roformer-SW (jarredou; tops the 2026 MVSEP 6-stem
-# leaderboard) replaces passes 1+2 with a single 6-stem pass — vocals,
-# drums, bass, guitar, piano, other — roughly 10× faster than the two-pass
-# chain; guitar + piano are summed back into other.wav since VirtualDJ has
-# a single "instruments" stem. DrumSep still provides kick/hihat.
+#   --roformer  (DEFAULT) BS-Roformer-SW (jarredou; tops the 2026 MVSEP
+#               6-stem leaderboard): one 6-stem pass — vocals, drums, bass,
+#               guitar, piano, other — roughly 10× faster than the two-pass
+#               chain AND higher quality. guitar + piano fold into other.wav
+#               since VirtualDJ has a single "instruments" stem.
+#   --two-pass  The older chain: (1) BS-RoFormer (Viperx 1297, SDR ~11.8)
+#               splits vocals from the instrumental, then (2) htdemucs_ft
+#               splits that instrumental into drums / bass / other.
+#   --fast      Skip the vocal pass; a single htdemucs_ft pass on the
+#               original (fastest, lower-quality vocals).
+#
+# Drum split (all modes) — MDX23C-DrumSep splits the drum stem into kick,
+# snare, toms, hh, ride, crash. kick.wav = kick; hihat.wav = the other five
+# summed, so kick + hihat reconstructs the full drum stem.
 #
 # All passes run through mlx-audio-separator — MLX-native on Apple Silicon,
 # no PyTorch/ONNX at inference. Falls back to the flag-compatible
@@ -34,9 +36,8 @@
 #
 # Output dir is ready for: cd OUTDIR && vdjstems-create
 #
-# Usage: vdjstems-split [-o OUTDIR] [--fast] [--keep-work] INPUT
-#   --fast       Skip the RoFormer vocal pass; single htdemucs_ft pass on
-#                the original (faster, lower quality vocals)
+# Usage: vdjstems-split [-o OUTDIR] [--roformer|--two-pass|--fast] [--keep-work] INPUT
+#   default is --roformer; --sw is a back-compat alias for --roformer
 #   --keep-work  Keep intermediate separation files for inspection
 #
 # Dependencies: mlx-audio-separator (pipx; or audio-separator), ffmpeg
@@ -68,24 +69,26 @@ MODEL_DIR="${VDJSTEMS_MODEL_DIR:-$HOME/.cache/audio-separator-models}"
 
 usage() {
   cat <<EOF
-Usage: $SELF [-o OUTDIR] [--sw] [--fast] [--keep-work] INPUT
+Usage: $SELF [-o OUTDIR] [--roformer|--two-pass|--fast] [--keep-work] INPUT
 Separates INPUT into vocals/bass/other/kick/hihat WAVs for the vdjstems packers.
   -o OUTDIR    Output directory (default: ./<input name>.stems)
-  --sw         Use BS-Roformer-SW: one 6-stem pass replaces the vocal +
-               band passes (much faster; guitar/piano fold into other)
-  --fast       Skip the RoFormer vocal pass (htdemucs_ft only, faster)
+  --roformer   BS-Roformer-SW single 6-stem pass (DEFAULT): fastest and
+               highest quality; guitar/piano fold into other (alias: --sw)
+  --two-pass   Older chain: BS-RoFormer vocal pass + htdemucs_ft band split
+  --fast       Skip the vocal pass (htdemucs_ft only, fastest, lower quality)
   --keep-work  Keep intermediate separation files
 EOF
   exit 2
 }
 
-OUTDIR=""; SW=false; FAST=false; KEEP_WORK=false
+OUTDIR=""; MODE="roformer"; KEEP_WORK=false   # roformer | two-pass | fast
 while (( $# )); do
   case "${1:-}" in
     -h|--help) usage ;;
     -o) OUTDIR="${2:-}"; [[ -n "$OUTDIR" ]] || die "-o requires a value"; shift 2 ;;
-    --sw) SW=true; shift ;;
-    --fast) FAST=true; shift ;;
+    --roformer|--sw) MODE="roformer"; shift ;;
+    --two-pass) MODE="two-pass"; shift ;;
+    --fast) MODE="fast"; shift ;;
     --keep-work) KEEP_WORK=true; shift ;;
     -*) die "Unknown option: $1" ;;
     *) break ;;
@@ -137,7 +140,7 @@ sum_wavs() {  # sum_wavs OUT IN...
     -c:a pcm_s16le "$out"
 }
 
-if [[ "$SW" == "true" ]]; then
+if [[ "$MODE" == "roformer" ]]; then
   print "→ Pass 1/2: 6-stem split (BS-Roformer-SW)…"
   sep "$SW_MODEL" "$work/p1" "$IN" "${roformer_flags[@]}"
   vocals_f="$(pick "$work/p1" vocals)" || die "vocals output not found"
@@ -156,7 +159,7 @@ if [[ "$SW" == "true" ]]; then
   drum_pass="Pass 2/2"
 else
   print "→ Pass 1/3: vocals (BS-RoFormer)…"
-  if [[ "$FAST" == "true" ]]; then
+  if [[ "$MODE" == "fast" ]]; then
     band_input="$IN"
   else
     sep "$VOCAL_MODEL" "$work/p1" "$IN" "${roformer_flags[@]}"
@@ -173,7 +176,7 @@ else
   cp "$bass_f"  "$OUTDIR/bass.wav"
   cp "$other_f" "$OUTDIR/other.wav"
   cp "$drums_f" "$OUTDIR/drums.wav"
-  if [[ "$FAST" == "true" ]]; then
+  if [[ "$MODE" == "fast" ]]; then
     vocals_f="$(pick "$work/p2" vocals)" || die "vocals output not found"
     cp "$vocals_f" "$OUTDIR/vocals.wav"
   fi

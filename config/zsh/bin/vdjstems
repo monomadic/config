@@ -18,8 +18,9 @@
 # make: by default produces the VDJ-native SIDECAR "song.flac.vdjstems"
 #       (Matroska, 5 stems) next to the input — load the original in VDJ.
 #       --standalone instead builds a self-contained 6-track M4A.
-#       --sw / --fast go to vdjstems-split; -l/-b/-k to vdjstems-pack
-#       (standalone only). Stem WAVs are kept in <input name>.stems/.
+#       --roformer/--two-pass/--fast (and the --sw alias) go to
+#       vdjstems-split; -l/-b/-k to vdjstems-pack (standalone only).
+#       Stem WAVs are kept in <input name>.stems/.
 #
 # Dependencies: the vdjstems-* tools and their deps (see each tool's header)
 # ============================================================================
@@ -33,9 +34,10 @@ usage() {
 Usage: $SELF <command> [args]
 
 Commands:
-  make [--sw|--fast] [--standalone] [-l] [-b BPM] [-k KEY] INPUT
+  make [--roformer|--two-pass|--fast] [--standalone] [-l] [-b BPM] [-k KEY] INPUT
                separate INPUT and pack. Default: VDJ-native sidecar
                <input>.vdjstems (Matroska); --standalone: 6-track M4A
+               separation defaults to --roformer (BS-Roformer-SW)
   split        separate an audio file into 5 stem WAVs
   pack         pack a directory of stem WAVs into a .vdjstems
   create       pack the CWD losslessly (vdjstems-create)
@@ -66,7 +68,7 @@ case "$cmd" in
     while (( $# )); do
       case "${1:-}" in
         -h|--help) usage ;;
-        --sw|--fast) split_flags+=("$1"); shift ;;
+        --sw|--roformer|--two-pass|--fast) split_flags+=("$1"); shift ;;
         --standalone) standalone=true; shift ;;
         -l|--lossless) pack_flags+=("$1"); shift ;;
         -b|--bpm|-k|--key)

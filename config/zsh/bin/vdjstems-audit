@@ -33,7 +33,8 @@
 #
 # Keys inside fzf:
 #   tab            select multiple tracks
-#   enter, ctrl-s  make FLAC sidecar stems (vdjstems make -l) for the selected
+#   enter, ctrl-s  make FLAC sidecar stems (vdjstems make --roformer
+#                  --lossless) for the selected
 #                  tracks, or the hovered one if none selected; rows reload
 #   ctrl-r         re-probe / reload the list
 #
@@ -71,7 +72,8 @@ Audit VirtualDJ prepared-stems status for a list of audio files.
 Inside fzf:
 
   tab            select multiple
-  enter, ctrl-s  create FLAC sidecar stems for selected/hovered (vdjstems make -l)
+  enter, ctrl-s  create FLAC sidecar stems for selected/hovered
+                 (vdjstems make --roformer --lossless)
   ctrl-r         reload
 EOF
   exit 2
@@ -236,7 +238,7 @@ preview() {
       target="$trk"
     else
       print "${RED}no prepared stems${RESET}"
-      print "${DIM}ctrl-s creates a FLAC sidecar with vdjstems make -l${RESET}"
+      print "${DIM}ctrl-s creates a FLAC sidecar with vdjstems make --roformer --lossless${RESET}"
       return 0
     fi
   fi
@@ -272,11 +274,11 @@ preview() {
 make_stems() {
   local f rc=0
   for f in "$@"; do
-    print -P "\n%F{cyan}%B── vdjstems make -l ──%b %f${f:t}"
+    print -P "\n%F{cyan}%B── vdjstems make --roformer --lossless ──%b %f${f:t}"
     if [[ -f "${f}.vdjstems" ]]; then
       print -P "%F{yellow}replacing existing sidecar ${f:t}.vdjstems%f"
     fi
-    vdjstems make -l "$f" || { rc=1; print -P "%F{red}FAILED: ${f:t}%f" }
+    vdjstems make --roformer --lossless "$f" || { rc=1; print -P "%F{red}FAILED: ${f:t}%f" }
   done
   print -P "\n%F{244}done — press any key to return%f"
   read -k1 -s || true
