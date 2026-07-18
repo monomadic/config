@@ -120,7 +120,13 @@ EOF
   exit 0
 }
 
-info()    { print -P "%F{blue}→%f $*"; }
+info()    {
+  # A leading "\n" in the message means "blank line before this line" —
+  # emit it before the arrow, else the newline strands the → on its own line.
+  local msg="$*"
+  while [[ "$msg" == '\n'* ]]; do print ""; msg="${msg#'\n'}"; done
+  print -P "%F{blue}→%f $msg"
+}
 success() { print -P "%F{green}✓%f $*"; }
 warn()    { print -P "%F{yellow}⚠%f $*" >&2; }
 error()   { print -P "%F{red}✗%f $*" >&2; }
