@@ -11,19 +11,22 @@
 #
 #   SIDECAR (--sidecar ORIGINAL) — VirtualDJ's native prepared-stems cache.
 #     Matroska container named "<original filename>.vdjstems" written next
-#     to the original track. Exactly 5 AAC-LC 44.1 kHz stereo streams in
-#     this order, each titled: vocal, hihat, bass, instruments, kick.
-#     No mixed track — VDJ plays the original file and uses the sidecar
-#     for stem separation. This mirrors the 1500+ sidecars VDJ itself has
-#     generated in this library (verified July 2026, VDJ 2026 builds).
+#     to the original track. Exactly 5 AAC-LC stereo streams — at the
+#     ORIGINAL's sample rate, which VDJ requires (a mismatch plays
+#     pitch-shifted/stuttery) — in this order, each titled: vocal, hihat,
+#     bass, instruments, kick. No mixed track — VDJ plays the original
+#     file and uses the sidecar for stem separation. Mirrors the 1500+
+#     sidecars VDJ itself generated in this library (verified July 2026).
 #
 #   STANDALONE (default) — self-contained 6-track M4A loadable as a track:
 #     stream order mixed, vocal, hihat, bass, instruments, kick with MP4Box
 #     udta track names, brands isom:512/mp42/mp41, flat storage — the
 #     community format (reverse-engineered from VirtualDJ 2023-era output)
-#     that VDJ detects as a stems file. mixed.wav is used as the master
-#     when present, otherwise the master is summed from the unique stems
-#     (amix normalize=1 into float32 — no fixed gain, no clipping).
+#     that VDJ detects as a stems file — re-verified working in VDJ 2026.
+#     mixed.wav is used as the master when present, otherwise the master
+#     is summed from the unique stems at UNITY gain (amix normalize=0 in
+#     float32): VDJ sums the stem tracks at unity when stems are active,
+#     so the master must equal that sum or levels jump on mute/unmute.
 #     Output: <name>-stems.m4a (AAC 320k, or ALAC with --lossless).
 #
 # Shared input handling:
@@ -47,9 +50,9 @@
 set -euo pipefail
 SELF="${0:t}"
 
-# Colors
-BOLD='\033[1m'
-RESET='\033[0m'
+# Colors (ANSI-C quoting so heredocs print real escapes, not literals)
+BOLD=$'\033[1m'
+RESET=$'\033[0m'
 
 # Stream orders (do not change — VirtualDJ matches on these)
 SIDECAR_ORDER=("vocal" "hihat" "bass" "instruments" "kick")
@@ -173,6 +176,8 @@ if [[ "$FORMAT" == "standalone" ]]; then
   command -v MP4Box >/dev/null 2>&1 || die "MP4Box not found (brew install gpac)"
 fi
 if [[ "$FORMAT" == "sidecar" ]]; then
+  command -v mkvpropedit >/dev/null 2>&1 \
+    || die "mkvpropedit not found (brew install mkvtoolnix) — required: VirtualDJ ignores sidecars without the VirtualDJ writing-application stamp"
   [[ -f "$ORIGINAL" ]] || die "Original file not found: $ORIGINAL"
   ORIGINAL="${ORIGINAL:A}"
   if [[ "$LOSSLESS" == "true" ]]; then
@@ -256,7 +261,16 @@ done
 if [[ "$FORMAT" == "sidecar" ]]; then
   output="${OUT:-${ORIGINAL}.vdjstems}"
 
-  info "\nWriting Matroska sidecar (vocal, hihat, bass, instruments, kick)..."
+  # CRITICAL: the sidecar's sample rate must match the original file's —
+  # VDJ assumes they agree, and a mismatch plays pitch-shifted and stuttery.
+  # (Verified: every genuine 48k/96k sidecar pairs a 48k/96k original;
+  # VDJ capped one 192k original's sidecar to 44.1k — AAC-LC tops out at 96k.)
+  orig_sr="$(ffprobe -v error -select_streams a:0 -show_entries stream=sample_rate -of default=nk=1:nw=1 "$ORIGINAL" 2>/dev/null || true)"
+  [[ "$orig_sr" == <-> ]] || orig_sr=44100
+  (( orig_sr > 96000 )) && orig_sr=44100
+  info "\nSample rate: ${orig_sr} Hz (matching original)"
+
+  info "Writing Matroska sidecar (vocal, hihat, bass, instruments, kick)..."
   ff_in=()
   for stem in "${SIDECAR_ORDER[@]}"; do
     ff_in+=(-i "${STEM_FILE[$stem]}")
@@ -270,7 +284,7 @@ if [[ "$FORMAT" == "sidecar" ]]; then
   ffmpeg -y -loglevel error "${ff_in[@]}" \
     -map 0:a -map 1:a -map 2:a -map 3:a -map 4:a \
     "${vol_args[@]}" \
-    -c:a aac -b:a 320k -ar 44100 -ac 2 \
+    -c:a aac -b:a 320k -ar "$orig_sr" -ac 2 \
     -disposition:a:0 0 -disposition:a:1 0 -disposition:a:2 0 \
     -disposition:a:3 0 -disposition:a:4 0 \
     -metadata:s:a:0 title="vocal" \
@@ -279,6 +293,15 @@ if [[ "$FORMAT" == "sidecar" ]]; then
     -metadata:s:a:3 title="instruments" \
     -metadata:s:a:4 title="kick" \
     -f matroska "$output" || die "Sidecar mux failed"
+
+  # Stamp VirtualDJ's writing-application signature. This is REQUIRED:
+  # A/B-verified (2026-07-18) that VDJ ignores an otherwise identical
+  # sidecar whose writing-application is Lavf. ffmpeg hardcodes Lavf here,
+  # so post-edit with mkvpropedit.
+  mkvpropedit "$output" --edit info \
+    --set "writing-application=VirtualDJ 2026.9336.stems2" >/dev/null 2>&1 \
+    || die "mkvpropedit stamp failed — VirtualDJ ignores unstamped sidecars"
+  success "writing-application stamped (VirtualDJ 2026.9336.stems2)"
 
   # Verify against the native spec
   info "\nVerifying sidecar..."
@@ -322,10 +345,15 @@ else
   done
   mix_args=()
   for f in "${MIX_FILES[@]}"; do mix_args+=(-i "$f"); done
+  # normalize=0: the master MUST be the plain sum of the stems. VirtualDJ
+  # sums the 5 stem tracks at unity gain when stems are active, so an
+  # attenuated master (amix's default 1/n scaling) makes stems play ~12 dB
+  # louder than the master (verified in VDJ 2026). Stems of one track sum
+  # back to roughly the original mix, so this does not clip beyond source.
   ffmpeg -y -loglevel error "${mix_args[@]}" \
-    -filter_complex "amix=inputs=${#MIX_FILES[@]}:normalize=1:duration=longest" \
+    -filter_complex "amix=inputs=${#MIX_FILES[@]}:normalize=0:duration=longest" \
     -c:a pcm_f32le "$mixed_wav" || die "Mix failed"
-  success "Master summed from ${#MIX_FILES[@]} unique sources"
+  success "Master summed from ${#MIX_FILES[@]} unique sources (unity gain)"
 fi
 
 # Measure tempo from the master unless the user supplied one
@@ -387,6 +415,7 @@ ffmpeg -y -loglevel error \
   -disposition:a:4 0 -disposition:a:5 0 \
   -metadata title="virtualdj" \
   -metadata artist="output" \
+  -brand isom \
   "$temp_m4a" || die "Mux failed"
 success "Tracks muxed (order: mixed → vocal → hihat → bass → instruments → kick)"
 
