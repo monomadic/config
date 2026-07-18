@@ -111,9 +111,17 @@ mkdir -p "$MODEL_DIR"
 sep() {  # sep MODEL OUTPUT_SUBDIR INPUT [EXTRA_FLAGS...]
   local model="$1" out="$2" in="$3"; shift 3
   mkdir -p "$out"
-  "$SEP_BIN" -m "$model" --model_file_dir "$MODEL_DIR" \
-    --output_dir "$out" --output_format WAV "$@" "$in" >/dev/null 2>&1 \
-    || die "$SEP_BIN failed: model=$model input=${in:t}"
+  local log="$work/sep.log"
+  if ! "$SEP_BIN" -m "$model" --model_file_dir "$MODEL_DIR" \
+      --output_dir "$out" --output_format WAV "$@" "$in" >"$log" 2>&1; then
+    # Surface the real cause instead of a bare "exit status 1" — e.g. a
+    # missing torch for the one-time .ckpt→MLX conversion (see this file's
+    # install notes), an OOM, or a bad model file.
+    print -u2 -r -- "── $SEP_BIN failed (last 20 lines) ──"
+    tail -n 20 "$log" >&2
+    print -u2 -r -- "──────────────────────────────────────"
+    die "$SEP_BIN failed: model=$model input=${in:t}"
+  fi
 }
 
 # RoFormer models run ~25% faster under MLX's latency_safe_v3 scheduling
