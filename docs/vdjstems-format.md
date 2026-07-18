@@ -16,6 +16,10 @@ Quick summary for tool authors in this repo (`config/zsh/bin/vdjstems-*`):
   **Matroska `writing-application` must be stamped
   `VirtualDJ <version>.stems2`** (mkvpropedit) — VDJ silently ignores
   unstamped sidecars (A/B verified 2026-07-18).
+  Codec is free: AAC is VDJ's own choice, but **FLAC and ALAC sidecars
+  both verified working** (`vdjstems-pack --sidecar -l` emits FLAC).
+- ALAC **standalone** works but must be **16-bit (s16p) on every stream**
+  — an s32p master plays stuttery/pitch-broken (VDJ's ALAC is 16-bit only).
 - **Standalone stems**: 6-track M4A (`mixed track` first + the 5 stems),
   MP4Box udta track names, brands `isom:512/mp42/mp41`, flat storage,
   named `.m4a` — **never** name an MP4 `.vdjstems`.
