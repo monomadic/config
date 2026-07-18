@@ -1,150 +1,142 @@
 #!/usr/bin/env zsh
 # ============================================================================
-# vdjstems-pack — package stem WAVs into a VirtualDJ multi-track stem file
+# vdjstems-pack — package stem WAVs into VirtualDJ stem files
 # ============================================================================
 #
-# Takes a directory of separated stem WAVs (from demucs, MDX23, spleeter, …)
-# and muxes them into the 6-track M4A layout VirtualDJ recognizes as a stem
-# file: mixed track, vocal, hihat, bass, instruments, kick.
+# Takes a directory of separated stem WAVs (from vdjstems-split, demucs,
+# MDX23, …) and produces one of the two stem formats VirtualDJ accepts.
+# See docs/vdjstems-format.md for the full reverse-engineered spec.
 #
-# How it works:
-#   1. Locates the five stems in the directory, accepting common aliases
-#      (drums.wav → kick, other.wav → instruments, vocals.wav → vocal, …).
-#      A missing hihat falls back to duplicating the drums/kick stem, with
-#      both copies dropped −6 dB so the pair sums back to the original level.
-#   2. Standalone mode (mixed.wav present) uses that as the master track;
-#      sidecar mode sums the unique stems into one (amix normalize=1 into
-#      float32 — no fixed gain, no clipping).
-#   3. Encodes every track in parallel — AAC 320k by default, ALAC with
-#      --lossless (stems s16p, master s32p for headroom).
-#   4. Muxes with ffmpeg in VDJ stream order, then MP4Box applies per-track
-#      udta names + iTunes-style tags (interleaved for streaming) so
-#      VirtualDJ labels each stem.
-#   5. Tags tempo — measured from the mixed track with aubio when --bpm is
-#      not given — and writes --key as an iTunes freeform initialkey atom
-#      (AtomicParsley), the same atom Mixed In Key/Serato use.
-#   6. Verifies the output has 6 audio tracks and udta metadata.
+# FORMATS (be explicit — they are not interchangeable):
 #
-# Output: <name>.vdjstems next to the stem directory (override with -o).
+#   SIDECAR (--sidecar ORIGINAL) — VirtualDJ's native prepared-stems cache.
+#     Matroska container named "<original filename>.vdjstems" written next
+#     to the original track. Exactly 5 AAC-LC 44.1 kHz stereo streams in
+#     this order, each titled: vocal, hihat, bass, instruments, kick.
+#     No mixed track — VDJ plays the original file and uses the sidecar
+#     for stem separation. This mirrors the 1500+ sidecars VDJ itself has
+#     generated in this library (verified July 2026, VDJ 2026 builds).
 #
-# Dependencies: ffmpeg, ffprobe, MP4Box  (brew install ffmpeg gpac)
+#   STANDALONE (default) — self-contained 6-track M4A loadable as a track:
+#     stream order mixed, vocal, hihat, bass, instruments, kick with MP4Box
+#     udta track names, brands isom:512/mp42/mp41, flat storage — the
+#     community format (reverse-engineered from VirtualDJ 2023-era output)
+#     that VDJ detects as a stems file. mixed.wav is used as the master
+#     when present, otherwise the master is summed from the unique stems
+#     (amix normalize=1 into float32 — no fixed gain, no clipping).
+#     Output: <name>-stems.m4a (AAC 320k, or ALAC with --lossless).
+#
+# Shared input handling:
+#   - Filename aliases: drums.wav → kick, other.wav → instruments,
+#     vocals.wav → vocal, drums-hihats.wav → hihat, …
+#   - Missing hihat: the drums/kick stem is duplicated into both kick and
+#     hihat at −6 dB each, so the pair sums back to the original level.
+#
+# Metadata (standalone only; a sidecar's tags live in the original file):
+#   - tempo: --bpm, or measured from the master with aubio when available
+#   - key: --key, written as the iTunes freeform initialkey atom
+#     (AtomicParsley) that Mixed In Key / Serato use
+#
+# Dependencies: ffmpeg, ffprobe; MP4Box for standalone (brew install gpac)
 #   optional:   aubio (BPM detection), AtomicParsley (key tag)
 # See also: vdjstems-split (make the input WAVs), vdjstems-create
-#           (lossless one-shot from CWD), vdjstems-from-nistem,
+#           (lossless standalone one-shot from CWD), vdjstems-from-nistem,
 #           vdjstems-extract, vdjstems-info
 # ============================================================================
 
 set -euo pipefail
+SELF="${0:t}"
 
 # Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-# VirtualDJ track order (do not change)
-TRACK_NAMES=("mixed track" "vocal" "hihat" "bass" "instruments" "kick")
+# Stream orders (do not change — VirtualDJ matches on these)
+SIDECAR_ORDER=("vocal" "hihat" "bass" "instruments" "kick")
+STANDALONE_NAMES=("mixed track" "vocal" "hihat" "bass" "instruments" "kick")
 
-# Required input stems
+# Required input stems (internal collection order)
 STEMS=("kick" "instruments" "vocal" "bass" "hihat")
 
-# Hihat can fall back to kick/drums if not found
-HIHAT_OPTIONAL=true
-
-# Default codec
+# Defaults
+FORMAT="standalone"       # standalone | sidecar
+ORIGINAL=""               # original audio file (sidecar)
 CODEC="aac"
 CODEC_EXT="aac"
 CODEC_OPTS=("-c:a" "aac" "-b:a" "320k")
-
-# Mode: auto-detect by default
-MODE="auto"
-
-# Optional metadata tags (BPM auto-measured when empty and aubio exists)
+LOSSLESS=false
 BPM=""
 KEY=""
-
-# Output path (default derived from the stem directory name)
 OUT=""
 
 usage() {
   cat <<EOF
 ${BOLD}VirtualDJ Stem Packer${RESET}
-Package individual stem WAV files into a VirtualDJ-compatible multi-track M4A.
+Package stem WAVs into a VirtualDJ stem file.
 
 ${BOLD}USAGE:${RESET}
-  $(basename "$0") [OPTIONS] <stem_directory>
+  $SELF [OPTIONS] <stem_directory>
 
 ${BOLD}OPTIONS:${RESET}
-  -l, --lossless    Use ALAC lossless encoding (default: AAC 320k)
-  -s, --standalone  Force standalone mode (requires mixed.wav)
-  -c, --sidecar     Force sidecar mode (creates mixed track from stems)
-  -o, --out FILE    Output path (default: <dir name>.vdjstems in the dir)
-  -b, --bpm BPM     Tag this tempo (default: measured with aubio if present)
-  -k, --key KEY     Tag this initial key (requires AtomicParsley)
-  -h, --help        Show this help message
+  --sidecar ORIGINAL  Write VDJ-native sidecar "<ORIGINAL>.vdjstems"
+                      (Matroska, 5 AAC stems, no mixed track) next to the
+                      original audio file
+  --standalone        Self-contained 6-track M4A (default)
+  -l, --lossless      Standalone only: ALAC instead of AAC 320k
+  -o, --out FILE      Output path (default: sidecar → next to ORIGINAL;
+                      standalone → <dir name>-stems.m4a in the dir)
+  -b, --bpm BPM       Standalone: tag tempo (default: measured with aubio)
+  -k, --key KEY       Standalone: tag initial key (needs AtomicParsley)
+  -h, --help          Show this help
 
-${BOLD}MODES:${RESET}
-  ${BOLD}Standalone${RESET} - Uses existing mixed.wav as the master track
-             Auto-selected if mixed.wav or "mixed track.wav" is present
+${BOLD}FORMATS:${RESET}
+  ${BOLD}Sidecar${RESET}    = what VirtualDJ itself creates: stems for an existing
+               track in your library. Play the original; VDJ finds the
+               .vdjstems next to it.
+  ${BOLD}Standalone${RESET} = a 6-track M4A that is itself a library track (mixed
+               master + 5 stems). Uses mixed.wav as master if present,
+               else sums one from the stems.
 
-  ${BOLD}Sidecar${RESET}    - Creates mixed track by combining all stems
-             Auto-selected if no mixed.wav is found
-
-${BOLD}REQUIRED STEMS:${RESET}
-  The stem directory must contain WAV files for:
-    • kick (or drums.wav, drums-main.wav)
+${BOLD}REQUIRED STEMS${RESET} (aliases accepted):
+    • kick        (or drums.wav, drums-main.wav)
     • instruments (or other.wav)
-    • vocal (or vocals.wav)
-    • bass (or bass.wav)
-    • hihat (or drums-hihats.wav, hihats.wav) - optional, will use kick/drums if missing
-  
-  ${BOLD}+ For standalone mode:${RESET}
-    • mixed.wav (or "mixed track.wav")
-
-  ${BOLD}Common 4-stem format (Demucs, Spleeter):${RESET}
-    • bass.wav → bass
-    • drums.wav → kick + hihat
-    • other.wav → instruments
-    • vocals.wav → vocal
-
-${BOLD}DEPENDENCIES:${RESET}
-  • ffmpeg
-  • MP4Box (gpac)
+    • vocal       (or vocals.wav)
+    • bass
+    • hihat       (or drums-hihats.wav, hihats.wav) — optional; falls back
+                  to duplicating drums/kick at −6 dB
 
 ${BOLD}EXAMPLES:${RESET}
-  $(basename "$0") ~/Music/MySong/stems              # Auto-detect mode
-  $(basename "$0") -l ~/Music/MySong/stems           # ALAC lossless
-  $(basename "$0") --standalone ~/Music/MySong/stems # Force standalone
-  $(basename "$0") --sidecar ~/Music/MySong/stems    # Force sidecar
-
+  $SELF --sidecar ~/Music/song.flac ~/Music/song.stems   # VDJ-native
+  $SELF ~/Music/MySong/stems                             # standalone AAC
+  $SELF -l -k Am ~/Music/MySong/stems                    # standalone ALAC
 EOF
   exit 0
 }
 
-info() { print -P "%F{blue}→%f $*"; }
+info()    { print -P "%F{blue}→%f $*"; }
 success() { print -P "%F{green}✓%f $*"; }
-warn() { print -P "%F{yellow}⚠%f $*" >&2; }
-error() { print -P "%F{red}✗%f $*" >&2; }
-die() { error "$*"; exit 1; }
+warn()    { print -P "%F{yellow}⚠%f $*" >&2; }
+error()   { print -P "%F{red}✗%f $*" >&2; }
+die()     { error "$*"; exit 1; }
 
 # Parse options
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --sidecar)
+      FORMAT="sidecar"
+      ORIGINAL="${2:-}"
+      [[ -n "$ORIGINAL" ]] || die "--sidecar requires the original audio file"
+      shift 2
+      ;;
+    -s|--standalone)
+      FORMAT="standalone"
+      shift
+      ;;
     -l|--lossless)
+      LOSSLESS=true
       CODEC="alac"
       CODEC_EXT="m4a"
       CODEC_OPTS=("-c:a" "alac" "-sample_fmt" "s16p")
-      shift
-      ;;
-    -s|--standalone)
-      MODE="standalone"
-      shift
-      ;;
-    -c|--sidecar)
-      MODE="sidecar"
       shift
       ;;
     -o|--out)
@@ -175,8 +167,19 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Check dependencies
-command -v ffmpeg >/dev/null 2>&1 || die "ffmpeg not found (install via: brew install ffmpeg)"
-command -v MP4Box >/dev/null 2>&1 || die "MP4Box not found (install via: brew install gpac)"
+command -v ffmpeg  >/dev/null 2>&1 || die "ffmpeg not found (brew install ffmpeg)"
+command -v ffprobe >/dev/null 2>&1 || die "ffprobe not found (brew install ffmpeg)"
+if [[ "$FORMAT" == "standalone" ]]; then
+  command -v MP4Box >/dev/null 2>&1 || die "MP4Box not found (brew install gpac)"
+fi
+if [[ "$FORMAT" == "sidecar" ]]; then
+  [[ -f "$ORIGINAL" ]] || die "Original file not found: $ORIGINAL"
+  ORIGINAL="${ORIGINAL:A}"
+  if [[ "$LOSSLESS" == "true" ]]; then
+    warn "sidecar is AAC to match VirtualDJ's native format — ignoring --lossless"
+    CODEC="aac"; CODEC_OPTS=("-c:a" "aac" "-b:a" "320k")
+  fi
+fi
 
 [[ $# -eq 1 ]] || { error "Missing stem directory"; print "Use -h for help"; exit 2; }
 
@@ -184,45 +187,25 @@ FOLDER="$(cd "$1" 2>/dev/null && pwd)" || die "Cannot access directory: $1"
 [[ -d "$FOLDER" ]] || die "Not a directory: $FOLDER"
 
 print -P "\n%F{cyan}%B━━━ VirtualDJ Stem Packer ━━━%b%f\n"
+if [[ "$FORMAT" == "sidecar" ]]; then
+  print -P "%F{cyan}Format:%f %BSIDECAR%b %F{244}(VDJ-native Matroska, 5 stems, no mixed track)%f"
+  print -P "%F{cyan}For:%f    %F{244}${ORIGINAL}%f"
+else
+  print -P "%F{cyan}Format:%f %BSTANDALONE%b %F{244}(self-contained 6-track M4A)%f"
+fi
 
 # Create temp workspace
 tmpdir="$(mktemp -d)"
 trap "rm -rf '$tmpdir'" EXIT
 
-# Find mixed track for standalone mode
-find_mixed() {
-  local f
-  for f in "$FOLDER/mixed.wav" "$FOLDER/mixed track.wav" "$FOLDER/Mixed.wav" "$FOLDER/Mixed Track.wav"; do
-    [[ -f "$f" ]] && { print "$f"; return 0; }
-  done
-  return 1
-}
-
-# Auto-detect mode if not forced
-if [[ "$MODE" == "auto" ]]; then
-  if find_mixed >/dev/null; then
-    MODE="standalone"
-  else
-    MODE="sidecar"
-  fi
-fi
-
-# Validate mode requirements
-if [[ "$MODE" == "standalone" ]]; then
-  MIXED_FILE="$(find_mixed)" || die "Standalone mode requires mixed.wav or 'mixed track.wav'"
-  print -P "%F{cyan}Mode:%f %BStandalone%b %F{244}(using existing mixed track)%f"
-else
-  print -P "%F{cyan}Mode:%f %BSidecar%b %F{244}(will create mixed track from stems)%f"
-fi
-
 # Find input files
 find_stem() {
   local stem="$1"
   local f
-  
+
   # Direct match
   [[ -f "$FOLDER/${stem}.wav" ]] && { print "$FOLDER/${stem}.wav"; return; }
-  
+
   # Common aliases
   case "$stem" in
     kick)        for f in "$FOLDER"/drums.wav "$FOLDER"/drums-main.wav "$FOLDER"/kick.wav; do
@@ -239,96 +222,122 @@ find_stem() {
                  done ;;
     bass)        [[ -f "$FOLDER"/bass.wav ]] && { print "$FOLDER/bass.wav"; return; } ;;
   esac
-  
+
   # Case-insensitive fallback
   for f in "$FOLDER"/*.wav; do
     [[ -f "$f" ]] || continue
     local name="$(basename "${f%.wav}" | tr '[:upper:]' '[:lower:]')"
     [[ "$name" == "$stem" ]] && { print "$f"; return; }
   done
-  
+
   return 1
 }
 
-# Collect input files
+# Collect input files into an associative map stem → file
 info "\nLocating stem files..."
-INPUT_FILES=()
-KICK_FILE=""
+typeset -A STEM_FILE
 HIHAT_FALLBACK=false
 for stem in "${STEMS[@]}"; do
-  if [[ "$stem" == "hihat" ]] && [[ "$HIHAT_OPTIONAL" == "true" ]]; then
-    # Try to find hihat, but if not found, we'll use kick later
-    if f="$(find_stem "$stem")"; then
-      INPUT_FILES+=("$f")
-      print -P "  %F{green}✓%f %-12s %F{244}%s%f" "$stem" "$(basename "$f")"
-    else
-      # Will use kick file as fallback (both copies encoded at −6 dB below)
-      INPUT_FILES+=("__FALLBACK__")
-      HIHAT_FALLBACK=true
-      print -P "  %F{yellow}⚠%f %-12s %F{244}using drums/kick as fallback%f" "$stem"
-    fi
-  else
-    f="$(find_stem "$stem")" || die "Missing stem: $stem.wav"
-    INPUT_FILES+=("$f")
+  if f="$(find_stem "$stem")"; then
+    STEM_FILE[$stem]="$f"
     print -P "  %F{green}✓%f %-12s %F{244}%s%f" "$stem" "$(basename "$f")"
-    
-    # Store kick file for potential hihat fallback
-    [[ "$stem" == "kick" ]] && KICK_FILE="$f"
+  elif [[ "$stem" == "hihat" ]]; then
+    HIHAT_FALLBACK=true
+    print -P "  %F{yellow}⚠%f %-12s %F{244}using drums/kick at −6 dB as fallback%f" "$stem"
+  else
+    die "Missing stem: $stem.wav"
   fi
 done
+[[ "$HIHAT_FALLBACK" == "true" ]] && STEM_FILE[hihat]="${STEM_FILE[kick]}"
 
-# Replace hihat fallback with kick file
-for i in {1..${#INPUT_FILES[@]}}; do
-  if [[ "${INPUT_FILES[$i]}" == "__FALLBACK__" ]]; then
-    INPUT_FILES[$i]="$KICK_FILE"
+# ============================================================================
+# SIDECAR: one ffmpeg run — Matroska, 5 AAC streams, titled, VDJ order
+# ============================================================================
+if [[ "$FORMAT" == "sidecar" ]]; then
+  output="${OUT:-${ORIGINAL}.vdjstems}"
+
+  info "\nWriting Matroska sidecar (vocal, hihat, bass, instruments, kick)..."
+  ff_in=()
+  for stem in "${SIDECAR_ORDER[@]}"; do
+    ff_in+=(-i "${STEM_FILE[$stem]}")
+  done
+  # Streams 1 (hihat) and 4 (kick) drop −6 dB when both come from drums,
+  # so the duplicated pair sums back to the original drum level.
+  vol_args=()
+  if [[ "$HIHAT_FALLBACK" == "true" ]]; then
+    vol_args=(-filter:a:1 "volume=-6.0206dB" -filter:a:4 "volume=-6.0206dB")
   fi
-done
+  ffmpeg -y -loglevel error "${ff_in[@]}" \
+    -map 0:a -map 1:a -map 2:a -map 3:a -map 4:a \
+    "${vol_args[@]}" \
+    -c:a aac -b:a 320k -ar 44100 -ac 2 \
+    -disposition:a:0 0 -disposition:a:1 0 -disposition:a:2 0 \
+    -disposition:a:3 0 -disposition:a:4 0 \
+    -metadata:s:a:0 title="vocal" \
+    -metadata:s:a:1 title="hihat" \
+    -metadata:s:a:2 title="bass" \
+    -metadata:s:a:3 title="instruments" \
+    -metadata:s:a:4 title="kick" \
+    -f matroska "$output" || die "Sidecar mux failed"
 
-if [[ "$MODE" == "standalone" ]]; then
-  print -P "  %F{green}✓%f %-12s %F{244}%s%f" "mixed" "$(basename "$MIXED_FILE")"
+  # Verify against the native spec
+  info "\nVerifying sidecar..."
+  fmt="$(ffprobe -v error -show_entries format=format_name -of default=nk=1:nw=1 "$output")"
+  titles="$(ffprobe -v error -select_streams a -show_entries stream_tags=title -of default=nk=1:nw=1 "$output" | tr '\n' ',')"
+  if [[ "$fmt" == matroska* && "$titles" == "vocal,hihat,bass,instruments,kick," ]]; then
+    success "Matroska container, 5 streams titled in VDJ order"
+    print -P "\n%F{green}%B✓ Created SIDECAR stems%b%f"
+    print -P "Output: %F{cyan}%U${output}%u%f"
+    print -P "Size:   %F{244}$(du -h "$output" | cut -f1)%f"
+    print -P "%F{244}Load the original track in VirtualDJ — it will use this sidecar.%f\n"
+  else
+    warn "Verification failed (format=$fmt titles=$titles)"
+    exit 1
+  fi
+  exit 0
 fi
 
+# ============================================================================
+# STANDALONE: 6-track M4A (mixed + stems), MP4Box udta names, flat storage
+# ============================================================================
 print -P "\n%F{cyan}Codec:%f %B${(U)CODEC}%b"
-[[ "$CODEC" == "alac" ]] && print -P "%F{244}  Lossless encoding enabled%f"
 
-# Handle mixed track based on mode
-if [[ "$MODE" == "standalone" ]]; then
-  info "\nUsing existing mixed track..."
-  mixed_wav="$MIXED_FILE"
-  success "Standalone mixed track ready"
+# Master track: mixed.wav if provided, else summed from the unique stems
+mixed_src=""
+for f in "$FOLDER/mixed.wav" "$FOLDER/mixed track.wav" "$FOLDER/Mixed.wav" "$FOLDER/Mixed Track.wav"; do
+  [[ -f "$f" ]] && { mixed_src="$f"; break; }
+done
+
+if [[ -n "$mixed_src" ]]; then
+  info "\nMaster: existing $(basename "$mixed_src")"
+  mixed_wav="$mixed_src"
 else
-  info "\nCreating mixed track from stems..."
+  info "\nMaster: summing unique stems (no mixed.wav found)..."
   mixed_wav="$tmpdir/mixed.wav"
-  # Sum unique sources only: when hihat is a duplicate of kick/drums, mixing
-  # it again would double the drums in the master.
   MIX_FILES=()
-  i=1
   for stem in "${STEMS[@]}"; do
-    if [[ "$stem" == "hihat" ]] && [[ "$HIHAT_FALLBACK" == "true" ]]; then
-      ((i++)); continue
-    fi
-    MIX_FILES+=("${INPUT_FILES[$i]}")
-    ((i++))
+    # skip the duplicated hihat so drums aren't counted twice
+    [[ "$stem" == "hihat" && "$HIHAT_FALLBACK" == "true" ]] && continue
+    MIX_FILES+=("${STEM_FILE[$stem]}")
   done
   mix_args=()
   for f in "${MIX_FILES[@]}"; do mix_args+=(-i "$f"); done
   ffmpeg -y -loglevel error "${mix_args[@]}" \
     -filter_complex "amix=inputs=${#MIX_FILES[@]}:normalize=1:duration=longest" \
     -c:a pcm_f32le "$mixed_wav" || die "Mix failed"
-  success "Sidecar mixed track created (${#MIX_FILES[@]} unique sources)"
+  success "Master summed from ${#MIX_FILES[@]} unique sources"
 fi
 
-# Measure tempo from the mixed track unless the user supplied one
+# Measure tempo from the master unless the user supplied one
 if [[ -z "$BPM" ]] && command -v aubio >/dev/null 2>&1; then
   BPM="$(aubio tempo -i "$mixed_wav" 2>/dev/null | tail -1 | awk '/bpm/{printf "%.0f", $1}')"
   [[ -n "$BPM" ]] && info "Measured tempo: ${BPM} BPM (aubio)"
 fi
 
-# Encode all tracks in parallel (they are independent ffmpeg jobs)
+# Encode all tracks in parallel (independent ffmpeg jobs)
 info "\nEncoding $CODEC tracks (parallel)..."
 ENCODED_FILES=()
 encode_pids=()
-i=1
 for stem in "${STEMS[@]}"; do
   dst="$tmpdir/$stem.$CODEC_EXT"
   # Duplicated drums (kick + hihat fallback) each drop −6 dB so they sum
@@ -337,13 +346,12 @@ for stem in "${STEMS[@]}"; do
   if [[ "$HIHAT_FALLBACK" == "true" ]] && [[ "$stem" == "kick" || "$stem" == "hihat" ]]; then
     filter_args=(-filter:a "volume=-6.0206dB")
   fi
-  ffmpeg -y -loglevel error -i "${INPUT_FILES[$i]}" -vn "${filter_args[@]}" "${CODEC_OPTS[@]}" "$dst" &
+  ffmpeg -y -loglevel error -i "${STEM_FILE[$stem]}" -vn "${filter_args[@]}" "${CODEC_OPTS[@]}" "$dst" &
   encode_pids+=($!)
   ENCODED_FILES+=("$dst")
-  ((i++))
 done
 
-# Mixed track too (ALAC master gets s32p for headroom)
+# Master too (ALAC master gets s32p for headroom)
 dst="$tmpdir/mixed.$CODEC_EXT"
 MIXED_OPTS=("${CODEC_OPTS[@]}")
 [[ "$CODEC" == "alac" ]] && MIXED_OPTS=("-c:a" "alac" "-sample_fmt" "s32p")
@@ -359,7 +367,9 @@ for dst in "${ENCODED_FILES[@]}"; do
   print -P "  %F{green}✓%f $(basename "$dst")"
 done
 
-# Mux with correct stream order
+# Mux with the proven stream order
+# ENCODED_FILES: 1 kick, 2 instruments, 3 vocal, 4 bass, 5 hihat, 6 mixed
+# Output order:  mixed → vocal → hihat → bass → instruments → kick
 info "\nMuxing M4A container..."
 temp_m4a="$tmpdir/temp.m4a"
 
@@ -380,15 +390,12 @@ ffmpeg -y -loglevel error \
   "$temp_m4a" || die "Mux failed"
 success "Tracks muxed (order: mixed → vocal → hihat → bass → instruments → kick)"
 
-# Finalize
+# Finalize with MP4Box: udta track names, brands, flat storage (all three
+# match the format VirtualDJ is known to accept — do not "improve" them)
 info "\nApplying VirtualDJ metadata..."
 
-# Output: .vdjstems (the extension VirtualDJ keys on), next to the stems
-output="${OUT:-$FOLDER/$(basename "$FOLDER").vdjstems}"
-[[ "$output" != *.vdjstems ]] && output="${output}.vdjstems"
+output="${OUT:-$FOLDER/$(basename "$FOLDER")-stems.m4a}"
 
-# Create metadata file — tempo/key only when explicitly provided;
-# VirtualDJ analyzes them itself, and wrong defaults are worse than none.
 meta="$tmpdir/meta.txt"
 cat > "$meta" <<EOF
 tool=VirtualDJ 2023.7544
@@ -396,19 +403,17 @@ created=0
 rate=0
 EOF
 [[ -n "$BPM" ]] && print "tempo=$BPM" >> "$meta"
-[[ -n "$KEY" ]] && print "INITIALKEY=$KEY" >> "$meta"
 
-# Apply metadata and track names
 MP4Box \
-  -udta "1:type=name" -udta "1:type=name:str=${TRACK_NAMES[1]}" \
-  -udta "2:type=name" -udta "2:type=name:str=${TRACK_NAMES[2]}" \
-  -udta "3:type=name" -udta "3:type=name:str=${TRACK_NAMES[3]}" \
-  -udta "4:type=name" -udta "4:type=name:str=${TRACK_NAMES[4]}" \
-  -udta "5:type=name" -udta "5:type=name:str=${TRACK_NAMES[5]}" \
-  -udta "6:type=name" -udta "6:type=name:str=${TRACK_NAMES[6]}" \
+  -udta "1:type=name" -udta "1:type=name:str=${STANDALONE_NAMES[1]}" \
+  -udta "2:type=name" -udta "2:type=name:str=${STANDALONE_NAMES[2]}" \
+  -udta "3:type=name" -udta "3:type=name:str=${STANDALONE_NAMES[3]}" \
+  -udta "4:type=name" -udta "4:type=name:str=${STANDALONE_NAMES[4]}" \
+  -udta "5:type=name" -udta "5:type=name:str=${STANDALONE_NAMES[5]}" \
+  -udta "6:type=name" -udta "6:type=name:str=${STANDALONE_NAMES[6]}" \
   -itags "$meta" \
   -brand isom:512 -rb mp42 -ab mp41 \
-  -inter 500 -out "$output" "$temp_m4a" 2>&1 | grep -v "Setting up" | grep -v "Unrecognize tag" || true
+  -flat -out "$output" "$temp_m4a" 2>&1 | grep -v "Setting up" | grep -v "Flat storage" | grep -v "Unrecognize tag" || true
 
 success "Track names applied"
 
@@ -429,18 +434,14 @@ info "\nVerifying output..."
 track_count="$(ffprobe -v error -show_streams -select_streams a "$output" 2>/dev/null | grep -c "index=")"
 if [[ "$track_count" -eq 6 ]]; then
   success "6 audio tracks detected"
-  
-  if command -v MP4Box >/dev/null 2>&1; then
-    MP4Box -info "$output" 2>&1 | grep -q "udta" && success "Track metadata (udta) present"
-  fi
-  
-  print -P "\n%F{cyan}%B━━━━━━━━━━━━━━━━━━━━━━━━━━━━%b%f"
-  print -P "%F{green}%B✓ Success!%b%f\n"
-  print -P "Mode:   %F{cyan}%B${(U)MODE}%b%f"
-  print -P "Output: %F{cyan}%U$(basename "$output")%u%f"
+  MP4Box -info "$output" 2>&1 | grep -q "udta" && success "Track metadata (udta) present"
+
+  print -P "\n%F{green}%B✓ Created STANDALONE stems%b%f"
+  print -P "Output: %F{cyan}%U$(basename "$output")%u%f  %F{244}(6-track ${(U)CODEC} M4A: mixed + 5 stems)%f"
   print -P "Size:   %F{244}$(du -h "$output" | cut -f1)%f"
-  print -P "\n%F{244}File should be recognized by VirtualDJ as a stem file.%f\n"
+  print -P "%F{244}Load this file itself in VirtualDJ; it is its own library track.%f\n"
 else
   warn "Expected 6 tracks, found $track_count"
   print -P "%F{244}File may not be recognized as a stem file.%f\n"
+  exit 1
 fi
