@@ -5,7 +5,9 @@
 #
 # Convenience one-shot: packs the Demucs-style stem WAVs in the current
 # directory (vocals/drums/bass/other, plus kick/hihat/mixed if present)
-# into a lossless ALAC .vdjstems.
+# into a lossless ALAC STANDALONE 6-track M4A (a self-contained library
+# track). For a VDJ-native sidecar for an existing track, use
+# vdjstems-pack --sidecar ORIGINAL instead.
 #
 # Everything is delegated to vdjstems-pack --lossless, which handles
 # filename aliases, the drums → kick+hihat −6 dB fallback, the s32p master,
@@ -21,9 +23,10 @@ SELF="${0:t}"
 
 usage() {
   cat <<EOF
-Usage: $SELF [OUTPUT[.vdjstems]]
-Packs vocals/drums/bass/other WAVs from the CWD into a lossless .vdjstems.
-Output: OUTPUT.vdjstems (default: "<cwd name>.vdjstems")
+Usage: $SELF [OUTPUT.m4a]
+Packs vocals/drums/bass/other WAVs from the CWD into a lossless
+STANDALONE 6-track M4A (default: "<cwd name>-stems.m4a").
+For a VDJ-native sidecar: vdjstems-pack --sidecar ORIGINAL <stemdir>
 All other options: see vdjstems-pack --help
 EOF
   exit 2

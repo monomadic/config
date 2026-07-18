@@ -7,7 +7,7 @@
 # audio file in, .vdjstems out; every other subcommand delegates to its
 # standalone vdjstems-<cmd> tool (which remains directly invocable).
 #
-#   vdjstems make song.flac        separate + pack in one shot
+#   vdjstems make song.flac        separate + pack a VDJ-native sidecar
 #   vdjstems split song.flac       → 5 stem WAVs (vdjstems-split)
 #   vdjstems pack DIR              → pack stem WAVs (vdjstems-pack)
 #   vdjstems create [OUT]          → pack CWD, lossless (vdjstems-create)
@@ -15,10 +15,11 @@
 #   vdjstems extract FILE          → pull streams out of a stem container
 #   vdjstems from-nistem FILE      → convert NI .stem.mp4
 #
-# make options: --sw / --fast are passed to vdjstems-split;
-#               -l/--lossless, -b/--bpm, -k/--key to vdjstems-pack.
-#               Output: <input name>.vdjstems next to the input file
-#               (stem WAVs are kept in <input name>.stems/).
+# make: by default produces the VDJ-native SIDECAR "song.flac.vdjstems"
+#       (Matroska, 5 stems) next to the input — load the original in VDJ.
+#       --standalone instead builds a self-contained 6-track M4A.
+#       --sw / --fast go to vdjstems-split; -l/-b/-k to vdjstems-pack
+#       (standalone only). Stem WAVs are kept in <input name>.stems/.
 #
 # Dependencies: the vdjstems-* tools and their deps (see each tool's header)
 # ============================================================================
@@ -32,8 +33,9 @@ usage() {
 Usage: $SELF <command> [args]
 
 Commands:
-  make [--sw|--fast] [-l] [-b BPM] [-k KEY] INPUT
-               separate INPUT and pack straight to <input>.vdjstems
+  make [--sw|--fast] [--standalone] [-l] [-b BPM] [-k KEY] INPUT
+               separate INPUT and pack. Default: VDJ-native sidecar
+               <input>.vdjstems (Matroska); --standalone: 6-track M4A
   split        separate an audio file into 5 stem WAVs
   pack         pack a directory of stem WAVs into a .vdjstems
   create       pack the CWD losslessly (vdjstems-create)
@@ -59,11 +61,13 @@ case "$cmd" in
   make)
     split_flags=()
     pack_flags=()
+    standalone=false
     input=""
     while (( $# )); do
       case "${1:-}" in
         -h|--help) usage ;;
         --sw|--fast) split_flags+=("$1"); shift ;;
+        --standalone) standalone=true; shift ;;
         -l|--lossless) pack_flags+=("$1"); shift ;;
         -b|--bpm|-k|--key)
           [[ -n "${2:-}" ]] || die "$1 requires a value"
@@ -79,11 +83,16 @@ case "$cmd" in
     input="${input:A}"
 
     stems_dir="${input:r}.stems"
-    out="${input:r}.vdjstems"
 
     vdjstems-split "${split_flags[@]}" -o "$stems_dir" "$input"
     print ""
-    vdjstems-pack "${pack_flags[@]}" --out "$out" "$stems_dir"
+    if [[ "$standalone" == "true" ]]; then
+      out="${input:r}-stems.m4a"
+      vdjstems-pack --standalone "${pack_flags[@]}" --out "$out" "$stems_dir"
+    else
+      out="${input}.vdjstems"
+      vdjstems-pack --sidecar "$input" "${pack_flags[@]}" "$stems_dir"
+    fi
     print "\n🎧 ${out}"
     ;;
 
