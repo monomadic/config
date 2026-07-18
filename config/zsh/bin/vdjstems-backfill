@@ -1,0 +1,151 @@
+#!/usr/bin/env zsh
+# ============================================================================
+# vdjstems-backfill — give every .flac/.aac track a FLAC stem sidecar
+# ============================================================================
+#
+# Walks the current directory (recursively) for .flac and .aac tracks and,
+# for each one that lacks a FLAC .vdjstems sidecar, encodes one with
+#
+#     vdjstems make --roformer --flac <track>
+#
+# A track is considered done only when it already has a FLAC sidecar. Tracks
+# with no sidecar — or with just the AAC sidecar VirtualDJ writes (the "vdj"
+# one) — get a fresh FLAC sidecar, replacing any existing one. Processing is
+# strictly one file at a time, so separation never fights itself for the GPU.
+#
+# Errors don't stop the run: a failed encode is logged and the walk moves on
+# to the next track — EXCEPT running out of disk space, which stops
+# everything (every remaining encode would fail the same way).
+#
+# Codec detection mirrors vdjstems-audit: a single 128 KB header read looks
+# for the Matroska A_FLAC codec ID near the start of the sidecar — no
+# ffprobe/mkvmerge process per file. Evicted iCloud placeholders (dataless
+# inodes) are skipped untouched; encoding one would first have to download it,
+# which can hang indefinitely on a secondary machine.
+#
+# Usage:
+#   vdjstems-backfill            # walk CWD, encode missing FLAC sidecars
+#   vdjstems-backfill -n         # dry run — list what WOULD be encoded
+#   vdjstems-backfill DIR...     # walk the given directories instead of CWD
+#
+# Dependencies: vdjstems (which pulls in vdjstems-split / vdjstems-pack).
+# See also: vdjstems-audit (the interactive fzf view of the same status).
+# ============================================================================
+set -euo pipefail
+SELF="${0:t}"
+
+die() { print -r -- "ERROR: $*" >&2; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+# Colors
+RED=$'\033[31m'   GREEN=$'\033[32m'  YELLOW=$'\033[33m'
+CYAN=$'\033[36m'  DIM=$'\033[2m'     BOLD=$'\033[1m'   RESET=$'\033[0m'
+
+info() { print -r -- "${DIM}$*${RESET}"; }
+ok()   { print -r -- "${GREEN}✓${RESET} $*"; }
+warn() { print -r -- "${YELLOW}⚠${RESET} $*" >&2; }
+fail() { print -r -- "${RED}✗${RESET} $*" >&2; }
+
+usage() {
+  print -r -- "Usage: $SELF [-n|--dry-run] [DIR...]"
+  print -r -- ""
+  print -r -- "Encode a FLAC stem sidecar for every .flac/.aac track under DIR"
+  print -r -- "(default: CWD) that doesn't already have one. One file at a time;"
+  print -r -- "errors are logged and skipped, except a full disk, which stops."
+  exit 2
+}
+
+# True if the file's data isn't local — an evicted iCloud placeholder. Reads
+# only the inode flags (instant), so it never triggers a materialization that
+# may never complete on a secondary machine.
+is_dataless() { [[ "$(stat -f '%Sf' "$1" 2>/dev/null)" == *dataless* ]]; }
+
+# True if <track>.vdjstems exists and is a FLAC sidecar. Classified from one
+# 128 KB header read — the Matroska codec ID sits near the front of the file.
+has_flac_sidecar() {
+  local sidecar="${1}.vdjstems"
+  [[ -f "$sidecar" ]] || return 1
+  is_dataless "$sidecar" && return 1   # can't read it; treat as "unknown"
+  local hdr
+  hdr="$(head -c 131072 "$sidecar" 2>/dev/null | LC_ALL=C tr -cd '[:print:]' || true)"
+  [[ "$hdr" == *A_FLAC* ]]
+}
+
+# Match a captured encode log against the ways "disk full" surfaces — from
+# ffmpeg, from Python (torch/soundfile), and from the shell.
+is_out_of_space() {
+  grep -qiE 'no space left on device|errno 28|enospc|not enough space|disk (is )?full' "$1"
+}
+
+# ── argument parsing ────────────────────────────────────────────────────────
+dry_run=false
+dirs=()
+while (( $# )); do
+  case "$1" in
+    -h|--help)     usage ;;
+    -n|--dry-run)  dry_run=true; shift ;;
+    --)            shift; dirs+=("$@"); break ;;
+    -*)            die "Unknown option: $1" ;;
+    *)             dirs+=("$1"); shift ;;
+  esac
+done
+(( ${#dirs} )) || dirs=(".")
+
+$dry_run || have vdjstems || die "vdjstems not found on PATH"
+for d in "${dirs[@]}"; do [[ -d "$d" ]] || die "not a directory: $d"; done
+
+# ── collect tracks (recursive, .flac + .aac, sorted, stable) ────────────────
+tracks=("${(@f)$(find "${dirs[@]}" -type f \
+  \( -iname '*.flac' -o -iname '*.aac' \) 2>/dev/null | LC_ALL=C sort)}")
+tracks=("${(@)tracks:#}")   # drop the empty element if find returned nothing
+(( ${#tracks} )) || { info "no .flac or .aac tracks found under ${dirs[*]}"; exit 0; }
+
+info "found ${#tracks} track(s); checking for FLAC sidecars…"
+print -r -- ""
+
+made=0 skipped=0 cloud=0 errors=0 idx=0 total=${#tracks}
+for trk in "${tracks[@]}"; do
+  (( ++idx ))
+  label="[$idx/$total] ${trk:t}"
+
+  if is_dataless "$trk"; then
+    warn "$label — ${CYAN}not downloaded from iCloud${RESET}, skipping"
+    (( ++cloud )); continue
+  fi
+  if has_flac_sidecar "$trk"; then
+    info "· $label — already has a FLAC sidecar"
+    (( ++skipped )); continue
+  fi
+
+  if $dry_run; then
+    print -r -- "${YELLOW}would encode${RESET} $label"
+    (( ++made )); continue
+  fi
+
+  print -r -- "${BOLD}${CYAN}── encoding ──${RESET} $label"
+  log="$(mktemp -t vdjstems-backfill)"
+  # pipefail (from set -o) makes the pipeline's status reflect vdjstems, not
+  # tee; the `if` keeps errexit from aborting the whole run on a failure.
+  if vdjstems make --roformer --flac "$trk" 2>&1 | tee "$log"; then
+    ok "$label"
+    (( ++made ))
+    rm -f "$log"
+  else
+    if is_out_of_space "$log"; then
+      rm -f "$log"
+      fail "$label — ${RED}no space left on device${RESET}"
+      print -r -- ""
+      die "out of disk space — stopping (encoded $made, ${#tracks} total)"
+    fi
+    fail "$label — encode failed (see output above); continuing"
+    (( ++errors ))
+    rm -f "$log"
+  fi
+done
+
+# ── summary ─────────────────────────────────────────────────────────────────
+print -r -- ""
+print -r -- "${BOLD}done${RESET} — ${GREEN}$made encoded${RESET}, \
+${DIM}$skipped already had one${RESET}, \
+${YELLOW}$errors failed${RESET}, ${CYAN}$cloud not downloaded${RESET}"
+(( errors == 0 ))
