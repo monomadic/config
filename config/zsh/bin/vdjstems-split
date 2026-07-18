@@ -29,10 +29,25 @@
 # download on first use into $VDJSTEMS_MODEL_DIR (default
 # ~/.cache/audio-separator-models) and are reused after that.
 #
-# Install (needs Python ≤3.12; torch is only used once, to convert each
-# downloaded .ckpt to MLX safetensors — inference never touches it):
-#   pipx install --python /opt/homebrew/bin/python3.12 mlx-audio-separator
-#   pipx inject mlx-audio-separator torch 'demucs-mlx[convert]'
+# torch is NOT needed to run. Each model loads torch-free from a
+# <model>.safetensors sitting next to its .ckpt; torch is used only ONCE, to
+# convert a .ckpt into that .safetensors. This script exports
+# MLX_SAVE_SAFETENSORS=1 so the first run on a torch-equipped machine writes
+# the safetensors and every run after (here or on a copied-to machine) is
+# torch-free. See [[stem-separation-mlx-setup]].
+#
+# Install — the normal, torch-free case (any MLX-supported Python):
+#   pipx install mlx-audio-separator
+# Provision the converted models, do ONE of:
+#   (a) copy the already-converted caches from a machine that has them:
+#       rsync -a ~/.cache/audio-separator-models/ othermac:~/.cache/audio-separator-models/
+#       rsync -a ~/.cache/demucs-mlx/             othermac:~/.cache/demucs-mlx/
+#       (the first covers --roformer's SW+DrumSep safetensors; the second is
+#        the htdemucs_ft_mlx.pkl only --two-pass/--fast need)
+#   (b) convert locally, once, on a machine with torch (Python ≤3.12):
+#       pipx install --python /opt/homebrew/bin/python3.12 mlx-audio-separator
+#       pipx inject  mlx-audio-separator torch 'demucs-mlx[convert]'
+#       # then run one track per mode — the converted weights are cached
 #
 # Output dir is ready for: cd OUTDIR && vdjstems-create
 #
@@ -66,6 +81,13 @@ BAND_MODEL="htdemucs_ft.yaml"
 SW_MODEL="BS-Roformer-SW.ckpt"
 DRUM_MODEL="MDX23C-DrumSep-aufr33-jarredou.ckpt"
 MODEL_DIR="${VDJSTEMS_MODEL_DIR:-$HOME/.cache/audio-separator-models}"
+
+# Persist the .ckpt→MLX conversion as a <model>.safetensors sibling. The
+# loader reads that first and torch-free; without this flag mlx-audio-separator
+# re-converts in-memory every run (needing torch each time). Setting it means
+# one torch-equipped run makes every later run — and any machine the model dir
+# is copied to — torch-free. No-op when a safetensors already exists.
+export MLX_SAVE_SAFETENSORS=1
 
 usage() {
   cat <<EOF
