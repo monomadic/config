@@ -26,8 +26,10 @@
 # titles, and the writing-application stamp all live at the front of the
 # Matroska — so no ffprobe/mkvmerge process per file. ffprobe only runs for
 # .m4a/.mp4 tracks without a sidecar (the standalone check) and in the
-# preview pane. iCloud files that aren't downloaded still block on
-# materialization; nothing can avoid that read.
+# preview pane. Evicted iCloud files (dataless placeholders) are detected
+# from their inode flag and shown as ☁ "not downloaded" — the tool never
+# reads their bytes, so it can't hang waiting on a materialization that may
+# never complete on a secondary machine.
 #
 # Keys inside fzf:
 #   tab            select multiple tracks
@@ -50,6 +52,11 @@ SELF_PATH="${0:A}"
 
 die() { print -r -- "ERROR: $*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# True if the file's data isn't local — an evicted iCloud placeholder. Reads
+# only the inode flags (instant), so it never blocks the way head/ffprobe do
+# when they trigger a materialization that may never complete on this machine.
+is_dataless() { [[ "$(stat -f '%Sf' "$1" 2>/dev/null)" == *dataless* ]]; }
 
 # Colors
 RED=$'\033[31m'   GREEN=$'\033[32m'  YELLOW=$'\033[33m'
@@ -91,6 +98,14 @@ probe_line() {
 
   if [[ -f "$sidecar" ]]; then
     kind="sidecar"
+    if is_dataless "$sidecar"; then
+      # A sidecar exists (that's metadata) but its bytes aren't downloaded —
+      # reading them would hang, so report "present but not downloaded".
+      origin="cloud" origin_color="$CYAN"
+      icon="${CYAN}☁${RESET}"
+      name_color="$CYAN"
+      _emit_line; return
+    fi
     # One header read classifies everything: Matroska codec IDs, the five
     # stem titles, and the writing-application stamp all sit near the start.
     local hdr
@@ -121,6 +136,12 @@ probe_line() {
   elif [[ "${trk:l}" == *.m4a || "${trk:l}" == *.mp4 ]]; then
     # No sidecar — an M4A track may itself be a standalone stem file.
     # Only MP4-family files can be; everything else skips the probe.
+    if is_dataless "$trk"; then
+      origin="cloud" origin_color="$CYAN"   # can't ffprobe without the bytes
+      icon="${CYAN}☁${RESET}"
+      name_color="$CYAN"
+      _emit_line; return
+    fi
     local codecs
     codecs=("${(@f)$(ffprobe -v error -select_streams a \
       -show_entries stream=codec_name -of csv=p=0 "$trk" 2>/dev/null || true)}")
@@ -137,6 +158,12 @@ probe_line() {
     fi
   fi
 
+  _emit_line
+}
+
+# Render one probe_line row. Relies on zsh dynamic scoping — it reads the
+# locals (trk, kind, codec, origin, icon, *_color) set by its caller.
+_emit_line() {
   local codec_color=""
   case "$codec" in
     flac|alac|pcm) codec_color="$GREEN" ;;
@@ -166,6 +193,21 @@ relist() {
 preview() {
   local trk="$1" sidecar="${1}.vdjstems"
   print -P "%B${trk:t}%b"
+  # Reading any dataless (evicted iCloud) file would hang the preview pane, so
+  # short-circuit on the inode flag before touching bytes with ffprobe.
+  if is_dataless "$trk"; then
+    print "${CYAN}☁ not downloaded from iCloud${RESET}"
+    print "${DIM}the track's data isn't on this machine — can't probe it${RESET}"
+    if [[ -f "$sidecar" ]]; then
+      if is_dataless "$sidecar"; then
+        print "${CYAN}a .vdjstems sidecar exists but is also not downloaded${RESET}"
+      else
+        print "${GREEN}a .vdjstems sidecar exists and is downloaded${RESET}"
+      fi
+    fi
+    print "${DIM}download it in Finder (or: brctl download) then ctrl-r${RESET}"
+    return 0
+  fi
   ffprobe -v error -select_streams a:0 \
     -show_entries stream=codec_name,sample_rate,channels \
     -of csv=p=0 "$trk" 2>/dev/null \
@@ -175,6 +217,11 @@ preview() {
   local target=""
   if [[ -f "$sidecar" ]]; then
     print "${BOLD}SIDECAR${RESET} ${DIM}${sidecar:t}${RESET}"
+    if is_dataless "$sidecar"; then
+      print "${CYAN}☁ sidecar not downloaded — can't read its streams${RESET}"
+      print "${DIM}download it (Finder / brctl download) then ctrl-r${RESET}"
+      return 0
+    fi
     target="$sidecar"
   else
     local n
@@ -259,7 +306,7 @@ trap 'rm -f "$listfile"' EXIT
 done > "$listfile"
 [[ -s "$listfile" ]] || die "no audio files given (arguments or stdin)"
 
-header="stems audit — ${GREEN}●${RESET} lossless  ${YELLOW}●${RESET} aac  ${RED}○${RESET} none  ${MAGENTA}⚠${RESET} broken
+header="stems audit — ${GREEN}●${RESET} lossless  ${YELLOW}●${RESET} aac  ${RED}○${RESET} none  ${MAGENTA}⚠${RESET} broken  ${CYAN}☁${RESET} not downloaded
 tab select · enter/ctrl-s make FLAC sidecar · ctrl-r reload"
 
 # enter and ctrl-s both make FLAC sidecars for the selected tracks (or the
