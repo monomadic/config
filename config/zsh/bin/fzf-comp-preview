@@ -4,11 +4,12 @@
 # the picker in config/zsh/autoload/fzf-completions.zsh (lincheney/fzf-tab-completion).
 #
 # The picker's fzf gets a bunch of packed fields per line; field {1} is the full
-# completion value, (q)-quoted. We resolve it to a real file path and use it to:
-#   window   -> emit a preview-window spec (reveal for text files, else hidden)
-#   preview  -> bat the file
-#   edit     -> open it in $EDITOR
-#   copy     -> copy its absolute path to the clipboard
+# completion value, (q)-quoted. We resolve it and use it to:
+#   window   -> emit a change-preview-window action (reveal when there's
+#               something to show: a text file, alias, function or builtin)
+#   preview  -> bat a text file, or show an alias/function/builtin definition
+#   edit     -> open a resolved file in $EDITOR
+#   copy     -> copy a resolved file's absolute path to the clipboard
 #
 # Usage: fzf-comp-preview <window|preview|edit|copy> {1}
 emulate -L zsh
@@ -42,6 +43,30 @@ _is_text() {
   [[ -n $first && $first != *[$'\1'-$'\10'$'\13'$'\14'$'\16'-$'\37']* ]]
 }
 
+# Describe a bare word that is an alias / function / builtin. Sources the user's
+# zshrc so it sees their aliases and functions (they load from zshrc, not
+# zshenv, so a plain subshell wouldn't know them).
+#
+# IMPORTANT: this must be a NON-interactive shell. An interactive one (zsh -i)
+# fights fzf for control of the terminal (job control / tcsetpgrp) and soft-hangs
+# the preview. `zsh -c` just defines things and exits — no tty contention.
+#
+# Emits "<lang>\n<body...>" where <lang> is a bat language or "none"; empty
+# output means "nothing to show". Skipped for paths and option flags.
+_describe() {
+  [[ -z $val || $val == -* || $val == */* ]] && return 1
+  zsh -c '
+    source ~/.zshrc >/dev/null 2>&1
+    w=$1
+    o=$(whence -w -- "$w" 2>/dev/null); t=${o##*: }
+    case $t in
+      alias)            print -r -- zsh; print -r -- "$w=${(qq)aliases[$w]}" ;;
+      function)         print -r -- zsh; functions -- "$w" ;;
+      builtin|reserved) print -r -- none; whence -v -- "$w" ;;
+    esac
+  ' fzf-comp-describe "$val" 2>/dev/null
+}
+
 # NB: never name this `path` — in zsh that is the special array bound to $PATH,
 # and assigning a scalar to it wipes out the command search path.
 target=$(_resolve "$val") || target=
@@ -49,17 +74,38 @@ target=$(_resolve "$val") || target=
 case $action in
   window)
     # emit an fzf action for a `focus:transform(...)` bind: reveal the preview
-    # pane for previewable files, hide it otherwise.
-    if [[ -n $target ]] && _is_text "$target"; then
+    # pane when there's something worth showing, hide it otherwise. A resolved
+    # file decides on its own (text vs binary); only unresolved words are described.
+    local show=
+    if [[ -n $target ]]; then
+      _is_text "$target" && show=1
+    elif [[ -n $(_describe) ]]; then
+      show=1
+    fi
+    if [[ -n $show ]]; then
       print -r -- 'change-preview-window(right,55%,border-left)'
     else
       print -r -- 'change-preview-window(hidden)'
     fi
     ;;
   preview)
-    [[ -n $target ]] && _is_text "$target" || exit 0
-    bat --color=always --style=numbers --paging=never -- "$target" 2>/dev/null \
-      || cat -- "$target"
+    if [[ -n $target ]]; then
+      _is_text "$target" || exit 0
+      bat --color=always --style=numbers --paging=never -- "$target" 2>/dev/null \
+        || cat -- "$target"
+      exit 0
+    fi
+    local desc lang body
+    desc=$(_describe) && [[ -n $desc ]] || exit 0
+    lang=${desc%%$'\n'*}
+    body=${desc#*$'\n'}
+    if [[ $lang == none ]]; then
+      print -r -- "$body"
+    else
+      print -r -- "$body" \
+        | bat --color=always --style=plain --language="$lang" --paging=never 2>/dev/null \
+        || print -r -- "$body"
+    fi
     ;;
   edit)
     [[ -n $target ]] || exit 0

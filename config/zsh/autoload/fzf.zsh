@@ -7,10 +7,12 @@
 # its fzf invocation. Field {1} is the completion value; fzf-comp-preview resolves
 # it to a real path and drives the preview / edit / copy behaviour.
 #   - taller window, no scrollbar, minimal chrome
-#   - script/text files reveal a bat preview on focus (binaries stay hidden)
+#   - scripts/text files, aliases, functions and builtins reveal a preview on
+#     focus (opaque binaries and bare flags stay hidden)
 #   - ctrl-e  edit the resolved script in $EDITOR
 #   - ctrl-y  copy the resolved absolute path to the clipboard
-export FZF_COMPLETION_OPTS='--height 80% --no-scrollbar --info=hidden --pointer=" " --marker=" " --preview-window "hidden" --preview "fzf-comp-preview preview {1}" --bind "focus:transform(fzf-comp-preview window {1})" --bind "ctrl-e:execute(fzf-comp-preview edit {1})" --bind "ctrl-y:execute-silent(fzf-comp-preview copy {1})"'
+#   - a header advertises the shortcuts
+export FZF_COMPLETION_OPTS='--height 80% --no-scrollbar --info=hidden --pointer=" " --marker=" " --header "^e edit   ^y copy path" --preview-window "hidden" --preview "fzf-comp-preview preview {1}" --bind "focus:transform(fzf-comp-preview window {1})" --bind "ctrl-e:execute(fzf-comp-preview edit {1})" --bind "ctrl-y:execute-silent(fzf-comp-preview copy {1})"'
 
 if (( $+commands[fzf] )); then
   _fzf_shell_dir="${HOMEBREW_PREFIX:-/opt/homebrew}/opt/fzf/shell"
