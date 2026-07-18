@@ -11,12 +11,14 @@
 #
 #   SIDECAR (--sidecar ORIGINAL) — VirtualDJ's native prepared-stems cache.
 #     Matroska container named "<original filename>.vdjstems" written next
-#     to the original track. Exactly 5 AAC-LC stereo streams — at the
-#     ORIGINAL's sample rate, which VDJ requires (a mismatch plays
-#     pitch-shifted/stuttery) — in this order, each titled: vocal, hihat,
-#     bass, instruments, kick. No mixed track — VDJ plays the original
-#     file and uses the sidecar for stem separation. Mirrors the 1500+
-#     sidecars VDJ itself generated in this library (verified July 2026).
+#     to the original track. Exactly 5 stereo streams — AAC 320k, or FLAC
+#     with --lossless (both verified in VDJ 2026; lossless sidecars are
+#     otherwise undocumented) — at the ORIGINAL's sample rate, which VDJ
+#     requires (a mismatch plays pitch-shifted/stuttery), in this order,
+#     each titled: vocal, hihat, bass, instruments, kick. No mixed track —
+#     VDJ plays the original file and uses the sidecar for stems. The
+#     Matroska writing-application field is stamped "VirtualDJ …stems2",
+#     which VDJ requires (unstamped sidecars are silently ignored).
 #
 #   STANDALONE (default) — self-contained 6-track M4A loadable as a track:
 #     stream order mixed, vocal, hihat, bass, instruments, kick with MP4Box
@@ -85,7 +87,9 @@ ${BOLD}OPTIONS:${RESET}
                       (Matroska, 5 AAC stems, no mixed track) next to the
                       original audio file
   --standalone        Self-contained 6-track M4A (default)
-  -l, --lossless      Standalone only: ALAC instead of AAC 320k
+  -l, --lossless      Sidecar: FLAC streams. Standalone: ALAC, all
+                      streams 16-bit (both verified in VDJ 2026; an s32p
+                      ALAC master plays broken — 16-bit is required)
   -o, --out FILE      Output path (default: sidecar → next to ORIGINAL;
                       standalone → <dir name>-stems.m4a in the dir)
   -b, --bpm BPM       Standalone: tag tempo (default: measured with aubio)
@@ -180,10 +184,10 @@ if [[ "$FORMAT" == "sidecar" ]]; then
     || die "mkvpropedit not found (brew install mkvtoolnix) — required: VirtualDJ ignores sidecars without the VirtualDJ writing-application stamp"
   [[ -f "$ORIGINAL" ]] || die "Original file not found: $ORIGINAL"
   ORIGINAL="${ORIGINAL:A}"
-  if [[ "$LOSSLESS" == "true" ]]; then
-    warn "sidecar is AAC to match VirtualDJ's native format — ignoring --lossless"
-    CODEC="aac"; CODEC_OPTS=("-c:a" "aac" "-b:a" "320k")
-  fi
+  # Lossless sidecars verified working in VDJ 2026 (tone-probe A/B):
+  # both FLAC and ALAC streams play; FLAC is Matroska-native and smaller.
+  SIDECAR_CODEC=(-c:a aac -b:a 320k)
+  [[ "$LOSSLESS" == "true" ]] && SIDECAR_CODEC=(-c:a flac)
 fi
 
 [[ $# -eq 1 ]] || { error "Missing stem directory"; print "Use -h for help"; exit 2; }
@@ -284,7 +288,7 @@ if [[ "$FORMAT" == "sidecar" ]]; then
   ffmpeg -y -loglevel error "${ff_in[@]}" \
     -map 0:a -map 1:a -map 2:a -map 3:a -map 4:a \
     "${vol_args[@]}" \
-    -c:a aac -b:a 320k -ar "$orig_sr" -ac 2 \
+    "${SIDECAR_CODEC[@]}" -ar "$orig_sr" -ac 2 \
     -disposition:a:0 0 -disposition:a:1 0 -disposition:a:2 0 \
     -disposition:a:3 0 -disposition:a:4 0 \
     -metadata:s:a:0 title="vocal" \
@@ -379,11 +383,11 @@ for stem in "${STEMS[@]}"; do
   ENCODED_FILES+=("$dst")
 done
 
-# Master too (ALAC master gets s32p for headroom)
+# Master too. NOTE: s16p like the stems — VDJ's standalone ALAC playback is
+# 16-bit only (verified: an s32p master plays stuttery/pitch-broken, the
+# all-s16p variant plays perfectly).
 dst="$tmpdir/mixed.$CODEC_EXT"
-MIXED_OPTS=("${CODEC_OPTS[@]}")
-[[ "$CODEC" == "alac" ]] && MIXED_OPTS=("-c:a" "alac" "-sample_fmt" "s32p")
-ffmpeg -y -loglevel error -i "$mixed_wav" -vn "${MIXED_OPTS[@]}" "$dst" &
+ffmpeg -y -loglevel error -i "$mixed_wav" -vn "${CODEC_OPTS[@]}" "$dst" &
 encode_pids+=($!)
 ENCODED_FILES+=("$dst")
 

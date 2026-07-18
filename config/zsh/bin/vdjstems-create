@@ -10,9 +10,10 @@
 # vdjstems-pack --sidecar ORIGINAL instead.
 #
 # Everything is delegated to vdjstems-pack --lossless, which handles
-# filename aliases, the drums → kick+hihat −6 dB fallback, the s32p master,
-# parallel encoding, BPM measurement, and tagging. This wrapper only
-# supplies the "current directory, lossless" defaults.
+# filename aliases, the drums → kick+hihat −6 dB fallback, the unity-gain
+# master, all-16-bit ALAC (VDJ requirement), parallel encoding, BPM
+# measurement, and tagging. This wrapper only supplies the "current
+# directory, lossless" defaults.
 #
 # Dependencies: vdjstems-pack (and its deps: ffmpeg, ffprobe, MP4Box)
 # See also: vdjstems-split (make the input WAVs), vdjstems-pack (all
