@@ -489,6 +489,17 @@ detect_thumb_backend() {
     return 0
   fi
 
+  # Inside a multiplexer (zellij/tmux) the pty reports a 0x0 pixel size and
+  # swallows kitty graphics, even though TERM still says kitty. icat's
+  # --print-window-size fails in exactly that case, so use it as a probe and
+  # demote to chafa's character-cell renderer, which works everywhere.
+  if [[ "$THUMB_BACKEND" == kitty ]] && ! "${THUMB_ICAT[@]}" --print-window-size >/dev/null 2>&1; then
+    THUMB_BACKEND=""
+    THUMB_ICAT=()
+    command -v chafa >/dev/null 2>&1 && THUMB_BACKEND=chafa
+    [[ -n "$THUMB_BACKEND" ]] || return 0
+  fi
+
   size="$(stty size <&3 2>/dev/null)"
   rows="${size%% *}"
   cols="${size##* }"
@@ -620,7 +631,9 @@ render_thumb_band() {
       imgcat "$THUMB_CURRENT_IMG" >&4 2>/dev/null
       ;;
     chafa)
-      chafa --animate=off --align=left --size="${THUMB_COLS}x${THUMB_ROWS}" \
+      # -f symbols: chafa otherwise auto-picks the kitty protocol from TERM,
+      # which draws nothing inside a multiplexer.
+      chafa -f symbols --animate=off --align=left --size="${THUMB_COLS}x${THUMB_ROWS}" \
         -- "$THUMB_CURRENT_IMG" >&4 2>/dev/null
       ;;
   esac
@@ -1707,6 +1720,19 @@ PY
 
 open_in_browser() {
   local url="$1"
+
+  # Over ssh, `open` would launch the browser on this machine's display where
+  # nobody is looking. Bounce the URL back to the ssh client so it opens in
+  # front of the user; fall through to a local open if that fails.
+  if [[ -n "${SSH_CONNECTION:-}" ]]; then
+    local ssh_client="${SSH_CONNECTION%% *}"
+    if ssh -o BatchMode=yes -o ConnectTimeout=4 -o StrictHostKeyChecking=accept-new \
+        "$ssh_client" "open ${(q)url} 2>/dev/null || xdg-open ${(q)url} 2>/dev/null" \
+        >/dev/null 2>&1; then
+      return 0
+    fi
+    warn "Could not open on ssh client ${ssh_client}; opening here instead."
+  fi
 
   if command -v open >/dev/null 2>&1; then
     open "$url" >/dev/null 2>&1

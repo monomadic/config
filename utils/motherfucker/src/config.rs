@@ -59,6 +59,7 @@ pub enum Action {
     SelectAll,
     MoveUp,
     MoveDown,
+    RefreshConfig,
 }
 
 pub struct Style {
@@ -77,6 +78,13 @@ pub struct Style {
     pub item_foreground_highlight: (f64, f64, f64),
     pub selected_item_foreground_highlight: (f64, f64, f64),
     pub input_font_size: f64,
+    pub cpu_alert: (f64, f64, f64),
+    pub running_dot: (f64, f64, f64),
+    /// Font family for input + row text; empty = system font.
+    pub font_family: String,
+    /// NSFontWeight (-1.0..1.0) for row item text; ignored when a custom
+    /// `font_family` is set (name a weighted variant instead).
+    pub item_font_weight: f64,
 }
 
 impl Default for Style {
@@ -97,8 +105,30 @@ impl Default for Style {
             item_foreground_highlight: (0.38, 0.75, 1.0),
             selected_item_foreground_highlight: (0.38, 0.75, 1.0),
             input_font_size: 24.0,
+            cpu_alert: (0.94, 0.33, 0.31),
+            running_dot: (0.30, 0.80, 0.39),
+            font_family: String::new(),
+            item_font_weight: 0.0,
         }
     }
+}
+
+/// Map a named weight to its NSFontWeight value, or parse a raw number in
+/// -1.0..1.0. Names match Apple's `NSFontWeight*` constants.
+pub fn parse_weight(s: &str) -> Option<f64> {
+    let w = match s.trim().to_lowercase().as_str() {
+        "ultralight" => -0.8,
+        "thin" => -0.6,
+        "light" => -0.4,
+        "regular" | "normal" => 0.0,
+        "medium" => 0.23,
+        "semibold" => 0.3,
+        "bold" => 0.4,
+        "heavy" => 0.56,
+        "black" => 0.62,
+        other => other.parse::<f64>().ok()?.clamp(-1.0, 1.0),
+    };
+    Some(w)
 }
 
 /// Customizable glyphs. `search` and the four row-state glyphs are literal
@@ -178,6 +208,10 @@ fn default_binds() -> Vec<(Chord, Action)> {
         (c(Key::Escape), Action::Dismiss),
         (c(Key::Up), Action::MoveUp),
         (c(Key::Down), Action::MoveDown),
+        (
+            Chord { cmd: true, shift: true, ..c(Key::Char('r')) },
+            Action::RefreshConfig,
+        ),
     ]
 }
 
@@ -391,6 +425,19 @@ fn apply_style(style: &mut Style, key: &str, val: &str, line: &str) {
             Some(c) => style.item_foreground = c,
             None => warn(line, "expected \"#rrggbb\""),
         },
+        "cpu_alert" => match parse_color(val) {
+            Some(c) => style.cpu_alert = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "running_dot" => match parse_color(val) {
+            Some(c) => style.running_dot = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "font_family" => style.font_family = val.to_string(),
+        "item_font_weight" => match parse_weight(val) {
+            Some(w) => style.item_font_weight = w,
+            None => warn(line, "expected a weight name or -1.0..1.0"),
+        },
         "selected_item_background" => match parse_color(val) {
             Some(c) => style.selected_item_background = c,
             None => warn(line, "expected \"#rrggbb\""),
@@ -503,6 +550,7 @@ fn parse_action(s: &str) -> Option<Action> {
         "select-all" => Some(Action::SelectAll),
         "move-up" => Some(Action::MoveUp),
         "move-down" => Some(Action::MoveDown),
+        "refresh-config" | "reload-config" => Some(Action::RefreshConfig),
         _ => None,
     }
 }
@@ -570,6 +618,9 @@ mod tests {
 item_foreground_highlight = "#ff8800"
 panel_opacity = 0.5
 width = 700
+cpu_alert = "#ff0000"
+running_dot = "#00ff00"
+item_font_weight = "semibold"
 
 [icons]
 search = "*"
@@ -586,6 +637,9 @@ interval = 2.0
 "##,
         );
         assert!((cfg.style.item_foreground_highlight.0 - 1.0).abs() < 1e-9);
+        assert_eq!(cfg.style.cpu_alert, (1.0, 0.0, 0.0));
+        assert_eq!(cfg.style.running_dot, (0.0, 1.0, 0.0));
+        assert!((cfg.style.item_font_weight - 0.3).abs() < 1e-9);
         assert!((cfg.style.panel_opacity - 0.5).abs() < 1e-9);
         assert!((cfg.style.width - 700.0).abs() < 1e-9);
         assert!((cfg.stats_interval - 2.0).abs() < 1e-9);

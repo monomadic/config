@@ -5,7 +5,7 @@
 //! call per refresh — public CoreGraphics metadata, no Accessibility or
 //! Screen Recording permission needed for pid/layer.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::{c_int, c_void};
 
 use objc2::msg_send;
@@ -14,6 +14,8 @@ use objc2::runtime::AnyObject;
 use objc2_foundation::{NSArray, NSObject, NSString};
 
 const PROC_PIDTASKINFO: c_int = 4;
+const PROC_PIDT_SHORTBSDINFO: c_int = 13;
+const PROC_ALL_PIDS: u32 = 1;
 
 #[repr(C)]
 #[derive(Default)]
@@ -44,6 +46,24 @@ struct MachTimebaseInfo {
     denom: u32,
 }
 
+#[repr(C)]
+#[derive(Default)]
+struct ProcBsdShortInfo {
+    pbsi_pid: u32,
+    pbsi_ppid: u32,
+    pbsi_pgid: u32,
+    pbsi_status: u32,
+    pbsi_comm: [u8; 16],
+    pbsi_flags: u32,
+    pbsi_uid: u32,
+    pbsi_gid: u32,
+    pbsi_ruid: u32,
+    pbsi_rgid: u32,
+    pbsi_svuid: u32,
+    pbsi_svgid: u32,
+    pbsi_rfu: u32,
+}
+
 extern "C" {
     fn proc_pidinfo(
         pid: c_int,
@@ -52,34 +72,8 @@ extern "C" {
         buffer: *mut c_void,
         buffersize: c_int,
     ) -> c_int;
+    fn proc_listpids(kind: u32, typeinfo: u32, buffer: *mut c_void, buffersize: c_int) -> c_int;
     fn mach_timebase_info(info: *mut MachTimebaseInfo) -> c_int;
-    fn sysctlbyname(
-        name: *const std::ffi::c_char,
-        oldp: *mut c_void,
-        oldlenp: *mut usize,
-        newp: *mut c_void,
-        newlen: usize,
-    ) -> c_int;
-}
-
-/// Physical RAM in bytes (a hardware constant, read once at startup).
-pub fn total_memory() -> u64 {
-    let mut size: u64 = 0;
-    let mut len = std::mem::size_of::<u64>();
-    let r = unsafe {
-        sysctlbyname(
-            c"hw.memsize".as_ptr(),
-            &mut size as *mut _ as *mut c_void,
-            &mut len,
-            std::ptr::null_mut(),
-            0,
-        )
-    };
-    if r == 0 {
-        size
-    } else {
-        0
-    }
 }
 
 #[link(name = "CoreGraphics", kind = "framework")]
@@ -89,6 +83,75 @@ extern "C" {
 
 const ON_SCREEN_ONLY: u32 = 1 << 0;
 const EXCLUDE_DESKTOP_ELEMENTS: u32 = 1 << 4;
+
+/// One snapshot of the whole process table, for walking an app's process
+/// tree. Helper processes (browser renderers, GPU processes, XPC services)
+/// are children of the app process, not part of it — per-pid stats alone
+/// miss nearly all of a browser's CPU and RAM.
+pub struct ProcSnapshot {
+    children: HashMap<i32, Vec<i32>>,
+    alive: HashSet<i32>,
+}
+
+impl ProcSnapshot {
+    /// proc_listpids plus one short-bsdinfo call per pid — the same
+    /// permission-free libproc surface as `proc_stats`.
+    pub fn new() -> Self {
+        let mut children: HashMap<i32, Vec<i32>> = HashMap::new();
+        let mut alive = HashSet::new();
+        unsafe {
+            let bytes = proc_listpids(PROC_ALL_PIDS, 0, std::ptr::null_mut(), 0);
+            if bytes > 0 {
+                // Headroom for processes spawned between the two calls.
+                let cap = bytes as usize / 4 + 16;
+                let mut pids = vec![0i32; cap];
+                let got = proc_listpids(
+                    PROC_ALL_PIDS,
+                    0,
+                    pids.as_mut_ptr() as *mut c_void,
+                    (cap * 4) as c_int,
+                );
+                if got > 0 {
+                    pids.truncate(got as usize / 4);
+                    let size = std::mem::size_of::<ProcBsdShortInfo>() as c_int;
+                    for &pid in pids.iter().filter(|&&p| p > 0) {
+                        alive.insert(pid);
+                        let mut info = ProcBsdShortInfo::default();
+                        let r = proc_pidinfo(
+                            pid,
+                            PROC_PIDT_SHORTBSDINFO,
+                            0,
+                            &mut info as *mut _ as *mut c_void,
+                            size,
+                        );
+                        let ppid = info.pbsi_ppid as i32;
+                        if r >= size && ppid != pid {
+                            children.entry(ppid).or_default().push(pid);
+                        }
+                    }
+                }
+            }
+        }
+        Self { children, alive }
+    }
+
+    /// `root` plus every live descendant, breadth-first.
+    pub fn tree_pids(&self, root: i32) -> Vec<i32> {
+        let mut out = vec![root];
+        let mut i = 0;
+        while i < out.len() {
+            if let Some(kids) = self.children.get(&out[i]) {
+                out.extend_from_slice(kids);
+            }
+            i += 1;
+        }
+        out
+    }
+
+    pub fn is_alive(&self, pid: i32) -> bool {
+        self.alive.contains(&pid)
+    }
+}
 
 /// (resident bytes, cumulative CPU seconds) for a pid.
 pub fn proc_stats(pid: i32) -> Option<(u64, f64)> {
@@ -163,5 +226,18 @@ pub fn fmt_cpu(secs: f64) -> String {
         format!("{:.0}m", secs / 60.0)
     } else {
         format!("{:.1}h", secs / 3600.0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snapshot_walks_process_trees() {
+        let s = ProcSnapshot::new();
+        let tree = s.tree_pids(1);
+        assert!(tree.len() > 10, "launchd should have many descendants, got {}", tree.len());
+        assert!(s.is_alive(1));
     }
 }

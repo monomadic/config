@@ -143,6 +143,13 @@ if [[ -o interactive ]]; then
     fzf-ripgrep
   }
 
+  # fzf-rg: rg/fzf dual-mode live grep
+  _fzf-rg() {
+    zle -I 2>/dev/null
+    fzf-rg
+    zle reset-prompt 2>/dev/null
+  }
+
   # ===============================================================================
   # Utility Functions
   # ===============================================================================
@@ -181,6 +188,7 @@ if [[ -o interactive ]]; then
   zle -N _yazi-jump
   zle -N _fzf-jump
   zle -N _fzf_ripgrep
+  zle -N _fzf-rg
   zle -N _clear-reset
   zle -N _cd-fzf
   zle -N _cd-fzf-legacy
@@ -216,6 +224,8 @@ if [[ -o interactive ]]; then
   bindkey -M emacs $'\e[105;9u' fzf-insert-path     # Cmd+I
   bindkey -M emacs $'\e[102;9u' _fzf_ripgrep         # Cmd+F: FZF ripgrep
   bindkey -M viins $'\e[102;9u' _fzf_ripgrep
+  bindkey -M emacs $'\e[102;10u' _fzf-rg             # Cmd+Shift+F: fzf-rg live grep
+  bindkey -M viins $'\e[102;10u' _fzf-rg
   bindkey -M emacs $'\e[111;9u' _cd-fzf             # Cmd+O: global jump
   bindkey -M viins $'\e[111;9u' _cd-fzf
   bindkey -M emacs $'\e[111;10u' _cd-fzf-local      # Cmd+Shift+O: local jump

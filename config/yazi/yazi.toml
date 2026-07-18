@@ -23,6 +23,7 @@ play = [
   { desc = "􀇺  check: media", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-audit %s''', orphan = true },
   { desc = "􀼹  open-url", run = "media-open-url %s" },
   { desc = "􁾕  convert: prores", run = "convert-to-pro-res %s .", orphan = true },
+  { desc = "􁾕  convert: hevc", run = "convert-to-hevc %s .", orphan = true },
   { desc = "􁊇  info", run = "mediainfo %s1; echo 'Press enter to exit'; read _", block = true },
   { desc = "􀽎  vlc", run = "vlc %s .", orphan = true },
 ]

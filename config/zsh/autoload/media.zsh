@@ -48,6 +48,9 @@ alias @select="fzf-select | mpv-send play"
 alias .select-and-play="fzf-select --color | mpv-send play"
 alias .keyframe-cut="ffmpeg-lossless-cut --force"
 alias .batch="yt-dlp-porn-batch-file /Users/nom/Library/Mobile\ Documents/com\~apple\~CloudDocs/Sync/links.txt"
+
+alias .audit-new="fd-media --sort-created | media-audit"
+alias .audit-new-pwd="fd-media --sort-created --path . | media-audit"
 #
 # ALIASES
 #

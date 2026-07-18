@@ -36,11 +36,11 @@ selection_scale = 1.02
 selection_zoom_boost = 0.35
 hover_scale = 1.05
 
-corner_radius = 0.0
+corner_radius = 8.0
 selection_corner_radius = 10.0
 # Border widths of the selected / hovered tile; 0 = none. Colors come
 # from selection_border / hover_border below.
-selection_border_width = 5.0
+selection_border_width = 1.0
 hover_border_width = 1.0
 fade_in_ms = 20.0
 
@@ -121,6 +121,16 @@ strip_hover_scale = 1.15
 # (Both hot-reload.)
 quickview_dim = 0.94
 quickview_blur = 3.0
+# Backdrop styles: "blur" = the frosted, dimmed gallery; "flat" = an
+# opaque backdrop_color stage that hides the gallery entirely. Either
+# modal can wear either style (hot-reloads — flip and see).
+quickview_backdrop = "blur"
+fullview_backdrop = "blur"
+backdrop_color = [0.01, 0.01, 0.01]
+# Filmstrip scrolling: true = the selection follows the nearest chip
+# (magnetic flow); false = scrolling only PEEKS at neighbors while the
+# selected clip keeps playing — click a chip to play it.
+strip_scroll_selects = false
 
 # Animated thumbnails (sprite sheets, 9 frames sampled across each clip)
 # — these only run at animation = "full". One full cycle takes
@@ -135,13 +145,13 @@ anim_min_tile_w = 140.0
 # get pan-and-scan cropped: portrait loses top/bottom, ultrawide loses
 # sides. 1.5 also gently crops 16:9; set 1.78 to leave landscape untouched.
 max_display_aspect = 1.5
-selection_border = [1.0, 1.0, 1.0]
-hover_border = [1.0, 1.0, 1.0]
+selection_border = [0.0, 0.0, 0.0]
+hover_border = [0.0, 0.0, 0.0]
 # Thin outline for tiles that have no thumbnail yet (fill is transparent).
 empty_border = [0.05, 0.05, 0.05]
 
 # global background
-background = [0.007, 0.007, 0.007]
+background = [0.010, 0.011, 0.012]
 
 # ── Keys & commands (PLAN.md §11) ────────────────────────────────────────
 # hjkl / arrows are reserved for movement; every other key is remappable.
@@ -160,20 +170,20 @@ background = [0.007, 0.007, 0.007]
 [keys]
 space = "quickview"  # internal preview; Esc or Space closes, arrows browse
 enter = "fullview"
-o = "open"
+D = "open_parent"  # re-ingest from the selected clip's parent dir
 F = "fullscreen"
-f = "fast_fullscreen"
-c = "copy_path"
+R = "jump_random"  # select a random clip ("jump_to_random" also works)
+T = "trim"
 a = "toggle_anim"  # animated thumbnails on/off
+c = "copy_path"
+f = "fast_fullscreen"
+o = "open"
 p = "toggle_focus_pause"  # pause-when-unfocused on/off
 r = "reveal"  # reveal in Finder (open -R)
-T = "trim"
-"[" = "skip_back"  # jump by skip_fraction; wraps at the ends
-"]" = "skip_forward"
-D = "open_parent"  # re-ingest from the selected clip's parent dir
-R = "jump_random"  # select a random clip ("jump_to_random" also works)
 s = "shuffle_library"  # shuffle the whole grid in place ("shuffle" also works)
 t = "toggle_skip_timer"  # auto-advance every skip_timer_s of playback
+"[" = "skip_back"  # jump by skip_fraction; wraps at the ends
+"]" = "skip_forward"
 
 # n = "rename_script"    # any key -> any launched program; example below
 # "{" = "skip_back_big"  # a skip with its own amount; see below

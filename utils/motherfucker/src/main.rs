@@ -56,16 +56,14 @@ const MAX_ROWS: usize = 6;
 const RUNNING_BONUS: i32 = 12;
 // CPU sampling: minimum interval for a trustworthy percentage.
 const CPU_MIN_INTERVAL: f64 = 0.25;
+// Whole-tree CPU (Activity Monitor scale: 100 = one full core) at which a
+// row's gauge turns red.
+const CPU_ALERT_PCT: f64 = 70.0;
 
 // State glyph column metrics (glyph strings themselves live in
 // config::Icons — SF Symbols as text, zero I/O).
 const GLYPH_COL_W: f64 = 24.0;
 const GLYPH_PT: f64 = 16.0;
-
-// Stat gauges: solid pill bars with the value beside them.
-const BAR_W: f64 = 44.0;
-const BAR_H: f64 = 6.0;
-const STAT_GAP: f64 = 16.0;
 
 struct Entry {
     name: String,
@@ -75,17 +73,15 @@ struct Entry {
     matched: Vec<usize>,
     /// On-screen window count (running apps; picks the state glyph).
     windows: u32,
-    /// Slim RAM/CPU gauges, running apps only.
+    /// Slim CPU gauge, running apps only.
     stats: Option<RowStats>,
     /// `[shortcuts]` entry: shell command run via `sh -c` on activation.
     command: Option<String>,
 }
 
 struct RowStats {
-    ram_text: String,
-    ram_frac: f64,
-    cpu_text: String,
-    cpu_frac: f64,
+    /// Whole-tree CPU on the Activity Monitor scale (100 = one full core).
+    cpu_pct: f64,
 }
 
 fn state_glyph<'a>(entry: &Entry, icons: &'a config::Icons) -> &'a str {
@@ -124,7 +120,9 @@ struct CpuSample {
 
 #[derive(Default)]
 struct State {
-    config: Config,
+    /// Swappable at runtime by the refresh-config action (global hotkeys
+    /// aside — those are registered once at launch).
+    config: RefCell<Config>,
     panel: OnceCell<Retained<Panel>>,
     field: OnceCell<Retained<NSTextField>>,
     glyph: OnceCell<Retained<NSTextField>>,
@@ -134,7 +132,6 @@ struct State {
     top_y: Cell<f64>,
     hiding: Cell<bool>,
     cpu_samples: RefCell<std::collections::HashMap<i32, CpuSample>>,
-    total_mem: Cell<u64>,
     /// Repeating stats-refresh timer, alive only while the panel is visible.
     stats_timer: RefCell<Option<Retained<objc2::runtime::AnyObject>>>,
 }
@@ -317,6 +314,21 @@ fn attributed_name(
     }
 }
 
+/// Resolve a UI font: the configured `family` at `size` when set (falling
+/// back to the system font if the name doesn't resolve), otherwise the
+/// system font at `weight`. A named family carries its own weight, so
+/// `weight` only applies to the system-font path.
+fn resolve_font(family: &str, weight: f64, size: f64) -> Retained<NSFont> {
+    if !family.is_empty() {
+        if let Some(f) =
+            unsafe { NSFont::fontWithName_size(&NSString::from_str(family), size) }
+        {
+            return f;
+        }
+    }
+    unsafe { msg_send_id![NSFont::class(), systemFontOfSize: size, weight: weight] }
+}
+
 fn make_label(
     mtm: MainThreadMarker,
     text: &str,
@@ -333,7 +345,7 @@ fn make_label(
 impl Delegate {
     fn new(mtm: MainThreadMarker, config: Config) -> Retained<Self> {
         let this = mtm.alloc::<Self>().set_ivars(State {
-            config,
+            config: RefCell::new(config),
             ..State::default()
         });
         unsafe { msg_send_id![super(this), init] }
@@ -345,7 +357,7 @@ impl Delegate {
 
     unsafe fn setup_impl(&self) {
         let mtm = MainThreadMarker::new().unwrap();
-        let cfg = &self.ivars().config;
+        let cfg = self.ivars().config.borrow();
         let style = NSWindowStyleMask::Borderless | NSWindowStyleMask::NonactivatingPanel;
         let rect = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(cfg.style.width, 200.0));
         let panel: Retained<Panel> = unsafe {
@@ -474,7 +486,11 @@ impl Delegate {
             field.setBezeled(false);
             field.setBordered(false);
             field.setDrawsBackground(false);
-            field.setFont(Some(&NSFont::systemFontOfSize(cfg.style.input_font_size)));
+            field.setFont(Some(&resolve_font(
+                &cfg.style.font_family,
+                0.0,
+                cfg.style.input_font_size,
+            )));
             field.setTextColor(Some(&rgba(cfg.style.panel_foreground, 1.0)));
             field.setFocusRingType(NSFocusRingType::None);
             field.setDelegate(Some(ProtocolObject::from_ref(self)));
@@ -491,7 +507,6 @@ impl Delegate {
         ivars.field.set(field).ok();
         ivars.glyph.set(glyph).ok();
         ivars.rows_area.set(rows_area).ok();
-        ivars.total_mem.set(stats::total_memory().max(1));
 
         // Key monitor for the configurable in-panel bindings ([keys] in the
         // config): chords with modifiers don't route reliably through the
@@ -535,7 +550,7 @@ impl Delegate {
             .map(|s| s.to_string().to_lowercase())
             .unwrap_or_default();
 
-        let action = ivars.config.binds.iter().find_map(|(chord, action)| {
+        let action = ivars.config.borrow().binds.iter().find_map(|(chord, action)| {
             (chord.cmd == cmd
                 && chord.ctrl == ctrl
                 && chord.opt == opt
@@ -580,7 +595,38 @@ impl Delegate {
             }
             Action::MoveUp => self.move_selection(-1),
             Action::MoveDown => self.move_selection(1),
+            Action::RefreshConfig => self.reload_config(),
         }
+    }
+
+    /// Re-read the config file and re-apply it live. Global hotkeys and the
+    /// panel's own chrome (background opacity, corner radius) are wired once
+    /// at launch and still need a restart; everything else — layout, colors,
+    /// fonts, icons, shortcuts, in-panel binds — updates immediately.
+    fn reload_config(&self) {
+        let ivars = self.ivars();
+        *ivars.config.borrow_mut() = config::load();
+        let cfg = ivars.config.borrow();
+        if let Some(field) = ivars.field.get() {
+            unsafe {
+                field.setFont(Some(&resolve_font(
+                    &cfg.style.font_family,
+                    0.0,
+                    cfg.style.input_font_size,
+                )));
+                field.setTextColor(Some(&rgba(cfg.style.panel_foreground, 1.0)));
+            }
+        }
+        if let Some(glyph) = ivars.glyph.get() {
+            unsafe {
+                glyph.setStringValue(&NSString::from_str(&cfg.icons.search));
+                glyph.setTextColor(Some(&rgba(cfg.style.panel_foreground, 0.85)));
+                glyph.sizeToFit();
+            }
+        }
+        drop(cfg);
+        // Rebuild the results with the fresh style/layout.
+        self.refresh();
     }
 
     fn toggle(&self) {
@@ -615,7 +661,7 @@ impl Delegate {
         ivars.top_y.set(vf.origin.y + vf.size.height * 0.72);
         self.refresh();
         let h = panel.frame().size.height;
-        let x = vf.origin.x + (vf.size.width - ivars.config.style.width) / 2.0;
+        let x = vf.origin.x + (vf.size.width - ivars.config.borrow().style.width) / 2.0;
         panel.setFrameOrigin(NSPoint::new(x, ivars.top_y.get() - h));
 
         // Live stats: refresh on an interval while the panel is up.
@@ -623,7 +669,7 @@ impl Delegate {
             let nil = std::ptr::null::<objc2::runtime::AnyObject>();
             let timer: Retained<objc2::runtime::AnyObject> = msg_send_id![
                 objc2::class!(NSTimer),
-                scheduledTimerWithTimeInterval: ivars.config.stats_interval,
+                scheduledTimerWithTimeInterval: ivars.config.borrow().stats_interval,
                 target: self,
                 selector: sel!(refreshTick),
                 userInfo: nil,
@@ -639,7 +685,7 @@ impl Delegate {
             let text_view: Retained<NSTextView> = unsafe { Retained::cast(editor) };
             unsafe {
                 text_view.setInsertionPointColor(Some(&rgba(
-                    ivars.config.style.panel_foreground,
+                    ivars.config.borrow().style.panel_foreground,
                     1.0,
                 )))
             };
@@ -708,7 +754,7 @@ impl Delegate {
                     ));
                 }
             }
-            for (name, cmd) in &self.ivars().config.shortcuts {
+            for (name, cmd) in &self.ivars().config.borrow().shortcuts {
                 if seen.contains(&name.to_lowercase()) {
                     continue;
                 }
@@ -740,25 +786,34 @@ impl Delegate {
         // two samples: rows show "…" until the second sample lands, then a
         // one-shot refreshTick fills the number in. Never blocks.
         let window_counts = stats::window_counts();
+        let procs = stats::ProcSnapshot::new();
         let mut cpu_pending = false;
         {
             let mut samples = self.ivars().cpu_samples.borrow_mut();
+            samples.retain(|pid, _| procs.is_alive(*pid));
             let now = std::time::Instant::now();
-            let total_mem = self.ivars().total_mem.get().max(1) as f64;
             for entry in entries.iter_mut() {
                 if let Some(app) = &entry.running {
                     let pid = unsafe { app.processIdentifier() };
                     entry.windows = window_counts.get(&pid).copied().unwrap_or(0);
-                    if let Some((ram, cpu_secs)) = stats::proc_stats(pid) {
-                        let pct = match samples.get(&pid) {
+                    // An app's real footprint is its whole process tree:
+                    // browser renderers, GPU helpers, and XPC services are
+                    // children of the root pid, not part of it.
+                    let mut pct_sum = 0.0f64;
+                    let mut root_seen = false;
+                    let mut root_ready = false;
+                    for tree_pid in procs.tree_pids(pid) {
+                        let Some((_ram, cpu_secs)) = stats::proc_stats(tree_pid) else {
+                            continue;
+                        };
+                        let pct = match samples.get(&tree_pid) {
                             Some(prev) => {
                                 let dt = now.duration_since(prev.at).as_secs_f64();
                                 if dt >= CPU_MIN_INTERVAL {
-                                    let p = ((cpu_secs - prev.cpu_secs).max(0.0) / dt
-                                        * 100.0)
-                                        .round();
+                                    let p =
+                                        (cpu_secs - prev.cpu_secs).max(0.0) / dt * 100.0;
                                     samples.insert(
-                                        pid,
+                                        tree_pid,
                                         CpuSample { cpu_secs, at: now, pct: Some(p) },
                                     );
                                     Some(p)
@@ -768,27 +823,25 @@ impl Delegate {
                             }
                             None => {
                                 samples.insert(
-                                    pid,
+                                    tree_pid,
                                     CpuSample { cpu_secs, at: now, pct: None },
                                 );
                                 None
                             }
                         };
-                        let (cpu_text, cpu_frac) = match pct {
-                            Some(p) => (format!("{p:.0}% cpu"), (p / 100.0).clamp(0.0, 1.0)),
-                            None => {
-                                cpu_pending = true;
-                                ("… cpu".to_string(), 0.0)
-                            }
-                        };
-                        let ram_frac = (ram as f64 / total_mem).clamp(0.0, 1.0);
-                        entry.stats = Some(RowStats {
-                            ram_text: format!("{:.0}% mem", ram_frac * 100.0),
-                            ram_frac,
-                            cpu_text,
-                            cpu_frac,
-                        });
+                        if tree_pid == pid {
+                            root_seen = true;
+                            root_ready = pct.is_some();
+                        }
+                        pct_sum += pct.unwrap_or(0.0);
                     }
+                    if !root_seen {
+                        continue;
+                    }
+                    if !root_ready {
+                        cpu_pending = true;
+                    }
+                    entry.stats = Some(RowStats { cpu_pct: pct_sum });
                 }
             }
         }
@@ -849,15 +902,17 @@ impl Delegate {
 
         let entries = ivars.entries.borrow();
         let n = entries.len();
-        let pad = ivars.config.style.panel_padding;
+        let pad = ivars.config.borrow().style.panel_padding;
         let rows_h = if n > 0 {
             n as f64 * ROW_H + ROWS_PAD
         } else {
             0.0
         };
-        let h = INPUT_H + rows_h + pad;
+        // Padding wraps the content on both ends: `pad` above the input band
+        // and `pad` below the last row.
+        let h = pad + INPUT_H + rows_h + pad;
 
-        let panel_w = ivars.config.style.width;
+        let panel_w = ivars.config.borrow().style.width;
         let old = panel.frame();
         let top = ivars.top_y.get();
         panel.setFrame_display(
@@ -868,18 +923,19 @@ impl Delegate {
             true,
         );
 
-        // Input band at the top. The extra 12px keeps the search glyph
-        // aligned with the row glyphs (rows inset their content by 12px).
+        // Input band, inset from the top by `pad`. The extra 12px keeps the
+        // search glyph aligned with the row glyphs (rows inset by 12px).
         let input_inset = pad + 12.0;
+        let input_bottom = h - pad - INPUT_H;
         let glyph_size = glyph.frame().size;
         glyph.setFrameOrigin(NSPoint::new(
             input_inset,
-            h - INPUT_H + (INPUT_H - glyph_size.height) / 2.0,
+            input_bottom + (INPUT_H - glyph_size.height) / 2.0,
         ));
         let field_x = input_inset + glyph_size.width + 14.0;
         let field_h = field.frame().size.height.max(30.0);
         field.setFrame(NSRect::new(
-            NSPoint::new(field_x, h - INPUT_H + (INPUT_H - field_h) / 2.0),
+            NSPoint::new(field_x, input_bottom + (INPUT_H - field_h) / 2.0),
             NSSize::new(panel_w - field_x - input_inset, field_h),
         ));
 
@@ -917,8 +973,9 @@ impl Delegate {
         entry: &Entry,
         selected: bool,
     ) {
-        let style = &self.ivars().config.style;
-        let icons = &self.ivars().config.icons;
+        let cfg = self.ivars().config.borrow();
+        let style = &cfg.style;
+        let icons = &cfg.icons;
         let row_w = style.width - 2.0 * style.panel_padding;
         let row: Retained<RowView> = {
             let this = mtm.alloc::<RowView>().set_ivars(RowIvars {
@@ -957,18 +1014,21 @@ impl Delegate {
 
         // Leading state glyph column; `[icons.apps]` overrides win.
         let entry_lower = entry.name.to_lowercase();
-        let glyph_text = self
-            .ivars()
-            .config
+        let glyph_text = cfg
             .icon_overrides
             .iter()
             .find_map(|(n, g)| (*n == entry_lower).then_some(g.as_str()))
             .unwrap_or_else(|| state_glyph(entry, icons));
         let glyph_font = unsafe { NSFont::systemFontOfSize(GLYPH_PT) };
-        let glyph_alpha = if is_running {
-            0.85
+        // The icon carries visibility state through its brightness: an app
+        // with on-screen windows is brightest, a backgrounded running app is
+        // dimmer, a cold app is faintest.
+        let glyph_alpha = if entry.windows > 0 {
+            0.92
+        } else if is_running {
+            0.52
         } else if selected {
-            0.45
+            0.42
         } else {
             0.30
         };
@@ -978,18 +1038,14 @@ impl Delegate {
         row.addSubview(&glyph);
 
         let name_x = 12.0 + GLYPH_COL_W + 10.0;
-        let name_font = unsafe { NSFont::systemFontOfSize(style.item_font_size) };
-        let name_alpha = if selected {
-            1.0
-        } else if is_running {
-            0.78
-        } else {
-            0.42
-        };
+        let name_font =
+            resolve_font(&style.font_family, style.item_font_weight, style.item_font_size);
+        // Row text is always full-strength; visibility state lives on the icon.
+        let name_alpha = 1.0;
         let name = make_label(mtm, &entry.name, &name_font, &rgba(fg, name_alpha));
         // Matched characters render in the highlight color for the row state.
         if !entry.matched.is_empty() {
-            let base = rgba(fg, name_alpha * 0.75);
+            let base = rgba(fg, name_alpha);
             let hi = rgba(
                 if selected {
                     style.selected_item_foreground_highlight
@@ -1009,11 +1065,13 @@ impl Delegate {
         row.addSubview(&name);
 
         if let Some(rs) = &entry.stats {
-            // Two outlined gauges, right-aligned: value text under each bar.
-            let cpu_right = row_w - 12.0;
-            let ram_right = cpu_right - BAR_W - STAT_GAP;
-            self.build_gauge(mtm, &row, ram_right, &rs.ram_text, rs.ram_frac, selected);
-            self.build_gauge(mtm, &row, cpu_right, &rs.cpu_text, rs.cpu_frac, selected);
+            // Running apps: a CPU warning at the right edge once the tree
+            // burns ≥ CPU_ALERT_PCT of a core, otherwise a plain presence dot.
+            if rs.cpu_pct >= CPU_ALERT_PCT {
+                self.build_cpu_warning(mtm, &row, row_w - 12.0, rs.cpu_pct, selected);
+            } else {
+                self.build_running_dot(mtm, &row, row_w - 12.0);
+            }
         } else if let Some(path) = &entry.path {
             // Installed rows: location tag pill with symbol.
             let (label_text, symbol) = location_for(path, icons);
@@ -1036,7 +1094,8 @@ impl Delegate {
         symbol: &str,
         selected: bool,
     ) {
-        let style = &self.ivars().config.style;
+        let cfg = self.ivars().config.borrow();
+        let style = &cfg.style;
         let fg = if selected {
             style.selected_item_foreground
         } else {
@@ -1108,76 +1167,90 @@ impl Delegate {
         row.addSubview(&pill);
     }
 
-    /// One minimal gauge: a solid pill bar on a faint solid track (no
-    /// outline) with its value beneath, right edge at `right_x`.
-    unsafe fn build_gauge(
+    /// A small filled dot with its right edge at `right_x`, vertically
+    /// centered — the presence marker for a running app that isn't busy.
+    unsafe fn build_running_dot(&self, mtm: MainThreadMarker, row: &NSView, right_x: f64) {
+        const DOT_D: f64 = 6.0;
+        let color = self.ivars().config.borrow().style.running_dot;
+        let dot = unsafe {
+            NSView::initWithFrame(
+                mtm.alloc(),
+                NSRect::new(
+                    NSPoint::new(right_x - DOT_D, (ROW_H - DOT_D) / 2.0),
+                    NSSize::new(DOT_D, DOT_D),
+                ),
+            )
+        };
+        dot.setWantsLayer(true);
+        if let Some(layer) = dot.layer() {
+            layer.setCornerRadius(DOT_D / 2.0);
+            set_layer_bg(&layer, &rgba(color, 1.0));
+        }
+        row.addSubview(&dot);
+    }
+
+    /// CPU alert at the row's right edge (right edge at `right_x`): a red
+    /// warning symbol with "CPU 88%" to its left. Shown in place of the
+    /// presence dot once the tree crosses CPU_ALERT_PCT.
+    unsafe fn build_cpu_warning(
         &self,
         mtm: MainThreadMarker,
         row: &NSView,
         right_x: f64,
-        text: &str,
-        frac: f64,
+        pct: f64,
         selected: bool,
     ) {
-        let style = &self.ivars().config.style;
-        let fg = if selected {
-            style.selected_item_foreground
-        } else {
-            style.item_foreground
-        };
-        let bar_y = ROW_H / 2.0 + 3.0;
-        let track = unsafe {
-            NSView::initWithFrame(
-                mtm.alloc(),
-                NSRect::new(
-                    NSPoint::new(right_x - BAR_W, bar_y),
-                    NSSize::new(BAR_W, BAR_H),
-                ),
+        let color = self.ivars().config.borrow().style.cpu_alert;
+        let alpha = if selected { 1.0 } else { 0.9 };
+
+        // Warning glyph on the right.
+        let icon_d = 13.0;
+        let gap = 6.0;
+        let image = unsafe {
+            objc2_app_kit::NSImage::imageWithSystemSymbolName_accessibilityDescription(
+                &NSString::from_str("exclamationmark.triangle.fill"),
+                None,
             )
         };
-        track.setWantsLayer(true);
-        if let Some(layer) = track.layer() {
-            layer.setCornerRadius(BAR_H / 2.0);
-            layer.setMasksToBounds(true);
-            set_layer_bg(&layer, &rgba(fg, if selected { 0.22 } else { 0.14 }));
-        }
-        // Full-height solid fill; at 0% the track stays empty, otherwise the
-        // fill is never narrower than its own end caps.
-        let frac = frac.clamp(0.0, 1.0);
-        if frac > 0.0 {
-            let fill_w = (BAR_W * frac).max(BAR_H);
-            let fill = unsafe {
-                NSView::initWithFrame(
+        let mut text_right = right_x;
+        if let Some(image) = image {
+            let iv = unsafe {
+                objc2_app_kit::NSImageView::initWithFrame(
                     mtm.alloc(),
-                    NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(fill_w, BAR_H)),
+                    NSRect::new(
+                        NSPoint::new(right_x - icon_d, (ROW_H - icon_d) / 2.0),
+                        NSSize::new(icon_d, icon_d),
+                    ),
                 )
             };
-            fill.setWantsLayer(true);
-            if let Some(layer) = fill.layer() {
-                layer.setCornerRadius(BAR_H / 2.0);
-                set_layer_bg(&layer, &rgba(fg, if selected { 0.95 } else { 0.65 }));
+            unsafe {
+                iv.setImage(Some(&image));
+                iv.setImageScaling(
+                    objc2_app_kit::NSImageScaling::NSImageScaleProportionallyUpOrDown,
+                );
+                iv.setContentTintColor(Some(&rgba(color, 1.0)));
             }
-            track.addSubview(&fill);
+            row.addSubview(&iv);
+            text_right = right_x - icon_d - gap;
         }
-        row.addSubview(&track);
 
-        // Value: medium-weight monospaced digits so live numbers read
-        // clearly and don't jitter as they update.
-        let value_font: Retained<NSFont> = unsafe {
+        // "CPU 88%" to the left of the glyph; monospaced digits so the number
+        // doesn't jitter as it updates.
+        let font: Retained<NSFont> = unsafe {
             msg_send_id![
                 NSFont::class(),
-                monospacedDigitSystemFontOfSize: 10.0f64,
-                weight: 0.23f64 // NSFontWeightMedium
+                monospacedDigitSystemFontOfSize: 11.0f64,
+                weight: 0.3f64 // NSFontWeightSemibold
             ]
         };
-        let value_alpha = if selected { 0.90 } else { 0.60 };
-        let value = make_label(mtm, text, &value_font, &rgba(fg, value_alpha));
-        let value_size = value.frame().size;
-        value.setFrameOrigin(NSPoint::new(
-            right_x - value_size.width,
-            bar_y - 4.0 - value_size.height,
+        let text = format!("CPU {}%", pct.round() as i64);
+        let label = make_label(mtm, &text, &font, &rgba(color, alpha));
+        let size = label.frame().size;
+        label.setFrameOrigin(NSPoint::new(
+            text_right - size.width,
+            (ROW_H - size.height) / 2.0,
         ));
-        row.addSubview(&value);
+        row.addSubview(&label);
     }
 
     /// Activate the selected running app, or launch it. `force_open` skips
@@ -1339,6 +1412,7 @@ extern "C" fn hotkey_pressed(_next: *mut c_void, event: *mut c_void, user: *mut 
     let mode = delegate
         .ivars()
         .config
+        .borrow()
         .hotkeys
         .get(id.saturating_sub(1) as usize)
         .map(|(_, mode)| *mode)
