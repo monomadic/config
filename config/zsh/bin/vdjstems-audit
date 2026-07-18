@@ -30,11 +30,10 @@
 # materialization; nothing can avoid that read.
 #
 # Keys inside fzf:
-#   tab        select multiple tracks
-#   ctrl-s     make FLAC sidecar stems (vdjstems make -l) for the selected
-#              tracks, or the hovered one if none selected; list reloads
-#   ctrl-r     re-probe / reload the list
-#   enter      print the selected/hovered file path(s) to stdout
+#   tab            select multiple tracks
+#   enter, ctrl-s  make FLAC sidecar stems (vdjstems make -l) for the selected
+#                  tracks, or the hovered one if none selected; rows reload
+#   ctrl-r         re-probe / reload the list
 #
 # Examples:
 #   fd -e flac -e m4a . ~/Music/Tracks | vdjstems-audit
@@ -64,10 +63,9 @@ Usage: $SELF [FILE...]           (and/or pipe one path per line on stdin)
 Audit VirtualDJ prepared-stems status for a list of audio files.
 Inside fzf:
 
-  tab      select multiple
-  ctrl-s   create FLAC sidecar stems for selected/hovered (vdjstems make -l)
-  ctrl-r   reload
-  enter    print selected path(s)
+  tab            select multiple
+  enter, ctrl-s  create FLAC sidecar stems for selected/hovered (vdjstems make -l)
+  ctrl-r         reload
 EOF
   exit 2
 }
@@ -262,7 +260,11 @@ done > "$listfile"
 [[ -s "$listfile" ]] || die "no audio files given (arguments or stdin)"
 
 header="stems audit — ${GREEN}●${RESET} lossless  ${YELLOW}●${RESET} aac  ${RED}○${RESET} none  ${MAGENTA}⚠${RESET} broken
-tab select · ctrl-s make FLAC sidecar · ctrl-r reload · enter print path"
+tab select · enter/ctrl-s make FLAC sidecar · ctrl-r reload"
+
+# enter and ctrl-s both make FLAC sidecars for the selected tracks (or the
+# hovered one), then reload the rows so their status flips to the new sidecar.
+make_bind="execute($SELF_PATH --make {+1})+reload($SELF_PATH --relist $listfile)"
 
 "$SELF_PATH" --relist "$listfile" | fzf \
   --ansi --multi \
@@ -270,5 +272,6 @@ tab select · ctrl-s make FLAC sidecar · ctrl-r reload · enter print path"
   --header "$header" --header-first \
   --preview "$SELF_PATH --preview {1}" \
   --preview-window 'down,15,border-top' \
-  --bind "ctrl-s:execute($SELF_PATH --make {+1})+reload($SELF_PATH --relist $listfile)" \
+  --bind "enter:$make_bind" \
+  --bind "ctrl-s:$make_bind" \
   --bind "ctrl-r:reload($SELF_PATH --relist $listfile)"
