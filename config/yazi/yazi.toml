@@ -54,7 +54,7 @@ pdf_chordpro = [
   { run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " pdf to chordpro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "􃐹  pdf->chordpro", for = "unix", orphan = true },
 ]
 flac = [
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " lossless flac sidecar " -- zsh -lc 'for f in "$@"; do /Users/nom/.zsh/bin/vdjstems make --roformer --lossless "$f"; done' zsh %s''', desc = "􃐹  lossless flac sidecar", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " lossless flac sidecar " -- zsh -lc 'for f in "$@"; do /Users/nom/.zsh/bin/vdjstems make --roformer --flac "$f"; done' zsh %s''', desc = "􃐹  lossless flac sidecar", for = "unix", orphan = true },
 ]
 video_tools = [
   { run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut %s''', desc = "􂅓  trim (start)", for = "unix", orphan = true },

@@ -70,6 +70,7 @@ CODEC="aac"
 CODEC_EXT="aac"
 CODEC_OPTS=("-c:a" "aac" "-b:a" "320k")
 LOSSLESS=false
+LOSSLESS_CODEC="flac"     # flac | alac — which lossless codec to use
 BPM=""
 KEY=""
 OUT=""
@@ -87,9 +88,11 @@ ${BOLD}OPTIONS:${RESET}
                       (Matroska, 5 AAC stems, no mixed track) next to the
                       original audio file
   --standalone        Self-contained 6-track M4A (default)
-  -l, --lossless      Sidecar: FLAC streams. Standalone: ALAC, all
-                      streams 16-bit (both verified in VDJ 2026; an s32p
-                      ALAC master plays broken — 16-bit is required)
+  -l, --lossless      Lossless streams (default FLAC; same as --flac)
+  --flac              Lossless FLAC (Matroska-native, smaller). Sidecar only
+                      for now — the standalone container is ALAC-only
+  --alac              Lossless ALAC, 16-bit. Sidecar or standalone (an s32p
+                      ALAC master plays broken in VDJ — 16-bit is required)
   -o, --out FILE      Output path (default: sidecar → next to ORIGINAL;
                       standalone → <dir name>-stems.m4a in the dir)
   -b, --bpm BPM       Standalone: tag tempo (default: measured with aubio)
@@ -147,9 +150,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     -l|--lossless)
       LOSSLESS=true
-      CODEC="alac"
-      CODEC_EXT="m4a"
-      CODEC_OPTS=("-c:a" "alac" "-sample_fmt" "s16p")
+      shift
+      ;;
+    --flac)
+      LOSSLESS=true; LOSSLESS_CODEC="flac"
+      shift
+      ;;
+    --alac)
+      LOSSLESS=true; LOSSLESS_CODEC="alac"
       shift
       ;;
     -o|--out)
@@ -184,16 +192,32 @@ command -v ffmpeg  >/dev/null 2>&1 || die "ffmpeg not found (brew install ffmpeg
 command -v ffprobe >/dev/null 2>&1 || die "ffprobe not found (brew install ffmpeg)"
 if [[ "$FORMAT" == "standalone" ]]; then
   command -v MP4Box >/dev/null 2>&1 || die "MP4Box not found (brew install gpac)"
+  # Standalone lossless is ALAC (16-bit — an s32p master plays broken in VDJ).
+  # FLAC-in-MP4 isn't wired into this container build, so reject --flac here.
+  if [[ "$LOSSLESS" == "true" ]]; then
+    [[ "$LOSSLESS_CODEC" == "flac" ]] \
+      && die "standalone lossless is ALAC-only; use --alac (or --sidecar for a FLAC sidecar)"
+    CODEC="alac"; CODEC_EXT="m4a"; CODEC_OPTS=(-c:a alac -sample_fmt s16p)
+  fi
 fi
 if [[ "$FORMAT" == "sidecar" ]]; then
   command -v mkvpropedit >/dev/null 2>&1 \
     || die "mkvpropedit not found (brew install mkvtoolnix) — required: VirtualDJ ignores sidecars without the VirtualDJ writing-application stamp"
   [[ -f "$ORIGINAL" ]] || die "Original file not found: $ORIGINAL"
   ORIGINAL="${ORIGINAL:A}"
-  # Lossless sidecars verified working in VDJ 2026 (tone-probe A/B):
-  # both FLAC and ALAC streams play; FLAC is Matroska-native and smaller.
+  # Lossless sidecars verified working in VDJ 2026 (tone-probe A/B): both FLAC
+  # and ALAC streams play. FLAC is Matroska-native and smaller (the default);
+  # ALAC (--alac) forced to 16-bit, matching the standalone bit-depth finding.
   SIDECAR_CODEC=(-c:a aac -b:a 320k)
-  [[ "$LOSSLESS" == "true" ]] && SIDECAR_CODEC=(-c:a flac)
+  CODEC="aac"
+  if [[ "$LOSSLESS" == "true" ]]; then
+    CODEC="$LOSSLESS_CODEC"
+    if [[ "$LOSSLESS_CODEC" == "alac" ]]; then
+      SIDECAR_CODEC=(-c:a alac -sample_fmt s16p)
+    else
+      SIDECAR_CODEC=(-c:a flac)
+    fi
+  fi
 fi
 
 [[ $# -eq 1 ]] || { error "Missing stem directory"; print "Use -h for help"; exit 2; }

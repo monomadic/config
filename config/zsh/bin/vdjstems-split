@@ -37,7 +37,7 @@
 # Output dir is ready for: cd OUTDIR && vdjstems-create
 #
 # Usage: vdjstems-split [-o OUTDIR] [--roformer|--two-pass|--fast] [--keep-work] INPUT
-#   default is --roformer; --sw is a back-compat alias for --roformer
+#   default is --roformer (see the three modes above)
 #   --keep-work  Keep intermediate separation files for inspection
 #
 # Dependencies: mlx-audio-separator (pipx; or audio-separator), ffmpeg
@@ -73,7 +73,7 @@ Usage: $SELF [-o OUTDIR] [--roformer|--two-pass|--fast] [--keep-work] INPUT
 Separates INPUT into vocals/bass/other/kick/hihat WAVs for the vdjstems packers.
   -o OUTDIR    Output directory (default: ./<input name>.stems)
   --roformer   BS-Roformer-SW single 6-stem pass (DEFAULT): fastest and
-               highest quality; guitar/piano fold into other (alias: --sw)
+               highest quality; guitar/piano fold into other
   --two-pass   Older chain: BS-RoFormer vocal pass + htdemucs_ft band split
   --fast       Skip the vocal pass (htdemucs_ft only, fastest, lower quality)
   --keep-work  Keep intermediate separation files
@@ -86,7 +86,7 @@ while (( $# )); do
   case "${1:-}" in
     -h|--help) usage ;;
     -o) OUTDIR="${2:-}"; [[ -n "$OUTDIR" ]] || die "-o requires a value"; shift 2 ;;
-    --roformer|--sw) MODE="roformer"; shift ;;
+    --roformer) MODE="roformer"; shift ;;
     --two-pass) MODE="two-pass"; shift ;;
     --fast) MODE="fast"; shift ;;
     --keep-work) KEEP_WORK=true; shift ;;

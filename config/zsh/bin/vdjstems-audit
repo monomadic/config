@@ -33,9 +33,9 @@
 #
 # Keys inside fzf:
 #   tab            select multiple tracks
-#   enter, ctrl-s  make FLAC sidecar stems (vdjstems make --roformer
-#                  --lossless) for the selected
-#                  tracks, or the hovered one if none selected; rows reload
+#   enter, ctrl-s  make a FLAC sidecar (vdjstems make --roformer --flac) for
+#                  the selected tracks, or the hovered one; rows reload
+#   ctrl-a         make an ALAC sidecar instead (--roformer --alac)
 #   ctrl-r         re-probe / reload the list
 #
 # Examples:
@@ -72,8 +72,9 @@ Audit VirtualDJ prepared-stems status for a list of audio files.
 Inside fzf:
 
   tab            select multiple
-  enter, ctrl-s  create FLAC sidecar stems for selected/hovered
-                 (vdjstems make --roformer --lossless)
+  enter, ctrl-s  create a FLAC sidecar for selected/hovered
+                 (vdjstems make --roformer --flac)
+  ctrl-a         create an ALAC sidecar instead (--roformer --alac)
   ctrl-r         reload
 EOF
   exit 2
@@ -238,7 +239,7 @@ preview() {
       target="$trk"
     else
       print "${RED}no prepared stems${RESET}"
-      print "${DIM}ctrl-s creates a FLAC sidecar with vdjstems make --roformer --lossless${RESET}"
+      print "${DIM}enter/ctrl-s = FLAC sidecar · ctrl-a = ALAC (vdjstems make --roformer)${RESET}"
       return 0
     fi
   fi
@@ -270,15 +271,17 @@ preview() {
   fi
 }
 
-# ── ctrl-s action: make FLAC sidecars (runs in fzf's execute terminal) ──────
+# ── make lossless sidecars in fzf's execute terminal. arg 1 is the codec
+#    (flac | alac); the rest are the tracks to process. ──────────────────────
 make_stems() {
+  local codec="$1"; shift
   local f rc=0
   for f in "$@"; do
-    print -P "\n%F{cyan}%B── vdjstems make --roformer --lossless ──%b %f${f:t}"
+    print -P "\n%F{cyan}%B── vdjstems make --roformer --$codec ──%b %f${f:t}"
     if [[ -f "${f}.vdjstems" ]]; then
       print -P "%F{yellow}replacing existing sidecar ${f:t}.vdjstems%f"
     fi
-    vdjstems make --roformer --lossless "$f" || { rc=1; print -P "%F{red}FAILED: ${f:t}%f" }
+    vdjstems make --roformer "--$codec" "$f" || { rc=1; print -P "%F{red}FAILED: ${f:t}%f" }
   done
   print -P "\n%F{244}done — press any key to return%f"
   read -k1 -s || true
@@ -291,7 +294,7 @@ case "${1:-}" in
   --line)     shift; for f in "$@"; do probe_line "$f"; done; exit 0 ;;
   --relist)   relist "${2:?}"; exit 0 ;;
   --preview)  preview "${2:?}"; exit 0 ;;
-  --make)     shift; make_stems "$@"; exit 0 ;;
+  --make)     shift; make_stems "$@"; exit 0 ;;   # args: CODEC file...
   -*)         die "Unknown option: $1" ;;
 esac
 
@@ -313,11 +316,13 @@ done > "$listfile"
 [[ -s "$listfile" ]] || die "no audio files given (arguments or stdin)"
 
 header="stems audit — ${GREEN}●${RESET} lossless  ${YELLOW}●${RESET} aac  ${RED}○${RESET} none  ${MAGENTA}⚠${RESET} broken  ${CYAN}☁${RESET} not downloaded
-tab select · enter/ctrl-s make FLAC sidecar · ctrl-r reload"
+tab select · enter/ctrl-s FLAC sidecar · ctrl-a ALAC sidecar · ctrl-r reload"
 
-# enter and ctrl-s both make FLAC sidecars for the selected tracks (or the
-# hovered one), then reload the rows so their status flips to the new sidecar.
-make_bind="execute($SELF_PATH --make {+1})+reload($SELF_PATH --relist $listfile)"
+# enter/ctrl-s make a FLAC sidecar, ctrl-a an ALAC one, for the selected
+# tracks (or the hovered one), then reload the rows so their status flips.
+reload="reload($SELF_PATH --relist $listfile)"
+flac_bind="execute($SELF_PATH --make flac {+1})+$reload"
+alac_bind="execute($SELF_PATH --make alac {+1})+$reload"
 
 "$SELF_PATH" --relist "$listfile" | fzf \
   --ansi --multi \
@@ -325,6 +330,7 @@ make_bind="execute($SELF_PATH --make {+1})+reload($SELF_PATH --relist $listfile)
   --header "$header" --header-first \
   --preview "$SELF_PATH --preview {1}" \
   --preview-window 'down,15,border-top' \
-  --bind "enter:$make_bind" \
-  --bind "ctrl-s:$make_bind" \
-  --bind "ctrl-r:reload($SELF_PATH --relist $listfile)"
+  --bind "enter:$flac_bind" \
+  --bind "ctrl-s:$flac_bind" \
+  --bind "ctrl-a:$alac_bind" \
+  --bind "ctrl-r:$reload"
