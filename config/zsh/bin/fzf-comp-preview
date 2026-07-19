@@ -5,11 +5,13 @@
 #
 # The picker's fzf gets a bunch of packed fields per line; field {1} is the full
 # completion value, (q)-quoted. We resolve it and use it to:
-#   window   -> emit a change-preview-window action (reveal when there's
-#               something to show: a text file, alias, function or builtin)
-#   preview  -> bat a text file, or show an alias/function/builtin definition
-#   edit     -> open a resolved file in $EDITOR
-#   copy     -> copy a resolved file's absolute path to the clipboard
+#   window   -> emit a change-preview-window action (reveal when there is a
+#               location / definition to show, hide otherwise)
+#   preview  -> show the location, then bat a text file / the alias / function
+#               definition (binaries show their path + type)
+#   edit     -> open the resolved file (a script, or the file defining the
+#               alias / function) in $EDITOR
+#   copy     -> copy the resolved absolute path to the clipboard
 #
 # Usage: fzf-comp-preview <window|preview|edit|copy> {1}
 emulate -L zsh
@@ -51,20 +53,65 @@ _is_text() {
 # fights fzf for control of the terminal (job control / tcsetpgrp) and soft-hangs
 # the preview. `zsh -c` just defines things and exits — no tty contention.
 #
-# Emits "<lang>\n<body...>" where <lang> is a bat language or "none"; empty
-# output means "nothing to show". Skipped for paths and option flags.
+# Emits three sections, newline-separated:
+#   line 1  <lang>       bat language for the body, or "none"
+#   line 2  <location>   absolute file where it is defined (may be empty)
+#   line 3+ <body>       the definition text
+# Empty output means "nothing to show". Skipped for paths and option flags.
 _describe() {
   [[ -z $val || $val == -* || $val == */* ]] && return 1
   zsh -c '
     source ~/.zshrc >/dev/null 2>&1
+    zmodload zsh/parameter 2>/dev/null
     w=$1
     o=$(whence -w -- "$w" 2>/dev/null); t=${o##*: }
+    # Best-effort: find the file+line that defines an alias (zsh does not track it).
+    _alias_src() {
+      local files hit f l
+      files=( ${ZSH_CONFIG_DIR:-$ZDOTDIR}/**/*.zsh(N) ~/.zshrc(N) )
+      (( ${#files} )) || return 1
+      hit=$(grep -EnH "^[[:space:]]*alias([[:space:]]+-[[:alpha:]]+)*[[:space:]]+${w}=" -- $files 2>/dev/null | head -1)
+      [[ -n $hit ]] || return 1
+      f=${hit%%:*}; l=${${hit#*:}%%:*}
+      print -r -- "${f:A}:${l}"
+    }
     case $t in
-      alias)            print -r -- zsh; print -r -- "$w=${(qq)aliases[$w]}" ;;
-      function)         print -r -- zsh; functions -- "$w" ;;
-      builtin|reserved) print -r -- none; whence -v -- "$w" ;;
+      alias)
+        print -r -- zsh
+        print -r -- "$(_alias_src)"
+        print -r -- "$w=${(qq)aliases[$w]}"
+        ;;
+      function)
+        print -r -- zsh
+        local src=${functions_source[$w]}
+        print -r -- "${src:+${src:A}}"
+        functions -- "$w"
+        ;;
+      builtin|reserved)
+        print -r -- none
+        print -r --
+        whence -v -- "$w"
+        ;;
     esac
   ' fzf-comp-describe "$val" 2>/dev/null
+}
+
+# Print a dim location header (the path) above the preview body.
+_hdr() {
+  [[ -n $1 ]] || return
+  print -r -- $'\e[2m'"$1"$'\e[0m'
+  print -r --
+}
+
+# Absolute file to act on (edit / copy): a resolved file, or the file that
+# defines the focused alias / function. Empty for builtins / unknown words.
+_target_file() {
+  [[ -n $target ]] && { print -r -- "$target"; return 0 }
+  local desc loc
+  desc=$(_describe) && [[ -n $desc ]] || return 1
+  loc=${${desc#*$'\n'}%%$'\n'*}   # section 2: location
+  loc=${loc%:<->}                 # drop any :line suffix -> pure path
+  [[ -n $loc ]] && print -r -- "$loc"
 }
 
 # NB: never name this `path` — in zsh that is the special array bound to $PATH,
@@ -73,13 +120,10 @@ target=$(_resolve "$val") || target=
 
 case $action in
   window)
-    # emit an fzf action for a `focus:transform(...)` bind: reveal the preview
-    # pane when there's something worth showing, hide it otherwise. A resolved
-    # file decides on its own (text vs binary); only unresolved words are described.
+    # reveal the preview pane when there is something to show: any resolved file
+    # (its location, plus contents for text), or a describable alias/function/builtin.
     local show=
-    if [[ -n $target ]]; then
-      _is_text "$target" && show=1
-    elif [[ -n $(_describe) ]]; then
+    if [[ -n $target ]] || [[ -n $(_describe) ]]; then
       show=1
     fi
     if [[ -n $show ]]; then
@@ -90,15 +134,20 @@ case $action in
     ;;
   preview)
     if [[ -n $target ]]; then
-      _is_text "$target" || exit 0
-      bat --color=always --style=numbers --paging=never -- "$target" 2>/dev/null \
-        || cat -- "$target"
+      _hdr "$target"
+      if _is_text "$target"; then
+        bat --color=always --style=numbers --paging=never -- "$target" 2>/dev/null \
+          || cat -- "$target"
+      else
+        file -b -- "$target" 2>/dev/null   # binary: just its type
+      fi
       exit 0
     fi
-    local desc lang body
+    local desc lang loc body rest
     desc=$(_describe) && [[ -n $desc ]] || exit 0
-    lang=${desc%%$'\n'*}
-    body=${desc#*$'\n'}
+    lang=${desc%%$'\n'*}; rest=${desc#*$'\n'}
+    loc=${rest%%$'\n'*};  body=${rest#*$'\n'}
+    _hdr "$loc"
     if [[ $lang == none ]]; then
       print -r -- "$body"
     else
@@ -108,11 +157,11 @@ case $action in
     fi
     ;;
   edit)
-    [[ -n $target ]] || exit 0
-    "${(@s: :)${EDITOR:-hx}}" "$target"
+    local f; f=$(_target_file) || exit 0
+    "${(@s: :)${EDITOR:-hx}}" "$f"
     ;;
   copy)
-    [[ -n $target ]] || exit 0
-    printf '%s' "$target" | pbcopy
+    local f; f=$(_target_file) || exit 0
+    printf '%s' "$f" | pbcopy
     ;;
 esac
