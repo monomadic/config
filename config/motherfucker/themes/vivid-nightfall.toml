@@ -1,7 +1,7 @@
 # motherfucker theme: monochrome purple ladder — every element a rung.
 [style]
 panel_background = "#10002B"
-panel_opacity = 0.74
+panel_opacity = 0.45
 item_foreground_highlight = "#C77DFF"
 selected_item_foreground_highlight = "#C77DFF"
 icon_foreground = "#9D4EDD"

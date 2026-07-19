@@ -1,7 +1,7 @@
 # motherfucker theme: light glass — lavender/pink/blue pastels, white frame.
 [style]
 panel_background = "#FAF4FC"
-panel_opacity = 0.85
+panel_opacity = 0.75
 panel_foreground = "#46385C"
 item_foreground = "#46385C"
 selected_item_foreground = "#3A2C50"
