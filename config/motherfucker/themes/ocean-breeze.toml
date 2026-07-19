@@ -1,0 +1,15 @@
+# motherfucker theme: deep navy wash, cyan icons, tinted selection outline.
+[style]
+panel_background = "#041028"
+item_foreground_highlight = "#7FE3F2"
+selected_item_foreground_highlight = "#7FE3F2"
+icon_foreground = "#59C8E8"
+selected_item_background = "#0077B6"
+selected_item_opacity = 0.26
+selected_item_border = "#1E4E74"  # tint, not accent
+selected_item_border_width = 1
+item_info_foreground = "#A8DFF2"
+item_info_background = "#0B2E52"
+running_dot = "#00B4D8"
+cpu_alert = "#FF9B93"
+cpu_alert_background = "#3A1A22"

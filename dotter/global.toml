@@ -117,7 +117,7 @@ files = { "config/starship/starship.toml" = "~/.config/starship.toml" }
 files = { "config/switchblade/switchblade.toml" = "~/.config/switchblade.toml" }
 
 [motherfucker]
-files = { "config/motherfucker/config.toml" = "~/.config/motherfucker/config.toml" }
+files = { "config/motherfucker/config.toml" = "~/.config/motherfucker/config.toml", "config/motherfucker/themes" = "~/.config/motherfucker/themes" }
 
 [yt-dlp.files]
 "config/yt-dlp/config" = "~/.config/yt-dlp/config"

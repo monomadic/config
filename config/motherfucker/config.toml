@@ -1,8 +1,7 @@
 # motherfucker — user config (~/.config/motherfucker/config.toml)
 #
 # Read at startup, and live via the refresh-config action (default cmd+shift+r
-# while the panel is open). Global hotkeys and panel chrome (background opacity,
-# corner radius) still need a full restart:
+# while the panel is open). Only global hotkeys still need a full restart:
 #   launchctl kickstart -k gui/$UID/com.nom.motherfucker
 # Every key is optional; anything missing falls back to the built-in default.
 # The values below ARE the defaults, spelled out as living documentation.
@@ -31,7 +30,14 @@
 "cmd+shift+r" = "refresh-config"  # re-read this file live
 
 # Black-glass look. Colors are "#rrggbb"; opacities 0.0–1.0; sizes in points.
+#
+# Themes: a file in ~/.config/motherfucker/themes/<name>.toml holds a [style]
+# section that overlays these values. `theme = "name"` applies one at startup;
+# the in-panel picker (search "theme", pick "Setting: Change Theme (…)")
+# previews themes live as the selection moves and applies one for the session
+# on enter — it never writes this file.
 [style]
+# theme = "ocean-breeze"
 width = 600
 panel_background = "#000000"  # wash over the glass material
 panel_foreground = "#ffffff"  # search text + search icon
@@ -47,8 +53,16 @@ selected_item_opacity = 0.1
 selected_item_corner_radius = 8
 selected_item_foreground_highlight = "#FFFF0F"  # matched query chars, selected row
 input_font_size = 24
-cpu_alert = "#F05450"  # "CPU nn%" warning at the row's right edge, apps >70% of a core
+cpu_alert = "#F05450"  # CPU badge (⚠ CPU + meter) at the row's right edge, apps >70% of a core
+# cpu_alert_background = "#3A1414"  # badge fill; unset = cpu_alert at 0.16
 running_dot = "#F1FF0F"  # presence dot at the row's right edge for running apps
+# icon_foreground = "#59C8E8"  # glyph column + search icon; unset = row/panel foreground
+# border = "#FFFFFF"  # panel border color; only drawn when border_width > 0
+border_width = 0  # stroke around the whole panel
+# item_info_foreground = "#A8DFF2"  # tag-pill text; unset = row foreground
+# item_info_background = "#0B2E52"  # tag-pill fill; unset = hairline outline
+# selected_item_border = "#1E4E74"  # inset stroke on the selected row
+selected_item_border_width = 0
 font_family = "SF Pro Book"  # input + row font by name (e.g. "Inter", "SF Pro"); "" = system
 item_font_weight = ""  # row text weight: ultralight/thin/light/regular/
 # medium/semibold/bold/heavy/black, or -1.0..1.0.

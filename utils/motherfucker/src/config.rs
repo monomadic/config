@@ -62,6 +62,7 @@ pub enum Action {
     RefreshConfig,
 }
 
+#[derive(Clone)]
 pub struct Style {
     pub width: f64,
     pub panel_background: (f64, f64, f64),
@@ -85,6 +86,21 @@ pub struct Style {
     /// NSFontWeight (-1.0..1.0) for row item text; ignored when a custom
     /// `font_family` is set (name a weighted variant instead).
     pub item_font_weight: f64,
+    /// Glyph column + search-icon color; `None` = row/panel foreground.
+    pub icon_foreground: Option<(f64, f64, f64)>,
+    /// Stroke around the whole panel; width 0 (the default) = no border.
+    pub border: (f64, f64, f64),
+    pub border_width: f64,
+    /// Tag-pill text ("Applications", "Utilities", "Shortcut");
+    /// `None` = row foreground at the stock alpha.
+    pub item_info_foreground: Option<(f64, f64, f64)>,
+    /// Tag-pill fill; `None` = clear with the stock hairline outline.
+    pub item_info_background: Option<(f64, f64, f64)>,
+    /// Inset stroke on the selected row; width 0 (the default) = none.
+    pub selected_item_border: (f64, f64, f64),
+    pub selected_item_border_width: f64,
+    /// Fill behind the CPU warning badge; `None` = `cpu_alert` at 0.16.
+    pub cpu_alert_background: Option<(f64, f64, f64)>,
 }
 
 impl Default for Style {
@@ -109,6 +125,14 @@ impl Default for Style {
             running_dot: (0.30, 0.80, 0.39),
             font_family: String::new(),
             item_font_weight: 0.0,
+            icon_foreground: None,
+            border: (1.0, 1.0, 1.0),
+            border_width: 0.0,
+            item_info_foreground: None,
+            item_info_background: None,
+            selected_item_border: (1.0, 1.0, 1.0),
+            selected_item_border_width: 0.0,
+            cpu_alert_background: None,
         }
     }
 }
@@ -162,12 +186,51 @@ impl Default for Icons {
     }
 }
 
+/// A named `[style]` overlay loaded from `themes/<name>.toml`. Overrides are
+/// kept as raw key/value pairs and replayed through `apply_style`, so a theme
+/// file speaks exactly the `[style]` grammar — nothing new to parse.
+#[derive(Clone)]
+pub struct Theme {
+    /// File stem, e.g. "ocean-breeze".
+    pub name: String,
+    pub overrides: Vec<(String, String)>,
+}
+
+/// Display name for a theme: file stem with `-`/`_` as spaces, Title Case
+/// ("ocean-breeze" → "Ocean Breeze").
+pub fn theme_display_name(name: &str) -> String {
+    name.split(['-', '_'])
+        .filter(|w| !w.is_empty())
+        .map(|w| {
+            let mut c = w.chars();
+            match c.next() {
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Overlay a theme onto a base style.
+pub fn apply_theme(style: &mut Style, theme: &Theme) {
+    for (key, val) in &theme.overrides {
+        apply_style(style, key, val, key);
+    }
+}
+
 pub struct Config {
     /// Global summon triggers, in file order. Hotkey id N (1-based) maps to
     /// index N-1 here.
     pub hotkeys: Vec<(Chord, Mode)>,
     pub binds: Vec<(Chord, Action)>,
+    /// Base style from `[style]` — never includes a theme overlay; the
+    /// active (possibly themed) style is owned by the UI layer.
     pub style: Style,
+    /// Themes found in `themes/*.toml`, sorted by name.
+    pub themes: Vec<Theme>,
+    /// `theme = "name"` from `[style]`: overlay to apply at startup.
+    pub theme: Option<String>,
     pub icons: Icons,
     /// Per-name glyph overrides from `[icons.apps]`: (lowercased entry
     /// name, glyph). Replaces the leading state glyph for matching rows.
@@ -188,6 +251,8 @@ impl Default for Config {
             )],
             binds: default_binds(),
             style: Style::default(),
+            themes: Vec::new(),
+            theme: None,
             icons: Icons::default(),
             icon_overrides: Vec::new(),
             shortcuts: Vec::new(),
@@ -286,12 +351,63 @@ pub fn load() -> Config {
     let Some(base) = base else {
         return cfg;
     };
-    let path = base.join("motherfucker/config.toml");
-    let Ok(text) = std::fs::read_to_string(&path) else {
-        return cfg; // no file: defaults
-    };
-    parse_into(&mut cfg, &text);
+    let dir = base.join("motherfucker");
+    if let Ok(text) = std::fs::read_to_string(dir.join("config.toml")) {
+        parse_into(&mut cfg, &text);
+    }
+    cfg.themes = load_themes(&dir.join("themes"));
     cfg
+}
+
+/// `themes/*.toml`, each a `[style]` overlay; name = file stem. Read at
+/// startup and on refresh-config only — never on the summon path.
+fn load_themes(dir: &std::path::Path) -> Vec<Theme> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut themes: Vec<Theme> = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+            continue;
+        }
+        let Some(name) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        themes.push(Theme {
+            name: name.to_string(),
+            overrides: parse_theme(&text),
+        });
+    }
+    themes.sort_by(|a, b| a.name.cmp(&b.name));
+    themes
+}
+
+/// `[style]` key/value pairs from a theme file. Keys are validated lazily —
+/// bad ones warn when the theme is applied, exactly like config.toml lines.
+fn parse_theme(text: &str) -> Vec<(String, String)> {
+    let mut section = String::new();
+    let mut overrides = Vec::new();
+    for raw in text.lines() {
+        let line = strip_comment(raw).trim().to_string();
+        if line.is_empty() {
+            continue;
+        }
+        if line.starts_with('[') && line.ends_with(']') {
+            section = line[1..line.len() - 1].trim().to_lowercase();
+            continue;
+        }
+        if section != "style" {
+            continue;
+        }
+        if let Some((lhs, rhs)) = line.split_once('=') {
+            overrides.push((unquote(lhs.trim()), unquote(rhs.trim())));
+        }
+    }
+    overrides
 }
 
 fn warn(line: &str, what: &str) {
@@ -348,6 +464,9 @@ fn parse_into(cfg: &mut Config, text: &str) {
                     continue;
                 };
                 cfg.binds.push((chord, action));
+            }
+            "style" if key.replace('-', "_") == "theme" => {
+                cfg.theme = (!val.is_empty()).then(|| val.clone());
             }
             "style" => apply_style(&mut cfg.style, &key, &val, &line),
             "icons" => apply_icon(&mut cfg.icons, &key, &val, &line),
@@ -452,6 +571,38 @@ fn apply_style(style: &mut Style, key: &str, val: &str, line: &str) {
         },
         "selected_item_foreground_highlight" => match parse_color(val) {
             Some(c) => style.selected_item_foreground_highlight = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "icon_foreground" => match parse_color(val) {
+            Some(c) => style.icon_foreground = Some(c),
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "border" => match parse_color(val) {
+            Some(c) => style.border = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "border_width" => match num() {
+            Ok(v) => style.border_width = v.clamp(0.0, 12.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "item_info_foreground" => match parse_color(val) {
+            Some(c) => style.item_info_foreground = Some(c),
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "item_info_background" => match parse_color(val) {
+            Some(c) => style.item_info_background = Some(c),
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "selected_item_border" => match parse_color(val) {
+            Some(c) => style.selected_item_border = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "selected_item_border_width" => match num() {
+            Ok(v) => style.selected_item_border_width = v.clamp(0.0, 6.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "cpu_alert_background" => match parse_color(val) {
+            Some(c) => style.cpu_alert_background = Some(c),
             None => warn(line, "expected \"#rrggbb\""),
         },
         _ => warn(line, "unknown style key"),
@@ -651,6 +802,55 @@ interval = 2.0
             cfg.shortcuts,
             vec![("Movies".to_string(), "open -R ~/Movies".to_string())]
         );
+    }
+
+    #[test]
+    fn parses_theme_keys_and_overlay() {
+        let mut cfg = Config::default();
+        parse_into(
+            &mut cfg,
+            r##"
+[style]
+theme = "ocean-breeze"
+icon_foreground = "#59c8e8"
+border = "#102030"
+border_width = 1
+item_info_foreground = "#a8dff2"
+item_info_background = "#0b2e52"
+selected_item_border = "#1e4e74"
+selected_item_border_width = 1
+cpu_alert_background = "#401010"
+"##,
+        );
+        assert_eq!(cfg.theme.as_deref(), Some("ocean-breeze"));
+        assert!(cfg.style.icon_foreground.is_some());
+        assert!((cfg.style.border_width - 1.0).abs() < 1e-9);
+        assert!(cfg.style.item_info_background.is_some());
+        assert!((cfg.style.selected_item_border_width - 1.0).abs() < 1e-9);
+        assert!(cfg.style.cpu_alert_background.is_some());
+
+        // A theme overlays the base style; untouched keys survive.
+        let theme = Theme {
+            name: "test".into(),
+            overrides: parse_theme(
+                "# comment\n[style]\npanel_background = \"#041028\"\nborder_width = 2\n",
+            ),
+        };
+        let mut style = cfg.style.clone();
+        apply_theme(&mut style, &theme);
+        assert_eq!(
+            style.panel_background,
+            (4.0 / 255.0, 16.0 / 255.0, 40.0 / 255.0)
+        );
+        assert!((style.border_width - 2.0).abs() < 1e-9);
+        assert!(style.item_info_background.is_some()); // untouched
+    }
+
+    #[test]
+    fn theme_display_names() {
+        assert_eq!(theme_display_name("ocean-breeze"), "Ocean Breeze");
+        assert_eq!(theme_display_name("vivid_nightfall"), "Vivid Nightfall");
+        assert_eq!(theme_display_name("candy"), "Candy");
     }
 
     #[test]
