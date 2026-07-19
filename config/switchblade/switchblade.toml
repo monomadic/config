@@ -118,6 +118,11 @@ strip_border_width = 4.0
 # level "normal"+.
 strip_selection_scale = 1.35
 strip_hover_scale = 1.15
+# Filmstrip scrolling: true = the selection follows the nearest chip
+# (magnetic flow); false = scrolling only PEEKS at neighbors while the
+# selected clip keeps playing — click a chip to play it.
+strip_scroll_selects = false
+
 # Quickview backdrop: black dim strength (0..1) and frosted-glass blur
 # level — the grid is downsampled 2^level before drawing back, so
 # 1 = subtle, 4 = heavy frost, 0 = no blur. GPU-cheap either way.
@@ -130,10 +135,6 @@ quickview_blur = 3.0
 quickview_backdrop = "blur"
 fullview_backdrop = "blur"
 backdrop_color = [0.01, 0.01, 0.01]
-# Filmstrip scrolling: true = the selection follows the nearest chip
-# (magnetic flow); false = scrolling only PEEKS at neighbors while the
-# selected clip keeps playing — click a chip to play it.
-strip_scroll_selects = false
 
 # Animated thumbnails (sprite sheets, 9 frames sampled across each clip)
 # — these only run at animation = "full". One full cycle takes
@@ -192,7 +193,8 @@ F = "fullscreen"
 R = "jump_random"  # select a random clip ("jump_to_random" also works)
 T = "trim"
 a = "toggle_anim"  # animated thumbnails on/off
-c = "copy_path"
+c = "chapter_mode"
+C = "copy_path"
 f = "fast_fullscreen"
 o = "open"
 p = "toggle_focus_pause"  # pause-when-unfocused on/off
