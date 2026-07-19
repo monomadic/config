@@ -134,6 +134,10 @@ struct State {
     cpu_samples: RefCell<std::collections::HashMap<i32, CpuSample>>,
     /// Repeating stats-refresh timer, alive only while the panel is visible.
     stats_timer: RefCell<Option<Retained<objc2::runtime::AnyObject>>>,
+    /// App-directory scan, cached for the lifetime of one open panel. Filled on
+    /// the first keystroke after a summon and cleared on hide, so a freshly
+    /// installed app still appears next summon without re-scanning per keystroke.
+    installed_cache: RefCell<Option<Vec<apps::InstalledApp>>>,
 }
 
 declare_class!(
@@ -700,6 +704,8 @@ impl Delegate {
         if let Some(timer) = ivars.stats_timer.borrow_mut().take() {
             let _: () = unsafe { msg_send![&*timer, invalidate] };
         }
+        // Drop the cached scan so the next summon re-reads the app directories.
+        ivars.installed_cache.borrow_mut().take();
         if let Some(panel) = ivars.panel.get() {
             panel.orderOut(None);
         }
@@ -714,9 +720,9 @@ impl Delegate {
             .unwrap_or_default()
     }
 
-    /// Recompute results for the current query. Runs the readdir scan fresh
-    /// every time — that is the cache-free contract, and it is microseconds
-    /// warm.
+    /// Recompute results for the current query. The app-directory scan is done
+    /// once per summon and cached (see `installed_cache`); every keystroke after
+    /// that reuses it, so only re-filtering and re-ranking run per keystroke.
     fn refresh(&self) {
         let query = self.query();
         let running = running_apps();
@@ -726,7 +732,8 @@ impl Delegate {
             entries = running;
         } else {
             let mut scored: Vec<(i32, Entry)> = Vec::new();
-            let installed = apps::scan_installed();
+            let mut cache = self.ivars().installed_cache.borrow_mut();
+            let installed = cache.get_or_insert_with(apps::scan_installed);
             let mut seen: Vec<String> = Vec::new();
             for mut entry in running {
                 if let Some((s, positions)) = apps::match_positions(&query, &entry.name) {
@@ -735,7 +742,7 @@ impl Delegate {
                     scored.push((s + RUNNING_BONUS, entry));
                 }
             }
-            for app in installed {
+            for app in installed.iter() {
                 if seen.contains(&app.name.to_lowercase()) {
                     continue;
                 }
@@ -744,7 +751,7 @@ impl Delegate {
                         s,
                         Entry {
                             name: display_name(&app.name),
-                            path: Some(app.path),
+                            path: Some(app.path.clone()),
                             running: None,
                             matched: positions,
                             windows: 0,
