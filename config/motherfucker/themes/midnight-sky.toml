@@ -1,0 +1,15 @@
+# motherfucker theme: navy fills, yellow strictly on matches and the dot —
+# volt-on-dark, in navy.
+[style]
+panel_background = "#050F2E"
+panel_opacity = 0.76
+item_foreground_highlight = "#FFD819"
+selected_item_foreground_highlight = "#FFD819"
+icon_foreground = "#7FA8E0"
+selected_item_background = "#12408A"
+selected_item_opacity = 0.55
+item_info_foreground = "#A8C4F0"
+item_info_background = "#123C8C"
+running_dot = "#FFC300"
+cpu_alert = "#FF9B8F"
+cpu_alert_background = "#3A1420"

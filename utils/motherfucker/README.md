@@ -37,12 +37,27 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   `launch-new`, `reveal`, `clear`, `dismiss`, `select-all`, `move-up`,
   `move-down`; `"none"` unbinds a default.
 - `[style]` — `width`, `panel_background`/`panel_foreground`/`panel_opacity`/
-  `panel_padding`/`panel_corner_radius`, `item_foreground`/`item_font_size`/
-  `item_foreground_highlight`, `selected_item_background`/
-  `selected_item_foreground`/`selected_item_opacity`/
-  `selected_item_corner_radius`/`selected_item_foreground_highlight`,
-  `input_font_size`. Colors are `"#rrggbb"`; the highlight keys color the
-  query-matched characters.
+  `panel_padding`/`panel_corner_radius`, `border`/`border_width` (panel
+  stroke, default 0), `item_foreground`/`item_font_size`/
+  `item_foreground_highlight`, `icon_foreground` (glyph column + search
+  icon), `item_info_foreground`/`item_info_background` (the inline tag
+  pill; a background makes it filled instead of outlined),
+  `selected_item_background`/`selected_item_foreground`/
+  `selected_item_opacity`/`selected_item_corner_radius`/
+  `selected_item_border`/`selected_item_border_width` (inset stroke,
+  default 0)/`selected_item_foreground_highlight`, `input_font_size`,
+  `cpu_alert`/`cpu_alert_background` (the ⚠ CPU badge), `running_dot`.
+  Colors are `"#rrggbb"`; the highlight keys color the query-matched
+  characters.
+- **Themes** — `~/.config/motherfucker/themes/<name>.toml`, each holding a
+  `[style]` section that overlays the base style (this repo ships a set in
+  `config/motherfucker/themes/`). `theme = "name"` under `[style]` applies
+  one at startup. Interactively: search for "theme" and open
+  `Setting: Change Theme (…)` — the panel lists every theme with the
+  active one selected, moving the selection restyles the live panel,
+  `↩` keeps the theme for the session (the config file is never written),
+  `⎋` reverts. Theme files are read at startup and on refresh-config
+  only — never on the summon path.
 - `[icons]` — `search`, `running_many`/`running_one`/`running_none`/
   `installed` (literal glyph strings; SF Symbols pasted as text work), and
   `utilities`/`system`/`applications`/`shortcut` (SF Symbol names for the

@@ -1,0 +1,17 @@
+# motherfucker theme: light glass — cream ground, sage selection, tan dot.
+[style]
+panel_background = "#FBF6DC"
+panel_opacity = 0.86
+panel_foreground = "#4A402A"
+item_foreground = "#4A402A"
+selected_item_foreground = "#3A3220"
+item_foreground_highlight = "#A9631F"
+selected_item_foreground_highlight = "#A9631F"
+icon_foreground = "#8A9B60"
+selected_item_background = "#B4C48F"
+selected_item_opacity = 0.38
+item_info_foreground = "#5C6B3C"
+item_info_background = "#DDE3C4"
+running_dot = "#CE9354"
+cpu_alert = "#8A3B26"
+cpu_alert_background = "#EBD3AC"

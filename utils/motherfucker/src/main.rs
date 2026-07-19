@@ -64,6 +64,28 @@ const CPU_ALERT_PCT: f64 = 70.0;
 // config::Icons — SF Symbols as text, zero I/O).
 const GLYPH_COL_W: f64 = 24.0;
 const GLYPH_PT: f64 = 16.0;
+// Glass rim clip: the material extends this far past its clipping wrapper so
+// the built-in edge highlight is cut off (see setup_impl).
+const RIM_CLIP: f64 = 2.0;
+
+/// Rows the panel synthesizes itself (no app bundle behind them).
+#[derive(Clone, PartialEq)]
+enum Builtin {
+    /// "Setting: Change Theme (…)" — enter the theme picker.
+    ThemePicker,
+    /// A row in the picker; `None` is the built-in base ("Black Glass" =
+    /// the un-overlaid `[style]`).
+    ApplyTheme(Option<String>),
+}
+
+/// What the panel is listing right now.
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+enum PanelMode {
+    #[default]
+    Launcher,
+    /// Theme rows; moving the selection restyles the live panel.
+    ThemePicker,
+}
 
 struct Entry {
     name: String,
@@ -77,6 +99,8 @@ struct Entry {
     stats: Option<RowStats>,
     /// `[shortcuts]` entry: shell command run via `sh -c` on activation.
     command: Option<String>,
+    /// Panel-internal rows (theme picker and its entry point).
+    builtin: Option<Builtin>,
 }
 
 struct RowStats {
@@ -121,12 +145,28 @@ struct CpuSample {
 #[derive(Default)]
 struct State {
     /// Swappable at runtime by the refresh-config action (global hotkeys
-    /// aside — those are registered once at launch).
+    /// aside — those are registered once at launch). `config.style` is the
+    /// ACTIVE style — base plus the current theme overlay, if any.
     config: RefCell<Config>,
+    /// The un-themed `[style]` from the config file; themes overlay this.
+    base_style: RefCell<config::Style>,
+    /// Active theme name. Seeded by `theme =` in `[style]`, updated by the
+    /// picker. In-memory only — the picker never writes the config file, so
+    /// a picked theme lasts until restart (or refresh-config removes it).
+    session_theme: RefCell<Option<String>>,
+    mode: Cell<PanelMode>,
+    /// Style to restore when the picker is dismissed without committing.
+    saved_style: RefCell<Option<config::Style>>,
     panel: OnceCell<Retained<Panel>>,
     field: OnceCell<Retained<NSTextField>>,
     glyph: OnceCell<Retained<NSTextField>>,
     rows_area: OnceCell<Retained<NSView>>,
+    /// Chrome handles for live restyling: the view whose layer carries the
+    /// panel's corner radius + border (glass wrapper or vibrancy effect),
+    /// plus the glass view (tint via setTintColor:) or the vibrancy tint.
+    chrome_view: OnceCell<Retained<NSView>>,
+    glass_view: OnceCell<Retained<NSView>>,
+    tint_view: OnceCell<Retained<NSView>>,
     entries: RefCell<Vec<Entry>>,
     selected: Cell<usize>,
     top_y: Cell<f64>,
@@ -347,9 +387,28 @@ fn make_label(
 }
 
 impl Delegate {
-    fn new(mtm: MainThreadMarker, config: Config) -> Retained<Self> {
+    fn new(mtm: MainThreadMarker, mut config: Config) -> Retained<Self> {
+        // `theme = "name"` in [style] seeds the session theme; the active
+        // style becomes base + overlay, the base is kept for the picker.
+        let base = config.style.clone();
+        let mut session = config.theme.clone();
+        if let Some(name) = &session {
+            match config.themes.iter().find(|t| &t.name == name) {
+                Some(theme) => {
+                    let mut style = base.clone();
+                    config::apply_theme(&mut style, theme);
+                    config.style = style;
+                }
+                None => {
+                    eprintln!("motherfucker: config: unknown theme `{name}`");
+                    session = None;
+                }
+            }
+        }
         let this = mtm.alloc::<Self>().set_ivars(State {
             config: RefCell::new(config),
+            base_style: RefCell::new(base),
+            session_theme: RefCell::new(session),
             ..State::default()
         });
         unsafe { msg_send_id![super(this), init] }
@@ -412,12 +471,14 @@ impl Delegate {
             Some(view)
         });
 
+        let chrome_ref: Retained<NSView>;
+        let mut glass_ref: Option<Retained<NSView>> = None;
+        let mut tint_ref: Option<Retained<NSView>> = None;
         if let Some(glass) = &glass {
             // Rim removal: the glass sits inside a clipping wrapper and
             // extends RIM_CLIP px beyond it on every side, so the material's
             // built-in edge highlight falls outside the visible shape and is
             // cut off entirely.
-            const RIM_CLIP: f64 = 2.0;
             let wrapper = unsafe { NSView::initWithFrame(mtm.alloc(), bounds) };
             wrapper.setAutoresizingMask(resize_mask);
             wrapper.setWantsLayer(true);
@@ -444,6 +505,8 @@ impl Delegate {
             wrapper.addSubview(glass);
             content.addSubview(&wrapper);
             content.addSubview(&container);
+            chrome_ref = wrapper;
+            glass_ref = Some(glass.clone());
         } else {
             let effect = unsafe { NSVisualEffectView::initWithFrame(mtm.alloc(), bounds) };
             unsafe {
@@ -473,6 +536,8 @@ impl Delegate {
             }
             effect.addSubview(&tint);
             content.addSubview(&container);
+            chrome_ref = unsafe { Retained::cast(effect) };
+            tint_ref = Some(tint);
         }
 
         // Input: glyph + borderless field.
@@ -511,6 +576,17 @@ impl Delegate {
         ivars.field.set(field).ok();
         ivars.glyph.set(glyph).ok();
         ivars.rows_area.set(rows_area).ok();
+        ivars.chrome_view.set(chrome_ref).ok();
+        if let Some(v) = glass_ref {
+            ivars.glass_view.set(v).ok();
+        }
+        if let Some(v) = tint_ref {
+            ivars.tint_view.set(v).ok();
+        }
+        drop(cfg);
+        // Applies the panel border (and any startup theme's chrome) that the
+        // construction above doesn't know about.
+        self.apply_live_style();
 
         // Key monitor for the configurable in-panel bindings ([keys] in the
         // config): chords with modifiers don't route reliably through the
@@ -603,34 +679,115 @@ impl Delegate {
         }
     }
 
-    /// Re-read the config file and re-apply it live. Global hotkeys and the
-    /// panel's own chrome (background opacity, corner radius) are wired once
-    /// at launch and still need a restart; everything else — layout, colors,
-    /// fonts, icons, shortcuts, in-panel binds — updates immediately.
+    /// Re-read the config file (and themes dir) and re-apply it live. Global
+    /// hotkeys are registered once at launch and still need a restart;
+    /// everything else — layout, colors, chrome, fonts, icons, shortcuts,
+    /// in-panel binds — updates immediately. An interactively picked theme
+    /// survives the reload as long as its file still exists.
     fn reload_config(&self) {
         let ivars = self.ivars();
-        *ivars.config.borrow_mut() = config::load();
-        let cfg = ivars.config.borrow();
-        if let Some(field) = ivars.field.get() {
-            unsafe {
-                field.setFont(Some(&resolve_font(
-                    &cfg.style.font_family,
-                    0.0,
-                    cfg.style.input_font_size,
-                )));
-                field.setTextColor(Some(&rgba(cfg.style.panel_foreground, 1.0)));
+        // A reload while the picker is up abandons the preview.
+        ivars.mode.set(PanelMode::Launcher);
+        *ivars.saved_style.borrow_mut() = None;
+
+        let fresh = config::load();
+        *ivars.base_style.borrow_mut() = fresh.style.clone();
+        {
+            let mut session = ivars.session_theme.borrow_mut();
+            if let Some(name) = session.clone() {
+                if !fresh.themes.iter().any(|t| t.name == name) {
+                    eprintln!("motherfucker: config: theme `{name}` is gone; back to base");
+                    *session = None;
+                }
+            } else {
+                *session = fresh.theme.clone();
             }
         }
+        *ivars.config.borrow_mut() = fresh;
+        self.apply_session_theme();
+
         if let Some(glyph) = ivars.glyph.get() {
             unsafe {
-                glyph.setStringValue(&NSString::from_str(&cfg.icons.search));
-                glyph.setTextColor(Some(&rgba(cfg.style.panel_foreground, 0.85)));
+                glyph.setStringValue(&NSString::from_str(
+                    &ivars.config.borrow().icons.search,
+                ));
                 glyph.sizeToFit();
             }
         }
-        drop(cfg);
+        self.apply_live_style();
         // Rebuild the results with the fresh style/layout.
         self.refresh();
+    }
+
+    /// Set the active style to base + the session theme's overlay (if any).
+    fn apply_session_theme(&self) {
+        let ivars = self.ivars();
+        let overlay = {
+            let cfg = ivars.config.borrow();
+            ivars
+                .session_theme
+                .borrow()
+                .as_ref()
+                .and_then(|name| cfg.themes.iter().find(|t| &t.name == name).cloned())
+        };
+        let mut style = ivars.base_style.borrow().clone();
+        if let Some(theme) = &overlay {
+            config::apply_theme(&mut style, theme);
+        }
+        ivars.config.borrow_mut().style = style;
+    }
+
+    /// Push the active style onto everything that isn't rebuilt per-refresh:
+    /// the input field, the search glyph, and the panel chrome (tint, corner
+    /// radius, border). Rows pick the style up on the next relayout.
+    fn apply_live_style(&self) {
+        let ivars = self.ivars();
+        let cfg = ivars.config.borrow();
+        let style = &cfg.style;
+        if let Some(field) = ivars.field.get() {
+            unsafe {
+                field.setFont(Some(&resolve_font(
+                    &style.font_family,
+                    0.0,
+                    style.input_font_size,
+                )));
+                field.setTextColor(Some(&rgba(style.panel_foreground, 1.0)));
+            }
+        }
+        if let Some(glyph) = ivars.glyph.get() {
+            let color = match style.icon_foreground {
+                Some(c) => rgba(c, 1.0),
+                None => rgba(style.panel_foreground, 0.85),
+            };
+            unsafe { glyph.setTextColor(Some(&color)) };
+        }
+        if let Some(chrome) = ivars.chrome_view.get() {
+            if let Some(layer) = unsafe { chrome.layer() } {
+                layer.setCornerRadius(style.panel_corner_radius);
+                let border = rgba(style.border, 1.0);
+                unsafe {
+                    let cg: *mut c_void = msg_send![&*border, CGColor];
+                    let _: () = msg_send![&*layer, setBorderColor: cg];
+                    let _: () = msg_send![&*layer, setBorderWidth: style.border_width];
+                }
+            }
+        }
+        if let Some(glass) = ivars.glass_view.get() {
+            unsafe {
+                let radius = style.panel_corner_radius + RIM_CLIP;
+                let _: () = msg_send![&**glass, setCornerRadius: radius];
+                let tint_color = rgba(style.panel_background, style.panel_opacity);
+                let _: () = msg_send![&**glass, setTintColor: &*tint_color];
+            }
+        }
+        if let Some(tint) = ivars.tint_view.get() {
+            if let Some(layer) = unsafe { tint.layer() } {
+                set_layer_bg(
+                    &layer,
+                    &rgba(style.panel_background, style.panel_opacity),
+                );
+            }
+        }
     }
 
     fn toggle(&self) {
@@ -701,6 +858,14 @@ impl Delegate {
         if ivars.hiding.replace(true) {
             return;
         }
+        // Dismissing the picker without committing reverts the preview.
+        if ivars.mode.get() == PanelMode::ThemePicker {
+            ivars.mode.set(PanelMode::Launcher);
+            if let Some(style) = ivars.saved_style.borrow_mut().take() {
+                ivars.config.borrow_mut().style = style;
+                self.apply_live_style();
+            }
+        }
         if let Some(timer) = ivars.stats_timer.borrow_mut().take() {
             let _: () = unsafe { msg_send![&*timer, invalidate] };
         }
@@ -724,6 +889,10 @@ impl Delegate {
     /// once per summon and cached (see `installed_cache`); every keystroke after
     /// that reuses it, so only re-filtering and re-ranking run per keystroke.
     fn refresh(&self) {
+        if self.ivars().mode.get() == PanelMode::ThemePicker {
+            self.refresh_theme_picker();
+            return;
+        }
         let query = self.query();
         let running = running_apps();
 
@@ -757,6 +926,7 @@ impl Delegate {
                             windows: 0,
                             stats: None,
                             command: None,
+                            builtin: None,
                         },
                     ));
                 }
@@ -776,6 +946,29 @@ impl Delegate {
                             windows: 0,
                             stats: None,
                             command: Some(cmd.clone()),
+                            builtin: None,
+                        },
+                    ));
+                }
+            }
+            // Built-in settings rows, matched like everything else. The
+            // theme-picker entry point names the active theme so the current
+            // state is visible before you enter the picker.
+            {
+                let setting_name =
+                    format!("Setting: Change Theme ({})", self.current_theme_display());
+                if let Some((s, positions)) = apps::match_positions(&query, &setting_name) {
+                    scored.push((
+                        s,
+                        Entry {
+                            name: setting_name,
+                            path: None,
+                            running: None,
+                            matched: positions,
+                            windows: 0,
+                            stats: None,
+                            command: None,
+                            builtin: Some(Builtin::ThemePicker),
                         },
                     ));
                 }
@@ -878,6 +1071,114 @@ impl Delegate {
         self.relayout();
     }
 
+    /// Display name of the active theme ("Black Glass" = un-overlaid base).
+    fn current_theme_display(&self) -> String {
+        self.ivars()
+            .session_theme
+            .borrow()
+            .as_deref()
+            .map(config::theme_display_name)
+            .unwrap_or_else(|| "Black Glass".to_string())
+    }
+
+    /// Populate the panel with one row per theme (base first, then
+    /// `themes/*.toml` in name order), filtered by the query.
+    fn refresh_theme_picker(&self) {
+        let ivars = self.ivars();
+        let query = self.query();
+        let mut entries: Vec<Entry> = Vec::new();
+        let mut names: Vec<Option<String>> = vec![None];
+        names.extend(
+            ivars.config.borrow().themes.iter().map(|t| Some(t.name.clone())),
+        );
+        for name in names {
+            let display = name
+                .as_deref()
+                .map(config::theme_display_name)
+                .unwrap_or_else(|| "Black Glass".to_string());
+            let matched = if query.is_empty() {
+                Vec::new()
+            } else {
+                match apps::match_positions(&query, &display) {
+                    Some((_, positions)) => positions,
+                    None => continue,
+                }
+            };
+            entries.push(Entry {
+                name: display,
+                path: None,
+                running: None,
+                matched,
+                windows: 0,
+                stats: None,
+                command: None,
+                builtin: Some(Builtin::ApplyTheme(name)),
+            });
+        }
+        // Unlike search results, the picker shows the whole set — MAX_ROWS
+        // would hide themes behind an invisible cutoff. The panel just grows;
+        // typing filters if the list ever gets long.
+        entries.truncate(16);
+        if ivars.selected.get() >= entries.len() {
+            ivars.selected.set(entries.len().saturating_sub(1));
+        }
+        *ivars.entries.borrow_mut() = entries;
+        // Typing moves the selection, and the selection IS the preview.
+        self.preview_selected_theme();
+        self.relayout();
+    }
+
+    /// Switch the panel into theme-picker mode, with the active theme
+    /// selected. The current style is saved for revert-on-dismiss.
+    fn enter_theme_picker(&self) {
+        let ivars = self.ivars();
+        *ivars.saved_style.borrow_mut() = Some(ivars.config.borrow().style.clone());
+        ivars.mode.set(PanelMode::ThemePicker);
+        if let Some(field) = ivars.field.get() {
+            unsafe { field.setStringValue(&NSString::from_str("")) };
+        }
+        // Base row is index 0; theme rows follow in sorted order.
+        let index = match ivars.session_theme.borrow().as_ref() {
+            Some(name) => ivars
+                .config
+                .borrow()
+                .themes
+                .iter()
+                .position(|t| &t.name == name)
+                .map(|i| i + 1)
+                .unwrap_or(0),
+            None => 0,
+        };
+        ivars.selected.set(index);
+        self.refresh();
+    }
+
+    /// Live preview: restyle the visible panel with the selected row's theme.
+    fn preview_selected_theme(&self) {
+        let ivars = self.ivars();
+        if ivars.mode.get() != PanelMode::ThemePicker {
+            return;
+        }
+        let name = {
+            let entries = ivars.entries.borrow();
+            match entries.get(ivars.selected.get()).map(|e| &e.builtin) {
+                Some(Some(Builtin::ApplyTheme(name))) => name.clone(),
+                _ => return,
+            }
+        };
+        let overlay = {
+            let cfg = ivars.config.borrow();
+            name.as_ref()
+                .and_then(|n| cfg.themes.iter().find(|t| &t.name == n).cloned())
+        };
+        let mut style = ivars.base_style.borrow().clone();
+        if let Some(theme) = &overlay {
+            config::apply_theme(&mut style, theme);
+        }
+        ivars.config.borrow_mut().style = style;
+        self.apply_live_style();
+    }
+
     fn move_selection(&self, delta: isize) {
         let ivars = self.ivars();
         let len = ivars.entries.borrow().len();
@@ -887,6 +1188,7 @@ impl Delegate {
         let current = ivars.selected.get() as isize;
         let next = (current + delta).rem_euclid(len as isize) as usize;
         ivars.selected.set(next);
+        self.preview_selected_theme();
         self.relayout();
     }
 
@@ -967,6 +1269,7 @@ impl Delegate {
         let len = self.ivars().entries.borrow().len();
         if index < len && self.ivars().selected.get() != index {
             self.ivars().selected.set(index);
+            self.preview_selected_theme();
             self.relayout();
         }
     }
@@ -1007,6 +1310,19 @@ impl Delegate {
                     &layer,
                     &rgba(style.selected_item_background, style.selected_item_opacity),
                 );
+                // Inset stroke: the border draws inside the row rect, so rows
+                // never shift as the selection moves.
+                if style.selected_item_border_width > 0.0 {
+                    let border = rgba(style.selected_item_border, 1.0);
+                    unsafe {
+                        let cg: *mut c_void = msg_send![&*border, CGColor];
+                        let _: () = msg_send![&*layer, setBorderColor: cg];
+                        let _: () = msg_send![
+                            &*layer,
+                            setBorderWidth: style.selected_item_border_width
+                        ];
+                    }
+                }
             }
         }
 
@@ -1039,7 +1355,10 @@ impl Delegate {
         } else {
             0.30
         };
-        let glyph = make_label(mtm, glyph_text, &glyph_font, &rgba(fg, glyph_alpha));
+        // `icon_foreground` recolors the glyph column; the state-brightness
+        // alphas carry over unchanged.
+        let glyph_color = style.icon_foreground.unwrap_or(fg);
+        let glyph = make_label(mtm, glyph_text, &glyph_font, &rgba(glyph_color, glyph_alpha));
         let glyph_h = glyph.frame().size.height;
         glyph.setFrameOrigin(NSPoint::new(12.0, (ROW_H - glyph_h) / 2.0));
         row.addSubview(&glyph);
@@ -1071,6 +1390,8 @@ impl Delegate {
         name.setFrameOrigin(NSPoint::new(name_x, (ROW_H - name_h) / 2.0));
         row.addSubview(&name);
 
+        // Tag pills sit inline, right after the name.
+        let pill_x = name_x + name.frame().size.width + 10.0;
         if let Some(rs) = &entry.stats {
             // Running apps: a CPU warning at the right edge once the tree
             // burns ≥ CPU_ALERT_PCT of a core, otherwise a plain presence dot.
@@ -1082,21 +1403,37 @@ impl Delegate {
         } else if let Some(path) = &entry.path {
             // Installed rows: location tag pill with symbol.
             let (label_text, symbol) = location_for(path, icons);
-            self.build_tag_pill(mtm, &row, row_w, label_text, symbol, selected);
+            self.build_tag_pill(mtm, &row, pill_x, label_text, symbol, selected);
         } else if entry.command.is_some() {
-            self.build_tag_pill(mtm, &row, row_w, "Shortcut", &icons.shortcut, selected);
+            self.build_tag_pill(mtm, &row, pill_x, "Shortcut", &icons.shortcut, selected);
+        } else {
+            match &entry.builtin {
+                Some(Builtin::ThemePicker) => {
+                    self.build_tag_pill(mtm, &row, pill_x, "Setting", &icons.system, selected);
+                }
+                // The active theme's row carries the presence dot.
+                Some(Builtin::ApplyTheme(name))
+                    if *name == *self.ivars().session_theme.borrow() =>
+                {
+                    self.build_running_dot(mtm, &row, row_w - 12.0);
+                }
+                _ => {}
+            }
         }
 
         parent.addSubview(&row);
     }
 
-    /// Right-aligned outlined pill: SF Symbol icon + label. Location tag on
-    /// installed rows, "Shortcut" tag on command rows.
+    /// Inline pill right after the name: SF Symbol icon + small label.
+    /// Location tag on installed rows, "Shortcut" on command rows, "Setting"
+    /// on builtin rows. `item_info_background` fills it (no outline);
+    /// otherwise it keeps the stock hairline outline. `item_info_foreground`
+    /// recolors text + icon.
     unsafe fn build_tag_pill(
         &self,
         mtm: MainThreadMarker,
         row: &NSView,
-        row_w: f64,
+        pill_x: f64,
         label_text: &str,
         symbol: &str,
         selected: bool,
@@ -1109,15 +1446,19 @@ impl Delegate {
             style.item_foreground
         };
         let alpha = if selected { 0.80 } else { 0.55 };
+        let content_color = match style.item_info_foreground {
+            Some(c) => rgba(c, if selected { 1.0 } else { 0.9 }),
+            None => rgba(fg, alpha),
+        };
 
-        let font = unsafe { NSFont::systemFontOfSize(11.0) };
-        let label = make_label(mtm, label_text, &font, &rgba(fg, alpha));
+        let font = unsafe { NSFont::systemFontOfSize(10.0) };
+        let label = make_label(mtm, label_text, &font, &content_color);
         let label_size = label.frame().size;
 
-        let icon_d = 12.0;
-        let gap = 5.0;
-        let pad_h = 9.0;
-        let pill_h = 22.0;
+        let icon_d = 11.0;
+        let gap = 4.0;
+        let pad_h = 7.0;
+        let pill_h = 18.0;
         let image = unsafe {
             objc2_app_kit::NSImage::imageWithSystemSymbolName_accessibilityDescription(
                 &NSString::from_str(symbol),
@@ -1132,7 +1473,7 @@ impl Delegate {
             NSView::initWithFrame(
                 mtm.alloc(),
                 NSRect::new(
-                    NSPoint::new(row_w - 12.0 - pill_w, (ROW_H - pill_h) / 2.0),
+                    NSPoint::new(pill_x, (ROW_H - pill_h) / 2.0),
                     NSSize::new(pill_w, pill_h),
                 ),
             )
@@ -1140,11 +1481,16 @@ impl Delegate {
         pill.setWantsLayer(true);
         if let Some(layer) = pill.layer() {
             layer.setCornerRadius(pill_h / 2.0);
-            let border = rgba(fg, if selected { 0.35 } else { 0.20 });
-            unsafe {
-                let cg: *mut c_void = msg_send![&*border, CGColor];
-                let _: () = msg_send![&*layer, setBorderColor: cg];
-                let _: () = msg_send![&*layer, setBorderWidth: 1.0f64];
+            match style.item_info_background {
+                Some(c) => set_layer_bg(&layer, &rgba(c, 1.0)),
+                None => {
+                    let border = rgba(fg, if selected { 0.35 } else { 0.20 });
+                    unsafe {
+                        let cg: *mut c_void = msg_send![&*border, CGColor];
+                        let _: () = msg_send![&*layer, setBorderColor: cg];
+                        let _: () = msg_send![&*layer, setBorderWidth: 1.0f64];
+                    }
+                }
             }
         }
 
@@ -1164,7 +1510,7 @@ impl Delegate {
                 iv.setImageScaling(
                     objc2_app_kit::NSImageScaling::NSImageScaleProportionallyUpOrDown,
                 );
-                iv.setContentTintColor(Some(&rgba(fg, alpha)));
+                iv.setContentTintColor(Some(&content_color));
             }
             pill.addSubview(&iv);
             x += icon_d + gap;
@@ -1196,9 +1542,11 @@ impl Delegate {
         row.addSubview(&dot);
     }
 
-    /// CPU alert at the row's right edge (right edge at `right_x`): a red
-    /// warning symbol with "CPU 88%" to its left. Shown in place of the
-    /// presence dot once the tree crosses CPU_ALERT_PCT.
+    /// CPU alert badge at the row's right edge (right edge at `right_x`):
+    /// a filled pill holding a warning glyph, a bold "CPU", and a small load
+    /// meter. No number — only the meter's fill width changes between
+    /// samples, so nothing textual repaints every second. Shown in place of
+    /// the presence dot once the tree crosses CPU_ALERT_PCT.
     unsafe fn build_cpu_warning(
         &self,
         mtm: MainThreadMarker,
@@ -1207,25 +1555,64 @@ impl Delegate {
         pct: f64,
         selected: bool,
     ) {
-        let color = self.ivars().config.borrow().style.cpu_alert;
+        let cfg = self.ivars().config.borrow();
+        let style = &cfg.style;
+        let color = style.cpu_alert;
         let alpha = if selected { 1.0 } else { 0.9 };
+        let content_color = rgba(color, alpha);
 
-        // Warning glyph on the right.
-        let icon_d = 13.0;
-        let gap = 6.0;
+        let icon_d = 11.0;
+        let gap = 5.0;
+        let pad_h = 8.0;
+        let pill_h = 20.0;
+        let meter_w = 24.0;
+        let meter_h = 4.0;
+
+        // Bold per spec: the word is the warning, the meter is the reading.
+        let font: Retained<NSFont> = unsafe {
+            msg_send_id![
+                NSFont::class(),
+                systemFontOfSize: 10.0f64,
+                weight: 0.4f64 // NSFontWeightBold
+            ]
+        };
+        let label = make_label(mtm, "CPU", &font, &content_color);
+        let label_size = label.frame().size;
+
         let image = unsafe {
             objc2_app_kit::NSImage::imageWithSystemSymbolName_accessibilityDescription(
                 &NSString::from_str("exclamationmark.triangle.fill"),
                 None,
             )
         };
-        let mut text_right = right_x;
+        let icon_w = if image.is_some() { icon_d + gap } else { 0.0 };
+        let pill_w = pad_h + icon_w + label_size.width + gap + meter_w + pad_h;
+
+        let pill = unsafe {
+            NSView::initWithFrame(
+                mtm.alloc(),
+                NSRect::new(
+                    NSPoint::new(right_x - pill_w, (ROW_H - pill_h) / 2.0),
+                    NSSize::new(pill_w, pill_h),
+                ),
+            )
+        };
+        pill.setWantsLayer(true);
+        if let Some(layer) = pill.layer() {
+            layer.setCornerRadius(pill_h / 2.0);
+            match style.cpu_alert_background {
+                Some(c) => set_layer_bg(&layer, &rgba(c, 1.0)),
+                None => set_layer_bg(&layer, &rgba(color, 0.16)),
+            }
+        }
+
+        let mut x = pad_h;
         if let Some(image) = image {
             let iv = unsafe {
                 objc2_app_kit::NSImageView::initWithFrame(
                     mtm.alloc(),
                     NSRect::new(
-                        NSPoint::new(right_x - icon_d, (ROW_H - icon_d) / 2.0),
+                        NSPoint::new(x, (pill_h - icon_d) / 2.0),
                         NSSize::new(icon_d, icon_d),
                     ),
                 )
@@ -1235,35 +1622,74 @@ impl Delegate {
                 iv.setImageScaling(
                     objc2_app_kit::NSImageScaling::NSImageScaleProportionallyUpOrDown,
                 );
-                iv.setContentTintColor(Some(&rgba(color, 1.0)));
+                iv.setContentTintColor(Some(&content_color));
             }
-            row.addSubview(&iv);
-            text_right = right_x - icon_d - gap;
+            pill.addSubview(&iv);
+            x += icon_d + gap;
         }
+        label.setFrameOrigin(NSPoint::new(x, (pill_h - label_size.height) / 2.0));
+        pill.addSubview(&label);
+        x += label_size.width + gap;
 
-        // "CPU 88%" to the left of the glyph; monospaced digits so the number
-        // doesn't jitter as it updates.
-        let font: Retained<NSFont> = unsafe {
-            msg_send_id![
-                NSFont::class(),
-                monospacedDigitSystemFontOfSize: 11.0f64,
-                weight: 0.3f64 // NSFontWeightSemibold
-            ]
+        // Load meter: faint track, solid fill. 100% of the track = one full
+        // core (Activity Monitor scale), clamped — the badge already only
+        // exists past CPU_ALERT_PCT, so the meter reads 70%..full.
+        let meter_y = (pill_h - meter_h) / 2.0;
+        let track = unsafe {
+            NSView::initWithFrame(
+                mtm.alloc(),
+                NSRect::new(NSPoint::new(x, meter_y), NSSize::new(meter_w, meter_h)),
+            )
         };
-        let text = format!("CPU {}%", pct.round() as i64);
-        let label = make_label(mtm, &text, &font, &rgba(color, alpha));
-        let size = label.frame().size;
-        label.setFrameOrigin(NSPoint::new(
-            text_right - size.width,
-            (ROW_H - size.height) / 2.0,
-        ));
-        row.addSubview(&label);
+        track.setWantsLayer(true);
+        if let Some(layer) = track.layer() {
+            layer.setCornerRadius(meter_h / 2.0);
+            set_layer_bg(&layer, &rgba(color, 0.25));
+        }
+        pill.addSubview(&track);
+        let fill_w = meter_w * (pct / 100.0).clamp(0.0, 1.0);
+        let fill = unsafe {
+            NSView::initWithFrame(
+                mtm.alloc(),
+                NSRect::new(NSPoint::new(x, meter_y), NSSize::new(fill_w, meter_h)),
+            )
+        };
+        fill.setWantsLayer(true);
+        if let Some(layer) = fill.layer() {
+            layer.setCornerRadius(meter_h / 2.0);
+            set_layer_bg(&layer, &rgba(color, alpha));
+        }
+        pill.addSubview(&fill);
+
+        row.addSubview(&pill);
     }
 
     /// Activate the selected running app, or launch it. `force_open` skips
     /// the activate path and sends a real open (reopen event) even when the
     /// app is already running.
     fn execute(&self, force_open: bool) {
+        let builtin = {
+            let entries = self.ivars().entries.borrow();
+            entries
+                .get(self.ivars().selected.get())
+                .and_then(|e| e.builtin.clone())
+        };
+        if let Some(builtin) = builtin {
+            match builtin {
+                Builtin::ThemePicker => self.enter_theme_picker(),
+                Builtin::ApplyTheme(name) => {
+                    // Commit: the previewed style stays, in memory only — the
+                    // config file is never written, so this lasts until the
+                    // process restarts.
+                    let ivars = self.ivars();
+                    *ivars.session_theme.borrow_mut() = name;
+                    *ivars.saved_style.borrow_mut() = None;
+                    ivars.mode.set(PanelMode::Launcher);
+                    self.hide();
+                }
+            }
+            return;
+        }
         let entry_data = {
             let entries = self.ivars().entries.borrow();
             let Some(entry) = entries.get(self.ivars().selected.get()) else {
@@ -1376,6 +1802,7 @@ unsafe fn running_apps_impl() -> Vec<Entry> {
             windows: 0,
             stats: None,
             command: None,
+            builtin: None,
         });
     }
     out

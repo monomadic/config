@@ -1,0 +1,14 @@
+# motherfucker theme: dark plum wash so the candy colors pop without neon-on-neon.
+[style]
+panel_background = "#150C2A"
+panel_opacity = 0.76
+item_foreground_highlight = "#FAE045"
+selected_item_foreground_highlight = "#FAE045"
+icon_foreground = "#10E5C0"
+selected_item_background = "#8A5CE8"
+selected_item_opacity = 0.38
+item_info_foreground = "#8FDFFA"
+item_info_background = "#0E5A80"
+running_dot = "#10E5C0"
+cpu_alert = "#FFC1DC"
+cpu_alert_background = "#5A1C3E"

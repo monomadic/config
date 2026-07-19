@@ -1,0 +1,19 @@
+# motherfucker theme: light glass — lavender/pink/blue pastels, white frame.
+[style]
+panel_background = "#FAF4FC"
+panel_opacity = 0.85
+panel_foreground = "#46385C"
+item_foreground = "#46385C"
+selected_item_foreground = "#3A2C50"
+item_foreground_highlight = "#D6438F"
+selected_item_foreground_highlight = "#D6438F"
+icon_foreground = "#8E6FBF"
+border = "#FFFFFF"  # white-glass tint, not an accent
+border_width = 1
+selected_item_background = "#90BAF4"
+selected_item_opacity = 0.32
+item_info_foreground = "#46385C"
+item_info_background = "#BBD4F5"
+running_dot = "#8AB2F2"
+cpu_alert = "#B22B72"
+cpu_alert_background = "#F9C3DC"

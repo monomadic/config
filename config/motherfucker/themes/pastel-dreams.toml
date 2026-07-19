@@ -1,0 +1,17 @@
+# motherfucker theme: light glass — warm white, pink highlight, mint pills.
+[style]
+panel_background = "#FDFAF4"
+panel_opacity = 0.85
+panel_foreground = "#584654"
+item_foreground = "#584654"
+selected_item_foreground = "#463648"
+item_foreground_highlight = "#EF5DA0"
+selected_item_foreground_highlight = "#EF5DA0"
+icon_foreground = "#6FB9E8"
+selected_item_background = "#A5DCF9"
+selected_item_opacity = 0.42
+item_info_foreground = "#3F6B52"
+item_info_background = "#CFF0DC"
+running_dot = "#63C79A"
+cpu_alert = "#B23A62"
+cpu_alert_background = "#F9D2E2"
