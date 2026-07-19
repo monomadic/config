@@ -163,7 +163,8 @@ struct State {
     rows_area: OnceCell<Retained<NSView>>,
     /// Chrome handles for live restyling: the view whose layer carries the
     /// panel's corner radius + border (glass wrapper or vibrancy effect),
-    /// plus the glass view (tint via setTintColor:) or the vibrancy tint.
+    /// the glass view (radius follows the wrapper), and the wash layer that
+    /// carries panel_background/panel_opacity on both material paths.
     chrome_view: OnceCell<Retained<NSView>>,
     glass_view: OnceCell<Retained<NSView>>,
     tint_view: OnceCell<Retained<NSView>>,
@@ -468,8 +469,8 @@ impl Delegate {
         });
 
         let chrome_ref: Retained<NSView>;
+        let tint_ref: Retained<NSView>;
         let mut glass_ref: Option<Retained<NSView>> = None;
-        let mut tint_ref: Option<Retained<NSView>> = None;
         if let Some(glass) = &glass {
             // Rim removal: the glass sits inside a clipping wrapper and
             // extends RIM_CLIP px beyond it on every side, so the material's
@@ -495,14 +496,29 @@ impl Delegate {
             unsafe {
                 let radius = cfg.style.panel_corner_radius + RIM_CLIP;
                 let _: () = msg_send![&**glass, setCornerRadius: radius];
-                let tint_color = rgba(cfg.style.panel_background, cfg.style.panel_opacity);
-                let _: () = msg_send![&**glass, setTintColor: &*tint_color];
             }
             wrapper.addSubview(glass);
+            // Wash: our own layer over the glass, NOT the material's
+            // tintColor — NSGlassEffectView applies its tint at a strength
+            // it chooses and the color's alpha is not honored, which turned
+            // panel_opacity into a no-op (themes rendered solid). A plain
+            // layer composites literally: panel_background at panel_opacity,
+            // blur showing through. Clipped by the wrapper's rounded mask.
+            let wash = unsafe { NSView::initWithFrame(mtm.alloc(), bounds) };
+            wash.setAutoresizingMask(resize_mask);
+            wash.setWantsLayer(true);
+            if let Some(layer) = wash.layer() {
+                set_layer_bg(
+                    &layer,
+                    &rgba(cfg.style.panel_background, cfg.style.panel_opacity),
+                );
+            }
+            wrapper.addSubview(&wash);
             content.addSubview(&wrapper);
             content.addSubview(&container);
             chrome_ref = wrapper;
             glass_ref = Some(glass.clone());
+            tint_ref = wash;
         } else {
             let effect = unsafe { NSVisualEffectView::initWithFrame(mtm.alloc(), bounds) };
             unsafe {
@@ -533,7 +549,7 @@ impl Delegate {
             effect.addSubview(&tint);
             content.addSubview(&container);
             chrome_ref = unsafe { Retained::cast(effect) };
-            tint_ref = Some(tint);
+            tint_ref = tint;
         }
 
         // Input: glyph + borderless field.
@@ -573,11 +589,9 @@ impl Delegate {
         ivars.glyph.set(glyph).ok();
         ivars.rows_area.set(rows_area).ok();
         ivars.chrome_view.set(chrome_ref).ok();
+        ivars.tint_view.set(tint_ref).ok();
         if let Some(v) = glass_ref {
             ivars.glass_view.set(v).ok();
-        }
-        if let Some(v) = tint_ref {
-            ivars.tint_view.set(v).ok();
         }
         drop(cfg);
         // Applies the panel border (and any startup theme's chrome) that the
@@ -772,10 +786,10 @@ impl Delegate {
             unsafe {
                 let radius = style.panel_corner_radius + RIM_CLIP;
                 let _: () = msg_send![&**glass, setCornerRadius: radius];
-                let tint_color = rgba(style.panel_background, style.panel_opacity);
-                let _: () = msg_send![&**glass, setTintColor: &*tint_color];
             }
         }
+        // The wash layer carries panel_background/panel_opacity on both the
+        // glass and vibrancy paths (glass tintColor ignores alpha).
         if let Some(tint) = ivars.tint_view.get() {
             if let Some(layer) = unsafe { tint.layer() } {
                 set_layer_bg(
