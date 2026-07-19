@@ -64,10 +64,6 @@ const CPU_ALERT_PCT: f64 = 70.0;
 // config::Icons — SF Symbols as text, zero I/O).
 const GLYPH_COL_W: f64 = 24.0;
 const GLYPH_PT: f64 = 16.0;
-// Glass rim clip: the material extends this far past its clipping wrapper so
-// the built-in edge highlight is cut off (see setup_impl).
-const RIM_CLIP: f64 = 2.0;
-
 /// Rows the panel synthesizes itself (no app bundle behind them).
 #[derive(Clone, PartialEq)]
 enum Builtin {
@@ -161,12 +157,10 @@ struct State {
     field: OnceCell<Retained<NSTextField>>,
     glyph: OnceCell<Retained<NSTextField>>,
     rows_area: OnceCell<Retained<NSView>>,
-    /// Chrome handles for live restyling: the view whose layer carries the
-    /// panel's corner radius + border (glass wrapper or vibrancy effect),
-    /// the glass view (radius follows the wrapper), and the wash layer that
-    /// carries panel_background/panel_opacity on both material paths.
+    /// Chrome handles for live restyling: the vibrancy effect view whose
+    /// layer carries the panel's corner radius + border, and the tint layer
+    /// that carries panel_background at panel_opacity.
     chrome_view: OnceCell<Retained<NSView>>,
-    glass_view: OnceCell<Retained<NSView>>,
     tint_view: OnceCell<Retained<NSView>>,
     entries: RefCell<Vec<Entry>>,
     selected: Cell<usize>,
@@ -459,60 +453,15 @@ impl Delegate {
         let container = unsafe { NSView::initWithFrame(mtm.alloc(), bounds) };
         container.setAutoresizingMask(resize_mask);
 
-        // Material: Liquid Glass (macOS 26+) tinted black, or dark vibrancy
-        // as fallback. NSGlassEffectView isn't in the bindings yet, so it is
-        // instantiated by name and every selector is guarded — worst case we
-        // degrade to the vibrancy path, never crash.
-        let glass = objc2::runtime::AnyClass::get("NSGlassEffectView").and_then(|cls| {
-            let ok: bool = msg_send![cls, instancesRespondToSelector: sel!(setContentView:)];
-            if !ok {
-                return None;
-            }
-            let view: Retained<NSView> = unsafe { msg_send_id![cls, new] };
-            Some(view)
-        });
-
+        // Material: dark vibrancy sampling BEHIND the window — the only
+        // AppKit machinery that blurs the desktop through a panel.
+        // NSGlassEffectView (Liquid Glass, macOS 26+) was tried and removed:
+        // it glasses content INSIDE the window (setContentView:) and never
+        // samples behind it, so the panel rendered opaque at any tint or
+        // wash opacity and panel_opacity was a visual no-op.
         let chrome_ref: Retained<NSView>;
-        let mut tint_ref: Option<Retained<NSView>> = None;
-        let mut glass_ref: Option<Retained<NSView>> = None;
-        if let Some(glass) = &glass {
-            // Rim removal: the glass sits inside a clipping wrapper and
-            // extends RIM_CLIP px beyond it on every side, so the material's
-            // built-in edge highlight falls outside the visible shape and is
-            // cut off entirely.
-            let wrapper = unsafe { NSView::initWithFrame(mtm.alloc(), bounds) };
-            wrapper.setAutoresizingMask(resize_mask);
-            wrapper.setWantsLayer(true);
-            if let Some(layer) = wrapper.layer() {
-                layer.setCornerRadius(cfg.style.panel_corner_radius);
-                layer.setMasksToBounds(true);
-                let curve = NSString::from_str("continuous");
-                let _: () = msg_send![&*layer, setCornerCurve: &*curve];
-            }
-            glass.setFrame(NSRect::new(
-                NSPoint::new(-RIM_CLIP, -RIM_CLIP),
-                NSSize::new(
-                    bounds.size.width + 2.0 * RIM_CLIP,
-                    bounds.size.height + 2.0 * RIM_CLIP,
-                ),
-            ));
-            glass.setAutoresizingMask(resize_mask);
-            unsafe {
-                let radius = cfg.style.panel_corner_radius + RIM_CLIP;
-                let _: () = msg_send![&**glass, setCornerRadius: radius];
-                // The tint IS the wash: NSGlassEffectView renders an opaque
-                // frost when untinted and shows the desktop through only once
-                // tinted. panel_background at panel_opacity — the color's
-                // alpha is honored, so panel_opacity drives translucency.
-                let tint_color = rgba(cfg.style.panel_background, cfg.style.panel_opacity);
-                let _: () = msg_send![&**glass, setTintColor: &*tint_color];
-            }
-            wrapper.addSubview(glass);
-            content.addSubview(&wrapper);
-            content.addSubview(&container);
-            chrome_ref = wrapper;
-            glass_ref = Some(glass.clone());
-        } else {
+        let tint_ref: Retained<NSView>;
+        {
             let effect = unsafe { NSVisualEffectView::initWithFrame(mtm.alloc(), bounds) };
             unsafe {
                 effect.setMaterial(NSVisualEffectMaterial::HUDWindow);
@@ -542,7 +491,7 @@ impl Delegate {
             effect.addSubview(&tint);
             content.addSubview(&container);
             chrome_ref = unsafe { Retained::cast(effect) };
-            tint_ref = Some(tint);
+            tint_ref = tint;
         }
 
         // Input: glyph + borderless field.
@@ -582,12 +531,7 @@ impl Delegate {
         ivars.glyph.set(glyph).ok();
         ivars.rows_area.set(rows_area).ok();
         ivars.chrome_view.set(chrome_ref).ok();
-        if let Some(v) = tint_ref {
-            ivars.tint_view.set(v).ok();
-        }
-        if let Some(v) = glass_ref {
-            ivars.glass_view.set(v).ok();
-        }
+        ivars.tint_view.set(tint_ref).ok();
         drop(cfg);
         // Applies the panel border (and any startup theme's chrome) that the
         // construction above doesn't know about.
@@ -777,16 +721,8 @@ impl Delegate {
                 }
             }
         }
-        if let Some(glass) = ivars.glass_view.get() {
-            unsafe {
-                let radius = style.panel_corner_radius + RIM_CLIP;
-                let _: () = msg_send![&**glass, setCornerRadius: radius];
-                let tint_color = rgba(style.panel_background, style.panel_opacity);
-                let _: () = msg_send![&**glass, setTintColor: &*tint_color];
-            }
-        }
-        // Vibrancy fallback: a plain tint layer carries panel_background at
-        // panel_opacity (the glass path uses the material tint above).
+        // The tint layer carries panel_background at panel_opacity over the
+        // behind-window blur.
         if let Some(tint) = ivars.tint_view.get() {
             if let Some(layer) = unsafe { tint.layer() } {
                 set_layer_bg(
