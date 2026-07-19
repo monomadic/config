@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mapper device="DDJGRV6" version="850" date="2026-06-07">
+<mapper device="DDJGRV6" version="850" date="2026-07-20">
 	<info>http://www.virtualdj.com/manuals/hardware/pioneer/ddjGRV6/index.html</info>
 	<map value="ONINIT" action="fake_master on &amp; fake_hp on &amp; fake_hpmix on &amp; setting_setsession &apos;eqModeDual&apos; &apos;None&apos; &amp; setting_setsession &apos;exclusiveAudioAccess&apos; &apos;Yes&apos; &amp; deck 2 effect_clone 1 &amp; deck 3 effect_clone 1 &amp; deck 4 effect_clone 1 &amp; deck all effect_select_toggle &apos;stems&apos; &apos;Echo Out&apos; &amp; effect_beats &apos;stems&apos; 1bt &amp; deck all effect_active colorfx off &amp; deck all filter_activate off &amp; deck all filter 50%" />
 	<map value="ONEXIT" action="fake_master off &amp; fake_hp off &amp; fake_hpmix off" />
@@ -57,7 +57,7 @@
 	<map value="SHIFT_VIEW" action="show_splitpanel &apos;info&apos;" />
 	<map value="PREVIEW" action="prelisten" />
 	<map value="SHIFT_PREVIEW" action="prelisten" />
-	<map value="DISCOVER" action="show_splitpanel &apos;sideview&apos;" />
+	<map value="DISCOVER" action="browser_gotofolder &apos;All Files&apos;" />
 	<map value="SHIFT_DISCOVER" action="browser_window &apos;sideview&apos; &amp; sideview &apos;Remixes&apos;" />
 	<map value="LOAD" action="doubleclick ? (load &amp; goto_cue 1 &amp; only_stem &apos;Rhythm&apos; on &amp; match_key &amp; phrase_sync 16 &amp; play_sync &amp; effect_active colorfx off) : load" />
 	<map value="LED_LOADED" action="load_pulse" />

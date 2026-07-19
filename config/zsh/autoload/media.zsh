@@ -17,6 +17,10 @@ mpv-compare() {
   mpv --profile=ab --external-file="$1" "$2"
 }
 
+alias fd-media-5-star="fd-media --match-string ★★★★★"
+alias fd-media-4-star="fd-media --match-string ★★★★☆"
+alias fd-media-60fps="fd-media --match-string 60fps"
+
 typeset -ga DJ_VISUALS_PATHS
 DJ_VISUALS_PATHS=("$ICLOUD_HOME/Movies/Visuals")
 

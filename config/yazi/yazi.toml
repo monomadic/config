@@ -82,6 +82,10 @@ prepend_rules = [
   { mime = "video/*", use = ["play", "open", "reveal", "video_tools"] },
   { url = "*/", use = ["edit", "reveal", "play_dir", "open"] },
   { url = "*.flac", use = ["flac", "open"] },
+  # mime-ext resolves by extension, so these text-like types miss Yazi's
+  # default `text/*` edit rule (same gap as the code previewer below).
+  { mime = "application/{xml,xml-dtd,sql,octet-stream}", use = ["edit", "open", "reveal"] },
+  { mime = "application/*+xml", use = ["edit", "open", "reveal"] },
 ]
 
 [plugin]
