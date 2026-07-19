@@ -50,9 +50,9 @@ const INPUT_H: f64 = 58.0;
 const ROW_H: f64 = 40.0;
 const ROWS_PAD: f64 = 12.0;
 const MAX_ROWS: usize = 6;
-// Soft ranking bonus for already-running apps. Comparable to a "matches start"
-// hit, so a running app wins when matches are close, but a clearly stronger
-// match on a cold app (a clean prefix vs a gap-penalized scatter) still wins.
+// Soft ranking bonus for already-running apps. Worth just over one column of
+// first-hit position (8 per column in apps::match_positions), so a running app
+// wins near-ties but a clearly earlier match on a cold app still outranks it.
 const RUNNING_BONUS: i32 = 12;
 // CPU sampling: minimum interval for a trustworthy percentage.
 const CPU_MIN_INTERVAL: f64 = 0.25;

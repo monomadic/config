@@ -51,10 +51,14 @@ fn lower(c: char) -> char {
     c.to_lowercase().next().unwrap_or(c)
 }
 
-/// Subsequence fuzzy match; returns (score, matched char indices) or None.
-/// Higher score is better: bonuses for prefix matches, word starts, and
-/// consecutive runs; mild penalty for gaps. Case-insensitive. The indices
-/// are char positions in `candidate`, used to highlight matches in the UI.
+/// Strict subsequence match; returns (score, matched char indices) or None.
+///
+/// Query chars must match in order, and each hit must land on a "word start"
+/// (start of name, after a non-letter, or an uppercase letter) unless it
+/// directly continues the previous hit (a linear run). Mid-word lowercase
+/// letters are otherwise unmatchable, so "sig" no longer scatters into
+/// "System Settings". Earlier first hits rank higher. Case-insensitive.
+/// The indices are char positions in `candidate`, for UI highlighting.
 pub fn match_positions(query: &str, candidate: &str) -> Option<(i32, Vec<usize>)> {
     if query.is_empty() {
         return Some((0, Vec::new()));
@@ -64,48 +68,64 @@ pub fn match_positions(query: &str, candidate: &str) -> Option<(i32, Vec<usize>)
     if q.len() > c_orig.len() {
         return None;
     }
+    let c_low: Vec<char> = c_orig.iter().map(|&ch| lower(ch)).collect();
 
-    let mut total: i32 = 0;
-    let mut positions = Vec::with_capacity(q.len());
-    let mut ci = 0usize;
-    let mut prev_hit: Option<usize> = None;
+    // A mid-word char is a lowercase letter preceded by another letter; it can
+    // only be hit as a continuation. Everything else can start a new run.
+    let word_start: Vec<bool> = c_orig
+        .iter()
+        .enumerate()
+        .map(|(i, &ch)| {
+            i == 0 || !(ch.is_alphabetic() && ch.is_lowercase() && c_orig[i - 1].is_alphabetic())
+        })
+        .collect();
 
-    for &qc in &q {
-        let mut found = None;
-        while ci < c_orig.len() {
-            if lower(c_orig[ci]) == qc {
-                found = Some(ci);
-                break;
-            }
-            ci += 1;
+    // Greedy leftmost placement can dead-end where a later start succeeds
+    // ("di" must skip DaisyDisk's D-a and match D-i of "Disk"), so backtrack.
+    // Trying candidate positions left to right yields the earliest valid
+    // placement, which is also the highest-ranked one.
+    fn dfs(
+        qi: usize,
+        from: usize,
+        q: &[char],
+        c_low: &[char],
+        word_start: &[bool],
+        positions: &mut Vec<usize>,
+    ) -> bool {
+        if qi == q.len() {
+            return true;
         }
-        let hit = found?;
-
-        let mut s = 1;
-        if hit == 0 {
-            s += 12; // matches the very start
-        } else {
-            let prev = c_orig[hit - 1];
-            if prev == ' ' || prev == '-' || prev == '_' || prev == '.' {
-                s += 8; // word boundary
-            } else if c_orig[hit].is_uppercase() {
-                s += 6; // camelCase boundary
+        for p in from..c_low.len() {
+            if c_low[p] != q[qi] {
+                continue;
             }
-        }
-        if let Some(p) = prev_hit {
-            if hit == p + 1 {
-                s += 6; // consecutive run
-            } else {
-                s -= ((hit - p - 1).min(8)) as i32; // gap penalty
+            let continues = p > 0 && positions.last() == Some(&(p - 1));
+            if !word_start[p] && !continues {
+                continue;
             }
+            positions.push(p);
+            if dfs(qi + 1, p + 1, q, c_low, word_start, positions) {
+                return true;
+            }
+            positions.pop();
         }
-        total += s;
-        positions.push(hit);
-        prev_hit = Some(hit);
-        ci = hit + 1;
+        false
     }
 
-    // Prefer shorter names when scores tie.
+    let mut positions = Vec::with_capacity(q.len());
+    if !dfs(0, 0, &q, &c_low, &word_start, &mut positions) {
+        return None;
+    }
+
+    // Earlier first hit ranks higher; one column costs 8, so the soft
+    // RUNNING_BONUS (12) in main.rs can only leapfrog a one-column difference.
+    let mut total: i32 = 64 - positions[0] as i32 * 8;
+    // Tie-breakers at the same column: longer linear runs, then shorter names.
+    for w in positions.windows(2) {
+        if w[1] == w[0] + 1 {
+            total += 1;
+        }
+    }
     total += 8i32.saturating_sub(c_orig.len() as i32 / 4);
     Some((total, positions))
 }
@@ -139,13 +159,52 @@ mod tests {
         assert!(score("al", "Ableton Live 12 Suite").is_some());
     }
 
-    // "sig" is a clean prefix of Signal but only a gap-penalized scatter in
-    // "System Settings". The gap must exceed main::RUNNING_BONUS (12) so a
-    // running System Settings can't leapfrog a cold Signal on that soft bonus.
+    // Mid-word lowercase letters are unmatchable unless they continue a run,
+    // so "sig" can no longer scatter into "System Settings" at all.
     #[test]
-    fn strong_prefix_beats_running_scatter() {
-        let signal = score("sig", "Signal").unwrap();
-        let settings = score("sig", "System Settings").unwrap();
-        assert!(signal - settings > 12, "signal={signal} settings={settings}");
+    fn mid_word_scatter_rejected() {
+        assert!(score("sig", "Signal").is_some());
+        assert!(score("sig", "System Settings").is_none());
+    }
+
+    // Screenshot 1: "daid" hits Da(isy)D(isk) via the camelCase D, but the
+    // scattered mid-word hits in the other results are now rejected.
+    #[test]
+    fn daid_matches_only_daisydisk() {
+        assert!(score("daid", "DaisyDisk").is_some());
+        assert!(score("daid", "Video Eraser & Retouch: VidFix").is_none());
+        assert!(score("daid", "Soundcraft USB Firmware Update Utility").is_none());
+    }
+
+    // Screenshot 2: "sysr" hits Sys(tem:) r(estart); the r's in the other
+    // results are all mid-word.
+    #[test]
+    fn sysr_matches_only_restart() {
+        assert!(score("sysr", "System: restart").is_some());
+        assert!(score("sysr", "System Information").is_none());
+        assert!(score("sysr", "System Settings: keyboard").is_none());
+        assert!(score("sysr", "System Settings: privacy").is_none());
+    }
+
+    // A camelCase capital or a symbol both start a new word, but a mid-word
+    // lowercase 'd' does not: DaisyDisk and daisy-disk match, Daisydisk can't.
+    #[test]
+    fn word_starts_capitals_and_symbols() {
+        assert!(score("daid", "daisy-disk").is_some());
+        assert!(score("daid", "Daisydisk").is_none());
+    }
+
+    // Greedy leftmost placement dead-ends here: "di" must skip DaisyDisk's
+    // leading D (whose next char is 'a') and match the D-i of "Disk".
+    #[test]
+    fn backtracks_past_dead_end_start() {
+        let (_, positions) = match_positions("di", "DaisyDisk").unwrap();
+        assert_eq!(positions, vec![5, 6]);
+    }
+
+    // Rule 3: earlier first hit outranks a later one.
+    #[test]
+    fn earlier_match_ranks_higher() {
+        assert!(score("set", "Settings Helper").unwrap() > score("set", "System Settings").unwrap());
     }
 }
