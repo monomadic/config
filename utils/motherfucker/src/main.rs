@@ -12,9 +12,10 @@
 mod apps;
 mod config;
 mod hotkey;
+mod modes;
 mod stats;
 
-use config::{Action, Config, Mode};
+use config::{Action, Config, Mode, SigilKind};
 
 use std::cell::{Cell, OnceCell, RefCell};
 use std::ffi::c_void;
@@ -76,6 +77,8 @@ enum Builtin {
     /// A row in the picker; `None` is the built-in base ("Black Glass" =
     /// the un-overlaid `[style]`).
     ApplyTheme(Option<String>),
+    /// A sigil-mode result (math/web); Enter copies or opens per action.
+    ModeRow(modes::ModeAction),
 }
 
 /// What the panel is listing right now.
@@ -101,6 +104,10 @@ struct Entry {
     command: Option<String>,
     /// Panel-internal rows (theme picker and its entry point).
     builtin: Option<Builtin>,
+    /// Dim right-aligned text (math mode: alternate results).
+    detail: Option<String>,
+    /// Inline pill after the name (web mode: the shortcut prefix).
+    tag: Option<String>,
 }
 
 struct RowStats {
@@ -155,11 +162,19 @@ struct State {
     /// a picked theme lasts until restart (or refresh-config removes it).
     session_theme: RefCell<Option<String>>,
     mode: Cell<PanelMode>,
+    /// Active sigil mode (`=`, `!`, …), or `None` for the app launcher. The
+    /// sigil is lifted out of the text field into the input badge, so the
+    /// field only ever holds the query terms.
+    sigil: Cell<Option<char>>,
     /// Style to restore when the picker is dismissed without committing.
     saved_style: RefCell<Option<config::Style>>,
     panel: OnceCell<Retained<Panel>>,
     field: OnceCell<Retained<NSTextField>>,
     glyph: OnceCell<Retained<NSTextField>>,
+    /// The colored box shown in place of `glyph` while a sigil is active,
+    /// and the label holding the sigil character inside it.
+    sigil_box: OnceCell<Retained<NSView>>,
+    sigil_label: OnceCell<Retained<NSTextField>>,
     rows_area: OnceCell<Retained<NSView>>,
     /// Chrome handles for live restyling: the view whose layer carries the
     /// panel's corner radius + border (glass wrapper or vibrancy effect),
@@ -179,7 +194,40 @@ struct State {
     /// the first keystroke after a summon and cleared on hide, so a freshly
     /// installed app still appears next summon without re-scanning per keystroke.
     installed_cache: RefCell<Option<Vec<apps::InstalledApp>>>,
+    /// Exchange rates read from the disk cache, loaded once per summon and
+    /// cleared on hide (so a completed background refresh is picked up next
+    /// summon). `Some` with an empty map means "loaded, but no cache yet".
+    rates_cache: RefCell<Option<Rates>>,
 }
+
+/// Exchange rates from the on-disk cache: code → units-per-USD, plus how
+/// old the cache file is.
+#[derive(Default)]
+struct Rates {
+    map: std::collections::HashMap<String, f64>,
+    age_secs: Option<u64>,
+}
+
+impl Rates {
+    /// Human freshness for the first conversion row ("just now", "2h ago").
+    fn age_display(&self) -> String {
+        match self.age_secs {
+            None => "live".to_string(),
+            Some(s) if s < 60 => "just now".to_string(),
+            Some(s) if s < 3600 => format!("{}m ago", s / 60),
+            Some(s) if s < 86_400 => format!("{}h ago", s / 3600),
+            Some(s) => format!("{}d ago", s / 86_400),
+        }
+    }
+}
+
+/// Coinbase's keyless endpoint: USD → every fiat and crypto rate in one
+/// document, so both `500,000 php` and `1.4btc` resolve from one fetch.
+const RATE_URL: &str = "https://api.coinbase.com/v2/exchange-rates?currency=USD";
+/// Refresh the cache in the background once it is older than this.
+const RATE_TTL_SECS: u64 = 3600;
+/// One background fetch at a time, across the whole process.
+static RATE_FETCHING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 declare_class!(
     struct Panel;
@@ -264,6 +312,7 @@ declare_class!(
     unsafe impl NSControlTextEditingDelegate for Delegate {
         #[method(controlTextDidChange:)]
         fn control_text_did_change(&self, _notification: &NSNotification) {
+            self.maybe_enter_sigil();
             self.ivars().selected.set(0);
             self.refresh();
         }
@@ -282,6 +331,17 @@ declare_class!(
             } else if command == sel!(cancelOperation:) {
                 self.hide();
                 true
+            } else if command == sel!(deleteBackward:) {
+                // Backspace on an empty field leaves the sigil mode instead
+                // of doing nothing — the box "deletes" back to the launcher.
+                if self.ivars().sigil.get().is_some() && self.query().is_empty() {
+                    self.ivars().sigil.set(None);
+                    self.ivars().selected.set(0);
+                    self.refresh();
+                    true
+                } else {
+                    false
+                }
             } else {
                 false
             }
@@ -555,6 +615,18 @@ impl Delegate {
         );
         container.addSubview(&glyph);
 
+        // Sigil badge: a colored rounded box with the sigil char centered.
+        // Hidden until a mode is active; positioned and styled in relayout.
+        let zero = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(0.0, 0.0));
+        let sigil_box = unsafe { NSView::initWithFrame(mtm.alloc(), zero) };
+        sigil_box.setWantsLayer(true);
+        unsafe {
+            let _: () = msg_send![&*sigil_box, setHidden: true];
+        }
+        let sigil_label = make_label(mtm, "", &glyph_font, &rgba(cfg.style.panel_background, 1.0));
+        sigil_box.addSubview(&sigil_label);
+        container.addSubview(&sigil_box);
+
         let field = unsafe { NSTextField::new(mtm) };
         unsafe {
             field.setBezeled(false);
@@ -580,6 +652,8 @@ impl Delegate {
         ivars.panel.set(panel).ok();
         ivars.field.set(field).ok();
         ivars.glyph.set(glyph).ok();
+        ivars.sigil_box.set(sigil_box).ok();
+        ivars.sigil_label.set(sigil_label).ok();
         ivars.rows_area.set(rows_area).ok();
         ivars.chrome_view.set(chrome_ref).ok();
         if let Some(v) = tint_ref {
@@ -662,6 +736,7 @@ impl Delegate {
                 if let Some(field) = ivars.field.get() {
                     unsafe { field.setStringValue(&NSString::from_str("")) };
                     ivars.selected.set(0);
+                    ivars.sigil.set(None);
                     self.refresh();
                 }
             }
@@ -824,6 +899,7 @@ impl Delegate {
 
         field.setStringValue(&NSString::from_str(""));
         ivars.selected.set(0);
+        ivars.sigil.set(None);
 
         let vf = screen.visibleFrame();
         ivars.top_y.set(vf.origin.y + vf.size.height * 0.72);
@@ -876,8 +952,10 @@ impl Delegate {
         if let Some(timer) = ivars.stats_timer.borrow_mut().take() {
             let _: () = unsafe { msg_send![&*timer, invalidate] };
         }
-        // Drop the cached scan so the next summon re-reads the app directories.
+        // Drop the cached scan so the next summon re-reads the app directories,
+        // and the rates so a completed background refresh is picked up.
         ivars.installed_cache.borrow_mut().take();
+        ivars.rates_cache.borrow_mut().take();
         if let Some(panel) = ivars.panel.get() {
             panel.orderOut(None);
         }
@@ -901,6 +979,49 @@ impl Delegate {
             return;
         }
         let query = self.query();
+
+        // Sigil modes: the active sigil (held in state, shown in the input
+        // badge — never in the field) routes the query terms to a resolver
+        // instead of the app matcher. Resolved before the app scan, so mode
+        // keystrokes never touch the filesystem. One dispatch for every
+        // sigil — a new mode plugs in via `SigilKind` and its resolver.
+        let kind = {
+            let cfg = self.ivars().config.borrow();
+            self.ivars().sigil.get().and_then(|c| cfg.sigil_kind(c))
+        };
+        let sigil_rows = match kind {
+            Some(SigilKind::Math) => Some(modes::math_rows(&query)),
+            Some(SigilKind::Web) => {
+                Some(modes::web_rows(&query, &self.ivars().config.borrow().web_shortcuts))
+            }
+            Some(SigilKind::Currency) => Some(self.currency_rows(&query)),
+            None => None,
+        };
+        if let Some(rows) = sigil_rows {
+            let ivars = self.ivars();
+            let mut entries: Vec<Entry> = rows
+                .into_iter()
+                .map(|r| Entry {
+                    name: r.name,
+                    path: None,
+                    running: None,
+                    matched: Vec::new(),
+                    windows: 0,
+                    stats: None,
+                    command: None,
+                    builtin: Some(Builtin::ModeRow(r.action)),
+                    detail: r.detail,
+                    tag: r.tag,
+                })
+                .collect();
+            entries.truncate(MAX_ROWS);
+            if ivars.selected.get() >= entries.len() {
+                ivars.selected.set(entries.len().saturating_sub(1));
+            }
+            *ivars.entries.borrow_mut() = entries;
+            self.relayout();
+            return;
+        }
         let running = running_apps();
 
         let mut entries: Vec<Entry> = Vec::new();
@@ -934,6 +1055,8 @@ impl Delegate {
                             stats: None,
                             command: None,
                             builtin: None,
+                            detail: None,
+                            tag: None,
                         },
                     ));
                 }
@@ -954,6 +1077,8 @@ impl Delegate {
                             stats: None,
                             command: Some(cmd.clone()),
                             builtin: None,
+                            detail: None,
+                            tag: None,
                         },
                     ));
                 }
@@ -976,6 +1101,8 @@ impl Delegate {
                             stats: None,
                             command: None,
                             builtin: Some(Builtin::ThemePicker),
+                            detail: None,
+                            tag: None,
                         },
                     ));
                 }
@@ -1078,6 +1205,81 @@ impl Delegate {
         self.relayout();
     }
 
+    /// On the first keystroke of a launcher session, a reserved leading
+    /// character enters its sigil mode: the sigil is stored in state and
+    /// lifted out of the field, leaving only the query terms behind.
+    fn maybe_enter_sigil(&self) {
+        let ivars = self.ivars();
+        if ivars.mode.get() != PanelMode::Launcher || ivars.sigil.get().is_some() {
+            return;
+        }
+        let q = self.query();
+        let Some(c) = q.chars().next() else {
+            return;
+        };
+        let is_sigil = {
+            let cfg = ivars.config.borrow();
+            cfg.sigil_math == Some(c) || cfg.sigil_web == Some(c)
+        };
+        if is_sigil {
+            ivars.sigil.set(Some(c));
+            self.set_field_text(&q[c.len_utf8()..]);
+        }
+    }
+
+    /// Set the field's text and move the caret to the end. Programmatic
+    /// changes don't fire `controlTextDidChange`, so this never recurses.
+    fn set_field_text(&self, text: &str) {
+        let ivars = self.ivars();
+        let (Some(panel), Some(field)) = (ivars.panel.get(), ivars.field.get()) else {
+            return;
+        };
+        let ns = NSString::from_str(text);
+        let len = ns.length();
+        unsafe { field.setStringValue(&ns) };
+        if let Some(editor) = unsafe { panel.fieldEditor_forObject(true, Some(field)) } {
+            unsafe {
+                let _: () = msg_send![&*editor, setSelectedRange: NSRange::new(len, 0)];
+            }
+        }
+    }
+
+    /// Currency rows for the current query. Loads the rate cache (spawning a
+    /// background refresh if it's missing or stale) and never blocks: with no
+    /// cache yet it returns a single "fetching" notice.
+    fn currency_rows(&self, query: &str) -> Vec<modes::ModeRow> {
+        self.ensure_rates();
+        let ivars = self.ivars();
+        let targets = ivars.config.borrow().currency_targets.clone();
+        let cache = ivars.rates_cache.borrow();
+        match &*cache {
+            Some(r) if !r.map.is_empty() => {
+                modes::currency_rows(query, &r.map, &targets, Some(r.age_display()))
+            }
+            _ => vec![modes::info_row("Fetching exchange rates…")],
+        }
+    }
+
+    /// Populate `rates_cache` from disk once per summon; kick off a background
+    /// `curl` refresh when the cache is absent or older than the TTL.
+    fn ensure_rates(&self) {
+        let ivars = self.ivars();
+        if ivars.rates_cache.borrow().is_some() {
+            return;
+        }
+        let path = rates_cache_path();
+        let loaded = path.as_ref().and_then(|p| load_rates(p));
+        let stale = loaded
+            .as_ref()
+            .map_or(true, |r| r.age_secs.map_or(true, |a| a > RATE_TTL_SECS));
+        if stale {
+            if let Some(p) = path {
+                spawn_rate_fetch(p);
+            }
+        }
+        *ivars.rates_cache.borrow_mut() = Some(loaded.unwrap_or_default());
+    }
+
     /// Display name of the active theme ("Black Glass" = un-overlaid base).
     fn current_theme_display(&self) -> String {
         self.ivars()
@@ -1120,6 +1322,8 @@ impl Delegate {
                 stats: None,
                 command: None,
                 builtin: Some(Builtin::ApplyTheme(name)),
+                detail: None,
+                tag: None,
             });
         }
         // Unlike search results, the picker shows the whole set — MAX_ROWS
@@ -1207,10 +1411,19 @@ impl Delegate {
     unsafe fn relayout_impl(&self) {
         let mtm = MainThreadMarker::new().unwrap();
         let ivars = self.ivars();
-        let (Some(panel), Some(field), Some(glyph), Some(rows_area)) = (
+        let (
+            Some(panel),
+            Some(field),
+            Some(glyph),
+            Some(sigil_box),
+            Some(sigil_label),
+            Some(rows_area),
+        ) = (
             ivars.panel.get(),
             ivars.field.get(),
             ivars.glyph.get(),
+            ivars.sigil_box.get(),
+            ivars.sigil_label.get(),
             ivars.rows_area.get(),
         ) else {
             return;
@@ -1243,12 +1456,60 @@ impl Delegate {
         // search glyph aligned with the row glyphs (rows inset by 12px).
         let input_inset = pad + 12.0;
         let input_bottom = h - pad - INPUT_H;
-        let glyph_size = glyph.frame().size;
-        glyph.setFrameOrigin(NSPoint::new(
-            input_inset,
-            input_bottom + (INPUT_H - glyph_size.height) / 2.0,
-        ));
-        let field_x = input_inset + glyph_size.width + 14.0;
+        // Leading slot: the search glyph, or — in a sigil mode — a colored
+        // box holding the sigil character. The field starts after whichever
+        // one is showing.
+        let leading_w = if let Some(sig) = ivars.sigil.get() {
+            unsafe {
+                let _: () = msg_send![&**glyph, setHidden: true];
+                let _: () = msg_send![&**sigil_box, setHidden: false];
+            }
+            let (bg, fg, input_fs) = {
+                let cfg = ivars.config.borrow();
+                let s = &cfg.style;
+                (
+                    s.sigil_background.unwrap_or(s.item_foreground_highlight),
+                    s.sigil_foreground.unwrap_or(s.panel_background),
+                    s.input_font_size,
+                )
+            };
+            let side = (input_fs + 10.0).clamp(24.0, 52.0);
+            sigil_box.setFrame(NSRect::new(
+                NSPoint::new(input_inset, input_bottom + (INPUT_H - side) / 2.0),
+                NSSize::new(side, side),
+            ));
+            if let Some(layer) = sigil_box.layer() {
+                layer.setCornerRadius((side * 0.26).min(10.0));
+                set_layer_bg(&layer, &rgba(bg, 1.0));
+            }
+            let font: Retained<NSFont> = unsafe {
+                msg_send_id![NSFont::class(), systemFontOfSize: input_fs * 0.78, weight: 0.4f64]
+            };
+            unsafe {
+                sigil_label.setStringValue(&NSString::from_str(&sig.to_string()));
+                sigil_label.setFont(Some(&font));
+                sigil_label.setTextColor(Some(&rgba(fg, 1.0)));
+                sigil_label.sizeToFit();
+            }
+            let ls = sigil_label.frame().size;
+            sigil_label.setFrameOrigin(NSPoint::new(
+                (side - ls.width) / 2.0,
+                (side - ls.height) / 2.0,
+            ));
+            side
+        } else {
+            unsafe {
+                let _: () = msg_send![&**sigil_box, setHidden: true];
+                let _: () = msg_send![&**glyph, setHidden: false];
+            }
+            let glyph_size = glyph.frame().size;
+            glyph.setFrameOrigin(NSPoint::new(
+                input_inset,
+                input_bottom + (INPUT_H - glyph_size.height) / 2.0,
+            ));
+            glyph_size.width
+        };
+        let field_x = input_inset + leading_w + 14.0;
         let field_h = field.frame().size.height.max(30.0);
         field.setFrame(NSRect::new(
             NSPoint::new(field_x, input_bottom + (INPUT_H - field_h) / 2.0),
@@ -1342,35 +1603,76 @@ impl Delegate {
             style.item_foreground
         };
 
-        // Leading state glyph column; `[icons.apps]` overrides win.
-        let entry_lower = entry.name.to_lowercase();
-        let glyph_text = cfg
-            .icon_overrides
-            .iter()
-            .find_map(|(n, g)| (*n == entry_lower).then_some(g.as_str()))
-            .unwrap_or_else(|| state_glyph(entry, icons));
-        let glyph_font = unsafe { NSFont::systemFontOfSize(GLYPH_PT) };
-        // The icon carries visibility state through its brightness: an app
-        // with on-screen windows is brightest, a backgrounded running app is
-        // dimmer, a cold app is faintest.
-        let glyph_alpha = if entry.windows > 0 {
-            0.92
-        } else if is_running {
-            0.52
-        } else if selected {
-            0.42
+        // Sigil-mode rows present differently from apps: math has no leading
+        // icon (the "= …" stands alone, name flush left), web uses the globe
+        // symbol at full strength — the state-brightness dimming is an
+        // app-only affordance and never applies to mode rows.
+        let mode_web = matches!(
+            &entry.builtin,
+            Some(Builtin::ModeRow(modes::ModeAction::OpenUrl(_)))
+        );
+        let mode_math = matches!(
+            &entry.builtin,
+            Some(Builtin::ModeRow(modes::ModeAction::Copy(_)))
+        );
+        let name_x = if mode_math {
+            12.0
+        } else if mode_web {
+            let icon_color = style.icon_foreground.unwrap_or(fg);
+            if let Some(image) =
+                objc2_app_kit::NSImage::imageWithSystemSymbolName_accessibilityDescription(
+                    &NSString::from_str(&cfg.icons.web),
+                    None,
+                )
+            {
+                let d = 16.0;
+                let iv = objc2_app_kit::NSImageView::initWithFrame(
+                    mtm.alloc(),
+                    NSRect::new(
+                        NSPoint::new(12.0 + (GLYPH_COL_W - d) / 2.0, (ROW_H - d) / 2.0),
+                        NSSize::new(d, d),
+                    ),
+                );
+                iv.setImage(Some(&image));
+                iv.setImageScaling(
+                    objc2_app_kit::NSImageScaling::NSImageScaleProportionallyUpOrDown,
+                );
+                iv.setContentTintColor(Some(&rgba(icon_color, 0.9)));
+                row.addSubview(&iv);
+            }
+            12.0 + GLYPH_COL_W + 10.0
         } else {
-            0.30
+            // Leading state glyph column; `[icons.apps]` overrides win.
+            let entry_lower = entry.name.to_lowercase();
+            let glyph_text = cfg
+                .icon_overrides
+                .iter()
+                .find_map(|(n, g)| (*n == entry_lower).then_some(g.as_str()))
+                .unwrap_or_else(|| state_glyph(entry, icons));
+            let glyph_font = unsafe { NSFont::systemFontOfSize(GLYPH_PT) };
+            // The icon carries visibility state through its brightness: an app
+            // with on-screen windows is brightest, a backgrounded running app
+            // is dimmer, a cold app is faintest.
+            let glyph_alpha = if entry.windows > 0 {
+                0.92
+            } else if is_running {
+                0.52
+            } else if selected {
+                0.42
+            } else {
+                0.30
+            };
+            // `icon_foreground` recolors the glyph column; the state-brightness
+            // alphas carry over unchanged.
+            let glyph_color = style.icon_foreground.unwrap_or(fg);
+            let glyph =
+                make_label(mtm, glyph_text, &glyph_font, &rgba(glyph_color, glyph_alpha));
+            let glyph_h = glyph.frame().size.height;
+            glyph.setFrameOrigin(NSPoint::new(12.0, (ROW_H - glyph_h) / 2.0));
+            row.addSubview(&glyph);
+            12.0 + GLYPH_COL_W + 10.0
         };
-        // `icon_foreground` recolors the glyph column; the state-brightness
-        // alphas carry over unchanged.
-        let glyph_color = style.icon_foreground.unwrap_or(fg);
-        let glyph = make_label(mtm, glyph_text, &glyph_font, &rgba(glyph_color, glyph_alpha));
-        let glyph_h = glyph.frame().size.height;
-        glyph.setFrameOrigin(NSPoint::new(12.0, (ROW_H - glyph_h) / 2.0));
-        row.addSubview(&glyph);
 
-        let name_x = 12.0 + GLYPH_COL_W + 10.0;
         let name_font =
             resolve_font(&style.font_family, style.item_font_weight, style.item_font_size);
         // Row text is always full-strength; visibility state lives on the icon.
@@ -1399,7 +1701,10 @@ impl Delegate {
 
         // Tag pills sit inline, right after the name.
         let pill_x = name_x + name.frame().size.width + 10.0;
-        if let Some(rs) = &entry.stats {
+        if let Some(tag) = &entry.tag {
+            // Web rows: the shortcut prefix ("g", "yt") as a label-only pill.
+            self.build_tag_pill(mtm, &row, pill_x, tag, "", selected);
+        } else if let Some(rs) = &entry.stats {
             // Running apps: a CPU warning at the right edge once the tree
             // burns ≥ CPU_ALERT_PCT of a core, otherwise a plain presence dot.
             if rs.cpu_pct >= CPU_ALERT_PCT {
@@ -1426,6 +1731,19 @@ impl Delegate {
                 }
                 _ => {}
             }
+        }
+
+        // Dim right-aligned detail (mode rows: URLs, alternate results).
+        if let Some(detail) = &entry.detail {
+            let font = resolve_font(&style.font_family, 0.0, 11.0);
+            let alpha = if selected { 0.65 } else { 0.45 };
+            let label = make_label(mtm, detail, &font, &rgba(fg, alpha));
+            let size = label.frame().size;
+            label.setFrameOrigin(NSPoint::new(
+                row_w - 12.0 - size.width,
+                (ROW_H - size.height) / 2.0,
+            ));
+            row.addSubview(&label);
         }
 
         parent.addSubview(&row);
@@ -1694,6 +2012,13 @@ impl Delegate {
                     ivars.mode.set(PanelMode::Launcher);
                     self.hide();
                 }
+                Builtin::ModeRow(action) => {
+                    self.hide();
+                    match action {
+                        modes::ModeAction::Copy(text) => copy_to_clipboard(&text),
+                        modes::ModeAction::OpenUrl(url) => open_url(&url),
+                    }
+                }
             }
             return;
         }
@@ -1777,6 +2102,79 @@ impl Delegate {
     }
 }
 
+/// Copy via pbcopy: keeps NSPasteboard out of the binding surface, and the
+/// panel is already hidden by the time this runs, so the wait is invisible.
+fn copy_to_clipboard(text: &str) {
+    use std::io::Write;
+    let child = std::process::Command::new("/usr/bin/pbcopy")
+        .stdin(std::process::Stdio::piped())
+        .spawn();
+    if let Ok(mut child) = child {
+        if let Some(stdin) = child.stdin.as_mut() {
+            let _ = stdin.write_all(text.as_bytes());
+        }
+        let _ = child.wait();
+    }
+}
+
+/// Open a URL in the default browser.
+fn open_url(url: &str) {
+    unsafe {
+        if let Some(u) = NSURL::URLWithString(&NSString::from_str(url)) {
+            NSWorkspace::sharedWorkspace().openURL(&u);
+        }
+    }
+}
+
+/// `$XDG_CACHE_HOME/motherfucker/rates.json` (or `~/.cache/…`).
+fn rates_cache_path() -> Option<PathBuf> {
+    let base = std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))?;
+    Some(base.join("motherfucker").join("rates.json"))
+}
+
+/// Read and parse the rate cache, tagging it with the file's age. Absent or
+/// unreadable file → `None` (caller treats it as "no cache yet").
+fn load_rates(path: &std::path::Path) -> Option<Rates> {
+    let meta = std::fs::metadata(path).ok()?;
+    let age_secs = meta
+        .modified()
+        .ok()
+        .and_then(|m| m.elapsed().ok())
+        .map(|d| d.as_secs());
+    let text = std::fs::read_to_string(path).ok()?;
+    Some(Rates { map: modes::parse_rates(&text), age_secs })
+}
+
+/// Refresh the rate cache off the main thread via `curl`, writing atomically
+/// (temp file + rename). At most one fetch runs at a time; failures leave any
+/// existing cache untouched. Never blocks the panel.
+fn spawn_rate_fetch(path: PathBuf) {
+    use std::sync::atomic::Ordering;
+    if RATE_FETCHING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::spawn(move || {
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let tmp = path.with_extension("json.tmp");
+        let ok = std::process::Command::new("/usr/bin/curl")
+            .args(["-sfL", "--max-time", "10", RATE_URL, "-o"])
+            .arg(&tmp)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if ok {
+            let _ = std::fs::rename(&tmp, &path);
+        } else {
+            let _ = std::fs::remove_file(&tmp);
+        }
+        RATE_FETCHING.store(false, Ordering::SeqCst);
+    });
+}
+
 /// Running apps with a Dock presence (Regular activation policy), current
 /// process excluded.
 fn running_apps() -> Vec<Entry> {
@@ -1810,6 +2208,8 @@ unsafe fn running_apps_impl() -> Vec<Entry> {
             stats: None,
             command: None,
             builtin: None,
+            detail: None,
+            tag: None,
         });
     }
     out

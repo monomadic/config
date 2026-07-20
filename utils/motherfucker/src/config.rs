@@ -101,6 +101,11 @@ pub struct Style {
     pub selected_item_border_width: f64,
     /// Fill behind the CPU warning badge; `None` = `cpu_alert` at 0.16.
     pub cpu_alert_background: Option<(f64, f64, f64)>,
+    /// Sigil-mode input badge (the colored box holding `=`, `!`, …).
+    /// `sigil_background` `None` = `item_foreground_highlight`;
+    /// `sigil_foreground` `None` = `panel_background` (dark glyph on the box).
+    pub sigil_background: Option<(f64, f64, f64)>,
+    pub sigil_foreground: Option<(f64, f64, f64)>,
 }
 
 impl Default for Style {
@@ -133,6 +138,8 @@ impl Default for Style {
             selected_item_border: (1.0, 1.0, 1.0),
             selected_item_border_width: 0.0,
             cpu_alert_background: None,
+            sigil_background: None,
+            sigil_foreground: None,
         }
     }
 }
@@ -168,6 +175,8 @@ pub struct Icons {
     pub system: String,
     pub applications: String,
     pub shortcut: String,
+    /// SF Symbol name for the web-shortcut (`!`) row icon.
+    pub web: String,
 }
 
 impl Default for Icons {
@@ -182,6 +191,7 @@ impl Default for Icons {
             system: "gearshape".into(),
             applications: "app.fill".into(),
             shortcut: "terminal".into(),
+            web: "globe".into(),
         }
     }
 }
@@ -240,6 +250,49 @@ pub struct Config {
     pub shortcuts: Vec<(String, String)>,
     /// Seconds between stat refreshes while the panel is up.
     pub stats_interval: f64,
+    /// `[modes]` sigils: typing one as the FIRST character switches the
+    /// panel into that mode. `None` = mode disabled.
+    pub sigil_math: Option<char>,
+    pub sigil_web: Option<char>,
+    pub sigil_currency: Option<char>,
+    /// `[modes.web]` entries, in display order.
+    pub web_shortcuts: Vec<WebShortcut>,
+    /// `[modes.currency]` `targets`: currency codes to convert into, in
+    /// display order. The source currency is skipped when it appears here.
+    pub currency_targets: Vec<String>,
+}
+
+/// Which mode a sigil selects. One dispatch point so a new sigil mode is
+/// added in exactly one place (here + the resolver it calls).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SigilKind {
+    Math,
+    Web,
+    Currency,
+}
+
+impl Config {
+    /// The mode a leading character selects, if any is configured to it.
+    pub fn sigil_kind(&self, c: char) -> Option<SigilKind> {
+        if self.sigil_math == Some(c) {
+            Some(SigilKind::Math)
+        } else if self.sigil_web == Some(c) {
+            Some(SigilKind::Web)
+        } else if self.sigil_currency == Some(c) {
+            Some(SigilKind::Currency)
+        } else {
+            None
+        }
+    }
+}
+
+/// One `[modes.web]` entry: the `prefix` typed after the sigil, the `name`
+/// shown as the row title, and the URL `template` (`{q}` = query terms).
+#[derive(Clone, PartialEq, Debug)]
+pub struct WebShortcut {
+    pub prefix: String,
+    pub name: String,
+    pub template: String,
 }
 
 impl Default for Config {
@@ -257,7 +310,50 @@ impl Default for Config {
             icon_overrides: Vec::new(),
             shortcuts: Vec::new(),
             stats_interval: 1.0,
+            sigil_math: Some('='),
+            sigil_web: Some('!'),
+            sigil_currency: Some('$'),
+            web_shortcuts: default_web_shortcuts(),
+            currency_targets: ["USD", "EUR", "GBP", "AUD", "BTC"]
+                .into_iter()
+                .map(String::from)
+                .collect(),
         }
+    }
+}
+
+fn default_web_shortcuts() -> Vec<WebShortcut> {
+    [
+        ("g", "Google", "https://www.google.com/search?q={q}"),
+        ("yt", "YouTube", "https://www.youtube.com/results?search_query={q}"),
+        ("w", "Wikipedia", "https://en.wikipedia.org/wiki/Special:Search?search={q}"),
+    ]
+    .into_iter()
+    .map(|(prefix, name, template)| WebShortcut {
+        prefix: prefix.to_string(),
+        name: name.to_string(),
+        template: template.to_string(),
+    })
+    .collect()
+}
+
+/// Best-effort site name from a URL host: the domain label before the TLD,
+/// capitalized ("https://www.google.com/…" → "Google"). Used when a
+/// `[modes.web]` value gives only a URL, no explicit `Name | url`.
+fn derive_web_name(url: &str) -> String {
+    let after = url.split_once("://").map(|(_, r)| r).unwrap_or(url);
+    let host = after.split(['/', '?']).next().unwrap_or("");
+    let host = host.strip_prefix("www.").unwrap_or(host);
+    let labels: Vec<&str> = host.split('.').filter(|s| !s.is_empty()).collect();
+    let base = if labels.len() >= 2 {
+        labels[labels.len() - 2]
+    } else {
+        labels.first().copied().unwrap_or("")
+    };
+    let mut c = base.chars();
+    match c.next() {
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+        None => "Web".to_string(),
     }
 }
 
@@ -479,6 +575,51 @@ fn parse_into(cfg: &mut Config, text: &str) {
                 cfg.shortcuts.retain(|(n, _)| !n.eq_ignore_ascii_case(&key));
                 cfg.shortcuts.push((key, val));
             }
+            "modes" => {
+                // A sigil is one character; "" or "none" disables the mode.
+                let sigil = match val.to_lowercase().as_str() {
+                    "" | "none" => None,
+                    _ => {
+                        let mut chars = val.chars();
+                        match (chars.next(), chars.next()) {
+                            (Some(c), None) => Some(c),
+                            _ => {
+                                warn(&line, "sigil must be a single character");
+                                continue;
+                            }
+                        }
+                    }
+                };
+                match key.to_lowercase().as_str() {
+                    "math" => cfg.sigil_math = sigil,
+                    "web" => cfg.sigil_web = sigil,
+                    "currency" => cfg.sigil_currency = sigil,
+                    _ => warn(&line, "unknown mode"),
+                }
+            }
+            "modes.currency" => {
+                if key.replace('-', "_") == "targets" {
+                    let targets: Vec<String> = val
+                        .split(',')
+                        .map(|t| t.trim().to_uppercase())
+                        .filter(|t| !t.is_empty())
+                        .collect();
+                    if !targets.is_empty() {
+                        cfg.currency_targets = targets;
+                    }
+                } else {
+                    warn(&line, "unknown currency key");
+                }
+            }
+            "modes.web" => {
+                // Value is `URL`, or `Name | URL` to override the derived name.
+                let (name, template) = match val.split_once('|') {
+                    Some((n, u)) => (n.trim().to_string(), u.trim().to_string()),
+                    None => (derive_web_name(&val), val.clone()),
+                };
+                cfg.web_shortcuts.retain(|w| !w.prefix.eq_ignore_ascii_case(&key));
+                cfg.web_shortcuts.push(WebShortcut { prefix: key, name, template });
+            }
             "stats" => {
                 if key.replace('-', "_") == "interval" {
                     match val.parse::<f64>() {
@@ -605,6 +746,14 @@ fn apply_style(style: &mut Style, key: &str, val: &str, line: &str) {
             Some(c) => style.cpu_alert_background = Some(c),
             None => warn(line, "expected \"#rrggbb\""),
         },
+        "sigil_background" => match parse_color(val) {
+            Some(c) => style.sigil_background = Some(c),
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "sigil_foreground" => match parse_color(val) {
+            Some(c) => style.sigil_foreground = Some(c),
+            None => warn(line, "expected \"#rrggbb\""),
+        },
         _ => warn(line, "unknown style key"),
     }
 }
@@ -620,6 +769,7 @@ fn apply_icon(icons: &mut Icons, key: &str, val: &str, line: &str) {
         "system" => &mut icons.system,
         "applications" => &mut icons.applications,
         "shortcut" => &mut icons.shortcut,
+        "web" => &mut icons.web,
         _ => {
             warn(line, "unknown icon key");
             return;
@@ -844,6 +994,38 @@ cpu_alert_background = "#401010"
         );
         assert!((style.border_width - 2.0).abs() < 1e-9);
         assert!(style.item_info_background.is_some()); // untouched
+    }
+
+    #[test]
+    fn parses_modes() {
+        let mut cfg = Config::default();
+        parse_into(
+            &mut cfg,
+            r##"
+[modes]
+math = "="
+web = "none"
+currency = "$"
+
+[modes.currency]
+targets = "usd, php, btc"
+
+[modes.web]
+"gh" = "GitHub | https://github.com/search?q={q}"
+"ddg" = "https://duckduckgo.com/?q={q}"
+"##,
+        );
+        assert_eq!(cfg.sigil_math, Some('='));
+        assert_eq!(cfg.sigil_web, None); // disabled
+        assert_eq!(cfg.sigil_currency, Some('$'));
+        assert_eq!(cfg.currency_targets, vec!["USD", "PHP", "BTC"]);
+        assert_eq!(cfg.sigil_kind('$'), Some(SigilKind::Currency));
+        assert_eq!(cfg.sigil_kind('!'), None); // web disabled
+        // Defaults (g/yt/w) plus the two added; name derived when not given.
+        let gh = cfg.web_shortcuts.iter().find(|w| w.prefix == "gh").unwrap();
+        assert_eq!(gh.name, "GitHub");
+        let ddg = cfg.web_shortcuts.iter().find(|w| w.prefix == "ddg").unwrap();
+        assert_eq!(ddg.name, "Duckduckgo");
     }
 
     #[test]

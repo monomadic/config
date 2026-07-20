@@ -67,6 +67,21 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
 - `[shortcuts]` — `"Name" = "shell command"` custom entries, matched like
   apps and run via `sh -c` on activation.
 - `[stats]` — `interval`, seconds between gauge refreshes while visible.
+- `[modes]` — sigil assignment for the first-character modes: `math = "="`,
+  `web = "!"` (the defaults); `"none"` disables one. The sigil is lifted out
+  of the field into a colored box; backspace on an empty field returns to the
+  launcher. `=4% of 100` shows `= 4` (`↩` copies); an empty `=` rests at
+  `= 0`. `!yt cat videos` opens a YouTube search (`↩` opens).
+- `[modes.web]` — `"prefix" = "https://…{q}"` web shortcuts for the `!`
+  mode; the row title is the site name, derived from the domain unless given
+  explicitly as `"prefix" = "Name | https://…{q}"`. Defaults: `g` (Google),
+  `yt` (YouTube), `w` (Wikipedia).
+- `[modes.currency]` — `targets`, a comma list of currency codes the `$`
+  mode converts into (default `usd, eur, gbp, aud, btc`). `$500,000 php`,
+  `$3k usd`, `$1.4btc` all work (`k`/`m`/`b` multipliers; no code = USD).
+  Rates are Coinbase's keyless USD endpoint, fetched via `curl` in the
+  background and cached at `~/.cache/motherfucker/rates.json`; the panel
+  always renders from cache (never blocks) and the top row shows its age.
 
 The parser is a ~100-line hand-rolled TOML subset (sections + `key =
 value`) so the binary stays dependency-free.
