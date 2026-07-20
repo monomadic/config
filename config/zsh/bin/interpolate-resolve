@@ -72,7 +72,7 @@ if [[ ! -f "$python_script" ]]; then
 fi
 
 export RESOLVE_SCRIPT_API="/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting"
-export RESOLVE_SCRIPT_LIB="/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Libraries/Fusion/fusionscript.so"
+export RESOLVE_SCRIPT_LIB="/Applications/DaVinci Resolve.app/Contents/Libraries/Fusion/fusionscript.so"
 export PYTHONPATH="${PYTHONPATH:-}:${RESOLVE_SCRIPT_API}/Modules"
 
 use_speed_warp=0
