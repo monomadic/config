@@ -1,14 +1,16 @@
 # motherfucker theme: monochrome purple ladder — every element a rung.
 [style]
 panel_background = "#10002B"
-panel_opacity = 0.45
+panel_opacity = 0.35
 item_foreground_highlight = "#C77DFF"
-selected_item_foreground_highlight = "#C77DFF"
+selected_item_foreground_highlight = "#F1FF0F"
 icon_foreground = "#9D4EDD"
 selected_item_background = "#5A189A"
 selected_item_opacity = 0.45
 item_info_foreground = "#D9B8F5"
 item_info_background = "#3C096C"
-running_dot = "#C77DFF"
+running_dot = "#F1FF0F"
 cpu_alert = "#F5C6E8"
 cpu_alert_background = "#5E2350"
+border_width = 1  # stroke around the whole panel
+border = "#10002B"

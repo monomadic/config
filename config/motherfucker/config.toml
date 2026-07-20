@@ -117,6 +117,7 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "System: shutdown" = "􀆨 "
 "System: restart" = "􀥣 "
 "Volume: mute" = "􀊣 "
+"Switchblade: downloads" = "􂶯 "
 
 # Custom entries matched like apps; selecting one runs the command via
 # `sh -c` (loaded once at startup — zero cost while typing). Only the
@@ -141,6 +142,7 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "System: shutdown" = "osascript -e 'tell app \"System Events\" to shut down'"
 "System: restart" = "osascript -e 'tell app \"System Events\" to restart'"
 "Motherfucker: restart" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
+"Motherfucker: configure" = "/Users/nom/.zsh/bin/kitty-launch --cwd ~/.config/motherfucker -- /opt/homebrew/bin/hx config.toml"
 
 [stats]
 interval = 1.0  # seconds between cpu refreshes while open

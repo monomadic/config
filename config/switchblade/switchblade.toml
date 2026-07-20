@@ -53,8 +53,8 @@ selection_zoom_boost = 0.35
 hover_scale = 1.05
 # Border widths of the selected / hovered tile; 0 = none. Colors come
 # from selection_border / hover_border above.
-selection_border_width = 1.0
-hover_border_width = 1.0
+selection_border_width = 4.0
+hover_border_width = 4.0
 
 # Aspect cap (long:short) for the selected/hovered tile. Clips beyond it
 # get pan-and-scan cropped: portrait loses top/bottom, ultrawide loses
@@ -91,7 +91,7 @@ zoom_fade_ms = 180.0
 #   normal   + live video (quickview, selected + hovered tiles)  [default]
 #   full     + animated thumbnails in the grid (sprite sheets)
 # The --animation CLI flag overrides this; 'a' still toggles sheets at full.
-animation = "normal"
+animation = "full"
 
 # Live playback starts only after the selection has settled this long,
 # so flying across the grid doesn't spawn a decoder per keypress.

@@ -20,6 +20,8 @@ use std::path::Path;
 const BRANCH_GLYPH: char = '\u{e725}'; // nerd-font git branch
 const OS_GLYPH: char = '\u{f0035}'; // nerd-font apple/macOS
 const DIRTY_GLYPH: char = '\u{1008a4}'; // SF Symbol dirty marker (alt: '\u{1001ff}')
+const AHEAD_GLYPH: char = '\u{21e1}'; // ⇡ local ahead of upstream
+const BEHIND_GLYPH: char = '\u{21e3}'; // ⇣ local behind upstream
 const OK_GLYPH: char = '\u{f17a9}'; // success prompt char
 const ERR_GLYPH: char = '\u{276f}'; // ❯ error prompt char
 
@@ -88,6 +90,27 @@ fn git() -> String {
         .unwrap_or(false);
     if dirty {
         out.push_str(&format!(" {}{DIRTY_GLYPH}{} ", col("1;31"), RESET));
+    }
+
+    // Ahead/behind vs upstream — a local graph walk against the cached remote
+    // ref (no network), so it's stale until the next fetch/pull.
+    if head.is_branch() {
+        if let (Some(local), Some(upstream)) = (
+            head.target(),
+            repo.find_branch(&name, git2::BranchType::Local)
+                .ok()
+                .and_then(|b| b.upstream().ok())
+                .and_then(|u| u.get().target()),
+        ) {
+            if let Ok((ahead, behind)) = repo.graph_ahead_behind(local, upstream) {
+                if ahead > 0 {
+                    out.push_str(&format!(" {}{AHEAD_GLYPH}{ahead}{}", col("1;36"), RESET));
+                }
+                if behind > 0 {
+                    out.push_str(&format!(" {}{BEHIND_GLYPH}{behind}{}", col("1;35"), RESET));
+                }
+            }
+        }
     }
     out
 }

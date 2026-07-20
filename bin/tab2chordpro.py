@@ -117,18 +117,22 @@ class Tab2ChordPro:
         result = lyric_line.rstrip()
         end = len(result)
 
-        inserts = []   # (anchor_column, chord)
+        inserts = []   # (anchor_column, source_column, chord)
         trailing = []  # chords past the end of the lyric
 
         for chord, pos in chords:
             if pos >= end:
                 trailing.append(chord)
             else:
-                inserts.append((self._word_anchor(result, pos), chord))
+                inserts.append((self._word_anchor(result, pos), pos, chord))
 
-        # Insert right-to-left so earlier indices stay valid.
-        for pos, chord in sorted(inserts, key=lambda x: x[0], reverse=True):
-            result = result[:pos] + f'[{chord}]' + result[pos:]
+        # Insert right-to-left so earlier indices stay valid. When several
+        # chords snap to the same anchor (e.g. a leading-whitespace pickup
+        # chord and the chord over the first word), break the tie by source
+        # column so the right-most chord is inserted first and left-to-right
+        # order survives: [C][C/E]When, not [C/E][C]When.
+        for anchor, _src, chord in sorted(inserts, key=lambda x: (x[0], x[1]), reverse=True):
+            result = result[:anchor] + f'[{chord}]' + result[anchor:]
 
         if trailing:
             result = result.rstrip() + ' ' + ''.join(f'[{c}]' for c in trailing)
