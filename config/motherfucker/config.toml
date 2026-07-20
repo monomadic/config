@@ -144,5 +144,30 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "Motherfucker: restart" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
 "Motherfucker: configure" = "/Users/nom/.zsh/bin/kitty-launch --cwd ~/.config/motherfucker -- /opt/homebrew/bin/hx config.toml"
 
+# Sigil modes: typing one of these as the FIRST character switches the
+# panel into that mode. The sigil is lifted into a colored box (not left in
+# the text field); backspace on an empty field returns to the launcher.
+# "=4% of 100" evaluates, "!yt cat videos" searches the web. One character
+# each; "none" disables a mode.
+[modes]
+math = "="
+web = "!"
+currency = "$"
+
+# Web-shortcut prefixes for the `!` mode: "!<prefix> terms" opens the URL
+# with {q} replaced by the encoded terms. An unknown prefix searches the
+# first entry with the whole input. The row title is the site name; give it
+# explicitly with "Name | url", otherwise it's derived from the domain.
+# Defaults ship for g / yt / w; entries here override by prefix.
+[modes.web]
+# "gh" = "GitHub | https://github.com/search?q={q}"
+
+# Currency mode (`$`): "$500,000 php", "$3k usd", "$1.4btc" convert through
+# USD into each target below. Rates come from Coinbase's keyless endpoint,
+# fetched in the background and cached at ~/.cache/motherfucker/rates.json —
+# results always render from cache, never blocking the panel.
+[modes.currency]
+targets = "usd, eur, gbp, aud, btc"
+
 [stats]
 interval = 1.0  # seconds between cpu refreshes while open
