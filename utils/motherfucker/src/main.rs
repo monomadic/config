@@ -1217,10 +1217,7 @@ impl Delegate {
         let Some(c) = q.chars().next() else {
             return;
         };
-        let is_sigil = {
-            let cfg = ivars.config.borrow();
-            cfg.sigil_math == Some(c) || cfg.sigil_web == Some(c)
-        };
+        let is_sigil = ivars.config.borrow().sigil_kind(c).is_some();
         if is_sigil {
             ivars.sigil.set(Some(c));
             self.set_field_text(&q[c.len_utf8()..]);
