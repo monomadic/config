@@ -286,10 +286,6 @@ func menuBarTitle(freeBytes, totalBytes uint64, settings widgetSettings) string 
 	}
 }
 
-func updateTitleFont(style layoutStyle) {
-	systray.SetTitleFont(12, true)
-}
-
 func updateStatusIcon(freeBytes, totalBytes uint64, style layoutStyle) {
 	switch style {
 	case styleBarText:
@@ -470,7 +466,6 @@ func updateFreeSpace() {
 	freePercent := freePercentValue(freeBytes, totalBytes)
 	currentSettings := getSettings()
 
-	updateTitleFont(currentSettings.Style)
 	updateStatusIcon(freeBytes, totalBytes, currentSettings.Style)
 	systray.SetTitle(menuBarTitle(freeBytes, totalBytes, currentSettings))
 	tooltip := fmt.Sprintf("Free disk space is %s (%.0f%% free, %d Bytes)", freeGB, freePercent, freeBytes)
@@ -491,7 +486,6 @@ func onReady() {
 	settings = loadSettings()
 	settingsMu.Unlock()
 
-	updateTitleFont(getSettings().Style)
 	systray.SetTitle(fmt.Sprintf("%s init", diskIcon))
 
 	mStyle := systray.AddMenuItem("Style", "Choose the menu bar layout")
