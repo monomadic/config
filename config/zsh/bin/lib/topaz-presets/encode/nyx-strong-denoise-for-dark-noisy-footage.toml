@@ -1,0 +1,3 @@
+order = 17
+display = "Nyx - strong denoise for dark/noisy footage"
+filter = 'tvai_up=model=nyx-3:scale=1:preblur=0:noise=0.80:details=0.25:halo=0:blur=0.20:compression=0.25:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1'

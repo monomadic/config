@@ -1,0 +1,5 @@
+order = 12
+display = "[Upscale, Interpolate] Proteus 2x, Chronos Fast 60fps"
+categories = "Upscale, Interpolate"
+filter = 'tvai_up=model=prob-4:scale=2:preblur=0:noise=0.18:details=0.35:halo=0.02:blur=0.10:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1,tvai_fi=model=chf-3:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Upscale, Interpolate] Proteus 2x, Chronos Fast 60fps. 2x Proteus plus Chronos Fast 60fps: conservative upscale, light cleanup, mild sharpening, tiny grain, faster interpolation. Good quick 1080p30 to 4K-ish/60fps workflow."

@@ -1,0 +1,4 @@
+order = 6
+display = "Apollo Slow-mo 2x"
+filter = 'tvai_fi=model=apo-8:slowmo=2:rdt=0.01:fps=60:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Interpolate] Apollo Slow-mo 2x. Halves playback speed while synthesizing in-between frames at 60fps output — turns 30/60fps clips into smooth half-speed slow motion. Audio will desync (video-only effect)."

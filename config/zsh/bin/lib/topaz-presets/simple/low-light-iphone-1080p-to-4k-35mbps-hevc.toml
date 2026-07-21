@@ -1,0 +1,7 @@
+order = 4
+display = "Low-light iPhone 1080p -> 4K 35Mbps HEVC"
+preset_name = "low-light-iphone-1080p-to-4k-35mbps-hevc"
+filter = 'tvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0.05:noise=0.45:details=0.32:halo=-0.04:blur=0.24:compression=0.28:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1,scale=w=3840:h=2160:flags=lanczos:threads=0'
+ext = "mp4"
+video_args = '-c:v hevc_videotoolbox -profile:v main -tag:v hvc1 -pix_fmt yuv420p -allow_sw 1 -g 30 -b:v 35M'
+metadata = "videoai=Low-light iPhone 1080p to 4K. Proteus denoise and moderate recovery, preserving a little grain to avoid waxy faces."

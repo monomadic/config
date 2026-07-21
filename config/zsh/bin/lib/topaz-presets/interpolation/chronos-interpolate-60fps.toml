@@ -1,0 +1,4 @@
+order = 3
+display = "Chronos 60fps — complex motion"
+filter = 'tvai_fi=model=chr-2:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Interpolate] Chronos 60fps. Alternative motion engine; often handles complex/organic motion (crowds, water, particles) with fewer warp artifacts than Apollo. Try when Apollo smears."

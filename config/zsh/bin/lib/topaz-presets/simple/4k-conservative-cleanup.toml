@@ -1,0 +1,4 @@
+order = 6
+display = "4K Conservative Cleanup"
+preset_name = "4k-conservative-cleanup"
+filter = 'scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.20:details=0.22:halo=0.03:blur=0.08:compression=0.18:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'

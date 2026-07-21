@@ -1,0 +1,13 @@
+order = 8
+category = "repair"
+display = "Proteus — Max Compression Repair"
+scales = ["1", "2", "4k"]
+blurb = "Compression repair maxed; keeps moderate detail"
+filter = 'tvai_up=model=prob-4:@SCALE@:preblur=0.05:noise=0.25:details=0.40:halo=0.25:blur=0.08:compression=1:estimate=0:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Repair] Proteus Max Compression Repair. Compression repair at maximum and strong dehalo, but moderate detail recovery kept in so blocking and mosquito noise clean up without going waxy-soft."
+
+[insight]
+strategy = "Compression repair at 1.0 with detail held moderate: kills blocking and mosquito noise without the waxy look of a pure repair pass. Artifacts read as detail to other presets — clean first."
+watch = "At maximum repair some legitimate fine texture goes with the artifacts — check hair, fabric and foliage."
+vs = "proteus-detail-max"
+vs_note = "Detail Max already carries 0.85 repair. Reach for this only when artifacts, not detail, are the problem."

@@ -1,0 +1,4 @@
+order = 8
+display = "4K Aggressive Artifact Cleanup"
+preset_name = "4k-aggressive-artifact-cleanup"
+filter = 'scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.50:details=0.28:halo=0.10:blur=0.18:compression=0.42:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'

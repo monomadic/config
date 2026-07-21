@@ -1,0 +1,5 @@
+order = 10
+display = "[Upscale] Starlight Mini 2x"
+categories = "Upscale"
+filter = 'tvai_up=model=slm-1:scale=2:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Upscale] Starlight Mini 2x. 2x Starlight Mini upscale with model defaults. Try on small, soft, or low-detail sources where Proteus feels too manual; compare carefully for texture changes."

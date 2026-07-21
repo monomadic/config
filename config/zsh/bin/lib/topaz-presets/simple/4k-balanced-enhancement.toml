@@ -1,0 +1,4 @@
+order = 7
+display = "4K Balanced Enhancement"
+preset_name = "4k-balanced-enhancement"
+filter = 'scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.32:details=0.36:halo=0.05:blur=0.14:compression=0.30:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1'

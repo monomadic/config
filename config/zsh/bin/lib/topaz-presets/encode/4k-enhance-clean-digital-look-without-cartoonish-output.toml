@@ -1,0 +1,3 @@
+order = 6
+display = "4K Enhance - clean digital look without cartoonish output"
+filter = 'scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.10:details=0.30:halo=0.02:blur=0.06:compression=0.10:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1'

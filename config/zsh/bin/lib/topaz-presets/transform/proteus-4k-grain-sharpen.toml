@@ -1,0 +1,5 @@
+order = 9
+display = "[Upscale] Proteus 4K, Grain, Sharpen"
+categories = "Upscale"
+filter = 'tvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0:noise=0.10:details=0.38:halo=-0.04:blur=0.18:compression=0.20:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1,scale=w=3840:h=2160:flags=lanczos:threads=0'
+metadata = "videoai=[Upscale] Proteus 4K, Grain, Sharpen. Forced 3840x2160 Proteus upscale: light denoise, medium detail recovery, medium sharpening/deblur, light compression cleanup, light dehalo, subtle grain. Good polished 4K target without going full rescue."

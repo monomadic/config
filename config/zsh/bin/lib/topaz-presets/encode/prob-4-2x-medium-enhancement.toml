@@ -1,0 +1,3 @@
+order = 7
+display = "Prob-4 2x - medium enhancement"
+filter = 'tvai_up=model=prob-4:scale=2:preblur=0:noise=0.35:details=0.60:halo=0:blur=0.20:compression=0.30:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'

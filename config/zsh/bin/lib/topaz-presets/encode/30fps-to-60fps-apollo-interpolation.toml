@@ -1,0 +1,3 @@
+order = 13
+display = "30fps to 60fps - Apollo / interpolation"
+filter = 'tvai_fi=model=apo-8:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1'

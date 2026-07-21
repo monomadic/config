@@ -1,0 +1,13 @@
+order = 15
+category = "focus-fix"
+display = "Proteus Deblur — Max Rescue"
+scales = ["1", "2", "4k"]
+blurb = "Last-resort rescue; everything maxed, stylized"
+filter = 'tvai_up=model=prob-4:@SCALE@:preblur=0.35:noise=0.10:details=1:halo=0.30:blur=1:compression=0.50:estimate=0:grain=0:gsize=2:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Focus Fix] Proteus Deblur Max Rescue. Deblur, detail and anti-alias all maxed with dehalo at its strongest — a last-resort rescue for badly out-of-focus or motion-blurred footage. Heavily stylized; expect ringing and crunch."
+
+[insight]
+strategy = "Everything at the stops: deblur, detail and anti-alias maxed, dehalo at its ceiling fighting the fallout. For footage you would otherwise delete — stylised-sharp beats honestly-unusable."
+watch = "Edges gain a drawn, illustrated quality. If this still is not enough, the shot is gone."
+vs = "proteus-deblur-strong"
+vs_note = "If Strong got you 80% of the way, stop — this buys the last 20% at triple the artifacts."

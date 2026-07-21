@@ -1,0 +1,4 @@
+order = 9
+display = "4K Focus Fix Light"
+preset_name = "4k-focus-fix-light"
+filter = 'scale=1920:-1,tvai_up=model=prob-4:scale=2:preblur=0:noise=0.12:details=0.26:halo=0.02:blur=0.18:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1'

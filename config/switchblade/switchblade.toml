@@ -147,8 +147,8 @@ auto_skip_countdown = false
 # generate). Drawn size in logical px, plus a master opacity (0..1) over
 # both the faint track and the fill.
 jobs_bar_width = 84.0
-jobs_bar_height = 4.0
-jobs_bar_opacity = 0.8
+jobs_bar_height = 6.0
+jobs_bar_opacity = 1.0
 
 # Pause live playback + sheet animation while the window is unfocused
 # (the grid stays visible, just still — big CPU saver). Toggle at
@@ -174,7 +174,7 @@ quickview_blur = 3.0
 # an opaque backdrop_color stage that hides the gallery entirely.
 # Quickview defaults to "blur", fullview (Tab) to "flat" — swap either.
 quickview_backdrop = "blur"
-fullview_backdrop = "blur"
+fullview_backdrop = "flat"
 backdrop_color = [0.01, 0.01, 0.01]  # the flat stage color
 # Fade-in when quickview opens (dim + blur + the modal); 0 ≈ instant.
 quickview_fade_ms = 150.0
@@ -252,7 +252,7 @@ recurse = true
 # regenerates thumbnails (cache files are named by recipe; old ones are
 # kept).
 thumb_width = 640
-thumb_height = 640
+thumb_height = 320
 thumb_quality = 8
 
 # Anim sheet grid: frames = grid², frame size = thumb/grid.
@@ -317,16 +317,16 @@ quickview_max_height = 1440
 [keys]
 space = "quickview"  # internal preview; Esc or Space closes, arrows browse
 enter = "fullview"
+C = "copy_path"
 D = "open_parent"  # re-ingest from the selected clip's parent dir
 F = "fullscreen"
 R = "jump_random"  # select a random clip ("jump_to_random" also works)
 T = "trim"
-a = "toggle_anim"  # animated thumbnails on/off
 c = "chapter_mode"
-C = "copy_path"
 f = "fast_fullscreen"
+n = "next"
 o = "open"
-p = "toggle_focus_pause"  # pause-when-unfocused on/off
+p = "prev"  # pause-when-unfocused on/off
 r = "reveal"  # reveal in Finder (open -R)
 s = "shuffle_library"  # shuffle the whole grid in place ("shuffle" also works)
 t = "toggle_skip_timer"  # auto-advance every skip_timer_s of playback

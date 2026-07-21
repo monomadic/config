@@ -1,0 +1,13 @@
+order = 6
+category = "detail"
+display = "Gaia HQ — Animation"
+scales = ["2"]
+blurb = "Clean, smooth; best for CG / animation (2x only)"
+filter = 'tvai_up=model=ghq-5:@SCALE@:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Detail] Gaia HQ. Clean, smooth, low-noise upscale. Softer and more poster-like than Proteus; best for graphics, animation, CG and already-clean footage."
+
+[insight]
+strategy = "Trained on CG and animation: preserves line art and flat fills without inventing photographic texture. On graphics, invention is a bug — this is the anti-hallucination pick."
+watch = "Live footage comes out soft and poster-like — edges survive but skin and fabric flatten."
+vs = "starlight-mini"
+vs_note = "Drawn or rendered source: Gaia. Photographic source: Starlight."

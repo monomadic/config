@@ -1,0 +1,13 @@
+order = 11
+category = "sharpen"
+display = "Theia — Fine Detail"
+scales = ["1"]
+blurb = "Micro-detail sharpen; less plastic than Proteus"
+filter = 'tvai_up=model=thd-3:@SCALE@:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Sharpen] Theia Detail. Fine micro-detail/sharpen model. Crisp textures and edges with a different character (and less plastic look) than Proteus sharpening."
+
+[insight]
+strategy = "A micro-contrast model: enhances existing fine structure rather than generating new texture, so it reads crisp without the AI-plastic signature."
+watch = "It cannot create — on genuinely soft or damaged sources there is nothing for it to work with."
+vs = "proteus-detail-max"
+vs_note = "Generation vs enhancement: a good source that wants bite takes Theia; missing texture takes Detail Max."

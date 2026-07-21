@@ -1,0 +1,4 @@
+order = 2
+display = "Apollo Fast 60fps — quick pass"
+filter = 'tvai_fi=model=apf-2:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Interpolate] Apollo Fast 60fps. Lighter, much faster Apollo variant. Good default when Apollo full is too slow and motion is simple-to-moderate."

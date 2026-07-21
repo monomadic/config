@@ -1,0 +1,5 @@
+order = 2
+display = "[Denoise] Nyx Dark Footage"
+categories = "Denoise"
+filter = 'tvai_up=model=nyx-3:scale=1:preblur=0:noise=0.80:details=0.25:halo=0:blur=0.20:compression=0.25:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Denoise] Nyx Dark Footage. Same-size Nyx pass: very heavy denoise, low detail recovery, medium sharpening, light compression cleanup, no grain. Best for dark/noisy clips; can look waxy on clean skin or fine texture."

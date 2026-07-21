@@ -1,0 +1,13 @@
+order = 4
+category = "detail"
+display = "Proteus — Extreme"
+scales = ["1", "2", "4k"]
+blurb = "Maxed detail + sharpen under heavy grain; stylized"
+filter = 'tvai_up=model=prob-4:@SCALE@:preblur=-0.45:noise=-0.60:details=1:halo=-0.68:blur=1:compression=0.76:prenoise=0:estimate=8:grain=0.73:gsize=1.3:parameters=grain_type=gaussian\\:grain_sigma=0.5:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Detail] Proteus Extreme. Dynamic Proteus: detail and sharpen maxed, with negative denoise, dehalo and anti-alias/deblur to let raw grain and edge through, finished with a heavy Gaussian grain layer. A punchy, stylized rescue for soft or degraded footage — expect ringing, halos and crunch on clean sources."
+
+[insight]
+strategy = "Everything at the stops, then dressed in grain: detail and sharpen maxed while denoise, dehalo and anti-alias go negative so nothing is held back, and a heavy Gaussian layer masks the fallout. Dynamic tuning (estimate 8) means the sliders ride a per-clip auto baseline rather than fixed values, so it adapts shot to shot. This is a look, not a clean-up."
+watch = "Ringing, halos and crunch on anything already sharp — the negative dehalo/anti-alias actively let edge artifacts through. Judge at 100%, and grade before this pass since the grain is baked in."
+vs = "proteus-detail-max"
+vs_note = "Detail Max is the restrained, clean version of this idea. Reach for Extreme only when you want the punchy, stylized rescue and can accept the artifacts."

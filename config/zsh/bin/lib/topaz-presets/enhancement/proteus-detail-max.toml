@@ -1,0 +1,13 @@
+order = 1
+category = "detail"
+display = "Proteus — Detail Max"
+scales = ["1", "2", "4k"]
+blurb = "Max invention + compression fix, minimal sharpen"
+filter = 'tvai_up=model=prob-4:@SCALE@:preblur=0:noise=0.08:details=1:halo=0.15:blur=0.12:compression=0.85:estimate=0:grain=0.03:gsize=2:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Detail] Proteus Detail Max. Manual Proteus: maxed detail generation and heavy compression repair with sharpening kept low and dehalo engaged — the aggressive invented-detail look without the crunch and halos."
+
+[insight]
+strategy = "The thesis preset: invention and compression repair near max, sharpening almost off. Detail comes from the model generating structure, not from edge contrast — so it stays clean where crunchy presets ring. Works at any output size; same-size passes are subtle at fit-to-window zoom, so judge at 100%."
+watch = "On pristine sources max invention can over-texture flat areas (skin, sky). If surfaces look busy, this is why."
+vs = "proteus-max-regrain"
+vs_note = "Same idea finished with grain. Pick Max + Regrain when this reads too clean or plastic."

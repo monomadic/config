@@ -1,0 +1,3 @@
+order = 18
+display = "Proteus manual - balanced recover + denoise"
+filter = 'tvai_up=model=prob-3:scale=1:preblur=0:noise=0.40:details=0.55:halo=0.05:blur=0.15:compression=0.25:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'

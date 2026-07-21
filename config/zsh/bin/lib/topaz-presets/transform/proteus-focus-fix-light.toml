@@ -1,0 +1,5 @@
+order = 4
+display = "[Focus Fix] Proteus Light"
+categories = "Focus Fix"
+filter = 'tvai_up=model=prob-4:scale=1:preblur=0:noise=0.15:details=0.55:halo=0.04:blur=0.18:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Focus Fix] Proteus Light. Same-size Proteus focus-style pass: light denoise, strong detail recovery, medium sharpening/deblur, light compression cleanup, tiny grain. Good first try for decent-but-soft footage."

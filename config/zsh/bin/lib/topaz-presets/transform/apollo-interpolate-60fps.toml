@@ -1,0 +1,5 @@
+order = 6
+display = "[Interpolate] Apollo 60fps"
+categories = "Interpolate"
+filter = 'tvai_fi=model=apo-8:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Interpolate] Apollo 60fps. Motion-only Apollo pass to 60fps. Slower, higher-quality interpolation for natural motion; inspect hands, hair, cuts, flashes, and fast pans for warping."

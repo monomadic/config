@@ -1,0 +1,4 @@
+order = 15
+display = "30fps -> 60fps Interpolation"
+preset_name = "30fps-to-60fps"
+filter = 'tvai_fi=model=chf-3:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1'

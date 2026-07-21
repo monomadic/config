@@ -1,0 +1,4 @@
+order = 2
+display = "HEVC variable bitrate"
+ext = "mp4"
+video_args = '-c:v hevc_videotoolbox -profile:v main -tag:v hvc1 -pix_fmt yuv420p -allow_sw 1 -g 30 -q:v 65 -spatial_aq 1'

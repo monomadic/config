@@ -1,0 +1,5 @@
+order = 7
+display = "[Interpolate] Chronos Fast 60fps"
+categories = "Interpolate"
+filter = 'tvai_fi=model=chf-3:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Interpolate] Chronos Fast 60fps. Motion-only Chronos Fast pass to 60fps. Faster and usually lighter than Apollo; useful for previews or simpler motion, with more risk on complex motion."

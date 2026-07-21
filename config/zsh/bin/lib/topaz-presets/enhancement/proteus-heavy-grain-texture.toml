@@ -1,0 +1,13 @@
+order = 12
+category = "sharpen"
+display = "Proteus — Heavy Grain Texture"
+scales = ["1", "2", "4k"]
+blurb = "Strong film-grain look; stylized texture"
+filter = 'tvai_up=model=prob-4:@SCALE@:preblur=0:noise=0.10:details=0.50:halo=0.10:blur=0.20:compression=0.30:estimate=0:grain=0.14:gsize=3:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Sharpen] Proteus Heavy Grain Texture. Moderate enhancement under a strong film-grain layer (gsize 3) — a deliberately stylized, filmic texture pass that masks smoothing and generates perceived detail."
+
+[insight]
+strategy = "A look, not a fix: moderate enhancement buried under heavy gsize-3 grain. The grain does aesthetic work — film emulation — as much as masking."
+watch = "Expensive to encode and impossible to undo — grade before this pass, not after."
+vs = "proteus-max-regrain"
+vs_note = "Max + Regrain uses grain as seasoning; this uses it as the dish."

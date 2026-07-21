@@ -1,0 +1,4 @@
+order = 1
+display = "Apollo 60fps — best quality"
+filter = 'tvai_fi=model=apo-8:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Interpolate] Apollo 60fps. Highest-quality motion; best at detecting and replacing duplicate/repeated frames (jerky 30fps exports, stutter). Inspect hands, hair, cuts, fast pans."

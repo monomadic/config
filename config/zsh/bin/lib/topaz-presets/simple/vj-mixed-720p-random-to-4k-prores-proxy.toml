@@ -1,0 +1,7 @@
+order = 2
+display = "VJ mixed 720p/random -> 4K ProRes Proxy"
+preset_name = "vj-mixed-720p-random-to-4k-prores-proxy"
+filter = 'tvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0.03:noise=0.18:details=0.48:halo=-0.05:blur=0.28:compression=0.30:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1,scale=w=3840:h=2160:flags=lanczos:threads=0'
+ext = "mov"
+video_args = '-c:v prores_ks -profile:v proxy -pix_fmt yuv422p10le -vendor apl0'
+metadata = "videoai=VJ mixed-source 4K ProRes Proxy. Stronger compression cleanup and deblur for 720p or irregular graphics sources."

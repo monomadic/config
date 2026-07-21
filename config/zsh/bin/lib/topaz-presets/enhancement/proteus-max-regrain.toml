@@ -1,0 +1,13 @@
+order = 2
+category = "detail"
+display = "Proteus — Max + Regrain"
+scales = ["1", "2", "4k"]
+blurb = "High detail under film grain; hides ringing + plastic"
+filter = 'tvai_up=model=prob-4:@SCALE@:preblur=0:noise=0.20:details=0.90:halo=0.10:blur=0.10:compression=0.75:estimate=0:grain=0.09:gsize=2.5:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Detail] Proteus Max + Regrain. High detail generation and strong compression repair finished with a visible grain layer — the grain reads as fine texture and masks any residual ringing or plastic smoothing. Filmic alternative to Detail Max."
+
+[insight]
+strategy = "Grain is your friend twice over: it reads as invented fine texture, and it masks the ringing and plastic smoothing that heavy enhancement leaves behind. gsize 2.5 is coarse enough to read as film rather than sensor noise."
+watch = "Grain is baked in — it cannot be removed later, and HEVC spends real bitrate encoding it."
+vs = "proteus-detail-max"
+vs_note = "Trades peak invention for texture that hides the plastic look. Pick this when Detail Max reads too clean."

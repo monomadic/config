@@ -1,0 +1,13 @@
+order = 9
+category = "repair"
+display = "Nyx — Heavy Denoise"
+scales = ["1"]
+blurb = "Heavy denoise for dark / grainy footage"
+filter = 'tvai_up=model=nyx-3:@SCALE@:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Repair] Nyx Heavy Denoise. Dedicated denoise model for dark/grainy/high-ISO footage. Very smooth output; can wax skin and erase fine texture — use where noise is the main problem."
+
+[insight]
+strategy = "A dedicated denoiser, not an enhancer — noise modelling that the generic Proteus noise slider cannot match on high-ISO or low-light footage."
+watch = "Waxes skin and erases fine texture — whatever it cannot distinguish from noise is gone for good."
+vs = "proteus-clean-regrain"
+vs_note = "Nyx removes; Clean + Regrain removes then re-textures. If the result must still look like film, pick that."

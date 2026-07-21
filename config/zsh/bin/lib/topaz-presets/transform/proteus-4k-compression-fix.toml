@@ -1,0 +1,5 @@
+order = 11
+display = "[Upscale, Enhance] Proteus 4K Compression Fix"
+categories = "Upscale, Enhance"
+filter = 'tvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=-0.51:noise=-0.79:details=1:halo=-0.75:blur=1:compression=1:prenoise=0:estimate=8:grain=0.78:gsize=2:parameters=grain_type=gaussian\\:grain_sigma=0.73:device=0:vram=0.95:instances=1,scale=w=3840:h=2160:flags=lanczos:threads=0'
+metadata = "videoai=[Upscale, Enhance] Proteus 4K Compression Fix. Forced 3840x2160 Proteus rescue pass: max compression repair, max detail, max sharpening, negative denoise/dehalo/antialias-deblur, heavy gaussian grain. For damaged stream copies; aggressive and likely stylized on decent sources."

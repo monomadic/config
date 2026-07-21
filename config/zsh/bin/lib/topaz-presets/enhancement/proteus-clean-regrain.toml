@@ -1,0 +1,13 @@
+order = 10
+category = "repair"
+display = "Proteus — Clean + Regrain"
+scales = ["1", "2", "4k"]
+blurb = "Deep clean, then re-grain to hide smoothing"
+filter = 'tvai_up=model=prob-4:@SCALE@:preblur=0:noise=0.40:details=0.30:halo=0.15:blur=0.12:compression=0.70:estimate=0:grain=0.08:gsize=2.5:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Repair] Proteus Clean + Regrain. Strong compression/noise cleanup then a re-grain layer to hide the smoothing — restores a filmic texture on waxy or over-cleaned sources."
+
+[insight]
+strategy = "Two moves in one pass: scrub compression and noise hard, then lay uniform grain over the scrubbed surface. The grain unifies patches the cleanup smoothed unevenly — the classic restoration trick. gsize 2.5 matches Max + Regrain, so cleaned and upscaled clips cut together."
+watch = "If damage varies shot to shot the cleanup varies too, and the grain hides it unevenly."
+vs = "proteus-max-compression-repair"
+vs_note = "Same cleanup instinct; Max Compression Repair keeps the honest scrubbed look, this one dresses it."

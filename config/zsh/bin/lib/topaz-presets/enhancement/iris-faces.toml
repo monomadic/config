@@ -1,0 +1,13 @@
+order = 7
+category = "detail"
+display = "Iris — Faces"
+scales = ["1", "2", "4k"]
+blurb = "Face & compressed-source model; rebuilds skin/eyes"
+filter = 'tvai_up=model=iris-3:@SCALE@:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Detail] Iris. Tuned for faces and compressed/streamed sources — reconstructs skin, eyes and hair. Very different texture from Proteus; watch for facial hallucination."
+
+[insight]
+strategy = "A face-trained network: rebuilds eyes, skin and hair from priors about what faces look like — priors that survive compression heavy enough to destroy generic detail."
+watch = "The same priors are the risk: a face can drift toward a generic face rather than the real one. Check identity on people you know."
+vs = "starlight-mini"
+vs_note = "Both hallucinate; Iris is specialised. Faces prominent: Iris. Everything else: Starlight."

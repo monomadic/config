@@ -1,0 +1,6 @@
+order = 1
+display = "VJ 1080p-ish to 4K60 ProRes Proxy"
+filter = 'tvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0:noise=0.10:details=0.38:halo=-0.04:blur=0.18:compression=0.20:estimate=8:grain=0:gsize=2:device=0:vram=0.95:instances=1,tvai_fi=model=apo-8:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1,scale=w=3840:h=2160:flags=lanczos:threads=0'
+ext = "mov"
+video_args = '-c:v prores_ks -profile:v proxy -pix_fmt yuv422p10le -vendor apl0'
+metadata = "videoai=VJ 4K60 ProRes Proxy. Proteus keeps graphics clean while Apollo creates 60fps motion for projection and live visual workflows."

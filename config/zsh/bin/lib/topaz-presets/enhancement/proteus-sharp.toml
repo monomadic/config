@@ -1,0 +1,13 @@
+order = 3
+category = "detail"
+display = "Proteus — Sharp"
+scales = ["1", "2", "4k"]
+blurb = "High detail + visible edge bite; dehalo raised"
+filter = 'tvai_up=model=prob-4:@SCALE@:preblur=0:noise=0.12:details=0.80:halo=0.20:blur=0.35:compression=0.50:estimate=0:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Detail] Proteus Sharp. Manual Proteus: high detail generation with real edge bite — sharpening lifted to 0.35 with dehalo raised to keep the resulting halos in check. Sits between Detail Max and the Focus Fix deblurs."
+
+[insight]
+strategy = "Detail Max with edge bite: sharpening lifted to 0.35 — enough for visible crispness — while dehalo runs high to cancel the halos that sharpening would otherwise print. The middle path between clean invention and full deblur."
+watch = "The first preset in the Detail group where crunch is possible — check hard edges and speculars before committing."
+vs = "proteus-detail-max"
+vs_note = "Same invention engine plus visible sharpening. If Detail Max looks right but reads soft at edges, step up to this."

@@ -1,0 +1,13 @@
+order = 14
+category = "focus-fix"
+display = "Proteus Deblur — Strong"
+scales = ["1", "2", "4k"]
+blurb = "Heavy deblur for soft / missed-focus footage"
+filter = 'tvai_up=model=prob-4:@SCALE@:preblur=0.15:noise=0.18:details=0.80:halo=0.20:blur=0.80:compression=0.20:estimate=0:grain=0.01:gsize=2:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Focus Fix] Proteus Deblur Strong. Heavy sharpening/deblur with high detail recovery and dehalo raised to fight the resulting halos. For clearly soft or slightly missed-focus shots; expect edge artifacts on sharp sources."
+
+[insight]
+strategy = "The rescue for soft-but-usable footage: heavy deblur and high detail, with dehalo raised to cancel the ringing the sharpening creates."
+watch = "Check high-contrast edges — rooflines, text, speculars — at 100%; that is where ringing shows first."
+vs = "proteus-deblur-max-rescue"
+vs_note = "Try this first. Max Rescue is the same idea with nothing held back, at triple the artifacts."

@@ -1,0 +1,3 @@
+order = 8
+display = "Prob-4 2x - strong detail recovery"
+filter = 'tvai_up=model=prob-4:scale=2:preblur=0:noise=0.55:details=0.90:halo=0:blur=0.50:compression=0.45:estimate=8:grain=0.03:gsize=2:device=0:vram=0.95:instances=1'

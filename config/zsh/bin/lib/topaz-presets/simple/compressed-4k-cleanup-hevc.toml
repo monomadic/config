@@ -1,0 +1,7 @@
+order = 5
+display = "Overcompressed 4K Cleanup HEVC"
+preset_name = "compressed-4k-cleanup-hevc"
+filter = 'tvai_up=model=prob-4:scale=1:preblur=0.02:noise=0.20:details=0.22:halo=-0.08:blur=0.16:compression=0.62:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1'
+ext = "mp4"
+video_args = '-c:v hevc_videotoolbox -profile:v main -tag:v hvc1 -pix_fmt yuv420p -allow_sw 1 -g 30 -b:v 35M'
+metadata = "videoai=Overcompressed 4K cleanup. Same-size Proteus pass prioritizing compression repair, reduced halos, and restrained detail recovery."

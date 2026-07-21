@@ -1,0 +1,13 @@
+order = 5
+category = "detail"
+display = "Starlight Mini"
+scales = ["2"]
+blurb = "Generative; strongest true detail invention (2x only)"
+filter = 'tvai_up=model=slm-1:@SCALE@:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Detail] Starlight Mini. Diffusion-style reconstruction — the strongest genuine detail generation here, and it fails differently from Proteus (texture/face hallucination rather than halos). Compare carefully on faces and text."
+
+[insight]
+strategy = "Diffusion-style reconstruction: it re-imagines pixels rather than filtering them, so it generates texture that Proteus can only sharpen toward. 2x only — on 1080p that is the full 4K target."
+watch = "Hallucination — faces, text and logos can change identity, not just clarity. Inspect anything a viewer would recognise."
+vs = "proteus-detail-max"
+vs_note = "Detail Max amplifies what exists; Starlight invents. When it wins it wins big, but it is slower and less predictable."

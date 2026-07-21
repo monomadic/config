@@ -1,0 +1,5 @@
+order = 1
+display = "[Cleanup] Proteus Compression Cleanup"
+categories = "Cleanup"
+filter = 'tvai_up=model=prob-4:scale=1:preblur=0.02:noise=0.20:details=0.22:halo=-0.08:blur=0.16:compression=0.62:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Cleanup] Proteus Compression Cleanup. Same-size Proteus pass: heavy compression repair, light denoise, mild detail recovery, medium sharpening/deblur, stronger dehalo, tiny grain. Good for visibly blocky 4K or already-upscaled sources."

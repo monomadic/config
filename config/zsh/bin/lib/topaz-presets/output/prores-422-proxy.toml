@@ -1,0 +1,4 @@
+order = 3
+display = "ProRes 422 Proxy"
+ext = "mov"
+video_args = '-c:v prores_ks -profile:v proxy -pix_fmt yuv422p10le -vendor apl0'

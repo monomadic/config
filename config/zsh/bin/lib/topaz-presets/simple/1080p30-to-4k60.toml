@@ -1,0 +1,4 @@
+order = 16
+display = "1080p30 -> 4K60"
+preset_name = "1080p30-to-4k60"
+filter = 'tvai_up=model=prob-4:scale=2:preblur=0:noise=0.26:details=0.32:halo=0.03:blur=0.10:compression=0.20:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1,tvai_fi=model=chf-3:slowmo=1:rdt=0.01:fps=60:device=0:vram=0.95:instances=1'

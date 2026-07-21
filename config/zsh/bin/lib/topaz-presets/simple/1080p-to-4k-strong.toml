@@ -1,0 +1,4 @@
+order = 13
+display = "1080p -> 4K Strong Recovery"
+preset_name = "1080p-to-4k-strong"
+filter = 'tvai_up=model=prob-4:scale=2:preblur=0:noise=0.42:details=0.44:halo=0.06:blur=0.20:compression=0.30:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'

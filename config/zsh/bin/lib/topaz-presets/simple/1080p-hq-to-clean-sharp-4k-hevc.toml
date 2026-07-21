@@ -1,0 +1,7 @@
+order = 3
+display = "HQ 1080p -> Clean Sharp 4K HEVC"
+preset_name = "1080p-hq-to-clean-sharp-4k-hevc"
+filter = 'tvai_up=model=prob-4:scale=0:w=3840:h=2160:preblur=0:noise=0.06:details=0.42:halo=-0.03:blur=0.10:compression=0.08:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1,scale=w=3840:h=2160:flags=lanczos:threads=0'
+ext = "mp4"
+video_args = '-c:v hevc_videotoolbox -profile:v main -tag:v hvc1 -pix_fmt yuv420p -allow_sw 1 -g 30 -b:v 40M'
+metadata = "videoai=HQ 1080p to 4K. Light Proteus enhancement for already-good sources: restrained denoise, compression repair, and detail recovery."

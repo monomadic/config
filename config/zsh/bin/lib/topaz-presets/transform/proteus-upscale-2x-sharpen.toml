@@ -1,0 +1,5 @@
+order = 8
+display = "[Upscale] Proteus 2x, Sharpen"
+categories = "Upscale"
+filter = 'tvai_up=model=prob-4:scale=2:preblur=0:noise=0.18:details=0.35:halo=0.02:blur=0.10:compression=0.12:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Upscale] Proteus 2x, Sharpen. 2x Proteus upscale: light denoise, medium detail recovery, mild sharpening, light compression cleanup, tiny grain. Conservative default for decent 1080p sources."

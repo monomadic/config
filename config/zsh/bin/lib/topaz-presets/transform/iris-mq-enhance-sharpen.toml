@@ -1,0 +1,5 @@
+order = 3
+display = "[Enhance] Iris MQ, Sharpen"
+categories = "Enhance"
+filter = 'tvai_up=model=iris-mq:scale=1:preblur=0:noise=0.25:details=0.50:halo=0:blur=0.15:compression=0.20:estimate=8:grain=0.01:gsize=2:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Enhance] Iris MQ, Sharpen. Same-size Iris MQ pass: moderate denoise, strong detail recovery, light-medium sharpening, light compression cleanup, tiny grain. Useful for faces and soft detail; watch for face or texture hallucination."

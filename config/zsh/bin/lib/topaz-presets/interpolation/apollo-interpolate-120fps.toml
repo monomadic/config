@@ -1,0 +1,4 @@
+order = 5
+display = "Apollo 120fps — high-Hz / slow-mo"
+filter = 'tvai_fi=model=apo-8:slowmo=1:rdt=0.01:fps=120:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Interpolate] Apollo 120fps. Generate 120fps for high-refresh displays or as raw material to conform to slow motion later. Large files; motion errors are 4x more visible."

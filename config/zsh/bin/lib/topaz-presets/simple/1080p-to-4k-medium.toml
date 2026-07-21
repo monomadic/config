@@ -1,0 +1,4 @@
+order = 12
+display = "1080p -> 4K Medium Enhancement"
+preset_name = "1080p-to-4k-medium"
+filter = 'tvai_up=model=prob-4:scale=2:preblur=0:noise=0.28:details=0.34:halo=0.04:blur=0.12:compression=0.22:estimate=8:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'

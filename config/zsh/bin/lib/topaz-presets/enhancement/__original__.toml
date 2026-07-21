@@ -1,0 +1,4 @@
+pseudo = true
+
+[insight]
+strategy = "The control. Every preset is judged against this frame — flick Space often to keep your eye honest before trusting a render."

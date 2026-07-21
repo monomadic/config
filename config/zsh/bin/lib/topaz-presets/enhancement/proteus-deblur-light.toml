@@ -1,0 +1,13 @@
+order = 13
+category = "focus-fix"
+display = "Proteus Deblur — Light"
+scales = ["1", "2", "4k"]
+blurb = "Moderate deblur for slightly soft footage"
+filter = 'tvai_up=model=prob-4:@SCALE@:preblur=0.10:noise=0.15:details=0.55:halo=0.20:blur=0.60:compression=0.30:estimate=0:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Focus Fix] Proteus Deblur Light. Manual Proteus led by firm sharpening/deblur with moderate detail recovery and dehalo raised to compensate. For soft or slightly out-of-focus sources; will crunch footage that is already sharp."
+
+[insight]
+strategy = "Led by the sharpen slider the other presets suppress. Right when softness is the defect — missed focus, generational loss — because no amount of detail generation fixes an unsharp edge. Upscaling works but magnifies the edge work — prefer Original unless the preview holds up."
+watch = "On already-sharp footage this is pure crunch — it can look worse than the source."
+vs = "proteus-deblur-strong"
+vs_note = "Start here. Step up to Strong only when edges are still visibly soft."

@@ -1,0 +1,4 @@
+order = 1
+display = "HEVC constant bitrate 40mbps"
+ext = "mp4"
+video_args = '-c:v hevc_videotoolbox -profile:v main -tag:v hvc1 -pix_fmt yuv420p -allow_sw 1 -g 30 -b:v 40M -constant_bit_rate 1'
