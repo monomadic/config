@@ -97,10 +97,14 @@ withParentMenuId: (int)theParentMenuId
 - (void)setTitleFont:(NSArray *)fontConfig {
   NSNumber *size = [fontConfig objectAtIndex:0];
   NSNumber *bold = [fontConfig objectAtIndex:1];
-  if ([bold boolValue]) {
-    statusItem.button.font = [NSFont boldSystemFontOfSize:[size doubleValue]];
+  double points = [size doubleValue];
+  if (points <= 0) {
+    // Match Apple's own menu bar items (e.g. the battery percentage).
+    statusItem.button.font = [NSFont menuBarFontOfSize:0.0];
+  } else if ([bold boolValue]) {
+    statusItem.button.font = [NSFont boldSystemFontOfSize:points];
   } else {
-    statusItem.button.font = [NSFont systemFontOfSize:[size doubleValue]];
+    statusItem.button.font = [NSFont systemFontOfSize:points];
   }
 }
 

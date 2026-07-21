@@ -486,6 +486,9 @@ func onReady() {
 	settings = loadSettings()
 	settingsMu.Unlock()
 
+	// Match Apple's Control Center items (e.g. battery %), which render smaller
+	// than the menu bar font used for the clock.
+	systray.SetTitleFont(11, false)
 	systray.SetTitle(fmt.Sprintf("%s init", diskIcon))
 
 	mStyle := systray.AddMenuItem("Style", "Choose the menu bar layout")

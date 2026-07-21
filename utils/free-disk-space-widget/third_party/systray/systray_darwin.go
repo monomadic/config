@@ -40,7 +40,9 @@ func SetSystemSymbolIcon(symbolName string) bool {
 	return bool(C.setSystemSymbolIcon(cstr))
 }
 
-// SetTitleFont sets the status item title font on macOS.
+// SetTitleFont sets the status item title font on macOS. A size <= 0 uses the
+// native menu bar font ([NSFont menuBarFontOfSize:0]), matching Apple's own
+// menu bar items; bold is ignored in that case.
 func SetTitleFont(size float64, bold bool) {
 	C.setTitleFont(C.double(size), C.bool(bold))
 }

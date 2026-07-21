@@ -2,8 +2,8 @@
 
 package systray
 
-// SetTitleFont is implemented on macOS. Other platforms keep the default
-// status item title font.
+// SetTitleFont is implemented on macOS (a size <= 0 selects the native menu bar
+// font there). Other platforms keep the default status item title font.
 func SetTitleFont(size float64, bold bool) {}
 
 // SetTemplateIconWithSize falls back to the platform default icon sizing
