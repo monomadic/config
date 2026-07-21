@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"os/exec"
 	"time"
 
@@ -10,10 +9,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const (
-	uptimeIcon     = "􀣔"
-	longUptimeIcon = "􀱨"
-)
+const uptimeIcon = "􂝔"
 
 func main() {
 	systray.Run(onReady, onExit)
@@ -29,29 +25,45 @@ func uptime() (time.Duration, error) {
 	return time.Since(bootedAt), nil
 }
 
+// formatUptime renders a duration as compact "<days>d <hours>h", omitting a
+// unit when it is zero: e.g. "2d 1h", "33d 3h", "1d", "1h".
 func formatUptime(duration time.Duration) string {
-	minutes := int(math.Round(duration.Minutes()))
-	if minutes < 1 {
-		minutes = 1
-	}
-	if minutes < 60 {
-		return fmt.Sprintf("%dm", minutes)
-	}
+	totalHours := int(duration.Hours())
+	days := totalHours / 24
+	hours := totalHours % 24
 
-	hours := int(math.Round(duration.Hours()))
-	if hours < 24 {
+	switch {
+	case days > 0 && hours > 0:
+		return fmt.Sprintf("%dd %dh", days, hours)
+	case days > 0:
+		return fmt.Sprintf("%dd", days)
+	default:
 		return fmt.Sprintf("%dh", hours)
 	}
-
-	days := int(math.Round(duration.Hours() / 24))
-	return fmt.Sprintf("%dd", days)
 }
 
-func iconForUptime(duration time.Duration) string {
-	if duration > 48*time.Hour {
-		return longUptimeIcon
+// humanUptime renders a duration as a readable phrase for the tooltip, e.g.
+// "2 days, 1 hour".
+func humanUptime(duration time.Duration) string {
+	totalHours := int(duration.Hours())
+	days := totalHours / 24
+	hours := totalHours % 24
+
+	plural := func(n int, unit string) string {
+		if n == 1 {
+			return fmt.Sprintf("%d %s", n, unit)
+		}
+		return fmt.Sprintf("%d %ss", n, unit)
 	}
-	return uptimeIcon
+
+	switch {
+	case days > 0 && hours > 0:
+		return fmt.Sprintf("%s, %s", plural(days, "day"), plural(hours, "hour"))
+	case days > 0:
+		return plural(days, "day")
+	default:
+		return plural(hours, "hour")
+	}
 }
 
 func updateUptime() {
@@ -61,9 +73,8 @@ func updateUptime() {
 		return
 	}
 
-	formatted := formatUptime(duration)
-	systray.SetTitle(fmt.Sprintf("%s %s", iconForUptime(duration), formatted))
-	systray.SetTooltip(fmt.Sprintf("System uptime is %s", formatted))
+	systray.SetTitle(fmt.Sprintf("%s %s", uptimeIcon, formatUptime(duration)))
+	systray.SetTooltip(fmt.Sprintf("System uptime is %s", humanUptime(duration)))
 }
 
 func runPowerAction(label, command string) {
@@ -76,6 +87,8 @@ tell application "System Events" to %s`, label, label, command)
 }
 
 func onReady() {
+	// Match free-disk-space-widget: render at the Control Center text size.
+	systray.SetTitleFont(11, false)
 	systray.SetTitle(fmt.Sprintf("%s init", uptimeIcon))
 	mReboot := systray.AddMenuItem("Reboot", "Reboot this Mac")
 	mShutdown := systray.AddMenuItem("Shutdown", "Shut down this Mac")

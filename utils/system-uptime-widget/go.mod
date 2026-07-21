@@ -2,6 +2,9 @@ module jayu/system-uptime-widget
 
 go 1.23.6
 
+// Share the free-disk-space-widget systray fork, which adds SetTitleFont.
+replace github.com/getlantern/systray => ../free-disk-space-widget/third_party/systray
+
 require (
 	github.com/getlantern/systray v1.2.2
 	golang.org/x/sys v0.1.0
