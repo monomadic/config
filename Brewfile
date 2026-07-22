@@ -54,7 +54,6 @@ brew "eza"
 brew "fclones"
 brew "fd"
 #brew "fdupes"
-brew "fff"
 brew "fselect"
 brew "fzf"
 brew "television"
@@ -70,24 +69,21 @@ brew "ripgrep"
 brew "rga"
 brew "rm-improved"
 brew "rmrfrs"
-brew "sk"
+#brew "sk"
 brew "unar"
 brew "xplr"
 
 # Editors and terminal-adjacent tools
-brew "amp"
-brew "atuin"
-brew "bottom"
+#brew "amp" # editor
+brew "atuin" # improved shell history
+brew "bottom" # top
 brew "chafa"
 brew "glow"
 brew "helix"
-brew "neovim"
 brew "procs"
 #brew "starship"
 brew "viu" # Simple terminal image viewer written in Rust
 brew "zellij"
-tap "itchyny/tap"
-brew "itchyny/tap/mmv"
 #cask "markedit"
 
 # Media and content tooling
