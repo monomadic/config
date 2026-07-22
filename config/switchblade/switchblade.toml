@@ -332,6 +332,9 @@ s = "shuffle_library"  # shuffle the whole grid in place ("shuffle" also works)
 t = "toggle_skip_timer"  # auto-advance every skip_timer_s of playback
 "[" = "skip_back"  # jump by skip_fraction; wraps at the ends
 "]" = "skip_forward"
+1 = "library '~/Movies/Porn'"
+2 = "library '/Volumes/Tower/Movies/Porn'"
+3 = "library '/Volumes/Footage 1tb/Movies/Porn'"
 
 # n = "rename_script"    # any key -> any launched program; example below
 # "{" = "skip_back_big"  # a skip with its own amount; see below
@@ -376,7 +379,7 @@ args = [
   "{dir}",
   "--",
   "/Users/nom/.zsh/bin/ffmpeg-lossless-cut",
-  "{path}",
+  "'{path}'",
 ]
 
 # Example: bind a key to your own script.

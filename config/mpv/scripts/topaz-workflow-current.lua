@@ -132,6 +132,26 @@ local function disp_len(value)
     return n
 end
 
+-- UTF-8-aware truncation to at most `max_chars` display characters (byte-safe,
+-- so a cut never lands mid multi-byte glyph like an em dash).
+local function truncate_disp(value, max_chars)
+    local text = tostring(value or "")
+    if disp_len(text) <= max_chars then
+        return text
+    end
+    local count = 0
+    for i = 1, #text do
+        local b = text:byte(i)
+        if b < 0x80 or b >= 0xC0 then
+            count = count + 1
+            if count > max_chars then
+                return text:sub(1, i - 1) .. "…"
+            end
+        end
+    end
+    return text
+end
+
 -- ===== ASS drawing helpers / shared menu layout =====
 -- Coordinates are in the 1280x720 virtual space used by every overlay here.
 
@@ -148,7 +168,8 @@ local ROW_W = PANEL_W - 2 * PAD      -- group + row width (also mouse hit-test r
 local RH = 30           -- preset / option row height (two text lines)
 local HH = 22           -- section-header row advance
 local TAB_Y = MARGIN_T + 36          -- segmented tab bar top
-local TAB_H = 24                     -- segmented tab bar height
+local TAB_H = 24                     -- segmented tab bar height (each segment also
+                                      -- carries a tiny "what's selected" caption line)
 local LIST_TOP = TAB_Y + TAB_H + 14  -- y where the first group starts
 local CAP_W = 16        -- index keycap width
 local CAP_H = 16        -- index keycap height
@@ -307,9 +328,10 @@ local ENHANCE_HINTS = {
     { keys = { "J", "K" }, label = "move" },
     { keys = { "Space" }, label = "A/B" },
     { keys = { "⇧←", "⇧→" }, label = "±10s" },
+    { keys = { "Z" }, label = "zoom" },
     { keys = { "D" }, label = "details" },
-    { keys = { "Tab" }, label = "tabs" },
-    { keys = { "F" }, label = "hide UI" },
+    { keys = { "⌘⇧[", "⌘⇧]" }, label = "tabs" },
+    { keys = { "Tab" }, label = "hide" },
     { keys = { "Esc" }, label = "close" },
 }
 local OPTION_HINTS = {
@@ -317,14 +339,17 @@ local OPTION_HINTS = {
     { keys = { "J", "K" }, label = "move" },
     { keys = { "Enter" }, label = "select" },
     { keys = { "Space" }, label = "A/B" },
-    { keys = { "Tab" }, label = "tabs" },
+    { keys = { "⌘⇧[", "⌘⇧]" }, label = "tabs" },
+    { keys = { "Tab" }, label = "hide" },
     { keys = { "Esc" }, label = "back" },
 }
--- Finalize actions, right-aligned in the bar on every tab. Each closes the menu.
+-- Finalize actions, right-aligned in the bar on every tab. Each closes the menu
+-- except ⌘E, which just opens the preset catalog for editing.
 local FINALIZE_HINTS = {
-    { keys = { "⌘S" }, label = "save to file" },
-    { keys = { "⌘↩" }, label = "start encoding now" },
-    { keys = { "⌘C" }, label = "copy CLI command" },
+    { keys = { "⌘E" }, label = "edit" },
+    { keys = { "⌘S" }, label = "save" },
+    { keys = { "⌘↩" }, label = "encode" },
+    { keys = { "⌘C" }, label = "copy" },
 }
 
 -- Approximate rendered width of a hint-segment run (mirrors draw_hint_segments),
@@ -644,6 +669,27 @@ local function chosen_enh()
     return menu.presets[1]  -- the Original pseudo-preset is always first
 end
 
+-- Tiny "what's selected" caption for tab `tab_idx` (1=Enhance, 2=Interpolate,
+-- 3=Output) — the current global selection, independent of which tab is active,
+-- so each segmented-control tab can show its own pending choice underneath.
+local function tab_summary_text(tab_idx)
+    if tab_idx == 1 then
+        local enh = chosen_enh()
+        return enh.is_original and "Original" or enh.display
+    elseif tab_idx == 2 then
+        local row = menu.interp_rows[menu.interp_sel]
+        return row and row.title or "Off"
+    else
+        local res = effective_res(chosen_enh())
+        local fmt = menu.out_formats and menu.out_formats[menu.fmt_sel]
+        local parts = { res.short or res.label or "" }
+        if fmt then
+            parts[#parts + 1] = fmt.display
+        end
+        return table.concat(parts, " · ")
+    end
+end
+
 -- ===== catalog loading =====
 
 -- Read enhancement presets, group by category, and hide presets that can't reach
@@ -906,7 +952,9 @@ local function paint_option_row(pills, fg, o)
     end
 end
 
--- The segmented Enhance / Interpolate / Output control under the title.
+-- The segmented Enhance / Interpolate / Output control under the title. Each
+-- segment carries the tab name plus a tiny caption of its current selection,
+-- both packed inside the existing TAB_H band — this never grows the panel.
 local function draw_tab_bar(ev)
     ev[#ev + 1] = string.format(
         "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&HFFFFFF&\\1a&HE8&\\p1}%s{\\p0}",
@@ -914,21 +962,25 @@ local function draw_tab_bar(ev)
 
     menu.tab_hitboxes = {}
     local seg_w = math.floor((ROW_W - 6) / #TABS)
+    local max_chars = math.max(4, math.floor(seg_w / 5.2))
     for i, name in ipairs(TABS) do
         local x = LIST_X + 3 + (i - 1) * seg_w
-        local cy = TAB_Y + math.floor(TAB_H / 2)
-        if i == menu.tab then
+        local cx = x + math.floor(seg_w / 2)
+        local active = (i == menu.tab)
+        if active then
             ev[#ev + 1] = string.format(
                 "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&HFFFFFF&\\1a&H1E&\\p1}%s{\\p0}",
                 x, TAB_Y + 3, ass_round_rect(seg_w, TAB_H - 6, 7))
-            ev[#ev + 1] = string.format(
-                "{\\an5\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs11\\b1\\1c&H1A1A1A&}%s",
-                x + math.floor(seg_w / 2), cy, FONT, name)
-        else
-            ev[#ev + 1] = string.format(
-                "{\\an5\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs11\\b0\\1c&HB4B4B4&}%s",
-                x + math.floor(seg_w / 2), cy, FONT, name)
         end
+        local name_color = active and "&H1A1A1A&" or "&HB4B4B4&"
+        local cap_color = active and "&H5A5A5A&" or "&H8C8C8C&"
+        ev[#ev + 1] = string.format(
+            "{\\an5\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs10\\b1\\1c%s}%s",
+            cx, TAB_Y + 8, FONT, name_color, name)
+        ev[#ev + 1] = string.format(
+            "{\\an5\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs7\\b0\\1c%s}%s",
+            cx, TAB_Y + 18, FONT, cap_color,
+            ass_escape(truncate_disp(tab_summary_text(i), max_chars)))
         menu.tab_hitboxes[#menu.tab_hitboxes + 1] =
             { x0 = x, x1 = x + seg_w, y0 = TAB_Y, y1 = TAB_Y + TAB_H, tab = i }
     end
@@ -1198,7 +1250,10 @@ function draw_menu()
         content_end = draw_output_body(cards, pills, fg, labels)
     end
 
-    local panel_bottom = math.min(content_end + 10, 712)
+    -- Enhance tab reserves a couple of extra px in its bottom pad for the fake
+    -- pagination footer; every other tab keeps the original pad.
+    local pad_bottom = (menu.tab == 1) and 16 or 10
+    local panel_bottom = math.min(content_end + pad_bottom, 712)
 
     -- Sheet backing + header (title left, source caption right) + tab bar + body.
     local ev = {}
@@ -1215,6 +1270,18 @@ function draw_menu()
     for _, e in ipairs(pills) do ev[#ev + 1] = e end
     for _, e in ipairs(fg) do ev[#ev + 1] = e end
     for _, e in ipairs(labels) do ev[#ev + 1] = e end
+
+    -- Fake pagination footer: a plain carousel-style dot indicator (cosmetic
+    -- only — presets aren't actually paged; page count is hard-coded). Dots
+    -- rather than numbered "‹1 2 3›" buttons, so it doesn't look clickable —
+    -- there is no click handler here. Drawn inside the panel's own bottom pad
+    -- rather than as an extra row.
+    if menu.tab == 1 then
+        ev[#ev + 1] = string.format(
+            "{\\an5\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs8\\1c&HFFFFFF&}●"
+                .. "{\\1c&H6E6E6E&} ○ ○",
+            LIST_X + math.floor(ROW_W / 2), content_end + 8, FONT)
+    end
 
     list_badge.data = table.concat(ev, "\n")
     list_badge:update()
@@ -1949,6 +2016,14 @@ function toggle_ui()
     end
 end
 
+-- Z: toggle 1x (unscaled, native-pixel) zoom, so you can inspect a render's detail
+-- at full resolution instead of scaled to fit the window.
+local function toggle_zoom_1x()
+    local unscaled = (mp.get_property("video-unscaled") or "no") == "yes"
+    mp.set_property("video-unscaled", unscaled and "no" or "yes")
+    mp.osd_message(unscaled and "Zoom: fit window" or "Zoom: 1x", 1)
+end
+
 -- ===== finalize: encode now / save job / copy command =====
 
 -- Everything needed to run the encode outside mpv, built from the current tab
@@ -2109,6 +2184,25 @@ function copy_encode_command()
     close_menu("Encode command copied")
 end
 
+-- ⌘E: open the preset catalog in Helix in a new kitty tab. Doesn't close the menu.
+local function edit_preset_catalog()
+    local directory = utils.split_path(preset_catalog)
+    local result = utils.subprocess_detached({
+        args = {
+            kitty_launch,
+            "--tab",
+            "--cwd", directory,
+            "--title", " topaz presets ",
+            "--",
+            "hx", preset_catalog,
+        },
+    })
+    if result == false then
+        mp.osd_message("Could not open preset catalog", 2)
+        mp.msg.error("Failed to launch Helix for: " .. preset_catalog)
+    end
+end
+
 -- Skip the preview point ±`delta` seconds without leaving the renderer. Every
 -- cached still was rendered for the old timestamp, so they are dropped and the
 -- source is re-shown at the new time; presets re-render on demand as before.
@@ -2171,14 +2265,15 @@ local MENU_KEY_NAMES = {
     "topaz_menu_up", "topaz_menu_up2",
     "topaz_menu_render_r", "topaz_menu_render_R",
     "topaz_menu_render_enter", "topaz_menu_render_kp_enter",
-    "topaz_menu_space", "topaz_menu_tab", "topaz_menu_tab_back",
-    "topaz_menu_hide_ui",
+    "topaz_menu_space", "topaz_menu_hide_ui_tab", "topaz_menu_hide_ui_f",
+    "topaz_menu_tab_prev", "topaz_menu_tab_next",
     "topaz_menu_seek_fwd", "topaz_menu_seek_back",
-    "topaz_menu_details",
+    "topaz_menu_details", "topaz_menu_zoom",
     "topaz_menu_show_render_l", "topaz_menu_show_render_right",
     "topaz_menu_show_orig_h", "topaz_menu_show_orig_left",
     "topaz_menu_proceed_c",
     "topaz_menu_save_job", "topaz_menu_encode_meta", "topaz_menu_copy_cmd",
+    "topaz_menu_edit_presets",
     "topaz_menu_block_n", "topaz_menu_block_N",
     "topaz_menu_click",
     "topaz_menu_esc", "topaz_menu_bs",
@@ -2205,21 +2300,24 @@ function enable_menu_keys()
     mp.add_forced_key_binding("RIGHT", "topaz_menu_show_render_right", show_render)
     mp.add_forced_key_binding("h", "topaz_menu_show_orig_h", show_orig)
     mp.add_forced_key_binding("LEFT", "topaz_menu_show_orig_left", show_orig)
-    -- Tab / Shift+Tab cycle the Enhance / Interpolate / Output tabs.
-    mp.add_forced_key_binding("TAB", "topaz_menu_tab", function()
-        if menu then
-            set_tab(menu.tab % #TABS + 1)
-        end
-    end)
-    mp.add_forced_key_binding("Shift+TAB", "topaz_menu_tab_back", function()
+    -- Tab hides/shows the UI for a clean fullscreen preview (f stays as an alias).
+    mp.add_forced_key_binding("TAB", "topaz_menu_hide_ui_tab", toggle_ui)
+    mp.add_forced_key_binding("f", "topaz_menu_hide_ui_f", toggle_ui)
+    -- ⌘⇧[ / ⌘⇧] cycle the Enhance / Interpolate / Output tabs (Shift+[ is "{").
+    mp.add_forced_key_binding("Meta+{", "topaz_menu_tab_prev", function()
         if menu then
             set_tab((menu.tab - 2) % #TABS + 1)
         end
     end)
-    -- F hides/shows the UI for a clean fullscreen preview.
-    mp.add_forced_key_binding("f", "topaz_menu_hide_ui", toggle_ui)
+    mp.add_forced_key_binding("Meta+}", "topaz_menu_tab_next", function()
+        if menu then
+            set_tab(menu.tab % #TABS + 1)
+        end
+    end)
     -- d toggles the preset-details companion sheet.
     mp.add_forced_key_binding("d", "topaz_menu_details", toggle_details)
+    -- z toggles 1x (unscaled) zoom, for inspecting render detail at native pixels.
+    mp.add_forced_key_binding("z", "topaz_menu_zoom", toggle_zoom_1x)
     -- Skip the preview point ±10s without leaving the renderer.
     mp.add_forced_key_binding("Shift+RIGHT", "topaz_menu_seek_fwd", function() menu_seek(10) end)
     mp.add_forced_key_binding("Shift+LEFT", "topaz_menu_seek_back", function() menu_seek(-10) end)
@@ -2229,6 +2327,8 @@ function enable_menu_keys()
     mp.add_forced_key_binding("Meta+ENTER", "topaz_menu_encode_meta", start_encode_now)
     mp.add_forced_key_binding("Meta+c", "topaz_menu_copy_cmd", copy_encode_command)
     mp.add_forced_key_binding("c", "topaz_menu_proceed_c", start_encode_now)
+    -- ⌘E opens the preset catalog in Helix (kitty). Doesn't close the menu.
+    mp.add_forced_key_binding("Meta+e", "topaz_menu_edit_presets", edit_preset_catalog)
     -- Swallow playlist-next/prev so preview stills don't get navigated away.
     mp.add_forced_key_binding("n", "topaz_menu_block_n", function() end)
     mp.add_forced_key_binding("N", "topaz_menu_block_N", function() end)

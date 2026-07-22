@@ -27,7 +27,10 @@ Options:
   --claude   Use Claude to generate the message
   -h, --help Show this help
 
-The backend can also be set with GC_BACKEND=codex|claude.
+Environment variables:
+  GC_BACKEND              codex|claude (default: codex)
+  GC_REASONING            Codex reasoning effort (default: low)
+  GC_CLAUDE_MODEL         Claude model to use (default: claude-haiku-4-5-20251001)
 
 Examples:
   gc
@@ -35,6 +38,7 @@ Examples:
   gc --staged-only
   gc --claude
   gc --multi --staged-only
+  GC_CLAUDE_MODEL=claude-opus-4-8 gc --claude
 EOF
 }
 
@@ -165,7 +169,7 @@ generate_message() {
         --spinner dot \
         --title "Thinking..." \
         -- \
-        zsh -c "env ${(j: :)${(@)claude_env/#/-u }} claude --print < ${(q)prompt_file} > ${(q)output_file} 2> ${(q)err_file}"
+        zsh -c "env ${(j: :)${(@)claude_env/#/-u }} claude --print --model ${GC_CLAUDE_MODEL:-claude-haiku-4-5-20251001} < ${(q)prompt_file} > ${(q)output_file} 2> ${(q)err_file}"
       then
         die "Claude failed: $(<"$err_file")$(<"$output_file")"
       fi

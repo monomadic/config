@@ -35,7 +35,7 @@ brew "uni" # unicode database
 # Dotfiles and machine bootstrap
 brew "dotter"
 brew "fileicon" # app icon overrides during deploy
-brew "mas" # Mac App Store CLI
+#brew "mas" # Mac App Store CLI
 
 # Git and repo workflow
 brew "git"
@@ -46,14 +46,14 @@ brew "lazygit"
 
 # File inspection, search, and navigation
 brew "bat"
-brew "broot"
-brew "dua-cli"
-brew "duf"
-brew "dust"
+#brew "broot"
+#brew "dua-cli"
+#brew "duf"
+#brew "dust"
 brew "eza"
 brew "fclones"
 brew "fd"
-brew "fdupes"
+#brew "fdupes"
 brew "fff"
 brew "fselect"
 brew "fzf"
@@ -83,12 +83,12 @@ brew "glow"
 brew "helix"
 brew "neovim"
 brew "procs"
-brew "starship"
-brew "viu"
+#brew "starship"
+brew "viu" # Simple terminal image viewer written in Rust
 brew "zellij"
 tap "itchyny/tap"
 brew "itchyny/tap/mmv"
-cask "markedit"
+#cask "markedit"
 
 # Media and content tooling
 brew "aria2"
@@ -100,14 +100,14 @@ brew "flac"
 brew "kew"
 brew "mediamtx"
 brew "mpv"
-brew "ouch"
+brew "ouch" # Painless compression and decompression for your terminal
 brew "wallpaper"
 brew "wget"
 brew "yt-dlp"
 brew "zstd"
 
 # Development and utilities
-brew "aicommits"
+#brew "aicommits"
 brew "bitwise"
 brew "binwalk"
 brew "bingrep"
@@ -140,26 +140,25 @@ cask "sf-symbols"
 cask "1password"
 cask "1password-cli"
 cask "brave-browser"
-cask "iina"
+#cask "iina"
 cask "karabiner-elements"
-cask "keepingyouawake"
+#cask "keepingyouawake"
 cask "kitty"
 cask "losslesscut"
-cask "marta"
+#cask "marta"
 cask "monitorcontrol"
 cask "nifty-file-lists"
 cask "numi"
 cask "openinterminal"
-cask "smooze-pro"
+#cask "smooze-pro" # Animates scrolling and adds functionality to scroll-wheel mice
 cask "stats"
-cask "supasidebar"
+#cask "supasidebar"
 cask "swift-shift"
-cask "topnotch"
+#cask "topnotch"
 cask "transnomino"
 
 # Specialty desktop apps
 cask "hex-fiend"
-cask "jordanbaird-ice"
 
 # AI Tools
 # cask "chatgpt"
