@@ -2,6 +2,12 @@ module jayu/obsbot-rtsp-widget
 
 go 1.23.6
 
+// Share the free-disk-space-widget systray fork so the menu bar item resolves
+// to this app (spatial AX) instead of Control Center. Stock v1.2.2 leaves it an
+// unresolvable orphan, which makes Thaw spin up a phantom "Thaw Resolver"
+// display on single-display/headless remote sessions.
+replace github.com/getlantern/systray => ../free-disk-space-widget/third_party/systray
+
 require github.com/getlantern/systray v1.2.2
 
 require (
