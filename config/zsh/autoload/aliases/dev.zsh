@@ -33,7 +33,6 @@ alias zsh-reload="source ~/.zshrc"
 # ============================================================================
 
 alias g=git
-alias gc-update="gc update:"
 alias gd="git diff"
 alias gl="fzf-git-log"
 alias gp="git push"
