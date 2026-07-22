@@ -1,0 +1,14 @@
+# motherfucker theme: Monokai — #272822 ground, lime dot, magenta matches.
+[style]
+panel_background = "#272822"
+panel_opacity = 0.92
+item_foreground_highlight = "#F92672"  # magenta
+selected_item_foreground_highlight = "#A6E22E"  # green
+icon_foreground = "#66D9EF"  # blue
+selected_item_background = "#49483E"  # selection
+selected_item_opacity = 0.90
+item_info_foreground = "#F8F8F2"
+item_info_background = "#49483E"
+running_dot = "#A6E22E"  # green
+cpu_alert = "#FD971F"  # orange
+cpu_alert_background = "#3E3B2E"

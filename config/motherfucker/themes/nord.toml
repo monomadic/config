@@ -1,0 +1,16 @@
+# motherfucker theme: Nord — polar-night ground, frost accents, aurora dot.
+[style]
+panel_background = "#2E3440"
+panel_opacity = 0.92
+panel_foreground = "#ECEFF4"
+item_foreground = "#ECEFF4"
+item_foreground_highlight = "#88C0D0"  # frost cyan
+selected_item_foreground_highlight = "#88C0D0"
+icon_foreground = "#81A1C1"  # frost blue
+selected_item_background = "#434C5E"
+selected_item_opacity = 0.90
+item_info_foreground = "#E5E9F0"
+item_info_background = "#3B4252"
+running_dot = "#A3BE8C"  # aurora green
+cpu_alert = "#BF616A"  # aurora red
+cpu_alert_background = "#3B2B2E"

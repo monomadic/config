@@ -1,0 +1,16 @@
+# motherfucker theme: Claude Dark — warm ink ground, Claude-coral accent, cream text.
+[style]
+panel_background = "#262624"
+panel_opacity = 0.92
+panel_foreground = "#E8E6DC"
+item_foreground = "#E8E6DC"
+item_foreground_highlight = "#D97757"  # Claude coral
+selected_item_foreground_highlight = "#D97757"
+icon_foreground = "#C2734E"
+selected_item_background = "#3A3936"
+selected_item_opacity = 0.90
+item_info_foreground = "#D6D3C7"
+item_info_background = "#3A3936"
+running_dot = "#D97757"
+cpu_alert = "#E0846A"
+cpu_alert_background = "#402C24"

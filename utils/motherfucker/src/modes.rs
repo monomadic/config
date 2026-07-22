@@ -1,7 +1,7 @@
 //! Sigil modes: a reserved first character switches the panel from app
 //! search to a special-purpose resolver. `#` evaluates math, `!` expands
 //! web-search shortcuts. Sigils and shortcuts live in the config
-//! (`[modes]`, `[modes.web]`); everything here is pure string → rows, so
+//! (`[modes.math]`, `[modes.web]`, ...); everything here is pure string → rows, so
 //! the UI layer stays the only place that touches AppKit.
 
 use crate::config::WebShortcut;

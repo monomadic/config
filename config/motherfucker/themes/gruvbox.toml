@@ -1,0 +1,16 @@
+# motherfucker theme: Gruvbox — #282828 ground, retro-warm accents, aqua icons.
+[style]
+panel_background = "#282828"
+panel_opacity = 0.92
+panel_foreground = "#EBDBB2"
+item_foreground = "#EBDBB2"
+item_foreground_highlight = "#FABD2F"  # yellow
+selected_item_foreground_highlight = "#FABD2F"
+icon_foreground = "#8EC07C"  # aqua
+selected_item_background = "#504945"  # bg2
+selected_item_opacity = 0.90
+item_info_foreground = "#EBDBB2"
+item_info_background = "#3C3836"
+running_dot = "#B8BB26"  # green
+cpu_alert = "#FB4934"  # red
+cpu_alert_background = "#442A26"

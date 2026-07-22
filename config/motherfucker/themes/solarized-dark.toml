@@ -1,0 +1,16 @@
+# motherfucker theme: Solarized Dark — #002B36 base, solar accents, blue icons.
+[style]
+panel_background = "#002B36"
+panel_opacity = 0.92
+panel_foreground = "#93A1A1"
+item_foreground = "#93A1A1"
+item_foreground_highlight = "#B58900"  # yellow
+selected_item_foreground_highlight = "#2AA198"  # cyan
+icon_foreground = "#268BD2"  # blue
+selected_item_background = "#073642"  # base02
+selected_item_opacity = 0.92
+item_info_foreground = "#93A1A1"
+item_info_background = "#073642"
+running_dot = "#859900"  # green
+cpu_alert = "#DC322F"  # red
+cpu_alert_background = "#0E3A3A"

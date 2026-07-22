@@ -1845,13 +1845,17 @@ impl Delegate {
     /// A small filled dot with its right edge at `right_x`, vertically
     /// centered — the presence marker for a running app that isn't busy.
     unsafe fn build_running_dot(&self, mtm: MainThreadMarker, row: &NSView, right_x: f64) {
-        const DOT_D: f64 = 6.0;
+        const DOT_D: f64 = 7.0;
+        // Pull the dot a hair left of the right edge so it lines up under the
+        // pill column, and cuff it in translucent black so it reads as a
+        // defined, slightly thicker shape against any background.
+        const NUDGE: f64 = 2.0;
         let color = self.ivars().config.borrow().style.running_dot;
         let dot = unsafe {
             NSView::initWithFrame(
                 mtm.alloc(),
                 NSRect::new(
-                    NSPoint::new(right_x - DOT_D, (ROW_H - DOT_D) / 2.0),
+                    NSPoint::new(right_x - DOT_D - NUDGE, (ROW_H - DOT_D) / 2.0),
                     NSSize::new(DOT_D, DOT_D),
                 ),
             )
@@ -1860,6 +1864,12 @@ impl Delegate {
         if let Some(layer) = dot.layer() {
             layer.setCornerRadius(DOT_D / 2.0);
             set_layer_bg(&layer, &rgba(color, 1.0));
+            let cuff = rgba((0.0, 0.0, 0.0), 0.35);
+            unsafe {
+                let cg: *mut c_void = msg_send![&*cuff, CGColor];
+                let _: () = msg_send![&*layer, setBorderColor: cg];
+                let _: () = msg_send![&*layer, setBorderWidth: 1.0];
+            }
         }
         row.addSubview(&dot);
     }

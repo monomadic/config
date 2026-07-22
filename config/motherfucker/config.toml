@@ -149,10 +149,8 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 # the text field); backspace on an empty field returns to the launcher.
 # "=4% of 100" evaluates, "!yt cat videos" searches the web. One character
 # each; "none" disables a mode.
-[modes]
-math = "="
-web = "!"
-currency = "$"
+[modes.math]
+sigil = "="
 
 # Web-shortcut prefixes for the `!` mode: "!<prefix> terms" opens the URL
 # with {q} replaced by the encoded terms. An unknown prefix searches the
@@ -160,6 +158,7 @@ currency = "$"
 # explicitly with "Name | url", otherwise it's derived from the domain.
 # Defaults ship for g / yt / w; entries here override by prefix.
 [modes.web]
+sigil = "!"
 # "gh" = "GitHub | https://github.com/search?q={q}"
 
 # Currency mode (`$`): "$500,000 php", "$3k usd", "$1.4btc" convert through
@@ -167,7 +166,8 @@ currency = "$"
 # fetched in the background and cached at ~/.cache/motherfucker/rates.json —
 # results always render from cache, never blocking the panel.
 [modes.currency]
-targets = "usd, eur, gbp, aud, btc"
+sigil = "$"
+targets = "usd, aud, btc, php, eth"
 
 [stats]
 interval = 1.0  # seconds between cpu refreshes while open

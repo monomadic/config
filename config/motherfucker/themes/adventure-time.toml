@@ -1,0 +1,18 @@
+# motherfucker theme: Land of Ooo — dawn-mint sky, BMO teal, Bubblegum pink,
+# Jake-yellow dot.
+[style]
+panel_background = "#DFF5EC"
+panel_opacity = 0.86
+panel_foreground = "#2E4A44"
+item_foreground = "#2E4A44"
+selected_item_foreground = "#1F3A34"
+item_foreground_highlight = "#EF5DA0"  # Princess Bubblegum pink
+selected_item_foreground_highlight = "#EF5DA0"
+icon_foreground = "#2FA98C"  # BMO teal
+selected_item_background = "#7FC9D6"  # Finn-sky selection
+selected_item_opacity = 0.44
+item_info_foreground = "#356E86"
+item_info_background = "#BFE8DC"
+running_dot = "#F4C430"  # Jake yellow-orange
+cpu_alert = "#E4572E"
+cpu_alert_background = "#F6D8CE"

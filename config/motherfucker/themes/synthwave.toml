@@ -1,0 +1,16 @@
+# motherfucker theme: Synthwave '84 — deep violet dusk, hot-pink glow, cyan neon.
+[style]
+panel_background = "#44145F"
+panel_opacity = 0.30
+item_foreground_highlight = "#03EDF9"  # neon pink
+selected_item_foreground_highlight = "#03EDF9"  # cyan
+icon_foreground = "#03EDF9"
+selected_item_background = "#34294F"
+selected_item_opacity = 0.90
+selected_item_border = "#FF7EDB"
+selected_item_border_width = 2
+item_info_foreground = "#03EDF9"
+item_info_background = "#34294F"
+running_dot = "#FF7EDB"  # hot pink
+cpu_alert = "#FF8B39"  # orange
+cpu_alert_background = "#3B2340"

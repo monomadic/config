@@ -250,8 +250,8 @@ pub struct Config {
     pub shortcuts: Vec<(String, String)>,
     /// Seconds between stat refreshes while the panel is up.
     pub stats_interval: f64,
-    /// `[modes]` sigils: typing one as the FIRST character switches the
-    /// panel into that mode. `None` = mode disabled.
+    /// `[modes.<name>]` `sigil`: typing one as the FIRST character switches
+    /// the panel into that mode. `None` = mode disabled.
     pub sigil_math: Option<char>,
     pub sigil_web: Option<char>,
     pub sigil_currency: Option<char>,
@@ -510,6 +510,21 @@ fn warn(line: &str, what: &str) {
     eprintln!("motherfucker: config: {what}: `{line}`");
 }
 
+/// Parse a `sigil = ...` value: a single character, or `""`/`none` to disable
+/// the mode. `Err` means it was more than one character (caller warns).
+fn parse_sigil(val: &str) -> Result<Option<char>, ()> {
+    match val.to_lowercase().as_str() {
+        "" | "none" => Ok(None),
+        _ => {
+            let mut chars = val.chars();
+            match (chars.next(), chars.next()) {
+                (Some(c), None) => Ok(Some(c)),
+                _ => Err(()),
+            }
+        }
+    }
+}
+
 fn parse_into(cfg: &mut Config, text: &str) {
     let mut section = String::new();
     let mut hotkeys: Vec<(Chord, Mode)> = Vec::new();
@@ -575,30 +590,21 @@ fn parse_into(cfg: &mut Config, text: &str) {
                 cfg.shortcuts.retain(|(n, _)| !n.eq_ignore_ascii_case(&key));
                 cfg.shortcuts.push((key, val));
             }
-            "modes" => {
-                // A sigil is one character; "" or "none" disables the mode.
-                let sigil = match val.to_lowercase().as_str() {
-                    "" | "none" => None,
-                    _ => {
-                        let mut chars = val.chars();
-                        match (chars.next(), chars.next()) {
-                            (Some(c), None) => Some(c),
-                            _ => {
-                                warn(&line, "sigil must be a single character");
-                                continue;
-                            }
-                        }
-                    }
-                };
-                match key.to_lowercase().as_str() {
-                    "math" => cfg.sigil_math = sigil,
-                    "web" => cfg.sigil_web = sigil,
-                    "currency" => cfg.sigil_currency = sigil,
-                    _ => warn(&line, "unknown mode"),
-                }
-            }
-            "modes.currency" => {
-                if key.replace('-', "_") == "targets" {
+            // Each mode is its own table `[modes.<name>]` carrying a `sigil`
+            // key (the first-character trigger) plus any mode-specific keys.
+            "modes.math" => match key.to_lowercase().as_str() {
+                "sigil" => match parse_sigil(&val) {
+                    Ok(s) => cfg.sigil_math = s,
+                    Err(()) => warn(&line, "sigil must be a single character"),
+                },
+                _ => warn(&line, "unknown math key"),
+            },
+            "modes.currency" => match key.replace('-', "_").as_str() {
+                "sigil" => match parse_sigil(&val) {
+                    Ok(s) => cfg.sigil_currency = s,
+                    Err(()) => warn(&line, "sigil must be a single character"),
+                },
+                "targets" => {
                     let targets: Vec<String> = val
                         .split(',')
                         .map(|t| t.trim().to_uppercase())
@@ -607,19 +613,25 @@ fn parse_into(cfg: &mut Config, text: &str) {
                     if !targets.is_empty() {
                         cfg.currency_targets = targets;
                     }
-                } else {
-                    warn(&line, "unknown currency key");
                 }
-            }
-            "modes.web" => {
-                // Value is `URL`, or `Name | URL` to override the derived name.
-                let (name, template) = match val.split_once('|') {
-                    Some((n, u)) => (n.trim().to_string(), u.trim().to_string()),
-                    None => (derive_web_name(&val), val.clone()),
-                };
-                cfg.web_shortcuts.retain(|w| !w.prefix.eq_ignore_ascii_case(&key));
-                cfg.web_shortcuts.push(WebShortcut { prefix: key, name, template });
-            }
+                _ => warn(&line, "unknown currency key"),
+            },
+            "modes.web" => match key.to_lowercase().as_str() {
+                "sigil" => match parse_sigil(&val) {
+                    Ok(s) => cfg.sigil_web = s,
+                    Err(()) => warn(&line, "sigil must be a single character"),
+                },
+                // Any other key is a shortcut prefix; the value is `URL`, or
+                // `Name | URL` to override the derived name.
+                _ => {
+                    let (name, template) = match val.split_once('|') {
+                        Some((n, u)) => (n.trim().to_string(), u.trim().to_string()),
+                        None => (derive_web_name(&val), val.clone()),
+                    };
+                    cfg.web_shortcuts.retain(|w| !w.prefix.eq_ignore_ascii_case(&key));
+                    cfg.web_shortcuts.push(WebShortcut { prefix: key, name, template });
+                }
+            },
             "stats" => {
                 if key.replace('-', "_") == "interval" {
                     match val.parse::<f64>() {
@@ -1002,17 +1014,17 @@ cpu_alert_background = "#401010"
         parse_into(
             &mut cfg,
             r##"
-[modes]
-math = "="
-web = "none"
-currency = "$"
-
-[modes.currency]
-targets = "usd, php, btc"
+[modes.math]
+sigil = "="
 
 [modes.web]
+sigil = "none"
 "gh" = "GitHub | https://github.com/search?q={q}"
 "ddg" = "https://duckduckgo.com/?q={q}"
+
+[modes.currency]
+sigil = "$"
+targets = "usd, php, btc"
 "##,
         );
         assert_eq!(cfg.sigil_math, Some('='));

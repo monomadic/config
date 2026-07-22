@@ -1,0 +1,14 @@
+# motherfucker theme: Dracula — #282A36 night, purple icons, pink matches.
+[style]
+panel_background = "#282A36"
+panel_opacity = 0.33
+item_foreground_highlight = "#FF79C6"  # pink
+selected_item_foreground_highlight = "#8BE9FD"  # cyan on selection
+icon_foreground = "#BD93F9"  # purple
+selected_item_background = "#44475A"  # current line
+selected_item_opacity = 0.90
+item_info_foreground = "#F8F8F2"
+item_info_background = "#44475A"
+running_dot = "#50FA7B"  # green
+cpu_alert = "#FF5555"  # red
+cpu_alert_background = "#452830"
