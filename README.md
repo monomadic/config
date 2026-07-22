@@ -1,96 +1,101 @@
 # Dotfiles
 
-This repo is now organized around one rule:
+macOS dotfiles. Package installation is Homebrew's job, file placement is
+[Dotter](https://github.com/SuperCuber/dotter)'s job, and which packages are
+active on a given machine lives in `dotter/local.toml`.
 
-- package installation is handled by the platform package manager
-- file placement is handled by Dotter
-- machine-specific selection lives in `dotter/local.toml`
-- Helix is the active editor; Neovim stays in-tree as inactive source config
+## Bootstrap a fresh machine
 
-## Bootstrap
-
-### macOS
+One line, nothing installed beforehand — it sets up the Xcode Command Line
+Tools, installs Homebrew, clones this repo, installs the Brewfile, and deploys:
 
 ```bash
-git clone https://github.com/monomadic/config "$HOME/config"
-bash "$HOME/config/setup/macos/bootstrap.sh"
+curl -fsSL https://raw.githubusercontent.com/monomadic/config/master/setup/macos/bootstrap.sh | bash
 ```
 
-Fresh macOS install, without cloning first:
+The repo lands in `~/config` by default. To put it anywhere else:
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/monomadic/config/master/setup/macos/bootstrap.sh | bash
+DOTFILES_DIR="$HOME/src/config" bash -c "$(curl -fsSL https://raw.githubusercontent.com/monomadic/config/master/setup/macos/bootstrap.sh)"
 ```
 
-That script will:
+Nothing in the repo assumes a fixed location: every script resolves the
+checkout from its own path, and `$DOTFILES_DIR` is exported from `.zshenv` by
+resolving the symlink back to wherever you cloned it.
 
-- install Homebrew if needed
-- install packages from [Brewfile](/Users/nom/config/Brewfile)
-- create `dotter/local.toml` from `dotter/macos.toml.example` if needed
-- run Dotter using `dotter/global.toml` and `dotter/local.toml`
-- reapply selected macOS app icons with `fileicon`
-
-### Dotter model
-
-- global config: [dotter/global.toml](/Users/nom/config/dotter/global.toml)
-- local machine selection: `dotter/local.toml` (gitignored)
-- starting templates:
-  - [dotter/macos.toml.example](/Users/nom/config/dotter/macos.toml.example)
-  - [dotter/dev-container.toml.example](/Users/nom/config/dotter/dev-container.toml.example)
-  - [dotter/remote.toml](/Users/nom/config/dotter/remote.toml)
-
-Manual deploy:
+Already cloned? Run the same script from the checkout:
 
 ```bash
-~/config/setup/macos/deploy.sh
+setup/macos/bootstrap.sh
 ```
 
-On macOS, deploy also runs [setup/macos/apply-file-icons.sh](/Users/nom/config/setup/macos/apply-file-icons.sh) after Dotter finishes. Edit the `ICON_MAPPINGS` array there to change which apps get custom icons.
+## Packages
 
-Preflight check:
+- [Brewfile](Brewfile) — installed by bootstrap. Everything the shell, editor,
+  and this repo's config actually depend on.
+- [Brewfile.optional](Brewfile.optional) — large apps nothing here depends on
+  (messaging clients, Spotify, Journey, vapoursynth). Not installed by
+  bootstrap; pull them in when you want them:
 
 ```bash
-~/config/setup/macos/check.sh
+brew bundle --file "$DOTFILES_DIR/Brewfile.optional"
 ```
 
-Deploy runs this health check automatically unless `DOTTER_SKIP_HEALTHCHECK=1` is set.
+Careful with `brew bundle cleanup` against the main Brewfile alone — it will
+now see the optional apps as unlisted. Pass both files, or skip cleanup.
+
+## Day-to-day
+
+```bash
+setup/macos/packages.sh list            # what's deployed on this machine
+setup/macos/packages.sh enable helix    # turn a package on
+setup/macos/packages.sh disable marta   # turn one off
+setup/macos/deploy.sh                   # apply changes
+setup/macos/deploy.sh --full            # also sync Yazi plugins + macOS app icons
+setup/macos/check.sh                    # preflight, run automatically by deploy
+```
+
+Dotter **symlinks**, so editing a file under `config/` changes live config
+immediately. A deploy is only needed when the *mapping* changes — a new
+package, a new file entry, or a changed target path.
+
+## Dotter layout
+
+Two files, and only two:
+
+- [dotter/global.toml](dotter/global.toml) — every package, as one
+  `[<name>.files]` section mapping repo path → target path. Alphabetical,
+  grouped by purpose, one syntax throughout.
+- `dotter/local.toml` — this machine's package selection plus variable
+  overrides. Gitignored; created from
+  [dotter/local.toml.example](dotter/local.toml.example) on bootstrap.
+
+Adding a tool means: create `config/<tool>/`, add a `[<tool>.files]` section to
+`global.toml`, then `setup/macos/packages.sh enable <tool>` and deploy.
+
+Deploy runs `check.sh` first unless `DOTTER_SKIP_HEALTHCHECK=1` is set. On
+macOS, `--full` also runs
+[setup/macos/apply-file-icons.sh](setup/macos/apply-file-icons.sh); edit the
+`ICON_MAPPINGS` array there to change which apps get custom icons.
 
 ## Structure
 
-The intended top-level layout is:
-
-- `config/`: active config source, flattened so each direct child is one tool or app (`config/zsh`, `config/helix`, `config/kitty`, `config/yazi`, ...)
+- `config/`: active config source, flat — each direct child is one tool
 - `config/zsh/`: shell config, autoloads, and zsh-specific executables
 - `config/neovim/`: dormant editor source kept in-tree for later revival
 - `assets/`: fonts and icons
 - `setup/`: bootstrap, deploy, and machine setup scripts
-- `scripts/`: miscellaneous helper scripts and sourceable shell snippets
+- `scripts/`: helper scripts and sourceable shell snippets
 - `bin/` and `config/zsh/bin/`: maintained user-facing executables
-- `utils/`: small personal utility source trees maintained in this repo
+- `utils/`: small personal utility source trees (Go widgets; Rust for `leaf`,
+  `pimped`, `motherfucker`) built via `setup/install/*.sh`
 - `vendor/bin/`: retained third-party or custom-built binaries
-- `archive/`: installers, app bundles, backups, and historical variants kept temporarily
+- `archive/`: installers, app bundles, backups, and historical variants
 
-The Dotter example profiles keep optional packages commented out so one file shows what is active, what is available, and what still needs wiring.
+Config directories kept in-tree but not deployed through Dotter yet:
+`beatportdl`, `compressor`, `git`, `homebrew`, `iterm`, `ollama`, `python`,
+`tag-media`.
 
-Current source-only config directories that are kept in-tree but not deployed through Dotter yet:
-
-- `config/beatportdl`
-- `config/compressor`
-- `config/git`
-- `config/homebrew`
-- `config/iterm`
-- `config/ollama`
-- `config/python`
-- `config/refind`
-- `config/tag-media`
-- `config/weston`
-- `config/yofi`
-
-Things that should eventually move out of the main dotfiles path:
-
-- installers, DMGs, and large binaries
-- app bundles and generated resources
-- secrets, keys, and private machine state
-- backups and abandoned variants
-
-See [docs/STRUCTURE.md](/Users/nom/config/docs/STRUCTURE.md) for the opinionated layout rules, and [AGENTS.md](/Users/nom/config/AGENTS.md) for the coding-agent orientation guide (`CLAUDE.md` is a symlink to it).
+See [docs/STRUCTURE.md](docs/STRUCTURE.md) for layout rules and
+[AGENTS.md](AGENTS.md) for the coding-agent orientation guide (`CLAUDE.md` is a
+symlink to it).

@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=workspaces (Yazi)
-Comment=Open workspaces in Yazi
-Icon=utilities-terminal
-Terminal=true
-Exec=yazi /mnt/data/workspaces
-Categories=ConsoleOnly;System;FileTools;FileManager
-MimeType=inode/directory;

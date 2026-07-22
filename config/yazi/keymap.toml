@@ -23,7 +23,7 @@ desc = "Quit back to the shell"
 [[mgr.prepend_keymap]]
 on = ["<Space>", "<Space>"]
 for = "macos"
-run = "shell -- /Users/nom/config/config/zsh/bin/yazi-quicklook %h"
+run = "shell -- ~/.zsh/bin/yazi-quicklook %h"
 desc = "Quicklook"
 
 # <Space> f — transfer selected files to the next Kitty pane's cwd
@@ -242,7 +242,7 @@ desc = "Interpolate selected videos to 120fps in DaVinci Resolve"
 [[mgr.prepend_keymap]]
 on = ["e", "z"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " topaz workflow " -- /Users/nom/config/config/zsh/bin/topaz-workflow %s'''
+run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " topaz workflow " -- ~/.zsh/bin/topaz-workflow %s'''
 desc = "Run Topaz workflow on selected videos"
 
 [[mgr.prepend_keymap]]

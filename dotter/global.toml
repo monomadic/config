@@ -1,142 +1,24 @@
-[helpers]
+# Dotter package manifest — the single source of truth for "what file goes where".
+#
+# One `[<package>.files]` section per tool, alphabetical. Keys are paths relative
+# to the repo root; values are the deployed target. Symlinks are the default
+# (see [settings]), so a bare `"src" = "~/target"` is all most packages need.
+# Use the long form `{ target = "...", type = "symbolic", recurse = false }`
+# only when you need to override recursion for a directory or bundle.
+#
+# To turn a package on for this machine, add its name to `packages` in
+# dotter/local.toml — or run `setup/macos/packages.sh enable <name>`.
+#
+# Tracked under `config/` but deliberately not wired up here (source-only):
+#   beatportdl, compressor, git, homebrew, iterm, ollama, python, tag-media
 
 [settings]
 default_target_type = "symbolic"
 
-[default]
-depends = []
+[helpers]
 
-[delta.files]
-"config/delta/gitconfig" = "~/.gitconfig"
+# --- Shell and prompt ---------------------------------------------------------
 
-[dprint.files]
-"config/dprint" = "~/.config/dprint"
-
-[default.files]
-
-[default.variables]
-"colorscheme" = "zellner"
-"zk_path" = "/mnt/data/notes/zk"
-
-[bin.files]
-"bin" = { target = "~/.bin/", type = "symbolic" }
-
-[elio.files]
-"config/elio" = "~/Library/Application Support/elio/"
-
-[karabiner.files]
-"config/karabiner/assets/complex_modifications" = { target = "~/.config/karabiner/assets/complex_modifications", type = "symbolic" }
-
-[macos-shortcuts.files]
-"config/macos-shortcuts/shortcuts.toml" = "~/.config/macos-shortcuts/shortcuts.toml"
-
-[switch.files]
-"config/switch" = "~/.switch"
-
-[rclone.files]
-"config/rclone" = "~/.config/rclone"
-
-[hammerspoon.files]
-"config/hammerspoon" = "~/.hammerspoon"
-
-[open-in-forklift.files]
-"utils/open-in-forklift/Open In Forklift.app" = { target = "~/Applications/Open In Forklift.app", type = "symbolic", recurse = false }
-
-[broot.files]
-"config/broot" = "~/.config/broot"
-
-[cointop.files]
-"config/cointop/config.toml" = "~/.config/cointop/config.toml"
-
-[fuzzel.files]
-"config/fuzzel/fuzzel.ini" = "~/.config/fuzzel/fuzzel.ini"
-
-[gomu.files]
-"config/gomu/gomu.conf" = "~/.config/gomu/gomu.conf"
-
-[yazi.files]
-"config/yazi" = { target = "~/.config/yazi", type = "symbolic" }
-
-[micro.files]
-"config/micro" = "~/.config/micro"
-
-[onagre.files]
-"config/onagre" = "~/.config/onagre"
-
-[chafa.files]
-"scripts/chafa-select" = "~/.bin/chafa-select"
-
-[zellij.files]
-"config/zellij" = { target = "~/.config/zellij", type = "symbolic" }
-
-[mpv.files]
-"config/mpv" = "~/.config/mpv"
-
-[alacritty]
-files = { "config/alacritty/alacritty.toml" = "~/.config/alacritty/alacritty.toml" }
-
-[kitty.files]
-"config/kitty/bin/kitty-repl" = "~/.config/kitty/bin/kitty-repl"
-"config/kitty/kittens/toggle_repl.py" = "~/.config/kitty/kittens/toggle_repl.py"
-"config/kitty/kitty.conf" = "~/.config/kitty/kitty.conf"
-"config/kitty/tab_bar.py" = "~/.config/kitty/tab_bar.py"
-"config/kitty/themes/1984-dark" = "~/.config/kitty/themes/1984-dark"
-
-[skhd]
-files = { "config/skhd/skhd.conf" = "~/.config/skhd/skhdrc" }
-
-[bash]
-files = { "config/bash/rc.bash" = "~/.bashrc", "config/bash/fzm.bash" = "~/.bash/fzm.bash" }
-
-[sway]
-[sway.files]
-"config/sway/sway.conf" = "~/.config/sway/config"
-"config/yambar/yambar.yml" = "~/.config/yambar/config.yml"
-"config/waybar" = "~/.config/waybar"
-
-[nvim]
-# Dormant package kept for source retention; not selected by active machine profiles.
-files = { "config/neovim" = "~/.config/nvim" }
-
-[foot]
-files = { "config/foot/foot.ini" = "~/.config/foot/foot.ini" }
-
-[tmux.files]
-"config/tmux/tmux.conf" = "~/.tmux.conf"
-
-[xdg]
-files = { "config/xdg-applications" = "~/.local/share/applications" }
-
-[helix]
-files = { "config/helix" = "~/.config/helix" }
-
-[starship]
-files = { "config/starship/starship.toml" = "~/.config/starship.toml" }
-
-[switchblade]
-files = { "config/switchblade/switchblade.toml" = "~/.config/switchblade.toml" }
-
-[motherfucker]
-files = { "config/motherfucker/config.toml" = "~/.config/motherfucker/config.toml", "config/motherfucker/themes" = "~/.config/motherfucker/themes" }
-
-[yt-dlp.files]
-"config/yt-dlp/config" = "~/.config/yt-dlp/config"
-"config/yt-dlp/plugins/__init__.py" = "~/.config/yt-dlp/plugins/__init__.py"
-"config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/faphouse.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/faphouse.py"
-"config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/hdsex.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/hdsex.py"
-"config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/onlyfans.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/onlyfans.py"
-"config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xhamster.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xhamster.py"
-"config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xvideos_red.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xvideos_red.py"
-"config/yt-dlp/plugins/faphouse/yt_dlp_plugins/postprocessor/titlecase.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/postprocessor/titlecase.py"
-# "config/yt-dlp/" = "~/.config/yt_dlp/plugins/sites/yt_dlp_plugins/extractorplugins/mysites/yt_dlp_plugins/extractor"
-
-[leaf.files]
-"config/leaf/config.toml" = "~/.config/leaf/config.toml"
-
-[lsd.files]
-"config/lsd" = "~/.config/lsd"
-
-[zsh]
 [zsh.files]
 "config/zsh/zshrc.zsh" = "~/.zshrc"
 "config/zsh/zshenv.zsh" = "~/.zshenv"
@@ -148,17 +30,150 @@ files = { "config/motherfucker/config.toml" = "~/.config/motherfucker/config.tom
 "config/zsh/autoload" = "~/.zsh/autoload"
 "config/zsh/bin" = "~/.zsh/bin"
 
-[dotter]
-files = { "dotter/global.toml" = "~/.config/dotter/global.toml" }
+[bash.files]
+"config/bash/rc.bash" = "~/.bashrc"
+"config/bash/fzm.bash" = "~/.bash/fzm.bash"
 
-[gitui]
-files = { "config/gitui/vim.ron" = "~/.config/gitui/key_bindings.ron" }
+[bin.files]
+"bin" = { target = "~/.bin/", type = "symbolic" }
+
+[starship.files]
+"config/starship/starship.toml" = "~/.config/starship.toml"
+
+# --- Terminals ----------------------------------------------------------------
+
+[alacritty.files]
+"config/alacritty/alacritty.toml" = "~/.config/alacritty/alacritty.toml"
+
+[kitty.files]
+"config/kitty/bin/kitty-repl" = "~/.config/kitty/bin/kitty-repl"
+"config/kitty/kittens/toggle_repl.py" = "~/.config/kitty/kittens/toggle_repl.py"
+"config/kitty/kitty.conf" = "~/.config/kitty/kitty.conf"
+"config/kitty/tab_bar.py" = "~/.config/kitty/tab_bar.py"
+"config/kitty/themes/1984-dark" = "~/.config/kitty/themes/1984-dark"
+
+[tmux.files]
+"config/tmux/tmux.conf" = "~/.tmux.conf"
+
+[zellij.files]
+"config/zellij" = { target = "~/.config/zellij", type = "symbolic" }
+
+# --- Editors and viewers ------------------------------------------------------
+
+[helix.files]
+"config/helix" = "~/.config/helix"
+
+[leaf.files]
+"config/leaf/config.toml" = "~/.config/leaf/config.toml"
+
+[micro.files]
+"config/micro" = "~/.config/micro"
+
+# Dormant source retention; not selected by active machine profiles.
+[nvim.files]
+"config/neovim" = "~/.config/nvim"
+
+# --- File managers ------------------------------------------------------------
+
+[broot.files]
+"config/broot" = "~/.config/broot"
+
+[lsd.files]
+"config/lsd" = "~/.config/lsd"
 
 [marta.files]
 "config/marta/conf.marco" = "~/Library/Application Support/org.yanex.marta/conf.marco"
 "config/marta/favorites.marco" = "~/Library/Application Support/org.yanex.marta/favorites.marco"
 "config/marta/Themes/Black.theme" = "~/Library/Application Support/org.yanex.marta/Themes/Black.theme"
 
+[open-in-forklift.files]
+"utils/open-in-forklift/Open In Forklift.app" = { target = "~/Applications/Open In Forklift.app", type = "symbolic", recurse = false }
+
+[yazi.files]
+"config/yazi" = { target = "~/.config/yazi", type = "symbolic" }
+
+# --- Git ----------------------------------------------------------------------
+
+[delta.files]
+"config/delta/gitconfig" = "~/.gitconfig"
+
+[gitui.files]
+"config/gitui/vim.ron" = "~/.config/gitui/key_bindings.ron"
+
+# --- macOS window management and input ----------------------------------------
+
+[hammerspoon.files]
+"config/hammerspoon" = "~/.hammerspoon"
+
+[karabiner.files]
+"config/karabiner/assets/complex_modifications" = { target = "~/.config/karabiner/assets/complex_modifications", type = "symbolic" }
+
+[macos-shortcuts.files]
+"config/macos-shortcuts/shortcuts.toml" = "~/.config/macos-shortcuts/shortcuts.toml"
+
+[skhd.files]
+"config/skhd/skhd.conf" = "~/.config/skhd/skhdrc"
+
+[switch.files]
+"config/switch" = "~/.switch"
+
+[switchblade.files]
+"config/switchblade/switchblade.toml" = "~/.config/switchblade.toml"
+
+# --- Media --------------------------------------------------------------------
+
+[cointop.files]
+"config/cointop/config.toml" = "~/.config/cointop/config.toml"
+
+[gomu.files]
+"config/gomu/gomu.conf" = "~/.config/gomu/gomu.conf"
+
+[mpv.files]
+"config/mpv" = "~/.config/mpv"
+
 [virtualdj.files]
 "config/virtualdj/Mappers" = { target = "~/Library/Application Support/VirtualDJ/Mappers", type = "symbolic" }
 "config/virtualdj/Pads" = { target = "~/Library/Application Support/VirtualDJ/Pads", type = "symbolic" }
+
+[yt-dlp.files]
+"config/yt-dlp/config" = "~/.config/yt-dlp/config"
+"config/yt-dlp/plugins/__init__.py" = "~/.config/yt-dlp/plugins/__init__.py"
+"config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/faphouse.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/faphouse.py"
+"config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/hdsex.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/hdsex.py"
+"config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/onlyfans.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/onlyfans.py"
+"config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xhamster.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xhamster.py"
+"config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xvideos_red.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xvideos_red.py"
+"config/yt-dlp/plugins/faphouse/yt_dlp_plugins/postprocessor/titlecase.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/postprocessor/titlecase.py"
+
+# --- Misc tooling -------------------------------------------------------------
+
+[chafa.files]
+"scripts/chafa-select" = "~/.bin/chafa-select"
+
+[dotter.files]
+"dotter/global.toml" = "~/.config/dotter/global.toml"
+
+[dprint.files]
+"config/dprint" = "~/.config/dprint"
+
+[elio.files]
+"config/elio" = "~/Library/Application Support/elio/"
+
+[motherfucker.files]
+"config/motherfucker/config.toml" = "~/.config/motherfucker/config.toml"
+"config/motherfucker/themes" = "~/.config/motherfucker/themes"
+
+[rclone.files]
+"config/rclone" = "~/.config/rclone"
+
+# --- Variables ----------------------------------------------------------------
+# `default` carries repo-wide template variables. local.toml overrides them.
+
+[default]
+depends = []
+
+[default.files]
+
+[default.variables]
+colorscheme = "zellner"
+zk_path = "~/workspaces/notes"

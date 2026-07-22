@@ -1,7 +1,11 @@
 # Homebrew bundle for this machine.
 #
 # Usage:
-#   brew bundle --file ~/config/Brewfile
+#   brew bundle --file "$DOTFILES_DIR/Brewfile"
+#
+# Large apps that no config here depends on live in Brewfile.optional and are
+# not installed by bootstrap. Move anything unnecessary there rather than
+# commenting it out.
 #
 # Conventions:
 # - Keep active entries grouped by purpose.
@@ -97,7 +101,6 @@ brew "kew"
 brew "mediamtx"
 brew "mpv"
 brew "ouch"
-brew "vapoursynth"
 brew "wallpaper"
 brew "wget"
 brew "yt-dlp"
@@ -138,31 +141,23 @@ cask "1password"
 cask "1password-cli"
 cask "brave-browser"
 cask "iina"
-cask "journey"
 cask "karabiner-elements"
 cask "keepingyouawake"
 cask "kitty"
-cask "ledger-wallet"
-cask "localsend"
 cask "losslesscut"
 cask "marta"
 cask "monitorcontrol"
 cask "nifty-file-lists"
 cask "numi"
 cask "openinterminal"
-cask "signal"
 cask "smooze-pro"
-cask "spotify"
 cask "stats"
 cask "supasidebar"
 cask "swift-shift"
-cask "telegram-desktop"
 cask "topnotch"
 cask "transnomino"
-cask "whatsapp"
 
 # Specialty desktop apps
-cask "airflow"
 cask "hex-fiend"
 cask "jordanbaird-ice"
 

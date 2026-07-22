@@ -2,7 +2,9 @@
 
 set -euo pipefail
 
-DOTFILES_DIR="${DOTFILES_DIR:-$HOME/config}"
+# The repo root is wherever this script physically lives, so the checkout can be
+# cloned anywhere. Never assume ~/config.
+DOTFILES_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 GLOBAL_CONFIG="$DOTFILES_DIR/dotter/global.toml"
 LOCAL_CONFIG="$DOTFILES_DIR/dotter/local.toml"
 ICON_SCRIPT="$DOTFILES_DIR/setup/macos/apply-file-icons.sh"
@@ -164,6 +166,7 @@ main() {
 
   if [[ ! -f "$LOCAL_CONFIG" ]]; then
     fail "Dotter local config not found: $LOCAL_CONFIG"
+    note "Create it with: cp dotter/local.toml.example dotter/local.toml"
   fi
 
   check_command git

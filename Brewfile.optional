@@ -1,0 +1,30 @@
+# Optional/heavyweight installs. NOT part of bootstrap.
+#
+# These are large apps that nothing in this repo's config depends on, pulled out
+# of the main Brewfile so a fresh machine comes up fast and lean. Install the
+# whole set, or just cherry-pick a line:
+#
+#   brew bundle --file "$DOTFILES_DIR/Brewfile.optional"
+#   brew install --cask spotify
+#
+# Anything wired into config/ (brave for yt-dlp cookies, losslesscut for the mpv
+# keybind, iina, kitty, marta, karabiner) belongs in the main Brewfile instead.
+
+cask_args appdir: "/Applications"
+
+# Messaging — ~350-600MB each
+cask "signal"
+cask "telegram-desktop"
+cask "whatsapp"
+
+# Media and entertainment
+cask "spotify" # ~390MB
+cask "airflow" # ~160MB, casting to Chromecast/AppleTV
+
+# Personal apps
+cask "journey" # ~280MB journaling
+cask "ledger-wallet"
+cask "localsend"
+
+# Heavy toolchains
+brew "vapoursynth" # video frameserver; large dependency tree

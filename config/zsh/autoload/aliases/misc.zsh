@@ -19,8 +19,9 @@ alias .ssh-m3="kitty kitten ssh nom@m3.local"
 # ============================================================================
 
 alias deploy='dotter-deploy'
-alias dd-force='cd ~/config/ && dotter --force --cache-directory ~/.config/dotter/cache --cache-file ~/.config/dotter/cache.toml deploy --global-config dotter/global.toml --local-config dotter/local.toml'
-alias dw='cd ~/config/ && dotter --cache-directory ~/.config/dotter/cache --cache-file ~/.config/dotter/cache.toml watch --global-config dotter/global.toml --local-config dotter/local.toml'
+alias dd-force='cd $DOTFILES_DIR && dotter --force --cache-directory ~/.config/dotter/cache --cache-file ~/.config/dotter/cache.toml deploy --global-config dotter/global.toml --local-config dotter/local.toml'
+alias dw='cd $DOTFILES_DIR && dotter --cache-directory ~/.config/dotter/cache --cache-file ~/.config/dotter/cache.toml watch --global-config dotter/global.toml --local-config dotter/local.toml'
+alias dotter-packages='$DOTFILES_DIR/setup/macos/packages.sh'
 
 # ============================================================================
 # Misc Utilities

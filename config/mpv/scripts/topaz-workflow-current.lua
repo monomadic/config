@@ -4,7 +4,7 @@ local kitty_launch = "/Users/nom/.zsh/bin/kitty-launch"
 local topaz_workflow = "/Users/nom/.zsh/bin/topaz-workflow"
 local topaz_run = "/Users/nom/.zsh/bin/topaz-encode"
 local topaz_preview_frame = "/Users/nom/.zsh/bin/topaz-preview-frame"
-local preset_catalog = "/Users/nom/config/config/zsh/bin/lib/topaz-preset-catalog.zsh"
+local preset_catalog = os.getenv("HOME") .. "/.zsh/bin/lib/topaz-preset-catalog.zsh"
 
 -- Active render-menu session (nil when closed). One sheet with three tabs
 -- (Enhance / Interpolate / Output); every choice lives in this table and the

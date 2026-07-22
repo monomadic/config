@@ -2,7 +2,10 @@
 
 set -euo pipefail
 
-CONFIG_DIR="${DOTFILES_DIR:-$HOME/config}"
+# This file lives at <repo>/config/zsh/bin/dotter-deploy and is symlinked onto
+# PATH, so resolve through the symlink (:A) to find the checkout it belongs to.
+# The repo can therefore live anywhere, not just ~/config.
+CONFIG_DIR="${${0:A}:h:h:h:h}"
 XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 CACHE_DIR="$XDG_CONFIG_HOME/dotter/cache"
 CACHE_FILE="$XDG_CONFIG_HOME/dotter/cache.toml"

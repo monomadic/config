@@ -11,6 +11,6 @@ exec "$forklift_shell" --argv -- \
   --cwd @source-path \
   --title " resolve 60fps " \
   -- \
-  zsh -lc '/Users/nom/config/config/zsh/bin/interpolate-resolve "$@"; status=$?; printf "\nPress enter to close "; read -r _; exit "$status"' \
+  zsh -lc '${0:A:h}/interpolate-resolve "$@"; status=$?; printf "\nPress enter to close "; read -r _; exit "$status"' \
   zsh \
   @source-selection-paths

@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-DOTFILES_DIR="${DOTFILES_DIR:-$HOME/config}"
+DOTFILES_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 ICON_DIR="$DOTFILES_DIR/assets/icons"
 
 SEARCH_DIRS=(

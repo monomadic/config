@@ -20,6 +20,7 @@ This repo should optimize for two things:
 - `vendor/bin/` contains retained third-party or custom-built binaries.
 - `archive/` contains kept-but-not-active material such as installers, app bundles, and old variants.
 - `config/neovim/` can remain in the tree as dormant source, but should not be part of active machine profiles unless revived.
+- This repo targets macOS only. Linux-specific config (i3, sway, waybar, foot, ...) does not belong here.
 - If a `config/<tool>/` directory is not wired into Dotter yet, keep it visible in the example profiles as disabled or source-only.
 - Secrets and machine-private state do not live in git.
 - Installers, DMGs, `.app` bundles, and archives do not live beside source config.
@@ -84,10 +85,7 @@ Current source-only directories kept for reference or future Dotter wiring:
 - `config/iterm`
 - `config/ollama`
 - `config/python`
-- `config/refind`
 - `config/tag-media`
-- `config/weston`
-- `config/yofi`
 
 ## Current Holding Areas
 
@@ -102,7 +100,7 @@ Current source-only directories kept for reference or future Dotter wiring:
 
 - Use `setup-*` or `bootstrap-*` for first-run machine provisioning scripts.
 - Use `*.example` for checked-in local config templates.
-- Use `dotter/local.toml` for the untracked active machine profile.
+- Use `dotter/local.toml` for the untracked active machine profile, created from `dotter/local.toml.example`.
 - Prefer descriptive directory names over personal shorthand when the scope is broader than one tool.
 
 ## Executable Directories

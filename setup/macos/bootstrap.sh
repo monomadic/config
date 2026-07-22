@@ -1,19 +1,60 @@
 #!/usr/bin/env bash
+#
+# One-shot macOS bootstrap. Safe to run either from a checkout:
+#
+#   setup/macos/bootstrap.sh
+#
+# or piped straight from GitHub on a fresh machine:
+#
+#   curl -fsSL https://raw.githubusercontent.com/monomadic/config/master/setup/macos/bootstrap.sh | bash
+#
+# Clone location is configurable and nothing after this assumes ~/config:
+#
+#   DOTFILES_DIR="$HOME/src/config" bash -c "$(curl -fsSL .../bootstrap.sh)"
 
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/monomadic/config}"
-DOTFILES_DIR="${DOTFILES_DIR:-$HOME/config}"
+
+# When run from inside a checkout, that checkout wins. Otherwise fall back to
+# $DOTFILES_DIR (if the user set one) and finally to ~/config.
+resolve_dotfiles_dir() {
+  local self_dir candidate
+
+  if [[ -n "${BASH_SOURCE[0]:-}" ]] && [[ -f "${BASH_SOURCE[0]}" ]]; then
+    self_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+    candidate="$(CDPATH= cd -- "$self_dir/../.." && pwd -P)"
+    if [[ -f "$candidate/dotter/global.toml" ]]; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  fi
+
+  printf '%s\n' "${DOTFILES_DIR:-$HOME/config}"
+}
+
+DOTFILES_DIR="$(resolve_dotfiles_dir)"
+export DOTFILES_DIR
 XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 DOTTER_LOCAL_CONFIG="$DOTFILES_DIR/dotter/local.toml"
-DOTTER_PROFILE_SOURCE="${DOTTER_PROFILE_SOURCE:-$DOTFILES_DIR/dotter/macos.toml.example}"
-HEALTHCHECK_SCRIPT="$DOTFILES_DIR/setup/macos/check.sh"
+DOTTER_PROFILE_SOURCE="${DOTTER_PROFILE_SOURCE:-$DOTFILES_DIR/dotter/local.toml.example}"
 
-require_command() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    echo "Error: missing required command: $1" >&2
-    exit 1
+step() {
+  printf '\n==> %s\n' "$*"
+}
+
+ensure_xcode_clt() {
+  if xcode-select -p >/dev/null 2>&1; then
+    return
   fi
+
+  step "Installing Xcode Command Line Tools (needed for git and compilers)"
+  xcode-select --install || true
+
+  echo "Waiting for the Command Line Tools install to finish..."
+  until xcode-select -p >/dev/null 2>&1; do
+    sleep 10
+  done
 }
 
 ensure_homebrew() {
@@ -21,8 +62,9 @@ ensure_homebrew() {
     return
   fi
 
-  echo "Installing Homebrew..."
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  step "Installing Homebrew"
+  NONINTERACTIVE=1 /bin/bash -c \
+    "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 }
 
 resolve_brew_bin() {
@@ -49,7 +91,7 @@ ensure_repo() {
     return
   fi
 
-  echo "Cloning dotfiles into $DOTFILES_DIR..."
+  step "Cloning $REPO_URL into $DOTFILES_DIR"
   git clone "$REPO_URL" "$DOTFILES_DIR"
 }
 
@@ -63,38 +105,45 @@ ensure_dotter_local_config() {
     exit 1
   fi
 
-  echo "Creating dotter/local.toml from $(basename "$DOTTER_PROFILE_SOURCE")..."
+  step "Creating dotter/local.toml from $(basename "$DOTTER_PROFILE_SOURCE")"
   cp "$DOTTER_PROFILE_SOURCE" "$DOTTER_LOCAL_CONFIG"
 }
 
 main() {
-  require_command git
-  ensure_repo
-  cd "$DOTFILES_DIR"
+  if [[ "$OSTYPE" != darwin* ]]; then
+    echo "Error: this bootstrap targets macOS only." >&2
+    exit 1
+  fi
 
+  ensure_xcode_clt
   ensure_homebrew
   eval "$("$(resolve_brew_bin)" shellenv)"
 
-  echo "Installing Brewfile packages..."
+  ensure_repo
+  cd "$DOTFILES_DIR"
+
+  # Brewfile provides dotter and fileicon, which the steps below depend on.
+  step "Installing Brewfile packages"
   brew bundle --file "$DOTFILES_DIR/Brewfile"
 
-  mkdir -p "$HOME/workspaces" "$HOME/src" "$HOME/.config" "$XDG_CONFIG_HOME/dotter/cache"
+  mkdir -p "$HOME/workspaces" "$HOME/src" "$XDG_CONFIG_HOME" "$XDG_CONFIG_HOME/dotter/cache"
   touch "$HOME/.marks"
 
   ensure_dotter_local_config
 
-  echo "Running bootstrap health check..."
-  "$HEALTHCHECK_SCRIPT"
+  step "Running bootstrap health check"
+  "$DOTFILES_DIR/setup/macos/check.sh"
 
-  echo "Deploying dotfiles with Dotter..."
+  step "Deploying dotfiles with Dotter"
   DOTTER_SKIP_HEALTHCHECK=1 "$DOTFILES_DIR/config/zsh/bin/dotter-deploy"
 
   cat <<EOF
 
-Bootstrap complete.
+Bootstrap complete. Repo lives at $DOTFILES_DIR.
 
 Next steps:
-  1. Review $DOTTER_LOCAL_CONFIG and trim packages for this machine.
+  1. Trim packages for this machine:
+       $DOTFILES_DIR/setup/macos/packages.sh list
   2. Add any private files outside git (.env, keys, app secrets).
   3. Start a new shell so linked config is picked up cleanly.
 EOF

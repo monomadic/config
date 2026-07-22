@@ -1,50 +1,48 @@
+# Per-machine profile. Copy to dotter/local.toml (gitignored) and edit.
+#
+#   cp dotter/local.toml.example dotter/local.toml
+#
+# `packages` selects which sections of dotter/global.toml get deployed.
+# Comment a line out to disable a package without forgetting it exists;
+# `setup/macos/packages.sh list` shows what is on, off, and available.
+
 packages = [
   "alacritty",
   "bash",
   "bin",
   # "broot",
-  # "cointop",
   "chafa",
+  # "cointop",
   "default",
   "delta",
   "dotter",
-  # "foot",
-  # "fuzzel",
   "gitui",
-  # "gomu",
   "hammerspoon",
   "helix",
-  # "i3",
   "karabiner",
   "kitty",
   "leaf",
   "macos-shortcuts",
-	  "marta",
+  "marta",
   # "micro",
   "motherfucker",
   "mpv",
   # "nvim",
-  # "onagre",
   "open-in-forklift",
   # "rclone",
   "skhd",
   "starship",
   "switch",
   "switchblade",
-  "virtualdj",
-  # "sway",
   # "tmux",
-  # "xdg",
+  "virtualdj",
   "yazi",
   "yt-dlp",
   "zellij",
   "zsh",
 ]
 
-# Tracked under `config/` but not wired into Dotter yet:
-# beatportdl, compressor, git, homebrew, iterm, ollama, python,
-# refind, tag-media, weston, yofi
-
+# Overrides for [default.variables] in dotter/global.toml.
 [variables]
 colorscheme = "chadracula"
 zk_path = "~/workspaces/notes"

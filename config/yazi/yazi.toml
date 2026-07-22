@@ -51,7 +51,7 @@ chordpro = [
   { run = "chordpro-pdf --preset ipad-mini --inverted %s1", desc = "􀎾  convert to pdf (iPad Mini, Inverted)", for = "unix", block = true },
 ]
 pdf_chordpro = [
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " pdf to chordpro " -- zsh -lc '/Users/nom/config/config/zsh/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "􃐹  pdf->chordpro", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " pdf to chordpro " -- zsh -lc '~/.zsh/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "􃐹  pdf->chordpro", for = "unix", orphan = true },
 ]
 flac = [
   { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " lossless flac sidecar " -- zsh -lc 'for f in "$@"; do /Users/nom/.zsh/bin/vdjstems make --roformer --flac "$f"; done' zsh %s''', desc = "􃐹  flac sidecar", for = "unix", orphan = true },
