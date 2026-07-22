@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# job-runner — execute *.job shell scripts dropped into a watch folder.
+#
+# Triggered by a launchd WatchPaths LaunchAgent on $JOBS_DIR (see
+# setup/install/job-runner.sh). Only top-level *.job files are run;
+# subdirectories and non-.job files are ignored. Each job runs once, then is
+# moved to .processed/ (exit 0) or .failed/ (non-zero) so it never re-runs.
+# All activity is appended to $LOG_FILE.
+
+set -uo pipefail
+
+JOBS_DIR="${JOBS_DIR:-$HOME/jobs}"
+PROCESSED_DIR="$JOBS_DIR/.processed"
+FAILED_DIR="$JOBS_DIR/.failed"
+LOCK_DIR="$JOBS_DIR/.lock"
+LOG_FILE="${JOB_RUNNER_LOG:-$HOME/Library/Logs/job-runner.log}"
+SETTLE_SECS="${JOB_RUNNER_SETTLE:-2}"
+
+mkdir -p "$JOBS_DIR" "$PROCESSED_DIR" "$FAILED_DIR" "$(dirname "$LOG_FILE")"
+
+log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*" >>"$LOG_FILE"; }
+
+# Single-instance lock. A running instance rescans before exiting, so a
+# concurrent trigger can safely bail. Steal a lock left by a killed run (>60m).
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  if [[ -n "$(find "$LOCK_DIR" -maxdepth 0 -mmin +60 2>/dev/null)" ]]; then
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+    mkdir "$LOCK_DIR" 2>/dev/null || exit 0
+  else
+    exit 0
+  fi
+fi
+trap 'rmdir "$LOCK_DIR" 2>/dev/null' EXIT
+
+# 0 if the file's size held steady across SETTLE_SECS (i.e. upload finished).
+is_stable() {
+  local f="$1" s1 s2
+  s1=$(stat -f %z "$f" 2>/dev/null) || return 1
+  sleep "$SETTLE_SECS"
+  s2=$(stat -f %z "$f" 2>/dev/null) || return 1
+  [[ "$s1" == "$s2" ]]
+}
+
+run_one() {
+  local job="$1" base ts rc dest
+  base="$(basename "$job")"
+  ts="$(date '+%Y%m%d-%H%M%S')"
+  log "RUN  $base"
+  chmod +x "$job" 2>/dev/null || true
+  # Run cd'd into the jobs dir; honour a shebang if present, else use bash.
+  (
+    cd "$JOBS_DIR" || exit 127
+    if [[ -x "$job" ]]; then
+      "$job"
+    else
+      /bin/bash "$job"
+    fi
+  ) >>"$LOG_FILE" 2>&1
+  rc=$?
+  if [[ $rc -eq 0 ]]; then
+    dest="$PROCESSED_DIR/$base.$ts"
+    mv "$job" "$dest"
+    log "DONE $base (exit 0)"
+  else
+    dest="$FAILED_DIR/$base.$ts"
+    mv "$job" "$dest"
+    log "FAIL $base (exit $rc)"
+  fi
+}
+
+# Loop until no runnable job remains, so files that arrive during a run are
+# still picked up before we release the lock.
+while :; do
+  found=0
+  shopt -s nullglob
+  for job in "$JOBS_DIR"/*.job; do
+    [[ -f "$job" ]] || continue   # skip dirs named *.job
+    if ! is_stable "$job"; then
+      log "WAIT $(basename "$job") (still uploading)"
+      continue
+    fi
+    found=1
+    run_one "$job"
+  done
+  shopt -u nullglob
+  [[ $found -eq 0 ]] && break
+done
