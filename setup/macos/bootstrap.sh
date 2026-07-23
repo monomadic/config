@@ -135,7 +135,7 @@ main() {
   "$DOTFILES_DIR/setup/macos/check.sh"
 
   step "Deploying dotfiles with Dotter"
-  DOTTER_SKIP_HEALTHCHECK=1 "$DOTFILES_DIR/config/zsh/bin/dotter-deploy"
+  DOTTER_SKIP_HEALTHCHECK=1 "$DOTFILES_DIR/config/zsh/bin/dotter-deploy" --full
 
   cat <<EOF
 

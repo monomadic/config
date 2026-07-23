@@ -53,6 +53,7 @@ if [[ -o interactive ]]; then
     zle reset-prompt
   }
 
+  # cmd-o
   _cd-fzf-select() {
     local selected_dir
 

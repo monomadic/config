@@ -1,0 +1,235 @@
+#!/usr/bin/env zsh
+# send-job
+# Ship media files plus a *.job script to a remote machine's SMB `jobs` share,
+# where bin/job-runner (a launchd WatchPaths agent) picks the job up and runs it.
+#
+#   send-job <files...> <job_file> --host=<hostname>
+#
+# The last positional argument is the job script; everything before it is data
+# the job needs. Data files go across first and are size-verified; only then is
+# the .job dropped in, so the watcher never fires on a half-copied payload.
+
+emulate -L zsh
+set -euo pipefail
+
+script_name="${0:t}"
+
+host=""
+share="jobs"
+eject=false
+force=false
+files=()
+
+usage() {
+  cat <<EOF
+$script_name
+
+Send files and a job script to a remote SMB 'jobs' share.
+
+Usage:
+  $script_name <files...> <job_file> --host <hostname>
+
+Options:
+  --host HOST        Remote machine (required). Also --host=HOST.
+  --share NAME       Share name to use (default: jobs)
+  --force            Re-copy files that already exist with a matching size
+  --eject            Unmount the share afterwards (only if we mounted it)
+  -h, --help         Show help
+
+The last positional is the job script; the rest are its data files. The job
+runs on the remote host cd'd into the share root, so it must refer to those
+files by bare filename.
+
+Examples:
+  $script_name clip.mp4 clip.mp4.job --host tower
+  $script_name a.mov b.mov batch.job --host=tower --eject
+EOF
+}
+
+die() {
+  print -u2 -- "$script_name: $1"
+  exit "${2:-1}"
+}
+
+while (( $# )); do
+  case "$1" in
+    --host)
+      (( $# >= 2 )) || die "missing argument for --host" 2
+      host="$2"
+      shift 2
+      ;;
+    --host=*)
+      host="${1#--host=}"
+      shift
+      ;;
+    --share)
+      (( $# >= 2 )) || die "missing argument for --share" 2
+      share="$2"
+      shift 2
+      ;;
+    --share=*)
+      share="${1#--share=}"
+      shift
+      ;;
+    --eject)
+      eject=true
+      shift
+      ;;
+    --force)
+      force=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      files+=( "$@" )
+      break
+      ;;
+    -*)
+      die "unknown option: $1" 2
+      ;;
+    *)
+      files+=( "$1" )
+      shift
+      ;;
+  esac
+done
+
+[[ -n "$host" ]] || { usage >&2; die "--host is required" 2 }
+(( ${#files[@]} >= 1 )) || { usage >&2; die "no job file given" 2 }
+
+# Last positional is the job script; the rest are payload.
+job_file="${files[-1]}"
+payload=( "${(@)files[1,-2]}" )
+
+[[ -f "$job_file" ]] || die "job file not found: $job_file"
+for f in "${payload[@]}"; do
+  [[ -f "$f" ]] || die "file not found: $f"
+done
+
+size_of() {
+  stat -f %z "$1" 2>/dev/null
+}
+
+# Compare hosts by their first label, lowercased. Bonjour mounts show up as
+# "M4._smb._tcp.local" while the user types "m4" or "m4.local" — same machine.
+normalize_host() {
+  local h="${(L)1}"
+  print -r -- "${h%%.*}"
+}
+
+# Mountpoint of //…@host/share if it is already mounted, else empty.
+# `mount` prints e.g.  //nom@tower/jobs on /Volumes/jobs (smbfs, nodev, ...)
+current_mountpoint() {
+  local line src dest
+  local -a lines
+  lines=( "${(@f)$(mount)}" )
+  for line in "${lines[@]}"; do
+    [[ "$line" == *"(smbfs"* ]] || continue
+    src="${line%% on *}"
+    dest="${line#* on }"
+    dest="${dest% \(*}"
+    # Strip //user@ prefix, then compare host label + share name.
+    src="${src#//}"
+    src="${src##*@}"
+    if [[ "$(normalize_host "${src%%/*}")/${(L)${src##*/}}" \
+          == "$(normalize_host "$host")/${(L)share}" ]]; then
+      print -r -- "$dest"
+      return 0
+    fi
+  done
+  return 1
+}
+
+mounted_by_us=false
+
+cleanup_mount() {
+  $mounted_by_us || return 0
+  [[ -n "${mountpoint:-}" ]] || return 0
+  print -- "unmounting $mountpoint"
+  diskutil unmount "$mountpoint" >/dev/null 2>&1 || \
+    umount "$mountpoint" >/dev/null 2>&1 || \
+    print -u2 -- "$script_name: could not unmount $mountpoint"
+}
+
+mountpoint="$(current_mountpoint || true)"
+
+if [[ -z "$mountpoint" ]]; then
+  print -- "mounting smb://$host/$share"
+  # AppleScript mount uses the Keychain (and prompts) like Finder's Connect To
+  # Server. It fails if the host is unreachable or has no such share.
+  if ! osascript -e "mount volume \"smb://${host}/${share}\"" >/dev/null 2>&1; then
+    die "could not mount smb://$host/$share — no '$share' share, or login failed"
+  fi
+  mountpoint="$(current_mountpoint || true)"
+  [[ -n "$mountpoint" ]] || die "mount reported success but smb://$host/$share is not in the mount table"
+  mounted_by_us=true
+fi
+
+[[ -d "$mountpoint" && -w "$mountpoint" ]] || {
+  cleanup_mount
+  die "share is not writable: $mountpoint"
+}
+
+print -- "share: $mountpoint"
+
+# --- payload: copy, then verify byte counts match ---------------------------
+for f in "${payload[@]}"; do
+  name="${f:t}"
+  dest="$mountpoint/$name"
+  tmp="$mountpoint/.$name.sending"
+
+  src_size="$(size_of "$f")" || { cleanup_mount; die "could not stat $f" }
+
+  if [[ -f "$dest" ]] && ! $force; then
+    dest_size="$(size_of "$dest")"
+    if [[ "$dest_size" == "$src_size" ]]; then
+      print -- "skip  $name (already there, $src_size bytes)"
+      continue
+    fi
+  fi
+
+  print -- "send  $name ($src_size bytes)"
+  rm -f -- "$tmp" 2>/dev/null || true
+  if ! cp -- "$f" "$tmp"; then
+    rm -f -- "$tmp" 2>/dev/null || true
+    cleanup_mount
+    die "copy failed: $name"
+  fi
+
+  dest_size="$(size_of "$tmp")" || dest_size=""
+  if [[ "$dest_size" != "$src_size" ]]; then
+    rm -f -- "$tmp" 2>/dev/null || true
+    cleanup_mount
+    die "size mismatch for $name (local $src_size, remote ${dest_size:-?}) — nothing queued"
+  fi
+
+  mv -f -- "$tmp" "$dest" || { cleanup_mount; die "could not finalize $name" }
+  print -- "ok    $name verified"
+done
+
+# --- job script last: only now is the payload known-good --------------------
+job_name="${job_file:t}"
+job_tmp="$mountpoint/.${job_name}.sending"
+job_dest="$mountpoint/$job_name"
+
+cp -- "$job_file" "$job_tmp" || { cleanup_mount; die "could not copy job file" }
+chmod +x "$job_tmp" 2>/dev/null || true
+
+if [[ "$(size_of "$job_tmp")" != "$(size_of "$job_file")" ]]; then
+  rm -f -- "$job_tmp" 2>/dev/null || true
+  cleanup_mount
+  die "size mismatch for $job_name — job not queued"
+fi
+
+# Rename into place so the watch folder only ever sees a complete .job.
+mv -f -- "$job_tmp" "$job_dest" || { cleanup_mount; die "could not queue $job_name" }
+print -- "queued $job_name on $host"
+
+if $eject; then
+  cleanup_mount
+fi
+exit 0

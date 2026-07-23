@@ -14,11 +14,6 @@ rev = "4f4992b"
 hash = "61410fb3409c22990a52767c738c2722"
 
 [[plugin.deps]]
-use = "dawsers/toggle-view"
-rev = "9ae57f9"
-hash = "a5fefd7e796960eea67cebb29d77912a"
-
-[[plugin.deps]]
 use = "yazi-rs/plugins:piper"
 rev = "598cdb6"
 hash = "d99cfbc3812e7738505f9e4bedb759cd"

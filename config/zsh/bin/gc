@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # gc
 #
-# AI-powered git commits using Codex or Claude + Gum.
+# AI-powered git commits using Claude or Codex + Gum.
 #
 # Usage:
 #   gc
@@ -23,12 +23,12 @@ Options:
   --multi    Generate a multiline conventional commit message
   --staged-only
              Commit only already-staged changes
-  --codex    Use Codex to generate the message (default)
-  --claude   Use Claude to generate the message
+  --claude   Use Claude to generate the message (default when available)
+  --codex    Use Codex to generate the message (fallback)
   -h, --help Show this help
 
 Environment variables:
-  GC_BACKEND              codex|claude (default: codex)
+  GC_BACKEND              claude|codex (default: claude if installed, else codex)
   GC_REASONING            Codex reasoning effort (default: low)
   GC_CLAUDE_MODEL         Claude model to use (default: claude-haiku-4-5-20251001)
 
@@ -61,6 +61,22 @@ warn() {
 
 need() {
   command -v "$1" >/dev/null 2>&1 || die "Missing dependency: $1"
+}
+
+# `claude` may not be on PATH: the desktop app bundles the CLI under a
+# per-version directory instead of installing it globally. Prefer a real PATH
+# install, else fall back to the newest bundled binary.
+resolve_claude() {
+  if command -v claude >/dev/null 2>&1; then
+    print -r -- claude
+    return 0
+  fi
+
+  local -a bundled
+  bundled=( "$HOME/Library/Application Support/Claude/claude-code"/*/claude.app/Contents/MacOS/claude(Nn-*) )
+  (( ${#bundled} )) || return 1
+
+  print -r -- "${bundled[-1]}"
 }
 
 build_prompt() {
@@ -144,7 +160,7 @@ generate_message() {
 
   : > "$output_file"
 
-  case "${GC_BACKEND:-codex}" in
+  case "$GC_BACKEND" in
     claude)
       local err_file="${output_file}.err"
       # When gc is invoked from inside a Claude Code session, the parent
@@ -169,7 +185,7 @@ generate_message() {
         --spinner dot \
         --title "Thinking..." \
         -- \
-        zsh -c "env ${(j: :)${(@)claude_env/#/-u }} claude --print --model ${GC_CLAUDE_MODEL:-claude-haiku-4-5-20251001} < ${(q)prompt_file} > ${(q)output_file} 2> ${(q)err_file}"
+        zsh -c "env ${(j: :)${(@)claude_env/#/-u }} ${(q)GC_CLAUDE_BIN} --print --model ${GC_CLAUDE_MODEL:-claude-haiku-4-5-20251001} < ${(q)prompt_file} > ${(q)output_file} 2> ${(q)err_file}"
       then
         die "Claude failed: $(<"$err_file")$(<"$output_file")"
       fi
@@ -285,7 +301,7 @@ EOF
       done
       gum spin --spinner dot --title "Resolving conflicts..." -- \
         env "${unset_args[@]}" \
-          claude --print --permission-mode acceptEdits "$prompt" \
+          "$GC_CLAUDE_BIN" --print --permission-mode acceptEdits "$prompt" \
         || rc=$?
       ;;
     codex)
@@ -380,7 +396,15 @@ main() {
 
   local staged_only=false
   export GC_MULTI=false
-  export GC_BACKEND=${GC_BACKEND:-codex}
+
+  if [[ -z "${GC_BACKEND:-}" ]]; then
+    if resolve_claude >/dev/null; then
+      GC_BACKEND=claude
+    else
+      GC_BACKEND=codex
+    fi
+  fi
+  export GC_BACKEND
 
   while (( $# )); do
     case "$1" in
@@ -408,9 +432,17 @@ main() {
   done
 
   case "$GC_BACKEND" in
-    codex)  need codex ;;
-    claude) need claude ;;
-    *)      die "Unknown backend: $GC_BACKEND" ;;
+    codex)
+      need codex
+      ;;
+    claude)
+      GC_CLAUDE_BIN=$(resolve_claude) \
+        || die "Missing dependency: claude (not on PATH, no desktop-app bundle)"
+      export GC_CLAUDE_BIN
+      ;;
+    *)
+      die "Unknown backend: $GC_BACKEND"
+      ;;
   esac
 
   local repo_root

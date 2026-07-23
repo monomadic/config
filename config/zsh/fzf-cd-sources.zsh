@@ -24,16 +24,18 @@ typeset -ga _cd_fzf_global_commands=(
   'fd-dirs "$HOME" 1'
   'fd-dirs "$HOME/src" 1'
   'fd-dirs "$HOME/Music" 1'
-  'fd --type d --absolute-path --max-depth 2 . "$HOME/Movies/Porn" 2>/dev/null'
-  'fd --type d --absolute-path --max-depth 1 . "$HOME/Library/Application Support/VirtualDJ" 2>/dev/null'
+  'fd-dirs "$HOME/Movies/Porn" 2'
+  'fd-dirs "$HOME/Library/Application Support/VirtualDJ" 1'
   # 'fd --type d --absolute-path --max-depth 1 . "$ICLOUD_HOME" 2>/dev/null'
   # 'fd --type d --absolute-path --max-depth 1 . "$ICLOUD_HOME/Movies" 2>/dev/null'
-  'fd-dirs "$ICLOUD_HOME/Music" 1'
-  'fd --type d --absolute-path --max-depth 2 . "$DOTFILES_DIR/config" 2>/dev/null'
-  'for vol in /Volumes/*(N/); do fd --type d --absolute-path --max-depth 1 . "$vol" 2>/dev/null; done'
-  # 'for media_dir in /Volumes/*/Movies/Porn(N/); do fd --type d --absolute-path --max-depth 1 . "$media_dir" 2>/dev/null; done'
 
-  'for vol in /Volumes/*/Movies/Porn/(N/); do fd --type d --absolute-path --max-depth 1 . "$vol" 2>/dev/null; done'
+  'fd-dirs "$ICLOUD_HOME" 1'
+  'fd-dirs "$ICLOUD_HOME/Music" 1'
+  'fd-dirs "$ICLOUD_HOME/Movies" 1'
+
+  'fd-dirs "$DOTFILES_DIR/config" 2'
+  'for vol in /Volumes/*(N/); do fd-dirs "$vol" 1 2>/dev/null; done'
+  'for vol in /Volumes/*/Movies/Porn/(N/); do fd-dirs "$vol" 1 2>/dev/null; done'
 )
 
 typeset -gi _cd_fzf_local_max_depth=5

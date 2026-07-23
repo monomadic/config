@@ -20,6 +20,7 @@ play = [
   { desc = "􀽍  mpv", run = "mpv --force-window --fullscreen --no-native-fs %s", orphan = true },
   { desc = "􀽍  mpv-ipc", run = "mpv-send play %s", orphan = true },
   { desc = "􀫐  switchblade", run = "switchblade %s", orphan = true },
+  { desc = "􂿥  a/bner", run = "abner %s", orphan = true },
   { desc = "􀇺  check: media", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-audit %s''', orphan = true },
   { desc = "􀼹  open-url", run = "media-open-url %s" },
   { desc = "􁾕  convert: prores", run = "convert-to-pro-res %s .", orphan = true },
@@ -84,7 +85,11 @@ prepend_rules = [
   { url = "*.flac", use = ["flac", "open"] },
   # mime-ext resolves by extension, so these text-like types miss Yazi's
   # default `text/*` edit rule (same gap as the code previewer below).
-  { mime = "application/{xml,xml-dtd,sql,octet-stream}", use = ["edit", "open", "reveal"] },
+  { mime = "application/{xml,xml-dtd,sql,octet-stream}", use = [
+    "edit",
+    "open",
+    "reveal"
+  ] },
   { mime = "application/*+xml", use = ["edit", "open", "reveal"] },
 ]
 

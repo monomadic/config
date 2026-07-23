@@ -149,6 +149,7 @@ handle_directory_selection() {
   local -a fzf_cmd=(
     fzf
     --color="$FZF_COLOR_OPTS"
+    --no-sort
     --ansi
     --gutter='􀈕' --pointer='􃀪 ' --marker='􃀩 '
     --header="$header"
