@@ -118,58 +118,80 @@ PY
 }
 
 # List every OTHER window in the active tab, in layout order, as
-#   <window id>  <cwd>  <foreground pid>  <foreground command>
-# cwd comes from the window's live foreground process (more accurate than the
-# cached window cwd).
+#   <window id>  <fg cwd>  <fg command>  <pid,pid,…>
+# The last column is EVERY pid in the window's process tree. Kitty's per-window
+# cwd tracks whichever process is in front; when a Yazi pane is running fzf (or
+# any blocking child) that's the child, not Yazi — so the reported cwd can lag.
+# We keep the whole pid list to correlate the pane with a Yazi over DDS below,
+# which finds the Yazi even when it isn't the foreground process.
 windows=$(
   kitty_ls | jq -r --arg self "$self" '
     def cwdof: (.foreground_processes[-1].cwd // .cwd // "");
     def fgof:  (.foreground_processes[-1].cmdline // [] | (.[0] // ""));
-    def pidof: (.foreground_processes[-1].pid // "");
+    def pids:  ([.foreground_processes[].pid | tostring] | join(","));
     ( [ .[] | select(.is_active) | .tabs[] | select(.is_active) ] | first ) as $tab
     | ($tab.windows // [])[]
     | select((.id | tostring) != $self)
-    | [ (.id | tostring), cwdof, (pidof | tostring), fgof ] | @tsv
+    | [ (.id | tostring), cwdof, fgof, pids ] | @tsv
   '
 ) || die "cannot reach Kitty remote control (allow_remote_control + listen_on?)"
 
-# A pane running Yazi reports the directory Yazi was *launched* in — Yazi tracks
-# its cwd internally and never chdir()s, so the process cwd goes stale the
-# moment you navigate. Yazi's init.lua publishes its live cwd to
-# $TMPDIR/yazi-cwd.<window id> as "<pid>\n<path>"; trust that file only while
-# the pid still matches the pane's foreground process, so one left behind by an
-# exited Yazi is ignored rather than silently redirecting the copy.
-tmpdir=${TMPDIR:-/tmp}
-tmpdir=${tmpdir%/}
+# Ask Yazi directly instead of trusting kitty's cwd for Yazi panes.
+#
+# Every Yazi subscribes to "cwd-req" on Yazi's DDS bus (see config/yazi/init.lua)
+# and answers with its live cwd tagged with its own pid. We broadcast one
+# request, collect the replies into pid -> cwd, and later match a pane by any
+# pid in its process tree. This is authoritative regardless of what the pane's
+# foreground process is, and it takes kitty out of the cwd business entirely.
+typeset -A yazi_cwd
+if have ya; then
+  replies=$(mktemp) || die "mktemp failed"
+  ya sub cwd-rep >"$replies" 2>/dev/null &
+  sub_pid=$!
+  sleep 0.15                          # let the subscriber attach before we ask
+  ya pub-to 0 cwd-req --str q 2>/dev/null || true
+  sleep 0.35                          # brief window for every instance to answer
+  kill "$sub_pid" 2>/dev/null || true
+  wait "$sub_pid" 2>/dev/null || true
 
+  # Each line is: cwd-rep,<receiver>,<sender>,<json-body>. Strip the three
+  # leading comma fields (# is a shortest-match, so it stops at the 3rd comma
+  # and leaves the JSON — which contains its own commas — intact).
+  while IFS= read -r line; do
+    body=${line#*,*,*,}
+    [[ "$body" == \{* ]] || continue
+    rpid=$(jq -r '.pid // empty' <<<"$body" 2>/dev/null) || continue
+    rcwd=$(jq -r '.cwd // empty' <<<"$body" 2>/dev/null) || continue
+    [[ -n "$rpid" && -n "$rcwd" ]] && yazi_cwd[$rpid]=$rcwd
+  done < "$replies"
+  rm -f "$replies"
+fi
+
+# A pane's cwd: a DDS answer from any Yazi in its process tree wins (accurate
+# even mid-fzf); otherwise fall back to what kitty reports for the foreground
+# process (correct for plain shells and other apps).
 pane_cwd() {
-  local id=$1 reported=$2 pid=$3 cmd=$4
-  local file=$tmpdir/yazi-cwd.$id
-  local -a lines
-
-  if [[ "${cmd:t}" == yazi && -n "$pid" && -r "$file" ]]; then
-    lines=("${(@f)$(<"$file")}")
-    if [[ "${lines[1]:-}" == "$pid" && -n "${lines[2]:-}" ]]; then
-      print -r -- "${lines[2]}"
+  local reported=$1 pids=$2 p
+  for p in ${(s:,:)pids}; do
+    if [[ -n "${yazi_cwd[$p]:-}" ]]; then
+      print -r -- "${yazi_cwd[$p]}"
       return
     fi
-  fi
-
+  done
   print -r -- "$reported"
 }
 
 # Pick the target: the first other window whose cwd differs from ours. Copying
 # into our own cwd is a no-op, and silently choosing a same-dir pane is exactly
 # what led to data loss before — so same-dir panes are skipped. Our own cwd is
-# taken from $PWD (Yazi runs shell commands in the hovered directory), which is
-# immune to the same staleness.
+# taken from $PWD (Yazi runs shell commands in the hovered directory).
 self_cwd=${PWD:A}
 dest=
 fg=
 
-while IFS=$'\t' read -r wid wcwd wpid wcmd; do
+while IFS=$'\t' read -r wid wcwd wcmd wpids; do
   [[ -n "$wid" ]] || continue
-  cand=$(pane_cwd "$wid" "$(decode_url "$wcwd")" "$wpid" "$wcmd")
+  cand=$(pane_cwd "$(decode_url "$wcwd")" "$wpids")
   [[ -n "$cand" ]] || continue
   [[ "${cand:A}" != "$self_cwd" ]] || continue
   dest=$cand

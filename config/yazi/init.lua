@@ -155,14 +155,23 @@ end
 
 -- Publish the live cwd for other Kitty panes.
 --
--- Yazi never chdir()s as you navigate, so `kitty @ ls` reports the directory
--- yazi was *launched* in for the rest of the session. Scripts that target
--- "the next pane" (see ~/.zsh/bin/copy-kitty-next-pane) would happily copy
--- into that stale path. So write the real cwd to a per-Kitty-window file,
--- stamped with our pid — a reader can then tell a live yazi's cwd from a file
--- left behind by one that has since exited.
+-- Answer "what's your cwd?" over Yazi's DDS bus.
+--
+-- Yazi tracks its cwd internally; on navigation it also chdir()s its own
+-- process, so `kitty @ ls` sees the right directory — but ONLY while yazi
+-- itself is the foreground process. The moment yazi spawns a blocking child
+-- (fzf, a shell command), that child becomes the pane's foreground process and
+-- kitty reports the child instead. copy-kitty-next-pane hit exactly this: a
+-- target pane sitting in an fzf session reported the wrong cwd.
+--
+-- Rather than route cwd through kitty at all, we let yazi answer directly.
+-- copy-kitty-next-pane broadcasts a "cwd-req" on the DDS bus; every yazi
+-- replies with its live cwd tagged with its own pid. The requester matches the
+-- reply whose pid is in the target kitty window's process tree — which finds
+-- the yazi even when fzf is in front of it. No sidecar files, no OSC 7.
 local yazi_pid = (function()
-	-- `sh`'s $PPID is this yazi process. Resolved once; popen is not cheap.
+	-- The shell we popen is yazi's child, so its $PPID *is* this yazi's pid —
+	-- the same pid kitty lists in the window's process tree. Resolved once.
 	local h = io.popen("echo $PPID")
 	if not h then
 		return nil
@@ -173,32 +182,17 @@ local yazi_pid = (function()
 	return pid
 end)()
 
-local cwd_file = (function()
-	local id = os.getenv("KITTY_WINDOW_ID")
-	if not id or id == "" or not yazi_pid then
-		return nil
-	end
-
-	local tmp = os.getenv("TMPDIR") or "/tmp"
-	return tmp:gsub("/+$", "") .. "/yazi-cwd." .. id
-end)()
-
-local function publish_cwd(cwd)
-	if not cwd_file then
-		return
-	end
-
-	local f = io.open(cwd_file, "w")
-	if not f then
-		return
-	end
-
-	f:write(yazi_pid, "\n", tostring(cwd), "\n")
-	f:close()
+-- `cwd-req` body is ignored; the reply carries { pid, cwd }. ps.pub_to(0, …)
+-- broadcasts to every instance (0 == all), which the requester's `ya sub`
+-- picks up. sub_remote only fires for messages from *other* instances, which
+-- is exactly right — a yazi never needs to answer its own question.
+if yazi_pid then
+	ps.sub_remote("cwd-req", function()
+		ps.pub_to(0, "cwd-rep", { pid = yazi_pid, cwd = tostring(cx.active.current.cwd) })
+	end)
 end
 
 ps.sub("cd", function()
-	publish_cwd(cx.active.current.cwd)
 	ya.emit("shell", { kitty_title_command(cx.active.current.cwd), orphan = true })
 end)
 

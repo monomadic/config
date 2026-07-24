@@ -3,11 +3,14 @@ ratio = [1, 4, 1]
 scrolloff = 5
 linemode = "size"
 shared_clipboard = true
+mouse_events = ["click", "scroll", "touch", "move", "drag"]
 
 [preview]
 max_width = 1200
 max_height = 900
 cache_dir = "~/.cache/yazi"
+image_delay = 0
+image_quality = 60
 
 [opener]
 edit = [
@@ -36,7 +39,8 @@ play_dir = [
   { desc = "􁊇  exiftool", run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", block = true },
 ]
 open = [
-  { run = "open %s", desc = "􀭅  open" },
+  { run = "open %s", desc = "􀫌  open" },
+  { run = "kitten dnd %s", desc = "􀣠  drag" }
   # { run = "/Users/nom/.zsh/bin/yazi-shortcut-open %s", desc = "􂅛  open shortcut", for = "macos", block = true },
 ]
 # 􀭅 􂇕
@@ -81,7 +85,7 @@ prepend_rules = [
   { url = "*.chordpro", use = ["chordpro", "edit", "open", "reveal"] },
   { mime = "application/pdf", use = ["open", "reveal", "pdf_chordpro"] },
   { mime = "video/*", use = ["play", "open", "reveal", "video_tools"] },
-  { url = "*/", use = ["edit", "reveal", "play_dir", "open"] },
+  { url = "*/", use = ["open", "edit", "reveal", "play_dir"] },
   { url = "*.flac", use = ["flac", "open"] },
   # mime-ext resolves by extension, so these text-like types miss Yazi's
   # default `text/*` edit rule (same gap as the code previewer below).
