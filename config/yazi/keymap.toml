@@ -324,8 +324,8 @@ run = "cd --interactive"
 desc = "Goto menu"
 
 [[mgr.prepend_keymap]]
-on = ["g", "n"]
-run = "plugin first-non-directory"
+on = ["g", "f"]
+run = "plugin first-file"
 desc = "Jump to the first non-directory entry"
 
 [[mgr.prepend_keymap]]

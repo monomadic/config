@@ -153,7 +153,52 @@ local function kitty_title_command(cwd)
 	}, "; ")
 end
 
+-- Publish the live cwd for other Kitty panes.
+--
+-- Yazi never chdir()s as you navigate, so `kitty @ ls` reports the directory
+-- yazi was *launched* in for the rest of the session. Scripts that target
+-- "the next pane" (see ~/.zsh/bin/copy-kitty-next-pane) would happily copy
+-- into that stale path. So write the real cwd to a per-Kitty-window file,
+-- stamped with our pid — a reader can then tell a live yazi's cwd from a file
+-- left behind by one that has since exited.
+local yazi_pid = (function()
+	-- `sh`'s $PPID is this yazi process. Resolved once; popen is not cheap.
+	local h = io.popen("echo $PPID")
+	if not h then
+		return nil
+	end
+
+	local pid = h:read("*l")
+	h:close()
+	return pid
+end)()
+
+local cwd_file = (function()
+	local id = os.getenv("KITTY_WINDOW_ID")
+	if not id or id == "" or not yazi_pid then
+		return nil
+	end
+
+	local tmp = os.getenv("TMPDIR") or "/tmp"
+	return tmp:gsub("/+$", "") .. "/yazi-cwd." .. id
+end)()
+
+local function publish_cwd(cwd)
+	if not cwd_file then
+		return
+	end
+
+	local f = io.open(cwd_file, "w")
+	if not f then
+		return
+	end
+
+	f:write(yazi_pid, "\n", tostring(cwd), "\n")
+	f:close()
+end
+
 ps.sub("cd", function()
+	publish_cwd(cx.active.current.cwd)
 	ya.emit("shell", { kitty_title_command(cx.active.current.cwd), orphan = true })
 end)
 

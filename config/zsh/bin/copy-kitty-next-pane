@@ -117,30 +117,69 @@ PY
   fi
 }
 
-# Identify the active window (this shell) in the active tab, then choose the
-# target: the first OTHER window whose cwd differs from ours. Copying into our
-# own cwd is a no-op, and silently choosing a same-dir pane is exactly what led
-# to data loss before — so same-dir panes are skipped. cwd is read from each
-# window's live foreground process (more accurate than the cached window cwd).
-# Emit the chosen window's cwd and foreground command, tab-separated.
-info=$(
-  kitty_ls | jq -r '
+# List every OTHER window in the active tab, in layout order, as
+#   <window id>  <cwd>  <foreground pid>  <foreground command>
+# cwd comes from the window's live foreground process (more accurate than the
+# cached window cwd).
+windows=$(
+  kitty_ls | jq -r --arg self "$self" '
     def cwdof: (.foreground_processes[-1].cwd // .cwd // "");
     def fgof:  (.foreground_processes[-1].cmdline // [] | (.[0] // ""));
+    def pidof: (.foreground_processes[-1].pid // "");
     ( [ .[] | select(.is_active) | .tabs[] | select(.is_active) ] | first ) as $tab
-    | ($tab.windows // []) as $w
-    | ( $w | map(select(.is_active)) | first | cwdof ) as $selfcwd
-    | ( [ $w[] | select(.is_active | not)
-          | select((cwdof) as $c | $c != "" and $c != $selfcwd) ] | first ) as $t
-    | if $t == null then "" else [ ($t | cwdof), ($t | fgof) ] | @tsv end
+    | ($tab.windows // [])[]
+    | select((.id | tostring) != $self)
+    | [ (.id | tostring), cwdof, (pidof | tostring), fgof ] | @tsv
   '
 ) || die "cannot reach Kitty remote control (allow_remote_control + listen_on?)"
 
-[[ -n "$info" ]] || die "no eligible next pane found in this tab — need another split
-  whose cwd differs from yours ($PWD). (Same-directory panes are skipped on purpose.)"
+# A pane running Yazi reports the directory Yazi was *launched* in — Yazi tracks
+# its cwd internally and never chdir()s, so the process cwd goes stale the
+# moment you navigate. Yazi's init.lua publishes its live cwd to
+# $TMPDIR/yazi-cwd.<window id> as "<pid>\n<path>"; trust that file only while
+# the pid still matches the pane's foreground process, so one left behind by an
+# exited Yazi is ignored rather than silently redirecting the copy.
+tmpdir=${TMPDIR:-/tmp}
+tmpdir=${tmpdir%/}
 
-dest=$(decode_url "${info%%$'\t'*}")
-fg=${info#*$'\t'}
+pane_cwd() {
+  local id=$1 reported=$2 pid=$3 cmd=$4
+  local file=$tmpdir/yazi-cwd.$id
+  local -a lines
+
+  if [[ "${cmd:t}" == yazi && -n "$pid" && -r "$file" ]]; then
+    lines=("${(@f)$(<"$file")}")
+    if [[ "${lines[1]:-}" == "$pid" && -n "${lines[2]:-}" ]]; then
+      print -r -- "${lines[2]}"
+      return
+    fi
+  fi
+
+  print -r -- "$reported"
+}
+
+# Pick the target: the first other window whose cwd differs from ours. Copying
+# into our own cwd is a no-op, and silently choosing a same-dir pane is exactly
+# what led to data loss before — so same-dir panes are skipped. Our own cwd is
+# taken from $PWD (Yazi runs shell commands in the hovered directory), which is
+# immune to the same staleness.
+self_cwd=${PWD:A}
+dest=
+fg=
+
+while IFS=$'\t' read -r wid wcwd wpid wcmd; do
+  [[ -n "$wid" ]] || continue
+  cand=$(pane_cwd "$wid" "$(decode_url "$wcwd")" "$wpid" "$wcmd")
+  [[ -n "$cand" ]] || continue
+  [[ "${cand:A}" != "$self_cwd" ]] || continue
+  dest=$cand
+  fg=$wcmd
+  break
+done <<< "$windows"
+
+[[ -n "$dest" ]] || die "no eligible next pane found in this tab — need another split
+  whose cwd differs from yours ($self_cwd). (Same-directory panes are skipped on purpose.)"
+
 fg_base=${fg:t}
 
 # --- staleness guard -------------------------------------------------------
@@ -152,7 +191,6 @@ case "$fg_base" in
   launch dir, not the remote/container path. cd to a real local dir there first." ;;
 esac
 
-[[ -n "$dest" ]] || die "next pane has no reported cwd"
 [[ -d "$dest" ]] || die "next pane cwd is not a reachable directory: $dest
   (the pane may be on an unmounted volume or a since-deleted path)"
 
