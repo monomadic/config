@@ -120,6 +120,7 @@ brew "ssss"
 brew "tokei"
 brew "trippy"
 brew "age"
+brew "gum" # tui widgets
 
 # Fonts
 cask "font-ark-pixel-10px-monospaced"

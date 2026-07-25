@@ -22,7 +22,6 @@ emulate -L zsh
 set -euo pipefail
 
 script_name=${0:t}
-user_name=${USER:-${LOGNAME:-$(id -un)}}
 
 # --- colors (tasteful; disabled when piped or NO_COLOR is set) --------------
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
@@ -93,115 +92,22 @@ done
 self=${KITTY_WINDOW_ID:-}
 [[ -n "$self" ]] || die "KITTY_WINDOW_ID unset — run this inside a Kitty window"
 
-kitty_ls() {
-  # Prefer the controlling terminal, then known listen sockets.
-  kitty @ ls 2>/dev/null && return 0
-  local sock
-  for sock in "${KITTY_LISTEN_ON:-}" unix:/tmp/kitty "unix:/tmp/kitty-$user_name"; do
-    [[ -n "$sock" ]] || continue
-    kitty @ --to "$sock" ls 2>/dev/null && return 0
-  done
-  return 1
-}
+# Pane discovery lives in kitty-cwd-next-pane. It picks the first OTHER window
+# in this tab whose cwd differs from ours, reading cwd from each window's live
+# foreground process (more accurate than Kitty's cached per-window cwd field).
+# Copying into our own cwd is a no-op, and silently choosing a same-dir pane is
+# exactly what led to data loss before — so that script skips same-dir panes by
+# default. With --tsv it emits "<cwd>\t<foreground command>", already URL-decoded.
+have kitty-cwd-next-pane || die "kitty-cwd-next-pane not found in PATH"
 
-decode_url() {
-  local u=$1
-  [[ "$u" == file://* ]] || { print -r -- "$u"; return; }
-  if have python3; then
-    python3 - "$u" <<'PY'
-import sys, urllib.parse as p
-print(p.unquote(p.urlparse(sys.argv[1]).path))
-PY
-  else
-    print -r -- "${u#file://}"
-  fi
-}
+info=$(kitty-cwd-next-pane --tsv) || info=
 
-# List every OTHER window in the active tab, in layout order, as
-#   <window id>  <fg cwd>  <fg command>  <pid,pid,…>
-# The last column is EVERY pid in the window's process tree. Kitty's per-window
-# cwd tracks whichever process is in front; when a Yazi pane is running fzf (or
-# any blocking child) that's the child, not Yazi — so the reported cwd can lag.
-# We keep the whole pid list to correlate the pane with a Yazi over DDS below,
-# which finds the Yazi even when it isn't the foreground process.
-windows=$(
-  kitty_ls | jq -r --arg self "$self" '
-    def cwdof: (.foreground_processes[-1].cwd // .cwd // "");
-    def fgof:  (.foreground_processes[-1].cmdline // [] | (.[0] // ""));
-    def pids:  ([.foreground_processes[].pid | tostring] | join(","));
-    ( [ .[] | select(.is_active) | .tabs[] | select(.is_active) ] | first ) as $tab
-    | ($tab.windows // [])[]
-    | select((.id | tostring) != $self)
-    | [ (.id | tostring), cwdof, fgof, pids ] | @tsv
-  '
-) || die "cannot reach Kitty remote control (allow_remote_control + listen_on?)"
+[[ -n "$info" ]] || die "no eligible next pane found in this tab — need another split
+  whose cwd differs from yours ($PWD). (Same-directory panes are skipped on purpose.)
+  If such a split does exist, check Kitty remote control: allow_remote_control + listen_on."
 
-# Ask Yazi directly instead of trusting kitty's cwd for Yazi panes.
-#
-# Every Yazi subscribes to "cwd-req" on Yazi's DDS bus (see config/yazi/init.lua)
-# and answers with its live cwd tagged with its own pid. We broadcast one
-# request, collect the replies into pid -> cwd, and later match a pane by any
-# pid in its process tree. This is authoritative regardless of what the pane's
-# foreground process is, and it takes kitty out of the cwd business entirely.
-typeset -A yazi_cwd
-if have ya; then
-  replies=$(mktemp) || die "mktemp failed"
-  ya sub cwd-rep >"$replies" 2>/dev/null &
-  sub_pid=$!
-  sleep 0.15                          # let the subscriber attach before we ask
-  ya pub-to 0 cwd-req --str q 2>/dev/null || true
-  sleep 0.35                          # brief window for every instance to answer
-  kill "$sub_pid" 2>/dev/null || true
-  wait "$sub_pid" 2>/dev/null || true
-
-  # Each line is: cwd-rep,<receiver>,<sender>,<json-body>. Strip the three
-  # leading comma fields (# is a shortest-match, so it stops at the 3rd comma
-  # and leaves the JSON — which contains its own commas — intact).
-  while IFS= read -r line; do
-    body=${line#*,*,*,}
-    [[ "$body" == \{* ]] || continue
-    rpid=$(jq -r '.pid // empty' <<<"$body" 2>/dev/null) || continue
-    rcwd=$(jq -r '.cwd // empty' <<<"$body" 2>/dev/null) || continue
-    [[ -n "$rpid" && -n "$rcwd" ]] && yazi_cwd[$rpid]=$rcwd
-  done < "$replies"
-  rm -f "$replies"
-fi
-
-# A pane's cwd: a DDS answer from any Yazi in its process tree wins (accurate
-# even mid-fzf); otherwise fall back to what kitty reports for the foreground
-# process (correct for plain shells and other apps).
-pane_cwd() {
-  local reported=$1 pids=$2 p
-  for p in ${(s:,:)pids}; do
-    if [[ -n "${yazi_cwd[$p]:-}" ]]; then
-      print -r -- "${yazi_cwd[$p]}"
-      return
-    fi
-  done
-  print -r -- "$reported"
-}
-
-# Pick the target: the first other window whose cwd differs from ours. Copying
-# into our own cwd is a no-op, and silently choosing a same-dir pane is exactly
-# what led to data loss before — so same-dir panes are skipped. Our own cwd is
-# taken from $PWD (Yazi runs shell commands in the hovered directory).
-self_cwd=${PWD:A}
-dest=
-fg=
-
-while IFS=$'\t' read -r wid wcwd wcmd wpids; do
-  [[ -n "$wid" ]] || continue
-  cand=$(pane_cwd "$(decode_url "$wcwd")" "$wpids")
-  [[ -n "$cand" ]] || continue
-  [[ "${cand:A}" != "$self_cwd" ]] || continue
-  dest=$cand
-  fg=$wcmd
-  break
-done <<< "$windows"
-
-[[ -n "$dest" ]] || die "no eligible next pane found in this tab — need another split
-  whose cwd differs from yours ($self_cwd). (Same-directory panes are skipped on purpose.)"
-
+dest=${info%%$'\t'*}
+fg=${info#*$'\t'}
 fg_base=${fg:t}
 
 # --- staleness guard -------------------------------------------------------
@@ -213,6 +119,7 @@ case "$fg_base" in
   launch dir, not the remote/container path. cd to a real local dir there first." ;;
 esac
 
+[[ -n "$dest" ]] || die "next pane has no reported cwd"
 [[ -d "$dest" ]] || die "next pane cwd is not a reachable directory: $dest
   (the pane may be on an unmounted volume or a since-deleted path)"
 

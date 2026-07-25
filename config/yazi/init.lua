@@ -1,4 +1,3 @@
-require("ls-deluxe-colors"):setup()
 
 -- Right-click opens the "open with" picker instead of opening the file directly
 function Entity:click(event, up)
@@ -192,17 +191,49 @@ if yazi_pid then
 	end)
 end
 
+-- Free space on the filesystem holding the cwd. Refreshed on `cd` only: the
+-- status closure runs on every render, so spawning `df` from inside it forks a
+-- shell per keypress and blocks the UI.
+local disk_free = ""
+local disk_free_cwd = nil
+
+local function refresh_disk_free(cwd)
+	disk_free_cwd = tostring(cwd)
+
+	local out = Command("df"):arg({ "-h", tostring(cwd) }):stdout(Command.PIPED):output()
+	if not (out and out.status and out.status.success) then
+		disk_free = ""
+		return
+	end
+
+	-- second line, 4th field (Avail); df wraps long device names onto their own line
+	local body = (out.stdout:match("\n(.*)$") or ""):gsub("\n", " ")
+	local fields = {}
+	for field in body:gmatch("%S+") do
+		fields[#fields + 1] = field
+	end
+
+	disk_free = fields[4] or ""
+end
+
 ps.sub("cd", function()
-	ya.emit("shell", { kitty_title_command(cx.active.current.cwd), orphan = true })
+	local cwd = cx.active.current.cwd
+	ya.emit("shell", { kitty_title_command(cwd), orphan = true })
+	refresh_disk_free(cwd)
 end)
 
 Status:children_add(function()
-	local handle = io.popen("df -h . | awk 'NR==2 {print $4}'")
-	if not handle then
-		return ""
+	-- `cx` doesn't exist at init time, so the first value is filled in here on the
+	-- first render. After that the `cd` handler above keeps it current and this
+	-- branch never spawns anything.
+	local cwd = tostring(cx.active.current.cwd)
+	if disk_free_cwd ~= cwd then
+		refresh_disk_free(cwd)
 	end
 
-	local result = handle:read("*a"):gsub("%s+", "")
-	handle:close()
-	return "􀤂  " .. result .. " "
+	if disk_free == "" then
+		return ui.Span("")
+	end
+
+	return ui.Span("􀤂  " .. disk_free .. " ")
 end, 500, Status.RIGHT)

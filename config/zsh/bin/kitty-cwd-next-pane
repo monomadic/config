@@ -1,0 +1,120 @@
+#!/usr/bin/env zsh
+#
+# kitty-cwd-next-pane — print the working directory of another pane in the
+# current Kitty tab.
+#
+# Run it from a shell in one Kitty split. It looks at the active tab, finds the
+# first window that isn't you, and prints that window's cwd. By default panes
+# sharing your cwd are skipped: copying into your own directory is a no-op, and
+# silently choosing a same-dir pane is a data-loss trap for callers that move
+# files.
+#
+# cwd is read from each window's live foreground process, which is more accurate
+# than Kitty's cached per-window `cwd` field.
+#
+# Usage:
+#   kitty-cwd-next-pane [--tsv] [--exactly-two] [--any]
+#
+# Options:
+#   --tsv          print "<cwd>\t<foreground command>" instead of just the cwd
+#   --exactly-two  produce nothing unless the tab holds exactly two panes
+#   --any          don't skip panes whose cwd matches yours
+#   -h|--help      show this help
+#
+# Exit status: 0 and a path on stdout when a pane was found; 1 and no output
+# otherwise (not in Kitty, no remote control, or no eligible pane).
+#
+# Requires: Kitty with allow_remote_control + listen_on, jq.
+
+emulate -L zsh
+set -euo pipefail
+
+script_name=${0:t}
+user_name=${USER:-${LOGNAME:-$(id -un)}}
+
+tsv=0
+exactly_two=false
+any=false
+
+while (( $# )); do
+  case "$1" in
+    --tsv)         tsv=1 ;;
+    --exactly-two) exactly_two=true ;;
+    --any)         any=true ;;
+    -h|--help)
+      sed -n '3,27p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0 ;;
+    *) print -u2 -- "${script_name}: unknown option: $1 (try --help)"; exit 2 ;;
+  esac
+  shift
+done
+
+[[ -n "${KITTY_WINDOW_ID:-}" ]] || exit 1
+command -v kitty >/dev/null 2>&1 || exit 1
+command -v jq    >/dev/null 2>&1 || exit 1
+
+# Prefer the controlling terminal, then known listen sockets.
+kitty_ls() {
+  kitty @ ls 2>/dev/null && return 0
+  local sock
+  for sock in "${KITTY_LISTEN_ON:-}" unix:/tmp/kitty "unix:/tmp/kitty-$user_name"; do
+    [[ -n "$sock" ]] || continue
+    kitty @ --to "$sock" ls 2>/dev/null && return 0
+  done
+  return 1
+}
+
+# file:///a/b%20c -> /a/b c. Pure zsh: strip scheme and host, then let printf
+# %b decode the percent escapes (%XX becomes \xXX). Literal backslashes are
+# doubled first so printf doesn't eat them.
+decode_url() {
+  local u=$1
+  [[ "$u" == file://* ]] || { print -r -- "$u"; return }
+  u=${u#file://}
+  u=/${u#*/}
+  u=${u//\\/\\\\}
+  printf '%b\n' "${u//\%/\\x}"
+}
+
+info=$(
+  kitty_ls | jq -r \
+    --argjson me "$KITTY_WINDOW_ID" \
+    --argjson exactly_two "$exactly_two" \
+    --argjson any "$any" '
+    def cwdof: (.foreground_processes[-1].cwd // .cwd // "");
+    def fgof:  (.foreground_processes[-1].cmdline // [] | (.[0] // ""));
+
+    # Locate our own tab by window id, so this is correct even when invoked from
+    # a pane that does not currently have focus. Fall back to the active tab.
+    ( first( .[].tabs[] | select(any(.windows[]; .id == $me)) )
+      // first( .[] | select(.is_active) | .tabs[] | select(.is_active) )
+    ) as $tab
+    | ($tab.windows // []) as $w
+    | ( ($w | map(select(.id == $me)) | first)
+        // ($w | map(select(.is_active)) | first) ) as $self
+    | if $exactly_two and ($w | length) != 2 then empty
+      else
+        ($self | cwdof) as $selfcwd
+        | ( [ $w[]
+              | select(.id != $self.id)
+              | select((cwdof) as $c | $c != "" and ($any or $c != $selfcwd)) ]
+            | first ) as $t
+        | if $t == null then empty
+          else [ ($t | cwdof), ($t | fgof) ] | @tsv
+          end
+      end
+  '
+) || exit 1
+
+[[ -n "$info" ]] || exit 1
+
+cwd=$(decode_url "${info%%$'\t'*}")
+fg=${info#*$'\t'}
+
+[[ -n "$cwd" ]] || exit 1
+
+if (( tsv )); then
+  print -r -- "${cwd}"$'\t'"${fg}"
+else
+  print -r -- "$cwd"
+fi
