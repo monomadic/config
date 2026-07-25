@@ -420,16 +420,17 @@ open_mpv() {
 
 # rating modal — a small centered box, same keys as media-set-rating
 rate_modal() {
-  local start=$rating key a b bar
+  local start=$rating key a b bar nl=$'\n'
   bar="$(printf '─%.0s' {1..19})"
+  clear_thumb                          # modal owns the screen; drop the image
   while true; do
     local content="  $(stars_colored $rating)   ${C_DESC}${rating}/5${C_RESET}  "
     local buf=$'\e[H\e[J'
-    buf+="${C_BOLD}  set rating${C_RESET}\n\n"
-    buf+="  ${C_BORDER}╭${bar}╮${C_RESET}\n"
-    buf+="  ${C_BORDER}│${C_RESET}${content}${C_BORDER}│${C_RESET}\n"
-    buf+="  ${C_BORDER}╰${bar}╯${C_RESET}\n\n"
-    buf+="  ${C_KEY}1-5${C_DESC} set  ${C_KEY}0${C_DESC} clear  ${C_KEY}h/l${C_DESC} ±1  ${C_KEY}j/k${C_DESC} clear/full  ${C_KEY}⏎${C_DESC} ok  ${C_KEY}esc${C_DESC} cancel${C_RESET}\n"
+    buf+="${C_BOLD}  set rating${C_RESET}${nl}${nl}"
+    buf+="  ${C_BORDER}╭${bar}╮${C_RESET}${nl}"
+    buf+="  ${C_BORDER}│${C_RESET}${content}${C_BORDER}│${C_RESET}${nl}"
+    buf+="  ${C_BORDER}╰${bar}╯${C_RESET}${nl}${nl}"
+    buf+="  ${C_KEY}1-5${C_DESC} set  ${C_KEY}0${C_DESC} clear  ${C_KEY}h/l${C_DESC} ±1  ${C_KEY}j/k${C_DESC} clear/full  ${C_KEY}⏎${C_DESC} ok  ${C_KEY}esc${C_DESC} cancel${C_RESET}${nl}"
     printf '%s' "$buf" >&$tfd
     read -k 1 -u $tfd key || { rating=$start; return; }
     case "$key" in
