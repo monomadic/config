@@ -1,0 +1,523 @@
+#!/usr/bin/env zsh
+# ============================================================================
+# ytui — an interactive TUI wrapper around yt-dlp
+# ============================================================================
+#
+# Download a URL with yt-dlp behind a live TUI: a progress bar, the video's
+# thumbnail fetched in parallel, and single-key controls while it runs. Any
+# arguments before the URL are passed straight through to yt-dlp, so the
+# yt-dlp config aliases work as usual:
+#
+#   ytui --porn   https://…      # --porn is a yt-dlp --alias (see ~/.config/yt-dlp/config)
+#   ytui --visuals https://…
+#   ytui -f best  https://…
+#
+# The URL is always the LAST argument (same convention as dl-porn).
+#
+# Keys while downloading:
+#   o   open in mpv — stream the growing .part file (keep downloading)
+#   p   pause / resume the download (SIGSTOP/SIGCONT on yt-dlp)
+#   r   rate 0–5 stars (same star-in-filename convention as media-set-rating)
+#   t   edit the whole proposed filename in $EDITOR (saved text is used as-is)
+#   q   quit (Ctrl-C also works)
+#
+# The rating and the edited title/actors/tags feed a proposed filename built
+# with the SAME grammar that media-parse-filename-to-json reads back:
+#
+#   Actor A, Actor B - [Channel] Title #tag1 #tag2 (Origin) ★★★☆☆.ext
+#
+# If you touch either (r or t), the finished file is renamed to that proposed
+# name in place. If you touch neither, yt-dlp's own filename is left untouched.
+#
+# How it works: yt-dlp runs in the background writing a machine-readable
+# progress line (via --progress-template) into a fifo; the main loop waits on
+# that fifo AND the terminal at once with zsh/zselect, so keystrokes stay
+# responsive without busy-waiting. A short preflight (--simulate --print)
+# resolves the output path and seeds the title/actors up front, so the
+# thumbnail job and mpv streaming both know where the file will land.
+#
+# Dependencies: yt-dlp, mpv (for `o`); the star grammar mirrors media-set-rating.
+# See also: dl-porn, yt-dlp-stream, media-parse-filename-to-json
+# ============================================================================
+emulate -L zsh
+setopt pipefail extended_glob
+zmodload zsh/zselect
+
+SELF="${0:t}"
+
+# ── colors ──────────────────────────────────────────────────────────────────
+typeset -gr \
+  C_STAR=$'\e[33m'   C_EMPTY=$'\e[2m'   C_BORDER=$'\e[90m' \
+  C_KEY=$'\e[97m'    C_DESC=$'\e[90m'   C_FILE=$'\e[1;36m' \
+  C_OK=$'\e[32m'     C_ERR=$'\e[31m'    C_WARN=$'\e[33m'   \
+  C_DIM=$'\e[2m'     C_BOLD=$'\e[1m'    C_ACCENT=$'\e[38;5;39m' \
+  C_RESET=$'\e[0m'
+
+die()  { print -ru2 -- "${SELF}: $*"; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+usage() {
+  cat <<EOF
+Usage: $SELF [yt-dlp args...] <url>
+
+Download <url> with yt-dlp behind an interactive TUI. Everything before the URL
+is forwarded to yt-dlp, so config aliases work: e.g. \`$SELF --porn <url>\`.
+
+Keys:  o open in mpv · p pause/resume · r rate · t edit filename (\$EDITOR) · q quit
+EOF
+}
+
+# ── filename star grammar (matches media-set-rating / media-parse-…) ─────────
+stars_plain() {   # form stored in the filename: exactly five ★/☆, no spaces
+  local n=$1 i out=""
+  for (( i = 1; i <= 5; i++ )); do (( i <= n )) && out+="★" || out+="☆"; done
+  print -rn -- "$out"
+}
+stars_colored() { # spaced + colored form for the UI
+  local n=$1 i out=""
+  for (( i = 1; i <= 5; i++ )); do
+    (( i <= n )) && out+="${C_STAR}★${C_RESET}" || out+="${C_EMPTY}☆${C_RESET}"
+    (( i < 5 )) && out+=" "
+  done
+  print -rn -- "$out"
+}
+
+trim() { local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; print -rn -- "$s"; }
+
+# Strip a common form of ANSI SGR sequences (yt-dlp colors its log lines).
+strip_ansi() { local s="$1"; s="${s//$'\e'\[[0-9;]#[a-zA-Z]/}"; print -rn -- "$s"; }
+
+# Filesystem-safe: no slashes or control chars in a filename component.
+sanitize() { local s="$1"; s="${s//\//-}"; s="${s//$'\n'/ }"; s="${s//$'\t'/ }"; print -rn -- "$(trim "$s")"; }
+
+# Bytes → yt-dlp-style human units (MiB/GiB), so an estimate reads like the rest.
+human_bytes() {
+  local -i b=${1:-0}
+  if   (( b >= 1073741824 )); then printf '%.2fGiB' "$(( b / 1073741824.0 ))"
+  elif (( b >= 1048576 ));    then printf '%.1fMiB' "$(( b / 1048576.0 ))"
+  elif (( b >= 1024 ));       then printf '%.1fKiB' "$(( b / 1024.0 ))"
+  else                             printf '%dB' "$b"
+  fi
+}
+
+# ── argument parsing (URL is the last arg, rest passes through to yt-dlp) ─────
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+esac
+(( $# )) || { usage >&2; exit 2; }
+
+typeset -a argv passthru
+argv=( "$@" )
+url="${argv[-1]}"
+passthru=( "${argv[1,-2]}" )
+[[ -n "$url" && "$url" != -* ]] || die "last argument must be a URL (got: ${url:-<none>})"
+
+have yt-dlp || die "yt-dlp not found"
+
+# ── proposed-metadata + download state (globals; edited by the modals) ───────
+typeset -g title="" channel="" origin="" ext=""
+typeset -g override_stem=""               # set by `t` ($EDITOR): used verbatim as the filename
+typeset -ga actors=() tags=()
+typeset -g rating=0 touched=0            # touched: user changed rating or metadata
+typeset -g final_path="" final_real="" proposed_dir="" thumb_base="" dl_dest=""
+typeset -g pct=0 dl_str="—" tot_str="—" spd_str="—" eta_str="—" dstatus="starting"
+typeset -g phase_msg="" msg=""
+typeset -g ytdlp_pid="" mpv_pid="" thumb_pid=""
+typeset -gi paused=0
+typeset -g fifo="" pfd="" tfd="" saved_stty="" alt_active=0
+typeset -ga logring=()                    # recent yt-dlp lines, for error reporting
+
+# ── preflight: resolve the output path and seed title/actors ─────────────────
+# One --simulate extraction. --print honors the yt-dlp config (aliases, paths,
+# --output-na-placeholder ""), so the filename here matches what the real run
+# will write, and empty fields come back as empty strings.
+#
+# --no-download-archive matters: the global config sets --download-archive, and
+# an already-archived id is skipped BEFORE extraction — yt-dlp then exits 0 and
+# prints nothing, which reads here as "could not resolve". ytui is an explicit,
+# single-URL tool, so it overrides the archive on all its yt-dlp calls (preflight,
+# thumbnail, real download) — you asked for this URL, you get it.
+preflight() {
+  local errf; errf="$(mktemp -t ytui-preflight)"
+  local -a lines
+  lines=( "${(@f)$(yt-dlp --no-warnings --no-playlist --simulate --no-download-archive \
+    --print "filename" \
+    --print "%(title)s" \
+    --print "%(channel,uploader)s" \
+    --print "%(cast)l" \
+    "${passthru[@]}" "$url" 2>"$errf")}" )
+  local rc=$?
+  if (( rc != 0 )) || [[ -z "${lines[1]:-}" ]]; then
+    print -ru2 -- "${SELF}: could not resolve the video (yt-dlp exited $rc):"
+    sed 's/^/  /' "$errf" >&2
+    rm -f "$errf"; exit 1
+  fi
+  rm -f "$errf"
+
+  final_path="${lines[1]}"
+  proposed_dir="${final_path:h}"
+  ext="${final_path:e}"
+  thumb_base="${final_path:r}"
+  title="$(trim "${lines[2]:-}")"
+  channel="$(trim "${lines[3]:-}")"
+
+  local cast="${lines[4]:-}"
+  actors=()
+  if [[ -n "$cast" ]]; then
+    local a
+    for a in "${(@s:,:)cast}"; do a="$(trim "$a")"; [[ -n "$a" ]] && actors+=("$a"); done
+  fi
+}
+
+# ── proposed filename (reverse of media-parse-filename-to-json) ──────────────
+compose_stem() {
+  # `t` lets you edit the whole filename in $EDITOR; that saved string wins as-is.
+  [[ -n "$override_stem" ]] && { print -rn -- "$override_stem"; return; }
+  local s=""
+  (( ${#actors} )) && s+="${(j:, :)actors} - "
+  [[ -n "$channel" ]] && s+="[$channel] "
+  s+="$title"
+  local t; for t in "${tags[@]}"; do s+=" #$t"; done
+  [[ -n "$origin" ]] && s+=" ($origin)"
+  (( rating > 0 )) && s+=" $(stars_plain $rating)"
+  print -rn -- "$(sanitize "$s")"
+}
+
+# ── terminal setup / teardown (single controlling-tty fd, alt screen) ────────
+enter_tui() {
+  exec {tfd}<>/dev/tty || die "no controlling terminal"
+  saved_stty="$(stty -g <&$tfd 2>/dev/null)" || saved_stty=""
+  stty -icanon -echo min 1 time 0 <&$tfd 2>/dev/null   # raw keys, but keep ISIG (Ctrl-C)
+  printf '\e[?1049h\e[?25l' >&$tfd                      # alt screen, hide cursor
+  alt_active=1
+}
+leave_tui() {
+  (( alt_active )) || return 0
+  alt_active=0
+  [[ -n "$saved_stty" ]] && stty "$saved_stty" <&$tfd 2>/dev/null
+  printf '\e[?25h\e[?1049l' >&$tfd 2>/dev/null          # show cursor, leave alt screen
+}
+
+cleanup() {
+  local ec=$?
+  # Resume first (a stopped process can't be signalled to die), then stop it.
+  [[ -n "$ytdlp_pid" ]] && kill -CONT "$ytdlp_pid" 2>/dev/null
+  [[ -n "$ytdlp_pid" ]] && kill "$ytdlp_pid" 2>/dev/null
+  [[ -n "$thumb_pid" ]] && kill "$thumb_pid" 2>/dev/null
+  leave_tui
+  [[ -n "$fifo" && -e "$fifo" ]] && rm -f "$fifo"
+  return $ec
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
+
+# ── rendering ────────────────────────────────────────────────────────────────
+draw_bar() {
+  local w=$1 p=$2 i filled g="" e=""
+  (( p > 100 )) && p=100; (( p < 0 )) && p=0
+  (( filled = (w * p) / 100 ))
+  for (( i = 0; i < w; i++ )); do (( i < filled )) && g+="█" || e+="░"; done
+  print -rn -- "${C_OK}${g}${C_DIM}${e}${C_RESET}"
+}
+
+render() {
+  local W=44                          # bar cells; +2 for the "│ … │" pad == 46-char border
+  local buf=$'\e[H'
+  local nl=$'\e[K\n'                 # clear-to-EOL then newline (avoids full-clear flicker)
+
+  local statecol="$C_ACCENT" statetxt="$dstatus"
+  (( paused )) && { statecol="$C_WARN"; statetxt="paused"; }
+  [[ "$dstatus" == finished ]] && statecol="$C_OK"
+
+  local stem; stem="$(compose_stem)"
+  local previewname="${stem}.${ext}"
+  (( ${#previewname} > 76 )) && previewname="${previewname[1,73]}…"
+
+  buf+="  ${C_BOLD}${SELF}${C_RESET} ${C_DIM}${url}${C_RESET}${nl}"
+  buf+="${nl}"
+  buf+="  ${C_BORDER}╭$(printf '─%.0s' {1..46})╮${C_RESET}${nl}"
+  buf+="  ${C_BORDER}│${C_RESET} $(draw_bar $W $pct) ${C_BORDER}│${C_RESET}${nl}"
+  buf+="  ${C_BORDER}╰$(printf '─%.0s' {1..46})╯${C_RESET}${nl}"
+  buf+="   ${C_BOLD}${pct}%${C_RESET}  ${C_DIM}${dl_str} / ${tot_str}${C_RESET}  ${C_ACCENT}${spd_str}${C_RESET}  ${C_DIM}ETA ${eta_str}${C_RESET}  ${statecol}${statetxt}${C_RESET}${nl}"
+  [[ -n "$phase_msg" ]] && buf+="   ${C_DIM}${phase_msg}${C_RESET}${nl}" || buf+="${nl}"
+  buf+="${nl}"
+  buf+="   ${C_DESC}rating${C_RESET}  $(stars_colored $rating)  ${C_DIM}${rating}/5${C_RESET}${nl}"
+  buf+="   ${C_DESC}file${C_RESET}    ${C_FILE}${previewname}${C_RESET}${nl}"
+  [[ -e "${thumb_base}.jpg" ]] && buf+="   ${C_DESC}thumb${C_RESET}   ${C_OK}✓ saved${C_RESET}${nl}" || buf+="${nl}"
+  buf+="${nl}"
+  [[ -n "$msg" ]] && buf+="   ${C_ACCENT}${msg}${C_RESET}${nl}" || buf+="${nl}"
+  buf+="${nl}"
+  buf+="  ${C_KEY}o${C_DESC} mpv   ${C_KEY}p${C_DESC} pause   ${C_KEY}r${C_DESC} rate   ${C_KEY}t${C_DESC} edit   ${C_KEY}q${C_DESC} quit${C_RESET}${nl}"
+  buf+=$'\e[J'                        # clear anything below the block
+  printf '%s' "$buf" >&$tfd
+}
+
+# Failure view: drawn INSIDE the alt screen so the yt-dlp error is readable in
+# place, instead of flashing past on stderr after the TUI is torn down. Shows
+# the tail of the captured log (logring) and waits for a keypress.
+render_error() {
+  local nl=$'\e[K\n' l
+  local buf=$'\e[H\e[J'
+  buf+="  ${C_BOLD}${C_ERR}${SELF}: yt-dlp failed (exit ${1})${C_RESET}${nl}"
+  buf+="${nl}"
+  buf+="  ${C_DIM}${url}${C_RESET}${nl}"
+  buf+="${nl}"
+  if (( ${#logring} )); then
+    for l in "${logring[@]:(-14)}"; do buf+="  ${l[1,112]}${nl}"; done
+  else
+    buf+="  ${C_DIM}(no output captured)${C_RESET}${nl}"
+  fi
+  buf+="${nl}"
+  buf+="  ${C_KEY}q${C_DESC}/any key — close${C_RESET}${nl}"
+  buf+=$'\e[J'
+  printf '%s' "$buf" >&$tfd
+  read -k 1 -u $tfd 2>/dev/null        # hold the panel until the user looks
+}
+
+# ── progress / log line handling ─────────────────────────────────────────────
+handle_line() {
+  local line="$1"
+  if [[ "$line" == PROGRESS\|* ]]; then
+    local rest="${line#PROGRESS|}" pc db tb sp et st dbr
+    IFS='|' read -r pc db tb sp et st dbr <<<"$rest"
+    local nf="${pc//[^0-9.]/}"; pct="${nf%%.*}"; [[ -z "$pct" ]] && pct=0
+    dl_str="$(trim "$db")"; tot_str="$(trim "$tb")"
+    spd_str="$(trim "$sp")"; eta_str="$(trim "$et")"
+    dstatus="$(trim "$st")"
+    [[ "$dstatus" == finished ]] && pct=100
+    # HLS/live streams report no total up front (tot_str "N/A"), but we do get
+    # bytes-so-far and a percentage — so back out an estimate and mark it "~".
+    if [[ "$tot_str" == (N/A|NA|Unknown|unknown|-|) && "$nf" == [0-9]* ]]; then
+      local dbc="${dbr//[^0-9]/}"
+      local -F frac; (( frac = nf / 100.0 ))
+      if [[ -n "$dbc" ]] && (( dbc > 0 && frac > 0 )); then
+        local -i tot_est; (( tot_est = dbc / frac ))
+        (( tot_est > 0 )) && tot_str="~$(human_bytes tot_est)"
+      fi
+    fi
+    return
+  fi
+  if [[ "$line" == FINALPATH\|* ]]; then
+    final_real="${line#FINALPATH|}"
+    return
+  fi
+  # Any other yt-dlp chatter: keep a small ring for error reports, and show the
+  # latest meaningful line as the phase message ([Merger], [Metadata], …).
+  local clean; clean="$(strip_ansi "$line")"; clean="$(trim "$clean")"
+  [[ -z "$clean" ]] && return
+  # "[download] Destination: <path>" tells us where the growing .part actually
+  # lives — which is the yt-dlp temp: path, not the final dir. `o` needs this to
+  # find the file to stream while it downloads.
+  [[ "$clean" == *"Destination: "* ]] && dl_dest="${clean##*Destination: }"
+  logring+=("$clean"); (( ${#logring} > 40 )) && shift logring
+  phase_msg="${clean[1,72]}"
+}
+
+# ── actions ──────────────────────────────────────────────────────────────────
+toggle_pause() {
+  [[ -n "$ytdlp_pid" ]] && kill -0 "$ytdlp_pid" 2>/dev/null || { msg="download already finished"; return; }
+  if (( paused )); then kill -CONT "$ytdlp_pid" 2>/dev/null; paused=0; msg="resumed"
+  else                  kill -STOP "$ytdlp_pid" 2>/dev/null; paused=1; msg="paused"; fi
+}
+
+# Where is the growing partial? With yt-dlp's --paths temp:… the .part lives in
+# a temp tree, not the final dir, and for HLS it's "<file>.mp4.part" alongside
+# per-fragment "*.part-FragNN.part" files. The one authoritative source is the
+# running yt-dlp itself: whatever .part fd IT holds open is the real file, no
+# matter how the paths are configured. lsof on our own child gives us exactly
+# that; the Destination line and dir globs are only fallbacks if lsof is absent.
+find_partfile() {
+  local p
+  # 1) the .part our yt-dlp child currently has open (exclude fragment parts)
+  if [[ -n "$ytdlp_pid" ]] && kill -0 "$ytdlp_pid" 2>/dev/null && have lsof; then
+    p=$(lsof -p "$ytdlp_pid" -Fn 2>/dev/null | sed -n 's/^n//p' \
+          | grep -E '\.part$' | grep -v -- '.part-Frag' | head -1)
+    [[ -n "$p" && -e "$p" ]] && { print -r -- "$p"; return; }
+  fi
+  # 2) names we can name directly (already-merged or non-temp downloads)
+  local cand
+  for cand in "${dl_dest}.part" "$dl_dest" "${final_path}.part" "$final_path" "$final_real"; do
+    [[ -n "$cand" && -e "$cand" ]] && { print -r -- "$cand"; return; }
+  done
+  # 3) largest .part in the captured dest dir, else the final dir (largest, so
+  #    the assembled file wins over the little *-FragNN.part siblings)
+  local -a parts=()
+  [[ -n "$dl_dest" ]]      && parts+=( ${dl_dest:h}/*.part~*.part-Frag*(N.OL) )
+  [[ -n "$proposed_dir" ]] && parts+=( ${proposed_dir}/*.part~*.part-Frag*(N.OL) )
+  (( ${#parts} )) && { print -r -- "${parts[1]}"; return; }
+}
+
+open_mpv() {
+  have mpv || { msg="mpv not found"; return; }
+  if [[ -n "$mpv_pid" ]] && kill -0 "$mpv_pid" 2>/dev/null; then msg="mpv already open"; return; fi
+  local pf; pf="$(find_partfile)"
+  [[ -z "$pf" ]] && { msg="nothing downloaded to play yet"; return; }
+  mpv --force-window=immediate --force-seekable=yes --cache=yes \
+      --demuxer-readahead-secs=20 --profile=low-latency -- "$pf" >/dev/null 2>&1 &
+  mpv_pid=$!
+  msg="streaming ${pf:t} in mpv"
+}
+
+# rating modal — a small centered box, same keys as media-set-rating
+rate_modal() {
+  local start=$rating key a b bar
+  bar="$(printf '─%.0s' {1..19})"
+  while true; do
+    local content="  $(stars_colored $rating)   ${C_DESC}${rating}/5${C_RESET}  "
+    local buf=$'\e[H\e[J'
+    buf+="${C_BOLD}  set rating${C_RESET}\n\n"
+    buf+="  ${C_BORDER}╭${bar}╮${C_RESET}\n"
+    buf+="  ${C_BORDER}│${C_RESET}${content}${C_BORDER}│${C_RESET}\n"
+    buf+="  ${C_BORDER}╰${bar}╯${C_RESET}\n\n"
+    buf+="  ${C_KEY}1-5${C_DESC} set  ${C_KEY}0${C_DESC} clear  ${C_KEY}h/l${C_DESC} ±1  ${C_KEY}j/k${C_DESC} clear/full  ${C_KEY}⏎${C_DESC} ok  ${C_KEY}esc${C_DESC} cancel${C_RESET}\n"
+    printf '%s' "$buf" >&$tfd
+    read -k 1 -u $tfd key || { rating=$start; return; }
+    case "$key" in
+      0)           rating=0 ;;
+      [1-5])       rating=$key ;;
+      h|H)         (( rating = rating > 0 ? rating - 1 : 0 )) ;;
+      l|L)         (( rating = rating < 5 ? rating + 1 : 5 )) ;;
+      k|K)         rating=5 ;;
+      j|J)         rating=0 ;;
+      $'\r'|$'\n') touched=1; msg="rated ${rating}/5"; return ;;
+      q|Q)         rating=$start; return ;;
+      $'\e')
+        a=""; b=""
+        read -t 0.05 -k 1 -u $tfd a 2>/dev/null
+        if [[ "$a" == "[" || "$a" == "O" ]]; then
+          read -t 0.05 -k 1 -u $tfd b 2>/dev/null
+          case "$b" in
+            C) (( rating = rating < 5 ? rating + 1 : 5 )) ;;   # →
+            D) (( rating = rating > 0 ? rating - 1 : 0 )) ;;   # ←
+            A) rating=5 ;;                                     # ↑
+            B) rating=0 ;;                                     # ↓
+          esac
+        else
+          rating=$start; return                               # bare ESC cancels
+        fi
+        ;;
+    esac
+  done
+}
+
+# `t` — edit the whole proposed filename in $EDITOR. Whatever you save becomes
+# the filename verbatim (compose_stem then returns it as-is). Seeded with the
+# current proposal; a trailing ".<ext>" left in is trimmed back off. Saving an
+# empty file discards the edit and keeps the field-derived name.
+edit_modal() {
+  local editor="${EDITOR:-${VISUAL:-vi}}"
+  local tmpf="${TMPDIR:-/tmp}/ytui-name.$$.txt"
+  print -r -- "$(compose_stem)" > "$tmpf" || { msg="cannot write temp file"; return; }
+
+  leave_tui                                      # hand the real terminal to the editor
+  ${(z)editor} "$tmpf" </dev/tty >/dev/tty 2>/dev/tty
+  local ec=$?
+  enter_tui                                      # back to raw mode + alt screen
+
+  if (( ec != 0 )); then
+    rm -f "$tmpf"; msg="edit cancelled (editor exit $ec)"; render; return
+  fi
+
+  local edited; edited="$(<"$tmpf")"; rm -f "$tmpf"
+  edited="${edited%%$'\n'*}"                      # first line only
+  [[ -n "$ext" ]] && edited="${edited%.$ext}"     # tolerate a trailing .ext
+  edited="$(sanitize "$edited")"
+
+  if [[ -n "$edited" ]]; then
+    override_stem="$edited"; touched=1; msg="filename set from \$EDITOR"
+  else
+    msg="edit discarded (empty)"
+  fi
+  render
+}
+
+# ── kick off the background jobs ─────────────────────────────────────────────
+preflight
+
+# thumbnail: a tiny parallel job so it's on disk right away, next to the video.
+mkdir -p -- "$proposed_dir" 2>/dev/null
+yt-dlp --quiet --no-warnings --no-playlist --skip-download --no-download-archive \
+  --write-thumbnail --convert-thumbnails jpg \
+  -o "thumbnail:${thumb_base}.%(ext)s" "$url" >/dev/null 2>&1 &
+thumb_pid=$!
+
+# progress fifo: opened read/write so the parent never blocks and never sees
+# EOF when yt-dlp exits — we detect completion with kill -0 instead.
+fifo="$(mktemp -u -t ytui-fifo).fifo"
+mkfifo "$fifo" || die "could not create fifo"
+exec {pfd}<>"$fifo"
+
+enter_tui
+
+yt-dlp --no-playlist --newline --no-download-archive --continue \
+  --progress-template "download:PROGRESS|%(progress._percent_str)s|%(progress._downloaded_bytes_str)s|%(progress._total_bytes_str)s|%(progress._speed_str)s|%(progress._eta_str)s|%(progress.status)s|%(progress.downloaded_bytes)d" \
+  --print "after_move:FINALPATH|%(filepath)s" \
+  "${passthru[@]}" "$url" >&$pfd 2>&1 &
+ytdlp_pid=$!
+
+# ── main loop ────────────────────────────────────────────────────────────────
+# NOTE: this runs at script top level, not in a function — so a bare `local x`
+# here does NOT scope a variable, it runs `typeset x` which PRINTS x's current
+# value into the alt screen (the stray "line=PROGRESS…" leak). Declare the
+# loop's scratch vars once, up front, and only ever assign to them below.
+typeset line="" key=""
+render
+while true; do
+  zselect -t 20 -r $pfd -r $tfd 2>/dev/null    # wait ≤0.2s on progress OR keys
+
+  while read -r -u $pfd -t 0 line 2>/dev/null; do handle_line "$line"; done
+
+  while read -k 1 -u $tfd -t 0 key 2>/dev/null; do
+    case "$key" in
+      o|O) open_mpv ;;
+      p|P) toggle_pause ;;
+      r|R) rate_modal ;;
+      t|T) edit_modal ;;
+      q|Q) leave_tui; print -r -- "${SELF}: cancelled"; exit 130 ;;
+    esac
+  done
+
+  render
+  kill -0 "$ytdlp_pid" 2>/dev/null || break
+done
+
+# ── drain any trailing output, then reap ─────────────────────────────────────
+while read -r -u $pfd -t 0.1 line 2>/dev/null; do handle_line "$line"; done
+wait "$ytdlp_pid"; typeset -gi rc=$?
+[[ -n "$thumb_pid" ]] && wait "$thumb_pid" 2>/dev/null
+
+# ── report / rename ──────────────────────────────────────────────────────────
+if (( rc != 0 )); then
+  render_error "$rc"                 # show the failure IN the window, wait for a key
+  leave_tui
+  print -ru2 -- "${SELF}: yt-dlp failed (exit $rc)"   # one line for scrollback/logs
+  exit $rc
+fi
+
+leave_tui
+
+src="${final_real:-$final_path}"
+if [[ ! -e "$src" ]]; then
+  print -r -- "${C_WARN}${SELF}: finished, but couldn't locate the output file${C_RESET}"
+  print -r -- "  expected: ${src}"
+  exit 0
+fi
+
+print -r -- "${C_OK}✓${C_RESET} downloaded  ${C_FILE}${src:t}${C_RESET}"
+[[ -e "${thumb_base}.jpg" ]] && print -r -- "  ${C_DESC}thumbnail:${C_RESET} ${thumb_base:t}.jpg"
+
+if (( touched )); then
+  stem="$(compose_stem)"
+  dst="${src:h}/${stem}.${src:e}"
+  if [[ "$dst" == "$src" ]]; then
+    print -r -- "  ${C_DIM}name unchanged${C_RESET}"
+  elif [[ -e "$dst" ]]; then
+    print -r -- "  ${C_ERR}rename skipped — exists:${C_RESET} ${dst:t}"
+  elif mv -n -- "$src" "$dst"; then
+    print -r -- "  ${C_OK}renamed →${C_RESET} ${C_FILE}${dst:t}${C_RESET}"
+    # move the thumbnail alongside the renamed file
+    [[ -e "${thumb_base}.jpg" ]] && mv -n -- "${thumb_base}.jpg" "${dst:r}.jpg" 2>/dev/null
+  else
+    print -ru2 -- "  ${C_ERR}rename failed${C_RESET}"
+  fi
+fi
