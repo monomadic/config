@@ -35,7 +35,7 @@ gap = 2.0  # space between tiles
 
 # ── Colors ──────────────────────────────────────────────────────────────
 # All colors are [r, g, b] with 0..1 channels.
-background = [0.010, 0.011, 0.012]  # window background
+background = [0.00, 0.0, 0.0]  # window background
 selection_border = [1.0, 1.0, 1.0]  # selected tile + selected filmstrip chip
 hover_border = [1.0, 1.0, 1.0]  # hovered tile
 empty_border = [0.05, 0.05, 0.05]  # thin outline for tiles with no
@@ -279,8 +279,7 @@ cache_key = "size_mtime"
 # few slots for the viewport = black tiles at the screen edges and reload
 # churn when scrolling back. Cost is VRAM only — rendering speed doesn't
 # change with atlas size. Hardware cap: 16384 per side.
-atlas_width = 19200
-atlas_height = 12800
+atlas_memory_mb = 800
 
 # The selected clip decodes ONCE at up to this size (never above the
 # source's own resolution): the tile shows it downscaled (mipmapped) and
