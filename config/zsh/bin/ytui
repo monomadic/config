@@ -119,10 +119,14 @@ typeset -g title="" channel="" origin="" ext=""
 typeset -g override_stem=""               # set by `t` ($EDITOR): used verbatim as the filename
 typeset -ga actors=() tags=()
 typeset -g rating=0 touched=0            # touched: user changed rating or metadata
-typeset -g final_path="" final_real="" proposed_dir="" thumb_base="" dl_dest=""
+typeset -g final_path="" final_real="" proposed_dir="" dl_dest=""
 typeset -g pct=0 dl_str="—" tot_str="—" spd_str="—" eta_str="—" dstatus="starting"
 typeset -g phase_msg="" msg=""
 typeset -g ytdlp_pid="" mpv_pid="" thumb_pid=""
+# thumbnail: shared with ytq via YT_DLP_THUMBCACHE_DIR, named <extractor>_<id>.<ext>
+typeset -g thumb_stem="" thumb_file=""
+typeset -g thumb_cache="${~YT_DLP_THUMBCACHE_DIR:-$HOME/.cache/ytq}"
+typeset -gi thumb_drawn=0 thumb_active=0 thumb_rows=10 thumb_cols=32
 typeset -gi paused=0
 typeset -g fifo="" pfd="" tfd="" saved_stty="" alt_active=0
 typeset -ga logring=()                    # recent yt-dlp lines, for error reporting
@@ -145,6 +149,7 @@ preflight() {
     --print "%(title)s" \
     --print "%(channel,uploader)s" \
     --print "%(cast)l" \
+    --print "%(extractor)s_%(id)s" \
     "${passthru[@]}" "$url" 2>"$errf")}" )
   local rc=$?
   if (( rc != 0 )) || [[ -z "${lines[1]:-}" ]]; then
@@ -157,7 +162,6 @@ preflight() {
   final_path="${lines[1]}"
   proposed_dir="${final_path:h}"
   ext="${final_path:e}"
-  thumb_base="${final_path:r}"
   title="$(trim "${lines[2]:-}")"
   channel="$(trim "${lines[3]:-}")"
 
@@ -167,6 +171,19 @@ preflight() {
     local a
     for a in "${(@s:,:)cast}"; do a="$(trim "$a")"; [[ -n "$a" ]] && actors+=("$a"); done
   fi
+
+  # <extractor>_<id> is exactly ytq's thumb-cache stem, so a thumbnail either of
+  # us has already fetched is reused instead of re-downloaded.
+  thumb_stem="$(sanitize "${lines[5]:-}")"
+}
+
+# A thumbnail already in the shared cache, any common extension — or "" if none.
+cached_thumb() {
+  [[ -n "$thumb_stem" ]] || return
+  local e
+  for e in jpg jpeg png webp; do
+    [[ -e "$thumb_cache/$thumb_stem.$e" ]] && { print -r -- "$thumb_cache/$thumb_stem.$e"; return; }
+  done
 }
 
 # ── proposed filename (reverse of media-parse-filename-to-json) ──────────────
@@ -194,8 +211,36 @@ enter_tui() {
 leave_tui() {
   (( alt_active )) || return 0
   alt_active=0
+  clear_thumb
   [[ -n "$saved_stty" ]] && stty "$saved_stty" <&$tfd 2>/dev/null
   printf '\e[?25h\e[?1049l' >&$tfd 2>/dev/null          # show cursor, leave alt screen
+}
+
+is_kitty() {
+  [[ -n "${KITTY_WINDOW_ID:-}" || "${TERM_PROGRAM:-}" == "kitty" || "${TERM:-}" == xterm-kitty* ]]
+}
+
+# Paint the thumbnail once into the reserved top band via kitty's icat. The band
+# is drawn once and never touched by render() (which starts below it), so the
+# image survives the per-frame text redraw. Only on kitty; elsewhere skipped.
+draw_thumb() {
+  (( thumb_active )) || return
+  (( thumb_drawn )) && return
+  [[ -n "$thumb_file" && -e "$thumb_file" ]] || return
+  local -a icat
+  if   have kitty;  then icat=(kitty +kitten icat)
+  elif have kitten; then icat=(kitten icat)
+  else return; fi
+  printf '\e[H' >&$tfd                                  # anchor at top-left
+  "${icat[@]}" --clear --transfer-mode=file --stdin=no --align=left \
+    --place="${thumb_cols}x${thumb_rows}@0x0" "$thumb_file" >&$tfd 2>/dev/null
+  thumb_drawn=1
+}
+
+clear_thumb() {
+  (( thumb_drawn )) || return
+  printf '\e_Ga=d\e\\' >&$tfd 2>/dev/null               # delete every kitty image
+  thumb_drawn=0
 }
 
 cleanup() {
@@ -221,8 +266,16 @@ draw_bar() {
 }
 
 render() {
+  # A just-finished thumbnail fetch shows up in the cache; pick it up and paint
+  # it into the top band once. Text then starts *below* that reserved band so
+  # the redraw never clears the image.
+  [[ -z "$thumb_file" ]] && thumb_file="$(cached_thumb)"
+  draw_thumb
+
   local W=44                          # bar cells; +2 for the "│ … │" pad == 46-char border
-  local buf=$'\e[H'
+  local top=1
+  (( thumb_active )) && (( top = thumb_rows + 2 ))
+  local buf=$'\e['${top}';1H'
   local nl=$'\e[K\n'                 # clear-to-EOL then newline (avoids full-clear flicker)
 
   local statecol="$C_ACCENT" statetxt="$dstatus"
@@ -243,7 +296,13 @@ render() {
   buf+="${nl}"
   buf+="   ${C_DESC}rating${C_RESET}  $(stars_colored $rating)  ${C_DIM}${rating}/5${C_RESET}${nl}"
   buf+="   ${C_DESC}file${C_RESET}    ${C_FILE}${previewname}${C_RESET}${nl}"
-  [[ -e "${thumb_base}.jpg" ]] && buf+="   ${C_DESC}thumb${C_RESET}   ${C_OK}✓ saved${C_RESET}${nl}" || buf+="${nl}"
+  if (( thumb_active )); then
+    buf+="${nl}"                                      # image is shown in the top band
+  elif [[ -n "$thumb_file" ]]; then
+    buf+="   ${C_DESC}thumb${C_RESET}   ${C_OK}✓ cached${C_RESET}${nl}"
+  else
+    buf+="${nl}"
+  fi
   buf+="${nl}"
   [[ -n "$msg" ]] && buf+="   ${C_ACCENT}${msg}${C_RESET}${nl}" || buf+="${nl}"
   buf+="${nl}"
@@ -256,6 +315,7 @@ render() {
 # place, instead of flashing past on stderr after the TUI is torn down. Shows
 # the tail of the captured log (logring) and waits for a keypress.
 render_error() {
+  clear_thumb                         # the failure panel owns the whole screen
   local nl=$'\e[K\n' l
   local buf=$'\e[H\e[J'
   buf+="  ${C_BOLD}${C_ERR}${SELF}: yt-dlp failed (exit ${1})${C_RESET}${nl}"
@@ -434,12 +494,19 @@ edit_modal() {
 # ── kick off the background jobs ─────────────────────────────────────────────
 preflight
 
-# thumbnail: a tiny parallel job so it's on disk right away, next to the video.
-mkdir -p -- "$proposed_dir" 2>/dev/null
-yt-dlp --quiet --no-warnings --no-playlist --skip-download --no-download-archive \
-  --write-thumbnail --convert-thumbnails jpg \
-  -o "thumbnail:${thumb_base}.%(ext)s" "$url" >/dev/null 2>&1 &
-thumb_pid=$!
+# thumbnail: reuse ytq's shared cache. If it's already there, we display it at
+# once; otherwise fetch it into that same cache (named <extractor>_<id>.jpg) so
+# ytq and future ytui runs get it for free. Never re-download a cached thumb.
+mkdir -p -- "$proposed_dir" "$thumb_cache" 2>/dev/null
+thumb_file="$(cached_thumb)"
+if [[ -z "$thumb_file" && -n "$thumb_stem" ]]; then
+  yt-dlp --quiet --no-warnings --no-playlist --skip-download --no-download-archive \
+    --write-thumbnail --convert-thumbnails jpg \
+    -o "thumbnail:${thumb_cache}/%(extractor)s_%(id)s.%(ext)s" "$url" >/dev/null 2>&1 &
+  thumb_pid=$!
+fi
+# reserve the top band for the image only when we can actually draw one
+is_kitty && [[ -n "$thumb_stem" ]] && thumb_active=1
 
 # progress fifo: opened read/write so the parent never blocks and never sees
 # EOF when yt-dlp exits — we detect completion with kill -0 instead.
@@ -504,7 +571,8 @@ if [[ ! -e "$src" ]]; then
 fi
 
 print -r -- "${C_OK}✓${C_RESET} downloaded  ${C_FILE}${src:t}${C_RESET}"
-[[ -e "${thumb_base}.jpg" ]] && print -r -- "  ${C_DESC}thumbnail:${C_RESET} ${thumb_base:t}.jpg"
+[[ -z "$thumb_file" ]] && thumb_file="$(cached_thumb)"
+[[ -n "$thumb_file" ]] && print -r -- "  ${C_DESC}thumbnail:${C_RESET} ${thumb_file:t} ${C_DIM}(cached)${C_RESET}"
 
 if (( touched )); then
   stem="$(compose_stem)"
@@ -515,8 +583,6 @@ if (( touched )); then
     print -r -- "  ${C_ERR}rename skipped — exists:${C_RESET} ${dst:t}"
   elif mv -n -- "$src" "$dst"; then
     print -r -- "  ${C_OK}renamed →${C_RESET} ${C_FILE}${dst:t}${C_RESET}"
-    # move the thumbnail alongside the renamed file
-    [[ -e "${thumb_base}.jpg" ]] && mv -n -- "${thumb_base}.jpg" "${dst:r}.jpg" 2>/dev/null
   else
     print -ru2 -- "  ${C_ERR}rename failed${C_RESET}"
   fi
