@@ -1,0 +1,62 @@
+#!/usr/bin/env zsh
+# shortcuts-mpv-send.zsh
+#
+# Intent
+#   Resolve the current Finder selection into a flat, sorted list of media
+#   files and hand that list to an arbitrary command supplied as arguments.
+#
+# Usage
+#   shortcuts-mpv-send.zsh <command> [args...]
+#
+#   Example: shortcuts-mpv-send.zsh ~/.cargo/bin/switchblade
+#            shortcuts-mpv-send.zsh mpv --loop-playlist
+#
+# Effects
+#   * Reads the Finder selection via finder-get-selected-files (one path per line).
+#   * Directories are expanded recursively with fd-media, sorted bytewise (-z),
+#     and flattened into the file list; regular files are taken as-is.
+#     Anything else (sockets, dangling symlinks, etc.) is silently skipped.
+#   * Executes <command> once with every resolved file appended as arguments,
+#     replacing this process (exec), so the command inherits stdio and the
+#     exit status is propagated to the caller.
+#   * Writes nothing to stdout itself; all diagnostics go to stderr.
+#
+# Exit status
+#   0   command ran (status is then the command's own)
+#   1   missing/invalid command argument, missing helper binary,
+#       empty Finder selection, or no media files resolved
+emulate -L zsh
+setopt err_exit no_unset pipe_fail
+
+finder_selection="$HOME/.zsh/bin/finder-get-selected-files"
+fd="$HOME/.zsh/bin/fd-media"
+
+(( $# > 0 )) || { print -u2 "usage: ${0:t} <command> [args...]"; exit 1 }
+(( $+commands[$1] )) || [[ -x "$1" ]] || { print -u2 "not executable: $1"; exit 1 }
+
+for bin in "$fd" "$finder_selection"; do
+  [[ -x "$bin" ]] || { print -u2 "not executable: $bin"; exit 1 }
+done
+
+input_items=()
+play_items=()
+
+while IFS= read -r selected_file; do
+  [[ -n "$selected_file" ]] && input_items+=("$selected_file")
+done < <("$finder_selection")
+
+(( $#input_items > 0 )) || { print -u2 "no Finder selection"; exit 1 }
+
+for item in "${input_items[@]}"; do
+  if [[ -d "$item" ]]; then
+    while IFS= read -r -d '' media_file; do
+      play_items+=("$media_file")
+    done < <("$fd" --print0 . "$item" | sort -z)
+  elif [[ -f "$item" ]]; then
+    play_items+=("$item")
+  fi
+done
+
+(( $#play_items > 0 )) || { print -u2 "no media files found in selection"; exit 1 }
+
+exec "$@" "${play_items[@]}"
