@@ -222,6 +222,12 @@ ps.sub("cd", function()
 	refresh_disk_free(cwd)
 end)
 
+-- cross-instance yank ability, which means you can yank files in one instance
+-- and then paste them in another instance
+require("session"):setup {
+	sync_yanked = true,
+}
+
 Status:children_add(function()
 	-- `cx` doesn't exist at init time, so the first value is filled in here on the
 	-- first render. After that the `cd` handler above keeps it current and this

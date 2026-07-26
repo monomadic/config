@@ -2,7 +2,6 @@
 ratio = [1, 4, 1]
 scrolloff = 5
 linemode = "size"
-shared_clipboard = true
 mouse_events = ["click", "scroll", "touch", "move", "drag"]
 
 [preview]

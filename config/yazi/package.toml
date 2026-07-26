@@ -23,5 +23,10 @@ use = "yazi-rs/plugins:mime-ext"
 rev = "8cd50c6"
 hash = "2678c84a0b3a0b22504e918ccaf99011"
 
+[[plugin.deps]]
+use = "simla33/ucp"
+rev = "79043fb"
+hash = "dee1ba1aa0085616b90022b1f2fafc50"
+
 [flavor]
 deps = []

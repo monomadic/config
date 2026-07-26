@@ -1,3 +1,14 @@
+# ucp — copy/paste with progress notifications
+[[mgr.prepend_keymap]]
+on = ["<Space>", "c"]
+run = "plugin ucp copy notify"
+desc = "Copy"
+
+[[mgr.prepend_keymap]]
+on = ["<Space>", "p"]
+run = "plugin ucp paste notify"
+desc = "Paste"
+
 # Global quit chord
 [[mgr.prepend_keymap]]
 on = "<C-Space>"
@@ -25,6 +36,12 @@ on = ["<Space>", "<Space>"]
 for = "macos"
 run = "shell -- ~/.zsh/bin/yazi-quicklook %h"
 desc = "Quicklook"
+
+[[mgr.prepend_keymap]]
+on = ["<Space>", "f", "d"]
+for = "macos"
+run = '''shell --block -- kitten dndkitten dnd'''
+desc = "drop target (mouse drop)"
 
 # <Space> f — transfer selected files to the next Kitty pane's cwd
 [[mgr.prepend_keymap]]
