@@ -10,11 +10,17 @@ script_name="${0:t}"
 usage() {
   cat <<EOF
 usage:
-  $script_name [--preview [seconds]] [--trash-originals] [--resume] [--copy-cmd] [--preset_name name --filter_complex filter] [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
+  $script_name [--preview [seconds]] [--trash-originals] [--resume] [--copy-cmd] [--nice[=N]] [--background] [--preset_name name --filter_complex filter] [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
   $script_name file1 [file2 ...]
 
 With --preset_name and --filter_complex, runs the supplied Topaz filter directly.
 Without them, opens the interactive preset picker.
+
+With --nice, runs the encoder through nice(1) at niceness N (default 19) so the
+machine stays responsive during long jobs. --background additionally applies
+taskpolicy -b (PRIO_DARWIN_BG): throttled disk I/O and, on Apple Silicon, the
+encoder is confined to efficiency cores — much gentler, but a lot slower.
+Both are inherited by the encoder's children and survive the pause/resume keys.
 
 With --preview, encodes only the first seconds of each input with the selected
 preset. The preview length defaults to 1 second.
@@ -320,6 +326,8 @@ topaz_wrapper_cmd() {
   cmd=("$script_name")
   [[ "$preview_mode" == true ]] && cmd+=(--preview "$preview_seconds")
   [[ "$trash_originals" == true ]] && cmd+=(--trash-originals)
+  [[ -n "$nice_level" ]] && cmd+=("--nice=$nice_level")
+  [[ "$background_mode" == true ]] && cmd+=(--background)
   cmd+=(--preset_name "$preset_name" --filter_complex "$preset_value")
   [[ -n "$preset_output_ext" ]] && cmd+=(--output_ext "$preset_output_ext")
   [[ -n "$preset_video_args" ]] && cmd+=(--video_args "$preset_video_args")
@@ -739,6 +747,8 @@ preview_mode=false
 preview_seconds="1"
 resume_mode=false
 copy_cmd_mode=false
+nice_level=""
+background_mode=false
 output_override=""
 files=()
 
@@ -768,6 +778,23 @@ while (( $# > 0 )); do
       ;;
     --copy-cmd)
       copy_cmd_mode=true
+      shift
+      ;;
+    --nice=*)
+      nice_level="${1#--nice=}"
+      shift
+      ;;
+    --nice)
+      nice_level=19
+      if (( $# >= 2 )) && [[ "${2:-}" != -* ]] && is_number "$2"; then
+        nice_level="$2"
+        shift 2
+      else
+        shift
+      fi
+      ;;
+    --background|--bg)
+      background_mode=true
       shift
       ;;
     --preset_name)
@@ -836,6 +863,33 @@ number_gt_zero "$preview_seconds" || {
   print -u2 -- "--preview length must be greater than 0"
   exit 1
 }
+
+if [[ -n "$nice_level" ]]; then
+  [[ "$nice_level" == (-|)<-> ]] || {
+    print -u2 -- "--nice must be an integer niceness (e.g. --nice=19)"
+    exit 1
+  }
+fi
+
+# Launcher prefix for the encoder. Both nice(1) and taskpolicy(8) exec the
+# target in place, so the encoder keeps the pid the pause/stop keys signal.
+priority_cmd=()
+if [[ "$background_mode" == true ]]; then
+  if have taskpolicy; then
+    priority_cmd+=(taskpolicy -b)
+  else
+    warn "taskpolicy not found; ignoring --background"
+    background_mode=false
+  fi
+fi
+if [[ -n "$nice_level" ]]; then
+  if have nice; then
+    priority_cmd+=(nice -n "$nice_level")
+  else
+    warn "nice not found; ignoring --nice"
+    nice_level=""
+  fi
+fi
 
 if [[ -n "$preset_name" || -n "$preset_value" ]]; then
   [[ -n "$preset_name" && -n "$preset_value" ]] || {
@@ -992,6 +1046,12 @@ term_cols="$(tput cols 2>/dev/null || true)"
 print -P -- "%F{blue}%BTopaz batch%b%f"
 print -P -- "  %F{white}preset:%f %F{magenta}$(topaz_escape_prompt "$preset_name")%f"
 [[ "$preview_mode" == true ]] && print -P -- "  %F{white}preview:%f %F{yellow}${preview_seconds}s sample encode%f"
+if (( ${#priority_cmd[@]} > 0 )); then
+  priority_desc=""
+  [[ "$background_mode" == true ]] && priority_desc+="background (taskpolicy -b)"
+  [[ -n "$nice_level" ]] && priority_desc+="${priority_desc:+, }nice $nice_level"
+  print -P -- "  %F{white}priority:%f %F{yellow}${priority_desc}%f"
+fi
 if [[ "$trash_originals" == true && "$preview_mode" == true ]]; then
   print -P -- "  %F{white}cleanup:%f %F{yellow}ignored during preview%f"
 elif [[ "$trash_originals" == true ]]; then
@@ -1162,6 +1222,7 @@ for input in "$files[@]"; do
   )
 
   topaz_env=(
+    "${priority_cmd[@]}"
     env
     LC_ALL=C
     LC_NUMERIC=C
@@ -1260,7 +1321,7 @@ for input in "$files[@]"; do
     concat_status=0
     (
       cd "$TOPAZ_MACOS_DIR"
-      "$TOPAZ_FFMPEG" -hide_banner -y -f concat -safe 0 -i "$concat_list" \
+      "${priority_cmd[@]}" "$TOPAZ_FFMPEG" -hide_banner -y -f concat -safe 0 -i "$concat_list" \
         -map 0 -c copy -movflags "use_metadata_tags+faststart" \
         "${metadata_args[@]}" -- "$joined"
     ) >>"$log_file" 2>&1 || concat_status=$?
