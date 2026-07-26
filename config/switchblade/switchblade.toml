@@ -1,4 +1,4 @@
-# Switchblade config (PLAN.md §10)
+# Switchblade config (DESIGN.md §10)
 #
 # Edit this file while the app is running — changes apply within ~250ms.
 # The only exceptions are in "Startup settings" at the bottom, which are
@@ -24,21 +24,25 @@ grid_layout = "flexible"
 # Ideal tile size: width picks the column count (and, in flexible mode,
 # the nominal row height). In fixed mode tiles stretch so the columns
 # exactly fill the window; width:height sets the aspect (240:135 = 16:9).
-tile_width = 150.0
-tile_height = 150.0
+tile_width = 240.0
+tile_height = 135.0
 # Flexible rows justify by scaling their height; these caps (fractions of
 # the nominal tile height) keep one odd row from towering or vanishing —
 # a row that would need to leave the band leaves a little slack instead.
 row_height_min = 0.62
 row_height_max = 1.6
-gap = 2.0  # space between tiles
+gap = 1.0  # space between tiles
 
 # ── Colors ──────────────────────────────────────────────────────────────
 # All colors are [r, g, b] with 0..1 channels.
-background = [0.00, 0.0, 0.0]  # window background
+background = [0.0, 0.0, 0.0]  # window background
+# Opacity of that background fill (0..1). 1.0 = classic opaque window;
+# below 1.0 the desktop shows through the gaps between tiles (macOS
+# "glass" vibe). Tiles stay opaque; hot-reloadable, so dial it live.
+window_opacity = 0.62
 selection_border = [1.0, 1.0, 1.0]  # selected tile + selected filmstrip chip
 hover_border = [1.0, 1.0, 1.0]  # hovered tile
-empty_border = [0.05, 0.05, 0.05]  # thin outline for tiles with no
+empty_border = [0.02, 0.02, 0.02]  # thin outline for tiles with no
 # thumbnail yet (their fill is clear)
 
 # ── Tile shape ──────────────────────────────────────────────────────────
@@ -48,9 +52,9 @@ selection_corner_radius = 10.0  # the selected tile (usually rounder)
 # ── Selection & hover ───────────────────────────────────────────────────
 # The selected tile scales up and overlaps its neighbors; the zoom boost
 # exponent makes it stand out even more as you zoom out (0 = off).
-selection_scale = 1.02
+selection_scale = 1.15
 selection_zoom_boost = 0.35
-hover_scale = 1.05
+hover_scale = 1.02
 # Border widths of the selected / hovered tile; 0 = none. Colors come
 # from selection_border / hover_border above.
 selection_border_width = 4.0
@@ -70,47 +74,69 @@ pan_inertia = 0.0  # extra flick inertia (0 = off) — macOS trackpads
 # already send momentum events, so leave 0 there
 # or flicks will double-glide
 snap_strength = 0.22  # camera chasing a trackpad pan
-key_snap_strength = 0.15  # camera chasing a keyboard move — lower = gentler
-rubber_band = 0.15  # pull-back when scrolled past the edge
+key_snap_strength = 0.12  # camera chasing a keyboard move — lower = gentler
+rubber_band = 0.25  # pull-back when scrolled past the edge
 scale_smoothing = 0.35  # tiles growing/shrinking (hover, selection)
 fade_in_ms = 20.0  # newly appearing tiles fade in over this long
 
 # ── Feel: zoom ──────────────────────────────────────────────────────────
-# Pinch-to-zoom (also the -/=/0 keys). Zoom scales the ideal tile width,
-# so columns reflow; the reflow crossfades over zoom_fade_ms.
+# A PINCH in the flexible grid grips the grid like paper: the library is one
+# strip of chips wrapped at the window width, held at the chip under your
+# fingers, so that chip stays put while its neighbours expand outward, chips
+# at a row edge clip against the window, and a chip pushed past one edge is
+# already entering the next row. Let go and it settles onto the nearest SAFE
+# layout — every chip whole, rows keeping whatever slack the gesture left
+# them, nothing slung sideways to re-align. The -/=/0 keys have no grip to
+# hold by, so they return the grid to the plain justified packing, animated
+# by the older row WRAP: a tile crossing a boundary slides off one edge and
+# re-enters on the next row, while tiles that just re-justify glide.
+# zoom_fade_ms is the crossfade used by the fixed grid and by shuffle/
+# library-swap rearranges (and by the flexible grid when zoom_wrap = false).
 pinch_sensitivity = 1.0
 zoom_min = 0.35
 zoom_max = 3.0
-zoom_smoothing = 0.35
+zoom_smoothing = 0.35  # fixed grid only; with zoom_wrap the layout snaps and the tile tweens ARE the zoom animation
 zoom_fade_ms = 180.0
+zoom_ribbon = true          # flexible grid: pinch grips the strip (off = pinch uses zoom_wrap too)
+zoom_ribbon_settle = 0.34   # how snappily a released ribbon settles; k = 1 - e^(-speed/60), so this is 25/s
+zoom_ribbon_blend = 21.5    # how fast rows loosen from justified into one uniform strip, per unit of |ln(zoom change)|
+zoom_ribbon_release_ms = 150.0  # quiet time after the last pinch event that ends the gesture
+zoom_wrap = true  # flexible grid: wrap the zoom reflow (off = crossfade)
+zoom_wrap_ms = 220.0  # duration of one tile's row-wrap slide
+zoom_wrap_stagger_ms = 0.0  # per-row delay (0 = all rows wrap in lockstep)
+zoom_reflow_smoothing = 0.25  # glide rate toward the new layout (also paces the zoom feel in wrap mode)
 
 # ── Animation & live video ──────────────────────────────────────────────
 # How much moves — each level includes everything below it:
-#   none     snap everything: no tweens, no live video, no sheets
+#   none     snap everything: no tweens, no live video
 #   minimal  UI tweens back on; still no video
 #   normal   + live video (quickview, selected + hovered tiles)  [default]
-#   full     + animated thumbnails in the grid (sprite sheets)
-# The --animation CLI flag overrides this; 'a' still toggles sheets at full.
-animation = "full"
+# The --animation CLI flag overrides this. ("full" — the old grid
+# sprite-sheet cycling — is gone; the name still parses as "normal".)
+animation = "normal"
 
-# Live playback starts only after the selection has settled this long,
-# so flying across the grid doesn't spawn a decoder per keypress.
+# ONE hires lane follows your attention: the hovered tile while you're
+# mousing, the selected tile while you're on the keyboard. A single click
+# on any tile opens quickview by promoting that already-running stream
+# (no handoff), and cmd/shift-click multi-selects — border-only marks that
+# never play. These two delays guard the two halves of it.
+#
+# Keyboard: playback starts only after the selection has settled this
+# long, so flying across the grid doesn't spawn a decoder per keypress.
 live_delay_ms = 100.0
+# Pointer: how long a hover must settle before the lane follows it. Hover
+# is more volatile than the selection and every settle costs a
+# quickview-resolution cold spawn, so this guard runs longer.
+# (Called attention_delay_ms before this became the only model; the old
+# key still parses.)
+hover_delay_ms = 250.0
 
-# Interaction model (PLAN.md §15 spike — hot-reloadable, compare in place):
-#   "classic" (default) — the selection plays hires, hover gets a
-#   tile-size lane, click selects, click on the selection quickviews.
-#   "attention" — ONE hires lane follows attention (the hovered tile
-#   while mousing, the selection while keyboard-navigating; the tile-size
-#   hover lane is gone), a single click on any tile opens quickview by
-#   promoting that stream, and cmd/shift-click multi-selects
-#   (border-only marks that never play).
-interaction = "attention"
-# Attention mode: how long a hover must settle before the attention lane
-# spawns for it. Hover is more volatile than the selection and every
-# settle costs a quickview-resolution cold spawn, so this guard runs
-# longer than live_delay_ms.
-attention_delay_ms = 250.0
+# A live lane needs the clip's cached probe meta (duration for the seek
+# anchor, coded dims for the decode size). That read happens off the
+# render thread, so a spawn waits at most this long for it before opening
+# on fallbacks (start of file, guessed size) — normally it lands within a
+# frame, since only the local cache is touched.
+meta_wait_ms = 120.0
 
 # [ / ] jump the playing clip by this fraction of its duration (wraps at
 # the ends). A binding can override the amount per key — see [keys] below.
@@ -147,35 +173,25 @@ auto_skip_countdown = false
 # generate). Drawn size in logical px, plus a master opacity (0..1) over
 # both the faint track and the fill.
 jobs_bar_width = 84.0
-jobs_bar_height = 6.0
-jobs_bar_opacity = 1.0
+jobs_bar_height = 4.0
+jobs_bar_opacity = 0.8
 
-# Pause live playback + sheet animation while the window is unfocused
-# (the grid stays visible, just still — big CPU saver). Toggle at
-# runtime with 'p'.
+# Pause live playback while the window is unfocused (the grid stays
+# visible, just still — big CPU saver). Toggle at runtime with 'p'.
 pause_unfocused = true
-
-# Animated thumbnails (only at animation = "full"): each clip's sheet
-# cycles once per anim_cycle_s, crossfading for anim_crossfade of each
-# frame interval (0 = hard cuts, 1 = always blending). Tiles narrower
-# than anim_min_tile_w stay static. Sheets generate strictly AFTER every
-# file has a plain thumbnail.
-anim_cycle_s = 10.8
-anim_crossfade = 1.0
-anim_min_tile_w = 140.0
 
 # ── Quickview (Space) ───────────────────────────────────────────────────
 # The backdrop: black dim strength (0..1) and frosted-glass blur level —
 # the grid is downsampled 2^level before drawing back, so 1 = subtle,
 # 4 = heavy frost, 0 = no blur. GPU-cheap either way.
-quickview_dim = 0.94
+quickview_dim = 0.90
 quickview_blur = 3.0
 # Backdrop styles: "blur" = the frosted, dimmed gallery above; "flat" =
 # an opaque backdrop_color stage that hides the gallery entirely.
 # Quickview defaults to "blur", fullview (Tab) to "flat" — swap either.
 quickview_backdrop = "blur"
 fullview_backdrop = "flat"
-backdrop_color = [0.01, 0.01, 0.01]  # the flat stage color
+backdrop_color = [0.0, 0.0, 0.0]  # the flat stage color
 # Fade-in when quickview opens (dim + blur + the modal); 0 ≈ instant.
 quickview_fade_ms = 150.0
 # (Playback resolution is quickview_max_width/height, under Startup
@@ -190,14 +206,14 @@ quickview_fade_ms = 150.0
 # release. Hovering the bar previews the nearest animated-thumbnail
 # frame at seekbar_thumb_width px wide (0 hides the preview).
 seekbar_hide_s = 1.0
-seekbar_fade_ms = 200.0
-seekbar_height = 15.0
-seekbar_hover_height = 18.0
+seekbar_fade_ms = 250.0
+seekbar_height = 6.0
+seekbar_hover_height = 12.0
 seekbar_thumb_width = 190.0
 # Opacity (0..1) of the seekbar's background track — the unfilled part
 # behind the played fill. The fill stays solid white; lower this to make
 # the track more transparent over the video.
-seekbar_track_opacity = 0.28
+seekbar_track_opacity = 0.18
 
 # The filmstrip of neighboring clips along the bottom. Chips share this
 # fixed height and take each clip's true aspect for width — portrait
@@ -220,7 +236,7 @@ strip_scroll_sensitivity = 1.0
 # magnetic, chip-by-chip flow. false: scrolling only PEEKS — the strip
 # pans while the selected clip keeps playing (hover still previews);
 # click a chip to play it. The strip re-centers when the selection moves.
-strip_scroll_selects = false
+strip_scroll_selects = true
 
 # ── Chapter bar (g, inside fullview) ────────────────────────────────────
 # Filmstrip-style chapter chips slide up from the bottom of fullview
@@ -233,6 +249,21 @@ strip_scroll_selects = false
 # pans the strip; clicking a chip jumps the video there and slides the
 # bar down; Esc closes the bar first, then fullview. The bar shares the
 # filmstrip's strip_* tuning above.
+#
+# Vertical keys are a view-depth ladder: in fullview, down (j/↓) steps
+# out to the filmstrip quickview and up (k/↑) swipes the chapter bar back
+# down if it's up (else nothing); in quickview, up (k/↑) dives into
+# fullview and down (j/↓) drops back to the grid. A pinch in a modal
+# rides the same ladder (pinch-in dives deeper, pinch-out backs out).
+# Left/right (h/l) in fullview step chapters and briefly reveal the
+# chapter bar for chapter_peek_s seconds (each step refreshes it; a
+# deliberate g open stays up until dismissed). 0 disables the auto-peek.
+chapter_peek_s = 2.5
+
+# Dock-style reveal: moving the pointer within this many logical pixels
+# of the window's bottom edge in fullview slides the chapter bar up (as a
+# timed peek that slides back down once the pointer leaves). 0 disables.
+chapter_dock_reveal_px = 80.0
 
 # ── Startup settings (restart to apply) ─────────────────────────────────
 # Everything above this line hot-reloads; everything below is read once
@@ -243,21 +274,47 @@ strip_scroll_selects = false
 # either way.
 recurse = true
 
+# The ingest gatekeeper's file checking: reject files whose bytes don't
+# match their video extension before they claim a chip, and drop a clip
+# from the grid once ffmpeg proves its file unplayable (corrupt,
+# truncated, vanished). false = every path with a video extension stays,
+# playable or not.
+gatekeeper = true
+
+# Gatekeeper ordering: "none" (default — sacred stdin/CLI order, arrivals
+# append), "newest" or "oldest" — arriving files merge into a grid sorted
+# by creation date as they stream in, tiles gliding aside when an
+# out-of-order file lands late. CLI --sort overrides. A shuffle (s) takes
+# over the arrangement for the rest of the session.
+sort = "none"
+
 # Thumbnails generate at exactly thumb_width x thumb_height — any size
 # works. The GPU atlas below is carved into fixed slots of this same
-# size, so bigger thumbs = sharper selected/zoomed tiles but fewer clips
-# resident on the GPU at once (fewer slots only bites when zoomed way out
-# on a big library). thumb_quality is 1..10: 10 ≈ visually lossless,
-# 1 = heavily compressed but still presentable. Changing any of these
-# regenerates thumbnails (cache files are named by recipe; old ones are
-# kept).
-thumb_width = 640
-thumb_height = 320
+# size, so this is a DIRECT TRADE against how many clips stay resident:
+# bigger thumbs are sharper on the selected/zoomed tile, and at a fixed
+# atlas_memory_mb you get proportionally fewer of them (768x432 costs
+# 1.44x what 640x360 does). thumb_quality is 1..10: 10 ≈ visually
+# lossless, 1 = heavily compressed but still presentable. Changing any of
+# these regenerates thumbnails (cache files are named by recipe; old ones
+# are kept).
+thumb_width = 768
+thumb_height = 432
 thumb_quality = 8
 
-# Anim sheet grid: frames = grid², frame size = thumb/grid.
-# 3 = 9 smaller frames (more motion), 2 = 4 crisper frames.
+# Storyboard sheet grid (the seekbar-hover preview + chapter chips):
+# frames = grid², frame size = thumb/grid. 3 = 9 frames, 2 = 4 crisper
+# frames. Sheets only generate on demand, when quickview or fullview
+# opens on a clip — never library-wide.
 anim_grid = 3
+
+# Concurrent background thumbnail-sweep jobs allowed WHILE a clip is playing.
+# The sweep is throttled this narrow so it can't steal CPU / the VideoToolbox
+# media engine from a stream's cold spawn (benchmarked ~45% faster time-to-
+# first-frame vs an unthrottled sweep). 1 = gentle progress while watching;
+# raise it on fast local storage to fill the thumbnail/shuffle pool sooner;
+# 0 = never throttle the sweep. Nothing playing → the full worker pool always
+# runs. Startup-only.
+gen_live_concurrency = 1
 
 # How cached thumbnails are tied to source files (startup-only):
 #   "size_mtime" (default) size + mtime only, so the cache survives
@@ -273,13 +330,29 @@ anim_grid = 3
 # access — it does NOT regenerate the library.
 cache_key = "size_mtime"
 
-# GPU atlas: how many thumbs stay resident on the GPU at once.
-#   slots = floor(atlas_width/thumb_width) x floor(atlas_height/thumb_height)
-# With the sizes above (640x640 thumbs) that's 30 x 20 = 600 slots. Too
-# few slots for the viewport = black tiles at the screen edges and reload
-# churn when scrolling back. Cost is VRAM only — rendering speed doesn't
-# change with atlas size. Hardware cap: 16384 per side.
-atlas_memory_mb = 800
+# ── GPU atlas: how many thumbs stay resident on the GPU ─────────────────
+# One number: how much GPU memory thumbnails may use. Everything else is
+# derived — the app carves the biggest slot grid that fits the budget and
+# the hardware's 16384-per-side limit, so every byte it allocates holds a
+# real thumb. Startup logs what you got:
+#
+#   atlas: 21x36 = 756 thumbs resident, slots of 768x432 (995 MB ...)
+#
+# Slots = budget / (thumb_width x thumb_height x 4), so BIGGER THUMBS MEAN
+# FEWER OF THEM: at 1024 MB, 768x432 thumbs give ~756 slots and 640x360
+# give ~1160. Cost is memory only — rendering speed doesn't change.
+#
+# How many do you need? One per tile on screen, plus a margin for
+# prefetch. Zoomed all the way out on a 1600x1000 window that's ~484
+# tiles; a big display wants ~900. Too few and the zoomed-out grid fills
+# at the background sweep's pace and may never finish — the app warns
+# once, with the number to set, the first time it happens to you.
+#
+# (Raw atlas_width/atlas_height still work but are deprecated: they made
+# it easy to ask for a texture that got silently clamped, or to buy pixels
+# too small to hold a slot. Startup prints the atlas_memory_mb to replace
+# them with.)
+atlas_memory_mb = 1024
 
 # The selected clip decodes ONCE at up to this size (never above the
 # source's own resolution): the tile shows it downscaled (mipmapped) and
@@ -288,23 +361,37 @@ atlas_memory_mb = 800
 quickview_max_width = 2560
 quickview_max_height = 1440
 
-# ── Keys & commands (PLAN.md §11) ────────────────────────────────────────
-# j/k and the vertical arrows are reserved for movement; every other key
-# is remappable — including forward/back, which are the ordinary `next`
-# and `prev` actions (h/l and the horizontal arrows by default).
-# Built-in defaults: enter/o = open · space = quickview · tab = fullview ·
-# c = copy_path · q = quit · f = fullscreen · a = toggle_anim ·
+# ── Keys & commands (DESIGN.md §11) ────────────────────────────────────────
+# Every key is remappable, movement included: hjkl and the arrows bind to
+# the context-sensitive `move_left`/`move_down`/`move_up`/`move_right`
+# actions by default — in the grid and quickview they move the selection,
+# in fullview (chapter bar up or not) left/right step the playing clip
+# between chapters (real chapters, or the synthesized checkpoints the
+# chapter bar shows) instead. The plain `next`/`prev` actions remain for
+# bindings that should always move the selection (auto-skip fires `next`).
+# Built-in defaults: enter/o = exec (play in mpv) · space = quickview ·
+# tab = fullview · c = copy_path · q = quit · f = fullscreen ·
 # p = toggle_focus_pause · r = reveal · -/=/0 = zoom · [ / ] = skip
 # back/fwd through the playing clip · D = browse the selected clip's
 # parent dir. Entries here override them.
 #
 # A key can name an internal action (quit, fullscreen, fast_fullscreen,
-# copy_path, quickview, fullview, chapter_mode, toggle_anim,
-# toggle_focus_pause, zoom_in, zoom_out, zoom_reset, next, prev,
-# skip_forward, skip_back, open_parent, jump_random, shuffle_library,
-# toggle_auto_skip) or any
-# [commands.*] entry below. In command args, {path}, {dir} and {name}
-# expand against the selected clip.
+# copy_path, quickview, fullview, chapter_mode,
+# toggle_focus_pause, zoom_in, zoom_out, zoom_reset, move_left,
+# move_right, move_up, move_down, next, prev, skip_forward, skip_back,
+# open_parent, open (swap the library, needs a path), jump_random,
+# shuffle_library, toggle_auto_skip) or any [commands.*] entry below. In
+# command args, {path}, {dir} and {name} expand against the selected clip.
+#
+# Several keys may share one action — the arrows ship bound to the same
+# move_* actions as hjkl, and you can point more keys at anything.
+#
+# `open` swaps the whole library to a directory named inline (a leading ~
+# expands, quote paths with spaces); it walks subfolders when `recurse`
+# is on, just like passing the dir on the command line. Handy for one-key
+# "library" switches ("open_library"/"open_dir"/"library" alias it):
+#   "1" = "open '~/Movies/Prawns/'"
+#   "2" = "open '/Volumes/Prawns/Movies/'"
 #
 # fullscreen = macOS native (the window animates into its own Space);
 # fast_fullscreen = mpv-style: a borderless window covering the screen —
