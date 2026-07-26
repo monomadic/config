@@ -297,8 +297,8 @@ sort = "none"
 # lossless, 1 = heavily compressed but still presentable. Changing any of
 # these regenerates thumbnails (cache files are named by recipe; old ones
 # are kept).
-thumb_width = 768
-thumb_height = 432
+thumb_width = 640
+thumb_height = 320
 thumb_quality = 8
 
 # Storyboard sheet grid (the seekbar-hover preview + chapter chips):
@@ -352,7 +352,7 @@ cache_key = "size_mtime"
 # it easy to ask for a texture that got silently clamped, or to buy pixels
 # too small to hold a slot. Startup prints the atlas_memory_mb to replace
 # them with.)
-atlas_memory_mb = 1024
+atlas_memory_mb = 600
 
 # The selected clip decodes ONCE at up to this size (never above the
 # source's own resolution): the tile shows it downscaled (mipmapped) and
@@ -416,6 +416,7 @@ p = "prev"  # pause-when-unfocused on/off
 r = "reveal"  # reveal in Finder (open -R)
 s = "shuffle_library"  # shuffle the whole grid in place ("shuffle" also works)
 t = "toggle_skip_timer"  # auto-advance every skip_timer_s of playback
+y = "reveal-in-yazi"
 "[" = "skip_back"  # jump by skip_fraction; wraps at the ends
 "]" = "skip_forward"
 1 = "library '~/Movies/Porn'"
@@ -465,6 +466,19 @@ args = [
   "{dir}",
   "--",
   "/Users/nom/.zsh/bin/ffmpeg-lossless-cut",
+  "'{path}'",
+]
+
+[commands.reveal-in-yazi]
+type = "launch"
+program = "/Users/nom/.zsh/bin/kitty-launch"
+args = [
+  "--os-window",
+  "--auto-hide",
+  "--cwd",
+  "{dir}",
+  "--",
+  "/opt/homebrew/bin/yazi",
   "'{path}'",
 ]
 
