@@ -77,6 +77,7 @@ alias es="edit-script"
 
 alias f="noglob fetch"
 alias sb=switchblade
+alias sb-sort="fd-media --sort-created | sb"
 alias prev="fzf --layout=reverse --preview 'bat --style=numbers --color=always --line-range :500 {}'"
 alias sb-fast-new="print -rl -- **/*(.om[1,200]) | sb"
 
