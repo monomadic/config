@@ -1,0 +1,230 @@
+#!/bin/sh
+# trawl — offline torrent search: fzf + ripgrep over flat TSVs.
+#
+#   trawl                  search TUI (enter opens magnet, ctrl-y copies)
+#   trawl sources          dataset manager: pick a source in fzf to
+#                          download/refresh it (status, entries, size)
+#   trawl fetch [name|csv] refresh all sources / one source / a local dump
+#   trawl stats            per-source status table + index total
+#
+# Datasets are CSV dumps with infohash/name columns (torrents-csv layout).
+# Each source in ~/.local/share/trawl/sources ("name<TAB>url") converts to
+# its own seeder-sorted TSV; searches run over a merged index of them all.
+# Names matching TRAWL_EXCLUDE (default: cracked-windows-app junk) are
+# culled at index build time; set TRAWL_EXCLUDE='' to keep everything.
+#
+# TSV layout: "<name:70>  <size:7>  <seeds:5>  <year>\t<infohash>"
+
+set -e
+
+DATA_DIR="${TRAWL_DATA:-$HOME/.local/share/trawl}"
+SOURCES="$DATA_DIR/sources"
+INDEX="$DATA_DIR/index.tsv"
+TAB=$(printf '\t')
+
+# heuristic: no dataset carries categories, so cull by release-name smell.
+# Windows-marked names only — macOS cracks use the same generic words
+# (crack/keygen/patched), so those don't appear here.
+EXCLUDE="${TRAWL_EXCLUDE-\bwindows\b|\bwin ?(7|8(\.1)?|10|11)\b|\.exe\b|\bkms ?pico\b|\bkms\b}"
+
+TRACKERS='&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce'
+
+ensure_sources() {
+    mkdir -p "$DATA_DIR"
+    [ -f "$SOURCES" ] && return 0
+    printf 'torrents-csv\thttps://codeberg.org/heretic/torrents-csv-data/raw/branch/main/torrents.csv\n' > "$SOURCES"
+}
+
+# one-time migration from the single-file layout
+[ -f "$DATA_DIR/torrents.tsv" ] && [ ! -f "$DATA_DIR/src-torrents-csv.tsv" ] &&
+    mv "$DATA_DIR/torrents.tsv" "$DATA_DIR/src-torrents-csv.tsv"
+
+# ---- internal: filter for fzf's change:reload -------------------------------
+# The index is pre-sorted by seeders, so "chain of fixed-string greps | head"
+# is both the ranking and the search. Empty patterns match everything, which
+# lets the chain stay branchless for 1..6 words.
+if [ "${1-}" = "--filter" ]; then
+    [ -r "$INDEX" ] || exit 0
+    # shellcheck disable=SC2086 # word-splitting the query is the point
+    set -- ${2-}
+    rg -iNF -- "${1-}" "$INDEX" 2>/dev/null \
+        | rg -iF -- "${2-}" | rg -iF -- "${3-}" | rg -iF -- "${4-}" \
+        | rg -iF -- "${5-}" | rg -iF -- "${6-}" | head -300
+    exit 0
+fi
+
+# ---- internal: selected line -> magnet link ---------------------------------
+if [ "${1-}" = "--magnet" ]; then
+    line=$2
+    hash=${line##*"$TAB"}
+    # display name is a fixed 70-char field; sanitize into a dot-separated dn
+    dn=$(printf '%.70s' "$line" | tr -cs 'A-Za-z0-9._-' '.' | sed 's/^\.*//; s/\.*$//')
+    printf 'magnet:?xt=urn:btih:%s&dn=%s%s\n' "$hash" "$dn" "$TRACKERS"
+    exit 0
+fi
+
+# csv (stdin) -> seeder-sorted display TSV (stdout)
+convert() {
+    python3 -c '
+import csv, sys
+csv.field_size_limit(1 << 20)
+r = csv.reader(sys.stdin)
+ix = {h.strip().lower(): i for i, h in enumerate(next(r))}
+col = lambda *ns: next((ix[n] for n in ns if n in ix), None)
+H, N = col("infohash", "info_hash", "hash"), col("name", "title")
+if H is None or N is None:
+    sys.exit("no infohash/name columns in CSV header")
+S, SE, C = col("size_bytes", "size"), col("seeders", "seeds"), col("created_unix", "created")
+hexd = set("0123456789abcdef")
+w = sys.stdout.write
+def num(row, i):
+    if i is None: return 0
+    try: return int(float(row[i]))
+    except (ValueError, IndexError): return 0
+for row in r:
+    try: h, n = row[H].strip().lower(), row[N]
+    except IndexError: continue
+    if len(h) != 40 or not set(h) <= hexd: continue
+    n = " ".join(n.split())
+    if not n: continue
+    w("%07d\t%s\t%d\t%d\t%s\n" % (max(num(row, SE), 0), n, num(row, S), num(row, C), h))
+' | LC_ALL=C sort -r | python3 -c '
+import sys, datetime
+def hsize(b):
+    if b <= 0: return ""
+    for u in "BKMGT":
+        if b < 1024 or u == "T": break
+        b /= 1024.0
+    return ("%.1f%s" if u in "GT" else "%d%s") % (b, u)
+utc = datetime.timezone.utc
+w = sys.stdout.write
+for line in sys.stdin:
+    p = line.rstrip("\n").split("\t")
+    if len(p) != 5: continue
+    se, name, size, created, h = p
+    try: yr = datetime.datetime.fromtimestamp(int(created), utc).year if int(created) > 0 else ""
+    except (ValueError, OverflowError, OSError): yr = ""
+    w("%-70.70s  %7s  %5d  %4s\t%s\n" % (name, hsize(int(size)), int(se), yr, h))
+'
+}
+
+# merge per-source TSVs -> culled, seeder-sorted index (seeds live at
+# fixed columns 82-86 of the display field, so sort needs no extra key)
+rebuild_index() {
+    set -- "$DATA_DIR"/src-*.tsv
+    [ -e "$1" ] || { rm -f "$INDEX"; return 0; }
+    before=$(cat "$@" | wc -l | tr -d ' ')
+    if [ -n "$EXCLUDE" ]; then
+        cat "$@" | rg -vi -- "$EXCLUDE" | sort -t "$TAB" -k1.82,1.86rn > "$INDEX.tmp" || true
+    else
+        cat "$@" | sort -t "$TAB" -k1.82,1.86rn > "$INDEX.tmp"
+    fi
+    mv "$INDEX.tmp" "$INDEX"
+    after=$(wc -l < "$INDEX" | tr -d ' ')
+    echo "index: $after torrents ($((before - after)) culled by exclude filter)" >&2
+}
+
+fetch_source() { # $1 = name, $2 = url-or-file
+    tmp="$DATA_DIR/.fetch.csv"
+    if [ -f "$2" ]; then
+        cp "$2" "$tmp"
+    else
+        echo "downloading $2" >&2
+        curl -L --fail --progress-bar "$2" -o "$tmp"
+    fi
+    echo "converting $1…" >&2
+    convert < "$tmp" > "$DATA_DIR/src-$1.tsv.tmp"
+    mv "$DATA_DIR/src-$1.tsv.tmp" "$DATA_DIR/src-$1.tsv"
+    rm -f "$tmp"
+}
+
+source_url() { # name -> url from sources file
+    awk -F '\t' -v n="$1" '$1 == n { print $2; exit }' "$SOURCES"
+}
+
+source_table() {
+    printf '%-16s %-11s %9s %7s  %s\n' 'SOURCE' 'STATUS' 'ENTRIES' 'SIZE' 'URL'
+    while IFS="$TAB" read -r name url; do
+        [ -n "$name" ] || continue
+        tsv="$DATA_DIR/src-$name.tsv"
+        if [ -f "$tsv" ]; then
+            printf '%-16s %-11s %9s %7s  %s\n' "$name" 'downloaded' \
+                "$(wc -l < "$tsv" | tr -d ' ')" "$(du -h "$tsv" | cut -f1 | tr -d ' ')" "$url"
+        else
+            printf '%-16s %-11s %9s %7s  %s\n' "$name" '—' '' '' "$url"
+        fi
+    done < "$SOURCES"
+    # ad-hoc local imports (trawl fetch <file>) not listed in sources
+    for tsv in "$DATA_DIR"/src-*.tsv; do
+        [ -e "$tsv" ] || continue
+        name=$(basename "$tsv"); name=${name#src-}; name=${name%.tsv}
+        [ -n "$(source_url "$name")" ] && continue
+        printf '%-16s %-11s %9s %7s  %s\n' "$name" 'downloaded' \
+            "$(wc -l < "$tsv" | tr -d ' ')" "$(du -h "$tsv" | cut -f1 | tr -d ' ')" '(local import)'
+    done
+}
+
+case "${1-}" in
+sources)
+    ensure_sources
+    sel=$(source_table | fzf --header-lines=1 --layout=reverse --info=hidden \
+        --prompt '❯ ' --no-multi \
+        --header "enter download/refresh · edit $SOURCES to add sources") || exit 0
+    name=${sel%% *}
+    fetch_source "$name" "$(source_url "$name")"
+    rebuild_index
+    ;;
+
+fetch)
+    ensure_sources
+    if [ -z "${2-}" ]; then
+        while IFS="$TAB" read -r name url; do
+            [ -n "$name" ] && fetch_source "$name" "$url"
+        done < "$SOURCES"
+    elif [ -f "$2" ]; then
+        base=$(basename "$2")
+        fetch_source "${base%.*}" "$2"
+    elif [ -n "$(source_url "$2")" ]; then
+        fetch_source "$2" "$(source_url "$2")"
+    else
+        echo "unknown source: $2 (list: trawl sources; or pass a csv file)" >&2
+        exit 1
+    fi
+    rebuild_index
+    ;;
+
+stats)
+    ensure_sources
+    [ -r "$INDEX" ] || rebuild_index
+    source_table
+    [ -r "$INDEX" ] &&
+        printf '\nindex: %s torrents, %s (%s)\n' \
+            "$(wc -l < "$INDEX" | tr -d ' ')" "$(du -h "$INDEX" | cut -f1 | tr -d ' ')" "$INDEX"
+    ;;
+
+-h | --help | help)
+    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+    ;;
+
+"")
+    [ -r "$INDEX" ] || rebuild_index
+    [ -r "$INDEX" ] || { echo "no index yet — run: trawl sources" >&2; exit 1; }
+    sel=$(fzf --disabled \
+        --delimiter '\t' --with-nth 1 \
+        --layout=reverse --info=hidden --no-multi \
+        --prompt '❯ ' \
+        --header 'enter open · ctrl-y copy magnet · esc quit' \
+        --bind "start:reload:$0 --filter {q}" \
+        --bind "change:reload:$0 --filter {q}" \
+        --bind "ctrl-y:execute-silent:$0 --magnet {} | pbcopy") || exit 0
+    [ -n "$sel" ] || exit 0
+    magnet=$("$0" --magnet "$sel")
+    echo "$magnet"
+    open "$magnet"
+    ;;
+
+*)
+    echo "unknown command: $1 (try: trawl --help)" >&2
+    exit 1
+    ;;
+esac
