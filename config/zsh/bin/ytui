@@ -14,6 +14,11 @@
 #
 # The URL is always the LAST argument (same convention as dl-porn).
 #
+# Gallery / index pages (a model page, a channel, a playlist) are detected in the
+# preflight and switch the UI into gallery mode: an overall bar across the items
+# plus the current item's own bar, filename and thumbnail. Rating and filename
+# editing are per-file, so they're disabled there — everything else still works.
+#
 # Keys while downloading:
 #   o   open in mpv — stream the growing .part file (keep downloading)
 #   p   pause / resume the download (SIGSTOP/SIGCONT on yt-dlp)
@@ -109,7 +114,7 @@ esac
 typeset -a argv passthru
 argv=( "$@" )
 url="${argv[-1]}"
-passthru=( "${argv[1,-2]}" )
+passthru=( "${(@)argv[1,-2]}" )   # (@) keeps them separate words, not one joined arg
 [[ -n "$url" && "$url" != -* ]] || die "last argument must be a URL (got: ${url:-<none>})"
 
 have yt-dlp || die "yt-dlp not found"
@@ -131,6 +136,13 @@ typeset -gi paused=0
 typeset -g fifo="" pfd="" tfd="" saved_stty="" alt_active=0
 typeset -ga logring=()                    # recent yt-dlp lines, for error reporting
 
+# gallery (playlist/index) mode: one URL, many items
+typeset -gi gallery=0 gal_total=0 gal_index=0 gal_done=0
+typeset -g gal_name=""
+
+# terminal geometry; need_full_redraw is set by SIGWINCH and on entering the TUI
+typeset -gi TERM_ROWS=24 TERM_COLS=80 need_full_redraw=1
+
 # ── preflight: resolve the output path and seed title/actors ─────────────────
 # One --simulate extraction. --print honors the yt-dlp config (aliases, paths,
 # --output-na-placeholder ""), so the filename here matches what the real run
@@ -141,15 +153,24 @@ typeset -ga logring=()                    # recent yt-dlp lines, for error repor
 # prints nothing, which reads here as "could not resolve". ytui is an explicit,
 # single-URL tool, so it overrides the archive on all its yt-dlp calls (preflight,
 # thumbnail, real download) — you asked for this URL, you get it.
+#
+# -I 1:1 keeps this to ONE extraction even when the URL is a gallery/index page
+# (a model page, a channel, a playlist). The extra %(playlist…)s prints are how we
+# find out we're in one: --no-playlist already collapses a video-inside-a-playlist
+# URL to the single video, so a non-empty playlist title / count > 1 here means the
+# URL itself IS the playlist, and we switch to gallery mode.
 preflight() {
   local errf; errf="$(mktemp -t ytui-preflight)"
   local -a lines
   lines=( "${(@f)$(yt-dlp --no-warnings --no-playlist --simulate --no-download-archive \
+    -I 1:1 \
     --print "filename" \
     --print "%(title)s" \
     --print "%(channel,uploader)s" \
     --print "%(cast)l" \
     --print "%(extractor)s_%(id)s" \
+    --print "%(playlist_count)s" \
+    --print "%(playlist,playlist_id)s" \
     "${passthru[@]}" "$url" 2>"$errf")}" )
   local rc=$?
   if (( rc != 0 )) || [[ -z "${lines[1]:-}" ]]; then
@@ -175,6 +196,17 @@ preflight() {
   # <extractor>_<id> is exactly ytq's thumb-cache stem, so a thumbnail either of
   # us has already fetched is reused instead of re-downloaded.
   thumb_stem="$(sanitize "${lines[5]:-}")"
+
+  # A missing field prints as the literal "NA" unless the config/alias in play
+  # sets --output-na-placeholder "" — so both spellings of "absent" count here,
+  # otherwise every plain video would look like a playlist.
+  local count="${${lines[6]:-}//[^0-9]/}" plname="$(trim "${lines[7]:-}")"
+  [[ "$plname" == (NA|none) ]] && plname=""
+  if [[ -n "$plname" ]] || (( ${count:-0} > 1 )); then
+    gallery=1
+    gal_total=${count:-0}                 # 0 == count unknown (lazy playlist)
+    gal_name="${final_path:t}"
+  fi
 }
 
 # A thumbnail already in the shared cache, any common extension — or "" if none.
@@ -201,12 +233,32 @@ compose_stem() {
 }
 
 # ── terminal setup / teardown (single controlling-tty fd, alt screen) ────────
+# Geometry is re-read from the tty rather than trusted from $LINES/$COLUMNS: this
+# script never runs zle, so those are only accurate at startup.
+measure_term() {
+  local sz; sz="$(stty size <&$tfd 2>/dev/null)"
+  TERM_ROWS=0; TERM_COLS=0
+  [[ "$sz" == <->" "<-> ]] && { TERM_ROWS=${sz%% *}; TERM_COLS=${sz##* } }
+  # a pty that reports 0x0 (some capture/CI harnesses) is not a usable answer
+  (( TERM_ROWS < 8 ))  && TERM_ROWS=${LINES:-24}
+  (( TERM_COLS < 24 )) && TERM_COLS=${COLUMNS:-80}
+  (( TERM_ROWS < 8 ))  && TERM_ROWS=24
+  (( TERM_COLS < 24 )) && TERM_COLS=80
+}
+
+# A resize invalidates everything on screen: the old frame's line wrapping is
+# already scrambled and the kitty image is placed in cells that moved. Just flag
+# it — render() does the full clear + image repaint on the next frame.
+TRAPWINCH() { need_full_redraw=1 }
+
 enter_tui() {
   exec {tfd}<>/dev/tty || die "no controlling terminal"
   saved_stty="$(stty -g <&$tfd 2>/dev/null)" || saved_stty=""
   stty -icanon -echo min 1 time 0 <&$tfd 2>/dev/null   # raw keys, but keep ISIG (Ctrl-C)
   printf '\e[?1049h\e[?25l' >&$tfd                      # alt screen, hide cursor
   alt_active=1
+  measure_term
+  need_full_redraw=1
 }
 leave_tui() {
   (( alt_active )) || return 0
@@ -257,6 +309,8 @@ trap cleanup EXIT
 trap 'exit 130' INT TERM
 
 # ── rendering ────────────────────────────────────────────────────────────────
+hrule() { local -i n=$1 i; local out=""; for (( i = 0; i < n; i++ )); do out+="─"; done; print -rn -- "$out"; }
+
 draw_bar() {
   local w=$1 p=$2 i filled g="" e=""
   (( p > 100 )) && p=100; (( p < 0 )) && p=0
@@ -265,16 +319,38 @@ draw_bar() {
   print -rn -- "${C_OK}${g}${C_DIM}${e}${C_RESET}"
 }
 
+# Truncate to a visible width (input is plain text, no SGR) so a narrow window
+# never wraps a line and pushes the whole frame down.
+clip() {
+  local -i n=$2; local s="$1"
+  (( ${#s} > n )) && s="${s[1,n-1]}…"
+  print -rn -- "$s"
+}
+
 render() {
   # A just-finished thumbnail fetch shows up in the cache; pick it up and paint
   # it into the top band once. Text then starts *below* that reserved band so
   # the redraw never clears the image.
+  if (( need_full_redraw )); then
+    measure_term
+    thumb_drawn=0                      # cells moved — the image must be replaced
+    printf '\e[H\e[2J' >&$tfd
+    need_full_redraw=0
+  fi
   [[ -z "$thumb_file" ]] && thumb_file="$(cached_thumb)"
-  draw_thumb
 
-  local W=44                          # bar cells; +2 for the "│ … │" pad == 46-char border
-  local top=1
-  (( thumb_active )) && (( top = thumb_rows + 2 ))
+  # The image band only exists if there is room for it AND for the text block.
+  local -i band=0
+  (( thumb_active && TERM_ROWS >= thumb_rows + 14 && TERM_COLS >= thumb_cols + 8 )) && band=1
+  if (( band )); then draw_thumb; else clear_thumb; fi
+
+  local -i W                          # bar cells; the border is W+2 wide
+  (( W = TERM_COLS - 8 )); (( W > 44 )) && W=44; (( W < 8 )) && W=8
+  local rule; rule="$(hrule $(( W + 2 )))"
+  local -i textw; (( textw = TERM_COLS - 4 )); (( textw < 8 )) && textw=8
+
+  local -i top=1
+  (( band )) && (( top = thumb_rows + 2 ))
   local buf=$'\e['${top}';1H'
   local nl=$'\e[K\n'                 # clear-to-EOL then newline (avoids full-clear flicker)
 
@@ -282,31 +358,47 @@ render() {
   (( paused )) && { statecol="$C_WARN"; statetxt="paused"; }
   [[ "$dstatus" == finished ]] && statecol="$C_OK"
 
-  local stem; stem="$(compose_stem)"
-  local previewname="${stem}.${ext}"
-  (( ${#previewname} > 76 )) && previewname="${previewname[1,73]}…"
-
-  buf+="  ${C_BOLD}${SELF}${C_RESET} ${C_DIM}${url}${C_RESET}${nl}"
-  buf+="${nl}"
-  buf+="  ${C_BORDER}╭$(printf '─%.0s' {1..46})╮${C_RESET}${nl}"
-  buf+="  ${C_BORDER}│${C_RESET} $(draw_bar $W $pct) ${C_BORDER}│${C_RESET}${nl}"
-  buf+="  ${C_BORDER}╰$(printf '─%.0s' {1..46})╯${C_RESET}${nl}"
-  buf+="   ${C_BOLD}${pct}%${C_RESET}  ${C_DIM}${dl_str} / ${tot_str}${C_RESET}  ${C_ACCENT}${spd_str}${C_RESET}  ${C_DIM}ETA ${eta_str}${C_RESET}  ${statecol}${statetxt}${C_RESET}${nl}"
-  [[ -n "$phase_msg" ]] && buf+="   ${C_DIM}${phase_msg}${C_RESET}${nl}" || buf+="${nl}"
-  buf+="${nl}"
-  buf+="   ${C_DESC}rating${C_RESET}  $(stars_colored $rating)  ${C_DIM}${rating}/5${C_RESET}${nl}"
-  buf+="   ${C_DESC}file${C_RESET}    ${C_FILE}${previewname}${C_RESET}${nl}"
-  if (( thumb_active )); then
-    buf+="${nl}"                                      # image is shown in the top band
-  elif [[ -n "$thumb_file" ]]; then
-    buf+="   ${C_DESC}thumb${C_RESET}   ${C_OK}✓ cached${C_RESET}${nl}"
+  local previewname
+  if (( gallery )); then
+    previewname="${gal_name:-…}"
   else
-    buf+="${nl}"
+    previewname="$(compose_stem).${ext}"
   fi
+  previewname="$(clip "$previewname" $(( textw - 8 )))"
+
+  buf+="  ${C_BOLD}${SELF}${C_RESET} ${C_DIM}$(clip "$url" $(( textw - ${#SELF} - 1 )))${C_RESET}${nl}"
+
+  if (( gallery )); then
+    # Two bars: overall position through the gallery, then the current item.
+    local total_txt="${gal_total:-0}"; (( gal_total > 0 )) || total_txt="?"
+    local -i overall=0
+    if (( gal_total > 0 )); then
+      (( overall = ((gal_index > 0 ? gal_index - 1 : 0) * 100 + pct) / gal_total ))
+      (( overall > 100 )) && overall=100
+    fi
+    buf+="  ${C_DIM}gallery${C_RESET}  ${C_BOLD}item ${gal_index}/${total_txt}${C_RESET}  ${C_DIM}${gal_done} done${C_RESET}${nl}"
+    buf+="${nl}"
+    if (( gal_total > 0 )); then
+      buf+="    $(draw_bar $W $overall) ${C_DIM}${overall}%${C_RESET}${nl}"
+    fi
+  fi
+
+  buf+="  ${C_BORDER}╭${rule}╮${C_RESET}${nl}"
+  buf+="  ${C_BORDER}│${C_RESET} $(draw_bar $W $pct) ${C_BORDER}│${C_RESET}${nl}"
+  buf+="  ${C_BORDER}╰${rule}╯${C_RESET}${nl}"
+  buf+="   ${C_BOLD}${pct}%${C_RESET}  ${C_DIM}${dl_str} / ${tot_str}${C_RESET}  ${C_ACCENT}${spd_str}${C_RESET}  ${C_DIM}ETA ${eta_str}${C_RESET}  ${statecol}${statetxt}${C_RESET}${nl}"
+  [[ -n "$phase_msg" ]] && buf+="   ${C_DIM}$(clip "$phase_msg" $(( textw - 1 )))${C_RESET}${nl}"
   buf+="${nl}"
-  [[ -n "$msg" ]] && buf+="   ${C_ACCENT}${msg}${C_RESET}${nl}" || buf+="${nl}"
+  (( gallery )) || buf+="   ${C_DESC}rating${C_RESET}  $(stars_colored $rating)  ${C_DIM}${rating}/5${C_RESET}${nl}"
+  buf+="   ${C_DESC}file${C_RESET}    ${C_FILE}${previewname}${C_RESET}${nl}"
+  (( band )) || [[ -z "$thumb_file" ]] || buf+="   ${C_DESC}thumb${C_RESET}   ${C_OK}✓ cached${C_RESET}${nl}"
+  [[ -n "$msg" ]] && buf+="${nl}   ${C_ACCENT}$(clip "$msg" $(( textw - 1 )))${C_RESET}${nl}"
   buf+="${nl}"
-  buf+="  ${C_KEY}o${C_DESC} mpv   ${C_KEY}p${C_DESC} pause   ${C_KEY}r${C_DESC} rate   ${C_KEY}t${C_DESC} edit   ${C_KEY}q${C_DESC} quit${C_RESET}${nl}"
+  if (( gallery )); then
+    buf+="  ${C_KEY}o${C_DESC} mpv   ${C_KEY}p${C_DESC} pause   ${C_KEY}q${C_DESC} quit${C_RESET}${nl}"
+  else
+    buf+="  ${C_KEY}o${C_DESC} mpv   ${C_KEY}p${C_DESC} pause   ${C_KEY}r${C_DESC} rate   ${C_KEY}t${C_DESC} edit   ${C_KEY}q${C_DESC} quit${C_RESET}${nl}"
+  fi
   buf+=$'\e[J'                        # clear anything below the block
   printf '%s' "$buf" >&$tfd
 }
@@ -334,6 +426,25 @@ render_error() {
   read -k 1 -u $tfd 2>/dev/null        # hold the panel until the user looks
 }
 
+# In gallery mode each item has its own thumbnail, and there is no per-item
+# yt-dlp preflight to fetch it — the URL comes in on the ITEM line instead, so
+# grab it straight with curl into the same shared cache ytq uses. Written to a
+# temp name and moved into place, so a half-fetched file is never displayed.
+fetch_thumb() {
+  local turl="$1"
+  [[ -n "$turl" && "$turl" == http* && -n "$thumb_stem" ]] || return
+  [[ -n "$(cached_thumb)" ]] && return
+  have curl || return
+  local e="${${turl%%\?*}##*.}"
+  [[ "$e" == (jpg|jpeg|png|webp) ]] || e=jpg
+  local dest="$thumb_cache/$thumb_stem.$e"
+  { local tmp="${dest}.part.$$"
+    curl -sL --max-time 20 -o "$tmp" -- "$turl" 2>/dev/null && [[ -s "$tmp" ]] \
+      && mv -f -- "$tmp" "$dest" || rm -f -- "$tmp"
+  } >/dev/null 2>&1 &
+  thumb_pid=$!
+}
+
 # ── progress / log line handling ─────────────────────────────────────────────
 handle_line() {
   local line="$1"
@@ -359,6 +470,21 @@ handle_line() {
   fi
   if [[ "$line" == FINALPATH\|* ]]; then
     final_real="${line#FINALPATH|}"
+    (( gallery )) && (( gal_done++ ))
+    return
+  fi
+  # gallery: one ITEM line per entry, printed before that entry's download starts.
+  if [[ "$line" == ITEM\|* ]]; then
+    local rest="${line#ITEM|}" idx stem turl fname
+    IFS='|' read -r idx stem turl fname <<<"$rest"
+    gal_index="${idx//[^0-9]/}"; (( gal_index > 0 )) || (( gal_index = gal_done + 1 ))
+    [[ -n "$fname" ]] && gal_name="${fname:t}"
+    pct=0; dl_str="—"; tot_str="—"; spd_str="—"; eta_str="—"; dstatus="starting"
+    local newstem; newstem="$(sanitize "$stem")"
+    if [[ -n "$newstem" && "$newstem" != "$thumb_stem" ]]; then
+      thumb_stem="$newstem"; thumb_file=""; clear_thumb   # next frame paints the new one
+      fetch_thumb "$turl"
+    fi
     return
   fi
   # Any other yt-dlp chatter: keep a small ring for error reports, and show the
@@ -500,7 +626,9 @@ preflight
 # ytq and future ytui runs get it for free. Never re-download a cached thumb.
 mkdir -p -- "$proposed_dir" "$thumb_cache" 2>/dev/null
 thumb_file="$(cached_thumb)"
-if [[ -z "$thumb_file" && -n "$thumb_stem" ]]; then
+# In gallery mode the per-item thumbnails arrive with the ITEM lines instead —
+# a second full extraction of the whole index here would cost minutes.
+if (( ! gallery )) && [[ -z "$thumb_file" && -n "$thumb_stem" ]]; then
   yt-dlp --quiet --no-warnings --no-playlist --skip-download --no-download-archive \
     --write-thumbnail --convert-thumbnails jpg \
     -o "thumbnail:${thumb_cache}/%(extractor)s_%(id)s.%(ext)s" "$url" >/dev/null 2>&1 &
@@ -517,10 +645,18 @@ exec {pfd}<>"$fifo"
 
 enter_tui
 
+typeset -a item_print=()
+# gallery: one line per entry as it starts, so the UI can follow the index, the
+# current filename and that entry's thumbnail without a second extraction pass.
+(( gallery )) && item_print=(
+  --print "before_dl:ITEM|%(playlist_index)s|%(extractor)s_%(id)s|%(thumbnail)s|%(filename)s"
+  --ignore-errors                     # one dead entry must not kill the whole gallery
+)
+
 yt-dlp --no-playlist --newline --no-download-archive --continue \
   --progress-template "download:PROGRESS|%(progress._percent_str)s|%(progress._downloaded_bytes_str)s|%(progress._total_bytes_str)s|%(progress._speed_str)s|%(progress._eta_str)s|%(progress.status)s|%(progress.downloaded_bytes)d" \
   --print "after_move:FINALPATH|%(filepath)s" \
-  "${passthru[@]}" "$url" >&$pfd 2>&1 &
+  "${item_print[@]}" "${passthru[@]}" "$url" >&$pfd 2>&1 &
 ytdlp_pid=$!
 
 # ── main loop ────────────────────────────────────────────────────────────────
@@ -539,8 +675,9 @@ while true; do
     case "$key" in
       o|O) open_mpv ;;
       p|P) toggle_pause ;;
-      r|R) rate_modal ;;
-      t|T) edit_modal ;;
+      r|R) (( gallery )) && msg="rating is per-file — not available in gallery mode" \
+             || { rate_modal; need_full_redraw=1 } ;;   # the modal owned the screen
+      t|T) (( gallery )) && msg="renaming is per-file — not available in gallery mode" || edit_modal ;;
       q|Q) leave_tui; print -r -- "${SELF}: cancelled"; exit 130 ;;
     esac
   done
@@ -563,6 +700,18 @@ if (( rc != 0 )); then
 fi
 
 leave_tui
+
+# gallery: many files, none of them named by the (disabled) rating/edit modals —
+# so there is nothing to rename and no single output path to report.
+if (( gallery )); then
+  if (( gal_done )); then
+    print -r -- "${C_OK}✓${C_RESET} gallery finished — ${C_BOLD}${gal_done}${C_RESET} item(s) downloaded"
+    [[ -n "$proposed_dir" ]] && print -r -- "  ${C_DESC}into:${C_RESET} ${proposed_dir}"
+  else
+    print -r -- "${C_WARN}${SELF}: gallery finished, but no items were downloaded${C_RESET}"
+  fi
+  exit 0
+fi
 
 src="${final_real:-$final_path}"
 if [[ ! -e "$src" ]]; then
