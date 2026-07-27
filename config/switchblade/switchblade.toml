@@ -92,7 +92,7 @@ fade_in_ms = 20.0  # newly appearing tiles fade in over this long
 # re-enters on the next row, while tiles that just re-justify glide.
 # zoom_fade_ms is the crossfade used by the fixed grid and by shuffle/
 # library-swap rearranges (and by the flexible grid when zoom_wrap = false).
-pinch_sensitivity = 1.0
+pinch_sensitivity = 0.5
 zoom_min = 0.35
 zoom_max = 3.0
 zoom_smoothing = 0.35  # fixed grid only; with zoom_wrap the layout snaps and the tile tweens ARE the zoom animation
@@ -140,7 +140,7 @@ meta_wait_ms = 120.0
 
 # [ / ] jump the playing clip by this fraction of its duration (wraps at
 # the ends). A binding can override the amount per key — see [keys] below.
-skip_fraction = 0.10
+skip_fraction = 0.05
 
 # Where playback starts, as a fraction of each clip's duration (0.0 = the
 # very beginning, 0.10 = 10% in). The static thumbnail is extracted at
@@ -148,7 +148,7 @@ skip_fraction = 0.10
 # with no jolt — so changing this REGENERATES thumbnails on next run
 # (the default 0.10 reuses your existing cache; any other value rebuilds).
 # Startup-only: restart to apply.
-thumb_seek_fraction = 0.10
+thumb_seek_fraction = 0.0
 
 # Dragging a grid tile or filmstrip chip this many logical pixels turns
 # the press into a native drag-out: drop the clip's file into Finder or
@@ -205,15 +205,15 @@ quickview_fade_ms = 150.0
 # scrub — coarse keyframe hops while dragging, an exact landing on
 # release. Hovering the bar previews the nearest animated-thumbnail
 # frame at seekbar_thumb_width px wide (0 hides the preview).
-seekbar_hide_s = 1.0
-seekbar_fade_ms = 250.0
-seekbar_height = 6.0
+seekbar_hide_s = 0.5
+seekbar_fade_ms = 150.0
+seekbar_height = 10.0
 seekbar_hover_height = 12.0
 seekbar_thumb_width = 190.0
 # Opacity (0..1) of the seekbar's background track — the unfilled part
 # behind the played fill. The fill stays solid white; lower this to make
 # the track more transparent over the video.
-seekbar_track_opacity = 0.18
+seekbar_track_opacity = 0.1
 
 # The filmstrip of neighboring clips along the bottom. Chips share this
 # fixed height and take each clip's true aspect for width — portrait
@@ -416,7 +416,7 @@ p = "prev"  # pause-when-unfocused on/off
 r = "reveal"  # reveal in Finder (open -R)
 s = "shuffle_library"  # shuffle the whole grid in place ("shuffle" also works)
 t = "toggle_skip_timer"  # auto-advance every skip_timer_s of playback
-y = "reveal-in-yazi"
+y = "yazi"
 "[" = "skip_back"  # jump by skip_fraction; wraps at the ends
 "]" = "skip_forward"
 1 = "library '~/Movies/Porn'"
@@ -466,10 +466,10 @@ args = [
   "{dir}",
   "--",
   "/Users/nom/.zsh/bin/ffmpeg-lossless-cut",
-  "'{path}'",
+  "{path}",
 ]
 
-[commands.reveal-in-yazi]
+[commands.yazi]
 type = "launch"
 program = "/Users/nom/.zsh/bin/kitty-launch"
 args = [
@@ -479,7 +479,7 @@ args = [
   "{dir}",
   "--",
   "/opt/homebrew/bin/yazi",
-  "'{path}'",
+  "{path}",
 ]
 
 # Example: bind a key to your own script.

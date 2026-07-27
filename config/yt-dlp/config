@@ -28,6 +28,10 @@
 --parse-metadata "%(cast,uploader)l:(?P<meta_actors>.+)"
 --parse-metadata "%(channel,uploader)s:(?P<meta_album_artist>.+)"
 
+# --embed-metadata already maps upload_date -> date, but as raw YYYYMMDD;
+# meta_date takes precedence, so restate it as ISO
+--parse-metadata "%(upload_date>%Y-%m-%d)s:(?P<meta_date>.+)"
+
 # let MP4 store non-standard tag names (actors, yt_dlp_*, source_url, ...)
 --ppa "Metadata:-movflags use_metadata_tags"
 
@@ -48,7 +52,7 @@
 --alias original '--embed-metadata --parse-metadata "Original:%(meta_type)s"'
 
 # media aliases
---alias porn '--use-postprocessor "Titlecase:when=pre_process" -o "%(channel_cc,uploader_cc,channel,uploader|?)s/%(cast,uploader|)l (%(channel_cc,uploader_cc,channel,uploader|Unknown)s) %(cast& - |)s %(title_cc,title).50s (%(extractor)s_%(id)s).%(ext)s" --progress --console-title --trim-filenames 200 --paths "home:$HOME/Movies/Porn/Downloads"'
+--alias porn '--embed-subs --embed-chapters --sub-langs "en.*,-live_chat" --use-postprocessor "Titlecase:when=pre_process" -o "%(channel_cc,uploader_cc,channel,uploader|?)s/%(cast,uploader|)l (%(channel_cc,uploader_cc,channel,uploader|Unknown)s) %(cast& - |)s %(title_cc,title).50s (%(extractor)s_%(id)s).%(ext)s" --progress --console-title --trim-filenames 200 --paths "home:$HOME/Movies/Porn/Downloads"'
 --alias tower '--porn --paths home:/Volumes/Tower/Movies/Porn/Downloads'
 
 # vj aliases

@@ -7,6 +7,7 @@
 #   trawl sources          dataset manager: pick a source in fzf to
 #                          download/refresh it (status, entries, size)
 #   trawl fetch [name|csv] refresh all sources / one source / a local dump
+#   trawl culled           audit what the exclude filter drops
 #   trawl stats            per-source status table + index total
 #
 # Datasets are CSV dumps with infohash/name columns (torrents-csv layout).
@@ -26,8 +27,10 @@ TAB=$(printf '\t')
 
 # heuristic: no dataset carries categories, so cull by release-name smell.
 # Windows-marked names only — macOS cracks use the same generic words
-# (crack/keygen/patched), so those don't appear here.
+# (crack/keygen/patched), so those don't appear here. RESCUE overrides the
+# cull: cross-platform releases and TV episodes stay. Audit: trawl culled.
 EXCLUDE="${TRAWL_EXCLUDE-\bwindows\b|\bwin ?(7|8(\.1)?|10|11)\b|\.exe\b|\bkms ?pico\b|\bkms\b}"
+RESCUE="${TRAWL_RESCUE-\bmac ?os\b|\bosx\b|\bmac\b|\blinux\b|\bS[0-9]+E[0-9]+\b}"
 
 TRACKERS='&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337%2Fannounce&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce'
 
@@ -117,7 +120,11 @@ rebuild_index() {
     [ -e "$1" ] || { rm -f "$INDEX"; return 0; }
     before=$(cat "$@" | wc -l | tr -d ' ')
     if [ -n "$EXCLUDE" ]; then
-        cat "$@" | { rg -vi -- "$EXCLUDE" || true; }
+        {
+            cat "$@" | { rg -vi -- "$EXCLUDE" || true; }
+            [ -n "$RESCUE" ] &&
+                cat "$@" | { rg -i -- "$EXCLUDE" || true; } | { rg -i -- "$RESCUE" || true; }
+        }
     else
         cat "$@"
     fi | sort -t "$TAB" -k1.82,1.86rn | awk -F "$TAB" '!seen[$2]++' > "$INDEX.tmp"
@@ -253,6 +260,16 @@ fetch)
     rebuild_index
     ;;
 
+culled)
+    # what the exclude filter drops, seeder-sorted (audit with: trawl culled | less)
+    [ -n "$EXCLUDE" ] || { echo "TRAWL_EXCLUDE is empty — nothing is culled" >&2; exit 0; }
+    set -- "$DATA_DIR"/src-*.tsv
+    [ -e "$1" ] || { echo "no datasets downloaded" >&2; exit 1; }
+    cat "$@" | { rg -i -- "$EXCLUDE" || true; } \
+        | { [ -n "$RESCUE" ] && rg -vi -- "$RESCUE" || cat; } \
+        | sort -t "$TAB" -k1.82,1.86rn | awk -F "$TAB" '!seen[$2]++'
+    ;;
+
 stats)
     ensure_sources
     [ -r "$INDEX" ] || rebuild_index
@@ -263,7 +280,7 @@ stats)
     ;;
 
 -h | --help | help)
-    sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
     ;;
 
 "")

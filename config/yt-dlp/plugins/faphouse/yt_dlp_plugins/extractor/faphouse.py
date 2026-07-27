@@ -6,8 +6,10 @@ from yt_dlp.extractor.common import InfoExtractor
 from yt_dlp.utils import (
     ExtractorError,
     clean_html,
+    float_or_none,
     int_or_none,
     traverse_obj,
+    unescapeHTML,
     unified_strdate,
     url_or_none,
 )
@@ -56,6 +58,87 @@ class FaphouseIE(InfoExtractor):
             url_www, video_id,
             headers=self._headers(url_www),
         )
+
+    def _extract_subtitles(self, webpage, video_id):
+        """
+        The player element carries every caption track as an HTML-escaped JSON
+        attribute:
+
+            data-el-subtitles="[{"label":"English (Auto-Generated)",
+                                 "urls":{"vtt":"https://.../en_2.vtt"},
+                                 "lang":"en","isOriginal":false}, ...]"
+
+        Only rendered for accounts that can watch the video (guest pages report
+        `hasSubtitles: null` and omit the player entirely). The .vtt files
+        themselves are served without auth.
+        """
+        raw = self._search_regex(
+            r'data-el-subtitles="([^"]+)"', webpage, "subtitles", default=None)
+        if not raw:
+            return {}
+
+        tracks = self._parse_json(
+            unescapeHTML(raw), video_id, fatal=False, errnote=None) or []
+
+        subtitles = {}
+        for track in tracks:
+            lang = traverse_obj(track, "lang")
+            if not lang:
+                continue
+            label = clean_html(traverse_obj(track, "label") or "").strip() or None
+            for ext, sub_url in (traverse_obj(track, "urls") or {}).items():
+                sub_url = url_or_none(sub_url)
+                if not sub_url:
+                    continue
+                subtitles.setdefault(lang, []).append({
+                    "url": sub_url,
+                    "ext": ext,
+                    "name": label,
+                })
+        return subtitles
+
+    def _extract_chapters(self, vstate, duration):
+        """
+        Faphouse calls chapters "actions": a flat list of `{label, time}` markers
+        in the view-state blob, with no end times. Derive each end from the next
+        marker (the last one runs to the end of the video), so a known duration is
+        required. Adjacent markers sharing a label are merged — the site emits
+        repeats for a position it returns to, which would otherwise produce
+        consecutive identically-titled chapters.
+        """
+        duration = float_or_none(duration)
+        if not duration:
+            return None
+
+        markers = []
+        for action in traverse_obj(vstate, ("actionsData", "actions", ...)) or []:
+            start = float_or_none(traverse_obj(action, "time"))
+            title = clean_html(traverse_obj(action, "label") or "").strip()
+            if start is None or not title or start >= duration:
+                continue
+            if markers and markers[-1]["title"] == title:
+                continue
+            markers.append({"start_time": start, "title": title})
+
+        if not markers:
+            return None
+
+        markers.sort(key=lambda c: c["start_time"])
+
+        # A non-zero first marker means the video opens with unlabelled footage;
+        # `introDuration` names it when the site knows it is an intro.
+        if markers[0]["start_time"] > 0:
+            intro = float_or_none(traverse_obj(vstate, ("actionsData", "introDuration")))
+            markers.insert(0, {
+                "start_time": 0,
+                "title": "Intro" if intro else "Start",
+            })
+
+        for chapter, nxt in zip(markers, markers[1:]):
+            chapter["end_time"] = nxt["start_time"]
+        markers[-1]["end_time"] = duration
+
+        return markers
 
     def _real_extract(self, url):
         video_id = self._match_id(url)
@@ -199,9 +282,13 @@ class FaphouseIE(InfoExtractor):
         if not m3u8:
             m3u8 = url_or_none(self._search_regex(self._M3U8_RE, webpage, "m3u8 url", default=None))
 
+        # Page-level caption tracks (all 22 languages); the HLS manifest may also
+        # declare its own, so both are merged below.
+        subtitles = self._extract_subtitles(webpage, video_id)
+
         formats = []
         if m3u8:
-            formats = self._extract_m3u8_formats(
+            formats, m3u8_subs = self._extract_m3u8_formats_and_subtitles(
                 m3u8,
                 video_id,
                 ext="mp4",
@@ -209,6 +296,7 @@ class FaphouseIE(InfoExtractor):
                 headers=self._headers(url),
                 fatal=False,
             )
+            self._merge_subtitles(m3u8_subs, target=subtitles)
         else:
             # No playable stream. This is expected for paywalled videos the current
             # account cannot watch. The page still carries full metadata, so emit it
@@ -253,7 +341,9 @@ class FaphouseIE(InfoExtractor):
             "upload_date": upload_date,
             "cast": cast if cast else None,
             "tags": tags if tags else None,
+            "chapters": self._extract_chapters(vstate, duration),
             "formats": formats,
+            "subtitles": subtitles,
         }
 
 

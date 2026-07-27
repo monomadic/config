@@ -88,6 +88,7 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "Activity Monitor" = "􀟪 "
 "BetterDisplay" = "􃒘 "
 "Brave Browser" = "􂘮 "
+"Davinci Resolve" = "􁒖 "
 "ChatGPT" = "􂮢 "
 "Claude" = "􂮢 "
 "Disk Utility" = "􀤂 "
@@ -118,6 +119,7 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "System: restart" = "􀥣 "
 "Volume: mute" = "􀊣 "
 "Switchblade: downloads" = "􂶯 "
+"Topaz Video" = "􃖦 "
 
 # Custom entries matched like apps; selecting one runs the command via
 # `sh -c` (loaded once at startup — zero cost while typing). Only the
@@ -127,8 +129,8 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "Tracks" = "open -R '/Users/nom/Library/Mobile Documents/com~apple~CloudDocs/Music/Tracks'"
 "M4.local: mount tower" = "open -j smb://nom@m4.local/Tower"
 "SwitchBlade: downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Porn/Downloads"
-# "SwitchBlade: new downloads" = "$HOME/.zsh/bin/fd-media --sort-created --path $HOME/Movies/Porn/Downloads | $HOME/.cargo/bin/switchblade print -rl -- $HOME/Movies/Porn/Downloads/**/*(.om[1,200])"
-"SwitchBlade: new downloads" = "/Users/nom/.zsh/bin/fd-media --sort-created . ~/Movies/Porn/Downloads | /Users/nom/.cargo/bin/sb --fast-fullscreen"
+"SwitchBlade: sorted local" = "$HOME/.zsh/bin/fd-media --sort-created . ~/Movies/Porn/Downloads | $HOME/.cargo/bin/switchblade --fast-fullscreen"
+"SwitchBlade: sorted all" = "$HOME/.zsh/bin/fd-media --sort-created | $HOME/.cargo/bin/switchblade --fast-fullscreen"
 "System Settings: displays" = "open 'x-apple.systempreferences:com.apple.preference.displays'"
 "System Settings: keyboard" = "open 'x-apple.systempreferences:com.apple.Keyboard-Settings.extension'"
 "System Settings: wallpaper" = "open 'x-apple.systempreferences:com.apple.Wallpaper-Settings.extension'"

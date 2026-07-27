@@ -1,0 +1,146 @@
+{
+  "title": "MacOS Finder",
+  "rules": [
+    {
+      "description": "Finder: Vim Keys",
+      "manipulators": [
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "h",
+            "modifiers": {
+              "mandatory": ["control"],
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "key_code": "left_arrow"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "frontmost_application_if",
+              "bundle_identifiers": ["^com\\.apple\\.finder$"]
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "j",
+            "modifiers": {
+              "mandatory": ["control"],
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "key_code": "down_arrow"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "frontmost_application_if",
+              "bundle_identifiers": ["^com\\.apple\\.finder$"]
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "k",
+            "modifiers": {
+              "mandatory": ["control"],
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "key_code": "up_arrow"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "frontmost_application_if",
+              "bundle_identifiers": ["^com\\.apple\\.finder$"]
+            }
+          ]
+        },
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "l",
+            "modifiers": {
+              "mandatory": ["control"],
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "key_code": "right_arrow"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "frontmost_application_if",
+              "bundle_identifiers": ["^com\\.apple\\.finder$"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "description": "Finder: Right Command + Y to open Kitty with Yazi",
+      "manipulators": [
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "y",
+            "modifiers": {
+              "mandatory": ["right_command"],
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "/bin/zsh -lc 'finder_dir=$(osascript -e '\\''tell application \"Finder\" to POSIX path of (target of front window as alias)'\\''); exec /Users/nom/.zsh/bin/kitty-launch --os-window --cwd \"$finder_dir\" --title \" yazi \" -- yazi'"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "frontmost_application_if",
+              "bundle_identifiers": ["^com\\.apple\\.finder$"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "description": "Finder: Control + A to open Kitty with media-audit",
+      "manipulators": [
+        {
+          "type": "basic",
+          "from": {
+            "key_code": "a",
+            "modifiers": {
+              "mandatory": ["control"],
+              "optional": ["any"]
+            }
+          },
+          "to": [
+            {
+              "shell_command": "/bin/zsh -lc 'finder_dir=$(osascript -e '\\''tell application \"Finder\" to POSIX path of (target of front window as alias)'\\''); exec /Users/nom/.zsh/bin/kitty-launch --os-window --cwd \"$finder_dir\" --title \" media-audit \" -- /Users/nom/.zsh/bin/media-audit \"$finder_dir\"'"
+            }
+          ],
+          "conditions": [
+            {
+              "type": "frontmost_application_if",
+              "bundle_identifiers": ["^com\\.apple\\.finder$"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

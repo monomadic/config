@@ -12,6 +12,8 @@
 #
 # Output:
 # - replaces the source in place, keeping its original name
+# - press `r` in the selector to edit the output filename in $EDITOR;
+#   the rename is applied only after a successful cut
 # - writes to a hidden temp file beside the source, then renames into place
 # - copies embedded/container metadata, including source date tags
 # - copies the source filesystem creation date to the output
@@ -55,6 +57,10 @@ Options:
 After a successful cut, copies embedded/container metadata and the original
 file creation date to the output, moves the original file to Trash, then
 renames the output onto the original's name (replacing it in place).
+
+In the keyframe selector, press `r` to edit the output filename in $EDITOR.
+The new name shows immediately in the preview but is only applied after a
+successful cut; saving an empty buffer or the unchanged name cancels it.
 
 Examples:
   ffmpeg-lossless-cut clip.mp4
@@ -686,20 +692,21 @@ header=""
 append() { header+="$1"$'\n'; (( ++header_rows )); }
 wrap() { print -r -- "$1" | fold -s -w "$preview_cols"; }
 
-append "${dim}working directory${reset}"
+# Leading blank row keeps the filename off the terminal row fzf draws its
+# header on (the panes share rows with border=none).
+append ""
+while IFS= read -r wline; do append "${bold}${green}${wline}${reset}"; done < <(wrap "${meta[file]:-?}")
 while IFS= read -r wline; do append "${accent}${wline}${reset}"; done < <(wrap "${meta[dir]:-.}")
 append ""
-append "${dim}file${reset}"
-while IFS= read -r wline; do append "${bold}${wline}${reset}"; done < <(wrap "${meta[file]:-?}")
-append ""
 append "${dim}${meta[size]:-?}  ·  ${meta[res]:-?}  ·  ${meta[fps]:-?}  ·  ${meta[created]:-?}${reset}"
-append ""
-append "${pink}keyframe${reset}  ${bold}${pretty_ts}${reset}  ${dim}(${raw_ts}s)${reset}"
 
 print -rn -- "$header"
 
+kf_line="${pink}keyframe${reset}  ${bold}${pretty_ts}${reset}  ${dim}(${raw_ts}s)${reset}"
+
+# Leave one row under the image for the keyframe timestamp line.
 image_start=$(( header_rows + 1 ))
-image_lines=$(( preview_lines - image_start ))
+image_lines=$(( preview_lines - image_start - 1 ))
 (( image_lines < 1 )) && image_lines=1
 
 ensure_preview() {
@@ -721,6 +728,7 @@ ensure_preview() {
 if ! ensure_preview; then
   print -- "Preview unavailable"
   print -- "$img"
+  print -r -- "$kf_line"
   exit 0
 fi
 
@@ -731,6 +739,10 @@ if [[ -n "${KITTY_WINDOW_ID:-}" ]] && command -v kitty >/dev/null 2>&1; then
     --stdin=no \
     --place="${preview_cols}x${image_lines}@0x${image_start}" \
     -- "$img"
+  # icat places the image without moving the cursor; pad down past it so the
+  # keyframe line lands directly beneath.
+  integer pad=$(( image_lines + 1 ))
+  while (( pad-- > 0 )); do print -- ""; done
 elif [[ -n "${WEZTERM_PANE:-}" ]] && command -v wezterm >/dev/null 2>&1; then
   wezterm imgcat --width "${preview_cols}" -- "$img"
 elif command -v imgcat >/dev/null 2>&1; then
@@ -740,8 +752,60 @@ elif command -v chafa >/dev/null 2>&1; then
 else
   print -- "$img"
 fi
+print -r -- "$kf_line"
 EOF
   chmod +x "$preview_script"
+
+  # `r` opens $EDITOR on the current filename (same round-trip as mp4-tui-tagger
+  # and ytui). The new name is only recorded here; the actual rename happens
+  # after a successful cut. Saving an empty file or the unchanged name cancels.
+  local rename_script="$tmp_dir/rename.zsh"
+  cat > "$rename_script" <<'EOF'
+#!/usr/bin/env zsh
+emulate -L zsh
+set -euo pipefail
+
+cache_dir="${0:h}"
+input_file="$(< "$cache_dir/input.path")"
+
+current="${input_file:t}"
+[[ -r "$cache_dir/rename.pending" ]] && current="$(< "$cache_dir/rename.pending")"
+
+tmp="$cache_dir/rename-edit.$$.txt"
+print -r -- "$current" > "$tmp"
+${EDITOR:-vi} "$tmp" || { rm -f -- "$tmp"; exit 0; }
+edited="$(< "$tmp")"
+rm -f -- "$tmp"
+
+edited="${edited%%$'\n'*}"
+edited="${edited#"${edited%%[![:space:]]*}"}"
+edited="${edited%"${edited##*[![:space:]]}"}"
+
+# Discard empty or path-like edits; any previously pending name stays.
+[[ -n "$edited" && "$edited" != */* ]] || exit 0
+
+# Tolerate a dropped extension: re-add the source's.
+ext="${input_file:e}"
+[[ -n "$ext" && "$edited" != *.* ]] && edited="${edited}.${ext}"
+
+if [[ "$edited" == "${input_file:t}" ]]; then
+  rm -f -- "$cache_dir/rename.pending"
+else
+  print -r -- "$edited" > "$cache_dir/rename.pending"
+fi
+
+# Reflect the new name in the preview metadata.
+meta="$cache_dir/meta"
+if [[ -r "$meta" ]]; then
+  tmp_meta="$cache_dir/meta.$$.new"
+  while IFS= read -r line; do
+    [[ "$line" == file=* ]] && line="file=$edited"
+    print -r -- "$line"
+  done < "$meta" > "$tmp_meta"
+  mv -f -- "$tmp_meta" "$meta"
+fi
+EOF
+  chmod +x "$rename_script"
 
   local selection
   selection="$(
@@ -756,8 +820,9 @@ EOF
       --info=inline \
       --pointer='▍' \
       --color='bg:-1,bg+:-1,gutter:-1,fg:#7f849c,fg+:#ffffff,hl:#f5c2e7,hl+:#f5c2e7,pointer:#89b4fa,header:#89b4fa,info:#585b70,prompt:#89b4fa' \
-      --header='keyframe:' \
+      --header=$'↵ cut · r rename · esc cancel\nj/k move · h/l page · g/G ends' \
       --bind='j:down,k:up,h:page-up,l:page-down,g:first,G:last' \
+      --bind="r:execute(zsh '$rename_script')+refresh-preview" \
       --preview-window='right,70%,border-none' \
       --preview "zsh '$preview_script' {1} {2} {3} {4}" \
       < "$list_file"
@@ -768,6 +833,9 @@ EOF
   }
 
   print -r -- "$selection" | awk -F $'\t' '{ print $2 }'
+  if [[ -r "$tmp_dir/rename.pending" ]]; then
+    print -r -- "rename=$(< "$tmp_dir/rename.pending")"
+  fi
   selector_cleanup
 }
 
@@ -1211,14 +1279,32 @@ for input_file in "${files[@]}"; do
     info "Selector start:    $(format_ts "$effective_from")"
   fi
 
-  ts=""
-  if ! ts="$(select_keyframe "$input_file" "$keyframes" "$width" "$keep_previews" "$effective_from" "$reverse_mode")"; then
+  sel_out=""
+  if ! sel_out="$(select_keyframe "$input_file" "$keyframes" "$width" "$keep_previews" "$effective_from" "$reverse_mode")"; then
     rc=$?
     if (( rc == 130 )); then
       warn "selection cancelled, skipping"
       (( ++skip_count ))
       continue
     fi
+    warn "failed to select keyframe, skipping"
+    (( ++fail_count ))
+    continue
+  fi
+
+  # First line is the timestamp; an optional "rename=<name>" line carries a
+  # pending rename recorded via the `r` binding in the selector.
+  ts=""
+  rename_to=""
+  for sel_line in "${(f)sel_out}"; do
+    if [[ "$sel_line" == rename=* ]]; then
+      rename_to="${sel_line#rename=}"
+    elif [[ -z "$ts" ]]; then
+      ts="$sel_line"
+    fi
+  done
+
+  if [[ -z "$ts" ]]; then
     warn "failed to select keyframe, skipping"
     (( ++fail_count ))
     continue
@@ -1233,6 +1319,16 @@ for input_file in "${files[@]}"; do
   fi
 
   final_output="$input_file"
+  if [[ -n "$rename_to" && "$rename_to" != "${input_file:t}" ]]; then
+    final_output="${input_file:h}/${rename_to}"
+    if [[ -e "$final_output" ]]; then
+      warn "rename target exists, keeping original name: $rename_to"
+      final_output="$input_file"
+      rename_to=""
+    fi
+  else
+    rename_to=""
+  fi
   work_output="$(make_work_output "$input_file")"
 
   print
@@ -1242,6 +1338,9 @@ for input_file in "${files[@]}"; do
     print -P -- "  %F{magenta}outro%f %F{white}$pretty_ts%f %F{8}($ts)%f"
   else
     print -P -- "  %F{magenta}cut%f   %F{white}$pretty_ts%f %F{8}($ts)%f"
+  fi
+  if [[ -n "$rename_to" ]]; then
+    print -P -- "  %F{magenta}name%f  %F{white}$(esc_prompt "$rename_to")%f"
   fi
 
   if [[ "$dry_run" == true ]]; then
