@@ -2,6 +2,8 @@
 # trawl — offline torrent search: fzf + ripgrep over flat TSVs.
 #
 #   trawl                  search TUI (enter opens magnet, ctrl-y copies)
+#   trawl live <query>     one-shot live search (apibay/TPB); seeded
+#                          results accrete into the offline index
 #   trawl sources          dataset manager: pick a source in fzf to
 #                          download/refresh it (status, entries, size)
 #   trawl fetch [name|csv] refresh all sources / one source / a local dump
@@ -115,13 +117,13 @@ rebuild_index() {
     [ -e "$1" ] || { rm -f "$INDEX"; return 0; }
     before=$(cat "$@" | wc -l | tr -d ' ')
     if [ -n "$EXCLUDE" ]; then
-        cat "$@" | rg -vi -- "$EXCLUDE" | sort -t "$TAB" -k1.82,1.86rn > "$INDEX.tmp" || true
+        cat "$@" | { rg -vi -- "$EXCLUDE" || true; }
     else
-        cat "$@" | sort -t "$TAB" -k1.82,1.86rn > "$INDEX.tmp"
-    fi
+        cat "$@"
+    fi | sort -t "$TAB" -k1.82,1.86rn | awk -F "$TAB" '!seen[$2]++' > "$INDEX.tmp"
     mv "$INDEX.tmp" "$INDEX"
     after=$(wc -l < "$INDEX" | tr -d ' ')
-    echo "index: $after torrents ($((before - after)) culled by exclude filter)" >&2
+    echo "index: $after torrents ($((before - after)) culled or deduped)" >&2
 }
 
 fetch_source() { # $1 = name, $2 = url-or-file
@@ -165,6 +167,64 @@ source_table() {
 }
 
 case "${1-}" in
+live)
+    shift
+    [ -n "${1-}" ] || { echo "usage: trawl live <query>" >&2; exit 1; }
+    q=$*
+    mkdir -p "$DATA_DIR"
+    new=$(curl -s --fail --max-time 10 --get --data-urlencode "q=$q" \
+        'https://apibay.org/q.php' | python3 -c '
+import sys, json, datetime
+def hsize(b):
+    if b <= 0: return ""
+    for u in "BKMGT":
+        if b < 1024 or u == "T": break
+        b /= 1024.0
+    return ("%.1f%s" if u in "GT" else "%d%s") % (b, u)
+def num(t, k):
+    try: return int(t.get(k, 0))
+    except (ValueError, TypeError): return 0
+hexd = set("0123456789abcdef")
+rows = []
+for t in json.load(sys.stdin):
+    h = str(t.get("info_hash", "")).strip().lower()
+    n = " ".join(str(t.get("name", "")).split())
+    # apibay signals "no results" with an all-zero hash pseudo-entry
+    if len(h) != 40 or not set(h) <= hexd or set(h) == {"0"} or not n: continue
+    se, size, cr = num(t, "seeders"), num(t, "size"), num(t, "added")
+    yr = ""
+    if cr > 0:
+        try: yr = datetime.datetime.fromtimestamp(cr, datetime.timezone.utc).year
+        except (ValueError, OverflowError, OSError): pass
+    rows.append((se, "%-70.70s  %7s  %5d  %4s\t%s" % (n, hsize(size), se, yr, h)))
+rows.sort(key=lambda r: -r[0])
+sys.stdout.write("".join(r[1] + "\n" for r in rows))
+') || { echo "live search failed (apibay unreachable?)" >&2; exit 1; }
+    [ -n "$new" ] || { echo "no live results for: $q" >&2; exit 1; }
+
+    # accrete seeded results into the offline cache; fresh lines win dedupe
+    printf '%s\n' "$new" | awk -F "$TAB" 'substr($1, 82, 5) + 0 > 0' > "$DATA_DIR/.live-new.tsv"
+    if [ -s "$DATA_DIR/.live-new.tsv" ]; then
+        touch "$DATA_DIR/src-live.tsv"
+        awk -F "$TAB" '!seen[$2]++' "$DATA_DIR/.live-new.tsv" "$DATA_DIR/src-live.tsv" \
+            > "$DATA_DIR/src-live.tsv.tmp"
+        mv "$DATA_DIR/src-live.tsv.tmp" "$DATA_DIR/src-live.tsv"
+        ( rebuild_index >/dev/null 2>&1 & )
+    fi
+    rm -f "$DATA_DIR/.live-new.tsv"
+
+    sel=$(printf '%s\n' "$new" | fzf \
+        --delimiter '\t' --with-nth 1 \
+        --layout=reverse --info=hidden --no-multi \
+        --prompt "live❯ " \
+        --header "apibay: $q · seeded results cached offline · enter open · ctrl-y copy" \
+        --bind "ctrl-y:execute-silent:$0 --magnet {} | pbcopy") || exit 0
+    [ -n "$sel" ] || exit 0
+    magnet=$("$0" --magnet "$sel")
+    echo "$magnet"
+    open "$magnet"
+    ;;
+
 sources)
     ensure_sources
     sel=$(source_table | fzf --header-lines=1 --layout=reverse --info=hidden \
@@ -203,7 +263,7 @@ stats)
     ;;
 
 -h | --help | help)
-    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
     ;;
 
 "")
