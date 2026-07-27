@@ -10,7 +10,7 @@ local send_job = "/Users/nom/.zsh/bin/send-job"
 local topaz_nice = "--nice=19"
 -- Machine whose SMB `jobs` share ⌘S ships the encode to (job-runner picks it up
 -- there). Override per-session with TOPAZ_JOB_HOST=<hostname>.
-local job_host = os.getenv("TOPAZ_JOB_HOST") or "m4"
+local job_host = os.getenv("TOPAZ_JOB_HOST") or "m4.local"
 local preset_catalog = os.getenv("HOME") .. "/.zsh/bin/lib/topaz-preset-catalog.zsh"
 
 -- Active render-menu session (nil when closed). One sheet with three tabs

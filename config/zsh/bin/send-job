@@ -115,7 +115,7 @@ size_of() {
 }
 
 # Compare hosts by their first label, lowercased. Bonjour mounts show up as
-# "M4._smb._tcp.local" while the user types "m4" or "m4.local" — same machine.
+# "M4._smb._tcp.local" while the user types "m4.local"
 normalize_host() {
   local h="${(L)1}"
   print -r -- "${h%%.*}"
