@@ -134,7 +134,6 @@ default_target_type = "symbolic"
 [virtualdj.files]
 "config/virtualdj/Mappers" = { target = "~/Library/Application Support/VirtualDJ/Mappers", type = "symbolic" }
 "config/virtualdj/Pads" = { target = "~/Library/Application Support/VirtualDJ/Pads", type = "symbolic" }
-
 [yt-dlp.files]
 "config/yt-dlp/config" = "~/.config/yt-dlp/config"
 "config/yt-dlp/plugins/__init__.py" = "~/.config/yt-dlp/plugins/__init__.py"

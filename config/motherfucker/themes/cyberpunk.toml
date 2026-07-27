@@ -1,0 +1,22 @@
+# motherfucker theme: Cyberpunk — near-black indigo, acid-yellow highlights,
+# hot-pink and cyan neon over it.
+[style]
+panel_background = "#0D0221"
+panel_opacity = 0.35
+panel_foreground = "#E8E3FF"
+item_foreground = "#E8E3FF"
+item_foreground_highlight = "#FBFF00"  # acid yellow, same as the chord marks
+selected_item_foreground_highlight = "#FBFF00"
+icon_foreground = "#22D3EE"  # cyan
+selected_item_background = "#2A0A4A"
+selected_item_foreground = "#00F0A8"  # mint green section headings
+selected_item_opacity = 0.85
+selected_item_border = "#3A1A5C"  # muted violet, just enough to lift the row
+selected_item_border_width = 1
+item_info_foreground = "#22D3EE"
+item_info_background = "#16103A"
+running_dot = "#00F0A8"
+cpu_alert = "#FF2D8E"
+cpu_alert_background = "#3A0B2A"
+border_width = 1
+border = "#2B1250"  # deep violet hairline, reads as an edge not an outline

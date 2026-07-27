@@ -10,6 +10,7 @@ typeset -g ZSH_CACHE_DIR="$XDG_CACHE_HOME/zsh"
 mkdir -p "$ZSH_CACHE_DIR"
 
 export ICLOUD_HOME=$HOME"/Library/Mobile Documents/com~apple~CloudDocs"
+export TRACKS_DIR=$ICLOUD_HOME/Music/Tracks
 export TAILSCALE_DNS_NAME="eel-beardie.ts.net"
 
 export YT_DLP_ARCHIVE_FILE="$ICLOUD_HOME/Sync/archive.txt"
