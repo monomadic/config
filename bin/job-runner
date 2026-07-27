@@ -3,25 +3,32 @@
 #
 # Triggered by a launchd WatchPaths LaunchAgent on $JOBS_DIR (see
 # setup/install/job-runner.sh). Only top-level *.job files are run;
-# subdirectories and non-.job files are ignored. Each job runs once, then is
-# moved to .processed/ (exit 0) or .failed/ (non-zero) so it never re-runs.
-# All activity is appended to $LOG_FILE.
+# subdirectories and non-.job files are ignored.
+#
+# Lifecycle of a job NAME.job:
+#   1. Renamed in place to NAME.running.job while it runs (the scanner skips
+#      *.running.job, so it is never picked up twice). One job runs at a time.
+#   2. stdout + stderr are captured to NAME.log alongside it.
+#   3. On exit 0 : renamed NAME.done.job and moved to $JOBS_DIR/_done/ (with log).
+#      On failure: renamed NAME.err.job  and moved to $JOBS_DIR/_err/  (with log).
+# A one-line status trail for every job is appended to $LOG_FILE.
 
 set -uo pipefail
 
 JOBS_DIR="${JOBS_DIR:-$HOME/jobs}"
-PROCESSED_DIR="$JOBS_DIR/.processed"
-FAILED_DIR="$JOBS_DIR/.failed"
+DONE_DIR="$JOBS_DIR/_done"
+ERR_DIR="$JOBS_DIR/_err"
 LOCK_DIR="$JOBS_DIR/.lock"
 LOG_FILE="${JOB_RUNNER_LOG:-$HOME/Library/Logs/job-runner.log}"
 SETTLE_SECS="${JOB_RUNNER_SETTLE:-2}"
 
-mkdir -p "$JOBS_DIR" "$PROCESSED_DIR" "$FAILED_DIR" "$(dirname "$LOG_FILE")"
+mkdir -p "$JOBS_DIR" "$DONE_DIR" "$ERR_DIR" "$(dirname "$LOG_FILE")"
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*" >>"$LOG_FILE"; }
 
-# Single-instance lock. A running instance rescans before exiting, so a
-# concurrent trigger can safely bail. Steal a lock left by a killed run (>60m).
+# Single-instance lock => only one job runs at a time. A running instance
+# rescans before exiting, so a concurrent trigger can safely bail. Steal a lock
+# left behind by a killed run (>60m old).
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   if [[ -n "$(find "$LOCK_DIR" -maxdepth 0 -mmin +60 2>/dev/null)" ]]; then
     rmdir "$LOCK_DIR" 2>/dev/null || true
@@ -41,40 +48,66 @@ is_stable() {
   [[ "$s1" == "$s2" ]]
 }
 
-run_one() {
-  local job="$1" base ts rc dest
-  base="$(basename "$job")"
+# Echo a non-colliding path: if $1 exists, insert a timestamp before the
+# ".<suffix>.job" tail so an earlier run's artifact is never clobbered.
+uniq_dest() {
+  local path="$1"
+  [[ -e "$path" ]] || { printf '%s' "$path"; return; }
+  local dir base ts
+  dir="$(dirname "$path")"; base="$(basename "$path")"
   ts="$(date '+%Y%m%d-%H%M%S')"
-  log "RUN  $base"
-  chmod +x "$job" 2>/dev/null || true
+  printf '%s/%s' "$dir" "${base/./.$ts.}"
+}
+
+run_one() {
+  local job="$1" name running logfile rc dest_dir dest_job dest_log
+  name="$(basename "$job")"; name="${name%.job}"
+  running="$JOBS_DIR/$name.running.job"
+  logfile="$JOBS_DIR/$name.log"
+
+  # Claim the job by renaming it out of the scan set before running.
+  if ! mv "$job" "$running" 2>/dev/null; then
+    log "SKIP $name (could not mark running)"
+    return
+  fi
+  log "RUN  $name"
+  chmod +x "$running" 2>/dev/null || true
+
   # Run cd'd into the jobs dir; honour a shebang if present, else use bash.
   (
     cd "$JOBS_DIR" || exit 127
-    if [[ -x "$job" ]]; then
-      "$job"
+    if [[ -x "$running" ]]; then
+      "$running"
     else
-      /bin/bash "$job"
+      /bin/bash "$running"
     fi
-  ) >>"$LOG_FILE" 2>&1
+  ) >"$logfile" 2>&1
   rc=$?
+
   if [[ $rc -eq 0 ]]; then
-    dest="$PROCESSED_DIR/$base.$ts"
-    mv "$job" "$dest"
-    log "DONE $base (exit 0)"
+    dest_dir="$DONE_DIR"; dest_job="$DONE_DIR/$name.done.job"
+    log "DONE $name (exit 0)"
   else
-    dest="$FAILED_DIR/$base.$ts"
-    mv "$job" "$dest"
-    log "FAIL $base (exit $rc)"
+    dest_dir="$ERR_DIR"; dest_job="$ERR_DIR/$name.err.job"
+    log "FAIL $name (exit $rc)"
   fi
+
+  dest_job="$(uniq_dest "$dest_job")"
+  dest_log="$dest_dir/$(basename "${dest_job%.*.job}").log"
+  mv "$running" "$dest_job" 2>/dev/null || log "WARN could not move $name job artifact"
+  mv "$logfile" "$dest_log" 2>/dev/null || true
 }
 
 # Loop until no runnable job remains, so files that arrive during a run are
-# still picked up before we release the lock.
+# still picked up (sequentially) before we release the lock.
 while :; do
   found=0
   shopt -s nullglob
   for job in "$JOBS_DIR"/*.job; do
     [[ -f "$job" ]] || continue   # skip dirs named *.job
+    case "$(basename "$job")" in
+      *.running.job|*.done.job|*.err.job) continue ;;  # in-flight / finished
+    esac
     if ! is_stable "$job"; then
       log "WAIT $(basename "$job") (still uploading)"
       continue
