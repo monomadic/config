@@ -6,6 +6,28 @@
 #
 # Mirrors the widget installers: generates the plist into ~/Library/LaunchAgents
 # (not tracked by Dotter) and bootstraps it into the user's gui domain.
+#
+# Installing on another machine
+# -----------------------------
+# The standard fresh-machine flow wires this in automatically:
+#   1. setup/macos/bootstrap.sh clones the repo and runs Dotter deploy, which
+#      links bin/job-runner -> ~/.bin/job-runner (bin/ is an already-mapped
+#      Dotter package, so no manifest change is needed).
+#   2. setup/macos/server.sh calls this installer near the end, right after the
+#      SMB share that `send-job` ships jobs to. It creates ~/jobs + _done/_err
+#      and loads the com.jayu.job-runner WatchPaths LaunchAgent.
+#
+# To install manually on any machine without the full server script:
+#   setup/macos/deploy.sh && setup/install/job-runner.sh
+#
+# Robustness notes:
+#   - Self-contained: resolves its own repo root, prefers the deployed
+#     ~/.bin/job-runner, and falls back to the in-repo bin/job-runner (which is
+#     executable on clone, mode 100755). Works before or after Dotter deploy.
+#   - Idempotent: boots out any existing agent before bootstrapping, so
+#     re-running is safe.
+#   - Run as your normal user, NOT under sudo -- this installs a per-user
+#     LaunchAgent into gui/$(id -u); under sudo it would land in root's domain.
 
 set -euo pipefail
 
