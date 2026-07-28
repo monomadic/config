@@ -1,15 +1,21 @@
 #!/usr/bin/env zsh
-# gc
+# git-sync
 #
-# AI-powered git commits using Claude or Codex + Gum.
+# AI-assisted git sync using Claude or Codex + Gum.
+#
+# Flow: if the repo has an interrupted merge/rebase with conflicts, the AI
+# resolves them and the merge/rebase is completed, then the repo is synced
+# (pull --rebase, push). Otherwise changes are staged (asking when staged and
+# unstaged changes are mixed), a commit message is generated, and the commit
+# is synced to the remote.
 #
 # Usage:
-#   gc
-#   gc --multi
-#   gc --staged-only
-#   gc --claude
-#   gc --codex
-#   gc --multi --staged-only --claude
+#   git-sync
+#   git-sync --multi
+#   git-sync --staged-only
+#   git-sync --claude
+#   git-sync --codex
+#   git-sync --multi --staged-only --claude
 
 emulate -L zsh
 set -euo pipefail
@@ -17,7 +23,11 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  gc [options]
+  git-sync [options]
+
+AI-assisted git sync. Resolves any interrupted merge/rebase (conflicts are
+fixed by the AI), stages changes (asking when staged and unstaged changes are
+mixed), generates a commit message, then pulls --rebase and pushes.
 
 Options:
   --multi    Generate a multiline conventional commit message
@@ -33,12 +43,12 @@ Environment variables:
   GC_CLAUDE_MODEL         Claude model to use (default: claude-haiku-4-5-20251001)
 
 Examples:
-  gc
-  gc --multi
-  gc --staged-only
-  gc --claude
-  gc --multi --staged-only
-  GC_CLAUDE_MODEL=claude-opus-4-8 gc --claude
+  git-sync
+  git-sync --multi
+  git-sync --staged-only
+  git-sync --claude
+  git-sync --multi --staged-only
+  GC_CLAUDE_MODEL=claude-opus-4-8 git-sync --claude
 EOF
 }
 
@@ -163,7 +173,7 @@ generate_message() {
   case "$GC_BACKEND" in
     claude)
       local err_file="${output_file}.err"
-      # When gc is invoked from inside a Claude Code session, the parent
+      # When git-sync is invoked from inside a Claude Code session, the parent
       # injects session env (nested-session guard, staging OAuth, proxy
       # base URL) that makes a plain `claude` refuse to run or hit a 401.
       # Strip that env so claude authenticates as a normal standalone CLI.
@@ -194,7 +204,7 @@ generate_message() {
     codex)
       # Writing a one-line commit message needs no deep reasoning. The user's
       # global ~/.codex/config.toml may set a high reasoning effort, which makes
-      # every message slow to generate; override it low here just for gc.
+      # every message slow to generate; override it low here just for git-sync.
       # ("minimal" is rejected when web_search/image_gen tools are enabled.)
       if ! gum spin \
         --spinner dot \
@@ -251,6 +261,12 @@ rebase_in_progress() {
   local git_dir
   git_dir=$(git rev-parse --git-dir)
   [[ -d "$git_dir/rebase-merge" || -d "$git_dir/rebase-apply" ]]
+}
+
+merge_in_progress() {
+  local git_dir
+  git_dir=$(git rev-parse --git-dir)
+  [[ -f "$git_dir/MERGE_HEAD" ]]
 }
 
 has_conflicts() {
@@ -341,7 +357,50 @@ resolve_rebase_with_ai() {
   return 0
 }
 
-# Commit, rebase onto the remote, then push. On conflict, offer AI or manual.
+# Complete an interrupted merge: resolve markers with the AI, stage, commit.
+resolve_merge_with_ai() {
+  if has_conflicts; then
+    local files
+    files=$(git diff --name-only --diff-filter=U)
+    info "Resolving conflicts: ${files//$'\n'/, }"
+
+    ai_resolve_conflicts || return 1
+
+    if has_conflicts; then
+      return 1   # backend left markers behind — bail to manual
+    fi
+  fi
+
+  git add -A
+  GIT_EDITOR=true git commit --no-edit >/dev/null 2>&1 || return 1
+}
+
+# Repo is mid-merge or mid-rebase (possibly with conflicts): drive it to a
+# clean HEAD with the AI, then sync. Anything else in-progress (cherry-pick,
+# bisect) is left to the user.
+finish_conflicted_state() {
+  warn "Repository has an interrupted merge/rebase"
+
+  if has_conflicts; then
+    git diff --name-only --diff-filter=U | sed 's/^/  • /'
+  fi
+
+  if rebase_in_progress; then
+    resolve_rebase_with_ai \
+      || die "AI could not finish the rebase — resolve manually (see 'git status')"
+    ok "Conflicts resolved, rebase complete"
+  elif merge_in_progress; then
+    resolve_merge_with_ai \
+      || die "AI could not finish the merge — resolve manually (see 'git status')"
+    ok "Conflicts resolved, merge committed"
+  else
+    die "Conflicts outside a merge/rebase — resolve manually (see 'git status')"
+  fi
+
+  sync_repo
+}
+
+# Rebase onto the remote, then push. On conflict, hand it to the AI.
 sync_repo() {
   info "Syncing with remote (pull --rebase)"
 
@@ -351,30 +410,13 @@ sync_repo() {
   fi
 
   # pull --rebase exited non-zero. Only a genuine rebase conflict is something
-  # we can offer to resolve; anything else (no upstream, network) is the user's.
+  # we can resolve; anything else (no upstream, network) is the user's.
   if ! rebase_in_progress || ! has_conflicts; then
     die "Sync failed — resolve manually, then push (see 'git status')"
   fi
 
   warn "Merge conflicts while rebasing onto the remote:"
   git diff --name-only --diff-filter=U | sed 's/^/  • /'
-
-  local choice
-  choice=$(
-    gum choose \
-      --cursor "› " \
-      --selected-prefix "● " \
-      --unselected-prefix "○ " \
-      --header "Resolve conflicts:" \
-      "automatically (AI)" \
-      "manually (exit)"
-  )
-
-  if [[ "$choice" != "automatically (AI)" ]]; then
-    info "Stopping so you can resolve manually."
-    info "When done:  git rebase --continue  &&  git push"
-    exit 0
-  fi
 
   resolve_rebase_with_ai \
     || die "AI could not finish the rebase — resolve manually (see 'git status')"
@@ -453,21 +495,59 @@ main() {
 
   local flags=("$GC_BACKEND")
   [[ "$GC_MULTI" == "true" ]] && flags+=(multi) || flags+=(single)
-  $staged_only && flags+=(staged-only) || flags+=(stage)
+  $staged_only && flags+=(staged-only)
 
   gum style \
     --border rounded \
     --padding "0 1" \
     --border-foreground 63 \
     --bold \
-    "󰊢 git commit · ${repo_root:t} · ${(j: :)flags}"
+    "󰊢 git sync · ${repo_root:t} · ${(j: :)flags}"
 
-  if ! $staged_only; then
-    info "Staging all changes"
-    git add -A
+  # An interrupted merge/rebase takes priority over everything else: finish it
+  # with the AI, sync, and stop.
+  if rebase_in_progress || merge_in_progress || has_conflicts; then
+    finish_conflicted_state
+    return
   fi
 
-  git diff --cached --quiet && die "No staged changes"
+  local has_staged=false has_unstaged=false
+  git diff --cached --quiet || has_staged=true
+  git diff --quiet || has_unstaged=true
+  [[ -n "$(git ls-files --others --exclude-standard)" ]] && has_unstaged=true
+
+  if ! $staged_only; then
+    if $has_staged && $has_unstaged; then
+      warn "Both staged and unstaged changes present"
+
+      local stage_choice
+      stage_choice=$(
+        gum choose \
+          --cursor "› " \
+          --selected-prefix "● " \
+          --unselected-prefix "○ " \
+          --header "What should be committed?" \
+          "stage everything" \
+          "commit only what's staged"
+      )
+      [[ -n "$stage_choice" ]] || die "Cancelled"
+
+      if [[ "$stage_choice" == "stage everything" ]]; then
+        info "Staging all changes"
+        git add -A
+      fi
+    elif $has_unstaged; then
+      info "Staging all changes"
+      git add -A
+    fi
+  fi
+
+  # Nothing to commit: there may still be local commits to push, so sync.
+  if git diff --cached --quiet; then
+    info "Nothing to commit"
+    sync_repo
+    return
+  fi
 
   local work_dir
   work_dir=$(mktemp -d)
