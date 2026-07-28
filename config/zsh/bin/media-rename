@@ -1,7 +1,7 @@
 #!/bin/zsh
 emulate -L zsh
 
-# rename-media
+# media-rename
 # Analyze common video metadata and rename files to the canonical media-library
 # filename syntax.
 #
@@ -107,6 +107,10 @@ clean_name() {
   local old_brace_format=false
   local open_paren="("
   local close_paren=")"
+
+  # apostrophes are never part of a canonical name; drop them before any
+  # pattern matching so quoting stays predictable downstream
+  name="${name//\'/}"
 
   # Convert source prefixes like "[xHamster - ..." to "(xHamster) - ...".
   while [[ "$name" =~ '\[([^][]+) - ' ]]; do
@@ -299,6 +303,39 @@ get_rotation() {
   print -r -- "$rotation"
 }
 
+rename_path() {
+  local src="$1"
+  local dst="$2"
+  local base tmp n=0
+
+  # On a case-insensitive volume "File.mp4" and "file.mp4" are the same file, so
+  # a case-only rename either no-ops or fails and the old casing sticks. The
+  # same goes for HFS+ Unicode normalization differences. Detect it with -ef and
+  # hop through an intermediary name in the same directory.
+  if [[ ! -e "$dst" ]] || [[ ! "$src" -ef "$dst" ]]; then
+    mv -- "$src" "$dst"
+    return $?
+  fi
+
+  base="${dst:h}/.media-rename.$$"
+  tmp="$base"
+
+  while [[ -e "$tmp" ]]; do
+    (( n++ ))
+    tmp="${base}.${n}"
+  done
+
+  log_verbose "case-only rename; staging through ${tmp:t}"
+
+  mv -- "$src" "$tmp" || return 1
+
+  if ! mv -- "$tmp" "$dst"; then
+    mv -- "$tmp" "$src" 2>/dev/null || \
+      print -u2 -r -- "${YELLOW}${ICON_WARN}Left staged file: ${tmp}${RESET}"
+    return 1
+  fi
+}
+
 process_video() {
   local file="$1"
 
@@ -484,13 +521,13 @@ process_video() {
 
   if [[ "$filename" == "$new_filename" ]]; then
     print -r -- "${YELLOW}${ICON_SKIP}${filename}${RESET}"
-  elif [[ -e "$new_path" ]]; then
+  elif [[ -e "$new_path" ]] && [[ ! "$file" -ef "$new_path" ]]; then
     print -r -- "${YELLOW}${ICON_WARN}Exists: $new_filename${RESET}"
   else
     if $DRY_RUN; then
       print -r -- "${CYAN}${ICON_VIDEO}${new_filename}${RESET}"
     else
-      if mv -- "$file" "$new_path"; then
+      if rename_path "$file" "$new_path"; then
         touch_modified_now "$new_path"
         print -r -- "${GREEN}${ICON_OK}${new_filename}${RESET}"
       else

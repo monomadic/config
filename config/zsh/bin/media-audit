@@ -25,7 +25,7 @@ THUMB_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/media-audit/thumbs"
 THUMB_PX=480
 
 MAX_FILENAME_BYTES=240
-RENAME_MEDIA_TIMEOUT="${RENAME_MEDIA_TIMEOUT:-20}"
+MEDIA_RENAME_TIMEOUT="${MEDIA_RENAME_TIMEOUT:-20}"
 
 typeset -a INPUT_FILES=()
 typeset -i processed_count=0
@@ -97,7 +97,7 @@ Checks:
   black screens/scenes at the start of video
   embedded source URL
   embedded title metadata
-  filename health: invalid UTF-8, rename-media canonical syntax, length
+  filename health: invalid UTF-8, media-rename canonical syntax, length
 
 Options:
   --bypass-check-utf8
@@ -2107,15 +2107,15 @@ check_title_metadata() {
 
 check_canonical_name() {
   local file="$1"
-  local rename_media_cmd target rc
+  local media_rename_cmd target rc
 
   $CHECK_RENAME || return 0
   is_video_path "$file" || return 0
   command -v python3 >/dev/null 2>&1 || return 0
-  rename_media_cmd="$(command -v rename-media 2>/dev/null)" || return 0
+  media_rename_cmd="$(command -v media-rename 2>/dev/null)" || return 0
 
   target="$(
-    python3 - "$RENAME_MEDIA_TIMEOUT" "$rename_media_cmd" "$file" <<'PY'
+    python3 - "$MEDIA_RENAME_TIMEOUT" "$media_rename_cmd" "$file" <<'PY'
 import os
 import signal
 import subprocess
@@ -2167,8 +2167,8 @@ PY
   if (( rc == 124 )); then
     (( FILE_ISSUES++ ))
     issue_screen "filename" "$file"
-    say "filename: rename-media timed out"
-    warn "Skipped canonical rename check after ${RENAME_MEDIA_TIMEOUT}s."
+    say "filename: media-rename timed out"
+    warn "Skipped canonical rename check after ${MEDIA_RENAME_TIMEOUT}s."
     (( fail_count++ ))
     mark_unresolved
     return 1

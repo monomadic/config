@@ -6,7 +6,7 @@ on run {}
   tell application "Finder" to set sel to selection as alias list
   if sel = {} then return
   -- construct the shell command
-  set cmd to "PATH=" & quoted form of customPath & ":$PATH rename-media"
+  set cmd to "PATH=" & quoted form of customPath & ":$PATH media-rename"
   repeat with f in sel
     set cmd to cmd & " " & quoted form of POSIX path of f
   end repeat

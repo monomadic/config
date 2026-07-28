@@ -485,7 +485,7 @@ args = [
 # Example: bind a key to your own script.
 # [commands.rename_script]
 # type = "launch"
-# program = "~/bin/rename-media"
+# program = "~/bin/media-rename"
 # args = ["{path}"]
 
 # Internal actions take parameters too — a skip command with `amount`

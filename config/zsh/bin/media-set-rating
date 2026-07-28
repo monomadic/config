@@ -4,7 +4,7 @@
 #
 # The rating lives in the filename as a trailing " ★★★☆☆" (a single space then
 # exactly five of ★/☆) just before the extension — the same convention parsed
-# by media-parse-filename-to-json, rename-media and private-check-files:
+# by media-parse-filename-to-json, media-rename and private-check-files:
 #
 #   filename example.mp4   ->   filename example ★★★★☆.mp4   (4 stars)
 #
