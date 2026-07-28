@@ -91,7 +91,7 @@ zsh precmd prompt hook in `config/zsh/zshrc.zsh` to work).
 | `setup/` | bootstrap, deploy, and machine-setup entrypoints |
 | `dotter/` | deployment manifests only |
 | `utils/<tool>/` | small personal utility source trees (Go widgets, `leaf` is Rust) — build via `setup/install/*.sh` |
-| `assets/` | fonts and icons |
+| `assets/` | fonts, icons, and colour LUTs (`assets/LUTs/` deploys into Resolve and Final Cut) |
 | `vendor/bin/`, `archive/` | holding areas — don't add to or modify these |
 
 ## Rules that prevent rework

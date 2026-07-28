@@ -126,6 +126,22 @@ default_target_type = "symbolic"
 [cointop.files]
 "config/cointop/config.toml" = "~/.config/cointop/config.toml"
 
+# Resolve scans subfolders of its LUT dir and shows each as a category, so the
+# repo's LUTs land in a "Custom" category alongside the bundled vendor sets
+# rather than replacing them. The LUT dir is world-writable, so no sudo needed.
+[davinci-resolve.files]
+"assets/LUTs" = { target = "/Library/Application Support/Blackmagic Design/DaVinci Resolve/LUT/Custom", type = "symbolic", recurse = false }
+
+# Final Cut's Custom LUT effect scans <Application Support>/ProApps/Custom LUTs
+# (the "ProApps Custom LUTs" path baked into its Filters.bundle). Only .cube and
+# .mga are recognised; the effect lists them flat, so no subfolders here.
+#
+# The source is `assets/LUTs-fcp`, a tracked relative symlink to `assets/LUTs`:
+# Dotter merges packages into one source-keyed map, so the same source path
+# cannot be deployed to two targets. The extra path is what buys the second link.
+[final-cut-pro.files]
+"assets/LUTs-fcp" = { target = "~/Library/Application Support/ProApps/Custom LUTs", type = "symbolic", recurse = false }
+
 [gomu.files]
 "config/gomu/gomu.conf" = "~/.config/gomu/gomu.conf"
 

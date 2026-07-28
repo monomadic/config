@@ -14,7 +14,7 @@ This repo should optimize for two things:
 - Do not add new domain buckets under `config/` such as `editors/`, `media/`, or `windowing/`.
 - Prefer directory names that match the tool or app itself, such as `config/zsh`, `config/helix`, or `config/virtualdj`.
 - Do not keep the same command name implemented in both `bin/` and `config/zsh/bin/`; pick one canonical location.
-- `assets/` holds fonts, icons, and similar static resources.
+- `assets/` holds fonts, icons, LUTs, and similar static resources. Most are inert, but `assets/LUTs/` is deployed by Dotter into DaVinci Resolve and Final Cut Pro.
 - `bin/` and `config/zsh/bin/` contain maintained executables and compatibility wrappers.
 - `utils/` contains small personal utility source trees that are maintained in this repo.
 - `vendor/bin/` contains retained third-party or custom-built binaries.
