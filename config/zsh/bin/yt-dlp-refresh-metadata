@@ -1,13 +1,33 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-# Adopt an existing media file as if yt-dlp had downloaded it from <url>:
-# fetch metadata once (info.json lands in the usual JSON cache), copy the
+# Refresh an existing media file's metadata as if yt-dlp had downloaded it from
+# <url>: fetch metadata once (info.json lands in the usual JSON cache), copy the
 # file to the configured output filename, then run the normal post-processing
-# pipeline (embed metadata etc.) on it via --load-info-json — no re-download.
+# pipeline (embed metadata, chapters and subtitles) on it via --load-info-json —
+# no re-download.
 
 # mirrors --paths/--output "infojson:" in ~/.config/yt-dlp/config
 JSON_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/JSON"
+
+# Everything the config does not already apply globally, so this covers at
+# least what media-audit's metadata fetch writes.
+#
+#   - embed-subs/embed-chapters live in the --porn alias, not the global config
+#   - original_url and the yt_dlp_* upload/timestamp/duration tags have no
+#     global --parse-metadata rule
+#
+# Callers can still override any of these by passing their own flags, which
+# land after these on the command line.
+typeset -a ENRICH_ARGS=(
+  --embed-subs
+  --embed-chapters
+  --sub-langs "en.*,-live_chat"
+  --parse-metadata "%(original_url,webpage_url)s:(?P<meta_original_url>.+)"
+  --parse-metadata "%(upload_date)s:(?P<meta_yt_dlp_upload_date>.+)"
+  --parse-metadata "%(timestamp)s:(?P<meta_yt_dlp_timestamp>.+)"
+  --parse-metadata "%(duration)s:(?P<meta_yt_dlp_duration>.+)"
+)
 
 script_name=${0:t}
 
@@ -96,7 +116,8 @@ fi
 
 # a literal -o (% escaped) makes yt-dlp see the file as already downloaded,
 # so it skips the download and runs only the post-processors
-yt-dlp --load-info-json "$info_json" --no-download-archive "$@" \
+yt-dlp --load-info-json "$info_json" --no-download-archive \
+  "${ENRICH_ARGS[@]}" "$@" \
   -o "${target//\%/%%}"
 
 print -- "$target"

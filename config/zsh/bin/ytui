@@ -22,8 +22,8 @@
 # Keys while downloading:
 #   o   open in mpv — stream the growing .part file (keep downloading)
 #   p   pause / resume the download (SIGSTOP/SIGCONT on yt-dlp)
-#   r   rate 0–5 stars (same star-in-filename convention as media-set-rating)
-#   t   edit the whole proposed filename in $EDITOR (saved text is used as-is)
+#   r   rename — edit the whole proposed filename in $EDITOR (used as-is)
+#   R   rating 0–5 stars (same star-in-filename convention as media-set-rating)
 #   q   quit (Ctrl-C also works)
 #
 # The rating and the edited title/actors/tags feed a proposed filename built
@@ -31,7 +31,7 @@
 #
 #   Actor A, Actor B - [Channel] Title #tag1 #tag2 (Origin) ★★★☆☆.ext
 #
-# If you touch either (r or t), the finished file is renamed to that proposed
+# If you touch either (R or r), the finished file is renamed to that proposed
 # name in place. If you touch neither, yt-dlp's own filename is left untouched.
 #
 # How it works: yt-dlp runs in the background writing a machine-readable
@@ -56,6 +56,7 @@ typeset -gr \
   C_KEY=$'\e[97m'    C_DESC=$'\e[90m'   C_FILE=$'\e[1;36m' \
   C_OK=$'\e[32m'     C_ERR=$'\e[31m'    C_WARN=$'\e[33m'   \
   C_DIM=$'\e[2m'     C_BOLD=$'\e[1m'    C_ACCENT=$'\e[38;5;39m' \
+  C_BAR=$'\e[38;5;46m' \
   C_RESET=$'\e[0m'
 
 die()  { print -ru2 -- "${SELF}: $*"; exit 1; }
@@ -68,7 +69,7 @@ Usage: $SELF [yt-dlp args...] <url>
 Download <url> with yt-dlp behind an interactive TUI. Everything before the URL
 is forwarded to yt-dlp, so config aliases work: e.g. \`$SELF --porn <url>\`.
 
-Keys:  o open in mpv · p pause/resume · r rate · t edit filename (\$EDITOR) · q quit
+Keys:  o open in mpv · p pause/resume · r rename (\$EDITOR) · R rating · q quit
 EOF
 }
 
@@ -218,13 +219,33 @@ cached_thumb() {
   done
 }
 
+# Letterbox a thumbnail onto a fixed 16:9 canvas so the image band always has
+# the same shape, whatever the source aspect (portrait covers, square avatars…).
+# Cached next to the original as <stem>.box.jpg; falls back to the raw file if
+# ffmpeg is missing or fails. The ".box" suffix keeps it invisible to
+# cached_thumb, so the raw cache stays shareable with ytq.
+boxed_thumb() {
+  local src="$1"
+  [[ -n "$src" && -e "$src" ]] || return
+  have ffmpeg || { print -r -- "$src"; return; }
+  local dst="$thumb_cache/${src:t:r}.box.jpg"
+  if [[ ! -e "$dst" || "$src" -nt "$dst" ]]; then
+    ffmpeg -y -loglevel error -i "$src" \
+      -vf "scale=640:360:force_original_aspect_ratio=decrease,pad=640:360:(ow-iw)/2:(oh-ih)/2:black" \
+      "$dst" >/dev/null 2>&1 || { rm -f -- "$dst"; print -r -- "$src"; return; }
+  fi
+  print -r -- "$dst"
+}
+
 # ── proposed filename (reverse of media-parse-filename-to-json) ──────────────
 compose_stem() {
-  # `t` lets you edit the whole filename in $EDITOR; that saved string wins as-is.
+  # `r` lets you edit the whole filename in $EDITOR; that saved string wins as-is.
   [[ -n "$override_stem" ]] && { print -rn -- "$override_stem"; return; }
-  local s=""
+  local s="" ch="$channel"
+  # A channel that just restates the first actor's name adds nothing — drop it.
+  (( ${#actors} )) && [[ "${(L)ch}" == "${(L)actors[1]}" ]] && ch=""
   (( ${#actors} )) && s+="${(j:, :)actors} - "
-  [[ -n "$channel" ]] && s+="[$channel] "
+  [[ -n "$ch" ]] && s+="[$ch] "
   s+="$title"
   local t; for t in "${tags[@]}"; do s+=" #$t"; done
   [[ -n "$origin" ]] && s+=" ($origin)"
@@ -283,9 +304,10 @@ draw_thumb() {
   if   have kitty;  then icat=(kitty +kitten icat)
   elif have kitten; then icat=(kitten icat)
   else return; fi
+  local img; img="$(boxed_thumb "$thumb_file")"; [[ -n "$img" ]] || img="$thumb_file"
   printf '\e[H' >&$tfd                                  # anchor at top-left
   "${icat[@]}" --clear --transfer-mode=file --stdin=no --align=left \
-    --place="${thumb_cols}x${thumb_rows}@0x0" "$thumb_file" >&$tfd 2>/dev/null
+    --place="${thumb_cols}x${thumb_rows}@0x0" "$img" >&$tfd 2>/dev/null
   thumb_drawn=1
 }
 
@@ -316,7 +338,7 @@ draw_bar() {
   (( p > 100 )) && p=100; (( p < 0 )) && p=0
   (( filled = (w * p) / 100 ))
   for (( i = 0; i < w; i++ )); do (( i < filled )) && g+="█" || e+="░"; done
-  print -rn -- "${C_OK}${g}${C_DIM}${e}${C_RESET}"
+  print -rn -- "${C_BAR}${g}${C_DIM}${e}${C_RESET}"
 }
 
 # Truncate to a visible width (input is plain text, no SGR) so a narrow window
@@ -397,7 +419,7 @@ render() {
   if (( gallery )); then
     buf+="  ${C_KEY}o${C_DESC} mpv   ${C_KEY}p${C_DESC} pause   ${C_KEY}q${C_DESC} quit${C_RESET}${nl}"
   else
-    buf+="  ${C_KEY}o${C_DESC} mpv   ${C_KEY}p${C_DESC} pause   ${C_KEY}r${C_DESC} rate   ${C_KEY}t${C_DESC} edit   ${C_KEY}q${C_DESC} quit${C_RESET}${nl}"
+    buf+="  ${C_KEY}o${C_DESC} mpv   ${C_KEY}p${C_DESC} pause   ${C_KEY}r${C_DESC} rename   ${C_KEY}R${C_DESC} rating   ${C_KEY}q${C_DESC} quit${C_RESET}${nl}"
   fi
   buf+=$'\e[J'                        # clear anything below the block
   printf '%s' "$buf" >&$tfd
@@ -587,7 +609,7 @@ rate_modal() {
   done
 }
 
-# `t` — edit the whole proposed filename in $EDITOR. Whatever you save becomes
+# `r` — rename: edit the whole proposed filename in $EDITOR. Whatever you save becomes
 # the filename verbatim (compose_stem then returns it as-is). Seeded with the
 # current proposal; a trailing ".<ext>" left in is trimmed back off. Saving an
 # empty file discards the edit and keeps the field-derived name.
@@ -611,7 +633,7 @@ edit_modal() {
   edited="$(sanitize "$edited")"
 
   if [[ -n "$edited" ]]; then
-    override_stem="$edited"; touched=1; msg="filename set from \$EDITOR"
+    override_stem="$edited"; touched=1; msg=""
   else
     msg="edit discarded (empty)"
   fi
@@ -675,9 +697,9 @@ while true; do
     case "$key" in
       o|O) open_mpv ;;
       p|P) toggle_pause ;;
-      r|R) (( gallery )) && msg="rating is per-file — not available in gallery mode" \
+      R)   (( gallery )) && msg="rating is per-file — not available in gallery mode" \
              || { rate_modal; need_full_redraw=1 } ;;   # the modal owned the screen
-      t|T) (( gallery )) && msg="renaming is per-file — not available in gallery mode" || edit_modal ;;
+      r)   (( gallery )) && msg="renaming is per-file — not available in gallery mode" || edit_modal ;;
       q|Q) leave_tui; print -r -- "${SELF}: cancelled"; exit 130 ;;
     esac
   done

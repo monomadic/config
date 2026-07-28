@@ -69,6 +69,13 @@ typeset -a PENDING_METADATA_ARGS=()
 typeset -a PENDING_FIXES=()
 PENDING_FASTSTART=false
 PENDING_TRIM_START=""
+# Chapters/subtitles ride along with the metadata fetch (see
+# queue_fetched_metadata); they are extra ffmpeg inputs rather than -metadata
+# args, so they are held separately from PENDING_METADATA_ARGS.
+PENDING_CHAPTERS_JSON=""
+PENDING_SUBTITLE_FILE=""
+PENDING_SUBTITLE_LANG=""
+typeset -a PENDING_TMPFILES=()
 THUMB_ENABLE=false
 THUMB_BACKEND=""
 typeset -a THUMB_ICAT=()
@@ -1361,17 +1368,32 @@ check_black_frames() {
 
 PROBE_TITLE=""
 PROBE_URL=""
+PROBE_HAS_CHAPTERS=false
+PROBE_HAS_SUBS=false
 probe_media_tags() {
   local file="$1"
-  local tags_json
+  local tags_json streams_json
 
   PROBE_TITLE=""
   PROBE_URL=""
+  PROBE_HAS_CHAPTERS=false
+  PROBE_HAS_SUBS=false
 
   command -v ffprobe >/dev/null 2>&1 || return 1
   command -v jq >/dev/null 2>&1 || return 1
 
   tags_json="$(ffprobe -v error -show_entries format_tags -of json -- "$file" 2>/dev/null)" || return 1
+
+  # What the file already carries, so an audit re-run does not stack a second
+  # copy of the same chapters or captions on top of the first.
+  streams_json="$(ffprobe -v error -show_chapters \
+    -show_entries stream=codec_type -of json -- "$file" 2>/dev/null)"
+  if [[ -n "$streams_json" ]]; then
+    jq -e '(.chapters // []) | length > 0' <<< "$streams_json" >/dev/null 2>&1 \
+      && PROBE_HAS_CHAPTERS=true
+    jq -e '[(.streams // [])[] | select(.codec_type == "subtitle")] | length > 0' \
+      <<< "$streams_json" >/dev/null 2>&1 && PROBE_HAS_SUBS=true
+  fi
 
   PROBE_TITLE="$(
     jq -r '(.format.tags // {}) | with_entries(.key |= ascii_downcase) | .title // empty' <<< "$tags_json"
@@ -1385,6 +1407,167 @@ probe_media_tags() {
   )"
 
   return 0
+}
+
+# ffmpeg's text subtitle codec for a container, or empty when the container
+# cannot carry one (so the caption is skipped rather than failing the rewrite).
+subtitle_codec_for() {
+  case "${1:l}" in
+    *.mp4|*.mov|*.m4v) print -r -- "mov_text" ;;
+    *.mkv) print -r -- "srt" ;;
+    *.webm) print -r -- "webvtt" ;;
+    *) return 1 ;;
+  esac
+}
+
+# ISO 639-2/B code for the container's language tag; falls back to the raw
+# code, which ffmpeg stores verbatim.
+subtitle_iso3() {
+  case "${1%%-*}" in
+    en) print -r -- "eng" ;;
+    es) print -r -- "spa" ;;
+    de) print -r -- "deu" ;;
+    fr) print -r -- "fra" ;;
+    it) print -r -- "ita" ;;
+    pt) print -r -- "por" ;;
+    ru) print -r -- "rus" ;;
+    ja) print -r -- "jpn" ;;
+    ko) print -r -- "kor" ;;
+    zh) print -r -- "zho" ;;
+    nl) print -r -- "nld" ;;
+    pl) print -r -- "pol" ;;
+    *) print -r -- "${1%%-*}" ;;
+  esac
+}
+
+# Turn yt-dlp's chapters array into an FFMETADATA file for ffmpeg -map_chapters.
+# `shift_secs` is the leading-black trim, if any: chapter times are relative to
+# the untrimmed source, so they slide back by the same amount and chapters that
+# fall entirely inside the trimmed head are dropped. `max_secs` is the local
+# file's own duration — a local copy can be shorter than the source the metadata
+# describes (a clip, an excerpt), so chapters past its end are trimmed off.
+write_chapters_metadata() {
+  local json_file="$1"
+  local out_file="$2"
+  local shift_secs="${3:-0}"
+  local max_secs="${4:-0}"
+
+  python3 - "$json_file" "$out_file" "$shift_secs" "$max_secs" <<'PY'
+import json
+import sys
+
+src, dst, shift = sys.argv[1], sys.argv[2], float(sys.argv[3] or 0)
+limit = float(sys.argv[4] or 0)
+
+with open(src, encoding="utf-8") as fh:
+    chapters = json.load(fh) or []
+
+lines = [";FFMETADATA1"]
+count = 0
+
+for chapter in chapters:
+    try:
+        start = float(chapter.get("start_time"))
+        end = float(chapter.get("end_time"))
+    except (TypeError, ValueError):
+        continue
+
+    start -= shift
+    end -= shift
+    if end <= 0 or end <= start:
+        continue
+    start = max(start, 0.0)
+
+    if limit > 0:
+        if start >= limit:
+            continue
+        end = min(end, limit)
+        if end <= start:
+            continue
+
+    title = (chapter.get("title") or "").strip()
+    # FFMETADATA treats these as syntax, so they are escaped rather than dropped.
+    for ch in ("\\", "=", ";", "#", "\n"):
+        title = title.replace(ch, "\\" + ch if ch != "\n" else "\\\n")
+
+    lines += [
+        "[CHAPTER]",
+        "TIMEBASE=1/1000",
+        f"START={int(round(start * 1000))}",
+        f"END={int(round(end * 1000))}",
+    ]
+    if title:
+        lines.append(f"title={title}")
+    count += 1
+
+if not count:
+    sys.exit(1)
+
+with open(dst, "w", encoding="utf-8") as fh:
+    fh.write("\n".join(lines) + "\n")
+PY
+}
+
+# Download the preferred caption track named in a yt-dlp info JSON. Mirrors the
+# --sub-langs "en.*" preference in ~/.config/yt-dlp/config: exact "en" first,
+# then any en-* variant. Sets PENDING_SUBTITLE_FILE / PENDING_SUBTITLE_LANG.
+fetch_subtitle_track() {
+  local json_file="$1"
+  local container="$2"
+  local lang sub_url sub_ext tmp
+
+  subtitle_codec_for "$container" >/dev/null || return 1
+  command -v curl >/dev/null 2>&1 || return 1
+
+  lang="$(jq -r '
+    (.subtitles // {}) | keys_unsorted as $k
+    | (($k | map(select(. == "en"))) + ($k | map(select(startswith("en")))))[0] // empty
+  ' "$json_file" 2>/dev/null)"
+  [[ -n "$lang" ]] || return 1
+
+  # Prefer the formats ffmpeg reads directly as text subtitles.
+  sub_url="$(jq -r --arg l "$lang" '
+    (.subtitles[$l] // []) as $t
+    | (($t | map(select(.ext == "vtt"))) + ($t | map(select(.ext == "srt"))) + $t)[0].url // empty
+  ' "$json_file" 2>/dev/null)"
+  [[ -n "$sub_url" ]] || return 1
+
+  sub_ext="$(jq -r --arg l "$lang" '
+    (.subtitles[$l] // []) as $t
+    | (($t | map(select(.ext == "vtt"))) + ($t | map(select(.ext == "srt"))) + $t)[0].ext // "vtt"
+  ' "$json_file" 2>/dev/null)"
+  [[ -n "$sub_ext" ]] || sub_ext="vtt"
+
+  tmp="$(mktemp -t media-check-sub.XXXXXX)" || return 1
+  mv -- "$tmp" "${tmp}.${sub_ext}" 2>/dev/null && tmp="${tmp}.${sub_ext}"
+  PENDING_TMPFILES+=("$tmp")
+
+  curl -fsSL --max-time 30 -o "$tmp" -- "$sub_url" >/dev/null 2>&1 || return 1
+  [[ -s "$tmp" ]] || return 1
+
+  # Some hosts gate captions and answer with an HTML error page; embedding that
+  # would fail the whole rewrite, so require it to actually look like a caption.
+  case "$sub_ext" in
+    vtt) head -c 6 -- "$tmp" | grep -q "WEBVTT" || return 1 ;;
+    srt) grep -q -- "-->" "$tmp" || return 1 ;;
+  esac
+
+  PENDING_SUBTITLE_FILE="$tmp"
+  PENDING_SUBTITLE_LANG="$lang"
+  return 0
+}
+
+cleanup_pending_media() {
+  local item
+
+  for item in "${PENDING_TMPFILES[@]}"; do
+    [[ -n "$item" ]] && rm -f -- "$item" 2>/dev/null
+  done
+
+  PENDING_TMPFILES=()
+  PENDING_CHAPTERS_JSON=""
+  PENDING_SUBTITLE_FILE=""
+  PENDING_SUBTITLE_LANG=""
 }
 
 media_duration_seconds() {
@@ -1489,27 +1672,72 @@ rewrite_with_metadata() {
   local dir="${file:h}"
   local base="${file:t:r}"
   local ext="${file:e}"
-  local tmp total errlog
+  local tmp total errlog chapters_meta sub_codec
   local -a ffmpeg_args metadata_args
   integer rc=0
+  integer next_input=1 chapters_input=-1 subs_input=-1
 
   metadata_args=("$@")
 
   command -v ffmpeg >/dev/null 2>&1 || return 1
   tmp="$(mktemp "${dir}/.${base}.metadata.XXXXXX.${ext}")" || return 1
 
+  # Built here rather than at fetch time so the chapter times see the final
+  # trim offset, whichever order the checks resolved in.
+  if [[ -n "$PENDING_CHAPTERS_JSON" ]]; then
+    if chapters_meta="$(mktemp -t media-check-ffmeta.XXXXXX)"; then
+      PENDING_TMPFILES+=("$chapters_meta")
+      write_chapters_metadata "$PENDING_CHAPTERS_JSON" "$chapters_meta" \
+        "${PENDING_TRIM_START:-0}" "$(media_duration_seconds "$file")" \
+        || chapters_meta=""
+    else
+      chapters_meta=""
+    fi
+  fi
+
+  [[ -n "$PENDING_SUBTITLE_FILE" ]] && sub_codec="$(subtitle_codec_for "$file")"
+
   ffmpeg_args=(-hide_banner -loglevel error -nostdin -y)
 
   [[ -n "$PENDING_TRIM_START" ]] && ffmpeg_args+=(-ss "$PENDING_TRIM_START")
 
+  ffmpeg_args+=(-i "$file")
+
+  if [[ -n "$chapters_meta" ]]; then
+    ffmpeg_args+=(-i "$chapters_meta")
+    chapters_input=$next_input
+    (( next_input++ ))
+  fi
+
+  if [[ -n "$PENDING_SUBTITLE_FILE" && -n "$sub_codec" ]]; then
+    # Caption cues are timed against the untrimmed source, so the same -ss
+    # applies to this input to keep them in sync with the video.
+    [[ -n "$PENDING_TRIM_START" ]] && ffmpeg_args+=(-ss "$PENDING_TRIM_START")
+    ffmpeg_args+=(-i "$PENDING_SUBTITLE_FILE")
+    subs_input=$next_input
+    (( next_input++ ))
+  fi
+
   ffmpeg_args+=(
-    -i "$file"
     -map '0:v?'
     -map '0:a?'
     -map '0:s?'
-    -c copy
-    -map_metadata 0
   )
+
+  (( subs_input >= 0 )) && ffmpeg_args+=(-map "${subs_input}:s:0")
+
+  ffmpeg_args+=(-c copy -map_metadata 0)
+
+  (( chapters_input >= 0 )) && ffmpeg_args+=(-map_chapters "$chapters_input")
+
+  if (( subs_input >= 0 )); then
+    # Only reached when the file had no subtitle stream of its own, so the
+    # incoming track is unambiguously s:0.
+    ffmpeg_args+=(
+      -c:s "$sub_codec"
+      -metadata:s:s:0 "language=$(subtitle_iso3 "$PENDING_SUBTITLE_LANG")"
+    )
+  fi
 
   if is_faststart_path "$file"; then
     ffmpeg_args+=(-movflags +faststart+use_metadata_tags)
@@ -1642,6 +1870,21 @@ queue_fetched_metadata() {
   )
 
   [[ -n "$title" ]] && PENDING_METADATA_ARGS+=(-metadata "title=$title")
+
+  # Chapters and captions ride along with this fetch: both are extra ffmpeg
+  # inputs, applied by the same rewrite that writes the tags above. Each is
+  # best-effort and skipped when the file already has its own.
+  if ! $PROBE_HAS_CHAPTERS && jq -e '(.chapters // []) | length > 0' "$tmp_json" >/dev/null 2>&1; then
+    local chapters_json
+    if chapters_json="$(mktemp -t media-check-chapters.XXXXXX.json)"; then
+      PENDING_TMPFILES+=("$chapters_json")
+      if jq -c '.chapters' "$tmp_json" > "$chapters_json" 2>/dev/null; then
+        PENDING_CHAPTERS_JSON="$chapters_json"
+      fi
+    fi
+  fi
+
+  $PROBE_HAS_SUBS || fetch_subtitle_track "$tmp_json" "$AUDIT_PATH" || true
 
   PROBE_TITLE="$title"
   PROBE_URL="$webpage_url"
@@ -1993,6 +2236,7 @@ audit_file() {
   PENDING_FASTSTART=false
   PENDING_TRIM_START=""
   MENU_NOTE=""
+  cleanup_pending_media
   reset_file_checks
   set_current_thumb "$AUDIT_PATH"
   build_file_stats "$AUDIT_PATH"
@@ -2040,6 +2284,7 @@ audit_file() {
   fi
 
   apply_pending_rewrite "$AUDIT_PATH"
+  cleanup_pending_media
   status_line "$AUDIT_PATH"
 
   run_check "filename" check_filename_checks
