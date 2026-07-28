@@ -1,0 +1,391 @@
+#!/usr/bin/env python3
+"""
+vdj-settings — read and write individual VirtualDJ settings
+
+settings.xml is deliberately NOT managed by Dotter. VirtualDJ rewrites the whole
+file every time it quits, and it mixes real preferences in with window geometry,
+CoreAudio device indices, session state and auth tokens (internetLogin,
+tidalAccessCode2). Symlinking it into the repo would publish those and churn on
+every session.
+
+Instead: keep the settings worth caring about in a preset file, and write them
+into settings.xml on demand. This never runs during a Dotter deploy.
+
+Usage:
+  vdj-settings get <key>...              print current values
+  vdj-settings set <key>=<value>...      write values into settings.xml
+  vdj-settings list [pattern]            list known keys (all, or matching)
+  vdj-settings export [-o FILE]          dump modified settings as a preset
+  vdj-settings diff [FILE]               show what apply would change
+  vdj-settings apply [FILE]              write a preset into settings.xml
+
+Keys are leaf tag names, optionally group-qualified for readability:
+  autoGain            automation/autoGain
+
+Options (go after the subcommand: `vdj-settings set --dry-run key=value`):
+  --file PATH   operate on a different settings.xml
+  --dry-run     print what would change, write nothing
+  --force       proceed even if VirtualDJ is running (it will clobber you)
+
+Default preset: $DOTFILES_DIR/config/virtualdj/settings.preset
+Full workflow: config/virtualdj/README.md
+"""
+
+import argparse
+import difflib
+import os
+import re
+import shutil
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+DEFAULT_SETTINGS = Path.home() / "Library/Application Support/VirtualDJ/settings.xml"
+
+# Containers whose children are positional records, not named settings.
+SKIP_GROUPS = {"audioConfig", "skinWindows"}
+# Leaf tags that repeat inside those records.
+SKIP_TAGS = {"audio", "controller", "window", "customButtons"}
+
+# Never exported: secrets, per-machine paths, per-session scratch.
+SECRET_PAT = re.compile(r"login|password|accesscode|token|secret|apikey", re.I)
+VOLATILE_PAT = re.compile(r"^(last|autoUpdate)", re.I)
+PATHY_PAT = re.compile(r"(/Users/|/Volumes/|com~apple~)")
+
+RESET, BOLD, DIM = "\033[0m", "\033[1m", "\033[2m"
+RED, GREEN, YELLOW, CYAN = "\033[31m", "\033[32m", "\033[33m", "\033[36m"
+
+
+def c(code: str, text: str) -> str:
+    if not sys.stdout.isatty() or os.environ.get("NO_COLOR"):
+        return text
+    return f"{code}{text}{RESET}"
+
+
+def die(msg: str) -> "None":
+    print(c(RED, "error:") + " " + msg, file=sys.stderr)
+    sys.exit(1)
+
+
+def dotfiles_dir() -> Path:
+    env = os.environ.get("DOTFILES_DIR")
+    if env:
+        return Path(env)
+    # config/zsh/bin/vdj-settings -> repo root; resolve() follows the deploy symlink
+    return Path(__file__).resolve().parents[3]
+
+
+def default_preset() -> Path:
+    return dotfiles_dir() / "config/virtualdj/settings.preset"
+
+
+def vdj_running() -> bool:
+    return subprocess.run(["pgrep", "-x", "VirtualDJ"],
+                          capture_output=True).returncode == 0
+
+
+def read_raw(path: Path) -> str:
+    # newline='' so the file's CRLF endings survive a round trip
+    with open(path, "r", encoding="utf-8", newline="") as fh:
+        return fh.read()
+
+
+def build_index(path: Path) -> dict:
+    """Map leaf tag -> group tag, for every addressable setting."""
+    try:
+        root = ET.parse(path).getroot()
+    except ET.ParseError as exc:
+        die(f"{path} is not valid XML: {exc}")
+    index, dupes = {}, set()
+    for group in root:
+        if group.tag in SKIP_GROUPS:
+            continue
+        for leaf in group.iter():
+            if leaf is group or len(leaf) or leaf.tag in SKIP_TAGS:
+                continue
+            if leaf.tag in index:
+                dupes.add(leaf.tag)
+            index[leaf.tag] = group.tag
+    for tag in dupes:
+        del index[tag]
+    return index
+
+
+def resolve_key(key: str, index: dict) -> str:
+    """Accept 'autoGain' or 'automation/autoGain', return the leaf tag."""
+    group, _, tag = key.rpartition("/")
+    if tag not in index:
+        near = [k for k in index if tag.lower() in k.lower()][:5]
+        near = near or difflib.get_close_matches(tag, index, n=5, cutoff=0.6)
+        hint = f" Did you mean: {', '.join(near)}?" if near else ""
+        die(f"unknown setting: {key}.{hint}")
+    if group and index[tag] != group:
+        die(f"{tag} lives under {index[tag]}/, not {group}/")
+    return tag
+
+
+def leaf_re(tag: str) -> "re.Pattern":
+    t = re.escape(tag)
+    # <tag/>, <tag />, <tag attr="x"/>, <tag attr="x">value</tag>
+    return re.compile(
+        rf"<{t}(?P<attrs>(?:\s[^>]*?)?)\s*(?:/>|>(?P<value>.*?)</{t}>)",
+        re.DOTALL,
+    )
+
+
+def unescape(text: str) -> str:
+    return (text.replace("&lt;", "<").replace("&gt;", ">")
+                .replace("&quot;", '"').replace("&apos;", "'")
+                .replace("&amp;", "&"))
+
+
+def escape(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def get_value(raw: str, tag: str) -> str:
+    matches = list(leaf_re(tag).finditer(raw))
+    if len(matches) != 1:
+        die(f"expected exactly one <{tag}> in the file, found {len(matches)}")
+    return unescape(matches[0].group("value") or "")
+
+
+def set_value(raw: str, tag: str, value: str) -> str:
+    matches = list(leaf_re(tag).finditer(raw))
+    if len(matches) != 1:
+        die(f"expected exactly one <{tag}> in the file, found {len(matches)}")
+    m = matches[0]
+    # Keep any attributes VirtualDJ set, but assert modified="yes" — that is how
+    # it marks a setting as deliberately changed from the default.
+    attrs = re.sub(r'\s*modified="[^"]*"', "", m.group("attrs") or "")
+    replacement = f'<{tag}{attrs} modified="yes">{escape(value)}</{tag}>'
+    return raw[:m.start()] + replacement + raw[m.end():]
+
+
+def write_raw(path: Path, raw: str, backup: bool = True) -> None:
+    target = path.resolve()
+    if backup:
+        shutil.copy2(target, target.with_suffix(target.suffix + ".vdj-settings.bak"))
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8", newline="") as fh:
+        fh.write(raw)
+    try:
+        ET.parse(tmp)
+    except ET.ParseError as exc:
+        tmp.unlink(missing_ok=True)
+        die(f"refusing to write, result is not valid XML: {exc}")
+    os.replace(tmp, target)
+
+
+def parse_preset(path: Path) -> list:
+    if not path.is_file():
+        die(f"preset not found: {path}")
+    pairs = []
+    for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            die(f"{path}:{lineno}: expected `key = value`, got: {line}")
+        key, _, value = line.partition("=")
+        pairs.append((key.strip(), value.strip()))
+    return pairs
+
+
+def parse_assignments(args: list) -> list:
+    pairs = []
+    for arg in args:
+        if "=" not in arg:
+            die(f"expected key=value, got: {arg}")
+        key, _, value = arg.partition("=")
+        pairs.append((key.strip(), value.strip()))
+    return pairs
+
+
+def plan(raw: str, index: dict, pairs: list) -> list:
+    """-> [(key, tag, old, new, changed)]"""
+    out = []
+    for key, new in pairs:
+        tag = resolve_key(key, index)
+        old = get_value(raw, tag)
+        out.append((key, tag, old, new, old != new))
+    return out
+
+
+def show_plan(rows: list) -> int:
+    changed = [r for r in rows if r[4]]
+    for key, _tag, old, new, is_changed in rows:
+        if is_changed:
+            print(f"  {c(YELLOW, key)}: {c(DIM, old or '(empty)')} -> {c(GREEN, new)}")
+        else:
+            print(c(DIM, f"  {key}: {old} (unchanged)"))
+    return len(changed)
+
+
+def guard_running(force: bool) -> None:
+    if vdj_running() and not force:
+        die("VirtualDJ is running; it rewrites settings.xml on quit and would "
+            "discard these edits. Quit it first, or pass --force.")
+
+
+def cmd_get(args, settings: Path, index: dict) -> None:
+    raw = read_raw(settings)
+    for key in args.keys:
+        tag = resolve_key(key, index)
+        value = get_value(raw, tag)
+        print(f"{index[tag]}/{tag} = {value}" if len(args.keys) > 1 else value)
+
+
+def cmd_list(args, settings: Path, index: dict) -> None:
+    raw = read_raw(settings)
+    pattern = args.pattern
+    for tag in sorted(index, key=lambda t: (index[t], t)):
+        full = f"{index[tag]}/{tag}"
+        if pattern and pattern.lower() not in full.lower():
+            continue
+        print(f"{full} = {get_value(raw, tag)}")
+
+
+def cmd_set(args, settings: Path, index: dict) -> None:
+    raw = read_raw(settings)
+    rows = plan(raw, index, parse_assignments(args.assignments))
+    changed = show_plan(rows)
+    if args.dry_run or not changed:
+        print(c(DIM, "no changes written." if not changed else "--dry-run: nothing written."))
+        return
+    guard_running(args.force)
+    for _key, tag, _old, new, is_changed in rows:
+        if is_changed:
+            raw = set_value(raw, tag, new)
+    write_raw(settings, raw)
+    print(c(GREEN, f"wrote {changed} setting(s) to {settings}"))
+
+
+def cmd_export(args, settings: Path, index: dict) -> None:
+    root = ET.parse(settings).getroot()
+    kept, skipped = [], []
+    for group in root:
+        if group.tag in SKIP_GROUPS:
+            continue
+        for leaf in group.iter():
+            if leaf is group or len(leaf) or leaf.tag in SKIP_TAGS:
+                continue
+            if leaf.attrib.get("modified") != "yes":
+                continue
+            value = (leaf.text or "").strip()
+            key = f"{group.tag}/{leaf.tag}"
+            if SECRET_PAT.search(leaf.tag):
+                skipped.append((key, "secret"))
+            elif VOLATILE_PAT.search(leaf.tag):
+                skipped.append((key, "session state"))
+            elif PATHY_PAT.search(value):
+                skipped.append((key, "machine-specific path"))
+            else:
+                kept.append((key, value))
+
+    lines = [
+        "# VirtualDJ settings worth keeping, applied with `vdj-settings apply`.",
+        "# Generated by `vdj-settings export` from settings.xml's modified=yes entries.",
+        "# settings.xml itself is not tracked: see the header of config/zsh/bin/vdj-settings.",
+        "",
+    ]
+    current = None
+    for key, value in kept:
+        group = key.split("/")[0]
+        if group != current:
+            lines.append(f"\n# --- {group} ---")
+            current = group
+        lines.append(f"{key} = {value}")
+    if skipped:
+        lines.append("\n# Excluded deliberately — do not uncomment:")
+        for key, why in skipped:
+            lines.append(f"#   {key}  ({why})")
+    text = "\n".join(lines) + "\n"
+
+    if args.output == "-":
+        sys.stdout.write(text)
+        return
+    out = Path(args.output) if args.output else default_preset()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(text, encoding="utf-8")
+    print(c(GREEN, f"exported {len(kept)} settings to {out}"))
+    if skipped:
+        print(c(DIM, f"excluded {len(skipped)} (secrets, paths, session state) — listed in the file"))
+
+
+def cmd_diff(args, settings: Path, index: dict) -> None:
+    raw = read_raw(settings)
+    path = Path(args.preset) if args.preset else default_preset()
+    rows = plan(raw, index, parse_preset(path))
+    changed = show_plan(rows)
+    print(c(DIM, f"{changed} of {len(rows)} setting(s) differ from {path}"))
+
+
+def cmd_apply(args, settings: Path, index: dict) -> None:
+    raw = read_raw(settings)
+    path = Path(args.preset) if args.preset else default_preset()
+    rows = plan(raw, index, parse_preset(path))
+    changed = show_plan(rows)
+    if args.dry_run or not changed:
+        print(c(DIM, "already in sync." if not changed else "--dry-run: nothing written."))
+        return
+    guard_running(args.force)
+    for _key, tag, _old, new, is_changed in rows:
+        if is_changed:
+            raw = set_value(raw, tag, new)
+    write_raw(settings, raw)
+    print(c(GREEN, f"applied {changed} setting(s) from {path}"))
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(
+        prog="vdj-settings",
+        description="Read and write individual VirtualDJ settings.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    # Shared by every subcommand. Deliberately NOT also on the top-level parser:
+    # argparse lets a subparser's default clobber a value given before the
+    # subcommand, which would silently point --file at the wrong settings.xml.
+    # Defining them only here makes `vdj-settings --file X get` fail loudly.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--file", type=Path, default=DEFAULT_SETTINGS,
+                        help="settings.xml to operate on")
+    common.add_argument("--dry-run", action="store_true")
+    common.add_argument("--force", action="store_true",
+                        help="proceed even if VirtualDJ is running")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    g = sub.add_parser("get", parents=[common], help="print current values")
+    g.add_argument("keys", nargs="+")
+    g.set_defaults(func=cmd_get)
+
+    s = sub.add_parser("set", parents=[common], help="write key=value into settings.xml")
+    s.add_argument("assignments", nargs="+", metavar="KEY=VALUE")
+    s.set_defaults(func=cmd_set)
+
+    l = sub.add_parser("list", parents=[common], help="list known settings")
+    l.add_argument("pattern", nargs="?")
+    l.set_defaults(func=cmd_list)
+
+    e = sub.add_parser("export", parents=[common], help="dump modified settings as a preset")
+    e.add_argument("-o", "--output", help="output file, or - for stdout")
+    e.set_defaults(func=cmd_export)
+
+    d = sub.add_parser("diff", parents=[common], help="show what apply would change")
+    d.add_argument("preset", nargs="?")
+    d.set_defaults(func=cmd_diff)
+
+    a = sub.add_parser("apply", parents=[common], help="write a preset into settings.xml")
+    a.add_argument("preset", nargs="?")
+    a.set_defaults(func=cmd_apply)
+
+    args = p.parse_args()
+    settings = args.file.expanduser()
+    if not settings.is_file():
+        die(f"settings.xml not found: {settings}")
+    args.func(args, settings, build_index(settings))
+
+
+if __name__ == "__main__":
+    main()

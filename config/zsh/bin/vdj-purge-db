@@ -1,0 +1,82 @@
+#!/usr/bin/env zsh
+# vdj-purge-db
+# Purge ALL cues from VirtualDJ database.xml (macOS)
+# - Makes a timestamped backup first
+# - Removes <PoiList>…</PoiList>, <Poi …/>, and <Poi>…</Poi>
+# - Writes atomically to avoid partial files
+
+set -euo pipefail
+
+# Defaults (override with --db)
+dbfile="${VDJ_DB:-$HOME/Library/Application Support/VirtualDJ/database.xml}"
+
+usage() {
+  print -r -- "Usage: $0 [--db /path/to/database.xml] [--dry-run]"
+  exit 1
+}
+
+dry_run=0
+while (( $# )); do
+  case "$1" in
+    --db)
+      shift || usage
+      dbfile="$1"
+      ;;
+    --dry-run)
+      dry_run=1
+      ;;
+    -h|--help)
+      usage
+      ;;
+    *)
+      print -ru2 -- "Unknown arg: $1"
+      usage
+      ;;
+  esac
+  shift
+done
+
+# Basic sanity checks
+[[ -f "$dbfile" ]] || { print -ru2 -- "database.xml not found: $dbfile"; exit 1; }
+rg -q "<VirtualDJ_Database" "$dbfile" || { print -ru2 -- "Not a VDJ database.xml: $dbfile"; exit 1; }
+
+ts="$(date +"%Y%m%d-%H%M%S")"
+backup="${dbfile}.${ts}.bak"
+tmp="$(mktemp "${dbfile:t}.XXXXXXXX")"
+tmp="${TMPDIR:-/tmp}/${tmp:t}"
+
+# Count POIs before
+before_pois="$(rg -N -c '<Poi' "$dbfile" || true)"
+
+print -r -- "Backing up to: $backup"
+cp -p "$dbfile" "$backup"
+
+# Build transformed file in $tmp via sd passes
+# 1) Remove entire <PoiList>…</PoiList> blocks (dotall)
+sd '(?s)\s*<PoiList>.*?</PoiList>\s*' '' < "$dbfile" > "$tmp.1"
+
+# 2) Remove any self-closing POIs that might exist outside lists
+sd '(?s)\s*<Poi\b[^>]*/>\s*' '' < "$tmp.1" > "$tmp.2"
+
+# 3) Remove any explicit <Poi>…</Poi> pairs outside lists (just in case)
+sd '(?s)\s*<Poi\b.*?</Poi>\s*' '' < "$tmp.2" > "$tmp"
+
+rm -f "$tmp.1" "$tmp.2"
+
+# Count POIs after (in the transformed tmp)
+after_pois="$(rg -N -c '<Poi' "$tmp" || true)"
+
+print -r -- "POIs before: $before_pois"
+print -r -- "POIs after : $after_pois"
+
+if (( dry_run )); then
+  print -r -- "--dry-run: not writing changes. Output is in: $tmp"
+  exit 0
+fi
+
+# Atomic replace
+# Use mv to keep inode semantics simple for VDJ; permissions preserved via cp -p earlier if needed
+mv "$tmp" "$dbfile"
+
+print -r -- "Done. All cues purged from: $dbfile"
+print -r -- "Backup kept at: $backup"
