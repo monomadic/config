@@ -115,9 +115,19 @@ else
 fi
 
 # a literal -o (% escaped) makes yt-dlp see the file as already downloaded,
-# so it skips the download and runs only the post-processors
+# so it skips the download and runs only the post-processors.
+#
+# --trim-filenames 0 (0 = disabled) is load-bearing. The config sets
+# --trim-filenames 200, and that budget is measured differently depending on the
+# -o form: against the filename component alone for a template, but against the
+# *whole string* for a literal path like this one. Without it, a target longer
+# than the budget is silently truncated to a path that was never created, yt-dlp
+# concludes the file is not downloaded, and re-fetches the entire video.
+# $target already came from --print filename above (so it is per-component
+# trimmed) and the file has already been placed there, so it must be used
+# verbatim.
 yt-dlp --load-info-json "$info_json" --no-download-archive \
   "${ENRICH_ARGS[@]}" "$@" \
-  -o "${target//\%/%%}"
+  --trim-filenames 0 -o "${target//\%/%%}"
 
 print -- "$target"
