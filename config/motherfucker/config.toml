@@ -127,7 +127,9 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 [shortcuts]
 # "Movies" = "open -R ~/Movies"
 "Tracks" = "open -R '/Users/nom/Library/Mobile Documents/com~apple~CloudDocs/Music/Tracks'"
-"M4.local: mount tower" = "open -j smb://nom@m4.local/Tower"
+"M4.local: mount tower" = "open -j smb://m4.local/Tower"
+"M4.local: installers" = "open -j smb://m4.local/Tower/Installers"
+"M4.local: jobs" = "open -j smb://m4.local/jobs"
 "SwitchBlade: downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Porn/Downloads"
 "SwitchBlade: sorted local" = "$HOME/.zsh/bin/fd-media --sort-created . ~/Movies/Porn/Downloads | $HOME/.cargo/bin/switchblade --fast-fullscreen"
 "SwitchBlade: sorted all" = "$HOME/.zsh/bin/fd-media --sort-created | $HOME/.cargo/bin/switchblade --fast-fullscreen"
