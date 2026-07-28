@@ -6,9 +6,13 @@ set -euo pipefail
 # file to the configured output filename, then run the normal post-processing
 # pipeline (embed metadata, chapters and subtitles) on it via --load-info-json —
 # no re-download.
+#
+# Only the file itself is mandatory: the URL falls back to the file's embedded
+# metadata, and the info.json falls back to a matching file in the JSON cache.
 
 # mirrors --paths/--output "infojson:" in ~/.config/yt-dlp/config
-JSON_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/JSON"
+JSON_DIR=${YT_DLP_JSON_DIR:-"$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/JSON"}
+JSON_DIR=${~JSON_DIR}
 
 # Everything the config does not already apply globally, so this covers at
 # least what media-audit's metadata fetch writes.
@@ -32,10 +36,14 @@ typeset -a ENRICH_ARGS=(
 script_name=${0:t}
 
 usage() {
-  print -u2 "usage: ${script_name} [--direct-write] [--info-json FILE] <url> <existing-file> [yt-dlp args...]"
+  print -u2 "usage: ${script_name} [--direct-write] [--info-json FILE] [<url>] <existing-file> [yt-dlp args...]"
   print -u2 ""
   print -u2 "  --direct-write    move the original into place instead of working on a copy"
   print -u2 "  --info-json FILE  reuse a cached info.json (skips the metadata fetch)"
+  print -u2 ""
+  print -u2 "With no <url>, it is read from the file's embedded metadata"
+  print -u2 "(original_url/purl/comment tags), and the JSON cache dir is searched for a"
+  print -u2 "matching info.json before falling back to a network fetch."
 }
 
 direct_write=0
@@ -50,14 +58,24 @@ while (( $# )); do
   esac
 done
 
-(( $# >= 2 )) || {
+(( $# >= 1 )) || {
   usage
   exit 2
 }
 
-url=$1
-src=$2
-shift 2
+if [[ $1 == *://* ]]; then
+  (( $# >= 2 )) || {
+    usage
+    exit 2
+  }
+  url=$1
+  src=$2
+  shift 2
+else
+  url=""
+  src=$1
+  shift 1
+fi
 # remaining args are passed through to every yt-dlp invocation
 
 [[ -f $src ]] || {
@@ -68,6 +86,51 @@ shift 2
   print -u2 "error: ${src:t} has no file extension"
   exit 1
 }
+
+# with no <url>, recover it from the tags an earlier yt-dlp run embedded:
+# original_url (this script's own --parse-metadata rule), purl (yt-dlp's
+# default webpage_url tag), or a URL-shaped comment.
+url_from_file_metadata() {
+  command -v ffprobe >/dev/null 2>&1 || return 1
+  ffprobe -v error -show_entries format_tags -of json -- "$src" 2>/dev/null \
+    | jq -r '
+        .format.tags // {} | with_entries(.key |= ascii_downcase)
+        | .original_url
+          // .purl
+          // (.comment | select(. != null and test("://")))
+          // empty
+      '
+}
+
+# look for an info.json in $JSON_DIR whose webpage_url/original_url matches;
+# grep pre-filters so jq only confirms actual candidates.
+find_cached_info_json() {
+  local f
+  [[ -d $JSON_DIR ]] || return 1
+  for f in "$JSON_DIR"/*.info.json(N.); do
+    grep -qF -- "$url" "$f" 2>/dev/null || continue
+    if jq -e --arg url "$url" \
+        '(.webpage_url == $url) or (.original_url == $url)' "$f" >/dev/null 2>&1; then
+      print -r -- "$f"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if [[ -z $url && -z $info_json ]]; then
+  url=$(url_from_file_metadata) || url=""
+  if [[ -z $url ]]; then
+    print -u2 "error: no <url> given and none found in the file's metadata"
+    exit 1
+  fi
+  print -u2 "url from file metadata: $url"
+  if info_json=$(find_cached_info_json); then
+    print -u2 "using cached info.json: $info_json"
+  else
+    info_json=""
+  fi
+fi
 
 if [[ -z $info_json ]]; then
   print -u2 "fetching metadata for $url"

@@ -126,6 +126,11 @@ rules = [
   # Keep filename text neutral
   { url = "*", is = "orphan", fg = "#ff5f87" },
   { url = "*", is = "dummy", fg = "#ff5f87" },
+  # job-runner artifacts (see bin/job-runner)
+  { url = "*.job", fg = "#ffe66d" },
+  { url = "*.job.running", fg = "#7df9aa" },
+  { url = "*.job.log", fg = "#66e2ff" },
+  { url = "*.job.errors", fg = "#ff5f87" },
   { url = "*/", fg = "#f8f8f2" },
   { url = "*", fg = "#f8f8f2" },
 ]
@@ -152,6 +157,12 @@ prepend_globs = [
   { url = "*.mpeg", text = "􀽎 ", fg = "#7df9aa" },
   { url = "*.ts", text = "􀽎 ", fg = "#7df9aa" },
   { url = "*.m2ts", text = "􀽎 ", fg = "#7df9aa" },
+
+  # job-runner artifacts (see bin/job-runner)
+  { url = "*.job", text = "􀍟 ", fg = "#ffe66d" },
+  { url = "*.job.running", text = "􀊕 ", fg = "#7df9aa" },
+  { url = "*.job.log", text = "􀈿 ", fg = "#66e2ff" },
+  { url = "*.job.errors", text = "􀇾 ", fg = "#ff5f87" },
 ]
 
 dirs = [

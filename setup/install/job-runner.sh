@@ -140,7 +140,7 @@ main() {
   echo "  Logs:         $LOG_DIR/job-runner.log (+ .out/.err)"
   echo
   echo "Drop a *.job shell script into $JOBS_DIR to run it."
-  echo "  running -> NAME.running.job   ok -> _done/NAME.done.job   fail -> _err/NAME.err.job"
+  echo "  running -> NAME.job.running   ok -> _done/NAME.job.done   fail -> _err/NAME.job.err"
 }
 
 main "$@"
