@@ -17,3 +17,6 @@ vendor/bin/beatportdl-credentials.json
 
 # browser profiles must never be tracked
 .ug-browser-profile/
+
+# compiled Go binaries built in-tree
+utils/ytform/ytform
