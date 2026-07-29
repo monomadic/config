@@ -1,0 +1,141 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+# Embed chapters — and nothing else — into an existing media file, in place.
+#
+# The URL comes from the file's own embedded metadata, the chapters come from a
+# live yt-dlp extraction, and the rewrite is done with ffmpeg directly rather
+# than yt-dlp's --embed-chapters. That distinction is the whole point: yt-dlp
+# routes chapters through FFmpegMetadataPP, which rewrites the entire tag set
+# from the freshly extracted info dict. Here every stream and every existing tag
+# is copied from the original untouched, and only the chapter list is replaced.
+#
+# Extra args go to the yt-dlp extraction (cookies, aliases, ...); they never
+# reach the ffmpeg step.
+
+script_name=${0:t}
+
+usage() {
+  print -u2 "usage: ${script_name} <file> [yt-dlp args...]"
+  print -u2 ""
+  print -u2 "Reads the URL from the file's embedded metadata (original_url/purl/"
+  print -u2 "comment), fetches that video's chapters, and writes them into the file"
+  print -u2 "in place. No other metadata is modified."
+}
+
+(( $# >= 1 )) || {
+  usage
+  exit 2
+}
+case $1 in
+  -h|--help) usage; exit 0 ;;
+esac
+
+src=$1
+shift
+
+[[ -f $src ]] || {
+  print -u2 "error: no such file: $src"
+  exit 1
+}
+
+for tool in ffprobe ffmpeg jq yt-dlp; do
+  command -v $tool >/dev/null 2>&1 || {
+    print -u2 "error: $tool not found on PATH"
+    exit 1
+  }
+done
+
+# the temp file lives beside the original so the final mv is an atomic rename on
+# the same filesystem — writing it to /tmp would drag the whole file across
+# volumes, which for a multi-GB file on an external disk is the entire cost
+work="${src:h}/.${src:t:r}.chapters-tmp.${src:e}"
+cleanup() { rm -f -- "$work" "${work}.ffmeta" 2>/dev/null; return 0 }
+trap cleanup EXIT INT TERM
+
+# --- url ---------------------------------------------------------------------
+
+url=$(ffprobe -v error -show_entries format_tags -of json -- "$src" 2>/dev/null \
+  | jq -r '
+      .format.tags // {} | with_entries(.key |= ascii_downcase)
+      | .original_url
+        // .purl
+        // (.comment | select(. != null and test("://")))
+        // empty
+    ')
+[[ -n $url ]] || {
+  print -u2 "error: no url embedded in ${src:t} (looked at original_url, purl, comment)"
+  exit 1
+}
+print "found embedded url $url"
+
+# --- chapters ----------------------------------------------------------------
+
+print "fetching metadata..."
+info=$(yt-dlp --skip-download --no-download-archive --no-playlist "$@" --dump-json "$url")
+
+count=$(print -r -- "$info" | jq '(.chapters // []) | length')
+if (( count == 0 )); then
+  print "found 0 chapters — nothing to embed, leaving ${src:t} alone"
+  exit 0
+fi
+print "found $count chapters"
+
+# FFMETADATA needs explicit start/end per chapter. yt-dlp usually supplies both,
+# but fall back to the next chapter's start, then the video duration, so a
+# missing end_time cannot collapse a chapter to zero length.
+print -r -- "$info" | jq -r '
+    (.duration // 0) as $dur
+    | (.chapters // []) as $ch
+    | ";FFMETADATA1",
+      ( $ch
+        | to_entries[]
+        | .key as $i
+        | .value as $c
+        | (($c.start_time // 0) * 1000 | floor) as $start
+        | ((($c.end_time // $ch[$i + 1].start_time // $dur)) * 1000 | floor) as $end
+        | (($c.title // "Chapter \($i + 1)")
+            | gsub("[\n\r]"; " ")
+            | gsub("(?<x>[=;#\\\\])"; "\\" + .x)) as $title
+        | "[CHAPTER]", "TIMEBASE=1/1000", "START=\($start)", "END=\($end)", "title=\($title)"
+      )
+  ' > "${work}.ffmeta"
+
+# --- embed -------------------------------------------------------------------
+
+print "embedding chapters"
+
+# non-standard tags (yt_dlp_*, original_url, actors, ...) only survive an mp4
+# rewrite with this flag; it is rejected by other muxers, so gate it on the ext
+typeset -a mux_args=()
+case ${(L)src:e} in
+  mp4|m4v|m4a|mov) mux_args=(-movflags use_metadata_tags) ;;
+esac
+
+# Map the real streams explicitly instead of -map 0. In MP4 the chapter list is
+# carried by a data track, so -map 0 would copy the previous one through while
+# -map_chapters adds a fresh one, leaving an orphan behind on every run — three
+# runs, three junk data streams. Selecting v/a/s only makes this idempotent and
+# clears any stale track already in the file. The ? suffix keeps a missing
+# stream type from being an error — and must stay quoted, or zsh globs it.
+ffmpeg -v error -y -i "$src" -i "${work}.ffmeta" \
+  -map '0:v?' -map '0:a?' -map '0:s?' -map_metadata 0 -map_chapters 1 \
+  -c copy "${mux_args[@]}" -- "$work"
+
+rm -f -- "${work}.ffmeta"
+
+# --- verify ------------------------------------------------------------------
+
+print -n "checking chapter count.... "
+got=$(ffprobe -v error -show_chapters -of json -- "$work" | jq '.chapters | length')
+if (( got != count )); then
+  print "MISMATCH: expected $count, wrote $got — original left untouched"
+  exit 1
+fi
+print "$got chapters OK!"
+
+# preserve the original's permissions across the swap (BSD chmod has no --)
+chmod "$(stat -f '%Lp' -- "$src")" "$work"
+mv -f -- "$work" "$src"
+
+print "done!"
