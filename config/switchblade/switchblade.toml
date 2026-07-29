@@ -410,6 +410,7 @@ R = "jump_random"  # select a random clip ("jump_to_random" also works)
 T = "trim"
 c = "chapter_mode"
 f = "fast_fullscreen"
+i = "mediainfo"
 n = "next"
 o = "open"
 p = "prev"  # pause-when-unfocused on/off
@@ -481,6 +482,19 @@ args = [
   "/opt/homebrew/bin/yazi",
   "{path}",
 ]
+
+[commands.mediainfo]
+type = "launch"
+program = "/Users/nom/.zsh/bin/kitty-launch"
+args = [
+  "--os-window",
+  "--cwd",
+  "{dir}",
+  "--",
+  "/opt/homebrew/bin/mediainfo",
+  "{path}",
+]
+
 
 # Example: bind a key to your own script.
 # [commands.rename_script]
