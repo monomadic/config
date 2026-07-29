@@ -2,13 +2,19 @@
 set -euo pipefail
 
 # Refresh an existing media file's metadata as if yt-dlp had downloaded it from
-# <url>: fetch metadata once (info.json lands in the usual JSON cache), copy the
-# file to the configured output filename, then run the normal post-processing
-# pipeline (embed metadata, chapters and subtitles) on it via --load-info-json —
-# no re-download.
+# <url>: extract the video's metadata, copy the file to the configured output
+# filename, then run the normal post-processing pipeline (embed metadata,
+# chapters and subtitles) on it — no re-download.
 #
 # Only the file itself is mandatory: the URL falls back to the file's embedded
-# metadata, and the info.json falls back to a matching file in the JSON cache.
+# metadata.
+#
+# Metadata comes from a live extraction by default. A cached info.json is only
+# as good as the extractor was on the day it was written — entries predating an
+# extractor's chapter support report zero chapters for videos that have them
+# today — and it never helps with subtitles, which are stored as URLs and always
+# have to be fetched. --cache-lookup opts into the cache anyway, for when
+# skipping the network or surviving a dead URL matters more.
 
 # mirrors --paths/--output "infojson:" in ~/.config/yt-dlp/config
 JSON_DIR=${YT_DLP_JSON_DIR:-"$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/JSON"}
@@ -36,22 +42,27 @@ typeset -a ENRICH_ARGS=(
 script_name=${0:t}
 
 usage() {
-  print -u2 "usage: ${script_name} [--direct-write] [--info-json FILE] [<url>] <existing-file> [yt-dlp args...]"
+  print -u2 "usage: ${script_name} [--direct-write] [--cache-lookup] [--info-json FILE] [<url>] <existing-file> [yt-dlp args...]"
   print -u2 ""
   print -u2 "  --direct-write    move the original into place instead of working on a copy"
-  print -u2 "  --info-json FILE  reuse a cached info.json (skips the metadata fetch)"
+  print -u2 "  --cache-lookup    reuse a matching info.json from the JSON cache when one"
+  print -u2 "                    exists, falling back to a live extraction; skips the"
+  print -u2 "                    network and works for dead URLs, but its chapters and"
+  print -u2 "                    tags are only as good as the extractor was when written"
+  print -u2 "  --info-json FILE  reuse a specific info.json (skips extraction entirely)"
   print -u2 ""
   print -u2 "With no <url>, it is read from the file's embedded metadata"
-  print -u2 "(original_url/purl/comment tags), and the JSON cache dir is searched for a"
-  print -u2 "matching info.json before falling back to a network fetch."
+  print -u2 "(original_url/purl/comment tags)."
 }
 
 direct_write=0
+cache_lookup=0
 info_json=""
 
 while (( $# )); do
   case $1 in
     --direct-write) direct_write=1; shift ;;
+    --cache-lookup) cache_lookup=1; shift ;;
     --info-json) info_json=$2; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) break ;;
@@ -87,76 +98,114 @@ fi
   exit 1
 }
 
+# the file's embedded format tags, read once, with keys lowercased
+typeset -g _file_tags=""
+file_tags() {
+  if [[ -z $_file_tags ]]; then
+    command -v ffprobe >/dev/null 2>&1 || return 1
+    _file_tags=$(ffprobe -v error -show_entries format_tags -of json -- "$src" 2>/dev/null \
+      | jq -c '.format.tags // {} | with_entries(.key |= ascii_downcase)') || return 1
+    [[ -n $_file_tags ]] || return 1
+  fi
+  print -r -- "$_file_tags"
+}
+
 # with no <url>, recover it from the tags an earlier yt-dlp run embedded:
 # original_url (this script's own --parse-metadata rule), purl (yt-dlp's
 # default webpage_url tag), or a URL-shaped comment.
 url_from_file_metadata() {
-  command -v ffprobe >/dev/null 2>&1 || return 1
-  ffprobe -v error -show_entries format_tags -of json -- "$src" 2>/dev/null \
-    | jq -r '
-        .format.tags // {} | with_entries(.key |= ascii_downcase)
-        | .original_url
-          // .purl
-          // (.comment | select(. != null and test("://")))
-          // empty
-      '
+  local tags
+  tags=$(file_tags) || return 1
+  print -r -- "$tags" | jq -r '
+      .original_url
+        // .purl
+        // (.comment | select(. != null and test("://")))
+        // empty
+    '
 }
 
-# look for an info.json in $JSON_DIR whose webpage_url/original_url matches;
-# grep pre-filters so jq only confirms actual candidates.
+# The infojson output template in the config is "%(extractor)s_%(id)s", and the
+# config's --parse-metadata rules embed those same two values as
+# yt_dlp_extractor/yt_dlp_id tags, so a cache entry can be addressed directly
+# rather than searched for. That matters: $JSON_DIR lives in iCloud Drive, where
+# reading an evicted file forces a network round trip, so content-scanning the
+# whole directory materialises every entry — minutes, not seconds. This opens
+# exactly one file.
 find_cached_info_json() {
-  local f
+  local tags extractor id f
   [[ -d $JSON_DIR ]] || return 1
-  for f in "$JSON_DIR"/*.info.json(N.); do
+
+  if tags=$(file_tags); then
+    extractor=$(print -r -- "$tags" | jq -r '.yt_dlp_extractor // empty')
+    id=$(print -r -- "$tags" | jq -r '.yt_dlp_id // empty')
+    if [[ -n $extractor && -n $id ]]; then
+      f="$JSON_DIR/${extractor}_${id}.info.json"
+      if [[ -f $f ]]; then
+        print -r -- "$f"
+        return 0
+      fi
+      # those tags name the cache entry exactly, so a miss here is conclusive
+      return 1
+    fi
+  fi
+
+  # Files predating those tags still need a content scan, but restrict it to
+  # entries already materialised on disk so a miss can never stall on iCloud.
+  [[ -n $url ]] || return 1
+  while IFS= read -r f; do
     grep -qF -- "$url" "$f" 2>/dev/null || continue
     if jq -e --arg url "$url" \
         '(.webpage_url == $url) or (.original_url == $url)' "$f" >/dev/null 2>&1; then
       print -r -- "$f"
       return 0
     fi
-  done
+  done < <(find "$JSON_DIR" -maxdepth 1 -name '*.info.json' ! -flags +dataless 2>/dev/null)
   return 1
 }
 
-if [[ -z $url && -z $info_json ]]; then
-  url=$(url_from_file_metadata) || url=""
-  if [[ -z $url ]]; then
-    print -u2 "error: no <url> given and none found in the file's metadata"
-    exit 1
-  fi
-  print -u2 "url from file metadata: $url"
-  if info_json=$(find_cached_info_json); then
-    print -u2 "using cached info.json: $info_json"
-  else
-    info_json=""
-  fi
-fi
-
 if [[ -z $info_json ]]; then
-  print -u2 "fetching metadata for $url"
-  # --print with a bare template avoids --paths/-o prefixes; this template
-  # must stay in sync with the infojson output template in the config
-  key=$(yt-dlp --skip-download --no-simulate --no-playlist --no-download-archive \
-    --write-info-json "$@" --print "%(extractor)s_%(id)s" "$url")
-  key_lines=("${(f)key}")
-  if (( ${#key_lines} != 1 )); then
-    print -u2 "error: URL resolved to ${#key_lines} videos"
-    exit 1
+  if [[ -z $url ]]; then
+    url=$(url_from_file_metadata) || url=""
+    if [[ -z $url ]]; then
+      print -u2 "error: no <url> given and none found in the file's metadata"
+      exit 1
+    fi
+    print -u2 "url from file metadata: $url"
   fi
-  info_json="$JSON_DIR/$key.info.json"
+
+  if (( cache_lookup )); then
+    if info_json=$(find_cached_info_json); then
+      print -u2 "using cached info.json: $info_json"
+    else
+      info_json=""
+      print -u2 "no cached info.json; extracting from source"
+    fi
+  fi
 fi
 
-[[ -f $info_json ]] || {
-  print -u2 "error: info.json not found: $info_json"
-  exit 1
-}
+# where metadata comes from for both yt-dlp runs below
+typeset -a SOURCE_ARGS
+if [[ -n $info_json ]]; then
+  [[ -f $info_json ]] || {
+    print -u2 "error: info.json not found: $info_json"
+    exit 1
+  }
+  SOURCE_ARGS=(--load-info-json "$info_json")
+else
+  SOURCE_ARGS=("$url" --no-playlist)
+fi
 
 # expected output path per the normal config, keeping the source extension
-fname=$(yt-dlp --load-info-json "$info_json" --no-download-archive --print filename "$@")
+fname=$(yt-dlp "${SOURCE_ARGS[@]}" --no-download-archive --print filename "$@")
 [[ -n $fname ]] || {
   print -u2 "error: could not determine target filename"
   exit 1
 }
+fname_lines=("${(f)fname}")
+if (( ${#fname_lines} != 1 )); then
+  print -u2 "error: URL resolved to ${#fname_lines} videos"
+  exit 1
+fi
 target="${fname:r}.${src:e}"
 
 if [[ ${fname:e} != ${src:e} ]]; then
@@ -189,7 +238,7 @@ fi
 # $target already came from --print filename above (so it is per-component
 # trimmed) and the file has already been placed there, so it must be used
 # verbatim.
-yt-dlp --load-info-json "$info_json" --no-download-archive \
+yt-dlp "${SOURCE_ARGS[@]}" --no-download-archive \
   "${ENRICH_ARGS[@]}" "$@" \
   --trim-filenames 0 -o "${target//\%/%%}"
 

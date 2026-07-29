@@ -206,6 +206,22 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
+gui_session() {
+  # Aqua = inside the logged-in GUI session; ssh/cron/launchd land in Background.
+  [[ "$(launchctl managername 2>/dev/null)" == "Aqua" ]]
+}
+
+run_inline_fallback() {
+  [[ -t 0 && -t 1 ]] || return 1
+
+  $debug && {
+    print -u2 -- "mode:            inline"
+    print -u2 -- "command:         ${(q)command_argv[@]}"
+  }
+
+  exec "${command_argv[@]}"
+}
+
 activate_kitty() {
   osascript -e 'tell application id "net.kovidgoyal.kitty" to activate' >/dev/null 2>&1 || \
   osascript -e 'tell application "kitty" to activate' >/dev/null 2>&1 || \
@@ -213,7 +229,8 @@ activate_kitty() {
 }
 
 have kitty || {
-  print -u2 -- "kitty not found in PATH"
+  run_inline_fallback
+  print -u2 -- "kitty not found in PATH and no tty to run inline"
   exit 127
 }
 
@@ -326,6 +343,14 @@ if discovered_socket="$(discover_socket)"; then
 
   exit 0
 fi
+
+# No reachable socket. Spawning a fresh Kitty only makes sense inside the
+# logged-in GUI session; over ssh (or from cron/launchd) run inline instead.
+gui_session || {
+  run_inline_fallback
+  print -u2 -- "no reachable Kitty socket, no GUI session, and no tty to run inline"
+  exit 1
+}
 
 $debug && {
   print -u2 -- "mode:            fallback-new-kitty"

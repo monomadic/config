@@ -3,12 +3,11 @@
 set -euo pipefail
 
 APP_NAME="battery-widget"
-BUNDLE_NAME="Battery Widget"
 LABEL="${LABEL:-com.jayu.battery-widget}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
 SOURCE_BINARY="${SOURCE_BINARY:-$DOTFILES_DIR/vendor/bin/$APP_NAME}"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/Applications}"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 LAUNCH_AGENTS_DIR="${LAUNCH_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
 LOG_DIR="${LOG_DIR:-$HOME/Library/Logs}"
 
@@ -27,39 +26,6 @@ plist_escape() {
       -e 's/>/\&gt;/g' \
       -e 's/"/\&quot;/g' \
       -e "s/'/\&apos;/g"
-}
-
-# menuet requires a real .app bundle: UNUserNotificationCenter (initialized
-# unconditionally at startup) throws for a loose executable.
-write_app_bundle() {
-  local bundle_path="$1"
-  local binary_dir="$bundle_path/Contents/MacOS"
-
-  mkdir -p "$binary_dir"
-  install -m 0755 "$SOURCE_BINARY" "$binary_dir/$APP_NAME"
-
-  cat >"$bundle_path/Contents/Info.plist" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleIdentifier</key>
-  <string>$LABEL</string>
-  <key>CFBundleName</key>
-  <string>$BUNDLE_NAME</string>
-  <key>CFBundleExecutable</key>
-  <string>$APP_NAME</string>
-  <key>CFBundlePackageType</key>
-  <string>APPL</string>
-  <key>CFBundleShortVersionString</key>
-  <string>1.0</string>
-  <key>LSUIElement</key>
-  <true/>
-</dict>
-</plist>
-EOF
-  plutil -lint "$bundle_path/Contents/Info.plist" >/dev/null
-  codesign --force --sign - "$bundle_path"
 }
 
 write_launch_agent() {
@@ -115,25 +81,24 @@ main() {
   require_command install
   require_command launchctl
   require_command plutil
-  require_command codesign
   require_command sed
 
   if [[ ! -x "$SOURCE_BINARY" ]]; then
     echo "Error: missing executable source binary: $SOURCE_BINARY" >&2
-    echo "Rebuild it with: go build -ldflags='-s -w' -o '$SOURCE_BINARY' '$DOTFILES_DIR/utils/$APP_NAME'" >&2
+    echo "Rebuild it with: cargo build --release --manifest-path '$DOTFILES_DIR/utils/$APP_NAME/Cargo.toml' && cp '$DOTFILES_DIR/utils/$APP_NAME/target/release/$APP_NAME' '$SOURCE_BINARY'" >&2
     exit 1
   fi
 
-  local bundle_path plist_path
-  bundle_path="$INSTALL_DIR/$BUNDLE_NAME.app"
+  local binary_path plist_path
+  binary_path="$INSTALL_DIR/$APP_NAME"
   plist_path="$LAUNCH_AGENTS_DIR/$LABEL.plist"
 
-  echo "Assembling app bundle at $bundle_path..."
+  echo "Installing binary from $SOURCE_BINARY to $binary_path..."
   mkdir -p "$INSTALL_DIR" "$LAUNCH_AGENTS_DIR" "$LOG_DIR"
-  write_app_bundle "$bundle_path"
+  install -m 0755 "$SOURCE_BINARY" "$binary_path"
 
   echo "Writing LaunchAgent to $plist_path..."
-  write_launch_agent "$bundle_path/Contents/MacOS/$APP_NAME" "$plist_path"
+  write_launch_agent "$binary_path" "$plist_path"
   plutil -lint "$plist_path" >/dev/null
 
   bootstrap_launch_agent "$plist_path"
