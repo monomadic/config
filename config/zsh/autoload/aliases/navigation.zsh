@@ -83,4 +83,4 @@ alias sb-fast-new="print -rl -- **/*(.om[1,200]) | sb"
 
 alias .tab=fzf-tablature
 alias t=fzf-tablature
-alias .chordpro="cd '${TABLATURE_DIR}/ChordPro' && chordpro-tui ."
+alias .chordpro="chordpro-tui '${TABLATURE_DIR}/ChordPro'"
