@@ -1,7 +1,7 @@
 [mgr]
 ratio = [1, 4, 1]
 scrolloff = 5
-linemode = "size"
+#linemode = "size"
 mouse_events = ["click", "scroll", "touch", "move", "drag"]
 
 [preview]

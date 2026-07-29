@@ -44,6 +44,7 @@ alias gb="git branch "$@" --sort=-committerdate --sort=-HEAD --format=$'%(HEAD) 
 alias git-stage-last-commit="git reset --soft HEAD~"
 alias branch="b"
 alias lg=lazygit
+alias sync="git-sync"
 
 # ============================================================================
 # Rust/Cargo
