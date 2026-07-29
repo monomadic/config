@@ -2,14 +2,17 @@
 # job-runner — execute *.job shell scripts dropped into a watch folder.
 #
 # Triggered by a launchd WatchPaths LaunchAgent on $JOBS_DIR (see
-# setup/install/job-runner.sh). Only top-level *.job files are run;
-# subdirectories and non-.job files are ignored.
+# setup/install/install-job-runner.sh, which installs this script to
+# ~/.local/bin). Only top-level *.job files are run; subdirectories and
+# non-.job files are ignored.
 #
 # Lifecycle of a job NAME.job (first *.job alphabetically runs first):
 #   1. Renamed in place to NAME.job.running while it runs. The scanner only
 #      matches *.job, so a claimed job can never be picked up twice. One job
 #      runs at a time.
-#   2. stdout is captured to NAME.job.log, stderr to NAME.job.errors.
+#   2. Runs cd'd into $JOBS_DIR with JOB_NAME=NAME, JOB_FILE, JOB_DIR
+#      exported, and TERM=dumb / NO_COLOR=1 / CLICOLOR=0 set for clean logs.
+#      stdout is captured to NAME.job.log, stderr to NAME.job.errors.
 #   3. On exit 0 : renamed NAME.job.done and moved to $JOBS_DIR/_done/,
 #                  along with its .log.
 #      On failure: renamed NAME.job.err and moved to $JOBS_DIR/_err/,
@@ -81,8 +84,13 @@ run_one() {
   chmod +x "$running" 2>/dev/null || true
 
   # Run cd'd into the jobs dir; honour a shebang if present, else use bash.
+  # JOB_NAME lets a job reference its target without knowing the rename
+  # scheme (foo.mp4.job => JOB_NAME=foo.mp4). TERM=dumb / NO_COLOR make
+  # well-behaved tools drop progress-bar redraws and ANSI color in the logs.
   (
     cd "$JOBS_DIR" || exit 127
+    export JOB_NAME="$name" JOB_FILE="$running" JOB_DIR="$JOBS_DIR"
+    export TERM=dumb NO_COLOR=1 CLICOLOR=0
     if [[ -x "$running" ]]; then
       "$running"
     else

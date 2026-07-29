@@ -32,8 +32,10 @@ var (
 	stWarn   = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
 	stErr    = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
 	stStar   = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
-	stLabel  = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	stLabel  = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
 	stBorder = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	stTitle  = lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Bold(true)
+	stURL    = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
 )
 
 type model struct {
@@ -46,11 +48,11 @@ type model struct {
 	focus  int
 	rating int
 
-	pct                         int
-	dlStr, totStr, spdStr, eta  string
-	status, phase               string
-	paused                      bool
-	thumb                       string
+	pct                        int
+	dlStr, totStr, spdStr, eta string
+	status, phase              string
+	paused                     bool
+	thumb                      string
 
 	done      bool
 	exitCode  int
@@ -255,7 +257,7 @@ func (m model) View() string {
 		barw = 46
 	}
 
-	b.WriteString("\n  " + stBold.Render("ytform") + " " + stDim.Render(clip(m.url, textw-8)) + "\n\n")
+	b.WriteString("\n  " + stTitle.Render("ytform") + "\n\n")
 
 	if m.thumb != "" {
 		for _, l := range strings.Split(m.thumb, "\n") {
@@ -283,7 +285,7 @@ func (m model) View() string {
 	if m.phase != "" {
 		b.WriteString("   " + stDim.Render(clip(m.phase, textw)) + "\n")
 	}
-	b.WriteString("\n")
+	b.WriteString("\n  " + stURL.Render(clip(m.url, textw)) + "\n\n")
 
 	for i := 0; i < fCount; i++ {
 		cursor := "  "
@@ -299,8 +301,7 @@ func (m model) View() string {
 		}
 	}
 
-	b.WriteString("\n  " + stLabel.Render("file    ") + " " +
-		stFile.Render(clip(m.meta().Stem()+"."+m.pf.Ext, textw-8)) + "\n\n")
+	b.WriteString("\n  " + stFile.Render(clip(m.meta().Stem()+"."+m.pf.Ext, textw)) + "\n\n")
 
 	if m.done {
 		b.WriteString("  " + stOK.Render("done") + stDim.Render(" — ") +

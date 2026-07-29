@@ -129,10 +129,12 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "Tracks" = "open -R '/Users/nom/Library/Mobile Documents/com~apple~CloudDocs/Music/Tracks'"
 "M4.local: mount tower" = "open -j smb://m4.local/Tower"
 "M4.local: installers" = "open -j smb://m4.local/Tower/Installers"
-"M4.local: jobs" = "open -j smb://m4.local/jobs"
+"M4.local: mount jobs" = "/Users/nom/.zsh/bin/kitty-launch -- open -j -g smb://m4.local/jobs & yazi /Volumes/jobs"
+"Yazi: M4.local: jobs" = "/Users/nom/.zsh/bin/kitty-launch -- open -j -g smb://m4.local/jobs ; yazi /Volumes/jobs"
 "SwitchBlade: downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Porn/Downloads"
 "SwitchBlade: sorted local" = "$HOME/.zsh/bin/fd-media --sort-created . ~/Movies/Porn/Downloads | $HOME/.cargo/bin/switchblade --fast-fullscreen"
 "SwitchBlade: sorted all" = "$HOME/.zsh/bin/fd-media --sort-created | $HOME/.cargo/bin/switchblade --fast-fullscreen"
+"SwitchBlade: drives" = "$HOME/.cargo/bin/switchblade --fast-fullscreen /Volumes/*/Movies/Porn"
 "System Settings: displays" = "open 'x-apple.systempreferences:com.apple.preference.displays'"
 "System Settings: keyboard" = "open 'x-apple.systempreferences:com.apple.Keyboard-Settings.extension'"
 "System Settings: wallpaper" = "open 'x-apple.systempreferences:com.apple.Wallpaper-Settings.extension'"
@@ -145,8 +147,9 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "System: lock" = "open -a ScreenSaverEngine"
 "System: shutdown" = "osascript -e 'tell app \"System Events\" to shut down'"
 "System: restart" = "osascript -e 'tell app \"System Events\" to restart'"
-"Motherfucker: restart" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
-"Motherfucker: configure" = "/Users/nom/.zsh/bin/kitty-launch --cwd ~/.config/motherfucker -- /opt/homebrew/bin/hx config.toml"
+"Motherfucker: reload" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
+"Config: motherfucker" = "/Users/nom/.zsh/bin/kitty-launch --cwd ~/.config/motherfucker -- /opt/homebrew/bin/hx config.toml"
+"Config: switchblade" = "/Users/nom/.zsh/bin/kitty-launch --cwd ~/.config -- /opt/homebrew/bin/hx switchblade.toml"
 
 # Sigil modes: typing one of these as the FIRST character switches the
 # panel into that mode. The sigil is lifted into a colored box (not left in

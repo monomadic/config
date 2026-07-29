@@ -18,9 +18,9 @@ import (
 
 // messages the download goroutine sends into the UI
 type progressMsg struct {
-	Pct                int
-	DL, Tot, Spd, Eta  string
-	Status             string
+	Pct               int
+	DL, Tot, Spd, Eta string
+	Status            string
 }
 type finalPathMsg string // after_move:FINALPATH — the real output path
 type logMsg string       // any other yt-dlp line (phase message / error ring)

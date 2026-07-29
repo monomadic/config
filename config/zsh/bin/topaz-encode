@@ -125,6 +125,52 @@ topaz_safe_log_label() {
   print -r -- "$label"
 }
 
+# The mpv workflow builds preset names as "Enhance + Res + Interp + Output";
+# only the first (enhancement) part belongs in a filename tag.
+topaz_short_preset_label() {
+  emulate -L zsh
+  print -r -- "${1%% + *}"
+}
+
+# Drop every trailing "[...]" group from a filename stem, so an existing tag
+# ("[1080p 60fps h264 ...]", an old "[Topaz - ...]") is replaced by the new
+# Topaz tag instead of stacking up.
+topaz_strip_trailing_brackets() {
+  emulate -L zsh
+  setopt localoptions extendedglob
+  local stem="$1" prev=""
+
+  while [[ "$stem" != "$prev" ]]; do
+    prev="$stem"
+    stem="${stem%%[[:space:]]##}"
+    [[ "$stem" == *\[*\] ]] && stem="${stem%\[*\]}"
+  done
+  stem="${stem%%[[:space:]]##}"
+
+  if [[ -z "${stem//[[:space:]]/}" ]]; then
+    print -r -- "$1"
+  else
+    print -r -- "$stem"
+  fi
+}
+
+# "<dir>/<stem><suffix>", with stem cut down so the name stays comfortably
+# under the 255-byte filename limit (headroom for " [resume tail]" sidecars).
+topaz_fit_filename() {
+  emulate -L zsh
+  setopt localoptions extendedglob
+  local dir="$1" stem="$2" suffix="$3"
+  integer max_bytes=200 bytes
+
+  bytes=$(print -rn -- "${stem}${suffix}" | wc -c)
+  while (( bytes > max_bytes && ${#stem} > 1 )); do
+    stem="${stem[1,-2]}"
+    bytes=$(print -rn -- "${stem}${suffix}" | wc -c)
+  done
+  stem="${stem%%[[:space:]]##}"
+  print -r -- "${dir}/${stem}${suffix}"
+}
+
 topaz_open_log_tail() {
   emulate -L zsh
   local log_file="$1"
@@ -1067,7 +1113,6 @@ integer trash_fail_count=0
 
 for input in "$files[@]"; do
   ext="${input:e}"
-  stem="${input:r}"
   base="${input:t:r}"
   output_ext="${preset_output_ext:-$ext}"
   output_ext="${output_ext#.}"
@@ -1099,15 +1144,19 @@ for input in "$files[@]"; do
     )
   fi
 
-  filename_preset="$(topaz_file_preset_label "$preset_name")"
+  filename_preset="$(topaz_file_preset_label "$(topaz_short_preset_label "$preset_name")")"
   safe_preset="$(topaz_safe_log_label "$filename_preset")"
 
+  # Any trailing "[...]" tags on the source name are replaced by the Topaz tag,
+  # and overlong names are cropped rather than erroring at open time.
+  clean_base="$(topaz_strip_trailing_brackets "$base")"
+
   if [[ "$preview_mode" == true ]]; then
-    output="${stem} [Topaz Preview ${preview_seconds}s - ${filename_preset}].${output_ext}"
-    log_file="${LOG_DIR}/${base} [Topaz Preview ${preview_seconds}s - ${safe_preset}].log"
+    output="$(topaz_fit_filename "${input:h}" "$clean_base" " [Topaz Preview ${preview_seconds}s - ${filename_preset}].${output_ext}")"
+    log_file="$(topaz_fit_filename "$LOG_DIR" "$clean_base" " [Topaz Preview ${preview_seconds}s - ${safe_preset}].log")"
   else
-    output="${stem} [Topaz - ${filename_preset}].${output_ext}"
-    log_file="${LOG_DIR}/${base} [Topaz - ${safe_preset}].log"
+    output="$(topaz_fit_filename "${input:h}" "$clean_base" " [Topaz - ${filename_preset}].${output_ext}")"
+    log_file="$(topaz_fit_filename "$LOG_DIR" "$clean_base" " [Topaz - ${safe_preset}].log")"
   fi
   # Embedded-job resume targets the exact file that was passed in, even if it
   # was renamed or moved since the original encode.

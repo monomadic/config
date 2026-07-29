@@ -87,8 +87,6 @@ tell application "System Events" to %s`, label, label, command)
 }
 
 func onReady() {
-	// Match free-disk-space-widget: render at the Control Center text size.
-	systray.SetTitleFont(11, false)
 	systray.SetTitle(fmt.Sprintf("%s init", uptimeIcon))
 	mReboot := systray.AddMenuItem("Reboot", "Reboot this Mac")
 	mShutdown := systray.AddMenuItem("Shutdown", "Shut down this Mac")

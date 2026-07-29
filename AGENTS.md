@@ -55,20 +55,28 @@ plus `zsh -n` / `bash -n` on any shell script you touched.
 
 ## The utils/ side: real code, real builds
 
-`utils/<tool>/` holds compiled source (Go: widgets, `spill`, `iospeed`, `open-in-forklift`,
-`obsbot-rtsp-widget`; Rust: `leaf`, `pimped`, `motherfucker`). These are the only parts of
-the repo with a build step and tests — Dotter does not touch them.
+`utils/<tool>/` holds tool source (Go: widgets, `spill`, `iospeed`, `open-in-forklift`,
+`obsbot-rtsp-widget`; Rust: `leaf`, `pimped`, `motherfucker`; bash: `job-runner`). These are
+the only parts of the repo with a build/install step and tests — Dotter does not touch them.
 
 ```bash
-setup/install/<name>.sh            # canonical build+install; most install to ~/.local/bin
+setup/install/install-<name>.sh    # canonical build+install; most install to ~/.local/bin
 cd utils/leaf && cargo test        # Rust suites live in src/tests/ (leaf is the largest)
 cd utils/leaf && cargo test toc    # single test / filter
 cd utils/obsbot-rtsp-widget && go test ./...
 ```
 
-Prefer the `setup/install/*.sh` script over a hand-rolled `cargo install`/`go build` — it
-pins the install path the rest of the config expects (e.g. `pimped` must be on PATH for the
-zsh precmd prompt hook in `config/zsh/zshrc.zsh` to work).
+Installers are named `setup/install/install-<name>.sh` — follow that for new ones
+(a few legacy scripts predate the prefix). Prefer the installer over a hand-rolled
+`cargo install`/`go build` — it pins the install path the rest of the config expects
+(e.g. `pimped` must be on PATH for the zsh precmd prompt hook in
+`config/zsh/zshrc.zsh` to work).
+
+**`utils/job-runner`** is infrastructure other tools can build on: a `~/jobs` drop
+folder where any `NAME.job` shell script runs (queued, one at a time) with
+`JOB_NAME` set to the filename minus `.job`. Anything that needs "run this later /
+on the server" should write a `.job` file (or ship one with `send-job`) instead of
+inventing its own daemon. Contract details: `utils/job-runner/README.md`.
 
 ## Recipe: add config for a new tool
 
@@ -90,7 +98,7 @@ zsh precmd prompt hook in `config/zsh/zshrc.zsh` to work).
 | `scripts/` | sourceable snippets and misc helpers (not on PATH) |
 | `setup/` | bootstrap, deploy, and machine-setup entrypoints |
 | `dotter/` | deployment manifests only |
-| `utils/<tool>/` | small personal utility source trees (Go widgets, `leaf` is Rust) — build via `setup/install/*.sh` |
+| `utils/<tool>/` | small personal utility source trees (Go widgets, `leaf` is Rust) — build via `setup/install/install-<name>.sh` |
 | `assets/` | fonts, icons, and colour LUTs (`assets/LUTs/` deploys into Resolve and Final Cut) |
 | `vendor/bin/`, `archive/` | holding areas — don't add to or modify these |
 

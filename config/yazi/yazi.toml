@@ -120,6 +120,9 @@ prepend_previewers = [
   { url = "*.cho", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
   { url = "*.chopro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
   { url = "*.chordpro", run = 'piper -- CHORDPRO_TUI_FORCE_COLOR=1 chordpro-tui -print -width "$w" -height "$h" "$1"' },
+  # macOS icon bundles. mime-ext has no .icns mapping, so without this they
+  # land on the octet-stream rule below and render as binary garbage.
+  { url = "*.icns", run = "icns-preview" },
   # mime-ext deliberately avoids file(1), so XML and unknown/extensionless
   # files miss Yazi's default text/* preview rule. Render them as code only
   # when hovered; this adds no preloading or background MIME probing.

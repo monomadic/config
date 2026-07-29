@@ -42,6 +42,7 @@ ICON_MAPPINGS=(
   "Codex.app|codex.icns"
   "Firefox.app|firefox1.icns"
   "ForkLift.app|finder-02.icns"
+  "Helium.app|globe.icns"
   "Kitty.app|term2.icns"
   "Numi.app|numi.icns"
   "Spotify.app|spotify.icns"

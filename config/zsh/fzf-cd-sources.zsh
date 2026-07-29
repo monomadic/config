@@ -6,6 +6,8 @@
 typeset -ga _cd_fzf_global_static=(
   '$HOME'
   '$DOTFILES_DIR'
+  '$DOTFILES_DIR/utils'
+  '$HOME/jobs'
   '$HOME/Library/Application\ Support/VirtualDJ'
   '$HOME/Movies/Private'
   '$HOME/Movies/Porn'
@@ -26,6 +28,8 @@ typeset -ga _cd_fzf_global_commands=(
   'fd-dirs "$HOME/Music" 1'
   'fd-dirs "$HOME/Movies/Porn" 2'
   'fd-dirs "$HOME/Library/Application Support/VirtualDJ" 1'
+  'fd-dirs "$DOTFILES_DIR/utils" 1'
+  
   # 'fd --type d --absolute-path --max-depth 1 . "$ICLOUD_HOME" 2>/dev/null'
   # 'fd --type d --absolute-path --max-depth 1 . "$ICLOUD_HOME/Movies" 2>/dev/null'
 

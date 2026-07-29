@@ -1,7 +1,8 @@
 #!/usr/bin/env zsh
 # send-job
 # Ship media files plus a *.job script to a remote machine's SMB `jobs` share,
-# where bin/job-runner (a launchd WatchPaths agent) picks the job up and runs it.
+# where job-runner (utils/job-runner, a launchd WatchPaths agent) picks the
+# job up and runs it.
 #
 #   send-job <files...> <job_file> --host=<hostname>
 #

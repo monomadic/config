@@ -104,28 +104,56 @@ func main() {
 		fmt.Printf("ytform: finished, but couldn't locate the output file\n  expected: %s\n", src)
 		return
 	}
-	fmt.Printf("✓ downloaded  %s\n", filepath.Base(src))
 
 	// Rename only if the form was actually touched — an untouched run keeps
 	// yt-dlp's own filename, same contract as ytui.
+	var notes []string
 	meta := m.meta()
-	if meta.Equal(m.initial) {
-		return
-	}
-	ext := strings.TrimPrefix(filepath.Ext(src), ".")
-	dst := filepath.Join(filepath.Dir(src), meta.Stem()+"."+ext)
-	switch {
-	case dst == src:
-		fmt.Println("  name unchanged")
-	case exists(dst):
-		fmt.Printf("  rename skipped — exists: %s\n", filepath.Base(dst))
-	default:
-		if err := os.Rename(src, dst); err != nil {
-			fmt.Fprintf(os.Stderr, "  rename failed: %v\n", err)
-			os.Exit(1)
+	if !meta.Equal(m.initial) {
+		ext := strings.TrimPrefix(filepath.Ext(src), ".")
+		dst := filepath.Join(filepath.Dir(src), meta.Stem()+"."+ext)
+		switch {
+		case dst == src:
+		case exists(dst):
+			notes = append(notes, "rename skipped — exists: "+filepath.Base(dst))
+		default:
+			if err := os.Rename(src, dst); err != nil {
+				fmt.Fprintf(os.Stderr, "ytform: rename failed: %v\n", err)
+				os.Exit(1)
+			}
+			src = dst
 		}
-		fmt.Printf("  renamed → %s\n", filepath.Base(dst))
 	}
+	src = mediaRename(src, &notes)
+
+	fmt.Printf("✓ downloaded  %s\n", filepath.Base(src))
+	for _, n := range notes {
+		fmt.Println("  " + n)
+	}
+}
+
+// mediaRename runs the file through media-rename (appends the ffprobe tags
+// block: resolution, fps, duration, orientation, ...) and returns the file's
+// final path. Missing tool or a failed run just leaves the name as-is.
+func mediaRename(src string, notes *[]string) string {
+	tool, err := exec.LookPath("media-rename")
+	if err != nil {
+		return src
+	}
+	out, err := exec.Command(tool, "--print-target", src).Output()
+	target := strings.TrimSpace(string(out))
+	if err != nil || target == "" {
+		*notes = append(*notes, "media-rename: could not analyze file")
+		return src
+	}
+	if err := exec.Command(tool, src).Run(); err != nil {
+		*notes = append(*notes, "media-rename failed: "+err.Error())
+		return src
+	}
+	if exists(target) {
+		return target
+	}
+	return src
 }
 
 func exists(p string) bool {

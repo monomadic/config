@@ -51,7 +51,9 @@ func Preflight(passthru []string, url string) (*PreflightInfo, error) {
 		}
 		return nil, fmt.Errorf("could not resolve the video: %v\n%s", err, msg)
 	}
-	lines := strings.Split(strings.TrimRight(string(out), "\n"), "\n")
+	// Trim exactly ONE trailing newline: with --output-na-placeholder "" the
+	// last prints can be empty lines, and TrimRight("\n") would eat them.
+	lines := strings.Split(strings.TrimSuffix(string(out), "\n"), "\n")
 	if len(lines) < 7 || lines[0] == "" {
 		return nil, fmt.Errorf("could not resolve the video (unexpected yt-dlp output)")
 	}

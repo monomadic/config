@@ -19,8 +19,20 @@ class Tab2ChordPro:
         self._open = None  # currently open ChordPro environment, if any
 
     def read_input(self, text: str) -> None:
-        """Parse input text into lines."""
-        self.lines = text.split('\n')
+        """Parse input text into lines, dropping the page chrome after the tab.
+
+        A full-page paste from Ultimate Guitar ends the tab with a line
+        holding nothing but ``X`` (the close button of the rating widget);
+        everything after it is ratings, comments, related tabs and footer
+        links. ``X`` is not a chord and never appears alone in a chart, so
+        that line is a reliable end-of-song marker.
+        """
+        lines = text.split('\n')
+        for i, line in enumerate(lines):
+            if line.strip() == 'X':
+                lines = lines[:i]
+                break
+        self.lines = lines
 
     def extract_metadata(self) -> None:
         """Extract Key, Capo, Tempo, Title, Artist from header lines."""
