@@ -20,12 +20,14 @@ Lifecycle of `NAME.job`:
 |---|---|
 | queued | `NAME.job` |
 | running | `NAME.job.running` (rename = the lock; can't be picked up twice) |
-| stdout | `NAME.job.log` |
-| stderr | `NAME.job.errors` (deleted if empty) |
-| succeeded | `_done/NAME.job.done` + its `.log` |
-| failed | `_err/NAME.job.err` + its `.log` |
+| stdout | `NAME.job.log` (only if the job writes to stdout) |
+| stderr | `NAME.job.errors` (only if the job writes to stderr) |
+| succeeded | `_done/NAME.job.done` + its `.log`, if any |
+| failed | `_err/NAME.job.err` + its `.log`, if any |
 
-The non-empty `.errors` file always lands in `_err/`, even for a job that
+A silent job leaves no `.log`/`.errors` behind — each file is created on that
+stream's first line of output, and both are written live so a running job can
+be tailed. An `.errors` file always lands in `_err/`, even for a job that
 exited 0. Name collisions in `_done`/`_err` get a timestamp inserted
 (`NAME.20260729-120000.job.done`) rather than clobbering.
 
