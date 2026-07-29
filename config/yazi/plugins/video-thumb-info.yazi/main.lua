@@ -5,15 +5,33 @@ local COLOR_SPECS = "#39ff14"
 local COLOR_TAG = "#ffe66d"
 local MAX_THUMB_ROWS = 25
 local MIN_TEXT_ROWS = 5
+local MAX_DETAIL_ROWS = 12
 
-local TAG_ORDER = {
+-- Same tag priority as ~/.zsh/bin/media-open-url, so the preview shows the URL
+-- that opener would actually launch.
+local URL_TAGS = {
+	"source_url",
+	"original_url",
+	"webpage_url",
+	"purl",
+	"url",
+	"comment",
+	"description",
+}
+
+-- Tag keys in display order; "@" entries are synthesised rather than read
+-- straight off a tag.
+local FIELD_ORDER = {
 	"title",
 	"artist",
+	"@url",
 	"album_artist",
 	"album",
 	"date",
 	"creation_time",
 	"genre",
+	"@chapters",
+	"@subtitles",
 	"comment",
 	"description",
 	"encoder",
@@ -128,6 +146,38 @@ local function parse_video_info(stdout)
 	return info
 end
 
+local function stream_counts(job)
+	local counts = { chapters = 0, subtitles = 0 }
+	local output = Command("ffprobe")
+		:arg({
+			"-v",
+			"error",
+			"-select_streams",
+			"s",
+			"-show_entries",
+			"stream=index:chapter=id",
+			"-of",
+			"csv=p=1",
+			tostring(job.file.url),
+		})
+		:stdout(Command.PIPED)
+		:output()
+
+	if not output or not output.status or not output.status.success then
+		return counts
+	end
+
+	for line in tostring(output.stdout or ""):gmatch("[^\r\n]+") do
+		local section = line:match("^(%a+),")
+		if section == "stream" then
+			counts.subtitles = counts.subtitles + 1
+		elseif section == "chapter" then
+			counts.chapters = counts.chapters + 1
+		end
+	end
+	return counts
+end
+
 local function video_info(job)
 	local output = Command("ffprobe")
 		:arg({
@@ -144,10 +194,13 @@ local function video_info(job)
 		:stdout(Command.PIPED)
 		:output()
 
-	if not output or not output.status or not output.status.success then
-		return { tags = {} }
-	end
-	return parse_video_info(output.stdout)
+	local info = (output and output.status and output.status.success) and parse_video_info(output.stdout)
+		or { tags = {} }
+
+	local counts = stream_counts(job)
+	info.chapters = counts.chapters
+	info.subtitles = counts.subtitles
+	return info
 end
 
 local function seek_time(job)
@@ -248,15 +301,15 @@ local function write_thumbnail_with_ffmpegthumbnailer(job, cache, at)
 	return status and status.success
 end
 
-local function split_preview(area, info)
-	local image_h = math.min(MAX_THUMB_ROWS, math.max(1, area.h - MIN_TEXT_ROWS))
-	if info.width and info.height and info.width > 0 and info.height > 0 then
-		local max_rows = MAX_THUMB_ROWS
-		if info.width > info.height then
-			max_rows = math.floor(MAX_THUMB_ROWS / 2)
-		end
-		image_h = math.min(max_rows, math.max(1, area.h - MIN_TEXT_ROWS))
+local function split_preview(area, info, detail_rows)
+	local max_rows = MAX_THUMB_ROWS
+	if info.width and info.height and info.width > 0 and info.height > 0 and info.width > info.height then
+		max_rows = math.floor(MAX_THUMB_ROWS / 2)
 	end
+
+	-- Filename + specs + blank line, then one row per detail field.
+	local text_rows = math.max(MIN_TEXT_ROWS, 3 + (detail_rows or 0))
+	local image_h = math.min(max_rows, math.max(1, area.h - text_rows))
 
 	return ui.Rect({
 		x = area.x,
@@ -271,31 +324,55 @@ local function split_preview(area, info)
 	})
 end
 
-local function tag_lines(tags)
-	local lines, seen = {}, {}
-	for _, key in ipairs(TAG_ORDER) do
-		local value = tags[key]
-		if value then
-			lines[#lines + 1] = { key:gsub("_", " "), value }
-			seen[key] = true
+local function find_url(tags)
+	for _, key in ipairs(URL_TAGS) do
+		local url = tostring(tags[key] or ""):match("https?://[^%s]+")
+		if url then
+			return url, key
 		end
-		if #lines >= 5 then
-			return lines
+	end
+end
+
+local function count_value(count)
+	return (count or 0) > 0 and tostring(count) or "none"
+end
+
+local function detail_lines(info)
+	local tags = info.tags or {}
+	local url, url_key = find_url(tags)
+	local lines, seen = {}, { [url_key or ""] = true }
+
+	local function push(label, value)
+		if value then
+			lines[#lines + 1] = { label, value }
+		end
+	end
+
+	for _, key in ipairs(FIELD_ORDER) do
+		if key == "@url" then
+			push("url", url)
+		elseif key == "@chapters" then
+			push("chapters", count_value(info.chapters))
+		elseif key == "@subtitles" then
+			push("subtitles", count_value(info.subtitles))
+		elseif not seen[key] then
+			seen[key] = true
+			push(key:gsub("_", " "), tags[key])
 		end
 	end
 
 	for key, value in pairs(tags) do
-		if not seen[key] and value then
-			lines[#lines + 1] = { key:gsub("_", " "), value }
-		end
-		if #lines >= 5 then
+		if #lines >= MAX_DETAIL_ROWS then
 			break
+		end
+		if not seen[key] then
+			push(key:gsub("_", " "), value)
 		end
 	end
 	return lines
 end
 
-local function info_widget(job, area, info)
+local function info_widget(job, area, info, details)
 	local specs = {}
 	if info.width and info.height then
 		specs[#specs + 1] = string.format("%dx%d", info.width, info.height)
@@ -332,11 +409,10 @@ local function info_widget(job, area, info)
 		y = y + 2
 	end
 
-	local tags = tag_lines(info.tags or {})
-	if #tags > 0 and y < area.y + area.h then
+	if #details > 0 and y < area.y + area.h then
 		local label_width = 0
 		local rows = {}
-		for _, tag in ipairs(tags) do
+		for _, tag in ipairs(details) do
 			label_width = math.max(label_width, #tag[1] + 1)
 			rows[#rows + 1] = ui.Row({
 				ui.Line(tag[1] .. ":"):fg(COLOR_TAG),
@@ -388,10 +464,11 @@ function M:peek(job)
 	end
 
 	local info = video_info(job)
-	local image_area, text_area = split_preview(job.area, info)
+	local details = detail_lines(info)
+	local image_area, text_area = split_preview(job.area, info, #details)
 	ya.sleep(math.max(0, rt.preview.image_delay / 1000 + start - os.clock()))
 	ya.image_show(cache, image_area)
-	ya.preview_widget(job, info_widget(job, text_area, info))
+	ya.preview_widget(job, info_widget(job, text_area, info, details))
 end
 
 function M:seek(job)
