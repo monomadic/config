@@ -1,0 +1,529 @@
+#!/usr/bin/env zsh
+# Browse and toggle macOS `defaults` tweaks in a multi-line fzf picker.
+set -euo pipefail
+
+typeset -r SELF="${0:A}"
+typeset -r SCRIPT_NAME="${0:t}"
+
+# --- tweak table --------------------------------------------------------------
+#
+# id | group | title | description | restart | settings
+#
+# restart   comma separated: process names to killall, and/or the literal
+#           `logout` when the change only takes full effect after a re-login.
+# settings  semicolon separated list of `domain key flag value expected`.
+#           `domain` is a preference domain or `-g` for the global domain.
+#           `expected` is what `defaults read domain key` prints when applied
+#           (booleans read back as 0/1).
+#
+# A tweak is ON when every one of its settings matches; turning it OFF runs
+# `defaults delete` so the key falls back to the macOS default.
+
+tweak_table() {
+  cat <<'TWEAKS'
+fast-windows|animations|Disable window animations and smooth resizing|Windows open, close and resize instantly instead of tweening.|logout|-g NSAutomaticWindowAnimationsEnabled -bool false 0;-g NSWindowResizeTime -float 0.001 0.001
+menu-fade|animations|Disable menu fade in/out|Menus appear and vanish with no crossfade.|logout|-g NSMenuFadeInDuration -float 0 0;-g NSMenuFadeOutDuration -float 0 0
+quicklook-anim|animations|Disable Quick Look window animation|Quick Look panels pop open instead of scaling up.|logout|-g QLPanelAnimationDuration -float 0 0
+tooltip-delay|animations|Show tooltips instantly|Removes the delay before a tooltip appears on hover.|logout|-g NSInitialToolTipDelay -int 0 0
+sheet-anim|animations|Disable document sheet animation|Save/print sheets snap in without sliding down.|logout|-g NSWindowsUseAnimatedDocumentSheets -bool false 0
+focus-ring-anim|animations|Disable focus ring animation|The blue focus halo appears instantly instead of pulsing into place.|logout|-g NSUseAnimatedFocusRing -bool false 0
+scroll-animations|animations|Disable smooth scrolling and rubber-banding|Scrolling jumps straight to position; kills the elastic overscroll bounce. The single biggest perceived-latency win in AppKit apps.|logout|-g NSScrollAnimationEnabled -bool false 0;-g NSScrollViewRubberbanding -bool false 0
+toolbar-animations|animations|Zero toolbar and column animation timings|Full-screen toolbar slide, NSBrowser column slide and toolbar title rollover all become instant.|logout|-g NSToolbarFullScreenAnimationDuration -float 0 0;-g NSBrowserColumnAnimationSpeedMultiplier -float 0 0;-g NSToolbarTitleViewRolloverDelay -float 0 0
+versions-anim|animations|Disable Versions browser animation|The Time-Machine-style document revisions transform is skipped.|logout|-g NSDocumentRevisionsWindowTransformAnimation -bool false 0
+launchpad-anim|animations|Speed up Launchpad animations|Show/hide drop to 0.1s and page flips become instant.|Dock|com.apple.dock springboard-show-duration -float 0.1 0.1;com.apple.dock springboard-hide-duration -float 0.1 0.1;com.apple.dock springboard-page-duration -float 0 0
+spaces-edge-delay|animations|Near-instant drag-to-edge Space switch|Cuts the hold time before dragging a window to the screen edge flips desktops.|Dock|com.apple.dock workspaces-edge-delay -float 0.05 0.05
+reduce-motion|animations|Reduce motion|System-wide crossfade instead of zoom/slide for Spaces, Mission Control and app launch — the heaviest-handed animation kill available. System Settings can overwrite this key.|logout|com.apple.Accessibility ReduceMotionEnabled -bool true 1
+expose-anim|animations|Speed up Mission Control animation|Cuts the Mission Control zoom to 0.1s.|Dock|com.apple.dock expose-animation-duration -float 0.1 0.1
+dock-autohide-fast|animations|Show the Dock with no delay|Removes the auto-hide delay and shortens the slide animation.|Dock|com.apple.dock autohide-delay -float 0 0;com.apple.dock autohide-time-modifier -float 0.1 0.1
+launch-anim|animations|Disable app launch bounce|No bouncing Dock icon or zoom animation when apps open.|Dock|com.apple.dock launchanim -bool false 0
+finder-anim|animations|Accelerate Finder animations|Disables all Finder window and view animations.|Finder|com.apple.finder DisableAllAnimations -bool true 1
+spaces-swoosh|animations|Disable Spaces swoosh animation|Switching desktops cuts instead of sliding. Undocumented key; may be a no-op on recent macOS.|Dock|com.apple.dock workspaces-swoosh-animation-off -bool true 1
+reduce-transparency|animations|Reduce system transparency|Opaque menu bar, Dock and sidebars. Protected domain: needs Full Disk Access for the terminal, else the write fails.|logout|com.apple.universalaccess reduceTransparency -bool true 1
+window-tiling-drag|windows|Disable drag-to-edge window tiling|Stops macOS from tiling windows when dragged to a screen edge.|WindowManager|com.apple.WindowManager EnableTilingByEdgeDrag -bool false 0;com.apple.WindowManager EnableTopTilingByEdgeDrag -bool false 0
+window-tiling-margins|windows|Remove tiled window margins|Tiled windows sit flush against each other and the screen edge.|WindowManager|com.apple.WindowManager EnableTiledWindowMargins -bool false 0
+click-desktop|windows|Don't show desktop on wallpaper click|Clicking the wallpaper no longer hides all windows (Stage Manager behaviour).|WindowManager|com.apple.WindowManager EnableStandardClickToShowDesktop -bool false 0
+no-resume|windows|Disable window restore on quit|Apps start with a clean slate instead of reopening old windows.|logout|-g NSQuitAlwaysKeepsWindows -bool false 0
+mru-spaces|dock|Don't rearrange Spaces automatically|Keeps desktops in a fixed order instead of most-recently-used.|Dock|com.apple.dock mru-spaces -bool false 0
+dock-autohide|dock|Auto-hide the Dock|Dock stays hidden until the pointer hits the screen edge.|Dock|com.apple.dock autohide -bool true 1
+dock-no-recents|dock|Hide recent applications in the Dock|Removes the trailing recents section.|Dock|com.apple.dock show-recents -bool false 0
+dock-minimize-scale|dock|Use scale effect when minimizing|Faster than the default genie effect.|Dock|com.apple.dock mineffect -string scale scale
+dock-minimize-to-app|dock|Minimize windows into the app icon|Minimized windows collapse into their Dock icon rather than a separate tile.|Dock|com.apple.dock minimize-to-application -bool true 1
+dock-no-bouncing|dock|Disable Dock icon bouncing|Attention-requesting apps stop bouncing their Dock icon.|Dock|com.apple.dock no-bouncing -bool true 1
+dock-static-only|dock|Show only running apps in the Dock|Strips every persistent tile, leaving a Dock that only tracks live processes.|Dock|com.apple.dock static-only -bool true 1
+key-repeat|keyboard|Fastest key repeat|KeyRepeat 1 with a 10-tick initial delay; faster than the System Settings minimum.|logout|-g KeyRepeat -int 1 1;-g InitialKeyRepeat -int 10 10
+press-and-hold|keyboard|Disable press-and-hold accent picker|Holding a key repeats it instead of offering accented characters.|logout|-g ApplePressAndHoldEnabled -bool false 0
+full-keyboard-access|keyboard|Full keyboard access in all controls|Tab moves between every control, including buttons in dialogs.|logout|-g AppleKeyboardUIMode -int 3 3
+smart-substitutions|text|Disable smart quotes and dashes|Typed quotes and hyphens stay literal — useful when writing code in native text fields.|logout|-g NSAutomaticQuoteSubstitutionEnabled -bool false 0;-g NSAutomaticDashSubstitutionEnabled -bool false 0
+autocorrect|text|Disable autocorrect and auto-capitalisation|Turns off spelling correction, capitalisation and the double-space period.|logout|-g NSAutomaticSpellingCorrectionEnabled -bool false 0;-g NSAutomaticCapitalizationEnabled -bool false 0;-g NSAutomaticPeriodSubstitutionEnabled -bool false 0
+screenshot-no-shadow|screenshots|Disable window screenshot shadow|Window captures come out cropped tight with no drop shadow.|SystemUIServer|com.apple.screencapture disable-shadow -bool true 1
+screenshot-no-date|screenshots|Omit the date from screenshot filenames|Files are named `Screenshot.png` instead of including a timestamp.|SystemUIServer|com.apple.screencapture include-date -bool false 0
+screenshot-png|screenshots|Save screenshots as PNG|Forces the PNG format (the default, unless changed).|SystemUIServer|com.apple.screencapture type -string png png
+finder-show-hidden|finder|Show hidden files|Dotfiles are always visible in Finder.|Finder|com.apple.finder AppleShowAllFiles -bool true 1
+finder-all-extensions|finder|Show all file extensions|Finder never hides a file's extension.|Finder|-g AppleShowAllExtensions -bool true 1
+finder-bars|finder|Show path bar and status bar|Adds the breadcrumb path bar and item/size status bar.|Finder|com.apple.finder ShowPathbar -bool true 1;com.apple.finder ShowStatusBar -bool true 1
+finder-folders-first|finder|Sort folders before files|Directories group at the top of every view.|Finder|com.apple.finder _FXSortFoldersFirst -bool true 1
+finder-search-current|finder|Search the current folder by default|Cmd-F searches where you are instead of the whole Mac.|Finder|com.apple.finder FXDefaultSearchScope -string SCcf SCcf
+finder-list-view|finder|Default to list view|New Finder windows open as lists rather than icons.|Finder|com.apple.finder FXPreferredViewStyle -string Nlsv Nlsv
+finder-no-ext-warning|finder|No extension change warning|Renaming a file's extension stops prompting for confirmation.|Finder|com.apple.finder FXEnableExtensionChangeWarning -bool false 0
+no-ds-store|finder|No .DS_Store on network and USB volumes|Stops Finder writing metadata turds onto shares and removable drives.|logout|com.apple.desktopservices DSDontWriteNetworkStores -bool true 1;com.apple.desktopservices DSDontWriteUSBStores -bool true 1
+expand-save-panel|dialogs|Expand the save panel by default|Save dialogs open in full browse mode with the sidebar.|logout|-g NSNavPanelExpandedStateForSaveMode -bool true 1;-g NSNavPanelExpandedStateForSaveMode2 -bool true 1
+expand-print-panel|dialogs|Expand the print panel by default|Print dialogs show all options without clicking Show Details.|logout|-g PMPrintingExpandedStateForPrint -bool true 1;-g PMPrintingExpandedStateForPrint2 -bool true 1
+save-to-disk|dialogs|Save new documents to disk, not iCloud|Local disk becomes the default save location.|logout|-g NSDocumentSaveNewDocumentsToCloud -bool false 0
+no-quarantine-prompt|dialogs|No "downloaded from the internet" prompt|Skips the LaunchServices quarantine dialog for downloaded apps. Weakens a Gatekeeper speed bump.|logout|com.apple.LaunchServices LSQuarantine -bool false 0
+no-app-nap|system|Disable App Nap system-wide|Background apps keep full CPU and timer resolution instead of being throttled. Costs battery; worth it for long renders and builds behind other windows.|logout|-g NSAppSleepDisabled -bool true 1
+font-smoothing-off|system|Disable font smoothing|Turns off subpixel antialiasing: less per-glyph compositing work, sharper text on hi-DPI panels, thinner text on 1x displays.|logout|-g AppleFontSmoothing -int 0 0
+dmg-skip-verify|disks|Skip disk image verification|Stops checksumming DMGs on mount — a large win on big images, at the cost of not catching corrupt downloads.|logout|com.apple.frameworks.diskimages skip-verify -bool true 1;com.apple.frameworks.diskimages skip-verify-locked -bool true 1;com.apple.frameworks.diskimages skip-verify-remote -bool true 1
+crash-reporter-off|background|Silence the crash reporter dialog|Crashes are logged without the modal report window stealing focus.|logout|com.apple.CrashReporter DialogType -string none none
+handoff-off|background|Disable Handoff and Continuity advertising|Stops useractivityd broadcasting and receiving activity over Bluetooth/AWDL — measurably less background wake-up and radio chatter.|logout|com.apple.coreservices.useractivityd ActivityAdvertisingAllowed -bool false 0;com.apple.coreservices.useractivityd ActivityReceivingAllowed -bool false 0
+no-photos-hotplug|background|Don't open Photos when a device is plugged in|Prevents Image Capture launching Photos on camera/phone connect.|logout|com.apple.ImageCapture disableHotPlug -bool true 1
+lookup-suggestions-off|background|Disable Spotlight/Look-up suggestions|Local search stops round-tripping queries to Apple, so results appear without a network stall.|logout|com.apple.lookup.shared LookupSuggestionsDisabled -bool true 1
+safari-fast-layout|safari|Speed up Safari first paint|Shortens the initial timed layout delay to 0.25s. Safari's domain is sandboxed: needs Full Disk Access.|Safari|com.apple.Safari WebKitInitialTimedLayoutDelay -float 0.25 0.25
+safari-full-url|safari|Show the full URL in Safari|Displays the complete address instead of just the domain. Needs Full Disk Access.|Safari|com.apple.Safari ShowFullURLInSmartSearchField -bool true 1
+safari-develop-menu|safari|Enable the Safari Develop menu|Exposes web inspector and developer tooling. Needs Full Disk Access.|Safari|com.apple.Safari IncludeDevelopMenu -bool true 1
+safari-no-preload|safari|Don't preload the Safari top hit|Stops Safari speculatively loading a page while you are still typing the address. Needs Full Disk Access.|Safari|com.apple.Safari PreloadTopHit -bool false 0
+dashboard|legacy|Disable Dashboard|Pre-Catalina only; harmless but a no-op on modern macOS.|Dock|com.apple.dashboard mcx-disabled -bool true 1;com.apple.dock dashboard-in-overlay -bool true 1
+TWEAKS
+}
+
+# --- state --------------------------------------------------------------------
+
+typeset -ga T_ORDER=()
+typeset -gA T_GROUP T_TITLE T_DESC T_RESTART T_SETTINGS
+
+load_tweaks() {
+  local id group title desc restart settings
+  while IFS='|' read -r id group title desc restart settings; do
+    [[ -z $id || $id == '#'* ]] && continue
+    T_ORDER+=("$id")
+    T_GROUP[$id]=$group
+    T_TITLE[$id]=$title
+    T_DESC[$id]=$desc
+    T_RESTART[$id]=$restart
+    T_SETTINGS[$id]=$settings
+  done < <(tweak_table)
+}
+
+die() {
+  print -u2 -r -- "${SCRIPT_NAME}: $*"
+  exit 1
+}
+
+# --- category filter ----------------------------------------------------------
+#
+# The active category lives in a temp file whose path is exported to fzf's child
+# processes, so `--render` and the ctrl-g/alt-g cycle bindings all agree on it.
+
+typeset -g GROUP_FILTER=all
+
+# `all` plus every group, in table order.
+group_cycle() {
+  local id group
+  local -a seen=()
+  print -r -- all
+  for id in $T_ORDER; do
+    group=${T_GROUP[$id]}
+    if [[ -z ${seen[(r)$group]:-} ]]; then
+      seen+=("$group")
+      print -r -- "$group"
+    fi
+  done
+}
+
+load_group_filter() {
+  if [[ -n ${_FZF_TWEAKS_GROUP_FILE:-} && -s ${_FZF_TWEAKS_GROUP_FILE:-} ]]; then
+    GROUP_FILTER=$(<"$_FZF_TWEAKS_GROUP_FILE")
+  fi
+  [[ -n $GROUP_FILTER ]] || GROUP_FILTER=all
+}
+
+in_filter() {
+  [[ $GROUP_FILTER == all || ${T_GROUP[$1]} == $GROUP_FILTER ]]
+}
+
+# Advances the stored category and prints the fzf actions to re-render.
+cycle_group() {
+  local direction=$1
+  [[ -n ${_FZF_TWEAKS_GROUP_FILE:-} ]] || die "--cycle-group is only usable from the picker"
+
+  local -a groups=(${(f)"$(group_cycle)"})
+  local -i idx=${groups[(i)$GROUP_FILTER]}
+  if (( idx > ${#groups} )); then
+    idx=1
+  fi
+
+  if [[ $direction == back ]]; then
+    idx=$(( idx - 1 ))
+    if (( idx < 1 )); then
+      idx=${#groups}
+    fi
+  else
+    idx=$(( idx + 1 ))
+    if (( idx > ${#groups} )); then
+      idx=1
+    fi
+  fi
+
+  local next=${groups[idx]}
+  print -rn -- "$next" > "$_FZF_TWEAKS_GROUP_FILE"
+  print -r -- "reload(${(q)SELF} --render)+change-prompt($next> )+first"
+}
+
+warn() {
+  print -u2 -r -- "${SCRIPT_NAME}: $*"
+}
+
+usage() {
+  cat <<'USAGE'
+Usage: fzf-macos-tweaks [options] [query]
+
+Browse macOS `defaults` tweaks in a multi-line fzf picker, showing what each
+one does and whether it is currently applied. Accepting a selection toggles it:
+an applied tweak is removed with `defaults delete` (back to the macOS default),
+an unapplied one is written.
+
+Options:
+  -l, --list            Print every tweak with its state and exit.
+  -g, --group <name>    Start filtered to one category (see --groups).
+      --groups          List the categories in cycle order and exit.
+      --on <id>...      Apply the named tweaks and exit.
+      --off <id>...     Revert the named tweaks and exit.
+      --detail <id>     Print the full definition and current values of a tweak.
+  -n, --dry-run         Print the defaults commands instead of running them.
+      --no-restart      Don't killall Dock/Finder/etc after toggling.
+  -1, --once            Exit after one toggle instead of reopening the picker.
+  -h, --help            Show this help.
+
+Keys:
+  enter                 Toggle the selection.
+  tab                   Multi-select (toggle several tweaks at once).
+  ctrl-g / alt-g        Cycle the category filter forwards / backwards.
+  ctrl-r                Re-read current state.
+  ctrl-/                Toggle the detail preview.
+USAGE
+}
+
+# --- reading current state ----------------------------------------------------
+
+read_value() {
+  local domain=$1 key=$2
+  defaults read "$domain" "$key" 2>/dev/null
+}
+
+values_equal() {
+  local a=$1 b=$2
+  [[ $a == $b ]] && return 0
+  if [[ $a =~ '^-?[0-9]+(\.[0-9]+)?$' && $b =~ '^-?[0-9]+(\.[0-9]+)?$' ]]; then
+    (( a == b ))
+    return $?
+  fi
+  [[ ${a:l} == ${b:l} ]]
+}
+
+# Prints `on`, `off` or `partial`.
+tweak_state() {
+  local id=$1
+  local setting current
+  local -i total=0 matched=0
+  local -a f
+
+  for setting in ${(s.;.)T_SETTINGS[$id]}; do
+    f=(${=setting})
+    (( ++total ))
+    current=$(read_value "${f[1]}" "${f[2]}") || current=''
+    if [[ -n $current ]] && values_equal "$current" "${f[5]}"; then
+      (( ++matched ))
+    fi
+  done
+
+  if (( matched == total )); then
+    print -r -- on
+  elif (( matched == 0 )); then
+    print -r -- off
+  else
+    print -r -- partial
+  fi
+}
+
+# --- rendering ----------------------------------------------------------------
+
+typeset -r C_RESET=$'\e[0m'
+typeset -r C_ON=$'\e[32m'
+typeset -r C_OFF=$'\e[90m'
+typeset -r C_PARTIAL=$'\e[33m'
+typeset -r C_TITLE=$'\e[1m'
+typeset -r C_DIM=$'\e[2m'
+typeset -r C_GROUP=$'\e[36m'
+
+state_icon() {
+  case $1 in
+    on)      print -r -- "${C_ON}●${C_RESET}" ;;
+    partial) print -r -- "${C_PARTIAL}◐${C_RESET}" ;;
+    *)       print -r -- "${C_OFF}○${C_RESET}" ;;
+  esac
+}
+
+# Null-delimited, two lines per tweak, id hidden in field 1.
+render() {
+  local id state icon
+  for id in $T_ORDER; do
+    in_filter "$id" || continue
+    state=$(tweak_state "$id")
+    icon=$(state_icon "$state")
+    if [[ $state == on ]]; then
+      printf '%s\t%s %s%s%s %s[%s]%s\n  %s%s%s\0' \
+        "$id" "$icon" "$C_TITLE" "${T_TITLE[$id]}" "$C_RESET" \
+        "$C_GROUP" "${T_GROUP[$id]}" "$C_RESET" \
+        "$C_DIM" "${T_DESC[$id]}" "$C_RESET"
+    else
+      printf '%s\t%s %s %s[%s]%s\n  %s%s%s\0' \
+        "$id" "$icon" "${T_TITLE[$id]}" \
+        "$C_GROUP" "${T_GROUP[$id]}" "$C_RESET" \
+        "$C_DIM" "${T_DESC[$id]}" "$C_RESET"
+    fi
+  done
+}
+
+list_plain() {
+  local id state
+  for id in $T_ORDER; do
+    in_filter "$id" || continue
+    state=$(tweak_state "$id")
+    printf '%-8s %-24s %-12s %s\n' "$state" "$id" "${T_GROUP[$id]}" "${T_TITLE[$id]}"
+  done
+}
+
+detail() {
+  local id=$1
+  [[ -n ${T_TITLE[$id]:-} ]] || die "unknown tweak: $id"
+
+  local state setting current
+  local -a f
+  state=$(tweak_state "$id")
+
+  print -r -- "${C_TITLE}${T_TITLE[$id]}${C_RESET}"
+  print -r -- "${C_DIM}${T_DESC[$id]}${C_RESET}"
+  print
+  print -r -- "state    $(state_icon "$state") $state"
+  print -r -- "id       $id"
+  print -r -- "group    ${T_GROUP[$id]}"
+  if [[ -n ${T_RESTART[$id]} ]]; then
+    print -r -- "applies  ${T_RESTART[$id]}"
+  fi
+  print
+
+  for setting in ${(s.;.)T_SETTINGS[$id]}; do
+    f=(${=setting})
+    current=$(read_value "${f[1]}" "${f[2]}") || current=''
+    print -r -- "${C_TITLE}${f[2]}${C_RESET} ${C_DIM}(${f[1]})${C_RESET}"
+    print -r -- "  current  ${current:-${C_OFF}<unset>${C_RESET}}"
+    print -r -- "  wanted   ${f[5]}"
+    if [[ $state == on ]]; then
+      print -r -- "  ${C_DIM}toggle   defaults delete ${f[1]} ${f[2]}${C_RESET}"
+    else
+      print -r -- "  ${C_DIM}toggle   defaults write ${f[1]} ${f[2]} ${f[3]} ${f[4]}${C_RESET}"
+    fi
+  done
+}
+
+# --- applying -----------------------------------------------------------------
+
+typeset -gA RESTART_PENDING=()
+typeset -gi NEEDS_LOGOUT=0
+typeset -gi DRY_RUN=0
+typeset -gi DO_RESTART=1
+
+run_defaults() {
+  if (( DRY_RUN )); then
+    print -r -- "defaults $*"
+    return 0
+  fi
+  local out
+  if ! out=$(defaults "$@" 2>&1); then
+    warn "failed: defaults $* ${out:+-- $out}"
+    return 1
+  fi
+  return 0
+}
+
+note_restart() {
+  local id=$1 target
+  for target in ${(s.,.)T_RESTART[$id]}; do
+    [[ -z $target ]] && continue
+    if [[ $target == logout ]]; then
+      NEEDS_LOGOUT=1
+    else
+      RESTART_PENDING[$target]=1
+    fi
+  done
+}
+
+set_tweak() {
+  local id=$1 want=$2
+  [[ -n ${T_TITLE[$id]:-} ]] || die "unknown tweak: $id"
+
+  local setting
+  local -a f
+  for setting in ${(s.;.)T_SETTINGS[$id]}; do
+    f=(${=setting})
+    if [[ $want == on ]]; then
+      run_defaults write "${f[1]}" "${f[2]}" "${f[3]}" "${f[4]}" || true
+    else
+      # A missing key is already at its default; don't report that as an error.
+      if [[ -n $(read_value "${f[1]}" "${f[2]}") ]]; then
+        run_defaults delete "${f[1]}" "${f[2]}" || true
+      fi
+    fi
+  done
+
+  note_restart "$id"
+  if [[ $want == on ]]; then
+    print -r -- "${C_ON}●${C_RESET} applied  ${T_TITLE[$id]}"
+  else
+    print -r -- "${C_OFF}○${C_RESET} reverted ${T_TITLE[$id]}"
+  fi
+}
+
+toggle_tweak() {
+  local id=$1
+  [[ -n ${T_TITLE[$id]:-} ]] || die "unknown tweak: $id"
+  if [[ $(tweak_state "$id") == on ]]; then
+    set_tweak "$id" off
+  else
+    set_tweak "$id" on
+  fi
+}
+
+flush_restarts() {
+  local target
+  if (( ${#RESTART_PENDING} )); then
+    for target in ${(ok)RESTART_PENDING}; do
+      if (( DRY_RUN )) || (( ! DO_RESTART )); then
+        print -r -- "${C_DIM}skipped: killall ${target}${C_RESET}"
+      else
+        print -r -- "${C_DIM}restarting ${target}${C_RESET}"
+        killall "$target" 2>/dev/null || true
+      fi
+    done
+    RESTART_PENDING=()
+  fi
+  if (( NEEDS_LOGOUT )); then
+    print -r -- "${C_DIM}some changes need a log out / restart to take full effect${C_RESET}"
+    NEEDS_LOGOUT=0
+  fi
+}
+
+# --- picker -------------------------------------------------------------------
+
+picker() {
+  local query=$1
+  local -i once=$2
+  local -a picked
+
+  # The category cycle is shared with fzf's child processes through this file.
+  local group_file
+  group_file=$(mktemp "${TMPDIR:-/tmp}/fzf-macos-tweaks.XXXXXX")
+  print -rn -- "$GROUP_FILTER" > "$group_file"
+  export _FZF_TWEAKS_GROUP_FILE=$group_file
+  trap 'rm -f -- "$group_file"' EXIT INT TERM
+
+  while true; do
+    load_group_filter
+    picked=("${(@f)$(
+      render | fzf \
+        --read0 \
+        --ansi \
+        --multi \
+        --gap=1 \
+        --highlight-line \
+        --delimiter=$'\t' \
+        --with-nth=2.. \
+        --accept-nth=1 \
+        --layout=reverse \
+        --border \
+        --height='80%' \
+        --prompt="${GROUP_FILTER}> " \
+        --header='enter toggle · tab multi-select · ctrl-g/alt-g category · ctrl-r refresh' \
+        --preview="${(q)SELF} --detail {1}" \
+        --preview-window='right,55%,wrap,border-left' \
+        --bind="ctrl-r:reload(${(q)SELF} --render)" \
+        --bind="ctrl-g:transform:${(q)SELF} --cycle-group" \
+        --bind="alt-g:transform:${(q)SELF} --cycle-group --back" \
+        --bind='ctrl-/:toggle-preview' \
+        --query="$query"
+    )}")
+
+    # Empty selection means the picker was cancelled.
+    (( ${#picked} )) || return 0
+
+    local id
+    for id in $picked; do
+      [[ -n $id ]] && toggle_tweak "$id"
+    done
+    flush_restarts
+
+    if (( once )); then
+      return 0
+    fi
+    query=''
+  done
+}
+
+# --- entry point --------------------------------------------------------------
+
+main() {
+  local mode=picker query='' detail_id='' group='' direction=forward
+  local -a targets=()
+  local -i once=0
+
+  while (( $# )); do
+    case $1 in
+      -h|--help) usage; return 0 ;;
+      -l|--list) mode=list; shift ;;
+      -g|--group) [[ -n ${2:-} ]] || die "--group needs a category"; group=$2; shift 2 ;;
+      --groups) mode=groups; shift ;;
+      --render) mode=render; shift ;;
+      --cycle-group) mode=cycle; shift ;;
+      --back) direction=back; shift ;;
+      --detail) [[ -n ${2:-} ]] || die "--detail needs a tweak id"; mode=detail; detail_id=$2; shift 2 ;;
+      --on) mode=on; shift; targets+=("$@"); break ;;
+      --off) mode=off; shift; targets+=("$@"); break ;;
+      -n|--dry-run) DRY_RUN=1; shift ;;
+      --no-restart) DO_RESTART=0; shift ;;
+      -1|--once) once=1; shift ;;
+      --) shift; query="${*:-}"; break ;;
+      -*) die "unknown option: $1 (try --help)" ;;
+      *) query="$1"; shift ;;
+    esac
+  done
+
+  load_tweaks
+  load_group_filter
+  if [[ -n $group ]]; then
+    if [[ $group != all && -z ${${(f)"$(group_cycle)"}[(r)$group]:-} ]]; then
+      die "unknown category: $group (try --groups)"
+    fi
+    GROUP_FILTER=$group
+  fi
+
+  case $mode in
+    list)   list_plain ;;
+    groups) group_cycle ;;
+    render) render ;;
+    cycle)  cycle_group "$direction" ;;
+    detail) detail "$detail_id" ;;
+    on|off)
+      (( ${#targets} )) || die "--${mode} needs at least one tweak id"
+      local id
+      for id in $targets; do
+        set_tweak "$id" "$mode"
+      done
+      flush_restarts
+      ;;
+    picker)
+      command -v fzf >/dev/null 2>&1 || die "missing dependency: fzf"
+      picker "$query" "$once"
+      ;;
+  esac
+}
+
+main "$@"
