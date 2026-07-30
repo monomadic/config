@@ -7,11 +7,35 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"unsafe"
 
 	"github.com/cespare/xxhash/v2"
 )
 
-const copyBufSize = 4 << 20 // 4 MiB
+const (
+	copyBufSize = 8 << 20  // 8 MiB per buffer
+	copyBufs    = 3        // one being filled, one in flight, one being written
+	ioAlign     = 16 << 10 // buffer start alignment, comfortably above any device block
+)
+
+// chunk is one filled buffer handed from the reader to the writer. buf is
+// always the full-capacity buffer so it can be recycled; n is what to write.
+type chunk struct {
+	buf []byte
+	n   int
+}
+
+// alignedBuf returns an n-byte buffer whose first byte sits on an ioAlign
+// boundary. With F_NOCACHE the kernel talks to the device directly, and an
+// unaligned buffer makes it bounce the data through an intermediate copy
+// first. Go's collector does not move heap objects, so the alignment holds.
+func alignedBuf(n int) []byte {
+	buf := make([]byte, n+ioAlign)
+	if off := int(uintptr(unsafe.Pointer(&buf[0])) % ioAlign); off != 0 {
+		buf = buf[ioAlign-off:]
+	}
+	return buf[:n]
+}
 
 // speedometer produces a smoothed bytes/second reading from successive
 // (time, cumulative-bytes) samples via an exponential moving average.
@@ -51,6 +75,12 @@ func (s *speedometer) sample(now time.Time, total int64) float64 {
 // directory, then atomically renames it into place. It reports cumulative
 // bytes via onProgress, honours ctx cancellation, and enforces the requested
 // verification. A returned error leaves no partial file behind.
+//
+// Reads and writes are pipelined across two goroutines. A serial loop with
+// F_NOCACHE on both fds leaves each drive idle while the other one works, so
+// throughput lands at the harmonic mean of the two rather than at the speed of
+// the slower one — on a fast source and a slow target that gives away a third
+// of the write bandwidth.
 func copyOne(ctx context.Context, srcPath, destPath string, size int64, mode verifyMode, onProgress func(int64)) (err error) {
 	src, err := os.Open(srcPath)
 	if err != nil {
@@ -74,44 +104,92 @@ func copyOne(ctx context.Context, srcPath, destPath string, size int64, mode ver
 		}
 	}()
 
-	hasher := xxhash.New()
-	buf := make([]byte, copyBufSize)
-	var copied int64
+	if err := preallocate(tmp, size); err != nil {
+		tmp.Close()
+		return err
+	}
 
-	for {
-		select {
-		case <-ctx.Done():
+	hasher := xxhash.New()
+
+	// copyBufs buffers cycle between the two goroutines: free carries empties
+	// back to the reader, filled carries full ones to the writer. Both are
+	// buffered to the full count, so neither send can ever block on the other
+	// side being slow — only on there being no work.
+	free := make(chan []byte, copyBufs)
+	for i := 0; i < copyBufs; i++ {
+		free <- alignedBuf(copyBufSize)
+	}
+	filled := make(chan chunk, copyBufs)
+	stop := make(chan struct{})
+	defer close(stop) // releases the reader when the writer leaves early
+
+	// The reader also hashes, so the checksum costs nothing beyond the write
+	// it overlaps with. Sequential reads keep the hash in stream order.
+	var readErr error
+	go func() {
+		defer close(filled)
+		for {
+			var buf []byte
+			select {
+			case buf = <-free:
+			case <-stop:
+				return
+			case <-ctx.Done():
+				return
+			}
+			// ReadFull keeps every write device-block sized; a short read only
+			// happens at EOF.
+			n, rerr := io.ReadFull(src, buf)
+			if n > 0 {
+				if mode == verifyHash {
+					_, _ = hasher.Write(buf[:n])
+				}
+				select {
+				case filled <- chunk{buf: buf, n: n}:
+				case <-stop:
+					return
+				case <-ctx.Done():
+					return
+				}
+			}
+			if rerr != nil {
+				if rerr != io.EOF && rerr != io.ErrUnexpectedEOF {
+					readErr = rerr
+				}
+				return
+			}
+		}
+	}()
+
+	var copied int64
+	for c := range filled {
+		if ctx.Err() != nil {
 			tmp.Close()
 			return ctx.Err()
-		default:
 		}
-
-		nr, rerr := src.Read(buf)
-		if nr > 0 {
-			if mode == verifyHash {
-				_, _ = hasher.Write(buf[:nr])
-			}
-			nw, werr := tmp.Write(buf[:nr])
-			copied += int64(nw)
-			if onProgress != nil {
-				onProgress(copied)
-			}
-			if werr != nil {
-				tmp.Close()
-				return werr // typically ENOSPC
-			}
-			if nw < nr {
-				tmp.Close()
-				return io.ErrShortWrite
-			}
+		nw, werr := tmp.Write(c.buf[:c.n])
+		copied += int64(nw)
+		if onProgress != nil {
+			onProgress(copied)
 		}
-		if rerr == io.EOF {
-			break
-		}
-		if rerr != nil {
+		if werr != nil {
 			tmp.Close()
-			return rerr
+			return werr // typically ENOSPC
 		}
+		if nw < c.n {
+			tmp.Close()
+			return io.ErrShortWrite
+		}
+		free <- c.buf
+	}
+	// filled is closed, so the reader has returned and readErr is settled.
+	if readErr != nil {
+		tmp.Close()
+		return readErr
+	}
+	if ctx.Err() != nil {
+		tmp.Close()
+		return ctx.Err()
 	}
 
 	if err := tmp.Sync(); err != nil {
@@ -165,7 +243,7 @@ func hashFile(ctx context.Context, path string) (uint64, error) {
 	disableCache(f)
 
 	h := xxhash.New()
-	buf := make([]byte, copyBufSize)
+	buf := alignedBuf(copyBufSize)
 	for {
 		select {
 		case <-ctx.Done():

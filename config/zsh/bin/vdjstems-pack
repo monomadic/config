@@ -116,9 +116,24 @@ ${BOLD}REQUIRED STEMS${RESET} (aliases accepted):
                   to duplicating drums/kick at −6 dB
 
 ${BOLD}EXAMPLES:${RESET}
-  $SELF --sidecar ~/Music/song.flac ~/Music/song.stems   # VDJ-native
-  $SELF ~/Music/MySong/stems                             # standalone AAC
-  $SELF -l -k Am ~/Music/MySong/stems                    # standalone ALAC
+  ${BOLD}From scratch, one line${RESET} — separate a track and give it stems in VDJ:
+    vdjstems make song.flac
+    # or without the umbrella command:
+    vdjstems-split -o song.stems song.flac && $SELF --sidecar song.flac song.stems
+
+  ${BOLD}Sidecar${RESET} — stems for a track already in your VDJ library:
+    $SELF --sidecar song.flac song.stems        # AAC 320k, next to song.flac
+    $SELF --flac --sidecar song.flac song.stems # lossless FLAC sidecar
+
+  ${BOLD}Standalone${RESET} — a self-contained stems track (no original needed):
+    $SELF MySong                                # → MySong/MySong-stems.m4a
+    $SELF --alac -o MySong-stems.m4a MySong     # lossless, explicit name
+    $SELF -b 128 -k Am MySong                   # tag tempo + key
+    (from inside the stem dir, ${BOLD}vdjstems-create${RESET} is the lossless shorthand)
+
+  ${BOLD}Third-party stems${RESET} — demucs/MDX output works as-is (aliases resolved):
+    demucs -n htdemucs_ft song.flac
+    $SELF --sidecar song.flac separated/htdemucs_ft/song
 EOF
   exit 0
 }

@@ -10,11 +10,20 @@ script_name="${0:t}"
 usage() {
   cat <<EOF
 usage:
-  $script_name [--preview [seconds]] [--trash-originals] [--resume] [--copy-cmd] [--nice[=N]] [--background] [--preset_name name --filter_complex filter] [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
+  $script_name [--preview [seconds]] [--trash-originals] [--resume] [--copy-cmd] [--nice[=N]] [--background] [--log] [--preset_name name --filter_complex filter] [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
   $script_name file1 [file2 ...]
 
 With --preset_name and --filter_complex, runs the supplied Topaz filter directly.
 Without them, opens the interactive preset picker.
+
+With --log (aka --headless), prints a plain timestamped transcript on stdout:
+no ANSI colour, no in-place progress bar (a progress line every 5% instead),
+no prompts, no mpv/kitty windows, and failures reported on stdout with the rest
+of the run. Partial outputs resume automatically, and only a failed encode
+makes the exit status non-zero. This turns on by itself when stdout is not a
+terminal or NO_COLOR / CLICOLOR=0 / TERM=dumb are set — which is exactly what
+job-runner does — so a NAME.job script needs nothing but the normal command.
+--no-log forces the interactive presentation back on.
 
 With --nice, runs the encoder through nice(1) at niceness N (default 19) so the
 machine stays responsive during long jobs. --background additionally applies
@@ -177,6 +186,7 @@ topaz_open_log_tail() {
   local title="topaz log: ${log_file:t}"
   local -a kitty_cmd
 
+  [[ "$log_mode" == true ]] && return 0
   command -v kitty >/dev/null 2>&1 || return 0
   [[ -n "${KITTY_WINDOW_ID:-}" || -n "${KITTY_LISTEN_ON:-}" ]] || return 0
 
@@ -198,12 +208,84 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
+# --- output modes ----------------------------------------------------------
+# Interactive runs get ANSI colour, an in-place progress bar and prompts.
+# Log mode emits plain timestamped lines on stdout only — no escape codes, no
+# carriage-return redraws, no prompts — so a headless run reads as one
+# transcript. It turns on with --log, or automatically when the environment
+# says nobody is watching: stdout is not a tty, or NO_COLOR / CLICOLOR=0 /
+# TERM=dumb are set. job-runner sets all of those, so a .job script can just
+# call topaz-encode normally.
+log_mode=false
+log_mode_explicit=false
+
+# Strip zsh prompt escapes (%F{..}, %B, %f ...) so the same message strings can
+# be printed with or without colour.
+topaz_plain() {
+  emulate -L zsh
+  setopt localoptions extendedglob
+  local s="$1" sentinel=$'\x01'
+  # Patterns live in variables and are applied with ${~var}: a literal { } or [ ]
+  # written inline in a ${//} pattern is not parsed as a glob.
+  local color_pat='%[FK]{[^}]##}'
+  local attr_pat='%[fkbBuU]'
+
+  # Literal %% (escaped text, e.g. a filename with a % in it) is parked first
+  # so its % can't be read as the start of an escape sequence.
+  s="${s//\%\%/$sentinel}"
+  s="${s//${~color_pat}/}"
+  s="${s//${~attr_pat}/}"
+  s="${s//$sentinel/%}"
+
+  print -r -- "$s"
+}
+
+topaz_log_stamp() {
+  [[ "$log_mode" == true ]] && print -rn -- "[$(date '+%F %T')] "
+}
+
+say() {
+  if [[ "$log_mode" == true ]]; then
+    print -r -- "$(topaz_log_stamp)$(topaz_plain "$1")"
+  else
+    print -P -- "$1"
+  fi
+}
+
+# Failures. In log mode they go to stdout with the rest of the transcript
+# (job-runner already reports failure from the exit status, and a split stream
+# would interleave badly); headline lines are tagged ERROR: so they grep out,
+# while indented continuation lines are left alone.
+say_err() {
+  local plain
+  if [[ "$log_mode" == true ]]; then
+    plain="$(topaz_plain "$1")"
+    [[ "$plain" == [[:space:]]* ]] || plain="ERROR: $plain"
+    print -r -- "$(topaz_log_stamp)$plain"
+  else
+    print -P -u2 -- "$1"
+  fi
+}
+
+# Spacer between blocks; pure noise in a log.
+say_blank() {
+  [[ "$log_mode" == true ]] || print
+}
+
 warn() {
-  print -r -u2 -- "warning: $*"
+  if [[ "$log_mode" == true ]]; then
+    print -r -- "$(topaz_log_stamp)WARN: $*"
+  else
+    print -r -u2 -- "warning: $*"
+  fi
 }
 
 info() {
-  print -r -- "$*"
+  if [[ "$log_mode" == true ]]; then
+    print -r -- "$(topaz_log_stamp)$*"
+  else
+    print -r -- "$*"
+  fi
 }
 
 is_number() {
@@ -488,22 +570,66 @@ topaz_draw_progress_bar() {
   '
 }
 
+# Seconds from an ffmpeg out_time ("00:01:23.456789"); empty if unparseable.
+topaz_clock_seconds() {
+  emulate -L zsh
+  local t="${1:-}" rest h m s
+
+  [[ "$t" == *:*:* ]] || {
+    [[ "$t" == <-> || "$t" == <->.<-> ]] && print -r -- "${t%%.*}"
+    return
+  }
+
+  h="${t%%:*}"; rest="${t#*:}"
+  m="${rest%%:*}"; s="${rest##*:}"; s="${s%%.*}"
+  [[ "$h" == <-> && "$m" == <-> && "$s" == <-> ]] || return
+  print -r -- $(( h * 3600 + m * 60 + s ))
+}
+
 # Consume ffmpeg -progress key=value stream on stdin, redrawing the bar.
+# In log mode there is nothing to redraw, so emit one plain line per 5% of
+# progress (plus a final line) — enough to see a long encode is alive when
+# tailing NAME.job.log, few enough not to bury the rest of the transcript.
 topaz_render_progress() {
   emulate -L zsh
-  local total="${1:-}" cols="${2:-80}"
+  local total="${1:-}" cols="${2:-80}" plain="${3:-false}"
   local line key value out_time="" speed="" state="" drew=false
+  local elapsed pct eta
+  integer bucket last_bucket=-1
 
   while IFS= read -r line; do
     key="${line%%=*}"
     value="${line#*=}"
     case "$key" in
       out_time) out_time="$value" ;;
-      speed) speed="$value" ;;
+      speed) speed="${value//[[:space:]]/}" ;;   # ffmpeg pads it to " 5.6x"
       progress)
         state="$value"
-        topaz_draw_progress_bar "$total" "$out_time" "$speed" "$state" "$cols"
-        drew=true
+        if [[ "$plain" != true ]]; then
+          topaz_draw_progress_bar "$total" "$out_time" "$speed" "$state" "$cols"
+          drew=true
+          continue
+        fi
+
+        elapsed="$(topaz_clock_seconds "$out_time")"
+        [[ -n "$elapsed" ]] || continue
+        # No clamping to 100% on the final event: an interrupted encode should
+        # leave its true last position in the log, not a fake completion.
+        if [[ "$total" == <-> || "$total" == <->.<-> ]] && (( total > 0 )); then
+          pct=$(( elapsed * 100 / ${total%%.*} ))
+          (( pct > 100 )) && pct=100
+          bucket=$(( pct / 5 ))
+          [[ "$state" == end ]] || (( bucket != last_bucket )) || continue
+          last_bucket=$bucket
+          eta="$(awk -v t="$total" -v e="$elapsed" -v s="${speed//[^0-9.]/}" \
+            'BEGIN { s = s + 0; print (s > 0 && t > e) ? (t - e) / s : 0 }')"
+          info "  progress: ${pct}% ($(topaz_format_clock "$elapsed") / $(topaz_format_clock "$total")) at ${speed:-?}, eta $(topaz_format_clock "$eta")"
+        else
+          bucket=$(( elapsed / 60 ))
+          [[ "$state" == end ]] || (( bucket != last_bucket )) || continue
+          last_bucket=$bucket
+          info "  progress: $(topaz_format_clock "$elapsed") encoded at ${speed:-?}"
+        fi
         ;;
     esac
   done
@@ -527,7 +653,7 @@ topaz_run_with_controls() {
   local paused=false interactive=false stop_requested=false
   shift 5
 
-  [[ -t 0 && -t 1 ]] && interactive=true
+  [[ -t 0 && -t 1 && "$log_mode" != true ]] && interactive=true
 
   control_dir="$(mktemp -d "${TMPDIR:-/tmp}/topaz-controls.XXXXXX")" || return 1
   progress_fifo="$control_dir/progress"
@@ -536,7 +662,7 @@ topaz_run_with_controls() {
     return 1
   fi
 
-  topaz_render_progress "$total" "$cols" <"$progress_fifo" &
+  topaz_render_progress "$total" "$cols" "$log_mode" <"$progress_fifo" &
   progress_pid=$!
 
   # Reset inherited signal handlers before exec so q/Ctrl-C reaches ffmpeg even
@@ -773,9 +899,28 @@ open_preview_pair() {
   return 1
 }
 
+# In log mode the encoder log is the only record of *why* an encode died, and
+# nobody is going to go opening ~/Library/Logs after the fact — so quote its
+# tail into the transcript.
+report_encoder_log_tail() {
+  local log_file="$1" line
+  integer lines="${2:-15}"
+
+  [[ "$log_mode" == true && -s "$log_file" ]] || return 0
+
+  say_err "  %F{white}last ${lines} lines of the encoder log:%f"
+  tail -n "$lines" -- "$log_file" | tr '\r' '\n' | while IFS= read -r line; do
+    [[ -n "${line//[[:space:]]/}" ]] && print -r -- "    $line"
+  done
+  return 0
+}
+
 maybe_open_preview_pair() {
   local input_file="$1"
   local output_file="$2"
+
+  # No prompting and no windows in a headless run.
+  [[ "$log_mode" == true ]] && return 0
 
   confirm_open_preview "$input_file" "$output_file" || return 0
   open_preview_pair "$input_file" "$output_file"
@@ -843,6 +988,16 @@ while (( $# > 0 )); do
       background_mode=true
       shift
       ;;
+    --log|--headless|--plain)
+      log_mode=true
+      log_mode_explicit=true
+      shift
+      ;;
+    --no-log|--interactive)
+      log_mode=false
+      log_mode_explicit=true
+      shift
+      ;;
     --preset_name)
       (( $# >= 2 )) || {
         print -u2 -- "--preset_name requires a value"
@@ -900,6 +1055,16 @@ while (( $# > 0 )); do
       ;;
   esac
 done
+
+# Auto-detect a headless caller unless --log/--no-log said otherwise.
+if [[ "$log_mode_explicit" != true ]]; then
+  if [[ ! -t 1 ]] ||
+     [[ -n "${NO_COLOR:-}" ]] ||
+     [[ "${CLICOLOR:-}" == 0 ]] ||
+     [[ "${TERM:-}" == (dumb|) ]]; then
+    log_mode=true
+  fi
+fi
 
 is_number "$preview_seconds" || {
   print -u2 -- "--preview length must be numeric seconds"
@@ -993,15 +1158,23 @@ else
       preset_output_ext="${files[1]:e}"
       output_override="${files[1]:A}"
       files=("${embedded_job[topaz_source]}")
-      print -P -- "%F{cyan}%B↻ embedded Topaz job found%b%f"
-      print -P -- "  %F{white}preset:%f %F{magenta}$(topaz_escape_prompt "$preset_name")%f"
-      print -P -- "  %F{white}source:%f %F{white}$(topaz_escape_prompt "${files[1]}")%f"
-      print
+      say "%F{cyan}%B↻ embedded Topaz job found%b%f"
+      say "  %F{white}preset:%f %F{magenta}$(topaz_escape_prompt "$preset_name")%f"
+      say "  %F{white}source:%f %F{white}$(topaz_escape_prompt "${files[1]}")%f"
+      say_blank
     fi
   fi
 fi
 
 if [[ -z "$preset_value" ]]; then
+  # The picker needs a terminal. Fail loudly rather than hanging a queued job
+  # on an fzf that has no tty.
+  [[ "$log_mode" == true ]] && {
+    say_err "no preset given and the interactive picker cannot run in log mode"
+    say_err "  pass --preset_name NAME --filter_complex FILTER (topaz-encode --copy-cmd prints a ready-made command)"
+    exit 1
+  }
+
   command -v fzf >/dev/null 2>&1 || {
     print -u2 "fzf not found"
     exit 1
@@ -1064,9 +1237,9 @@ if [[ "$copy_cmd_mode" == true ]]; then
   done
   if have pbcopy; then
     print -rn -- "$cmd_lines" | pbcopy
-    print -P -- "%F{green}✓ command copied to clipboard%f"
+    say "%F{green}✓ command copied to clipboard%f"
   else
-    print -P -u2 -- "%F{yellow}⚠ pbcopy not found — command printed only%f"
+    say_err "%F{yellow}⚠ pbcopy not found — command printed only%f"
   fi
   exit 0
 fi
@@ -1089,21 +1262,21 @@ term_cols="$(tput cols 2>/dev/null || true)"
 [[ "$term_cols" == <1-> ]] || term_cols="${COLUMNS:-80}"
 [[ "$term_cols" == <1-> ]] || term_cols=80
 
-print -P -- "%F{blue}%BTopaz batch%b%f"
-print -P -- "  %F{white}preset:%f %F{magenta}$(topaz_escape_prompt "$preset_name")%f"
-[[ "$preview_mode" == true ]] && print -P -- "  %F{white}preview:%f %F{yellow}${preview_seconds}s sample encode%f"
+say "%F{blue}%BTopaz batch%b%f"
+say "  %F{white}preset:%f %F{magenta}$(topaz_escape_prompt "$preset_name")%f"
+[[ "$preview_mode" == true ]] && say "  %F{white}preview:%f %F{yellow}${preview_seconds}s sample encode%f"
 if (( ${#priority_cmd[@]} > 0 )); then
   priority_desc=""
   [[ "$background_mode" == true ]] && priority_desc+="background (taskpolicy -b)"
   [[ -n "$nice_level" ]] && priority_desc+="${priority_desc:+, }nice $nice_level"
-  print -P -- "  %F{white}priority:%f %F{yellow}${priority_desc}%f"
+  say "  %F{white}priority:%f %F{yellow}${priority_desc}%f"
 fi
 if [[ "$trash_originals" == true && "$preview_mode" == true ]]; then
-  print -P -- "  %F{white}cleanup:%f %F{yellow}ignored during preview%f"
+  say "  %F{white}cleanup:%f %F{yellow}ignored during preview%f"
 elif [[ "$trash_originals" == true ]]; then
-  print -P -- "  %F{white}cleanup:%f %F{yellow}trash originals after successful encodes%f"
+  say "  %F{white}cleanup:%f %F{yellow}trash originals after successful encodes%f"
 fi
-print
+say_blank
 
 integer ok_count=0
 integer skip_count=0
@@ -1179,23 +1352,29 @@ for input in "$files[@]"; do
 
     if [[ -z "$expected_duration" || -z "$out_duration" ]] ||
         awk -v o="$out_duration" -v e="$expected_duration" 'BEGIN { exit !(o >= e - 5) }'; then
-      print -P -- "%F{yellow}✓ skip:%f output already complete"
-      print -P -- "  %F{white}file:%f %F{blue}$(topaz_escape_prompt "$output")%f"
+      say "%F{yellow}✓ skip:%f output already complete"
+      say "  %F{white}file:%f %F{blue}$(topaz_escape_prompt "$output")%f"
       (( ++skip_count ))
       continue
     fi
 
     pct="$(awk -v o="$out_duration" -v e="$expected_duration" 'BEGIN { printf "%d", o / e * 100 }')"
-    print -P -- "%F{yellow}%B⚠ partial encode detected%b%f"
-    print -P -- "  %F{white}output:%f   %F{blue}$(topaz_escape_prompt "${output:t}")%f"
-    print -P -- "  %F{white}progress:%f %F{yellow}$(topaz_format_clock "$out_duration") of $(topaz_format_clock "$expected_duration") (${pct}%%)%f"
+    say "%F{yellow}%B⚠ partial encode detected%b%f"
+    say "  %F{white}output:%f   %F{blue}$(topaz_escape_prompt "${output:t}")%f"
+    say "  %F{white}progress:%f %F{yellow}$(topaz_format_clock "$out_duration") of $(topaz_format_clock "$expected_duration") (${pct}%%)%f"
 
     if [[ "$resume_mode" == true ]]; then
       resume_choice="r"
+    elif [[ "$log_mode" == true ]]; then
+      # Nobody to answer the prompt. Resume is the only choice that neither
+      # discards work nor silently does nothing: the partial is left untouched
+      # until a verified join exists, so it is safe to pick unattended.
+      resume_choice="r"
+      say "  %F{cyan}↻ resuming automatically (log mode)%f"
     else
       resume_choice=""
       read -k 1 "resume_choice?  ↻ [r]esume · [R]estart from scratch · [s]kip? " || resume_choice="s"
-      print
+      say_blank
     fi
 
     case "$resume_choice" in
@@ -1203,22 +1382,22 @@ for input in "$files[@]"; do
         resume_kf="$(topaz_last_keyframe_before "$output" \
           "$(awk -v o="$out_duration" 'BEGIN { print o - 2 }')")"
         if [[ -z "$resume_kf" ]]; then
-          print -P -u2 -- "%F{red}✗ could not find a resume keyframe in the partial — not touching it%f"
+          say_err "%F{red}✗ could not find a resume keyframe in the partial — not touching it%f"
           (( ++fail_count ))
           continue
         fi
-        print -P -- "  %F{cyan}↻ resuming from $(topaz_format_clock "$resume_kf")%f"
+        say "  %F{cyan}↻ resuming from $(topaz_format_clock "$resume_kf")%f"
         ;;
       R)
-        print -P -- "  %F{yellow}restarting from scratch (partial moved to Trash)%f"
+        say "  %F{yellow}restarting from scratch (partial moved to Trash)%f"
         trash_original "$output" || {
-          print -P -u2 -- "%F{red}✗ could not trash partial output — aborting this file%f"
+          say_err "%F{red}✗ could not trash partial output — aborting this file%f"
           (( ++fail_count ))
           continue
         }
         ;;
       *)
-        print -P -- "  %F{yellow}skipped%f"
+        say "  %F{yellow}skipped%f"
         (( ++skip_count ))
         continue
         ;;
@@ -1247,10 +1426,17 @@ for input in "$files[@]"; do
     progress_total_seconds="$(awk -v e="$expected_duration" -v k="$resume_kf" 'BEGIN { print e - k }')"
   fi
 
+  # Progress already comes back on pipe:1, so in log mode ffmpeg's stderr stats
+  # line is just carriage-return spam in the encoder log — and that log is what
+  # gets tailed into the transcript when an encode fails.
+  stats_args=()
+  [[ "$log_mode" == true ]] && stats_args=(-nostats)
+
   ffmpeg_cmd=(
     "$TOPAZ_FFMPEG"
     -hide_banner
     -nostdin
+    "${stats_args[@]}"
     -y
     -progress pipe:1
     "${input_duration_args[@]}"
@@ -1291,30 +1477,30 @@ for input in "$files[@]"; do
   topaz_open_log_tail "$log_file"
 
   if [[ -n "$resume_kf" ]]; then
-    print -P -- "%F{cyan}%B↻ Resuming encode%b%f"
+    say "%F{cyan}%B↻ Resuming encode%b%f"
   elif [[ "$preview_mode" == true ]]; then
-    print -P -- "%F{cyan}%B▶ Encoding preview%b%f"
+    say "%F{cyan}%B▶ Encoding preview%b%f"
   else
-    print -P -- "%F{cyan}%B▶ Encoding%b%f"
+    say "%F{cyan}%B▶ Encoding%b%f"
   fi
-  print -P -- "  %F{white}app:%f    %F{magenta}$(topaz_escape_prompt "$TOPAZ_APP")%f"
-  print -P -- "  %F{white}engine:%f %F{magenta}Topaz ffmpeg%f"
-  print -P -- "  %F{white}video:%f  %F{magenta}$(topaz_escape_prompt "${(j: :)video_args}")%f"
-  print -P -- "  %F{white}input:%f  %F{white}$(topaz_escape_prompt "$input")%f"
-  print -P -- "  %F{white}output:%f %F{green}%B$(topaz_escape_prompt "$output")%b%f"
-  print -P -- "  %F{white}log:%f    %F{blue}$(topaz_escape_prompt "$log_file")%f"
+  say "  %F{white}app:%f    %F{magenta}$(topaz_escape_prompt "$TOPAZ_APP")%f"
+  say "  %F{white}engine:%f %F{magenta}Topaz ffmpeg%f"
+  say "  %F{white}video:%f  %F{magenta}$(topaz_escape_prompt "${(j: :)video_args}")%f"
+  say "  %F{white}input:%f  %F{white}$(topaz_escape_prompt "$input")%f"
+  say "  %F{white}output:%f %F{green}%B$(topaz_escape_prompt "$output")%b%f"
+  say "  %F{white}log:%f    %F{blue}$(topaz_escape_prompt "$log_file")%f"
   if [[ -n "$resume_kf" ]]; then
-    print -P -- "  %F{white}resume:%f %F{cyan}tail from $(topaz_format_clock "$resume_kf"), then lossless join%f"
+    say "  %F{white}resume:%f %F{cyan}tail from $(topaz_format_clock "$resume_kf"), then lossless join%f"
   elif [[ "$preview_mode" == true ]]; then
-    print -P -- "  %F{white}sample:%f %F{yellow}${preview_seconds}s from start%f"
-  else
-    print -P -- "  %F{white}preview:%f %F{magenta}press [o] during encode to open output in mpv%f"
+    say "  %F{white}sample:%f %F{yellow}${preview_seconds}s from start%f"
+  elif [[ "$log_mode" != true ]]; then
+    say "  %F{white}preview:%f %F{magenta}press [o] during encode to open output in mpv%f"
   fi
-  print -P -- "  %F{white}metadata:%f %F{green}copy source tags and creation date%f"
-  [[ "$trash_originals" == true && "$preview_mode" != true ]] && print -P -- "  %F{white}cleanup:%f %F{yellow}trash original after success%f"
-  print -P -- "  %F{white}rerun/resume with:%f"
+  say "  %F{white}metadata:%f %F{green}copy source tags and creation date%f"
+  [[ "$trash_originals" == true && "$preview_mode" != true ]] && say "  %F{white}cleanup:%f %F{yellow}trash original after success%f"
+  say "  %F{white}rerun/resume with:%f"
   print -r -- "    $(topaz_wrapper_cmd "$input")"
-  print
+  say_blank
 
   topaz_result=0
   {
@@ -1344,10 +1530,11 @@ for input in "$files[@]"; do
   } >>"$log_file" 2>&1
 
   if (( topaz_result != 0 )); then
-    print -P -u2 -- "%F{red}✗ failed:%f $(topaz_escape_prompt "$input")"
-    print -P -u2 -- "  %F{white}see log:%f %F{blue}$(topaz_escape_prompt "$log_file")%f"
+    say_err "%F{red}✗ failed:%f $(topaz_escape_prompt "$input")"
+    say_err "  %F{white}see log:%f %F{blue}$(topaz_escape_prompt "$log_file")%f"
+    report_encoder_log_tail "$log_file"
     if [[ -n "$resume_kf" ]]; then
-      print -P -u2 -- "  %F{white}partial output untouched:%f %F{blue}$(topaz_escape_prompt "$output")%f"
+      say_err "  %F{white}partial output untouched:%f %F{blue}$(topaz_escape_prompt "$output")%f"
       [[ -s "$encode_target" ]] || rm -f -- "$encode_target"
     fi
     (( ++fail_count ))
@@ -1358,7 +1545,7 @@ for input in "$files[@]"; do
   # the joined duration, then swap it into place. The partial is never modified
   # until the verified replacement exists.
   if [[ -n "$resume_kf" ]]; then
-    print -P -- "  %F{cyan}↻ joining partial + tail…%f"
+    say "  %F{cyan}↻ joining partial + tail…%f"
     concat_list="$(mktemp "${TMPDIR:-/tmp}/topaz-concat.XXXXXX")"
     joined="${${output:A}:r} [resume joined].${output_ext}"
     {
@@ -1386,11 +1573,12 @@ for input in "$files[@]"; do
 
     if [[ "$duration_ok" != true ]]; then
       print "[$(date '+%F %T')] RESUME JOIN FAILED status=$concat_status joined_duration=${joined_duration:-?} expected=$expected_duration" >>"$log_file"
-      print -P -u2 -- "%F{red}✗ resume join failed or duration mismatch — nothing was deleted%f"
-      print -P -u2 -- "  %F{white}partial:%f %F{blue}$(topaz_escape_prompt "$output")%f"
-      print -P -u2 -- "  %F{white}tail:%f    %F{blue}$(topaz_escape_prompt "$encode_target")%f"
-      [[ -e "$joined" ]] && print -P -u2 -- "  %F{white}joined:%f  %F{blue}$(topaz_escape_prompt "$joined")%f"
-      print -P -u2 -- "  %F{white}see log:%f %F{blue}$(topaz_escape_prompt "$log_file")%f"
+      say_err "%F{red}✗ resume join failed or duration mismatch — nothing was deleted%f"
+      say_err "  %F{white}partial:%f %F{blue}$(topaz_escape_prompt "$output")%f"
+      say_err "  %F{white}tail:%f    %F{blue}$(topaz_escape_prompt "$encode_target")%f"
+      [[ -e "$joined" ]] && say_err "  %F{white}joined:%f  %F{blue}$(topaz_escape_prompt "$joined")%f"
+      say_err "  %F{white}see log:%f %F{blue}$(topaz_escape_prompt "$log_file")%f"
+      report_encoder_log_tail "$log_file"
       (( ++fail_count ))
       continue
     fi
@@ -1399,7 +1587,7 @@ for input in "$files[@]"; do
     mv -f -- "$joined" "$output"
     rm -f -- "$encode_target"
     print "[$(date '+%F %T')] RESUME DONE $output" >>"$log_file"
-    print -P -- "  %F{green}✓ resumed encode verified ($(topaz_format_clock "$joined_duration") ≈ $(topaz_format_clock "$expected_duration"))%f"
+    say "  %F{green}✓ resumed encode verified ($(topaz_format_clock "$joined_duration") ≈ $(topaz_format_clock "$expected_duration"))%f"
   fi
 
   copy_creation_date "$input" "$output" || (( ++creation_date_fail_count ))
@@ -1408,10 +1596,19 @@ for input in "$files[@]"; do
     maybe_trash_original "$input" || (( ++trash_fail_count ))
   fi
   (( ++ok_count ))
-  print -P -- "%F{green}%B✓ $(topaz_escape_prompt "${output:t}")%b%f"
-  print -P -- "  %F{8}$(topaz_escape_prompt "$(topaz_output_summary_line "$output")")%f"
+  say "%F{green}%B✓ $(topaz_escape_prompt "${output:t}")%b%f"
+  say "  %F{8}$(topaz_escape_prompt "$(topaz_output_summary_line "$output")")%f"
 done
 
-print
-print -P -- "%F{white}%BSummary%b%f  %F{green}✓ $ok_count ok%f · %F{yellow}$skip_count skipped%f · %F{red}$fail_count failed%f${creation_date_fail_count:+ · }%F{8}dates failed: $creation_date_fail_count, trash failed: $trash_fail_count%f"
-(( fail_count == 0 && creation_date_fail_count == 0 && trash_fail_count == 0 ))
+say_blank
+say "%F{white}%BSummary%b%f  %F{green}✓ $ok_count ok%f · %F{yellow}$skip_count skipped%f · %F{red}$fail_count failed%f${creation_date_fail_count:+ · }%F{8}dates failed: $creation_date_fail_count, trash failed: $trash_fail_count%f"
+
+# In log mode the exit status is the queue's success signal (job-runner files
+# the job under _done/ or _err/ by it), so only a failed encode counts as
+# failure — a missing SetFile or an undeletable original is a warning, not a
+# reason to bury a good encode in _err/.
+if [[ "$log_mode" == true ]]; then
+  (( fail_count == 0 ))
+else
+  (( fail_count == 0 && creation_date_fail_count == 0 && trash_fail_count == 0 ))
+fi

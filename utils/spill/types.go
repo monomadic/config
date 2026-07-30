@@ -24,14 +24,16 @@ func (v verifyMode) String() string {
 
 // options holds the parsed command-line configuration for a run.
 type options struct {
-	target  string     // destination directory
-	null    bool       // input paths are NUL-separated instead of newline
-	fill    bool       // skip files that don't fit and keep going until full
-	verify  verifyMode // post-copy verification
-	retries int        // extra attempts after the first on copy/verify failure
-	reserve uint64     // bytes of headroom to keep free on the target
-	force   bool       // overwrite existing destination files
-	modest  bool       // never render thumbnails
+	target   string       // destination directory
+	strategy strategyKind // which files to copy, and in what order
+	null     bool         // input paths are NUL-separated instead of newline
+	fill     bool         // skip files that don't fit and keep going until full
+	flatten  bool         // copy every file into the target root, ignoring input structure
+	verify   verifyMode   // post-copy verification
+	retries  int          // extra attempts after the first on copy/verify failure
+	reserve  uint64       // bytes of headroom to keep free on the target
+	force    bool         // overwrite existing destination files
+	modest   bool         // never render thumbnails
 }
 
 // The engine reports progress to a Reporter as a stream of these events. Both
@@ -43,8 +45,26 @@ type Reporter interface {
 type fileStartMsg struct {
 	name  string
 	path  string
+	dest  string
+	note  string // why the strategy picked this file, if it said
 	size  int64
 	index int
+}
+
+// scanMsg reports the inspection pass a strategy runs before (or, for the
+// streaming strategies, between) copies. total is 0 while streaming, where
+// the size of the input isn't known yet.
+type scanMsg struct {
+	name  string
+	done  int
+	total int
+}
+
+// filterMsg marks a file the strategy declined to copy. These are counted
+// apart from skips: nothing was wrong with the file, it just didn't match.
+type filterMsg struct {
+	name   string
+	reason string
 }
 
 type thumbMsg struct {
@@ -66,6 +86,8 @@ type progressMsg struct {
 
 type fileDoneMsg struct {
 	name     string
+	dest     string
+	note     string
 	size     int64
 	dur      time.Duration
 	verified verifyMode
@@ -98,6 +120,7 @@ type summary struct {
 	copied      int
 	copiedBytes int64
 	skipped     int
+	filtered    int
 	failed      int
 	elapsed     time.Duration
 	free        uint64

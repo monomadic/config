@@ -85,7 +85,7 @@ main() {
 
   if [[ ! -x "$SOURCE_BINARY" ]]; then
     echo "Error: missing executable source binary: $SOURCE_BINARY" >&2
-    echo "Rebuild it with: go build -ldflags='-s -w' -o '$SOURCE_BINARY' '$DOTFILES_DIR/utils/$APP_NAME'" >&2
+    echo "Rebuild it with: cargo build --release --manifest-path '$DOTFILES_DIR/utils/$APP_NAME/Cargo.toml' && cp '$DOTFILES_DIR/utils/$APP_NAME/target/release/$APP_NAME' '$SOURCE_BINARY'" >&2
     exit 1
   fi
 

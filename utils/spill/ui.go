@@ -36,8 +36,15 @@ type model struct {
 	inst    float64
 	avg     float64
 
+	curNote string
+
 	art     string
 	artName string
+
+	scanName  string
+	scanDone  int
+	scanTotal int
+	scanning  bool
 
 	free      uint64
 	diskTotal uint64
@@ -45,6 +52,7 @@ type model struct {
 	nCopied     int
 	copiedBytes int64
 	nSkipped    int
+	nFiltered   int
 	nFailed     int
 
 	logLines []string
@@ -78,8 +86,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case scanMsg:
+		m.scanning = true
+		m.scanName, m.scanDone, m.scanTotal = msg.name, msg.done, msg.total
+		return m, nil
+
+	case filterMsg:
+		m.nFiltered++
+		return m, nil
+
 	case fileStartMsg:
-		m.curName, m.curSize = msg.name, msg.size
+		m.scanning = false
+		m.curName, m.curSize, m.curNote = msg.name, msg.size, msg.note
 		m.copied, m.total = 0, msg.size
 		m.inst = 0
 		if m.artName != msg.name {
@@ -106,6 +124,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		tag := ""
 		if msg.verified != verifyNone {
 			tag = stDim.Render(" ✓" + msg.verified.String())
+		}
+		if msg.note != "" {
+			tag += stDim.Render(" · " + msg.note)
 		}
 		m.pushLog(stOK.Render("✓ ") + truncate(msg.name, 40) + " " +
 			stDim.Render("("+humanBytes(msg.size)+", "+humanRate(float64(msg.size)/msg.dur.Seconds())+")") + tag)
@@ -168,7 +189,8 @@ func (m model) View() string {
 	var b strings.Builder
 
 	title := gradientText("SPILL", copyStops)
-	b.WriteString(title + "  " + stDim.Render("→ "+m.opts.target) + "\n\n")
+	b.WriteString(title + "  " + stLabel.Render(m.opts.strategy.String()) +
+		stDim.Render("  → "+m.opts.target) + "\n\n")
 
 	// Current-file readout, optionally beside a thumbnail.
 	info := m.currentBlock()
@@ -176,6 +198,10 @@ func (m model) View() string {
 		b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, m.art, "  ", info) + "\n")
 	} else {
 		b.WriteString(info + "\n")
+	}
+
+	if line := m.scanLine(); line != "" {
+		b.WriteString(line + "\n")
 	}
 
 	b.WriteString(m.diskBlock() + "\n")
@@ -195,6 +221,21 @@ func (m model) View() string {
 	return b.String()
 }
 
+// scanLine shows the strategy's inspection pass: a progress count while a
+// sorting strategy is sizing up the whole list, or the file being examined
+// between copies under a streaming strategy.
+func (m model) scanLine() string {
+	if m.done || !m.scanning {
+		return ""
+	}
+	label := "inspecting"
+	if m.scanTotal > 0 {
+		label = fmt.Sprintf("inspecting %d/%d", m.scanDone, m.scanTotal)
+	}
+	return "\n" + stSpeed.Render("⋯ "+label) + " " +
+		stDim.Render(truncate(m.scanName, m.width()-thumbCols-24))
+}
+
 func (m model) currentBlock() string {
 	var b strings.Builder
 
@@ -202,7 +243,11 @@ func (m model) currentBlock() string {
 	if name == "" {
 		name = "…"
 	}
-	b.WriteString(stName.Render(truncate(name, m.width()-thumbCols-8)) + "\n")
+	head := stName.Render(truncate(name, m.width()-thumbCols-8))
+	if m.curNote != "" {
+		head += stDim.Render("  " + m.curNote)
+	}
+	b.WriteString(head + "\n")
 
 	ratio := 0.0
 	if m.total > 0 {
@@ -242,6 +287,7 @@ func (m model) diskBlock() string {
 func (m model) talliesLine() string {
 	return "\n" + stOK.Render(fmt.Sprintf("✓ %d copied", m.nCopied)) + stDim.Render(" · ") +
 		stWarn.Render(fmt.Sprintf("⤳ %d skipped", m.nSkipped)) + stDim.Render(" · ") +
+		stDim.Render(fmt.Sprintf("⊘ %d filtered", m.nFiltered)) + stDim.Render(" · ") +
 		stErr.Render(fmt.Sprintf("✕ %d failed", m.nFailed)) + stDim.Render(" · ") +
 		stDim.Render(humanBytes(m.copiedBytes)+" written")
 }
@@ -254,6 +300,7 @@ func (m model) summaryLine() string {
 	return stName.Render("Done: ") +
 		stOK.Render(fmt.Sprintf("%d copied", m.sum.copied)) + stDim.Render(" · ") +
 		stWarn.Render(fmt.Sprintf("%d skipped", m.sum.skipped)) + stDim.Render(" · ") +
+		stDim.Render(fmt.Sprintf("%d filtered", m.sum.filtered)) + stDim.Render(" · ") +
 		stErr.Render(fmt.Sprintf("%d failed", m.sum.failed)) + stDim.Render(" · ") +
 		stDim.Render(humanBytes(m.sum.copiedBytes)+" in "+humanDuration(m.sum.elapsed)+" · "+reason)
 }

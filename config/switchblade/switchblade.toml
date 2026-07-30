@@ -265,6 +265,29 @@ chapter_peek_s = 2.5
 # timed peek that slides back down once the pointer leaves). 0 disables.
 chapter_dock_reveal_px = 80.0
 
+# Chapter chips carry text: the chapter's start time in the top-left corner
+# and, along the bottom edge, its title. Only REAL chapters get a title (the
+# container's, or "Chapter N" when it names none) — a bar of synthesized
+# checkpoints shows times alone, so an invented bar never reads as an
+# authored one. A title longer than the chip ellipsizes.
+chapter_text = true
+chapter_text_size = 11.0
+# How far the labels tuck inside the chip's edges.
+chapter_text_inset_x = 8.0
+chapter_text_inset_y = 7.0
+# The chip is a video frame, and text over an arbitrary frame is not
+# legible without something behind it.
+chapter_text_fill = 0.55
+chapter_text_color = [0.94, 0.94, 0.96]
+# Time and title each carry their own radius and padding — a timecode and a
+# sentence are different shapes.
+chapter_time_radius = 3.0
+chapter_time_pad_x = 3.0
+chapter_time_pad_y = 1.5
+chapter_title_radius = 3.0
+chapter_title_pad_x = 4.0
+chapter_title_pad_y = 1.5
+
 # ── Startup settings (restart to apply) ─────────────────────────────────
 # Everything above this line hot-reloads; everything below is read once
 # at launch.
@@ -360,6 +383,66 @@ atlas_memory_mb = 600
 # zero skip. Higher = sharper + more decode CPU while selected.
 quickview_max_width = 2560
 quickview_max_height = 1440
+
+# ── Text (M7) ───────────────────────────────────────────────────────────
+# Hovering a grid tile or a filmstrip chip badges it with the duration, the
+# format marks (4K, 60) and the star rating — see tile_badge_layout below for
+# the arrangements. Marks and duration come from the clip's probed meta, so a
+# clip whose meta isn't cached yet shows only what it can; the rating is
+# parsed from a trailing ★ run in the filename and needs no probe at all.
+tile_badge = true
+tile_badge_size = 11.0
+# How far the badge tucks inside the tile's edges.
+tile_badge_inset_x = 14.0
+tile_badge_inset_y = 10.0
+# Below this tile width the whole left stack is dropped and the duration
+# kept — the duration is the half that still reads on a small tile.
+tile_badge_min_w = 70.0
+tile_badge_fill = 0.85  # opacity of the dark fill behind each label; 0 = none
+tile_badge_gap = 3.0  # vertical gap between stacked rows
+tile_badge_text = [0.94, 0.94, 0.96]
+
+# Where the 4K/60 boxes go — the rating always holds the bottom-left corner
+# and the duration the bottom-right; only the boxes move:
+#   "above"     stacked over the rating in the bottom-left
+#   "top"       hung off the TOP-left, stacking downward
+#   "topright"  hung off the TOP-right, stacking downward
+tile_badge_layout = "topright"
+
+# The badge rises the last few pixels into place as the hover fades in, each
+# row starting a little after the one above it, so it arrives with some life
+# instead of switching on. rise = 0 is static; stagger = 0 moves as one block.
+tile_badge_rise = 45.0
+tile_badge_stagger = 0.24
+
+# Each element has its own radius and internal padding — a boxed mark, a run
+# of stars and a duration are different shapes, and dialling one should never
+# drag the others with it.
+tile_badge_mark_radius = 4.5
+tile_badge_mark_pad_x = 3.0
+tile_badge_mark_pad_y = 1.0
+tile_badge_star_radius = 3.0
+tile_badge_star_pad_x = 3.0
+tile_badge_star_pad_y = 1.5
+tile_badge_time_radius = 3.0
+tile_badge_time_pad_x = 5.0
+tile_badge_time_pad_y = 1.5
+
+# Outline weight of a format mark, as a FRACTION of the badge size, so the
+# box stroke keeps matching the glyph stems at any size (~0.105 = the system
+# face's stem ratio at weight 600).
+tile_badge_mark_border = 0.150
+# How far the outline sits inside its fill: the fill extends past the
+# outline by this much, giving it a dark surround on bright frames.
+tile_badge_mark_inset = 2.0
+
+# Total clips loaded, in the grid's bottom-left corner: an icon and the
+# number on a capsule. Grows live while stdin is still streaming.
+library_count = true
+library_count_size = 14.0
+library_count_color = [0.66, 0.65, 0.70]
+library_count_pill = 0.5
+
 
 # ── Keys & commands (DESIGN.md §11) ────────────────────────────────────────
 # Every key is remappable, movement included: hjkl and the arrows bind to
@@ -494,7 +577,6 @@ args = [
   "/opt/homebrew/bin/mediainfo",
   "{path}",
 ]
-
 
 # Example: bind a key to your own script.
 # [commands.rename_script]

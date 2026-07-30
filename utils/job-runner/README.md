@@ -40,6 +40,16 @@ Jobs run cd'd into `~/jobs` with:
   of progress-bar redraws. Pass quiet flags for stubborn tools
   (`ffmpeg -nostats`, `yt-dlp --no-progress`).
 
+These three variables, plus the fact that stdout is a pipe rather than a tty,
+are the whole "you are headless" signal — the runner deliberately passes no
+per-tool flags, so a tool that wants to behave differently in a job detects
+them itself. `topaz-encode` is the worked example: under a job it drops ANSI
+colour and its in-place progress bar for a timestamped transcript with a
+progress line every 5%, skips every prompt (a partial output resumes
+automatically), quotes the encoder log into the transcript when an encode
+fails, and reports failure through the exit status alone. Nothing in the
+`.job` file needs to say so; `--log` forces the same behaviour in a terminal.
+
 A one-line status trail for every job is appended to
 `~/Library/Logs/job-runner.log`. Yazi styles the job file states
 (`config/yazi/theme.toml`).

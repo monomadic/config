@@ -39,15 +39,17 @@ fi
 ICON_MAPPINGS=(
   "1Password.app|1password.icns"
   "Brave Browser.app|brave.icns"
-  "Codex.app|codex.icns"
+  "Claude.app|claude.png"
+  "DaVinci Resolve.app|davinci-resolve-01.icns"
   "Firefox.app|firefox1.icns"
-  "ForkLift.app|finder-02.icns"
+  "ForkLift.app|folder-full-blue.icns"
+  "Logic Pro.app|logic-pro-01.icns"
   "Helium.app|globe.icns"
-  "Kitty.app|term2.icns"
+  "kitty.app|term2.icns"
   "Numi.app|numi.icns"
-  "Spotify.app|spotify.icns"
+  "Spotify.app|spotify-02.icns"
   "Telegram Desktop.app|telegram.icns"
-  "VirtualDJ.app|virtualdj.icns"
+  "VirtualDJ.app|virtualdj-vinyl-full.icns"
 )
 
 find_app_path() {

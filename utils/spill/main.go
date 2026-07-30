@@ -18,21 +18,43 @@ Usage:
   <paths on stdin> | spill [flags] TARGET_DIR
 
 Reads a list of file paths from stdin (one per line, or NUL-separated with -0)
-and copies each into TARGET_DIR, showing a live TUI with two neon progress
+and copies them into TARGET_DIR, showing a live TUI with two neon progress
 bars: the current file (with write speed) and the target drive's remaining
 space (with an estimated time to fill). Stops when input ends or the next file
 won't fit.
 
+By default it copies everything, in the order given. An opt-in --strategy
+narrows that down to the files worth taking, and can put them in a better
+order. Relative input paths keep their directory structure under TARGET_DIR;
+absolute paths (and everything under --flatten) land in the target root.
+
 Example:
-  fd . /Volumes/src -tf -0 | spill -0 --fill --verify hash /Volumes/backup
+  fd . -tf -0 | spill -0 -s highest-quality --fill --verify hash /Volumes/backup
+
+Strategies:
+  none              every file, in the order given (default)
+  high-quality      3★+, 1080p+, 60fps+ — best first
+  highest-quality   4★+, 4K+, 60fps+ — best first
+  good-quality      3★+, 1080p+, 30fps+ — best first
+  latest            newest files first, no filtering
+  audit             files with a black intro or no faststart, as they stream
+  url-missing       files with no embedded source URL, as they stream
+
+The quality strategies read the "★★★☆☆" rating from the filename (as written
+by media-set-rating) and the resolution/frame rate with ffprobe; unrated and
+non-video files never clear the bar. "audit" applies the same checks as
+media-audit, and copies rather than asking.
 
 Flags:
+  -s, --strategy S  Which files to copy, and in what order (default: none)
   -0, --null        Input paths are NUL-separated (pairs with fd/find -print0)
   --fill            When a file won't fit, skip it and keep going until the
                     drive is totally full (default: stop at the first misfit)
+  --flatten         Copy every file into TARGET_DIR itself, ignoring the
+                    directory structure of relative input paths
   --verify MODE     Verify each copy: "size" or "hash" (default: off)
   --retry N         Extra attempts after a failed copy/verify (default: 2)
-  --reserve SIZE    Keep SIZE free on the target, e.g. 1G, 500M (default: 0)
+  --reserve SIZE    Keep SIZE free on the target, e.g. 1G, 500M (default: 1G)
   --force           Overwrite files that already exist in TARGET_DIR
   --modest          Never render thumbnails
   -h, --help        Show this help
@@ -40,10 +62,11 @@ Flags:
 
 func main() {
 	var (
-		nullShort, nullLong bool
-		verifyStr           string
-		reserveStr          string
-		opts                options
+		nullShort, nullLong   bool
+		stratShort, stratLong string
+		verifyStr             string
+		reserveStr            string
+		opts                  options
 	)
 
 	fs := flag.NewFlagSet("spill", flag.ContinueOnError)
@@ -51,10 +74,13 @@ func main() {
 	fs.Usage = func() { fmt.Fprint(os.Stderr, usageText) }
 	fs.BoolVar(&nullShort, "0", false, "")
 	fs.BoolVar(&nullLong, "null", false, "")
+	fs.StringVar(&stratShort, "s", "", "")
+	fs.StringVar(&stratLong, "strategy", "", "")
 	fs.BoolVar(&opts.fill, "fill", false, "")
+	fs.BoolVar(&opts.flatten, "flatten", false, "")
 	fs.StringVar(&verifyStr, "verify", "", "")
 	fs.IntVar(&opts.retries, "retry", 2, "")
-	fs.StringVar(&reserveStr, "reserve", "0", "")
+	fs.StringVar(&reserveStr, "reserve", "1G", "")
 	fs.BoolVar(&opts.force, "force", false, "")
 	fs.BoolVar(&opts.modest, "modest", false, "")
 
@@ -65,6 +91,21 @@ func main() {
 	opts.null = nullShort || nullLong
 	if opts.retries < 0 {
 		opts.retries = 0
+	}
+
+	stratStr := stratLong
+	if stratStr == "" {
+		stratStr = stratShort
+	}
+	if stratStr != "" {
+		strat, err := parseStrategy(stratStr)
+		if err != nil {
+			fatalf("%v", err)
+		}
+		opts.strategy = strat
+	}
+	if tool := opts.strategy.requiredTool(); tool != "" && !haveCmd(tool) {
+		fatalf("strategy %s needs %s on PATH", opts.strategy, tool)
 	}
 
 	switch verifyStr {
@@ -139,7 +180,7 @@ func runPlain(ctx context.Context, cancel context.CancelFunc, opts options) int 
 		cancel()
 	}()
 
-	pr := &plainReporter{target: opts.target}
+	pr := &plainReporter{}
 	eng := newEngine(ctx, opts, pr)
 	sum := eng.run(os.Stdin)
 	if sum.failed > 0 {
@@ -152,16 +193,32 @@ func runPlain(ctx context.Context, cancel context.CancelFunc, opts options) int 
 // Successful destination paths go to stdout (so `spill … | xargs` works);
 // status goes to stderr.
 type plainReporter struct {
-	target   string
 	curName  string
 	lastEmit time.Time
 }
 
 func (r *plainReporter) Event(msg any) {
 	switch m := msg.(type) {
+	case scanMsg:
+		now := time.Now()
+		if now.Sub(r.lastEmit) < 500*time.Millisecond {
+			return
+		}
+		r.lastEmit = now
+		if m.total > 0 {
+			fmt.Fprintf(os.Stderr, "\r  inspecting %d/%d  %s\033[K", m.done, m.total, truncate(m.name, 32))
+		} else {
+			fmt.Fprintf(os.Stderr, "\r  inspecting %s\033[K", truncate(m.name, 32))
+		}
+	case filterMsg:
+		fmt.Fprintf(os.Stderr, "\r\033[K⊘ %s — %s\n", m.name, m.reason)
 	case fileStartMsg:
 		r.curName = m.name
-		fmt.Fprintf(os.Stderr, "→ %s (%s)\n", m.name, humanBytes(m.size))
+		note := ""
+		if m.note != "" {
+			note = " · " + m.note
+		}
+		fmt.Fprintf(os.Stderr, "\r\033[K→ %s (%s)%s\n", m.name, humanBytes(m.size), note)
 	case progressMsg:
 		now := time.Now()
 		if now.Sub(r.lastEmit) < 500*time.Millisecond {
@@ -176,7 +233,7 @@ func (r *plainReporter) Event(msg any) {
 			truncate(r.curName, 32), pct, humanRate(m.instSpeed), humanUBytes(m.free))
 	case fileDoneMsg:
 		fmt.Fprintf(os.Stderr, "\r\033[K✓ %s (%s)\n", m.name, humanBytes(m.size))
-		fmt.Fprintln(os.Stdout, filepath.Join(r.target, m.name))
+		fmt.Fprintln(os.Stdout, m.dest)
 	case skipMsg:
 		fmt.Fprintf(os.Stderr, "\r\033[K⤳ %s — %s\n", m.name, m.reason)
 	case failMsg:
@@ -187,8 +244,8 @@ func (r *plainReporter) Event(msg any) {
 		if s.stoppedFull {
 			reason = "drive full"
 		}
-		fmt.Fprintf(os.Stderr, "\ndone: %d copied, %d skipped, %d failed · %s in %s · %s\n",
-			s.copied, s.skipped, s.failed, humanBytes(s.copiedBytes), humanDuration(s.elapsed), reason)
+		fmt.Fprintf(os.Stderr, "\ndone: %d copied, %d skipped, %d filtered, %d failed · %s in %s · %s\n",
+			s.copied, s.skipped, s.filtered, s.failed, humanBytes(s.copiedBytes), humanDuration(s.elapsed), reason)
 	}
 }
 

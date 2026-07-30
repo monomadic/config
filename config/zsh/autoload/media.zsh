@@ -21,6 +21,8 @@ alias fd-media-5-star="fd-media --match-string ★★★★★"
 alias fd-media-4-star="fd-media --match-string ★★★★☆"
 alias fd-media-60fps="fd-media --match-string 60fps"
 
+alias sb-tower-index="cat /Volumes/Tower/Movies/Porn/.index | sb --fast-fullscreen"
+
 mp4-get-chapter-count() {
   ffprobe -v error -show_chapters -of json -- $1 | jq '.chapters|length'
 }
