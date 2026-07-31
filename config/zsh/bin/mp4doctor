@@ -1,0 +1,290 @@
+#!/usr/bin/env zsh
+# mp4doctor — diagnose and repair MP4/MOV/M4V container structure.
+#
+# The structural half of media-audit, split out (the way media-rename owns
+# filenames) so it can run standalone over a whole library:
+#
+#   mp4doctor **/*.mp4              # report what's wrong
+#   mp4doctor --fix **/*.mp4        # repair it
+#   mp4doctor ~/Movies              # a directory recurses
+#
+# Two structural defects, one cure. "no-faststart" is the classic moov-at-end
+# layout (progressive playback must download the whole file before it can
+# start). "fragmented" is worse: ~one moof header per keyframe and no global
+# sample table, so every mid-file seek parses moof headers sequentially from
+# the start — over a network share that is one round trip per fragment
+# (measured: a single thumbnail seek into a ~1,000-fragment file pinned an
+# ffmpeg worker for 23 s over SMB). Both are fixed by the same lossless
+# remux: -c copy -movflags +faststart, which rebuilds one indexed mdat with
+# the moov in front. Timestamps survive (creation date via SetFile, mtime
+# via touch -r); note that the file's size changes, so size+mtime-keyed
+# caches (e.g. switchblade's) will re-key the file.
+#
+# NAME.frag.EXT files are never touched: that label is topaz-encode's
+# in-flight fragmented output — an UNFINISHED encode. Resume it
+# (`topaz-encode --resume NAME.frag.EXT`) or delete it; remuxing it would
+# freeze a partial as if it were done.
+#
+# media-audit delegates its faststart check and single-issue fix here.
+set -u
+setopt pipefail extended_glob null_glob
+
+script_name="${0:t}"
+
+usage() {
+  cat >&2 <<EOF
+usage:
+  $script_name [--fix] [--verbose] [--quiet] [--] file-or-dir ...
+  $script_name --state -- file
+
+Without --fix, reports each file's container state and changes nothing.
+With --fix, losslessly remuxes fragmented / non-faststart files in place
+(atomic tmp + duration verification; creation date and mtime preserved).
+
+Directories recurse for *.mp4 / *.mov / *.m4v. Other extensions are skipped.
+
+--state is the machine interface (used by media-audit): prints one word for
+one file — faststart | no-faststart | fragmented | frag-partial |
+inconclusive — and exits 0 (healthy), 1 (repairable), 3 (frag-partial:
+an unfinished topaz-encode, resume or delete it), or 2 (inconclusive).
+
+--verbose also lists healthy files; --quiet prints nothing but the summary
+(and with --state, nothing at all — the exit status is the answer).
+EOF
+}
+
+C_RESET="" C_DIM="" C_GREEN="" C_RED="" C_YELLOW="" C_CYAN=""
+if [[ -t 1 ]]; then
+  C_RESET=$'\033[0m' C_DIM=$'\033[2m' C_GREEN=$'\033[32m'
+  C_RED=$'\033[31m' C_YELLOW=$'\033[33m' C_CYAN=$'\033[36m'
+fi
+
+fix_mode=false
+verbose=false
+quiet=false
+state_mode=false
+typeset -a args=()
+
+while (( $# > 0 )); do
+  case "$1" in
+    --fix) fix_mode=true; shift ;;
+    --verbose|-v) verbose=true; shift ;;
+    --quiet|-q) quiet=true; shift ;;
+    --state) state_mode=true; shift ;;
+    -h|--help|help) usage; exit 0 ;;
+    --) shift; args+=("$@"); break ;;
+    -*) print -u2 "unknown option: $1"; usage; exit 2 ;;
+    *) args+=("$1"); shift ;;
+  esac
+done
+
+(( ${#args[@]} > 0 )) || { usage; exit 2 }
+
+is_mp4_family() {
+  case "${1:l}" in
+    *.mp4|*.mov|*.m4v) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_frag_partial() {
+  case "${1:l}" in
+    *.frag.mp4|*.frag.mov|*.frag.m4v) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Walk the top-level atoms and classify the container. Prints the state word;
+# exit 0 healthy, 1 repairable, 2 inconclusive. Any moof means fragmented; a
+# real mdat settles the verdict by whether a moov preceded it.
+atom_state() {
+  python3 - "$1" <<'PY'
+import os
+import struct
+import sys
+
+path = sys.argv[1]
+try:
+    size = os.path.getsize(path)
+    seen_moov = False
+    with open(path, "rb") as fh:
+        pos = 0
+        for _ in range(100000):
+            if pos + 8 > size:
+                print("inconclusive"); sys.exit(2)
+            fh.seek(pos)
+            header = fh.read(8)
+            if len(header) < 8:
+                print("inconclusive"); sys.exit(2)
+            atom_size, atom_type = struct.unpack(">I4s", header)
+            atom_type = atom_type.decode("latin-1")
+            header_len = 8
+            if atom_size == 1:
+                ext = fh.read(8)
+                if len(ext) < 8:
+                    print("inconclusive"); sys.exit(2)
+                atom_size = struct.unpack(">Q", ext)[0]
+                header_len = 16
+            elif atom_size == 0:
+                atom_size = size - pos
+            if atom_size < header_len:
+                print("inconclusive"); sys.exit(2)
+            if atom_type == "moof":
+                print("fragmented"); sys.exit(1)
+            if atom_type == "mdat":
+                if seen_moov:
+                    print("faststart"); sys.exit(0)
+                print("no-faststart"); sys.exit(1)
+            if atom_type == "moov":
+                seen_moov = True
+            pos += atom_size
+    print("inconclusive"); sys.exit(2)
+except Exception:
+    print("inconclusive"); sys.exit(2)
+PY
+}
+
+file_state() {
+  local file="$1"
+  if is_frag_partial "$file"; then
+    print -r -- "frag-partial"
+    return 3
+  fi
+  atom_state "$file"
+}
+
+media_duration_seconds() {
+  ffprobe -v error -show_entries format=duration \
+    -of default=noprint_wrappers=1:nokey=1 -- "$1" 2>/dev/null
+}
+
+creation_date_for_setfile() {
+  local epoch
+  epoch="$(stat -f '%B' -- "$1" 2>/dev/null)" || return 1
+  [[ "$epoch" == <-> ]] || return 1
+  (( epoch > 0 )) || return 1
+  date -r "$epoch" '+%m/%d/%Y %H:%M:%S'
+}
+
+# Lossless in-place repair: remux to a sibling tmp, verify the duration
+# carried over AND that the result actually reads as faststart, restore both
+# timestamps, then swap. The original is never modified until the verified
+# replacement exists.
+fix_file() {
+  local file="$1"
+  local tmp created before after
+  integer rc=0
+
+  tmp="$(mktemp "${file:h}/.${file:t:r}.mp4doctor.XXXXXX.${file:e}")" || return 1
+
+  ffmpeg -hide_banner -loglevel error -nostdin -y \
+    -i "$file" -map 0 -c copy -map_metadata 0 \
+    -movflags "+faststart+use_metadata_tags" \
+    -- "$tmp" 2>&1 | { $quiet && cat >/dev/null || sed 's/^/    /' } || true
+  rc=${pipestatus[1]}
+
+  before="$(media_duration_seconds "$file")"
+  after="$(media_duration_seconds "$tmp")"
+  if (( rc != 0 )) || [[ -z "$before" || -z "$after" ]] ||
+      ! awk -v a="$after" -v b="$before" \
+          'BEGIN { d = a - b; if (d < 0) d = -d; exit !(d <= 5) }' ||
+      ! atom_state "$tmp" >/dev/null; then
+    rm -f -- "$tmp"
+    return 1
+  fi
+
+  created="$(creation_date_for_setfile "$file")" || created=""
+  touch -r "$file" -- "$tmp" 2>/dev/null || true
+  mv -f -- "$tmp" "$file" || { rm -f -- "$tmp"; return 1 }
+  if [[ -n "$created" ]] && command -v SetFile >/dev/null 2>&1; then
+    SetFile -d "$created" "$file" >/dev/null 2>&1 || true
+  fi
+  return 0
+}
+
+# --state: one file, machine interface.
+if [[ "$state_mode" == true ]]; then
+  (( ${#args[@]} == 1 )) || { print -u2 "--state takes exactly one file"; exit 2 }
+  [[ -f "${args[1]}" ]] || { print -u2 "not a file: ${args[1]}"; exit 2 }
+  if $quiet; then
+    file_state "${args[1]}" >/dev/null
+  else
+    file_state "${args[1]}"
+  fi
+  exit $?
+fi
+
+# Expand the work list: files as given, directories recursed.
+typeset -a files=()
+for arg in "${args[@]}"; do
+  if [[ -d "$arg" ]]; then
+    files+=("$arg"/**/*.(#i)(mp4|mov|m4v)(N.))
+  elif [[ -f "$arg" ]]; then
+    is_mp4_family "$arg" && files+=("$arg")
+  else
+    print -u2 "not found: $arg"
+  fi
+done
+
+(( ${#files[@]} > 0 )) || { print -u2 "no mp4/mov/m4v files to check"; exit 2 }
+
+integer n_ok=0 n_frag=0 n_slow=0 n_partial=0 n_odd=0 n_fixed=0 n_failed=0
+state=""
+report() {
+  $quiet && return 0
+  print -r -- "$@"
+}
+
+for file in "${files[@]}"; do
+  state="$(file_state "$file")"
+  case "$state" in
+    faststart)
+      (( ++n_ok ))
+      $verbose && report "  ${C_GREEN}ok${C_RESET}           $file"
+      ;;
+    frag-partial)
+      (( ++n_partial ))
+      report "  ${C_YELLOW}unfinished${C_RESET}   $file"
+      report "    ${C_DIM}topaz-encode in-flight output — resume it (topaz-encode --resume) or delete it; not remuxed${C_RESET}"
+      ;;
+    inconclusive)
+      (( ++n_odd ))
+      report "  ${C_RED}unreadable${C_RESET}   $file"
+      report "    ${C_DIM}top-level atoms could not be parsed; left unchanged${C_RESET}"
+      ;;
+    fragmented|no-faststart)
+      [[ "$state" == fragmented ]] && (( ++n_frag )) || (( ++n_slow ))
+      if [[ "$fix_mode" == true ]]; then
+        if fix_file "$file"; then
+          (( ++n_fixed ))
+          report "  ${C_GREEN}fixed${C_RESET}        ${C_DIM}(${state})${C_RESET} $file"
+        else
+          (( ++n_failed ))
+          report "  ${C_RED}FAILED${C_RESET}       ${C_DIM}(${state})${C_RESET} $file"
+        fi
+      else
+        report "  ${C_YELLOW}${state}${C_RESET}${C_DIM}$(printf '%*s' $(( 13 - ${#state} )) '')${C_RESET}$file"
+      fi
+      ;;
+  esac
+done
+
+integer n_bad=$(( n_frag + n_slow ))
+summary="checked ${#files[@]}: ${C_GREEN}${n_ok} healthy${C_RESET}"
+(( n_frag )) && summary+=" · ${C_YELLOW}${n_frag} fragmented${C_RESET}"
+(( n_slow )) && summary+=" · ${C_YELLOW}${n_slow} no-faststart${C_RESET}"
+(( n_partial )) && summary+=" · ${C_YELLOW}${n_partial} unfinished .frag${C_RESET}"
+(( n_odd )) && summary+=" · ${C_RED}${n_odd} unreadable${C_RESET}"
+if [[ "$fix_mode" == true ]]; then
+  summary+=" · ${C_GREEN}${n_fixed} fixed${C_RESET}"
+  (( n_failed )) && summary+=" · ${C_RED}${n_failed} failed${C_RESET}"
+elif (( n_bad )); then
+  summary+=" ${C_DIM}(rerun with --fix to repair)${C_RESET}"
+fi
+print -r -- "$summary"
+
+if [[ "$fix_mode" == true ]]; then
+  (( n_failed == 0 ))
+else
+  (( n_bad == 0 && n_odd == 0 ))
+fi

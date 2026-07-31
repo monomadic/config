@@ -1201,48 +1201,14 @@ check_utf8_filename() {
   prompt_rename_path "$file" "$target" "filename"
 }
 
+# Container-structure classification is mp4doctor's job now (the structural
+# half of this audit, split out the way media-rename owns filenames). Exit:
+# 0 = faststart, 1 = repairable (moov-at-end OR fragmented — a moof-per-
+# keyframe file whose empty front moov used to fool the old inline check),
+# 3 = a NAME.frag.EXT topaz-encode partial (an unfinished encode: resume or
+# delete, never remux), 2 = inconclusive.
 faststart_state() {
-  local file="$1"
-
-  python3 - "$file" <<'PY'
-import os
-import struct
-import sys
-
-path = sys.argv[1]
-try:
-    size = os.path.getsize(path)
-    with open(path, "rb") as fh:
-        pos = 0
-        for _ in range(100000):
-            if pos + 8 > size:
-                sys.exit(2)
-            fh.seek(pos)
-            header = fh.read(8)
-            if len(header) < 8:
-                sys.exit(2)
-            atom_size, atom_type = struct.unpack(">I4s", header)
-            atom_type = atom_type.decode("latin-1")
-            header_len = 8
-            if atom_size == 1:
-                ext = fh.read(8)
-                if len(ext) < 8:
-                    sys.exit(2)
-                atom_size = struct.unpack(">Q", ext)[0]
-                header_len = 16
-            elif atom_size == 0:
-                atom_size = size - pos
-            if atom_size < header_len:
-                sys.exit(2)
-            if atom_type == "moov":
-                sys.exit(0)
-            if atom_type == "mdat":
-                sys.exit(1)
-            pos += atom_size
-    sys.exit(2)
-except Exception:
-    sys.exit(2)
-PY
+  mp4doctor --state --quiet -- "$1" 2>/dev/null
 }
 
 check_faststart() {
@@ -1251,7 +1217,7 @@ check_faststart() {
 
   $CHECK_FASTSTART || return 0
   is_faststart_path "$file" || return 0
-  command -v python3 >/dev/null 2>&1 || return 0
+  command -v mp4doctor >/dev/null 2>&1 || return 0
 
   faststart_state "$file"
   state=$?
@@ -1266,6 +1232,15 @@ check_faststart() {
       PENDING_FASTSTART=true
       PENDING_FIXES+=("faststart")
       return 0
+      ;;
+    3)
+      (( FILE_ISSUES++ ))
+      issue_screen "faststart" "$file"
+      say "faststart: unfinished .frag encode"
+      warn "This is topaz-encode's in-flight fragmented output — resume it (topaz-encode --resume) or delete it; remuxing would freeze a partial as if it were done."
+      (( fail_count++ ))
+      mark_unresolved
+      return 1
       ;;
     *)
       (( FILE_ISSUES++ ))
@@ -1900,6 +1875,29 @@ apply_pending_rewrite() {
   (( ${#PENDING_FIXES[@]} > 0 )) || return 0
 
   status_line "$file"
+
+  # Structure-only repair belongs to mp4doctor. When faststart is the lone
+  # pending fix there is nothing to combine, so delegate — same lossless
+  # remux, plus its timestamp preservation and verification. Any other mix
+  # still takes the combined rewrite below (which emits faststart anyway).
+  if [[ "${(j:,:)PENDING_FIXES}" == "faststart" ]]; then
+    if mp4doctor --fix --quiet -- "$file" >/dev/null 2>&1 && faststart_state "$file"; then
+      CURRENT_CHECK="faststart"
+      (( fix_count++ ))
+      note_repaired_file
+      if [[ -t 4 ]]; then
+        render_summary_line
+        render_checks_region
+      fi
+      return 0
+    fi
+    CURRENT_CHECK="faststart"
+    (( fail_count++ ))
+    mark_unresolved
+    clear_status
+    fail "mp4doctor could not repair the container; file left unchanged."
+    return 1
+  fi
 
   if rewrite_with_metadata "$file" "${PENDING_METADATA_ARGS[@]}"; then
     if $PENDING_FASTSTART && ! faststart_state "$file"; then

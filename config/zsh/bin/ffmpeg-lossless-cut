@@ -16,6 +16,7 @@
 #   the rename is applied only after a successful cut
 # - writes to a hidden temp file beside the source, then renames into place
 # - copies embedded/container metadata, including source date tags
+# - carries chapters across, shifted and clipped to the trimmed range
 # - copies the source filesystem creation date to the output
 # - moves the original to Trash after a successful cut
 #
@@ -49,6 +50,7 @@ Options:
   --print-start             Select a keyframe, print FLC_START=<seconds> to
                             stdout, and exit without cutting anything
   --mov-faststart           Enable MP4/MOV FastStart on the output
+  --quantize-chapters       Snap surviving chapter marks to the nearest keyframe
   --skip-detection          Deprecated no-op; detection is off unless requested
   --detect-black-scenes     Auto-start after a leading black scene when found
   --from <seconds>          Start selector at/after this timestamp
@@ -57,6 +59,11 @@ Options:
 After a successful cut, copies embedded/container metadata and the original
 file creation date to the output, moves the original file to Trash, then
 renames the output onto the original's name (replacing it in place).
+
+Chapters are shifted into the trimmed range and clipped at both ends; chapters
+that fall entirely outside it are dropped. With --quantize-chapters, each
+surviving mark moves to the nearest keyframe, so a later cut at a chapter
+boundary is exact; marks that collapse onto the same keyframe are merged away.
 
 In the keyframe selector, press `r` to edit the output filename in $EDITOR.
 The new name shows immediately in the preview but is only applied after a
@@ -850,6 +857,230 @@ select_keyframe() {
   selector_embedded "$input_file" "$keyframes" "$width" "$keep" "$from_ts" "$reverse_mode"
 }
 
+# ============================================================
+# Chapters
+#
+# On a stream copy ffmpeg already rebases and clips chapters against `-ss`, so a
+# forward cut is chapter-correct on its own. Two things still need handling:
+#
+# - MP4/MOV keep chapters in a `data` track tagged `text`. `-map 0` copies that
+#   stale, unshifted track while the muxer writes a fresh correct one, so every
+#   cut left a junk stream behind and the next cut added another. Drop it.
+# - In reverse mode `-to` has to be an output option; as an input option ffmpeg
+#   never clips the trailing chapter, leaving it hanging past end of file.
+# - --quantize-chapters snaps marks onto keyframes. That means writing the
+#   chapter list ourselves, so the shift/clip maths is repeated below.
+# ============================================================
+
+typeset -ga flc_chapter_input=()
+typeset -ga flc_chapter_drop=()
+typeset -ga flc_chapter_map=()
+typeset -g flc_chapter_meta=""
+
+chapter_count() {
+  ffprobe -v error -show_entries chapter=id -of default=nw=1:nk=1 -- "$1" 2>/dev/null |
+    awk 'END { print NR + 0 }'
+}
+
+chapter_stream_indices() {
+  ffprobe -v error \
+    -show_entries stream=index,codec_type,codec_tag_string \
+    -of csv=p=0 -- "$1" 2>/dev/null |
+  awk -F, '$2 == "data" && $3 == "text" { print $1 }'
+}
+
+nearest_keyframe() {
+  local input_file="$1"
+  local target="$2"
+  local window="${3:-10}"
+  local start ts
+
+  start="$(awk -v t="$target" -v w="$window" '
+    BEGIN { s = t - w; if (s < 0) s = 0; printf "%.6f", s }
+  ')"
+
+  ts="$(
+    ffprobe -v error \
+      -select_streams v:0 \
+      -read_intervals "${start}%+$(( window * 2 ))" \
+      -show_packets \
+      -show_entries packet=pts_time,flags \
+      -of csv=p=0 \
+      -- "$input_file" 2>/dev/null |
+    awk -F, -v t="$target" '
+      $1 ~ /^[0-9.]+$/ && $2 ~ /K/ {
+        d = $1 - t
+        if (d < 0) d = -d
+        if (best == "" || d < bd) { bd = d; best = $1 }
+      }
+      END { if (best != "") print best }
+    '
+  )"
+
+  [[ -n "$ts" ]] || return 1
+  print -r -- "$ts"
+}
+
+# Chapter start/end times that fall strictly inside the kept range; boundaries
+# on the range edges are clamped anyway, so they never need snapping.
+# The chapter list arrives as a file path: `python3 -` reads its program from
+# stdin, so stdin is not available for data here.
+chapter_boundaries() {
+  python3 - "$1" "$2" "$3" "$4" <<'PY'
+import json, sys
+
+json_path, mode = sys.argv[1], sys.argv[2]
+cut, dur = float(sys.argv[3]), float(sys.argv[4] or 0)
+lo = cut if mode == "forward" else 0.0
+hi = dur if mode == "forward" else cut
+
+with open(json_path) as fh:
+    chapters = json.load(fh).get("chapters", [])
+
+seen = []
+for ch in chapters:
+    try:
+        s, e = float(ch["start_time"]), float(ch["end_time"])
+    except (KeyError, TypeError, ValueError):
+        continue
+    if e <= lo or s >= hi:
+        continue
+    for t in (s, e):
+        if lo < t < hi and t not in seen:
+            seen.append(t)
+
+print("\n".join(f"{t:.6f}" for t in seen))
+PY
+}
+
+# Render the surviving chapters as ffmetadata in output time. Exits non-zero
+# when nothing survives, so the caller can fall back to ffmpeg's own copy.
+build_chapter_metadata() {
+  python3 - "$1" "$2" "$3" "$4" "$5" <<'PY'
+import json, sys
+
+json_path, mode, snap_path = sys.argv[1], sys.argv[2], sys.argv[5]
+cut, dur = float(sys.argv[3]), float(sys.argv[4] or 0)
+lo = cut if mode == "forward" else 0.0
+hi = dur if mode == "forward" else cut
+
+snap = {}
+try:
+    with open(snap_path) as fh:
+        for line in fh:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) == 2:
+                snap[round(float(parts[0]), 6)] = float(parts[1])
+except OSError:
+    pass
+
+def place(t):
+    t = snap.get(round(t, 6), t)
+    return min(max(t, lo), hi) - lo
+
+def esc(s):
+    s = s.replace("\n", " ").replace("\r", " ")
+    for c in ("\\", "=", ";", "#"):
+        s = s.replace(c, "\\" + c)
+    return s
+
+with open(json_path) as fh:
+    chapters = json.load(fh).get("chapters", [])
+
+out = [";FFMETADATA1"]
+kept = 0
+for ch in chapters:
+    try:
+        s, e = float(ch["start_time"]), float(ch["end_time"])
+    except (KeyError, TypeError, ValueError):
+        continue
+    if e <= lo or s >= hi:
+        continue
+    ns, ne = place(s), place(e)
+    # Two marks inside one GOP snap to the same keyframe; drop the empty chapter.
+    if ne - ns < 0.001:
+        continue
+    kept += 1
+    out += ["[CHAPTER]", "TIMEBASE=1/1000",
+            f"START={int(round(ns * 1000))}", f"END={int(round(ne * 1000))}"]
+    for k, v in (ch.get("tags") or {}).items():
+        out.append(f"{esc(str(k))}={esc(str(v))}")
+
+if not kept:
+    sys.exit(1)
+print("\n".join(out))
+PY
+}
+
+# Build the ffmpeg argument fragments for this file's chapters.
+prepare_chapter_args() {
+  local input_file="$1"
+  local mode="$2"
+  local cut_time="$3"
+  local src_duration="$4"
+  local quantize="$5"
+  local idx boundary snapped json_file snap_file
+
+  flc_chapter_input=()
+  flc_chapter_drop=()
+  flc_chapter_map=()
+  flc_chapter_meta=""
+
+  (( $(chapter_count "$input_file") > 0 )) || return 0
+
+  while IFS= read -r idx; do
+    [[ "$idx" == <-> ]] || continue
+    flc_chapter_drop+=("-map" "-0:${idx}")
+  done < <(chapter_stream_indices "$input_file")
+
+  [[ "$quantize" == true ]] || return 0
+
+  flc_chapter_meta="$(mktemp "${TMPDIR:-/tmp}/flc-chapters.XXXXXX")"
+  json_file="${flc_chapter_meta}.json"
+  snap_file="${flc_chapter_meta}.snap"
+  : > "$snap_file"
+
+  if ! ffprobe -v error -show_chapters -of json -- "$input_file" > "$json_file" 2>/dev/null; then
+    cleanup_chapter_meta
+    return 0
+  fi
+
+  while IFS= read -r boundary; do
+    [[ -n "$boundary" ]] || continue
+    if snapped="$(nearest_keyframe "$input_file" "$boundary")" ||
+       snapped="$(nearest_keyframe "$input_file" "$boundary" 60)"; then
+      printf '%s\t%s\n' "$boundary" "$snapped" >> "$snap_file"
+    else
+      warn "no keyframe near chapter mark ${boundary}s; leaving it unsnapped"
+    fi
+  done < <(chapter_boundaries "$json_file" "$mode" "$cut_time" "$src_duration")
+
+  if build_chapter_metadata "$json_file" "$mode" "$cut_time" "$src_duration" "$snap_file" > "$flc_chapter_meta"; then
+    flc_chapter_input=("-i" "$flc_chapter_meta")
+    flc_chapter_map=("-map_chapters" "1")
+    rm -f -- "$json_file" "$snap_file"
+  else
+    cleanup_chapter_meta
+  fi
+
+  return 0
+}
+
+cleanup_chapter_meta() {
+  [[ -n "$flc_chapter_meta" ]] || return 0
+  rm -f -- "$flc_chapter_meta" "${flc_chapter_meta}.json" "${flc_chapter_meta}.snap"
+  flc_chapter_meta=""
+  return 0
+}
+
+cleanup_chapter_args() {
+  cleanup_chapter_meta
+  flc_chapter_input=()
+  flc_chapter_drop=()
+  flc_chapter_map=()
+  return 0
+}
+
 # Draw a single in-place progress bar frame from ffmpeg -progress values.
 draw_progress_bar() {
   emulate -L zsh
@@ -955,8 +1186,11 @@ trim_copy() {
 
   ffmpeg -hide_banner -y -progress pipe:1 \
     -ss "$start_time" -i "$input_file" \
+    "${flc_chapter_input[@]}" \
     -map 0 \
+    "${flc_chapter_drop[@]}" \
     -map_metadata 0 \
+    "${flc_chapter_map[@]}" \
     -movflags "$movflags" \
     -c copy \
     "$output_file" 2>"$errlog" | render_progress "$total" "$cols" || rc=$?
@@ -981,11 +1215,17 @@ trim_copy_reverse() {
   errlog="$(mktemp "${TMPDIR:-/tmp}/flc-ffmpeg.XXXXXX")"
   integer rc=0
 
+  # `-to` stays on the output side: as an input option ffmpeg never clips the
+  # trailing chapter, leaving it running past the end of the file.
   ffmpeg -hide_banner -y -progress pipe:1 \
-    -to "$end_time" -i "$input_file" \
+    -i "$input_file" \
+    "${flc_chapter_input[@]}" \
     -map 0 \
+    "${flc_chapter_drop[@]}" \
     -map_metadata 0 \
+    "${flc_chapter_map[@]}" \
     -movflags "$movflags" \
+    -to "$end_time" \
     -c copy \
     "$output_file" 2>"$errlog" | render_progress "$total" "$cols" || rc=$?
 
@@ -1098,6 +1338,7 @@ perform_cut() {
   local force="$4"
   local reverse_mode="$5"
   local mov_faststart="$6"
+  local quantize="${7:-false}"
 
   if ! float_gt_zero "$cut_time"; then
     warn "cut time <= 0, skipping: $input_file"
@@ -1112,12 +1353,17 @@ perform_cut() {
     fi
   fi
 
-  local cols total dur
+  local cols total dur mode
+  integer rc=0
+
   cols="$(term_columns)"
+  dur="$(video_duration_seconds "$input_file")"
+
   if [[ "$reverse_mode" == true ]]; then
+    mode=reverse
     total="$cut_time"
   else
-    dur="$(video_duration_seconds "$input_file")"
+    mode=forward
     if [[ -n "$dur" ]]; then
       total="$(awk -v d="$dur" -v s="$cut_time" 'BEGIN { v = d - s; if (v < 0) v = 0; print v }')"
     else
@@ -1125,12 +1371,17 @@ perform_cut() {
     fi
   fi
 
+  prepare_chapter_args "$input_file" "$mode" "$cut_time" "$dur" "$quantize"
+
   print
   if [[ "$reverse_mode" == true ]]; then
-    trim_copy_reverse "$input_file" "$cut_time" "$output_file" "$mov_faststart" "$total" "$cols"
+    trim_copy_reverse "$input_file" "$cut_time" "$output_file" "$mov_faststart" "$total" "$cols" || rc=$?
   else
-    trim_copy "$input_file" "$cut_time" "$output_file" "$mov_faststart" "$total" "$cols"
+    trim_copy "$input_file" "$cut_time" "$output_file" "$mov_faststart" "$total" "$cols" || rc=$?
   fi
+
+  cleanup_chapter_args
+  return $rc
 }
 
 keyframes=20
@@ -1142,6 +1393,7 @@ keep_previews=false
 dry_run=false
 print_start=false
 mov_faststart=false
+quantize_chapters=false
 detect_black_leader=false
 black_leader_start_tolerance="${BLACK_LEADER_START_TOLERANCE:-0.25}"
 from_ts="0"
@@ -1192,6 +1444,10 @@ while (( $# > 0 )); do
       ;;
     --mov-faststart|--faststart)
       mov_faststart=true
+      shift
+      ;;
+    --quantize-chapters|--snap-chapters)
+      quantize_chapters=true
       shift
       ;;
     --skip-detection)
@@ -1347,11 +1603,19 @@ for input_file in "${files[@]}"; do
     dry_run_movflags="use_metadata_tags"
     [[ "$mov_faststart" == true ]] && dry_run_movflags="+faststart+use_metadata_tags"
 
+    dry_run_duration="$(video_duration_seconds "$input_file")"
     if [[ "$reverse_mode" == true ]]; then
-      print -- "ffmpeg -hide_banner -y -to '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags '$dry_run_movflags' -c copy '$work_output'"
+      prepare_chapter_args "$input_file" reverse "$ts" "$dry_run_duration" "$quantize_chapters"
+      print -- "ffmpeg -hide_banner -y -i '$input_file' ${flc_chapter_input[*]} -map 0 ${flc_chapter_drop[*]} -map_metadata 0 ${flc_chapter_map[*]} -movflags '$dry_run_movflags' -to '$ts' -c copy '$work_output'"
     else
-      print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' -map 0 -map_metadata 0 -movflags '$dry_run_movflags' -c copy '$work_output'"
+      prepare_chapter_args "$input_file" forward "$ts" "$dry_run_duration" "$quantize_chapters"
+      print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' ${flc_chapter_input[*]} -map 0 ${flc_chapter_drop[*]} -map_metadata 0 ${flc_chapter_map[*]} -movflags '$dry_run_movflags' -c copy '$work_output'"
     fi
+    if [[ -n "$flc_chapter_meta" ]]; then
+      print -- "quantized chapters written to '$flc_chapter_meta':"
+      cat -- "$flc_chapter_meta"
+    fi
+    cleanup_chapter_args
     print -- "copy embedded/container metadata from '$input_file' to '$work_output'"
     print -- "copy creation date from '$input_file' to '$work_output'"
     print -- "trash '$input_file'"
@@ -1360,7 +1624,7 @@ for input_file in "${files[@]}"; do
     continue
   fi
 
-  if perform_cut "$input_file" "$ts" "$work_output" "$force" "$reverse_mode" "$mov_faststart"; then
+  if perform_cut "$input_file" "$ts" "$work_output" "$force" "$reverse_mode" "$mov_faststart" "$quantize_chapters"; then
     copy_creation_date "$input_file" "$work_output" || (( ++creation_date_fail_count ))
     touch_modified_now "$work_output"
 

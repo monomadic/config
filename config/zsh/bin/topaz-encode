@@ -44,11 +44,18 @@ encode), $script_name offers to resume it: the tail is re-encoded from the last
 keyframe of the partial and losslessly concatenated onto it. --resume skips the
 prompt and resumes automatically.
 
+While an encode runs, the output is written FRAGMENTED and labeled
+NAME.frag.EXT — playable and resumable up to the last fragment even after a
+crash. A successful encode losslessly remuxes it to the clean faststart
+NAME.EXT and deletes the .frag file, so a fragmented file never keeps the
+plain extension (fragmented mp4s seek terribly, especially on network
+shares). A .frag file lying around IS an unfinished encode.
+
 Every encode embeds its job (source path, preset, filter, video args) as
 metadata tags in the output, and fragmented outputs keep those tags even when
 an encode crashes. Passing such a file as the only argument, with no preset
 flags, reconstructs the job from the file itself:
-  $script_name --resume 'partial [Topaz - ...].mp4'
+  $script_name --resume 'partial [Topaz - ...].frag.mp4'
 
 With --copy-cmd, prints the exact $script_name command for each input (and copies
 it to the clipboard) instead of encoding — paste it later to rerun or resume.
@@ -1157,6 +1164,11 @@ else
       [[ -n "${embedded_job[videoai]:-}" ]] && preset_metadata="videoai=${embedded_job[videoai]}"
       preset_output_ext="${files[1]:e}"
       output_override="${files[1]:A}"
+      # A labeled .frag partial resumes to its clean final name; the frag
+      # file itself is found again via frag_target below.
+      if [[ "${output_override:t}" == *".frag.${files[1]:e}" ]]; then
+        output_override="${output_override%.frag.${files[1]:e}}.${files[1]:e}"
+      fi
       files=("${embedded_job[topaz_source]}")
       say "%F{cyan}%B↻ embedded Topaz job found%b%f"
       say "  %F{white}preset:%f %F{magenta}$(topaz_escape_prompt "$preset_name")%f"
@@ -1334,74 +1346,102 @@ for input in "$files[@]"; do
   # Embedded-job resume targets the exact file that was passed in, even if it
   # was renamed or moved since the original encode.
   [[ -n "$output_override" ]] && output="$output_override"
+  # The in-flight encode writes a FRAGMENTED mp4 (crash-safe: playable and
+  # resumable up to the last fragment), labeled .frag.<ext> so it can never
+  # be mistaken for a finished file — fragmented layout seeks terribly (a
+  # mid-file seek parses every moof header; over a network share that is one
+  # round trip per fragment). A successful encode remuxes it losslessly into
+  # the faststart "$output" and deletes it, so nothing fragmented ever keeps
+  # the plain extension.
+  frag_target="${output:r}.frag.${output_ext}"
   ffmpeg_preset_flag="-${preset_flag#--}"
   input_duration_args=()
   [[ "$preview_mode" == true ]] && input_duration_args=(-t "$preview_seconds")
 
-  # Existing-output handling: complete outputs are skipped; short outputs are
-  # interrupted encodes and can be resumed (tail re-encode + lossless concat).
+  # Existing-output handling: a complete final output is skipped; a .frag file
+  # (or a legacy short output from before the .frag labeling) is an interrupted
+  # encode and can be resumed (tail re-encode + lossless faststart concat). A
+  # .frag that already reached full duration only needs the finalize remux.
   resume_kf=""            # set to the resume keyframe time when resuming
   expected_duration=""
-  if [[ "$preview_mode" != true && -e "$output" ]]; then
+  partial_src=""          # the interrupted file a resume continues from
+  finalize_only=false     # complete .frag found: skip encoding, remux only
+  if [[ "$preview_mode" != true ]] && [[ -e "$output" || -e "$frag_target" ]]; then
     src_duration="$(media_duration_seconds "$input")"
-    out_duration="$(media_duration_seconds "$output")"
     slowmo_factor="$(topaz_slowmo_factor "$preset_value")"
     [[ -n "$src_duration" ]] && expected_duration="$(
       awk -v d="$src_duration" -v f="$slowmo_factor" 'BEGIN { print d * f }'
     )"
 
-    if [[ -z "$expected_duration" || -z "$out_duration" ]] ||
-        awk -v o="$out_duration" -v e="$expected_duration" 'BEGIN { exit !(o >= e - 5) }'; then
-      say "%F{yellow}✓ skip:%f output already complete"
-      say "  %F{white}file:%f %F{blue}$(topaz_escape_prompt "$output")%f"
-      (( ++skip_count ))
-      continue
-    fi
-
-    pct="$(awk -v o="$out_duration" -v e="$expected_duration" 'BEGIN { printf "%d", o / e * 100 }')"
-    say "%F{yellow}%B⚠ partial encode detected%b%f"
-    say "  %F{white}output:%f   %F{blue}$(topaz_escape_prompt "${output:t}")%f"
-    say "  %F{white}progress:%f %F{yellow}$(topaz_format_clock "$out_duration") of $(topaz_format_clock "$expected_duration") (${pct}%%)%f"
-
-    if [[ "$resume_mode" == true ]]; then
-      resume_choice="r"
-    elif [[ "$log_mode" == true ]]; then
-      # Nobody to answer the prompt. Resume is the only choice that neither
-      # discards work nor silently does nothing: the partial is left untouched
-      # until a verified join exists, so it is safe to pick unattended.
-      resume_choice="r"
-      say "  %F{cyan}↻ resuming automatically (log mode)%f"
-    else
-      resume_choice=""
-      read -k 1 "resume_choice?  ↻ [r]esume · [R]estart from scratch · [s]kip? " || resume_choice="s"
-      say_blank
-    fi
-
-    case "$resume_choice" in
-      r)
-        resume_kf="$(topaz_last_keyframe_before "$output" \
-          "$(awk -v o="$out_duration" 'BEGIN { print o - 2 }')")"
-        if [[ -z "$resume_kf" ]]; then
-          say_err "%F{red}✗ could not find a resume keyframe in the partial — not touching it%f"
-          (( ++fail_count ))
-          continue
-        fi
-        say "  %F{cyan}↻ resuming from $(topaz_format_clock "$resume_kf")%f"
-        ;;
-      R)
-        say "  %F{yellow}restarting from scratch (partial moved to Trash)%f"
-        trash_original "$output" || {
-          say_err "%F{red}✗ could not trash partial output — aborting this file%f"
-          (( ++fail_count ))
-          continue
-        }
-        ;;
-      *)
-        say "  %F{yellow}skipped%f"
+    if [[ -e "$output" ]]; then
+      out_duration="$(media_duration_seconds "$output")"
+      if [[ -z "$expected_duration" || -z "$out_duration" ]] ||
+          awk -v o="$out_duration" -v e="$expected_duration" 'BEGIN { exit !(o >= e - 5) }'; then
+        say "%F{yellow}✓ skip:%f output already complete"
+        say "  %F{white}file:%f %F{blue}$(topaz_escape_prompt "$output")%f"
+        [[ -e "$frag_target" ]] &&
+          say "  %F{yellow}⚠ stray fragmented file beside it (safe to delete):%f %F{blue}$(topaz_escape_prompt "$frag_target")%f"
         (( ++skip_count ))
         continue
-        ;;
-    esac
+      fi
+      partial_src="$output"   # legacy partial from before the .frag labeling
+    else
+      partial_src="$frag_target"
+      out_duration="$(media_duration_seconds "$partial_src")"
+      if [[ -n "$expected_duration" && -n "$out_duration" ]] &&
+          awk -v o="$out_duration" -v e="$expected_duration" 'BEGIN { exit !(o >= e - 5) }'; then
+        say "%F{cyan}%B↻ complete fragmented encode found%b%f — finalizing only"
+        say "  %F{white}file:%f %F{blue}$(topaz_escape_prompt "$partial_src")%f"
+        finalize_only=true
+      fi
+    fi
+
+    if [[ "$finalize_only" != true ]]; then
+      pct="$(awk -v o="$out_duration" -v e="$expected_duration" 'BEGIN { printf "%d", o / e * 100 }')"
+      say "%F{yellow}%B⚠ partial encode detected%b%f"
+      say "  %F{white}output:%f   %F{blue}$(topaz_escape_prompt "${partial_src:t}")%f"
+      say "  %F{white}progress:%f %F{yellow}$(topaz_format_clock "$out_duration") of $(topaz_format_clock "$expected_duration") (${pct}%%)%f"
+
+      if [[ "$resume_mode" == true ]]; then
+        resume_choice="r"
+      elif [[ "$log_mode" == true ]]; then
+        # Nobody to answer the prompt. Resume is the only choice that neither
+        # discards work nor silently does nothing: the partial is left untouched
+        # until a verified join exists, so it is safe to pick unattended.
+        resume_choice="r"
+        say "  %F{cyan}↻ resuming automatically (log mode)%f"
+      else
+        resume_choice=""
+        read -k 1 "resume_choice?  ↻ [r]esume · [R]estart from scratch · [s]kip? " || resume_choice="s"
+        say_blank
+      fi
+
+      case "$resume_choice" in
+        r)
+          resume_kf="$(topaz_last_keyframe_before "$partial_src" \
+            "$(awk -v o="$out_duration" 'BEGIN { print o - 2 }')")"
+          if [[ -z "$resume_kf" ]]; then
+            say_err "%F{red}✗ could not find a resume keyframe in the partial — not touching it%f"
+            (( ++fail_count ))
+            continue
+          fi
+          say "  %F{cyan}↻ resuming from $(topaz_format_clock "$resume_kf")%f"
+          ;;
+        R)
+          say "  %F{yellow}restarting from scratch (partial moved to Trash)%f"
+          trash_original "$partial_src" || {
+            say_err "%F{red}✗ could not trash partial output — aborting this file%f"
+            (( ++fail_count ))
+            continue
+          }
+          ;;
+        *)
+          say "  %F{yellow}skipped%f"
+          (( ++skip_count ))
+          continue
+          ;;
+      esac
+    fi
   fi
 
   progress_total_seconds="$(media_duration_seconds "$input")"
@@ -1415,10 +1455,11 @@ for input in "$files[@]"; do
     fi
   fi
 
+  # Fresh encodes write the labeled fragmented file (finalized on success).
   # Resume: encode only the tail (source seek = output keyframe time mapped back
   # through any slow-motion factor), writing to a sidecar tail file that is later
   # concatenated onto the partial.
-  encode_target="$output"
+  encode_target="$frag_target"
   if [[ -n "$resume_kf" ]]; then
     encode_target="${output:r} [resume tail].${output_ext}"
     input_seek="$(awk -v k="$resume_kf" -v f="$slowmo_factor" 'BEGIN { print k / f }')"
@@ -1476,7 +1517,9 @@ for input in "$files[@]"; do
   : >| "$log_file"
   topaz_open_log_tail "$log_file"
 
-  if [[ -n "$resume_kf" ]]; then
+  if [[ "$finalize_only" == true ]]; then
+    say "%F{cyan}%B↻ Finalizing fragmented encode%b%f"
+  elif [[ -n "$resume_kf" ]]; then
     say "%F{cyan}%B↻ Resuming encode%b%f"
   elif [[ "$preview_mode" == true ]]; then
     say "%F{cyan}%B▶ Encoding preview%b%f"
@@ -1488,6 +1531,8 @@ for input in "$files[@]"; do
   say "  %F{white}video:%f  %F{magenta}$(topaz_escape_prompt "${(j: :)video_args}")%f"
   say "  %F{white}input:%f  %F{white}$(topaz_escape_prompt "$input")%f"
   say "  %F{white}output:%f %F{green}%B$(topaz_escape_prompt "$output")%b%f"
+  [[ -z "$resume_kf" && "$finalize_only" != true ]] &&
+    say "  %F{white}in-flight:%f %F{blue}$(topaz_escape_prompt "${frag_target:t}")%f %F{8}(fragmented; remuxed to faststart on success)%f"
   say "  %F{white}log:%f    %F{blue}$(topaz_escape_prompt "$log_file")%f"
   if [[ -n "$resume_kf" ]]; then
     say "  %F{white}resume:%f %F{cyan}tail from $(topaz_format_clock "$resume_kf"), then lossless join%f"
@@ -1513,9 +1558,11 @@ for input in "$files[@]"; do
   } >"$log_file" 2>&1
 
   topaz_status=0
-  topaz_run_with_controls \
-    "$progress_total_seconds" "$term_cols" "$log_file" "$TOPAZ_MACOS_DIR" "$output" \
-    "${topaz_env[@]}" "${ffmpeg_cmd[@]}" || topaz_status=$?
+  if [[ "$finalize_only" != true ]]; then
+    topaz_run_with_controls \
+      "$progress_total_seconds" "$term_cols" "$log_file" "$TOPAZ_MACOS_DIR" "$encode_target" \
+      "${topaz_env[@]}" "${ffmpeg_cmd[@]}" || topaz_status=$?
+  fi
 
   {
     if (( topaz_status != 0 )); then
@@ -1534,11 +1581,50 @@ for input in "$files[@]"; do
     say_err "  %F{white}see log:%f %F{blue}$(topaz_escape_prompt "$log_file")%f"
     report_encoder_log_tail "$log_file"
     if [[ -n "$resume_kf" ]]; then
-      say_err "  %F{white}partial output untouched:%f %F{blue}$(topaz_escape_prompt "$output")%f"
+      say_err "  %F{white}partial output untouched:%f %F{blue}$(topaz_escape_prompt "$partial_src")%f"
       [[ -s "$encode_target" ]] || rm -f -- "$encode_target"
     fi
     (( ++fail_count ))
     continue
+  fi
+
+  # Fresh (and finalize-only) encodes wrote the labeled fragmented file; remux
+  # it losslessly into the final faststart output, verify the duration
+  # carried over, and only then delete the frag. On any failure the frag is
+  # kept (it is still resumable) and the half-written output is removed.
+  if [[ -z "$resume_kf" ]]; then
+    say "  %F{cyan}↻ finalizing (faststart remux)…%f"
+    remux_status=0
+    (
+      cd "$TOPAZ_MACOS_DIR"
+      "${priority_cmd[@]}" "$TOPAZ_FFMPEG" -hide_banner -nostdin -y \
+        -i "$frag_target" -map 0 -c copy -map_metadata 0 \
+        -movflags "use_metadata_tags+faststart" \
+        "${metadata_args[@]}" -- "$output"
+    ) >>"$log_file" 2>&1 || remux_status=$?
+
+    frag_duration="$(media_duration_seconds "$frag_target")"
+    final_duration="$(media_duration_seconds "$output")"
+    remux_ok=false
+    if (( remux_status == 0 )) && [[ -n "$final_duration" && -n "$frag_duration" ]] &&
+        awk -v a="$final_duration" -v b="$frag_duration" \
+          'BEGIN { d = a - b; if (d < 0) d = -d; exit !(d <= 5) }'; then
+      remux_ok=true
+    fi
+
+    if [[ "$remux_ok" != true ]]; then
+      print "[$(date '+%F %T')] FASTSTART REMUX FAILED status=$remux_status final=${final_duration:-?} frag=${frag_duration:-?}" >>"$log_file"
+      say_err "%F{red}✗ faststart remux failed — fragmented encode kept%f"
+      say_err "  %F{white}fragmented:%f %F{blue}$(topaz_escape_prompt "$frag_target")%f"
+      say_err "  %F{white}see log:%f    %F{blue}$(topaz_escape_prompt "$log_file")%f"
+      report_encoder_log_tail "$log_file"
+      rm -f -- "$output"
+      (( ++fail_count ))
+      continue
+    fi
+
+    rm -f -- "$frag_target"
+    print "[$(date '+%F %T')] FASTSTART REMUX DONE $output" >>"$log_file"
   fi
 
   # Resume: losslessly join partial[0..keyframe] + freshly encoded tail, verify
@@ -1549,7 +1635,7 @@ for input in "$files[@]"; do
     concat_list="$(mktemp "${TMPDIR:-/tmp}/topaz-concat.XXXXXX")"
     joined="${${output:A}:r} [resume joined].${output_ext}"
     {
-      print -r -- "file '$(topaz_concat_escape "${output:A}")'"
+      print -r -- "file '$(topaz_concat_escape "${partial_src:A}")'"
       print -r -- "outpoint $resume_kf"
       print -r -- "file '$(topaz_concat_escape "${encode_target:A}")'"
     } >| "$concat_list"
@@ -1574,7 +1660,7 @@ for input in "$files[@]"; do
     if [[ "$duration_ok" != true ]]; then
       print "[$(date '+%F %T')] RESUME JOIN FAILED status=$concat_status joined_duration=${joined_duration:-?} expected=$expected_duration" >>"$log_file"
       say_err "%F{red}✗ resume join failed or duration mismatch — nothing was deleted%f"
-      say_err "  %F{white}partial:%f %F{blue}$(topaz_escape_prompt "$output")%f"
+      say_err "  %F{white}partial:%f %F{blue}$(topaz_escape_prompt "$partial_src")%f"
       say_err "  %F{white}tail:%f    %F{blue}$(topaz_escape_prompt "$encode_target")%f"
       [[ -e "$joined" ]] && say_err "  %F{white}joined:%f  %F{blue}$(topaz_escape_prompt "$joined")%f"
       say_err "  %F{white}see log:%f %F{blue}$(topaz_escape_prompt "$log_file")%f"
@@ -1583,7 +1669,7 @@ for input in "$files[@]"; do
       continue
     fi
 
-    trash_original "$output" || warn "could not trash partial; overwriting in place"
+    trash_original "$partial_src" || warn "could not trash partial; overwriting in place"
     mv -f -- "$joined" "$output"
     rm -f -- "$encode_target"
     print "[$(date '+%F %T')] RESUME DONE $output" >>"$log_file"
