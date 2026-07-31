@@ -8,9 +8,10 @@ local send_job = "/Users/nom/.zsh/bin/send-job"
 -- Every exported job runs the encoder at low CPU priority — these are long
 -- background jobs and the machine has to stay usable while they run.
 local topaz_nice = "--nice=19"
--- Machine whose SMB `jobs` share ⌘S ships the encode to (job-runner picks it up
--- there). Override per-session with TOPAZ_JOB_HOST=<hostname>.
-local job_host = os.getenv("TOPAZ_JOB_HOST") or "m4.local"
+-- Jobs folder ⌘⇧S drops the encode into — normally the mounted `jobs` share,
+-- where job-runner picks it up. No hostname anywhere: mount it however you
+-- like and point JOBS_DIR at it. Empty means "let send-job use its default".
+local jobs_dir = os.getenv("JOBS_DIR") or ""
 local preset_catalog = os.getenv("HOME") .. "/.zsh/bin/lib/topaz-preset-catalog.zsh"
 
 -- Active render-menu session (nil when closed). One sheet with three tabs
@@ -46,15 +47,11 @@ local draw_menu, show_original, render_or_show, move_cursor, select_number
 local render_cursor, run_job_now, close_menu, enable_menu_keys, remove_menu_keys
 local space_toggle, show_render, show_orig, toggle_ui, menu_seek
 local draw_details, toggle_details, set_tab, interp_select, output_select
-local save_job_file, copy_encode_command
+local save_job_file, send_job_file, copy_encode_command
+local apply_view, set_zoom, rotate_by
 
 local function shell_quote(value)
     return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
-end
-
--- Escape for interpolation inside a double-quoted shell string.
-local function dq_escape(value)
-    return (tostring(value):gsub('[\\"$`]', '\\%0'))
 end
 
 local function trim(value)
@@ -341,27 +338,29 @@ local ENHANCE_HINTS = {
     { keys = { "Space" }, label = "A/B" },
     { keys = { "⇧←", "⇧→" }, label = "±10s" },
     { keys = { "Z" }, label = "zoom" },
+    { keys = { "[", "]" }, label = "rotate" },
     { keys = { "D" }, label = "details" },
     { keys = { "⌘⇧[", "⌘⇧]" }, label = "tabs" },
     { keys = { "Tab" }, label = "hide" },
-    { keys = { "Esc" }, label = "close" },
 }
 local OPTION_HINTS = {
     { keys = { "1–9" }, label = "select" },
     { keys = { "J", "K" }, label = "move" },
     { keys = { "Enter" }, label = "select" },
     { keys = { "Space" }, label = "A/B" },
+    { keys = { "[", "]" }, label = "rotate" },
     { keys = { "⌘⇧[", "⌘⇧]" }, label = "tabs" },
     { keys = { "Tab" }, label = "hide" },
-    { keys = { "Esc" }, label = "back" },
 }
--- Finalize actions, right-aligned in the bar on every tab. Each closes the menu
--- except ⌘E, which just opens the preset catalog for editing.
+-- Finalize actions, right-aligned in the bar on every tab. ⌘S writes the .job
+-- beside the video and leaves the menu open; ⌘E only opens the preset catalog;
+-- the rest close the menu.
 local FINALIZE_HINTS = {
     { keys = { "⌘E" }, label = "edit" },
-    { keys = { "⌘S" }, label = "send job" },
-    { keys = { "⌘R" }, label = "run job" },
-    { keys = { "⌘C" }, label = "copy cli" },
+    { keys = { "⌘S" }, label = "save" },
+    { keys = { "⌘⇧S" }, label = "send" },
+    { keys = { "⌘R" }, label = "run" },
+    { keys = { "⌘C" }, label = "copy" },
 }
 
 -- Approximate rendered width of a hint-segment run (mirrors draw_hint_segments),
@@ -1238,7 +1237,8 @@ function draw_menu()
     list_badge.res_x = 1280
     list_badge.res_y = 720
 
-    -- Compact caption: resolution · fps · clip length · preview time.
+    -- Compact caption: resolution · fps · clip length · preview time, plus the
+    -- current view state (zoom / rotation) when either is off its default.
     local prof = menu.profile
     local meta
     if prof and prof.width then
@@ -1248,6 +1248,12 @@ function draw_menu()
             prof.width, prof.height, fps, len, format_time(menu.time_pos))
     else
         meta = "@ " .. format_time(menu.time_pos)
+    end
+    if (menu.zoom or 0) > 0.01 then
+        meta = meta .. string.format(" · %.0f%%", 2 ^ menu.zoom * 100)
+    end
+    if (menu.rotate or 0) ~= 0 then
+        meta = meta .. string.format(" · ↻%d°", menu.rotate)
     end
 
     -- Per-tab body into z-layer buckets (cards behind pills behind text).
@@ -1736,10 +1742,39 @@ local function mouse_virtual_pos()
     return pos.x * 1280 / ow, pos.y * 720 / oh
 end
 
--- Mouse-move observer: tracks which row the pointer is over so it can get a subtle
--- focus wash, and redraws only when the hovered row changes. No-op when closed.
+-- Drag-to-pan while zoomed in: mpv's video-pan-* are in units of the window
+-- size, so a pointer delta in window pixels maps straight onto them.
+local function update_drag()
+    local drag = menu and menu.drag
+    if not drag then
+        return false
+    end
+
+    local pos = mp.get_property_native("mouse-pos")
+    local ow = mp.get_property_number("osd-width")
+    local oh = mp.get_property_number("osd-height")
+    if not (pos and pos.x and ow and oh and ow > 0 and oh > 0) then
+        return true
+    end
+
+    local function clamp(v)
+        return math.max(-3, math.min(3, v))
+    end
+    menu.pan_x = clamp(drag.pan_x + (pos.x - drag.x) / ow)
+    menu.pan_y = clamp(drag.pan_y + (pos.y - drag.y) / oh)
+    mp.set_property_number("video-pan-x", menu.pan_x)
+    mp.set_property_number("video-pan-y", menu.pan_y)
+    return true
+end
+
+-- Mouse-move observer: pans while dragging a zoomed frame, otherwise tracks which
+-- row the pointer is over so it can get a subtle focus wash, and redraws only when
+-- the hovered row changes. No-op when closed.
 local function update_hover()
-    if not menu or menu.ui_hidden then
+    if not menu then
+        return
+    end
+    if update_drag() or menu.ui_hidden then
         return
     end
 
@@ -1866,6 +1901,50 @@ local function menu_click()
                 output_select(hb.index)
             end
             return
+        end
+    end
+end
+
+-- Is (mx, my) over one of the sheets? Anywhere else is free canvas, where a
+-- press starts a pan drag instead of selecting a row.
+local function over_panel(mx, my)
+    if not mx then
+        return false
+    end
+    if menu.ui_hidden then
+        return false
+    end
+    if mx >= PANEL_X and mx <= PANEL_X + PANEL_W then
+        return true
+    end
+    return details_visible and menu.tab == 1
+        and mx >= DETAIL_X and mx <= DETAIL_X + DETAIL_W
+end
+
+-- MBTN_LEFT: a press on a sheet selects; a press on the frame starts a pan drag
+-- (only meaningful while zoomed in, and harmless otherwise).
+local function menu_mouse(event)
+    if not menu then
+        return
+    end
+    if event.event == "up" then
+        menu.drag = nil
+        return
+    end
+    if event.event ~= "down" then
+        return
+    end
+
+    local mx, my = mouse_virtual_pos()
+    if over_panel(mx, my) then
+        menu_click()
+        return
+    end
+
+    if menu.zoom > 0.01 then
+        local pos = mp.get_property_native("mouse-pos")
+        if pos and pos.x then
+            menu.drag = { x = pos.x, y = pos.y, pan_x = menu.pan_x, pan_y = menu.pan_y }
         end
     end
 end
@@ -2028,12 +2107,79 @@ function toggle_ui()
     end
 end
 
--- Z: toggle 1x (unscaled, native-pixel) zoom, so you can inspect a render's detail
--- at full resolution instead of scaled to fit the window.
-local function toggle_zoom_1x()
-    local unscaled = (mp.get_property("video-unscaled") or "no") == "yes"
-    mp.set_property("video-unscaled", unscaled and "no" or "yes")
-    mp.osd_message(unscaled and "Zoom: fit window" or "Zoom: 1x", 1)
+-- ===== view state: zoom / pan / rotation =====
+--
+-- Zoom is deliberately *fit-relative* (mpv's video-zoom), never native-pixel
+-- (video-unscaled): a 1080p source and its 4K upscale both fit the window at
+-- zoom 0, so flipping A/B keeps the exact same framing and magnification and
+-- the comparison stays honest. Native-pixel zoom would snap between the two.
+--
+-- Rotation is display-only here (video-rotate) — the source is never touched.
+-- Both the original and every render go through the same display rotation, so
+-- A/B still matches; the encode bakes the equivalent ffmpeg transpose in.
+
+local ZOOM_MIN, ZOOM_MAX = 0, 4        -- log2 steps: 1x .. 16x
+local ZOOM_CYCLE = { 0, 1, 2 }         -- what `z` steps through
+local ZOOM_STEP = 0.25                 -- per wheel / trackpad-scroll notch
+
+local ROTATE_FILTERS = {
+    [90] = "transpose=1",
+    [180] = "transpose=1,transpose=1",
+    [270] = "transpose=2",
+}
+
+-- Push the script's view state onto mpv. Called on every zoom / rotate change
+-- and once on open; playlist switches keep these properties, so an A/B flip
+-- needs no extra work.
+function apply_view()
+    if not menu then
+        return
+    end
+    mp.set_property("video-unscaled", "no")
+    mp.set_property_number("video-zoom", menu.zoom)
+    mp.set_property_number("video-pan-x", menu.pan_x)
+    mp.set_property_number("video-pan-y", menu.pan_y)
+    mp.set_property_number("video-rotate", (menu.base_rotate + menu.rotate) % 360)
+end
+
+function set_zoom(z)
+    if not menu then
+        return
+    end
+    menu.zoom = math.max(ZOOM_MIN, math.min(ZOOM_MAX, z))
+    if menu.zoom <= ZOOM_MIN then
+        menu.pan_x, menu.pan_y = 0, 0
+    end
+    apply_view()
+    draw_menu()
+end
+
+-- Z: step through the coarse zoom presets (fit -> 2x -> 4x -> fit).
+local function cycle_zoom()
+    if not menu then
+        return
+    end
+    local next_z = ZOOM_CYCLE[1]
+    for _, z in ipairs(ZOOM_CYCLE) do
+        if z > menu.zoom + 0.01 then
+            next_z = z
+            break
+        end
+    end
+    set_zoom(next_z)
+end
+
+-- [ / ]: rotate the *output* by 90° steps. Applied to the preview as a display
+-- rotation and to the encode as a transpose filter; the source file is untouched.
+function rotate_by(delta)
+    if not menu then
+        return
+    end
+    menu.rotate = (menu.rotate + delta) % 360
+    apply_view()
+    draw_menu()
+    mp.osd_message(menu.rotate == 0 and "Rotate: none"
+        or string.format("Rotate: %d°", menu.rotate), 1)
 end
 
 -- ===== finalize: run job / send job / copy cli =====
@@ -2056,6 +2202,10 @@ local function build_encode_plan()
     if body ~= "" then parts[#parts + 1] = body end
     if interp and interp.fi and interp.fi ~= "" then parts[#parts + 1] = interp.fi end
     if tail ~= "" then parts[#parts + 1] = tail end
+    -- Rotation last: the AI pass and the scale target both work in the source's
+    -- own orientation, and only the delivered frame is turned.
+    local rot = ROTATE_FILTERS[menu.rotate]
+    if rot then parts[#parts + 1] = rot end
     local final_filter = table.concat(parts, ",")
     if final_filter == "" then
         -- Original + no interpolation + source size: re-encode only.
@@ -2068,6 +2218,9 @@ local function build_encode_plan()
     end
     if interp and interp.fi then
         name_parts[#name_parts + 1] = interp.title
+    end
+    if menu.rotate ~= 0 then
+        name_parts[#name_parts + 1] = string.format("Rotate %d°", menu.rotate)
     end
     name_parts[#name_parts + 1] = output.display
     local preset_name = table.concat(name_parts, " + ")
@@ -2107,14 +2260,13 @@ end
 
 -- Write the plan as an executable .job script into `dir`, returning its path.
 --
--- The job carries no cd line and references its source through job-runner's
--- $JOB_NAME (the job is named <video>.job, so JOB_NAME is the video filename),
--- falling back to the bare filename for direct runs (⌘R) where job-runner's
--- env isn't set. Either way it runs correctly wherever it sits beside the
--- video: here (kitty --cwd'd into the video's directory) and on the render
--- machine (job-runner executes it in the share root next to the copied video).
--- The encoder path is written $HOME-relative because the remote job runs as
--- whatever user owns the share.
+-- The job is machine-agnostic: no cd line, no absolute paths, nothing about
+-- this host. It names its source purely through job-runner's $JOB_NAME (the
+-- job is <video>.job, so JOB_NAME is the video filename) and its encoder
+-- through $HOME, so it runs correctly wherever it sits beside the video —
+-- here (⌘R exports JOB_NAME and runs it in the video's directory) and on any
+-- render machine (job-runner sets JOB_NAME and executes it next to the copied
+-- video, as whatever user owns the share).
 local function write_job_file(plan, dir)
     local home = os.getenv("HOME") or ""
     local job_argv = {}
@@ -2129,10 +2281,9 @@ local function write_job_file(plan, dir)
     end
     -- $HOME and $JOB_NAME must survive quoting, so those args are rewritten
     -- after the argv is shell-quoted.
-    local source_ref = '"${JOB_NAME:-' .. dq_escape(basename(plan.source)) .. '}"'
     local command = shell_command(job_argv)
         :gsub("^'%$HOME/(.-)'", '"$HOME"/%1', 1)
-        :gsub("'__JOB_SOURCE__'", (source_ref:gsub("%%", "%%%%")), 1)
+        :gsub("'__JOB_SOURCE__'", '"$JOB_NAME"', 1)
 
     local job_path = utils.join_path(dir, basename(plan.source) .. ".job")
     local f, ferr = io.open(job_path, "w")
@@ -2144,6 +2295,7 @@ local function write_job_file(plan, dir)
     f:write("# Topaz encode job — generated by the mpv Topaz workflow\n")
     f:write("# " .. plan.preset_name .. "\n")
     f:write("# Runs beside the video it encodes; no cd, source from $JOB_NAME.\n")
+    f:write(": \"${JOB_NAME:?run me through job-runner, or set JOB_NAME}\"\n")
     f:write("exec " .. command .. "\n")
     f:close()
     utils.subprocess({ args = { "chmod", "+x", job_path }, cancellable = false })
@@ -2174,6 +2326,8 @@ function run_job_now()
         return
     end
 
+    -- The job file itself is host-agnostic and takes its source from $JOB_NAME,
+    -- so a direct run has to supply the same variable job-runner would.
     local result = utils.subprocess_detached({
         args = {
             kitty_launch,
@@ -2182,7 +2336,7 @@ function run_job_now()
             "--cwd", plan.directory,
             "--title", " topaz job ",
             "--",
-            job_path,
+            "/usr/bin/env", "JOB_NAME=" .. basename(plan.source), job_path,
         },
     })
     if result == false then
@@ -2194,11 +2348,32 @@ function run_job_now()
     close_menu("Running " .. basename(job_path))
 end
 
--- ⌘S: ship the encode to the render machine. Writes a .job script to a temp
--- dir, then opens a kitty tab running send-job, which mounts the host's SMB
--- `jobs` share, copies the video across (size-verified) and drops the job in —
--- job-runner on the far side then executes it.
+-- ⌘S: save the .job beside the video and stay in the menu. Nothing runs — the
+-- file is the artifact, ready for job-runner here or anywhere it is copied to.
 function save_job_file()
+    if not menu then
+        return
+    end
+    local plan, err = build_encode_plan()
+    if not plan then
+        mp.osd_message(err, 2)
+        return
+    end
+
+    local job_path, job_err = write_job_file(plan, plan.directory)
+    if not job_path then
+        mp.osd_message(job_err, 2)
+        return
+    end
+
+    mp.osd_message("Saved jobfile " .. basename(job_path), 2)
+end
+
+-- ⌘⇧S: hand the encode off to the jobs folder. Writes a .job script to a temp
+-- dir, then opens a kitty tab running send-job, which copies the video into
+-- the mounted `jobs` folder (size-verified) and drops the job in afterwards —
+-- job-runner then executes it wherever that folder lives.
+function send_job_file()
     if not menu then
         return
     end
@@ -2214,24 +2389,27 @@ function save_job_file()
         return
     end
 
-    local result = utils.subprocess_detached({
-        args = {
-            kitty_launch,
-            "--tab",
-            "--hold",
-            "--cwd", plan.directory,
-            "--title", " send job ",
-            "--",
-            send_job, plan.source, job_path, "--host=" .. job_host,
-        },
-    })
+    local args = {
+        kitty_launch,
+        "--tab",
+        "--hold",
+        "--cwd", plan.directory,
+        "--title", " send job ",
+        "--",
+        send_job, plan.source, job_path,
+    }
+    if jobs_dir ~= "" then
+        args[#args + 1] = "--dir=" .. jobs_dir
+    end
+
+    local result = utils.subprocess_detached({ args = args })
     if result == false then
         mp.osd_message("Could not launch send-job", 2)
         mp.msg.error("send-job launch failed for: " .. plan.source)
         return
     end
 
-    close_menu("Sending job to " .. job_host)
+    close_menu("Sending job to the jobs folder")
 end
 
 -- ⌘C: copy the encode command line to the clipboard and close the menu.
@@ -2343,11 +2521,15 @@ local MENU_KEY_NAMES = {
     "topaz_menu_space", "topaz_menu_hide_ui_tab", "topaz_menu_hide_ui_f",
     "topaz_menu_tab_prev", "topaz_menu_tab_next",
     "topaz_menu_seek_fwd", "topaz_menu_seek_back",
-    "topaz_menu_details", "topaz_menu_zoom",
+    "topaz_menu_details", "topaz_menu_zoom", "topaz_menu_zoom_reset",
+    "topaz_menu_zoom_in", "topaz_menu_zoom_in2", "topaz_menu_zoom_out",
+    "topaz_menu_wheel_up", "topaz_menu_wheel_down",
+    "topaz_menu_rotate_cw", "topaz_menu_rotate_ccw",
     "topaz_menu_show_render_l", "topaz_menu_show_render_right",
     "topaz_menu_show_orig_h", "topaz_menu_show_orig_left",
     "topaz_menu_proceed_c",
-    "topaz_menu_save_job", "topaz_menu_run_job", "topaz_menu_copy_cmd",
+    "topaz_menu_save_job", "topaz_menu_send_job", "topaz_menu_send_job2",
+    "topaz_menu_run_job", "topaz_menu_copy_cmd",
     "topaz_menu_edit_presets",
     "topaz_menu_block_n", "topaz_menu_block_N",
     "topaz_menu_click",
@@ -2391,15 +2573,38 @@ function enable_menu_keys()
     end)
     -- d toggles the preset-details companion sheet.
     mp.add_forced_key_binding("d", "topaz_menu_details", toggle_details)
-    -- z toggles 1x (unscaled) zoom, for inspecting render detail at native pixels.
-    mp.add_forced_key_binding("z", "topaz_menu_zoom", toggle_zoom_1x)
+    -- Zoom: z steps fit -> 2x -> 4x, Z resets, +/- and the trackpad / wheel step
+    -- finely, and dragging the frame pans. Zoom is fit-relative on purpose, so
+    -- A/B between a source and its upscale never changes framing (see apply_view).
+    mp.add_forced_key_binding("z", "topaz_menu_zoom", cycle_zoom)
+    mp.add_forced_key_binding("Z", "topaz_menu_zoom_reset", function() set_zoom(0) end)
+    mp.add_forced_key_binding("+", "topaz_menu_zoom_in", function()
+        if menu then set_zoom(menu.zoom + ZOOM_STEP) end
+    end)
+    mp.add_forced_key_binding("=", "topaz_menu_zoom_in2", function()
+        if menu then set_zoom(menu.zoom + ZOOM_STEP) end
+    end)
+    mp.add_forced_key_binding("-", "topaz_menu_zoom_out", function()
+        if menu then set_zoom(menu.zoom - ZOOM_STEP) end
+    end)
+    mp.add_forced_key_binding("WHEEL_UP", "topaz_menu_wheel_up", function()
+        if menu then set_zoom(menu.zoom + ZOOM_STEP) end
+    end)
+    mp.add_forced_key_binding("WHEEL_DOWN", "topaz_menu_wheel_down", function()
+        if menu then set_zoom(menu.zoom - ZOOM_STEP) end
+    end)
+    -- [ / ] rotate the output 90° (display-only preview, transpose in the encode).
+    mp.add_forced_key_binding("]", "topaz_menu_rotate_cw", function() rotate_by(90) end)
+    mp.add_forced_key_binding("[", "topaz_menu_rotate_ccw", function() rotate_by(-90) end)
     -- Skip the preview point ±10s without leaving the renderer.
     mp.add_forced_key_binding("Shift+RIGHT", "topaz_menu_seek_fwd", function() menu_seek(10) end)
     mp.add_forced_key_binding("Shift+LEFT", "topaz_menu_seek_back", function() menu_seek(-10) end)
-    -- Finalize: ⌘S ships a .job to the render machine, ⌘R saves the .job beside
-    -- the video and runs it here, ⌘C copies the command line. Each closes the
-    -- menu. `c` stays as a run-job alias.
+    -- Finalize: ⌘S saves the .job beside the video (menu stays open), ⌘⇧S ships
+    -- one to the render machine, ⌘R saves it beside the video and runs it here,
+    -- ⌘C copies the command line. All but ⌘S close the menu; `c` runs the job.
     mp.add_forced_key_binding("Meta+s", "topaz_menu_save_job", save_job_file)
+    mp.add_forced_key_binding("Meta+S", "topaz_menu_send_job", send_job_file)
+    mp.add_forced_key_binding("Meta+Shift+s", "topaz_menu_send_job2", send_job_file)
     mp.add_forced_key_binding("Meta+r", "topaz_menu_run_job", run_job_now)
     mp.add_forced_key_binding("Meta+c", "topaz_menu_copy_cmd", copy_encode_command)
     mp.add_forced_key_binding("c", "topaz_menu_proceed_c", run_job_now)
@@ -2408,8 +2613,10 @@ function enable_menu_keys()
     -- Swallow playlist-next/prev so preview stills don't get navigated away.
     mp.add_forced_key_binding("n", "topaz_menu_block_n", function() end)
     mp.add_forced_key_binding("N", "topaz_menu_block_N", function() end)
-    -- Click: tab segments, details close, preset / option rows.
-    mp.add_forced_key_binding("MBTN_LEFT", "topaz_menu_click", menu_click)
+    -- Click: tab segments, details close, preset / option rows — and, off the
+    -- sheets, press-and-drag to pan a zoomed frame.
+    mp.add_forced_key_binding("MBTN_LEFT", "topaz_menu_click", menu_mouse,
+        { complex = true })
     -- Esc backs out of the option tabs, closes from the Enhance tab.
     mp.add_forced_key_binding("ESC", "topaz_menu_esc", function()
         if menu and menu.tab ~= 1 then
@@ -2471,10 +2678,23 @@ local function open_menu(source, profile, data)
         original_pos = original_pos,
         original_plindex = nil,
         appended = {},
+        -- View state: fit-relative zoom (never native-pixel, so A/B doesn't
+        -- snap between a source and its upscale), pan, and output rotation.
+        zoom = 0,
+        pan_x = 0,
+        pan_y = 0,
+        drag = nil,
+        rotate = 0,
+        base_rotate = mp.get_property_number("video-rotate", 0) or 0,
         old_image_display_duration = mp.get_property("image-display-duration"),
+        old_video_unscaled = mp.get_property("video-unscaled"),
+        old_video_zoom = mp.get_property_number("video-zoom", 0),
+        old_video_pan_x = mp.get_property_number("video-pan-x", 0),
+        old_video_pan_y = mp.get_property_number("video-pan-y", 0),
     }
 
     mp.set_property("image-display-duration", "inf")
+    apply_view()
     mp.set_property_bool("pause", true)
     -- Keep the built-in OSC (seek bar / top bar) from popping in on mouse-move while
     -- the Topaz UI owns the screen; restored on close.
@@ -2501,6 +2721,13 @@ function close_menu(message)
     if state.old_image_display_duration then
         mp.set_property("image-display-duration", state.old_image_display_duration)
     end
+
+    -- Hand the view back exactly as we found it (zoom / pan / rotation).
+    mp.set_property("video-unscaled", state.old_video_unscaled or "no")
+    mp.set_property_number("video-zoom", state.old_video_zoom or 0)
+    mp.set_property_number("video-pan-x", state.old_video_pan_x or 0)
+    mp.set_property_number("video-pan-y", state.old_video_pan_y or 0)
+    mp.set_property_number("video-rotate", state.base_rotate or 0)
 
     pending_restore = { time_pos = state.time_pos, pause = true }
 

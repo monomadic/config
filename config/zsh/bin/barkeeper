@@ -1,0 +1,998 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+#
+#   barkeeper — an fzf TUI for the installed Homebrew set.
+#
+#   Built for three jobs:
+#     1. prune   — surface orphans (installed as a dependency, now depended on by
+#                  nothing), deprecated/disabled packages and disk hogs, and remove
+#                  them safely.
+#     2. redisc. — find "that app I installed ages ago and forgot the name of" by
+#                  typing a word from its *description*.
+#     3. discover— browse/install new packages. Not built yet; load_rows() takes a
+#                  source argument so a `catalog` source can reuse everything below.
+#
+#   Everything the display needs comes from ONE local call:
+#       brew info --json=v2 --installed
+#   which carries descriptions, homepages, versions, the outdated flag, install
+#   times, deprecation state AND the full runtime dependency graph. Orphan
+#   detection and reverse-dependency counts are therefore computed locally — no
+#   `brew uses`, no `brew autoremove`, no per-package requests, no network.
+#
+#   Disk size is the one fact not in that JSON; it comes from a single batched
+#   `du -sk` over the Cellar and Caskroom, cached separately (--no-size skips it).
+#
+#   Every filter and sort keybinding re-renders the cached row table in-process,
+#   so they are instant. Only ctrl-g (brew update) touches the network.
+#
+#   Requires fzf >= 0.60 (uses --style, --gap, --footer, --ghost), jq and brew.
+
+zmodload zsh/datetime
+zmodload -F zsh/stat b:zstat   # cache TTL checks; without this every run refetches
+
+typeset -r SELF="${0:A}"
+typeset -r script_name="${0:t}"
+
+usage() {
+  cat <<'USAGE'
+Usage: barkeeper [options] [initial query] [-- fzf args...]
+
+Manage installed Homebrew formulae and casks in fzf. Each package renders as a
+two-line entry (name/badges/versions/size/age, then description), and fzf matches
+against both lines — so a half-remembered description finds the package.
+
+Options:
+      --outdated       Start filtered to packages with updates available.
+      --leaves         Start filtered to packages installed on request.
+      --orphans        Start in the prune view (orphans, deprecated, disabled).
+      --formulae       Start filtered to formulae.
+      --casks          Start filtered to casks.
+      --sort=MODE      name | size | age | outdated. Default: name.
+      --no-size        Skip the du pass; sizes show as "-".
+      --refresh        Rebuild the cache before starting.
+      --dry-run        Print brew commands instead of running them.
+      --list           Print the row TSV and exit (scriptable).
+      --no-color       Render without ANSI colour.
+  -h, --help           Show this help.
+
+Keys:
+  tab                  Mark / unmark          alt-a / alt-d   select all / none
+  enter                Print selected names   ctrl-y          copy names
+  ctrl-u               Upgrade selection      alt-U           upgrade all outdated
+  ctrl-x               Uninstall selection (confirms, warns on reverse deps)
+  ctrl-o               Open homepage          ctrl-r          refresh cache
+  ctrl-g               brew update (the only networked action)
+  ctrl-p               Pin / unpin formula    alt-c           brew cleanup
+  alt-z                brew autoremove
+  alt-0 / alt-1 / alt-2        all / formulae / casks
+  alt-o / alt-l / alt-x        outdated / leaves / prune view
+  alt-s                        cycle sort: name -> size -> age -> outdated
+  ctrl-v / ctrl-e / ctrl-t / ctrl-f   preview: info / deps / used-by / files
+  ctrl-/ , alt-p               toggle preview
+
+Environment:
+  BARKEEPER_CACHE_DIR  Cache location. Default: ${XDG_CACHE_HOME:-~/.cache}/barkeeper
+  BARKEEPER_TTL        Seconds before the package cache is stale. Default: 900.
+USAGE
+}
+
+die() {
+  print -u2 -r -- "Error: $*"
+  exit 1
+}
+
+require_command() {
+  local bin="$1"
+
+  command -v "$bin" >/dev/null 2>&1 || die "missing dependency: $bin"
+}
+
+cache_dir() {
+  print -r -- "${BARKEEPER_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/barkeeper}"
+}
+
+# ---------------------------------------------------------------------------
+# colours
+# ---------------------------------------------------------------------------
+
+typeset -g C_NAME C_VER C_NEW C_ARROW C_DESC C_DIM C_SIZE C_AGE
+typeset -g C_ORPHAN C_DEP C_PIN C_DEPR C_KEG C_CASK C_FORMULA C_RESET
+
+set_colors() {
+  C_NAME=$'\033[1;38;5;231m'      # bright white bold — package name
+  C_VER=$'\033[38;5;79m'          # teal — current version
+  C_NEW=$'\033[38;5;220m'         # amber — version available
+  C_ARROW=$'\033[38;5;244m'       # grey — the arrow between them
+  C_DESC=$'\033[38;5;250m'        # light grey — description
+  C_DIM=$'\033[38;5;244m'         # grey — everything incidental
+  C_SIZE=$'\033[38;5;215m'        # orange — disk size
+  C_AGE=$'\033[38;5;244m'         # grey — age
+  C_ORPHAN=$'\033[38;5;204m'      # pink/red — nothing depends on this
+  C_DEP=$'\033[38;5;244m'         # grey — pulled in as a dependency
+  C_PIN=$'\033[38;5;111m'         # blue — pinned
+  C_DEPR=$'\033[38;5;208m'        # orange — deprecated
+  C_KEG=$'\033[38;5;244m'         # grey — keg-only
+  C_CASK=$'\033[38;5;176m'        # violet — cask sigil
+  C_FORMULA=$'\033[38;5;121m'     # green — formula sigil
+  C_RESET=$'\033[0m'
+
+  if [[ -n "${BARKEEPER_NO_COLOR:-}" ]]; then
+    C_NAME="" C_VER="" C_NEW="" C_ARROW="" C_DESC="" C_DIM="" C_SIZE="" C_AGE=""
+    C_ORPHAN="" C_DEP="" C_PIN="" C_DEPR="" C_KEG="" C_CASK="" C_FORMULA="" C_RESET=""
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# data layer
+# ---------------------------------------------------------------------------
+
+# One jq pass turns `brew info --json=v2 --installed` into a flat, formatting-free
+# TSV. The reverse-dependency map is built first from every installed formula's
+# runtime_dependencies, which is what makes orphan detection free.
+typeset -r ROWS_JQ='
+def clean: (. // "") | tostring | gsub("[\t\n\r]"; " ");
+
+( [ .formulae[]? | .installed[0]?.runtime_dependencies[]?.full_name // empty ] ) as $deplist
+| ( reduce $deplist[] as $d ({}; .[$d] = ((.[$d] // 0) + 1)) ) as $rdeps
+| (
+    ( .formulae[]? |
+      . as $f
+      | ( $f.installed[0] // {} ) as $i
+      | ( ($i.runtime_dependencies // []) | map(.full_name) ) as $deps
+      | ( if $f.full_name == $f.name
+          then ($rdeps[$f.name] // 0)
+          else (($rdeps[$f.full_name] // 0) + ($rdeps[$f.name] // 0)) end ) as $rd
+      | ( [ if $f.deprecated then "deprecated" else empty end,
+            if $f.disabled   then "disabled"   else empty end,
+            if $f.pinned     then "pinned"     else empty end,
+            if $f.keg_only   then "keg-only"   else empty end ] ) as $flags
+      | [ "formula:" + $f.name,
+          "formula",
+          $f.name,
+          ($i.version | clean),
+          ($f.versions.stable | clean),
+          (if $f.outdated then 1 else 0 end),
+          (if $i.installed_on_request then 1 else 0 end),
+          (if (($i.installed_on_request | not) and $rd == 0) then 1 else 0 end),
+          $rd,
+          (if ($flags | length) == 0 then "-" else ($flags | join(";")) end),
+          ($i.time // 0),
+          0,
+          ($deps | join(",")),
+          ($f.homepage | clean),
+          ($f.desc | clean) ]
+    ),
+    ( .casks[]? |
+      . as $c
+      | ( [ if $c.deprecated then "deprecated" else empty end,
+            if $c.disabled   then "disabled"   else empty end,
+            if $c.pinned     then "pinned"     else empty end ] ) as $flags
+      | [ "cask:" + $c.token,
+          "cask",
+          $c.token,
+          ($c.installed | clean),
+          ($c.version | clean),
+          (if $c.outdated then 1 else 0 end),
+          1,
+          0,
+          0,
+          (if ($flags | length) == 0 then "-" else ($flags | join(";")) end),
+          ($c.installed_time // 0),
+          0,
+          "",
+          ($c.homepage | clean),
+          ($c.desc | clean) ]
+    )
+  )
+| @tsv
+'
+
+# Fetch (or reuse) the installed-package JSON. Nothing here touches the network:
+# HOMEBREW_NO_AUTO_UPDATE keeps brew from reaching out behind our back.
+fetch_json() {
+  local force="$1" dir file age ttl
+
+  dir="$(cache_dir)"
+  file="$dir/installed.json"
+  ttl="${BARKEEPER_TTL:-900}"
+
+  mkdir -p -- "$dir"
+
+  if [[ "$force" != true && -s "$file" ]]; then
+    age=$(( EPOCHSECONDS - $(zstat +mtime "$file" 2>/dev/null || print 0) ))
+    (( age < ttl )) && { print -r -- "$file"; return 0 }
+  fi
+
+  HOMEBREW_NO_AUTO_UPDATE=1 brew info --json=v2 --installed > "$file.new" \
+    || { rm -f -- "$file.new"; die "brew info failed"; }
+  mv -f -- "$file.new" "$file"
+  print -r -- "$file"
+}
+
+# Batched du over the Cellar, the Caskroom and the installed .app bundles, keyed
+# as kind:name to match the row key. The app-bundle pass matters: a cask's
+# Caskroom directory is metadata only (kilobytes), while the thing actually
+# worth reclaiming sits in /Applications. Cached for a day; --no-size skips it.
+#
+# NB: never name a local `path` here — zsh ties it to $PATH.
+fetch_sizes() {
+  local force="$1" json="$2" dir file prefix cellar caskroom age kb entry name kind
+
+  dir="$(cache_dir)"
+  file="$dir/sizes.tsv"
+
+  mkdir -p -- "$dir"
+
+  if [[ "$force" != true && -s "$file" ]]; then
+    age=$(( EPOCHSECONDS - $(zstat +mtime "$file" 2>/dev/null || print 0) ))
+    (( age < 86400 )) && { print -r -- "$file"; return 0 }
+  fi
+
+  prefix="$(brew --prefix)"
+  cellar="$prefix/Cellar"
+  caskroom="$prefix/Caskroom"
+
+  [[ -t 2 ]] && print -u2 -r -- "$script_name: measuring disk usage (cached for a day; --no-size skips it)…"
+
+  jq -r '.casks[]? | .token as $t
+         | (.artifacts[]? | .app[]? // empty)
+         | select(type == "string")
+         | "\($t)\t\(.)"' "$json" > "$dir/caskapps.tsv" 2>/dev/null || : > "$dir/caskapps.tsv"
+
+  du -sk -- /Applications/*.app(N) /Applications/Utilities/*.app(N) \
+            "$HOME"/Applications/*.app(N) 2>/dev/null |
+    while IFS=$'\t' read -r kb entry; do
+      [[ -n "$entry" ]] && printf '%s\t%s\n' "${entry:t}" "$kb"
+    done > "$dir/appsizes.tsv"
+
+  {
+    du -sk -- "$cellar"/*(N) "$caskroom"/*(N) 2>/dev/null |
+      while IFS=$'\t' read -r kb entry; do
+        [[ -n "$entry" ]] || continue
+        name="${entry:t}"
+        if [[ "$entry" == "$caskroom"/* ]]; then kind=cask; else kind=formula; fi
+        printf '%s:%s\t%s\n' "$kind" "$name" "$kb"
+      done
+
+    LC_ALL=C awk 'BEGIN { FS = OFS = "\t" }
+      NR == FNR { sz[$1] = $2; next }
+      ($2 in sz) { tot["cask:" $1] += sz[$2] }
+      END { for (k in tot) print k, tot[k] }
+    ' "$dir/appsizes.tsv" "$dir/caskapps.tsv"
+  } > "$file.new"
+
+  mv -f -- "$file.new" "$file"
+  print -r -- "$file"
+}
+
+# load_rows <source> <rows-file> <force-json> <want-sizes> [force-sizes]
+#
+# The two caches are forced independently: reloading after an action needs fresh
+# package state (~1.5s) but can reuse yesterday's disk measurements (~10s), so
+# only an explicit --refresh rescans both.
+#
+# The discovery seam: only `installed` exists today. A future `catalog` source
+# would populate the same 15-column TSV from `brew desc --eval-all --search /./`
+# and every function below it would work unchanged — nothing downstream reads
+# the JSON, only these rows.
+load_rows() {
+  local source="$1" rows="$2" force="$3" want_sizes="$4" force_sizes="${5:-false}"
+  local json sizes
+
+  case "$source" in
+    installed) ;;
+    *) die "unknown row source: $source" ;;
+  esac
+
+  json="$(fetch_json "$force")"
+  jq -r "$ROWS_JQ" < "$json" > "$rows.raw" || die "failed to build rows from $json"
+
+  if [[ "$want_sizes" == true ]]; then
+    sizes="$(fetch_sizes "$force_sizes" "$json")"
+    # A cask key can appear twice (Caskroom metadata + its .app bundles); sum them.
+    LC_ALL=C awk 'BEGIN { FS = OFS = "\t" }
+      NR == FNR { sz[$1] += $2; next }
+      { if ($1 in sz) $12 = sz[$1]; print }
+    ' "$sizes" "$rows.raw" > "$rows"
+  else
+    mv -f -- "$rows.raw" "$rows"
+  fi
+  rm -f -- "$rows.raw"
+}
+
+# ---------------------------------------------------------------------------
+# filter + sort — pure, no brew calls, which is why the toggles feel instant
+# ---------------------------------------------------------------------------
+
+filter_rows() {
+  local mode="$1" rows="$2"
+
+  LC_ALL=C awk -F'\t' -v mode="$mode" '
+    mode == "all"      { print; next }
+    mode == "formula"  { if ($2 == "formula") print; next }
+    mode == "cask"     { if ($2 == "cask") print; next }
+    mode == "outdated" { if ($6 == 1) print; next }
+    mode == "leaves"   { if ($7 == 1) print; next }
+    mode == "prune"    { if ($8 == 1 || $10 ~ /deprecated/ || $10 ~ /disabled/) print; next }
+    { print }
+  ' "$rows"
+}
+
+sort_rows() {
+  local mode="$1"
+
+  case "$mode" in
+    size)     LC_ALL=C sort -t$'\t' -k12,12nr -k3,3f ;;
+    age)      LC_ALL=C sort -t$'\t' -k11,11n  -k3,3f ;;
+    outdated) LC_ALL=C sort -t$'\t' -k6,6nr   -k3,3f ;;
+    *)        LC_ALL=C sort -t$'\t' -k3,3f ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# formatting helpers
+# ---------------------------------------------------------------------------
+
+human_size() {
+  local kb="$1"
+
+  (( kb <= 0 )) && { print -r -- "-"; return 0 }
+  if   (( kb < 1024 ));         then printf '%d KB\n' "$kb"
+  elif (( kb < 1024 * 1024 ));  then printf '%d MB\n' $(( kb / 1024 ))
+  else                               printf '%.1f GB\n' $(( kb / 1048576.0 ))
+  fi
+}
+
+human_age() {
+  local epoch="$1" days
+
+  (( epoch <= 0 )) && { print -r -- "-"; return 0 }
+  days=$(( (EPOCHSECONDS - epoch) / 86400 ))
+  (( days < 0 )) && days=0
+  if   (( days < 1 ));   then print -r -- "today"
+  elif (( days < 14 ));  then print -r -- "${days}d"
+  elif (( days < 60 ));  then print -r -- "$(( days / 7 ))w"
+  elif (( days < 730 )); then print -r -- "$(( days / 30 ))mo"
+  else                        print -r -- "$(( days / 365 ))y"
+  fi
+}
+
+# Casks carry versions like "8.12.28,1234:abcd" — only the leading part is useful.
+short_version() {
+  local v="$1"
+
+  v="${v%%,*}"
+  (( ${#v} > 18 )) && v="${v[1,17]}…"
+  print -r -- "$v"
+}
+
+# ---------------------------------------------------------------------------
+# render — two-line NUL-delimited records for fzf
+# ---------------------------------------------------------------------------
+#
+# Field 1 of line 1 is the stable key (kind:name), hidden by --with-nth=2..
+# and returned by --accept-nth=1. Using the key rather than a line index means
+# reloading, filtering and re-sorting can never desync the selection.
+
+render_rows() {
+  local rows="$1" filter="$2" sort_mode="$3"
+  local line key kind name version latest outdated leaf orphan rdeps flags epoch sizekb deps homepage desc
+  local sigil badges line1 line2 vercol pad
+  local -a f
+
+  set_colors
+
+  # Split with (ps:\t:) rather than `read -d`/IFS: zsh treats tab as IFS
+  # whitespace and would collapse runs of them, so a package with no
+  # dependencies or no description would shift every later column left.
+  filter_rows "$filter" "$rows" | sort_rows "$sort_mode" |
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    f=("${(@ps:\t:)line}")
+    key="${f[1]}" kind="${f[2]}" name="${f[3]}" version="${f[4]}" latest="${f[5]}"
+    outdated="${f[6]}" leaf="${f[7]}" orphan="${f[8]}" rdeps="${f[9]}" flags="${f[10]}"
+    epoch="${f[11]}" sizekb="${f[12]}" deps="${f[13]}" homepage="${f[14]}" desc="${f[15]}"
+    [[ -n "$key" ]] || continue
+
+    if [[ "$kind" == cask ]]; then
+      sigil="${C_CASK}▪${C_RESET}"
+    else
+      sigil="${C_FORMULA}▫${C_RESET}"
+    fi
+
+    badges=""
+    (( orphan )) && badges+=" ${C_ORPHAN}ORPHAN${C_RESET}"
+    if (( ! orphan && ! leaf )); then
+      badges+=" ${C_DEP}dep←${rdeps}${C_RESET}"
+    fi
+    [[ "$flags" == *deprecated* ]] && badges+=" ${C_DEPR}DEPRECATED${C_RESET}"
+    [[ "$flags" == *disabled*   ]] && badges+=" ${C_ORPHAN}DISABLED${C_RESET}"
+    [[ "$flags" == *pinned*     ]] && badges+=" ${C_PIN}PINNED${C_RESET}"
+    [[ "$flags" == *keg-only*   ]] && badges+=" ${C_KEG}keg-only${C_RESET}"
+
+    if (( outdated )); then
+      vercol="${C_VER}$(short_version "$version")${C_RESET} ${C_ARROW}→${C_RESET} ${C_NEW}$(short_version "$latest")${C_RESET}"
+    else
+      vercol="${C_DIM}$(short_version "$version")${C_RESET}"
+    fi
+
+    # Pad on the plain name so the escape sequences never skew the column.
+    pad="${(r:24:)name[1,24]}"
+    line1="${sigil} ${C_NAME}${name}${C_RESET}${pad[${#name}+1,-1]}${badges}  ${vercol}"
+    line1+="  ${C_SIZE}${(l:8:)$(human_size "$sizekb")}${C_RESET}"
+    line1+="  ${C_AGE}${(l:5:)$(human_age "$epoch")}${C_RESET}"
+
+    [[ -n "$desc" ]] || desc="(no description)"
+    (( ${#desc} > 96 )) && desc="${desc[1,95]}…"
+    line2="    ${C_DESC}${desc}${C_RESET}"
+
+    printf '%s\t%s\n%s\0' "$key" "$line1" "$line2"
+  done
+}
+
+# ---------------------------------------------------------------------------
+# footer — recomputed on every load/reload, not on every keystroke
+# ---------------------------------------------------------------------------
+
+render_footer() {
+  local rows="$1" filter="$2" sort_mode="$3"
+
+  LC_ALL=C awk -F'\t' -v filter="$filter" -v sortmode="$sort_mode" '
+    { total++
+      if ($2 == "cask") casks++; else formulae++
+      if ($6 == 1) outdated++
+      if ($8 == 1) { orphans++; reclaim += $12 }
+      kb += $12
+    }
+    END {
+      printf "%d shown  ·  %d formulae / %d casks  ·  %d outdated  ·  %d orphans", \
+        total, formulae, casks, outdated + 0, orphans + 0
+      if (kb > 0) printf "  ·  %.1f GB on disk", kb / 1048576
+      if (reclaim > 0) printf " (%.1f GB reclaimable)", reclaim / 1048576
+      printf "  ·  view: %s  sort: %s\n", filter, sortmode
+    }
+  ' <(filter_rows "$filter" "$rows")
+}
+
+# ---------------------------------------------------------------------------
+# preview
+# ---------------------------------------------------------------------------
+
+# The default `info` preview is rendered straight from the row table, so moving
+# the cursor costs nothing. Only deps/uses/files shell out to brew.
+preview_entry() {
+  local rows="$1" mode="$2" key="$3"
+  local kind name row
+  local version latest outdated leaf orphan rdeps flags epoch sizekb deps homepage desc
+
+  [[ -n "$key" ]] || return 0
+  kind="${key%%:*}"
+  name="${key#*:}"
+
+  case "$mode" in
+    deps)
+      if [[ "$kind" == formula ]]; then
+        HOMEBREW_NO_AUTO_UPDATE=1 brew deps --tree --installed -- "$name" 2>&1
+      else
+        print -r -- "casks have no dependency tree"
+      fi
+      return 0
+      ;;
+    uses)
+      row="$(LC_ALL=C awk -F'\t' -v k="$key" '$1 == k { print; exit }' "$rows")"
+      print -r -- "Installed formulae that depend on ${name}:"
+      print -r --
+      LC_ALL=C awk -F'\t' -v n="$name" '
+        $2 == "formula" {
+          c = split($13, d, ",")
+          for (i = 1; i <= c; i++) {
+            short = d[i]; sub(/.*\//, "", short)
+            if (d[i] == n || short == n) { print "  " $3; break }
+          }
+        }
+      ' "$rows" | LC_ALL=C sort || true
+      return 0
+      ;;
+    files)
+      if [[ "$kind" == cask ]]; then
+        HOMEBREW_NO_AUTO_UPDATE=1 brew list --cask -- "$name" 2>&1
+      else
+        HOMEBREW_NO_AUTO_UPDATE=1 brew list -- "$name" 2>&1
+      fi
+      return 0
+      ;;
+  esac
+
+  set_colors
+
+  row="$(LC_ALL=C awk -F'\t' -v k="$key" '$1 == k { print; exit }' "$rows")"
+  [[ -n "$row" ]] || { print -r -- "no data for $key"; return 0 }
+
+  local -a f
+  f=("${(@ps:\t:)row}")
+  kind="${f[2]}" name="${f[3]}" version="${f[4]}" latest="${f[5]}"
+  outdated="${f[6]}" leaf="${f[7]}" orphan="${f[8]}" rdeps="${f[9]}" flags="${f[10]}"
+  epoch="${f[11]}" sizekb="${f[12]}" deps="${f[13]}" homepage="${f[14]}" desc="${f[15]}"
+
+  print -r -- "${C_NAME}${name}${C_RESET}  ${C_DIM}(${kind})${C_RESET}"
+  print -r --
+  [[ -n "$desc" ]] && { print -r -- "${C_DESC}${desc}${C_RESET}"; print -r --; }
+
+  if (( outdated )); then
+    print -r -- "  version    ${C_VER}${version}${C_RESET} ${C_ARROW}→${C_RESET} ${C_NEW}${latest}${C_RESET}"
+  else
+    print -r -- "  version    ${version}  ${C_DIM}(up to date)${C_RESET}"
+  fi
+  print -r -- "  size       $(human_size "$sizekb")"
+  print -r -- "  installed  $(human_age "$epoch") ago"
+  [[ "$flags" != "-" ]] && print -r -- "  flags      ${C_DEPR}${flags//;/, }${C_RESET}"
+  [[ -n "$homepage" ]] && print -r -- "  homepage   ${C_DIM}${homepage}${C_RESET}"
+  print -r --
+
+  if [[ "$kind" == formula ]]; then
+    if (( orphan )); then
+      print -r -- "  ${C_ORPHAN}Orphan${C_RESET} — not installed on request, and nothing installed needs it."
+      print -r -- "  ${C_DIM}A prune candidate. Note brew autoremove can miss these when the${C_RESET}"
+      print -r -- "  ${C_DIM}install receipt predates the installed_as_dependency field.${C_RESET}"
+    elif (( leaf )); then
+      print -r -- "  ${C_DIM}Installed on request.${C_RESET}"
+      (( rdeps > 0 )) && print -r -- "  ${C_DIM}${rdeps} installed formula(e) also depend on it.${C_RESET}"
+    else
+      print -r -- "  ${C_DEP}Dependency${C_RESET} of ${rdeps} installed formula(e) — ctrl-t lists them."
+    fi
+    print -r --
+    if [[ -n "$deps" ]]; then
+      print -r -- "  ${C_DIM}requires:${C_RESET} ${deps//,/ }"
+    fi
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# actions
+# ---------------------------------------------------------------------------
+
+confirm() {
+  local prompt="$1" ans
+
+  print -n -r -- "$prompt [y/N] "
+  # No tty (piped/scripted) means no consent — fail closed.
+  read -r ans < /dev/tty 2>/dev/null || { print -r --; return 1; }
+  [[ "$ans" == [yY]* ]]
+}
+
+pause() {
+  print -r --
+  print -n -r -- "-- press any key --"
+  read -k1 -s < /dev/tty 2>/dev/null || true
+  print -r --
+}
+
+run_brew() {
+  if [[ -n "${BARKEEPER_DRY_RUN:-}" ]]; then
+    print -r -- "dry-run: $*"
+    return 0
+  fi
+  "$@"
+}
+
+# Split a set of keys into formula and cask name arrays.
+typeset -ga SEL_FORMULAE SEL_CASKS
+split_keys() {
+  local key
+
+  SEL_FORMULAE=() SEL_CASKS=()
+  for key in "$@"; do
+    [[ -n "$key" ]] || continue
+    case "$key" in
+      formula:*) SEL_FORMULAE+=("${key#formula:}") ;;
+      cask:*)    SEL_CASKS+=("${key#cask:}") ;;
+    esac
+  done
+}
+
+exec_action() {
+  local rows="$1" verb="$2"
+  shift 2
+
+  set_colors
+
+  case "$verb" in
+    open)
+      local key url
+      for key in "$@"; do
+        url="$(LC_ALL=C awk -F'\t' -v k="$key" '$1 == k { print $14; exit }' "$rows")"
+        [[ -n "$url" ]] && open -- "$url" 2>/dev/null || true
+      done
+      return 0
+      ;;
+    copy)
+      split_keys "$@"
+      print -rl -- "${SEL_FORMULAE[@]}" "${SEL_CASKS[@]}" | pbcopy
+      return 0
+      ;;
+  esac
+
+  case "$verb" in
+    upgrade)
+      split_keys "$@"
+      (( ${#SEL_FORMULAE} + ${#SEL_CASKS} )) || { print -r -- "nothing selected"; pause; return 0; }
+      print -r -- "${C_NAME}Upgrading${C_RESET} ${SEL_FORMULAE[*]} ${SEL_CASKS[*]}"
+      (( ${#SEL_FORMULAE} )) && run_brew brew upgrade -- "${SEL_FORMULAE[@]}" || true
+      (( ${#SEL_CASKS} ))    && run_brew brew upgrade --cask -- "${SEL_CASKS[@]}" || true
+      pause
+      ;;
+
+    upgrade-all)
+      local -a out_f out_c
+      # ${(f)…} on an empty capture yields one empty element — strip it, or we
+      # would hand brew an empty package name.
+      out_f=(${${(f)"$(LC_ALL=C awk -F'\t' '$6 == 1 && $2 == "formula" { print $3 }' "$rows")"}:#})
+      out_c=(${${(f)"$(LC_ALL=C awk -F'\t' '$6 == 1 && $2 == "cask" { print $3 }' "$rows")"}:#})
+      (( ${#out_f} + ${#out_c} )) || { print -r -- "nothing outdated"; pause; return 0; }
+      print -r -- "${C_NEW}${#out_f} formulae and ${#out_c} casks${C_RESET} have updates."
+      confirm "Upgrade everything?" || { pause; return 0; }
+      (( ${#out_f} )) && run_brew brew upgrade -- "${out_f[@]}" || true
+      (( ${#out_c} )) && run_brew brew upgrade --cask -- "${out_c[@]}" || true
+      pause
+      ;;
+
+    uninstall)
+      split_keys "$@"
+      (( ${#SEL_FORMULAE} + ${#SEL_CASKS} )) || { print -r -- "nothing selected"; pause; return 0; }
+
+      local name rd blockers
+      print -r -- "${C_NAME}About to uninstall:${C_RESET}"
+      print -r --
+      for name in "${SEL_FORMULAE[@]}"; do
+        rd="$(LC_ALL=C awk -F'\t' -v k="formula:$name" '$1 == k { print $9; exit }' "$rows")"
+        if [[ -n "$rd" && "$rd" != 0 ]]; then
+          blockers="$(LC_ALL=C awk -F'\t' -v n="$name" '
+            $2 == "formula" {
+              c = split($13, d, ",")
+              for (i = 1; i <= c; i++) {
+                short = d[i]; sub(/.*\//, "", short)
+                if (d[i] == n || short == n) { printf "%s ", $3; break }
+              }
+            }' "$rows")"
+          print -r -- "  ${C_ORPHAN}!${C_RESET} ${name}  ${C_DIM}(needed by: ${blockers})${C_RESET}"
+        else
+          print -r -- "    ${name}"
+        fi
+      done
+      for name in "${SEL_CASKS[@]}"; do
+        print -r -- "    ${name} ${C_DIM}(cask)${C_RESET}"
+      done
+      print -r --
+      confirm "Uninstall these?" || { print -r -- "cancelled"; pause; return 0; }
+      (( ${#SEL_FORMULAE} )) && run_brew brew uninstall -- "${SEL_FORMULAE[@]}" || true
+      (( ${#SEL_CASKS} ))    && run_brew brew uninstall --cask -- "${SEL_CASKS[@]}" || true
+      pause
+      ;;
+
+    pin)
+      split_keys "$@"
+      (( ${#SEL_FORMULAE} )) || { print -r -- "pinning applies to formulae only"; pause; return 0; }
+      local name flags
+      for name in "${SEL_FORMULAE[@]}"; do
+        flags="$(LC_ALL=C awk -F'\t' -v k="formula:$name" '$1 == k { print $10; exit }' "$rows")"
+        if [[ "$flags" == *pinned* ]]; then
+          run_brew brew unpin -- "$name"
+        else
+          run_brew brew pin -- "$name"
+        fi
+      done
+      pause
+      ;;
+
+    update)
+      print -r -- "${C_DIM}Fetching the latest Homebrew metadata…${C_RESET}"
+      run_brew brew update
+      pause
+      ;;
+
+    cleanup)
+      print -r -- "${C_NAME}brew cleanup would remove:${C_RESET}"
+      print -r --
+      HOMEBREW_NO_AUTO_UPDATE=1 brew cleanup --dry-run 2>&1 || true
+      print -r --
+      confirm "Run cleanup?" || { print -r -- "cancelled"; pause; return 0; }
+      run_brew brew cleanup
+      pause
+      ;;
+
+    autoremove)
+      print -r -- "${C_NAME}brew autoremove would remove:${C_RESET}"
+      print -r --
+      HOMEBREW_NO_AUTO_UPDATE=1 brew autoremove --dry-run 2>&1 || true
+      print -r --
+      confirm "Remove these?" || { print -r -- "cancelled"; pause; return 0; }
+      run_brew brew autoremove
+      pause
+      ;;
+
+    *)
+      die "unknown action: $verb"
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# self-dispatch subcommands (bound into fzf; kept ahead of option parsing)
+# ---------------------------------------------------------------------------
+#
+# Every bind re-enters this script rather than embedding shell in the --bind
+# string, which keeps the quoting sane. State lives in a per-session dir so the
+# filter/sort/preview mode survive reloads.
+
+state_get() {
+  local state="$1" what="$2" fallback="$3"
+  local file="$state/$what"
+
+  [[ -s "$file" ]] && { print -r -- "$(<"$file")"; return 0 }
+  print -r -- "$fallback"
+}
+
+state_set() {
+  local state="$1" what="$2" value="$3"
+
+  print -r -- "$value" > "$state/$what"
+}
+
+case "${1:-}" in
+  __render)
+    shift
+    (( $# >= 1 )) || die "__render requires a state dir"
+    typeset state="$1"; shift
+    typeset rows="$state/rows.tsv"
+    typeset want_sizes filter sort_mode
+    want_sizes="$(state_get "$state" sizes true)"
+
+    while (( $# )); do
+      case "$1" in
+        --filter)  state_set "$state" filter "$2"; shift ;;
+        --sort)    state_set "$state" sort "$2"; shift ;;
+        --cycle-sort)
+          case "$(state_get "$state" sort name)" in
+            name)     state_set "$state" sort size ;;
+            size)     state_set "$state" sort age ;;
+            age)      state_set "$state" sort outdated ;;
+            *)        state_set "$state" sort name ;;
+          esac
+          ;;
+        --rebuild) load_rows installed "$rows" true "$want_sizes" false ;;
+        *) die "__render: unknown option: $1" ;;
+      esac
+      shift
+    done
+
+    filter="$(state_get "$state" filter all)"
+    sort_mode="$(state_get "$state" sort name)"
+    render_rows "$rows" "$filter" "$sort_mode"
+    exit 0
+    ;;
+
+  __footer)
+    shift
+    (( $# >= 1 )) || die "__footer requires a state dir"
+    typeset state="$1"
+    render_footer "$state/rows.tsv" \
+      "$(state_get "$state" filter all)" \
+      "$(state_get "$state" sort name)"
+    exit 0
+    ;;
+
+  __preview)
+    shift
+    (( $# >= 1 )) || die "__preview requires a state dir"
+    typeset state="$1"; shift
+    preview_entry "$state/rows.tsv" "$(state_get "$state" preview info)" "${1:-}"
+    exit 0
+    ;;
+
+  __set)
+    shift
+    (( $# == 3 )) || die "__set requires <state> <key> <value>"
+    state_set "$1" "$2" "$3"
+    exit 0
+    ;;
+
+  __exec)
+    shift
+    (( $# >= 2 )) || die "__exec requires <state> <verb> [keys...]"
+    typeset state="$1"; shift
+    typeset verb="$1"; shift
+    exec_action "$state/rows.tsv" "$verb" "$@"
+    exit 0
+    ;;
+esac
+
+# ---------------------------------------------------------------------------
+# option parsing
+# ---------------------------------------------------------------------------
+
+initial_filter=all
+initial_sort=name
+want_sizes=true
+force_refresh=false
+list_only=false
+initial_query=""
+fzf_passthrough_args=()
+
+while (( $# )); do
+  case "$1" in
+    -h|--help)      usage; exit 0 ;;
+    --outdated)     initial_filter=outdated ;;
+    --leaves)       initial_filter=leaves ;;
+    --orphans|--prune) initial_filter=prune ;;
+    --formula|--formulae) initial_filter=formula ;;
+    --cask|--casks) initial_filter=cask ;;
+    --sort)         initial_sort="$2"; shift ;;
+    --sort=*)       initial_sort="${1#--sort=}" ;;
+    --no-size)      want_sizes=false ;;
+    --refresh)      force_refresh=true ;;
+    --dry-run)      export BARKEEPER_DRY_RUN=1 ;;
+    --list)         list_only=true ;;
+    --no-color)     export BARKEEPER_NO_COLOR=1 ;;
+    --)             shift; fzf_passthrough_args=("$@"); break ;;
+    -*)             fzf_passthrough_args+=("$1") ;;
+    *)
+      if [[ -z "$initial_query" ]]; then
+        initial_query="$1"
+      else
+        fzf_passthrough_args+=("$1")
+      fi
+      ;;
+  esac
+  shift
+done
+
+case "$initial_sort" in
+  name|size|age|outdated) ;;
+  *) die "unknown sort mode: $initial_sort (want name|size|age|outdated)" ;;
+esac
+
+require_command brew
+require_command jq
+
+state_dir="$(mktemp -d -t barkeeper.XXXXXX)"
+cleanup() {
+  rm -rf -- "$state_dir"
+  (stty sane < /dev/tty >/dev/null 2>&1) 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+state_set "$state_dir" filter "$initial_filter"
+state_set "$state_dir" sort "$initial_sort"
+state_set "$state_dir" preview info
+state_set "$state_dir" sizes "$want_sizes"
+
+rows="$state_dir/rows.tsv"
+load_rows installed "$rows" "$force_refresh" "$want_sizes" "$force_refresh"
+[[ -s "$rows" ]] || die "no installed Homebrew packages found"
+
+if $list_only; then
+  cat -- "$rows"
+  exit 0
+fi
+
+require_command fzf
+
+# ---------------------------------------------------------------------------
+# fzf
+# ---------------------------------------------------------------------------
+
+typeset -r Q_SELF="${(q)SELF}"
+typeset -r Q_STATE="${(q)state_dir}"
+
+render_cmd="$Q_SELF __render $Q_STATE"
+footer_cmd="$Q_SELF __footer $Q_STATE"
+
+action_bind() {   # <verb> — run in a full screen, then rebuild and reload
+  print -r -- "execute($Q_SELF __exec $Q_STATE $1 {+1})+reload($render_cmd --rebuild)+transform-footer($footer_cmd)"
+}
+
+filter_bind() {   # <name>
+  print -r -- "reload($render_cmd --filter $1)+transform-footer($footer_cmd)+first"
+}
+
+preview_bind() {  # <mode> <label>
+  print -r -- "execute-silent($Q_SELF __set $Q_STATE preview $1)+change-preview-label( $2 )+refresh-preview"
+}
+
+fzf_header=$'ctrl-u upgrade · ctrl-x uninstall · ctrl-o homepage · ctrl-p pin · tab mark\nalt-0/1/2 all/formulae/casks · alt-o outdated · alt-l leaves · alt-x prune · alt-s sort\nctrl-v info · ctrl-e deps · ctrl-t used-by · ctrl-f files · ctrl-g update · ctrl-r refresh'
+
+fzf_args=(
+  --read0
+  --ansi
+  --multi
+  --gap
+  --gap-line=' '
+  --highlight-line
+  --track
+  --cycle
+  --delimiter=$'\t'
+  --with-nth='2..'
+  --accept-nth=1
+  --style=full
+  --list-border
+  --input-border
+  --preview-border
+  --header-border
+  --footer-border
+  --list-label=' installed '
+  --preview-label=' info '
+  --header="$fzf_header"
+  --ghost='name or description…'
+  --info=inline-right
+  --wrap
+  --wrap-sign='    ↳ '
+  --prompt='barkeeper > '
+  --pointer='▶'
+  --marker='✓'
+  --color=hl:bold:#FE2A6E,hl+:bold:#FFFF5F,fg+:bold:#FFFFFF,bg+:#5E0A6E,pointer:#FF5FAF,marker:#87FF5F
+  --preview="$Q_SELF __preview $Q_STATE {1}"
+  --preview-window='right,52%,wrap,border-left'
+
+  --bind="start:transform-footer($footer_cmd)"
+  --bind='alt-a:select-all'
+  --bind='alt-d:deselect-all'
+  --bind='ctrl-/:toggle-preview'
+  --bind='alt-p:toggle-preview'
+
+  --bind="ctrl-u:$(action_bind upgrade)"
+  --bind="alt-U:$(action_bind upgrade-all)"
+  --bind="ctrl-x:$(action_bind uninstall)"
+  --bind="ctrl-p:$(action_bind pin)"
+  --bind="ctrl-g:$(action_bind update)"
+  --bind="alt-c:$(action_bind cleanup)"
+  --bind="alt-z:$(action_bind autoremove)"
+  --bind="ctrl-o:execute-silent($Q_SELF __exec $Q_STATE open {+1})"
+  --bind="ctrl-r:reload($render_cmd --rebuild)+transform-footer($footer_cmd)"
+
+  --bind="alt-0:$(filter_bind all)"
+  --bind="alt-1:$(filter_bind formula)"
+  --bind="alt-2:$(filter_bind cask)"
+  --bind="alt-o:$(filter_bind outdated)"
+  --bind="alt-l:$(filter_bind leaves)"
+  --bind="alt-x:$(filter_bind prune)"
+  --bind="alt-s:reload($render_cmd --cycle-sort)+transform-footer($footer_cmd)+first"
+
+  --bind="ctrl-v:$(preview_bind info info)"
+  --bind="ctrl-e:$(preview_bind deps deps)"
+  --bind="ctrl-t:$(preview_bind uses used-by)"
+  --bind="ctrl-f:$(preview_bind files files)"
+)
+
+if command -v pbcopy >/dev/null 2>&1; then
+  fzf_args+=(--bind="ctrl-y:execute-silent($Q_SELF __exec $Q_STATE copy {+1})")
+fi
+
+[[ -n "$initial_query" ]] && fzf_args+=(--query="$initial_query")
+[[ -n "${TMUX:-}" ]] && fzf_args+=(--tmux=center,90%,85%)
+
+fzf_args+=("${fzf_passthrough_args[@]}")
+
+# The global FZF_DEFAULT_OPTS in zshrc sets --no-border/--no-separator/
+# --inline-info/--preview-window=noborder, which fight --style=full. Start clean.
+selected="$state_dir/selected"
+
+set +e
+FZF_DEFAULT_OPTS='' FZF_DEFAULT_OPTS_FILE='' \
+  render_rows "$rows" "$initial_filter" "$initial_sort" |
+  fzf "${fzf_args[@]}" > "$selected"
+fzf_status=$?
+set -e
+
+case "$fzf_status" in
+  0) ;;
+  1) exit 0 ;;
+  130) exit 130 ;;
+  *) exit "$fzf_status" ;;
+esac
+
+[[ -s "$selected" ]] || exit 0
+
+# Keys are kind:name; callers want plain names.
+while IFS= read -r key; do
+  [[ -n "$key" ]] && print -r -- "${key#*:}"
+done < "$selected"

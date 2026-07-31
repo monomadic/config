@@ -1,10 +1,14 @@
 #!/usr/bin/env zsh
 # send-job
-# Ship media files plus a *.job script to a remote machine's SMB `jobs` share,
-# where job-runner (utils/job-runner, a launchd WatchPaths agent) picks the
-# job up and runs it.
+# Drop media files plus a *.job script into the `jobs` folder, where job-runner
+# (utils/job-runner, a launchd WatchPaths agent) picks the job up and runs it.
 #
-#   send-job <files...> <job_file> --host=<hostname>
+#   send-job <files...> <job_file> [--dir=/Volumes/jobs]
+#
+# The target is just a directory — normally the already-mounted `jobs` share at
+# /Volumes/jobs. Nothing here knows about hostnames, shares or credentials:
+# mount it however you like (Finder, autofs, a local path) and point --dir /
+# $JOBS_DIR at it.
 #
 # The last positional argument is the job script; everything before it is data
 # the job needs. Data files go across first and are size-verified; only then is
@@ -15,9 +19,7 @@ set -euo pipefail
 
 script_name="${0:t}"
 
-host=""
-share="jobs"
-eject=false
+jobs_dir="${JOBS_DIR:-/Volumes/jobs}"
 force=false
 files=()
 
@@ -25,25 +27,24 @@ usage() {
   cat <<EOF
 $script_name
 
-Send files and a job script to a remote SMB 'jobs' share.
+Send files and a job script to the jobs folder.
 
 Usage:
-  $script_name <files...> <job_file> --host <hostname>
+  $script_name <files...> <job_file> [--dir DIR]
 
 Options:
-  --host HOST        Remote machine (required). Also --host=HOST.
-  --share NAME       Share name to use (default: jobs)
+  --dir DIR          Jobs folder (default: \$JOBS_DIR, else /Volumes/jobs).
+                     Also --dir=DIR.
   --force            Re-copy files that already exist with a matching size
-  --eject            Unmount the share afterwards (only if we mounted it)
   -h, --help         Show help
 
 The last positional is the job script; the rest are its data files. The job
-runs on the remote host cd'd into the share root, so it must refer to those
-files by bare filename.
+runs cd'd into the jobs folder, so it must refer to those files by bare
+filename (job-runner sets \$JOB_NAME to the job's own name).
 
 Examples:
-  $script_name clip.mp4 clip.mp4.job --host tower
-  $script_name a.mov b.mov batch.job --host=tower --eject
+  $script_name clip.mp4 clip.mp4.job
+  $script_name a.mov b.mov batch.job --dir=/Volumes/jobs
 EOF
 }
 
@@ -54,26 +55,13 @@ die() {
 
 while (( $# )); do
   case "$1" in
-    --host)
-      (( $# >= 2 )) || die "missing argument for --host" 2
-      host="$2"
+    --dir)
+      (( $# >= 2 )) || die "missing argument for --dir" 2
+      jobs_dir="$2"
       shift 2
       ;;
-    --host=*)
-      host="${1#--host=}"
-      shift
-      ;;
-    --share)
-      (( $# >= 2 )) || die "missing argument for --share" 2
-      share="$2"
-      shift 2
-      ;;
-    --share=*)
-      share="${1#--share=}"
-      shift
-      ;;
-    --eject)
-      eject=true
+    --dir=*)
+      jobs_dir="${1#--dir=}"
       shift
       ;;
     --force)
@@ -99,7 +87,6 @@ while (( $# )); do
   esac
 done
 
-[[ -n "$host" ]] || { usage >&2; die "--host is required" 2 }
 (( ${#files[@]} >= 1 )) || { usage >&2; die "no job file given" 2 }
 
 # Last positional is the job script; the rest are payload.
@@ -111,79 +98,23 @@ for f in "${payload[@]}"; do
   [[ -f "$f" ]] || die "file not found: $f"
 done
 
+jobs_dir="${jobs_dir%/}"
+[[ -d "$jobs_dir" ]] || die "jobs folder not there: $jobs_dir (is the share mounted?)"
+[[ -w "$jobs_dir" ]] || die "jobs folder is not writable: $jobs_dir"
+
+print -- "jobs: $jobs_dir"
+
 size_of() {
   stat -f %z "$1" 2>/dev/null
 }
 
-# Compare hosts by their first label, lowercased. Bonjour mounts show up as
-# "M4._smb._tcp.local" while the user types "m4.local"
-normalize_host() {
-  local h="${(L)1}"
-  print -r -- "${h%%.*}"
-}
-
-# Mountpoint of //…@host/share if it is already mounted, else empty.
-# `mount` prints e.g.  //nom@tower/jobs on /Volumes/jobs (smbfs, nodev, ...)
-current_mountpoint() {
-  local line src dest
-  local -a lines
-  lines=( "${(@f)$(mount)}" )
-  for line in "${lines[@]}"; do
-    [[ "$line" == *"(smbfs"* ]] || continue
-    src="${line%% on *}"
-    dest="${line#* on }"
-    dest="${dest% \(*}"
-    # Strip //user@ prefix, then compare host label + share name.
-    src="${src#//}"
-    src="${src##*@}"
-    if [[ "$(normalize_host "${src%%/*}")/${(L)${src##*/}}" \
-          == "$(normalize_host "$host")/${(L)share}" ]]; then
-      print -r -- "$dest"
-      return 0
-    fi
-  done
-  return 1
-}
-
-mounted_by_us=false
-
-cleanup_mount() {
-  $mounted_by_us || return 0
-  [[ -n "${mountpoint:-}" ]] || return 0
-  print -- "unmounting $mountpoint"
-  diskutil unmount "$mountpoint" >/dev/null 2>&1 || \
-    umount "$mountpoint" >/dev/null 2>&1 || \
-    print -u2 -- "$script_name: could not unmount $mountpoint"
-}
-
-mountpoint="$(current_mountpoint || true)"
-
-if [[ -z "$mountpoint" ]]; then
-  print -- "mounting smb://$host/$share"
-  # AppleScript mount uses the Keychain (and prompts) like Finder's Connect To
-  # Server. It fails if the host is unreachable or has no such share.
-  if ! osascript -e "mount volume \"smb://${host}/${share}\"" >/dev/null 2>&1; then
-    die "could not mount smb://$host/$share — no '$share' share, or login failed"
-  fi
-  mountpoint="$(current_mountpoint || true)"
-  [[ -n "$mountpoint" ]] || die "mount reported success but smb://$host/$share is not in the mount table"
-  mounted_by_us=true
-fi
-
-[[ -d "$mountpoint" && -w "$mountpoint" ]] || {
-  cleanup_mount
-  die "share is not writable: $mountpoint"
-}
-
-print -- "share: $mountpoint"
-
 # --- payload: copy, then verify byte counts match ---------------------------
 for f in "${payload[@]}"; do
   name="${f:t}"
-  dest="$mountpoint/$name"
-  tmp="$mountpoint/.$name.sending"
+  dest="$jobs_dir/$name"
+  tmp="$jobs_dir/.$name.sending"
 
-  src_size="$(size_of "$f")" || { cleanup_mount; die "could not stat $f" }
+  src_size="$(size_of "$f")" || die "could not stat $f"
 
   if [[ -f "$dest" ]] && ! $force; then
     dest_size="$(size_of "$dest")"
@@ -197,40 +128,34 @@ for f in "${payload[@]}"; do
   rm -f -- "$tmp" 2>/dev/null || true
   if ! cp -- "$f" "$tmp"; then
     rm -f -- "$tmp" 2>/dev/null || true
-    cleanup_mount
     die "copy failed: $name"
   fi
 
   dest_size="$(size_of "$tmp")" || dest_size=""
   if [[ "$dest_size" != "$src_size" ]]; then
     rm -f -- "$tmp" 2>/dev/null || true
-    cleanup_mount
     die "size mismatch for $name (local $src_size, remote ${dest_size:-?}) — nothing queued"
   fi
 
-  mv -f -- "$tmp" "$dest" || { cleanup_mount; die "could not finalize $name" }
+  mv -f -- "$tmp" "$dest" || die "could not finalize $name"
   print -- "ok    $name verified"
 done
 
 # --- job script last: only now is the payload known-good --------------------
 job_name="${job_file:t}"
-job_tmp="$mountpoint/.${job_name}.sending"
-job_dest="$mountpoint/$job_name"
+job_tmp="$jobs_dir/.${job_name}.sending"
+job_dest="$jobs_dir/$job_name"
 
-cp -- "$job_file" "$job_tmp" || { cleanup_mount; die "could not copy job file" }
+cp -- "$job_file" "$job_tmp" || die "could not copy job file"
 chmod +x "$job_tmp" 2>/dev/null || true
 
 if [[ "$(size_of "$job_tmp")" != "$(size_of "$job_file")" ]]; then
   rm -f -- "$job_tmp" 2>/dev/null || true
-  cleanup_mount
   die "size mismatch for $job_name — job not queued"
 fi
 
 # Rename into place so the watch folder only ever sees a complete .job.
-mv -f -- "$job_tmp" "$job_dest" || { cleanup_mount; die "could not queue $job_name" }
-print -- "queued $job_name on $host"
+mv -f -- "$job_tmp" "$job_dest" || die "could not queue $job_name"
+print -- "queued $job_name in $jobs_dir"
 
-if $eject; then
-  cleanup_mount
-fi
 exit 0

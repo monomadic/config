@@ -27,6 +27,8 @@ mp4-get-chapter-count() {
   ffprobe -v error -show_chapters -of json -- $1 | jq '.chapters|length'
 }
 
+alias mk-index="fd-media . . > .index"
+
 typeset -ga DJ_VISUALS_PATHS
 DJ_VISUALS_PATHS=("$ICLOUD_HOME/Movies/Visuals")
 

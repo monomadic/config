@@ -11,8 +11,9 @@ Install: `setup/install/install-job-runner.sh` (copies this script to
 ## The contract (for anything that wants to queue work)
 
 Write an executable shell script ending in `.job` into `~/jobs` (locally, or
-over the SMB `jobs` share — `send-job` in `config/zsh/bin/` does exactly this,
-shipping data files first so the watcher never fires on a half-copied job).
+over the mounted `jobs` share — `send-job` in `config/zsh/bin/` does exactly
+this, copying into `/Volumes/jobs` (or `$JOBS_DIR`) and shipping data files
+first so the watcher never fires on a half-copied job).
 
 Lifecycle of `NAME.job`:
 
