@@ -20,6 +20,8 @@
 emulate -L zsh
 set -euo pipefail
 
+zmodload zsh/datetime   # $EPOCHREALTIME, for round-trip timing
+
 # Cap on the patch body handed to the model. Normal commits land well under
 # this and are sent whole; only pathological diffs get truncated.
 GC_DIFF_MAX_CHARS=${GC_DIFF_MAX_CHARS:-65536}
@@ -72,6 +74,46 @@ ok() {
 
 warn() {
   gum style --foreground 214 --bold "▲ $*"
+}
+
+# Dim, indented aside — for numbers that are worth seeing but never the point.
+note() {
+  gum style --foreground 245 "  $*"
+}
+
+humanize_tokens() {
+  local n=$1
+  if (( n >= 1000 )); then
+    printf '%.1fk' $(( n / 1000.0 ))
+  else
+    printf '%d' $n
+  fi
+}
+
+# Surface what the round trip actually cost. Input counts cache reads and
+# writes as well as fresh tokens — all three are context the model was sent,
+# and lumping them together is what makes payload regressions visible here.
+report_round_trip() {
+  local json_file=$1 elapsed=$2
+
+  local usage
+  # `empty` rather than zeroes when .usage is absent: a silent line beats one
+  # that reports a confident 0 in · 0 out.
+  usage=$(jq -r '
+    if .usage then
+      .usage
+      | [ ((.input_tokens // 0)
+           + (.cache_creation_input_tokens // 0)
+           + (.cache_read_input_tokens // 0)),
+          (.output_tokens // 0) ]
+      | @tsv
+    else empty end' "$json_file" 2>/dev/null) || return 0
+
+  [[ -n "$usage" ]] || return 0
+
+  local in_tok=${usage%%$'\t'*} out_tok=${usage##*$'\t'}
+
+  note "$(humanize_tokens $in_tok) in · $(humanize_tokens $out_tok) out · $(printf '%.1fs' $elapsed)"
 }
 
 need() {
@@ -237,8 +279,11 @@ generate_message() {
       # ~1.4k-token extended-thinking block walking the diff file by file before
       # emitting one line. The thinking block is what makes this slow; the rest
       # is what makes it expensive. Strip both.
+      # JSON rather than bare text: the message comes back under .result, and
+      # the same envelope carries the token usage report_round_trip prints.
       local -a claude_args=(
         --print
+        --output-format json
         --model "${GC_CLAUDE_MODEL:-claude-haiku-4-5-20251001}"
         --system-prompt "You write conventional commit messages. Output only the commit message."
         --tools ""
@@ -248,21 +293,40 @@ generate_message() {
         --disable-slash-commands
         --no-session-persistence
       )
+      local json_file="${output_file}.json"
+      local started=$EPOCHREALTIME
+
       if ! gum spin \
         --spinner dot \
         --title "Thinking..." \
         -- \
-        zsh -c "env ${(j: :)${(@)claude_env/#/-u }} MAX_THINKING_TOKENS=0 ${(q)GC_CLAUDE_BIN} ${(j: :)${(@q)claude_args}} < ${(q)prompt_file} > ${(q)output_file} 2> ${(q)err_file}"
+        zsh -c "env ${(j: :)${(@)claude_env/#/-u }} MAX_THINKING_TOKENS=0 ${(q)GC_CLAUDE_BIN} ${(j: :)${(@q)claude_args}} < ${(q)prompt_file} > ${(q)json_file} 2> ${(q)err_file}"
       then
-        die "Claude failed: $(<"$err_file")$(<"$output_file")"
+        die "Claude failed: $(<"$err_file")$(<"$json_file")"
       fi
+
+      local elapsed=$(( EPOCHREALTIME - started ))
+
+      # A soft failure (API error, turn limit) still exits 0 and puts its
+      # explanation in .result — catch it here, or it gets committed as the
+      # commit message.
+      if [[ "$(jq -r '.is_error // false' "$json_file" 2>/dev/null)" == "true" ]]; then
+        die "Claude failed: $(jq -r '.result // .subtype // "unknown error"' "$json_file")"
+      fi
+
+      jq -r '.result // empty' "$json_file" > "$output_file" 2>/dev/null \
+        || die "Claude returned unparseable output: $(<"$json_file")"
       [[ -s "$output_file" ]] || die "Claude returned an empty message"
+
+      report_round_trip "$json_file" $elapsed
       ;;
     codex)
       # Writing a one-line commit message needs no deep reasoning. The user's
       # global ~/.codex/config.toml may set a high reasoning effort, which makes
       # every message slow to generate; override it low here just for git-sync.
       # ("minimal" is rejected when web_search/image_gen tools are enabled.)
+      local started=$EPOCHREALTIME
+
       if ! gum spin \
         --spinner dot \
         --title "Thinking..." \
@@ -275,6 +339,10 @@ generate_message() {
         die "Codex failed"
       fi
       [[ -s "$output_file" ]] || die "Codex returned an empty message"
+
+      # `codex exec` reports no machine-readable usage alongside
+      # --output-last-message, so timing is all there is to show here.
+      note "$(printf '%.1fs' $(( EPOCHREALTIME - started )))"
       ;;
     *)
       die "Unknown backend: ${GC_BACKEND}"
@@ -535,6 +603,7 @@ main() {
       need codex
       ;;
     claude)
+      need jq   # the --output-format json envelope is parsed with it
       GC_CLAUDE_BIN=$(resolve_claude) \
         || die "Missing dependency: claude (not on PATH, no desktop-app bundle)"
       export GC_CLAUDE_BIN
