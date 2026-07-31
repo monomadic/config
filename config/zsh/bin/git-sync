@@ -20,6 +20,10 @@
 emulate -L zsh
 set -euo pipefail
 
+# Cap on the patch body handed to the model. Normal commits land well under
+# this and are sent whole; only pathological diffs get truncated.
+GC_DIFF_MAX_CHARS=${GC_DIFF_MAX_CHARS:-65536}
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -41,6 +45,7 @@ Environment variables:
   GC_BACKEND              claude|codex (default: claude if installed, else codex)
   GC_REASONING            Codex reasoning effort (default: low)
   GC_CLAUDE_MODEL         Claude model to use (default: claude-haiku-4-5-20251001)
+  GC_DIFF_MAX_CHARS       Cap on the patch body sent to the model (default: 65536)
 
 Examples:
   git-sync
@@ -87,6 +92,40 @@ resolve_claude() {
   (( ${#bundled} )) || return 1
 
   print -r -- "${bundled[-1]}"
+}
+
+# Write the diff the model gets to see. A full `git diff --cached` on a normal
+# commit here runs to tens of KB, and every byte is both payload and thinking
+# fodder, so trim it: a file-level summary (cheap, high signal) followed by a
+# capped patch body with generated files dropped. Lockfiles and minified blobs
+# still show up in the summary, where they say everything a commit message
+# needs to know about them.
+write_diff() {
+  local out_file=$1
+
+  local -a pathspec=(.)
+  local g
+  for g in '*.lock' '*-lock.json' '*.lockb' 'go.sum' '*.min.js' '*.min.css'; do
+    pathspec+=( ":(exclude)$g" )
+  done
+
+  {
+    print -r -- "Files changed:"
+    git diff --cached --stat
+    print
+    print -r -- "Diff:"
+
+    local body
+    body=$(git diff --cached -U2 -- "${pathspec[@]}")
+
+    if (( ${#body} > GC_DIFF_MAX_CHARS )); then
+      print -r -- "${body[1,GC_DIFF_MAX_CHARS]}"
+      print
+      print -r -- "[diff truncated — the file summary above lists the full scope]"
+    else
+      print -r -- "$body"
+    fi
+  } > "$out_file"
 }
 
 build_prompt() {
@@ -191,11 +230,29 @@ generate_message() {
         USE_STAGING_OAUTH
         USE_LOCAL_OAUTH
       )
+      # Writing a commit message needs none of the Claude Code harness. Left at
+      # its defaults, a `claude --print` run loads the full system prompt, every
+      # built-in tool definition, MCP servers, skills and project settings —
+      # roughly 27k tokens of overhead on top of the diff — and then spends a
+      # ~1.4k-token extended-thinking block walking the diff file by file before
+      # emitting one line. The thinking block is what makes this slow; the rest
+      # is what makes it expensive. Strip both.
+      local -a claude_args=(
+        --print
+        --model "${GC_CLAUDE_MODEL:-claude-haiku-4-5-20251001}"
+        --system-prompt "You write conventional commit messages. Output only the commit message."
+        --tools ""
+        --strict-mcp-config
+        --mcp-config '{"mcpServers":{}}'
+        --setting-sources ""
+        --disable-slash-commands
+        --no-session-persistence
+      )
       if ! gum spin \
         --spinner dot \
         --title "Thinking..." \
         -- \
-        zsh -c "env ${(j: :)${(@)claude_env/#/-u }} ${(q)GC_CLAUDE_BIN} --print --model ${GC_CLAUDE_MODEL:-claude-haiku-4-5-20251001} < ${(q)prompt_file} > ${(q)output_file} 2> ${(q)err_file}"
+        zsh -c "env ${(j: :)${(@)claude_env/#/-u }} MAX_THINKING_TOKENS=0 ${(q)GC_CLAUDE_BIN} ${(j: :)${(@q)claude_args}} < ${(q)prompt_file} > ${(q)output_file} 2> ${(q)err_file}"
       then
         die "Claude failed: $(<"$err_file")$(<"$output_file")"
       fi
@@ -556,7 +613,7 @@ main() {
     local diff_file="$work_dir/diff.patch"
     local msg_file="$work_dir/message.txt"
 
-    git diff --cached > "$diff_file"
+    write_diff "$diff_file"
 
     info "Generating commit message"
     generate_message "$diff_file" "$msg_file"
