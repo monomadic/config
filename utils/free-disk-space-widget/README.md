@@ -11,8 +11,9 @@ time it opens.
 
 | Style | Menu bar |
 |---|---|
+| Icon, Text and Bar | icon + compact `137gb` over bar |
 | Text | `137 GB` |
-| Icon and Text | `􀤂 137 GB` |
+| Icon and Text | icon + compact `137gb` |
 | Bar and Text | bar + `137 GB` (default) |
 | Icon and Bar | `􀤂` + bar |
 | Bar | bar only |
@@ -20,6 +21,11 @@ time it opens.
 `Show In Menu Bar` switches the number between free space and a percentage.
 Below 10% free the glyph swaps to the warning drive and the title and bar turn
 red. The bar fills with *free* space, so it drains as the disk fills.
+
+Icon and Text and the stacked Icon, Text and Bar style use a rounded integer
+with a lowercase, unspaced unit (`3gb`, `137gb`, `2tb`) to stay narrow. They
+also share the same smaller text size. Other styles and the volume menu retain
+standard macOS-like formatting.
 
 Both submenu selections persist to `~/.config/free-disk-space-widget/settings`
 as `key=value` lines.
@@ -56,6 +62,10 @@ generously around each, and the glyph's own left side bearing lands on top of
 that. The canvas is measured from the glyph's ink (`CTLineGetBoundsWithOptions`
 with glyph-path bounds), not its advance, which leaves the item padded evenly on
 both sides by macOS alone — 9pt each way at the default text size.
+
+Icon, Text and Bar also draws the whole layout as one image. Its value is
+left-aligned directly above the bar, beside the disk glyph, so it uses available
+height instead of adding another horizontal run.
 
 No hardcoded point sizes. The title uses the menu bar font
 (`NSFont::menuBarFontOfSize(0.0)`, with monospaced digits so the width doesn't

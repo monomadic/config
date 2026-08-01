@@ -28,7 +28,7 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSObject, NSObjectProtocol, NSString, NSTimer, ns_string};
 
-use volumes::{Volume, format_bytes};
+use volumes::{Volume, format_bytes, format_compact_bytes};
 
 const DISK_ICON: &str = "\u{100902}"; // SF Symbols internaldrive.fill
 const LOW_DISK_ICON: &str = "\u{101625}"; // internaldrive.badge.xmark
@@ -39,6 +39,7 @@ const UPDATE_INTERVAL_SECONDS: f64 = 10.0;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LayoutStyle {
+    IconTextBar,
     Text,
     IconText,
     BarText,
@@ -46,7 +47,8 @@ enum LayoutStyle {
     Bar,
 }
 
-const ALL_STYLES: [LayoutStyle; 5] = [
+const ALL_STYLES: [LayoutStyle; 6] = [
+    LayoutStyle::IconTextBar,
     LayoutStyle::Text,
     LayoutStyle::IconText,
     LayoutStyle::BarText,
@@ -57,6 +59,7 @@ const ALL_STYLES: [LayoutStyle; 5] = [
 impl LayoutStyle {
     fn label(self) -> &'static str {
         match self {
+            LayoutStyle::IconTextBar => "Icon, Text and Bar",
             LayoutStyle::Text => "Text",
             LayoutStyle::IconText => "Icon and Text",
             LayoutStyle::BarText => "Bar and Text",
@@ -67,6 +70,7 @@ impl LayoutStyle {
 
     fn key(self) -> &'static str {
         match self {
+            LayoutStyle::IconTextBar => "icon_text_bar",
             LayoutStyle::Text => "text",
             LayoutStyle::IconText => "icon_text",
             LayoutStyle::BarText => "bar_text",
@@ -185,6 +189,7 @@ struct TitleSpec {
     text: String,
     bar: Option<f64>,
     bar_glyph: Option<&'static str>,
+    compact_image_text: Option<String>,
     color: Option<Retained<NSColor>>,
 }
 
@@ -196,22 +201,30 @@ fn title_spec(volume: &Volume, settings: Settings) -> TitleSpec {
         DisplayMode::Gigabytes => format_bytes(volume.free),
         DisplayMode::Percent => format!("{:.0}%", ratio * 100.0),
     };
+    let compact_value = match settings.display {
+        DisplayMode::Gigabytes => format_compact_bytes(volume.free),
+        DisplayMode::Percent => format!("{:.0}%", ratio * 100.0),
+    };
     let color = low.then(NSColor::systemRedColor);
 
     // The bar fills with free space, matching the number beside it.
-    let spec = |text: String, bar: Option<f64>, bar_glyph| TitleSpec {
+    let spec = |text: String, bar: Option<f64>, bar_glyph, compact_image_text| TitleSpec {
         text,
         bar,
         bar_glyph,
+        compact_image_text,
         color,
     };
 
     match settings.style {
-        LayoutStyle::Text => spec(value, None, None),
-        LayoutStyle::IconText => spec(format!("{icon} {value}"), None, None),
-        LayoutStyle::BarText => spec(value, Some(ratio), None),
-        LayoutStyle::IconBar => spec(String::new(), Some(ratio), Some(icon)),
-        LayoutStyle::Bar => spec(String::new(), Some(ratio), None),
+        LayoutStyle::IconTextBar => {
+            spec(String::new(), Some(ratio), Some(icon), Some(compact_value))
+        }
+        LayoutStyle::Text => spec(value, None, None, None),
+        LayoutStyle::IconText => spec(String::new(), None, Some(icon), Some(compact_value)),
+        LayoutStyle::BarText => spec(value, Some(ratio), None, None),
+        LayoutStyle::IconBar => spec(String::new(), Some(ratio), Some(icon), None),
+        LayoutStyle::Bar => spec(String::new(), Some(ratio), None, None),
     }
 }
 
@@ -312,22 +325,31 @@ impl Widget {
 
         let spec = title_spec(&volume, ui.settings);
         button.setAttributedTitle(&bar::attributed_title(&spec.text, spec.color.as_deref()));
-        match spec.bar {
-            Some(ratio) => {
-                button.setImage(Some(&bar::bar_image(
-                    ratio,
-                    spec.color.as_deref(),
-                    spec.bar_glyph,
-                )));
-                button.setImagePosition(if spec.text.is_empty() {
-                    NSCellImagePosition::ImageOnly
-                } else {
-                    NSCellImagePosition::ImageLeft
-                });
-            }
-            None => {
-                button.setImage(None);
-                button.setImagePosition(NSCellImagePosition::NoImage);
+        if let Some(text) = spec.compact_image_text.as_deref() {
+            let glyph = spec
+                .bar_glyph
+                .expect("compact image layouts always have a glyph");
+            let image = match spec.bar {
+                Some(ratio) => bar::stacked_image(ratio, spec.color.as_deref(), glyph, text),
+                None => bar::icon_text_image(spec.color.as_deref(), glyph, text),
+            };
+            button.setImage(Some(&image));
+            button.setImagePosition(NSCellImagePosition::ImageOnly);
+        } else {
+            match spec.bar {
+                Some(ratio) => {
+                    let image = bar::bar_image(ratio, spec.color.as_deref(), spec.bar_glyph);
+                    button.setImage(Some(&image));
+                    button.setImagePosition(if spec.text.is_empty() {
+                        NSCellImagePosition::ImageOnly
+                    } else {
+                        NSCellImagePosition::ImageLeft
+                    });
+                }
+                None => {
+                    button.setImage(None);
+                    button.setImagePosition(NSCellImagePosition::NoImage);
+                }
             }
         }
 

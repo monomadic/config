@@ -135,6 +135,19 @@ pub fn format_bytes(bytes: u64) -> String {
     }
 }
 
+/// Integer, lowercase, and unspaced for the deliberately compact stacked
+/// menu-bar style: `860mb`, `3gb`, `137gb`, `2tb`.
+pub fn format_compact_bytes(bytes: u64) -> String {
+    let gigabytes = bytes as f64 / 1e9;
+    if gigabytes >= 1000.0 {
+        format!("{:.0}tb", gigabytes / 1000.0)
+    } else if gigabytes >= 1.0 {
+        format!("{gigabytes:.0}gb")
+    } else {
+        format!("{:.0}mb", bytes as f64 / 1e6)
+    }
+}
+
 fn volume(url: &NSURL) -> Option<Volume> {
     if !flag(url, unsafe { NSURLVolumeIsBrowsableKey }) {
         return None;
@@ -246,5 +259,13 @@ mod tests {
         assert_eq!(format_bytes(3_400_000_000), "3.4 GB");
         assert_eq!(format_bytes(137_000_000_000), "137 GB");
         assert_eq!(format_bytes(1_900_000_000_000), "1.9 TB");
+    }
+
+    #[test]
+    fn compact_capacities_are_integer_lowercase_and_unspaced() {
+        assert_eq!(format_compact_bytes(860_000_000), "860mb");
+        assert_eq!(format_compact_bytes(3_400_000_000), "3gb");
+        assert_eq!(format_compact_bytes(137_000_000_000), "137gb");
+        assert_eq!(format_compact_bytes(1_900_000_000_000), "2tb");
     }
 }

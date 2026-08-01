@@ -149,6 +149,120 @@ pub fn bar_image(ratio: f64, color: Option<&NSColor>, glyph: Option<&str>) -> Re
     image
 }
 
+/// A compact all-in-one status image: full-size disk glyph on the left, then
+/// a smaller value over a bar on the right. Keeping all three marks in one
+/// image avoids AppKit's roomy image/title gap, while stacking the value uses
+/// menu-bar height that would otherwise go unused.
+pub fn stacked_image(
+    ratio: f64,
+    color: Option<&NSColor>,
+    glyph: &str,
+    text: &str,
+) -> Retained<NSImage> {
+    compact_image(Some(ratio), color, glyph, text)
+}
+
+/// The same full-size glyph and compact text used by `stacked_image`, without
+/// the bar. Sharing this renderer keeps Icon and Text visually matched to the
+/// stacked mode rather than letting AppKit size and space a separate title.
+pub fn icon_text_image(color: Option<&NSColor>, glyph: &str, text: &str) -> Retained<NSImage> {
+    compact_image(None, color, glyph, text)
+}
+
+fn compact_image(
+    ratio: Option<f64>,
+    color: Option<&NSColor>,
+    glyph: &str,
+    text: &str,
+) -> Retained<NSImage> {
+    let glyph_font = font();
+    let em = glyph_font.pointSize();
+    let text_font =
+        NSFont::monospacedDigitSystemFontOfSize_weight(em * 0.84, unsafe { NSFontWeightRegular });
+    let height = NSStatusBar::systemStatusBar().thickness();
+    let bar_height = ratio
+        .map(|_| (text_font.xHeight() * 0.55).round().max(3.0))
+        .unwrap_or(0.0);
+    let vertical_gap = ratio.map(|_| (em * 0.08).round().max(1.0)).unwrap_or(0.0);
+    let horizontal_gap = (em * 0.35).round();
+
+    let is_template = color.is_none();
+    let ink = color
+        .map(Retained::from)
+        .unwrap_or_else(NSColor::blackColor);
+    let ratio = ratio.map(|ratio| ratio.clamp(0.0, 1.0));
+
+    let glyph_attrs = glyph_attributes(&glyph_font, &ink);
+    let glyph = NSString::from_str(glyph);
+    let glyph_size = unsafe { glyph.sizeWithAttributes(Some(&glyph_attrs)) };
+    let glyph_ink = ink_bounds(&glyph, &glyph_attrs).unwrap_or(NSRect {
+        origin: NSPoint { x: 0.0, y: 0.0 },
+        size: glyph_size,
+    });
+
+    let text_attrs = glyph_attributes(&text_font, &ink);
+    let text = NSString::from_str(text);
+    let text_size = unsafe { text.sizeWithAttributes(Some(&text_attrs)) };
+    let text_width = text_size.width.ceil();
+    let column_width = if ratio.is_some() {
+        text_width.max((em * 2.0).round())
+    } else {
+        text_width
+    };
+    let column_x = glyph_ink.size.width.ceil() + horizontal_gap;
+    let width = column_x + column_width;
+    let content_height = text_size.height + vertical_gap + bar_height;
+    let content_y = ((height - content_height) / 2.0).round();
+    let radius = bar_height / 2.0;
+
+    let handler = block2::RcBlock::new(move |_bounds: NSRect| -> objc2::runtime::Bool {
+        unsafe {
+            glyph.drawAtPoint_withAttributes(
+                NSPoint {
+                    x: -glyph_ink.origin.x,
+                    y: ((height - glyph_size.height) / 2.0).round(),
+                },
+                Some(&glyph_attrs),
+            );
+            text.drawAtPoint_withAttributes(
+                NSPoint {
+                    x: column_x,
+                    y: content_y + bar_height + vertical_gap,
+                },
+                Some(&text_attrs),
+            );
+        }
+
+        if let Some(ratio) = ratio {
+            ink.colorWithAlphaComponent(0.3).set();
+            NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
+                rect(column_x, content_y, column_width, bar_height),
+                radius,
+                radius,
+            )
+            .fill();
+
+            if ratio > 0.0 {
+                let filled = (column_width * ratio).max(bar_height);
+                ink.set();
+                NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
+                    rect(column_x, content_y, filled, bar_height),
+                    radius,
+                    radius,
+                )
+                .fill();
+            }
+        }
+
+        objc2::runtime::Bool::YES
+    });
+
+    let image =
+        NSImage::imageWithSize_flipped_drawingHandler(NSSize { width, height }, false, &handler);
+    image.setTemplate(is_template);
+    image
+}
+
 /// The glyph-path bounds of a run — where the ink actually lands, as opposed
 /// to the typographic box the advance width describes. `NSAttributedString`
 /// bridges to `CFAttributedString`, so CoreText can measure it directly.
