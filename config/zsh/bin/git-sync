@@ -81,6 +81,24 @@ note() {
   gum style --foreground 245 "  $*"
 }
 
+# After a failure during AI-driven conflict resolution, let the user fix the
+# cause in place (e.g. start the 1Password signing agent) and retry, rather
+# than always dropping straight to manual resolution.
+confirm_retry() {
+  local header=$1
+  local choice
+  choice=$(
+    gum choose \
+      --cursor "› " \
+      --selected-prefix "● " \
+      --unselected-prefix "○ " \
+      --header "$header" \
+      "retry" \
+      "resolve manually"
+  )
+  [[ "$choice" == "retry" ]]
+}
+
 humanize_tokens() {
   local n=$1
   if (( n >= 1000 )); then
@@ -455,23 +473,65 @@ EOF
   return $rc
 }
 
+# Run the AI on the currently-conflicted files, retrying at the user's
+# choice if it fails or leaves markers behind. Returns 1 only once the user
+# opts out to manual resolution.
+resolve_conflicts_with_retry() {
+  while true; do
+    local files
+    files=$(git diff --name-only --diff-filter=U)
+    info "Resolving conflicts: ${files//$'\n'/, }"
+
+    if ai_resolve_conflicts && ! has_conflicts; then
+      return 0
+    fi
+
+    if has_conflicts; then
+      warn "AI left conflict markers in place"
+    else
+      warn "AI backend failed to resolve conflicts"
+    fi
+
+    confirm_retry "Retry conflict resolution with AI?" || return 1
+  done
+}
+
+# Run a git command that finalizes a staged resolution (rebase --continue,
+# commit --no-edit), retrying at the user's choice if git itself fails — e.g.
+# a signing agent that's down and just needs to be started. Without this,
+# a failed --continue would leave the loop to misread the now-clean staged
+# state as an empty replayed commit and `rebase --skip` it, silently
+# dropping the work AI conflict resolution just did.
+finalize_with_retry() {
+  local description=$1
+  shift
+
+  while true; do
+    local err_file
+    err_file=$(mktemp)
+
+    if GIT_EDITOR=true "$@" >/dev/null 2>"$err_file"; then
+      rm -f "$err_file"
+      return 0
+    fi
+
+    warn "$description failed: $(<"$err_file")"
+    rm -f "$err_file"
+
+    confirm_retry "Retry '$description'?" || return 1
+  done
+}
+
 # Drive a conflicted rebase to completion with the AI: resolve markers, stage,
 # continue, and repeat for each commit the rebase replays.
 resolve_rebase_with_ai() {
   while rebase_in_progress; do
     if has_conflicts; then
-      local files
-      files=$(git diff --name-only --diff-filter=U)
-      info "Resolving conflicts: ${files//$'\n'/, }"
-
-      ai_resolve_conflicts || return 1
-
-      if has_conflicts; then
-        return 1   # backend left markers behind — bail to manual
-      fi
+      resolve_conflicts_with_retry || return 1
 
       git add -A
-      GIT_EDITOR=true git rebase --continue >/dev/null 2>&1 || true
+
+      finalize_with_retry "git rebase --continue" git rebase --continue || return 1
     else
       # Mid-rebase with nothing to merge: the replayed commit became empty
       # (its change is already upstream), so drop it and carry on.
@@ -485,19 +545,11 @@ resolve_rebase_with_ai() {
 # Complete an interrupted merge: resolve markers with the AI, stage, commit.
 resolve_merge_with_ai() {
   if has_conflicts; then
-    local files
-    files=$(git diff --name-only --diff-filter=U)
-    info "Resolving conflicts: ${files//$'\n'/, }"
-
-    ai_resolve_conflicts || return 1
-
-    if has_conflicts; then
-      return 1   # backend left markers behind — bail to manual
-    fi
+    resolve_conflicts_with_retry || return 1
   fi
 
   git add -A
-  GIT_EDITOR=true git commit --no-edit >/dev/null 2>&1 || return 1
+  finalize_with_retry "git commit" git commit --no-edit || return 1
 }
 
 # Repo is mid-merge or mid-rebase (possibly with conflicts): drive it to a
