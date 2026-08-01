@@ -69,7 +69,17 @@ youtube_id_from_url() {
 
 archive_key_for_url() {
   local url="$1"
-  local video_id
+  local video_id json key
+
+  # Cached metadata (any extractor yt-dlp supports) is authoritative and
+  # matches the archive file's "<extractor> <id>" format directly — try it
+  # first so sites other than youtube/faphouse are recognized too.
+  if json="$(find_cached_metadata_json "$url" 2>/dev/null)" && [[ -s "$json" ]]; then
+    if key="$(archive_key_from_json "$json" 2>/dev/null)" && [[ -n "$key" ]]; then
+      print -r -- "$key"
+      return 0
+    fi
+  fi
 
   if video_id="$(youtube_id_from_url "$url" 2>/dev/null)"; then
     print -r -- "youtube $video_id"
@@ -82,6 +92,31 @@ archive_key_for_url() {
   fi
 
   return 1
+}
+
+# Reads the canonical "<extractor> <id>" key straight out of a cached
+# info.json — .extractor is already lowercase and matches yt-dlp's own
+# --download-archive line format, so this works for any site, not just the
+# ones youtube_id_from_url/faphouse_id_from_url know how to regex.
+archive_key_from_json() {
+  local json="$1" key
+
+  [[ -s "$json" ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+
+  # yt-dlp's own --download-archive lines use ie_key().lower() (the
+  # "extractor_key" field, e.g. "InstagramStory" -> "instagramstory"), NOT
+  # the "extractor" field (IE_NAME, e.g. "instagram:story") — using the
+  # wrong one silently never matches archive entries for compound IEs.
+  key="$(jq -r '
+    ((.extractor_key // .extractor // "") | tostring | ascii_downcase | gsub("[^a-z0-9]"; "")) as $extractor
+    | (.id // "" | tostring) as $id
+    | select($extractor != "" and $id != "")
+    | "\($extractor) \($id)"
+  ' "$json" 2>/dev/null)"
+
+  [[ -n "$key" ]] || return 1
+  print -r -- "$key"
 }
 
 faphouse_id_from_url() {
@@ -604,6 +639,28 @@ preview_error_cache_fresh() {
   (( now - mtime < max_age ))
 }
 
+# A row change in fzf kills the in-flight preview command (and its yt-dlp
+# child) mid-write. yt-dlp writes thumbnails straight to their final name, so
+# an interrupted fetch used to leave a truncated/corrupt file sitting at the
+# shared cache path — later reads could pick it up as "the" thumbnail even
+# though it never fully downloaded. Fetch into a private tmp dir instead and
+# only promote files that pass thumbnail_is_valid into the shared cache.
+stage_thumbnails() {
+  local tmp_dir="$1" dest_dir="$2"
+  local f
+
+  [[ -d "$tmp_dir" ]] || return 0
+  mkdir -p "$dest_dir" 2>/dev/null
+
+  for f in "$tmp_dir"/*(N.); do
+    if thumbnail_is_valid "$f"; then
+      mv -f -- "$f" "$dest_dir/${f:t}"
+    else
+      rm -f -- "$f"
+    fi
+  done
+}
+
 fetch_preview_cache() {
   local url="$1"
   local base="$2"
@@ -612,7 +669,7 @@ fetch_preview_cache() {
   local error_file="${base}.error"
   local cache_dir="${base:h}"
   local cache_template="${base:t}.%(ext)s"
-  local thumb_dir thumb_template metadata_json json_dir fetch_status tmp_log
+  local thumb_dir thumb_template metadata_json json_dir fetch_status tmp_log tmp_thumb_dir
   local -a metadata_args
 
   thumb_dir="$(ytq_thumbcache_dir)"
@@ -652,22 +709,29 @@ fetch_preview_cache() {
     )
   fi
 
-  yt-dlp \
-    --skip-download \
-    --write-thumbnail \
-    --write-info-json \
-    --no-download-archive \
-    --no-playlist \
-    --no-warnings \
-    --no-progress \
-    "${metadata_args[@]}" \
-    --paths "home:$cache_dir" \
-    --paths "temp:$cache_dir" \
-    --paths "thumbnail:$thumb_dir" \
-    --output "$cache_template" \
-    --output "thumbnail:$thumb_template" \
-    "$url" > "$tmp_log" 2>&1
-  fetch_status=$?
+  tmp_thumb_dir="$(mktemp -d -t ytq-thumb)" || tmp_thumb_dir=""
+
+  {
+    yt-dlp \
+      --skip-download \
+      --write-thumbnail \
+      --write-info-json \
+      --no-download-archive \
+      --no-playlist \
+      --no-warnings \
+      --no-progress \
+      "${metadata_args[@]}" \
+      --paths "home:$cache_dir" \
+      --paths "temp:$cache_dir" \
+      --paths "thumbnail:${tmp_thumb_dir:-$thumb_dir}" \
+      --output "$cache_template" \
+      --output "thumbnail:$thumb_template" \
+      "$url" > "$tmp_log" 2>&1
+    fetch_status=$?
+  } always {
+    [[ -n "$tmp_thumb_dir" ]] && stage_thumbnails "$tmp_thumb_dir" "$thumb_dir"
+    [[ -n "$tmp_thumb_dir" ]] && rm -rf -- "$tmp_thumb_dir"
+  }
 
   metadata_json="$(find_cached_metadata_json "$url" 2>/dev/null)" || metadata_json=""
 
@@ -688,25 +752,33 @@ fetch_preview_thumbnail_from_json() {
   local json="$1"
   local thumb_dir="$2"
   local thumb_template="$3"
+  local tmp_thumb_dir
 
   [[ -s "$json" ]] || return 1
   command -v yt-dlp >/dev/null 2>&1 || return 1
   mkdir -p "$thumb_dir" 2>/dev/null
 
-  yt-dlp \
-    --load-info-json "$json" \
-    --skip-download \
-    --write-thumbnail \
-    --no-write-info-json \
-    --no-download-archive \
-    --no-warnings \
-    --no-progress \
-    --paths "home:$thumb_dir" \
-    --paths "temp:$thumb_dir" \
-    --paths "thumbnail:$thumb_dir" \
-    --output "$thumb_template" \
-    --output "thumbnail:$thumb_template" \
-    >/dev/null 2>&1
+  tmp_thumb_dir="$(mktemp -d -t ytq-thumb)" || tmp_thumb_dir=""
+
+  {
+    yt-dlp \
+      --load-info-json "$json" \
+      --skip-download \
+      --write-thumbnail \
+      --no-write-info-json \
+      --no-download-archive \
+      --no-warnings \
+      --no-progress \
+      --paths "home:${tmp_thumb_dir:-$thumb_dir}" \
+      --paths "temp:${tmp_thumb_dir:-$thumb_dir}" \
+      --paths "thumbnail:${tmp_thumb_dir:-$thumb_dir}" \
+      --output "$thumb_template" \
+      --output "thumbnail:$thumb_template" \
+      >/dev/null 2>&1
+  } always {
+    [[ -n "$tmp_thumb_dir" ]] && stage_thumbnails "$tmp_thumb_dir" "$thumb_dir"
+    [[ -n "$tmp_thumb_dir" ]] && rm -rf -- "$tmp_thumb_dir"
+  }
 }
 
 preview_image_handler() {
@@ -917,18 +989,13 @@ cmd_list() {
   local rows_cmd="${(q)YTQ_SELF} __list_rows"
   local clean_cmd="${(q)YTQ_SELF} __clean_completed --quiet"
   local rm_cmd="${(q)YTQ_SELF} __rm_index"
-  local get_play_args get_play_bind get_play_prefix
-  local selected fzf_status
+  local play_cmd="${(q)YTQ_SELF} __preview_play"
+  local key url fzf_status
+  local -a out
 
   [[ -n "${YT_DLP_ARCHIVE_FILE:-}" && -r "$YT_DLP_ARCHIVE_FILE" ]] || archive_note="archive: unavailable"
 
-  get_play_prefix="${(q)YTQ_SELF} __kitty_get_play"
-  get_play_args="$(shell_join "$@")"
-  get_play_bind="ctrl-s:execute-silent($get_play_prefix {2}"
-  [[ -n "$get_play_args" ]] && get_play_bind+=" $get_play_args"
-  get_play_bind+=")"
-
-  selected="$(
+  out=( "${(f)$(
     cmd_list_rows |
       fzf \
         --ansi \
@@ -937,14 +1004,15 @@ cmd_list() {
         --delimiter=$'\t' \
         --with-nth=3 \
         --accept-nth=1 \
+        --expect=alt-enter,alt-e \
         --prompt='ytq list> ' \
-        --header="enter: download here | ctrl-s: download in pane + play | ctrl-d: delete row | ctrl-x: clean completed | esc: cancel | ✓: archived | $archive_note" \
+        --header="enter: ytui in kitty pane | alt-enter: ytui here | alt-e: edit archive line | ctrl-p: preview in mpv | ctrl-d: delete row | ctrl-x: clean completed | esc: cancel | ✓: archived | $archive_note" \
         --bind="ctrl-d:execute-silent($rm_cmd {2})+reload($rows_cmd)" \
-        --bind="$get_play_bind" \
         --bind="ctrl-x:execute-silent($clean_cmd)+reload($rows_cmd)" \
+        --bind="ctrl-p:execute-silent($play_cmd {1})" \
         --preview="${(q)YTQ_SELF} __preview {1}" \
         --preview-window='right,40%,wrap,border-left'
-  )"
+  )}" )
   fzf_status=$?
 
   case "$fzf_status" in
@@ -954,8 +1022,15 @@ cmd_list() {
     *) return "$fzf_status" ;;
   esac
 
-  [[ -n "$selected" ]] || return 0
-  yt-dlp "$@" "$selected"
+  key="${out[1]:-}"
+  url="${out[2]:-}"
+  [[ -n "$url" ]] || return 0
+
+  case "$key" in
+    alt-e)      cmd_edit_archive_line "$url" ;;
+    alt-enter)  require_command ytui; ytui "$@" "$url" ;;
+    *)          cmd_kitty_ytui "$url" "$@" ;;
+  esac
 }
 
 cmd_run() {
@@ -1058,76 +1133,6 @@ cmd_pop() {
   print "✅ Downloaded and removed: $url"
 }
 
-cmd_get_play() {
-  local index="$1"
-  local url
-
-  [[ -n "$index" ]] || {
-    print -u2 "Usage: ytq __get_play <number> [yt-dlp args ...]"
-    return 1
-  }
-
-  shift
-  url="$(queue_url_at_index "$index")" || return 1
-
-  require_command yt-dlp
-  require_command mpv-send
-
-  local paths_file
-  paths_file="$(mktemp -t ytq-get-paths.XXXXXX)" || return 1
-
-  {
-    print "ytq get $index"
-    print "URL: $url"
-    print ""
-
-    yt-dlp \
-      --print-to-file 'after_move:filepath' "$paths_file" \
-      "$@" \
-      "$url" || return $?
-
-    local file
-    local -a files
-    typeset -A seen
-    files=()
-    seen=()
-
-    while IFS= read -r file; do
-      [[ -n "$file" ]] || continue
-      [[ -f "$file" ]] || continue
-      [[ -n "${seen[$file]:-}" ]] && continue
-
-      seen[$file]=1
-      files+=("$file")
-    done < "$paths_file"
-
-    (( ${#files[@]} )) || {
-      print -u2 "❌ Download completed, but yt-dlp did not report a playable file path"
-      return 1
-    }
-
-    print ""
-    print "Playing in mpv:"
-    printf '  %s\n' "${files[@]}"
-
-    mpv-send play -- "${files[@]}"
-  } always {
-    [[ -n "${paths_file:-}" && -e "$paths_file" ]] && rm -f -- "$paths_file"
-  }
-}
-
-shell_join() {
-  local arg
-  local -a quoted
-
-  quoted=()
-  for arg in "$@"; do
-    quoted+=("${(q)arg}")
-  done
-
-  print -r -- "${(j: :)quoted}"
-}
-
 kitty_launch_bin() {
   if command -v kitty-launch >/dev/null 2>&1; then
     command -v kitty-launch
@@ -1138,16 +1143,33 @@ kitty_launch_bin() {
   fi
 }
 
-cmd_kitty_get_play() {
-  local index="$1"
-  local kitty_launch
+ytui_bin() {
+  if command -v ytui >/dev/null 2>&1; then
+    command -v ytui
+  elif [[ -x "$HOME/.zsh/bin/ytui" ]]; then
+    print -r -- "$HOME/.zsh/bin/ytui"
+  else
+    return 1
+  fi
+}
 
-  [[ -n "$index" ]] || {
-    print -u2 "Usage: ytq __kitty_get_play <number> [yt-dlp args ...]"
+# `ytq list` Enter: run ytui for one URL inside a new kitty pane. ytui does
+# its own thumbnail fetch, progress UI and mpv streaming ('o'), so this
+# replaces the old get+mpv-send flow entirely — no separate get/play step.
+cmd_kitty_ytui() {
+  local url="$1"
+  local ytui kitty_launch
+
+  [[ -n "$url" ]] || {
+    print -u2 "Usage: ytq __kitty_ytui <url> [yt-dlp args ...]"
     return 1
   }
 
   shift
+  ytui="$(ytui_bin)" || {
+    print -u2 "❌ Missing dependency: ytui"
+    return 1
+  }
   kitty_launch="$(kitty_launch_bin)" || {
     print -u2 "❌ Missing dependency: kitty-launch"
     return 1
@@ -1156,8 +1178,60 @@ cmd_kitty_get_play() {
   "$kitty_launch" \
     --window \
     --cwd "$PWD" \
-    --title " ytq get $index " \
-    -- "$YTQ_SELF" __get_play "$index" "$@"
+    --title " ytui " \
+    -- "$ytui" "$@" "$url"
+}
+
+# `ytq list` Alt-E: jump straight to the matching download-archive line, so
+# you can inspect or hand-edit the record instead of hunting for it.
+cmd_edit_archive_line() {
+  local url="$1"
+  local line
+
+  [[ -n "$url" ]] || {
+    print -u2 "Usage: ytq __archive_line <url>"
+    return 1
+  }
+
+  if [[ -z "${YT_DLP_ARCHIVE_FILE:-}" ]]; then
+    print -u2 "❌ YT_DLP_ARCHIVE_FILE is not set"
+    return 1
+  fi
+  if [[ ! -r "$YT_DLP_ARCHIVE_FILE" ]]; then
+    print -u2 "❌ Archive file is not readable: $YT_DLP_ARCHIVE_FILE"
+    return 1
+  fi
+
+  line="$(archive_line_for_url "$url" 2>/dev/null)"
+  if [[ -n "$line" ]]; then
+    "${EDITOR:-nvim}" "+$line" "$YT_DLP_ARCHIVE_FILE"
+  else
+    print -u2 "⚠️  Not found in archive, opening at top: $url"
+    "${EDITOR:-nvim}" "$YT_DLP_ARCHIVE_FILE"
+  fi
+}
+
+archive_line_for_url() {
+  local url="$1"
+  local key
+
+  key="$(archive_key_for_url "$url" 2>/dev/null)" || return 1
+  [[ -n "$key" && -r "${YT_DLP_ARCHIVE_FILE:-}" ]] || return 1
+
+  grep -Fnx -- "$key" "$YT_DLP_ARCHIVE_FILE" | head -n1 | cut -d: -f1
+}
+
+# `ytq list` Ctrl-P: play the URL straight in mpv (its built-in yt-dlp hook
+# resolves the stream), no download and no queue mutation — a quick look
+# without waiting on a full fetch.
+cmd_preview_play() {
+  local url="$1"
+
+  [[ -n "$url" ]] || return 0
+  require_command mpv
+
+  mpv --force-window=immediate -- "$url" >/dev/null 2>&1 &
+  disown
 }
 
 cmd_runclear() {
@@ -1243,10 +1317,13 @@ Queue editing:
 
 Viewing and picking:
   ytq print                     Print the numbered queue.
-  ytq list [yt-dlp args ...]    Pick one queue item in fzf and download it.
-                                In fzf: Enter downloads here; Ctrl-S downloads
-                                in a Kitty pane and plays it in mpv; Ctrl-D
-                                deletes a row; Ctrl-X removes archived rows.
+  ytq list [yt-dlp args ...]    Pick one queue item in fzf.
+                                In fzf: Enter runs ytui for it in a new Kitty
+                                pane; Alt-Enter runs ytui here instead; Alt-E
+                                opens the download archive at that item's line
+                                in \$EDITOR; Ctrl-P plays the URL in mpv
+                                without downloading; Ctrl-D deletes a row;
+                                Ctrl-X removes archived rows.
   ytq path                      Print the queue file path.
 
 Downloading:
@@ -1338,13 +1415,17 @@ case "$1" in
     shift
     cmd_rm_index "$@"
     ;;
-  __get_play)
+  __preview_play)
     shift
-    cmd_get_play "$@"
+    cmd_preview_play "$@"
     ;;
-  __kitty_get_play)
+  __archive_line)
     shift
-    cmd_kitty_get_play "$@"
+    cmd_edit_archive_line "$@"
+    ;;
+  __kitty_ytui)
+    shift
+    cmd_kitty_ytui "$@"
     ;;
   *)
     usage

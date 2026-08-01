@@ -22,6 +22,7 @@ local opts = {
 options.read_options(opts, "open-panel")
 
 local KITTY_LAUNCH = "/Users/nom/.zsh/bin/kitty-launch"
+local SWITCHBLADE = "/Users/nom/.cargo/bin/switchblade"
 
 local pending_restore = nil
 
@@ -218,6 +219,25 @@ local function open_in_kitty()
     mp.osd_message("Opened kitty", 1.5)
 end
 
+local function open_in_switchblade()
+    local dir, _, err = current_directory()
+    if not dir then
+        mp.osd_message(err, 3)
+        return
+    end
+
+    local result = utils.subprocess_detached({
+        args = { SWITCHBLADE, dir },
+    })
+
+    if result == false then
+        mp.osd_message("Failed to open switchblade", 2)
+        return
+    end
+
+    mp.osd_message("Opened in switchblade", 1.5)
+end
+
 local function reveal_in_yazi()
     mp.commandv("script-binding", "reveal_in_yazi")
 end
@@ -301,6 +321,7 @@ local panel = chord_panel.new({
         { key = "d", label = "open current directory", fn = open_current_directory },
         { key = "p", label = "open parent directory", fn = open_parent_directory },
         { key = "t", label = "open in kitty", fn = open_in_kitty },
+        { key = "s", label = "open in switchblade", fn = open_in_switchblade },
         { key = "y", label = "reveal in yazi", fn = reveal_in_yazi },
         { key = "f", label = "reveal in Finder", fn = reveal_in_finder },
         { key = "l", label = "open library", fn = open_library },
@@ -343,6 +364,7 @@ mp.add_key_binding(nil, "open_panel_exit", function() panel:hide() end)
 mp.add_key_binding(nil, "open_panel_current_directory", run_action(open_current_directory))
 mp.add_key_binding(nil, "open_panel_parent_directory", run_action(open_parent_directory))
 mp.add_key_binding(nil, "open_panel_kitty", run_action(open_in_kitty))
+mp.add_key_binding(nil, "open_panel_switchblade", run_action(open_in_switchblade))
 mp.add_key_binding(nil, "open_panel_yazi", run_action(reveal_in_yazi))
 mp.add_key_binding(nil, "open_panel_finder", run_action(reveal_in_finder))
 mp.add_key_binding(nil, "open_panel_library", run_action(open_library))

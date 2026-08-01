@@ -36,15 +36,14 @@ gap = 1.0  # space between tiles
 thumb_width  = 448      # ~2:1 — keeps the ultrawide hedge
 thumb_height = 224      # 224 vs your ~110-176 device px rows
 #atlas_memory_mb = 600   # → 1566 slots (2.0× today's 768)
-anim_grid = 2           # cells 224x112, crisper than today's 213x106
-
+chapter_images = 64
 # ── Colors ──────────────────────────────────────────────────────────────
 # All colors are [r, g, b] with 0..1 channels.
 background = [0.0, 0.0, 0.0]  # window background
 # Opacity of that background fill (0..1). 1.0 = classic opaque window;
 # below 1.0 the desktop shows through the gaps between tiles (macOS
 # "glass" vibe). Tiles stay opaque; hot-reloadable, so dial it live.
-window_opacity = 0.62
+window_opacity = 0.5
 selection_border = [1.0, 1.0, 1.0]  # selected tile + selected filmstrip chip
 hover_border = [1.0, 1.0, 1.0]  # hovered tile
 empty_border = [0.02, 0.02, 0.02]  # thin outline for tiles with no
@@ -153,7 +152,7 @@ skip_fraction = 0.05
 # with no jolt — so changing this REGENERATES thumbnails on next run
 # (the default 0.10 reuses your existing cache; any other value rebuilds).
 # Startup-only: restart to apply.
-thumb_seek_fraction = 0.0
+thumb_seek_fraction = 0.10
 
 # Dragging a grid tile or filmstrip chip this many logical pixels turns
 # the press into a native drag-out: drop the clip's file into Finder or
@@ -189,7 +188,7 @@ pause_unfocused = true
 # The backdrop: black dim strength (0..1) and frosted-glass blur level —
 # the grid is downsampled 2^level before drawing back, so 1 = subtle,
 # 4 = heavy frost, 0 = no blur. GPU-cheap either way.
-quickview_dim = 0.90
+quickview_dim = 0.60
 quickview_blur = 3.0
 # Backdrop styles: "blur" = the frosted, dimmed gallery above; "flat" =
 # an opaque backdrop_color stage that hides the gallery entirely.
