@@ -204,7 +204,10 @@ func (m model) View() string {
 		b.WriteString(line + "\n")
 	}
 
-	b.WriteString(m.diskBlock() + "\n")
+	// Nothing is being written, so the fill-the-drive bar has nothing to say.
+	if !m.opts.verifyOnly {
+		b.WriteString(m.diskBlock() + "\n")
+	}
 	b.WriteString(m.talliesLine() + "\n\n")
 
 	if len(m.logLines) > 0 {
@@ -216,7 +219,7 @@ func (m model) View() string {
 		b.WriteString(m.summaryLine() + "\n")
 		b.WriteString(stDim.Render("done · press q to exit"))
 	} else {
-		b.WriteString(stDim.Render("copying · q to stop"))
+		b.WriteString(stDim.Render(m.opts.verbing() + " · q to stop"))
 	}
 	return b.String()
 }
@@ -285,11 +288,18 @@ func (m model) diskBlock() string {
 }
 
 func (m model) talliesLine() string {
-	return "\n" + stOK.Render(fmt.Sprintf("✓ %d copied", m.nCopied)) + stDim.Render(" · ") +
+	return "\n" + stOK.Render(fmt.Sprintf("✓ %d %s", m.nCopied, m.opts.verbed())) + stDim.Render(" · ") +
 		stWarn.Render(fmt.Sprintf("⤳ %d skipped", m.nSkipped)) + stDim.Render(" · ") +
 		stDim.Render(fmt.Sprintf("⊘ %d filtered", m.nFiltered)) + stDim.Render(" · ") +
 		stErr.Render(fmt.Sprintf("✕ %d failed", m.nFailed)) + stDim.Render(" · ") +
-		stDim.Render(humanBytes(m.copiedBytes)+" written")
+		stDim.Render(humanBytes(m.copiedBytes)+" "+m.bytesLabel())
+}
+
+func (m model) bytesLabel() string {
+	if m.opts.verifyOnly {
+		return "checked"
+	}
+	return "written"
 }
 
 func (m model) summaryLine() string {
@@ -298,7 +308,7 @@ func (m model) summaryLine() string {
 		reason = "drive full (next file didn't fit)"
 	}
 	return stName.Render("Done: ") +
-		stOK.Render(fmt.Sprintf("%d copied", m.sum.copied)) + stDim.Render(" · ") +
+		stOK.Render(fmt.Sprintf("%d %s", m.sum.copied, m.opts.verbed())) + stDim.Render(" · ") +
 		stWarn.Render(fmt.Sprintf("%d skipped", m.sum.skipped)) + stDim.Render(" · ") +
 		stDim.Render(fmt.Sprintf("%d filtered", m.sum.filtered)) + stDim.Render(" · ") +
 		stErr.Render(fmt.Sprintf("%d failed", m.sum.failed)) + stDim.Render(" · ") +

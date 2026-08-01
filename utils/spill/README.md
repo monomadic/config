@@ -6,6 +6,9 @@ gradient progress bars.
 
 ```
 fd . -tf -0 | spill -0 -s highest-quality --fill --verify hash /Volumes/backup
+
+# later: re-check that everything still matches, copying nothing
+fd . -tf -0 | spill -0 --verify-only --verify hash /Volumes/backup
 ```
 
 `spill` reads a list of file paths (one per line, or NUL-separated with `-0`,
@@ -75,6 +78,14 @@ produced live.
   multi-gigabyte file from landing in fragments and turns "the drive is full"
   into an error before the first byte rather than six gigabytes in.
 - Existing destination files are skipped — never a failure — unless `--force`.
+- `--verify-only` writes nothing. It takes the same input list and the same
+  path mapping, and instead of copying, checks that each source file is
+  already in the target and matches: same size, or — with `--verify hash` —
+  the same xxhash64, with both sides hashed concurrently since they normally
+  sit on different drives. A file missing from the target, a size mismatch, or
+  a hash mismatch is a **failure**, so the run exits non-zero. Verified
+  destination paths still go to stdout, so a failed re-check can be re-copied
+  by feeding the same list back to a normal run.
 - When stdout is **not** a terminal, it drops the TUI and prints terse status to
   stderr while echoing each copied destination path to stdout (so it pipes).
 
@@ -87,6 +98,7 @@ produced live.
 | `--fill` | Skip non-fitting files and keep going until the drive is full |
 | `--flatten` | Copy everything into the target root, ignoring input structure |
 | `--verify size\|hash` | Verify each copy after writing (default: off). `hash` = xxhash64, re-read from the target |
+| `--verify-only` | Copy nothing; check the input files against the target (implies `--verify size`) |
 | `--retry N` | Extra attempts after a failed copy/verify (default: 2) |
 | `--reserve SIZE` | Keep SIZE free on the target, e.g. `1G`, `500M` (default: `1G`) |
 | `--force` | Overwrite files that already exist in the target |

@@ -24,16 +24,33 @@ func (v verifyMode) String() string {
 
 // options holds the parsed command-line configuration for a run.
 type options struct {
-	target   string       // destination directory
-	strategy strategyKind // which files to copy, and in what order
-	null     bool         // input paths are NUL-separated instead of newline
-	fill     bool         // skip files that don't fit and keep going until full
-	flatten  bool         // copy every file into the target root, ignoring input structure
-	verify   verifyMode   // post-copy verification
-	retries  int          // extra attempts after the first on copy/verify failure
-	reserve  uint64       // bytes of headroom to keep free on the target
-	force    bool         // overwrite existing destination files
-	modest   bool         // never render thumbnails
+	target     string       // destination directory
+	strategy   strategyKind // which files to copy, and in what order
+	null       bool         // input paths are NUL-separated instead of newline
+	fill       bool         // skip files that don't fit and keep going until full
+	flatten    bool         // copy every file into the target root, ignoring input structure
+	verify     verifyMode   // post-copy verification
+	verifyOnly bool         // check existing target files instead of copying
+	retries    int          // extra attempts after the first on copy/verify failure
+	reserve    uint64       // bytes of headroom to keep free on the target
+	force      bool         // overwrite existing destination files
+	modest     bool         // never render thumbnails
+}
+
+// verbing and verbed name what the run does to a file, so the same progress
+// output reads correctly for a copy run and a --verify-only run.
+func (o options) verbing() string {
+	if o.verifyOnly {
+		return "verifying"
+	}
+	return "copying"
+}
+
+func (o options) verbed() string {
+	if o.verifyOnly {
+		return "verified"
+	}
+	return "copied"
 }
 
 // The engine reports progress to a Reporter as a stream of these events. Both

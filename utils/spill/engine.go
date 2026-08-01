@@ -217,7 +217,9 @@ func (e *engine) vet(path string) *candidate {
 		e.report.Event(skipMsg{name: name, reason: "not a regular file"})
 		return nil
 	}
-	if !e.opts.force && exists(dest) {
+	// An existing destination is the thing being checked under --verify-only,
+	// so only a copying run treats it as a reason to move on.
+	if !e.opts.verifyOnly && !e.opts.force && exists(dest) {
 		e.nSkipped++
 		e.report.Event(skipMsg{name: name, size: info.Size(), reason: "already exists"})
 		return nil
@@ -254,6 +256,9 @@ func (e *engine) filter(c *candidate, reason string) {
 // copyCandidate copies one admitted file. It returns true when the run should
 // stop: a non-fitting file without --fill, or a cancellation.
 func (e *engine) copyCandidate(c *candidate) (stop bool) {
+	if e.opts.verifyOnly {
+		return e.verifyCandidate(c)
+	}
 	if free, total, err := diskUsage(e.opts.target); err == nil {
 		e.freeAtStart, e.diskTotal = free, total
 	}
@@ -358,6 +363,71 @@ func (e *engine) copyCandidate(c *candidate) (stop bool) {
 		e.freeAtStart, e.diskTotal = free, total
 		e.report.Event(diskMsg{free: free, diskTotal: total, avgSpeed: e.sessionAvg(time.Now(), 0)})
 	}
+	return false
+}
+
+// verifyCandidate checks one file against its counterpart in the target
+// without writing anything. Nothing here can fill the drive, so the only
+// reason it stops the run is cancellation.
+func (e *engine) verifyCandidate(c *candidate) (stop bool) {
+	if !e.opts.modest {
+		e.report.Event(thumbMsg{name: c.name, art: renderThumb(c.path, thumbCols, thumbRows)})
+	}
+
+	if e.sessionStart.IsZero() {
+		e.sessionStart = time.Now()
+	}
+	e.speedo.reset()
+	e.lastEmit = time.Time{}
+	fileStart := time.Now()
+	e.index++
+
+	e.report.Event(fileStartMsg{
+		name: c.name, path: c.path, dest: c.dest, note: c.note,
+		size: c.size, index: e.index,
+	})
+
+	// Hash mode reads the file twice, once per side. Progress is reported
+	// against the file's own size so the bar and the rate describe how fast
+	// this file is being cleared, not how many bytes went past the head.
+	read := verifyTotal(c.size, e.opts.verify)
+	onProgress := func(n int64) {
+		now := time.Now()
+		if !e.lastEmit.IsZero() && now.Sub(e.lastEmit) < 60*time.Millisecond {
+			return
+		}
+		e.lastEmit = now
+		done := n
+		if read > 0 {
+			done = int64(float64(n) / float64(read) * float64(c.size))
+		}
+		e.report.Event(progressMsg{
+			copied:    done,
+			total:     c.size,
+			instSpeed: e.speedo.sample(now, done),
+			avgSpeed:  e.sessionAvg(now, done),
+			free:      e.freeAtStart,
+			diskTotal: e.diskTotal,
+		})
+	}
+
+	err := verifyExisting(e.ctx, c.path, c.dest, c.size, e.opts.verify, onProgress)
+	if e.ctx.Err() != nil {
+		return true
+	}
+	if err != nil {
+		e.nFailed++
+		e.report.Event(failMsg{name: c.name, reason: err.Error()})
+		return false
+	}
+
+	e.nCopied++
+	e.copiedBytes += c.size
+	e.sessionBytes += c.size
+	e.report.Event(fileDoneMsg{
+		name: c.name, dest: c.dest, note: c.note, size: c.size,
+		dur: time.Since(fileStart), verified: e.opts.verify,
+	})
 	return false
 }
 

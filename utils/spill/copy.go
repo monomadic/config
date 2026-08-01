@@ -2,15 +2,21 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
 	"github.com/cespare/xxhash/v2"
 )
+
+// errNotInTarget marks a source file with no counterpart in the target.
+var errNotInTarget = errors.New("missing from target")
 
 const (
 	copyBufSize = 8 << 20  // 8 MiB per buffer
@@ -217,7 +223,7 @@ func copyOne(ctx context.Context, srcPath, destPath string, size int64, mode ver
 
 	if mode == verifyHash {
 		want := hasher.Sum64()
-		got, verr := hashFile(ctx, destPath)
+		got, verr := hashFile(ctx, destPath, nil)
 		if verr != nil {
 			_ = os.Remove(destPath)
 			return verr
@@ -231,10 +237,96 @@ func copyOne(ctx context.Context, srcPath, destPath string, size int64, mode ver
 	return nil
 }
 
+// verifyExisting checks a file already sitting in the target against its
+// source, writing nothing. Size mode compares lengths; hash mode reads both
+// files — concurrently, since they normally live on different drives — and
+// compares digests. onProgress reports bytes read, out of the total returned
+// by verifyTotal.
+func verifyExisting(ctx context.Context, srcPath, destPath string, size int64, mode verifyMode, onProgress func(int64)) error {
+	info, err := os.Stat(destPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return errNotInTarget
+		}
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return errors.New("target is not a regular file")
+	}
+	if info.Size() != size {
+		return fmt.Errorf("size mismatch: source %s, target %s",
+			humanBytes(size), humanBytes(info.Size()))
+	}
+	if mode != verifyHash {
+		if onProgress != nil {
+			onProgress(size)
+		}
+		return nil
+	}
+
+	// Both readers share one counter and one reporter; the mutex keeps the
+	// engine's progress bookkeeping single-threaded.
+	var read atomic.Int64
+	var mu sync.Mutex
+	bump := func(n int64) {
+		total := read.Add(n)
+		if onProgress == nil {
+			return
+		}
+		mu.Lock()
+		onProgress(total)
+		mu.Unlock()
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	type result struct {
+		i   int
+		sum uint64
+		err error
+	}
+	res := make(chan result, 2)
+	for i, p := range []string{srcPath, destPath} {
+		go func(i int, path string) {
+			sum, err := hashFile(ctx, path, bump)
+			res <- result{i: i, sum: sum, err: err}
+		}(i, p)
+	}
+
+	var sums [2]uint64
+	var firstErr error
+	for i := 0; i < 2; i++ {
+		r := <-res
+		if r.err != nil && firstErr == nil {
+			firstErr = r.err
+			cancel() // stop the other side early
+		}
+		sums[r.i] = r.sum
+	}
+	if firstErr != nil {
+		return firstErr
+	}
+	if sums[0] != sums[1] {
+		return fmt.Errorf("hash mismatch: source %016x, target %016x", sums[0], sums[1])
+	}
+	return nil
+}
+
+// verifyTotal is the number of bytes a verification of size bytes will read,
+// so progress can be scaled against it.
+func verifyTotal(size int64, mode verifyMode) int64 {
+	if mode == verifyHash {
+		return size * 2 // source and target are both read
+	}
+	return size
+}
+
 // hashFile reads a file back from disk and returns its xxhash64, so hash
 // verification confirms what actually landed on the target rather than
-// trusting the bytes we just streamed.
-func hashFile(ctx context.Context, path string) (uint64, error) {
+// trusting the bytes we just streamed. onRead, when non-nil, is called with
+// each chunk's byte count as it is consumed.
+func hashFile(ctx context.Context, path string, onRead func(int64)) (uint64, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return 0, err
@@ -253,6 +345,9 @@ func hashFile(ctx context.Context, path string) (uint64, error) {
 		n, rerr := f.Read(buf)
 		if n > 0 {
 			_, _ = h.Write(buf[:n])
+			if onRead != nil {
+				onRead(int64(n))
+			}
 		}
 		if rerr == io.EOF {
 			break

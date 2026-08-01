@@ -20,6 +20,10 @@ alias .dupes-delete="fdupes --recurse --cache --nohidden --size --delete ."
 alias .dupes-delete-interactive="fdupes --recurse --deferconfirmation --cache --nohidden --size --plain ."
 alias .list-moved-files="fclones group --cache --hash-fn metro --isolate --dry-run"
 
+alias spill-verify-only="fd . -tf -0 | spill -0 --verify-only --verify hash "
+alias spill-safe-copy="fd . -tf -0 | spill -0 --verify hash "
+alias spill-copy="fd . -tf -0 | spill -0 "
+
 # ============================================================================
 # Python/Development
 # ============================================================================

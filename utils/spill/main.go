@@ -53,6 +53,9 @@ Flags:
   --flatten         Copy every file into TARGET_DIR itself, ignoring the
                     directory structure of relative input paths
   --verify MODE     Verify each copy: "size" or "hash" (default: off)
+  --verify-only     Copy nothing: check that each input file is already in
+                    TARGET_DIR and matches (implies --verify size unless
+                    --verify hash is given). Exits non-zero on any mismatch.
   --retry N         Extra attempts after a failed copy/verify (default: 2)
   --reserve SIZE    Keep SIZE free on the target, e.g. 1G, 500M (default: 1G)
   --force           Overwrite files that already exist in TARGET_DIR
@@ -79,6 +82,7 @@ func main() {
 	fs.BoolVar(&opts.fill, "fill", false, "")
 	fs.BoolVar(&opts.flatten, "flatten", false, "")
 	fs.StringVar(&verifyStr, "verify", "", "")
+	fs.BoolVar(&opts.verifyOnly, "verify-only", false, "")
 	fs.IntVar(&opts.retries, "retry", 2, "")
 	fs.StringVar(&reserveStr, "reserve", "1G", "")
 	fs.BoolVar(&opts.force, "force", false, "")
@@ -117,6 +121,11 @@ func main() {
 		opts.verify = verifyHash
 	default:
 		fatalf("invalid --verify %q (want size or hash)", verifyStr)
+	}
+	// A verify-only run with no verification would do nothing at all, so the
+	// cheap check is the floor.
+	if opts.verifyOnly && opts.verify == verifyNone {
+		opts.verify = verifySize
 	}
 
 	reserve, err := parseSize(reserveStr)
@@ -180,7 +189,7 @@ func runPlain(ctx context.Context, cancel context.CancelFunc, opts options) int 
 		cancel()
 	}()
 
-	pr := &plainReporter{}
+	pr := &plainReporter{opts: opts}
 	eng := newEngine(ctx, opts, pr)
 	sum := eng.run(os.Stdin)
 	if sum.failed > 0 {
@@ -193,6 +202,7 @@ func runPlain(ctx context.Context, cancel context.CancelFunc, opts options) int 
 // Successful destination paths go to stdout (so `spill … | xargs` works);
 // status goes to stderr.
 type plainReporter struct {
+	opts     options
 	curName  string
 	lastEmit time.Time
 }
@@ -229,6 +239,11 @@ func (r *plainReporter) Event(msg any) {
 		if m.total > 0 {
 			pct = int(float64(m.copied) / float64(m.total) * 100)
 		}
+		if r.opts.verifyOnly {
+			fmt.Fprintf(os.Stderr, "\r  %s %3d%%  %s\033[K",
+				truncate(r.curName, 32), pct, humanRate(m.instSpeed))
+			return
+		}
 		fmt.Fprintf(os.Stderr, "\r  %s %3d%%  %s  free %s\033[K",
 			truncate(r.curName, 32), pct, humanRate(m.instSpeed), humanUBytes(m.free))
 	case fileDoneMsg:
@@ -244,8 +259,9 @@ func (r *plainReporter) Event(msg any) {
 		if s.stoppedFull {
 			reason = "drive full"
 		}
-		fmt.Fprintf(os.Stderr, "\ndone: %d copied, %d skipped, %d filtered, %d failed · %s in %s · %s\n",
-			s.copied, s.skipped, s.filtered, s.failed, humanBytes(s.copiedBytes), humanDuration(s.elapsed), reason)
+		fmt.Fprintf(os.Stderr, "\ndone: %d %s, %d skipped, %d filtered, %d failed · %s in %s · %s\n",
+			s.copied, r.opts.verbed(), s.skipped, s.filtered, s.failed,
+			humanBytes(s.copiedBytes), humanDuration(s.elapsed), reason)
 	}
 }
 
