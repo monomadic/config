@@ -126,6 +126,9 @@ typeset -g override_stem=""               # set by `t` ($EDITOR): used verbatim 
 typeset -ga actors=() tags=()
 typeset -g rating=0 touched=0            # touched: user changed rating or metadata
 typeset -g final_path="" final_real="" proposed_dir="" dl_dest=""
+typeset -g video_id="" extractor_key="" archive_key=""
+typeset -gi in_archive=0
+typeset -gA archive_set                   # loaded once: archive_set[<extractor> <id>]=1
 typeset -g pct=0 dl_str="—" tot_str="—" spd_str="—" eta_str="—" dstatus="starting"
 typeset -g phase_msg="" msg=""
 typeset -g ytdlp_pid="" mpv_pid="" thumb_pid=""
@@ -133,13 +136,17 @@ typeset -g ytdlp_pid="" mpv_pid="" thumb_pid=""
 typeset -g thumb_stem="" thumb_file=""
 typeset -g thumb_cache="${~YT_DLP_THUMBCACHE_DIR:-$HOME/.cache/ytq}"
 typeset -gi thumb_drawn=0 thumb_active=0 thumb_rows=10 thumb_cols=32
+# metadata: shared with ytq via YT_DLP_JSON_DIR, same <extractor>_<id>.info.json naming as
+# thumb_stem. Unset entirely (json_dir="") when YT_DLP_JSON_DIR isn't set — same opt-in as ytq.
+typeset -g json_dir="" json_file=""
 typeset -gi paused=0
 typeset -g fifo="" pfd="" tfd="" saved_stty="" alt_active=0
 typeset -ga logring=()                    # recent yt-dlp lines, for error reporting
 
 # gallery (playlist/index) mode: one URL, many items
 typeset -gi gallery=0 gal_total=0 gal_index=0 gal_done=0
-typeset -g gal_name=""
+typeset -g gal_name="" gal_archive_key=""
+typeset -gi gal_in_archive=0
 
 # terminal geometry; need_full_redraw is set by SIGWINCH and on entering the TUI
 typeset -gi TERM_ROWS=24 TERM_COLS=80 need_full_redraw=1
@@ -172,6 +179,8 @@ preflight() {
     --print "%(extractor)s_%(id)s" \
     --print "%(playlist_count)s" \
     --print "%(playlist,playlist_id)s" \
+    --print "%(extractor_key)s" \
+    --print "%(id)s" \
     "${passthru[@]}" "$url" 2>"$errf")}" )
   local rc=$?
   if (( rc != 0 )) || [[ -z "${lines[1]:-}" ]]; then
@@ -208,6 +217,34 @@ preflight() {
     gal_total=${count:-0}                 # 0 == count unknown (lazy playlist)
     gal_name="${final_path:t}"
   fi
+
+  # The archive key yt-dlp actually writes/checks is "<extractor_key, lowercased> <id>"
+  # — NOT the extractor_id form used for thumb_stem. Build and show it so it's obvious
+  # which line in the archive this URL corresponds to, and whether it's already there.
+  extractor_key="$(trim "${lines[8]:-}")"
+  video_id="$(trim "${lines[9]:-}")"
+  [[ -n "$extractor_key" && -n "$video_id" ]] && archive_key="${(L)extractor_key} ${video_id}"
+
+  in_archive=0
+  [[ -n "$archive_key" && -n "${archive_set[$archive_key]:-}" ]] && in_archive=1
+}
+
+# Read the whole download-archive file into a hash once, so both the single-file
+# check above and the per-item gallery check below are O(1) lookups instead of a
+# grep per item (a gallery can be hundreds of entries).
+load_archive_set() {
+  local apath; apath="$(archive_file_path)"
+  [[ -n "$apath" && -f "$apath" ]] || return
+  local l
+  while IFS= read -r l; do
+    [[ -n "$l" ]] && archive_set[$l]=1
+  done < "$apath"
+}
+
+# Same archive file ytq reads/writes: $YT_DLP_ARCHIVE_FILE, synced across machines,
+# falling back to the path baked into the yt-dlp config's own --download-archive.
+archive_file_path() {
+  print -r -- "${YT_DLP_ARCHIVE_FILE:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/archive.txt}"
 }
 
 # A thumbnail already in the shared cache, any common extension — or "" if none.
@@ -412,6 +449,17 @@ render() {
   [[ -n "$phase_msg" ]] && buf+="   ${C_DIM}$(clip "$phase_msg" $(( textw - 1 )))${C_RESET}${nl}"
   buf+="${nl}"
   (( gallery )) || buf+="   ${C_DESC}rating${C_RESET}  $(stars_colored $rating)  ${C_DIM}${rating}/5${C_RESET}${nl}"
+  local curr_akey curr_inarch
+  if (( gallery )); then curr_akey="$gal_archive_key"; curr_inarch=$gal_in_archive
+  else                   curr_akey="$archive_key";     curr_inarch=$in_archive
+  fi
+  if [[ -n "$curr_akey" ]]; then
+    if (( curr_inarch )); then
+      buf+="   ${C_DESC}id${C_RESET}      ${C_WARN}${curr_akey}  ⚠ already in archive${C_RESET}${nl}"
+    else
+      buf+="   ${C_DESC}id${C_RESET}      ${C_DIM}${curr_akey}${C_RESET}${nl}"
+    fi
+  fi
   buf+="   ${C_DESC}file${C_RESET}    ${C_FILE}${previewname}${C_RESET}${nl}"
   (( band )) || [[ -z "$thumb_file" ]] || buf+="   ${C_DESC}thumb${C_RESET}   ${C_OK}✓ cached${C_RESET}${nl}"
   [[ -n "$msg" ]] && buf+="${nl}   ${C_ACCENT}$(clip "$msg" $(( textw - 1 )))${C_RESET}${nl}"
@@ -497,8 +545,8 @@ handle_line() {
   fi
   # gallery: one ITEM line per entry, printed before that entry's download starts.
   if [[ "$line" == ITEM\|* ]]; then
-    local rest="${line#ITEM|}" idx stem turl fname
-    IFS='|' read -r idx stem turl fname <<<"$rest"
+    local rest="${line#ITEM|}" idx stem turl fname akey
+    IFS='|' read -r idx stem turl fname akey <<<"$rest"
     gal_index="${idx//[^0-9]/}"; (( gal_index > 0 )) || (( gal_index = gal_done + 1 ))
     [[ -n "$fname" ]] && gal_name="${fname:t}"
     pct=0; dl_str="—"; tot_str="—"; spd_str="—"; eta_str="—"; dstatus="starting"
@@ -507,6 +555,9 @@ handle_line() {
       thumb_stem="$newstem"; thumb_file=""; clear_thumb   # next frame paints the new one
       fetch_thumb "$turl"
     fi
+    gal_archive_key="$(trim "$akey")"
+    gal_in_archive=0
+    [[ -n "$gal_archive_key" && -n "${archive_set[$gal_archive_key]:-}" ]] && gal_in_archive=1
     return
   fi
   # Any other yt-dlp chatter: keep a small ring for error reports, and show the
@@ -641,7 +692,18 @@ edit_modal() {
 }
 
 # ── kick off the background jobs ─────────────────────────────────────────────
+load_archive_set
 preflight
+
+# metadata: reuse ytq's shared info.json cache (same <extractor>_<id> naming as
+# thumb_stem). If YT_DLP_JSON_DIR isn't set, json_dir stays empty and this is a no-op.
+if [[ -n "${YT_DLP_JSON_DIR:-}" ]]; then
+  json_dir="${~YT_DLP_JSON_DIR}"
+  mkdir -p -- "$json_dir" 2>/dev/null
+  [[ -n "$thumb_stem" ]] && json_file="$json_dir/${thumb_stem}.info.json"
+fi
+typeset -a json_write_args=()
+[[ -n "$json_dir" ]] && json_write_args=( --write-info-json --paths "infojson:$json_dir" --output "infojson:%(extractor)s_%(id)s" )
 
 # thumbnail: reuse ytq's shared cache. If it's already there, we display it at
 # once; otherwise fetch it into that same cache (named <extractor>_<id>.jpg) so
@@ -651,9 +713,19 @@ thumb_file="$(cached_thumb)"
 # In gallery mode the per-item thumbnails arrive with the ITEM lines instead —
 # a second full extraction of the whole index here would cost minutes.
 if (( ! gallery )) && [[ -z "$thumb_file" && -n "$thumb_stem" ]]; then
-  yt-dlp --quiet --no-warnings --no-playlist --skip-download --no-download-archive \
-    --write-thumbnail --convert-thumbnails jpg \
-    -o "thumbnail:${thumb_cache}/%(extractor)s_%(id)s.%(ext)s" "$url" >/dev/null 2>&1 &
+  if [[ -n "$json_file" && -s "$json_file" ]]; then
+    # Metadata already cached (by ytq or a prior ytui run) — pull the thumbnail
+    # straight out of it, no network round-trip needed.
+    yt-dlp --quiet --no-warnings --skip-download --no-download-archive \
+      --write-thumbnail --convert-thumbnails jpg \
+      -o "thumbnail:${thumb_cache}/%(extractor)s_%(id)s.%(ext)s" \
+      "${passthru[@]}" --load-info-json "$json_file" >/dev/null 2>&1 &
+  else
+    yt-dlp --quiet --no-warnings --no-playlist --skip-download --no-download-archive \
+      --write-thumbnail --convert-thumbnails jpg \
+      -o "thumbnail:${thumb_cache}/%(extractor)s_%(id)s.%(ext)s" \
+      "${json_write_args[@]}" "${passthru[@]}" "$url" >/dev/null 2>&1 &
+  fi
   thumb_pid=$!
 fi
 # reserve the top band for the image only when we can actually draw one
@@ -671,14 +743,14 @@ typeset -a item_print=()
 # gallery: one line per entry as it starts, so the UI can follow the index, the
 # current filename and that entry's thumbnail without a second extraction pass.
 (( gallery )) && item_print=(
-  --print "before_dl:ITEM|%(playlist_index)s|%(extractor)s_%(id)s|%(thumbnail)s|%(filename)s"
+  --print "before_dl:ITEM|%(playlist_index)s|%(extractor)s_%(id)s|%(thumbnail)s|%(filename)s|%(extractor)s %(id)s"
   --ignore-errors                     # one dead entry must not kill the whole gallery
 )
 
 yt-dlp --no-playlist --newline --no-download-archive --continue \
   --progress-template "download:PROGRESS|%(progress._percent_str)s|%(progress._downloaded_bytes_str)s|%(progress._total_bytes_str)s|%(progress._speed_str)s|%(progress._eta_str)s|%(progress.status)s|%(progress.downloaded_bytes)d" \
   --print "after_move:FINALPATH|%(filepath)s" \
-  "${item_print[@]}" "${passthru[@]}" "$url" >&$pfd 2>&1 &
+  "${item_print[@]}" "${json_write_args[@]}" "${passthru[@]}" "$url" >&$pfd 2>&1 &
 ytdlp_pid=$!
 
 # ── main loop ────────────────────────────────────────────────────────────────
@@ -745,6 +817,7 @@ fi
 print -r -- "${C_OK}✓${C_RESET} downloaded  ${C_FILE}${src:t}${C_RESET}"
 [[ -z "$thumb_file" ]] && thumb_file="$(cached_thumb)"
 [[ -n "$thumb_file" ]] && print -r -- "  ${C_DESC}thumbnail:${C_RESET} ${thumb_file:t} ${C_DIM}(cached)${C_RESET}"
+[[ -n "$json_file" && -s "$json_file" ]] && print -r -- "  ${C_DESC}metadata:${C_RESET} ${json_file:t} ${C_DIM}(cached)${C_RESET}"
 
 if (( touched )); then
   stem="$(compose_stem)"

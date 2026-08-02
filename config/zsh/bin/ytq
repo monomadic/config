@@ -23,6 +23,21 @@ setopt pipefail
 
 typeset -r YTQ_SELF="${0:A}"
 
+# ── colors + Nerd Font glyphs (list rows, preview panel) ─────────────────────
+typeset -gr \
+  YTQ_C_RESET=$'\e[0m'      YTQ_C_DIM=$'\e[2m'        YTQ_C_BOLD=$'\e[1m' \
+  YTQ_C_TITLE=$'\e[1;36m'   YTQ_C_USER=$'\e[37m'      YTQ_C_ACTOR=$'\e[35m' \
+  YTQ_C_DUR=$'\e[33m'       YTQ_C_OK=$'\e[32m'        YTQ_C_WARN=$'\e[33m' \
+  YTQ_C_ERR=$'\e[31m'       YTQ_C_ACCENT=$'\e[38;5;39m' YTQ_C_TAG=$'\e[90m' \
+  YTQ_C_BORDER=$'\e[90m'
+
+# Font Awesome codepoints via Nerd Font (same PUA range used by starship.toml).
+typeset -gr \
+  YTQ_I_PLAY=$''   YTQ_I_CHECK=$''  YTQ_I_USER=$'' \
+  YTQ_I_USERS=$''  YTQ_I_CLOCK=$''  YTQ_I_CAL=$'' \
+  YTQ_I_EYE=$''    YTQ_I_LINK=$''   YTQ_I_DESC=$'' \
+  YTQ_I_TAG=$''
+
 require_batch_file() {
   if [[ -z "${YT_DLP_BATCH_FILE:-}" ]]; then
     print -u2 "❌ YT_DLP_BATCH_FILE is not set"
@@ -91,6 +106,26 @@ archive_key_for_url() {
     return 0
   fi
 
+  if video_id="$(pornhub_id_from_url "$url" 2>/dev/null)"; then
+    print -r -- "pornhub $video_id"
+    return 0
+  fi
+
+  if video_id="$(xhamster_id_from_url "$url" 2>/dev/null)"; then
+    print -r -- "xhamster $video_id"
+    return 0
+  fi
+
+  if video_id="$(xvideos_id_from_url "$url" 2>/dev/null)"; then
+    print -r -- "xvideos $video_id"
+    return 0
+  fi
+
+  if video_id="$(xvideosred_id_from_url "$url" 2>/dev/null)"; then
+    print -r -- "xvideosred $video_id"
+    return 0
+  fi
+
   return 1
 }
 
@@ -124,6 +159,55 @@ faphouse_id_from_url() {
 
   if [[ "$url" =~ 'faphouse\.com/([a-z]{2}(-[a-z]{2})?/)?(videos?|watch)/([^/?#&]+)' ]]; then
     print -r -- "$match[4]"
+    return 0
+  fi
+
+  return 1
+}
+
+pornhub_id_from_url() {
+  local url="$1"
+
+  if [[ "$url" =~ 'pornhub\.com/.*[?&]viewkey=([a-zA-Z0-9]+)' ]]; then
+    print -r -- "$match[1]"
+    return 0
+  fi
+
+  return 1
+}
+
+# yt-dlp's id for XHamster is the trailing "xh...." token on the slug — old
+# archive entries predate that (plain numeric ids), those just won't match here.
+xhamster_id_from_url() {
+  local url="$1"
+
+  if [[ "$url" =~ 'xhamster\.com/videos/.*-(xh[A-Za-z0-9]+)([/?#]|$)' ]]; then
+    print -r -- "$match[1]"
+    return 0
+  fi
+
+  return 1
+}
+
+# xvideos.com and xvideos.red are separate yt-dlp extractors ("xvideos" vs
+# "xvideosred") despite the identical /video.<id>/... URL shape, so the archive
+# key's extractor name has to come from the domain, not just the id.
+xvideos_id_from_url() {
+  local url="$1"
+
+  if [[ "$url" =~ 'xvideos\.com/video\.([a-z0-9]+)' ]]; then
+    print -r -- "$match[1]"
+    return 0
+  fi
+
+  return 1
+}
+
+xvideosred_id_from_url() {
+  local url="$1"
+
+  if [[ "$url" =~ 'xvideos\.red/video\.([a-z0-9]+)' ]]; then
+    print -r -- "$match[1]"
     return 0
   fi
 
@@ -295,6 +379,7 @@ cmd_clean_completed() {
   fi
 
   load_archive
+  load_json_url_index
 
   local tmp_file
   tmp_file="$(mktemp)" || return 1
@@ -320,20 +405,70 @@ cmd_clean_completed() {
   }
 }
 
+# Compact "1h 2m" / "3m 4s" duration from raw seconds — mirrors ytui's own
+# human_duration but for the list row, where space is tight.
+ytq_fmt_duration() {
+  local -i secs="${1:-0}"
+  (( secs > 0 )) || return 1
+
+  local -i h=$(( secs / 3600 )) m=$(( (secs % 3600) / 60 )) s=$(( secs % 60 ))
+  if (( h > 0 )); then
+    print -r -- "${h}h ${m}m"
+  elif (( m > 0 )); then
+    print -r -- "${m}m ${s}s"
+  else
+    print -r -- "${s}s"
+  fi
+}
+
+# One colorful line per queue entry. Falls back to the plain archived-glyph +
+# URL row (the original format) whenever there's no cached metadata for it yet.
 queue_list_item() {
   local url="$1"
   local index="$2"
 
-  if is_archived_url "$url"; then
-    printf '%s\t%s\t\033[32m✓\033[0m \033[2m%4s %s\033[0m\n' "$url" "$index" "$index" "$url"
-  else
-    printf '%s\t%s\t\033[34m▶\033[0m \033[2m%4s\033[0m %s\n' "$url" "$index" "$index" "$url"
+  local meta="${JSON_URL_META[$url]:-${JSON_URL_META[${url%%\#*}]:-}}"
+  # Exact webpage_url/original_url match missed — try the same <extractor>_<id>
+  # stem identity find_cached_metadata_json falls back to (redirects, stale
+  # entries, trailing slashes all break the exact-string match above).
+  if [[ -z "$meta" ]]; then
+    local cand stem
+    for cand in "${(@f)$(metadata_json_candidates "$url" "")}"; do
+      stem="${cand#/}"; stem="${stem%.info.json}"
+      [[ -n "${JSON_URL_META[$stem]:-}" ]] && { meta="${JSON_URL_META[$stem]}"; break }
+    done
   fi
+  local glyph color idxfmt line
+  idxfmt="$(printf '%4s' "$index")"
+
+  if is_archived_url "$url"; then
+    glyph="${YTQ_C_OK}${YTQ_I_CHECK}${YTQ_C_RESET}"
+  else
+    glyph="${YTQ_C_ACCENT}${YTQ_I_PLAY}${YTQ_C_RESET}"
+  fi
+
+  if [[ -z "$meta" ]]; then
+    printf '%s\t%s\t%s %s%s %s%s\n' "$url" "$index" "$glyph" "$YTQ_C_DIM" "$idxfmt" "$url" "$YTQ_C_RESET"
+    return
+  fi
+
+  local title uploader cast duration extractor
+  IFS=$'\x1f' read -r title uploader cast duration extractor <<< "$meta"
+
+  line="${glyph} ${YTQ_C_DIM}${idxfmt}${YTQ_C_RESET}"
+  [[ -n "$title" ]] && line+="  ${YTQ_C_TITLE}${title}${YTQ_C_RESET}" || line+="  ${url}"
+  [[ -n "$uploader" ]] && line+="  ${YTQ_C_DIM}${YTQ_I_USER}${YTQ_C_RESET} ${YTQ_C_USER}${uploader}${YTQ_C_RESET}"
+  [[ -n "$cast" && "$cast" != "$uploader" ]] && line+="  ${YTQ_C_DIM}${YTQ_I_USERS}${YTQ_C_RESET} ${YTQ_C_ACTOR}${cast}${YTQ_C_RESET}"
+  local durtxt; durtxt="$(ytq_fmt_duration "$duration" 2>/dev/null)" && line+="  ${YTQ_C_DIM}${YTQ_I_CLOCK} ${durtxt}${YTQ_C_RESET}"
+  [[ -n "$extractor" ]] && line+="  ${YTQ_C_TAG}${YTQ_I_TAG} ${extractor}${YTQ_C_RESET}"
+
+  printf '%s\t%s\t%s\n' "$url" "$index" "$line"
 }
 
 cmd_list_rows() {
   require_batch_file
   load_archive
+  load_json_url_index
 
   local line index=0
   while IFS= read -r line; do
@@ -367,6 +502,7 @@ cmd_rm_index() {
 next_unarchived_queue_item() {
   require_batch_file
   load_archive
+  load_json_url_index
 
   local line index=0
   while IFS= read -r line; do
@@ -430,6 +566,22 @@ metadata_json_candidates() {
   if video_id="$(faphouse_id_from_url "$url" 2>/dev/null)"; then
     print -r -- "$dir/faphouse_${video_id}.info.json"
   fi
+
+  if video_id="$(pornhub_id_from_url "$url" 2>/dev/null)"; then
+    print -r -- "$dir/pornhub_${video_id}.info.json"
+  fi
+
+  if video_id="$(xhamster_id_from_url "$url" 2>/dev/null)"; then
+    print -r -- "$dir/xhamster_${video_id}.info.json"
+  fi
+
+  if video_id="$(xvideos_id_from_url "$url" 2>/dev/null)"; then
+    print -r -- "$dir/xvideos_${video_id}.info.json"
+  fi
+
+  if video_id="$(xvideosred_id_from_url "$url" 2>/dev/null)"; then
+    print -r -- "$dir/xvideosred_${video_id}.info.json"
+  fi
 }
 
 metadata_json_matches_url() {
@@ -460,6 +612,95 @@ metadata_json_matches_url() {
     ' "$json" >/dev/null 2>&1
 }
 
+# Full-directory fallback scan (metadata_json_matches_url per file) costs one jq
+# spawn per cached json. Called once per URL that's fine, but is_archived_url runs
+# it per QUEUE ROW — for a queue of N items against M cached json files that's
+# O(N*M) jq spawns, which is what made `ytq list` crawl. load_json_url_index()
+# below does the same scan ONCE and indexes it, so batch callers (cmd_list_rows,
+# next_unarchived_queue_item, cmd_clean_completed) get O(1) lookups per row instead.
+#
+# The same pass also fills JSON_URL_META (title/uploader/cast/duration/extractor,
+# joined by \x1f) so the colorful list rows don't need a second per-row jq spawn.
+typeset -gA JSON_URL_INDEX JSON_URL_META
+typeset -gi JSON_INDEX_READY=0
+
+load_json_url_index() {
+  JSON_URL_INDEX=()
+  JSON_URL_META=()
+  JSON_INDEX_READY=0
+
+  local dir; dir="$(ytq_json_dir 2>/dev/null)" || return 0
+  [[ -d "$dir" ]] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+
+  local -a files
+  files=( "$dir"/*.info.json(N.) )
+  (( ${#files} )) || { JSON_INDEX_READY=1; return 0 }
+
+  local -r meta_filter='
+    def clean:
+      if . == null then ""
+      else
+        (tostring
+         | gsub("[\u0001-\u001f\u007f\u00a0\u200b\u200c\u200d\ufeff]"; " ")
+         | gsub(" +"; " ")
+         | sub("^ +"; "")
+         | sub(" +$"; ""))
+      end;
+    [
+      input_filename,
+      (.webpage_url // "" | clean),
+      (.original_url // "" | clean),
+      (.title // "" | clean),
+      ((.uploader // .channel // .creator // "") | clean),
+      (((.cast // .creators // []) | if type == "array" then join(", ") else tostring end) | clean),
+      ((.duration // 0) | tostring),
+      ((.extractor_key // .extractor // "") | tostring | ascii_downcase)
+    ] | join("")
+    '
+
+  # jq streams multiple file args as one job (input_filename tags each result),
+  # so this is ONE spawn per chunk instead of one per file — the chunking is
+  # just a resilience cap: a single malformed json aborts jq mid-stream, and
+  # capping the blast radius to 200 files keeps that from losing the whole index.
+  #
+  # Fields are \x1f-joined, NOT tab (@tsv) — zsh's `read` treats tab (and space)
+  # as an "IFS whitespace" class and silently COLLAPSES runs of them even when
+  # IFS is scoped to just that one character, so a null .original_url (an empty
+  # field between two tabs) merges with its neighbor and shifts every field
+  # after it. \x1f isn't in that whitespace class, so empty fields survive —
+  # and `clean` above already strips any stray \x1f out of the values
+  # themselves, so it's a safe delimiter to introduce.
+  local -a slice
+  local -i chunk=200 i=1 n=${#files}
+  local out file webpage original title uploader cast duration extractor meta stem
+  while (( i <= n )); do
+    slice=( "${(@)files[i,i+chunk-1]}" )
+    out="$(jq -r "$meta_filter" "${slice[@]}" 2>/dev/null)"
+    while IFS=$'\x1f' read -r file webpage original title uploader cast duration extractor; do
+      [[ -n "$file" ]] || continue
+      meta="${title}"$'\x1f'"${uploader}"$'\x1f'"${cast}"$'\x1f'"${duration}"$'\x1f'"${extractor}"
+      if [[ -n "$webpage" ]]; then
+        JSON_URL_INDEX[$webpage]="$file"
+        JSON_URL_META[$webpage]="$meta"
+      fi
+      if [[ -n "$original" ]]; then
+        JSON_URL_INDEX[$original]="$file"
+        JSON_URL_META[$original]="$meta"
+      fi
+      # Also key by the <extractor>_<id> filename stem — the same identity
+      # find_cached_metadata_json falls back to via metadata_json_candidates()
+      # when a queued URL's exact string doesn't match the json's own
+      # webpage_url/original_url (redirects, trailing slashes, stale entries).
+      stem="${file:t}"; stem="${stem%.info.json}"
+      [[ -n "$stem" ]] && JSON_URL_META[$stem]="$meta"
+    done <<< "$out"
+    (( i += chunk ))
+  done
+
+  JSON_INDEX_READY=1
+}
+
 find_cached_metadata_json() {
   local url="$1"
   local dir candidate file
@@ -475,6 +716,16 @@ find_cached_metadata_json() {
       return 0
     }
   done
+
+  # A batch caller already built the index (one pass over every cached json) —
+  # trust it and skip straight to a hash lookup instead of re-scanning the
+  # directory for this one URL.
+  if (( JSON_INDEX_READY )); then
+    local url_no_fragment="${url%%#*}"
+    local hit="${JSON_URL_INDEX[$url]:-${JSON_URL_INDEX[$url_no_fragment]:-}}"
+    [[ -n "$hit" && -s "$hit" ]] && { print -r -- "$hit"; return 0; }
+    return 1
+  fi
 
   command -v jq >/dev/null 2>&1 || return 1
 
@@ -869,68 +1120,98 @@ print_preview_archive_status() {
   load_archive
 
   if [[ -z "${YT_DLP_ARCHIVE_FILE:-}" ]]; then
-    print "\033[33mArchive:\033[0m YT_DLP_ARCHIVE_FILE is not set"
+    print "${YTQ_C_WARN}${YTQ_I_TAG} archive file not set${YTQ_C_RESET}"
   elif [[ ! -r "$YT_DLP_ARCHIVE_FILE" ]]; then
-    print "\033[33mArchive:\033[0m $YT_DLP_ARCHIVE_FILE is not readable"
+    print "${YTQ_C_WARN}${YTQ_I_TAG} archive file not readable${YTQ_C_RESET}"
   elif is_archived_url "$url"; then
-    print "\033[32mArchive:\033[0m already downloaded"
+    print "${YTQ_C_OK}${YTQ_I_CHECK} already downloaded${YTQ_C_RESET}"
   else
-    print "\033[36mArchive:\033[0m not found"
+    print "${YTQ_C_ACCENT}${YTQ_I_PLAY} not downloaded yet${YTQ_C_RESET}"
   fi
 }
 
+# No text labels for the obvious stuff -- an icon says "this is the uploader"
+# or "this is the duration" as well as a word would, in a fraction of the
+# width. "Description" keeps its header since there's no icon that reads
+# unambiguously as "description" at a glance the way a clock does for duration.
 print_preview_metadata() {
   local json="$1"
 
-  if command -v jq >/dev/null 2>&1; then
-    jq -r '
-      def emit(k; v):
-        if v == null or v == "" then empty
-        else "\u001b[36m" + k + ":\u001b[0m " + (v | tostring)
-        end;
-      def compact_text:
-        tostring
-        | gsub("[\r\n\t]+"; " ")
-        | gsub("  +"; " ");
-      def human_duration:
-        if .duration == null then null
-        else
-          (.duration | floor) as $total
-          | (($total / 3600) | floor) as $hours
-          | ((($total % 3600) / 60) | floor) as $minutes
-          | ($total % 60) as $seconds
-          | if $hours > 0
-            then "\($hours)h \($minutes)m \($seconds)s"
-            else "\($minutes)m \($seconds)s"
-            end
-        end;
-      def upload_day:
-        (.upload_date // .release_date) as $day
-        | if $day == null then null
-          else ($day | tostring) as $text
-          | if ($text | test("^[0-9]{8}$"))
-            then $text[0:4] + "-" + $text[4:6] + "-" + $text[6:8]
-            else $text
-            end
-          end;
-
-      emit("Title"; .title),
-      emit("Uploader"; (.uploader // .channel // .creator)),
-      emit("ID"; (((.extractor_key // .extractor // "yt-dlp") | tostring) + " " + ((.id // "") | tostring))),
-      emit("Duration"; human_duration),
-      emit("Uploaded"; upload_day),
-      emit("Views"; .view_count),
-      emit("URL"; (.webpage_url // .original_url)),
-      emit("Thumbnail"; .thumbnail),
-      if .description == null or .description == "" then empty
-      else "\n" + (.description | compact_text | .[0:800])
-      end
-    ' "$json" 2>/dev/null
-  else
-    print "\033[33mjq not found; showing raw metadata path:\033[0m $json"
+  if ! command -v jq >/dev/null 2>&1; then
+    print "${YTQ_C_WARN}jq not found; showing raw metadata path:${YTQ_C_RESET} $json"
+    return
   fi
-}
 
+  jq -r '
+    def clean:
+      if . == null or . == "" then null
+      else
+        (tostring
+         | gsub("[\u0001-\u001f\u007f\u00a0\u200b\u200c\u200d\ufeff]"; " ")
+         | gsub(" +"; " ")
+         | sub("^ +"; "")
+         | sub(" +$"; ""))
+      end;
+    def human_duration:
+      if .duration == null then null
+      else
+        (.duration | floor) as $total
+        | (($total / 3600) | floor) as $hours
+        | ((($total % 3600) / 60) | floor) as $minutes
+        | ($total % 60) as $seconds
+        | if $hours > 0
+          then "\($hours)h \($minutes)m"
+          else "\($minutes)m \($seconds)s"
+          end
+      end;
+    def upload_day:
+      (.upload_date // .release_date) as $day
+      | if $day == null then null
+        else ($day | tostring) as $text
+        | if ($text | test("^[0-9]{8}$"))
+          then $text[0:4] + "-" + $text[4:6] + "-" + $text[6:8]
+          else $text
+          end
+        end;
+    def human_views:
+      .view_count as $v
+      | if $v == null then null
+        elif $v >= 1000000 then (($v / 1000000 * 10 | round) / 10 | tostring) + "M"
+        elif $v >= 1000 then (($v / 1000 * 10 | round) / 10 | tostring) + "K"
+        else ($v | tostring)
+        end;
+
+    (.title | clean) as $title
+    | ((.uploader // .channel // .creator) | clean) as $uploader
+    | (((.cast // .creators // []) | if type == "array" then join(", ") else clean end) | clean) as $cast
+    | ((.extractor_key // .extractor // "yt-dlp") | tostring | ascii_downcase) as $extractor
+    | ((.id // "") | tostring) as $id
+    | (.description | clean) as $description
+    | (.webpage_url // .original_url) as $url
+
+    | (if $title then "[1;36m" + $title + "[0m" else empty end),
+      (
+        [
+          (if $uploader then "[2m[0m [37m" + $uploader + "[0m" else empty end),
+          (if human_duration then "[2m " + human_duration + "[0m" else empty end),
+          (if upload_day then "[2m " + upload_day + "[0m" else empty end)
+        ] | map(select(. != null)) | join("  ")
+      ),
+      (if $cast and $cast != $uploader
+       then "[2m[0m [35m" + $cast + "[0m"
+       else empty end),
+      (
+        [
+          (if human_views then "[2m " + human_views + "[0m" else empty end),
+          "[90m " + $extractor + " " + $id + "[0m"
+        ] | map(select(. != null)) | join("  ")
+      ),
+      (if $url then "[2m " + $url + "[0m" else empty end),
+      (if $description and $description != ""
+       then "\n[90m Description[0m\n" + ($description[0:800])
+       else empty end)
+  ' "$json" 2>/dev/null
+}
 cmd_preview() {
   local url="$1"
 
@@ -947,8 +1228,10 @@ cmd_preview() {
   [[ -n "$json" ]] || json="${base}.info.json"
   error_file="${base}.error"
 
+  local -i had_meta=0
+  [[ -s "$json" ]] && had_meta=1
+
   print_preview_archive_status "$url"
-  print "\033[36mQueue URL:\033[0m $url"
   print ""
 
   fetch_preview_cache "$url" "$base"
@@ -956,9 +1239,20 @@ cmd_preview() {
   [[ -n "$json" ]] || json="${base}.info.json"
 
   if [[ -s "$error_file" && ! -s "$json" ]]; then
-    print "\033[31mPreview load failed:\033[0m"
+    print "${YTQ_C_ERR}Preview load failed:${YTQ_C_RESET}"
     sed -n '1,24p' "$error_file"
     return 0
+  fi
+
+  # This row had no cached metadata a moment ago and now does — the list row
+  # is still the plain-URL fallback (it was rendered before this fetch ran).
+  # `ytq list` starts fzf with --listen, so we can nudge the RUNNING fzf
+  # instance to reload its rows in the background via its HTTP control port,
+  # picking up the freshly cached title/actors — without touching the
+  # cursor, the multi-selection, or this preview panel itself.
+  if (( ! had_meta )) && [[ -s "$json" && -n "${FZF_PORT:-}" ]] && command -v curl >/dev/null 2>&1; then
+    curl -s -XPOST "localhost:${FZF_PORT}" -d "reload(${(q)YTQ_SELF} __list_rows)" >/dev/null 2>&1 &
+    disown
   fi
 
   thumbnail="$(find_cached_thumbnail "$url" "$key" "$json" "$base" 2>/dev/null)" || thumbnail=""
@@ -970,7 +1264,8 @@ cmd_preview() {
   if [[ -s "$json" ]]; then
     print_preview_metadata "$json"
   else
-    print "\033[33mNo metadata cached yet.\033[0m"
+    print "${YTQ_C_WARN}No metadata cached yet.${YTQ_C_RESET}"
+    print "${YTQ_C_DIM}${YTQ_I_LINK} ${url}${YTQ_C_RESET}"
   fi
 }
 
@@ -990,6 +1285,7 @@ cmd_list() {
   local clean_cmd="${(q)YTQ_SELF} __clean_completed --quiet"
   local rm_cmd="${(q)YTQ_SELF} __rm_index"
   local play_cmd="${(q)YTQ_SELF} __preview_play"
+  local record_cmd="${(q)YTQ_SELF} __preview_record"
   local key url fzf_status
   local -a out
 
@@ -999,17 +1295,23 @@ cmd_list() {
     cmd_list_rows |
       fzf \
         --ansi \
+        --multi \
         --no-sort \
         --tiebreak=index \
         --delimiter=$'\t' \
         --with-nth=3 \
         --accept-nth=1 \
         --expect=alt-enter,alt-e \
+        --marker='»' \
+        --pointer='❯' \
+        --listen \
         --prompt='ytq list> ' \
-        --header="enter: ytui in kitty pane | alt-enter: ytui here | alt-e: edit archive line | ctrl-p: preview in mpv | ctrl-d: delete row | ctrl-x: clean completed | esc: cancel | ✓: archived | $archive_note" \
+        --header="j/k: move | tab: select | enter: ytui in kitty pane | alt-enter: ytui here | alt-e: edit archive line | ctrl-o: preview in mpv | ctrl-r: preview + record in mpv | ctrl-d: delete row | ctrl-x: clean completed | esc: cancel | ${YTQ_I_CHECK}: archived | $archive_note" \
+        --bind="j:down,k:up" \
         --bind="ctrl-d:execute-silent($rm_cmd {2})+reload($rows_cmd)" \
         --bind="ctrl-x:execute-silent($clean_cmd)+reload($rows_cmd)" \
-        --bind="ctrl-p:execute-silent($play_cmd {1})" \
+        --bind="ctrl-o:execute-silent($play_cmd {1})" \
+        --bind="ctrl-r:execute-silent($record_cmd {1})" \
         --preview="${(q)YTQ_SELF} __preview {1}" \
         --preview-window='right,40%,wrap,border-left'
   )}" )
@@ -1023,13 +1325,27 @@ cmd_list() {
   esac
 
   key="${out[1]:-}"
-  url="${out[2]:-}"
-  [[ -n "$url" ]] || return 0
+  local -a urls
+  urls=( "${(@)out[2,-1]}" )
+  (( ${#urls} )) || return 0
 
   case "$key" in
-    alt-e)      cmd_edit_archive_line "$url" ;;
-    alt-enter)  require_command ytui; ytui "$@" "$url" ;;
-    *)          cmd_kitty_ytui "$url" "$@" ;;
+    alt-e)
+      cmd_edit_archive_line "${urls[1]}"
+      ;;
+    alt-enter)
+      require_command ytui
+      local u
+      for u in "${urls[@]}"; do
+        ytui "$@" "$u"
+      done
+      ;;
+    *)
+      local u
+      for u in "${urls[@]}"; do
+        cmd_kitty_ytui "$u" "$@"
+      done
+      ;;
   esac
 }
 
@@ -1221,7 +1537,7 @@ archive_line_for_url() {
   grep -Fnx -- "$key" "$YT_DLP_ARCHIVE_FILE" | head -n1 | cut -d: -f1
 }
 
-# `ytq list` Ctrl-P: play the URL straight in mpv (its built-in yt-dlp hook
+# `ytq list` Ctrl-O: play the URL straight in mpv (its built-in yt-dlp hook
 # resolves the stream), no download and no queue mutation — a quick look
 # without waiting on a full fetch.
 cmd_preview_play() {
@@ -1231,6 +1547,39 @@ cmd_preview_play() {
   require_command mpv
 
   mpv --force-window=immediate -- "$url" >/dev/null 2>&1 &
+  disown
+}
+
+# A short filesystem-safe tag for the recording filename — last path segment of
+# the URL, not a full title (that would need a yt-dlp preflight, which is the
+# exact latency ctrl-r is meant to skip).
+record_slug_for_url() {
+  local url="$1" slug
+  slug="${url%%\#*}"; slug="${slug%%\?*}"; slug="${slug##*/}"
+  slug="${slug//[^A-Za-z0-9_-]/-}"
+  slug="${slug:0:60}"
+  [[ -n "$slug" ]] && print -r -- "$slug" || print -r -- "video"
+}
+
+# `ytq list` Ctrl-R: same instant mpv preview as ctrl-o, but also dumps the raw
+# stream mpv's ytdl hook resolved to disk via --stream-record — no separate
+# yt-dlp download, no archive entry, no proper title/metadata. This is a raw
+# byte capture (mpv doesn't remux it), so for HLS sources especially, run it
+# through `ffmpeg -i in -c copy out.mp4` afterward if it doesn't play cleanly.
+# For a real download (correct filename, metadata, archive tracking, resumable),
+# use enter/alt-enter for ytui instead.
+cmd_preview_record() {
+  local url="$1"
+
+  [[ -n "$url" ]] || return 0
+  require_command mpv
+
+  local dir="${YT_DLP_MPV_RECORD_DIR:-$HOME/Movies/mpv-recordings}"
+  mkdir -p -- "$dir" 2>/dev/null
+
+  local dest="$dir/$(date +%Y%m%d-%H%M%S)-$(record_slug_for_url "$url").mp4"
+
+  mpv --force-window=immediate --stream-record="$dest" -- "$url" >/dev/null 2>&1 &
   disown
 }
 
@@ -1418,6 +1767,10 @@ case "$1" in
   __preview_play)
     shift
     cmd_preview_play "$@"
+    ;;
+  __preview_record)
+    shift
+    cmd_preview_record "$@"
     ;;
   __archive_line)
     shift
