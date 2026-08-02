@@ -36,6 +36,7 @@
 #   enter, ctrl-s  make a FLAC sidecar (vdjstems make --roformer --flac) for
 #                  the selected tracks, or the hovered one; rows reload
 #   ctrl-a         make an ALAC sidecar instead (--roformer --alac)
+#   ctrl-t         cycle the filter: all → hide lossless → only "none"
 #   ctrl-r         re-probe / reload the list
 #
 # Examples:
@@ -59,10 +60,56 @@ have() { command -v "$1" >/dev/null 2>&1; }
 # when they trigger a materialization that may never complete on this machine.
 is_dataless() { [[ "$(stat -f '%Sf' "$1" 2>/dev/null)" == *dataless* ]]; }
 
+# ── table geometry ──────────────────────────────────────────────────────────
+# Terminal width. $COLUMNS is unreliable in a non-interactive script and
+# `tput cols` inside $( ) sees a pipe as stdout rather than the terminal, so
+# ask the tty directly and only then fall back.
+term_cols() {
+  local c="${VDJSTEMS_AUDIT_COLS:-}"
+  [[ -n "$c" ]] && { print -r -- "$c"; return; }
+  c="$(stty size </dev/tty 2>/dev/null | cut -d' ' -f2)"
+  [[ -z "$c" ]] && c="$(tput cols </dev/tty 2>/dev/null)"
+  [[ -z "$c" || "$c" == 0 ]] && c="${COLUMNS:-0}"
+  [[ -z "$c" || "$c" == 0 ]] && c=100
+  print -r -- "$c"
+}
+
+# Fixed-width columns; the name column absorbs the remaining space.
+# Resolved once per process (probe_line runs for every track, and term_cols
+# forks) and cached in NAME_W.
+CODEC_W=5 KIND_W=10 ORIGIN_W=6
+typeset -g NAME_W=0
+name_width() {
+  if (( NAME_W == 0 )); then
+    # 2 = fzf's own pointer/marker gutter, 2 = icon + its space,
+    # 6 = the three 2-space column gaps.
+    NAME_W=$(( $(term_cols) - 2 - 2 - CODEC_W - KIND_W - ORIGIN_W - 6 ))
+    (( NAME_W < 20 )) && NAME_W=20
+  fi
+  print -r -- "$NAME_W"
+}
+
+# Pad (or truncate with an ellipsis) to an exact *display* width. ${(m)#s}
+# measures in screen columns, so accented characters and the wide symbols
+# that show up in track names don't silently push the table out of line.
+fit() {
+  local s="$1" w="$2"
+  if (( ${(m)#s} > w )); then
+    while (( ${(m)#s} > w - 1 )); do s="${s[1,-2]}"; done
+    s+="…"
+  fi
+  local pad=$(( w - ${(m)#s} )) sp=""
+  (( pad > 0 )) && printf -v sp '%*s' "$pad" ''
+  print -r -- "$s$sp"
+}
+
 # Colors
-RED=$'\033[31m'   GREEN=$'\033[32m'  YELLOW=$'\033[33m'
+RED=$'\033[31m'   GREEN=$'\033[32m'  YELLOW=$'\033[33m'  BLUE=$'\033[34m'
 CYAN=$'\033[36m'  MAGENTA=$'\033[35m'
 DIM=$'\033[2m'    BOLD=$'\033[1m'    RESET=$'\033[0m'
+# Solid bar for the header — plain dim text on the default background was
+# unreadable against fzf's own dim UI chrome, so give it its own block instead.
+HEADER_BAR=$'\033[48;5;237m\033[97m'
 
 usage() {
   cat <<EOF
@@ -75,6 +122,7 @@ Inside fzf:
   enter, ctrl-s  create a FLAC sidecar for selected/hovered
                  (vdjstems make --roformer --flac)
   ctrl-a         create an ALAC sidecar instead (--roformer --alac)
+  ctrl-t         cycle filter: all / hide lossless / only "none"
   ctrl-r         reload
 EOF
   exit 2
@@ -96,17 +144,18 @@ stamp_of() {
 probe_line() {
   local trk="$1"
   local sidecar="${trk}.vdjstems"
-  local kind="—" codec="—" origin="—" icon="${RED}○${RESET}"
-  local name_color="$DIM" origin_color="$DIM"
+  local kind="—" codec="—" origin="—" icon="${RED}○${RESET}" category="none"
+  local name_color="$DIM"
 
   if [[ -f "$sidecar" ]]; then
     kind="sidecar"
     if is_dataless "$sidecar"; then
       # A sidecar exists (that's metadata) but its bytes aren't downloaded —
       # reading them would hang, so report "present but not downloaded".
-      origin="cloud" origin_color="$CYAN"
+      origin="cloud"
       icon="${CYAN}☁${RESET}"
       name_color="$CYAN"
+      category="cloud"
       _emit_line; return
     fi
     # One header read classifies everything: Matroska codec IDs, the five
@@ -124,25 +173,29 @@ probe_line() {
     [[ "$hdr" == *vocal* && "$hdr" == *hihat* && "$hdr" == *bass* \
        && "$hdr" == *instruments* && "$hdr" == *kick* ]] || complete=false
     if [[ "$hdr" != *.stems2* || "$complete" == "false" ]]; then
-      origin="BAD!" origin_color="$MAGENTA"   # VDJ silently ignores it
+      origin="BAD!"   # VDJ silently ignores it
       icon="${MAGENTA}⚠${RESET}"
       name_color="$MAGENTA"
+      category="broken"
     elif [[ "$codec" == "aac" ]]; then
-      origin="vdj" origin_color="$RED"
+      origin="vdj"
       icon="${YELLOW}●${RESET}"
       name_color=""
+      category="aac"
     else
-      origin="tool" origin_color="$GREEN"
+      origin="tool"
       icon="${GREEN}●${RESET}"
       name_color=""
+      category="lossless"
     fi
   elif [[ "${trk:l}" == *.m4a || "${trk:l}" == *.mp4 ]]; then
     # No sidecar — an M4A track may itself be a standalone stem file.
     # Only MP4-family files can be; everything else skips the probe.
     if is_dataless "$trk"; then
-      origin="cloud" origin_color="$CYAN"   # can't ffprobe without the bytes
+      origin="cloud"   # can't ffprobe without the bytes
       icon="${CYAN}☁${RESET}"
       name_color="$CYAN"
+      category="cloud"
       _emit_line; return
     fi
     local codecs
@@ -151,11 +204,13 @@ probe_line() {
     if (( ${#codecs} >= 2 )); then
       kind="standalone"
       codec="${codecs[2]:-${codecs[1]}}"   # stream 0 is the mixed track
-      origin="tool" origin_color="$GREEN"
+      origin="tool"
       if [[ "$codec" == "alac" || "$codec" == "flac" ]]; then
         icon="${GREEN}●${RESET}"
+        category="lossless"
       else
         icon="${YELLOW}●${RESET}"
+        category="aac"
       fi
       name_color=""
     fi
@@ -165,50 +220,101 @@ probe_line() {
 }
 
 # Render one probe_line row. Relies on zsh dynamic scoping — it reads the
-# locals (trk, kind, codec, origin, icon, *_color) set by its caller.
+# locals (trk, kind, codec, origin, icon, category, name_color) set by its
+# caller. Emits path<TAB>display<TAB>category — category is a hidden field
+# (outside --with-nth) used by the filter toggle to include/exclude rows.
+#
+# Columns are padded to a fixed *visible* width first (via printf -v, no
+# color codes yet), then wrapped in color — padding a string that already
+# contains ANSI escapes counts their invisible bytes toward the width and
+# throws columns out of alignment row to row.
+#
+# Color is calm on purpose. Nearly every row in a prepared library is
+# lossless/sidecar/tool, so painting those green (whether per-column or as a
+# whole row) turns the entire list one color and carries no information. The
+# common case is therefore quiet — plain name, dim metadata — and only the
+# icon plus genuinely noteworthy values (BAD!, vdj, cloud, missing stems)
+# take color. Problems pop out of a neutral table instead of hiding in it.
+#
+# Every field is passed through fit(), which truncates as well as pads, so a
+# long track name can never push the following columns out of alignment.
 _emit_line() {
-  local codec_color=""
-  case "$codec" in
-    flac|alac|pcm) codec_color="$GREEN" ;;
-    aac)           codec_color="$YELLOW" ;;
-    —)             codec_color="$DIM" ;;
+  local origin_color="$DIM"
+  case "$origin" in
+    'BAD!') origin_color="$MAGENTA" ;;
+    vdj)    origin_color="$YELLOW" ;;
+    cloud)  origin_color="$CYAN" ;;
   esac
 
-  local dir="${trk:h:t}"
-  printf '%s\t%s %s%-10s%s %s%-5s%s %s%-5s%s %s%s%s %s%s%s\n' \
+  printf '%s\t%s %s%s%s  %s%s  %s%s  %s%s%s\t%s\n' \
     "$trk" \
     "$icon" \
-    "$DIM" "$kind" "$RESET" \
-    "$codec_color" "$codec" "$RESET" \
-    "$origin_color" "$origin" "$RESET" \
-    "$name_color" "${trk:t}" "$RESET" \
-    "$DIM" "$dir/" "$RESET"
+    "$name_color" "$(fit "${trk:t}" "$(name_width)")" "$RESET" \
+    "$DIM" "$(fit "$codec" $CODEC_W)" \
+    "$(fit "$kind" $KIND_W)" "$RESET" \
+    "$origin_color" "$(fit "$origin" $ORIGIN_W)" "$RESET" \
+    "$category"
 }
 
 # ── probe the whole saved list, streaming (initial view + reloads) ──────────
 # No sort barrier: lines reach fzf as each probe finishes, so the list
 # populates immediately even when slow (iCloud) files are still loading.
+# Filtered by the sibling "<listfile>.filter" state file (see toggle_filter):
+#   0 = show all · 1 = hide lossless · 2 = only "none" (no stems at all)
 relist() {
-  tr '\n' '\0' < "$1" | xargs -0 -P 12 -n 16 "$SELF_PATH" --line
+  local listfile="$1" statefile="${1}.filter" state=0 awk_prog='1'
+  [[ -f "$statefile" ]] && state="$(<"$statefile")"
+  case "$state" in
+    1) awk_prog='$3 != "lossless"' ;;
+    2) awk_prog='$3 == "none"' ;;
+  esac
+  tr '\n' '\0' < "$listfile" | xargs -0 -P 12 -n 16 "$SELF_PATH" --line \
+    | awk -F'\t' "$awk_prog"
+}
+
+# ── cycle the filter state (all → hide-lossless → only-none → all) ─────────
+toggle_filter() {
+  local statefile="${1}.filter" state=0
+  [[ -f "$statefile" ]] && state="$(<"$statefile")"
+  print -r -- $(( (state + 1) % 3 )) > "$statefile"
+}
+
+filter_label() {
+  local statefile="${1}.filter" state=0
+  [[ -f "$statefile" ]] && state="$(<"$statefile")"
+  case "$state" in
+    1) print "hide lossless" ;;
+    2) print "only none" ;;
+    *) print "all" ;;
+  esac
+}
+
+# Two lines: a solid key-bar, then column titles laid out on exactly the same
+# widths as _emit_line so the titles sit over their columns.
+header_text() {
+  local cols="$(term_cols)"
+  local keys=" tab select · enter/ctrl-s flac · ctrl-a alac · ctrl-t filter: $(filter_label "$1") · ctrl-r reload"
+  print "${HEADER_BAR}$(fit "$keys" "$cols")${RESET}"
+  print "${DIM}  $(fit track "$(name_width)")  $(fit codec $CODEC_W)  $(fit type $KIND_W)  $(fit origin $ORIGIN_W)${RESET}"
 }
 
 # ── fzf preview pane ────────────────────────────────────────────────────────
+# Kept to a handful of lines (the preview window is squeezed to 8 rows) — one
+# line per fact instead of a blank-line-separated report.
 preview() {
   local trk="$1" sidecar="${1}.vdjstems"
-  print -P "%B${trk:t}%b"
   # Reading any dataless (evicted iCloud) file would hang the preview pane, so
   # short-circuit on the inode flag before touching bytes with ffprobe.
   if is_dataless "$trk"; then
-    print "${CYAN}☁ not downloaded from iCloud${RESET}"
-    print "${DIM}the track's data isn't on this machine — can't probe it${RESET}"
+    print -P "%B${trk:t}%b  ${CYAN}☁ not downloaded from iCloud${RESET}"
     if [[ -f "$sidecar" ]]; then
       if is_dataless "$sidecar"; then
-        print "${CYAN}a .vdjstems sidecar exists but is also not downloaded${RESET}"
+        print "${CYAN}sidecar also not downloaded${RESET}"
       else
-        print "${GREEN}a .vdjstems sidecar exists and is downloaded${RESET}"
+        print "${GREEN}sidecar exists and is downloaded${RESET}"
       fi
     fi
-    print "${DIM}download it in Finder (or: brctl download) then ctrl-r${RESET}"
+    print "${DIM}download in Finder (or: brctl download), then ctrl-r${RESET}"
     return 0
   fi
   # default=nw=1:nk=1 prints one clean value per line. Don't use csv here: a
@@ -218,41 +324,42 @@ preview() {
   { read -r c; read -r r; read -r ch } < <(ffprobe -v error -select_streams a:0 \
     -show_entries stream=codec_name,sample_rate,channels \
     -of default=nw=1:nk=1 "$trk" 2>/dev/null)
-  [[ -n "$c" ]] && print "${DIM}track: $c ${r} Hz ${ch}ch${RESET}"
-  print ""
+  local head_line; print -P -v head_line "%B${trk:t}%b"
+  [[ -n "$c" ]] && head_line+="  ${DIM}$c ${r}Hz ${ch}ch${RESET}"
+  print -r -- "$head_line"
 
   local target=""
   if [[ -f "$sidecar" ]]; then
-    print "${BOLD}SIDECAR${RESET} ${DIM}${sidecar:t}${RESET}"
     if is_dataless "$sidecar"; then
-      print "${CYAN}☁ sidecar not downloaded — can't read its streams${RESET}"
-      print "${DIM}download it (Finder / brctl download) then ctrl-r${RESET}"
+      print "${CYAN}☁ sidecar not downloaded — can't read its streams; ctrl-r after it syncs${RESET}"
       return 0
     fi
     target="$sidecar"
+    print "${BOLD}SIDECAR${RESET} ${DIM}${sidecar:t}${RESET}"
   else
     local n
     n="$(ffprobe -v error -select_streams a -show_entries stream=index \
           -of csv=p=0 "$trk" 2>/dev/null | wc -l | tr -d ' ')"
     if (( n >= 2 )); then
-      print "${BOLD}STANDALONE${RESET} ${DIM}($n audio streams)${RESET}"
       target="$trk"
+      print "${BOLD}STANDALONE${RESET} ${DIM}($n audio streams)${RESET}"
     else
-      print "${RED}no prepared stems${RESET}"
-      print "${DIM}enter/ctrl-s = FLAC sidecar · ctrl-a = ALAC (vdjstems make --roformer)${RESET}"
+      print "${RED}no prepared stems${RESET}  ${DIM}enter/ctrl-s=FLAC · ctrl-a=ALAC${RESET}"
       return 0
     fi
   fi
 
-  print "${DIM}codec|rate|ch|title:${RESET}"
-  ffprobe -v error -select_streams a \
-    -show_entries stream=codec_name,sample_rate,channels:stream_tags=title \
-    -of compact=p=0:nk=1 "$target" 2>/dev/null | sed 's/^/  /'
+  # One line: "title:codec" per stem, instead of a five-line table.
+  local stems
+  stems="$(ffprobe -v error -select_streams a \
+    -show_entries stream=codec_name:stream_tags=title \
+    -of csv=p=0 "$target" 2>/dev/null | awk -F, '{print $2":"$1}' | paste -sd' ' -)"
+  print "${DIM}stems:${RESET} $stems"
 
   if [[ "$target" == "$sidecar" ]]; then
     local stamp; stamp="$(stamp_of "$sidecar")"
     if [[ -z "$stamp" ]]; then
-      print "${DIM}writing app: (mkvmerge/jq not available)${RESET}"
+      : # mkvmerge/jq not available — nothing to report
     elif [[ "$stamp" == VirtualDJ* ]]; then
       print "${GREEN}writing app: $stamp${RESET}"
     else
@@ -295,6 +402,8 @@ case "${1:-}" in
   --relist)   relist "${2:?}"; exit 0 ;;
   --preview)  preview "${2:?}"; exit 0 ;;
   --make)     shift; make_stems "$@"; exit 0 ;;   # args: CODEC file...
+  --toggle-filter) toggle_filter "${2:?}"; exit 0 ;;
+  --header)   header_text "${2:?}"; exit 0 ;;
   -*)         die "Unknown option: $1" ;;
 esac
 
@@ -305,7 +414,7 @@ have ffprobe || die "ffprobe not found (brew install ffmpeg)"
 # Collect input paths from arguments, then stdin (one per line, if piped).
 # Keep files that exist; skip stray .vdjstems entries and directories.
 listfile="$(mktemp -t vdjstems-audit)"
-trap 'rm -f "$listfile"' EXIT
+trap 'rm -f "$listfile" "$listfile.filter"' EXIT
 {
   for p in "$@"; do print -r -- "$p"; done
   [[ -t 0 ]] || cat
@@ -315,22 +424,31 @@ trap 'rm -f "$listfile"' EXIT
 done > "$listfile"
 [[ -s "$listfile" ]] || die "no audio files given (arguments or stdin)"
 
-header="stems audit — ${GREEN}●${RESET} lossless  ${YELLOW}●${RESET} aac  ${RED}○${RESET} none  ${MAGENTA}⚠${RESET} broken  ${CYAN}☁${RESET} not downloaded
-tab select · enter/ctrl-s FLAC sidecar · ctrl-a ALAC sidecar · ctrl-r reload"
+# Measured once here, while we still have the terminal, and exported: the
+# probe/reload/header commands run as fresh child processes spawned by fzf
+# (with pipes for stdout), where the width is no longer discoverable.
+export VDJSTEMS_AUDIT_COLS="$(term_cols)"
+
+header="$(header_text "$listfile")"
 
 # enter/ctrl-s make a FLAC sidecar, ctrl-a an ALAC one, for the selected
 # tracks (or the hovered one), then reload the rows so their status flips.
 reload="reload($SELF_PATH --relist $listfile)"
 flac_bind="execute($SELF_PATH --make flac {+1})+$reload"
 alac_bind="execute($SELF_PATH --make alac {+1})+$reload"
+filter_bind="execute-silent($SELF_PATH --toggle-filter $listfile)+$reload+transform-header($SELF_PATH --header $listfile)"
 
 "$SELF_PATH" --relist "$listfile" | fzf \
   --ansi --multi \
   --delimiter $'\t' --with-nth 2 --accept-nth 1 \
   --header "$header" --header-first \
   --preview "$SELF_PATH --preview {1}" \
-  --preview-window 'down,15,border-top' \
+  --preview-window 'down,8,border-top' \
+  --prompt '⌕ ' --pointer '│' --marker '✓' \
+  --info 'inline-right' \
+  --color 'pointer:8,marker:2,info:8,prompt:8,spinner:8' \
   --bind "enter:$flac_bind" \
   --bind "ctrl-s:$flac_bind" \
   --bind "ctrl-a:$alac_bind" \
+  --bind "ctrl-t:$filter_bind" \
   --bind "ctrl-r:$reload"

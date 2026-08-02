@@ -36,7 +36,7 @@ typeset -gr \
   YTQ_I_PLAY=$''   YTQ_I_CHECK=$''  YTQ_I_USER=$'' \
   YTQ_I_USERS=$''  YTQ_I_CLOCK=$''  YTQ_I_CAL=$'' \
   YTQ_I_EYE=$''    YTQ_I_LINK=$''   YTQ_I_DESC=$'' \
-  YTQ_I_TAG=$''
+  YTQ_I_TAG=$''    YTQ_I_DOWN=$''
 
 require_batch_file() {
   if [[ -z "${YT_DLP_BATCH_FILE:-}" ]]; then
@@ -438,17 +438,22 @@ queue_list_item() {
       [[ -n "${JSON_URL_META[$stem]:-}" ]] && { meta="${JSON_URL_META[$stem]}"; break }
     done
   fi
-  local glyph color idxfmt line
+  local glyph color idxfmt line suffix
   idxfmt="$(printf '%4s' "$index")"
 
-  if is_archived_url "$url"; then
+  # Running beats archived: a re-download in flight is the more useful thing to
+  # see, and mid-download the archive may already claim the entry.
+  if is_running_url "$url"; then
+    glyph="${YTQ_C_WARN}${YTQ_I_DOWN}${YTQ_C_RESET}"
+    suffix="  ${YTQ_C_WARN}${YTQ_I_DOWN} downloading${YTQ_C_RESET}"
+  elif is_archived_url "$url"; then
     glyph="${YTQ_C_OK}${YTQ_I_CHECK}${YTQ_C_RESET}"
   else
     glyph="${YTQ_C_ACCENT}${YTQ_I_PLAY}${YTQ_C_RESET}"
   fi
 
   if [[ -z "$meta" ]]; then
-    printf '%s\t%s\t%s %s%s %s%s\n' "$url" "$index" "$glyph" "$YTQ_C_DIM" "$idxfmt" "$url" "$YTQ_C_RESET"
+    printf '%s\t%s\t%s %s%s %s%s%s\n' "$url" "$index" "$glyph" "$YTQ_C_DIM" "$idxfmt" "$url" "$YTQ_C_RESET" "$suffix"
     return
   fi
 
@@ -461,6 +466,7 @@ queue_list_item() {
   [[ -n "$cast" && "$cast" != "$uploader" ]] && line+="  ${YTQ_C_DIM}${YTQ_I_USERS}${YTQ_C_RESET} ${YTQ_C_ACTOR}${cast}${YTQ_C_RESET}"
   local durtxt; durtxt="$(ytq_fmt_duration "$duration" 2>/dev/null)" && line+="  ${YTQ_C_DIM}${YTQ_I_CLOCK} ${durtxt}${YTQ_C_RESET}"
   [[ -n "$extractor" ]] && line+="  ${YTQ_C_TAG}${YTQ_I_TAG} ${extractor}${YTQ_C_RESET}"
+  line+="$suffix"
 
   printf '%s\t%s\t%s\n' "$url" "$index" "$line"
 }
@@ -539,6 +545,75 @@ ytq_cache_dir() {
 
 url_cache_key() {
   printf 'ytq-preview-v4\n%s' "$1" | shasum -a 256 | awk '{print $1}'
+}
+
+# ── in-flight download state ─────────────────────────────────────────────────
+# `ytq list` Enter now launches ytui in its own Kitty window and stays open, so
+# the list has to show which rows are being downloaded by a window it doesn't
+# own. A marker file per URL is the whole mechanism: the launcher creates it,
+# the ytui wrapper (__run_ytui) overwrites it with its own pid and deletes it on
+# exit, and the row renderer reads it. Nothing here is authoritative about the
+# download itself — the archive file still is, once yt-dlp finishes.
+ytq_running_dir() {
+  print -r -- "$(ytq_cache_dir)/running"
+}
+
+ytq_launch_log() {
+  print -r -- "$(ytq_cache_dir)/launch.log"
+}
+
+running_marker_for_url() {
+  print -r -- "$(ytq_running_dir)/$(url_cache_key "$1")"
+}
+
+mark_running() {
+  local marker
+  marker="$(running_marker_for_url "$1")" || return 1
+  mkdir -p "${marker:h}" 2>/dev/null
+  print -r -- "${2:-}" > "$marker"
+}
+
+clear_running() {
+  rm -f -- "$(running_marker_for_url "$1")" 2>/dev/null
+}
+
+# Self-healing: a marker whose pid is gone (window closed, machine rebooted,
+# ytui killed) is deleted on sight rather than leaving a row stuck at
+# "downloading" forever. The pid-less window is the gap between the launcher
+# writing the marker and __run_ytui claiming it — trusted briefly, then stale.
+is_running_url() {
+  local marker pid now mtime
+  marker="$(running_marker_for_url "$1")" || return 1
+
+  [[ -e "$marker" ]] || return 1
+
+  pid="$(<"$marker")" 2>/dev/null || pid=""
+  pid="${pid//[^0-9]/}"
+
+  if [[ -n "$pid" ]]; then
+    kill -0 "$pid" 2>/dev/null && return 0
+    rm -f -- "$marker" 2>/dev/null
+    return 1
+  fi
+
+  now="$(date +%s)" || return 0
+  mtime="$(stat -f %m "$marker" 2>/dev/null || stat -c %Y "$marker" 2>/dev/null)" || return 0
+  (( now - mtime < 120 )) && return 0
+
+  rm -f -- "$marker" 2>/dev/null
+  return 1
+}
+
+# Nudge a RUNNING `ytq list` (started with --listen) to re-render its rows.
+# Used both from the preview pane and from the ytui wrapper in another Kitty
+# window, which only knows the port because it was passed one on the command line.
+fzf_reload_rows() {
+  local port="$1"
+
+  [[ "$port" == <-> ]] || return 0
+  command -v curl >/dev/null 2>&1 || return 0
+
+  curl -s -XPOST "localhost:${port}" -d "reload(${(q)YTQ_SELF} __list_rows)" >/dev/null 2>&1
 }
 
 ytq_json_dir() {
@@ -1286,10 +1361,27 @@ cmd_list() {
   local rm_cmd="${(q)YTQ_SELF} __rm_index"
   local play_cmd="${(q)YTQ_SELF} __preview_play"
   local record_cmd="${(q)YTQ_SELF} __preview_record"
+  local launch_cmd="${(q)YTQ_SELF} __launch"
+  local copy_cmd="${(q)YTQ_SELF} __copy_urls"
   local key url fzf_status
   local -a out
 
+  # Any `ytq list <yt-dlp args>` have to be baked into the Enter binding — the
+  # launcher runs as an fzf child, so it can't see this function's argv.
+  local extra_args=""
+  (( $# )) && extra_args=" ${(j: :)${(q)@}}"
+
   [[ -n "${YT_DLP_ARCHIVE_FILE:-}" && -r "$YT_DLP_ARCHIVE_FILE" ]] || archive_note="archive: unavailable"
+
+  # fzf never wraps a header/footer, and the footer only spans the list pane
+  # (the preview eats 40% of the width), so the key list has to be hand-broken
+  # into short lines or it just gets truncated mid-binding.
+  local k="$YTQ_C_ACCENT" d="$YTQ_C_DIM" r="$YTQ_C_RESET"
+  local footer
+  footer="${k}enter${r}${d} download in kitty (stays open)   ${r}${k}alt-enter${r}${d} ytui here${r}"$'\n'
+  footer+="${k}ctrl-o${r}${d} play in mpv   ${r}${k}ctrl-r${r}${d} play + record   ${r}${k}ctrl-y${r}${d} copy url${r}"$'\n'
+  footer+="${k}ctrl-d${r}${d} delete row   ${r}${k}ctrl-x${r}${d} clean completed   ${r}${k}alt-e${r}${d} archive line${r}"$'\n'
+  footer+="${d}j/k move   tab select   esc quit   ${YTQ_C_OK}${YTQ_I_CHECK}${r}${d} done   ${YTQ_C_WARN}${YTQ_I_DOWN}${r}${d} downloading${r}"
 
   out=( "${(f)$(
     cmd_list_rows |
@@ -1305,13 +1397,19 @@ cmd_list() {
         --marker='»' \
         --pointer='❯' \
         --listen \
-        --prompt='ytq list> ' \
-        --header="j/k: move | tab: select | enter: ytui in kitty pane | alt-enter: ytui here | alt-e: edit archive line | ctrl-o: preview in mpv | ctrl-r: preview + record in mpv | ctrl-d: delete row | ctrl-x: clean completed | esc: cancel | ${YTQ_I_CHECK}: archived | $archive_note" \
+        --no-input \
+        --info=hidden \
+        --footer="$footer" \
+        --footer-border=line \
+        --footer-label=" keys " \
+        --header="${YTQ_C_DIM}${archive_note}${YTQ_C_RESET}" \
         --bind="j:down,k:up" \
+        --bind="enter:execute-silent($launch_cmd \$FZF_PORT$extra_args -- {+1})+reload($rows_cmd)" \
         --bind="ctrl-d:execute-silent($rm_cmd {2})+reload($rows_cmd)" \
         --bind="ctrl-x:execute-silent($clean_cmd)+reload($rows_cmd)" \
         --bind="ctrl-o:execute-silent($play_cmd {1})" \
         --bind="ctrl-r:execute-silent($record_cmd {1})" \
+        --bind="ctrl-y:execute-silent($copy_cmd {+1})+bell" \
         --preview="${(q)YTQ_SELF} __preview {1}" \
         --preview-window='right,40%,wrap,border-left'
   )}" )
@@ -1498,6 +1596,154 @@ cmd_kitty_ytui() {
     -- "$ytui" "$@" "$url"
 }
 
+# `ytq list` Enter: launch ytui for every selected URL in its own Kitty window
+# WITHOUT closing the picker, so you can keep queueing more. Called as
+#   ytq __launch <fzf-port> [ytui args ...] -- <url> [url ...]
+# The port is passed explicitly rather than inherited: `kitten @ launch` starts
+# the new window from the kitty daemon's environment, so FZF_PORT would not
+# survive the trip into the ytui wrapper.
+cmd_launch_ytui() {
+  local port="$1"
+  local -a extra urls
+  local arg url ytui kitty_launch
+
+  shift
+
+  # fzf's execute-silent throws away stdout AND stderr, so anything that fails
+  # in here (missing ytui, kitty IPC unreachable, a bad URL) is completely
+  # invisible — Enter simply appears to do nothing. Everything this subcommand
+  # says goes to a log instead of the void: `ytq launchlog` reads it back.
+  local log
+  log="$(ytq_launch_log)"
+  mkdir -p "${log:h}" 2>/dev/null
+  exec 2>>"$log"
+  print -u2 -r -- "[$(date '+%Y-%m-%d %H:%M:%S')] __launch port=$port argv=${(q)@}"
+
+  for arg in "$@"; do
+    shift
+    [[ "$arg" == "--" ]] && break
+    extra+=( "$arg" )
+  done
+  urls=( "$@" )
+
+  (( ${#urls} )) || {
+    print -u2 "Usage: ytq __launch <port> [ytui args ...] -- <url> [url ...]"
+    return 1
+  }
+
+  ytui="$(ytui_bin)" || {
+    print -u2 "❌ Missing dependency: ytui"
+    return 1
+  }
+  kitty_launch="$(kitty_launch_bin)" || {
+    print -u2 "❌ Missing dependency: kitty-launch"
+    return 1
+  }
+
+  # `kitten @ launch` starts the new window from the kitty daemon's environment,
+  # which is the GUI/launchd one — it has PATH but NOT the YT_DLP_* exports from
+  # zshrc. Without these, ytui silently falls back to a private cache: metadata
+  # never lands in the shared JSON dir, so rows downloaded from here never gain
+  # a title in `ytq list`. Re-inject them explicitly via env(1); kitty-launch
+  # has no --env passthrough of its own.
+  local -a env_prefix
+  local var
+  for var in YT_DLP_BATCH_FILE YT_DLP_ARCHIVE_FILE YT_DLP_JSON_DIR YT_DLP_THUMBCACHE_DIR; do
+    [[ -n "${(P)var}" ]] && env_prefix+=( "$var=${(P)var}" )
+  done
+  (( ${#env_prefix} )) && env_prefix=( /usr/bin/env "${env_prefix[@]}" )
+
+  for url in "${urls[@]}"; do
+    # Marked here, not in the wrapper: the reload bound after this action fires
+    # immediately, well before the new Kitty window has started anything.
+    mark_running "$url"
+
+    "$kitty_launch" \
+      --window \
+      --cwd "$PWD" \
+      --title " ytui " \
+      -- "${env_prefix[@]}" "$YTQ_SELF" __run_ytui "$port" "$url" "${extra[@]}" >/dev/null
+
+    if (( $? != 0 )); then
+      print -u2 -r -- "  ✗ kitty-launch failed for $url"
+      clear_running "$url"
+    else
+      print -u2 -r -- "  ✓ launched $url"
+    fi
+  done
+}
+
+# Read back what `ytq list` Enter actually did — the only view into a binding
+# fzf runs with its output discarded.
+cmd_launch_log() {
+  local log
+  log="$(ytq_launch_log)"
+
+  if [[ ! -s "$log" ]]; then
+    print "📭 No launches logged yet: $log"
+    return 0
+  fi
+
+  print "${YTQ_C_DIM}${log}${YTQ_C_RESET}"
+  tail -n "${1:-40}" "$log"
+}
+
+# The ytui wrapper that runs inside the launched Kitty window: claims the
+# marker with its own pid, runs ytui, then clears the marker and pokes the
+# still-open `ytq list` so the finished row re-renders (archived ✓, and the
+# title/actors now that the metadata json exists).
+cmd_run_ytui() {
+  local port="$1"
+  local url="$2"
+  local ytui run_status
+
+  [[ -n "$url" ]] || {
+    print -u2 "Usage: ytq __run_ytui <port> <url> [ytui args ...]"
+    return 1
+  }
+
+  shift 2
+  ytui="$(ytui_bin)" || {
+    print -u2 "❌ Missing dependency: ytui"
+    clear_running "$url"
+    fzf_reload_rows "$port"
+    return 1
+  }
+
+  mark_running "$url" "$$"
+
+  {
+    "$ytui" "$@" "$url"
+    run_status=$?
+  } always {
+    clear_running "$url"
+    fzf_reload_rows "$port"
+  }
+
+  # `kitten @ launch` closes the window the moment its command exits, so a ytui
+  # that dies in its preflight just flashes and disappears — indistinguishable
+  # from "Enter did nothing". Hold the window open on failure so the error is
+  # actually readable.
+  if (( run_status != 0 )) && [[ -t 0 ]]; then
+    print ""
+    print -r -- "${YTQ_C_ERR}ytui exited with status ${run_status}${YTQ_C_RESET}"
+    print -r -- "${YTQ_C_DIM}${url}${YTQ_C_RESET}"
+    print -r -- "${YTQ_C_DIM}press any key to close${YTQ_C_RESET}"
+    read -k 1 -s
+  fi
+
+  return $run_status
+}
+
+# `ytq list` Ctrl-Y: copy the selected URL(s) to the clipboard, one per line so
+# a multi-selection pastes straight back into `ytq add`.
+cmd_copy_urls() {
+  (( $# )) || return 0
+  require_command pbcopy
+
+  print -rl -- "$@" | pbcopy
+}
+
 # `ytq list` Alt-E: jump straight to the matching download-archive line, so
 # you can inspect or hand-edit the record instead of hunting for it.
 cmd_edit_archive_line() {
@@ -1666,14 +1912,22 @@ Queue editing:
 
 Viewing and picking:
   ytq print                     Print the numbered queue.
-  ytq list [yt-dlp args ...]    Pick one queue item in fzf.
-                                In fzf: Enter runs ytui for it in a new Kitty
-                                pane; Alt-Enter runs ytui here instead; Alt-E
-                                opens the download archive at that item's line
-                                in \$EDITOR; Ctrl-P plays the URL in mpv
-                                without downloading; Ctrl-D deletes a row;
-                                Ctrl-X removes archived rows.
+  ytq list [yt-dlp args ...]    Browse and act on the queue in fzf.
+                                In fzf: Enter runs ytui for every selected item
+                                in its own Kitty window and LEAVES the picker
+                                open — running rows show a ⭳ downloading mark
+                                and refresh themselves when they finish;
+                                Alt-Enter runs ytui here instead (closes the
+                                picker); Alt-E opens the download archive at
+                                that item's line in \$EDITOR; Ctrl-O plays the
+                                URL in mpv without downloading; Ctrl-R plays
+                                and records it; Ctrl-Y copies the selected
+                                URL(s) to the clipboard; Ctrl-D deletes a row;
+                                Ctrl-X removes archived rows; Esc quits.
   ytq path                      Print the queue file path.
+  ytq launchlog [n]             Show the last n (default 40) lines of what
+                                \`ytq list\` Enter did — fzf discards that
+                                binding's output, so this is the only view.
 
 Downloading:
   ytq run [yt-dlp args ...]     Run yt-dlp with --batch-file.
@@ -1776,9 +2030,25 @@ case "$1" in
     shift
     cmd_edit_archive_line "$@"
     ;;
+  __copy_urls)
+    shift
+    cmd_copy_urls "$@"
+    ;;
+  launchlog)
+    shift
+    cmd_launch_log "$@"
+    ;;
   __kitty_ytui)
     shift
     cmd_kitty_ytui "$@"
+    ;;
+  __launch)
+    shift
+    cmd_launch_ytui "$@"
+    ;;
+  __run_ytui)
+    shift
+    cmd_run_ytui "$@"
     ;;
   *)
     usage

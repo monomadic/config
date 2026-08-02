@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<!-- saved from url=(0253)https://2326a9bd-fa99-45c6-aa09-b2c497d85f92.frame.claudeusercontent.com/_f/1785379806-173c/?__frame_t=_NFuyipfP481B7msRHZIJJ0D.d96ea23d-a965-4daf-8eba-5a2bc76f0b51.ef7140aa-fbfa-4344-b24b-2d00ff2187eb.1785653194&__frame_v=manifest.ec369d2e020e53f6.json -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><!-- frame-runtime --><!--<base href="/_f/1785379806-173c/">--><base href="."><script>window.__FRAME_PREAMBLE={"capabilities":{"downloads":"downloads.BABDwU1K.js","mcp":"mcp.hoz5jxDa.js","permissions":"permissions.ByA9Fd8x.js","self":"self.D3u1zjZe.js","user":"user.Cp1-RnjB.js"},"transforms":"_transforms.DYk1Ltlh.js","comments":"_comments.DiwQajF_.js","translate":"_translate.C5leZL2A.js"}</script><script>(function(){"use strict";const Ee="modulepreload",we=function(e){return"/"+e},Se={},ee=function(t,n,l){let i=Promise.resolve();function s(f){const c=new Event("vite:preloadError",{cancelable:!0});if(c.payload=f,window.dispatchEvent(c),!c.defaultPrevented)throw f}return i.then(f=>{for(const c of f||[])c.status==="rejected"&&s(c.reason);return t().catch(s)})},te=["light","dark","system"];function ne(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_init;return t!==null&&typeof t=="object"}function W(e){return e!==null&&typeof e=="object"&&e.__frame_size_poke===!0}function re(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_theme;if(t===null||typeof t!="object")return!1;const n=t.theme;return typeof n=="string"&&te.includes(n)}function se(e){try{typeof reportError=="function"?reportError(e):setTimeout(()=>{throw e},0)}catch{}}const oe=Object.freeze(Object.assign(Object.create(null),{user:Object.freeze(Object.assign(Object.create(null),{id:null,isOwner:!1,canEdit:!1,name:null,avatarUrl:null,email:null}))}));function Y(e){if(window===top||e.type==="auxclick"&&e.button!==1)return;const t=e.composedPath?e.composedPath():[e.target];let n=null;for(let f=0;f<t.length;f++){const c=t[f];if(c&&c.matches&&c.matches("a[href],area[href]")){n=c;break}}if(!n&&e.target&&e.target.closest&&(n=e.target.closest("a[href],area[href]")),!n)return;const l=n.getAttribute("href");if(!l)return;let i,s;try{i=new URL(l,document.baseURI),s=new URL(document.baseURI).origin}catch{return}(i.protocol==="http:"||i.protocol==="https:")&&i.origin!==s&&(e.preventDefault(),parent.postMessage({__frame_nav:!0,url:i.href},"*"))}const K={};function D(e){if(window===top)return;const t=Date.now();t-(K[e]||0)<500||(K[e]=t,parent.postMessage({__frame_engaged:!0,kind:e},"*"))}const ie=2e3,x=["wheel","touchstart","touchmove","keydown","pointerdown"];let J=0;function ae(e){e.isTrusted&&(J=Date.now())}function ce(){addEventListener("click",Y,!0),addEventListener("auxclick",Y,!0)}function le(){for(let e=0;e<x.length;e++)addEventListener(x[e],ae,{capture:!0,passive:!0});addEventListener("scroll",e=>{e.isTrusted&&Date.now()-J<ie&&D("scroll")},{capture:!0,passive:!0}),addEventListener("pointermove",e=>{e.isTrusted&&D("pointer")},{capture:!0,passive:!0}),addEventListener("click",e=>{e.isTrusted&&D("click")},{capture:!0,passive:!0})}const I="__frame_scroll",ue=150,fe=310,de=160,me=3e4;function pe(){let e=0,t=!1,n=!1,l=!1,i=0;const s=a=>{try{sessionStorage.setItem(I,JSON.stringify({y:a}))}catch{}},f=()=>{if(t){t=!1;return}n=!0,clearTimeout(e),e=setTimeout(()=>s(scrollY),ue)};try{addEventListener("scroll",f,{passive:!0}),addEventListener("pagehide",()=>{clearTimeout(e),s(scrollY)})}catch{}const c=()=>{let a;try{a=sessionStorage.getItem(I)}catch{return null}if(a===null)return null;let _;try{_=JSON.parse(a)}catch{_=null}const m=_?.y;if(!(typeof m=="number"&&Number.isFinite(m)&&m>=0)){try{sessionStorage.removeItem(I)}catch{}return null}return m};let g=!1;const p=a=>{try{const _=scrollY;scrollTo({top:a,left:0,behavior:"instant"}),i=a,l=!0,s(a);const m=scrollY;m!==_&&(t=!0),m!==a&&!g&&(g=!0,addEventListener("load",()=>{try{if(scrollY===m){const y=c();p(y!==null?y:i)}}catch{}},{once:!0}))}catch{}},o=()=>{try{return!!location.hash}catch{return!0}};let u=!1;const d=()=>{try{if(u||innerWidth>fe||innerHeight>de)return;u=!0;const a=Date.now(),_=()=>{try{removeEventListener("resize",_)}catch{}if(Date.now()-a>me||n||o())return;const m=c();p(m!==null?m:i)};addEventListener("resize",_)}catch{}};let h=!1,b=!1;return{restore(){if(h||(h=!0,o()))return;const a=c();a!==null&&(p(a),d())},promoted(){if(b||(b=!0,o()))return;const a=c();a!==null?(p(a),d()):l&&p(i)}}}function he(e,t,n){const l=[...t.values()].filter(i=>i.targets.some(s=>s.startsWith(e+".")));return{wrap(i,s){const f=`${e}.${i}`,c=l.filter(g=>g.targets.includes(f));return c.length===0?(...g)=>{try{return s(...g)}catch(p){return Promise.reject(p)}}:(...g)=>{let p=g;for(const u of c){const d=u.module.parameters;if(d)try{p=d(p)}catch{return Promise.reject({code:"transform_error",id:u.id,scope:e,message:"parameters transform failed"})}}let o;try{o=s(...p)}catch(u){o=Promise.reject(u)}return o.then(u=>{for(let d=c.length-1;d>=0;d--){const h=c[d],b=h.module.returns;if(b)try{u=b(u)}catch{return n({id:h.id,scope:e,leg:"returns"}),u}}return u},u=>{for(let d=c.length-1;d>=0;d--){const h=c[d],b=h.module.throws;if(b)try{u=b(u)}catch{return n({id:h.id,scope:e,leg:"throws"}),Promise.reject(u)}}return Promise.reject(u)})}}}}function ge(e,t,n,l=()=>{}){const i=new Set(e.changes??[]),s=new Map;for(const f of i){const c=t[f];c&&s.set(f,c)}return{contract:e.contract,changes:i,flags:new Set(e.flags??[]),capabilities:e.capabilities??{},capBudgets:e.capBudgets??{},transforms:s,shellOrigin:n.shellOrigin,mount:n.mount,pipe:f=>he(f,s,l)}}(function(){const e=Object.defineProperty,t=globalThis,n=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let l=0;for(let i=0;i<n.length;i++){const s=n[i];try{e(t,s,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[s]}catch{}try{e(t,s,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[s]=="function"&&l++}if(l&&window!==top)try{parent.postMessage({__frame_rtc_lockdown_failed:l},"*")}catch{}})();const _e=1e4,ye=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function G(e){for(const t of ye)if(t.endsWith(":*"))try{const n=new URL(e);if(`${n.protocol}//${n.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}const R=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),U=window.__FRAME_PREAMBLE?.transforms,z=window.__FRAME_PREAMBLE?.comments,$=window.__FRAME_PREAMBLE?.translate,T=/^[\w.-]+\.js$/,be=/^[a-z][a-z0-9_-]{0,63}$/;let V=null,j=null;function q(e,t,n){try{Object.defineProperty(e,t,{value:n,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:n,writable:!1,configurable:!0,enumerable:!0})}catch{}}}let B=!1;function X(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,B=!0):B&&(delete t.dataset.theme,t.style.colorScheme="",B=!1)}const A=Object.assign(Object.create(null),{mcp:Object.assign(Object.create(null),{watchTool:{handlerArg:3}})}),M=new Map;function Q(e,t){const n=M.get(e);if(!n)return;const l=Object.assign(Object.create(null),t);Object.assign(n.impl,l),n.impl.__settled=()=>Promise.reject({code:"capability_removed",message:`${e}: method not in this runtime`});const i=n.queue;n.queue=[];for(const s of i){const f=l[s.method];if(f)if(A[e]?.[s.method])try{s.resolve(f(...s.args))}catch{k(s,A[e][s.method].handlerArg,{code:"transform_error",message:`${e}.${s.method} rejected its arguments`})}else f(...s.args).then(s.resolve,s.reject);else{const c={code:"capability_removed",message:`${e}.${s.method} is not in this runtime`},g=A[e]?.[s.method];if(g){k(s,g.handlerArg,c);continue}s.reject(c)}}}function ve(e,t){const n=M.get(e);if(!n)return;n.impl.__settled=()=>Promise.reject(t);const l=n.queue;n.queue=[];for(const i of l){const s=A[e]?.[i.method];if(s){k(i,s.handlerArg,t);continue}i.reject(t)}}function N(e,t){const n=oe[e];if(!n){ve(e,t);return}Q(e,Object.fromEntries(Object.entries(n).map(([l,i])=>[l,()=>Promise.resolve(i)])))}function k(e,t,n){if(e.syncState?.dead)return;const l=e.args[t];typeof l=="function"&&queueMicrotask(()=>{if(!e.syncState?.dead)try{l({type:"error",error:n})}catch(i){se(i)}})}const F=Object.getOwnPropertyDescriptor(window,"claude");if(window!==top&&!(F&&F.writable===!1)){ce(),le();let e=null;try{e=pe()}catch{}const t=F?.value??{};q(window,"claude",t);const n=o=>{const u={impl:Object.create(null),queue:[]};M.set(o,u);const d=u.impl,h=new Proxy(d,{get:(b,a)=>{if(typeof a!="string"||a==="then"||a==="toJSON"||a==="valueOf")return;if(a==="toString")return Object.prototype.toString;const _=A[o]?.[a];return _?(...m)=>{if(typeof m[_.handlerArg]!="function")throw new TypeError(`${o}.${a} requires a handler function`);const y=d[a];if(y)return y(...m);if(d.__settled){const v={dead:!1},P={args:[...m],syncState:v};return d.__settled().catch(C=>k(P,_.handlerArg,C)),()=>{v.dead=!0}}let E=null;const S={dead:!1};return u.queue.push({method:a,args:m,resolve:v=>{E=typeof v=="function"?v:null,S.dead&&E?.()},reject:()=>{},syncState:S}),()=>{S.dead=!0,E?.()}}:(...m)=>{const y=d[a]??d.__settled;return y?y(...m):new Promise((E,S)=>{u.queue.push({method:a,args:m,resolve:E,reject:S})})}},set:()=>!1});q(t,o,h)};for(const o of Object.keys(R)){if(t[o]!==void 0){q(t,o,t[o]);continue}n(o)}let l=null,i=null,s=0;const f=o=>{o.source!==parent||!G(o.origin)||ne(o.data)&&(l=o.data.__frame_init,j=o.origin,removeEventListener("message",f),clearTimeout(s),i?.())};addEventListener("message",f),parent.postMessage({__frame_connect:!0},"*");const c=new Promise(o=>{i=o,s=setTimeout(()=>{removeEventListener("message",f),o()},_e)}),g=document.readyState==="loading"?new Promise(o=>document.addEventListener("DOMContentLoaded",()=>o(),{once:!0})):Promise.resolve();g.then(()=>{try{e?.restore()}catch{}});const p=o=>{if(!(o.source!==parent||!G(o.origin))&&W(o.data)){removeEventListener("message",p);try{e?.promoted()}catch{}}};addEventListener("message",p),c.then(async()=>{if(!l||!j){for(const r of M.keys())N(r,{code:"not_granted",message:"frame initialization did not arrive - capability unavailable"});return}X(l.theme);const o=j;let u=!1,d=!1;addEventListener("message",r=>{if(r.source!==parent||r.origin!==o)return;re(r.data)&&X(r.data.__frame_theme.theme);const w=r.data?.__fc_mode;w&&typeof w=="object"&&!u&&z&&T.test(z)&&(u=!0,h(z).then(H=>H.install?.(o,w.on===!0)).catch(()=>{}));const O=r.data?.__ft_cmd;O&&typeof O=="object"&&!d&&$&&T.test($)&&(d=!0,h($).then(H=>H.install?.(o,O)).catch(()=>{}))});const h=r=>ee(()=>import("/_runtime/"+r),void 0),b=Object.keys(l.capabilities??{});for(const r of b)Object.hasOwn(R,r)||be.test(r)&&t[r]===void 0&&(n(r),N(r,{code:"capability_disabled",message:"capability not in this runtime generation"}));const a=b.filter(r=>Object.hasOwn(R,r)).map(r=>[r,R[r]]).filter(r=>typeof r[1]=="string"&&T.test(r[1])),[_,...m]=await Promise.allSettled([U&&T.test(U)?h(U):Promise.resolve({}),...a.map(([,r])=>h(r))]),y=j;V=ge(l,_.status==="fulfilled"&&_.value?.TRANSFORMS||{},{shellOrigin:y,mount:Q},r=>parent.postMessage({__frame_cap_telemetry:r},y));const E=r=>parent.postMessage({__frame_cap_telemetry:{kind:"cap-load-error",cap:r}},y),S=V;m.forEach((r,w)=>{const O=a[w][0];if(r.status!=="fulfilled"){E(O);return}try{r.value?.install?.(S)}catch{E(O)}});for(const[r,w]of M)if(!(w.queue.length===0&&Object.keys(w.impl).length>0)){if(b.includes(r)){N(r,{code:"capability_disabled",message:"capability not available in this session"});continue}N(r,{code:"not_granted",message:"capability not available in this session"})}await g,parent.postMessage({__frame_ready:!0},j);let v=-1,P=0;const C=()=>{P=0;const r=Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0);r!==v&&(v=r,parent.postMessage({__frame_size:!0,h:r},y))},L=()=>{P||(P=setTimeout(C,200))},Z=new ResizeObserver(L);Z.observe(document.documentElement),document.body&&Z.observe(document.body),document.addEventListener("load",L,!0),document.fonts?.ready.then(L,()=>{}),addEventListener("beforeprint",()=>{v=-1,C()}),L(),addEventListener("message",r=>{if(!(r.source!==parent||r.origin!==y)&&W(r.data)){try{e?.promoted()}catch{}v=-1,L()}})})}})();</script><!-- /frame-runtime --><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>volume-widget — design directions</title>
+<style>
+  :root {
+    --bg: #101114;
+    --bg-raise: #17181d;
+    --ink: #e8e6e1;
+    --ink-dim: #9a978f;
+    --ink-faint: #55534d;
+    --line: #26272d;
+    --accent: #ff453a;       /* danger = unmuted */
+    --accent-soft: #ff453a26;
+    --safe: #30d158;
+    --warn: #ffd60a;
+    --chipbg: #1c1d22;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --sys: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f3f1ec; --bg-raise: #ffffff; --ink: #1c1b18; --ink-dim: #6d6a62;
+      --ink-faint: #b0ada4; --line: #e0ddd4; --accent-soft: #ff453a1c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101114; --bg-raise: #17181d; --ink: #e8e6e1; --ink-dim: #9a978f;
+    --ink-faint: #55534d; --line: #26272d; --accent-soft: #ff453a26;
+  }
+  :root[data-theme="light"] {
+    --bg: #f3f1ec; --bg-raise: #ffffff; --ink: #1c1b18; --ink-dim: #6d6a62;
+    --ink-faint: #b0ada4; --line: #e0ddd4; --accent-soft: #ff453a1c;
+  }
+
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: var(--sys);
+    line-height: 1.55; font-size: 15px;
+    max-width: 880px; margin: 0 auto; padding: 48px 28px 96px;
+  }
+  h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 4px; text-wrap: balance; }
+  h2 { font-size: 18px; font-weight: 650; letter-spacing: -0.01em; margin: 0; }
+  .kicker { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-dim); }
+  .lede { color: var(--ink-dim); max-width: 62ch; margin: 8px 0 0; }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  section { margin-top: 56px; }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+  .sec-head .kicker { color: var(--accent); }
+  section > p { color: var(--ink-dim); max-width: 66ch; margin: 6px 0 18px; }
+  section > p strong, li strong { color: var(--ink); font-weight: 600; }
+
+  /* ---- menu bar chip ---- */
+  .states { display: flex; flex-direction: column; gap: 14px; }
+  .state { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: center; }
+  @media (max-width: 640px) { .state { grid-template-columns: 1fr; gap: 6px; } }
+  .menubar {
+    background: linear-gradient(#2e2f33, #27282c);
+    border: 1px solid #3a3b40; border-radius: 8px;
+    height: 34px; display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 10px; gap: 14px;
+    font-family: var(--sys); color: #e8e8e8; font-size: 13px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.35);
+    flex-shrink: 0; width: 300px; box-sizing: border-box;
+  }
+  .mb-ghost { color: #7c7d82; font-size: 12px; }
+  .widget { display: flex; align-items: center; gap: 5px; padding: 3px 7px; border-radius: 5px; }
+  .widget.active { background: rgba(255,255,255,.14); }
+  .caption { color: var(--ink-dim); font-size: 13.5px; max-width: 52ch; }
+  .caption b { color: var(--ink); font-weight: 600; }
+  .caption code { font-family: var(--mono); font-size: 12px; color: var(--ink); }
+
+  .glyph { width: 15px; height: 15px; display: block; }
+  .glyph.dim { opacity: .45; }
+  .pct { font-variant-numeric: tabular-nums; }
+  .red { color: var(--accent); }
+  .green { color: var(--safe); }
+  .yellow { color: var(--warn); }
+  .dimtxt { color: #9b9ca1; }
+
+  /* volume bar (strikethrough-line style, like battery-widget) */
+  .vbar { width: 40px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.18); overflow: hidden; }
+  .vbar > i { display: block; height: 100%; border-radius: 3px; background: #d9d9dc; }
+  .vbar.red-fill > i { background: var(--accent); }
+  .vbar.green-fill > i { background: var(--safe); }
+
+  /* segmented level meter */
+  .meter { display: flex; gap: 2px; align-items: flex-end; height: 14px; }
+  .meter i { width: 3px; background: #6a6b70; border-radius: 1px; height: 30%; }
+  .meter.live i { background: var(--accent); animation: lvl 640ms ease-in-out infinite alternate; }
+  .meter.live i:nth-child(1) { animation-delay: -120ms; }
+  .meter.live i:nth-child(2) { animation-delay: -420ms; }
+  .meter.live i:nth-child(3) { animation-delay: -240ms; }
+  .meter.live i:nth-child(4) { animation-delay: -560ms; }
+  .meter.live i:nth-child(5) { animation-delay: 0ms; }
+  @keyframes lvl { from { height: 15%; } to { height: 100%; } }
+  @media (prefers-reduced-motion: reduce) {
+    .meter.live i { animation: none; height: 60%; }
+    .pulse { animation: none !important; }
+  }
+  .pulse { animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+
+  /* ---- dropdown mockup ---- */
+  .dropdown-wrap { display: grid; grid-template-columns: 280px 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 640px) { .dropdown-wrap { grid-template-columns: 1fr; } }
+  .dropdown {
+    width: 280px; box-sizing: border-box;
+    background: rgba(44,45,50,.97);
+    border: 1px solid #4a4b50; border-radius: 10px;
+    padding: 6px; color: #ececec; font-size: 13px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+  }
+  .dd-item { padding: 5px 10px; border-radius: 5px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .dd-item .k { color: #a9aaaf; }
+  .dd-item.hover { background: #3f6fe0; color: #fff; }
+  .dd-item.hover .k { color: #d8e2ff; }
+  .dd-sep { height: 1px; background: #55565b; margin: 5px 8px; }
+  .dd-header { padding: 8px 10px 4px; }
+  .dd-header .big { font-size: 15px; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+  .dd-header .sub { color: #a9aaaf; font-size: 12px; margin-top: 2px; }
+  .dd-meterrow { display: flex; align-items: center; gap: 8px; padding: 8px 10px 10px; }
+  .dd-track { flex: 1; height: 6px; border-radius: 3px; background: #55565b; position: relative; }
+  .dd-track > .fill { position: absolute; inset: 0 auto 0 0; width: 35%; background: #d9d9dc; border-radius: 3px; }
+  .dd-track > .lvl { position: absolute; inset: 0 auto 0 0; width: 22%; background: var(--safe); border-radius: 3px; opacity: .85; }
+  .dd-track > .knob { position: absolute; top: 50%; left: 35%; width: 16px; height: 16px; border-radius: 50%; background: #fff; transform: translate(-50%,-50%); box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+  .check { width: 14px; text-align: center; color: #fff; }
+  .dd-note { color: var(--ink-dim); font-size: 13.5px; }
+  .dd-note p { margin: 0 0 12px; max-width: 46ch; }
+  .dd-note b { color: var(--ink); }
+
+  /* tables */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: 0; }
+  th { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-dim); font-weight: 500; }
+  td:first-child { white-space: nowrap; font-weight: 600; }
+  td { color: var(--ink-dim); }
+  td .chipcell { display: inline-flex; }
+  .menubar.mini { width: auto; padding: 0 8px; height: 30px; box-shadow: none; }
+
+  .cost { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 700px) { .cost { grid-template-columns: 1fr; } }
+  .cost-card { background: var(--bg-raise); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+  .cost-card h3 { margin: 0 0 2px; font-size: 14px; font-weight: 650; }
+  .cost-card .tag { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; }
+  .tag.free { color: var(--safe); } .tag.cheap { color: var(--warn); } .tag.real { color: var(--accent); }
+  .cost-card p { color: var(--ink-dim); font-size: 13px; margin: 6px 0 0; }
+  .cost-card code { font-family: var(--mono); font-size: 11.5px; }
+
+  .verdict { border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 8px 8px 0; padding: 14px 18px; margin-top: 20px; }
+  .verdict p { margin: 0; max-width: 66ch; }
+</style>
+
+<p class="kicker">utils/volume-widget · design directions</p>
+<h1>A volume widget whose real job is silence</h1>
+<p class="lede">Sibling of <strong>battery-widget</strong> — Rust + objc2, native NSStatusItem, attributed-title bars. The twist: for a DJ, the semantics invert. <strong>Muted is the safe state.</strong> The widget shouldn't help you hear the volume — it should make it impossible to not notice when the Mac can make sound.</p>
+
+<section>
+  <div class="sec-head"><span class="kicker">Direction A</span><h2>Sentinel — state, not level</h2></div>
+  <p>The menu bar shows one thing: can this machine emit sound? Muted, it disappears into monochrome. Unmuted, it turns red and stays red — no numbers needed. Quietest possible footprint; nothing animates, ever.</p>
+  <div class="states">
+    <div class="state">
+      <div class="menubar"><span class="mb-ghost">⌥ ⚙ 87%</span>
+        <div class="widget"><svg class="glyph dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z" fill="currentColor" stroke="none"></path><line x1="16" y1="9" x2="22" y2="15"></line><line x1="22" y1="9" x2="16" y2="15"></line></svg></div>
+      </div>
+      <div class="caption"><b>Muted.</b> Dim slashed speaker, standard menu-bar monochrome. Boring on purpose — glance up, see nothing loud, you're safe.</div>
+    </div>
+    <div class="state">
+      <div class="menubar"><span class="mb-ghost">⌥ ⚙ 87%</span>
+        <div class="widget"><svg class="glyph red" viewBox="0 0 24 24" fill="currentColor"><path d="M11 5 6 9H3v6h3l5 4V5z"></path><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span class="pct red">65%</span></div>
+      </div>
+      <div class="caption"><b>Unmuted.</b> Red speaker + volume percent. Red is reserved for exactly this — nothing else in the widget ever uses it.</div>
+    </div>
+    <div class="state">
+      <div class="menubar"><span class="mb-ghost">⌥ ⚙ 87%</span>
+        <div class="widget"><svg class="glyph red pulse" viewBox="0 0 24 24" fill="currentColor"><path d="M11 5 6 9H3v6h3l5 4V5z"></path><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span class="pct red">100%</span></div>
+      </div>
+      <div class="caption"><b>Unmuted at full volume</b> — the nightmare scenario. Icon pulses. This is the one animation Direction A allows, and it costs nothing (an NSTimer flipping alpha).</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="kicker">Direction B</span><h2>Meter — the battery-widget family look</h2></div>
+  <p>Reuses the strikethrough-run bar you already built. The bar shows the volume <em>setting</em>; when audio is actually flowing and unmuted, the bar becomes a live level meter. Feels like a channel strip living next to your battery bar.</p>
+  <div class="states">
+    <div class="state">
+      <div class="menubar"><span class="mb-ghost">⌥ ⚙ 87%</span>
+        <div class="widget"><svg class="glyph dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z" fill="currentColor" stroke="none"></path><line x1="16" y1="9" x2="22" y2="15"></line><line x1="22" y1="9" x2="16" y2="15"></line></svg><div class="vbar"><i style="width:0%"></i></div></div>
+      </div>
+      <div class="caption"><b>Muted.</b> Empty bar, dim glyph. The empty bar itself is information: nothing can pass.</div>
+    </div>
+    <div class="state">
+      <div class="menubar"><span class="mb-ghost">⌥ ⚙ 87%</span>
+        <div class="widget"><div class="vbar red-fill"><i style="width:65%"></i></div><span class="pct red">65%</span></div>
+      </div>
+      <div class="caption"><b>Unmuted, idle.</b> Red fill to the set volume. Same geometry as the battery bar (40×6pt, 3pt radius) so the two widgets read as one system.</div>
+    </div>
+    <div class="state">
+      <div class="menubar"><span class="mb-ghost">⌥ ⚙ 87%</span>
+        <div class="widget"><div class="meter live"><i></i><i></i><i></i><i></i><i></i></div><span class="pct red">65%</span></div>
+      </div>
+      <div class="caption"><b>Unmuted + audio playing.</b> Segmented meter dances with the actual output level. See the cost notes below — this is the one feature with a real price tag.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="kicker">Direction C</span><h2>Smart — recommended</h2></div>
+  <p>The state machine, borrowing "Smart Bar" logic from battery-widget. One layout that morphs by state, so the safe state is nearly invisible and every step toward danger adds visual weight:</p>
+  <div class="tablewrap">
+    <table>
+      <tbody><tr><th>State</th><th>Menu bar</th><th>Treatment</th></tr>
+      <tr>
+        <td>Muted</td>
+        <td><span class="chipcell"><span class="menubar mini"><span class="widget"><svg class="glyph dim" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z" fill="currentColor" stroke="none"></path><line x1="16" y1="9" x2="22" y2="15"></line><line x1="22" y1="9" x2="16" y2="15"></line></svg></span></span></span></td>
+        <td>Dim glyph only. Monochrome, minimal width.</td>
+      </tr>
+      <tr>
+        <td>Unmuted, low (&lt;25%)</td>
+        <td><span class="chipcell"><span class="menubar mini"><span class="widget"><svg class="glyph yellow" viewBox="0 0 24 24" fill="currentColor"><path d="M11 5 6 9H3v6h3l5 4V5z"></path><path d="M15.5 8.5a5 5 0 0 1 0 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span class="pct yellow">18%</span></span></span></span></td>
+        <td>Yellow — audible but quiet. You probably meant to do this.</td>
+      </tr>
+      <tr>
+        <td>Unmuted, loud</td>
+        <td><span class="chipcell"><span class="menubar mini"><span class="widget"><svg class="glyph red" viewBox="0 0 24 24" fill="currentColor"><path d="M11 5 6 9H3v6h3l5 4V5z"></path><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span class="pct red">65%</span></span></span></span></td>
+        <td>Red glyph + percent. Impossible to miss next to monochrome neighbours.</td>
+      </tr>
+      <tr>
+        <td>Unmuted + playing</td>
+        <td><span class="chipcell"><span class="menubar mini"><span class="widget"><span class="meter live"><i></i><i></i><i></i><i></i><i></i></span><span class="pct red">65%</span></span></span></span></td>
+        <td>Live meter, only while signal is present (and only if metering is enabled).</td>
+      </tr>
+      <tr>
+        <td>Gig Mode</td>
+        <td><span class="chipcell"><span class="menubar mini"><span class="widget"><svg class="glyph green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z" fill="currentColor" stroke="none"></path><line x1="16" y1="9" x2="22" y2="15"></line><line x1="22" y1="9" x2="16" y2="15"></line></svg><svg class="glyph green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="2" fill="currentColor" stroke="none"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></span></span></span></td>
+        <td>Green slashed speaker + padlock: mute is <b>enforced</b>, not just current. The only place green appears.</td>
+      </tr>
+    </tbody></table>
+  </div>
+  <p style="margin-top:18px"><strong>Gig Mode is the feature the other directions don't have.</strong> It's a CoreAudio property listener on mute/volume: if anything unmutes the device — an app, a HUD key, AirPlay handoff — the widget instantly re-mutes it and flashes a notification. You toggle it before you leave for the gig; the system physically can't sneak audio out. This costs nothing at idle (the listener is event-driven, no polling).</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="kicker">Dropdown</span><h2>The NSMenu</h2></div>
+  <div class="dropdown-wrap">
+    <div class="dropdown">
+      <div class="dd-header">
+        <div class="big"><svg class="glyph red" style="width:16px;height:16px" viewBox="0 0 24 24" fill="currentColor"><path d="M11 5 6 9H3v6h3l5 4V5z"></path><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg> MacBook Pro Speakers</div>
+        <div class="sub">Unmuted · 35% · signal −18 dB</div>
+      </div>
+      <div class="dd-meterrow">
+        <div class="dd-track"><span class="lvl"></span><span class="fill" style="opacity:.35"></span><span class="knob"></span></div>
+      </div>
+      <div class="dd-sep"></div>
+      <div class="dd-item hover"><span>Mute</span><span class="k">⌘M</span></div>
+      <div class="dd-item"><span>Gig Mode — lock mute</span><span class="k">off</span></div>
+      <div class="dd-sep"></div>
+      <div class="dd-item"><span class="check">✓</span><span style="flex:1;text-align:left">MacBook Pro Speakers</span></div>
+      <div class="dd-item"><span class="check"></span><span style="flex:1;text-align:left">DJM-900NXS2 USB</span></div>
+      <div class="dd-item"><span class="check"></span><span style="flex:1;text-align:left">AirPods Pro</span></div>
+      <div class="dd-sep"></div>
+      <div class="dd-item"><span>Style</span><span class="k">Smart ▸</span></div>
+      <div class="dd-item"><span>Quit</span></div>
+    </div>
+    <div class="dd-note">
+      <p>Native <b>NSMenu</b>, same as battery-widget. The header is a custom-view menu item: device name, state line, and a real slider whose track doubles as a level meter (green fill = current signal, grey knob = set volume).</p>
+      <p><b>Output device list matters for a DJ:</b> mute state is per-device in CoreAudio. Muting the internal speakers doesn't mute the DJM's USB return — the widget tracks the <em>default output</em> and shows which device it's guarding, so there's no false confidence.</p>
+      <p>Gig Mode sits one click below Mute — armed, the menu bar goes green-locked and the item reads "Gig Mode — unlock".</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="kicker">Cost</span><h2>What the live meter actually costs</h2></div>
+  <p>Everything above except the dancing meter is effectively free. Three tiers, cheapest first:</p>
+  <div class="cost">
+    <div class="cost-card">
+      <div class="tag free">free · event-driven</div>
+      <h3>Mute / volume / device state</h3>
+      <p><code>AudioObjectAddPropertyListener</code> on mute, volume, and default-device. Zero polling, wakes only on change. Powers Directions A and C entirely, including Gig Mode enforcement.</p>
+    </div>
+    <div class="cost-card">
+      <div class="tag cheap">cheap · coarse</div>
+      <h3>"Is anything playing?"</h3>
+      <p><code>kAudioDevicePropertyDeviceIsRunningSomewhere</code> — a boolean, listenable. Enough to switch the icon between idle and playing states without touching sample data.</p>
+    </div>
+    <div class="cost-card">
+      <div class="tag real">real cost · opt-in</div>
+      <h3>Actual levels</h3>
+      <p>A CoreAudio process tap (<code>CATapDescription</code>, macOS 14.2+) reading peak amplitude, redrawing the title at ~10 fps. Roughly 1–2% of one core while audio plays. Off by default; auto-suspends when muted or idle.</p>
+    </div>
+  </div>
+  <div class="verdict">
+    <p><b>Recommendation:</b> build Direction C on the two free tiers — that alone covers "never accidentally live at a gig" and "quickly check levels" (the set volume). Ship the tap-based meter behind a Style option ("Smart Meter"), so the animation exists when you want it and costs nothing when you don't.</p>
+  </div>
+</section>
+
+</body></html>
