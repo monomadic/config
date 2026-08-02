@@ -33,10 +33,11 @@ row_height_min = 0.62
 row_height_max = 1.6
 gap = 1.0  # space between tiles
 
-thumb_width  = 448      # ~2:1 — keeps the ultrawide hedge
-thumb_height = 224      # 224 vs your ~110-176 device px rows
-#atlas_memory_mb = 600   # → 1566 slots (2.0× today's 768)
+thumb_width = 448  # ~2:1 — keeps the ultrawide hedge
+thumb_height = 224  # 224 vs your ~110-176 device px rows
+# atlas_memory_mb = 600   # → 1566 slots (2.0× today's 768)
 chapter_images = 64
+
 # ── Colors ──────────────────────────────────────────────────────────────
 # All colors are [r, g, b] with 0..1 channels.
 background = [0.0, 0.0, 0.0]  # window background
@@ -101,9 +102,9 @@ zoom_min = 0.35
 zoom_max = 3.0
 zoom_smoothing = 0.35  # fixed grid only; with zoom_wrap the layout snaps and the tile tweens ARE the zoom animation
 zoom_fade_ms = 180.0
-zoom_ribbon = true          # flexible grid: pinch grips the strip (off = pinch uses zoom_wrap too)
-zoom_ribbon_settle = 0.34   # how snappily a released ribbon settles; k = 1 - e^(-speed/60), so this is 25/s
-zoom_ribbon_blend = 21.5    # how fast rows loosen from justified into one uniform strip, per unit of |ln(zoom change)|
+zoom_ribbon = true  # flexible grid: pinch grips the strip (off = pinch uses zoom_wrap too)
+zoom_ribbon_settle = 0.34  # how snappily a released ribbon settles; k = 1 - e^(-speed/60), so this is 25/s
+zoom_ribbon_blend = 21.5  # how fast rows loosen from justified into one uniform strip, per unit of |ln(zoom change)|
 zoom_ribbon_release_ms = 150.0  # quiet time after the last pinch event that ends the gesture
 zoom_wrap = true  # flexible grid: wrap the zoom reflow (off = crossfade)
 zoom_wrap_ms = 220.0  # duration of one tile's row-wrap slide
@@ -240,7 +241,7 @@ strip_scroll_sensitivity = 1.0
 # magnetic, chip-by-chip flow. false: scrolling only PEEKS — the strip
 # pans while the selected clip keeps playing (hover still previews);
 # click a chip to play it. The strip re-centers when the selection moves.
-strip_scroll_selects = true
+strip_scroll_selects = false
 
 # ── Chapter bar (g, inside fullview) ────────────────────────────────────
 # Filmstrip-style chapter chips slide up from the bottom of fullview
@@ -332,7 +333,7 @@ thumb_quality = 8
 # frames = grid², frame size = thumb/grid. 3 = 9 frames, 2 = 4 crisper
 # frames. Sheets only generate on demand, when quickview or fullview
 # opens on a clip — never library-wide.
-#anim_grid = 3
+# anim_grid = 3
 
 # Concurrent background thumbnail-sweep jobs allowed WHILE a clip is playing.
 # The sweep is throttled this narrow so it can't steal CPU / the VideoToolbox
@@ -447,7 +448,6 @@ library_count_size = 14.0
 library_count_color = [0.66, 0.65, 0.70]
 library_count_pill = 0.5
 
-
 # ── Keys & commands (DESIGN.md §11) ────────────────────────────────────────
 # Every key is remappable, movement included: hjkl and the arrows bind to
 # the context-sensitive `move_left`/`move_down`/`move_up`/`move_right`
@@ -507,9 +507,9 @@ t = "toggle_skip_timer"  # auto-advance every skip_timer_s of playback
 y = "yazi"
 "[" = "skip_back"  # jump by skip_fraction; wraps at the ends
 "]" = "skip_forward"
-1 = "library '~/Movies/Porn'"
-2 = "library '/Volumes/Tower/Movies/Porn'"
-3 = "library '/Volumes/Footage 1tb/Movies/Porn'"
+1 = "load '~/Movies/Porn'"
+2 = "load '/Volumes/Tower/Movies/Porn'"
+3 = "load '/Volumes/Footage 1tb/Movies/Porn'"
 
 # n = "rename_script"    # any key -> any launched program; example below
 # "{" = "skip_back_big"  # a skip with its own amount; see below

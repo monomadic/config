@@ -273,6 +273,93 @@ format_duration() {
   fi
 }
 
+# Probes embedded format tags for a source url and an id. When both are
+# present the file was captured from the web with tracked provenance, and a
+# different naming convention applies (see build_metadata_title_segment):
+# actor/channel come from the file's own "actors"/"channel" tags as a
+# fallback when the filename doesn't already carry an "Actor (Channel) - "
+# prefix, and the title is never length-truncated.
+META_HAS_URL=false
+META_HAS_ID=false
+META_ACTORS=""
+META_CHANNEL=""
+probe_metadata_tags() {
+  local file="$1"
+  local tags line key value lkey
+
+  META_HAS_URL=false
+  META_HAS_ID=false
+  META_ACTORS=""
+  META_CHANNEL=""
+
+  command -v ffprobe >/dev/null 2>&1 || return 0
+
+  tags="$(ffprobe -v error -show_entries format_tags \
+    -of default=noprint_wrappers=1:nokey=0 -- "$file" 2>/dev/null)"
+  [[ -n "$tags" ]] || return 0
+
+  while IFS= read -r line; do
+    key="${line%%=*}"
+    value="${line#*=}"
+    key="${key#TAG:}"
+    lkey="${key:l}"
+
+    case "$lkey" in
+      source_url|webpage_url|purl) [[ -n "$value" ]] && META_HAS_URL=true ;;
+      yt_dlp_id|id) [[ -n "$value" ]] && META_HAS_ID=true ;;
+      actors) META_ACTORS="$value" ;;
+      channel) META_CHANNEL="$value" ;;
+    esac
+  done <<< "$tags"
+}
+
+# Same prefix/suffix split as truncate_title_segment (a leading "Actor
+# (Channel) - " prefix stays put, trailing #tag/underscored tokens stay a
+# suffix), but for the url+id metadata convention: the title additionally
+# strips '-.,! and is never length-truncated.
+build_metadata_title_segment() {
+  local name="$1"
+  local prefix="" tail="$name" title="" suffix=""
+  local -a tokens keep suffix_tokens
+  local tok
+
+  if [[ "$name" =~ '^(.* - )(.+)$' ]]; then
+    prefix="${match[1]}"
+    tail="${match[2]}"
+  elif [[ -n "$META_ACTORS" || -n "$META_CHANNEL" ]]; then
+    if [[ -n "$META_ACTORS" && -n "$META_CHANNEL" ]]; then
+      prefix="${META_ACTORS} (${META_CHANNEL}) - "
+    elif [[ -n "$META_ACTORS" ]]; then
+      prefix="${META_ACTORS} - "
+    else
+      prefix="(${META_CHANNEL}) - "
+    fi
+  fi
+
+  tokens=(${(z)tail})
+  for tok in "${tokens[@]}"; do
+    if [[ "$tok" == \#* || "$tok" =~ '^[[:alnum:]][[:alnum:]_-]*_[[:alnum:]][[:alnum:]_-]*$' ]]; then
+      suffix_tokens+=("$tok")
+    elif (( ${#suffix_tokens[@]} > 0 )); then
+      suffix_tokens+=("$tok")
+    else
+      keep+=("$tok")
+    fi
+  done
+
+  title="$(trim_whitespace "${(j: :)keep}")"
+  suffix="$(trim_whitespace "${(j: :)suffix_tokens}")"
+  title="${title//[-.,!]/}"
+  title="$(trim_whitespace "$title")"
+  title="$(capital_case_text "$title")"
+
+  if [[ -n "$suffix" ]]; then
+    print -r -- "$(trim_whitespace "${prefix}${title} ${suffix}")"
+  else
+    print -r -- "$(trim_whitespace "${prefix}${title}")"
+  fi
+}
+
 get_rotation() {
   local file="$1"
   local rotation=""
@@ -493,7 +580,14 @@ process_video() {
   log_verbose "derived flags for ${filename}: codec_flag=${codec_flag:-<none>} orientation=${orientation_flag} hdr=${hdr_flag}"
 
   extension="${filename:e}"
-  name_without_ext="$(truncate_title_segment "$name_without_ext" 140)"
+
+  probe_metadata_tags "$file"
+  if $META_HAS_URL && $META_HAS_ID; then
+    log_verbose "metadata convention: source url + id tags present (actors='${META_ACTORS}' channel='${META_CHANNEL}')"
+    name_without_ext="$(build_metadata_title_segment "$name_without_ext")"
+  else
+    name_without_ext="$(truncate_title_segment "$name_without_ext" 140)"
+  fi
 
   local -a tags
 
