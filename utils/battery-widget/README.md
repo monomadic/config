@@ -28,6 +28,32 @@ rate and time to full in the dropdown), red below 10% while discharging,
 yellow in Low Power Mode; otherwise default menu bar monochrome with power
 draw as the text.
 
+## Animation
+
+A second timer re-renders the cached reading at 20fps, and only runs while
+something is actually animating. Only one thing in the widget moves at a
+time — the bar is what breathes, and the bolt stays solid unless the charge
+is critical:
+
+- **≤8% and discharging** — the bar breathes red, and the bolt turns red and
+  throbs fast. The only state that animates the bolt.
+- **>95% charge** — the bar breathes in the menu bar's own foreground colour,
+  so it reads white on a dark menu bar and adapts on a light one. This is
+  charge level, not the health percentage in the dropdown.
+- **Plugged in** — the bar breathes in the same foreground colour; the bolt
+  does not move. "Plugged in" means `on_ac`, not `state == Charging`: at 100%
+  pmset reports `charged`, which is still on the charger.
+
+The bolt itself is a charge-level readout rather than a charging indicator:
+yellow above 60%, white at low alpha as it drains, red once critical.
+
+`Icon and Bar` draws the bolt into the bar image rather than setting it as a
+title run, so the button has a single image to centre. A title run's glyph
+side bearing is what left the content sitting off-centre in its capsule.
+
+The track behind the fill stays at constant alpha, so the pulse reads as the
+charge level fading rather than the whole widget blinking.
+
 The bar is drawn as strikethrough space runs in the attributed title — the
 strike renders as one thin continuous line, vertically centered. Glyph bars
 (`━`, `█`) leave per-cell gaps or seams, and run backgrounds always fill the
