@@ -26,6 +26,10 @@ zmodload zsh/datetime   # $EPOCHREALTIME, for round-trip timing
 # this and are sent whole; only pathological diffs get truncated.
 GC_DIFF_MAX_CHARS=${GC_DIFF_MAX_CHARS:-65536}
 
+# A persistent backend, signing, or Git failure should return control to the
+# user instead of allowing an interactive retry cycle to run forever.
+GC_RETRY_LIMIT=${GC_RETRY_LIMIT:-3}
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -48,6 +52,7 @@ Environment variables:
   GC_REASONING            Codex reasoning effort (default: low)
   GC_CLAUDE_MODEL         Claude model to use (default: claude-haiku-4-5-20251001)
   GC_DIFF_MAX_CHARS       Cap on the patch body sent to the model (default: 65536)
+  GC_RETRY_LIMIT          Maximum attempts for a repeated operation (default: 3)
 
 Examples:
   git-sync
@@ -416,6 +421,33 @@ has_conflicts() {
   [[ -n "$(git diff --name-only --diff-filter=U)" ]]
 }
 
+# An unmerged path stays in the index until it is staged, even after every
+# marker has been removed from its working-tree file. Keep that Git state
+# separate from the actual condition the AI is responsible for fixing.
+has_conflict_markers() {
+  local -a files
+  files=( "${(@f)$(git diff --name-only --diff-filter=U)}" )
+
+  local file
+  for file in "${files[@]}"; do
+    [[ -f "$file" ]] || continue
+    LC_ALL=C grep -qE '^(<<<<<<<|\|\|\|\|\|\|\||=======|>>>>>>>)' "$file" \
+      && return 0
+  done
+
+  return 1
+}
+
+# Stage only the paths that were unmerged. `git add -A` here would also sweep
+# unrelated working-tree edits into the merge/rebase commit.
+stage_conflicts() {
+  local -a files
+  files=( "${(@f)$(git diff --name-only --diff-filter=U)}" )
+  (( ${#files} )) || return 0
+
+  git add -A -- "${files[@]}"
+}
+
 push_now() {
   info "Pushing"
   git push
@@ -477,22 +509,32 @@ EOF
 # choice if it fails or leaves markers behind. Returns 1 only once the user
 # opts out to manual resolution.
 resolve_conflicts_with_retry() {
+  local attempt=0
+  local files
+
   while true; do
-    local files
+    (( ++attempt ))
+
     files=$(git diff --name-only --diff-filter=U)
     info "Resolving conflicts: ${files//$'\n'/, }"
 
-    if ai_resolve_conflicts && ! has_conflicts; then
+    if ai_resolve_conflicts && ! has_conflict_markers; then
       return 0
     fi
 
-    if has_conflicts; then
+    if has_conflict_markers; then
       warn "AI left conflict markers in place"
     else
       warn "AI backend failed to resolve conflicts"
     fi
 
-    confirm_retry "Retry conflict resolution with AI?" || return 1
+    if (( attempt >= GC_RETRY_LIMIT )); then
+      warn "Conflict resolution failed after $attempt attempts"
+      return 1
+    fi
+
+    confirm_retry "Retry conflict resolution with AI? (attempt $attempt/$GC_RETRY_LIMIT)" \
+      || return 1
   done
 }
 
@@ -506,20 +548,49 @@ finalize_with_retry() {
   local description=$1
   shift
 
-  while true; do
-    local err_file
-    err_file=$(mktemp)
+  local attempt=0
+  local output_file output
 
-    if GIT_EDITOR=true "$@" >/dev/null 2>"$err_file"; then
-      rm -f "$err_file"
+  while true; do
+    (( ++attempt ))
+
+    output_file=$(mktemp)
+
+    # Git and signing helpers are inconsistent about which stream carries the
+    # useful diagnostic, so keep both. Previously stdout was discarded, which
+    # reduced some failures to a blank warning and made retries guesswork.
+    if GIT_EDITOR=true "$@" >"$output_file" 2>&1; then
+      rm -f "$output_file"
       return 0
     fi
 
-    warn "$description failed: $(<"$err_file")"
-    rm -f "$err_file"
+    output=$(<"$output_file")
+    rm -f "$output_file"
+    [[ -n "$output" ]] || output="no diagnostic output"
 
-    confirm_retry "Retry '$description'?" || return 1
+    warn "$description failed: $output"
+
+    if (( attempt >= GC_RETRY_LIMIT )); then
+      warn "$description failed after $attempt attempts"
+      return 1
+    fi
+
+    confirm_retry "Retry '$description'? (attempt $attempt/$GC_RETRY_LIMIT)" \
+      || return 1
   done
+}
+
+# `git rebase --continue` reports unrelated unstaged edits with the misleading
+# "edit all merge conflicts" message. Detect that precondition ourselves so a
+# retry cannot helpfully-but-pointlessly repeat the same command.
+continue_rebase_with_retry() {
+  if ! git diff --quiet; then
+    warn "Unstaged changes block git rebase --continue:"
+    git diff --name-only | sed 's/^/  • /'
+    return 1
+  fi
+
+  finalize_with_retry "git rebase --continue" git rebase --continue
 }
 
 # Drive a conflicted rebase to completion with the AI: resolve markers, stage,
@@ -529,12 +600,17 @@ resolve_rebase_with_ai() {
     if has_conflicts; then
       resolve_conflicts_with_retry || return 1
 
-      git add -A
+      stage_conflicts
 
-      finalize_with_retry "git rebase --continue" git rebase --continue || return 1
+      continue_rebase_with_retry || return 1
+    elif ! git diff --cached --quiet; then
+      # A previous git-sync run may have staged a successful resolution and
+      # then stopped because --continue failed (for example, commit signing
+      # was unavailable). Resume that staged replay; it is not an empty commit.
+      continue_rebase_with_retry || return 1
     else
-      # Mid-rebase with nothing to merge: the replayed commit became empty
-      # (its change is already upstream), so drop it and carry on.
+      # Mid-rebase with no conflicts and no staged change: the replayed commit
+      # became empty because its change is already upstream.
       GIT_EDITOR=true git rebase --skip >/dev/null 2>&1 || return 1
     fi
   done
@@ -546,9 +622,9 @@ resolve_rebase_with_ai() {
 resolve_merge_with_ai() {
   if has_conflicts; then
     resolve_conflicts_with_retry || return 1
+    stage_conflicts
   fi
 
-  git add -A
   finalize_with_retry "git commit" git commit --no-edit || return 1
 }
 
@@ -612,6 +688,9 @@ commit_and_sync() {
 main() {
   need git
   need gum
+
+  [[ "$GC_RETRY_LIMIT" == <-> ]] && (( GC_RETRY_LIMIT > 0 )) \
+    || die "GC_RETRY_LIMIT must be a positive integer"
 
   local staged_only=false
   export GC_MULTI=false
