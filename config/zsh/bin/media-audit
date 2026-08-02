@@ -22,7 +22,12 @@ CHECK_LENGTH=true
 
 SHOW_THUMBNAIL=true
 THUMB_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/media-audit/thumbs"
-THUMB_PX=480
+# Pixel box the thumbnail is cropped to fill; recomputed from the real terminal
+# cell size in detect_thumb_backend.
+THUMB_BOX_W=720
+THUMB_BOX_H=405
+THUMB_CELL_W=10
+THUMB_CELL_H=20
 
 MAX_FILENAME_BYTES=240
 MEDIA_RENAME_TIMEOUT="${MEDIA_RENAME_TIMEOUT:-20}"
@@ -47,13 +52,13 @@ C_RED=$'\033[31m'
 C_YELLOW=$'\033[33m'
 ICON_PASS="✓"
 ICON_FAIL="✕"
+ICON_PENDING="·"
 CURRENT_FILE=""
 CURRENT_STATS=""
 CURRENT_CHECK=""
-# Number of rows draw_fileinfo prints (working-dir label+value, blank,
-# current-file label+value, stats). Keep in sync with draw_fileinfo and
-# checks_header_row.
-INFO_ROWS=6
+# Number of rows draw_fileinfo prints (filename, directory, stats). Keep in
+# sync with draw_fileinfo and checks_header_row.
+INFO_ROWS=3
 CURRENT_TOTAL=0
 CURRENT_PASS=0
 CURRENT_FAIL=0
@@ -134,46 +139,16 @@ pass() {
   say "%F{green}ok%f $*"
 }
 
-display_path() {
-  local s="$1"
-  local reserved="${2:-14}"
-  local width="${COLUMNS:-100}"
-  local max=$(( width - reserved ))
-
-  (( max < 30 )) && max=30
-
-  if (( ${#s} > max )); then
-    local keep=$(( max - 3 ))
-    print -r -- "...${s[-$keep,-1]}"
-  else
-    print -r -- "$s"
-  fi
-}
-
-status_line() {
-  [[ -t 4 ]] || return 0
-
-  local shown prefix_plain
-
-  prefix_plain="Checking "
-  shown="$(display_path "${1:t}" "${#prefix_plain}")"
-  print -n -u4 -- $'\r\033[K'
-  print -n -u4 -- "Checking ${C_CYAN}${shown}${C_RESET}"
-}
-
 clear_status() {
   [[ -t 4 ]] || return 0
   print -n -u4 -- $'\r\033[K'
 }
 
+# "3/7 files OK" — files finished so far, and how many needed no attention.
 session_summary_line() {
-  local issues_word="issues"
-  local files_word="files"
+  local done=$(( clean_count + issue_file_count ))
 
-  (( fix_count == 1 )) && issues_word="issue"
-  (( repaired_file_count == 1 )) && files_word="file"
-
-  say "Successfully repaired ${C_GREEN}${fix_count}${C_RESET} ${issues_word} on ${C_GREEN}${repaired_file_count}${C_RESET} ${files_word}."
+  say "${C_GREEN}${clean_count}${C_RESET}/${done} files OK"
 }
 
 build_enabled_checks() {
@@ -240,36 +215,30 @@ set_check_status() {
   refresh_current_counts
 }
 
-check_icon() {
-  local check_state="$1"
-
-  case "$check_state" in
-    pass) print -r -- "${C_GREEN}${ICON_PASS}" ;;
-    fail) print -r -- "${C_RED}${ICON_FAIL}" ;;
-    *) print -r -- "${C_DIM}${ICON_PASS}${C_RESET}" ;;
-  esac
-}
-
-# A check's list label carries its own state: dim name while pending, then
-# "name: <word>" in green (good) or red (problem) once it has been evaluated.
-check_label() {
+# One checklist row — glyph and text share a single state colour, so a green
+# tick always means "passed" and nothing else wears a tick. A pending check is
+# a dim dot with a bare name; an evaluated one reads "name: <word>". The
+# displayed name is deliberately plainer than the internal check id.
+check_row() {
   local item="$1" state="$2"
-  local good bad
+  local name good bad color icon text
 
   case "$item" in
-    black-frames) good="none";    bad="found" ;;
-    source-url)   good="found";   bad="missing" ;;
-    metadata)     good="found";   bad="missing" ;;
-    faststart)    good="enabled"; bad="disabled" ;;
-    filename)     good="ok";      bad="issues" ;;
-    *)            good="ok";      bad="issue" ;;
+    black-frames) name="intro";      good="none";    bad="found" ;;
+    source-url)   name="source url"; good="found";   bad="missing" ;;
+    metadata)     name="metadata";   good="found";   bad="missing" ;;
+    faststart)    name="container";  good="enabled"; bad="disabled" ;;
+    filename)     name="filename";   good="ok";      bad="issues" ;;
+    *)            name="$item";      good="ok";      bad="issue" ;;
   esac
 
   case "$state" in
-    pass) print -r -- "${C_GREEN}${item}: ${good}${C_RESET}" ;;
-    fail) print -r -- "${C_RED}${item}: ${bad}${C_RESET}" ;;
-    *)    print -r -- "${C_DIM}${item}${C_RESET}" ;;
+    pass) color="${C_GREEN}${C_BOLD}"; icon="$ICON_PASS";    text="${name}: ${good}" ;;
+    fail) color="${C_RED}${C_BOLD}";   icon="$ICON_FAIL";    text="${name}: ${bad}" ;;
+    *)    color="$C_DIM";              icon="$ICON_PENDING"; text="$name" ;;
   esac
+
+  print -r -- "${color}${icon} ${text}${C_RESET}"
 }
 
 # Truncate a menu option to fit within the checklist indent.
@@ -280,19 +249,16 @@ menu_option_text() {
 }
 
 draw_checks_block() {
-  local item check_state icon label i text width fw
+  local item check_state row i text width fw
 
   width="${COLUMNS:-100}"
   fw=$(( width - 9 ))
   (( fw < 20 )) && fw=20
 
-  say "%Bchecks:%b"
-
   for item in "${ENABLED_CHECKS[@]}"; do
     check_state="${CHECK_STATUS[$item]-}"
-    icon="$(check_icon "$check_state")"
-    label="$(check_label "$item" "$check_state")"
-    print -rn -u4 -- $'\r\033[K'" ${icon}${C_RESET} ${label}"
+    row="$(check_row "$item" "$check_state")"
+    print -rn -u4 -- $'\r\033[K'" ${row}"
     print -u4 -- ""
 
     # Draw the active menu directly beneath its check, indented.
@@ -395,40 +361,55 @@ build_file_stats() {
   (( ${#parts[@]} > 0 )) && CURRENT_STATS="${(j: · :)parts}"
 }
 
-# Working directory and current filename on their own colored lines, plus a
-# stats line. Prints exactly INFO_ROWS rows so the checklist below keeps a
-# deterministic screen position (see checks_header_row).
+# Filename, then the directory holding it, then size/format stats. When a
+# thumbnail is on screen this becomes a column to the right of it; otherwise it
+# stacks at the left margin. Either way it occupies the height the checklist
+# below assumes (see checks_header_row).
 draw_fileinfo() {
-  local dir name max
+  local dir name max col i
+  local -a lines
 
   [[ -n "$CURRENT_FILE" ]] || return 0
   dir="${CURRENT_FILE:h}"
   name="${CURRENT_FILE:t}"
-  max=$(( ${COLUMNS:-100} - 2 ))
-  (( max < 20 )) && max=20
-  (( ${#dir} > max )) && dir="…${dir[-(max-1),-1]}"
-  (( ${#name} > max )) && name="${name[1,max-1]}…"
 
-  say "%Bworking directory:%b"
-  say_raw "${C_CYAN}${dir}${C_RESET}"
-  say ""
-  say "%Bcurrent file:%b"
-  say_raw "${C_BOLD}${C_YELLOW}${name}${C_RESET}"
-  if [[ -n "$CURRENT_STATS" ]]; then
-    say_raw "${C_DIM}${CURRENT_STATS}${C_RESET}"
-  else
-    say ""
+  col=1
+  $THUMB_ENABLE && [[ -n "$THUMB_CURRENT_IMG" ]] && col=$(( THUMB_COLS + 3 ))
+
+  max=$(( ${COLUMNS:-100} - col ))
+  (( max < 20 )) && max=20
+  (( ${#name} > max )) && name="${name[1,max-1]}…"
+  (( ${#dir} > max )) && dir="…${dir[-(max-1),-1]}"
+
+  lines=(
+    "${C_BOLD}${C_YELLOW}${name}${C_RESET}"
+    "${C_CYAN}${dir}${C_RESET}"
+    "${C_DIM}${CURRENT_STATS}${C_RESET}"
+  )
+
+  if (( col == 1 )); then
+    for (( i = 1; i <= ${#lines[@]}; i++ )); do
+      say_raw "${lines[i]}"
+    done
+    return 0
   fi
+
+  # render_thumb_band parked the cursor just below the band; paint the info
+  # column with absolute positioning and put the cursor back where it was.
+  for (( i = 1; i <= ${#lines[@]}; i++ )); do
+    print -n -u4 -- $'\033['"$(( THUMB_ABOVE + i ))"$';'"${col}"$'H'
+    print -rn -u4 -- "${lines[i]}"
+  done
+  print -n -u4 -- $'\033['"$(( THUMB_ABOVE + THUMB_ROWS + 1 ))"$';1H'
 }
 
-# Row (1-based) of the "checks:" header, so the checklist region can be
+# Row (1-based) of the first checklist line, so the checklist region can be
 # repainted without disturbing the thumbnail band above it.
 checks_header_row() {
-  local band=0
+  local band=$INFO_ROWS
   $THUMB_ENABLE && [[ -n "$THUMB_CURRENT_IMG" ]] && band=$THUMB_ROWS
-  # 3 header rows + INFO_ROWS + 1 trailing blank + 1 (checks: sits on next row),
-  # minus the header row already counted in the band offset.
-  print -r -- $(( band + INFO_ROWS + 5 ))
+  # 3 header rows (title, summary, blank) + the band + 1 trailing blank.
+  print -r -- $(( band + 5 ))
 }
 
 draw_header() {
@@ -513,18 +494,48 @@ detect_thumb_backend() {
   { [[ "$rows" == <-> ]] && (( rows > 0 )) } || rows="${LINES:-40}"
   { [[ "$cols" == <-> ]] && (( cols > 0 )) } || cols="${COLUMNS:-100}"
 
-  THUMB_ROWS=12
-  (( THUMB_ROWS > rows - 18 )) && THUMB_ROWS=$(( rows - 18 ))
+  measure_cell_size "$rows" "$cols"
+
+  # Height first: the band only has to leave room for the checklist and its
+  # inline menu below it, since the file info now sits beside the thumbnail.
+  THUMB_ROWS=16
+  (( THUMB_ROWS > rows - 14 )) && THUMB_ROWS=$(( rows - 14 ))
   if (( THUMB_ROWS < 6 )); then
     THUMB_ROWS=0
     return 0
   fi
 
-  THUMB_COLS=$(( cols / 3 ))
+  # Width a 16:9 frame of that height actually occupies, clamped to half the
+  # screen so the info column has room. Whatever aspect the clamp leaves is
+  # what the thumbnail gets cropped to, so the box is always exactly filled —
+  # no dead columns beside the image or dead rows under it.
+  THUMB_COLS=$(( THUMB_ROWS * THUMB_CELL_H * 16 / (THUMB_CELL_W * 9) ))
+  (( THUMB_COLS > cols / 2 )) && THUMB_COLS=$(( cols / 2 ))
   (( THUMB_COLS < 16 )) && THUMB_COLS=16
-  (( THUMB_COLS > 44 )) && THUMB_COLS=44
+
+  THUMB_BOX_W=$(( THUMB_COLS * THUMB_CELL_W ))
+  THUMB_BOX_H=$(( THUMB_ROWS * THUMB_CELL_H ))
 
   THUMB_ENABLE=true
+}
+
+# Terminal cell size in pixels, so the thumbnail box has a real aspect ratio to
+# crop against. kitty reports the window's pixel size; everything else gets the
+# usual 1:2 cell.
+measure_cell_size() {
+  local rows="$1" cols="$2"
+  local size w h
+
+  THUMB_CELL_W=10
+  THUMB_CELL_H=20
+
+  [[ "$THUMB_BACKEND" == kitty ]] || return 0
+  size="$("${THUMB_ICAT[@]}" --print-window-size 2>/dev/null)" || return 0
+  w="${size%%x*}"
+  h="${size##*x}"
+  { [[ "$w" == <-> ]] && [[ "$h" == <-> ]] } || return 0
+  (( w / cols > 0 )) && THUMB_CELL_W=$(( w / cols ))
+  (( h / rows > 0 )) && THUMB_CELL_H=$(( h / rows ))
 }
 
 thumb_cache_path() {
@@ -533,11 +544,20 @@ thumb_cache_path() {
 
   mtime="$(stat -f '%m' -- "$file" 2>/dev/null)"
   size="$(stat -f '%z' -- "$file" 2>/dev/null)"
-  key="$(printf '%s:%s:%s' "$file" "$mtime" "$size" | md5 -q 2>/dev/null)"
+  # The box dimensions are part of the key: a resized terminal wants a
+  # differently cropped thumbnail, not the cached one.
+  key="$(printf '%s:%s:%s:%sx%s' "$file" "$mtime" "$size" \
+    "$THUMB_BOX_W" "$THUMB_BOX_H" | md5 -q 2>/dev/null)"
   [[ -n "$key" ]] || key="$(printf '%s' "${file:t}" | md5 -q 2>/dev/null)"
   [[ -n "$key" ]] || return 1
 
   print -r -- "$THUMB_CACHE_DIR/${key}.jpg"
+}
+
+# Cover-fit: scale until the frame covers the box, then crop the overflow, so
+# the rendered thumbnail fills its cells exactly whatever the source aspect is.
+thumb_filter() {
+  print -r -- "scale=${THUMB_BOX_W}:${THUMB_BOX_H}:force_original_aspect_ratio=increase:flags=lanczos,crop=${THUMB_BOX_W}:${THUMB_BOX_H}"
 }
 
 generate_thumb() {
@@ -551,7 +571,7 @@ generate_thumb() {
 
   # A few seconds in usually clears any black leader; fall back to frame 0.
   if ffmpeg -v error -y -ss 2 -i "$file" -frames:v 1 \
-      -vf "scale=${THUMB_PX}:-2:flags=lanczos" -q:v 3 -- "$tmp" 2>/dev/null \
+      -vf "$(thumb_filter)" -q:v 3 -- "$tmp" 2>/dev/null \
       && [[ -s "$tmp" ]]; then
     mv -f -- "$tmp" "$img"
     return 0
@@ -559,7 +579,7 @@ generate_thumb() {
 
   rm -f -- "$tmp" 2>/dev/null || true
   if ffmpeg -v error -y -i "$file" -frames:v 1 \
-      -vf "scale=${THUMB_PX}:-2:flags=lanczos" -q:v 3 -- "$tmp" 2>/dev/null \
+      -vf "$(thumb_filter)" -q:v 3 -- "$tmp" 2>/dev/null \
       && [[ -s "$tmp" ]]; then
     mv -f -- "$tmp" "$img"
     return 0
@@ -603,7 +623,7 @@ set_thumb_at_time() {
     mkdir -p -- "${img:h}" 2>/dev/null || return 0
     tmp="${img}.$$.jpg"
     if ffmpeg -v error -y -ss "$ss" -i "$file" -frames:v 1 \
-        -vf "scale=${THUMB_PX}:-2:flags=lanczos" -q:v 3 -- "$tmp" 2>/dev/null \
+        -vf "$(thumb_filter)" -q:v 3 -- "$tmp" 2>/dev/null \
         && [[ -s "$tmp" ]]; then
       mv -f -- "$tmp" "$img"
     else
@@ -614,6 +634,9 @@ set_thumb_at_time() {
 
   THUMB_CURRENT_IMG="$img"
   render_thumb_band
+  # The info column shares the band, so repaint it in case the backend drew
+  # over it.
+  draw_fileinfo
 }
 
 # Three header rows sit above the thumbnail: title, summary, blank.
@@ -625,6 +648,11 @@ render_thumb_band() {
     [[ "$THUMB_BACKEND" == kitty ]] && "${THUMB_ICAT[@]}" --clear --stdin=no >&4 2>/dev/null
     return 0
   fi
+
+  # Home the cursor to the top of the band: kitty places by coordinates, but the
+  # inline backends draw wherever the cursor happens to be, which is not the
+  # band when this is called to re-point an existing thumbnail.
+  [[ -t 4 ]] && print -n -u4 -- $'\033['"$(( THUMB_ABOVE + 1 ))"$';1H'
 
   case "$THUMB_BACKEND" in
     kitty)
@@ -640,7 +668,10 @@ render_thumb_band() {
     chafa)
       # -f symbols: chafa otherwise auto-picks the kitty protocol from TERM,
       # which draws nothing inside a multiplexer.
+      # --font-ratio keeps chafa's idea of a cell in step with the box the
+      # image was cropped for, so it fills the band rather than letterboxing.
       chafa -f symbols --animate=off --align=left --size="${THUMB_COLS}x${THUMB_ROWS}" \
+        --font-ratio "${THUMB_CELL_W}/${THUMB_CELL_H}" \
         -- "$THUMB_CURRENT_IMG" >&4 2>/dev/null
       ;;
   esac
@@ -1774,45 +1805,238 @@ queue_source_url() {
   )
 }
 
+# --- yt-dlp toolchain caches -------------------------------------------
+# media-audit shares its yt-dlp metadata/thumbnail caches with ytq/ytui
+# instead of keeping its own: a hit here saves a network round-trip, and a
+# miss gets written back so the other tools benefit from it too.
+
+yt_dlp_json_dir() {
+  [[ -n "${YT_DLP_JSON_DIR:-}" ]] || return 1
+  print -r -- "${~YT_DLP_JSON_DIR}"
+}
+
+yt_dlp_thumb_dir() {
+  [[ -n "${YT_DLP_THUMBCACHE_DIR:-}" ]] || return 1
+  print -r -- "${~YT_DLP_THUMBCACHE_DIR}"
+}
+
+yt_dlp_temp_dir() {
+  [[ -n "${YT_DLP_TEMP_DIR:-}" ]] || return 1
+  print -r -- "${~YT_DLP_TEMP_DIR}"
+}
+
+# Full-directory scan matching webpage_url/original_url, same fields ytq
+# matches on. media-audit only ever looks up one URL per file (not a batch),
+# so there's no need for ytq's index-building fast path.
+find_cached_source_json() {
+  local url="$1"
+  local dir file
+  local url_no_fragment="${url%%#*}"
+
+  dir="$(yt_dlp_json_dir 2>/dev/null)" || return 1
+  [[ -d "$dir" ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+
+  for file in "$dir"/*.info.json(N.); do
+    jq -e --arg u "$url" --arg un "$url_no_fragment" '
+      (.webpage_url? == $u) or (.original_url? == $u)
+      or (.webpage_url? == $un) or (.original_url? == $un)
+    ' "$file" >/dev/null 2>&1 && { print -r -- "$file"; return 0; }
+  done
+
+  return 1
+}
+
+find_cached_source_thumb() {
+  local extractor="$1" id="$2"
+  local dir candidate
+
+  [[ -n "$extractor" && -n "$id" ]] || return 1
+  dir="$(yt_dlp_thumb_dir 2>/dev/null)" || return 1
+  [[ -d "$dir" ]] || return 1
+
+  for candidate in "$dir/${extractor}_${id}".*(N.); do
+    [[ -s "$candidate" ]] && { print -r -- "$candidate"; return 0; }
+  done
+
+  return 1
+}
+
+# Copies a freshly-fetched info.json into the shared cache, named the way
+# ytq/yt-dlp itself would (extractor_id.info.json), so later runs of any tool
+# in the toolchain get a cache hit for this URL.
+cache_source_json() {
+  local src="$1" extractor="$2" id="$3"
+  local dir dest tmp
+
+  [[ -s "$src" && -n "$extractor" && -n "$id" ]] || return 1
+  dir="$(yt_dlp_json_dir 2>/dev/null)" || return 1
+  mkdir -p -- "$dir" 2>/dev/null || return 1
+
+  dest="$dir/${extractor}_${id}.info.json"
+  tmp="${dest}.$$.tmp"
+  cp -- "$src" "$tmp" 2>/dev/null || return 1
+  mv -f -- "$tmp" "$dest" 2>/dev/null || { rm -f -- "$tmp"; return 1; }
+  print -r -- "$dest"
+}
+
+# Best-effort thumbnail download for the shared cache, using an info.json
+# already on disk so yt-dlp doesn't have to re-fetch the page.
+cache_source_thumb() {
+  local json="$1" extractor="$2" id="$3"
+  local dir tmp_dir template
+
+  [[ -s "$json" && -n "$extractor" && -n "$id" ]] || return 1
+  command -v yt-dlp >/dev/null 2>&1 || return 1
+  dir="$(yt_dlp_thumb_dir 2>/dev/null)" || return 1
+  mkdir -p -- "$dir" 2>/dev/null || return 1
+
+  tmp_dir="$(mktemp -d -t media-audit-thumb)" || return 1
+  template="${extractor}_${id}.%(ext)s"
+
+  yt-dlp --load-info-json "$json" --skip-download --write-thumbnail \
+    --no-write-info-json --no-download-archive --no-warnings --no-progress \
+    --paths "thumbnail:$tmp_dir" --output "thumbnail:$template" \
+    >/dev/null 2>&1
+
+  local f
+  for f in "$tmp_dir"/*(N.); do
+    [[ -s "$f" ]] && mv -f -- "$f" "$dir/${f:t}"
+  done
+  rm -rf -- "$tmp_dir"
+}
+
+# Reads the canonical "<extractor_key> <id>" key straight out of an info.json
+# — matches yt-dlp's own --download-archive line format (ie_key().lower()),
+# which is .extractor_key, NOT the .extractor field used for cache filenames.
+archive_key_from_json() {
+  local json="$1" key
+
+  [[ -s "$json" ]] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+
+  key="$(jq -r '
+    ((.extractor_key // .extractor // "") | tostring | ascii_downcase | gsub("[^a-z0-9]"; "")) as $extractor
+    | (.id // "" | tostring) as $id
+    | select($extractor != "" and $id != "")
+    | "\($extractor) \($id)"
+  ' "$json" 2>/dev/null)"
+
+  [[ -n "$key" ]] || return 1
+  print -r -- "$key"
+}
+
+# A file we've just finished auditing is, definitionally, already downloaded
+# — record it in the shared archive so ytq stops offering it and other tools
+# treat it as done, the same bookkeeping a real yt-dlp download would leave.
+add_url_to_archive() {
+  local json="$1"
+  local archive_file key
+
+  [[ -n "${YT_DLP_ARCHIVE_FILE:-}" ]] || return 0
+  key="$(archive_key_from_json "$json" 2>/dev/null)" || return 0
+  archive_file="${~YT_DLP_ARCHIVE_FILE}"
+
+  mkdir -p -- "${archive_file:h}" 2>/dev/null
+  [[ -f "$archive_file" ]] || : > "$archive_file" 2>/dev/null
+  [[ -f "$archive_file" ]] || return 0
+
+  grep -Fxq -- "$key" "$archive_file" 2>/dev/null && return 0
+  print -r -- "$key" >> "$archive_file" 2>/dev/null
+}
+
+# The URL is now attached to a file on disk, so it no longer belongs in the
+# ytq download queue — drop it if it's sitting there.
+remove_url_from_batch() {
+  local url="$1"
+  local batch_file tmp
+
+  [[ -n "$url" && -n "${YT_DLP_BATCH_FILE:-}" ]] || return 0
+  batch_file="${~YT_DLP_BATCH_FILE}"
+  [[ -s "$batch_file" ]] || return 0
+  grep -Fxq -- "$url" "$batch_file" 2>/dev/null || return 0
+
+  tmp="${batch_file}.$$.tmp"
+  grep -Fxv -- "$url" "$batch_file" > "$tmp" 2>/dev/null || { rm -f -- "$tmp"; return 1; }
+  mv -f -- "$tmp" "$batch_file"
+}
+
+# Best-effort archive/batch sync for a URL we already know about but aren't
+# fetching metadata for right now (e.g. the file already carries a title
+# tag). Uses whatever's already cached; never triggers a network fetch.
+sync_yt_dlp_bookkeeping() {
+  local url="$1"
+  local json
+
+  [[ -n "$url" ]] || return 0
+
+  json="$(find_cached_source_json "$url" 2>/dev/null)" || json=""
+  [[ -s "$json" ]] && add_url_to_archive "$json"
+
+  remove_url_from_batch "$url"
+}
+
 queue_fetched_metadata() {
   local url="$1"
   local tmp_json errlog title uploader channel webpage_url original_url description upload_date timestamp duration id extractor
+  local cached_json source_json cached_hit=false
+  local -a temp_args
   integer rc=0
 
-  command -v yt-dlp >/dev/null 2>&1 || return 1
   command -v jq >/dev/null 2>&1 || return 1
 
-  tmp_json="$(mktemp -t media-check-ytmeta.XXXXXX.json)" || return 1
-  errlog="$(mktemp -t media-check-ytmeta-err.XXXXXX)" || errlog=""
+  cached_json="$(find_cached_source_json "$url" 2>/dev/null)" || cached_json=""
 
-  # --ignore-no-formats-error lets metadata come back even when the video's
-  # formats are gated (e.g. faphouse fan/VOD the account can't access); we only
-  # want the tags anyway (--skip-download).
-  # --no-download-archive is essential: the user's yt-dlp config sets a
-  # --download-archive, and every file we audit is already downloaded (hence
-  # recorded there). Without this, yt-dlp skips the URL as "already recorded"
-  # and emits no JSON, so the metadata fetch silently comes back empty.
-  yt-dlp --skip-download --dump-single-json --no-warnings \
-    --ignore-no-formats-error --no-download-archive "$url" \
-    > "$tmp_json" 2>"${errlog:-/dev/null}" &
-  spin_until_pid $! "Fetching metadata…" || rc=$?
+  if [[ -s "$cached_json" ]]; then
+    title="$(jq -r '.title // empty' "$cached_json" 2>/dev/null)"
+  fi
 
-  title="$(jq -r '.title // empty' "$tmp_json" 2>/dev/null)"
+  if [[ -n "${title:-}" ]]; then
+    say "Using cached metadata for: ${title}"
+    tmp_json="$cached_json"
+    cached_hit=true
+  else
+    command -v yt-dlp >/dev/null 2>&1 || return 1
 
-  # Success is "we got a title", not exit status — yt-dlp may exit non-zero over
-  # missing formats while still returning perfectly good metadata.
-  if [[ -z "$title" ]]; then
-    FETCH_ERROR=""
-    if [[ -n "$errlog" && -s "$errlog" ]]; then
-      # Keep the last real line of yt-dlp's stderr (usually the ERROR: line) so
-      # the caller can surface why the fetch failed.
-      FETCH_ERROR="$(grep -a . -- "$errlog" | tail -n 1)"
+    tmp_json="$(mktemp -t media-check-ytmeta.XXXXXX.json)" || return 1
+    errlog="$(mktemp -t media-check-ytmeta-err.XXXXXX)" || errlog=""
+
+    temp_args=()
+    local temp_dir
+    if temp_dir="$(yt_dlp_temp_dir 2>/dev/null)"; then
+      mkdir -p -- "$temp_dir" 2>/dev/null
+      temp_args=(--paths "temp:$temp_dir")
+    fi
+
+    # --ignore-no-formats-error lets metadata come back even when the video's
+    # formats are gated (e.g. faphouse fan/VOD the account can't access); we
+    # only want the tags anyway (--skip-download).
+    # --no-download-archive is essential: the user's yt-dlp config sets a
+    # --download-archive, and every file we audit is already downloaded (hence
+    # recorded there). Without this, yt-dlp skips the URL as "already recorded"
+    # and emits no JSON, so the metadata fetch silently comes back empty.
+    yt-dlp --skip-download --dump-single-json --no-warnings \
+      --ignore-no-formats-error --no-download-archive "${temp_args[@]}" "$url" \
+      > "$tmp_json" 2>"${errlog:-/dev/null}" &
+    spin_until_pid $! "Fetching metadata…" || rc=$?
+
+    title="$(jq -r '.title // empty' "$tmp_json" 2>/dev/null)"
+
+    # Success is "we got a title", not exit status — yt-dlp may exit non-zero
+    # over missing formats while still returning perfectly good metadata.
+    if [[ -z "$title" ]]; then
+      FETCH_ERROR=""
+      if [[ -n "$errlog" && -s "$errlog" ]]; then
+        # Keep the last real line of yt-dlp's stderr (usually the ERROR: line)
+        # so the caller can surface why the fetch failed.
+        FETCH_ERROR="$(grep -a . -- "$errlog" | tail -n 1)"
+      fi
+      [[ -n "$errlog" ]] && rm -f -- "$errlog"
+      rm -f -- "$tmp_json"
+      return 1
     fi
     [[ -n "$errlog" ]] && rm -f -- "$errlog"
-    rm -f -- "$tmp_json"
-    return 1
   fi
-  [[ -n "$errlog" ]] && rm -f -- "$errlog"
 
   uploader="$(jq -r '.uploader // empty' "$tmp_json")"
   channel="$(jq -r '.channel // empty' "$tmp_json")"
@@ -1827,6 +2051,26 @@ queue_fetched_metadata() {
 
   [[ -n "$webpage_url" ]] || webpage_url="$url"
   [[ -n "$original_url" ]] || original_url="$url"
+
+  # Freshly-fetched metadata: write it into the shared cache so ytq/ytui (and
+  # a re-run of this audit) get a hit next time instead of re-fetching.
+  source_json="$tmp_json"
+  if ! $cached_hit; then
+    source_json="$(cache_source_json "$tmp_json" "$extractor" "$id" 2>/dev/null)"
+    [[ -s "$source_json" ]] || source_json="$tmp_json"
+  fi
+
+  if [[ -z "$(find_cached_source_thumb "$extractor" "$id" 2>/dev/null)" ]]; then
+    cache_source_thumb "$source_json" "$extractor" "$id" || true
+  fi
+
+  # The file this metadata is for is already downloaded (that's the whole
+  # premise of an audit) — record it in the archive and drop it from the
+  # queue so ytq doesn't keep offering it.
+  add_url_to_archive "$source_json"
+  remove_url_from_batch "$url"
+  remove_url_from_batch "$webpage_url"
+  remove_url_from_batch "$original_url"
 
   PENDING_METADATA_ARGS+=(
     -metadata "source_url=$webpage_url"
@@ -1864,7 +2108,7 @@ queue_fetched_metadata() {
   PROBE_TITLE="$title"
   PROBE_URL="$webpage_url"
 
-  rm -f -- "$tmp_json"
+  $cached_hit || rm -f -- "$tmp_json"
   return 0
 }
 
@@ -1873,8 +2117,6 @@ apply_pending_rewrite() {
   local item
 
   (( ${#PENDING_FIXES[@]} > 0 )) || return 0
-
-  status_line "$file"
 
   # Structure-only repair belongs to mp4doctor. When faststart is the lone
   # pending fix there is nothing to combine, so delegate — same lossless
@@ -2057,7 +2299,10 @@ check_title_metadata() {
 
   $CHECK_METADATA || return 0
 
-  [[ -n "$PROBE_TITLE" ]] && return 0
+  if [[ -n "$PROBE_TITLE" ]]; then
+    sync_yt_dlp_bookkeeping "$PROBE_URL"
+    return 0
+  fi
 
   (( FILE_ISSUES++ ))
   issue_screen "metadata" "$file"
@@ -2243,8 +2488,6 @@ audit_file() {
     redraw_screen
   fi
 
-  status_line "$AUDIT_PATH"
-
   if [[ ! -f "$AUDIT_PATH" ]]; then
     (( FILE_ISSUES++ ))
     issue_screen "file" "$AUDIT_PATH"
@@ -2257,14 +2500,11 @@ audit_file() {
 
   if is_video_path "$AUDIT_PATH"; then
     run_check "black-frames" check_black_frames "$AUDIT_PATH"
-    status_line "$AUDIT_PATH"
 
     if $CHECK_URL || $CHECK_METADATA; then
       if probe_media_tags "$AUDIT_PATH"; then
         run_check "source-url" check_source_url "$AUDIT_PATH"
-        status_line "$AUDIT_PATH"
         run_check "metadata" check_title_metadata "$AUDIT_PATH"
-        status_line "$AUDIT_PATH"
       else
         (( FILE_ISSUES++ ))
         issue_screen "metadata" "$AUDIT_PATH"
@@ -2278,15 +2518,12 @@ audit_file() {
 
   if is_video_path "$AUDIT_PATH"; then
     run_check "faststart" check_faststart "$AUDIT_PATH"
-    status_line "$AUDIT_PATH"
   fi
 
   apply_pending_rewrite "$AUDIT_PATH"
   cleanup_pending_media
-  status_line "$AUDIT_PATH"
 
   run_check "filename" check_filename_checks
-  status_line "$AUDIT_PATH"
 
   if (( FILE_UNRESOLVED == 0 )); then
     (( clean_count++ ))
