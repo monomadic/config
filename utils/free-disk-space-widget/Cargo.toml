@@ -29,6 +29,7 @@ objc2-app-kit = { version = "0.3.2", features = [
     "NSView",
     "NSWorkspace",
     "NSEvent",
+    "NSImageView",
     "block2",
 ] }
 objc2-core-foundation = { version = "0.3.2", features = ["CFBase", "CFAttributedString"] }

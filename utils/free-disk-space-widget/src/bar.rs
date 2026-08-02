@@ -26,19 +26,10 @@ pub fn font() -> Retained<NSFont> {
     NSFont::monospacedDigitSystemFontOfSize_weight(size, unsafe { NSFontWeightRegular })
 }
 
-pub fn attributed_title(
-    text: &str,
-    color: Option<&NSColor>,
-) -> Retained<NSMutableAttributedString> {
+pub fn attributed_title(text: &str) -> Retained<NSMutableAttributedString> {
     let attrs = NSMutableDictionary::<NSString, AnyObject>::new();
     unsafe {
         attrs.setObject_forKey(&font(), ProtocolObject::from_ref(NSFontAttributeName));
-        if let Some(color) = color {
-            attrs.setObject_forKey(
-                color,
-                ProtocolObject::from_ref(NSForegroundColorAttributeName),
-            );
-        }
     }
 
     unsafe {
@@ -50,17 +41,55 @@ pub fn attributed_title(
     }
 }
 
+/// The bar's three segments as 0..1 fractions of capacity, left to right:
+/// used space drawn solid, purgeable space translucent, and whatever remains
+/// is the dim track — the genuinely free part.
+#[derive(Clone, Copy)]
+pub struct Fill {
+    pub used: f64,
+    pub purgeable: f64,
+}
+
+/// Extra alpha for the purgeable segment. Drawn over the 0.3 track it
+/// composites to roughly 0.55 — clearly brighter than free, clearly dimmer
+/// than used.
+const PURGEABLE_ALPHA: f64 = 0.35;
+
+/// One rounded pill over another: track at 0.3, purgeable segment translucent,
+/// used segment solid. Pills below one bar-height degenerate into lopsided
+/// blobs, so that is the floor for any non-empty segment.
+fn draw_segments(fill: Fill, ink: &NSColor, x: f64, y: f64, width: f64, height: f64) {
+    let radius = height / 2.0;
+    let pill = |w: f64| {
+        NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(rect(x, y, w, height), radius, radius)
+            .fill();
+    };
+
+    ink.colorWithAlphaComponent(0.3).set();
+    pill(width);
+
+    let used = fill.used.clamp(0.0, 1.0);
+    let through_purgeable = (used + fill.purgeable.max(0.0)).clamp(0.0, 1.0);
+    if through_purgeable > used {
+        ink.colorWithAlphaComponent(PURGEABLE_ALPHA).set();
+        pill((width * through_purgeable).max(height));
+    }
+    if used > 0.0 {
+        ink.set();
+        pill((width * used).max(height));
+    }
+}
+
 /// A rounded track with a rounded fill, optionally with a glyph drawn to its
-/// left. With no colour it is a template image, so macOS tints it to match the
-/// menu bar in either appearance; a colour (used when space runs low) is drawn
-/// as-is. Block-based, so AppKit re-renders at the current backing scale and
-/// appearance.
+/// left. A template image, so macOS tints it to match the menu bar in either
+/// appearance. Block-based, so AppKit re-renders at the current backing scale
+/// and appearance.
 ///
 /// Drawing the glyph into the image rather than leaving it in the button's
 /// title is what keeps the item tight: a status item button that carries both
 /// a title and an image pads generously around each, and the glyph's own left
 /// side bearing lands on top of that.
-pub fn bar_image(ratio: f64, color: Option<&NSColor>, glyph: Option<&str>) -> Retained<NSImage> {
+pub fn bar_image(fill: Fill, glyph: Option<&str>) -> Retained<NSImage> {
     let font = font();
     let em = font.pointSize();
 
@@ -70,13 +99,8 @@ pub fn bar_image(ratio: f64, color: Option<&NSColor>, glyph: Option<&str>) -> Re
     let height = line_height.min(NSStatusBar::systemStatusBar().thickness());
     let bar_width = (em * 3.0).round();
     let bar_height = (font.xHeight() * 0.75).round().max(3.0);
-    let radius = bar_height / 2.0;
 
-    let is_template = color.is_none();
-    let ink = color
-        .map(Retained::from)
-        .unwrap_or_else(NSColor::blackColor);
-    let ratio = ratio.clamp(0.0, 1.0);
+    let ink = NSColor::blackColor();
 
     // Measure the glyph by its *ink*, not its advance: SF Symbol glyphs carry
     // side bearings, and left as slack they show up as dead space in the menu
@@ -118,34 +142,14 @@ pub fn bar_image(ratio: f64, color: Option<&NSColor>, glyph: Option<&str>) -> Re
         }
 
         let y = ((height - bar_height) / 2.0).round();
-
-        ink.colorWithAlphaComponent(0.3).set();
-        NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
-            rect(bar_x, y, bar_width, bar_height),
-            radius,
-            radius,
-        )
-        .fill();
-
-        if ratio > 0.0 {
-            // Below one bar-height the rounded fill degenerates into a
-            // lopsided blob, so that is the floor.
-            let filled = (bar_width * ratio).max(bar_height);
-            ink.set();
-            NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
-                rect(bar_x, y, filled, bar_height),
-                radius,
-                radius,
-            )
-            .fill();
-        }
+        draw_segments(fill, &ink, bar_x, y, bar_width, bar_height);
 
         objc2::runtime::Bool::YES
     });
 
     let image =
         NSImage::imageWithSize_flipped_drawingHandler(NSSize { width, height }, false, &handler);
-    image.setTemplate(is_template);
+    image.setTemplate(true);
     image
 }
 
@@ -153,44 +157,30 @@ pub fn bar_image(ratio: f64, color: Option<&NSColor>, glyph: Option<&str>) -> Re
 /// a smaller value over a bar on the right. Keeping all three marks in one
 /// image avoids AppKit's roomy image/title gap, while stacking the value uses
 /// menu-bar height that would otherwise go unused.
-pub fn stacked_image(
-    ratio: f64,
-    color: Option<&NSColor>,
-    glyph: &str,
-    text: &str,
-) -> Retained<NSImage> {
-    compact_image(Some(ratio), color, glyph, text)
+pub fn stacked_image(fill: Fill, glyph: &str, text: &str) -> Retained<NSImage> {
+    compact_image(Some(fill), glyph, text)
 }
 
 /// The same full-size glyph and compact text used by `stacked_image`, without
 /// the bar. Sharing this renderer keeps Icon and Text visually matched to the
 /// stacked mode rather than letting AppKit size and space a separate title.
-pub fn icon_text_image(color: Option<&NSColor>, glyph: &str, text: &str) -> Retained<NSImage> {
-    compact_image(None, color, glyph, text)
+pub fn icon_text_image(glyph: &str, text: &str) -> Retained<NSImage> {
+    compact_image(None, glyph, text)
 }
 
-fn compact_image(
-    ratio: Option<f64>,
-    color: Option<&NSColor>,
-    glyph: &str,
-    text: &str,
-) -> Retained<NSImage> {
+fn compact_image(fill: Option<Fill>, glyph: &str, text: &str) -> Retained<NSImage> {
     let glyph_font = font();
     let em = glyph_font.pointSize();
     let text_font =
         NSFont::monospacedDigitSystemFontOfSize_weight(em * 0.84, unsafe { NSFontWeightRegular });
     let height = NSStatusBar::systemStatusBar().thickness();
-    let bar_height = ratio
+    let bar_height = fill
         .map(|_| (text_font.xHeight() * 0.55).round().max(3.0))
         .unwrap_or(0.0);
-    let vertical_gap = ratio.map(|_| (em * 0.08).round().max(1.0)).unwrap_or(0.0);
+    let vertical_gap = fill.map(|_| (em * 0.08).round().max(1.0)).unwrap_or(0.0);
     let horizontal_gap = (em * 0.35).round();
 
-    let is_template = color.is_none();
-    let ink = color
-        .map(Retained::from)
-        .unwrap_or_else(NSColor::blackColor);
-    let ratio = ratio.map(|ratio| ratio.clamp(0.0, 1.0));
+    let ink = NSColor::blackColor();
 
     let glyph_attrs = glyph_attributes(&glyph_font, &ink);
     let glyph = NSString::from_str(glyph);
@@ -204,7 +194,7 @@ fn compact_image(
     let text = NSString::from_str(text);
     let text_size = unsafe { text.sizeWithAttributes(Some(&text_attrs)) };
     let text_width = text_size.width.ceil();
-    let column_width = if ratio.is_some() {
+    let column_width = if fill.is_some() {
         text_width.max((em * 2.0).round())
     } else {
         text_width
@@ -213,7 +203,6 @@ fn compact_image(
     let width = column_x + column_width;
     let content_height = text_size.height + vertical_gap + bar_height;
     let content_y = ((height - content_height) / 2.0).round();
-    let radius = bar_height / 2.0;
 
     let handler = block2::RcBlock::new(move |_bounds: NSRect| -> objc2::runtime::Bool {
         unsafe {
@@ -233,25 +222,8 @@ fn compact_image(
             );
         }
 
-        if let Some(ratio) = ratio {
-            ink.colorWithAlphaComponent(0.3).set();
-            NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
-                rect(column_x, content_y, column_width, bar_height),
-                radius,
-                radius,
-            )
-            .fill();
-
-            if ratio > 0.0 {
-                let filled = (column_width * ratio).max(bar_height);
-                ink.set();
-                NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
-                    rect(column_x, content_y, filled, bar_height),
-                    radius,
-                    radius,
-                )
-                .fill();
-            }
+        if let Some(fill) = fill {
+            draw_segments(fill, &ink, column_x, content_y, column_width, bar_height);
         }
 
         objc2::runtime::Bool::YES
@@ -259,7 +231,7 @@ fn compact_image(
 
     let image =
         NSImage::imageWithSize_flipped_drawingHandler(NSSize { width, height }, false, &handler);
-    image.setTemplate(is_template);
+    image.setTemplate(true);
     image
 }
 

@@ -28,7 +28,9 @@ use objc2_app_kit::{
     NSFontWeightRegular, NSForegroundColorAttributeName, NSImage, NSImageSymbolConfiguration,
     NSStringDrawing, NSTrackingArea, NSTrackingAreaOptions, NSView,
 };
-use objc2_foundation::{NSMutableDictionary, NSPoint, NSRect, NSSize, NSString, ns_string};
+use objc2_foundation::{
+    NSArray, NSMutableDictionary, NSPoint, NSRect, NSSize, NSString, ns_string,
+};
 
 use crate::volumes::{self, Volume, VolumeKind, format_bytes};
 
@@ -64,7 +66,7 @@ pub struct Layout {
     bar_height: f64,
 }
 
-pub fn layout(volumes: &[Volume]) -> Layout {
+pub fn layout(volumes: &[Volume], include_purgeable: bool) -> Layout {
     let font = NSFont::menuFontOfSize(0.0);
     let em = font.pointSize();
     let detail_font = NSFont::monospacedDigitSystemFontOfSize_weight((em * 0.78).round(), unsafe {
@@ -75,12 +77,10 @@ pub fn layout(volumes: &[Volume]) -> Layout {
     let left = (em * 1.1).round();
     let right = (em * 1.0).round();
     let gap = (em * 0.9).round();
-    // The two discs carry the row's left and right ends. The eject disc is a
-    // button and the lighter of the two, so it wins on contrast at a smaller
-    // size; the volume icon balances it with a wide, quiet disc and a mark
-    // large enough to identify the drive at a glance.
+    // The icon column keeps the width the old scrim disc claimed, so the text
+    // column stays put; the glyph itself sits bare and a little larger.
     let icon_scrim = (em * 2.0).round();
-    let icon_size = (em * 1.4).round();
+    let icon_size = (em * 1.7).round();
     let button_diameter = (em * 1.45).round();
     let bar_height = (em * 0.28).round().max(3.0);
 
@@ -93,7 +93,13 @@ pub fn layout(volumes: &[Volume]) -> Layout {
     let name_width = widest(&|volume: &Volume| volume.name.clone());
     let detail_width = volumes
         .iter()
-        .map(|volume| text_size(&detail_font, &format_bytes(volume.free)).width)
+        .map(|volume| {
+            text_size(
+                &detail_font,
+                &format_bytes(volume.available(include_purgeable)),
+            )
+            .width
+        })
         .fold(0.0, f64::max);
 
     let text_left = left + icon_scrim + gap;
@@ -129,6 +135,9 @@ pub struct RowIvars {
     detail: String,
     path: PathBuf,
     used_ratio: f64,
+    /// Drawn as a translucent segment after the solid used fill; zero when
+    /// purgeable space is being counted as used.
+    purgeable_ratio: f64,
     low: bool,
     ejectable: bool,
     kind: VolumeKind,
@@ -168,12 +177,17 @@ define_class!(
             self.draw_icon(bounds);
 
             // Top line: name left, free amount right, sharing a baseline.
-            // Below it the bar spans the whole text column.
+            // Below it the bar spans the whole text column. Box-centring the
+            // block leaves it looking low — the text box carries leading
+            // above the caps that reads as top padding — so the whole block
+            // is lifted to centre on the visible marks instead.
             let name_size = text_size(&ivars.font, &ivars.name);
             let line_gap = (ivars.font.pointSize() * 0.45).round();
+            let lift = (ivars.font.pointSize() * 0.15).round();
             let content = name_size.height + line_gap + ivars.bar_height;
             let name_y = bounds.size.height - ((bounds.size.height - content) / 2.0).round()
-                - name_size.height;
+                - name_size.height
+                + lift;
 
             draw_text(
                 &ivars.name,
@@ -214,6 +228,30 @@ define_class!(
             .fill();
 
             // The bar fills with used space, so a full bar means a full disk.
+            // Purgeable space rides between the solid fill and the dim track
+            // as a translucent segment — reclaimable, but not free yet.
+            let through_purgeable =
+                (ivars.used_ratio + ivars.purgeable_ratio).clamp(0.0, 1.0);
+            if through_purgeable > ivars.used_ratio {
+                // The segment reads as a faded tail of the fill, so it keeps
+                // the fill's hue — red when the fill goes red for low space.
+                if ivars.low {
+                    NSColor::systemRedColor().colorWithAlphaComponent(0.35).set();
+                } else {
+                    NSColor::labelColor().colorWithAlphaComponent(0.28).set();
+                }
+                NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
+                    rect(
+                        ivars.text_left,
+                        bar_y,
+                        (bar_width * through_purgeable).max(ivars.bar_height),
+                        ivars.bar_height,
+                    ),
+                    radius,
+                    radius,
+                )
+                .fill();
+            }
             if ivars.used_ratio > 0.0 {
                 let filled = (bar_width * ivars.used_ratio).max(ivars.bar_height);
                 if ivars.low {
@@ -269,13 +307,23 @@ define_class!(
 );
 
 impl VolumeRow {
-    pub fn new(volume: &Volume, layout: &Layout, mtm: MainThreadMarker) -> Retained<Self> {
+    pub fn new(
+        volume: &Volume,
+        layout: &Layout,
+        include_purgeable: bool,
+        mtm: MainThreadMarker,
+    ) -> Retained<Self> {
         let this = Self::alloc(mtm).set_ivars(RowIvars {
             name: volume.name.clone(),
-            detail: format_bytes(volume.free),
+            detail: format_bytes(volume.available(include_purgeable)),
             path: volume.path.clone(),
-            used_ratio: 1.0 - volume.free_ratio(),
-            low: volume.free_ratio() < LOW_SPACE_RATIO,
+            used_ratio: volume.used_ratio(include_purgeable),
+            purgeable_ratio: if include_purgeable {
+                volume.purgeable_ratio()
+            } else {
+                0.0
+            },
+            low: volume.available_ratio(include_purgeable) < LOW_SPACE_RATIO,
             ejectable: volume.unmountable(),
             kind: volume.kind,
             font: layout.font.clone(),
@@ -319,21 +367,11 @@ impl VolumeRow {
         this
     }
 
-    /// The volume icon on a dark disc — the opposite polarity to the eject
-    /// circle's light one, so the two ends of the row read as different kinds
-    /// of thing while carrying the same weight.
+    /// The bare volume icon, centred in its column, with a red alert badge
+    /// over its top-right corner when the volume is low on space.
     fn draw_icon(&self, bounds: NSRect) {
         let ivars = self.ivars();
         let center_y = bounds.size.height / 2.0;
-
-        NSColor::blackColor().colorWithAlphaComponent(0.22).set();
-        NSBezierPath::bezierPathWithOvalInRect(rect(
-            ivars.icon_x,
-            center_y - ivars.icon_scrim / 2.0,
-            ivars.icon_scrim,
-            ivars.icon_scrim,
-        ))
-        .fill();
 
         let Some(symbol) = NSImage::imageWithSystemSymbolName_accessibilityDescription(
             symbol_name(ivars.kind),
@@ -365,6 +403,43 @@ impl VolumeRow {
                 (center_y - height / 2.0).round(),
                 width,
                 height,
+            ),
+            NSRect::ZERO,
+            NSCompositingOperation::SourceOver,
+            1.0,
+        );
+
+        if ivars.low {
+            self.draw_low_badge(center_y);
+        }
+    }
+
+    /// The same warning mark the menu bar item wears: bottom-left of the
+    /// icon, the same size relative to it, and flat solid red — palette
+    /// colouring, because hierarchical rendering fades the circle layer.
+    fn draw_low_badge(&self, center_y: f64) {
+        let ivars = self.ivars();
+        let Some(symbol) = NSImage::imageWithSystemSymbolName_accessibilityDescription(
+            ns_string!("exclamationmark.circle.fill"),
+            None,
+        ) else {
+            return;
+        };
+        let red = NSColor::systemRedColor();
+        let config = NSImageSymbolConfiguration::configurationWithPaletteColors(
+            &NSArray::from_retained_slice(&[red.clone(), red]),
+        );
+        let Some(badge) = symbol.imageWithSymbolConfiguration(&config) else {
+            return;
+        };
+
+        let size = (ivars.icon_size * 0.62).round();
+        badge.drawInRect_fromRect_operation_fraction(
+            rect(
+                ivars.icon_x + (ivars.icon_scrim - ivars.icon_size) / 2.0 - size * 0.25,
+                center_y - ivars.icon_size / 2.0 - size * 0.25,
+                size,
+                size,
             ),
             NSRect::ZERO,
             NSCompositingOperation::SourceOver,

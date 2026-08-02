@@ -23,17 +23,20 @@ use objc2::runtime::ProtocolObject;
 use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSCellImagePosition, NSColor,
-    NSControlStateValueOff, NSControlStateValueOn, NSMenu, NSMenuDelegate, NSMenuItem, NSStatusBar,
-    NSStatusItem, NSVariableStatusItemLength,
+    NSControlStateValueOff, NSControlStateValueOn, NSImage, NSImageSymbolConfiguration,
+    NSImageView, NSMenu, NSMenuDelegate, NSMenuItem, NSStatusBar, NSStatusItem,
+    NSVariableStatusItemLength,
 };
-use objc2_foundation::{NSObject, NSObjectProtocol, NSString, NSTimer, ns_string};
+use objc2_foundation::{
+    NSObject, NSObjectProtocol, NSPoint, NSSize, NSString, NSTimer, ns_string,
+};
 
+use bar::Fill;
 use volumes::{Volume, format_bytes, format_compact_bytes};
 
 const DISK_ICON: &str = "\u{100902}"; // SF Symbols internaldrive.fill
-const LOW_DISK_ICON: &str = "\u{101625}"; // internaldrive.badge.xmark
 
-/// Below this much free space the title turns red and swaps its glyph.
+/// Below this much free space a pulsing red badge appears over the item.
 const LOW_SPACE_RATIO: f64 = 0.10;
 const UPDATE_INTERVAL_SECONDS: f64 = 10.0;
 
@@ -88,45 +91,80 @@ impl LayoutStyle {
     }
 }
 
+/// Which quantity the menu bar reports.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum DisplayMode {
-    Gigabytes,
-    Percent,
+enum Metric {
+    Free,
+    Used,
 }
 
-const ALL_MODES: [DisplayMode; 2] = [DisplayMode::Gigabytes, DisplayMode::Percent];
+const ALL_METRICS: [Metric; 2] = [Metric::Free, Metric::Used];
 
-impl DisplayMode {
+impl Metric {
     fn label(self) -> &'static str {
         match self {
-            DisplayMode::Gigabytes => "Free Space",
-            DisplayMode::Percent => "Percentage",
+            Metric::Free => "Free Space",
+            Metric::Used => "Used Space",
         }
     }
 
     fn key(self) -> &'static str {
         match self {
-            DisplayMode::Gigabytes => "gb",
-            DisplayMode::Percent => "percent",
+            Metric::Free => "free",
+            Metric::Used => "used",
         }
     }
 
     fn from_key(key: &str) -> Option<Self> {
-        ALL_MODES.iter().copied().find(|mode| mode.key() == key)
+        ALL_METRICS.iter().copied().find(|metric| metric.key() == key)
+    }
+}
+
+/// How that quantity is written: as a percentage or in bytes units.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Unit {
+    Percent,
+    Bytes,
+}
+
+const ALL_UNITS: [Unit; 2] = [Unit::Percent, Unit::Bytes];
+
+impl Unit {
+    fn label(self) -> &'static str {
+        match self {
+            Unit::Percent => "Percentage",
+            Unit::Bytes => "Unit",
+        }
+    }
+
+    fn key(self) -> &'static str {
+        match self {
+            Unit::Percent => "percent",
+            Unit::Bytes => "bytes",
+        }
+    }
+
+    fn from_key(key: &str) -> Option<Self> {
+        ALL_UNITS.iter().copied().find(|unit| unit.key() == key)
     }
 }
 
 #[derive(Clone, Copy)]
 struct Settings {
     style: LayoutStyle,
-    display: DisplayMode,
+    metric: Metric,
+    unit: Unit,
+    /// Count purgeable space as free (Finder's convention) or as used.
+    include_purgeable: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Settings {
             style: LayoutStyle::BarText,
-            display: DisplayMode::Gigabytes,
+            metric: Metric::Free,
+            unit: Unit::Bytes,
+            include_purgeable: true,
         }
     }
 }
@@ -154,11 +192,23 @@ impl Settings {
                         settings.style = style;
                     }
                 }
-                "display" => {
-                    if let Some(display) = DisplayMode::from_key(value.trim()) {
-                        settings.display = display;
+                "metric" => {
+                    if let Some(metric) = Metric::from_key(value.trim()) {
+                        settings.metric = metric;
                     }
                 }
+                "unit" => {
+                    if let Some(unit) = Unit::from_key(value.trim()) {
+                        settings.unit = unit;
+                    }
+                }
+                "purgeable" => settings.include_purgeable = value.trim() != "off",
+                // Pre-Format-menu spelling: `display` carried both choices.
+                "display" => match value.trim() {
+                    "gb" => settings.unit = Unit::Bytes,
+                    "percent" => settings.unit = Unit::Percent,
+                    _ => {}
+                },
                 _ => {}
             }
         }
@@ -171,9 +221,11 @@ impl Settings {
             let _ = fs::create_dir_all(dir);
         }
         let body = format!(
-            "style={}\ndisplay={}\n",
+            "style={}\nmetric={}\nunit={}\npurgeable={}\n",
             self.style.key(),
-            self.display.key()
+            self.metric.key(),
+            self.unit.key(),
+            if self.include_purgeable { "on" } else { "off" }
         );
         if let Err(err) = fs::write(&path, body) {
             eprintln!("error saving settings: {err}");
@@ -187,50 +239,65 @@ impl Settings {
 /// content.
 struct TitleSpec {
     text: String,
-    bar: Option<f64>,
+    bar: Option<Fill>,
     bar_glyph: Option<&'static str>,
     compact_image_text: Option<String>,
-    color: Option<Retained<NSColor>>,
 }
 
 fn title_spec(volume: &Volume, settings: Settings) -> TitleSpec {
-    let ratio = volume.free_ratio();
-    let low = ratio < LOW_SPACE_RATIO;
-    let icon = if low { LOW_DISK_ICON } else { DISK_ICON };
-    let value = match settings.display {
-        DisplayMode::Gigabytes => format_bytes(volume.free),
-        DisplayMode::Percent => format!("{:.0}%", ratio * 100.0),
+    let include = settings.include_purgeable;
+    let amount = match settings.metric {
+        Metric::Free => volume.available(include),
+        Metric::Used => volume.used(include),
     };
-    let compact_value = match settings.display {
-        DisplayMode::Gigabytes => format_compact_bytes(volume.free),
-        DisplayMode::Percent => format!("{:.0}%", ratio * 100.0),
+    let ratio = match settings.metric {
+        Metric::Free => volume.available_ratio(include),
+        Metric::Used => volume.used_ratio(include),
     };
-    let color = low.then(NSColor::systemRedColor);
+    let value = match settings.unit {
+        Unit::Bytes => format_bytes(amount),
+        Unit::Percent => format!("{:.0}%", ratio * 100.0),
+    };
+    let compact_value = match settings.unit {
+        Unit::Bytes => format_compact_bytes(amount),
+        Unit::Percent => format!("{:.0}%", ratio * 100.0),
+    };
 
-    // The bar fills with free space, matching the number beside it.
-    let spec = |text: String, bar: Option<f64>, bar_glyph, compact_image_text| TitleSpec {
+    // The bar reads left to right: used solid, purgeable translucent, free
+    // dim. With purgeable counted as used it simply joins the solid fill.
+    let fill = Fill {
+        used: volume.used_ratio(include),
+        purgeable: if include { volume.purgeable_ratio() } else { 0.0 },
+    };
+
+    let spec = |text: String, bar: Option<Fill>, bar_glyph, compact_image_text| TitleSpec {
         text,
         bar,
         bar_glyph,
         compact_image_text,
-        color,
     };
 
     match settings.style {
-        LayoutStyle::IconTextBar => {
-            spec(String::new(), Some(ratio), Some(icon), Some(compact_value))
-        }
+        LayoutStyle::IconTextBar => spec(
+            String::new(),
+            Some(fill),
+            Some(DISK_ICON),
+            Some(compact_value),
+        ),
         LayoutStyle::Text => spec(value, None, None, None),
-        LayoutStyle::IconText => spec(String::new(), None, Some(icon), Some(compact_value)),
-        LayoutStyle::BarText => spec(value, Some(ratio), None, None),
-        LayoutStyle::IconBar => spec(String::new(), Some(ratio), Some(icon), None),
-        LayoutStyle::Bar => spec(String::new(), Some(ratio), None, None),
+        LayoutStyle::IconText => spec(String::new(), None, Some(DISK_ICON), Some(compact_value)),
+        LayoutStyle::BarText => spec(value, Some(fill), None, None),
+        LayoutStyle::IconBar => spec(String::new(), Some(fill), Some(DISK_ICON), None),
+        LayoutStyle::Bar => spec(String::new(), Some(fill), None, None),
     }
 }
 
 struct Ui {
     status_item: Retained<NSStatusItem>,
     settings: Settings,
+    /// The pulsing low-space badge, created the first time it is needed and
+    /// hidden rather than torn down when space recovers.
+    badge: Option<Retained<NSImageView>>,
 }
 
 define_class!(
@@ -252,9 +319,26 @@ define_class!(
             self.apply(|settings| settings.style = ALL_STYLES[sender.tag() as usize]);
         }
 
-        #[unsafe(method(displayAction:))]
-        fn display_action(&self, sender: &NSMenuItem) {
-            self.apply(|settings| settings.display = ALL_MODES[sender.tag() as usize]);
+        #[unsafe(method(metricAction:))]
+        fn metric_action(&self, sender: &NSMenuItem) {
+            self.apply(|settings| settings.metric = ALL_METRICS[sender.tag() as usize]);
+        }
+
+        #[unsafe(method(unitAction:))]
+        fn unit_action(&self, sender: &NSMenuItem) {
+            self.apply(|settings| settings.unit = ALL_UNITS[sender.tag() as usize]);
+        }
+
+        #[unsafe(method(purgeableAction:))]
+        fn purgeable_action(&self, _sender: &NSMenuItem) {
+            self.apply(|settings| settings.include_purgeable = !settings.include_purgeable);
+        }
+
+        #[unsafe(method(ejectAll:))]
+        fn eject_all(&self, _sender: &NSMenuItem) {
+            for volume in volumes::mounted().iter().filter(|v| v.unmountable()) {
+                volumes::unmount(&volume.path);
+            }
         }
 
         #[unsafe(method(openDiskUtility:))]
@@ -295,6 +379,7 @@ impl Widget {
         *this.ivars().borrow_mut() = Some(Ui {
             status_item,
             settings: Settings::load(),
+            badge: None,
         });
         this
     }
@@ -317,28 +402,28 @@ impl Widget {
             return;
         };
 
-        let ivars = self.ivars().borrow();
-        let Some(ui) = ivars.as_ref() else { return };
+        let mut ivars = self.ivars().borrow_mut();
+        let Some(ui) = ivars.as_mut() else { return };
         let Some(button) = ui.status_item.button(mtm) else {
             return;
         };
 
         let spec = title_spec(&volume, ui.settings);
-        button.setAttributedTitle(&bar::attributed_title(&spec.text, spec.color.as_deref()));
+        button.setAttributedTitle(&bar::attributed_title(&spec.text));
         if let Some(text) = spec.compact_image_text.as_deref() {
             let glyph = spec
                 .bar_glyph
                 .expect("compact image layouts always have a glyph");
             let image = match spec.bar {
-                Some(ratio) => bar::stacked_image(ratio, spec.color.as_deref(), glyph, text),
-                None => bar::icon_text_image(spec.color.as_deref(), glyph, text),
+                Some(fill) => bar::stacked_image(fill, glyph, text),
+                None => bar::icon_text_image(glyph, text),
             };
             button.setImage(Some(&image));
             button.setImagePosition(NSCellImagePosition::ImageOnly);
         } else {
             match spec.bar {
-                Some(ratio) => {
-                    let image = bar::bar_image(ratio, spec.color.as_deref(), spec.bar_glyph);
+                Some(fill) => {
+                    let image = bar::bar_image(fill, spec.bar_glyph);
                     button.setImage(Some(&image));
                     button.setImagePosition(if spec.text.is_empty() {
                         NSCellImagePosition::ImageOnly
@@ -353,12 +438,33 @@ impl Widget {
             }
         }
 
+        // The low-space warning lives in its own layer over the item, so the
+        // icon and text keep their normal menu bar colour underneath it.
+        let low = volume.available_ratio(ui.settings.include_purgeable) < LOW_SPACE_RATIO;
+        if low && ui.badge.is_none() {
+            let badge = warning_badge(mtm);
+            button.addSubview(&badge);
+            ui.badge = Some(badge);
+        }
+        if let Some(badge) = ui.badge.as_ref() {
+            badge.setHidden(!low);
+            if low {
+                badge.setFrameOrigin(NSPoint { x: 0.0, y: 0.0 });
+            }
+        }
+
+        let purgeable_note = if volume.purgeable > 0 {
+            format!(", {} purgeable", format_bytes(volume.purgeable))
+        } else {
+            String::new()
+        };
         button.setToolTip(Some(&NSString::from_str(&format!(
-            "{} — {} free of {} ({:.0}%)",
+            "{} — {} free of {} ({:.0}%){}",
             volume.name,
-            format_bytes(volume.free),
+            format_bytes(volume.available(ui.settings.include_purgeable)),
             format_bytes(volume.total),
-            volume.free_ratio() * 100.0
+            volume.available_ratio(ui.settings.include_purgeable) * 100.0,
+            purgeable_note
         ))));
     }
 
@@ -394,14 +500,25 @@ impl Widget {
         if volumes.is_empty() {
             info("No mounted volumes");
         } else {
-            let layout = row::layout(&volumes);
+            let layout = row::layout(&volumes, settings.include_purgeable);
             for volume in &volumes {
                 let item = NSMenuItem::new(mtm);
                 item.setEnabled(true);
-                item.setView(Some(&row::VolumeRow::new(volume, &layout, mtm)));
+                item.setView(Some(&row::VolumeRow::new(
+                    volume,
+                    &layout,
+                    settings.include_purgeable,
+                    mtm,
+                )));
                 menu.addItem(&item);
             }
         }
+
+        // Greyed out rather than hidden when nothing can eject, so the menu
+        // keeps the same shape whatever is plugged in.
+        menu.addItem(&NSMenuItem::separatorItem(mtm));
+        let eject_all = action("Eject All", sel!(ejectAll:));
+        eject_all.setEnabled(volumes.iter().any(Volume::unmountable));
 
         menu.addItem(&NSMenuItem::separatorItem(mtm));
         self.add_submenu(
@@ -412,14 +529,14 @@ impl Widget {
             sel!(styleAction:),
             mtm,
         );
-        self.add_submenu(
-            menu,
-            "Show In Menu Bar",
-            ALL_MODES.iter().map(|mode| mode.label()),
-            ALL_MODES.iter().position(|m| *m == settings.display),
-            sel!(displayAction:),
-            mtm,
-        );
+        self.add_format_submenu(menu, settings, mtm);
+
+        let purgeable = action("Include Purgeable Space", sel!(purgeableAction:));
+        purgeable.setState(if settings.include_purgeable {
+            NSControlStateValueOn
+        } else {
+            NSControlStateValueOff
+        });
 
         menu.addItem(&NSMenuItem::separatorItem(mtm));
         action("Open Disk Utility", sel!(openDiskUtility:));
@@ -431,6 +548,49 @@ impl Widget {
         quit.setEnabled(true);
         unsafe { quit.setAction(Some(sel!(terminate:))) };
         menu.addItem(&quit);
+    }
+
+    /// Format holds two radio groups: which quantity (Free/Used Space) and
+    /// how it is written (Percentage/Unit), separated within one submenu.
+    fn add_format_submenu(&self, menu: &NSMenu, settings: Settings, mtm: MainThreadMarker) {
+        let submenu = NSMenu::new(mtm);
+        submenu.setAutoenablesItems(false);
+
+        let add_choice = |label: &str, tag: usize, on: bool, selector| {
+            let item = NSMenuItem::new(mtm);
+            item.setTitle(&NSString::from_str(label));
+            item.setTag(tag as isize);
+            item.setEnabled(true);
+            item.setState(if on {
+                NSControlStateValueOn
+            } else {
+                NSControlStateValueOff
+            });
+            unsafe {
+                item.setTarget(Some(self.as_ref()));
+                item.setAction(Some(selector));
+            }
+            submenu.addItem(&item);
+        };
+
+        for (index, metric) in ALL_METRICS.iter().enumerate() {
+            add_choice(
+                metric.label(),
+                index,
+                *metric == settings.metric,
+                sel!(metricAction:),
+            );
+        }
+        submenu.addItem(&NSMenuItem::separatorItem(mtm));
+        for (index, unit) in ALL_UNITS.iter().enumerate() {
+            add_choice(unit.label(), index, *unit == settings.unit, sel!(unitAction:));
+        }
+
+        let root = NSMenuItem::new(mtm);
+        root.setTitle(ns_string!("Format"));
+        root.setEnabled(true);
+        root.setSubmenu(Some(&submenu));
+        menu.addItem(&root);
     }
 
     fn add_submenu<'a>(
@@ -467,6 +627,32 @@ impl Widget {
         root.setSubmenu(Some(&submenu));
         menu.addItem(&root);
     }
+}
+
+/// A small red exclamation badge for the top-left corner of the status item.
+/// It sits in its own view over the button, so the template icon and text
+/// underneath keep their normal menu bar colour; an NSImageView handles no
+/// mouse events, so clicks fall through to the button.
+fn warning_badge(mtm: MainThreadMarker) -> Retained<NSImageView> {
+    let diameter = (NSStatusBar::systemStatusBar().thickness() * 0.62).round();
+    let symbol = NSImage::imageWithSystemSymbolName_accessibilityDescription(
+        ns_string!("exclamationmark.circle.fill"),
+        None,
+    )
+    .expect("SF Symbols always has exclamationmark.circle.fill");
+    let config = NSImageSymbolConfiguration::configurationWithPointSize_weight(
+        diameter * 0.9,
+        unsafe { objc2_app_kit::NSFontWeightBold },
+    );
+    let image = symbol.imageWithSymbolConfiguration(&config).unwrap_or(symbol);
+
+    let badge = NSImageView::imageViewWithImage(&image, mtm);
+    badge.setFrameSize(NSSize {
+        width: diameter,
+        height: diameter,
+    });
+    badge.setContentTintColor(Some(&NSColor::systemRedColor()));
+    badge
 }
 
 fn open_application(name: &str) {

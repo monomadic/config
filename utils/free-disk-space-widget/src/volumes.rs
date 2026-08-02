@@ -32,7 +32,11 @@ pub enum VolumeKind {
 pub struct Volume {
     pub name: String,
     pub path: PathBuf,
+    /// Space the filesystem reports as literally free right now.
     pub free: u64,
+    /// Space macOS can reclaim on demand (snapshots, evictable caches) —
+    /// the gap between Finder's "available" and the filesystem's.
+    pub purgeable: u64,
     pub total: u64,
     /// The startup disk, and any volume macOS keeps its own files on.
     pub is_system: bool,
@@ -40,12 +44,39 @@ pub struct Volume {
 }
 
 impl Volume {
-    /// Free space as a 0..1 fraction of capacity.
-    pub fn free_ratio(&self) -> f64 {
+    /// What counts as free, depending on whether purgeable space is included.
+    pub fn available(&self, include_purgeable: bool) -> u64 {
+        if include_purgeable {
+            self.free.saturating_add(self.purgeable).min(self.total)
+        } else {
+            self.free
+        }
+    }
+
+    /// Available space as a 0..1 fraction of capacity.
+    pub fn available_ratio(&self, include_purgeable: bool) -> f64 {
+        self.fraction(self.available(include_purgeable))
+    }
+
+    /// Genuinely occupied space — purgeable is neither free nor used here;
+    /// callers fold it into whichever side their setting says.
+    pub fn used(&self, include_purgeable: bool) -> u64 {
+        self.total.saturating_sub(self.available(include_purgeable))
+    }
+
+    pub fn used_ratio(&self, include_purgeable: bool) -> f64 {
+        self.fraction(self.used(include_purgeable))
+    }
+
+    pub fn purgeable_ratio(&self) -> f64 {
+        self.fraction(self.purgeable)
+    }
+
+    fn fraction(&self, bytes: u64) -> f64 {
         if self.total == 0 {
             return 0.0;
         }
-        (self.free as f64 / self.total as f64).clamp(0.0, 1.0)
+        (bytes as f64 / self.total as f64).clamp(0.0, 1.0)
     }
 
     /// Everything except the system volumes gets an eject button.
@@ -179,9 +210,11 @@ fn volume(url: &NSURL) -> Option<Volume> {
         VolumeKind::External
     };
 
+    let (free, purgeable) = free_and_purgeable(url);
     Some(Volume {
         name,
-        free: free_bytes(url),
+        free,
+        purgeable,
         total,
         is_system,
         kind,
@@ -189,14 +222,16 @@ fn volume(url: &NSURL) -> Option<Volume> {
     })
 }
 
-/// Finder's number where macOS reports it, the filesystem's own otherwise.
-fn free_bytes(url: &NSURL) -> u64 {
-    match bytes(url, unsafe {
+/// The filesystem's own free count, plus how much more Finder would promise.
+/// "Important usage" capacity counts purgeable space, so the difference *is*
+/// the purgeable amount. Volumes that don't report it (exFAT, network shares)
+/// simply have zero purgeable space.
+fn free_and_purgeable(url: &NSURL) -> (u64, u64) {
+    let strict = bytes(url, unsafe { NSURLVolumeAvailableCapacityKey });
+    let important = bytes(url, unsafe {
         NSURLVolumeAvailableCapacityForImportantUsageKey
-    }) {
-        0 => bytes(url, unsafe { NSURLVolumeAvailableCapacityKey }),
-        important => important,
-    }
+    });
+    (strict, important.saturating_sub(strict))
 }
 
 /// macOS mounts its own volumes under these prefixes (Preboot, Recovery, VM,
@@ -241,7 +276,27 @@ mod tests {
         let volume = startup().expect("/ is always a mounted volume");
         assert!(volume.total > 0);
         assert!(volume.free <= volume.total);
+        assert!(volume.available(true) <= volume.total);
+        assert!(volume.available(true) >= volume.available(false));
         assert!(!volume.unmountable(), "the startup disk must never eject");
+    }
+
+    #[test]
+    fn purgeable_splits_between_free_and_used() {
+        let volume = Volume {
+            name: "Test".into(),
+            path: PathBuf::from("/tmp/test"),
+            free: 100,
+            purgeable: 50,
+            total: 1000,
+            is_system: false,
+            kind: VolumeKind::External,
+        };
+        assert_eq!(volume.available(false), 100);
+        assert_eq!(volume.available(true), 150);
+        assert_eq!(volume.used(false), 900);
+        assert_eq!(volume.used(true), 850);
+        assert_eq!(volume.purgeable_ratio(), 0.05);
     }
 
     #[test]
