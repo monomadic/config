@@ -2173,18 +2173,51 @@ apply_pending_rewrite() {
   return 1
 }
 
-# Prints four lines: full-strip query, its search URL,
-# braces-only-strip query, its search URL.
-filename_search_query() {
-  local name="$1"
-
-  python3 - "$name" <<'PY'
+# Filename → searches, and search page → results. One script because both
+# halves key off the same table of known sites; run with `python3 -c` rather
+# than a heredoc so `parse` still has stdin to read the page from.
+#
+#   info <filename>  → key=value lines naming the searches worth offering
+#   parse <site>     → "title<TAB>url" lines, from a search page on stdin
+SEARCH_PY="$(cat <<'PY'
+import html
 import os
 import re
 import sys
 import urllib.parse
 
-stem = os.path.splitext(sys.argv[1])[0]
+# search: the site's own search page, for the browser and for scraping.
+# base + path: what one of its result links looks like.
+SITES = {
+    "faphouse": {
+        "search": "https://faphouse.com/search/videos?q={q}",
+        "base": "https://faphouse.com",
+        "path": r"/videos/[^/]+$",
+    },
+    "xvideos": {
+        "search": "https://www.xvideos.com/?k={q}",
+        "base": "https://www.xvideos.com",
+        "path": r"/video[^/]+/[^/]+$",
+    },
+    "xhamster": {
+        "search": "https://xhamster.com/search/{q}",
+        "base": "https://xhamster.com",
+        "path": r"/videos/[^/]+$",
+    },
+    "pornhub": {
+        "search": "https://www.pornhub.com/video/search?search={q}",
+        "base": "https://www.pornhub.com",
+        "path": r"/view_video\.php$",
+    },
+    "manyvids": {
+        "search": "https://www.manyvids.com/Vids/?keywords={q}",
+        "base": "https://www.manyvids.com",
+        "path": r"/Video/\d+/[^/]+$",
+    },
+}
+
+GOOGLE = "https://www.google.com/search?q="
+
 
 def clean(value):
     # Strip any stray bracket/brace/paren characters and hyphens so they can
@@ -2192,13 +2225,158 @@ def clean(value):
     value = re.sub(r"[][(){}-]", "", value)
     return re.sub(r"\s+", " ", value).strip()
 
-braces_only = clean(re.sub(r"\{[^}]*\}", " ", stem))
-full = clean(re.sub(r"\[[^\]]*\]", " ", braces_only))
 
-for query in (full, braces_only):
-    print(query)
-    print("https://www.google.com/search?q=" + urllib.parse.quote_plus(query))
+def strip_groups(value, *patterns):
+    for pattern in patterns:
+        value = re.sub(pattern, " ", value)
+    return value
+
+
+def info(name):
+    stem = os.path.splitext(name)[0]
+    # Strip the groups off the raw stem: clean() removes the bracket characters
+    # themselves, so anything it has touched no longer has groups to strip.
+    # The encode spec in brackets is noise to a search engine; the source slug
+    # in parens is the single best thing to search for, so it stays.
+    full = clean(strip_groups(stem, r"\{[^}]*\}", r"\[[^\]]*\]"))
+    # The title on its own, for a site's own search box, which only knows
+    # about titles.
+    title = clean(strip_groups(stem, r"\{[^}]*\}", r"\[[^\]]*\]", r"\([^)]*\)"))
+
+    out = [("google_query", full), ("google_url", GOOGLE + urllib.parse.quote_plus(full))]
+
+    lowered = stem.lower()
+    for key, site in SITES.items():
+        if key in lowered and title:
+            out.append(("site", key))
+            out.append(("site_query", title))
+            out.append(("site_url", site["search"].format(q=urllib.parse.quote_plus(title))))
+            break
+
+    for key, value in out:
+        print("%s=%s" % (key, value))
+
+
+# Badge text ("1080p", "12 min") sits in its own anchor on the same result, so
+# it has to lose to the real title rather than win by turning up first.
+JUNK = re.compile(r"^(?:\d+\s*(?:min|sec|p|k)|4k|hd|full hd|vr)$", re.I)
+
+
+def text_of(fragment):
+    return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", fragment))).strip()
+
+
+def parse(site):
+    base = SITES[site]["base"]
+    path_re = SITES[site]["path"]
+    page = sys.stdin.read()
+    order = []
+    best = {}
+
+    for match in re.finditer(r'<a\b[^>]*\bhref="([^"]+)"[^>]*>', page):
+        tag, href = match.group(0), match.group(1)
+        # Some sites link their results absolutely, some relatively; anything
+        # pointing off-site is not a result.
+        if href.startswith(base):
+            href = href[len(base):]
+        elif "//" in href:
+            continue
+        path, _, query = href.partition("#")[0].partition("?")
+        if not re.match(path_re, path):
+            continue
+        if site == "pornhub":
+            if "viewkey=" not in query:
+                continue
+            url = "%s%s?%s" % (base, path, query)
+        else:
+            # Section links ("/videos/vr") are short; real slugs are not.
+            if len(path.rstrip("/").rsplit("/", 1)[-1]) < 8:
+                continue
+            url = base + path
+
+        inner = page[match.end():match.end() + 1200].split("</a>")[0]
+        attr = re.search(r'\btitle="([^"]{4,})"', tag) or re.search(r'\balt="([^"]{4,})"', inner)
+        if attr:
+            title, score = text_of(attr.group(1)), 2
+        else:
+            title, score = text_of(inner), 1
+        if not title or JUNK.match(title):
+            title = re.sub(r"[-_]+", " ", path.rstrip("/").rsplit("/", 1)[-1]).strip()
+            score = 0
+
+        if url not in best:
+            order.append(url)
+        if score > best.get(url, (-1, ""))[0]:
+            best[url] = (score, title[:110])
+
+    for url in order[:40]:
+        print("%s\t%s" % (best[url][1], url))
+
+
+if sys.argv[1] == "info":
+    info(sys.argv[2])
+else:
+    parse(sys.argv[2])
 PY
+)"
+
+# Search pages serve a different (or no) page to an unknown client.
+SEARCH_UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
+typeset -A SEARCH_INFO=()
+load_search_info() {
+  local line
+
+  SEARCH_INFO=()
+  command -v python3 >/dev/null 2>&1 || return 1
+
+  for line in "${(@f)$(python3 -c "$SEARCH_PY" info "$1" 2>/dev/null)}"; do
+    [[ "$line" == *=* ]] || continue
+    SEARCH_INFO[${line%%=*}]="${line#*=}"
+  done
+
+  (( ${#SEARCH_INFO[@]} > 0 ))
+}
+
+# Scrape a site's search page and let the user pick a result in fzf, so a URL
+# can be found without leaving the terminal. Sets PICKED_URL.
+# 0 = picked, 1 = cancelled deliberately, 2 = nothing to show.
+PICKED_URL=""
+pick_search_result() {
+  local site="$1" url="$2"
+  local tmp line
+
+  PICKED_URL=""
+  { [[ -t 3 && -t 4 ]] \
+    && command -v fzf >/dev/null 2>&1 \
+    && command -v curl >/dev/null 2>&1 \
+    && command -v python3 >/dev/null 2>&1 } || return 2
+
+  tmp="$(mktemp -t media-audit-search)" || return 2
+
+  say ""
+  {
+    curl -sS -m 25 -L -A "$SEARCH_UA" -- "$url" 2>/dev/null \
+      | python3 -c "$SEARCH_PY" parse "$site" > "$tmp" 2>/dev/null
+  } &
+  spin_until_pid $! "searching ${site}…" || true
+  clear_status
+
+  if [[ ! -s "$tmp" ]]; then
+    rm -f -- "$tmp"
+    return 2
+  fi
+
+  # fzf reads the list from the pipe and drives its own UI on /dev/tty.
+  line="$(fzf --delimiter=$'\t' --with-nth=1,2 --no-multi --reverse \
+    --prompt="${site} > " \
+    --header="enter to use this URL · esc to go back" < "$tmp")"
+  rm -f -- "$tmp"
+
+  [[ -n "$line" ]] || return 1
+  PICKED_URL="${line##*$'\t'}"
+  is_url "$PICKED_URL" || return 1
+  return 0
 }
 
 open_in_browser() {
@@ -2229,8 +2407,9 @@ open_in_browser() {
 
 check_source_url() {
   local file="$1"
-  local url action
-  local -a search_info options actions
+  local url action site
+  local -a options actions
+  integer rc
 
   $CHECK_URL || return 0
 
@@ -2242,19 +2421,20 @@ check_source_url() {
   options=()
   actions=()
 
-  if command -v python3 >/dev/null 2>&1; then
-    search_info=("${(@f)$(filename_search_query "${file:t}")}")
-    if [[ -n "${search_info[1]-}" ]]; then
-      options+=("search browser: ${search_info[1]}")
-      actions+=("open:${search_info[2]}")
+  if load_search_info "${file:t}"; then
+    if [[ -n "${SEARCH_INFO[google_url]-}" ]]; then
+      options+=("search google: ${SEARCH_INFO[google_query]}")
+      actions+=("open:${SEARCH_INFO[google_url]}")
     fi
-    if [[ -n "${search_info[3]-}" && "${search_info[3]-}" != "${search_info[1]-}" ]]; then
-      options+=("search browser: ${search_info[3]}")
-      actions+=("open:${search_info[4]}")
+    # The filename names the site it came from, so offer that site's own
+    # search — its results can be picked without leaving the terminal.
+    if [[ -n "${SEARCH_INFO[site]-}" ]]; then
+      options+=("search ${SEARCH_INFO[site]}: ${SEARCH_INFO[site_query]}")
+      actions+=("site")
     fi
   fi
 
-  options+=("enter URL manually" "skip this file")
+  options+=("enter/paste URL manually" "skip this check")
   actions+=("manual" "skip")
 
   if ! prompt_select "${options[@]}"; then
@@ -2266,6 +2446,24 @@ check_source_url() {
   case "$action" in
     open:*)
       open_in_browser "${action#open:}" || true
+      ;;
+    site)
+      site="${SEARCH_INFO[site]}"
+      pick_search_result "$site" "${SEARCH_INFO[site_url]}"
+      rc=$?
+      redraw_screen
+      if (( rc == 0 )); then
+        queue_source_url "$PICKED_URL"
+        PENDING_FIXES+=("source-url")
+        PROBE_URL="$PICKED_URL"
+        return 0
+      fi
+      # Nothing to pick from is worth a browser; backing out deliberately
+      # just drops through to the manual prompt.
+      if (( rc == 2 )); then
+        warn "No ${site} results to pick from; opening the search in a browser."
+        open_in_browser "${SEARCH_INFO[site_url]}" || true
+      fi
       ;;
     manual)
       ;;
