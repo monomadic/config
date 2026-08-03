@@ -26,13 +26,11 @@ use objc2::{AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_cl
 use objc2_app_kit::{
     NSBezierPath, NSColor, NSCompositingOperation, NSEvent, NSFont, NSFontAttributeName,
     NSFontWeightRegular, NSForegroundColorAttributeName, NSImage, NSImageSymbolConfiguration,
-    NSStringDrawing, NSTrackingArea, NSTrackingAreaOptions, NSView,
+    NSRectFillUsingOperation, NSStringDrawing, NSTrackingArea, NSTrackingAreaOptions, NSView,
 };
-use objc2_foundation::{
-    NSArray, NSMutableDictionary, NSPoint, NSRect, NSSize, NSString, ns_string,
-};
+use objc2_foundation::{NSMutableDictionary, NSPoint, NSRect, NSSize, NSString, ns_string};
 
-use crate::volumes::{self, Volume, VolumeKind, format_bytes};
+use crate::volumes::{self, Volume, VolumeKind, format_bytes, format_capacity};
 
 /// Below this much free space the amount and the bar fill turn red.
 const LOW_SPACE_RATIO: f64 = 0.10;
@@ -51,10 +49,13 @@ fn symbol_name(kind: VolumeKind) -> &'static NSString {
 pub struct Layout {
     font: Retained<NSFont>,
     detail_font: Retained<NSFont>,
+    /// The capacity label under the icon — smaller than the free amount, so
+    /// it reads as a property of the drive rather than another measurement.
+    capacity_font: Retained<NSFont>,
     pub height: f64,
     width: f64,
     icon_x: f64,
-    /// Diameter of the dark disc behind the icon; the glyph sits inside it.
+    /// Width of the icon column; the glyph and its label centre in it.
     icon_scrim: f64,
     icon_size: f64,
     text_left: f64,
@@ -72,15 +73,16 @@ pub fn layout(volumes: &[Volume], include_purgeable: bool) -> Layout {
     let detail_font = NSFont::monospacedDigitSystemFontOfSize_weight((em * 0.78).round(), unsafe {
         NSFontWeightRegular
     });
+    let capacity_font = NSFont::monospacedDigitSystemFontOfSize_weight(
+        (em * 0.66).round(),
+        unsafe { NSFontWeightRegular },
+    );
 
     let height = (em * 3.4).round();
     let left = (em * 1.1).round();
     let right = (em * 1.0).round();
     let gap = (em * 0.9).round();
-    // The icon column keeps the width the old scrim disc claimed, so the text
-    // column stays put; the glyph itself sits bare and a little larger.
-    let icon_scrim = (em * 2.0).round();
-    let icon_size = (em * 1.7).round();
+    let icon_size = (em * 1.55).round();
     let button_diameter = (em * 1.45).round();
     let bar_height = (em * 0.28).round().max(3.0);
 
@@ -91,6 +93,13 @@ pub fn layout(volumes: &[Volume], include_purgeable: bool) -> Layout {
             .fold(0.0, f64::max)
     };
     let name_width = widest(&|volume: &Volume| volume.name.clone());
+    // The icon column has to hold the wider of the glyph and its label, so
+    // labels never collide with the name column.
+    let capacity_width = volumes
+        .iter()
+        .map(|volume| text_size(&capacity_font, &format_capacity(volume.total)).width)
+        .fold(0.0, f64::max);
+    let icon_scrim = (em * 2.0).max(capacity_width).round();
     let detail_width = volumes
         .iter()
         .map(|volume| {
@@ -117,6 +126,7 @@ pub fn layout(volumes: &[Volume], include_purgeable: bool) -> Layout {
     Layout {
         font,
         detail_font,
+        capacity_font,
         height,
         width,
         icon_x: left,
@@ -133,6 +143,7 @@ pub fn layout(volumes: &[Volume], include_purgeable: bool) -> Layout {
 pub struct RowIvars {
     name: String,
     detail: String,
+    capacity: String,
     path: PathBuf,
     used_ratio: f64,
     /// Drawn as a translucent segment after the solid used fill; zero when
@@ -143,6 +154,7 @@ pub struct RowIvars {
     kind: VolumeKind,
     font: Retained<NSFont>,
     detail_font: Retained<NSFont>,
+    capacity_font: Retained<NSFont>,
     icon_x: f64,
     icon_scrim: f64,
     icon_size: f64,
@@ -316,6 +328,7 @@ impl VolumeRow {
         let this = Self::alloc(mtm).set_ivars(RowIvars {
             name: volume.name.clone(),
             detail: format_bytes(volume.available(include_purgeable)),
+            capacity: format_capacity(volume.total),
             path: volume.path.clone(),
             used_ratio: volume.used_ratio(include_purgeable),
             purgeable_ratio: if include_purgeable {
@@ -328,6 +341,7 @@ impl VolumeRow {
             kind: volume.kind,
             font: layout.font.clone(),
             detail_font: layout.detail_font.clone(),
+            capacity_font: layout.capacity_font.clone(),
             icon_x: layout.icon_x,
             icon_scrim: layout.icon_scrim,
             icon_size: layout.icon_size,
@@ -367,11 +381,29 @@ impl VolumeRow {
         this
     }
 
-    /// The bare volume icon, centred in its column, with a red alert badge
-    /// over its top-right corner when the volume is low on space.
+    /// The volume icon with its capacity written underneath, like the label
+    /// on a drive, and a red alert badge on its top-left corner when the
+    /// volume is low on space.
+    ///
+    /// The icon lifts to make room for the label, but by less than the
+    /// label's height: the label is visually light, so centring the pair
+    /// geometrically would drag the icon above the name line it currently
+    /// sits level with.
     fn draw_icon(&self, bounds: NSRect) {
         let ivars = self.ivars();
-        let center_y = bounds.size.height / 2.0;
+        let capacity_size = text_size(&ivars.capacity_font, &ivars.capacity);
+        let lift = (capacity_size.height * 0.45).round();
+        let center_y = bounds.size.height / 2.0 + lift;
+
+        draw_text(
+            &ivars.capacity,
+            &ivars.capacity_font,
+            &NSColor::secondaryLabelColor(),
+            NSPoint {
+                x: (ivars.icon_x + (ivars.icon_scrim - capacity_size.width) / 2.0).round(),
+                y: (center_y - ivars.icon_size / 2.0 - capacity_size.height).round(),
+            },
+        );
 
         let Some(symbol) = NSImage::imageWithSystemSymbolName_accessibilityDescription(
             symbol_name(ivars.kind),
@@ -414,9 +446,12 @@ impl VolumeRow {
         }
     }
 
-    /// The same warning mark the menu bar item wears: bottom-left of the
-    /// icon, the same size relative to it, and flat solid red — palette
-    /// colouring, because hierarchical rendering fades the circle layer.
+    /// The same warning mark the menu bar item wears: on the icon's top-left
+    /// corner, clear of the capacity label below, solid red with the mark
+    /// knocked out. Neither palette nor hierarchical colouring gives that —
+    /// palette paints the mark over the circle in the same red, hierarchical
+    /// fades the circle — so the symbol is tinted the way a template image
+    /// is: draw it, then flood red through its own alpha.
     fn draw_low_badge(&self, center_y: f64) {
         let ivars = self.ivars();
         let Some(symbol) = NSImage::imageWithSystemSymbolName_accessibilityDescription(
@@ -425,19 +460,29 @@ impl VolumeRow {
         ) else {
             return;
         };
-        let red = NSColor::systemRedColor();
-        let config = NSImageSymbolConfiguration::configurationWithPaletteColors(
-            &NSArray::from_retained_slice(&[red.clone(), red]),
-        );
-        let Some(badge) = symbol.imageWithSymbolConfiguration(&config) else {
-            return;
-        };
 
         let size = (ivars.icon_size * 0.62).round();
+        let canvas = NSSize {
+            width: size,
+            height: size,
+        };
+        let handler = block2::RcBlock::new(move |bounds: NSRect| -> objc2::runtime::Bool {
+            symbol.drawInRect_fromRect_operation_fraction(
+                bounds,
+                NSRect::ZERO,
+                NSCompositingOperation::SourceOver,
+                1.0,
+            );
+            NSColor::systemRedColor().set();
+            NSRectFillUsingOperation(bounds, NSCompositingOperation::SourceAtop);
+            objc2::runtime::Bool::YES
+        });
+        let badge = NSImage::imageWithSize_flipped_drawingHandler(canvas, false, &handler);
+
         badge.drawInRect_fromRect_operation_fraction(
             rect(
                 ivars.icon_x + (ivars.icon_scrim - ivars.icon_size) / 2.0 - size * 0.25,
-                center_y - ivars.icon_size / 2.0 - size * 0.25,
+                center_y + ivars.icon_size / 2.0 - size * 0.75,
                 size,
                 size,
             ),

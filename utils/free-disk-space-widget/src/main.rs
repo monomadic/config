@@ -334,6 +334,12 @@ define_class!(
             self.apply(|settings| settings.include_purgeable = !settings.include_purgeable);
         }
 
+        #[unsafe(method(quitAction:))]
+        fn quit_action(&self, _sender: &NSMenuItem) {
+            let mtm = MainThreadMarker::new().unwrap();
+            NSApplication::sharedApplication(mtm).terminate(None);
+        }
+
         #[unsafe(method(ejectAll:))]
         fn eject_all(&self, _sender: &NSMenuItem) {
             for volume in volumes::mounted().iter().filter(|v| v.unmountable()) {
@@ -542,12 +548,12 @@ impl Widget {
         action("Open Disk Utility", sel!(openDiskUtility:));
         action("Open DaisyDisk", sel!(openDaisyDisk:));
 
+        // Our own selector rather than `terminate:`: recent macOS decorates
+        // menu items it recognises as standard actions with an SF Symbol, and
+        // an unfamiliar action is the way to opt out of that.
         menu.addItem(&NSMenuItem::separatorItem(mtm));
-        let quit = NSMenuItem::new(mtm);
-        quit.setTitle(ns_string!("Quit"));
-        quit.setEnabled(true);
-        unsafe { quit.setAction(Some(sel!(terminate:))) };
-        menu.addItem(&quit);
+        let quit = action("Quit", sel!(quitAction:));
+        quit.setImage(None);
     }
 
     /// Format holds two radio groups: which quantity (Free/Used Space) and

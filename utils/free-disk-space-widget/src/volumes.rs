@@ -166,6 +166,35 @@ pub fn format_bytes(bytes: u64) -> String {
     }
 }
 
+/// A drive's capacity the way its box states it: `512GB`, `2TB`, `16TB`.
+///
+/// Reported capacity never matches the marketing size — a "512 GB" disk
+/// reports 494 GB once the container overhead is taken out — so a raw
+/// rounding would print `494GB` and read as a mistake beside the free
+/// amount. Sizes within a tenth of a standard capacity snap to it; anything
+/// else (odd-sized RAIDs, network shares) is simply rounded, since inventing
+/// a nearest standard for those would be the actual lie.
+pub fn format_capacity(bytes: u64) -> String {
+    const STANDARD_GB: [f64; 14] = [
+        64.0, 128.0, 256.0, 512.0, 1000.0, 2000.0, 4000.0, 6000.0, 8000.0, 12000.0, 16000.0,
+        20000.0, 24000.0, 32000.0,
+    ];
+    let gigabytes = bytes as f64 / 1e9;
+    let snapped = STANDARD_GB
+        .iter()
+        .copied()
+        .find(|standard| (gigabytes - standard).abs() <= standard * 0.1)
+        .unwrap_or(gigabytes);
+
+    if snapped >= 1000.0 {
+        format!("{:.0}TB", snapped / 1000.0)
+    } else if snapped >= 1.0 {
+        format!("{snapped:.0}GB")
+    } else {
+        format!("{:.0}MB", bytes as f64 / 1e6)
+    }
+}
+
 /// Integer, lowercase, and unspaced for the deliberately compact stacked
 /// menu-bar style: `860mb`, `3gb`, `137gb`, `2tb`.
 pub fn format_compact_bytes(bytes: u64) -> String {
@@ -192,11 +221,11 @@ fn volume(url: &NSURL) -> Option<Volume> {
     }
 
     let is_root = flag(url, unsafe { NSURLVolumeIsRootFileSystemKey });
-    let name = text(url, unsafe { NSURLVolumeNameKey }).unwrap_or_else(|| {
+    let name = capitalized(&text(url, unsafe { NSURLVolumeNameKey }).unwrap_or_else(|| {
         path.file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| path.to_string_lossy().into_owned())
-    });
+    }));
 
     // A network mount is simply "not local"; among local disks, IsInternal
     // separates the built-in drive from anything plugged in. The system
@@ -232,6 +261,17 @@ fn free_and_purgeable(url: &NSURL) -> (u64, u64) {
         NSURLVolumeAvailableCapacityForImportantUsageKey
     });
     (strict, important.saturating_sub(strict))
+}
+
+/// Volume names are displayed as titles, so a lowercase share like `jobs`
+/// reads as a typo beside `Macintosh HD`. Only the first character is
+/// touched — the rest of the name is the user's own capitalisation.
+fn capitalized(name: &str) -> String {
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
 }
 
 /// macOS mounts its own volumes under these prefixes (Preboot, Recovery, VM,
@@ -317,6 +357,25 @@ mod tests {
     }
 
     #[test]
+    fn capacities_snap_to_the_size_on_the_box() {
+        // Reported capacities, as macOS gives them for these drives.
+        assert_eq!(format_capacity(494_384_795_648), "512GB");
+        assert_eq!(format_capacity(2_000_054_960_128), "2TB");
+        assert_eq!(format_capacity(16_000_900_661_248), "16TB");
+        // Nothing standard within a tenth: rounded, not invented.
+        assert_eq!(format_capacity(3_000_000_000_000), "3TB");
+        assert_eq!(format_capacity(750_000_000_000), "750GB");
+    }
+
+    #[test]
+    fn names_lead_with_a_capital_and_keep_the_rest() {
+        assert_eq!(capitalized("jobs"), "Jobs");
+        assert_eq!(capitalized("Macintosh HD"), "Macintosh HD");
+        assert_eq!(capitalized("iMac backup"), "IMac backup");
+        assert_eq!(capitalized(""), "");
+    }
+
+    #[test]
     fn compact_capacities_are_integer_lowercase_and_unspaced() {
         assert_eq!(format_compact_bytes(860_000_000), "860mb");
         assert_eq!(format_compact_bytes(3_400_000_000), "3gb");
@@ -324,3 +383,4 @@ mod tests {
         assert_eq!(format_compact_bytes(1_900_000_000_000), "2tb");
     }
 }
+

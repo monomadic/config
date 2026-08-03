@@ -5,6 +5,7 @@
       "type": "openai",
       "base_url": "http://localhost:11434/v1",
       "api_key": "ollama",
+      "system_prompt_prefix": "Be concise. Answer directly with minimal preamble and no restating of the question. Prefer code over prose; explain only non-obvious decisions.",
       "models": [
         {
           "id": "qwen3-coder:30b",

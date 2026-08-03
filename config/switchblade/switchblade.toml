@@ -240,7 +240,7 @@ strip_hover_scale = 1.15
 strip_scroll_sensitivity = 1.0
 # true (default): scrolling commits the selection to the nearest chip —
 # magnetic, chip-by-chip flow. false: scrolling only PEEKS — the strip
-# pans while the selected clip keeps playing (hover still previews);
+ pans while the selected clip keeps playing (hover still previews);
 # click a chip to play it. The strip re-centers when the selection moves.
 strip_scroll_selects = false
 
@@ -528,7 +528,7 @@ R = "jump_random"  # select a random clip ("jump_to_random" also works)
 T = "trim"
 c = "chapter_mode"
 f = "fast_fullscreen"
-i = "mediainfo"
+#i = "mediainfo"
 n = "next"
 o = "open"
 p = "prev"  # pause-when-unfocused on/off
