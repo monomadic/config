@@ -12,6 +12,10 @@ else
   exec 4>&2
 fi
 
+# Resolved through any symlink, so fzf's preview subprocess can call back into
+# this script wherever the checkout lives.
+MEDIA_AUDIT_SELF="${0:A}"
+
 CHECK_UTF8=true
 CHECK_FASTSTART=true
 CHECK_BLACKFRAMES=true
@@ -464,7 +468,7 @@ detect_thumb_backend() {
   # Prefer the standalone `kitten` binary (present wherever kitty is, and easy
   # to install alone on remotes); imgcat is iTerm2's protocol, so only trust it
   # inside iTerm — a stray imgcat on a remote host renders nothing in kitty.
-  if [[ "$TERM" == *kitty* || -n "${KITTY_WINDOW_ID:-}" ]] && command -v kitten >/dev/null 2>&1; then
+  if [[ "${TERM:-}" == *kitty* || -n "${KITTY_WINDOW_ID:-}" ]] && command -v kitten >/dev/null 2>&1; then
     THUMB_BACKEND=kitty
     THUMB_ICAT=(kitten icat)
   elif [[ -n "${KITTY_WINDOW_ID:-}" ]] && command -v kitty >/dev/null 2>&1; then
@@ -558,9 +562,43 @@ thumb_cache_path() {
 }
 
 # Cover-fit: scale until the frame covers the box, then crop the overflow, so
-# the rendered thumbnail fills its cells exactly whatever the source aspect is.
+# a rendered image fills its cells exactly whatever the source aspect is.
+cover_fit_filter() {
+  local w="$1" h="$2"
+  print -r -- "scale=${w}:${h}:force_original_aspect_ratio=increase:flags=lanczos,crop=${w}:${h}"
+}
+
 thumb_filter() {
-  print -r -- "scale=${THUMB_BOX_W}:${THUMB_BOX_H}:force_original_aspect_ratio=increase:flags=lanczos,crop=${THUMB_BOX_W}:${THUMB_BOX_H}"
+  cover_fit_filter "$THUMB_BOX_W" "$THUMB_BOX_H"
+}
+
+# Cover-fit an existing image into a pixel box, cached by source and box.
+# Prints the cropped path (or fails, leaving the caller to use the original).
+crop_to_box() {
+  local src="$1" w="$2" h="$3"
+  local key out tmp
+
+  [[ -s "$src" ]] || return 1
+  command -v ffmpeg >/dev/null 2>&1 || return 1
+
+  key="$(printf '%s:%s:%sx%s' "$src" "$(stat -f '%m' -- "$src" 2>/dev/null)" "$w" "$h" \
+    | md5 -q 2>/dev/null)"
+  [[ -n "$key" ]] || return 1
+
+  out="$THUMB_CACHE_DIR/crop-${key}.jpg"
+  [[ -s "$out" ]] && { print -r -- "$out"; return 0 }
+
+  mkdir -p -- "$THUMB_CACHE_DIR" 2>/dev/null || return 1
+  tmp="${out}.$$.jpg"
+  if ffmpeg -v error -y -i "$src" -vf "$(cover_fit_filter "$w" "$h")" -q:v 3 \
+      -- "$tmp" 2>/dev/null && [[ -s "$tmp" ]]; then
+    mv -f -- "$tmp" "$out"
+    print -r -- "$out"
+    return 0
+  fi
+
+  rm -f -- "$tmp" 2>/dev/null || true
+  return 1
 }
 
 generate_thumb() {
@@ -1902,7 +1940,11 @@ cache_source_thumb() {
   tmp_dir="$(mktemp -d -t media-audit-thumb)" || return 1
   template="${extractor}_${id}.%(ext)s"
 
+  # --ignore-no-formats-error for the same reason the metadata fetch needs it:
+  # a gated video has no formats, and without the flag yt-dlp aborts before it
+  # ever gets to writing the thumbnail.
   yt-dlp --load-info-json "$json" --skip-download --write-thumbnail \
+    --ignore-no-formats-error \
     --no-write-info-json --no-download-archive --no-warnings --no-progress \
     --paths "thumbnail:$tmp_dir" --output "thumbnail:$template" \
     >/dev/null 2>&1
@@ -2340,13 +2382,145 @@ load_search_info() {
   (( ${#SEARCH_INFO[@]} > 0 ))
 }
 
+# Format a duration in seconds as m:ss / h:mm:ss.
+human_duration() {
+  awk -v s="$1" 'BEGIN {
+    s = int(s + 0.5)
+    if (s <= 0) exit
+    h = int(s / 3600); m = int((s % 3600) / 60); sec = s % 60
+    if (h > 0) printf "%d:%02d:%02d", h, m, sec
+    else       printf "%d:%02d", m, sec
+  }'
+}
+
+# Draw a thumbnail into the fzf preview pane.
+#
+# Two deliberate omissions. No `icat --clear`: that wipes every image on the
+# screen, including the audited file's thumbnail in the band above, which is
+# the one thing the user is comparing against. And no `--place`: its offsets
+# are absolute to the screen, so the image would land over that same band
+# rather than in the preview pane. Sizing instead comes from cropping the
+# image to exactly the pixels the pane has room for and rendering it 1:1
+# (--fit=none) at the cursor fzf has already put inside the pane. Cropping to
+# a fixed box also means each preview fully paints over the last one.
+render_preview_thumb() {
+  local image="$1"
+  local cols="${FZF_PREVIEW_COLUMNS:-40}"
+  local rows_img cropped
+  local cell_w="${MEDIA_AUDIT_CELL_W:-10}"
+  local cell_h="${MEDIA_AUDIT_CELL_H:-20}"
+  local -a icat_cmd
+
+  (( cols > 4 )) || return 1
+  rows_img=$(( cols * cell_w * 9 / (16 * cell_h) ))
+  (( rows_img > 16 )) && rows_img=16
+  (( rows_img < 5 )) && rows_img=5
+
+  cropped="$(crop_to_box "$image" $(( cols * cell_w )) $(( rows_img * cell_h )) 2>/dev/null)" \
+    || cropped="$image"
+
+  if [[ "${TERM:-}" == *kitty* || -n "${KITTY_WINDOW_ID:-}" ]]; then
+    if command -v kitten >/dev/null 2>&1; then
+      icat_cmd=(kitten icat)
+    elif command -v kitty >/dev/null 2>&1; then
+      icat_cmd=(kitty +kitten icat)
+    fi
+  fi
+
+  if (( ${#icat_cmd[@]} > 0 )) \
+    && "${icat_cmd[@]}" --transfer-mode=file --stdin=no --align=left \
+      --fit=none -- "$cropped" 2>/dev/null; then
+    return 0
+  fi
+
+  if command -v chafa >/dev/null 2>&1; then
+    chafa -f symbols --animate=off --align=left \
+      --font-ratio "${cell_w}/${cell_h}" \
+      --size="${cols}x${rows_img}" -- "$cropped" 2>/dev/null
+    return 0
+  fi
+
+  return 1
+}
+
+# fzf calls this back for the highlighted result: yt-dlp metadata and a
+# thumbnail for that candidate, so it can be matched against the file being
+# audited without opening a browser. Writes to stdout — fzf owns the pane.
+preview_search_result() {
+  local url="$1"
+  local json tmp thumb title uploader duration upload_date extractor id
+  local -a parts
+
+  [[ -n "$url" ]] || return 0
+  if ! command -v jq >/dev/null 2>&1; then
+    print -r -- "$url"
+    return 0
+  fi
+
+  json="$(find_cached_source_json "$url" 2>/dev/null)" || json=""
+
+  if [[ ! -s "$json" ]] && command -v yt-dlp >/dev/null 2>&1; then
+    tmp="$(mktemp -t media-audit-preview.XXXXXX.json)" || return 0
+    # Same flags as the metadata check: the archive would otherwise make
+    # yt-dlp skip a URL it has seen, and gated formats must not lose us the
+    # tags we actually want.
+    if yt-dlp --skip-download --dump-single-json --no-warnings \
+        --ignore-no-formats-error --no-download-archive -- "$url" \
+        > "$tmp" 2>/dev/null && [[ -s "$tmp" ]]; then
+      extractor="$(jq -r '.extractor // empty' "$tmp" 2>/dev/null)"
+      id="$(jq -r '.id // empty' "$tmp" 2>/dev/null)"
+      # Into the shared cache, so coming back to this row — or auditing this
+      # URL later — is instant.
+      json="$(cache_source_json "$tmp" "$extractor" "$id" 2>/dev/null)"
+      [[ -s "$json" ]] || json="$tmp"
+    else
+      rm -f -- "$tmp" 2>/dev/null || true
+      print -r -- "${C_DIM}No metadata available for this result.${C_RESET}"
+      print -r -- "${C_CYAN}${url}${C_RESET}"
+      return 0
+    fi
+  fi
+
+  if [[ ! -s "$json" ]]; then
+    print -r -- "${C_CYAN}${url}${C_RESET}"
+    return 0
+  fi
+
+  title="$(jq -r '.title // empty' "$json" 2>/dev/null)"
+  uploader="$(jq -r '.uploader // .channel // empty' "$json" 2>/dev/null)"
+  duration="$(jq -r '.duration // empty' "$json" 2>/dev/null)"
+  upload_date="$(jq -r '.upload_date // empty' "$json" 2>/dev/null)"
+  extractor="$(jq -r '.extractor // empty' "$json" 2>/dev/null)"
+  id="$(jq -r '.id // empty' "$json" 2>/dev/null)"
+
+  thumb="$(find_cached_source_thumb "$extractor" "$id" 2>/dev/null)" || thumb=""
+  if [[ -z "$thumb" ]]; then
+    cache_source_thumb "$json" "$extractor" "$id" >/dev/null 2>&1 || true
+    thumb="$(find_cached_source_thumb "$extractor" "$id" 2>/dev/null)" || thumb=""
+  fi
+  [[ -n "$thumb" ]] && render_preview_thumb "$thumb" && print ""
+
+  [[ -n "$title" ]] && print -r -- "${C_BOLD}${C_YELLOW}${title}${C_RESET}"
+
+  parts=()
+  [[ -n "$uploader" ]] && parts+=("$uploader")
+  [[ -n "$duration" ]] && parts+=("$(human_duration "$duration")")
+  [[ "$upload_date" == <-> && ${#upload_date} -eq 8 ]] \
+    && parts+=("${upload_date[1,4]}-${upload_date[5,6]}-${upload_date[7,8]}")
+  (( ${#parts[@]} > 0 )) && print -r -- "${C_DIM}${(j: · :)parts}${C_RESET}"
+
+  print -r -- "${C_CYAN}${url}${C_RESET}"
+}
+
 # Scrape a site's search page and let the user pick a result in fzf, so a URL
 # can be found without leaving the terminal. Sets PICKED_URL.
 # 0 = picked, 1 = cancelled deliberately, 2 = nothing to show.
 PICKED_URL=""
 pick_search_result() {
   local site="$1" url="$2"
-  local tmp line
+  local tmp line size rows
+  local -a height_args
+  integer height
 
   PICKED_URL=""
   { [[ -t 3 && -t 4 ]] \
@@ -2369,10 +2543,31 @@ pick_search_result() {
     return 2
   fi
 
-  # fzf reads the list from the pipe and drives its own UI on /dev/tty.
-  line="$(fzf --delimiter=$'\t' --with-nth=1,2 --no-multi --reverse \
-    --prompt="${site} > " \
-    --header="enter to use this URL · esc to go back" < "$tmp")"
+  # Run the picker in the rows below the thumbnail band rather than taking the
+  # whole screen, so the audited file's own thumbnail, name and specs stay
+  # visible to compare each result against.
+  size="$(stty size <&3 2>/dev/null)"
+  rows="${size%% *}"
+  { [[ "$rows" == <-> ]] && (( rows > 0 )) } || rows="${LINES:-40}"
+  height=$(( rows - CHECKS_HEADER_ROW + 1 ))
+
+  height_args=()
+  if (( height >= 12 )); then
+    height_args=(--height="$height")
+    print -n -u4 -- $'\033['"${CHECKS_HEADER_ROW}"$';1H\033[J'
+  fi
+
+  # The preview runs as an fzf child, so the measured cell size has to travel
+  # in the environment for it to size its thumbnail.
+  export MEDIA_AUDIT_CELL_W="$THUMB_CELL_W"
+  export MEDIA_AUDIT_CELL_H="$THUMB_CELL_H"
+
+  # fzf reads the list from the file and drives its own UI on /dev/tty.
+  line="$(fzf "${height_args[@]}" --delimiter=$'\t' --with-nth=1,2 --no-multi \
+    --reverse --prompt="${site} > " \
+    --header="${CURRENT_FILE:t}" \
+    --preview="${(q)MEDIA_AUDIT_SELF} --preview-search-result {2}" \
+    --preview-window='right,50%,wrap,border-left' < "$tmp")"
   rm -f -- "$tmp"
 
   [[ -n "$line" ]] || return 1
@@ -2424,15 +2619,16 @@ check_source_url() {
   actions=()
 
   if load_search_info "${file:t}"; then
-    if [[ -n "${SEARCH_INFO[google_url]-}" ]]; then
-      options+=("search google: ${SEARCH_INFO[google_query]}")
-      actions+=("open:${SEARCH_INFO[google_url]}")
-    fi
-    # The filename names the site it came from, so offer that site's own
-    # search — its results can be picked without leaving the terminal.
+    # The filename names the site it came from, so lead with that site's own
+    # search — its results can be picked without leaving the terminal, which
+    # beats a general web search whenever it is available.
     if [[ -n "${SEARCH_INFO[site]-}" ]]; then
       options+=("search ${SEARCH_INFO[site]}: ${SEARCH_INFO[site_query]}")
       actions+=("site")
+    fi
+    if [[ -n "${SEARCH_INFO[google_url]-}" ]]; then
+      options+=("search google: ${SEARCH_INFO[google_query]}")
+      actions+=("open:${SEARCH_INFO[google_url]}")
     fi
   fi
 
@@ -2863,6 +3059,13 @@ process_stdin_or_fd_media() {
 
 main() {
   local file
+
+  # Internal: fzf's preview pane calls back into this script per result row.
+  # Handled ahead of parse_args so it never touches the audit UI.
+  if [[ "${1-}" == "--preview-search-result" ]]; then
+    preview_search_result "${2-}"
+    return 0
+  fi
 
   parse_args "$@"
   build_enabled_checks
