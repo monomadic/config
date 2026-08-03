@@ -306,3 +306,8 @@ elio() {
     return "$status_code"
 }
 # <<< elio shell integration <<<
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/nom/.lmstudio/bin"
+# End of LM Studio CLI section
+
