@@ -166,6 +166,9 @@ default_target_type = "symbolic"
 [chafa.files]
 "scripts/chafa-select" = "~/.bin/chafa-select"
 
+[crush.files]
+"config/crush" = "~/.config/crush"
+
 [dotter.files]
 "dotter/global.toml" = "~/.config/dotter/global.toml"
 

@@ -13,6 +13,7 @@ packages = [
   # "broot",
   "chafa",
   # "cointop",
+  "crush",
   # "davinci-resolve",
   "default",
   "delta",

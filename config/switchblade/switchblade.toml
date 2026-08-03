@@ -211,15 +211,15 @@ quickview_fade_ms = 150.0
 # scrub — coarse keyframe hops while dragging, an exact landing on
 # release. Hovering the bar previews the nearest animated-thumbnail
 # frame at seekbar_thumb_width px wide (0 hides the preview).
-seekbar_hide_s = 0.5
-seekbar_fade_ms = 150.0
-seekbar_height = 10.0
-seekbar_hover_height = 12.0
+seekbar_hide_s = 0.3
+seekbar_fade_ms = 450.0
+seekbar_height = 25.0
+seekbar_hover_height = 25.0
 seekbar_thumb_width = 190.0
 # Opacity (0..1) of the seekbar's background track — the unfilled part
 # behind the played fill. The fill stays solid white; lower this to make
 # the track more transparent over the video.
-seekbar_track_opacity = 0.1
+seekbar_track_opacity = 0.05
 
 # The filmstrip of neighboring clips along the bottom. Chips share this
 # fixed height and take each clip's true aspect for width — portrait
