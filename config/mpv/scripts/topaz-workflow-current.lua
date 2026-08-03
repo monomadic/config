@@ -26,9 +26,10 @@ local params_badge = mp.create_osd_overlay("ass-events")
 params_badge.z = 30
 local detail_badge = mp.create_osd_overlay("ass-events")
 detail_badge.z = 30
--- Preset-details companion sheet visibility (toggled with `d`, on by default);
--- deliberately a script-local so the choice survives closing and reopening the menu.
-local details_visible = true
+-- Preset-details companion sheet visibility (toggled with `d`, off until the user
+-- opens it); deliberately a script-local so the choice survives closing and
+-- reopening the menu.
+local details_visible = false
 local encode_timer = nil
 local encode_start = nil
 
@@ -46,6 +47,7 @@ local TABS = { "Enhance", "Interpolate", "Output" }
 local draw_menu, show_original, render_or_show, move_cursor, select_number
 local render_cursor, run_job_now, close_menu, enable_menu_keys, remove_menu_keys
 local space_toggle, show_render, show_orig, toggle_ui, menu_seek
+local cycle_rendered_presets
 local draw_details, toggle_details, set_tab, interp_select, output_select
 local save_job_file, send_job_file, copy_encode_command
 local apply_view, set_zoom, rotate_by
@@ -340,6 +342,7 @@ local ENHANCE_HINTS = {
     { keys = { "Z" }, label = "zoom" },
     { keys = { "[", "]" }, label = "rotate" },
     { keys = { "D" }, label = "details" },
+    { keys = { "`" }, label = "renders" },
     { keys = { "⌘⇧[", "⌘⇧]" }, label = "tabs" },
     { keys = { "Tab" }, label = "hide" },
 }
@@ -680,27 +683,6 @@ local function chosen_enh()
     return menu.presets[1]  -- the Original pseudo-preset is always first
 end
 
--- Tiny "what's selected" caption for tab `tab_idx` (1=Enhance, 2=Interpolate,
--- 3=Output) — the current global selection, independent of which tab is active,
--- so each segmented-control tab can show its own pending choice underneath.
-local function tab_summary_text(tab_idx)
-    if tab_idx == 1 then
-        local enh = chosen_enh()
-        return enh.is_original and "Original" or enh.display
-    elseif tab_idx == 2 then
-        local row = menu.interp_rows[menu.interp_sel]
-        return row and row.title or "Off"
-    else
-        local res = effective_res(chosen_enh())
-        local fmt = menu.out_formats and menu.out_formats[menu.fmt_sel]
-        local parts = { res.short or res.label or "" }
-        if fmt then
-            parts[#parts + 1] = fmt.display
-        end
-        return table.concat(parts, " · ")
-    end
-end
-
 -- ===== catalog loading =====
 
 -- Read enhancement presets, group by category, and hide presets that can't reach
@@ -963,9 +945,7 @@ local function paint_option_row(pills, fg, o)
     end
 end
 
--- The segmented Enhance / Interpolate / Output control under the title. Each
--- segment carries the tab name plus a tiny caption of its current selection,
--- both packed inside the existing TAB_H band — this never grows the panel.
+-- The segmented Enhance / Interpolate / Output control under the title.
 local function draw_tab_bar(ev)
     ev[#ev + 1] = string.format(
         "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&HFFFFFF&\\1a&HE8&\\p1}%s{\\p0}",
@@ -973,7 +953,6 @@ local function draw_tab_bar(ev)
 
     menu.tab_hitboxes = {}
     local seg_w = math.floor((ROW_W - 6) / #TABS)
-    local max_chars = math.max(4, math.floor(seg_w / 5.2))
     for i, name in ipairs(TABS) do
         local x = LIST_X + 3 + (i - 1) * seg_w
         local cx = x + math.floor(seg_w / 2)
@@ -984,14 +963,9 @@ local function draw_tab_bar(ev)
                 x, TAB_Y + 3, ass_round_rect(seg_w, TAB_H - 6, 7))
         end
         local name_color = active and "&H1A1A1A&" or "&HB4B4B4&"
-        local cap_color = active and "&H5A5A5A&" or "&H8C8C8C&"
         ev[#ev + 1] = string.format(
             "{\\an5\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs10\\b1\\1c%s}%s",
-            cx, TAB_Y + 8, FONT, name_color, name)
-        ev[#ev + 1] = string.format(
-            "{\\an5\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs7\\b0\\1c%s}%s",
-            cx, TAB_Y + 18, FONT, cap_color,
-            ass_escape(truncate_disp(tab_summary_text(i), max_chars)))
+            cx, TAB_Y + math.floor(TAB_H / 2), FONT, name_color, name)
         menu.tab_hitboxes[#menu.tab_hitboxes + 1] =
             { x0 = x, x1 = x + seg_w, y0 = TAB_Y, y1 = TAB_Y + TAB_H, tab = i }
     end
@@ -2091,6 +2065,41 @@ function space_toggle()
     end
 end
 
+-- Every preset with a rendered still at its effective resolution, in catalog
+-- order; Original always counts (nothing to render, always showable).
+local function rendered_presets()
+    local list = {}
+    for _, p in ipairs(menu.presets) do
+        if p.is_original or menu.cache.stills[key_for(p)] then
+            list[#list + 1] = p
+        end
+    end
+    return list
+end
+
+-- `: step through every preset that already has a rendered still (Original
+-- included), wrapping around. A no-op with zero or one renders available.
+function cycle_rendered_presets()
+    if not menu or menu.tab ~= 1 or menu.rendering_slug then
+        return
+    end
+    local list = rendered_presets()
+    if #list <= 1 then
+        return
+    end
+    local current = menu.shown_slug or "__original__"
+    local idx = 1
+    for i, p in ipairs(list) do
+        if p.slug == current then
+            idx = i
+            break
+        end
+    end
+    local nxt = list[(idx % #list) + 1]
+    menu.cursor = nxt.index
+    render_or_show(nxt)
+end
+
 -- F: hide/show the whole menu UI for a clean fullscreen preview. Navigation and
 -- A/B keys still work while hidden, so you can flick presets at full size.
 function toggle_ui()
@@ -2521,7 +2530,8 @@ local MENU_KEY_NAMES = {
     "topaz_menu_space", "topaz_menu_hide_ui_tab", "topaz_menu_hide_ui_f",
     "topaz_menu_tab_prev", "topaz_menu_tab_next",
     "topaz_menu_seek_fwd", "topaz_menu_seek_back",
-    "topaz_menu_details", "topaz_menu_zoom", "topaz_menu_zoom_reset",
+    "topaz_menu_details", "topaz_menu_cycle_rendered",
+    "topaz_menu_zoom", "topaz_menu_zoom_reset",
     "topaz_menu_zoom_in", "topaz_menu_zoom_in2", "topaz_menu_zoom_out",
     "topaz_menu_wheel_up", "topaz_menu_wheel_down",
     "topaz_menu_rotate_cw", "topaz_menu_rotate_ccw",
@@ -2573,6 +2583,8 @@ function enable_menu_keys()
     end)
     -- d toggles the preset-details companion sheet.
     mp.add_forced_key_binding("d", "topaz_menu_details", toggle_details)
+    -- ` cycles through every preset that already has a rendered still.
+    mp.add_forced_key_binding("`", "topaz_menu_cycle_rendered", cycle_rendered_presets)
     -- Zoom: z steps fit -> 2x -> 4x, Z resets, +/- and the trackpad / wheel step
     -- finely, and dragging the frame pans. Zoom is fit-relative on purpose, so
     -- A/B between a source and its upscale never changes framing (see apply_view).

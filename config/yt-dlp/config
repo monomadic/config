@@ -27,6 +27,7 @@
 --parse-metadata "%(cast,uploader)l:(?P<meta_artist>.+)"
 --parse-metadata "%(cast,uploader)l:(?P<meta_actors>.+)"
 --parse-metadata "%(channel,uploader)s:(?P<meta_album_artist>.+)"
+--parse-metadata "%(channel,uploader)s:(?P<meta_album>.+)"
 
 # --embed-metadata already maps upload_date -> date, but as raw YYYYMMDD;
 # meta_date takes precedence, so restate it as ISO
