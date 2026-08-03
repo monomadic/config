@@ -23,13 +23,17 @@ setopt pipefail
 
 typeset -r YTQ_SELF="${0:A}"
 
-# ── colors + Nerd Font glyphs (list rows, preview panel) ─────────────────────
+# YTQ_C_TAG/YTQ_C_BORDER use an explicit 256-color gray, NOT \e[90m ("bright
+# black") — themes are free to map color8 to whatever they want, including
+# literal black (the "1984" theme here maps both color0 AND color8 to
+# #000000), which makes \e[90m text invisible on a black background.
+# \e[38;5;244m is a fixed mid-gray independent of the terminal's ANSI palette.
 typeset -gr \
   YTQ_C_RESET=$'\e[0m'      YTQ_C_DIM=$'\e[2m'        YTQ_C_BOLD=$'\e[1m' \
   YTQ_C_TITLE=$'\e[1;36m'   YTQ_C_USER=$'\e[37m'      YTQ_C_ACTOR=$'\e[35m' \
   YTQ_C_DUR=$'\e[33m'       YTQ_C_OK=$'\e[32m'        YTQ_C_WARN=$'\e[33m' \
-  YTQ_C_ERR=$'\e[31m'       YTQ_C_ACCENT=$'\e[38;5;39m' YTQ_C_TAG=$'\e[90m' \
-  YTQ_C_BORDER=$'\e[90m'
+  YTQ_C_ERR=$'\e[31m'       YTQ_C_ACCENT=$'\e[38;5;39m' YTQ_C_TAG=$'\e[38;5;244m' \
+  YTQ_C_BORDER=$'\e[38;5;244m'
 
 # Font Awesome codepoints via Nerd Font (same PUA range used by starship.toml).
 typeset -gr \
@@ -1278,12 +1282,12 @@ print_preview_metadata() {
       (
         [
           (if human_views then "[2m " + human_views + "[0m" else empty end),
-          "[90m " + $extractor + " " + $id + "[0m"
+          "[38;5;244m " + $extractor + " " + $id + "[0m"
         ] | map(select(. != null)) | join("  ")
       ),
       (if $url then "[2m " + $url + "[0m" else empty end),
       (if $description and $description != ""
-       then "\n[90m Description[0m\n" + ($description[0:800])
+       then "\n[38;5;244m Description[0m\n" + ($description[0:800])
        else empty end)
   ' "$json" 2>/dev/null
 }

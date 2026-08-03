@@ -51,9 +51,14 @@ zmodload zsh/zselect
 SELF="${0:t}"
 
 # ── colors ──────────────────────────────────────────────────────────────────
+# C_BORDER/C_DESC use an explicit 256-color gray, NOT \e[90m ("bright black") —
+# themes are free to map color8 to whatever they want, including literal black
+# (e.g. the "1984" theme here maps both color0 AND color8 to #000000), which
+# makes \e[90m text invisible on a black background. \e[38;5;244m is a fixed
+# mid-gray independent of the terminal's ANSI palette.
 typeset -gr \
-  C_STAR=$'\e[33m'   C_EMPTY=$'\e[2m'   C_BORDER=$'\e[90m' \
-  C_KEY=$'\e[97m'    C_DESC=$'\e[90m'   C_FILE=$'\e[1;36m' \
+  C_STAR=$'\e[33m'   C_EMPTY=$'\e[2m'   C_BORDER=$'\e[38;5;244m' \
+  C_KEY=$'\e[97m'    C_DESC=$'\e[38;5;244m'   C_FILE=$'\e[1;36m' \
   C_OK=$'\e[32m'     C_ERR=$'\e[31m'    C_WARN=$'\e[33m'   \
   C_DIM=$'\e[2m'     C_BOLD=$'\e[1m'    C_ACCENT=$'\e[38;5;39m' \
   C_BAR=$'\e[38;5;46m' \
