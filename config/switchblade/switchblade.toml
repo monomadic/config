@@ -12,6 +12,7 @@
 #   [commands]   programs those keys can launch
 
 [tuning]
+haptics = false
 # ── Layout ──────────────────────────────────────────────────────────────
 # Grid layout:
 #   "flexible" (default) — justified rows: every tile keeps its clip's
@@ -487,6 +488,36 @@ library_count_pill = 0.5
 # f = "fast_fullscreen"
 # The --fullscreen / --fast-fullscreen CLI flags start the app that way.
 
+[pad]
+# Delay before a HELD direction starts repeating. This is the "I pushed
+# left and it sat there" number — lower it if the pad feels sticky,
+# raise it if a quick tap runs away from you.
+repeat_delay_ms = 40.0
+repeat_delay_fast_ms = 50.0
+
+# Interval between repeats once it's going: 240ms is about 4 clips a
+# second, 45ms about 22.
+repeat_ms = 240.0
+repeat_fast_ms = 45.0
+
+# The d-pad is digital — there's no "how hard" to read — so it gets one
+# fixed delay and interval.
+dpad_repeat_delay_ms = 10.0
+dpad_repeat_ms = 120.0
+
+# Response curve for the analog axes (right-stick pan, trigger zoom).
+# 1.0 = linear, which sounds right and feels wrong: the usable slow
+# range collapses into the first few degrees of travel and every nudge
+# overshoots. 2.0 squares it — half travel gives a quarter speed — for a
+# wide, precise slow zone with the same top speed. Higher = gentler
+# still through the middle.
+curve = 2.5
+
+# Right-stick pan speed at full tilt (logical px/s), and trigger zoom
+# speed at full squeeze (a full trackpad pinch totals roughly 1.0).
+scroll_speed = 1100.0
+zoom_speed = 1.3
+
 [keys]
 space = "quickview"  # internal preview; Esc or Space closes, arrows browse
 enter = "fullview"
@@ -510,6 +541,24 @@ y = "yazi"
 1 = "load '~/Movies/Porn'"
 2 = "load '/Volumes/Tower/Movies/Porn'"
 3 = "load '/Volumes/Footage 1tb/Movies/Porn'"
+
+# Gamepad buttons are keys too (a pad just works — pair it and go). The
+# names follow the controller-agnostic layout: pad_south (A / ✕),
+# pad_east (B / ○), pad_west, pad_north, pad_l1/pad_r1 (bumpers),
+# pad_l3/pad_r3 (stick clicks), pad_start, pad_select, and
+# pad_up/down/left/right (the d-pad; the left stick rides the same
+# names). The right stick pans and the triggers zoom — those are analog,
+# not bindable. Shipped defaults, shown for reference:
+pad_south = "quickview"  # A: open the clip
+pad_east = "back"  # B: peel one layer (Esc's cascade, bindable)
+pad_north = "fullview"
+pad_west = "chapter_mode"
+pad_l1 = "skip_back"
+pad_r1 = "skip_forward"
+pad_start = "toggle_auto_skip"  # lean-back slideshow
+pad_select = "fullscreen"
+pad_l3 = "shuffle_library"
+pad_r3 = "jump_random"
 
 # n = "rename_script"    # any key -> any launched program; example below
 # "{" = "skip_back_big"  # a skip with its own amount; see below
