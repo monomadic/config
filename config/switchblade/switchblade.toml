@@ -639,7 +639,7 @@ p = "prev"  # pause-when-unfocused on/off
 r = "reveal"  # reveal in Finder (open -R)
 s = "shuffle_library"  # shuffle the whole grid in place ("shuffle" also works)
 t = "toggle_skip_timer"  # auto-advance every skip_timer_s of playback
-y = "yazi"
+y = "launch '/Users/nom/.zsh/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /opt/homebrew/bin/yazi {path}'"
 "[" = "skip_back"  # jump by skip_fraction; wraps at the ends
 "]" = "skip_forward"
 1 = "load '~/Movies/Porn'"
@@ -669,25 +669,25 @@ pad_r3 = "jump_random"
 
 # "open" is just a command like any other — swap mpv for whatever you
 # like, or add more commands and bind keys to them.
-[commands.open]
-type = "launch"
-program = "mpv-send"
-args = ["play", "{path}"]
+# [commands.open]
+# type = "launch"
+# program = "mpv-send"
+# args = ["play", "{path}"]
 
 # Quick-Look-ish peek: windowed (never fullscreen), floats on top,
 # loops, opens instantly, capped at 70% of the screen.
-[commands.preview]
-type = "launch"
-program = "mpv"
-args = [
-  "--no-fs",
-  "--loop-file=inf",
-  "--ontop",
-  "--no-terminal",
-  "--force-window=immediate",
-  "--autofit-larger=70%x70%",
-  "{path}",
-]
+# [commands.preview]
+# type = "launch"
+# program = "mpv"
+# args = [
+#   "--no-fs",
+#   "--loop-file=inf",
+#   "--ontop",
+#   "--no-terminal",
+#   "--force-window=immediate",
+#   "--autofit-larger=70%x70%",
+#   "{path}",
+# ]
 
 # Built-in default, shown for reference — override to change it:
 # [commands.reveal]
@@ -710,30 +710,30 @@ args = [
   "{path}",
 ]
 
-[commands.yazi]
-type = "launch"
-program = "/Users/nom/.zsh/bin/kitty-launch"
-args = [
-  "--os-window",
-  "--auto-hide",
-  "--cwd",
-  "{dir}",
-  "--",
-  "/opt/homebrew/bin/yazi",
-  "{path}",
-]
+# [commands.yazi]
+# type = "launch"
+# program = "/Users/nom/.zsh/bin/kitty-launch"
+# args = [
+#   "--os-window",
+#   "--auto-hide",
+#   "--cwd",
+#   "{dir}",
+#   "--",
+#   "/opt/homebrew/bin/yazi",
+#   "{path}",
+# ]
 
-[commands.mediainfo]
-type = "launch"
-program = "/Users/nom/.zsh/bin/kitty-launch"
-args = [
-  "--os-window",
-  "--cwd",
-  "{dir}",
-  "--",
-  "/opt/homebrew/bin/mediainfo",
-  "{path}",
-]
+# [commands.mediainfo]
+# type = "launch"
+# program = "/Users/nom/.zsh/bin/kitty-launch"
+# args = [
+#   "--os-window",
+#   "--cwd",
+#   "{dir}",
+#   "--",
+#   "/opt/homebrew/bin/mediainfo",
+#   "{path}",
+# ]
 
 # Example: bind a key to your own script.
 # [commands.rename_script]

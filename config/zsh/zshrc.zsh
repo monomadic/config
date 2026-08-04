@@ -71,7 +71,7 @@ export WASMTIME_HOME=$HOME/.wasmtime
 path+=($WASMTIME_HOME/bin)
 export GHQ_ROOT=$HOME/src
 
-export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS --bind 'ctrl-a:select-all' --layout=reverse --cycle --preview-window=noborder --highlight-line --no-separator --gutter=' ' --no-border --inline-info --bind 'ctrl-u:unix-line-discard'"
+export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS --bind 'ctrl-a:select-all' --exact --layout=reverse --cycle --preview-window=noborder --highlight-line --no-separator --gutter=' ' --no-border --inline-info --bind 'ctrl-u:unix-line-discard'"
 export FZF_COMPLETION_TRIGGER='\t'
 export FZF_PREVIEW_COMMAND='fzf-preview {}'
 export SKIM_DEFAULT_COMMAND="fd . --max-depth=3"
