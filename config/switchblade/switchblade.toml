@@ -213,8 +213,8 @@ quickview_fade_ms = 150.0
 # frame at seekbar_thumb_width px wide (0 hides the preview).
 seekbar_hide_s = 0.3
 seekbar_fade_ms = 450.0
-seekbar_height = 20.0
-seekbar_hover_height = 25.0
+seekbar_height = 18.0
+seekbar_hover_height = 20.0
 # Opacity (0..1) of the seekbar's background track — the unfilled part
 # behind the played fill. The fill stays solid white; lower this to make
 # the track more transparent over the video.
@@ -224,12 +224,12 @@ seekbar_thumb_width = 400.0
 seekbar_thumb_border = 1.0
 seekbar_thumb_border_color = [0.85, 0.85, 0.9, 0.7]
 
-seekbar_bg_opacity = 0.1   # the dark backing behind the track (0 removes)
-seekbar_bg_pad = 2.0        # how far it extends past the bar's edge
+seekbar_bg_opacity = 0.1  # the dark backing behind the track (0 removes)
+seekbar_bg_pad = 2.0  # how far it extends past the bar's edge
 
 seekbar_knob_scale = 1.3
 seekbar_knob_bar_swell = 1.05  # slight swell while hovering the bar
-seekbar_knob_swell = 1.2     # bigger swell on the knob itself / scrubbing
+seekbar_knob_swell = 1.2  # bigger swell on the knob itself / scrubbing
 seekbar_knob_bg_opacity = 0.1  # the knob's own dark backing disc
 seekbar_knob_bg_pad = 2.0
 
@@ -502,13 +502,12 @@ library_count_pill = 0.5
 # f = "fast_fullscreen"
 # The --fullscreen / --fast-fullscreen CLI flags start the app that way.
 
-
 # ── Added 2026-08-04: settings that were missing vs the shipped template ──
 
 # Zoom model prototype selector (cycle at runtime with `). strip = the
 # sticky ribbon (default); ribbon / wrap / fade are the older models.
 zoom_model = "strip"
-zoom_sticky_ms = 150.0      # how long a KEY press takes to reach the next packing
+zoom_sticky_ms = 150.0  # how long a KEY press takes to reach the next packing
 
 # Worker-queue pill + panel (perf_panel is PARKED, off by default —
 # read the pipeline with sb-bench instead).
@@ -531,9 +530,9 @@ queue_color_stall = [1.0, 0.404, 0.427]
 # Live seekbar hover preview: its own decoder, keyframe-seeked under the
 # pointer; plays from that spot while the pointer rests.
 seekbar_preview_live = true
-seekbar_preview_seek_ms = 60.0   # min gap between issued preview seeks
-seekbar_preview_min_step = 0.002 # skip re-seeks under this fraction of duration
-seekbar_preview_keep_s = 2.0     # linger after the pointer leaves the bar
+seekbar_preview_seek_ms = 60.0  # min gap between issued preview seeks
+seekbar_preview_min_step = 0.002  # skip re-seeks under this fraction of duration
+seekbar_preview_keep_s = 2.0  # linger after the pointer leaves the bar
 
 # ── Hashtags popup (#) ──────────────────────────────────────────────────
 # Tags come from the FILENAME: "harbour pass #drone #4k.mp4" wears #drone
@@ -633,7 +632,7 @@ R = "jump_random"  # select a random clip ("jump_to_random" also works)
 T = "trim"
 c = "chapter_mode"
 f = "fast_fullscreen"
-#i = "mediainfo"
+# i = "mediainfo"
 n = "next"
 o = "open"
 p = "prev"  # pause-when-unfocused on/off
