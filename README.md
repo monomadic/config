@@ -87,8 +87,8 @@ macOS, `--full` also runs
 - `setup/`: bootstrap, deploy, and machine setup scripts
 - `scripts/`: helper scripts and sourceable shell snippets
 - `bin/` and `config/zsh/bin/`: maintained user-facing executables
-- `utils/`: small personal utility source trees (Go widgets; Rust for `leaf`,
-  `pimped`, `motherfucker`) built via `setup/install/*.sh`
+- `utils/`: small personal utility source trees (Rust for the menu bar widgets,
+  `leaf`, `pimped`, `motherfucker`; Go for the rest) built via `setup/install/*.sh`
 - `vendor/bin/`: retained third-party or custom-built binaries
 - `archive/`: installers, app bundles, backups, and historical variants
 

@@ -1,0 +1,58 @@
+[package]
+name = "cpu-usage-widget"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+block2 = "0.6.2"
+objc2 = "0.6.4"
+objc2-app-kit = { version = "0.3.2", features = [
+    "NSApplication",
+    "NSAttributedString",
+    "NSBezierPath",
+    "NSButton",
+    "NSCell",
+    "NSColor",
+    "NSControl",
+    "NSFont",
+    "NSFontDescriptor",
+    "NSGraphics",
+    "NSImage",
+    "NSMenu",
+    "NSMenuItem",
+    "NSResponder",
+    "NSStatusBar",
+    "NSStatusBarButton",
+    "NSStatusItem",
+    "NSStringDrawing",
+    "NSView",
+    "block2",
+] }
+objc2-core-foundation = { version = "0.3.2", features = [
+    "CFBase",
+    "CFDictionary",
+    "CFNumber",
+    "CFString",
+] }
+objc2-foundation = { version = "0.3.2", features = [
+    "NSAttributedString",
+    "NSDate",
+    "NSDictionary",
+    "NSEnumerator",
+    "NSGeometry",
+    "NSObject",
+    "NSRunLoop",
+    "NSString",
+    "NSThread",
+    "NSTimer",
+    "NSValue",
+    "block2",
+] }
+# Only IOKitLib itself — the default feature set pulls in USB, HID and IOKit's
+# other families, none of which the accelerator lookup touches.
+objc2-io-kit = { version = "0.3.2", default-features = false, features = ["std", "libc"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true

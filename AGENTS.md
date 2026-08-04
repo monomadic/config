@@ -55,9 +55,15 @@ plus `zsh -n` / `bash -n` on any shell script you touched.
 
 ## The utils/ side: real code, real builds
 
-`utils/<tool>/` holds tool source (Go: widgets, `spill`, `iospeed`, `open-in-forklift`,
-`obsbot-rtsp-widget`; Rust: `leaf`, `pimped`, `motherfucker`; bash: `job-runner`). These are
-the only parts of the repo with a build/install step and tests — Dotter does not touch them.
+`utils/<tool>/` holds tool source (Rust: the AppKit menu bar widgets — `battery-widget`,
+`cpu-usage-widget`, `free-disk-space-widget`, `menu-tidy` — plus `leaf`, `pimped`,
+`motherfucker`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
+`system-uptime-widget`; bash: `job-runner`). These are the only parts of the repo with a
+build/install step and tests — Dotter does not touch them.
+
+New menu bar widgets go in Rust, against `objc2` directly — `battery-widget` and
+`free-disk-space-widget` are the reference implementations. No wrapper library, no
+vendored fork, no `.app` bundle.
 
 ```bash
 setup/install/install-<name>.sh    # canonical build+install; most install to ~/.local/bin
@@ -98,7 +104,7 @@ inventing its own daemon. Contract details: `utils/job-runner/README.md`.
 | `scripts/` | sourceable snippets and misc helpers (not on PATH) |
 | `setup/` | bootstrap, deploy, and machine-setup entrypoints |
 | `dotter/` | deployment manifests only |
-| `utils/<tool>/` | small personal utility source trees (Go widgets, `leaf` is Rust) — build via `setup/install/install-<name>.sh` |
+| `utils/<tool>/` | small personal utility source trees (Rust for the menu bar widgets and `leaf`, Go for the rest) — build via `setup/install/install-<name>.sh` |
 | `assets/` | fonts, icons, and colour LUTs (`assets/LUTs/` deploys into Resolve and Final Cut) |
 | `vendor/bin/`, `archive/` | holding areas — don't add to or modify these |
 
