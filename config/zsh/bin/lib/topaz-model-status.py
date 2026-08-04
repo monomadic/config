@@ -134,14 +134,14 @@ def main():
             gaps = missing_parts(code, descriptors, weights)
             status = "ready" if not gaps else "NOT DOWNLOADED"
         elif d.get("isNeuroserverModel"):
-            # Served by the neuroserver process, not the tvai_up filter. Some of
-            # these ship Windows-only nets, which no amount of downloading fixes
-            # on a Mac — validate_install lists the platforms that have a build.
-            platforms = list((d.get("validate_install") or {}).keys())
-            if platforms and "macos" not in platforms:
-                status = "windows only"
-            else:
-                status = "neuroserver (not ffmpeg)"
+            # Served by the neuroserver process rather than the tvai_up filter, so
+            # unreachable from ffmpeg — but still perfectly usable in the app.
+            #
+            # Do NOT read platform support out of `validate_install`: several of
+            # these list only a `windows` key yet run fine on macOS (Hyperion 2
+            # and Starlight Precise both do). It is a download-integrity block —
+            # zip hash and file count — not an availability matrix.
+            status = "neuroserver (not ffmpeg)"
         else:
             status = "no backend"
         rows.append((

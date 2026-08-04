@@ -1,0 +1,13 @@
+order = 31
+category = "hdr"
+display = "Hyperion — HDR Punch"
+scales = ["1"]
+blurb = "Lower highlight threshold, brighter and more saturated"
+filter = 'tvai_up=model=hyp-1:@SCALE@:parameters=sdr_ip=0.50\\:hdr_ip_adjust=0.75\\:saturate=0.70:device=0:vram=0.95:instances=1'
+metadata = "videoai=[HDR] Hyperion HDR Punch. Highlight threshold dropped to 0.50 so more of the frame is expanded, with exposure and saturation pushed up. For flat or under-exposed SDR sources that the default pass leaves looking timid."
+
+[insight]
+strategy = "Lowering the highlight threshold (0.50, near its 0.45 floor) hands far more of the frame to the highlight-expansion path, then exposure and saturation push the result. Suits flat, low-contrast or under-exposed SDR where the defaults barely move the image."
+watch = "The same lever that rescues a flat source will blow out one that was already well graded — skies and skin go first. This is a bigger jump than it looks: at these settings the output differs from the default preset by roughly 29 dB PSNR."
+vs = "hyperion-hdr"
+vs_note = "Try the default first; come here only when the source is genuinely flat, not merely dark."

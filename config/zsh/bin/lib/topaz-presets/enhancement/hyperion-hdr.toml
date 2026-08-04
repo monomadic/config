@@ -1,0 +1,13 @@
+order = 30
+category = "hdr"
+display = "Hyperion — SDR to HDR"
+scales = ["1"]
+blurb = "Expand SDR into HDR range; model defaults"
+filter = 'tvai_up=model=hyp-1:@SCALE@:parameters=sdr_ip=0.65\\:hdr_ip_adjust=0.5\\:saturate=0.5:device=0:vram=0.95:instances=1'
+metadata = "videoai=[HDR] Hyperion SDR to HDR. Reconstructs an HDR image from SDR source at the model's default settings — highlight threshold 0.65, exposure 0.5, saturation 0.5. 1:1 only; Hyperion does not upscale."
+
+[insight]
+strategy = "The only SDR-to-HDR model this pipeline can run: Hyperion 1 has a coreml backend, where Hyperion 2 is neuroserver-only and stays in the app. Its three levers ride the generic `parameters=` channel rather than being tvai_up options — highlight threshold decides what gets treated as a specular to be expanded, exposure and saturation shape the result."
+watch = "The still preview is written as an SDR JPEG, so what you see here is a clipped approximation, not the HDR result — judge tone and saturation, not highlight roll-off. Getting real HDR out also needs an output profile that carries bt2020/PQ, which the Output tab's current profiles do not."
+vs = "hyperion-hdr-strong"
+vs_note = "Start at defaults. The strong variant lowers the threshold so more of the frame is treated as highlight."

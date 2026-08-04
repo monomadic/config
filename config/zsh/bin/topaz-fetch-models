@@ -1,0 +1,170 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+script_name="${0:t}"
+
+usage() {
+  cat <<EOF
+usage:
+  $script_name [--sizes WxH,...] [--scales 1,2,4] [--dry-run] [--all] [model ...]
+
+Pre-download Topaz model weights.
+
+Topaz ships a JSON descriptor for every model but fetches the actual weights
+(.tz3) on demand — and it fetches them per (model, block size, scale). The first
+render at a resolution the model has not seen therefore stalls mid-preview while
+it downloads. This asks for them up front by running the filter over a 0.01s
+synthetic clip at each input size, which is the trick from Topaz's own forum
+script for the same job.
+
+With no model arguments, fetches whatever this machine's preset catalog needs and
+does not already have (see topaz-list-models for status).
+
+  --sizes    input sizes to provision, comma separated
+             (default: ${(j:,:)default_sizes})
+  --scales   upscale factors to request (default: ${(j:,:)default_scales})
+  --all      every ffmpeg-capable model, not just the ones the catalog uses
+  --dry-run  list what would be fetched and exit
+
+Only models with a coreml backend can be fetched this way. Neuroserver models
+(Starlight, Astra) are served by the app's own process and are unreachable here,
+whatever you download.
+EOF
+}
+
+die() {
+  print -u2 -- "$*"
+  exit 1
+}
+
+# Input sizes from Topaz's forum script — each maps to a different internal block
+# size, and each block size is a separate download.
+default_sizes=(480x360 640x480 720x480 768x576 1280x720 1920x1080 3840x2160)
+default_scales=(1 2 4)
+
+# Frame-interpolation models take tvai_fi, not tvai_up. Topaz's own script splits
+# the list the same way; there is no field in the descriptor that says which.
+fi_prefixes=(apo apf chr chf ifi)
+
+sizes=()
+scales=()
+models=()
+dry_run=false
+want_all=false
+
+while (( $# > 0 )); do
+  case "$1" in
+    -h|--help|help) usage; exit 0 ;;
+    --sizes)  (( $# >= 2 )) || die "--sizes needs a value";  sizes=("${(@s:,:)2}");  shift 2 ;;
+    --scales) (( $# >= 2 )) || die "--scales needs a value"; scales=("${(@s:,:)2}"); shift 2 ;;
+    --dry-run) dry_run=true; shift ;;
+    --all) want_all=true; shift ;;
+    --) shift; break ;;
+    -*) die "unknown option: $1" ;;
+    *) models+=("$1"); shift ;;
+  esac
+done
+
+(( ${#sizes[@]} ))  || sizes=("${default_sizes[@]}")
+(( ${#scales[@]} )) || scales=("${default_scales[@]}")
+
+lib_dir="${0:A:h}/lib"
+source "$lib_dir/topaz-app.zsh"
+TOPAZ_APP="$(topaz_resolve_app)"
+TOPAZ_MACOS_DIR="$(topaz_resolve_macos_dir "$TOPAZ_APP")"
+TOPAZ_FFMPEG="$(topaz_resolve_ffmpeg "$TOPAZ_APP")"
+TOPAZ_MODELS_DIR="$(topaz_resolve_models_dir "$TOPAZ_APP")"
+[[ -x "$TOPAZ_FFMPEG" ]] || die "Topaz ffmpeg not executable: $TOPAZ_FFMPEG"
+
+status_py="$lib_dir/topaz-model-status.py"
+catalog="$lib_dir/topaz-preset-catalog.zsh"
+
+# Default model list: everything the preset catalog references that is not ready.
+if (( ${#models[@]} == 0 )); then
+  local -a candidates
+  if [[ "$want_all" == true ]]; then
+    candidates=("${(@f)$(python3 "$status_py" "$TOPAZ_MODELS_DIR" --list \
+      | awk 'NR>1 && $NF=="DOWNLOADED" {print $1}')}")
+  else
+    source "$catalog"
+    candidates=("${(@fu)$(
+      { topaz_enhancement_preset_rows; topaz_interpolation_preset_rows } 2>/dev/null \
+        | grep -o 'model=[A-Za-z0-9.-]*' | sed 's/model=//' | sort -u
+    )}")
+  fi
+  for m in "${candidates[@]}"; do
+    [[ -n "$m" ]] || continue
+    python3 "$status_py" "$TOPAZ_MODELS_DIR" --check "$m" >/dev/null 2>&1 || models+=("$m")
+  done
+fi
+
+if (( ${#models[@]} == 0 )); then
+  print -P -- "%F{green}Nothing to fetch — every model this catalog uses is ready.%f"
+  exit 0
+fi
+
+# Drop anything ffmpeg can never run, with a reason rather than a silent skip.
+local -a fetchable
+for m in "${models[@]}"; do
+  report="$(python3 "$status_py" "$TOPAZ_MODELS_DIR" --check "$m" 2>/dev/null || true)"
+  if [[ "$report" == *"no coreml backend"* ]]; then
+    print -P -- "  %F{yellow}skip%f $m — neuroserver model, not fetchable via ffmpeg"
+  elif [[ "$report" == *"no such model"* ]]; then
+    print -P -- "  %F{yellow}skip%f $m — no such model descriptor"
+  else
+    fetchable+=("$m")
+  fi
+done
+(( ${#fetchable[@]} )) || { print -- "Nothing fetchable."; exit 0 }
+
+print -P -- "%F{cyan}Topaz model fetch%f"
+print -P -- "  %F{white}models:%f ${(j: :)fetchable}"
+print -P -- "  %F{white}sizes:%f  ${(j: :)sizes}"
+print -P -- "  %F{white}scales:%f ${(j: :)scales}"
+
+if [[ "$dry_run" == true ]]; then
+  print -- "(dry run — nothing fetched)"
+  exit 0
+fi
+
+before=$(ls "$TOPAZ_MODELS_DIR"/*.tz3 2>/dev/null | wc -l | tr -d ' ')
+cd "$TOPAZ_MACOS_DIR"
+
+# device=-2 keeps this off the GPU: the point is to make the model resolve its
+# weights, not to render anything. Failures are expected and ignored — a model
+# only supports some scales, and an unsupported one exits non-zero immediately.
+fetch() {
+  local filter="$1"
+  env TVAI_MODEL_DIR="$TOPAZ_MODELS_DIR" TVAI_MODEL_DATA_DIR="$TOPAZ_MODELS_DIR" LC_NUMERIC=C \
+    "$TOPAZ_FFMPEG" -nostats -hide_banner -loglevel error \
+    -f lavfi -i "color=c=red@0.8:duration=0.01:rate=100:size=${size}" \
+    -vf "$filter" -f null - >/dev/null 2>&1 || true
+}
+
+for size in "${sizes[@]}"; do
+  print -P -- "  %F{white}$size%f"
+  for model in "${fetchable[@]}"; do
+    is_fi=false
+    for p in "${fi_prefixes[@]}"; do
+      [[ "$model" == ${p}-* ]] && is_fi=true && break
+    done
+    if [[ "$is_fi" == true ]]; then
+      fetch "tvai_fi=model=${model}:device=-2:vram=1:instances=0"
+    else
+      for scale in "${scales[@]}"; do
+        fetch "tvai_up=model=${model}:scale=${scale}:device=-2:vram=1:instances=0"
+      done
+    fi
+  done
+done
+
+after=$(ls "$TOPAZ_MODELS_DIR"/*.tz3 2>/dev/null | wc -l | tr -d ' ')
+print -P -- "%F{green}done%f — weight files: $before -> $after (+$((after - before)))"
+
+for m in "${fetchable[@]}"; do
+  if python3 "$status_py" "$TOPAZ_MODELS_DIR" --check "$m" >/dev/null 2>&1; then
+    print -P -- "  %F{green}ready%f $m"
+  else
+    print -P -- "  %F{yellow}still missing%f $m"
+  fi
+done

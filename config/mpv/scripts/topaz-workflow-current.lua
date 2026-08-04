@@ -41,6 +41,7 @@ local CATEGORY_ORDER = {
     { key = "lowlight", label = "Dark · Noisy" },
     { key = "compressed", label = "Compressed · Old Codecs" },
     { key = "stylized", label = "Stylized · Texture" },
+    { key = "hdr", label = "SDR → HDR" },
 }
 
 local TABS = { "Enhance", "Interpolate", "Output" }
@@ -1503,6 +1504,7 @@ local AMBER = "&H40B3FF&"
 -- Friendly names for the model codes appearing in enhancement filters.
 local MODEL_NAMES = {
     ["prob-4"] = "Proteus v4", ["slm-1"] = "Starlight Mini",
+    ["hyp-1"] = "Hyperion HDR",
     ["ghq-5"] = "Gaia HQ", ["iris-3"] = "Iris v3",
     ["nyx-3"] = "Nyx v3", ["thd-3"] = "Theia Detail",
     ["amq-13"] = "Artemis MQ v13", ["rxl-1"] = "Rhea XL",
