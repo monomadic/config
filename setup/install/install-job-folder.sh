@@ -2,7 +2,7 @@
 #
 # Build and install job-folder (utils/job-folder): a menu bar face for the
 # ~/jobs drop folder. Rust port of job-runner — same on-disk contract
-# (NAME.job -> .job.running -> _done/_err), but runs the job loop in-process
+# (NAME.job -> _running/<date>-NAME/ -> _done/_err), but runs the loop in-process
 # behind a status bar icon instead of a launchd WatchPaths trigger.
 #
 # Installs the binary to ~/.local/bin/job-folder and loads it as a resident

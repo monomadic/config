@@ -38,9 +38,10 @@ Options:
   --force            Re-copy files that already exist with a matching size
   -h, --help         Show help
 
-The last positional is the job script; the rest are its data files. The job
-runs cd'd into the jobs folder, so it must refer to those files by bare
-filename (job-runner sets \$JOB_NAME to the job's own name).
+The last positional is the job script; the rest are its data files. job-runner
+runs the job cd'd into its own run folder, into which it moves the job file
+and the file it is named after — so \$TARGET_FILE (NAME.job => NAME) is
+referenced by bare filename, and any *other* data file by "\$JOB_DIR/name".
 
 Examples:
   $script_name clip.mp4 clip.mp4.job

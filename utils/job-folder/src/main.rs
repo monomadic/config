@@ -68,7 +68,7 @@ define_class!(
                 state
                     .running
                     .as_ref()
-                    .and_then(|job| runner::running_log_path(&job.name))
+                    .and_then(runner::running_log_path)
             });
             if let Some(path) = path {
                 open(&path);
@@ -249,7 +249,7 @@ impl Widget {
         let has_log = state
             .running
             .as_ref()
-            .is_some_and(|job| runner::running_log_path(&job.name).is_some());
+            .is_some_and(|job| runner::running_log_path(job).is_some());
         action("View running job log".to_string(), sel!(viewLog:), has_log);
         action(
             "Clear error badge".to_string(),

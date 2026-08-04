@@ -3096,4 +3096,7 @@ main() {
   say "CHECKED: ${processed_count}  CLEAN: ${clean_count}  ATTENTION: ${issue_file_count}  FIXES: ${fix_count}  SKIPPED: ${skip_count}  FAILED: ${fail_count}"
 }
 
-main "$@"
+# media-audit-batch sources this file as a library (it reuses every check and
+# the ffmpeg rewrite, and only swaps out where the repairs get applied), so the
+# run is skipped when a caller has claimed main for itself.
+(( ${+MEDIA_AUDIT_NO_MAIN} )) || main "$@"

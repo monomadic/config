@@ -3,7 +3,8 @@
 # Install job-runner (utils/job-runner): copies the script to ~/.local/bin and
 # sets up its watch folder — a launchd WatchPaths LaunchAgent that runs the
 # handler whenever a file lands in ~/jobs. Drop a `*.job` shell script there
-# and it runs, one at a time, then moves to _done/ or _err/.
+# and it runs, one at a time, in a run folder under _running/ that then moves
+# to _done/ or _err/.
 #
 # Mirrors the widget installers: generates the plist into ~/Library/LaunchAgents
 # (not tracked by Dotter) and bootstraps it into the user's gui domain.
@@ -12,7 +13,7 @@
 # -----------------------------
 # setup/macos/server.sh calls this installer near the end, right after the
 # SMB share that `send-job` ships jobs to. It installs the handler, creates
-# ~/jobs + _done/_err, and loads the com.jayu.job-runner WatchPaths
+# ~/jobs + _running/_done/_err, and loads the com.jayu.job-runner WatchPaths
 # LaunchAgent. To install manually on any machine:
 #   setup/install/install-job-runner.sh
 #
@@ -121,7 +122,7 @@ main() {
   local plist_path="$LAUNCH_AGENTS_DIR/$LABEL.plist"
 
   echo "Creating watch folder $JOBS_DIR ..."
-  mkdir -p "$JOBS_DIR" "$JOBS_DIR/_done" "$JOBS_DIR/_err" \
+  mkdir -p "$JOBS_DIR" "$JOBS_DIR/_running" "$JOBS_DIR/_done" "$JOBS_DIR/_err" \
     "$LAUNCH_AGENTS_DIR" "$LOG_DIR"
 
   echo "Writing LaunchAgent to $plist_path ..."
@@ -137,7 +138,7 @@ main() {
   echo "  Logs:         $LOG_DIR/job-runner.log (+ .out/.err)"
   echo
   echo "Drop a *.job shell script into $JOBS_DIR to run it."
-  echo "  running -> NAME.job.running   ok -> _done/NAME.job.done   fail -> _err/NAME.job.err"
+  echo "  running -> _running/<date>-NAME/   ok -> _done/<date>-NAME/   fail -> _err/<date>-NAME/"
 }
 
 main "$@"

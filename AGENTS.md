@@ -79,8 +79,9 @@ Installers are named `setup/install/install-<name>.sh` — follow that for new o
 `config/zsh/zshrc.zsh` to work).
 
 **`utils/job-runner`** is infrastructure other tools can build on: a `~/jobs` drop
-folder where any `NAME.job` shell script runs (queued, one at a time) with
-`JOB_NAME` set to the filename minus `.job`. Anything that needs "run this later /
+folder where any `TARGET.job` shell script runs (queued, one at a time) inside its
+own `_running/<date>-<name>/` folder with `$TARGET_FILE` (the filename minus
+`.job`) moved in beside it. Anything that needs "run this later /
 on the server" should write a `.job` file (or ship one with `send-job`) instead of
 inventing its own daemon. Contract details: `utils/job-runner/README.md`.
 

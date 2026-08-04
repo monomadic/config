@@ -128,9 +128,8 @@ rules = [
   { url = "*", is = "dummy", fg = "#ff5f87" },
   # job-runner artifacts (see utils/job-runner)
   { url = "*.job", fg = "#ffe66d" },
-  { url = "*.job.running", fg = "#7df9aa" },
-  { url = "*.job.log", fg = "#66e2ff" },
-  { url = "*.job.errors", fg = "#ff5f87" },
+  { url = "*.error.log", fg = "#ff5f87" },
+  { url = "*.log", fg = "#66e2ff" },
   { url = "*/", fg = "#f8f8f2" },
   { url = "*", fg = "#f8f8f2" },
 ]
@@ -160,9 +159,8 @@ prepend_globs = [
 
   # job-runner artifacts (see utils/job-runner)
   { url = "*.job", text = "􀍟 ", fg = "#ffe66d" },
-  { url = "*.job.running", text = "􀊕 ", fg = "#7df9aa" },
-  { url = "*.job.log", text = "􀈿 ", fg = "#66e2ff" },
-  { url = "*.job.errors", text = "􀇾 ", fg = "#ff5f87" },
+  { url = "*.error.log", text = "􀇾 ", fg = "#ff5f87" },
+  { url = "*.log", text = "􀈿 ", fg = "#66e2ff" },
 ]
 
 dirs = [

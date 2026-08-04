@@ -6,33 +6,33 @@
 # ~/.local/bin). Only top-level *.job files are run; subdirectories and
 # non-.job files are ignored.
 #
-# Lifecycle of a job NAME.job (first *.job alphabetically runs first):
-#   1. Renamed in place to NAME.job.running while it runs. The scanner only
-#      matches *.job, so a claimed job can never be picked up twice. One job
-#      runs at a time.
-#   2. Runs cd'd into $JOBS_DIR with JOB_NAME=NAME, JOB_FILE, JOB_DIR
-#      exported, and TERM=dumb / NO_COLOR=1 / CLICOLOR=0 set for clean logs.
-#      stdout is captured to NAME.job.log, stderr to NAME.job.errors — each
-#      created only once that stream produces output, so a silent job leaves
-#      no empty artifacts behind.
-#   3. On exit 0 : renamed NAME.job.done and moved to $JOBS_DIR/_done/,
-#                  along with its .log (if any).
-#      On failure: renamed NAME.job.err and moved to $JOBS_DIR/_err/,
-#                  along with its .log (if any).
-#      An .errors file exists only if the job wrote to stderr, and always
-#      lands in $JOBS_DIR/_err/.
+# Lifecycle of a job TARGET.job (first *.job alphabetically runs first):
+#   1. A run folder $JOBS_DIR/_running/<date>-<JOB_NAME> is created and the
+#      job file — plus its target file, if one sits beside it — is moved into
+#      it. The move out of the top level *is* the claim: the scanner only
+#      matches $JOBS_DIR/*.job, so a claimed job can never be picked up twice.
+#      One job runs at a time.
+#   2. The run folder becomes the CWD. TARGET_FILE (the job filename minus
+#      .job), JOB_NAME (TARGET_FILE minus its extension), JOB_FILE, JOB_DIR
+#      and JOB_RUN_DIR are exported, and TERM=dumb / NO_COLOR=1 / CLICOLOR=0
+#      are set for clean logs. stdout is captured to $JOB_NAME.log, stderr to
+#      $JOB_NAME.error.log — each created only once that stream produces
+#      output, so a silent job leaves no empty artifacts behind.
+#   3. On exit 0 the whole run folder is moved to $JOBS_DIR/_done/,
+#      otherwise to $JOBS_DIR/_err/ — logs, target file and all.
 # A one-line status trail for every job is appended to $LOG_FILE.
 
 set -uo pipefail
 
 JOBS_DIR="${JOBS_DIR:-$HOME/jobs}"
+RUNNING_DIR="$JOBS_DIR/_running"
 DONE_DIR="$JOBS_DIR/_done"
 ERR_DIR="$JOBS_DIR/_err"
 LOCK_DIR="$JOBS_DIR/.lock"
 LOG_FILE="${JOB_RUNNER_LOG:-$HOME/Library/Logs/job-runner.log}"
 SETTLE_SECS="${JOB_RUNNER_SETTLE:-2}"
 
-mkdir -p "$JOBS_DIR" "$DONE_DIR" "$ERR_DIR" "$(dirname "$LOG_FILE")"
+mkdir -p "$JOBS_DIR" "$RUNNING_DIR" "$DONE_DIR" "$ERR_DIR" "$(dirname "$LOG_FILE")"
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*" >>"$LOG_FILE"; }
 
@@ -58,16 +58,14 @@ is_stable() {
   [[ "$s1" == "$s2" ]]
 }
 
-# Echo a non-colliding path: if $1 exists, insert a timestamp before the
-# ".job.<suffix>" tail so an earlier run's artifact is never clobbered.
-uniq_dest() {
-  local path="$1"
-  [[ -e "$path" ]] || { printf '%s' "$path"; return; }
-  local dir base stem tail ts
-  dir="$(dirname "$path")"; base="$(basename "$path")"
-  stem="${base%%.job.*}"; tail="${base#"$stem".}"
-  ts="$(date '+%Y%m%d-%H%M%S')"
-  printf '%s/%s.%s.%s' "$dir" "$stem" "$ts" "$tail"
+# Echo a non-colliding directory path: append -2, -3, ... if $1 is taken.
+uniq_dir() {
+  local path="$1" n=2
+  while [[ -e "$path" ]]; do
+    path="$1-$n"
+    n=$((n + 1))
+  done
+  printf '%s' "$path"
 }
 
 # Copy stdin to $1, creating the file only when the first line of output
@@ -78,24 +76,40 @@ lazy_write() {
 }
 
 run_one() {
-  local job="$1" name running logfile errfile rcfile rc dest_dir dest_job stem
-  name="$(basename "$job")"; name="${name%.job}"
-  running="$JOBS_DIR/$name.job.running"
-  logfile="$JOBS_DIR/$name.job.log"
-  errfile="$JOBS_DIR/$name.job.errors"
+  local job="$1" base target name rundir jobfile logfile errfile rcfile rc dest
+  base="$(basename "$job")"     # foo.mp4.job
+  target="${base%.job}"         # foo.mp4
+  name="${target%.*}"           # foo
 
-  # Claim the job by renaming it out of the scan set before running.
-  if ! mv "$job" "$running" 2>/dev/null; then
-    log "SKIP $name (could not mark running)"
+  # Claim the job by moving it — and its target file, if present — out of the
+  # scan set and into a dated run folder. mkdir (no -p) is the atomic step.
+  rundir="$(uniq_dir "$RUNNING_DIR/$(date '+%Y%m%d-%H%M%S')-$name")"
+  if ! mkdir "$rundir" 2>/dev/null; then
+    log "SKIP $name (could not create run folder)"
     return
   fi
-  log "RUN  $name"
-  chmod +x "$running" 2>/dev/null || true
+  jobfile="$rundir/$base"
+  if ! mv "$job" "$jobfile" 2>/dev/null; then
+    rmdir "$rundir" 2>/dev/null || true
+    log "SKIP $name (could not claim job file)"
+    return
+  fi
+  if [[ -e "$JOBS_DIR/$target" ]]; then
+    mv "$JOBS_DIR/$target" "$rundir/$target" 2>/dev/null \
+      || log "WARN could not move target file $target"
+  fi
 
-  # Run cd'd into the jobs dir; honour a shebang if present, else use bash.
-  # JOB_NAME lets a job reference its target without knowing the rename
-  # scheme (foo.mp4.job => JOB_NAME=foo.mp4). TERM=dumb / NO_COLOR make
-  # well-behaved tools drop progress-bar redraws and ANSI color in the logs.
+  log "RUN  $name"
+  chmod +x "$jobfile" 2>/dev/null || true
+
+  logfile="$rundir/$name.log"
+  errfile="$rundir/$name.error.log"
+
+  # Run cd'd into the run folder; honour a shebang if present, else use bash.
+  # TARGET_FILE lets a job reference the file it was named after
+  # (foo.mp4.job => TARGET_FILE=foo.mp4, JOB_NAME=foo) without knowing the
+  # folder scheme. TERM=dumb / NO_COLOR make well-behaved tools drop
+  # progress-bar redraws and ANSI color in the logs.
   #
   # Both streams go through lazy_write, so the exit status can't come from $?
   # (it would be the pipeline's) — the job's own status is stashed in $rcfile.
@@ -103,13 +117,14 @@ run_one() {
   {
     {
       (
-        cd "$JOBS_DIR" || exit 127
-        export JOB_NAME="$name" JOB_FILE="$running" JOB_DIR="$JOBS_DIR"
+        cd "$rundir" || exit 127
+        export JOB_NAME="$name" TARGET_FILE="$target"
+        export JOB_FILE="$jobfile" JOB_DIR="$JOBS_DIR" JOB_RUN_DIR="$rundir"
         export TERM=dumb NO_COLOR=1 CLICOLOR=0
-        if [[ -x "$running" ]]; then
-          "$running"
+        if [[ -x "$jobfile" ]]; then
+          "$jobfile"
         else
-          /bin/bash "$running"
+          /bin/bash "$jobfile"
         fi
       )
       echo $? >"$rcfile"
@@ -119,33 +134,26 @@ run_one() {
   rm -f "$rcfile"
   rc="${rc:-1}"
 
+  [[ -s "$logfile" ]] || rm -f "$logfile"
+  [[ -s "$errfile" ]] || rm -f "$errfile"
+
+  # The whole run folder is the artifact: job file, target file and logs move
+  # together to _done or _err.
   if [[ $rc -eq 0 ]]; then
-    dest_dir="$DONE_DIR"; dest_job="$DONE_DIR/$name.job.done"
+    dest="$DONE_DIR/$(basename "$rundir")"
     log "DONE $name (exit 0)"
   else
-    dest_dir="$ERR_DIR"; dest_job="$ERR_DIR/$name.job.err"
+    dest="$ERR_DIR/$(basename "$rundir")"
     log "FAIL $name (exit $rc)"
   fi
-
-  dest_job="$(uniq_dest "$dest_job")"
-  stem="$(basename "$dest_job")"; stem="${stem%.*}"   # NAME[.ts].job
-  mv "$running" "$dest_job" 2>/dev/null || log "WARN could not move $name job artifact"
-  if [[ -s "$logfile" ]]; then
-    mv "$logfile" "$(uniq_dest "$dest_dir/$stem.log")" 2>/dev/null || true
-  else
-    rm -f "$logfile"
-  fi
-  if [[ -s "$errfile" ]]; then
-    mv "$errfile" "$(uniq_dest "$ERR_DIR/$stem.errors")" 2>/dev/null || true
-  else
-    rm -f "$errfile"
-  fi
+  mv "$rundir" "$(uniq_dir "$dest")" 2>/dev/null \
+    || log "WARN could not move run folder for $name"
 }
 
 # Loop until no runnable job remains, so files that arrive during a run are
 # still picked up (sequentially) before we release the lock. The glob is
-# alphabetical, and in-flight/finished names (*.job.running, *.job.done,
-# *.job.err) no longer end in .job, so they can't match.
+# alphabetical, and claimed jobs live under _running/ (and then _done/_err),
+# so they can't match again.
 while :; do
   found=0
   shopt -s nullglob
@@ -153,6 +161,12 @@ while :; do
     [[ -f "$job" ]] || continue   # skip dirs named *.job
     if ! is_stable "$job"; then
       log "WAIT $(basename "$job") (still uploading)"
+      continue
+    fi
+    # The target file may still be copying in even once the job file settled.
+    target_path="$JOBS_DIR/$(basename "$job" .job)"
+    if [[ -f "$target_path" ]] && ! is_stable "$target_path"; then
+      log "WAIT $(basename "$job") (target still uploading)"
       continue
     fi
     found=1

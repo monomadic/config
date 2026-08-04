@@ -1,0 +1,670 @@
+#!/usr/bin/env zsh
+# media-audit-batch
+# media-audit with the slow half taken off the interactive path.
+#
+# media-audit interleaves two jobs with nothing in common: deciding what to do
+# with a file (fast, needs the user) and doing it (a full ffmpeg remux of a
+# multi-GB file, needs nobody). Today every remux blocks the next question.
+# This splits them in two:
+#
+#   batcher — every check and prompt media-audit already has, except the
+#             repairs are serialised into a spool instead of being run.
+#   worker  — the same script under --worker, draining that spool one job at a
+#             time using media-audit's own rewrite code and progress bar.
+#
+# The batcher launches the worker beside itself (zellij/tmux pane, kitty
+# window, else a background process) and keeps asking questions while it works.
+#
+# Everything below is glue: the checks, prompts, thumbnails, metadata fetching
+# and the ffmpeg rewrite are media-audit's, sourced as a library, so the two
+# scripts cannot drift apart.
+#
+# Not job-runner (utils/job-runner) on purpose, even though the repo's rule is
+# to write a .job file rather than invent a queue: job-runner moves the target
+# file into its run folder, and these targets are library files that must stay
+# where they are. The pairing is also per-session — one worker for one batcher,
+# started and drained together — rather than the machine-wide drop folder.
+
+emulate -L zsh
+set -u
+setopt pipefail extended_glob
+
+SELF="${0:A}"
+SCRIPT_NAME="${0:t}"
+
+SPOOL_ROOT="${MEDIA_AUDIT_SPOOL_ROOT:-${XDG_STATE_HOME:-$HOME/.local/state}/media-audit-batch}"
+SPOOL_DIR=""
+QUEUE_DIR=""
+RUNNING_DIR=""
+DONE_DIR=""
+FAILED_DIR=""
+ASSET_DIR=""
+
+RUN_MODE=batch
+START_WORKER=true
+WAIT_FOR_DRAIN=false
+WORKER_PLACEMENT=""
+typeset -a PASSTHROUGH_ARGS=()
+
+typeset -i queued_job_count=0
+typeset -i queued_fix_count=0
+
+# The decisions made for the current file, held between apply_pending_rewrite
+# (where media-audit would have run them) and the flush after the filename
+# checks — see the override block for why the flush waits.
+STASH_ACTIVE=false
+STASH_PATH=""
+typeset -a STASH_FIXES=()
+typeset -a STASH_METADATA_ARGS=()
+STASH_FASTSTART=false
+STASH_TRIM_START=""
+STASH_CHAPTERS_JSON=""
+STASH_SUBTITLE_FILE=""
+STASH_SUBTITLE_LANG=""
+
+batch_usage() {
+  cat >&2 <<EOF
+Usage:
+  $SCRIPT_NAME [options] [file ...]
+  $SCRIPT_NAME --worker <spool-dir>
+
+Audits a media library like media-audit, but queues each file's repairs for a
+background worker instead of running them inline, so the next file can be
+triaged while the previous one is still being rewritten.
+
+Batch options:
+  --no-worker         Queue jobs but do not start a worker
+  --wait              After the last file, wait for the queue to drain
+  --pane WHERE        Where to put the worker: auto (default), zellij, tmux,
+                      kitty, background
+  --spool DIR         Use (and share) this spool directory
+  --worker DIR        Run as the worker for DIR instead of auditing
+
+Every other option is passed straight through to media-audit
+(--bypass-check-*, --max-filename-bytes, --quantize-chapters, --no-thumbnail).
+EOF
+}
+
+batch_die() {
+  print -u2 -- "${SCRIPT_NAME}: $1"
+  exit "${2:-1}"
+}
+
+parse_batch_args() {
+  while (( $# > 0 )); do
+    case "$1" in
+      --worker)
+        (( $# >= 2 )) || batch_die "missing spool directory for --worker" 2
+        RUN_MODE=worker
+        SPOOL_DIR="$2"
+        shift 2
+        ;;
+      --worker=*)
+        RUN_MODE=worker
+        SPOOL_DIR="${1#*=}"
+        shift
+        ;;
+      --spool)
+        (( $# >= 2 )) || batch_die "missing directory for --spool" 2
+        SPOOL_DIR="$2"
+        shift 2
+        ;;
+      --spool=*)
+        SPOOL_DIR="${1#*=}"
+        shift
+        ;;
+      --no-worker)
+        START_WORKER=false
+        shift
+        ;;
+      --wait)
+        WAIT_FOR_DRAIN=true
+        shift
+        ;;
+      --pane|--pane=*)
+        if [[ "$1" == --pane ]]; then
+          (( $# >= 2 )) || batch_die "missing value for --pane" 2
+          WORKER_PLACEMENT="$2"
+          shift 2
+        else
+          WORKER_PLACEMENT="${1#*=}"
+          shift
+        fi
+        [[ "$WORKER_PLACEMENT" == (auto|zellij|tmux|kitty|background) ]] \
+          || batch_die "unknown --pane value: ${WORKER_PLACEMENT}" 2
+        ;;
+      -h|--help)
+        batch_usage
+        exit 0
+        ;;
+      --)
+        shift
+        PASSTHROUGH_ARGS+=(-- "$@")
+        break
+        ;;
+      *)
+        PASSTHROUGH_ARGS+=("$1")
+        shift
+        ;;
+    esac
+  done
+}
+
+find_media_audit() {
+  local candidate
+
+  # Alongside this script first: both live in config/zsh/bin, so a checkout
+  # anywhere (or a copy on a remote) picks up its own sibling rather than
+  # whatever an older deploy left on PATH.
+  candidate="${SELF:h}/media-audit"
+  [[ -r "$candidate" ]] && { print -r -- "$candidate"; return 0 }
+
+  candidate="$(command -v media-audit 2>/dev/null)" || return 1
+  print -r -- "${candidate:A}"
+}
+
+# --- spool -------------------------------------------------------------
+# One directory per session. A job is a zsh snippet naming a file and the
+# repairs chosen for it; the rename into queue/ is atomic, so the worker never
+# reads a half-written job, and the move into running/ is the lock.
+
+init_spool() {
+  local stamp
+
+  if [[ -z "$SPOOL_DIR" ]]; then
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    SPOOL_DIR="${SPOOL_ROOT}/${stamp}-$$"
+  fi
+
+  QUEUE_DIR="$SPOOL_DIR/queue"
+  RUNNING_DIR="$SPOOL_DIR/running"
+  DONE_DIR="$SPOOL_DIR/done"
+  FAILED_DIR="$SPOOL_DIR/failed"
+  ASSET_DIR="$SPOOL_DIR/assets"
+
+  mkdir -p -- "$QUEUE_DIR" "$RUNNING_DIR" "$DONE_DIR" "$FAILED_DIR" "$ASSET_DIR" \
+    || batch_die "could not create spool at ${SPOOL_DIR}"
+
+  # A stable name for "the session that is running now", so a worker can be
+  # attached by hand after the fact: media-audit-batch --worker ~/.local/state/…/current
+  ln -sfn -- "$SPOOL_DIR" "${SPOOL_ROOT}/current" 2>/dev/null || true
+}
+
+queue_depth() {
+  local -a pending
+  pending=("$QUEUE_DIR"/*.job(N.) "$RUNNING_DIR"/*.job(N.))
+  print -r -- ${#pending[@]}
+}
+
+worker_pid() {
+  local pid
+
+  [[ -r "$SPOOL_DIR/worker.pid" ]] || return 1
+  pid="$(<"$SPOOL_DIR/worker.pid")"
+  [[ "$pid" == <-> ]] || return 1
+  kill -0 "$pid" 2>/dev/null || return 1
+  print -r -- "$pid"
+}
+
+worker_alive() {
+  worker_pid >/dev/null 2>&1
+}
+
+# --- worker launch -----------------------------------------------------
+# Ordered by what the user is actually looking at: inside a multiplexer a new
+# kitty window would land outside the session they are working in, so the
+# multiplexer's own split wins whenever there is one.
+
+start_worker() {
+  local -a cmd
+  local placement="${WORKER_PLACEMENT:-auto}"
+
+  worker_alive && return 0
+  cmd=("$SELF" --worker "$SPOOL_DIR")
+
+  if [[ "$placement" == (auto|zellij) && -n "${ZELLIJ:-}" ]] \
+    && command -v zellij >/dev/null 2>&1; then
+    if zellij run --direction right --name "media-audit worker" -- "${cmd[@]}" \
+      >/dev/null 2>&1; then
+      print -r -- "zellij pane"
+      return 0
+    fi
+  fi
+
+  if [[ "$placement" == (auto|tmux) && -n "${TMUX:-}" ]] \
+    && command -v tmux >/dev/null 2>&1; then
+    if tmux split-window -d -h -- "${cmd[@]}" >/dev/null 2>&1; then
+      print -r -- "tmux pane"
+      return 0
+    fi
+  fi
+
+  # --hold keeps the window up after the worker exits so its final tally can
+  # be read; --keep-focus/--no-activate leave the cursor in the batcher.
+  if [[ "$placement" == (auto|kitty) ]] \
+    && command -v kitty-launch >/dev/null 2>&1 \
+    && [[ -n "${KITTY_LISTEN_ON:-}${KITTY_WINDOW_ID:-}" ]]; then
+    if kitty-launch --window --hold --keep-focus --no-activate \
+      --title " media-audit worker " -- "${cmd[@]}" >/dev/null 2>&1; then
+      print -r -- "kitty window"
+      return 0
+    fi
+  fi
+
+  # &! so the worker outlives this shell rather than becoming its job.
+  "${cmd[@]}" >> "$SPOOL_DIR/worker.log" 2>&1 &!
+  print -r -- "background (${SPOOL_DIR}/worker.log)"
+}
+
+# --- library -----------------------------------------------------------
+# Sourced at the top level on purpose: media-audit opens fds 3/4 and calls
+# `emulate -L zsh`, which would be unwound again on return if this ran inside
+# a function.
+
+MEDIA_AUDIT_PATH="$(find_media_audit)" \
+  || batch_die "media-audit not found beside this script or on PATH"
+
+parse_batch_args "$@"
+[[ "$RUN_MODE" == worker ]] || init_spool
+
+typeset -g MEDIA_AUDIT_NO_MAIN=1
+source "$MEDIA_AUDIT_PATH"
+
+# Keep a handle on the two functions being replaced, so the replacements can
+# still call the originals.
+functions[lib_check_filename_checks]="${functions[check_filename_checks]}"
+functions[lib_check_row]="${functions[check_row]}"
+
+ICON_QUEUED="→"
+
+# --- batcher: queue instead of repair ----------------------------------
+
+# media-audit calls this once a file's checks have all been answered, with
+# every chosen repair sitting in the PENDING_* globals. Capture them instead of
+# running them — but do not write the job yet: the filename checks run *after*
+# this point and can rename the file, and a job pointing at the old name would
+# find nothing. flush_stashed_job writes it once the name has settled.
+apply_pending_rewrite() {
+  local file="$1"
+
+  STASH_ACTIVE=false
+  (( ${#PENDING_FIXES[@]} > 0 )) || return 0
+
+  STASH_PATH="$file"
+  STASH_FIXES=("${PENDING_FIXES[@]}")
+  STASH_METADATA_ARGS=("${PENDING_METADATA_ARGS[@]}")
+  STASH_FASTSTART=$PENDING_FASTSTART
+  STASH_TRIM_START="$PENDING_TRIM_START"
+  STASH_CHAPTERS_JSON="$PENDING_CHAPTERS_JSON"
+  STASH_SUBTITLE_FILE="$PENDING_SUBTITLE_FILE"
+  STASH_SUBTITLE_LANG="$PENDING_SUBTITLE_LANG"
+  STASH_ACTIVE=true
+
+  return 0
+}
+
+# The filename pass, plus the flush the stash is waiting for. Renames happen
+# inline (a mv is instant, and the worker needs the final path anyway), so by
+# the time this returns AUDIT_PATH is the name the job should carry.
+check_filename_checks() {
+  local rc=0
+
+  lib_check_filename_checks || rc=1
+  flush_stashed_job "$AUDIT_PATH"
+
+  return "$rc"
+}
+
+# Chapters and captions live in mktemp files that media-audit deletes as soon
+# as the file is done with, so anything the worker will need is copied into the
+# job's own asset directory first.
+stash_asset() {
+  local src="$1" dest_dir="$2" dest
+
+  [[ -n "$src" && -s "$src" ]] || return 1
+  mkdir -p -- "$dest_dir" 2>/dev/null || return 1
+  dest="${dest_dir}/${src:t}"
+  cp -- "$src" "$dest" 2>/dev/null || return 1
+  print -r -- "$dest"
+}
+
+job_slug() {
+  local name="${1:t:r}"
+
+  name="${name//[^[:alnum:]]/-}"
+  name="${name//-##/-}"
+  name="${name#-}"
+  name="${name%-}"
+  [[ -n "$name" ]] || name="file"
+  print -r -- "${name[1,60]}"
+}
+
+flush_stashed_job() {
+  local file="$1"
+  local id job_dir tmp_job job_file asset item
+
+  $STASH_ACTIVE || return 0
+  STASH_ACTIVE=false
+
+  (( queued_job_count++ ))
+  id="$(printf '%06d' "$queued_job_count")"
+  job_dir="${ASSET_DIR}/${id}"
+  job_file="${QUEUE_DIR}/${id}-$(job_slug "$file").job"
+  tmp_job="${QUEUE_DIR}/.${id}.tmp"
+
+  {
+    print -r -- "# media-audit-batch job ${id}"
+    print -r -- "JOB_ID=${id}"
+    print -r -- "JOB_PATH=${(q+)file}"
+    print -r -- "JOB_FIXES=(${(j: :)${(@q+)STASH_FIXES}})"
+    print -r -- "JOB_METADATA_ARGS=(${(j: :)${(@q+)STASH_METADATA_ARGS}})"
+    print -r -- "JOB_FASTSTART=${STASH_FASTSTART}"
+    print -r -- "JOB_TRIM_START=${(q+)STASH_TRIM_START}"
+    print -r -- "JOB_QUANTIZE_CHAPTERS=${QUANTIZE_CHAPTERS}"
+
+    asset=""
+    [[ -n "$STASH_CHAPTERS_JSON" ]] \
+      && asset="$(stash_asset "$STASH_CHAPTERS_JSON" "$job_dir")"
+    print -r -- "JOB_CHAPTERS_JSON=${(q+)asset}"
+
+    asset=""
+    [[ -n "$STASH_SUBTITLE_FILE" ]] \
+      && asset="$(stash_asset "$STASH_SUBTITLE_FILE" "$job_dir")"
+    print -r -- "JOB_SUBTITLE_FILE=${(q+)asset}"
+    print -r -- "JOB_SUBTITLE_LANG=${(q+)STASH_SUBTITLE_LANG}"
+    print -r -- "JOB_ASSET_DIR=${(q+)job_dir}"
+  } > "$tmp_job"
+
+  # Only now does the job exist under a name the worker globs for, so it can
+  # never be picked up half-written.
+  mv -- "$tmp_job" "$job_file"
+
+  (( queued_fix_count += ${#STASH_FIXES[@]} ))
+  for item in "${STASH_FIXES[@]}"; do
+    set_check_status "$item" "queued"
+  done
+
+  if [[ -t 4 ]]; then
+    render_summary_line
+    render_checks_region
+    say_raw " ${C_DIM}queued job ${id} · ${(j:, :)STASH_FIXES}${C_RESET}"
+  fi
+}
+
+# A queued repair is neither done nor broken, so it gets its own state rather
+# than borrowing the green tick from a fix that has actually landed.
+check_row() {
+  local item="$1" state="$2"
+  local name
+
+  if [[ "$state" != "queued" ]]; then
+    lib_check_row "$item" "$state"
+    return 0
+  fi
+
+  case "$item" in
+    black-frames) name="intro" ;;
+    source-url)   name="source url" ;;
+    metadata)     name="metadata" ;;
+    faststart)    name="container" ;;
+    *)            name="$item" ;;
+  esac
+
+  print -r -- "${C_YELLOW}${C_BOLD}${ICON_QUEUED} ${name}: queued${C_RESET}"
+}
+
+# The header line media-audit repaints on every change is the natural place for
+# the queue depth, so the backlog is visible without leaving the file at hand.
+session_summary_line() {
+  local done=$(( clean_count + issue_file_count ))
+  local depth worker
+
+  depth="$(queue_depth)"
+  if worker_alive; then
+    worker="${C_GREEN}worker up${C_RESET}"
+  else
+    worker="${C_RED}worker down${C_RESET}"
+  fi
+
+  say_raw "${C_GREEN}${clean_count}${C_RESET}/${done} files OK   ${C_DIM}·${C_RESET}   ${C_YELLOW}${depth}${C_RESET} queued   ${C_DIM}·${C_RESET}   ${worker}"
+}
+
+# --- worker ------------------------------------------------------------
+
+WORKER_LOG=""
+typeset -i worker_done_count=0
+typeset -i worker_fail_count=0
+
+worker_log() {
+  [[ -n "$WORKER_LOG" ]] || return 0
+  print -r -- "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$WORKER_LOG"
+}
+
+worker_cleanup() {
+  rm -f -- "$SPOOL_DIR/worker.pid" 2>/dev/null || true
+}
+
+# Apply one job with media-audit's own rewrite path: same ffmpeg invocation,
+# same progress bar, same mp4doctor pass — only the decisions arrive from a
+# file rather than from a person.
+run_job() {
+  local job="$1"
+  local item name
+  local -a other_fixes=()
+  integer rc=0
+
+  JOB_ID=""
+  JOB_PATH=""
+  JOB_FIXES=()
+  JOB_METADATA_ARGS=()
+  JOB_FASTSTART=false
+  JOB_TRIM_START=""
+  JOB_QUANTIZE_CHAPTERS=false
+  JOB_CHAPTERS_JSON=""
+  JOB_SUBTITLE_FILE=""
+  JOB_SUBTITLE_LANG=""
+  JOB_ASSET_DIR=""
+
+  source "$job" || return 1
+  [[ -n "$JOB_PATH" ]] || return 1
+
+  name="${JOB_PATH:t}"
+  say ""
+  say_raw "${C_BOLD}${C_YELLOW}${name}${C_RESET}"
+  say_raw "${C_DIM}${JOB_PATH:h}${C_RESET}"
+  say_raw "${C_DIM}job ${JOB_ID} · ${(j:, :)JOB_FIXES}${C_RESET}"
+
+  if [[ ! -f "$JOB_PATH" ]]; then
+    fail "file is gone; skipping job ${JOB_ID}"
+    worker_log "MISSING ${JOB_PATH}"
+    return 1
+  fi
+
+  PENDING_METADATA_ARGS=("${JOB_METADATA_ARGS[@]}")
+  PENDING_TRIM_START="$JOB_TRIM_START"
+  PENDING_CHAPTERS_JSON="$JOB_CHAPTERS_JSON"
+  PENDING_SUBTITLE_FILE="$JOB_SUBTITLE_FILE"
+  PENDING_SUBTITLE_LANG="$JOB_SUBTITLE_LANG"
+  PENDING_TMPFILES=()
+  QUANTIZE_CHAPTERS=$JOB_QUANTIZE_CHAPTERS
+
+  for item in "${JOB_FIXES[@]}"; do
+    [[ "$item" == "faststart" ]] || other_fixes+=("$item")
+  done
+
+  if (( ${#other_fixes[@]} > 0 )); then
+    if rewrite_with_metadata "$JOB_PATH" "${PENDING_METADATA_ARGS[@]}"; then
+      [[ -n "$PENDING_TRIM_START" ]] && say "trimmed to: ${PENDING_TRIM_START}s"
+      pass "${(j:, :)other_fixes}"
+      worker_log "OK ${JOB_ID} ${(j:,:)other_fixes} ${JOB_PATH}"
+    else
+      fail "ffmpeg rewrite failed; file left unchanged"
+      worker_log "FAIL ${JOB_ID} rewrite ${JOB_PATH}"
+      rc=1
+    fi
+  fi
+
+  # Container structure is mp4doctor's job in a separate pass, exactly as in
+  # media-audit's apply_pending_rewrite.
+  if $JOB_FASTSTART; then
+    if mp4doctor --fix --quiet -- "$JOB_PATH" >/dev/null 2>&1 \
+      && faststart_state "$JOB_PATH"; then
+      pass "faststart"
+      worker_log "OK ${JOB_ID} faststart ${JOB_PATH}"
+    else
+      fail "mp4doctor could not repair the container; file left unchanged"
+      worker_log "FAIL ${JOB_ID} faststart ${JOB_PATH}"
+      rc=1
+    fi
+  fi
+
+  cleanup_pending_media
+  [[ -n "$JOB_ASSET_DIR" && -d "$JOB_ASSET_DIR" ]] && rm -rf -- "$JOB_ASSET_DIR"
+
+  return "$rc"
+}
+
+worker_loop() {
+  local job claimed
+  local -a pending
+  integer idle_i=0
+  local -a spin=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+
+  while true; do
+    pending=("$QUEUE_DIR"/*.job(N.on))
+
+    if (( ${#pending[@]} == 0 )); then
+      # The batcher drops `stop` when it is finished asking; anything already
+      # queued is still drained before the worker leaves.
+      [[ -e "$SPOOL_DIR/stop" ]] && break
+      if [[ -t 4 ]]; then
+        print -n -u4 -- $'\r\033[K'"  ${C_CYAN}${spin[idle_i % 10 + 1]}${C_RESET}  ${C_DIM}waiting for jobs…${C_RESET}"
+        (( idle_i++ ))
+      fi
+      sleep 1
+      continue
+    fi
+
+    [[ -t 4 ]] && print -n -u4 -- $'\r\033[K'
+
+    job="${pending[1]}"
+    claimed="${RUNNING_DIR}/${job:t}"
+    # The move out of queue/ is the lock: whoever wins the rename owns the job.
+    [[ -e "$claimed" ]] && continue
+    mv -- "$job" "$claimed" 2>/dev/null || continue
+
+    if run_job "$claimed"; then
+      (( worker_done_count++ ))
+      mv -f -- "$claimed" "${DONE_DIR}/${claimed:t}" 2>/dev/null || true
+    else
+      (( worker_fail_count++ ))
+      mv -f -- "$claimed" "${FAILED_DIR}/${claimed:t}" 2>/dev/null || true
+    fi
+  done
+}
+
+worker_main() {
+  [[ -d "$SPOOL_DIR" ]] || batch_die "no such spool directory: ${SPOOL_DIR}"
+
+  QUEUE_DIR="$SPOOL_DIR/queue"
+  RUNNING_DIR="$SPOOL_DIR/running"
+  DONE_DIR="$SPOOL_DIR/done"
+  FAILED_DIR="$SPOOL_DIR/failed"
+  ASSET_DIR="$SPOOL_DIR/assets"
+  WORKER_LOG="$SPOOL_DIR/worker.log"
+
+  if worker_alive; then
+    batch_die "a worker is already running for ${SPOOL_DIR}"
+  fi
+
+  print -r -- $$ > "$SPOOL_DIR/worker.pid"
+  trap 'worker_cleanup; exit 130' INT
+  trap worker_cleanup EXIT
+
+  say_raw "${C_REVERSE}${C_BOLD} MEDIA AUDIT WORKER ${C_RESET}"
+  say_raw "${C_DIM}${SPOOL_DIR}${C_RESET}"
+  worker_log "worker start pid=$$"
+
+  # Anything left in running/ is from a worker that died mid-job; put it back
+  # at the front of the queue rather than losing it.
+  local orphan
+  for orphan in "$RUNNING_DIR"/*.job(N.); do
+    mv -- "$orphan" "${QUEUE_DIR}/${orphan:t}" 2>/dev/null || true
+    worker_log "requeued ${orphan:t}"
+  done
+
+  worker_loop
+
+  say ""
+  say_raw "${C_BOLD}${C_GREEN}WORKER DONE${C_RESET}  applied: ${worker_done_count}  failed: ${worker_fail_count}"
+  worker_log "worker exit applied=${worker_done_count} failed=${worker_fail_count}"
+}
+
+# --- batcher -----------------------------------------------------------
+
+batch_finish() {
+  # Tells the worker no more jobs are coming. Written on every exit path,
+  # including the Ctrl-C the library turns into exit 130, so a worker is never
+  # left spinning on an abandoned spool.
+  : > "$SPOOL_DIR/stop" 2>/dev/null || true
+}
+
+wait_for_drain() {
+  local depth
+  integer i=0
+  local -a spin=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+
+  while true; do
+    depth="$(queue_depth)"
+    (( depth > 0 )) || break
+    worker_alive || break
+    if [[ -t 4 ]]; then
+      print -n -u4 -- $'\r\033[K'"  ${C_CYAN}${spin[i % 10 + 1]}${C_RESET}  ${C_DIM}waiting for ${depth} queued job(s)…${C_RESET}"
+      (( i++ ))
+    fi
+    sleep 1
+  done
+
+  clear_status
+}
+
+batch_main() {
+  local placement depth
+
+  if $START_WORKER; then
+    placement="$(start_worker)"
+  else
+    placement="not started (--no-worker)"
+  fi
+
+  # media-audit's own main: argument parsing, the file loop, every check and
+  # prompt. Only the two functions overridden above behave differently.
+  main "${PASSTHROUGH_ARGS[@]}"
+
+  say "QUEUED: ${queued_job_count} job(s), ${queued_fix_count} fix(es)"
+  say_raw "${C_DIM}spool: ${SPOOL_DIR}${C_RESET}"
+  say_raw "${C_DIM}worker: ${placement}${C_RESET}"
+
+  batch_finish
+  $WAIT_FOR_DRAIN && wait_for_drain
+
+  depth="$(queue_depth)"
+  if (( depth > 0 )); then
+    if worker_alive; then
+      say "%F{yellow}${depth} job(s) still running in the worker.%f"
+    else
+      say "%F{yellow}${depth} job(s) queued with no worker.%f Drain them with:"
+      say_raw "  ${SCRIPT_NAME} --worker ${(q-)SPOOL_DIR}"
+    fi
+  fi
+}
+
+if [[ "$RUN_MODE" == worker ]]; then
+  worker_main
+else
+  # At the top level, not inside batch_main: a zsh EXIT trap set inside a
+  # function fires when that function returns, which would miss the exit 130
+  # media-audit's Ctrl-C handler takes.
+  trap batch_finish EXIT
+  batch_main
+fi

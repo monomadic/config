@@ -4,18 +4,18 @@
 //! The on-disk contract is deliberately identical, so `.job` scripts and
 //! `send-job` work against either implementation:
 //!
-//!   1. `NAME.job` is renamed to `NAME.job.running` to claim it — the scan
-//!      only matches `*.job`, so a claimed job can never be picked up twice.
-//!      One job runs at a time, guarded by the same `$JOBS_DIR/.lock`
-//!      directory the shell version uses.
-//!   2. It runs cd'd into `$JOBS_DIR` with `JOB_NAME`, `JOB_FILE`, `JOB_DIR`
-//!      exported and `TERM=dumb` / `NO_COLOR=1` / `CLICOLOR=0` set.
-//!      stdout goes to `NAME.job.log`, stderr to `NAME.job.errors`, each
-//!      created only once that stream produces output, so a silent job
-//!      leaves no empty artifacts behind.
-//!   3. On exit 0 the job lands in `_done/` as `NAME.job.done`; otherwise in
-//!      `_err/` as `NAME.job.err`. Logs follow the job; an `.errors` file
-//!      always lands in `_err/`.
+//!   1. `TARGET.job` — and the target file beside it, if there is one — is
+//!      moved into a dated run folder `_running/<date>-<JOB_NAME>` to claim
+//!      it. The scan only matches top-level `*.job`, so a claimed job can
+//!      never be picked up twice. One job runs at a time, guarded by the same
+//!      `$JOBS_DIR/.lock` directory the shell version uses.
+//!   2. It runs cd'd into the run folder with `TARGET_FILE`, `JOB_NAME`,
+//!      `JOB_FILE`, `JOB_DIR`, `JOB_RUN_DIR` exported and `TERM=dumb` /
+//!      `NO_COLOR=1` / `CLICOLOR=0` set. stdout goes to `$JOB_NAME.log`,
+//!      stderr to `$JOB_NAME.error.log`, each created only once that stream
+//!      produces output, so a silent job leaves no empty artifacts behind.
+//!   3. On exit 0 the whole run folder is moved to `_done/`; otherwise to
+//!      `_err/` — job file, target file and logs together.
 
 use std::collections::VecDeque;
 use std::fs::{self, File};
@@ -38,6 +38,7 @@ const RECENT_MAX: usize = 6;
 pub struct RunningJob {
     pub name: String,
     pub started: Instant,
+    pub run_dir: PathBuf,
 }
 
 pub struct RecentJob {
@@ -64,6 +65,10 @@ pub fn jobs_dir() -> PathBuf {
     std::env::var_os("JOBS_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| home().join("jobs"))
+}
+
+pub fn running_dir() -> PathBuf {
+    jobs_dir().join("_running")
 }
 
 pub fn done_dir() -> PathBuf {
@@ -93,8 +98,8 @@ fn log_file() -> PathBuf {
 }
 
 /// The running job's live stdout log, if the job has produced output yet.
-pub fn running_log_path(name: &str) -> Option<PathBuf> {
-    let path = jobs_dir().join(format!("{name}.job.log"));
+pub fn running_log_path(job: &RunningJob) -> Option<PathBuf> {
+    let path = job.run_dir.join(format!("{}.log", job.name));
     path.is_file().then_some(path)
 }
 
@@ -108,9 +113,9 @@ fn log(line: &str) {
     }
 }
 
-/// Failures the user hasn't acknowledged: `_err/*.job.err` newer than the
-/// timestamp written by "Clear error badge". Counting from disk (rather than
-/// a counter in memory) means the badge survives a restart.
+/// Failures the user hasn't acknowledged: run folders under `_err/` newer
+/// than the timestamp written by "Clear error badge". Counting from disk
+/// (rather than a counter in memory) means the badge survives a restart.
 fn unacknowledged_errors() -> usize {
     let ack = fs::read_to_string(ack_file())
         .ok()
@@ -123,11 +128,7 @@ fn unacknowledged_errors() -> usize {
     entries
         .flatten()
         .filter(|entry| {
-            let name = entry.file_name();
-            let Some(name) = name.to_str() else {
-                return false;
-            };
-            if !name.ends_with(".job.err") {
+            if !entry.path().is_dir() {
                 return false;
             }
             entry
@@ -179,10 +180,21 @@ fn scan_jobs() -> Vec<PathBuf> {
     jobs
 }
 
+/// The job file's target: its filename minus the `.job` extension
+/// (`foo.mp4.job` => `foo.mp4`).
+fn target_file(path: &Path) -> String {
+    let base = path.file_name().unwrap_or_default().to_string_lossy();
+    base.strip_suffix(".job").unwrap_or(&base).to_string()
+}
+
+/// The job's name: the target minus its own extension (`foo.mp4.job` =>
+/// `foo`). A job file with no inner extension keeps its full name.
 fn job_name(path: &Path) -> String {
-    path.file_name()
-        .map(|n| n.to_string_lossy().trim_end_matches(".job").to_string())
-        .unwrap_or_default()
+    let target = target_file(path);
+    match target.rsplit_once('.') {
+        Some((stem, _)) if !stem.is_empty() => stem.to_string(),
+        _ => target,
+    }
 }
 
 /// True once the file's size has held steady across SETTLE (i.e. a copy into
@@ -194,18 +206,19 @@ fn is_stable(path: &Path) -> bool {
     size(path) == Some(first)
 }
 
-/// A non-colliding path: if `path` exists, insert a timestamp before the
-/// `.job.<suffix>` tail so an earlier run's artifact is never clobbered.
-fn uniq_dest(path: PathBuf) -> PathBuf {
+/// A non-colliding directory path: appends `-2`, `-3`, ... if taken, so an
+/// earlier run's folder is never clobbered.
+fn uniq_dir(path: PathBuf) -> PathBuf {
     if !path.exists() {
         return path;
     }
-    let Some(dir) = path.parent() else { return path };
-    let base = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-    let Some((stem, tail)) = base.split_once(".job.") else {
-        return path;
-    };
-    dir.join(format!("{stem}.{}.job.{tail}", clock::file_stamp()))
+    for n in 2..1000 {
+        let candidate = PathBuf::from(format!("{}-{n}", path.display()));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    path
 }
 
 /// Copy a child stream to `path`, creating the file only when the first
@@ -274,46 +287,64 @@ impl Drop for Lock {
 fn run_one(job: &Path, state: &Arc<Mutex<State>>) {
     let jobs = jobs_dir();
     let name = job_name(job);
-    let running = jobs.join(format!("{name}.job.running"));
-    let log_path = jobs.join(format!("{name}.job.log"));
-    let err_path = jobs.join(format!("{name}.job.errors"));
+    let target = target_file(job);
 
-    // Claim the job by renaming it out of the scan set before running.
-    if fs::rename(job, &running).is_err() {
-        log(&format!("SKIP {name} (could not mark running)"));
+    // Claim the job by moving it — and its target file, if present — out of
+    // the scan set and into a dated run folder, which becomes the CWD.
+    let _ = fs::create_dir_all(running_dir());
+    let run_dir = uniq_dir(running_dir().join(format!("{}-{name}", clock::file_stamp())));
+    if fs::create_dir(&run_dir).is_err() {
+        log(&format!("SKIP {name} (could not create run folder)"));
         return;
     }
+    let job_file = run_dir.join(format!("{target}.job"));
+    if fs::rename(job, &job_file).is_err() {
+        let _ = fs::remove_dir(&run_dir);
+        log(&format!("SKIP {name} (could not claim job file)"));
+        return;
+    }
+    let target_path = jobs.join(&target);
+    if target_path.exists() && fs::rename(&target_path, run_dir.join(&target)).is_err() {
+        log(&format!("WARN could not move target file {target}"));
+    }
+
+    let log_path = run_dir.join(format!("{name}.log"));
+    let err_path = run_dir.join(format!("{name}.error.log"));
     log(&format!("RUN  {name}"));
 
-    if let Ok(meta) = fs::metadata(&running) {
+    if let Ok(meta) = fs::metadata(&job_file) {
         let mut perms = meta.permissions();
         perms.set_mode(perms.mode() | 0o100);
-        let _ = fs::set_permissions(&running, perms);
+        let _ = fs::set_permissions(&job_file, perms);
     }
-    let executable = fs::metadata(&running).is_ok_and(|m| m.permissions().mode() & 0o111 != 0);
+    let executable = fs::metadata(&job_file).is_ok_and(|m| m.permissions().mode() & 0o111 != 0);
 
     if let Ok(mut state) = state.lock() {
         state.running = Some(RunningJob {
             name: name.clone(),
             started: Instant::now(),
+            run_dir: run_dir.clone(),
         });
     }
 
-    // JOB_NAME lets a job reference its target without knowing the rename
-    // scheme (foo.mp4.job => JOB_NAME=foo.mp4). TERM=dumb / NO_COLOR make
-    // well-behaved tools drop progress-bar redraws and ANSI color.
+    // TARGET_FILE lets a job reference the file it was named after without
+    // knowing the folder scheme (foo.mp4.job => TARGET_FILE=foo.mp4,
+    // JOB_NAME=foo). TERM=dumb / NO_COLOR make well-behaved tools drop
+    // progress-bar redraws and ANSI color.
     let mut command = if executable {
-        Command::new(&running)
+        Command::new(&job_file)
     } else {
         let mut command = Command::new("/bin/bash");
-        command.arg(&running);
+        command.arg(&job_file);
         command
     };
     let spawned = command
-        .current_dir(&jobs)
+        .current_dir(&run_dir)
         .env("JOB_NAME", &name)
-        .env("JOB_FILE", &running)
+        .env("TARGET_FILE", &target)
+        .env("JOB_FILE", &job_file)
         .env("JOB_DIR", &jobs)
+        .env("JOB_RUN_DIR", &run_dir)
         .env("TERM", "dumb")
         .env("NO_COLOR", "1")
         .env("CLICOLOR", "0")
@@ -326,7 +357,7 @@ fn run_one(job: &Path, state: &Arc<Mutex<State>>) {
         Ok(child) => child,
         Err(err) => {
             log(&format!("FAIL {name} (could not start: {err})"));
-            finish(&name, 127, &running, false, false, state);
+            finish(&name, 127, &run_dir, state);
             return;
         }
     };
@@ -352,48 +383,29 @@ fn run_one(job: &Path, state: &Arc<Mutex<State>>) {
         }
     };
 
-    let wrote_log = log_writer.join().unwrap_or(false);
-    let wrote_err = err_writer.join().unwrap_or(false);
-    finish(&name, code, &running, wrote_log, wrote_err, state);
+    let _ = log_writer.join();
+    let _ = err_writer.join();
+    finish(&name, code, &run_dir, state);
 }
 
-fn finish(
-    name: &str,
-    code: i32,
-    running: &Path,
-    wrote_log: bool,
-    wrote_err: bool,
-    state: &Arc<Mutex<State>>,
-) {
-    let jobs = jobs_dir();
+/// Move the whole run folder — job file, target file and logs — to `_done`
+/// or `_err` according to the exit status.
+fn finish(name: &str, code: i32, run_dir: &Path, state: &Arc<Mutex<State>>) {
     let ok = code == 0;
-    let (dest_dir, dest_job) = if ok {
+    let dest_dir = if ok {
         log(&format!("DONE {name} (exit 0)"));
-        (done_dir(), done_dir().join(format!("{name}.job.done")))
+        done_dir()
     } else {
         log(&format!("FAIL {name} (exit {code})"));
-        (err_dir(), err_dir().join(format!("{name}.job.err")))
+        err_dir()
     };
 
     let _ = fs::create_dir_all(&dest_dir);
-    let dest_job = uniq_dest(dest_job);
-    // NAME[.ts].job — the artifact name minus its final suffix.
-    let stem = dest_job
-        .file_stem()
-        .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_else(|| name.to_string());
-
-    if fs::rename(running, &dest_job).is_err() {
-        log(&format!("WARN could not move {name} job artifact"));
-    }
-    if wrote_log {
-        let source = jobs.join(format!("{name}.job.log"));
-        let _ = fs::rename(source, uniq_dest(dest_dir.join(format!("{stem}.log"))));
-    }
-    if wrote_err {
-        let _ = fs::create_dir_all(err_dir());
-        let source = jobs.join(format!("{name}.job.errors"));
-        let _ = fs::rename(source, uniq_dest(err_dir().join(format!("{stem}.errors"))));
+    let folder = run_dir.file_name().unwrap_or_default().to_os_string();
+    let mut dest_job = uniq_dir(dest_dir.join(&folder));
+    if fs::rename(run_dir, &dest_job).is_err() {
+        log(&format!("WARN could not move run folder for {name}"));
+        dest_job = run_dir.to_path_buf();
     }
 
     if let Ok(mut state) = state.lock() {
@@ -410,7 +422,7 @@ fn finish(
 
 pub fn spawn(state: Arc<Mutex<State>>) {
     thread::spawn(move || {
-        for dir in [jobs_dir(), done_dir(), err_dir()] {
+        for dir in [jobs_dir(), running_dir(), done_dir(), err_dir()] {
             let _ = fs::create_dir_all(dir);
         }
         loop {
@@ -444,6 +456,13 @@ pub fn spawn(state: Arc<Mutex<State>>) {
                 };
                 if !is_stable(&job) {
                     log(&format!("WAIT {} (still uploading)", job_name(&job)));
+                    break;
+                }
+                // The target file may still be copying in even once the job
+                // file itself settled.
+                let target = jobs_dir().join(target_file(&job));
+                if target.is_file() && !is_stable(&target) {
+                    log(&format!("WAIT {} (target still uploading)", job_name(&job)));
                     break;
                 }
                 run_one(&job, &state);
