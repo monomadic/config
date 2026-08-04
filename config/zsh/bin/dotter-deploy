@@ -16,13 +16,15 @@ HEALTHCHECK_SCRIPT="$CONFIG_DIR/setup/macos/check.sh"
 YAZI_PACKAGE_MANIFEST="$XDG_CONFIG_HOME/yazi/package.toml"
 YAZI_PACKAGE_PLUGIN_DIR="$XDG_CONFIG_HOME/yazi/plugins"
 FULL_DEPLOY=0
+APPLY_ICONS=0
 SCRIPT_NAME="${0:t}"
 
 usage() {
   cat <<EOF
-Usage: $SCRIPT_NAME [--full]
+Usage: $SCRIPT_NAME [--full] [--icons]
 
-Runs Dotter deploy. Use --full to also sync Yazi packages and apply macOS app icons.
+Runs Dotter deploy. Use --icons to also apply macOS app icons, or --full to
+additionally sync Yazi packages.
 EOF
 }
 
@@ -30,6 +32,10 @@ while (( $# > 0 )); do
   case "$1" in
     --full)
       FULL_DEPLOY=1
+      APPLY_ICONS=1
+      ;;
+    --icons)
+      APPLY_ICONS=1
       ;;
     -h|--help)
       usage
@@ -183,7 +189,7 @@ if (( FULL_DEPLOY )); then
   install_yazi_packages
 fi
 
-if (( FULL_DEPLOY )) && [[ "$OSTYPE" == darwin* ]] && [[ -x "$MACOS_ICON_SCRIPT" ]]; then
+if (( APPLY_ICONS )) && [[ "$OSTYPE" == darwin* ]] && [[ -x "$MACOS_ICON_SCRIPT" ]]; then
   "$MACOS_ICON_SCRIPT"
 fi
 

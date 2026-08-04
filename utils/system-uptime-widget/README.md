@@ -8,39 +8,57 @@ item, so macOS presents it natively.
 
 ## Menu bar
 
-A clock glyph and the uptime beside it, drawn as one template image:
+| Style | Menu bar |
+|---|---|
+| Icon above Text | clock glyph stacked over `22H` (default) |
+| Icon and Text | `􂝔 22H` |
+| Text | `22H` |
+
+The chosen style persists to `~/.config/system-uptime-widget/style` and is
+picked from the `Style` submenu in the dropdown.
+
+The value is always one unit, capitalised — at menu bar size a lowercase `d` or
+`h` hangs off the digits' x-height where a cap sits flush with them:
 
 ```text
-􂝔 42m
-􂝔 5h
-􂝔 2d
-􂝔 3.5d
-􂝔 33.1d
+42M
+5H
+2D
+3.5D
+33.1D
 ```
 
-Always one unit. Under an hour it counts in minutes, then in whole hours, and
-past a day the hours become a decimal rather than a second unit — one number is
-less to read across in a menu bar than two. The decimal is truncated, not
-rounded, so the figure never runs ahead of the machine. The tooltip still spells
-the full figure out — "System uptime is 3 days, 12 hours".
+Under an hour it counts in minutes, then in whole hours, and past a day the
+hours become a decimal rather than a second unit — one number is less to read
+across in a menu bar than two. The decimal is truncated, not rounded, so the
+figure never runs ahead of the machine. The tooltip still spells the full figure
+out — "System uptime is 3 days, 12 hours".
 
-The menu holds `Reboot`, `Shutdown` and `Quit`. Reboot and Shutdown put up a
-confirmation dialog before telling System Events to perform the power action.
+Below `Style` the menu holds `Reboot`, `Shutdown` and `Quit`. Reboot and
+Shutdown put up a confirmation dialog before telling System Events to perform
+the power action.
 
 ## Sizing
 
-No hardcoded point sizes. The glyph is set in the menu bar font
-(`NSFont::menuBarFontOfSize(0.0)`) and the value in the same 0.84em compact
-size — monospaced digits, so the width doesn't jitter — that
-`free-disk-space-widget` uses for its Icon and Text style, on a canvas the
-height of `NSStatusBar::thickness()`. Change the system text size and the widget
-follows, and the two widgets stay visually matched.
+No hardcoded point sizes. Everything is a ratio of the menu bar font
+(`NSFont::menuBarFontOfSize(0.0)`) or of `NSStatusBar::thickness()`, so changing
+the system text size takes the widget with it.
+
+Side by side, the glyph is set at menu bar size and the value at the same 0.84em
+compact size `free-disk-space-widget` uses for its Icon and Text style, which
+keeps the two widgets visually matched. Stacked, both runs have to share the
+height of the bar, so both come down — the glyph to 0.72em, the value to 0.58em
+— and if that pair still overruns the bar it is scaled down until it fits rather
+than being clipped. Digits are monospaced in every style, so the width doesn't
+jitter as the number changes.
 
 Both marks go into a single image rather than leaving the value in the button's
 title: a status item button carrying both a title and an image pads generously
 around each, and the glyph's own left side bearing lands on top of that. The
-glyph is measured by its ink (`CTLineGetBoundsWithOptions` with glyph-path
-bounds), not its advance, so macOS is left to pad the item evenly.
+glyph is measured and placed by its ink (`CTLineGetBoundsWithOptions` with
+glyph-path bounds), not its advance — stacked, the advance box's line height
+alone would push the value out of the bar. Text-only skips the image and sets
+the button's title, at full menu bar size.
 
 ## Data source
 

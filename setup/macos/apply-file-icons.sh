@@ -37,7 +37,7 @@ if [[ ! -d "$ICON_DIR" ]]; then
 fi
 
 ICON_MAPPINGS=(
-  "1Password.app|1password.icns"
+  "1Password.app|1password-black.icns"
   "Brave Browser.app|brave.icns"
   "Claude.app|claude.png"
   "DaVinci Resolve.app|davinci-resolve-01.icns"
@@ -51,6 +51,34 @@ ICON_MAPPINGS=(
   "Telegram Desktop.app|telegram.icns"
   "VirtualDJ.app|virtualdj-vinyl-full.icns"
 )
+
+# Apps installed by a root installer have root-owned bundles in /Applications;
+# fileicon then needs sudo to write the icon resource into the bundle.
+SUDO_READY=-1
+
+sudo_available() {
+  # Cache the result: prompt for a password at most once per run.
+  if (( SUDO_READY >= 0 )); then
+    return $SUDO_READY
+  fi
+
+  if ! command -v sudo >/dev/null 2>&1; then
+    SUDO_READY=1
+  elif sudo -n true 2>/dev/null; then
+    SUDO_READY=0
+  elif [[ -t 0 ]]; then
+    echo "Some apps are root-owned; sudo is required to set their icons."
+    if sudo -v; then
+      SUDO_READY=0
+    else
+      SUDO_READY=1
+    fi
+  else
+    SUDO_READY=1
+  fi
+
+  return $SUDO_READY
+}
 
 find_app_path() {
   local app_name="$1"
@@ -69,6 +97,7 @@ attempted=0
 failed=0
 missing_apps=0
 missing_icons=0
+needs_root=0
 
 for mapping in "${ICON_MAPPINGS[@]}"; do
   app_name="${mapping%%|*}"
@@ -87,9 +116,20 @@ for mapping in "${ICON_MAPPINGS[@]}"; do
     continue
   fi
 
+  runner=()
+  if [[ ! -w "$app_path" ]]; then
+    if sudo_available; then
+      runner=(sudo)
+    else
+      warn "Skipping $app_name: $app_path needs root and sudo is unavailable."
+      needs_root=$((needs_root + 1))
+      continue
+    fi
+  fi
+
   echo "$app_name: apply $icon_name -> $app_path"
   attempted=$((attempted + 1))
-  if fileicon set "$app_path" "$icon_path"; then
+  if ${runner[@]+"${runner[@]}"} fileicon set "$app_path" "$icon_path"; then
     applied=$((applied + 1))
   else
     warn "Warning: failed to apply icon for $app_name at $app_path; continuing."
@@ -106,6 +146,10 @@ fi
 echo "Applied: $applied"
 echo "Missing apps: $missing_apps"
 echo "Missing icons: $missing_icons"
+
+if (( needs_root > 0 )); then
+  warn "Skipped (need root): $needs_root"
+fi
 
 if (( failed > 0 )); then
   warn "Failed: $failed"

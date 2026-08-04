@@ -5,22 +5,25 @@
 //! wrapper library, no vendored fork, no `.app` bundle. The dropdown is a real
 //! `NSMenu` assigned to the status item, so macOS presents it natively.
 //!
-//! Sizing is macOS's business, not ours: the glyph is set in the menu bar font
-//! and the value in the same compact size the disk widget uses.
+//! Sizing is macOS's business, not ours: every size is a ratio of the menu bar
+//! font or of the status bar's own thickness.
 
 mod bar;
 mod uptime;
 
 use std::cell::RefCell;
+use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
 
 use objc2::rc::Retained;
 use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSCellImagePosition, NSMenu, NSMenuItem,
-    NSStatusBar, NSStatusItem, NSVariableStatusItemLength,
+    NSApplication, NSApplicationActivationPolicy, NSCellImagePosition, NSControlStateValueOff,
+    NSControlStateValueOn, NSMenu, NSMenuItem, NSStatusBar, NSStatusItem,
+    NSVariableStatusItemLength,
 };
-use objc2_foundation::{NSObject, NSObjectProtocol, NSString, NSTimer};
+use objc2_foundation::{NSObject, NSObjectProtocol, NSString, NSTimer, ns_string};
 
 const UPTIME_ICON: &str = "\u{102754}"; // SF Symbols clock.arrow.circlepath
 
@@ -28,8 +31,68 @@ const UPTIME_ICON: &str = "\u{102754}"; // SF Symbols clock.arrow.circlepath
 /// has been up for one.
 const UPDATE_INTERVAL_SECONDS: f64 = 30.0;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LayoutStyle {
+    IconAboveText,
+    IconText,
+    Text,
+}
+
+const ALL_STYLES: [LayoutStyle; 3] = [
+    LayoutStyle::IconAboveText,
+    LayoutStyle::IconText,
+    LayoutStyle::Text,
+];
+
+impl LayoutStyle {
+    fn label(self) -> &'static str {
+        match self {
+            LayoutStyle::IconAboveText => "Icon above Text",
+            LayoutStyle::IconText => "Icon and Text",
+            LayoutStyle::Text => "Text",
+        }
+    }
+
+    fn key(self) -> &'static str {
+        match self {
+            LayoutStyle::IconAboveText => "icon_above_text",
+            LayoutStyle::IconText => "icon_text",
+            LayoutStyle::Text => "text",
+        }
+    }
+
+    fn from_key(key: &str) -> Option<Self> {
+        ALL_STYLES.iter().copied().find(|style| style.key() == key)
+    }
+}
+
+/// A single-value file, in the same place `battery-widget` keeps its style.
+fn style_path() -> Option<PathBuf> {
+    let home = std::env::var_os("HOME")?;
+    Some(PathBuf::from(home).join(".config/system-uptime-widget/style"))
+}
+
+fn load_style() -> LayoutStyle {
+    style_path()
+        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|key| LayoutStyle::from_key(key.trim()))
+        .unwrap_or(LayoutStyle::IconAboveText)
+}
+
+fn save_style(style: LayoutStyle) {
+    let Some(path) = style_path() else { return };
+    if let Some(dir) = path.parent() {
+        let _ = fs::create_dir_all(dir);
+    }
+    if let Err(err) = fs::write(&path, style.key()) {
+        eprintln!("error saving style: {err}");
+    }
+}
+
 struct Ui {
     status_item: Retained<NSStatusItem>,
+    style_items: Vec<Retained<NSMenuItem>>,
+    style: LayoutStyle,
 }
 
 define_class!(
@@ -43,6 +106,17 @@ define_class!(
     impl Widget {
         #[unsafe(method(tick:))]
         fn tick(&self, _timer: &NSTimer) {
+            self.update();
+        }
+
+        #[unsafe(method(styleAction:))]
+        fn style_action(&self, sender: &NSMenuItem) {
+            let style = ALL_STYLES[sender.tag() as usize];
+            if let Some(ui) = self.ivars().borrow_mut().as_mut() {
+                ui.style = style;
+            }
+            save_style(style);
+            self.refresh_style_checks();
             self.update();
         }
 
@@ -73,20 +147,26 @@ impl Widget {
 
         let status_item =
             NSStatusBar::systemStatusBar().statusItemWithLength(NSVariableStatusItemLength);
-        status_item.setMenu(Some(&this.build_menu(mtm)));
+        let (menu, style_items) = this.build_menu(mtm);
+        status_item.setMenu(Some(&menu));
 
-        *this.ivars().borrow_mut() = Some(Ui { status_item });
+        *this.ivars().borrow_mut() = Some(Ui {
+            status_item,
+            style_items,
+            style: load_style(),
+        });
+        this.refresh_style_checks();
         this
     }
 
-    fn build_menu(&self, mtm: MainThreadMarker) -> Retained<NSMenu> {
+    fn build_menu(&self, mtm: MainThreadMarker) -> (Retained<NSMenu>, Vec<Retained<NSMenuItem>>) {
         let menu = NSMenu::new(mtm);
         menu.setAutoenablesItems(false);
 
         // Our own selectors rather than `terminate:`: recent macOS decorates
         // menu items it recognises as standard actions with an SF Symbol, and
         // an unfamiliar action is the way to opt out of that.
-        let action = |title: &str, selector| {
+        let action = |menu: &NSMenu, title: &str, selector| -> Retained<NSMenuItem> {
             let item = NSMenuItem::new(mtm);
             item.setTitle(&NSString::from_str(title));
             item.setEnabled(true);
@@ -95,14 +175,33 @@ impl Widget {
                 item.setAction(Some(selector));
             }
             menu.addItem(&item);
+            item
         };
 
-        action("Reboot", sel!(rebootAction:));
-        action("Shutdown", sel!(shutdownAction:));
-        menu.addItem(&NSMenuItem::separatorItem(mtm));
-        action("Quit", sel!(quitAction:));
+        let style_menu = NSMenu::new(mtm);
+        style_menu.setAutoenablesItems(false);
+        let style_items = ALL_STYLES
+            .iter()
+            .enumerate()
+            .map(|(index, style)| {
+                let item = action(&style_menu, style.label(), sel!(styleAction:));
+                item.setTag(index as isize);
+                item
+            })
+            .collect();
+        let style_root = NSMenuItem::new(mtm);
+        style_root.setTitle(ns_string!("Style"));
+        style_root.setEnabled(true);
+        style_root.setSubmenu(Some(&style_menu));
+        menu.addItem(&style_root);
 
-        menu
+        menu.addItem(&NSMenuItem::separatorItem(mtm));
+        action(&menu, "Reboot", sel!(rebootAction:));
+        action(&menu, "Shutdown", sel!(shutdownAction:));
+        menu.addItem(&NSMenuItem::separatorItem(mtm));
+        action(&menu, "Quit", sel!(quitAction:));
+
+        (menu, style_items)
     }
 
     fn update(&self) {
@@ -121,15 +220,40 @@ impl Widget {
             return;
         };
 
-        button.setImage(Some(&bar::icon_text_image(
-            UPTIME_ICON,
-            &uptime::format_uptime(duration),
-        )));
-        button.setImagePosition(NSCellImagePosition::ImageOnly);
+        let value = uptime::format_uptime(duration);
+        match ui.style {
+            LayoutStyle::Text => {
+                button.setAttributedTitle(&bar::attributed_title(&value));
+                button.setImage(None);
+                button.setImagePosition(NSCellImagePosition::NoImage);
+            }
+            style => {
+                let image = if style == LayoutStyle::IconAboveText {
+                    bar::stacked_image(UPTIME_ICON, &value)
+                } else {
+                    bar::icon_text_image(UPTIME_ICON, &value)
+                };
+                button.setImage(Some(&image));
+                button.setImagePosition(NSCellImagePosition::ImageOnly);
+            }
+        }
+
         button.setToolTip(Some(&NSString::from_str(&format!(
             "System uptime is {}",
             uptime::human_uptime(duration)
         ))));
+    }
+
+    fn refresh_style_checks(&self) {
+        let ivars = self.ivars().borrow();
+        let Some(ui) = ivars.as_ref() else { return };
+        for (index, item) in ui.style_items.iter().enumerate() {
+            item.setState(if ALL_STYLES[index] == ui.style {
+                NSControlStateValueOn
+            } else {
+                NSControlStateValueOff
+            });
+        }
     }
 }
 

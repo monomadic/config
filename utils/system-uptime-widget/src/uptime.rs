@@ -72,24 +72,27 @@ fn parts(duration: Duration) -> (u64, u64, u64) {
     )
 }
 
-/// Compact menu bar form: `33.1d`, `3.5d`, `2d`, `5h`, `42m`. Past a day the
+/// Compact menu bar form: `33.1D`, `3.5D`, `2D`, `5H`, `42M`. Past a day the
 /// hours become a decimal rather than a second unit — one number is less to
 /// read across in a menu bar than two. Truncated, not rounded, so the figure
 /// never runs ahead of the machine.
+///
+/// The unit is capitalised: at menu bar size a lowercase `d` or `h` hangs off
+/// the digits' x-height, where a cap sits flush with them.
 pub fn format_uptime(duration: Duration) -> String {
     let (days, hours, minutes) = parts(duration);
     if days > 0 {
         let tenths = (hours * 10) / 24;
         return if tenths == 0 {
-            format!("{days}d")
+            format!("{days}D")
         } else {
-            format!("{days}.{tenths}d")
+            format!("{days}.{tenths}D")
         };
     }
     if hours > 0 {
-        return format!("{hours}h");
+        return format!("{hours}H");
     }
-    format!("{minutes}m")
+    format!("{minutes}M")
 }
 
 /// Tooltip form: `2 days, 1 hour`.
@@ -120,22 +123,22 @@ mod tests {
     }
 
     #[test]
-    fn compact_uses_one_unit() {
-        assert_eq!(format_uptime(duration(3, 12, 0)), "3.5d");
-        assert_eq!(format_uptime(duration(33, 3, 12)), "33.1d");
-        assert_eq!(format_uptime(duration(2, 0, 30)), "2d");
-        assert_eq!(format_uptime(duration(0, 5, 30)), "5h");
-        assert_eq!(format_uptime(duration(0, 0, 42)), "42m");
-        assert_eq!(format_uptime(duration(0, 0, 0)), "0m");
+    fn compact_uses_one_capitalised_unit() {
+        assert_eq!(format_uptime(duration(3, 12, 0)), "3.5D");
+        assert_eq!(format_uptime(duration(33, 3, 12)), "33.1D");
+        assert_eq!(format_uptime(duration(2, 0, 30)), "2D");
+        assert_eq!(format_uptime(duration(0, 5, 30)), "5H");
+        assert_eq!(format_uptime(duration(0, 0, 42)), "42M");
+        assert_eq!(format_uptime(duration(0, 0, 0)), "0M");
     }
 
     /// A tenth of a day is 2.4 hours, so the decimal must not tick over until
     /// the hours actually reach it — and must never round a day up early.
     #[test]
     fn compact_truncates_the_decimal() {
-        assert_eq!(format_uptime(duration(1, 2, 0)), "1d");
-        assert_eq!(format_uptime(duration(1, 3, 0)), "1.1d");
-        assert_eq!(format_uptime(duration(1, 23, 59)), "1.9d");
+        assert_eq!(format_uptime(duration(1, 2, 0)), "1D");
+        assert_eq!(format_uptime(duration(1, 3, 0)), "1.1D");
+        assert_eq!(format_uptime(duration(1, 23, 59)), "1.9D");
     }
 
     #[test]
