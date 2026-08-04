@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<!-- saved from url=(0253)https://2326a9bd-fa99-45c6-aa09-b2c497d85f92.frame.claudeusercontent.com/_f/1785766741-1056/?__frame_t=EkKqsDvxIz_GF6TcVB7AvOov.d96ea23d-a965-4daf-8eba-5a2bc76f0b51.ef7140aa-fbfa-4344-b24b-2d00ff2187eb.1785771775&__frame_v=manifest.9315814fd820a062.json -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><!-- frame-runtime --><!--<base href="/_f/1785766741-1056/">--><base href="."><script>window.__FRAME_PREAMBLE={"capabilities":{"db":"db.CfOZ1CRq.js","downloads":"downloads.BXsoAvg9.js","mcp":"mcp.CjxgyTlr.js","permissions":"permissions.DdITF2Mk.js","self":"self.DtZoNC4q.js","user":"user.Cr_h1ETf.js"},"transforms":"_transforms.VaITkagF.js","comments":"_comments.XY398Yit.js","translate":"_translate.BOzFH2D9.js"}</script><script>(function(){"use strict";var ee=["light","dark","system"];function te(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_init;return t!==null&&typeof t=="object"}function W(e){return e!==null&&typeof e=="object"&&e.__frame_size_poke===!0}function re(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_theme;if(t===null||typeof t!="object")return!1;const r=t.theme;return typeof r=="string"&&ee.includes(r)}function ne(e){try{typeof reportError=="function"?reportError(e):setTimeout(()=>{throw e},0)}catch{}}var se=Object.freeze(Object.assign(Object.create(null),{user:Object.freeze(Object.assign(Object.create(null),{id:null,isOwner:!1,canEdit:!1,name:null,avatarUrl:null,email:null}))}));function Y(e){if(window===top||e.type==="auxclick"&&e.button!==1)return;const t=e.composedPath?e.composedPath():[e.target];let r=null;for(let f=0;f<t.length;f++){const c=t[f];if(c&&c.matches&&c.matches("a[href],area[href]")){r=c;break}}if(!r&&e.target&&e.target.closest&&(r=e.target.closest("a[href],area[href]")),!r)return;const l=r.getAttribute("href");if(!l)return;let i,s;try{i=new URL(l,document.baseURI),s=new URL(document.baseURI).origin}catch{return}(i.protocol==="http:"||i.protocol==="https:")&&i.origin!==s&&(e.preventDefault(),parent.postMessage({__frame_nav:!0,url:i.href},"*"))}var K={};function U(e){if(window===top)return;const t=Date.now();t-(K[e]||0)<500||(K[e]=t,parent.postMessage({__frame_engaged:!0,kind:e},"*"))}var oe=2e3,x=["wheel","touchstart","touchmove","keydown","pointerdown"],J=0;function ie(e){e.isTrusted&&(J=Date.now())}function ae(){addEventListener("click",Y,!0),addEventListener("auxclick",Y,!0)}function ce(){for(let e=0;e<x.length;e++)addEventListener(x[e],ie,{capture:!0,passive:!0});addEventListener("scroll",e=>{e.isTrusted&&Date.now()-J<oe&&U("scroll")},{capture:!0,passive:!0}),addEventListener("pointermove",e=>{e.isTrusted&&U("pointer")},{capture:!0,passive:!0}),addEventListener("click",e=>{e.isTrusted&&U("click")},{capture:!0,passive:!0})}var D="__frame_scroll",le=150,ue=310,fe=160,de=3e4;function pe(){let e=0,t=!1,r=!1,l=!1,i=0;const s=a=>{try{sessionStorage.setItem(D,JSON.stringify({y:a}))}catch{}},f=()=>{if(t){t=!1;return}r=!0,clearTimeout(e),e=setTimeout(()=>s(scrollY),le)};try{addEventListener("scroll",f,{passive:!0}),addEventListener("pagehide",()=>{clearTimeout(e),s(scrollY)})}catch{}const c=()=>{let a;try{a=sessionStorage.getItem(D)}catch{return null}if(a===null)return null;let _;try{_=JSON.parse(a)}catch{_=null}const p=_?.y;if(!(typeof p=="number"&&Number.isFinite(p)&&p>=0)){try{sessionStorage.removeItem(D)}catch{}return null}return p};let h=!1;const g=a=>{try{const _=scrollY;scrollTo({top:a,left:0,behavior:"instant"}),i=a,l=!0,s(a);const p=scrollY;p!==_&&(t=!0),p!==a&&!h&&(h=!0,addEventListener("load",()=>{try{if(scrollY===p){const y=c();g(y!==null?y:i)}}catch{}},{once:!0}))}catch{}},o=()=>{try{return!!location.hash}catch{return!0}};let u=!1;const d=()=>{try{if(u||innerWidth>ue||innerHeight>fe)return;u=!0;const a=Date.now(),_=()=>{try{removeEventListener("resize",_)}catch{}if(Date.now()-a>de||r||o())return;const p=c();g(p!==null?p:i)};addEventListener("resize",_)}catch{}};let m=!1,v=!1;return{restore(){if(m||(m=!0,o()))return;const a=c();a!==null&&(g(a),d())},promoted(){if(v||(v=!0,o()))return;const a=c();a!==null?(g(a),d()):l&&g(i)}}}function me(e,t,r){const l=[...t.values()].filter(i=>i.targets.some(s=>s.startsWith(e+".")));return{wrap(i,s){const f=`${e}.${i}`,c=l.filter(h=>h.targets.includes(f));return c.length===0?(...h)=>{try{return s(...h)}catch(g){return Promise.reject(g)}}:(...h)=>{let g=h;for(const u of c){const d=u.module.parameters;if(d)try{g=d(g)}catch{return Promise.reject({code:"transform_error",id:u.id,scope:e,message:"parameters transform failed"})}}let o;try{o=s(...g)}catch(u){o=Promise.reject(u)}return o.then(u=>{for(let d=c.length-1;d>=0;d--){const m=c[d],v=m.module.returns;if(v)try{u=v(u)}catch{return r({id:m.id,scope:e,leg:"returns"}),u}}return u},u=>{for(let d=c.length-1;d>=0;d--){const m=c[d],v=m.module.throws;if(v)try{u=v(u)}catch{return r({id:m.id,scope:e,leg:"throws"}),Promise.reject(u)}}return Promise.reject(u)})}}}}function he(e,t,r,l=()=>{}){const i=new Set(e.changes??[]),s=new Map;for(const f of i){const c=t[f];c&&s.set(f,c)}return{contract:e.contract,changes:i,flags:new Set(e.flags??[]),capabilities:e.capabilities??{},capBudgets:e.capBudgets??{},transforms:s,shellOrigin:r.shellOrigin,mount:r.mount,pipe:f=>me(f,s,l)}}var Ee="modulepreload",we=function(e){return"/"+e},Oe={},ge=function(t,r,l){let i=Promise.resolve();function s(f){const c=new Event("vite:preloadError",{cancelable:!0});if(c.payload=f,window.dispatchEvent(c),!c.defaultPrevented)throw f}return i.then(f=>{for(const c of f||[])c.status==="rejected"&&s(c.reason);return t().catch(s)})};(function(){const e=Object.defineProperty,t=globalThis,r=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let l=0;for(let i=0;i<r.length;i++){const s=r[i];try{e(t,s,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[s]}catch{}try{e(t,s,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[s]=="function"&&l++}if(l&&window!==top)try{parent.postMessage({__frame_rtc_lockdown_failed:l},"*")}catch{}})();var ve=1e4,_e=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function G(e){for(const t of _e)if(t.endsWith(":*"))try{const r=new URL(e);if(`${r.protocol}//${r.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}var P=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),I=window.__FRAME_PREAMBLE?.transforms,z=window.__FRAME_PREAMBLE?.comments,B=window.__FRAME_PREAMBLE?.translate,T=/^[\w.-]+\.js$/,ye=/^[a-z][a-z0-9_-]{0,63}$/,X=null,j=null;function q(e,t,r){try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:r,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var $=!1;function V(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,$=!0):$&&(delete t.dataset.theme,t.style.colorScheme="",$=!1)}var M=Object.assign(Object.create(null),{mcp:Object.assign(Object.create(null),{watchTool:{handlerArg:3}})}),A=new Map;function Q(e,t){const r=A.get(e);if(!r)return;const l=Object.assign(Object.create(null),t);Object.assign(r.impl,l),r.impl.__settled=()=>Promise.reject({code:"capability_removed",message:`${e}: method not in this runtime`});const i=r.queue;r.queue=[];for(const s of i){const f=l[s.method];if(f)if(M[e]?.[s.method])try{s.resolve(f(...s.args))}catch{N(s,M[e][s.method].handlerArg,{code:"transform_error",message:`${e}.${s.method} rejected its arguments`})}else f(...s.args).then(s.resolve,s.reject);else{const c={code:"capability_removed",message:`${e}.${s.method} is not in this runtime`},h=M[e]?.[s.method];if(h){N(s,h.handlerArg,c);continue}s.reject(c)}}}function be(e,t){const r=A.get(e);if(!r)return;r.impl.__settled=()=>Promise.reject(t);const l=r.queue;r.queue=[];for(const i of l){const s=M[e]?.[i.method];if(s){N(i,s.handlerArg,t);continue}i.reject(t)}}function k(e,t){const r=se[e];if(!r){be(e,t);return}Q(e,Object.fromEntries(Object.entries(r).map(([l,i])=>[l,()=>Promise.resolve(i)])))}function N(e,t,r){if(e.syncState?.dead)return;const l=e.args[t];typeof l=="function"&&queueMicrotask(()=>{if(!e.syncState?.dead)try{l({type:"error",error:r})}catch(i){ne(i)}})}var F=Object.getOwnPropertyDescriptor(window,"claude");if(window!==top&&!(F&&F.writable===!1)){ae(),ce();let e=null;try{e=pe()}catch{}const t=F?.value??{};q(window,"claude",t);const r=o=>{const u={impl:Object.create(null),queue:[]};A.set(o,u);const d=u.impl,m=new Proxy(d,{get:(v,a)=>{if(typeof a!="string"||a==="then"||a==="toJSON"||a==="valueOf")return;if(a==="toString")return Object.prototype.toString;const _=M[o]?.[a];return _?(...p)=>{if(typeof p[_.handlerArg]!="function")throw new TypeError(`${o}.${a} requires a handler function`);const y=d[a];if(y)return y(...p);if(d.__settled){const b={dead:!1},R={args:[...p],syncState:b};return d.__settled().catch(C=>N(R,_.handlerArg,C)),()=>{b.dead=!0}}let E=null;const O={dead:!1};return u.queue.push({method:a,args:p,resolve:b=>{E=typeof b=="function"?b:null,O.dead&&E?.()},reject:()=>{},syncState:O}),()=>{O.dead=!0,E?.()}}:(...p)=>{const y=d[a]??d.__settled;return y?y(...p):new Promise((E,O)=>{u.queue.push({method:a,args:p,resolve:E,reject:O})})}},set:()=>!1});q(t,o,m)};for(const o of Object.keys(P)){if(t[o]!==void 0){q(t,o,t[o]);continue}r(o)}let l=null,i=null,s=0;const f=o=>{o.source!==parent||!G(o.origin)||te(o.data)&&(l=o.data.__frame_init,j=o.origin,removeEventListener("message",f),clearTimeout(s),i?.())};addEventListener("message",f),parent.postMessage({__frame_connect:!0},"*");const c=new Promise(o=>{i=o,s=setTimeout(()=>{removeEventListener("message",f),o()},ve)}),h=document.readyState==="loading"?new Promise(o=>document.addEventListener("DOMContentLoaded",()=>o(),{once:!0})):Promise.resolve();h.then(()=>{try{e?.restore()}catch{}});const g=o=>{if(!(o.source!==parent||!G(o.origin))&&W(o.data)){removeEventListener("message",g);try{e?.promoted()}catch{}}};addEventListener("message",g),c.then(async()=>{if(!l||!j){for(const n of A.keys())k(n,{code:"not_granted",message:"frame initialization did not arrive - capability unavailable"});return}V(l.theme);const o=j;let u=!1,d=!1;addEventListener("message",n=>{if(n.source!==parent||n.origin!==o)return;re(n.data)&&V(n.data.__frame_theme.theme);const w=n.data?.__fc_mode;w&&typeof w=="object"&&!u&&z&&T.test(z)&&(u=!0,m(z).then(H=>H.install?.(o,w.on===!0)).catch(()=>{}));const S=n.data?.__ft_cmd;S&&typeof S=="object"&&!d&&B&&T.test(B)&&(d=!0,m(B).then(H=>H.install?.(o,S)).catch(()=>{}))});const m=n=>ge(()=>import("/_runtime/"+n),void 0),v=Object.keys(l.capabilities??{});for(const n of v)Object.hasOwn(P,n)||ye.test(n)&&t[n]===void 0&&(r(n),k(n,{code:"capability_disabled",message:"capability not in this runtime generation"}));const a=v.filter(n=>Object.hasOwn(P,n)).map(n=>[n,P[n]]).filter(n=>typeof n[1]=="string"&&T.test(n[1])),[_,...p]=await Promise.allSettled([I&&T.test(I)?m(I):Promise.resolve({}),...a.map(([,n])=>m(n))]),y=j;X=he(l,_.status==="fulfilled"&&_.value?.TRANSFORMS||{},{shellOrigin:y,mount:Q},n=>parent.postMessage({__frame_cap_telemetry:n},y));const E=n=>parent.postMessage({__frame_cap_telemetry:{kind:"cap-load-error",cap:n}},y),O=X;p.forEach((n,w)=>{const S=a[w][0];if(n.status!=="fulfilled"){E(S);return}try{n.value?.install?.(O)}catch{E(S)}});for(const[n,w]of A)if(!(w.queue.length===0&&Object.keys(w.impl).length>0)){if(v.includes(n)){k(n,{code:"capability_disabled",message:"capability not available in this session"});continue}k(n,{code:"not_granted",message:"capability not available in this session"})}await h,parent.postMessage({__frame_ready:!0},j);let b=-1,R=0;const C=()=>{R=0;const n=Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0);n!==b&&(b=n,parent.postMessage({__frame_size:!0,h:n},y))},L=()=>{R||(R=setTimeout(C,200))},Z=new ResizeObserver(L);Z.observe(document.documentElement),document.body&&Z.observe(document.body),document.addEventListener("load",L,!0),document.fonts?.ready.then(L,()=>{}),addEventListener("beforeprint",()=>{b=-1,C()}),L(),addEventListener("message",n=>{if(!(n.source!==parent||n.origin!==y)&&W(n.data)){try{e?.promoted()}catch{}b=-1,L()}})})}})();</script><!-- /frame-runtime --><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>volume-widget — device rows + lock</title>
+<style>
+  :root {
+    --bg: #101114;
+    --bg-raise: #17181d;
+    --ink: #e8e6e1;
+    --ink-dim: #9a978f;
+    --line: #26272d;
+    --gold: #e6c84a;
+    --gold-soft: #e6c84a22;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --sys: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f3f1ec; --bg-raise: #ffffff; --ink: #1c1b18; --ink-dim: #6d6a62; --line: #e0ddd4; --gold: #b89a17; --gold-soft: #b89a1720; }
+  }
+  :root[data-theme="dark"] { --bg: #101114; --bg-raise: #17181d; --ink: #e8e6e1; --ink-dim: #9a978f; --line: #26272d; --gold: #e6c84a; --gold-soft: #e6c84a22; }
+  :root[data-theme="light"] { --bg: #f3f1ec; --bg-raise: #ffffff; --ink: #1c1b18; --ink-dim: #6d6a62; --line: #e0ddd4; --gold: #b89a17; --gold-soft: #b89a1720; }
+
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: var(--sys); line-height: 1.55; font-size: 15px;
+    max-width: 880px; margin: 0 auto; padding: 48px 28px 96px;
+  }
+  h1 { font-size: 25px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 4px; text-wrap: balance; }
+  h2 { font-size: 18px; font-weight: 650; margin: 0; }
+  .kicker { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-dim); }
+  .lede { color: var(--ink-dim); max-width: 64ch; margin: 8px 0 0; }
+  .lede strong { color: var(--ink); font-weight: 600; }
+  section { margin-top: 52px; }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+  .sec-head .kicker { color: var(--gold); }
+  section > p { color: var(--ink-dim); max-width: 66ch; margin: 6px 0 18px; }
+  section > p strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- menu bar chip (unchanged final direction) ---------- */
+  .chips { display: flex; flex-wrap: wrap; gap: 14px; }
+  .chipcol { display: flex; flex-direction: column; gap: 6px; }
+  .chiplabel { font-size: 12px; color: var(--ink-dim); }
+  .menubar {
+    background: linear-gradient(#232427, #1b1c1f);
+    border: 1px solid #333438; border-radius: 10px;
+    height: 38px; display: inline-flex; align-items: center;
+    padding: 0 12px; gap: 7px; color: #e8e8e8;
+    box-shadow: 0 1px 5px rgba(0,0,0,.4);
+  }
+  .glyph { width: 16px; height: 16px; display: block; flex-shrink: 0; }
+  .grey { color: #737479; }
+  .gold { color: var(--gold); }
+  .pill { width: 52px; height: 9px; border-radius: 5px; background: #3a3b40; overflow: hidden; }
+  .pill > i { display: block; height: 100%; border-radius: 5px; }
+  .pill.bright > i { background: #e9e9ec; }
+  .pill.dim > i { background: #5c5d63; }
+
+  /* ---------- dropdown panel ---------- */
+  .dd-wrap { display: grid; grid-template-columns: 320px 1fr; gap: 28px; align-items: start; }
+  @media (max-width: 700px) { .dd-wrap { grid-template-columns: 1fr; } }
+  .dropdown {
+    width: 320px; box-sizing: border-box;
+    background: rgba(44,45,50,.98);
+    border: 1px solid #4a4b50; border-radius: 12px;
+    padding: 7px; color: #ececec; font-size: 13px;
+    box-shadow: 0 14px 44px rgba(0,0,0,.55);
+  }
+  .dd-sep { height: 1px; background: #55565b; margin: 6px 8px; }
+  .dd-item { padding: 5px 10px; border-radius: 5px; display: flex; align-items: center; justify-content: space-between; gap: 10px; color: #ececec; }
+  .dd-item .k { color: #a9aaaf; }
+
+  /* device row — Finder-sidebar style, mirroring free-disk-space-widget */
+  .devrow {
+    display: grid; grid-template-columns: 34px 1fr 30px;
+    gap: 10px; align-items: center;
+    padding: 7px 8px; border-radius: 7px;
+    position: relative;
+  }
+  .devrow.hover { background: rgba(255,255,255,.09); }
+  .devrow.away { opacity: .45; }
+  .disc {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: #232428; border: 1px solid #3c3d42;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .disc svg { width: 15px; height: 15px; color: #d5d5d8; }
+  .disc.live { border-color: var(--gold); }
+  .disc.live svg { color: var(--gold); }
+  .badge {
+    position: absolute; right: -3px; bottom: -3px;
+    width: 13px; height: 13px; border-radius: 50%;
+    background: #2f6fe4; display: flex; align-items: center; justify-content: center;
+  }
+  .badge svg { width: 8px; height: 8px; color: #fff; }
+  .dev-main { min-width: 0; }
+  .dev-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .dev-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dev-stat { font-size: 11.5px; color: #a9aaaf; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .dev-stat.goldtxt { color: var(--gold); }
+  .devbar { margin-top: 5px; height: 5px; border-radius: 3px; background: #4a4b50; overflow: hidden; }
+  .devbar > i { display: block; height: 100%; border-radius: 3px; background: #d9d9dc; }
+  .devbar.muted > i { background: #6a6b70; }
+  .devbar.gold > i { background: var(--gold); }
+  .lockbtn {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: rgba(255,255,255,.10);
+    display: flex; align-items: center; justify-content: center;
+    justify-self: end;
+  }
+  .lockbtn svg { width: 12px; height: 12px; color: #c9c9cd; }
+  .lockbtn.locked { background: var(--gold); }
+  .lockbtn.locked svg { color: #1c1b18; }
+  .lockbtn.bright { background: rgba(255,255,255,.22); }
+
+  .dd-note { color: var(--ink-dim); font-size: 13.5px; }
+  .dd-note p { margin: 0 0 12px; max-width: 48ch; }
+  .dd-note b { color: var(--ink); }
+  .dd-note .swatch { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--gold); vertical-align: -4px; margin: 0 2px; }
+  .dd-note .swatch svg { width: 10px; height: 10px; color: #1c1b18; }
+
+  /* anatomy table */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  th { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-dim); font-weight: 500; }
+  td:first-child { white-space: nowrap; font-weight: 600; }
+  td { color: var(--ink-dim); }
+  td b { color: var(--ink); }
+  td code { font-family: var(--mono); font-size: 12px; color: var(--ink); }
+
+  .verdict { border-left: 3px solid var(--gold); background: var(--gold-soft); border-radius: 0 8px 8px 0; padding: 14px 18px; margin-top: 24px; }
+  .verdict p { margin: 0; max-width: 66ch; color: var(--ink); }
+</style>
+
+<p class="kicker">utils/volume-widget · dropdown v2</p>
+<h1>Device rows, borrowed from the disk widget</h1>
+<p class="lede">Menu bar stays the agreed icon-plus-pill. The dropdown becomes what <strong>free-disk-space-widget</strong> does for volumes: every output device as a Finder-sidebar row — kind icon on a dark disc, name, per-device volume bar — and where eject lives, a <strong>padlock</strong>. Locking the current output pins it as the output device and freezes its volume (or its mute) in place.</p>
+
+<section>
+  <div class="sec-head"><span class="kicker">Menu bar</span><h2>Unchanged</h2></div>
+  <div class="chips">
+    <div class="chipcol">
+      <div class="menubar">
+        <svg class="glyph grey" viewBox="0 0 24 24" fill="currentColor"><path d="M11 5 6 9H3v6h3l5 4V5z"></path><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="15.5" y1="9.5" x2="20.5" y2="14.5"></line><line x1="20.5" y1="9.5" x2="15.5" y2="14.5"></line></g></svg>
+        <div class="pill dim"><i style="width:65%"></i></div>
+      </div>
+      <div class="chiplabel">muted</div>
+    </div>
+    <div class="chipcol">
+      <div class="menubar">
+        <svg class="glyph gold" viewBox="0 0 24 24" fill="currentColor"><path d="M11 5 6 9H3v6h3l5 4V5z"></path><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+        <div class="pill bright"><i style="width:65%"></i></div>
+      </div>
+      <div class="chiplabel">unmuted</div>
+    </div>
+    <div class="chipcol">
+      <div class="menubar">
+        <svg class="glyph grey" viewBox="0 0 24 24" fill="currentColor"><path d="M11 5 6 9H3v6h3l5 4V5z"></path><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="15.5" y1="9.5" x2="20.5" y2="14.5"></line><line x1="20.5" y1="9.5" x2="15.5" y2="14.5"></line></g></svg>
+        <div class="pill dim"><i style="width:65%"></i></div>
+        <svg class="glyph gold" style="width:11px;height:11px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="5" y="11" width="14" height="9" rx="2" fill="currentColor" stroke="none"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+      </div>
+      <div class="chiplabel">muted + locked</div>
+    </div>
+  </div>
+  <p style="margin-top:16px">A small gold padlock joins the title when the current output is locked — the glance-check before a gig is "grey speaker, gold lock".</p>
+</section>
+
+<section>
+  <div class="sec-head"><span class="kicker">Dropdown</span><h2>Every output device, one row each</h2></div>
+  <div class="dd-wrap">
+    <div class="dropdown">
+      <!-- current output: internal speakers, muted + locked -->
+      <div class="devrow">
+        <div class="disc live">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="3" width="10" height="18" rx="2"></rect><circle cx="12" cy="15" r="3.2"></circle><circle cx="12" cy="7.5" r="1.2" fill="currentColor" stroke="none"></circle></svg>
+        </div>
+        <div class="dev-main">
+          <div class="dev-title"><span class="dev-name">MacBook Pro Speakers</span><span class="dev-stat goldtxt">muted · 65%</span></div>
+          <div class="devbar muted"><i style="width:65%"></i></div>
+        </div>
+        <div class="lockbtn locked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="5" y="11" width="14" height="9" rx="2" fill="currentColor" stroke="none"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></div>
+      </div>
+
+      <!-- USB DJ mixer, connected -->
+      <div class="devrow hover">
+        <div class="disc">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="12" rx="2"></rect><circle cx="8" cy="12" r="2.2"></circle><circle cx="16" cy="12" r="2.2"></circle></svg>
+          <span class="badge" style="background:#5b5c62"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 2v14M12 6l4 3M12 8 8 11M12 16l3 3M12 16l-3 3"></path></svg></span>
+        </div>
+        <div class="dev-main">
+          <div class="dev-title"><span class="dev-name">DJM-900NXS2</span><span class="dev-stat">100%</span></div>
+          <div class="devbar"><i style="width:100%"></i></div>
+        </div>
+        <div class="lockbtn bright"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0"></path></svg></div>
+      </div>
+
+      <!-- bluetooth headphones, connected -->
+      <div class="devrow">
+        <div class="disc">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 14v-2a8 8 0 0 1 16 0v2"></path><rect x="3" y="14" width="4" height="6" rx="1.5"></rect><rect x="17" y="14" width="4" height="6" rx="1.5"></rect></svg>
+          <span class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M7 7l10 10-5 5V2l5 5L7 17"></path></svg></span>
+        </div>
+        <div class="dev-main">
+          <div class="dev-title"><span class="dev-name">WH-1000XM5</span><span class="dev-stat">40%</span></div>
+          <div class="devbar"><i style="width:40%"></i></div>
+        </div>
+        <div class="lockbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0"></path></svg></div>
+      </div>
+
+      <!-- display audio -->
+      <div class="devrow">
+        <div class="disc">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="12" rx="2"></rect><path d="M9 20h6M12 16v4"></path></svg>
+        </div>
+        <div class="dev-main">
+          <div class="dev-title"><span class="dev-name">LG UltraFine Audio</span><span class="dev-stat">25%</span></div>
+          <div class="devbar"><i style="width:25%"></i></div>
+        </div>
+        <div class="lockbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0"></path></svg></div>
+      </div>
+
+      <!-- known but not connected -->
+      <div class="devrow away">
+        <div class="disc">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 13a6 6 0 0 1 12 0v3a2 2 0 0 1-2 2h-1v-5h3M6 13v5h3v-5H5"></path></svg>
+          <span class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M7 7l10 10-5 5V2l5 5L7 17"></path></svg></span>
+        </div>
+        <div class="dev-main">
+          <div class="dev-title"><span class="dev-name">AirPods Pro</span><span class="dev-stat">not connected</span></div>
+        </div>
+        <div style="width:26px"></div>
+      </div>
+
+      <div class="dd-sep"></div>
+      <div class="dd-item"><span>Style</span><span class="k">Icon and Bar ▸</span></div>
+      <div class="dd-item"><span>Quit</span></div>
+    </div>
+
+    <div class="dd-note">
+      <p><b>Row anatomy = disk widget's.</b> Kind icon on a dark disc (speakers, USB interface, headphones, display), name with the volume small and right-aligned, a bar underneath, and the always-visible circular control at the far right — padlock instead of eject, same opposite-polarity discs.</p>
+      <p><b>The gold ring marks the current output.</b> Its stat line goes gold too (<b>muted · 65%</b> here). Clicking anywhere on another row switches output to it — the disk widget's "click row opens Finder" gesture, repurposed.</p>
+      <p><b>Transport badges</b> sit on the disc corner like Finder's: blue Bluetooth rune for BT devices, grey USB fork for wired interfaces. Nothing for built-in.</p>
+      <p><b>The padlock <span class="swatch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="5" y="11" width="14" height="9" rx="2" fill="currentColor" stroke="none"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></span> is the gig switch.</b> Locked on the current output it (1) pins it as default output — anything that tries to steal the route gets switched back — and (2) freezes volume and mute exactly as they are. Muted + locked is Gig Mode without needing the name. Open padlocks are translucent and brighten under the pointer, exactly like eject.</p>
+      <p><b>Muted device bars go dim-grey</b>, mirroring the menu bar pill. Disconnected-but-known devices (AirPods in your pocket) list greyed at the bottom, no bar, no lock.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><span class="kicker">Semantics</span><h2>What the padlock does, precisely</h2></div>
+  <div class="tablewrap">
+    <table>
+      <tbody><tr><th>Lock target</th><th>Effect while locked</th></tr>
+      <tr><td>Current output, muted</td><td><b>Gig Mode.</b> Re-mutes instantly if anything unmutes; re-selects the device if anything reroutes output (AirPlay, BT auto-connect, an app grabbing the default). Menu bar shows the gold padlock.</td></tr>
+      <tr><td>Current output, unmuted</td><td>Freezes the route <b>and the volume level</b> — HUD keys, apps, and auto-switching can't move it. For when you've soundchecked laptop monitoring at exactly 40%.</td></tr>
+      <tr><td>Non-current device</td><td>Locks that device's own volume/mute so it comes up in a known state when something routes to it later. (Cheap to support — same listener — but cuttable if it muddies the model.)</td></tr>
+    </tbody></table>
+  </div>
+  <p style="margin-top:14px">Implementation is one pattern for all three: CoreAudio property listeners on mute / volume / default-device that re-assert the locked value the moment a change callback fires. Still no polling anywhere.</p>
+  <div class="verdict">
+    <p><b>Data sources:</b> device list + transport type from <code style="font-family:var(--mono);font-size:12.5px">kAudioHardwarePropertyDevices</code> and <code style="font-family:var(--mono);font-size:12.5px">kAudioDevicePropertyTransportType</code> (built-in / USB / Bluetooth / DisplayPort — that's also what picks the row icon); "not connected" rows come from remembering devices in the settings file after they disappear. Rows are custom NSViews with tracking areas — the disk widget's row.rs is directly reusable.</p>
+  </div>
+</section>
+
+</body></html>

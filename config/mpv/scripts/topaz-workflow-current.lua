@@ -33,12 +33,14 @@ local details_visible = false
 local encode_timer = nil
 local encode_start = nil
 
--- Enhancement categories shown in the Enhance tab, in display order.
+-- Enhancement categories shown in the Enhance tab, in display order. Grouped by
+-- source condition ("what's wrong with this clip?"), not by what the filter does.
 local CATEGORY_ORDER = {
-    { key = "detail", label = "Detail" },
-    { key = "repair", label = "Repair" },
-    { key = "sharpen", label = "Sharpen & Texture" },
-    { key = "focus-fix", label = "Focus Fix" },
+    { key = "polish", label = "Decent Source · Polish" },
+    { key = "focus-fix", label = "Soft · Out of Focus" },
+    { key = "lowlight", label = "Dark · Noisy" },
+    { key = "compressed", label = "Compressed · Old Codecs" },
+    { key = "stylized", label = "Stylized · Texture" },
 }
 
 local TABS = { "Enhance", "Interpolate", "Output" }
@@ -47,7 +49,7 @@ local TABS = { "Enhance", "Interpolate", "Output" }
 local draw_menu, show_original, render_or_show, move_cursor, select_number
 local render_cursor, run_job_now, close_menu, enable_menu_keys, remove_menu_keys
 local space_toggle, show_render, show_orig, toggle_ui, menu_seek
-local cycle_rendered_presets
+local cycle_rendered_presets, cancel_render
 local draw_details, toggle_details, set_tab, interp_select, output_select
 local save_job_file, send_job_file, copy_encode_command
 local apply_view, set_zoom, rotate_by
@@ -104,7 +106,8 @@ end
 -- Split a preset display name into (model, variant) for the two-tone row title:
 -- "Proteus — Detail Max" -> "Proteus", "Detail Max"; "Nyx Heavy Denoise" -> "Nyx",
 -- "Heavy Denoise". Resolution tokens are dropped if present.
-local TWO_WORD_MODELS = { "Starlight Mini", "Gaia HQ", "Focus Fix", "Proteus Deblur" }
+local TWO_WORD_MODELS = { "Gaia HQ", "Focus Fix", "Proteus Deblur",
+    "Rhea XL", "Artemis MQ" }
 
 local function split_display(display)
     local d = trim((display or ""):gsub("%s+2x", ""):gsub("%s+4K", ""))
@@ -624,7 +627,7 @@ local function res_available(preset, opt, two_x)
 end
 
 -- The resolution actually used for `preset`: the user's choice when supported,
--- else the nearest supported fallback (Focus Fix -> Original, Starlight -> 2x...).
+-- else the nearest supported fallback (Focus Fix -> Original, Rhea XL -> 4K...).
 local function effective_res(preset)
     local sel = menu.res_options[menu.res_sel]
     if res_available(preset, sel, menu.two_x_is_4k) then
@@ -885,9 +888,123 @@ local function load_preset_insights()
     return by_slug
 end
 
+-- ===== render log =====
+-- topaz-preview-frame --log-file captures ffmpeg's real output (model loading and
+-- *downloading*, device selection, per-frame stats). We tail it while a render runs
+-- so a slow model and a hang stop looking identical. mpv's subprocess only hands
+-- back output when the process exits, hence a file plus a poll rather than a pipe.
+
+-- ffmpeg's routine chatter — stream dumps, licence banner, and the swscaler
+-- warning it emits once per thread. None of it says anything about progress.
+local LOG_NOISE = {
+    "swscaler", "License", "licen[sc]e", "^%s*Metadata", "^%s*handler_name",
+    "^%s*encoder%s*:", "^%s*major_brand", "^%s*minor_version", "^%s*compatible_brands",
+    "^%s*Side data", "^%s*CPB properties", "Press %[q%]", "image sequence pattern",
+    "Use a pattern such as", "^Stream mapping", "^%s*Stream #", "^Input #",
+    "^Output #", "^%s*Duration:", "ffmpeg stats and", "muxing overhead",
+    "^%s*format:default", "^%s*$",
+}
+
+-- Lines worth interrupting with: a model download is the difference between
+-- "slow" and "will never finish", and errors should surface immediately.
+local LOG_ALERT = {
+    "[Dd]ownload", "[Ee]rror", "[Ff]ailed", "[Cc]annot", "[Uu]nable",
+    "No such", "not found", "Invalid", "[Mm]issing",
+}
+
+local function matches_any(line, patterns)
+    for _, pat in ipairs(patterns) do
+        if line:find(pat) then
+            return true
+        end
+    end
+    return false
+end
+
+local function render_log_path(slug)
+    local dir = os.getenv("TMPDIR") or "/tmp"
+    return utils.join_path(dir, "topaz-preview-" .. slug:gsub("[^%w]", "-") .. ".log")
+end
+
+-- Last few KB of the log; the interesting lines are always at the end and the
+-- swscaler spam can otherwise make this file large.
+local function read_log_tail(path, bytes)
+    local f = io.open(path, "rb")
+    if not f then
+        return nil
+    end
+    local size = f:seek("end")
+    f:seek("set", math.max(0, size - (bytes or 16384)))
+    local data = f:read("*a")
+    f:close()
+    return data
+end
+
+-- Update menu.render_stage / note / alert from the log. Stats lines are split on
+-- \r (ffmpeg rewrites its progress line in place rather than emitting newlines).
+local function poll_render_log()
+    if not menu or not menu.render_log then
+        return
+    end
+    local data = read_log_tail(menu.render_log)
+    if not data then
+        return
+    end
+    for line in data:gmatch("[^\r\n]+") do
+        local stage = line:match("^###%s+(.+)$")
+        if stage then
+            menu.render_stage = stage
+            menu.render_note = nil
+        elseif line:find("^frame=") then
+            local elapsed = line:match("elapsed=(%S+)")
+            menu.render_note = elapsed and ("encoded · " .. elapsed) or "encoded"
+        elseif matches_any(line, LOG_ALERT) then
+            menu.render_alert = trim(line)
+        elseif not matches_any(line, LOG_NOISE) then
+            menu.render_note = trim(line)
+        end
+    end
+end
+
+-- One-line status for the bottom bar while a render runs.
+local function render_status_text()
+    local parts = {}
+    if menu.render_stage then
+        parts[#parts + 1] = menu.render_stage
+    end
+    local note = menu.render_alert or menu.render_note
+    if note then
+        parts[#parts + 1] = note
+    end
+    if #parts == 0 then
+        return "starting…"
+    end
+    return truncate_disp(table.concat(parts, "  ·  "), 120)
+end
+
+-- Error lines from the log, for the failure message (ffmpeg's stderr now goes to
+-- the log file, so the subprocess result carries nothing useful).
+local function render_log_errors(path)
+    local data = read_log_tail(path, 32768)
+    if not data then
+        return nil
+    end
+    local hits = {}
+    for line in data:gmatch("[^\r\n]+") do
+        if matches_any(line, LOG_ALERT) and not matches_any(line, LOG_NOISE) then
+            hits[#hits + 1] = trim(line)
+        end
+    end
+    if #hits == 0 then
+        return nil
+    end
+    return table.concat(hits, "\n", math.max(1, #hits - 4), #hits)
+end
+
 -- ===== rendering timer =====
 -- While a preview renders we keep a periodic timer alive purely to re-draw the menu,
--- so the rendering row's throb animates and its elapsed-seconds readout ticks up.
+-- so the rendering row's throb animates, its elapsed-seconds readout ticks up, and
+-- the log tail feeds the status line.
 
 local function start_render_timer()
     encode_start = mp.get_time()
@@ -895,6 +1012,7 @@ local function start_render_timer()
         encode_timer:kill()
     end
     encode_timer = mp.add_periodic_timer(0.2, function()
+        poll_render_log()
         draw_menu()
     end)
 end
@@ -971,10 +1089,80 @@ local function draw_tab_bar(ev)
     end
 end
 
--- Enhance tab body: grouped preset list with preview status. Fills the buckets and
--- hitboxes; returns the content-end y.
+-- Preset list content may not extend past this y: the panel's bottom pad plus
+-- the full-width hint bar (top edge 676) sit below it.
+local ENH_VIS_BOTTOM = 656
+
+-- Height one item occupies in the list (headers advance less than rows).
+local function enh_item_h(item)
+    return item.kind == "header" and HH or RH
+end
+
+-- Total height of items a..b inclusive.
+local function enh_span(a, b)
+    local h = 0
+    for i = a, b do
+        h = h + enh_item_h(menu.items[i])
+    end
+    return h
+end
+
+-- Largest window start that still shows the last item — i.e. how far the list
+-- can scroll before it would just reveal empty space below.
+local function enh_max_scroll()
+    local n = #menu.items
+    local budget = ENH_VIS_BOTTOM - LIST_TOP
+    local h = 0
+    for i = n, 1, -1 do
+        h = h + enh_item_h(menu.items[i])
+        if h > budget then
+            return math.min(i + 1, n)
+        end
+    end
+    return 1
+end
+
+-- Enhance tab body: grouped preset list with preview status. The list is taller
+-- than the panel, so it scrolls — menu.enh_scroll is the first visible item.
+-- Keyboard navigation sets menu.enh_follow so the window chases the cursor;
+-- wheel scrolling clears it, letting the view roam free of the cursor. Fills the
+-- buckets and hitboxes; returns the content-end y.
 local function draw_enhance_body(cards, pills, fg, labels)
+    local items = menu.items
     local cursor_preset = menu.presets[menu.cursor]
+
+    local scroll = menu.enh_scroll or 1
+
+    if menu.enh_follow then
+        -- Item index of the cursor row, for the scroll window.
+        local cursor_item = 1
+        for i, it in ipairs(items) do
+            if it.kind == "preset" and it.preset == cursor_preset then
+                cursor_item = i
+                break
+            end
+        end
+
+        -- Scroll up to the cursor (bringing a directly-preceding header with it)...
+        if scroll > cursor_item then
+            scroll = cursor_item
+        end
+        if scroll == cursor_item and cursor_item > 1
+            and items[cursor_item - 1].kind == "header" then
+            scroll = cursor_item - 1
+        end
+        -- ...or down until the cursor row's bottom edge fits above the limit.
+        while scroll < cursor_item
+            and LIST_TOP + enh_span(scroll, cursor_item) > ENH_VIS_BOTTOM do
+            scroll = scroll + 1
+        end
+    end
+
+    scroll = math.max(1, math.min(scroll, enh_max_scroll()))
+    menu.enh_scroll = scroll
+    menu.enh_more_above = scroll > 1
+    menu.enh_more_below = false
+
     local y = LIST_TOP
     local grp_y0, grp_count = nil, 0
     local function flush_group()
@@ -986,7 +1174,12 @@ local function draw_enhance_body(cards, pills, fg, labels)
         grp_y0, grp_count = nil, 0
     end
 
-    for idx, item in ipairs(menu.items) do
+    for idx = scroll, #items do
+        local item = items[idx]
+        if y + (item.kind == "header" and HH or RH) > ENH_VIS_BOTTOM then
+            menu.enh_more_below = true
+            break
+        end
         if item.kind == "header" then
             flush_group()
             labels[#labels + 1] = string.format(
@@ -1263,26 +1456,33 @@ function draw_menu()
     for _, e in ipairs(fg) do ev[#ev + 1] = e end
     for _, e in ipairs(labels) do ev[#ev + 1] = e end
 
-    -- Fake pagination footer: a plain carousel-style dot indicator (cosmetic
-    -- only — presets aren't actually paged; page count is hard-coded). Dots
-    -- rather than numbered "‹1 2 3›" buttons, so it doesn't look clickable —
-    -- there is no click handler here. Drawn inside the panel's own bottom pad
-    -- rather than as an extra row.
-    if menu.tab == 1 then
+    -- Scroll indicator: the preset list is taller than the panel, so show dim
+    -- chevrons in the bottom pad when rows are clipped in either direction
+    -- (j/k moves the cursor and the window follows).
+    if menu.tab == 1 and (menu.enh_more_above or menu.enh_more_below) then
+        local up = menu.enh_more_above and "⌃" or " "
+        local down = menu.enh_more_below and "⌄" or " "
         ev[#ev + 1] = string.format(
-            "{\\an5\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs8\\1c&HFFFFFF&}●"
-                .. "{\\1c&H6E6E6E&} ○ ○",
-            LIST_X + math.floor(ROW_W / 2), content_end + 8, FONT)
+            "{\\an5\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs10\\b1\\1c&H8C8C8C&}%s  %s",
+            LIST_X + math.floor(ROW_W / 2), content_end + 8, FONT, up, down)
     end
 
     list_badge.data = table.concat(ev, "\n")
     list_badge:update()
 
-    -- Bottom bar: per-tab shortcuts on the left, the finalize actions far right.
-    draw_bottom({
-        hints = menu.tab == 1 and ENHANCE_HINTS or OPTION_HINTS,
-        right_hints = FINALIZE_HINTS,
-    })
+    -- Bottom bar: per-tab shortcuts on the left, and on the right the finalize
+    -- actions — or, while a render runs, what ffmpeg is actually doing.
+    if menu.rendering_slug then
+        draw_bottom({
+            hints = { { keys = { "Esc" }, label = "cancel render" } },
+            right_text = render_status_text(),
+        })
+    else
+        draw_bottom({
+            hints = menu.tab == 1 and ENHANCE_HINTS or OPTION_HINTS,
+            right_hints = FINALIZE_HINTS,
+        })
+    end
 
     draw_details()
 end
@@ -1305,6 +1505,7 @@ local MODEL_NAMES = {
     ["prob-4"] = "Proteus v4", ["slm-1"] = "Starlight Mini",
     ["ghq-5"] = "Gaia HQ", ["iris-3"] = "Iris v3",
     ["nyx-3"] = "Nyx v3", ["thd-3"] = "Theia Detail",
+    ["amq-13"] = "Artemis MQ v13", ["rxl-1"] = "Rhea XL",
 }
 
 -- Bar display order, grouped like the Topaz UI. `axis` rescales the bar for
@@ -1378,7 +1579,20 @@ function draw_details()
 
     local ins = (menu.insights or {})[p.slug] or { notes = {} }
     local params = p.is_original and nil or parse_tvai_params(p.filter_body)
-    local has_sliders = params ~= nil and params.details ~= nil
+    -- Any known lever this filter actually sets. Keying this off `details` alone
+    -- meant models whose only lever is grain — Rhea XL exposes nothing else —
+    -- were reported as having no sliders, and their bars never drew.
+    local slider_count = 0
+    if params then
+        for _, group in ipairs(PARAM_GROUPS) do
+            for _, prm in ipairs(group.params) do
+                if tonumber(params[prm.key]) then
+                    slider_count = slider_count + 1
+                end
+            end
+        end
+    end
+    local has_sliders = slider_count > 0
 
     local ev = {}
     local y = MARGIN_T + DETAIL_PAD
@@ -1413,6 +1627,10 @@ function draw_details()
         local mname = MODEL_NAMES[params.model] or params.model or "?"
         if not has_sliders then
             mode_line = mname .. " — runs on model defaults, no manual sliders"
+        elseif params.details == nil then
+            -- Grain is applied by the filter after the model, so a model with no
+            -- tuning sliders of its own can still carry one.
+            mode_line = mname .. " — model defaults, with grain applied after"
         elseif (tonumber(params.estimate) or 0) > 0 then
             mode_line = mname .. " — relative: sliders offset a per-clip auto estimate"
         else
@@ -1604,6 +1822,7 @@ function render_or_show(preset)
     -- The "original" pseudo-preset has nothing to render — just show the source.
     if preset.is_original then
         menu.cursor = preset.index
+        menu.enh_follow = true
         menu.last_render_key = nil
         show_original()
         draw_menu()
@@ -1627,6 +1846,8 @@ function render_or_show(preset)
     end
 
     menu.rendering_slug = preset.slug
+    menu.render_log = render_log_path(preset.slug)
+    menu.render_stage, menu.render_note, menu.render_alert = nil, nil, nil
     show_original()
     draw_menu()
     start_render_timer()
@@ -1639,7 +1860,8 @@ function render_or_show(preset)
 
     local render_started = mp.get_time()
     local time_arg = string.format("%.3f", menu.time_pos)
-    mp.command_native_async({
+    local log_path = menu.render_log
+    menu.render_abort = mp.command_native_async({
         name = "subprocess",
         args = {
             topaz_preview_frame,
@@ -1650,6 +1872,7 @@ function render_or_show(preset)
             "--time", time_arg,
             "--no-open",
             "--print-paths",
+            "--log-file", log_path,
         },
         playback_only = false,
         capture_stdout = true,
@@ -1660,12 +1883,25 @@ function render_or_show(preset)
             return
         end
         menu.rendering_slug = nil
+        menu.render_abort = nil
+
+        -- Cancelled from the menu (Esc): not a failure, just say so.
+        if menu.render_cancelled then
+            menu.render_cancelled = nil
+            mp.osd_message("Render cancelled", 2)
+            draw_menu()
+            return
+        end
 
         if not success or not result or result.status ~= 0 then
+            -- ffmpeg's stderr goes to the log file now, so the log is where the
+            -- real reason lives (missing model, download failure, bad filter).
+            local from_log = render_log_errors(log_path)
             local stderr = result and trim(result.stderr) or ""
-            local detail = stderr ~= "" and stderr or tostring(error or "unknown error")
-            mp.osd_message("Topaz preview failed", 3)
-            mp.msg.error("Topaz preview failed: " .. detail)
+            local detail = from_log or (stderr ~= "" and stderr)
+                or tostring(error or "unknown error")
+            mp.osd_message("Topaz preview failed — " .. truncate_disp(detail:gsub("\n.*", ""), 70), 5)
+            mp.msg.error("Topaz preview failed: " .. detail .. "\nFull log: " .. log_path)
             draw_menu()
             return
         end
@@ -1769,6 +2005,24 @@ local function update_hover()
     end
 end
 
+-- Wheel / two-finger scroll over the preset list: move the window by `delta`
+-- items, decoupled from the cursor until the next keyboard move. Returns false
+-- when there is nothing to scroll, so the caller can fall back to zooming.
+local function scroll_enhance(delta)
+    if not menu or menu.tab ~= 1 or menu.ui_hidden then
+        return false
+    end
+    local target = math.max(1, math.min((menu.enh_scroll or 1) + delta, enh_max_scroll()))
+    if target == menu.enh_scroll then
+        return true  -- already at the end; still a list scroll, just a no-op
+    end
+    menu.enh_scroll = target
+    menu.enh_follow = false
+    draw_menu()
+    update_hover()  -- rows moved under a stationary pointer
+    return true
+end
+
 function set_tab(i)
     if not menu or menu.tab == i then
         return
@@ -1868,6 +2122,7 @@ local function menu_click()
         if my >= hb.y0 and my < hb.y1 then
             if menu.tab == 1 then
                 menu.cursor = hb.preset.index
+                menu.enh_follow = true
                 render_or_show(hb.preset)
             elseif menu.tab == 2 then
                 interp_select(hb.index)
@@ -1949,6 +2204,7 @@ function move_cursor(delta)
         return
     end
     menu.cursor = ((menu.cursor - 1 + delta) % n) + 1
+    menu.enh_follow = true
 
     -- Free hover-preview: original reverts to source; cached presets switch instantly.
     local preset = menu.presets[menu.cursor]
@@ -1991,6 +2247,7 @@ function select_number(num)
         return
     end
     menu.cursor = preset.index
+    menu.enh_follow = true
     render_or_show(preset)
 end
 
@@ -2065,6 +2322,42 @@ function space_toggle()
     end
 end
 
+-- mpv aborts a subprocess with SIGKILL, which the wrapper script cannot trap — so
+-- killing it would leave its ffmpeg child orphaned, still holding the GPU with
+-- nothing on screen to say so. The wrapper records that child's PID beside the
+-- log for exactly this; send it a TERM (ffmpeg exits cleanly on it).
+local function kill_render_child()
+    if not menu or not menu.render_log then
+        return
+    end
+    local pid_file = menu.render_log .. ".pid"
+    local f = io.open(pid_file, "r")
+    if not f then
+        return
+    end
+    local pid = trim(f:read("*l") or "")
+    f:close()
+    os.remove(pid_file)
+    if pid:match("^%d+$") then
+        mp.command_native_async({
+            name = "subprocess",
+            playback_only = false,
+            args = { "/bin/kill", "-TERM", pid },
+        }, function() end)
+    end
+end
+
+-- Esc while a preview renders: kill it rather than sitting through a model that
+-- may never finish. The subprocess callback still fires, and reads the flag.
+function cancel_render()
+    if not menu or not menu.render_abort then
+        return
+    end
+    menu.render_cancelled = true
+    mp.abort_async_command(menu.render_abort)
+    kill_render_child()
+end
+
 -- Every preset with a rendered still at its effective resolution, in catalog
 -- order; Original always counts (nothing to render, always showable).
 local function rendered_presets()
@@ -2097,6 +2390,7 @@ function cycle_rendered_presets()
     end
     local nxt = list[(idx % #list) + 1]
     menu.cursor = nxt.index
+    menu.enh_follow = true
     render_or_show(nxt)
 end
 
@@ -2599,11 +2893,25 @@ function enable_menu_keys()
     mp.add_forced_key_binding("-", "topaz_menu_zoom_out", function()
         if menu then set_zoom(menu.zoom - ZOOM_STEP) end
     end)
+    -- Wheel / trackpad: over the preset sheet it scrolls the list, anywhere else
+    -- on the frame it zooms (the sheet is the only scrollable surface).
+    local function wheel(scroll_delta, zoom_delta)
+        if not menu then
+            return
+        end
+        local mx = mouse_virtual_pos()
+        if mx and not menu.ui_hidden and menu.tab == 1
+            and mx >= PANEL_X and mx <= PANEL_X + PANEL_W
+            and scroll_enhance(scroll_delta) then
+            return
+        end
+        set_zoom(menu.zoom + zoom_delta)
+    end
     mp.add_forced_key_binding("WHEEL_UP", "topaz_menu_wheel_up", function()
-        if menu then set_zoom(menu.zoom + ZOOM_STEP) end
+        wheel(-1, ZOOM_STEP)
     end)
     mp.add_forced_key_binding("WHEEL_DOWN", "topaz_menu_wheel_down", function()
-        if menu then set_zoom(menu.zoom - ZOOM_STEP) end
+        wheel(1, -ZOOM_STEP)
     end)
     -- [ / ] rotate the output 90° (display-only preview, transpose in the encode).
     mp.add_forced_key_binding("]", "topaz_menu_rotate_cw", function() rotate_by(90) end)
@@ -2631,14 +2939,18 @@ function enable_menu_keys()
         { complex = true })
     -- Esc backs out of the option tabs, closes from the Enhance tab.
     mp.add_forced_key_binding("ESC", "topaz_menu_esc", function()
-        if menu and menu.tab ~= 1 then
+        if menu and menu.rendering_slug then
+            cancel_render()
+        elseif menu and menu.tab ~= 1 then
             set_tab(1)
         else
             close_menu("Topaz menu closed")
         end
     end)
     mp.add_forced_key_binding("BS", "topaz_menu_bs", function()
-        if menu and menu.tab ~= 1 then
+        if menu and menu.rendering_slug then
+            cancel_render()
+        elseif menu and menu.tab ~= 1 then
             set_tab(1)
         else
             close_menu("Topaz menu closed")
@@ -2672,6 +2984,10 @@ local function open_menu(source, profile, data)
         insights = data.insights or {},
         tab = 1,
         cursor = 1,
+        -- Preset-list scroll window: first visible item, and whether it chases
+        -- the cursor (keyboard) or roams free (wheel).
+        enh_scroll = 1,
+        enh_follow = true,
         hover = nil,
         res_options = data.res_options,
         res_sel = data.res_default,
@@ -2718,6 +3034,11 @@ end
 function close_menu(message)
     if not menu then
         return
+    end
+
+    -- Closing mid-render must not leave the encode running unattended.
+    if menu.rendering_slug then
+        cancel_render()
     end
 
     local state = menu

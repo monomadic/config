@@ -1,10 +1,10 @@
-order = 9
-category = "repair"
+order = 15
+category = "lowlight"
 display = "Nyx — Heavy Denoise"
-scales = ["1"]
+scales = ["1", "2"]
 blurb = "Heavy denoise for dark / grainy footage"
 filter = 'tvai_up=model=nyx-3:@SCALE@:device=0:vram=0.95:instances=1'
-metadata = "videoai=[Repair] Nyx Heavy Denoise. Dedicated denoise model for dark/grainy/high-ISO footage. Very smooth output; can wax skin and erase fine texture — use where noise is the main problem."
+metadata = "videoai=[Dark-Noisy] Nyx Heavy Denoise. Dedicated denoise model for dark/grainy/high-ISO footage. Very smooth output; can wax skin and erase fine texture — use where noise is the main problem."
 
 [insight]
 strategy = "A dedicated denoiser, not an enhancer — noise modelling that the generic Proteus noise slider cannot match on high-ISO or low-light footage."

@@ -1,10 +1,10 @@
 order = 3
-category = "detail"
+category = "polish"
 display = "Proteus — Sharp"
 scales = ["1", "2", "4k"]
 blurb = "High detail + visible edge bite; dehalo raised"
 filter = 'tvai_up=model=prob-4:@SCALE@:preblur=0:noise=0.12:details=0.80:halo=0.20:blur=0.35:compression=0.50:estimate=0:grain=0.02:gsize=2:device=0:vram=0.95:instances=1'
-metadata = "videoai=[Detail] Proteus Sharp. Manual Proteus: high detail generation with real edge bite — sharpening lifted to 0.35 with dehalo raised to keep the resulting halos in check. Sits between Detail Max and the Focus Fix deblurs."
+metadata = "videoai=[Polish] Proteus Sharp. Manual Proteus: high detail generation with real edge bite — sharpening lifted to 0.35 with dehalo raised to keep the resulting halos in check. Sits between Detail Max and the Focus Fix deblurs."
 
 [insight]
 strategy = "Detail Max with edge bite: sharpening lifted to 0.35 — enough for visible crispness — while dehalo runs high to cancel the halos that sharpening would otherwise print. The middle path between clean invention and full deblur."

@@ -1,0 +1,13 @@
+order = 6
+category = "polish"
+display = "Rhea XL — Regrain"
+scales = ["4k"]
+blurb = "Rhea 4x with light grain to break up the plastic"
+filter = 'tvai_up=model=rxl-1:@SCALE@:grain=0.08:gsize=2:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Polish] Rhea XL Regrain. Rhea XL with its Add Noise lever near the top of its range, re-grained to hide the waxy look a 4x AI upscale leaves on skin and flat areas."
+
+[insight]
+strategy = "Rhea's only lever is Add Noise (0–0.1) — no detail or sharpen sliders, unlike Proteus. This sits near the top of that range, which is enough to break up the smooth, waxy patches a 4x upscale leaves behind without reading as film grain."
+watch = "Grain lands after the model, so it never helps the reconstruction — it only disguises it. If the underlying 4x looks wrong, more grain will not save it."
+vs = "rhea-xl"
+vs_note = "Start with plain Rhea XL. Come here when the result looks technically right but too clean."

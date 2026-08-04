@@ -6,7 +6,7 @@ script_name="${0:t}"
 usage() {
   cat <<EOF
 usage:
-  $script_name --input file --preset-name name --preset-flag flag --filter filter [--time seconds] [--times seconds[,seconds...]] [--no-open] [--prompt-open] [--print-paths]
+  $script_name --input file --preset-name name --preset-flag flag --filter filter [--time seconds] [--times seconds[,seconds...]] [--no-open] [--prompt-open] [--print-paths] [--log-file path]
 
 Render Topaz still-frame preview JPEGs for one or more timestamps.
 
@@ -18,8 +18,14 @@ For each timestamp, writes:
 The original and Topaz JPEGs open automatically in mpv as a playlist, so you can
 flip between matching frames. With --prompt-open, the render finishes first and
 asks before opening. With --print-paths, machine-readable preview paths are
-printed for mpv scripts. Set TOPAZ_PREVIEW_FRAME_TIMES to a comma-separated
-list, for example:
+printed for mpv scripts.
+
+With --log-file, ffmpeg runs verbose (-loglevel info -stats) and its output is
+written to that path — model loading and downloading, device selection, and live
+frame stats. Without it a render is silent, so a slow model and a hang look the
+same. Each step is preceded by a "### <stage>" marker.
+
+Set TOPAZ_PREVIEW_FRAME_TIMES to a comma-separated list, for example:
   TOPAZ_PREVIEW_FRAME_TIMES=5,30,90 topaz-simple-presets file.mp4
 EOF
 }
@@ -198,12 +204,12 @@ open_images() {
 
   if have mpv; then
     mpv \
-      --fs \
-      --force-window=immediate \
-      --keep-open=yes \
-      --image-display-duration=inf \
-      --osd-level=1 \
-      -- "${images[@]}" >/dev/null 2>&1 &!
+    --fs \
+    --force-window=immediate \
+    --keep-open=yes \
+    --image-display-duration=inf \
+    --osd-level=1 \
+    -- "${images[@]}" >/dev/null 2>&1 &!
     return 0
   fi
 
@@ -217,6 +223,7 @@ filter_complex=""
 open_after=true
 prompt_open=false
 print_paths=false
+log_file=""
 times=()
 
 if [[ -n "${TOPAZ_PREVIEW_FRAME_TIMES:-}" ]]; then
@@ -271,6 +278,11 @@ while (( $# > 0 )); do
       print_paths=true
       shift
       ;;
+    --log-file)
+      (( $# >= 2 )) || die "--log-file needs a path"
+      log_file="$2"
+      shift 2
+      ;;
     --)
       shift
       break
@@ -283,6 +295,9 @@ done
 
 [[ -n "$input" ]] || die "--input is required"
 [[ -f "$input" ]] || die "not a file: $input"
+# Absolute: the render stages run from the Topaz app's MacOS dir, so a relative
+# input would resolve there and fail to open.
+input="${input:A}"
 [[ -n "$preset_name" ]] || die "--preset-name is required"
 [[ -n "$preset_flag" ]] || die "--preset-flag is required"
 [[ -n "$filter_complex" ]] || die "--filter is required"
@@ -303,6 +318,40 @@ TOPAZ_FFPROBE="$TOPAZ_MACOS_DIR/ffprobe"
 TOPAZ_MODELS_DIR="$(topaz_resolve_models_dir "$TOPAZ_APP")"
 [[ -x "$TOPAZ_FFMPEG" ]] || die "Topaz ffmpeg not executable: $TOPAZ_FFMPEG"
 
+# Preflight: a model whose weights are not on disk does not fail — it hangs. The
+# filter graph initialises, prints "Press [q] to stop", and then nothing happens:
+# no error, no download, no progress, forever. Every descriptor ships with the
+# app, so only a weights-and-dependencies check can tell an unrunnable model from
+# a merely slow one. Catch it here, in milliseconds, rather than after minutes.
+filter_model_codes() {
+  local rest="$1"
+  local model
+  local -a codes
+
+  while [[ "$rest" == *model=* ]]; do
+    rest="${rest#*model=}"
+    model="${rest%%[^A-Za-z0-9-]*}"
+    [[ -n "$model" ]] && codes+=("$model")
+  done
+
+  (( ${#codes[@]} )) && print -r -- "${(u)codes[@]}"
+  return 0
+}
+
+model_status_py="${0:A:h}/lib/topaz-model-status.py"
+model_codes=("${(@f)$(filter_model_codes "$filter_complex")}")
+if [[ -r "$model_status_py" && -n "${model_codes[1]:-}" ]]; then
+  if ! model_report="$(python3 "$model_status_py" "$TOPAZ_MODELS_DIR" --check "${model_codes[@]}")"; then
+    die "Topaz model cannot render here — it would hang, not fail:
+$model_report
+
+A model whose weights are missing downloads when you run it once in the Topaz
+app. A model with no coreml backend never will: it is served by neuroserver
+inside the app and is unreachable from ffmpeg, whatever you download.
+Models dir: $TOPAZ_MODELS_DIR"
+  fi
+fi
+
 safe_preset="$(slugify "$preset_name")"
 safe_input="$(slugify "${input:t:r}")"
 stamp="$(date +%Y%m%d-%H%M%S)"
@@ -322,7 +371,73 @@ topaz_env=(
   TVAI_MODEL_DATA_DIR="$TOPAZ_MODELS_DIR"
 )
 
+# ffmpeg verbosity. By default the renders stay quiet. With --log-file the Topaz
+# filter's own output is captured instead — model loading, model *downloading*,
+# device selection and per-frame stats — so a caller (the mpv menu) can show live
+# status rather than a silent wait that looks identical to a hang.
+ffmpeg_verbosity=(-loglevel error)
+if [[ -n "$log_file" ]]; then
+  ffmpeg_verbosity=(-loglevel info -stats -stats_period 0.5)
+  mkdir -p "${log_file:h}"
+  # Absolute: each render stage runs from the Topaz app's MacOS dir, so a
+  # relative path would resolve there (and fail, unwritably).
+  log_file="${log_file:A}"
+  : >| "$log_file"
+fi
+
+# Killing this wrapper does NOT kill the ffmpeg it spawned — the child is simply
+# reparented to init and carries on burning GPU with nothing left to report it.
+# A Topaz render is expensive enough that an orphan is a real problem, so:
+#
+#   * ffmpeg runs in the background and its PID is written beside the log, for a
+#     caller that had to resort to SIGKILL (mpv aborts subprocesses that way, and
+#     SIGKILL cannot be trapped) to clean up afterwards;
+#   * a trap covers every catchable case — Ctrl-C in a terminal, SIGTERM — by
+#     passing the signal on to ffmpeg rather than dying and abandoning it.
+#
+# ffmpeg exits cleanly on SIGINT/SIGTERM, so there is no need to SIGKILL it here.
+ffmpeg_pid=""
+pid_file=""
+[[ -n "$log_file" ]] && pid_file="${log_file}.pid"
+
+forward_signal() {
+  local sig="$1"
+  local code="$2"
+  [[ -n "$ffmpeg_pid" ]] && kill -"$sig" "$ffmpeg_pid" 2>/dev/null
+  [[ -n "$pid_file" ]] && rm -f "$pid_file"
+  exit "$code"
+}
+trap 'forward_signal INT 130' INT
+trap 'forward_signal TERM 143' TERM
+
+# Run the Topaz ffmpeg for one stage, appending its stderr to the log when one is
+# requested. `stage` is written as a `### ` marker so a reader can name the step.
+run_ffmpeg() {
+  local stage="$1"
+  shift
+  local rc=0   # not `status`: zsh reserves that as a read-only alias for $?
+
+  if [[ -n "$log_file" ]]; then
+    print -r -- "### $stage" >> "$log_file"
+    "${topaz_env[@]}" "$TOPAZ_FFMPEG" -hide_banner "${ffmpeg_verbosity[@]}" "$@" 2>> "$log_file" &
+  else
+    "${topaz_env[@]}" "$TOPAZ_FFMPEG" -hide_banner "${ffmpeg_verbosity[@]}" "$@" &
+  fi
+
+  ffmpeg_pid=$!
+  [[ -n "$pid_file" ]] && print -r -- "$ffmpeg_pid" >| "$pid_file"
+  wait "$ffmpeg_pid" || rc=$?
+  ffmpeg_pid=""
+  [[ -n "$pid_file" ]] && rm -f "$pid_file"
+  return $rc
+}
+
 mpv_images=()
+
+# The Topaz ffmpeg must run from inside the app bundle to find its libraries.
+# This used to be a per-stage subshell, but a subshell would put ffmpeg out of
+# reach of the signal trap above — every path here is absolute, so cd once.
+cd "$TOPAZ_MACOS_DIR"
 
 print -P -- "%F{cyan}Topaz frame preview%f"
 print -P -- "  %F{white}input:%f  $input"
@@ -342,38 +457,35 @@ for time_value in "${times[@]}"; do
 
   print -P -- "  %F{white}time:%f   ${time_value}s"
 
-  (
-    cd "$TOPAZ_MACOS_DIR"
-    "${topaz_env[@]}" "$TOPAZ_FFMPEG" -hide_banner -loglevel error -y \
-      -ss "$time_value" \
-      -autorotate \
-      -i "$input" \
-      -vf "format=yuvj420p" \
-      -frames:v 1 \
-      -color_range pc \
-      -q:v 2 \
-      "$original_jpg"
+  run_ffmpeg "extracting source frame" -y \
+    -ss "$time_value" \
+    -autorotate \
+    -i "$input" \
+    -vf "format=yuvj420p" \
+    -frames:v 1 \
+    -color_range pc \
+    -q:v 2 \
+    "$original_jpg"
 
-    "${topaz_env[@]}" "$TOPAZ_FFMPEG" -hide_banner -loglevel error -y \
-      -ss "$time_value" \
-      -autorotate \
-      -i "$input" \
-      -sws_flags "spline+accurate_rnd+full_chroma_int" \
+  run_ffmpeg "enhancing" -y \
+    -ss "$time_value" \
+    -autorotate \
+    -i "$input" \
+    -sws_flags "spline+accurate_rnd+full_chroma_int" \
       "$ffmpeg_preset_flag" "$preview_filter_complex" \
-      -frames:v 1 \
-      -color_range pc \
-      -q:v 2 \
-      "$topaz_jpg"
+    -frames:v 1 \
+    -color_range pc \
+    -q:v 2 \
+    "$topaz_jpg"
 
-    "${topaz_env[@]}" "$TOPAZ_FFMPEG" -hide_banner -loglevel error -y \
-      -i "$original_jpg" \
-      -i "$topaz_jpg" \
-      -filter_complex "[0:v]scale=-2:1440,format=yuvj420p[left];[1:v]scale=-2:1440,format=yuvj420p[right];[left][right]hstack=inputs=2,format=yuvj420p" \
-      -frames:v 1 \
-      -color_range pc \
-      -q:v 2 \
-      "$compare_jpg"
-  )
+  run_ffmpeg "building A/B" -y \
+    -i "$original_jpg" \
+    -i "$topaz_jpg" \
+    -filter_complex "[0:v]scale=-2:1440,format=yuvj420p[left];[1:v]scale=-2:1440,format=yuvj420p[right];[left][right]hstack=inputs=2,format=yuvj420p" \
+    -frames:v 1 \
+    -color_range pc \
+    -q:v 2 \
+    "$compare_jpg"
 
   if [[ "$print_paths" == true ]]; then
     print -r -- "TOPAZ_PREVIEW_ORIGINAL=$original_jpg"

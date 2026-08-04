@@ -1,0 +1,13 @@
+order = 7
+category = "polish"
+display = "Rhea XL — Film Grain"
+scales = ["4k"]
+blurb = "Rhea 4x under fine gaussian grain; filmic"
+filter = 'tvai_up=model=rxl-1:@SCALE@:grain=0.45:gsize=1.3:parameters=grain_type=gaussian\\:grain_sigma=0.55:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Polish] Rhea XL Film Grain. Rhea XL at 4x under heavy fine-grained gaussian grain — the same grain treatment as the Focus Fix Dynamic preset, applied to Rhea's cleaner faces."
+
+[insight]
+strategy = "Rhea handles faces better than Proteus at 4x, but its output is very clean; heavy fine gaussian grain (small size, moderate sigma) puts a filmic surface back on top. Grain is applied by the filter after the model, so it is independent of what Rhea can do."
+watch = "Heavy grain plus a high-bitrate codec is expensive to encode — grain is the least compressible thing you can add. Check the output size on a long clip before committing to a batch."
+vs = "rhea-xl-regrain"
+vs_note = "Regrain is a subtle de-plasticiser; this is a deliberate look. Pick by whether you want the grain to be noticed."

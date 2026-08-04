@@ -1,4 +1,4 @@
-theme = "carbon"
+theme = "carbon-loud" # carbon + banner-style error/warning status messages (see themes/carbon-loud.toml)
 
 [editor]
 true-color = true

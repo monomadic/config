@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<!-- saved from url=(0113)file:///Users/nom/config/utils/volume-control-widget/designs/volume-widget%20%E2%80%94%20design%20directions.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>volume-widget — refined design direction</title>
+  <style>
+    :root {
+      --page: #0e0f12;
+      --surface: #17181c;
+      --surface-2: #202126;
+      --line: #2d2f36;
+      --text: #f4f2ed;
+      --muted: #a5a29a;
+      --faint: #77746d;
+      --danger: #ff5b52;
+      --danger-soft: #2b1718;
+      --safe: #48d76b;
+      --safe-soft: #13251a;
+      --active: #407de2;
+      --performance: #73a7ff;
+      --busy: #ffb340;
+      --busy-soft: #2a2114;
+      --focus: #73a7ff;
+      --radius: 14px;
+      --mono: ui-monospace, "SF Mono", Menlo, monospace;
+      --system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --page: #f5f4ef;
+        --surface: #fff;
+        --surface-2: #f0efeb;
+        --line: #dbd9d2;
+        --text: #181816;
+        --muted: #65625c;
+        --faint: #8d8981;
+        --danger: #d92d28;
+        --danger-soft: #fff0ef;
+        --safe: #16853a;
+        --safe-soft: #eaf7ed;
+        --active: #1467d8;
+        --performance: #1467d8;
+        --busy: #9b5a00;
+        --busy-soft: #fff4df;
+        --focus: #1467d8;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--page); }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: var(--page);
+      font: 15px/1.55 var(--system);
+    }
+    button { font: inherit; }
+    button:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+    .page { width: min(100% - 40px, 960px); margin: 0 auto; padding: 64px 0 88px; }
+    .eyebrow {
+      margin: 0 0 12px;
+      color: var(--danger);
+      font: 600 11px/1.2 var(--mono);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 18ch; margin-bottom: 18px; font-size: clamp(34px, 6vw, 58px); line-height: 1.02; letter-spacing: -.045em; }
+    h2 { margin-bottom: 10px; font-size: 24px; line-height: 1.15; letter-spacing: -.025em; }
+    h3 { margin-bottom: 5px; font-size: 15px; }
+    .lede { max-width: 690px; margin-bottom: 0; color: var(--muted); font-size: 18px; }
+    .lede strong { color: var(--text); }
+    section { margin-top: 68px; }
+    .section-copy { max-width: 680px; margin-bottom: 24px; color: var(--muted); }
+
+    .decision {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 28px;
+      align-items: center;
+      margin-top: 34px;
+      padding: 24px;
+      border: 1px solid color-mix(in srgb, var(--performance) 40%, var(--line));
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--performance) 8%, var(--surface));
+    }
+    .decision p { margin: 0; color: var(--muted); }
+    .decision strong { color: var(--text); }
+    .stamp { color: var(--performance); font: 700 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+
+    .state-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+    .state-picker button {
+      min-height: 36px;
+      padding: 7px 13px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+    }
+    .state-picker button:hover { color: var(--text); background: var(--surface-2); }
+    .state-picker button[aria-pressed="true"] { color: var(--text); border-color: var(--faint); background: var(--surface-2); }
+
+    .demo-grid { display: grid; grid-template-columns: minmax(320px, 1.05fr) minmax(280px, .95fr); gap: 20px; align-items: start; }
+    .preview-shell { min-height: 540px; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: #1c1d21; }
+    .menubar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 11px;
+      height: 34px;
+      padding: 0 10px;
+      border: 1px solid #45464b;
+      border-radius: 9px;
+      color: #a6a7ab;
+      background: #2b2c31;
+      box-shadow: 0 2px 8px #0005;
+      font-size: 13px;
+    }
+    .status-chip { display: inline-flex; align-items: center; gap: 6px; min-width: 25px; color: var(--state-color); font-variant-numeric: tabular-nums; font-weight: 650; }
+    .status-chip svg { width: 16px; height: 16px; }
+    .menu {
+      width: min(100% - 10px, 344px);
+      margin: 10px 0 0 auto;
+      padding: 7px;
+      border: 1px solid #4a4b51;
+      border-radius: 12px;
+      color: #f2f2f3;
+      background: #292a2f;
+      box-shadow: 0 18px 44px #0009;
+      font-size: 13px;
+    }
+    .menu-head { padding: 11px 11px 10px; }
+    .menu-device { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; }
+    .state-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--state-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--state-color) 18%, transparent); }
+    .menu-status { margin-top: 3px; color: #afb0b4; font-size: 12px; }
+    .menu-status strong { color: var(--state-color); font-weight: 650; }
+    .divider { height: 1px; margin: 5px 8px; background: #4a4b50; }
+    .menu-item { display: flex; align-items: center; justify-content: space-between; min-height: 31px; padding: 5px 10px; border-radius: 7px; }
+    .menu-item.primary { color: #fff; background: #3477dd; }
+    .menu-item.disabled { color: #707177; }
+    .menu-item .key { color: #afb0b4; }
+    .menu-item.primary .key { color: #dce9ff; }
+    .device-list { display: grid; gap: 2px; padding: 2px 0; }
+    .device-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: 9px 10px; border: 1px solid transparent; border-radius: 8px; }
+    .device-row.active { background: var(--active); }
+    .device-row.warning { background: #33291a; }
+    .device-row.fallback { border-color: #b77a27; background: #3b2c18; }
+    .device-mark { min-height: 20px; color: #b8b9bd; line-height: 1.2; }
+    .device-mark svg { display: block; width: 16px; height: 16px; margin-top: 1px; }
+    .device-row.active .device-mark, .device-row.active .device-name { color: #fff; }
+    .device-row.active .device-meta { color: #e1ebff; }
+    .device-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #f2f2f3; font-weight: 600; }
+    .device-meta { display: block; margin-top: 2px; color: #a8a9ae; font-size: 11px; }
+    .route-badge { align-self: center; padding: 2px 7px; border: 1px solid #65666d; border-radius: 999px; color: #c4c5c9; font: 650 9px/1.4 var(--mono); letter-spacing: .04em; white-space: nowrap; }
+    .route-badge[data-tone="active"] { border-color: #fff8; color: #fff; background: #ffffff17; }
+    .route-badge[data-tone="warning"] { border-color: #b77a27; color: #ffc15b; }
+    .route-badge[data-tone="fallback"] { border-color: #d99738; color: #ffd28c; }
+    .health { color: inherit; }
+    .health.warn { color: #ffc15b; }
+    .meter-mini { display: inline-flex; align-items: end; gap: 2px; height: 10px; margin-left: 5px; vertical-align: -1px; }
+    .meter-mini i { width: 2px; border-radius: 1px; background: currentColor; }
+    .meter-mini i:nth-child(1) { height: 35%; }
+    .meter-mini i:nth-child(2) { height: 70%; }
+    .meter-mini i:nth-child(3) { height: 50%; }
+    .meter-mini i:nth-child(4) { height: 90%; }
+    .state-note { display: grid; gap: 12px; }
+    .note-card { padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .note-card p { margin: 0; color: var(--muted); font-size: 14px; }
+    .note-card b { color: var(--text); }
+
+    .rules { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .rule { min-height: 178px; padding: 19px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .rule-num { display: block; margin-bottom: 26px; color: var(--faint); font: 600 11px/1 var(--mono); letter-spacing: .12em; }
+    .rule p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .matrix { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); }
+    .row { display: grid; grid-template-columns: 1.1fr 1fr 2fr; align-items: center; min-height: 61px; border-bottom: 1px solid var(--line); }
+    .row:last-child { border-bottom: 0; }
+    .row > * { padding: 13px 16px; }
+    .row.header { min-height: 42px; color: var(--faint); background: var(--surface); font: 600 11px/1.2 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+    .state-label { font-weight: 650; }
+    .treatment { color: var(--muted); font-size: 14px; }
+    .signal { display: inline-flex; align-items: center; gap: 7px; color: var(--signal); font-weight: 650; }
+    .signal::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--signal); }
+
+    .ship { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .ship-card { padding: 22px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .ship-card ul { margin: 14px 0 0; padding-left: 19px; color: var(--muted); }
+    .ship-card li + li { margin-top: 8px; }
+    .ship-card.good h3 { color: var(--active); }
+    .ship-card.avoid h3 { color: var(--danger); }
+    .footnote { margin-top: 18px; padding-left: 14px; border-left: 3px solid var(--active); color: var(--muted); }
+    .footnote strong { color: var(--text); }
+
+    @media (max-width: 720px) {
+      .page { width: min(100% - 28px, 960px); padding-top: 42px; }
+      .decision, .demo-grid, .ship { grid-template-columns: 1fr; }
+      .stamp { justify-self: start; }
+      .rules { grid-template-columns: 1fr; }
+      .rule { min-height: 0; }
+      .rule-num { margin-bottom: 14px; }
+      .row { grid-template-columns: 1fr; gap: 2px; padding: 13px 0; }
+      .row > * { padding: 2px 14px; }
+      .row.header { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <p class="eyebrow">volume-widget · refined product direction</p>
+    <h1>Silence where it should be. Signal where it matters.</h1>
+    <p class="lede">The Mac's speakers are a liability at a gig; the DJM is the point of the gig. The app needs two policies, not one global lock: <strong>protect fallback outputs continuously, while proving the performance output is present, selected, and healthy.</strong></p>
+
+    <div class="decision">
+      <p><strong>Make the device list the product.</strong> Use direct rules instead of abstract roles: <em>Always mute</em> for internal speakers, <em>Never mute</em> for the DJM. Blue belongs only to the selected output; muted safety stays neutral unless it fails.</p>
+      <span class="stamp">Recommended</span>
+    </div>
+
+    <section aria-labelledby="demo-title">
+      <p class="eyebrow">Interactive state model</p>
+      <h2 id="demo-title">One glance answers two different questions.</h2>
+      <p class="section-copy">Is the performance output ready? Are fallback speakers still protected? Switch scenarios to see how the menu keeps those answers separate.</p>
+      <div class="state-picker" role="group" aria-label="Preview state">
+        <button type="button" data-state="ready" aria-pressed="false">Gig ready</button>
+        <button type="button" data-state="idle" aria-pressed="false">DJM idle</button>
+        <button type="button" data-state="missing" aria-pressed="false">DJM missing</button>
+        <button type="button" data-state="fallback" aria-pressed="true">Fallback caught</button>
+      </div>
+      <div class="demo-grid">
+        <div class="preview-shell" id="preview" style="--state-color: var(--busy);">
+          <div class="menubar" aria-label="Menu bar preview">
+            <span>⌥</span><span>Wi‑Fi</span><span>87%</span>
+            <span class="status-chip" id="status-chip" aria-label="Fallback caught, internal speakers muted"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 5 6 9H3v6h3l5 4V5Z"></path><path d="m16 9 6 6m0-6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span>INT</span></span>
+          </div>
+          <div class="menu" aria-label="Volume widget menu preview">
+            <div class="menu-head">
+              <div class="menu-device"><span class="state-dot"></span><span>Audio outputs</span></div>
+              <div class="menu-status" id="menu-status"><strong>Fallback caught</strong> · internal output muted</div>
+            </div>
+            <div class="divider"></div>
+            <div class="device-list">
+              <div class="device-row fallback" id="device-speakers">
+                <span class="device-mark" id="speakers-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 5 6 9H3v6h3l5 4V5Z"></path><path d="m16 9 6 6m0-6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg></span>
+                <span><span class="device-name">MacBook Pro Speakers</span><span class="device-meta" id="speakers-meta">Always mute · fallback selected</span></span>
+                <span class="route-badge" id="speakers-badge" data-tone="fallback">DEFAULT · MUTED</span>
+              </div>
+              <div class="device-row warning" id="device-djm">
+                <span class="device-mark" id="djm-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 22 20H2L12 3Z" fill="currentColor"></path><path d="M12 8v6m0 3v.01" fill="none" stroke="#1c1d21" stroke-width="2" stroke-linecap="round"></path></svg></span>
+                <span><span class="device-name">DJM-900NXS2 USB</span><span class="device-meta" id="djm-meta"><span class="health warn">Expected device · no connection</span></span></span>
+                <span class="route-badge" id="djm-badge" data-tone="warning">MISSING</span>
+              </div>
+            </div>
+            <div class="divider"></div>
+            <div class="menu-item"><span>Always mute</span><span class="key">Mac speakers</span></div>
+            <div class="menu-item"><span>Never mute</span><span class="key">DJM-900NXS2</span></div>
+            <div class="menu-item primary" id="primary-action"><span>Open Sound Settings…</span><span class="key"></span></div>
+            <div class="menu-item"><span>Device Policies…</span><span class="key">⌘,</span></div>
+            <div class="menu-item"><span>Open Sound Settings…</span><span></span></div>
+            <div class="divider"></div>
+            <div class="menu-item"><span>Launch at Login</span><span class="key">✓</span></div>
+            <div class="menu-item"><span>Quit Volume Guard</span><span></span></div>
+          </div>
+        </div>
+        <div class="state-note">
+          <article class="note-card"><h3 id="note-title">Failover is safe before the callback fires.</h3><p id="note-copy">The internal speakers were already muted, so becoming default cannot create a burst. Amber remains because the expected DJM route is gone even though the fallback is safe.</p></article>
+          <article class="note-card"><h3>“Working” has honest layers</h3><p><b>Connected</b> means CoreAudio reports the device alive. <b>Active</b> means it is the default output. <b>I/O running</b> means a client is using it. A signal meter can prove digital samples are flowing—but no software can prove the mixer, cable, and PA are audible without hardware feedback.</p></article>
+          <article class="note-card"><h3>Three cues, three meanings</h3><p><b>Blue row + check</b> means the selected output. A <b>slashed speaker</b> means held muted. <b>Amber or red</b> means attention is required. Device rules are written as actions—Always mute or Never mute—rather than color-coded roles.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="rules-title">
+      <p class="eyebrow">Product rules</p>
+      <h2 id="rules-title">Three rules keep the utility honest.</h2>
+      <div class="rules">
+        <article class="rule"><span class="rule-num">01 · PER DEVICE</span><h3>The rule follows the UID</h3><p>Remember Always mute or Never mute by stable CoreAudio device UID—not by whichever output happens to be default.</p></article>
+        <article class="rule"><span class="rule-num">02 · NEVER TOUCH DJ</span><h3>“Never mute” means read-only</h3><p>The app may report connection, routing, format, I/O, and signal. It never writes mute or volume to the DJM.</p></article>
+        <article class="rule"><span class="rule-num">03 · SAFE FALLBACK</span><h3>“Always mute” is continuous</h3><p>Keep internal speakers muted even when inactive, across wake and reconnect, so an output failover cannot create an audible burst.</p></article>
+      </div>
+    </section>
+
+    <section aria-labelledby="matrix-title">
+      <p class="eyebrow">Visual language</p>
+      <h2 id="matrix-title">The cue says what is true right now.</h2>
+      <div class="matrix">
+        <div class="row header"><span>Cue</span><span>Meaning</span><span>Rule</span></div>
+        <div class="row"><span class="state-label">Blue row + ✓</span><span class="treatment">Selected output</span><span class="treatment">Exactly one device gets this treatment. It says nothing about mute policy.</span></div>
+        <div class="row"><span class="state-label">Slashed speaker</span><span class="treatment">Held muted</span><span class="treatment">Neutral while verified; red only if an Always mute device becomes audible.</span></div>
+        <div class="row"><span class="state-label">Signal bars</span><span class="treatment">Samples flowing</span><span class="treatment">Shown only on the selected device when optional metering is available.</span></div>
+        <div class="row"><span class="state-label">Amber warning</span><span class="treatment">Route degraded</span><span class="treatment">Expected DJM missing, I/O problem, or muted fallback selected.</span></div>
+      </div>
+    </section>
+
+    <section aria-labelledby="scope-title">
+      <p class="eyebrow">Scope recommendation</p>
+      <h2 id="scope-title">Ship routing confidence and safe fallback together.</h2>
+      <div class="ship">
+        <article class="ship-card good"><h3>Version 1</h3><ul><li>Live list of connected output devices</li><li>Always mute / Never mute rule stored by device UID</li><li>Default-output, device-alive, I/O-running, and sample-rate status</li><li>Continuous verified mute for Always mute devices</li><li>Warning when the expected DJM disappears</li></ul></article>
+        <article class="ship-card avoid"><h3>Optional or later</h3><ul><li>Process-tap signal meter</li><li>Changing the default output from the menu</li><li>Volume slider or writes to Never mute devices</li><li>Automated test tones—they are unsafe at a live gig</li></ul></article>
+      </div>
+      <p class="footnote"><strong>The device list earns its space.</strong> It is not merely a macOS output picker: it shows the selected route, explicit app behavior, connection health, and mute status that Control Center does not.</p>
+    </section>
+  </main>
+
+  <script>
+    const speaker = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    const muted = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="m16 9 6 6m0-6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    const warning = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 22 20H2L12 3Z" fill="currentColor"/><path d="M12 8v6m0 3v.01" fill="none" stroke="#1c1d21" stroke-width="2" stroke-linecap="round"/></svg>';
+    const meter = '<span class="meter-mini" aria-label="digital signal present"><i></i><i></i><i></i><i></i></span>';
+    const states = {
+      ready: {
+        color: 'var(--active)', chip: speaker + '<span>DJM</span>', label: 'DJM is the active output',
+        status: '<strong>DJM is active</strong> · I/O running', action: 'Show audio diagnostics', key: '', primary: false,
+        speakersActive: false, speakersFallback: false, speakersMark: muted, speakersBadge: 'HELD MUTED', speakersTone: 'neutral', speakersMeta: 'Always mute · verified',
+        djmActive: true, djmWarning: false, djmMark: speaker, djmBadge: '✓ ACTIVE', djmTone: 'active', djmMeta: 'Never muted by app · I/O running · 48 kHz ' + meter,
+        title: 'The enabled route owns the strongest cue.', copy: 'The blue row and checkmark identify the DJM as the selected output. Its text says the app will never mute it. The internal speakers stay visually quiet: a gray slash and Held muted badge.'
+      },
+      idle: {
+        color: 'var(--active)', chip: speaker + '<span>DJM</span>', label: 'DJM is selected, I/O is idle',
+        status: '<strong>DJM is active</strong> · I/O idle', action: 'Show audio diagnostics', key: '', primary: false,
+        speakersActive: false, speakersFallback: false, speakersMark: muted, speakersBadge: 'HELD MUTED', speakersTone: 'neutral', speakersMeta: 'Always mute · verified',
+        djmActive: true, djmWarning: false, djmMark: speaker, djmBadge: '✓ ACTIVE', djmTone: 'active', djmMeta: 'Never muted by app · I/O idle · 48 kHz',
+        title: 'Idle is not the same as broken.', copy: 'The device is connected and selected, but no client is currently running I/O. That can be normal before DJ software starts; the menu says exactly what is and is not known.'
+      },
+      missing: {
+        color: 'var(--busy)', chip: warning + '<span>DJM</span>', label: 'Expected DJM is missing',
+        status: '<strong>DJM missing</strong> · check USB and power', action: 'Open Sound Settings…', key: '', primary: true,
+        speakersActive: false, speakersFallback: false, speakersMark: muted, speakersBadge: 'HELD MUTED', speakersTone: 'neutral', speakersMeta: 'Always mute · verified',
+        djmActive: false, djmWarning: true, djmMark: warning, djmBadge: 'MISSING', djmTone: 'warning', djmMeta: '<span class="health warn">Expected device · no connection</span>',
+        title: 'Expected devices stay in the list.', copy: 'A disconnected DJM remains visible because its absence is the information that matters. The warning names the device while confirming that fallback speakers are still protected.'
+      },
+      fallback: {
+        color: 'var(--busy)', chip: muted + '<span>INT</span>', label: 'Fallback caught, internal speakers muted',
+        status: '<strong>Fallback caught</strong> · internal output muted', action: 'Open Sound Settings…', key: '', primary: true,
+        speakersActive: false, speakersFallback: true, speakersMark: muted, speakersBadge: 'DEFAULT · MUTED', speakersTone: 'fallback', speakersMeta: 'Always mute · fallback selected',
+        djmActive: false, djmWarning: true, djmMark: warning, djmBadge: 'MISSING', djmTone: 'warning', djmMeta: '<span class="health warn">Expected device · no connection</span>',
+        title: 'Failover is safe before the callback fires.', copy: 'The internal speakers were already muted, so becoming default cannot create a burst. Amber remains because the expected DJM route is gone even though the fallback is safe.'
+      }
+    };
+    const buttons = [...document.querySelectorAll('[data-state]')];
+    const preview = document.getElementById('preview');
+    const chip = document.getElementById('status-chip');
+    const menuStatus = document.getElementById('menu-status');
+    const action = document.getElementById('primary-action');
+    const speakers = document.getElementById('device-speakers');
+    const speakersMark = document.getElementById('speakers-mark');
+    const speakersBadge = document.getElementById('speakers-badge');
+    const speakersMeta = document.getElementById('speakers-meta');
+    const djm = document.getElementById('device-djm');
+    const djmMark = document.getElementById('djm-mark');
+    const djmBadge = document.getElementById('djm-badge');
+    const djmMeta = document.getElementById('djm-meta');
+    const noteTitle = document.getElementById('note-title');
+    const noteCopy = document.getElementById('note-copy');
+
+    function render(name) {
+      const state = states[name];
+      preview.style.setProperty('--state-color', state.color);
+      chip.innerHTML = state.chip;
+      chip.setAttribute('aria-label', state.label || 'Muted');
+      menuStatus.innerHTML = state.status;
+      action.querySelector('span').textContent = state.action;
+      action.querySelector('.key').textContent = state.key;
+      action.classList.toggle('primary', state.primary);
+      speakers.classList.toggle('active', state.speakersActive);
+      speakers.classList.toggle('fallback', state.speakersFallback);
+      speakersMark.innerHTML = state.speakersMark;
+      speakersBadge.textContent = state.speakersBadge;
+      speakersBadge.dataset.tone = state.speakersTone;
+      speakersMeta.innerHTML = state.speakersMeta;
+      djm.classList.toggle('active', state.djmActive);
+      djm.classList.toggle('warning', state.djmWarning);
+      djmMark.innerHTML = state.djmMark;
+      djmBadge.textContent = state.djmBadge;
+      djmBadge.dataset.tone = state.djmTone;
+      djmMeta.innerHTML = state.djmMeta;
+      noteTitle.textContent = state.title;
+      noteCopy.textContent = state.copy;
+      buttons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.state === name)));
+    }
+
+    buttons.forEach(button => button.addEventListener('click', () => render(button.dataset.state)));
+    render('ready');
+  </script>
+
+
+</body></html>

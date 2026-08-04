@@ -1,0 +1,16 @@
+#compdef beetroot-dl
+# zsh completion for beetroot-dl
+
+_beetroot-dl() {
+    _arguments -s \
+        '(-i --interactive)'{-i,--interactive}'[keep prompting for more URLs after finishing]' \
+        '(-v --verbose)'{-v,--verbose}'[report each step (fetch, download, tag) to stderr]' \
+        '(-q --quiet)'{-q,--quiet}'[suppress progress bars]' \
+        '--config[use this config file instead of the default]:config file:_files' \
+        '--completions[print a shell completion script to stdout]:shell:(bash zsh)' \
+        '--version[print version and exit]' \
+        '(-h --help)'{-h,--help}'[show help]' \
+        '*:url, query, or .txt file of urls:_files -g "*.txt"'
+}
+
+_beetroot-dl "$@"

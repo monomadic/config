@@ -1,0 +1,13 @@
+order = 10
+category = "focus-fix"
+display = "Proteus — Focus Fix Dynamic"
+scales = ["1", "2", "4k"]
+blurb = "Auto-tuned deblur + regrain; the classic go-to"
+filter = 'tvai_up=model=prob-4:@SCALE@:preblur=0.80:noise=0:details=1:halo=0:blur=1:compression=0.66:prenoise=0:estimate=8:grain=0.83:gsize=1.2:parameters=grain_type=gaussian\\:grain_sigma=0.59:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Focus Fix] Proteus Focus Fix Dynamic. Proteus in Dynamic (relative-to-auto) mode: sharpen and deblur pushed to the stop, detail maxed, moderate compression fix, heavy gaussian regrain to hide the edge work. Ported from the long-standing Topaz app preset."
+
+[insight]
+strategy = "Dynamic mode: Proteus estimates per-scene parameters and these sliders are offsets from that estimate, not absolute values — so the same preset adapts clip to clip, which is why it 'just worked' in the app. Sharpen and deblur ride at the stop on top of whatever the estimate picks, and the heavy grain (0.83, fine-grained gaussian) masks the resulting crunch."
+watch = "The fixed-value Deblur presets can beat it when the auto-estimate misreads a clip (very dark or very clean sources). If it looks over-processed, the estimate stacked with the offsets — step down to Deblur Strong."
+vs = "proteus-deblur-strong"
+vs_note = "This adapts per clip and regrains; Strong is fixed and clean. Reach for Strong when you want repeatable output across a batch."

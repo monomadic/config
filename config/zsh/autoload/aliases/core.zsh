@@ -100,16 +100,28 @@ topaz-list-filters() {
   "$ffmpeg" -hide_banner -filters | rg 'tvai|veai|topaz'
 }
 
+# Every Topaz model, with the facts that decide whether it is usable and how slow
+# it will be: its display name, temporal window (frames it needs as context — a
+# 5-frame model can never preview as fast as a 1-frame one), the upscale factors
+# it actually has weights on disk for, and that weight count.
+#
+# Descriptors all ship with the app; the per-resolution weights (.tz3) are fetched
+# on demand, so "weights 0" is the only reliable "this will not run" signal.
+#
+# This used to filter through a hardcoded prefix allowlist, which hid Starlight,
+# Gaia and Artemis HQ entirely — and listed two prefixes that match nothing, since
+# Theia's code is thd- and Proteus's is prob-.
 topaz-list-models() {
-  local resources
-  resources="$(topaz_resolve_resources_dir)" || return
-  [[ -d "$resources" ]] || {
-    print -u2 "Topaz resources dir not found: $resources"
+  emulate -L zsh
+  local models
+  models="$(topaz_resolve_models_dir)" || return
+  [[ -d "$models" ]] || {
+    print -u2 "Topaz models dir not found: $models"
     topaz_app_help >&2
     return 1
   }
-  fd -e json . "$resources" \
-    | rg '/(apo|rxl|amq|chr|prob|iris|nyx|theia|proteus)-[^/]+\.json$'
+
+  python3 "$DOTFILES_DIR/config/zsh/bin/lib/topaz-model-status.py" "$models" --list "$@"
 }
 
 # ============================================================================
