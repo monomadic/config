@@ -14,12 +14,15 @@ A clock glyph and the uptime beside it, drawn as one template image:
 􂝔 42m
 􂝔 5h
 􂝔 2d
-􂝔 33d 3h
+􂝔 3.5d
+􂝔 33.1d
 ```
 
-Only the two largest non-zero units, so the item keeps a steady width. Under an
-hour it counts in minutes. The tooltip spells the same figure out —
-"System uptime is 2 days, 1 hour".
+Always one unit. Under an hour it counts in minutes, then in whole hours, and
+past a day the hours become a decimal rather than a second unit — one number is
+less to read across in a menu bar than two. The decimal is truncated, not
+rounded, so the figure never runs ahead of the machine. The tooltip still spells
+the full figure out — "System uptime is 3 days, 12 hours".
 
 The menu holds `Reboot`, `Shutdown` and `Quit`. Reboot and Shutdown put up a
 confirmation dialog before telling System Events to perform the power action.

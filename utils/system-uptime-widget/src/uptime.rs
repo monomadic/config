@@ -72,16 +72,24 @@ fn parts(duration: Duration) -> (u64, u64, u64) {
     )
 }
 
-/// Compact menu bar form: `33d 3h`, `2d`, `5h`, `42m`. Only the two largest
-/// non-zero units, and never more than two, so the item keeps its width.
+/// Compact menu bar form: `33.1d`, `3.5d`, `2d`, `5h`, `42m`. Past a day the
+/// hours become a decimal rather than a second unit — one number is less to
+/// read across in a menu bar than two. Truncated, not rounded, so the figure
+/// never runs ahead of the machine.
 pub fn format_uptime(duration: Duration) -> String {
     let (days, hours, minutes) = parts(duration);
-    match (days, hours) {
-        (0, 0) => format!("{minutes}m"),
-        (0, _) => format!("{hours}h"),
-        (_, 0) => format!("{days}d"),
-        _ => format!("{days}d {hours}h"),
+    if days > 0 {
+        let tenths = (hours * 10) / 24;
+        return if tenths == 0 {
+            format!("{days}d")
+        } else {
+            format!("{days}.{tenths}d")
+        };
     }
+    if hours > 0 {
+        return format!("{hours}h");
+    }
+    format!("{minutes}m")
 }
 
 /// Tooltip form: `2 days, 1 hour`.
@@ -112,12 +120,22 @@ mod tests {
     }
 
     #[test]
-    fn compact_drops_zero_units() {
-        assert_eq!(format_uptime(duration(33, 3, 12)), "33d 3h");
+    fn compact_uses_one_unit() {
+        assert_eq!(format_uptime(duration(3, 12, 0)), "3.5d");
+        assert_eq!(format_uptime(duration(33, 3, 12)), "33.1d");
         assert_eq!(format_uptime(duration(2, 0, 30)), "2d");
         assert_eq!(format_uptime(duration(0, 5, 30)), "5h");
         assert_eq!(format_uptime(duration(0, 0, 42)), "42m");
         assert_eq!(format_uptime(duration(0, 0, 0)), "0m");
+    }
+
+    /// A tenth of a day is 2.4 hours, so the decimal must not tick over until
+    /// the hours actually reach it — and must never round a day up early.
+    #[test]
+    fn compact_truncates_the_decimal() {
+        assert_eq!(format_uptime(duration(1, 2, 0)), "1d");
+        assert_eq!(format_uptime(duration(1, 3, 0)), "1.1d");
+        assert_eq!(format_uptime(duration(1, 23, 59)), "1.9d");
     }
 
     #[test]
