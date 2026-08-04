@@ -1,0 +1,14 @@
+order = 11
+category = "polish"
+display = "Starlight Precise 2.5"
+scales = ["1", "2", "4k"]
+blurb = "Generative diffusion; minutes per frame, best there is"
+filter = ''
+ns_model = "slp-25"
+metadata = "videoai=[Polish] Starlight Precise 2.5. Topaz's strongest generative model. Runs through the app's neuroserver process rather than the ffmpeg filter, so it is rendered by a separate backend here."
+
+[insight]
+strategy = "Diffusion reconstruction in three phases — encode, DiT, decode — that re-imagines pixels rather than filtering them. It is the only thing here that genuinely invents detail; everything else amplifies what already exists. Rendered via neuroserver, not tvai_up, so it needs no scale support from the filter."
+watch = "Minutes per frame, and that is not an exaggeration: roughly 17 seconds per frame at thumbnail size, so a real preview at full resolution is a commitment. Esc cancels. It also needs at least five frames of context, so a still preview quietly renders a short window and pulls one frame out of it — the timestamp you see is exact, but the work behind it is not one frame."
+vs = "rhea-xl"
+vs_note = "Rhea XL is the strongest model the ffmpeg path can run and is enormously faster. Come here only when Rhea has been tried and is not enough."

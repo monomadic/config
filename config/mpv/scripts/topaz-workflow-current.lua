@@ -717,6 +717,9 @@ local function load_enhancement_presets(profile, res_options, two_x_is_4k)
                 filter_body = f[5] or "",
                 blurb = f[6] or "",
                 metadata = f[7] or "",
+                -- Set only for models the tvai_up filter cannot reach; these
+                -- render through neuroserver instead (see render_or_show).
+                ns_model = (f[8] ~= "" and f[8]) or nil,
             })
         end
     end
@@ -959,6 +962,16 @@ local function poll_render_log()
         elseif line:find("^frame=") then
             local elapsed = line:match("elapsed=(%S+)")
             menu.render_note = elapsed and ("encoded · " .. elapsed) or "encoded"
+        elseif line:find('"progress"') then
+            -- neuroserver reports real phase and percentage as JSON, which beats
+            -- anything inferable from the ffmpeg path.
+            local pct = line:match('"progress":%s*(%d+)')
+            local msg = line:match('"message":%s*"([^"]*)"')
+            if msg and pct then
+                menu.render_note = string.format("%s · %s%%", msg, pct)
+            elseif msg then
+                menu.render_note = msg
+            end
         elseif matches_any(line, LOG_ALERT) then
             menu.render_alert = trim(line)
         elseif not matches_any(line, LOG_NOISE) then
@@ -1863,19 +1876,32 @@ function render_or_show(preset)
     local render_started = mp.get_time()
     local time_arg = string.format("%.3f", menu.time_pos)
     local log_path = menu.render_log
+
+    local args = {
+        topaz_preview_frame,
+        "--input", menu.source,
+        "--preset-name", preset.display .. " " .. res.label,
+        "--preset-flag", "--filter_complex",
+        "--filter", preview_filter,
+        "--time", time_arg,
+        "--no-open",
+        "--print-paths",
+        "--log-file", log_path,
+    }
+    -- Neuroserver models take a name rather than a filter chain, and the target
+    -- size explicitly — the filter's @SCALE@ machinery does not apply to them.
+    if preset.ns_model then
+        args[#args + 1] = "--ns-model"
+        args[#args + 1] = preset.ns_model
+        if res.w and res.h then
+            args[#args + 1] = "--ns-size"
+            args[#args + 1] = string.format("%dx%d", res.w, res.h)
+        end
+    end
+
     menu.render_abort = mp.command_native_async({
         name = "subprocess",
-        args = {
-            topaz_preview_frame,
-            "--input", menu.source,
-            "--preset-name", preset.display .. " " .. res.label,
-            "--preset-flag", "--filter_complex",
-            "--filter", preview_filter,
-            "--time", time_arg,
-            "--no-open",
-            "--print-paths",
-            "--log-file", log_path,
-        },
+        args = args,
         playback_only = false,
         capture_stdout = true,
         capture_stderr = true,

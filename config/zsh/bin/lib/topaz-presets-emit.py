@@ -65,9 +65,13 @@ def main():
             if d.get("pseudo"):
                 continue  # e.g. __original__ carries only an [insight], no row
             scales = ",".join(d.get("scales", []))
+            # ns_model (column 8) names a neuroserver model instead of a tvai_up
+            # filter — the path for models ffmpeg cannot reach. Empty for the
+            # overwhelming majority, which run through the filter.
             rows.append([
                 d.get("category", ""), d["display"], d["slug"],
                 scales, d["filter"], d.get("blurb", ""), d.get("metadata", ""),
+                d.get("ns_model", ""),
             ])
         emit(rows)
 

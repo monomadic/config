@@ -224,6 +224,8 @@ open_after=true
 prompt_open=false
 print_paths=false
 log_file=""
+ns_model=""
+ns_size=""
 times=()
 
 if [[ -n "${TOPAZ_PREVIEW_FRAME_TIMES:-}" ]]; then
@@ -283,6 +285,16 @@ while (( $# > 0 )); do
       log_file="$2"
       shift 2
       ;;
+    --ns-model)
+      (( $# >= 2 )) || die "--ns-model needs a model name"
+      ns_model="$2"
+      shift 2
+      ;;
+    --ns-size)
+      (( $# >= 2 )) || die "--ns-size needs WxH"
+      ns_size="$2"
+      shift 2
+      ;;
     --)
       shift
       break
@@ -300,7 +312,9 @@ done
 input="${input:A}"
 [[ -n "$preset_name" ]] || die "--preset-name is required"
 [[ -n "$preset_flag" ]] || die "--preset-flag is required"
-[[ -n "$filter_complex" ]] || die "--filter is required"
+if [[ -z "$ns_model" ]]; then
+  [[ -n "$filter_complex" ]] || die "--filter is required (or --ns-model for the neuroserver backend)"
+fi
 
 (( ${#times[@]} > 0 )) || times=("10")
 for time_value in "${times[@]}"; do
@@ -340,7 +354,7 @@ filter_model_codes() {
 
 model_status_py="${0:A:h}/lib/topaz-model-status.py"
 model_codes=("${(@f)$(filter_model_codes "$filter_complex")}")
-if [[ -r "$model_status_py" && -n "${model_codes[1]:-}" ]]; then
+if [[ -z "$ns_model" && -r "$model_status_py" && -n "${model_codes[1]:-}" ]]; then
   if ! model_report="$(python3 "$model_status_py" "$TOPAZ_MODELS_DIR" --check "${model_codes[@]}")"; then
     die "Topaz model cannot render here — it would hang, not fail:
 $model_report
@@ -410,12 +424,35 @@ forward_signal() {
 trap 'forward_signal INT 130' INT
 trap 'forward_signal TERM 143' TERM
 
-# Run the Topaz ffmpeg for one stage, appending its stderr to the log when one is
+# Run one child process for a stage, in the background so its PID is known (see
+# the signal handling above), appending its output to the log when one is
 # requested. `stage` is written as a `### ` marker so a reader can name the step.
-run_ffmpeg() {
+run_child() {
   local stage="$1"
   shift
   local rc=0   # not `status`: zsh reserves that as a read-only alias for $?
+
+  if [[ -n "$log_file" ]]; then
+    print -r -- "### $stage" >> "$log_file"
+    "$@" >> "$log_file" 2>&1 &
+  else
+    "$@" >/dev/null 2>&1 &
+  fi
+
+  ffmpeg_pid=$!
+  [[ -n "$pid_file" ]] && print -r -- "$ffmpeg_pid" >| "$pid_file"
+  wait "$ffmpeg_pid" || rc=$?
+  ffmpeg_pid=""
+  [[ -n "$pid_file" ]] && rm -f "$pid_file"
+  return $rc
+}
+
+# Run the Topaz ffmpeg for one stage. stdout is discarded; only stderr carries
+# ffmpeg's progress, so it is the stream that reaches the log.
+run_ffmpeg() {
+  local stage="$1"
+  shift
+  local rc=0
 
   if [[ -n "$log_file" ]]; then
     print -r -- "### $stage" >> "$log_file"
@@ -430,6 +467,90 @@ run_ffmpeg() {
   ffmpeg_pid=""
   [[ -n "$pid_file" ]] && rm -f "$pid_file"
   return $rc
+}
+
+# ===== neuroserver backend =====
+# Models with no coreml backend (Starlight, Wonder, Hyperion 2) are served by the
+# app's neuroserver process and are unreachable from the tvai_up filter. They are
+# rendered here instead, which differs from the ffmpeg path in three ways worth
+# knowing: the model is named rather than expressed as a filter chain, the weight
+# store must be pointed at explicitly (neuroserver defaults to ./data, relative to
+# a temp working directory it creates, and never downloads anything itself), and
+# it refuses windows shorter than five frames — so a single-frame preview renders
+# a short run and pulls one frame back out.
+
+NS_DIR="$TOPAZ_MACOS_DIR/neuroserver"
+NS_BIN="$NS_DIR/neuroserver"
+NS_STORE="$TOPAZ_MODELS_DIR/models"
+NS_WINDOW=8   # frames to render; must stay >= 5
+
+# Frames per second of the source, for turning a timestamp into a frame index.
+media_fps() {
+  local file="$1" probe="$2" rate=""
+  if [[ -x "$probe" ]]; then
+    rate="$("$probe" -v error -select_streams v:0 -show_entries stream=r_frame_rate \
+      -of default=nokey=1:noprint_wrappers=1 -- "$file" 2>/dev/null | head -1 || true)"
+  fi
+  awk -v r="${rate:-}" 'BEGIN {
+    n = split(r, a, "/")
+    if (n == 2 && a[2] > 0) { printf "%.6f\n", a[1] / a[2] }
+    else if (r + 0 > 0)     { printf "%.6f\n", r + 0 }
+    else                    { print "25" }
+  }'
+}
+
+# Render `time_value` through neuroserver and write a single JPEG to `out_jpg`.
+neuroserver_still() {
+  local time_value="$1"
+  local out_jpg="$2"
+  local fps start target offset tmp_mov
+
+  fps="$(media_fps "$input" "$TOPAZ_FFPROBE")"
+  target=$(awk -v t="$time_value" -v f="$fps" 'BEGIN { printf "%d", int(t * f + 0.5) }')
+  # Centre the window on the wanted frame where possible; never start below zero.
+  start=$(( target - 2 ))
+  (( start < 0 )) && start=0
+  offset=$(( target - start ))
+
+  tmp_mov="$out_dir/.ns-window.mov"
+  rm -f "$tmp_mov"
+
+  local -a ns_args=(
+    "$NS_BIN" --once
+    --input-path "$input"
+    --output-path "$tmp_mov"
+    --filters "[{\"model\": \"${ns_model}\"}]"
+    --start-frame-idx "$start"
+    --end-frame-idx "$(( start + NS_WINDOW ))"
+    --output-codec prores
+    --device 0
+  )
+  if [[ -n "$ns_size" ]]; then
+    ns_args+=(--output-width "${ns_size%%x*}" --output-height "${ns_size##*x}")
+  fi
+
+  # neuroserver resolves its own modules relative to cwd, so it must run from its
+  # directory; TOPAZ_MODEL_STORE is what makes it find the weight blobs at all.
+  local ns_env=(
+    env
+    TOPAZ_MODEL_STORE="$NS_STORE"
+    TVAI_MODEL_DIR="$TOPAZ_MODELS_DIR"
+    TVAI_MODEL_DATA_DIR="$TOPAZ_MODELS_DIR"
+    LC_NUMERIC=C
+  )
+
+  ( cd "$NS_DIR" && run_child "enhancing (neuroserver: $ns_model)" "${ns_env[@]}" "${ns_args[@]}" ) \
+    || die "neuroserver render failed${log_file:+ — see $log_file}"
+
+  [[ -f "$tmp_mov" ]] || die "neuroserver produced no output${log_file:+ — see $log_file}"
+
+  # Pull the wanted frame out of the rendered window.
+  run_ffmpeg "extracting preview frame" -y \
+    -i "$tmp_mov" \
+    -vf "select=eq(n\\,${offset}),format=yuvj420p" \
+    -frames:v 1 -color_range pc -q:v 2 "$out_jpg"
+
+  rm -f "$tmp_mov"
 }
 
 mpv_images=()
@@ -467,16 +588,20 @@ for time_value in "${times[@]}"; do
     -q:v 2 \
     "$original_jpg"
 
-  run_ffmpeg "enhancing" -y \
-    -ss "$time_value" \
-    -autorotate \
-    -i "$input" \
-    -sws_flags "spline+accurate_rnd+full_chroma_int" \
-      "$ffmpeg_preset_flag" "$preview_filter_complex" \
-    -frames:v 1 \
-    -color_range pc \
-    -q:v 2 \
-    "$topaz_jpg"
+  if [[ -n "$ns_model" ]]; then
+    neuroserver_still "$time_value" "$topaz_jpg"
+  else
+    run_ffmpeg "enhancing" -y \
+      -ss "$time_value" \
+      -autorotate \
+      -i "$input" \
+      -sws_flags "spline+accurate_rnd+full_chroma_int" \
+        "$ffmpeg_preset_flag" "$preview_filter_complex" \
+      -frames:v 1 \
+      -color_range pc \
+      -q:v 2 \
+      "$topaz_jpg"
+  fi
 
   run_ffmpeg "building A/B" -y \
     -i "$original_jpg" \
