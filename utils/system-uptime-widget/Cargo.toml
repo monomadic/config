@@ -1,0 +1,49 @@
+[package]
+name = "system-uptime-widget"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+block2 = "0.6.2"
+objc2 = "0.6.4"
+objc2-app-kit = { version = "0.3.2", features = [
+    "NSApplication",
+    "NSAttributedString",
+    "NSButton",
+    "NSCell",
+    "NSColor",
+    "NSControl",
+    "NSFont",
+    "NSFontDescriptor",
+    "NSGraphics",
+    "NSImage",
+    "NSMenu",
+    "NSMenuItem",
+    "NSResponder",
+    "NSStatusBar",
+    "NSStatusBarButton",
+    "NSStatusItem",
+    "NSStringDrawing",
+    "NSView",
+    "block2",
+] }
+objc2-core-foundation = { version = "0.3.2", features = ["CFBase", "CFAttributedString"] }
+objc2-core-text = { version = "0.3.2", features = ["CTLine", "CTFont", "CTFontDescriptor"] }
+objc2-foundation = { version = "0.3.2", features = [
+    "NSAttributedString",
+    "NSDate",
+    "NSDictionary",
+    "NSGeometry",
+    "NSObject",
+    "NSRunLoop",
+    "NSString",
+    "NSThread",
+    "NSTimer",
+    "NSValue",
+    "block2",
+] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
