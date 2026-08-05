@@ -58,12 +58,14 @@ plus `zsh -n` / `bash -n` on any shell script you touched.
 `utils/<tool>/` holds tool source (Rust: the AppKit menu bar widgets — `battery-widget`,
 `cpu-usage-widget`, `free-disk-space-widget`, `menu-tidy` — plus `leaf`, `pimped`,
 `motherfucker`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
-`system-uptime-widget`; bash: `job-runner`). These are the only parts of the repo with a
+`system-uptime-widget`; bash: `job-server-cli`). These are the only parts of the repo with a
 build/install step and tests — Dotter does not touch them.
 
 New menu bar widgets go in Rust, against `objc2` directly — `battery-widget` and
 `free-disk-space-widget` are the reference implementations. No wrapper library, no
-vendored fork, no `.app` bundle.
+vendored fork, no `.app` bundle. `job-monitor` is the one exception on the bundle
+rule: it needs one for notifications, so its installer *generates* the `.app` into
+`~/Applications` — nothing bundled is ever checked in.
 
 ```bash
 setup/install/install-<name>.sh    # canonical build+install; most install to ~/.local/bin
@@ -78,12 +80,24 @@ Installers are named `setup/install/install-<name>.sh` — follow that for new o
 (e.g. `pimped` must be on PATH for the zsh precmd prompt hook in
 `config/zsh/zshrc.zsh` to work).
 
-**`utils/job-runner`** is infrastructure other tools can build on: a `~/jobs` drop
+**The job server** is infrastructure other tools can build on: a `~/jobs` drop
 folder where any `TARGET.job` shell script runs (queued, one at a time) inside its
 own `_running/<date>-<name>/` folder with `$TARGET_FILE` (the filename minus
 `.job`) moved in beside it. Anything that needs "run this later /
 on the server" should write a `.job` file (or ship one with `send-job`) instead of
-inventing its own daemon. Contract details: `utils/job-runner/README.md`.
+inventing its own daemon. Contract details: `utils/job-server/README.md`.
+
+Four pieces share that one on-disk contract, so the folder itself is the API:
+
+| | |
+|---|---|
+| `utils/job-server` | the runner with a menu bar face; resident LaunchAgent, the default |
+| `utils/job-server-cli` | the same contract in bash, driven by a launchd WatchPaths trigger instead of a resident process |
+| `utils/job-monitor` | read-only viewer for a jobs folder mounted over SMB; a normal `.app` you launch and quit, never runs jobs |
+| `utils/job-core` | the shared library — the model, the filesystem observer both GUIs render, and the menu bar icon |
+
+Only one *runner* may be active per folder (`job-server` or `job-server-cli`, never
+both — they share the `.lock`); any number of monitors can watch it.
 
 ## Recipe: add config for a new tool
 

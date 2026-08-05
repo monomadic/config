@@ -19,8 +19,8 @@
 # and the ffmpeg rewrite are media-audit's, sourced as a library, so the two
 # scripts cannot drift apart.
 #
-# Not job-runner (utils/job-runner) on purpose, even though the repo's rule is
-# to write a .job file rather than invent a queue: job-runner moves the target
+# Not job-server (utils/job-server) on purpose, even though the repo's rule is
+# to write a .job file rather than invent a queue: job-server moves the target
 # file into its run folder, and these targets are library files that must stay
 # where they are. The pairing is also per-session — one worker for one batcher,
 # started and drained together — rather than the machine-wide drop folder.

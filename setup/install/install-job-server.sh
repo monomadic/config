@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
 #
-# Build and install job-folder (utils/job-folder): a menu bar face for the
-# ~/jobs drop folder. Rust port of job-runner — same on-disk contract
+# Build and install job-server (utils/job-server): a menu bar face for the
+# ~/jobs drop folder. Rust port of job-server-cli — same on-disk contract
 # (NAME.job -> _running/<date>-NAME/ -> _done/_err), but runs the loop in-process
 # behind a status bar icon instead of a launchd WatchPaths trigger.
 #
-# Installs the binary to ~/.local/bin/job-folder and loads it as a resident
+# Installs the binary to ~/.local/bin/job-server and loads it as a resident
 # LaunchAgent (RunAtLoad + KeepAlive), mirroring the widget installers.
 #
-# Since job-folder supersedes job-runner (they'd otherwise both try to run
+# Since job-server supersedes job-server-cli (they'd otherwise both try to run
 # jobs, though the shared .lock directory prevents double-running), this
-# uninstalls job-runner's LaunchAgent and binary first if present.
+# uninstalls job-server-cli's LaunchAgent and binary first if present.
 
 set -euo pipefail
 
-LABEL="${LABEL:-com.jayu.job-folder}"
-OLD_LABEL="${OLD_LABEL:-com.jayu.job-runner}"
+LABEL="${LABEL:-com.jayu.job-server}"
+OLD_LABEL="${OLD_LABEL:-com.jayu.job-server-cli}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
 
-SOURCE_DIR="$DOTFILES_DIR/utils/job-folder"
+SOURCE_DIR="$DOTFILES_DIR/utils/job-server"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
-BINARY_PATH="$INSTALL_DIR/job-folder"
-OLD_BINARY_PATH="$INSTALL_DIR/job-runner"
+BINARY_PATH="$INSTALL_DIR/job-server"
+OLD_BINARY_PATH="$INSTALL_DIR/job-server-cli"
 
 LAUNCH_AGENTS_DIR="${LAUNCH_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
 LOG_DIR="${LOG_DIR:-$HOME/Library/Logs}"
@@ -49,8 +49,8 @@ write_launch_agent() {
   local esc_binary esc_out esc_err
 
   esc_binary="$(plist_escape "$binary_path")"
-  esc_out="$(plist_escape "$LOG_DIR/job-folder.out.log")"
-  esc_err="$(plist_escape "$LOG_DIR/job-folder.err.log")"
+  esc_out="$(plist_escape "$LOG_DIR/job-server.out.log")"
+  esc_err="$(plist_escape "$LOG_DIR/job-server.err.log")"
 
   cat >"$plist_path" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -92,24 +92,42 @@ bootstrap_launch_agent() {
   launchctl kickstart -k "$gui_domain/$LABEL"
 }
 
-# job-folder is a rust port of job-runner and takes over its ~/jobs contract;
+# job-server is a rust port of job-server-cli and takes over its ~/jobs contract;
 # running both is redundant (though harmless, since they share a lock), so
-# retire the older shell-based installation.
-uninstall_job_runner() {
-  local gui_domain="gui/$(id -u)"
-  local old_plist="$LAUNCH_AGENTS_DIR/$OLD_LABEL.plist"
+# retire the older shell-based installation. The pre-rename labels
+# (com.jayu.job-folder / com.jayu.job-runner) are retired here too — a machine
+# installed before the rename would otherwise keep running the queue under its
+# old agent alongside the new one.
+LEGACY_LABELS=(
+  "$OLD_LABEL"
+  com.jayu.job-folder
+  com.jayu.job-runner
+)
+LEGACY_BINARIES=(
+  "$OLD_BINARY_PATH"
+  "$INSTALL_DIR/job-folder"
+  "$INSTALL_DIR/job-runner"
+)
 
-  if [[ -f "$old_plist" ]] || launchctl print "$gui_domain/$OLD_LABEL" >/dev/null 2>&1; then
-    echo "Uninstalling job-runner ($OLD_LABEL)..."
-    launchctl bootout "$gui_domain" "$old_plist" >/dev/null 2>&1 || true
-    launchctl bootout "$gui_domain/$OLD_LABEL" >/dev/null 2>&1 || true
-    rm -f "$old_plist"
-  fi
+uninstall_superseded() {
+  local gui_domain="gui/$(id -u)" label old_plist binary
 
-  if [[ -e "$OLD_BINARY_PATH" ]]; then
-    echo "Removing old binary $OLD_BINARY_PATH ..."
-    rm -f "$OLD_BINARY_PATH"
-  fi
+  for label in "${LEGACY_LABELS[@]}"; do
+    old_plist="$LAUNCH_AGENTS_DIR/$label.plist"
+    if [[ -f "$old_plist" ]] || launchctl print "$gui_domain/$label" >/dev/null 2>&1; then
+      echo "Uninstalling superseded agent $label ..."
+      launchctl bootout "$gui_domain" "$old_plist" >/dev/null 2>&1 || true
+      launchctl bootout "$gui_domain/$label" >/dev/null 2>&1 || true
+      rm -f "$old_plist"
+    fi
+  done
+
+  for binary in "${LEGACY_BINARIES[@]}"; do
+    if [[ -e "$binary" ]]; then
+      echo "Removing old binary $binary ..."
+      rm -f "$binary"
+    fi
+  done
 }
 
 main() {
@@ -124,16 +142,16 @@ main() {
     exit 1
   fi
 
-  uninstall_job_runner
+  uninstall_superseded
 
-  echo "Building job-folder (release) ..."
+  echo "Building job-server (release) ..."
   (cd "$SOURCE_DIR" && cargo build --release)
 
   local plist_path="$LAUNCH_AGENTS_DIR/$LABEL.plist"
 
   echo "Installing binary to $BINARY_PATH ..."
   mkdir -p "$INSTALL_DIR" "$LAUNCH_AGENTS_DIR" "$LOG_DIR"
-  install -m 755 "$SOURCE_DIR/target/release/job-folder" "$BINARY_PATH"
+  install -m 755 "$SOURCE_DIR/target/release/job-server" "$BINARY_PATH"
 
   echo "Writing LaunchAgent to $plist_path ..."
   write_launch_agent "$BINARY_PATH" "$plist_path"
@@ -144,7 +162,7 @@ main() {
   echo
   echo "Installed and started $LABEL."
   echo "  Binary: $BINARY_PATH"
-  echo "  Logs:   $LOG_DIR/job-folder.log (+ .out/.err)"
+  echo "  Logs:   $LOG_DIR/job-server.log (+ .out/.err)"
 }
 
 main "$@"

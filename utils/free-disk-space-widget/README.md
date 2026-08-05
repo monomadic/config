@@ -1,7 +1,7 @@
 # free-disk-space-widget
 
 macOS menu bar widget for free disk space, in the same family as
-`battery-widget`, `job-folder` and `menu-tidy`. Rust, talking to AppKit directly
+`battery-widget`, `job-server` and `menu-tidy`. Rust, talking to AppKit directly
 via [objc2](https://github.com/madsmtm/objc2) — no wrapper library, no vendored
 fork, no `.app` bundle. The dropdown is a real `NSMenu` assigned to the status
 item, so macOS presents it natively, and it is rebuilt from the mount table every

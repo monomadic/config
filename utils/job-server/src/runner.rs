@@ -1,4 +1,4 @@
-//! The job loop: a Rust port of `utils/job-runner/job-runner`, running
+//! The job loop: a Rust port of `utils/job-server-cli/job-server-cli`, running
 //! in-process instead of behind a launchd WatchPaths trigger.
 //!
 //! The on-disk contract is deliberately identical, so `.job` scripts and
@@ -16,91 +16,75 @@
 //!      produces output, so a silent job leaves no empty artifacts behind.
 //!   3. On exit 0 the whole run folder is moved to `_done/`; otherwise to
 //!      `_err/` — job file, target file and logs together.
+//!
+//! This module only ever *writes* the folder. What the menu shows is read back
+//! off disk by `job_core::Observer`, so the display cannot drift from the
+//! truth, survives a restart mid-job, and is the same view `job-monitor` gets
+//! from another machine.
 
-use std::collections::VecDeque;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use crate::clock;
+use job_core::clock;
+use job_core::observe::{Root, job_name, target_file};
 
 const POLL: Duration = Duration::from_secs(1);
 const SETTLE: Duration = Duration::from_secs(2);
 const LOCK_STALE: Duration = Duration::from_secs(60 * 60);
 const LOCK_HEARTBEAT: Duration = Duration::from_secs(60);
-const RECENT_MAX: usize = 6;
 
-pub struct RunningJob {
-    pub name: String,
-    pub started: Instant,
-    pub run_dir: PathBuf,
+pub fn root() -> Root {
+    Root::local()
 }
 
-pub struct RecentJob {
-    pub name: String,
-    pub ok: bool,
-    pub finished: Instant,
-    pub artifact: PathBuf,
-}
-
-#[derive(Default)]
-pub struct State {
-    pub running: Option<RunningJob>,
-    pub queued: Vec<String>,
-    pub errors: usize,
-    pub paused: bool,
-    pub recent: VecDeque<RecentJob>,
-}
-
-pub fn home() -> PathBuf {
+fn home() -> PathBuf {
     std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default()
 }
 
-pub fn jobs_dir() -> PathBuf {
-    std::env::var_os("JOBS_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| home().join("jobs"))
-}
-
-pub fn running_dir() -> PathBuf {
-    jobs_dir().join("_running")
-}
-
-pub fn done_dir() -> PathBuf {
-    jobs_dir().join("_done")
-}
-
-pub fn err_dir() -> PathBuf {
-    jobs_dir().join("_err")
-}
-
-fn lock_dir() -> PathBuf {
-    jobs_dir().join(".lock")
-}
-
-pub fn paused_marker() -> PathBuf {
-    jobs_dir().join(".paused")
-}
-
-fn ack_file() -> PathBuf {
-    home().join(".config/job-folder/ack")
-}
-
 fn log_file() -> PathBuf {
-    std::env::var_os("JOB_FOLDER_LOG")
+    std::env::var_os("JOB_SERVER_LOG")
         .map(PathBuf::from)
-        .unwrap_or_else(|| home().join("Library/Logs/job-folder.log"))
+        .unwrap_or_else(|| home().join("Library/Logs/job-server.log"))
 }
 
-/// The running job's live stdout log, if the job has produced output yet.
-pub fn running_log_path(job: &RunningJob) -> Option<PathBuf> {
-    let path = job.run_dir.join(format!("{}.log", job.name));
-    path.is_file().then_some(path)
+/// Where this machine records which failures the user has already seen. Kept
+/// out of the jobs folder itself: acknowledgement is per-viewer, and whoever is
+/// looking may not even have write access to the folder.
+pub fn ack_file() -> PathBuf {
+    home().join(".config/job-server/ack")
+}
+
+pub fn read_ack() -> i64 {
+    fs::read_to_string(ack_file())
+        .ok()
+        .and_then(|text| text.trim().parse::<i64>().ok())
+        .unwrap_or(0)
+}
+
+pub fn acknowledge_errors() {
+    let path = ack_file();
+    if let Some(dir) = path.parent() {
+        let _ = fs::create_dir_all(dir);
+    }
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|since| since.as_secs() as i64)
+        .unwrap_or(0);
+    let _ = fs::write(path, now.to_string());
+}
+
+pub fn set_paused(paused: bool) {
+    let marker = root().paused_marker();
+    if paused {
+        let _ = fs::write(&marker, "");
+    } else {
+        let _ = fs::remove_file(&marker);
+    }
 }
 
 fn log(line: &str) {
@@ -113,60 +97,11 @@ fn log(line: &str) {
     }
 }
 
-/// Failures the user hasn't acknowledged: run folders under `_err/` newer
-/// than the timestamp written by "Clear error badge". Counting from disk
-/// (rather than a counter in memory) means the badge survives a restart.
-fn unacknowledged_errors() -> usize {
-    let ack = fs::read_to_string(ack_file())
-        .ok()
-        .and_then(|text| text.trim().parse::<u64>().ok())
-        .unwrap_or(0);
-
-    let Ok(entries) = fs::read_dir(err_dir()) else {
-        return 0;
-    };
-    entries
-        .flatten()
-        .filter(|entry| {
-            if !entry.path().is_dir() {
-                return false;
-            }
-            entry
-                .metadata()
-                .and_then(|meta| meta.modified())
-                .ok()
-                .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-                .is_some_and(|since| since.as_secs() > ack)
-        })
-        .count()
-}
-
-pub fn acknowledge_errors() {
-    let path = ack_file();
-    if let Some(dir) = path.parent() {
-        let _ = fs::create_dir_all(dir);
-    }
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|since| since.as_secs())
-        .unwrap_or(0);
-    let _ = fs::write(path, now.to_string());
-}
-
-pub fn set_paused(paused: bool) {
-    let marker = paused_marker();
-    if paused {
-        let _ = fs::write(&marker, "");
-    } else {
-        let _ = fs::remove_file(&marker);
-    }
-}
-
 /// Top-level `*.job` files, alphabetically — the same scan order the shell
-/// version's glob produces. In-flight and finished names (`*.job.running`,
-/// `*.job.done`, `*.job.err`) no longer end in `.job`, so they can't match.
-fn scan_jobs() -> Vec<PathBuf> {
-    let Ok(entries) = fs::read_dir(jobs_dir()) else {
+/// version's glob produces. A claimed job has moved into `_running/`, so it
+/// can't match again.
+fn scan_jobs(root: &Root) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(root.path()) else {
         return Vec::new();
     };
     let mut jobs: Vec<PathBuf> = entries
@@ -178,23 +113,6 @@ fn scan_jobs() -> Vec<PathBuf> {
         .collect();
     jobs.sort();
     jobs
-}
-
-/// The job file's target: its filename minus the `.job` extension
-/// (`foo.mp4.job` => `foo.mp4`).
-fn target_file(path: &Path) -> String {
-    let base = path.file_name().unwrap_or_default().to_string_lossy();
-    base.strip_suffix(".job").unwrap_or(&base).to_string()
-}
-
-/// The job's name: the target minus its own extension (`foo.mp4.job` =>
-/// `foo`). A job file with no inner extension keeps its full name.
-fn job_name(path: &Path) -> String {
-    let target = target_file(path);
-    match target.rsplit_once('.') {
-        Some((stem, _)) if !stem.is_empty() => stem.to_string(),
-        _ => target,
-    }
 }
 
 /// True once the file's size has held steady across SETTLE (i.e. a copy into
@@ -223,9 +141,8 @@ fn uniq_dir(path: PathBuf) -> PathBuf {
 
 /// Copy a child stream to `path`, creating the file only when the first
 /// bytes arrive — a stream that stays silent never gets a file at all.
-/// Returns whether anything was written. Flushed per chunk so a running
-/// job's log can be tailed.
-fn pump(mut stream: impl Read, path: PathBuf) -> bool {
+/// Flushed per chunk so a running job's log can be tailed.
+fn pump(mut stream: impl Read, path: PathBuf) {
     let mut file: Option<File> = None;
     let mut buffer = [0u8; 8192];
     loop {
@@ -242,19 +159,20 @@ fn pump(mut stream: impl Read, path: PathBuf) -> bool {
             }
         }
     }
-    file.is_some()
 }
 
-struct Lock;
+struct Lock {
+    dir: PathBuf,
+}
 
 impl Lock {
     /// The same `mkdir`-based lock the shell version uses, so the two can
     /// never run a job at the same time. A lock left behind by a killed run
     /// (older than LOCK_STALE) is stolen.
-    fn acquire() -> Option<Lock> {
-        let dir = lock_dir();
+    fn acquire(root: &Root) -> Option<Lock> {
+        let dir = root.lock();
         if fs::create_dir(&dir).is_ok() {
-            return Some(Lock);
+            return Some(Lock { dir });
         }
         let stale = fs::metadata(&dir)
             .and_then(|meta| meta.modified())
@@ -263,16 +181,16 @@ impl Lock {
         if stale {
             let _ = fs::remove_dir_all(&dir);
             if fs::create_dir(&dir).is_ok() {
-                return Some(Lock);
+                return Some(Lock { dir });
             }
         }
         None
     }
 
-    /// Touch the lock so a job that outlives LOCK_STALE isn't declared dead
-    /// by another instance.
+    /// Touch the lock so a job that outlives LOCK_STALE isn't declared dead by
+    /// another runner — or reported as stalled by a monitor.
     fn heartbeat(&self) {
-        let beat = lock_dir().join("heartbeat");
+        let beat = self.dir.join("heartbeat");
         let _ = fs::write(&beat, "");
         let _ = fs::remove_file(&beat);
     }
@@ -280,19 +198,18 @@ impl Lock {
 
 impl Drop for Lock {
     fn drop(&mut self) {
-        let _ = fs::remove_dir_all(lock_dir());
+        let _ = fs::remove_dir_all(&self.dir);
     }
 }
 
-fn run_one(job: &Path, state: &Arc<Mutex<State>>) {
-    let jobs = jobs_dir();
+fn run_one(root: &Root, job: &Path, lock: &Lock) {
     let name = job_name(job);
     let target = target_file(job);
 
     // Claim the job by moving it — and its target file, if present — out of
     // the scan set and into a dated run folder, which becomes the CWD.
-    let _ = fs::create_dir_all(running_dir());
-    let run_dir = uniq_dir(running_dir().join(format!("{}-{name}", clock::file_stamp())));
+    let _ = fs::create_dir_all(root.running());
+    let run_dir = uniq_dir(root.running().join(format!("{}-{name}", clock::file_stamp())));
     if fs::create_dir(&run_dir).is_err() {
         log(&format!("SKIP {name} (could not create run folder)"));
         return;
@@ -303,7 +220,7 @@ fn run_one(job: &Path, state: &Arc<Mutex<State>>) {
         log(&format!("SKIP {name} (could not claim job file)"));
         return;
     }
-    let target_path = jobs.join(&target);
+    let target_path = root.path().join(&target);
     if target_path.exists() && fs::rename(&target_path, run_dir.join(&target)).is_err() {
         log(&format!("WARN could not move target file {target}"));
     }
@@ -318,14 +235,6 @@ fn run_one(job: &Path, state: &Arc<Mutex<State>>) {
         let _ = fs::set_permissions(&job_file, perms);
     }
     let executable = fs::metadata(&job_file).is_ok_and(|m| m.permissions().mode() & 0o111 != 0);
-
-    if let Ok(mut state) = state.lock() {
-        state.running = Some(RunningJob {
-            name: name.clone(),
-            started: Instant::now(),
-            run_dir: run_dir.clone(),
-        });
-    }
 
     // TARGET_FILE lets a job reference the file it was named after without
     // knowing the folder scheme (foo.mp4.job => TARGET_FILE=foo.mp4,
@@ -343,7 +252,7 @@ fn run_one(job: &Path, state: &Arc<Mutex<State>>) {
         .env("JOB_NAME", &name)
         .env("TARGET_FILE", &target)
         .env("JOB_FILE", &job_file)
-        .env("JOB_DIR", &jobs)
+        .env("JOB_DIR", root.path())
         .env("JOB_RUN_DIR", &run_dir)
         .env("TERM", "dumb")
         .env("NO_COLOR", "1")
@@ -357,15 +266,23 @@ fn run_one(job: &Path, state: &Arc<Mutex<State>>) {
         Ok(child) => child,
         Err(err) => {
             log(&format!("FAIL {name} (could not start: {err})"));
-            finish(&name, 127, &run_dir, state);
+            finish(root, &name, 127, &run_dir);
             return;
         }
     };
 
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
-    let log_writer = thread::spawn(move || stdout.is_some_and(|s| pump(s, log_path)));
-    let err_writer = thread::spawn(move || stderr.is_some_and(|s| pump(s, err_path)));
+    let log_writer = thread::spawn(move || {
+        if let Some(stream) = stdout {
+            pump(stream, log_path);
+        }
+    });
+    let err_writer = thread::spawn(move || {
+        if let Some(stream) = stderr {
+            pump(stream, err_path);
+        }
+    });
 
     // Poll rather than block so the lock can be kept warm under long jobs.
     let mut last_beat = Instant::now();
@@ -375,7 +292,7 @@ fn run_one(job: &Path, state: &Arc<Mutex<State>>) {
             Ok(None) => {
                 thread::sleep(POLL);
                 if last_beat.elapsed() >= LOCK_HEARTBEAT {
-                    Lock.heartbeat();
+                    lock.heartbeat();
                     last_beat = Instant::now();
                 }
             }
@@ -385,62 +302,40 @@ fn run_one(job: &Path, state: &Arc<Mutex<State>>) {
 
     let _ = log_writer.join();
     let _ = err_writer.join();
-    finish(&name, code, &run_dir, state);
+    finish(root, &name, code, &run_dir);
 }
 
 /// Move the whole run folder — job file, target file and logs — to `_done`
 /// or `_err` according to the exit status.
-fn finish(name: &str, code: i32, run_dir: &Path, state: &Arc<Mutex<State>>) {
-    let ok = code == 0;
-    let dest_dir = if ok {
+fn finish(root: &Root, name: &str, code: i32, run_dir: &Path) {
+    let dest_dir = if code == 0 {
         log(&format!("DONE {name} (exit 0)"));
-        done_dir()
+        root.done()
     } else {
         log(&format!("FAIL {name} (exit {code})"));
-        err_dir()
+        root.err()
     };
 
     let _ = fs::create_dir_all(&dest_dir);
     let folder = run_dir.file_name().unwrap_or_default().to_os_string();
-    let mut dest_job = uniq_dir(dest_dir.join(&folder));
-    if fs::rename(run_dir, &dest_job).is_err() {
+    if fs::rename(run_dir, uniq_dir(dest_dir.join(&folder))).is_err() {
         log(&format!("WARN could not move run folder for {name}"));
-        dest_job = run_dir.to_path_buf();
-    }
-
-    if let Ok(mut state) = state.lock() {
-        state.running = None;
-        state.recent.push_front(RecentJob {
-            name: name.to_string(),
-            ok,
-            finished: Instant::now(),
-            artifact: dest_job,
-        });
-        state.recent.truncate(RECENT_MAX);
     }
 }
 
-pub fn spawn(state: Arc<Mutex<State>>) {
+pub fn spawn() {
     thread::spawn(move || {
-        for dir in [jobs_dir(), running_dir(), done_dir(), err_dir()] {
+        let root = root();
+        for dir in [root.path().to_path_buf(), root.running(), root.done(), root.err()] {
             let _ = fs::create_dir_all(dir);
         }
         loop {
-            let paused = paused_marker().exists();
-            let jobs = scan_jobs();
-
-            if let Ok(mut state) = state.lock() {
-                state.paused = paused;
-                state.errors = unacknowledged_errors();
-                state.queued = jobs.iter().map(|path| job_name(path)).collect();
-            }
-
-            if paused || jobs.is_empty() {
+            if root.paused_marker().exists() || scan_jobs(&root).is_empty() {
                 thread::sleep(POLL);
                 continue;
             }
 
-            let Some(lock) = Lock::acquire() else {
+            let Some(lock) = Lock::acquire(&root) else {
                 thread::sleep(POLL);
                 continue;
             };
@@ -448,10 +343,10 @@ pub fn spawn(state: Arc<Mutex<State>>) {
             // Drain the folder before releasing the lock, so files that
             // arrive mid-run are still picked up (sequentially).
             loop {
-                if paused_marker().exists() {
+                if root.paused_marker().exists() {
                     break;
                 }
-                let Some(job) = scan_jobs().into_iter().next() else {
+                let Some(job) = scan_jobs(&root).into_iter().next() else {
                     break;
                 };
                 if !is_stable(&job) {
@@ -460,16 +355,12 @@ pub fn spawn(state: Arc<Mutex<State>>) {
                 }
                 // The target file may still be copying in even once the job
                 // file itself settled.
-                let target = jobs_dir().join(target_file(&job));
+                let target = root.path().join(target_file(&job));
                 if target.is_file() && !is_stable(&target) {
                     log(&format!("WAIT {} (target still uploading)", job_name(&job)));
                     break;
                 }
-                run_one(&job, &state);
-                if let Ok(mut state) = state.lock() {
-                    state.errors = unacknowledged_errors();
-                    state.queued = scan_jobs().iter().map(|path| job_name(path)).collect();
-                }
+                run_one(&root, &job, &lock);
             }
             drop(lock);
             thread::sleep(POLL);

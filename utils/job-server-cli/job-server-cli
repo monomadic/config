@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# job-runner — execute *.job shell scripts dropped into a watch folder.
+# job-server-cli — execute *.job shell scripts dropped into a watch folder.
 #
 # Triggered by a launchd WatchPaths LaunchAgent on $JOBS_DIR (see
-# setup/install/install-job-runner.sh, which installs this script to
+# setup/install/install-job-server-cli.sh, which installs this script to
 # ~/.local/bin). Only top-level *.job files are run; subdirectories and
 # non-.job files are ignored.
 #
@@ -29,8 +29,8 @@ RUNNING_DIR="$JOBS_DIR/_running"
 DONE_DIR="$JOBS_DIR/_done"
 ERR_DIR="$JOBS_DIR/_err"
 LOCK_DIR="$JOBS_DIR/.lock"
-LOG_FILE="${JOB_RUNNER_LOG:-$HOME/Library/Logs/job-runner.log}"
-SETTLE_SECS="${JOB_RUNNER_SETTLE:-2}"
+LOG_FILE="${JOB_SERVER_CLI_LOG:-$HOME/Library/Logs/job-server-cli.log}"
+SETTLE_SECS="${JOB_SERVER_CLI_SETTLE:-2}"
 
 mkdir -p "$JOBS_DIR" "$RUNNING_DIR" "$DONE_DIR" "$ERR_DIR" "$(dirname "$LOG_FILE")"
 
@@ -113,7 +113,7 @@ run_one() {
   #
   # Both streams go through lazy_write, so the exit status can't come from $?
   # (it would be the pipeline's) — the job's own status is stashed in $rcfile.
-  rcfile="$(mktemp -t job-runner)"
+  rcfile="$(mktemp -t job-server-cli)"
   {
     {
       (

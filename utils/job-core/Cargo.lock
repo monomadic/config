@@ -28,7 +28,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "job-folder"
+name = "job-core"
 version = "0.1.0"
 dependencies = [
  "block2",

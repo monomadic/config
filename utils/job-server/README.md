@@ -1,13 +1,25 @@
-# job-runner
+# job-server
 
-A drop-folder job queue for macOS. A launchd WatchPaths LaunchAgent watches
-`~/jobs`; drop a `NAME.job` shell script in and it runs — one at a time, first
-`*.job` alphabetically — with its artifacts filed away when it finishes.
+A drop-folder job queue for macOS, with a menu bar face. Drop a `NAME.job`
+shell script into `~/jobs` and it runs — one at a time, first `*.job`
+alphabetically — with everything it produced filed away when it finishes.
 
-Install: `setup/install/install-job-runner.sh` (copies this script to
-`~/.local/bin/job-runner`, creates `~/jobs` + `_running/` + `_done/` + `_err/`,
-and loads the
-`com.jayu.job-runner` agent). `setup/macos/server.sh` runs it automatically.
+This is the default runner. Three other pieces share the same folder:
+
+| | |
+|---|---|
+| [`job-server-cli`](../job-server-cli) | the same contract in bash, triggered by launchd instead of a resident process |
+| [`job-monitor`](../job-monitor) | watches this folder from another machine over SMB; runs nothing |
+| [`job-core`](../job-core) | the shared library — naming rules, the folder observer, the icon |
+
+Only one *runner* may be active per folder — `job-server` and `job-server-cli`
+share `$JOBS_DIR/.lock`, so nothing runs twice even if both are installed, but
+there is no reason to have both. Any number of monitors can watch.
+
+Install: `setup/install/install-job-server.sh` (builds to `~/.local/bin/job-server`,
+creates `~/jobs` + `_running/` + `_done/` + `_err/`, loads the resident
+`com.jayu.job-server` agent, and retires `job-server-cli` and the pre-rename
+`com.jayu.job-folder` / `com.jayu.job-runner` agents if they are installed).
 
 ## The contract (for anything that wants to queue work)
 
@@ -57,6 +69,26 @@ automatically), quotes the encoder log into the transcript when an encode
 fails, and reports failure through the exit status alone. Nothing in the
 `.job` file needs to say so; `--log` forces the same behaviour in a terminal.
 
+## The folder is the state
+
+The menu bar display reads nothing from the running process. Every poll
+re-derives what it shows from the folder itself, through `job_core`'s observer:
+top-level `*.job` is the queue, `_running/*` is what is running, `_done`/`_err`
+are the outcomes, `.paused` holds the queue, and `.lock`'s mtime is the
+runner's heartbeat.
+
+That is why restarting mid-job shows the job still running rather than an
+empty queue — and it is the whole reason a monitor on another machine can show
+the same thing without talking to this process at all.
+
+## Menu
+
+Running job and elapsed time, the queue, and the last few outcomes (click one
+to reveal its run folder in Finder). Below that: open the jobs folder, open
+`_err`, tail the running job's log, clear the error badge, and pause the queue.
+Pausing writes `.paused`; the runner finishes the job in flight and then stops
+claiming new ones.
+
 A one-line status trail for every job is appended to
-`~/Library/Logs/job-runner.log`. Yazi styles the job file states
+`~/Library/Logs/job-server.log`. Yazi styles the job artifacts
 (`config/yazi/theme.toml`).

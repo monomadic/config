@@ -22,7 +22,7 @@ no prompts, no mpv/kitty windows, and failures reported on stdout with the rest
 of the run. Partial outputs resume automatically, and only a failed encode
 makes the exit status non-zero. This turns on by itself when stdout is not a
 terminal or NO_COLOR / CLICOLOR=0 / TERM=dumb are set — which is exactly what
-job-runner does — so a NAME.job script needs nothing but the normal command.
+job-server does — so a NAME.job script needs nothing but the normal command.
 --no-log forces the interactive presentation back on.
 
 With --nice, runs the encoder through nice(1) at niceness N (default 19) so the
@@ -221,7 +221,7 @@ have() {
 # carriage-return redraws, no prompts — so a headless run reads as one
 # transcript. It turns on with --log, or automatically when the environment
 # says nobody is watching: stdout is not a tty, or NO_COLOR / CLICOLOR=0 /
-# TERM=dumb are set. job-runner sets all of those, so a .job script can just
+# TERM=dumb are set. job-server sets all of those, so a .job script can just
 # call topaz-encode normally.
 log_mode=false
 log_mode_explicit=false
@@ -260,7 +260,7 @@ say() {
 }
 
 # Failures. In log mode they go to stdout with the rest of the transcript
-# (job-runner already reports failure from the exit status, and a split stream
+# (job-server already reports failure from the exit status, and a split stream
 # would interleave badly); headline lines are tagged ERROR: so they grep out,
 # while indented continuation lines are left alone.
 say_err() {
@@ -1689,7 +1689,7 @@ done
 say_blank
 say "%F{white}%BSummary%b%f  %F{green}✓ $ok_count ok%f · %F{yellow}$skip_count skipped%f · %F{red}$fail_count failed%f${creation_date_fail_count:+ · }%F{8}dates failed: $creation_date_fail_count, trash failed: $trash_fail_count%f"
 
-# In log mode the exit status is the queue's success signal (job-runner files
+# In log mode the exit status is the queue's success signal (job-server files
 # the job under _done/ or _err/ by it), so only a failed encode counts as
 # failure — a missing SetFile or an undeletable original is a warning, not a
 # reason to bury a good encode in _err/.

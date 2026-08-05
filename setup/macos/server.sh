@@ -17,4 +17,4 @@ sudo systemsetup -setremotelogin on
 sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.smbd.plist
 
 # ~/jobs watch folder: launchd WatchPaths agent that runs uploaded *.job scripts
-"$SCRIPT_DIR/../install/install-job-runner.sh"
+"$SCRIPT_DIR/../install/install-job-server-cli.sh"

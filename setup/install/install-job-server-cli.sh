@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Install job-runner (utils/job-runner): copies the script to ~/.local/bin and
+# Install job-server-cli (utils/job-server-cli): copies the script to ~/.local/bin and
 # sets up its watch folder — a launchd WatchPaths LaunchAgent that runs the
 # handler whenever a file lands in ~/jobs. Drop a `*.job` shell script there
 # and it runs, one at a time, in a run folder under _running/ that then moves
@@ -13,13 +13,13 @@
 # -----------------------------
 # setup/macos/server.sh calls this installer near the end, right after the
 # SMB share that `send-job` ships jobs to. It installs the handler, creates
-# ~/jobs + _running/_done/_err, and loads the com.jayu.job-runner WatchPaths
+# ~/jobs + _running/_done/_err, and loads the com.jayu.job-server-cli WatchPaths
 # LaunchAgent. To install manually on any machine:
-#   setup/install/install-job-runner.sh
+#   setup/install/install-job-server-cli.sh
 #
 # Robustness notes:
 #   - Self-contained: resolves its own repo root and installs the handler from
-#     utils/job-runner/. No Dotter deploy needed first.
+#     utils/job-server-cli/. No Dotter deploy needed first.
 #   - Idempotent: boots out any existing agent before bootstrapping, so
 #     re-running is safe (and is how you pick up handler changes).
 #   - Run as your normal user, NOT under sudo -- this installs a per-user
@@ -27,13 +27,13 @@
 
 set -euo pipefail
 
-LABEL="${LABEL:-com.jayu.job-runner}"
+LABEL="${LABEL:-com.jayu.job-server-cli}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
 
 JOBS_DIR="${JOBS_DIR:-$HOME/jobs}"
-SOURCE="$DOTFILES_DIR/utils/job-runner/job-runner"
-HANDLER="${HANDLER:-$HOME/.local/bin/job-runner}"
+SOURCE="$DOTFILES_DIR/utils/job-server-cli/job-server-cli"
+HANDLER="${HANDLER:-$HOME/.local/bin/job-server-cli}"
 
 LAUNCH_AGENTS_DIR="${LAUNCH_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
 LOG_DIR="${LOG_DIR:-$HOME/Library/Logs}"
@@ -61,8 +61,8 @@ write_launch_agent() {
 
   esc_handler="$(plist_escape "$handler_path")"
   esc_watch="$(plist_escape "$watch_path")"
-  esc_out="$(plist_escape "$LOG_DIR/job-runner.out.log")"
-  esc_err="$(plist_escape "$LOG_DIR/job-runner.err.log")"
+  esc_out="$(plist_escape "$LOG_DIR/job-server-cli.out.log")"
+  esc_err="$(plist_escape "$LOG_DIR/job-server-cli.err.log")"
 
   cat >"$plist_path" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -100,6 +100,11 @@ bootstrap_launch_agent() {
   launchctl bootout "$gui_domain" "$plist_path" >/dev/null 2>&1 || true
   launchctl bootout "$gui_domain/$LABEL" >/dev/null 2>&1 || true
 
+  # Pre-rename installation: retire com.jayu.job-runner and its handler, or a
+  # machine set up before the rename runs the queue under both labels.
+  launchctl bootout "$gui_domain/com.jayu.job-runner" >/dev/null 2>&1 || true
+  rm -f "$LAUNCH_AGENTS_DIR/com.jayu.job-runner.plist" "$HOME/.local/bin/job-runner"
+
   echo "Loading LaunchAgent..."
   launchctl bootstrap "$gui_domain" "$plist_path"
   launchctl enable "$gui_domain/$LABEL"
@@ -135,7 +140,7 @@ main() {
   echo "Installed $LABEL."
   echo "  Handler:      $HANDLER"
   echo "  Watch folder: $JOBS_DIR"
-  echo "  Logs:         $LOG_DIR/job-runner.log (+ .out/.err)"
+  echo "  Logs:         $LOG_DIR/job-server-cli.log (+ .out/.err)"
   echo
   echo "Drop a *.job shell script into $JOBS_DIR to run it."
   echo "  running -> _running/<date>-NAME/   ok -> _done/<date>-NAME/   fail -> _err/<date>-NAME/"

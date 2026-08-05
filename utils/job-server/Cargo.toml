@@ -1,9 +1,10 @@
 [package]
-name = "job-folder"
+name = "job-server"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+job-core = { path = "../job-core" }
 block2 = "0.6.2"
 objc2 = "0.6.4"
 objc2-app-kit = { version = "0.3.2", features = ["NSApplication", "NSStatusBar", "NSStatusItem", "NSMenu", "NSMenuItem", "NSImage", "NSBezierPath", "NSColor", "NSCell", "NSButton", "NSControl", "NSResponder", "NSView", "NSGraphics", "block2"] }
