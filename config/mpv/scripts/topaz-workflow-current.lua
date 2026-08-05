@@ -2610,7 +2610,7 @@ local function write_job_file(plan, dir)
             job_argv[i] = a
         end
     end
-    -- $HOME and $JOB_NAME must survive quoting, so those args are rewritten
+    -- $HOME and $TARGET_FILE must survive quoting, so those args are rewritten
     -- after the argv is shell-quoted.
     local command = shell_command(job_argv)
         :gsub("^'%$HOME/(.-)'", '"$HOME"/%1', 1)
