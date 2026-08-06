@@ -1,0 +1,37 @@
+# The jobs toolchain: a drop-folder job queue, its menu bar face, and a
+# read-only viewer for watching one over the network.
+#
+# One workspace rather than one crate, deliberately. job-monitor does not
+# depend on job-daemon, so the runner is not linked into the UI at all — a
+# binary with no job loop in it cannot claim a job however it is launched, and
+# it doesn't need to: every command is a folder move. A workspace keeps that
+# boundary while sharing one lockfile, one target directory and one set of
+# pinned objc2 versions.
+#
+# The objc2 family has to agree across members: job-core hands NSImage and
+# NSView across the crate boundary, so a version skew would be a type error
+# rather than a warning. Pinning them here is what makes that structural.
+
+[workspace]
+resolver = "3"
+members = ["job-core", "job-daemon", "job-monitor"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+job-core = { path = "job-core" }
+job-daemon = { path = "job-daemon" }
+block2 = "0.6.2"
+libc = "0.2"
+objc2 = "0.6.4"
+objc2-app-kit = "0.3.2"
+objc2-foundation = "0.3.2"
+objc2-user-notifications = "0.3.2"
+
+# Profiles are workspace-root only; a [profile] in a member is ignored.
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true

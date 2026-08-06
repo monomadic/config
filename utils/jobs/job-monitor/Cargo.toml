@@ -1,0 +1,12 @@
+[package]
+name = "job-monitor"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+job-core.workspace = true
+block2.workspace = true
+objc2.workspace = true
+objc2-app-kit = { workspace = true, features = ["NSApplication", "NSStatusBar", "NSStatusItem", "NSMenu", "NSMenuItem", "NSImage", "NSBezierPath", "NSColor", "NSCell", "NSButton", "NSControl", "NSResponder", "NSView", "NSGraphics", "NSWorkspace", "block2"] }
+objc2-foundation = { workspace = true, features = ["NSString", "NSTimer", "NSObject", "NSGeometry", "NSDate", "NSDateFormatter", "NSThread", "NSError", "NSBundle", "NSArray", "NSDictionary"] }
+objc2-user-notifications = { workspace = true, features = ["UNUserNotificationCenter", "UNNotificationRequest", "UNNotificationContent", "UNNotificationTrigger", "UNNotificationSound", "block2"] }

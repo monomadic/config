@@ -1,5 +1,5 @@
-//! Local-time formatting via Foundation, so the log trail matches the shell
-//! job-server-cli's timestamps without pulling in a date crate.
+//! Local-time formatting via Foundation, so run folders and the status trail
+//! stamp alike, without pulling in a date crate.
 
 use objc2_foundation::{NSDate, NSDateFormatter, NSString};
 

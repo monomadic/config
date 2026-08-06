@@ -1,0 +1,11 @@
+[package]
+name = "job-core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+block2.workspace = true
+libc.workspace = true
+objc2.workspace = true
+objc2-app-kit = { workspace = true, features = ["NSImage", "NSBezierPath", "NSColor", "NSGraphics", "NSFont", "NSView", "NSResponder", "NSEvent", "NSTrackingArea", "NSMenu", "NSMenuItem", "NSStringDrawing", "NSAttributedString", "NSCell", "NSBitmapImageRep", "NSAffineTransform", "NSImageRep", "NSGraphicsContext", "NSAppearance", "NSApplication", "block2"] }
+objc2-foundation = { workspace = true, features = ["NSString", "NSObject", "NSGeometry", "NSDate", "NSDateFormatter", "NSDictionary", "NSAffineTransform", "NSAttributedString", "NSValue", "NSThread"] }

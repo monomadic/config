@@ -58,7 +58,7 @@ plus `zsh -n` / `bash -n` on any shell script you touched.
 `utils/<tool>/` holds tool source (Rust: the AppKit menu bar widgets — `battery-widget`,
 `cpu-usage-widget`, `free-disk-space-widget`, `menu-tidy` — plus `leaf`, `pimped`,
 `motherfucker`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
-`system-uptime-widget`; bash: `job-server-cli`). These are the only parts of the repo with a
+`system-uptime-widget`). These are the only parts of the repo with a
 build/install step and tests — Dotter does not touch them.
 
 New menu bar widgets go in Rust, against `objc2` directly — `battery-widget` and
@@ -80,24 +80,34 @@ Installers are named `setup/install/install-<name>.sh` — follow that for new o
 (e.g. `pimped` must be on PATH for the zsh precmd prompt hook in
 `config/zsh/zshrc.zsh` to work).
 
-**The job server** is infrastructure other tools can build on: a `~/jobs` drop
-folder where any `TARGET.job` shell script runs (queued, one at a time) inside its
-own `_running/<date>-<name>/` folder with `$TARGET_FILE` (the filename minus
-`.job`) moved in beside it. Anything that needs "run this later /
-on the server" should write a `.job` file (or ship one with `send-job`) instead of
-inventing its own daemon. Contract details: `utils/job-server/README.md`.
+**The jobs queue** is infrastructure other tools can build on: drop a
+`TARGET.job` shell script into `~/jobs` and it runs. Anything that needs "run
+this later / on the server" should write a `.job` file (or ship one with
+`send-job`) instead of inventing its own daemon.
 
-Four pieces share that one on-disk contract, so the folder itself is the API:
+**A job is a folder, and the folder it sits in is its state** — `_ready`,
+`_running`, `_paused`, `_ok`, `_failed`. There is no lock file, no pause flag
+and no status protocol, which means moving a folder is also how the queue is
+*commanded*: drag a running job to `_paused` and the runner stops its process
+group, drag it back and it resumes, drag it to `_failed` and it is terminated.
+That works from Finder or from another machine over SMB, and the filesystem's
+own permissions are the access control. Contract details:
+`utils/jobs/job-daemon/README.md`.
+
+`utils/jobs/` is a cargo workspace — the one nested directory under `utils/`,
+because these three crates share a lockfile, a target dir and pinned objc2
+versions, and because `job-monitor` must *not* depend on the job loop:
 
 | | |
 |---|---|
-| `utils/job-server` | the runner with a menu bar face; resident LaunchAgent, the default |
-| `utils/job-server-cli` | the same contract in bash, driven by a launchd WatchPaths trigger instead of a resident process |
-| `utils/job-monitor` | read-only viewer for a jobs folder mounted over SMB; a normal `.app` you launch and quit, never runs jobs |
-| `utils/job-core` | the shared library — the model, the filesystem observer both GUIs render, and the menu bar icon |
+| `utils/jobs/job-daemon` | the only thing that runs jobs. `--once` under a launchd WatchPaths trigger, or resident |
+| `utils/jobs/job-monitor` | the menu bar UI, for the local queue and for folders mounted over SMB. A normal `.app` you launch and quit; links no runner, but commands the queue by moving folders |
+| `utils/jobs/job-core` | the shared library — the model, the filesystem observer, the rows and the icon |
 
-Only one *runner* may be active per folder (`job-server` or `job-server-cli`, never
-both — they share the `.lock`); any number of monitors can watch it.
+The UI is a client, never a runner: a crate with no job loop linked into it
+cannot claim a job however it is launched, and it doesn't need to, because
+every command is a folder move. Any number of UIs can watch one queue, locally
+or across the LAN.
 
 ## Recipe: add config for a new tool
 

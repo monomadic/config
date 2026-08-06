@@ -1,11 +1,15 @@
 //! job-monitor — a read-only menu bar view of one or more jobs folders,
 //! normally mounted from another machine over SMB.
 //!
-//! It is deliberately a separate app from `job-server` rather than a flag on
-//! it. Two machines running the job loop against the same share would fight
-//! over the lock, and a flag is one typo away from that; a binary with no
-//! runner in it cannot claim a job however it is launched. The only thing it
-//! ever writes to the share is the `.paused` marker, and only when asked.
+//! It is deliberately a separate crate from the runner rather than a flag on
+//! it: a binary with no job loop linked into it cannot claim a job however it
+//! is launched, which is what makes watching someone else's folder safe.
+//!
+//! It is not, however, read-only. Every command in this system is a folder
+//! move — pause, resume, stop, requeue — so the row buttons work here exactly
+//! as they do locally, over SMB, with no protocol and no listening port. The
+//! runner at the other end is watching its own folders and does the
+//! signalling; this app only ever renames.
 //!
 //! Everything it shows comes from `job_core`'s observer, so a folder watched
 //! from across the LAN reads exactly the way it does on the machine running it.
@@ -22,7 +26,8 @@ use std::thread;
 use std::time::Duration;
 
 use job_core::icon;
-use job_core::observe::{Observer, Root, Snapshot};
+use job_core::observe::{Observer, Root, Snapshot, State};
+use job_core::row;
 use notify::Notifier;
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
@@ -48,9 +53,6 @@ const POLL_IDLE: Duration = Duration::from_secs(8);
 /// mount gives up.
 const POLL_OFFLINE: Duration = Duration::from_secs(15);
 
-/// Menu item tags pack the root index and the item index into one integer,
-/// which is all an NSMenuItem carries.
-const TAG_STRIDE: isize = 1000;
 
 struct RootView {
     root: Root,
@@ -88,7 +90,7 @@ define_class!(
         #[unsafe(method(openFailed:))]
         fn open_failed(&self, sender: &NSMenuItem) {
             if let Some(root) = self.root_at(sender.tag()) {
-                open(&root.err());
+                open(&root.failed());
             }
         }
 
@@ -98,7 +100,7 @@ define_class!(
             let path = self.with_views(|views| {
                 views
                     .get(index)
-                    .and_then(|view| view.snapshot.running.first())
+                    .and_then(|view| view.snapshot.running().next())
                     .and_then(|job| job.log_path())
             });
             if let Some(path) = path {
@@ -106,42 +108,6 @@ define_class!(
             }
         }
 
-        #[unsafe(method(revealRecent:))]
-        fn reveal_recent(&self, sender: &NSMenuItem) {
-            let (root_index, item) = unpack(sender.tag());
-            let path = self.with_views(|views| {
-                views
-                    .get(root_index)
-                    .and_then(|view| view.snapshot.recent.get(item))
-                    .map(|outcome| outcome.dir.clone())
-            });
-            if let Some(path) = path {
-                reveal(&path);
-            }
-        }
-
-        // The one thing this app writes to somebody else's share, and only
-        // when explicitly asked: the runner over there honours the marker.
-        #[unsafe(method(togglePause:))]
-        fn toggle_pause(&self, sender: &NSMenuItem) {
-            let index = sender.tag() as usize;
-            let target = self.with_views(|views| {
-                views
-                    .get(index)
-                    .map(|view| (view.root.paused_marker(), view.snapshot.paused))
-            });
-            let Some((marker, paused)) = target else {
-                return;
-            };
-            let result = if paused {
-                fs::remove_file(&marker)
-            } else {
-                fs::write(&marker, "")
-            };
-            if result.is_err() {
-                eprintln!("job-monitor: could not update {}", marker.display());
-            }
-        }
 
         #[unsafe(method(clearErrors:))]
         fn clear_errors(&self, _sender: &NSMenuItem) {
@@ -227,11 +193,16 @@ impl Widget {
         let (running, queued, errors, connected) = {
             let Ok(views) = ui.views.lock() else { return };
             (
-                views.iter().any(|view| !view.snapshot.running.is_empty()),
-                views.iter().map(|view| view.snapshot.queued.len()).sum(),
+                views.iter().any(|view| view.snapshot.running().next().is_some()),
                 views
                     .iter()
-                    .any(|view| view.snapshot.errors > 0 || view.snapshot.stalled),
+                    .map(|view| {
+                        view.snapshot.in_state(State::Ready).count() + view.snapshot.inbox.len()
+                    })
+                    .sum(),
+                views
+                    .iter()
+                    .any(|view| view.snapshot.errors > 0 || view.snapshot.stalled()),
                 views.iter().any(|view| view.snapshot.connected),
             )
         };
@@ -302,50 +273,24 @@ impl Widget {
                 continue;
             }
 
-            match (view.snapshot.running.first(), view.snapshot.paused) {
-                (Some(job), _) => {
-                    let label = match job.elapsed() {
-                        Some(elapsed) => format!("Running: {} — {}", job.name, duration(elapsed)),
-                        None => format!("Running: {}", job.name),
-                    };
-                    info(label);
-                    if view.snapshot.stalled {
-                        info("    ⚠ runner not responding".to_string());
+            let sections = row::sections(&view.snapshot, MAX_QUEUE_LISTED, MAX_RECENT_LISTED);
+            if sections.is_empty() {
+                info("Idle".to_string());
+            } else {
+                let layout = row::layout(sections.iter().flat_map(|section| section.rows.iter()));
+                for section in &sections {
+                    if let Some(label) = section.label.as_ref() {
+                        info(label.clone());
+                    }
+                    for spec in &section.rows {
+                        let item = NSMenuItem::new(mtm);
+                        item.setEnabled(true);
+                        item.setView(Some(&row::JobRow::new(spec.clone(), &layout, mtm)));
+                        menu.addItem(&item);
                     }
                 }
-                (None, true) => info("Paused".to_string()),
-                (None, false) => info("Idle".to_string()),
-            }
-
-            if !view.snapshot.queued.is_empty() {
-                info(format!("Queued: {}", view.snapshot.queued.len()));
-                for name in view.snapshot.queued.iter().take(MAX_QUEUE_LISTED) {
-                    info(format!("    {name}"));
-                }
-                if view.snapshot.queued.len() > MAX_QUEUE_LISTED {
-                    info(format!(
-                        "    … {} more",
-                        view.snapshot.queued.len() - MAX_QUEUE_LISTED
-                    ));
-                }
-            }
-
-            if !view.snapshot.recent.is_empty() {
-                info("Recent".to_string());
-                for (item, outcome) in view
-                    .snapshot
-                    .recent
-                    .iter()
-                    .take(MAX_RECENT_LISTED)
-                    .enumerate()
-                {
-                    let mark = if outcome.ok { "✓" } else { "✗" };
-                    action(
-                        format!("{mark}  {} · {} ago", outcome.name, ago(outcome.ago())),
-                        sel!(revealRecent:),
-                        true,
-                        pack(index, item),
-                    );
+                if view.snapshot.stalled() {
+                    info("⚠ a job in _running is not running".to_string());
                 }
             }
 
@@ -353,8 +298,8 @@ impl Widget {
             action("Open failed jobs".to_string(), sel!(openFailed:), true, tag);
             let has_log = view
                 .snapshot
-                .running
-                .first()
+                .running()
+                .next()
                 .is_some_and(|job| job.log_path().is_some());
             action(
                 "View running job log".to_string(),
@@ -362,12 +307,6 @@ impl Widget {
                 has_log,
                 tag,
             );
-            let pause = action("Pause queue".to_string(), sel!(togglePause:), true, tag);
-            pause.setState(if view.snapshot.paused {
-                NSControlStateValueOn
-            } else {
-                NSControlStateValueOff
-            });
         }
 
         let errors = views.iter().any(|view| view.snapshot.errors > 0);
@@ -399,40 +338,10 @@ impl Widget {
     }
 }
 
-fn pack(root: usize, item: usize) -> isize {
-    root as isize * TAG_STRIDE + item as isize
-}
 
-fn unpack(tag: isize) -> (usize, usize) {
-    ((tag / TAG_STRIDE) as usize, (tag % TAG_STRIDE) as usize)
-}
-
-/// `4:07` under an hour, `1:04:07` beyond it.
-fn duration(duration: Duration) -> String {
-    let total = duration.as_secs();
-    let (hours, minutes, seconds) = (total / 3600, (total % 3600) / 60, total % 60);
-    if hours > 0 {
-        format!("{hours}:{minutes:02}:{seconds:02}")
-    } else {
-        format!("{minutes}:{seconds:02}")
-    }
-}
-
-fn ago(duration: Duration) -> String {
-    let total = duration.as_secs();
-    match total {
-        0..=59 => "just now".to_string(),
-        60..=3599 => format!("{}m", total / 60),
-        _ => format!("{}h", total / 3600),
-    }
-}
 
 fn open(path: &std::path::Path) {
     let _ = Command::new("open").arg(path).spawn();
-}
-
-fn reveal(path: &std::path::Path) {
-    let _ = Command::new("open").arg("-R").arg(path).spawn();
 }
 
 /// Acknowledgement and mute live on *this* machine. Nothing about how one
@@ -506,7 +415,7 @@ fn spawn_poller(
                 baseline = false;
                 last_finished = newest;
                 was_connected = snapshot.connected;
-                was_stalled = snapshot.stalled;
+                was_stalled = snapshot.stalled();
             } else if !muted.load(Ordering::Relaxed) {
                 if snapshot.connected != was_connected {
                     if snapshot.connected {
@@ -528,12 +437,12 @@ fn spawn_poller(
                         };
                         notifier.post(title, &body);
                     }
-                    if snapshot.stalled && !was_stalled {
-                        notifier.post(&label, "Runner is not responding");
+                    if snapshot.stalled() && !was_stalled {
+                        notifier.post(&label, "A job stopped running");
                     }
                 }
                 was_connected = snapshot.connected;
-                was_stalled = snapshot.stalled;
+                was_stalled = snapshot.stalled();
             }
             if newest > last_finished {
                 last_finished = newest;

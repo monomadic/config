@@ -1,0 +1,8 @@
+[package]
+name = "job-daemon"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+job-core.workspace = true
+libc.workspace = true

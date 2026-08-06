@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # send-job
-# Drop media files plus a *.job script into the `jobs` folder, where job-server
-# (utils/job-server, a launchd WatchPaths agent) picks the job up and runs it.
+# Drop media files plus a *.job script into the `jobs` folder, where the jobs
+# queue (utils/jobs) picks the job up and runs it.
 #
 #   send-job <files...> <job_file> [--dir=/Volumes/jobs]
 #
@@ -38,10 +38,10 @@ Options:
   --force            Re-copy files that already exist with a matching size
   -h, --help         Show help
 
-The last positional is the job script; the rest are its data files. job-server
-runs the job cd'd into its own run folder, into which it moves the job file
-and the file it is named after — so \$TARGET_FILE (NAME.job => NAME) is
-referenced by bare filename, and any *other* data file by "\$JOB_DIR/name".
+The last positional is the job script; the rest are its data files. The queue
+stages each job into its own folder, moving in the job file and the file it is
+named after — so \$TARGET_FILE (NAME.job => NAME) is referenced by bare
+filename, and any *other* data file by "\$JOB_DIR/name".
 
 Examples:
   $script_name clip.mp4 clip.mp4.job

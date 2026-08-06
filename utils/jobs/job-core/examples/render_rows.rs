@@ -1,0 +1,225 @@
+//! Render a menu's worth of job rows to a PNG, for looking at the design
+//! without waiting for a real job to run.
+//!
+//! ```bash
+//! cargo run --example render_rows -- /tmp/rows.png [light|dark]
+//! ```
+//!
+//! It draws the rows exactly as the menu does — same views, same layout, same
+//! fonts — into an offscreen bitmap, so what comes out is what a menu bar
+//! would show.
+
+use std::path::PathBuf;
+use std::time::{Duration, SystemTime};
+
+use job_core::observe::{Outcome, Run, Snapshot, State};
+use job_core::row::{self, JobRow};
+use objc2::{AnyThread, MainThreadMarker};
+use objc2::rc::Retained;
+use objc2::runtime::{AnyObject, ProtocolObject};
+use objc2_app_kit::{
+    NSAffineTransformNSAppKitAdditions, NSAppearanceCustomization, NSFont, NSFontAttributeName,
+    NSForegroundColorAttributeName, NSStringDrawing,
+    NSAppearance, NSAppearanceNameDarkAqua, NSAppearanceNameAqua, NSBitmapImageFileType,
+    NSBitmapImageRep, NSColor, NSDeviceRGBColorSpace, NSGraphicsContext,
+};
+use objc2_foundation::{
+    NSAffineTransform, NSDictionary, NSMutableDictionary, NSPoint, NSRect, NSSize, NSString,
+};
+
+fn ago(seconds: u64) -> SystemTime {
+    SystemTime::now() - Duration::from_secs(seconds)
+}
+
+/// A folder mid-encode: one job running with progress, a queue behind it, and
+/// both kinds of outcome above.
+fn sample(quiet: bool) -> Snapshot {
+    let queued = |name: &str, at: u64| Run {
+        name: name.to_string(),
+        dir: PathBuf::from(format!("/Volumes/Jobs/_ready/2026-{name}")),
+        state: State::Ready,
+        started: Some(ago(at)),
+        last_line: None,
+        last_output: None,
+        progress: None,
+        status: None,
+        local: false,
+    };
+    Snapshot {
+        root: Some(job_core::observe::Root::new("/Volumes/Jobs")),
+        connected: true,
+        inbox: Vec::new(),
+        jobs: vec![Run {
+            name: "my night collection".to_string(),
+            dir: PathBuf::from("/Volumes/Jobs/_running/20260806-041500-my night collection"),
+            state: State::Running,
+            status: None,
+            local: false,
+            started: Some(ago(5883)),
+            last_line: Some(if quiet {
+                "encoding pass 2 of 2".to_string()
+            } else {
+                "45% · frame 64512 · 18.2 fps · eta 1:52:10".to_string()
+            }),
+            last_output: Some(if quiet { ago(2460) } else { ago(3) }),
+            progress: if quiet { None } else { Some(0.45) },
+        },
+        queued("silvialia dawn set", 400),
+        queued("beach walk 4k", 300),
+        queued("interview b roll", 200)],
+        recent: vec![
+            Outcome {
+                name: "pov gorgeous 1080p h264".to_string(),
+                dir: PathBuf::from("/Volumes/Jobs/_ok/20260805-093000-pov"),
+                ok: true,
+                finished: epoch(ago(86400)),
+                started: Some(ago(86400 + 1320)),
+            },
+            Outcome {
+                name: "broken clip".to_string(),
+                dir: PathBuf::from("/Volumes/Jobs/_failed/20260805-101500-broken"),
+                ok: false,
+                finished: epoch(ago(7200)),
+                started: Some(ago(7200 + 240)),
+            },
+        ],
+        errors: 1,
+    }
+}
+
+fn epoch(time: SystemTime) -> i64 {
+    time.duration_since(SystemTime::UNIX_EPOCH)
+        .map(|since| since.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+fn main() {
+    let mtm = MainThreadMarker::new().expect("must run on the main thread");
+    let mut args = std::env::args().skip(1);
+    let out = args.next().unwrap_or_else(|| "/tmp/rows.png".to_string());
+    let dark = args.next().map(|mode| mode == "dark").unwrap_or(true);
+    let quiet = args.next().map(|mode| mode == "quiet").unwrap_or(false);
+
+    // Set on the views, not globally: label and system colours resolve
+    // against the drawing view's effective appearance, which is exactly how
+    // they resolve inside a real menu.
+    let appearance = NSAppearance::appearanceNamed(unsafe {
+        if dark {
+            NSAppearanceNameDarkAqua
+        } else {
+            NSAppearanceNameAqua
+        }
+    });
+
+    let sections = row::sections(&sample(quiet), 5, 5);
+    let layout = row::layout(sections.iter().flat_map(|section| section.rows.iter()));
+    let pad = 10.0;
+    let header_font = NSFont::menuFontOfSize(0.0);
+    let header_height = (header_font.pointSize() * 1.9).round();
+
+    // Interleave the section headers with the rows, the way the menu does:
+    // headers are ordinary menu items, only the job rows are custom views.
+    let mut items: Vec<(Option<Retained<JobRow>>, String, f64)> = Vec::new();
+    for section in &sections {
+        if let Some(label) = section.label.as_ref() {
+            items.push((None, label.clone(), header_height));
+        }
+        for spec in &section.rows {
+            let view = JobRow::new(spec.clone(), &layout, mtm);
+            view.setAppearance(appearance.as_deref());
+            items.push((Some(view), String::new(), layout.height()));
+        }
+    }
+
+    let total: f64 = items.iter().map(|(_, _, height)| height).sum();
+    let canvas = NSSize {
+        width: layout.width() + pad * 2.0,
+        height: total + pad * 2.0,
+    };
+
+    let Some(bitmap) = (unsafe { NSBitmapImageRep::initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel(
+        NSBitmapImageRep::alloc(),
+        std::ptr::null_mut(),
+        (canvas.width * 2.0) as isize,
+        (canvas.height * 2.0) as isize,
+        8,
+        4,
+        true,
+        false,
+        NSDeviceRGBColorSpace,
+        0,
+        0,
+    ) }) else {
+        eprintln!("could not allocate the bitmap");
+        return;
+    };
+    bitmap.setSize(canvas);
+
+    let Some(context) = NSGraphicsContext::graphicsContextWithBitmapImageRep(&bitmap) else {
+        eprintln!("could not make a context");
+        return;
+    };
+    NSGraphicsContext::saveGraphicsState_class();
+    NSGraphicsContext::setCurrentContext(Some(&context));
+
+    // Stand-in for the menu's own material, so contrast reads honestly.
+    let backdrop = if dark {
+        NSColor::colorWithSRGBRed_green_blue_alpha(0.16, 0.16, 0.17, 1.0)
+    } else {
+        NSColor::colorWithSRGBRed_green_blue_alpha(0.96, 0.96, 0.97, 1.0)
+    };
+    backdrop.set();
+    objc2_app_kit::NSRectFill(NSRect {
+        origin: NSPoint { x: 0.0, y: 0.0 },
+        size: canvas,
+    });
+
+    // Each row draws in its own coordinate space, so the context is walked
+    // down the canvas between them rather than the frames being moved.
+    let mut y = canvas.height - pad;
+    for (view, label, height) in &items {
+        y -= height;
+        match view {
+            Some(view) => {
+                NSGraphicsContext::saveGraphicsState_class();
+                let shift = NSAffineTransform::transform();
+                shift.translateXBy_yBy(pad, y);
+                shift.concat();
+                view.displayRectIgnoringOpacity_inContext(view.bounds(), &context);
+                NSGraphicsContext::restoreGraphicsState_class();
+            }
+            None => {
+                let attrs = NSMutableDictionary::<NSString, AnyObject>::new();
+                unsafe {
+                    attrs.setObject_forKey(
+                        &*header_font,
+                        ProtocolObject::from_ref(NSFontAttributeName),
+                    );
+                    attrs.setObject_forKey(
+                        &*NSColor::secondaryLabelColor(),
+                        ProtocolObject::from_ref(NSForegroundColorAttributeName),
+                    );
+                    NSString::from_str(label).drawAtPoint_withAttributes(
+                        NSPoint {
+                            x: pad + header_font.pointSize() * 1.2,
+                            y: y + header_font.pointSize() * 0.45,
+                        },
+                        Some(&attrs),
+                    );
+                }
+            }
+        }
+    }
+
+    NSGraphicsContext::restoreGraphicsState_class();
+
+    let Some(data) = (unsafe {
+        bitmap.representationUsingType_properties(NSBitmapImageFileType::PNG, &NSDictionary::new())
+    }) else {
+        eprintln!("could not encode the png");
+        return;
+    };
+    let bytes = data.to_vec();
+    std::fs::write(&out, bytes).expect("write png");
+    println!("wrote {out}");
+}

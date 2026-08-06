@@ -1,7 +1,7 @@
 //! free-disk-space-widget — free space on the startup disk, in the menu bar.
 //!
 //! Rust talking to AppKit directly via [objc2](https://github.com/madsmtm/objc2),
-//! in the same family as `battery-widget`, `job-server` and `menu-tidy`: no
+//! in the same family as `battery-widget`, `job-monitor` and `menu-tidy`: no
 //! wrapper library, no vendored fork, no `.app` bundle. The dropdown is a real
 //! `NSMenu` assigned to the status item, rebuilt from the mount table each time
 //! it opens, so the volume list is never stale.

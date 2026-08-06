@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Build and install job-monitor (utils/job-monitor): a read-only menu bar view
-# of one or more jobs folders, normally mounted from another machine.
+# Build and install job-monitor (utils/jobs/job-monitor): the menu bar view of
+# one or more jobs folders — the local one, folders mounted from other
+# machines, or both.
 #
 # Unlike the other menu bar tools in this repo, this one installs as a real
 # .app bundle in ~/Applications and loads NO LaunchAgent. Two reasons:
@@ -11,7 +12,12 @@
 #      detects that and turns notifications off rather than crashing, which is
 #      useful for `cargo run` but not what you want installed.
 #   2. It is a thing you open when you care and quit when you don't, not a
-#      service. That is the whole reason it is a separate app from job-server.
+#      service. The queue itself is job-daemon's job, and it keeps running
+#      whether or not anything is watching.
+#
+# It runs no jobs and never will: the crate does not depend on job-daemon, so
+# there is no job loop linked into it. It still commands the queue — pause,
+# resume, stop, hold — because every command is a folder move.
 #
 # The bundle is generated here, never checked in (the repo holds no .app
 # bundles). Re-running rebuilds and replaces it in place.
@@ -19,25 +25,31 @@
 # Watched folders, in order of precedence:
 #   $JOB_MONITOR_ROOTS         colon-separated, for a one-off run
 #   ~/.config/job-monitor/roots  one path per line, '#' comments
-#   /Volumes/Jobs              the default
+#   ~/jobs and /Volumes/Jobs   whichever of the two exists
 #
-# This installer seeds that roots file with $MONITOR_ROOT (default
-# /Volumes/Jobs) if it does not exist yet, and never overwrites it.
+# This installer seeds that roots file if it does not exist yet, and never
+# overwrites it: $MONITOR_ROOT (default /Volumes/Jobs), plus the local ~/jobs
+# when there is one, so a render machine watches its own queue out of the box.
 #
 # Run as your normal user, NOT under sudo.
 
 set -euo pipefail
 
-APP_NAME="${APP_NAME:-Job Monitor}"
-BUNDLE_ID="${BUNDLE_ID:-com.jayu.job-monitor}"
+APP_NAME="${MONITOR_APP_NAME:-Job Monitor}"
+BUNDLE_ID="${MONITOR_BUNDLE_ID:-com.jayu.job-monitor}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
 
-SOURCE_DIR="$DOTFILES_DIR/utils/job-monitor"
-APPS_DIR="${APPS_DIR:-$HOME/Applications}"
+WORKSPACE="$DOTFILES_DIR/utils/jobs"
+APPS_DIR="${MONITOR_APPS_DIR:-$HOME/Applications}"
 APP_BUNDLE="$APPS_DIR/$APP_NAME.app"
-CONFIG_DIR="${CONFIG_DIR:-$HOME/.config/job-monitor}"
+# Namespaced on purpose: a bare CONFIG_DIR is a common shell export, and
+# ${CONFIG_DIR:-...} loses to an inherited one — which silently put this
+# app's roots file in ~/.config/roots and left it watching a folder that
+# does not exist on the machine running the queue.
+MONITOR_CONFIG_DIR="${MONITOR_CONFIG_DIR:-$HOME/.config/job-monitor}"
 MONITOR_ROOT="${MONITOR_ROOT:-/Volumes/Jobs}"
+LOCAL_JOBS="${JOBS_DIR:-$HOME/jobs}"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -86,13 +98,13 @@ main() {
   require_command plutil
   require_command codesign
 
-  if [[ ! -d "$SOURCE_DIR" ]]; then
-    echo "Error: source not found: $SOURCE_DIR" >&2
+  if [[ ! -d "$WORKSPACE" ]]; then
+    echo "Error: workspace not found: $WORKSPACE" >&2
     exit 1
   fi
 
   echo "Building job-monitor (release) ..."
-  (cd "$SOURCE_DIR" && cargo build --release)
+  (cd "$WORKSPACE" && cargo build --release --bin job-monitor)
 
   # Quit a running copy first: replacing the executable underneath a live
   # process leaves the old one in the menu bar, watching stale code.
@@ -105,7 +117,7 @@ main() {
   echo "Assembling $APP_BUNDLE ..."
   rm -rf "$APP_BUNDLE"
   mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
-  install -m 755 "$SOURCE_DIR/target/release/job-monitor" \
+  install -m 755 "$WORKSPACE/target/release/job-monitor" \
     "$APP_BUNDLE/Contents/MacOS/job-monitor"
   write_info_plist "$APP_BUNDLE/Contents/Info.plist"
   plutil -lint "$APP_BUNDLE/Contents/Info.plist" >/dev/null
@@ -115,23 +127,27 @@ main() {
   echo "Signing (ad-hoc) ..."
   codesign --force --sign - --identifier "$BUNDLE_ID" "$APP_BUNDLE"
 
-  if [[ ! -f "$CONFIG_DIR/roots" ]]; then
-    echo "Seeding $CONFIG_DIR/roots with $MONITOR_ROOT ..."
-    mkdir -p "$CONFIG_DIR"
-    cat >"$CONFIG_DIR/roots" <<EOF
+  if [[ ! -f "$MONITOR_CONFIG_DIR/roots" ]]; then
+    echo "Seeding $MONITOR_CONFIG_DIR/roots ..."
+    mkdir -p "$MONITOR_CONFIG_DIR"
+    cat >"$MONITOR_CONFIG_DIR/roots" <<EOF
 # Jobs folders for job-monitor to watch — one path per line.
 # Mount the share however you like; nothing here knows about hostnames.
 $MONITOR_ROOT
 EOF
+    # On the machine that actually runs the queue, watch it as well.
+    if [[ -d "$LOCAL_JOBS" && "$LOCAL_JOBS" != "$MONITOR_ROOT" ]]; then
+      echo "$LOCAL_JOBS" >>"$MONITOR_CONFIG_DIR/roots"
+    fi
   fi
 
   echo
   echo "Installed $APP_NAME."
   echo "  Bundle:  $APP_BUNDLE"
-  echo "  Watching: $(grep -v '^#' "$CONFIG_DIR/roots" | grep -v '^$' | tr '\n' ' ')"
+  echo "  Watching: $(grep -v '^#' "$MONITOR_CONFIG_DIR/roots" | grep -v '^$' | tr '\n' ' ')"
   echo
   echo "Open it with:  open -a \"$APP_NAME\""
-  echo "It runs no jobs and writes nothing to the share except a pause marker."
+  echo "It runs no jobs. Its row buttons command the queue by moving folders."
 }
 
 main "$@"

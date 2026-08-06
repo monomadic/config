@@ -1,0 +1,362 @@
+#!/usr/bin/env zsh
+# topaz-job
+# Turn a video plus a Topaz preset file into a runnable NAME.job script, and put
+# that job where something will run it.
+#
+#   topaz-job [mode] [destination] --preset PRESET_FILE [--] INPUT
+#
+# The job file is the artifact. It is machine-agnostic: no cd, no absolute
+# paths, nothing about this host. It names its source purely through
+# job-server's $TARGET_FILE (the job is <video>.job, so TARGET_FILE is the video
+# filename) and its encoder through $HOME, so it runs correctly wherever it
+# sits beside the video — here (--run) and on any render machine (job-server
+# sets TARGET_FILE and executes it in the run folder next to the copied video,
+# as whatever user owns the share).
+#
+# It deliberately sets no scheduling priority. Whoever runs the job decides
+# that: job-server already runs one job at a time, and a render box wants the
+# machine's full attention.
+#
+# Modes (what to do with the job):
+#   --send   default. Write the job to a temp dir, then copy the video and the
+#            job into the first reachable jobs folder (via send-job).
+#   --save   Write NAME.job beside the video and stop. Nothing runs.
+#   --run    Write NAME.job beside the video and run it here, now.
+#
+# Destinations are tried in order until one is a writable directory, so a job
+# lands on the render share when it is mounted, syncs through iCloud when it is
+# not, and falls back to a folder on this machine:
+#
+#   $JOBS_DIR             when set (also --dir DIR) — tried first, alone if forced
+#   remote  /Volumes/job  /Volumes/Jobs
+#   cloud   $ICLOUD_HOME/Jobs
+#   local   $HOME/job  $HOME/Jobs
+#
+# --remote / --cloud / --local restrict the search to one group; $TOPAZ_JOB_ORDER
+# (default "remote,cloud,local") reorders the automatic search.
+#
+# The preset file is `key=value` lines, one per line, `#` comments allowed. Keys
+# are the topaz-encode flags that describe an encode:
+#
+#   preset_name=Proteus — Detail Max + Upscale to 4K + H.265 MP4
+#   filter_complex=tvai_up=model=prob-4:scale=2,scale=w=3840:h=2160:flags=lanczos
+#   output_ext=mp4
+#   video_args=-c:v hevc_videotoolbox -b:v 40M -tag:v hvc1
+#   metadata=videoai=Proteus Detail Max
+#
+# preset_name and filter_complex are required; the rest are optional. Values are
+# taken literally to end of line — no quoting, no escaping.
+
+emulate -L zsh
+setopt extended_glob
+set -euo pipefail
+
+script_name="${0:t}"
+
+# The *deployed* encoder path, not the repo one: the job has to make sense on
+# whatever machine ends up running it.
+topaz_encode="${TOPAZ_ENCODE:-$HOME/.zsh/bin/topaz-encode}"
+# send-job does the copy-then-queue dance (payload first, size-verified, job
+# renamed into place last) — no reason to have a second copy of that here.
+send_job="${SEND_JOB:-${0:A:h}/send-job}"
+
+mode=send
+forced_dir=""
+group=""
+preset_file=""
+input=""
+dry_run=false
+
+usage() {
+  cat <<EOF
+$script_name
+
+Build a Topaz encode job from a video and a preset file, and hand it to a runner.
+
+Usage:
+  $script_name [--send|--save|--run] [--dir DIR|--remote|--cloud|--local] \\
+      --preset PRESET_FILE [--] INPUT
+
+Modes:
+  --send             Copy the video and the job into a jobs folder (default)
+  --save             Write NAME.job beside the video and stop
+  --run              Write NAME.job beside the video and run it here
+
+Destination (--send only):
+  --dir DIR          Use exactly this folder (also --dir=DIR, or \$JOBS_DIR)
+  --remote           Only /Volumes/job, /Volumes/Jobs
+  --cloud            Only \$ICLOUD_HOME/Jobs
+  --local            Only \$HOME/job, \$HOME/Jobs
+
+Other:
+  --preset FILE      Preset file (required; also --preset=FILE)
+  --dry-run          Print the job and the chosen destination, change nothing
+  -h, --help         Show help
+
+Environment:
+  JOBS_DIR           Forced destination, as --dir
+  TOPAZ_JOB_ORDER    Automatic search order (default: remote,cloud,local)
+  ICLOUD_HOME        iCloud Drive root (default: the standard macOS path)
+  TOPAZ_ENCODE       Encoder the job calls (default: \$HOME/.zsh/bin/topaz-encode)
+
+Examples:
+  $script_name --preset clip.topaz-preset clip.mp4
+  $script_name --run --preset clip.topaz-preset clip.mp4
+  $script_name --local --preset clip.topaz-preset clip.mp4
+EOF
+}
+
+die() {
+  print -u2 -- "$script_name: $1"
+  exit "${2:-1}"
+}
+
+warn() {
+  print -u2 -- "$script_name: $1"
+}
+
+while (( $# )); do
+  case "$1" in
+    --send)   mode=send; shift ;;
+    --save)   mode=save; shift ;;
+    --run)    mode=run;  shift ;;
+    --remote|--cloud|--local)
+      group="${1#--}"
+      shift
+      ;;
+    --dir)
+      (( $# >= 2 )) || die "missing argument for --dir" 2
+      forced_dir="$2"
+      shift 2
+      ;;
+    --dir=*)
+      forced_dir="${1#--dir=}"
+      shift
+      ;;
+    --preset)
+      (( $# >= 2 )) || die "missing argument for --preset" 2
+      preset_file="$2"
+      shift 2
+      ;;
+    --preset=*)
+      preset_file="${1#--preset=}"
+      shift
+      ;;
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      (( $# )) || die "no input file given" 2
+      [[ -z "$input" ]] || die "only one input file, got extra: $1" 2
+      input="$1"
+      shift
+      ;;
+    -*)
+      die "unknown option: $1" 2
+      ;;
+    *)
+      [[ -z "$input" ]] || die "only one input file, got extra: $1" 2
+      input="$1"
+      shift
+      ;;
+  esac
+done
+
+[[ -n "$preset_file" ]] || { usage >&2; die "no preset file given (--preset)" 2 }
+[[ -n "$input" ]] || { usage >&2; die "no input file given" 2 }
+[[ -f "$preset_file" ]] || die "preset file not found: $preset_file"
+[[ -f "$input" ]] || die "input file not found: $input"
+
+if [[ -n "$forced_dir" && -n "$group" ]]; then
+  die "--dir and --$group are mutually exclusive" 2
+fi
+
+input="${input:A}"
+input_name="${input:t}"
+input_dir="${input:h}"
+
+# --- preset file ------------------------------------------------------------
+
+typeset -A preset=()
+typeset -a known=( preset_name filter_complex output_ext video_args metadata )
+
+lineno=0
+while IFS= read -r line || [[ -n "$line" ]]; do
+  (( ++lineno ))
+  if [[ "$line" == [[:space:]]#(\#*|) ]]; then
+    continue
+  fi
+  [[ "$line" == *=* ]] || die "$preset_file:$lineno: not key=value: $line"
+
+  key="${${line%%=*}//[[:space:]]/}"
+  value="${line#*=}"
+
+  if (( ! ${known[(I)$key]} )); then
+    die "$preset_file:$lineno: unknown preset key: $key (known: ${known[*]})"
+  fi
+  preset[$key]="$value"
+done < "$preset_file"
+
+[[ -n "${preset[preset_name]:-}" ]] || die "preset file has no preset_name: $preset_file"
+[[ -n "${preset[filter_complex]:-}" ]] || die "preset file has no filter_complex: $preset_file"
+
+# --- job script -------------------------------------------------------------
+
+# Reference the encoder through $HOME when it lives there, so the job survives a
+# different user account on the render machine.
+encoder_ref="${(qq)topaz_encode}"
+if [[ "$topaz_encode" == "$HOME"/* ]]; then
+  rest="${topaz_encode#$HOME/}"
+  if [[ "$rest" == [A-Za-z0-9._/-]## ]]; then
+    encoder_ref="\"\$HOME\"/$rest"
+  else
+    encoder_ref="\"\$HOME\"/${(qq)rest}"
+  fi
+fi
+
+typeset -a job_args=( --preset_name "${preset[preset_name]}" \
+                      --filter_complex "${preset[filter_complex]}" )
+for key in output_ext video_args metadata; do
+  if [[ -n "${preset[$key]:-}" ]]; then
+    job_args+=( "--$key" "${preset[$key]}" )
+  fi
+done
+
+# job_args is flag/value pairs; flags come from the whitelist above and need no
+# quoting, values always get it.
+command_line="$encoder_ref"
+for (( i = 1; i <= ${#job_args[@]}; i += 2 )); do
+  command_line+=" ${job_args[i]} ${(qq)job_args[i + 1]}"
+done
+# The source is the one thing the job must not hardcode.
+command_line+=' -- "$TARGET_FILE"'
+
+job_text="#!/bin/zsh
+# Topaz encode job — generated by $script_name
+# ${preset[preset_name]}
+# Runs beside the video it encodes; no cd, source from \$TARGET_FILE.
+: \"\${TARGET_FILE:?run me through job-server, or set TARGET_FILE}\"
+exec $command_line"
+
+# Never name a local `path` in zsh — it shadows the special array tied to $PATH.
+write_job() {
+  local dir="$1" dest
+  dest="$dir/$input_name.job"
+  print -r -- "$job_text" > "$dest" || die "could not write job file: $dest"
+  chmod +x "$dest" || die "could not make the job executable: $dest"
+  print -r -- "$dest"
+}
+
+if $dry_run; then
+  print -- "job: $input_name.job"
+  print -r -- "$job_text"
+fi
+
+# --- save / run -------------------------------------------------------------
+
+if [[ "$mode" == save ]]; then
+  if $dry_run; then
+    exit 0
+  fi
+  job_path="$(write_job "$input_dir")"
+  print -- "saved $job_path"
+  exit 0
+fi
+
+if [[ "$mode" == run ]]; then
+  if $dry_run; then
+    exit 0
+  fi
+  job_path="$(write_job "$input_dir")"
+  print -- "running $job_path"
+  # Same contract job-server gives it: cwd is the video's folder, source named
+  # by $TARGET_FILE.
+  cd -- "$input_dir"
+  export TARGET_FILE="$input_name"
+  exec "$job_path"
+fi
+
+# --- send: find a jobs folder ----------------------------------------------
+
+if [[ ! -x "$send_job" ]]; then
+  send_job="$(command -v send-job)" || die "send-job not found (set \$SEND_JOB)"
+fi
+
+icloud_home="${ICLOUD_HOME:-$HOME/Library/Mobile Documents/com~apple~CloudDocs}"
+
+group_dirs() {
+  case "$1" in
+    remote) print -r -- /Volumes/job; print -r -- /Volumes/Jobs ;;
+    cloud)  print -r -- "$icloud_home/Jobs" ;;
+    local)  print -r -- "$HOME/job"; print -r -- "$HOME/Jobs" ;;
+    *)      die "unknown destination group: $1" 2 ;;
+  esac
+}
+
+typeset -a candidates=()
+if [[ -n "$forced_dir" ]]; then
+  candidates=( "${forced_dir%/}" )
+elif [[ -n "$group" ]]; then
+  candidates=( ${(f)"$(group_dirs "$group")"} )
+else
+  if [[ -n "${JOBS_DIR:-}" ]]; then
+    candidates+=( "${JOBS_DIR%/}" )
+  fi
+  for g in ${(s:,:)${TOPAZ_JOB_ORDER:-remote,cloud,local}}; do
+    candidates+=( ${(f)"$(group_dirs "${g//[[:space:]]/}")"} )
+  done
+fi
+
+(( ${#candidates[@]} )) || die "no destination to try"
+
+job_path=""
+if ! $dry_run; then
+  job_path="$(write_job "${TMPDIR:-/tmp}")"
+fi
+
+sent=""
+for dir in "${candidates[@]}"; do
+  if [[ ! -d "$dir" ]]; then
+    print -- "skip  $dir (not there)"
+    continue
+  fi
+  if [[ ! -w "$dir" ]]; then
+    print -- "skip  $dir (not writable)"
+    continue
+  fi
+
+  if $dry_run; then
+    print -- "would send to $dir"
+    sent="$dir"
+    break
+  fi
+
+  print -- "try   $dir"
+  if "$send_job" "$input" "$job_path" --dir="$dir"; then
+    sent="$dir"
+    break
+  fi
+  warn "send failed for $dir, trying the next destination"
+done
+
+if [[ -z "$sent" ]]; then
+  print -u2 -- "$script_name: nowhere to send the job. Tried:"
+  for dir in "${candidates[@]}"; do
+    print -u2 -- "  $dir"
+  done
+  exit 1
+fi
+
+if $dry_run; then
+  exit 0
+fi
+
+rm -f -- "$job_path" 2>/dev/null || true
+print -- "sent $input_name + $input_name.job to $sent"
+exit 0
