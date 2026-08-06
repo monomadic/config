@@ -27,6 +27,14 @@ mp4-get-chapter-count() {
   ffprobe -v error -show_chapters -of json -- $1 | jq '.chapters|length'
 }
 
+.sb-tower-index-search() {
+  cat /Volumes/Tower/Movies/Porn/.index | grep $1 | sb --fast-fullscreen
+}
+
+.sb-tower-index-filter() {
+  cat /Volumes/Tower/Movies/Porn/.index | fzf-select | sb --fast-fullscreen
+}
+
 alias mk-index="fd-media . . > .index"
 
 typeset -ga DJ_VISUALS_PATHS

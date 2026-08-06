@@ -23,6 +23,7 @@ play = [
   { desc = "􀽍  mpv", run = "mpv --force-window --fullscreen --no-native-fs %s", orphan = true },
   { desc = "􀽍  mpv-ipc", run = "mpv-send play %s", orphan = true },
   { desc = "􀇺  media-audit", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-audit %s''', orphan = true },
+  { desc = "􀇺  media-audit", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-audit %s''', orphan = true },
   { desc = "􀏟  detect chapters", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 -- /Users/nom/.zsh/bin/ffmpeg-scenedetect-chapters %s''', orphan = true },
   { desc = "􂿥  a/bner", run = "abner %s", orphan = true },
   { desc = "􀼹  open-url", run = "media-open-url %s" },

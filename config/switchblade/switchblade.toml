@@ -39,6 +39,9 @@ thumb_height = 224  # 224 vs your ~110-176 device px rows
 # atlas_memory_mb = 600   # → 1566 slots (2.0× today's 768)
 chapter_images = 64
 
+# files to ignore during indexing
+ignore = [".*", "_*"]
+
 # ── Colors ──────────────────────────────────────────────────────────────
 # All colors are [r, g, b] with 0..1 channels.
 background = [0.0, 0.0, 0.0]  # window background
@@ -58,8 +61,8 @@ selection_corner_radius = 10.0  # the selected tile (usually rounder)
 # ── Selection & hover ───────────────────────────────────────────────────
 # The selected tile scales up and overlaps its neighbors; the zoom boost
 # exponent makes it stand out even more as you zoom out (0 = off).
-selection_scale = 1.15
-selection_zoom_boost = 0.35
+selection_scale = 1
+selection_zoom_boost = 0
 hover_scale = 1.02
 # Border widths of the selected / hovered tile; 0 = none. Colors come
 # from selection_border / hover_border above.
@@ -636,7 +639,8 @@ f = "fast_fullscreen"
 n = "next"
 o = "launch mpv-send play {path}"
 p = "prev"  # pause-when-unfocused on/off
-r = "reveal"  # reveal in Finder (open -R)
+"cmd+r" = "reveal"  # reveal in Finder (open -R)
+r = "refresh"
 s = "shuffle_library"  # shuffle the whole grid in place ("shuffle" also works)
 t = "toggle_skip_timer"  # auto-advance every skip_timer_s of playback
 y = "launch '/Users/nom/.zsh/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /opt/homebrew/bin/yazi {path}'"
