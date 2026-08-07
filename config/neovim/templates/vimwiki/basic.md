@@ -1,7 +1,0 @@
-# Title
-
-## Idea
-
-## Research
-
-## Spec

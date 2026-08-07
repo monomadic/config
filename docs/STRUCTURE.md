@@ -19,7 +19,6 @@ This repo should optimize for two things:
 - `utils/` contains small personal utility source trees that are maintained in this repo.
 - `vendor/bin/` contains retained third-party or custom-built binaries.
 - `archive/` contains kept-but-not-active material such as installers, app bundles, and old variants.
-- `config/neovim/` can remain in the tree as dormant source, but should not be part of active machine profiles unless revived.
 - This repo targets macOS only. Linux-specific config (i3, sway, waybar, foot, ...) does not belong here.
 - If a `config/<tool>/` directory is not wired into Dotter yet, keep it visible in the example profiles as disabled or source-only.
 - Secrets and machine-private state do not live in git.

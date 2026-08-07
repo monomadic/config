@@ -16,7 +16,6 @@
 default_target_type = "symbolic"
 
 [helpers]
-
 # --- Shell and prompt ---------------------------------------------------------
 
 [zsh.files]
@@ -69,10 +68,6 @@ default_target_type = "symbolic"
 
 [micro.files]
 "config/micro" = "~/.config/micro"
-
-# Dormant source retention; not selected by active machine profiles.
-[nvim.files]
-"config/neovim" = "~/.config/nvim"
 
 # --- File managers ------------------------------------------------------------
 
@@ -151,6 +146,7 @@ default_target_type = "symbolic"
 [virtualdj.files]
 "config/virtualdj/Mappers" = { target = "~/Library/Application Support/VirtualDJ/Mappers", type = "symbolic" }
 "config/virtualdj/Pads" = { target = "~/Library/Application Support/VirtualDJ/Pads", type = "symbolic" }
+
 [yt-dlp.files]
 "config/yt-dlp/config" = "~/.config/yt-dlp/config"
 "config/yt-dlp/plugins/__init__.py" = "~/.config/yt-dlp/plugins/__init__.py"
