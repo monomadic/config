@@ -1,21 +1,29 @@
-//! The menu bar icon: a terminal prompt in a small screen frame.
+//! The menu bar icon: a terminal prompt, in one of several selectable styles.
 //!
-//! Idle is a dim frame, dim chevron and a resting underscore. While a job
-//! runs the frame and chevron come up to full strength and the underscore
-//! becomes a blinking block cursor. Unacknowledged failures turn the chevron
-//! red and blink a red `!` in the cursor slot, while the frame stays at full
-//! strength. Queued jobs trail as faint dots, and only appear when something
-//! is actually waiting.
+//! Every style shares a vocabulary: a chevron prompt, a blinking block for a
+//! running job, a dim resting underscore for a waiting one, and red —
+//! reserved for failures — blinking in the shape of an `!`. When no watched
+//! folder is reachable the whole icon becomes a blinking solid folder: not a
+//! subtle tell but an error state, since a monitor with nothing to read has
+//! nothing true to say.
 //!
-//! `job-monitor` draws the same icon with a doubled chevron, so two menu bars'
-//! worth of job icons can be told apart at a glance — and when its folder is
-//! unreachable the whole thing drops to dim with an empty cursor slot, which
-//! is deliberately *not* how idle looks.
+//! The styles differ in how they spend width. `Classic` is the original
+//! fixed-width icon: one cursor slot for the aggregate state, queued jobs as
+//! up to three fading dots. The other three give every job its own indicator
+//! and let the icon widen with the queue, up to a per-style cap:
+//!
+//! - `Cursors` — a lane of cursors after the prompt, one per job, inside the
+//!   screen frame. Idle is pixel-identical to `Classic` idle.
+//! - `Screen` — the frame itself widens and jobs render inside it as blocks,
+//!   a terminal showing its own queue.
+//! - `Equalizer` — no frame; a thin bar per job after the chevron. Densest,
+//!   so it carries the largest cap.
 //!
 //! Everything is drawn rather than glyph-based, so it stays crisp at any
-//! backing scale. Neutral states are template images that macOS tints to
-//! match the menu bar; the error state mixes red with the label colour, so
-//! it is drawn as a regular image instead.
+//! backing scale. Geometry is authored on the original 14-unit grid and
+//! scaled up to [`HEIGHT`] points at draw time. Neutral states are template
+//! images that macOS tints to match the menu bar; failure states mix red with
+//! the label colour, so they are drawn as regular images instead.
 
 use objc2::rc::Retained;
 use objc2_app_kit::{
@@ -23,159 +31,141 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSPoint, NSRect, NSSize};
 
-// Icon geometry, in points. The frame is deliberately snug so the chevron
-// can take most of its height and stay legible at menu bar size.
-const HEIGHT: f64 = 14.0;
-const BASE_WIDTH: f64 = 16.0;
-const QUEUE_WIDTH: f64 = 11.0;
-const MAX_QUEUE_DOTS: usize = 3;
+/// Drawn height, in points. The geometry below is authored on a 14-unit grid
+/// (the icon's original size, which read too small in the bar) and scaled.
+pub const HEIGHT: f64 = 20.0;
+const UNIT: f64 = 14.0;
+const S: f64 = HEIGHT / UNIT;
+
 const DIM: f64 = 0.4;
 
+// Per-style caps on how many jobs get their own indicator; past the cap the
+// last slot becomes a dim `+` (or an ellipsis inside Screen's frame).
+const CLASSIC_QUEUE_DOTS: usize = 3;
+const CURSORS_CAP: usize = 6;
+const SCREEN_CAP: usize = 6;
+const EQUALIZER_CAP: usize = 10;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Style {
+    Classic,
+    Cursors,
+    Screen,
+    Equalizer,
+}
+
+pub const ALL_STYLES: [Style; 4] = [
+    Style::Classic,
+    Style::Cursors,
+    Style::Screen,
+    Style::Equalizer,
+];
+
+impl Style {
+    pub fn label(self) -> &'static str {
+        match self {
+            Style::Classic => "Classic",
+            Style::Cursors => "Cursor per Job",
+            Style::Screen => "Queue on Screen",
+            Style::Equalizer => "Equalizer",
+        }
+    }
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Style::Classic => "classic",
+            Style::Cursors => "cursors",
+            Style::Screen => "screen",
+            Style::Equalizer => "equalizer",
+        }
+    }
+
+    pub fn from_key(key: &str) -> Option<Self> {
+        ALL_STYLES.iter().copied().find(|style| style.key() == key)
+    }
+}
+
+#[derive(Clone, Copy)]
 pub struct IconState {
-    pub running: bool,
+    pub running: usize,
     pub queued: usize,
-    pub errors: bool,
+    /// Unacknowledged failures (a stalled job counts as one).
+    pub failed: usize,
     pub blink_on: bool,
-    /// Draw the doubled chevron: this is a monitor, watching someone else's
-    /// folder, not the runner that owns it.
-    pub remote: bool,
-    /// Remote only — false when the folder can't be reached.
+    /// False when no watched folder can be reached.
     pub connected: bool,
 }
 
 impl Default for IconState {
     fn default() -> Self {
         Self {
-            running: false,
+            running: 0,
             queued: 0,
-            errors: false,
+            failed: 0,
             blink_on: true,
-            remote: false,
             connected: true,
         }
     }
 }
 
-pub fn draw(state: &IconState) -> Retained<NSImage> {
-    let dots = state.queued.min(MAX_QUEUE_DOTS);
-    let width = if dots > 0 { BASE_WIDTH + QUEUE_WIDTH } else { BASE_WIDTH };
-    let size = NSSize { width, height: HEIGHT };
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Glyph {
+    Run,
+    Queued,
+    Failed,
+}
 
-    // Template images are drawn in black and tinted by macOS; the error
-    // state needs real colour, so it resolves the label colour itself.
-    let is_template = !state.errors;
+/// The per-job indicators to draw, in display order (running, then queued,
+/// then failed), plus whether anything was cut. When the queue overflows the
+/// cap it is the queued jobs that give way first: a failure must never be
+/// capped out of sight, since red is the only thing that makes it visible.
+fn lane(state: &IconState, cap: usize) -> (Vec<Glyph>, bool) {
+    let total = state.running + state.queued + state.failed;
+    let over = total > cap;
+    let failed = state.failed.min(cap);
+    let running = state.running.min(cap - failed);
+    let queued = state.queued.min(cap - failed - running);
+    let mut glyphs = Vec::with_capacity(running + queued + failed);
+    glyphs.extend(std::iter::repeat_n(Glyph::Run, running));
+    glyphs.extend(std::iter::repeat_n(Glyph::Queued, queued));
+    glyphs.extend(std::iter::repeat_n(Glyph::Failed, failed));
+    (glyphs, over)
+}
+
+pub fn draw(style: Style, state: &IconState) -> Retained<NSImage> {
+    let mut state = *state;
+    // An unreachable folder knows nothing: whatever counts arrived with the
+    // state are stale, so they are not drawn.
+    let offline = !state.connected;
+    if offline {
+        state.running = 0;
+        state.queued = 0;
+        state.failed = 0;
+    }
+
+    let width = if offline { 16.0 } else { width_for(style, &state) };
+    let size = NSSize { width: width * S, height: HEIGHT };
+
+    // Template images are drawn in black and tinted by macOS; failure states
+    // need real colour, so they resolve the label colour themselves.
+    let is_template = state.failed == 0;
     let ink = if is_template {
         NSColor::blackColor()
     } else {
         NSColor::labelColor()
     };
-    let accent = if state.errors {
-        NSColor::systemRedColor()
-    } else {
-        ink.clone()
-    };
-
-    let running = state.running;
-    let errors = state.errors;
-    let blink_on = state.blink_on;
-    let remote = state.remote;
-    // An unreachable folder knows nothing: no cursor, no queue, everything dim.
-    let offline = remote && !state.connected;
 
     let handler = block2::RcBlock::new(move |_bounds: NSRect| -> objc2::runtime::Bool {
-        let frame_color = if (running || errors) && !offline {
-            ink.clone()
-        } else {
-            ink.colorWithAlphaComponent(DIM)
-        };
-        let chevron_color = if offline {
-            ink.colorWithAlphaComponent(DIM)
-        } else if errors {
-            accent.clone()
-        } else if running {
-            ink.clone()
-        } else {
-            ink.colorWithAlphaComponent(DIM)
-        };
-
-        // Screen frame.
-        frame_color.set();
-        let frame = NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
-            rect(1.0, 1.5, 14.0, 11.0),
-            2.4,
-            2.4,
-        );
-        frame.setLineWidth(1.3);
-        frame.stroke();
-
-        // The prompt chevron — doubled for a monitor, which is watching a
-        // prompt rather than being one. The second stroke sits where the
-        // cursor would start, so the two icons stay the same width.
-        chevron_color.set();
-        let stroke_chevron = |x: f64| {
-            let chevron = NSBezierPath::new();
-            chevron.moveToPoint(NSPoint { x, y: 9.3 });
-            chevron.lineToPoint(NSPoint { x: x + 2.8, y: 7.0 });
-            chevron.lineToPoint(NSPoint { x, y: 4.7 });
-            chevron.setLineWidth(1.7);
-            chevron.setLineCapStyle(NSLineCapStyle::Round);
-            chevron.setLineJoinStyle(NSLineJoinStyle::Round);
-            chevron.stroke();
-        };
-        if remote {
-            stroke_chevron(2.9);
-            stroke_chevron(5.8);
-        } else {
-            stroke_chevron(4.6);
-        }
-
-        // Cursor slot: a blinking `!` when work has failed and nothing is
-        // running, a blinking block while a job runs, a resting underscore
-        // otherwise. When a job is running *and* older failures are
-        // unacknowledged, the red chevron carries the error and the block
-        // keeps showing progress.
         if offline {
-            // Nothing: an empty slot is the tell that there is no answer from
-            // the other end, as against idle's resting underscore.
-        } else if errors && !running {
-            if blink_on {
-                accent.set();
-                NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
-                    rect(9.6, 6.2, 1.6, 3.6),
-                    0.8,
-                    0.8,
-                )
-                .fill();
-                NSBezierPath::bezierPathWithOvalInRect(rect(9.5, 3.6, 1.8, 1.8)).fill();
-            }
-        } else if running {
-            if blink_on {
-                ink.set();
-                NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
-                    rect(9.2, 4.2, 2.2, 5.4),
-                    0.5,
-                    0.5,
-                )
-                .fill();
-            }
+            draw_folder_gone(&state, &ink);
         } else {
-            ink.colorWithAlphaComponent(DIM).set();
-            NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
-                rect(9.2, 4.1, 2.6, 1.3),
-                0.6,
-                0.6,
-            )
-            .fill();
+            match style {
+                Style::Classic => draw_classic(&state, &ink),
+                Style::Cursors => draw_cursors(&state, &ink),
+                Style::Screen => draw_screen(&state, &ink),
+                Style::Equalizer => draw_equalizer(&state, &ink),
+            }
         }
-
-        // Queued jobs, fading with position.
-        for index in 0..dots {
-            let alpha = [0.6, 0.4, 0.25][index];
-            ink.colorWithAlphaComponent(alpha).set();
-            let x = 17.1 + index as f64 * 3.7;
-            NSBezierPath::bezierPathWithOvalInRect(rect(x, 5.5, 3.0, 3.0)).fill();
-        }
-
         objc2::runtime::Bool::YES
     });
 
@@ -184,9 +174,327 @@ pub fn draw(state: &IconState) -> Retained<NSImage> {
     image
 }
 
+fn width_for(style: Style, state: &IconState) -> f64 {
+    match style {
+        Style::Classic => {
+            if state.queued.min(CLASSIC_QUEUE_DOTS) > 0 { 27.0 } else { 16.0 }
+        }
+        Style::Cursors => {
+            let (glyphs, over) = lane(state, CURSORS_CAP);
+            let slots = glyphs.len() + over as usize;
+            if slots == 0 { 16.0 } else { 14.0 + 3.9 * slots as f64 }
+        }
+        Style::Screen => screen_frame_width(state) + 2.0,
+        Style::Equalizer => {
+            let (glyphs, over) = lane(state, EQUALIZER_CAP);
+            let slots = glyphs.len() + over as usize;
+            if slots == 0 { 14.0 } else { 11.0 + 3.0 * slots as f64 }
+        }
+    }
+}
+
+fn screen_frame_width(state: &IconState) -> f64 {
+    let (glyphs, _) = lane(state, SCREEN_CAP);
+    let extra = 4.2 * glyphs.len().saturating_sub(1) as f64;
+    (SCREEN_LANE_X + 4.2 + extra).max(14.0)
+}
+
+/// Where Screen's first block sits: the same x as Cursors' first cursor, so
+/// the prompt keeps identical breathing room across styles.
+const SCREEN_LANE_X: f64 = 9.6;
+
+// ---- shared strokes, all in unit space ----
+
 fn rect(x: f64, y: f64, width: f64, height: f64) -> NSRect {
     NSRect {
-        origin: NSPoint { x, y },
-        size: NSSize { width, height },
+        origin: NSPoint { x: x * S, y: y * S },
+        size: NSSize { width: width * S, height: height * S },
+    }
+}
+
+fn point(x: f64, y: f64) -> NSPoint {
+    NSPoint { x: x * S, y: y * S }
+}
+
+fn fill_rounded(x: f64, y: f64, width: f64, height: f64, radius: f64) {
+    NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
+        rect(x, y, width, height),
+        radius * S,
+        radius * S,
+    )
+    .fill();
+}
+
+fn fill_oval(x: f64, y: f64, width: f64, height: f64) {
+    NSBezierPath::bezierPathWithOvalInRect(rect(x, y, width, height)).fill();
+}
+
+fn stroke_frame(width: f64) {
+    let frame = NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
+        rect(1.0, 1.5, width, 11.0),
+        2.4 * S,
+        2.4 * S,
+    );
+    frame.setLineWidth(1.0 * S);
+    frame.stroke();
+}
+
+fn stroke_chevron(x: f64) {
+    let chevron = NSBezierPath::new();
+    chevron.moveToPoint(point(x, 9.3));
+    chevron.lineToPoint(point(x + 2.8, 7.0));
+    chevron.lineToPoint(point(x, 4.7));
+    chevron.setLineWidth(1.7 * S);
+    chevron.setLineCapStyle(NSLineCapStyle::Round);
+    chevron.setLineJoinStyle(NSLineJoinStyle::Round);
+    chevron.stroke();
+}
+
+fn underscore(x: f64) {
+    fill_rounded(x, 4.1, 2.6, 1.3, 0.6);
+}
+
+/// The overflow marker past a style's cap: a dim `+`.
+fn stroke_plus(x: f64, center_y: f64) {
+    let plus = NSBezierPath::new();
+    plus.moveToPoint(point(x, center_y));
+    plus.lineToPoint(point(x + 2.4, center_y));
+    plus.moveToPoint(point(x + 1.2, center_y - 1.2));
+    plus.lineToPoint(point(x + 1.2, center_y + 1.2));
+    plus.setLineWidth(1.1 * S);
+    plus.setLineCapStyle(NSLineCapStyle::Round);
+    plus.stroke();
+}
+
+fn red() -> Retained<NSColor> {
+    NSColor::systemRedColor()
+}
+
+// ---- the styles ----
+
+/// No reachable folder: the icon stops being a terminal and becomes the
+/// missing thing itself — a solid folder, blinking for attention. Nothing
+/// else is drawn, because nothing else is known.
+fn draw_folder_gone(state: &IconState, ink: &NSColor) {
+    if !state.blink_on {
+        return;
+    }
+    ink.set();
+    // The tab first, then the body over it.
+    fill_rounded(1.5, 7.6, 6.4, 4.0, 1.2);
+    fill_rounded(1.5, 2.3, 13.0, 7.8, 1.2);
+}
+
+fn draw_classic(state: &IconState, ink: &NSColor) {
+    let running = state.running > 0;
+    let errors = state.failed > 0;
+    let dots = state.queued.min(CLASSIC_QUEUE_DOTS);
+
+    if running || errors {
+        ink.set();
+    } else {
+        ink.colorWithAlphaComponent(DIM).set();
+    }
+    stroke_frame(14.0);
+
+    if errors {
+        red().set();
+    } else if running {
+        ink.set();
+    } else {
+        ink.colorWithAlphaComponent(DIM).set();
+    }
+    stroke_chevron(4.6);
+
+    // Cursor slot: a blinking `!` when work has failed and nothing is
+    // running, a blinking block while a job runs, a resting underscore
+    // otherwise. When a job is running *and* older failures are
+    // unacknowledged, the red chevron carries the error and the block
+    // keeps showing progress.
+    if errors && !running {
+        if state.blink_on {
+            red().set();
+            fill_rounded(9.6, 6.2, 1.6, 3.6, 0.8);
+            fill_oval(9.5, 3.6, 1.8, 1.8);
+        }
+    } else if running {
+        if state.blink_on {
+            ink.set();
+            fill_rounded(9.2, 4.2, 2.2, 5.4, 0.5);
+        }
+    } else {
+        ink.colorWithAlphaComponent(DIM).set();
+        underscore(9.2);
+    }
+
+    for index in 0..dots {
+        ink.colorWithAlphaComponent([0.6, 0.4, 0.25][index]).set();
+        fill_oval(17.1 + index as f64 * 3.7, 5.5, 3.0, 3.0);
+    }
+}
+
+fn draw_cursors(state: &IconState, ink: &NSColor) {
+    let (glyphs, over) = lane(state, CURSORS_CAP);
+    let slots = glyphs.len() + over as usize;
+    let busy = state.running > 0 || state.failed > 0;
+
+    if busy {
+        ink.set();
+    } else {
+        ink.colorWithAlphaComponent(DIM).set();
+    }
+    stroke_frame(if slots == 0 { 14.0 } else { width_for(Style::Cursors, state) - 2.0 });
+
+    if busy {
+        ink.set();
+    } else {
+        ink.colorWithAlphaComponent(DIM).set();
+    }
+    stroke_chevron(4.6);
+
+    if slots == 0 {
+        ink.colorWithAlphaComponent(DIM).set();
+        underscore(9.2);
+        return;
+    }
+
+    let mut queue_index = 0usize;
+    for (index, glyph) in glyphs.iter().enumerate() {
+        let x = 9.6 + index as f64 * 3.9;
+        match glyph {
+            Glyph::Run => {
+                if state.blink_on {
+                    ink.set();
+                    fill_rounded(x, 4.2, 2.2, 5.4, 0.5);
+                }
+            }
+            Glyph::Queued => {
+                let alpha = [0.6, 0.45, 0.32, 0.25][queue_index.min(3)];
+                queue_index += 1;
+                ink.colorWithAlphaComponent(alpha).set();
+                underscore(x);
+            }
+            Glyph::Failed => {
+                if state.blink_on {
+                    red().set();
+                    fill_rounded(x + 0.4, 6.2, 1.6, 3.4, 0.8);
+                    fill_oval(x + 0.3, 3.7, 1.8, 1.8);
+                }
+            }
+        }
+    }
+    if over {
+        ink.colorWithAlphaComponent(DIM).set();
+        stroke_plus(9.6 + glyphs.len() as f64 * 3.9 + 0.4, 7.0);
+    }
+}
+
+fn draw_screen(state: &IconState, ink: &NSColor) {
+    let (glyphs, over) = lane(state, SCREEN_CAP);
+    let busy = state.running > 0 || state.failed > 0;
+
+    if busy {
+        ink.set();
+    } else {
+        ink.colorWithAlphaComponent(DIM).set();
+    }
+    stroke_frame(screen_frame_width(state));
+
+    if busy {
+        ink.set();
+    } else {
+        ink.colorWithAlphaComponent(DIM).set();
+    }
+    stroke_chevron(4.6);
+
+    if glyphs.is_empty() {
+        ink.colorWithAlphaComponent(DIM).set();
+        underscore(SCREEN_LANE_X);
+        return;
+    }
+
+    for (index, glyph) in glyphs.iter().enumerate() {
+        let x = SCREEN_LANE_X + index as f64 * 4.2;
+        // Past the cap the last block stands down for an ellipsis: the frame
+        // stays the same width, the interior admits it isn't showing everything.
+        if over && index == glyphs.len() - 1 {
+            ink.colorWithAlphaComponent(0.5).set();
+            for dot in 0..3 {
+                fill_oval(x + dot as f64 * 1.15 - 0.05, 6.45, 1.1, 1.1);
+            }
+            continue;
+        }
+        match glyph {
+            Glyph::Run => {
+                if state.blink_on {
+                    ink.set();
+                    fill_rounded(x, 4.3, 2.6, 5.4, 0.6);
+                }
+            }
+            Glyph::Queued => {
+                ink.colorWithAlphaComponent(DIM).set();
+                let outline = NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
+                    rect(x + 0.35, 4.65, 1.9, 4.7),
+                    0.5 * S,
+                    0.5 * S,
+                );
+                outline.setLineWidth(0.9 * S);
+                outline.stroke();
+            }
+            Glyph::Failed => {
+                red().set();
+                fill_rounded(x, 4.3, 2.6, 5.4, 0.6);
+            }
+        }
+    }
+}
+
+fn draw_equalizer(state: &IconState, ink: &NSColor) {
+    let (glyphs, over) = lane(state, EQUALIZER_CAP);
+    let slots = glyphs.len() + over as usize;
+    let running = state.running > 0;
+    let errors = state.failed > 0;
+
+    if errors && !running {
+        red().set();
+    } else if running || errors {
+        ink.set();
+    } else {
+        ink.colorWithAlphaComponent(0.5).set();
+    }
+    stroke_chevron(2.9);
+
+    if slots == 0 {
+        ink.colorWithAlphaComponent(DIM).set();
+        underscore(9.4);
+        return;
+    }
+
+    for (index, glyph) in glyphs.iter().enumerate() {
+        let x = 10.6 + index as f64 * 3.0;
+        match glyph {
+            Glyph::Run => {
+                // Two heights alternating on the blink clock: motion without
+                // a blackout frame, out of phase with the neighbouring bar.
+                ink.colorWithAlphaComponent(0.35).set();
+                fill_rounded(x, 3.2, 2.0, 6.2, 1.0);
+                let tall = (index % 2 == 0) == state.blink_on;
+                ink.set();
+                fill_rounded(x, 3.2, 2.0, if tall { 7.6 } else { 6.2 }, 1.0);
+            }
+            Glyph::Queued => {
+                ink.colorWithAlphaComponent(0.35).set();
+                fill_rounded(x, 3.2, 2.0, 3.4, 1.0);
+            }
+            Glyph::Failed => {
+                red().set();
+                fill_rounded(x, 4.8, 2.0, 3.6, 1.0);
+                fill_oval(x + 0.1, 2.5, 1.8, 1.8);
+            }
+        }
+    }
+    if over {
+        ink.colorWithAlphaComponent(DIM).set();
+        stroke_plus(10.6 + glyphs.len() as f64 * 3.0 + 0.5, 6.4);
     }
 }

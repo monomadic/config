@@ -23,6 +23,10 @@ alias fd-media-60fps="fd-media --match-string 60fps"
 
 alias sb-tower-index="cat /Volumes/Tower/Movies/Porn/.index | sb --fast-fullscreen"
 
+find-frags() {
+  find ~/Jobs ~/Movies -type f \( -iname '*.mp4' -o -iname '*.m4v' -o -iname '*.mov' \) -print0 | while IFS= read -r -d '' f; do head -c 8000000 "$f" | LC_ALL=C grep -aq mvex && printf '%s\n' "$f"; done
+}
+
 mp4-get-chapter-count() {
   ffprobe -v error -show_chapters -of json -- $1 | jq '.chapters|length'
 }

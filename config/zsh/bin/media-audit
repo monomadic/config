@@ -223,29 +223,28 @@ set_check_status() {
 }
 
 # One checklist row — glyph and text share a single state colour, so a green
-# tick always means "passed" and nothing else wears a tick. A pending check is
-# a dim dot with a bare name; an evaluated one reads "name: <word>". The
-# displayed name is deliberately plainer than the internal check id.
+# tick always means "passed" and nothing else wears a tick. The row is just the
+# check's name: the glyph and colour already carry the outcome, so spelling it
+# out again ("container: disabled") only adds noise. The displayed name is
+# deliberately plainer than the internal check id.
 check_row() {
   local item="$1" state="$2"
-  local name good bad color icon text
+  local name color icon
 
   case "$item" in
-    black-frames) name="intro";      good="none";    bad="found" ;;
-    source-url)   name="source url"; good="found";   bad="missing" ;;
-    metadata)     name="metadata";   good="found";   bad="missing" ;;
-    faststart)    name="container";  good="enabled"; bad="disabled" ;;
-    filename)     name="filename";   good="ok";      bad="issues" ;;
-    *)            name="$item";      good="ok";      bad="issue" ;;
+    black-frames) name="intro" ;;
+    source-url)   name="source url" ;;
+    faststart)    name="container" ;;
+    *)            name="$item" ;;
   esac
 
   case "$state" in
-    pass) color="${C_GREEN}${C_BOLD}"; icon="$ICON_PASS";    text="${name}: ${good}" ;;
-    fail) color="${C_RED}${C_BOLD}";   icon="$ICON_FAIL";    text="${name}: ${bad}" ;;
-    *)    color="$C_DIM";              icon="$ICON_PENDING"; text="$name" ;;
+    pass) color="${C_GREEN}${C_BOLD}"; icon="$ICON_PASS" ;;
+    fail) color="${C_RED}${C_BOLD}";   icon="$ICON_FAIL" ;;
+    *)    color="$C_DIM";              icon="$ICON_PENDING" ;;
   esac
 
-  print -r -- "${color}${icon} ${text}${C_RESET}"
+  print -r -- "${color}${icon} ${name}${C_RESET}"
 }
 
 # Truncate a menu option to fit within the checklist indent.
@@ -2196,14 +2195,24 @@ apply_pending_rewrite() {
   # applied as its own pass regardless of what else was just rewritten above.
   if $PENDING_FASTSTART; then
     CURRENT_CHECK="faststart"
-    if mp4doctor --fix --quiet -- "$file" >/dev/null 2>&1 && faststart_state "$file"; then
+    integer doctor_rc=0
+    mp4doctor --fix --quiet -- "$file" >/dev/null 2>&1 || doctor_rc=$?
+    if (( doctor_rc == 0 )) && faststart_state "$file"; then
       (( fix_count++ ))
       note_repaired_file
     else
       (( fail_count++ ))
       mark_unresolved
       clear_status
-      fail "mp4doctor could not repair the container; file left unchanged."
+      # 3 is mp4doctor's "the volume couldn't hold the tmp copy" — the remux is
+      # atomic-by-copy, so it needs as much free space again as the file itself.
+      # Saying "could not repair the container" there sends you hunting for
+      # corruption in a file that is perfectly intact.
+      if (( doctor_rc == 3 )); then
+        fail "not enough free disk space to remux the container (needs a second copy of the file); file left unchanged."
+      else
+        fail "mp4doctor could not repair the container; file left unchanged."
+      fi
       rc=1
     fi
   fi

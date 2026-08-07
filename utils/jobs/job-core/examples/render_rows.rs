@@ -16,16 +16,12 @@ use job_core::observe::{Outcome, Run, Snapshot, State};
 use job_core::row::{self, JobRow};
 use objc2::{AnyThread, MainThreadMarker};
 use objc2::rc::Retained;
-use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2_app_kit::{
-    NSAffineTransformNSAppKitAdditions, NSAppearanceCustomization, NSFont, NSFontAttributeName,
-    NSForegroundColorAttributeName, NSStringDrawing,
+    NSAffineTransformNSAppKitAdditions, NSAppearanceCustomization, NSBezierPath, NSFont,
     NSAppearance, NSAppearanceNameDarkAqua, NSAppearanceNameAqua, NSBitmapImageFileType,
     NSBitmapImageRep, NSColor, NSDeviceRGBColorSpace, NSGraphicsContext,
 };
-use objc2_foundation::{
-    NSAffineTransform, NSDictionary, NSMutableDictionary, NSPoint, NSRect, NSSize, NSString,
-};
+use objc2_foundation::{NSAffineTransform, NSDictionary, NSPoint, NSRect, NSSize};
 
 fn ago(seconds: u64) -> SystemTime {
     SystemTime::now() - Duration::from_secs(seconds)
@@ -51,7 +47,13 @@ fn sample(quiet: bool) -> Snapshot {
         inbox: Vec::new(),
         jobs: vec![Run {
             name: "my night collection".to_string(),
-            dir: PathBuf::from("/Volumes/Jobs/_running/20260806-041500-my night collection"),
+            // $RENDER_ROWS_RUN_DIR points this at a folder holding a real
+            // `<name>.log`, so the log button shows up in the render.
+            dir: std::env::var_os("RENDER_ROWS_RUN_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    PathBuf::from("/Volumes/Jobs/_running/20260806-041500-my night collection")
+                }),
             state: State::Running,
             status: None,
             local: false,
@@ -117,21 +119,21 @@ fn main() {
     let header_font = NSFont::menuFontOfSize(0.0);
     let header_height = (header_font.pointSize() * 1.9).round();
 
-    // Interleave the section headers with the rows, the way the menu does:
-    // headers are ordinary menu items, only the job rows are custom views.
-    let mut items: Vec<(Option<Retained<JobRow>>, String, f64)> = Vec::new();
-    for section in &sections {
-        if let Some(label) = section.label.as_ref() {
-            items.push((None, label.clone(), header_height));
+    // Interleave separators with the rows, the way the menu does: sections
+    // carry no header text, only the job rows are custom views.
+    let mut items: Vec<(Option<Retained<JobRow>>, f64)> = Vec::new();
+    for (position, section) in sections.iter().enumerate() {
+        if position > 0 {
+            items.push((None, header_height / 2.0));
         }
         for spec in &section.rows {
             let view = JobRow::new(spec.clone(), &layout, mtm);
             view.setAppearance(appearance.as_deref());
-            items.push((Some(view), String::new(), layout.height()));
+            items.push((Some(view), layout.height()));
         }
     }
 
-    let total: f64 = items.iter().map(|(_, _, height)| height).sum();
+    let total: f64 = items.iter().map(|(_, height)| height).sum();
     let canvas = NSSize {
         width: layout.width() + pad * 2.0,
         height: total + pad * 2.0,
@@ -177,7 +179,7 @@ fn main() {
     // Each row draws in its own coordinate space, so the context is walked
     // down the canvas between them rather than the frames being moved.
     let mut y = canvas.height - pad;
-    for (view, label, height) in &items {
+    for (view, height) in &items {
         y -= height;
         match view {
             Some(view) => {
@@ -189,24 +191,19 @@ fn main() {
                 NSGraphicsContext::restoreGraphicsState_class();
             }
             None => {
-                let attrs = NSMutableDictionary::<NSString, AnyObject>::new();
-                unsafe {
-                    attrs.setObject_forKey(
-                        &*header_font,
-                        ProtocolObject::from_ref(NSFontAttributeName),
-                    );
-                    attrs.setObject_forKey(
-                        &*NSColor::secondaryLabelColor(),
-                        ProtocolObject::from_ref(NSForegroundColorAttributeName),
-                    );
-                    NSString::from_str(label).drawAtPoint_withAttributes(
-                        NSPoint {
-                            x: pad + header_font.pointSize() * 1.2,
-                            y: y + header_font.pointSize() * 0.45,
-                        },
-                        Some(&attrs),
-                    );
-                }
+                NSColor::secondaryLabelColor()
+                    .colorWithAlphaComponent(0.35)
+                    .set();
+                NSBezierPath::fillRect(NSRect {
+                    origin: NSPoint {
+                        x: pad + 10.0,
+                        y: (y + height / 2.0).round(),
+                    },
+                    size: NSSize {
+                        width: canvas.width - pad * 2.0 - 20.0,
+                        height: 1.0,
+                    },
+                });
             }
         }
     }

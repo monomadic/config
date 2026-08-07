@@ -64,6 +64,7 @@ struct Ui {
     views: Arc<Mutex<Vec<RootView>>>,
     muted: Arc<AtomicBool>,
     blink_on: bool,
+    style: icon::Style,
 }
 
 define_class!(
@@ -87,28 +88,6 @@ define_class!(
             }
         }
 
-        #[unsafe(method(openFailed:))]
-        fn open_failed(&self, sender: &NSMenuItem) {
-            if let Some(root) = self.root_at(sender.tag()) {
-                open(&root.failed());
-            }
-        }
-
-        #[unsafe(method(viewLog:))]
-        fn view_log(&self, sender: &NSMenuItem) {
-            let index = sender.tag() as usize;
-            let path = self.with_views(|views| {
-                views
-                    .get(index)
-                    .and_then(|view| view.snapshot.running().next())
-                    .and_then(|job| job.log_path())
-            });
-            if let Some(path) = path {
-                open(&path);
-            }
-        }
-
-
         #[unsafe(method(clearErrors:))]
         fn clear_errors(&self, _sender: &NSMenuItem) {
             acknowledge_errors();
@@ -119,6 +98,31 @@ define_class!(
                     view.snapshot.errors = 0;
                 }
             }
+            self.refresh_icon();
+        }
+
+        #[unsafe(method(pauseAll:))]
+        fn pause_all(&self, _sender: &NSMenuItem) {
+            apply_moves(self.with_views(pause_moves));
+        }
+
+        #[unsafe(method(resumeAll:))]
+        fn resume_all(&self, _sender: &NSMenuItem) {
+            apply_moves(self.with_views(resume_moves));
+        }
+
+        #[unsafe(method(openLog:))]
+        fn open_log(&self, _sender: &NSMenuItem) {
+            open(&log_path());
+        }
+
+        #[unsafe(method(setStyle:))]
+        fn set_style(&self, sender: &NSMenuItem) {
+            let style = icon::ALL_STYLES[sender.tag() as usize];
+            if let Some(ui) = self.ivars().borrow_mut().as_mut() {
+                ui.style = style;
+            }
+            save_style(style);
             self.refresh_icon();
         }
 
@@ -163,6 +167,7 @@ impl Widget {
             views,
             muted,
             blink_on: true,
+            style: load_style(),
         });
         this
     }
@@ -190,10 +195,13 @@ impl Widget {
         let mut ivars = self.ivars().borrow_mut();
         let Some(ui) = ivars.as_mut() else { return };
 
-        let (running, queued, errors, connected) = {
+        let (running, queued, failed, connected) = {
             let Ok(views) = ui.views.lock() else { return };
             (
-                views.iter().any(|view| view.snapshot.running().next().is_some()),
+                views
+                    .iter()
+                    .map(|view| view.snapshot.running().count())
+                    .sum::<usize>(),
                 views
                     .iter()
                     .map(|view| {
@@ -202,23 +210,25 @@ impl Widget {
                     .sum(),
                 views
                     .iter()
-                    .any(|view| view.snapshot.errors > 0 || view.snapshot.stalled()),
+                    .map(|view| view.snapshot.errors + view.snapshot.stalled() as usize)
+                    .sum::<usize>(),
                 views.iter().any(|view| view.snapshot.connected),
             )
         };
 
-        ui.blink_on = if (running || errors) && connected {
+        // Blink while anything demands attention: a running job, an
+        // unacknowledged failure, or no reachable folder at all.
+        ui.blink_on = if running > 0 || failed > 0 || !connected {
             !ui.blink_on
         } else {
             true
         };
 
-        let image = icon::draw(&icon::IconState {
+        let image = icon::draw(ui.style, &icon::IconState {
             running,
             queued,
-            errors,
+            failed,
             blink_on: ui.blink_on,
-            remote: true,
             connected,
         });
         if let Some(button) = ui.status_item.button(mtm) {
@@ -254,33 +264,33 @@ impl Widget {
             item
         };
 
-        let multiple = views.len() > 1;
-        for (index, view) in views.iter().enumerate() {
-            let tag = index as isize;
-            if index > 0 {
-                menu.addItem(&NSMenuItem::separatorItem(mtm));
-            }
-            if multiple {
-                info(view.root.label());
-            }
+        // Unreachable folders are left out of the menu: on a machine that has
+        // its own queue, a share that isn't mounted is not news. Only when
+        // *nothing* is reachable does the menu say so, because then silence
+        // would read as an empty queue.
+        if !views.iter().any(|view| view.snapshot.connected) {
+            info("Jobs folder unreachable".to_string());
+            action("Jobs Folder…".to_string(), sel!(openFolder:), true, 0);
+        }
 
-            // A folder that isn't there is called that. Rendering an
-            // unreachable share as an empty queue would read as "nothing to
-            // do", which is the one wrong answer.
+        let mut first = true;
+        for view in views.iter() {
             if !view.snapshot.connected {
-                info(format!("Not mounted — {}", view.root.path().display()));
-                action("Open jobs folder".to_string(), sel!(openFolder:), true, tag);
                 continue;
             }
+            if !first {
+                menu.addItem(&NSMenuItem::separatorItem(mtm));
+            }
+            first = false;
 
             let sections = row::sections(&view.snapshot, MAX_QUEUE_LISTED, MAX_RECENT_LISTED);
             if sections.is_empty() {
                 info("Idle".to_string());
             } else {
                 let layout = row::layout(sections.iter().flat_map(|section| section.rows.iter()));
-                for section in &sections {
-                    if let Some(label) = section.label.as_ref() {
-                        info(label.clone());
+                for (position, section) in sections.iter().enumerate() {
+                    if position > 0 {
+                        menu.addItem(&NSMenuItem::separatorItem(mtm));
                     }
                     for spec in &section.rows {
                         let item = NSMenuItem::new(mtm);
@@ -294,29 +304,56 @@ impl Widget {
                 }
             }
 
-            action("Open jobs folder".to_string(), sel!(openFolder:), true, tag);
-            action("Open failed jobs".to_string(), sel!(openFailed:), true, tag);
-            let has_log = view
-                .snapshot
-                .running()
-                .next()
-                .is_some_and(|job| job.log_path().is_some());
-            action(
-                "View running job log".to_string(),
-                sel!(viewLog:),
-                has_log,
-                tag,
-            );
+        }
+
+        menu.addItem(&NSMenuItem::separatorItem(mtm));
+
+        // One verb for the whole queue. Pausing moves everything running or
+        // waiting into _paused; resuming sends what had a process back to
+        // _running (SIGCONT) and what never started back to the queue.
+        let pausable = pause_moves(&views);
+        let resumable = resume_moves(&views);
+        if pausable.is_empty() && !resumable.is_empty() {
+            action("Resume".to_string(), sel!(resumeAll:), true, 0);
+        } else {
+            action("Pause".to_string(), sel!(pauseAll:), !pausable.is_empty(), 0);
         }
 
         let errors = views.iter().any(|view| view.snapshot.errors > 0);
-        menu.addItem(&NSMenuItem::separatorItem(mtm));
-        action(
-            "Clear error badge".to_string(),
-            sel!(clearErrors:),
-            errors,
-            0,
-        );
+        action("Clear Errors".to_string(), sel!(clearErrors:), errors, 0);
+        let style_menu = NSMenu::new(mtm);
+        style_menu.setAutoenablesItems(false);
+        // Each style shows itself: the same icon it would put in the bar, in a
+        // representative state, so the choice is made by looking rather than
+        // by reading four names and guessing.
+        let preview = icon::IconState {
+            running: 1,
+            queued: 2,
+            ..icon::IconState::default()
+        };
+        for (index, style) in icon::ALL_STYLES.iter().enumerate() {
+            let item = NSMenuItem::new(mtm);
+            item.setTitle(&NSString::from_str(style.label()));
+            item.setTag(index as isize);
+            item.setEnabled(true);
+            item.setImage(Some(&icon::draw(*style, &preview)));
+            item.setState(if *style == ui.style {
+                NSControlStateValueOn
+            } else {
+                NSControlStateValueOff
+            });
+            unsafe {
+                item.setTarget(Some(self.as_ref()));
+                item.setAction(Some(sel!(setStyle:)));
+            }
+            style_menu.addItem(&item);
+        }
+        let style_root = NSMenuItem::new(mtm);
+        style_root.setTitle(ns_string!("Icon"));
+        style_root.setEnabled(true);
+        style_root.setSubmenu(Some(&style_menu));
+        menu.addItem(&style_root);
+
         let notifications = action(
             "Notifications".to_string(),
             sel!(toggleNotifications:),
@@ -328,6 +365,8 @@ impl Widget {
         } else {
             NSControlStateValueOn
         });
+
+        action("Log".to_string(), sel!(openLog:), log_path().exists(), 0);
 
         menu.addItem(&NSMenuItem::separatorItem(mtm));
         let quit = NSMenuItem::new(mtm);
@@ -342,6 +381,68 @@ impl Widget {
 
 fn open(path: &std::path::Path) {
     let _ = Command::new("open").arg(path).spawn();
+}
+
+/// The daemon's status trail — one line per job event.
+fn log_path() -> std::path::PathBuf {
+    std::env::var_os("JOB_LOG")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            std::env::var_os("HOME")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_default()
+                .join("Library/Logs/jobs.log")
+        })
+}
+
+/// Everything that global Pause would move: running and waiting jobs, into
+/// `_paused`. Moving the folder is the command — the runner watching it does
+/// the SIGSTOP.
+fn pause_moves(views: &[RootView]) -> Vec<(std::path::PathBuf, std::path::PathBuf)> {
+    let mut moves = Vec::new();
+    for view in views {
+        if !view.snapshot.connected {
+            continue;
+        }
+        for job in &view.snapshot.jobs {
+            if matches!(job.state, State::Running | State::Ready)
+                && let Some(name) = job.dir.file_name()
+            {
+                moves.push((job.dir.clone(), view.root.paused().join(name)));
+            }
+        }
+    }
+    moves
+}
+
+/// The way back: a paused job that has a process behind it (a `.status` file)
+/// returns to `_running`, which is the SIGCONT; one that was only ever queued
+/// goes back to `_ready` — sending it to `_running` would count as a stall.
+fn resume_moves(views: &[RootView]) -> Vec<(std::path::PathBuf, std::path::PathBuf)> {
+    let mut moves = Vec::new();
+    for view in views {
+        if !view.snapshot.connected {
+            continue;
+        }
+        for job in view.snapshot.in_state(State::Paused) {
+            let Some(name) = job.dir.file_name() else { continue };
+            let to = if job.status.is_some() {
+                view.root.running().join(name)
+            } else {
+                view.root.ready().join(name)
+            };
+            moves.push((job.dir.clone(), to));
+        }
+    }
+    moves
+}
+
+fn apply_moves(moves: Vec<(std::path::PathBuf, std::path::PathBuf)>) {
+    for (from, to) in moves {
+        if let Err(err) = fs::rename(&from, &to) {
+            eprintln!("job-monitor: could not move {} — {err}", from.display());
+        }
+    }
 }
 
 /// Acknowledgement and mute live on *this* machine. Nothing about how one
@@ -364,6 +465,22 @@ fn acknowledge_errors() {
         .map(|since| since.as_secs() as i64)
         .unwrap_or(0);
     let _ = fs::write(ack_file(), now.to_string());
+}
+
+fn style_file() -> std::path::PathBuf {
+    roots::config_dir().join("style")
+}
+
+fn load_style() -> icon::Style {
+    fs::read_to_string(style_file())
+        .ok()
+        .and_then(|text| icon::Style::from_key(text.trim()))
+        .unwrap_or(icon::Style::Cursors)
+}
+
+fn save_style(style: icon::Style) {
+    let _ = fs::create_dir_all(roots::config_dir());
+    let _ = fs::write(style_file(), style.key());
 }
 
 fn mute_file() -> std::path::PathBuf {

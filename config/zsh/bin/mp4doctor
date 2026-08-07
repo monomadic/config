@@ -40,6 +40,8 @@ usage:
 Without --fix, reports each file's container state and changes nothing.
 With --fix, losslessly remuxes fragmented / non-faststart files in place
 (atomic tmp + duration verification; creation date and mtime preserved).
+Because the remux is atomic-by-copy it needs free space for a second copy of
+each file; --fix exits 3 if that was the only thing that stopped it.
 
 Directories recurse for *.mp4 / *.mov / *.m4v. Other extensions are skipped.
 
@@ -166,14 +168,30 @@ creation_date_for_setfile() {
   date -r "$epoch" '+%m/%d/%Y %H:%M:%S'
 }
 
+free_bytes_for() {
+  df -k -- "$1" 2>/dev/null | tail -1 | awk '{ print $4 * 1024 }'
+}
+
 # Lossless in-place repair: remux to a sibling tmp, verify the duration
 # carried over AND that the result actually reads as faststart, restore both
 # timestamps, then swap. The original is never modified until the verified
 # replacement exists.
+#
+# Returns 0 on success, 2 when the volume can't hold the tmp copy, 1 otherwise.
+# Space gets its own code because the remux is atomic-by-copy: it needs room
+# for a second full-size file, so a 10 GB file on a volume with 4 GB free fails
+# with nothing wrong with the container at all. Reporting that as "could not
+# repair" sends you looking for corruption that isn't there.
 fix_file() {
   local file="$1"
   local tmp created before after
-  integer rc=0
+  integer rc=0 need=0 avail=0
+
+  need=$(( $(stat -f %z -- "$file") + 67108864 ))   # + 64 MiB headroom
+  avail="$(free_bytes_for "${file:h}")"
+  if [[ "$avail" == <-> ]] && (( avail < need )); then
+    return 2
+  fi
 
   tmp="$(mktemp "${file:h}/.${file:t:r}.mp4doctor.XXXXXX.${file:e}")" || return 1
 
@@ -228,7 +246,7 @@ done
 
 (( ${#files[@]} > 0 )) || { print -u2 "no mp4/mov/m4v files to check"; exit 2 }
 
-integer n_ok=0 n_frag=0 n_slow=0 n_partial=0 n_odd=0 n_fixed=0 n_failed=0
+integer n_ok=0 n_frag=0 n_slow=0 n_partial=0 n_odd=0 n_fixed=0 n_failed=0 n_nospace=0
 state=""
 report() {
   $quiet && return 0
@@ -255,13 +273,22 @@ for file in "${files[@]}"; do
     fragmented|no-faststart)
       [[ "$state" == fragmented ]] && (( ++n_frag )) || (( ++n_slow ))
       if [[ "$fix_mode" == true ]]; then
-        if fix_file "$file"; then
-          (( ++n_fixed ))
-          report "  ${C_GREEN}fixed${C_RESET}        ${C_DIM}(${state})${C_RESET} $file"
-        else
-          (( ++n_failed ))
-          report "  ${C_RED}FAILED${C_RESET}       ${C_DIM}(${state})${C_RESET} $file"
-        fi
+        fix_file "$file"
+        case $? in
+          0)
+            (( ++n_fixed ))
+            report "  ${C_GREEN}fixed${C_RESET}        ${C_DIM}(${state})${C_RESET} $file"
+            ;;
+          2)
+            (( ++n_nospace ))
+            report "  ${C_RED}no space${C_RESET}     ${C_DIM}(${state})${C_RESET} $file"
+            report "    ${C_DIM}the remux needs room for a second copy ($(numfmt --to=iec $(stat -f %z -- "$file") 2>/dev/null || stat -f %z -- "$file")); free space on ${file:h} and rerun — the file itself is fine${C_RESET}"
+            ;;
+          *)
+            (( ++n_failed ))
+            report "  ${C_RED}FAILED${C_RESET}       ${C_DIM}(${state})${C_RESET} $file"
+            ;;
+        esac
       else
         report "  ${C_YELLOW}${state}${C_RESET}${C_DIM}$(printf '%*s' $(( 13 - ${#state} )) '')${C_RESET}$file"
       fi
@@ -277,6 +304,7 @@ summary="checked ${#files[@]}: ${C_GREEN}${n_ok} healthy${C_RESET}"
 (( n_odd )) && summary+=" · ${C_RED}${n_odd} unreadable${C_RESET}"
 if [[ "$fix_mode" == true ]]; then
   summary+=" · ${C_GREEN}${n_fixed} fixed${C_RESET}"
+  (( n_nospace )) && summary+=" · ${C_RED}${n_nospace} no space${C_RESET}"
   (( n_failed )) && summary+=" · ${C_RED}${n_failed} failed${C_RESET}"
 elif (( n_bad )); then
   summary+=" ${C_DIM}(rerun with --fix to repair)${C_RESET}"
@@ -284,6 +312,9 @@ fi
 print -r -- "$summary"
 
 if [[ "$fix_mode" == true ]]; then
+  # 3 = nothing wrong with the containers, the volume just couldn't hold the
+  # tmp copy. Callers (media-audit) report that differently from a real failure.
+  (( n_failed == 0 && n_nospace > 0 )) && exit 3
   (( n_failed == 0 ))
 else
   (( n_bad == 0 && n_odd == 0 ))

@@ -35,7 +35,9 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSMutableDictionary, NSPoint, NSRect, NSSize, NSString};
 
-/// What the row is showing, which decides its symbol and its colour.
+/// What the row is showing. The row draws no state icon of its own — the
+/// value, the bar and the buttons carry that — but the apps still group and
+/// filter by it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
     Running,
@@ -43,26 +45,6 @@ pub enum Kind {
     Queued,
     Done,
     Failed,
-}
-
-impl Kind {
-    fn symbol(self) -> &'static str {
-        match self {
-            Kind::Running => "play",
-            Kind::Paused => "pause",
-            Kind::Queued => "clock",
-            Kind::Done => "checkmark",
-            Kind::Failed => "xmark",
-        }
-    }
-
-    fn tint(self) -> Retained<NSColor> {
-        match self {
-            Kind::Done => NSColor::systemGreenColor(),
-            Kind::Failed => NSColor::systemRedColor(),
-            _ => NSColor::labelColor().colorWithAlphaComponent(0.85),
-        }
-    }
 }
 
 /// How the bar under the name is drawn.
@@ -81,15 +63,23 @@ pub enum Progress {
     None,
 }
 
-/// A button on a row. The destination is worked out when the row is built, so
-/// pressing it is one `rename` — the row needs no callback into the app, and
-/// both GUIs get identical behaviour because there is no behaviour to differ.
+/// A button on a row. What it does is worked out when the row is built, so
+/// pressing it is one `rename` (or one `open`) — the row needs no callback
+/// into the app, and both GUIs get identical behaviour because there is no
+/// behaviour to differ.
 #[derive(Clone)]
 pub struct Action {
     pub glyph: Glyph,
-    /// Where the job's folder goes. Moving it *is* the command; the runner is
+    pub act: Act,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Act {
+    /// Move the job's folder here. The move *is* the command; the runner is
     /// watching its own folder and does the signalling.
-    pub to: PathBuf,
+    Move(PathBuf),
+    /// Open this path — a log, not a command.
+    Open(PathBuf),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -97,6 +87,31 @@ pub enum Glyph {
     Pause,
     Resume,
     Stop,
+    /// Drawn as a small labelled pill rather than a symbol: opening a log is
+    /// not one of the folder-move verbs and shouldn't look like one.
+    Log,
+}
+
+impl Glyph {
+    /// The SF Symbol the button draws, where it draws one. Pause and resume
+    /// share the toggle glyph — the row's own value already says which way it
+    /// will go — and stop is an x: in this system stopping *is* killing (the
+    /// move to `_failed` SIGTERMs the process group), so there is only the one
+    /// verb.
+    fn symbol(self) -> Option<&'static str> {
+        match self {
+            Glyph::Pause | Glyph::Resume => Some("playpause.circle.fill"),
+            Glyph::Stop => Some("xmark.circle.fill"),
+            Glyph::Log => None,
+        }
+    }
+
+    fn label(self) -> Option<&'static str> {
+        match self {
+            Glyph::Log => Some("log"),
+            _ => None,
+        }
+    }
 }
 
 /// Everything one row draws. Built by the apps from a `Snapshot`.
@@ -189,11 +204,10 @@ impl RowSpec {
     }
 }
 
-/// A labelled group of rows. The label is a plain menu item — headers and
-/// actions stay ordinary menu items at ordinary size; only the job rows are
-/// custom views sharing one height.
+/// A group of rows — active, queued, or recent. Groups carry no header text;
+/// the menu separates them with ordinary separators, and each row's own icon
+/// and value say what it is.
 pub struct Section {
-    pub label: Option<String>,
     pub rows: Vec<RowSpec>,
 }
 
@@ -204,25 +218,26 @@ pub fn sections(snapshot: &Snapshot, max_queued: usize, max_recent: usize) -> Ve
     let mut sections = Vec::new();
     let root = snapshot.root.clone();
 
-    // Running and paused first — the jobs with a process behind them.
+    // Running and paused first — the jobs with a process behind them — then
+    // the queue behind them. They are one section: a job moves between these
+    // states while you watch, and a rule dividing them would put a line
+    // through the middle of the thing being looked at.
     let mut rows: Vec<RowSpec> = snapshot
         .jobs
         .iter()
         .filter(|job| matches!(job.state, State::Running | State::Paused))
         .map(|job| active_row(job, &root))
         .collect();
-    if !rows.is_empty() {
-        sections.push(Section {
-            label: None,
-            rows: std::mem::take(&mut rows),
-        });
-    }
 
     // The queue: staged folders, then anything still sitting in the inbox.
     // Inbox entries only pile up when nothing is watching the folder, so they
     // are worth showing rather than hiding as an implementation detail.
     let ready: Vec<&Run> = snapshot.in_state(State::Ready).collect();
     let queued = ready.len() + snapshot.inbox.len();
+    // Counted from where the queue starts, not from the top of the section:
+    // the active jobs above share this list but are not part of the queue, and
+    // must not eat into how much of it gets shown.
+    let active = rows.len();
     for (index, job) in ready.iter().take(max_queued).enumerate() {
         rows.push(
             RowSpec::new(Kind::Queued, job.name.clone())
@@ -234,22 +249,26 @@ pub fn sections(snapshot: &Snapshot, max_queued: usize, max_recent: usize) -> Ve
                 .actions(job.dir.clone(), holdable(job, &root)),
         );
     }
-    for name in snapshot.inbox.iter().take(max_queued.saturating_sub(rows.len())) {
+    for name in snapshot
+        .inbox
+        .iter()
+        .take(max_queued.saturating_sub(rows.len() - active))
+    {
         rows.push(
             RowSpec::new(Kind::Queued, name.clone())
                 .value("not picked up".to_string())
                 .progress(Progress::Track),
         );
     }
-    if queued > rows.len() {
+    let listed = rows.len() - active;
+    if queued > listed {
         rows.push(
-            RowSpec::new(Kind::Queued, format!("… {} more queued", queued - rows.len()))
+            RowSpec::new(Kind::Queued, format!("… {} more queued", queued - listed))
                 .progress(Progress::Track),
         );
     }
     if !rows.is_empty() {
         sections.push(Section {
-            label: Some(format!("Queued: {queued}")),
             rows: std::mem::take(&mut rows),
         });
     }
@@ -268,10 +287,7 @@ pub fn sections(snapshot: &Snapshot, max_queued: usize, max_recent: usize) -> Ve
         );
     }
     if !rows.is_empty() {
-        sections.push(Section {
-            label: Some("Recent".to_string()),
-            rows,
-        });
+        sections.push(Section { rows });
     }
 
     sections
@@ -286,7 +302,7 @@ fn holdable(job: &Run, root: &Option<Root>) -> Vec<Action> {
     };
     vec![Action {
         glyph: Glyph::Pause,
-        to: root.paused().join(folder),
+        act: Act::Move(root.paused().join(folder)),
     }]
 }
 
@@ -338,29 +354,37 @@ fn active_row(job: &Run, root: &Option<Root>) -> RowSpec {
         .actions(job.dir.clone(), controls(job, root))
 }
 
-/// Pause/resume and stop, as the folder moves they are.
+/// Pause/resume and stop, as the folder moves they are, plus the job's log
+/// where it has written one.
 fn controls(job: &Run, root: &Option<Root>) -> Vec<Action> {
     let Some(root) = root else { return Vec::new() };
     let Some(folder) = job.dir.file_name() else {
         return Vec::new();
     };
     let paused = job.state == State::Paused;
-    vec![
+    let mut actions = vec![
         Action {
             glyph: if paused { Glyph::Resume } else { Glyph::Pause },
-            to: if paused {
+            act: Act::Move(if paused {
                 root.running().join(folder)
             } else {
                 root.paused().join(folder)
-            },
+            }),
         },
         // Stopping files the job where a stopped job belongs, which is also
         // the signal for the runner to terminate it.
         Action {
             glyph: Glyph::Stop,
-            to: root.failed().join(folder),
+            act: Act::Move(root.failed().join(folder)),
         },
-    ]
+    ];
+    if let Some(log) = job.log_path() {
+        actions.push(Action {
+            glyph: Glyph::Log,
+            act: Act::Open(log),
+        });
+    }
+    actions
 }
 
 /// `4:07` under an hour, `1:04:07` beyond it.
@@ -407,21 +431,21 @@ pub fn ago(duration: Duration) -> String {
 pub struct Layout {
     font: Retained<NSFont>,
     detail_font: Retained<NSFont>,
-    caption_font: Retained<NSFont>,
     log_font: Retained<NSFont>,
+    button_font: Retained<NSFont>,
     width: f64,
-    icon_x: f64,
-    icon_scrim: f64,
-    icon_size: f64,
     text_left: f64,
     text_right: f64,
     bar_height: f64,
     line_gap: f64,
     height: f64,
-    /// Centre of the leftmost button; buttons march rightwards from here.
+    /// Left edge of the button column; buttons march rightwards from here,
+    /// each as wide as its own glyph needs.
     button_x: f64,
     button_diameter: f64,
     button_gap: f64,
+    /// The labelled pill is wider than a symbol button.
+    label_width: f64,
 }
 
 /// Sized from the widest name and value in the set, and clamped so a menu of
@@ -434,44 +458,50 @@ pub fn layout<'a>(specs: impl IntoIterator<Item = &'a RowSpec> + Clone) -> Layou
         NSFont::monospacedDigitSystemFontOfSize_weight((em * 0.82).round(), unsafe {
             NSFontWeightRegular
         });
-    let caption_font =
-        NSFont::monospacedDigitSystemFontOfSize_weight((em * 0.66).round(), unsafe {
-            NSFontWeightRegular
-        });
     let log_font = NSFont::monospacedSystemFontOfSize_weight((em * 0.74).round(), unsafe {
+        NSFontWeightRegular
+    });
+    let button_font = NSFont::systemFontOfSize_weight((em * 0.72).round(), unsafe {
         NSFontWeightRegular
     });
 
     let left = (em * 1.1).round();
     let right = (em * 1.0).round();
     let gap = (em * 0.9).round();
-    let icon_size = (em * 1.05).round();
     let bar_height = (em * 0.28).round().max(3.0);
     let line_gap = (em * 0.42).round();
     let button_diameter = (em * 1.45).round();
     let button_gap = (em * 0.35).round();
+    let label_width = (text_size(&button_font, "log").width + em * 0.9).round();
 
     let widest = |measure: &dyn Fn(&RowSpec) -> f64| {
         specs.clone().into_iter().map(measure).fold(0.0, f64::max)
     };
     let name_width = widest(&|spec: &RowSpec| text_size(&font, &spec.name).width);
     let value_width = widest(&|spec: &RowSpec| text_size(&detail_font, &spec.value).width);
-    let caption_width = widest(&|spec: &RowSpec| text_size(&caption_font, &spec.caption).width);
 
-    let icon_scrim = (em * 1.9).max(caption_width).round();
-    let text_left = left + icon_scrim + gap;
+    let text_left = left;
     // Wide enough to be worth reading, narrow enough to stay a menu.
     let text_width = (name_width + gap * 2.0 + value_width).clamp(em * 16.0, em * 34.0);
     // The button column is sized by the busiest row, so the controls line up
     // down the menu instead of following each row's own count.
-    let most_buttons = specs
-        .clone()
-        .into_iter()
-        .map(|spec| spec.actions.len())
-        .max()
-        .unwrap_or(0);
-    let button_column = if most_buttons > 0 {
-        gap + most_buttons as f64 * button_diameter + (most_buttons as f64 - 1.0) * button_gap
+    let button_span = |spec: &RowSpec| {
+        let mut span = 0.0;
+        for (index, action) in spec.actions.iter().enumerate() {
+            if index > 0 {
+                span += button_gap;
+            }
+            span += if action.glyph.label().is_some() {
+                label_width
+            } else {
+                button_diameter
+            };
+        }
+        span
+    };
+    let widest_buttons = widest(&button_span);
+    let button_column = if widest_buttons > 0.0 {
+        gap + widest_buttons
     } else {
         0.0
     };
@@ -480,20 +510,18 @@ pub fn layout<'a>(specs: impl IntoIterator<Item = &'a RowSpec> + Clone) -> Layou
     let mut layout = Layout {
         font,
         detail_font,
-        caption_font,
         log_font,
+        button_font,
         width,
-        icon_x: left,
-        icon_scrim,
-        icon_size,
         text_left,
         text_right: text_left + text_width,
         bar_height,
         line_gap,
         height: 0.0,
-        button_x: text_left + text_width + gap + button_diameter / 2.0,
+        button_x: text_left + text_width + gap,
         button_diameter,
         button_gap,
+        label_width,
     };
     let tallest = specs
         .into_iter()
@@ -533,11 +561,8 @@ pub struct RowIvars {
     spec: RowSpec,
     font: Retained<NSFont>,
     detail_font: Retained<NSFont>,
-    caption_font: Retained<NSFont>,
     log_font: Retained<NSFont>,
-    icon_x: f64,
-    icon_scrim: f64,
-    icon_size: f64,
+    button_font: Retained<NSFont>,
     text_left: f64,
     text_right: f64,
     bar_height: f64,
@@ -545,6 +570,7 @@ pub struct RowIvars {
     button_x: f64,
     button_diameter: f64,
     button_gap: f64,
+    label_width: f64,
     hovered: Cell<bool>,
     /// Which button the pointer is over, so it can brighten under it.
     hot_button: Cell<Option<usize>>,
@@ -568,8 +594,6 @@ define_class!(
             if ivars.hovered.get() && ivars.spec.path.is_some() {
                 draw_highlight(bounds);
             }
-
-            self.draw_icon(bounds);
 
             // The block of text is centred on its visible marks rather than
             // its boxes: the leading above the caps otherwise reads as extra
@@ -685,14 +709,22 @@ define_class!(
                 let Some(action) = ivars.spec.actions.get(index) else {
                     return;
                 };
-                let Some(dir) = ivars.spec.dir.as_ref() else {
-                    return;
-                };
                 self.dismiss_menu();
-                // The command *is* the move. Whoever is watching the folder —
-                // the runner, here or on another machine — does the rest.
-                if let Err(err) = std::fs::rename(dir, &action.to) {
-                    eprintln!("job: could not move {} — {err}", dir.display());
+                match &action.act {
+                    // The command *is* the move. Whoever is watching the
+                    // folder — the runner, here or on another machine — does
+                    // the rest.
+                    Act::Move(to) => {
+                        let Some(dir) = ivars.spec.dir.as_ref() else {
+                            return;
+                        };
+                        if let Err(err) = std::fs::rename(dir, to) {
+                            eprintln!("job: could not move {} — {err}", dir.display());
+                        }
+                    }
+                    Act::Open(path) => {
+                        let _ = Command::new("open").arg(path).spawn();
+                    }
                 }
                 return;
             }
@@ -717,11 +749,8 @@ impl JobRow {
             spec,
             font: layout.font.clone(),
             detail_font: layout.detail_font.clone(),
-            caption_font: layout.caption_font.clone(),
             log_font: layout.log_font.clone(),
-            icon_x: layout.icon_x,
-            icon_scrim: layout.icon_scrim,
-            icon_size: layout.icon_size,
+            button_font: layout.button_font.clone(),
             text_left: layout.text_left,
             text_right: layout.text_right,
             bar_height: layout.bar_height,
@@ -729,6 +758,7 @@ impl JobRow {
             button_x: layout.button_x,
             button_diameter: layout.button_diameter,
             button_gap: layout.button_gap,
+            label_width: layout.label_width,
             hovered: Cell::new(false),
             hot_button: Cell::new(None),
         });
@@ -757,65 +787,6 @@ impl JobRow {
         };
         this.addTrackingArea(&tracking);
         this
-    }
-
-    /// The state symbol with its caption underneath, like the label on a
-    /// drive in the volume rows this borrows from.
-    fn draw_icon(&self, bounds: NSRect) {
-        let ivars = self.ivars();
-        let caption_size = text_size(&ivars.caption_font, &ivars.spec.caption);
-        let lift = if ivars.spec.caption.is_empty() {
-            0.0
-        } else {
-            (caption_size.height * 0.45).round()
-        };
-        let center_y = bounds.size.height / 2.0 + lift;
-
-        if !ivars.spec.caption.is_empty() {
-            draw_text(
-                &ivars.spec.caption,
-                &ivars.caption_font,
-                &NSColor::secondaryLabelColor(),
-                NSPoint {
-                    x: (ivars.icon_x + (ivars.icon_scrim - caption_size.width) / 2.0).round(),
-                    y: (center_y - ivars.icon_size / 2.0 - caption_size.height).round(),
-                },
-            );
-        }
-
-        let name = NSString::from_str(ivars.spec.kind.symbol());
-        let Some(symbol) = NSImage::imageWithSystemSymbolName_accessibilityDescription(&name, None)
-        else {
-            return;
-        };
-        // Hierarchical colour bakes the tint in, so the template image can be
-        // drawn directly; rows are rebuilt each time the menu opens, which
-        // re-resolves it for the current appearance.
-        let config =
-            NSImageSymbolConfiguration::configurationWithHierarchicalColor(&ivars.spec.kind.tint());
-        let Some(icon) = symbol.imageWithSymbolConfiguration(&config) else {
-            return;
-        };
-
-        let size = icon.size();
-        let scale = if size.width > 0.0 && size.height > 0.0 {
-            (ivars.icon_size / size.width).min(ivars.icon_size / size.height)
-        } else {
-            1.0
-        };
-        let width = size.width * scale;
-        let height = size.height * scale;
-        icon.drawInRect_fromRect_operation_fraction(
-            rect(
-                ivars.icon_x + (ivars.icon_scrim - width) / 2.0,
-                (center_y - height / 2.0).round(),
-                width,
-                height,
-            ),
-            NSRect::ZERO,
-            NSCompositingOperation::SourceOver,
-            1.0,
-        );
     }
 
     fn draw_bar(&self, y: f64) {
@@ -879,13 +850,28 @@ impl JobRow {
         }
     }
 
-    /// The centre of button `index`, laid out left to right.
-    fn button_center(&self, index: usize, bounds: NSRect) -> NSPoint {
+    fn button_width(&self, index: usize) -> f64 {
         let ivars = self.ivars();
-        NSPoint {
-            x: ivars.button_x + index as f64 * (ivars.button_diameter + ivars.button_gap),
-            y: bounds.size.height / 2.0,
+        match ivars.spec.actions.get(index).map(|action| action.glyph) {
+            Some(glyph) if glyph.label().is_some() => ivars.label_width,
+            _ => ivars.button_diameter,
         }
+    }
+
+    /// Button `index`'s box, laid out left to right, each as wide as it needs.
+    fn button_rect(&self, index: usize, bounds: NSRect) -> NSRect {
+        let ivars = self.ivars();
+        let mut x = ivars.button_x;
+        for earlier in 0..index {
+            x += self.button_width(earlier) + ivars.button_gap;
+        }
+        let width = self.button_width(index);
+        rect(
+            x,
+            (bounds.size.height - ivars.button_diameter) / 2.0,
+            width,
+            ivars.button_diameter,
+        )
     }
 
     fn button_at(&self, event: &NSEvent) -> Option<usize> {
@@ -895,12 +881,14 @@ impl JobRow {
         }
         let point = self.convertPoint_fromView(event.locationInWindow(), None);
         let bounds = self.bounds();
-        // A little forgiveness beyond the drawn circle.
-        let reach = ivars.button_diameter / 2.0 + 3.0;
+        // A little forgiveness beyond the drawn box.
+        let slack = 3.0;
         (0..ivars.spec.actions.len()).find(|index| {
-            let center = self.button_center(*index, bounds);
-            let (dx, dy) = (point.x - center.x, point.y - center.y);
-            dx * dx + dy * dy <= reach * reach
+            let box_ = self.button_rect(*index, bounds);
+            point.x >= box_.origin.x - slack
+                && point.x <= box_.origin.x + box_.size.width + slack
+                && point.y >= box_.origin.y - slack
+                && point.y <= box_.origin.y + box_.size.height + slack
         })
     }
 
@@ -912,77 +900,89 @@ impl JobRow {
         self.setNeedsDisplay(true);
     }
 
-    /// Translucent circles that brighten under the pointer, with the glyph
-    /// drawn inside — the same affordance the volume rows use for eject.
+    /// The SF `circle.fill` symbols, brightening under the pointer — filled
+    /// circles read at menu size where hand-drawn glyphs went muddy. `log` is
+    /// a labelled pill instead: it opens something rather than commanding the
+    /// job, and shouldn't be mistaken for one of the verbs.
     fn draw_buttons(&self, bounds: NSRect) {
         let ivars = self.ivars();
         let hot = ivars.hot_button.get();
-        let diameter = ivars.button_diameter;
 
         for (index, action) in ivars.spec.actions.iter().enumerate() {
             let hovered = hot == Some(index);
-            let center = self.button_center(index, bounds);
+            let box_ = self.button_rect(index, bounds);
 
-            NSColor::labelColor()
-                .colorWithAlphaComponent(if hovered { 0.26 } else { 0.13 })
-                .set();
-            NSBezierPath::bezierPathWithOvalInRect(rect(
-                center.x - diameter / 2.0,
-                center.y - diameter / 2.0,
-                diameter,
-                diameter,
-            ))
-            .fill();
-
-            let ink = match (action.glyph, hovered) {
+            let tint = match (action.glyph, hovered) {
                 // Stopping is the destructive one, so it says so under the
                 // pointer rather than looking like everything else.
                 (Glyph::Stop, true) => NSColor::systemRedColor(),
                 (_, true) => NSColor::labelColor(),
-                _ => NSColor::secondaryLabelColor(),
+                _ => NSColor::labelColor().colorWithAlphaComponent(0.62),
             };
-            ink.set();
 
-            match action.glyph {
-                Glyph::Pause => {
-                    let bar = diameter * 0.13;
-                    let tall = diameter * 0.42;
-                    for side in [-1.0, 1.0] {
-                        NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
-                            rect(
-                                center.x + side * bar * 1.6 - bar / 2.0,
-                                center.y - tall / 2.0,
-                                bar,
-                                tall,
-                            ),
-                            bar / 2.0,
-                            bar / 2.0,
-                        )
-                        .fill();
-                    }
-                }
-                Glyph::Resume => {
-                    let size = diameter * 0.4;
-                    let triangle = NSBezierPath::new();
-                    // Nudged right so the triangle looks centred, which it
-                    // isn't when its bounding box is.
-                    let left = center.x - size * 0.35 + size * 0.08;
-                    triangle.moveToPoint(NSPoint { x: left, y: center.y - size / 2.0 });
-                    triangle.lineToPoint(NSPoint { x: left, y: center.y + size / 2.0 });
-                    triangle.lineToPoint(NSPoint { x: left + size * 0.8, y: center.y });
-                    triangle.closePath();
-                    triangle.fill();
-                }
-                Glyph::Stop => {
-                    let size = diameter * 0.34;
-                    NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
-                        rect(center.x - size / 2.0, center.y - size / 2.0, size, size),
-                        size * 0.18,
-                        size * 0.18,
-                    )
-                    .fill();
-                }
+            if let Some(label) = action.glyph.label() {
+                let height = (ivars.button_diameter * 0.76).round();
+                let pill = rect(
+                    box_.origin.x,
+                    box_.origin.y + (ivars.button_diameter - height) / 2.0,
+                    box_.size.width,
+                    height,
+                );
+                NSColor::labelColor()
+                    .colorWithAlphaComponent(if hovered { 0.26 } else { 0.13 })
+                    .set();
+                NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
+                    pill,
+                    height / 2.0,
+                    height / 2.0,
+                )
+                .fill();
+
+                let size = text_size(&ivars.button_font, label);
+                draw_text(
+                    label,
+                    &ivars.button_font,
+                    &tint,
+                    NSPoint {
+                        x: (pill.origin.x + (pill.size.width - size.width) / 2.0).round(),
+                        y: (pill.origin.y + (pill.size.height - size.height) / 2.0).round(),
+                    },
+                );
+                continue;
             }
+
+            let Some(symbol) = action.glyph.symbol().and_then(|name| {
+                NSImage::imageWithSystemSymbolName_accessibilityDescription(
+                    &NSString::from_str(name),
+                    None,
+                )
+            }) else {
+                continue;
+            };
+            let config = NSImageSymbolConfiguration::configurationWithHierarchicalColor(&tint);
+            let Some(icon) = symbol.imageWithSymbolConfiguration(&config) else {
+                continue;
+            };
+
+            let size = icon.size();
+            let scale = if size.width > 0.0 && size.height > 0.0 {
+                (box_.size.width / size.width).min(box_.size.height / size.height)
+            } else {
+                1.0
+            };
+            let width = size.width * scale;
+            let height = size.height * scale;
+            icon.drawInRect_fromRect_operation_fraction(
+                rect(
+                    box_.origin.x + (box_.size.width - width) / 2.0,
+                    box_.origin.y + (box_.size.height - height) / 2.0,
+                    width,
+                    height,
+                ),
+                NSRect::ZERO,
+                NSCompositingOperation::SourceOver,
+                1.0,
+            );
         }
     }
 
@@ -1102,21 +1102,34 @@ mod tests {
             .collect();
 
         let running = rows.iter().find(|row| row.name == "running").unwrap();
+        // No log button: these fixtures have no log file on disk.
         assert_eq!(running.actions.len(), 2);
         assert_eq!(running.actions[0].glyph, Glyph::Pause);
-        assert_eq!(running.actions[0].to, PathBuf::from("/j/_paused/2026-running"));
+        assert_eq!(
+            running.actions[0].act,
+            Act::Move(PathBuf::from("/j/_paused/2026-running"))
+        );
         assert_eq!(running.actions[1].glyph, Glyph::Stop);
-        assert_eq!(running.actions[1].to, PathBuf::from("/j/_failed/2026-running"));
+        assert_eq!(
+            running.actions[1].act,
+            Act::Move(PathBuf::from("/j/_failed/2026-running"))
+        );
 
         // A paused job offers the way back, not another pause.
         let held = rows.iter().find(|row| row.name == "held").unwrap();
         assert_eq!(held.actions[0].glyph, Glyph::Resume);
-        assert_eq!(held.actions[0].to, PathBuf::from("/j/_running/2026-held"));
+        assert_eq!(
+            held.actions[0].act,
+            Act::Move(PathBuf::from("/j/_running/2026-held"))
+        );
 
         // A job that hasn't started can be held, but there is nothing to stop.
         let waiting = rows.iter().find(|row| row.name == "waiting").unwrap();
         assert_eq!(waiting.actions.len(), 1);
-        assert_eq!(waiting.actions[0].to, PathBuf::from("/j/_paused/2026-waiting"));
+        assert_eq!(
+            waiting.actions[0].act,
+            Act::Move(PathBuf::from("/j/_paused/2026-waiting"))
+        );
 
         // Finished jobs get no controls at all.
         assert!(rows.iter().filter(|row| row.kind == Kind::Done).all(|row| row.actions.is_empty()));

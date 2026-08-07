@@ -1564,6 +1564,26 @@ for input in "$files[@]"; do
       "${topaz_env[@]}" "${ffmpeg_cmd[@]}" || topaz_status=$?
   fi
 
+  # Topaz's ffmpeg can exit nonzero from its licensing teardown after a fully
+  # successful encode (seen: status 19 with a clean log and a complete output).
+  # Trust the file over the exit code: an encode target that reached the
+  # expected duration proceeds to finalize, with only a warning.
+  if (( topaz_status != 0 )) && [[ -s "$encode_target" ]]; then
+    salvage_expected="$progress_total_seconds"
+    if [[ "$preview_mode" != true && -z "$resume_kf" ]]; then
+      # Fresh encodes: progress total is source time; scale to output time.
+      salvage_expected="$(awk -v d="$progress_total_seconds" \
+        -v f="$(topaz_slowmo_factor "$preset_value")" 'BEGIN { print d * f }')"
+    fi
+    salvage_duration="$(media_duration_seconds "$encode_target")"
+    if [[ -n "$salvage_duration" && -n "$salvage_expected" ]] &&
+        awk -v o="$salvage_duration" -v e="$salvage_expected" 'BEGIN { exit !(o >= e - 5) }'; then
+      print "[$(date '+%F %T')] WARNING encoder exited status=$topaz_status but output reached full duration — finalizing anyway" >>"$log_file"
+      say "  %F{yellow}⚠ encoder exited status=$topaz_status but output reached full duration — finalizing anyway%f"
+      topaz_status=0
+    fi
+  fi
+
   {
     if (( topaz_status != 0 )); then
       print "[$(date '+%F %T')] FAILED status=$topaz_status"
