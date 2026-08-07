@@ -25,6 +25,10 @@ local params_badge = mp.create_osd_overlay("ass-events")
 params_badge.z = 30
 local detail_badge = mp.create_osd_overlay("ass-events")
 detail_badge.z = 30
+-- Playback position rail. Its own overlay because it redraws on every time-pos
+-- tick, which is far more often than the menu itself changes.
+local seek_badge = mp.create_osd_overlay("ass-events")
+seek_badge.z = 30
 -- Preset-details companion sheet visibility (toggled with `d`, off until the user
 -- opens it); deliberately a script-local so the choice survives closing and
 -- reopening the menu.
@@ -441,6 +445,54 @@ local function draw_bottom(opts)
 
     params_badge.data = table.concat(ev, "\n")
     params_badge:update()
+end
+
+-- ===== playback position rail =====
+
+-- A 4px hairline flush to the very bottom screen edge, in the dead margin below
+-- the hint bar — so it costs the preset list nothing. Position only: too thin to
+-- carry timecodes (the panel caption already has them) or to aim a click at.
+local SEEK_H = 4
+local SEEK_Y = 720 - SEEK_H
+local seek_last_w = nil
+
+local function draw_seek()
+    if not menu or menu.ui_hidden then
+        seek_badge:remove()
+        seek_last_w = nil
+        return
+    end
+
+    local dur = mp.get_property_number("duration")
+    local pos = mp.get_property_number("time-pos")
+    if not (dur and pos and dur > 0) then
+        seek_badge:remove()
+        seek_last_w = nil
+        return
+    end
+
+    local frac = math.max(0, math.min(1, pos / dur))
+    local w = math.floor(1280 * frac + 0.5)
+    -- time-pos ticks per frame; only repaint when the rail actually moves.
+    if w == seek_last_w then
+        return
+    end
+    seek_last_w = w
+
+    seek_badge.res_x = 1280
+    seek_badge.res_y = 720
+
+    local ev = { string.format(
+        "{\\an7\\pos(0,%d)\\bord0\\shad0\\1c&HFFFFFF&\\1a&HE0&\\p1}%s{\\p0}",
+        SEEK_Y, ass_rect(1280, SEEK_H)) }
+    if w > 0 then
+        ev[#ev + 1] = string.format(
+            "{\\an7\\pos(0,%d)\\bord0\\shad0\\1c%s\\1a&H1A&\\p1}%s{\\p0}",
+            SEEK_Y, ACCENT, ass_rect(w, SEEK_H))
+    end
+
+    seek_badge.data = table.concat(ev, "\n")
+    seek_badge:update()
 end
 
 -- Detected source video properties.
@@ -1411,6 +1463,7 @@ function draw_menu()
         list_badge:remove()
         params_badge:remove()
         detail_badge:remove()
+        seek_badge:remove()
         return
     end
 
@@ -1498,6 +1551,7 @@ function draw_menu()
     end
 
     draw_details()
+    draw_seek()
 end
 
 -- ===== preset details companion sheet (`d`, Enhance tab) =====
@@ -2432,6 +2486,7 @@ function toggle_ui()
         list_badge:remove()
         params_badge:remove()
         detail_badge:remove()
+        seek_badge:remove()
     else
         draw_menu()
     end
@@ -3094,6 +3149,7 @@ function close_menu(message)
     list_badge:remove()
     params_badge:remove()
     detail_badge:remove()
+    seek_badge:remove()
     -- Restore the built-in OSC we suppressed on open.
     mp.commandv("script-message", "osc-visibility", "auto", "no-osd")
 
@@ -3221,10 +3277,14 @@ mp.register_event("shutdown", function()
     list_badge:remove()
     params_badge:remove()
     detail_badge:remove()
+    seek_badge:remove()
 end)
 
 -- Row hover highlighting (no-op unless the menu is open).
 mp.observe_property("mouse-pos", "native", update_hover)
+
+-- Playback rail follows the clock (no-op unless the menu is open).
+mp.observe_property("time-pos", "number", draw_seek)
 
 mp.add_key_binding(nil, "topaz_workflow_current_file", show_transform_menu)
 mp.add_key_binding(nil, "topaz_workflow_external_file", topaz_workflow_external_file)
