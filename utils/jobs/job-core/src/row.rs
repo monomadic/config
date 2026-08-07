@@ -465,7 +465,11 @@ pub fn layout<'a>(specs: impl IntoIterator<Item = &'a RowSpec> + Clone) -> Layou
         NSFontWeightRegular
     });
 
-    let left = (em * 1.1).round();
+    // Matched to where AppKit indents an ordinary menu item's title, so the
+    // job rows sit in the same column as Pause, Icon and the rest rather than
+    // hanging left of them. A view-backed item gets the menu's full width and
+    // none of that inset, so it has to be reproduced here.
+    let left = (em * 1.75).round();
     let right = (em * 1.0).round();
     let gap = (em * 0.9).round();
     let bar_height = (em * 0.28).round().max(3.0);

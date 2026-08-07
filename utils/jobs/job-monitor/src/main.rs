@@ -288,10 +288,10 @@ impl Widget {
                 info("Idle".to_string());
             } else {
                 let layout = row::layout(sections.iter().flat_map(|section| section.rows.iter()));
-                for (position, section) in sections.iter().enumerate() {
-                    if position > 0 {
-                        menu.addItem(&NSMenuItem::separatorItem(mtm));
-                    }
+                // No rules between the groups: every row already says what it
+                // is, and a line across the list only breaks up the one thing
+                // being read.
+                for section in &sections {
                     for spec in &section.rows {
                         let item = NSMenuItem::new(mtm);
                         item.setEnabled(true);

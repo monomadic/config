@@ -2,10 +2,12 @@
 //!
 //! Every style shares a vocabulary: a chevron prompt, a blinking block for a
 //! running job, a dim resting underscore for a waiting one, and red —
-//! reserved for failures — blinking in the shape of an `!`. When no watched
-//! folder is reachable the whole icon becomes a blinking solid folder: not a
-//! subtle tell but an error state, since a monitor with nothing to read has
-//! nothing true to say.
+//! reserved for failures. A failed job draws the style's own job mark in red
+//! rather than a glyph of its own: an `!` small enough to fit a menu bar is
+//! a smudge, and colour alone carries the meaning at that size. When no
+//! watched folder is reachable the whole icon becomes a blinking solid
+//! folder: not a subtle tell but an error state, since a monitor with nothing
+//! to read has nothing true to say.
 //!
 //! The styles differ in how they spend width. `Classic` is the original
 //! fixed-width icon: one cursor slot for the aggregate state, queued jobs as
@@ -179,11 +181,7 @@ fn width_for(style: Style, state: &IconState) -> f64 {
         Style::Classic => {
             if state.queued.min(CLASSIC_QUEUE_DOTS) > 0 { 27.0 } else { 16.0 }
         }
-        Style::Cursors => {
-            let (glyphs, over) = lane(state, CURSORS_CAP);
-            let slots = glyphs.len() + over as usize;
-            if slots == 0 { 16.0 } else { 14.0 + 3.9 * slots as f64 }
-        }
+        Style::Cursors => cursors_frame_width(state) + 2.0,
         Style::Screen => screen_frame_width(state) + 2.0,
         Style::Equalizer => {
             let (glyphs, over) = lane(state, EQUALIZER_CAP);
@@ -195,13 +193,29 @@ fn width_for(style: Style, state: &IconState) -> f64 {
 
 fn screen_frame_width(state: &IconState) -> f64 {
     let (glyphs, _) = lane(state, SCREEN_CAP);
-    let extra = 4.2 * glyphs.len().saturating_sub(1) as f64;
-    (SCREEN_LANE_X + 4.2 + extra).max(14.0)
+    let extra = SCREEN_PITCH * glyphs.len().saturating_sub(1) as f64;
+    (LANE_X + SCREEN_PITCH + extra).max(14.0)
 }
 
-/// Where Screen's first block sits: the same x as Cursors' first cursor, so
-/// the prompt keeps identical breathing room across styles.
-const SCREEN_LANE_X: f64 = 9.6;
+/// The frame ends a slot's-worth after the last cursor, not a whole pitch —
+/// otherwise the icon carries a visible empty seat for a job that isn't there.
+fn cursors_frame_width(state: &IconState) -> f64 {
+    let (glyphs, over) = lane(state, CURSORS_CAP);
+    let slots = glyphs.len() + over as usize;
+    if slots == 0 {
+        return 14.0;
+    }
+    let extra = CURSORS_PITCH * (slots - 1) as f64;
+    (LANE_X + TRAILING + extra).max(14.0)
+}
+
+/// Where the first job mark sits, shared by Cursors and Screen so the prompt
+/// keeps identical breathing room across styles.
+const LANE_X: f64 = 9.6;
+const CURSORS_PITCH: f64 = 3.9;
+const SCREEN_PITCH: f64 = 4.2;
+/// Mark width plus the gap to the frame's inner edge.
+const TRAILING: f64 = 4.2;
 
 // ---- shared strokes, all in unit space ----
 
@@ -297,27 +311,18 @@ fn draw_classic(state: &IconState, ink: &NSColor) {
     }
     stroke_frame(14.0);
 
-    if errors {
-        red().set();
-    } else if running {
+    // The prompt stays the prompt: failures are carried by the badge, not by
+    // recolouring the mark that says what this icon is.
+    if running || errors {
         ink.set();
     } else {
         ink.colorWithAlphaComponent(DIM).set();
     }
     stroke_chevron(4.6);
 
-    // Cursor slot: a blinking `!` when work has failed and nothing is
-    // running, a blinking block while a job runs, a resting underscore
-    // otherwise. When a job is running *and* older failures are
-    // unacknowledged, the red chevron carries the error and the block
-    // keeps showing progress.
-    if errors && !running {
-        if state.blink_on {
-            red().set();
-            fill_rounded(9.6, 6.2, 1.6, 3.6, 0.8);
-            fill_oval(9.5, 3.6, 1.8, 1.8);
-        }
-    } else if running {
+    // Cursor slot: a blinking block while a job runs, a resting underscore
+    // otherwise.
+    if running {
         if state.blink_on {
             ink.set();
             fill_rounded(9.2, 4.2, 2.2, 5.4, 0.5);
@@ -331,6 +336,14 @@ fn draw_classic(state: &IconState, ink: &NSColor) {
         ink.colorWithAlphaComponent([0.6, 0.4, 0.25][index]).set();
         fill_oval(17.1 + index as f64 * 3.7, 5.5, 3.0, 3.0);
     }
+
+    // The unacknowledged-failure badge, in the corner where every other
+    // notification dot on the bar sits. Steady rather than blinking: it is a
+    // count of something already over, not something happening.
+    if errors {
+        red().set();
+        fill_oval(11.9, 8.9, 3.8, 3.8);
+    }
 }
 
 fn draw_cursors(state: &IconState, ink: &NSColor) {
@@ -343,7 +356,7 @@ fn draw_cursors(state: &IconState, ink: &NSColor) {
     } else {
         ink.colorWithAlphaComponent(DIM).set();
     }
-    stroke_frame(if slots == 0 { 14.0 } else { width_for(Style::Cursors, state) - 2.0 });
+    stroke_frame(cursors_frame_width(state));
 
     if busy {
         ink.set();
@@ -360,7 +373,7 @@ fn draw_cursors(state: &IconState, ink: &NSColor) {
 
     let mut queue_index = 0usize;
     for (index, glyph) in glyphs.iter().enumerate() {
-        let x = 9.6 + index as f64 * 3.9;
+        let x = LANE_X + index as f64 * CURSORS_PITCH;
         match glyph {
             Glyph::Run => {
                 if state.blink_on {
@@ -374,18 +387,19 @@ fn draw_cursors(state: &IconState, ink: &NSColor) {
                 ink.colorWithAlphaComponent(alpha).set();
                 underscore(x);
             }
+            // The same block a running job gets, in red: at this size the
+            // colour is the whole message.
             Glyph::Failed => {
                 if state.blink_on {
                     red().set();
-                    fill_rounded(x + 0.4, 6.2, 1.6, 3.4, 0.8);
-                    fill_oval(x + 0.3, 3.7, 1.8, 1.8);
+                    fill_rounded(x, 4.2, 2.2, 5.4, 0.5);
                 }
             }
         }
     }
     if over {
         ink.colorWithAlphaComponent(DIM).set();
-        stroke_plus(9.6 + glyphs.len() as f64 * 3.9 + 0.4, 7.0);
+        stroke_plus(LANE_X + glyphs.len() as f64 * CURSORS_PITCH + 0.4, 7.0);
     }
 }
 
@@ -409,12 +423,12 @@ fn draw_screen(state: &IconState, ink: &NSColor) {
 
     if glyphs.is_empty() {
         ink.colorWithAlphaComponent(DIM).set();
-        underscore(SCREEN_LANE_X);
+        underscore(LANE_X);
         return;
     }
 
     for (index, glyph) in glyphs.iter().enumerate() {
-        let x = SCREEN_LANE_X + index as f64 * 4.2;
+        let x = LANE_X + index as f64 * SCREEN_PITCH;
         // Past the cap the last block stands down for an ellipsis: the frame
         // stays the same width, the interior admits it isn't showing everything.
         if over && index == glyphs.len() - 1 {
@@ -425,11 +439,14 @@ fn draw_screen(state: &IconState, ink: &NSColor) {
             continue;
         }
         match glyph {
+            // Pulsing rather than blinking: the block never leaves, it just
+            // breathes. A gap in a row of blocks reads as a job that vanished,
+            // and at this size a hard blink is the most distracting thing on
+            // the menu bar.
             Glyph::Run => {
-                if state.blink_on {
-                    ink.set();
-                    fill_rounded(x, 4.3, 2.6, 5.4, 0.6);
-                }
+                ink.colorWithAlphaComponent(if state.blink_on { 1.0 } else { 0.55 })
+                    .set();
+                fill_rounded(x, 4.3, 2.6, 5.4, 0.6);
             }
             Glyph::Queued => {
                 ink.colorWithAlphaComponent(DIM).set();
@@ -486,10 +503,11 @@ fn draw_equalizer(state: &IconState, ink: &NSColor) {
                 ink.colorWithAlphaComponent(0.35).set();
                 fill_rounded(x, 3.2, 2.0, 3.4, 1.0);
             }
+            // A bar at the running height, in red — steady, not bobbing:
+            // nothing is moving any more.
             Glyph::Failed => {
                 red().set();
-                fill_rounded(x, 4.8, 2.0, 3.6, 1.0);
-                fill_oval(x + 0.1, 2.5, 1.8, 1.8);
+                fill_rounded(x, 3.2, 2.0, 6.2, 1.0);
             }
         }
     }

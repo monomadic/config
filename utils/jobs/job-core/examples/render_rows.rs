@@ -17,7 +17,7 @@ use job_core::row::{self, JobRow};
 use objc2::{AnyThread, MainThreadMarker};
 use objc2::rc::Retained;
 use objc2_app_kit::{
-    NSAffineTransformNSAppKitAdditions, NSAppearanceCustomization, NSBezierPath, NSFont,
+    NSAffineTransformNSAppKitAdditions, NSAppearanceCustomization, NSBezierPath,
     NSAppearance, NSAppearanceNameDarkAqua, NSAppearanceNameAqua, NSBitmapImageFileType,
     NSBitmapImageRep, NSColor, NSDeviceRGBColorSpace, NSGraphicsContext,
 };
@@ -116,16 +116,11 @@ fn main() {
     let sections = row::sections(&sample(quiet), 5, 5);
     let layout = row::layout(sections.iter().flat_map(|section| section.rows.iter()));
     let pad = 10.0;
-    let header_font = NSFont::menuFontOfSize(0.0);
-    let header_height = (header_font.pointSize() * 1.9).round();
 
-    // Interleave separators with the rows, the way the menu does: sections
-    // carry no header text, only the job rows are custom views.
+    // One unbroken list, the way the menu draws it: the sections carry
+    // neither header text nor a separator between them.
     let mut items: Vec<(Option<Retained<JobRow>>, f64)> = Vec::new();
-    for (position, section) in sections.iter().enumerate() {
-        if position > 0 {
-            items.push((None, header_height / 2.0));
-        }
+    for section in &sections {
         for spec in &section.rows {
             let view = JobRow::new(spec.clone(), &layout, mtm);
             view.setAppearance(appearance.as_deref());
