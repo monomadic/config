@@ -194,10 +194,90 @@ local CAP_H = 16        -- index keycap height
 local KEY_X = LIST_X + 10             -- keycap left, inset inside the group card
 local TEXT_X = KEY_X + CAP_W + 10     -- row-text left (fixed; digit-count independent)
 local PANEL_X = MARGIN_L
+local BAR_H = 32       -- full-width hint bar height
+local BAR_PAD = 18     -- hint bar edge -> first / last keycap
 
--- One accent colour only (iOS blue #0A84FF); green marks a cached still. ASS is BGR.
-local ACCENT = "&HFF840A&"
-local GREEN = "&H58D130&"
+-- ===== theme =====
+--
+-- Every colour and opacity the overlay draws with, in one place. ASS colours are
+-- BGR, not RGB, and ASS alpha runs backwards: &H00& is opaque, &HFF& invisible.
+-- Keys are roles rather than values, so a retheme is an edit here and nowhere
+-- else. Tables rather than loose locals because the main chunk is near Lua's
+-- 200-local ceiling.
+
+local C = {
+    -- One accent colour only (iOS blue #0A84FF); green marks a cached still,
+    -- amber a caution note in the details sheet.
+    accent = "&HFF840A&",
+    green = "&H58D130&",
+    amber = "&H40B3FF&",
+
+    -- Surfaces.
+    sheet = "&H000000&",      -- floating panel / bar fill
+    shadow = "&H000000&",     -- text and keycap drop shadow
+
+    -- Text, as a four-step ramp. Every secondary tone in the overlay lands on
+    -- one of these; the pairs that read as "lifted vs resting" (a row under the
+    -- cursor, a hovered preset) step between `ink_lift` and `ink_sub`.
+    ink = "&HFFFFFF&",        -- primary text, keycaps, rails, card fills
+    ink_lift = "&HE0E0E0&",   -- lifted row subtitle, variant suffix and render
+                              -- time; details sheet body and numeric readouts
+    ink_sub = "&HA0A0A0&",    -- resting row subtitle, hint-bar labels, panel
+                              -- meta line, details notes
+    ink_dim = "&H8C8C8C&",    -- the quietest tier: section captions
+                              -- (FRAME RATE, FORMAT), resting variant and time
+    on_light = "&H111111&",   -- text on a light fill (the timecode bubble)
+    muted = "&H6E6E6E&",      -- greyed (unavailable) row title
+    muted_sub = "&H565656&",  -- greyed row subtitle
+    tab_on = "&H1A1A1A&",     -- active tab label, dark on its light pill
+    tab_off = "&H444444&",    -- inactive tab label
+}
+
+-- Opacities. Remember: larger is *more* transparent.
+local A = {
+    solid = "&H00&",
+    clear = "&HFF&",
+    sheet = "&H1E&",          -- panel / bar fill, and the tab track
+    select = "&H0E&",         -- blue selection pill
+    hairline = "&HDA&",       -- sheet border, and the resting index keycap
+    cap = "&HD2&",            -- hint keycap fill, and the hover row wash
+    cap_on_accent = "&HC4&",  -- index keycap lifted for legibility on blue
+    card = "&HF2&",           -- grouped-list card behind a section's rows
+    sep = "&HE8&",            -- hairline separator between rows
+    shadow = "&HC0&",         -- text drop shadow
+    shadow_soft = "&HB0&",    -- playhead / bubble drop shadow
+    rail_track = "&HE0&",     -- seek rail, unplayed
+    rail_fill = "&H1A&",      -- seek rail, elapsed
+    bubble = "&H12&",         -- seek timecode bubble fill
+    det_card = "&HD4&",       -- details sheet card
+    det_row = "&HE2&",        -- details sheet row band
+    det_band = "&HE6&",       -- details sheet label band
+    det_meter = "&H90&",      -- details sheet meter fill
+}
+
+-- Corner radii. The sheets are the roundest thing on screen and everything
+-- nested inside them steps down, which is what makes the stack read as layered.
+local R = {
+    sheet = 20,               -- floating panel
+    bar = 15,                 -- full-width hint bar
+    card = 12,                -- grouped-list section card
+    track = 9,                -- tab track, details sheet card
+    key = 7,                  -- hint keycap, active tab segment
+    cap = 6,                  -- index keycap, timecode bubble
+    meter = 2,                -- details sheet meter
+}
+
+-- Type scale. The overlay draws into a fixed 1280x720 virtual space, so these
+-- are absolute sizes.
+local FS = {
+    title = 18,               -- "Topaz"
+    detail = 15,              -- details sheet header
+    row = 13,                 -- row title
+    tick = 12,                -- the cached-still check mark
+    med = 11,                 -- keycap numbers, inline values
+    small = 10,               -- subtitles, hint labels, captions
+    tiny = 9,                 -- details sheet fine print
+}
 
 -- Rectangle drawing path (origin at the event \pos).
 local function ass_rect(w, h)
@@ -242,12 +322,12 @@ end
 -- Returns two ASS events (cap, number); row text starts at the fixed TEXT_X.
 local function keycap_events(center_y, number, on_accent)
     local top = center_y - CAP_H / 2
-    local alpha = on_accent and "&HC4&" or "&HDA&"
+    local alpha = on_accent and A.cap_on_accent or A.hairline
     local cap = string.format(
-        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&HFFFFFF&\\1a%s\\p1}%s{\\p0}",
-        KEY_X, top, alpha, ass_round_rect(CAP_W, CAP_H, 6))
+        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c" .. C.ink .. "\\1a%s\\p1}%s{\\p0}",
+        KEY_X, top, alpha, ass_round_rect(CAP_W, CAP_H, R.cap))
     local num = string.format(
-        "{\\an5\\pos(%d,%d)\\bord0\\shad1\\4c&H000000&\\4a&HC0&\\fn%s\\fs11\\b1\\1c&HFFFFFF&}%s",
+        "{\\an5\\pos(%d,%d)\\bord0\\shad1\\4c" .. C.shadow .. "\\4a" .. A.shadow .. "\\fn%s\\fs" .. FS.med .. "\\b1\\1c" .. C.ink .. "}%s",
         KEY_X + math.floor(CAP_W / 2), center_y, FONT, tostring(number))
     return cap, num
 end
@@ -264,13 +344,13 @@ end
 
 -- Blue accent pill marking the active selection (shown render / chosen option).
 local function selection_pill_event(y, rt, rb)
-    return row_pill(y, ACCENT, "&H0E&", rt, rb)
+    return row_pill(y, C.accent, A.select, rt, rb)
 end
 
 -- Small outlined eye glyph (lens + pupil), centred on (cx, cy). Marks the shown row.
 local function eye_events(cx, cy, color)
     local lens = string.format(
-        "{\\an7\\pos(%d,%d)\\bord1.1\\shad0\\1a&HFF&\\3c%s\\3a&H00&\\p1}"
+        "{\\an7\\pos(%d,%d)\\bord1.1\\shad0\\1a" .. A.clear .. "\\3c%s\\3a" .. A.solid .. "\\p1}"
             .. "m -5 0 b -2.2 -3.6 2.2 -3.6 5 0 b 2.2 3.6 -2.2 3.6 -5 0{\\p0}", cx, cy, color)
     local pupil = string.format(
         "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c%s\\p1}"
@@ -284,12 +364,12 @@ end
 -- card fill plus faint inset hairline separators between its `count` rows.
 local function group_card_events(y0, count)
     local ev = { string.format(
-        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&HFFFFFF&\\1a&HF2&\\p1}%s{\\p0}",
-        LIST_X, y0, ass_round_rect(ROW_W, count * RH, 12)) }
+        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c" .. C.ink .. "\\1a" .. A.card .. "\\p1}%s{\\p0}",
+        LIST_X, y0, ass_round_rect(ROW_W, count * RH, R.card)) }
     local sep_w = ROW_W - (TEXT_X - LIST_X) - 12
     for i = 1, count - 1 do
         ev[#ev + 1] = string.format(
-            "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&HFFFFFF&\\1a&HE8&\\p1}%s{\\p0}",
+            "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c" .. C.ink .. "\\1a" .. A.sep .. "\\p1}%s{\\p0}",
             TEXT_X, y0 + i * RH, ass_rect(sep_w, 1))
     end
     return ev
@@ -299,8 +379,8 @@ end
 -- every corner with a faint light hairline — an iOS grouped-list card.
 local function panel_bg_event(top, bottom, x, w)
     return string.format(
-        "{\\an7\\pos(%d,%d)\\bord1\\shad0\\1c&H14100F&\\1a&H1E&\\3c&HFFFFFF&\\3a&HDA&\\p1}%s{\\p0}",
-        x or PANEL_X, top, ass_round_rect(w or PANEL_W, bottom - top, 20))
+        "{\\an7\\pos(%d,%d)\\bord1\\shad0\\1c" .. C.sheet .. "\\1a" .. A.sheet .. "\\3c" .. C.ink .. "\\3a" .. A.hairline .. "\\p1}%s{\\p0}",
+        x or PANEL_X, top, ass_round_rect(w or PANEL_W, bottom - top, R.sheet))
 end
 
 -- ===== keyboard-hint bar (macOS-style keycaps) =====
@@ -310,10 +390,10 @@ local function draw_hint_key(ev, x, cy, label)
     local w = math.max(16, 8 + disp_len(label) * 7)
     local top = cy - 8
     ev[#ev + 1] = string.format(
-        "{\\an7\\pos(%d,%d)\\bord0\\shad1\\4c&H000000&\\4a&HC4&\\1c&HFFFFFF&\\1a&HD2&\\p1}%s{\\p0}",
-        x, top, ass_round_rect(w, 16, 7))
+        "{\\an7\\pos(%d,%d)\\bord0\\shad1\\4c" .. C.shadow .. "\\4a" .. A.cap_on_accent .. "\\1c" .. C.ink .. "\\1a" .. A.cap .. "\\p1}%s{\\p0}",
+        x, top, ass_round_rect(w, CAP_H, R.key))
     ev[#ev + 1] = string.format(
-        "{\\an5\\pos(%d,%d)\\bord0\\shad1\\4c&H000000&\\4a&HC0&\\fn%s\\fs10\\b1\\1c&HFFFFFF&}%s",
+        "{\\an5\\pos(%d,%d)\\bord0\\shad1\\4c" .. C.shadow .. "\\4a" .. A.shadow .. "\\fn%s\\fs" .. FS.small .. "\\b1\\1c" .. C.ink .. "}%s",
         x + math.floor(w / 2), cy, FONT, ass_escape(label))
     return x + w + 4
 end
@@ -321,7 +401,7 @@ end
 -- Draw a dim label after a keycap group. Returns an approximate next x.
 local function draw_hint_label(ev, x, cy, text)
     ev[#ev + 1] = string.format(
-        "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs10\\1c&HA6A6A6&}%s",
+        "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.small .. "\\1c" .. C.ink_sub .. "}%s",
         x, cy, FONT, ass_escape(text))
     return x + disp_len(text) * 6 + 12
 end
@@ -409,20 +489,18 @@ local function draw_bottom(opts)
     params_badge.res_x = 1280
     params_badge.res_y = 720
 
-    local pad = 18
-    local bar_h = 32
     local left = MARGIN_L
     local width = 1280 - 2 * MARGIN_L
-    local top = 720 - MARGIN_T - bar_h
-    local cy = top + math.floor(bar_h / 2)
-    local rx = left + width - pad
+    local top = 720 - MARGIN_T - BAR_H
+    local cy = top + math.floor(BAR_H / 2)
+    local rx = left + width - BAR_PAD
 
     local ev = { string.format(
-        "{\\an7\\pos(%d,%d)\\bord1\\shad0\\1c&H14100F&\\1a&H1E&\\3c&HFFFFFF&\\3a&HDA&\\p1}%s{\\p0}",
-        left, top, ass_round_rect(width, bar_h, 15)) }
+        "{\\an7\\pos(%d,%d)\\bord1\\shad0\\1c" .. C.sheet .. "\\1a" .. A.sheet .. "\\3c" .. C.ink .. "\\3a" .. A.hairline .. "\\p1}%s{\\p0}",
+        left, top, ass_round_rect(width, BAR_H, R.bar)) }
 
     if hints then
-        draw_hint_segments(ev, left + pad, cy, hints)
+        draw_hint_segments(ev, left + BAR_PAD, cy, hints)
     end
 
     if right_hints then
@@ -430,16 +508,16 @@ local function draw_bottom(opts)
         draw_hint_segments(ev, rx - measure_hint_segments(right_hints) + 8, cy, right_hints)
     elseif has_res then
         ev[#ev + 1] = string.format(
-            "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs13\\b1\\1c&HFFFFFF&}%s",
+            "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.row .. "\\b1\\1c" .. C.ink .. "}%s",
             rx, cy, FONT, ass_escape(right_value))
         if right_label ~= "" then
             ev[#ev + 1] = string.format(
-                "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs11\\1c&H9A9A9A&}%s",
+                "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.med .. "\\1c" .. C.ink_sub .. "}%s",
                 rx - disp_len(right_value) * 8 - 12, cy, FONT, ass_escape(right_label))
         end
     elseif right_text ~= "" then
         ev[#ev + 1] = string.format(
-            "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs10\\1c&HA6A6A6&}%s",
+            "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.small .. "\\1c" .. C.ink_sub .. "}%s",
             rx, cy, FONT, ass_escape(right_text:sub(1, 130)))
     end
 
@@ -508,12 +586,12 @@ local function draw_seek()
     seek_badge.res_y = 720
 
     local ev = { string.format(
-        "{\\an7\\pos(0,%d)\\bord0\\shad0\\1c&HFFFFFF&\\1a&HE0&\\p1}%s{\\p0}",
+        "{\\an7\\pos(0,%d)\\bord0\\shad0\\1c" .. C.ink .. "\\1a" .. A.rail_track .. "\\p1}%s{\\p0}",
         SEEK_Y, ass_rect(1280, SEEK_H)) }
     if w > 0 then
         ev[#ev + 1] = string.format(
-            "{\\an7\\pos(0,%d)\\bord0\\shad0\\1c%s\\1a&H1A&\\p1}%s{\\p0}",
-            SEEK_Y, ACCENT, ass_rect(w, SEEK_H))
+            "{\\an7\\pos(0,%d)\\bord0\\shad0\\1c%s\\1a" .. A.rail_fill .. "\\p1}%s{\\p0}",
+            SEEK_Y, C.accent, ass_rect(w, SEEK_H))
     end
 
     -- Playhead: centred on the elapsed edge, clamped so it never half-hangs off
@@ -522,7 +600,7 @@ local function draw_seek()
     local ph = scrub and PH_H + 4 or PH_H
     local phx = math.max(0, math.min(1280 - pw, w - pw / 2))
     ev[#ev + 1] = string.format(
-        "{\\an7\\pos(%g,%d)\\bord0\\shad1\\4c&H000000&\\4a&HB0&\\1c&HFFFFFF&\\p1}%s{\\p0}",
+        "{\\an7\\pos(%g,%d)\\bord0\\shad1\\4c" .. C.shadow .. "\\4a" .. A.shadow_soft .. "\\1c" .. C.ink .. "\\p1}%s{\\p0}",
         phx, 720 - ph, ass_rect(pw, ph))
 
     if hint then
@@ -530,10 +608,10 @@ local function draw_seek()
         local cx = math.max(bw / 2 + 6, math.min(1280 - bw / 2 - 6, w))
         local by = 720 - ph - 4 - BUB_H
         ev[#ev + 1] = string.format(
-            "{\\an7\\pos(%g,%d)\\bord0\\shad1\\4c&H000000&\\4a&HB0&\\1c&HFFFFFF&\\1a&H12&\\p1}%s{\\p0}",
-            cx - bw / 2, by, ass_round_rect(bw, BUB_H, 6))
+            "{\\an7\\pos(%g,%d)\\bord0\\shad1\\4c" .. C.shadow .. "\\4a" .. A.shadow_soft .. "\\1c" .. C.ink .. "\\1a" .. A.bubble .. "\\p1}%s{\\p0}",
+            cx - bw / 2, by, ass_round_rect(bw, BUB_H, R.cap))
         ev[#ev + 1] = string.format(
-            "{\\an5\\pos(%g,%d)\\bord0\\shad0\\fn%s\\fs11\\b1\\1c&H111111&}%s",
+            "{\\an5\\pos(%g,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.med .. "\\b1\\1c" .. C.on_light .. "}%s",
             cx, by + BUB_H / 2, FONT, ass_escape(hint))
     end
 
@@ -1167,7 +1245,7 @@ local function paint_option_row(pills, fg, o)
     if o.selected then
         pills[#pills + 1] = selection_pill_event(o.y, o.rt, o.rb)
     elseif (o.is_cursor or o.is_hover) and not o.greyed then
-        pills[#pills + 1] = row_pill(o.y, "&HFFFFFF&", "&HD2&", o.rt, o.rb)
+        pills[#pills + 1] = row_pill(o.y, C.ink, A.cap, o.rt, o.rb)
     end
 
     local center = o.y + 15
@@ -1176,24 +1254,24 @@ local function paint_option_row(pills, fg, o)
     fg[#fg + 1] = num
 
     local lifted = o.selected or o.is_cursor or o.is_hover
-    local tcolor = o.greyed and "&H6E6E6E&" or "&HFFFFFF&"
-    local scolor = o.greyed and "&H565656&" or (lifted and "&HDCDCDC&" or "&HA6A6A6&")
+    local tcolor = o.greyed and C.muted or C.ink
+    local scolor = o.greyed and C.muted_sub or (lifted and C.ink_lift or C.ink_sub)
     if o.blurb and o.blurb ~= "" then
         fg[#fg + 1] = string.format(
-            "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs13\\b1\\1c%s}%s",
+            "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.row .. "\\b1\\1c%s}%s",
             TEXT_X, o.y + 10, FONT, tcolor, ass_escape(o.title))
         fg[#fg + 1] = string.format(
-            "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs10\\b0\\1c%s}%s",
+            "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.small .. "\\b0\\1c%s}%s",
             TEXT_X, o.y + 22, FONT, scolor, ass_escape(o.blurb))
     else
         fg[#fg + 1] = string.format(
-            "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs13\\b1\\1c%s}%s",
+            "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.row .. "\\b1\\1c%s}%s",
             TEXT_X, center, FONT, tcolor, ass_escape(o.title))
     end
 
     if o.selected then
         fg[#fg + 1] = string.format(
-            "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fs12\\1c&HFFFFFF&}✓",
+            "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fs" .. FS.tick .. "\\1c" .. C.ink .. "}✓",
             LIST_X + ROW_W - 12, center, FONT)
     end
 end
@@ -1201,8 +1279,8 @@ end
 -- The segmented Enhance / Interpolate / Output control under the title.
 local function draw_tab_bar(ev)
     ev[#ev + 1] = string.format(
-        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&HFFFFFF&\\1a&HE8&\\p1}%s{\\p0}",
-        LIST_X, TAB_Y, ass_round_rect(ROW_W, TAB_H, 9))
+        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c" .. C.ink .. "\\1a" .. A.sep .. "\\p1}%s{\\p0}",
+        LIST_X, TAB_Y, ass_round_rect(ROW_W, TAB_H, R.track))
 
     menu.tab_hitboxes = {}
     local seg_w = math.floor((ROW_W - 6) / #TABS)
@@ -1212,12 +1290,12 @@ local function draw_tab_bar(ev)
         local active = (i == menu.tab)
         if active then
             ev[#ev + 1] = string.format(
-                "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&HFFFFFF&\\1a&H1E&\\p1}%s{\\p0}",
-                x, TAB_Y + 3, ass_round_rect(seg_w, TAB_H - 6, 7))
+                "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c" .. C.ink .. "\\1a" .. A.sheet .. "\\p1}%s{\\p0}",
+                x, TAB_Y + 3, ass_round_rect(seg_w, TAB_H - 6, R.key))
         end
-        local name_color = active and "&H1A1A1A&" or "&HB4B4B4&"
+        local name_color = active and C.tab_on or C.tab_off
         ev[#ev + 1] = string.format(
-            "{\\an5\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs10\\b1\\1c%s}%s",
+            "{\\an5\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.small .. "\\b1\\1c%s}%s",
             cx, TAB_Y + math.floor(TAB_H / 2), FONT, name_color, name)
         menu.tab_hitboxes[#menu.tab_hitboxes + 1] =
             { x0 = x, x1 = x + seg_w, y0 = TAB_Y, y1 = TAB_Y + TAB_H, tab = i }
@@ -1318,7 +1396,7 @@ local function draw_enhance_body(cards, pills, fg, labels)
         if item.kind == "header" then
             flush_group()
             labels[#labels + 1] = string.format(
-                "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\b0\\fs10\\1c&H8C8C8C&}%s",
+                "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\b0\\fs" .. FS.small .. "\\1c" .. C.ink_dim .. "}%s",
                 LIST_X + 2, y + HH - 8, FONT, ass_escape(item.label:upper()))
             y = y + HH
         else
@@ -1350,12 +1428,12 @@ local function draw_enhance_body(cards, pills, fg, labels)
             if is_rendering then
                 local t = (mp.get_time() % 1.1) / 1.1
                 local tri = t < 0.5 and t * 2 or 2 - t * 2
-                pills[#pills + 1] = row_pill(y, "&HFFFFFF&",
+                pills[#pills + 1] = row_pill(y, C.ink,
                     string.format("&H%02X&", 0xD0 - math.floor(tri * 0x48)), rt, rb)
             elseif is_shown then
                 pills[#pills + 1] = selection_pill_event(y, rt, rb)
             elseif is_cursor or is_hover then
-                pills[#pills + 1] = row_pill(y, "&HFFFFFF&", "&HD2&", rt, rb)
+                pills[#pills + 1] = row_pill(y, C.ink, A.cap, rt, rb)
             end
 
             local cap, num = keycap_events(center, p.number, is_shown or is_rendering)
@@ -1365,15 +1443,15 @@ local function draw_enhance_body(cards, pills, fg, labels)
             -- Two-tone title: bold model name, then a smaller bold variant name.
             local model, variant = split_display(p.display)
             local lifted = is_cursor or is_hover or is_shown or is_rendering
-            local vcolor = lifted and "&HE8E8E8&" or "&H8F8F8F&"
+            local vcolor = lifted and C.ink_lift or C.ink_dim
             local vtail = variant
-                and string.format("  {\\b1\\fs11\\1c%s}%s", vcolor, ass_escape(variant)) or ""
+                and string.format("  {\\b1\\fs" .. FS.med .. "\\1c%s}%s", vcolor, ass_escape(variant)) or ""
             fg[#fg + 1] = string.format(
-                "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs13\\b1\\1c&HFFFFFF&}%s%s",
+                "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.row .. "\\b1\\1c" .. C.ink .. "}%s%s",
                 TEXT_X, y + 10, FONT, ass_escape(model), vtail)
-            local subcolor = lifted and "&HDCDCDC&" or "&HA6A6A6&"
+            local subcolor = lifted and C.ink_lift or C.ink_sub
             fg[#fg + 1] = string.format(
-                "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs10\\b0\\1c%s}%s",
+                "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.small .. "\\b0\\1c%s}%s",
                 TEXT_X, y + 22, FONT, subcolor, ass_escape(p.blurb))
 
             -- Right status slot, vertically centred: while rendering, the elapsed time
@@ -1383,26 +1461,26 @@ local function draw_enhance_body(cards, pills, fg, labels)
             if is_rendering then
                 local elapsed = encode_start and (mp.get_time() - encode_start) or 0
                 fg[#fg + 1] = string.format(
-                    "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs11\\b1\\1c&HFFFFFF&}%.0fs",
+                    "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.med .. "\\b1\\1c" .. C.ink .. "}%.0fs",
                     rx, center, FONT, elapsed)
             else
                 local time_x = rx
                 if is_shown then
-                    local lens, pupil = eye_events(rx - 6, center, "&HFFFFFF&")
+                    local lens, pupil = eye_events(rx - 6, center, C.ink)
                     fg[#fg + 1] = lens
                     fg[#fg + 1] = pupil
                     time_x = rx - 15
                 elseif cached then
                     fg[#fg + 1] = string.format(
-                        "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fs12\\1c%s}✓",
-                        rx, center, GREEN)
+                        "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fs" .. FS.tick .. "\\1c%s}✓",
+                        rx, center, C.green)
                     time_x = rx - 15
                 end
                 if entry and entry.secs then
                     fg[#fg + 1] = string.format(
-                        "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs10\\1c%s}%s",
+                        "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.small .. "\\1c%s}%s",
                         time_x, center, FONT,
-                        lifted and "&HD9D9D9&" or "&H8A8A8A&",
+                        lifted and C.ink_lift or C.ink_dim,
                         short_secs(entry.secs))
                 end
             end
@@ -1421,7 +1499,7 @@ local function draw_interp_body(cards, pills, fg, labels)
     local y = LIST_TOP
 
     labels[#labels + 1] = string.format(
-        "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\b0\\fs10\\1c&H8C8C8C&}FRAME RATE",
+        "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\b0\\fs" .. FS.small .. "\\1c" .. C.ink_dim .. "}FRAME RATE",
         LIST_X + 2, y + HH - 8, FONT)
     y = y + HH
 
@@ -1470,7 +1548,7 @@ local function draw_output_body(cards, pills, fg, labels)
         res_label = res_label .. "  ·  LIMITED BY " .. name
     end
     labels[#labels + 1] = string.format(
-        "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\b0\\fs10\\1c&H8C8C8C&}%s",
+        "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\b0\\fs" .. FS.small .. "\\1c" .. C.ink_dim .. "}%s",
         LIST_X + 2, y + HH - 8, FONT, ass_escape(res_label))
     y = y + HH
 
@@ -1498,7 +1576,7 @@ local function draw_output_body(cards, pills, fg, labels)
 
     -- Format section.
     labels[#labels + 1] = string.format(
-        "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\b0\\fs10\\1c&H8C8C8C&}FORMAT",
+        "{\\an4\\pos(%d,%d)\\bord0\\shad0\\fn%s\\b0\\fs" .. FS.small .. "\\1c" .. C.ink_dim .. "}FORMAT",
         LIST_X + 2, y + HH - 8, FONT)
     y = y + HH
 
@@ -1580,10 +1658,10 @@ function draw_menu()
     local ev = {}
     ev[#ev + 1] = panel_bg_event(MARGIN_T, panel_bottom)
     ev[#ev + 1] = string.format(
-        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\fn%s\\b1\\fs18\\1c&HFFFFFF&}Topaz",
+        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\fn%s\\b1\\fs" .. FS.title .. "\\1c" .. C.ink .. "}Topaz",
         LIST_X, MARGIN_T + 10, FONT)
     ev[#ev + 1] = string.format(
-        "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs10\\1c&H9A9A9A&}%s",
+        "{\\an6\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.small .. "\\1c" .. C.ink_sub .. "}%s",
         LIST_X + ROW_W, MARGIN_T + 21, FONT, ass_escape(meta))
     draw_tab_bar(ev)
 
@@ -1599,7 +1677,7 @@ function draw_menu()
         local up = menu.enh_more_above and "⌃" or " "
         local down = menu.enh_more_below and "⌄" or " "
         ev[#ev + 1] = string.format(
-            "{\\an5\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs10\\b1\\1c&H8C8C8C&}%s  %s",
+            "{\\an5\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.small .. "\\b1\\1c" .. C.ink_dim .. "}%s  %s",
             LIST_X + math.floor(ROW_W / 2), content_end + 8, FONT, up, down)
     end
 
@@ -1635,7 +1713,6 @@ local DETAIL_PAD = 14
 local DET_TX = DETAIL_X + DETAIL_PAD       -- content left edge
 local DET_TW = DETAIL_W - 2 * DETAIL_PAD   -- content width
 
-local AMBER = "&H40B3FF&"
 
 -- Friendly names for the model codes appearing in enhancement filters.
 local MODEL_NAMES = {
@@ -1749,9 +1826,9 @@ function draw_details()
     -- Title: two-tone model / variant, matching the menu rows.
     local model, variant = split_display(p.display)
     local vtail = variant
-        and string.format("  {\\b1\\fs11\\1c&HC9C9C9&}%s", ass_escape(variant)) or ""
+        and string.format("  {\\b1\\fs" .. FS.med .. "\\1c" .. C.ink_lift .. "}%s", ass_escape(variant)) or ""
     ev[#ev + 1] = string.format(
-        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs15\\b1\\1c&HFFFFFF&}%s%s",
+        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.detail .. "\\b1\\1c" .. C.ink .. "}%s%s",
         DET_TX, y, FONT, ass_escape(model), vtail)
     y = y + 19
 
@@ -1775,7 +1852,7 @@ function draw_details()
             mode_line = mname .. " — manual: sliders are absolute, not per-clip offsets"
         end
     end
-    put_lines(mode_line, DET_TX, DET_TW, 9, "&H9A9A9A&", 12)
+    put_lines(mode_line, DET_TX, DET_TW, 9, C.ink_sub, 12)
     y = y + 6
 
     -- Strategy callout on a tinted accent card.
@@ -1785,12 +1862,12 @@ function draw_details()
             math.floor((DET_TW - 2 * pad) / (fs * 0.55)))
         local card_h = #lines * lh + 2 * pad - 3
         ev[#ev + 1] = string.format(
-            "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c%s\\1a&HD4&\\p1}%s{\\p0}",
-            DET_TX, y, ACCENT, ass_round_rect(DET_TW, card_h, 9))
+            "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c%s\\1a" .. A.det_card .. "\\p1}%s{\\p0}",
+            DET_TX, y, C.accent, ass_round_rect(DET_TW, card_h, R.track))
         local ty = y + pad - 1
         for _, line in ipairs(lines) do
             ev[#ev + 1] = string.format(
-                "{\\an7\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs%g\\b0\\1c&HE0E0E0&}%s",
+                "{\\an7\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs%g\\b0\\1c" .. C.ink_lift .. "}%s",
                 DET_TX + pad, ty, FONT, fs, ass_escape(line))
             ty = ty + lh
         end
@@ -1809,50 +1886,50 @@ function draw_details()
             end
             if #rows > 0 then
                 ev[#ev + 1] = string.format(
-                    "{\\an7\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs9\\b0\\1c&H8C8C8C&}%s",
+                    "{\\an7\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.tiny .. "\\b0\\1c" .. C.ink_dim .. "}%s",
                     DET_TX, y, FONT, group.label)
                 y = y + 14
                 for _, row in ipairs(rows) do
                     local prm, v = row.def, row.value
                     local suffix = ""
                     if prm.key == "grain" and params.gsize then
-                        suffix = string.format("  {\\b0\\fs9\\1c&H8A8A8A&}gsize %s",
+                        suffix = string.format("  {\\b0\\fs" .. FS.tiny .. "\\1c" .. C.ink_dim .. "}gsize %s",
                             ass_escape(params.gsize))
                     end
                     ev[#ev + 1] = string.format(
-                        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs11\\b1\\1c&HFFFFFF&}%s%s",
+                        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.med .. "\\b1\\1c" .. C.ink .. "}%s%s",
                         DET_TX, y, FONT, ass_escape(prm.label), suffix)
                     ev[#ev + 1] = string.format(
-                        "{\\an9\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs10\\b1\\1c&HE6E6E6&}%.2f",
+                        "{\\an9\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.small .. "\\b1\\1c" .. C.ink_lift .. "}%.2f",
                         DET_TX + DET_TW, y + 1, FONT, v)
                     y = y + 14
 
                     -- Track, then fill: left-anchored for positive values,
                     -- centre-anchored amber for negative (relative-mode) ones.
                     ev[#ev + 1] = string.format(
-                        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&HFFFFFF&\\1a&HE2&\\p1}%s{\\p0}",
-                        DET_TX, y, ass_round_rect(DET_TW, 4, 2))
+                        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c" .. C.ink .. "\\1a" .. A.det_row .. "\\p1}%s{\\p0}",
+                        DET_TX, y, ass_round_rect(DET_TW, 4, R.meter))
                     local frac = math.max(-1, math.min(1, v / (prm.axis or 1)))
                     if frac > 0 then
                         local w = math.max(3, math.floor(DET_TW * frac + 0.5))
                         ev[#ev + 1] = string.format(
                             "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c%s\\p1}%s{\\p0}",
-                            DET_TX, y, ACCENT, ass_round_rect(w, 4, 2))
+                            DET_TX, y, C.accent, ass_round_rect(w, 4, R.meter))
                     elseif frac < 0 then
                         local mid = DET_TX + math.floor(DET_TW / 2)
                         local w = math.max(3, math.floor(DET_TW / 2 * -frac + 0.5))
                         ev[#ev + 1] = string.format(
                             "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c%s\\p1}%s{\\p0}",
-                            mid - w, y, AMBER, ass_round_rect(w, 4, 2))
+                            mid - w, y, C.amber, ass_round_rect(w, 4, R.meter))
                         ev[#ev + 1] = string.format(
-                            "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&HFFFFFF&\\1a&H90&\\p1}%s{\\p0}",
+                            "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c" .. C.ink .. "\\1a" .. A.det_meter .. "\\p1}%s{\\p0}",
                             mid, y - 2, ass_rect(1, 8))
                     end
                     y = y + 9
 
                     local note = ins.notes and ins.notes[prm.key]
                     if note then
-                        put_lines(note, DET_TX, DET_TW, 9.5, "&H9D9D9D&", 12)
+                        put_lines(note, DET_TX, DET_TW, 9.5, C.ink_sub, 12)
                         y = y + 2
                     end
                     y = y + 5
@@ -1865,19 +1942,19 @@ function draw_details()
     -- Footer: failure mode + nearest-neighbour pick, under a hairline.
     if ins.watch or ins.vs then
         ev[#ev + 1] = string.format(
-            "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&HFFFFFF&\\1a&HE6&\\p1}%s{\\p0}",
+            "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c" .. C.ink .. "\\1a" .. A.det_band .. "\\p1}%s{\\p0}",
             DET_TX, y, ass_rect(DET_TW, 1))
         y = y + 9
         local label_w = 58
         local function footer(label, color, text)
             ev[#ev + 1] = string.format(
-                "{\\an7\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs9\\b1\\1c%s}%s",
+                "{\\an7\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.tiny .. "\\b1\\1c%s}%s",
                 DET_TX, y, FONT, color, label)
-            put_lines(text, DET_TX + label_w, DET_TW - label_w, 9.5, "&H9D9D9D&", 12)
+            put_lines(text, DET_TX + label_w, DET_TW - label_w, 9.5, C.ink_sub, 12)
             y = y + 3
         end
         if ins.watch then
-            footer("WATCH FOR", AMBER, ins.watch)
+            footer("WATCH FOR", C.amber, ins.watch)
         end
         if ins.vs then
             -- Resolve the neighbour's current menu number so "VS 3" is
@@ -1891,7 +1968,7 @@ function draw_details()
                     end
                 end
             end
-            footer(label, ACCENT, ins.vs)
+            footer(label, C.accent, ins.vs)
         end
     end
 
@@ -1902,10 +1979,10 @@ function draw_details()
     local bx = DETAIL_X + DETAIL_W - DETAIL_PAD - 17
     local by = MARGIN_T + DETAIL_PAD - 2
     ev[#ev + 1] = string.format(
-        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c&HFFFFFF&\\1a&HDA&\\p1}%s{\\p0}",
+        "{\\an7\\pos(%d,%d)\\bord0\\shad0\\1c" .. C.ink .. "\\1a" .. A.hairline .. "\\p1}%s{\\p0}",
         bx, by, ass_round_rect(17, 17, 8.5))
     ev[#ev + 1] = string.format(
-        "{\\an5\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs11\\b1\\1c&HFFFFFF&}×",
+        "{\\an5\\pos(%d,%d)\\bord0\\shad0\\fn%s\\fs" .. FS.med .. "\\b1\\1c" .. C.ink .. "}×",
         bx + 8, by + 8, FONT)
     menu.det_close_hb = { x0 = bx - 5, y0 = by - 5, x1 = bx + 22, y1 = by + 22 }
 
