@@ -450,16 +450,30 @@ end
 -- ===== playback position rail =====
 
 -- A 4px hairline flush to the very bottom screen edge, in the dead margin below
--- the hint bar — so it costs the preset list nothing. Position only: too thin to
--- carry timecodes (the panel caption already has them) or to aim a click at.
+-- the hint bar — so it costs the preset list nothing. A 2px playhead tick rises
+-- out of it to mark the exact position; the timecode bubble only appears while
+-- seeking, so nothing permanent floats over the video.
 local SEEK_H = 4
 local SEEK_Y = 720 - SEEK_H
-local seek_last_w = nil
+local PH_W = 2                       -- playhead tick width
+local PH_H = 10                      -- tick height, measured up from the rail top
+local BUB_H = 18                     -- timecode bubble height
+local SEEK_HINT_S = 1.2              -- how long the bubble lingers after a seek
+-- Grab band for the drag: everything below the hint bar's lower edge. The rail
+-- itself is 4px, far too thin to aim at, so the hit target is the whole 12px
+-- margin strip the tick lives in.
+local SEEK_HIT_Y = 708
+local seek_last_key = nil
+local seek_hint_until = 0
+local seek_hint_timer = nil
+local scrub_timer = nil
 
 local function draw_seek()
     if not menu or menu.ui_hidden then
         seek_badge:remove()
-        seek_last_w = nil
+        -- Only the repaint cache is dropped, never the seek state: Tab-hiding and
+        -- re-showing the UI brings the rail back exactly as it was.
+        seek_last_key = nil
         return
     end
 
@@ -467,17 +481,28 @@ local function draw_seek()
     local pos = mp.get_property_number("time-pos")
     if not (dur and pos and dur > 0) then
         seek_badge:remove()
-        seek_last_w = nil
+        seek_last_key = nil
         return
+    end
+
+    -- Mid-drag the rail shows where you're aiming, not where playback is: the
+    -- real seek only fires on release.
+    local scrub = menu.scrub
+    if scrub then
+        pos = scrub.t
     end
 
     local frac = math.max(0, math.min(1, pos / dur))
     local w = math.floor(1280 * frac + 0.5)
-    -- time-pos ticks per frame; only repaint when the rail actually moves.
-    if w == seek_last_w then
+    local hint = (scrub or mp.get_time() < seek_hint_until)
+        and format_time(pos) or nil
+
+    -- time-pos ticks per frame; only repaint when something actually changed.
+    local key = w .. "|" .. (hint or "")
+    if key == seek_last_key then
         return
     end
-    seek_last_w = w
+    seek_last_key = key
 
     seek_badge.res_x = 1280
     seek_badge.res_y = 720
@@ -491,8 +516,53 @@ local function draw_seek()
             SEEK_Y, ACCENT, ass_rect(w, SEEK_H))
     end
 
+    -- Playhead: centred on the elapsed edge, clamped so it never half-hangs off
+    -- either screen edge. It thickens under the pointer so the grab reads.
+    local pw = scrub and PH_W + 1 or PH_W
+    local ph = scrub and PH_H + 4 or PH_H
+    local phx = math.max(0, math.min(1280 - pw, w - pw / 2))
+    ev[#ev + 1] = string.format(
+        "{\\an7\\pos(%g,%d)\\bord0\\shad1\\4c&H000000&\\4a&HB0&\\1c&HFFFFFF&\\p1}%s{\\p0}",
+        phx, 720 - ph, ass_rect(pw, ph))
+
+    if hint then
+        local bw = 14 + disp_len(hint) * 7
+        local cx = math.max(bw / 2 + 6, math.min(1280 - bw / 2 - 6, w))
+        local by = 720 - ph - 4 - BUB_H
+        ev[#ev + 1] = string.format(
+            "{\\an7\\pos(%g,%d)\\bord0\\shad1\\4c&H000000&\\4a&HB0&\\1c&HFFFFFF&\\1a&H12&\\p1}%s{\\p0}",
+            cx - bw / 2, by, ass_round_rect(bw, BUB_H, 6))
+        ev[#ev + 1] = string.format(
+            "{\\an5\\pos(%g,%d)\\bord0\\shad0\\fn%s\\fs11\\b1\\1c&H111111&}%s",
+            cx, by + BUB_H / 2, FONT, ass_escape(hint))
+    end
+
     seek_badge.data = table.concat(ev, "\n")
     seek_badge:update()
+end
+
+-- Timeline time under a pointer x (in virtual space), clamped the same way
+-- menu_seek clamps its own target. nil when there is nothing to seek in.
+local function scrub_time_at(mx)
+    local dur = mp.get_property_number("duration")
+    if not (mx and dur and dur > 0) then
+        return nil
+    end
+    return math.max(0, math.min(dur - 0.05, mx / 1280 * dur))
+end
+
+-- Called by the ±10s keys: light the timecode bubble and arm the timer that
+-- clears it again. Re-seeking before it expires just extends the window.
+local function flash_seek_hint()
+    seek_hint_until = mp.get_time() + SEEK_HINT_S
+    if seek_hint_timer then
+        seek_hint_timer:kill()
+    end
+    seek_hint_timer = mp.add_timeout(SEEK_HINT_S, function()
+        seek_hint_timer = nil
+        draw_seek()
+    end)
+    draw_seek()
 end
 
 -- Detected source video properties.
@@ -2033,6 +2103,44 @@ local function mouse_virtual_pos()
     return pos.x * 1280 / ow, pos.y * 720 / oh
 end
 
+-- The mouse-pos property observer that drives row hover goes quiet while a button
+-- is held, so a drag has to come off MOUSE_MOVE input events instead — the same
+-- mechanism mpv's own OSC uses to drag its seekbar. Bound only for the span of
+-- the scrub, and backed by a slow timer in case the events never arrive.
+local function scrub_pump()
+    if not (menu and menu.scrub) then
+        return
+    end
+
+    local t = scrub_time_at((mouse_virtual_pos()))
+    if t and t ~= menu.scrub.t then
+        menu.scrub.t = t
+        draw_seek()
+    end
+end
+
+local function start_scrub(t)
+    menu.scrub = { t = t }
+    mp.add_forced_key_binding("MOUSE_MOVE", "topaz_menu_scrub_move", scrub_pump)
+    if not scrub_timer then
+        scrub_timer = mp.add_periodic_timer(0.05, scrub_pump)
+    end
+    draw_seek()
+end
+
+local function stop_scrub()
+    local scrub = menu and menu.scrub
+    if menu then
+        menu.scrub = nil
+    end
+    mp.remove_key_binding("topaz_menu_scrub_move")
+    if scrub_timer then
+        scrub_timer:kill()
+        scrub_timer = nil
+    end
+    return scrub
+end
+
 -- Drag-to-pan while zoomed in: mpv's video-pan-* are in units of the window
 -- size, so a pointer delta in window pixels maps straight onto them.
 local function update_drag()
@@ -2065,6 +2173,14 @@ local function update_hover()
     if not menu then
         return
     end
+
+    -- A scrub in progress owns the pointer: the poll timer drives the rail, and
+    -- rows must not take hover focus underneath it.
+    if menu.scrub then
+        scrub_pump()
+        return
+    end
+
     if update_drag() or menu.ui_hidden then
         return
     end
@@ -2239,6 +2355,16 @@ local function menu_mouse(event)
     end
     if event.event == "up" then
         menu.drag = nil
+        -- Commit the scrub once, on release. Seeking live would invalidate every
+        -- cached preview on every mouse-move.
+        local scrub = stop_scrub()
+        if scrub then
+            if math.abs(scrub.t - menu.time_pos) >= 0.05 then
+                menu_seek(scrub.t - menu.time_pos)
+            else
+                draw_seek()
+            end
+        end
         return
     end
     if event.event ~= "down" then
@@ -2246,6 +2372,16 @@ local function menu_mouse(event)
     end
 
     local mx, my = mouse_virtual_pos()
+
+    -- The rail's grab band sits below everything else, so it wins outright.
+    if my and my >= SEEK_HIT_Y and not menu.ui_hidden and not menu.rendering_slug then
+        local t = scrub_time_at(mx)
+        if t then
+            start_scrub(t)
+            return
+        end
+    end
+
     if over_panel(mx, my) then
         menu_click()
         return
@@ -2482,6 +2618,7 @@ function toggle_ui()
         return
     end
     menu.ui_hidden = not menu.ui_hidden
+    stop_scrub()
     if menu.ui_hidden then
         list_badge:remove()
         params_badge:remove()
@@ -2877,6 +3014,7 @@ function menu_seek(delta)
         newt = math.max(0, duration - 0.05)
     end
     menu.time_pos = newt
+    flash_seek_hint()
 
     -- Invalidate every cached preview (they belong to the previous timestamp).
     local stale = menu.appended
@@ -2894,6 +3032,9 @@ function menu_seek(delta)
         if menu then
             mp.commandv("seek", tostring(newt), "absolute", "exact")
             mp.set_property_bool("pause", true)
+            -- The seek lands a beat after the keypress; restart the window here
+            -- so the bubble shows the time it actually arrived at.
+            flash_seek_hint()
         end
     end)
 
@@ -2937,7 +3078,7 @@ local MENU_KEY_NAMES = {
     "topaz_menu_run_job", "topaz_menu_copy_cmd",
     "topaz_menu_edit_presets",
     "topaz_menu_block_n", "topaz_menu_block_N",
-    "topaz_menu_click",
+    "topaz_menu_click", "topaz_menu_scrub_move",
     "topaz_menu_esc", "topaz_menu_bs",
 }
 
@@ -3120,6 +3261,7 @@ local function open_menu(source, profile, data)
         old_video_zoom = mp.get_property_number("video-zoom", 0),
         old_video_pan_x = mp.get_property_number("video-pan-x", 0),
         old_video_pan_y = mp.get_property_number("video-pan-y", 0),
+        old_window_dragging = mp.get_property("window-dragging"),
     }
 
     mp.set_property("image-display-duration", "inf")
@@ -3128,6 +3270,11 @@ local function open_menu(source, profile, data)
     -- Keep the built-in OSC (seek bar / top bar) from popping in on mouse-move while
     -- the Topaz UI owns the screen; restored on close.
     mp.commandv("script-message", "osc-visibility", "never", "no-osd")
+    -- On macOS a left-press in the video area hands the drag to the window server
+    -- (--window-dragging, on by default): mpv stops receiving mouse positions for
+    -- the rest of the gesture, which is why a press-and-drag on the rail arrived
+    -- as a bare click. The menu owns the pointer, so turn it off for its lifetime.
+    mp.set_property_bool("window-dragging", false)
     enable_menu_keys()
     draw_menu()
 end
@@ -3150,8 +3297,10 @@ function close_menu(message)
     params_badge:remove()
     detail_badge:remove()
     seek_badge:remove()
-    -- Restore the built-in OSC we suppressed on open.
+    stop_scrub()
+    -- Restore the built-in OSC and window dragging we suppressed on open.
     mp.commandv("script-message", "osc-visibility", "auto", "no-osd")
+    mp.set_property("window-dragging", state.old_window_dragging or "yes")
 
     if state.old_image_display_duration then
         mp.set_property("image-display-duration", state.old_image_display_duration)
@@ -3278,6 +3427,7 @@ mp.register_event("shutdown", function()
     params_badge:remove()
     detail_badge:remove()
     seek_badge:remove()
+    stop_scrub()
 end)
 
 -- Row hover highlighting (no-op unless the menu is open).
