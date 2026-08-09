@@ -112,6 +112,39 @@ pub fn prepare(root: &Root) {
     for dir in root.state_dirs() {
         let _ = fs::create_dir_all(dir);
     }
+    reap_orphans(root);
+}
+
+/// File away run folders this machine claimed and then lost.
+///
+/// A job only ever becomes an orphan when the *runner* goes: while it is alive
+/// it supervises its own children and files them away itself. So the moment to
+/// look is startup — which is where this is called from, rather than on a
+/// timer that would spend the rest of the day reading a directory to be told
+/// nothing has changed.
+///
+/// The claim is deliberately narrow: only folders whose `.status` names this
+/// host, and only when the process group it names is gone for good. Another
+/// machine's jobs in a shared folder are not ours to judge, and a folder
+/// promoted a moment ago by a concurrent runner has no `.status` yet — both
+/// read as "leave it alone".
+fn reap_orphans(root: &Root) {
+    let Ok(entries) = fs::read_dir(root.running()) else {
+        return;
+    };
+    for dir in entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
+    {
+        if !job_core::observe::orphaned_here(&dir) {
+            continue;
+        }
+        let name = job_core::observe::run_folder_name(&dir);
+        log(&format!("REAP {name} (in _running with nothing running it)"));
+        let _ = fs::remove_file(dir.join(STATUS_FILE));
+        file_away(root, &dir, &name, false);
+    }
 }
 
 /// Top-level `*.job` files, alphabetically.
@@ -557,6 +590,61 @@ pub fn spawn() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A queue that has lost its runner — killed, crashed, or rebooted mid-job
+    /// — leaves the run folder sitting in `_running` with a dead pid in its
+    /// status, where nothing ever cleaned it up and every UI went on reporting
+    /// it as a job that isn't running.
+    #[test]
+    fn startup_files_away_a_job_this_machine_lost() {
+        let base = std::env::temp_dir().join(format!("job-daemon-reap-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        let root = Root::new(&base);
+        for dir in root.state_dirs() {
+            fs::create_dir_all(dir).unwrap();
+        }
+
+        // A process group that certainly existed and certainly doesn't now:
+        // spawned as its own leader, then waited on so the pid is released.
+        let mut child = Command::new("/bin/sh")
+            .arg("-c")
+            .arg("exit 0")
+            .process_group(0)
+            .spawn()
+            .unwrap();
+        let dead = child.id() as i32;
+        child.wait().unwrap();
+
+        let orphan = root.running().join("20260101-000000-orphan");
+        fs::create_dir_all(&orphan).unwrap();
+        fs::write(
+            orphan.join(STATUS_FILE),
+            format!("pgid={dead}\nhost={}\n", hostname()),
+        )
+        .unwrap();
+
+        // Another machine's job on a shared folder: not ours to judge, whatever
+        // that pid means here.
+        let theirs = root.running().join("20260101-000000-theirs");
+        fs::create_dir_all(&theirs).unwrap();
+        fs::write(theirs.join(STATUS_FILE), format!("pgid={dead}\nhost=elsewhere\n")).unwrap();
+
+        // Just promoted by a concurrent runner, no status written yet.
+        let fresh = root.running().join("20260101-000000-fresh");
+        fs::create_dir_all(&fresh).unwrap();
+
+        reap_orphans(&root);
+
+        assert!(!orphan.exists(), "the orphan should have been filed away");
+        assert!(
+            root.failed().join("20260101-000000-orphan").is_dir(),
+            "and filed to _failed, where a stopped job belongs"
+        );
+        assert!(theirs.is_dir(), "another host's job must be left alone");
+        assert!(fresh.is_dir(), "a job with no status yet must be left alone");
+
+        let _ = fs::remove_dir_all(&base);
+    }
 
     #[test]
     fn staging_makes_a_job_a_folder() {

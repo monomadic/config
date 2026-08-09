@@ -102,6 +102,22 @@ leaves it where you put it rather than overruling you.
 A job that ends up in `_failed` can be edited and dragged back to `_ready` to
 run again. That is the whole recovery story; there is no separate verb for it.
 
+## Jobs it lost
+
+A run folder only ever gets stranded in `_running` when the *runner* goes —
+killed, crashed, or the machine restarted mid-job. While it is alive it
+supervises its own children and files them away itself. So it looks once, at
+startup: any folder in `_running` whose `.status` names this host and a process
+group that no longer exists is filed to `_failed`, with `REAP` in the log.
+Nothing had ever cleaned those up, and the monitor went on reporting each one
+as **not running** forever.
+
+The claim is deliberately narrow. Another machine's job on a shared folder is
+not ours to judge, a folder promoted a moment ago has no `.status` yet, and
+only `ESRCH` counts as gone — `killpg` failing any other way says something
+about us, and the answer here is acted on by moving somebody's encode out of
+the queue.
+
 The runner writes one file into a running job's folder: `.status`, carrying the
 process group id and the host that owns it. That is state it emits, not a
 channel anyone writes to — it lets a local client renice or signal a job

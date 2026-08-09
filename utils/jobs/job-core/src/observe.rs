@@ -33,9 +33,16 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 /// How many finished jobs to carry in a snapshot.
 const RECENT_MAX: usize = 8;
 
-/// How long a claimed job must go without printing before silence counts
-/// against it. Long enough to sit through a quiet stretch of an encode.
-const SILENT_STALL: Duration = Duration::from_secs(10 * 60);
+/// How long a claimed job must go without printing before silence is taken as
+/// proof that nothing is running it — the fallback for a folder on another
+/// machine, where the process cannot be asked directly.
+///
+/// Deliberately longer than `row::SILENT_WARN`, so silence escalates: first the
+/// row says how long the job has been quiet, and only well past that does it
+/// claim the job is gone. Set below that bar, this used to fire first and every
+/// remote encode read as "not running" — `topaz-encode` logs every 5%, which at
+/// 0.05x is one line every half hour.
+const SILENT_STALL: Duration = Duration::from_secs(90 * 60);
 
 /// Only the tail of a log is read — enough for the last line however long the
 /// file has grown, and one small read per poll over the network.
@@ -231,16 +238,19 @@ impl Run {
     /// A job in `_running` that nothing is actually running. Prefers the
     /// process check and falls back to output silence when the folder belongs
     /// to another machine.
+    ///
+    /// The fallback needs a log to reason about. A job that has not printed
+    /// *anything yet* is not evidence of a stall however long it has been
+    /// going: the log file is created by the first line, so a slow starter and
+    /// a dead runner look identical from here, and only one of them is worth
+    /// crying wolf over.
     pub fn is_stalled(&self) -> bool {
         if self.state != State::Running {
             return false;
         }
         match self.alive() {
             Some(alive) => !alive,
-            None => {
-                let quiet = self.silent_for().or_else(|| self.elapsed());
-                quiet.is_some_and(|since| since > SILENT_STALL)
-            }
+            None => self.silent_for().is_some_and(|since| since > SILENT_STALL),
         }
     }
 }
@@ -496,7 +506,7 @@ impl DirCache {
 
 /// Read the runner's `.status`. Only trusted when it names this host — a pid
 /// from another machine means nothing to `killpg` here.
-fn read_status(dir: &Path) -> Option<Status> {
+pub fn read_status(dir: &Path) -> Option<Status> {
     let text = fs::read_to_string(dir.join(STATUS_FILE)).ok()?;
     let mut pgid = None;
     let mut host = None;
@@ -508,6 +518,25 @@ fn read_status(dir: &Path) -> Option<Status> {
         }
     }
     (host == Some(hostname())).then_some(Status { pgid: pgid? })
+}
+
+/// A run folder this machine claimed and then lost: its `.status` names us,
+/// and the process group named there no longer exists. That is what a queue
+/// looks like after the daemon was killed, crashed, or the machine restarted
+/// mid-job — the folder stays in `_running` with nobody running it.
+///
+/// Only `ESRCH` counts. `killpg` failing any other way says something about
+/// *us* rather than about the job, and this answer is acted on by moving
+/// somebody's encode out of the queue.
+pub fn orphaned_here(dir: &Path) -> bool {
+    let Some(status) = read_status(dir) else {
+        // No status, or another host's: not ours to judge. A folder promoted a
+        // moment ago has no `.status` yet either, which is the same answer.
+        return false;
+    };
+    unsafe {
+        libc::killpg(status.pgid, 0) != 0 && *libc::__error() == libc::ESRCH
+    }
 }
 
 /// This machine's name, as recorded in a run folder's status.

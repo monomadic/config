@@ -12,7 +12,7 @@
 //! All rows in one menu share a [`Layout`], so names and values line up down
 //! the menu instead of following each job's own width.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
@@ -35,16 +35,57 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{NSMutableDictionary, NSPoint, NSRect, NSSize, NSString};
 
-/// What the row is showing. The row draws no state icon of its own — the
-/// value, the bar and the buttons carry that — but the apps still group and
-/// filter by it.
+/// What the row is showing, drawn as the symbol at the left of the row.
+///
+/// This is the row's answer to "what is this job doing", and it has to be
+/// legible without reading anything: a paused job that says so only in small
+/// grey text at the right-hand end is a paused job you will not notice you
+/// paused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
     Running,
     Paused,
+    /// In `_running` with nothing running it. Its own state rather than a
+    /// flavour of running: the row is reporting a queue that needs a hand, not
+    /// a job that is getting on with it.
+    Stalled,
     Queued,
     Done,
     Failed,
+}
+
+impl Kind {
+    /// The SF Symbol at the left of the row. Plain shapes, not the `.fill`
+    /// circles the buttons use: this one is a label and mustn't read as
+    /// something to press.
+    fn symbol(self) -> &'static str {
+        match self {
+            Kind::Running => "play.fill",
+            Kind::Paused => "pause.fill",
+            Kind::Stalled => "exclamationmark.triangle.fill",
+            Kind::Queued => "clock",
+            Kind::Done => "checkmark",
+            Kind::Failed => "xmark",
+        }
+    }
+
+    fn tint(self) -> Retained<NSColor> {
+        match self {
+            Kind::Running => NSColor::labelColor().colorWithAlphaComponent(0.8),
+            // A paused job is deliberately quieter than a running one — the
+            // whole row dims — but the symbol still has to carry across the
+            // menu, so it keeps full strength.
+            Kind::Paused => NSColor::labelColor().colorWithAlphaComponent(0.8),
+            Kind::Stalled | Kind::Failed => NSColor::systemRedColor(),
+            Kind::Queued | Kind::Done => NSColor::tertiaryLabelColor(),
+        }
+    }
+
+    /// Whether the row draws itself at reduced strength: a suspended job should
+    /// look suspended at a glance down the menu.
+    fn dimmed(self) -> bool {
+        self == Kind::Paused
+    }
 }
 
 /// How the bar under the name is drawn.
@@ -71,6 +112,24 @@ pub enum Progress {
 pub struct Action {
     pub glyph: Glyph,
     pub act: Act,
+    /// Where the job came from, for a button that toggles. Pressing pause moves
+    /// the folder to `_paused`; pressing it again has to put the folder back
+    /// where it was, and that is `_running` for a job that had started and
+    /// `_ready` for one that never did — a distinction the row cannot recover
+    /// from the destination alone, so it is recorded when the row is built.
+    ///
+    /// `None` for the buttons that only go one way: stop, and the log.
+    pub back: Option<PathBuf>,
+}
+
+impl Action {
+    fn oneway(glyph: Glyph, act: Act) -> Self {
+        Self {
+            glyph,
+            act,
+            back: None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -94,15 +153,28 @@ pub enum Glyph {
 
 impl Glyph {
     /// The SF Symbol the button draws, where it draws one. Pause and resume
-    /// share the toggle glyph — the row's own value already says which way it
-    /// will go — and stop is an x: in this system stopping *is* killing (the
+    /// draw *different* glyphs: they shared `playpause` on the reasoning that
+    /// the row's value already said which way it would go, which asked you to
+    /// read the far end of the row to find out what the button under your
+    /// pointer did. Stop is an x: in this system stopping *is* killing (the
     /// move to `_failed` SIGTERMs the process group), so there is only the one
     /// verb.
     fn symbol(self) -> Option<&'static str> {
         match self {
-            Glyph::Pause | Glyph::Resume => Some("playpause.circle.fill"),
+            Glyph::Pause => Some("pause.circle.fill"),
+            Glyph::Resume => Some("play.circle.fill"),
             Glyph::Stop => Some("xmark.circle.fill"),
             Glyph::Log => None,
+        }
+    }
+
+    /// What this button becomes once it has been pressed and the row is showing
+    /// the move it hasn't seen confirmed yet.
+    fn toggled(self) -> Self {
+        match self {
+            Glyph::Pause => Glyph::Resume,
+            Glyph::Resume => Glyph::Pause,
+            other => other,
         }
     }
 
@@ -303,6 +375,9 @@ fn holdable(job: &Run, root: &Option<Root>) -> Vec<Action> {
     vec![Action {
         glyph: Glyph::Pause,
         act: Act::Move(root.paused().join(folder)),
+        // Back to the queue it was waiting in, not to `_running`: this job
+        // never started, and putting it there would claim it had.
+        back: Some(root.ready().join(folder)),
     }]
 }
 
@@ -337,7 +412,13 @@ fn active_row(job: &Run, root: &Option<Root>) -> RowSpec {
         elapsed.map(duration).unwrap_or_default()
     };
 
-    RowSpec::new(if paused { Kind::Paused } else { Kind::Running }, job.name.clone())
+    let kind = match (paused, stalled) {
+        (true, _) => Kind::Paused,
+        (false, true) => Kind::Stalled,
+        (false, false) => Kind::Running,
+    };
+
+    RowSpec::new(kind, job.name.clone())
         .caption(elapsed.map(short_duration).unwrap_or_default())
         .value(value)
         .alert(quiet || stalled)
@@ -370,19 +451,18 @@ fn controls(job: &Run, root: &Option<Root>) -> Vec<Action> {
             } else {
                 root.paused().join(folder)
             }),
+            back: Some(if paused {
+                root.paused().join(folder)
+            } else {
+                root.running().join(folder)
+            }),
         },
         // Stopping files the job where a stopped job belongs, which is also
         // the signal for the runner to terminate it.
-        Action {
-            glyph: Glyph::Stop,
-            act: Act::Move(root.failed().join(folder)),
-        },
+        Action::oneway(Glyph::Stop, Act::Move(root.failed().join(folder))),
     ];
     if let Some(log) = job.log_path() {
-        actions.push(Action {
-            glyph: Glyph::Log,
-            act: Act::Open(log),
-        });
+        actions.push(Action::oneway(Glyph::Log, Act::Open(log)));
     }
     actions
 }
@@ -433,7 +513,13 @@ pub struct Layout {
     detail_font: Retained<NSFont>,
     log_font: Retained<NSFont>,
     button_font: Retained<NSFont>,
+    caption_font: Retained<NSFont>,
     width: f64,
+    /// The state symbol's column: left edge, and how wide it is — the symbol
+    /// or the widest caption under one, whichever needs more.
+    icon_x: f64,
+    icon_width: f64,
+    icon_size: f64,
     text_left: f64,
     text_right: f64,
     bar_height: f64,
@@ -464,6 +550,10 @@ pub fn layout<'a>(specs: impl IntoIterator<Item = &'a RowSpec> + Clone) -> Layou
     let button_font = NSFont::systemFontOfSize_weight((em * 0.72).round(), unsafe {
         NSFontWeightRegular
     });
+    let caption_font =
+        NSFont::monospacedDigitSystemFontOfSize_weight((em * 0.64).round(), unsafe {
+            NSFontWeightRegular
+        });
 
     // Matched to where AppKit indents an ordinary menu item's title, so the
     // job rows sit in the same column as Pause, Icon and the rest rather than
@@ -483,8 +573,16 @@ pub fn layout<'a>(specs: impl IntoIterator<Item = &'a RowSpec> + Clone) -> Layou
     };
     let name_width = widest(&|spec: &RowSpec| text_size(&font, &spec.name).width);
     let value_width = widest(&|spec: &RowSpec| text_size(&detail_font, &spec.value).width);
+    let caption_width =
+        widest(&|spec: &RowSpec| text_size(&caption_font, &spec.caption).width);
 
-    let text_left = left;
+    // The symbol and its caption share a column, sized by whichever is wider.
+    // It sits in the indent an ordinary menu item leaves empty, and only pushes
+    // the names right of that when the captions need the room.
+    let icon_size = (em * 0.95).round();
+    let icon_x = (em * 0.5).round();
+    let icon_width = icon_size.max(caption_width);
+    let text_left = left.max(icon_x + icon_width + (em * 0.55).round());
     // Wide enough to be worth reading, narrow enough to stay a menu.
     let text_width = (name_width + gap * 2.0 + value_width).clamp(em * 16.0, em * 34.0);
     // The button column is sized by the busiest row, so the controls line up
@@ -516,7 +614,11 @@ pub fn layout<'a>(specs: impl IntoIterator<Item = &'a RowSpec> + Clone) -> Layou
         detail_font,
         log_font,
         button_font,
+        caption_font,
         width,
+        icon_x,
+        icon_width,
+        icon_size,
         text_left,
         text_right: text_left + text_width,
         bar_height,
@@ -549,7 +651,8 @@ impl Layout {
 }
 
 /// The height one row's contents need: the name, plus a bar and a log line if
-/// it has them.
+/// it has them — or the symbol and its caption, on the rows where that stack is
+/// the taller of the two.
 fn content_height(layout: &Layout, spec: &RowSpec) -> f64 {
     let mut height = text_size(&layout.font, &spec.name).height;
     if spec.has_bar() {
@@ -558,7 +661,35 @@ fn content_height(layout: &Layout, spec: &RowSpec) -> f64 {
     if spec.log.is_some() {
         height += layout.line_gap + text_size(&layout.log_font, "Xg").height;
     }
-    height
+    height.max(icon_stack_height(layout, spec))
+}
+
+/// The symbol, and the caption under it where there is one.
+fn icon_stack_height(layout: &Layout, spec: &RowSpec) -> f64 {
+    if spec.caption.is_empty() {
+        return layout.icon_size;
+    }
+    layout.icon_size + (layout.line_gap * 0.5) + text_size(&layout.caption_font, "0").height
+}
+
+/// What a row shows after one of its buttons has moved the folder, before any
+/// poll has confirmed it. The move *is* the command, and it has already
+/// happened — this is not a guess about the future, it is the row catching up
+/// with what it just did rather than sitting there looking untouched until the
+/// next poll comes round (2s locally, up to a minute through the SMB directory
+/// cache).
+#[derive(Clone, Copy, PartialEq)]
+enum Pending {
+    Paused,
+    Resuming,
+}
+
+/// The state a press of this button moves the job into.
+fn pending_for(glyph: Glyph) -> Pending {
+    match glyph {
+        Glyph::Resume => Pending::Resuming,
+        _ => Pending::Paused,
+    }
 }
 
 pub struct RowIvars {
@@ -567,6 +698,10 @@ pub struct RowIvars {
     detail_font: Retained<NSFont>,
     log_font: Retained<NSFont>,
     button_font: Retained<NSFont>,
+    caption_font: Retained<NSFont>,
+    icon_x: f64,
+    icon_width: f64,
+    icon_size: f64,
     text_left: f64,
     text_right: f64,
     bar_height: f64,
@@ -578,6 +713,18 @@ pub struct RowIvars {
     hovered: Cell<bool>,
     /// Which button the pointer is over, so it can brighten under it.
     hot_button: Cell<Option<usize>>,
+    /// Which button is being held down, so it darkens while pressed.
+    held_button: Cell<Option<usize>>,
+    /// Set once a toggle button has been pressed: the row draws the state it
+    /// moved the job into, and the button offers the way back.
+    pending: Cell<Option<Pending>>,
+    /// Where the folder is now, once this row has moved it. The buttons and the
+    /// click-to-open both work from here, because `spec.dir` no longer exists.
+    moved_to: RefCell<Option<PathBuf>>,
+    /// A move that failed, said where it happened. This used to go to stderr,
+    /// which in a `.app` is a file nobody opens — a pause that silently didn't
+    /// happen is the whole complaint about these buttons.
+    error: RefCell<Option<String>>,
 }
 
 define_class!(
@@ -603,12 +750,12 @@ define_class!(
             // its boxes: the leading above the caps otherwise reads as extra
             // padding and drags everything low.
             let name_size = text_size(&ivars.font, &ivars.spec.name);
-            let log_height = ivars
-                .spec
-                .log
-                .as_ref()
-                .map(|_| ivars.line_gap + text_size(&ivars.log_font, "Xg").height)
-                .unwrap_or(0.0);
+            let has_line = ivars.spec.log.is_some() || ivars.error.borrow().is_some();
+            let log_height = if has_line {
+                ivars.line_gap + text_size(&ivars.log_font, "Xg").height
+            } else {
+                0.0
+            };
             let bar_block = if ivars.spec.has_bar() {
                 ivars.line_gap + ivars.bar_height
             } else {
@@ -620,34 +767,45 @@ define_class!(
                 - name_size.height
                 + lift;
 
+            let kind = self.effective_kind();
+            self.draw_state_symbol(kind, bounds);
+
             // Name and value share a baseline; the name is truncated to
             // whatever the value leaves it.
-            let value_size = text_size(&ivars.detail_font, &ivars.spec.value);
-            let value_gap = if ivars.spec.value.is_empty() {
+            let value = self.effective_value();
+            let value_size = text_size(&ivars.detail_font, &value);
+            let value_gap = if value.is_empty() {
                 0.0
             } else {
                 ivars.font.pointSize()
             };
             let name_room = ivars.text_right - ivars.text_left - value_size.width - value_gap;
             let name = truncate(&ivars.font, &ivars.spec.name, name_room);
+            // A suspended job reads as suspended down the whole row, not just
+            // in the word at the end of it.
+            let name_color = if kind.dimmed() {
+                NSColor::secondaryLabelColor()
+            } else {
+                NSColor::labelColor()
+            };
             draw_text(
                 &name,
                 &ivars.font,
-                &NSColor::labelColor(),
+                &name_color,
                 NSPoint {
                     x: ivars.text_left,
                     y: name_y,
                 },
             );
 
-            if !ivars.spec.value.is_empty() {
-                let color = if ivars.spec.alert {
+            if !value.is_empty() {
+                let color = if self.alerting() {
                     NSColor::systemRedColor()
                 } else {
                     NSColor::secondaryLabelColor()
                 };
                 draw_text(
-                    &ivars.spec.value,
+                    &value,
                     &ivars.detail_font,
                     &color,
                     NSPoint {
@@ -666,18 +824,23 @@ define_class!(
 
             self.draw_buttons(bounds);
 
-            if let Some(log) = ivars.spec.log.as_ref() {
+            // A failed move takes the log line's place: it is the more urgent
+            // thing this row has to say, and it says it where you are already
+            // looking rather than in a console you will never open.
+            let failure = ivars.error.borrow().clone();
+            if let Some(line) = failure.as_ref().or(ivars.spec.log.as_ref()) {
                 let log_size = text_size(&ivars.log_font, "Xg");
                 y -= ivars.line_gap + log_size.height;
-                let text = truncate(
-                    &ivars.log_font,
-                    log,
-                    ivars.text_right - ivars.text_left,
-                );
+                let text = truncate(&ivars.log_font, line, ivars.text_right - ivars.text_left);
+                let color = if failure.is_some() {
+                    NSColor::systemRedColor()
+                } else {
+                    NSColor::tertiaryLabelColor()
+                };
                 draw_text(
                     &text,
                     &ivars.log_font,
-                    &NSColor::tertiaryLabelColor(),
+                    &color,
                     NSPoint {
                         x: ivars.text_left,
                         y,
@@ -704,36 +867,24 @@ define_class!(
             self.setNeedsDisplay(true);
         }
 
+        #[unsafe(method(mouseDown:))]
+        fn mouse_down(&self, event: &NSEvent) {
+            self.ivars().held_button.set(self.button_at(event));
+            self.setNeedsDisplay(true);
+        }
+
         // Two kinds of target, as in Finder's sidebar: the buttons command the
         // job, the rest of the row opens its folder.
         #[unsafe(method(mouseUp:))]
         fn mouse_up(&self, event: &NSEvent) {
             let ivars = self.ivars();
+            ivars.held_button.set(None);
             if let Some(index) = self.button_at(event) {
-                let Some(action) = ivars.spec.actions.get(index) else {
-                    return;
-                };
-                self.dismiss_menu();
-                match &action.act {
-                    // The command *is* the move. Whoever is watching the
-                    // folder — the runner, here or on another machine — does
-                    // the rest.
-                    Act::Move(to) => {
-                        let Some(dir) = ivars.spec.dir.as_ref() else {
-                            return;
-                        };
-                        if let Err(err) = std::fs::rename(dir, to) {
-                            eprintln!("job: could not move {} — {err}", dir.display());
-                        }
-                    }
-                    Act::Open(path) => {
-                        let _ = Command::new("open").arg(path).spawn();
-                    }
-                }
+                self.press(index);
                 return;
             }
 
-            let Some(path) = ivars.spec.path.clone() else {
+            let Some(path) = self.open_target() else {
                 return;
             };
             self.dismiss_menu();
@@ -755,6 +906,10 @@ impl JobRow {
             detail_font: layout.detail_font.clone(),
             log_font: layout.log_font.clone(),
             button_font: layout.button_font.clone(),
+            caption_font: layout.caption_font.clone(),
+            icon_x: layout.icon_x,
+            icon_width: layout.icon_width,
+            icon_size: layout.icon_size,
             text_left: layout.text_left,
             text_right: layout.text_right,
             bar_height: layout.bar_height,
@@ -765,6 +920,10 @@ impl JobRow {
             label_width: layout.label_width,
             hovered: Cell::new(false),
             hot_button: Cell::new(None),
+            held_button: Cell::new(None),
+            pending: Cell::new(None),
+            moved_to: RefCell::new(None),
+            error: RefCell::new(None),
         });
         let frame = NSRect {
             origin: NSPoint { x: 0.0, y: 0.0 },
@@ -793,6 +952,183 @@ impl JobRow {
         this
     }
 
+    /// Put the row into a pointer state it would normally only reach under a
+    /// live mouse, so `examples/render_rows` can draw the hover and pressed
+    /// treatments. Nothing in the apps calls this: they have a real pointer.
+    pub fn preview_pointer(&self, hot: Option<usize>, held: Option<usize>) {
+        self.ivars().hovered.set(hot.is_some() || held.is_some());
+        self.ivars().hot_button.set(hot);
+        self.ivars().held_button.set(held);
+    }
+
+    /// Press button `index`.
+    ///
+    /// Pause and resume keep the menu open and show the move immediately: they
+    /// are the two you press to *watch* something, and dismissing the menu to
+    /// go and reopen it — then waiting out a poll — is why they felt like they
+    /// did nothing. Stop and the log still dismiss, because both are the end of
+    /// what you came to the menu to do.
+    fn press(&self, index: usize) {
+        let ivars = self.ivars();
+        let Some(action) = ivars.spec.actions.get(index) else {
+            return;
+        };
+
+        match &action.act {
+            // The command *is* the move. Whoever is watching the folder — the
+            // runner, here or on another machine — does the rest.
+            Act::Move(to) => {
+                let toggle = action.back.clone();
+                // Pressing a toggle a second time puts the folder back where it
+                // came from, so pause/resume works as many times as you like
+                // without waiting for a poll in between.
+                let (destination, next) = match (toggle, ivars.pending.get()) {
+                    (Some(back), Some(_)) => (back, None),
+                    (Some(_), None) => (to.clone(), Some(pending_for(action.glyph))),
+                    (None, _) => (to.clone(), ivars.pending.get()),
+                };
+                let one_way = action.back.is_none();
+
+                let Some(from) = self.source_dir() else {
+                    return;
+                };
+                match std::fs::rename(&from, &destination) {
+                    Ok(()) => {
+                        *ivars.error.borrow_mut() = None;
+                        *ivars.moved_to.borrow_mut() = Some(destination);
+                        ivars.pending.set(next);
+                        if one_way {
+                            self.dismiss_menu();
+                        } else {
+                            self.setNeedsDisplay(true);
+                        }
+                    }
+                    Err(err) => {
+                        // Stays on screen: a share that went away mid-menu is
+                        // exactly when you need to be told.
+                        *ivars.error.borrow_mut() = Some(format!("could not move — {err}"));
+                        self.setNeedsDisplay(true);
+                    }
+                }
+            }
+            Act::Open(path) => {
+                self.dismiss_menu();
+                let _ = Command::new("open").arg(path).spawn();
+            }
+        }
+    }
+
+    /// Where the job's folder is now: where this row put it, or where the
+    /// snapshot found it.
+    fn source_dir(&self) -> Option<PathBuf> {
+        let ivars = self.ivars();
+        ivars
+            .moved_to
+            .borrow()
+            .clone()
+            .or_else(|| ivars.spec.dir.clone())
+    }
+
+    /// What clicking the row opens. A row that has moved its own folder opens
+    /// where the folder went, not the path that is no longer there.
+    fn open_target(&self) -> Option<PathBuf> {
+        let ivars = self.ivars();
+        let path = ivars.spec.path.clone()?;
+        match (ivars.moved_to.borrow().clone(), ivars.spec.dir.clone()) {
+            (Some(moved), Some(dir)) if dir == path => Some(moved),
+            _ => Some(path),
+        }
+    }
+
+    /// The glyph a button draws now — flipped on the one that has been pressed,
+    /// so it offers the way back rather than repeating what it just did.
+    fn effective_glyph(&self, index: usize) -> Glyph {
+        let ivars = self.ivars();
+        let Some(action) = ivars.spec.actions.get(index) else {
+            return Glyph::Stop;
+        };
+        if action.back.is_some() && ivars.pending.get().is_some() {
+            return action.glyph.toggled();
+        }
+        action.glyph
+    }
+
+    /// What the row is showing *now*, which is what this row's own buttons have
+    /// done to the job when a poll hasn't caught up with them yet.
+    fn effective_kind(&self) -> Kind {
+        match self.ivars().pending.get() {
+            Some(Pending::Paused) => Kind::Paused,
+            Some(Pending::Resuming) => Kind::Running,
+            None => self.ivars().spec.kind,
+        }
+    }
+
+    fn effective_value(&self) -> String {
+        match self.ivars().pending.get() {
+            Some(Pending::Paused) => "paused".to_string(),
+            // Not "running": the folder has moved, and the runner has not
+            // necessarily noticed yet. Claiming more than that is how a UI
+            // starts lying about somebody's encode.
+            Some(Pending::Resuming) => "resuming…".to_string(),
+            None => self.ivars().spec.value.clone(),
+        }
+    }
+
+    /// Red text. A row that has just been commanded is not in trouble, whatever
+    /// the snapshot said a moment ago.
+    fn alerting(&self) -> bool {
+        self.ivars().spec.alert && self.ivars().pending.get().is_none()
+    }
+
+    /// The state symbol, with the caption under it — elapsed, queue position,
+    /// or how long a finished job took.
+    fn draw_state_symbol(&self, kind: Kind, bounds: NSRect) {
+        let ivars = self.ivars();
+        let caption = &ivars.spec.caption;
+        let caption_size = text_size(&ivars.caption_font, caption);
+        let stack = if caption.is_empty() {
+            ivars.icon_size
+        } else {
+            ivars.icon_size + ivars.line_gap * 0.5 + caption_size.height
+        };
+        let top = ((bounds.size.height + stack) / 2.0).round();
+
+        let centred = |width: f64| (ivars.icon_x + (ivars.icon_width - width) / 2.0).round();
+
+        if let Some(image) = symbol_image(kind.symbol(), &kind.tint()) {
+            let size = image.size();
+            let scale = if size.width > 0.0 && size.height > 0.0 {
+                (ivars.icon_size / size.width).min(ivars.icon_size / size.height)
+            } else {
+                1.0
+            };
+            let (width, height) = (size.width * scale, size.height * scale);
+            image.drawInRect_fromRect_operation_fraction(
+                rect(
+                    centred(width),
+                    (top - ivars.icon_size + (ivars.icon_size - height) / 2.0).round(),
+                    width,
+                    height,
+                ),
+                NSRect::ZERO,
+                NSCompositingOperation::SourceOver,
+                1.0,
+            );
+        }
+
+        if !caption.is_empty() {
+            draw_text(
+                caption,
+                &ivars.caption_font,
+                &NSColor::tertiaryLabelColor(),
+                NSPoint {
+                    x: centred(caption_size.width),
+                    y: (top - stack).round(),
+                },
+            );
+        }
+    }
+
     fn draw_bar(&self, y: f64) {
         let ivars = self.ivars();
         let width = ivars.text_right - ivars.text_left;
@@ -802,13 +1138,23 @@ impl JobRow {
         NSColor::labelColor().colorWithAlphaComponent(0.16).set();
         NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(track, radius, radius).fill();
 
-        match ivars.spec.progress {
+        let kind = self.effective_kind();
+        // A suspended job's bar is drawn back to nearly the track's own
+        // strength: at a glance down the menu the difference between a job
+        // working and a job stopped shouldn't be one word of grey text.
+        let progress = match (kind, ivars.spec.progress) {
+            (Kind::Paused, Progress::Unknown) => Progress::Track,
+            (_, progress) => progress,
+        };
+
+        match progress {
             Progress::Fraction(fraction) => {
                 let filled = (width * fraction.clamp(0.0, 1.0)).max(ivars.bar_height);
-                if ivars.spec.alert {
-                    NSColor::systemRedColor().colorWithAlphaComponent(0.75).set();
+                let strength = if kind.dimmed() { 0.34 } else { 0.75 };
+                if self.alerting() {
+                    NSColor::systemRedColor().colorWithAlphaComponent(strength).set();
                 } else {
-                    NSColor::labelColor().colorWithAlphaComponent(0.75).set();
+                    NSColor::labelColor().colorWithAlphaComponent(strength).set();
                 }
                 NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
                     rect(ivars.text_left, y, filled, ivars.bar_height),
@@ -904,27 +1250,40 @@ impl JobRow {
         self.setNeedsDisplay(true);
     }
 
-    /// The SF `circle.fill` symbols, brightening under the pointer — filled
-    /// circles read at menu size where hand-drawn glyphs went muddy. `log` is
-    /// a labelled pill instead: it opens something rather than commanding the
-    /// job, and shouldn't be mistaken for one of the verbs.
+    /// The SF `circle.fill` symbols, on a background that appears under the
+    /// pointer and deepens while held — filled circles read at menu size where
+    /// hand-drawn glyphs went muddy. `log` is a labelled pill instead: it opens
+    /// something rather than commanding the job, and shouldn't be mistaken for
+    /// one of the verbs.
+    ///
+    /// Every button gets the same background treatment. Tinting stop red on
+    /// hover and leaving the others to shift opacity by a third of a step meant
+    /// only the destructive button felt like a button at all.
     fn draw_buttons(&self, bounds: NSRect) {
         let ivars = self.ivars();
         let hot = ivars.hot_button.get();
+        let held = ivars.held_button.get();
 
-        for (index, action) in ivars.spec.actions.iter().enumerate() {
+        for index in 0..ivars.spec.actions.len() {
             let hovered = hot == Some(index);
+            let pressed = held == Some(index);
+            let glyph = self.effective_glyph(index);
             let box_ = self.button_rect(index, bounds);
 
-            let tint = match (action.glyph, hovered) {
+            let tint = match (glyph, hovered || pressed) {
                 // Stopping is the destructive one, so it says so under the
-                // pointer rather than looking like everything else.
+                // pointer as well as lighting up like the rest.
                 (Glyph::Stop, true) => NSColor::systemRedColor(),
                 (_, true) => NSColor::labelColor(),
                 _ => NSColor::labelColor().colorWithAlphaComponent(0.62),
             };
+            let backing = match (pressed, hovered) {
+                (true, _) => 0.30,
+                (false, true) => 0.15,
+                (false, false) => 0.0,
+            };
 
-            if let Some(label) = action.glyph.label() {
+            if let Some(label) = glyph.label() {
                 let height = (ivars.button_diameter * 0.76).round();
                 let pill = rect(
                     box_.origin.x,
@@ -932,8 +1291,10 @@ impl JobRow {
                     box_.size.width,
                     height,
                 );
+                // The pill is a shape in its own right, so it keeps a resting
+                // fill where the symbol buttons have none.
                 NSColor::labelColor()
-                    .colorWithAlphaComponent(if hovered { 0.26 } else { 0.13 })
+                    .colorWithAlphaComponent(0.13 + backing)
                     .set();
                 NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
                     pill,
@@ -955,19 +1316,35 @@ impl JobRow {
                 continue;
             }
 
-            let Some(symbol) = action.glyph.symbol().and_then(|name| {
-                NSImage::imageWithSystemSymbolName_accessibilityDescription(
-                    &NSString::from_str(name),
-                    None,
+            if backing > 0.0 {
+                let disc = rect(
+                    box_.origin.x,
+                    box_.origin.y,
+                    box_.size.width,
+                    box_.size.height,
+                );
+                NSColor::labelColor().colorWithAlphaComponent(backing).set();
+                NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
+                    disc,
+                    disc.size.width / 2.0,
+                    disc.size.height / 2.0,
                 )
-            }) else {
-                continue;
-            };
-            let config = NSImageSymbolConfiguration::configurationWithHierarchicalColor(&tint);
-            let Some(icon) = symbol.imageWithSymbolConfiguration(&config) else {
+                .fill();
+            }
+
+            let Some(icon) = glyph.symbol().and_then(|name| symbol_image(name, &tint)) else {
                 continue;
             };
 
+            // Inside the backing disc rather than filling it, so the ring of
+            // background reads as the button and the symbol as its label.
+            let inset = (ivars.button_diameter * 0.16).round();
+            let box_ = rect(
+                box_.origin.x + inset,
+                box_.origin.y + inset,
+                box_.size.width - inset * 2.0,
+                box_.size.height - inset * 2.0,
+            );
             let size = icon.size();
             let scale = if size.width > 0.0 && size.height > 0.0 {
                 (box_.size.width / size.width).min(box_.size.height / size.height)
@@ -998,6 +1375,19 @@ impl JobRow {
             menu.cancelTracking();
         }
     }
+}
+
+/// An SF Symbol in one colour, ready to draw. `None` when the running system
+/// doesn't have that symbol, which is a thing to skip rather than a thing to
+/// fall back from — every symbol here has been in macOS since well before the
+/// versions this runs on.
+fn symbol_image(name: &str, tint: &NSColor) -> Option<Retained<NSImage>> {
+    let symbol = NSImage::imageWithSystemSymbolName_accessibilityDescription(
+        &NSString::from_str(name),
+        None,
+    )?;
+    let config = NSImageSymbolConfiguration::configurationWithHierarchicalColor(tint);
+    symbol.imageWithSymbolConfiguration(&config)
 }
 
 /// The rounded highlight a native menu item gets, drawn to the same insets.
@@ -1137,6 +1527,119 @@ mod tests {
 
         // Finished jobs get no controls at all.
         assert!(rows.iter().filter(|row| row.kind == Kind::Done).all(|row| row.actions.is_empty()));
+    }
+
+    /// Every toggle has to know where the job came from, and it is not always
+    /// `_running`: sending a queued job back there would claim it had started.
+    /// The row is the only thing that knows the difference, so it records it.
+    #[test]
+    fn a_toggle_knows_the_way_back() {
+        let snapshot = Snapshot {
+            root: Some(Root::new("/j")),
+            connected: true,
+            jobs: vec![
+                job("running", State::Running),
+                job("held", State::Paused),
+                job("waiting", State::Ready),
+            ],
+            ..Snapshot::default()
+        };
+        let rows: Vec<RowSpec> = sections(&snapshot, 5, 5)
+            .into_iter()
+            .flat_map(|section| section.rows)
+            .collect();
+        let back = |name: &str| {
+            rows.iter()
+                .find(|row| row.name == name)
+                .unwrap()
+                .actions[0]
+                .back
+                .clone()
+        };
+
+        assert_eq!(back("running"), Some(PathBuf::from("/j/_running/2026-running")));
+        assert_eq!(back("held"), Some(PathBuf::from("/j/_paused/2026-held")));
+        // Never started, so it goes back to the queue it was waiting in.
+        assert_eq!(back("waiting"), Some(PathBuf::from("/j/_ready/2026-waiting")));
+
+        // Stopping is not a toggle: there is no coming back from `_failed`.
+        let running = rows.iter().find(|row| row.name == "running").unwrap();
+        assert_eq!(running.actions[1].glyph, Glyph::Stop);
+        assert_eq!(running.actions[1].back, None);
+    }
+
+    /// Pause and resume were the same glyph, so the button under your pointer
+    /// never said which way it went.
+    #[test]
+    fn pause_and_resume_do_not_look_alike() {
+        assert_ne!(Glyph::Pause.symbol(), Glyph::Resume.symbol());
+        assert_eq!(Glyph::Pause.toggled(), Glyph::Resume);
+        assert_eq!(Glyph::Resume.toggled(), Glyph::Pause);
+    }
+
+    /// The row's state has to be visible as a symbol, not only as a word at the
+    /// far right of it — and a stalled job is its own state, not a running one
+    /// wearing red text.
+    #[test]
+    fn a_stalled_job_is_its_own_state() {
+        let mut stalled = job("orphan", State::Running);
+        stalled.started = Some(SystemTime::now() - Duration::from_secs(4 * 3600));
+        stalled.last_output = Some(SystemTime::now() - Duration::from_secs(3 * 3600));
+        stalled.local = false;
+
+        let snapshot = Snapshot {
+            root: Some(Root::new("/j")),
+            connected: true,
+            jobs: vec![stalled],
+            ..Snapshot::default()
+        };
+        let row = &sections(&snapshot, 5, 5)[0].rows[0];
+        assert_eq!(row.kind, Kind::Stalled);
+        assert_eq!(row.value, "not running");
+        assert_ne!(Kind::Stalled.symbol(), Kind::Running.symbol());
+        assert_ne!(Kind::Paused.symbol(), Kind::Running.symbol());
+    }
+
+    /// A remote job that has printed nothing *yet* is not a stalled one however
+    /// long it has been going: the log file appears with the first line, so a
+    /// slow starter and a dead runner look identical from another machine.
+    #[test]
+    fn silence_escalates_rather_than_jumping_to_a_verdict() {
+        let mut quiet = job("remote", State::Running);
+        quiet.started = Some(SystemTime::now() - Duration::from_secs(6 * 3600));
+        quiet.local = false;
+
+        let never_logged = Snapshot {
+            root: Some(Root::new("/j")),
+            connected: true,
+            jobs: vec![quiet.clone()],
+            ..Snapshot::default()
+        };
+        let row = &sections(&never_logged, 5, 5)[0].rows[0];
+        assert_eq!(row.kind, Kind::Running, "got {:?}", row.value);
+
+        // Quiet for an hour: worth mentioning, not worth a verdict. Half an
+        // hour between progress lines is normal for a slow encode.
+        quiet.last_output = Some(SystemTime::now() - Duration::from_secs(60 * 60));
+        let hushed = Snapshot {
+            root: Some(Root::new("/j")),
+            connected: true,
+            jobs: vec![quiet.clone()],
+            ..Snapshot::default()
+        };
+        let row = &sections(&hushed, 5, 5)[0].rows[0];
+        assert_eq!(row.kind, Kind::Running);
+        assert!(row.value.starts_with("no output"), "got {:?}", row.value);
+
+        // Well past any sane reporting interval, silence is the verdict.
+        quiet.last_output = Some(SystemTime::now() - Duration::from_secs(3 * 3600));
+        let silent = Snapshot {
+            root: Some(Root::new("/j")),
+            connected: true,
+            jobs: vec![quiet],
+            ..Snapshot::default()
+        };
+        assert_eq!(sections(&silent, 5, 5)[0].rows[0].kind, Kind::Stalled);
     }
 
     /// A slow encoder that logs every 5% can go half an hour between lines.

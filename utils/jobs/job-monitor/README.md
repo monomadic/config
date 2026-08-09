@@ -54,6 +54,11 @@ how long a finished job took), the name with a value right-aligned, and a bar
 underneath. Click a row to open its run folder. Job rows share one height;
 section headers and the actions below them stay ordinary menu items.
 
+The symbol on the left is the state, because the state has to be legible
+without reading anything: a paused job that says so only in small grey text at
+the right-hand end is a paused job you will not notice you paused. Paused rows
+dim their name and their bar to match.
+
 Each job row carries its own controls on the right, in the style of the
 eject button on a volume row:
 
@@ -67,6 +72,16 @@ eject button on a volume row:
 Every one of those is a single `rename`. That is why they work from here at all:
 this app has no runner in it and no way to signal anything, but the runner on
 the other machine is watching its own folders and does the rest.
+
+Pause and resume **keep the menu open** and show the move immediately: they are
+the two you press in order to *watch* something, and dismissing the menu so you
+can reopen it and wait out a poll is why they used to feel like they had done
+nothing at all. Press again to put the folder back — the row remembers where
+the job came from, which is `_running` for a job that had started and `_ready`
+for one that never did. Stop and the log still dismiss, because both are the
+end of what you came to the menu to do. A move that *fails* says so on the row,
+in place of the log line: a `.app` has no console, and a pause that silently
+didn't happen is worse than one that refused.
 
 The running row carries one line more — the last thing the job printed:
 
@@ -98,6 +113,18 @@ exactly the way it does on the machine running it.
   process is asked directly, and silence is ignored; elsewhere the bar is 45
   minutes, because a slow encoder logging every 5% can legitimately go half an
   hour between lines.
+- **not running** means the folder is in `_running` with nothing running it —
+  usually a run folder orphaned when the daemon was killed or the machine
+  restarted mid-job. Locally that is a fact: `.status` names a process group and
+  `killpg` says it is gone. Elsewhere it is inferred from silence, and the bar
+  is 90 minutes — *above* the "no output" one, so silence escalates rather than
+  jumping to a verdict. It was below it, which made the warning unreachable and
+  taught every remote encode to report itself as dead every ten minutes. A job
+  that has printed nothing *at all* yet is never called stalled from another
+  machine: the log file appears with the first line, so a slow starter and a
+  dead runner are indistinguishable from there.
+  `job-daemon` files these away itself at startup, so the usual answer is that
+  you are looking at a queue whose runner hasn't been restarted yet.
 - **Runner not responding** needs two independent signals to agree: nothing has
   heartbeated `.lock` in five minutes *and* the job has printed nothing in ten.
   Either alone lies — a job can outlive a heartbeat for dull reasons, and

@@ -66,7 +66,31 @@ fn sample(quiet: bool) -> Snapshot {
             last_output: Some(if quiet { ago(2460) } else { ago(3) }),
             progress: if quiet { None } else { Some(0.45) },
         },
-        queued("silvialia dawn set", 400),
+        // Suspended mid-encode, and a claimed job with nothing running it —
+        // the two states the row used to report in small grey text at the far
+        // right of itself, where nobody found them.
+        Run {
+            name: "silvialia dawn set".to_string(),
+            dir: PathBuf::from("/Volumes/Jobs/_paused/20260806-030000-silvialia"),
+            state: State::Paused,
+            status: None,
+            local: false,
+            started: Some(ago(4200)),
+            last_line: Some("62% · frame 41003 · 12.7 fps".to_string()),
+            last_output: Some(ago(900)),
+            progress: Some(0.62),
+        },
+        Run {
+            name: "orphaned overnight batch".to_string(),
+            dir: PathBuf::from("/Volumes/Jobs/_running/20260805-234500-orphan"),
+            state: State::Running,
+            status: None,
+            local: false,
+            started: Some(ago(40000)),
+            last_line: Some("14% · frame 9210 · 9.1 fps".to_string()),
+            last_output: Some(ago(36000)),
+            progress: Some(0.14),
+        },
         queued("beach walk 4k", 300),
         queued("interview b roll", 200)],
         recent: vec![
@@ -119,11 +143,20 @@ fn main() {
 
     // One unbroken list, the way the menu draws it: the sections carry
     // neither header text nor a separator between them.
+    // The pointer treatments can't be reached without a mouse, and they are
+    // half of what a button communicates, so the render fakes one: the first
+    // row is drawn hovered over its pause button, the second with its own held
+    // down.
     let mut items: Vec<(Option<Retained<JobRow>>, f64)> = Vec::new();
     for section in &sections {
         for spec in &section.rows {
             let view = JobRow::new(spec.clone(), &layout, mtm);
             view.setAppearance(appearance.as_deref());
+            match items.len() {
+                0 => view.preview_pointer(Some(0), None),
+                1 => view.preview_pointer(None, Some(0)),
+                _ => {}
+            }
             items.push((Some(view), layout.height()));
         }
     }
