@@ -150,8 +150,8 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "System: shutdown" = "osascript -e 'tell app \"System Events\" to shut down'"
 #"System: restart" = "osascript -e 'tell app \"System Events\" to restart'"
 "Motherfucker: reload" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
-"Config: motherfucker" = "/Users/nom/.zsh/bin/kitty-launch --cwd ~/.config/motherfucker -- /opt/homebrew/bin/hx config.toml"
-"Config: switchblade" = "/Users/nom/.zsh/bin/kitty-launch --cwd ~/.config -- /opt/homebrew/bin/hx switchblade.toml"
+"Config: motherfucker" = "/Users/nom/.zsh/bin/kitty-launch --cwd ~/.config/motherfucker -- /usr/bin/env hx config.toml"
+"Config: switchblade" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"$HOME/.config\" -- /bin/zsh -lc 'exec hx -- switchblade.toml'"
 
 # Sigil modes: typing one of these as the FIRST character switches the
 # panel into that mode. The sigil is lifted into a colored box (not left in
