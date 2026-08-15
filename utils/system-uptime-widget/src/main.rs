@@ -15,12 +15,13 @@ use std::cell::RefCell;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use std::time::Duration;
 
 use objc2::rc::Retained;
 use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSCellImagePosition, NSControlStateValueOff,
-    NSControlStateValueOn, NSMenu, NSMenuItem, NSStatusBar, NSStatusItem,
+    NSControlStateValueOn, NSImage, NSMenu, NSMenuItem, NSStatusBar, NSStatusItem,
     NSVariableStatusItemLength,
 };
 use objc2_foundation::{NSObject, NSObjectProtocol, NSString, NSTimer, ns_string};
@@ -36,12 +37,16 @@ enum LayoutStyle {
     IconAboveText,
     IconText,
     Text,
+    Boxed,
+    Progress,
 }
 
-const ALL_STYLES: [LayoutStyle; 3] = [
+const ALL_STYLES: [LayoutStyle; 5] = [
     LayoutStyle::IconAboveText,
     LayoutStyle::IconText,
     LayoutStyle::Text,
+    LayoutStyle::Boxed,
+    LayoutStyle::Progress,
 ];
 
 impl LayoutStyle {
@@ -50,6 +55,8 @@ impl LayoutStyle {
             LayoutStyle::IconAboveText => "Icon above Text",
             LayoutStyle::IconText => "Icon and Text",
             LayoutStyle::Text => "Text",
+            LayoutStyle::Boxed => "Boxed Text",
+            LayoutStyle::Progress => "Day Progress",
         }
     }
 
@@ -58,11 +65,34 @@ impl LayoutStyle {
             LayoutStyle::IconAboveText => "icon_above_text",
             LayoutStyle::IconText => "icon_text",
             LayoutStyle::Text => "text",
+            LayoutStyle::Boxed => "boxed",
+            LayoutStyle::Progress => "progress",
         }
     }
 
     fn from_key(key: &str) -> Option<Self> {
         ALL_STYLES.iter().copied().find(|style| style.key() == key)
+    }
+
+    /// What the menu bar item looks like in this style — the item itself uses
+    /// it, and so does the style menu, which previews each style by showing the
+    /// very image it would install rather than describing it in words.
+    ///
+    /// [`LayoutStyle::Text`] is the one style the menu bar draws differently:
+    /// there the value stays the button's own title, but a preview has to be an
+    /// image like every other row.
+    fn image(self, duration: Duration) -> Retained<NSImage> {
+        let value = uptime::format_uptime(duration);
+        match self {
+            LayoutStyle::IconAboveText => bar::stacked_image(UPTIME_ICON, &value),
+            LayoutStyle::IconText => bar::icon_text_image(UPTIME_ICON, &value),
+            LayoutStyle::Text => bar::text_image(&value),
+            LayoutStyle::Boxed => bar::boxed_image(&value),
+            LayoutStyle::Progress => bar::progress_image(
+                &uptime::format_uptime_coarse(duration),
+                uptime::day_fraction(duration),
+            ),
+        }
     }
 }
 
@@ -89,8 +119,16 @@ fn save_style(style: LayoutStyle) {
     }
 }
 
+/// The menu, plus the two sets of items whose contents follow the uptime.
+struct Menu {
+    menu: Retained<NSMenu>,
+    uptime_item: Retained<NSMenuItem>,
+    style_items: Vec<Retained<NSMenuItem>>,
+}
+
 struct Ui {
     status_item: Retained<NSStatusItem>,
+    uptime_item: Retained<NSMenuItem>,
     style_items: Vec<Retained<NSMenuItem>>,
     style: LayoutStyle,
 }
@@ -147,21 +185,30 @@ impl Widget {
 
         let status_item =
             NSStatusBar::systemStatusBar().statusItemWithLength(NSVariableStatusItemLength);
-        let (menu, style_items) = this.build_menu(mtm);
-        status_item.setMenu(Some(&menu));
+        let menu = this.build_menu(mtm);
+        status_item.setMenu(Some(&menu.menu));
 
         *this.ivars().borrow_mut() = Some(Ui {
             status_item,
-            style_items,
+            uptime_item: menu.uptime_item,
+            style_items: menu.style_items,
             style: load_style(),
         });
         this.refresh_style_checks();
         this
     }
 
-    fn build_menu(&self, mtm: MainThreadMarker) -> (Retained<NSMenu>, Vec<Retained<NSMenuItem>>) {
+    fn build_menu(&self, mtm: MainThreadMarker) -> Menu {
         let menu = NSMenu::new(mtm);
         menu.setAutoenablesItems(false);
+
+        // The full figure, spelled out, at the top. No action: it is the
+        // menu's heading, not a command. Enabled all the same, so it draws in
+        // the normal text colour rather than greyed out.
+        let uptime_item = NSMenuItem::new(mtm);
+        uptime_item.setEnabled(true);
+        menu.addItem(&uptime_item);
+        menu.addItem(&NSMenuItem::separatorItem(mtm));
 
         // Our own selectors rather than `terminate:`: recent macOS decorates
         // menu items it recognises as standard actions with an SF Symbol, and
@@ -198,10 +245,13 @@ impl Widget {
         menu.addItem(&NSMenuItem::separatorItem(mtm));
         action(&menu, "Reboot", sel!(rebootAction:));
         action(&menu, "Shutdown", sel!(shutdownAction:));
-        menu.addItem(&NSMenuItem::separatorItem(mtm));
         action(&menu, "Quit", sel!(quitAction:));
 
-        (menu, style_items)
+        Menu {
+            menu,
+            uptime_item,
+            style_items,
+        }
     }
 
     fn update(&self) {
@@ -220,20 +270,14 @@ impl Widget {
             return;
         };
 
-        let value = uptime::format_uptime(duration);
         match ui.style {
             LayoutStyle::Text => {
-                button.setAttributedTitle(&bar::attributed_title(&value));
+                button.setAttributedTitle(&bar::attributed_title(&uptime::format_uptime(duration)));
                 button.setImage(None);
                 button.setImagePosition(NSCellImagePosition::NoImage);
             }
             style => {
-                let image = if style == LayoutStyle::IconAboveText {
-                    bar::stacked_image(UPTIME_ICON, &value)
-                } else {
-                    bar::icon_text_image(UPTIME_ICON, &value)
-                };
-                button.setImage(Some(&image));
+                button.setImage(Some(&style.image(duration)));
                 button.setImagePosition(NSCellImagePosition::ImageOnly);
             }
         }
@@ -242,6 +286,17 @@ impl Widget {
             "System uptime is {}",
             uptime::human_uptime(duration)
         ))));
+
+        ui.uptime_item
+            .setTitle(&NSString::from_str(&uptime::expanded_uptime(duration)));
+
+        // Each style row carries the image that style would install, drawn from
+        // the current uptime — so the preview is the thing itself, not a mock
+        // of it, and it stays current as the value ticks over.
+        for (index, item) in ui.style_items.iter().enumerate() {
+            let preview: Retained<NSImage> = ALL_STYLES[index].image(duration);
+            item.setImage(Some(&preview));
+        }
     }
 
     fn refresh_style_checks(&self) {

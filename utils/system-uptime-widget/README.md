@@ -13,9 +13,19 @@ item, so macOS presents it natively.
 | Icon above Text | clock glyph stacked over `22H` (default) |
 | Icon and Text | `􂝔 22H` |
 | Text | `22H` |
+| Boxed Text | `22H` set small inside a thin rounded rule |
+| Day Progress | whole days over a progress bar filled to the part-day |
 
 The chosen style persists to `~/.config/system-uptime-widget/style` and is
-picked from the `Style` submenu in the dropdown.
+picked from the `Style` submenu in the dropdown. Each row in that submenu
+carries the image that style would install, drawn from the current uptime — the
+preview is the thing itself, not a mock of it, and it re-renders as the value
+ticks over.
+
+`Day Progress` is the one style whose digits are not the compact value below:
+it shows whole days once there is a day (`3D`), otherwise
+hours or minutes, and puts the fraction the digits drop into the bar instead —
+so `3D` half-filled is three and a half days up.
 
 The value is always one unit, capitalised — at menu bar size a lowercase `d` or
 `h` hangs off the digits' x-height where a cap sits flush with them:
@@ -34,9 +44,10 @@ across in a menu bar than two. The decimal is truncated, not rounded, so the
 figure never runs ahead of the machine. The tooltip still spells the full figure
 out — "System uptime is 3 days, 12 hours".
 
-Below `Style` the menu holds `Reboot`, `Shutdown` and `Quit`. Reboot and
-Shutdown put up a confirmation dialog before telling System Events to perform
-the power action.
+The menu opens with the figure spelled out in full — "1 day, 2 hours, 43 mins"
+— as a heading with no action of its own. Below `Style` sit `Reboot`,
+`Shutdown` and `Quit`, in one section. Reboot and Shutdown put up a
+confirmation dialog before telling System Events to perform the power action.
 
 ## Sizing
 
@@ -51,6 +62,12 @@ height of the bar, so both come down — the glyph to 0.72em, the value to 0.58e
 — and if that pair still overruns the bar it is scaled down until it fits rather
 than being clipped. Digits are monospaced in every style, so the width doesn't
 jitter as the number changes.
+
+Boxed sets the value at 0.72em and pads it to a rounded rule one point thick,
+drawn at 75% alpha so the box reads as a container rather than as another mark
+competing with the number. Day Progress sets the value at 0.62em over a
+0.16em-tall bar — faint track, solid fill — and widens the item to 2.4em when
+the digits alone would leave a track too short to read as a gauge.
 
 Both marks go into a single image rather than leaving the value in the button's
 title: a status item button carrying both a title and an image pads generously

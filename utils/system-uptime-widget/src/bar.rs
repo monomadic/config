@@ -15,8 +15,8 @@ use objc2::AnyThread;
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2_app_kit::{
-    NSColor, NSFont, NSFontAttributeName, NSFontWeightRegular, NSForegroundColorAttributeName,
-    NSImage, NSStatusBar, NSStringDrawing,
+    NSBezierPath, NSColor, NSFont, NSFontAttributeName, NSFontWeightRegular,
+    NSForegroundColorAttributeName, NSImage, NSStatusBar, NSStringDrawing,
 };
 use objc2_core_foundation::CFAttributedString;
 use objc2_core_text::{CTLine, CTLineBoundsOptions};
@@ -34,6 +34,14 @@ const ROW_TEXT_RATIO: f64 = 0.84;
 /// stays the dominant one.
 const STACKED_GLYPH_RATIO: f64 = 0.72;
 const STACKED_TEXT_RATIO: f64 = 0.58;
+
+/// Boxed, the value comes down far enough that the border around it still fits
+/// inside the bar with air on either side of the rule.
+const BOXED_TEXT_RATIO: f64 = 0.72;
+
+/// With a progress bar underneath it, the value shares the bar's height with
+/// the rule the same way the stacked style shares it with the glyph.
+const PROGRESS_TEXT_RATIO: f64 = 0.62;
 
 /// The menu bar font. Size comes from the system, not from us.
 fn menu_bar_font() -> Retained<NSFont> {
@@ -188,6 +196,117 @@ pub fn stacked_image(glyph: &str, text: &str) -> Retained<NSImage> {
     image(width, height, move || {
         glyph.draw_ink_bottom(glyph_x, glyph_bottom);
         text.draw(text_x, text_y);
+    })
+}
+
+/// The value on its own, drawn rather than set as the button's title. The menu
+/// bar doesn't need this — the text style sets a title — but the style menu's
+/// previews do, since a preview is an image whatever style it is showing.
+pub fn text_image(text: &str) -> Retained<NSImage> {
+    let em = menu_bar_font().pointSize();
+    let height = NSStatusBar::systemStatusBar().thickness();
+    let run = Run::new(text, &digit_font(em), &NSColor::blackColor());
+
+    let width = run.typographic.width.ceil();
+    let y = ((height - run.typographic.height) / 2.0).round();
+
+    image(width, height, move || run.draw(0.0, y))
+}
+
+/// The value set small inside a thin rounded rule. The rule is drawn a little
+/// lighter than the digits so the box reads as a container rather than as
+/// another mark competing with the number.
+pub fn boxed_image(text: &str) -> Retained<NSImage> {
+    let em = menu_bar_font().pointSize();
+    let height = NSStatusBar::systemStatusBar().thickness();
+    let run = Run::new(
+        text,
+        &digit_font(em * BOXED_TEXT_RATIO),
+        &NSColor::blackColor(),
+    );
+
+    let pad_x = (em * 0.30).round().max(2.0);
+    let pad_y = (em * 0.10).round().max(1.0);
+    let width = run.typographic.width.ceil() + pad_x * 2.0;
+    let box_height = (run.typographic.height.ceil() + pad_y * 2.0).min(height);
+
+    // Inset by half the rule so the stroke lands inside the image rather than
+    // half outside it, where it would be clipped.
+    let rule = 1.0;
+    let rect = NSRect {
+        origin: NSPoint {
+            x: rule / 2.0,
+            y: ((height - box_height) / 2.0).round() + rule / 2.0,
+        },
+        size: NSSize {
+            width: width - rule,
+            height: box_height - rule,
+        },
+    };
+    let radius = (box_height * 0.30).round().max(2.0);
+    let text_x = ((width - run.typographic.width) / 2.0).round();
+    let text_y = ((height - run.typographic.height) / 2.0).round();
+
+    image(width, height, move || {
+        let path = NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(rect, radius, radius);
+        path.setLineWidth(rule);
+        NSColor::blackColor().colorWithAlphaComponent(0.75).set();
+        path.stroke();
+        run.draw(text_x, text_y);
+    })
+}
+
+/// The value over a progress bar filled to `fraction` — whole days in the
+/// digits, the part of the day they drop in the bar. The track is drawn faint
+/// and the fill solid; both are template alpha, so macOS tints them with the
+/// menu bar's own colour in either appearance.
+pub fn progress_image(text: &str, fraction: f64) -> Retained<NSImage> {
+    let em = menu_bar_font().pointSize();
+    let height = NSStatusBar::systemStatusBar().thickness();
+    let run = Run::new(
+        text,
+        &digit_font(em * PROGRESS_TEXT_RATIO),
+        &NSColor::blackColor(),
+    );
+
+    let rule = (em * 0.16).round().max(2.0);
+    let gap = (em * 0.12).round().max(1.0);
+    // A bar narrower than this reads as a dash rather than a gauge, so short
+    // values ("5H") widen the item instead of shrinking the track.
+    let width = run.typographic.width.ceil().max((em * 2.4).round());
+
+    let content = run.typographic.height.ceil() + gap + rule;
+    let bottom = ((height - content) / 2.0).round();
+    let text_x = ((width - run.typographic.width) / 2.0).round();
+    let text_y = bottom + rule + gap;
+
+    let track = NSRect {
+        origin: NSPoint { x: 0.0, y: bottom },
+        size: NSSize {
+            width,
+            height: rule,
+        },
+    };
+    // A sliver of fill is worse than none: below one rule-width there is no
+    // room for the rounded cap, so the fill starts at that width.
+    let fill_width = (width * fraction.clamp(0.0, 1.0)).round();
+    let fill = (fill_width > 0.0).then(|| NSRect {
+        origin: NSPoint { x: 0.0, y: bottom },
+        size: NSSize {
+            width: fill_width.max(rule),
+            height: rule,
+        },
+    });
+
+    image(width, height, move || {
+        let radius = rule / 2.0;
+        NSColor::blackColor().colorWithAlphaComponent(0.28).set();
+        NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(track, radius, radius).fill();
+        if let Some(fill) = fill {
+            NSColor::blackColor().set();
+            NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(fill, radius, radius).fill();
+        }
+        run.draw(text_x, text_y);
     })
 }
 

@@ -95,6 +95,51 @@ pub fn format_uptime(duration: Duration) -> String {
     format!("{minutes}M")
 }
 
+/// The coarsest form, for the styles that carry the detail somewhere other than
+/// the digits: whole days once there is a day, otherwise hours, otherwise
+/// minutes. Truncated, like [`format_uptime`].
+pub fn format_uptime_coarse(duration: Duration) -> String {
+    let (days, hours, minutes) = parts(duration);
+    if days > 0 {
+        return format!("{days}D");
+    }
+    if hours > 0 {
+        return format!("{hours}H");
+    }
+    format!("{minutes}M")
+}
+
+/// How far through the current day of uptime the machine is, `0.0..1.0` — what
+/// the progress style's bar fills to, so the bar carries the fraction the
+/// whole-day figure drops.
+pub fn day_fraction(duration: Duration) -> f64 {
+    let (_, hours, minutes) = parts(duration);
+    (hours * 60 + minutes) as f64 / (24.0 * 60.0)
+}
+
+/// Menu form: `1 day, 2 hours, 43 mins`. Every unit that is non-zero, plus the
+/// minutes always — this is the one place the figure is spelled out in full.
+pub fn expanded_uptime(duration: Duration) -> String {
+    let (days, hours, minutes) = parts(duration);
+    let plural = |n: u64, unit: &str| {
+        if n == 1 {
+            format!("{n} {unit}")
+        } else {
+            format!("{n} {unit}s")
+        }
+    };
+
+    let mut out = Vec::new();
+    if days > 0 {
+        out.push(plural(days, "day"));
+    }
+    if hours > 0 {
+        out.push(plural(hours, "hour"));
+    }
+    out.push(plural(minutes, "min"));
+    out.join(", ")
+}
+
 /// Tooltip form: `2 days, 1 hour`.
 pub fn human_uptime(duration: Duration) -> String {
     let (days, hours, minutes) = parts(duration);
@@ -139,6 +184,29 @@ mod tests {
         assert_eq!(format_uptime(duration(1, 2, 0)), "1D");
         assert_eq!(format_uptime(duration(1, 3, 0)), "1.1D");
         assert_eq!(format_uptime(duration(1, 23, 59)), "1.9D");
+    }
+
+    #[test]
+    fn coarse_form_drops_the_decimal() {
+        assert_eq!(format_uptime_coarse(duration(3, 12, 0)), "3D");
+        assert_eq!(format_uptime_coarse(duration(1, 23, 59)), "1D");
+        assert_eq!(format_uptime_coarse(duration(0, 5, 30)), "5H");
+        assert_eq!(format_uptime_coarse(duration(0, 0, 42)), "42M");
+    }
+
+    #[test]
+    fn day_fraction_tracks_the_part_the_digits_drop() {
+        assert_eq!(day_fraction(duration(3, 0, 0)), 0.0);
+        assert_eq!(day_fraction(duration(3, 12, 0)), 0.5);
+        assert_eq!(day_fraction(duration(0, 6, 0)), 0.25);
+    }
+
+    #[test]
+    fn expanded_form_keeps_the_minutes() {
+        assert_eq!(expanded_uptime(duration(1, 2, 43)), "1 day, 2 hours, 43 mins");
+        assert_eq!(expanded_uptime(duration(0, 2, 1)), "2 hours, 1 min");
+        assert_eq!(expanded_uptime(duration(0, 0, 42)), "42 mins");
+        assert_eq!(expanded_uptime(duration(2, 0, 5)), "2 days, 5 mins");
     }
 
     #[test]
