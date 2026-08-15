@@ -1,0 +1,247 @@
+#!/usr/bin/env zsh
+# interpolate-resolve-job
+# Queue DaVinci Resolve interpolation instead of running it here: writes one
+# NAME.job script per input into the jobs folder, where job-folder (or
+# job-daemon) picks it up and runs it.
+#
+#   interpolate-resolve-job [options] [fps] <input-file>...
+#
+# The job is a two-line script calling the deployed interpolate-resolve on an
+# absolute path. Nothing is copied: Resolve reads the source where it lies and
+# writes its output beside it, exactly as the interactive command does — which
+# is the point, since these are multi-gigabyte files on a local disk and the
+# queue is running on this machine.
+#
+# Because no payload is staged, the dropped file is named for the work rather
+# than for a file that has to exist: `clip.mp4.60fps.job` makes the menu row
+# read "clip.mp4.60fps" and keeps two different renders of one clip apart.
+#
+# Resolve renders one timeline at a time through the scripting API, so set
+# job-folder's Workers to 1 if you queue these alongside other Resolve work.
+
+emulate -L zsh
+setopt extended_glob
+set -euo pipefail
+
+script_name="${0:t}"
+
+# The *deployed* path, not the repo one: the job runs from job-folder, which
+# knows nothing about where this checkout lives.
+interpolate="${INTERPOLATE_RESOLVE:-$HOME/.zsh/bin/interpolate-resolve}"
+jobs_dir="${JOBS_DIR:-$HOME/jobs}"
+
+target_fps=60
+quality=enhanced-better
+use_prores=0
+dry_run=false
+typeset -a positional=()
+
+usage() {
+  cat <<EOF
+$script_name
+
+Queue DaVinci Resolve interpolation as jobs.
+
+Usage:
+  $script_name [options] [fps] <input-file>...
+
+Arguments:
+  [fps]              Target FPS as the first positional (60, 120, 23.976).
+                     Defaults to 60.
+  <input-file>       One or more input media files; one job each.
+
+Options:
+  --fps FPS          Target FPS. Overrides the positional FPS.
+  --quality MODE     Optical Flow quality: enhanced-better, speed-warp
+  --speed-warp       Shortcut for --quality speed-warp
+  --prores           Render ProRes 422 Proxy MOV instead of HEVC MP4
+  --dir DIR          Jobs folder (default: \$JOBS_DIR, else ~/jobs).
+                     Also --dir=DIR.
+  --dry-run          Print each job and where it would go, write nothing
+  -h, --help         Show help
+
+Environment:
+  JOBS_DIR             Jobs folder
+  INTERPOLATE_RESOLVE  Renderer the job calls (default: ~/.zsh/bin/interpolate-resolve)
+
+Examples:
+  $script_name clip.mp4
+  $script_name 120 a.mp4 b.mov
+  $script_name --prores --speed-warp clip.mp4
+EOF
+}
+
+die() {
+  print -u2 -- "$script_name: $1"
+  exit "${2:-1}"
+}
+
+normalize_fps() {
+  local fps="${1:l}"
+  fps="${fps%fps}"
+  [[ "$fps" =~ '^[0-9]+([.][0-9]+)?$' ]] || die "invalid fps: $1" 2
+  [[ "$fps" == "0" || "$fps" == "0."* ]] && die "fps must be greater than zero: $1" 2
+  print -r -- "$fps"
+}
+
+while (( $# )); do
+  case "$1" in
+    --fps)
+      (( $# >= 2 )) || die "missing argument for --fps" 2
+      target_fps="$(normalize_fps "$2")"
+      shift 2
+      ;;
+    --fps=*)
+      target_fps="$(normalize_fps "${1#--fps=}")"
+      shift
+      ;;
+    --quality)
+      (( $# >= 2 )) || die "missing argument for --quality" 2
+      case "$2" in
+        enhanced-better|speed-warp) quality="$2" ;;
+        *) die "unknown quality: $2 (enhanced-better, speed-warp)" 2 ;;
+      esac
+      shift 2
+      ;;
+    --speed-warp)
+      quality=speed-warp
+      shift
+      ;;
+    --prores)
+      use_prores=1
+      shift
+      ;;
+    --dir)
+      (( $# >= 2 )) || die "missing argument for --dir" 2
+      jobs_dir="$2"
+      shift 2
+      ;;
+    --dir=*)
+      jobs_dir="${1#--dir=}"
+      shift
+      ;;
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      positional+=( "$@" )
+      break
+      ;;
+    -*)
+      die "unknown option: $1" 2
+      ;;
+    *)
+      positional+=( "$1" )
+      shift
+      ;;
+  esac
+done
+
+# A leading bare number is the fps, as in interpolate-resolve itself.
+if (( ${#positional[@]} > 1 )) && [[ "${positional[1]:l}" =~ '^[0-9]+([.][0-9]+)?(fps)?$' ]]; then
+  target_fps="$(normalize_fps "${positional[1]}")"
+  positional=( "${positional[@]:1}" )
+fi
+
+(( ${#positional[@]} )) || { usage >&2; die "no input file given" 2 }
+
+jobs_dir="${jobs_dir%/}"
+if ! $dry_run; then
+  [[ -d "$jobs_dir" ]] || die "jobs folder not there: $jobs_dir"
+  [[ -w "$jobs_dir" ]] || die "jobs folder is not writable: $jobs_dir"
+fi
+
+# Reference the renderer through $HOME so the job survives another account.
+renderer_ref="${(qq)interpolate}"
+if [[ "$interpolate" == "$HOME"/* ]]; then
+  rest="${interpolate#$HOME/}"
+  if [[ "$rest" == [A-Za-z0-9._/-]## ]]; then
+    renderer_ref="\"\$HOME\"/$rest"
+  else
+    renderer_ref="\"\$HOME\"/${(qq)rest}"
+  fi
+fi
+
+fps_label="${target_fps//./p}"
+label_suffix="$fps_label"
+(( use_prores )) && label_suffix="prores$fps_label"
+
+typeset -a job_options=( --fps "$target_fps" --quality "$quality" )
+description="${target_fps}fps, $quality"
+if (( use_prores )); then
+  job_options+=( --prores )
+  description+=", ProRes 422 Proxy"
+fi
+
+option_line=""
+for option in "${job_options[@]}"; do
+  if [[ "$option" == --* ]]; then
+    option_line+=" $option"
+  else
+    option_line+=" ${(qq)option}"
+  fi
+done
+
+# A free drop-folder path: NAME.job, then NAME-2.job, … so queuing the same
+# render twice never clobbers a job that has not been picked up yet.
+free_job_path() {
+  local base="$1" candidate
+  candidate="$jobs_dir/$base.job"
+  if [[ ! -e "$candidate" ]]; then
+    print -r -- "$candidate"
+    return
+  fi
+  local n
+  for n in {2..999}; do
+    candidate="$jobs_dir/$base-$n.job"
+    if [[ ! -e "$candidate" ]]; then
+      print -r -- "$candidate"
+      return
+    fi
+  done
+  die "too many queued jobs named $base"
+}
+
+queued=0
+for input in "${positional[@]}"; do
+  [[ -f "$input" ]] || die "input file not found: $input"
+  input="${input:A}"
+
+  job_text="#!/bin/zsh
+# DaVinci Resolve interpolation job — generated by $script_name
+# $description
+# Reads and writes the source in place; nothing is staged into the run folder.
+exec $renderer_ref$option_line -- ${(qq)input}"
+
+  base="${input:t}.$label_suffix"
+
+  if $dry_run; then
+    print -- "job: $base.job -> $jobs_dir"
+    print -r -- "$job_text"
+    print
+    continue
+  fi
+
+  job_dest="$(free_job_path "$base")"
+  job_tmp="$jobs_dir/.${job_dest:t}.writing"
+
+  print -r -- "$job_text" > "$job_tmp" || die "could not write job file: $job_tmp"
+  chmod +x "$job_tmp" || die "could not make the job executable: $job_tmp"
+  # Rename into place so the watch folder only ever sees a complete .job.
+  mv -f -- "$job_tmp" "$job_dest" || die "could not queue ${job_dest:t}"
+
+  print -- "queued ${job_dest:t}"
+  (( ++queued ))
+done
+
+if ! $dry_run; then
+  print -- "$queued job(s) in $jobs_dir"
+fi
+
+exit 0

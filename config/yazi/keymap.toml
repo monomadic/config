@@ -253,14 +253,14 @@ desc = "Trim intro from selected videos"
 [[mgr.prepend_keymap]]
 on = ["e", "i"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 60fps " -- /Users/nom/.zsh/bin/interpolate-resolve %s'''
-desc = "Interpolate selected videos to 60fps in DaVinci Resolve"
+run = '''shell --block -- /Users/nom/.zsh/bin/interpolate-resolve-job %s'''
+desc = "Queue selected videos as 60fps Resolve interpolation jobs"
 
 [[mgr.prepend_keymap]]
 on = ["e", "I"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 120fps " -- /Users/nom/.zsh/bin/interpolate-resolve 120 %s'''
-desc = "Interpolate selected videos to 120fps in DaVinci Resolve"
+run = '''shell --block -- /Users/nom/.zsh/bin/interpolate-resolve-job 120 %s'''
+desc = "Queue selected videos as 120fps Resolve interpolation jobs"
 
 [[mgr.prepend_keymap]]
 on = ["e", "z"]
