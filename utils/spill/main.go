@@ -175,7 +175,26 @@ func runTUI(ctx context.Context, cancel context.CancelFunc, opts options) int {
 		fmt.Fprintf(os.Stderr, "spill: %v\n", err)
 		return 1
 	}
-	if m, ok := fm.(model); ok && (m.sum.failed > 0 || m.nFailed > 0) {
+	m, ok := fm.(model)
+	if !ok {
+		return 1
+	}
+	return exitCode(m.sum, m.done, m.nFailed)
+}
+
+// exitCode decides what a finished session is worth to a caller. Success is
+// narrow on purpose: the whole input was consumed, and every file it named is
+// accounted for. Anything else — a failure, a cancelled context, or a UI torn
+// down before the engine could report — is a non-zero exit, because a caller
+// scripting spill (one about to delete the sources, say) cannot tell an
+// abandoned run from a finished one by any other means.
+func exitCode(sum summary, reported bool, uiFailed int) int {
+	switch {
+	case sum.failed > 0, uiFailed > 0:
+		return 1
+	case sum.cancelled:
+		return 1
+	case !reported:
 		return 1
 	}
 	return 0
@@ -191,11 +210,9 @@ func runPlain(ctx context.Context, cancel context.CancelFunc, opts options) int 
 
 	pr := &plainReporter{opts: opts}
 	eng := newEngine(ctx, opts, pr)
-	sum := eng.run(os.Stdin)
-	if sum.failed > 0 {
-		return 1
-	}
-	return 0
+	// eng.run returning *is* the report in plain mode, so the summary always
+	// counts as delivered.
+	return exitCode(eng.run(os.Stdin), true, 0)
 }
 
 // plainReporter renders progress as terse lines when stdout is not a terminal.
@@ -258,6 +275,9 @@ func (r *plainReporter) Event(msg any) {
 		reason := "input exhausted"
 		if s.stoppedFull {
 			reason = "drive full"
+		}
+		if s.cancelled {
+			reason = "cancelled — files remain uncopied"
 		}
 		fmt.Fprintf(os.Stderr, "\ndone: %d %s, %d skipped, %d filtered, %d failed · %s in %s · %s\n",
 			s.copied, r.opts.verbed(), s.skipped, s.filtered, s.failed,

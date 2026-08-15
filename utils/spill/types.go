@@ -143,4 +143,5 @@ type summary struct {
 	free        uint64
 	diskTotal   uint64
 	stoppedFull bool // stopped because the next file didn't fit (no --fill)
+	cancelled   bool // ctrl-c, q, or a cancelled context — work was left undone
 }

@@ -70,6 +70,7 @@ func (e *engine) run(in io.Reader) summary {
 		free:        free,
 		diskTotal:   total,
 		stoppedFull: e.stoppedFull,
+		cancelled:   e.ctx.Err() != nil,
 	}
 	e.report.Event(doneMsg{summary: sum})
 	return sum

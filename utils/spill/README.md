@@ -88,6 +88,12 @@ produced live.
   by feeding the same list back to a normal run.
 - When stdout is **not** a terminal, it drops the TUI and prints terse status to
   stderr while echoing each copied destination path to stdout (so it pipes).
+- **Exit 0 means the whole input was consumed and every file it named is
+  accounted for** — nothing else. A failure, a `ctrl-c`/`q`, or a `SIGINT` all
+  exit non-zero, *including* when nothing had failed up to that point: a run you
+  walked away from copied fewer files than you asked for, and a caller that
+  deletes sources on a zero exit must not mistake it for a finished one. The
+  summary says `cancelled — files remain uncopied` in that case.
 
 ## Flags
 

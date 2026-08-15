@@ -307,7 +307,14 @@ func (m model) summaryLine() string {
 	if m.sum.stoppedFull {
 		reason = "drive full (next file didn't fit)"
 	}
-	return stName.Render("Done: ") +
+	if m.sum.cancelled {
+		reason = "cancelled — files remain uncopied"
+	}
+	head := stName.Render("Done: ")
+	if m.sum.cancelled {
+		head = stErr.Render("Stopped: ")
+	}
+	return head +
 		stOK.Render(fmt.Sprintf("%d %s", m.sum.copied, m.opts.verbed())) + stDim.Render(" · ") +
 		stWarn.Render(fmt.Sprintf("%d skipped", m.sum.skipped)) + stDim.Render(" · ") +
 		stDim.Render(fmt.Sprintf("%d filtered", m.sum.filtered)) + stDim.Render(" · ") +
