@@ -15,6 +15,7 @@
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 /// How long a job must be quiet before silence is worth mentioning, when
@@ -26,7 +27,9 @@ use crate::observe::{Root, Run, Snapshot, State};
 
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
-use objc2::{AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send};
+use objc2::{
+    AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_class, msg_send,
+};
 use objc2_app_kit::{
     NSBezierPath, NSColor, NSCompositingOperation, NSEvent, NSFont, NSFontAttributeName,
     NSGraphicsContext,
@@ -130,6 +133,27 @@ impl Action {
             back: None,
         }
     }
+
+    /// A button that calls the app back with `token` instead of moving a
+    /// folder. Never a toggle: an app that answers the press from its own model
+    /// has the new state before the row redraws, so it has nothing to guess at
+    /// and no way back to remember.
+    pub fn call(glyph: Glyph, token: u64) -> Self {
+        Self::oneway(glyph, Act::Call(token))
+    }
+}
+
+/// Where [`Act::Call`] presses go. Set once, by an app whose queue is its own
+/// memory rather than a folder — the only kind that can answer a button
+/// immediately.
+///
+/// Called on the main thread, from inside menu tracking, so a handler must
+/// return promptly: signalling a process group is instant, and anything that
+/// blocks here blocks the menu.
+static ON_CALL: OnceLock<Box<dyn Fn(u64) + Send + Sync + 'static>> = OnceLock::new();
+
+pub fn on_call(handler: impl Fn(u64) + Send + Sync + 'static) {
+    let _ = ON_CALL.set(Box::new(handler));
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -139,6 +163,11 @@ pub enum Act {
     Move(PathBuf),
     /// Open this path — a log, not a command.
     Open(PathBuf),
+    /// Hand this token to the app's [`on_call`] handler, for a queue that lives
+    /// in the pressing process rather than on disk. Nothing here knows what the
+    /// token means: the row's job is to notice the press, and an app that holds
+    /// its own model doesn't want a `rename` standing in for a method call.
+    Call(u64),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -146,6 +175,11 @@ pub enum Glyph {
     Pause,
     Resume,
     Stop,
+    /// Send a queued job to the front. Only means anything where the queue
+    /// order is the app's to change.
+    Top,
+    /// Run a finished job again.
+    Retry,
     /// Drawn as a small labelled pill rather than a symbol: opening a log is
     /// not one of the folder-move verbs and shouldn't look like one.
     Log,
@@ -164,6 +198,8 @@ impl Glyph {
             Glyph::Pause => Some("pause.circle.fill"),
             Glyph::Resume => Some("play.circle.fill"),
             Glyph::Stop => Some("xmark.circle.fill"),
+            Glyph::Top => Some("arrow.up.circle.fill"),
+            Glyph::Retry => Some("arrow.clockwise.circle.fill"),
             Glyph::Log => None,
         }
     }
@@ -693,7 +729,9 @@ fn pending_for(glyph: Glyph) -> Pending {
 }
 
 pub struct RowIvars {
-    spec: RowSpec,
+    /// Replaceable, so a row can be redrawn from a model that changed under it
+    /// without the menu being torn down and rebuilt — see [`JobRow::update`].
+    spec: RefCell<RowSpec>,
     font: Retained<NSFont>,
     detail_font: Retained<NSFont>,
     log_font: Retained<NSFont>,
@@ -713,18 +751,17 @@ pub struct RowIvars {
     hovered: Cell<bool>,
     /// Which button the pointer is over, so it can brighten under it.
     hot_button: Cell<Option<usize>>,
-    /// Which button is being held down, so it darkens while pressed.
-    held_button: Cell<Option<usize>>,
     /// Set once a toggle button has been pressed: the row draws the state it
     /// moved the job into, and the button offers the way back.
     pending: Cell<Option<Pending>>,
     /// Where the folder is now, once this row has moved it. The buttons and the
     /// click-to-open both work from here, because `spec.dir` no longer exists.
     moved_to: RefCell<Option<PathBuf>>,
-    /// A move that failed, said where it happened. This used to go to stderr,
-    /// which in a `.app` is a file nobody opens — a pause that silently didn't
-    /// happen is the whole complaint about these buttons.
-    error: RefCell<Option<String>>,
+    /// A move that failed, and why. Written by the thread that ran it, read at
+    /// the next redraw. This used to go to stderr, which in a `.app` is a file
+    /// nobody opens — a pause that silently didn't happen is the whole
+    /// complaint about these buttons.
+    failure: Arc<Mutex<Option<String>>>,
 }
 
 define_class!(
@@ -740,23 +777,25 @@ define_class!(
         #[unsafe(method(drawRect:))]
         fn draw_rect(&self, _dirty: NSRect) {
             let ivars = self.ivars();
+            let spec = ivars.spec.borrow();
             let bounds = self.bounds();
 
-            if ivars.hovered.get() && ivars.spec.path.is_some() {
+            if ivars.hovered.get() && spec.path.is_some() {
                 draw_highlight(bounds);
             }
 
             // The block of text is centred on its visible marks rather than
             // its boxes: the leading above the caps otherwise reads as extra
             // padding and drags everything low.
-            let name_size = text_size(&ivars.font, &ivars.spec.name);
-            let has_line = ivars.spec.log.is_some() || ivars.error.borrow().is_some();
+            let name_size = text_size(&ivars.font, &spec.name);
+            let failure = self.failure();
+            let has_line = spec.log.is_some() || failure.is_some();
             let log_height = if has_line {
                 ivars.line_gap + text_size(&ivars.log_font, "Xg").height
             } else {
                 0.0
             };
-            let bar_block = if ivars.spec.has_bar() {
+            let bar_block = if spec.has_bar() {
                 ivars.line_gap + ivars.bar_height
             } else {
                 0.0
@@ -780,7 +819,7 @@ define_class!(
                 ivars.font.pointSize()
             };
             let name_room = ivars.text_right - ivars.text_left - value_size.width - value_gap;
-            let name = truncate(&ivars.font, &ivars.spec.name, name_room);
+            let name = truncate(&ivars.font, &spec.name, name_room);
             // A suspended job reads as suspended down the whole row, not just
             // in the word at the end of it.
             let name_color = if kind.dimmed() {
@@ -817,7 +856,7 @@ define_class!(
             }
 
             let mut y = name_y;
-            if ivars.spec.has_bar() {
+            if spec.has_bar() {
                 y -= ivars.line_gap + ivars.bar_height;
                 self.draw_bar(y);
             }
@@ -827,8 +866,7 @@ define_class!(
             // A failed move takes the log line's place: it is the more urgent
             // thing this row has to say, and it says it where you are already
             // looking rather than in a console you will never open.
-            let failure = ivars.error.borrow().clone();
-            if let Some(line) = failure.as_ref().or(ivars.spec.log.as_ref()) {
+            if let Some(line) = failure.as_ref().or(spec.log.as_ref()) {
                 let log_size = text_size(&ivars.log_font, "Xg");
                 y -= ivars.line_gap + log_size.height;
                 let text = truncate(&ivars.log_font, line, ivars.text_right - ivars.text_left);
@@ -867,18 +905,18 @@ define_class!(
             self.setNeedsDisplay(true);
         }
 
-        #[unsafe(method(mouseDown:))]
-        fn mouse_down(&self, event: &NSEvent) {
-            self.ivars().held_button.set(self.button_at(event));
-            self.setNeedsDisplay(true);
-        }
-
         // Two kinds of target, as in Finder's sidebar: the buttons command the
         // job, the rest of the row opens its folder.
+        //
+        // `mouseUp:` only. A menu tracks in its own modal run loop and routes
+        // events to item views itself; a `mouseDown:` override that swallows
+        // the event — added here for a pressed-button treatment — hung menu
+        // tracking hard enough to beachball the machine. Hover is drawn from
+        // the tracking area instead, which AppKit feeds without our
+        // intercepting anything.
         #[unsafe(method(mouseUp:))]
         fn mouse_up(&self, event: &NSEvent) {
             let ivars = self.ivars();
-            ivars.held_button.set(None);
             if let Some(index) = self.button_at(event) {
                 self.press(index);
                 return;
@@ -889,7 +927,7 @@ define_class!(
             };
             self.dismiss_menu();
             let mut command = Command::new("open");
-            if ivars.spec.reveal {
+            if ivars.spec.borrow().reveal {
                 command.arg("-R");
             }
             let _ = command.arg(path).spawn();
@@ -901,7 +939,7 @@ impl JobRow {
     pub fn new(spec: RowSpec, layout: &Layout, mtm: MainThreadMarker) -> Retained<Self> {
         let height = layout.height();
         let this = Self::alloc(mtm).set_ivars(RowIvars {
-            spec,
+            spec: RefCell::new(spec),
             font: layout.font.clone(),
             detail_font: layout.detail_font.clone(),
             log_font: layout.log_font.clone(),
@@ -920,10 +958,9 @@ impl JobRow {
             label_width: layout.label_width,
             hovered: Cell::new(false),
             hot_button: Cell::new(None),
-            held_button: Cell::new(None),
             pending: Cell::new(None),
             moved_to: RefCell::new(None),
-            error: RefCell::new(None),
+            failure: Arc::new(Mutex::new(None)),
         });
         let frame = NSRect {
             origin: NSPoint { x: 0.0, y: 0.0 },
@@ -953,12 +990,20 @@ impl JobRow {
     }
 
     /// Put the row into a pointer state it would normally only reach under a
-    /// live mouse, so `examples/render_rows` can draw the hover and pressed
-    /// treatments. Nothing in the apps calls this: they have a real pointer.
-    pub fn preview_pointer(&self, hot: Option<usize>, held: Option<usize>) {
-        self.ivars().hovered.set(hot.is_some() || held.is_some());
+    /// live mouse, so `examples/render_rows` can draw the hover treatment.
+    /// Nothing in the apps calls this: they have a real pointer.
+    pub fn preview_pointer(&self, hot: Option<usize>) {
+        self.ivars().hovered.set(hot.is_some());
         self.ivars().hot_button.set(hot);
-        self.ivars().held_button.set(held);
+    }
+
+    /// The last move this row started, if it failed.
+    fn failure(&self) -> Option<String> {
+        self.ivars()
+            .failure
+            .lock()
+            .unwrap_or_else(|err| err.into_inner())
+            .clone()
     }
 
     /// Press button `index`.
@@ -970,7 +1015,11 @@ impl JobRow {
     /// what you came to the menu to do.
     fn press(&self, index: usize) {
         let ivars = self.ivars();
-        let Some(action) = ivars.spec.actions.get(index) else {
+        // Cloned, and the borrow released before anything is dispatched: an
+        // `Act::Call` handler answers by rewriting this row's own spec, and a
+        // borrow still held across that call would be a panic rather than a
+        // paused job.
+        let Some(action) = ivars.spec.borrow().actions.get(index).cloned() else {
             return;
         };
 
@@ -992,30 +1041,77 @@ impl JobRow {
                 let Some(from) = self.source_dir() else {
                     return;
                 };
-                match std::fs::rename(&from, &destination) {
-                    Ok(()) => {
-                        *ivars.error.borrow_mut() = None;
-                        *ivars.moved_to.borrow_mut() = Some(destination);
-                        ivars.pending.set(next);
-                        if one_way {
-                            self.dismiss_menu();
-                        } else {
-                            self.setNeedsDisplay(true);
-                        }
-                    }
-                    Err(err) => {
-                        // Stays on screen: a share that went away mid-menu is
-                        // exactly when you need to be told.
-                        *ivars.error.borrow_mut() = Some(format!("could not move — {err}"));
-                        self.setNeedsDisplay(true);
-                    }
+
+                // The row commits to the move before it has happened, and the
+                // move happens on a thread.
+                //
+                // Not an optimisation: a menu is tracking a *modal* run loop
+                // while this runs, so a `rename` that blocks — a share that
+                // went away, a volume busy under an encode — blocks the main
+                // thread inside menu tracking, and a menu that cannot finish
+                // tracking beachballs the whole machine, not just this app.
+                // Every poll in this system already runs on a thread for the
+                // same reason; the buttons had never been held to it.
+                *ivars.failure.lock().unwrap_or_else(|err| err.into_inner()) = None;
+                *ivars.moved_to.borrow_mut() = Some(destination.clone());
+                ivars.pending.set(next);
+                if one_way {
+                    self.dismiss_menu();
+                } else {
+                    self.setNeedsDisplay(true);
                 }
+
+                let failure = Arc::clone(&ivars.failure);
+                std::thread::spawn(move || {
+                    if let Err(err) = std::fs::rename(&from, &destination) {
+                        // Read at the next redraw rather than pushed at the
+                        // main thread: any pointer movement over the menu
+                        // repaints, and reopening it rebuilds from the truth
+                        // on disk regardless.
+                        *failure.lock().unwrap_or_else(|err| err.into_inner()) =
+                            Some(format!("could not move — {err}"));
+                    }
+                });
             }
             Act::Open(path) => {
                 self.dismiss_menu();
                 let _ = Command::new("open").arg(path).spawn();
             }
+            // Straight through to the app, on this thread, and the menu stays
+            // open. There is nothing to guess at and nothing to undo: the
+            // handler changes the model and hands every visible row its new
+            // spec back before this returns, so the row is already right by the
+            // time it redraws.
+            Act::Call(token) => {
+                // Held for the duration of the call. A handler is free to
+                // answer by rebuilding the menu it was called from — moving a
+                // job to the front of the queue reorders these very rows — and
+                // that releases every row in it, including the one whose method
+                // is running.
+                let keep_alive = self.retain();
+                if let Some(handler) = ON_CALL.get() {
+                    handler(*token);
+                }
+                keep_alive.setNeedsDisplay(true);
+            }
         }
+    }
+
+    /// Redraw this row against a fresh spec.
+    ///
+    /// The folder-watching apps rebuild their whole menu from a poll, so a row
+    /// there is a fixed picture of one moment. An app holding the queue in
+    /// memory has the new truth immediately and a menu already on screen to put
+    /// it in — and tearing the menu down to say a job reached 46% would take
+    /// the pointer's place in it with it.
+    pub fn update(&self, spec: RowSpec) {
+        let ivars = self.ivars();
+        // Whatever this row was showing on its own account is now stale: the
+        // model it just got is the answer, not a guess waiting on a poll.
+        ivars.pending.set(None);
+        *ivars.moved_to.borrow_mut() = None;
+        *ivars.spec.borrow_mut() = spec;
+        self.setNeedsDisplay(true);
     }
 
     /// Where the job's folder is now: where this row put it, or where the
@@ -1026,15 +1122,16 @@ impl JobRow {
             .moved_to
             .borrow()
             .clone()
-            .or_else(|| ivars.spec.dir.clone())
+            .or_else(|| ivars.spec.borrow().dir.clone())
     }
 
     /// What clicking the row opens. A row that has moved its own folder opens
     /// where the folder went, not the path that is no longer there.
     fn open_target(&self) -> Option<PathBuf> {
         let ivars = self.ivars();
-        let path = ivars.spec.path.clone()?;
-        match (ivars.moved_to.borrow().clone(), ivars.spec.dir.clone()) {
+        let path = ivars.spec.borrow().path.clone()?;
+        let dir = ivars.spec.borrow().dir.clone();
+        match (ivars.moved_to.borrow().clone(), dir) {
             (Some(moved), Some(dir)) if dir == path => Some(moved),
             _ => Some(path),
         }
@@ -1044,7 +1141,8 @@ impl JobRow {
     /// so it offers the way back rather than repeating what it just did.
     fn effective_glyph(&self, index: usize) -> Glyph {
         let ivars = self.ivars();
-        let Some(action) = ivars.spec.actions.get(index) else {
+        let spec = ivars.spec.borrow();
+        let Some(action) = spec.actions.get(index) else {
             return Glyph::Stop;
         };
         if action.back.is_some() && ivars.pending.get().is_some() {
@@ -1059,7 +1157,7 @@ impl JobRow {
         match self.ivars().pending.get() {
             Some(Pending::Paused) => Kind::Paused,
             Some(Pending::Resuming) => Kind::Running,
-            None => self.ivars().spec.kind,
+            None => self.ivars().spec.borrow().kind,
         }
     }
 
@@ -1070,21 +1168,22 @@ impl JobRow {
             // necessarily noticed yet. Claiming more than that is how a UI
             // starts lying about somebody's encode.
             Some(Pending::Resuming) => "resuming…".to_string(),
-            None => self.ivars().spec.value.clone(),
+            None => self.ivars().spec.borrow().value.clone(),
         }
     }
 
     /// Red text. A row that has just been commanded is not in trouble, whatever
     /// the snapshot said a moment ago.
     fn alerting(&self) -> bool {
-        self.ivars().spec.alert && self.ivars().pending.get().is_none()
+        self.ivars().spec.borrow().alert && self.ivars().pending.get().is_none()
     }
 
     /// The state symbol, with the caption under it — elapsed, queue position,
     /// or how long a finished job took.
     fn draw_state_symbol(&self, kind: Kind, bounds: NSRect) {
         let ivars = self.ivars();
-        let caption = &ivars.spec.caption;
+        let spec = ivars.spec.borrow();
+        let caption = &spec.caption;
         let caption_size = text_size(&ivars.caption_font, caption);
         let stack = if caption.is_empty() {
             ivars.icon_size
@@ -1142,7 +1241,7 @@ impl JobRow {
         // A suspended job's bar is drawn back to nearly the track's own
         // strength: at a glance down the menu the difference between a job
         // working and a job stopped shouldn't be one word of grey text.
-        let progress = match (kind, ivars.spec.progress) {
+        let progress = match (kind, ivars.spec.borrow().progress) {
             (Kind::Paused, Progress::Unknown) => Progress::Track,
             (_, progress) => progress,
         };
@@ -1202,7 +1301,7 @@ impl JobRow {
 
     fn button_width(&self, index: usize) -> f64 {
         let ivars = self.ivars();
-        match ivars.spec.actions.get(index).map(|action| action.glyph) {
+        match ivars.spec.borrow().actions.get(index).map(|action| action.glyph) {
             Some(glyph) if glyph.label().is_some() => ivars.label_width,
             _ => ivars.button_diameter,
         }
@@ -1226,14 +1325,15 @@ impl JobRow {
 
     fn button_at(&self, event: &NSEvent) -> Option<usize> {
         let ivars = self.ivars();
-        if ivars.spec.actions.is_empty() {
+        if ivars.spec.borrow().actions.is_empty() {
             return None;
         }
         let point = self.convertPoint_fromView(event.locationInWindow(), None);
         let bounds = self.bounds();
         // A little forgiveness beyond the drawn box.
         let slack = 3.0;
-        (0..ivars.spec.actions.len()).find(|index| {
+        let count = ivars.spec.borrow().actions.len();
+        (0..count).find(|index| {
             let box_ = self.button_rect(*index, bounds);
             point.x >= box_.origin.x - slack
                 && point.x <= box_.origin.x + box_.size.width + slack
@@ -1251,37 +1351,35 @@ impl JobRow {
     }
 
     /// The SF `circle.fill` symbols, on a background that appears under the
-    /// pointer and deepens while held — filled circles read at menu size where
-    /// hand-drawn glyphs went muddy. `log` is a labelled pill instead: it opens
-    /// something rather than commanding the job, and shouldn't be mistaken for
-    /// one of the verbs.
+    /// pointer — filled circles read at menu size where hand-drawn glyphs went
+    /// muddy. `log` is a labelled pill instead: it opens something rather than
+    /// commanding the job, and shouldn't be mistaken for one of the verbs.
     ///
     /// Every button gets the same background treatment. Tinting stop red on
     /// hover and leaving the others to shift opacity by a third of a step meant
     /// only the destructive button felt like a button at all.
+    ///
+    /// Hover only, no pressed state: drawing one means overriding `mouseDown:`,
+    /// and a view in a menu item that swallows mouse-down hangs menu tracking.
+    /// The row answering the press by changing state does the same job.
     fn draw_buttons(&self, bounds: NSRect) {
         let ivars = self.ivars();
         let hot = ivars.hot_button.get();
-        let held = ivars.held_button.get();
 
-        for index in 0..ivars.spec.actions.len() {
+        let count = ivars.spec.borrow().actions.len();
+        for index in 0..count {
             let hovered = hot == Some(index);
-            let pressed = held == Some(index);
             let glyph = self.effective_glyph(index);
             let box_ = self.button_rect(index, bounds);
 
-            let tint = match (glyph, hovered || pressed) {
+            let tint = match (glyph, hovered) {
                 // Stopping is the destructive one, so it says so under the
                 // pointer as well as lighting up like the rest.
                 (Glyph::Stop, true) => NSColor::systemRedColor(),
                 (_, true) => NSColor::labelColor(),
                 _ => NSColor::labelColor().colorWithAlphaComponent(0.62),
             };
-            let backing = match (pressed, hovered) {
-                (true, _) => 0.30,
-                (false, true) => 0.15,
-                (false, false) => 0.0,
-            };
+            let backing = if hovered { 0.15 } else { 0.0 };
 
             if let Some(label) = glyph.label() {
                 let height = (ivars.button_diameter * 0.76).round();

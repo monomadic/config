@@ -19,8 +19,10 @@ have one long-lived process than a spawn per job.
 setup/install/install-job-daemon.sh
 ```
 
-This is the only thing that runs jobs. [`job-monitor`](../job-monitor) is the
-UI and deliberately does not depend on this crate: a binary with no job loop
+This is the only thing that runs jobs *under the folder protocol* —
+[`job-folder`](../job-folder) is a separate app that runs its own queue in
+memory, and the two must not share a folder. [`job-monitor`](../job-monitor) is
+the UI and deliberately does not depend on this crate: a binary with no job loop
 linked into it cannot claim a job, which is what makes watching a shared folder
 from another machine safe. Install both — they don't conflict.
 

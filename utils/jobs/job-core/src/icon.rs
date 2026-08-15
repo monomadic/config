@@ -1,7 +1,7 @@
 //! The menu bar icon: a terminal prompt, in one of several selectable styles.
 //!
 //! Every style shares a vocabulary: a chevron prompt, a blinking block for a
-//! running job, a dim resting underscore for a waiting one, and red —
+//! running job, a dim resting underscore for an idle one, and red —
 //! reserved for failures. A failed job draws the style's own job mark in red
 //! rather than a glyph of its own: an `!` small enough to fit a menu bar is
 //! a smudge, and colour alone carries the meaning at that size. When no
@@ -304,20 +304,16 @@ fn draw_classic(state: &IconState, ink: &NSColor) {
     let errors = state.failed > 0;
     let dots = state.queued.min(CLASSIC_QUEUE_DOTS);
 
-    if running || errors {
-        ink.set();
-    } else {
-        ink.colorWithAlphaComponent(DIM).set();
-    }
+    // Full strength whatever the queue is doing. The frame and the prompt are
+    // what the icon *is*, not what it is reporting: fading them for an idle
+    // queue made the whole thing read as disabled — and this app has a real
+    // disabled state already, drawn as a missing folder.
+    ink.set();
     stroke_frame(14.0);
 
     // The prompt stays the prompt: failures are carried by the badge, not by
     // recolouring the mark that says what this icon is.
-    if running || errors {
-        ink.set();
-    } else {
-        ink.colorWithAlphaComponent(DIM).set();
-    }
+    ink.set();
     stroke_chevron(4.6);
 
     // Cursor slot: a blinking block while a job runs, a resting underscore
@@ -349,20 +345,10 @@ fn draw_classic(state: &IconState, ink: &NSColor) {
 fn draw_cursors(state: &IconState, ink: &NSColor) {
     let (glyphs, over) = lane(state, CURSORS_CAP);
     let slots = glyphs.len() + over as usize;
-    let busy = state.running > 0 || state.failed > 0;
 
-    if busy {
-        ink.set();
-    } else {
-        ink.colorWithAlphaComponent(DIM).set();
-    }
+    ink.set();
     stroke_frame(cursors_frame_width(state));
-
-    if busy {
-        ink.set();
-    } else {
-        ink.colorWithAlphaComponent(DIM).set();
-    }
+    ink.set();
     stroke_chevron(4.6);
 
     if slots == 0 {
@@ -405,20 +391,10 @@ fn draw_cursors(state: &IconState, ink: &NSColor) {
 
 fn draw_screen(state: &IconState, ink: &NSColor) {
     let (glyphs, over) = lane(state, SCREEN_CAP);
-    let busy = state.running > 0 || state.failed > 0;
 
-    if busy {
-        ink.set();
-    } else {
-        ink.colorWithAlphaComponent(DIM).set();
-    }
+    ink.set();
     stroke_frame(screen_frame_width(state));
-
-    if busy {
-        ink.set();
-    } else {
-        ink.colorWithAlphaComponent(DIM).set();
-    }
+    ink.set();
     stroke_chevron(4.6);
 
     if glyphs.is_empty() {
@@ -474,10 +450,8 @@ fn draw_equalizer(state: &IconState, ink: &NSColor) {
 
     if errors && !running {
         red().set();
-    } else if running || errors {
-        ink.set();
     } else {
-        ink.colorWithAlphaComponent(0.5).set();
+        ink.set();
     }
     stroke_chevron(2.9);
 

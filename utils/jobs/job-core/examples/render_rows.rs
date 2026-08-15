@@ -143,19 +143,15 @@ fn main() {
 
     // One unbroken list, the way the menu draws it: the sections carry
     // neither header text nor a separator between them.
-    // The pointer treatments can't be reached without a mouse, and they are
-    // half of what a button communicates, so the render fakes one: the first
-    // row is drawn hovered over its pause button, the second with its own held
-    // down.
+    // Hover can't be reached without a mouse, and it is half of what a button
+    // communicates, so the render fakes one over the first row's pause button.
     let mut items: Vec<(Option<Retained<JobRow>>, f64)> = Vec::new();
     for section in &sections {
         for spec in &section.rows {
             let view = JobRow::new(spec.clone(), &layout, mtm);
             view.setAppearance(appearance.as_deref());
-            match items.len() {
-                0 => view.preview_pointer(Some(0), None),
-                1 => view.preview_pointer(None, Some(0)),
-                _ => {}
+            if items.is_empty() {
+                view.preview_pointer(Some(0));
             }
             items.push((Some(view), layout.height()));
         }

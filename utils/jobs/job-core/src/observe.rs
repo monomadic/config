@@ -597,7 +597,7 @@ fn read_tail(path: &Path) -> (Option<String>, Option<SystemTime>) {
 /// A percentage anywhere in a line, as a 0..1 fraction — `45%`, `at 45.5%`,
 /// `[ 45% ]`. The last one wins, since a line that carries several is most
 /// likely counting up to the one nearest its end.
-fn parse_progress(line: &str) -> Option<f64> {
+pub fn parse_progress(line: &str) -> Option<f64> {
     let bytes = line.as_bytes();
     let mut found = None;
     for (index, byte) in bytes.iter().enumerate() {

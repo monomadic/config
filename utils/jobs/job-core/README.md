@@ -8,8 +8,15 @@ on its own.
 |---|---|
 | `observe` | the naming rules (`video.mp4.job` → `TARGET_FILE` / `JOB_NAME`), and the `Observer` that reads a jobs folder into a `Snapshot` |
 | `icon` | the menu bar icon, drawn rather than glyph-based, with the remote and disconnected variants |
-| `row` | the menu row both apps draw — icon, name, value, progress bar, and the running job's last log line — plus `rows_for`, which turns a `Snapshot` into them |
+| `row` | the menu row every app draws — icon, name, value, progress bar, and the running job's last log line — plus `sections`, which turns a `Snapshot` into them |
 | `clock` | local-time formatting via Foundation, so run folders and log lines stamp the same way the shell runner does |
+
+A row's buttons are the one place this crate acts. Normally that action is a
+folder move, which is why it needs no callback and both folder-watching apps
+behave identically. `job-folder` holds its queue in memory instead, so a button
+there is an `Act::Call` carrying a token to the handler that app registered with
+`row::on_call` — and `JobRow::update` lets it hand a row a new spec while the
+menu is open, rather than the menu being rebuilt under the pointer.
 
 Nothing in here ever claims, moves or runs a job. Reading a jobs folder is
 always safe, from any machine, however many readers there are — which is what

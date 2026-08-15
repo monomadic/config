@@ -47,6 +47,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "job-folder"
+version = "0.1.0"
+dependencies = [
+ "block2",
+ "job-core",
+ "libc",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "objc2-user-notifications",
+]
+
+[[package]]
 name = "job-monitor"
 version = "0.1.0"
 dependencies = [

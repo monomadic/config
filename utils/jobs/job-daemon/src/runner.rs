@@ -603,6 +603,13 @@ mod tests {
         for dir in root.state_dirs() {
             fs::create_dir_all(dir).unwrap();
         }
+        // The trail is the one thing here that isn't scoped to the temp root:
+        // without this the test files its fake REAP lines into the real
+        // ~/Library/Logs/jobs.log, alongside a machine's actual history.
+        //
+        // SAFETY: single-threaded at this point, and no other test in this
+        // binary reads the environment.
+        unsafe { std::env::set_var("JOB_LOG", base.join("jobs.log")) };
 
         // A process group that certainly existed and certainly doesn't now:
         // spawned as its own leader, then waited on so the pid is released.

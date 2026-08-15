@@ -1,0 +1,19 @@
+# The queue and its menu in one process.
+#
+# This one *does* link a job loop, which is exactly why it is not job-monitor:
+# it runs the jobs it shows, so it may hold them in memory and answer a button
+# by signalling a process rather than by moving a folder and waiting to be told.
+
+[package]
+name = "job-folder"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+job-core.workspace = true
+block2.workspace = true
+libc.workspace = true
+objc2.workspace = true
+objc2-app-kit = { workspace = true, features = ["NSApplication", "NSStatusBar", "NSStatusItem", "NSMenu", "NSMenuItem", "NSImage", "NSBezierPath", "NSColor", "NSCell", "NSButton", "NSControl", "NSResponder", "NSView", "NSGraphics", "NSWorkspace", "block2"] }
+objc2-foundation = { workspace = true, features = ["NSString", "NSTimer", "NSObject", "NSGeometry", "NSDate", "NSDateFormatter", "NSThread", "NSError", "NSBundle", "NSArray", "NSDictionary"] }
+objc2-user-notifications = { workspace = true, features = ["UNUserNotificationCenter", "UNNotificationRequest", "UNNotificationContent", "UNNotificationTrigger", "UNNotificationSound", "block2"] }

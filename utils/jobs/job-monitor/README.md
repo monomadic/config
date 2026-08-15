@@ -7,6 +7,11 @@ and posts a notification when something completes or fails.
 
 It is a normal `.app` you launch and quit, not a LaunchAgent.
 
+For the machine actually running the encodes there is
+[`job-folder`](../job-folder), which is this menu with the runner inside it and
+the queue in memory — instant pause, reorderable queue, and no folder protocol
+at all. This one stays the answer for a queue watched from somewhere else.
+
 ```bash
 setup/install/install-job-monitor.sh
 ```
@@ -153,6 +158,17 @@ dir_cache_max=5
 Every poll runs on a background thread, always: a `read_dir` on a dead mount
 blocks until the mount times out, and doing that on the main thread is how a
 menu bar app comes to beachball.
+
+**So does every button.** The rule is the filesystem's, not the poller's: a
+button is pressed while the main thread is inside a menu's modal tracking run
+loop, so a `rename` that blocks there hangs the tracking session — and a menu
+that cannot finish tracking beachballs the whole machine, not just this app.
+The row commits to the move on screen and hands the `rename` to a thread; a
+failure comes back on the row at the next redraw.
+
+For the same reason nothing here overrides `mouseDown:`. A view inside a menu
+item that swallows mouse-down hangs menu tracking outright; hover comes from a
+tracking area, which AppKit feeds without anything being intercepted.
 
 ## Icon
 

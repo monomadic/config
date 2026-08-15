@@ -95,19 +95,29 @@ own permissions are the access control. Contract details:
 `utils/jobs/job-daemon/README.md`.
 
 `utils/jobs/` is a cargo workspace — the one nested directory under `utils/`,
-because these three crates share a lockfile, a target dir and pinned objc2
-versions, and because `job-monitor` must *not* depend on the job loop:
+because these crates share a lockfile, a target dir and pinned objc2 versions,
+and because `job-monitor` must *not* depend on the job loop:
 
 | | |
 |---|---|
-| `utils/jobs/job-daemon` | the only thing that runs jobs. `--once` under a launchd WatchPaths trigger, or resident |
+| `utils/jobs/job-daemon` | the only thing that runs jobs *for the folder protocol*. `--once` under a launchd WatchPaths trigger, or resident |
 | `utils/jobs/job-monitor` | the menu bar UI, for the local queue and for folders mounted over SMB. A normal `.app` you launch and quit; links no runner, but commands the queue by moving folders |
+| `utils/jobs/job-folder` | the variation: runner and menu in one process, queue held in memory. A `.app` with no agent — the queue runs while it is open |
 | `utils/jobs/job-core` | the shared library — the model, the filesystem observer, the rows and the icon |
 
-The UI is a client, never a runner: a crate with no job loop linked into it
-cannot claim a job however it is launched, and it doesn't need to, because
-every command is a folder move. Any number of UIs can watch one queue, locally
-or across the LAN.
+In the daemon/monitor pair the UI is a client, never a runner: a crate with no
+job loop linked into it cannot claim a job however it is launched, and it
+doesn't need to, because every command is a folder move. Any number of UIs can
+watch one queue, locally or across the LAN.
+
+`job-folder` deliberately makes the opposite trade, for the machine you are
+sitting at: one process runs the jobs and draws the menu, so the queue is a
+`Vec<Job>` behind a mutex, pause is a `SIGSTOP` on the way back from the click,
+and reordering is a splice. It keeps the `.job` drop folder (so `send-job` and
+`topaz-job` are unchanged) and stages payloads through `ready/` → `done/`, but
+writes no `.status` and no state directories — which is also why nothing can
+watch it from another machine, and why quitting stops the jobs. Run it *or*
+`job-daemon` on a given folder, never both.
 
 ## Recipe: add config for a new tool
 

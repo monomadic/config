@@ -437,12 +437,23 @@ fn resume_moves(views: &[RootView]) -> Vec<(std::path::PathBuf, std::path::PathB
     moves
 }
 
+/// Run a menu command's folder moves — on a thread, always.
+///
+/// These are called from a menu item, which means the main thread is inside a
+/// modal tracking run loop. A `rename` that blocks there — an unmounted share,
+/// a volume busy under an encode — takes the whole machine's cursor with it,
+/// not just this app. Same rule as the pollers, for the same reason.
 fn apply_moves(moves: Vec<(std::path::PathBuf, std::path::PathBuf)>) {
-    for (from, to) in moves {
-        if let Err(err) = fs::rename(&from, &to) {
-            eprintln!("job-monitor: could not move {} — {err}", from.display());
-        }
+    if moves.is_empty() {
+        return;
     }
+    thread::spawn(move || {
+        for (from, to) in moves {
+            if let Err(err) = fs::rename(&from, &to) {
+                eprintln!("job-monitor: could not move {} — {err}", from.display());
+            }
+        }
+    });
 }
 
 /// Acknowledgement and mute live on *this* machine. Nothing about how one
