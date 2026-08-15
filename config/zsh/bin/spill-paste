@@ -1,0 +1,262 @@
+#!/usr/bin/env zsh
+#
+# spill-paste — copy (or move) files into a target directory with spill.
+#
+# The point of routing a paste through spill instead of cp/mv is verification:
+# every copy is fsynced and atomically renamed, and with --verify hash the
+# destination is re-read and checksummed inline, before the file counts as
+# copied. A move leans on that rather than re-reading everything again, and
+# closes the two gaps it leaves — files spill skips because they already exist
+# (never verified) and files a cancelled run never reached (still absent) — with
+# a check before and a stat sweep after. Nothing is deleted on the strength of
+# "the copy loop didn't complain".
+#
+# Usage:
+#   spill-paste [options] <target-dir> <path>...
+#   <producer> | spill-paste [options] <target-dir>     # one path per line
+#
+# Options:
+#   --move          remove each source after the copy verifies
+#   --verify M      none | size | hash (default: hash; a move never drops below size)
+#   --force         overwrite files that already exist in the target
+#   --hold          on failure, wait for a keypress (for a throwaway terminal window)
+#   --reserve SIZE  keep SIZE free on the target (default: 1G, spill's own)
+#   -0, --null      input paths on stdin are NUL-separated
+#   -h, --help      show this help
+#
+# Directory sources are expanded to the regular files inside them, so
+# `spill-paste ~/dest ~/src/album` lands at `~/dest/album/...` with its
+# structure intact. Empty subdirectories are not recreated.
+#
+# Requires: spill (setup/install/install-spill.sh → ~/.bin/spill).
+
+emulate -L zsh
+set -euo pipefail
+
+script_name=${0:t}
+
+if [[ -t 2 && -z "${NO_COLOR:-}" ]]; then
+  c_reset=$'\e[0m'; c_err=$'\e[31m'; c_warn=$'\e[33m'; c_head=$'\e[1;36m'
+else
+  c_reset= c_err= c_warn= c_head=
+fi
+
+die()  { print -u2 -- "${c_err}${script_name}:${c_reset} $*"; exit 1; }
+warn() { print -u2 -- "${c_warn}${script_name}:${c_reset} $*"; }
+
+# Launched into its own Kitty window (the yazi plugin does this), a failure
+# would otherwise vanish with the window the moment it exits. --hold keeps it up
+# until acknowledged — but only on failure, so a clean transfer still closes by
+# itself. Set before argument parsing so an early die() is caught too.
+hold=${SPILL_PASTE_HOLD:+1}
+hold=${hold:-0}
+
+hold_on_failure() {
+  local st=$?
+  if (( st != 0 && hold )) && [[ -t 0 ]]; then
+    print -u2 -- "\n${c_err}${script_name} failed (exit $st)${c_reset} — press any key to close"
+    read -k 1 -s
+  fi
+}
+trap hold_on_failure EXIT
+
+usage() {
+  sed -n '3,30p' "$0" | sed 's/^# \{0,1\}//'
+  exit "${1:-0}"
+}
+
+# --- parse arguments -------------------------------------------------------
+
+move=0
+force=0
+null=0
+verify=hash
+reserve=${SPILL_PASTE_RESERVE:-1G}
+target=
+sources=()
+
+while (( $# )); do
+  case "$1" in
+    --move)      move=1 ;;
+    --force)     force=1 ;;
+    --hold)      hold=1 ;;
+    -0|--null)   null=1 ;;
+    --verify)    shift; (( $# )) || die "--verify needs size or hash"; verify=$1 ;;
+    --reserve)   shift; (( $# )) || die "--reserve needs a size"; reserve=$1 ;;
+    -h|--help)   usage 0 ;;
+    --)          shift
+                 if [[ -z "$target" ]]; then
+                   (( $# )) || die "no target directory given"
+                   target=$1; shift
+                 fi
+                 sources+=("$@"); break ;;
+    -*)          die "unknown option: $1 (try --help)" ;;
+    *)           if [[ -z "$target" ]]; then target=$1; else sources+=("$1"); fi ;;
+  esac
+  shift
+done
+
+[[ -n "$target" ]] || usage 1
+
+case "$verify" in
+  none|off) verify=none ;;
+  size|hash) ;;
+  *) die "invalid --verify $verify (want none, size or hash)" ;;
+esac
+
+# A move deletes originals, so "don't check at all" is not on the menu: the
+# floor is a size match against a copy that is provably a distinct file.
+if (( move )) && [[ "$verify" == none ]]; then
+  verify=size
+fi
+
+# Fall back to stdin when no paths were passed.
+if (( ${#sources[@]} == 0 )); then
+  [[ -t 0 ]] && usage 1
+  if (( null )); then
+    while IFS= read -r -d $'\0' line; do
+      [[ -n "$line" ]] && sources+=("$line")
+    done
+  else
+    while IFS= read -r line; do
+      [[ -n "$line" ]] && sources+=("$line")
+    done
+  fi
+fi
+
+(( ${#sources[@]} )) || die "no source paths given"
+
+command -v spill >/dev/null 2>&1 || die "spill not found in PATH (setup/install/install-spill.sh)"
+
+mkdir -p -- "$target" || die "cannot create target directory: $target"
+[[ -d "$target" ]] || die "target is not a directory: $target"
+target=${target:A}
+
+# --- group sources by parent directory -------------------------------------
+#
+# spill reproduces the structure of *relative* input paths under the target, so
+# running it once per parent directory with plain relative names is what makes
+# `album/track.wav` land at `<target>/album/track.wav`. Absolute paths would all
+# collapse into the target root.
+
+typeset -A group          # parent dir -> newline-joined relative paths
+typeset -a dir_sources    # directory sources, for the post-move cleanup
+
+for src in "${sources[@]}"; do
+  [[ -e "$src" ]] || die "source does not exist: $src"
+
+  parent=${${src:A:h}}
+  name=${src:t}
+
+  if [[ -d "$src" && ! -L "$src" ]]; then
+    srcdir=${src:A}
+    [[ "$target" == "$srcdir" || "$target" == "$srcdir"/* ]] &&
+      die "target is inside the source directory: $srcdir"
+    dir_sources+=("$srcdir")
+
+    rel=()
+    for f in "$srcdir"/**/*(.N); do
+      rel+=("$name/${f#$srcdir/}")
+    done
+    (( ${#rel[@]} )) || { warn "skipping empty directory: $src"; continue }
+    group[$parent]+=${(F)rel}$'\n'
+  else
+    [[ "$parent" == "$target" ]] &&
+      die "source and target are the same directory: $target"
+    group[$parent]+="$name"$'\n'
+  fi
+done
+
+(( ${#group} )) || die "nothing to transfer"
+
+# --- check what spill won't ------------------------------------------------
+#
+# A copying run verifies inline: with --verify hash the destination is re-read
+# and compared to the source digest before the file counts as done, so anything
+# spill actually copies needs no second look. What it does *not* check is a file
+# it skips because the destination already exists — and for a move those are
+# precisely the sources that would be deleted against an unexamined copy. Check
+# that subset up front (at the full requested level), so a mismatch costs
+# nothing rather than surfacing after a long transfer.
+
+if (( move )); then
+  typeset -A pre
+  for parent in ${(k)group}; do
+    for rel in ${(f)group[$parent]}; do
+      [[ -n "$rel" && -e "$target/$rel" ]] && pre[$parent]+="$rel"$'\n'
+    done
+  done
+
+  if (( ${#pre} )); then
+    for parent in ${(k)pre}; do
+      rel=(${(f)pre[$parent]})
+      print -- "${c_head}pre-check: ${#rel[@]} file(s) from $parent already exist in the target${c_reset}"
+      print -- "${c_head}spill would skip them unverified, so they are checked ($verify) now.${c_reset}"
+
+      ( cd -- "$parent" && print -rN -- "${rel[@]}" |
+          spill -0 --verify-only --verify "$verify" --reserve "$reserve" "$target" ) ||
+        die "files already in the target do not match their sources — nothing copied, nothing removed"
+    done
+  fi
+fi
+
+# --- copy ------------------------------------------------------------------
+
+spill_args=(-0 --verify "$verify" --reserve "$reserve")
+(( force )) && spill_args+=(--force)
+
+# One spill run per source directory. Announce them: spill's TUI looks the same
+# every time, so back-to-back runs are indistinguishable without a banner.
+stage=0
+for parent in ${(k)group}; do
+  rel=(${(f)group[$parent]})
+  (( ${#rel[@]} )) || continue
+
+  (( ++stage ))
+  print -- "${c_head}[$stage/${#group}] copying ${#rel[@]} file(s) from $parent${c_reset}"
+
+  ( cd -- "$parent" && print -rN -- "${rel[@]}" | spill "${spill_args[@]}" "$target" ) ||
+    die "spill failed copying from $parent — nothing was removed"
+done
+
+(( move )) || exit 0
+
+# --- account for every file, then remove the originals ----------------------
+#
+# Content is already settled: copied files were verified inline, pre-existing
+# ones by the pre-check above. What is still unproven is that the run *reached*
+# every file — quitting spill's TUI cancels the remaining work and still exits
+# 0, so a half-finished copy is indistinguishable from a clean one by exit
+# status alone. A size-mode sweep is a stat per file, no re-reading, and a file
+# the run never got to simply isn't there.
+
+stage=0
+for parent in ${(k)group}; do
+  rel=(${(f)group[$parent]})
+  (( ${#rel[@]} )) || continue
+
+  (( ++stage ))
+  print -- "${c_head}[$stage/${#group}] accounting for ${#rel[@]} file(s) in $target — copying nothing.${c_reset}"
+  print -- "${c_head}Originals are removed only if every one is present and the right size.${c_reset}"
+
+  ( cd -- "$parent" && print -rN -- "${rel[@]}" |
+      spill -0 --verify-only --verify size --reserve "$reserve" "$target" ) ||
+    die "not every file from $parent arrived in the target — sources kept, nothing removed"
+done
+
+removed=0
+for parent in ${(k)group}; do
+  for rel in ${(f)group[$parent]}; do
+    [[ -n "$rel" ]] || continue
+    rm -f -- "$parent/$rel" && (( ++removed ))
+  done
+done
+
+# Directory sources leave their (now empty) tree behind; take it down bottom-up
+# and leave anything still holding files alone.
+for srcdir in "${dir_sources[@]}"; do
+  find "$srcdir" -depth -type d -empty -delete 2>/dev/null || true
+  [[ -e "$srcdir" ]] && warn "not empty, left in place: $srcdir"
+done
+
+print -- "moved $removed file(s) to $target"

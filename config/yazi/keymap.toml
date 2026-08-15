@@ -43,29 +43,36 @@ for = "macos"
 run = '''shell --block -- kitten dndkitten dnd'''
 desc = "drop target (mouse drop)"
 
-# <Space> f — transfer selected files to the next Kitty pane's cwd
+# <Space> f p/P m/M — paste the yank list into the cwd through spill.
+# Lowercase is the plain transfer, uppercase adds xxhash64 verification.
 [[mgr.prepend_keymap]]
-on = ["<Space>", "f", "c"]
+on = ["<Space>", "f", "p"]
 for = "unix"
-run = '''shell --block -- /Users/nom/.zsh/bin/copy-kitty-next-pane %s'''
-desc = "File: copy to next kitty pane"
+run = "plugin spill-paste -- copy none"
+desc = "Spill: copy"
+
+[[mgr.prepend_keymap]]
+on = ["<Space>", "f", "P"]
+for = "unix"
+run = "plugin spill-paste -- copy hash"
+desc = "Spill: verified copy"
 
 [[mgr.prepend_keymap]]
 on = ["<Space>", "f", "m"]
 for = "unix"
-run = '''shell --block -- /Users/nom/.zsh/bin/copy-kitty-next-pane --move %s'''
-desc = "File: move to next kitty pane"
+run = "plugin spill-paste -- move size"
+desc = "Spill: move"
 
 [[mgr.prepend_keymap]]
-on = ["<Space>", "f", "s"]
+on = ["<Space>", "f", "M"]
 for = "unix"
-run = '''shell --block -- /Users/nom/.zsh/bin/copy-kitty-next-pane --move --check %s'''
-desc = "File: safe-move to next kitty pane"
+run = "plugin spill-paste -- move hash"
+desc = "Spill: verified move"
 
 [[mgr.prepend_keymap]]
 on = ["<Space>", "m", "a"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " media-audit " -- /Users/nom/.zsh/bin/media-audit %s'''
+run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --tab --cwd %d1 --title " media-audit " -- /Users/nom/.zsh/bin/media-audit %s'''
 desc = "Media: audit"
 
 # <Space> m — media
