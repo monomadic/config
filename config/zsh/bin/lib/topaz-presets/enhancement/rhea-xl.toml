@@ -1,13 +1,13 @@
 order = 5
 category = "polish"
 display = "Rhea XL"
-scales = ["4k"]
-blurb = "Proteus+Iris hybrid; best faces at 4x (slow)"
+scales = ["1", "2", "4k"]
+blurb = "Proteus+Iris hybrid; the best faces here (slow)"
 filter = 'tvai_up=model=rxl-1:@SCALE@:device=0:vram=0.95:instances=1'
-metadata = "videoai=[Polish] Rhea XL. The newer Proteus+Iris hybrid at its larger size — Proteus-style detail recovery with Iris-grade face handling, 4x only. Noticeably slower than Proteus; noticeably better on people."
+metadata = "videoai=[Polish] Rhea XL. The newer Proteus+Iris hybrid at its larger size — Proteus-style detail recovery with Iris-grade face handling. A 4x network at heart; Topaz also serves it at 1x and 2x by running that same network and resampling down. Noticeably slower than Proteus; noticeably better on people."
 
 [insight]
-strategy = "Rhea folds Iris's face model into a Proteus-style enhancer, so faces survive a 4x upscale without needing the dedicated Iris row and its compressed-source bias. XL is the bigger, slower, higher-quality variant."
-watch = "4x only — it never appears at Original or 2x resolution. Budget real render time; it is the most expensive model here that ffmpeg can actually run."
+strategy = "Rhea folds Iris's face model into a Proteus-style enhancer, so faces survive a big upscale without needing the dedicated Iris row and its compressed-source bias. XL is the bigger, slower, higher-quality variant."
+watch = "Every row runs the same 4x network — at Original and 2x the result is that 4x pass resampled back down, so the cost barely drops with the output size. Budget real render time; it is the most expensive model here that ffmpeg can actually run."
 vs = "iris-faces"
 vs_note = "Rhea for decent sources with people in frame; Iris only when the source itself is compressed junk."

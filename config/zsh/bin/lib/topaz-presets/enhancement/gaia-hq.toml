@@ -1,8 +1,8 @@
 order = 8
 category = "polish"
 display = "Gaia HQ — Animation"
-scales = ["2"]
-blurb = "Clean, smooth; best for CG / animation (2x only)"
+scales = ["1", "2", "4k"]
+blurb = "Clean, smooth; best for CG / animation"
 filter = 'tvai_up=model=ghq-5:@SCALE@:device=0:vram=0.95:instances=1'
 metadata = "videoai=[Polish] Gaia HQ. Clean, smooth, low-noise upscale. Softer and more poster-like than Proteus; best for graphics, animation, CG and already-clean footage."
 

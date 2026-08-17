@@ -1,0 +1,13 @@
+order = 14
+category = "lowlight"
+display = "Nyx — Light Denoise"
+scales = ["1", "2"]
+blurb = "Nyx pulled back; keeps skin and fine texture"
+filter = 'tvai_up=model=nyx-3:@SCALE@:preblur=0:noise=-0.35:details=-0.25:halo=0:blur=0:compression=0:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Dark-Noisy] Nyx Light Denoise. The same low-light denoiser as the heavy row with its two destructive levers driven negative — noise reduction and large-grain removal pulled back below the model's own estimate. For footage that is noisy but whose texture is worth keeping."
+
+[insight]
+strategy = "Nyx's sliders are relative to what it detects, so 0 is the model's own judgement and negative is 'less than you think'. Reduce Noise and Reduce Large Grain are the two that erase texture, so those go to -0.35 and -0.25 and nothing else is touched. The result still denoises — it just stops short of the waxing."
+watch = "On genuinely severe high-ISO footage this will not be enough, and grain the model leaves behind is grain your codec has to pay for. If the preview still looks noisy at 100%, the heavy row is the right answer, not a second pass of this one."
+vs = "nyx-heavy-denoise"
+vs_note = "Start here whenever there are faces or fabric in frame. Step up to Heavy only when noise is clearly the worst thing in the picture."

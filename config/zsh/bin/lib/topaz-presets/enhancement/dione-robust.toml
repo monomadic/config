@@ -1,0 +1,13 @@
+order = 27
+category = "interlaced"
+display = "Dione — Robust"
+scales = ["1", "2", "4k"]
+blurb = "Fallback de-interlace; frame rate is NOT doubled"
+filter = 'tvai_up=model=dtd-4:@SCALE@:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Interlaced] Dione Robust. De-interlaces and upscales interlaced video when Dione TV or DV fail — 480i/576i/720i/1080i. Unlike those two, the output frame rate is NOT doubled."
+
+[insight]
+strategy = "Topaz's own advice is to reach for this when TV and DV fail, and the reason is the frame-rate difference: it reconstructs one progressive frame per interlaced frame instead of one per field. That makes it far more forgiving of damaged, re-encoded or already-half-deinterlaced material, where the two fields no longer agree about what moved."
+watch = "Keeping the source frame rate is the point, not a limitation — but it means half the temporal information is discarded, so genuine 50i motion comes out at 25p and looks it. If the footage has real motion and the fields are clean, TV or DV will beat this."
+vs = "dione-tv"
+vs_note = "Try TV or DV first and only come here if the result combs, judders or smears. Come here first when the source has already been through someone else's de-interlacer."

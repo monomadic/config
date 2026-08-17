@@ -31,12 +31,12 @@ Requires `python3 >= 3.11` on PATH (for stdlib `tomllib`). macOS system python
 ### `enhancement/` — mpv render-menu presets
 ```toml
 order = 1
-category = "detail"          # detail | repair | sharpen | focus-fix
+category = "polish"          # see the category list below
 display = "Proteus — Detail Max"
-scales  = ["1", "2", "4k"]   # which output resolutions the model supports
+scales  = ["1", "2", "4k"]   # which Output-tab resolutions this model can reach
 blurb   = "Max invention + compression fix, minimal sharpen"
 filter  = 'tvai_up=model=prob-4:@SCALE@:...'   # @SCALE@ is filled from the Output tab
-metadata = "videoai=[Detail] ..."
+metadata = "videoai=[Polish] ..."
 
 [insight]                    # optional; powers the `d` details sheet
 strategy = "..."
@@ -46,6 +46,29 @@ vs_note  = "..."
 ```
 A file with `pseudo = true` (e.g. `__original__.toml`) contributes only its
 `[insight]`, not a menu row.
+
+**`category`** groups the row in the menu, by what is wrong with the source rather
+than by what the filter does. The list and its display order live in
+`CATEGORY_ORDER` in `config/mpv/scripts/topaz-workflow-current.lua`; a preset whose
+category is not in that table is silently dropped from the menu.
+
+| key | menu group |
+|---|---|
+| `polish` | Decent Source · Polish |
+| `focus-fix` | Soft · Out of Focus |
+| `lowlight` | Dark · Noisy |
+| `compressed` | Compressed · Old Codecs |
+| `interlaced` | Interlaced · Broadcast / DV |
+| `stylized` | Stylized · Texture |
+| `hdr` | SDR → HDR |
+
+**`scales`** are the tokens the Output tab tests a row against — not literal scale
+factors. `"1"` and `"2"` mean the model supports `scale=1` / `scale=2`; `"4k"` means
+it accepts a *free target size* (`scale=0:w=…:h=…`), which is what both the
+"Upscale to 4K" and "Upscale 4x" rows need. Declare what the model actually
+supports: the authority is the `backends.coreml.scales` keys in
+`/Applications/Topaz Video.app/Contents/Resources/models/<code>.json`, and
+under-declaring here quietly hides the preset on sources it could have handled.
 
 ### `interpolation/` — frame-rate stage
 ```toml

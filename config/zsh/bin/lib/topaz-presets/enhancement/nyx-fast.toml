@@ -1,0 +1,13 @@
+order = 17
+category = "lowlight"
+display = "Nyx Fast"
+scales = ["1"]
+blurb = "Quick denoise pass for long clips; 1:1 only"
+filter = 'tvai_up=model=nxf-1:@SCALE@:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Dark-Noisy] Nyx Fast. The small, quick member of the Nyx family at the model's own default strength. For triaging long low-light clips, or when a full Nyx pass costs more time than the shot is worth."
+
+[insight]
+strategy = "Same family, smaller network. It exists for throughput rather than quality, which makes it the right row for deciding whether a clip is worth a real denoise at all — the still preview comes back in a fraction of the time the other Nyx rows take."
+watch = "It leaves more residual noise and takes more texture with what it does remove, and 1:1 only means it cannot double as an upscale. Treat its output as a decision, not a delivery."
+vs = "nyx-heavy-denoise"
+vs_note = "Fast to survey a batch, Heavy for the clips that survive the survey."

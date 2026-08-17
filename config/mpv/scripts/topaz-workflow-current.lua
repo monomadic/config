@@ -43,6 +43,7 @@ local CATEGORY_ORDER = {
     { key = "focus-fix", label = "Soft · Out of Focus" },
     { key = "lowlight", label = "Dark · Noisy" },
     { key = "compressed", label = "Compressed · Old Codecs" },
+    { key = "interlaced", label = "Interlaced · Broadcast / DV" },
     { key = "stylized", label = "Stylized · Texture" },
     { key = "hdr", label = "SDR → HDR" },
 }
@@ -768,16 +769,18 @@ local function parse_preview_paths(stdout)
 end
 
 -- ===== output resolutions (decoupled from the enhancement presets) =====
--- Options are input-aware: portrait sources keep portrait dims; on exactly-1080p
--- sources 2x IS the 4K target so the 2x row is omitted; 4K sources only offer
--- Original. Each enhancement preset declares which scales it supports (`scales`
--- catalog column) and the Output tab greys out what the chosen preset can't do.
+-- Options are input-aware: portrait sources keep portrait dims; rows whose targets
+-- coincide collapse into one (on exactly-1080p sources 2x IS the 4K target, so only
+-- the 4K row shows); 4K sources only offer Original. Each enhancement preset
+-- declares which scales it supports (`scales` catalog column) and the Output tab
+-- greys out what the chosen preset can't do.
 
 -- Fallback order when the user's resolution choice isn't supported by a preset.
 local RES_PRIORITY = {
-    orig = { "orig", "2x", "4k" },
-    ["2x"] = { "2x", "4k", "orig" },
-    ["4k"] = { "4k", "2x", "orig" },
+    orig = { "orig", "2x", "4k", "4x" },
+    ["2x"] = { "2x", "4k", "4x", "orig" },
+    ["4k"] = { "4k", "2x", "4x", "orig" },
+    ["4x"] = { "4x", "4k", "2x", "orig" },
 }
 
 local function build_res_options(profile)
@@ -793,14 +796,37 @@ local function build_res_options(profile)
         { key = "orig", label = "Original", short = string.format("%d×%d", sw, sh),
           w = sw, h = sh, blurb = string.format("%d×%d — source resolution", sw, sh) },
     }
+
     if not profile.is_4k then
-        if not two_x_is_4k then
-            opts[#opts + 1] = { key = "2x", label = "Upscale 2x", short = "2x",
-                w = sw * 2, h = sh * 2,
-                blurb = string.format("%d×%d", sw * 2, sh * 2) }
+        -- Upscale rows, gathered before they are ordered. Anything past an 8K long
+        -- edge is dropped (4x above 1080p asks for a render that will not finish in
+        -- a sitting), as is a row duplicating an earlier row's dimensions — so the
+        -- 4K row, added first, always wins a collision: it carries the better label
+        -- and, via two_x_is_4k, is the one scale=2-only models can still reach.
+        local ups = {}
+        local function add(key, label, short, w, h)
+            if math.max(w, h) > 7680 then
+                return
+            end
+            for _, o in ipairs(ups) do
+                if o.w == w and o.h == h then
+                    return
+                end
+            end
+            ups[#ups + 1] = { key = key, label = label, short = short, w = w, h = h,
+                blurb = string.format("%d×%d", w, h) }
         end
-        opts[#opts + 1] = { key = "4k", label = "Upscale to 4K", short = "4K",
-            w = tw, h = th, blurb = string.format("%d×%d", tw, th) }
+
+        add("4k", "Upscale to 4K", "4K", tw, th)
+        add("2x", "Upscale 2x", "2x", sw * 2, sh * 2)
+        add("4x", "Upscale 4x", "4x", sw * 4, sh * 4)
+
+        -- Smallest target first. 4x does not always sit above the 4K row — on a
+        -- 640×480 source it lands at 2560×1920, below it — so sort, don't assume.
+        table.sort(ups, function(a, b) return a.w * a.h < b.w * b.h end)
+        for _, o in ipairs(ups) do
+            opts[#opts + 1] = o
+        end
     end
 
     -- Default: 4K whenever the source is below 4K, else Original.
@@ -813,8 +839,10 @@ local function build_res_options(profile)
     return opts, default, two_x_is_4k
 end
 
--- Can `preset` render at resolution option `opt`? (`two_x` = 2x reaches the 4K
--- target on this source, so scale=2-only models can still hit "4K".)
+-- Can `preset` render at resolution option `opt`? "1" and "2" are the fixed model
+-- scales; "4k" means the model takes a free target size (scale=0:w:h), which is what
+-- the 4K *and* the 4x row need. (`two_x` = 2x reaches the 4K target on this source,
+-- so scale=2-only models can still hit "4K".)
 local function res_available(preset, opt, two_x)
     local s = preset.scales
     if opt.key == "orig" then
@@ -822,6 +850,9 @@ local function res_available(preset, opt, two_x)
     end
     if opt.key == "2x" then
         return s["2"] == true
+    end
+    if opt.key == "4x" then
+        return s["4k"] == true
     end
     return s["4k"] == true or (two_x and s["2"] == true)
 end
@@ -845,8 +876,8 @@ end
 
 -- Enhancement filter for `preset` at resolution `res`: returns (body, tail), both
 -- comma-less parts. The @SCALE@ token becomes scale=1 / scale=2 / scale=0:w:h (the
--- forced-4K form gains a lanczos tail). "Original (no enhancement)" upscales — when
--- asked to — with a plain lanczos scale and no AI pass.
+-- free-target form, used by both 4K and 4x, gains a lanczos tail). "Original (no
+-- enhancement)" upscales — when asked to — with a plain lanczos scale and no AI pass.
 local function enh_filter_for(preset, res)
     if preset.is_original then
         if res.key == "orig" then
@@ -858,12 +889,15 @@ local function enh_filter_for(preset, res)
     local clause, tail = "scale=1", ""
     if res.key == "2x" then
         clause = "scale=2"
-    elseif res.key == "4k" then
+    elseif res.key ~= "orig" then
+        -- 4K and 4x are both "hit this exact size": free target when the model
+        -- takes one, otherwise the row is only reachable because 2x already lands
+        -- on it (res_available's two_x case).
         if preset.scales["4k"] then
             clause = string.format("scale=0:w=%d:h=%d", res.w, res.h)
             tail = string.format("scale=w=%d:h=%d:flags=lanczos:threads=0", res.w, res.h)
         else
-            clause = "scale=2"  -- 2x == 4K target on this source
+            clause = "scale=2"
         end
     end
     return (preset.filter_body:gsub("@SCALE@", clause)), tail

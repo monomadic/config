@@ -1,0 +1,13 @@
+order = 26
+category = "interlaced"
+display = "Dione — DV / Digital Tape"
+scales = ["1", "2", "4k"]
+blurb = "De-interlace DV, DVCPRO, DVCAM, 720i / 1080i"
+filter = 'tvai_up=model=ddv-3:@SCALE@:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Interlaced] Dione DV. De-interlaces and upscales interlaced digital video — DV, DVCPRO, DVCAM, 720i and 1080i sources. Output frame rate doubles: each field becomes its own frame."
+
+[insight]
+strategy = "Same field-aware idea as Dione TV, trained on digital tape instead of analog broadcast. The defect it expects is DV's colour subsampling and blocky chroma rather than analog softness and ringing, so it holds edges that the TV model smooths."
+watch = "Frame rate doubles here too, and field order still comes from the container. DV is where a mis-flagged field order is most likely — the format is bottom-field-first, and a lot of tools rewrap it as top-field-first without touching the picture."
+vs = "dione-tv"
+vs_note = "Digital tape or an i-flagged HD file: DV. Anything that passed through an analog chain — VHS, off-air, DVD: TV."

@@ -1,7 +1,7 @@
 order = 6
 category = "polish"
 display = "Rhea XL — Regrain"
-scales = ["4k"]
+scales = ["1", "2", "4k"]
 blurb = "Rhea 4x with light grain to break up the plastic"
 filter = 'tvai_up=model=rxl-1:@SCALE@:grain=0.08:gsize=2:device=0:vram=0.95:instances=1'
 metadata = "videoai=[Polish] Rhea XL Regrain. Rhea XL with its Add Noise lever near the top of its range, re-grained to hide the waxy look a 4x AI upscale leaves on skin and flat areas."

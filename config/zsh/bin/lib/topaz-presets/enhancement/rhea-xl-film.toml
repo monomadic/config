@@ -1,7 +1,7 @@
 order = 7
 category = "polish"
 display = "Rhea XL — Film Grain"
-scales = ["4k"]
+scales = ["1", "2", "4k"]
 blurb = "Rhea 4x under fine gaussian grain; filmic"
 filter = 'tvai_up=model=rxl-1:@SCALE@:grain=0.45:gsize=1.3:parameters=grain_type=gaussian\\:grain_sigma=0.55:device=0:vram=0.95:instances=1'
 metadata = "videoai=[Polish] Rhea XL Film Grain. Rhea XL at 4x under heavy fine-grained gaussian grain — the same grain treatment as the Focus Fix Dynamic preset, applied to Rhea's cleaner faces."

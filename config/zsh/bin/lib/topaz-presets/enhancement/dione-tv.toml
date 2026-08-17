@@ -1,0 +1,13 @@
+order = 25
+category = "interlaced"
+display = "Dione — TV / DVD"
+scales = ["1", "2", "4k"]
+blurb = "De-interlace 480i/576i from analog TV, camcorders, DVD"
+filter = 'tvai_up=model=dtv-4:@SCALE@:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Interlaced] Dione TV. De-interlaces and upscales interlaced television sources — 480i/576i captured off analog TV, camcorders or DVDs. Output frame rate doubles: each field becomes its own frame."
+
+[insight]
+strategy = "The only thing here that reads fields rather than frames. Every other model treats a combed frame as a frame and enhances the comb — which is why interlaced footage looks worse the harder you push Proteus at it. Run Dione first, and judge everything else on the de-interlaced result."
+watch = "Field order is not settable from this pipeline: tvai_up has no field-order option, so it trusts whatever the container declares. When that flag is wrong or absent the motion stutters back and forth every frame, and no preset here can fix it — that one belongs in the Topaz app. Note also that the output frame rate doubles (50i becomes 50p), so an Interpolate row targeting 60fps is starting from the doubled rate, not the source's."
+vs = "dione-robust"
+vs_note = "This is the first thing to try on broadcast material. Robust is the fallback for when it fails, and the one that leaves the frame rate alone."

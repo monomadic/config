@@ -1,0 +1,13 @@
+order = 16
+category = "lowlight"
+display = "Nyx XL"
+scales = ["1"]
+blurb = "The heaviest denoise here; source resolution only"
+filter = 'tvai_up=model=nxl-1:@SCALE@:device=0:vram=0.95:instances=1'
+metadata = "videoai=[Dark-Noisy] Nyx XL. The largest model in the Nyx family — strongest noise reconstruction of anything in this list. Runs at source resolution only and exposes no sliders."
+
+[insight]
+strategy = "The big-network end of the denoise family: no sliders at all, so it commits entirely to its own read of the noise. That is a feature on footage where the smaller Nyx keeps hedging — it has the capacity to tell texture from noise where the others guess."
+watch = "1:1 only — it never upscales, so a low-light rescue that also needs resolution is two passes, not one, and this must be the first. It is also slow enough that the still preview is a real wait."
+vs = "nyx-heavy-denoise"
+vs_note = "Heavy is the everyday denoiser and can upscale to 2x. Come here when Heavy has been tried, is not enough, and you can afford a separate upscale pass."

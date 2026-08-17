@@ -1,7 +1,7 @@
 order = 4
 category = "polish"
 display = "Artemis MQ — Gentle"
-scales = ["2"]
+scales = ["1", "2", "4k"]
 blurb = "Safe all-round cleanup for already-decent sources"
 filter = 'tvai_up=model=amq-13:@SCALE@:device=0:vram=0.95:instances=1'
 metadata = "videoai=[Polish] Artemis MQ Gentle. Fully automatic medium-quality Artemis — the classic safe default: mild denoise, mild sharpen, no sliders to misjudge. For footage that is basically fine and just needs polish."
