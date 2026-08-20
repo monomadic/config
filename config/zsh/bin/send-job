@@ -3,7 +3,7 @@
 # Drop media files plus a *.job script into the `jobs` folder, where the jobs
 # queue (utils/jobs) picks the job up and runs it.
 #
-#   send-job <files...> <job_file> [--dir=/Volumes/jobs]
+#   send-job <files...> <job_file> [--copy|--reference] [--dir=/Volumes/jobs]
 #
 # The target is just a directory — normally the already-mounted `jobs` share at
 # /Volumes/jobs. Nothing here knows about hostnames, shares or credentials:
@@ -11,15 +11,41 @@
 # $JOBS_DIR at it.
 #
 # The last positional argument is the job script; everything before it is data
-# the job needs. Data files go across first and are size-verified; only then is
-# the .job dropped in, so the watcher never fires on a half-copied payload.
+# the job needs.
+#
+# Two questions decide what "sending" means, and neither has one right answer:
+#
+#   the payload  — copy it across, or leave it where it is and let the job open
+#                  it by absolute path
+#   the folder   — which jobs folder, when more than one is reachable
+#
+# Both are asked with a picker when there is a terminal to ask on, and both can
+# be answered up front by flag for scripts and keybindings. Nothing is prompted
+# for that was given on the command line.
+#
+# Free space is part of the first question rather than a surprise in the middle
+# of a copy: each folder is offered with what it has left, a folder that cannot
+# hold the payload says so, and if the chosen one is too small the copy is not
+# on the table at all — the job goes by reference, or --copy fails outright.
+#
+# --copy is the original behaviour and the one that travels: data files go
+# across first and are size-verified, and only then is the .job dropped in, so
+# the watcher never fires on a half-copied payload.
+#
+# --reference copies nothing. The job file gains a preamble setting $TARGET_FILE
+# (and $TARGET_FILE_1..N) to absolute paths, so a job script written against the
+# runner's $TARGET_FILE works unchanged — it just reads and writes the source
+# where it already lives. That is what you want for multi-gigabyte media on a
+# local disk with the queue running on the same machine, and exactly what you
+# do not want when the job is bound for another box.
 
 emulate -L zsh
 set -euo pipefail
 
 script_name="${0:t}"
 
-jobs_dir="${JOBS_DIR:-/Volumes/jobs}"
+payload_mode=""      # copy | reference | "" (ask)
+jobs_dir=""          # set by --dir, else chosen from the candidates
 force=false
 files=()
 
@@ -30,21 +56,35 @@ $script_name
 Send files and a job script to the jobs folder.
 
 Usage:
-  $script_name <files...> <job_file> [--dir DIR]
+  $script_name <files...> <job_file> [--copy|--reference] [--dir DIR]
 
 Options:
-  --dir DIR          Jobs folder (default: \$JOBS_DIR, else /Volumes/jobs).
-                     Also --dir=DIR.
+  --dir DIR          Jobs folder. Skips the folder picker. Also --dir=DIR;
+                     \$JOBS_DIR does the same.
+  --copy             Copy the data files into the jobs folder (the default
+                     when there is no terminal to ask on)
+  --reference        Leave the data files where they are; the job gets their
+                     absolute paths through \$TARGET_FILE
   --force            Re-copy files that already exist with a matching size
   -h, --help         Show help
 
-The last positional is the job script; the rest are its data files. The queue
-stages each job into its own folder, moving in the job file and the file it is
-named after — so \$TARGET_FILE (NAME.job => NAME) is referenced by bare
-filename, and any *other* data file by "\$JOB_DIR/name".
+The last positional is the job script; the rest are its data files.
+
+With --copy the queue stages each job into its own folder, moving in the job
+file and the file it is named after — so \$TARGET_FILE (NAME.job => NAME) is
+referenced by bare filename, and any *other* data file by "\$JOB_DIR/name".
+
+With --reference nothing is staged and \$TARGET_FILE is an absolute path to the
+original (with \$TARGET_FILE_1..N and \$TARGET_FILE_COUNT for the rest). Only
+sane when the runner can see that path.
+
+A copy needs the payload plus 256 MB of headroom on the destination. Folders
+are offered with their free space, and one that cannot take the payload can
+only be sent to by reference.
 
 Examples:
   $script_name clip.mp4 clip.mp4.job
+  $script_name --reference clip.mp4 clip.mp4.job
   $script_name a.mov b.mov batch.job --dir=/Volumes/jobs
 EOF
 }
@@ -53,6 +93,98 @@ die() {
   print -u2 -- "$script_name: $1"
   exit "${2:-1}"
 }
+
+# --- the picker -------------------------------------------------------------
+
+# One of many, chosen with the keys that hand is already on: ↑/↓ or k/j, g/G,
+# Enter to accept, q or Esc to cancel. Draws on /dev/tty and prints the chosen
+# index on stdout, so it composes inside $(...) like anything else. Returns 1
+# when cancelled, 2 when there is no terminal to ask on.
+choose_one() {
+  local prompt="$1"
+  shift
+  local -a items=( "$@" )
+  local count=${#items[@]}
+  (( count )) || return 2
+
+  local out in
+  { exec {out}>/dev/tty } 2>/dev/null || return 2
+  if ! { exec {in}</dev/tty } 2>/dev/null; then
+    exec {out}>&-
+    return 2
+  fi
+
+  local saved
+  saved="$(stty -g <&$in 2>/dev/null)" || { exec {out}>&-; exec {in}<&-; return 2 }
+  stty -icanon -echo <&$in
+
+  local index=1 chosen=0 drawn=0 key rest i
+
+  restore() {
+    stty "$saved" <&$in 2>/dev/null || true
+    print -nr -u$out -- $'\e[?25h'
+  }
+
+  print -nr -u$out -- $'\e[?25l'
+  while true; do
+    (( drawn )) && print -nr -u$out -- $'\e['"$(( count + 1 ))"'A'
+    drawn=1
+    print -r -u$out -- $'\e[2K\e[1m'"$prompt"$'\e[0m'
+    for i in {1..$count}; do
+      if (( i == index )); then
+        print -r -u$out -- $'\e[2K\e[7m ❯ '"${items[i]}"$' \e[0m'
+      else
+        print -r -u$out -- $'\e[2K   '"${items[i]}"
+      fi
+    done
+
+    if ! read -k 1 -u $in key; then
+      break
+    fi
+
+    case "$key" in
+      $'\e')
+        # An escape on its own is a cancel; followed by [A/[B it is an arrow.
+        if read -t 0.05 -k 1 -u $in rest 2>/dev/null && [[ "$rest" == "[" ]]; then
+          read -t 0.05 -k 1 -u $in rest 2>/dev/null || rest=""
+          case "$rest" in
+            A) (( index = index > 1 ? index - 1 : count )) ;;
+            B) (( index = index < count ? index + 1 : 1 )) ;;
+          esac
+        else
+          break
+        fi
+        ;;
+      k|$'\C-p') (( index = index > 1 ? index - 1 : count )) ;;
+      j|$'\C-n') (( index = index < count ? index + 1 : 1 )) ;;
+      g) index=1 ;;
+      G) index=$count ;;
+      $'\n'|$'\r') chosen=$index; break ;;
+      q|$'\C-c'|$'\C-d') break ;;
+    esac
+  done
+
+  # Collapse the menu back to the one line that says what happened.
+  print -nr -u$out -- $'\e['"$(( count + 1 ))"'A'
+  for i in {1..$(( count + 1 ))}; do
+    print -r -u$out -- $'\e[2K'
+  done
+  print -nr -u$out -- $'\e['"$(( count + 1 ))"'A'
+  if (( chosen )); then
+    print -r -u$out -- "$prompt ${items[chosen]}"
+  else
+    print -r -u$out -- "$prompt cancelled"
+  fi
+
+  restore
+  exec {out}>&-
+  exec {in}<&-
+
+  (( chosen )) || return 1
+  print -r -- "$chosen"
+}
+
+# --- arguments --------------------------------------------------------------
 
 while (( $# )); do
   case "$1" in
@@ -63,6 +195,14 @@ while (( $# )); do
       ;;
     --dir=*)
       jobs_dir="${1#--dir=}"
+      shift
+      ;;
+    --copy)
+      payload_mode=copy
+      shift
+      ;;
+    --reference|--ref)
+      payload_mode=reference
       shift
       ;;
     --force)
@@ -99,58 +239,266 @@ for f in "${payload[@]}"; do
   [[ -f "$f" ]] || die "file not found: $f"
 done
 
-jobs_dir="${jobs_dir%/}"
-[[ -d "$jobs_dir" ]] || die "jobs folder not there: $jobs_dir (is the share mounted?)"
-[[ -w "$jobs_dir" ]] || die "jobs folder is not writable: $jobs_dir"
-
-print -- "jobs: $jobs_dir"
+# --- sizes ------------------------------------------------------------------
 
 size_of() {
   stat -f %z "$1" 2>/dev/null
 }
 
-# --- payload: copy, then verify byte counts match ---------------------------
+# Free bytes on the filesystem holding a directory.
+free_bytes() {
+  local blocks
+  blocks="$(df -Pk -- "$1" 2>/dev/null | awk 'NR == 2 { print $4 }')" || return 1
+  [[ "$blocks" == <-> ]] || return 1
+  print -r -- $(( blocks * 1024 ))
+}
+
+human_size() {
+  local -F bytes=$1
+  local -a units=( B KB MB GB TB PB )
+  local unit=1
+  while (( bytes >= 1024 && unit < ${#units[@]} )); do
+    (( bytes = bytes / 1024 ))
+    (( unit++ ))
+  done
+  if (( unit == 1 )); then
+    printf '%d %s' $(( bytes )) "${units[unit]}"
+  else
+    printf '%.1f %s' $bytes "${units[unit]}"
+  fi
+}
+
+payload_bytes=0
 for f in "${payload[@]}"; do
-  name="${f:t}"
-  dest="$jobs_dir/$name"
-  tmp="$jobs_dir/.$name.sending"
-
-  src_size="$(size_of "$f")" || die "could not stat $f"
-
-  if [[ -f "$dest" ]] && ! $force; then
-    dest_size="$(size_of "$dest")"
-    if [[ "$dest_size" == "$src_size" ]]; then
-      print -- "skip  $name (already there, $src_size bytes)"
-      continue
-    fi
-  fi
-
-  print -- "send  $name ($src_size bytes)"
-  rm -f -- "$tmp" 2>/dev/null || true
-  if ! cp -- "$f" "$tmp"; then
-    rm -f -- "$tmp" 2>/dev/null || true
-    die "copy failed: $name"
-  fi
-
-  dest_size="$(size_of "$tmp")" || dest_size=""
-  if [[ "$dest_size" != "$src_size" ]]; then
-    rm -f -- "$tmp" 2>/dev/null || true
-    die "size mismatch for $name (local $src_size, remote ${dest_size:-?}) — nothing queued"
-  fi
-
-  mv -f -- "$tmp" "$dest" || die "could not finalize $name"
-  print -- "ok    $name verified"
+  size="$(size_of "$f")" || die "could not stat $f"
+  (( payload_bytes += size ))
 done
 
+# A copy that fills the disk to the last byte is a copy that fails somewhere
+# more expensive than here, so ask for the payload plus a little room.
+headroom=$(( 256 * 1024 * 1024 ))
+needed=$(( payload_bytes + headroom ))
+
+# True when the folder can take the whole payload. A folder whose free space
+# cannot be read is given the benefit of the doubt — better an honest copy
+# error than refusing to send over a df that did not answer.
+fits() {
+  local free
+  free="$(free_bytes "$1")" || return 0
+  (( free >= needed ))
+}
+
+# --- where to send it -------------------------------------------------------
+
+icloud_home="${ICLOUD_HOME:-$HOME/Library/Mobile Documents/com~apple~CloudDocs}"
+
+# Every folder worth offering, in the order they are worth offering. Only the
+# ones that exist and are writable ever reach the picker.
+typeset -a searched=(
+  /Volumes/jobs
+  /Volumes/job
+  /Volumes/Jobs
+  "$icloud_home/Jobs"
+  "$HOME/jobs"
+  "$HOME/job"
+  "$HOME/Jobs"
+)
+[[ -n "${JOBS_DIR:-}" ]] && searched=( "${JOBS_DIR%/}" "${searched[@]}" )
+
+if [[ -z "$jobs_dir" ]]; then
+  typeset -a candidates=()
+  typeset -A seen=()
+  for dir in "${searched[@]}"; do
+    dir="${dir%/}"
+    [[ -d "$dir" && -w "$dir" ]] || continue
+    key="${dir:A}"
+    [[ -n "${seen[$key]:-}" ]] && continue
+    seen[$key]=1
+    candidates+=( "$dir" )
+  done
+
+  case ${#candidates[@]} in
+    0)
+      print -u2 -- "$script_name: no jobs folder found. Tried:"
+      for dir in "${searched[@]}"; do
+        print -u2 -- "  $dir"
+      done
+      die "nowhere to send the job (is the share mounted? try --dir)"
+      ;;
+    1)
+      jobs_dir="${candidates[1]}"
+      ;;
+    *)
+      # Free space belongs in the question: it is the thing that decides
+      # whether copying is even on the table for a given folder.
+      typeset -a labels=()
+      for dir in "${candidates[@]}"; do
+        free="$(free_bytes "$dir")" || free=""
+        if [[ -z "$free" ]]; then
+          labels+=( "$dir" )
+        elif (( ${#payload[@]} )) && ! fits "$dir"; then
+          labels+=( "$dir — $(human_size $free) free, too small for $(human_size $payload_bytes) (reference only)" )
+        else
+          labels+=( "$dir — $(human_size $free) free" )
+        fi
+      done
+
+      if pick="$(choose_one "jobs folder:" "${labels[@]}")"; then
+        jobs_dir="${candidates[$pick]}"
+      else
+        status_code=$?
+        (( status_code == 1 )) && die "cancelled" 130
+        # No terminal to ask on: the first reachable folder, as before.
+        jobs_dir="${candidates[1]}"
+      fi
+      ;;
+  esac
+fi
+
+jobs_dir="${jobs_dir%/}"
+[[ -d "$jobs_dir" ]] || die "jobs folder not there: $jobs_dir (is the share mounted?)"
+[[ -w "$jobs_dir" ]] || die "jobs folder is not writable: $jobs_dir"
+
+# --- copy the payload, or reference it --------------------------------------
+
+if (( ! ${#payload[@]} )); then
+  # Nothing to copy either way; the question would be meaningless.
+  payload_mode=copy
+fi
+
+jobs_free="$(free_bytes "$jobs_dir")" || jobs_free=""
+room=true
+if (( ${#payload[@]} )) && ! fits "$jobs_dir"; then
+  room=false
+fi
+
+if ! $room; then
+  # Not a preference any more. Say what is wrong in the numbers that matter,
+  # and go on by reference rather than starting a copy that cannot finish.
+  print -u2 -- "$script_name: $jobs_dir has ${jobs_free:+$(human_size $jobs_free) free, }not enough for $(human_size $payload_bytes) plus $(human_size $headroom) headroom"
+  if [[ "$payload_mode" == copy ]]; then
+    die "not enough space to copy the payload (send it by --reference, or free some space)"
+  fi
+  payload_mode=reference
+  print -u2 -- "$script_name: sending by reference — the job opens the sources where they are"
+fi
+
+if [[ -z "$payload_mode" ]]; then
+  typeset -a choices=(
+    "copy — send $(human_size $payload_bytes) to $jobs_dir with the job${jobs_free:+ ($(human_size $jobs_free) free)}"
+    "reference — leave them here; the job opens them by absolute path"
+  )
+  if pick="$(choose_one "payload:" "${choices[@]}")"; then
+    (( pick == 1 )) && payload_mode=copy || payload_mode=reference
+  else
+    status_code=$?
+    (( status_code == 1 )) && die "cancelled" 130
+    payload_mode=copy
+  fi
+fi
+
+print -- "jobs: $jobs_dir"
+
+if [[ "$payload_mode" == copy ]]; then
+  # --- payload: copy, then verify byte counts match -------------------------
+  for f in "${payload[@]}"; do
+    name="${f:t}"
+    dest="$jobs_dir/$name"
+    tmp="$jobs_dir/.$name.sending"
+
+    src_size="$(size_of "$f")" || die "could not stat $f"
+
+    if [[ -f "$dest" ]] && ! $force; then
+      dest_size="$(size_of "$dest")"
+      if [[ "$dest_size" == "$src_size" ]]; then
+        print -- "skip  $name (already there, $src_size bytes)"
+        continue
+      fi
+    fi
+
+    print -- "send  $name ($src_size bytes)"
+    rm -f -- "$tmp" 2>/dev/null || true
+    if ! cp -- "$f" "$tmp"; then
+      rm -f -- "$tmp" 2>/dev/null || true
+      die "copy failed: $name"
+    fi
+
+    dest_size="$(size_of "$tmp")" || dest_size=""
+    if [[ "$dest_size" != "$src_size" ]]; then
+      rm -f -- "$tmp" 2>/dev/null || true
+      die "size mismatch for $name (local $src_size, remote ${dest_size:-?}) — nothing queued"
+    fi
+
+    mv -f -- "$tmp" "$dest" || die "could not finalize $name"
+    print -- "ok    $name verified"
+  done
+fi
+
 # --- job script last: only now is the payload known-good --------------------
+
 job_name="${job_file:t}"
+
+if [[ "$payload_mode" == reference ]]; then
+  # Nothing is paired with this job by name, so a name already taken can simply
+  # be stepped around: queueing the same work twice queues it twice instead of
+  # overwriting a job that has not been picked up yet. Copy mode cannot do this
+  # — there the name *is* the link to the staged file.
+  if [[ -e "$jobs_dir/$job_name" ]]; then
+    base="${job_name%.job}"
+    for n in {2..999}; do
+      if [[ ! -e "$jobs_dir/$base-$n.job" ]]; then
+        job_name="$base-$n.job"
+        break
+      fi
+    done
+    [[ -e "$jobs_dir/$job_name" ]] && die "too many queued jobs named $job_name"
+  fi
+fi
+
 job_tmp="$jobs_dir/.${job_name}.sending"
 job_dest="$jobs_dir/$job_name"
 
 cp -- "$job_file" "$job_tmp" || die "could not copy job file"
+
+if [[ "$payload_mode" == reference ]]; then
+  # The runner exports $TARGET_FILE as a bare name next to a staged copy that,
+  # here, does not exist. Overriding it in the job itself is the whole of
+  # reference mode: every job script written against $TARGET_FILE keeps working,
+  # and points at the original.
+  {
+    print -r -- "# --- send-job: referenced payload ---------------------------------------"
+    print -r -- "# The sources were not copied. These override the runner's \$TARGET_FILE,"
+    print -r -- "# which would otherwise name a file that was never staged."
+    for (( i = 1; i <= ${#payload[@]}; i++ )); do
+      print -r -- "TARGET_FILE_$i=${(qq)${payload[i]:A}}; export TARGET_FILE_$i"
+    done
+    print -r -- "TARGET_FILE_COUNT=${#payload[@]}; export TARGET_FILE_COUNT"
+    print -r -- "TARGET_FILE=\"\$TARGET_FILE_1\"; export TARGET_FILE"
+    print -r -- "# ------------------------------------------------------------------------"
+  } > "$job_tmp.preamble" || die "could not write the reference preamble"
+
+  # After the shebang, or the interpreter stops being one.
+  {
+    if [[ "$(head -n 1 -- "$job_file")" == '#!'* ]]; then
+      head -n 1 -- "$job_file"
+      cat -- "$job_tmp.preamble"
+      tail -n +2 -- "$job_file"
+    else
+      cat -- "$job_tmp.preamble" "$job_file"
+    fi
+  } > "$job_tmp.built" || die "could not build the job file"
+
+  mv -f -- "$job_tmp.built" "$job_tmp" || die "could not build the job file"
+  rm -f -- "$job_tmp.preamble" 2>/dev/null || true
+
+  for f in "${payload[@]}"; do
+    print -- "ref   ${f:t} -> ${f:A}"
+  done
+fi
+
 chmod +x "$job_tmp" 2>/dev/null || true
 
-if [[ "$(size_of "$job_tmp")" != "$(size_of "$job_file")" ]]; then
+if [[ "$payload_mode" == copy ]] && [[ "$(size_of "$job_tmp")" != "$(size_of "$job_file")" ]]; then
   rm -f -- "$job_tmp" 2>/dev/null || true
   die "size mismatch for $job_name — job not queued"
 fi

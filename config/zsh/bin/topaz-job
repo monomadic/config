@@ -338,7 +338,10 @@ for dir in "${candidates[@]}"; do
   fi
 
   print -- "try   $dir"
-  if "$send_job" "$input" "$job_path" --dir="$dir"; then
+  # --copy and an explicit --dir: the destination is already decided here, and
+  # a job bound for a render machine has to take its video with it — neither
+  # question send-job would otherwise ask is open.
+  if "$send_job" "$input" "$job_path" --copy --dir="$dir"; then
     sent="$dir"
     break
   fi
