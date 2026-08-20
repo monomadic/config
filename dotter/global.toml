@@ -156,6 +156,7 @@ default_target_type = "symbolic"
 "config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xhamster.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xhamster.py"
 "config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xvideos_red.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xvideos_red.py"
 "config/yt-dlp/plugins/faphouse/yt_dlp_plugins/postprocessor/titlecase.py" = "~/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/postprocessor/titlecase.py"
+"config/yt-dlp/plugins/threads/yt_dlp_plugins/extractor/threads.py" = "~/.config/yt-dlp/plugins/threads/yt_dlp_plugins/extractor/threads.py"
 
 # --- Misc tooling -------------------------------------------------------------
 
