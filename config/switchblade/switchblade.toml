@@ -214,29 +214,55 @@ quickview_fade_ms = 150.0
 # scrub — coarse keyframe hops while dragging, an exact landing on
 # release. Hovering the bar previews the nearest animated-thumbnail
 # frame at seekbar_thumb_width px wide (0 hides the preview).
-seekbar_hide_s = 0.3
-seekbar_fade_ms = 450.0
-seekbar_height = 18.0
-seekbar_hover_height = 20.0
+seekbar_hide_s = 1.0
+seekbar_fade_ms = 250.0
+seekbar_height = 6.0
+seekbar_hover_height = 12.0
+seekbar_bg_opacity = 0.55
+seekbar_bg_pad = 0.5
+seekbar_thumb_width = 280.0
+
 # Opacity (0..1) of the seekbar's background track — the unfilled part
 # behind the played fill. The fill stays solid white; lower this to make
 # the track more transparent over the video.
 seekbar_thumb_radius = 4.0
 seekbar_thumb_fade_ms = 150.0  # fade-OUT on leaving the bar (appear is instant)
-seekbar_thumb_width = 400.0
 seekbar_thumb_border = 1.0
 seekbar_thumb_border_color = [0.85, 0.85, 0.9, 0.7]
 
-seekbar_bg_opacity = 0.1  # the dark backing behind the track (0 removes)
-seekbar_bg_pad = 2.0  # how far it extends past the bar's edge
+# The playhead knob: a white dot riding the end of the fill, sized as a
+# multiple of the bar's height (1.0 = flush with the bar, 0 hides it).
+# Two-stage swell, both eased: bar_swell (slight) while the pointer is
+# anywhere on the bar, swell (bigger) while it is on the knob itself or
+# scrubbing. knob_bg_* is its own dark backing disc, matching the bar's.
+# The knob animates out the moment the pointer leaves the bar and pops
+# back on return — it doesn't linger through the bar's fade.
+seekbar_knob_scale = 1.5
+seekbar_knob_bar_swell = 1.1
+seekbar_knob_swell = 1.25
+seekbar_knob_bg_opacity = 0.15
+seekbar_knob_bg_pad = 1.0
+seekbar_loop_color = [1.0, 0.62, 0.2]  # cmd-click chapter-loop accent (armed segment + cmd-hover preview)
 
-seekbar_knob_scale = 1.3
-seekbar_knob_bar_swell = 1.05  # slight swell while hovering the bar
-seekbar_knob_swell = 1.2  # bigger swell on the knob itself / scrubbing
-seekbar_knob_bg_opacity = 0.1  # the knob's own dark backing disc
-seekbar_knob_bg_pad = 2.0
-
-seekbar_track_opacity = 0.3
+# Minimum gap between two issued preview seeks. Sweeping the pointer
+# emits a position every frame; only the newest is ever serviced, and
+# this paces how often. Raise on slow or network storage.
+seekbar_preview_seek_ms = 60.0
+# Skip the re-seek when the pointer moved less than this fraction of the
+# duration — below one keyframe's travel it would land on the frame
+# that's already up.
+seekbar_preview_min_step = 0.002
+# How long the lane lingers after the pointer leaves the bar. Covers the
+# pointer crossing off and back; respawning costs a cold open.
+seekbar_preview_keep_s = 2.0
+# Opacity (0..1) of the seekbar's background track — the unfilled part
+# behind the played fill. The fill stays solid white; lower this to make
+# the track more transparent over the video.
+seekbar_track_opacity = 0.18
+# Opacity (0..1) of the ghost fill — the translucent click-preview bar
+# that follows the pointer along the track, showing where a click would
+# put the playhead. 0 disables.
+seekbar_ghost_opacity = 0.35
 
 # The filmstrip of neighboring clips along the bottom. Chips share this
 # fixed height and take each clip's true aspect for width — portrait
@@ -533,9 +559,6 @@ queue_color_stall = [1.0, 0.404, 0.427]
 # Live seekbar hover preview: its own decoder, keyframe-seeked under the
 # pointer; plays from that spot while the pointer rests.
 seekbar_preview_live = true
-seekbar_preview_seek_ms = 60.0  # min gap between issued preview seeks
-seekbar_preview_min_step = 0.002  # skip re-seeks under this fraction of duration
-seekbar_preview_keep_s = 2.0  # linger after the pointer leaves the bar
 
 # ── Hashtags popup (#) ──────────────────────────────────────────────────
 # Tags come from the FILENAME: "harbour pass #drone #4k.mp4" wears #drone
@@ -599,13 +622,13 @@ fade_ms = 160.0
 # Delay before a HELD direction starts repeating. This is the "I pushed
 # left and it sat there" number — lower it if the pad feels sticky,
 # raise it if a quick tap runs away from you.
-repeat_delay_ms = 40.0
+repeat_delay_ms = 20.0
 repeat_delay_fast_ms = 50.0
 
 # Interval between repeats once it's going: 240ms is about 4 clips a
 # second, 45ms about 22.
 repeat_ms = 240.0
-repeat_fast_ms = 45.0
+repeat_fast_ms = 245.0
 
 # The d-pad is digital — there's no "how hard" to read — so it gets one
 # fixed delay and interval.
