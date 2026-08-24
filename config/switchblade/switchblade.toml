@@ -106,11 +106,9 @@ zoom_min = 0.35
 zoom_max = 3.0
 zoom_smoothing = 0.35  # fixed grid only; with zoom_wrap the layout snaps and the tile tweens ARE the zoom animation
 zoom_fade_ms = 180.0
-zoom_ribbon = true  # flexible grid: pinch grips the strip (off = pinch uses zoom_wrap too)
 zoom_ribbon_settle = 0.34  # how snappily a released ribbon settles; k = 1 - e^(-speed/60), so this is 25/s
 zoom_ribbon_blend = 21.5  # how fast rows loosen from justified into one uniform strip, per unit of |ln(zoom change)|
 zoom_ribbon_release_ms = 150.0  # quiet time after the last pinch event that ends the gesture
-zoom_wrap = true  # flexible grid: wrap the zoom reflow (off = crossfade)
 zoom_wrap_ms = 220.0  # duration of one tile's row-wrap slide
 zoom_wrap_stagger_ms = 0.0  # per-row delay (0 = all rows wrap in lockstep)
 zoom_reflow_smoothing = 0.25  # glide rate toward the new layout (also paces the zoom feel in wrap mode)
@@ -178,13 +176,6 @@ auto_skip_s = 5.0
 auto_skip_ring_radius = 16.0
 auto_skip_countdown = false
 
-# Background-jobs progress bar (bottom-right hairline shown while thumbs
-# generate). Drawn size in logical px, plus a master opacity (0..1) over
-# both the faint track and the fill.
-jobs_bar_width = 140.0
-jobs_bar_height = 10.0
-jobs_bar_opacity = 0.8
-
 # Pause live playback while the window is unfocused (the grid stays
 # visible, just still — big CPU saver). Toggle at runtime with 'p'.
 pause_unfocused = true
@@ -203,8 +194,27 @@ fullview_backdrop = "flat"
 backdrop_color = [0.0, 0.0, 0.0]  # the flat stage color
 # Fade-in when quickview opens (dim + blur + the modal); 0 ≈ instant.
 quickview_fade_ms = 150.0
+# The clip's name above the video: the container's `title` tag when the
+# file carries one, the filename otherwise.
+quickview_title_size = 17.0
+quickview_title_weight = 700   # 400 regular, 600 semibold, 700 bold
 # (Playback resolution is quickview_max_width/height, under Startup
 # settings below.)
+
+# ── Triple play (3) ─────────────────────────────────────────────────────
+# Three clips at once, tiling the whole window: three portrait panes, or
+# two stacked landscape panes beside one portrait one. The arrangement is
+# not a setting — it is chosen from the three clips' own aspect ratios,
+# by whichever one crops them least. One pane is focused (and the focused
+# pane IS the selection); hjkl/arrows move between panes, "." / "," walk
+# the focused pane through the library, x re-rolls it, s re-rolls all
+# three, Enter (or clicking the focused pane) watches it in cinema mode.
+triple_gap = 3.0            # between panes; they tile the window otherwise
+triple_corner_radius = 20.0  # 0 = square, which is what "fills the screen" wants
+triple_border_width = 3.0   # the focused pane's border (selection_border colour) —
+                            # the only cue: unfocused panes are NOT dimmed
+triple_cover = true         # fill the pane and crop; false = letterbox it
+triple_fade_ms = 130.0
 
 # The seekbar over the quickview/fullview video: pointer motion over the
 # video reveals it, seekbar_hide_s of stillness fades it out over
@@ -216,6 +226,12 @@ quickview_fade_ms = 150.0
 # frame at seekbar_thumb_width px wide (0 hides the preview).
 seekbar_hide_s = 1.0
 seekbar_fade_ms = 250.0
+# Cinema mode only: how far above the chapter bar's dock-reveal band
+# (chapter_dock_reveal_px) the seekbar rests. Both live at the bottom
+# edge, and revealing the drawer LIFTS the seekbar — so a bar resting
+# inside the band slides out from under the pointer that came for it.
+# Keep this above the hit band's 24px downward reach.
+seekbar_dock_gap = 34.0
 seekbar_height = 6.0
 seekbar_hover_height = 12.0
 seekbar_bg_opacity = 0.55
@@ -617,18 +633,129 @@ top = 96.0
 pad_x = 13.0
 pad_y = 5.0
 fade_ms = 160.0
+# ── Search bar (`/`) ───────────────────────────────────────────────────────
+# `/` drops a search bar in from the top; type and a floating panel of ranked
+# matches unfolds under it, each row carrying the clip's thumbnail, its title
+# and its cast. ctrl+n / ctrl+p (or the arrows) walk the results, and a small
+# preview video hovers beside the cursored row, playing it — it follows the
+# cursor, so walking the list IS previewing it. Enter jumps to the clip, esc
+# or `/` again puts it away. Matching is EXACT, like fzf's --exact: every
+# whitespace-separated term must appear as a literal substring, AND-ed and
+# order-independent, so `wall harb` finds "Harbour Wall" but `hrbdrn` finds
+# nothing. Unlike the hashtags popup this does NOT filter the grid: it moves
+# the selection.
+#
+# Titles and cast come from the FILENAME — `Actors - Title [Studio] (site)
+# {specs} #tags ★★★` — the same trick as the star rating and the hashtags:
+# no sidecar, no database, and it survives a copy to another machine. A
+# container `title` tag, where a file carries one, wins over the parsed title.
+[search]
+# The bar: width (shared with the panel), distance below the top edge, and
+# height. THE BAR IS A PILL — its corner radius is always half the height,
+# so `radius` below belongs to the results panel. No border by default: the
+# gradient behind it is what separates it from the grid, and an outline on
+# top of that reads as a widget.
+width = 640.0
+top = 132.0
+height = 58.0
+radius = 16.0
+bar = [0.05, 0.05, 0.06, 0.96]
+border = [0.0, 0.0, 0.0, 0.0]
+border_width = 0.0
+# The query: white and large — it is the surface's whole subject. There is no
+# placeholder string: with nothing typed the magnifier alone says what the box
+# is for. `icon_scale` is a multiple of `size`.
+text = [1.0, 1.0, 1.0, 1.0]
+icon = [1.0, 1.0, 1.0, 1.0]
+icon_scale = 1.9
+size = 21.0
+# The text caret, and the colour matched characters take in the results.
+caret = [1.0, 1.0, 1.0, 0.9]
+match = [0.45, 0.85, 1.0, 1.0]
+# The results panel. Black on purpose: a list of titles over a grid of moving
+# video needs a floor, not a frost.
+backdrop = [0.0, 0.0, 0.0, 0.92]
+# One result row: height, the title's size, then the metadata line under it
+# (cast · rating · resolution · fps · tags) — its size and colour, the parent
+# directory opposite it, and the fills the cursored / hovered rows wear.
+row_height = 52.0
+row_size = 14.0
+actors_size = 12.0
+actors = [0.72, 0.74, 0.82, 1.0]
+dir = [0.55, 0.55, 0.62, 1.0]
+cursor = [1.0, 1.0, 1.0, 0.14]
+hover = [1.0, 1.0, 1.0, 0.07]
+# The thumbnail at the head of each row (0 turns them off): its column width,
+# the gap to the text, and its corner radius.
+thumb_width = 76.0
+thumb_gap = 10.0
+thumb_radius = 4.0
+# The hovering preview beside the cursored row: width (the height follows the
+# video's own aspect), gap from the bar, corner radius and border. It flips
+# to the left of the panel when the right side has no room.
+preview_width = 340.0
+preview_gap = 16.0
+preview_radius = 10.0
+preview_border = [1.0, 1.0, 1.0, 0.18]
+# Panel padding, bar↔panel gap, rows shown at once (the list scrolls under
+# the cursor, so the rest stay reachable), and the cap on the ranked list.
+inset = 8.0
+gap = 8.0
+max_rows = 10
+max_hits = 400
+# The scrim behind the bar is a GRADIENT from the top edge, not a full-screen
+# wash: `veil` black at the very top, fading to nothing `veil_height` down.
+# The bar needs contrast under it; the grid two thirds down the window was
+# never competing with it, and dimming it there just made the app look
+# switched off. `veil_steps` is how many flat bands approximate the ramp.
+# `blur` frosts what is under the scrim (0 = none, 1..4 progressively softer).
+veil = 0.88
+veil_height = 420.0
+veil_steps = 24
+blur = 0.0
+# Drop-in / retract duration.
+fade_ms = 90.0
+
+# ── Keybindings help panel (?) ───────────────────────────────────────────
+# `?` drops a dark rounded panel over the grid: every bound action, grouped
+# into Move/Quickview/Cinema mode/Search/Playback/Zoom & grid/Filter/Clip
+# actions/Window & app. Each row's keycap(s) are read LIVE off the resolved
+# [keys] table — remap a key here and the panel shows the new one within
+# the same ~250ms hot-reload as everything else. Mouse-only bindings
+# (click/right-click/⌘-click) and gamepad (pad_*) buttons aren't in the
+# keymap, so they stay fixed labels; a row whose action the current config
+# has switched off (`i`'s performance panel while perf_panel = false)
+# dims rather than disappears. Esc or `?` again closes it.
+[help]
+width = 560.0
+max_height = 640.0
+top = 70.0
+radius = 24.0
+backdrop = [0.04, 0.045, 0.05, 0.94]
+veil = 0.55
+blur = 3.0
+row_height = 34.0
+section_gap = 22.0
+key_bg = [1.0, 1.0, 1.0, 0.10]
+key_text = [0.95, 0.95, 0.96, 1.0]
+# Standout keys (the panel's own `?`, `D`, ...) wear this instead of the
+# plain keycap fill.
+accent = [1.0, 0.216, 0.376, 1.0]
+disabled = 0.42
+fade_ms = 160.0
+
 
 [pad]
 # Delay before a HELD direction starts repeating. This is the "I pushed
 # left and it sat there" number — lower it if the pad feels sticky,
 # raise it if a quick tap runs away from you.
-repeat_delay_ms = 20.0
-repeat_delay_fast_ms = 50.0
+repeat_delay_ms = 340.0
+repeat_delay_fast_ms = 150.0
 
 # Interval between repeats once it's going: 240ms is about 4 clips a
 # second, 45ms about 22.
 repeat_ms = 240.0
-repeat_fast_ms = 245.0
+repeat_fast_ms = 45.0
 
 # The d-pad is digital — there's no "how hard" to read — so it gets one
 # fixed delay and interval.
@@ -649,6 +776,21 @@ scroll_speed = 1100.0
 zoom_speed = 1.3
 
 [keys]
+"cmd+enter" = "triple_play"  # three clips at once — `3` here is a library switch below
+tab = "fullview"  # selected clip fills the window on black; Esc or Tab exits
+R = "reload"  # re-read the selected clip: fresh stat, cache lookup, metadata
+g = "chapter_mode"  # chapter bar in cinema mode (also on `c` below)
+P = "toggle_focus_pause"  # pause-when-unfocused on/off (moved off `p`)
+x = "jump_random"  # random clip with a cached thumbnail
+"." = "next"  # same as n / p, for mpv-shaped fingers
+"," = "prev"
+h = "move_left"  # context-sensitive: selection back, or previous chapter in cinema mode
+j = "move_down"  # selection down one row
+k = "move_up"  # selection up one row
+l = "move_right"  # context-sensitive: selection forward, or next chapter in cinema mode
+"#" = "tag_popup"  # hashtags popup ("tags"/"hashtags" also work)
+"/" = "search"  # search bar
+"?" = "help_panel"  # keybindings help
 space = "quickview"  # internal preview; Esc or Space closes, arrows browse
 enter = "fullview"
 a = "toggle_skip_timer"  # auto advance
@@ -661,7 +803,7 @@ f = "fast_fullscreen"
 # i = "mediainfo"
 n = "next"
 o = "launch mpv-send play {path}"
-p = "prev"  # pause-when-unfocused on/off
+p = "prev"
 "cmd+r" = "refresh"
 r = "reveal"
 s = "shuffle_library"  # shuffle the whole grid in place ("shuffle" also works)
@@ -669,10 +811,10 @@ t = "launch '/Users/nom/.zsh/bin/kitty-launch --os-window --auto-hide --cwd {dir
 y = "launch '/Users/nom/.zsh/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /opt/homebrew/bin/yazi {path}'"
 "[" = "skip_back"  # jump by skip_fraction; wraps at the ends
 "]" = "skip_forward"
-1 = "load '~/Movies/Porn'"
-2 = "load '/Volumes/Tower/Movies/Porn'"
-3 = "load '/Volumes/Footage 1tb/Movies/Porn'"
-4 = "load '/Volumes/*/Movies/Porn'"
+1 = "open '~/Movies/Porn'"
+2 = "open '/Volumes/Tower/Movies/Porn'"
+3 = "open '/Volumes/Footage 1tb/Movies/Porn'"
+4 = "open '/Volumes/*/Movies/Porn'"  # NOTE: no glob expansion — `open` takes a literal path
 
 # Gamepad buttons are keys too (a pad just works — pair it and go). The
 # names follow the controller-agnostic layout: pad_south (A / ✕),
@@ -694,6 +836,21 @@ pad_r3 = "jump_random"
 
 # n = "rename_script"    # any key -> any launched program; example below
 # "{" = "skip_back_big"  # a skip with its own amount; see below
+
+# [commands] is for command lines you want to name and reuse — a key then
+# binds to the name. A plain string is a shell command line, same as the
+# inline `exec '...'` form above.
+[commands]
+# "exec" is just a command like any other: what a bare `exec` binding
+# runs. Swap mpv for whatever you like. (`launch` aliases it.)
+exec = "mpv {path}"
+
+# Quick-Look-ish peek: windowed (never fullscreen), floats on top,
+# loops, opens instantly, capped at 70% of the screen.
+preview = "mpv --no-fs --loop-file=inf --ontop --no-terminal --force-window=immediate --autofit-larger=70%x70% {path}"
+
+# Built-in default, shown for reference — override to change it:
+# reveal = "open -R {path}"
 
 # "open" is just a command like any other — swap mpv for whatever you
 # like, or add more commands and bind keys to them.

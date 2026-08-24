@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<!-- saved from url=(0253)https://2326a9bd-fa99-45c6-aa09-b2c497d85f92.frame.claudeusercontent.com/_f/1787602207-9983/?__frame_t=IXfoa3mAeA7Oek3EmygpqGoF.d96ea23d-a965-4daf-8eba-5a2bc76f0b51.ef7140aa-fbfa-4344-b24b-2d00ff2187eb.1787606075&__frame_v=manifest.549c0ed89764d31f.json -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><!-- frame-runtime --><!--<base href="/_f/1787602207-9983/">--><base href="."><script>window.__FRAME_PREAMBLE={"capabilities":{"artifact":"artifact.oqIe8shs.js","assets":"assets.BkxVItX2.js","comments":"comments.GLuHR3zP.js","db":"db.CRhVHzSt.js","downloads":"downloads.C3GSvEDP.js","embed":"embed.CZsbekoQ.js","mcp":"mcp.D3B2EyQu.js","permissions":"permissions.BNySkLV5.js","room":"room.DE7EMui-.js","sample":"sample.C7z_6W62.js","self":"artifact.oqIe8shs.js","user":"user.BpKav-Rf.js"},"transforms":"_transforms.h3_8GSUa.js","comments":"_comments.BOgkE6qU.js","translate":"_translate.5HCW4BJh.js"}</script><script>(function(){"use strict";var Y=["light","dark","system"],X=/^[A-Za-z0-9_-]{1,64}$/,D=/^[a-zA-Z_:][a-zA-Z0-9_:.-]{0,127}$/,G=new Set(["class","hidden","value","checked"]);function V(e){const t=e.toLowerCase();return t.startsWith("data-")||t.startsWith("aria-")||G.has(t)}var be="http://www.w3.org/1999/xhtml",Z="http://www.w3.org/2000/svg",J=new Set(["script","style","iframe","noscript","noframes","noembed","xmp","plaintext","template","title","textarea","object","embed"]),Q=new Set(["script","style"]);function ee(e){const t=e.localName.toLowerCase();return e.namespaceURI==="http://www.w3.org/1999/xhtml"?!J.has(t):e.namespaceURI===Z?!Q.has(t):!1}var te=new Set(["html","head","body","frameset"]);function re(e){return e.namespaceURI==="http://www.w3.org/1999/xhtml"&&te.has(e.localName)}function ne(e){if(e===null||typeof e!="object")return!1;const t=e;if(typeof t.target!="string"||!X.test(t.target)||t.text!==void 0&&typeof t.text!="string")return!1;if(t.attrsSet!==void 0){if(t.attrsSet===null||typeof t.attrsSet!="object")return!1;for(const[n,s]of Object.entries(t.attrsSet))if(!D.test(n)||typeof s!="string")return!1}if(t.attrsRemoved!==void 0){if(!Array.isArray(t.attrsRemoved))return!1;for(const n of t.attrsRemoved)if(typeof n!="string"||!D.test(n))return!1}return!0}function se(e,t){if(e===null||typeof e!="object")return!1;const{seq:n,elements:s}=e;if(typeof n!="number"||!Number.isSafeInteger(n)||!Array.isArray(s)||s.length===0||s.length>64)return!1;for(let o=0;o<s.length;o++)if(!t(s[o]))return!1;return!0}function ae(e){return e===null||typeof e!="object"?!1:se(e.__frame_patch,ne)}function oe(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_init;return t!==null&&typeof t=="object"}function ie(e){return e!==null&&typeof e=="object"&&e.__frame_size_poke===!0}function le(e){if(e===null||typeof e!="object")return!1;const t=e.__frame_theme;if(t===null||typeof t!="object")return!1;const n=t.theme;return typeof n=="string"&&Y.includes(n)}var O="__frame_scroll",ce=150,ue=310,fe=160,pe=3e4;function de(){let e=0,t=!1,n=!1,s=!1,o=0,l=null;const c=i=>{try{sessionStorage.setItem(O,JSON.stringify({y:i}))}catch{}},f=()=>{if(clearTimeout(e),l===null)return;const i=l;l=null,c(i)},S=()=>{if(t){t=!1;return}n=!0,l=scrollY,clearTimeout(e),e=setTimeout(f,ce)};try{addEventListener("scroll",S,{passive:!0}),addEventListener("pagehide",f)}catch{}const v=()=>{let i;try{i=sessionStorage.getItem(O)}catch{return null}if(i===null)return null;let d;try{d=JSON.parse(i)}catch{d=null}const u=d?.y;if(!(typeof u=="number"&&Number.isFinite(u)&&u>=0)){try{sessionStorage.removeItem(O)}catch{}return null}return u};let b=!1;const m=i=>{try{const d=scrollY;scrollTo({top:i,left:0,behavior:"instant"}),o=i,s=!0,clearTimeout(e),l=null,c(i);const u=scrollY;u!==d&&(t=!0),u!==i&&!b&&(b=!0,addEventListener("load",()=>{try{if(scrollY===u){const h=v();m(h!==null?h:o)}}catch{}},{once:!0}))}catch{}},y=()=>{try{return!!location.hash}catch{return!0}};let g=!1;const E=()=>{try{if(g||innerWidth>ue||innerHeight>fe)return;g=!0;const i=Date.now(),d=()=>{try{removeEventListener("resize",d)}catch{}if(Date.now()-i>pe||n||y())return;const u=v();m(u!==null?u:o)};addEventListener("resize",d)}catch{}};let r=!1,p=!1;return{restore(){if(r||(r=!0,y()))return;const i=v();i!==null&&(m(i),E())},promoted(){if(p||(p=!0,y()))return;const i=v();i!==null?(m(i),E()):s&&m(o)}}}var Ee="modulepreload",Ae=function(e){return"/"+e},Re={},me=function(t,n,s){let o=Promise.resolve();function l(c){const f=new Event("vite:preloadError",{cancelable:!0});if(f.payload=c,window.dispatchEvent(f),!f.defaultPrevented)throw c}return o.then(c=>{for(const f of c||[])f.status==="rejected"&&l(f.reason);return t().catch(l)})};(function(){const e=Object.defineProperty,t=globalThis,n=["RTCPeerConnection","webkitRTCPeerConnection","RTCDataChannel","RTCIceCandidate","RTCSessionDescription","RTCRtpSender","RTCRtpReceiver"];let s=0;for(let o=0;o<n.length;o++){const l=n[o];try{e(t,l,{value:void 0,writable:!1,configurable:!1})}catch{try{delete t[l]}catch{}try{e(t,l,{value:void 0,writable:!1,configurable:!0})}catch{}}typeof t[l]=="function"&&s++}if(s&&window!==top)try{parent.postMessage({__frame_rtc_lockdown_failed:s},"*")}catch{}})();var he=1e4,_e=Object.freeze([...window.__FRAME_PREAMBLE?.origins??["https://claude.ai","https://preview.claude.ai"]]);function F(e){for(const t of _e)if(t.endsWith(":*"))try{const n=new URL(e);if(`${n.protocol}//${n.hostname}:*`===t)return!0}catch{}else if(e===t)return!0;return!1}var M=Object.freeze({...window.__FRAME_PREAMBLE?.capabilities}),j=window.__FRAME_PREAMBLE?.transforms,N=window.__FRAME_PREAMBLE?.comments,I=window.__FRAME_PREAMBLE?.translate,L=/^[\w.-]+\.js$/;function T(e){return me(()=>import("/_runtime/"+e),void 0)}function z(e,t){return{contract:e.contract,changes:new Set(e.changes??[]),flags:new Set(e.flags??[]),capabilities:e.capabilities??{},capBudgets:e.capBudgets??{},transforms:new Map,shellOrigin:t,mount:W,pipe:()=>({wrap:(n,s)=>(...o)=>{try{return s(...o)}catch(l){return Promise.reject(l)}}})}}var P=null,w=null;function q(e,t,n){try{Object.defineProperty(e,t,{value:n,writable:!1,configurable:!1,enumerable:!0})}catch{try{Object.defineProperty(e,t,{value:n,writable:!1,configurable:!0,enumerable:!0})}catch{}}}var B=!1;function ve(e,t){const n=[];for(const s of e.elements){const o=document.querySelector(`[data-id="${s.target}"]`);if(!o){parent.postMessage({__frame_patch_miss:{seq:e.seq}},t);return}if([...Object.keys(s.attrsSet??{}),...s.attrsRemoved??[]].some(l=>!V(l))){parent.postMessage({__frame_patch_miss:{seq:e.seq}},t);return}if(s.text!==void 0&&(!ee(o)||re(o))){parent.postMessage({__frame_patch_miss:{seq:e.seq}},t);return}for(const[l,c]of Object.entries(s.attrsSet??{}))if(!$(o,l)){try{o.setAttribute(l,c)}catch{}H(o,l,c)}for(const l of s.attrsRemoved??[])$(o,l)||(o.removeAttribute(l),H(o,l,null));typeof s.text=="string"&&(o.textContent=s.text),n.push(s.target)}try{document.dispatchEvent(new CustomEvent("claude:edit",{detail:{seq:e.seq,targets:n}}))}catch{}}function H(e,t,n){if(!(e instanceof HTMLInputElement))return;const s=t.toLowerCase();s==="checked"?e.checked=n!==null:s==="value"&&e.type!=="file"&&(e.value=n??"")}function $(e,t){const n=t.toLowerCase(),s=e;return n==="data-id"||(n==="value"||n==="checked")&&(s.__artifactSecret===!0||/^(password|hidden|file)$/.test(s.type??"")||/(^|\s)(cc-|one-time-code|current-password|new-password)/i.test(`${e.getAttribute("autocomplete")??""} ${s.autocomplete??""}`))}function K(e){const t=document.documentElement;e==="light"||e==="dark"?(t.dataset.theme=e,t.style.colorScheme=e,B=!0):B&&(delete t.dataset.theme,t.style.colorScheme="",B=!1)}var R=new Map;function ye(){let e;const t={u:new Promise(n=>{e=n}),r:n=>{t.done=!0,e(n)},done:!1,nulled:!1};return t}var ge=Object.freeze(Object.assign(Object.create(null),{call:Function.prototype.call,apply:Function.prototype.apply,bind:Function.prototype.bind})),W=(e,t)=>{const n=R.get(e);if(!n||n.done){n?.nulled&&w&&parent.postMessage({__frame_cap_telemetry:{kind:"cap-load-error",cap:e}},w);return}const s=typeof t=="function"?Object.setPrototypeOf(t,ge):Object.assign(Object.create(null),t);typeof s.then=="function"&&delete s.then,n.r(Object.freeze(s))},U=Object.getOwnPropertyDescriptor(window,"claude");if(window!==top&&!(U&&U.writable===!1)){const e=j&&L.test(j)?T(j).catch(()=>{}):Promise.resolve(void 0),t=r=>{if(r.type==="auxclick"&&r.button!==1)return;const p=r.target,i=p&&p.closest?p.closest("a[href],area[href]"):null;if(!i)return;const d=i.getAttribute("href");if(!d)return;let u,h;try{u=new URL(d,document.baseURI),h=new URL(document.baseURI).origin}catch{return}if((u.protocol==="http:"||u.protocol==="https:")&&u.origin!==h){r.preventDefault();const _=(i.getAttribute("target")??"").toLowerCase(),C=r.type==="auxclick"||r.metaKey||r.ctrlKey||r.shiftKey||r.altKey||!["","_self","_top","_parent"].includes(_);parent.postMessage({__frame_nav:!0,url:u.href,newTab:C},"*")}};addEventListener("click",t,!0),addEventListener("auxclick",t,!0);const n={},s=r=>{r.isTrusted&&(n.pointer=!0)},o=r=>{r.isTrusted&&(n.click=!0)};addEventListener("pointermove",s,{capture:!0,passive:!0}),addEventListener("click",o,{capture:!0,passive:!0}),e.then(r=>{r?.wireNav&&(r.wireNav(),removeEventListener("click",t,!0),removeEventListener("auxclick",t,!0),removeEventListener("pointermove",s,!0),removeEventListener("click",o,!0),r.wireEngagement?.(n))});let l=null;try{l=de()}catch{}const c=U?.value??{};q(window,"claude",c);for(const r of Object.keys(M)){if(c[r]!==void 0){q(c,r,c[r]);continue}R.set(r,ye())}if(c.use===void 0){const r=p=>{if(typeof p!="string"||!Object.hasOwn(M,p))return Promise.resolve(null);const i=R.get(p);return i?i.u:Promise.resolve(c[p]??null)};try{Object.defineProperty(c,"use",{value:r,writable:!0,configurable:!0,enumerable:!1})}catch{}}let f=null,S=null,v=0;const b=r=>{r.source!==parent||!F(r.origin)||oe(r.data)&&(f=r.data.__frame_init,w=r.origin,removeEventListener("message",b),clearTimeout(v),S?.())};addEventListener("message",b),parent.postMessage({__frame_connect:!0},"*");const m=new Promise(r=>{S=r,v=setTimeout(()=>{removeEventListener("message",b),r()},he)}),y=document.readyState==="loading"?new Promise(r=>document.addEventListener("DOMContentLoaded",()=>r(),{once:!0})):Promise.resolve();y.then(()=>{try{l?.restore()}catch{}});const g={cb:null},E=r=>{if(!(r.source!==parent||!F(r.origin))&&ie(r.data)){try{l?.promoted()}catch{}g.cb?.()}};addEventListener("message",E),m.then(async()=>{if(!f||!w){for(const a of R.values())a.nulled=!0,a.r(null);return}K(f.theme);const r=w;let p=!1,i=!1;addEventListener("message",a=>{if(a.source!==parent||a.origin!==r)return;le(a.data)&&K(a.data.__frame_theme.theme),ae(a.data)&&ve(a.data.__frame_patch,r);const k=a.data?.__fc_mode;k&&typeof k=="object"&&!p&&N&&L.test(N)&&(p=!0,T(N).then(x=>x.install?.(r,k.on===!0)).catch(()=>{}));const A=a.data?.__ft_cmd;A&&typeof A=="object"&&!i&&I&&L.test(I)&&(i=!0,T(I).then(x=>x.install?.(r,A)).catch(()=>{}))});const d=Object.keys(f.capabilities??{}).filter(a=>Object.hasOwn(M,a)).map(a=>[a,M[a]]).filter(a=>typeof a[1]=="string"&&L.test(a[1])),u=await Promise.allSettled(d.map(([,a])=>T(a))),h=await e,_=w;if(h?.buildBoot||parent.postMessage({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},_),h?.buildBoot)try{P=h.buildBoot(f,h.TRANSFORMS??{},{shellOrigin:_,mount:W},a=>parent.postMessage({__frame_cap_telemetry:a},_))}catch{parent.postMessage({__frame_cap_telemetry:{kind:"cap-load-error",cap:"_transforms"}},_),P=z(f,_)}else P=z(f,_);const C=a=>parent.postMessage({__frame_cap_telemetry:{kind:"cap-load-error",cap:a}},_),we=P;u.forEach((a,k)=>{const A=d[k][0];if(a.status!=="fulfilled"){C(A);return}try{a.value?.install?.(we)}catch{C(A)}});for(const a of R.values())a.done||(a.nulled=!0,a.r(null));await y,parent.postMessage({__frame_ready:!0},w),e.then(a=>a?.installSizeReporter?.(_,g))})}})();</script><!-- /frame-runtime --><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}</style></head><body>
+<title>volume-widget — guard synthesis</title>
+<style>
+  :root {
+    --page: #0e0f12; --surface: #17181c; --surface-2: #202126; --line: #2d2f36;
+    --text: #f4f2ed; --muted: #a5a29a; --faint: #77746d;
+    --danger: #ff5b52; --active: #407de2; --busy: #ffb340; --safe: #48d76b;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --page: #f5f4ef; --surface: #fff; --surface-2: #f0efeb; --line: #dbd9d2; --text: #181816; --muted: #65625c; --faint: #8d8981; --danger: #d92d28; --active: #1467d8; --busy: #9b5a00; --safe: #16853a; }
+  }
+  :root[data-theme="dark"] { --page: #0e0f12; --surface: #17181c; --surface-2: #202126; --line: #2d2f36; --text: #f4f2ed; --muted: #a5a29a; --faint: #77746d; --danger: #ff5b52; --active: #407de2; --busy: #ffb340; --safe: #48d76b; }
+  :root[data-theme="light"] { --page: #f5f4ef; --surface: #fff; --surface-2: #f0efeb; --line: #dbd9d2; --text: #181816; --muted: #65625c; --faint: #8d8981; --danger: #d92d28; --active: #1467d8; --busy: #9b5a00; --safe: #16853a; }
+
+  * { box-sizing: border-box; }
+  body { margin: 0 auto; max-width: 1000px; padding: 56px 24px 96px; background: var(--page); color: var(--text); font: 15px/1.55 var(--system); }
+  h1 { margin: 0 0 10px; font-size: clamp(28px, 5vw, 40px); line-height: 1.05; letter-spacing: -.035em; text-wrap: balance; }
+  h2 { margin: 0 0 8px; font-size: 21px; letter-spacing: -.02em; }
+  h3 { margin: 0 0 5px; font-size: 15px; }
+  .eyebrow { margin: 0 0 10px; color: var(--danger); font: 600 11px/1.2 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+  .lede { max-width: 66ch; color: var(--muted); font-size: 16.5px; margin: 0; }
+  .lede strong { color: var(--text); }
+  section { margin-top: 60px; }
+
+  .state-picker { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .state-picker button {
+    min-height: 34px; padding: 6px 13px; border: 1px solid var(--line); border-radius: 999px;
+    color: var(--muted); background: transparent; cursor: pointer; font: inherit; font-size: 13.5px;
+  }
+  .state-picker button:hover { color: var(--text); background: var(--surface-2); }
+  .state-picker button[aria-pressed="true"] { color: var(--text); border-color: var(--faint); background: var(--surface-2); }
+  .state-picker button:focus-visible { outline: 2px solid var(--active); outline-offset: 2px; }
+  .style-picker { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; align-items: center; }
+  .style-picker .lbl { font: 600 10.5px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-right: 4px; }
+  .style-picker button { min-height: 28px; padding: 4px 11px; font-size: 12.5px; }
+
+  .demo-grid { display: grid; grid-template-columns: minmax(320px, 1.05fr) minmax(260px, .95fr); gap: 20px; align-items: start; }
+  @media (max-width: 720px) { .demo-grid { grid-template-columns: 1fr; } }
+  .preview-shell { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: #1c1d21; }
+
+  .menubar {
+    display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+    height: 36px; padding: 0 12px; border: 1px solid #45464b; border-radius: 9px;
+    color: #a6a7ab; background: #2b2c31; box-shadow: 0 2px 8px #0005; font-size: 13px;
+  }
+  .status-chip { display: inline-flex; align-items: center; gap: 6px; color: var(--state-color); font-weight: 650; font-size: 12px; font-family: var(--mono); letter-spacing: .04em; }
+  .status-chip svg { width: 16px; height: 16px; }
+  .status-chip .route, .status-chip .pct, .status-chip .mbbar { display: none; }
+  .mbbar { width: 44px; height: 8px; border-radius: 4px; background: #ffffff2a; overflow: hidden; }
+  .mbbar > i { display: block; height: 100%; border-radius: 4px; background: var(--state-color); }
+  .mbbar.dim > i { background: #8a8b90; }
+  .mb-route .status-chip .route { display: inline; }
+  .mb-bar .status-chip .mbbar { display: block; }
+  .mb-bar-route .status-chip .mbbar { display: block; }
+  .mb-bar-route .status-chip .route { display: inline; }
+  .mb-pct .status-chip .pct { display: inline; }
+
+  .menu {
+    width: min(100%, 330px); margin: 12px 0 0 auto; padding: 7px;
+    border: 1px solid #4a4b51; border-radius: 12px;
+    color: #f2f2f3; background: #292a2f; box-shadow: 0 18px 44px #0009; font-size: 13px;
+  }
+  .menu-head { padding: 9px 11px 8px; }
+  .menu-device { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; }
+  .state-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--head-color, var(--state-color)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--head-color, var(--state-color)) 18%, transparent); }
+  .menu-status { margin-top: 2px; color: #afb0b4; font-size: 12px; }
+  .menu-status strong { color: var(--head-color, var(--state-color)); font-weight: 650; }
+  .divider { height: 1px; margin: 5px 8px; background: #4a4b50; }
+  .menu-item { display: flex; align-items: center; justify-content: space-between; min-height: 30px; padding: 5px 10px; border-radius: 7px; }
+  .menu-item.primary { color: #fff; background: #3477dd; }
+  .menu-item .key { color: #afb0b4; }
+  .menu-item.primary .key { color: #dce9ff; }
+
+  /* device rows */
+  .device-list { display: grid; gap: 3px; padding: 2px 0; }
+  .device-row {
+    display: grid; grid-template-columns: 38px minmax(0,1fr) 28px;
+    gap: 10px; align-items: center;
+    padding: 8px 9px; border: 1px solid transparent; border-radius: 9px;
+    position: relative; overflow: hidden;
+  }
+  .device-row.active { background: var(--active); }
+  .device-row.locked { border: 1px dashed #6f7076; }
+  .device-row.locked.active { border-color: #ffffff88; }
+  /* dash marks a mute-lock; the shield policy alone never dashes the active row */
+  .device-row.fallback { border: 1px dashed #b77a27; background: #3b2c18; }
+  .device-row.missing { background: #2b1718; }
+  .device-row.locked.missing { border-color: #a63c37; }
+  .device-row.away { opacity: .45; }
+  .disc {
+    width: 34px; height: 34px;
+    display: flex; align-items: center; justify-content: center; position: relative;
+  }
+  .disc svg { width: 26px; height: 26px; color: #d5d5d8; }
+  .device-row.active .disc svg { color: #fff; }
+  .device-row.fallback .disc svg { color: var(--busy); }
+  .device-row.missing .disc svg { color: var(--danger); }
+  .badge2 {
+    position: absolute; right: -2px; bottom: -1px; width: 14px; height: 14px; border-radius: 50%;
+    background: #2f6fe4; display: flex; align-items: center; justify-content: center; border: 2px solid #292a2f;
+  }
+  .badge2.usb { background: #5b5c62; }
+  .badge2 svg { width: 8px !important; height: 8px !important; color: #fff !important; }
+  .device-row.active .badge2 { border-color: var(--active); }
+  .device-main { min-width: 0; }
+  .device-title { display: flex; align-items: center; justify-content: flex-start; gap: 6px; }
+  .device-title .tport { flex-shrink: 0; }
+  .device-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: #f2f2f3; }
+  .device-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: 2px; color: #a8a9ae; font-size: 10.5px; min-height: 13px; }
+  .device-row.active .device-name { color: #fff; }
+  .device-row.active .device-meta { color: #e1ebff; }
+  .device-meta.warn, .health.warn { color: #ff8b84; }
+  .device-meta .mute-ic { width: 12px; height: 12px; display: block; }
+  .device-meta .pct { font-variant-numeric: tabular-nums; }
+  .device-meta .spec { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .device-meta .sep { opacity: .6; }
+  .tport {
+    padding: 0.5px 5px; border: 1px solid #55565b; border-radius: 999px;
+    font: 600 8.5px/1.5 var(--mono); letter-spacing: .05em; color: #9fa0a5; white-space: nowrap;
+  }
+  .device-row.active .tport { border-color: #ffffff66; color: #e1ebff; }
+  .policy {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: rgba(255,255,255,.10);
+    display: flex; align-items: center; justify-content: center; justify-self: end;
+  }
+  .policy svg { width: 13px; height: 13px; color: #9fa0a5; }
+  .policy.mute { background: #d9d9dc; }
+  .policy.mute svg { color: #1c1d21; }
+  .policy.shield { background: #2f6fe4; }
+  .policy.shield svg { color: #fff; }
+  .device-row.active .policy { background: #ffffff33; }
+  .device-row.active .policy.shield { background: #fff; }
+  .device-row.active .policy.shield svg { color: var(--active); }
+  .device-row.away .policy { background: rgba(255,255,255,.06); }
+  .meter-mini { display: inline-flex; align-items: end; gap: 2px; height: 10px; vertical-align: -1px; }
+  .meter-mini i { width: 2px; border-radius: 1px; background: currentColor; }
+  .meter-mini i:nth-child(1) { height: 35%; }
+  .meter-mini i:nth-child(2) { height: 70%; }
+  .meter-mini i:nth-child(3) { height: 50%; }
+  .meter-mini i:nth-child(4) { height: 90%; }
+  .vol-row { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+  .vol-row .vic { width: 11px; height: 11px; flex-shrink: 0; color: #8f9096; }
+  .vol-row .vic.muted { color: #c9c9cd; }
+  .device-row.active .vol-row .vic { color: #dce9ff; }
+  .vol-row .vbar { flex: 1; margin-top: 0; }
+  .vbar { display: block; height: 4px; border-radius: 2px; background: #4a4b50; overflow: hidden; }
+  .vbar > i { display: block; height: 100%; border-radius: 2px; background: #d9d9dc; }
+  .vbar.dim > i { background: #6a6b70; }
+  .device-row.active .vbar { background: #ffffff33; }
+  .device-row.active .vbar > i { background: #fff; }
+
+  .state-note { display: grid; gap: 12px; }
+  .note-card { padding: 17px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  .note-card p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .note-card b { color: var(--text); }
+</style>
+
+<p class="eyebrow">volume-widget · guard design + disk-widget discs</p>
+<h1>The guard design, with icons that earn their rows</h1>
+<p class="lede">Bare device glyphs (no disc), circular lock buttons on every row, dashed borders on locked devices, and a spec line: bit depth · sample rate, channels, transport pill. Five <strong>menu bar</strong> treatments to compare — pick one, then flip through the scenarios.</p>
+
+<section>
+  <p class="eyebrow">Interactive</p>
+  <h2>Menu bar style × scenario</h2>
+  <div class="style-picker" role="group" aria-label="Menu bar style">
+    <span class="lbl">Menu bar</span>
+    <button type="button" data-style="mb-route" aria-pressed="true">Icon + Route</button>
+    <button type="button" data-style="mb-icon" aria-pressed="false">Icon</button>
+    <button type="button" data-style="mb-bar" aria-pressed="false">Icon + Bar</button>
+    <button type="button" data-style="mb-bar-route" aria-pressed="false">Icon + Bar + Route</button>
+    <button type="button" data-style="mb-pct" aria-pressed="false">Icon + Percent</button>
+  </div>
+  <div class="state-picker" role="group" aria-label="Preview state">
+    <button type="button" data-state="ready" aria-pressed="true">Gig ready</button>
+    <button type="button" data-state="idle" aria-pressed="false">DJM idle</button>
+    <button type="button" data-state="missing" aria-pressed="false">DJM missing</button>
+    <button type="button" data-state="fallback" aria-pressed="false">Fallback caught</button>
+  </div>
+  <div class="demo-grid">
+    <div class="preview-shell mb-route" id="preview" style="--state-color: var(--active); --head-color: var(--safe);">
+      <div class="menubar"><span>⌥</span><span>Wi‑Fi</span><span>87%</span><span class="status-chip" id="status-chip"><svg viewBox="0 0 24 24"><path fill="currentColor" d="M11 5 6 9H3v6h3l5 4V5Z"></path><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span class="mbbar"><i style="width:100%"></i></span><span class="route">DJM</span><span class="pct">100%</span></span></div>
+      <div class="menu" id="menu">
+        <div class="menu-head">
+          <div class="menu-device"><span class="state-dot"></span><span>Audio outputs</span></div>
+          <div class="menu-status" id="menu-status"><strong>DJM is active</strong></div>
+        </div>
+        <div class="divider"></div>
+        <div class="device-list">
+          <!-- DJM -->
+          <div class="device-row active" id="device-djm">
+            <span class="disc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="12" rx="2"></rect><circle cx="8" cy="12" r="2.2"></circle><circle cx="16" cy="12" r="2.2"></circle></svg><span class="badge2 usb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 2v14M12 6l4 3M12 8 8 11M12 16l3 3M12 16l-3 3"></path></svg></span></span>
+            <span class="device-main">
+              <span class="device-title"><span class="device-name">DJM-900NXS2</span><span class="tport">USB 2.0</span></span>
+              <span class="device-meta" id="djm-meta"><span class="spec">24bit 48khz</span><span class="sep">–</span><span class="spec">12 in, 10 out</span><span class="meter-mini"><i></i><i></i><i></i><i></i></span></span>
+              <span class="vol-row"><svg class="vic" viewBox="0 0 24 24"><path fill="currentColor" d="M11 5 6 9H3v6h3l5 4V5Z"></path><path d="M15.5 8.5a5 5 0 0 1 0 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span class="vbar"><i style="width:100%"></i></span></span>
+            </span>
+            <span class="policy shield" title="Never mute — read-only"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3z"></path><path d="M9 12l2 2 4-4"></path></svg></span>
+          </div>
+          <!-- Speakers -->
+          <div class="device-row locked" id="device-speakers">
+            <span class="disc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="7" y="3" width="10" height="18" rx="2"></rect><circle cx="12" cy="15" r="3.2"></circle><circle cx="12" cy="7.5" r="1.2" fill="currentColor" stroke="none"></circle></svg></span>
+            <span class="device-main">
+              <span class="device-title"><span class="device-name">MacBook Pro Speakers</span></span>
+              <span class="device-meta" id="speakers-meta"><span class="spec">24bit 48khz</span><span class="sep">–</span><span class="spec">2 out</span></span>
+              <span class="vol-row"><svg class="vic muted" viewBox="0 0 24 24"><path fill="currentColor" d="M11 5 6 9H3v6h3l5 4V5Z"></path><path d="m16 9 6 6m0-6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span class="vbar dim"><i style="width:65%"></i></span></span>
+            </span>
+            <span class="policy mute" title="Always mute"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="2" fill="currentColor" stroke="none"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></span>
+          </div>
+          <!-- Headphones -->
+          <div class="device-row">
+            <span class="disc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 14v-2a8 8 0 0 1 16 0v2"></path><rect x="3" y="14" width="4" height="6" rx="1.5"></rect><rect x="17" y="14" width="4" height="6" rx="1.5"></rect></svg><span class="badge2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M7 7l10 10-5 5V2l5 5L7 17"></path></svg></span></span>
+            <span class="device-main">
+              <span class="device-title"><span class="device-name">WH-1000XM5</span><span class="tport">BT 5.2</span></span>
+              <span class="device-meta"><span class="spec">16bit 44.1khz</span><span class="sep">–</span><span class="spec">2 out</span></span>
+              <span class="vol-row"><svg class="vic" viewBox="0 0 24 24"><path fill="currentColor" d="M11 5 6 9H3v6h3l5 4V5Z"></path><path d="M15.5 8.5a5 5 0 0 1 0 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg><span class="vbar"><i style="width:40%"></i></span></span>
+            </span>
+            <span class="policy" title="Not locked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0"></path></svg></span>
+          </div>
+          <!-- AirPods away -->
+          <div class="device-row away">
+            <span class="disc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 13a6 6 0 0 1 12 0v3a2 2 0 0 1-2 2h-1v-5h3M6 13v5h3v-5H5"></path></svg><span class="badge2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M7 7l10 10-5 5V2l5 5L7 17"></path></svg></span></span>
+            <span class="device-main">
+              <span class="device-title"><span class="device-name">AirPods Pro</span></span>
+              <span class="device-meta">Not connected</span>
+            </span>
+            <span class="policy" title="Not locked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0"></path></svg></span>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="menu-item" id="primary-action" style="display: none;"><span></span><span class="key"></span></div>
+        <div class="menu-item"><span>Style</span><span class="key" id="style-key">Icon + Route ▸</span></div>
+        <div class="menu-item"><span>Open Sound Settings…</span><span></span></div>
+        <div class="menu-item"><span>Quit</span><span></span></div>
+      </div>
+    </div>
+    <div class="state-note">
+      <article class="note-card"><h3 id="note-title">The selected route owns the strongest cue.</h3><p id="note-copy">Blue row and white-ringed disc: the DJM is the output; the shield says the app never touches it. The speakers stay grey — mute glyph, padlock — and need no more attention than that.</p></article>
+      <article class="note-card"><h3 id="style-title">Menu bar · Icon + Route</h3><p id="style-copy">Speaker glyph plus a three-letter route tag (DJM / INT). For a DJ, where audio goes is the glanceable fact; colour carries state. Narrow, mono, unambiguous.</p></article>
+      <article class="note-card"><h3>The spec line</h3><p>The bus pill (<b>USB 2.0</b>, <b>BT 5.2</b> — nothing for built-in) sits inline after the device name. The meta line is format then channels — <b>24bit 48khz – 12 in, 10 out</b> — no glyphs, so nothing clashes with the mute speaker on the slider below. The <b>Style</b> menu item picks the tray icon style, mirroring the picker above.</p></article>
+      <article class="note-card"><h3>Mute lives on the slider</h3><p>Every volume bar starts with a small speaker — the anatomy of the macOS Sound slider. A <b>slashed speaker + dimmed bar</b> is mute; clicking that icon toggles it. It sits exactly where your eye goes to read the level, instead of hiding in the spec line.</p></article>
+      <article class="note-card"><h3>Locks</h3><p>Every row trails a <b>circular lock button</b> — the disk widget's eject anatomy. Open padlock on translucent grey = unlocked; filled white padlock = Always mute; blue shield = Never mute (read-only). A mute-locked device also gets a <b>dashed border</b>; the active output stays clean-edged unless it is itself locked.</p></article>
+    </div>
+  </div>
+</section>
+
+<script>
+  const speakerSvg = '<path fill="currentColor" d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
+  const mutedSvg = '<path fill="currentColor" d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="m16 9 6 6m0-6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
+  const chipSpeaker = '<svg viewBox="0 0 24 24">' + speakerSvg + '</svg>';
+  const chipMuted = '<svg viewBox="0 0 24 24">' + mutedSvg + '</svg>';
+  const chipWarning = '<svg viewBox="0 0 24 24"><path d="M12 3 22 20H2L12 3Z" fill="currentColor"/><path d="M12 8v6m0 3v.01" fill="none" stroke="#2b2c31" stroke-width="2" stroke-linecap="round"/></svg>';
+  const muteIc = '<svg class="mute-ic" viewBox="0 0 24 24">' + mutedSvg + '</svg>';
+  const meter = '<span class="meter-mini"><i></i><i></i><i></i><i></i></span>';
+  const tport = t => '<span class="tport">' + t + '</span>';
+  const spec = (fmt, chans) => '<span class="spec">' + fmt + '</span><span class="sep">–</span><span class="spec">' + chans + '</span>';
+  const djmSpec = spec('24bit 48khz', '12 in, 10 out');
+  const spSpec = spec('24bit 48khz', '2 out');
+  const states = {
+    ready: {
+      color: 'var(--active)', head: 'var(--safe)', chip: chipSpeaker, route: 'DJM', pct: '100%', bar: 100, barDim: false,
+      status: '<strong>DJM is active</strong>', action: '', primary: false,
+      djmActive: true, djmMissing: false, djmMeta: djmSpec + meter,
+      spFallback: false, spMeta: spSpec,
+      title: 'The selected route owns the strongest cue.', copy: 'Blue row and white-ringed disc: the DJM is the output; the shield says the app never touches it. The speakers stay grey — mute glyph, padlock — and need no more attention than that.'
+    },
+    idle: {
+      color: 'var(--active)', head: 'var(--safe)', chip: chipSpeaker, route: 'DJM', pct: '100%', bar: 100, barDim: false,
+      status: '<strong>DJM is active</strong>', action: '', primary: false,
+      djmActive: true, djmMissing: false, djmMeta: djmSpec,
+      spFallback: false, spMeta: spSpec,
+      title: 'Idle is not broken.', copy: 'Connected and selected, no client running I/O yet — normal before the DJ software starts. The only difference from Gig ready is that the signal bars are absent.'
+    },
+    missing: {
+      color: 'var(--danger)', chip: chipWarning, route: 'DJM', pct: '—', bar: 0, barDim: true,
+      status: '<strong>DJM missing</strong> · check USB and power', action: 'Open Sound Settings…', primary: true,
+      djmActive: false, djmMissing: true, djmMeta: '<span class="health warn">No connection</span>',
+      spFallback: false, spMeta: spSpec,
+      title: 'Absence is the headline.', copy: 'The DJM keeps its row — red ring, red tint — because a disappeared expected device is the most important fact. The padlock on the speakers confirms the fallback is still protected.'
+    },
+    fallback: {
+      color: 'var(--busy)', chip: chipMuted, route: 'INT', pct: '65%', bar: 65, barDim: true,
+      status: '<strong>Fallback caught</strong> · internal output muted', action: 'Open Sound Settings…', primary: true,
+      djmActive: false, djmMissing: true, djmMeta: '<span class="health warn">No connection</span>',
+      spFallback: true, spMeta: spSpec + '<span>· fallback</span>',
+      title: 'Failover is safe before the callback fires.', copy: 'macOS rerouted to the internal speakers — but they were already held muted, so the reroute cannot burst. Amber row, and the chip flips to INT so the changed route is visible from the bar.'
+    }
+  };
+  const styles = {
+    'mb-route': ['Icon + Route', 'Speaker glyph plus a three-letter route tag (DJM / INT). For a DJ, where audio goes is the glanceable fact; colour carries state. Narrow, mono, unambiguous.'],
+    'mb-icon': ['Icon', 'Glyph only, narrowest possible. Colour still says everything: blue = performance route active, red = it is missing, amber = fallback caught.'],
+    'mb-bar': ['Icon + Bar', 'The battery-widget look: glyph plus a pill bar showing the active output\'s volume setting. Bar tints with state colour; dims when the route is muted.'],
+    'mb-bar-route': ['Icon + Bar + Route', 'Everything: glyph, pill bar, and the route tag. Widest, but the whole story — device, level, state — in one glance.'],
+    'mb-pct': ['Icon + Percent', 'Glyph plus the active output\'s volume as a number. Same footprint as the battery widget\'s Icon and Text.']
+  };
+  const stateBtns = [...document.querySelectorAll('[data-state]')];
+  const styleBtns = [...document.querySelectorAll('[data-style]')];
+  const $ = id => document.getElementById(id);
+  function render(name) {
+    const s = states[name];
+    $('preview').style.setProperty('--state-color', s.color);
+    $('preview').style.setProperty('--head-color', s.head || s.color);
+    $('status-chip').innerHTML = s.chip
+      + '<span class="mbbar' + (s.barDim ? ' dim' : '') + '"><i style="width:' + s.bar + '%"></i></span>'
+      + '<span class="route">' + s.route + '</span>'
+      + '<span class="pct">' + s.pct + '</span>';
+    $('menu-status').innerHTML = s.status;
+    const action = $('primary-action');
+    action.style.display = s.action ? '' : 'none';
+    action.querySelector('span').textContent = s.action;
+    action.classList.toggle('primary', s.primary);
+    const djm = $('device-djm');
+    djm.classList.toggle('active', s.djmActive);
+    djm.classList.toggle('missing', s.djmMissing);
+    $('djm-meta').innerHTML = s.djmMeta;
+    $('djm-meta').classList.toggle('warn', s.djmMissing);
+    $('device-speakers').classList.toggle('fallback', s.spFallback);
+    $('speakers-meta').innerHTML = s.spMeta;
+    $('note-title').textContent = s.title;
+    $('note-copy').textContent = s.copy;
+    stateBtns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.state === name)));
+  }
+  function setStyle(cls) {
+    const m = $('preview');
+    Object.keys(styles).forEach(k => m.classList.remove(k));
+    m.classList.add(cls);
+    $('style-title').textContent = 'Menu bar · ' + styles[cls][0];
+    $('style-key').textContent = styles[cls][0] + ' ▸';
+    $('style-copy').textContent = styles[cls][1];
+    styleBtns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.style === cls)));
+  }
+  stateBtns.forEach(b => b.addEventListener('click', () => render(b.dataset.state)));
+  styleBtns.forEach(b => b.addEventListener('click', () => setStyle(b.dataset.style)));
+  render('ready'); setStyle('mb-route');
+</script>
+
+</body></html>

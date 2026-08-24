@@ -106,20 +106,25 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "Shortcuts" = "􀐟 "
 "SF Symbols" = "􂺷 "
 "Motherfucker: restart" = "􀼵 "
-"System Settings: displays" = "􀢹 "
-"System Settings: keyboard" = "􀇳 "
-"System Settings: wallpaper" = "􀵪 "
-"System Settings: wifi" = "􀙇 "
-"System Settings: bluetooth" = " 󰂯"
-"System Settings: privacy" = "􃇞 "
-"System Settings: login items" = "􁎕 "
-"System Settings: disk access" = "􁘥 "
-"System: lock" = "􀎠 "
-"System: shutdown" = "􀆨 "
-"System: restart" = "􀥣 "
 "Volume: mute" = "􀊣 "
-"Switchblade: downloads" = "􂶯 "
+"SwitchBlade" = "􂶯 "
 "Topaz Video" = "􃖦 "
+
+# Glyphs for [commands.<App Name>] subcommand rows: matched by the plain
+# subcommand label, same as any other override (case-insensitive, global —
+# not scoped to one app's command list). Carried over unchanged from the
+# old "App: subcommand" shortcut names these replaced.
+"displays" = "􀢹 "
+"keyboard" = "􀇳 "
+"wallpaper" = "􀵪 "
+"wifi" = "􀙇 "
+"bluetooth" = " 󰂯"
+"privacy" = "􃇞 "
+"login items" = "􁎕 "
+"disk access" = "􁘥 "
+"lock" = "􀎠 "
+"shutdown" = "􀆨 "
+# "restart" = "􀥣 "  # System: restart is disabled below
 
 # Custom entries matched like apps; selecting one runs the command via
 # `sh -c` (loaded once at startup — zero cost while typing). Only the
@@ -131,27 +136,43 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "M4.local: installers" = "open -j smb://m4.local/Tower/Installers"
 "M4.local: mount jobs" = "/Users/nom/.zsh/bin/kitty-launch -- open -j -g smb://m4.local/jobs & yazi /Volumes/jobs"
 "Yazi: M4.local: jobs" = "/Users/nom/.zsh/bin/kitty-launch -- open -j -g smb://m4.local/jobs ; yazi /Volumes/jobs"
-"SwitchBlade: downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Porn/Downloads"
-"SwitchBlade: drives" = "zsh --exec -- cd $HOME && $HOME/.cargo/bin/switchblade --fast-fullscreen /Volumes/*/Movies/Porn"
-"SwitchBlade: sorted local" = "$HOME/.zsh/bin/fd-media --sort-created . ~/Movies/Porn/Downloads | $HOME/.cargo/bin/switchblade --fast-fullscreen"
-"SwitchBlade: sorted all" = "$HOME/.zsh/bin/fd-media --sort-created | $HOME/.cargo/bin/switchblade --fast-fullscreen"
-"SwitchBlade: tower (index)" = "cat /Volumes/Tower/Movies/Porn/.index | $HOME/.cargo/bin/switchblade --fast-fullscreen"
-"SwitchBlade: tower (live)" = "$HOME/.cargo/bin/switchblade --fast-fullscreen /Volumes/Tower/Movies/Porn/Downloads"
-"System Settings: displays" = "open 'x-apple.systempreferences:com.apple.preference.displays'"
-"System Settings: keyboard" = "open 'x-apple.systempreferences:com.apple.Keyboard-Settings.extension'"
-"System Settings: wallpaper" = "open 'x-apple.systempreferences:com.apple.Wallpaper-Settings.extension'"
-"System Settings: wifi" = "open 'x-apple.systempreferences:com.apple.wifi-settings-extension'"
-"System Settings: bluetooth" = "open 'x-apple.systempreferences:com.apple.BluetoothSettings'"
-"System Settings: privacy" = "open 'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension'"
-"System Settings: login items" = "open 'x-apple.systempreferences:com.apple.LoginItems-Settings.extension'"
-"System Settings: disk access" = "open 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles'"
+"SwitchBlade" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Porn/Downloads"  # ⇥ for more
 "Volume: mute" = "osascript -e 'set volume with output muted'"
-"System: lock" = "open -a ScreenSaverEngine"
-"System: shutdown" = "osascript -e 'tell app \"System Events\" to shut down'"
-# "System: restart" = "osascript -e 'tell app \"System Events\" to restart'"
+"System" = "open -a ScreenSaverEngine"  # ⇥ for more (lock/shutdown)
 "Motherfucker: reload" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
-"Config: motherfucker" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config/motherfucker\" -- /bin/zsh -lc 'exec hx -- ~/.config/motherfucker/config.toml'"
-"Config: switchblade" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config\" -- /bin/zsh -lc 'exec hx -- ~/.config/switchblade.toml'"
+"Config" = "open ~/.config"  # ⇥ for more (motherfucker/switchblade)
+
+# Per-app subcommands: with a matching row selected (app, running app, or
+# [shortcuts] entry — matched case-insensitively by name), ⇥ lists these
+# instead of activating the row; enter runs one via `sh -c`, like a shortcut.
+# Backspace on an empty field leaves the list, like a sigil mode.
+[commands.SwitchBlade]
+"downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Porn/Downloads"
+"drives" = "zsh --exec -- cd $HOME && $HOME/.cargo/bin/switchblade --fast-fullscreen /Volumes/*/Movies/Porn"
+"sorted local" = "$HOME/.zsh/bin/fd-media --sort-created . ~/Movies/Porn/Downloads | $HOME/.cargo/bin/switchblade --fast-fullscreen"
+"sorted all" = "$HOME/.zsh/bin/fd-media --sort-created | $HOME/.cargo/bin/switchblade --fast-fullscreen"
+"tower (index)" = "cat /Volumes/Tower/Movies/Porn/.index | $HOME/.cargo/bin/switchblade --fast-fullscreen"
+"tower (live)" = "$HOME/.cargo/bin/switchblade --fast-fullscreen /Volumes/Tower/Movies/Porn/Downloads"
+
+# The real System Settings.app: enter opens it normally, ⇥ deep-links a pane.
+[commands.System Settings]
+"displays" = "open 'x-apple.systempreferences:com.apple.preference.displays'"
+"keyboard" = "open 'x-apple.systempreferences:com.apple.Keyboard-Settings.extension'"
+"wallpaper" = "open 'x-apple.systempreferences:com.apple.Wallpaper-Settings.extension'"
+"wifi" = "open 'x-apple.systempreferences:com.apple.wifi-settings-extension'"
+"bluetooth" = "open 'x-apple.systempreferences:com.apple.BluetoothSettings'"
+"privacy" = "open 'x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension'"
+"login items" = "open 'x-apple.systempreferences:com.apple.LoginItems-Settings.extension'"
+"disk access" = "open 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles'"
+
+[commands.System]
+"lock" = "open -a ScreenSaverEngine"
+"shutdown" = "osascript -e 'tell app \"System Events\" to shut down'"
+# "restart" = "osascript -e 'tell app \"System Events\" to restart'"
+
+[commands.Config]
+"motherfucker" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config/motherfucker\" -- /bin/zsh -lc 'exec hx -- ~/.config/motherfucker/config.toml'"
+"switchblade" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config\" -- /bin/zsh -lc 'exec hx -- ~/.config/switchblade.toml'"
 
 # Sigil modes: typing one of these as the FIRST character switches the
 # panel into that mode. The sigil is lifted into a colored box (not left in
