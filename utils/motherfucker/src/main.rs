@@ -1639,12 +1639,10 @@ impl Delegate {
             }
             12.0 + GLYPH_COL_W + 10.0
         } else {
-            // Leading state glyph column; `[icons.apps]` overrides win.
+            // Leading state glyph column; `[icons.apps]` overrides win
+            // (exact name match, or a `*pattern*` match against the name).
             let entry_lower = entry.name.to_lowercase();
-            let glyph_text = cfg
-                .icon_overrides
-                .iter()
-                .find_map(|(n, g)| (*n == entry_lower).then_some(g.as_str()))
+            let glyph_text = config::find_icon_override(&cfg.icon_overrides, &entry_lower)
                 .unwrap_or_else(|| state_glyph(entry, icons));
             let glyph_font = unsafe { NSFont::systemFontOfSize(GLYPH_PT) };
             // The icon carries visibility state through its brightness: an app

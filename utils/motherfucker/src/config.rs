@@ -243,7 +243,10 @@ pub struct Config {
     pub theme: Option<String>,
     pub icons: Icons,
     /// Per-name glyph overrides from `[icons.apps]`: (lowercased entry
-    /// name, glyph). Replaces the leading state glyph for matching rows.
+    /// name-or-pattern, glyph). Replaces the leading state glyph for
+    /// matching rows. A key may wrap itself in `*` (`*text*`, `*text`,
+    /// `text*`) to match anywhere in / the end of / the start of the entry
+    /// name instead of exactly — see `icon_override_matches`.
     pub icon_overrides: Vec<(String, String)>,
     /// `[shortcuts]`: (display name, shell command). Matched like apps;
     /// selecting one runs the command via `sh -c`.
@@ -790,6 +793,37 @@ fn apply_icon(icons: &mut Icons, key: &str, val: &str, line: &str) {
     *slot = val.to_string();
 }
 
+/// Whether an `[icons.apps]` key matches a (lowercased) entry name. A plain
+/// key matches exactly; wrapping it in `*` turns it into a substring match:
+/// `*text*` matches anywhere in the name, `*text` matches its end, `text*`
+/// matches its start. Lets one entry cover a whole family of rows, e.g.
+/// `"*downloads*" = "…"` for anything with "downloads" in the title.
+pub fn icon_override_matches(pattern: &str, name_lower: &str) -> bool {
+    let leading = pattern.starts_with('*');
+    let trailing = pattern.len() > 1 && pattern.ends_with('*');
+    match (leading, trailing) {
+        (true, true) => name_lower.contains(&pattern[1..pattern.len() - 1]),
+        (true, false) => name_lower.ends_with(&pattern[1..]),
+        (false, true) => name_lower.starts_with(&pattern[..pattern.len() - 1]),
+        (false, false) => name_lower == pattern,
+    }
+}
+
+/// The glyph for an entry name, if any `[icons.apps]` key matches it. Exact
+/// keys are tried first so a specific override always beats a broader
+/// pattern regardless of file order; pattern keys are tried only if no exact
+/// key matched.
+pub fn find_icon_override<'a>(
+    overrides: &'a [(String, String)],
+    name_lower: &str,
+) -> Option<&'a str> {
+    overrides
+        .iter()
+        .find(|(n, _)| n == name_lower)
+        .or_else(|| overrides.iter().find(|(n, _)| icon_override_matches(n, name_lower)))
+        .map(|(_, g)| g.as_str())
+}
+
 /// Drop a trailing `# comment`, respecting double-quoted strings (colors
 /// like "#aabbcc" live inside quotes).
 fn strip_comment(line: &str) -> &str {
@@ -964,6 +998,33 @@ interval = 2.0
             cfg.shortcuts,
             vec![("Movies".to_string(), "open -R ~/Movies".to_string())]
         );
+    }
+
+    #[test]
+    fn icon_override_pattern_matching() {
+        assert!(icon_override_matches("forklift", "forklift"));
+        assert!(!icon_override_matches("forklift", "forklift 2"));
+
+        assert!(icon_override_matches("*downloads*", "open downloads"));
+        assert!(icon_override_matches("*downloads*", "downloads"));
+        assert!(!icon_override_matches("*downloads*", "downloa"));
+
+        assert!(icon_override_matches("downloads*", "downloads folder"));
+        assert!(!icon_override_matches("downloads*", "open downloads"));
+
+        assert!(icon_override_matches("*downloads", "open downloads"));
+        assert!(!icon_override_matches("*downloads", "downloads folder"));
+    }
+
+    #[test]
+    fn icon_override_exact_beats_pattern() {
+        let overrides = vec![
+            ("*downloads*".to_string(), "pattern".to_string()),
+            ("my downloads".to_string(), "exact".to_string()),
+        ];
+        assert_eq!(find_icon_override(&overrides, "my downloads"), Some("exact"));
+        assert_eq!(find_icon_override(&overrides, "old downloads"), Some("pattern"));
+        assert_eq!(find_icon_override(&overrides, "nope"), None);
     }
 
     #[test]

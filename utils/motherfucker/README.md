@@ -63,7 +63,10 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   `utilities`/`system`/`applications`/`shortcut` (SF Symbol names for the
   tag pills).
 - `[icons.apps]` — `"App Name" = "glyph"` per-app overrides for the
-  row-state glyph (case-insensitive name match).
+  row-state glyph (case-insensitive name match). Wrap the key in `*` for a
+  substring match instead of exact — `"*downloads*" = "glyph"` matches any
+  entry with "downloads" in its title; `"downloads*"`/`"*downloads"` match
+  just the start/end. Exact keys always win over a pattern.
 - `[shortcuts]` — `"Name" = "shell command"` custom entries, matched like
   apps and run via `sh -c` on activation.
 - `[stats]` — `interval`, seconds between gauge refreshes while visible.
