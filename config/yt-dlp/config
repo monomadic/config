@@ -9,6 +9,8 @@
 --progress
 --console-title
 --trim-filenames 200
+--embed-subs
+--sub-langs "en.*,-live_chat"
 --paths "temp:~/.cache/yt-dlp-tmp"
 --paths "infojson:~/Library/Mobile Documents/com~apple~CloudDocs/Sync/JSON"
 --output "%(channel,uploader|Unknown Channel)s/%(title)s [%(id)s].%(ext)s"
