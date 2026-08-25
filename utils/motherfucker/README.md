@@ -11,7 +11,14 @@ Run the binary; it sits resident (a few MB, zero idle CPU) and waits for
 force-open (reopen event), `⌘R` to reveal in Finder, `⎋` or clicking away
 dismisses. Summoning with an empty query lists running apps — it's an app
 switcher by default. CPU/RAM gauges on running rows refresh every second
-while the panel is up.
+while the panel is up. Hold **⌘** to show a row-jump hint on each visible
+row — a running app gets the first letter of its name (`⌘F` for Finder;
+several running apps sharing a letter all show it, and repeated presses
+cycle through them one at a time), everything else gets the next free
+`⌘1`–`⌘9` in order. Pressing the hint opens that row directly (same as
+selecting it and pressing `↩`); the hints disappear the moment ⌘ is
+released. A hint never shadows a configured `[keys]` chord — `⌘R`/`⌘A`
+stay Reveal/Select All even if a visible row starts with R or A.
 
 Install: `setup/install/motherfucker.sh` — builds release, installs to
 `~/.bin`, and loads a LaunchAgent (`com.nom.motherfucker`) so it starts at
@@ -35,7 +42,11 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   then add `"cmd+space" = "launcher"`.
 - `[keys]` — in-panel bindings, `"chord" = "action"`. Actions: `open`,
   `launch-new`, `reveal`, `clear`, `dismiss`, `select-all`, `move-up`,
-  `move-down`; `"none"` unbinds a default.
+  `move-down`, `show-commands` (default `tab`; see `[commands.<App Name>]`
+  below); `"none"` unbinds a default. The `⌘`-held row-jump hints above
+  aren't configured here — they're computed live from whatever's on
+  screen — but any `cmd+<letter>` bound here always wins over a hint that
+  would otherwise land on the same letter.
 - `[style]` — `width`, `panel_background`/`panel_foreground`/`panel_opacity`/
   `panel_padding`/`panel_corner_radius`, `border`/`border_width` (panel
   stroke, default 0), `item_foreground`/`item_font_size`/
@@ -69,6 +80,23 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   just the start/end. Exact keys always win over a pattern.
 - `[shortcuts]` — `"Name" = "shell command"` custom entries, matched like
   apps and run via `sh -c` on activation.
+- **App commands** — every app row (installed or running) is `⇥`-able: it
+  lists **Open, Reveal, Info** when cold, or **Focus, Reveal, Info, Close,
+  Kill** when it's the one running (Open becomes Focus since it already is
+  one; Close sends a normal quit via `NSRunningApplication.terminate`, Kill
+  force-quits via `forceTerminate`). `↩` runs the highlighted one; `⎋`
+  dismisses the panel outright, backspace on an empty field steps back to
+  the launcher, like a sigil mode. A `[shortcuts]` entry has no bundle
+  behind it, so it's `⇥`-able only once it has commands of its own (below).
+- `[commands.<App Name>]` — `"label" = "shell command"` extras appended
+  after the built-ins above, matched case-insensitively by row name; `⇥`
+  on a plain `[shortcuts]` entry needs at least one of these to do anything.
+  Bind a different chord under `[keys]` with the `show-commands` action if
+  `⇥` doesn't suit. Example:
+  ```toml
+  [commands.Switchblade]
+  "downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Downloads"
+  ```
 - `[stats]` — `interval`, seconds between gauge refreshes while visible.
 - `[modes]` — sigil assignment for the first-character modes: `math = "="`,
   `web = "!"` (the defaults); `"none"` disables one. The sigil is lifted out

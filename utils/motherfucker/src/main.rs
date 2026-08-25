@@ -88,6 +88,10 @@ enum PanelMode {
     Launcher,
     /// Theme rows; moving the selection restyles the live panel.
     ThemePicker,
+    /// Subcommand rows for one app/shortcut (`[commands.<Name>]`), entered
+    /// via the `ShowCommands` chord (default Tab). The app name and its
+    /// commands live in `State::command_context`.
+    AppCommands,
 }
 
 struct Entry {
@@ -108,6 +112,137 @@ struct Entry {
     detail: Option<String>,
     /// Inline pill after the name (web mode: the shortcut prefix).
     tag: Option<String>,
+    /// `PanelMode::AppCommands` built-in row (Open/Focus/Reveal/Info/
+    /// Close/Kill): takes priority over `command`/`builtin` on activation,
+    /// so Enter always does what the row says regardless of the global
+    /// Open binding. `path`/`running` above are the *target* app's, not
+    /// this row's own (there is no bundle behind a command row).
+    app_action: Option<AppRowAction>,
+}
+
+/// Built-in `PanelMode::AppCommands` row actions. Not shell commands —
+/// each is a direct native call against the context app's `path`/`running`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum AppRowAction {
+    /// Launch an installed, non-running app (same as the default Enter
+    /// behavior on a cold app).
+    Open,
+    /// Activate a running app (same as the default Enter behavior on a
+    /// warm app) — labeled "Focus" instead of "Open" since it already is one.
+    Focus,
+    /// Reveal the bundle in Finder.
+    Reveal,
+    /// Finder's "Get Info" window.
+    Info,
+    /// Graceful quit (`NSRunningApplication.terminate`).
+    Close,
+    /// Force quit (`NSRunningApplication.forceTerminate`).
+    Kill,
+}
+
+/// The built-in rows for one app, in display order — running apps get
+/// Focus/Close/Kill instead of Open, everything else (Reveal, Info) is
+/// shared. Any `[commands.<Name>]` entries are appended after these.
+fn builtin_app_commands(running: bool) -> &'static [(&'static str, AppRowAction)] {
+    if running {
+        &[
+            ("Focus", AppRowAction::Focus),
+            ("Reveal", AppRowAction::Reveal),
+            ("Info", AppRowAction::Info),
+            ("Close", AppRowAction::Close),
+            ("Kill", AppRowAction::Kill),
+        ]
+    } else {
+        &[
+            ("Open", AppRowAction::Open),
+            ("Reveal", AppRowAction::Reveal),
+            ("Info", AppRowAction::Info),
+        ]
+    }
+}
+
+/// A live "cmd+_" row-jump hint, computed fresh from whatever's on screen
+/// (see `compute_row_hints`) — never stored in config, since which rows
+/// exist changes every keystroke. Digits are always unique per row; a
+/// letter can be shared by several running apps and cycles between them
+/// (see `Delegate::try_activate_hint`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum RowHint {
+    Digit(u8),
+    Letter(char),
+}
+
+/// `cmd+<letter>`-only chords already claimed by a configured `[keys]`
+/// bind (default or user override) — `compute_row_hints` skips these so a
+/// row-jump hint can never shadow e.g. cmd+r (Reveal) or cmd+a (Select
+/// All), even if a visible app happens to start with R or A.
+fn claimed_letters(binds: &[(config::Chord, Action)]) -> std::collections::HashSet<char> {
+    binds
+        .iter()
+        .filter_map(|(c, _)| {
+            let config::Key::Char(ch) = c.key else { return None };
+            (c.cmd && !c.ctrl && !c.opt && !c.shift && ch.is_ascii_alphabetic())
+                .then(|| ch.to_ascii_uppercase())
+        })
+        .collect()
+}
+
+/// One hint per row, aligned by index with the current entry list: running
+/// apps get the first letter of their name (skipping a non-letter lead
+/// character, e.g. "1Password" → 'P'), unless that letter is already
+/// claimed by a configured bind or another *earlier* running row already
+/// took it as a digit fallback — everything else fills the remaining
+/// cmd+1..cmd+9 slots in row order. Two+ running rows sharing a letter all
+/// get that same letter; there's no upper bound on how many can share one.
+fn compute_row_hints(entries: &[Entry], binds: &[(config::Chord, Action)]) -> Vec<Option<RowHint>> {
+    let claimed = claimed_letters(binds);
+    let mut hints: Vec<Option<RowHint>> = vec![None; entries.len()];
+    for (i, e) in entries.iter().enumerate() {
+        // Only a plain running-app row — never an AppCommands built-in row
+        // (those carry `app_action` and copy the context app's `running`
+        // onto Focus/Close/Kill too, which would otherwise also grab a
+        // letter meant for the app itself).
+        if e.running.is_none() || e.app_action.is_some() {
+            continue;
+        }
+        let Some(letter) =
+            e.name.chars().find(|c| c.is_ascii_alphabetic()).map(|c| c.to_ascii_uppercase())
+        else {
+            continue;
+        };
+        if claimed.contains(&letter) {
+            continue;
+        }
+        hints[i] = Some(RowHint::Letter(letter));
+    }
+    let mut digit = 1u8;
+    for hint in hints.iter_mut() {
+        if hint.is_some() {
+            continue;
+        }
+        if digit > 9 {
+            break;
+        }
+        *hint = Some(RowHint::Digit(digit));
+        digit += 1;
+    }
+    hints
+}
+
+/// What `PanelMode::AppCommands` is listing: the context app's identity
+/// (for `path`/`running` on built-in rows) plus its full row list — built-ins
+/// first, then any `[commands.<Name>]` shell extras.
+#[derive(Clone)]
+struct AppCommandContext {
+    path: Option<PathBuf>,
+    running: Option<Retained<NSRunningApplication>>,
+    commands: Vec<(String, AppCommand)>,
+}
+
+#[derive(Clone)]
+enum AppCommand {
+    Builtin(AppRowAction),
+    Shell(String),
 }
 
 struct RowStats {
@@ -184,6 +319,21 @@ struct State {
     glass_view: OnceCell<Retained<NSView>>,
     tint_view: OnceCell<Retained<NSView>>,
     entries: RefCell<Vec<Entry>>,
+    /// Set while `mode` is `AppCommands`: the context app and its row list,
+    /// so `refresh` can list them and backspace-to-exit knows there's
+    /// something to leave.
+    command_context: RefCell<Option<AppCommandContext>>,
+    /// Live Cmd-key state, tracked by a `flagsChanged` monitor — while true,
+    /// rows show their row-jump hint (see `build_hint_badge`).
+    cmd_held: Cell<bool>,
+    /// This relayout's hints, aligned by index with `entries` — computed by
+    /// `compute_row_hints` and read back by both rendering and
+    /// `try_activate_hint`, so the two never disagree about what's live.
+    row_hints: RefCell<Vec<Option<RowHint>>>,
+    /// Per-letter round-robin cursor for rows that share a hint letter
+    /// (`compute_row_hints`) — persists for the process lifetime, not just
+    /// one summon, so repeated cmd+<letter> presses actually advance.
+    letter_cycle: RefCell<std::collections::HashMap<char, usize>>,
     selected: Cell<usize>,
     top_y: Cell<f64>,
     hiding: Cell<bool>,
@@ -332,12 +482,18 @@ declare_class!(
                 self.hide();
                 true
             } else if command == sel!(deleteBackward:) {
-                // Backspace on an empty field leaves the sigil mode instead
-                // of doing nothing — the box "deletes" back to the launcher.
+                // Backspace on an empty field leaves the sigil mode or the
+                // app-commands picker instead of doing nothing — the box
+                // "deletes" back to the launcher.
                 if self.ivars().sigil.get().is_some() && self.query().is_empty() {
                     self.ivars().sigil.set(None);
                     self.ivars().selected.set(0);
                     self.refresh();
+                    true
+                } else if self.ivars().mode.get() == PanelMode::AppCommands
+                    && self.query().is_empty()
+                {
+                    self.exit_app_commands();
                     true
                 } else {
                     false
@@ -688,6 +844,33 @@ impl Delegate {
         // Monitor and block live for the process lifetime.
         std::mem::forget(block);
         std::mem::forget(monitor);
+
+        // Second monitor, Cmd only: toggles the "⌘1".."⌘9" row-jump hints
+        // (see `cmd_held`/`build_hint_badge`) live as the key goes up and
+        // down — a plain keyDown/keyUp pair doesn't fire for modifier-only
+        // presses, flagsChanged is the only event that does.
+        let flags_ptr = self as *const Delegate as usize;
+        let flags_block = block2::RcBlock::new(
+            move |event: std::ptr::NonNull<NSEvent>| -> *mut NSEvent {
+                let delegate = unsafe { &*(flags_ptr as *const Delegate) };
+                let held = unsafe { event.as_ref().modifierFlags() }
+                    .contains(NSEventModifierFlags::NSEventModifierFlagCommand);
+                let changed = delegate.ivars().cmd_held.replace(held) != held;
+                let visible = delegate.ivars().panel.get().is_some_and(|p| p.isVisible());
+                if changed && visible {
+                    delegate.relayout();
+                }
+                event.as_ptr()
+            },
+        );
+        let flags_monitor = unsafe {
+            NSEvent::addLocalMonitorForEventsMatchingMask_handler(
+                NSEventMask::FlagsChanged,
+                &flags_block,
+            )
+        };
+        std::mem::forget(flags_block);
+        std::mem::forget(flags_monitor);
     }
 
     /// Returns true if the event matched a configured binding and should be
@@ -717,13 +900,61 @@ impl Delegate {
                 && config::event_chars(chord.key) == chars)
                 .then_some(*action)
         });
-        match action {
-            Some(a) => {
-                self.perform(a);
-                true
-            }
-            None => false,
+        if let Some(a) = action {
+            self.perform(a);
+            return true;
         }
+        // No configured bind claimed this chord — try a live row-jump hint
+        // (cmd+1.."cmd+9"/cmd+<letter>, see `compute_row_hints`). Configured
+        // binds always win first, so cmd+r/cmd+a above can never be shadowed
+        // by a row that happens to start with R or A.
+        if cmd && !ctrl && !opt && !shift {
+            if let Some(ch) = chars.chars().next() {
+                return self.try_activate_hint(ch);
+            }
+        }
+        false
+    }
+
+    /// Activate whichever row currently shows the hint for `ch` (a digit or
+    /// a letter, already lowercased by the caller). Digits are always
+    /// unique per row; a letter shared by several running apps (see
+    /// `compute_row_hints`) cycles to the next one on each press, tracked
+    /// in `letter_cycle` for as long as the process runs.
+    fn try_activate_hint(&self, ch: char) -> bool {
+        let ivars = self.ivars();
+        let hints = ivars.row_hints.borrow().clone();
+        let target = if let Some(d) = ch.to_digit(10) {
+            (d != 0).then(|| RowHint::Digit(d as u8))
+        } else if ch.is_ascii_alphabetic() {
+            Some(RowHint::Letter(ch.to_ascii_uppercase()))
+        } else {
+            None
+        };
+        let Some(target) = target else {
+            return false;
+        };
+        let matches: Vec<usize> = hints
+            .iter()
+            .enumerate()
+            .filter(|(_, h)| **h == Some(target))
+            .map(|(i, _)| i)
+            .collect();
+        if matches.is_empty() {
+            return false;
+        }
+        let index = if let RowHint::Letter(c) = target {
+            let mut cycle = ivars.letter_cycle.borrow_mut();
+            let cursor = cycle.entry(c).or_insert(0);
+            let index = matches[*cursor % matches.len()];
+            *cursor = (*cursor + 1) % matches.len();
+            index
+        } else {
+            matches[0]
+        };
+        ivars.selected.set(index);
+        self.execute(false);
+        true
     }
 
     fn perform(&self, action: Action) {
@@ -756,7 +987,70 @@ impl Delegate {
             Action::MoveUp => self.move_selection(-1),
             Action::MoveDown => self.move_selection(1),
             Action::RefreshConfig => self.reload_config(),
+            Action::ShowCommands => self.enter_app_commands(),
         }
+    }
+
+    /// Enter `PanelMode::AppCommands` for the currently selected row. Any
+    /// real app — installed or running — is always tab-able: it gets
+    /// Open/Reveal/Info (cold) or Focus/Reveal/Info/Close/Kill (running),
+    /// plus any `[commands.<Name>]` extras appended by name (case-
+    /// insensitive). A `[shortcuts]` row has no bundle to act on, so it's
+    /// tab-able only when it has `[commands.<Name>]` extras of its own.
+    /// Mode rows and panel built-ins (theme picker, …) never are.
+    fn enter_app_commands(&self) {
+        let ivars = self.ivars();
+        if ivars.mode.get() != PanelMode::Launcher {
+            return;
+        }
+        let selected = {
+            let entries = ivars.entries.borrow();
+            entries.get(ivars.selected.get()).and_then(|e| {
+                (e.builtin.is_none()).then(|| {
+                    (e.name.clone(), e.path.clone(), e.running.clone(), e.command.is_some())
+                })
+            })
+        };
+        let Some((name, path, running, is_shortcut)) = selected else {
+            return;
+        };
+        let name_lower = name.to_lowercase();
+        let extras = ivars
+            .config
+            .borrow()
+            .app_commands
+            .iter()
+            .find(|(n, _)| *n == name_lower)
+            .map(|(_, cmds)| cmds.clone())
+            .unwrap_or_default();
+
+        let mut commands: Vec<(String, AppCommand)> = Vec::new();
+        if !is_shortcut {
+            for (label, action) in builtin_app_commands(running.is_some()) {
+                commands.push((label.to_string(), AppCommand::Builtin(*action)));
+            }
+        }
+        commands.extend(extras.into_iter().map(|(label, cmd)| (label, AppCommand::Shell(cmd))));
+        if commands.is_empty() {
+            return;
+        }
+
+        *ivars.command_context.borrow_mut() = Some(AppCommandContext { path, running, commands });
+        ivars.mode.set(PanelMode::AppCommands);
+        ivars.selected.set(0);
+        self.set_field_text("");
+        self.refresh();
+    }
+
+    /// Leave `PanelMode::AppCommands` back to the plain launcher, discarding
+    /// the subcommand context (mirrors how sigil mode backs out on an empty
+    /// field's backspace).
+    fn exit_app_commands(&self) {
+        let ivars = self.ivars();
+        ivars.mode.set(PanelMode::Launcher);
+        *ivars.command_context.borrow_mut() = None;
+        ivars.selected.set(0);
+        self.refresh();
     }
 
     /// Re-read the config file (and themes dir) and re-apply it live. Global
@@ -900,6 +1194,16 @@ impl Delegate {
         field.setStringValue(&NSString::from_str(""));
         ivars.selected.set(0);
         ivars.sigil.set(None);
+        ivars.mode.set(PanelMode::Launcher);
+        ivars.command_context.borrow_mut().take();
+        // Seed from the real current state: if the summon chord itself is
+        // held (e.g. the default cmd+space), our flagsChanged monitor never
+        // saw cmd go down — it wasn't key window yet — so without this the
+        // "⌘N" hints would stay hidden until cmd is released and re-pressed.
+        ivars.cmd_held.set(
+            unsafe { NSEvent::modifierFlags_class() }
+                .contains(NSEventModifierFlags::NSEventModifierFlagCommand),
+        );
 
         let vf = screen.visibleFrame();
         ivars.top_y.set(vf.origin.y + vf.size.height * 0.72);
@@ -949,6 +1253,10 @@ impl Delegate {
                 self.apply_live_style();
             }
         }
+        if ivars.mode.get() == PanelMode::AppCommands {
+            ivars.mode.set(PanelMode::Launcher);
+            ivars.command_context.borrow_mut().take();
+        }
         if let Some(timer) = ivars.stats_timer.borrow_mut().take() {
             let _: () = unsafe { msg_send![&*timer, invalidate] };
         }
@@ -976,6 +1284,10 @@ impl Delegate {
     fn refresh(&self) {
         if self.ivars().mode.get() == PanelMode::ThemePicker {
             self.refresh_theme_picker();
+            return;
+        }
+        if self.ivars().mode.get() == PanelMode::AppCommands {
+            self.refresh_app_commands();
             return;
         }
         let query = self.query();
@@ -1012,6 +1324,7 @@ impl Delegate {
                     builtin: Some(Builtin::ModeRow(r.action)),
                     detail: r.detail,
                     tag: r.tag,
+                    app_action: None,
                 })
                 .collect();
             entries.truncate(MAX_ROWS);
@@ -1057,6 +1370,7 @@ impl Delegate {
                             builtin: None,
                             detail: None,
                             tag: None,
+                            app_action: None,
                         },
                     ));
                 }
@@ -1079,6 +1393,7 @@ impl Delegate {
                             builtin: None,
                             detail: None,
                             tag: None,
+                            app_action: None,
                         },
                     ));
                 }
@@ -1103,6 +1418,7 @@ impl Delegate {
                             builtin: Some(Builtin::ThemePicker),
                             detail: None,
                             tag: None,
+                            app_action: None,
                         },
                     ));
                 }
@@ -1321,6 +1637,7 @@ impl Delegate {
                 builtin: Some(Builtin::ApplyTheme(name)),
                 detail: None,
                 tag: None,
+                app_action: None,
             });
         }
         // Unlike search results, the picker shows the whole set — MAX_ROWS
@@ -1333,6 +1650,61 @@ impl Delegate {
         *ivars.entries.borrow_mut() = entries;
         // Typing moves the selection, and the selection IS the preview.
         self.preview_selected_theme();
+        self.relayout();
+    }
+
+    /// Populate the panel with the active `command_context`'s rows, filtered
+    /// like everything else. Insertion order is preserved (not re-sorted by
+    /// score) so Open/Focus stays first — only the fuzzy filter thins the
+    /// list. Built-in rows carry the context's `path`/`running` so `execute`
+    /// can act on the target app directly; `[commands.<Name>]` extras carry
+    /// a plain shell `command`, same as a `[shortcuts]` row.
+    fn refresh_app_commands(&self) {
+        let ivars = self.ivars();
+        let query = self.query();
+        let context = ivars.command_context.borrow().clone();
+        let Some(context) = context else {
+            // Context lost somehow (e.g. a config reload mid-session); don't
+            // strand the panel in a mode with nothing to show.
+            ivars.mode.set(PanelMode::Launcher);
+            self.refresh();
+            return;
+        };
+        let mut entries: Vec<Entry> = Vec::new();
+        for (label, cmd) in &context.commands {
+            let matched = if query.is_empty() {
+                Vec::new()
+            } else {
+                match apps::match_positions(&query, label) {
+                    Some((_, m)) => m,
+                    None => continue,
+                }
+            };
+            let (path, running, command, app_action) = match cmd {
+                AppCommand::Builtin(action) => {
+                    (context.path.clone(), context.running.clone(), None, Some(*action))
+                }
+                AppCommand::Shell(sh) => (None, None, Some(sh.clone()), None),
+            };
+            entries.push(Entry {
+                name: label.clone(),
+                path,
+                running,
+                matched,
+                windows: 0,
+                stats: None,
+                command,
+                builtin: None,
+                detail: None,
+                tag: None,
+                app_action,
+            });
+        }
+        entries.truncate(MAX_ROWS);
+        if ivars.selected.get() >= entries.len() {
+            ivars.selected.set(entries.len().saturating_sub(1));
+        }
+        *ivars.entries.borrow_mut() = entries;
         self.relayout();
     }
 
@@ -1427,6 +1799,10 @@ impl Delegate {
         };
 
         let entries = ivars.entries.borrow();
+        // Recomputed every relayout (cheap — at most a handful of rows), so
+        // it's never stale relative to what's about to be drawn, and the
+        // key handler reads the exact same values back.
+        *ivars.row_hints.borrow_mut() = compute_row_hints(&entries, &ivars.config.borrow().binds);
         let n = entries.len();
         let pad = ivars.config.borrow().style.panel_padding;
         let rows_h = if n > 0 {
@@ -1741,6 +2117,17 @@ impl Delegate {
             row.addSubview(&label);
         }
 
+        // Cmd-held row-jump hint ("⌘F" for a running app, "⌘N" otherwise —
+        // see `compute_row_hints`/`try_activate_hint`). Added last so it
+        // sits above any other right-edge content (running dot, CPU badge,
+        // tag pill, detail) while it's showing, since it's a transient
+        // overlay, not fixed row content.
+        if self.ivars().cmd_held.get() {
+            if let Some(hint) = self.ivars().row_hints.borrow().get(index).copied().flatten() {
+                self.build_hint_badge(mtm, &row, row_w, hint);
+            }
+        }
+
         parent.addSubview(&row);
     }
 
@@ -1838,6 +2225,47 @@ impl Delegate {
         label.setFrameOrigin(NSPoint::new(x, (pill_h - label_size.height) / 2.0));
         pill.addSubview(&label);
         row.addSubview(&pill);
+    }
+
+    /// Right-edge "⌘F"/"⌘N" badge for one row, shown only while Cmd is
+    /// held. Same colored-box treatment as the sigil badge
+    /// (`sigil_background`/`sigil_foreground`, falling back to
+    /// `item_foreground_highlight`/`panel_background`) so it reads as a key
+    /// hint rather than another status pill.
+    unsafe fn build_hint_badge(&self, mtm: MainThreadMarker, row: &NSView, row_w: f64, hint: RowHint) {
+        let cfg = self.ivars().config.borrow();
+        let style = &cfg.style;
+        let bg = style.sigil_background.unwrap_or(style.item_foreground_highlight);
+        let fg = style.sigil_foreground.unwrap_or(style.panel_background);
+
+        let text = match hint {
+            RowHint::Digit(n) => format!("⌘{n}"),
+            RowHint::Letter(c) => format!("⌘{c}"),
+        };
+        let font = unsafe { NSFont::systemFontOfSize(10.5) };
+        let label = make_label(mtm, &text, &font, &rgba(fg, 1.0));
+        let label_size = label.frame().size;
+
+        let pad_h = 6.0;
+        let badge_h = 17.0;
+        let badge_w = label_size.width + 2.0 * pad_h;
+        let badge = unsafe {
+            NSView::initWithFrame(
+                mtm.alloc(),
+                NSRect::new(
+                    NSPoint::new(row_w - 12.0 - badge_w, (ROW_H - badge_h) / 2.0),
+                    NSSize::new(badge_w, badge_h),
+                ),
+            )
+        };
+        badge.setWantsLayer(true);
+        if let Some(layer) = badge.layer() {
+            layer.setCornerRadius(badge_h / 2.0);
+            set_layer_bg(&layer, &rgba(bg, 1.0));
+        }
+        label.setFrameOrigin(NSPoint::new(pad_h, (badge_h - label_size.height) / 2.0));
+        badge.addSubview(&label);
+        row.addSubview(&badge);
     }
 
     /// A small filled dot with its right edge at `right_x`, vertically
@@ -1994,10 +2422,75 @@ impl Delegate {
         row.addSubview(&pill);
     }
 
+    /// Run a `PanelMode::AppCommands` built-in row against the context
+    /// app's `path`/`running` — carried on the selected row exactly like a
+    /// normal app row, so this reuses the same resolution as `execute`.
+    fn perform_app_action(&self, action: AppRowAction) {
+        let entry_data = {
+            let entries = self.ivars().entries.borrow();
+            let Some(entry) = entries.get(self.ivars().selected.get()) else {
+                return;
+            };
+            (entry.path.clone(), entry.running.clone())
+        };
+        self.hide();
+        let (path, running) = entry_data;
+        match action {
+            AppRowAction::Open => {
+                if let Some(p) = resolved_bundle_path(&path, &running) {
+                    open_app_at_path(&p);
+                } else if let Some(app) = &running {
+                    unsafe {
+                        app.activateWithOptions(
+                            NSApplicationActivationOptions::NSApplicationActivateIgnoringOtherApps,
+                        );
+                    }
+                }
+            }
+            AppRowAction::Focus => {
+                if let Some(app) = &running {
+                    unsafe {
+                        app.activateWithOptions(
+                            NSApplicationActivationOptions::NSApplicationActivateIgnoringOtherApps,
+                        );
+                    }
+                }
+            }
+            AppRowAction::Reveal => {
+                if let Some(p) = resolved_bundle_path(&path, &running) {
+                    reveal_bundle_in_finder(&p);
+                }
+            }
+            AppRowAction::Info => {
+                if let Some(p) = resolved_bundle_path(&path, &running) {
+                    show_finder_info(&p);
+                }
+            }
+            AppRowAction::Close => {
+                if let Some(app) = &running {
+                    let _: bool = unsafe { app.terminate() };
+                }
+            }
+            AppRowAction::Kill => {
+                if let Some(app) = &running {
+                    let _: bool = unsafe { app.forceTerminate() };
+                }
+            }
+        }
+    }
+
     /// Activate the selected running app, or launch it. `force_open` skips
     /// the activate path and sends a real open (reopen event) even when the
     /// app is already running.
     fn execute(&self, force_open: bool) {
+        let app_action = {
+            let entries = self.ivars().entries.borrow();
+            entries.get(self.ivars().selected.get()).and_then(|e| e.app_action)
+        };
+        if let Some(action) = app_action {
+            self.perform_app_action(action);
+            return;
+        }
         let builtin = {
             let entries = self.ivars().entries.borrow();
             entries
@@ -2052,21 +2545,9 @@ impl Delegate {
                 return;
             }
         }
-        let launch_path = path.or_else(|| {
-            running
-                .as_ref()
-                .and_then(|a| unsafe { a.bundleURL() })
-                .and_then(|u| unsafe { u.path() }.map(|p| PathBuf::from(p.to_string())))
-        });
+        let launch_path = resolved_bundle_path(&path, &running);
         if let Some(p) = launch_path {
-            if let Some(s) = p.to_str() {
-                let url = unsafe { NSURL::fileURLWithPath(&NSString::from_str(s)) };
-                let config = unsafe { NSWorkspaceOpenConfiguration::configuration() };
-                unsafe {
-                    NSWorkspace::sharedWorkspace()
-                        .openApplicationAtURL_configuration_completionHandler(&url, &config, None);
-                }
-            }
+            open_app_at_path(&p);
         } else if let Some(app) = &running {
             // No bundle path available; best effort.
             unsafe {
@@ -2089,22 +2570,67 @@ impl Delegate {
         self.hide();
 
         let (path, running) = entry_data;
-        let reveal_path = path.or_else(|| {
-            running
-                .as_ref()
-                .and_then(|a| unsafe { a.bundleURL() })
-                .and_then(|u| unsafe { u.path() }.map(|p| PathBuf::from(p.to_string())))
-        });
-        let Some(s) = reveal_path.as_ref().and_then(|p| p.to_str()) else {
-            return;
-        };
-        unsafe {
-            let url = NSURL::fileURLWithPath(&NSString::from_str(s));
-            let urls = objc2_foundation::NSArray::from_vec(vec![url]);
-            let ws = NSWorkspace::sharedWorkspace();
-            let _: () = msg_send![&*ws, activateFileViewerSelectingURLs: &*urls];
+        if let Some(p) = resolved_bundle_path(&path, &running) {
+            reveal_bundle_in_finder(&p);
         }
     }
+}
+
+/// An entry's bundle path, falling back to a running app's own `bundleURL`
+/// when it has no `path` of its own (running-app entries never carry one —
+/// see `running_apps_impl`). Shared by `execute`, `reveal`, and every
+/// `AppRowAction` that needs a bundle to act on.
+fn resolved_bundle_path(
+    path: &Option<PathBuf>,
+    running: &Option<Retained<NSRunningApplication>>,
+) -> Option<PathBuf> {
+    path.clone().or_else(|| {
+        running
+            .as_ref()
+            .and_then(|a| unsafe { a.bundleURL() })
+            .and_then(|u| unsafe { u.path() }.map(|p| PathBuf::from(p.to_string())))
+    })
+}
+
+/// Launch (or bring forward) the app bundle at `path` via `NSWorkspace`.
+fn open_app_at_path(path: &std::path::Path) {
+    let Some(s) = path.to_str() else {
+        return;
+    };
+    let url = unsafe { NSURL::fileURLWithPath(&NSString::from_str(s)) };
+    let config = unsafe { NSWorkspaceOpenConfiguration::configuration() };
+    unsafe {
+        NSWorkspace::sharedWorkspace()
+            .openApplicationAtURL_configuration_completionHandler(&url, &config, None);
+    }
+}
+
+/// Reveal the bundle at `path` in Finder (like `open --reveal`).
+fn reveal_bundle_in_finder(path: &std::path::Path) {
+    let Some(s) = path.to_str() else {
+        return;
+    };
+    unsafe {
+        let url = NSURL::fileURLWithPath(&NSString::from_str(s));
+        let urls = objc2_foundation::NSArray::from_vec(vec![url]);
+        let ws = NSWorkspace::sharedWorkspace();
+        let _: () = msg_send![&*ws, activateFileViewerSelectingURLs: &*urls];
+    }
+}
+
+/// Open Finder's "Get Info" window for the bundle at `path`. AppKit has no
+/// direct API for this — it's a Finder UI action — so it goes through
+/// AppleScript, same as the `[shortcuts]` entries that already shell out to
+/// `osascript` for System Settings panes and the like.
+fn show_finder_info(path: &std::path::Path) {
+    let Some(s) = path.to_str() else {
+        return;
+    };
+    let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
+    let script = format!(
+        "tell application \"Finder\" to open information window of (POSIX file \"{escaped}\" as alias)"
+    );
+    let _ = std::process::Command::new("/usr/bin/osascript").arg("-e").arg(script).spawn();
 }
 
 /// Copy via pbcopy: keeps NSPasteboard out of the binding surface, and the
@@ -2215,6 +2741,7 @@ unsafe fn running_apps_impl() -> Vec<Entry> {
             builtin: None,
             detail: None,
             tag: None,
+            app_action: None,
         });
     }
     out

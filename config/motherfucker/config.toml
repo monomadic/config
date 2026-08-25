@@ -143,6 +143,7 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 
 [commands.Motherfucker]
 "Reload" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
+"Config" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config/motherfucker\" -- /bin/zsh -lc 'exec hx -- ~/.config/motherfucker/config.toml'"
 
 [commands.m4.local]
 "Mount Tower" = "open -j smb://m4.local/Tower"
@@ -179,8 +180,9 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "shutdown" = "osascript -e 'tell app \"System Events\" to shut down'"
 # "restart" = "osascript -e 'tell app \"System Events\" to restart'"
 
-[commands.Motherfucker]
-"Config" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config/motherfucker\" -- /bin/zsh -lc 'exec hx -- ~/.config/motherfucker/config.toml'"
+[commands.Config]
+"motherfucker" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config/motherfucker\" -- /bin/zsh -lc 'exec hx -- ~/.config/motherfucker/config.toml'"
+"switchblade" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config\" -- /bin/zsh -lc 'exec hx -- ~/.config/switchblade.toml'"
 
 # Sigil modes: typing one of these as the FIRST character switches the
 # panel into that mode. The sigil is lifted into a colored box (not left in

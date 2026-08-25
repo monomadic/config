@@ -60,6 +60,8 @@ pub enum Action {
     MoveUp,
     MoveDown,
     RefreshConfig,
+    /// Enter the selected row's `[commands.<Name>]` subcommand list, if any.
+    ShowCommands,
 }
 
 #[derive(Clone)]
@@ -251,6 +253,11 @@ pub struct Config {
     /// `[shortcuts]`: (display name, shell command). Matched like apps;
     /// selecting one runs the command via `sh -c`.
     pub shortcuts: Vec<(String, String)>,
+    /// `[commands.<App Name>]` sections: (lowercased app/shortcut name,
+    /// subcommands as (display name, shell command)). Pressing the
+    /// `ShowCommands` chord (default Tab) on a matching row lists these;
+    /// selecting one runs the command via `sh -c`, same as `[shortcuts]`.
+    pub app_commands: Vec<(String, Vec<(String, String)>)>,
     /// Seconds between stat refreshes while the panel is up.
     pub stats_interval: f64,
     /// `[modes.<name>]` `sigil`: typing one as the FIRST character switches
@@ -312,6 +319,7 @@ impl Default for Config {
             icons: Icons::default(),
             icon_overrides: Vec::new(),
             shortcuts: Vec::new(),
+            app_commands: Vec::new(),
             stats_interval: 1.0,
             sigil_math: Some('='),
             sigil_web: Some('!'),
@@ -376,7 +384,13 @@ fn default_binds() -> Vec<(Chord, Action)> {
             Chord { cmd: true, shift: true, ..c(Key::Char('r')) },
             Action::RefreshConfig,
         ),
+        (c(Key::Tab), Action::ShowCommands),
     ]
+    // Note: cmd+1..cmd+9 and cmd+<letter> row-jump hints are NOT configured
+    // binds — they're computed live from whatever's on screen (see
+    // `compute_row_hints`/`try_activate_hint` in main.rs) and only fall
+    // back to a free slot here, so they can't collide with cmd+r/cmd+a
+    // above or anything a user adds to [keys].
 }
 
 /// Carbon virtual keycode for a key (global hotkeys). ANSI layout.
@@ -592,6 +606,26 @@ fn parse_into(cfg: &mut Config, text: &str) {
             "shortcuts" => {
                 cfg.shortcuts.retain(|(n, _)| !n.eq_ignore_ascii_case(&key));
                 cfg.shortcuts.push((key, val));
+            }
+            // `[commands.<App Name>]`: subcommands for one app or shortcut,
+            // matched by name (case-insensitive) when `ShowCommands` fires.
+            // The section header is already lowercased by the tokenizer
+            // above, so the app name here is lowercase.
+            section if section.starts_with("commands.") => {
+                let app = section["commands.".len()..].to_string();
+                if app.is_empty() {
+                    warn(&line, "empty app name in [commands.<App Name>]");
+                    continue;
+                }
+                let entry = match cfg.app_commands.iter_mut().find(|(n, _)| *n == app) {
+                    Some(e) => e,
+                    None => {
+                        cfg.app_commands.push((app, Vec::new()));
+                        cfg.app_commands.last_mut().unwrap()
+                    }
+                };
+                entry.1.retain(|(n, _)| !n.eq_ignore_ascii_case(&key));
+                entry.1.push((key, val));
             }
             // Each mode is its own table `[modes.<name>]` carrying a `sigil`
             // key (the first-character trigger) plus any mode-specific keys.
@@ -898,6 +932,7 @@ fn parse_action(s: &str) -> Option<Action> {
         "move-up" => Some(Action::MoveUp),
         "move-down" => Some(Action::MoveDown),
         "refresh-config" | "reload-config" => Some(Action::RefreshConfig),
+        "show-commands" | "commands" | "app-commands" => Some(Action::ShowCommands),
         _ => None,
     }
 }
@@ -979,6 +1014,10 @@ running_many = "M"
 [shortcuts]
 "Movies" = "open -R ~/Movies"
 
+[commands.Switchblade]
+"downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Downloads"
+"logs" = "open ~/Library/Logs/switchblade"
+
 [stats]
 interval = 2.0
 "##,
@@ -998,6 +1037,19 @@ interval = 2.0
             cfg.shortcuts,
             vec![("Movies".to_string(), "open -R ~/Movies".to_string())]
         );
+        let (app, cmds) = cfg
+            .app_commands
+            .iter()
+            .find(|(n, _)| n == "switchblade")
+            .expect("switchblade commands present");
+        assert_eq!(app, "switchblade");
+        assert_eq!(cmds.len(), 2);
+        assert_eq!(cmds[0].0, "downloads");
+        assert_eq!(
+            cmds[0].1,
+            "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Downloads"
+        );
+        assert_eq!(cmds[1].0, "logs");
     }
 
     #[test]
