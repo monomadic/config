@@ -39,8 +39,8 @@ typeset -ga _cd_fzf_global_commands=(
 
   'fd-dirs "$DOTFILES_DIR/config" 2'
 
-  'fd-dirs "/Volumes" 1'
-  'for vol in /Volumes/*(N/); do fd-dirs "$vol" 1 2>/dev/null; done'
+  'print -rl -- /Volumes/*(N/)'
+  'for vol in /Volumes/*(N/); do fd-dirs . "$vol" 2>/dev/null; done'
   'for vol in /Volumes/*/Movies/Porn/(N/); do fd-dirs "$vol" 1 2>/dev/null; done'
 )
 

@@ -17,6 +17,8 @@ mpv-compare() {
   mpv --profile=ab --external-file="$1" "$2"
 }
 
+alias fd-index="fd-media --sort-created . . > .index"
+
 alias fd-media-5-star="fd-media --match-string ★★★★★"
 alias fd-media-4-star="fd-media --match-string ★★★★☆"
 alias fd-media-60fps="fd-media --match-string 60fps"

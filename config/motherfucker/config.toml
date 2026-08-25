@@ -109,7 +109,9 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "Volume: mute" = "􀊣 "
 "SwitchBlade" = "􂶯 "
 "Topaz Video" = "􃖦 "
-
+"*Config*" = "􀍟 "   # any entry with "downloads" anywhere in its title
+# "downloads*"  = "…"   # title starts with "downloads"
+# "*downloads"  = "…"   # title ends with "downloads"
 # Glyphs for [commands.<App Name>] subcommand rows: matched by the plain
 # subcommand label, same as any other override (case-insensitive, global —
 # not scoped to one app's command list). Carried over unchanged from the
@@ -132,27 +134,32 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 [shortcuts]
 # "Movies" = "open -R ~/Movies"
 "Tracks" = "open -R '/Users/nom/Library/Mobile Documents/com~apple~CloudDocs/Music/Tracks'"
-"M4.local: mount tower" = "open -j smb://m4.local/Tower"
-"M4.local: installers" = "open -j smb://m4.local/Tower/Installers"
-"M4.local: mount jobs" = "/Users/nom/.zsh/bin/kitty-launch -- open -j -g smb://m4.local/jobs & yazi /Volumes/jobs"
-"Yazi: M4.local: jobs" = "/Users/nom/.zsh/bin/kitty-launch -- open -j -g smb://m4.local/jobs ; yazi /Volumes/jobs"
-"SwitchBlade" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Porn/Downloads"  # ⇥ for more
 "Volume: mute" = "osascript -e 'set volume with output muted'"
 "System" = "open -a ScreenSaverEngine"  # ⇥ for more (lock/shutdown)
-"Motherfucker: reload" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
 "Config" = "open ~/.config"  # ⇥ for more (motherfucker/switchblade)
+"Motherfucker" = ""
+
+[commands.Motherfucker]
+"Reload" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
+
+[commands.m4.local]
+"Mount Tower" = "open -j smb://m4.local/Tower"
+"Installers" = "open -j smb://m4.local/Tower/Installers"
+"Mount Jobs" = "/Users/nom/.zsh/bin/kitty-launch -- open -j -g smb://m4.local/jobs & yazi /Volumes/jobs"
+"Open Jobs (Yazi)" = "/Users/nom/.zsh/bin/kitty-launch -- open -j -g smb://m4.local/jobs ; yazi /Volumes/jobs"
 
 # Per-app subcommands: with a matching row selected (app, running app, or
 # [shortcuts] entry — matched case-insensitively by name), ⇥ lists these
 # instead of activating the row; enter runs one via `sh -c`, like a shortcut.
 # Backspace on an empty field leaves the list, like a sigil mode.
 [commands.SwitchBlade]
-"downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Porn/Downloads"
-"drives" = "zsh --exec -- cd $HOME && $HOME/.cargo/bin/switchblade --fast-fullscreen /Volumes/*/Movies/Porn"
-"sorted local" = "$HOME/.zsh/bin/fd-media --sort-created . ~/Movies/Porn/Downloads | $HOME/.cargo/bin/switchblade --fast-fullscreen"
-"sorted all" = "$HOME/.zsh/bin/fd-media --sort-created | $HOME/.cargo/bin/switchblade --fast-fullscreen"
-"tower (index)" = "cat /Volumes/Tower/Movies/Porn/.index | $HOME/.cargo/bin/switchblade --fast-fullscreen"
-"tower (live)" = "$HOME/.cargo/bin/switchblade --fast-fullscreen /Volumes/Tower/Movies/Porn/Downloads"
+"Open ~/Movies/Porn/Downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Porn/Downloads"
+"Open /Volumes/*/Movies/Porn" = "$HOME/.cargo/bin/switchblade --fast-fullscreen /Volumes/*/Movies/Porn"
+"Open Sorted Local" = "$HOME/.zsh/bin/fd-media --sort-created . ~/Movies/Porn/Downloads | $HOME/.cargo/bin/switchblade --fast-fullscreen"
+"Open Sorted All" = "$HOME/.zsh/bin/fd-media --sort-created | $HOME/.cargo/bin/switchblade --fast-fullscreen"
+"Open Tower (index)" = "cat /Volumes/Tower/Movies/Porn/.index | $HOME/.cargo/bin/switchblade --fast-fullscreen"
+"Open Tower (live)" = "$HOME/.cargo/bin/switchblade --fast-fullscreen /Volumes/Tower/Movies/Porn/Downloads"
+"Config" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config\" -- /bin/zsh -lc 'exec hx -- ~/.config/switchblade.toml'"
 
 # The real System Settings.app: enter opens it normally, ⇥ deep-links a pane.
 [commands.System Settings]
@@ -170,9 +177,8 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "shutdown" = "osascript -e 'tell app \"System Events\" to shut down'"
 # "restart" = "osascript -e 'tell app \"System Events\" to restart'"
 
-[commands.Config]
-"motherfucker" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config/motherfucker\" -- /bin/zsh -lc 'exec hx -- ~/.config/motherfucker/config.toml'"
-"switchblade" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config\" -- /bin/zsh -lc 'exec hx -- ~/.config/switchblade.toml'"
+[commands.Motherfucker]
+"Config" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config/motherfucker\" -- /bin/zsh -lc 'exec hx -- ~/.config/motherfucker/config.toml'"
 
 # Sigil modes: typing one of these as the FIRST character switches the
 # panel into that mode. The sigil is lifted into a colored box (not left in
