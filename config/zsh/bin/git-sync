@@ -393,6 +393,13 @@ edit_message() {
   [[ -s "$msg_file" ]] || die "Commit cancelled: empty message"
 }
 
+# Commit with retry at the user's choice, for the same reason as
+# finalize_with_retry: a signing agent that's down (1Password locked) just
+# needs to be started, and dying here would throw away the generated message
+# and force a fresh LLM round trip on the next run. Streams stay attached —
+# git's commit summary and any signing diagnostics belong on the terminal.
+# Returns 1 once the user opts out; the caller falls back to the action menu
+# with the message file untouched.
 commit_now() {
   local msg_file=$1
 
@@ -400,9 +407,25 @@ commit_now() {
   git diff --cached --stat
   print
 
-  git commit -F "$msg_file"
+  local attempt=0
+  while true; do
+    (( ++attempt ))
 
-  ok "Committed"
+    if git commit -F "$msg_file"; then
+      ok "Committed"
+      return 0
+    fi
+
+    warn "git commit failed"
+
+    if (( attempt >= GC_RETRY_LIMIT )); then
+      warn "git commit failed after $attempt attempts"
+      return 1
+    fi
+
+    confirm_retry "Retry 'git commit'? (attempt $attempt/$GC_RETRY_LIMIT)" \
+      || return 1
+  done
 }
 
 rebase_in_progress() {
@@ -681,7 +704,7 @@ sync_repo() {
 commit_and_sync() {
   local msg_file=$1
 
-  commit_now "$msg_file"
+  commit_now "$msg_file" || return 1
   sync_repo
 }
 
@@ -835,15 +858,20 @@ main() {
 
       case "$action" in
         "commit and sync")
-          commit_and_sync "$msg_file"
-          break
+          # On commit failure, fall back to the menu — the message survives,
+          # so a retry after fixing the cause (e.g. unlocking 1Password)
+          # needs no regeneration.
+          if commit_and_sync "$msg_file"; then
+            break
+          fi
           ;;
         "edit commit message")
           edit_message "$msg_file"
           ;;
         "commit only")
-          commit_now "$msg_file"
-          break
+          if commit_now "$msg_file"; then
+            break
+          fi
           ;;
         "regenerate commit message")
           local previous_message
