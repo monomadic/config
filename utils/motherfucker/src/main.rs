@@ -1843,12 +1843,19 @@ impl Delegate {
         let panel_w = ivars.config.borrow().style.width;
         let old = panel.frame();
         let top = ivars.top_y.get();
+        // The top edge is pinned to `top_y`, so the panel only ever grows
+        // downward — but don't paint yet. The subviews below are still
+        // positioned for the old height (they're laid out from `h`, and the
+        // window's coordinate origin just moved down by the growth), so a
+        // synchronous display here shows the input row a row's worth too low
+        // for one frame before the layout corrects it. That flash is the
+        // "jolt". One paint, at the end, once everything is in place.
         panel.setFrame_display(
             NSRect::new(
                 NSPoint::new(old.origin.x, top - h),
                 NSSize::new(panel_w, h),
             ),
-            true,
+            false,
         );
 
         // Input band, inset from the top by `pad`. The extra 12px keeps the
@@ -1927,6 +1934,12 @@ impl Delegate {
         for (i, entry) in entries.iter().enumerate() {
             let y = rows_h - ROWS_PAD / 2.0 - (i as f64 + 1.0) * ROW_H;
             self.build_row(mtm, rows_area, y, i, entry, i == selected);
+        }
+
+        // The deferred paint for the resize above: the new window size and
+        // the layout that matches it land in the same frame.
+        unsafe {
+            let _: () = msg_send![&**panel, displayIfNeeded];
         }
     }
 
