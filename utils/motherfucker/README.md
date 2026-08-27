@@ -116,8 +116,9 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
 
 Math and currency also autodetect without their sigil, Spotlight-style:
 every keystroke the bare query is reclassified, so `2+2` or `580 php` or
-`$100` shows mode rows and deleting back to a non-match restores app
-results — no state, no badge. Autodetection is stricter than the sigils
+`$100` shows mode rows and the mode's sigil badge, and deleting back to a
+non-match restores app results — the badge follows the classification,
+the typed text stays in the field. Autodetection is stricter than the sigils
 (math needs an operator, currency a typed symbol or a code from `targets`
 or the symbol table), so `42` and `1Password` stay app queries; the sigil
 remains the explicit override for input autodetection declines, like a

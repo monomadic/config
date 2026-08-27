@@ -301,6 +301,10 @@ struct State {
     /// sigil is lifted out of the text field into the input badge, so the
     /// field only ever holds the query terms.
     sigil: Cell<Option<char>>,
+    /// Sigil char for an autodetected mode (`auto_kind`), recomputed every
+    /// refresh. Drives the same input badge as `sigil`, but transiently —
+    /// the char stays in the field and backspace needs no special case.
+    auto_sigil: Cell<Option<char>>,
     /// Style to restore when the picker is dismissed without committing.
     saved_style: RefCell<Option<config::Style>>,
     panel: OnceCell<Retained<Panel>>,
@@ -1194,6 +1198,7 @@ impl Delegate {
         field.setStringValue(&NSString::from_str(""));
         ivars.selected.set(0);
         ivars.sigil.set(None);
+        ivars.auto_sigil.set(None);
         ivars.mode.set(PanelMode::Launcher);
         ivars.command_context.borrow_mut().take();
         // Seed from the real current state: if the summon chord itself is
@@ -1298,22 +1303,29 @@ impl Delegate {
         // keystrokes never touch the filesystem. One dispatch for every
         // sigil — a new mode plugs in via `SigilKind` and its resolver.
         // With no sigil, the bare query can still classify as math or
-        // currency per keystroke (`auto_kind`); the sigil badge stays off
-        // because the detection is transient, not a mode.
+        // currency per keystroke (`auto_kind`). An autodetected mode shows
+        // the same badge as its sigil (via `auto_sigil`), but the char
+        // stays in the field and the state clears itself next refresh.
         let kind = {
             let cfg = self.ivars().config.borrow();
-            self.ivars()
-                .sigil
-                .get()
-                .and_then(|c| cfg.sigil_kind(c))
-                .or_else(|| {
-                    modes::auto_kind(
-                        &query,
-                        &cfg.currency_targets,
-                        cfg.sigil_math.is_some(),
-                        cfg.sigil_currency.is_some(),
-                    )
-                })
+            let explicit = self.ivars().sigil.get().and_then(|c| cfg.sigil_kind(c));
+            let auto = if explicit.is_none() {
+                modes::auto_kind(
+                    &query,
+                    &cfg.currency_targets,
+                    cfg.sigil_math.is_some(),
+                    cfg.sigil_currency.is_some(),
+                )
+            } else {
+                None
+            };
+            self.ivars().auto_sigil.set(match auto {
+                Some(SigilKind::Math) => cfg.sigil_math,
+                Some(SigilKind::Currency) => cfg.sigil_currency,
+                Some(SigilKind::Web) => cfg.sigil_web,
+                None => None,
+            });
+            explicit.or(auto)
         };
         let sigil_rows = match kind {
             Some(SigilKind::Math) => Some(modes::math_rows(&query)),
@@ -1846,7 +1858,7 @@ impl Delegate {
         // Leading slot: the search glyph, or — in a sigil mode — a colored
         // box holding the sigil character. The field starts after whichever
         // one is showing.
-        let leading_w = if let Some(sig) = ivars.sigil.get() {
+        let leading_w = if let Some(sig) = ivars.sigil.get().or(ivars.auto_sigil.get()) {
             unsafe {
                 let _: () = msg_send![&**glyph, setHidden: true];
                 let _: () = msg_send![&**sigil_box, setHidden: false];
