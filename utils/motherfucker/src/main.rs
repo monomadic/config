@@ -534,6 +534,23 @@ fn set_layer_bg(layer: &CALayer, color: &NSColor) {
     }
 }
 
+/// Run `f` inside a CATransaction with implicit layer actions disabled, so
+/// every frame change it makes cuts to its new geometry instead of animating
+/// there. Looked up by name and no-ops if the class is missing, matching how
+/// the rest of the AppKit reach-throughs here stay crash-proof.
+unsafe fn with_ca_actions_disabled<T>(f: impl FnOnce() -> T) -> T {
+    let cls = objc2::runtime::AnyClass::get("CATransaction");
+    if let Some(cls) = cls {
+        let _: () = msg_send![cls, begin];
+        let _: () = msg_send![cls, setDisableActions: true];
+    }
+    let out = f();
+    if let Some(cls) = cls {
+        let _: () = msg_send![cls, commit];
+    }
+    out
+}
+
 /// App titles display with a capitalized first letter ("kitty" → "Kitty").
 /// Char count is unchanged, so match indices stay valid.
 fn display_name(raw: &str) -> String {
@@ -659,6 +676,11 @@ impl Delegate {
         // from the glass backdrop's rectangular bounds and shows as a black
         // box around the rounded panel. Liquid Glass draws its own edge.
         panel.setHasShadow(false);
+        // NSWindowAnimationBehaviorNone: the panel resizes on every keystroke,
+        // so AppKit must never interpolate a frame change.
+        unsafe {
+            let _: () = msg_send![&*panel, setAnimationBehavior: 2isize];
+        }
         panel.setLevel(25); // NSStatusWindowLevel: above normal windows and menus
         panel.setCollectionBehavior(
             NSWindowCollectionBehavior::CanJoinAllSpaces
@@ -1800,7 +1822,13 @@ impl Delegate {
 
     /// Reposition everything for the current entry count and rebuild rows.
     fn relayout(&self) {
-        unsafe { self.relayout_impl() }
+        // Implicit CA animations off for the whole pass. Everything here is
+        // layer-backed (the glass/vibrancy chrome, the sigil badge, the
+        // rows), and AppKit autoresizes the chrome as the window grows — a
+        // layer whose bounds change inside an enabled transaction *slides*
+        // to its new geometry over ~0.25s instead of cutting, which is what
+        // reads as the panel jolting rather than expanding downward.
+        unsafe { with_ca_actions_disabled(|| self.relayout_impl()) }
     }
 
     unsafe fn relayout_impl(&self) {

@@ -12,6 +12,7 @@
 #   [commands]   programs those keys can launch
 
 [tuning]
+libraries = ["~/Movies/Porn/Downloads", "/Volumes/*/Movies/Porn", "~/Movies/Private", "~/Movies/Porn", "/Volumes/*/Movies/Visuals"]
 haptics = false
 # ── Layout ──────────────────────────────────────────────────────────────
 # Grid layout:
