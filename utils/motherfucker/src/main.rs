@@ -534,23 +534,6 @@ fn set_layer_bg(layer: &CALayer, color: &NSColor) {
     }
 }
 
-/// Run `f` inside a CATransaction with implicit layer actions disabled, so
-/// every frame change it makes cuts to its new geometry instead of animating
-/// there. Looked up by name and no-ops if the class is missing, matching how
-/// the rest of the AppKit reach-throughs here stay crash-proof.
-unsafe fn with_ca_actions_disabled<T>(f: impl FnOnce() -> T) -> T {
-    let cls = objc2::runtime::AnyClass::get("CATransaction");
-    if let Some(cls) = cls {
-        let _: () = msg_send![cls, begin];
-        let _: () = msg_send![cls, setDisableActions: true];
-    }
-    let out = f();
-    if let Some(cls) = cls {
-        let _: () = msg_send![cls, commit];
-    }
-    out
-}
-
 /// App titles display with a capitalized first letter ("kitty" → "Kitty").
 /// Char count is unchanged, so match indices stay valid.
 fn display_name(raw: &str) -> String {
@@ -676,11 +659,6 @@ impl Delegate {
         // from the glass backdrop's rectangular bounds and shows as a black
         // box around the rounded panel. Liquid Glass draws its own edge.
         panel.setHasShadow(false);
-        // NSWindowAnimationBehaviorNone: the panel resizes on every keystroke,
-        // so AppKit must never interpolate a frame change.
-        unsafe {
-            let _: () = msg_send![&*panel, setAnimationBehavior: 2isize];
-        }
         panel.setLevel(25); // NSStatusWindowLevel: above normal windows and menus
         panel.setCollectionBehavior(
             NSWindowCollectionBehavior::CanJoinAllSpaces
@@ -1822,13 +1800,7 @@ impl Delegate {
 
     /// Reposition everything for the current entry count and rebuild rows.
     fn relayout(&self) {
-        // Implicit CA animations off for the whole pass. Everything here is
-        // layer-backed (the glass/vibrancy chrome, the sigil badge, the
-        // rows), and AppKit autoresizes the chrome as the window grows — a
-        // layer whose bounds change inside an enabled transaction *slides*
-        // to its new geometry over ~0.25s instead of cutting, which is what
-        // reads as the panel jolting rather than expanding downward.
-        unsafe { with_ca_actions_disabled(|| self.relayout_impl()) }
+        unsafe { self.relayout_impl() }
     }
 
     unsafe fn relayout_impl(&self) {
@@ -1871,49 +1843,44 @@ impl Delegate {
         let panel_w = ivars.config.borrow().style.width;
         let old = panel.frame();
         let top = ivars.top_y.get();
-        // The top edge is pinned to `top_y`, so the panel only ever grows
-        // downward — but don't paint yet. The subviews below are still
-        // positioned for the old height (they're laid out from `h`, and the
-        // window's coordinate origin just moved down by the growth), so a
-        // synchronous display here shows the input row a row's worth too low
-        // for one frame before the layout corrects it. That flash is the
-        // "jolt". One paint, at the end, once everything is in place.
         panel.setFrame_display(
             NSRect::new(
                 NSPoint::new(old.origin.x, top - h),
                 NSSize::new(panel_w, h),
             ),
-            false,
+            true,
         );
 
         // Input band, inset from the top by `pad`. The extra 12px keeps the
         // search glyph aligned with the row glyphs (rows inset by 12px).
         let input_inset = pad + 12.0;
         let input_bottom = h - pad - INPUT_H;
-        // Leading slot: the search glyph, or — in a sigil mode — a colored
-        // box holding the sigil character. The field starts after whichever
-        // one is showing.
-        let leading_w = if let Some(sig) = ivars.sigil.get().or(ivars.auto_sigil.get()) {
+        // Leading slot: the search glyph, or — in a mode — a colored box
+        // holding the sigil character. Both are centered in a slot of the
+        // same fixed width so the field starts at the same x either way:
+        // autodetect swaps the glyph for a badge mid-query, and a slot sized
+        // to whichever is showing would jump the text sideways as you type.
+        let input_fs = ivars.config.borrow().style.input_font_size;
+        let slot = (input_fs + 10.0).clamp(24.0, 52.0);
+        if let Some(sig) = ivars.sigil.get().or(ivars.auto_sigil.get()) {
             unsafe {
                 let _: () = msg_send![&**glyph, setHidden: true];
                 let _: () = msg_send![&**sigil_box, setHidden: false];
             }
-            let (bg, fg, input_fs) = {
+            let (bg, fg) = {
                 let cfg = ivars.config.borrow();
                 let s = &cfg.style;
                 (
                     s.sigil_background.unwrap_or(s.item_foreground_highlight),
                     s.sigil_foreground.unwrap_or(s.panel_background),
-                    s.input_font_size,
                 )
             };
-            let side = (input_fs + 10.0).clamp(24.0, 52.0);
             sigil_box.setFrame(NSRect::new(
-                NSPoint::new(input_inset, input_bottom + (INPUT_H - side) / 2.0),
-                NSSize::new(side, side),
+                NSPoint::new(input_inset, input_bottom + (INPUT_H - slot) / 2.0),
+                NSSize::new(slot, slot),
             ));
             if let Some(layer) = sigil_box.layer() {
-                layer.setCornerRadius((side * 0.26).min(10.0));
+                layer.setCornerRadius((slot * 0.26).min(10.0));
                 set_layer_bg(&layer, &rgba(bg, 1.0));
             }
             let font: Retained<NSFont> = unsafe {
@@ -1927,10 +1894,9 @@ impl Delegate {
             }
             let ls = sigil_label.frame().size;
             sigil_label.setFrameOrigin(NSPoint::new(
-                (side - ls.width) / 2.0,
-                (side - ls.height) / 2.0,
+                (slot - ls.width) / 2.0,
+                (slot - ls.height) / 2.0,
             ));
-            side
         } else {
             unsafe {
                 let _: () = msg_send![&**sigil_box, setHidden: true];
@@ -1938,12 +1904,11 @@ impl Delegate {
             }
             let glyph_size = glyph.frame().size;
             glyph.setFrameOrigin(NSPoint::new(
-                input_inset,
+                input_inset + (slot - glyph_size.width).max(0.0) / 2.0,
                 input_bottom + (INPUT_H - glyph_size.height) / 2.0,
             ));
-            glyph_size.width
-        };
-        let field_x = input_inset + leading_w + 14.0;
+        }
+        let field_x = input_inset + slot + 14.0;
         let field_h = field.frame().size.height.max(30.0);
         field.setFrame(NSRect::new(
             NSPoint::new(field_x, input_bottom + (INPUT_H - field_h) / 2.0),
@@ -1962,12 +1927,6 @@ impl Delegate {
         for (i, entry) in entries.iter().enumerate() {
             let y = rows_h - ROWS_PAD / 2.0 - (i as f64 + 1.0) * ROW_H;
             self.build_row(mtm, rows_area, y, i, entry, i == selected);
-        }
-
-        // The deferred paint for the resize above: the new window size and
-        // the layout that matches it land in the same frame.
-        unsafe {
-            let _: () = msg_send![&**panel, displayIfNeeded];
         }
     }
 
