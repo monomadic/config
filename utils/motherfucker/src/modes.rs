@@ -4,7 +4,7 @@
 //! (`[modes.math]`, `[modes.web]`, ...); everything here is pure string → rows, so
 //! the UI layer stays the only place that touches AppKit.
 
-use crate::config::WebShortcut;
+use crate::config::{SigilKind, WebShortcut};
 
 /// One synthesized result row. `detail` renders dim and right-aligned;
 /// `tag` renders as an inline pill after the name (web: the prefix).
@@ -22,6 +22,49 @@ pub enum ModeAction {
     Copy(String),
     /// Open the URL in the default browser.
     OpenUrl(String),
+}
+
+// ---- autodetect ----
+
+/// Classify a bare launcher query as an implicit mode, Spotlight-style:
+/// detection is a pure function of the string, re-run per keystroke, so
+/// there is no mode state to enter or leave — stop matching and the app
+/// rows come back on their own. Stricter than the sigils, which exist as
+/// the explicit override: currency needs a typed symbol or a known code
+/// ("$100", "580 php" — never bare "100"), math needs an operator
+/// ("2+2" — never "42"), so app queries like "1Password" fall through.
+pub fn auto_kind(
+    input: &str,
+    currency_targets: &[String],
+    math: bool,
+    currency: bool,
+) -> Option<SigilKind> {
+    let q = input.trim();
+    let first = q.chars().next()?;
+    if !first.is_ascii_digit() && first != '.' && symbol_code(first).is_none() {
+        return None;
+    }
+    // Currency before math: with an explicit-code requirement they can't
+    // truly collide, but a fixed priority keeps the outcome predictable.
+    if currency {
+        if let Some((_, code, true)) = parse_amount(q) {
+            let known = currency_targets.iter().any(|t| t.eq_ignore_ascii_case(&code))
+                || currency_symbol(&code).is_some();
+            if known {
+                return Some(SigilKind::Currency);
+            }
+        }
+    }
+    if math && !is_bare_number(q) && eval(q).is_some() {
+        return Some(SigilKind::Math);
+    }
+    None
+}
+
+/// A single number token and nothing else ("42", "1,000") — valid math,
+/// but not evidence the user wants the calculator.
+fn is_bare_number(s: &str) -> bool {
+    matches!(tokenize(s).as_deref(), Some([Tok::Num(_)]))
 }
 
 // ---- math (`#`) ----
@@ -353,7 +396,7 @@ pub fn currency_rows(
     targets: &[String],
     age: Option<String>,
 ) -> Vec<ModeRow> {
-    let Some((amount, from)) = parse_amount(input) else {
+    let Some((amount, from, _)) = parse_amount(input) else {
         return Vec::new();
     };
     let Some(from_rate) = rates.get(&from) else {
@@ -384,12 +427,22 @@ pub fn currency_rows(
     rows
 }
 
-/// "500,000 php", "3k usd", "1.4btc" → (amount, uppercase code). A trailing
-/// `k`/`m`/`b` right before a word boundary multiplies by 1e3/1e6/1e9 (so
-/// "1.4btc" stays 1.4 BTC, not 1.4 billion). No code given defaults to USD.
-fn parse_amount(input: &str) -> Option<(f64, String)> {
+/// "500,000 php", "3k usd", "1.4btc", "$100" → (amount, uppercase code,
+/// whether the code was typed rather than defaulted). A leading symbol
+/// implies its code; a trailing code wins over it ("$100 aud" is AUD). A
+/// trailing `k`/`m`/`b` right before a word boundary multiplies by
+/// 1e3/1e6/1e9 (so "1.4btc" stays 1.4 BTC, not 1.4 billion). Neither
+/// symbol nor code defaults to USD.
+fn parse_amount(input: &str) -> Option<(f64, String, bool)> {
     let cs: Vec<char> = input.trim().chars().collect();
     let mut i = 0;
+    let symbol = cs.first().copied().and_then(symbol_code);
+    if symbol.is_some() {
+        i += 1;
+        while i < cs.len() && cs[i].is_whitespace() {
+            i += 1;
+        }
+    }
     let mut num = String::new();
     while i < cs.len() && (cs[i].is_ascii_digit() || cs[i] == '.' || cs[i] == ',') {
         if cs[i] != ',' {
@@ -416,7 +469,25 @@ fn parse_amount(input: &str) -> Option<(f64, String)> {
         .take_while(|c| c.is_ascii_alphabetic())
         .collect::<String>()
         .to_uppercase();
-    Some((value, if code.is_empty() { "USD".into() } else { code }))
+    Some(match (code.is_empty(), symbol) {
+        (false, _) => (value, code, true),
+        (true, Some(sym)) => (value, sym.into(), true),
+        (true, None) => (value, "USD".into(), false),
+    })
+}
+
+/// A leading currency symbol and the code it implies ("$100" → USD).
+fn symbol_code(c: char) -> Option<&'static str> {
+    Some(match c {
+        '$' => "USD",
+        '€' => "EUR",
+        '£' => "GBP",
+        '¥' => "JPY",
+        '₱' => "PHP",
+        '₿' => "BTC",
+        'Ξ' => "ETH",
+        _ => return None,
+    })
 }
 
 fn currency_symbol(code: &str) -> Option<&'static str> {
@@ -646,12 +717,38 @@ mod tests {
 
     #[test]
     fn parses_amounts() {
-        assert_eq!(parse_amount("500,000 php"), Some((500000.0, "PHP".into())));
-        assert_eq!(parse_amount("3k usd"), Some((3000.0, "USD".into())));
-        assert_eq!(parse_amount("1.4btc"), Some((1.4, "BTC".into())));
-        assert_eq!(parse_amount("2.5m eur"), Some((2_500_000.0, "EUR".into())));
-        assert_eq!(parse_amount("100"), Some((100.0, "USD".into())));
+        assert_eq!(parse_amount("500,000 php"), Some((500000.0, "PHP".into(), true)));
+        assert_eq!(parse_amount("3k usd"), Some((3000.0, "USD".into(), true)));
+        assert_eq!(parse_amount("1.4btc"), Some((1.4, "BTC".into(), true)));
+        assert_eq!(parse_amount("2.5m eur"), Some((2_500_000.0, "EUR".into(), true)));
+        assert_eq!(parse_amount("100"), Some((100.0, "USD".into(), false)));
+        // Symbols imply their code; a trailing code wins over the symbol.
+        assert_eq!(parse_amount("$100"), Some((100.0, "USD".into(), true)));
+        assert_eq!(parse_amount("€ 2k"), Some((2000.0, "EUR".into(), true)));
+        assert_eq!(parse_amount("$100 aud"), Some((100.0, "AUD".into(), true)));
         assert_eq!(parse_amount("abc"), None);
+        assert_eq!(parse_amount("$"), None);
+    }
+
+    #[test]
+    fn autodetects_modes() {
+        let targets: Vec<String> = ["USD", "PHP"].map(String::from).into();
+        let auto = |q: &str| auto_kind(q, &targets, true, true);
+        assert_eq!(auto("580 php"), Some(SigilKind::Currency));
+        assert_eq!(auto("$100"), Some(SigilKind::Currency));
+        assert_eq!(auto("1.4btc"), Some(SigilKind::Currency)); // symbol-table code
+        assert_eq!(auto("2+2"), Some(SigilKind::Math));
+        assert_eq!(auto("4% of 100"), Some(SigilKind::Math));
+        assert_eq!(auto("42"), None); // bare number stays an app query
+        assert_eq!(auto("1,000"), None);
+        assert_eq!(auto("100"), None); // defaulted USD isn't explicit
+        assert_eq!(auto("5 gb"), None); // unknown code
+        assert_eq!(auto("1password"), None);
+        assert_eq!(auto("slack"), None); // non-digit first char skips both
+        assert_eq!(auto(""), None);
+        // Disabled modes never auto-trigger.
+        assert_eq!(auto_kind("2+2", &targets, false, true), None);
+        assert_eq!(auto_kind("$100", &targets, true, false), None);
     }
 
     #[test]

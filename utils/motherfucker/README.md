@@ -114,6 +114,16 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   background and cached at `~/.cache/motherfucker/rates.json`; the panel
   always renders from cache (never blocks) and the top row shows its age.
 
+Math and currency also autodetect without their sigil, Spotlight-style:
+every keystroke the bare query is reclassified, so `2+2` or `580 php` or
+`$100` shows mode rows and deleting back to a non-match restores app
+results — no state, no badge. Autodetection is stricter than the sigils
+(math needs an operator, currency a typed symbol or a code from `targets`
+or the symbol table), so `42` and `1Password` stay app queries; the sigil
+remains the explicit override for input autodetection declines, like a
+code-less `100`. Disabling a mode's sigil (`"none"`) disables its
+autodetection too.
+
 The parser is a ~100-line hand-rolled TOML subset (sections + `key =
 value`) so the binary stays dependency-free.
 

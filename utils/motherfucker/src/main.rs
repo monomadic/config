@@ -1297,9 +1297,23 @@ impl Delegate {
         // instead of the app matcher. Resolved before the app scan, so mode
         // keystrokes never touch the filesystem. One dispatch for every
         // sigil — a new mode plugs in via `SigilKind` and its resolver.
+        // With no sigil, the bare query can still classify as math or
+        // currency per keystroke (`auto_kind`); the sigil badge stays off
+        // because the detection is transient, not a mode.
         let kind = {
             let cfg = self.ivars().config.borrow();
-            self.ivars().sigil.get().and_then(|c| cfg.sigil_kind(c))
+            self.ivars()
+                .sigil
+                .get()
+                .and_then(|c| cfg.sigil_kind(c))
+                .or_else(|| {
+                    modes::auto_kind(
+                        &query,
+                        &cfg.currency_targets,
+                        cfg.sigil_math.is_some(),
+                        cfg.sigil_currency.is_some(),
+                    )
+                })
         };
         let sigil_rows = match kind {
             Some(SigilKind::Math) => Some(modes::math_rows(&query)),
