@@ -10,8 +10,9 @@ emulate -L zsh
 #
 #   DATE PEOPLE (CHANNEL) - TITLE LOCATION #TAGS [METADATA].ext
 #
-# Every segment except DATE and [METADATA] drops out when its field is empty,
-# so plain camera footage still comes out as "DATE - TITLE [METADATA].ext".
+# Every segment except DATE and [METADATA] drops out when its field is empty, and
+# the " - " appears only when something follows it, so untagged camera footage
+# comes out as plain "DATE [METADATA].ext".
 #
 #   DATE      determined by, in priority order:
 #               1. exif data           (exiftool, if installed)
@@ -20,13 +21,17 @@ emulate -L zsh
 #               4. file creation ctime (birth time)
 #   PEOPLE    embedded XMP-iptcExt:PersonInImage
 #   CHANNEL   embedded XMP-xmpDM:Album
-#   TITLE     the embedded title if there is one, used verbatim. Otherwise
-#             taken from the current filename, after stripping any leading DATE,
-#             PEOPLE (CHANNEL) group, #tag run and [metadata] block; each word
-#             then has its first letter capitalized and nothing else is touched.
+#   TITLE     the embedded title, used verbatim. The existing filename is never
+#             mined for one unless no DATE could be resolved at all, so a camera
+#             name like "IMG_4855" is dropped rather than promoted to a title.
 #   LOCATION  embedded XMP-iptcExt:LocationCreatedCity
 #   TAGS      embedded XMP-dc:Subject, one #tag per entry
 #   METADATA  probed fresh with ffprobe (+ exiftool for DEVICE).
+#
+# On the first run over a file its existing name is recorded, write-once, as
+# XMP-xmpMM:PreservedFileName. That is the only surviving copy of anything this
+# scheme drops from the name -- a hand-typed title, a camera's own IMG_4855 --
+# so nothing is lost outright, and titles can be backfilled from it later.
 #
 # The PEOPLE/CHANNEL/LOCATION/TAGS fields are authored, not probed: nothing in
 # the file's contents implies them, so the file itself is their only store. The
@@ -69,6 +74,7 @@ META_PEOPLE=""
 META_CHANNEL=""
 META_TITLE=""
 META_LOCATION=""
+META_PRESERVED=""
 typeset -ga META_TAGS=()
 
 ICON_VIDEO="▶ "
@@ -388,9 +394,19 @@ get_device() {
 # at all. XMP-dc:Subject and XMP-iptcExt:PersonInImage are also true lists,
 # where the atoms would force a comma-joined string.
 build_metadata_args() {
+  local file="$1"
   local value
 
   METADATA_ARGS=()
+
+  # Write-once. This records the name the file carried when this script first
+  # saw it, which is the only surviving copy of anything the new naming scheme
+  # drops -- a hand-typed title, a camera's own IMG_4855. Stamping it on every
+  # run would overwrite that original with whatever the previous run generated,
+  # so it is only added when the tag is absent.
+  if [[ -z "$META_PRESERVED" ]]; then
+    METADATA_ARGS+=("-XMP-xmpMM:PreservedFileName=${file:t}")
+  fi
 
   # These are XMP list tags, so a plain assignment appends rather than replaces.
   # An empty assignment first clears the stored list; the values that follow must
@@ -438,7 +454,7 @@ read_authored_metadata() {
   local file="$1" row subject
   local -a cols
 
-  META_PEOPLE="" META_CHANNEL="" META_TITLE="" META_LOCATION=""
+  META_PEOPLE="" META_CHANNEL="" META_TITLE="" META_LOCATION="" META_PRESERVED=""
   META_TAGS=()
 
   command -v exiftool >/dev/null 2>&1 || return 0
@@ -446,7 +462,8 @@ read_authored_metadata() {
   row="$(
     exiftool -f -T -PersonInImage -XMP-xmpDM:Album -Title -Subject \
       -LocationCreatedCity -Keys:Actors -Keys:Artist -Keys:AlbumArtist \
-      -Keys:Album -Keys:Keywords -- "$file" 2>/dev/null | head -1
+      -Keys:Album -Keys:Keywords -XMP-xmpMM:PreservedFileName \
+      -- "$file" 2>/dev/null | head -1
   )"
   [[ -z "$row" ]] && return 0
 
@@ -455,6 +472,7 @@ read_authored_metadata() {
   META_CHANNEL="$(first_present "${cols[2]}" "${cols[8]}" "${cols[9]}")"
   META_TITLE="$(first_present "${cols[3]}")"
   META_LOCATION="$(first_present "${cols[5]}")"
+  META_PRESERVED="$(first_present "${cols[11]}")"
 
   # Keywords come back as a ", "-joined list; each entry becomes one #tag.
   subject="$(first_present "${cols[4]}" "${cols[10]}")"
@@ -467,12 +485,33 @@ read_authored_metadata() {
   fi
 }
 
+# The command line is more current than the file. Applying the supplied values
+# over what was just read keeps the rendered filename correct when nothing was
+# written back to disk to be re-read -- under --dry-run, or with exiftool absent.
+apply_metadata_overrides() {
+  local value
+
+  (( ${#ACTORS} )) && META_PEOPLE="${(j:, :)ACTORS}"
+  [[ -n "$CHANNEL" ]] && META_CHANNEL="$CHANNEL"
+  [[ -n "$LOCATION" ]] && META_LOCATION="$LOCATION"
+
+  if (( ${#KEYWORDS} )); then
+    META_TAGS=()
+    for value in "${KEYWORDS[@]}"; do
+      META_TAGS+=("#${value}")
+    done
+  fi
+}
+
 embed_metadata() {
   local file="$1"
 
-  $WRITE_METADATA || return 0
+  # Not gated on WRITE_METADATA: a run with no authored options still needs to
+  # stamp PreservedFileName. build_metadata_args yields nothing once there is
+  # nothing left to write, which makes a repeat run a no-op.
+  command -v exiftool >/dev/null 2>&1 || return 0
 
-  build_metadata_args
+  build_metadata_args "$file"
   (( ${#METADATA_ARGS} )) || return 0
 
   if $DRY_RUN; then
@@ -501,29 +540,36 @@ process_video() {
 
   log_verbose "processing file: $file"
 
-  # Embed before renaming: --print-target is a query, so it stays side-effect free.
+  # Read first: embedding has to know whether PreservedFileName is already set,
+  # and reading before the rename is also what makes the stamp record the right
+  # name. --print-target is a query, so it stays side-effect free.
+  read_authored_metadata "$file"
   $PRINT_TARGET || embed_metadata "$file"
+  apply_metadata_overrides
 
   local filename="${file:t}"
   local dirname="${file:h}"
   local extension="${filename:e}"
   local name_without_ext="${filename:r}"
 
-  read_authored_metadata "$file"
+  local date_stamp
+  date_stamp="$(resolve_date "$file" "$name_without_ext")"
 
-  # An embedded title is authoritative; it is already cased the way its source
-  # wrote it, so it is used verbatim. Only the filename fallback gets titlecased.
-  local title
-  if [[ -n "$META_TITLE" ]]; then
-    title="$META_TITLE"
-  else
+  # The title comes from embedded metadata, used verbatim. A camera's own
+  # filename ("IMG_4855") is not a title, and treating it as one was
+  # self-perpetuating: nothing ever embedded it, so each run simply read it back
+  # out of the name the previous run had written. With a date present the name is
+  # derived from metadata alone, and an untitled clip just has no title segment.
+  #
+  # The filename is still mined when no date could be resolved at all, that being
+  # the one case where dropping it would leave nothing but the probed [metadata]
+  # block to tell two files in a directory apart.
+  local title="$META_TITLE"
+  if [[ -z "$title" && -z "$date_stamp" ]]; then
     title="$(extract_title "$name_without_ext")"
     title="$(strip_known_fields "$title")"
     title="$(capitalize_title "$title")"
   fi
-
-  local date_stamp
-  date_stamp="$(resolve_date "$file" "$name_without_ext")"
 
   log_verbose "title='${title}' date='${date_stamp}'"
 
@@ -627,9 +673,10 @@ process_video() {
   local tags_block="[${(j: :)tags}]"
 
   # assemble: DATE PEOPLE (CHANNEL) - TITLE LOCATION #TAGS [METADATA].ext
-  # The " - " is unconditional (matching the reference layout, where a file with
-  # neither people nor channel still reads "DATE - TITLE"); every other segment
-  # drops out when its field is absent.
+  # The " - " divides the two groups, so it is emitted only when the right-hand
+  # one has something in it; an untitled clip reads "DATE PEOPLE [METADATA]"
+  # rather than trailing a bare dash. Every segment drops out when its field is
+  # absent, leaving "DATE [METADATA]" in the limit.
   local -a lead trail
   [[ -n "$date_stamp" ]] && lead+=("$date_stamp")
   [[ -n "$META_PEOPLE" ]] && lead+=("$META_PEOPLE")
@@ -638,10 +685,14 @@ process_video() {
   [[ -n "$title" ]] && trail+=("$title")
   [[ -n "$META_LOCATION" ]] && trail+=("$META_LOCATION")
   (( ${#META_TAGS} )) && trail+=("${(j: :)META_TAGS}")
-  trail+=("$tags_block")
 
   local stem
-  stem="$(trim_whitespace "${(j: :)lead} - ${(j: :)trail}")"
+  if (( ${#trail} )); then
+    stem="${(j: :)lead} - ${(j: :)trail} ${tags_block}"
+  else
+    stem="${(j: :)lead} ${tags_block}"
+  fi
+  stem="$(trim_whitespace "$stem")"
   stem="${stem//\//-}"   # a metadata field may legitimately contain a slash
 
   local new_filename="${stem}.${extension}"

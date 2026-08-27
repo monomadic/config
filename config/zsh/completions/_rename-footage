@@ -1,0 +1,72 @@
+#compdef rename-footage
+
+# Harvest values already embedded in the surrounding footage. These fields are
+# free text, so completing from what is in use is what stops "Metro Manila" from
+# acquiring a "metro manila" twin that sorts and filters as a separate value.
+#
+# -s3 prints one value per line and simply omits a tag the file does not carry,
+# so no placeholder rows need filtering out. List-valued tags come back joined
+# with ", ", which is split back apart here so each entry completes on its own.
+_rename_footage_values() {
+  local label="$1"; shift
+  local -a files raw values exif_args
+  local line entry tag
+
+  (( $+commands[exiftool] )) || return 1
+
+  # Non-recursive and capped: this runs synchronously on every TAB, and the point
+  # is to echo back the vocabulary already in use here, not to index a library.
+  files=( ${~_rename_footage_glob}(N.) )
+  (( ${#files} )) || return 1
+  (( ${#files} > 40 )) && files=( ${files[1,40]} )
+
+  for tag in "$@"; do
+    exif_args+=( -"$tag" )
+  done
+
+  raw=( ${(f)"$(exiftool -q -s3 $exif_args -- $files 2>/dev/null)"} )
+
+  for line in $raw; do
+    for entry in ${(ps:, :)line}; do
+      [[ -n "$entry" ]] && values+=( "$entry" )
+    done
+  done
+
+  values=( ${(u)values} )
+  (( ${#values} )) || return 1
+
+  _describe -t rename-footage-values "$label" values
+}
+
+# One wrapper per field, rather than passing the tag list through _arguments:
+# names like Keys:Actors contain a colon, which _arguments would read as its own
+# spec separator.
+_rename_footage_actors()   { _rename_footage_values performer PersonInImage Keys:Actors Keys:Artist }
+_rename_footage_keywords() { _rename_footage_values keyword Subject Keys:Keywords }
+_rename_footage_channels() { _rename_footage_values channel XMP-xmpDM:Album Keys:AlbumArtist Keys:Album }
+_rename_footage_places()   { _rename_footage_values location LocationCreatedCity }
+
+_rename_footage() {
+  # The extensions the script itself acts on; it skips anything else outright,
+  # so offering a wider set here would only mislead. Declared local, which zsh's
+  # dynamic scoping makes visible to the helpers called below.
+  local -a video_extensions
+  video_extensions=( mp4 mov avi mkv wmv flv webm m4v )
+  local _rename_footage_glob="*.(${(j:|:)video_extensions})"
+
+  _arguments -S -s \
+    '(- *)'{-h,--help}'[Show this message]' \
+    '*--actor[Add a performer (repeatable; replaces the stored list)]:performer:_rename_footage_actors' \
+    '*--tag[Add a keyword (repeatable; replaces the stored list)]:keyword:_rename_footage_keywords' \
+    '--channel[Set the originating channel / studio]:channel:_rename_footage_channels' \
+    '--location[Set the place the footage was shot]:location:_rename_footage_places' \
+    '--rating[Set a 0-5 star rating (embedded only)]:stars:(0 1 2 3 4 5)' \
+    '(--dry-run)--print-target[Print the canonical target path only]' \
+    '(--print-target)--dry-run[Show what would be renamed without changing files]' \
+    '--verbose[Print debug information about probe/date decisions]' \
+    '--color[Enable ANSI colors]' \
+    '--icons[Use Nerd Font icons]' \
+    "*:video file:_files -g '${_rename_footage_glob}'"
+}
+
+_rename_footage "$@"
