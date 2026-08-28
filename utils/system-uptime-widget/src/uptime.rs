@@ -117,6 +117,11 @@ pub fn day_fraction(duration: Duration) -> f64 {
     (hours * 60 + minutes) as f64 / (24.0 * 60.0)
 }
 
+/// Whole days of uptime — what the dot styles count out one mark at a time.
+pub fn whole_days(duration: Duration) -> u64 {
+    parts(duration).0
+}
+
 /// Menu form: `1 day, 2 hours, 43 mins`. Every unit that is non-zero, plus the
 /// minutes always — this is the one place the figure is spelled out in full.
 pub fn expanded_uptime(duration: Duration) -> String {
@@ -199,6 +204,13 @@ mod tests {
         assert_eq!(day_fraction(duration(3, 0, 0)), 0.0);
         assert_eq!(day_fraction(duration(3, 12, 0)), 0.5);
         assert_eq!(day_fraction(duration(0, 6, 0)), 0.25);
+    }
+
+    #[test]
+    fn whole_days_truncates() {
+        assert_eq!(whole_days(duration(0, 23, 59)), 0);
+        assert_eq!(whole_days(duration(1, 0, 0)), 1);
+        assert_eq!(whole_days(duration(33, 3, 12)), 33);
     }
 
     #[test]

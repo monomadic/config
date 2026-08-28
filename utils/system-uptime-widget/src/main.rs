@@ -39,14 +39,18 @@ enum LayoutStyle {
     Text,
     Boxed,
     Progress,
+    DayBar,
+    DayDots,
 }
 
-const ALL_STYLES: [LayoutStyle; 5] = [
+const ALL_STYLES: [LayoutStyle; 7] = [
     LayoutStyle::IconAboveText,
     LayoutStyle::IconText,
     LayoutStyle::Text,
     LayoutStyle::Boxed,
     LayoutStyle::Progress,
+    LayoutStyle::DayBar,
+    LayoutStyle::DayDots,
 ];
 
 impl LayoutStyle {
@@ -57,6 +61,8 @@ impl LayoutStyle {
             LayoutStyle::Text => "Text",
             LayoutStyle::Boxed => "Boxed Text",
             LayoutStyle::Progress => "Day Progress",
+            LayoutStyle::DayBar => "Days and Bar",
+            LayoutStyle::DayDots => "Icon, Bar and Dots",
         }
     }
 
@@ -67,6 +73,8 @@ impl LayoutStyle {
             LayoutStyle::Text => "text",
             LayoutStyle::Boxed => "boxed",
             LayoutStyle::Progress => "progress",
+            LayoutStyle::DayBar => "day_bar",
+            LayoutStyle::DayDots => "day_dots",
         }
     }
 
@@ -91,6 +99,15 @@ impl LayoutStyle {
             LayoutStyle::Progress => bar::progress_image(
                 &uptime::format_uptime_coarse(duration),
                 uptime::day_fraction(duration),
+            ),
+            LayoutStyle::DayBar => bar::day_bar_image(
+                &uptime::format_uptime_coarse(duration),
+                uptime::day_fraction(duration),
+            ),
+            LayoutStyle::DayDots => bar::day_dots_image(
+                UPTIME_ICON,
+                uptime::day_fraction(duration),
+                uptime::whole_days(duration),
             ),
         }
     }

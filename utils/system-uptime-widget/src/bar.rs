@@ -43,6 +43,31 @@ const BOXED_TEXT_RATIO: f64 = 0.72;
 /// the rule the same way the stacked style shares it with the glyph.
 const PROGRESS_TEXT_RATIO: f64 = 0.62;
 
+/// Beside a bar, the value is set at the same compact size the row style uses,
+/// so the digits match `Icon and Text` and `free-disk-space-widget`.
+const DAY_BAR_TEXT_RATIO: f64 = 0.84;
+
+/// The gauge itself, in menu bar ems: `battery-widget`'s 40pt track and 6pt
+/// rule at a 14pt menu bar font, so the two widgets read as one set.
+const TRACK_RATIO: f64 = 2.85;
+const DAY_BAR_RULE_RATIO: f64 = 0.42;
+
+/// With a ledger under it the rule comes down — the pair still has to share the
+/// height of the bar, and the bar is the mark that has to stay readable.
+const DOTS_RULE_RATIO: f64 = 0.36;
+
+/// One day, and one week: the week mark is three dots wide, which is the
+/// narrowest it can be and still not read as a dot that has been squashed.
+const DOT_RATIO: f64 = 0.21;
+const WEEK_RATIO: f64 = 0.63;
+
+/// How far the ledger counts. Past this the row would be longer than the gauge
+/// above it and too long to count at a glance, so the style hands over to
+/// [`day_bar_image`] — the same reading, carried by digits instead of marks.
+/// Three weeks is where that happens whatever the remainder: 20 days is the
+/// widest row below it, and it still fits inside four and a bit ems.
+const DOTS_MAX_DAYS: u64 = 21;
+
 /// The menu bar font. Size comes from the system, not from us.
 fn menu_bar_font() -> Retained<NSFont> {
     NSFont::menuBarFontOfSize(0.0)
@@ -287,27 +312,160 @@ pub fn progress_image(text: &str, fraction: f64) -> Retained<NSImage> {
             height: rule,
         },
     };
-    // A sliver of fill is worse than none: below one rule-width there is no
-    // room for the rounded cap, so the fill starts at that width.
-    let fill_width = (width * fraction.clamp(0.0, 1.0)).round();
-    let fill = (fill_width > 0.0).then(|| NSRect {
-        origin: NSPoint { x: 0.0, y: bottom },
-        size: NSSize {
-            width: fill_width.max(rule),
-            height: rule,
-        },
-    });
 
     image(width, height, move || {
-        let radius = rule / 2.0;
-        NSColor::blackColor().colorWithAlphaComponent(0.28).set();
-        NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(track, radius, radius).fill();
-        if let Some(fill) = fill {
-            NSColor::blackColor().set();
-            NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(fill, radius, radius).fill();
-        }
+        draw_track(track, fraction);
         run.draw(text_x, text_y);
     })
+}
+
+/// Whole days in the digits and the part-day in the bar, side by side — the
+/// same split [`progress_image`] makes, laid out along the menu bar rather than
+/// across it so the gauge gets its full length back.
+pub fn day_bar_image(text: &str, fraction: f64) -> Retained<NSImage> {
+    let em = menu_bar_font().pointSize();
+    let height = NSStatusBar::systemStatusBar().thickness();
+    let run = Run::new(
+        text,
+        &digit_font(em * DAY_BAR_TEXT_RATIO),
+        &NSColor::blackColor(),
+    );
+
+    let gap = (em * 0.35).round();
+    let track_width = (em * TRACK_RATIO).round();
+    let rule = (em * DAY_BAR_RULE_RATIO).round().max(2.0);
+
+    let text_width = run.typographic.width.ceil();
+    let width = text_width + gap + track_width;
+    let text_y = ((height - run.typographic.height) / 2.0).round();
+    let track = NSRect {
+        origin: NSPoint {
+            x: text_width + gap,
+            y: ((height - rule) / 2.0).round(),
+        },
+        size: NSSize {
+            width: track_width,
+            height: rule,
+        },
+    };
+
+    image(width, height, move || {
+        run.draw(0.0, text_y);
+        draw_track(track, fraction);
+    })
+}
+
+/// The glyph, the day in progress as a bar, and the days already behind it as a
+/// ledger of marks below it. No digits: the marks are the count, one dot to the
+/// day and one longer mark to the week.
+///
+/// The ledger's height is reserved whether or not there are any marks yet, so
+/// the bar sits on one line for the whole first day rather than stepping up
+/// when the first dot lands.
+pub fn day_dots_image(glyph: &str, fraction: f64, days: u64) -> Retained<NSImage> {
+    if days > DOTS_MAX_DAYS {
+        return day_bar_image(&format!("{days}D"), fraction);
+    }
+
+    let em = menu_bar_font().pointSize();
+    let height = NSStatusBar::systemStatusBar().thickness();
+    let ink = NSColor::blackColor();
+
+    let glyph = Run::new(glyph, &menu_bar_font(), &ink);
+    let gap = (em * 0.35).round();
+    let track_width = (em * TRACK_RATIO).round();
+    let rule = (em * DOTS_RULE_RATIO).round().max(2.0);
+    let row_gap = (em * 0.14).round().max(1.0);
+    let dot = (em * DOT_RATIO).round().max(2.0);
+    let week = (em * WEEK_RATIO).round().max(dot * 3.0);
+
+    let marks = day_marks(days);
+    let row_width = marks_width(&marks, dot, week);
+
+    let bar_x = glyph.ink_width() + gap;
+    let width = bar_x + track_width.max(row_width);
+
+    let content = rule + row_gap + dot;
+    let bottom = ((height - content) / 2.0).round();
+    let track = NSRect {
+        origin: NSPoint {
+            x: bar_x,
+            y: bottom + dot + row_gap,
+        },
+        size: NSSize {
+            width: track_width,
+            height: rule,
+        },
+    };
+    let glyph_y = bottom + ((content - glyph.ink.size.height) / 2.0).round();
+
+    image(width, height, move || {
+        glyph.draw_ink_bottom(0.0, glyph_y);
+        draw_track(track, fraction);
+
+        NSColor::blackColor().set();
+        let mut x = bar_x;
+        for is_week in &marks {
+            let mark_width = if *is_week { week } else { dot };
+            let rect = NSRect {
+                origin: NSPoint { x, y: bottom },
+                size: NSSize {
+                    width: mark_width,
+                    height: dot,
+                },
+            };
+            let radius = dot / 2.0;
+            NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(rect, radius, radius).fill();
+            x += mark_width + dot;
+        }
+    })
+}
+
+/// The ledger, left to right: one `true` per whole week, then one `false` per
+/// day left over. Weeks lead, so the row reads coarse-to-fine the way the
+/// digits it replaces do.
+fn day_marks(days: u64) -> Vec<bool> {
+    let weeks = days / 7;
+    let rest = days % 7;
+    std::iter::repeat_n(true, weeks as usize)
+        .chain(std::iter::repeat_n(false, rest as usize))
+        .collect()
+}
+
+/// How wide that ledger draws, marks plus the one-dot gaps between them.
+fn marks_width(marks: &[bool], dot: f64, week: f64) -> f64 {
+    if marks.is_empty() {
+        return 0.0;
+    }
+    marks
+        .iter()
+        .map(|&is_week| if is_week { week } else { dot })
+        .sum::<f64>()
+        + dot * (marks.len() - 1) as f64
+}
+
+/// A rounded track with a solid fill to `fraction` — the gauge every bar style
+/// here draws, and the one `battery-widget` draws for the same job. Both are
+/// template alpha, so macOS tints them with the menu bar's own colour.
+fn draw_track(rect: NSRect, fraction: f64) {
+    let radius = rect.size.height / 2.0;
+    NSColor::blackColor().colorWithAlphaComponent(0.28).set();
+    NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(rect, radius, radius).fill();
+
+    // A sliver of fill is worse than none: below one rule-width there is no
+    // room for the rounded cap, so the fill starts at that width.
+    let fill_width = (rect.size.width * fraction.clamp(0.0, 1.0)).round();
+    if fill_width > 0.0 {
+        let fill = NSRect {
+            origin: rect.origin,
+            size: NSSize {
+                width: fill_width.max(rect.size.height),
+                height: rect.size.height,
+            },
+        };
+        NSColor::blackColor().set();
+        NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(fill, radius, radius).fill();
+    }
 }
 
 /// A template image, so macOS tints it to match the menu bar in either
@@ -357,4 +515,37 @@ fn glyph_attributes(
         );
     }
     attrs
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ledger_carries_sevens_into_week_marks() {
+        assert_eq!(day_marks(0), Vec::<bool>::new());
+        assert_eq!(day_marks(3), vec![false, false, false]);
+        assert_eq!(day_marks(7), vec![true]);
+        assert_eq!(day_marks(12), vec![true, false, false, false, false, false]);
+        assert_eq!(day_marks(21), vec![true, true, true]);
+    }
+
+    /// The ledger's whole reason to carry is that it stays countable: no row up
+    /// to the cap may run past a hand's worth of marks.
+    #[test]
+    fn ledger_stays_countable_to_the_cap() {
+        for days in 0..=DOTS_MAX_DAYS {
+            assert!(day_marks(days).len() <= 9, "{days} days is too many marks");
+        }
+    }
+
+    /// And it stays inside the item: at three dots to the week mark and one dot
+    /// of gap, no row up to the cap is wider than four and a half ems.
+    #[test]
+    fn ledger_stays_inside_the_item() {
+        for days in 0..=DOTS_MAX_DAYS {
+            let width = marks_width(&day_marks(days), DOT_RATIO, WEEK_RATIO);
+            assert!(width <= 4.5, "{days} days draws {width} ems wide");
+        }
+    }
 }
