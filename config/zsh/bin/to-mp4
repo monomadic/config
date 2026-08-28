@@ -7,10 +7,26 @@ fi
 # Get user's home directory for Trash location
 TRASH="${HOME}/.Trash"
 
+# Copy the source's modified time and macOS creation date onto the output.
+# st_ctime (inode change time) is kernel-owned and cannot be set.
+restore_timestamps() {
+  local src="$1" dst="$2" btime created
+
+  touch -r "$src" "$dst" 2>/dev/null || true
+
+  command -v SetFile >/dev/null 2>&1 || return 0
+  btime="$(stat -f '%B' -- "$src" 2>/dev/null)" || return 0
+  [[ "$btime" == <-> ]] && (( btime > 0 )) || return 0
+  created="$(date -r "$btime" '+%m/%d/%Y %H:%M:%S')" || return 0
+  SetFile -d "$created" "$dst" 2>/dev/null \
+    || echo "Warning: could not restore creation date: $dst" >&2
+}
+
 for file in "$@"; do
   local output="${file%.*}.mp4"
   if ffmpeg -i "$file" -c:v copy -c:a copy "$output"; then
     echo "Success: $output"
+    restore_timestamps "$file" "$output"
     # Move original file to Trash
     if mv "$file" "$TRASH/"; then
       echo "Original file moved to Trash: $file"
