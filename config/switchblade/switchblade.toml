@@ -12,7 +12,13 @@
 #   [commands]   programs those keys can launch
 
 [tuning]
-libraries = ["~/Movies/Porn/Downloads", "/Volumes/*/Movies/Porn", "~/Movies/Private", "~/Movies/Porn", "/Volumes/*/Movies/Visuals"]
+libraries = [
+  "~/Movies/Porn/Downloads",
+  "/Volumes/*/Movies/Porn",
+  "~/Movies/Private",
+  "~/Movies/Porn",
+  "/Volumes/*/Movies/Visuals"
+]
 haptics = false
 # ── Layout ──────────────────────────────────────────────────────────────
 # Grid layout:
@@ -148,7 +154,7 @@ meta_wait_ms = 120.0
 
 # [ / ] jump the playing clip by this fraction of its duration (wraps at
 # the ends). A binding can override the amount per key — see [keys] below.
-skip_fraction = 0.05
+skip_fraction = 0.00
 
 # Where playback starts, as a fraction of each clip's duration (0.0 = the
 # very beginning, 0.10 = 10% in). The static thumbnail is extracted at
@@ -198,7 +204,7 @@ quickview_fade_ms = 150.0
 # The clip's name above the video: the container's `title` tag when the
 # file carries one, the filename otherwise.
 quickview_title_size = 17.0
-quickview_title_weight = 700   # 400 regular, 600 semibold, 700 bold
+quickview_title_weight = 700  # 400 regular, 600 semibold, 700 bold
 # (Playback resolution is quickview_max_width/height, under Startup
 # settings below.)
 
@@ -210,11 +216,11 @@ quickview_title_weight = 700   # 400 regular, 600 semibold, 700 bold
 # pane IS the selection); hjkl/arrows move between panes, "." / "," walk
 # the focused pane through the library, x re-rolls it, s re-rolls all
 # three, Enter (or clicking the focused pane) watches it in cinema mode.
-triple_gap = 3.0            # between panes; they tile the window otherwise
+triple_gap = 3.0  # between panes; they tile the window otherwise
 triple_corner_radius = 20.0  # 0 = square, which is what "fills the screen" wants
-triple_border_width = 3.0   # the focused pane's border (selection_border colour) —
-                            # the only cue: unfocused panes are NOT dimmed
-triple_cover = true         # fill the pane and crop; false = letterbox it
+triple_border_width = 3.0  # the focused pane's border (selection_border colour) —
+# the only cue: unfocused panes are NOT dimmed
+triple_cover = true  # fill the pane and crop; false = letterbox it
 triple_fade_ms = 130.0
 
 # The seekbar over the quickview/fullview video: pointer motion over the
@@ -259,7 +265,11 @@ seekbar_knob_bar_swell = 1.1
 seekbar_knob_swell = 1.25
 seekbar_knob_bg_opacity = 0.15
 seekbar_knob_bg_pad = 1.0
-seekbar_loop_color = [1.0, 0.62, 0.2]  # cmd-click chapter-loop accent (armed segment + cmd-hover preview)
+seekbar_loop_color = [
+  1.0,
+  0.62,
+  0.2
+]  # cmd-click chapter-loop accent (armed segment + cmd-hover preview)
 
 # Minimum gap between two issued preview seeks. Sweeping the pointer
 # emits a position every frame; only the newest is ever serviced, and
@@ -634,6 +644,7 @@ top = 96.0
 pad_x = 13.0
 pad_y = 5.0
 fade_ms = 160.0
+
 # ── Search bar (`/`) ───────────────────────────────────────────────────────
 # `/` drops a search bar in from the top; type and a floating panel of ranked
 # matches unfolds under it, each row carrying the clip's thumbnail, its title
@@ -744,7 +755,6 @@ key_text = [0.95, 0.95, 0.96, 1.0]
 accent = [1.0, 0.216, 0.376, 1.0]
 disabled = 0.42
 fade_ms = 160.0
-
 
 [pad]
 # Delay before a HELD direction starts repeating. This is the "I pushed
