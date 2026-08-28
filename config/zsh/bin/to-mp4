@@ -22,10 +22,41 @@ restore_timestamps() {
     || echo "Warning: could not restore creation date: $dst" >&2
 }
 
+# Re-attach the source's metadata to the remuxed file.
+#
+# ffmpeg cannot do this itself. Even with -map_metadata 0 -movflags
+# use_metadata_tags it writes the com.apple.quicktime.* keys into
+# moov/udta/meta, whereas Apple stores them in a top-level moov/meta — so
+# Spotlight, Finder and Photos see no location at all (verify with
+# `mdimport -t -d2 file`). Without those flags ffmpeg additionally writes a
+# 0000:00:00 mvhd. exiftool writes the Keys block into the atom Apple reads.
+#
+# Not recoverable: the track-level VideoKeys (LensModel, FocalLength).
+restore_metadata() {
+  local src="$1" dst="$2"
+
+  if ! command -v exiftool >/dev/null 2>&1; then
+    echo "Warning: exiftool not found, metadata not restored: $dst" >&2
+    return 0
+  fi
+
+  exiftool -q -q -overwrite_original -tagsFromFile "$src" \
+    -Keys:all -ItemList:all -UserData:all \
+    -QuickTime:CreateDate -QuickTime:ModifyDate \
+    -TrackCreateDate -TrackModifyDate -MediaCreateDate -MediaModifyDate \
+    "$dst" \
+    || echo "Warning: could not restore metadata: $dst" >&2
+}
+
 for file in "$@"; do
   local output="${file%.*}.mp4"
-  if ffmpeg -i "$file" -c:v copy -c:a copy "$output"; then
+  # Remux without metadata on purpose — see restore_metadata.
+  # -strict unofficial keeps the Dolby Vision configuration box.
+  # Apple's mebx timed-metadata tracks cannot be muxed into mp4 and are lost.
+  if ffmpeg -i "$file" -map 0:v\? -map 0:a\? -c:v copy -c:a copy \
+    -strict unofficial "$output"; then
     echo "Success: $output"
+    restore_metadata "$file" "$output"
     restore_timestamps "$file" "$output"
     # Move original file to Trash
     if mv "$file" "$TRASH/"; then

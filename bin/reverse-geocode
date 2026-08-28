@@ -1,0 +1,90 @@
+#!/usr/bin/env -S swift -suppress-warnings
+
+// reverse-geocode LATITUDE LONGITUDE
+//
+// Turn decimal coordinates into a place name with MapKit -- the same service
+// behind Finder's "Created in Makati, Philippines" line, so a clip named from
+// its coordinates agrees with what macOS says about the same file.
+//
+// Prints one tab-separated line:  CITY<TAB>STATE<TAB>COUNTRY
+// Any field the geocoder has nothing for comes back empty, so the columns stay
+// aligned. Exits non-zero with a message on stderr when the lookup fails, which
+// lets a caller carry on without a place name rather than abort.
+//
+// Needs the network. Needs no location permission: reverse geocoding asks about
+// a coordinate the caller already holds, not about where this Mac is.
+//
+// MKMapItem.placemark is deprecated in macOS 26 in favour of .address, but the
+// replacement only vends preformatted strings ("Makati, Metro Manila"), while
+// the fields here are written into separate XMP tags. Hence the placemark, and
+// hence -suppress-warnings in the shebang: without it every run would print a
+// deprecation notice to stderr, since the script is compiled on each use.
+
+import Foundation
+import MapKit
+
+let args = CommandLine.arguments
+guard args.count == 3, let lat = Double(args[1]), let lon = Double(args[2]) else {
+    FileHandle.standardError.write("usage: reverse-geocode LATITUDE LONGITUDE\n".data(using: .utf8)!)
+    exit(2)
+}
+
+let coordinate = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+guard CLLocationCoordinate2DIsValid(coordinate) else {
+    FileHandle.standardError.write("reverse-geocode: coordinates out of range: \(lat), \(lon)\n".data(using: .utf8)!)
+    exit(2)
+}
+
+func fail(_ message: String) {
+    FileHandle.standardError.write("reverse-geocode: \(message)\n".data(using: .utf8)!)
+}
+
+var done = false
+var status: Int32 = 1
+
+Task {
+    defer { done = true }
+
+    guard let request = MKReverseGeocodingRequest(location: CLLocation(latitude: lat, longitude: lon)) else {
+        fail("could not build a request for \(lat), \(lon)")
+        return
+    }
+
+    let items: [MKMapItem]
+    do {
+        items = try await request.mapItems
+    } catch {
+        fail(error.localizedDescription)
+        return
+    }
+
+    guard let place = items.first?.placemark else {
+        fail("no placemark for \(lat), \(lon)")
+        return
+    }
+
+    // locality is the city proper; subAdministrativeArea stands in for the rural
+    // case, where a coordinate falls outside any incorporated place.
+    let city = place.locality ?? place.subAdministrativeArea ?? ""
+    let state = place.administrativeArea ?? ""
+    let country = place.country ?? ""
+
+    guard !city.isEmpty || !state.isEmpty || !country.isEmpty else {
+        fail("empty placemark for \(lat), \(lon)")
+        return
+    }
+
+    print([city, state, country].joined(separator: "\t"))
+    status = 0
+}
+
+// A network round trip, so give it a bound rather than hanging a rename forever.
+let deadline = Date(timeIntervalSinceNow: 20)
+while !done && Date() < deadline {
+    _ = RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.05))
+}
+if !done {
+    fail("timed out")
+    exit(1)
+}
+exit(status)

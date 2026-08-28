@@ -21,13 +21,20 @@ emulate -L zsh
 #               4. file creation ctime (birth time)
 #   PEOPLE    embedded XMP-iptcExt:PersonInImage
 #   CHANNEL   embedded XMP-xmpDM:Album
-#   TITLE     embedded XMP-dc:Title, used verbatim. With none stored, it is
-#             mined from the filename and embedded (see the rules below). A
+#   TITLE     embedded XMP-dc:Title, used verbatim, and set with --title. With
+#             none stored, it is mined from the filename and embedded (see the
+#             rules below). A
 #             camera's own name -- IMG_4855, GX010042, C0001 -- is recognised
 #             and not promoted to a title; PreservedFileName already holds it.
-#   LOCATION  embedded XMP-iptcExt:LocationCreatedCity
+#   LOCATION  embedded XMP-iptcExt:LocationCreatedCity, or, with --geocode,
+#             reverse-geocoded from the coordinates the camera stored
 #   TAGS      embedded XMP-dc:Subject, one #tag per entry
 #   METADATA  probed fresh with ffprobe (+ exiftool for DEVICE).
+#
+# Every embedded field found is printed as the file is read, along with the GPS
+# coordinates if the camera stored any. GPS is reported only: the file holds
+# numbers, while LOCATION wants a place name -- the city QuickTime shows is
+# macOS reverse-geocoding those coordinates live, and is not stored anywhere.
 #
 # On the first run over a file its existing name is recorded, write-once, as
 # XMP-xmpMM:PreservedFileName, so the name a camera or a person originally gave
@@ -51,12 +58,15 @@ emulate -L zsh
 # disposable without ever being the only copy of something.
 #
 # Options:
-#   --actor NAME     Set a performer (repeatable; replaces the stored list)
+#   --title NAME     Set the title
+#   --people NAME    Set a person (repeatable; replaces the stored list)
 #   --tag NAME       Set a keyword (repeatable; replaces the stored list)
 #   --channel NAME   Set the originating channel / studio
 #   --location NAME  Set the place the footage was shot
+#   --geocode        Derive LOCATION from the file's GPS coordinates
 #   --rating N       Set a 0-5 star rating (embedded only, not in the filename)
-#   --clear-actors   Store an empty performer list
+#   --clear-title    Store an empty title
+#   --clear-people   Store an empty person list
 #   --clear-tags     Store an empty keyword list
 #   --print-target   Print the canonical target path only
 #   --dry-run        Show what would be renamed without changing files
@@ -64,6 +74,17 @@ emulate -L zsh
 #   --color          Enable ANSI colors
 #   --icons          Use Nerd Font icons
 #   -h, --help       Show this message
+#
+# --geocode turns the coordinates a phone or camera writes into a place name and
+# embeds both together: the city as XMP-iptcExt:LocationCreatedCity (which is
+# what the filename renders), alongside ProvinceState, CountryName and the
+# coordinates themselves in the same IPTC location block. The name is looked up
+# through bin/reverse-geocode, which asks MapKit -- the service behind Finder's
+# "Created in Makati, Philippines" line, so the two agree. Answers are cached by
+# rounded coordinate, so a whole shoot costs one lookup.
+#
+# Nothing else consults the network, and a failed lookup is a warning, not an
+# error: the file still gets renamed, just without a place name.
 #
 # Dependencies: ffprobe and exiftool, both required. exiftool is NOT optional:
 # every authored field lives in XMP that only exiftool can read or write, so a
@@ -78,17 +99,27 @@ PRINT_TARGET=false
 SCRIPT_NAME="${0:t}"
 
 RATING=""
+TITLE=""
 CHANNEL=""
 LOCATION=""
+GEOCODE=false
 # What the user typed. Never modified per file, so that processing several
 # files in one run cannot leak file 1's values into file 2.
-typeset -ga CLI_ACTORS=()
+typeset -ga CLI_PEOPLE=()
 typeset -ga CLI_KEYWORDS=()
 typeset -ga METADATA_ARGS=()
-ACTORS_GIVEN=false
+PEOPLE_GIVEN=false
 KEYWORDS_GIVEN=false
-CLEAR_ACTORS=false
+CLEAR_TITLE=false
+CLEAR_PEOPLE=false
 CLEAR_TAGS=false
+
+# Coordinates read off the file, and the place name they resolve to.
+GEO_LAT=""
+GEO_LON=""
+GEO_CITY=""
+GEO_STATE=""
+GEO_COUNTRY=""
 
 # Candidates parsed out of the current filename (parse_filename_fields).
 FN_TITLE=""
@@ -101,6 +132,8 @@ typeset -ga FN_TAGS=()
 FINAL_TITLE=""
 FINAL_CHANNEL=""
 FINAL_LOCATION=""
+FINAL_STATE=""
+FINAL_COUNTRY=""
 typeset -ga FINAL_PEOPLE=()
 typeset -ga FINAL_TAGS=()
 typeset -gA WRITE_FIELD=()
@@ -109,7 +142,11 @@ META_PEOPLE=""
 META_CHANNEL=""
 META_TITLE=""
 META_LOCATION=""
-META_PRESERVED=""
+META_STATE=""
+META_COUNTRY=""
+META_PRESERVED=""""
+META_RATING=""
+META_GPS=""
 typeset -ga META_TAGS=()
 
 ICON_VIDEO="▶ "
@@ -145,12 +182,15 @@ usage() {
   print -r -- "  DATE PEOPLE (CHANNEL) - TITLE LOCATION #TAGS [RES FPS LENGTH BITRATE CODEC DEVICE ORIENTATION].ext"
   print -r -- ""
   print -r -- "Authored metadata (embedded as XMP, then re-rendered into the filename):"
-  print -r -- "  --actor NAME     Set a performer (repeatable; replaces the stored list)"
+  print -r -- "  --title NAME     Set the title"
+  print -r -- "  --people NAME    Set a person (repeatable; replaces the stored list)"
   print -r -- "  --tag NAME       Set a keyword (repeatable; replaces the stored list)"
   print -r -- "  --channel NAME   Set the originating channel / studio"
   print -r -- "  --location NAME  Set the place the footage was shot"
+  print -r -- "  --geocode        Derive the location from the file's GPS coordinates"
   print -r -- "  --rating N       Set a 0-5 star rating (embedded only)"
-  print -r -- "  --clear-actors   Store an empty performer list"
+  print -r -- "  --clear-title    Store an empty title"
+  print -r -- "  --clear-people   Store an empty person list"
   print -r -- "  --clear-tags     Store an empty keyword list"
   print -r -- ""
   print -r -- "Options:"
@@ -419,12 +459,14 @@ is_camera_name() {
 parse_filename_fields() {
   local n="$1"
   local lead trail tagpart tok
+  local dated=false
 
   FN_TITLE="" FN_CHANNEL=""
   FN_PEOPLE=() FN_TAGS=()
 
   if [[ "$n" =~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}--[0-9]{2}-[0-9]{2}-[0-9]{2}[[:space:]]*' ]]; then
     n="${n[$(( MEND + 1 )),-1]}"
+    dated=true
   fi
 
   # every [...] block is probed metadata, rebuilt fresh on each run
@@ -433,10 +475,42 @@ parse_filename_fields() {
   done
   n="$(trim_whitespace "$n")"
 
-  lead="" trail="$n"
+  # Tags are pulled out of the whole name before it is split, because they are
+  # rendered last and so belong to neither half. Cut at the first " #" rather
+  # than dropping #-prefixed words, so a multi-word tag like "#Teen (18+)" does
+  # not leave debris behind.
+  tagpart=""
+  if [[ "$n" == \#* ]]; then
+    tagpart=" $n"
+    n=""
+  elif [[ "$n" == *" #"* ]]; then
+    tagpart="${n#"${n%% \#*}"}"
+    n="$(trim_whitespace "${n%% \#*}")"
+  fi
+  for tok in "${(@s: #:)tagpart}"; do
+    tok="$(trim_whitespace "${tok#\#}")"
+    [[ -n "$tok" ]] && FN_TAGS+=("$tok")
+  done
+
+  # " - " divides the two halves of the grammar. With no divider the whole
+  # remainder is one half or the other, and which one is decided by the date:
+  #
+  #   the script emits " - " only when the right-hand half has something in it,
+  #   so "DATE Alice, Rob [META]" is a name it wrote for a titleless clip, and
+  #   that text is the PEOPLE segment. Reading it as a title is what renamed
+  #   such a clip to "DATE Alice, Rob - Alice, Rob [META]", embedding the people
+  #   as the title on the way past.
+  #
+  #   without a canonical date the name is not this script's work -- a camera's
+  #   "IMG_4855", or something typed by hand -- and its one segment is a title.
+  lead="" trail=""
   if [[ "$n" == *" - "* ]]; then
     lead="${n%% - *}"
     trail="${n#* - }"
+  elif $dated; then
+    lead="$n"
+  else
+    trail="$n"
   fi
 
   if [[ -n "$lead" ]]; then
@@ -449,21 +523,6 @@ parse_filename_fields() {
       [[ -n "$tok" ]] && FN_PEOPLE+=("$tok")
     done
   fi
-
-  # Cut at the first " #" rather than dropping #-prefixed words, so a multi-word
-  # tag like "#Teen (18+)" does not leave debris behind in the title.
-  tagpart=""
-  if [[ "$trail" == \#* ]]; then
-    tagpart=" $trail"
-    trail=""
-  elif [[ "$trail" == *" #"* ]]; then
-    tagpart="${trail#"${trail%% \#*}"}"
-    trail="${trail%% \#*}"
-  fi
-  for tok in "${(@s: #:)tagpart}"; do
-    tok="$(trim_whitespace "${tok#\#}")"
-    [[ -n "$tok" ]] && FN_TAGS+=("$tok")
-  done
 
   FN_TITLE="$(trim_whitespace "$trail")"
   log_verbose "filename yields: title='${FN_TITLE}' channel='${FN_CHANNEL}' people=(${(j:, :)FN_PEOPLE}) tags=(${(j:, :)FN_TAGS})"
@@ -487,9 +546,9 @@ resolve_fields() {
   WRITE_FIELD=()
 
   # people
-  if $ACTORS_GIVEN; then
-    FINAL_PEOPLE=("${CLI_ACTORS[@]}"); WRITE_FIELD[people]=1
-  elif $CLEAR_ACTORS; then
+  if $PEOPLE_GIVEN; then
+    FINAL_PEOPLE=("${CLI_PEOPLE[@]}"); WRITE_FIELD[people]=1
+  elif $CLEAR_PEOPLE; then
     WRITE_FIELD[people]=1
   elif [[ -n "$META_PEOPLE" ]]; then
     FINAL_PEOPLE=(${(@s:, :)META_PEOPLE})
@@ -517,17 +576,31 @@ resolve_fields() {
     FINAL_CHANNEL="$FN_CHANNEL"; WRITE_FIELD[channel]=1
   fi
 
-  # location -- no filename source, so argument or stored value only
+  # location -- no filename source, so argument, stored value, or coordinates.
+  # A stored city beats a geocoded one: it was authored, and the lookup is only
+  # ever a guess about which name a place goes by.
+  FINAL_STATE="$META_STATE"
+  FINAL_COUNTRY="$META_COUNTRY"
   if [[ -n "$LOCATION" ]]; then
     FINAL_LOCATION="$LOCATION"; WRITE_FIELD[location]=1
-  else
+  elif [[ -n "$META_LOCATION" ]]; then
     FINAL_LOCATION="$META_LOCATION"
+  elif [[ -n "$GEO_CITY" ]]; then
+    FINAL_LOCATION="$GEO_CITY"
+    FINAL_STATE="$GEO_STATE"
+    FINAL_COUNTRY="$GEO_COUNTRY"
+    WRITE_FIELD[location]=1
   fi
 
-  # title -- no argument for it, so stored value or the name
-  if [[ -n "$META_TITLE" ]]; then
+  # title -- capitalized only when mined from a filename; an argument and a
+  # stored value are both authored, so they are used exactly as written.
+  if [[ -n "$TITLE" ]]; then
+    FINAL_TITLE="$TITLE"; WRITE_FIELD[title]=1
+  elif $CLEAR_TITLE; then
+    WRITE_FIELD[title]=1
+  elif [[ -n "$META_TITLE" ]]; then
     FINAL_TITLE="$META_TITLE"
-  elif [[ -n "$FN_TITLE" ]] && ! is_camera_name "$FN_TITLE"; then
+  elif [[ -n "$FN_TITLE" && "$FN_TITLE" != "$META_PEOPLE" ]] && ! is_camera_name "$FN_TITLE"; then
     FINAL_TITLE="$(capitalize_title "$(strip_trailing_location "$FN_TITLE")")"
     [[ -n "$FINAL_TITLE" ]] && WRITE_FIELD[title]=1
   fi
@@ -579,7 +652,20 @@ build_metadata_args() {
   fi
 
   [[ -n "${WRITE_FIELD[channel]:-}" ]] && METADATA_ARGS+=("-XMP-xmpDM:Album=${FINAL_CHANNEL}")
-  [[ -n "${WRITE_FIELD[location]:-}" ]] && METADATA_ARGS+=("-XMP-iptcExt:LocationCreatedCity=${FINAL_LOCATION}")
+  # The city is what the filename renders, but it is stored as one field of the
+  # IPTC location block, so the province, the country and the coordinates that
+  # produced it are written alongside -- the plain-text place and the numbers it
+  # came from end up in the same structure, and neither can be read without the
+  # other.
+  if [[ -n "${WRITE_FIELD[location]:-}" ]]; then
+    METADATA_ARGS+=("-XMP-iptcExt:LocationCreatedCity=${FINAL_LOCATION}")
+    [[ -n "$FINAL_STATE" ]]   && METADATA_ARGS+=("-XMP-iptcExt:LocationCreatedProvinceState=${FINAL_STATE}")
+    [[ -n "$FINAL_COUNTRY" ]] && METADATA_ARGS+=("-XMP-iptcExt:LocationCreatedCountryName=${FINAL_COUNTRY}")
+    if [[ -n "$GEO_LAT" && -n "$GEO_LON" ]]; then
+      METADATA_ARGS+=("-XMP-iptcExt:LocationCreatedGPSLatitude=${GEO_LAT}")
+      METADATA_ARGS+=("-XMP-iptcExt:LocationCreatedGPSLongitude=${GEO_LON}")
+    fi
+  fi
   [[ -n "${WRITE_FIELD[title]:-}" ]] && METADATA_ARGS+=("-XMP-dc:Title=${FINAL_TITLE}")
   [[ -n "$RATING" ]] && METADATA_ARGS+=("-XMP-xmp:Rating=${RATING}")
 }
@@ -608,6 +694,7 @@ read_authored_metadata() {
   local -a cols
 
   META_PEOPLE="" META_CHANNEL="" META_TITLE="" META_LOCATION="" META_PRESERVED=""
+  META_RATING="" META_GPS="" META_STATE="" META_COUNTRY=""
   META_TAGS=()
 
   command -v exiftool >/dev/null 2>&1 || return 0
@@ -616,6 +703,8 @@ read_authored_metadata() {
     exiftool -f -T -PersonInImage -XMP-xmpDM:Album -Title -Subject \
       -LocationCreatedCity -Keys:Actors -Keys:Artist -Keys:AlbumArtist \
       -Keys:Album -Keys:Keywords -XMP-xmpMM:PreservedFileName \
+      -XMP-xmp:Rating -GPSCoordinates \
+      -LocationCreatedProvinceState -LocationCreatedCountryName \
       -- "$file" 2>/dev/null | head -1
   )"
   [[ -z "$row" ]] && return 0
@@ -626,6 +715,10 @@ read_authored_metadata() {
   META_TITLE="$(first_present "${cols[3]}")"
   META_LOCATION="$(first_present "${cols[5]}")"
   META_PRESERVED="$(first_present "${cols[11]}")"
+  META_RATING="$(first_present "${cols[12]}")"
+  META_GPS="$(first_present "${cols[13]}")"
+  META_STATE="$(first_present "${cols[14]}")"
+  META_COUNTRY="$(first_present "${cols[15]}")"
 
   # Keywords come back as a ", "-joined list; each entry becomes one #tag.
   subject="$(first_present "${cols[4]}" "${cols[10]}")"
@@ -637,10 +730,111 @@ read_authored_metadata() {
     done
   fi
 
-  # Report what the file already carries, so a run shows the tags it is about to
-  # keep (or replace) rather than only the name it ends up with. Suppressed under
-  # --print-target, whose stdout is a path meant to be consumed by another command.
-  $PRINT_TARGET || print -r -- "${CYAN}${ICON_SKIP}${file:t}: tags: ${${(j: :)META_TAGS}:-<none>}${RESET}"
+  report_authored_metadata "$file"
+}
+
+# Print what the file already carries, before anything is written or renamed, so
+# a run shows the values it is about to keep or replace rather than only the name
+# it ends up with. Absent fields are omitted rather than printed empty, which
+# keeps a bare camera clip to a single line.
+#
+# GPS is reported but never used: the coordinates are all the file stores, and
+# LOCATION wants a place name. QuickTime's "Created in Makati" is macOS
+# reverse-geocoding those numbers live, not something read back off the file.
+#
+# Suppressed under --print-target, whose stdout is a path meant to be consumed
+# by another command.
+report_authored_metadata() {
+  local file="$1"
+  local -a lines
+  local place
+
+  $PRINT_TARGET && return 0
+
+  # City, province and country are three tags but one fact, so they are reported
+  # as one line. Only the city is ever rendered into the filename.
+  place="$META_LOCATION"
+  [[ -n "$META_STATE" ]]   && place="${place:+${place}, }${META_STATE}"
+  [[ -n "$META_COUNTRY" ]] && place="${place:+${place}, }${META_COUNTRY}"
+
+  [[ -n "$META_TITLE" ]]     && lines+=("title:     ${META_TITLE}")
+  [[ -n "$META_PEOPLE" ]]    && lines+=("people:    ${META_PEOPLE}")
+  [[ -n "$META_CHANNEL" ]]   && lines+=("channel:   ${META_CHANNEL}")
+  [[ -n "$place" ]]          && lines+=("location:  ${place}")
+  [[ -n "$META_GPS" ]]       && lines+=("gps:       ${META_GPS}")
+  (( ${#META_TAGS} ))        && lines+=("tags:      ${(j: :)META_TAGS}")
+  [[ -n "$META_RATING" ]]    && lines+=("rating:    ${META_RATING}")
+  [[ -n "$META_PRESERVED" ]] && lines+=("was:       ${META_PRESERVED}")
+
+  if (( ${#lines} )); then
+    print -r -- "${CYAN}${ICON_SKIP}${file:t}${RESET}"
+    local line
+    for line in "${lines[@]}"; do
+      print -r -- "${CYAN}    ${line}${RESET}"
+    done
+  else
+    print -r -- "${CYAN}${ICON_SKIP}${file:t}: no embedded metadata${RESET}"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# GEOCODING
+# ---------------------------------------------------------------------------
+
+# The coordinates a camera writes, as signed decimal degrees. Read separately
+# from the main metadata row because that row reports them the way QuickTime's
+# Get Info panel does -- 14 deg 33' 50.36" N -- and a geocoder wants numbers.
+read_gps_position() {
+  local file="$1" pos
+
+  GEO_LAT="" GEO_LON=""
+
+  pos="$(exiftool -c '%+.6f' -s3 -f -GPSPosition -- "$file" 2>/dev/null | head -1)"
+  if [[ "$pos" =~ '([-+]?[0-9]+\.[0-9]+),[[:space:]]*([-+]?[0-9]+\.[0-9]+)' ]]; then
+    GEO_LAT="$match[1]"
+    GEO_LON="$match[2]"
+    log_verbose "gps position: ${GEO_LAT}, ${GEO_LON}"
+  fi
+}
+
+# Coordinates -> place name, via bin/reverse-geocode (MapKit).
+#
+# Cached by coordinate rounded to four decimals, about 11 metres, so a shoot that
+# never left one street costs a single lookup however many clips came off it. A
+# failed lookup is cached as nothing at all: the next run should retry it, since
+# the usual cause is that this machine was offline.
+geocode_position() {
+  local cache_dir cache_file row
+
+  GEO_CITY="" GEO_STATE="" GEO_COUNTRY=""
+  [[ -z "$GEO_LAT" || -z "$GEO_LON" ]] && return 0
+
+  if ! command -v reverse-geocode >/dev/null 2>&1; then
+    print -u2 -r -- "${YELLOW}${ICON_WARN}--geocode needs reverse-geocode on PATH (deploy the bin package)${RESET}"
+    return 0
+  fi
+
+  cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/rename-footage/geocode"
+  cache_file="${cache_dir}/$(printf '%.4f_%.4f' "$GEO_LAT" "$GEO_LON").tsv"
+
+  if [[ -s "$cache_file" ]]; then
+    row="$(head -1 -- "$cache_file")"
+    log_verbose "geocode cache hit: ${cache_file:t}"
+  else
+    row="$(reverse-geocode "$GEO_LAT" "$GEO_LON" 2>/dev/null | head -1)"
+    if [[ -z "$row" ]]; then
+      print -u2 -r -- "${YELLOW}${ICON_WARN}Could not geocode ${GEO_LAT}, ${GEO_LON}${RESET}"
+      return 0
+    fi
+    mkdir -p -- "$cache_dir" 2>/dev/null && print -r -- "$row" > "$cache_file"
+  fi
+
+  local -a parts
+  parts=("${(@s:	:)row}")
+  GEO_CITY="${parts[1]:-}"
+  GEO_STATE="${parts[2]:-}"
+  GEO_COUNTRY="${parts[3]:-}"
+  log_verbose "geocoded ${GEO_LAT}, ${GEO_LON} -> ${GEO_CITY}, ${GEO_STATE}, ${GEO_COUNTRY}"
 }
 
 embed_metadata() {
@@ -695,6 +889,16 @@ process_video() {
   # embedded metadata and the rendered filename come from the same resolved
   # values, so what lands on disk and what the file is called cannot disagree.
   parse_filename_fields "$name_without_ext"
+
+  # Coordinates are only read when something is going to use them: --geocode
+  # needs them to find a place name, and --location writes them into the same
+  # block as the name it was given, so the two stay together.
+  GEO_LAT="" GEO_LON="" GEO_CITY="" GEO_STATE="" GEO_COUNTRY=""
+  if $GEOCODE || [[ -n "$LOCATION" ]]; then
+    read_gps_position "$file"
+    $GEOCODE && [[ -z "$LOCATION" && -z "$META_LOCATION" ]] && geocode_position
+  fi
+
   resolve_fields
   $PRINT_TARGET || embed_metadata "$file"
 
@@ -838,7 +1042,7 @@ process_video() {
   fi
 
   if [[ "$filename" == "$new_filename" ]]; then
-    print -r -- "${YELLOW}${ICON_SKIP}${filename}${RESET}"
+    print -r -- "${YELLOW}${ICON_SKIP}Unchanged: ${filename}${RESET}"
   elif [[ -e "$new_path" ]]; then
     print -r -- "${YELLOW}${ICON_WARN}Exists: $new_filename${RESET}"
   else
@@ -900,13 +1104,14 @@ normalize_input_path() {
 main() {
   while (( $# > 0 )); do
     case "$1" in
-      --actor|--tag|--channel|--location|--rating)
+      --title|--people|--actor|--tag|--channel|--location|--rating)
         if (( $# < 2 )); then
           print -u2 -r -- "${YELLOW}${ICON_WARN}$1 requires a value${RESET}"
           exit 1
         fi
         case "$1" in
-          --actor)    CLI_ACTORS+=("$2"); ACTORS_GIVEN=true ;;
+          --title)    TITLE="$2" ;;
+          --people|--actor) CLI_PEOPLE+=("$2"); PEOPLE_GIVEN=true ;;
           --tag)      CLI_KEYWORDS+=("$2"); KEYWORDS_GIVEN=true ;;
           --channel)  CHANNEL="$2" ;;
           --location) LOCATION="$2" ;;
@@ -920,7 +1125,9 @@ main() {
         esac
         shift 2
         ;;
-      --clear-actors) CLEAR_ACTORS=true; shift ;;
+      --clear-title)  CLEAR_TITLE=true; shift ;;
+      --clear-people|--clear-actors) CLEAR_PEOPLE=true; shift ;;
+      --geocode) GEOCODE=true; shift ;;
       --clear-tags)   CLEAR_TAGS=true; shift ;;
       --dry-run) DRY_RUN=true; shift ;;
       --verbose) VERBOSE=true; shift ;;
@@ -966,11 +1173,15 @@ main() {
           process_video "$file"
           ;;
         *)
-          print -r -- "${YELLOW}${ICON_SKIP}${file:t}${RESET}"
+          print -r -- "${YELLOW}${ICON_SKIP}Not a video: ${file:t}${RESET}"
           ;;
       esac
     else
-      print -r -- "${YELLOW}${ICON_SKIP}${file:t}${RESET}"
+      # Named rather than shrugged at, and with the whole path: the usual cause
+      # is a path from before a previous run renamed the file out from under it,
+      # where a bare basename looks exactly like a file that was read and left
+      # alone.
+      print -r -- "${YELLOW}${ICON_WARN}Not found: ${file}${RESET}"
     fi
   done
 }
