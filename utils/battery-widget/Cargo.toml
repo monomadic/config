@@ -6,8 +6,8 @@ edition = "2024"
 [dependencies]
 block2 = "0.6.2"
 objc2 = "0.6.4"
-objc2-app-kit = { version = "0.3.2", features = ["NSApplication", "NSStatusBar", "NSStatusBarButton", "NSMenu", "NSMenuItem", "NSFont", "NSColor", "NSResponder", "NSButton", "NSControl", "NSView", "NSRunningApplication", "NSGraphics", "NSAttributedString", "NSCell", "NSFontDescriptor", "NSImage", "NSBezierPath", "NSStringDrawing", "block2"] }
-objc2-foundation = { version = "0.3.2", features = ["NSAttributedString", "NSString", "NSDictionary", "NSTimer", "NSThread", "NSDate", "NSObject", "NSRunLoop", "NSGeometry", "NSUserDefaults", "NSValue", "NSEnumerator"] }
+objc2-app-kit = { version = "0.3.2", features = ["NSApplication", "NSStatusBar", "NSStatusBarButton", "NSMenu", "NSMenuItem", "NSFont", "NSColor", "NSResponder", "NSButton", "NSControl", "NSView", "NSRunningApplication", "NSGraphics", "NSAttributedString", "NSCell", "NSFontDescriptor", "NSImage", "NSBezierPath", "NSStringDrawing", "NSParagraphStyle", "NSText", "NSTextAttachment", "block2"] }
+objc2-foundation = { version = "0.3.2", features = ["NSAttributedString", "NSString", "NSDictionary", "NSTimer", "NSThread", "NSDate", "NSObject", "NSRunLoop", "NSGeometry", "NSUserDefaults", "NSValue", "NSEnumerator", "NSArray", "NSRange"] }
 
 [profile.release]
 opt-level = "s"

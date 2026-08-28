@@ -7,6 +7,7 @@ use std::process::Command;
 use std::time::Instant;
 
 use battery::{BatteryInfo, BatteryState, read_battery};
+use objc2::Message;
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{
@@ -15,12 +16,15 @@ use objc2::{
 use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSBezierPath, NSCellImagePosition, NSColor,
     NSControlStateValueOff, NSControlStateValueOn, NSFont, NSFontAttributeName,
-    NSFontWeightRegular, NSForegroundColorAttributeName, NSImage, NSMenu, NSMenuItem, NSStatusBar,
-    NSStatusItem, NSStringDrawing, NSVariableStatusItemLength,
+    NSAttributedStringAttachmentConveniences, NSAttributedStringNSStringDrawing,
+    NSCompositingOperation, NSFontWeightRegular,
+    NSForegroundColorAttributeName, NSImage, NSMenu, NSMenuItem, NSMutableParagraphStyle,
+    NSParagraphStyleAttributeName, NSRectFillUsingOperation, NSStatusBar, NSStatusItem,
+    NSStringDrawing, NSTextAlignment, NSTextAttachment, NSTextTab, NSVariableStatusItemLength,
 };
 use objc2_foundation::{
-    NSMutableAttributedString, NSMutableDictionary, NSObject, NSPoint, NSRect, NSSize, NSString,
-    NSTimer, ns_string,
+    NSArray, NSAttributedString, NSMutableAttributedString, NSMutableDictionary, NSObject, NSPoint,
+    NSRange, NSRect, NSSize, NSString, NSTimer, ns_string,
 };
 
 const BATTERY_ICON: &str = "\u{1006E8}"; // SF Symbols battery.100
@@ -312,6 +316,18 @@ struct TitleSpec {
 }
 
 fn attributed_title(runs: &[Run]) -> Retained<NSMutableAttributedString> {
+    attributed_runs(runs, None)
+}
+
+/// The runs, set. `fallback` colours the runs that carry no colour of their
+/// own — the menu bar wants them left alone, so the status item passes `None`
+/// and lets AppKit take the title as the bar's own; a preview drawn into an
+/// image has no such owner, so it passes the label colour and gets ink that
+/// tracks the appearance instead of the default black.
+fn attributed_runs(
+    runs: &[Run],
+    fallback: Option<&NSColor>,
+) -> Retained<NSMutableAttributedString> {
     let result = NSMutableAttributedString::new();
     for run in runs {
         let weight = unsafe { NSFontWeightRegular };
@@ -324,9 +340,9 @@ fn attributed_title(runs: &[Run]) -> Retained<NSMutableAttributedString> {
         let attrs = NSMutableDictionary::<NSString, AnyObject>::new();
         unsafe {
             attrs.setObject_forKey(&font, ProtocolObject::from_ref(NSFontAttributeName));
-            if let Some(color) = &run.color {
+            if let Some(color) = run.color.as_deref().or(fallback) {
                 attrs.setObject_forKey(
-                    &**color,
+                    color,
                     ProtocolObject::from_ref(NSForegroundColorAttributeName),
                 );
             }
@@ -342,6 +358,207 @@ fn attributed_title(runs: &[Run]) -> Retained<NSMutableAttributedString> {
         result.appendAttributedString(&piece);
     }
     result
+}
+
+/// How far the previews sit from the longest label, in ems of the menu font.
+const STYLE_ROW_GAP_RATIO: f64 = 2.0;
+
+/// Between the bar and the text inside a preview — the gap the menu bar item
+/// itself gets from `NSCellImagePosition`, which a composed image has to
+/// supply for itself.
+const PREVIEW_INNER_GAP: f64 = 4.0;
+
+/// The menu font — the one macOS sets menu item titles in, a size apart from
+/// the menu *bar* font the status item is drawn at.
+fn menu_font() -> Retained<NSFont> {
+    NSFont::menuFontOfSize(0.0)
+}
+
+/// How wide `text` sets as a menu item title.
+fn menu_label_width(text: &str) -> f64 {
+    let attrs = NSMutableDictionary::<NSString, AnyObject>::new();
+    unsafe {
+        attrs.setObject_forKey(&menu_font(), ProtocolObject::from_ref(NSFontAttributeName));
+        NSString::from_str(text)
+            .sizeWithAttributes(Some(&attrs))
+            .width
+    }
+}
+
+/// Where the previews' right edge belongs: past the longest label, with room
+/// for the widest preview. One figure for the whole menu is what puts the
+/// previews in a column rather than leaving each to sit where its own label
+/// ends.
+fn style_column_right_edge(widest_label: f64, widest_preview: f64) -> f64 {
+    widest_label + menu_font().pointSize() * STYLE_ROW_GAP_RATIO + widest_preview
+}
+
+/// An image in the menu's own text colour.
+///
+/// A neutral bar is a template image — black ink plus alpha, for macOS to tint
+/// to the current appearance. `NSMenuItem`'s image well does that tinting and
+/// so does the menu bar; drawing into another image does not, which would put
+/// black ink on a dark menu. So the template is drawn and then flooded
+/// source-atop with the label colour, which keeps the alpha and replaces the
+/// black. Block-based, so the colour resolves at draw time and follows the
+/// system between light and dark.
+fn tinted(image: &NSImage) -> Retained<NSImage> {
+    let source = image.retain();
+    let handler = block2::RcBlock::new(move |bounds: NSRect| -> objc2::runtime::Bool {
+        source.drawInRect(bounds);
+        NSColor::labelColor().set();
+        NSRectFillUsingOperation(bounds, NSCompositingOperation::SourceAtop);
+        objc2::runtime::Bool::YES
+    });
+
+    NSImage::imageWithSize_flipped_drawingHandler(image.size(), false, &handler)
+}
+
+/// What the menu bar item would look like in `style`, as one image, for the
+/// style menu to show beside that style's name.
+///
+/// The item itself splits its appearance between an attributed title and an
+/// image, and lets `NSCellImagePosition` put the two together. A menu row has
+/// only the one slot, so the preview has to compose them here: bar and text
+/// side by side, in the order the style asks for, centred on each other.
+///
+/// The preview is the style drawn from the live reading, not a mock of it, but
+/// it is drawn at rest — pulses are held at full so a row is never caught
+/// mid-breath, which at menu refresh rate would read as rows fading at random
+/// rather than as a pulse.
+fn preview_image(info: &BatteryInfo, style: LayoutStyle) -> Retained<NSImage> {
+    let mut anim = Anim::new(info, 0.0);
+    anim.bar_alpha = 1.0;
+    let spec = title_spec(info, style, &anim);
+
+    let title = attributed_runs(&spec.runs, Some(&NSColor::labelColor()));
+    let title_size = if spec.runs.is_empty() {
+        NSSize {
+            width: 0.0,
+            height: 0.0,
+        }
+    } else {
+        title.size()
+    };
+
+    let bar = spec.bar.as_ref().map(|bar| {
+        let image = bar_image(bar, BarPad::None);
+        // A neutral bar comes back as a template; inside a composed image it
+        // has to carry its own colour.
+        if image.isTemplate() {
+            tinted(&image)
+        } else {
+            image
+        }
+    });
+    let bar_size = bar.as_ref().map(|bar| bar.size()).unwrap_or(NSSize {
+        width: 0.0,
+        height: 0.0,
+    });
+
+    let gap = if bar.is_some() && !spec.runs.is_empty() {
+        PREVIEW_INNER_GAP
+    } else {
+        0.0
+    };
+    let size = NSSize {
+        width: title_size.width + gap + bar_size.width,
+        height: title_size.height.max(bar_size.height).max(BAR_IMAGE_HEIGHT),
+    };
+
+    let bar_on_left = spec.bar_on_left;
+    let handler = block2::RcBlock::new(move |_bounds: NSRect| -> objc2::runtime::Bool {
+        let (bar_x, title_x) = if bar_on_left {
+            (0.0, bar_size.width + gap)
+        } else {
+            (title_size.width + gap, 0.0)
+        };
+
+        if let Some(bar) = &bar {
+            bar.drawInRect(NSRect {
+                origin: NSPoint {
+                    x: bar_x,
+                    y: (size.height - bar_size.height) / 2.0,
+                },
+                size: bar_size,
+            });
+        }
+
+        title.drawAtPoint(NSPoint {
+            x: title_x,
+            y: (size.height - title_size.height) / 2.0,
+        });
+
+        objc2::runtime::Bool::YES
+    });
+
+    NSImage::imageWithSize_flipped_drawingHandler(size, false, &handler)
+}
+
+/// A style menu row: the label flush left, the preview flush right against the
+/// column's edge.
+///
+/// A right-aligned tab stop is what does it — the label, a tab, then the
+/// preview as an attachment, so every preview finishes on the same line
+/// however wide it is and however short its label. The alternative, a custom
+/// `NSView` per row, would cost the rows their native highlight and checkmark.
+fn style_row_title(label: &str, preview: &NSImage) -> Retained<NSMutableAttributedString> {
+    let font = menu_font();
+
+    let attachment = NSTextAttachment::new();
+    attachment.setImage(Some(preview));
+
+    // An attachment sits on the baseline, which hangs the preview below the
+    // label it shares a row with. Drop it by half the difference so the two
+    // centre on each other.
+    let size = preview.size();
+    attachment.setBounds(NSRect {
+        origin: NSPoint {
+            x: 0.0,
+            y: font.capHeight() / 2.0 - size.height / 2.0,
+        },
+        size,
+    });
+
+    let title = NSMutableAttributedString::initWithString(
+        NSMutableAttributedString::alloc(),
+        &NSString::from_str(&format!("{label}\t")),
+    );
+    title.appendAttributedString(&NSAttributedString::attributedStringWithAttachment(&attachment));
+    title
+}
+
+/// The paragraph style the rows share: one right-aligned tab stop, at the
+/// column's right edge.
+fn style_row_paragraph(right_edge: f64) -> Retained<NSMutableParagraphStyle> {
+    let paragraph = NSMutableParagraphStyle::new();
+    let tab = unsafe {
+        NSTextTab::initWithTextAlignment_location_options(
+            NSTextTab::alloc(),
+            NSTextAlignment::Right,
+            right_edge,
+            &NSMutableDictionary::new(),
+        )
+    };
+    paragraph.setTabStops(Some(&NSArray::from_retained_slice(&[tab])));
+    paragraph
+}
+
+/// Stamp the shared paragraph style over a whole row title.
+fn apply_style_row_paragraph(
+    title: &NSMutableAttributedString,
+    paragraph: &NSMutableParagraphStyle,
+) {
+    unsafe {
+        title.addAttribute_value_range(
+            NSParagraphStyleAttributeName,
+            paragraph,
+            NSRange {
+                location: 0,
+                length: title.length(),
+            },
+        );
+    }
 }
 
 /// Draw the bar the mockup way: a rounded track with a rounded fill, and the
@@ -789,6 +1006,36 @@ impl Widget {
             } else {
                 "Low Power Mode: Off"
             }));
+
+        // Each style row carries the item that style would install, drawn from
+        // the live reading. Refreshed here rather than in `render`: the reading
+        // is what changes them, and `render` runs at animation rate. The
+        // previews go in the title rather than in the item's own image well,
+        // which is what lets them sit in a right-hand column — an item image is
+        // drawn hard against the label, ragged down the menu as labels vary.
+        let previews: Vec<Retained<NSImage>> = ALL_STYLES
+            .iter()
+            .map(|style| preview_image(&info, *style))
+            .collect();
+
+        // The column is measured across the whole menu, not row by row, so
+        // every preview shares one right edge. Widths move with the reading —
+        // "100%" is wider than "9%" — so this is remeasured on each update.
+        let widest_label = ALL_STYLES
+            .iter()
+            .map(|style| menu_label_width(style.label()))
+            .fold(0.0, f64::max);
+        let widest_preview = previews
+            .iter()
+            .map(|preview| preview.size().width)
+            .fold(0.0, f64::max);
+        let paragraph = style_row_paragraph(style_column_right_edge(widest_label, widest_preview));
+
+        for (index, item) in ui.style_items.iter().enumerate() {
+            let title = style_row_title(ALL_STYLES[index].label(), &previews[index]);
+            apply_style_row_paragraph(&title, &paragraph);
+            item.setAttributedTitle(Some(&title));
+        }
     }
 
     /// Redraw the menu bar item from the cached reading. Cheap enough to run

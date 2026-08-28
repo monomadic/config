@@ -309,10 +309,35 @@ impl Widget {
 
         // Each style row carries the image that style would install, drawn from
         // the current uptime — so the preview is the thing itself, not a mock
-        // of it, and it stays current as the value ticks over.
+        // of it, and it stays current as the value ticks over. The previews go
+        // in the title rather than in the item's own image well, which is what
+        // lets them sit in a right-hand column: an item image is drawn hard
+        // against the label, ragged down the menu as the labels vary.
+        let previews: Vec<Retained<NSImage>> = ALL_STYLES
+            .iter()
+            .map(|style| style.image(duration))
+            .collect();
+
+        // The column is measured from the whole menu, not row by row, so every
+        // preview shares one right edge. Widths move with the uptime — the
+        // ledger grows a mark a day — so this is remeasured on each update.
+        let widest_label = ALL_STYLES
+            .iter()
+            .map(|style| bar::menu_label_width(style.label()))
+            .fold(0.0, f64::max);
+        let widest_preview = previews
+            .iter()
+            .map(|preview| preview.size().width)
+            .fold(0.0, f64::max);
+        let paragraph = bar::style_row_paragraph(bar::style_column_right_edge(
+            widest_label,
+            widest_preview,
+        ));
+
         for (index, item) in ui.style_items.iter().enumerate() {
-            let preview: Retained<NSImage> = ALL_STYLES[index].image(duration);
-            item.setImage(Some(&preview));
+            let title = bar::style_row_title(ALL_STYLES[index].label(), &previews[index]);
+            bar::apply_style_row_paragraph(&title, &paragraph);
+            item.setAttributedTitle(Some(&title));
         }
     }
 

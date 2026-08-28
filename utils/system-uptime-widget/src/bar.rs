@@ -12,16 +12,21 @@
 //! the glyph's own left side bearing lands on top of that.
 
 use objc2::AnyThread;
+use objc2::Message;
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2_app_kit::{
     NSBezierPath, NSColor, NSFont, NSFontAttributeName, NSFontWeightRegular,
-    NSForegroundColorAttributeName, NSImage, NSStatusBar, NSStringDrawing,
+    NSForegroundColorAttributeName, NSImage, NSMutableParagraphStyle,
+    NSAttributedStringAttachmentConveniences, NSCompositingOperation,
+    NSParagraphStyleAttributeName, NSRectFillUsingOperation, NSStatusBar, NSStringDrawing,
+    NSTextAlignment, NSTextAttachment, NSTextTab,
 };
 use objc2_core_foundation::CFAttributedString;
 use objc2_core_text::{CTLine, CTLineBoundsOptions};
 use objc2_foundation::{
-    NSMutableAttributedString, NSMutableDictionary, NSPoint, NSRect, NSSize, NSString,
+    NSArray, NSAttributedString, NSMutableAttributedString, NSMutableDictionary, NSPoint, NSRange, NSRect, NSSize,
+    NSString,
 };
 
 /// Side by side, the value is set a little smaller than the glyph — the same
@@ -94,6 +99,125 @@ pub fn attributed_title(text: &str) -> Retained<NSMutableAttributedString> {
             &NSString::from_str(text),
             Some(&attrs),
         )
+    }
+}
+
+/// How far the previews sit from the longest label, in ems of the menu font.
+/// Wide enough that the two columns read as columns rather than as one run
+/// that happens to have a gap in it.
+const STYLE_ROW_GAP_RATIO: f64 = 2.0;
+
+/// The menu font — the one macOS sets menu item titles in, which is a size
+/// apart from the menu *bar* font the item itself is drawn at.
+fn menu_font() -> Retained<NSFont> {
+    NSFont::menuFontOfSize(0.0)
+}
+
+/// How wide `text` sets as a menu item title.
+pub fn menu_label_width(text: &str) -> f64 {
+    let attrs = NSMutableDictionary::<NSString, AnyObject>::new();
+    unsafe {
+        attrs.setObject_forKey(&menu_font(), ProtocolObject::from_ref(NSFontAttributeName));
+        NSString::from_str(text).sizeWithAttributes(Some(&attrs)).width
+    }
+}
+
+/// Where the previews' right edge belongs, given every label and every preview
+/// in the menu: past the longest label, with room for the widest preview. One
+/// figure for the whole menu is what puts the previews in a column — a row
+/// with a short label and a narrow preview lines up with every other row.
+pub fn style_column_right_edge(widest_label: f64, widest_preview: f64) -> f64 {
+    widest_label + menu_font().pointSize() * STYLE_ROW_GAP_RATIO + widest_preview
+}
+
+/// A style menu row: the label set flush left, the preview flush right against
+/// `right_edge`.
+///
+/// A right-aligned tab stop is what does it. The label, a tab, then the preview
+/// as an attachment — the tab stop ends the run that follows it at
+/// `right_edge`, so every preview finishes on the same line however wide it is
+/// and however short its label. The alternative, a custom `NSView` per row,
+/// would cost the rows their native highlight and checkmark.
+pub fn style_row_title(label: &str, preview: &NSImage) -> Retained<NSMutableAttributedString> {
+    let font = menu_font();
+
+    let attachment = NSTextAttachment::new();
+    attachment.setImage(Some(&tinted(preview)));
+
+    // An attachment sits on the baseline by default, which hangs the preview
+    // below the label it shares a row with. Drop it by half the difference
+    // between the two so the preview centres on the label's own midline.
+    let size = preview.size();
+    let midline = font.capHeight() / 2.0;
+    attachment.setBounds(NSRect {
+        origin: NSPoint {
+            x: 0.0,
+            y: midline - size.height / 2.0,
+        },
+        size,
+    });
+
+    let title = NSMutableAttributedString::initWithString(
+        NSMutableAttributedString::alloc(),
+        &NSString::from_str(&format!("{label}\t")),
+    );
+    title.appendAttributedString(&NSAttributedString::attributedStringWithAttachment(&attachment));
+    title
+}
+
+/// A preview in the menu's own text colour.
+///
+/// The previews are template images — black ink plus alpha, for macOS to tint
+/// to whichever appearance the menu bar is in. `NSMenuItem`'s image well does
+/// that tinting; a text attachment does not, it draws the image exactly as
+/// given, which puts black ink on a dark menu. So the attachment gets a tinted
+/// copy: the template drawn, then flooded source-atop with the label colour,
+/// which keeps the alpha and replaces the black.
+///
+/// Block-based like the previews themselves, so the colour is resolved at draw
+/// time and follows the system between light and dark.
+fn tinted(preview: &NSImage) -> Retained<NSImage> {
+    let source = preview.retain();
+    let handler = block2::RcBlock::new(move |bounds: NSRect| -> objc2::runtime::Bool {
+        source.drawInRect(bounds);
+        NSColor::labelColor().set();
+        NSRectFillUsingOperation(bounds, NSCompositingOperation::SourceAtop);
+        objc2::runtime::Bool::YES
+    });
+
+    NSImage::imageWithSize_flipped_drawingHandler(preview.size(), false, &handler)
+}
+
+/// The paragraph style the rows share: one right-aligned tab stop, at the
+/// column's right edge.
+pub fn style_row_paragraph(right_edge: f64) -> Retained<NSMutableParagraphStyle> {
+    let paragraph = NSMutableParagraphStyle::new();
+    let tab = unsafe {
+        NSTextTab::initWithTextAlignment_location_options(
+            NSTextTab::alloc(),
+            NSTextAlignment::Right,
+            right_edge,
+            &NSMutableDictionary::new(),
+        )
+    };
+    paragraph.setTabStops(Some(&NSArray::from_retained_slice(&[tab])));
+    paragraph
+}
+
+/// Stamp the shared paragraph style over a whole row title.
+pub fn apply_style_row_paragraph(
+    title: &NSMutableAttributedString,
+    paragraph: &NSMutableParagraphStyle,
+) {
+    unsafe {
+        title.addAttribute_value_range(
+            NSParagraphStyleAttributeName,
+            paragraph,
+            NSRange {
+                location: 0,
+                length: title.length(),
+            },
+        );
     }
 }
 

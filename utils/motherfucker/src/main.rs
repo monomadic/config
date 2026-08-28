@@ -483,7 +483,7 @@ declare_class!(
                 self.execute(false);
                 true
             } else if command == sel!(cancelOperation:) {
-                self.hide();
+                self.dismiss();
                 true
             } else if command == sel!(deleteBackward:) {
                 // Backspace on an empty field leaves the sigil mode or the
@@ -975,7 +975,7 @@ impl Delegate {
                     self.refresh();
                 }
             }
-            Action::Dismiss => self.hide(),
+            Action::Dismiss => self.dismiss(),
             Action::SelectAll => {
                 if let (Some(panel), Some(field)) = (ivars.panel.get(), ivars.field.get()) {
                     unsafe {
@@ -1044,6 +1044,17 @@ impl Delegate {
         ivars.selected.set(0);
         self.set_field_text("");
         self.refresh();
+    }
+
+    /// Back out one level: Escape in the app-commands submenu returns to the
+    /// launcher list rather than closing the panel. Everywhere else it still
+    /// dismisses.
+    fn dismiss(&self) {
+        if self.ivars().mode.get() == PanelMode::AppCommands {
+            self.exit_app_commands();
+        } else {
+            self.hide();
+        }
     }
 
     /// Leave `PanelMode::AppCommands` back to the plain launcher, discarding
