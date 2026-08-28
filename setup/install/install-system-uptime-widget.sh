@@ -6,7 +6,7 @@ APP_NAME="system-uptime-widget"
 LABEL="${LABEL:-com.jayu.system-uptime-widget}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
-SOURCE_BINARY="${SOURCE_BINARY:-$DOTFILES_DIR/vendor/bin/$APP_NAME}"
+CRATE_DIR="${CRATE_DIR:-$DOTFILES_DIR/utils/$APP_NAME}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 LAUNCH_AGENTS_DIR="${LAUNCH_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
 LOG_DIR="${LOG_DIR:-$HOME/Library/Logs}"
@@ -82,10 +82,16 @@ main() {
   require_command launchctl
   require_command plutil
   require_command sed
+  require_command cargo
 
-  if [[ ! -x "$SOURCE_BINARY" ]]; then
-    echo "Error: missing executable source binary: $SOURCE_BINARY" >&2
-    echo "Rebuild it with: cargo build --release --manifest-path '$DOTFILES_DIR/utils/$APP_NAME/Cargo.toml' && cp '$DOTFILES_DIR/utils/$APP_NAME/target/release/$APP_NAME' '$SOURCE_BINARY'" >&2
+  local source_binary
+  source_binary="$CRATE_DIR/target/release/$APP_NAME"
+
+  echo "Building $APP_NAME (release)..."
+  cargo build --release --manifest-path "$CRATE_DIR/Cargo.toml"
+
+  if [[ ! -x "$source_binary" ]]; then
+    echo "Error: build did not produce an executable at $source_binary" >&2
     exit 1
   fi
 
@@ -93,9 +99,9 @@ main() {
   binary_path="$INSTALL_DIR/$APP_NAME"
   plist_path="$LAUNCH_AGENTS_DIR/$LABEL.plist"
 
-  echo "Installing binary from $SOURCE_BINARY to $binary_path..."
+  echo "Installing binary to $binary_path..."
   mkdir -p "$INSTALL_DIR" "$LAUNCH_AGENTS_DIR" "$LOG_DIR"
-  install -m 0755 "$SOURCE_BINARY" "$binary_path"
+  install -m 0755 "$source_binary" "$binary_path"
 
   echo "Writing LaunchAgent to $plist_path..."
   write_launch_agent "$binary_path" "$plist_path"
