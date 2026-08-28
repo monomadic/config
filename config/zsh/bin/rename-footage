@@ -636,6 +636,11 @@ read_authored_metadata() {
       [[ -n "$tag" ]] && META_TAGS+=("#${tag}")
     done
   fi
+
+  # Report what the file already carries, so a run shows the tags it is about to
+  # keep (or replace) rather than only the name it ends up with. Suppressed under
+  # --print-target, whose stdout is a path meant to be consumed by another command.
+  $PRINT_TARGET || print -r -- "${CYAN}${ICON_SKIP}${file:t}: tags: ${${(j: :)META_TAGS}:-<none>}${RESET}"
 }
 
 embed_metadata() {
