@@ -21,7 +21,6 @@ pub enum Control {
     Url,
     Stars,
     Enum,
-    Number,
     Date,
     /// Displayed, never edited — probed or write-once data.
     ReadOnly,
@@ -140,11 +139,11 @@ pub static JUNK_KEYS: &[&str] = &[
     "handler_name", "vendor_id", "creation_time",
 ];
 
-pub fn field(id: &str) -> Option<&'static FieldDef> {
+/// Every atom key any field claims, for splitting known from custom.
+pub fn field_by_id(id: &str) -> Option<&'static FieldDef> {
     FIELDS.iter().find(|f| f.id == id)
 }
 
-/// Every atom key any field claims, for splitting known from custom.
 pub fn claimed_atom_keys() -> Vec<&'static str> {
     let mut v: Vec<&'static str> =
         FIELDS.iter().flat_map(|f| f.read.iter().chain(f.mdta.iter()).copied()).collect();

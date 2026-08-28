@@ -1,6 +1,6 @@
 # tagform — a form-based metadata tagger for MP4/MOV
 
-**Status:** design document / implementation prompt. No code yet.
+**Status:** milestones 0-5 built (see [README](README.md)); 6-8 outstanding.
 **Language:** Rust. **Install target:** `~/.local/bin/tagform` via `setup/install/install-tagform.sh`.
 
 ---
@@ -155,11 +155,11 @@ would otherwise be silently dropped on every rewrite.
 
 | # | Field | Control (§5) | Container keys (`mdta`) | ilst atom | Notes |
 |---|---|---|---|---|---|
-| 1 | **Title** | Text | `title` | `©nam` | title-case helper on `⌃T`, matching `media-parse-filename-to-json` |
-| 2 | **Actors** | List (chips, `,`) | `actors`, `artist` | `©ART` + `iTunMOVI` cast | yt-dlp writes both from `%(cast,uploader)l` |
-| 3 | **Artist** | Text | `artist` | `©ART` | separate from Actors; when Actors is non-empty and Artist is untouched it mirrors the joined list (§3.4) |
-| 4 | **Rating** | Stars 0–5 | `rating`, `comment` JSON | freeform `com.apple.iTunes:rating` | see §3.3 — this is *not* `rtng` |
-| 5 | **Description** | TextArea | `description` | `desc` (+ `ldes` if >255 B) | |
+| **1** | ✅ **Title** | Text | `title` | `©nam` | title-case helper on `⌃T`, matching `media-parse-filename-to-json` |
+| **2** | ✅ **Actors** | List (chips, `,`) | `actors`, `artist` | `©ART` + `iTunMOVI` cast | yt-dlp writes both from `%(cast,uploader)l` |
+| **3** | ✅ **Artist** | Text | `artist` | `©ART` | separate from Actors; when Actors is non-empty and Artist is untouched it mirrors the joined list (§3.4) |
+| **4** | ✅ **Rating** | Stars 0–5 | `rating`, `comment` JSON | freeform `com.apple.iTunes:rating` | see §3.3 — this is *not* `rtng` |
+| **5** | ✅ **Description** | TextArea | `description` | `desc` (+ `ldes` if >255 B) | |
 | 6 | **URL** | URL (validated) | `webpage_url`, `source_url`, `purl`, `comment`, `original_url` | `purl` | one field, five keys — §3.2 |
 | 7 | **Channel** | Text + completion | `album_artist`, `album`, `channel` | `aART`, `©alb`, `tvnn` | yt-dlp maps `%(channel,uploader)s` to both `album_artist` and `album` |
 | 8 | **Tags** | HashTag chips | `keywords` | `keyw` | comma-joined on disk, `#tag` in filenames |
@@ -1005,8 +1005,12 @@ an afterthought, and it must never open `/dev/tty`.
 | `q` / `esc` | quit (confirms if there are staged edits) |
 | `?` | key help |
 
-vim motion (`hjkl`) is deliberately *not* bound outside the star row: this is a
-text-entry app and `h` must insert an `h`.
+**Built modal instead.** The above assumed one mode with fields always live,
+which forced every command onto a modifier. In practice a Select/Edit split is
+better: `j`/`k` move and `enter` opens a field, so the single-letter commands in
+the table above work as written — `w` can mean write precisely because nothing
+is listening for the letter w until you press `enter`. In Edit mode `enter`
+saves, `tab` saves and advances, `esc` cancels the field, `⌃c` always quits.
 
 ---
 

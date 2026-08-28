@@ -10,13 +10,64 @@ strings. Replaces `config/zsh/bin/mp4-tui-tagger`.
 
 ## Status
 
-**Milestone 1 of 8: read-only.** Probe → model → aggregate → JSON. No UI, no
-writes.
+**Milestone 5 of 8: multi-file.** Probe → model → aggregate → typed controls →
+verified write, across a whole selection. Edits stage until `w`, which shows a
+plan to confirm; the original is only ever replaced by a result that has been
+read back and checked.
+
+Aggregation works like an mp3 tagger: a field that differs between files reads
+`‹multiple›`, and is left alone unless you set it. `m` **merges** a list field —
+the union of every file's values, first-seen order, folded case-insensitively —
+which is the operation you actually want when tagging a batch and which none of
+the scripts this replaces can do. Setting a `‹multiple›` field says how many
+distinct values it is about to flatten, in the confirmation, before it happens.
 
 ```bash
-cargo run -- --print-json FILE...
+cargo run -- FILE...                  # the form
+cargo run -- --print-json FILE...     # the model, as JSON
 cargo test
 ```
+
+The form is **modal**. Select mode moves and commands; Edit mode types. That is
+what frees the single-letter keys — `w` can mean write because in Select mode
+nothing is listening for the letter w.
+
+**Select** (default)
+
+| key | |
+|---|---|
+| `j` / `k`, arrows, `tab` | move between fields (`g` / `G` first / last) |
+| `enter` | edit the focused field |
+| `w` | write staged edits (shows a plan first) |
+| `m` | merge a list field across every file in the selection |
+| `p` | inspector — per-file values for the focused field |
+| `]` / `[` / `a` | next file / previous file / all files |
+| `u` / `ctrl-r` / `r` | undo / redo / revert everything staged |
+| `f` | toggle MOV faststart on the write (on by default) |
+| `q` / `esc` | quit (asks if edits are staged) |
+
+**Edit**
+
+| key | |
+|---|---|
+| (type) | edit the field; `←` `→` cycle an enum or adjust a rating |
+| `enter` | save and stop editing |
+| `tab` / `shift-tab` | save and move to the next / previous field |
+| `esc` | cancel this field's edit |
+| `ctrl-c` | quit, from either mode |
+
+Controls: text, list chips, `#hashtags`, URL (validated, `not a URL: …`), a
+0–5 star row, open enums (Genre, Type) and closed ones (Kind, stored as the
+`stik` integer but shown as "Movie"), and dates.
+
+Genre and Type are **not hardcoded** — they are parsed out of
+`~/.config/yt-dlp/config`'s `--alias` lines, so adding an alias there adds a
+dropdown value here. `Camera Footage` normalizes to `Footage`.
+
+Two things it already does that the scripts it replaces could not: it reads XMP
+and atoms together, so a `rename-footage` clip shows its people, location and
+rating; and `--print-json` reports `ilst_lossy` — the fields on these files that
+have no iTunes atom at all, i.e. exactly what `--compat ilst` would drop.
 
 Milestone 0 (the container experiment) is done and reshaped the design; its
 findings are in `docs/CONTAINER.md` and reproducible with

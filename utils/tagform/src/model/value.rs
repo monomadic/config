@@ -17,14 +17,6 @@ impl Value {
         Value::Text(s.into())
     }
 
-    /// The form a field is displayed and edited in.
-    pub fn as_display(&self) -> String {
-        match self {
-            Value::Text(s) => s.clone(),
-            Value::List(v) => v.join(", "),
-        }
-    }
-
     pub fn is_empty(&self) -> bool {
         match self {
             Value::Text(s) => s.trim().is_empty(),
@@ -49,6 +41,16 @@ pub enum Agg {
 }
 
 impl Agg {
+    /// The single agreed value, when the selection has one. `Mixed` and
+    /// `Absent` deliberately return None: neither has a value to compare an
+    /// edit against.
+    pub fn value(&self) -> Option<&Value> {
+        match self {
+            Agg::Same { value } => Some(value),
+            _ => None,
+        }
+    }
+
     /// Fold one value per file into an aggregate.
     ///
     /// A field absent everywhere is `Absent`, not `Mixed` — "nobody has this"
@@ -64,14 +66,6 @@ impl Agg {
             Agg::Same { value: first.clone() }
         } else {
             Agg::Mixed { values: per_file }
-        }
-    }
-
-    /// The single value, when there is one.
-    pub fn value(&self) -> Option<&Value> {
-        match self {
-            Agg::Same { value } => Some(value),
-            _ => None,
         }
     }
 }
@@ -91,8 +85,10 @@ mod tests {
 
     #[test]
     fn identical_in_all_is_same() {
-        let a = Agg::fold(vec![t("x"), t("x"), t("x")]);
-        assert_eq!(a.value(), Some(&Value::text("x")));
+        match Agg::fold(vec![t("x"), t("x"), t("x")]) {
+            Agg::Same { value } => assert_eq!(value, Value::text("x")),
+            other => panic!("expected Same, got {other:?}"),
+        }
     }
 
     #[test]

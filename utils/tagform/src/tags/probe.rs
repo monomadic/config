@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::model::schema::Control;
 use crate::model::value::Value;
 
 #[derive(Debug, Clone)]
@@ -26,18 +27,24 @@ pub struct FileTags {
 impl FileTags {
     /// Resolve one field, XMP first (SPEC §4.1) — that is where rename-footage
     /// puts authored data, and a remux-written atom may be staler.
+    ///
+    /// The result is normalised to the shape the field's control expects. XMP
+    /// stores a list as a real list, but an mdta atom stores it comma-joined
+    /// (`actors=Sasha Grey, Manuel Ferrara`, `keywords=pov,hd`), so without this
+    /// the same field would be a list on one file and one long string on the
+    /// next, and every consumer would have to re-split it.
     pub fn lookup(&self, f: &crate::model::schema::FieldDef) -> Option<Value> {
         for k in f.xmp {
             if let Some(v) = self.xmp.get(*k) {
                 if !v.is_empty() {
-                    return Some(v.clone());
+                    return Some(normalize(v.clone(), f.control));
                 }
             }
         }
         for k in f.read {
             if let Some(v) = self.atoms.get(*k) {
                 if !v.is_empty() {
-                    return Some(v.clone());
+                    return Some(normalize(v.clone(), f.control));
                 }
             }
         }
@@ -83,7 +90,7 @@ fn probe_atoms(path: &Path) -> Result<BTreeMap<String, Value>> {
                 continue;
             }
             if let Some(s) = json_scalar(val) {
-                map.insert(key, Value::Text(s));
+                map.insert(key, Value::text(s));
             }
         }
     }
@@ -118,7 +125,7 @@ fn probe_xmp(path: &Path) -> Result<BTreeMap<String, Value>> {
                 Value::List(a.iter().filter_map(json_scalar).collect())
             }
             other => match json_scalar(other) {
-                Some(s) => Value::Text(s),
+                Some(s) => Value::text(s),
                 None => continue,
             },
         };
@@ -133,5 +140,72 @@ fn json_scalar(v: &serde_json::Value) -> Option<String> {
         serde_json::Value::Number(n) => Some(n.to_string()),
         serde_json::Value::Bool(b) => Some(b.to_string()),
         _ => None,
+    }
+}
+
+/// Coerce a stored value into the shape its control edits.
+fn normalize(v: Value, control: Control) -> Value {
+    match (control, v) {
+        (Control::List, Value::Text(s)) => Value::List(split_list(&s)),
+        (Control::HashTags, Value::Text(s)) => Value::List(split_tags(&s)),
+        (_, other) => other,
+    }
+}
+
+/// Comma-separated, matching what yt-dlp's `%(cast)l` writes and what ytform's
+/// SplitList parses.
+fn split_list(s: &str) -> Vec<String> {
+    s.split(',')
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
+        .collect()
+}
+
+/// Comma- or space-separated, leading '#' tolerated, so a value pasted as
+/// "#a #b" round-trips (ytform's SplitTags).
+fn split_tags(s: &str) -> Vec<String> {
+    s.split([',', ' '])
+        .map(|p| p.trim().trim_start_matches('#').to_string())
+        .filter(|p| !p.is_empty())
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mdta_joined_actors_become_a_list() {
+        assert_eq!(
+            normalize(Value::text("Sasha Grey, Manuel Ferrara"), Control::List),
+            Value::List(vec!["Sasha Grey".into(), "Manuel Ferrara".into()])
+        );
+    }
+
+    #[test]
+    fn tags_split_on_comma_or_space_and_lose_the_hash() {
+        for input in ["pov,hd", "pov hd", "#pov #hd", "#pov, #hd"] {
+            assert_eq!(
+                normalize(Value::text(input), Control::HashTags),
+                Value::List(vec!["pov".into(), "hd".into()]),
+                "input: {input}"
+            );
+        }
+    }
+
+    /// XMP already stores a real list; it must survive untouched rather than
+    /// being re-split on the commas inside a name.
+    #[test]
+    fn an_existing_list_is_left_alone() {
+        let l = Value::List(vec!["Lee, Tom".into()]);
+        assert_eq!(normalize(l.clone(), Control::List), l);
+    }
+
+    #[test]
+    fn scalar_controls_are_untouched() {
+        assert_eq!(
+            normalize(Value::text("a, b"), Control::Text),
+            Value::text("a, b")
+        );
     }
 }

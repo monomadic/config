@@ -1,11 +1,15 @@
 //! tagform — a form-based metadata tagger for MP4/MOV.
 //!
-//! Milestone 1: probe -> model -> aggregate -> --print-json. No UI, no writes.
+//! Milestone 3: probe -> model -> aggregate -> editable form with validation
+//! and undo. Edits are staged in memory; nothing is written to disk yet.
 //! See SPEC.md for the design and docs/CONTAINER.md for the measured container
 //! behaviour the design rests on.
 
+mod config;
 mod model;
 mod tags;
+mod thumb;
+mod ui;
 
 use anyhow::{bail, Result};
 use std::collections::BTreeMap;
@@ -22,6 +26,11 @@ struct Report {
     /// Keys found on disk that no field claims. Never dropped — losing an
     /// unrecognised tag by failing to recognise it is the bug this guards.
     custom: BTreeMap<String, Agg>,
+    /// Fields these files carry that have no iTunes atom at all, so they are
+    /// exactly what `--compat ilst` would silently drop. Measured, not guessed:
+    /// the default `.mp4` path keeps 11 of 20 keys (docs/CONTAINER.md §1.1).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    ilst_lossy: Vec<&'static str>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     disputes: Vec<Dispute>,
 }
@@ -52,10 +61,12 @@ fn main() {
 fn run() -> Result<()> {
     let mut paths: Vec<PathBuf> = Vec::new();
     let mut print_json = false;
+    let mut no_thumbnail = false;
 
     for arg in std::env::args().skip(1) {
         match arg.as_str() {
             "--print-json" => print_json = true,
+            "--no-thumbnail" => no_thumbnail = true,
             "-h" | "--help" => {
                 println!("{USAGE}");
                 return Ok(());
@@ -68,27 +79,31 @@ fn run() -> Result<()> {
     if paths.is_empty() {
         bail!("no files given\n\n{USAGE}");
     }
-    if !print_json {
-        // The TUI is milestone 2. Say so plainly rather than doing something
-        // surprising with the argument.
-        bail!("the interactive form is not built yet (milestone 2); use --print-json");
+    let files: Vec<FileTags> = paths.iter().map(|p| probe(p)).collect::<Result<_>>()?;
+
+    if print_json {
+        let report = build_report(&files);
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
     }
 
-    let files: Vec<FileTags> = paths.iter().map(|p| probe(p)).collect::<Result<_>>()?;
-    let report = build_report(&files);
-    println!("{}", serde_json::to_string_pretty(&report)?);
-    Ok(())
+    let custom = custom_keys(&files);
+    ui::app::run(files, custom, no_thumbnail)
 }
 
 fn build_report(files: &[FileTags]) -> Report {
     let mut fields = BTreeMap::new();
     let mut disputes = Vec::new();
+    let mut ilst_lossy = Vec::new();
 
     for f in FIELDS {
         let per_file: Vec<Option<Value>> = files.iter().map(|t| t.lookup(f)).collect();
         let agg = Agg::fold(per_file);
         if matches!(agg, Agg::Absent) && f.footage_only {
             continue; // footage fields stay hidden until they hold something
+        }
+        if !matches!(agg, Agg::Absent) && f.ilst.is_none() {
+            ilst_lossy.push(f.id);
         }
         fields.insert(
             f.id.to_string(),
@@ -106,36 +121,64 @@ fn build_report(files: &[FileTags]) -> Report {
         }
     }
 
-    let claimed = claimed_atom_keys();
-    let mut custom_keys: Vec<String> = files
-        .iter()
-        .flat_map(|t| t.atoms.keys())
-        .filter(|k| !claimed.contains(&k.as_str()))
-        .cloned()
-        .collect();
-    custom_keys.sort_unstable();
-    custom_keys.dedup();
-
-    let custom = custom_keys
-        .into_iter()
-        .map(|k| {
-            let per_file = files.iter().map(|t| t.atoms.get(&k).cloned()).collect();
-            (k, Agg::fold(per_file))
-        })
-        .collect();
+    let custom = custom_keys(files);
 
     Report {
         files: files.iter().map(|t| t.path.display().to_string()).collect(),
         fields,
         custom,
+        ilst_lossy,
         disputes,
     }
+}
+
+/// Keys on disk that no field claims. Aggregated and carried through rather
+/// than dropped -- losing an unrecognised tag by failing to recognise it is
+/// exactly the bug this guards against.
+fn custom_keys(files: &[FileTags]) -> BTreeMap<String, Agg> {
+    let claimed = claimed_atom_keys();
+    let mut keys: Vec<String> = files
+        .iter()
+        .flat_map(|t| t.atoms.keys())
+        .filter(|k| !claimed.contains(&k.as_str()))
+        .cloned()
+        .collect();
+    keys.sort_unstable();
+    keys.dedup();
+    keys.into_iter()
+        .map(|k| {
+            let per_file = files.iter().map(|t| t.atoms.get(&k).cloned()).collect();
+            (k, Agg::fold(per_file))
+        })
+        .collect()
 }
 
 const USAGE: &str = "\
 Usage: tagform [OPTIONS] FILE...
 
-  --print-json   dump the aggregated tag model and exit
-  -h, --help     show this message
+  --print-json     dump the aggregated tag model and exit
+  --no-thumbnail   do not render a thumbnail
+  -h, --help       show this message
 
-Milestone 1: read-only. The interactive form is milestone 2.";
+Keys — the form is modal.
+
+  SELECT (default)
+    j / k, arrows     move between fields          g / G   first / last
+    enter             edit the focused field
+    w                 write staged edits (shows a plan to confirm first)
+    m                 merge a list field across every file in the selection
+    p                 inspector: per-file values for the focused field
+    ] / [             next / previous file         a       all files
+    u / ctrl-r        undo / redo                  r       revert every staged edit
+    f                 toggle MOV faststart on the write   [on]
+    q / esc           quit (asks if edits are staged)
+
+  EDIT
+    (type)            edit the field               left/right  cycle an enum, adjust a rating
+    enter             save and stop editing
+    tab / shift-tab   save and move to the next / previous field
+    esc               cancel this field's edit
+    ctrl-c            quit from anywhere
+
+Edits are staged until `w`; the original is only replaced by a
+result that has been read back and verified.";
