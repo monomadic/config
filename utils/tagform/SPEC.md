@@ -54,8 +54,10 @@ container (with the filename as an optional secondary sink).
 
 ## 2. The container problem — read this before designing anything else
 
-MP4 and MOV store "the same" metadata in two mutually incompatible boxes, and
-which one you write decides which applications can read the file back.
+MP4 and MOV store "the same" metadata in **four** mutually incompatible places,
+and which one you write decides which applications can read the file back. All
+of the behaviour below was measured, not assumed — see
+[docs/CONTAINER.md](docs/CONTAINER.md) for the fixtures and the numbers.
 
 ```
 moov/udta/meta/hdlr = 'mdir' + ilst   →  iTunes-style four-char atoms (©nam, desc, keyw…)
@@ -97,19 +99,46 @@ modes:
 | `ilst` | one ffmpeg pass without the flag; only fields with a real atom mapping (§4) | files headed for Plex/Infuse/Music |
 | `both` | the `mdta` pass, then a second in-place injection of the ilst atoms (§9.3) | archival masters; the only mode readable by everything |
 
-**Verify before building `both`.** The claim "ffmpeg writes `mdta` *instead of*
-`mdir`, never both" comes from reading `movenc.c`'s `mov_write_meta_tag()` and
-from the shape of the existing configs — it is not something this document
-tested. Milestone 0 is a one-hour experiment: tag a fixture both ways, dump with
-`exiftool -a -G1` and `AtomicParsley -t`, and record the actual box layout in
-`docs/CONTAINER.md`. If ffmpeg turns out to emit both, `both` collapses into
-`mdta` and a chunk of §9.3 disappears.
+**Measured (milestone 0, done).** Of 20 keys written four ways:
 
-MOV is the sharper edge: with a `.mov` extension ffmpeg selects `MODE_MOV`,
-which supports a *subset* of the iTunes atoms. So `ilst` mode on `.mov` is
-partly a lie. `tagform` handles this by refusing: `--compat ilst` on a `.mov`
-input is an error naming the fields that would be lost, with `--compat mdta`
-(the default) as the suggested fix.
+| Container | Flags | Box | Kept |
+|---|---|---|---|
+| `.mp4` | *(default)* | `[ItemList]` ilst | 11/20 |
+| `.mp4` | `use_metadata_tags` | `[Keys]` mdta | **20/20** |
+| `.mov` | *(default)* | `[UserData]` udta | 9/20 |
+| `.mov` | `use_metadata_tags` | `[Keys]` mdta | **20/20** |
+
+ffmpeg writes one box **or** the other, never both — so `both` genuinely needs a
+second tool (§9.3). The default `.mp4` path silently drops exactly this repo's
+custom vocabulary: `actors`, `type`, `channel`, `rating`, `origin`,
+`source_url`, `webpage_url`, `purl`, `yt_dlp_id`.
+
+The `.mov` default path is not merely lossy, it is *wrong*: ffmpeg invents
+unnamed atoms from the first three characters of keys it cannot map, so
+`description` becomes `UserData_des` and `keywords` becomes `UserData_key`, and
+nothing reads those back. **`--compat ilst` on a `.mov` input is a hard error**
+naming the fields that would be lost.
+
+One more measured consequence: with `-map_metadata 0`, `use_metadata_tags`
+copies `major_brand`, `minor_version` and `compatible_brands` in as *real*
+readable tags, which then accumulate on every rewrite. Hiding them from the form
+(§3.6) is not enough — every write must actively clear them with
+`-metadata major_brand=` and friends.
+
+### 2.2 XMP — the fourth namespace, and the dangerous one
+
+`rename-footage` stores **all** of its authored metadata as XMP via exiftool,
+not as atoms at all. Two measured facts govern the entire write path:
+
+- **ffprobe cannot see XMP.** A file carrying six XMP fields reports exactly the
+  same `format_tags` as one carrying none.
+- **An ffmpeg remux destroys XMP**, totally and silently, with no flag to
+  prevent it. The `[Keys]` tags survive; the XMP does not.
+
+So a `tagform` that always remuxed would erase everything `rename-footage`
+authored — including `PreservedFileName`, which that script's comments call "the
+only surviving copy" of a file's original name. The writer therefore chooses its
+backend from the file's *contents*, never from a user preference (§9.2).
 
 ---
 
@@ -219,8 +248,22 @@ The genre and type enums are not invented here. They are exactly the aliases in
 --alias original '… --parse-metadata "Original:%(meta_type)s"'
 ```
 
-→ Genre: `Media`, `Camera Footage`, `Karaoke`, `VJ Clip`
+→ Genre: `Media`, `Footage`, `Karaoke`, `VJ Clip`
 → Type: `Clip`, `Master`, `Original`
+
+**`Footage`, not `Camera Footage`.** The yt-dlp alias literal is currently
+`Camera Footage`; `tagform` normalises it. A `[enums.aliases]` table maps stored
+values to canonical ones on read, so existing files tagged `Camera Footage`
+display and re-save as `Footage` without a migration pass:
+
+```toml
+[enums.aliases]
+"Camera Footage" = "Footage"
+```
+
+Changing the yt-dlp alias itself (`config/yt-dlp/config`, the `--alias footage`
+line) is a separate one-line edit that only affects *new* downloads; the alias
+table above is what makes the two agree either way.
 
 Hard-coding them would guarantee drift the first time an alias is added, so
 `tagform` **parses `~/.config/yt-dlp/config` at startup**: any
@@ -229,11 +272,66 @@ literal to the enum. Config `enums.genre` / `enums.type` (§10) extend or
 override. Parse failure is not fatal — it falls back to the four/three above and
 notes it in the status line.
 
-### 3.6 Keys `tagform` never shows
+### 3.6 The Footage profile: XMP fields from `rename-footage`
+
+When Genre is `Footage`, six more fields appear, and they live in XMP rather
+than in atoms because that is where `rename-footage` put them:
+
+| Field | Control | XMP tag | Atom fallback on read |
+|---|---|---|---|
+| **Actors** | List | `XMP-iptcExt:PersonInImage` (true list) | `Keys:Actors`, `Keys:Artist` |
+| **Channel** | Text | `XMP-xmpDM:Album` | `Keys:AlbumArtist`, `Keys:Album` |
+| **Tags** | HashTag | `XMP-dc:Subject` (true list) | `Keys:Keywords` |
+| **Location** | Text | `XMP-iptcExt:LocationCreatedCity` | — |
+| **Rating** | Stars | `XMP-xmp:Rating` (0–5) | `Keys:Rating` |
+| **Original name** | Text (read-only) | `XMP-xmpMM:PreservedFileName` | — |
+
+Notes that are not optional:
+
+- **Actors/Channel/Tags/Rating are the *same fields* as §3.1**, not new ones.
+  Only their storage differs. The Footage profile changes where a field is
+  written, never what the user sees. `rename-footage` already reads the atoms as
+  a fallback, and `tagform` does the same in both directions.
+- `XMP-xmp:Rating` is a **standard 0–5 rating field** — which largely settles
+  open question 2. On Footage files the stars have a real home; the freeform
+  atom is only needed elsewhere.
+- **`PreservedFileName` is write-once and read-only in the form.** It is the
+  only record of a camera's original `IMG_4855.MOV`. `tagform` displays it,
+  offers `⌃T` to copy it into Title, and never overwrites it. If it is absent
+  and the file is being renamed, `tagform` stamps it — same rule as
+  `rename-footage`.
+- **XMP list tags do not replace on assignment, they append.** Clearing requires
+  an empty assignment *first*, and the values that follow must use `=` and not
+  `+=`, because an append is applied against the original list and survives the
+  clear — quietly doubling the list on every run. `rename-footage`'s
+  `build_metadata_args()` documents this trap; `tagform` reuses its exact
+  argument order.
+- **The filename is a source, not just a sink.** `rename-footage` resolves every
+  field by a fixed precedence, and `tagform` follows it so the two cannot
+  disagree about the same file:
+
+  1. an explicit edit wins outright and is written; for a list, the edited
+     values *are* the list, replacing what was stored. The filename is not
+     consulted.
+  2. no edit, field already has metadata → keep it; ignore the filename.
+  3. no edit, no metadata → parse it out of the filename **and embed it**.
+
+  Rule 3 is what keeps the name disposable without it ever being the only copy
+  of something. It is also why `--from-filename` (§10) is not really an optional
+  seeding mode: for an empty field it is the *default* behaviour, and only the
+  writing of it back is opt-in.
+- **A camera's own name is not a title.** `IMG_4855`, `GX010042`, `C0001` and
+  friends are recognised and refused for the Title field under rule 3;
+  `PreservedFileName` already holds them verbatim.
+- Kind (`stik`) defaults to `0` (Home Video) when Genre is `Footage`.
+- Device (`com.apple.quicktime.model`) and the `[RES FPS LENGTH …]` spec block
+  are **probed, never authored** — shown in the header line, never editable.
+
+### 3.7 Keys `tagform` never shows
 
 `major_brand`, `minor_version`, `compatible_brands`, `encoder`, `handler_name`,
-`vendor_id`, `creation_time` — muxer bookkeeping, hidden from the form and
-passed through untouched, exactly as `mp4-tui-tagger`'s `JUNK_KEYS` does.
+`vendor_id`, `creation_time` — muxer bookkeeping, hidden from the form, and
+actively cleared on every write rather than merely ignored (§2.1).
 
 Everything else found on disk but absent from the schema appears in a
 **Custom** section at the bottom: an editable key/value list, so no existing tag
@@ -247,9 +345,19 @@ default (`--edit-custom` to unlock) since they are provenance, not user data.
 
 ### 4.1 Read
 
-`ffprobe -v error -show_entries format_tags -of json` — one process per file,
-same as `mp4-tui-tagger`'s `probe_file()`. Keys are lower-cased for lookup;
-the original casing is retained for round-tripping unrecognised keys.
+**Two readers, always.** `ffprobe -v error -show_entries format_tags -of json`
+for the atoms, and one `exiftool -f -T -G1` call for the XMP that ffprobe is
+blind to (§2.2). Keys are lower-cased for lookup; the original casing is
+retained for round-tripping unrecognised keys.
+
+Reading with ffprobe alone would report every footage file as having no people,
+no tags, no channel, no location and no rating — and the form would then offer
+to write that emptiness back. exiftool is a hard dependency of the *read* path,
+not an optional enhancement.
+
+Precedence per field is XMP → atoms, matching `rename-footage`'s
+`first_present()`. A value seen in neither is `Unset`; a value seen in both that
+disagrees is surfaced in the inspector rather than silently resolved.
 
 A second `ffprobe -show_streams` call supplies the header line: resolution,
 duration, codecs, bitrate, and stream-level `tags` (which the form does not
@@ -275,12 +383,18 @@ struct KeyMap {
 the canonical set. That asymmetry is what makes the tool idempotent across files
 tagged by different generations of these scripts.
 
-**The ffmpeg key names in §3 need verifying**, one by one, against a fixture.
-ffmpeg's ilst mapping lives in `movenc.c` and is not fully documented; several
-entries above (`type`, `origin`, `channel`, `rating`, `actors`) have no ilst
-mapping at all and exist only because `use_metadata_tags` allows arbitrary keys.
-Milestone 0 produces `tests/fixtures/keymap.json` from a real round-trip, and
-the table becomes generated rather than asserted.
+The ilst column in §3 is now **measured** rather than asserted: `type`,
+`origin`, `channel`, `rating` and `actors` have no ilst mapping at all and exist
+only because `use_metadata_tags` allows arbitrary keys (§2.1). `keymap.json` is
+generated by `tests/container-experiment.sh` and checked in, so the table is
+regenerable rather than hand-maintained.
+
+One measured trap for the read path: a value can be written by exiftool and read
+back by exiftool while ffprobe reports it as **empty** — observed on a large
+`.mov` whose padding atom had been consumed, and *not* predicted by value size
+(docs/CONTAINER.md §4). `tagform` therefore never writes an empty value over a
+field whose two readers disagree about emptiness, and warns on the
+disagreement — which is observable — rather than on a byte count, which is not.
 
 ### 4.3 Multi-file aggregation
 
@@ -648,7 +762,44 @@ Write 3 files
 Nothing before this point touches disk. `mp4-tui-tagger`'s staging model,
 kept — it is the reason that script is trustworthy.
 
-### 9.2 The remux
+### 9.2 Choosing a backend — from the file, not from a flag
+
+There are two writers, and the choice between them is a **correctness** decision
+the tool makes, never a preference the user expresses:
+
+```
+                    ┌─ adding a key the file does not have?
+                    │        (in place writes it unreadably — CONTAINER §3.2)
+          ┌─────────┴─────────┐
+        no│                   │yes
+          ▼                   ▼
+   carries XMP?          carries XMP?
+    ┌─────┴─────┐         ┌────┴────┐
+  yes│          │no     no│         │yes
+    ▼           ▼         ▼          ▼
+ exiftool   exiftool    ffmpeg    TWO-PASS
+ in place   in place    remux     remux, then re-apply
+ (must —    (cheap,               the XMP snapshot
+ remux      keeps inode           taken at read time
+ destroys   + xattrs)
+ XMP)
+```
+
+Two measured facts drive every branch: a remux destroys XMP (§2.2), and an
+in-place write cannot *add* an mdta key — exiftool writes it, exiftool reads it
+back, and ffprobe cannot see it (docs/CONTAINER.md §3.2). Updating a key that is
+already present is safe in place; adding one is not.
+
+The two-pass case is not exotic — it is what happens the first time you set
+Genre on a footage clip that has XMP but no `genre` atom. It works only because
+both readers always run, so the XMP snapshot exists before the remux eats it.
+
+`--writer ffmpeg|exiftool|auto` exists for debugging and defaults to `auto`.
+Forcing `ffmpeg` on a file carrying XMP prints what will be lost and requires
+`--force`. This is the one place `tagform` overrides the user, and it does so
+because the alternative is silent, unrecoverable data loss.
+
+#### 9.2.1 The remux
 
 Per file, sequentially (parallel ffmpeg on one volume is slower, not faster):
 
@@ -656,12 +807,17 @@ Per file, sequentially (parallel ffmpeg on one volume is slower, not faster):
 ffmpeg -hide_banner -loglevel error -nostdin -y \
   -i FILE -map 0 -c copy -map_metadata 0 \
   [-movflags "+faststart+use_metadata_tags"] \
+  -metadata major_brand= -metadata minor_version= \
+  -metadata compatible_brands= -metadata encoder= \
   -metadata KEY=VALUE ... \
   -- TMP
 ```
 
 - `-map 0 -c copy -map_metadata 0` — every stream, no re-encode, stream-level
   tags preserved. A metadata edit must never be lossy.
+- the four empty `-metadata` assignments clear the muxer bookkeeping
+  `use_metadata_tags` would otherwise promote to real tags (§2.1). Without them
+  every rewrite accumulates them.
 - `-metadata KEY=` (empty value) is how a key is *deleted*.
 - `TMP` is `mktemp` in the **same directory** so the swap is a rename, and
   carries the source extension so ffmpeg picks the right muxer mode (§2.1).
@@ -687,40 +843,96 @@ Any failure leaves the original untouched and the temp removed. The run
 continues to the next file and the failure is reported in the summary — a bad
 file in a batch of 40 must not abort the other 39.
 
-### 9.3 The in-place fast path (milestone 3)
+### 9.3 The exiftool in-place path (milestone 4, not 8)
 
-A full remux of a 6 GB file over SMB is minutes for a change that is 40 bytes.
-When **every** changed key maps to an ilst atom and faststart is already
-satisfied, [`mp4ameta`](https://crates.io/crates/mp4ameta) can rewrite `moov`
-without touching `mdat` — near-instant.
+Originally scoped as a late speed optimisation using `mp4ameta`. Milestone 0
+overturned both halves of that:
 
-Constraints, which is why this is a later milestone and not the default:
+- **It is not a speed win on local storage.** Measured on a 475 MB fixture:
+  ffmpeg remux **0.25 s**, exiftool in place **0.54 s**. On APFS the remux is
+  memory-bandwidth work while exiftool pays ~0.2 s of Perl startup. A 6 GB local
+  file remuxes in about 3 s. Whether it wins over SMB is *unmeasured*, and this
+  document does not claim it does.
+- **It is mandatory for correctness anyway**, because it is the only writer that
+  preserves XMP (§2.2), the inode, and xattrs. That moves it from milestone 8 to
+  milestone 4, and demotes speed to a side effect.
 
-- `mp4ameta` targets iTunes-style ilst. It does **not** cover `mdta` keys, so
-  the fast path only applies in `--compat ilst`/`both` mode.
-- If `moov` grows past its slack, the file still has to be rewritten. Detect and
-  fall back to §9.2 rather than corrupting.
-- It is the mechanism `both` mode needs anyway: pass 1 ffmpeg `mdta`, pass 2
-  `mp4ameta` injecting the ilst atoms — so building the fast path and building
-  `both` are the same work.
+`mp4ameta` is dropped entirely — it covers only ilst, and the library is `mdta`.
 
-Gate it behind `--fast` until it has been round-trip tested against every
-fixture, with `--no-fast` always available.
+Measured properties of `exiftool -overwrite_original_in_place`:
+
+| Property | Result |
+|---|---|
+| inode | preserved — Finder tags and xattrs survive |
+| atom chain | `ftyp moov free mdat` unchanged — faststart intact |
+| unrelated keys | all preserved |
+| tag growth (+8 KB) | absorbed by consuming the `wide`/`free` padding atom |
+
+#### 9.3.1 Custom `Keys:` tags need a shipped exiftool config
+
+Out of the box exiftool refuses them:
+
+```
+Warning: Sorry, Keys:Rating doesn't exist or isn't writable
+Warning: Sorry, Keys:Actors doesn't exist or isn't writable
+```
+
+That is the exact wall `rename-footage` hit — hence its comment that "the atoms
+have no equivalent for a rating, and ItemList:Keywords is not writable at all",
+and hence its retreat to XMP. A user-defined config lifts it completely, and all
+four custom keys then round-trip through ffprobe with the other 20 untouched.
+
+`tagform` ships `assets/tagform.exiftool.cfg` declaring `actors`, `channel`,
+`type`, `rating`, `origin`, `source_url` and `webpage_url` on
+`QuickTime::Keys`, and passes `-config` on every exiftool invocation. It is a
+**required runtime asset**, installed alongside the binary — not an optional
+extra, and not something to regenerate at runtime.
+
+#### 9.3.2 Fallbacks
+
+If the moov cannot grow into the available padding, or exiftool exits non-zero,
+the writer falls back to the remux — **unless** the file carries XMP, in which
+case it fails loudly instead. Falling back to a writer known to destroy data is
+not a fallback.
 
 ### 9.4 Filename sync
 
-When **Sync filename** is checked, the file is also renamed to the grammar
-`media-parse-filename-to-json` reads back and `ytform` composes:
+When **Sync filename** is checked, the file is renamed — but to **one of two
+grammars**, selected by Genre, because this library has two and they are close
+to inverses of each other:
+
+**Media** (`ytform`, `media-parse-filename-to-json`) — Genre is anything but
+`Footage`:
 
 ```
 Actor A, Actor B - [Channel] Title #tag1 #tag2 (Origin) ★★★☆☆.ext
 ```
 
-Rules, taken from `ytform`'s `compose.go` so the two tools cannot disagree:
-a Channel equal to the first Actor is dropped; `/` becomes `-`; newlines and
-tabs become spaces; the stem is truncated to 240 bytes (`media-audit`'s
-`MAX_FILENAME_BYTES`); a rating of 0 emits no stars. Rename happens after the
-metadata write succeeds, never before.
+**Footage** (`rename-footage`) — Genre is `Footage`:
+
+```
+YYYY-MM-DD--HH-MM-SS People (Channel) - Title Location #tags [1080p 30fps 4min h264 iPhone15Pro H].ext
+```
+
+Note how they invert: media puts Channel in `[...]` and Origin in `(...)`;
+footage puts Channel in `(...)` and the probed spec block in `[...]`. Composing
+one file with the other's grammar produces a name that the other parser reads
+back **wrongly rather than not at all**, which is the worst possible failure. So
+the grammar is chosen explicitly from Genre, the choice is shown in the write
+plan, and `--grammar media|footage|auto` overrides it.
+
+Rules shared by both, taken from `ytform`'s `compose.go` and `rename-footage` so
+the three tools cannot disagree: `/` becomes `-`; newlines and tabs become
+spaces; the stem is truncated to 240 bytes (`media-audit`'s
+`MAX_FILENAME_BYTES`). Media-only: a Channel equal to the first Actor is
+dropped, and a rating of 0 emits no stars. Footage-only: **the rating never
+appears in the name** (it is embedded only), every segment drops out when empty,
+the ` - ` appears only when something follows it, and the `[...]` block is
+re-probed fresh rather than carried over.
+
+Rename happens after the metadata write succeeds, never before. When a file is
+renamed and carries no `PreservedFileName`, `tagform` stamps the pre-rename name
+into it first (§3.6) — write-once, exactly as `rename-footage` does.
 
 This is the one place `tagform` changes something outside the container, so it
 is off by default and shown in the plan as an explicit line.
@@ -845,7 +1057,9 @@ utils/tagform/
 ├── SPEC.md
 ├── README.md
 ├── Cargo.toml
-├── docs/CONTAINER.md          # milestone 0's findings: what ffmpeg actually writes
+├── docs/CONTAINER.md          # milestone 0's findings — measured, done
+├── assets/tagform.exiftool.cfg  # required runtime asset (§9.3.1)
+├── tests/container-experiment.sh # regenerates CONTAINER.md's numbers + keymap.json
 └── src/
     ├── main.rs                # CLI, headless mode, exit codes
     ├── config.rs              # config.toml + the yt-dlp alias parse (§3.5)
@@ -853,12 +1067,15 @@ utils/tagform/
     │   ├── schema.rs          # FieldId, the KeyMap table
     │   ├── value.rs           # Value, ValueState (Same|Mixed|Set|Unset)
     │   ├── form.rs            # the form model, dirty tracking, undo stack
-    │   └── filename.rs        # parse/compose the filename grammar (§9.4)
+    │   └── filename/
+    │       ├── media.rs       # the ytform / media-parse-filename-to-json grammar
+    │       └── footage.rs     # the rename-footage grammar (§9.4)
     ├── tags/
     │   ├── probe.rs           # ffprobe → Value map
     │   ├── plan.rs            # WritePlan construction and diffing
-    │   ├── ffmpeg.rs          # the remux (§9.2)
-    │   ├── inplace.rs         # mp4ameta fast path (§9.3)
+    │   ├── ffmpeg.rs          # the remux (§9.2.1)
+    │   ├── exiftool.rs        # in-place writer + the shipped -config (§9.3)
+    │   ├── xmp.rs             # the rename-footage XMP field set (§3.6)
     │   └── atoms.rs           # atom-chain parse: faststart verification
     ├── seed/
     │   ├── ytdlp.rs           # --fetch, the shared metadata cache
@@ -891,6 +1108,10 @@ No CI in this repo, so tests have to be worth running by hand.
 - aggregation: `Same`/`Mixed`/`Set`/`Unset` transitions, merge
 - validation: URL table in §5.5, date normalisation
 
+**Container** (`tests/container-experiment.sh`): regenerates every number in
+[docs/CONTAINER.md](docs/CONTAINER.md) and rewrites `keymap.json`. Run it after
+any ffmpeg or exiftool upgrade — the findings are version-specific.
+
 **Fixture** (`cargo test --features fixtures`, generates with ffmpeg):
 ```bash
 ffmpeg -f lavfi -i testsrc=d=2:s=320x240 -f lavfi -i sine=d=2 \
@@ -904,6 +1125,10 @@ ffmpeg -f lavfi -i testsrc=d=2:s=320x240 -f lavfi -i sine=d=2 \
 - stream tags and a second audio track survive the remux
 - failure paths: read-only file, no space (temp dir on a small ramdisk), a
   truncated input
+- **the XMP regression**: write XMP with exiftool, run a `tagform` write, assert
+  every XMP field survives. This is the test that would have caught the §2.2
+  data loss, and it must run in CI-by-hand before every release.
+- backend selection: assert a file carrying XMP never routes to the remux
 
 **Manual**: kitty / Ghostty / iTerm2 / tmux / plain xterm-256color for the
 thumbnail ladder, and one run over SMB for the timing story in §9.3.
@@ -930,35 +1155,45 @@ thumbnail ladder, and one run over SMB for the timing story in §9.3.
 
 | # | Deliverable |
 |---|---|
-| **0** | **Container experiment.** Tag a fixture with and without `use_metadata_tags`, in `.mp4` and `.mov`, dump with exiftool/AtomicParsley, write `docs/CONTAINER.md` and generate `keymap.json`. Everything below depends on it, and it is a couple of hours. |
-| 1 | Probe → model → aggregate → `--print-json`. No UI. |
+| **0** | ✅ **done** — [docs/CONTAINER.md](docs/CONTAINER.md). Settled open question 1, killed `mp4ameta`, and promoted the exiftool writer from an optimisation to a correctness requirement. |
+| 1 | Probe (ffprobe **+ exiftool**) → model → aggregate → `--print-json`. No UI. |
 | 2 | Read-only TUI: layout, focus ring, thumbnails, inspector. |
-| 3 | The eleven controls + validation + undo. Still no writes. |
-| 4 | Write plan, ffmpeg remux, verification, atomic swap, faststart. Feature-complete for one file. |
+| 3 | The controls + validation + undo. Still no writes. |
+| 4 | Both writers, backend selection (§9.2), verification, atomic swap, faststart. Feature-complete for one file. |
 | 5 | Multi-file: merge, per-file inspector, batch summary, partial-failure reporting. |
-| 6 | Seeding: `--from-filename`, `--fetch`, completion history. |
-| 7 | Headless `--set`/`--apply`, More/Custom sections, config file. |
-| 8 | `mp4ameta` fast path and `--compat both`. |
+| 6 | The Footage profile: XMP fields, the second filename grammar, `PreservedFileName`. |
+| 7 | Seeding: `--from-filename`, `--fetch`, completion history. |
+| 8 | Headless `--set`/`--apply`, More/Custom sections, config file, `--compat both`. |
 
 Milestones 1–4 are the useful tool; 5–8 are what make it replace the scripts.
+Milestone 6 is what makes it safe to point at `~/Movies` — until it lands,
+`tagform` must **refuse** any file carrying XMP rather than risk the remux.
 
 ---
 
 ## 17. Open questions
 
-1. **Does ffmpeg write `mdir` and `mdta` together?** Milestone 0. If it does,
-   `--compat both` is free and §9.3's second pass is unnecessary.
-2. **Where should the star rating live in `ilst` mode?** `com.apple.iTunes:rating`
-   is a guess at a convention, not a standard. Worth checking what Infuse and
-   Plex actually read before committing — the alternative is to accept that
-   stars are a filename-only concept outside `mdta`.
-3. **Should Artist auto-mirror Actors?** The yt-dlp config writes the same value
-   to both. The sketch in §7 shows Artist dimmed with `(auto)` and breaking the
-   link on first edit; that may be more magic than it is worth.
-4. **`iTunMOVI`** — the plist blob holding cast/directors/producers/studio — is
-   the only way Apple software sees an actor list. Writing it means embedding an
-   XML plist in an atom. Worth it, or is `©ART` enough? Defer to milestone 8.
-5. **Chapters and cover art.** Both are metadata, both are out of scope here,
-   and both are things this tool will obviously be asked for. Cover art (`covr`)
-   is the smaller of the two and could land in milestone 8; chapters deserve
-   their own design.
+1. ~~Does ffmpeg write `mdir` and `mdta` together?~~ **Settled: no.** One box or
+   the other (§2.1). `--compat both` needs the exiftool second pass.
+2. **Where should the star rating live?** Partly settled: on Footage files
+   `XMP-xmp:Rating` is a real standard 0–5 field and is the answer. Elsewhere,
+   `com.apple.iTunes:rating` remains a guess — worth checking what Infuse and
+   Plex actually read before committing, with "stars are a filename-and-XMP
+   concept, not an ilst one" as the fallback position.
+3. **Is the exiftool path actually faster over SMB?** Unmeasured. Locally it
+   *loses* (0.54 s vs 0.25 s on 475 MB). It is being built for XMP/inode
+   preservation regardless, so this only affects whether it is also preferred
+   for large local-network files. One measurement on the Tower volume settles it.
+4. **Should Artist auto-mirror Actors?** Unchanged. The yt-dlp config writes the
+   same value to both; the sketch in §7 shows Artist dimmed with `(auto)`,
+   breaking the link on first edit. May be more magic than it is worth.
+5. **`iTunMOVI`** — the plist blob holding cast/directors/producers/studio — is
+   the only way Apple software sees an actor list. Deferred to milestone 8.
+6. **What actually triggers the ffprobe blind spot?** Not value size — that
+   first guess was disproved on re-run. The one reproducible case is a 475 MB
+   `.mov` whose `wide` padding atom was consumed by an 8 KB write
+   (docs/CONTAINER.md §4). Worth isolating before the writer lands, because a
+   file with consumed padding is exactly what the in-place writer meets next.
+7. **Should `config/yt-dlp/config` change `Camera Footage` to `Footage`?** The
+   alias table (§3.5) makes `tagform` correct either way, so this is the user's
+   call and affects only new downloads. One line, not made as part of this work.

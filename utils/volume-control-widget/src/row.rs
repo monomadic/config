@@ -90,8 +90,8 @@ pub fn layout(rows: &[RowSpec]) -> Layout {
     let icon_size = (em * 1.9).round();
     let icon_column = (em * 2.2).round();
     let lock_diameter = (em * 1.45).round();
-    let bar_height = (em * 0.28).round().max(3.0);
-    let mute_size = (em * 0.85).round();
+    let bar_height = (em * 0.45).round().max(5.0);
+    let mute_size = (em * 1.05).round();
 
     let widest = rows
         .iter()
@@ -536,9 +536,10 @@ impl DeviceRow {
         };
         let hovered = ivars.lock_hovered.get();
 
+        let on_blue = ivars.spec.state == RowState::Active;
         let (circle, glyph, symbol): (Retained<NSColor>, Retained<NSColor>, &str) =
-            match ivars.policy.get() {
-                Policy::None => (
+            match (ivars.policy.get(), on_blue) {
+                (Policy::None, false) => (
                     NSColor::labelColor()
                         .colorWithAlphaComponent(if hovered { 0.26 } else { 0.13 }),
                     if hovered {
@@ -548,15 +549,32 @@ impl DeviceRow {
                     },
                     "lock.open.fill",
                 ),
-                Policy::AlwaysMute => (
+                (Policy::None, true) => (
+                    NSColor::whiteColor()
+                        .colorWithAlphaComponent(if hovered { 0.4 } else { 0.25 }),
+                    NSColor::whiteColor()
+                        .colorWithAlphaComponent(if hovered { 1.0 } else { 0.9 }),
+                    "lock.open.fill",
+                ),
+                (Policy::AlwaysMute, false) => (
                     NSColor::labelColor().colorWithAlphaComponent(if hovered { 1.0 } else { 0.85 }),
                     NSColor::windowBackgroundColor(),
                     "lock.fill",
                 ),
-                Policy::NeverMute => (
+                (Policy::AlwaysMute, true) => (
+                    NSColor::whiteColor().colorWithAlphaComponent(if hovered { 1.0 } else { 0.92 }),
+                    NSColor::systemBlueColor(),
+                    "lock.fill",
+                ),
+                (Policy::NeverMute, false) => (
                     NSColor::systemBlueColor()
                         .colorWithAlphaComponent(if hovered { 1.0 } else { 0.9 }),
                     NSColor::whiteColor(),
+                    "checkmark.shield.fill",
+                ),
+                (Policy::NeverMute, true) => (
+                    NSColor::whiteColor().colorWithAlphaComponent(if hovered { 1.0 } else { 0.92 }),
+                    NSColor::systemBlueColor(),
                     "checkmark.shield.fill",
                 ),
             };

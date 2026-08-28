@@ -21,17 +21,17 @@ emulate -L zsh
 #               4. file creation ctime (birth time)
 #   PEOPLE    embedded XMP-iptcExt:PersonInImage
 #   CHANNEL   embedded XMP-xmpDM:Album
-#   TITLE     the embedded title, used verbatim. The existing filename is never
-#             mined for one unless no DATE could be resolved at all, so a camera
-#             name like "IMG_4855" is dropped rather than promoted to a title.
+#   TITLE     embedded XMP-dc:Title, used verbatim. With none stored, it is
+#             mined from the filename and embedded (see the rules below). A
+#             camera's own name -- IMG_4855, GX010042, C0001 -- is recognised
+#             and not promoted to a title; PreservedFileName already holds it.
 #   LOCATION  embedded XMP-iptcExt:LocationCreatedCity
 #   TAGS      embedded XMP-dc:Subject, one #tag per entry
 #   METADATA  probed fresh with ffprobe (+ exiftool for DEVICE).
 #
 # On the first run over a file its existing name is recorded, write-once, as
-# XMP-xmpMM:PreservedFileName. That is the only surviving copy of anything this
-# scheme drops from the name -- a hand-typed title, a camera's own IMG_4855 --
-# so nothing is lost outright, and titles can be backfilled from it later.
+# XMP-xmpMM:PreservedFileName, so the name a camera or a person originally gave
+# it stays recoverable however often the file is re-rendered afterwards.
 #
 # The PEOPLE/CHANNEL/LOCATION/TAGS fields are authored, not probed: nothing in
 # the file's contents implies them, so the file itself is their only store. The
@@ -39,12 +39,25 @@ emulate -L zsh
 # filename from whatever is embedded, which makes the name disposable and the
 # metadata authoritative.
 #
+# How a field gets its value, in order:
+#
+#   1. an argument was supplied  -> it wins and is written to the file. For a
+#      list the supplied values ARE the list, replacing what was stored.
+#   2. no argument, metadata present -> keep it; the filename is ignored.
+#   3. no argument, no metadata      -> take it from the filename and embed it.
+#
+# Rule 3 is why nothing is lost. The filename is the source of last resort, and
+# anything mined from it becomes a real tag before the rename, so the name stays
+# disposable without ever being the only copy of something.
+#
 # Options:
-#   --actor NAME     Add a performer (repeatable; replaces the stored list)
-#   --tag NAME       Add a keyword (repeatable; replaces the stored list)
+#   --actor NAME     Set a performer (repeatable; replaces the stored list)
+#   --tag NAME       Set a keyword (repeatable; replaces the stored list)
 #   --channel NAME   Set the originating channel / studio
 #   --location NAME  Set the place the footage was shot
 #   --rating N       Set a 0-5 star rating (embedded only, not in the filename)
+#   --clear-actors   Store an empty performer list
+#   --clear-tags     Store an empty keyword list
 #   --print-target   Print the canonical target path only
 #   --dry-run        Show what would be renamed without changing files
 #   --verbose        Print debug information about probe/date decisions
@@ -52,8 +65,10 @@ emulate -L zsh
 #   --icons          Use Nerd Font icons
 #   -h, --help       Show this message
 #
-# Dependencies: ffprobe (required); exiftool (optional, improves DATE + DEVICE;
-# required for the authored-metadata options)
+# Dependencies: ffprobe and exiftool, both required. exiftool is NOT optional:
+# every authored field lives in XMP that only exiftool can read or write, so a
+# run without it would rebuild the filename from nothing and silently strip
+# whatever the name was the only copy of.
 
 DRY_RUN=false
 VERBOSE=false
@@ -65,10 +80,30 @@ SCRIPT_NAME="${0:t}"
 RATING=""
 CHANNEL=""
 LOCATION=""
-typeset -ga ACTORS=()
-typeset -ga KEYWORDS=()
+# What the user typed. Never modified per file, so that processing several
+# files in one run cannot leak file 1's values into file 2.
+typeset -ga CLI_ACTORS=()
+typeset -ga CLI_KEYWORDS=()
 typeset -ga METADATA_ARGS=()
-WRITE_METADATA=false
+ACTORS_GIVEN=false
+KEYWORDS_GIVEN=false
+CLEAR_ACTORS=false
+CLEAR_TAGS=false
+
+# Candidates parsed out of the current filename (parse_filename_fields).
+FN_TITLE=""
+FN_CHANNEL=""
+typeset -ga FN_PEOPLE=()
+typeset -ga FN_TAGS=()
+
+# The decided value of each field (resolve_fields): what gets embedded and what
+# the new filename is rendered from. WRITE_FIELD holds the subset to write back.
+FINAL_TITLE=""
+FINAL_CHANNEL=""
+FINAL_LOCATION=""
+typeset -ga FINAL_PEOPLE=()
+typeset -ga FINAL_TAGS=()
+typeset -gA WRITE_FIELD=()
 
 META_PEOPLE=""
 META_CHANNEL=""
@@ -110,11 +145,13 @@ usage() {
   print -r -- "  DATE PEOPLE (CHANNEL) - TITLE LOCATION #TAGS [RES FPS LENGTH BITRATE CODEC DEVICE ORIENTATION].ext"
   print -r -- ""
   print -r -- "Authored metadata (embedded as XMP, then re-rendered into the filename):"
-  print -r -- "  --actor NAME     Add a performer (repeatable; replaces the stored list)"
-  print -r -- "  --tag NAME       Add a keyword (repeatable; replaces the stored list)"
+  print -r -- "  --actor NAME     Set a performer (repeatable; replaces the stored list)"
+  print -r -- "  --tag NAME       Set a keyword (repeatable; replaces the stored list)"
   print -r -- "  --channel NAME   Set the originating channel / studio"
   print -r -- "  --location NAME  Set the place the footage was shot"
   print -r -- "  --rating N       Set a 0-5 star rating (embedded only)"
+  print -r -- "  --clear-actors   Store an empty performer list"
+  print -r -- "  --clear-tags     Store an empty keyword list"
   print -r -- ""
   print -r -- "Options:"
   print -r -- "  --print-target   Print only the canonical target path"
@@ -160,50 +197,6 @@ touch_modified_now() {
 # ---------------------------------------------------------------------------
 # TITLE
 # ---------------------------------------------------------------------------
-
-# Strip a leading canonical DATE and every [metadata] block, leaving the title.
-extract_title() {
-  local name="$1"
-
-  # remove a leading "YYYY-MM-DD--HH-MM-SS" (with optional trailing space)
-  if [[ "$name" =~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}--[0-9]{2}-[0-9]{2}-[0-9]{2}[[:space:]]*' ]]; then
-    name="${name[$(( MEND + 1 )),-1]}"
-  fi
-
-  # remove every [...] block (autogenerated metadata is rebuilt fresh)
-  while [[ "$name" == *\[*\]* ]]; do
-    name="${name%%\[*}${name#*\]}"
-  done
-
-  # remove a trailing #tag run, which is rebuilt from the embedded keywords.
-  # Cutting at the first " #" rather than dropping #-prefixed words keeps
-  # multi-word tags like "#Teen (18+)" from leaving debris behind.
-  [[ "$name" == *" #"* ]] && name="${name%% \#*}"
-
-  # drop a leading "PEOPLE (CHANNEL) - " group. Only done when a parenthesised
-  # group precedes the separator, so an ordinary title that happens to contain
-  # " - " is left alone.
-  if [[ "$name" == *" - "* ]]; then
-    local prefix="${name%% - *}"
-    [[ "$prefix" == *\(*\)* ]] && name="${name#* - }"
-  fi
-
-  trim_whitespace "$name"
-}
-
-# Nothing in the filename marks where the title ends and LOCATION begins, so a
-# filename-derived title still carries the other rendered segments. Removing the
-# embedded values by exact match is what stops a repeat run from appending
-# LOCATION to the title again, and again, on every pass.
-strip_known_fields() {
-  local s="$1" value
-
-  for value in "$META_LOCATION" "$META_PEOPLE" "$META_CHANNEL"; do
-    [[ -n "$value" ]] && s="${s//"$value"/}"
-  done
-
-  trim_whitespace "$s"
-}
 
 # Capitalize the first letter of each word. Other characters keep their case,
 # and words whose first character is not a letter (#tags, -flags) are untouched.
@@ -389,6 +382,159 @@ get_device() {
 # AUTHORED METADATA (embedded, never probed)
 # ---------------------------------------------------------------------------
 
+# Field resolution, in three steps: parse the filename into candidates, then
+# decide each field's final value, then write back only what changed.
+#
+# The precedence is fixed and the same for every field:
+#
+#   1. an argument was supplied  -> it wins outright and is written to the file.
+#      For a list, the supplied values ARE the list; the stored one is replaced.
+#      The filename is not consulted.
+#   2. no argument, field already has metadata -> keep it, ignore the filename.
+#   3. no argument, no metadata   -> take it from the filename and embed it.
+#
+# Step 3 is the one that stops data disappearing. The filename used to be parsed
+# only to be discarded: a clip named "Sarah's Birthday Party" with no embedded
+# title was renamed from metadata alone and those words were gone. Now the name
+# is the source of last resort, and whatever it yields becomes a real tag before
+# the rename happens -- so the filename stays disposable, which is the whole
+# point of the scheme, without it being the only copy of anything.
+
+# A camera's own filename is not a title. These are already kept verbatim in
+# PreservedFileName, so declining to promote them loses nothing, and promoting
+# them would put "IMG_4855" in the title of every clip a camera ever produced.
+is_camera_name() {
+  local n="${(U)1}"
+  [[ "$n" =~ '^(IMG|MVI|DSC|DSCF|VID|PXL|MAH|MAQ|DJI|GOPR)[_-]?[0-9]+$' ]] && return 0
+  [[ "$n" =~ '^G[HXP][0-9]{4,}$' ]] && return 0
+  [[ "$n" =~ '^C[0-9]{4}$' ]] && return 0
+  return 1
+}
+
+# Read the rendered grammar back out of a name:
+#   DATE PEOPLE (CHANNEL) - TITLE LOCATION #TAGS [METADATA]
+# LOCATION is deliberately not extracted -- nothing in the name marks where the
+# title ends and it begins, so it stays part of the title candidate and is
+# trimmed off below only when the file already tells us what it is.
+parse_filename_fields() {
+  local n="$1"
+  local lead trail tagpart tok
+
+  FN_TITLE="" FN_CHANNEL=""
+  FN_PEOPLE=() FN_TAGS=()
+
+  if [[ "$n" =~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}--[0-9]{2}-[0-9]{2}-[0-9]{2}[[:space:]]*' ]]; then
+    n="${n[$(( MEND + 1 )),-1]}"
+  fi
+
+  # every [...] block is probed metadata, rebuilt fresh on each run
+  while [[ "$n" == *\[*\]* ]]; do
+    n="${n%%\[*}${n#*\]}"
+  done
+  n="$(trim_whitespace "$n")"
+
+  lead="" trail="$n"
+  if [[ "$n" == *" - "* ]]; then
+    lead="${n%% - *}"
+    trail="${n#* - }"
+  fi
+
+  if [[ -n "$lead" ]]; then
+    if [[ "$lead" == *\(*\)* ]]; then
+      FN_CHANNEL="$(trim_whitespace "${${lead##*\(}%%\)*}")"
+      lead="$(trim_whitespace "${lead%% \(*}")"
+    fi
+    for tok in "${(@s:, :)lead}"; do
+      tok="$(trim_whitespace "$tok")"
+      [[ -n "$tok" ]] && FN_PEOPLE+=("$tok")
+    done
+  fi
+
+  # Cut at the first " #" rather than dropping #-prefixed words, so a multi-word
+  # tag like "#Teen (18+)" does not leave debris behind in the title.
+  tagpart=""
+  if [[ "$trail" == \#* ]]; then
+    tagpart=" $trail"
+    trail=""
+  elif [[ "$trail" == *" #"* ]]; then
+    tagpart="${trail#"${trail%% \#*}"}"
+    trail="${trail%% \#*}"
+  fi
+  for tok in "${(@s: #:)tagpart}"; do
+    tok="$(trim_whitespace "${tok#\#}")"
+    [[ -n "$tok" ]] && FN_TAGS+=("$tok")
+  done
+
+  FN_TITLE="$(trim_whitespace "$trail")"
+  log_verbose "filename yields: title='${FN_TITLE}' channel='${FN_CHANNEL}' people=(${(j:, :)FN_PEOPLE}) tags=(${(j:, :)FN_TAGS})"
+}
+
+# The location is rendered immediately after the title, so a title mined from a
+# name that already carried one would otherwise absorb it and render it twice.
+# Only a trailing match is removed: substring-replacing the value anywhere would
+# turn a clip titled "Berlin Marathon", shot in Berlin, into " Marathon".
+strip_trailing_location() {
+  local s="$1"
+  [[ -n "$META_LOCATION" && "$s" == *" ${META_LOCATION}" ]] && s="${s% ${META_LOCATION}}"
+  print -r -- "$s"
+}
+
+resolve_fields() {
+  local value
+
+  FINAL_TITLE="" FINAL_CHANNEL="" FINAL_LOCATION=""
+  FINAL_PEOPLE=() FINAL_TAGS=()
+  WRITE_FIELD=()
+
+  # people
+  if $ACTORS_GIVEN; then
+    FINAL_PEOPLE=("${CLI_ACTORS[@]}"); WRITE_FIELD[people]=1
+  elif $CLEAR_ACTORS; then
+    WRITE_FIELD[people]=1
+  elif [[ -n "$META_PEOPLE" ]]; then
+    FINAL_PEOPLE=(${(@s:, :)META_PEOPLE})
+  elif (( ${#FN_PEOPLE} )); then
+    FINAL_PEOPLE=("${FN_PEOPLE[@]}"); WRITE_FIELD[people]=1
+  fi
+
+  # tags
+  if $KEYWORDS_GIVEN; then
+    FINAL_TAGS=("${CLI_KEYWORDS[@]}"); WRITE_FIELD[tags]=1
+  elif $CLEAR_TAGS; then
+    WRITE_FIELD[tags]=1
+  elif (( ${#META_TAGS} )); then
+    for value in "${META_TAGS[@]}"; do FINAL_TAGS+=("${value#\#}"); done
+  elif (( ${#FN_TAGS} )); then
+    FINAL_TAGS=("${FN_TAGS[@]}"); WRITE_FIELD[tags]=1
+  fi
+
+  # channel
+  if [[ -n "$CHANNEL" ]]; then
+    FINAL_CHANNEL="$CHANNEL"; WRITE_FIELD[channel]=1
+  elif [[ -n "$META_CHANNEL" ]]; then
+    FINAL_CHANNEL="$META_CHANNEL"
+  elif [[ -n "$FN_CHANNEL" ]]; then
+    FINAL_CHANNEL="$FN_CHANNEL"; WRITE_FIELD[channel]=1
+  fi
+
+  # location -- no filename source, so argument or stored value only
+  if [[ -n "$LOCATION" ]]; then
+    FINAL_LOCATION="$LOCATION"; WRITE_FIELD[location]=1
+  else
+    FINAL_LOCATION="$META_LOCATION"
+  fi
+
+  # title -- no argument for it, so stored value or the name
+  if [[ -n "$META_TITLE" ]]; then
+    FINAL_TITLE="$META_TITLE"
+  elif [[ -n "$FN_TITLE" ]] && ! is_camera_name "$FN_TITLE"; then
+    FINAL_TITLE="$(capitalize_title "$(strip_trailing_location "$FN_TITLE")")"
+    [[ -n "$FINAL_TITLE" ]] && WRITE_FIELD[title]=1
+  fi
+
+  log_verbose "resolved: title='${FINAL_TITLE}' channel='${FINAL_CHANNEL}' location='${FINAL_LOCATION}' people=(${(j:, :)FINAL_PEOPLE}) tags=(${(j:, :)FINAL_TAGS}) writing=(${(k)WRITE_FIELD})"
+}
+
 # Standard XMP fields are used in preference to the QuickTime atoms because the
 # atoms have no equivalent for a rating, and ItemList:Keywords is not writable
 # at all. XMP-dc:Subject and XMP-iptcExt:PersonInImage are also true lists,
@@ -406,28 +552,35 @@ build_metadata_args() {
   # so it is only added when the tag is absent.
   if [[ -z "$META_PRESERVED" ]]; then
     METADATA_ARGS+=("-XMP-xmpMM:PreservedFileName=${file:t}")
+    META_PRESERVED="${file:t}"
   fi
 
   # These are XMP list tags, so a plain assignment appends rather than replaces.
   # An empty assignment first clears the stored list; the values that follow must
   # then use "=" and not "+=", because an append is applied against the original
   # list and so survives the clear, quietly accumulating on every run.
-  if (( ${#ACTORS} )); then
+  #
+  # WRITE_FIELD says which fields resolve_fields decided to write: the ones an
+  # argument set, and the ones backfilled from the filename. A field that simply
+  # kept its stored value is not re-emitted, so a plain rename never rewrites
+  # metadata it did not change.
+  if [[ -n "${WRITE_FIELD[people]:-}" ]]; then
     METADATA_ARGS+=("-XMP-iptcExt:PersonInImage=")
-    for value in "${ACTORS[@]}"; do
+    for value in "${FINAL_PEOPLE[@]}"; do
       METADATA_ARGS+=("-XMP-iptcExt:PersonInImage=${value}")
     done
   fi
 
-  if (( ${#KEYWORDS} )); then
+  if [[ -n "${WRITE_FIELD[tags]:-}" ]]; then
     METADATA_ARGS+=("-XMP-dc:Subject=")
-    for value in "${KEYWORDS[@]}"; do
+    for value in "${FINAL_TAGS[@]}"; do
       METADATA_ARGS+=("-XMP-dc:Subject=${value}")
     done
   fi
 
-  [[ -n "$CHANNEL" ]] && METADATA_ARGS+=("-XMP-xmpDM:Album=${CHANNEL}")
-  [[ -n "$LOCATION" ]] && METADATA_ARGS+=("-XMP-iptcExt:LocationCreatedCity=${LOCATION}")
+  [[ -n "${WRITE_FIELD[channel]:-}" ]] && METADATA_ARGS+=("-XMP-xmpDM:Album=${FINAL_CHANNEL}")
+  [[ -n "${WRITE_FIELD[location]:-}" ]] && METADATA_ARGS+=("-XMP-iptcExt:LocationCreatedCity=${FINAL_LOCATION}")
+  [[ -n "${WRITE_FIELD[title]:-}" ]] && METADATA_ARGS+=("-XMP-dc:Title=${FINAL_TITLE}")
   [[ -n "$RATING" ]] && METADATA_ARGS+=("-XMP-xmp:Rating=${RATING}")
 }
 
@@ -485,30 +638,13 @@ read_authored_metadata() {
   fi
 }
 
-# The command line is more current than the file. Applying the supplied values
-# over what was just read keeps the rendered filename correct when nothing was
-# written back to disk to be re-read -- under --dry-run, or with exiftool absent.
-apply_metadata_overrides() {
-  local value
-
-  (( ${#ACTORS} )) && META_PEOPLE="${(j:, :)ACTORS}"
-  [[ -n "$CHANNEL" ]] && META_CHANNEL="$CHANNEL"
-  [[ -n "$LOCATION" ]] && META_LOCATION="$LOCATION"
-
-  if (( ${#KEYWORDS} )); then
-    META_TAGS=()
-    for value in "${KEYWORDS[@]}"; do
-      META_TAGS+=("#${value}")
-    done
-  fi
-}
-
 embed_metadata() {
   local file="$1"
 
-  # Not gated on WRITE_METADATA: a run with no authored options still needs to
-  # stamp PreservedFileName. build_metadata_args yields nothing once there is
-  # nothing left to write, which makes a repeat run a no-op.
+  # Always attempted: a run with no authored options still needs to stamp
+  # PreservedFileName, and may still be backfilling fields from the filename.
+  # build_metadata_args yields nothing once there is nothing left to write,
+  # which is what makes a repeat run a no-op.
   command -v exiftool >/dev/null 2>&1 || return 0
 
   build_metadata_args "$file"
@@ -544,35 +680,25 @@ process_video() {
   # and reading before the rename is also what makes the stamp record the right
   # name. --print-target is a query, so it stays side-effect free.
   read_authored_metadata "$file"
-  $PRINT_TARGET || embed_metadata "$file"
-  apply_metadata_overrides
 
   local filename="${file:t}"
   local dirname="${file:h}"
   local extension="${filename:e}"
   local name_without_ext="${filename:r}"
 
+  # Parse the name before anything is written, then decide each field. Both the
+  # embedded metadata and the rendered filename come from the same resolved
+  # values, so what lands on disk and what the file is called cannot disagree.
+  parse_filename_fields "$name_without_ext"
+  resolve_fields
+  $PRINT_TARGET || embed_metadata "$file"
+
   local date_stamp
   date_stamp="$(resolve_date "$file" "$name_without_ext")"
 
-  # The title comes from embedded metadata, used verbatim. A camera's own
-  # filename ("IMG_4855") is not a title, and treating it as one was
-  # self-perpetuating: nothing ever embedded it, so each run simply read it back
-  # out of the name the previous run had written. With a date present the name is
-  # derived from metadata alone, and an untitled clip just has no title segment.
-  #
-  # The filename is still mined when no date could be resolved at all, that being
-  # the one case where dropping it would leave nothing but the probed [metadata]
-  # block to tell two files in a directory apart.
-  local title="$META_TITLE"
-  if [[ -z "$title" && -z "$date_stamp" ]]; then
-    title="$(extract_title "$name_without_ext")"
-    title="$(strip_known_fields "$title")"
-    title="$(capitalize_title "$title")"
-  fi
+  log_verbose "title='${FINAL_TITLE}' date='${date_stamp}'"
 
-  log_verbose "title='${title}' date='${date_stamp}'"
-
+  local tag
   local video_info
   if ! video_info="$(
     ffprobe -v error -select_streams v:0 \
@@ -677,14 +803,15 @@ process_video() {
   # one has something in it; an untitled clip reads "DATE PEOPLE [METADATA]"
   # rather than trailing a bare dash. Every segment drops out when its field is
   # absent, leaving "DATE [METADATA]" in the limit.
-  local -a lead trail
+  local -a lead trail rendered_tags
   [[ -n "$date_stamp" ]] && lead+=("$date_stamp")
-  [[ -n "$META_PEOPLE" ]] && lead+=("$META_PEOPLE")
-  [[ -n "$META_CHANNEL" ]] && lead+=("(${META_CHANNEL})")
+  (( ${#FINAL_PEOPLE} )) && lead+=("${(j:, :)FINAL_PEOPLE}")
+  [[ -n "$FINAL_CHANNEL" ]] && lead+=("(${FINAL_CHANNEL})")
 
-  [[ -n "$title" ]] && trail+=("$title")
-  [[ -n "$META_LOCATION" ]] && trail+=("$META_LOCATION")
-  (( ${#META_TAGS} )) && trail+=("${(j: :)META_TAGS}")
+  [[ -n "$FINAL_TITLE" ]] && trail+=("$FINAL_TITLE")
+  [[ -n "$FINAL_LOCATION" ]] && trail+=("$FINAL_LOCATION")
+  for tag in "${FINAL_TAGS[@]}"; do rendered_tags+=("#${tag}"); done
+  (( ${#rendered_tags} )) && trail+=("${(j: :)rendered_tags}")
 
   local stem
   if (( ${#trail} )); then
@@ -774,8 +901,8 @@ main() {
           exit 1
         fi
         case "$1" in
-          --actor)    ACTORS+=("$2") ;;
-          --tag)      KEYWORDS+=("$2") ;;
+          --actor)    CLI_ACTORS+=("$2"); ACTORS_GIVEN=true ;;
+          --tag)      CLI_KEYWORDS+=("$2"); KEYWORDS_GIVEN=true ;;
           --channel)  CHANNEL="$2" ;;
           --location) LOCATION="$2" ;;
           --rating)
@@ -786,9 +913,10 @@ main() {
             RATING="$2"
             ;;
         esac
-        WRITE_METADATA=true
         shift 2
         ;;
+      --clear-actors) CLEAR_ACTORS=true; shift ;;
+      --clear-tags)   CLEAR_TAGS=true; shift ;;
       --dry-run) DRY_RUN=true; shift ;;
       --verbose) VERBOSE=true; shift ;;
       --color)   enable_color; shift ;;
@@ -806,6 +934,19 @@ main() {
 
   if ! command -v ffprobe >/dev/null 2>&1; then
     print -u2 -r -- "${YELLOW}${ICON_WARN}ffprobe is required but not installed.${RESET}"
+    exit 1
+  fi
+
+  # Not optional, despite what the old header said. Every authored field lives
+  # in XMP that only exiftool can read. Without it read_authored_metadata comes
+  # back empty, the filename is rebuilt from nothing, and a name like
+  # "Alice (MyChannel) - Wedding Toast Berlin #beach.mov" becomes
+  # "2026-08-28--16-45-08 [480p 30fps 1sec h264 H].mov" -- with the title gone
+  # for good, since PreservedFileName cannot be written either.
+  if ! command -v exiftool >/dev/null 2>&1; then
+    print -u2 -r -- "${YELLOW}${ICON_WARN}exiftool is required but not installed.${RESET}"
+    print -u2 -r -- "${YELLOW}  Renaming without it would strip people, channel, title, location and${RESET}"
+    print -u2 -r -- "${YELLOW}  tags from filenames that are their only copy. Install with: brew install exiftool${RESET}"
     exit 1
   fi
 

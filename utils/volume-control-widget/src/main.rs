@@ -386,15 +386,27 @@ impl Widget {
         quit.setImage(None);
     }
 
-    /// Two disabled lines: the menu's name, and the guard status in its own
-    /// colour — green is reserved for "the performance route is confirmed".
+    /// Two disabled lines: a state dot beside the menu's name, and the guard
+    /// status in the same colour — green is reserved for "the performance
+    /// route is confirmed".
     fn add_header(&self, menu: &NSMenu, snapshot: &Snapshot, mtm: MainThreadMarker) {
+        let dot_color = match &snapshot.guard {
+            Guard::Active { .. } => NSColor::systemGreenColor(),
+            Guard::Missing { .. } => NSColor::systemRedColor(),
+            Guard::Fallback { .. } => NSColor::systemOrangeColor(),
+            _ => NSColor::tertiaryLabelColor(),
+        };
+        let font = NSFont::menuFontOfSize(0.0);
+        let title_text = attributed("\u{25CF}  ", &font, &dot_color);
+        unsafe {
+            title_text.appendAttributedString(&attributed(
+                "Audio Outputs",
+                &font,
+                &NSColor::labelColor(),
+            ))
+        };
         let title = NSMenuItem::new(mtm);
-        title.setAttributedTitle(Some(&attributed(
-            "Audio Outputs",
-            &NSFont::menuFontOfSize(0.0),
-            &NSColor::labelColor(),
-        )));
+        title.setAttributedTitle(Some(&title_text));
         title.setEnabled(false);
         menu.addItem(&title);
 

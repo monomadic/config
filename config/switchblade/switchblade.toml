@@ -39,7 +39,7 @@ tile_height = 135.0
 # a row that would need to leave the band leaves a little slack instead.
 row_height_min = 0.62
 row_height_max = 1.6
-gap = 1.0  # space between tiles
+gap = 2.0  # space between tiles
 
 thumb_width = 448  # ~2:1 — keeps the ultrawide hedge
 thumb_height = 224  # 224 vs your ~110-176 device px rows
@@ -51,7 +51,7 @@ ignore = [".*", "_*"]
 
 # ── Colors ──────────────────────────────────────────────────────────────
 # All colors are [r, g, b] with 0..1 channels.
-background = [0.0, 0.0, 0.0]  # window background
+background = [0.04, 0.04, 0.04]  # window background
 # Opacity of that background fill (0..1). 1.0 = classic opaque window;
 # below 1.0 the desktop shows through the gaps between tiles (macOS
 # "glass" vibe). Tiles stay opaque; hot-reloadable, so dial it live.
