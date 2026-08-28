@@ -1211,7 +1211,11 @@ impl Delegate {
         );
 
         let vf = screen.visibleFrame();
-        ivars.top_y.set(vf.origin.y + vf.size.height * 0.72);
+        // Rounded: a fractional anchor makes every window origin fractional,
+        // and AppKit rounds those inconsistently — a setFrame that also
+        // changes the height lands a point lower than one that doesn't, so
+        // the panel dips on each resize and pops back on the next relayout.
+        ivars.top_y.set((vf.origin.y + vf.size.height * 0.72).round());
         self.refresh();
         let h = panel.frame().size.height;
         let x = vf.origin.x + (vf.size.width - ivars.config.borrow().style.width) / 2.0;
@@ -1838,14 +1842,17 @@ impl Delegate {
         };
         // Padding wraps the content on both ends: `pad` above the input band
         // and `pad` below the last row.
-        let h = pad + INPUT_H + rows_h + pad;
+        // Integral too, so `top - h` stays whole and the top edge is pinned
+        // to the same device pixel at every height.
+        let h = (pad + INPUT_H + rows_h + pad).round();
 
         let panel_w = ivars.config.borrow().style.width;
         let old = panel.frame();
         let top = ivars.top_y.get();
+        let want_y = (top - h).round();
         panel.setFrame_display(
             NSRect::new(
-                NSPoint::new(old.origin.x, top - h),
+                NSPoint::new(old.origin.x, want_y),
                 NSSize::new(panel_w, h),
             ),
             true,
