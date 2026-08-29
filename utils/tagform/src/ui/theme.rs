@@ -29,7 +29,11 @@ pub const LABEL_CUSTOM: Color = Color::Rgb(0x71, 0x7c, 0x94);
 
 pub const VALUE: Color = Color::Rgb(0xc8, 0xcd, 0xd8);
 /// An absent value: readable as "nothing here", not as a rendering failure.
-pub const VALUE_EMPTY: Color = Color::Rgb(0x59, 0x60, 0x72);
+pub const VALUE_EMPTY: Color = Color::Rgb(0x64, 0x6c, 0x80);
+/// The directory under the filename. Its own colour because it was previously
+/// drawn in RULE -- a divider colour, 1.4:1 against the page, effectively
+/// invisible. A path is something you read to tell two files apart.
+pub const PATH: Color = Color::Rgb(0x7d, 0x87, 0x9e);
 pub const MIXED: Color = Color::Rgb(0x8b, 0x94, 0xad);
 
 pub const ACCENT: Color = Color::Rgb(0x7a, 0xa2, 0xf7);
@@ -91,10 +95,74 @@ pub fn short_key(key: &str) -> String {
     key.to_string()
 }
 
+/// WCAG relative luminance, used only by the contrast test below.
+#[cfg(test)]
+fn luminance(c: Color) -> f64 {
+    let (r, g, b) = match c {
+        Color::Rgb(r, g, b) => (r, g, b),
+        _ => panic!("theme colours must be true colour"),
+    };
+    let lin = |v: u8| {
+        let v = v as f64 / 255.0;
+        if v <= 0.03928 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+    };
+    0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+}
+
+#[cfg(test)]
+fn contrast(a: Color, b: Color) -> f64 {
+    let (la, lb) = (luminance(a), luminance(b));
+    let (hi, lo) = if la > lb { (la, lb) } else { (lb, la) };
+    (hi + 0.05) / (lo + 0.05)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use unicode_width::UnicodeWidthStr;
+
+    /// Every colour used for *text* must clear 3:1 against the darkest surface
+    /// it can land on. Two bugs came from ignoring this: custom-key labels drawn
+    /// in 16-colour DarkGray, and the file path drawn in RULE -- a divider
+    /// colour at 1.4:1, which reads as a blank line rather than as text. RULE
+    /// itself is exempt because it draws rules, not words.
+    #[test]
+    fn every_text_colour_is_readable_on_the_darkest_surface() {
+        let page = Color::Rgb(0x0d, 0x0f, 0x14);
+        let field = INPUT_BG_READONLY;
+        let text = [
+            ("HEADER_FG", HEADER_FG),
+            ("VALUE", VALUE),
+            ("VALUE_EMPTY", VALUE_EMPTY),
+            ("LABEL", LABEL),
+            ("LABEL_FOCUS", LABEL_FOCUS),
+            ("LABEL_CUSTOM", LABEL_CUSTOM),
+            ("MIXED", MIXED),
+            ("MUTED", MUTED),
+            ("PATH", PATH),
+            ("ACCENT", ACCENT),
+            ("STAGED", STAGED),
+            ("WARN", WARN),
+            ("ERROR", ERROR),
+            ("STAR", STAR),
+        ];
+        for (name, c) in text {
+            for (surface_name, surface) in [("page", page), ("field", field)] {
+                let ratio = contrast(c, surface);
+                assert!(
+                    ratio >= 3.0,
+                    "{name} is {ratio:.2}:1 against the {surface_name}; below 3:1 it stops reading as text"
+                );
+            }
+        }
+    }
+
+    /// The badge is light-on-dark inverted, so it needs checking the other way.
+    #[test]
+    fn the_badge_and_header_are_legible() {
+        assert!(contrast(BADGE_FG, BADGE_BG) >= 4.5);
+        assert!(contrast(HEADER_FG, HEADER_BG) >= 4.5);
+    }
 
     #[test]
     fn short_strings_are_padded_to_width() {

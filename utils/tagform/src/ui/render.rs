@@ -178,7 +178,7 @@ fn draw_header(f: &mut Frame, area: Rect, app: &App, proto: Option<&mut Stateful
             format!("{pad}{}", if summary.is_empty() { "probing…".into() } else { summary }),
             Style::default().fg(t::MUTED),
         )),
-        Line::from(Span::styled(format!("{pad}{dir}"), Style::default().fg(t::RULE))),
+        Line::from(Span::styled(format!("{pad}{dir}"), Style::default().fg(t::PATH))),
     ];
     f.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), cols[1]);
 }
