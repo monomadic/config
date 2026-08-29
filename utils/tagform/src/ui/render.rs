@@ -253,21 +253,25 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
         let custom = row.def.is_none();
         let readonly = !row.editable();
 
-        // ▶ says "this field is open"; ▍ only says "you are here".
+        // The marker column says where you are, and nothing else. It used to
+        // carry the staged dot as well, which put an edit indicator in the
+        // caret's column -- so a staged row looked mis-caretted, and a row that
+        // was both staged and focused lost its indicator entirely because the
+        // caret won. Edited-ness is carried by the label colour instead.
         let (marker, marker_fg) = if editing {
             ("▶", t::ACCENT)
         } else if focused {
             ("▍", t::ACCENT)
-        } else if staged {
-            ("●", t::STAGED)
         } else {
             (" ", t::RULE)
         };
 
-        let label_fg = match (focused, custom) {
-            (true, _) => t::LABEL_FOCUS,
-            (false, true) => t::LABEL_CUSTOM,
-            (false, false) => t::LABEL,
+        // Staged outranks focus here precisely so it survives being focused.
+        let label_fg = match (staged, focused, custom) {
+            (true, _, _) => t::STAGED,
+            (false, true, _) => t::LABEL_FOCUS,
+            (false, false, true) => t::LABEL_CUSTOM,
+            (false, false, false) => t::LABEL,
         };
         let label_style = if focused {
             Style::default().fg(label_fg).add_modifier(Modifier::BOLD)
