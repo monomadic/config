@@ -155,11 +155,11 @@ would otherwise be silently dropped on every rewrite.
 
 | # | Field | Control (§5) | Container keys (`mdta`) | ilst atom | Notes |
 |---|---|---|---|---|---|
-| **1** | ✅ **Title** | Text | `title` | `©nam` | title-case helper on `⌃T`, matching `media-parse-filename-to-json` |
-| **2** | ✅ **Actors** | List (chips, `,`) | `actors`, `artist` | `©ART` + `iTunMOVI` cast | yt-dlp writes both from `%(cast,uploader)l` |
-| **3** | ✅ **Artist** | Text | `artist` | `©ART` | separate from Actors; when Actors is non-empty and Artist is untouched it mirrors the joined list (§3.4) |
-| **4** | ✅ **Rating** | Stars 0–5 | `rating`, `comment` JSON | freeform `com.apple.iTunes:rating` | see §3.3 — this is *not* `rtng` |
-| **5** | ✅ **Description** | TextArea | `description` | `desc` (+ `ldes` if >255 B) | |
+| 1 | **Title** | Text | `title` | `©nam` | title-case helper on `⌃T`, matching `media-parse-filename-to-json` |
+| 2 | **Actors** | List (chips, `,`) | `actors`, `artist` | `©ART` + `iTunMOVI` cast | yt-dlp writes both from `%(cast,uploader)l` |
+| 3 | **Artist** | Text | `artist` | `©ART` | separate from Actors; when Actors is non-empty and Artist is untouched it mirrors the joined list (§3.4) |
+| 4 | **Rating** | Stars 0–5 | `rating`, `comment` JSON | freeform `com.apple.iTunes:rating` | see §3.3 — this is *not* `rtng` |
+| 5 | **Description** | TextArea | `description` | `desc` (+ `ldes` if >255 B) | |
 | 6 | **URL** | URL (validated) | `webpage_url`, `source_url`, `purl`, `comment`, `original_url` | `purl` | one field, five keys — §3.2 |
 | 7 | **Channel** | Text + completion | `album_artist`, `album`, `channel` | `aART`, `©alb`, `tvnn` | yt-dlp maps `%(channel,uploader)s` to both `album_artist` and `album` |
 | 8 | **Tags** | HashTag chips | `keywords` | `keyw` | comma-joined on disk, `#tag` in filenames |
@@ -1160,11 +1160,11 @@ thumbnail ladder, and one run over SMB for the timing story in §9.3.
 | # | Deliverable |
 |---|---|
 | **0** | ✅ **done** — [docs/CONTAINER.md](docs/CONTAINER.md). Settled open question 1, killed `mp4ameta`, and promoted the exiftool writer from an optimisation to a correctness requirement. |
-| 1 | Probe (ffprobe **+ exiftool**) → model → aggregate → `--print-json`. No UI. |
-| 2 | Read-only TUI: layout, focus ring, thumbnails, inspector. |
-| 3 | The controls + validation + undo. Still no writes. |
-| 4 | Both writers, backend selection (§9.2), verification, atomic swap, faststart. Feature-complete for one file. |
-| 5 | Multi-file: merge, per-file inspector, batch summary, partial-failure reporting. |
+| **1** | ✅ Probe (ffprobe **+ exiftool**) → model → aggregate → `--print-json`. No UI. |
+| **2** | ✅ Read-only TUI: layout, focus ring, thumbnails, inspector. |
+| **3** | ✅ The controls + validation + undo. Still no writes. |
+| **4** | ✅ Both writers, backend selection (§9.2), verification, atomic swap, faststart. Feature-complete for one file. |
+| **5** | ✅ Multi-file: merge, per-file inspector, batch summary, partial-failure reporting. |
 | 6 | The Footage profile: XMP fields, the second filename grammar, `PreservedFileName`. |
 | 7 | Seeding: `--from-filename`, `--fetch`, completion history. |
 | 8 | Headless `--set`/`--apply`, More/Custom sections, config file, `--compat both`. |

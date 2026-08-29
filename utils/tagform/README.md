@@ -56,6 +56,13 @@ nothing is listening for the letter w.
 | `esc` | cancel this field's edit |
 | `ctrl-c` | quit, from either mode |
 
+The form paints its own chrome: a filled `tagform` badge heads the screen, every
+field shows a coloured editable region whether or not it is focused, the focused
+field is marked `▍` (`▶` while editing) and a staged one `●`, and a shortcut
+strip along the bottom lists the keys that are live in the current mode. Colours
+are true-colour throughout — the previous 16-colour `DarkGray` was so close to a
+dark terminal background that long custom keys read as blank labels.
+
 Controls: text, list chips, `#hashtags`, URL (validated, `not a URL: …`), a
 0–5 star row, open enums (Genre, Type) and closed ones (Kind, stored as the
 `stik` integer but shown as "Movie"), and dates.
