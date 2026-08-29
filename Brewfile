@@ -157,6 +157,8 @@ cask "transnomino"
 # Specialty desktop apps
 cask "hex-fiend"
 
+cask "crisp" # display management in the menu bar
+
 # AI Tools
 # cask "chatgpt"
 # cask "chatgpt-atlas" # browser
