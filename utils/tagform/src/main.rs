@@ -62,17 +62,25 @@ fn run() -> Result<()> {
     let mut paths: Vec<PathBuf> = Vec::new();
     let mut print_json = false;
     let mut no_thumbnail = false;
+    let mut theme: Option<String> = None;
 
     for arg in std::env::args().skip(1) {
         match arg.as_str() {
             "--print-json" => print_json = true,
             "--no-thumbnail" => no_thumbnail = true,
+            a if a.starts_with("--theme=") => theme = Some(a[8..].to_string()),
             "-h" | "--help" => {
                 println!("{USAGE}");
                 return Ok(());
             }
             a if a.starts_with('-') => bail!("unknown option: {a}"),
             a => paths.push(PathBuf::from(a)),
+        }
+    }
+
+    if let Some(name) = &theme {
+        if !ui::theme::set_by_name(name) {
+            bail!("unknown theme {name:?}; try one of: {}", ui::theme::names().join(", "));
         }
     }
 
@@ -179,6 +187,7 @@ Usage: tagform [OPTIONS] FILE...
 
   --print-json     dump the aggregated tag model and exit
   --no-thumbnail   do not render a thumbnail
+  --theme=NAME     colour scheme; `c` cycles them at runtime
   -h, --help       show this message
 
 Keys — the form is modal.
@@ -191,6 +200,7 @@ Keys — the form is modal.
     p                 inspector: per-file values for the focused field
     ] / [             next / previous file         a       all files
     u / ctrl-r        undo / redo                  r       revert every staged edit
+    c                 cycle the colour scheme
     f                 toggle MOV faststart on the write   [on]
     q / esc           quit (asks if edits are staged)
 

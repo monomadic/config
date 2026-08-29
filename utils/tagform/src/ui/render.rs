@@ -114,26 +114,26 @@ fn draw_badge_bar(f: &mut Frame, area: Rect, app: &App) {
     let badge = " tagform ";
     let used = badge.width() + left.width() + right.width() + tail.width();
     let gap = (area.width as usize).saturating_sub(used);
-    let bar = Style::default().bg(t::HEADER_BG);
+    let bar = Style::default().bg(t::header_bg());
 
     f.render_widget(
         Paragraph::new(Line::from(vec![
             Span::styled(
                 badge,
-                Style::default().bg(t::BADGE_BG).fg(t::BADGE_FG).add_modifier(Modifier::BOLD),
+                Style::default().bg(t::badge_bg()).fg(t::badge_fg()).add_modifier(Modifier::BOLD),
             ),
-            Span::styled(left, bar.fg(t::HEADER_FG)),
+            Span::styled(left, bar.fg(t::header_fg())),
             Span::styled(" ".repeat(gap), bar),
             Span::styled(
                 right,
-                bar.fg(if app.staged.is_empty() { t::MUTED } else { t::STAGED }),
+                bar.fg(if app.staged.is_empty() { t::muted() } else { t::staged() }),
             ),
             Span::styled(
                 tail,
                 if app.mode == Mode::Edit {
-                    bar.fg(t::ACCENT).add_modifier(Modifier::BOLD)
+                    bar.fg(t::accent()).add_modifier(Modifier::BOLD)
                 } else {
-                    bar.fg(t::MUTED)
+                    bar.fg(t::muted())
                 },
             ),
         ]))
@@ -172,13 +172,13 @@ fn draw_header(f: &mut Frame, area: Rect, app: &App, proto: Option<&mut Stateful
     let lines = vec![
         Line::from(Span::styled(
             format!("{pad}{name}"),
-            Style::default().fg(t::HEADER_FG).add_modifier(Modifier::BOLD),
+            Style::default().fg(t::header_fg()).add_modifier(Modifier::BOLD),
         )),
         Line::from(Span::styled(
             format!("{pad}{}", if summary.is_empty() { "probing…".into() } else { summary }),
-            Style::default().fg(t::MUTED),
+            Style::default().fg(t::muted()),
         )),
-        Line::from(Span::styled(format!("{pad}{dir}"), Style::default().fg(t::PATH))),
+        Line::from(Span::styled(format!("{pad}{dir}"), Style::default().fg(t::path()))),
     ];
     f.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), cols[1]);
 }
@@ -188,8 +188,8 @@ fn draw_header(f: &mut Frame, area: Rect, app: &App, proto: Option<&mut Stateful
 fn draw_inspector(f: &mut Frame, area: Rect, app: &App) {
     let Some(row) = app.rows.get(app.focus) else { return };
     let mut lines = vec![Line::from(vec![
-        Span::styled(format!(" {} ", row.label), Style::default().bg(t::RULE).fg(t::LABEL_FOCUS)),
-        Span::styled("  per file", Style::default().fg(t::MUTED)),
+        Span::styled(format!(" {} ", row.label), Style::default().bg(t::rule()).fg(t::label_focus())),
+        Span::styled("  per file", Style::default().fg(t::muted())),
     ])];
 
     match &row.agg {
@@ -201,34 +201,34 @@ fn draw_inspector(f: &mut Frame, area: Rect, app: &App) {
                     None => "—".into(),
                 };
                 let style = if v.is_some() {
-                    Style::default().fg(t::VALUE)
+                    Style::default().fg(t::value())
                 } else {
-                    Style::default().fg(t::VALUE_EMPTY)
+                    Style::default().fg(t::value_empty())
                 };
                 lines.push(Line::from(vec![
                     Span::raw(" "),
                     Span::styled(t::fit(&shown, 34), style),
                     Span::styled(
                         app.files.get(i).map(|f| file_label(&f.path)).unwrap_or_default(),
-                        Style::default().fg(t::MUTED),
+                        Style::default().fg(t::muted()),
                     ),
                 ]));
             }
         }
         Agg::Same { .. } => lines.push(Line::from(Span::styled(
             " identical in every file",
-            Style::default().fg(t::MUTED),
+            Style::default().fg(t::muted()),
         ))),
         Agg::Absent => lines.push(Line::from(Span::styled(
             " present in no file",
-            Style::default().fg(t::VALUE_EMPTY),
+            Style::default().fg(t::value_empty()),
         ))),
     }
     f.render_widget(Paragraph::new(lines), area);
 }
 
 fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
-    let block = Block::default().borders(Borders::TOP).border_style(Style::default().fg(t::RULE));
+    let block = Block::default().borders(Borders::TOP).border_style(Style::default().fg(t::rule()));
     let inner = block.inner(area);
     f.render_widget(block, area);
     if inner.width <= LABEL_COLS + GUTTER + 2 * PAD + 4 {
@@ -259,19 +259,19 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
         // was both staged and focused lost its indicator entirely because the
         // caret won. Edited-ness is carried by the label colour instead.
         let (marker, marker_fg) = if editing {
-            ("▶", t::ACCENT)
+            ("▶", t::accent())
         } else if focused {
-            ("▍", t::ACCENT)
+            ("▍", t::accent())
         } else {
-            (" ", t::RULE)
+            (" ", t::rule())
         };
 
         // Staged outranks focus here precisely so it survives being focused.
         let label_fg = match (staged, focused, custom) {
-            (true, _, _) => t::STAGED,
-            (false, true, _) => t::LABEL_FOCUS,
-            (false, false, true) => t::LABEL_CUSTOM,
-            (false, false, false) => t::LABEL,
+            (true, _, _) => t::staged(),
+            (false, true, _) => t::label_focus(),
+            (false, false, true) => t::label_custom(),
+            (false, false, false) => t::label(),
         };
         let label_style = if focused {
             Style::default().fg(label_fg).add_modifier(Modifier::BOLD)
@@ -282,13 +282,13 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
         // Every control paints its editable region, so the form reads as a form
         // rather than as a list of colons.
         let bg = if readonly {
-            t::INPUT_BG_READONLY
+            t::input_bg_readonly()
         } else if editing {
-            t::INPUT_BG_EDIT
+            t::input_bg_edit()
         } else if focused {
-            t::INPUT_BG_FOCUS
+            t::input_bg_focus()
         } else {
-            t::INPUT_BG
+            t::input_bg()
         };
 
         let (raw, fg) = if editing {
@@ -302,25 +302,25 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
                 cursor = Some((x, inner.y + (i - start) as u16));
             }
             let fg = match app.validation() {
-                Validation::Error(_) => t::ERROR,
-                Validation::Warn(_) => t::WARN,
-                Validation::Ok => t::VALUE,
+                Validation::Error(_) => t::error(),
+                Validation::Warn(_) => t::warn(),
+                Validation::Ok => t::value(),
             };
             (text, fg)
         } else {
             match display_row(app, row) {
-                Some(v) if staged => (v, t::STAGED),
-                Some(v) if row.is_mixed() => (v, t::MIXED),
-                Some(v) if readonly => (v, t::MUTED),
-                Some(v) => (v, t::VALUE),
-                None => ("—".into(), t::VALUE_EMPTY),
+                Some(v) if staged => (v, t::staged()),
+                Some(v) if row.is_mixed() => (v, t::mixed()),
+                Some(v) if readonly => (v, t::muted()),
+                Some(v) => (v, t::value()),
+                None => ("—".into(), t::value_empty()),
             }
         };
         // Star colour belongs to stars. An empty rating draws the same "—" as
         // every other empty field and must look like one.
         let has_value = app.shown_value(row).is_some();
         let value_fg = if row.control == Control::Stars && !editing && has_value {
-            t::STAR
+            t::star()
         } else {
             fg
         };
@@ -388,6 +388,7 @@ fn draw_shortcuts(f: &mut Frame, area: Rect, app: &App) {
             ("a", "all"),
             ("u", "undo"),
             ("r", "revert"),
+            ("c", "theme"),
             ("f", "fast"),
             ("q", "quit"),
         ]
@@ -408,12 +409,12 @@ fn draw_shortcuts(f: &mut Frame, area: Rect, app: &App) {
         used += w;
         spans.push(Span::styled(
             key,
-            Style::default().bg(t::RULE).fg(t::ACCENT).add_modifier(Modifier::BOLD),
+            Style::default().bg(t::rule()).fg(t::accent()).add_modifier(Modifier::BOLD),
         ));
-        spans.push(Span::styled(desc, Style::default().fg(t::MUTED)));
+        spans.push(Span::styled(desc, Style::default().fg(t::muted())));
     }
     if dropped > 0 {
-        spans.push(Span::styled("…", Style::default().fg(t::RULE)));
+        spans.push(Span::styled("…", Style::default().fg(t::rule())));
     }
     f.render_widget(Paragraph::new(Line::from(spans)), area);
 }
@@ -423,10 +424,10 @@ fn draw_status(f: &mut Frame, area: Rect, app: &App) {
     // transient status line -- but only while a field is actually open.
     let live = if app.mode == Mode::Edit { app.validation() } else { Validation::Ok };
     let (text, fg) = match live {
-        Validation::Error(m) => (m, t::ERROR),
-        Validation::Warn(m) => (m, t::WARN),
-        Validation::Ok if !app.status.is_empty() => (app.status.clone(), t::MUTED),
-        Validation::Ok => (String::new(), t::MUTED),
+        Validation::Error(m) => (m, t::error()),
+        Validation::Warn(m) => (m, t::warn()),
+        Validation::Ok if !app.status.is_empty() => (app.status.clone(), t::muted()),
+        Validation::Ok => (String::new(), t::muted()),
     };
     f.render_widget(
         Paragraph::new(Line::from(Span::styled(format!(" {text}"), Style::default().fg(fg)))),
@@ -441,7 +442,7 @@ fn draw_confirm(f: &mut Frame, area: Rect, app: &App, plans: &[FilePlan]) {
     let mut lines: Vec<Line> = vec![
         Line::from(Span::styled(
             format!(" Write {} file{} ", plans.len(), plural(plans.len())),
-            Style::default().bg(t::ACCENT).fg(t::BADGE_FG).add_modifier(Modifier::BOLD),
+            Style::default().bg(t::accent()).fg(t::badge_fg()).add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
     ];
@@ -455,9 +456,9 @@ fn draw_confirm(f: &mut Frame, area: Rect, app: &App, plans: &[FilePlan]) {
             Value::Text(s) => s.clone(),
         };
         let mut spans = vec![
-            Span::styled(format!("  {}", t::fit(&row.label, 14)), Style::default().fg(t::LABEL)),
-            Span::styled("→ ", Style::default().fg(t::MUTED)),
-            Span::styled(shown, Style::default().fg(t::STAGED)),
+            Span::styled(format!("  {}", t::fit(&row.label, 14)), Style::default().fg(t::label())),
+            Span::styled("→ ", Style::default().fg(t::muted())),
+            Span::styled(shown, Style::default().fg(t::staged())),
         ];
         // Replacing one value is an edit; replacing several distinct ones is a
         // different act, and this is the last place to notice it.
@@ -465,7 +466,7 @@ fn draw_confirm(f: &mut Frame, area: Rect, app: &App, plans: &[FilePlan]) {
         if n > 1 {
             spans.push(Span::styled(
                 format!("   replaces {n} distinct values"),
-                Style::default().fg(t::WARN),
+                Style::default().fg(t::warn()),
             ));
         }
         lines.push(Line::from(spans));
@@ -474,13 +475,13 @@ fn draw_confirm(f: &mut Frame, area: Rect, app: &App, plans: &[FilePlan]) {
 
     for p in plans {
         lines.push(Line::from(vec![
-            Span::styled(format!("  {}", t::fit(&file_label(&p.path), 28)), Style::default().fg(t::HEADER_FG)),
-            Span::styled(t::fit(p.writer.label(), 22), Style::default().fg(t::ACCENT)),
-            Span::styled(p.why, Style::default().fg(t::MUTED)),
+            Span::styled(format!("  {}", t::fit(&file_label(&p.path), 28)), Style::default().fg(t::header_fg())),
+            Span::styled(t::fit(p.writer.label(), 22), Style::default().fg(t::accent())),
+            Span::styled(p.why, Style::default().fg(t::muted())),
         ]));
         lines.push(Line::from(Span::styled(
             format!("  {}{:?}", " ".repeat(28), p.layout),
-            Style::default().fg(t::RULE),
+            Style::default().fg(t::rule()),
         )));
     }
 
@@ -490,19 +491,19 @@ fn draw_confirm(f: &mut Frame, area: Rect, app: &App, plans: &[FilePlan]) {
             "  faststart {} · originals replaced only after the result is verified",
             if app.faststart { "on" } else { "off" }
         ),
-        Style::default().fg(t::MUTED),
+        Style::default().fg(t::muted()),
     )));
     lines.push(Line::from(""));
     lines.push(Line::from(vec![
-        Span::styled("  ⏎ ", Style::default().bg(t::RULE).fg(t::ACCENT).add_modifier(Modifier::BOLD)),
-        Span::styled(" write   ", Style::default().fg(t::VALUE)),
-        Span::styled(" esc ", Style::default().bg(t::RULE).fg(t::ACCENT).add_modifier(Modifier::BOLD)),
-        Span::styled(" cancel", Style::default().fg(t::VALUE)),
+        Span::styled("  ⏎ ", Style::default().bg(t::rule()).fg(t::accent()).add_modifier(Modifier::BOLD)),
+        Span::styled(" write   ", Style::default().fg(t::value())),
+        Span::styled(" esc ", Style::default().bg(t::rule()).fg(t::accent()).add_modifier(Modifier::BOLD)),
+        Span::styled(" cancel", Style::default().fg(t::value())),
     ]));
 
     f.render_widget(
         Paragraph::new(lines).block(
-            Block::default().borders(Borders::ALL).border_style(Style::default().fg(t::ACCENT)),
+            Block::default().borders(Borders::ALL).border_style(Style::default().fg(t::accent())),
         ),
         area,
     );
@@ -518,43 +519,43 @@ fn draw_results(f: &mut Frame, area: Rect, r: &WriteResults) {
         Line::from(Span::styled(
             format!(" Wrote {} of {} ", r.ok.len(), total),
             Style::default()
-                .bg(if ok { t::STAGED } else { t::ERROR })
-                .fg(t::BADGE_FG)
+                .bg(if ok { t::staged() } else { t::error() })
+                .fg(t::badge_fg())
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
     ];
     for p in &r.ok {
         lines.push(Line::from(vec![
-            Span::styled("  ✓ ", Style::default().fg(t::STAGED)),
-            Span::styled(file_label(p), Style::default().fg(t::VALUE)),
+            Span::styled("  ✓ ", Style::default().fg(t::staged())),
+            Span::styled(file_label(p), Style::default().fg(t::value())),
         ]));
     }
     for (p, err) in &r.failed {
         lines.push(Line::from(vec![
-            Span::styled("  ✕ ", Style::default().fg(t::ERROR)),
-            Span::styled(t::fit(&file_label(p), 26), Style::default().fg(t::ERROR)),
-            Span::styled(err.clone(), Style::default().fg(t::MUTED)),
+            Span::styled("  ✕ ", Style::default().fg(t::error())),
+            Span::styled(t::fit(&file_label(p), 26), Style::default().fg(t::error())),
+            Span::styled(err.clone(), Style::default().fg(t::muted())),
         ]));
     }
     if !ok {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             "  Files that failed are unchanged; nothing was half-written.",
-            Style::default().fg(t::MUTED),
+            Style::default().fg(t::muted()),
         )));
     }
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
         "  any key to continue",
-        Style::default().fg(t::VALUE).add_modifier(Modifier::BOLD),
+        Style::default().fg(t::value()).add_modifier(Modifier::BOLD),
     )));
 
     f.render_widget(
         Paragraph::new(lines).block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(if ok { t::STAGED } else { t::ERROR })),
+                .border_style(Style::default().fg(if ok { t::staged() } else { t::error() })),
         ),
         area,
     );

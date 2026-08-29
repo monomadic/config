@@ -15,6 +15,7 @@ use std::time::Duration;
 use crate::config::{Enums, KINDS};
 use crate::model::schema::{Control, FieldDef, FIELDS};
 use crate::ui::edit::{Editor, Opt, Validation};
+use crate::ui::theme;
 use crate::model::value::{Agg, Value};
 use crate::tags::plan::{self, FilePlan};
 use crate::tags::probe::FileTags;
@@ -425,6 +426,9 @@ impl App {
             (KeyCode::Char('r'), true) => self.redo(),
             (KeyCode::Char('r'), false) => self.revert_all(),
             (KeyCode::Char('w'), false) => self.prepare_write(),
+            (KeyCode::Char('c'), false) => {
+                self.status = format!("theme: {}", theme::cycle());
+            }
             (KeyCode::Char('f'), false) => {
                 self.faststart = !self.faststart;
                 self.status = format!("faststart {}", if self.faststart { "on" } else { "off" });

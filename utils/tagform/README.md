@@ -43,6 +43,7 @@ nothing is listening for the letter w.
 | `p` | inspector — per-file values for the focused field |
 | `]` / `[` / `a` | next file / previous file / all files |
 | `u` / `ctrl-r` / `r` | undo / redo / revert everything staged |
+| `c` | cycle the colour scheme |
 | `f` | toggle MOV faststart on the write (on by default) |
 | `q` / `esc` | quit (asks if edits are staged) |
 
@@ -59,9 +60,13 @@ nothing is listening for the letter w.
 The form paints its own chrome: a filled `tagform` badge heads the screen, every
 field shows a coloured editable region whether or not it is focused, the focused
 field is marked `▍` (`▶` while editing) and a staged one `●`, and a shortcut
-strip along the bottom lists the keys that are live in the current mode. Colours
-are true-colour throughout — the previous 16-colour `DarkGray` was so close to a
-dark terminal background that long custom keys read as blank labels.
+strip along the bottom lists the keys that are live in the current mode. Colours are true-colour throughout, in four schemes — `midnight`, `gruvbox`,
+`nord`, `rose-pine` — cycled with `c` or picked with `--theme=NAME`. A test
+computes WCAG contrast for every text colour in every scheme against that
+scheme's own background and fails below 3:1, and checks that a custom-key label
+is a different *hue* from an ordinary one rather than a dimmer shade. Both
+guards exist because both mistakes were made: 16-colour `DarkGray` labels, and
+a file path drawn in a divider colour at 1.4:1.
 
 Controls: text, list chips, `#hashtags`, URL (validated, `not a URL: …`), a
 0–5 star row, open enums (Genre, Type) and closed ones (Kind, stored as the
