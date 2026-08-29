@@ -312,7 +312,14 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
                 None => ("—".into(), t::VALUE_EMPTY),
             }
         };
-        let value_fg = if row.control == Control::Stars && !editing { t::STAR } else { fg };
+        // Star colour belongs to stars. An empty rating draws the same "—" as
+        // every other empty field and must look like one.
+        let has_value = app.shown_value(row).is_some();
+        let value_fg = if row.control == Control::Stars && !editing && has_value {
+            t::STAR
+        } else {
+            fg
+        };
 
         lines.push(Line::from(vec![
             Span::styled(marker, Style::default().fg(marker_fg)),

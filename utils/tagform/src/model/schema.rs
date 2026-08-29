@@ -108,8 +108,13 @@ pub static FIELDS: &[FieldDef] = &[
     // would show every file carrying a date nobody set. Resolving a date for a
     // footage filename from exif/ctime is a separate concern (rename-footage's
     // resolve_date), not a field value.
+    // `com.apple.quicktime.creationdate` is what a phone writes and is a real
+    // authored capture time, unlike `creation_time`, which is muxer bookkeeping
+    // (JUNK_KEYS). Without it a camera clip showed "Date —" while its actual
+    // date sat in the Custom section a few rows below. `date` stays first, so an
+    // edit written there wins on the next read.
     field!("date", "Date", Control::Date,
-        mdta: ["date"], read: ["date"],
+        mdta: ["date"], read: ["date", "com.apple.quicktime.creationdate"],
         xmp: ["XMP-xmp:CreateDate"], ilst: Some("\u{a9}day")),
 
     field!("synopsis", "Synopsis", Control::TextArea,
@@ -118,12 +123,42 @@ pub static FIELDS: &[FieldDef] = &[
     field!("origin", "Origin", Control::Text,
         mdta: ["origin"], read: ["origin"], xmp: [], ilst: None),
 
+    // A place name, and only that. It deliberately does NOT read the `location`
+    // atom: ffmpeg maps QuickTime's com.apple.quicktime.location.ISO6709 to that
+    // key, so the field showed "+13.7165+100.5867+018.071/" as though it were a
+    // city -- and an edit would have written a place name into a coordinate.
+    // The numbers get their own read-only field below.
     FieldDef {
         id: "location", label: "Location", control: Control::Text,
-        mdta: &["location"], read: &["location"],
+        mdta: &[], read: &[],
         xmp: &["XMP-iptcExt:LocationCreatedCity"], ilst: None, footage_only: true,
     },
+    // Written by the camera, never by hand. rename-footage --geocode is what
+    // turns these into the place name above.
+    // The whole ISO 6709 string, which is what the container actually holds.
+    // `location-eng` because ffmpeg language-tags the key it writes. The XMP
+    // latitude is deliberately not read here: on its own it is half a
+    // coordinate, and it shows up in the Custom group alongside its longitude.
+    FieldDef {
+        id: "coordinates", label: "Coordinates", control: Control::ReadOnly,
+        mdta: &[], read: &["location", "location-eng"],
+        xmp: &[], ilst: None, footage_only: true,
+    },
     // Write-once: the only surviving copy of a camera's own IMG_4855.MOV.
+    // rename-footage --geocode writes the city as one field of an IPTC block and
+    // fills in the rest alongside it, deliberately: "the plain-text place and
+    // the numbers it came from end up in the same structure". Editing the city
+    // without seeing the province and country next to it is how they drift apart.
+    FieldDef {
+        id: "location_state", label: "State", control: Control::Text,
+        mdta: &[], read: &[],
+        xmp: &["XMP-iptcExt:LocationCreatedProvinceState"], ilst: None, footage_only: true,
+    },
+    FieldDef {
+        id: "location_country", label: "Country", control: Control::Text,
+        mdta: &[], read: &[],
+        xmp: &["XMP-iptcExt:LocationCreatedCountryName"], ilst: None, footage_only: true,
+    },
     FieldDef {
         id: "preserved_name", label: "Original name", control: Control::ReadOnly,
         mdta: &[], read: &[], xmp: &["XMP-xmpMM:PreservedFileName"],
@@ -138,6 +173,16 @@ pub static JUNK_KEYS: &[&str] = &[
     "major_brand", "minor_version", "compatible_brands", "encoder",
     "handler_name", "vendor_id", "creation_time",
 ];
+
+/// Every XMP tag any field claims, for splitting known from custom. Without
+/// this, XMP tags no field knows about are invisible: they survive a write, but
+/// nothing shows they are there.
+pub fn claimed_xmp_tags() -> Vec<&'static str> {
+    let mut v: Vec<&'static str> = FIELDS.iter().flat_map(|f| f.xmp.iter().copied()).collect();
+    v.sort_unstable();
+    v.dedup();
+    v
+}
 
 /// Every atom key any field claims, for splitting known from custom.
 pub fn field_by_id(id: &str) -> Option<&'static FieldDef> {

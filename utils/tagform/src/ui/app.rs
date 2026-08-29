@@ -648,10 +648,28 @@ impl App {
 fn custom_aggs(files: &[&FileTags], keys: &[String]) -> BTreeMap<String, Agg> {
     keys.iter()
         .map(|k| {
-            let per_file = files.iter().map(|t| t.atoms.get(k).cloned()).collect();
+            let per_file = files
+                .iter()
+                .map(|t| match k.split_once(':') {
+                    Some(("xmp", tag)) => t.xmp.get(tag).cloned(),
+                    Some((_, key)) => t.atoms.get(key).cloned(),
+                    None => None,
+                })
+                .collect();
             (k.clone(), Agg::fold(per_file))
         })
         .collect()
+}
+
+/// Label for an unclaimed key: the namespace prefix is noise once the row is
+/// sitting in the Custom group, and `XMP-iptcExt:LocationCreatedGPSLatitude`
+/// has to lose something to fit a label column at all.
+fn custom_label(key: &str) -> String {
+    match key.split_once(':') {
+        Some(("xmp", tag)) => tag.rsplit(':').next().unwrap_or(tag).to_string(),
+        Some((_, k)) => k.to_string(),
+        None => key.to_string(),
+    }
 }
 
 fn build_rows(files: &[&FileTags], custom: &BTreeMap<String, Agg>) -> Vec<Row> {
@@ -671,9 +689,11 @@ fn build_rows(files: &[&FileTags], custom: &BTreeMap<String, Agg>) -> Vec<Row> {
             })
         })
         .collect();
+    // The map is already keyed by origin ("custom:" atom / "xmp:" tag), which
+    // the write plan needs in order to put an edit back where it came from.
     rows.extend(custom.iter().map(|(k, agg)| Row {
-        key: format!("custom:{k}"),
-        label: k.clone(),
+        key: k.clone(),
+        label: custom_label(k),
         control: Control::Text,
         def: None,
         agg: agg.clone(),

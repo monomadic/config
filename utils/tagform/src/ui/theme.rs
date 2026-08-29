@@ -25,7 +25,12 @@ pub const INPUT_BG_READONLY: Color = Color::Rgb(0x16, 0x18, 0x1e);
 pub const LABEL: Color = Color::Rgb(0x8a, 0x93, 0xa8);
 pub const LABEL_FOCUS: Color = Color::Rgb(0xe0, 0xc9, 0x7a);
 /// Still clearly a label, still clearly not a schema field.
-pub const LABEL_CUSTOM: Color = Color::Rgb(0x71, 0x7c, 0x94);
+///
+/// A *different hue*, not merely a dimmer one. The first attempt was the same
+/// blue-grey two shades down, which measures ΔE 9 from LABEL -- far too close
+/// to read as a distinction at label size. Violet-grey sits at ΔE 22 from
+/// LABEL and no nearer than ΔE 20 to anything else in the palette.
+pub const LABEL_CUSTOM: Color = Color::Rgb(0x8f, 0x7b, 0xb0);
 
 pub const VALUE: Color = Color::Rgb(0xc8, 0xcd, 0xd8);
 /// An absent value: readable as "nothing here", not as a rendering failure.

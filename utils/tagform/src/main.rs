@@ -15,7 +15,7 @@ use anyhow::{bail, Result};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use model::schema::{claimed_atom_keys, FIELDS};
+use model::schema::{claimed_atom_keys, claimed_xmp_tags, FIELDS};
 use model::value::{Agg, Value};
 use tags::probe::{probe, FileTags};
 
@@ -136,18 +136,39 @@ fn build_report(files: &[FileTags]) -> Report {
 /// than dropped -- losing an unrecognised tag by failing to recognise it is
 /// exactly the bug this guards against.
 fn custom_keys(files: &[FileTags]) -> BTreeMap<String, Agg> {
-    let claimed = claimed_atom_keys();
-    let mut keys: Vec<String> = files
-        .iter()
-        .flat_map(|t| t.atoms.keys())
-        .filter(|k| !claimed.contains(&k.as_str()))
-        .cloned()
-        .collect();
-    keys.sort_unstable();
+    let atoms = claimed_atom_keys();
+    let xmp = claimed_xmp_tags();
+    let mut keys: Vec<String> = Vec::new();
+    for t in files {
+        keys.extend(
+            t.atoms
+                .keys()
+                .filter(|k| !atoms.contains(&k.as_str()))
+                .map(|k| format!("custom:{k}")),
+        );
+        // XMP too. rename-footage keeps growing the set it writes -- the IPTC
+        // location block gained a province, a country and coordinates -- and a
+        // tag no field claims used to be invisible here: preserved on write,
+        // but nothing on screen said it existed.
+        keys.extend(
+            t.xmp
+                .keys()
+                .filter(|k| !xmp.contains(&k.as_str()))
+                .map(|k| format!("xmp:{k}")),
+        );
+    }
+    keys.sort();
     keys.dedup();
     keys.into_iter()
         .map(|k| {
-            let per_file = files.iter().map(|t| t.atoms.get(&k).cloned()).collect();
+            let per_file = files
+                .iter()
+                .map(|t| match k.split_once(':') {
+                    Some(("xmp", tag)) => t.xmp.get(tag).cloned(),
+                    Some((_, key)) => t.atoms.get(key).cloned(),
+                    None => None,
+                })
+                .collect();
             (k, Agg::fold(per_file))
         })
         .collect()

@@ -109,17 +109,33 @@ pub fn build(
     let mut xmp: Vec<(String, Vec<String>)> = Vec::new();
 
     for (row_key, value) in staged {
+        // Unclaimed keys go back where they came from. An XMP tag written as an
+        // atom of the same name would be a new key that shadows nothing and is
+        // read by nobody.
         if let Some(custom) = row_key.strip_prefix("custom:") {
             atoms.push((custom.to_string(), atom_text(value)));
+            continue;
+        }
+        if let Some(tag) = row_key.strip_prefix("xmp:") {
+            xmp.push((tag.to_string(), xmp_values(value)));
             continue;
         }
         let Some(def) = field_by_id(row_key) else { continue };
         for k in def.mdta {
             atoms.push((k.to_string(), atom_text(value)));
         }
-        // Only touch XMP the file already has: inventing it on a plain download
-        // would make ffprobe and exiftool disagree about the same file forever.
-        if let Some(tag) = def.xmp.iter().find(|t| file.xmp.contains_key(**t)) {
+        // Normally only touch XMP the file already has: inventing it on a plain
+        // download would make ffprobe and exiftool disagree about the same file
+        // forever. The exception is a field whose only home *is* XMP -- the
+        // place name and the rest of the IPTC location block -- where writing
+        // nothing would silently discard the edit.
+        let xmp_only = def.mdta.is_empty();
+        let tag = if xmp_only {
+            def.xmp.first().copied()
+        } else {
+            def.xmp.iter().copied().find(|t| file.xmp.contains_key(*t))
+        };
+        if let Some(tag) = tag {
             xmp.push((tag.to_string(), xmp_values(value)));
         }
     }
@@ -269,6 +285,33 @@ mod tests {
             assert!(keys.contains(&expected), "missing {expected}");
         }
         assert_eq!(p.writer, Writer::Exiftool);
+    }
+
+    /// Location lives only in XMP, so an edit must create the tag rather than
+    /// vanish because the file happened not to carry it yet.
+    #[test]
+    fn an_xmp_only_field_is_written_even_when_absent() {
+        let f = file(&[("title", "t")], &[]);
+        let p = build(&f, &staged(&[("location", Value::text("Berlin"))]), false);
+        assert_eq!(
+            p.xmp,
+            vec![("XMP-iptcExt:LocationCreatedCity".to_string(), vec!["Berlin".to_string()])]
+        );
+        assert!(p.atoms.is_empty(), "a place name must never be written as an atom");
+    }
+
+    /// An unclaimed XMP tag edited in the Custom section goes back to XMP, not
+    /// to an atom of the same name.
+    #[test]
+    fn an_unclaimed_xmp_row_writes_xmp() {
+        let f = file(&[], &[("XMP-iptcExt:LocationCreatedCountryName", "Thailand")]);
+        let p = build(
+            &f,
+            &staged(&[("xmp:XMP-iptcExt:LocationCreatedCountryName", Value::text("Germany"))]),
+            false,
+        );
+        assert!(p.atoms.is_empty());
+        assert_eq!(p.xmp[0].0, "XMP-iptcExt:LocationCreatedCountryName");
     }
 
     #[test]
