@@ -22,6 +22,8 @@ use crate::ui::theme as t;
 
 const LABEL_COLS: u16 = 15;
 const GUTTER: u16 = 1;
+/// Blank columns of field background either side of a value.
+const PAD: u16 = 1;
 
 /// Cells are about twice as tall as they are wide, so an image of pixel aspect
 /// `a` needs `2 * rows * a` columns to keep its proportions. Sizing the band
@@ -229,13 +231,17 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
     let block = Block::default().borders(Borders::TOP).border_style(Style::default().fg(t::RULE));
     let inner = block.inner(area);
     f.render_widget(block, area);
-    if inner.width <= LABEL_COLS + GUTTER + 4 {
+    if inner.width <= LABEL_COLS + GUTTER + 2 * PAD + 4 {
         return;
     }
 
     let height = inner.height as usize;
     let start = if app.focus >= height { app.focus + 1 - height } else { 0 };
+    // The box is the full width; the text sits inside it with a blank column of
+    // its own background either side, so it reads as an input rather than as a
+    // block of colour butted straight up against the label.
     let value_w = inner.width.saturating_sub(1 + LABEL_COLS + GUTTER + 1) as usize;
+    let text_w = value_w.saturating_sub(2 * PAD as usize);
     let value_x = inner.x + 1 + LABEL_COLS + GUTTER;
     let mut cursor: Option<(u16, u16)> = None;
 
@@ -288,7 +294,7 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
                 .map(|e| e.display())
                 .unwrap_or_else(|| (String::new(), None));
             if let Some(c) = cur {
-                let x = value_x + (c as u16).min(value_w.saturating_sub(1) as u16);
+                let x = value_x + PAD + (c as u16).min(text_w.saturating_sub(1) as u16);
                 cursor = Some((x, inner.y + (i - start) as u16));
             }
             let fg = match app.validation() {
@@ -318,7 +324,9 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
                 label_style,
             ),
             Span::raw(" "),
-            Span::styled(t::fit(&raw, value_w), Style::default().bg(bg).fg(value_fg)),
+            Span::styled(" ".repeat(PAD as usize), Style::default().bg(bg)),
+            Span::styled(t::fit(&raw, text_w), Style::default().bg(bg).fg(value_fg)),
+            Span::styled(" ".repeat(PAD as usize), Style::default().bg(bg)),
         ]));
     }
     f.render_widget(Paragraph::new(lines), inner);
