@@ -206,10 +206,11 @@ Keys — the form is modal.
     q / esc           quit (asks if edits are staged)
 
   EDIT
-    (type)            edit the field               left/right  adjust a rating
-    j / k, enter      choose from a fixed set (Kind), then commit it
+    (type)            edit the field
+    left / right      step a fixed set, or adjust a rating; the set is drawn
+                      along the field's own line while it is open
+    tab / shift-tab   accept and move to the next / previous field
     enter             save and stop editing
-    tab / shift-tab   save and move to the next / previous field
     esc               cancel this field's edit
     ctrl-c            quit from anywhere
 

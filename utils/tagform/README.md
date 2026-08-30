@@ -72,8 +72,13 @@ a file path drawn in a divider colour at 1.4:1.
 
 Controls: text, list chips, `#hashtags`, URL (validated, `not a URL: …`), a
 0–5 star row, open enums (Genre, Type) and closed ones (Kind, stored as the
-`stik` integer but shown as "Movie", and chosen from a menu rather than cycled
-blind — with nothing to type, you should be able to see the whole set), and dates.
+`stik` integer but shown as "Movie")
+
+A fixed set draws itself **along the field's own line** while that field is
+open, with the current value lit — so you can see the whole set without cycling
+blind, and opening one never changes the shape of the form. Closed to open:
+`enter` opens, `←`/`→` step, `enter` accepts, `tab` accepts and advances, `esc`
+reverts, and dates.
 
 Genre and Type are **not hardcoded** — they are parsed out of
 `~/.config/yt-dlp/config`'s `--alias` lines, so adding an alias there adds a

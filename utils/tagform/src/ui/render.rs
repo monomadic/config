@@ -8,7 +8,7 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::Frame;
 use ratatui_image::{protocol::StatefulProtocol, StatefulImage};
 use unicode_width::UnicodeWidthStr;
@@ -328,7 +328,23 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
             fg
         };
 
-        lines.push(Line::from(vec![
+        // A fixed set expands into the value box while the field is open --
+        // same row, same height, so opening one never reflows the form.
+        let closed_set = editing && app.editor.as_ref().is_some_and(|e| e.is_closed_set());
+        let value_spans = match editing.then(|| app.editor.as_ref()?.choices()).flatten() {
+            // Show the set when one of its options is live, and also when the
+            // set is the only thing the field accepts -- even with nothing
+            // chosen yet, since there would otherwise be nothing to step through.
+            Some((labels, sel)) if sel.is_some() || closed_set => {
+                set_spans(&labels, sel, text_w, bg)
+            }
+            _ => vec![Span::styled(
+                t::fit(&raw, text_w),
+                Style::default().bg(bg).fg(value_fg),
+            )],
+        };
+
+        let mut spans = vec![
             Span::styled(marker, Style::default().fg(marker_fg)),
             Span::styled(
                 t::fit(
@@ -339,143 +355,60 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
             ),
             Span::raw(" "),
             Span::styled(" ".repeat(PAD as usize), Style::default().bg(bg)),
-            Span::styled(t::fit(&raw, text_w), Style::default().bg(bg).fg(value_fg)),
-            Span::styled(" ".repeat(PAD as usize), Style::default().bg(bg)),
-        ]));
-
-        // A focused fixed-set field shows its whole set on the line beneath,
-        // so the options are visible without opening anything. Not while
-        // editing: the menu is already showing them vertically.
-        if focused && !editing && lines.len() < height {
-            if let Some(line) = choice_strip(app, row, value_x - inner.x, value_w) {
-                lines.push(line);
-            }
-        }
+        ];
+        spans.extend(value_spans);
+        spans.push(Span::styled(" ".repeat(PAD as usize), Style::default().bg(bg)));
+        lines.push(Line::from(spans));
     }
     f.render_widget(Paragraph::new(lines), inner);
     if let Some((x, y)) = cursor {
         f.set_cursor_position((x, y));
     }
 
-    // The menu is drawn last so it sits over the rows beneath it.
-    if app.mode == Mode::Edit && app.focus >= start {
-        if let Some((options, sel)) = app.editor.as_ref().and_then(|e| e.menu()) {
-            let row_y = inner.y + (app.focus - start) as u16;
-            draw_menu(f, inner, value_x, row_y, &options, sel);
-        }
-    }
 }
 
-/// A closed enum's options, anchored under the field it belongs to.
+/// The set, laid out along the value box with the current one lit.
 ///
-/// It opens below the row unless there is no room, in which case it flips
-/// above: a menu that runs off the bottom of the screen shows you the values
-/// you can't reach and hides the ones you can.
-fn draw_menu(
-    f: &mut Frame,
-    inner: Rect,
-    value_x: u16,
-    row_y: u16,
-    options: &[String],
-    sel: usize,
-) {
-    let widest = options.iter().map(|o| o.width()).max().unwrap_or(0);
-    let width = (widest as u16 + 4).min(inner.width.saturating_sub(value_x - inner.x)).max(8);
-    let height = (options.len() as u16 + 2).min(inner.height.saturating_sub(1)).max(3);
-
-    let below = row_y + 1;
-    let y = if below + height <= inner.bottom() {
-        below
-    } else {
-        row_y.saturating_sub(height).max(inner.y)
-    };
-    let area = Rect { x: value_x, y, width, height };
-
-    let visible = (height.saturating_sub(2)) as usize;
-    let first = if sel >= visible { sel + 1 - visible } else { 0 };
-    let lines: Vec<Line> = options
-        .iter()
-        .enumerate()
-        .skip(first)
-        .take(visible)
-        .map(|(i, label)| {
-            let chosen = i == sel;
-            // The trailing "Custom…" row is an action, not a value, and reads
-            // as one.
-            let escape_hatch = label.ends_with('…');
-            let style = if chosen {
-                Style::default().bg(t::accent()).fg(t::badge_fg()).add_modifier(Modifier::BOLD)
-            } else if escape_hatch {
-                Style::default().fg(t::muted()).add_modifier(Modifier::ITALIC)
-            } else {
-                Style::default().fg(t::value())
-            };
-            Line::from(Span::styled(
-                t::fit(&format!(" {label}"), width.saturating_sub(2) as usize),
-                style,
-            ))
-        })
-        .collect();
-
-    f.render_widget(Clear, area);
-    f.render_widget(
-        Paragraph::new(lines).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(t::accent()))
-                .style(Style::default().bg(t::input_bg_edit())),
-        ),
-        area,
-    );
-}
-
-/// The options laid out horizontally under a focused enum, current one lit.
-///
-/// Horizontal rather than a list because it is a strip of a few short words
-/// and this way it costs one line instead of one per option. Falls back to
-/// eliding from the left when the set is wider than the field.
-fn choice_strip(app: &App, row: &Row, indent: u16, width: usize) -> Option<Line<'static>> {
-    let (labels, current) = app.enum_choices(row)?;
-    let cells: Vec<String> = labels.iter().map(|l| format!(" {l} ")).collect();
-
-    // Scroll so the current value is always on screen. A strip that elided the
-    // very option you are sitting on would show you everything except the one
-    // thing you needed to see.
-    let fits_from = |start: usize| -> usize {
-        let mut used = 0;
-        let mut end = start;
-        while end < cells.len() && used + cells[end].width() <= width {
-            used += cells[end].width();
-            end += 1;
+/// Scrolls to keep the selection in view rather than eliding the tail: with
+/// seven kinds and "Podcast" chosen, a naive trim showed every option except
+/// the one you were on.
+fn set_spans(
+    labels: &[String],
+    sel: Option<usize>,
+    width: usize,
+    bg: ratatui::style::Color,
+) -> Vec<Span<'static>> {
+    let cell = |i: usize| format!(" {} ", labels[i]);
+    let mut first = 0usize;
+    loop {
+        let used: usize = (first..labels.len()).map(|i| cell(i).width()).sum();
+        if used <= width || first >= sel.unwrap_or(0) {
+            break;
         }
-        end
-    };
-    let mut start = 0usize;
-    if let Some(cur) = current {
-        while fits_from(start) <= cur && start < cells.len() - 1 {
-            start += 1;
-        }
+        first += 1;
     }
-    let end = fits_from(start);
 
-    let mut spans = vec![Span::raw(" ".repeat(indent as usize + PAD as usize))];
-    if start > 0 {
-        spans.push(Span::styled("…", Style::default().fg(t::muted())));
-    }
-    for (i, cell) in cells.iter().enumerate().take(end).skip(start) {
+    let mut spans = Vec::new();
+    let mut used = 0usize;
+    for i in first..labels.len() {
+        let text = cell(i);
+        if used + text.width() > width {
+            break;
+        }
+        used += text.width();
         spans.push(Span::styled(
-            cell.clone(),
-            if Some(i) == current {
+            text,
+            if Some(i) == sel {
                 Style::default().bg(t::accent()).fg(t::badge_fg()).add_modifier(Modifier::BOLD)
             } else {
-                Style::default().bg(t::input_bg()).fg(t::muted())
+                Style::default().bg(bg).fg(t::muted())
             },
         ));
     }
-    if end < cells.len() {
-        spans.push(Span::styled("…", Style::default().fg(t::muted())));
+    if used < width {
+        spans.push(Span::styled(" ".repeat(width - used), Style::default().bg(bg)));
     }
-    Some(Line::from(spans))
+    spans
 }
 
 /// An unfocused row shows the staged edit if there is one, else what is on disk.
@@ -501,10 +434,10 @@ fn display_row(app: &App, row: &Row) -> Option<String> {
 /// The keys that matter right now, and only those. Which keys are live depends
 /// on the mode, so a fixed strip would be wrong half the time.
 fn draw_shortcuts(f: &mut Frame, area: Rect, app: &App) {
-    let in_menu = app.mode == Mode::Edit
-        && app.editor.as_ref().and_then(|e| e.menu()).is_some();
-    let pairs: &[(&str, &str)] = if in_menu {
-        &[("jk", "choose"), ("⏎", "select"), ("esc", "cancel"), ("^c", "quit")]
+    let on_a_set = app.mode == Mode::Edit
+        && app.editor.as_ref().and_then(|e| e.choices()).is_some();
+    let pairs: &[(&str, &str)] = if on_a_set {
+        &[("←→", "change"), ("⏎", "accept"), ("⇥", "accept + next"), ("esc", "cancel")]
     } else if app.mode == Mode::Edit {
         &[
             ("⏎", "save"),

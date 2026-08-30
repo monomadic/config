@@ -476,22 +476,6 @@ impl App {
         }
     }
 
-    /// The choices for a focused enum, and which one is current. Drives the
-    /// strip drawn under the field in select mode: a fixed set is small enough
-    /// to show in full, and showing it beats making you open something to find
-    /// out what the options were.
-    pub fn enum_choices(&self, row: &Row) -> Option<(Vec<String>, Option<usize>)> {
-        let opts = self.options_for(row);
-        if opts.is_empty() {
-            return None;
-        }
-        let current = match self.shown_value(row) {
-            Some(Value::Text(code)) => opts.iter().position(|o| o.code == code),
-            _ => None,
-        };
-        Some((opts.iter().map(|o| o.label.clone()).collect(), current))
-    }
-
     /// Step a fixed-set field without opening anything: h/l on an enum cycles
     /// the value, on a rating nudges the stars. Both are one keystroke for the
     /// common case, with the menu still there for picking out of a long list.
