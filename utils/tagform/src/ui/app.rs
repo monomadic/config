@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use crate::config::{Enums, KINDS};
 use crate::model::schema::{Control, FieldDef, FIELDS};
-use crate::ui::edit::{Editor, Opt, Validation};
+use crate::ui::edit::{Editor, Opt, Reaction, Validation};
 use crate::ui::theme;
 use crate::model::value::{Agg, Value};
 use crate::tags::plan::{self, FilePlan};
@@ -364,6 +364,16 @@ impl App {
     }
 
     fn edit_key(&mut self, key: KeyEvent) {
+        // The control sees every key first, and whatever it hands back is a
+        // command. Matching Enter here before offering it to the control was
+        // what stopped an enum menu from ever applying its highlight: the app
+        // committed the field while the menu was still holding the choice.
+        if let Some(ed) = &mut self.editor {
+            if ed.handle(key) == Reaction::Consumed {
+                self.status.clear();
+                return;
+            }
+        }
         match key.code {
             // Commit and stop editing.
             KeyCode::Enter => {
@@ -373,12 +383,8 @@ impl App {
             }
             // Commit and carry straight on to the next field, which is what
             // tab means in every form.
-            KeyCode::Tab => {
-                self.move_focus(1);
-            }
-            KeyCode::BackTab => {
-                self.move_focus(-1);
-            }
+            KeyCode::Tab => self.move_focus(1),
+            KeyCode::BackTab => self.move_focus(-1),
             // Abandon this field's edit. Reseeding restores whatever the row
             // showed before -- the staged value if there was one, else disk.
             KeyCode::Esc => {
@@ -386,12 +392,7 @@ impl App {
                 self.mode = Mode::Select;
                 self.status = "edit cancelled".into();
             }
-            _ => {
-                if let Some(ed) = &mut self.editor {
-                    ed.handle(key);
-                }
-                self.status.clear();
-            }
+            _ => {}
         }
     }
 

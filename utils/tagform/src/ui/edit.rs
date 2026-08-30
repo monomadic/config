@@ -52,6 +52,12 @@ pub struct EnumEdit {
     pub options: Vec<Opt>,
     /// A closed enum refuses free text: `stik` has no meaning outside its set.
     pub closed: bool,
+    /// Cursor into `options` while the menu is open.
+    ///
+    /// A closed enum has nothing to type, so cycling blind through values with
+    /// the arrow keys made you hunt for one without ever seeing the set. The
+    /// menu opens with the field and shows all of them at once.
+    pub menu: Option<usize>,
 }
 
 /// A list rendered as chips but edited as one line. Per-chip selection and
@@ -84,10 +90,18 @@ impl Editor {
                     .map(|o| o.label.clone())
                     .unwrap_or(text);
                 let closed = options.iter().any(|o| o.code != o.label);
+                // Open on the value the field already holds, so the cursor
+                // starts where you are rather than at the top of the list.
+                let at = options
+                    .iter()
+                    .position(|o| o.label.eq_ignore_ascii_case(shown.trim()))
+                    .unwrap_or(0);
+                let menu = closed.then_some(at);
                 Editor::Enum(EnumEdit {
                     input: Input::new(shown),
                     options,
                     closed,
+                    menu,
                 })
             }
             Control::List => Editor::Chips(Chips { input: Input::new(text), hash: false }),
@@ -133,6 +147,14 @@ impl Editor {
         }
     }
 
+    /// The open menu, if this control has one: the options and the highlight.
+    pub fn menu(&self) -> Option<(&[Opt], usize)> {
+        match self {
+            Editor::Enum(e) => e.menu.map(|i| (e.options.as_slice(), i)),
+            _ => None,
+        }
+    }
+
     /// The text drawn in the value column, and where the cursor sits in it.
     pub fn display(&self) -> (String, Option<usize>) {
         match self {
@@ -140,6 +162,7 @@ impl Editor {
             Editor::Line { input, .. } => (input.value().to_string(), Some(input.visual_cursor())),
             Editor::Chips(c) => (c.input.value().to_string(), Some(c.input.visual_cursor())),
             Editor::Stars(n) => (stars_glyphs(*n), None),
+            Editor::Enum(e) if e.menu.is_some() => (e.input.value().to_string(), None),
             Editor::Enum(e) => (e.input.value().to_string(), Some(e.input.visual_cursor())),
         }
     }
@@ -252,6 +275,30 @@ fn stars_key(n: &mut u8, key: KeyEvent) -> Reaction {
 }
 
 fn enum_key(e: &mut EnumEdit, key: KeyEvent) -> Reaction {
+    if let Some(cursor) = e.menu {
+        if e.options.is_empty() {
+            return Reaction::Pass;
+        }
+        let n = e.options.len();
+        let moved = match key.code {
+            KeyCode::Char('j') | KeyCode::Down | KeyCode::Right => Some((cursor + 1) % n),
+            KeyCode::Char('k') | KeyCode::Up | KeyCode::Left => Some((cursor + n - 1) % n),
+            KeyCode::Home => Some(0),
+            KeyCode::End => Some(n - 1),
+            _ => None,
+        };
+        if let Some(next) = moved {
+            e.menu = Some(next);
+            return Reaction::Consumed;
+        }
+        // Enter and Esc are deliberately *not* consumed. Applying the highlight
+        // and then passing lets the app's own edit-mode handling commit or
+        // cancel, so there is one place that decides what those keys mean.
+        if key.code == KeyCode::Enter {
+            e.input = Input::new(e.options[cursor].label.clone());
+        }
+        return Reaction::Pass;
+    }
     match key.code {
         KeyCode::Left | KeyCode::Right => {
             if e.options.is_empty() {
@@ -349,16 +396,72 @@ mod tests {
         assert_eq!(e.value(), Value::List(vec!["pov".into(), "hd".into()]));
     }
 
-    /// Kind stores the stik integer but shows a word.
+    /// Kind stores the stik integer but shows a word. Moving the highlight is
+    /// not choosing: the value only changes when Enter applies it, so leaving
+    /// the menu with Esc leaves the field as it was.
     #[test]
     fn closed_enum_shows_label_and_stores_code() {
         let o = opts(&[("9", "Movie"), ("10", "TV Show")]);
         let mut e = Editor::new(Control::Enum, Some(&Value::Text("9".into())), o);
         assert_eq!(e.display().0, "Movie");
         assert_eq!(e.value(), Value::Text("9".into()));
-        e.handle(code(KeyCode::Right));
+
+        e.handle(code(KeyCode::Down));
+        assert_eq!(e.display().0, "Movie", "the field still reads the old value");
+        assert_eq!(e.menu().unwrap().1, 1, "but the highlight has moved");
+
+        e.handle(code(KeyCode::Enter));
         assert_eq!(e.display().0, "TV Show");
         assert_eq!(e.value(), Value::Text("10".into()));
+    }
+
+    /// A closed enum opens its menu on the value it already holds, moves with
+    /// j/k, and hands Enter back so the app commits in the usual place.
+    #[test]
+    fn closed_enum_opens_a_menu_positioned_on_the_current_value() {
+        let o = opts(&[("0", "Home Video"), ("9", "Movie"), ("10", "TV Show")]);
+        let mut e = Editor::new(Control::Enum, Some(&Value::Text("9".into())), o);
+        let (options, cursor) = e.menu().expect("closed enum should open a menu");
+        assert_eq!(options.len(), 3);
+        assert_eq!(cursor, 1, "cursor starts on the current value, not the top");
+
+        assert_eq!(e.handle(key('j')), Reaction::Consumed);
+        assert_eq!(e.menu().unwrap().1, 2);
+        assert_eq!(e.handle(key('k')), Reaction::Consumed);
+        assert_eq!(e.menu().unwrap().1, 1);
+
+        // Enter passes through so edit_key commits it once, in one place.
+        assert_eq!(e.handle(key('j')), Reaction::Consumed);
+        assert_eq!(e.handle(code(KeyCode::Enter)), Reaction::Pass);
+        assert_eq!(e.value(), Value::Text("10".into()));
+    }
+
+    #[test]
+    fn the_menu_wraps_at_both_ends() {
+        let o = opts(&[("a", "A"), ("b", "B")]);
+        let mut e = Editor::new(Control::Enum, Some(&Value::Text("a".into())), o);
+        e.handle(key('k'));
+        assert_eq!(e.menu().unwrap().1, 1, "up from the first wraps to the last");
+        e.handle(key('j'));
+        assert_eq!(e.menu().unwrap().1, 0);
+    }
+
+    /// Esc must leave the value alone; the app reseeds the control to cancel.
+    #[test]
+    fn escaping_the_menu_changes_nothing() {
+        let o = opts(&[("9", "Movie"), ("10", "TV Show")]);
+        let mut e = Editor::new(Control::Enum, Some(&Value::Text("9".into())), o);
+        e.handle(key('j'));
+        assert_eq!(e.handle(code(KeyCode::Esc)), Reaction::Pass);
+        assert_eq!(e.value(), Value::Text("9".into()), "moving the highlight must not commit");
+    }
+
+    /// An open enum is a text field with suggestions; it must not get a menu.
+    #[test]
+    fn an_open_enum_has_no_menu() {
+        let o = opts(&[("Media", "Media"), ("Footage", "Footage")]);
+        let e = Editor::new(Control::Enum, None, o);
+        assert!(e.menu().is_none());
     }
 
     #[test]

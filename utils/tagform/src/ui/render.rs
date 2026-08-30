@@ -8,7 +8,7 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::Frame;
 use ratatui_image::{protocol::StatefulProtocol, StatefulImage};
 use unicode_width::UnicodeWidthStr;
@@ -344,6 +344,72 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
     if let Some((x, y)) = cursor {
         f.set_cursor_position((x, y));
     }
+
+    // The menu is drawn last so it sits over the rows beneath it.
+    if app.mode == Mode::Edit && app.focus >= start {
+        if let Some((options, sel)) = app.editor.as_ref().and_then(|e| e.menu()) {
+            let row_y = inner.y + (app.focus - start) as u16;
+            draw_menu(f, inner, value_x, row_y, options, sel);
+        }
+    }
+}
+
+/// A closed enum's options, anchored under the field it belongs to.
+///
+/// It opens below the row unless there is no room, in which case it flips
+/// above: a menu that runs off the bottom of the screen shows you the values
+/// you can't reach and hides the ones you can.
+fn draw_menu(
+    f: &mut Frame,
+    inner: Rect,
+    value_x: u16,
+    row_y: u16,
+    options: &[crate::ui::edit::Opt],
+    sel: usize,
+) {
+    let widest = options.iter().map(|o| o.label.width()).max().unwrap_or(0);
+    let width = (widest as u16 + 4).min(inner.width.saturating_sub(value_x - inner.x)).max(8);
+    let height = (options.len() as u16 + 2).min(inner.height.saturating_sub(1)).max(3);
+
+    let below = row_y + 1;
+    let y = if below + height <= inner.bottom() {
+        below
+    } else {
+        row_y.saturating_sub(height).max(inner.y)
+    };
+    let area = Rect { x: value_x, y, width, height };
+
+    let visible = (height.saturating_sub(2)) as usize;
+    let first = if sel >= visible { sel + 1 - visible } else { 0 };
+    let lines: Vec<Line> = options
+        .iter()
+        .enumerate()
+        .skip(first)
+        .take(visible)
+        .map(|(i, o)| {
+            let chosen = i == sel;
+            let style = if chosen {
+                Style::default().bg(t::accent()).fg(t::badge_fg()).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(t::value())
+            };
+            Line::from(Span::styled(
+                t::fit(&format!(" {}", o.label), width.saturating_sub(2) as usize),
+                style,
+            ))
+        })
+        .collect();
+
+    f.render_widget(Clear, area);
+    f.render_widget(
+        Paragraph::new(lines).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(t::accent()))
+                .style(Style::default().bg(t::input_bg_edit())),
+        ),
+        area,
+    );
 }
 
 /// An unfocused row shows the staged edit if there is one, else what is on disk.
@@ -369,7 +435,11 @@ fn display_row(app: &App, row: &Row) -> Option<String> {
 /// The keys that matter right now, and only those. Which keys are live depends
 /// on the mode, so a fixed strip would be wrong half the time.
 fn draw_shortcuts(f: &mut Frame, area: Rect, app: &App) {
-    let pairs: &[(&str, &str)] = if app.mode == Mode::Edit {
+    let in_menu = app.mode == Mode::Edit
+        && app.editor.as_ref().and_then(|e| e.menu()).is_some();
+    let pairs: &[(&str, &str)] = if in_menu {
+        &[("jk", "choose"), ("⏎", "select"), ("esc", "cancel"), ("^c", "quit")]
+    } else if app.mode == Mode::Edit {
         &[
             ("⏎", "save"),
             ("⇥", "save + next"),

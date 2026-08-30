@@ -51,7 +51,8 @@ nothing is listening for the letter w.
 
 | key | |
 |---|---|
-| (type) | edit the field; `←` `→` cycle an enum or adjust a rating |
+| (type) | edit the field; `←` `→` adjust a rating or cycle an open enum |
+| `j` / `k`, `enter` | choose from a closed set (Kind), which opens as a menu |
 | `enter` | save and stop editing |
 | `tab` / `shift-tab` | save and move to the next / previous field |
 | `esc` | cancel this field's edit |
@@ -70,7 +71,8 @@ a file path drawn in a divider colour at 1.4:1.
 
 Controls: text, list chips, `#hashtags`, URL (validated, `not a URL: …`), a
 0–5 star row, open enums (Genre, Type) and closed ones (Kind, stored as the
-`stik` integer but shown as "Movie"), and dates.
+`stik` integer but shown as "Movie", and chosen from a menu rather than cycled
+blind — with nothing to type, you should be able to see the whole set), and dates.
 
 Genre and Type are **not hardcoded** — they are parsed out of
 `~/.config/yt-dlp/config`'s `--alias` lines, so adding an alias there adds a

@@ -205,7 +205,8 @@ Keys — the form is modal.
     q / esc           quit (asks if edits are staged)
 
   EDIT
-    (type)            edit the field               left/right  cycle an enum, adjust a rating
+    (type)            edit the field               left/right  adjust a rating
+    j / k, enter      choose from a fixed set (Kind), then commit it
     enter             save and stop editing
     tab / shift-tab   save and move to the next / previous field
     esc               cancel this field's edit
