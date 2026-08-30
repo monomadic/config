@@ -137,13 +137,13 @@ animation = "normal"
 #
 # Keyboard: playback starts only after the selection has settled this
 # long, so flying across the grid doesn't spawn a decoder per keypress.
-live_delay_ms = 100.0
+live_delay_ms = 50.0
 # Pointer: how long a hover must settle before the lane follows it. Hover
 # is more volatile than the selection and every settle costs a
 # quickview-resolution cold spawn, so this guard runs longer.
 # (Called attention_delay_ms before this became the only model; the old
 # key still parses.)
-hover_delay_ms = 250.0
+hover_delay_ms = 50.0
 
 # A live lane needs the clip's cached probe meta (duration for the seek
 # anchor, coded dims for the decode size). That read happens off the
@@ -162,7 +162,7 @@ skip_fraction = 0.00
 # with no jolt — so changing this REGENERATES thumbnails on next run
 # (the default 0.10 reuses your existing cache; any other value rebuilds).
 # Startup-only: restart to apply.
-thumb_seek_fraction = 0.10
+thumb_seek_fraction = 0.05
 
 # Dragging a grid tile or filmstrip chip this many logical pixels turns
 # the press into a native drag-out: drop the clip's file into Finder or

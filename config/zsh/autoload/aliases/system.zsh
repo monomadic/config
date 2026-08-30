@@ -2,8 +2,8 @@
 # File Operations
 # ============================================================================
 
-alias rm="rm -i"
-alias df="df -h"
+#alias rm="rm -i"
+#alias df="df -h"
 
 
 alias tag=media-rename

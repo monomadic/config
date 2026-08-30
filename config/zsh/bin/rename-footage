@@ -4,15 +4,20 @@ emulate -L zsh
 # rename-footage
 # Rename camera footage to the canonical media-library filename syntax:
 #
-#   YYYY-MM-DD--HH-MM-SS PEOPLE (CHANNEL) - TITLE LOCATION #TAGS [RES FPS ...].ext
+#   YYYY-MM-DD--HH-MM-SS PEOPLE - TITLE (LOCATION) #TAGS ★★★★★ [RES FPS ...].ext
 #
 # Viewed at a higher level this is:
 #
-#   DATE PEOPLE (CHANNEL) - TITLE LOCATION #TAGS [METADATA].ext
+#   DATE PEOPLE - TITLE (LOCATION) #TAGS RATING [METADATA].ext
 #
 # Every segment except DATE and [METADATA] drops out when its field is empty, and
-# the " - " appears only when something follows it, so untagged camera footage
-# comes out as plain "DATE [METADATA].ext".
+# the dash appears only when there is a title to separate the people from, so the
+# grammar degrades cleanly:
+#
+#   DATE PEOPLE - TITLE (LOCATION) #TAGS ★★★★★ [METADATA].ext
+#   DATE PEOPLE (LOCATION) #TAGS ★★★★★ [METADATA].ext
+#   DATE (LOCATION) [METADATA].ext
+#   DATE [METADATA].ext
 #
 #   DATE      determined by, in priority order:
 #               1. exif data           (exiftool, if installed)
@@ -20,7 +25,8 @@ emulate -L zsh
 #               3. mp4 metadata        (ffprobe creation_time)
 #               4. file creation ctime (birth time)
 #   PEOPLE    embedded XMP-iptcExt:PersonInImage
-#   CHANNEL   embedded XMP-xmpDM:Album
+#   CHANNEL   embedded XMP-xmpDM:Album. Stored and read, never rendered: the
+#             parentheses it once occupied now hold the location.
 #   TITLE     embedded XMP-dc:Title, used verbatim, and set with --title. With
 #             none stored, it is mined from the filename and embedded (see the
 #             rules below). A
@@ -29,6 +35,7 @@ emulate -L zsh
 #   LOCATION  embedded XMP-iptcExt:LocationCreatedCity, or, with --geocode,
 #             reverse-geocoded from the coordinates the camera stored
 #   TAGS      embedded XMP-dc:Subject, one #tag per entry
+#   RATING    embedded XMP-xmp:Rating, one star per point; 0 renders as nothing
 #   METADATA  probed fresh with ffprobe (+ exiftool for DEVICE).
 #
 # Every embedded field found is printed as the file is read, along with the GPS
@@ -64,7 +71,7 @@ emulate -L zsh
 #   --channel NAME   Set the originating channel / studio
 #   --location NAME  Set the place the footage was shot
 #   --geocode        Derive LOCATION from the file's GPS coordinates
-#   --rating N       Set a 0-5 star rating (embedded only, not in the filename)
+#   --rating N       Set a 0-5 star rating
 #   --clear-title    Store an empty title
 #   --clear-people   Store an empty person list
 #   --clear-tags     Store an empty keyword list
@@ -124,6 +131,8 @@ GEO_COUNTRY=""
 # Candidates parsed out of the current filename (parse_filename_fields).
 FN_TITLE=""
 FN_CHANNEL=""
+FN_LOCATION=""
+FN_RATING=""
 typeset -ga FN_PEOPLE=()
 typeset -ga FN_TAGS=()
 
@@ -134,6 +143,7 @@ FINAL_CHANNEL=""
 FINAL_LOCATION=""
 FINAL_STATE=""
 FINAL_COUNTRY=""
+FINAL_RATING=""
 typeset -ga FINAL_PEOPLE=()
 typeset -ga FINAL_TAGS=()
 typeset -gA WRITE_FIELD=()
@@ -179,7 +189,7 @@ usage() {
   print -r -- "Usage: ${SCRIPT_NAME} [OPTIONS] video_file..."
   print -r -- ""
   print -r -- "Rename camera footage to:"
-  print -r -- "  DATE PEOPLE (CHANNEL) - TITLE LOCATION #TAGS [RES FPS LENGTH BITRATE CODEC DEVICE ORIENTATION].ext"
+  print -r -- "  DATE PEOPLE - TITLE (LOCATION) #TAGS ★★★★★ [RES FPS LENGTH BITRATE CODEC DEVICE ORIENTATION].ext"
   print -r -- ""
   print -r -- "Authored metadata (embedded as XMP, then re-rendered into the filename):"
   print -r -- "  --title NAME     Set the title"
@@ -188,7 +198,7 @@ usage() {
   print -r -- "  --channel NAME   Set the originating channel / studio"
   print -r -- "  --location NAME  Set the place the footage was shot"
   print -r -- "  --geocode        Derive the location from the file's GPS coordinates"
-  print -r -- "  --rating N       Set a 0-5 star rating (embedded only)"
+  print -r -- "  --rating N       Set a 0-5 star rating (one star per point in the name)"
   print -r -- "  --clear-title    Store an empty title"
   print -r -- "  --clear-people   Store an empty person list"
   print -r -- "  --clear-tags     Store an empty keyword list"
@@ -254,6 +264,19 @@ capitalize_title() {
     out+="${out:+ }$w"
   done
 
+  print -r -- "$out"
+}
+
+# A rating renders as one star per point, so it stays readable at a glance and
+# sorts with the rest of the name. Zero renders as nothing at all: an unrated
+# clip and a deliberately zero-rated one look the same in a filename, and the
+# stored tag is where that distinction lives.
+render_stars() {
+  local n=${1:-0} out=""
+  while (( n > 0 )); do
+    out+="★"
+    (( n-- ))
+  done
   print -r -- "$out"
 }
 
@@ -452,16 +475,16 @@ is_camera_name() {
 }
 
 # Read the rendered grammar back out of a name:
-#   DATE PEOPLE (CHANNEL) - TITLE LOCATION #TAGS [METADATA]
-# LOCATION is deliberately not extracted -- nothing in the name marks where the
-# title ends and it begins, so it stays part of the title candidate and is
-# trimmed off below only when the file already tells us what it is.
+#   DATE PEOPLE - TITLE (LOCATION) #TAGS RATING [METADATA]
+# Under the older grammar the location was unmarked -- "TITLE LOCATION" with
+# nothing between them -- so for those names it still stays part of the title
+# candidate, and is trimmed off below only when the file says what it is.
 parse_filename_fields() {
   local n="$1"
   local lead trail tagpart tok
   local dated=false
 
-  FN_TITLE="" FN_CHANNEL=""
+  FN_TITLE="" FN_CHANNEL="" FN_LOCATION="" FN_RATING=""
   FN_PEOPLE=() FN_TAGS=()
 
   if [[ "$n" =~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}--[0-9]{2}-[0-9]{2}-[0-9]{2}[[:space:]]*' ]]; then
@@ -475,8 +498,19 @@ parse_filename_fields() {
   done
   n="$(trim_whitespace "$n")"
 
-  # Tags are pulled out of the whole name before it is split, because they are
-  # rendered last and so belong to neither half. Cut at the first " #" rather
+  # Stars are rendered after the tags, so they come off first. A run of them at
+  # the end of the name is a rating and nothing else -- no other field can
+  # produce one.
+  if [[ "$n" == *★ ]]; then
+    local stars="${n##* }"
+    if [[ "$stars" =~ '^★+$' ]]; then
+      FN_RATING=${#stars}
+      n="$(trim_whitespace "${n%${stars}}")"
+    fi
+  fi
+
+  # Tags are pulled out of the name before it is split, because they are
+  # rendered after both halves and so belong to neither. Cut at the first " #" rather
   # than dropping #-prefixed words, so a multi-word tag like "#Teen (18+)" does
   # not leave debris behind.
   tagpart=""
@@ -513,11 +547,32 @@ parse_filename_fields() {
     trail="$n"
   fi
 
-  if [[ -n "$lead" ]]; then
-    if [[ "$lead" == *\(*\)* ]]; then
-      FN_CHANNEL="$(trim_whitespace "${${lead##*\(}%%\)*}")"
-      lead="$(trim_whitespace "${lead%% \(*}")"
+  # Parentheses hold the location. They used to hold the channel, on the other
+  # side of the dash, and names written under that grammar are still out there:
+  # a parenthesised value in front of the dash is read as a channel, and one
+  # that matches the channel the file already stores is read as a channel
+  # wherever it sits. Everything else is a location.
+  if [[ "$trail" == *\(*\)* ]]; then
+    FN_LOCATION="$(trim_whitespace "${${trail##*\(}%%\)*}")"
+    trail="$(trim_whitespace "${trail%% \(*}")"
+    if [[ -n "$META_CHANNEL" && "$FN_LOCATION" == "$META_CHANNEL" ]]; then
+      FN_CHANNEL="$FN_LOCATION"
+      FN_LOCATION=""
     fi
+  fi
+
+  if [[ "$lead" == *\(*\)* ]]; then
+    local parenthesised
+    parenthesised="$(trim_whitespace "${${lead##*\(}%%\)*}")"
+    lead="$(trim_whitespace "${lead%% \(*}")"
+    if [[ -n "$trail" || "$parenthesised" == "$META_CHANNEL" ]]; then
+      FN_CHANNEL="$parenthesised"
+    else
+      FN_LOCATION="$parenthesised"
+    fi
+  fi
+
+  if [[ -n "$lead" ]]; then
     for tok in "${(@s:, :)lead}"; do
       tok="$(trim_whitespace "$tok")"
       [[ -n "$tok" ]] && FN_PEOPLE+=("$tok")
@@ -525,7 +580,7 @@ parse_filename_fields() {
   fi
 
   FN_TITLE="$(trim_whitespace "$trail")"
-  log_verbose "filename yields: title='${FN_TITLE}' channel='${FN_CHANNEL}' people=(${(j:, :)FN_PEOPLE}) tags=(${(j:, :)FN_TAGS})"
+  log_verbose "filename yields: title='${FN_TITLE}' channel='${FN_CHANNEL}' location='${FN_LOCATION}' rating='${FN_RATING}' people=(${(j:, :)FN_PEOPLE}) tags=(${(j:, :)FN_TAGS})"
 }
 
 # The location is rendered immediately after the title, so a title mined from a
@@ -541,7 +596,7 @@ strip_trailing_location() {
 resolve_fields() {
   local value
 
-  FINAL_TITLE="" FINAL_CHANNEL="" FINAL_LOCATION=""
+  FINAL_TITLE="" FINAL_CHANNEL="" FINAL_LOCATION="" FINAL_RATING=""
   FINAL_PEOPLE=() FINAL_TAGS=()
   WRITE_FIELD=()
 
@@ -590,6 +645,18 @@ resolve_fields() {
     FINAL_STATE="$GEO_STATE"
     FINAL_COUNTRY="$GEO_COUNTRY"
     WRITE_FIELD[location]=1
+  elif [[ -n "$FN_LOCATION" ]]; then
+    FINAL_LOCATION="$FN_LOCATION"; WRITE_FIELD[location]=1
+  fi
+
+  # rating -- now rendered into the name, so it is backfilled from one like any
+  # other field rather than being write-only.
+  if [[ -n "$RATING" ]]; then
+    FINAL_RATING="$RATING"; WRITE_FIELD[rating]=1
+  elif [[ -n "$META_RATING" ]]; then
+    FINAL_RATING="$META_RATING"
+  elif [[ -n "$FN_RATING" ]]; then
+    FINAL_RATING="$FN_RATING"; WRITE_FIELD[rating]=1
   fi
 
   # title -- capitalized only when mined from a filename; an argument and a
@@ -605,7 +672,7 @@ resolve_fields() {
     [[ -n "$FINAL_TITLE" ]] && WRITE_FIELD[title]=1
   fi
 
-  log_verbose "resolved: title='${FINAL_TITLE}' channel='${FINAL_CHANNEL}' location='${FINAL_LOCATION}' people=(${(j:, :)FINAL_PEOPLE}) tags=(${(j:, :)FINAL_TAGS}) writing=(${(k)WRITE_FIELD})"
+  log_verbose "resolved: title='${FINAL_TITLE}' channel='${FINAL_CHANNEL}' location='${FINAL_LOCATION}' rating='${FINAL_RATING}' people=(${(j:, :)FINAL_PEOPLE}) tags=(${(j:, :)FINAL_TAGS}) writing=(${(k)WRITE_FIELD})"
 }
 
 # Standard XMP fields are used in preference to the QuickTime atoms because the
@@ -667,7 +734,7 @@ build_metadata_args() {
     fi
   fi
   [[ -n "${WRITE_FIELD[title]:-}" ]] && METADATA_ARGS+=("-XMP-dc:Title=${FINAL_TITLE}")
-  [[ -n "$RATING" ]] && METADATA_ARGS+=("-XMP-xmp:Rating=${RATING}")
+  [[ -n "${WRITE_FIELD[rating]:-}" ]] && METADATA_ARGS+=("-XMP-xmp:Rating=${FINAL_RATING}")
 }
 
 # Print the first argument that holds a real value. exiftool's -f prints "-" for
@@ -1007,27 +1074,27 @@ process_video() {
 
   local tags_block="[${(j: :)tags}]"
 
-  # assemble: DATE PEOPLE (CHANNEL) - TITLE LOCATION #TAGS [METADATA].ext
-  # The " - " divides the two groups, so it is emitted only when the right-hand
-  # one has something in it; an untitled clip reads "DATE PEOPLE [METADATA]"
-  # rather than trailing a bare dash. Every segment drops out when its field is
-  # absent, leaving "DATE [METADATA]" in the limit.
-  local -a lead trail rendered_tags
-  [[ -n "$date_stamp" ]] && lead+=("$date_stamp")
-  (( ${#FINAL_PEOPLE} )) && lead+=("${(j:, :)FINAL_PEOPLE}")
-  [[ -n "$FINAL_CHANNEL" ]] && lead+=("(${FINAL_CHANNEL})")
-
-  [[ -n "$FINAL_TITLE" ]] && trail+=("$FINAL_TITLE")
-  [[ -n "$FINAL_LOCATION" ]] && trail+=("$FINAL_LOCATION")
+  # assemble: DATE PEOPLE - TITLE (LOCATION) #TAGS RATING [METADATA].ext
+  #
+  # The dash separates the people from the title and appears only when there is
+  # a title to separate them from; everything after it -- location, tags, stars
+  # -- simply follows whichever side the name ended on. Every segment drops out
+  # when its field is empty, so an untitled clip reads
+  # "DATE PEOPLE (LOCATION) #TAGS [METADATA]" and a bare one "DATE [METADATA]".
+  #
+  # The channel is not rendered at all. It stays embedded as XMP-xmpDM:Album,
+  # where the parentheses it used to occupy now hold the location.
+  local -a parts rendered_tags
+  [[ -n "$date_stamp" ]] && parts+=("$date_stamp")
+  (( ${#FINAL_PEOPLE} )) && parts+=("${(j:, :)FINAL_PEOPLE}")
+  [[ -n "$FINAL_TITLE" ]] && parts+=("-" "$FINAL_TITLE")
+  [[ -n "$FINAL_LOCATION" ]] && parts+=("(${FINAL_LOCATION})")
   for tag in "${FINAL_TAGS[@]}"; do rendered_tags+=("#${tag}"); done
-  (( ${#rendered_tags} )) && trail+=("${(j: :)rendered_tags}")
+  (( ${#rendered_tags} )) && parts+=("${(j: :)rendered_tags}")
+  [[ -n "$FINAL_RATING" ]] && (( FINAL_RATING > 0 )) && parts+=("$(render_stars "$FINAL_RATING")")
+  parts+=("$tags_block")
 
-  local stem
-  if (( ${#trail} )); then
-    stem="${(j: :)lead} - ${(j: :)trail} ${tags_block}"
-  else
-    stem="${(j: :)lead} ${tags_block}"
-  fi
+  local stem="${(j: :)parts}"
   stem="$(trim_whitespace "$stem")"
   stem="${stem//\//-}"   # a metadata field may legitimately contain a slash
 
