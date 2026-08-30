@@ -528,16 +528,29 @@ parses back. `Mixed` renders `☆☆☆☆☆` dimmed with a `‹multiple›` su
 
 ### 5.7 Enum
 
-Two variants sharing one widget:
+**Built as one fixed set, drawn inline.** Opening a field expands its options
+along the same row it already occupied, with the current one lit — same row,
+same height, so nothing below it reflows:
 
-- **closed** (Kind, Advisory, Language): `←`/`→` cycle, `⏎` opens a filtered
-  popup list, arbitrary text rejected.
-- **open** (Genre, Type): the same, plus typing enters free-text mode.
-  Unrecognised values are accepted with a `Warn` naming the known set — the
-  enum guides without imprisoning, which matters because these enums come from
-  a config file that changes.
+```
+   Type             Clip                       ← closed
+  ▶Type              Clip  Master  Original    ← open, "Clip" lit
+```
 
-Selecting a value never blocks on the popup; the closed form is one line.
+`←`/`→` or `h`/`l` step and wrap, `⏎` accepts, `⇥` accepts and advances,
+`j`/`k` accept and move a row, `esc` reverts the field. Stepping only moves a
+*pending* value; nothing is staged until it is accepted, which is what lets
+`esc` back out cleanly. In Select mode `h`/`l` step the set without opening it.
+Opening a field that is empty lands on the first option, so there is always
+something lit to step away from — and an unset field still reads as `—` while
+you are merely moving past it.
+
+**No free text, for now.** The open/closed split the plan called for is not
+built: typing into a set is rejected outright, and Genre and Type are picked
+from the list like Kind is. What keeps that from losing data is that a value
+already on the file which the list does not know **joins the set for that
+field** — an unfamiliar Genre is lit, selectable and steppable, it just cannot
+be typed. Free-text entry comes back later.
 
 ### 5.8 Checkbox
 
@@ -1000,7 +1013,7 @@ an afterthought, and it must never open `/dev/tty`.
 | `m` / `c` | expand More / Custom |
 | `⌃G` / `⌃⇧G` | thumbnail seek ±10 s |
 | `u` / `⌃R` | undo / redo |
-| `r` | revert — re-probe from disk, discard staged edits |
+| `⌫` | clear the focused field (staged like any edit; `u` undoes it) |
 | `w` | write (plan → confirm) |
 | `q` / `esc` | quit (confirms if there are staged edits) |
 | `?` | key help |
@@ -1011,6 +1024,8 @@ better: `j`/`k` move and `enter` opens a field, so the single-letter commands in
 the table above work as written — `w` can mean write precisely because nothing
 is listening for the letter w until you press `enter`. In Edit mode `enter`
 saves, `tab` saves and advances, `esc` cancels the field, `⌃c` always quits.
+On a set — which has no text to type into — `j`/`k` also save and move a row,
+so vim navigation carries on working without leaving edit mode first.
 
 ---
 

@@ -385,6 +385,19 @@ impl App {
             // tab means in every form.
             KeyCode::Tab => self.move_focus(1),
             KeyCode::BackTab => self.move_focus(-1),
+            // Vertical movement leaves the field the way it found it: saved,
+            // and back in Select mode. Only a control that does not want the
+            // letters gets here, so `j`/`k` still type into a text field.
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.move_focus(1);
+                self.mode = Mode::Select;
+                self.status.clear();
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.move_focus(-1);
+                self.mode = Mode::Select;
+                self.status.clear();
+            }
             // Abandon this field's edit. Reseeding restores whatever the row
             // showed before -- the staged value if there was one, else disk.
             KeyCode::Esc => {
@@ -427,7 +440,7 @@ impl App {
             (KeyCode::Char('m'), false) => self.merge_focused(),
             (KeyCode::Char('u'), false) => self.undo(),
             (KeyCode::Char('r'), true) => self.redo(),
-            (KeyCode::Char('r'), false) => self.revert_all(),
+            (KeyCode::Backspace, _) => self.clear_focused(),
             (KeyCode::Char('w'), false) => self.prepare_write(),
             (KeyCode::Char('c'), false) => {
                 self.status = format!("theme: {}", theme::cycle());
@@ -453,6 +466,9 @@ impl App {
             }
             Some(_) => {
                 self.open_editor();
+                if let Some(ed) = &mut self.editor {
+                    ed.select_first_if_unset();
+                }
                 self.mode = Mode::Edit;
                 self.status.clear();
             }
@@ -493,15 +509,26 @@ impl App {
             return;
         }
 
-        let opts = self.options_for(row);
+        let mut opts = self.options_for(row);
         if opts.is_empty() {
             return;
         }
-        let n = opts.len() as isize;
         let current = match self.shown_value(row) {
-            Some(Value::Text(code)) => opts.iter().position(|o| o.code == code),
+            Some(Value::Text(code)) if !code.trim().is_empty() => {
+                // Same rule as the editor: a value the set does not know joins
+                // it for this field, so stepping off a custom Genre can step
+                // back onto it.
+                match opts.iter().position(|o| o.code == code) {
+                    Some(i) => Some(i),
+                    None => {
+                        opts.push(Opt { code: code.clone(), label: code });
+                        Some(opts.len() - 1)
+                    }
+                }
+            }
             _ => None,
         };
+        let n = opts.len() as isize;
         // With no value yet, stepping forward lands on the first option and
         // back on the last, rather than jumping to an arbitrary middle.
         let next = match current {
@@ -635,17 +662,31 @@ impl App {
         }
     }
 
-    fn revert_all(&mut self) {
-        if self.staged.is_empty() {
-            self.status = "no staged edits".into();
+    /// Empty the focused field, staged like any other edit -- so `u` undoes it
+    /// and the write plan turns it into a deletion of that key.
+    ///
+    /// Clearing a field that is already empty stages nothing: `stage` compares
+    /// against the disk value through the same control, and an empty value is
+    /// what an absent one produces.
+    fn clear_focused(&mut self) {
+        let Some(row) = self.rows.get(self.focus) else { return };
+        if !row.editable() {
+            self.status = format!("{} is read-only", row.label);
             return;
         }
-        let n = self.staged.len();
-        self.undo.push(self.staged.clone());
-        self.redo.clear();
-        self.staged.clear();
-        self.open_editor();
-        self.status = format!("reverted {n} staged edit{}", if n == 1 { "" } else { "s" });
+        let empty = match row.control {
+            Control::List | Control::HashTags => Value::List(Vec::new()),
+            Control::Stars => Value::Text("0".into()),
+            _ => Value::Text(String::new()),
+        };
+        let (key, label) = (row.key.clone(), row.label.clone());
+        let was = self.staged.clone();
+        self.stage(key, empty);
+        self.status = if was == self.staged {
+            format!("{label} is already empty")
+        } else {
+            format!("{label} cleared")
+        };
     }
 
     /// In single-file view the rows describe that file alone, so a value shows

@@ -43,7 +43,8 @@ nothing is listening for the letter w.
 | `m` | merge a list field across every file in the selection |
 | `p` | inspector — per-file values for the focused field |
 | `]` / `[` / `a` | next file / previous file / all files |
-| `u` / `ctrl-r` / `r` | undo / redo / revert everything staged |
+| `u` / `ctrl-r` | undo / redo |
+| `backspace` | clear the focused field |
 | `c` | cycle the colour scheme |
 | `f` | toggle MOV faststart on the write (on by default) |
 | `q` / `esc` | quit (asks if edits are staged) |
@@ -52,10 +53,11 @@ nothing is listening for the letter w.
 
 | key | |
 |---|---|
-| (type) | edit the field; `←` `→` adjust a rating or cycle an open enum |
-| `j` / `k`, `enter` | choose from a fixed set, which opens as a menu |
+| (type) | edit the field |
+| `h` / `l`, `←` / `→` | step a fixed set, or adjust a rating |
 | `enter` | save and stop editing |
 | `tab` / `shift-tab` | save and move to the next / previous field |
+| `j` / `k`, `↑` / `↓` | save and move a row — on a set, where there is no text to type |
 | `esc` | cancel this field's edit |
 | `ctrl-c` | quit, from either mode |
 
@@ -70,15 +72,28 @@ is a different *hue* from an ordinary one rather than a dimmer shade. Both
 guards exist because both mistakes were made: 16-colour `DarkGray` labels, and
 a file path drawn in a divider colour at 1.4:1.
 
-Controls: text, list chips, `#hashtags`, URL (validated, `not a URL: …`), a
-0–5 star row, open enums (Genre, Type) and closed ones (Kind, stored as the
-`stik` integer but shown as "Movie")
+Controls: text, list chips, `#hashtags`, URL (validated, `not a URL: …`),
+dates, a 0–5 star row, and fixed sets (Genre, Type, and Kind — stored as the
+`stik` integer but shown as "Movie").
 
-A fixed set draws itself **along the field's own line** while that field is
-open, with the current value lit — so you can see the whole set without cycling
-blind, and opening one never changes the shape of the form. Closed to open:
-`enter` opens, `←`/`→` step, `enter` accepts, `tab` accepts and advances, `esc`
-reverts, and dates.
+A set draws itself **along the field's own line** while that field is open,
+with the current value lit — so you can see the whole set without cycling
+blind, and opening one never changes the shape of the form:
+
+```
+   Type             Clip
+  ▶Type              Clip  Master  Original
+```
+
+`enter` opens, `h`/`l` step and wrap, `enter` accepts, `tab` accepts and
+advances, `j`/`k` accept and move a row, `esc` reverts. Nothing is staged until
+you accept, which is what makes `esc` clean. Opening an empty field lands on
+the first option; until it is opened, it still reads as `—`.
+
+Typing into a set is not supported yet — Genre and Type are picked from the
+list, like Kind. A value already on the file that the list does not know
+**joins the set for that field**, so an unfamiliar Genre stays selectable
+instead of being lost the first time the field is stepped.
 
 Genre and Type are **not hardcoded** — they are parsed out of
 `~/.config/yt-dlp/config`'s `--alias` lines, so adding an alias there adds a

@@ -47,11 +47,13 @@ pub struct Opt {
     pub label: String,
 }
 
+/// Every enum is a fixed set for now: the value is chosen from the list and
+/// nothing is typed. A value already on the file that the list does not know
+/// joins the set for that field, so an unfamiliar Genre is still selectable
+/// -- and still survives being tabbed past -- without a free-text mode.
 pub struct EnumEdit {
     pub input: Input,
     pub options: Vec<Opt>,
-    /// A closed enum refuses free text: `stik` has no meaning outside its set.
-    pub closed: bool,
 }
 
 /// A list rendered as chips but edited as one line. Per-chip selection and
@@ -76,6 +78,7 @@ impl Editor {
         match control {
             Control::Stars => Editor::Stars(parse_stars(&text)),
             Control::Enum => {
+                let mut options = options;
                 // Show the label for a stored code, so an existing `9` reads
                 // as "Movie" the moment the form opens.
                 let shown = options
@@ -83,8 +86,15 @@ impl Editor {
                     .find(|o| o.code == text)
                     .map(|o| o.label.clone())
                     .unwrap_or(text);
-                let closed = options.iter().any(|o| o.code != o.label);
-                Editor::Enum(EnumEdit { input: Input::new(shown), options, closed })
+                // A value from outside the set is not typeable, but it is
+                // real -- so it is appended for this field rather than being
+                // dropped on the floor the moment the field is stepped.
+                if !shown.trim().is_empty()
+                    && !options.iter().any(|o| o.label.eq_ignore_ascii_case(shown.trim()))
+                {
+                    options.push(Opt { code: shown.clone(), label: shown.clone() });
+                }
+                Editor::Enum(EnumEdit { input: Input::new(shown), options })
             }
             Control::List => Editor::Chips(Chips { input: Input::new(text), hash: false }),
             Control::HashTags => Editor::Chips(Chips { input: Input::new(text), hash: true }),
@@ -129,19 +139,26 @@ impl Editor {
         }
     }
 
-    /// A set with no free-text alternative. Such a field shows its options
-    /// even when nothing is selected yet -- otherwise an unset Kind opens
-    /// completely blank, with no set to arrow into.
-    pub fn is_closed_set(&self) -> bool {
-        matches!(self, Editor::Enum(e) if e.closed)
+    /// Opening a set with nothing chosen starts on its first option: a field
+    /// showing no highlight gives you nothing to step away from, and leaves
+    /// the arrow keys looking broken.
+    ///
+    /// This runs when edit mode is entered, not when the control is seeded --
+    /// so an unset field still reads as empty while you are merely moving past
+    /// it, and only takes a value once you open it.
+    pub fn select_first_if_unset(&mut self) {
+        if let Editor::Enum(e) = self {
+            if e.input.value().trim().is_empty() {
+                if let Some(first) = e.options.first() {
+                    e.input = Input::new(first.label.clone());
+                }
+            }
+        }
     }
 
     /// An enum's options and which one is selected, for drawing the set inline
-    /// while the field is open.
-    ///
-    /// `None` for the selected index means the value is not in the set -- an
-    /// open enum being typed into freehand -- and the caller shows the text
-    /// instead, because a list with nothing lit says less than the value does.
+    /// while the field is open. `None` for the index means the field is empty,
+    /// which happens only before it has been opened.
     pub fn choices(&self) -> Option<(Vec<String>, Option<usize>)> {
         match self {
             Editor::Enum(e) => {
@@ -162,31 +179,18 @@ impl Editor {
             Editor::Line { input, .. } => (input.value().to_string(), Some(input.visual_cursor())),
             Editor::Chips(c) => (c.input.value().to_string(), Some(c.input.visual_cursor())),
             Editor::Stars(n) => (stars_glyphs(*n), None),
-            // A closed set has nothing to type into, so it shows no caret.
-            Editor::Enum(e) if e.closed => (e.input.value().to_string(), None),
-            Editor::Enum(e) => (e.input.value().to_string(), Some(e.input.visual_cursor())),
+            // A set has nothing to type into, so it shows no caret.
+            Editor::Enum(e) => (e.input.value().to_string(), None),
         }
     }
 
     pub fn validate(&self) -> Validation {
         match self {
             Editor::Line { input, kind } => validate_line(input.value().trim(), *kind),
-            Editor::Enum(e) => {
-                let v = e.input.value().trim();
-                if v.is_empty() || e.options.iter().any(|o| o.label.eq_ignore_ascii_case(v)) {
-                    Validation::Ok
-                } else if e.closed {
-                    Validation::Error(format!(
-                        "not one of: {}",
-                        e.options.iter().map(|o| o.label.as_str()).collect::<Vec<_>>().join(", ")
-                    ))
-                } else {
-                    Validation::Warn(format!(
-                        "unknown value; known: {}",
-                        e.options.iter().map(|o| o.label.as_str()).collect::<Vec<_>>().join(", ")
-                    ))
-                }
-            }
+            // A set can only hold one of its own options -- a value from the
+            // file joins the set rather than sitting outside it -- so there is
+            // nothing left to complain about.
+            Editor::Enum(_) => Validation::Ok,
             Editor::Chips(c) => {
                 let items = if c.hash { split_tags(c.input.value()) } else { split_list(c.input.value()) };
                 match items.iter().find(|t| t.contains(['/', '\\', ':']) || t.starts_with('.')) {
@@ -275,35 +279,30 @@ fn stars_key(n: &mut u8, key: KeyEvent) -> Reaction {
     Reaction::Consumed
 }
 
+/// Only stepping. A set has no text to edit, which frees every other key --
+/// including `j`/`k` -- to mean what it means in Select mode.
 fn enum_key(e: &mut EnumEdit, key: KeyEvent) -> Reaction {
-    match key.code {
-        // Left and right step the pending value. Nothing is committed until
-        // the app sees Enter or Tab, so Esc still reverts the whole edit.
-        KeyCode::Left | KeyCode::Right => {
-            if e.options.is_empty() {
-                return Reaction::Pass;
-            }
-            let n = e.options.len();
-            let cur = e
-                .options
-                .iter()
-                .position(|o| o.label.eq_ignore_ascii_case(e.input.value().trim()));
-            let next = match (cur, key.code) {
-                (Some(i), KeyCode::Right) => (i + 1) % n,
-                (Some(i), _) => (i + n - 1) % n,
-                // Off the set entirely -- a typed custom value -- so step in
-                // from whichever end matches the direction.
-                (None, KeyCode::Right) => 0,
-                (None, _) => n - 1,
-            };
-            e.input = Input::new(e.options[next].label.clone());
-            Reaction::Consumed
-        }
-        // A closed set has no free-text mode; typing into it could only ever
-        // produce a value nothing can read.
-        KeyCode::Char(_) | KeyCode::Backspace | KeyCode::Delete if e.closed => Reaction::Pass,
-        _ => line_key(&mut e.input, key),
+    let forward = match key.code {
+        KeyCode::Left | KeyCode::Char('h') => false,
+        KeyCode::Right | KeyCode::Char('l') => true,
+        _ => return Reaction::Pass,
+    };
+    if e.options.is_empty() {
+        return Reaction::Pass;
     }
+    // Nothing is committed until the app sees Enter, Tab or j/k, so Esc still
+    // reverts the whole edit.
+    let n = e.options.len();
+    let cur = e.options.iter().position(|o| o.label.eq_ignore_ascii_case(e.input.value().trim()));
+    let next = match (cur, forward) {
+        (Some(i), true) => (i + 1) % n,
+        (Some(i), false) => (i + n - 1) % n,
+        // Empty: step in from whichever end matches the direction.
+        (None, true) => 0,
+        (None, false) => n - 1,
+    };
+    e.input = Input::new(e.options[next].label.clone());
+    Reaction::Consumed
 }
 
 pub fn render_value(v: &Value) -> String {
@@ -412,51 +411,62 @@ mod tests {
         assert_eq!(e.value(), Value::Text("c".into()), "left from the first wraps to the last");
     }
 
-    /// A value typed outside the app is not in the set, so nothing is lit and
-    /// the caller shows the text instead. Stepping from there enters the set
-    /// at the end matching the direction.
+    /// A value written outside the app joins the set for that field, so it is
+    /// lit like any option and can be stepped back onto. Dropping it would
+    /// lose the tag the moment the field was stepped.
     #[test]
-    fn a_value_outside_the_set_lights_nothing() {
+    fn a_value_outside_the_set_joins_it() {
         let o = opts(&[("Clip", "Clip"), ("Master", "Master")]);
         let mut e = Editor::new(Control::Enum, Some(&Value::Text("Bespoke".into())), o);
-        assert_eq!(e.choices().unwrap().1, None);
-        assert_eq!(e.value(), Value::Text("Bespoke".into()));
+        let (labels, sel) = e.choices().unwrap();
+        assert_eq!(labels, vec!["Clip", "Master", "Bespoke"]);
+        assert_eq!(sel, Some(2));
+        assert_eq!(e.validate(), Validation::Ok, "a value on the file is never an error");
         e.handle(code(KeyCode::Right));
-        assert_eq!(e.value(), Value::Text("Clip".into()));
+        assert_eq!(e.value(), Value::Text("Clip".into()), "wraps past the appended value");
+        e.handle(code(KeyCode::Left));
+        assert_eq!(e.value(), Value::Text("Bespoke".into()), "and back onto it");
     }
 
-    /// An open set still takes free text: Genre and Type come from a config
-    /// that gains aliases, so a value not yet in the list must be typeable.
+    /// Free text into a set is not supported yet. Every non-stepping key is
+    /// handed back, which is what leaves `j`/`k` free to mean "save and move".
     #[test]
-    fn an_open_enum_still_takes_free_text() {
-        let o = opts(&[("Media", "Media")]);
-        let mut e = Editor::new(Control::Enum, None, o);
-        for c in "Concert".chars() {
-            assert_eq!(e.handle(key(c)), Reaction::Consumed);
-        }
-        assert_eq!(e.value(), Value::Text("Concert".into()));
-        assert_eq!(e.choices().unwrap().1, None, "off the set, so nothing is lit");
-    }
-
-    #[test]
-    fn closed_enum_refuses_free_text() {
-        let o = opts(&[("9", "Movie")]);
+    fn a_set_refuses_typing_and_passes_the_keys_back() {
+        let o = opts(&[("9", "Movie"), ("10", "TV Show")]);
         let mut e = Editor::new(Control::Enum, Some(&Value::Text("9".into())), o);
-        assert_eq!(e.handle(key('x')), Reaction::Pass);
-        assert_eq!(e.value(), Value::Text("9".into()));
+        for c in ['x', 'j', 'k'] {
+            assert_eq!(e.handle(key(c)), Reaction::Pass, "‘{c}’ is a command, not text");
+        }
+        assert_eq!(e.handle(code(KeyCode::Backspace)), Reaction::Pass);
+        assert_eq!(e.value(), Value::Text("9".into()), "nothing typed, nothing changed");
     }
 
-    /// Genre is open: an unknown value is a warning, never a refusal, because
-    /// the known set comes from a config file that changes.
+    /// h and l step the set, so a hand never leaves the home row.
     #[test]
-    fn open_enum_warns_but_accepts() {
-        let o = opts(&[("Media", "Media"), ("Footage", "Footage")]);
+    fn vim_keys_step_a_set() {
+        let o = opts(&[("a", "A"), ("b", "B"), ("c", "C")]);
+        let mut e = Editor::new(Control::Enum, Some(&Value::Text("a".into())), o);
+        assert_eq!(e.handle(key('l')), Reaction::Consumed);
+        assert_eq!(e.value(), Value::Text("b".into()));
+        assert_eq!(e.handle(key('h')), Reaction::Consumed);
+        assert_eq!(e.value(), Value::Text("a".into()));
+    }
+
+    /// Seeding leaves an unset field empty -- so a row merely tabbed past
+    /// still reads as empty -- and opening it lands on the first option.
+    #[test]
+    fn opening_an_unset_set_selects_the_first_option() {
+        let o = opts(&[("9", "Movie"), ("10", "TV Show")]);
         let mut e = Editor::new(Control::Enum, None, o);
-        for c in "Concert".chars() {
-            assert_eq!(e.handle(key(c)), Reaction::Consumed);
-        }
-        assert!(matches!(e.validate(), Validation::Warn(_)));
-        assert_eq!(e.value(), Value::Text("Concert".into()));
+        assert_eq!(e.value(), Value::Text(String::new()));
+        assert_eq!(e.choices().unwrap().1, None);
+        e.select_first_if_unset();
+        assert_eq!(e.value(), Value::Text("9".into()));
+        assert_eq!(e.choices().unwrap().1, Some(0));
+        // Idempotent: reopening an already-chosen field must not reset it.
+        e.handle(code(KeyCode::Right));
+        e.select_first_if_unset();
+        assert_eq!(e.value(), Value::Text("10".into()));
     }
 
     #[test]

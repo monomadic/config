@@ -311,11 +311,15 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
             };
             (text, fg)
         } else {
-            match display_row(app, row) {
+            match display_row(app, row).filter(|v| !v.is_empty()) {
                 Some(v) if staged => (v, t::staged()),
                 Some(v) if row.is_mixed() => (v, t::mixed()),
                 Some(v) if readonly => (v, t::muted()),
                 Some(v) => (v, t::value()),
+                // A field cleared by ⌫ draws the same em dash as one that was
+                // never set -- an empty row must not read as a drawing gap --
+                // but keeps the staged colour, since it is still an edit.
+                None if staged => ("—".into(), t::staged()),
                 None => ("—".into(), t::value_empty()),
             }
         };
@@ -330,15 +334,9 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
 
         // A fixed set expands into the value box while the field is open --
         // same row, same height, so opening one never reflows the form.
-        let closed_set = editing && app.editor.as_ref().is_some_and(|e| e.is_closed_set());
         let value_spans = match editing.then(|| app.editor.as_ref()?.choices()).flatten() {
-            // Show the set when one of its options is live, and also when the
-            // set is the only thing the field accepts -- even with nothing
-            // chosen yet, since there would otherwise be nothing to step through.
-            Some((labels, sel)) if sel.is_some() || closed_set => {
-                set_spans(&labels, sel, text_w, bg)
-            }
-            _ => vec![Span::styled(
+            Some((labels, sel)) => set_spans(&labels, sel, text_w, bg),
+            None => vec![Span::styled(
                 t::fit(&raw, text_w),
                 Style::default().bg(bg).fg(value_fg),
             )],
@@ -437,7 +435,13 @@ fn draw_shortcuts(f: &mut Frame, area: Rect, app: &App) {
     let on_a_set = app.mode == Mode::Edit
         && app.editor.as_ref().and_then(|e| e.choices()).is_some();
     let pairs: &[(&str, &str)] = if on_a_set {
-        &[("←→", "change"), ("⏎", "accept"), ("⇥", "accept + next"), ("esc", "cancel")]
+        &[
+            ("hl", "change"),
+            ("⏎", "accept"),
+            ("jk", "accept + move"),
+            ("⇥", "accept + next"),
+            ("esc", "cancel"),
+        ]
     } else if app.mode == Mode::Edit {
         &[
             ("⏎", "save"),
@@ -456,7 +460,7 @@ fn draw_shortcuts(f: &mut Frame, area: Rect, app: &App) {
             ("][", "file"),
             ("a", "all"),
             ("u", "undo"),
-            ("r", "revert"),
+            ("⌫", "clear"),
             ("c", "theme"),
             ("f", "fast"),
             ("q", "quit"),
