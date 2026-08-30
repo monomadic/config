@@ -52,12 +52,30 @@ pub struct EnumEdit {
     pub options: Vec<Opt>,
     /// A closed enum refuses free text: `stik` has no meaning outside its set.
     pub closed: bool,
-    /// Cursor into `options` while the menu is open.
+    /// Cursor into the menu while it is open.
     ///
-    /// A closed enum has nothing to type, so cycling blind through values with
-    /// the arrow keys made you hunt for one without ever seeing the set. The
-    /// menu opens with the field and shows all of them at once.
+    /// Cycling blind with the arrow keys meant hunting for a value without
+    /// ever seeing the set, so every enum opens as a menu. An open enum gets
+    /// one extra row past the end -- CUSTOM_ROW -- which drops into free text,
+    /// because Genre and Type come from a config file that gains aliases and a
+    /// menu that forbade a new value would fight it.
     pub menu: Option<usize>,
+}
+
+impl EnumEdit {
+    /// Rows in the menu: the options, plus the free-text escape hatch when the
+    /// set is open.
+    pub fn rows(&self) -> Vec<String> {
+        let mut r: Vec<String> = self.options.iter().map(|o| o.label.clone()).collect();
+        if !self.closed {
+            r.push("Custom…".to_string());
+        }
+        r
+    }
+
+    fn custom_row(&self) -> Option<usize> {
+        (!self.closed).then_some(self.options.len())
+    }
 }
 
 /// A list rendered as chips but edited as one line. Per-chip selection and
@@ -96,7 +114,8 @@ impl Editor {
                     .iter()
                     .position(|o| o.label.eq_ignore_ascii_case(shown.trim()))
                     .unwrap_or(0);
-                let menu = closed.then_some(at);
+                // Every enum opens as a menu, closed or not.
+                let menu = Some(at);
                 Editor::Enum(EnumEdit {
                     input: Input::new(shown),
                     options,
@@ -147,10 +166,10 @@ impl Editor {
         }
     }
 
-    /// The open menu, if this control has one: the options and the highlight.
-    pub fn menu(&self) -> Option<(&[Opt], usize)> {
+    /// The open menu, if one is showing: its rows and the highlight.
+    pub fn menu(&self) -> Option<(Vec<String>, usize)> {
         match self {
-            Editor::Enum(e) => e.menu.map(|i| (e.options.as_slice(), i)),
+            Editor::Enum(e) => e.menu.map(|i| (e.rows(), i)),
             _ => None,
         }
     }
@@ -279,7 +298,7 @@ fn enum_key(e: &mut EnumEdit, key: KeyEvent) -> Reaction {
         if e.options.is_empty() {
             return Reaction::Pass;
         }
-        let n = e.options.len();
+        let n = e.rows().len();
         let moved = match key.code {
             KeyCode::Char('j') | KeyCode::Down | KeyCode::Right => Some((cursor + 1) % n),
             KeyCode::Char('k') | KeyCode::Up | KeyCode::Left => Some((cursor + n - 1) % n),
@@ -291,12 +310,30 @@ fn enum_key(e: &mut EnumEdit, key: KeyEvent) -> Reaction {
             e.menu = Some(next);
             return Reaction::Consumed;
         }
-        // Enter and Esc are deliberately *not* consumed. Applying the highlight
-        // and then passing lets the app's own edit-mode handling commit or
-        // cancel, so there is one place that decides what those keys mean.
         if key.code == KeyCode::Enter {
+            // "Custom…" is not a value: it closes the menu and leaves the
+            // field editable, so Enter is consumed here rather than passed --
+            // committing now would end the edit before anything was typed.
+            if Some(cursor) == e.custom_row() {
+                e.menu = None;
+                // Leaving a preset behind: start from empty, because typing on
+                // top of it would append and give "ClipNew". Already holding a
+                // custom value: keep it, because clearing would destroy the
+                // thing you opened the field to adjust.
+                let on_a_preset = e
+                    .options
+                    .iter()
+                    .any(|o| o.label.eq_ignore_ascii_case(e.input.value().trim()));
+                if on_a_preset {
+                    e.input = Input::default();
+                }
+                return Reaction::Consumed;
+            }
             e.input = Input::new(e.options[cursor].label.clone());
         }
+        // Enter on a real option, and Esc, are deliberately *not* consumed:
+        // letting them pass means the app's edit-mode handling commits or
+        // cancels, so one place decides what those keys mean.
         return Reaction::Pass;
     }
     match key.code {
@@ -456,12 +493,58 @@ mod tests {
         assert_eq!(e.value(), Value::Text("9".into()), "moving the highlight must not commit");
     }
 
-    /// An open enum is a text field with suggestions; it must not get a menu.
+    /// An open enum gets the menu too, plus a trailing row that drops into
+    /// free text -- the set comes from a config file that gains aliases, so it
+    /// must stay possible to enter something not in it.
     #[test]
-    fn an_open_enum_has_no_menu() {
+    fn an_open_enum_offers_the_set_and_an_escape_hatch() {
         let o = opts(&[("Media", "Media"), ("Footage", "Footage")]);
         let e = Editor::new(Control::Enum, None, o);
-        assert!(e.menu().is_none());
+        let (rows, _) = e.menu().expect("open enums have a menu as well");
+        assert_eq!(rows, vec!["Media", "Footage", "Custom…"]);
+    }
+
+    /// A closed set has no escape hatch: `stik` means nothing outside its set.
+    #[test]
+    fn a_closed_enum_has_no_custom_row() {
+        let o = opts(&[("9", "Movie"), ("10", "TV Show")]);
+        let e = Editor::new(Control::Enum, Some(&Value::Text("9".into())), o);
+        assert_eq!(e.menu().unwrap().0, vec!["Movie", "TV Show"]);
+    }
+
+    /// Choosing "Custom…" closes the menu and leaves the field editable. It is
+    /// consumed rather than passed: committing there would end the edit before
+    /// anything had been typed.
+    #[test]
+    fn custom_clears_a_preset_but_keeps_an_existing_custom_value() {
+        let o = opts(&[("Clip", "Clip"), ("Master", "Master")]);
+
+        // Sitting on a preset: typing should not append to it.
+        let mut from_preset = Editor::new(Control::Enum, Some(&Value::Text("Clip".into())), o.clone());
+        from_preset.handle(key('k')); // wrap onto Custom…
+        from_preset.handle(code(KeyCode::Enter));
+        for c in "New".chars() {
+            from_preset.handle(key(c));
+        }
+        assert_eq!(from_preset.value(), Value::Text("New".into()));
+
+        // Already custom: keep it, so it can be corrected rather than retyped.
+        let mut from_custom = Editor::new(Control::Enum, Some(&Value::Text("Bespoke".into())), o);
+        from_custom.handle(key('k'));
+        from_custom.handle(code(KeyCode::Enter));
+        from_custom.handle(key('!'));
+        assert_eq!(from_custom.value(), Value::Text("Bespoke!".into()));
+    }
+
+    #[test]
+    fn the_custom_row_opens_free_text_without_ending_the_edit() {
+        let o = opts(&[("Media", "Media"), ("Footage", "Footage")]);
+        let mut e = Editor::new(Control::Enum, None, o);
+        e.handle(key('j'));
+        e.handle(key('j')); // onto Custom…
+        assert_eq!(e.menu().unwrap().1, 2);
+        assert_eq!(e.handle(code(KeyCode::Enter)), Reaction::Consumed);
+        assert!(e.menu().is_none(), "the menu closes");
     }
 
     #[test]
@@ -473,11 +556,14 @@ mod tests {
     }
 
     /// Genre is open: an unknown value is a warning, never a refusal, because
-    /// the known set comes from a config file that changes.
+    /// the known set comes from a config file that changes. Reaching free text
+    /// now goes through the menu's "Custom…" row.
     #[test]
     fn open_enum_warns_but_accepts() {
         let o = opts(&[("Media", "Media"), ("Footage", "Footage")]);
         let mut e = Editor::new(Control::Enum, None, o);
+        e.handle(key('k')); // wrap up onto Custom…
+        e.handle(code(KeyCode::Enter));
         for c in "Concert".chars() {
             assert_eq!(e.handle(key(c)), Reaction::Consumed);
         }

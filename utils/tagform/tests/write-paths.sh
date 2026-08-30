@@ -68,8 +68,11 @@ PY
 # commands in select mode.
 #   enter, NEW, enter (save), w (write), enter (confirm)
 python3 -c "import json; json.dump(['\r','N','E','W','\r','w','\r'], open('title.json','w'))"
-#   j x8 to Genre (a key the fixtures lack), enter, X, enter, w, enter
-python3 -c "import json; json.dump(['j']*8 + ['\r','X','\r','w','\r'], open('genre.json','w'))"
+#   j x6 to Channel, enter, X, enter, w, enter.
+# Channel and not Genre: Genre is a fixed set and opens as a menu, so typing
+# into it does nothing. This case is about the write path -- adding a key the
+# file lacks -- so it wants a plain text field, not an enum.
+python3 -c "import json; json.dump(['j']*6 + ['\r','X','\r','w','\r'], open('newkey.json','w'))"
 
 tag() { ffprobe -v error -show_entries format_tags="$2" -of default=nw=1:nk=1 "$1"; }
 mk_fast() { ffmpeg -v error -y -f lavfi -i testsrc=d=1:s=320x240:r=30 -c:v libx264 -pix_fmt yuv420p \
@@ -97,8 +100,8 @@ mk_fast c.mp4
 exiftool -q -overwrite_original_in_place -XMP-iptcExt:PersonInImage="Alice" \
   -XMP-iptcExt:PersonInImage="Bob" -XMP-dc:Subject="beach" \
   -XMP-xmpMM:PreservedFileName="IMG_4855.MOV" -- c.mp4
-python3 drive.py genre.json "$BIN" --no-thumbnail c.mp4
-chk "new key added"      "$(tag c.mp4 genre)" "X"
+python3 drive.py newkey.json "$BIN" --no-thumbnail c.mp4
+chk "new key added"      "$(tag c.mp4 channel)" "X"
 chk "XMP people kept"    "$(exiftool -s3 -PersonInImage c.mp4 | tr '\n' ',')" "Alice, Bob,"
 chk "XMP tags kept"      "$(exiftool -s3 -Subject c.mp4)" "beach"
 chk "PreservedFileName"  "$(exiftool -s3 -PreservedFileName c.mp4)" "IMG_4855.MOV"
@@ -172,12 +175,12 @@ before_shape="$(shape rich.mp4)"; before_ch="$(chapters rich.mp4)"
 # this case edited Title on an already-faststart file, which the writer handles
 # in place, so the mapping bug it was written to catch never ran. Setting Genre
 # adds a key the file lacks, and only a remux can do that.
-chk "fixture forces a remux" "$(tag rich.mp4 genre)" ""
-for _ in 1 2 3; do python3 drive.py genre.json "$BIN" --no-thumbnail rich.mp4; done
+chk "fixture forces a remux" "$(tag rich.mp4 channel)" ""
+for _ in 1 2 3; do python3 drive.py newkey.json "$BIN" --no-thumbnail rich.mp4; done
 chk "streams unchanged"   "$(shape rich.mp4)"    "$before_shape"
 chk "chapters unchanged"  "$(chapters rich.mp4)" "$before_ch"
 # Three writes, and the editor seeds from the current value, so the X accretes.
-chk "genre written"       "$(tag rich.mp4 genre)" "XXX"
+chk "new key written"     "$(tag rich.mp4 channel)" "XXX"
 chk "title untouched"     "$(tag rich.mp4 title)" "orig"
 chk "unknown key kept"    "$(tag rich.mp4 weird_custom_key)" "keep me"
 chk "yt-dlp key kept"     "$(tag rich.mp4 yt_dlp_id)" "abc"

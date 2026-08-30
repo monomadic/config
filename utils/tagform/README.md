@@ -37,6 +37,7 @@ nothing is listening for the letter w.
 | key | |
 |---|---|
 | `j` / `k`, arrows, `tab` | move between fields (`g` / `G` first / last) |
+| `h` / `l` | cycle a fixed-set field, or nudge a rating, without entering edit mode |
 | `enter` | edit the focused field |
 | `w` | write staged edits (shows a plan first) |
 | `m` | merge a list field across every file in the selection |
@@ -52,7 +53,7 @@ nothing is listening for the letter w.
 | key | |
 |---|---|
 | (type) | edit the field; `←` `→` adjust a rating or cycle an open enum |
-| `j` / `k`, `enter` | choose from a closed set (Kind), which opens as a menu |
+| `j` / `k`, `enter` | choose from a fixed set, which opens as a menu |
 | `enter` | save and stop editing |
 | `tab` / `shift-tab` | save and move to the next / previous field |
 | `esc` | cancel this field's edit |

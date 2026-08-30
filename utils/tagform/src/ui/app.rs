@@ -408,6 +408,8 @@ impl App {
             (KeyCode::Char('k'), false) | (KeyCode::Up, _) | (KeyCode::BackTab, _) => {
                 self.move_focus(-1)
             }
+            (KeyCode::Char('h'), false) | (KeyCode::Left, _) => self.nudge(-1),
+            (KeyCode::Char('l'), false) | (KeyCode::Right, _) => self.nudge(1),
             (KeyCode::Char('g'), false) => self.jump(0),
             (KeyCode::Char('G'), false) => self.jump(self.rows.len().saturating_sub(1)),
             (KeyCode::Enter, _) => self.begin_edit(),
@@ -472,6 +474,75 @@ impl App {
         } else {
             self.quit = true;
         }
+    }
+
+    /// The choices for a focused enum, and which one is current. Drives the
+    /// strip drawn under the field in select mode: a fixed set is small enough
+    /// to show in full, and showing it beats making you open something to find
+    /// out what the options were.
+    pub fn enum_choices(&self, row: &Row) -> Option<(Vec<String>, Option<usize>)> {
+        let opts = self.options_for(row);
+        if opts.is_empty() {
+            return None;
+        }
+        let current = match self.shown_value(row) {
+            Some(Value::Text(code)) => opts.iter().position(|o| o.code == code),
+            _ => None,
+        };
+        Some((opts.iter().map(|o| o.label.clone()).collect(), current))
+    }
+
+    /// Step a fixed-set field without opening anything: h/l on an enum cycles
+    /// the value, on a rating nudges the stars. Both are one keystroke for the
+    /// common case, with the menu still there for picking out of a long list.
+    fn nudge(&mut self, delta: isize) {
+        let Some(row) = self.rows.get(self.focus) else { return };
+        let key = row.key.clone();
+
+        if row.control == Control::Stars {
+            let now: u8 = match self.shown_value(row) {
+                Some(Value::Text(s)) => s.trim().parse().unwrap_or(0),
+                _ => 0,
+            };
+            let next = (now as isize + delta).clamp(0, 5) as u8;
+            self.stage(key, Value::Text(next.to_string()));
+            return;
+        }
+
+        let opts = self.options_for(row);
+        if opts.is_empty() {
+            return;
+        }
+        let n = opts.len() as isize;
+        let current = match self.shown_value(row) {
+            Some(Value::Text(code)) => opts.iter().position(|o| o.code == code),
+            _ => None,
+        };
+        // With no value yet, stepping forward lands on the first option and
+        // back on the last, rather than jumping to an arbitrary middle.
+        let next = match current {
+            Some(i) => ((i as isize + delta) % n + n) % n,
+            None if delta > 0 => 0,
+            None => n - 1,
+        } as usize;
+        self.stage(key, Value::Text(opts[next].code.clone()));
+    }
+
+    /// Stage a value the way an edit would, undo entry and all.
+    fn stage(&mut self, key: String, value: Value) {
+        let Some(row) = self.rows.iter().find(|r| r.key == key) else { return };
+        let baseline = Editor::new(row.control, row.original(), self.options_for(row)).value();
+        let before = self.staged.clone();
+        if value == baseline {
+            self.staged.remove(&key);
+        } else {
+            self.staged.insert(key, value);
+        }
+        if before != self.staged {
+            self.undo.push(before);
+            self.redo.clear();
+        }
+        self.open_editor();
     }
 
     /// Human label for a stored enum code, so an unfocused Kind row reads

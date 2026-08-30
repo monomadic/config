@@ -194,7 +194,8 @@ Keys — the form is modal.
 
   SELECT (default)
     j / k, arrows     move between fields          g / G   first / last
-    enter             edit the focused field
+    h / l             cycle a fixed-set field (Genre, Type, Kind) or a rating
+    enter             edit the focused field; a fixed set opens as a menu
     w                 write staged edits (shows a plan to confirm first)
     m                 merge a list field across every file in the selection
     p                 inspector: per-file values for the focused field

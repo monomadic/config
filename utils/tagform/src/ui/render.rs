@@ -245,8 +245,11 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
     let value_x = inner.x + 1 + LABEL_COLS + GUTTER;
     let mut cursor: Option<(u16, u16)> = None;
 
-    let mut lines = Vec::new();
-    for (i, row) in app.rows.iter().enumerate().skip(start).take(height) {
+    let mut lines: Vec<Line> = Vec::new();
+    for (i, row) in app.rows.iter().enumerate().skip(start) {
+        if lines.len() >= height {
+            break;
+        }
         let focused = i == app.focus;
         let editing = focused && app.mode == Mode::Edit;
         let staged = app.is_staged(&row.key);
@@ -339,6 +342,15 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
             Span::styled(t::fit(&raw, text_w), Style::default().bg(bg).fg(value_fg)),
             Span::styled(" ".repeat(PAD as usize), Style::default().bg(bg)),
         ]));
+
+        // A focused fixed-set field shows its whole set on the line beneath,
+        // so the options are visible without opening anything. Not while
+        // editing: the menu is already showing them vertically.
+        if focused && !editing && lines.len() < height {
+            if let Some(line) = choice_strip(app, row, value_x - inner.x, value_w) {
+                lines.push(line);
+            }
+        }
     }
     f.render_widget(Paragraph::new(lines), inner);
     if let Some((x, y)) = cursor {
@@ -349,7 +361,7 @@ fn draw_fields(f: &mut Frame, area: Rect, app: &App) {
     if app.mode == Mode::Edit && app.focus >= start {
         if let Some((options, sel)) = app.editor.as_ref().and_then(|e| e.menu()) {
             let row_y = inner.y + (app.focus - start) as u16;
-            draw_menu(f, inner, value_x, row_y, options, sel);
+            draw_menu(f, inner, value_x, row_y, &options, sel);
         }
     }
 }
@@ -364,10 +376,10 @@ fn draw_menu(
     inner: Rect,
     value_x: u16,
     row_y: u16,
-    options: &[crate::ui::edit::Opt],
+    options: &[String],
     sel: usize,
 ) {
-    let widest = options.iter().map(|o| o.label.width()).max().unwrap_or(0);
+    let widest = options.iter().map(|o| o.width()).max().unwrap_or(0);
     let width = (widest as u16 + 4).min(inner.width.saturating_sub(value_x - inner.x)).max(8);
     let height = (options.len() as u16 + 2).min(inner.height.saturating_sub(1)).max(3);
 
@@ -386,15 +398,20 @@ fn draw_menu(
         .enumerate()
         .skip(first)
         .take(visible)
-        .map(|(i, o)| {
+        .map(|(i, label)| {
             let chosen = i == sel;
+            // The trailing "Custom…" row is an action, not a value, and reads
+            // as one.
+            let escape_hatch = label.ends_with('…');
             let style = if chosen {
                 Style::default().bg(t::accent()).fg(t::badge_fg()).add_modifier(Modifier::BOLD)
+            } else if escape_hatch {
+                Style::default().fg(t::muted()).add_modifier(Modifier::ITALIC)
             } else {
                 Style::default().fg(t::value())
             };
             Line::from(Span::styled(
-                t::fit(&format!(" {}", o.label), width.saturating_sub(2) as usize),
+                t::fit(&format!(" {label}"), width.saturating_sub(2) as usize),
                 style,
             ))
         })
@@ -410,6 +427,55 @@ fn draw_menu(
         ),
         area,
     );
+}
+
+/// The options laid out horizontally under a focused enum, current one lit.
+///
+/// Horizontal rather than a list because it is a strip of a few short words
+/// and this way it costs one line instead of one per option. Falls back to
+/// eliding from the left when the set is wider than the field.
+fn choice_strip(app: &App, row: &Row, indent: u16, width: usize) -> Option<Line<'static>> {
+    let (labels, current) = app.enum_choices(row)?;
+    let cells: Vec<String> = labels.iter().map(|l| format!(" {l} ")).collect();
+
+    // Scroll so the current value is always on screen. A strip that elided the
+    // very option you are sitting on would show you everything except the one
+    // thing you needed to see.
+    let fits_from = |start: usize| -> usize {
+        let mut used = 0;
+        let mut end = start;
+        while end < cells.len() && used + cells[end].width() <= width {
+            used += cells[end].width();
+            end += 1;
+        }
+        end
+    };
+    let mut start = 0usize;
+    if let Some(cur) = current {
+        while fits_from(start) <= cur && start < cells.len() - 1 {
+            start += 1;
+        }
+    }
+    let end = fits_from(start);
+
+    let mut spans = vec![Span::raw(" ".repeat(indent as usize + PAD as usize))];
+    if start > 0 {
+        spans.push(Span::styled("…", Style::default().fg(t::muted())));
+    }
+    for (i, cell) in cells.iter().enumerate().take(end).skip(start) {
+        spans.push(Span::styled(
+            cell.clone(),
+            if Some(i) == current {
+                Style::default().bg(t::accent()).fg(t::badge_fg()).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().bg(t::input_bg()).fg(t::muted())
+            },
+        ));
+    }
+    if end < cells.len() {
+        spans.push(Span::styled("…", Style::default().fg(t::muted())));
+    }
+    Some(Line::from(spans))
 }
 
 /// An unfocused row shows the staged edit if there is one, else what is on disk.
