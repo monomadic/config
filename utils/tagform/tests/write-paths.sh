@@ -131,6 +131,60 @@ python3 drive.py merge.json "$BIN" --no-thumbnail m1.mp4 m2.mp4
 chk "merged onto first"  "$(tag m1.mp4 actors)" "Alice, Bob, Carol"
 chk "merged onto second" "$(tag m2.mp4 actors)" "Alice, Bob, Carol"
 
+echo "== 7. nothing is lost: chapters, extra tracks, timecode, unknown keys"
+# A file shaped like real footage: subtitle track, chapter track, a payload data
+# stream (GoPro-style telemetry), a timecode track, and custom keys.
+printf '1\n00:00:00,000 --> 00:00:02,000\nhi\n' > s.srt
+printf ';FFMETADATA1\n[CHAPTER]\nTIMEBASE=1/1000\nSTART=0\nEND=2000\ntitle=One\n' > ch.txt
+ffmpeg -v error -y -f lavfi -i testsrc=d=3:s=320x240:r=30 -f lavfi -i sine=d=3 \
+  -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest r0.mp4
+ffmpeg -v error -y -i r0.mp4 -i s.srt -i ch.txt -map 0:v -map 0:a -map 1 -map_chapters 2 \
+  -c copy -c:s mov_text -metadata:s:a:0 language=jpn \
+  -movflags "+faststart+use_metadata_tags" -metadata title="orig" \
+  -metadata weird_custom_key="keep me" -metadata yt_dlp_id="abc" r1.mp4
+ffmpeg -v error -y -i r1.mp4 -map 0 -c copy -timecode 01:00:00:00 \
+  -movflags "+use_metadata_tags" rich.mp4
+exiftool -q -overwrite_original_in_place -XMP-dc:Subject="beach" \
+  -XMP-xmpMM:PreservedFileName="IMG_1.MOV" -- rich.mp4
+
+# Helpers in their own file: quoting python inside a shell function inside a
+# heredoc is how the first version of this silently compared two empty strings.
+cat > shape.py <<'PYEOF'
+import json, subprocess, sys
+f = sys.argv[1]
+streams = json.loads(subprocess.run(
+    ["ffprobe", "-v", "error", "-show_streams", "-of", "json", f],
+    capture_output=True, text=True).stdout).get("streams", [])
+print(" ".join(sorted(
+    s["codec_type"] + "/" + s.get("codec_tag_string", "") for s in streams)))
+PYEOF
+cat > chapters.py <<'PYEOF'
+import json, subprocess, sys
+print(len(json.loads(subprocess.run(
+    ["ffprobe", "-v", "error", "-show_chapters", "-of", "json", sys.argv[1]],
+    capture_output=True, text=True).stdout).get("chapters", [])))
+PYEOF
+shape() { python3 shape.py "$1"; }
+chapters() { python3 chapters.py "$1"; }
+
+before_shape="$(shape rich.mp4)"; before_ch="$(chapters rich.mp4)"
+# This MUST go through the remux, or it tests nothing: the first version of
+# this case edited Title on an already-faststart file, which the writer handles
+# in place, so the mapping bug it was written to catch never ran. Setting Genre
+# adds a key the file lacks, and only a remux can do that.
+chk "fixture forces a remux" "$(tag rich.mp4 genre)" ""
+for _ in 1 2 3; do python3 drive.py genre.json "$BIN" --no-thumbnail rich.mp4; done
+chk "streams unchanged"   "$(shape rich.mp4)"    "$before_shape"
+chk "chapters unchanged"  "$(chapters rich.mp4)" "$before_ch"
+# Three writes, and the editor seeds from the current value, so the X accretes.
+chk "genre written"       "$(tag rich.mp4 genre)" "XXX"
+chk "title untouched"     "$(tag rich.mp4 title)" "orig"
+chk "unknown key kept"    "$(tag rich.mp4 weird_custom_key)" "keep me"
+chk "yt-dlp key kept"     "$(tag rich.mp4 yt_dlp_id)" "abc"
+chk "audio language kept" "$(ffprobe -v error -select_streams a:0 -show_entries stream_tags=language -of default=nw=1:nk=1 rich.mp4)" "jpn"
+chk "XMP kept"            "$(exiftool -s3 -Subject rich.mp4)" "beach"
+chk "PreservedFileName"   "$(exiftool -s3 -PreservedFileName rich.mp4)" "IMG_1.MOV"
+
 echo
 echo "$pass passed, $fail failed"
 [ "$fail" -eq 0 ]

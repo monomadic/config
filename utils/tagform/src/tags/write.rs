@@ -16,6 +16,77 @@ use crate::tags::atoms;
 use crate::tags::plan::{exiftool_name, junk_clears, FilePlan, Writer};
 use crate::tags::probe;
 
+/// What a remux has to reproduce exactly: one entry per stream the file
+/// carries, so the result can be checked against the source rather than hoped
+/// about.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamShape {
+    pub index: usize,
+    pub kind: String,
+    pub tag: String,
+    /// ffmpeg reports a timecode track's codec as `none`, which is also what
+    /// makes it unmappable.
+    pub codec: Option<String>,
+}
+
+impl StreamShape {
+    /// A track ffmpeg synthesises rather than carries: the chapter text track
+    /// and the timecode track. Mapping them explicitly is what caused a
+    /// duplicate chapter track on every write, and what made a remux fail
+    /// outright on any file with a timecode track ("Could not find tag for
+    /// codec none"). Both are rebuilt from metadata instead.
+    fn is_synthesised(&self) -> bool {
+        self.kind == "data" && (self.codec.is_none() || self.tag == "text")
+    }
+}
+
+pub fn probe_streams(path: &Path) -> Vec<StreamShape> {
+    let out = Command::new("ffprobe")
+        .args(["-v", "error", "-show_streams", "-of", "json", "--"])
+        .arg(path)
+        .output();
+    let Ok(out) = out else { return Vec::new() };
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap_or_default();
+    v.get("streams")
+        .and_then(|s| s.as_array())
+        .map(|arr| {
+            arr.iter()
+                .enumerate()
+                .map(|(i, s)| StreamShape {
+                    index: s.get("index").and_then(|x| x.as_u64()).unwrap_or(i as u64) as usize,
+                    kind: s.get("codec_type").and_then(|x| x.as_str()).unwrap_or("").into(),
+                    tag: s.get("codec_tag_string").and_then(|x| x.as_str()).unwrap_or("").into(),
+                    codec: s
+                        .get("codec_name")
+                        .and_then(|x| x.as_str())
+                        .filter(|c| *c != "none")
+                        .map(|c| c.to_string()),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The source's timecode, so a skipped tmcd track can be rebuilt.
+fn timecode(path: &Path) -> Option<String> {
+    let out = Command::new("ffprobe")
+        .args(["-v", "error", "-show_entries", "format_tags=timecode:stream_tags=timecode",
+               "-of", "json", "--"])
+        .arg(path)
+        .output()
+        .ok()?;
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
+    let from = |o: Option<&serde_json::Value>| {
+        o.and_then(|t| t.get("timecode")).and_then(|t| t.as_str()).map(String::from)
+    };
+    from(v.get("format").and_then(|f| f.get("tags"))).or_else(|| {
+        v.get("streams")?
+            .as_array()?
+            .iter()
+            .find_map(|s| from(s.get("tags")))
+    })
+}
+
 /// Space for a second full-size copy, plus room to breathe.
 const HEADROOM: u64 = 64 * 1024 * 1024;
 /// Remuxed duration may differ by a frame or two of rounding, never by more.
@@ -153,7 +224,19 @@ fn remux(plan: &FilePlan, restore: Option<&BTreeMap<String, Value>>) -> Result<(
     let mut args: Vec<String> = vec!["-hide_banner".into(), "-loglevel".into(), "error".into(), "-nostdin".into(), "-y".into()];
     args.push("-i".into());
     args.push(path.to_string_lossy().into_owned());
-    args.extend(["-map", "0", "-c", "copy", "-map_metadata", "0"].map(String::from));
+    // Map every stream by index except the ones ffmpeg rebuilds itself. A bare
+    // `-map 0` copies the chapter track *and* re-emits it, so a file gained a
+    // data stream on every write, and it fails outright on a timecode track.
+    let shapes = probe_streams(path);
+    for s in shapes.iter().filter(|s| !s.is_synthesised()) {
+        args.push("-map".into());
+        args.push(format!("0:{}", s.index));
+    }
+    args.extend(["-c", "copy", "-map_metadata", "0"].map(String::from));
+    if let Some(tc) = timecode(path) {
+        args.push("-timecode".into());
+        args.push(tc);
+    }
     let flags = if plan.faststart {
         "+faststart+use_metadata_tags"
     } else {
@@ -171,6 +254,7 @@ fn remux(plan: &FilePlan, restore: Option<&BTreeMap<String, Value>>) -> Result<(
     run("ffmpeg", &args).map_err(WriteError::Failed)?;
 
     verify_duration(path, &tmp).map_err(WriteError::Failed)?;
+    verify_streams(&shapes, &tmp).map_err(WriteError::Failed)?;
     verify_atoms(&tmp, &plan.atoms).map_err(WriteError::Failed)?;
     if plan.faststart {
         let l = atoms::layout(&tmp);
@@ -282,6 +366,23 @@ fn verify_xmp(path: &Path, wanted: &[(String, Vec<String>)]) -> Result<()> {
         if !ok {
             bail!("XMP {tag} did not survive: wanted {values:?}, read back {actual:?}");
         }
+    }
+    Ok(())
+}
+
+/// The result must carry the same streams as the source. This is what catches
+/// a track silently gained or dropped -- the duplicate-chapter-track bug lived
+/// for several milestones precisely because nothing compared the two.
+fn verify_streams(before: &[StreamShape], after: &Path) -> Result<()> {
+    let got = probe_streams(after);
+    let shape = |v: &[StreamShape]| {
+        let mut s: Vec<String> = v.iter().map(|x| format!("{}/{}", x.kind, x.tag)).collect();
+        s.sort();
+        s
+    };
+    let (a, b) = (shape(before), shape(&got));
+    if a != b {
+        bail!("streams changed: {a:?} -> {b:?}");
     }
     Ok(())
 }
