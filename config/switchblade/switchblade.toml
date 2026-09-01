@@ -13,11 +13,12 @@
 
 [tuning]
 libraries = [
-  "~/Movies/Porn/Downloads",
+  "/Volumes/*/Movies/Visuals",
   "/Volumes/*/Movies/Porn",
+  "/Volumes/*/Movies/Private",
   "~/Movies/Private",
   "~/Movies/Porn",
-  "/Volumes/*/Movies/Visuals"
+  "~/Movies/Porn/Downloads",
 ]
 haptics = false
 # ── Layout ──────────────────────────────────────────────────────────────
@@ -816,11 +817,13 @@ c = "chapter_mode"
 f = "fast_fullscreen"
 # i = "mediainfo"
 n = "next"
-o = "launch mpv-send play {path}"
+o = "library_picker"
+"cmd+o" = "launch mpv-send play {path}"
 p = "prev"
 "cmd+r" = "refresh"
 r = "reveal"
 s = "shuffle_library"  # shuffle the whole grid in place ("shuffle" also works)
+e = "launch '/Users/nom/.zsh/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /Users/nom/.cargo/bin/tagform {path}'"
 t = "launch '/Users/nom/.zsh/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut {path}'"
 y = "launch '/Users/nom/.zsh/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /opt/homebrew/bin/yazi {path}'"
 "[" = "skip_back"  # jump by skip_fraction; wraps at the ends

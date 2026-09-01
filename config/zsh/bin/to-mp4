@@ -1,6 +1,18 @@
 #!/bin/zsh
+DELETE_SOURCE=0
+args=()
+for arg in "$@"; do
+  case "$arg" in
+    -d|--delete) DELETE_SOURCE=1 ;;
+    --keep) DELETE_SOURCE=0 ;;
+    *) args+=("$arg") ;;
+  esac
+done
+set -- "${args[@]}"
+
 if [ $# -eq 0 ]; then
-  echo "Usage: $0 <input> [<input...> ...]"
+  echo "Usage: $0 [-d|--delete] <input> [<input...> ...]"
+  echo "  -d, --delete   move each source file to the Trash after a successful convert"
   return 1
 fi
 
@@ -58,11 +70,13 @@ for file in "$@"; do
     echo "Success: $output"
     restore_metadata "$file" "$output"
     restore_timestamps "$file" "$output"
-    # Move original file to Trash
-    if mv "$file" "$TRASH/"; then
-      echo "Original file moved to Trash: $file"
-    else
-      echo "Warning: Could not move original file to Trash: $file" >&2
+    # Source files are kept unless --delete was passed.
+    if (( DELETE_SOURCE )); then
+      if mv "$file" "$TRASH/"; then
+        echo "Original file moved to Trash: $file"
+      else
+        echo "Warning: Could not move original file to Trash: $file" >&2
+      fi
     fi
   else
     echo "Error: could not convert $file" >&2
