@@ -19,13 +19,15 @@ This is a single static binary that:
 ## Layout
 
 ```
-line 1:  <cwd>   <branch> <●-if-dirty>
+line 1:  <cwd>   <branch> <worktree-if-linked> <●-if-dirty>
 line 2:  <os> <hostname> <char>
 ```
 
 - `cwd` — absolute path with `$HOME` collapsed to `~` (yellow).
 - `branch` — current branch, or short SHA when detached (green). Omitted outside a
   repo and on `/Volumes`.
+- `worktree` — blue fork glyph, shown only inside a *linked* `git worktree`; the
+  worktree's name follows the glyph when it differs from the branch name.
 - `●` — red, shown only when the tree has uncommitted/untracked changes.
 - `char` — green success glyph on exit 0, red `❯` otherwise.
 
@@ -44,8 +46,9 @@ in `%{ … %}` zero-width markers.
 ## Build / install
 
 ```sh
-setup/install/pimped.sh      # cargo build --release + install to ~/.local/bin
+setup/install/install-pimped.sh      # cargo build --release + install to ~/.local/bin
 ```
 
 Glyphs are nerd-font codepoints copied verbatim from the old `starship.toml`
-(branch `U+E725`, macOS `U+F0035`, success `U+F17A9`).
+(branch `U+E725`, macOS `U+F0035`, success `U+F17A9`); the worktree glyph is
+`U+F0339`.

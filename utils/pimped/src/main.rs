@@ -20,6 +20,7 @@ use std::path::Path;
 const BRANCH_GLYPH: char = '\u{e725}'; // nerd-font git branch
 const OS_GLYPH: char = '\u{f0035}'; // nerd-font apple/macOS
 const DIRTY_GLYPH: char = '\u{1008a4}'; // SF Symbol dirty marker (alt: '\u{1001ff}')
+const WORKTREE_GLYPH: char = '\u{f0339}'; // nerd-font source-branch-fork (linked worktree)
 const AHEAD_GLYPH: char = '\u{21e1}'; // ⇡ local ahead of upstream
 const BEHIND_GLYPH: char = '\u{21e3}'; // ⇣ local behind upstream
 const OK_GLYPH: char = '\u{f17a9}'; // success prompt char
@@ -48,6 +49,19 @@ fn directory() -> String {
         _ => cwd.to_string(),
     };
     format!("{}{}{}", col("33"), esc(&shown), RESET)
+}
+
+/// Name of the linked worktree, if the CWD is in one. Git stores a linked
+/// worktree's gitdir as `<main>/.git/worktrees/<name>`, so the last component
+/// of `repo.path()` is the worktree's name. The main worktree yields `None`.
+fn worktree_name(repo: &git2::Repository) -> Option<String> {
+    if !repo.is_worktree() {
+        return None;
+    }
+    repo.path()
+        .components()
+        .next_back()
+        .map(|c| c.as_os_str().to_string_lossy().into_owned())
 }
 
 /// ` <branch>` plus a red ● when the tree is dirty. Empty when not in a repo,
@@ -81,6 +95,22 @@ fn git() -> String {
     };
 
     let mut out = format!(" {}{BRANCH_GLYPH} {}{}", col("1;32"), esc(&name), RESET);
+
+    // In a linked worktree: always mark it with the glyph, but only spell out the
+    // name when it differs from the branch (`git worktree add ../x -b x` is the
+    // common case, and repeating the name there is pure noise).
+    if let Some(wt) = worktree_name(&repo) {
+        if wt == name {
+            out.push_str(&format!(" {}{WORKTREE_GLYPH}{}", col("1;34"), RESET));
+        } else {
+            out.push_str(&format!(
+                " {}{WORKTREE_GLYPH} {}{}",
+                col("1;34"),
+                esc(&wt),
+                RESET
+            ));
+        }
+    }
 
     let mut opts = git2::StatusOptions::new();
     opts.include_untracked(true).include_ignored(false);

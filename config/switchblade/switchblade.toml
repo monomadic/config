@@ -93,7 +93,7 @@ snap_strength = 0.22  # camera chasing a trackpad pan
 key_snap_strength = 0.12  # camera chasing a keyboard move — lower = gentler
 rubber_band = 0.25  # pull-back when scrolled past the edge
 scale_smoothing = 0.35  # tiles growing/shrinking (hover, selection)
-fade_in_ms = 20.0  # newly appearing tiles fade in over this long
+fade_in_ms = 0.0  # newly appearing tiles fade in over this long
 
 # ── Feel: zoom ──────────────────────────────────────────────────────────
 # A PINCH in the flexible grid grips the grid like paper: the library is one
@@ -154,7 +154,7 @@ meta_wait_ms = 120.0
 
 # [ / ] jump the playing clip by this fraction of its duration (wraps at
 # the ends). A binding can override the amount per key — see [keys] below.
-skip_fraction = 0.00
+skip_fraction = 0.0
 
 # Where playback starts, as a fraction of each clip's duration (0.0 = the
 # very beginning, 0.10 = 10% in). The static thumbnail is extracted at
@@ -200,11 +200,11 @@ quickview_backdrop = "blur"
 fullview_backdrop = "flat"
 backdrop_color = [0.0, 0.0, 0.0]  # the flat stage color
 # Fade-in when quickview opens (dim + blur + the modal); 0 ≈ instant.
-quickview_fade_ms = 150.0
+quickview_fade_ms = 0.0
 # The clip's name above the video: the container's `title` tag when the
 # file carries one, the filename otherwise.
 quickview_title_size = 17.0
-quickview_title_weight = 700  # 400 regular, 600 semibold, 700 bold
+quickview_title_weight = 600  # 400 regular, 600 semibold, 700 bold
 # (Playback resolution is quickview_max_width/height, under Startup
 # settings below.)
 
@@ -399,6 +399,9 @@ sort = "none"
 # thumb_width = 640
 # thumb_height = 320
 thumb_quality = 8
+
+# the fade in of thumbs
+thumb_fade_ms = 0
 
 # Storyboard sheet grid (the seekbar-hover preview + chapter chips):
 # frames = grid², frame size = thumb/grid. 3 = 9 frames, 2 = 4 crisper
