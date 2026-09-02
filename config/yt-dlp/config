@@ -43,20 +43,22 @@
 --alias metadata "--ignore-no-formats-error --skip-download --write-info-json --no-download-archive"
 
 # genre
---alias media '--embed-metadata --parse-metadata "%(_const|Media)s:%(meta_genre)s"'
---alias footage '--embed-metadata --parse-metadata "%(_const|Camera Footage)s:%(meta_genre)s"'
---alias karaoke '--embed-metadata --parse-metadata "%(_const|Karaoke)s:%(meta_genre)s"'
---alias vj '--parse-metadata "%(_const|VJ Clip)s:%(meta_genre)s"'
+--alias adult '--embed-metadata --parse-metadata "%(_const|Adult)s:%(meta_category)s"'
+--alias footage '--embed-metadata --parse-metadata "%(_const|Camera Footage)s:%(meta_category)s"'
+--alias karaoke '--embed-metadata --parse-metadata "%(_const|Karaoke)s:%(meta_category)s"'
+--alias live-visual '--parse-metadata "%(_const|Live Visual)s:%(meta_category)s"'
 
 # type
---alias clip '--embed-metadata --parse-metadata "%(_const|Clip)s:%(meta_type)s"'
---alias master '--embed-metadata --parse-metadata "%(_const|Master)s:%(meta_type)s"'
---alias original '--embed-metadata --parse-metadata "%(_const|Original)s:%(meta_type)s"'
+--alias clip '--embed-metadata --parse-metadata "%(_const|Clip)s:%(meta_variant)s"'
+--alias enhanced '--embed-metadata --parse-metadata "%(_const|Enhanced)s:%(meta_variant)s"'
+--alias original '--embed-metadata --parse-metadata "%(_const|Original)s:%(meta_variant)s"'
 
-# media aliases
---alias porn '--embed-subs --embed-chapters --sub-langs "en.*,-live_chat" --use-postprocessor "Titlecase:when=pre_process" --parse-metadata "%(_const|Adult)s:%(meta_category)s" --parse-metadata "%(_const|Original)s:%(meta_variant)s" --parse-metadata ":(?P<meta_artist>)" -o "%(channel_cc,uploader_cc,channel,uploader|?)s/%(cast,uploader|)l (%(channel_cc,uploader_cc,channel,uploader|Unknown)s) %(cast& - |)s %(title_cc,title).50s (%(extractor)s_%(id)s).%(ext)s" --progress --console-title --trim-filenames 200 --paths "home:$HOME/Movies/Porn/Downloads"'
+# adult aliases
+--alias porn '--embed-subs --embed-chapters --original --sub-langs "en.*,-live_chat" --use-postprocessor "Titlecase:when=pre_process" --parse-metadata "%(_const|Adult)s:%(meta_category)s" --parse-metadata "%(_const|Original)s:%(meta_variant)s" --parse-metadata ":(?P<meta_artist>)" -o "%(channel_cc,uploader_cc,channel,uploader|?)s/%(cast,uploader|)l (%(channel_cc,uploader_cc,channel,uploader|Unknown)s) %(cast& - |)s %(title_cc,title).50s (%(extractor)s_%(id)s).%(ext)s" --progress --console-title --trim-filenames 200 --paths "home:$HOME/Movies/Porn/Downloads"'
 --alias tower '--porn --paths home:/Volumes/Tower/Movies/Porn/Downloads'
 
 # vj aliases
 # video-only track, highest resolution, transcoded to ProRes Proxy (.mov)
---alias visuals '--vj --best-video -S res,fps,tbr --format-sort-force -o "%(channel_cc,uploader_cc,channel,uploader|Unknown)s (%(id)s) %(tags)s.%(ext)s" --ignore-no-formats-error --recode-video mov --ppa "VideoConvertor:-c:v prores_videotoolbox -profile:v proxy -allow_sw 1 -pix_fmt p210le" --paths "home:~/Library/Mobile Documents/com~apple~CloudDocs/Movies/Visuals/Downloads"'
+--alias visuals '--live-visual --original --best-video -S res,fps,tbr --format-sort-force -o "%(channel_cc,uploader_cc,channel,uploader|Unknown)s (%(id)s) %(tags)s.%(ext)s" --ignore-no-formats-error --recode-video mov --ppa "VideoConvertor:-c:v prores_videotoolbox -profile:v proxy -allow_sw 1 -pix_fmt p210le" --paths "home:~/Library/Mobile Documents/com~apple~CloudDocs/Movies/Visuals/Downloads"'
+
+--alias pwd '--paths "home:."'
