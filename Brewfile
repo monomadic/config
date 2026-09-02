@@ -84,7 +84,7 @@ brew "procs"
 #brew "starship"
 brew "viu" # Simple terminal image viewer written in Rust
 brew "zellij"
-#cask "markedit"
+#cask "markviewer" #markdown editor
 
 # Media and content tooling
 brew "aria2"
