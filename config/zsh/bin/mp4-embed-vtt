@@ -1,0 +1,261 @@
+#!/usr/bin/env bash
+#
+# mp4-embed-vtt — embed a WebVTT file into an MP4 as a mov_text subtitle track.
+#
+# WebVTT cannot live in an MP4 in its own right: ffmpeg refuses to mux `wvtt`
+# into any MP4-family container, and the `wvtt` tracks MP4Box can produce come
+# back out of libavformat as untyped data streams that no player exposes.
+# mov_text (3GPP timed text) is the only in-container option with real
+# playback support. Bold/italic/underline survive as tx3g `styl` records; cue
+# positioning, colour, CSS classes and voice tags do not.
+#
+# Adding a track means a remux, and a naive remux quietly damages an MP4:
+#
+#   * `-map 0` re-emits chapter tracks, so the file gains a data stream on
+#     every pass, and it fails outright on a timecode track.
+#   * ffmpeg's default metadata path writes iTunes `ilst` atoms and drops the
+#     `mdta` keys this repo cares about; `+use_metadata_tags` keeps them.
+#   * a remux destroys XMP with no flag to prevent it, so it is snapshotted
+#     and put back afterwards.
+#   * moov placement is not preserved on its own; a faststart file must be
+#     asked to stay faststart.
+#
+# The original is never touched until the replacement has been verified.
+# See AGENTS.md "Invariants" and docs/CONTAINER.md §1.
+
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+usage: mp4-embed-vtt SUBS.vtt [VIDEO.mp4] [options]
+
+Embeds SUBS.vtt into VIDEO.mp4 as a mov_text subtitle track. If VIDEO.mp4 is
+omitted, it is SUBS.vtt with the extension replaced by .mp4.
+
+options:
+  -o, --output FILE   write here instead of replacing the input in place
+  -l, --lang CODE     ISO 639-2 language for the track (default: und)
+  -t, --title TEXT    track title
+      --default       mark the new track as the default subtitle track
+  -n, --dry-run       print the ffmpeg command and exit
+  -h, --help          this
+USAGE
+}
+
+die() { printf 'mp4-embed-vtt: %s\n' "$*" >&2; exit 1; }
+note() { printf '  %s\n' "$*" >&2; }
+
+VTT= MP4= OUT= SLANG=und TITLE= DEFAULT=0 DRY=0
+while [ $# -gt 0 ]; do
+  case $1 in
+    -o|--output)  OUT=${2:?--output needs a path}; shift 2 ;;
+    -l|--lang)    SLANG=${2:?--lang needs a code}; shift 2 ;;
+    -t|--title)   TITLE=${2:?--title needs text}; shift 2 ;;
+    --default)    DEFAULT=1; shift ;;
+    -n|--dry-run) DRY=1; shift ;;
+    -h|--help)    usage; exit 0 ;;
+    --)           shift; break ;;
+    -*)           die "unknown option $1" ;;
+    *)            if [ -z "$VTT" ]; then VTT=$1; elif [ -z "$MP4" ]; then MP4=$1;
+                  else die "unexpected argument $1"; fi; shift ;;
+  esac
+done
+
+[ -n "$VTT" ] || { usage >&2; exit 2; }
+[ -f "$VTT" ] || die "no such file: $VTT"
+# ffmpeg's webvtt demuxer accepts arbitrary text and silently produces a track
+# with no cues, so check the signature rather than discover it after a remux.
+head -c 6 -- "$VTT" | grep -q '^WEBVTT' || die "$VTT does not start with WEBVTT"
+
+# Default the video to the subtitle's name with the extension swapped. Only the
+# final extension goes, so "ep01.en.vtt" looks for "ep01.en.mp4".
+if [ -z "$MP4" ]; then
+  MP4=${VTT%.*}.mp4
+  [ -f "$MP4" ] || die "no video given and ${MP4} does not exist"
+fi
+[ -f "$MP4" ] || die "no such file: $MP4"
+
+for t in ffmpeg ffprobe; do
+  command -v "$t" >/dev/null || die "$t not found on PATH"
+done
+HAVE_EXIFTOOL=1; command -v exiftool >/dev/null || HAVE_EXIFTOOL=0
+
+probe() { ffprobe -v error -of default=nw=1:nk=1 -show_entries "$1" -- "$2" 2>/dev/null; }
+
+# --- what the source is, before anything touches it ------------------------
+
+# Top-level atom order. `moov` ahead of `mdat` is faststart, and a file that
+# arrived that way must leave that way.
+is_faststart() {
+  local f=$1 off=0 hdr size name
+  while :; do
+    hdr=$(dd if="$f" bs=8 skip=$((off / 8)) count=1 2>/dev/null | xxd -p) || break
+    [ "${#hdr}" -ge 16 ] || break
+    size=$((16#${hdr:0:8}))
+    name=$(printf '%s' "${hdr:8:8}" | xxd -r -p)
+    case $name in
+      moov) return 0 ;;
+      mdat) return 1 ;;
+    esac
+    # 1 means a 64-bit largesize follows the header; 0 means "to end of file".
+    if [ "$size" -eq 1 ]; then
+      size=$((16#$(dd if="$f" bs=8 skip=$((off / 8 + 1)) count=1 2>/dev/null | xxd -p)))
+    elif [ "$size" -eq 0 ]; then
+      break
+    fi
+    [ "$size" -ge 8 ] || break
+    off=$((off + size))
+    # Atom offsets are only 8-byte aligned in practice; bail out if one is not,
+    # rather than silently walking garbage.
+    [ $((off % 8)) -eq 0 ] || break
+  done
+  return 1
+}
+
+# Streams to carry over, by index. Chapter and timecode tracks are rebuilt by
+# ffmpeg itself: mapping them explicitly duplicates the first and breaks on the
+# second. Everything else — including iPhone `mebx` metadata tracks and any
+# subtitle tracks already present — is carried across untouched.
+KEEP=()
+while IFS= read -r i; do KEEP+=("$i"); done < <(
+  ffprobe -v error -show_streams -of json -- "$MP4" |
+  python3 -c '
+import json,sys
+for s in json.load(sys.stdin).get("streams",[]):
+    tag = s.get("codec_tag_string","")
+    if s.get("codec_type") == "data" and (s.get("codec_name") in (None,"unknown") or tag == "text"):
+        continue
+    print(s["index"])
+'
+)
+[ "${#KEEP[@]}" -gt 0 ] || die "no usable streams in $MP4"
+
+SRC_DUR=$(probe format=duration "$MP4")
+SRC_TC=$(probe format_tags=timecode "$MP4" || true)
+[ -n "$SRC_TC" ] || SRC_TC=$(ffprobe -v error -select_streams d -show_entries stream_tags=timecode \
+  -of default=nw=1:nk=1 -- "$MP4" 2>/dev/null | head -1)
+SRC_TAGS=$(ffprobe -v error -show_entries format_tags -of json -- "$MP4" |
+  python3 -c 'import json,sys; print("\n".join(sorted(json.load(sys.stdin)["format"].get("tags",{}))))')
+FAST=0; is_faststart "$MP4" && FAST=1
+# A track title lives in a trak-level udta `name` atom, and ffmpeg does not
+# carry it across a stream copy — a second run would erase the title the first
+# run set. Snapshot them and re-apply, positionally, below.
+SRC_NAMES=$(ffprobe -v error -show_entries stream=index:stream_tags=name -of json -- "$MP4" |
+  python3 -c '
+import json,sys
+for s in json.load(sys.stdin).get("streams",[]):
+    n = s.get("tags",{}).get("name")
+    if n: print("%d\t%s" % (s["index"], n))
+')
+NSUBS=$(ffprobe -v error -select_streams s -show_entries stream=index -of csv=p=0 -- "$MP4" | grep -c . || true)
+NSUBS=${NSUBS:-0}
+
+# --- assemble the remux ----------------------------------------------------
+
+FLAGS=+use_metadata_tags
+[ "$FAST" -eq 1 ] && FLAGS=+faststart+use_metadata_tags
+
+NEW=${#KEEP[@]}   # index of the subtitle stream we are appending
+
+args=(-hide_banner -loglevel error -nostdin -y -i "$MP4" -i "$VTT")
+for i in "${KEEP[@]}"; do args+=(-map "0:$i"); done
+args+=(-map 1:0 -c copy -c:s:$NSUBS mov_text -map_metadata 0 -movflags "$FLAGS")
+[ -n "$SRC_TC" ] && args+=(-timecode "$SRC_TC")
+# Output stream i is KEEP[i], so titles are restored by position.
+i=0
+for src in "${KEEP[@]}"; do
+  name=$(printf '%s\n' "$SRC_NAMES" | awk -F'\t' -v k="$src" '$1==k{print $2; exit}')
+  [ -n "$name" ] && args+=(-metadata:s:$i "title=$name")
+  i=$((i + 1))
+done
+args+=(-metadata:s:s:$NSUBS "language=$SLANG")
+[ -n "$TITLE" ] && args+=(-metadata:s:s:$NSUBS "title=$TITLE")
+[ "$DEFAULT" -eq 1 ] && args+=(-disposition:s:$NSUBS default)
+
+DEST=${OUT:-$MP4}
+
+if [ "$DRY" -eq 1 ]; then
+  printf 'ffmpeg'; printf ' %q' "${args[@]}" "--" "<temp>"; printf '\n'
+  exit 0
+fi
+
+# BSD mktemp only honours a template ending in X's, so a ".../foo.XXXXXX.mp4"
+# template yields that name literally — no randomness, and two runs collide.
+# Take a private directory beside the destination instead: the extension stays
+# intact so ffmpeg picks the right muxer, and the final rename stays on the
+# same filesystem and therefore atomic.
+WORK=$(mktemp -d "$(dirname -- "$DEST")/.mp4-embed-vtt.XXXXXX") || die "cannot create a temp dir beside $DEST"
+trap 'rm -rf -- "$WORK"' EXIT
+TMP="$WORK/out.${DEST##*.}"
+
+note "source: ${#KEEP[@]} stream(s), $NSUBS existing sub(s), faststart=$([ "$FAST" -eq 1 ] && echo yes || echo no)"
+
+# XMP does not survive a remux, so keep a copy to put back.
+HAD_XMP=0
+if [ "$HAVE_EXIFTOOL" -eq 1 ]; then
+  if exiftool -xmp -b -- "$MP4" > "${TMP}.xmp" 2>/dev/null && [ -s "${TMP}.xmp" ]; then
+    HAD_XMP=1
+    note "XMP present ($(wc -c < "${TMP}.xmp" | tr -d ' ') bytes), will be restored"
+  fi
+fi
+
+ffmpeg "${args[@]}" -- "$TMP" || die "ffmpeg failed; $MP4 is untouched"
+
+if [ "$HAD_XMP" -eq 1 ]; then
+  exiftool -q -overwrite_original "-xmp<=${TMP}.xmp" -- "$TMP" \
+    || die "could not restore XMP; $MP4 is untouched"
+fi
+
+# --- prove the replacement before standing on it ---------------------------
+
+fail() { die "$1; $MP4 is untouched"; }
+
+NEW_DUR=$(probe format=duration "$TMP")
+python3 -c "
+import sys
+a,b=float('${SRC_DUR:-0}' or 0), float('${NEW_DUR:-0}' or 0)
+sys.exit(0 if abs(a-b) <= 0.1 else 1)
+" || fail "duration changed: $SRC_DUR -> $NEW_DUR"
+
+got=$(ffprobe -v error -show_entries stream=index -of csv=p=0 -- "$TMP" | grep -c .)
+[ "$got" -ge $((NEW + 1)) ] || fail "expected $((NEW + 1)) streams, got $got"
+
+ffprobe -v error -select_streams "s:$NSUBS" -show_entries stream=codec_name \
+  -of default=nw=1:nk=1 -- "$TMP" | grep -qx mov_text \
+  || fail "the subtitle track did not come out as mov_text"
+
+cues=$(ffmpeg -v error -i "$TMP" -map 0:s:$NSUBS -c:s webvtt -f webvtt - 2>/dev/null | grep -c ' --> ' || true)
+[ "${cues:-0}" -gt 0 ] || fail "the embedded track decodes to zero cues"
+
+if [ -n "$SRC_TAGS" ]; then
+  NEW_TAGS=$(ffprobe -v error -show_entries format_tags -of json -- "$TMP" |
+    python3 -c 'import json,sys; print("\n".join(sorted(json.load(sys.stdin)["format"].get("tags",{}))))')
+  missing=$(comm -23 <(printf '%s\n' "$SRC_TAGS") <(printf '%s\n' "$NEW_TAGS") | paste -sd, -)
+  [ -z "$missing" ] || fail "metadata keys lost in the remux: $missing"
+fi
+
+if [ -n "$SRC_NAMES" ]; then
+  kept=$(printf '%s\n' "$SRC_NAMES" | cut -f2 | sort)
+  now=$(ffprobe -v error -show_entries stream_tags=name -of json -- "$TMP" |
+    python3 -c '
+import json,sys
+for s in json.load(sys.stdin).get("streams",[]):
+    n = s.get("tags",{}).get("name")
+    if n: print(n)' | sort)
+  lost=$(comm -23 <(printf '%s\n' "$kept") <(printf '%s\n' "$now") | paste -sd, -)
+  [ -z "$lost" ] || fail "track titles lost in the remux: $lost"
+fi
+
+if [ "$FAST" -eq 1 ] && ! is_faststart "$TMP"; then
+  fail "source was faststart and the result is not"
+fi
+
+if [ "$HAD_XMP" -eq 1 ]; then
+  exiftool -xmp -b -- "$TMP" 2>/dev/null | grep -q . || fail "XMP did not survive"
+fi
+
+# --- swap ------------------------------------------------------------------
+
+mv -f "$TMP" "$DEST"
+
+note "wrote $DEST — $cues cues, ${got} streams, lang=$SLANG$([ "$HAD_XMP" -eq 1 ] && echo ', XMP restored')"

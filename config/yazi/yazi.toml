@@ -41,6 +41,9 @@ play_dir = [
   # { desc = "􀇺  check: media", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-audit %s''', orphan = true },
   { desc = "􁊇  exiftool", run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", block = true },
 ]
+subtitle = [
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " embed subtitles " -- zsh -lc 'for f in "$@"; do /Users/nom/.zsh/bin/mp4-embed-vtt "$f"; done' zsh %s''', desc = "􀉅  embed into mp4", for = "unix", orphan = true },
+]
 mov_tools = [
   { desc = "􀇺  to-mp4", run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 -- /Users/nom/.zsh/bin/to-mp4 %s''', orphan = true },
 ]
@@ -95,6 +98,11 @@ prepend_rules = [
   { url = "*/", use = ["open", "edit", "reveal", "play_dir"] },
   { url = "*.flac", use = ["flac", "open"] },
   { url = "*.mov", use = ["mov_tools", "play", "open", "reveal", "video_tools"] },
+  # mime-ext has no .vtt mapping, so match by extension or the opener never
+  # appears. `edit` leads deliberately: unlike mov_tools/chordpro, "embed" is
+  # not interactive — it rewrites the sibling mp4 on the spot — so it belongs
+  # behind `o`, not on Enter.
+  { url = "*.vtt", use = ["edit", "subtitle", "open", "reveal"] },
   # mime-ext resolves by extension, so these text-like types miss Yazi's
   # default `text/*` edit rule (same gap as the code previewer below).
   { mime = "application/{xml,xml-dtd,sql,octet-stream}", use = [
