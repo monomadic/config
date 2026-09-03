@@ -321,7 +321,12 @@ format_stamp() {
 date_from_exif() {
   local file="$1" raw tag stamp
 
-  for tag in DateTimeOriginal CreateDate MediaCreateDate CreationDate; do
+  # CreationDate (QuickTime's Apple key, local time with an offset) is the
+  # camera's own capture date; CreateDate and MediaCreateDate are the mvhd/mdhd
+  # timestamps, which are UTC and are rewritten to "now" by anything that
+  # remuxes or writes tags. So the authored date must be tried before them, or
+  # every tagged iPhone clip is dated the day it was tagged.
+  for tag in DateTimeOriginal CreationDate CreateDate MediaCreateDate; do
     raw="$(exiftool -s3 -"$tag" -- "$file" 2>/dev/null | head -1)"
     [[ -z "$raw" || "$raw" == 0000* ]] && continue
     if [[ "$raw" =~ '([0-9]{4}):([0-9]{2}):([0-9]{2})[ T]([0-9]{2}):([0-9]{2}):([0-9]{2})' ]]; then
