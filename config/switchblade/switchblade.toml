@@ -244,7 +244,11 @@ seekbar_height = 6.0
 seekbar_hover_height = 12.0
 seekbar_bg_opacity = 0.55
 seekbar_bg_pad = 0.5
+# The hover preview is FITTED into this box — width cap and height cap,
+# aspect ratio kept, touching whichever it reaches first — so a portrait
+# clip comes back narrow instead of towering over the picture.
 seekbar_thumb_width = 280.0
+seekbar_thumb_height = 160.0
 
 # Opacity (0..1) of the seekbar's background track — the unfilled part
 # behind the played fill. The fill stays solid white; lower this to make
@@ -355,7 +359,7 @@ chapter_text_inset_y = 7.0
 # The chip is a video frame, and text over an arbitrary frame is not
 # legible without something behind it.
 chapter_text_fill = 0.55
-chapter_text_color = [0.94, 0.94, 0.96]
+# chapter_text_color = [0.94, 0.94, 0.96]   # REMOVED from switchblade: folded into [theme] ink
 # Time and title each carry their own radius and padding — a timecode and a
 # sentence are different shapes.
 chapter_time_radius = 3.0
@@ -603,6 +607,78 @@ seekbar_preview_live = true
 # temperature IS the count. A ONE-STOP ramp is a flat value, which is how
 # a uniform, flat popup falls out of exactly the same code as a heat map.
 # Colours are [r, g, b, a] in 0..1.
+
+# ── Added from the repo defaults, 2026-09-03 ──────────────────────────
+library_count_text = [0.90, 0.90, 0.94]   # the badge's own, lighter ink
+# While a tag/cast filter is applied the pills line up beside the count
+# and a black gradient rises from the bottom edge behind them: opacity at
+# the edge (0 = off), how far past the pill block it reaches, band count.
+filter_veil = 0.75
+filter_veil_reach = 90.0
+filter_veil_steps = 24
+# Esc clears the filter: the pills slide down off the bottom edge over this
+# many ms rather than vanishing.
+filter_exit_ms = 260.0
+# Selection MODE — the state cmd/shift-click puts the grid in by marking
+# clips. While anything is marked every unmarked tile fades back to this
+# (1 = no dim at all), so the marked set reads as the thing on screen;
+# `marked_fade_k` is how fast that dim eases in and out (per second).
+# Pointing at a dimmed tile lifts it to full while the pointer is on it,
+# and marked clips and the cursor tile never dim at all.
+marked_dim = 0.55
+marked_fade_k = 14.0
+# The video never teleports when the view changes: it grows out of the
+# selected TILE into quickview or cinema mode, and grows/shrinks between
+# the two modals. 0 disables (each view just draws it at its own rect).
+# Entering only — closing back to the grid cuts.
+modal_zoom_ms = 180.0
+# Clips this long or shorter get no seekbar at all (nor its title/details
+# lanes, hover preview or click-to-seek): a few seconds of loop has
+# nothing to navigate. 0 shows it on every clip.
+seekbar_min_s = 10.0
+# The bar is the middle of a three-lane block — the clip's title above it,
+# the technical tags and the duration below it — so it rests well clear of
+# the video's bottom edge, and both lanes sit one even gap off the bar.
+seekbar_bottom_pad = 38.0
+seekbar_row_gap = 13.0
+# The details line under the bar's LEFT end — what the probe measured
+# (resolution, rate, codec, chapters) plus the filename's rating.
+# Off by default (2026-08-30): the labels read as obtrusive under the
+# video and a better treatment is still to be worked out. The duration on
+# the right is separate and stays either way.
+seekbar_details = false
+# With it on, draw the measured facts as the design system's technical-tag
+# lockups (see [theme.tech_tag]) with the rating as plain text after them.
+# False runs the whole line as one plain middot string — which is also
+# what a clip whose probe hasn't answered yet falls back to.
+seekbar_details_pill = true
+seekbar_details_size = 12.0
+# How fast a chip grows into the hover and shrinks back out of it —
+# a fraction of the remaining distance per frame at 60fps. It used to
+# snap at both ends, which reads as the strip flickering under a moving
+# pointer rather than as chips answering it.
+strip_hover_k = 0.22
+# The splash masthead — the wordmark banner above the drop frame, the
+# library list and the `L` picker's rows. Off, the page closes up around
+# the gap rather than leaving a hole where the image was.
+banner = true
+# A banner PNG of your own, replacing the built-in one. `~` expands; empty
+# = the app's own art. Startup-only because the assets texture is decoded
+# and uploaded once at launch. A path that isn't there, or isn't a PNG,
+# logs a warning and leaves the built-in in place.
+#
+# The .app bundle carries a whole FOLDER of banners
+# (Switchblade.app/Contents/Resources/banner/) and picks one at random
+# each launch; naming a file here overrides that too. Drop your own PNGs
+# in that folder to join the rotation.
+banner_image = ""
+# A directory you name (CLI path, drop, library binding) may carry a
+# `.index` file: newline-separated paths, pre-sorted by whatever produced
+# it (most recent first, usually). When present it drives that
+# directory's ingest INSTEAD of the walk, in the file's own order (the
+# default sort = "none" keeps it). false = ignore `.index` files and
+# always walk.
+use_index = true
 [tags]
 # Chip fill, coldest (rarest tag) → hottest (most used).
 fill = [
@@ -613,7 +689,7 @@ fill = [
 ]
 # Label colour ramp and size ramp [min, max], sampled by the same heat.
 text = [[0.81, 0.84, 0.88, 1.0], [1.0, 1.0, 1.0, 1.0]]
-size = [12.0, 15.0]
+size = [13.0, 13.0] 
 # Halo behind hot chips (0 = off).
 glow = 0.45
 # How counts map onto the ramps. "log" (default) suits the long tail a real
@@ -621,7 +697,7 @@ glow = 0.45
 # ignores counts and spreads the ramp evenly over the sorted list.
 scale = "log"
 # Colour a chip's label takes while it matches what you have typed.
-match = [1.0, 1.0, 1.0, 1.0]
+# match = [1.0, 1.0, 1.0, 1.0]   # REMOVED from switchblade: folded into [theme] match
 # Show each tag's clip count beside its name.
 counts = true
 # The panel itself, and how far non-matching chips fade (they fade IN
@@ -633,20 +709,20 @@ faded = 0.12
 dim = 0.13
 # The veil over the grid: dim strength and frosted-glass blur (0 = none,
 # 1..4 progressively softer).
-veil = 0.5
-blur = 2.0
+# veil = 0.88   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
+# blur = 2.0   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
 # Focus is a RING, never a fill change — the fill already means something.
 ring = [1.0, 1.0, 1.0, 0.55]
 ring_width = 2.0
 # Panel geometry and chip padding.
 width = 620.0
-max_height = 440.0
+max_height = 0.75 
 gap = 9.0
 inset = 21.0
 radius = 13.0
-top = 96.0
+# top = 96.0   # REMOVED from switchblade: gone — the panel centres itself now
 pad_x = 13.0
-pad_y = 5.0
+pad_y = 2.5 
 fade_ms = 160.0
 
 # ── Search bar (`/`) ───────────────────────────────────────────────────────
@@ -665,6 +741,23 @@ fade_ms = 160.0
 # {specs} #tags ★★★` — the same trick as the star rating and the hashtags:
 # no sidecar, no database, and it survives a copy to another machine. A
 # container `title` tag, where a file carries one, wins over the parsed title.
+
+# ── Added from the repo defaults, 2026-09-03 ──────────────────────────
+# The chip wears a leading `#` cap segment against a darker ground, with
+# the tag punched through the rest of the capsule in tracked uppercase.
+# `false` gives the plain lowercase capsule instead.
+hash = true
+hash_fill = [0.0, 0.0, 0.0, 0.22]
+# The `#` is set larger than the tag it introduces, and the two sit this
+# far apart on each side of the seam.
+hash_scale = 1.31
+hash_inset = 9.0
+glow_hover = 1.0
+hover_brightness = 1.18
+count_scale = 0.88
+count_alpha = 1.0
+# veil_height = 420.0   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
+# veil_steps = 24   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
 [search]
 # The bar: width (shared with the panel), distance below the top edge, and
 # height. THE BAR IS A PILL — its corner radius is always half the height,
@@ -675,7 +768,7 @@ width = 640.0
 top = 132.0
 height = 58.0
 radius = 16.0
-bar = [0.05, 0.05, 0.06, 0.96]
+# bar = [0.05, 0.05, 0.06, 0.96]   # REMOVED from switchblade: folded into [theme] surface + bar_alpha
 border = [0.0, 0.0, 0.0, 0.0]
 border_width = 0.0
 # The query: white and large — it is the surface's whole subject. There is no
@@ -687,7 +780,7 @@ icon_scale = 1.9
 size = 21.0
 # The text caret, and the colour matched characters take in the results.
 caret = [1.0, 1.0, 1.0, 0.9]
-match = [0.45, 0.85, 1.0, 1.0]
+# match = [0.45, 0.85, 1.0, 1.0]   # REMOVED from switchblade: folded into [theme] match
 # The results panel. Black on purpose: a list of titles over a grid of moving
 # video needs a floor, not a frost.
 backdrop = [0.0, 0.0, 0.0, 0.92]
@@ -725,10 +818,10 @@ max_hits = 400
 # never competing with it, and dimming it there just made the app look
 # switched off. `veil_steps` is how many flat bands approximate the ramp.
 # `blur` frosts what is under the scrim (0 = none, 1..4 progressively softer).
-veil = 0.88
-veil_height = 420.0
-veil_steps = 24
-blur = 0.0
+# veil = 0.88   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
+# veil_height = 420.0   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
+# veil_steps = 24   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
+# blur = 0.0   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
 # Drop-in / retract duration.
 fade_ms = 90.0
 
@@ -742,24 +835,33 @@ fade_ms = 90.0
 # keymap, so they stay fixed labels; a row whose action the current config
 # has switched off (`i`'s performance panel while perf_panel = false)
 # dims rather than disappears. Esc or `?` again closes it.
+
+# ── Added from the repo defaults, 2026-09-03 ──────────────────────────
+# The bar's opacity over the design layer's `theme.surface` — the ground
+# hue is shared with every panel, so only the alpha is this surface's own.
+bar_alpha = 0.96
 [help]
 width = 560.0
 max_height = 640.0
 top = 70.0
 radius = 24.0
-backdrop = [0.04, 0.045, 0.05, 0.94]
+# backdrop = [0.04, 0.045, 0.05, 0.94]   # REMOVED from switchblade: now backdrop_alpha over [theme] surface
 veil = 0.55
 blur = 3.0
-row_height = 34.0
+row_height = 38.0
 section_gap = 22.0
-key_bg = [1.0, 1.0, 1.0, 0.10]
-key_text = [0.95, 0.95, 0.96, 1.0]
+# key_bg = [1.0, 1.0, 1.0, 0.10]   # REMOVED from switchblade: folded into [theme.keycap]
+# key_text = [0.95, 0.95, 0.96, 1.0]   # REMOVED from switchblade: folded into [theme.keycap]
 # Standout keys (the panel's own `?`, `D`, ...) wear this instead of the
 # plain keycap fill.
-accent = [1.0, 0.216, 0.376, 1.0]
+# accent = [1.0, 0.216, 0.376, 1.0]   # REMOVED from switchblade: folded into [theme] accent
 disabled = 0.42
 fade_ms = 160.0
 
+
+# ── Added from the repo defaults, 2026-09-03 ──────────────────────────
+# The panel's opacity over the design layer's `theme.surface`.
+backdrop_alpha = 0.94
 [pad]
 # Delay before a HELD direction starts repeating. This is the "I pushed
 # left and it sat there" number — lower it if the pad feels sticky,
@@ -949,3 +1051,276 @@ preview = "mpv --no-fs --loop-file=inf --ontop --no-terminal --force-window=imme
 # type = "internal"
 # action = "skip_back"
 # amount = 0.25
+
+# ══ Tables added from the repo defaults, 2026-09-03 ══════════════════
+
+# ── Actors popup (@) ────────────────────────────────────────────────────
+# The cast comes from the FILENAME's prefix: "Yeri Blue, Nala - Harbour
+# Wall.mp4" names two people (commas, "&" and "and" separate names). Press
+# "@" for a popup of the library's cast; it works exactly like the hashtags
+# popup — type to narrow in place, arrows walk, Enter or a click narrows
+# the grid to that person, pick again to remove — and it adds to the SAME
+# filter the hashtags do: a tag and a name together keep only the clips
+# wearing both. Esc clears the lot.
+#
+# Same table shape as [tags], defaulting to the design system's PEOPLE
+# pill: a knockout white capsule with the name punched through it in
+# uppercase. Every ramp is one stop, so a pill is flat whatever its count.
+# Anything left out keeps that default — set a key to change one thing.
+[actors]
+fill = [[1.0, 1.0, 1.0, 0.92]]
+text = [[0.0, 0.0, 0.0, 1.0]]
+size = [13.0, 13.0]
+# Focus is the accent ring, with a halo in the same colour (glow = 0 for
+# the ring alone).
+ring = [1.0, 0.216, 0.376, 1.0]
+glow = 0.85
+counts = true
+# The count reads at the name's own size.
+count_scale = 1.0
+
+# ── Search bar (`/`) ───────────────────────────────────────────────────────
+# `/` drops a search bar in from the top; type and a floating panel of ranked
+# matches unfolds under it, each row carrying the clip's thumbnail, its title
+# and its cast. ctrl+n / ctrl+p (or the arrows) walk the results, and a small
+# preview video hovers beside the cursored row, playing it — it follows the
+# cursor, so walking the list IS previewing it. Enter jumps to the clip, esc
+# or `/` again puts it away. Matching is EXACT, like fzf's --exact: every
+# whitespace-separated term must appear as a literal substring, AND-ed and
+# order-independent, so `wall harb` finds "Harbour Wall" but `hrbdrn` finds
+# nothing. Unlike the hashtags popup this does NOT filter the grid: it moves
+# the selection.
+#
+# Titles and cast come from the FILENAME — `Actors - Title [Studio] (site)
+# {specs} #tags ★★★` — the same trick as the star rating and the hashtags:
+# no sidecar, no database, and it survives a copy to another machine. A
+# container `title` tag, where a file carries one, wins over the parsed title.
+
+# ── Library picker (L) ──────────────────────────────────────────────────
+# `L` brings the empty splash's QUICK JUMP list back over a loaded grid:
+# the masthead slides down from above, the list rises from below, a digit
+# or Enter opens a library and Esc cancels. The rows themselves are the
+# splash's (one shared component), so their size isn't tunable here —
+# what is, is the surface: where it rests, how it arrives, and its scrim.
+[libs]
+# The list's width, and how far below the top edge the masthead settles.
+width = 520.0
+top = 86.0
+# The masthead's display width (its height follows the logo's own aspect)
+# and the space between it and the list's header.
+logo_width = 480.0
+gap = 40.0
+# The list's floor and its padding. A column of paths over a grid of
+# moving video needs one — set the alpha to 0 for the gradient alone.
+backdrop = [0.0, 0.0, 0.0, 0.93]
+radius = 14.0
+inset = 34.0
+# The scrim is the search bar's: a GRADIENT from the top edge, `veil`
+# black at the very top fading to nothing `veil_height` down, in
+# `veil_steps` flat bands. `blur` frosts what is under it (0 = none).
+veil = 0.9
+veil_height = 560.0
+veil_steps = 24
+blur = 0.0
+# Slide-in / retract duration.
+fade_ms = 150.0
+
+# ── Keybindings help panel (?) ───────────────────────────────────────────
+# `?` drops a dark rounded panel over the grid: every bound action, grouped
+# into Move/Quickview/Cinema mode/Search/Playback/Zoom & grid/Filter/Clip
+# actions/Window & app. Each row's keycap(s) are read LIVE off the resolved
+# [keys] table — remap a key here and the panel shows the new one within
+# the same ~250ms hot-reload as everything else. Mouse-only bindings
+# (click/right-click/⌘-click) and gamepad (pad_*) buttons aren't in the
+# keymap, so they stay fixed labels; a row whose action the current config
+# has switched off (`i`'s performance panel while perf_panel = false)
+# dims rather than disappears. Esc or `?` again closes it.
+
+# ── Theme: the shared design tokens ────────────────────────────────────────
+# Anything two surfaces would otherwise both spell out lives here, not in
+# either one's own table: the accent is THE accent wherever it appears, and
+# a keycap is the same key whether the help panel or the empty-state splash
+# draws it. See crates/sb-app/src/theme.rs — components are built from
+# these, so retuning one value retunes every surface that uses it.
+[theme]
+# The brand red: the hot action, the applied filter, the live thing.
+accent = [1.0, 0.216, 0.376, 1.0]
+# Primary text on a dark surface.
+ink = [0.93, 0.94, 0.96, 1.0]
+# A component's own ground (#0b0d11) — opaque, so a widget carries its own
+# background instead of borrowing whatever is behind it. The keycaps were
+# a translucent grey wash before and had no edge of their own against the
+# near-black window.
+surface = [0.043, 0.051, 0.067, 1.0]
+# The hairline outline that gives `surface` an edge, the inset highlight
+# along a component's top edge, and what it casts below. The
+# highlight-over-shadow pair is what makes a flat rect read as a key.
+hairline = [1.0, 1.0, 1.0, 0.11]
+highlight = [1.0, 1.0, 1.0, 0.07]
+shadow = [0.0, 0.0, 0.0, 0.55]
+# The part that answers your query — the search rows' lit substrings and
+# the tag popup's matching chips. One semantic, one colour, everywhere.
+match = [0.9, 0.85, 0.05, 1.0]
+# How hard a match glows: the peak alpha of the halo BEHIND the lit
+# letters (0 = no halo). The bloom is what lets the light read on the
+# actors pill's white ground.
+match_glow = 0.25
+# ...and how much of its own ink the matched run keeps over that halo.
+# The glow lights the letters from behind rather than replacing them: a
+# lit word should read as that word, lit, not as a coloured blur where
+# the word had been. 0 lets the letters vanish into the glow.
+match_ink = 1.0
+
+# Keycap metrics. `inline` is the smaller cap for one sitting in a line of
+# prose; width is derived from the label (the face is monospaced, so it is
+# pad_em*2 + 0.6 per character, in ems of the cap's own font) and floored
+# at the height, which keeps a single character square while `esc` grows.
+
+# Keycap metrics. `inline` is the smaller cap for one sitting in a line of
+# prose; width is derived from the label (the face is monospaced, so it is
+# pad_em*2 + 0.6 per character, in ems of the cap's own font) and floored
+# at the height, which keeps a single character square while `esc` grows.
+
+# The BACKDROP every dialog stands on — the search bar and both chip
+# popups. `scrim` is the black's peak alpha at the TOP edge, fading to
+# nothing `scrim_height` down the window over `scrim_steps` flat bands;
+# `scrim_blur` is how far the grid behind is defocused (0 = none, 1..4).
+# The grid under a dialog is also FROZEN until it closes.
+scrim = 0.88
+scrim_height = 420.0
+scrim_steps = 24
+scrim_blur = 3.0
+[theme.keycap]
+height = 30.0
+height_inline = 22.0
+radius = 6.5
+radius_inline = 5.0
+pad_em = 0.58
+font = 17.0
+# A WORD key (`esc`, `space`) is set smaller than a single glyph.
+font_wide = 13.5
+font_inline = 13.5
+gap = 4.0
+# Peak alpha of an accent cap's glow (0 = no glow), how far the shadow
+# sits below the cap, and how far the cap lifts under the pointer.
+glow = 0.30
+shadow_drop = 1.5
+hot_lift = 1.0
+
+# Technical tags: the two-part lockups stating what a file IS — a solid
+# block of the category's hue carrying the label, the value beside it in
+# the same hue. One hue per kind of fact, so a run is read by colour before
+# it is read as words. Worn by the seekbar's details line and, at the
+# `inline` size, by the search panel's result rows. Widths are estimated
+# (the design layer's `est_width`, plus the tracking below), which is what
+# lets the app place something after a run.
+
+# Technical tags: the two-part lockups stating what a file IS — a solid
+# block of the category's hue carrying the label, the value beside it in
+# the same hue. One hue per kind of fact, so a run is read by colour before
+# it is read as words. Worn by the seekbar's details line and, at the
+# `inline` size, by the search panel's result rows. Widths are estimated
+# (the design layer's `est_width`, plus the tracking below), which is what
+# lets the app place something after a run.
+[theme.tech_tag]
+# The design system's own metrics (Badge.jsx): a 13px face with 6px above
+# and below it inside a 1.5px edge, so the lockup stands 28px tall on a 5px
+# radius. The inline variant is the app's — the design has one size — and
+# holds the same ratios at the face a search row can seat.
+height = 28.0
+height_inline = 22.0
+radius = 5.0
+font = 13.0
+font_inline = 10.0
+# Space either side of each half's text, in ems of the lockup's own font.
+# The halves differ, as the design's do: the value is the more tracked of
+# the two and the extra em keeps its last letter off the outline.
+pad_label_em = 0.69
+pad_value_em = 0.77
+# Letter tracking (ems) for each half. The width estimate adds it, because
+# tracking is real width and a run that under-measured would creep under
+# whatever the caller placed after it.
+track_label = 0.06
+track_value = 0.10
+gap = 10.0
+# Outline weight, drawn in the category's hue: the shape's own edge, not a
+# separator from a background. It insets, so changing it never moves the
+# run's measured width. (The design's 4px border is `--bw-selection`, the
+# selected tile's ring — `selection_border_width` here, not this.)
+border = 1.5
+# Alpha of the dark ground under the value half. The design draws it on
+# nothing, which is right on a panel and illegible over a video frame.
+ground = 0.82
+# The category hues.
+res = [0.435, 0.863, 1.0, 1.0]
+fps = [0.784, 1.0, 0.373, 1.0]
+codec = [1.0, 0.831, 0.373, 1.0]
+meta = [0.816, 0.749, 1.0, 1.0]
+
+# ── Keys & commands (DESIGN.md §11) ────────────────────────────────────────
+# Every key is remappable, movement included: hjkl and the arrows bind to
+# the context-sensitive `move_left`/`move_down`/`move_up`/`move_right`
+# actions by default — in the grid and quickview they move the selection,
+# in fullview (chapter bar up or not) left/right step the playing clip
+# between chapters (real chapters, or the synthesized checkpoints the
+# chapter bar shows) instead. The plain `next`/`prev` actions remain for
+# bindings that should always move the selection (auto-skip fires `next`).
+# Built-in defaults: enter/o = exec (play in mpv) · space = quickview ·
+# tab = fullview · c = copy_path · q = quit · f = fullscreen ·
+# n / p (and . / ,) = next / prev clip · P = toggle_focus_pause ·
+# 3 = triple play · r = reveal · -/=/0 = zoom · [ / ] = skip
+# back/fwd through the playing clip · / = search · # = hashtags popup ·
+# ? = keybindings help panel · D = browse the selected clip's
+# parent dir · R = reload the selected clip (re-stat it, re-check the
+# cache, re-read its metadata — for a file that changed on disk under a
+# running session). Entries here override them.
+#
+# A binding is a command name, optionally followed by an inline argument
+# in quotes — one shape for everything:
+#   "1" = "open '~/Movies/Prawns/'"                        # swap the library
+#   "a" = "exec 'cat ~/Movies/.index | sb --fast-fullscreen'"   # run a command
+#
+# A key can name an internal action (quit, fullscreen, fast_fullscreen,
+# copy_path, quickview, fullview, chapter_mode, triple_play,
+# toggle_focus_pause, zoom_in, zoom_out, zoom_reset, move_left,
+# move_right, move_up, move_down, next, prev, skip_forward, skip_back,
+# open_parent, open (swap the library, needs a path), reload, jump_random,
+# shuffle_library, toggle_auto_skip, tag_popup, search) or any
+# [commands.*] entry below. In
+# commands, {path}, {dir} and {name} expand against the selected clip.
+#
+# Several keys may share one action — the arrows ship bound to the same
+# move_* actions as hjkl, and you can point more keys at anything.
+#
+# `open` swaps the whole library to a directory named inline (a leading ~
+# expands, quote paths with spaces); it walks subfolders when `recurse`
+# is on, just like passing the dir on the command line. Handy for one-key
+# "library" switches ("open_library"/"open_dir"/"library" alias it):
+#   "1" = "open '~/Movies/Prawns/'"
+#   "2" = "open '/Volumes/Prawns/Movies/'"
+#
+# `exec '<command line>'` runs a command line the way you'd type it in a
+# terminal — pipes, flags, redirects and all — so one key can launch a
+# whole other library, a player with your own flags, or a script:
+#   "a" = "exec 'cat /Volumes/Tower/Movies/.index | sb --fast-fullscreen'"
+#   "v" = "exec 'mpv --loop-file=inf {path}'"
+#   "n" = "exec '~/bin/rename-media {path}'"
+# It runs in /bin/sh with nothing selected too (handy for the library
+# launchers above), and {path}/{dir}/{name} come out quoted, so spaces in
+# a filename never split into two arguments — write {path}, not "{path}".
+# ("run"/"sh"/"shell" alias exec; a bare `exec` runs [commands.exec].)
+#
+# fullscreen = macOS native (the window animates into its own Space);
+# fast_fullscreen = mpv-style: a borderless window covering the screen —
+# instant, and you stay on the current Space. Either exits whichever
+# fullscreen mode is active, so bind one or both:
+# f = "fast_fullscreen"
+# The --fullscreen / --fast-fullscreen CLI flags start the app that way.
+
+# ── Gamepad feel ────────────────────────────────────────────────────────
+# A stick is a RATE control, not a key: how far you push it sets how fast
+# the selection walks. Each pair below is [at the engage threshold, at
+# full deflection] — a light lean gets the first number, burying the
+# stick gets the second, and anything between is interpolated. Set a
+# pair to the same value on both ends for one fixed rate, keyboard-style.
+# All hot-reload: edit, save, feel the difference without restarting.
