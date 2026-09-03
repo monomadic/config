@@ -30,11 +30,14 @@ usage() {
 usage: mp4-embed-vtt SUBS.vtt [VIDEO.mp4] [options]
 
 Embeds SUBS.vtt into VIDEO.mp4 as a mov_text subtitle track. If VIDEO.mp4 is
-omitted, it is SUBS.vtt with the extension replaced by .mp4.
+omitted, it is found by replacing SUBS.vtt's extension with .mp4, then peeling
+off any language suffixes: "ep01.en.vtt" finds "ep01.en.mp4" or "ep01.mp4".
 
 options:
   -o, --output FILE   write here instead of replacing the input in place
-  -l, --lang CODE     ISO 639-2 language for the track (default: und)
+  -l, --lang CODE     ISO 639-2 language for the track. Default: read from the
+                      suffix the subtitle and video names differ by
+                      ("ep01.en.vtt" beside "ep01.mp4" gives eng), else und
   -t, --title TEXT    track title
       --default       mark the new track as the default subtitle track
   -n, --dry-run       print the ffmpeg command and exit
@@ -45,11 +48,11 @@ USAGE
 die() { printf 'mp4-embed-vtt: %s\n' "$*" >&2; exit 1; }
 note() { printf '  %s\n' "$*" >&2; }
 
-VTT= MP4= OUT= SLANG=und TITLE= DEFAULT=0 DRY=0
+VTT= MP4= OUT= SLANG=und LANG_SET=0 TITLE= DEFAULT=0 DRY=0
 while [ $# -gt 0 ]; do
   case $1 in
     -o|--output)  OUT=${2:?--output needs a path}; shift 2 ;;
-    -l|--lang)    SLANG=${2:?--lang needs a code}; shift 2 ;;
+    -l|--lang)    SLANG=${2:?--lang needs a code}; LANG_SET=1; shift 2 ;;
     -t|--title)   TITLE=${2:?--title needs text}; shift 2 ;;
     --default)    DEFAULT=1; shift ;;
     -n|--dry-run) DRY=1; shift ;;
@@ -67,13 +70,74 @@ done
 # with no cues, so check the signature rather than discover it after a remux.
 head -c 6 -- "$VTT" | grep -q '^WEBVTT' || die "$VTT does not start with WEBVTT"
 
-# Default the video to the subtitle's name with the extension swapped. Only the
-# final extension goes, so "ep01.en.vtt" looks for "ep01.en.mp4".
+# Default the video to the subtitle's name with the extension swapped. Subtitle
+# files usually carry the language in a suffix of their own ("ep01.en.vtt",
+# "ep01.en.sdh.vtt"), so keep peeling dotted suffixes off the stem until a video
+# turns up. The unstripped stem is tried first, because "S01.E02.mp4" is also a
+# real filename; only the basename is peeled, so a dot in a parent directory is
+# never eaten.
 if [ -z "$MP4" ]; then
-  MP4=${VTT%.*}.mp4
-  [ -f "$MP4" ] || die "no video given and ${MP4} does not exist"
+  case $VTT in */*) dir=${VTT%/*}/ ;; *) dir= ;; esac
+  stem=${VTT##*/}; stem=${stem%.*}
+  tried=
+  while :; do
+    if [ -f "$dir$stem.mp4" ]; then MP4=$dir$stem.mp4; break; fi
+    tried="${tried:+$tried, }$dir$stem.mp4"
+    case $stem in
+      ?*.?*) stem=${stem%.*} ;;
+      *)     die "no video given and none of these exist: $tried" ;;
+    esac
+  done
 fi
 [ -f "$MP4" ] || die "no such file: $MP4"
+
+# ISO 639-1 -> ISO 639-2/T, plus the 639-2/B spellings that turn up in
+# filenames. ISO 14496-12 asks for 639-2/T in an MP4 language field, so "de"
+# becomes "deu" rather than the /B "ger" — players decode both, but only one is
+# the container's own spelling.
+LANG_TABLE='ar:ara bg:bul bn:ben ca:cat cs:ces cy:cym da:dan de:deu el:ell
+en:eng eo:epo es:spa et:est eu:eus fa:fas fi:fin fr:fra ga:gle gl:glg he:heb
+hi:hin hr:hrv hu:hun hy:hye id:ind is:isl it:ita ja:jpn ka:kat kk:kaz km:khm
+ko:kor lt:lit lv:lav mk:mkd ml:mal mn:mon ms:msa my:mya nb:nob ne:nep nl:nld
+nn:nno no:nor pa:pan pl:pol pt:por ro:ron ru:rus si:sin sk:slk sl:slv sq:sqi
+sr:srp sv:swe sw:swa ta:tam te:tel th:tha tl:tgl tr:tur uk:ukr ur:urd uz:uzb
+vi:vie zh:zho alb:sqi arm:hye baq:eus bur:mya chi:zho cze:ces dut:nld fre:fra
+ger:deu gre:ell ice:isl mac:mkd may:msa per:fas rum:ron slo:slk tib:bod
+wel:cym'
+
+# A tag not in the table produces nothing, and that is what keeps the other
+# suffixes people use — .sdh, .forced, .cc — from being read as languages.
+lang_from_tag() {
+  local t pair
+  t=$(printf '%s' "${1%%[-_]*}" | tr '[:upper:]' '[:lower:]')
+  for pair in $LANG_TABLE; do
+    case $pair in
+      "$t":*) printf '%s' "${pair#*:}"; return 0 ;;
+      *:"$t") printf '%s' "$t"; return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# The language is named in the suffix the two filenames differ by:
+# "ep01.en.sdh.vtt" against "ep01.mp4" leaves "en sdh". Only that gap is read,
+# so a language-shaped word inside the shared stem ("The.It.Crowd.en.vtt") can
+# never be taken for the tag — and an explicit --lang always wins.
+if [ "$LANG_SET" -eq 0 ]; then
+  sstem=${VTT##*/}; sstem=${sstem%.*}
+  vstem=${MP4##*/}; vstem=${vstem%.*}
+  case $sstem in
+    "$vstem".*)
+      IFS=. read -r -a TAGS <<< "${sstem#"$vstem".}"
+      for tag in "${TAGS[@]}"; do
+        if guess=$(lang_from_tag "$tag"); then
+          SLANG=$guess
+          note "language $SLANG inferred from .$tag (override with --lang)"
+          break
+        fi
+      done ;;
+  esac
+fi
 
 for t in ffmpeg ffprobe; do
   command -v "$t" >/dev/null || die "$t not found on PATH"
