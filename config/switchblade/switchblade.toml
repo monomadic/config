@@ -923,6 +923,7 @@ o = "library_picker"
 "cmd+o" = "launch mpv-send play {path}"
 p = "prev"
 "cmd+r" = "refresh"
+"cmd+shift+r" = "reload_library"
 r = "reveal"
 s = "shuffle_library"  # shuffle the whole grid in place ("shuffle" also works)
 e = "launch '/Users/nom/.zsh/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /Users/nom/.cargo/bin/tagform {path}'"

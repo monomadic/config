@@ -1,31 +1,55 @@
 #!/usr/bin/env zsh
-# mp4doctor — diagnose and repair MP4/MOV/M4V container structure.
+# mp4doctor — diagnose and repair MP4/MOV/M4V container structure for streaming.
 #
 # The structural half of media-audit, split out (the way media-rename owns
 # filenames) so it can run standalone over a whole library:
 #
-#   mp4doctor **/*.mp4              # report what's wrong
-#   mp4doctor --fix **/*.mp4        # repair it
+#   mp4doctor **/*.mp4              # report every check and its result
+#   mp4doctor --fix **/*.mp4        # repair what is repairable
+#   mp4doctor --deep FILE           # also decode every frame, looking for rot
 #   mp4doctor ~/Movies              # a directory recurses
 #
-# Two structural defects, one cure. "no-faststart" is the classic moov-at-end
-# layout (progressive playback must download the whole file before it can
-# start). "fragmented" is worse: ~one moof header per keyframe and no global
-# sample table, so every mid-file seek parses moof headers sequentially from
-# the start — over a network share that is one round trip per fragment
-# (measured: a single thumbnail seek into a ~1,000-fragment file pinned an
-# ffmpeg worker for 23 s over SMB). Both are fixed by the same lossless
-# remux: -c copy -movflags +faststart, which rebuilds one indexed mdat with
-# the moov in front. Timestamps survive (creation date via SetFile, mtime
-# via touch -r); note that the file's size changes, so size+mtime-keyed
-# caches (e.g. switchblade's) will re-key the file.
+# Eleven checks per file, always reported in the same order, so the output of
+# a healthy file and a broken one line up:
 #
-# NAME.frag.EXT files are never touched: that label is topaz-encode's
-# in-flight fragmented output — an UNFINISHED encode. Resume it
-# (`topaz-encode --resume NAME.frag.EXT`) or delete it; remuxing it would
-# freeze a partial as if it were done.
+#   filename        is the name valid UTF-8? (informational; nothing is renamed)
+#   atom chain      do the top-level atoms parse cleanly from front to back?
+#   completeness    do the atoms and the sample tables stay inside the file?
+#   fragmentation   any moof headers (a fragmented file has no global index)?
+#   faststart       does the moov index precede the mdat payload?
+#   startup         how many bytes must arrive before the first frame decodes?
+#   interleaving    are the audio and video chunks woven together in file order?
+#   seek points     how far apart are the keyframes a seek can land on?
+#   codecs          are the sample entries tagged the way players expect?
+#   edit lists      is there an elst that will shift playback?
+#   dead space      how many bytes does nothing reference?
 #
-# media-audit delegates its faststart check and single-issue fix here.
+# Four defects are repairable, all by the same lossless remux. "no-faststart"
+# is the classic moov-at-end layout (progressive playback must download the
+# whole file before it can start). "fragmented" is worse: ~one moof header per
+# keyframe and no global sample table, so every mid-file seek parses moof
+# headers sequentially from the start — over a network share that is one round
+# trip per fragment (measured: a single thumbnail seek into a ~1,000-fragment
+# file pinned an ffmpeg worker for 23 s over SMB). "poor-interleave" is the
+# third: the moov is in front and indexed, but the audio chunks do not sit next
+# to the video chunks they play with, so a player streaming the file holds two
+# read heads far apart — over HTTP that means range requests ping-ponging
+# across the file, and over SMB it defeats readahead entirely. "hev1-tag" is
+# the fourth: HEVC in an mp4 tagged hev1 instead of hvc1 is refused outright by
+# Safari, QuickTime and HLS, and the tag is the only thing wrong with it.
+#
+# The cure is -c copy -movflags +faststart (plus -tag:v hvc1 where that is the
+# defect), which rebuilds one indexed mdat with the moov in front and
+# re-interleaves the packets by DTS on the way through. Timestamps survive
+# (creation date via SetFile, mtime via touch -r); note that the file's size
+# changes, so size+mtime-keyed caches (e.g. switchblade's) will re-key it.
+#
+# Everything except --deep is measured from the header and the moov sample
+# tables (stsc/stco/stsz/stts/stss/stsd/elst) — never from the media payload —
+# so a full report costs a few tens of milliseconds even on a multi-gigabyte
+# file over a network share. --deep adds a real decode of every frame, which
+# is the only way to catch bitstream rot inside otherwise intact structure,
+# and costs what a full read costs.
 set -u
 setopt pipefail extended_glob null_glob
 
@@ -34,51 +58,91 @@ script_name="${0:t}"
 usage() {
   cat >&2 <<EOF
 usage:
-  $script_name [--fix] [--verbose] [--quiet] [--] file-or-dir ...
+  $script_name [--fix] [--deep] [--one-line] [--verbose] [--quiet] [--no-color] [--] file-or-dir ...
   $script_name --state -- file
 
-Without --fix, reports each file's container state and changes nothing.
-With --fix, losslessly remuxes fragmented / non-faststart files in place
-(atomic tmp + duration verification; creation date and mtime preserved).
-Because the remux is atomic-by-copy it needs free space for a second copy of
-each file; --fix exits 3 if that was the only thing that stopped it.
+Reports eleven checks per file — filename, atom chain, completeness,
+fragmentation, faststart, startup, interleaving, seek points, codecs, edit
+lists, dead space — with the evidence behind each result, and changes nothing.
+
+With --fix, losslessly remuxes the repairable defects in place (atomic tmp +
+duration verification; creation date and mtime preserved) and reports each step
+of the repair. Because the remux is atomic-by-copy it needs free space for a
+second copy of each file; --fix exits 3 if that was the only thing that
+stopped it.
+
+With --deep, additionally decodes every frame to catch bitstream corruption
+that the sample tables cannot reveal. This reads the whole file; the other
+checks read only the header and the moov.
+
+Thresholds: interleave skew up to ${SKEW_OK}s passes and up to ${SKEW_FAIL}s is
+reported without counting as a defect; keyframes more than ${GOP_WARN}s apart,
+a moov over $(( MOOV_WARN_BYTES / 1048576 )) MiB, and dead space over ${DEAD_WARN_PCT}%
+are reported but are not remux-repairable defects either.
 
 Directories recurse for *.mp4 / *.mov / *.m4v. Other extensions are skipped.
 
 --state is the machine interface (used by media-audit): prints one word for
-one file — faststart | no-faststart | fragmented | frag-partial |
-inconclusive — and exits 0 (healthy), 1 (repairable), 3 (frag-partial:
-an unfinished topaz-encode, resume or delete it), or 2 (inconclusive).
+one file — faststart | poor-interleave | hev1-tag | no-faststart | fragmented
+| truncated | bad-chunk-map | inconclusive — and exits 0 (healthy), 1 (repairable by remux),
+or 2 (damaged or unreadable: needs a human, never auto-repaired).
 
---verbose also lists healthy files; --quiet prints nothing but the summary
-(and with --state, nothing at all — the exit status is the answer).
+--one-line collapses each file to a single row: a bracketed mark per check,
+the verdict, and the elided path. On a terminal the row is drawn as dots and
+filled in as the file is examined, so a long sweep shows progress; the finished
+rows stack into a table, one file per line.
+
+--verbose adds the raw top-level atom map (type, offset, size) per file.
+--quiet prints nothing but the one-line summary (and with --state, nothing at
+all — the exit status is the answer).
+--no-color disables colour, which is otherwise on even when piped. Setting
+NO_COLOR in the environment does the same.
 EOF
 }
 
-C_RESET="" C_DIM="" C_GREEN="" C_RED="" C_YELLOW="" C_CYAN=""
-if [[ -t 1 ]]; then
-  C_RESET=$'\033[0m' C_DIM=$'\033[2m' C_GREEN=$'\033[32m'
-  C_RED=$'\033[31m' C_YELLOW=$'\033[33m' C_CYAN=$'\033[36m'
-fi
+# Thresholds. Skew and GOP are seconds of presentation time; the rest percent.
+SKEW_OK=3
+SKEW_FAIL=10
+GOP_WARN=10
+MOOV_WARN_PCT=2
+MOOV_WARN_BYTES=$(( 4 * 1024 * 1024 ))
+DEAD_WARN_PCT=5
 
 fix_mode=false
+deep=false
+one_line=false
 verbose=false
 quiet=false
 state_mode=false
+use_color=true
+[[ -n "${NO_COLOR:-}" ]] && use_color=false
 typeset -a args=()
 
 while (( $# > 0 )); do
   case "$1" in
     --fix) fix_mode=true; shift ;;
+    --deep) deep=true; shift ;;
+    --one-line|--oneline|-1) one_line=true; shift ;;
     --verbose|-v) verbose=true; shift ;;
     --quiet|-q) quiet=true; shift ;;
     --state) state_mode=true; shift ;;
+    --no-color|--no-colour) use_color=false; shift ;;
+    --color|--colour) use_color=true; shift ;;
     -h|--help|help) usage; exit 0 ;;
     --) shift; args+=("$@"); break ;;
     -*) print -u2 "unknown option: $1"; usage; exit 2 ;;
     *) args+=("$1"); shift ;;
   esac
 done
+
+C_RESET="" C_DIM="" C_GREEN="" C_RED="" C_YELLOW="" C_BLUE="" C_BOLD=""
+if [[ "$use_color" == true ]]; then
+  C_RESET=$'\033[0m' C_DIM=$'\033[2m' C_GREEN=$'\033[32m'
+  C_RED=$'\033[31m' C_YELLOW=$'\033[33m' C_BLUE=$'\033[34m' C_BOLD=$'\033[1m'
+fi
+
+TTY_OUT=false
+[[ -t 1 ]] && [[ -w /dev/tty ]] && TTY_OUT=true
 
 (( ${#args[@]} > 0 )) || { usage; exit 2 }
 
@@ -89,75 +153,1015 @@ is_mp4_family() {
   esac
 }
 
-is_frag_partial() {
-  case "${1:l}" in
-    *.frag.mp4|*.frag.mov|*.frag.m4v) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-# Walk the top-level atoms and classify the container. Prints the state word;
-# exit 0 healthy, 1 repairable, 2 inconclusive. Any moof means fragmented; a
-# real mdat settles the verdict by whether a moov preceded it.
-atom_state() {
-  python3 - "$1" <<'PY'
+# Walk the top-level atoms, then — for a file with a usable global index —
+# read the moov sample tables and derive everything else. Prints a key=value
+# report whose first line is state=<word>; exit 0 healthy, 1 repairable by
+# remux, 2 damaged or unreadable.
+#
+# mode=fast keeps the atom walk short (what media-audit and the post-remux
+# verification want); mode=detail collects the full layout and atom map. Both
+# modes read the moov when the verdict would otherwise be clean, so --state
+# and the report can never disagree.
+atom_probe() {
+  python3 - "$1" "${2:-fast}" "$SKEW_OK" "$SKEW_FAIL" "$GOP_WARN" <<'PY'
+import bisect
 import os
 import struct
 import sys
+import unicodedata
 
 path = sys.argv[1]
+detail = sys.argv[2] == "detail"
+SKEW_OK = float(sys.argv[3])
+SKEW_FAIL = float(sys.argv[4])
+GOP_WARN = float(sys.argv[5])
+ATOM_LIMIT = 4000 if detail else 100000
+MOOV_READ_LIMIT = 256 * 1024 * 1024
+CHUNK_LIMIT = 4000000
+
+# Sample-entry formats a browser or Apple player will actually decode. The
+# point of the codecs check is not to police codec choice but to catch the
+# two cases that silently fail: HEVC tagged hev1, and audio no browser plays.
+XMP_UUID = bytes.fromhex("be7acfcb97a942e89c71999491e3afac")
+CONTAINERS = {"moov", "trak", "udta", "mdia", "minf", "stbl", "edts", "mvex"}
+VIDEO_OK = {"avc1", "hvc1", "av01", "vp09", "vp08", "mp4v"}
+AUDIO_OK = {"mp4a", "Opus", "opus", "fLaC"}
+
+facts = {}
+
+
+def finish(state, code):
+    print("state=%s" % state)
+    for key, value in facts.items():
+        print("%s=%s" % (key, value))
+    sys.exit(code)
+
+
+def clean(text):
+    return "".join(c if 32 < ord(c) < 127 else "?" for c in text).strip()
+
+
+def rle(tokens, limit=12):
+    merged = []
+    i = 0
+    while i < len(tokens):
+        if tokens[i] == "moof" and i + 1 < len(tokens) and tokens[i + 1] == "mdat":
+            merged.append("moof+mdat")
+            i += 2
+        else:
+            merged.append(tokens[i])
+            i += 1
+    out = []
+    i = 0
+    while i < len(merged):
+        j = i
+        while j < len(merged) and merged[j] == merged[i]:
+            j += 1
+        run = j - i
+        out.append(merged[i] if run == 1 else "%s×%d" % (merged[i], run))
+        i = j
+    if len(out) > limit:
+        out = out[:limit] + ["…"]
+    return " ".join(out)
+
+
+def median(values):
+    if not values:
+        return 0.0
+    values = sorted(values)
+    return values[len(values) // 2]
+
+
+# ---------------------------------------------------------------- filename --
+
+name = os.path.basename(path)
+try:
+    name.encode("utf-8")
+    facts["name_utf8"] = 1
+    facts["name_form"] = "NFC" if unicodedata.is_normalized("NFC", name) else "NFD"
+except UnicodeEncodeError:
+    facts["name_utf8"] = 0
+    facts["name_form"] = "?"
+
+# ------------------------------------------------------------ moov parsing --
+
+
+def boxes(buf, start, end):
+    pos = start
+    while pos + 8 <= end:
+        box_size = struct.unpack(">I", buf[pos:pos + 4])[0]
+        box_type = buf[pos + 4:pos + 8].decode("latin-1")
+        hdr = 8
+        if box_size == 1:
+            if pos + 16 > end:
+                return
+            box_size = struct.unpack(">Q", buf[pos + 8:pos + 16])[0]
+            hdr = 16
+        elif box_size == 0:
+            box_size = end - pos
+        if box_size < hdr or pos + box_size > end:
+            return
+        yield box_type, pos + hdr, pos + box_size
+        pos += box_size
+
+
+def child(buf, start, end, want):
+    for box_type, body_start, body_end in boxes(buf, start, end):
+        if box_type == want:
+            return body_start, body_end
+    return None
+
+
+def descend(buf, start, end, *names):
+    span = (start, end)
+    for want in names:
+        span = child(buf, span[0], span[1], want)
+        if span is None:
+            return None
+    return span
+
+
+def u32(buf, at):
+    return struct.unpack(">I", buf[at:at + 4])[0]
+
+
+def parse_trak(buf, start, end, movie_timescale):
+    mdia = child(buf, start, end, "mdia")
+    if mdia is None:
+        return None
+    hdlr = child(buf, mdia[0], mdia[1], "hdlr")
+    mdhd = child(buf, mdia[0], mdia[1], "mdhd")
+    if hdlr is None or mdhd is None:
+        return None
+    kind = buf[hdlr[0] + 8:hdlr[0] + 12].decode("latin-1")
+    version = buf[mdhd[0]]
+    timescale = u32(buf, mdhd[0] + (20 if version == 1 else 12))
+    if timescale <= 0:
+        return None
+
+    stbl = descend(buf, mdia[0], mdia[1], "minf", "stbl")
+    if stbl is None:
+        return None
+    stts = child(buf, stbl[0], stbl[1], "stts")
+    stsc = child(buf, stbl[0], stbl[1], "stsc")
+    stsz = child(buf, stbl[0], stbl[1], "stsz")
+    stco = child(buf, stbl[0], stbl[1], "stco")
+    wide = False
+    if stco is None:
+        stco = child(buf, stbl[0], stbl[1], "co64")
+        wide = True
+    if stts is None or stsc is None or stsz is None or stco is None:
+        return None
+
+    track = {"kind": kind, "timescale": timescale}
+
+    # Sample entry format: the four-character code players switch on.
+    stsd = child(buf, stbl[0], stbl[1], "stsd")
+    if stsd is not None and u32(buf, stsd[0] + 4) and stsd[0] + 16 <= stsd[1]:
+        entry = stsd[0] + 8
+        track["codec"] = clean(buf[entry + 4:entry + 8].decode("latin-1"))
+        if kind == "vide" and entry + 36 <= stsd[1]:
+            width, height = struct.unpack(">HH", buf[entry + 32:entry + 36])
+            if width and height:
+                track["geometry"] = "%d×%d" % (width, height)
+        elif kind == "soun" and entry + 36 <= stsd[1]:
+            channels = struct.unpack(">H", buf[entry + 24:entry + 26])[0]
+            rate = struct.unpack(">I", buf[entry + 32:entry + 36])[0] >> 16
+            if rate:
+                track["geometry"] = "%d Hz %s" % (
+                    rate, {1: "mono", 2: "stereo"}.get(channels, "%dch" % channels))
+
+    # Chunk offsets.
+    n_off = u32(buf, stco[0] + 4)
+    if n_off == 0 or n_off > CHUNK_LIMIT:
+        return None
+    step = 8 if wide else 4
+    base = stco[0] + 8
+    if base + n_off * step > stco[1]:
+        return None
+    fmt = ">%d%s" % (n_off, "Q" if wide else "I")
+    offsets = list(struct.unpack(fmt, buf[base:base + n_off * step]))
+    track["wide_offsets"] = wide
+
+    # Samples per chunk.
+    n_stsc = u32(buf, stsc[0] + 4)
+    entries = []
+    at = stsc[0] + 8
+    for _ in range(n_stsc):
+        if at + 12 > stsc[1]:
+            break
+        first, per_chunk, _desc = struct.unpack(">III", buf[at:at + 12])
+        entries.append((first, per_chunk))
+        at += 12
+    if not entries:
+        return None
+    per = []
+    for idx, (first, count) in enumerate(entries):
+        last = entries[idx + 1][0] - 1 if idx + 1 < len(entries) else n_off
+        per.extend([count] * max(0, min(last, n_off) - first + 1))
+    if len(per) != n_off:
+        per = (per + [per[-1] if per else 1] * n_off)[:n_off]
+
+    # Sample sizes, so a chunk's byte extent is known.
+    fixed = u32(buf, stsz[0] + 4)
+    n_samples = u32(buf, stsz[0] + 8)
+    if fixed:
+        sizes = None
+    else:
+        if stsz[0] + 12 + n_samples * 4 > stsz[1]:
+            return None
+        sizes = struct.unpack(">%dI" % n_samples, buf[stsz[0] + 12:stsz[0] + 12 + n_samples * 4])
+    track["samples"] = n_samples
+
+    # Sample durations.
+    n_stts = u32(buf, stts[0] + 4)
+    deltas = []
+    cum_samples = []
+    cum_ticks = []
+    seen = 0
+    ticks = 0
+    at = stts[0] + 8
+    for _ in range(n_stts):
+        if at + 8 > stts[1]:
+            break
+        count, delta = struct.unpack(">II", buf[at:at + 8])
+        cum_samples.append(seen)
+        cum_ticks.append(ticks)
+        deltas.append(delta)
+        seen += count
+        ticks += count * delta
+        at += 8
+    if not deltas:
+        return None
+
+    def time_of(sample_index):
+        j = bisect.bisect_right(cum_samples, sample_index) - 1
+        if j < 0:
+            return 0.0
+        return (cum_ticks[j] + (sample_index - cum_samples[j]) * deltas[j]) / timescale
+
+    chunks = []
+    chunk_bytes = []
+    sample_index = 0
+    for i in range(n_off):
+        count = per[i]
+        chunks.append((offsets[i], time_of(sample_index)))
+        if fixed:
+            chunk_bytes.append(fixed * count)
+        else:
+            chunk_bytes.append(sum(sizes[sample_index:sample_index + count]))
+        sample_index += count
+    track["chunks"] = chunks
+    track["chunk_bytes"] = chunk_bytes
+    track["media_end"] = max(o + b for o, b in zip(offsets, chunk_bytes))
+    track["bytes"] = sum(chunk_bytes)
+    track["duration"] = ticks / timescale
+
+    # Sync samples: the only points a seek can land on.
+    stss = child(buf, stbl[0], stbl[1], "stss")
+    if stss is None:
+        track["sync"] = "all"
+    else:
+        n_sync = u32(buf, stss[0] + 4)
+        if n_sync and stss[0] + 8 + n_sync * 4 <= stss[1]:
+            nums = struct.unpack(">%dI" % n_sync, buf[stss[0] + 8:stss[0] + 8 + n_sync * 4])
+            times = [time_of(num - 1) for num in nums]
+            gaps = [b - a for a, b in zip(times, times[1:])]
+            track["sync"] = "%d" % n_sync
+            if gaps:
+                track["sync_max"] = max(gaps)
+                track["sync_med"] = median(gaps)
+        else:
+            track["sync"] = "0"
+
+    # Edit list: shifts playback relative to the media timeline.
+    elst = descend(buf, start, end, "edts", "elst")
+    if elst is not None:
+        version = buf[elst[0]]
+        n_edits = u32(buf, elst[0] + 4)
+        edits = []
+        at = elst[0] + 8
+        width = 20 if version == 1 else 12
+        for _ in range(min(n_edits, 16)):
+            if at + width > elst[1]:
+                break
+            if version == 1:
+                seg, media_time = struct.unpack(">Qq", buf[at:at + 16])
+            else:
+                seg, media_time = struct.unpack(">Ii", buf[at:at + 8])
+                seg &= 0xFFFFFFFF
+            edits.append((seg / movie_timescale if movie_timescale else 0.0,
+                          media_time / timescale if media_time >= 0 else -1.0))
+            at += width
+        track["edits"] = edits
+    return track
+
+
+def meta_body(buf, start, end):
+    """A meta box is a FullBox in ISO BMFF and a plain container in QuickTime."""
+    for candidate in (start + 4, start):
+        for box_type, _bs, _be in boxes(buf, candidate, end):
+            if box_type.strip().isalnum():
+                return candidate, end
+    return start + 4, end
+
+
+def find_uuids(buf, start, end, depth=0, found=None):
+    if found is None:
+        found = []
+    if depth > 4:
+        return found
+    for box_type, body_start, body_end in boxes(buf, start, end):
+        if box_type == "uuid":
+            marker = bytes(buf[body_start:body_start + 16])
+            found.append(("xmp" if marker == XMP_UUID else marker[:4].hex(),
+                          body_end - body_start + 8))
+        elif box_type in CONTAINERS:
+            find_uuids(buf, body_start, body_end, depth + 1, found)
+        elif box_type == "meta":
+            inner = meta_body(buf, body_start, body_end)
+            find_uuids(buf, inner[0], inner[1], depth + 1, found)
+    return found
+
+
+def analyse_moov(fh, moov_pos, moov_size, file_size, mdat_pos, mdat_size):
+    out = {}
+    if moov_size > MOOV_READ_LIMIT:
+        out["il_error"] = "moov is %d bytes, too large to parse" % moov_size
+        return out
+    fh.seek(moov_pos)
+    buf = fh.read(moov_size)
+    body = None
+    for box_type, body_start, body_end in boxes(buf, 0, len(buf)):
+        if box_type == "moov":
+            body = (body_start, body_end)
+            break
+    if body is None:
+        out["il_error"] = "moov did not re-parse"
+        return out
+
+    movie_timescale = 0
+    mvhd = child(buf, body[0], body[1], "mvhd")
+    if mvhd is not None:
+        version = buf[mvhd[0]]
+        if version == 1:
+            movie_timescale = u32(buf, mvhd[0] + 20)
+            dur = struct.unpack(">Q", buf[mvhd[0] + 24:mvhd[0] + 32])[0]
+        else:
+            movie_timescale = u32(buf, mvhd[0] + 12)
+            dur = u32(buf, mvhd[0] + 16)
+        if movie_timescale:
+            out["duration"] = "%.3f" % (dur / movie_timescale)
+
+    # Everything a phone or action camera hangs off the container besides the
+    # audio and video: sidecar tracks, udta, the keys/ilst dictionary, and any
+    # uuid boxes (Adobe XMP is one).
+    handlers = []
+    tracks = []
+    for box_type, body_start, body_end in boxes(buf, body[0], body[1]):
+        if box_type != "trak":
+            continue
+        hdlr = descend(buf, body_start, body_end, "mdia", "hdlr")
+        if hdlr is not None:
+            handlers.append(clean(buf[hdlr[0] + 8:hdlr[0] + 12].decode("latin-1")))
+        parsed = parse_trak(buf, body_start, body_end, movie_timescale or 1)
+        if parsed is not None:
+            tracks.append(parsed)
+        elif hdlr is not None:
+            tracks.append({"kind": clean(buf[hdlr[0] + 8:hdlr[0] + 12].decode("latin-1")),
+                           "chunks": [], "chunk_bytes": [], "bytes": 0})
+    extra = [h for h in handlers if h not in ("vide", "soun")]
+    if extra:
+        out["extra_tracks"] = ",".join(extra)
+
+    udta = child(buf, body[0], body[1], "udta")
+    if udta is not None:
+        out["udta_bytes"] = udta[1] - udta[0] + 8
+    meta = child(buf, body[0], body[1], "meta")
+    if meta is not None:
+        inner = meta_body(buf, meta[0], meta[1])
+        keys = child(buf, inner[0], inner[1], "keys")
+        if keys is not None:
+            out["keys_count"] = u32(buf, keys[0] + 4)
+    inner_uuids = find_uuids(buf, body[0], body[1])
+    if inner_uuids:
+        out["uuid_moov"] = ",".join("%s:%d" % u for u in inner_uuids)
+        out["uuid_moov_bytes"] = sum(u[1] for u in inner_uuids)
+    av = [t for t in tracks if t["kind"] in ("vide", "soun") and t["chunks"]]
+    if not av:
+        out["il_error"] = "no audio or video track with a readable sample table"
+        return out
+
+    out["il_tracks"] = ",".join("%s:%d" % (t["kind"], len(t["chunks"])) for t in av)
+
+    # Per-track facts, so the report can give each stream its own section.
+    out["trk_count"] = len(tracks)
+    for idx, t in enumerate(tracks):
+        out["trk%d_kind" % idx] = t["kind"]
+        out["trk%d_codec" % idx] = t.get("codec", "????")
+        if t.get("geometry"):
+            out["trk%d_geometry" % idx] = t["geometry"]
+        if t["kind"] == "vide" and t.get("duration") and t.get("samples"):
+            out["trk%d_fps" % idx] = "%.2f" % (t["samples"] / t["duration"]) if t["duration"] else "0"
+        out["trk%d_samples" % idx] = t.get("samples", 0)
+        out["trk%d_bytes" % idx] = t.get("bytes", 0)
+        if t.get("sync") == "all":
+            out["trk%d_sync" % idx] = "all"
+        elif "sync" in t:
+            out["trk%d_sync" % idx] = t["sync"]
+            if "sync_max" in t:
+                out["trk%d_sync_max" % idx] = "%.2f" % t["sync_max"]
+                out["trk%d_sync_med" % idx] = "%.2f" % t["sync_med"]
+        edit_bits = []
+        for seg, media_time in t.get("edits", []):
+            edit_bits.append("empty %.3fs" % seg if media_time < 0 else "start %.3fs" % media_time)
+        if edit_bits:
+            out["trk%d_edits" % idx] = " ".join(edit_bits[:4])
+            out["trk%d_edit_empty" % idx] = "%.3f" % max(
+                [seg for seg, mt in t.get("edits", []) if mt < 0] or [0])
+            out["trk%d_edit_count" % idx] = len(t.get("edits", []))
+        codec = t.get("codec", "")
+        if t["kind"] == "vide":
+            if codec == "hev1":
+                out["trk%d_codec_problem" % idx] = "hev1"
+            elif codec not in VIDEO_OK:
+                out["trk%d_codec_problem" % idx] = "video"
+        elif t["kind"] == "soun":
+            if codec not in AUDIO_OK:
+                out["trk%d_codec_problem" % idx] = "audio"
+
+    # -------- completeness: does anything point past the end of the file? ----
+    ends = [t["media_end"] for t in tracks if "media_end" in t]
+    media_end = max(ends) if ends else 0
+    out["media_end"] = media_end
+    if media_end > file_size:
+        out["missing_bytes"] = media_end - file_size
+        # How much of the timeline survives: the last chunk that fits.
+        reachable = 0.0
+        for t in av:
+            for (offset, when), length in zip(t["chunks"], t["chunk_bytes"]):
+                if offset + length <= file_size:
+                    reachable = max(reachable, when)
+        out["reachable_time"] = "%.2f" % reachable
+
+    # -------- chunk map ----------------------------------------------------
+    # Chunks partition the media, so two chunks claiming the same bytes means
+    # a chunk offset is wrong. This is the only cheap way to see a botched
+    # offset fixup that did not happen to run past EOF: such a file parses,
+    # reports the right duration and stream list, and decodes almost fine.
+    spans = []
+    for t in tracks:
+        for (offset, _when), length in zip(t.get("chunks", []), t.get("chunk_bytes", [])):
+            if length > 0:
+                spans.append((offset, offset + length))
+    spans.sort()
+    overlaps = 0
+    worst = 0
+    worst_at = 0
+    for (a_start, a_end), (b_start, b_end) in zip(spans, spans[1:]):
+        if a_end > b_start:
+            overlaps += 1
+            if a_end - b_start > worst:
+                worst = a_end - b_start
+                worst_at = b_start
+    out["chunk_count"] = len(spans)
+    if overlaps:
+        out["chunk_overlaps"] = overlaps
+        out["chunk_overlap_bytes"] = worst
+        out["chunk_overlap_at"] = worst_at
+
+    # -------- codecs -------------------------------------------------------
+    codec_bits = []
+    for t in av:
+        codec = t.get("codec", "????")
+        codec_bits.append("%s:%s" % (t["kind"], codec))
+        if t["kind"] == "vide":
+            out["video_codec"] = codec
+            if codec == "hev1":
+                out["codec_problem"] = "hev1"
+            elif codec not in VIDEO_OK:
+                out.setdefault("codec_problem", "video:%s" % codec)
+        else:
+            out["audio_codec"] = codec
+            if codec not in AUDIO_OK:
+                out.setdefault("codec_problem", "audio:%s" % codec)
+    out["codecs"] = ",".join(codec_bits)
+
+    # -------- seek points --------------------------------------------------
+    for t in av:
+        if t["kind"] != "vide":
+            continue
+        if t.get("sync") == "all":
+            out["gop"] = "all-intra"
+        else:
+            out["gop_count"] = t.get("sync", "0")
+            if "sync_max" in t:
+                out["gop_max"] = "%.2f" % t["sync_max"]
+                out["gop_med"] = "%.2f" % t["sync_med"]
+        break
+
+    # -------- edit lists ---------------------------------------------------
+    edit_bits = []
+    for t in av:
+        for seg, media_time in t.get("edits", []):
+            if media_time < 0:
+                edit_bits.append("%s:empty %.3fs" % (t["kind"], seg))
+            else:
+                edit_bits.append("%s:start %.3fs" % (t["kind"], media_time))
+    if edit_bits:
+        out["edits"] = " ".join(edit_bits[:6])
+        n_edits = sum(len(t.get("edits", [])) for t in av)
+        out["edit_count"] = n_edits
+        # An empty edit (media_time -1) inserts real silence/blank at the head
+        # and is the kind players disagree about; a small positive start is
+        # ordinary AAC priming / B-frame compensation.
+        worst = 0.0
+        for t in av:
+            for seg, media_time in t.get("edits", []):
+                if media_time < 0:
+                    worst = max(worst, seg)
+        out["edit_empty"] = "%.3f" % worst
+
+    # -------- dead space ---------------------------------------------------
+    referenced = sum(t["bytes"] for t in tracks if "bytes" in t)
+    out["referenced"] = referenced
+    if mdat_pos is not None and mdat_size:
+        unused = mdat_size - 8 - referenced
+        if unused > 0:
+            out["mdat_unused"] = unused
+
+    # -------- interleaving -------------------------------------------------
+    if len(av) < 2:
+        out["il_error"] = "only %d audio/video track(s) — nothing to interleave" % len(av)
+        return out
+
+    for t in av:
+        gaps = [b[1] - a[1] for a, b in zip(t["chunks"], t["chunks"][1:]) if b[1] > a[1]]
+        if gaps:
+            out["il_gran_%s" % t["kind"]] = "%.2f" % median(gaps)
+
+    ordered = []
+    for index, t in enumerate(av):
+        for offset, when in t["chunks"]:
+            ordered.append((offset, index, when))
+    ordered.sort()
+
+    # A track that has delivered nothing yet counts as sitting at t=0 — that
+    # is what a player streaming linearly actually has of it. A track with no
+    # chunks left is dropped from the comparison instead, so a legitimately
+    # short audio track does not read as skew once it has been fully
+    # delivered; only tracks the player is still waiting on constrain.
+    remaining = [len(t["chunks"]) for t in av]
+    current = [0.0] * len(av)
+    max_skew = 0.0
+    skew_at = 0
+    for offset, index, when in ordered:
+        current[index] = when
+        remaining[index] -= 1
+        live = [current[i] for i in range(len(av)) if remaining[i] > 0]
+        if len(live) < 2:
+            continue
+        skew = max(live) - min(live)
+        if skew > max_skew:
+            max_skew = skew
+            skew_at = offset
+    out["il_skew"] = "%.2f" % max_skew
+    out["il_skew_at"] = skew_at
+
+    spans = sorted((min(c[0] for c in t["chunks"]),
+                    max(c[0] for c in t["chunks"]),
+                    t["kind"]) for t in av)
+    if all(spans[i][1] < spans[i + 1][0] for i in range(len(spans) - 1)):
+        out["il_blocked"] = "/".join(span[2] for span in spans)
+    return out
+
+
+# --------------------------------------------------------------- atom walk --
+
 try:
     size = os.path.getsize(path)
-    seen_moov = False
+except OSError as exc:
+    facts["detail"] = "cannot stat the file: %s" % exc
+    finish("inconclusive", 2)
+
+facts["size"] = size
+layout = []
+atom_map = []
+moof_count = 0
+moov_pos = None
+moov_size = None
+mdat_pos = None
+mdat_size = None
+first_moof = None
+verdict = None
+scanned = 0
+capped = False
+padding = 0
+overrun = 0
+walked_to = 0
+uuids = []
+top_boxes = []
+
+try:
     with open(path, "rb") as fh:
         pos = 0
-        for _ in range(100000):
+        while True:
+            if scanned >= ATOM_LIMIT:
+                capped = True
+                break
+            if pos >= size:
+                break
             if pos + 8 > size:
-                print("inconclusive"); sys.exit(2)
+                facts["tail_bytes"] = size - pos
+                break
             fh.seek(pos)
             header = fh.read(8)
             if len(header) < 8:
-                print("inconclusive"); sys.exit(2)
-            atom_size, atom_type = struct.unpack(">I4s", header)
-            atom_type = atom_type.decode("latin-1")
+                facts["detail"] = "short read at 0x%x (file truncated?)" % pos
+                facts["layout"] = rle(layout)
+                finish("inconclusive", 2)
+            atom_size, raw_type = struct.unpack(">I4s", header)
+            atom_type = raw_type.decode("latin-1")
             header_len = 8
             if atom_size == 1:
                 ext = fh.read(8)
                 if len(ext) < 8:
-                    print("inconclusive"); sys.exit(2)
+                    facts["detail"] = "truncated 64-bit size field at 0x%x" % pos
+                    facts["layout"] = rle(layout)
+                    finish("inconclusive", 2)
                 atom_size = struct.unpack(">Q", ext)[0]
                 header_len = 16
             elif atom_size == 0:
                 atom_size = size - pos
             if atom_size < header_len:
-                print("inconclusive"); sys.exit(2)
+                facts["detail"] = (
+                    "atom '%s' at 0x%x declares a %d-byte size, smaller than its own header"
+                    % (clean(atom_type), pos, atom_size)
+                )
+                facts["layout"] = rle(layout)
+                finish("inconclusive", 2)
+
+            scanned += 1
+            box_name = clean(atom_type) or "????"
+            layout.append(box_name)
+            if len(top_boxes) < 500:
+                top_boxes.append("%s:%d:%d" % (box_name, pos, atom_size))
+            if len(atom_map) < 40:
+                atom_map.append("%s@0x%x:%d" % (box_name, pos, atom_size))
+            if box_name in ("free", "skip", "wide"):
+                padding += atom_size
+
+            # An atom that runs past EOF is the signature of a truncated
+            # download or a copy that stopped early: the header is intact and
+            # honest about how much media there should be, and the media is
+            # simply not there.
+            if pos + atom_size > size:
+                overrun = pos + atom_size - size
+                facts["overrun"] = overrun
+                facts["overrun_atom"] = box_name
+                facts["overrun_pos"] = pos
+                if atom_type == "mdat" and mdat_pos is None:
+                    mdat_pos = pos
+                    mdat_size = atom_size
+                    if verdict is None:
+                        verdict = "faststart" if moov_pos is not None else "no-faststart"
+                walked_to = size
+                break
+
+            if atom_type == "uuid":
+                marker = fh.read(16)
+                uuids.append((pos, atom_size, marker == XMP_UUID))
+                if marker == XMP_UUID:
+                    facts["xmp_top"] = "%d:%d" % (pos, atom_size)
+            if atom_type == "ftyp" and "brands" not in facts:
+                ftyp = fh.read(min(atom_size - header_len, 64))
+                if len(ftyp) >= 8:
+                    brands = [clean(ftyp[0:4].decode("latin-1"))]
+                    for i in range(8, len(ftyp) - 3, 4):
+                        brand = clean(ftyp[i:i + 4].decode("latin-1"))
+                        if brand and brand not in brands:
+                            brands.append(brand)
+                    facts["brands"] = "/".join(b for b in brands if b)
+            if atom_type == "moov" and moov_pos is None:
+                moov_pos = pos
+                moov_size = atom_size
             if atom_type == "moof":
-                print("fragmented"); sys.exit(1)
-            if atom_type == "mdat":
-                if seen_moov:
-                    print("faststart"); sys.exit(0)
-                print("no-faststart"); sys.exit(1)
-            if atom_type == "moov":
-                seen_moov = True
+                moof_count += 1
+                if first_moof is None:
+                    first_moof = pos
+                if verdict is None:
+                    verdict = "fragmented"
+                    if not detail:
+                        break
+            if atom_type == "mdat" and mdat_pos is None:
+                mdat_pos = pos
+                mdat_size = atom_size
+                if verdict is None:
+                    verdict = "faststart" if moov_pos is not None else "no-faststart"
+                    if not detail:
+                        break
             pos += atom_size
-    print("inconclusive"); sys.exit(2)
-except Exception:
-    print("inconclusive"); sys.exit(2)
+            walked_to = pos
+
+        if moov_pos is not None and not moof_count and (detail or verdict == "faststart"):
+            try:
+                facts.update(analyse_moov(fh, moov_pos, moov_size, size,
+                                          mdat_pos, mdat_size))
+            except Exception as exc:
+                facts["il_error"] = "sample tables did not parse: %s" % exc
+except OSError as exc:
+    facts["detail"] = "read error: %s" % exc
+    finish("inconclusive", 2)
+
+facts["atoms"] = scanned
+facts["layout"] = rle(layout)
+facts["atom_map"] = " ".join(atom_map)
+facts["padding"] = padding
+facts["top_boxes"] = ",".join(top_boxes)
+if uuids:
+    facts["uuid_top"] = ",".join("%d:%d:%d" % u for u in uuids)
+    facts["uuid_top_bytes"] = sum(u[1] for u in uuids)
+if capped:
+    facts["capped"] = 1
+if not capped and not overrun and walked_to and walked_to < size:
+    facts["tail_bytes"] = size - walked_to
+if moov_pos is not None:
+    facts["moov_pos"] = moov_pos
+    facts["moov_size"] = moov_size
+if mdat_pos is not None:
+    facts["mdat_pos"] = mdat_pos
+    facts["mdat_size"] = mdat_size
+    if moov_pos is not None:
+        facts["moov_before_mdat"] = 1 if moov_pos < mdat_pos else 0
+if moof_count:
+    facts["moof_count"] = moof_count
+    facts["moof_first"] = first_moof
+
+if verdict is None:
+    facts["detail"] = (
+        "walked %d top-level atom(s) without finding an mdat or a moof — no media payload"
+        % scanned
+    )
+    finish("inconclusive", 2)
+
+# Precedence: damage first (never auto-repaired), then the structural defects
+# a remux fixes, worst layout first.
+if "missing_bytes" in facts:
+    finish("truncated", 2)
+if "chunk_overlaps" in facts:
+    finish("bad-chunk-map", 2)
+if overrun:
+    if facts.get("overrun_atom") == "mdat" or "media_end" not in facts:
+        finish("truncated", 2)
+    # Every sample-table reference landed inside the file, so the media is all
+    # there and the overrunning box is garbage appended after it — a bad
+    # concat or a download that kept writing past the end.
+    facts["junk_bytes"] = size - facts["overrun_pos"]
+    del facts["overrun"]
+if verdict == "faststart":
+    if float(facts.get("il_skew", 0)) > SKEW_FAIL:
+        verdict = "poor-interleave"
+    elif facts.get("codec_problem") == "hev1":
+        verdict = "hev1-tag"
+
+finish(verdict, 0 if verdict == "faststart" else 1)
 PY
 }
 
+# Fills the global P assoc array from atom_probe and returns its exit code.
+typeset -gA P
+probe() {
+  local file="$1" mode="${2:-fast}" out line k
+  P=()
+  integer rc=0
+  out="$(atom_probe "$file" "$mode")" || rc=$?
+  while IFS= read -r line; do
+    [[ "$line" == *=* ]] || continue
+    k="${line%%=*}"
+    P[$k]="${line#*=}"
+  done <<< "$out"
+  [[ -n "${P[state]:-}" ]] || { P[state]="inconclusive"; rc=2 }
+  return $rc
+}
+
 file_state() {
-  local file="$1"
-  if is_frag_partial "$file"; then
-    print -r -- "frag-partial"
-    return 3
-  fi
-  atom_state "$file"
+  local out
+  integer rc=0
+  out="$(atom_probe "$1" fast)" || rc=$?
+  print -r -- "${${(f)out}[1]#state=}"
+  return $rc
 }
 
 media_duration_seconds() {
   ffprobe -v error -show_entries format=duration \
     -of default=noprint_wrappers=1:nokey=1 -- "$1" 2>/dev/null
+}
+
+# A real decode of every frame: the only way to see bitstream rot inside a
+# structurally perfect container. One pass over the file, with each decoder
+# complaint attributed to the stream whose decoder raised it — ffmpeg prefixes
+# every message with the decoder name ("[aac @ 0x…]"), and the sample tables
+# already told us which codec each track uses.
+#
+# Fills DEEP_ERR (stream index → first complaint) and DEEP_CONTAINER_ERR
+# (anything not attributable to a stream). Returns 0 when nothing complained.
+# Progress goes to stdout as it runs, so this must not be called inside a
+# command substitution.
+deep_scan() {
+  local file="$1" errfile total dur line codec decoder
+  integer rc=0 n=0
+  errfile="$(mktemp -t mp4doctor-deep)" || return 1
+  dur="$(media_duration_seconds "$file")"
+  total="${P[trk0_samples]:-0}"
+  for (( n = 0; n < ${P[trk_count]:-0}; n++ )); do
+    [[ "${P[trk${n}_kind]:-}" == vide ]] && total="${P[trk${n}_samples]:-0}" && break
+  done
+  [[ "$total" == <-> ]] || total=0
+
+  integer frames=0
+  local key value
+  ffmpeg -hide_banner -nostdin -v error -progress pipe:1 -i "$file" -f null - \
+    2>"$errfile" |
+    while IFS='=' read -r key value; do
+      case "$key" in
+        frame) frames=$value ;;
+        out_time_us) deep_progress "$frames" "$total" "$value" "$dur" ;;
+      esac
+    done
+  rc=${pipestatus[1]}
+  deep_progress_clear
+
+  local -a lines=("${(f)$(<"$errfile")}")
+  rm -f -- "$errfile"
+  local -a real=()
+  for line in "${lines[@]}"; do
+    # "Last message repeated N times" is a continuation of the line before it,
+    # not a finding of its own, and it carries no decoder prefix to attribute.
+    [[ -z "$line" || "$line" == *"Last message repeated"* ]] && continue
+    real+=("$line")
+  done
+  if (( ${#real} == 0 )) && (( rc == 0 )); then
+    return 0
+  fi
+
+  # "[hevc @ 0x148e04f00] Could not find ref with POC 12" → the hevc stream.
+  for line in "${real[@]}"; do
+    decoder=""
+    if [[ "$line" == \[*" @ "*\]* ]]; then
+      decoder="${${line#\[}%% @ *}"
+      decoder="${decoder##*/}"
+      decoder="${decoder##*:}"
+    fi
+    local matched=false
+    for (( n = 0; n < ${P[trk_count]:-0}; n++ )); do
+      codec="$(decoder_name_for "${P[trk${n}_codec]:-}")"
+      if [[ -n "$decoder" && -n "$codec" && "$decoder" == "$codec" ]]; then
+        [[ -z "${DEEP_ERR[$n]:-}" ]] && DEEP_ERR[$n]="${line#\[*\] }"
+        matched=true
+        break
+      fi
+    done
+    $matched || [[ -n "$DEEP_CONTAINER_ERR" ]] || DEEP_CONTAINER_ERR="${line#\[*\] }"
+  done
+  (( rc == 0 )) || [[ -n "$DEEP_CONTAINER_ERR" ]] ||
+    DEEP_CONTAINER_ERR="ffmpeg exited ${rc}"
+  return 1
+}
+
+# Container sample-entry tag → the name ffmpeg's decoder announces itself by.
+decoder_name_for() {
+  case "$1" in
+    avc1|avc3) print -r -- h264 ;;
+    hvc1|hev1) print -r -- hevc ;;
+    av01) print -r -- av1 ;;
+    vp09) print -r -- vp9 ;;
+    mp4a) print -r -- aac ;;
+    ac-3) print -r -- ac3 ;;
+    ec-3) print -r -- eac3 ;;
+    alac) print -r -- alac ;;
+    Opus|opus) print -r -- opus ;;
+    fLaC) print -r -- flac ;;
+    *) print -r -- "" ;;
+  esac
+}
+
+# The in-place progress line for --deep. Percentage comes from the video frame
+# count when the container declares one, and from elapsed media time otherwise.
+deep_progress() {
+  $TTY_OUT || return 0
+  $quiet && return 0
+  integer frames=${1:-0} total=${2:-0}
+  local us="${3:-0}" dur="${4:-}" text
+  if (( total > 0 )); then
+    text="decoded $(awk -v f="$frames" -v t="$total" 'BEGIN { printf "%d%%", t ? f / t * 100 : 0 }') ($(commify $frames)/$(commify $total) frames)"
+  elif [[ -n "$dur" ]] && [[ "$us" == <-> ]]; then
+    text="decoded $(awk -v u="$us" -v d="$dur" 'BEGIN { printf "%d%%", d ? u / 1000000 / d * 100 : 0 }') ($(commify $frames) frames)"
+  else
+    text="decoded $(commify $frames) frames"
+  fi
+  local label="deep decode"
+  print -rn -- $'\r\033[K'"    ${C_DIM}· ${(r:14:)label}${text}${C_RESET}" >/dev/tty
+}
+
+deep_progress_clear() {
+  $TTY_OUT || return 0
+  $quiet && return 0
+  print -rn -- $'\r\033[K' >/dev/tty
+}
+
+# What a remux has to carry across, in a form two files can be compared by.
+# Streams are compared by their container tag (avc1/mp4a/tmcd/gpmd…) rather
+# than by index, because the muxer is allowed to renumber and to regenerate a
+# timecode track from metadata; the multiset is what must survive.
+stream_tags_of() {
+  ffprobe -v error -show_entries stream=codec_tag_string -of csv=p=0 -- "$1" 2>/dev/null | sort
+}
+
+# major_brand/minor_version/compatible_brands legitimately change in a remux,
+# and encoder is rewritten by definition; every other tag, including the
+# container's own creation_time and each track's, must come through.
+format_tags_of() {
+  {
+    ffprobe -v error -show_entries format_tags -of default=noprint_wrappers=1 -- "$1" 2>/dev/null
+    ffprobe -v error -show_entries stream_tags=creation_time -of default=noprint_wrappers=1 -- "$1" 2>/dev/null
+  } | grep -v -E '^TAG:(major_brand|minor_version|compatible_brands|encoder)=' | grep . | sort
+}
+
+chapter_count_of() {
+  ffprobe -v error -show_chapters -of csv=p=0 -- "$1" 2>/dev/null | grep -c . || true
+}
+
+# The FLAC-style blind copy. ffmpeg only writes the boxes it understands, so
+# anything else at the top level — Adobe XMP in a uuid box, a camera vendor's
+# private box, whatever a future format adds — is silently dropped. Top-level
+# boxes are position-independent, so any box present in the original and
+# missing from the remux is copied across verbatim, byte for byte, without
+# this tool needing to know what it is. Boxes the muxer is responsible for
+# rebuilding are excluded; everything else travels.
+transport_unknown_boxes() {
+  python3 - "$1" "$2" <<'PY'
+import struct
+import sys
+
+# Boxes the muxer owns and legitimately rewrites. Everything else is cargo.
+STRUCTURAL = {"ftyp", "moov", "mdat", "free", "skip", "wide",
+              "mfra", "moof", "sidx", "styp", "pdin"}
+
+
+def top_boxes(path):
+    out = []
+    with open(path, "rb") as fh:
+        size = fh.seek(0, 2)
+        pos = 0
+        while pos + 8 <= size:
+            fh.seek(pos)
+            header = fh.read(8)
+            if len(header) < 8:
+                break
+            box_size, raw = struct.unpack(">I4s", header)
+            box_type = raw.decode("latin-1")
+            hdr = 8
+            if box_size == 1:
+                ext = fh.read(8)
+                if len(ext) < 8:
+                    break
+                box_size = struct.unpack(">Q", ext)[0]
+                hdr = 16
+            elif box_size == 0:
+                box_size = size - pos
+            if box_size < hdr or pos + box_size > size:
+                break
+            out.append((box_type, pos, box_size))
+            pos += box_size
+    return out
+
+
+src, dst = sys.argv[1], sys.argv[2]
+present = {}
+for box_type, _pos, box_size in top_boxes(dst):
+    present.setdefault(box_type, []).append(box_size)
+
+moved = []
+with open(src, "rb") as fh, open(dst, "ab") as out:
+    for box_type, pos, box_size in top_boxes(src):
+        name = box_type.strip()
+        if name in STRUCTURAL:
+            continue
+        sizes = present.get(box_type, [])
+        if box_size in sizes:
+            sizes.remove(box_size)
+            continue
+        fh.seek(pos)
+        remaining = box_size
+        while remaining > 0:
+            chunk = fh.read(min(remaining, 1 << 20))
+            if not chunk:
+                break
+            out.write(chunk)
+            remaining -= len(chunk)
+        moved.append("%s (%d B)" % (name or "????", box_size))
+print(", ".join(moved))
+PY
 }
 
 creation_date_for_setfile() {
@@ -172,10 +1176,169 @@ free_bytes_for() {
   df -k -- "$1" 2>/dev/null | tail -1 | awk '{ print $4 * 1024 }'
 }
 
+human_size() {
+  awk -v b="${1:-0}" 'BEGIN {
+    split("B KiB MiB GiB TiB", u, " "); i = 1
+    while (b >= 1024 && i < 5) { b /= 1024; i++ }
+    if (i == 1) printf "%d %s", b, u[i]; else printf "%.2f %s", b, u[i]
+  }'
+}
+
+human_clock() {
+  awk -v s="${1:-0}" 'BEGIN {
+    h = int(s / 3600); m = int((s % 3600) / 60); sec = s % 60
+    if (h) printf "%d:%02d:%02d", h, m, sec; else printf "%d:%02d", m, sec
+  }'
+}
+
+commify() {
+  awk -v n="${1:-0}" 'BEGIN {
+    s = sprintf("%d", n); r = ""
+    while (length(s) > 3) { r = "," substr(s, length(s) - 2) r; s = substr(s, 1, length(s) - 3) }
+    print s r
+  }'
+}
+
+pct() { awk -v a="${1:-0}" -v b="${2:-1}" 'BEGIN { printf "%.2f%%", (b ? a / b * 100 : 0) }' }
+gt() { awk -v a="${1:-0}" -v b="${2:-0}" 'BEGIN { exit !(a > b) }' }
+hex() { printf '0x%x' "${1:-0}" }
+
+# ---------------------------------------------------------------- reporting --
+
+report() {
+  $quiet && return 0
+  print -r -- "$@"
+}
+
+# Checks are collected rather than printed, so the same results can be laid
+# out as a block per file or as one row per file.
+typeset -a CK_MARK CK_NAME CK_TEXT CK_SECTION
+# add <mark> <name> <text>            → a container check
+# sadd <stream-index> <mark> <name> <text> → a check belonging to one stream
+add() { CK_MARK+=("$1"); CK_NAME+=("$2"); CK_TEXT+=("$3"); CK_SECTION+=("container") }
+sadd() { CK_SECTION+=("$1"); CK_MARK+=("$2"); CK_NAME+=("$3"); CK_TEXT+=("$4") }
+
+mark_glyph() {
+  case "$1" in
+    ok)   print -r -- "${C_GREEN}✓${C_RESET}" ;;
+    fail) print -r -- "${C_RED}✗${C_RESET}" ;;
+    warn) print -r -- "${C_YELLOW}!${C_RESET}" ;;
+    *)    print -r -- "${C_DIM}·${C_RESET}" ;;
+  esac
+}
+
+# One check result, coloured end to end: green passed, red failed, yellow
+# worth knowing, dim not applicable.
+row() {
+  $quiet && return 0
+  local mark="$1" label="$2" text="$3" colour sym
+  case "$mark" in
+    ok)   colour="$C_GREEN";  sym="✓" ;;
+    fail) colour="$C_RED";    sym="✗" ;;
+    warn) colour="$C_YELLOW"; sym="!" ;;
+    *)    colour="$C_DIM";    sym="·" ;;
+  esac
+  print -r -- "    ${colour}${sym} ${(r:14:)label}${text}${C_RESET}"
+}
+
+# Checks are grouped the way the format is: what belongs to the file as a
+# whole, then what belongs to each stream inside it.
+render_rows() {
+  integer i n
+  local section
+  report "  ${C_BOLD}container${C_RESET}"
+  for (( i = 1; i <= ${#CK_NAME}; i++ )); do
+    [[ "${CK_SECTION[i]}" == container ]] || continue
+    row "${CK_MARK[i]}" "${CK_NAME[i]}" "${CK_TEXT[i]}"
+  done
+  for (( n = 0; n < ${P[trk_count]:-0}; n++ )); do
+    local -a mine=()
+    for (( i = 1; i <= ${#CK_NAME}; i++ )); do
+      [[ "${CK_SECTION[i]}" == "$n" ]] && mine+=($i)
+    done
+    (( ${#mine} )) || continue
+    report "  ${C_BOLD}stream ${n}${C_RESET} ${C_DIM}· $(stream_label $n)${C_RESET}"
+    for i in "${mine[@]}"; do
+      row "${CK_MARK[i]}" "${CK_NAME[i]}" "${CK_TEXT[i]}"
+    done
+  done
+}
+
+# "video · avc1 · 1920×1080 @ 29.97 fps · 12.4 MiB"
+stream_label() {
+  local n="$1" kind="${P[trk${1}_kind]:-?}" label
+  case "$kind" in
+    vide) label="video" ;;
+    soun) label="audio" ;;
+    tmcd) label="timecode" ;;
+    sbtl|text|subp) label="subtitle" ;;
+    mebx|meta) label="metadata" ;;
+    gpmd) label="telemetry" ;;
+    *) label="$kind" ;;
+  esac
+  label+=" · ${P[trk${n}_codec]:-????}"
+  [[ -n "${P[trk${n}_geometry]:-}" ]] && label+=" · ${P[trk${n}_geometry]}"
+  [[ -n "${P[trk${n}_fps]:-}" ]] && label+=" @ ${P[trk${n}_fps]} fps"
+  [[ -n "${P[trk${n}_bytes]:-}" ]] && label+=" · $(human_size ${P[trk${n}_bytes]})"
+  print -r -- "$label"
+}
+
+elide_left() {
+  local text="$1"
+  integer keep=$2
+  (( keep < 8 )) && keep=8
+  (( ${#text} <= keep )) && { print -r -- "$text"; return }
+  print -r -- "…${text[-(keep - 1),-1]}"
+}
+
+# One row per file: a mark per check in a bracket, the verdict, the elided
+# path, and the names of whatever did not pass.
+oneline_row() {
+  local verdict="$1" colour="$2" path="$3" marks="" bad=""
+  integer i room
+  for (( i = 1; i <= N_CHECKS; i++ )); do
+    local name="${CHECK_LEGEND[i]}" worst="skip"
+    integer j
+    for (( j = 1; j <= ${#CK_NAME}; j++ )); do
+      [[ "${CK_NAME[j]}" == "$name" ]] || continue
+      case "${CK_MARK[j]}" in
+        fail) worst="fail" ;;
+        warn) [[ "$worst" == fail ]] || worst="warn" ;;
+        ok)   [[ "$worst" == (fail|warn) ]] || worst="ok" ;;
+      esac
+    done
+    marks+="$(mark_glyph $worst)"
+    [[ "$worst" == (fail|warn) ]] && bad+="${bad:+, }${name}"
+  done
+  room=$(( TERM_COLS - N_CHECKS - 22 - ${#bad} ))
+  print -rn -- "[${marks}] ${colour}${(r:15:)verdict}${C_RESET} ${C_YELLOW}$(elide_left "$path" $room)${C_RESET}"
+  [[ -n "$bad" ]] && print -rn -- "  ${C_DIM}· ${bad}${C_RESET}"
+}
+
+# The in-place progress line while a file is being examined.
+oneline_pending() {
+  $TTY_OUT || return 0
+  $quiet && return 0
+  local path="$1" note="$2" marks=""
+  integer i room
+  for (( i = 1; i <= N_CHECKS; i++ )); do
+    marks+="${C_DIM}·${C_RESET}"
+  done
+  room=$(( TERM_COLS - N_CHECKS - 22 ))
+  print -rn -- $'\r\033[K'"[${marks}] ${C_DIM}${(r:15:)note}${C_RESET} ${C_YELLOW}$(elide_left "$path" $room)${C_RESET}" >/dev/tty
+}
+
+outcome() {
+  $quiet && return 0
+  print -r -- "    ${1}→ ${2}${C_RESET}"
+}
+
+# ---------------------------------------------------------------------- fix --
+
 # Lossless in-place repair: remux to a sibling tmp, verify the duration
-# carried over AND that the result actually reads as faststart, restore both
-# timestamps, then swap. The original is never modified until the verified
-# replacement exists.
+# carried over AND that the result reads back clean, restore both timestamps,
+# then swap. The original is never modified until the verified replacement
+# exists.
 #
 # Returns 0 on success, 2 when the volume can't hold the tmp copy, 1 otherwise.
 # Space gets its own code because the remux is atomic-by-copy: it needs room
@@ -184,43 +1347,151 @@ free_bytes_for() {
 # repair" sends you looking for corruption that isn't there.
 fix_file() {
   local file="$1"
-  local tmp created before after
-  integer rc=0 need=0 avail=0
+  local tmp created before after new_state new_skew
+  typeset -a tag_args=()
+  integer rc=0 need=0 avail=0 size_before=0 size_after=0 t0=0
 
-  need=$(( $(stat -f %z -- "$file") + 67108864 ))   # + 64 MiB headroom
+  # HEVC tagged hev1 is refused by Safari/QuickTime/HLS; retagging it hvc1 is
+  # a container-level relabel, not a transcode, so it rides along with the
+  # same copy remux.
+  if [[ "${P[video_codec]:-}" == hev1 ]]; then
+    tag_args=(-tag:v hvc1)
+    row skip "retag" "video sample entry hev1 → hvc1 (container relabel, no re-encode)"
+  fi
+
+  local -a before_streams after_streams before_tags after_tags lost
+  local uuid_spec="${P[uuid_top]:-}"
+  local before_moov_children="${P[moov_children]:-}"
+  integer before_chapters=0 after_chapters=0
+  before_streams=("${(f)$(stream_tags_of "$file")}")
+  before_tags=("${(f)$(format_tags_of "$file")}")
+  before_chapters=$(chapter_count_of "$file")
+
+  size_before=$(stat -f %z -- "$file")
+  need=$(( size_before + 67108864 ))   # + 64 MiB headroom
   avail="$(free_bytes_for "${file:h}")"
-  if [[ "$avail" == <-> ]] && (( avail < need )); then
-    return 2
+  if [[ "$avail" == <-> ]]; then
+    if (( avail < need )); then
+      row fail "space" "needs $(human_size $need) for the tmp copy, ${file:h} has $(human_size $avail)"
+      return 2
+    fi
+    row ok "space" "$(human_size $need) needed for the tmp copy, $(human_size $avail) free on ${file:h}"
   fi
 
   tmp="$(mktemp "${file:h}/.${file:t:r}.mp4doctor.XXXXXX.${file:e}")" || return 1
+  t0=$SECONDS
 
-  ffmpeg -hide_banner -loglevel error -nostdin -y \
-    -i "$file" -map 0 -c copy -map_metadata 0 \
-    -movflags "+faststart+use_metadata_tags" \
-    -- "$tmp" 2>&1 | { $quiet && cat >/dev/null || sed 's/^/    /' } || true
-  rc=${pipestatus[1]}
+  # Map every stream first. A track ffmpeg cannot represent (a tmcd timecode
+  # track reads back as codec "unknown") makes the mp4 muxer refuse the whole
+  # job, so fall back to the audio/video streams alone — the muxer regenerates
+  # a timecode track from the metadata it did carry across, and the
+  # preservation audit below is what decides whether that was good enough.
+  local err
+  err="$(ffmpeg -hide_banner -loglevel error -nostdin -y \
+    -i "$file" -map 0 -c copy "${tag_args[@]}" -copy_unknown \
+    -map_metadata 0 -map_chapters 0 \
+    -movflags "+faststart+use_metadata_tags" -- "$tmp" 2>&1)"
+  rc=$?
+  if (( rc == 0 )); then
+    row ok "remux" "-map 0 -c copy ${tag_args:+${tag_args[*]} }-copy_unknown -map_chapters 0 -movflags +faststart ($(( SECONDS - t0 ))s)"
+  else
+    row warn "remux" "-map 0 refused: ${${(f)err}[1]:-exit $rc}"
+    err="$(ffmpeg -hide_banner -loglevel error -nostdin -y \
+      -i "$file" -map 0:v -map "0:a?" -c copy "${tag_args[@]}" \
+      -map_metadata 0 -map_chapters 0 \
+      -movflags "+faststart+use_metadata_tags" -- "$tmp" 2>&1)"
+    rc=$?
+    if (( rc == 0 )); then
+      row ok "remux" "retried with -map 0:v -map 0:a, letting the muxer rebuild sidecar tracks ($(( SECONDS - t0 ))s)"
+    else
+      row fail "remux" "${${(f)err}[1]:-ffmpeg exited $rc}"
+    fi
+  fi
+
+  # Whatever the muxer did not understand travels verbatim: Adobe XMP in a
+  # uuid box, a camera vendor's private box, anything. No knowledge of the
+  # box's meaning is needed, only that the original had it and the remux
+  # does not.
+  if (( rc == 0 )); then
+    local moved
+    if moved="$(transport_unknown_boxes "$file" "$tmp")"; then
+      if [[ -n "$moved" ]]; then
+        row ok "carried over" "top-level boxes ffmpeg does not write, copied back byte for byte: ${moved}"
+      else
+        row ok "carried over" "no top-level boxes were lost in the remux"
+      fi
+    else
+      row fail "carried over" "could not copy the dropped top-level boxes across"
+      rc=1
+    fi
+  fi
 
   before="$(media_duration_seconds "$file")"
   after="$(media_duration_seconds "$tmp")"
-  if (( rc != 0 )) || [[ -z "$before" || -z "$after" ]] ||
-      ! awk -v a="$after" -v b="$before" \
-          'BEGIN { d = a - b; if (d < 0) d = -d; exit !(d <= 5) }' ||
-      ! atom_state "$tmp" >/dev/null; then
+  new_state="$(probe "$tmp" fast >/dev/null; print -r -- "${P[state]} ${P[il_skew]:-}")"
+  new_skew="${${new_state#* }:-}"
+  new_state="${new_state%% *}"
+  if (( rc == 0 )) && [[ -n "$before" && -n "$after" ]] &&
+      awk -v a="$after" -v b="$before" \
+        'BEGIN { d = a - b; if (d < 0) d = -d; exit !(d <= 5) }' &&
+      [[ "$new_state" == faststart ]]; then
+    row ok "verify" "duration ${before}s → ${after}s · reads back as faststart${new_skew:+, skew ${new_skew}s}"
+  else
+    row fail "verify" "duration ${before:-?}s → ${after:-?}s · reads back as ${new_state}"
+    row skip "rollback" "tmp discarded, original left byte-for-byte unchanged"
     rm -f -- "$tmp"
     return 1
   fi
+
+  # Nothing is swapped in until the replacement is shown to still carry every
+  # stream, every metadata tag and every chapter the original had. A remux that
+  # silently drops a GoPro telemetry track is not a repair.
+  after_streams=("${(f)$(stream_tags_of "$tmp")}")
+  after_tags=("${(f)$(format_tags_of "$tmp")}")
+  after_chapters=$(chapter_count_of "$tmp")
+  lost=()
+  local item
+  for item in "${before_streams[@]}"; do
+    [[ -z "$item" ]] && continue
+    if (( ${after_streams[(I)$item]} == 0 )); then
+      lost+=("track ${item}")
+    else
+      after_streams[${after_streams[(i)$item]}]=""
+    fi
+  done
+  for item in "${before_tags[@]}"; do
+    [[ -z "$item" ]] && continue
+    (( ${after_tags[(I)$item]} )) || lost+=("tag ${${item#TAG:}%%=*}")
+  done
+  (( after_chapters < before_chapters )) &&
+    lost+=("$(( before_chapters - after_chapters )) chapter(s)")
+  if (( ${#lost} )); then
+    row fail "preserved" "the remux would drop ${(j:, :)lost}"
+    row skip "rollback" "tmp discarded, original left byte-for-byte unchanged"
+    rm -f -- "$tmp"
+    return 1
+  fi
+  row ok "preserved" "${#before_streams} track$( (( ${#before_streams} != 1 )) && print -n s ), ${#before_tags} metadata tag$( (( ${#before_tags} != 1 )) && print -n s ), ${before_chapters} chapter$( (( before_chapters != 1 )) && print -n s )${uuid_spec:+, $(human_size ${P[uuid_top_bytes]:-0}) of uuid boxes} all present in the replacement"
+
+  size_after=$(stat -f %z -- "$tmp")
+  row ok "size" "$(human_size $size_before) → $(human_size $size_after) ($(
+    awk -v a="$size_before" -v b="$size_after" 'BEGIN { printf "%+.1f%%", (b - a) / a * 100 }'
+  )) · size+mtime caches will re-key this file"
 
   created="$(creation_date_for_setfile "$file")" || created=""
   touch -r "$file" -- "$tmp" 2>/dev/null || true
   mv -f -- "$tmp" "$file" || { rm -f -- "$tmp"; return 1 }
   if [[ -n "$created" ]] && command -v SetFile >/dev/null 2>&1; then
     SetFile -d "$created" "$file" >/dev/null 2>&1 || true
+    row ok "timestamps" "file mtime and atime carried over by touch -r · Finder creation date restored to ${created} · the container's own creation_time travelled in the metadata"
+  else
+    row warn "timestamps" "file mtime and atime carried over by touch -r · container creation_time travelled in the metadata · Finder creation date left as-is (SetFile unavailable)"
   fi
   return 0
 }
 
-# --state: one file, machine interface.
+# --state: one file, machine interface. Deliberately plain: one word out, and
+# the exit status is the contract media-audit reads.
 if [[ "$state_mode" == true ]]; then
   (( ${#args[@]} == 1 )) || { print -u2 "--state takes exactly one file"; exit 2 }
   [[ -f "${args[1]}" ]] || { print -u2 "not a file: ${args[1]}"; exit 2 }
@@ -234,11 +1505,19 @@ fi
 
 # Expand the work list: files as given, directories recursed.
 typeset -a files=()
+integer n_skipped=0
 for arg in "${args[@]}"; do
+  # A trailing slash on a directory argument would otherwise show up as "dir//file"
+  # in every path this run prints.
+  [[ "$arg" == */ && "$arg" != / ]] && arg="${arg%%/##}"
   if [[ -d "$arg" ]]; then
     files+=("$arg"/**/*.(#i)(mp4|mov|m4v)(N.))
   elif [[ -f "$arg" ]]; then
-    is_mp4_family "$arg" && files+=("$arg")
+    if is_mp4_family "$arg"; then
+      files+=("$arg")
+    else
+      (( ++n_skipped ))
+    fi
   else
     print -u2 "not found: $arg"
   fi
@@ -246,68 +1525,375 @@ done
 
 (( ${#files[@]} > 0 )) || { print -u2 "no mp4/mov/m4v files to check"; exit 2 }
 
-integer n_ok=0 n_frag=0 n_slow=0 n_partial=0 n_odd=0 n_fixed=0 n_failed=0 n_nospace=0
-state=""
-report() {
-  $quiet && return 0
-  print -r -- "$@"
-}
+integer total_bytes=0
+for file in "${files[@]}"; do
+  total_bytes+=$(stat -f %z -- "$file" 2>/dev/null || print 0)
+done
+
+# The canonical check order. Every file emits exactly one result per entry,
+# in this order, which is what lets --one-line line the marks up into columns.
+typeset -a CHECK_LEGEND=(filename "atom chain" completeness "chunk map")
+$deep && CHECK_LEGEND+=("deep decode")
+CHECK_LEGEND+=(fragmentation faststart startup interleaving metadata
+               "dead space" codecs "seek points" "edit lists")
+integer N_CHECKS=${#CHECK_LEGEND}
+integer TERM_COLS=$( { tput cols } 2>/dev/null || print 120 )
+(( TERM_COLS > 40 )) || TERM_COLS=120
+
+header="${C_BLUE}${C_BOLD}mp4doctor${C_RESET}  ${#files[@]} file$( (( ${#files[@]} != 1 )) && print -n s ), $(human_size $total_bytes)"
+(( n_skipped )) && header+="  ${C_DIM}(${n_skipped} non-mp4 argument$( (( n_skipped != 1 )) && print -n s ) skipped)${C_RESET}"
+report "$header"
+if [[ "$fix_mode" == true ]]; then
+  report "${C_DIM}repair mode — fragmented, no-faststart, poorly interleaved and hev1-tagged files are remuxed in place${C_RESET}"
+else
+  report "${C_DIM}report only — nothing is written; rerun with --fix to repair${C_RESET}"
+fi
+if $one_line; then
+  legend=""
+  integer i
+  for (( i = 1; i <= N_CHECKS; i++ )); do
+    legend+="${legend:+ · }${i} ${CHECK_LEGEND[i]}"
+  done
+  report "${C_DIM}columns: ${legend}${C_RESET}"
+  report "${C_DIM}marks: ${C_GREEN}✓${C_DIM} passed · ${C_RED}✗${C_DIM} failed · ${C_YELLOW}!${C_DIM} worth knowing · ${C_DIM}· not applicable${C_RESET}"
+else
+  report "${C_DIM}checks per file: ${(j: · :)CHECK_LEGEND}${C_RESET}"
+fi
+$deep && report "${C_DIM}--deep: every frame is decoded as well; this reads each file in full${C_RESET}"
+report ""
+
+
+integer n_ok=0 n_frag=0 n_slow=0 n_il=0 n_tag=0 n_cut=0 n_badmap=0 n_odd=0
+integer n_fixed=0 n_failed=0 n_nospace=0 n_rot=0 bytes_fixed=0
+state="" meta="" text="" deep_failed=false verdict="" vcolour="" detail_text=""
+skind="" scodec=""
+integer sn=0
+typeset -gA DEEP_ERR
+typeset -g DEEP_CONTAINER_ERR=""
+legend=""
+integer i
 
 for file in "${files[@]}"; do
-  state="$(file_state "$file")"
+  deep_failed=false
+  CK_MARK=() CK_NAME=() CK_TEXT=()
+  $one_line && oneline_pending "$file" "reading"
+  probe "$file" detail
+  state="${P[state]}"
+
+  if ! $one_line; then
+    report "${C_YELLOW}${C_BOLD}${file}${C_RESET}"
+  fi
+  meta="$(human_size "${P[size]:-0}")"
+  if false; then :; fi
+  [[ -n "${P[brands]:-}" ]] && meta+=" · ${P[brands]}"
+  [[ -n "${P[duration]:-}" ]] && meta+=" · $(human_clock ${P[duration]})"
+  [[ -n "${P[il_tracks]:-}" ]] && meta+=" · ${P[il_tracks]}"
+  [[ -n "${P[atoms]:-}" ]] && meta+=" · ${P[atoms]} top-level atom$( (( ${P[atoms]} != 1 )) && print -n s )${${P[capped]:+ (walk capped)}}"
+  if ! $one_line; then
+    report "    ${C_DIM}${meta}${C_RESET}"
+    $verbose && [[ -n "${P[atom_map]:-}" ]] &&
+      report "    ${C_DIM}${P[atom_map]}${C_RESET}"
+  fi
+
+  # 1. filename — informational; never changes the verdict.
+  if (( ${P[name_utf8]:-1} )); then
+    add ok "filename" "valid UTF-8, ${P[name_form]:-?}-normalised"
+  else
+    add fail "filename" "not valid UTF-8 — the bytes will mangle over SMB, HTTP and most players"
+  fi
+
+  # 2. atom chain
+  if [[ "$state" == inconclusive ]]; then
+    add fail "atom chain" "${P[detail]:-could not parse the top-level atoms}${${P[layout]:+ · got as far as: ${P[layout]}}}"
+  else
+    add ok "atom chain" "${P[layout]}"
+  fi
+
+  # 3. completeness — truncation, overruns and trailing junk.
+  if [[ "$state" == inconclusive ]]; then
+    add skip "completeness" "not evaluated — the atom chain did not parse"
+  elif [[ -n "${P[missing_bytes]:-}" ]]; then
+    add fail "completeness" "the sample tables reference $(human_size ${P[missing_bytes]}) that is not there; only the first ${P[reachable_time]}s of media is actually present"
+  elif [[ -n "${P[overrun]:-}" ]]; then
+    add fail "completeness" "the ${P[overrun_atom]} atom runs $(human_size ${P[overrun]}) past the end of the file — truncated copy or interrupted download"
+  elif [[ -n "${P[junk_bytes]:-}" ]]; then
+    add warn "completeness" "all media is present, but $(human_size ${P[junk_bytes]}) from $(hex ${P[overrun_pos]}) parse as no valid box — appended junk or a bad concat"
+  elif [[ -n "${P[tail_bytes]:-}" ]]; then
+    add warn "completeness" "$(human_size ${P[tail_bytes]}) after the last atom belong to no box — appended junk or a bad concat"
+  else
+    add ok "completeness" "every atom and every sample-table reference lands inside the file"
+  fi
+
+  # 3a. chunk map — are the sample tables internally consistent?
+  if [[ "$state" == inconclusive ]]; then
+    add skip "chunk map" "not evaluated — the atom chain did not parse"
+  elif [[ -n "${P[chunk_overlaps]:-}" ]]; then
+    add fail "chunk map" "$(commify ${P[chunk_overlaps]}) of $(commify ${P[chunk_count]}) chunks claim bytes another chunk already owns (worst $(human_size ${P[chunk_overlap_bytes]}) at $(hex ${P[chunk_overlap_at]})) — a chunk offset is wrong, so some samples read from the wrong place"
+  elif [[ -n "${P[chunk_count]:-}" ]]; then
+    add ok "chunk map" "$(commify ${P[chunk_count]}) chunks tile the media without overlapping"
+  else
+    add skip "chunk map" "no readable chunk table"
+  fi
+
+  # 3b. --deep: one decode pass over the whole file, with each decoder
+  # complaint attributed to the stream whose decoder raised it.
+  if $deep; then
+    DEEP_ERR=()
+    DEEP_CONTAINER_ERR=""
+    if [[ "$state" != inconclusive ]]; then
+      deep_scan "$file" || deep_failed=true
+    fi
+    if [[ "$state" == inconclusive ]]; then
+      add skip "deep decode" "not attempted — the atom chain did not parse"
+    elif [[ -n "$DEEP_CONTAINER_ERR" ]]; then
+      add fail "deep decode" "$DEEP_CONTAINER_ERR"
+    else
+      add ok "deep decode" "read end to end; complaints, if any, are listed against the stream that raised them"
+    fi
+  fi
+
+  # 4. fragmentation
+  if [[ "$state" == inconclusive ]]; then
+    add skip "fragmentation" "not evaluated — the atom chain did not parse"
+  elif [[ -n "${P[moof_count]:-}" ]]; then
+    add fail "fragmentation" "$(commify ${P[moof_count]})${${P[capped]:+ or more}} moof headers from $(hex ${P[moof_first]}); the front moov (${${P[moov_size]:+$(human_size ${P[moov_size]})}:-none}) carries no sample table"
+  else
+    add ok "fragmentation" "no moof headers — one contiguous, indexed sample table"
+  fi
+
+  # 5. faststart
+  if [[ "$state" == inconclusive ]]; then
+    add skip "faststart" "not evaluated — the atom chain did not parse"
+  elif [[ -n "${P[moof_count]:-}" ]]; then
+    add skip "faststart" "moot while fragmented — every seek walks moof headers from the start"
+  elif (( ${P[moov_before_mdat]:-0} )); then
+    add ok "faststart" "moov $(human_size ${P[moov_size]}) at $(hex ${P[moov_pos]}), ahead of mdat $(human_size ${P[mdat_size]}) at $(hex ${P[mdat_pos]})"
+  else
+    add fail "faststart" "moov $(human_size ${P[moov_size]:-0}) at $(hex ${P[moov_pos]:-0}), behind mdat at $(hex ${P[mdat_pos]:-0}) — playback must read to EOF before it can start"
+  fi
+
+  # 6. startup — bytes a player must have before the first frame decodes.
+  if [[ -z "${P[moov_size]:-}" || "$state" == inconclusive ]]; then
+    add skip "startup" "not measurable without a readable moov"
+  elif (( ${P[moov_before_mdat]:-0} )); then
+    text="moov $(human_size ${P[moov_size]}) = $(pct ${P[moov_size]} ${P[size]}) of the file; a player has the index after $(human_size $(( ${P[mdat_pos]:-0} + 8 )))"
+    if (( ${P[moov_size]} > MOOV_WARN_BYTES )); then
+      add warn "startup" "$text — over $(human_size $MOOV_WARN_BYTES) of index to fetch before the first frame"
+    else
+      add ok "startup" "$text"
+    fi
+  else
+    add fail "startup" "the whole file ($(human_size ${P[size]})) must arrive before the index does"
+  fi
+
+  # 7. interleaving
+  if [[ -n "${P[il_skew]:-}" ]]; then
+    text="${P[il_skew]}s worst-case skew at $(hex ${P[il_skew_at]})"
+    [[ -n "${P[il_gran_vide]:-}" ]] && text+=" · video chunks ${P[il_gran_vide]}s"
+    [[ -n "${P[il_gran_soun]:-}" ]] && text+=" · audio chunks ${P[il_gran_soun]}s"
+    [[ -n "${P[il_blocked]:-}" ]] && text+=" · tracks stored as separate blocks (${P[il_blocked]})"
+    if gt "${P[il_skew]}" "$SKEW_FAIL"; then
+      add fail "interleaving" "$text"
+    elif gt "${P[il_skew]}" "$SKEW_OK"; then
+      add warn "interleaving" "$text — above ${SKEW_OK}s, under the ${SKEW_FAIL}s repair threshold"
+    else
+      add ok "interleaving" "$text"
+    fi
+  elif [[ -n "${P[moof_count]:-}" ]]; then
+    add skip "interleaving" "not measurable — a fragmented file has no global sample table"
+  elif [[ "$state" == no-faststart ]]; then
+    add skip "interleaving" "not measured — the moov comes after the media; the same remux fixes both"
+  else
+    add skip "interleaving" "${P[il_error]:-not measured}"
+  fi
+
+  # 9-11. Per-stream: how each track is tagged, where it can be seeked, and
+  # whether an edit list shifts it. One section per stream, in file order.
+  for (( sn = 0; sn < ${P[trk_count]:-0}; sn++ )); do
+    skind="${P[trk${sn}_kind]:-}"
+    scodec="${P[trk${sn}_codec]:-????}"
+
+    case "${P[trk${sn}_codec_problem]:-}" in
+      hev1) sadd $sn fail "codecs" "${scodec} — HEVC tagged hev1; Safari, QuickTime and HLS refuse it, hvc1 is the same bitstream relabelled" ;;
+      video) sadd $sn warn "codecs" "${scodec} — not a video sample entry a browser will decode" ;;
+      audio) sadd $sn warn "codecs" "${scodec} — not an audio sample entry a browser will decode" ;;
+      *)
+        if [[ "$skind" == (vide|soun) ]]; then
+          sadd $sn ok "codecs" "${scodec} — tagged the way players expect"
+        else
+          sadd $sn skip "codecs" "${scodec} — a sidecar track; carried across verbatim, not decoded"
+        fi
+        ;;
+    esac
+
+    if [[ "$skind" != vide ]]; then
+      : # seek points are a video property
+    elif [[ "${P[trk${sn}_sync]:-}" == all ]]; then
+      sadd $sn ok "seek points" "no stss — every frame is a sync sample, seeks land anywhere"
+    elif [[ -n "${P[trk${sn}_sync_max]:-}" ]]; then
+      text="$(commify ${P[trk${sn}_sync]}) keyframes · typically ${P[trk${sn}_sync_med]}s apart, worst gap ${P[trk${sn}_sync_max]}s"
+      if gt "${P[trk${sn}_sync_max]}" "$GOP_WARN"; then
+        sadd $sn warn "seek points" "$text — a scrub can land up to ${P[trk${sn}_sync_max]}s from where you clicked (needs a re-encode, not a remux)"
+      else
+        sadd $sn ok "seek points" "$text"
+      fi
+    elif [[ "${P[trk${sn}_sync]:-0}" == 1 ]]; then
+      sadd $sn warn "seek points" "a single keyframe, at the start — there is nowhere else in the file a seek can land"
+    else
+      sadd $sn skip "seek points" "no readable sync sample table"
+    fi
+
+    if [[ -z "${P[trk${sn}_edits]:-}" ]]; then
+      sadd $sn ok "edit lists" "none — this track plays as stored"
+    elif gt "${P[trk${sn}_edit_empty]:-0}" 0.05; then
+      sadd $sn warn "edit lists" "${P[trk${sn}_edits]} — an empty edit of ${P[trk${sn}_edit_empty]}s; players disagree about whether to honour it"
+    elif (( ${P[trk${sn}_edit_count]:-0} > 2 )); then
+      sadd $sn warn "edit lists" "${P[trk${sn}_edits]} — ${P[trk${sn}_edit_count]} edits; naive players ignore all but the first"
+    else
+      sadd $sn ok "edit lists" "${P[trk${sn}_edits]} — ordinary priming/B-frame compensation"
+    fi
+
+    if $deep; then
+      if [[ "$skind" != (vide|soun) ]]; then
+        sadd $sn skip "deep decode" "nothing to decode in a sidecar track"
+      elif [[ -n "${DEEP_ERR[$sn]:-}" ]]; then
+        sadd $sn fail "deep decode" "${DEEP_ERR[$sn]}"
+      elif [[ "$state" == inconclusive ]]; then
+        sadd $sn skip "deep decode" "not attempted — the atom chain did not parse"
+      else
+        sadd $sn ok "deep decode" "$(commify ${P[trk${sn}_samples]:-0}) samples decoded, no decoder complaints"
+      fi
+    fi
+  done
+
+  # 12. metadata — the sidecar data a phone or action camera hangs off the
+  # container, and what a remux would have to carry across.
+  if [[ "$state" == inconclusive ]]; then
+    add skip "metadata" "not evaluated — the atom chain did not parse"
+  else
+    text=""
+    [[ -n "${P[udta_bytes]:-}" ]] && text+="udta $(human_size ${P[udta_bytes]})"
+    [[ -n "${P[keys_count]:-}" ]] && text+="${text:+ · }${P[keys_count]} keys/ilst entries"
+    [[ -n "${P[uuid_top]:-}" ]] && text+="${text:+ · }$(human_size ${P[uuid_top_bytes]}) top-level uuid${${P[xmp_top]:+ (Adobe XMP)}}"
+    [[ -n "${P[uuid_moov]:-}" ]] && text+="${text:+ · }$(human_size ${P[uuid_moov_bytes]}) uuid inside moov (${P[uuid_moov]})"
+    if [[ -z "$text" ]]; then
+      add ok "metadata" "nothing beyond the tracks themselves"
+    elif [[ -n "${P[uuid_moov]:-}" ]]; then
+      add warn "metadata" "$text — uuid boxes inside moov are the one thing a remux cannot put back; --fix refuses rather than lose them"
+    else
+      add ok "metadata" "$text — every top-level box the muxer does not rewrite is copied across verbatim, and verified afterwards"
+    fi
+  fi
+
+  # 13. dead space (container)
+  if [[ "$state" == inconclusive ]]; then
+    add skip "dead space" "not evaluated — the atom chain did not parse"
+  else
+    integer dead=$(( ${P[padding]:-0} + ${P[mdat_unused]:-0} + ${P[tail_bytes]:-0} ))
+    text="$(human_size $dead) = $(pct $dead ${P[size]}) — $(human_size ${P[padding]:-0}) of free/skip padding, $(human_size ${P[mdat_unused]:-0}) unreferenced inside mdat"
+    if gt "$(pct $dead ${P[size]} | tr -d %)" "$DEAD_WARN_PCT"; then
+      add warn "dead space" "$text — a remux would reclaim it"
+    else
+      add ok "dead space" "$text"
+    fi
+  fi
+
+  # Every check has run; lay the results out, then conclude (and repair).
+  $one_line || render_rows
+
+  verdict="" vcolour="$C_GREEN"
   case "$state" in
     faststart)
-      (( ++n_ok ))
-      $verbose && report "  ${C_GREEN}ok${C_RESET}           $file"
+      if [[ "$deep_failed" == true ]]; then
+        verdict="DECODE ERR" vcolour="$C_RED"
+        detail_text="decode errors · the container is intact, the bitstream inside it is not; a remux would only copy the damage forward"
+      else
+        (( ++n_ok ))
+        verdict="OK" vcolour="$C_GREEN" detail_text="healthy"
+      fi
       ;;
-    frag-partial)
-      (( ++n_partial ))
-      report "  ${C_YELLOW}unfinished${C_RESET}   $file"
-      report "    ${C_DIM}topaz-encode in-flight output — resume it (topaz-encode --resume) or delete it; not remuxed${C_RESET}"
+    truncated)
+      (( ++n_cut ))
+      verdict="TRUNCATED" vcolour="$C_RED"
+      detail_text="truncated · never auto-repaired; recopy or re-download the source"
+      ;;
+    bad-chunk-map)
+      (( ++n_badmap ))
+      verdict="BAD CHUNKS" vcolour="$C_RED"
+      detail_text="inconsistent chunk map · never auto-repaired; a remux would copy the wrong bytes forward"
       ;;
     inconclusive)
       (( ++n_odd ))
-      report "  ${C_RED}unreadable${C_RESET}   $file"
-      report "    ${C_DIM}top-level atoms could not be parsed; left unchanged${C_RESET}"
+      verdict="UNREADABLE" vcolour="$C_RED"
+      detail_text="unreadable · left unchanged"
       ;;
-    fragmented|no-faststart)
-      [[ "$state" == fragmented ]] && (( ++n_frag )) || (( ++n_slow ))
+    fragmented|no-faststart|poor-interleave|hev1-tag)
+      case "$state" in
+        fragmented) (( ++n_frag )) ;;
+        no-faststart) (( ++n_slow )) ;;
+        poor-interleave) (( ++n_il )) ;;
+        *) (( ++n_tag )) ;;
+      esac
+      verdict="${(U)state}" vcolour="$C_YELLOW"
+      detail_text="${state} · repairable in place with --fix (lossless -c copy remux)"
       if [[ "$fix_mode" == true ]]; then
-        fix_file "$file"
+        integer size_was=${P[size]:-0}
+        $one_line && oneline_pending "$file" "repairing"
+        $one_line || row skip "repair" "remuxing in place; the original is kept until the replacement verifies"
+        if $one_line; then
+          fix_file "$file" >/dev/null 2>&1
+        else
+          fix_file "$file"
+        fi
         case $? in
           0)
             (( ++n_fixed ))
-            report "  ${C_GREEN}fixed${C_RESET}        ${C_DIM}(${state})${C_RESET} $file"
+            bytes_fixed+=$size_was
+            verdict="FIXED" vcolour="$C_GREEN"
+            detail_text="fixed · was ${state}, now faststart"
             ;;
           2)
             (( ++n_nospace ))
-            report "  ${C_RED}no space${C_RESET}     ${C_DIM}(${state})${C_RESET} $file"
-            report "    ${C_DIM}the remux needs room for a second copy ($(numfmt --to=iec $(stat -f %z -- "$file") 2>/dev/null || stat -f %z -- "$file")); free space on ${file:h} and rerun — the file itself is fine${C_RESET}"
+            verdict="NO SPACE" vcolour="$C_RED"
+            detail_text="not enough free space · the remux is atomic-by-copy and needs a second $(human_size $size_was); the container itself is fine"
             ;;
           *)
             (( ++n_failed ))
-            report "  ${C_RED}FAILED${C_RESET}       ${C_DIM}(${state})${C_RESET} $file"
+            verdict="FIX FAILED" vcolour="$C_RED"
+            detail_text="repair failed · file left unchanged"
             ;;
         esac
-      else
-        report "  ${C_YELLOW}${state}${C_RESET}${C_DIM}$(printf '%*s' $(( 13 - ${#state} )) '')${C_RESET}$file"
       fi
       ;;
   esac
+
+  if $one_line; then
+    if ! $quiet; then
+      $TTY_OUT && print -rn -- $'\r\033[K'
+      oneline_row "$verdict" "$vcolour" "$file"
+      print
+    fi
+  else
+    outcome "$vcolour" "$detail_text"
+  fi
+  $one_line || report ""
 done
 
-integer n_bad=$(( n_frag + n_slow ))
-summary="checked ${#files[@]}: ${C_GREEN}${n_ok} healthy${C_RESET}"
+integer n_bad=$(( n_frag + n_slow + n_il + n_tag ))
+summary="checked ${#files[@]} ($(human_size $total_bytes)): ${C_GREEN}${n_ok} healthy${C_RESET}"
 (( n_frag )) && summary+=" · ${C_YELLOW}${n_frag} fragmented${C_RESET}"
 (( n_slow )) && summary+=" · ${C_YELLOW}${n_slow} no-faststart${C_RESET}"
-(( n_partial )) && summary+=" · ${C_YELLOW}${n_partial} unfinished .frag${C_RESET}"
+(( n_il )) && summary+=" · ${C_YELLOW}${n_il} poorly interleaved${C_RESET}"
+(( n_tag )) && summary+=" · ${C_YELLOW}${n_tag} hev1-tagged${C_RESET}"
+(( n_cut )) && summary+=" · ${C_RED}${n_cut} truncated${C_RESET}"
+(( n_badmap )) && summary+=" · ${C_RED}${n_badmap} bad chunk map${C_RESET}"
 (( n_odd )) && summary+=" · ${C_RED}${n_odd} unreadable${C_RESET}"
+(( n_rot )) && summary+=" · ${C_RED}${n_rot} with decode errors${C_RESET}"
 if [[ "$fix_mode" == true ]]; then
   summary+=" · ${C_GREEN}${n_fixed} fixed${C_RESET}"
+  (( n_fixed )) && summary+=" ${C_DIM}($(human_size $bytes_fixed) remuxed)${C_RESET}"
   (( n_nospace )) && summary+=" · ${C_RED}${n_nospace} no space${C_RESET}"
   (( n_failed )) && summary+=" · ${C_RED}${n_failed} failed${C_RESET}"
-elif (( n_bad )); then
-  summary+=" ${C_DIM}(rerun with --fix to repair)${C_RESET}"
 fi
 print -r -- "$summary"
 
@@ -315,7 +1901,7 @@ if [[ "$fix_mode" == true ]]; then
   # 3 = nothing wrong with the containers, the volume just couldn't hold the
   # tmp copy. Callers (media-audit) report that differently from a real failure.
   (( n_failed == 0 && n_nospace > 0 )) && exit 3
-  (( n_failed == 0 ))
+  (( n_failed == 0 && n_rot == 0 ))
 else
-  (( n_bad == 0 && n_odd == 0 ))
+  (( n_bad == 0 && n_odd == 0 && n_cut == 0 && n_badmap == 0 && n_rot == 0 ))
 fi

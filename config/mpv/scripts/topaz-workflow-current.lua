@@ -1652,17 +1652,21 @@ function draw_menu()
     list_badge.res_x = 1280
     list_badge.res_y = 720
 
-    -- Compact caption: resolution · fps · clip length · preview time, plus the
+    -- Compact caption: resolution · fps · clip length · total frames, plus the
     -- current view state (zoom / rotation) when either is off its default.
     local prof = menu.profile
+    local frames = menu.frame_count
+        or (menu.duration and prof and prof.fps
+            and math.floor(menu.duration * prof.fps + 0.5))
+    local frames_txt = frames and string.format("%d frames", frames) or ""
     local meta
     if prof and prof.width then
         local fps = prof.fps and string.format(" · %.0ffps", prof.fps) or ""
         local len = menu.duration and (" · " .. format_clock(menu.duration)) or ""
-        meta = string.format("%d×%d%s%s · @ %s",
-            prof.width, prof.height, fps, len, format_time(menu.time_pos))
+        meta = string.format("%d×%d%s%s%s", prof.width, prof.height, fps, len,
+            frames ~= nil and (" · " .. frames_txt) or "")
     else
-        meta = "@ " .. format_time(menu.time_pos)
+        meta = frames_txt
     end
     if (menu.zoom or 0) > 0.01 then
         meta = meta .. string.format(" · %.0f%%", 2 ^ menu.zoom * 100)
@@ -3330,6 +3334,7 @@ local function open_menu(source, profile, data)
         source_name = basename(source),
         time_pos = mp.get_property_number("time-pos", 0) or 0,
         duration = mp.get_property_number("duration"),
+        frame_count = mp.get_property_number("estimated-frame-count"),
         profile = profile,
         items = data.items,
         presets = data.presets,
