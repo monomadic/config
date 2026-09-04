@@ -41,6 +41,11 @@ typeset -a ENRICH_ARGS=(
 
 script_name=${0:t}
 
+# every progress line goes to stderr, so stdout stays "the final path" only
+log()  { print -u2 -- "${script_name}: $*"; }
+step() { print -u2 -- "==> $*"; }
+die()  { print -u2 -- "${script_name}: error: $*"; exit "${2:-1}"; }
+
 usage() {
   print -u2 "usage: ${script_name} [--in-place] [--direct-write] [--cache-lookup] [--info-json FILE] [<url>] <existing-file> [yt-dlp args...]"
   print -u2 ""
@@ -94,28 +99,38 @@ else
 fi
 # remaining args are passed through to every yt-dlp invocation
 
-[[ -f $src ]] || {
-  print -u2 "error: no such file: $src"
-  exit 1
-}
-[[ -n ${src:e} ]] || {
-  print -u2 "error: ${src:t} has no file extension"
-  exit 1
-}
+[[ -f $src ]] || die "no such file: $src"
+[[ -n ${src:e} ]] || die "${src:t} has no file extension (needed to keep the container type)"
 
-(( in_place && direct_write )) && {
-  print -u2 "error: --in-place and --direct-write are mutually exclusive"
-  exit 2
-}
+(( in_place && direct_write )) && die "--in-place and --direct-write are mutually exclusive" 2
+
+for tool in yt-dlp ffprobe jq; do
+  command -v $tool >/dev/null 2>&1 || die "required tool not on PATH: $tool"
+done
+
+step "file: $src"
+if (( in_place )); then
+  log "mode: in-place (tag the file where it is)"
+elif (( direct_write )); then
+  log "mode: direct-write (move the original to yt-dlp's output path)"
+else
+  log "mode: copy (original untouched; a tagged copy goes to yt-dlp's output path)"
+fi
+(( $# )) && log "extra yt-dlp args: $*"
 
 # the file's embedded format tags, read once, with keys lowercased
 typeset -g _file_tags=""
 file_tags() {
   if [[ -z $_file_tags ]]; then
-    command -v ffprobe >/dev/null 2>&1 || return 1
-    _file_tags=$(ffprobe -v error -show_entries format_tags -of json -- "$src" 2>/dev/null \
-      | jq -c '.format.tags // {} | with_entries(.key |= ascii_downcase)') || return 1
+    local probe
+    if ! probe=$(ffprobe -v error -show_entries format_tags -of json -- "$src" 2>&1); then
+      log "ffprobe could not read ${src:t}: ${probe:-unknown error}"
+      return 1
+    fi
+    _file_tags=$(print -r -- "$probe" | jq -c '.format.tags // {} | with_entries(.key |= ascii_downcase)') || return 1
     [[ -n $_file_tags ]] || return 1
+    local n=$(print -r -- "$_file_tags" | jq 'length')
+    log "read $n embedded tag(s) from ${src:t}"
   fi
   print -r -- "$_file_tags"
 }
@@ -124,14 +139,21 @@ file_tags() {
 # original_url (this script's own --parse-metadata rule), purl (yt-dlp's
 # default webpage_url tag), or a URL-shaped comment.
 url_from_file_metadata() {
-  local tags
+  local tags found
   tags=$(file_tags) || return 1
-  print -r -- "$tags" | jq -r '
-      .original_url
-        // .purl
-        // (.comment | select(. != null and test("://")))
-        // empty
-    '
+  found=$(print -r -- "$tags" | jq -r '
+      if .original_url then "original_url\t" + .original_url
+      elif .purl then "purl\t" + .purl
+      elif (.comment | . != null and test("://")) then "comment\t" + .comment
+      else empty end
+    ')
+  if [[ -z $found ]]; then
+    log "no url-bearing tag (original_url / purl / comment) in ${src:t}"
+    log "tags present: $(print -r -- "$tags" | jq -r 'keys | join(", ")')"
+    return 1
+  fi
+  log "url from '${found%%$'\t'*}' tag"
+  print -r -- "${found#*$'\t'}"
 }
 
 # The infojson output template in the config is "%(extractor)s_%(id)s", and the
@@ -143,20 +165,23 @@ url_from_file_metadata() {
 # exactly one file.
 find_cached_info_json() {
   local tags extractor id f
-  [[ -d $JSON_DIR ]] || return 1
+  [[ -d $JSON_DIR ]] || { log "cache dir does not exist: $JSON_DIR"; return 1; }
 
   if tags=$(file_tags); then
     extractor=$(print -r -- "$tags" | jq -r '.yt_dlp_extractor // empty')
     id=$(print -r -- "$tags" | jq -r '.yt_dlp_id // empty')
     if [[ -n $extractor && -n $id ]]; then
       f="$JSON_DIR/${extractor}_${id}.info.json"
+      log "file is tagged ${extractor}/${id}; looking for ${f:t}"
       if [[ -f $f ]]; then
         print -r -- "$f"
         return 0
       fi
       # those tags name the cache entry exactly, so a miss here is conclusive
+      log "no such cache entry"
       return 1
     fi
+    log "file has no yt_dlp_extractor/yt_dlp_id tags; scanning cache by url"
   fi
 
   # Files predating those tags still need a content scan, but restrict it to
@@ -173,22 +198,23 @@ find_cached_info_json() {
   return 1
 }
 
-if [[ -z $info_json ]]; then
+if [[ -n $info_json ]]; then
+  step "metadata source: --info-json $info_json"
+else
   if [[ -z $url ]]; then
+    step "no url given; reading it from the file's metadata"
     url=$(url_from_file_metadata) || url=""
-    if [[ -z $url ]]; then
-      print -u2 "error: no <url> given and none found in the file's metadata"
-      exit 1
-    fi
-    print -u2 "url from file metadata: $url"
+    [[ -n $url ]] || die "no <url> given and none found in the file's metadata (pass the url explicitly)"
   fi
+  step "url: $url"
 
   if (( cache_lookup )); then
+    step "looking for a cached info.json in $JSON_DIR"
     if info_json=$(find_cached_info_json); then
-      print -u2 "using cached info.json: $info_json"
+      log "using cached info.json: $info_json"
     else
       info_json=""
-      print -u2 "no cached info.json; extracting from source"
+      log "no cached info.json; falling back to a live extraction"
     fi
   fi
 fi
@@ -196,10 +222,7 @@ fi
 # where metadata comes from for both yt-dlp runs below
 typeset -a SOURCE_ARGS
 if [[ -n $info_json ]]; then
-  [[ -f $info_json ]] || {
-    print -u2 "error: info.json not found: $info_json"
-    exit 1
-  }
+  [[ -f $info_json ]] || die "info.json not found: $info_json"
   SOURCE_ARGS=(--load-info-json "$info_json")
 else
   SOURCE_ARGS=("$url" --no-playlist)
@@ -209,34 +232,42 @@ if (( in_place )); then
   # the file stays exactly where it is: nothing to resolve, nothing to move,
   # and no second extraction to pay for
   target=$src
+  step "target: $target (in place)"
 else
   # expected output path per the normal config, keeping the source extension
-  fname=$(yt-dlp "${SOURCE_ARGS[@]}" --no-download-archive --print filename "$@")
-  [[ -n $fname ]] || {
-    print -u2 "error: could not determine target filename"
-    exit 1
-  }
+  if [[ -n $info_json ]]; then
+    step "resolving output filename from info.json"
+  else
+    step "resolving output filename (extracting metadata from $url)"
+  fi
+  if ! fname=$(yt-dlp "${SOURCE_ARGS[@]}" --no-download-archive --print filename "$@"); then
+    die "yt-dlp failed to extract metadata for the url above (see its output); is the url alive and the extractor up to date?"
+  fi
+  [[ -n $fname ]] || die "yt-dlp returned an empty filename for the url (extraction produced no entry)"
   fname_lines=("${(f)fname}")
   if (( ${#fname_lines} != 1 )); then
-    print -u2 "error: URL resolved to ${#fname_lines} videos"
-    exit 1
+    log "yt-dlp resolved the url to ${#fname_lines} entries:"
+    print -u2 -l -- "  ${^fname_lines}"
+    die "url must resolve to exactly one video (pass a single-video url, not a playlist/channel)"
   fi
   target="${fname:r}.${src:e}"
 
   if [[ ${fname:e} != ${src:e} ]]; then
-    print -u2 "note: yt-dlp would have produced .${fname:e}, keeping .${src:e}"
+    log "yt-dlp would have produced .${fname:e}; keeping the source's .${src:e}"
   fi
+  step "target: $target"
 
   if [[ $target -ef $src ]]; then
-    print -u2 "file already in place: $target"
+    log "file is already at the target path; nothing to copy or move"
   elif [[ -e $target ]]; then
-    print -u2 "error: target already exists: $target"
-    exit 1
+    die "target already exists: $target (remove it, or use --in-place to tag the source where it is)"
   else
     mkdir -p -- "${target:h}"
     if (( direct_write )); then
+      log "moving original -> target"
       mv -- "$src" "$target"
     else
+      log "copying original -> target ($(du -h -- "$src" | cut -f1))"
       cp -p -- "$src" "$target"
     fi
   fi
@@ -254,8 +285,18 @@ fi
 # $target already came from --print filename above (so it is per-component
 # trimmed) and the file has already been placed there, so it must be used
 # verbatim.
-yt-dlp "${SOURCE_ARGS[@]}" --no-download-archive \
-  "${ENRICH_ARGS[@]}" "$@" \
-  --trim-filenames 0 -o "${target//\%/%%}"
+step "post-processing: embedding metadata, chapters and subtitles into ${target:t}"
+if ! yt-dlp "${SOURCE_ARGS[@]}" --no-download-archive \
+    "${ENRICH_ARGS[@]}" "$@" \
+    --trim-filenames 0 -o "${target//\%/%%}"; then
+  if (( in_place )); then
+    die "yt-dlp post-processing failed (see its output above); $target may be partially tagged"
+  elif (( direct_write )); then
+    die "yt-dlp post-processing failed (see its output above); the original now lives at $target"
+  else
+    die "yt-dlp post-processing failed (see its output above); the untagged copy is at $target, the original is untouched"
+  fi
+fi
 
+step "done: $target"
 print -- "$target"
