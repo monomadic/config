@@ -145,7 +145,7 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "Reload" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
 "Config" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config/motherfucker\" -- /bin/zsh -lc 'exec hx -- ~/.config/motherfucker/config.toml'"
 
-[commands.m4.local]
+[commands.M4]
 "Mount Tower" = "open -j smb://m4.local/Tower"
 "Installers" = "open -j smb://m4.local/Tower/Installers"
 "Mount Jobs" = "/Users/nom/.zsh/bin/kitty-launch -- open -j -g smb://m4.local/jobs & yazi /Volumes/jobs"
