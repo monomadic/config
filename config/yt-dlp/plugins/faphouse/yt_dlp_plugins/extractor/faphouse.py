@@ -97,6 +97,59 @@ class FaphouseIE(InfoExtractor):
                 })
         return subtitles
 
+    def _player_attr(self, webpage, name, default=None):
+        """
+        Read one `data-el-*` attribute off the player element. The page emits
+        these both quoted and bare (`data-el-video-access-type=vr`), so accept
+        either. Returns "" for a valueless attribute such as `data-el-vr`.
+        """
+        mobj = re.search(
+            rf'data-el-{name}=(?:"([^"]*)"|\'([^\']*)\'|([^\s"\'<>]+))', webpage)
+        if not mobj:
+            return default
+        return next((g for g in mobj.groups() if g is not None), default)
+
+    def _extract_progressive_formats(self, webpage, video_id, url):
+        """
+        VR videos have no HLS manifest at all — the player is handed a plain
+        map of progressive MP4 renditions instead:
+
+            data-el-formats='{"720":"https://video-pr.xhcdn.com/.../720.mp4",
+                              ...,
+                              "4096":"https://.../4096.mp4"}'
+
+        The key is the frame *height*; width is whatever the projection implies
+        (8192x4096 for the 8K STEREO_180_LR rendition), so only height is
+        claimed here. Codec varies across the ladder (H.264 low, HEVC high) and
+        is left for the downloader to detect.
+        """
+        raw = self._search_regex(
+            r'data-el-formats=([\'"])(.+?)\1',
+            webpage, "formats", default=None, group=2)
+        if not raw:
+            return []
+
+        rendition_urls = self._parse_json(
+            unescapeHTML(raw), video_id, fatal=False, errnote=None) or {}
+
+        vr_format = self._player_attr(webpage, "vr-format")
+
+        formats = []
+        for height, rendition_url in rendition_urls.items():
+            rendition_url = url_or_none(rendition_url)
+            if not rendition_url:
+                continue
+            formats.append({
+                "url": rendition_url,
+                "format_id": f"http-{height}",
+                "height": int_or_none(height),
+                "ext": "mp4",
+                "protocol": "https",
+                "format_note": f"VR {vr_format}" if vr_format else None,
+                "http_headers": self._headers(url),
+            })
+        return formats
+
     def _extract_chapters(self, vstate, duration):
         """
         Faphouse calls chapters "actions": a flat list of `{label, time}` markers
@@ -256,6 +309,7 @@ class FaphouseIE(InfoExtractor):
                 if name and name.strip()
             ]
         duration = int_or_none(traverse_obj(vstate, "duration"))
+        vr_format = self._player_attr(webpage, "vr-format")
         upload_date = unified_strdate(traverse_obj(vstate, "publishedAt"))
 
         data = nextjs or nuxt or view_state or paywall or {}
@@ -288,7 +342,7 @@ class FaphouseIE(InfoExtractor):
 
         formats = []
         if m3u8:
-            formats, m3u8_subs = self._extract_m3u8_formats_and_subtitles(
+            hls_formats, m3u8_subs = self._extract_m3u8_formats_and_subtitles(
                 m3u8,
                 video_id,
                 ext="mp4",
@@ -296,8 +350,14 @@ class FaphouseIE(InfoExtractor):
                 headers=self._headers(url),
                 fatal=False,
             )
+            formats.extend(hls_formats)
             self._merge_subtitles(m3u8_subs, target=subtitles)
-        else:
+
+        # VR pages ship progressive MP4s and no manifest; ordinary pages may
+        # carry both, so this is additive rather than a fallback.
+        formats.extend(self._extract_progressive_formats(webpage, video_id, url))
+
+        if not formats:
             # No playable stream. This is expected for paywalled videos the current
             # account cannot watch. The page still carries full metadata, so emit it
             # rather than aborting: raise_no_formats() honours --ignore-no-formats-error,
@@ -324,9 +384,9 @@ class FaphouseIE(InfoExtractor):
                 )
             else:
                 msg = (
-                    "Could not find HLS playlist URL (m3u8). "
+                    "Could not find any playable stream (no m3u8, no data-el-formats). "
                     "Use browser DevTools Network to locate the JSON/XHR that returns the "
-                    "HLS URL(s), then implement _download_json() here."
+                    "stream URL(s), then implement _download_json() here."
                 )
             self.raise_no_formats(msg, expected=True, video_id=video_id)
 
@@ -342,6 +402,10 @@ class FaphouseIE(InfoExtractor):
             "cast": cast if cast else None,
             "tags": tags if tags else None,
             "chapters": self._extract_chapters(vstate, duration),
+            # Non-standard, but VR players and file naming depend on knowing the
+            # projection; passed through to --print/--parse-metadata/info.json.
+            "vr_format": vr_format,
+            "vr_quality": self._player_attr(webpage, "vr-quality"),
             "formats": formats,
             "subtitles": subtitles,
         }
