@@ -22,6 +22,17 @@ emulate -L zsh
 # is quietly skipped, because a category this script does not know is a naming
 # scheme it would otherwise invent.
 #
+# Orthogonal to the category is the VARIANT tag, which the yt-dlp `--clip`
+# alias sets to "Clip" for one piece of a multi-clip post. A Clip carries its
+# number in the name, after the title and before the tags:
+#
+#   Adult    ACTORS (CHANNEL) - TITLE (Clip N) #TAGS ★★★☆☆ [METADATA].ext
+#   Footage  DATE PEOPLE - TITLE (Clip N) (LOCATION) #TAGS ★★★☆☆ [METADATA].ext
+#
+# N is the Track field, which tagform shows for a Clip and writes as the
+# `track` tag. A Clip with no Track renders as a plain file: the variant alone
+# says nothing worth naming.
+#
 # The Adult grammar degrades the way the Footage one does: a segment with no
 # value is not rendered, and the dash appears only when there is a title to
 # separate the left-hand side from.
@@ -43,6 +54,8 @@ emulate -L zsh
 #   TITLE     XMP-dc:Title, else title
 #   TAGS      XMP-dc:Subject, else keywords
 #   RATING    XMP-xmp:Rating, else rating
+#   VARIANT   variant / type atom                         (Clip)
+#   TRACK     track atom                                (Clip)
 #   LOCATION  XMP-iptcExt:LocationCreatedCity            (Footage)
 #   DATE      exif, else mp4 creation_time, else ctime   (Footage)
 #   METADATA  probed fresh with ffprobe (+ exiftool for DEVICE)
@@ -102,6 +115,7 @@ usage() {
   print -r -- "Rename videos from their embedded tags. The Category tag is required:"
   print -r -- "  Adult    ACTORS (CHANNEL) - TITLE #TAGS ★★★☆☆ [METADATA].ext"
   print -r -- "  Footage  DATE PEOPLE - TITLE (LOCATION) #TAGS ★★★☆☆ [METADATA].ext"
+  print -r -- "A file whose Variant is Clip gets its Track after the title: TITLE (Clip N)"
   print -r -- ""
   print -r -- "Options:"
   print -r -- "  --dry-run        Show what would be renamed without changing files"
@@ -245,7 +259,7 @@ split_list() {
 }
 
 # The resolved fields for the file being processed.
-CATEGORY="" TITLE="" CHANNEL="" LOCATION="" RATING=""
+CATEGORY="" TITLE="" CHANNEL="" LOCATION="" RATING="" VARIANT="" CLIP_NUMBER=""
 typeset -ga ACTORS=() TAGS=()
 
 # "Camera Footage" is the literal the yt-dlp alias writes; "Footage" is what
@@ -259,10 +273,21 @@ normalize_category() {
   esac
 }
 
+# The clip's number within the work it was cut from: tagform's Track field,
+# the `track` mdta tag. A remux may have turned it into the iTunes trkn pair,
+# which ffprobe renders as "N/M", so only the leading number is read.
+resolve_clip_number() {
+  local raw
+
+  raw="$(first_atom track)"
+  raw="${raw%%/*}"
+  [[ "$raw" == <-> ]] && (( raw > 0 )) && print -r -- $(( raw ))
+}
+
 resolve_fields() {
   local raw
 
-  CATEGORY="" TITLE="" CHANNEL="" LOCATION="" RATING=""
+  CATEGORY="" TITLE="" CHANNEL="" LOCATION="" RATING="" VARIANT="" CLIP_NUMBER=""
   ACTORS=() TAGS=()
 
   raw="$(first_present "$XMP_GENRE" "$(first_atom category genre)")"
@@ -280,7 +305,10 @@ resolve_fields() {
   raw="$(first_present "$XMP_TAGS" "$(first_atom keywords keyw)")"
   [[ -n "$raw" ]] && TAGS=("${(@f)$(split_list "$raw")}")
 
-  log_verbose "resolved: category='${CATEGORY}' title='${TITLE}' channel='${CHANNEL}' location='${LOCATION}' rating='${RATING}' actors=(${(j:, :)ACTORS}) tags=(${(j:, :)TAGS})"
+  VARIANT="$(first_atom variant type)"
+  [[ "${VARIANT:l}" == "clip" ]] && CLIP_NUMBER="$(resolve_clip_number)"
+
+  log_verbose "resolved: category='${CATEGORY}' title='${TITLE}' channel='${CHANNEL}' location='${LOCATION}' rating='${RATING}' variant='${VARIANT}' clip='${CLIP_NUMBER}' actors=(${(j:, :)ACTORS}) tags=(${(j:, :)TAGS})"
 }
 
 # A rating may be stored as a number (tagform, XMP-xmp:Rating) or already as
@@ -552,7 +580,7 @@ metadata_block() {
 # name assembly
 # ---------------------------------------------------------------------------
 
-# ACTORS (CHANNEL) - TITLE #TAGS ★★★☆☆ [METADATA]
+# ACTORS (CHANNEL) - TITLE (Clip N) #TAGS ★★★☆☆ [METADATA]
 #
 # With no actors the channel stands alone and unparenthesised -- the parentheses
 # mark it as belonging to the names in front of them, and with nothing in front
@@ -577,6 +605,8 @@ build_adult_stem() {
 
   (( ${#parts} )) || return 1
 
+  [[ -n "$CLIP_NUMBER" ]] && parts+=("(Clip ${CLIP_NUMBER})")
+
   for tag in "${TAGS[@]}"; do rendered_tags+=("#${tag#\#}"); done
   (( ${#rendered_tags} )) && parts+=("${(j: :)rendered_tags}")
 
@@ -588,7 +618,7 @@ build_adult_stem() {
   print -r -- "${(j: :)parts}"
 }
 
-# DATE PEOPLE - TITLE (LOCATION) #TAGS ★★★☆☆ [METADATA]
+# DATE PEOPLE - TITLE (Clip N) (LOCATION) #TAGS ★★★☆☆ [METADATA]
 #
 # rename-footage's grammar, minus its filename mining: the channel stays
 # embedded and unrendered, and the parentheses hold the location.
@@ -607,6 +637,7 @@ build_footage_stem() {
     parts+=("$TITLE")
   fi
 
+  [[ -n "$CLIP_NUMBER" ]] && parts+=("(Clip ${CLIP_NUMBER})")
   [[ -n "$LOCATION" ]] && parts+=("(${LOCATION})")
 
   for tag in "${TAGS[@]}"; do rendered_tags+=("#${tag#\#}"); done
