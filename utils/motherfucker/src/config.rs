@@ -284,6 +284,11 @@ pub struct Config {
     /// restores AppKit's stock utility-panel animation. Not a `[style]` key:
     /// it's motion, not appearance, so themes never touch it.
     pub fade: bool,
+    /// `[animation]` `scroll`: ease the row window into place when a key or
+    /// a wheel notch moves it in whole rows. On by default — unlike the
+    /// summon, a scroll is motion the eye is meant to follow. A trackpad
+    /// never eases: it tracks the fingers directly, which is smooth already.
+    pub scroll_animation: bool,
     /// `[modes.<name>]` `sigil`: typing one as the FIRST character switches
     /// the panel into that mode. `None` = mode disabled.
     pub sigil_math: Option<char>,
@@ -347,6 +352,7 @@ impl Default for Config {
             max_rows: 6,
             stats_interval: 1.0,
             fade: false,
+            scroll_animation: true,
             sigil_math: Some('='),
             sigil_web: Some('!'),
             sigil_currency: Some('$'),
@@ -709,16 +715,17 @@ fn parse_into(cfg: &mut Config, text: &str) {
                     warn(&line, "unknown stats key");
                 }
             }
-            "animation" => {
-                if key.replace('-', "_") == "fade" {
-                    match parse_bool(&val) {
-                        Some(b) => cfg.fade = b,
-                        None => warn(&line, "expected true or false"),
-                    }
-                } else {
-                    warn(&line, "unknown animation key");
-                }
-            }
+            "animation" => match key.replace('-', "_").as_str() {
+                "fade" => match parse_bool(&val) {
+                    Some(b) => cfg.fade = b,
+                    None => warn(&line, "expected true or false"),
+                },
+                "scroll" => match parse_bool(&val) {
+                    Some(b) => cfg.scroll_animation = b,
+                    None => warn(&line, "expected true or false"),
+                },
+                _ => warn(&line, "unknown animation key"),
+            },
             _ => warn(&line, "unknown section"),
         }
     }

@@ -32,6 +32,7 @@ use objc2_app_kit::{
     NSApplicationActivationOptions,
     NSApplicationActivationPolicy, NSApplicationDelegate, NSAutoresizingMaskOptions,
     NSBackingStoreType, NSColor, NSControl, NSControlTextEditingDelegate, NSEvent, NSEventMask,
+    NSTrackingArea, NSTrackingAreaOptions,
     NSEventModifierFlags, NSFocusRingType, NSFont, NSFontAttributeName,
     NSForegroundColorAttributeName, NSPanel, NSRunningApplication, NSScreen, NSTextField,
     NSTextFieldDelegate, NSTextView, NSVisualEffectBlendingMode, NSVisualEffectMaterial,
@@ -61,6 +62,11 @@ const CPU_MIN_INTERVAL: f64 = 0.25;
 // scrolled in. Short enough to read as instant, long enough that trackpad
 // momentum coalesces into one pass instead of one per event.
 const SCROLL_SAMPLE_DELAY: f64 = 0.06;
+// Glide timer period (~120 Hz) and its ease constant: the time the offset
+// takes to close 1 - 1/e of the distance left. Small enough that a keypress
+// still feels instant, large enough to read as motion rather than a jump.
+const SCROLL_FRAME: f64 = 1.0 / 120.0;
+const SCROLL_EASE_TAU: f64 = 0.045;
 // Whole-tree CPU (Activity Monitor scale: 100 = one full core) at which a
 // row's gauge turns red.
 const CPU_ALERT_PCT: f64 = 70.0;
@@ -233,29 +239,74 @@ fn compute_row_hints(entries: &[Entry], binds: &[(config::Chord, Action)]) -> Ve
     hints
 }
 
-/// Where the drawn window sits in a list of `total` rows: clamp `selected`
-/// into range, then slide a `max_rows`-tall window by the smallest amount
-/// that puts the selection back inside it. Returns `(selected, first, last)`
-/// with `first..last` half-open. Pure — `Delegate::visible_range` is this
-/// plus the two cells it reads and writes.
-fn row_window(
-    total: usize,
-    max_rows: usize,
-    selected: usize,
-    scroll: usize,
-) -> (usize, usize, usize) {
+/// The drawn row window for one scroll position. The list scrolls in
+/// *points*, not rows — `px` is how far it has slid up past the top slot —
+/// so `first` and the last drawn row are usually cut off by the rows-area
+/// clip, and `frac` is how far up the whole stack is nudged to show it.
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct RowWindow {
+    /// Scroll position in points, clamped to the list.
+    px: f64,
+    /// First row to draw — partly above the top edge when `frac` > 0.
+    first: usize,
+    /// Rows to draw: `win`, plus the one peeking in at the bottom.
+    drawn: usize,
+    /// Rows that fit whole. The panel is this tall and stays this tall
+    /// while scrolling.
+    win: usize,
+    /// How far the drawn rows are slid up, in `0.0..ROW_H`.
+    frac: f64,
+}
+
+impl RowWindow {
+    /// The rows entirely on screen — what the selection is allowed to be.
+    /// Empty only in the degenerate `max_rows = 1` mid-scroll case, where
+    /// the caller falls back to the row covering most of the window.
+    fn full_rows(&self) -> std::ops::Range<usize> {
+        if self.frac > 0.0 {
+            (self.first + 1)..(self.first + self.win)
+        } else {
+            self.first..(self.first + self.win)
+        }
+    }
+}
+
+/// Resolve a scroll position against a list of `total` rows: clamp it to
+/// what there is to scroll, then say which rows that draws.
+fn row_window(total: usize, max_rows: usize, scroll_px: f64) -> RowWindow {
     if total == 0 {
-        return (0, 0, 0);
+        return RowWindow { px: 0.0, first: 0, drawn: 0, win: 0, frac: 0.0 };
     }
     let win = total.min(max_rows.max(1));
-    let selected = selected.min(total - 1);
-    // Never past the end of the list, never past the selection, and far
-    // enough down that the selection isn't below the window either.
-    let mut first = scroll.min(total - win).min(selected);
-    if selected >= first + win {
-        first = selected + 1 - win;
+    let max_px = (total - win) as f64 * ROW_H;
+    let px = scroll_px.clamp(0.0, max_px);
+    let first = (px / ROW_H).floor() as usize;
+    let frac = px - first as f64 * ROW_H;
+    // The partial row at the bottom is only there when the stack is nudged
+    // up, and only if the list actually has another row to show.
+    let drawn = (win + usize::from(frac > 0.0)).min(total - first);
+    RowWindow { px, first, drawn, win, frac }
+}
+
+/// The scroll position that puts `selected` fully on screen, moving as
+/// little as possible from `scroll_px`. Row-aligned: the keyboard drives
+/// this, and arrowing out of a half-scrolled list should tidy it up rather
+/// than carry the offset along forever.
+fn scroll_to_show(total: usize, max_rows: usize, selected: usize, scroll_px: f64) -> f64 {
+    if total == 0 {
+        return 0.0;
     }
-    (selected, first, first + win)
+    let win = total.min(max_rows.max(1));
+    let max_px = (total - win) as f64 * ROW_H;
+    let selected = selected.min(total - 1);
+    let top = selected as f64 * ROW_H;
+    let mut px = (scroll_px / ROW_H).round() * ROW_H;
+    if top < px {
+        px = top;
+    } else if top + ROW_H > px + win as f64 * ROW_H {
+        px = top + ROW_H - win as f64 * ROW_H;
+    }
+    px.clamp(0.0, max_px)
 }
 
 /// What `PanelMode::AppCommands` is listing: the context app's identity
@@ -375,13 +426,37 @@ struct State {
     /// one summon, so repeated cmd+<letter> presses actually advance.
     letter_cycle: RefCell<std::collections::HashMap<char, usize>>,
     selected: Cell<usize>,
-    /// First row of the drawn window. The entry list is never truncated —
-    /// `[style] max_rows` is how many rows fit on screen at once, and this
-    /// is where that window sits in the list (see `visible_range`).
-    scroll: Cell<usize>,
-    /// Wheel/trackpad travel not yet worth a whole row, in points. Carried
-    /// between events so a slow trackpad drag still moves the list.
-    scroll_accum: Cell<f64>,
+    /// Where the drawn window sits, in points down the list. The entry
+    /// list is never truncated — `[style] max_rows` is how many rows fit on
+    /// screen at once, and this is how far past them the list has slid
+    /// (see `row_window`). Points, not rows, so a trackpad tracks the
+    /// finger instead of stepping.
+    scroll_px: Cell<f64>,
+    /// Where `scroll_px` is heading when something moved the window in row
+    /// steps (a key, a wheel notch) and `[animation] scroll` is on. Equal to
+    /// `scroll_px` when nothing is animating.
+    scroll_target: Cell<f64>,
+    /// What the last relayout actually put on screen: first row, how many,
+    /// and which one was highlighted. Sliding the rows without rebuilding
+    /// them is only valid while all three still hold, so this is what the
+    /// fast path checks — not the scroll position it came from.
+    drawn_first: Cell<usize>,
+    drawn_count: Cell<usize>,
+    drawn_selected: Cell<usize>,
+    /// Whether the running glide should pull the selection along with the
+    /// window (a wheel notch) or leave it be (a keypress, where the
+    /// selection is what the window is chasing).
+    glide_drags_selection: Cell<bool>,
+    /// The glide timer, alive only while `scroll_px != scroll_target`.
+    scroll_timer: RefCell<Option<Retained<objc2::runtime::AnyObject>>>,
+    /// Timestamp of the last glide step, for a frame-rate-independent ease.
+    scroll_at: Cell<Option<std::time::Instant>>,
+    /// Screen position the cursor was at when a row last claimed the
+    /// selection by hover. Rows sliding under a still cursor fire
+    /// `mouseEntered` exactly like a real hover does; comparing against
+    /// this is what tells the two apart, so scrolling never yanks the
+    /// selection out from under the keyboard.
+    hover_at: Cell<Option<(f64, f64)>>,
     top_y: Cell<f64>,
     hiding: Cell<bool>,
     cpu_samples: RefCell<std::collections::HashMap<i32, CpuSample>>,
@@ -391,6 +466,14 @@ struct State {
     /// the first keystroke after a summon and cleared on hide, so a freshly
     /// installed app still appears next summon without re-scanning per keystroke.
     installed_cache: RefCell<Option<Vec<apps::InstalledApp>>>,
+    /// Running-app order, pinned for the lifetime of one open panel. The
+    /// switcher list is `NSWorkspace`'s array, and that is explicitly
+    /// unordered — it reshuffles as apps activate. Refresh used to run on a
+    /// keystroke and the one-second tick, so the churn was rare; now that
+    /// scrolling refreshes too, an unpinned order visibly reorders the list
+    /// under the pointer. Cleared on hide, so a newly launched app still
+    /// lands wherever the system puts it next summon.
+    running_order: RefCell<Option<Vec<i32>>>,
     /// Exchange rates read from the disk cache, loaded once per summon and
     /// cleared on hide (so a completed background refresh is picked up next
     /// summon). `Some` with an empty map means "loaded, but no cache yet".
@@ -452,6 +535,13 @@ struct RowIvars {
     delegate: Cell<usize>,
 }
 
+impl RowView {
+    fn delegate(&self) -> Option<&Delegate> {
+        let ptr = self.ivars().delegate.get();
+        (ptr != 0).then(|| unsafe { &*(ptr as *const Delegate) })
+    }
+}
+
 declare_class!(
     struct RowView;
 
@@ -468,10 +558,19 @@ declare_class!(
     unsafe impl RowView {
         #[method(mouseDown:)]
         fn mouse_down(&self, _event: &NSEvent) {
-            let ptr = self.ivars().delegate.get();
-            if ptr != 0 {
-                let delegate = unsafe { &*(ptr as *const Delegate) };
+            if let Some(delegate) = self.delegate() {
                 delegate.select_row(self.ivars().index.get());
+            }
+        }
+
+        /// Hovering a row selects it, so the pointer and the keyboard share
+        /// one highlight. Guarded on the cursor having actually moved: rows
+        /// scrolling under a still cursor fire this too, and letting that
+        /// through would have the list fight the arrow keys.
+        #[method(mouseEntered:)]
+        fn mouse_entered(&self, _event: &NSEvent) {
+            if let Some(delegate) = self.delegate() {
+                delegate.hover_row(self.ivars().index.get());
             }
         }
     }
@@ -511,7 +610,7 @@ declare_class!(
         fn control_text_did_change(&self, _notification: &NSNotification) {
             self.maybe_enter_sigil();
             self.ivars().selected.set(0);
-            self.ivars().scroll.set(0);
+            self.ivars().scroll_px.set(0.0);
             self.refresh();
         }
 
@@ -536,7 +635,7 @@ declare_class!(
                 if self.ivars().sigil.get().is_some() && self.query().is_empty() {
                     self.ivars().sigil.set(None);
                     self.ivars().selected.set(0);
-                    self.ivars().scroll.set(0);
+                    self.ivars().scroll_px.set(0.0);
                     self.refresh();
                     true
                 } else if self.ivars().mode.get() == PanelMode::AppCommands
@@ -562,6 +661,16 @@ declare_class!(
         fn refresh_tick(&self) {
             if self.ivars().panel.get().is_some_and(|p| p.isVisible()) {
                 self.refresh();
+            }
+        }
+
+        /// One frame of the scroll glide (see `glide_scroll_to`).
+        #[method(scrollTick)]
+        fn scroll_tick(&self) {
+            if self.ivars().panel.get().is_some_and(|p| p.isVisible()) {
+                self.scroll_glide_step();
+            } else {
+                self.stop_scroll_glide();
             }
         }
     }
@@ -910,8 +1019,14 @@ impl Delegate {
         unsafe { field.sizeToFit() };
         container.addSubview(&field);
 
-        // Results container.
+        // Results container. Layer-backed and clipping, because a row
+        // scrolling in or out hangs off the top and bottom edges and must
+        // not draw over the input band or past the panel's own padding.
         let rows_area = unsafe { NSView::initWithFrame(mtm.alloc(), body_bounds) };
+        rows_area.setWantsLayer(true);
+        if let Some(layer) = rows_area.layer() {
+            layer.setMasksToBounds(true);
+        }
         container.addSubview(&rows_area);
 
         let ivars = self.ivars();
@@ -1008,44 +1123,35 @@ impl Delegate {
         std::mem::forget(scroll_monitor);
     }
 
-    /// Wheel/trackpad scrolling over the panel. Deltas accumulate so a slow
-    /// trackpad drag still gets there: a precise delta is already in points,
-    /// a wheel notch counts as one line, and either way a row goes by per
-    /// `ROW_H` of travel. Swallowed whenever the panel is up — nothing else
-    /// in this process wants the event.
+    /// Wheel/trackpad scrolling over the panel. A trackpad reports precise
+    /// deltas in points and the list follows them one for one — that is all
+    /// "smooth scrolling" is, the offset tracking the fingers, momentum
+    /// phase included, with no stepping in between. A mouse wheel has no
+    /// finger to track: it reports whole lines, so a notch is a row and the
+    /// glide covers the distance. Swallowed whenever the panel is up —
+    /// nothing else in this process wants the event.
     fn handle_scroll_event(&self, event: &NSEvent) -> bool {
         let ivars = self.ivars();
         if !ivars.panel.get().is_some_and(|p| p.isVisible()) {
             return false;
         }
         let delta = unsafe { event.scrollingDeltaY() };
-        let travel = if unsafe { event.hasPreciseScrollingDeltas() } {
-            delta
-        } else {
-            delta * ROW_H
-        };
-        let mut acc = ivars.scroll_accum.get();
-        // A reversal starts a fresh gesture; leftover travel the other way
-        // would otherwise swallow the first rows of this one.
-        if travel != 0.0 && acc != 0.0 && acc.is_sign_positive() != travel.is_sign_positive() {
-            acc = 0.0;
+        if delta == 0.0 {
+            return true;
         }
-        acc += travel;
         // Positive deltaY means the content moves down, i.e. toward the top
-        // of the list — the same sense NSScrollView gives it, so the natural
-        // -scrolling preference is already baked into the sign.
-        let mut steps = 0isize;
-        while acc >= ROW_H {
-            acc -= ROW_H;
-            steps -= 1;
-        }
-        while acc <= -ROW_H {
-            acc += ROW_H;
-            steps += 1;
-        }
-        ivars.scroll_accum.set(acc);
-        if steps != 0 {
-            self.scroll_by(steps);
+        // of the list — the same sense NSScrollView gives it, so the
+        // natural-scrolling preference is already baked into the sign.
+        if unsafe { event.hasPreciseScrollingDeltas() } {
+            self.stop_scroll_glide();
+            self.scroll_with_selection(ivars.scroll_px.get() - delta);
+        } else {
+            let from = if ivars.scroll_timer.borrow().is_some() {
+                ivars.scroll_target.get()
+            } else {
+                ivars.scroll_px.get()
+            };
+            self.glide_scroll_to(from - delta * ROW_H, true);
         }
         true
     }
@@ -1144,7 +1250,7 @@ impl Delegate {
                 if let Some(field) = ivars.field.get() {
                     unsafe { field.setStringValue(&NSString::from_str("")) };
                     ivars.selected.set(0);
-                    ivars.scroll.set(0);
+                    ivars.scroll_px.set(0.0);
                     ivars.sigil.set(None);
                     self.refresh();
                 }
@@ -1216,7 +1322,7 @@ impl Delegate {
         *ivars.command_context.borrow_mut() = Some(AppCommandContext { path, running, commands });
         ivars.mode.set(PanelMode::AppCommands);
         ivars.selected.set(0);
-        ivars.scroll.set(0);
+        ivars.scroll_px.set(0.0);
         self.set_field_text("");
         self.refresh();
     }
@@ -1240,7 +1346,7 @@ impl Delegate {
         ivars.mode.set(PanelMode::Launcher);
         *ivars.command_context.borrow_mut() = None;
         ivars.selected.set(0);
-        ivars.scroll.set(0);
+        ivars.scroll_px.set(0.0);
         self.refresh();
     }
 
@@ -1392,8 +1498,8 @@ impl Delegate {
 
         field.setStringValue(&NSString::from_str(""));
         ivars.selected.set(0);
-        ivars.scroll.set(0);
-        ivars.scroll_accum.set(0.0);
+        ivars.scroll_px.set(0.0);
+        ivars.scroll_target.set(0.0);
         ivars.sigil.set(None);
         ivars.auto_sigil.set(None);
         ivars.mode.set(PanelMode::Launcher);
@@ -1470,10 +1576,12 @@ impl Delegate {
         if let Some(timer) = ivars.stats_timer.borrow_mut().take() {
             let _: () = unsafe { msg_send![&*timer, invalidate] };
         }
+        self.stop_scroll_glide();
         // Drop the cached scan so the next summon re-reads the app directories,
         // and the rates so a completed background refresh is picked up.
         ivars.installed_cache.borrow_mut().take();
         ivars.rates_cache.borrow_mut().take();
+        ivars.running_order.borrow_mut().take();
         if let Some(panel) = ivars.panel.get() {
             panel.orderOut(None);
         }
@@ -1564,7 +1672,7 @@ impl Delegate {
             self.relayout();
             return;
         }
-        let running = running_apps();
+        let running = self.running_apps_in_order();
 
         let mut entries: Vec<Entry> = Vec::new();
         if query.is_empty() {
@@ -1665,7 +1773,8 @@ impl Delegate {
         // came into view gets its gauge. CPU% needs two samples: rows show
         // "…" until the second sample lands, then a one-shot refreshTick
         // fills the number in. Never blocks.
-        let (first, last) = self.visible_range(entries.len());
+        let w = self.visible_range(entries.len());
+        let (first, last) = (w.first, w.first + w.drawn);
         let window_counts = stats::window_counts();
         let procs = stats::ProcSnapshot::new();
         let mut cpu_pending = false;
@@ -1755,6 +1864,28 @@ impl Delegate {
                 afterDelay: delay
             ];
         }
+    }
+
+    /// The running apps in a stable order: whatever the system handed back
+    /// the first time this panel asked, with anything launched since
+    /// appended. See `running_order` for why the raw order won't do.
+    fn running_apps_in_order(&self) -> Vec<Entry> {
+        let mut apps = running_apps();
+        let ivars = self.ivars();
+        let mut order = ivars.running_order.borrow_mut();
+        let pinned = order.get_or_insert_with(|| apps.iter().map(entry_pid).collect());
+        apps.sort_by_key(|e| {
+            let pid = entry_pid(e);
+            pinned.iter().position(|p| *p == pid).unwrap_or(usize::MAX)
+        });
+        // Remember the newcomers so they hold their place too.
+        for e in apps.iter() {
+            let pid = entry_pid(e);
+            if !pinned.contains(&pid) {
+                pinned.push(pid);
+            }
+        }
+        apps
     }
 
     /// On the first keystroke of a launcher session, a reserved leading
@@ -1959,7 +2090,10 @@ impl Delegate {
             None => 0,
         };
         ivars.selected.set(index);
+        ivars.scroll_px.set(0.0);
         self.refresh();
+        // The active theme can sit well past the sixth row.
+        self.scroll_to_selection(false);
     }
 
     /// Live preview: restyle the visible panel with the selected row's theme.
@@ -1988,40 +2122,186 @@ impl Delegate {
         self.apply_live_style();
     }
 
-    /// Clamp the selection and the scroll offset to a list of `total` rows
-    /// and hand back the half-open range the panel draws. The window is
-    /// `[style] max_rows` tall and moves by the smallest amount that keeps
-    /// the selection inside it, so arrowing past either end pulls the list
-    /// along instead of stopping. Idempotent — every path that changes the
-    /// list, the selection or the offset ends here.
-    fn visible_range(&self, total: usize) -> (usize, usize) {
+    /// Clamp the selection and the scroll position to a list of `total`
+    /// rows and hand back the window that draws. Idempotent — every path
+    /// that changes the list, the selection or the offset ends here.
+    fn visible_range(&self, total: usize) -> RowWindow {
         let ivars = self.ivars();
         let max_rows = ivars.config.borrow().max_rows;
-        let (selected, first, last) =
-            row_window(total, max_rows, ivars.selected.get(), ivars.scroll.get());
-        ivars.selected.set(selected);
-        ivars.scroll.set(first);
-        (first, last)
+        let window = row_window(total, max_rows, ivars.scroll_px.get());
+        ivars.scroll_px.set(window.px);
+        ivars.selected.set(ivars.selected.get().min(total.saturating_sub(1)));
+        window
     }
 
-    /// Move the row window by `delta` rows, no wrapping, dragging the
-    /// selection along at whichever edge it would fall off — Enter always
-    /// acts on a row that is actually on screen.
-    fn scroll_by(&self, delta: isize) {
+    /// Put the window at `px` and show it. Purely positional — it never
+    /// touches the selection, because the keyboard path scrolls precisely
+    /// *to* a selection that is off screen and clamping here would drag it
+    /// back on every frame of the glide.
+    ///
+    /// While the same rows and the same highlight are on screen, sliding
+    /// the rows-area bounds is the whole of the work: a 120 Hz trackpad
+    /// drag rebuilds nothing until it crosses a row.
+    fn scroll_to(&self, px: f64) {
         let ivars = self.ivars();
         let total = ivars.entries.borrow().len();
-        let win = total.min(ivars.config.borrow().max_rows.max(1));
-        if total <= win {
+        let max_rows = ivars.config.borrow().max_rows;
+        let after = row_window(total, max_rows, px);
+        let same_rows = after.first == ivars.drawn_first.get()
+            && after.drawn == ivars.drawn_count.get()
+            && ivars.selected.get() == ivars.drawn_selected.get();
+        if same_rows && (after.px - ivars.scroll_px.get()).abs() <= f64::EPSILON {
             return;
         }
-        let top = (ivars.scroll.get() as isize + delta).clamp(0, (total - win) as isize) as usize;
-        if top == ivars.scroll.get() {
+        ivars.scroll_px.set(after.px);
+        if same_rows {
+            self.slide_rows(after.frac);
+        } else {
+            self.relayout();
+        }
+    }
+
+    /// Scroll the way the pointer asked, dragging the selection along at
+    /// whichever edge it would otherwise fall off — Enter must never fire
+    /// on a row that has scrolled out of sight. Only the wheel and the
+    /// trackpad come through here; under the keyboard the selection leads
+    /// and the window follows it.
+    fn scroll_with_selection(&self, px: f64) {
+        let ivars = self.ivars();
+        let total = ivars.entries.borrow().len();
+        let max_rows = ivars.config.borrow().max_rows;
+        let full = row_window(total, max_rows, px).full_rows();
+        if !full.is_empty() {
+            let selected = ivars.selected.get();
+            let clamped = selected.clamp(full.start, full.end - 1);
+            if clamped != selected {
+                ivars.selected.set(clamped);
+                self.preview_selected_theme();
+            }
+        }
+        self.scroll_to(px);
+        self.schedule_refresh(SCROLL_SAMPLE_DELAY);
+    }
+
+    /// Nudge the drawn rows up by `frac` points without rebuilding them.
+    /// The rows-area bounds origin is the same lever `NSClipView` pulls —
+    /// subviews move with it, and the area's own layer clips whatever hangs
+    /// off either end.
+    ///
+    /// The sign: a subview's frame is read in its superview's *bounds*
+    /// space, so it draws `frame.y - bounds.origin.y` up from the bottom
+    /// edge. Rows have to travel UP as the list scrolls down into itself,
+    /// which means the origin goes negative.
+    fn slide_rows(&self, frac: f64) {
+        if let Some(rows_area) = self.ivars().rows_area.get() {
+            unsafe { rows_area.setBoundsOrigin(NSPoint::new(0.0, -frac)) };
+        }
+    }
+
+    /// Head for `px` over the next few frames instead of jumping there.
+    /// Used where the movement is in row steps — a key, a wheel notch —
+    /// since those have no finger position to track. `[animation] scroll`
+    /// off (or no distance worth easing) lands immediately.
+    fn glide_scroll_to(&self, px: f64, drag_selection: bool) {
+        let ivars = self.ivars();
+        let smooth = ivars.config.borrow().scroll_animation;
+        if !smooth || (px - ivars.scroll_px.get()).abs() < 1.0 {
+            self.stop_scroll_glide();
+            if drag_selection {
+                self.scroll_with_selection(px);
+            } else {
+                self.scroll_to(px);
+            }
             return;
         }
-        ivars.scroll.set(top);
-        ivars.selected.set(ivars.selected.get().clamp(top, top + win - 1));
-        self.preview_selected_theme();
-        self.relayout();
+        ivars.glide_drags_selection.set(drag_selection);
+        ivars.scroll_target.set(px);
+        if ivars.scroll_timer.borrow().is_some() {
+            return;
+        }
+        ivars.scroll_at.set(Some(std::time::Instant::now()));
+        let nil = std::ptr::null::<objc2::runtime::AnyObject>();
+        // Built unscheduled and added for the common modes: on the default
+        // mode alone the glide stalls mid-flight whenever the run loop is
+        // tracking something (the field editor, a menu).
+        let timer: Retained<objc2::runtime::AnyObject> = unsafe {
+            msg_send_id![
+                objc2::class!(NSTimer),
+                timerWithTimeInterval: SCROLL_FRAME,
+                target: self,
+                selector: sel!(scrollTick),
+                userInfo: nil,
+                repeats: true
+            ]
+        };
+        unsafe {
+            let loop_: Retained<objc2::runtime::AnyObject> =
+                msg_send_id![objc2::class!(NSRunLoop), currentRunLoop];
+            let mode = NSString::from_str("kCFRunLoopCommonModes");
+            let _: () = msg_send![&*loop_, addTimer: &*timer, forMode: &*mode];
+        }
+        *ivars.scroll_timer.borrow_mut() = Some(timer);
+    }
+
+    /// One glide frame: ease toward the target by a fixed fraction of the
+    /// remaining distance per unit time, so the speed is the same whatever
+    /// the frame rate happens to be, and stop once there's nothing left.
+    /// `drag_selection` is set for a wheel notch and clear for a keypress —
+    /// see `scroll_with_selection`.
+    fn scroll_glide_step(&self) {
+        let ivars = self.ivars();
+        let target = ivars.scroll_target.get();
+        let now = std::time::Instant::now();
+        let dt = ivars
+            .scroll_at
+            .replace(Some(now))
+            .map_or(SCROLL_FRAME, |at| now.duration_since(at).as_secs_f64())
+            .min(0.1);
+        let px = ivars.scroll_px.get();
+        let mut next = px + (target - px) * (1.0 - (-dt / SCROLL_EASE_TAU).exp());
+        let arrived = (target - next).abs() < 0.5;
+        if arrived {
+            self.stop_scroll_glide();
+            next = target;
+        }
+        if ivars.glide_drags_selection.get() {
+            self.scroll_with_selection(next);
+        } else {
+            self.scroll_to(next);
+        }
+    }
+
+    fn stop_scroll_glide(&self) {
+        let ivars = self.ivars();
+        if let Some(timer) = ivars.scroll_timer.borrow_mut().take() {
+            let _: () = unsafe { msg_send![&*timer, invalidate] };
+        }
+        ivars.scroll_at.set(None);
+        ivars.scroll_target.set(ivars.scroll_px.get());
+    }
+
+    /// Bring the selected row into view. `glide` eases it there (arrow
+    /// keys, where the movement is the point); entering a mode with a row
+    /// already picked out just puts the window where it belongs.
+    fn scroll_to_selection(&self, glide: bool) {
+        let ivars = self.ivars();
+        let total = ivars.entries.borrow().len();
+        let max_rows = ivars.config.borrow().max_rows;
+        let target =
+            scroll_to_show(total, max_rows, ivars.selected.get(), ivars.scroll_px.get());
+        if (target - ivars.scroll_px.get()).abs() <= f64::EPSILON {
+            return;
+        }
+        if glide {
+            self.glide_scroll_to(target, false);
+        } else {
+            self.stop_scroll_glide();
+            self.scroll_to(target);
+        }
+
+        // Rows that just came into view have never been sampled, so their
+        // gauges land on a coalesced tick rather than walking the process
+        // table once per keypress.
         self.schedule_refresh(SCROLL_SAMPLE_DELAY);
     }
 
@@ -2034,16 +2314,9 @@ impl Delegate {
         let current = ivars.selected.get() as isize;
         let next = (current + delta).rem_euclid(len as isize) as usize;
         ivars.selected.set(next);
-        let before = ivars.scroll.get();
-        self.visible_range(len);
         self.preview_selected_theme();
         self.relayout();
-        if ivars.scroll.get() != before {
-            // The window moved: the rows that just came into view have never
-            // been sampled, so their gauges land on the next tick rather than
-            // walking the process table once per keypress.
-            self.schedule_refresh(SCROLL_SAMPLE_DELAY);
-        }
+        self.scroll_to_selection(true);
     }
 
     /// Reposition everything for the current entry count and rebuild rows.
@@ -2073,7 +2346,8 @@ impl Delegate {
         };
 
         let entries = ivars.entries.borrow();
-        let (first, last) = self.visible_range(entries.len());
+        let w = self.visible_range(entries.len());
+        let (first, last) = (w.first, w.first + w.drawn);
         // Recomputed every relayout (cheap — at most a handful of rows), so
         // it's never stale relative to what's about to be drawn, and the
         // key handler reads the exact same values back. Only the drawn
@@ -2085,10 +2359,11 @@ impl Delegate {
             hints[first..last].copy_from_slice(&window);
             *ivars.row_hints.borrow_mut() = hints;
         }
-        let shown = last - first;
+        // Height follows the rows that fit, never the partial one scrolling
+        // past — the panel must not breathe in and out as the list moves.
         let pad = ivars.config.borrow().style.panel_padding;
-        let rows_h = if shown > 0 {
-            shown as f64 * ROW_H + ROWS_PAD
+        let rows_h = if w.win > 0 {
+            w.win as f64 * ROW_H + ROWS_PAD
         } else {
             0.0
         };
@@ -2193,14 +2468,44 @@ impl Delegate {
             NSPoint::new(0.0, pad),
             NSSize::new(panel_w, rows_h),
         ));
+        // Rows sit at whole-row positions and the bounds origin carries the
+        // sub-row offset, so a scroll in flight is one origin change rather
+        // than a rebuild (see `slide_rows`, which derives the sign).
+        self.slide_rows(w.frac);
         for view in rows_area.subviews().iter() {
             unsafe { view.removeFromSuperview() };
         }
+        // Where the cursor is as this frame goes up, for `hover_row` to
+        // tell a real hover from rows moving underneath a still pointer.
+        let at = unsafe { NSEvent::mouseLocation() };
+        ivars.hover_at.set(Some((at.x, at.y)));
         let selected = ivars.selected.get();
+        // What is on screen from here on, for `scroll_to`'s slide fast path.
+        ivars.drawn_first.set(first);
+        ivars.drawn_count.set(w.drawn);
+        ivars.drawn_selected.set(selected);
         for (row, entry) in entries[first..last].iter().enumerate() {
             let index = first + row;
             let y = rows_h - ROWS_PAD / 2.0 - (row as f64 + 1.0) * ROW_H;
             self.build_row(mtm, rows_area, y, index, entry, index == selected);
+        }
+    }
+
+    /// A row claiming the selection because the pointer came to rest on it.
+    ///
+    /// Only honoured if the cursor has moved since the panel last drew.
+    /// `mouseEntered` fires just as readily when the rows move under a
+    /// still pointer — every scroll step and every rebuild does it — and
+    /// taking those at face value would have the list fight the arrow keys
+    /// for the highlight. "Is the cursor where it was when we drew this?"
+    /// is the whole test: if it is, this event is our own doing.
+    fn hover_row(&self, index: usize) {
+        let at = unsafe { NSEvent::mouseLocation() };
+        let moved = self.ivars().hover_at.get().is_none_or(|(x, y)| {
+            (x - at.x).abs() > 0.01 || (y - at.y).abs() > 0.01
+        });
+        if moved {
+            self.select_row(index);
         }
     }
 
@@ -2429,6 +2734,37 @@ impl Delegate {
         }
 
         parent.addSubview(&row);
+
+        // Hover tracking, over the part of the row that is actually on
+        // screen: the first and last drawn rows hang off the ends of the
+        // clip, and a tracking area doesn't care about clipping — without
+        // the intersection, the row scrolled up behind the search field
+        // would still claim the pointer. `ActiveAlways` because the panel
+        // is non-activating: the app is never frontmost, and the default
+        // active-app-only modes would never fire.
+        // Worked out from the frames rather than asked of `visibleRect`,
+        // which wants the view to be in an on-screen window — the first
+        // draw of a summon happens before the panel is ordered front.
+        let clip = parent.bounds();
+        let frame = row.frame();
+        let lo = frame.origin.y.max(clip.origin.y);
+        let hi = (frame.origin.y + ROW_H).min(clip.origin.y + clip.size.height);
+        if hi > lo {
+            let area: Retained<NSTrackingArea> = unsafe {
+                NSTrackingArea::initWithRect_options_owner_userInfo(
+                    mtm.alloc(),
+                    NSRect::new(
+                        NSPoint::new(0.0, lo - frame.origin.y),
+                        NSSize::new(row_w, hi - lo),
+                    ),
+                    NSTrackingAreaOptions::NSTrackingMouseEnteredAndExited
+                        | NSTrackingAreaOptions::NSTrackingActiveAlways,
+                    Some(&row),
+                    None,
+                )
+            };
+            unsafe { row.addTrackingArea(&area) };
+        }
     }
 
     /// Inline pill right after the name: SF Symbol icon + small label.
@@ -3008,6 +3344,15 @@ fn spawn_rate_fetch(path: PathBuf) {
 
 /// Running apps with a Dock presence (Regular activation policy), current
 /// process excluded.
+/// A running row's pid, or 0 for a row with no process behind it.
+fn entry_pid(entry: &Entry) -> i32 {
+    entry
+        .running
+        .as_ref()
+        .map(|app| unsafe { app.processIdentifier() })
+        .unwrap_or(0)
+}
+
 fn running_apps() -> Vec<Entry> {
     unsafe { running_apps_impl() }
 }
@@ -3161,30 +3506,80 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::row_window;
+    use super::{row_window, scroll_to_show, ROW_H};
 
-    #[test]
-    fn window_follows_the_selection() {
-        // Shorter than the window: everything is drawn, offset pinned to 0.
-        assert_eq!(row_window(3, 6, 2, 0), (2, 0, 3));
-        // Longer: the window stays put while the selection is inside it.
-        assert_eq!(row_window(20, 6, 5, 0), (5, 0, 6));
-        // Off the bottom by one row -> scroll by exactly one row.
-        assert_eq!(row_window(20, 6, 6, 0), (6, 1, 7));
-        // Off the top -> the selection becomes the first drawn row.
-        assert_eq!(row_window(20, 6, 2, 5), (2, 2, 8));
-        // Wrapping down->up (last row selected) parks the window at the end.
-        assert_eq!(row_window(20, 6, 19, 0), (19, 14, 20));
-        // Wrapping up->down (row 0 selected) parks it at the start.
-        assert_eq!(row_window(20, 6, 0, 14), (0, 0, 6));
+    /// `(first, drawn, win, frac)` — the shape of the drawn window, without
+    /// the clamped `px` (which the position tests below cover).
+    fn shape(total: usize, max_rows: usize, px: f64) -> (usize, usize, usize, f64) {
+        let w = row_window(total, max_rows, px);
+        (w.first, w.drawn, w.win, w.frac)
     }
 
     #[test]
-    fn window_clamps_degenerate_input() {
-        assert_eq!(row_window(0, 6, 4, 3), (0, 0, 0));
-        // A stale selection and offset from a longer list.
-        assert_eq!(row_window(4, 6, 9, 7), (3, 0, 4));
-        // max_rows = 0 would draw nothing; one row is the floor.
-        assert_eq!(row_window(20, 0, 8, 0), (8, 8, 9));
+    fn window_is_aligned_when_the_offset_is() {
+        // Shorter than the window: everything is drawn, nothing to scroll.
+        assert_eq!(shape(3, 6, 0.0), (0, 3, 3, 0.0));
+        // Longer: six rows, no partial one, until the offset moves.
+        assert_eq!(shape(20, 6, 0.0), (0, 6, 6, 0.0));
+        assert_eq!(shape(20, 6, 2.0 * ROW_H), (2, 6, 6, 0.0));
+        // Scrolled to the very end — the last row sits in the last slot.
+        assert_eq!(shape(20, 6, 14.0 * ROW_H), (14, 6, 6, 0.0));
+    }
+
+    #[test]
+    fn a_partial_row_is_drawn_mid_scroll() {
+        // Half a row down: the first row is cut at the top and a seventh
+        // row is drawn peeking in at the bottom.
+        assert_eq!(shape(20, 6, 0.5 * ROW_H), (0, 7, 6, ROW_H / 2.0));
+        // A seven-row list has a seventh row to show, so it is drawn.
+        assert_eq!(shape(7, 6, 0.5 * ROW_H), (0, 7, 6, ROW_H / 2.0));
+        // Scrolled to the end there is nothing left to peek in with.
+        assert_eq!(shape(7, 6, 999.0), (1, 6, 6, 0.0));
+    }
+
+    #[test]
+    fn offset_is_clamped_to_the_list() {
+        assert_eq!(row_window(20, 6, -80.0).px, 0.0);
+        assert_eq!(row_window(20, 6, 9_999.0).px, 14.0 * ROW_H);
+        // Nothing to scroll when everything fits.
+        assert_eq!(row_window(4, 6, 500.0).px, 0.0);
+        assert_eq!(shape(0, 6, 40.0), (0, 0, 0, 0.0));
+    }
+
+    #[test]
+    fn full_rows_excludes_the_clipped_ones() {
+        assert_eq!(row_window(20, 6, 2.0 * ROW_H).full_rows(), 2..8);
+        // Mid-scroll the top row is cut off, so only five are whole.
+        assert_eq!(row_window(20, 6, 2.5 * ROW_H).full_rows(), 3..8);
+        // max_rows = 1 mid-scroll: no row is whole (callers fall back).
+        assert!(row_window(20, 1, 0.5 * ROW_H).full_rows().is_empty());
+    }
+
+    #[test]
+    fn scrolling_to_a_row_moves_as_little_as_possible() {
+        // Already on screen: stay put.
+        assert_eq!(scroll_to_show(20, 6, 3, 0.0), 0.0);
+        // Off the bottom by one row -> exactly one row of travel.
+        assert_eq!(scroll_to_show(20, 6, 6, 0.0), ROW_H);
+        // Off the top -> the row becomes the first one.
+        assert_eq!(scroll_to_show(20, 6, 2, 5.0 * ROW_H), 2.0 * ROW_H);
+        // Wrapping either way parks the window at that end of the list.
+        assert_eq!(scroll_to_show(20, 6, 19, 0.0), 14.0 * ROW_H);
+        assert_eq!(scroll_to_show(20, 6, 0, 14.0 * ROW_H), 0.0);
+        // Nothing to scroll when everything fits.
+        assert_eq!(scroll_to_show(4, 6, 3, 0.0), 0.0);
+        assert_eq!(scroll_to_show(0, 6, 0, 0.0), 0.0);
+    }
+
+    #[test]
+    fn keyboard_tidies_up_a_half_scrolled_list() {
+        // The selection is already visible, but the list is mid-row: the
+        // keyboard snaps it back onto the grid rather than carrying the
+        // offset along forever.
+        assert_eq!(scroll_to_show(20, 6, 4, 2.4 * ROW_H), 2.0 * ROW_H);
+        assert_eq!(scroll_to_show(20, 6, 4, 2.6 * ROW_H), 3.0 * ROW_H);
+        // Snapping must not push the selection off: row 8 stays visible.
+        assert_eq!(scroll_to_show(20, 6, 8, 2.6 * ROW_H), 3.0 * ROW_H);
+        assert_eq!(scroll_to_show(20, 6, 9, 2.6 * ROW_H), 4.0 * ROW_H);
     }
 }

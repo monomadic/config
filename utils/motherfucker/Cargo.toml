@@ -39,6 +39,7 @@ objc2-app-kit = { version = "0.2", features = [
     "NSRunningApplication",
     "NSAppearance",
     "NSEvent",
+    "NSTrackingArea",
     "NSGraphics",
     "NSCell",
     "NSFontDescriptor",
