@@ -39,6 +39,7 @@
 [style]
 # theme = "ocean-breeze"
 width = 600
+max_rows = 6  # rows on screen at once; the rest scroll (arrows, wheel, trackpad)
 panel_background = "#000000"  # wash over the glass material
 panel_foreground = "#ffffff"  # search text + search icon
 panel_opacity = 0.70

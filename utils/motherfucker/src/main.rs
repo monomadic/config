@@ -51,13 +51,16 @@ use objc2_quartz_core::CALayer;
 const INPUT_H: f64 = 58.0;
 const ROW_H: f64 = 40.0;
 const ROWS_PAD: f64 = 12.0;
-const MAX_ROWS: usize = 6;
 // Soft ranking bonus for already-running apps. Worth just over one column of
 // first-hit position (8 per column in apps::match_positions), so a running app
 // wins near-ties but a clearly earlier match on a cold app still outranks it.
 const RUNNING_BONUS: i32 = 12;
 // CPU sampling: minimum interval for a trustworthy percentage.
 const CPU_MIN_INTERVAL: f64 = 0.25;
+// How long after the row window moves to re-sample stats for the rows that
+// scrolled in. Short enough to read as instant, long enough that trackpad
+// momentum coalesces into one pass instead of one per event.
+const SCROLL_SAMPLE_DELAY: f64 = 0.06;
 // Whole-tree CPU (Activity Monitor scale: 100 = one full core) at which a
 // row's gauge turns red.
 const CPU_ALERT_PCT: f64 = 70.0;
@@ -230,6 +233,31 @@ fn compute_row_hints(entries: &[Entry], binds: &[(config::Chord, Action)]) -> Ve
     hints
 }
 
+/// Where the drawn window sits in a list of `total` rows: clamp `selected`
+/// into range, then slide a `max_rows`-tall window by the smallest amount
+/// that puts the selection back inside it. Returns `(selected, first, last)`
+/// with `first..last` half-open. Pure — `Delegate::visible_range` is this
+/// plus the two cells it reads and writes.
+fn row_window(
+    total: usize,
+    max_rows: usize,
+    selected: usize,
+    scroll: usize,
+) -> (usize, usize, usize) {
+    if total == 0 {
+        return (0, 0, 0);
+    }
+    let win = total.min(max_rows.max(1));
+    let selected = selected.min(total - 1);
+    // Never past the end of the list, never past the selection, and far
+    // enough down that the selection isn't below the window either.
+    let mut first = scroll.min(total - win).min(selected);
+    if selected >= first + win {
+        first = selected + 1 - win;
+    }
+    (selected, first, first + win)
+}
+
 /// What `PanelMode::AppCommands` is listing: the context app's identity
 /// (for `path`/`running` on built-in rows) plus its full row list — built-ins
 /// first, then any `[commands.<Name>]` shell extras.
@@ -340,6 +368,13 @@ struct State {
     /// one summon, so repeated cmd+<letter> presses actually advance.
     letter_cycle: RefCell<std::collections::HashMap<char, usize>>,
     selected: Cell<usize>,
+    /// First row of the drawn window. The entry list is never truncated —
+    /// `[style] max_rows` is how many rows fit on screen at once, and this
+    /// is where that window sits in the list (see `visible_range`).
+    scroll: Cell<usize>,
+    /// Wheel/trackpad travel not yet worth a whole row, in points. Carried
+    /// between events so a slow trackpad drag still moves the list.
+    scroll_accum: Cell<f64>,
     top_y: Cell<f64>,
     hiding: Cell<bool>,
     cpu_samples: RefCell<std::collections::HashMap<i32, CpuSample>>,
@@ -469,6 +504,7 @@ declare_class!(
         fn control_text_did_change(&self, _notification: &NSNotification) {
             self.maybe_enter_sigil();
             self.ivars().selected.set(0);
+            self.ivars().scroll.set(0);
             self.refresh();
         }
 
@@ -493,6 +529,7 @@ declare_class!(
                 if self.ivars().sigil.get().is_some() && self.query().is_empty() {
                     self.ivars().sigil.set(None);
                     self.ivars().selected.set(0);
+                    self.ivars().scroll.set(0);
                     self.refresh();
                     true
                 } else if self.ivars().mode.get() == PanelMode::AppCommands
@@ -888,6 +925,71 @@ impl Delegate {
         };
         std::mem::forget(flags_block);
         std::mem::forget(flags_monitor);
+
+        // Third monitor: the wheel/trackpad. The rows are plain views in a
+        // fixed-height panel, not a scroll view — there is nothing for
+        // AppKit to scroll on its own, so the window moves here.
+        let scroll_ptr = self as *const Delegate as usize;
+        let scroll_block = block2::RcBlock::new(
+            move |event: std::ptr::NonNull<NSEvent>| -> *mut NSEvent {
+                let delegate = unsafe { &*(scroll_ptr as *const Delegate) };
+                if delegate.handle_scroll_event(unsafe { event.as_ref() }) {
+                    std::ptr::null_mut()
+                } else {
+                    event.as_ptr()
+                }
+            },
+        );
+        let scroll_monitor = unsafe {
+            NSEvent::addLocalMonitorForEventsMatchingMask_handler(
+                NSEventMask::ScrollWheel,
+                &scroll_block,
+            )
+        };
+        std::mem::forget(scroll_block);
+        std::mem::forget(scroll_monitor);
+    }
+
+    /// Wheel/trackpad scrolling over the panel. Deltas accumulate so a slow
+    /// trackpad drag still gets there: a precise delta is already in points,
+    /// a wheel notch counts as one line, and either way a row goes by per
+    /// `ROW_H` of travel. Swallowed whenever the panel is up — nothing else
+    /// in this process wants the event.
+    fn handle_scroll_event(&self, event: &NSEvent) -> bool {
+        let ivars = self.ivars();
+        if !ivars.panel.get().is_some_and(|p| p.isVisible()) {
+            return false;
+        }
+        let delta = unsafe { event.scrollingDeltaY() };
+        let travel = if unsafe { event.hasPreciseScrollingDeltas() } {
+            delta
+        } else {
+            delta * ROW_H
+        };
+        let mut acc = ivars.scroll_accum.get();
+        // A reversal starts a fresh gesture; leftover travel the other way
+        // would otherwise swallow the first rows of this one.
+        if travel != 0.0 && acc != 0.0 && acc.is_sign_positive() != travel.is_sign_positive() {
+            acc = 0.0;
+        }
+        acc += travel;
+        // Positive deltaY means the content moves down, i.e. toward the top
+        // of the list — the same sense NSScrollView gives it, so the natural
+        // -scrolling preference is already baked into the sign.
+        let mut steps = 0isize;
+        while acc >= ROW_H {
+            acc -= ROW_H;
+            steps -= 1;
+        }
+        while acc <= -ROW_H {
+            acc += ROW_H;
+            steps += 1;
+        }
+        ivars.scroll_accum.set(acc);
+        if steps != 0 {
+            self.scroll_by(steps);
+        }
+        true
     }
 
     /// Returns true if the event matched a configured binding and should be
@@ -984,6 +1086,7 @@ impl Delegate {
                 if let Some(field) = ivars.field.get() {
                     unsafe { field.setStringValue(&NSString::from_str("")) };
                     ivars.selected.set(0);
+                    ivars.scroll.set(0);
                     ivars.sigil.set(None);
                     self.refresh();
                 }
@@ -1055,6 +1158,7 @@ impl Delegate {
         *ivars.command_context.borrow_mut() = Some(AppCommandContext { path, running, commands });
         ivars.mode.set(PanelMode::AppCommands);
         ivars.selected.set(0);
+        ivars.scroll.set(0);
         self.set_field_text("");
         self.refresh();
     }
@@ -1078,6 +1182,7 @@ impl Delegate {
         ivars.mode.set(PanelMode::Launcher);
         *ivars.command_context.borrow_mut() = None;
         ivars.selected.set(0);
+        ivars.scroll.set(0);
         self.refresh();
     }
 
@@ -1226,6 +1331,8 @@ impl Delegate {
 
         field.setStringValue(&NSString::from_str(""));
         ivars.selected.set(0);
+        ivars.scroll.set(0);
+        ivars.scroll_accum.set(0.0);
         ivars.sigil.set(None);
         ivars.auto_sigil.set(None);
         ivars.mode.set(PanelMode::Launcher);
@@ -1370,7 +1477,7 @@ impl Delegate {
         };
         if let Some(rows) = sigil_rows {
             let ivars = self.ivars();
-            let mut entries: Vec<Entry> = rows
+            let entries: Vec<Entry> = rows
                 .into_iter()
                 .map(|r| Entry {
                     name: r.name,
@@ -1386,11 +1493,9 @@ impl Delegate {
                     app_action: None,
                 })
                 .collect();
-            entries.truncate(MAX_ROWS);
-            if ivars.selected.get() >= entries.len() {
-                ivars.selected.set(entries.len().saturating_sub(1));
-            }
+            let len = entries.len();
             *ivars.entries.borrow_mut() = entries;
+            self.visible_range(len);
             self.relayout();
             return;
         }
@@ -1488,12 +1593,14 @@ impl Delegate {
             scored.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.name.cmp(&b.1.name)));
             entries.extend(scored.into_iter().map(|(_, e)| e));
         }
-        entries.truncate(MAX_ROWS);
-
-        // Stats for the visible running apps (a handful of syscalls plus one
-        // window-list snapshot — microseconds, fresh every time). CPU% needs
-        // two samples: rows show "…" until the second sample lands, then a
-        // one-shot refreshTick fills the number in. Never blocks.
+        // Stats for the visible running apps only (a handful of syscalls plus
+        // one window-list snapshot — microseconds, fresh every time), so the
+        // per-tick cost tracks the panel's height and not the match count.
+        // Scrolling calls back through here, which is how a row that just
+        // came into view gets its gauge. CPU% needs two samples: rows show
+        // "…" until the second sample lands, then a one-shot refreshTick
+        // fills the number in. Never blocks.
+        let (first, last) = self.visible_range(entries.len());
         let window_counts = stats::window_counts();
         let procs = stats::ProcSnapshot::new();
         let mut cpu_pending = false;
@@ -1501,7 +1608,7 @@ impl Delegate {
             let mut samples = self.ivars().cpu_samples.borrow_mut();
             samples.retain(|pid, _| procs.is_alive(*pid));
             let now = std::time::Instant::now();
-            for entry in entries.iter_mut() {
+            for entry in entries[first..last].iter_mut() {
                 if let Some(app) = &entry.running {
                     let pid = unsafe { app.processIdentifier() };
                     entry.windows = window_counts.get(&pid).copied().unwrap_or(0);
@@ -1555,29 +1662,34 @@ impl Delegate {
             }
         }
         if cpu_pending {
-            unsafe {
-                let nil = std::ptr::null::<objc2::runtime::AnyObject>();
-                let _: () = msg_send![
-                    objc2::class!(NSObject),
-                    cancelPreviousPerformRequestsWithTarget: self,
-                    selector: sel!(refreshTick),
-                    object: nil
-                ];
-                let _: () = msg_send![
-                    self,
-                    performSelector: sel!(refreshTick),
-                    withObject: nil,
-                    afterDelay: 0.4f64
-                ];
-            }
+            self.schedule_refresh(0.4);
         }
 
-        let ivars = self.ivars();
-        if ivars.selected.get() >= entries.len() {
-            ivars.selected.set(entries.len().saturating_sub(1));
-        }
-        *ivars.entries.borrow_mut() = entries;
+        *self.ivars().entries.borrow_mut() = entries;
         self.relayout();
+    }
+
+    /// One coalesced `refreshTick`, `delay` seconds out: a second sample for
+    /// a CPU gauge that isn't ready yet, or fresh stats for rows that just
+    /// scrolled into view. Coalesced because a refresh walks the process
+    /// table and the callers can fire faster than that is worth doing —
+    /// trackpad momentum lands dozens of scroll events a second.
+    fn schedule_refresh(&self, delay: f64) {
+        unsafe {
+            let nil = std::ptr::null::<objc2::runtime::AnyObject>();
+            let _: () = msg_send![
+                objc2::class!(NSObject),
+                cancelPreviousPerformRequestsWithTarget: self,
+                selector: sel!(refreshTick),
+                object: nil
+            ];
+            let _: () = msg_send![
+                self,
+                performSelector: sel!(refreshTick),
+                withObject: nil,
+                afterDelay: delay
+            ];
+        }
     }
 
     /// On the first keystroke of a launcher session, a reserved leading
@@ -1699,14 +1811,9 @@ impl Delegate {
                 app_action: None,
             });
         }
-        // Unlike search results, the picker shows the whole set — MAX_ROWS
-        // would hide themes behind an invisible cutoff. The panel just grows;
-        // typing filters if the list ever gets long.
-        entries.truncate(16);
-        if ivars.selected.get() >= entries.len() {
-            ivars.selected.set(entries.len().saturating_sub(1));
-        }
+        let len = entries.len();
         *ivars.entries.borrow_mut() = entries;
+        self.visible_range(len);
         // Typing moves the selection, and the selection IS the preview.
         self.preview_selected_theme();
         self.relayout();
@@ -1759,11 +1866,9 @@ impl Delegate {
                 app_action,
             });
         }
-        entries.truncate(MAX_ROWS);
-        if ivars.selected.get() >= entries.len() {
-            ivars.selected.set(entries.len().saturating_sub(1));
-        }
+        let len = entries.len();
         *ivars.entries.borrow_mut() = entries;
+        self.visible_range(len);
         self.relayout();
     }
 
@@ -1818,6 +1923,43 @@ impl Delegate {
         self.apply_live_style();
     }
 
+    /// Clamp the selection and the scroll offset to a list of `total` rows
+    /// and hand back the half-open range the panel draws. The window is
+    /// `[style] max_rows` tall and moves by the smallest amount that keeps
+    /// the selection inside it, so arrowing past either end pulls the list
+    /// along instead of stopping. Idempotent — every path that changes the
+    /// list, the selection or the offset ends here.
+    fn visible_range(&self, total: usize) -> (usize, usize) {
+        let ivars = self.ivars();
+        let max_rows = ivars.config.borrow().max_rows;
+        let (selected, first, last) =
+            row_window(total, max_rows, ivars.selected.get(), ivars.scroll.get());
+        ivars.selected.set(selected);
+        ivars.scroll.set(first);
+        (first, last)
+    }
+
+    /// Move the row window by `delta` rows, no wrapping, dragging the
+    /// selection along at whichever edge it would fall off — Enter always
+    /// acts on a row that is actually on screen.
+    fn scroll_by(&self, delta: isize) {
+        let ivars = self.ivars();
+        let total = ivars.entries.borrow().len();
+        let win = total.min(ivars.config.borrow().max_rows.max(1));
+        if total <= win {
+            return;
+        }
+        let top = (ivars.scroll.get() as isize + delta).clamp(0, (total - win) as isize) as usize;
+        if top == ivars.scroll.get() {
+            return;
+        }
+        ivars.scroll.set(top);
+        ivars.selected.set(ivars.selected.get().clamp(top, top + win - 1));
+        self.preview_selected_theme();
+        self.relayout();
+        self.schedule_refresh(SCROLL_SAMPLE_DELAY);
+    }
+
     fn move_selection(&self, delta: isize) {
         let ivars = self.ivars();
         let len = ivars.entries.borrow().len();
@@ -1827,8 +1969,16 @@ impl Delegate {
         let current = ivars.selected.get() as isize;
         let next = (current + delta).rem_euclid(len as isize) as usize;
         ivars.selected.set(next);
+        let before = ivars.scroll.get();
+        self.visible_range(len);
         self.preview_selected_theme();
         self.relayout();
+        if ivars.scroll.get() != before {
+            // The window moved: the rows that just came into view have never
+            // been sampled, so their gauges land on the next tick rather than
+            // walking the process table once per keypress.
+            self.schedule_refresh(SCROLL_SAMPLE_DELAY);
+        }
     }
 
     /// Reposition everything for the current entry count and rebuild rows.
@@ -1858,14 +2008,22 @@ impl Delegate {
         };
 
         let entries = ivars.entries.borrow();
+        let (first, last) = self.visible_range(entries.len());
         // Recomputed every relayout (cheap — at most a handful of rows), so
         // it's never stale relative to what's about to be drawn, and the
-        // key handler reads the exact same values back.
-        *ivars.row_hints.borrow_mut() = compute_row_hints(&entries, &ivars.config.borrow().binds);
-        let n = entries.len();
+        // key handler reads the exact same values back. Only the drawn
+        // window gets hints: a ⌘-jump has to point at something you can see,
+        // and the digits restart from ⌘1 at the top of each window.
+        {
+            let mut hints: Vec<Option<RowHint>> = vec![None; entries.len()];
+            let window = compute_row_hints(&entries[first..last], &ivars.config.borrow().binds);
+            hints[first..last].copy_from_slice(&window);
+            *ivars.row_hints.borrow_mut() = hints;
+        }
+        let shown = last - first;
         let pad = ivars.config.borrow().style.panel_padding;
-        let rows_h = if n > 0 {
-            n as f64 * ROW_H + ROWS_PAD
+        let rows_h = if shown > 0 {
+            shown as f64 * ROW_H + ROWS_PAD
         } else {
             0.0
         };
@@ -1960,9 +2118,10 @@ impl Delegate {
             unsafe { view.removeFromSuperview() };
         }
         let selected = ivars.selected.get();
-        for (i, entry) in entries.iter().enumerate() {
-            let y = rows_h - ROWS_PAD / 2.0 - (i as f64 + 1.0) * ROW_H;
-            self.build_row(mtm, rows_area, y, i, entry, i == selected);
+        for (row, entry) in entries[first..last].iter().enumerate() {
+            let index = first + row;
+            let y = rows_h - ROWS_PAD / 2.0 - (row as f64 + 1.0) * ROW_H;
+            self.build_row(mtm, rows_area, y, index, entry, index == selected);
         }
     }
 
@@ -2919,4 +3078,34 @@ fn main() {
     }
 
     unsafe { app.run() };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::row_window;
+
+    #[test]
+    fn window_follows_the_selection() {
+        // Shorter than the window: everything is drawn, offset pinned to 0.
+        assert_eq!(row_window(3, 6, 2, 0), (2, 0, 3));
+        // Longer: the window stays put while the selection is inside it.
+        assert_eq!(row_window(20, 6, 5, 0), (5, 0, 6));
+        // Off the bottom by one row -> scroll by exactly one row.
+        assert_eq!(row_window(20, 6, 6, 0), (6, 1, 7));
+        // Off the top -> the selection becomes the first drawn row.
+        assert_eq!(row_window(20, 6, 2, 5), (2, 2, 8));
+        // Wrapping down->up (last row selected) parks the window at the end.
+        assert_eq!(row_window(20, 6, 19, 0), (19, 14, 20));
+        // Wrapping up->down (row 0 selected) parks it at the start.
+        assert_eq!(row_window(20, 6, 0, 14), (0, 0, 6));
+    }
+
+    #[test]
+    fn window_clamps_degenerate_input() {
+        assert_eq!(row_window(0, 6, 4, 3), (0, 0, 0));
+        // A stale selection and offset from a longer list.
+        assert_eq!(row_window(4, 6, 9, 7), (3, 0, 4));
+        // max_rows = 0 would draw nothing; one row is the floor.
+        assert_eq!(row_window(20, 0, 8, 0), (8, 8, 9));
+    }
 }

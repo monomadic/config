@@ -10,11 +10,15 @@ Run the binary; it sits resident (a few MB, zero idle CPU) and waits for
 **⌥Space**. Type to filter, `↑`/`↓` to select, `↩` to switch/open, `⌘↩` to
 force-open (reopen event), `⌘R` to reveal in Finder, `⎋` or clicking away
 dismisses. Summoning with an empty query lists running apps — it's an app
-switcher by default. CPU/RAM gauges on running rows refresh every second
-while the panel is up. Hold **⌘** to show a row-jump hint on each visible
-row — a running app gets the first letter of its name (`⌘F` for Finder;
-several running apps sharing a letter all show it, and repeated presses
-cycle through them one at a time), everything else gets the next free
+switcher by default. The panel is `max_rows` tall (6 by default, see
+`[style]`); nothing past that is thrown away — arrowing off either end of
+the window scrolls the list, and so does the wheel or a two-finger drag,
+with the selection dragged along so `↩` always acts on a row you can see.
+CPU/RAM gauges on running rows refresh every second while the panel is up.
+Hold **⌘** to show a row-jump hint on each visible row — a running app gets
+the first letter of its name (`⌘F` for Finder; several running apps sharing
+a letter all show it, and repeated presses cycle through them one at a
+time), everything else gets the next free
 `⌘1`–`⌘9` in order. Pressing the hint opens that row directly (same as
 selecting it and pressing `↩`); the hints disappear the moment ⌘ is
 released. A hint never shadows a configured `[keys]` chord — `⌘R`/`⌘A`
@@ -47,9 +51,12 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   aren't configured here — they're computed live from whatever's on
   screen — but any `cmd+<letter>` bound here always wins over a hint that
   would otherwise land on the same letter.
-- `[style]` — `width`, `panel_background`/`panel_foreground`/`panel_opacity`/
-  `panel_padding`/`panel_corner_radius`, `border`/`border_width` (panel
-  stroke, default 0), `item_foreground`/`item_font_size`/
+- `[style]` — `max_rows` (rows on screen at once, default 6 — a viewport
+  height, not a result limit: everything else scrolls into view; the one
+  `[style]` key a theme can't override, since resizing the panel mid-preview
+  is not a color choice), `width`, `panel_background`/`panel_foreground`/
+  `panel_opacity`/`panel_padding`/`panel_corner_radius`, `border`/
+  `border_width` (panel stroke, default 0), `item_foreground`/`item_font_size`/
   `item_foreground_highlight`, `icon_foreground` (glyph column + search
   icon), `item_info_foreground`/`item_info_background` (the inline tag
   pill; a background makes it filled instead of outlined),
@@ -64,9 +71,10 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   `[style]` section that overlays the base style (this repo ships a set in
   `config/motherfucker/themes/`). `theme = "name"` under `[style]` applies
   one at startup. Interactively: search for "theme" and open
-  `Setting: Change Theme (…)` — the panel lists every theme with the
-  active one selected, moving the selection restyles the live panel,
-  `↩` keeps the theme for the session (the config file is never written),
+  `Setting: Change Theme (…)` — the panel lists every theme (scrolling like
+  any other list) with the active one selected, moving the selection
+  restyles the live panel, `↩` keeps the theme for the session (the config
+  file is never written),
   `⎋` reverts. Theme files are read at startup and on refresh-config
   only — never on the summon path.
 - `[icons]` — `search`, `running_many`/`running_one`/`running_none`/

@@ -258,6 +258,12 @@ pub struct Config {
     /// `ShowCommands` chord (default Tab) on a matching row lists these;
     /// selecting one runs the command via `sh -c`, same as `[shortcuts]`.
     pub app_commands: Vec<(String, Vec<(String, String)>)>,
+    /// `[style]` `max_rows`: rows the panel draws at once. Anything past
+    /// that stays in the list and scrolls into view (keyboard or wheel) —
+    /// it is a viewport height, not a result limit. Not routed through
+    /// `apply_style`: it's panel geometry the themes have no business
+    /// resizing mid-preview.
+    pub max_rows: usize,
     /// Seconds between stat refreshes while the panel is up.
     pub stats_interval: f64,
     /// `[animation]` `fade`: window-server fade on summon and dismiss. Off
@@ -325,6 +331,7 @@ impl Default for Config {
             icon_overrides: Vec::new(),
             shortcuts: Vec::new(),
             app_commands: Vec::new(),
+            max_rows: 6,
             stats_interval: 1.0,
             fade: false,
             sigil_math: Some('='),
@@ -602,6 +609,10 @@ fn parse_into(cfg: &mut Config, text: &str) {
             "style" if key.replace('-', "_") == "theme" => {
                 cfg.theme = (!val.is_empty()).then(|| val.clone());
             }
+            "style" if key.replace('-', "_") == "max_rows" => match val.parse::<usize>() {
+                Ok(v) => cfg.max_rows = v.clamp(1, 40),
+                Err(_) => warn(&line, "expected a whole number of rows"),
+            },
             "style" => apply_style(&mut cfg.style, &key, &val, &line),
             "icons" => apply_icon(&mut cfg.icons, &key, &val, &line),
             "icons.apps" => {
@@ -819,6 +830,10 @@ fn apply_style(style: &mut Style, key: &str, val: &str, line: &str) {
             Some(c) => style.sigil_foreground = Some(c),
             None => warn(line, "expected \"#rrggbb\""),
         },
+        // Panel geometry, read straight into `Config` by the section
+        // dispatch above — a theme overlay must not resize the viewport
+        // while the picker is previewing it.
+        "max_rows" => warn(line, "max_rows is a config.toml setting, not a theme override"),
         _ => warn(line, "unknown style key"),
     }
 }
@@ -1029,6 +1044,7 @@ width = 700
 cpu_alert = "#ff0000"
 running_dot = "#00ff00"
 item_font_weight = "semibold"
+max_rows = 9
 
 [icons]
 search = "*"
@@ -1054,6 +1070,7 @@ interval = 2.0
         assert!((cfg.style.item_font_weight - 0.3).abs() < 1e-9);
         assert!((cfg.style.panel_opacity - 0.5).abs() < 1e-9);
         assert!((cfg.style.width - 700.0).abs() < 1e-9);
+        assert_eq!(cfg.max_rows, 9);
         assert!((cfg.stats_interval - 2.0).abs() < 1e-9);
         assert_eq!(cfg.icons.search, "*");
         assert_eq!(cfg.icons.running_many, "M");
