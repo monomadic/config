@@ -35,7 +35,8 @@ use objc2_app_kit::{
     NSEventModifierFlags, NSFocusRingType, NSFont, NSFontAttributeName,
     NSForegroundColorAttributeName, NSPanel, NSRunningApplication, NSScreen, NSTextField,
     NSTextFieldDelegate, NSTextView, NSVisualEffectBlendingMode, NSVisualEffectMaterial,
-    NSVisualEffectState, NSVisualEffectView, NSView, NSWindowCollectionBehavior,
+    NSVisualEffectState, NSVisualEffectView, NSView, NSWindowAnimationBehavior,
+    NSWindowCollectionBehavior,
     NSWindowDelegate, NSWindowStyleMask, NSWorkspace, NSWorkspaceOpenConfiguration,
 };
 use objc2_foundation::{
@@ -523,6 +524,17 @@ declare_class!(
 );
 
 /// Configured `(r, g, b)` at the given alpha.
+/// An NSPanel left at `Default` animation behavior gets the window server's
+/// utility-window fade on every `orderFront`/`orderOut` — nothing in this
+/// process animates, so `None` is the only way to get an instant panel.
+fn fade_behavior(fade: bool) -> NSWindowAnimationBehavior {
+    if fade {
+        NSWindowAnimationBehavior::Default
+    } else {
+        NSWindowAnimationBehavior::None
+    }
+}
+
 fn rgba(c: (f64, f64, f64), alpha: f64) -> Retained<NSColor> {
     unsafe { NSColor::colorWithSRGBRed_green_blue_alpha(c.0, c.1, c.2, alpha) }
 }
@@ -665,6 +677,7 @@ impl Delegate {
                 | NSWindowCollectionBehavior::FullScreenAuxiliary,
         );
         panel.setHidesOnDeactivate(false);
+        unsafe { panel.setAnimationBehavior(fade_behavior(cfg.fade)) };
         unsafe {
             panel.setAppearance(NSAppearance::appearanceNamed(NSAppearanceNameVibrantDark).as_deref());
         }
@@ -1104,6 +1117,11 @@ impl Delegate {
             }
         }
         self.apply_live_style();
+        // Motion, not style: set straight from the reloaded config, never
+        // from the theme-overlaid style.
+        if let Some(panel) = ivars.panel.get() {
+            unsafe { panel.setAnimationBehavior(fade_behavior(ivars.config.borrow().fade)) };
+        }
         // Rebuild the results with the fresh style/layout.
         self.refresh();
     }

@@ -260,6 +260,11 @@ pub struct Config {
     pub app_commands: Vec<(String, Vec<(String, String)>)>,
     /// Seconds between stat refreshes while the panel is up.
     pub stats_interval: f64,
+    /// `[animation]` `fade`: window-server fade on summon and dismiss. Off
+    /// by default — the panel is on screen the frame the hotkey lands. On
+    /// restores AppKit's stock utility-panel animation. Not a `[style]` key:
+    /// it's motion, not appearance, so themes never touch it.
+    pub fade: bool,
     /// `[modes.<name>]` `sigil`: typing one as the FIRST character switches
     /// the panel into that mode. `None` = mode disabled.
     pub sigil_math: Option<char>,
@@ -321,6 +326,7 @@ impl Default for Config {
             shortcuts: Vec::new(),
             app_commands: Vec::new(),
             stats_interval: 1.0,
+            fade: false,
             sigil_math: Some('='),
             sigil_web: Some('!'),
             sigil_currency: Some('$'),
@@ -679,6 +685,16 @@ fn parse_into(cfg: &mut Config, text: &str) {
                     warn(&line, "unknown stats key");
                 }
             }
+            "animation" => {
+                if key.replace('-', "_") == "fade" {
+                    match parse_bool(&val) {
+                        Some(b) => cfg.fade = b,
+                        None => warn(&line, "expected true or false"),
+                    }
+                } else {
+                    warn(&line, "unknown animation key");
+                }
+            }
             _ => warn(&line, "unknown section"),
         }
     }
@@ -937,6 +953,16 @@ fn parse_action(s: &str) -> Option<Action> {
     }
 }
 
+/// Permissive boolean: TOML's `true`/`false` plus the spellings that show up
+/// in hand-written config.
+fn parse_bool(s: &str) -> Option<bool> {
+    match s.trim().to_lowercase().as_str() {
+        "true" | "yes" | "on" | "1" => Some(true),
+        "false" | "no" | "off" | "0" => Some(false),
+        _ => None,
+    }
+}
+
 /// "#rrggbb" → sRGB floats.
 fn parse_color(s: &str) -> Option<(f64, f64, f64)> {
     let hex = s.strip_prefix('#')?;
@@ -1050,6 +1076,27 @@ interval = 2.0
             "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Downloads"
         );
         assert_eq!(cmds[1].0, "logs");
+    }
+
+    #[test]
+    fn fade_defaults_off_and_parses() {
+        let mut cfg = Config::default();
+        assert!(!cfg.fade);
+
+        parse_into(&mut cfg, "[animation]\nfade = true\n");
+        assert!(cfg.fade);
+
+        parse_into(&mut cfg, "[animation]\nfade = off\n");
+        assert!(!cfg.fade);
+
+        // A bad value is reported and skipped, leaving the prior value.
+        parse_into(&mut cfg, "[animation]\nfade = maybe\n");
+        assert!(!cfg.fade);
+
+        // `fade` is motion, not appearance: [style] does not carry it, so a
+        // theme overlay can never flip it.
+        parse_into(&mut cfg, "[animation]\nfade = true\n[style]\nfade = false\n");
+        assert!(cfg.fade);
     }
 
     #[test]

@@ -68,6 +68,10 @@ item_font_weight = ""  # row text weight: ultralight/thin/light/regular/
 # medium/semibold/bold/heavy/black, or -1.0..1.0.
 # Ignored when font_family names a weighted variant.
 
+# Motion, not appearance — themes never touch this section.
+[animation]
+fade = false  # AppKit's utility-panel fade on summon/dismiss; false = instant
+
 # Glyphs. search and the four row-state glyphs are literal strings (SF
 # Symbols pasted as text work); utilities/system/applications are SF
 # Symbol *names* used for the installed-row location tag.

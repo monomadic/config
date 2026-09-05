@@ -97,6 +97,11 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   [commands.Switchblade]
   "downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Downloads"
   ```
+- `[animation]` — `fade`, default `false`. An `NSPanel` left at AppKit's
+  default animation behavior gets the window server's utility-panel fade on
+  every summon and dismiss; off, the panel is on screen the frame the hotkey
+  lands. Motion rather than appearance, so it sits outside `[style]` and no
+  theme can flip it.
 - `[stats]` — `interval`, seconds between gauge refreshes while visible.
 - `[modes]` — sigil assignment for the first-character modes: `math = "="`,
   `web = "!"` (the defaults); `"none"` disables one. The sigil is lifted out
