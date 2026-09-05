@@ -12,8 +12,10 @@ force-open (reopen event), `⌘R` to reveal in Finder, `⎋` or clicking away
 dismisses. Summoning with an empty query lists running apps — it's an app
 switcher by default. The panel is `max_rows` tall (6 by default, see
 `[style]`); nothing past that is thrown away — arrowing off either end of
-the window scrolls the list, and so does the wheel or a two-finger drag,
-with the selection dragged along so `↩` always acts on a row you can see.
+the window scrolls the list, and so does the wheel or a two-finger drag —
+a trackpad moves it point for point with your fingers, momentum and all.
+Scrolling drags the selection along at the edge, so `↩` always acts on a
+row you can see, and hovering a row selects it outright.
 CPU/RAM gauges on running rows refresh every second while the panel is up.
 Hold **⌘** to show a row-jump hint on each visible row — a running app gets
 the first letter of its name (`⌘F` for Finder; several running apps sharing
@@ -120,8 +122,10 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
 - `[animation]` — `fade`, default `false`. An `NSPanel` left at AppKit's
   default animation behavior gets the window server's utility-panel fade on
   every summon and dismiss; off, the panel is on screen the frame the hotkey
-  lands. Motion rather than appearance, so it sits outside `[style]` and no
-  theme can flip it.
+  lands. `scroll`, default `true`, eases the row window into place when a
+  key or a wheel notch moves it a whole row; a trackpad never eases,
+  because it tracks the fingers directly. Motion rather than appearance, so
+  the section sits outside `[style]` and no theme can flip it.
 - `[stats]` — `interval`, seconds between gauge refreshes while visible.
 - `[modes]` — sigil assignment for the first-character modes: `math = "="`,
   `web = "!"` (the defaults); `"none"` disables one. The sigil is lifted out

@@ -78,6 +78,8 @@ item_font_weight = ""  # row text weight: ultralight/thin/light/regular/
 # Motion, not appearance — themes never touch this section.
 [animation]
 fade = false  # AppKit's utility-panel fade on summon/dismiss; false = instant
+scroll = true  # ease the row window when a key or wheel notch moves it a row
+# (a trackpad never eases — it tracks your fingers)
 
 # Glyphs. search and the four row-state glyphs are literal strings (SF
 # Symbols pasted as text work); utilities/system/applications are SF
