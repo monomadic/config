@@ -101,6 +101,16 @@ pub struct Style {
     /// Inset stroke on the selected row; width 0 (the default) = none.
     pub selected_item_border: (f64, f64, f64),
     pub selected_item_border_width: f64,
+    /// Ring drawn OUTSIDE the panel body, in a margin the window carries for
+    /// it. Distinct from `border`, which CALayer strokes *inside* the panel
+    /// edge, over the material — a bevel. This one sits beyond the edge on
+    /// the desktop, so `outer_border_opacity` (its own alpha, since colors
+    /// are `#rrggbb`) actually reads as translucency: a wide white ring at
+    /// low alpha lifts a pure-black panel off a dark background. Width 0
+    /// (the default) = no ring and no margin.
+    pub outer_border: (f64, f64, f64),
+    pub outer_border_width: f64,
+    pub outer_border_opacity: f64,
     /// Fill behind the CPU warning badge; `None` = `cpu_alert` at 0.16.
     pub cpu_alert_background: Option<(f64, f64, f64)>,
     /// Sigil-mode input badge (the colored box holding `=`, `!`, …).
@@ -139,6 +149,9 @@ impl Default for Style {
             item_info_background: None,
             selected_item_border: (1.0, 1.0, 1.0),
             selected_item_border_width: 0.0,
+            outer_border: (1.0, 1.0, 1.0),
+            outer_border_width: 0.0,
+            outer_border_opacity: 0.25,
             cpu_alert_background: None,
             sigil_background: None,
             sigil_foreground: None,
@@ -789,6 +802,18 @@ fn apply_style(style: &mut Style, key: &str, val: &str, line: &str) {
         },
         "border_width" => match num() {
             Ok(v) => style.border_width = v.clamp(0.0, 12.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "outer_border" => match parse_color(val) {
+            Some(c) => style.outer_border = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "outer_border_width" => match num() {
+            Ok(v) => style.outer_border_width = v.clamp(0.0, 64.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "outer_border_opacity" => match num() {
+            Ok(v) => style.outer_border_opacity = v.clamp(0.0, 1.0),
             Err(_) => warn(line, "expected a number"),
         },
         "item_info_foreground" => match parse_color(val) {

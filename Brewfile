@@ -121,6 +121,7 @@ brew "tokei"
 brew "trippy"
 brew "age"
 brew "gum" # tui widgets
+#cask "mangodisk" # disk space cleaner
 
 # Fonts
 cask "font-ark-pixel-10px-monospaced"

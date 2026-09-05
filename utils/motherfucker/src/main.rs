@@ -323,6 +323,13 @@ struct State {
     chrome_view: OnceCell<Retained<NSView>>,
     glass_view: OnceCell<Retained<NSView>>,
     tint_view: OnceCell<Retained<NSView>>,
+    /// Holds every content view; inset from the window edge by the outer
+    /// border's width so that ring has somewhere to draw.
+    container_view: OnceCell<Retained<NSView>>,
+    /// Fills the whole window and strokes `outer_border` in the margin
+    /// around the panel body — outside the material, unlike `chrome_view`'s
+    /// inner `border`.
+    outer_view: OnceCell<Retained<NSView>>,
     entries: RefCell<Vec<Entry>>,
     /// Set while `mode` is `AppCommands`: the context app and its row list,
     /// so `refresh` can list them and backspace-to-exit knows there's
@@ -524,6 +531,32 @@ declare_class!(
 );
 
 /// Configured `(r, g, b)` at the given alpha.
+/// The margin the window carries outside the panel body, so the outer border
+/// has somewhere to draw. Zero width = no ring and no margin, and the window
+/// is exactly the panel again.
+fn outer_inset(style: &config::Style) -> f64 {
+    style.outer_border_width
+}
+
+/// Paint the outer ring into `view`'s layer: a stroke inside a layer that is
+/// `o` larger than the body on every side, so it lands entirely in the margin
+/// with its inner edge flush to the panel's rounded corner.
+fn apply_outer_border(view: &NSView, style: &config::Style) {
+    let Some(layer) = (unsafe { view.layer() }) else {
+        return;
+    };
+    let o = outer_inset(style);
+    layer.setCornerRadius(style.panel_corner_radius + o);
+    let color = rgba(style.outer_border, style.outer_border_opacity);
+    unsafe {
+        let curve = NSString::from_str("continuous");
+        let _: () = msg_send![&*layer, setCornerCurve: &*curve];
+        let cg: *mut c_void = msg_send![&*color, CGColor];
+        let _: () = msg_send![&*layer, setBorderColor: cg];
+        let _: () = msg_send![&*layer, setBorderWidth: o];
+    }
+}
+
 /// An NSPanel left at `Default` animation behavior gets the window server's
 /// utility-window fade on every `orderFront`/`orderOut` — nothing in this
 /// process animates, so `None` is the only way to get an instant panel.
@@ -655,7 +688,14 @@ impl Delegate {
         let mtm = MainThreadMarker::new().unwrap();
         let cfg = self.ivars().config.borrow();
         let style = NSWindowStyleMask::Borderless | NSWindowStyleMask::NonactivatingPanel;
-        let rect = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(cfg.style.width, 200.0));
+        // The window is the panel body plus the outer border's margin on
+        // every side; `body` is the visible panel within it. With no outer
+        // border the margin is 0 and the two are the same rect.
+        let o = outer_inset(&cfg.style);
+        let rect = NSRect::new(
+            NSPoint::new(0.0, 0.0),
+            NSSize::new(cfg.style.width + 2.0 * o, 200.0 + 2.0 * o),
+        );
         let panel: Retained<Panel> = unsafe {
             msg_send_id![
                 mtm.alloc::<Panel>(),
@@ -687,9 +727,25 @@ impl Delegate {
         let bounds = content.bounds();
         let resize_mask = NSAutoresizingMaskOptions::NSViewWidthSizable
             | NSAutoresizingMaskOptions::NSViewHeightSizable;
+        // The panel body, inset from the window edge by the margin. Chrome
+        // and content both live here; `body_bounds` is the same rect in the
+        // body's own coordinates, for its subviews.
+        let body = NSRect::new(
+            NSPoint::new(o, o),
+            NSSize::new(bounds.size.width - 2.0 * o, bounds.size.height - 2.0 * o),
+        );
+        let body_bounds = NSRect::new(NSPoint::new(0.0, 0.0), body.size);
+
+        // Outer border: behind everything, filling the window, stroking the
+        // margin. Added first so the material and content draw over it.
+        let outer = unsafe { NSView::initWithFrame(mtm.alloc(), bounds) };
+        outer.setAutoresizingMask(resize_mask);
+        outer.setWantsLayer(true);
+        apply_outer_border(&outer, &cfg.style);
+        content.addSubview(&outer);
 
         // All content lives in one container; the material view hosts it.
-        let container = unsafe { NSView::initWithFrame(mtm.alloc(), bounds) };
+        let container = unsafe { NSView::initWithFrame(mtm.alloc(), body) };
         container.setAutoresizingMask(resize_mask);
 
         // Material: Liquid Glass (macOS 26+) tinted black, or dark vibrancy
@@ -713,7 +769,7 @@ impl Delegate {
             // extends RIM_CLIP px beyond it on every side, so the material's
             // built-in edge highlight falls outside the visible shape and is
             // cut off entirely.
-            let wrapper = unsafe { NSView::initWithFrame(mtm.alloc(), bounds) };
+            let wrapper = unsafe { NSView::initWithFrame(mtm.alloc(), body) };
             wrapper.setAutoresizingMask(resize_mask);
             wrapper.setWantsLayer(true);
             if let Some(layer) = wrapper.layer() {
@@ -725,8 +781,8 @@ impl Delegate {
             glass.setFrame(NSRect::new(
                 NSPoint::new(-RIM_CLIP, -RIM_CLIP),
                 NSSize::new(
-                    bounds.size.width + 2.0 * RIM_CLIP,
-                    bounds.size.height + 2.0 * RIM_CLIP,
+                    body.size.width + 2.0 * RIM_CLIP,
+                    body.size.height + 2.0 * RIM_CLIP,
                 ),
             ));
             glass.setAutoresizingMask(resize_mask);
@@ -746,7 +802,7 @@ impl Delegate {
             chrome_ref = wrapper;
             glass_ref = Some(glass.clone());
         } else {
-            let effect = unsafe { NSVisualEffectView::initWithFrame(mtm.alloc(), bounds) };
+            let effect = unsafe { NSVisualEffectView::initWithFrame(mtm.alloc(), body) };
             unsafe {
                 effect.setMaterial(NSVisualEffectMaterial::HUDWindow);
                 effect.setBlendingMode(NSVisualEffectBlendingMode::BehindWindow);
@@ -763,7 +819,7 @@ impl Delegate {
             }
             content.addSubview(&effect);
 
-            let tint = unsafe { NSView::initWithFrame(mtm.alloc(), bounds) };
+            let tint = unsafe { NSView::initWithFrame(mtm.alloc(), body_bounds) };
             tint.setAutoresizingMask(resize_mask);
             tint.setWantsLayer(true);
             if let Some(layer) = tint.layer() {
@@ -818,7 +874,7 @@ impl Delegate {
         container.addSubview(&field);
 
         // Results container.
-        let rows_area = unsafe { NSView::initWithFrame(mtm.alloc(), bounds) };
+        let rows_area = unsafe { NSView::initWithFrame(mtm.alloc(), body_bounds) };
         container.addSubview(&rows_area);
 
         let ivars = self.ivars();
@@ -829,6 +885,8 @@ impl Delegate {
         ivars.sigil_label.set(sigil_label).ok();
         ivars.rows_area.set(rows_area).ok();
         ivars.chrome_view.set(chrome_ref).ok();
+        ivars.container_view.set(container.clone()).ok();
+        ivars.outer_view.set(outer).ok();
         if let Some(v) = tint_ref {
             ivars.tint_view.set(v).ok();
         }
@@ -1187,6 +1245,9 @@ impl Delegate {
                 let _: () = msg_send![&**glass, setTintColor: &*tint_color];
             }
         }
+        if let Some(outer) = ivars.outer_view.get() {
+            apply_outer_border(outer, style);
+        }
         // Vibrancy fallback: a plain tint layer carries panel_background at
         // panel_opacity (the glass path uses the material tint above).
         if let Some(tint) = ivars.tint_view.get() {
@@ -1246,9 +1307,13 @@ impl Delegate {
         // the panel dips on each resize and pops back on the next relayout.
         ivars.top_y.set((vf.origin.y + vf.size.height * 0.72).round());
         self.refresh();
+        // `h` is the whole window, margin included; centre and pin by that,
+        // which leaves the body itself centred and its top edge on `top_y`.
         let h = panel.frame().size.height;
-        let x = vf.origin.x + (vf.size.width - ivars.config.borrow().style.width) / 2.0;
-        panel.setFrameOrigin(NSPoint::new(x, ivars.top_y.get() - h));
+        let o = outer_inset(&ivars.config.borrow().style);
+        let win_w = ivars.config.borrow().style.width + 2.0 * o;
+        let x = vf.origin.x + (vf.size.width - win_w) / 2.0;
+        panel.setFrameOrigin(NSPoint::new(x, ivars.top_y.get() - h + o));
 
         // Live stats: refresh on an interval while the panel is up.
         if ivars.stats_timer.borrow().is_none() {
@@ -1876,16 +1941,30 @@ impl Delegate {
         let h = (pad + INPUT_H + rows_h + pad).round();
 
         let panel_w = ivars.config.borrow().style.width;
+        let o = outer_inset(&ivars.config.borrow().style);
         let old = panel.frame();
         let top = ivars.top_y.get();
-        let want_y = (top - h).round();
+        // The window is `o` larger than the body on every side, and `top_y`
+        // pins the *body's* top edge — so the window sits `o` higher than the
+        // body wants to, and adding an outer border never shifts the panel.
+        let want_y = (top - h - o).round();
         panel.setFrame_display(
             NSRect::new(
                 NSPoint::new(old.origin.x, want_y),
-                NSSize::new(panel_w, h),
+                NSSize::new(panel_w + 2.0 * o, h + 2.0 * o),
             ),
             true,
         );
+        // Set explicitly rather than leaning on autoresizing: the margin
+        // itself changes when a theme changes `outer_border_width`, and
+        // autoresizing only ever moves edges, never the inset.
+        let body = NSRect::new(NSPoint::new(o, o), NSSize::new(panel_w, h));
+        if let Some(chrome) = ivars.chrome_view.get() {
+            chrome.setFrame(body);
+        }
+        if let Some(container) = ivars.container_view.get() {
+            container.setFrame(body);
+        }
 
         // Input band, inset from the top by `pad`. The extra 12px keeps the
         // search glyph aligned with the row glyphs (rows inset by 12px).

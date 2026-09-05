@@ -58,7 +58,13 @@ cpu_alert = "#F05450"  # CPU badge (⚠ CPU + meter) at the row's right edge, ap
 running_dot = "#F1FF0F"  # presence dot at the row's right edge for running apps
 # icon_foreground = "#59C8E8"  # glyph column + search icon; unset = row/panel foreground
 # border = "#FFFFFF"  # panel border color; only drawn when border_width > 0
-border_width = 0  # stroke around the whole panel
+border_width = 0  # stroke around the whole panel, drawn INSIDE the edge (a bevel)
+# The other border: drawn OUTSIDE the panel, in a margin the window carries
+# for it, straight over the desktop. Its own alpha, so a thick white ring at
+# low opacity offsets a pure-black panel. Width 0 = no ring, no margin.
+# outer_border = "#FFFFFF"
+outer_border_width = 0
+outer_border_opacity = 0.25
 # item_info_foreground = "#A8DFF2"  # tag-pill text; unset = row foreground
 # item_info_background = "#0B2E52"  # tag-pill fill; unset = hairline outline
 # selected_item_border = "#1E4E74"  # inset stroke on the selected row

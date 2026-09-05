@@ -49,7 +49,8 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   would otherwise land on the same letter.
 - `[style]` — `width`, `panel_background`/`panel_foreground`/`panel_opacity`/
   `panel_padding`/`panel_corner_radius`, `border`/`border_width` (panel
-  stroke, default 0), `item_foreground`/`item_font_size`/
+  stroke, default 0), `outer_border`/`outer_border_width`/
+  `outer_border_opacity` (the ring *outside* the panel, default width 0), `item_foreground`/`item_font_size`/
   `item_foreground_highlight`, `icon_foreground` (glyph column + search
   icon), `item_info_foreground`/`item_info_background` (the inline tag
   pill; a background makes it filled instead of outlined),
@@ -60,6 +61,16 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   `cpu_alert`/`cpu_alert_background` (the ⚠ CPU badge), `running_dot`.
   Colors are `"#rrggbb"`; the highlight keys color the query-matched
   characters.
+
+  The two borders are different things. `border` is a CALayer stroke on the
+  panel itself, so it draws *inside* the edge, over the material, and picks
+  up the panel's own coloring — a bevel. `outer_border` draws *outside* the
+  panel, in a margin the window carries around the body, straight over the
+  desktop. That's what makes `outer_border_opacity` useful: a wide white ring
+  at low alpha counteracts a pure-black `panel_background`, lifting the panel
+  off a dark backdrop the way a bevel can't. The margin is part of the
+  window, so the body keeps its size and position when a theme adds a ring —
+  the window grows around it.
 - **Themes** — `~/.config/motherfucker/themes/<name>.toml`, each holding a
   `[style]` section that overlays the base style (this repo ships a set in
   `config/motherfucker/themes/`). `theme = "name"` under `[style]` applies
