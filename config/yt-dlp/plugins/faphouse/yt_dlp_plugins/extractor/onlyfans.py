@@ -40,14 +40,15 @@ class OnlyFansIE(InfoExtractor):
         'Content-Type': 'application/json',
     }
     _AUTH_HINT = (
-        'OnlyFans rejected the exported Brave cookies. Open OnlyFans in the same Brave '
-        'profile used by yt-dlp, refresh the page, confirm it is logged in, then retry. '
-        'If Brave has multiple profiles, pass the matching one with '
-        '--cookies-from-browser brave:<profile>.'
+        'OnlyFans rejected the request authentication. This does not establish that '
+        'the cookies are invalid: the signing rules, browser identity, or session '
+        'headers may not match. Stop replaying requests and compare against a '
+        'successful browser request before retrying.'
     )
     _UNSAFE_OPT_IN = 'YT_DLP_ONLYFANS_UNSAFE_API'
 
     def _real_initialize(self):
+        self._check_api_opt_in()
         cookies = self._get_cookies('https://onlyfans.com/')
         self._auth_user_id = int_or_none(try_get(cookies, lambda x: x['auth_id'].value))
         self._bc_token = self._download_webpage(
@@ -91,7 +92,7 @@ class OnlyFansIE(InfoExtractor):
             return f'{path}?{urlencode(query)}'
         return path
 
-    def _download_api_json(self, path, video_id, note, referer, query=None, user_id=None):
+    def _check_api_opt_in(self):
         if os.environ.get(self._UNSAFE_OPT_IN) != '1':
             raise ExtractorError(
                 'OnlyFans API extraction is disabled because the current signed request '
@@ -99,6 +100,8 @@ class OnlyFansIE(InfoExtractor):
                 f'{self._UNSAFE_OPT_IN}=1 only when intentionally debugging this extractor.',
                 expected=True)
 
+    def _download_api_json(self, path, video_id, note, referer, query=None, user_id=None):
+        self._check_api_opt_in()
         api_path = self._api_path(path, query)
         api_url = urljoin(self._API_BASE, api_path.lstrip('/'))
         parsed_api_url = urlparse(api_url)
@@ -160,7 +163,7 @@ class OnlyFansIE(InfoExtractor):
             post_id = str(post.get('id') or '')
             if not post_id:
                 continue
-            post_url = f'https://onlyfans.com/{username}/{post_id}'
+            post_url = f'https://onlyfans.com/{post_id}/{username}'
             title = (
                 post.get('rawText')
                 or post.get('text')
@@ -240,7 +243,9 @@ class OnlyFansIE(InfoExtractor):
     def _real_extract(self, url):
         username, post_id = self._match_valid_url(url).group('id', 'post_id')
         path_parts = [part for part in urlparse(url).path.split('/') if part]
-        if not post_id and len(path_parts) >= 2 and path_parts[1].isdigit():
+        if not post_id and len(path_parts) >= 2 and path_parts[0].isdigit():
+            post_id, username = path_parts[:2]
+        elif not post_id and len(path_parts) >= 2 and path_parts[1].isdigit():
             post_id = path_parts[1]
 
         if post_id:

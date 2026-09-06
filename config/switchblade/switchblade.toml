@@ -13,6 +13,8 @@
 
 [tuning]
 libraries = [
+  { name = "All Media", exec= "fd-media" },
+  { name = "Latest Media", exec= "fd-media --sort-created" },
   "/Volumes/*/Movies/Visuals",
   "/Volumes/*/Movies/Porn",
   "/Volumes/*/Movies/Private",
@@ -21,6 +23,7 @@ libraries = [
   "~/Movies/Porn/Downloads",
 ]
 haptics = false
+chapter_snap = true # snap seekbar clicks to the chapter start
 # ── Layout ──────────────────────────────────────────────────────────────
 # Grid layout:
 #   "flexible" (default) — justified rows: every tile keeps its clip's
