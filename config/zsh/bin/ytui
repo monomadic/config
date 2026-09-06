@@ -34,6 +34,11 @@
 # If you touch either (R or r), the finished file is renamed to that proposed
 # name in place. If you touch neither, yt-dlp's own filename is left untouched.
 #
+# Subtitles: if yt-dlp wrote any .vtt sidecars next to an .mp4 (--write-subs /
+# --write-auto-subs in the config or on the command line), each is embedded as a
+# mov_text track with mp4-embed-vtt and the .vtt is deleted once that succeeds.
+# A failed embed leaves both files as they were.
+#
 # How it works: yt-dlp runs in the background writing a machine-readable
 # progress line (via --progress-template) into a fifo; the main loop waits on
 # that fifo AND the terminal at once with zsh/zselect, so keystrokes stay
@@ -41,8 +46,9 @@
 # resolves the output path and seeds the title/actors up front, so the
 # thumbnail job and mpv streaming both know where the file will land.
 #
-# Dependencies: yt-dlp, mpv (for `o`); the star grammar mirrors media-set-rating.
-# See also: dl-porn, yt-dlp-stream, media-parse-filename-to-json
+# Dependencies: yt-dlp, mpv (for `o`), mp4-embed-vtt (subtitle embedding); the
+# star grammar mirrors media-set-rating.
+# See also: dl-porn, yt-dlp-stream, mp4-embed-vtt, media-parse-filename-to-json
 # ============================================================================
 emulate -L zsh
 setopt pipefail extended_glob
@@ -131,6 +137,7 @@ typeset -g override_stem=""               # set by `t` ($EDITOR): used verbatim 
 typeset -ga actors=() tags=()
 typeset -g rating=0 touched=0            # touched: user changed rating or metadata
 typeset -g final_path="" final_real="" proposed_dir="" dl_dest=""
+typeset -ga final_files=()               # every after_move path, for the subtitle pass
 typeset -g video_id="" extractor_key="" archive_key=""
 typeset -gi in_archive=0
 typeset -gA archive_set                   # loaded once: archive_set[<extractor> <id>]=1
@@ -545,6 +552,7 @@ handle_line() {
   fi
   if [[ "$line" == FINALPATH\|* ]]; then
     final_real="${line#FINALPATH|}"
+    final_files+=("$final_real")
     (( gallery )) && (( gal_done++ ))
     return
   fi
@@ -696,6 +704,32 @@ edit_modal() {
   render
 }
 
+# ── subtitles: fold .vtt sidecars into the .mp4 ──────────────────────────────
+# yt-dlp drops subtitles beside the video as <stem>.<lang>.vtt (or <stem>.vtt).
+# mp4-embed-vtt reads the language from that suffix, verifies the remux, and only
+# then replaces the video — so the .vtt is removed only when it returns 0. Only
+# .mp4 is handled: mov_text is an MP4-family track, and that is all the embedder
+# writes. Runs BEFORE the rename so the sidecar still matches the video's stem.
+embed_subs() {
+  local video="$1" base="${1:r}" vtt
+  local -a vtts
+  vtts=( "$base".vtt(N) "$base".*.vtt(N) )
+  (( ${#vtts} )) || return 0
+  if [[ "${(L)video:e}" != mp4 ]]; then
+    print -r -- "  ${C_WARN}subtitles left as .vtt — embedding needs an .mp4, got .${video:e}${C_RESET}"
+    return 0
+  fi
+  have mp4-embed-vtt || { print -r -- "  ${C_WARN}subtitles left as .vtt — mp4-embed-vtt not found${C_RESET}"; return 0; }
+  for vtt in "${vtts[@]}"; do
+    if mp4-embed-vtt "$vtt" "$video" 2>/dev/null; then
+      rm -f -- "$vtt"
+      print -r -- "  ${C_OK}embedded subs${C_RESET} ${vtt:t} ${C_DIM}(sidecar removed)${C_RESET}"
+    else
+      print -r -- "  ${C_ERR}subtitle embed failed${C_RESET} ${vtt:t} ${C_DIM}(both files left in place)${C_RESET}"
+    fi
+  done
+}
+
 # ── kick off the background jobs ─────────────────────────────────────────────
 load_archive_set
 preflight
@@ -806,6 +840,7 @@ if (( gallery )); then
   if (( gal_done )); then
     print -r -- "${C_OK}✓${C_RESET} gallery finished — ${C_BOLD}${gal_done}${C_RESET} item(s) downloaded"
     [[ -n "$proposed_dir" ]] && print -r -- "  ${C_DESC}into:${C_RESET} ${proposed_dir}"
+    for f in "${final_files[@]}"; do [[ -e "$f" ]] && embed_subs "$f"; done
   else
     print -r -- "${C_WARN}${SELF}: gallery finished, but no items were downloaded${C_RESET}"
   fi
@@ -823,6 +858,8 @@ print -r -- "${C_OK}✓${C_RESET} downloaded  ${C_FILE}${src:t}${C_RESET}"
 [[ -z "$thumb_file" ]] && thumb_file="$(cached_thumb)"
 [[ -n "$thumb_file" ]] && print -r -- "  ${C_DESC}thumbnail:${C_RESET} ${thumb_file:t} ${C_DIM}(cached)${C_RESET}"
 [[ -n "$json_file" && -s "$json_file" ]] && print -r -- "  ${C_DESC}metadata:${C_RESET} ${json_file:t} ${C_DIM}(cached)${C_RESET}"
+
+embed_subs "$src"
 
 if (( touched )); then
   stem="$(compose_stem)"
