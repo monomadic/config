@@ -8,6 +8,8 @@ _zsh_source_sibling() {
   return 1
 }
 
+alias kitty-center="kitty +kitten panel --edge=center-sized --lines=600px --columns=800px --focus-policy=exclusive --layer=overlay -o background_opacity=0.95 -o hide_window_decorations=yes -o window_padding_width=10 fzf"
+
 _zsh_source_sibling aliases/core.zsh
 _zsh_source_sibling aliases/downloads.zsh
 _zsh_source_sibling aliases/system.zsh
