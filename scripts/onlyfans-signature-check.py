@@ -2,14 +2,14 @@
 """Compare one captured request with the extractor's signing rules, offline."""
 
 import ast
-import getpass
+import argparse
 import hashlib
 import hmac
+import json
 from pathlib import Path
 import re
 import sys
 from urllib.parse import urlsplit
-import warnings
 
 
 EXTRACTOR = (Path(__file__).resolve().parents[1] / 'config/yt-dlp/plugins'
@@ -28,13 +28,55 @@ def load_constants(path=EXTRACTOR):
     }
 
 
+def load_candidate(path, constants):
+    """Translate data-only dynamic rules; never apply their header directives."""
+    try:
+        rules = json.loads(Path(path).read_text())
+        if not isinstance(rules, dict):
+            raise ValueError
+        static = rules['static_param']
+        indexes = rules['checksum_indexes']
+        checksum = rules['checksum_constant']
+        fmt = rules['format']
+        if not isinstance(static, str) or not static or '\n' in static:
+            raise ValueError
+        if (not isinstance(indexes, list) or not indexes
+                or any(type(i) is not int or not 0 <= i < 40 for i in indexes)
+                or type(checksum) is not int):
+            raise ValueError
+        match = re.fullmatch(r'([^:{}]+):\{\}:\{:x\}:([^:{}]+)', fmt)
+        if not match:
+            raise ValueError
+        for field in ('revision', 'user_agent'):
+            if field in rules and (not isinstance(rules[field], str) or not rules[field].strip()):
+                raise ValueError
+    except (ValueError, KeyError, TypeError, OSError):
+        raise ValueError('Candidate rules file is unreadable or has an unsupported schema.') from None
+    return {
+        **constants,
+        '_STATIC_PARAM': static,
+        '_SIGN_CHECKSUM_COEFS': tuple(indexes.count(i) for i in range(40)),
+        '_SIGN_BASE_CHECKSUM': checksum,
+        '_SIGN_PREFIX': match[1],
+        '_SIGN_SUFFIX': match[2],
+        '_REVISION': rules.get('revision', constants['_REVISION']),
+        '_HEADERS': {**constants['_HEADERS'],
+                     'User-Agent': rules.get('user_agent', constants['_HEADERS']['User-Agent'])},
+        '_CANDIDATE_IDENTITY_FIELDS': tuple(
+            label for field, label in (('revision', 'Revision'), ('user_agent', 'User-Agent'))
+            if field in rules),
+    }
+
+
 def compare(constants, url, timestamp, user_id, signature, revision, user_agent):
     parsed = urlsplit(url)
     if (parsed.scheme != 'https' or parsed.netloc != 'onlyfans.com'
             or not parsed.path.startswith('/api2/v2/') or parsed.fragment):
         raise ValueError('Use the full HTTPS API Request URL, without a fragment.')
-    if not re.fullmatch(r'[0-9]+', timestamp) or not re.fullmatch(r'[0-9]+', user_id):
-        raise ValueError('time and user-id must contain digits only.')
+    if not re.fullmatch(r'[0-9]+', timestamp):
+        raise ValueError('time must contain digits only; paste the time header value.')
+    if not re.fullmatch(r'[0-9]+', user_id):
+        raise ValueError('user-id must contain digits only; paste the user-id header value.')
     parts = signature.split(':')
     if (len(parts) != 4 or not re.fullmatch(r'[0-9a-f]{40}', parts[1])
             or not re.fullmatch(r'[0-9a-f]+', parts[2])):
@@ -62,30 +104,49 @@ def compare(constants, url, timestamp, user_id, signature, revision, user_agent)
 
 
 def main():
-    if len(sys.argv) != 1 or not sys.stdin.isatty():
-        print('Run interactively without arguments; paste values only at the hidden prompts.')
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--rules', type=Path, help='Compare a local candidate rules JSON as well')
+    args = parser.parse_args()
+    if not sys.stdin.isatty():
+        print('Run interactively; paste request values at the prompts.')
         return 2
     print('Offline check. No browser access, network requests, or saved values.')
     print('Use values from ONE successful post request in Brave Network > Headers.')
-    print('Paste just each value, without its header name; input is hidden.')
+    print('Paste just each value, without its header name; input is visible.')
     print('Cookies, x-bc and x-hash are not needed for this signature check.\n')
     try:
         constants = load_constants()
-        with warnings.catch_warnings():
-            # Refuse getpass fallback rather than echoing sensitive input.
-            warnings.simplefilter('error', getpass.GetPassWarning)
-            values = [getpass.getpass(label + ': ').strip() for label in (
-                'Request URL', 'time', 'user-id', 'sign', 'x-of-rev', 'user-agent')]
+    except (ValueError, SyntaxError, OSError, StopIteration, KeyError):
+        print('Unable to read signing constants from the local extractor file.')
+        return 2
+    try:
+        candidate = load_candidate(args.rules, constants) if args.rules else None
+    except ValueError as error:
+        print(error)
+        return 2
+    try:
+        values = [input(label + ': ').strip() for label in (
+            'Request URL', 'time', 'user-id', 'sign', 'x-of-rev', 'user-agent')]
         results = compare(constants, *values)
-    except (KeyboardInterrupt, EOFError, getpass.GetPassWarning):
+    except (KeyboardInterrupt, EOFError):
         print('\nCancelled; no values saved.')
         return 2
-    except (ValueError, OSError, StopIteration, KeyError):
-        print('Unable to check: verify the six values and the extractor file. No values printed.')
+    except ValueError as error:
+        print(f'Unable to check: {error}')
+        return 2
+    except KeyError:
+        print('Unable to check: the local extractor is missing a required signing constant.')
         return 2
     print('\nResults (safe to share):')
     for label, matches in results.items():
         print(f'{label}: {"MATCH" if matches else "MISMATCH"}')
+    if candidate is not None:
+        candidate_results = compare(candidate, *values)
+        print('\nCandidate signing rules (not applied to extractor):')
+        for label, matches in candidate_results.items():
+            if label not in ('Revision', 'User-Agent') or label in candidate['_CANDIDATE_IDENTITY_FIELDS']:
+                print(f'{label}: {"MATCH" if matches else "MISMATCH"}')
+        print('Identity comparisons use supplied candidate values, not a live browser check.')
     print('\nThis does not validate cookies, x-bc, x-hash, or session acceptance.')
     print('Even a full match does not establish that replay is safe. Do not retry the API yet.')
     return 0 if all(results.values()) else 1
