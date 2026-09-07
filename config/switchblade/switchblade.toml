@@ -13,17 +13,18 @@
 
 [tuning]
 libraries = [
-  { name = "All Media", exec= "fd-media" },
-  { name = "Latest Media", exec= "fd-media --sort-created" },
+  { name = "All Media", exec = "fd-media" },
+  { name = "Latest Media", exec = "fd-media --sort-created" },
   "/Volumes/*/Movies/Visuals",
   "/Volumes/*/Movies/Porn",
   "/Volumes/*/Movies/Private",
+  { name = "New Private", exec = "fd-media --sort-created --match-string Alice . ~/Movies/Private" },
   "~/Movies/Private",
   "~/Movies/Porn",
   "~/Movies/Porn/Downloads",
 ]
 haptics = false
-chapter_snap = true # snap seekbar clicks to the chapter start
+chapter_snap = true  # snap seekbar clicks to the chapter start
 # ── Layout ──────────────────────────────────────────────────────────────
 # Grid layout:
 #   "flexible" (default) — justified rows: every tile keeps its clip's
@@ -612,7 +613,7 @@ seekbar_preview_live = true
 # Colours are [r, g, b, a] in 0..1.
 
 # ── Added from the repo defaults, 2026-09-03 ──────────────────────────
-library_count_text = [0.90, 0.90, 0.94]   # the badge's own, lighter ink
+library_count_text = [0.90, 0.90, 0.94]  # the badge's own, lighter ink
 # While a tag/cast filter is applied the pills line up beside the count
 # and a black gradient rises from the bottom edge behind them: opacity at
 # the edge (0 = off), how far past the pill block it reaches, band count.
@@ -682,6 +683,7 @@ banner_image = ""
 # default sort = "none" keeps it). false = ignore `.index` files and
 # always walk.
 use_index = true
+
 [tags]
 # Chip fill, coldest (rarest tag) → hottest (most used).
 fill = [
@@ -692,7 +694,7 @@ fill = [
 ]
 # Label colour ramp and size ramp [min, max], sampled by the same heat.
 text = [[0.81, 0.84, 0.88, 1.0], [1.0, 1.0, 1.0, 1.0]]
-size = [13.0, 13.0] 
+size = [13.0, 13.0]
 # Halo behind hot chips (0 = off).
 glow = 0.45
 # How counts map onto the ramps. "log" (default) suits the long tail a real
@@ -719,13 +721,13 @@ ring = [1.0, 1.0, 1.0, 0.55]
 ring_width = 2.0
 # Panel geometry and chip padding.
 width = 620.0
-max_height = 0.75 
+max_height = 0.75
 gap = 9.0
 inset = 21.0
 radius = 13.0
 # top = 96.0   # REMOVED from switchblade: gone — the panel centres itself now
 pad_x = 13.0
-pad_y = 2.5 
+pad_y = 2.5
 fade_ms = 160.0
 
 # ── Search bar (`/`) ───────────────────────────────────────────────────────
@@ -759,6 +761,7 @@ glow_hover = 1.0
 hover_brightness = 1.18
 count_scale = 0.88
 count_alpha = 1.0
+
 # veil_height = 420.0   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
 # veil_steps = 24   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
 [search]
@@ -843,6 +846,7 @@ fade_ms = 90.0
 # The bar's opacity over the design layer's `theme.surface` — the ground
 # hue is shared with every panel, so only the alpha is this surface's own.
 bar_alpha = 0.96
+
 [help]
 width = 560.0
 max_height = 640.0
@@ -861,10 +865,10 @@ section_gap = 22.0
 disabled = 0.42
 fade_ms = 160.0
 
-
 # ── Added from the repo defaults, 2026-09-03 ──────────────────────────
 # The panel's opacity over the design layer's `theme.surface`.
 backdrop_alpha = 0.94
+
 [pad]
 # Delay before a HELD direction starts repeating. This is the "I pushed
 # left and it sat there" number — lower it if the pad feels sticky,
@@ -1195,6 +1199,7 @@ scrim = 0.88
 scrim_height = 420.0
 scrim_steps = 24
 scrim_blur = 3.0
+
 [theme.keycap]
 height = 30.0
 height_inline = 22.0
