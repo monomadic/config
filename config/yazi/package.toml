@@ -1,27 +1,27 @@
 [[plugin.deps]]
 use = "yazi-rs/plugins:smart-paste"
-rev = "230b9c6"
-hash = "75fd60b2df7115e0a6ca31a6a804d320"
+rev = "4dc7f1b"
+hash = "5be02722d97561b6f7aec22429aa00be"
 
 [[plugin.deps]]
 use = "boydaihungst/file-extra-metadata"
-rev = "044274c"
-hash = "14006064a6a53a1770fbdcefb97a8347"
+rev = "8bb639d"
+hash = "8c5f14c09c981a496afaab5184e4aa08"
 
 [[plugin.deps]]
 use = "walldmtd/fs-usage"
-rev = "4f4992b"
-hash = "61410fb3409c22990a52767c738c2722"
+rev = "1b42083"
+hash = "28ac3655541321f006c25463419d719a"
 
 [[plugin.deps]]
 use = "yazi-rs/plugins:piper"
-rev = "598cdb6"
-hash = "d99cfbc3812e7738505f9e4bedb759cd"
+rev = "4dc7f1b"
+hash = "45a533508a9840cc5a10cf6129f63e6a"
 
 [[plugin.deps]]
 use = "yazi-rs/plugins:mime-ext"
-rev = "8cd50c6"
-hash = "2678c84a0b3a0b22504e918ccaf99011"
+rev = "4dc7f1b"
+hash = "3bcc00df11efc3ae5d15f2dba860be7"
 
 [[plugin.deps]]
 use = "simla33/ucp"

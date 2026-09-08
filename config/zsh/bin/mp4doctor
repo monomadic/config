@@ -1451,17 +1451,21 @@ fix_file() {
   after_chapters=$(chapter_count_of "$tmp")
   lost=()
   local item
+  # (Ie)/(ie), never (I)/(i): the plain forms match the subscript as a glob,
+  # and under extended_glob a tag value is full of operators — the # in a
+  # source URL's fragment reads as "repeat the previous character", so a line
+  # fails to match itself and a preserved tag is reported as dropped.
   for item in "${before_streams[@]}"; do
     [[ -z "$item" ]] && continue
-    if (( ${after_streams[(I)$item]} == 0 )); then
+    if (( ${after_streams[(Ie)$item]} == 0 )); then
       lost+=("track ${item}")
     else
-      after_streams[${after_streams[(i)$item]}]=""
+      after_streams[${after_streams[(ie)$item]}]=""
     fi
   done
   for item in "${before_tags[@]}"; do
     [[ -z "$item" ]] && continue
-    (( ${after_tags[(I)$item]} )) || lost+=("tag ${${item#TAG:}%%=*}")
+    (( ${after_tags[(Ie)$item]} )) || lost+=("tag ${${item#TAG:}%%=*}")
   done
   (( after_chapters < before_chapters )) &&
     lost+=("$(( before_chapters - after_chapters )) chapter(s)")

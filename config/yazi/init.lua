@@ -200,14 +200,20 @@ local disk_free_cwd = nil
 local function refresh_disk_free(cwd)
 	disk_free_cwd = tostring(cwd)
 
-	local out = Command("df"):arg({ "-h", tostring(cwd) }):stdout(Command.PIPED):output()
-	if not (out and out.status and out.status.success) then
+	-- io.popen, not Command:output(): the latter is async and yields, but both
+	-- callers here (the `cd` handler and the status closure) run outside any
+	-- coroutine, so it fails with "attempt to yield from outside a coroutine".
+	local h = io.popen("df -h " .. shell_quote(tostring(cwd)) .. " 2>/dev/null")
+	if not h then
 		disk_free = ""
 		return
 	end
 
+	local stdout = h:read("*a") or ""
+	h:close()
+
 	-- second line, 4th field (Avail); df wraps long device names onto their own line
-	local body = (out.stdout:match("\n(.*)$") or ""):gsub("\n", " ")
+	local body = (stdout:match("\n(.*)$") or ""):gsub("\n", " ")
 	local fields = {}
 	for field in body:gmatch("%S+") do
 		fields[#fields + 1] = field
