@@ -679,9 +679,12 @@ build_footage_stem() {
   print -r -- "${(j: :)parts}"
 }
 
-# What a filename may hold on APFS, HFS+, ext4 and NTFS alike -- bytes, not
-# characters, which is why a fullwidth bar in a title counts three.
-NAME_MAX=255
+# The longest name this script will write. APFS, HFS+, ext4 and NTFS all
+# hold 255 bytes, but a name that fills them is a name a Finder column, a
+# terminal listing and a URL-encoded share link all truncate; 220 leaves room
+# for a counter, a copy suffix or a different extension without a second cut.
+# Bytes, not characters, which is why a fullwidth bar in a title counts three.
+NAME_MAX=220
 
 byte_len() {
   emulate -L zsh
@@ -771,7 +774,7 @@ process_video() {
     return 0
   fi
 
-  # A filesystem holds 255 bytes of name. A long tag list walks past that,
+  # A name is capped at NAME_MAX bytes. A long tag list walks past that,
   # and the name is worth more with its tail cut than not written at all: the
   # tags go first, last one first, since the front of the list is the part a
   # human chose to lead with; then the title loses words from its end. The
