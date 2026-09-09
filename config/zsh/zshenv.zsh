@@ -37,3 +37,6 @@ export HOSTNAME=$HOST  # zsh builtin; $(hostname) forked on every zsh invocation
 # Set default language and character encoding
 export LANG="en_US.UTF-8"
 export LC_ALL="en_US.UTF-8"
+
+# Machine-local secrets (gitignored; see .env.example)
+[[ -f $DOTFILES_DIR/.env ]] && source $DOTFILES_DIR/.env

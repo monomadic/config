@@ -39,7 +39,7 @@ fi
 ICON_MAPPINGS=(
   "1Password.app|1password-black.icns"
   "Brave Browser.app|brave.icns"
-  "Claude.app|claude.icns"
+  "Claude.app|claude.png"
   "DaVinci Resolve.app|davinci-resolve-01.icns"
   "Firefox.app|firefox1.icns"
   "ForkLift.app|folder-full-blue.icns"

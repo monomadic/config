@@ -312,3 +312,6 @@ export PATH="$PATH:/Users/nom/.lmstudio/bin"
 # End of LM Studio CLI section
 
 export PATH="$HOME/go/bin:$PATH"
+
+# rustup (Homebrew)
+export PATH="$(brew --prefix rustup)/bin:$PATH"
