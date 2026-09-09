@@ -19,7 +19,7 @@ bulk-rename = [
   { run = "hx %s", desc = "􀃫  helix", for = "unix", block = true },
 ]
 play = [
-  { desc = "􀫐  switchblade", run = "switchblade %s", orphan = true },
+  { desc = "􀫐  switchblade", run = "open -a Switchblade %s", orphan = true },
   { desc = "􀽍  mpv", run = "mpv --force-window --fullscreen --no-native-fs %s", orphan = true },
   { desc = "􀽍  mpv-ipc", run = "mpv-send play %s", orphan = true },
   { desc = "􀉅  edit tags", run = '''/Users/nom/.zsh/bin/kitty-launch --tab --cwd %d1 -- /Users/nom/.cargo/bin/tagform %s''', orphan = true },
