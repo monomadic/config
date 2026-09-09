@@ -679,6 +679,29 @@ build_footage_stem() {
   print -r -- "${(j: :)parts}"
 }
 
+# What a filename may hold on APFS, HFS+, ext4 and NTFS alike -- bytes, not
+# characters, which is why a fullwidth bar in a title counts three.
+NAME_MAX=255
+
+byte_len() {
+  emulate -L zsh
+  unsetopt multibyte
+  print -r -- ${#1}
+}
+
+# The stem for whichever grammar the category picks, trimmed and made safe as
+# a path component. In one place so the shortening loop can rebuild it.
+build_stem() {
+  local file="$1" stem
+  if [[ "$CATEGORY" == "Adult" ]]; then
+    stem="$(build_adult_stem)" || return 1
+  else
+    stem="$(build_footage_stem "$file")"
+  fi
+  stem="$(trim_whitespace "$stem")"
+  print -r -- "${stem//\//-}"   # a tag may legitimately contain a slash
+}
+
 rename_path() {
   local src="$1" dst="$2"
   local base tmp n=0
@@ -743,17 +766,33 @@ process_video() {
   fi
 
   local stem
-  if [[ "$CATEGORY" == "Adult" ]]; then
-    if ! stem="$(build_adult_stem)"; then
-      print -r -- "${YELLOW}${ICON_WARN}No actors, channel or title to name it after: ${filename}${RESET}"
-      return 0
-    fi
-  else
-    stem="$(build_footage_stem "$file")"
+  if ! stem="$(build_stem "$file")"; then
+    print -r -- "${YELLOW}${ICON_WARN}No actors, channel or title to name it after: ${filename}${RESET}"
+    return 0
   fi
 
-  stem="$(trim_whitespace "$stem")"
-  stem="${stem//\//-}"   # a tag may legitimately contain a slash
+  # A filesystem holds 255 bytes of name. A long tag list walks past that,
+  # and the name is worth more with its tail cut than not written at all: the
+  # tags go first, last one first, since the front of the list is the part a
+  # human chose to lead with; then the title loses words from its end. The
+  # actors, channel, rating and metadata block are never touched -- they are
+  # short, and they are the part the rest of the library is sorted by.
+  while (( $(byte_len "${stem}.${extension}") > NAME_MAX )); do
+    if (( ${#TAGS} )); then
+      TAGS[-1]=()
+    elif [[ "$TITLE" == *" "* ]]; then
+      TITLE="${TITLE% *}"
+    elif [[ -n "$TITLE" ]]; then
+      TITLE=""
+    else
+      break
+    fi
+    stem="$(build_stem "$file")" || break
+  done
+  if (( $(byte_len "${stem}.${extension}") > NAME_MAX )); then
+    print -u2 -r -- "${YELLOW}${ICON_WARN}Name is $(byte_len "${stem}.${extension}") bytes with nothing left to shorten; the limit is ${NAME_MAX}: ${filename}${RESET}"
+    return 1
+  fi
 
   local new_filename="${stem}.${extension}"
   local new_path="${dirname}/${new_filename}"
