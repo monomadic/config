@@ -81,6 +81,9 @@ video_tools = [
   { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 60fps prores " -- /Users/nom/.zsh/bin/interpolate-resolve --prores %s''', desc = "􀲳  interpolate: 60fps (prores)", for = "unix", orphan = true },
   { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 120fps " -- /Users/nom/.zsh/bin/interpolate-resolve 120 %s''', desc = "􀲳  interpolate: 120fps (hevc)", for = "unix", orphan = true },
   { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 120fps prores " -- /Users/nom/.zsh/bin/interpolate-resolve --prores 120 %s''', desc = "􀲳  interpolate: 120fps (prores)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " rife 60fps " -- zsh -lc 'for f in "$@"; do /Users/nom/.bin/rife-60fps "$f"; done' zsh %s''', desc = "􀲳  interpolate: 60fps (rife)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " rife 120fps " -- zsh -lc 'for f in "$@"; do /Users/nom/.bin/rife-60fps --fps 120 "$f"; done' zsh %s''', desc = "􀲳  interpolate: 120fps (rife)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " rife 60fps dedup " -- zsh -lc 'for f in "$@"; do /Users/nom/.bin/rife-60fps --dedup "$f"; done' zsh %s''', desc = "􀲳  interpolate: 60fps (rife, dedup)", for = "unix", orphan = true },
 ]
 extract = [
   { run = "ya pub extract --list %s", desc = "􃀩  extract" },

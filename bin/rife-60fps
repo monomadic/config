@@ -1,0 +1,221 @@
+#!/usr/bin/env bash
+# rife-60fps — frame-interpolate a video to a higher frame rate with rife-ncnn-vulkan.
+#
+# rife only reads/writes image sequences, so the video is processed in chunks:
+# each chunk is dumped to PNGs, run through rife, and encoded straight onto a
+# single growing raw H.264 stream. At the end the stream is muxed with the
+# source audio. Chunking keeps the frame scratch space bounded, which is what
+# makes a RAM disk workable even for very long sources.
+set -euo pipefail
+
+target_fps=60
+model="rife-v4.6"
+share_dir="${RIFE_SHARE_DIR:-$HOME/.local/share/rife-ncnn-vulkan}"
+ram_gb=8
+use_ramdisk=1
+chunk_frames=""
+threads="2:2:2"
+crf=18
+fmt=png
+tta=0
+dedup=0
+output=""
+input=""
+
+tmp_root=""
+ram_dev=""
+ram_mount=""
+
+usage() {
+  cat <<'EOF'
+Usage: rife-60fps [options] INPUT
+
+Interpolate INPUT to a higher frame rate with rife-ncnn-vulkan and write a
+new mp4 next to it (INPUT-60fps.mp4). Audio is copied from the source.
+
+Options:
+  -o, --output FILE     Output path. Default: <input>-<fps>fps.mp4
+  -r, --fps N           Target frame rate. Default: 60
+  -m, --model NAME      Model dir under ~/.local/share/rife-ncnn-vulkan. Default: rife-v4.6
+      --ram GB          RAM disk size for frame scratch. Default: 8
+      --no-ramdisk      Use $TMPDIR on disk instead of a RAM disk
+      --chunk FRAMES    Source frames per chunk. Default: sized to fit the scratch space
+      --crf N           x264 quality. Default: 18
+  -j, --threads L:P:S   rife load:proc:save threads. Default: 2:2:2
+      --jpg             Use JPEG frames instead of PNG (much faster and smaller, slightly lossy)
+  -x, --tta             Enable rife TTA mode (better, ~8x slower)
+      --dedup           Drop source frames identical to the previous one (mpdecimate)
+                        so rife interpolates across them instead of copying them.
+                        Fixes 24-in-30 pulldown and stuttery captures; the clip
+                        length is preserved.
+  -h, --help            Show this help.
+
+A chunk boundary is a plain source-frame step (no interpolated frame across
+it), which is invisible at the default chunk sizes. Install rife with
+scripts/install-rife-arm64 from the dotfiles repo.
+EOF
+}
+
+log() { printf '==> %s\n' "$*" >&2; }
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+need_cmd() { command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"; }
+
+cleanup() {
+  if [[ -n "$ram_dev" ]]; then
+    log "Detaching RAM disk $ram_dev"
+    hdiutil detach "$ram_dev" -force >/dev/null 2>&1 || true
+  elif [[ -n "$tmp_root" && -d "$tmp_root" ]]; then
+    rm -rf "$tmp_root"
+  fi
+}
+trap cleanup EXIT
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o|--output) shift; [[ $# -gt 0 ]] || die "--output requires a path"; output="$1" ;;
+    -r|--fps) shift; [[ $# -gt 0 ]] || die "--fps requires a number"; target_fps="$1" ;;
+    -m|--model) shift; [[ $# -gt 0 ]] || die "--model requires a name"; model="$1" ;;
+    --ram) shift; [[ $# -gt 0 ]] || die "--ram requires a size in GB"; ram_gb="$1" ;;
+    --no-ramdisk) use_ramdisk=0 ;;
+    --chunk) shift; [[ $# -gt 0 ]] || die "--chunk requires a frame count"; chunk_frames="$1" ;;
+    --crf) shift; [[ $# -gt 0 ]] || die "--crf requires a number"; crf="$1" ;;
+    -j|--threads) shift; [[ $# -gt 0 ]] || die "--threads requires L:P:S"; threads="$1" ;;
+    --jpg) fmt=jpg ;;
+    -x|--tta) tta=1 ;;
+    --dedup) dedup=1 ;;
+    -h|--help) usage; exit 0 ;;
+    -*) die "unknown option: $1" ;;
+    *) [[ -z "$input" ]] || die "only one input is supported"; input="$1" ;;
+  esac
+  shift
+done
+
+[[ -n "$input" ]] || { usage >&2; exit 1; }
+[[ -f "$input" ]] || die "no such file: $input"
+for cmd in ffmpeg ffprobe rife-ncnn-vulkan awk; do need_cmd "$cmd"; done
+[[ -d "$share_dir/$model" ]] || die "model not found: $share_dir/$model (run install-rife-arm64)"
+
+[[ -n "$output" ]] || output="${input%.*}-${target_fps}fps.mp4"
+[[ ! -e "$output" ]] || die "output already exists: $output"
+
+# ---- probe the source -------------------------------------------------------
+
+probe="$(ffprobe -v 0 -select_streams v:0 \
+  -show_entries stream=width,height,avg_frame_rate,nb_frames \
+  -show_entries format=duration -of csv=p=0 "$input")"
+width="$(printf '%s\n' "$probe" | awk -F, 'NR==1{print $1}')"
+height="$(printf '%s\n' "$probe" | awk -F, 'NR==1{print $2}')"
+src_rate="$(printf '%s\n' "$probe" | awk -F, 'NR==1{print $3}')"
+nb_frames="$(printf '%s\n' "$probe" | awk -F, 'NR==1{print $4}')"
+duration="$(printf '%s\n' "$probe" | awk 'NR==2{print $1}')"
+
+src_fps="$(awk -v r="$src_rate" 'BEGIN{split(r,a,"/"); if(a[2]=="")a[2]=1; printf "%.6f", a[1]/a[2]}')"
+[[ "$nb_frames" =~ ^[0-9]+$ ]] || nb_frames="$(awk -v d="$duration" -v f="$src_fps" 'BEGIN{printf "%d", d*f+0.5}')"
+ratio="$(awk -v t="$target_fps" -v s="$src_fps" 'BEGIN{printf "%.6f", t/s}')"
+
+awk -v r="$ratio" 'BEGIN{exit !(r>1.0)}' || die "target fps ($target_fps) must be above source fps ($src_fps)"
+
+log "Source: ${width}x${height} @ ${src_fps} fps, $nb_frames frames"
+log "Target: $target_fps fps (x$ratio), model $model, frames as $fmt"
+
+# ---- scratch space ----------------------------------------------------------
+
+if [[ "$use_ramdisk" -eq 1 ]]; then
+  need_cmd hdiutil; need_cmd diskutil
+  sectors=$(( ram_gb * 1024 * 1024 * 2 ))  # 512-byte sectors
+  log "Creating ${ram_gb}GB RAM disk"
+  ram_dev="$(hdiutil attach -nomount "ram://$sectors" | awk '{print $1}')"
+  [[ -n "$ram_dev" ]] || die "could not create RAM disk"
+  diskutil erasevolume HFS+ "rife-scratch" "$ram_dev" >/dev/null
+  ram_mount="/Volumes/rife-scratch"
+  tmp_root="$ram_mount"
+  scratch_bytes=$(( ram_gb * 1024 * 1024 * 1024 ))
+else
+  tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/rife-60fps.XXXXXX")"
+  scratch_bytes="$(df -k "$tmp_root" | awk 'NR==2{print $4*1024}')"
+fi
+
+# Size chunks to fit: worst-case PNG ~ 3 bytes/px, JPEG ~ 0.5; in + out frames.
+if [[ -z "$chunk_frames" ]]; then
+  per_px=3
+  [[ "$fmt" == "jpg" ]] && per_px=0.5
+  chunk_frames="$(awk -v b="$scratch_bytes" -v w="$width" -v h="$height" -v p="$per_px" -v r="$ratio" \
+    'BEGIN{n=int(b*0.8/(w*h*p*(1+r))); if(n<8)n=8; if(n>3000)n=3000; print n}')"
+fi
+log "Chunk size: $chunk_frames source frames ($(awk -v c="$chunk_frames" -v f="$src_fps" 'BEGIN{printf "%.1f", c/f}')s)"
+
+in_dir="$tmp_root/in"
+out_dir="$tmp_root/out"
+stream="$output.h264.part"
+rm -f "$stream"
+
+rife_extra=()
+[[ "$tta" -eq 1 ]] && rife_extra+=(-x)
+[[ "$width" -ge 3000 ]] && rife_extra+=(-u)
+
+png_opts=(-compression_level 1 -pred none)
+[[ "$fmt" == "jpg" ]] && png_opts=(-q:v 2)
+
+# Chunks are cut by source-frame index inside the filter graph so that a
+# dedup pass (which drops frames) cannot change how many source frames a
+# chunk consumes; out_count is always derived from the source count.
+vf="trim=end_frame=$chunk_frames"
+[[ "$dedup" -eq 1 ]] && vf="$vf,mpdecimate"
+
+# ---- process chunks ---------------------------------------------------------
+
+chunks=$(( (nb_frames + chunk_frames - 1) / chunk_frames ))
+start_frame=0
+chunk_no=0
+total_out=0
+
+while [[ "$start_frame" -lt "$nb_frames" ]]; do
+  chunk_no=$(( chunk_no + 1 ))
+  rm -rf "$in_dir" "$out_dir"; mkdir -p "$in_dir" "$out_dir"
+
+  start_ts="$(awk -v s="$start_frame" -v f="$src_fps" 'BEGIN{printf "%.6f", s/f}')"
+  log "Chunk $chunk_no/$chunks: extracting from frame $start_frame"
+  ffmpeg -v error -nostdin -ss "$start_ts" -i "$input" -vf "$vf" \
+    -fps_mode passthrough -an "${png_opts[@]}" "$in_dir/%08d.$fmt"
+
+  in_count="$(ls "$in_dir" | wc -l | tr -d ' ')"
+  [[ "$in_count" -gt 0 ]] || break
+  src_count=$(( nb_frames - start_frame ))
+  [[ "$src_count" -le "$chunk_frames" ]] || src_count="$chunk_frames"
+  out_count="$(awk -v n="$src_count" -v r="$ratio" 'BEGIN{printf "%d", n*r+0.5}')"
+
+  if [[ "$in_count" -lt 2 ]]; then
+    # A fully static chunk after dedup: nothing to interpolate, hold the frame.
+    log "Chunk $chunk_no/$chunks: static, holding 1 frame for $out_count"
+    for ((k = 1; k <= out_count; k++)); do
+      cp "$in_dir/00000001.$fmt" "$(printf "$out_dir/%08d.$fmt" "$k")"
+    done
+  else
+    log "Chunk $chunk_no/$chunks: rife $in_count -> $out_count frames"
+    rife-ncnn-vulkan -i "$in_dir" -o "$out_dir" -m "$share_dir/$model" \
+      -n "$out_count" -j "$threads" -f "%08d.$fmt" ${rife_extra[@]+"${rife_extra[@]}"} >/dev/null 2>&1 \
+      || die "rife failed on chunk $chunk_no"
+  fi
+
+  got="$(ls "$out_dir" | wc -l | tr -d ' ')"
+  [[ "$got" -gt 0 ]] || die "rife produced no frames for chunk $chunk_no"
+
+  log "Chunk $chunk_no/$chunks: encoding $got frames"
+  ffmpeg -v error -nostdin -framerate "$target_fps" -i "$out_dir/%08d.$fmt" \
+    -c:v libx264 -preset medium -crf "$crf" -pix_fmt yuv420p -f h264 - >> "$stream"
+
+  total_out=$(( total_out + got ))
+  start_frame=$(( start_frame + src_count ))
+done
+
+[[ "$total_out" -gt 0 ]] || die "no frames were produced"
+
+# ---- mux ------------------------------------------------------------------
+
+log "Muxing $total_out frames with source audio -> $output"
+ffmpeg -v error -nostdin -framerate "$target_fps" -i "$stream" -i "$input" \
+  -map 0:v -map 1:a? -c:v copy -c:a copy -movflags +faststart \
+  -video_track_timescale "$(awk -v f="$target_fps" 'BEGIN{split(f,a,"/"); if(a[2]=="")a[2]=1; printf "%d", a[1]/a[2]*1000}')" "$output"
+rm -f "$stream"
+
+log "Done: $output ($(awk -v n="$total_out" -v f="$target_fps" 'BEGIN{printf "%.1f", n/f}')s at ${target_fps} fps)"
