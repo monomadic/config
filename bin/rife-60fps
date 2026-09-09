@@ -6,6 +6,9 @@
 # single growing raw H.264 stream. At the end the stream is muxed with the
 # source audio. Chunking keeps the frame scratch space bounded, which is what
 # makes a RAM disk workable even for very long sources.
+#
+# On a terminal the run is shown as a live status screen (progress, speed,
+# ETA, dedup stats) with [p] pause / [q] quit; piped, it prints plain logs.
 set -euo pipefail
 
 target_fps=60
@@ -19,12 +22,33 @@ crf=18
 fmt=png
 tta=0
 dedup=0
+plain=0
 output=""
 input=""
 
 tmp_root=""
 ram_dev=""
-ram_mount=""
+stream=""
+stage_pid=""
+ui=0
+paused=0
+pause_started=0
+paused_total=0
+t0=0
+
+# progress state read by draw()
+stage=""
+chunk_no=0
+chunks=0
+start_frame=0     # source frames fully finished
+src_count=0       # source frames in the current chunk
+in_count=0        # frames handed to rife for the current chunk
+out_count=0       # frames expected from rife for the current chunk
+total_out=0       # output frames encoded so far
+total_dups=0
+in_dir=""
+out_dir=""
+enc_progress=""
 
 usage() {
   cat <<'EOF'
@@ -47,8 +71,11 @@ Options:
       --dedup           Drop source frames identical to the previous one (mpdecimate)
                         so rife interpolates across them instead of copying them.
                         Fixes 24-in-30 pulldown and stuttery captures; the clip
-                        length is preserved.
+                        length is preserved. Warps timing on held/frozen frames.
+      --plain           Plain log lines instead of the status screen
   -h, --help            Show this help.
+
+Keys (status screen):  p  pause/resume     q  quit (output is discarded)
 
 A chunk boundary is a plain source-frame step (no interpolated frame across
 it), which is invisible at the default chunk sizes. Install rife with
@@ -56,19 +83,35 @@ scripts/install-rife-arm64 from the dotfiles repo.
 EOF
 }
 
-log() { printf '==> %s\n' "$*" >&2; }
+log() { [[ "$ui" -eq 1 ]] || printf '==> %s\n' "$*" >&2; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 need_cmd() { command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"; }
 
+ui_leave() {
+  if [[ "$ui" -eq 1 ]]; then
+    tput cnorm 2>/dev/null || true
+    tput rmcup 2>/dev/null || true
+    ui=0
+  fi
+}
+
 cleanup() {
+  ui_leave
+  if [[ -n "$stage_pid" ]] && kill -0 "$stage_pid" 2>/dev/null; then
+    kill -CONT "$stage_pid" 2>/dev/null || true
+    kill -TERM "$stage_pid" 2>/dev/null || true
+    wait "$stage_pid" 2>/dev/null || true
+  fi
+  [[ -n "$stream" ]] && rm -f "$stream" "$stream.chunk"
   if [[ -n "$ram_dev" ]]; then
-    log "Detaching RAM disk $ram_dev"
+    printf '==> Detaching RAM disk %s\n' "$ram_dev" >&2
     hdiutil detach "$ram_dev" -force >/dev/null 2>&1 || true
   elif [[ -n "$tmp_root" && -d "$tmp_root" ]]; then
     rm -rf "$tmp_root"
   fi
 }
 trap cleanup EXIT
+trap 'exit 130' INT TERM
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -83,6 +126,7 @@ while [[ $# -gt 0 ]]; do
     --jpg) fmt=jpg ;;
     -x|--tta) tta=1 ;;
     --dedup) dedup=1 ;;
+    --plain) plain=1 ;;
     -h|--help) usage; exit 0 ;;
     -*) die "unknown option: $1" ;;
     *) [[ -z "$input" ]] || die "only one input is supported"; input="$1" ;;
@@ -112,11 +156,9 @@ duration="$(printf '%s\n' "$probe" | awk 'NR==2{print $1}')"
 src_fps="$(awk -v r="$src_rate" 'BEGIN{split(r,a,"/"); if(a[2]=="")a[2]=1; printf "%.6f", a[1]/a[2]}')"
 [[ "$nb_frames" =~ ^[0-9]+$ ]] || nb_frames="$(awk -v d="$duration" -v f="$src_fps" 'BEGIN{printf "%d", d*f+0.5}')"
 ratio="$(awk -v t="$target_fps" -v s="$src_fps" 'BEGIN{printf "%.6f", t/s}')"
+target_fps_num="$(awk -v f="$target_fps" 'BEGIN{split(f,a,"/"); if(a[2]=="")a[2]=1; printf "%.6f", a[1]/a[2]}')"
 
 awk -v r="$ratio" 'BEGIN{exit !(r>1.0)}' || die "target fps ($target_fps) must be above source fps ($src_fps)"
-
-log "Source: ${width}x${height} @ ${src_fps} fps, $nb_frames frames"
-log "Target: $target_fps fps (x$ratio), model $model, frames as $fmt"
 
 # ---- scratch space ----------------------------------------------------------
 
@@ -126,13 +168,15 @@ if [[ "$use_ramdisk" -eq 1 ]]; then
   log "Creating ${ram_gb}GB RAM disk"
   ram_dev="$(hdiutil attach -nomount "ram://$sectors" | awk '{print $1}')"
   [[ -n "$ram_dev" ]] || die "could not create RAM disk"
-  diskutil erasevolume HFS+ "rife-scratch" "$ram_dev" >/dev/null
-  ram_mount="/Volumes/rife-scratch"
-  tmp_root="$ram_mount"
+  diskutil erasevolume HFS+ "rife-$$" "$ram_dev" >/dev/null
+  tmp_root="/Volumes/rife-$$"
+  [[ -d "$tmp_root" ]] || die "RAM disk did not mount at $tmp_root"
   scratch_bytes=$(( ram_gb * 1024 * 1024 * 1024 ))
+  scratch_desc="${ram_gb}G ram disk"
 else
   tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/rife-60fps.XXXXXX")"
   scratch_bytes="$(df -k "$tmp_root" | awk 'NR==2{print $4*1024}')"
+  scratch_desc="tmp on disk"
 fi
 
 # Size chunks to fit: worst-case PNG ~ 3 bytes/px, JPEG ~ 0.5; in + out frames.
@@ -142,10 +186,11 @@ if [[ -z "$chunk_frames" ]]; then
   chunk_frames="$(awk -v b="$scratch_bytes" -v w="$width" -v h="$height" -v p="$per_px" -v r="$ratio" \
     'BEGIN{n=int(b*0.8/(w*h*p*(1+r))); if(n<8)n=8; if(n>3000)n=3000; print n}')"
 fi
-log "Chunk size: $chunk_frames source frames ($(awk -v c="$chunk_frames" -v f="$src_fps" 'BEGIN{printf "%.1f", c/f}')s)"
 
 in_dir="$tmp_root/in"
 out_dir="$tmp_root/out"
+stage_log="$tmp_root/stage.log"
+enc_progress="$tmp_root/enc.progress"
 stream="$output.h264.part"
 rm -f "$stream"
 
@@ -162,47 +207,192 @@ png_opts=(-compression_level 1 -pred none)
 vf="trim=end_frame=$chunk_frames"
 [[ "$dedup" -eq 1 ]] && vf="$vf,mpdecimate"
 
+chunks=$(( (nb_frames + chunk_frames - 1) / chunk_frames ))
+
+log "Source: ${width}x${height} @ ${src_fps} fps, $nb_frames frames"
+log "Target: $target_fps fps (x$ratio), model $model, frames as $fmt, $scratch_desc"
+log "Chunk size: $chunk_frames source frames, $chunks chunks"
+
+# ---- status screen ----------------------------------------------------------
+
+if [[ "$plain" -eq 0 && -t 0 && -t 1 ]] && command -v tput >/dev/null 2>&1; then
+  ui=1
+  tput smcup 2>/dev/null || true
+  tput civis 2>/dev/null || true
+  printf '\033[2J'
+fi
+
+count_files() { [[ -d "$1" ]] && ls "$1" 2>/dev/null | wc -l | tr -d ' ' || echo 0; }
+
+fmt_time() {
+  awk -v s="$1" 'BEGIN{s=int(s); if(s<0)s=0; printf "%02d:%02d:%02d", s/3600, (s%3600)/60, s%60}'
+}
+
+bar() {  # $1 = fraction 0..1, $2 = width
+  awk -v f="$1" -v w="$2" 'BEGIN{
+    if(f<0)f=0; if(f>1)f=1; n=int(f*w+0.5);
+    for(i=0;i<n;i++) printf "█"; for(;i<w;i++) printf "░" }'
+}
+
+draw() {
+  [[ "$ui" -eq 1 ]] || return 0
+  local now elapsed done_src frac chunk_frac enc_frames out_now
+  now=$(date +%s)
+  elapsed=$(( now - t0 - paused_total ))
+  [[ "$paused" -eq 1 ]] && elapsed=$(( elapsed - (now - pause_started) ))
+
+  # progress inside the current chunk: extract 0-15%, rife 15-90%, encode 90-100%
+  chunk_frac=0
+  out_now=0
+  case "$stage" in
+    extracting)
+      chunk_frac="$(awk -v a="$(count_files "$in_dir")" -v b="$src_count" 'BEGIN{printf "%.4f", (b>0?a/b:0)*0.15}')" ;;
+    interpolating)
+      out_now="$(count_files "$out_dir")"
+      chunk_frac="$(awk -v a="$out_now" -v b="$out_count" 'BEGIN{printf "%.4f", 0.15+(b>0?a/b:0)*0.75}')" ;;
+    encoding)
+      out_now="$out_count"
+      enc_frames="$(awk -F= '/^frame=/{f=$2} END{print f+0}' "$enc_progress" 2>/dev/null || echo 0)"
+      chunk_frac="$(awk -v a="$enc_frames" -v b="$out_count" 'BEGIN{printf "%.4f", 0.90+(b>0?a/b:0)*0.10}')" ;;
+    muxing) chunk_frac=1 ;;
+  esac
+  done_src="$(awk -v s="$start_frame" -v c="$src_count" -v f="$chunk_frac" 'BEGIN{printf "%.1f", s+c*f}')"
+  frac="$(awk -v d="$done_src" -v n="$nb_frames" 'BEGIN{printf "%.4f", (n>0?d/n:0)}')"
+
+  local out_fps src_fps_rate eta pct dup_line state cols w
+  if [[ "$elapsed" -ge 2 ]]; then
+    out_fps="$(awk -v o="$total_out" -v c="$out_now" -v e="$elapsed" 'BEGIN{printf "%.1f", (o+c)/e}')"
+    src_fps_rate="$(awk -v d="$done_src" -v e="$elapsed" 'BEGIN{printf "%.1f", d/e}')"
+    eta="$(awk -v d="$done_src" -v n="$nb_frames" -v e="$elapsed" 'BEGIN{ if(d>0) printf "%d", (n-d)*e/d; else print 0 }')"
+    eta="$(fmt_time "$eta")"
+  else
+    out_fps="--"; src_fps_rate="--"; eta="--:--:--"
+  fi
+  pct="$(awk -v f="$frac" 'BEGIN{printf "%5.1f%%", f*100}')"
+  cols="$(tput cols 2>/dev/null || echo 80)"
+  w=$(( cols - 12 )); [[ "$w" -gt 60 ]] && w=60; [[ "$w" -lt 10 ]] && w=10
+
+  if [[ "$dedup" -eq 1 ]]; then
+    dup_line="$(awk -v d="$total_dups" -v s="$start_frame" 'BEGIN{printf "on · %d dropped (%.1f%%)", d, (s>0?d/s*100:0)}')"
+  else
+    dup_line="off"
+  fi
+  state="[p] pause   [q] quit"
+  [[ "$paused" -eq 1 ]] && state="[p] resume  [q] quit         ⏸ PAUSED"
+
+  {
+    printf '\033[H'
+    printf ' \033[1mrife-60fps\033[0m  %s\033[K\n' "${input##*/}"
+    printf ' %s\033[K\n' "$(printf '─%.0s' $(seq 1 $(( w + 10 ))))"
+    printf ' \033[2msource\033[0m   %sx%s @ %s fps · %s frames · %s\033[K\n' "$width" "$height" "$(awk -v f="$src_fps" 'BEGIN{printf "%.3f", f}')" "$nb_frames" "$(fmt_time "$duration")"
+    printf ' \033[2mtarget\033[0m   %s fps (x%s) · %s · %s · %s\033[K\n' "$target_fps" "$(awk -v r="$ratio" 'BEGIN{printf "%.3f", r}')" "$model" "$fmt" "$scratch_desc"
+    printf '\033[K\n'
+    printf ' \033[2mchunk\033[0m    %s/%s  %s\033[K\n' "$chunk_no" "$chunks" "$stage"
+    printf ' [%s] %s\033[K\n' "$(bar "$frac" "$w")" "$pct"
+    printf '\033[K\n'
+    printf ' \033[2melapsed\033[0m  %s      \033[2meta\033[0m  %s\033[K\n' "$(fmt_time "$elapsed")" "$eta"
+    printf ' \033[2mspeed\033[0m    %s out fps · %s src fps\033[K\n' "$out_fps" "$src_fps_rate"
+    printf ' \033[2mframes\033[0m   %s / %s src · %s out\033[K\n' "${done_src%.*}" "$nb_frames" "$(( total_out + out_now ))"
+    printf ' \033[2mdedup\033[0m    %s\033[K\n' "$dup_line"
+    printf '\033[K\n'
+    printf ' \033[2m%s\033[0m\033[K\n' "$state"
+    printf '\033[J'
+  } 2>/dev/null
+}
+
+toggle_pause() {
+  if [[ "$paused" -eq 0 ]]; then
+    paused=1; pause_started=$(date +%s)
+    [[ -n "$stage_pid" ]] && kill -STOP "$stage_pid" 2>/dev/null || true
+  else
+    paused=0; paused_total=$(( paused_total + $(date +%s) - pause_started ))
+    [[ -n "$stage_pid" ]] && kill -CONT "$stage_pid" 2>/dev/null || true
+  fi
+}
+
+# Redraw / key-poll interval. bash 3.2 (macOS stock) only accepts an integer
+# read -t, so it ticks once a second; a newer bash gets a snappier screen.
+tick=1
+[[ "${BASH_VERSINFO[0]}" -ge 4 ]] && tick=0.25
+
+# Run a stage in the background, redrawing and handling keys until it exits.
+run_stage() {
+  stage="$1"; shift
+  : > "$stage_log"
+  "$@" >"$stage_log" 2>&1 &
+  stage_pid=$!
+  [[ "$paused" -eq 1 ]] && kill -STOP "$stage_pid" 2>/dev/null || true
+  local key
+  while kill -0 "$stage_pid" 2>/dev/null; do
+    draw
+    if [[ "$ui" -eq 1 ]]; then
+      key=""
+      IFS= read -rs -t "$tick" -n 1 key 2>/dev/null || true
+      case "$key" in
+        p|P|' ') toggle_pause ;;
+        q|Q) ui_leave; die "aborted by user" ;;
+      esac
+    else
+      sleep "$tick"
+    fi
+  done
+  local rc=0
+  wait "$stage_pid" || rc=$?
+  stage_pid=""
+  if [[ "$rc" -ne 0 ]]; then
+    ui_leave
+    printf '%s\n' "--- $stage log ---" >&2
+    tail -n 20 "$stage_log" >&2 || true
+    die "$stage failed on chunk $chunk_no (exit $rc)"
+  fi
+}
+
+hold_frame() {  # static chunk after dedup: repeat the single frame out_count times
+  local k
+  for ((k = 1; k <= out_count; k++)); do
+    cp "$in_dir/00000001.$fmt" "$(printf "$out_dir/%08d.$fmt" "$k")"
+  done
+}
+
 # ---- process chunks ---------------------------------------------------------
 
-chunks=$(( (nb_frames + chunk_frames - 1) / chunk_frames ))
-start_frame=0
-chunk_no=0
-total_out=0
+t0=$(date +%s)
 
 while [[ "$start_frame" -lt "$nb_frames" ]]; do
   chunk_no=$(( chunk_no + 1 ))
   rm -rf "$in_dir" "$out_dir"; mkdir -p "$in_dir" "$out_dir"
 
-  start_ts="$(awk -v s="$start_frame" -v f="$src_fps" 'BEGIN{printf "%.6f", s/f}')"
-  log "Chunk $chunk_no/$chunks: extracting from frame $start_frame"
-  ffmpeg -v error -nostdin -ss "$start_ts" -i "$input" -vf "$vf" \
-    -fps_mode passthrough -an "${png_opts[@]}" "$in_dir/%08d.$fmt"
-
-  in_count="$(ls "$in_dir" | wc -l | tr -d ' ')"
-  [[ "$in_count" -gt 0 ]] || break
   src_count=$(( nb_frames - start_frame ))
   [[ "$src_count" -le "$chunk_frames" ]] || src_count="$chunk_frames"
   out_count="$(awk -v n="$src_count" -v r="$ratio" 'BEGIN{printf "%d", n*r+0.5}')"
+  start_ts="$(awk -v s="$start_frame" -v f="$src_fps" 'BEGIN{printf "%.6f", s/f}')"
+
+  log "Chunk $chunk_no/$chunks: extracting from frame $start_frame"
+  run_stage extracting ffmpeg -v error -nostdin -ss "$start_ts" -i "$input" -vf "$vf" \
+    -fps_mode passthrough -an "${png_opts[@]}" "$in_dir/%08d.$fmt"
+
+  in_count="$(count_files "$in_dir")"
+  [[ "$in_count" -gt 0 ]] || break
+  [[ "$dedup" -eq 1 ]] && total_dups=$(( total_dups + src_count - in_count ))
 
   if [[ "$in_count" -lt 2 ]]; then
-    # A fully static chunk after dedup: nothing to interpolate, hold the frame.
     log "Chunk $chunk_no/$chunks: static, holding 1 frame for $out_count"
-    for ((k = 1; k <= out_count; k++)); do
-      cp "$in_dir/00000001.$fmt" "$(printf "$out_dir/%08d.$fmt" "$k")"
-    done
+    run_stage interpolating hold_frame
   else
     log "Chunk $chunk_no/$chunks: rife $in_count -> $out_count frames"
-    rife-ncnn-vulkan -i "$in_dir" -o "$out_dir" -m "$share_dir/$model" \
-      -n "$out_count" -j "$threads" -f "%08d.$fmt" ${rife_extra[@]+"${rife_extra[@]}"} >/dev/null 2>&1 \
-      || die "rife failed on chunk $chunk_no"
+    run_stage interpolating rife-ncnn-vulkan -i "$in_dir" -o "$out_dir" -m "$share_dir/$model" \
+      -n "$out_count" -j "$threads" -f "%08d.$fmt" ${rife_extra[@]+"${rife_extra[@]}"}
   fi
 
-  got="$(ls "$out_dir" | wc -l | tr -d ' ')"
+  got="$(count_files "$out_dir")"
   [[ "$got" -gt 0 ]] || die "rife produced no frames for chunk $chunk_no"
 
   log "Chunk $chunk_no/$chunks: encoding $got frames"
-  ffmpeg -v error -nostdin -framerate "$target_fps" -i "$out_dir/%08d.$fmt" \
-    -c:v libx264 -preset medium -crf "$crf" -pix_fmt yuv420p -f h264 - >> "$stream"
+  : > "$enc_progress"
+  run_stage encoding ffmpeg -v error -nostdin -progress "$enc_progress" \
+    -framerate "$target_fps" -i "$out_dir/%08d.$fmt" \
+    -c:v libx264 -preset medium -crf "$crf" -pix_fmt yuv420p -f h264 "$stream.chunk"
+  cat "$stream.chunk" >> "$stream"; rm -f "$stream.chunk"
 
   total_out=$(( total_out + got ))
   start_frame=$(( start_frame + src_count ))
@@ -212,10 +402,18 @@ done
 
 # ---- mux ------------------------------------------------------------------
 
+src_count=0
 log "Muxing $total_out frames with source audio -> $output"
-ffmpeg -v error -nostdin -framerate "$target_fps" -i "$stream" -i "$input" \
+run_stage muxing ffmpeg -v error -nostdin -framerate "$target_fps" -i "$stream" -i "$input" \
   -map 0:v -map 1:a? -c:v copy -c:a copy -movflags +faststart \
-  -video_track_timescale "$(awk -v f="$target_fps" 'BEGIN{split(f,a,"/"); if(a[2]=="")a[2]=1; printf "%d", a[1]/a[2]*1000}')" "$output"
-rm -f "$stream"
+  -video_track_timescale "$(awk -v f="$target_fps_num" 'BEGIN{printf "%d", f*1000}')" "$output"
+rm -f "$stream"; stream=""
 
-log "Done: $output ($(awk -v n="$total_out" -v f="$target_fps" 'BEGIN{printf "%.1f", n/f}')s at ${target_fps} fps)"
+elapsed=$(( $(date +%s) - t0 - paused_total ))
+ui_leave
+printf '==> Done: %s\n' "$output" >&2
+printf '    %s frames at %s fps (%s), %s in %s' "$total_out" "$target_fps" \
+  "$(fmt_time "$(awk -v n="$total_out" -v f="$target_fps_num" 'BEGIN{print n/f}')")" \
+  "$(awk -v o="$total_out" -v e="$elapsed" 'BEGIN{printf "%.1f out fps", (e>0?o/e:0)}')" "$(fmt_time "$elapsed")" >&2
+[[ "$dedup" -eq 1 ]] && printf ', %s duplicate frames dropped' "$total_dups" >&2
+printf '\n' >&2
