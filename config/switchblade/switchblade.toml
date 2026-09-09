@@ -15,6 +15,7 @@
 libraries = [
   { name = "All Media", exec = "fd-media" },
   { name = "Latest Media", exec = "fd-media --sort-created" },
+  { name = "Latest Local Media", exec = "fd-media --sort-created ~/Movies/Porn" },
   "/Volumes/*/Movies/Visuals",
   "/Volumes/*/Movies/Porn",
   "/Volumes/*/Movies/Private",

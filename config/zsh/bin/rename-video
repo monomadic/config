@@ -15,7 +15,7 @@ emulate -L zsh
 # way to know which of the two naming schemes below a file wants, and guessing
 # is what the predecessors did. Two categories are implemented so far --
 #
-#   Adult    ACTORS (CHANNEL) - TITLE #TAGS ★★★☆☆ [METADATA].ext
+#   Adult    ACTORS (CHANNEL) - TITLE #TAGS @G ★★★☆☆ [METADATA].ext
 #   Footage  DATE PEOPLE - TITLE (LOCATION) #TAGS ★★★☆☆ [METADATA].ext
 #
 # -- and any other value is an error that stops the run rather than a file that
@@ -56,9 +56,18 @@ emulate -L zsh
 #   RATING    XMP-xmp:Rating, else rating
 #   VARIANT   variant / type atom                         (Clip)
 #   TRACK     track atom                                (Clip)
+#   ORIENTATION  orientation atom                         (Adult, see below)
 #   LOCATION  XMP-iptcExt:LocationCreatedCity            (Footage)
 #   DATE      exif, else mp4 creation_time, else ctime   (Footage)
 #   METADATA  probed fresh with ffprobe (+ exiftool for DEVICE)
+#
+# The Orientation tag (tagform's adult-profile set) renders as a mark after
+# the tags, before the stars:
+#
+#   Gay  @G     Sapphic  @L     Trans  @T
+#
+# Straight is the unmarked case and renders nothing, as does a missing tag or
+# a value outside that set.
 #
 # A rating renders as exactly five ★/☆ characters, the library-wide convention
 # media-set-rating parses and media-rename preserves. This differs from
@@ -113,7 +122,7 @@ usage() {
   print -r -- "Usage: ${SCRIPT_NAME} [OPTIONS] video_file..."
   print -r -- ""
   print -r -- "Rename videos from their embedded tags. The Category tag is required:"
-  print -r -- "  Adult    ACTORS (CHANNEL) - TITLE #TAGS ★★★☆☆ [METADATA].ext"
+  print -r -- "  Adult    ACTORS (CHANNEL) - TITLE #TAGS @G ★★★☆☆ [METADATA].ext"
   print -r -- "  Footage  DATE PEOPLE - TITLE (LOCATION) #TAGS ★★★☆☆ [METADATA].ext"
   print -r -- "A file whose Variant is Clip gets its Track after the title: TITLE (Clip N)"
   print -r -- ""
@@ -260,6 +269,7 @@ split_list() {
 
 # The resolved fields for the file being processed.
 CATEGORY="" TITLE="" CHANNEL="" LOCATION="" RATING="" VARIANT="" CLIP_NUMBER=""
+ORIENTATION=""
 typeset -ga ACTORS=() TAGS=()
 
 # "Camera Footage" is the literal the yt-dlp alias writes; "Footage" is what
@@ -284,10 +294,22 @@ resolve_clip_number() {
   [[ "$raw" == <-> ]] && (( raw > 0 )) && print -r -- $(( raw ))
 }
 
+# The mark for an Orientation value, or nothing. The set is tagform's
+# ORIENTATIONS (config.rs) and the marks are the ones its filename parser reads
+# back (ORIENTATION_MARKS); the two lists must agree or `i` `f` loses the field.
+render_orientation() {
+  case "${1:l}" in
+    gay)     print -r -- "@G" ;;
+    sapphic) print -r -- "@L" ;;
+    trans)   print -r -- "@T" ;;
+  esac
+}
+
 resolve_fields() {
   local raw
 
   CATEGORY="" TITLE="" CHANNEL="" LOCATION="" RATING="" VARIANT="" CLIP_NUMBER=""
+  ORIENTATION=""
   ACTORS=() TAGS=()
 
   raw="$(first_present "$XMP_GENRE" "$(first_atom category genre)")"
@@ -308,7 +330,9 @@ resolve_fields() {
   VARIANT="$(first_atom variant type)"
   [[ "${VARIANT:l}" == "clip" ]] && CLIP_NUMBER="$(resolve_clip_number)"
 
-  log_verbose "resolved: category='${CATEGORY}' title='${TITLE}' channel='${CHANNEL}' location='${LOCATION}' rating='${RATING}' variant='${VARIANT}' clip='${CLIP_NUMBER}' actors=(${(j:, :)ACTORS}) tags=(${(j:, :)TAGS})"
+  ORIENTATION="$(first_atom orientation)"
+
+  log_verbose "resolved: category='${CATEGORY}' title='${TITLE}' channel='${CHANNEL}' location='${LOCATION}' rating='${RATING}' variant='${VARIANT}' clip='${CLIP_NUMBER}' orientation='${ORIENTATION}' actors=(${(j:, :)ACTORS}) tags=(${(j:, :)TAGS})"
 }
 
 # A rating may be stored as a number (tagform, XMP-xmp:Rating) or already as
@@ -580,7 +604,7 @@ metadata_block() {
 # name assembly
 # ---------------------------------------------------------------------------
 
-# ACTORS (CHANNEL) - TITLE (Clip N) #TAGS ★★★☆☆ [METADATA]
+# ACTORS (CHANNEL) - TITLE (Clip N) #TAGS @G ★★★☆☆ [METADATA]
 #
 # With no actors the channel stands alone and unparenthesised -- the parentheses
 # mark it as belonging to the names in front of them, and with nothing in front
@@ -609,6 +633,10 @@ build_adult_stem() {
 
   for tag in "${TAGS[@]}"; do rendered_tags+=("#${tag#\#}"); done
   (( ${#rendered_tags} )) && parts+=("${(j: :)rendered_tags}")
+
+  local mark
+  mark="$(render_orientation "$ORIENTATION")"
+  [[ -n "$mark" ]] && parts+=("$mark")
 
   stars="$(render_stars "$RATING")"
   [[ -n "$stars" ]] && parts+=("$stars")
