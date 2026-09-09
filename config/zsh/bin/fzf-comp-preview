@@ -8,7 +8,9 @@
 #   window   -> emit a change-preview-window action (reveal when there is a
 #               location / definition to show, hide otherwise)
 #   preview  -> show the location, then bat a text file / the alias / function
-#               definition (binaries show their path + type)
+#               definition; images and videos render a thumbnail (kitty graphics
+#               when inside kitty, chafa otherwise) with a mediainfo summary;
+#               directories show a tree (binaries show their path + type)
 #   edit     -> open the resolved file (a script, or the file defining the
 #               alias / function) in $EDITOR
 #   copy     -> copy the resolved absolute path to the clipboard
@@ -43,6 +45,59 @@ _is_text() {
   IFS= read -r first < "$1" 2>/dev/null
   [[ $first == '#!'* ]] && return 0
   [[ -n $first && $first != *[$'\1'-$'\10'$'\13'$'\14'$'\16'-$'\37']* ]]
+}
+
+# Media kind of a file by mime type: image, video, or empty.
+_media_kind() {
+  [[ -f $1 ]] || return 1
+  local mime
+  mime=$(file --mime-type -b -- "$1" 2>/dev/null)
+  case $mime in
+    image/*) print -r -- image ;;
+    video/*) print -r -- video ;;
+    *) return 1 ;;
+  esac
+}
+
+# Path to a (cached) thumbnail for an image or video. Videos go through
+# ffmpegthumbnailer into the same cache fzf-preview uses; images are themselves.
+_thumbnail() {
+  local f=$1 kind=$2 cache
+  [[ $kind == image ]] && { print -r -- "$f"; return 0 }
+  cache="$HOME/.cache/fzf/thumbnail.$(print -rn -- "$f" | shasum -a 256 | cut -d' ' -f1).jpg"
+  if [[ ! -s $cache || $f -nt $cache ]]; then
+    mkdir -p "$HOME/.cache/fzf"
+    ffmpegthumbnailer -i "$f" -o "$cache" -s 1200 >/dev/null 2>&1 || return 1
+  fi
+  [[ -s $cache ]] && print -r -- "$cache"
+}
+
+# Draw an image into the preview pane, leaving $2 lines for text below.
+# kitty: the unicode-placeholder form of icat is the one fzf can scroll and
+# redraw safely; elsewhere chafa symbols. Sized from fzf's own env vars.
+_render_image() {
+  local img=$1 reserve=${2:-0}
+  local cols=${FZF_PREVIEW_COLUMNS:-80} lines=${FZF_PREVIEW_LINES:-24}
+  local h=$(( lines - reserve ))
+  (( h < 4 )) && h=4
+  if [[ -n $KITTY_WINDOW_ID || $TERM == xterm-kitty* || $TERM_PROGRAM == kitty ]] \
+     && (( $+commands[kitten] )); then
+    kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no \
+      --place="${cols}x${h}@0x0" -- "$img" 2>/dev/null | sed '$d' | sed $'$s/$/\e[m/'
+  elif (( $+commands[chafa] )); then
+    chafa -f symbols --animate=off -s "${cols}x${h}" -- "$img" 2>/dev/null
+  else
+    print -r -- "$img"
+  fi
+}
+
+# One-line-per-stream summary: duration, size, resolution, fps, codec.
+_media_summary() {
+  (( $+commands[mediainfo] )) || return 0
+  # real newlines separate the per-stream templates; the literal \n inside
+  # each is what mediainfo emits as a line break in its output
+  mediainfo --Inform=$'General;%Duration/String3%  %FileSize/String%  %Format%\\n\nVideo;%Width%x%Height%  %FrameRate% fps  %Format% %Format_Profile%\\n\nImage;%Width%x%Height%  %Format%\\n\nAudio;audio: %Format% %Channel(s)%ch %SamplingRate/String%\\n' \
+    -- "$1" 2>/dev/null | sed '/^ *$/d'
 }
 
 # Describe a bare word that is an alias / function / builtin. Sources the user's
@@ -127,7 +182,11 @@ case $action in
       show=1
     fi
     if [[ -n $show ]]; then
-      print -r -- 'change-preview-window(right,55%,border-left)'
+      if [[ -n $target ]] && _media_kind "$target" >/dev/null; then
+        print -r -- 'change-preview-window(down,60%,border-top)'
+      else
+        print -r -- 'change-preview-window(down,45%,border-top)'
+      fi
     else
       print -r -- 'change-preview-window(hidden)'
     fi
@@ -135,7 +194,21 @@ case $action in
   preview)
     if [[ -n $target ]]; then
       _hdr "$target"
-      if _is_text "$target"; then
+      local kind thumb
+      if kind=$(_media_kind "$target"); then
+        if thumb=$(_thumbnail "$target" "$kind"); then
+          _render_image "$thumb" 6
+        else
+          print -r -- "(no thumbnail)"
+        fi
+        _media_summary "$target"
+      elif [[ -d $target ]]; then
+        if (( $+commands[eza] )); then
+          eza -T -L 2 --color=always -- "$target" 2>/dev/null
+        else
+          ls -1 -- "$target"
+        fi
+      elif _is_text "$target"; then
         bat --color=always --style=numbers --paging=never -- "$target" 2>/dev/null \
           || cat -- "$target"
       else
