@@ -153,6 +153,7 @@ shortcut = "􀩼 "  # SF Symbol name for the "Shortcut" tag pill
 "System" = "open -a ScreenSaverEngine"  # ⇥ for more (lock/shutdown)
 "Config" = "open ~/.config"  # ⇥ for more (motherfucker/switchblade)
 "Motherfucker" = ""
+"ChordPro" = "/Users/nom/.zsh/bin/kitty-launch --os-window -- /Users/nom/go/bin/chordpro-tui '/Users/nom/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature/ChordPro'"
 
 [commands.Motherfucker]
 "Reload" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
