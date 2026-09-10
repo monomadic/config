@@ -1,34 +1,57 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo="nihui/rife-ncnn-vulkan"
+# Model sources. nihui's own releases stop at rife-v4.6 (2022); the TNTwise
+# fork ships the same CLI with every model up to rife-v4.26, so it is the
+# default. Pass --repo nihui to go back to upstream.
+repo="tntwise"
 asset_regex='macos.*\.zip$'
 prefix="${RIFE_PREFIX:-$HOME/.local}"
-models="rife-v4.6"
+models="rife-v4.6,rife-v4.25-lite"
 dry_run=0
+list_only=0
 tmp_dir=""
 
 usage() {
   cat <<'EOF'
 Usage: install-rife-arm64 [options]
 
-Download the latest macOS rife-ncnn-vulkan release, thin the universal
-binary to arm64, and install it with the selected model(s) to
+Download the latest macOS rife-ncnn-vulkan release, thin it to arm64 if it
+is a universal binary, and install it with the selected model(s) to
 $PREFIX/share/rife-ncnn-vulkan with a symlink at $PREFIX/bin/rife-ncnn-vulkan.
 
-The model dirs are installed next to the binary, which is where motionfix
+The model dirs are installed next to the binary, which is where rife-60fps
 (and rife itself, given an absolute -m path) expects to find them.
+
+Sources (--repo):
+  tntwise   TNTwise/rife-ncnn-vulkan (default) - nihui's CLI plus every model
+            up to rife-v4.26. ~830MB download; only the requested models are
+            kept. Newer models are more accurate but slower: measured on an
+            M3 at 1080p, v4.25-lite is +0.8dB and 15% slower than v4.6, and
+            v4.26 is +0.9dB and 33% slower. "-lite" is lite for its own
+            generation, not against v4.6.
+  nihui     nihui/rife-ncnn-vulkan - upstream, but its releases carry nothing
+            newer than rife-v4.6.
+  OWNER/REPO  Any other GitHub repo publishing a macOS zip in the same shape.
 
 Options:
   --prefix DIR        Install prefix. Default: ~/.local
-  --models a,b,c      Comma-separated model dirs to install. Default: rife-v4.6
-  --repo OWNER/REPO   GitHub repo. Default: nihui/rife-ncnn-vulkan
+  --models a,b,c      Comma-separated model dirs to install.
+                      Default: rife-v4.6,rife-v4.25-lite
+  --repo NAME|O/R     Source, see above. Default: tntwise
+  -l, --list-models   List the model dirs the release contains and exit.
+                      Reads only the zip index, not the whole archive.
   -n, --dry-run       Print planned work without writing.
   -h, --help          Show this help.
 
 Environment:
   RIFE_PREFIX         Overrides the install prefix.
   GITHUB_TOKEN        Optional GitHub API token for higher rate limits.
+
+Examples:
+  install-rife-arm64 --list-models
+  install-rife-arm64 --models rife-v4.6,rife-v4.25-lite,rife-v4.26
+  install-rife-arm64 --repo nihui --models rife-v4.6
 EOF
 }
 
@@ -80,6 +103,9 @@ while [[ $# -gt 0 ]]; do
       [[ $# -gt 0 ]] || die "--repo requires OWNER/REPO"
       repo="$1"
       ;;
+    -l|--list-models)
+      list_only=1
+      ;;
     -n|--dry-run)
       dry_run=1
       ;;
@@ -94,6 +120,11 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
+case "$repo" in
+  tntwise) repo="TNTwise/rife-ncnn-vulkan" ;;
+  nihui)   repo="nihui/rife-ncnn-vulkan" ;;
+esac
+
 share_dir="$prefix/share/rife-ncnn-vulkan"
 bin_link="$prefix/bin/rife-ncnn-vulkan"
 
@@ -103,6 +134,46 @@ curl_json() {
   else
     curl -fsSL "$1"
   fi
+}
+
+# List the top-level model dirs inside the release zip without downloading it.
+# The zip central directory lives at the end of the archive, so a range request
+# for the last chunk is enough. Prints one name per line; silent + nonzero if
+# the probe does not work (ranges unsupported, odd archive), so callers can
+# fall back to validating after extraction.
+list_zip_models() {
+  local url="$1" size tail_file start
+  command -v python3 >/dev/null 2>&1 || return 1
+  size="$(curl -fsSLI "$url" | awk 'BEGIN{IGNORECASE=1} /^content-length:/{n=$2} END{gsub(/\r/,"",n); print n+0}')"
+  [[ "$size" -gt 100000 ]] || return 1
+  tail_file="$(mktemp "${TMPDIR:-/tmp}/rife-zipidx.XXXXXX")"
+  start=$(( size - 300000 )); [[ "$start" -lt 0 ]] && start=0
+  curl -fsSL -r "${start}-$((size - 1))" "$url" -o "$tail_file" || { rm -f "$tail_file"; return 1; }
+  python3 - "$tail_file" <<'PY' || { rm -f "$tail_file"; return 1; }
+import re, struct, sys
+data = open(sys.argv[1], "rb").read()
+names = []
+for m in re.finditer(b"PK\x01\x02", data):
+    o = m.start()
+    try:
+        nlen = struct.unpack("<H", data[o + 28:o + 30])[0]
+    except struct.error:
+        continue
+    if not 0 < nlen < 300:
+        continue
+    name = data[o + 46:o + 46 + nlen].decode("utf-8", "replace")
+    parts = [p for p in name.split("/") if p]
+    # archives are either <top>/<model>/file or <model>/file
+    if len(parts) >= 3:
+        names.append(parts[1])
+    elif len(parts) == 2:
+        names.append(parts[0])
+models = sorted({n for n in names if n.lower().startswith("rife")})
+if not models:
+    sys.exit(1)
+print("\n".join(models))
+PY
+  rm -f "$tail_file"
 }
 
 download_file() {
@@ -138,6 +209,31 @@ main() {
   log "Latest release: $tag_name"
   log "Matched asset: $asset_name"
 
+  # The archive is large (hundreds of MB on the tntwise fork), so check the
+  # requested models against the zip index before paying for the download.
+  local available=""
+  if [[ "$list_only" -eq 1 || "$dry_run" -eq 0 ]]; then
+    available="$(list_zip_models "$asset_url" 2>/dev/null || true)"
+  fi
+
+  if [[ "$list_only" -eq 1 ]]; then
+    [[ -n "$available" ]] || die "could not read the model list from $asset_name"
+    printf '%s\n' "$available"
+    exit 0
+  fi
+
+  if [[ -n "$available" ]]; then
+    local model missing=""
+    for model in ${models//,/ }; do
+      printf '%s\n' "$available" | grep -qx "$model" || missing="$missing $model"
+    done
+    if [[ -n "$missing" ]]; then
+      printf 'error: model(s) not in %s:%s\n\navailable:\n' "$asset_name" "$missing" >&2
+      printf '%s\n' "$available" | sed 's/^/  /' >&2
+      exit 1
+    fi
+  fi
+
   tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/rife-install.XXXXXX")"
   local zip_path="$tmp_dir/$asset_name"
 
@@ -161,8 +257,14 @@ main() {
     src_dir="$(dirname "$src_bin")"
   fi
 
-  log "Thinning universal binary to arm64"
-  run lipo -thin arm64 "$src_bin" -output "$src_bin.arm64"
+  # Upstream ships a universal binary; the tntwise fork is already arm64-only.
+  if [[ "$dry_run" -eq 1 ]] || lipo -archs "$src_bin" 2>/dev/null | grep -qw x86_64; then
+    log "Thinning universal binary to arm64"
+    run lipo -thin arm64 "$src_bin" -output "$src_bin.arm64"
+  else
+    log "Binary is already arm64-only"
+    run cp "$src_bin" "$src_bin.arm64"
+  fi
   run codesign --force --sign - "$src_bin.arm64"
 
   log "Installing to $share_dir"
@@ -174,7 +276,9 @@ main() {
   local model
   for model in ${models//,/ }; do
     if [[ "$dry_run" -eq 0 && ! -d "$src_dir/$model" ]]; then
-      die "model not found in release: $model"
+      printf 'error: model not found in release: %s\n\navailable:\n' "$model" >&2
+      (cd "$src_dir" && ls -d rife* 2>/dev/null | sed 's/^/  /') >&2 || true
+      exit 1
     fi
     log "Installing model $model"
     run cp -R "$src_dir/$model" "$share_dir/$model"
