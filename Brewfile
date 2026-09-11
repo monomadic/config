@@ -119,6 +119,7 @@ brew "rustscan"
 brew "ssss"
 brew "tokei"
 brew "trippy"
+brew "uv" # bootstrap-critical: install-yt-dlp.sh skips without it
 brew "age"
 brew "gum" # tui widgets
 #cask "mangodisk" # disk space cleaner

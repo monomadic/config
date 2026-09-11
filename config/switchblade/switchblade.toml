@@ -968,6 +968,17 @@ pad_r3 = "jump_random"
 # n = "rename_script"    # any key -> any launched program; example below
 # "{" = "skip_back_big"  # a skip with its own amount; see below
 
+# Per-view groups (2026-09-11): [keys] above is GLOBAL; a group here applies
+# only while that view is up and wins over the global entry for the same
+# key — [keys.grid], [keys.quickview], [keys.cinema] (alias fullview),
+# [keys.triple]. `"none"` in a group switches a global key OFF there.
+# Cinema's group ships built in; spelled out so the pause keys are visible
+# next to the global space / pad_south = "quickview" entries they shadow.
+[keys.cinema]
+space = "toggle_pause"  # parks the stream; seeks, another clip or leaving resume it
+pad_south = "toggle_pause"
+# tab = "none"  # example: stop Tab from dropping out of cinema
+
 # [commands] is for command lines you want to name and reuse — a key then
 # binds to the name. A plain string is a shell command line, same as the
 # inline `exec '...'` form above.
