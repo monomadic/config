@@ -54,12 +54,18 @@
 --alias original '--embed-metadata --parse-metadata "%(_const|Original)s:%(meta_variant)s"'
 
 # adult aliases
-# -S proto:https ranks progressive https above HLS. PornHub's master m3u8
-# intermittently loads while its variant playlists are 410 Gone, and those dead
-# HLS entries outrank the working progressive mp4 on bitrate — yt-dlp picks one
-# and the download dies with "HTTP Error 474". This only re-ranks, it never
-# excludes, so split video+audio streams still merge as before.
---alias porn '-S "proto:https" --embed-subs --embed-chapters --original --sub-langs "en.*,-live_chat" --use-postprocessor "Titlecase:when=pre_process" --parse-metadata "%(_const|Adult)s:%(meta_category)s" --parse-metadata "%(_const|Original)s:%(meta_variant)s" --parse-metadata ":(?P<meta_artist>)" -o "%(channel_cc,uploader_cc,channel,uploader|?)s/%(cast,uploader|)l (%(channel_cc,uploader_cc,channel,uploader|Unknown)s) %(cast& - |)s %(title_cc,title).50s (%(extractor)s_%(id)s).%(ext)s" --progress --console-title --trim-filenames 200 --paths "home:$HOME/Movies/Porn/Downloads"'
+# --impersonate is load-bearing on PornHub. Installing curl_cffi only gives the
+# EXTRACTOR impersonation; the m3u8 variant fetches still go out unimpersonated
+# and 410, leaving yt-dlp to fall back on the progressive mp4 URLs — which the
+# CDN now rejects with "HTTP Error 474" (410 to a plain GET, 474 to a browser-ish
+# one; no header or cookie combination revives them). Forcing it here makes the
+# whole HLS pipeline work, and HLS is PornHub's real delivery path.
+#
+# Do NOT re-add `-S proto:https` here. It was the earlier fix for this same 474,
+# back when the progressive URLs still worked and dead HLS entries outranked
+# them. That has since inverted, so pinning the protocol now selects the broken
+# side. Leave selection unpinned and let quality sorting choose.
+--alias porn '--impersonate chrome --embed-subs --embed-chapters --original --sub-langs "en.*,-live_chat" --use-postprocessor "Titlecase:when=pre_process" --parse-metadata "%(_const|Adult)s:%(meta_category)s" --parse-metadata "%(_const|Original)s:%(meta_variant)s" --parse-metadata ":(?P<meta_artist>)" -o "%(channel_cc,uploader_cc,channel,uploader|?)s/%(cast,uploader|)l (%(channel_cc,uploader_cc,channel,uploader|Unknown)s) %(cast& - |)s %(title_cc,title).50s (%(extractor)s_%(id)s).%(ext)s" --progress --console-title --trim-filenames 200 --paths "home:$HOME/Movies/Porn/Downloads"'
 --alias tower '--porn --paths home:/Volumes/Tower/Movies/Porn/Downloads'
 
 # vj aliases
