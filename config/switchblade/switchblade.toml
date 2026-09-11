@@ -210,8 +210,8 @@ backdrop_color = [0.0, 0.0, 0.0]  # the flat stage color
 quickview_fade_ms = 0.0
 # The clip's name above the video: the container's `title` tag when the
 # file carries one, the filename otherwise.
-quickview_title_size = 17.0
-quickview_title_weight = 600  # 400 regular, 600 semibold, 700 bold
+quickview_title_size = 22.0
+quickview_title_weight = 700  # 400 regular, 600 semibold, 700 bold
 # (Playback resolution is quickview_max_width/height, under Startup
 # settings below.)
 
@@ -239,7 +239,7 @@ triple_fade_ms = 130.0
 # release. Hovering the bar previews the nearest animated-thumbnail
 # frame at seekbar_thumb_width px wide (0 hides the preview).
 seekbar_hide_s = 1.0
-seekbar_fade_ms = 250.0
+seekbar_fade_ms = 150.0
 # Cinema mode only: how far above the chapter bar's dock-reveal band
 # (chapter_dock_reveal_px) the seekbar rests. Both live at the bottom
 # edge, and revealing the drawer LIFTS the seekbar — so a bar resting
@@ -271,10 +271,10 @@ seekbar_thumb_border_color = [0.85, 0.85, 0.9, 0.7]
 # scrubbing. knob_bg_* is its own dark backing disc, matching the bar's.
 # The knob animates out the moment the pointer leaves the bar and pops
 # back on return — it doesn't linger through the bar's fade.
-seekbar_knob_scale = 1.5
+seekbar_knob_scale = 1.32
 seekbar_knob_bar_swell = 1.1
-seekbar_knob_swell = 1.25
-seekbar_knob_bg_opacity = 0.15
+seekbar_knob_swell = 1.16
+seekbar_knob_bg_opacity = 0.0
 seekbar_knob_bg_pad = 1.0
 seekbar_loop_color = [
   1.0,
@@ -296,25 +296,25 @@ seekbar_preview_keep_s = 2.0
 # Opacity (0..1) of the seekbar's background track — the unfilled part
 # behind the played fill. The fill stays solid white; lower this to make
 # the track more transparent over the video.
-seekbar_track_opacity = 0.18
+seekbar_track_opacity = 0.00
 # Opacity (0..1) of the ghost fill — the translucent click-preview bar
 # that follows the pointer along the track, showing where a click would
 # put the playhead. 0 disables.
-seekbar_ghost_opacity = 0.35
+seekbar_ghost_opacity = 0.16
 
 # The filmstrip of neighboring clips along the bottom. Chips share this
 # fixed height and take each clip's true aspect for width — portrait
 # clips get narrower chips, never taller ones.
-strip_height = 92.0  # chip height (width follows the clip's aspect)
-strip_gap = 10.0
+strip_height = 96.0  # chip height (width follows the clip's aspect)
+strip_gap = 4.0
 strip_snap_strength = 0.5  # strip chasing the selection (0.99 ≈ instant)
 strip_corner_radius = 10.0
 strip_border_width = 4.0  # selected chip's border; its color comes
 # from selection_border above
 # Selected / hovered chips scale up and overlap their neighbors (drawn on
 # top, like the grid). Hovered chips also play video at level "normal"+.
-strip_selection_scale = 1.35
-strip_hover_scale = 1.15
+strip_selection_scale = 1.36
+strip_hover_scale = 1.36
 # Wheel / trackpad over quickview scrubs the strip: pixels per chip-step
 # are divided by this, and the selection follows the nearest chip.
 # Bigger = faster; negative flips direction.
@@ -323,7 +323,7 @@ strip_scroll_sensitivity = 1.0
 # magnetic, chip-by-chip flow. false: scrolling only PEEKS — the strip
 # pans while the selected clip keeps playing (hover still previews);
 # click a chip to play it. The strip re-centers when the selection moves.
-strip_scroll_selects = false
+strip_scroll_selects = true
 
 # ── Chapter bar (g, inside fullview) ────────────────────────────────────
 # Filmstrip-style chapter chips slide up from the bottom of fullview
@@ -645,8 +645,8 @@ seekbar_min_s = 10.0
 # The bar is the middle of a three-lane block — the clip's title above it,
 # the technical tags and the duration below it — so it rests well clear of
 # the video's bottom edge, and both lanes sit one even gap off the bar.
-seekbar_bottom_pad = 38.0
-seekbar_row_gap = 13.0
+seekbar_bottom_pad = 48.0
+seekbar_row_gap = 8.0
 # The details line under the bar's LEFT end — what the probe measured
 # (resolution, rate, codec, chapters) plus the filename's rating.
 # Off by default (2026-08-30): the labels read as obtrusive under the

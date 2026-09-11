@@ -4,7 +4,6 @@ use std::cell::RefCell;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-use std::time::Instant;
 
 use battery::{BatteryInfo, BatteryState, read_battery};
 use objc2::Message;
@@ -35,17 +34,12 @@ const TITLE_FONT_SIZE: f64 = 14.0;
 const LOW_BATTERY_THRESHOLD: i32 = 10;
 const UPDATE_INTERVAL_SECONDS: f64 = 10.0;
 
-// Animation. The battery itself is only re-read every UPDATE_INTERVAL_SECONDS;
-// the animation timer just re-renders the cached reading, and only while some
-// pulse is actually running.
-const ANIMATION_INTERVAL_SECONDS: f64 = 1.0 / 20.0;
-const LOW_PULSE_THRESHOLD: i32 = 8;
-const FULL_PULSE_THRESHOLD: i32 = 95; // charge level, not battery health
+// Accents: charge levels that change how the bar and bolt are coloured.
+// Nothing in the widget varies with time, so a reading is drawn once and then
+// left alone until the reading would look different — see `DrawKey`.
+const LOW_ACCENT_THRESHOLD: i32 = 8;
+const FULL_ACCENT_THRESHOLD: i32 = 95; // charge level, not battery health
 const BOLT_YELLOW_THRESHOLD: i32 = 60; // above this the bolt reads as healthy
-const BAR_PULSE_PERIOD: f64 = 2.6; // slow breath for the charging/low/full bar
-const BOLT_THROB_PERIOD: f64 = 0.6; // rapid throb, critical charge only
-const BAR_PULSE_MIN_ALPHA: f64 = 0.3;
-const BOLT_THROB_MIN_ALPHA: f64 = 0.35;
 const IDLE_BOLT_ALPHA: f64 = 0.45;
 
 // Bar image geometry, in points. The button centers image+title as one block,
@@ -200,85 +194,64 @@ impl Run {
 struct BarSpec {
     percent: i32,
     fill: Option<Retained<NSColor>>, // None = template image, adapts to menu bar
-    fill_alpha: f64,
     bolt: Option<Retained<NSColor>>,         // overlaid on the track
     leading_bolt: Option<Retained<NSColor>>, // in its own slot, left of the track
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Pulse {
+enum BarAccent {
     None,
-    Charging,
     Low,
     Full,
 }
 
-/// 0 → 1 → 0, once per `period`.
-fn wave(t: f64, period: f64) -> f64 {
-    0.5 - 0.5 * (std::f64::consts::TAU * t / period).cos()
-}
-
-/// The animated part of the title: which pulse is running and how far through
-/// it we are. Rebuilt on every render from the elapsed time.
-struct Anim {
-    pulse: Pulse,
-    bar_alpha: f64,
+/// How a reading colours the title: the accent the bar carries and the colour
+/// of the bolt. Derived entirely from the reading, so two equal readings draw
+/// identically — which is what lets `DrawKey` skip redundant redraws.
+struct Accent {
+    bar: BarAccent,
     bolt_color: Retained<NSColor>,
     charging: bool,
 }
 
-impl Anim {
-    fn new(info: &BatteryInfo, t: f64) -> Self {
+impl Accent {
+    fn new(info: &BatteryInfo) -> Self {
         // "Charger in", not "actively charging": at 100% pmset reports the
         // state as `charged`, which is still plugged in.
         let charging = info.on_ac;
-        // Critical charge is the only state that animates the bolt itself.
-        let critical = info.percent <= LOW_PULSE_THRESHOLD && !charging;
+        let critical = info.percent <= LOW_ACCENT_THRESHOLD && !charging;
 
-        // Charging is signalled by breathing the bar, not the bolt — one
-        // moving thing in the widget at a time.
-        let pulse = if info.percent > FULL_PULSE_THRESHOLD {
-            Pulse::Full
+        // Charging is signalled by the bolt alone, so the bar is free to keep
+        // its ordinary colour and only mark the two states the bolt can't.
+        let bar = if info.percent > FULL_ACCENT_THRESHOLD {
+            BarAccent::Full
         } else if critical {
-            Pulse::Low
-        } else if charging {
-            Pulse::Charging
+            BarAccent::Low
         } else {
-            Pulse::None
+            BarAccent::None
         };
 
-        let bar_alpha =
-            BAR_PULSE_MIN_ALPHA + (1.0 - BAR_PULSE_MIN_ALPHA) * wave(t, BAR_PULSE_PERIOD);
-
-        // The bolt is a charge-level readout, and solid unless things are dire:
-        // yellow with plenty in the tank, plain white as it drains, then red
-        // and throbbing fast once critical. White rather than a label colour so
-        // it reads on both light and dark menu bars without going muddy grey.
+        // The bolt is a charge-level readout: yellow with plenty in the tank,
+        // plain white as it drains, red once critical. White rather than a
+        // label colour so it reads on both light and dark menu bars without
+        // going muddy grey.
         let bolt_color = if critical {
-            let alpha =
-                BOLT_THROB_MIN_ALPHA + (1.0 - BOLT_THROB_MIN_ALPHA) * wave(t, BOLT_THROB_PERIOD);
-            NSColor::systemRedColor().colorWithAlphaComponent(alpha)
+            NSColor::systemRedColor()
         } else if info.percent > BOLT_YELLOW_THRESHOLD {
             NSColor::systemYellowColor()
         } else {
             NSColor::whiteColor().colorWithAlphaComponent(IDLE_BOLT_ALPHA)
         };
 
-        Anim {
-            pulse,
-            bar_alpha,
+        Accent {
+            bar,
             bolt_color,
             charging,
         }
     }
 
-    fn animating(&self) -> bool {
-        self.pulse != Pulse::None
-    }
-
-    /// Charging breathes the bar in the menu bar's own foreground (white on a
-    /// dark menu bar); low breathes it red; full fades a template bar in and
-    /// out. The bolt stays out of it unless the charge is critical.
+    /// Low paints the bar red; full hands it back to a template image so it
+    /// tracks the menu bar's tint. The bolt stays out of it.
     fn apply_to_bar(&self, bar: &mut BarSpec) {
         let has_bolt = bar.bolt.is_some() || bar.leading_bolt.is_some();
 
@@ -290,20 +263,15 @@ impl Anim {
             bar.fill = Some(NSColor::labelColor());
         }
 
-        match self.pulse {
-            Pulse::None => {}
-            Pulse::Charging => bar.fill_alpha = self.bar_alpha,
-            Pulse::Low => {
-                bar.fill = Some(NSColor::systemRedColor());
-                bar.fill_alpha = self.bar_alpha;
-            }
-            Pulse::Full => {
+        match self.bar {
+            BarAccent::None => {}
+            BarAccent::Low => bar.fill = Some(NSColor::systemRedColor()),
+            BarAccent::Full => {
                 // A template bar tracks the menu bar's tint, but only when the
                 // image has no coloured bolt for the mask to flatten.
                 if !self.charging && !has_bolt {
                     bar.fill = None;
                 }
-                bar.fill_alpha = self.bar_alpha;
             }
         }
     }
@@ -422,14 +390,10 @@ fn tinted(image: &NSImage) -> Retained<NSImage> {
 /// only the one slot, so the preview has to compose them here: bar and text
 /// side by side, in the order the style asks for, centred on each other.
 ///
-/// The preview is the style drawn from the live reading, not a mock of it, but
-/// it is drawn at rest — pulses are held at full so a row is never caught
-/// mid-breath, which at menu refresh rate would read as rows fading at random
-/// rather than as a pulse.
+/// The preview is the style drawn from the live reading, not a mock of it, so
+/// a row shows exactly what picking it would install in the menu bar.
 fn preview_image(info: &BatteryInfo, style: LayoutStyle) -> Retained<NSImage> {
-    let mut anim = Anim::new(info, 0.0);
-    anim.bar_alpha = 1.0;
-    let spec = title_spec(info, style, &anim);
+    let spec = title_spec(info, style, &Accent::new(info));
 
     let title = attributed_runs(&spec.runs, Some(&NSColor::labelColor()));
     let title_size = if spec.runs.is_empty() {
@@ -582,11 +546,7 @@ fn bar_image(spec: &BarSpec, pad: BarPad) -> Retained<NSImage> {
     let lead_x = pad.track_x();
     let track_x = lead_x + lead_width;
     let is_template = spec.fill.is_none();
-    let fill = spec
-        .fill
-        .clone()
-        .unwrap_or_else(NSColor::blackColor)
-        .colorWithAlphaComponent(spec.fill_alpha.clamp(0.0, 1.0));
+    let fill = spec.fill.clone().unwrap_or_else(NSColor::blackColor);
     let percent = spec.percent.clamp(0, 100);
     let bolt = spec.bolt.clone();
 
@@ -717,15 +677,14 @@ fn neutral_bar(percent: i32) -> Option<BarSpec> {
     Some(BarSpec {
         percent,
         fill: None,
-        fill_alpha: 1.0,
         bolt: None,
         leading_bolt: None,
     })
 }
 
-fn smart_title(info: &BatteryInfo, anim: &Anim, with_timer: bool) -> TitleSpec {
-    let accent = state_color(info);
-    let accented = |text: String| match &accent {
+fn smart_title(info: &BatteryInfo, accent: &Accent, with_timer: bool) -> TitleSpec {
+    let bar_fill = state_color(info);
+    let accented = |text: String| match &bar_fill {
         Some(color) => Run::colored(text, color.clone()),
         None => Run::plain(text),
     };
@@ -748,16 +707,15 @@ fn smart_title(info: &BatteryInfo, anim: &Anim, with_timer: bool) -> TitleSpec {
         runs,
         bar: Some(BarSpec {
             percent: info.percent,
-            fill: accent,
-            fill_alpha: 1.0,
-            bolt: anim.charging.then(|| anim.bolt_color.clone()),
+            fill: bar_fill,
+            bolt: accent.charging.then(|| accent.bolt_color.clone()),
             leading_bolt: None,
         }),
         bar_on_left: true,
     }
 }
 
-fn title_spec(info: &BatteryInfo, style: LayoutStyle, anim: &Anim) -> TitleSpec {
+fn title_spec(info: &BatteryInfo, style: LayoutStyle, accent: &Accent) -> TitleSpec {
     let percent = format!("{}%", info.percent);
     let text_only = |runs: Vec<Run>| TitleSpec {
         runs,
@@ -780,7 +738,7 @@ fn title_spec(info: &BatteryInfo, style: LayoutStyle, anim: &Anim) -> TitleSpec 
         LayoutStyle::IconBar => TitleSpec {
             runs: Vec::new(),
             bar: Some(BarSpec {
-                leading_bolt: Some(anim.bolt_color.clone()),
+                leading_bolt: Some(accent.bolt_color.clone()),
                 ..neutral_bar(info.percent).unwrap()
             }),
             bar_on_left: true,
@@ -800,14 +758,48 @@ fn title_spec(info: &BatteryInfo, style: LayoutStyle, anim: &Anim) -> TitleSpec 
             bar: neutral_bar(info.percent),
             bar_on_left: true,
         },
-        LayoutStyle::SmartBar => smart_title(info, anim, false),
-        LayoutStyle::SmartBarTimer => smart_title(info, anim, true),
+        LayoutStyle::SmartBar => smart_title(info, accent, false),
+        LayoutStyle::SmartBarTimer => smart_title(info, accent, true),
     };
 
     if let Some(bar) = spec.bar.as_mut() {
-        anim.apply_to_bar(bar);
+        accent.apply_to_bar(bar);
     }
     spec
+}
+
+/// Everything the drawn widget depends on, at the precision it is drawn:
+/// `power_text` folds the constantly-moving wattage down to the string that
+/// actually reaches the menu bar, so a flickering third decimal does not count
+/// as a change. Nothing here varies with time, which is what makes an
+/// unchanged key proof that a redraw would be a no-op.
+#[derive(PartialEq)]
+struct DrawKey {
+    style: LayoutStyle,
+    percent: i32,
+    state: BatteryState,
+    on_ac: bool,
+    low_power_mode: bool,
+    time_remaining: Option<String>,
+    power_text: String,
+    health_percent: i64,
+    cycle_count: i64,
+}
+
+impl DrawKey {
+    fn new(info: &BatteryInfo, style: LayoutStyle) -> Self {
+        DrawKey {
+            style,
+            percent: info.percent,
+            state: info.state,
+            on_ac: info.on_ac,
+            low_power_mode: info.low_power_mode,
+            time_remaining: info.time_remaining.clone(),
+            power_text: power_text(info),
+            health_percent: info.health_percent,
+            cycle_count: info.cycle_count,
+        }
+    }
 }
 
 struct Ui {
@@ -819,8 +811,7 @@ struct Ui {
     style_items: Vec<Retained<NSMenuItem>>,
     style: LayoutStyle,
     last_info: Option<BatteryInfo>,
-    started: Instant,
-    animating: bool,
+    last_key: Option<DrawKey>,
 }
 
 define_class!(
@@ -837,18 +828,6 @@ define_class!(
             self.update();
         }
 
-        #[unsafe(method(animate:))]
-        fn animate(&self, _timer: &NSTimer) {
-            let animating = self
-                .ivars()
-                .borrow()
-                .as_ref()
-                .is_some_and(|ui| ui.animating);
-            if animating {
-                self.render();
-            }
-        }
-
         #[unsafe(method(styleAction:))]
         fn style_action(&self, sender: &NSMenuItem) {
             let style = ALL_STYLES[sender.tag() as usize];
@@ -857,7 +836,9 @@ define_class!(
             }
             save_style(style);
             self.refresh_style_checks();
-            self.update();
+            // The style is part of the draw key, so this lands as a change and
+            // redraws without re-reading the battery.
+            self.refresh();
         }
 
         #[unsafe(method(lpmAction:))]
@@ -950,12 +931,12 @@ impl Widget {
             style_items,
             style: load_style(),
             last_info: None,
-            started: Instant::now(),
-            animating: false,
+            last_key: None,
         });
         self.refresh_style_checks();
     }
 
+    /// Re-read the battery and redraw if the reading moved.
     fn update(&self) {
         let info = match read_battery() {
             Ok(info) => info,
@@ -968,8 +949,35 @@ impl Widget {
         {
             let mut ivars = self.ivars().borrow_mut();
             let Some(ui) = ivars.as_mut() else { return };
-            ui.last_info = Some(info.clone());
+            ui.last_info = Some(info);
         }
+        self.refresh();
+    }
+
+    /// Redraw the item and the menu from the cached reading — but only when
+    /// the result would differ from what is already on screen. Nothing here
+    /// animates, so an unchanged `DrawKey` means every pixel is already
+    /// correct, and the poll costs nothing beyond reading the battery.
+    fn refresh(&self) {
+        let (info, style) = {
+            let ivars = self.ivars().borrow();
+            let Some(ui) = ivars.as_ref() else { return };
+            let Some(info) = ui.last_info.clone() else {
+                return;
+            };
+            (info, ui.style)
+        };
+
+        {
+            let key = DrawKey::new(&info, style);
+            let mut ivars = self.ivars().borrow_mut();
+            let Some(ui) = ivars.as_mut() else { return };
+            if ui.last_key.as_ref() == Some(&key) {
+                return;
+            }
+            ui.last_key = Some(key);
+        }
+
         self.render();
 
         let ivars = self.ivars().borrow();
@@ -1008,9 +1016,8 @@ impl Widget {
             }));
 
         // Each style row carries the item that style would install, drawn from
-        // the live reading. Refreshed here rather than in `render`: the reading
-        // is what changes them, and `render` runs at animation rate. The
-        // previews go in the title rather than in the item's own image well,
+        // the live reading. The previews go in the title rather than in the
+        // item's own image well,
         // which is what lets them sit in a right-hand column — an item image is
         // drawn hard against the label, ragged down the menu as labels vary.
         let previews: Vec<Retained<NSImage>> = ALL_STYLES
@@ -1038,25 +1045,20 @@ impl Widget {
         }
     }
 
-    /// Redraw the menu bar item from the cached reading. Cheap enough to run
-    /// at animation rate; `update` is what actually re-reads the battery.
+    /// Redraw the menu bar item from the cached reading. `update` re-reads the
+    /// battery; `refresh` decides whether calling this is worth it at all.
     fn render(&self) {
-        let (info, style, t) = {
+        let (info, style) = {
             let ivars = self.ivars().borrow();
             let Some(ui) = ivars.as_ref() else { return };
             let Some(info) = ui.last_info.clone() else {
                 return;
             };
-            (info, ui.style, ui.started.elapsed().as_secs_f64())
+            (info, ui.style)
         };
 
-        let anim = Anim::new(&info, t);
-        let spec = title_spec(&info, style, &anim);
+        let spec = title_spec(&info, style, &Accent::new(&info));
         let title = attributed_title(&spec.runs);
-
-        if let Some(ui) = self.ivars().borrow_mut().as_mut() {
-            ui.animating = anim.animating();
-        }
 
         let ivars = self.ivars().borrow();
         let Some(ui) = ivars.as_ref() else { return };
@@ -1119,13 +1121,6 @@ fn main() {
             UPDATE_INTERVAL_SECONDS,
             &widget,
             sel!(tick:),
-            None,
-            true,
-        );
-        NSTimer::scheduledTimerWithTimeInterval_target_selector_userInfo_repeats(
-            ANIMATION_INTERVAL_SECONDS,
-            &widget,
-            sel!(animate:),
             None,
             true,
         );
