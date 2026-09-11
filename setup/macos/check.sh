@@ -189,6 +189,22 @@ main() {
     warn "fileicon is not installed; macOS app icon overrides will be skipped"
   fi
 
+  # yt-dlp must resolve to the uv build — that is the one carrying curl_cffi, and
+  # without it extractors needing impersonation fail obscurely (a dead HLS format
+  # is chosen and the download dies with "HTTP Error 474"). `brew upgrade yt-dlp`
+  # relinks brew's copy ahead of ~/.local/bin and silently reintroduces that.
+  #
+  # Deliberately a path comparison rather than `yt-dlp --list-impersonate-targets`:
+  # invoking yt-dlp would load the user config and pull cookies from the browser
+  # on every deploy.
+  if [[ -x "$HOME/.local/bin/yt-dlp" ]]; then
+    local resolved_ytdlp
+    resolved_ytdlp="$(command -v yt-dlp 2>/dev/null || true)"
+    if [[ -n "$resolved_ytdlp" ]] && [[ "$resolved_ytdlp" != "$HOME/.local/bin/yt-dlp" ]]; then
+      warn "yt-dlp resolves to $resolved_ytdlp, not the uv build; run setup/install/install-yt-dlp.sh"
+    fi
+  fi
+
   if (( errors > 0 )); then
     note
     note "Bootstrap health check failed with $errors error(s) and $warnings warning(s)."

@@ -46,7 +46,7 @@ setup/macos/check.sh          # preflight: validates manifests, source paths, pa
 setup/macos/packages.sh list  # show every package and whether it is on for this machine
 setup/macos/packages.sh enable <name>   # edit local.toml without hand-syncing lists
 setup/macos/deploy.sh         # run Dotter deploy (wraps config/zsh/bin/dotter-deploy)
-setup/macos/deploy.sh --full  # also syncs Yazi plugin packages and reapplies macOS app icons
+setup/macos/deploy.sh --full  # also syncs Yazi plugin packages, repairs the yt-dlp install, and reapplies macOS app icons
 ```
 
 `deploy.sh` runs `check.sh` automatically unless `DOTTER_SKIP_HEALTHCHECK=1`.

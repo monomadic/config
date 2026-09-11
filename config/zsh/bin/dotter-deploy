@@ -13,6 +13,7 @@ GLOBAL_CONFIG="$CONFIG_DIR/dotter/global.toml"
 LOCAL_CONFIG="$CONFIG_DIR/dotter/local.toml"
 MACOS_ICON_SCRIPT="$CONFIG_DIR/setup/macos/apply-file-icons.sh"
 HEALTHCHECK_SCRIPT="$CONFIG_DIR/setup/macos/check.sh"
+YTDLP_INSTALL_SCRIPT="$CONFIG_DIR/setup/install/install-yt-dlp.sh"
 YAZI_PACKAGE_MANIFEST="$XDG_CONFIG_HOME/yazi/package.toml"
 YAZI_PACKAGE_PLUGIN_DIR="$XDG_CONFIG_HOME/yazi/plugins"
 FULL_DEPLOY=0
@@ -24,7 +25,7 @@ usage() {
 Usage: $SCRIPT_NAME [--full] [--icons]
 
 Runs Dotter deploy. Use --icons to also apply macOS app icons, or --full to
-additionally sync Yazi packages.
+additionally sync Yazi packages and repair the yt-dlp install.
 EOF
 }
 
@@ -170,6 +171,27 @@ install_yazi_packages() {
   ya pkg install "${install_args[@]}"
 }
 
+install_yt_dlp() {
+  if [[ "${DOTTER_SKIP_YTDLP:-0}" == "1" ]]; then
+    return
+  fi
+
+  if [[ ! -x "$YTDLP_INSTALL_SCRIPT" ]]; then
+    return
+  fi
+
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "Skipping yt-dlp: uv is not installed."
+    return
+  fi
+
+  # Non-fatal: a network blip or an unreachable index must not abort a deploy
+  # whose real job is symlinking config.
+  if ! "$YTDLP_INSTALL_SCRIPT"; then
+    echo "Warning: yt-dlp install failed; run $YTDLP_INSTALL_SCRIPT manually." >&2
+  fi
+}
+
 if (( FULL_DEPLOY )); then
   prepare_yazi_package_manifest
   prepare_yazi_local_plugin_dirs
@@ -187,6 +209,7 @@ fi
 
 if (( FULL_DEPLOY )); then
   install_yazi_packages
+  install_yt_dlp
 fi
 
 if (( APPLY_ICONS )) && [[ "$OSTYPE" == darwin* ]] && [[ -x "$MACOS_ICON_SCRIPT" ]]; then
