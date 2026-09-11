@@ -5,7 +5,16 @@ macOS 26.5, ffmpeg 9.0.1, DaVinci Resolve Studio 21.0.2.4.
 
 Three tools in this repo do frame interpolation. **`smooth-fps` is the default
 choice**; `interpolate-resolve` is better if Resolve is available and you want
-the best quality; `rife-60fps` is superseded and should not be used.
+the best quality; `rife-60fps` is superseded and should not be used. `rife-vapoursynth`
+(2026-09-11) is the same rife engine through VapourSynth with no image files:
+same frames as `rife-60fps`, but 30.0 out fps end to end (with `--dedup`,
+so 3× from 20 real fps) on a 3-minute 720p clip where `rife-60fps` managed
+about 18 on the same file. On a 30 s window of that clip through `vspipe`
+alone: decode + RGB round trip 2192 fps, rife 2× 59.7 out fps, rife 3× 44.8
+out fps, and adding x264 costs 3%. Both rife figures are ≈30 inferences/s,
+i.e. the plugin's overhead is nil and the ncnn/MoltenVK engine is the wall.
+It has not been run through the 1080p ground-truth harness below; expect the
+rife rows' VMAF and roughly the engine's 20 out fps at 1080p.
 
 | tool | engine | fast-clip VMAF | out fps |
 |---|---|---|---|

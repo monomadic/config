@@ -192,15 +192,18 @@ main() {
   # yt-dlp must resolve to the uv build — that is the one carrying curl_cffi, and
   # without it extractors needing impersonation fail obscurely (a dead HLS format
   # is chosen and the download dies with "HTTP Error 474"). `brew upgrade yt-dlp`
-  # relinks brew's copy ahead of ~/.local/bin and silently reintroduces that.
+  # relinks brew's own copy over the shim and silently reintroduces that.
   #
-  # Deliberately a path comparison rather than `yt-dlp --list-impersonate-targets`:
-  # invoking yt-dlp would load the user config and pull cookies from the browser
-  # on every deploy.
+  # `-ef` (same file, symlinks followed) rather than a string compare: the install
+  # deliberately leaves a shim at $(brew --prefix)/bin/yt-dlp, so the resolved path
+  # is usually NOT ~/.local/bin/yt-dlp even when everything is correct.
+  #
+  # Deliberately not `yt-dlp --list-impersonate-targets`: invoking yt-dlp would
+  # load the user config and pull cookies from the browser on every deploy.
   if [[ -x "$HOME/.local/bin/yt-dlp" ]]; then
     local resolved_ytdlp
     resolved_ytdlp="$(command -v yt-dlp 2>/dev/null || true)"
-    if [[ -n "$resolved_ytdlp" ]] && [[ "$resolved_ytdlp" != "$HOME/.local/bin/yt-dlp" ]]; then
+    if [[ -n "$resolved_ytdlp" ]] && [[ ! "$resolved_ytdlp" -ef "$HOME/.local/bin/yt-dlp" ]]; then
       warn "yt-dlp resolves to $resolved_ytdlp, not the uv build; run setup/install/install-yt-dlp.sh"
     fi
   fi

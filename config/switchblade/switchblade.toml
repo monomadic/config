@@ -199,7 +199,7 @@ pause_unfocused = true
 # the grid is downsampled 2^level before drawing back, so 1 = subtle,
 # 4 = heavy frost, 0 = no blur. GPU-cheap either way.
 quickview_dim = 0.60
-quickview_blur = 3.0
+quickview_blur = 0.0
 # Backdrop styles: "blur" = the frosted, dimmed gallery above; "flat" =
 # an opaque backdrop_color stage that hides the gallery entirely.
 # Quickview defaults to "blur", fullview (Tab) to "flat" — swap either.
@@ -471,8 +471,8 @@ atlas_memory_mb = 600
 # source's own resolution): the tile shows it downscaled (mipmapped) and
 # quickview shows the same stream big — so quickview opens instantly with
 # zero skip. Higher = sharper + more decode CPU while selected.
-quickview_max_width = 2560
-quickview_max_height = 1440
+quickview_max_width = 3840
+quickview_max_height = 2160
 
 # ── Text (M7) ───────────────────────────────────────────────────────────
 # Hovering a grid tile or a filmstrip chip badges it with the duration, the

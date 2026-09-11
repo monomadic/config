@@ -17,6 +17,15 @@
 # /opt/homebrew/bin sits ahead of ~/.local/bin. A uv install alone would be
 # silently shadowed by the brew copy.
 #
+# Why a shim is then put BACK at $(brew --prefix)/bin/yt-dlp: ~/.local/bin is only
+# on PATH for zsh sessions, because it comes from .zshenv -> bin/init-path.
+# /opt/homebrew/bin is system-wide via /etc/paths.d/homebrew, so anything not
+# started through the zsh config (TUIs spawned by a launcher, GUI-parented
+# processes) sees the brew dir and not ~/.local/bin. Removing the brew copy
+# without replacing it breaks those callers — tagform shelling out to yt-dlp is
+# the case that surfaced it. The shim points at the uv build, so every context
+# gets one yt-dlp and it is the one with curl_cffi.
+#
 # Note that `brew upgrade yt-dlp` RELINKS the brew copy and silently reintroduces
 # the bug. setup/macos/check.sh warns when that has happened; re-run this script
 # to repair it.
@@ -45,11 +54,24 @@ else
   uv tool install --force yt-dlp --with curl_cffi
 fi
 
-# Drop the Homebrew symlink if the keg is installed and currently linked.
-if command -v brew >/dev/null 2>&1 && brew list --versions yt-dlp >/dev/null 2>&1; then
-  if [ -e "$(brew --prefix)/bin/yt-dlp" ]; then
+# Drop the Homebrew symlink if the keg is installed and currently linked, then
+# put our own shim in its place. `brew unlink` removes the whole set of links it
+# owns, so it has to happen before the shim is written, not after.
+if command -v brew >/dev/null 2>&1; then
+  brew_bin="$(brew --prefix)/bin/yt-dlp"
+
+  if brew list --versions yt-dlp >/dev/null 2>&1 && [ -e "$brew_bin" ] && [ ! -L "$brew_bin" ]; then
     echo "Unlinking Homebrew's yt-dlp (keg stays installed for mpv)..."
     brew unlink yt-dlp
+  elif [ -L "$brew_bin" ] && [ ! "$brew_bin" -ef "$UV_BIN" ]; then
+    # A symlink that is not ours — brew relinked over the shim.
+    echo "Replacing Homebrew's yt-dlp link..."
+    brew list --versions yt-dlp >/dev/null 2>&1 && brew unlink yt-dlp
+  fi
+
+  if [ ! "$brew_bin" -ef "$UV_BIN" ]; then
+    echo "Linking $brew_bin -> $UV_BIN"
+    ln -sfn "$UV_BIN" "$brew_bin"
   fi
 fi
 
@@ -60,9 +82,11 @@ if ! ytdlp_has_impersonation "$UV_BIN"; then
   exit 1
 fi
 
-if [ "$resolved" != "$UV_BIN" ]; then
-  echo "Warning: yt-dlp on PATH is $resolved, not $UV_BIN" >&2
-  echo "         Something ahead of ~/.local/bin is shadowing it." >&2
+# `-ef` not a string compare: resolving via the shim is the expected outcome, so
+# what matters is that PATH lands on the same file, not on the same spelling.
+if [ -z "$resolved" ] || [ ! "$resolved" -ef "$UV_BIN" ]; then
+  echo "Warning: yt-dlp on PATH is ${resolved:-<none>}, which is not $UV_BIN" >&2
+  echo "         Something ahead of it on PATH is shadowing it." >&2
   exit 1
 fi
 

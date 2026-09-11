@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# rife-vapoursynth — frame-interpolate a video with RIFE through VapourSynth, in memory.
+#
+# bestsource decodes, the rife ncnn/Vulkan plugin interpolates, vspipe streams
+# y4m into one ffmpeg encoder that also carries the source audio. No image
+# files, no chunks, no scratch disk, and the timing comes straight from the
+# y4m frame rate, so there is nothing to remux and nothing to drift.
+#
+# Install the plugin with setup/install/install-vapoursynth-rife.sh.
+set -euo pipefail
+
+target_fps=60
+model="rife-v4.6_ensembleFalse"
+plugin_dir="${RIFE_VS_PLUGIN_DIR:-$HOME/.local/lib/vapoursynth}"
+crf=18
+preset=medium
+gpu_thread=1
+sc=1
+dedup=0
+tta=0
+uhd=""
+output=""
+input=""
+tmp=""
+
+usage() {
+  cat <<'EOF'
+Usage: rife-vapoursynth [options] INPUT
+
+Interpolate INPUT to a higher frame rate with RIFE (ncnn/Vulkan) via
+VapourSynth and write INPUT-<fps>fps.mp4 next to it. Audio is copied.
+
+Options:
+  -o, --output FILE     Output path
+  -r, --fps N           Target frame rate (integer or num/den). Default: 60
+  -m, --model NAME      Model dir under the plugin's models/. Default: rife-v4.6_ensembleFalse
+      --crf N           x264 quality. Default: 18
+      --preset P        x264 preset. Default: medium
+  -j, --gpu-thread N    Plugin GPU threads. Default: 1 (MoltenVK exposes one compute queue)
+      --no-sc           Interpolate across scene changes (default: duplicate at cuts)
+      --dedup           Drop source frames identical to the previous one first, so
+                        pulldown duplicates become real interpolated frames. Warps
+                        timing on held frames (same caveat as smooth-fps --dedup).
+  -x, --tta             TTA mode (much slower, measured not worth it)
+  -u, --uhd             UHD mode: flow at half resolution. Default: on for width >= 3000
+      --no-uhd          Force UHD mode off
+  -h, --help            Show this help
+EOF
+}
+
+log() { printf '==> %s\n' "$*" >&2; }
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+need_cmd() { command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"; }
+cleanup() { [[ -n "$tmp" && -d "$tmp" ]] && rm -rf "$tmp"; }
+trap cleanup EXIT
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o|--output) shift; [[ $# -gt 0 ]] || die "--output requires a path"; output="$1" ;;
+    -r|--fps) shift; [[ $# -gt 0 ]] || die "--fps requires a number"; target_fps="$1" ;;
+    -m|--model) shift; [[ $# -gt 0 ]] || die "--model requires a name"; model="$1" ;;
+    --crf) shift; [[ $# -gt 0 ]] || die "--crf requires a number"; crf="$1" ;;
+    --preset) shift; [[ $# -gt 0 ]] || die "--preset requires a name"; preset="$1" ;;
+    -j|--gpu-thread) shift; [[ $# -gt 0 ]] || die "--gpu-thread requires a number"; gpu_thread="$1" ;;
+    --no-sc) sc=0 ;;
+    --dedup) dedup=1 ;;
+    -x|--tta) tta=1 ;;
+    -u|--uhd) uhd=1 ;;
+    --no-uhd) uhd=0 ;;
+    -h|--help) usage; exit 0 ;;
+    -*) die "unknown option: $1" ;;
+    *) [[ -z "$input" ]] || die "only one input is supported"; input="$1" ;;
+  esac
+  shift
+done
+
+[[ -n "$input" ]] || { usage >&2; exit 1; }
+[[ -f "$input" ]] || die "no such file: $input"
+for cmd in vspipe ffmpeg ffprobe python3; do need_cmd "$cmd"; done
+[[ -f "$plugin_dir/librife.dylib" ]] || die "plugin not installed: $plugin_dir/librife.dylib (run setup/install/install-vapoursynth-rife.sh)"
+[[ -d "$plugin_dir/models/$model" ]] || die "model not installed: $plugin_dir/models/$model"
+
+fps_num="${target_fps%%/*}"
+fps_den=1; [[ "$target_fps" == */* ]] && fps_den="${target_fps##*/}"
+[[ "$fps_num" =~ ^[0-9]+$ && "$fps_den" =~ ^[0-9]+$ ]] || die "bad --fps: $target_fps"
+fps_label="$fps_num"; [[ "$fps_den" -ne 1 ]] && fps_label="$(awk -v n="$fps_num" -v d="$fps_den" 'BEGIN{printf "%.3g", n/d}')"
+
+[[ -n "$output" ]] || output="${input%.*}-${fps_label}fps.mp4"
+[[ ! -e "$output" ]] || die "output already exists: $output"
+
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/rife-vapoursynth.XXXXXX")"
+abs_input="$(cd "$(dirname "$input")" && pwd)/$(basename "$input")"
+
+# ---- dedup: which source frames to drop, decided by ffmpeg's mpdecimate ----
+
+drop_list="$tmp/drop.txt"
+: > "$drop_list"
+if [[ "$dedup" -eq 1 ]]; then
+  log "Scanning for duplicate frames"
+  ffmpeg -v debug -nostdin -i "$abs_input" -vf mpdecimate -an -f null - 2>&1 \
+    | awk '/drop_count:/{ n++; if (match($0,/drop_count:-?[0-9]+/)) { v=substr($0,RSTART+11,RLENGTH-11); if (v+0>0) print n-1 } }' \
+    > "$drop_list"
+  log "Dropping $(wc -l < "$drop_list" | tr -d ' ') duplicate frames"
+fi
+
+src_frames="$(ffprobe -v 0 -select_streams v:0 -show_entries stream=nb_frames -of csv=p=0 "$abs_input" | tr -d ',')"
+src_width="$(ffprobe -v 0 -select_streams v:0 -show_entries stream=width -of csv=p=0 "$abs_input" | tr -d ',')"
+# rife's UHD mode estimates flow at half resolution; at 4K the full-res flow
+# net is the whole cost, at 1080p it measured as changing nothing, so auto.
+if [[ -z "$uhd" ]]; then uhd=0; [[ "${src_width:-0}" -ge 3000 ]] && uhd=1; fi
+
+# ---- VapourSynth script ---------------------------------------------------
+
+script="$tmp/rife.vpy"
+cat > "$script" <<EOF
+import vapoursynth as vs
+core = vs.core
+core.std.LoadPlugin(r"$plugin_dir/librife.dylib") if "rife" not in [p.namespace for p in core.plugins()] else None
+
+clip = core.bs.VideoSource(r"$abs_input", showprogress=False)
+
+with open(r"$drop_list") as f:
+    drops = [int(l) for l in f if l.strip()]
+if drops:
+    # Dropping frames must not shorten the clip: the survivors now stand for
+    # the whole duration, so scale the frame rate by kept/total. Exact for
+    # regular pulldown, approximate (timing warp) for irregular duplicates.
+    total = clip.num_frames
+    clip = core.std.DeleteFrames(clip, frames=drops)
+    clip = core.std.AssumeFPS(clip, fpsnum=clip.fps.numerator * clip.num_frames,
+                              fpsden=clip.fps.denominator * total)
+
+# Colour: keep the source matrix for the RGB round trip (bestsource tags it;
+# fall back to 709 for HD / 170m for SD when the file says "unspecified").
+props = clip.get_frame(0).props
+matrix = props.get("_Matrix", 2)
+if matrix == 2:
+    matrix = 1 if clip.height >= 720 else 6
+rng = props.get("_Range", props.get("_ColorRange", 1))
+
+rgb = core.resize.Bicubic(clip, format=vs.RGBS, matrix_in=matrix, range_in=rng)
+out = core.rife.RIFE(rgb, model_path=r"$plugin_dir/models/$model",
+                     fps_num=$fps_num, fps_den=$fps_den,
+                     gpu_thread=$gpu_thread, sc=bool($sc), tta=bool($tta), uhd=bool(${uhd}))
+out = core.resize.Bicubic(out, format=vs.YUV420P8, matrix=matrix, range=rng)
+out.set_output()
+EOF
+
+# ---- run -------------------------------------------------------------------
+
+log "Source: $(basename "$input") ($src_frames frames) -> $fps_label fps with $model$( [[ "$dedup" -eq 1 ]] && printf ', dedup')$( [[ "$sc" -eq 1 ]] && printf ', scene-cut aware')$( [[ "$uhd" -eq 1 ]] && printf ', uhd')"
+log "Output: $output"
+
+t0=$(date +%s)
+vspipe -c y4m "$script" - \
+  | ffmpeg -v error -stats -nostdin -y \
+      -i - -i "$abs_input" \
+      -map 0:v -map 1:a? \
+      -c:v libx264 -preset "$preset" -crf "$crf" -pix_fmt yuv420p \
+      -c:a copy -movflags +faststart \
+      "$output"
+elapsed=$(( $(date +%s) - t0 ))
+
+out_frames="$(ffprobe -v 0 -select_streams v:0 -show_entries stream=nb_frames -of csv=p=0 "$output" | tr -d ',')"
+printf '\n' >&2
+log "Done: $out_frames frames in ${elapsed}s ($(awk -v f="$out_frames" -v e="$elapsed" 'BEGIN{printf "%.1f", (e>0?f/e:0)}') out fps)"

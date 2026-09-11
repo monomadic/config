@@ -84,6 +84,8 @@ video_tools = [
   { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " smooth 60fps " -- zsh -lc 'for f in "$@"; do /Users/nom/.bin/smooth-fps "$f"; done' zsh %s''', desc = "􀲳  interpolate: 60fps (minterpolate)", for = "unix", orphan = true },
   { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " smooth 120fps " -- zsh -lc 'for f in "$@"; do /Users/nom/.bin/smooth-fps --fps 120 "$f"; done' zsh %s''', desc = "􀲳  interpolate: 120fps (minterpolate)", for = "unix", orphan = true },
   { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " smooth 60fps dedup " -- zsh -lc 'for f in "$@"; do /Users/nom/.bin/smooth-fps --dedup "$f"; done' zsh %s''', desc = "􀲳  interpolate: 60fps (minterpolate, dedup)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " rife 60fps " -- zsh -lc 'for f in "$@"; do /Users/nom/.bin/rife-vapoursynth "$f"; done' zsh %s''', desc = "􀲳  interpolate: 60fps (rife)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " rife 60fps dedup " -- zsh -lc 'for f in "$@"; do /Users/nom/.bin/rife-vapoursynth --dedup "$f"; done' zsh %s''', desc = "􀲳  interpolate: 60fps (rife, dedup)", for = "unix", orphan = true },
 ]
 extract = [
   { run = "ya pub extract --list %s", desc = "􃀩  extract" },
