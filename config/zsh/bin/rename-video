@@ -705,6 +705,27 @@ build_stem() {
   print -r -- "${stem//\//-}"   # a tag may legitimately contain a slash
 }
 
+# A move that will not land on a name something else already holds.
+#
+# `mv` overwrites by default, and every caller here checks `-e` first, which
+# makes each rename a check-then-move with a window between the two halves. A
+# file that appears in that window is not ours -- a second run of this script
+# over the same directory, a download finishing, Finder duplicating -- and
+# overwriting it is the one failure mode a renamer must not have. `-n` closes
+# the window inside mv(1) itself.
+#
+# BSD and GNU mv both decline silently under `-n`: nothing on stderr, and a
+# zero exit. So the move is confirmed by asking the filesystem afterwards,
+# never by the status.
+mv_noclobber() {
+  local src="$1" dst="$2"
+  mv -n -- "$src" "$dst" || return 1
+  if [[ -e "$src" ]] || [[ ! -e "$dst" ]]; then
+    print -u2 -r -- "${YELLOW}${ICON_WARN}Refused: ${dst:t} appeared while renaming ${src:t}${RESET}"
+    return 1
+  fi
+}
+
 rename_path() {
   local src="$1" dst="$2"
   local base tmp n=0
@@ -713,7 +734,7 @@ rename_path() {
   # a case-only rename either no-ops or fails and the old casing sticks. Detect
   # it with -ef and hop through an intermediary name in the same directory.
   if [[ ! -e "$dst" ]] || [[ ! "$src" -ef "$dst" ]]; then
-    mv -- "$src" "$dst"
+    mv_noclobber "$src" "$dst"
     return $?
   fi
 
@@ -726,10 +747,15 @@ rename_path() {
 
   log_verbose "case-only rename; staging through ${tmp:t}"
 
-  mv -- "$src" "$tmp" || return 1
+  # Both halves refuse to clobber: the staging name is only probably free --
+  # two runs a second apart reuse a pid -- and the destination stopped
+  # existing the moment the first move took its only name away, so anything
+  # sitting there by the second move arrived from somewhere else. A failed
+  # second move puts the file back under the name it came in with.
+  mv_noclobber "$src" "$tmp" || return 1
 
-  if ! mv -- "$tmp" "$dst"; then
-    mv -- "$tmp" "$src" 2>/dev/null || \
+  if ! mv_noclobber "$tmp" "$dst"; then
+    mv_noclobber "$tmp" "$src" 2>/dev/null || \
       print -u2 -r -- "${YELLOW}${ICON_WARN}Left staged file: ${tmp}${RESET}"
     return 1
   fi
