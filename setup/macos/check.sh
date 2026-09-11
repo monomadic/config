@@ -200,11 +200,28 @@ main() {
   #
   # Deliberately not `yt-dlp --list-impersonate-targets`: invoking yt-dlp would
   # load the user config and pull cookies from the browser on every deploy.
-  if [[ -x "$HOME/.local/bin/yt-dlp" ]]; then
-    local resolved_ytdlp
-    resolved_ytdlp="$(command -v yt-dlp 2>/dev/null || true)"
-    if [[ -n "$resolved_ytdlp" ]] && [[ ! "$resolved_ytdlp" -ef "$HOME/.local/bin/yt-dlp" ]]; then
+  # Keyed off what `yt-dlp` actually resolves to, NOT off the uv build existing:
+  # gating on ~/.local/bin/yt-dlp would skip the whole check on exactly the
+  # machine that needs it most — a fresh one carrying only brew's broken copy.
+  # Silent when yt-dlp is absent entirely, since that machine simply isn't using
+  # it; a wrong yt-dlp is a problem, a missing one is a choice.
+  local resolved_ytdlp
+  resolved_ytdlp="$(command -v yt-dlp 2>/dev/null || true)"
+  if [[ -n "$resolved_ytdlp" ]]; then
+    if [[ ! -x "$HOME/.local/bin/yt-dlp" ]]; then
+      warn "yt-dlp is $resolved_ytdlp but the uv build is not installed; run setup/install/install-yt-dlp.sh"
+    elif [[ ! "$resolved_ytdlp" -ef "$HOME/.local/bin/yt-dlp" ]]; then
       warn "yt-dlp resolves to $resolved_ytdlp, not the uv build; run setup/install/install-yt-dlp.sh"
+    else
+      # Resolving to the uv build proves which file runs, not that it can
+      # impersonate. A plain `uv tool install yt-dlp` (no --with curl_cffi)
+      # satisfies every check above and still fails on the sites that need it.
+      # An unmatched glob stays literal in bash, so -d is false either way.
+      local curl_cffi_dir
+      curl_cffi_dir=( "$HOME"/.local/share/uv/tools/yt-dlp/lib/python*/site-packages/curl_cffi )
+      if [[ ! -d "${curl_cffi_dir[0]}" ]]; then
+        warn "yt-dlp (uv) has no curl_cffi, so impersonation is unavailable; run setup/install/install-yt-dlp.sh"
+      fi
     fi
   fi
 
