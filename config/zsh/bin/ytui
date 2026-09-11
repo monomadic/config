@@ -117,6 +117,64 @@ human_bytes() {
   fi
 }
 
+# ── disk space ───────────────────────────────────────────────────────────────
+# Two floors on the filesystem we're writing into: below LOW_SPACE_WARN the run
+# asks before it starts at all, below LOW_SPACE_HALT it stops mid-download.
+typeset -gr LOW_SPACE_WARN=$(( 8 * 1073741824 ))   # 8GiB — ask first
+typeset -gr LOW_SPACE_HALT=$(( 2 * 1073741824 ))   # 2GiB — stop and wait
+
+# Free bytes on the filesystem holding <path>, walking up to the nearest
+# directory that exists (the output dir is created later than the first check).
+# Prints nothing and returns 1 if df can't answer — no answer never blocks a run.
+free_bytes() {
+  local p="${1:-$PWD}"
+  while [[ -n "$p" && "$p" != / && ! -d "$p" ]]; do p="${p:h}"; done
+  [[ -d "$p" ]] || return 1
+  local -a lines
+  lines=( ${(f)"$(df -k -- "$p" 2>/dev/null)"} )
+  (( ${#lines} >= 2 )) || return 1
+  local avail="${${(z)lines[-1]}[4]}"        # macOS df -k: Avail is field 4
+  [[ "$avail" == <-> ]] || return 1
+  print -r -- $(( avail * 1024 ))
+}
+
+# Asked once, before the TUI is up, so the answer is a plain terminal prompt.
+# Starting a multi-GB download on a nearly full disk is usually a mistake, but
+# it's the user's call — a df that can't answer is not treated as "low".
+confirm_low_space() {
+  local -i free
+  free=$(free_bytes "$proposed_dir") || return 0
+  (( free > 0 && free < LOW_SPACE_WARN )) || return 0
+  local ans
+  print -r -- "${C_WARN}${SELF}: only $(human_bytes free) free on ${proposed_dir}${C_RESET}"
+  if read -q "ans?  Low disk space, download anyway? [y/N] " </dev/tty; then
+    print -r -- ""
+  else
+    print -r -- ""
+    print -ru2 -- "${SELF}: cancelled — low disk space"
+    exit 1
+  fi
+}
+
+# The hard floor, checked while the download runs — at most once per run: stop
+# yt-dlp where it stands (the .part is kept, --continue picks it back up) and
+# leave the message on screen. `p` resumes once space has been freed.
+check_space_live() {
+  (( space_halted )) && return
+  (( ++space_ticks % 10 )) && return          # ~2s apart, not every frame
+  local dir="$proposed_dir"
+  [[ -n "$dl_dest" ]] && dir="${dl_dest:h}"   # --paths temp: puts the .part elsewhere
+  local -i free
+  free=$(free_bytes "$dir") || return
+  (( free > 0 && free < LOW_SPACE_HALT )) || return
+  space_halted=1
+  if [[ -n "$ytdlp_pid" ]] && kill -0 "$ytdlp_pid" 2>/dev/null && (( ! paused )); then
+    kill -STOP "$ytdlp_pid" 2>/dev/null
+    paused=1
+  fi
+  msg="Almost out of disk space. Free up some space to continue."
+}
+
 # ── argument parsing (URL is the last arg, rest passes through to yt-dlp) ─────
 case "${1:-}" in
   -h|--help) usage; exit 0 ;;
@@ -152,6 +210,7 @@ typeset -gi thumb_drawn=0 thumb_active=0 thumb_rows=10 thumb_cols=32
 # thumb_stem. Unset entirely (json_dir="") when YT_DLP_JSON_DIR isn't set — same opt-in as ytq.
 typeset -g json_dir="" json_file=""
 typeset -gi paused=0
+typeset -gi space_halted=0 space_ticks=0   # low-space halt fires once per run
 typeset -g fifo="" pfd="" tfd="" saved_stty="" alt_active=0
 typeset -ga logring=()                    # recent yt-dlp lines, for error reporting
 
@@ -733,6 +792,7 @@ embed_subs() {
 # ── kick off the background jobs ─────────────────────────────────────────────
 load_archive_set
 preflight
+confirm_low_space
 
 # metadata: reuse ytq's shared info.json cache (same <extractor>_<id> naming as
 # thumb_stem). If YT_DLP_JSON_DIR isn't set, json_dir stays empty and this is a no-op.
@@ -815,6 +875,7 @@ while true; do
     esac
   done
 
+  check_space_live
   render
   kill -0 "$ytdlp_pid" 2>/dev/null || break
 done
