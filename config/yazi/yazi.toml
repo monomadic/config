@@ -24,6 +24,8 @@ play = [
   { desc = "􀽍  mpv-ipc", run = "mpv-send play %s", orphan = true },
   { desc = "􀉅  edit tags", run = '''/Users/nom/.zsh/bin/kitty-launch --tab --cwd %d1 -- /Users/nom/.cargo/bin/tagform %s''', orphan = true },
   { desc = "􀇺  media-audit", run = '''/Users/nom/.zsh/bin/kitty-launch --tab --hold --cwd %d1 -- /Users/nom/.zsh/bin/media-audit-batch %s''', orphan = true },
+  { desc = "􀯛  mp4doctor", run = '''/Users/nom/.zsh/bin/kitty-launch --tab --hold --cwd %d1 --title " mp4doctor " -- /Users/nom/.zsh/bin/mp4doctor %s''', orphan = true },
+  { desc = "􀯛  mp4doctor --fix", run = '''/Users/nom/.zsh/bin/kitty-launch --tab --hold --cwd %d1 --title " mp4doctor fix " -- /Users/nom/.zsh/bin/mp4doctor --fix %s''', orphan = true },
   { desc = "􀇺  rename-video", run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 -- /Users/nom/.zsh/bin/rename-video %s''', orphan = true },
   { desc = "􀏟  autodetect chapters", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 -- /Users/nom/.zsh/bin/ffmpeg-scenedetect-chapters %s''', orphan = true },
   { desc = "􂿥  a/bner", run = "abner %s", orphan = true },
@@ -38,6 +40,7 @@ play_dir = [
   { desc = "􀫐  switchblade", run = "switchblade %s", orphan = true },
   { desc = "􀽎  vlc", run = "vlc %s .", orphan = true },
   { desc = "􀇺  media-audit", run = '''/Users/nom/.zsh/bin/kitty-launch --tab --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-audit-batch %s''', orphan = true },
+  { desc = "􀯛  mp4doctor", run = '''/Users/nom/.zsh/bin/kitty-launch --tab --hold --cwd %d1 --title " mp4doctor " -- /Users/nom/.zsh/bin/mp4doctor %s''', orphan = true },
   # { desc = "􀇺  check: media", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-audit %s''', orphan = true },
   { desc = "􁊇  exiftool", run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", block = true },
 ]

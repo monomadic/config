@@ -74,10 +74,19 @@ emulate -L zsh
 # rename-footage, which rendered one ★ per point and nothing else; five
 # characters is what the rest of the tooling reads.
 #
+# A source URL is required too. yt-dlp embeds the page it fetched from as the
+# original_url / purl / source_url atoms (config/yt-dlp/config) and, by default,
+# as a URL-shaped comment, and that URL is what yt-dlp-refresh-metadata later
+# uses to re-tag the file. A file without one has lost its provenance, and
+# renaming it would bury that fact under a tidy name; so by default the run
+# stops on it, the same way it stops on a missing category. --force renames it
+# anyway, for footage and other files that never came from a URL.
+#
 # Nothing is written to the file. Renaming is all this does: tagform owns the
 # tags, and a rename that also edited them would be two tools in a trenchcoat.
 #
 # Options:
+#   --force          Rename even when the file carries no source URL
 #   --dry-run        Show what would be renamed without changing anything
 #   --print-target   Print the canonical target path only
 #   --verbose        Print debug information about probe/tag decisions
@@ -88,6 +97,7 @@ emulate -L zsh
 # Dependencies: ffprobe and exiftool, both required.
 
 DRY_RUN=false
+FORCE=false
 VERBOSE=false
 PRINT_TARGET=false
 SCRIPT_NAME="${0:t}"
@@ -126,7 +136,11 @@ usage() {
   print -r -- "  Footage  DATE PEOPLE - TITLE (LOCATION) #TAGS ★★★☆☆ [METADATA].ext"
   print -r -- "A file whose Variant is Clip gets its Track after the title: TITLE (Clip N)"
   print -r -- ""
+  print -r -- "A source URL tag (original_url, purl, source_url, or a URL comment) is"
+  print -r -- "required as well; a file without one stops the run unless --force is given."
+  print -r -- ""
   print -r -- "Options:"
+  print -r -- "  --force          Rename even when the file carries no source URL"
   print -r -- "  --dry-run        Show what would be renamed without changing files"
   print -r -- "  --print-target   Print only the canonical target path"
   print -r -- "  --verbose        Print debug information about probe/tag decisions"
@@ -270,6 +284,7 @@ split_list() {
 # The resolved fields for the file being processed.
 CATEGORY="" TITLE="" CHANNEL="" LOCATION="" RATING="" VARIANT="" CLIP_NUMBER=""
 ORIENTATION=""
+SOURCE_URL=""
 typeset -ga ACTORS=() TAGS=()
 
 # "Camera Footage" is the literal the yt-dlp alias writes; "Footage" is what
@@ -305,11 +320,25 @@ render_orientation() {
   esac
 }
 
+# The page the file was fetched from, in the tags yt-dlp writes for it (the
+# same set yt-dlp-refresh-metadata reads it back from). A comment counts only
+# when it looks like a URL: the field is free text and often holds prose.
+resolve_source_url() {
+  local raw
+
+  raw="$(first_atom original_url purl source_url)"
+  [[ -n "$raw" ]] && { print -r -- "$raw"; return 0 }
+
+  raw="$(first_atom comment)"
+  [[ "$raw" == *://* ]] && print -r -- "$raw"
+}
+
 resolve_fields() {
   local raw
 
   CATEGORY="" TITLE="" CHANNEL="" LOCATION="" RATING="" VARIANT="" CLIP_NUMBER=""
   ORIENTATION=""
+  SOURCE_URL=""
   ACTORS=() TAGS=()
 
   raw="$(first_present "$XMP_GENRE" "$(first_atom category genre)")"
@@ -331,8 +360,9 @@ resolve_fields() {
   [[ "${VARIANT:l}" == "clip" ]] && CLIP_NUMBER="$(resolve_clip_number)"
 
   ORIENTATION="$(first_atom orientation)"
+  SOURCE_URL="$(resolve_source_url)"
 
-  log_verbose "resolved: category='${CATEGORY}' title='${TITLE}' channel='${CHANNEL}' location='${LOCATION}' rating='${RATING}' variant='${VARIANT}' clip='${CLIP_NUMBER}' orientation='${ORIENTATION}' actors=(${(j:, :)ACTORS}) tags=(${(j:, :)TAGS})"
+  log_verbose "resolved: category='${CATEGORY}' title='${TITLE}' channel='${CHANNEL}' location='${LOCATION}' rating='${RATING}' variant='${VARIANT}' clip='${CLIP_NUMBER}' orientation='${ORIENTATION}' url='${SOURCE_URL}' actors=(${(j:, :)ACTORS}) tags=(${(j:, :)TAGS})"
 }
 
 # A rating may be stored as a number (tagform, XMP-xmp:Rating) or already as
@@ -789,6 +819,14 @@ process_video() {
   Tag it first (tagform), then rename."
   fi
 
+  # Fatal for the same reason: a file with no source URL cannot be re-tagged
+  # from its origin later, and a rename would hide that. --force is the
+  # opt-out for files that never had one.
+  if [[ -z "$SOURCE_URL" ]] && ! $FORCE; then
+    die "No source URL tag: ${filename}
+  Expected original_url, purl, source_url or a URL comment. Pass --force to rename anyway."
+  fi
+
   if ! probe_media "$file"; then
     print -r -- "${YELLOW}${ICON_WARN}Could not read video info: ${filename}${RESET}"
     return 0
@@ -888,6 +926,7 @@ main() {
   while (( $# > 0 )); do
     case "$1" in
       --dry-run) DRY_RUN=true; shift ;;
+      --force)   FORCE=true; shift ;;
       --verbose) VERBOSE=true; shift ;;
       --color)   enable_color; shift ;;
       --icons)   enable_icons; shift ;;
