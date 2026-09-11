@@ -55,9 +55,37 @@ def load_resolve_module():
         raise exc
 
 
-def wait_for_render(project, poll_s: float = 1.0) -> None:
+def fmt_hms(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    return f"{seconds // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
+
+
+def wait_for_render(project, job_id: str, total_frames: int | None, poll_s: float = 1.0) -> None:
+    """
+    Poll the render job and show a live status line on stderr. Resolve reports
+    CompletionPercentage, TimeTakenToRenderInMs and EstimatedTimeRemainingInMs
+    per job; frames and fps are derived from the percentage against the
+    expected output frame count, so they are estimates, not a frame counter.
+    """
+    live = sys.stderr.isatty()
+    started = time.monotonic()
     while project.IsRenderingInProgress():
+        status = project.GetRenderJobStatus(job_id) or {}
+        pct = float(status.get("CompletionPercentage", 0) or 0)
+        taken_ms = status.get("TimeTakenToRenderInMs")
+        elapsed = (taken_ms / 1000.0) if taken_ms else (time.monotonic() - started)
+        remaining_ms = status.get("EstimatedTimeRemainingInMs")
+        eta = fmt_hms(remaining_ms / 1000.0) if remaining_ms is not None else "--:--:--"
+        line = f"{status.get('JobStatus', 'Rendering')}: {pct:5.1f}%  elapsed {fmt_hms(elapsed)}  eta {eta}"
+        if total_frames:
+            done = int(total_frames * pct / 100.0)
+            fps = done / elapsed if elapsed > 0 else 0.0
+            line += f"  ~{done}/{total_frames} frames  ~{fps:.1f} fps"
+        if live:
+            print("\r\033[K" + line, end="", file=sys.stderr, flush=True)
         time.sleep(poll_s)
+    if live:
+        print("\r\033[K", end="", file=sys.stderr, flush=True)
 
 
 def parse_args() -> argparse.Namespace:
@@ -121,6 +149,22 @@ def normalize_fps(value: str) -> str:
     if parsed.is_integer():
         return str(int(parsed))
     return str(parsed)
+
+
+def probe_duration(input_file: Path) -> float | None:
+    """Return the input's duration in seconds via ffprobe, or None."""
+    ffprobe = shutil.which("ffprobe")
+    if ffprobe is None:
+        return None
+    try:
+        out = subprocess.run(
+            [ffprobe, "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(input_file)],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        return float(out) if out else None
+    except (subprocess.CalledProcessError, ValueError):
+        return None
 
 
 def probe_dimensions(input_file: Path) -> tuple[int, int] | None:
@@ -477,10 +521,20 @@ def main() -> None:
         if not project.StartRendering(job_id):
             fail("failed to start render")
 
-        wait_for_render(project)
+        duration_s = probe_duration(input_file)
+        total_frames = int(round(duration_s * float(args.fps))) if duration_s else None
+        wait_for_render(project, job_id, total_frames)
 
         status = project.GetRenderJobStatus(job_id) or {}
-        print(status)
+        taken_ms = status.get("TimeTakenToRenderInMs")
+        summary = f"render {status.get('JobStatus', 'finished')}"
+        if taken_ms:
+            summary += f" in {fmt_hms(taken_ms / 1000.0)}"
+            if total_frames:
+                summary += f" ({total_frames} frames, {total_frames / (taken_ms / 1000.0):.1f} fps)"
+        print(summary)
+        if status.get("Error"):
+            warn(f"resolve reported: {status['Error']}")
 
         # Resolve usually appends the container extension itself.
         output_candidate = output_dir / f"{output_name}{output_extension}"
