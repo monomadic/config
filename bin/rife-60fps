@@ -1,6 +1,26 @@
 #!/usr/bin/env bash
 # rife-60fps — frame-interpolate a video to a higher frame rate with rife-ncnn-vulkan.
 #
+# SUPERSEDED by bin/smooth-fps. Benchmarked on an M4 Pro against true-60fps
+# ground truth at 1080p, rife loses badly to both alternatives on quality and
+# speed (VMAF on the invented frames, fast-motion clip): rife v4.6 57.6 at 8.6
+# out fps as this script is configured, versus 86.4 at 50.7 out fps for
+# smooth-fps (ffmpeg minterpolate, CPU, segment-parallel) and 92.8 for
+# interpolate-resolve with Speed Warp. rife is also GPU-saturated and cannot be
+# parallelised further, and ncnn/Vulkan cannot reach the Neural Engine that
+# Speed Warp uses. See docs/INTERPOLATION.md for the full numbers.
+#
+# Two known defects, kept documented rather than fixed because the tool is no
+# longer the recommended path:
+#   * The final mux remuxes a raw H.264 stream with -framerate, which silently
+#     drops frames: 180 source frames produce 358, not 360, and the output runs
+#     33ms short. The loss is constant, not per-chunk, and the "Done" line
+#     reports frames fed to the encoder rather than frames in the file.
+#   * -n out_count asks rife to re-synthesize the source frames instead of
+#     passing them through, so all of them come back at ~34dB instead of being
+#     exact. Whole-sequence SSIM is 0.9198, which is worse than plain frame
+#     duplication (0.9283); passing the originals through would give 0.9575.
+#
 # rife only reads/writes image sequences, so the video is processed in chunks:
 # each chunk is dumped to PNGs, run through rife, and encoded straight onto a
 # single growing raw H.264 stream. At the end the stream is muxed with the
@@ -67,7 +87,8 @@ Options:
       --crf N           x264 quality. Default: 18
   -j, --threads L:P:S   rife load:proc:save threads. Default: 2:2:2
       --jpg             Use JPEG frames instead of PNG (much faster and smaller, slightly lossy)
-  -x, --tta             Enable rife TTA mode (better, ~8x slower)
+  -x, --tta             Enable rife TTA mode (8.3x slower; measured +0.04dB
+                        PSNR and slightly WORSE VMAF at 1080p - not worth it)
       --dedup           Drop source frames identical to the previous one (mpdecimate)
                         so rife interpolates across them instead of copying them.
                         Fixes 24-in-30 pulldown and stuttery captures; the clip

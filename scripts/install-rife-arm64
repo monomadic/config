@@ -26,9 +26,13 @@ The model dirs are installed next to the binary, which is where rife-60fps
 Sources (--repo):
   tntwise   TNTwise/rife-ncnn-vulkan (default) - nihui's CLI plus every model
             up to rife-v4.26. ~830MB download; only the requested models are
-            kept. Newer models are more accurate but slower: measured on an
-            M3 at 1080p, v4.25-lite is +0.8dB and 15% slower than v4.6, and
-            v4.26 is +0.9dB and 33% slower. "-lite" is lite for its own
+            kept. Newer is NOT better here: benchmarked on an M4 Pro at 1080p
+            against true-60fps ground truth, v4.6 was both the most accurate
+            and the fastest of nine models. Relative to v4.6, v4.25-lite is
+            -0.65dB at 35% slower and v4.26 is -0.48dB at 40% slower; the
+            whole v4.15-v4.26 range lands within 0.7dB of v4.6 while costing
+            1.2-2.2x the time. Stay on v4.6 unless you have measured
+            otherwise on your own footage. "-lite" is lite for its own
             generation, not against v4.6.
   nihui     nihui/rife-ncnn-vulkan - upstream, but its releases carry nothing
             newer than rife-v4.6.

@@ -1,0 +1,298 @@
+#!/usr/bin/env bash
+# smooth-fps — frame-interpolate a video to a higher frame rate with ffmpeg's
+# minterpolate, split across CPU cores.
+#
+# minterpolate is strictly single-threaded (measured: identical runtime at
+# -filter_threads 1, 4, 8 and 14), so on a 14-core machine it leaves 13 cores
+# idle. This runs several segments of the video at once instead, which is the
+# whole reason this tool is fast: 5.2x over serial at 8 segments on an M4 Pro.
+#
+# Seams are the only hard part. A segment cannot simply be cut at a frame
+# boundary: the interpolated frame that spans the cut needs the frame on the
+# far side of it, and motion estimation needs a run-up to be as good at the
+# start of a segment as it is in the middle. So each worker is fed a wider
+# range than it emits (LEAD_IN frames before, one frame after) and then trims
+# back to its own range. The trim is done in *global* time with -copyts, not in
+# per-segment frame counts, so the segments cannot drift relative to each other
+# and the joined output is frame-identical to a single serial pass.
+set -euo pipefail
+
+target_fps=60
+crf=18
+preset=medium
+workers=""
+segments=""
+lead_in=6          # source frames of motion-estimation run-up per segment
+mc_mode=aobmc      # obmc is ~7% faster and slightly worse
+me_mode=bilat      # bilat measured better AND 1.6x faster than bidir at 1080p
+vsbmc=1
+dedup=0
+plain=0
+keep=0
+output=""
+input=""
+
+tmp_root=""
+pids=""
+
+usage() {
+  cat <<'EOF'
+Usage: smooth-fps [options] INPUT
+
+Interpolate INPUT to a higher frame rate with ffmpeg's minterpolate, running
+several segments in parallel, and write a new mp4 next to it
+(INPUT-<fps>fps.mp4). Audio is copied from the source.
+
+Options:
+  -o, --output FILE     Output path. Default: <input>-<fps>fps.mp4
+  -r, --fps N           Target frame rate. Default: 60
+  -w, --workers N       Segments to run at once. Default: performance-core count
+      --segments N      Split into N segments. Default: same as --workers
+      --lead-in N       Source frames of run-up per segment. Default: 6
+      --crf N           x264 quality. Default: 18
+      --preset NAME     x264 preset. Default: medium
+      --obmc            Use obmc instead of aobmc (~7% faster, slightly worse)
+      --me-mode NAME    minterpolate me_mode: bilat (default) or bidir. bidir
+                        measured 0.6 VMAF worse and 1.6x slower at 1080p.
+      --no-vsbmc        Disable variable-size block motion compensation
+      --dedup           Drop source frames identical to the previous one
+                        (mpdecimate) so motion is interpolated across them
+                        instead of held. Fixes 24-in-30 pulldown and stuttery
+                        captures. Timestamps are preserved, so the clip length
+                        and audio sync do not change.
+      --keep            Keep the segment scratch dir (for debugging)
+      --plain           One line per event instead of a live progress line
+  -h, --help            Show this help.
+
+Notes
+  minterpolate is CPU-only; no GPU, no models, no scratch RAM disk. Quality
+  measured against true-60fps ground truth at 1080p (VMAF on the invented
+  frames only): 88.3 fast motion / 92.7 slow, versus 57.6 / 82.5 for
+  rife-ncnn-vulkan v4.6 and 30.5 / 71.0 for plain frame duplication.
+  DaVinci Resolve's Speed Warp still beats this (92.8 / 97.5); see
+  docs/INTERPOLATION.md.
+EOF
+}
+
+log() { printf '==> %s\n' "$*" >&2; }
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+need_cmd() { command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"; }
+
+cleanup() {
+  local p
+  for p in $pids; do kill -0 "$p" 2>/dev/null && kill -TERM "$p" 2>/dev/null || true; done
+  for p in $pids; do wait "$p" 2>/dev/null || true; done
+  if [[ "$keep" -eq 0 && -n "$tmp_root" && -d "$tmp_root" ]]; then rm -rf "$tmp_root"; fi
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -o|--output) shift; [[ $# -gt 0 ]] || die "--output requires a path"; output="$1" ;;
+    -r|--fps) shift; [[ $# -gt 0 ]] || die "--fps requires a number"; target_fps="$1" ;;
+    -w|--workers) shift; [[ $# -gt 0 ]] || die "--workers requires a number"; workers="$1" ;;
+    --segments) shift; [[ $# -gt 0 ]] || die "--segments requires a number"; segments="$1" ;;
+    --lead-in) shift; [[ $# -gt 0 ]] || die "--lead-in requires a number"; lead_in="$1" ;;
+    --crf) shift; [[ $# -gt 0 ]] || die "--crf requires a number"; crf="$1" ;;
+    --preset) shift; [[ $# -gt 0 ]] || die "--preset requires a name"; preset="$1" ;;
+    --obmc) mc_mode=obmc ;;
+    --me-mode) shift; [[ $# -gt 0 ]] || die "--me-mode requires a name"; me_mode="$1" ;;
+    --no-vsbmc) vsbmc=0 ;;
+    --dedup) dedup=1 ;;
+    --keep) keep=1 ;;
+    --plain) plain=1 ;;
+    -h|--help) usage; exit 0 ;;
+    -*) die "unknown option: $1" ;;
+    *) [[ -z "$input" ]] || die "only one input is supported"; input="$1" ;;
+  esac
+  shift
+done
+
+[[ -n "$input" ]] || { usage >&2; exit 1; }
+[[ -f "$input" ]] || die "no such file: $input"
+
+# The live progress line only makes sense on a terminal; redirected or piped,
+# fall back to one line per event so logs stay readable.
+[[ -t 2 ]] || plain=1
+for cmd in ffmpeg ffprobe awk sysctl; do need_cmd "$cmd"; done
+
+[[ -n "$output" ]] || output="${input%.*}-${target_fps}fps.mp4"
+[[ ! -e "$output" ]] || die "output already exists: $output"
+
+# Default to performance cores only. The 4 efficiency cores on Apple Silicon
+# add wall-clock noise for very little throughput on a filter this heavy.
+if [[ -z "$workers" ]]; then
+  workers="$(sysctl -n hw.perflevel0.logicalcpu 2>/dev/null || sysctl -n hw.logicalcpu)"
+  [[ "$workers" =~ ^[0-9]+$ ]] || workers=4
+fi
+[[ "$workers" -ge 1 ]] || die "--workers must be at least 1"
+
+# ---- probe the source -------------------------------------------------------
+
+probe="$(ffprobe -v 0 -select_streams v:0 \
+  -show_entries stream=width,height,avg_frame_rate,nb_frames \
+  -show_entries format=duration -of csv=p=0 "$input")"
+width="$(printf '%s\n' "$probe" | awk -F, 'NR==1{print $1}')"
+height="$(printf '%s\n' "$probe" | awk -F, 'NR==1{print $2}')"
+src_rate="$(printf '%s\n' "$probe" | awk -F, 'NR==1{print $3}')"
+nb_frames="$(printf '%s\n' "$probe" | awk -F, 'NR==1{print $4}')"
+duration="$(printf '%s\n' "$probe" | awk 'NR==2{print $1}')"
+
+src_fps="$(awk -v r="$src_rate" 'BEGIN{split(r,a,"/"); if(a[2]=="")a[2]=1; printf "%.9f", a[1]/a[2]}')"
+awk -v f="$src_fps" 'BEGIN{exit !(f>0)}' || die "could not read a frame rate from $input"
+[[ "$nb_frames" =~ ^[0-9]+$ ]] || nb_frames="$(awk -v d="$duration" -v f="$src_fps" 'BEGIN{printf "%d", d*f+0.5}')"
+target_fps_num="$(awk -v f="$target_fps" 'BEGIN{split(f,a,"/"); if(a[2]=="")a[2]=1; printf "%.9f", a[1]/a[2]}')"
+
+awk -v t="$target_fps_num" -v s="$src_fps" 'BEGIN{exit !(t>s)}' \
+  || die "target fps ($target_fps) must be above source fps ($src_fps)"
+
+# One segment per worker unless asked otherwise, and never so many that a
+# segment is shorter than the run-up it needs to be worth cutting.
+[[ -n "$segments" ]] || segments="$workers"
+[[ "$segments" -ge 1 ]] || die "--segments must be at least 1"
+max_seg="$(awk -v n="$nb_frames" -v l="$lead_in" 'BEGIN{m=int(n/(l*4)); if(m<1)m=1; print m}')"
+if [[ "$segments" -gt "$max_seg" ]]; then
+  log "Source is short; using $max_seg segment(s) instead of $segments"
+  segments="$max_seg"
+fi
+
+# minterpolate cannot emit past its last input pair, so it stops a little short
+# of n/src*target. Measured exactly: (n-2)/src*target + 1, which holds for 2x,
+# 2.5x and 5x alike. Predicting it properly is what makes the check at the end
+# meaningful instead of firing on every run.
+total_out="$(awk -v n="$nb_frames" -v s="$src_fps" -v t="$target_fps_num" 'BEGIN{printf "%d", (n-2)/s*t+1.5}')"
+
+log "Source: ${width}x${height} @ $(awk -v f="$src_fps" 'BEGIN{printf "%.3f", f}') fps, $nb_frames frames"
+log "Target: $target_fps fps, minterpolate mci/$mc_mode/$me_mode vsbmc=$vsbmc, $segments segment(s) on $workers worker(s)"
+
+tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/smooth-fps.XXXXXX")"
+
+# ---- launch the segments ----------------------------------------------------
+#
+# Segment k emits global output time [t_k, t_next); it is fed
+# [t_k - lead_in/src_fps, t_next + 1/src_fps] so that the frame spanning the
+# far cut exists and motion estimation has a run-up. -copyts keeps the decoded
+# timestamps on the global timeline, so trim=start/end below is expressed in
+# the same global seconds for every segment and no segment can drift.
+
+vf_pre=""
+[[ "$dedup" -eq 1 ]] && vf_pre="mpdecimate,"
+
+seg_start_frame() { awk -v k="$1" -v n="$nb_frames" -v s="$segments" 'BEGIN{printf "%d", int(k*n/s)}'; }
+
+launch() {  # $1 = segment index
+  local k="$1" f0 f1 t0 t1 feed0 feed1 vf
+  f0="$(seg_start_frame "$k")"
+  f1="$(seg_start_frame $(( k + 1 )))"
+  t0="$(awk -v f="$f0" -v s="$src_fps" 'BEGIN{printf "%.9f", f/s}')"
+  t1="$(awk -v f="$f1" -v s="$src_fps" 'BEGIN{printf "%.9f", f/s}')"
+  feed0="$(awk -v f="$f0" -v l="$lead_in" -v s="$src_fps" 'BEGIN{v=(f-l)/s; if(v<0)v=0; printf "%.9f", v}')"
+  feed1="$(awk -v f="$f1" -v s="$src_fps" 'BEGIN{printf "%.9f", (f+2)/s}')"
+
+  # Last segment runs to the end of the file and keeps everything to the end.
+  if [[ "$k" -eq $(( segments - 1 )) ]]; then
+    vf="${vf_pre}minterpolate=fps=${target_fps}:mi_mode=mci:mc_mode=${mc_mode}:me_mode=${me_mode}:vsbmc=${vsbmc},trim=start=${t0},setpts=PTS-STARTPTS"
+    ffmpeg -v error -nostdin -copyts -ss "$feed0" -i "$input" -an \
+      -vf "$vf" -fps_mode passthrough \
+      -progress "$tmp_root/p$k" \
+      -c:v libx264 -preset "$preset" -crf "$crf" -pix_fmt yuv420p \
+      "$tmp_root/seg$k.mp4" >"$tmp_root/log$k" 2>&1
+  else
+    vf="${vf_pre}minterpolate=fps=${target_fps}:mi_mode=mci:mc_mode=${mc_mode}:me_mode=${me_mode}:vsbmc=${vsbmc},trim=start=${t0}:end=${t1},setpts=PTS-STARTPTS"
+    ffmpeg -v error -nostdin -copyts -ss "$feed0" -to "$feed1" -i "$input" -an \
+      -vf "$vf" -fps_mode passthrough \
+      -progress "$tmp_root/p$k" \
+      -c:v libx264 -preset "$preset" -crf "$crf" -pix_fmt yuv420p \
+      "$tmp_root/seg$k.mp4" >"$tmp_root/log$k" 2>&1
+  fi
+}
+
+fmt_time() { awk -v s="$1" 'BEGIN{s=int(s); if(s<0)s=0; printf "%02d:%02d:%02d", s/3600, (s%3600)/60, s%60}'; }
+
+running_count() {
+  local p n=0
+  for p in $pids; do kill -0 "$p" 2>/dev/null && n=$(( n + 1 )); done
+  echo "$n"
+}
+
+t_start=$(date +%s)
+next=0
+while [[ "$next" -lt "$segments" ]] || [[ "$(running_count)" -gt 0 ]]; do
+  # top up to the worker limit
+  while [[ "$next" -lt "$segments" && "$(running_count)" -lt "$workers" ]]; do
+    launch "$next" &
+    pids="$pids $!"
+    [[ "$plain" -eq 1 ]] && log "segment $((next+1))/$segments started"
+    next=$(( next + 1 ))
+  done
+
+  # progress: sum the frame counters the workers write. No pipeline here on
+  # purpose: under pipefail an unmatched glob would fail the whole command.
+  done_frames=0
+  for f in "$tmp_root"/p*; do
+    [[ -f "$f" ]] || continue
+    seg_frames="$(awk -F= '/^frame=/{v=$2} END{print v+0}' "$f" 2>/dev/null || echo 0)"
+    done_frames=$(( done_frames + seg_frames ))
+  done
+  el=$(( $(date +%s) - t_start ))
+  if [[ "$plain" -eq 0 ]]; then
+    if [[ "$el" -ge 2 && "$done_frames" -gt 0 ]]; then
+      eta="$(awk -v d="$done_frames" -v n="$total_out" -v e="$el" 'BEGIN{printf "%d", (n-d)*e/d}')"
+      printf '\r\033[K  %s / %s frames · %5.1f fps · elapsed %s · eta %s' \
+        "$done_frames" "$total_out" \
+        "$(awk -v d="$done_frames" -v e="$el" 'BEGIN{printf "%.1f", d/e}')" \
+        "$(fmt_time "$el")" "$(fmt_time "$eta")" >&2
+    else
+      printf '\r\033[K  starting %s segment(s)…' "$segments" >&2
+    fi
+  fi
+  command sleep 1
+done
+[[ "$plain" -eq 0 ]] && printf '\r\033[K' >&2
+
+rc=0
+for p in $pids; do wait "$p" || rc=$?; done
+pids=""
+if [[ "$rc" -ne 0 ]]; then
+  for f in "$tmp_root"/log*; do
+    [[ -s "$f" ]] && { printf -- '--- %s ---\n' "$f" >&2; tail -n 10 "$f" >&2; }
+  done
+  die "a segment failed (exit $rc)"
+fi
+
+# ---- join and mux -----------------------------------------------------------
+
+# Join with the concat demuxer, not by concatenating raw H.264. A raw Annex-B
+# stream carries no timestamps, so remuxing one with -framerate silently DROPS
+# frames (measured: 30 frames in, 28 out), and a single dropped frame shifts
+# everything after it. The concat demuxer keeps every frame exactly.
+list="$tmp_root/segments.txt"
+: > "$list"
+for k in $(seq 0 $(( segments - 1 ))); do
+  [[ -s "$tmp_root/seg$k.mp4" ]] || die "segment $k produced no data"
+  printf "file '%s'\n" "$tmp_root/seg$k.mp4" >> "$list"
+done
+
+log "Joining $segments segment(s) and muxing source audio -> $output"
+# No -video_track_timescale here: the segments already carry correct 60fps
+# timing, and rescaling them rounds the per-frame timestamps unevenly, which
+# measured as a 25-point VMAF loss (86.4 -> 61.3) with the frame count intact.
+ffmpeg -v error -nostdin -f concat -safe 0 -i "$list" -i "$input" \
+  -map 0:v -map 1:a? -c:v copy -c:a copy -movflags +faststart \
+  "$output"
+
+got="$(ffprobe -v 0 -select_streams v:0 -show_entries stream=nb_frames -of csv=p=0 "$output" 2>/dev/null || echo 0)"
+el=$(( $(date +%s) - t_start ))
+printf '==> Done: %s\n' "$output" >&2
+printf '    %s frames at %s fps (%s), %s in %s\n' "$got" "$target_fps" \
+  "$(fmt_time "$(awk -v n="$got" -v f="$target_fps_num" 'BEGIN{print n/f}')")" \
+  "$(awk -v o="$got" -v e="$el" 'BEGIN{printf "%.1f out fps", (e>0?o/e:0)}')" \
+  "$(fmt_time "$el")" >&2
+
+# A frame count well off the prediction means the seam arithmetic slipped;
+# say so rather than let it pass silently.
+# A seam regression loses roughly one frame per segment, so a tight tolerance
+# here is the cheap end-to-end check that the parallel join stayed correct.
+awk -v g="$got" -v n="$total_out" 'BEGIN{ if (g<n-2 || g>n+2)
+  printf "    note: expected about %d frames, got %d - the segment join may have slipped\n", n, g }' >&2
