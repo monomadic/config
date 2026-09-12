@@ -20,8 +20,11 @@ Download the latest macOS rife-ncnn-vulkan release, thin it to arm64 if it
 is a universal binary, and install it with the selected model(s) to
 $PREFIX/share/rife-ncnn-vulkan with a symlink at $PREFIX/bin/rife-ncnn-vulkan.
 
-The model dirs are installed next to the binary, which is where rife-60fps
-(and rife itself, given an absolute -m path) expects to find them.
+The model dirs are installed next to the binary, which is where rife itself
+expects to find them, given an absolute -m path. Note that bin/rife-vapoursynth
+does not use this binary or these models: it loads the VapourSynth plugin and
+its own models from ~/.local/lib/vapoursynth (see
+setup/install/install-vapoursynth-rife.sh).
 
 Sources (--repo):
   tntwise   TNTwise/rife-ncnn-vulkan (default) - nihui's CLI plus every model
