@@ -1,0 +1,639 @@
+#!/usr/bin/env bash
+# interpolation-benchmark — measure frame-interpolation tools against real
+# ground truth, on this machine, reproducibly.
+#
+# The method is the one documented in docs/INTERPOLATION.md: take a clip that
+# is genuinely 60 fps (every frame unique — many "60fps" files are 30 padded,
+# which would make the whole exercise meaningless), throw away the frames a
+# lower-rate source would not have had, make each tool rebuild them, and score
+# *only the invented frames* against the originals. Including the frames that
+# were merely copied through halves the apparent difficulty and flatters
+# everything equally.
+#
+# VMAF is the number to read across tools, not PSNR: Resolve's colour pipeline
+# imposes a hard ~40 dB PSNR ceiling while being perceptually lossless, so PSNR
+# cannot be compared between the Resolve path and the ffmpeg/RIFE path.
+#
+# Ground truth needs a source whose rate divides evenly by BOTH the output rate
+# and the input rate, because both are then exact decimations of it. A 60 fps
+# source gives 30->60 (drop every second frame) but not 24->60: 2.5 is not an
+# integer, so no subset of a 60 fps clip is a true 24 fps clip of it. A 120 fps
+# source gives both — 120/60 = 2 and 120/24 = 5 — and is what you want for a
+# complete matrix. Configs without ground truth still run and report throughput.
+#
+# With a 120 fps source the invented frames are no longer "every second one":
+# output frame n lands on an input frame iff n is a multiple of 60/gcd(60,IN),
+# which is 2 for 30 fps input and 5 for 24 fps input. The harness derives that
+# and scores exactly those frames.
+#
+# ---------------------------------------------------------------------------
+# Adding a method
+#
+#   1. add its id to method_ids()
+#   2. add an arm to method_label(), method_needs() and method_cmd()
+#
+# method_cmd() receives IN (lossless, at the config's input rate), OUT (must be
+# created) and FPS. Nothing else in the harness knows the method exists.
+# ---------------------------------------------------------------------------
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+fps=60
+out_dir=""
+note=""
+source_label=""
+keep=0
+dry_run=0
+timeout_s=900
+list_only=0
+input=""
+declare -a want_methods=()
+declare -a segments=()
+declare -a configs=()
+
+usage() {
+  cat <<'EOF'
+Usage: interpolation-benchmark [options] SOURCE
+
+Benchmark frame-interpolation tools against SOURCE, which must be a true
+60 fps clip (every frame unique). Writes results.csv and report.md.
+
+Options:
+  -c, --config LABEL:IN_FPS:HEIGHT[:METHODS]
+                                     Input rate and output height to test,
+                                     repeatable. HEIGHT 0 means native.
+                                     METHODS is an optional +-separated list of
+                                     method ids or globs to restrict this config
+                                     to, e.g. '2160p30:30:2160:resolve-*'
+                                     (quote it — the shell expands globs first)
+                                     Default: 24 and 30 fps, at 1080p and at
+                                     the source's own height if that is larger.
+  -s, --segment LABEL:START:DUR      Window of the source to test, repeatable.
+                                     Default: one 2 s window.
+  -m, --method ID                    Restrict to these methods, repeatable
+      --list-methods                 Print the method ids and exit
+  -r, --fps N                        Target frame rate. Default: 60
+  -o, --out DIR                      Result directory.
+                                     Default: ~/.cache/interpolation-benchmark/<stamp>
+      --label TEXT                   Source label for the report. Default: basename
+      --note TEXT                    Free-text machine note for the report
+      --keep                         Keep the rendered outputs, not just scores
+      --timeout SECONDS              Kill a single tool run that exceeds this
+                                     and carry on. Default: 900
+      --dry-run                      Print the plan and exit
+  -h, --help                         Show this help
+
+Disk: ground truth is lossless (qp 0), about 65 MB per second at 1080p and
+260 MB at 2160p. Windows are kept short for that reason.
+
+Examples:
+  interpolation-benchmark ~/Movies/clip.mp4
+  interpolation-benchmark -c 1080p30:30:1080 -m rife-vapoursynth clip.mp4
+  # quote a glob, or the shell expands it before the harness sees it
+  interpolation-benchmark -c 1080p24:24:1080 -c '2160p24:24:2160:resolve-*' clip.mp4
+  interpolation-benchmark -s fast:12:2 -s slow:40:2 ~/Movies/clip.mp4
+EOF
+}
+
+log()  { printf '==> %s\n' "$*" >&2; }
+warn() { printf 'warning: %s\n' "$*" >&2; }
+die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
+now()  { python3 -c 'import time; print(time.time())'; }
+
+# ffmpeg 9's ffprobe reports each stream twice — once inside a [STREAM_GROUP]
+# wrapper and once standalone — so every read must be trimmed to one line.
+probe1() { ffprobe -v 0 -select_streams v:0 -show_entries "stream=$1" -of csv=p=0 "$2" | head -1 | tr -d ','; }
+
+# ---- method registry -------------------------------------------------------
+
+method_ids() {
+  printf '%s\n' \
+    resolve-standard \
+    resolve-enhanced \
+    resolve-speedwarp \
+    rife-vapoursynth \
+    minterpolate \
+    duplicate
+}
+
+method_label() {
+  case "$1" in
+    resolve-standard)  echo "Resolve Optical Flow, Standard Better" ;;
+    resolve-enhanced)  echo "Resolve Optical Flow, Enhanced Better" ;;
+    resolve-speedwarp) echo "Resolve Optical Flow, Speed Warp Better" ;;
+    rife-vapoursynth)  echo "bin/rife-vapoursynth — RIFE v4.6 via the VapourSynth plugin" ;;
+    minterpolate)      echo "ffmpeg minterpolate mci, segment-parallel" ;;
+    duplicate)         echo "frame duplication (baseline)" ;;
+    *) die "unknown method: $1" ;;
+  esac
+}
+
+# Paths that must exist for the method to run. A missing one skips the method
+# with a reason instead of failing the run.
+method_needs() {
+  case "$1" in
+    resolve-*)    printf '%s\n' "$repo/config/zsh/bin/interpolate-resolve" "/Applications/DaVinci Resolve.app" ;;
+    rife-vapoursynth) printf '%s\n' "$repo/bin/rife-vapoursynth" "$(command -v vspipe || echo /nonexistent)" \
+                                "${RIFE_VS_PLUGIN_DIR:-$HOME/.local/lib/vapoursynth}/librife.dylib" ;;
+    minterpolate) printf '%s\n' "$repo/bin/smooth-fps" ;;
+    duplicate)    printf '%s\n' "$(command -v ffmpeg)" ;;
+  esac
+}
+
+method_cmd() {  # $1 id, $2 IN, $3 OUT, $4 FPS
+  local id="$1" IN="$2" OUT="$3" FPS="$4"
+  case "$id" in
+    resolve-standard)
+      "$repo/config/zsh/bin/interpolate-resolve" --quality standard-better   --fps "$FPS" "$IN" "$OUT" ;;
+    resolve-enhanced)
+      "$repo/config/zsh/bin/interpolate-resolve" --quality enhanced-better   --fps "$FPS" "$IN" "$OUT" ;;
+    resolve-speedwarp)
+      "$repo/config/zsh/bin/interpolate-resolve" --quality speed-warp-better --fps "$FPS" "$IN" "$OUT" ;;
+    rife-vapoursynth)
+      "$repo/bin/rife-vapoursynth" -r "$FPS" -o "$OUT" "$IN" ;;
+    minterpolate)
+      "$repo/bin/smooth-fps" -r "$FPS" --plain -o "$OUT" "$IN" ;;
+    duplicate)
+      # Lossless, so the baseline is not penalised by its encoder.
+      ffmpeg -v error -nostdin -y -i "$IN" -an -vf "fps=$FPS" \
+        -c:v libx264 -qp 0 -pix_fmt yuv420p "$OUT" ;;
+  esac
+}
+
+# ---- arguments -------------------------------------------------------------
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -c|--config)  shift; [[ $# -gt 0 ]] || die "--config requires LABEL:IN_FPS:HEIGHT"; configs+=("$1") ;;
+    -s|--segment) shift; [[ $# -gt 0 ]] || die "--segment requires LABEL:START:DUR"; segments+=("$1") ;;
+    -m|--method)  shift; [[ $# -gt 0 ]] || die "--method requires an id"; want_methods+=("$1") ;;
+    --list-methods) list_only=1 ;;
+    -r|--fps)     shift; [[ $# -gt 0 ]] || die "--fps requires a number"; fps="$1" ;;
+    -o|--out)     shift; [[ $# -gt 0 ]] || die "--out requires a path"; out_dir="$1" ;;
+    --label)      shift; [[ $# -gt 0 ]] || die "--label requires text"; source_label="$1" ;;
+    --note)       shift; [[ $# -gt 0 ]] || die "--note requires text"; note="$1" ;;
+    --keep)       keep=1 ;;
+    --timeout)    shift; [[ $# -gt 0 ]] || die "--timeout requires seconds"; timeout_s="$1" ;;
+    --dry-run)    dry_run=1 ;;
+    -h|--help)    usage; exit 0 ;;
+    -*)           die "unknown option: $1" ;;
+    *)            [[ -z "$input" ]] || die "only one source is supported"; input="$1" ;;
+  esac
+  shift
+done
+
+if [[ "$list_only" -eq 1 ]]; then
+  while read -r id; do printf '%-18s %s\n' "$id" "$(method_label "$id")"; done < <(method_ids)
+  exit 0
+fi
+
+[[ -n "$input" ]] || { usage >&2; exit 1; }
+[[ -f "$input" ]] || die "no such file: $input"
+for c in ffmpeg ffprobe python3 awk; do command -v "$c" >/dev/null || die "missing required command: $c"; done
+ffmpeg_filters="$(ffmpeg -hide_banner -filters 2>/dev/null || true)"
+case "$ffmpeg_filters" in
+  *" libvmaf "*) ;;
+  *) die "this ffmpeg has no libvmaf filter; quality cannot be scored" ;;
+esac
+
+if [[ ${#want_methods[@]} -eq 0 ]]; then
+  while read -r id; do want_methods+=("$id"); done < <(method_ids)
+else
+  for id in "${want_methods[@]}"; do method_label "$id" >/dev/null; done
+fi
+
+input="$(cd "$(dirname "$input")" && pwd)/$(basename "$input")"
+[[ -n "$source_label" ]] || source_label="$(basename "$input")"
+[[ -n "$out_dir" ]] || out_dir="$HOME/.cache/interpolation-benchmark/$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$out_dir"
+out_dir="$(cd "$out_dir" && pwd)"
+work="$out_dir/work"
+mkdir -p "$work"
+
+# ---- verify the source is really 60 fps ------------------------------------
+
+src_w="$(probe1 width "$input")"
+src_h="$(probe1 height "$input")"
+src_rate="$(probe1 r_frame_rate "$input")"
+src_frames="$(probe1 nb_frames "$input")"
+src_dur="$(ffprobe -v 0 -show_entries format=duration -of csv=p=0 "$input" | head -1)"
+src_fps="$(awk -v r="$src_rate" 'BEGIN{split(r,a,"/"); if(a[2]=="")a[2]=1; printf "%.6f", a[1]/a[2]}')"
+[[ "$src_frames" =~ ^[0-9]+$ ]] || src_frames="$(awk -v d="$src_dur" -v f="$src_fps" 'BEGIN{printf "%d", d*f+0.5}')"
+
+awk -v s="$src_fps" -v t="$fps" 'BEGIN{exit !(s >= t - 0.01)}' \
+  || die "source is $src_fps fps; it must be at least the $fps fps being rebuilt"
+
+log "Source: ${src_w}x${src_h} @ ${src_fps} fps, ${src_frames} frames"
+
+# ---- defaults for the matrix ------------------------------------------------
+
+if [[ ${#segments[@]} -eq 0 ]]; then
+  dur="$(awk -v d="$src_dur" 'BEGIN{v=d-0.4; if(v>2.0)v=2.0; printf "%.2f", v}')"
+  segments=("clip:0.2:$dur")
+fi
+
+if [[ ${#configs[@]} -eq 0 ]]; then
+  declare -a heights=()
+  [[ "$src_h" -ge 1080 ]] && heights+=(1080)
+  [[ "$src_h" -gt 1200 ]] && heights+=("$src_h")
+  [[ ${#heights[@]} -gt 0 ]] || heights=("$src_h")
+  for h in "${heights[@]}"; do
+    for in_fps in 24 30; do
+      configs+=("${h}p${in_fps}:${in_fps}:${h}")
+    done
+  done
+fi
+
+# A file that is 30 fps padded to 60 makes every score meaningless, so prove
+# the frames are distinct — over the windows being measured, not the whole
+# file, which for a 4K120 master on a network volume costs minutes.
+verify_window() {  # $1 start, $2 dur -> "unique/total"
+  local expected unique
+  expected="$(awk -v d="$2" -v f="$src_fps" 'BEGIN{printf "%d", d*f}')"
+  unique="$(ffmpeg -v info -nostdin -ss "$1" -t "$2" -i "$input" -vf mpdecimate \
+    -fps_mode passthrough -an -f null - 2>&1 \
+    | awk '/^frame=/{ if (match($0,/frame=[ ]*[0-9]+/)) { v=substr($0,RSTART,RLENGTH); gsub(/[^0-9]/,"",v); f=v } } END{print f+0}')"
+  printf '%s/%s' "$unique" "$expected"
+}
+
+window_report=""
+if [[ "$dry_run" -ne 1 ]]; then
+  for seg in "${segments[@]}"; do
+    IFS=: read -r vlabel vstart vdur <<< "$seg"
+    log "Checking window $vlabel is really ${src_fps} fps and not padded"
+    v="$(verify_window "$vstart" "$vdur")"
+    pct="$(awk -v v="$v" 'BEGIN{split(v,a,"/"); printf("%.1f", (a[2]>0) ? 100*a[1]/a[2] : 0)}')"
+    log "Window $vlabel: $v frames unique (${pct}%)"
+    awk -v p="$pct" 'BEGIN{exit !(p < 95)}' \
+      && warn "window $vlabel is only ${pct}% unique frames — padded source, scores will be understated"
+    window_report="${window_report:+$window_report, }$vlabel $v (${pct}%)"
+  done
+fi
+
+if [[ "$dry_run" -eq 1 ]]; then
+  printf 'source:   %s\n' "$input"
+  printf 'configs:  %s\n' "${configs[*]}"
+  printf 'segments: %s\n' "${segments[*]}"
+  printf 'methods:  %s\n' "${want_methods[*]}"
+  printf 'runs:     up to %s\n' "$(( ${#configs[@]} * ${#segments[@]} * ${#want_methods[@]} ))"
+  printf 'out:      %s\n' "$out_dir"
+  exit 0
+fi
+
+# ---- machine and tool versions ---------------------------------------------
+
+machine_md="$out_dir/machine.md"
+{
+  printf '### Machine\n\n'
+  if command -v system_profiler >/dev/null; then
+    system_profiler SPHardwareDataType 2>/dev/null | awk -F': ' '
+      /Model Name|Model Identifier|Model Number|Chip|Total Number of Cores|Memory/ {
+        gsub(/^[ \t]+/, "", $1); printf "- %s: %s\n", $1, $2 }'
+    gpu="$(system_profiler SPDisplaysDataType 2>/dev/null | awk -F': ' '/Total Number of Cores/{print $2; exit}')"
+    [[ -n "$gpu" ]] && printf -- "- GPU cores: %s\n" "$gpu"
+  fi
+  printf -- '- CPU: %s (%s logical, %s performance)\n' \
+    "$(sysctl -n machdep.cpu.brand_string 2>/dev/null || echo unknown)" \
+    "$(sysctl -n hw.logicalcpu 2>/dev/null || echo '?')" \
+    "$(sysctl -n hw.perflevel0.logicalcpu 2>/dev/null || echo '?')"
+  printf -- '- macOS: %s (%s)\n' "$(sw_vers -productVersion)" "$(sw_vers -buildVersion)"
+  [[ -n "$note" ]] && printf -- '- Note: %s\n' "$note"
+  printf '\n### Tools\n\n'
+  printf -- '- ffmpeg: %s\n' "$(ffmpeg -hide_banner -version 2>/dev/null | awk 'NR==1{print $3}')"
+  if [[ -d "/Applications/DaVinci Resolve.app" ]]; then
+    printf -- '- DaVinci Resolve: %s\n' \
+      "$(defaults read "/Applications/DaVinci Resolve.app/Contents/Info.plist" CFBundleShortVersionString 2>/dev/null || echo '?')"
+  fi
+  if command -v vspipe >/dev/null; then
+    printf -- '- VapourSynth: %s\n' "$(vspipe --version 2>/dev/null | awk '/^Core/{print $2; exit}')"
+  fi
+  models="${RIFE_VS_PLUGIN_DIR:-$HOME/.local/lib/vapoursynth}/models"
+  [[ -d "$models" ]] && printf -- '- RIFE models installed: %s\n' "$(ls "$models" | tr '\n' ' ')"
+  printf -- '- dotfiles commit: %s\n' "$(git -C "$repo" rev-parse --short HEAD 2>/dev/null || echo 'not a git checkout')"
+  printf '\n### Source\n\n'
+  printf -- '- %s\n' "$source_label"
+  printf -- '- %sx%s @ %s fps, %s frames\n' "$src_w" "$src_h" "$src_fps" "$src_frames"
+  printf -- '- windows: %s\n' "${segments[*]}"
+  printf -- '- unique frames per window: %s\n' "$window_report"
+} > "$machine_md"
+
+# ---- ground truth -----------------------------------------------------------
+#
+# gt.mp4  lossless 60 fps at the config's height — the frames every tool is
+#         trying to reproduce. Shared by every config with the same height.
+# in.mp4  lossless input at the config's rate.
+#
+# Both are exact decimations of the source (select every Nth frame), never
+# resampled, so the frames they share are bit-identical. prepare_in asserts
+# that with a PSNR=inf check; if it ever fails, the harness is measuring itself
+# instead of the tools.
+
+scale_vf() {  # $1 height -> a scale filter fragment, or empty when native
+  [[ "$1" == "$src_h" || "$1" == "0" ]] && return 0
+  printf 'scale=-2:%s:flags=lanczos,' "$1"
+}
+
+# Exact source frames per emitted frame, e.g. 2 for 120->60, 5 for 120->24.
+src_step() { awk -v m="$src_fps" -v r="$1" 'BEGIN{printf "%d", m/r}'; }
+
+decimate() {  # $1 out, $2 start, $3 dur, $4 height, $5 rate
+  local step; step="$(src_step "$5")"
+  ffmpeg -v error -nostdin -y -ss "$2" -t "$3" -i "$input" -an \
+    -vf "select='not(mod(n\,$step))',$(scale_vf "$4")setpts=N/$5/TB" -r "$5" \
+    -c:v libx264 -qp 0 -x264-params keyint=1 -pix_fmt yuv420p "$1"
+}
+
+prepare_gt() {  # $1 label, $2 start, $3 dur, $4 height -> path
+  local gt="$work/$1.h$4.gt.mp4"
+  [[ -f "$gt" ]] && { printf '%s\n' "$gt"; return 0; }
+  log "[$1 ${4}p] building lossless ${fps} fps ground truth"
+  decimate "$gt" "$2" "$3" "$4" "$fps"
+  printf '%s\n' "$gt"
+}
+
+prepare_in() {  # $1 label, $2 start, $3 dur, $4 height, $5 in_fps, $6 gt|"" -> path
+  local in="$work/$1.h$4.f$5.in.mp4" psnr k in_step
+  [[ -f "$in" ]] && { printf '%s\n' "$in"; return 0; }
+  decimate "$in" "$2" "$3" "$4" "$5"
+  if [[ -n "$6" ]]; then
+    # The frames the input and the ground truth share must be bit-identical:
+    # every k-th ground-truth frame is every in_step-th input frame.
+    k="$(invented_step "$5")"
+    in_step="$(awk -v i="$5" -v g="$(gcd_60 "$5")" 'BEGIN{printf "%d", i/g}')"
+    psnr="$(ffmpeg -v info -nostdin -i "$in" -i "$6" -lavfi \
+      "[0:v]select='not(mod(n\,$in_step))',settb=1/$fps,setpts=N[a];[1:v]select='not(mod(n\,$k))',settb=1/$fps,setpts=N[b];[a][b]psnr" -f null - 2>&1 \
+      | awk -F'average:' '/average:/{split($2,a," "); print a[1]}' | tail -1)"
+    [[ "$psnr" == "inf" ]] || die "[$1 ${4}p${5}] input is not bit-identical to the ground truth (PSNR $psnr, expected inf) — the harness is measuring itself, not the tools"
+  fi
+  printf '%s\n' "$in"
+}
+
+gcd_60() { awk -v a="$fps" -v b="$1" 'BEGIN{while(b){t=b; b=a%b; a=t} printf "%d", a}'; }
+
+# Output frame n is a copy of an input frame iff n % this == 0; every other
+# frame was invented and is what gets scored. 2 for 30->60, 5 for 24->60.
+invented_step() { awk -v o="$fps" -v g="$(gcd_60 "$1")" 'BEGIN{printf "%d", o/g}'; }
+
+frames_of() { ffprobe -v 0 -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -of csv=p=0 "$1" | head -1 | tr -d ','; }
+dims_of()   { ffprobe -v 0 -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$1" | head -1; }
+
+# VMAF's default model is trained for 1080p viewing; there is a separate model
+# for 4K. Scores from different models are not comparable to each other.
+vmaf_model() {
+  local m=/opt/homebrew/share/libvmaf/model/vmaf_4k_v0.6.1.json
+  if [[ "$1" -ge 1800 && -f "$m" ]]; then printf 'path=%s' "$m"; else printf 'version=vmaf_v0.6.1'; fi
+}
+vmaf_model_name() {
+  [[ "$1" -ge 1800 && -f /opt/homebrew/share/libvmaf/model/vmaf_4k_v0.6.1.json ]] \
+    && printf 'vmaf_4k_v0.6.1' || printf 'vmaf_v0.6.1'
+}
+
+score_invented() {  # $1 distorted, $2 gt, $3 json, $4 step, $5 height -> VMAF
+  local nt; nt="$(sysctl -n hw.perflevel0.logicalcpu 2>/dev/null || echo 4)"
+  ffmpeg -v error -nostdin -i "$1" -i "$2" -lavfi \
+    "[0:v]select='mod(n\,$4)',settb=1/$fps,setpts=N,format=yuv420p[a];[1:v]select='mod(n\,$4)',settb=1/$fps,setpts=N,format=yuv420p[b];[a][b]libvmaf=model=$(vmaf_model "$5"):log_path=$3:log_fmt=json:n_threads=$nt" \
+    -f null - >/dev/null 2>&1 || return 1
+  python3 -c 'import json,sys; print("%.2f" % json.load(open(sys.argv[1]))["pooled_metrics"]["vmaf"]["mean"])' "$3"
+}
+
+# ---- running a tool without letting it wedge the matrix ---------------------
+#
+# A Resolve render blocks forever if the app goes away mid-run (it waits on a
+# scripting API that will never answer), which once cost a whole run.
+
+kill_tree() {
+  local pid="$1" child
+  for child in $(pgrep -P "$pid" 2>/dev/null); do kill_tree "$child"; done
+  kill -TERM "$pid" 2>/dev/null || true
+}
+
+run_limited() {  # $1 seconds, rest: command -> its exit status, 124 on timeout
+  local limit="$1"; shift
+  "$@" & local pid=$!
+  ( sleep "$limit"; kill_tree "$pid" 2>/dev/null; ) & local watchdog=$!
+  local rc=0
+  wait "$pid" || rc=$?
+  if kill -0 "$watchdog" 2>/dev/null; then
+    kill "$watchdog" 2>/dev/null || true
+    wait "$watchdog" 2>/dev/null || true
+  else
+    rc=124
+  fi
+  return "$rc"
+}
+
+# The running process is named "Resolve", not "DaVinci Resolve".
+resolve_running() { pgrep -qf "DaVinci Resolve.app/Contents/MacOS/Resolve"; }
+
+resolve_ready() {
+  resolve_running && return 0
+  open -a "DaVinci Resolve" 2>/dev/null || return 1
+  local i
+  for i in $(seq 1 30); do
+    resolve_running && { sleep 10; return 0; }
+    sleep 2
+  done
+  return 1
+}
+
+# ---- run --------------------------------------------------------------------
+
+resolve_warmed=0
+csv="$out_dir/results.csv"
+echo "config,in_fps,height,segment,method,status,wall_s,out_frames,expected_frames,out_fps,vmaf,vmaf_model,notes" > "$csv"
+
+for cfg in "${configs[@]}"; do
+  IFS=: read -r clabel in_fps height cfg_methods <<< "$cfg"
+  [[ -n "$clabel" && -n "$in_fps" && -n "$height" ]] || die "bad --config (want LABEL:IN_FPS:HEIGHT): $cfg"
+  [[ "$height" == "0" ]] && height="$src_h"
+  [[ "$height" -le "$src_h" ]] || die "config $clabel wants ${height}p from a ${src_h}p source"
+
+  # Per-config method filter: 2160p30:30:2160:resolve-* runs only those.
+  declare -a cfg_want=()
+  if [[ -n "${cfg_methods:-}" ]]; then
+    for id in "${want_methods[@]}"; do
+      for pat in ${cfg_methods//+/ }; do
+        # shellcheck disable=SC2053
+        [[ "$id" == $pat ]] && { cfg_want+=("$id"); break; }
+      done
+    done
+    [[ ${#cfg_want[@]} -gt 0 ]] || { warn "config $clabel matched no methods; skipping"; continue; }
+  else
+    cfg_want=("${want_methods[@]}")
+  fi
+
+  # Ground truth needs the source rate to divide evenly by both rates, so each
+  # is an exact decimation of it. 120 fps source: 30->60 and 24->60 both work.
+  gt_ok="$(awk -v m="$src_fps" -v o="$fps" -v i="$in_fps" 'BEGIN{
+    if (m != int(m)) { print 0; exit }
+    if (m % o != 0 || m % i != 0) { print 0; exit }
+    print 1 }')"
+  step="$(invented_step "$in_fps")"
+
+  for seg in "${segments[@]}"; do
+    IFS=: read -r slabel start dur <<< "$seg"
+    [[ -n "$slabel" && -n "$start" && -n "$dur" ]] || die "bad --segment (want LABEL:START:DUR): $seg"
+
+    gt=""
+    if [[ "$gt_ok" == "1" ]]; then gt="$(prepare_gt "$slabel" "$start" "$dur" "$height")"; fi
+    in="$(prepare_in "$slabel" "$start" "$dur" "$height" "$in_fps" "$gt")"
+
+    if [[ -n "$gt" ]]; then
+      expected="$(frames_of "$gt")"
+    else
+      expected="$(awk -v d="$dur" -v f="$fps" 'BEGIN{printf "%d", d*f}')"
+      log "[$clabel/$slabel] a ${src_fps} fps source cannot make true ${in_fps} and ${fps} fps clips of the same window; throughput only, no VMAF"
+    fi
+
+    for id in "${cfg_want[@]}"; do
+      out="$work/$clabel.$slabel.$id.mp4"
+      rm -f "$out"
+      row_head="$clabel,$in_fps,$height,$slabel,$id"
+
+      missing=""
+      while read -r need; do
+        [[ -n "$need" ]] || continue
+        [[ -e "$need" ]] || missing="$need"
+      done < <(method_needs "$id")
+      if [[ -n "$missing" ]]; then
+        warn "[$clabel/$slabel] $id: skipped, missing $missing"
+        echo "$row_head,skipped,,,,,,,missing $missing" >> "$csv"
+        continue
+      fi
+
+      if [[ "$id" == resolve-* ]] && ! resolve_ready; then
+        warn "[$clabel/$slabel] $id: DaVinci Resolve is not running and would not start"
+        echo "$row_head,failed,,,$expected,,,,Resolve not running" >> "$csv"
+        continue
+      fi
+
+      # Resolve's first render after launch pays for shader and cache warm-up:
+      # measured at 463s and two 600s timeouts against ~4s for the identical
+      # job afterwards. Burn one render before timing anything.
+      if [[ "$id" == resolve-* && "$resolve_warmed" -eq 0 ]]; then
+        log "Warming Resolve with one discarded render"
+        run_limited "$timeout_s" method_cmd "$id" "$in" "$work/warmup.mp4" "$fps" \
+          >"$work/warmup.log" 2>&1 || true
+        rm -f "$work/warmup.mp4"
+        resolve_warmed=1
+      fi
+
+      log "[$clabel/$slabel] $id: $(method_label "$id")"
+      t0="$(now)"
+      rc=0
+      run_limited "$timeout_s" method_cmd "$id" "$in" "$out" "$fps" \
+        >"$work/$clabel.$slabel.$id.log" 2>&1 || rc=$?
+      if [[ "$rc" -eq 124 ]]; then
+        warn "[$clabel/$slabel] $id: timed out after ${timeout_s}s"
+        echo "$row_head,failed,,,$expected,,,,timed out after ${timeout_s}s" >> "$csv"
+        rm -f "$out"
+        continue
+      elif [[ "$rc" -ne 0 ]]; then
+        warn "[$clabel/$slabel] $id: failed, see work/$clabel.$slabel.$id.log"
+        echo "$row_head,failed,,,$expected,,,,see $clabel.$slabel.$id.log" >> "$csv"
+        continue
+      fi
+      wall="$(awk -v a="$t0" -v b="$(now)" 'BEGIN{printf "%.2f", b-a}')"
+
+      if [[ ! -f "$out" ]]; then
+        warn "[$clabel/$slabel] $id: produced no output"
+        echo "$row_head,failed,$wall,,$expected,,,,no output file" >> "$csv"
+        continue
+      fi
+
+      notes=""
+      got_frames="$(frames_of "$out")"
+      [[ -n "$gt" && "$(dims_of "$out")" != "$(dims_of "$gt")" ]] && notes="resolution differs from ground truth"
+      awk -v g="$got_frames" -v e="$expected" 'BEGIN{exit !(g < e-5)}' \
+        && notes="${notes:+$notes; }short by $((expected - got_frames)) frames"
+
+      out_fps="$(awk -v f="$got_frames" -v w="$wall" 'BEGIN{printf("%.1f", (w>0) ? f/w : 0)}')"
+
+      vmaf=""; model=""
+      if [[ -n "$gt" ]]; then
+        model="$(vmaf_model_name "$height")"
+        vmaf="$(score_invented "$out" "$gt" "$work/$clabel.$slabel.$id.vmaf.json" "$step" "$height" || echo "")"
+        [[ -n "$vmaf" ]] || { notes="${notes:+$notes; }VMAF failed"; model=""; }
+      fi
+
+      log "[$clabel/$slabel] $id: VMAF ${vmaf:-n/a}, ${wall}s, ${out_fps} out fps"
+      echo "$row_head,ok,$wall,$got_frames,$expected,$out_fps,$vmaf,$model,$notes" >> "$csv"
+
+      [[ "$keep" -eq 1 ]] || rm -f "$out"
+    done
+  done
+done
+
+[[ "$keep" -eq 1 ]] || rm -f "$work"/*.gt.mp4 "$work"/*.in.mp4
+
+# ---- report -----------------------------------------------------------------
+
+python3 - "$csv" "$machine_md" "$out_dir/report.md" <<'PY'
+import csv, sys, datetime
+
+results_path, machine_path, report_path = sys.argv[1:4]
+rows = list(csv.DictReader(open(results_path)))
+configs = list(dict.fromkeys(r["config"] for r in rows))
+methods = list(dict.fromkeys(r["method"] for r in rows))
+segments = list(dict.fromkeys(r["segment"] for r in rows))
+by = {(r["config"], r["segment"], r["method"]): r for r in rows}
+
+def values(cfg, m, field):
+    out = []
+    for s in segments:
+        r = by.get((cfg, s, m))
+        if r and r["status"] == "ok" and r[field]:
+            out.append(float(r[field]))
+    return out
+
+def cell(cfg, m, field, fmt="%.2f"):
+    v = values(cfg, m, field)
+    if not v:
+        r = next((by.get((cfg, s, m)) for s in segments if by.get((cfg, s, m))), None)
+        return (r["status"] if r and r["status"] != "ok" else "—")
+    if len(v) == 1:
+        return fmt % v[0]
+    return f"{fmt % min(v)} – {fmt % max(v)}"
+
+def header(cfg):
+    r = next(r for r in rows if r["config"] == cfg)
+    return f"{r['height']}p {r['in_fps']}→60"
+
+scored = [c for c in configs if any(values(c, m, "vmaf") for m in methods)]
+
+def rank(m):
+    v = [x for c in scored for x in values(c, m, "vmaf")]
+    return -(sum(v) / len(v)) if v else 1e9
+
+ordered = sorted(methods, key=rank)
+
+lines = [f"Measured {datetime.date.today().isoformat()} with `scripts/interpolation-benchmark`.", ""]
+lines.append(open(machine_path).read().rstrip())
+lines.append("")
+
+if scored:
+    models = sorted({r["vmaf_model"] for r in rows if r["vmaf_model"]})
+    lines += [f"### Quality — VMAF on the invented frames only ({', '.join(models)})", ""]
+    lines.append("| method | " + " | ".join(header(c) for c in scored) + " |")
+    lines.append("|" + "---|" * (len(scored) + 1))
+    for m in ordered:
+        lines.append(f"| {m} | " + " | ".join(cell(c, m, "vmaf") for c in scored) + " |")
+    lines.append("")
+
+lines += ["### Throughput — output frames per second, end to end", ""]
+lines.append("| method | " + " | ".join(header(c) for c in configs) + " |")
+lines.append("|" + "---|" * (len(configs) + 1))
+for m in ordered:
+    lines.append(f"| {m} | " + " | ".join(cell(c, m, "out_fps", "%.1f") for c in configs) + " |")
+
+notes = [(r["config"], r["method"], r["notes"]) for r in rows if r["notes"]]
+if notes:
+    lines += ["", "### Notes", ""]
+    lines += [f"- `{m}` on `{c}`: {n}" for c, m, n in notes]
+
+open(report_path, "w").write("\n".join(lines) + "\n")
+print("\n".join(lines))
+PY
+
+log "Results: $out_dir"
