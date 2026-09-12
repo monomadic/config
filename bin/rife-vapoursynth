@@ -103,8 +103,13 @@ if [[ "$dedup" -eq 1 ]]; then
   log "Dropping $(wc -l < "$drop_list" | tr -d ' ') duplicate frames"
 fi
 
-src_frames="$(ffprobe -v 0 -select_streams v:0 -show_entries stream=nb_frames -of csv=p=0 "$abs_input" | tr -d ',')"
-src_width="$(ffprobe -v 0 -select_streams v:0 -show_entries stream=width -of csv=p=0 "$abs_input" | tr -d ',')"
+# ffmpeg 9's ffprobe reports each stream twice — once inside a [STREAM_GROUP]
+# wrapper and once standalone — so every -show_entries read must be trimmed to
+# the first line or it yields a multi-line value that breaks arithmetic and awk.
+probe1() { ffprobe -v 0 -select_streams v:0 -show_entries "stream=$1" -of csv=p=0 "$2" | head -1 | tr -d ','; }
+
+src_frames="$(probe1 nb_frames "$abs_input")"
+src_width="$(probe1 width "$abs_input")"
 # rife's UHD mode estimates flow at half resolution; at 4K the full-res flow
 # net is the whole cost, at 1080p it measured as changing nothing, so auto.
 if [[ -z "$uhd" ]]; then uhd=0; [[ "${src_width:-0}" -ge 3000 ]] && uhd=1; fi
@@ -161,6 +166,6 @@ vspipe -c y4m "$script" - \
       "$output"
 elapsed=$(( $(date +%s) - t0 ))
 
-out_frames="$(ffprobe -v 0 -select_streams v:0 -show_entries stream=nb_frames -of csv=p=0 "$output" | tr -d ',')"
+out_frames="$(probe1 nb_frames "$output")"
 printf '\n' >&2
 log "Done: $out_frames frames in ${elapsed}s ($(awk -v f="$out_frames" -v e="$elapsed" 'BEGIN{printf "%.1f", (e>0?f/e:0)}') out fps)"

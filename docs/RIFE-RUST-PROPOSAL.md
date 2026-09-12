@@ -3,6 +3,11 @@
 Status: **proposal, not approved**. Written 2026-09-11 against the measurements
 in [INTERPOLATION.md](INTERPOLATION.md).
 
+`rife-60fps` appears below only as history — it was the PNG-per-frame wrapper
+this proposal argued against, and it has since been removed. The two RIFE
+things that exist now are the upstream `rife-ncnn-vulkan` binary and
+`bin/rife-vapoursynth`, which is the tool to use.
+
 ## Recommendation in one paragraph
 
 Do not build a Rust port of `rife-ncnn-vulkan`. It would reproduce the engine

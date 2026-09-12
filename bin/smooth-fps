@@ -130,9 +130,12 @@ fi
 
 # ---- probe the source -------------------------------------------------------
 
+# ffmpeg 9's ffprobe reports each stream twice — once inside a [STREAM_GROUP]
+# wrapper and once standalone — so every -show_entries read must be trimmed to
+# the first line or it yields a multi-line value that breaks arithmetic and awk.
 probe="$(ffprobe -v 0 -select_streams v:0 \
   -show_entries stream=width,height,avg_frame_rate,nb_frames \
-  -show_entries format=duration -of csv=p=0 "$input")"
+  -show_entries format=duration -of csv=p=0 "$input" | grep -v '^$' | awk '!seen[$0]++')"
 width="$(printf '%s\n' "$probe" | awk -F, 'NR==1{print $1}')"
 height="$(printf '%s\n' "$probe" | awk -F, 'NR==1{print $2}')"
 src_rate="$(printf '%s\n' "$probe" | awk -F, 'NR==1{print $3}')"
@@ -282,7 +285,7 @@ ffmpeg -v error -nostdin -f concat -safe 0 -i "$list" -i "$input" \
   -map 0:v -map 1:a? -c:v copy -c:a copy -movflags +faststart \
   "$output"
 
-got="$(ffprobe -v 0 -select_streams v:0 -show_entries stream=nb_frames -of csv=p=0 "$output" 2>/dev/null || echo 0)"
+got="$(ffprobe -v 0 -select_streams v:0 -show_entries stream=nb_frames -of csv=p=0 "$output" 2>/dev/null | head -1 || echo 0)"
 el=$(( $(date +%s) - t_start ))
 printf '==> Done: %s\n' "$output" >&2
 printf '    %s frames at %s fps (%s), %s in %s\n' "$got" "$target_fps" \
