@@ -87,7 +87,7 @@ note() {
 }
 
 # After a failure during AI-driven conflict resolution, let the user fix the
-# cause in place (e.g. start the 1Password signing agent) and retry, rather
+# cause in place (e.g. a missing or unreadable signing key) and retry, rather
 # than always dropping straight to manual resolution.
 confirm_retry() {
   local header=$1
@@ -394,8 +394,9 @@ edit_message() {
 }
 
 # Commit with retry at the user's choice, for the same reason as
-# finalize_with_retry: a signing agent that's down (1Password locked) just
-# needs to be started, and dying here would throw away the generated message
+# finalize_with_retry: a commit that fails for a fixable reason (an unreadable
+# signing key, a rejecting hook) is worth retrying — dying here would throw
+# away the generated message
 # and force a fresh LLM round trip on the next run. Streams stay attached —
 # git's commit summary and any signing diagnostics belong on the terminal.
 # Returns 1 once the user opts out; the caller falls back to the action menu
@@ -859,8 +860,7 @@ main() {
       case "$action" in
         "commit and sync")
           # On commit failure, fall back to the menu — the message survives,
-          # so a retry after fixing the cause (e.g. unlocking 1Password)
-          # needs no regeneration.
+          # so a retry after fixing the cause needs no regeneration.
           if commit_and_sync "$msg_file"; then
             break
           fi

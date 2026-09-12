@@ -20,7 +20,9 @@
   format = ssh
 
 [gpg "ssh"]
-  program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
+  # Wrapper around ssh-keygen that drops SSH_AUTH_SOCK first, so signing
+  # always reads the key file and never waits on a 1Password approval.
+  program = ~/.bin/ssh-sign-local
 
 [commit]
   gpgsign = true

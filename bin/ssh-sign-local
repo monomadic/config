@@ -1,0 +1,17 @@
+#!/bin/sh
+#
+# ssh-keygen for git commit signing, with the agent taken out of the loop.
+#
+# `ssh-keygen -Y sign` routes through $SSH_AUTH_SOCK when one is set, even
+# though user.signingkey names a key file. With 1Password on the other end of
+# that socket, every commit waits on an approval dialog — which nothing answers
+# in a session running unattended (LLM agents, the jobs queue, cron), so the
+# commit fails outright rather than merely stalling.
+#
+# Signing always reads ~/.ssh/id_ed25519 from disk; interactive ssh keeps the
+# 1Password agent, per the IdentityAgent line in ~/.ssh/config.
+#
+# Wired up as gpg.ssh.program — see config/delta/gitconfig.
+
+unset SSH_AUTH_SOCK
+exec /usr/bin/ssh-keygen "$@"
