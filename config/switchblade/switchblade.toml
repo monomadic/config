@@ -689,16 +689,16 @@ use_index = true
 [tags]
 # Chip fill, coldest (rarest tag) → hottest (most used).
 fill = [
-  [0.47, 0.63, 0.82, 0.20],
-  [0.48, 0.51, 1.00, 0.55],
-  [0.72, 0.47, 1.00, 0.72],
-  [1.00, 0.37, 0.82, 0.85],
+  [0.47, 0.63, 0.82, 1.00],
+  [0.48, 0.51, 1.00, 1.00],
+  [0.72, 0.47, 1.00, 1.00],
+  [1.00, 0.37, 0.82, 1.00],
 ]
 # Label colour ramp and size ramp [min, max], sampled by the same heat.
-text = [[0.81, 0.84, 0.88, 1.0], [1.0, 1.0, 1.0, 1.0]]
+text = [[1.0, 1.4, 1.4, 1.0], [1.0, 1.4, 1.4, 1.0]]
 size = [13.0, 13.0]
 # Halo behind hot chips (0 = off).
-glow = 0.45
+glow = 0.55
 # How counts map onto the ramps. "log" (default) suits the long tail a real
 # library has; "linear" flattens that tail into one cold colour; "rank"
 # ignores counts and spreads the ramp evenly over the sorted list.
@@ -709,11 +709,11 @@ scale = "log"
 counts = true
 # The panel itself, and how far non-matching chips fade (they fade IN
 # PLACE — the layout never reflows under your typing).
-backdrop = [1.0, 1.0, 1.0, 0.075]
+backdrop = [0.0, 0.0, 0.0, 0.6]
 faded = 0.12
 # Hovering or cursoring a chip previews its clips: everything else in the
 # grid fades to this.
-dim = 0.13
+dim = 1.0
 # The veil over the grid: dim strength and frosted-glass blur (0 = none,
 # 1..4 progressively softer).
 # veil = 0.88   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
@@ -722,14 +722,14 @@ dim = 0.13
 ring = [1.0, 1.0, 1.0, 0.55]
 ring_width = 2.0
 # Panel geometry and chip padding.
-width = 620.0
-max_height = 0.75
-gap = 9.0
-inset = 21.0
+width = 900.0
+max_height = 0.95
+gap = 8.0 # vertical gap between tags
+inset = 30.0 # padding in the panel
 radius = 13.0
 # top = 96.0   # REMOVED from switchblade: gone — the panel centres itself now
 pad_x = 13.0
-pad_y = 2.5
+pad_y = 2.0
 fade_ms = 160.0
 
 # ── Search bar (`/`) ───────────────────────────────────────────────────────
@@ -759,9 +759,9 @@ hash_fill = [0.0, 0.0, 0.0, 0.22]
 # far apart on each side of the seam.
 hash_scale = 1.31
 hash_inset = 9.0
-glow_hover = 1.0
-hover_brightness = 1.18
-count_scale = 0.88
+glow_hover = 0.8
+hover_brightness = 1.2
+count_scale = 1.0
 count_alpha = 1.0
 
 # veil_height = 420.0   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
@@ -797,7 +797,7 @@ backdrop = [0.0, 0.0, 0.0, 0.92]
 # directory opposite it, and the fills the cursored / hovered rows wear.
 row_height = 52.0
 row_size = 14.0
-actors_size = 12.0
+actors_size = 10.0
 actors = [0.72, 0.74, 0.82, 1.0]
 dir = [0.55, 0.55, 0.62, 1.0]
 cursor = [1.0, 1.0, 1.0, 0.14]
@@ -1091,16 +1091,16 @@ preview = "mpv --no-fs --loop-file=inf --ontop --no-terminal --force-window=imme
 # uppercase. Every ramp is one stop, so a pill is flat whatever its count.
 # Anything left out keeps that default — set a key to change one thing.
 [actors]
-fill = [[1.0, 1.0, 1.0, 0.92]]
+fill = [[1.0, 1.0, 1.0, 1.0]]
 text = [[0.0, 0.0, 0.0, 1.0]]
-size = [13.0, 13.0]
+size = [12.0, 12.0]
 # Focus is the accent ring, with a halo in the same colour (glow = 0 for
 # the ring alone).
-ring = [1.0, 0.216, 0.376, 1.0]
-glow = 0.85
+ring = [1.0, 0.216, 0.8, 0.6]
+glow = 0.5
 counts = true
 # The count reads at the name's own size.
-count_scale = 1.0
+count_scale = 0.8
 
 # ── Search bar (`/`) ───────────────────────────────────────────────────────
 # `/` drops a search bar in from the top; type and a floating panel of ranked
@@ -1251,30 +1251,31 @@ hot_lift = 1.0
 # and below it inside a 1.5px edge, so the lockup stands 28px tall on a 5px
 # radius. The inline variant is the app's — the design has one size — and
 # holds the same ratios at the face a search row can seat.
-height = 28.0
-height_inline = 22.0
+height = 20.0
+height_inline = 20.0
 radius = 5.0
-font = 13.0
-font_inline = 10.0
+font = 11.0
+font_inline = 11.0
 # Space either side of each half's text, in ems of the lockup's own font.
 # The halves differ, as the design's do: the value is the more tracked of
 # the two and the extra em keeps its last letter off the outline.
-pad_label_em = 0.69
-pad_value_em = 0.77
+pad_label_em = 0.5
+pad_value_em = 0.5
+tag_em = 0.9
 # Letter tracking (ems) for each half. The width estimate adds it, because
 # tracking is real width and a run that under-measured would creep under
 # whatever the caller placed after it.
 track_label = 0.06
 track_value = 0.10
-gap = 10.0
+gap = 5.0
 # Outline weight, drawn in the category's hue: the shape's own edge, not a
 # separator from a background. It insets, so changing it never moves the
 # run's measured width. (The design's 4px border is `--bw-selection`, the
 # selected tile's ring — `selection_border_width` here, not this.)
-border = 1.5
+border = 2.0
 # Alpha of the dark ground under the value half. The design draws it on
 # nothing, which is right on a panel and illegible over a video frame.
-ground = 0.82
+ground = 0.8
 # The category hues.
 res = [0.435, 0.863, 1.0, 1.0]
 fps = [0.784, 1.0, 0.373, 1.0]
