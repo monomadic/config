@@ -34,6 +34,9 @@
   # always reads the key file and never waits on a 1Password approval.
   program = ~/.bin/ssh-sign-local
 
+  # Public keys trusted for `git log --show-signature` / `git verify-commit`.
+  allowedSignersFile = ~/.config/git/allowed_signers
+
 [commit]
   gpgsign = true
 
