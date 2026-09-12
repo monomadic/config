@@ -2572,7 +2572,13 @@ impl Delegate {
             }
         }
 
-        let is_running = entry.running.is_some();
+        // The glyph column dims for exactly one thing: a running app you
+        // can't see — hidden, or with no on-screen windows. Everything else,
+        // running or not, draws at full strength.
+        let out_of_sight = match &entry.running {
+            Some(app) => entry.windows == 0 || unsafe { app.isHidden() },
+            None => false,
+        };
         // All row content takes its hue from one foreground per state; the
         // original design's brightness steps carry over as alphas.
         let fg = if selected {
@@ -2626,18 +2632,10 @@ impl Delegate {
             let glyph_text = config::find_icon_override(&cfg.icon_overrides, &entry_lower)
                 .unwrap_or_else(|| state_glyph(entry, icons));
             let glyph_font = unsafe { NSFont::systemFontOfSize(GLYPH_PT) };
-            // The icon carries visibility state through its brightness: an app
-            // with on-screen windows is brightest, a backgrounded running app
-            // is dimmer, a cold app is faintest.
-            let glyph_alpha = if entry.windows > 0 {
-                0.92
-            } else if is_running {
-                0.52
-            } else if selected {
-                0.42
-            } else {
-                0.30
-            };
+            // The icon carries visibility state through its brightness: a
+            // running app that is hidden or has no windows is dimmed, and
+            // nothing else is.
+            let glyph_alpha = if out_of_sight { 0.52 } else { 0.92 };
             // `icon_foreground` recolors the glyph column; the state-brightness
             // alphas carry over unchanged.
             let glyph_color = style.icon_foreground.unwrap_or(fg);
