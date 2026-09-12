@@ -10,7 +10,7 @@ that lock frame rate unexpectedly. Defaults to 60 fps.
 Usage:
   interpolate-resolve.py /absolute/input.mp4 /absolute/output.mp4
   interpolate-resolve.py --fps 120 /absolute/input.mp4 /absolute/output.mp4
-  interpolate-resolve.py --quality speed-warp /absolute/input.mp4 /absolute/output.mp4
+  interpolate-resolve.py --quality speed-warp-better /absolute/input.mp4 /absolute/output.mp4
   interpolate-resolve.py --prores /absolute/input.mp4 /absolute/output.mov
   interpolate-resolve.py --debug-formats /absolute/input.mp4 /absolute/output.mp4
 """
@@ -25,6 +25,23 @@ import sys
 import time
 import uuid
 from pathlib import Path
+
+
+# Values and order from Resolve's scripting README ("RetimeProcess" and
+# "MotionEstimation" clip properties). The enums are declared there as bare
+# names after an explicit `= 0`, so each subsequent name is the next integer.
+RETIME_OPTICAL_FLOW = 3
+
+MOTION_ESTIMATION: dict[str, tuple[int, str]] = {
+    "standard-faster": (1, "Standard Faster"),
+    "standard-better": (2, "Standard Better"),
+    "enhanced-faster": (3, "Enhanced Faster"),
+    "enhanced-better": (4, "Enhanced Better"),
+    "speed-warp-better": (5, "Speed Warp Better"),
+    "speed-warp-faster": (6, "Speed Warp Faster"),
+    # Kept so older invocations and docs keep working.
+    "speed-warp": (5, "Speed Warp Better"),
+}
 
 
 def fail(msg: str, code: int = 1) -> None:
@@ -100,14 +117,14 @@ def parse_args() -> argparse.Namespace:
     quality = parser.add_mutually_exclusive_group()
     quality.add_argument(
         "--quality",
-        choices=("enhanced-better", "speed-warp"),
+        choices=tuple(MOTION_ESTIMATION.keys()),
         default="enhanced-better",
         help="Optical Flow motion estimation quality. Defaults to enhanced-better.",
     )
     quality.add_argument(
         "--speed-warp",
         action="store_true",
-        help="Shortcut for --quality speed-warp",
+        help="Shortcut for --quality speed-warp-better",
     )
     parser.add_argument(
         "--orientation",
@@ -134,7 +151,7 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     args.fps = normalize_fps(args.fps)
     if args.speed_warp:
-        args.quality = "speed-warp"
+        args.quality = "speed-warp-better"
     return args
 
 
@@ -377,6 +394,40 @@ def ensure_empty_dir_exists(dir_path: Path) -> None:
         fail(f"output directory is not a directory: {dir_path}")
 
 
+def print_settings(
+    *,
+    input_file: Path,
+    output_file: Path,
+    fps: str,
+    fps_forced: bool,
+    canvas: str | None,
+    orientation: str,
+    retime: str,
+    retime_value: int,
+    motion_estimation: str,
+    motion_estimation_value: int,
+    format_token: str,
+    codec_token: str,
+) -> None:
+    """Report the settings this render is actually using, before it starts."""
+    canvas_line = canvas or "Resolve default (input resolution not detected)"
+    if orientation != "auto":
+        canvas_line += f" (forced {orientation})"
+    rows = [
+        ("input", str(input_file)),
+        ("output", str(output_file)),
+        ("frame rate", f"{fps} fps" + ("" if fps_forced else " (requested; Resolve rejected the override)")),
+        ("resolution", canvas_line),
+        ("retime process", f"{retime} (RetimeProcess={retime_value})"),
+        ("motion estimation", f"{motion_estimation} (MotionEstimation={motion_estimation_value})"),
+        ("format / codec", f"{format_token} / {codec_token}"),
+    ]
+    width = max(len(label) for label, _ in rows)
+    print("render settings:")
+    for label, value in rows:
+        print(f"  {label.rjust(width)}: {value}")
+
+
 def main() -> None:
     args = parse_args()
 
@@ -418,10 +469,12 @@ def main() -> None:
         # Detect input resolution/orientation and set the canvas before timeline
         # creation so a portrait clip renders portrait instead of pillarboxed.
         dims = probe_dimensions(input_file)
+        canvas = None
         if dims is None:
             warn("could not detect input resolution (ffprobe missing or probe failed); using Resolve's default canvas")
         else:
             width, height = orient_dimensions(dims[0], dims[1], args.orientation)
+            canvas = f"{width}x{height}"
             if not try_set_project_resolution(project, width, height):
                 warn(f"could not set project resolution to {width}x{height} before import; render may use the default canvas")
 
@@ -454,17 +507,7 @@ def main() -> None:
 
         clip = items[0]
 
-        # Resolve scripting values commonly documented for these properties:
-        # RetimeProcess: 3 => Optical Flow
-        # MotionEstimation: 4 => Enhanced Better, 5 => Speed Warp
-        RETIME_OPTICAL_FLOW = 3
-        MOTION_EST_ENHANCED_BETTER = 4
-        MOTION_EST_SPEED_WARP = 5
-
-        motion_estimation = {
-            "enhanced-better": MOTION_EST_ENHANCED_BETTER,
-            "speed-warp": MOTION_EST_SPEED_WARP,
-        }[args.quality]
+        motion_estimation, motion_estimation_label = MOTION_ESTIMATION[args.quality]
 
         ok = True
         ok &= bool(clip.SetProperty("RetimeProcess", RETIME_OPTICAL_FLOW))
@@ -513,6 +556,21 @@ def main() -> None:
             warn(f"render setting FrameRate={args.fps} rejected by this build; retrying with minimal settings")
             if not project.SetRenderSettings(render_settings):
                 fail("SetRenderSettings failed")
+
+        print_settings(
+            input_file=input_file,
+            output_file=output_dir / f"{output_name}{output_extension}",
+            fps=args.fps,
+            fps_forced=project_fps_set or timeline_fps_set,
+            canvas=canvas,
+            orientation=args.orientation,
+            retime="Optical Flow",
+            retime_value=RETIME_OPTICAL_FLOW,
+            motion_estimation=motion_estimation_label,
+            motion_estimation_value=motion_estimation,
+            format_token=format_token,
+            codec_token=codec_token,
+        )
 
         job_id = project.AddRenderJob()
         if not job_id:

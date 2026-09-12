@@ -11,7 +11,7 @@
 #   interpolate-resolve 120 input.mp4
 #   interpolate-resolve --fps 120 input.mp4 output.mp4
 #   interpolate-resolve a.mp4 b.mov c.mkv
-#   interpolate-resolve --quality speed-warp input.mp4
+#   interpolate-resolve --quality speed-warp-better input.mp4
 #   interpolate-resolve --prores input.mp4
 #   interpolate-resolve --help
 
@@ -37,8 +37,11 @@ Options:
   -h, --help       Show this help
   --fps <fps>      Target FPS. Overrides the positional FPS.
   --quality <mode> Optical Flow motion estimation quality:
-                   enhanced-better, speed-warp
-  --speed-warp     Shortcut for --quality speed-warp
+                   standard-faster, standard-better,
+                   enhanced-faster, enhanced-better (default),
+                   speed-warp-better, speed-warp-faster
+                   ("speed-warp" is accepted for speed-warp-better)
+  --speed-warp     Shortcut for --quality speed-warp-better
   --prores         Render QuickTime/MOV using ProRes 422 Proxy, the lowest
                    bitrate ProRes profile
 
@@ -58,7 +61,7 @@ Examples:
   interpolate-resolve 120 clip.mp4
   interpolate-resolve clip.mp4 clip.60fps.mp4
   interpolate-resolve a.mp4 b.mov c.mkv
-  interpolate-resolve --quality speed-warp clip.mp4
+  interpolate-resolve --quality speed-warp-better clip.mp4
   interpolate-resolve --prores clip.mp4
 EOF
 }
@@ -108,7 +111,7 @@ while (( $# > 0 )); do
       ;;
     --speed-warp)
       use_speed_warp=1
-      quality=speed-warp
+      quality=speed-warp-better
       shift
       ;;
     --quality)
@@ -117,8 +120,11 @@ while (( $# > 0 )); do
         exit 1
       fi
       case "$2" in
-        enhanced-better|speed-warp)
+        standard-faster|standard-better|enhanced-faster|enhanced-better|speed-warp-better|speed-warp-faster)
           quality="$2"
+          ;;
+        speed-warp)
+          quality=speed-warp-better
           ;;
         *)
           print -u2 "error: unknown quality: $2"
@@ -126,7 +132,7 @@ while (( $# > 0 )); do
           exit 1
           ;;
       esac
-      if [[ "$quality" == "speed-warp" ]]; then
+      if [[ "$quality" == speed-warp-* ]]; then
         use_speed_warp=1
       else
         use_speed_warp=0
@@ -173,7 +179,10 @@ if (( ${#positional[@]} == 0 )); then
   exit 1
 fi
 
-if ! pgrep -xq "DaVinci Resolve"; then
+# The running process is named "Resolve", not "DaVinci Resolve", so matching
+# the application name never hit: every invocation re-opened the app and paid
+# the sleep even when Resolve was already running.
+if ! pgrep -qf "DaVinci Resolve.app/Contents/MacOS/Resolve"; then
   open -a "DaVinci Resolve"
   sleep 6
 fi
