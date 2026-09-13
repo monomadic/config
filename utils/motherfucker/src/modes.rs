@@ -1,17 +1,23 @@
-//! Sigil modes: a reserved first character switches the panel from app
-//! search to a special-purpose resolver. `#` evaluates math, `!` expands
-//! web-search shortcuts. Sigils and shortcuts live in the config
-//! (`[modes.math]`, `[modes.web]`, ...); everything here is pure string → rows, so
-//! the UI layer stays the only place that touches AppKit.
+//! Synthesized rows: everything the panel lists that isn't an app.
+//!
+//! Sigil modes are a reserved first character that switches the panel from
+//! app search to a special-purpose resolver — `=` evaluates math, `$`
+//! converts currency — configured under `[modes.math]`, `[modes.currency]`.
+//! Search engines are the other shape: not a sigil, but a `[search_engines]`
+//! item you select from the launcher, which then takes the panel over for
+//! its terms. Everything here is pure string → rows, so the UI layer stays
+//! the only place that touches AppKit.
 
-use crate::config::{SigilKind, WebShortcut};
+use crate::config::{SearchEngine, SigilKind};
 
 /// One synthesized result row. `detail` renders dim and right-aligned;
-/// `tag` renders as an inline pill after the name (web: the prefix).
+/// `tag` renders as an inline pill after the name (engines: the shortcut);
+/// `icon` replaces the row's glyph column (engines: the engine's own).
 pub struct ModeRow {
     pub name: String,
     pub detail: Option<String>,
     pub tag: Option<String>,
+    pub icon: Option<String>,
     pub action: ModeAction,
 }
 
@@ -91,6 +97,7 @@ pub fn math_rows(input: &str) -> Vec<ModeRow> {
                 name: format!("{} {op} {}%", format_num(base), format_num(pct)),
                 detail: Some(f.clone()),
                 tag: None,
+                icon: None,
                 action: ModeAction::Copy(f),
             });
         }
@@ -104,6 +111,7 @@ fn result_row(value: f64) -> ModeRow {
         name: format!("= {f}"),
         detail: None,
         tag: None,
+        icon: None,
         action: ModeAction::Copy(f),
     }
 }
@@ -333,44 +341,48 @@ fn group_int(digits: &str) -> String {
     out
 }
 
-// ---- web shortcuts (`!`) ----
+// ---- search engines ----
 
-/// Rows for a web query: `yt cat videos` puts the matching shortcut first
-/// with "cat videos" as the search terms; the other shortcuts follow with
-/// the same terms. Each row's title is the site name and its pill is the
-/// prefix. An unrecognized first token is just part of the query.
-pub fn web_rows(input: &str, shortcuts: &[WebShortcut]) -> Vec<ModeRow> {
-    let input = input.trim();
-    let find = |name: &str| shortcuts.iter().position(|w| w.prefix.eq_ignore_ascii_case(name));
-    let (hit, terms) = match input.split_once(char::is_whitespace) {
-        Some((first, rest)) => match find(first) {
-            Some(i) => (Some(i), rest.trim()),
-            None => (None, input),
-        },
-        None => match find(input) {
-            Some(i) => (Some(i), ""),
-            None => (None, input),
-        },
-    };
-
-    let mut order: Vec<usize> = (0..shortcuts.len()).collect();
-    if let Some(i) = hit {
-        order.retain(|&j| j != i);
-        order.insert(0, i);
+/// Rows for an engine that has taken the panel over: `active` leads with
+/// the terms aimed at it, and the other engines follow carrying the same
+/// terms — realizing mid-search that you wanted YouTube is then one arrow
+/// key away, not a retype. Each row's title is the engine name and its pill
+/// is the shortcut. `default_icon` is `[icons] engine`, for entries that
+/// don't carry a glyph of their own.
+pub fn engine_rows(
+    terms: &str,
+    engines: &[SearchEngine],
+    active: usize,
+    default_icon: &str,
+) -> Vec<ModeRow> {
+    let mut order: Vec<usize> = (0..engines.len()).collect();
+    if active < engines.len() {
+        order.retain(|&i| i != active);
+        order.insert(0, active);
     }
     order
         .into_iter()
         .map(|i| {
-            let w = &shortcuts[i];
-            let url = w.template.replace("{q}", &url_encode(terms));
+            let e = &engines[i];
             ModeRow {
-                name: w.name.clone(),
+                name: e.name.clone(),
                 detail: None,
-                tag: Some(w.prefix.clone()),
-                action: ModeAction::OpenUrl(url),
+                tag: Some(engine_pill(e).to_string()),
+                icon: Some(e.glyph(default_icon)),
+                action: ModeAction::OpenUrl(e.query.replace("{q}", &url_encode(terms.trim()))),
             }
         })
         .collect()
+}
+
+/// An engine row's pill: its shortcut, which is also the thing worth
+/// learning, or a plain label when it has none.
+pub fn engine_pill(engine: &SearchEngine) -> &str {
+    if engine.shortcut.is_empty() {
+        "Search"
+    } else {
+        &engine.shortcut
+    }
 }
 
 // ---- currency (`$`) ----
@@ -381,6 +393,7 @@ pub fn info_row(text: &str) -> ModeRow {
         name: text.to_string(),
         detail: None,
         tag: None,
+        icon: None,
         action: ModeAction::Copy(String::new()),
     }
 }
@@ -418,6 +431,7 @@ pub fn currency_rows(
             name: format!("{sym}{}", format_money(value)),
             detail: None,
             tag: Some(code),
+            icon: None,
             action: ModeAction::Copy(plain_amount(value)),
         });
     }
@@ -677,42 +691,44 @@ mod tests {
     }
 
     #[test]
-    fn web_rows_prefix() {
-        let sc = vec![
-            WebShortcut {
-                prefix: "g".into(),
+    fn engine_rows_lead_with_the_active_engine() {
+        let engines = vec![
+            SearchEngine {
                 name: "Google".into(),
-                template: "https://g.example/s?q={q}".into(),
+                query: "https://g.example/s?q={q}".into(),
+                icon: String::new(),
+                shortcut: "g".into(),
             },
-            WebShortcut {
-                prefix: "yt".into(),
+            SearchEngine {
                 name: "YouTube".into(),
-                template: "https://yt.example/r?q={q}".into(),
+                query: "https://yt.example/r?q={q}".into(),
+                icon: "Y!".into(),
+                shortcut: String::new(),
             },
         ];
-        let rows = web_rows("yt cat videos", &sc);
+        let rows = engine_rows("cat videos", &engines, 1, "*");
         assert_eq!(rows.len(), 2);
-        // Title is the site name; the prefix is the pill; no URL detail.
+        // The engine you entered leads, with its own icon and pill.
         assert_eq!(rows[0].name, "YouTube");
-        assert_eq!(rows[0].tag.as_deref(), Some("yt"));
-        assert_eq!(rows[0].detail, None);
+        assert_eq!(rows[0].icon.as_deref(), Some("Y!"));
+        assert_eq!(rows[0].tag.as_deref(), Some("Search")); // no shortcut set
         assert_eq!(
             rows[0].action,
             ModeAction::OpenUrl("https://yt.example/r?q=cat+videos".into())
         );
-        // Second row carries the same terms through the other shortcut.
+        // The others carry the same terms, so switching costs one arrow key.
+        assert_eq!(rows[1].name, "Google");
+        assert_eq!(rows[1].tag.as_deref(), Some("g"));
+        assert_eq!(rows[1].icon.as_deref(), Some("*")); // [icons] engine
         assert_eq!(
             rows[1].action,
             ModeAction::OpenUrl("https://g.example/s?q=cat+videos".into())
         );
-
-        // No prefix hit: the whole input is the query, config order kept.
-        let rows = web_rows("cat videos", &sc);
-        assert_eq!(rows[0].name, "Google");
-
-        // Bare matching token: shortcut with empty terms.
-        let rows = web_rows("yt", &sc);
-        assert_eq!(rows[0].action, ModeAction::OpenUrl("https://yt.example/r?q=".into()));
+        // Empty terms still resolve to the engine's bare search page.
+        let rows = engine_rows("", &engines, 0, "*");
+        assert_eq!(rows[0].action, ModeAction::OpenUrl("https://g.example/s?q=".into()));
+        // An out-of-range active index just leaves config order alone.
+        assert_eq!(engine_rows("x", &engines, 9, "*")[0].name, "Google");
     }
 
     #[test]

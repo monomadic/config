@@ -15,7 +15,7 @@ mod hotkey;
 mod modes;
 mod stats;
 
-use config::{Action, Config, Mode, SigilKind};
+use config::{Action, Config, Mode, SearchEngine, SigilKind};
 
 use std::cell::{Cell, OnceCell, RefCell};
 use std::ffi::c_void;
@@ -56,6 +56,11 @@ const ROWS_PAD: f64 = 12.0;
 // first-hit position (8 per column in apps::match_positions), so a running app
 // wins near-ties but a clearly earlier match on a cold app still outranks it.
 const RUNNING_BONUS: i32 = 12;
+// Score for a `[search_engines]` shortcut typed whole ("yt"). Deliberately
+// out of reach of any fuzzy name match: naming the shortcut is unambiguous,
+// so the engine takes the top row rather than tying with an app that happens
+// to contain the same two letters.
+const SHORTCUT_SCORE: i32 = 10_000;
 // CPU sampling: minimum interval for a trustworthy percentage.
 const CPU_MIN_INTERVAL: f64 = 0.25;
 // How long after the row window moves to re-sample stats for the rows that
@@ -87,7 +92,8 @@ enum Builtin {
     /// A row in the picker; `None` is the built-in base ("Black Glass" =
     /// the un-overlaid `[style]`).
     ApplyTheme(Option<String>),
-    /// A sigil-mode result (math/web); Enter copies or opens per action.
+    /// A synthesized result (math, currency, a search engine); Enter
+    /// copies or opens per action.
     ModeRow(modes::ModeAction),
 }
 
@@ -102,6 +108,11 @@ enum PanelMode {
     /// via the `ShowCommands` chord (default Tab). The app name and its
     /// commands live in `State::command_context`.
     AppCommands,
+    /// A `[search_engines]` item has the panel: the field holds search
+    /// terms, the badge holds the engine's glyph, and the rows are the
+    /// engines those terms can go to. The active one lives in
+    /// `State::search_engine`.
+    SearchEngine,
 }
 
 struct Entry {
@@ -120,8 +131,15 @@ struct Entry {
     builtin: Option<Builtin>,
     /// Dim right-aligned text (math mode: alternate results).
     detail: Option<String>,
-    /// Inline pill after the name (web mode: the shortcut prefix).
+    /// Inline pill after the name (engines: the shortcut).
     tag: Option<String>,
+    /// Glyph for the icon column, overriding both `[icons.apps]` and the
+    /// state glyph. A `[search_engines]` item carries its own here — the
+    /// whole point of the section is that an item's icon travels with it.
+    icon: Option<String>,
+    /// `[search_engines]` item: enter or tab hands the panel over to this
+    /// engine for the search terms, instead of activating anything.
+    engine: Option<SearchEngine>,
     /// `PanelMode::AppCommands` built-in row (Open/Focus/Reveal/Info/
     /// Close/Kill): takes priority over `command`/`builtin` on activation,
     /// so Enter always does what the row says regardless of the global
@@ -330,6 +348,20 @@ struct RowStats {
     cpu_pct: f64,
 }
 
+/// How a `[search_engines]` item ranks against a launcher query, and which
+/// of its characters to highlight. Two ways to hit: the name, matched
+/// fuzzily like anything else in the index, or the shortcut typed whole —
+/// "yt" has to find YouTube even though those letters don't spell it. A
+/// shortcut hit takes `SHORTCUT_SCORE` rather than the name's score, so
+/// naming an engine outright beats apps that merely contain the letters;
+/// nothing is highlighted in that case, because the match isn't in the name.
+fn engine_match(query: &str, engine: &SearchEngine) -> Option<(i32, Vec<usize>)> {
+    if !engine.shortcut.is_empty() && engine.shortcut.eq_ignore_ascii_case(query.trim()) {
+        return Some((SHORTCUT_SCORE, Vec::new()));
+    }
+    apps::match_positions(query, &engine.name)
+}
+
 fn state_glyph<'a>(entry: &Entry, icons: &'a config::Icons) -> &'a str {
     if entry.running.is_some() {
         match entry.windows {
@@ -414,6 +446,10 @@ struct State {
     /// so `refresh` can list them and backspace-to-exit knows there's
     /// something to leave.
     command_context: RefCell<Option<AppCommandContext>>,
+    /// Set while `mode` is `SearchEngine`: the engine that took the panel
+    /// over. Its glyph drives the input badge and its row leads the list,
+    /// the way `sigil` does for a sigil mode.
+    search_engine: RefCell<Option<SearchEngine>>,
     /// Live Cmd-key state, tracked by a `flagsChanged` monitor — while true,
     /// rows show their row-jump hint (see `build_hint_badge`).
     cmd_held: Cell<bool>,
@@ -629,18 +665,21 @@ declare_class!(
                 self.dismiss();
                 true
             } else if command == sel!(deleteBackward:) {
-                // Backspace on an empty field leaves the sigil mode or the
-                // app-commands picker instead of doing nothing — the box
-                // "deletes" back to the launcher.
-                if self.ivars().sigil.get().is_some() && self.query().is_empty() {
+                // Backspace on an empty field leaves the sigil mode, the
+                // search engine, or the app-commands picker instead of doing
+                // nothing — the badge "deletes" back to the launcher.
+                if !self.query().is_empty() {
+                    false
+                } else if self.ivars().sigil.get().is_some() {
                     self.ivars().sigil.set(None);
                     self.ivars().selected.set(0);
                     self.ivars().scroll_px.set(0.0);
                     self.refresh();
                     true
-                } else if self.ivars().mode.get() == PanelMode::AppCommands
-                    && self.query().is_empty()
-                {
+                } else if self.ivars().mode.get() == PanelMode::SearchEngine {
+                    self.exit_search_engine();
+                    true
+                } else if self.ivars().mode.get() == PanelMode::AppCommands {
                     self.exit_app_commands();
                     true
                 } else {
@@ -1252,6 +1291,8 @@ impl Delegate {
                     ivars.selected.set(0);
                     ivars.scroll_px.set(0.0);
                     ivars.sigil.set(None);
+                    ivars.mode.set(PanelMode::Launcher);
+                    ivars.search_engine.borrow_mut().take();
                     self.refresh();
                 }
             }
@@ -1281,10 +1322,17 @@ impl Delegate {
     /// plus any `[commands.<Name>]` extras appended by name (case-
     /// insensitive). A `[shortcuts]` row has no bundle to act on, so it's
     /// tab-able only when it has `[commands.<Name>]` extras of its own.
-    /// Mode rows and panel built-ins (theme picker, …) never are.
+    /// Mode rows and panel built-ins (theme picker, …) never are. A
+    /// `[search_engines]` row is its own thing entirely: tab is one of the
+    /// two keys that hand the panel over to it, so it never reaches the
+    /// subcommand path.
     fn enter_app_commands(&self) {
         let ivars = self.ivars();
         if ivars.mode.get() != PanelMode::Launcher {
+            return;
+        }
+        if let Some(engine) = self.selected_engine() {
+            self.enter_search_engine(engine);
             return;
         }
         let selected = {
@@ -1331,10 +1379,10 @@ impl Delegate {
     /// launcher list rather than closing the panel. Everywhere else it still
     /// dismisses.
     fn dismiss(&self) {
-        if self.ivars().mode.get() == PanelMode::AppCommands {
-            self.exit_app_commands();
-        } else {
-            self.hide();
+        match self.ivars().mode.get() {
+            PanelMode::AppCommands => self.exit_app_commands(),
+            PanelMode::SearchEngine => self.exit_search_engine(),
+            _ => self.hide(),
         }
     }
 
@@ -1350,6 +1398,42 @@ impl Delegate {
         self.refresh();
     }
 
+    /// The `[search_engines]` item under the selection, if that's what it is.
+    fn selected_engine(&self) -> Option<SearchEngine> {
+        let ivars = self.ivars();
+        let entries = ivars.entries.borrow();
+        entries.get(ivars.selected.get()).and_then(|e| e.engine.clone())
+    }
+
+    /// Hand the panel over to a search engine: the field is cleared for the
+    /// terms and the engine's glyph takes the input badge, so the panel
+    /// reads as "typing into Google" rather than "searching for Google".
+    /// Both enter and tab land here — an engine is one item you step into,
+    /// not a thing with separate activate and expand behaviors.
+    fn enter_search_engine(&self, engine: SearchEngine) {
+        let ivars = self.ivars();
+        *ivars.search_engine.borrow_mut() = Some(engine);
+        ivars.mode.set(PanelMode::SearchEngine);
+        ivars.sigil.set(None);
+        ivars.auto_sigil.set(None);
+        ivars.selected.set(0);
+        ivars.scroll_px.set(0.0);
+        self.set_field_text("");
+        self.refresh();
+    }
+
+    /// Back out to the launcher, dropping the engine (mirrors how a sigil
+    /// mode leaves on an empty field's backspace).
+    fn exit_search_engine(&self) {
+        let ivars = self.ivars();
+        ivars.mode.set(PanelMode::Launcher);
+        *ivars.search_engine.borrow_mut() = None;
+        ivars.selected.set(0);
+        ivars.scroll_px.set(0.0);
+        self.set_field_text("");
+        self.refresh();
+    }
+
     /// Re-read the config file (and themes dir) and re-apply it live. Global
     /// hotkeys are registered once at launch and still need a restart;
     /// everything else — layout, colors, chrome, fonts, icons, shortcuts,
@@ -1357,9 +1441,12 @@ impl Delegate {
     /// survives the reload as long as its file still exists.
     fn reload_config(&self) {
         let ivars = self.ivars();
-        // A reload while the picker is up abandons the preview.
+        // A reload while the picker is up abandons the preview, and one
+        // while an engine holds the panel drops back to the launcher — the
+        // engine it was pointing at may not survive the reload.
         ivars.mode.set(PanelMode::Launcher);
         *ivars.saved_style.borrow_mut() = None;
+        *ivars.search_engine.borrow_mut() = None;
 
         let fresh = config::load();
         *ivars.base_style.borrow_mut() = fresh.style.clone();
@@ -1504,6 +1591,7 @@ impl Delegate {
         ivars.auto_sigil.set(None);
         ivars.mode.set(PanelMode::Launcher);
         ivars.command_context.borrow_mut().take();
+        ivars.search_engine.borrow_mut().take();
         // Seed from the real current state: if the summon chord itself is
         // held (e.g. the default cmd+space), our flagsChanged monitor never
         // saw cmd go down — it wasn't key window yet — so without this the
@@ -1573,6 +1661,10 @@ impl Delegate {
             ivars.mode.set(PanelMode::Launcher);
             ivars.command_context.borrow_mut().take();
         }
+        if ivars.mode.get() == PanelMode::SearchEngine {
+            ivars.mode.set(PanelMode::Launcher);
+            ivars.search_engine.borrow_mut().take();
+        }
         if let Some(timer) = ivars.stats_timer.borrow_mut().take() {
             let _: () = unsafe { msg_send![&*timer, invalidate] };
         }
@@ -1608,6 +1700,10 @@ impl Delegate {
             self.refresh_app_commands();
             return;
         }
+        if self.ivars().mode.get() == PanelMode::SearchEngine {
+            self.refresh_search_engine();
+            return;
+        }
         let query = self.query();
 
         // Sigil modes: the active sigil (held in state, shown in the input
@@ -1635,16 +1731,12 @@ impl Delegate {
             self.ivars().auto_sigil.set(match auto {
                 Some(SigilKind::Math) => cfg.sigil_math,
                 Some(SigilKind::Currency) => cfg.sigil_currency,
-                Some(SigilKind::Web) => cfg.sigil_web,
                 None => None,
             });
             explicit.or(auto)
         };
         let sigil_rows = match kind {
             Some(SigilKind::Math) => Some(modes::math_rows(&query)),
-            Some(SigilKind::Web) => {
-                Some(modes::web_rows(&query, &self.ivars().config.borrow().web_shortcuts))
-            }
             Some(SigilKind::Currency) => Some(self.currency_rows(&query)),
             None => None,
         };
@@ -1663,6 +1755,8 @@ impl Delegate {
                     builtin: Some(Builtin::ModeRow(r.action)),
                     detail: r.detail,
                     tag: r.tag,
+                    icon: r.icon,
+                    engine: None,
                     app_action: None,
                 })
                 .collect();
@@ -1707,6 +1801,8 @@ impl Delegate {
                             builtin: None,
                             detail: None,
                             tag: None,
+                            icon: None,
+                            engine: None,
                             app_action: None,
                         },
                     ));
@@ -1730,10 +1826,37 @@ impl Delegate {
                             builtin: None,
                             detail: None,
                             tag: None,
+                            icon: None,
+                            engine: None,
                             app_action: None,
                         },
                     ));
                 }
+            }
+            // `[search_engines]` items, ranked by `engine_match`.
+            let icons_engine = self.ivars().config.borrow().icons.engine.clone();
+            for engine in &self.ivars().config.borrow().search_engines {
+                let Some((score, matched)) = engine_match(&query, engine) else {
+                    continue;
+                };
+                scored.push((
+                    score,
+                    Entry {
+                        name: engine.name.clone(),
+                        path: None,
+                        running: None,
+                        matched,
+                        windows: 0,
+                        stats: None,
+                        command: None,
+                        builtin: None,
+                        detail: None,
+                        tag: Some(modes::engine_pill(engine).to_string()),
+                        icon: Some(engine.glyph(&icons_engine)),
+                        engine: Some(engine.clone()),
+                        app_action: None,
+                    },
+                ));
             }
             // Built-in settings rows, matched like everything else. The
             // theme-picker entry point names the active theme so the current
@@ -1755,6 +1878,8 @@ impl Delegate {
                             builtin: Some(Builtin::ThemePicker),
                             detail: None,
                             tag: None,
+                            icon: None,
+                            engine: None,
                             app_action: None,
                         },
                     ));
@@ -1891,6 +2016,20 @@ impl Delegate {
     /// On the first keystroke of a launcher session, a reserved leading
     /// character enters its sigil mode: the sigil is stored in state and
     /// lifted out of the field, leaving only the query terms behind.
+    /// What the input badge shows, if anything: the glyph of the engine
+    /// holding the panel, otherwise the active or autodetected sigil. One
+    /// slot, one answer — a search engine and a sigil mode are never both
+    /// live, and both mean the same thing to the eye ("the field is no
+    /// longer an app search").
+    fn input_badge(&self) -> Option<String> {
+        let ivars = self.ivars();
+        if ivars.mode.get() == PanelMode::SearchEngine {
+            let default_icon = &ivars.config.borrow().icons.engine;
+            return ivars.search_engine.borrow().as_ref().map(|e| e.glyph(default_icon));
+        }
+        ivars.sigil.get().or(ivars.auto_sigil.get()).map(|c| c.to_string())
+    }
+
     fn maybe_enter_sigil(&self) {
         let ivars = self.ivars();
         if ivars.mode.get() != PanelMode::Launcher || ivars.sigil.get().is_some() {
@@ -2004,6 +2143,8 @@ impl Delegate {
                 builtin: Some(Builtin::ApplyTheme(name)),
                 detail: None,
                 tag: None,
+                icon: None,
+                engine: None,
                 app_action: None,
             });
         }
@@ -2059,9 +2200,66 @@ impl Delegate {
                 builtin: None,
                 detail: None,
                 tag: None,
+                icon: None,
+                engine: None,
                 app_action,
             });
         }
+        let len = entries.len();
+        *ivars.entries.borrow_mut() = entries;
+        self.visible_range(len);
+        self.relayout();
+    }
+
+    /// Rows while an engine holds the panel: the field is search terms, not
+    /// a filter, so nothing is matched here — the whole query goes to every
+    /// engine and the active one leads.
+    fn refresh_search_engine(&self) {
+        let ivars = self.ivars();
+        let engine = ivars.search_engine.borrow().clone();
+        let Some(engine) = engine else {
+            // Context lost (e.g. a config reload mid-session); don't strand
+            // the panel in a mode with nothing to search.
+            ivars.mode.set(PanelMode::Launcher);
+            self.refresh();
+            return;
+        };
+        let terms = self.query();
+        let cfg = ivars.config.borrow();
+        let active = cfg
+            .search_engines
+            .iter()
+            .position(|e| e.name == engine.name)
+            .unwrap_or(usize::MAX);
+        // A reload can drop the engine from the config; it still searches,
+        // it just no longer leads a list it isn't in.
+        let mut engines = cfg.search_engines.clone();
+        let active = if active == usize::MAX {
+            engines.insert(0, engine);
+            0
+        } else {
+            active
+        };
+        let default_icon = cfg.icons.engine.clone();
+        drop(cfg);
+        let entries: Vec<Entry> = modes::engine_rows(&terms, &engines, active, &default_icon)
+            .into_iter()
+            .map(|r| Entry {
+                name: r.name,
+                path: None,
+                running: None,
+                matched: Vec::new(),
+                windows: 0,
+                stats: None,
+                command: None,
+                builtin: Some(Builtin::ModeRow(r.action)),
+                detail: r.detail,
+                tag: r.tag,
+                icon: r.icon,
+                engine: None,
+                app_action: None,
+            })
+            .collect();
         let len = entries.len();
         *ivars.entries.borrow_mut() = entries;
         self.visible_range(len);
@@ -2410,7 +2608,7 @@ impl Delegate {
         // to whichever is showing would jump the text sideways as you type.
         let input_fs = ivars.config.borrow().style.input_font_size;
         let slot = (input_fs + 10.0).clamp(24.0, 52.0);
-        if let Some(sig) = ivars.sigil.get().or(ivars.auto_sigil.get()) {
+        if let Some(badge) = self.input_badge() {
             unsafe {
                 let _: () = msg_send![&**glyph, setHidden: true];
                 let _: () = msg_send![&**sigil_box, setHidden: false];
@@ -2435,7 +2633,7 @@ impl Delegate {
                 msg_send_id![NSFont::class(), systemFontOfSize: input_fs * 0.78, weight: 0.4f64]
             };
             unsafe {
-                sigil_label.setStringValue(&NSString::from_str(&sig.to_string()));
+                sigil_label.setStringValue(&NSString::from_str(&badge));
                 sigil_label.setFont(Some(&font));
                 sigil_label.setTextColor(Some(&rgba(fg, 1.0)));
                 sigil_label.sizeToFit();
@@ -2587,49 +2785,26 @@ impl Delegate {
             style.item_foreground
         };
 
-        // Sigil-mode rows present differently from apps: math has no leading
-        // icon (the "= …" stands alone, name flush left), web uses the globe
-        // symbol at full strength — the state-brightness dimming is an
-        // app-only affordance and never applies to mode rows.
-        let mode_web = matches!(
-            &entry.builtin,
-            Some(Builtin::ModeRow(modes::ModeAction::OpenUrl(_)))
-        );
+        // Math rows present differently from apps: no leading icon at all
+        // (the "= …" stands alone, name flush left). The state-brightness
+        // dimming is likewise an app-only affordance, never a mode row's.
         let mode_math = matches!(
             &entry.builtin,
             Some(Builtin::ModeRow(modes::ModeAction::Copy(_)))
         );
         let name_x = if mode_math {
             12.0
-        } else if mode_web {
-            let icon_color = style.icon_foreground.unwrap_or(fg);
-            if let Some(image) =
-                objc2_app_kit::NSImage::imageWithSystemSymbolName_accessibilityDescription(
-                    &NSString::from_str(&cfg.icons.web),
-                    None,
-                )
-            {
-                let d = 16.0;
-                let iv = objc2_app_kit::NSImageView::initWithFrame(
-                    mtm.alloc(),
-                    NSRect::new(
-                        NSPoint::new(12.0 + (GLYPH_COL_W - d) / 2.0, (ROW_H - d) / 2.0),
-                        NSSize::new(d, d),
-                    ),
-                );
-                iv.setImage(Some(&image));
-                iv.setImageScaling(
-                    objc2_app_kit::NSImageScaling::NSImageScaleProportionallyUpOrDown,
-                );
-                iv.setContentTintColor(Some(&rgba(icon_color, 0.9)));
-                row.addSubview(&iv);
-            }
-            12.0 + GLYPH_COL_W + 10.0
         } else {
-            // Leading state glyph column; `[icons.apps]` overrides win
-            // (exact name match, or a `*pattern*` match against the name).
+            // Leading state glyph column. An entry carrying its own icon
+            // (a `[search_engines]` item) wins outright — that icon is part
+            // of the item, not a per-machine override of it. Otherwise
+            // `[icons.apps]` overrides apply (exact name match, or a
+            // `*pattern*` match), then the running/installed state glyph.
             let entry_lower = entry.name.to_lowercase();
-            let glyph_text = config::find_icon_override(&cfg.icon_overrides, &entry_lower)
+            let glyph_text = entry
+                .icon
+                .as_deref()
+                .or_else(|| config::find_icon_override(&cfg.icon_overrides, &entry_lower))
                 .unwrap_or_else(|| state_glyph(entry, icons));
             let glyph_font = unsafe { NSFont::systemFontOfSize(GLYPH_PT) };
             // The icon carries visibility state through its brightness: a
@@ -2676,7 +2851,7 @@ impl Delegate {
         // Tag pills sit inline, right after the name.
         let pill_x = name_x + name.frame().size.width + 10.0;
         if let Some(tag) = &entry.tag {
-            // Web rows: the shortcut prefix ("g", "yt") as a label-only pill.
+            // Search engines: the shortcut ("g", "yt") as a label-only pill.
             self.build_tag_pill(mtm, &row, pill_x, tag, "", selected);
         } else if let Some(rs) = &entry.stats {
             // Running apps: a CPU warning at the right edge once the tree
@@ -3117,6 +3292,12 @@ impl Delegate {
     /// the activate path and sends a real open (reopen event) even when the
     /// app is already running.
     fn execute(&self, force_open: bool) {
+        // An engine is a destination, not a launch: enter steps into it for
+        // the terms, exactly as tab does.
+        if let Some(engine) = self.selected_engine() {
+            self.enter_search_engine(engine);
+            return;
+        }
         let app_action = {
             let entries = self.ivars().entries.borrow();
             entries.get(self.ivars().selected.get()).and_then(|e| e.app_action)
@@ -3384,6 +3565,8 @@ unsafe fn running_apps_impl() -> Vec<Entry> {
             builtin: None,
             detail: None,
             tag: None,
+            icon: None,
+            engine: None,
             app_action: None,
         });
     }
@@ -3504,7 +3687,41 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{row_window, scroll_to_show, ROW_H};
+    use super::{engine_match, row_window, scroll_to_show, SearchEngine, ROW_H, SHORTCUT_SCORE};
+
+    fn engine(name: &str, shortcut: &str) -> SearchEngine {
+        SearchEngine {
+            name: name.into(),
+            query: "https://x.test/?q={q}".into(),
+            icon: String::new(),
+            shortcut: shortcut.into(),
+        }
+    }
+
+    #[test]
+    fn an_engine_is_found_by_name_or_by_its_whole_shortcut() {
+        let yt = engine("YouTube", "yt");
+        // The shortcut typed whole wins outright, and highlights nothing —
+        // "yt" is not where the match is.
+        let (score, matched) = engine_match("yt", &yt).unwrap();
+        assert_eq!(score, SHORTCUT_SCORE);
+        assert!(matched.is_empty());
+        assert_eq!(engine_match("YT", &yt).unwrap().0, SHORTCUT_SCORE); // case-insensitive
+        // A partial shortcut is not a shortcut hit; it falls back to the
+        // name, which "y" does match.
+        let (score, matched) = engine_match("y", &yt).unwrap();
+        assert!(score < SHORTCUT_SCORE);
+        assert_eq!(matched, vec![0]);
+        // Name matching is the ordinary fuzzy kind.
+        assert!(engine_match("tube", &yt).is_some());
+        assert!(engine_match("zzz", &yt).is_none());
+        // An engine with no shortcut can only be found by name — an empty
+        // shortcut must never match an empty-ish query.
+        let w = engine("Wikipedia", "");
+        assert_eq!(engine_match("wiki", &w).unwrap().1, vec![0, 1, 2, 3]);
+        assert!(engine_match("q", &w).is_none());
+    }
+
 
     /// `(first, drawn, win, frac)` — the shape of the drawn window, without
     /// the clamped `px` (which the position tests below cover).

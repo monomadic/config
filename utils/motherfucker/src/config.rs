@@ -190,8 +190,9 @@ pub struct Icons {
     pub system: String,
     pub applications: String,
     pub shortcut: String,
-    /// SF Symbol name for the web-shortcut (`!`) row icon.
-    pub web: String,
+    /// Glyph for a `[search_engines]` item that doesn't carry its own
+    /// `icon`. Literal, like the row-state glyphs above.
+    pub engine: String,
 }
 
 impl Default for Icons {
@@ -206,7 +207,7 @@ impl Default for Icons {
             system: "gearshape".into(),
             applications: "app.fill".into(),
             shortcut: "terminal".into(),
-            web: "globe".into(),
+            engine: "\u{1008be}".into(), // magnifier over a globe
         }
     }
 }
@@ -292,10 +293,11 @@ pub struct Config {
     /// `[modes.<name>]` `sigil`: typing one as the FIRST character switches
     /// the panel into that mode. `None` = mode disabled.
     pub sigil_math: Option<char>,
-    pub sigil_web: Option<char>,
     pub sigil_currency: Option<char>,
-    /// `[modes.web]` entries, in display order.
-    pub web_shortcuts: Vec<WebShortcut>,
+    /// `[search_engines]` entries, in display order. Not a sigil mode: each
+    /// engine is an ordinary row in the launcher index, and activating one
+    /// (enter or tab) hands the panel over to it for the search terms.
+    pub search_engines: Vec<SearchEngine>,
     /// `[modes.currency]` `targets`: currency codes to convert into, in
     /// display order. The source currency is skipped when it appears here.
     pub currency_targets: Vec<String>,
@@ -306,7 +308,6 @@ pub struct Config {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SigilKind {
     Math,
-    Web,
     Currency,
 }
 
@@ -315,8 +316,6 @@ impl Config {
     pub fn sigil_kind(&self, c: char) -> Option<SigilKind> {
         if self.sigil_math == Some(c) {
             Some(SigilKind::Math)
-        } else if self.sigil_web == Some(c) {
-            Some(SigilKind::Web)
         } else if self.sigil_currency == Some(c) {
             Some(SigilKind::Currency)
         } else {
@@ -325,13 +324,38 @@ impl Config {
     }
 }
 
-/// One `[modes.web]` entry: the `prefix` typed after the sigil, the `name`
-/// shown as the row title, and the URL `template` (`{q}` = query terms).
-#[derive(Clone, PartialEq, Debug)]
-pub struct WebShortcut {
-    pub prefix: String,
+/// One `[search_engines]` entry — a whole searchable item in one table,
+/// rather than a name here and an icon over in `[icons.apps]`:
+///
+/// ```toml
+/// "Google" = { query = "https://google.com/search?q={q}", icon = "\u{1002cb}", shortcut = "g" }
+/// ```
+///
+/// `icon` and `shortcut` are optional; empty means unset.
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct SearchEngine {
+    /// Row title, and what the launcher matches against.
     pub name: String,
-    pub template: String,
+    /// URL template; `{q}` is replaced with the encoded search terms.
+    pub query: String,
+    /// Glyph for the icon column and the input badge.
+    pub icon: String,
+    /// Short alias: typing it exactly also finds the engine, and it rides
+    /// the row as a pill.
+    pub shortcut: String,
+}
+
+impl SearchEngine {
+    /// The glyph this engine shows in a row's icon column and in the input
+    /// badge once it takes the panel over: its own `icon`, or `default`
+    /// (`[icons] engine`) for an entry that doesn't name one.
+    pub fn glyph(&self, default: &str) -> String {
+        if self.icon.is_empty() {
+            default.to_string()
+        } else {
+            self.icon.clone()
+        }
+    }
 }
 
 impl Default for Config {
@@ -354,9 +378,8 @@ impl Default for Config {
             fade: false,
             scroll_animation: true,
             sigil_math: Some('='),
-            sigil_web: Some('!'),
             sigil_currency: Some('$'),
-            web_shortcuts: default_web_shortcuts(),
+            search_engines: default_search_engines(),
             currency_targets: ["USD", "EUR", "GBP", "AUD", "BTC"]
                 .into_iter()
                 .map(String::from)
@@ -365,39 +388,30 @@ impl Default for Config {
     }
 }
 
-fn default_web_shortcuts() -> Vec<WebShortcut> {
+/// The engines every install starts with — broad enough to be useful before
+/// anyone opens the config, and none of them carrying an `icon`, since the
+/// glyph that suits a machine is an `[icons] engine` decision (or a
+/// per-entry one) rather than something to bake in here.
+fn default_search_engines() -> Vec<SearchEngine> {
     [
-        ("g", "Google", "https://www.google.com/search?q={q}"),
-        ("yt", "YouTube", "https://www.youtube.com/results?search_query={q}"),
-        ("w", "Wikipedia", "https://en.wikipedia.org/wiki/Special:Search?search={q}"),
+        ("Google", "https://www.google.com/search?q={q}", "g"),
+        ("DuckDuckGo", "https://duckduckgo.com/?q={q}", "ddg"),
+        ("YouTube", "https://www.youtube.com/results?search_query={q}", "yt"),
+        ("Wikipedia", "https://en.wikipedia.org/wiki/Special:Search?search={q}", "w"),
+        ("GitHub", "https://github.com/search?q={q}", "gh"),
+        ("Stack Overflow", "https://stackoverflow.com/search?q={q}", "so"),
+        ("Reddit", "https://www.reddit.com/search/?q={q}", "r"),
+        ("Maps", "https://www.google.com/maps/search/{q}", "map"),
+        ("IMDb", "https://www.imdb.com/find/?q={q}", "imdb"),
     ]
     .into_iter()
-    .map(|(prefix, name, template)| WebShortcut {
-        prefix: prefix.to_string(),
+    .map(|(name, query, shortcut)| SearchEngine {
         name: name.to_string(),
-        template: template.to_string(),
+        query: query.to_string(),
+        icon: String::new(),
+        shortcut: shortcut.to_string(),
     })
     .collect()
-}
-
-/// Best-effort site name from a URL host: the domain label before the TLD,
-/// capitalized ("https://www.google.com/…" → "Google"). Used when a
-/// `[modes.web]` value gives only a URL, no explicit `Name | url`.
-fn derive_web_name(url: &str) -> String {
-    let after = url.split_once("://").map(|(_, r)| r).unwrap_or(url);
-    let host = after.split(['/', '?']).next().unwrap_or("");
-    let host = host.strip_prefix("www.").unwrap_or(host);
-    let labels: Vec<&str> = host.split('.').filter(|s| !s.is_empty()).collect();
-    let base = if labels.len() >= 2 {
-        labels[labels.len() - 2]
-    } else {
-        labels.first().copied().unwrap_or("")
-    };
-    let mut c = base.chars();
-    match c.next() {
-        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-        None => "Web".to_string(),
-    }
 }
 
 fn default_binds() -> Vec<(Chord, Action)> {
@@ -689,22 +703,35 @@ fn parse_into(cfg: &mut Config, text: &str) {
                 }
                 _ => warn(&line, "unknown currency key"),
             },
-            "modes.web" => match key.to_lowercase().as_str() {
-                "sigil" => match parse_sigil(&val) {
-                    Ok(s) => cfg.sigil_web = s,
-                    Err(()) => warn(&line, "sigil must be a single character"),
-                },
-                // Any other key is a shortcut prefix; the value is `URL`, or
-                // `Name | URL` to override the derived name.
-                _ => {
-                    let (name, template) = match val.split_once('|') {
-                        Some((n, u)) => (n.trim().to_string(), u.trim().to_string()),
-                        None => (derive_web_name(&val), val.clone()),
-                    };
-                    cfg.web_shortcuts.retain(|w| !w.prefix.eq_ignore_ascii_case(&key));
-                    cfg.web_shortcuts.push(WebShortcut { prefix: key, name, template });
+            // Each engine is one inline table, keyed by the name it shows
+            // under. Merged into the defaults by name, like [shortcuts].
+            "search_engines" => {
+                let Some(fields) = parse_inline_table(&val) else {
+                    warn(&line, "expected { query = \"…{q}…\", icon = \"…\", shortcut = \"…\" }");
+                    continue;
+                };
+                let mut engine = SearchEngine { name: key.clone(), ..SearchEngine::default() };
+                for (k, v) in fields {
+                    match k.as_str() {
+                        "query" | "url" => engine.query = v,
+                        "icon" => engine.icon = v,
+                        "shortcut" => engine.shortcut = v,
+                        _ => warn(&line, "unknown search-engine key"),
+                    }
                 }
-            },
+                if engine.query.is_empty() {
+                    warn(&line, "search engine needs a query URL");
+                    continue;
+                }
+                if !engine.query.contains("{q}") {
+                    warn(&line, "query has no {q} placeholder; terms will be dropped");
+                }
+                cfg.search_engines.retain(|e| !e.name.eq_ignore_ascii_case(&key));
+                cfg.search_engines.push(engine);
+            }
+            // Web search stopped being a sigil mode: each engine is now its
+            // own item in the launcher index.
+            "modes.web" => warn(&line, "[modes.web] is now [search_engines]"),
             "stats" => {
                 if key.replace('-', "_") == "interval" {
                     match val.parse::<f64>() {
@@ -881,7 +908,7 @@ fn apply_icon(icons: &mut Icons, key: &str, val: &str, line: &str) {
         "system" => &mut icons.system,
         "applications" => &mut icons.applications,
         "shortcut" => &mut icons.shortcut,
-        "web" => &mut icons.web,
+        "engine" => &mut icons.engine,
         _ => {
             warn(line, "unknown icon key");
             return;
@@ -933,6 +960,45 @@ fn strip_comment(line: &str) -> &str {
         }
     }
     line
+}
+
+/// Parse a TOML inline table body — `{ key = "value", key = "value" }` — into
+/// its (lowercased key, value) fields. Quotes are optional on both sides;
+/// commas and `=` inside a quoted value are left alone. `None` when the
+/// braces are missing, i.e. the value isn't an inline table at all.
+fn parse_inline_table(s: &str) -> Option<Vec<(String, String)>> {
+    let body = s.trim().strip_prefix('{')?.strip_suffix('}')?;
+    let mut out = Vec::new();
+    for field in split_outside_quotes(body, ',') {
+        let field = field.trim();
+        if field.is_empty() {
+            continue;
+        }
+        // Keys never contain `=`, so the first one is always the separator —
+        // a `q={q}` inside the URL value stays put.
+        let (k, v) = field.split_once('=')?;
+        out.push((unquote(k.trim()).to_lowercase(), unquote(v.trim())));
+    }
+    Some(out)
+}
+
+/// Split on `sep`, ignoring separators inside double quotes.
+fn split_outside_quotes(s: &str, sep: char) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut in_str = false;
+    let mut start = 0;
+    for (i, ch) in s.char_indices() {
+        match ch {
+            '"' => in_str = !in_str,
+            c if c == sep && !in_str => {
+                parts.push(&s[start..i]);
+                start = i + c.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    parts.push(&s[start..]);
+    parts
 }
 
 fn unquote(s: &str) -> String {
@@ -1226,27 +1292,66 @@ cpu_alert_background = "#401010"
 [modes.math]
 sigil = "="
 
-[modes.web]
-sigil = "none"
-"gh" = "GitHub | https://github.com/search?q={q}"
-"ddg" = "https://duckduckgo.com/?q={q}"
-
 [modes.currency]
 sigil = "$"
 targets = "usd, php, btc"
 "##,
         );
         assert_eq!(cfg.sigil_math, Some('='));
-        assert_eq!(cfg.sigil_web, None); // disabled
         assert_eq!(cfg.sigil_currency, Some('$'));
         assert_eq!(cfg.currency_targets, vec!["USD", "PHP", "BTC"]);
         assert_eq!(cfg.sigil_kind('$'), Some(SigilKind::Currency));
-        assert_eq!(cfg.sigil_kind('!'), None); // web disabled
-        // Defaults (g/yt/w) plus the two added; name derived when not given.
-        let gh = cfg.web_shortcuts.iter().find(|w| w.prefix == "gh").unwrap();
-        assert_eq!(gh.name, "GitHub");
-        let ddg = cfg.web_shortcuts.iter().find(|w| w.prefix == "ddg").unwrap();
-        assert_eq!(ddg.name, "Duckduckgo");
+        assert_eq!(cfg.sigil_kind('!'), None);
+    }
+
+    #[test]
+    fn parses_search_engines() {
+        let mut cfg = Config::default();
+        parse_into(
+            &mut cfg,
+            r##"
+[search_engines]
+"GitHub" = { query = "https://github.com/search?q={q}", icon = "@", shortcut = "gh" }
+"DuckDuckGo" = { url = "https://duckduckgo.com/?q={q}" }
+"Google" = { query = "https://example.test/?s={q}", shortcut = "gg" }
+"Broken" = { icon = "x" }
+"##,
+        );
+        let find = |name: &str| {
+            cfg.search_engines.iter().find(|e| e.name == name).cloned().unwrap()
+        };
+        // Every field lands in the one item — no second table to consult.
+        let gh = find("GitHub");
+        assert_eq!(gh.query, "https://github.com/search?q={q}");
+        assert_eq!(gh.icon, "@");
+        assert_eq!(gh.shortcut, "gh");
+        // `url` is accepted as a spelling of `query`; the rest stay unset.
+        let ddg = find("DuckDuckGo");
+        assert_eq!(ddg.query, "https://duckduckgo.com/?q={q}");
+        assert_eq!(ddg.shortcut, "");
+        // A name already in the defaults is replaced, not duplicated.
+        assert_eq!(cfg.search_engines.iter().filter(|e| e.name == "Google").count(), 1);
+        assert_eq!(find("Google").shortcut, "gg");
+        // No query = not an engine.
+        assert!(!cfg.search_engines.iter().any(|e| e.name == "Broken"));
+        // Unset icon falls back to whatever [icons] engine supplies.
+        assert_eq!(ddg.glyph(&cfg.icons.engine), cfg.icons.engine);
+        assert_eq!(gh.glyph(&cfg.icons.engine), "@");
+    }
+
+    #[test]
+    fn parses_inline_tables() {
+        // Commas and `=` inside a quoted value don't split the fields.
+        let t = parse_inline_table(r##"{ query = "https://x.test/?a=1,2&q={q}", icon = "Z" }"##)
+            .unwrap();
+        assert_eq!(t[0], ("query".to_string(), "https://x.test/?a=1,2&q={q}".to_string()));
+        assert_eq!(t[1], ("icon".to_string(), "Z".to_string()));
+        // Trailing comma, bare values, odd spacing.
+        let t = parse_inline_table("{shortcut=g,}").unwrap();
+        assert_eq!(t, vec![("shortcut".to_string(), "g".to_string())]);
+        assert_eq!(parse_inline_table("{}").unwrap(), vec![]);
+        // Not an inline table at all.
+        assert!(parse_inline_table(r##""https://x.test/?q={q}""##).is_none());
     }
 
     #[test]

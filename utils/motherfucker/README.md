@@ -92,9 +92,10 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   `⎋` reverts. Theme files are read at startup and on refresh-config
   only — never on the summon path.
 - `[icons]` — `search`, `running_many`/`running_one`/`running_none`/
-  `installed` (literal glyph strings; SF Symbols pasted as text work), and
-  `utilities`/`system`/`applications`/`shortcut` (SF Symbol names for the
-  tag pills).
+  `installed`, and `engine` (the glyph for a `[search_engines]` entry that
+  sets no `icon` of its own) — all literal glyph strings, SF Symbols pasted
+  as text work — plus `utilities`/`system`/`applications`/`shortcut` (SF
+  Symbol names for the tag pills).
 - `[icons.apps]` — `"App Name" = "glyph"` per-app overrides for the
   row-state glyph (case-insensitive name match). Wrap the key in `*` for a
   substring match instead of exact — `"*downloads*" = "glyph"` matches any
@@ -106,9 +107,9 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   lists **Open, Reveal, Info** when cold, or **Focus, Reveal, Info, Close,
   Kill** when it's the one running (Open becomes Focus since it already is
   one; Close sends a normal quit via `NSRunningApplication.terminate`, Kill
-  force-quits via `forceTerminate`). `↩` runs the highlighted one; `⎋`
-  dismisses the panel outright, backspace on an empty field steps back to
-  the launcher, like a sigil mode. A `[shortcuts]` entry has no bundle
+  force-quits via `forceTerminate`). `↩` runs the highlighted one; `⎋` or
+  backspace on an empty field steps back to the launcher, like a sigil mode
+  (`dismiss` backs out one level before it closes anything). A `[shortcuts]` entry has no bundle
   behind it, so it's `⇥`-able only once it has commands of its own (below).
 - `[commands.<App Name>]` — `"label" = "shell command"` extras appended
   after the built-ins above, matched case-insensitively by row name; `⇥`
@@ -128,20 +129,53 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   the section sits outside `[style]` and no theme can flip it.
 - `[stats]` — `interval`, seconds between gauge refreshes while visible.
 - `[modes]` — sigil assignment for the first-character modes: `math = "="`,
-  `web = "!"` (the defaults); `"none"` disables one. The sigil is lifted out
-  of the field into a colored box; backspace on an empty field returns to the
-  launcher. `=4% of 100` shows `= 4` (`↩` copies); an empty `=` rests at
-  `= 0`. `!yt cat videos` opens a YouTube search (`↩` opens).
-- `[modes.web]` — `"prefix" = "https://…{q}"` web shortcuts for the `!`
-  mode; the row title is the site name, derived from the domain unless given
-  explicitly as `"prefix" = "Name | https://…{q}"`. Defaults: `g` (Google),
-  `yt` (YouTube), `w` (Wikipedia).
+  `currency = "$"` (the defaults); `"none"` disables one. The sigil is lifted
+  out of the field into a colored box; backspace on an empty field returns to
+  the launcher. `=4% of 100` shows `= 4` (`↩` copies); an empty `=` rests at
+  `= 0`.
+- `[search_engines]` — one inline table per engine, keyed by its name:
+  ```toml
+  [search_engines]
+  "Google" = { query = "https://google.com/search?q={q}", icon = "glyph", shortcut = "g" }
+  ```
+  `query` is required (`{q}` = the encoded terms); `icon` and `shortcut` are
+  optional. Defaults: Google (`g`), DuckDuckGo (`ddg`), YouTube (`yt`),
+  Wikipedia (`w`), GitHub (`gh`), Stack Overflow (`so`), Reddit (`r`), Maps
+  (`map`), IMDb (`imdb`); an entry here replaces a default of the same name.
+  See **Search engines** below.
 - `[modes.currency]` — `targets`, a comma list of currency codes the `$`
   mode converts into (default `usd, eur, gbp, aud, btc`). `$500,000 php`,
   `$3k usd`, `$1.4btc` all work (`k`/`m`/`b` multipliers; no code = USD).
   Rates are Coinbase's keyless USD endpoint, fetched via `curl` in the
   background and cached at `~/.cache/motherfucker/rates.json`; the panel
   always renders from cache (never blocks) and the top row shows its age.
+
+### Search engines
+
+An engine is not a mode — it's an **item**, and one config entry is the whole
+item: name, URL, icon and shortcut in a single inline table, rather than a
+name in `[search_engines]` and a glyph over in `[icons.apps]`. That makes it
+an ordinary row in the main index, ranked beside apps and `[shortcuts]`:
+type `goog`, or type the shortcut whole (`yt`), and there it is. A shortcut
+typed whole outranks any fuzzy name match, so it never ties with an app that
+happens to contain those letters.
+
+`↩` **and** `⇥` do the same thing on an engine row — hand the panel over to
+it. There is nothing to "activate" about Google itself, so both keys mean
+step into it: the field clears for the search terms and the engine's glyph
+moves into the input badge, the same badge a sigil mode uses, so the panel
+reads as *typing into Google* rather than *searching for Google*. `↩` then
+opens the search.
+
+The other engines stay listed underneath carrying the same terms, so
+realizing halfway through that you wanted YouTube costs one arrow key rather
+than a retype. Backspace on the empty field, or `⎋`, steps back out to the
+launcher — like a sigil mode or the app-commands list.
+
+An engine with no `icon` falls back to `[icons] engine`, in both the row and
+the badge — so the shipped defaults all draw the one search glyph, and giving
+a single engine its own brand mark is a one-key edit rather than a decision
+you have to make nine times.
 
 Math and currency also autodetect without their sigil, Spotlight-style:
 every keystroke the bare query is reclassified, so `2+2` or `580 php` or
