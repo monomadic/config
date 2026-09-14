@@ -838,19 +838,21 @@ process_video() {
     return 0
   fi
 
-  # A name is capped at NAME_MAX bytes. A long tag list walks past that,
-  # and the name is worth more with its tail cut than not written at all: the
-  # tags go first, last one first, since the front of the list is the part a
-  # human chose to lead with; then the title loses words from its end. The
-  # actors, channel, rating and metadata block are never touched -- they are
-  # short, and they are the part the rest of the library is sorted by.
+  # A name is capped at NAME_MAX bytes. A long title or tag list walks past
+  # that, and the name is worth more with its tail cut than not written at
+  # all: the title goes first, losing words from its end, since the tags are
+  # what the library is searched by and a title is prose that reads fine
+  # truncated; only once the title is gone entirely do the tags go, last one
+  # first, since the front of the list is the part a human chose to lead
+  # with. The actors, channel, rating and metadata block are never touched --
+  # they are short, and they are the part the rest of the library is sorted by.
   while (( $(byte_len "${stem}.${extension}") > NAME_MAX )); do
-    if (( ${#TAGS} )); then
-      TAGS[-1]=()
-    elif [[ "$TITLE" == *" "* ]]; then
+    if [[ "$TITLE" == *" "* ]]; then
       TITLE="${TITLE% *}"
     elif [[ -n "$TITLE" ]]; then
       TITLE=""
+    elif (( ${#TAGS} )); then
+      TAGS[-1]=()
     else
       break
     fi
