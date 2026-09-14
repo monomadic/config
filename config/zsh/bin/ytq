@@ -337,6 +337,18 @@ cmd_next() {
   print ""
   print "Prioritized: $added"
   print "Skipped:     $skipped"
+
+  # A prioritized URL is about to be looked at in `ytq list` / downloaded next,
+  # so pre-fetch its info.json + thumbnail now rather than on first preview.
+  # Best effort: a failed fetch never fails `next` (the URL is already queued).
+  if (( added )) && [[ -z "${YTQ_NEXT_NO_CACHE:-}" ]]; then
+    print ""
+    for url in "$@"; do
+      is_url "$url" || continue
+      cache_warm_url "$url" || true
+    done
+  fi
+  return 0
 }
 
 cmd_addclip() {
@@ -1348,6 +1360,153 @@ cmd_preview() {
   fi
 }
 
+# ── metadata cache warming ───────────────────────────────────────────────────
+# Runs the same fetch the fzf preview pane does (fetch_preview_cache) for one
+# URL, outside fzf, and reports what ended up cached. Used by `ytq next` and
+# `ytq cache populate`. Return: 0 = json cached (thumb may still be missing),
+# 1 = no metadata could be fetched.
+cache_warm_url() {
+  local url="$1"
+  local cache_dir key base json error_file thumbnail
+  local -i had_json=0 had_thumb=0
+
+  cache_dir="$(ytq_cache_dir)"
+  mkdir -p "$cache_dir" 2>/dev/null
+  key="$(url_cache_key "$url")"
+  base="${cache_dir}/${key}"
+  error_file="${base}.error"
+
+  json="$(find_cached_metadata_json "$url" 2>/dev/null)" || json=""
+  [[ -n "$json" ]] || json="${base}.info.json"
+  [[ -s "$json" ]] && had_json=1
+  if (( had_json )); then
+    find_cached_thumbnail "$url" "$key" "$json" "$base" >/dev/null 2>&1 && had_thumb=1
+  fi
+
+  if (( had_json && had_thumb )); then
+    print "${YTQ_C_DIM}${YTQ_I_CHECK} cached    ${url}${YTQ_C_RESET}"
+    return 0
+  fi
+
+  # An explicit warm-up should retry, not honour the preview pane's
+  # 5-minute "don't hammer this URL" error cache.
+  rm -f -- "$error_file"
+
+  print -n "${YTQ_C_DIM}${YTQ_I_DOWN} fetching  ${url}${YTQ_C_RESET}"
+  fetch_preview_cache "$url" "$base"
+  print -n $'\r\e[2K'
+
+  json="$(find_cached_metadata_json "$url" 2>/dev/null)" || json=""
+  [[ -n "$json" ]] || json="${base}.info.json"
+
+  if [[ ! -s "$json" ]]; then
+    print "${YTQ_C_ERR}✗ failed    ${url}${YTQ_C_RESET}"
+    if [[ -s "$error_file" ]]; then
+      local errline
+      tail -n 3 "$error_file" | while IFS= read -r errline; do
+        print "    ${YTQ_C_DIM}${errline}${YTQ_C_RESET}"
+      done
+    fi
+    return 1
+  fi
+
+  thumbnail="$(find_cached_thumbnail "$url" "$key" "$json" "$base" 2>/dev/null)" || thumbnail=""
+  if [[ -n "$thumbnail" ]]; then
+    print "${YTQ_C_OK}${YTQ_I_CHECK} cached    ${url}${YTQ_C_RESET}"
+  else
+    print "${YTQ_C_WARN}${YTQ_I_CHECK} json only ${url}${YTQ_C_RESET} ${YTQ_C_DIM}(no thumbnail)${YTQ_C_RESET}"
+  fi
+  return 0
+}
+
+cmd_cache() {
+  local sub="${1:-}"
+  (( $# )) && shift
+
+  case "$sub" in
+    populate)
+      cmd_cache_populate "$@"
+      ;;
+    ""|-h|--help|help)
+      cat <<EOF
+Usage: ytq cache <subcommand>
+
+  ytq cache populate      Fetch info.json + thumbnail for every queue entry
+                          that is missing either, so \`ytq list\` previews and
+                          titles are instant. Already-complete entries are
+                          skipped; earlier fetch failures are retried.
+EOF
+      ;;
+    *)
+      print -u2 "ytq cache: unknown subcommand: $sub"
+      print -u2 "Try: ytq cache populate"
+      exit 1
+      ;;
+  esac
+}
+
+cmd_cache_populate() {
+  require_batch_file
+  require_command yt-dlp
+
+  local -a urls missing
+  local url line
+  urls=()
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    is_url "$line" || continue
+    urls+=("$line")
+  done < "$YT_DLP_BATCH_FILE"
+
+  (( ${#urls} )) || {
+    print "Queue is empty."
+    return 0
+  }
+
+  # One indexed pass over the json dir to decide what is missing — the
+  # per-URL fallback scan in find_cached_metadata_json runs jq per file.
+  load_json_url_index
+
+  local cache_dir key base json
+  cache_dir="$(ytq_cache_dir)"
+  missing=()
+  for url in "${urls[@]}"; do
+    key="$(url_cache_key "$url")"
+    base="${cache_dir}/${key}"
+    json="$(find_cached_metadata_json "$url" 2>/dev/null)" || json=""
+    [[ -n "$json" ]] || json="${base}.info.json"
+    if [[ -s "$json" ]] && find_cached_thumbnail "$url" "$key" "$json" "$base" >/dev/null 2>&1; then
+      continue
+    fi
+    missing+=("$url")
+  done
+
+  # The index goes stale as soon as the first fetch lands, and
+  # fetch_preview_cache re-checks the json dir after every yt-dlp run —
+  # with a stale index that lookup would miss the file it just wrote.
+  JSON_INDEX_READY=0
+
+  print "Queue: ${#urls}   cached: $(( ${#urls} - ${#missing} ))   missing: ${#missing}"
+  (( ${#missing} )) || return 0
+  print ""
+
+  local -i ok=0 failed=0 i=0
+  for url in "${missing[@]}"; do
+    ((i++))
+    print -n "${YTQ_C_TAG}[$i/${#missing}]${YTQ_C_RESET} "
+    if cache_warm_url "$url"; then
+      ((ok++))
+    else
+      ((failed++))
+    fi
+  done
+
+  print ""
+  print "Fetched: $ok"
+  print "Failed:  $failed"
+  (( failed == 0 ))
+}
+
 cmd_list() {
   require_batch_file
   require_command fzf
@@ -1913,6 +2072,10 @@ Queue editing:
   ytq clean                     Remove archived/completed URLs from the queue.
   ytq clear                     Empty the whole queue.
   ytq edit                      Open the queue file in \$EDITOR.
+  ytq cache populate            Fetch info.json + thumbnail for every queue
+                                entry missing either. (\`ytq next\` does this
+                                for the URLs it prioritizes; set
+                                YTQ_NEXT_NO_CACHE=1 to skip that.)
 
 Viewing and picking:
   ytq print                     Print the numbered queue.
@@ -2005,6 +2168,10 @@ case "$1" in
     ;;
   path)
     cmd_path
+    ;;
+  cache)
+    shift
+    cmd_cache "$@"
     ;;
   __preview)
     shift
