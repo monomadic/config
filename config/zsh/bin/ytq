@@ -675,40 +675,12 @@ metadata_json_candidates() {
   fi
 }
 
-metadata_json_matches_url() {
-  local json="$1"
-  local url="$2"
-  local url_no_fragment="${url%%#*}"
-  local youtube_id faphouse_id
-
-  command -v jq >/dev/null 2>&1 || return 1
-
-  youtube_id="$(youtube_id_from_url "$url" 2>/dev/null)" || youtube_id=""
-  faphouse_id="$(faphouse_id_from_url "$url" 2>/dev/null)" || faphouse_id=""
-
-  jq -e \
-    --arg url "$url" \
-    --arg url_no_fragment "$url_no_fragment" \
-    --arg youtube_id "$youtube_id" \
-    --arg faphouse_id "$faphouse_id" '
-      def extractor:
-        ((.extractor_key // .extractor // "") | tostring | ascii_downcase);
-
-      (.webpage_url? == $url)
-      or (.original_url? == $url)
-      or (.webpage_url? == $url_no_fragment)
-      or (.original_url? == $url_no_fragment)
-      or ($youtube_id != "" and (.id? == $youtube_id) and extractor == "youtube")
-      or ($faphouse_id != "" and (.id? == $faphouse_id) and extractor == "faphouse")
-    ' "$json" >/dev/null 2>&1
-}
-
-# Full-directory fallback scan (metadata_json_matches_url per file) costs one jq
-# spawn per cached json. Called once per URL that's fine, but is_archived_url runs
-# it per QUEUE ROW — for a queue of N items against M cached json files that's
-# O(N*M) jq spawns, which is what made `ytq list` crawl. load_json_url_index()
-# below does the same scan ONCE and indexes it, so batch callers (cmd_list_rows,
-# next_unarchived_queue_item, cmd_clean_completed) get O(1) lookups per row instead.
+# URL → info.json index. Matching a URL against the json dir used to mean one
+# jq spawn per cached file (~4s for ~700 files), and every uncached URL paid
+# that two to four times per fetch — populate, `next` and the preview pane all
+# crawled on it. load_json_url_index() does one chunked jq pass (~0.25s) and
+# find_cached_metadata_json() builds it lazily, so every caller gets O(1)
+# lookups and a process never scans the directory more than once.
 #
 # The same pass also fills JSON_URL_META (title/uploader/cast/duration/extractor,
 # joined by \x1f) so the colorful list rows don't need a second per-row jq spawn.
@@ -726,7 +698,23 @@ load_json_url_index() {
 
   local -a files
   files=( "$dir"/*.info.json(N.) )
-  (( ${#files} )) || { JSON_INDEX_READY=1; return 0 }
+  json_index_ingest "${files[@]}"
+  JSON_INDEX_READY=1
+}
+
+ensure_json_url_index() {
+  (( JSON_INDEX_READY )) || load_json_url_index
+}
+
+# Add one or more info.json files to the index. load_json_url_index() feeds it
+# the whole directory; fetch_preview_cache() feeds it the single file yt-dlp
+# just wrote so the index stays current across a populate run without a
+# rebuild per fetch.
+json_index_ingest() {
+  local -a files
+  files=( "$@" )
+  (( ${#files} )) || return 0
+  command -v jq >/dev/null 2>&1 || return 0
 
   local -r meta_filter='
     def clean:
@@ -788,8 +776,6 @@ load_json_url_index() {
     done <<< "$out"
     (( i += chunk ))
   done
-
-  JSON_INDEX_READY=1
 }
 
 find_cached_metadata_json() {
@@ -808,25 +794,18 @@ find_cached_metadata_json() {
     }
   done
 
-  # A batch caller already built the index (one pass over every cached json) —
-  # trust it and skip straight to a hash lookup instead of re-scanning the
-  # directory for this one URL.
-  if (( JSON_INDEX_READY )); then
-    local url_no_fragment="${url%%#*}"
-    local hit="${JSON_URL_INDEX[$url]:-${JSON_URL_INDEX[$url_no_fragment]:-}}"
-    [[ -n "$hit" && -s "$hit" ]] && { print -r -- "$hit"; return 0; }
-    return 1
-  fi
-
-  command -v jq >/dev/null 2>&1 || return 1
-
-  for file in "$dir"/*.info.json(N.); do
-    if metadata_json_matches_url "$file" "$url"; then
-      print -r -- "$file"
-      return 0
-    fi
-  done
-
+  # No candidate by filename stem: fall back to the URL index. Build it
+  # lazily if nobody has yet — one chunked jq pass (~0.25s for ~700 files)
+  # instead of the old one-jq-per-file scan (~4s), which every uncached URL
+  # used to pay two to four times per fetch.
+  # Callers invoke this inside $(...), so a build here only lives for this
+  # subshell — entry points (cmd_preview, cache_warm_url, cmd_list_rows, ...)
+  # call ensure_json_url_index first so the parent owns it and this is a
+  # plain hash lookup. The lazy build is the fallback for anything else.
+  (( JSON_INDEX_READY )) || load_json_url_index
+  local url_no_fragment="${url%%#*}"
+  local hit="${JSON_URL_INDEX[$url]:-${JSON_URL_INDEX[$url_no_fragment]:-}}"
+  [[ -n "$hit" && -s "$hit" ]] && { print -r -- "$hit"; return 0; }
   return 1
 }
 
@@ -1035,8 +1014,10 @@ fetch_preview_cache() {
     return 0
   fi
 
+  # A preview killed mid-fetch (fzf row change) leaves its tmp log behind;
+  # sweep any earlier ones for this URL before starting another.
+  rm -f -- "${error_file}".tmp.*(N)
   tmp_log="${error_file}.tmp.$$"
-  rm -f "$tmp_log"
 
   if json_dir="$(ytq_json_dir 2>/dev/null)"; then
     mkdir -p "$json_dir" 2>/dev/null
@@ -1054,10 +1035,15 @@ fetch_preview_cache() {
   tmp_thumb_dir="$(mktemp -d -t ytq-thumb)" || tmp_thumb_dir=""
 
   {
+    # The global config's --embed-subs makes yt-dlp fetch and write subtitle
+    # tracks even with --skip-download; a preview never uses them.
     yt-dlp \
       --skip-download \
       --write-thumbnail \
       --write-info-json \
+      --no-write-subs \
+      --no-write-auto-subs \
+      --no-embed-subs \
       --no-download-archive \
       --no-playlist \
       --no-warnings \
@@ -1075,6 +1061,14 @@ fetch_preview_cache() {
     [[ -n "$tmp_thumb_dir" ]] && rm -rf -- "$tmp_thumb_dir"
   }
 
+  # Keep the URL index current: yt-dlp names the file it wrote in its own
+  # output, so index just that one rather than rebuilding after every fetch.
+  if (( JSON_INDEX_READY )) && [[ -s "$tmp_log" ]]; then
+    local written
+    written="$(sed -n 's/^\[info\] .*Writing video metadata as JSON to: //p' "$tmp_log" | tail -n 1)"
+    [[ -n "$written" && -s "$written" ]] && json_index_ingest "$written"
+  fi
+
   metadata_json="$(find_cached_metadata_json "$url" 2>/dev/null)" || metadata_json=""
 
   if (( fetch_status != 0 )) || [[ ! -s "$metadata_json" && ! -s "$json" ]]; then
@@ -1086,7 +1080,14 @@ fetch_preview_cache() {
     rm -f "$tmp_log"
   else
     rm -f "$tmp_log"
-    rm -f "$error_file"
+    if find_cached_thumbnail "$url" "$key" "$metadata_json" "$base" >/dev/null 2>&1; then
+      rm -f "$error_file"
+    else
+      # Metadata landed but no thumbnail did. Without a marker the json-exists
+      # branch above falls through to a full refetch on every hover; this
+      # makes it honour the same 5-minute back-off as a failed fetch.
+      print -r -- "metadata cached; no thumbnail available" > "$error_file"
+    fi
   fi
 }
 
@@ -1108,6 +1109,9 @@ fetch_preview_thumbnail_from_json() {
       --skip-download \
       --write-thumbnail \
       --no-write-info-json \
+      --no-write-subs \
+      --no-write-auto-subs \
+      --no-embed-subs \
       --no-download-archive \
       --no-warnings \
       --no-progress \
@@ -1308,6 +1312,7 @@ cmd_preview() {
 
   [[ -n "$url" ]] || return 0
 
+  ensure_json_url_index
   local cache_dir
   cache_dir="$(ytq_cache_dir)"
   mkdir -p "$cache_dir"
@@ -1370,6 +1375,7 @@ cache_warm_url() {
   local cache_dir key base json error_file thumbnail
   local -i had_json=0 had_thumb=0
 
+  ensure_json_url_index
   cache_dir="$(ytq_cache_dir)"
   mkdir -p "$cache_dir" 2>/dev/null
   key="$(url_cache_key "$url")"
@@ -1480,11 +1486,6 @@ cmd_cache_populate() {
     fi
     missing+=("$url")
   done
-
-  # The index goes stale as soon as the first fetch lands, and
-  # fetch_preview_cache re-checks the json dir after every yt-dlp run —
-  # with a stale index that lookup would miss the file it just wrote.
-  JSON_INDEX_READY=0
 
   print "Queue: ${#urls}   cached: $(( ${#urls} - ${#missing} ))   missing: ${#missing}"
   (( ${#missing} )) || return 0
