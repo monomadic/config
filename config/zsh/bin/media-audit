@@ -2755,12 +2755,12 @@ check_title_metadata() {
 
 # The canonical name is whatever rename-video would write: it names from the
 # embedded tags alone, so a file this check proposes renaming is a file whose
-# tags and name disagree. --force because the audit has its own source-URL
-# check, run before this one, and a Footage file legitimately has no URL.
+# tags and name disagree.
 #
-# rename-video stops with a message on stderr and exit 1 when it cannot name
-# a file at all (no category tag, unsupported category); that is an audit
-# finding, not a skip. Its stdout, under --print-target, is the path -- or a
+# rename-video stops with a message on stderr and exit 1 when the file fails
+# its category's requirement (an uncategorised file with no source URL, an
+# Adult file with neither URL nor title); that is an audit finding, not a
+# skip. Its stdout, under --print-target, is the path -- or a
 # warning when the file could not be probed, which is why only a line that
 # looks like a path is taken as one.
 check_canonical_name() {
@@ -2783,7 +2783,7 @@ import sys
 import time
 
 timeout = float(sys.argv[1])
-cmd = [sys.argv[2], "--print-target", "--force", "--", sys.argv[3]]
+cmd = [sys.argv[2], "--print-target", "--", sys.argv[3]]
 
 with open(sys.argv[4], "w") as err:
     proc = subprocess.Popen(

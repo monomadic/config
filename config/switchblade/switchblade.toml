@@ -1065,7 +1065,7 @@ preview = "mpv --no-fs --loop-file=inf --ontop --no-terminal --force-window=imme
 # Example: bind a key to your own script.
 # [commands.rename_script]
 # type = "launch"
-# program = "~/bin/media-rename"
+# program = "~/.zsh/bin/rename-video"
 # args = ["{path}"]
 
 # Internal actions take parameters too — a skip command with `amount`

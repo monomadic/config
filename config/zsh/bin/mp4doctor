@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # mp4doctor — diagnose and repair MP4/MOV/M4V container structure for streaming.
 #
-# The structural half of media-audit, split out (the way media-rename owns
+# The structural half of media-audit, split out (the way rename-video owns
 # filenames) so it can run standalone over a whole library:
 #
 #   mp4doctor **/*.mp4              # report every check and its result

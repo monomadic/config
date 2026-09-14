@@ -6,7 +6,7 @@
 #alias df="df -h"
 
 
-alias tag=media-rename
+alias tag=rename-video
 alias .tag=tag
 alias rn="batch-rename"
 alias ren="batch-rename"
