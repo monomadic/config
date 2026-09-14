@@ -11,16 +11,27 @@ emulate -L zsh
 # written. Here the file's tags are the only input. A file with no tags gets no
 # name, and the fix is to tag it (tagform), not to rename it more cleverly.
 #
-# The CATEGORY tag decides the grammar. It is required: without one there is no
-# way to know which of the two naming schemes below a file wants, and guessing
-# is what the predecessors did. Two categories are implemented so far --
+# The CATEGORY tag decides the grammar, and what a file must carry before it
+# is named at all:
 #
 #   Adult    ACTORS (CHANNEL) - TITLE #TAGS @G ★★★☆☆ [METADATA].ext
+#            requires a source URL or a title
 #   Footage  DATE PEOPLE - TITLE (LOCATION) #TAGS ★★★☆☆ [METADATA].ext
+#            requires a date or a title
+#   Other    ACTORS (CHANNEL) - TITLE #TAGS ★★★☆☆ [METADATA].ext
+#            requires a source URL
 #
-# -- and any other value is an error that stops the run rather than a file that
-# is quietly skipped, because a category this script does not know is a naming
-# scheme it would otherwise invent.
+# Other is any category value this script has no grammar for, and no
+# category at all: both get the Adult grammar, which is the generic one --
+# the @G mark is the only Adult-specific piece, and it renders only from an
+# Orientation tag. What separates them is the requirement. A file that was
+# never categorised is only nameable if it can be re-tagged from its origin
+# later, so it must carry the URL; Adult and Footage each have a second
+# field that is proof enough it was tagged on purpose.
+#
+# A file that fails its category's requirement stops the run rather than
+# being quietly skipped: a run over a directory should say which file it
+# could not name and why. --force renames it anyway.
 #
 # Orthogonal to the category is the VARIANT tag, which the yt-dlp `--clip`
 # alias sets to "Clip" for one piece of a multi-clip post. A Clip carries its
@@ -74,19 +85,18 @@ emulate -L zsh
 # rename-footage, which rendered one ★ per point and nothing else; five
 # characters is what the rest of the tooling reads.
 #
-# A source URL is required too. yt-dlp embeds the page it fetched from as the
-# original_url / purl / source_url atoms (config/yt-dlp/config) and, by default,
-# as a URL-shaped comment, and that URL is what yt-dlp-refresh-metadata later
+# The source URL the requirements refer to is the one yt-dlp embeds as the
+# original_url / purl / source_url atoms (config/yt-dlp/config) and, by
+# default, as a URL-shaped comment; it is what yt-dlp-refresh-metadata later
 # uses to re-tag the file. A file without one has lost its provenance, and
-# renaming it would bury that fact under a tidy name; so by default the run
-# stops on it, the same way it stops on a missing category. --force renames it
-# anyway, for footage and other files that never came from a URL.
+# renaming it would bury that fact under a tidy name, which is why an
+# uncategorised file with no URL is refused.
 #
 # Nothing is written to the file. Renaming is all this does: tagform owns the
 # tags, and a rename that also edited them would be two tools in a trenchcoat.
 #
 # Options:
-#   --force          Rename even when the file carries no source URL
+#   --force          Rename even when the category's requirement is unmet
 #   --dry-run        Show what would be renamed without changing anything
 #   --print-target   Print the canonical target path only
 #   --verbose        Print debug information about probe/tag decisions
@@ -131,16 +141,21 @@ enable_icons() {
 usage() {
   print -r -- "Usage: ${SCRIPT_NAME} [OPTIONS] video_file..."
   print -r -- ""
-  print -r -- "Rename videos from their embedded tags. The Category tag is required:"
+  print -r -- "Rename videos from their embedded tags. The Category tag picks the grammar"
+  print -r -- "and what the file must carry to be named at all:"
   print -r -- "  Adult    ACTORS (CHANNEL) - TITLE #TAGS @G ★★★☆☆ [METADATA].ext"
+  print -r -- "           requires a source URL or a title"
   print -r -- "  Footage  DATE PEOPLE - TITLE (LOCATION) #TAGS ★★★☆☆ [METADATA].ext"
+  print -r -- "           requires a date or a title"
+  print -r -- "  Other    ACTORS (CHANNEL) - TITLE #TAGS ★★★☆☆ [METADATA].ext"
+  print -r -- "           any other category, or none; requires a source URL"
   print -r -- "A file whose Variant is Clip gets its Track after the title: TITLE (Clip N)"
   print -r -- ""
-  print -r -- "A source URL tag (original_url, purl, source_url, or a URL comment) is"
-  print -r -- "required as well; a file without one stops the run unless --force is given."
+  print -r -- "The source URL is original_url, purl, source_url, or a URL-shaped comment."
+  print -r -- "A file failing its requirement stops the run unless --force is given."
   print -r -- ""
   print -r -- "Options:"
-  print -r -- "  --force          Rename even when the file carries no source URL"
+  print -r -- "  --force          Rename even when the category's requirement is unmet"
   print -r -- "  --dry-run        Show what would be renamed without changing files"
   print -r -- "  --print-target   Print only the canonical target path"
   print -r -- "  --verbose        Print debug information about probe/tag decisions"
@@ -288,13 +303,13 @@ SOURCE_URL=""
 typeset -ga ACTORS=() TAGS=()
 
 # "Camera Footage" is the literal the yt-dlp alias writes; "Footage" is what
-# tagform shows and what this script names by. Anything outside the supported
-# set stops the run: see the header.
+# tagform shows and what this script names by. Anything else, including no
+# category at all, is Other: see the header.
 normalize_category() {
   case "${1:l}" in
     adult|porn|xxx)          print -r -- "Adult" ;;
     footage|camera\ footage) print -r -- "Footage" ;;
-    *)                       print -r -- "" ;;
+    *)                       print -r -- "Other" ;;
   esac
 }
 
@@ -343,7 +358,6 @@ resolve_fields() {
 
   raw="$(first_present "$XMP_GENRE" "$(first_atom category genre)")"
   CATEGORY="$(normalize_category "$raw")"
-  [[ -n "$CATEGORY" ]] || CATEGORY_RAW="$raw"
 
   TITLE="$(first_present "$XMP_TITLE" "$(first_atom title)")"
   CHANNEL="$(first_present "$XMP_CHANNEL" "$(first_atom channel album_artist album)")"
@@ -636,6 +650,10 @@ metadata_block() {
 
 # ACTORS (CHANNEL) - TITLE (Clip N) #TAGS @G ★★★☆☆ [METADATA]
 #
+# The Adult grammar, and the Other grammar too: nothing in it is
+# Adult-specific except the orientation mark, which only an Orientation tag
+# produces.
+#
 # With no actors the channel stands alone and unparenthesised -- the parentheses
 # mark it as belonging to the names in front of them, and with nothing in front
 # there is nothing for them to do.
@@ -726,10 +744,10 @@ byte_len() {
 # a path component. In one place so the shortening loop can rebuild it.
 build_stem() {
   local file="$1" stem
-  if [[ "$CATEGORY" == "Adult" ]]; then
-    stem="$(build_adult_stem)" || return 1
-  else
+  if [[ "$CATEGORY" == "Footage" ]]; then
     stem="$(build_footage_stem "$file")"
+  else
+    stem="$(build_adult_stem)" || return 1
   fi
   stem="$(trim_whitespace "$stem")"
   print -r -- "${stem//\//-}"   # a tag may legitimately contain a slash
@@ -791,7 +809,26 @@ rename_path() {
   fi
 }
 
-CATEGORY_RAW=""
+# What a file must carry before it is named, per category (see the header).
+# Prints the reason it fails, or nothing when it passes.
+requirement_failure() {
+  local file="$1"
+
+  case "$CATEGORY" in
+    Adult)
+      [[ -n "$SOURCE_URL" || -n "$TITLE" ]] && return 0
+      print -r -- "Adult needs a source URL or a title"
+      ;;
+    Footage)
+      [[ -n "$TITLE" || -n "$(resolve_date "$file")" ]] && return 0
+      print -r -- "Footage needs a date or a title"
+      ;;
+    *)
+      [[ -n "$SOURCE_URL" ]] && return 0
+      print -r -- "an uncategorised file needs a source URL (original_url, purl, source_url or a URL comment)"
+      ;;
+  esac
+}
 
 process_video() {
   local file="$1"
@@ -801,30 +838,19 @@ process_video() {
 
   log_verbose "processing file: $file"
 
-  CATEGORY_RAW=""
   probe_atoms "$file"
   read_xmp "$file"
   resolve_fields
 
   # The one fatal condition, and deliberately fatal rather than skipped: a
-  # missing or unknown category means this script does not know which naming
-  # scheme the file wants, and a run over a directory should stop and say so
-  # rather than rename half of it under a guess.
-  if [[ -z "$CATEGORY" ]]; then
-    if [[ -n "$CATEGORY_RAW" ]]; then
-      die "Unsupported category '${CATEGORY_RAW}': ${filename}
-  Only 'Adult' and 'Footage' are implemented so far."
-    fi
-    die "No category tag: ${filename}
-  Tag it first (tagform), then rename."
-  fi
-
-  # Fatal for the same reason: a file with no source URL cannot be re-tagged
-  # from its origin later, and a rename would hide that. --force is the
-  # opt-out for files that never had one.
-  if [[ -z "$SOURCE_URL" ]] && ! $FORCE; then
-    die "No source URL tag: ${filename}
-  Expected original_url, purl, source_url or a URL comment. Pass --force to rename anyway."
+  # file that fails its category's requirement is a file this script should
+  # not name, and a run over a directory should stop and say which one rather
+  # than rename the rest around it. --force is the opt-out.
+  local why
+  why="$(requirement_failure "$file")"
+  if [[ -n "$why" ]] && ! $FORCE; then
+    die "Cannot name ${filename}: ${why}.
+  Tag it first (tagform), or pass --force to rename anyway."
   fi
 
   if ! probe_media "$file"; then
