@@ -92,45 +92,46 @@ archive_key_for_url() {
 
   # Cached metadata (any extractor yt-dlp supports) is authoritative and
   # matches the archive file's "<extractor> <id>" format directly — try it
-  # first so sites other than youtube/faphouse are recognized too.
-  if json="$(find_cached_metadata_json "$url" 2>/dev/null)" && [[ -s "$json" ]]; then
+  # first so sites other than youtube/faphouse are recognized too. With the
+  # index loaded that's a hash lookup (the key is carried in JSON_URL_META);
+  # otherwise fall back to one jq on the file.
+  if (( JSON_INDEX_READY )); then
+    if key="$(json_meta_archive_key "$url")" && [[ -n "$key" ]]; then
+      print -r -- "$key"
+      return 0
+    fi
+  elif json="$(find_cached_metadata_json "$url" 2>/dev/null)" && [[ -s "$json" ]]; then
     if key="$(archive_key_from_json "$json" 2>/dev/null)" && [[ -n "$key" ]]; then
       print -r -- "$key"
       return 0
     fi
   fi
 
-  if video_id="$(youtube_id_from_url "$url" 2>/dev/null)"; then
-    print -r -- "youtube $video_id"
-    return 0
-  fi
-
-  if video_id="$(faphouse_id_from_url "$url" 2>/dev/null)"; then
-    print -r -- "faphouse $video_id"
-    return 0
-  fi
-
-  if video_id="$(pornhub_id_from_url "$url" 2>/dev/null)"; then
-    print -r -- "pornhub $video_id"
-    return 0
-  fi
-
-  if video_id="$(xhamster_id_from_url "$url" 2>/dev/null)"; then
-    print -r -- "xhamster $video_id"
-    return 0
-  fi
-
-  if video_id="$(xvideos_id_from_url "$url" 2>/dev/null)"; then
-    print -r -- "xvideos $video_id"
-    return 0
-  fi
-
-  if video_id="$(xvideosred_id_from_url "$url" 2>/dev/null)"; then
-    print -r -- "xvideosred $video_id"
+  if url_site_stem "$url"; then
+    print -r -- "${REPLY%%_*} ${REPLY#*_}"
     return 0
   fi
 
   return 1
+}
+
+# Metadata row (JSON_URL_META value) for a URL: exact webpage/original URL
+# match first, then the <site>_<id> stem. Sets REPLY; fork-free.
+json_meta_for_url() {
+  local url="$1"
+  REPLY="${JSON_URL_META[$url]:-${JSON_URL_META[${url%%\#*}]:-}}"
+  if [[ -z "$REPLY" ]] && url_site_stem "$url"; then
+    REPLY="${JSON_URL_META[$REPLY]:-}"
+  fi
+  [[ -n "$REPLY" ]]
+}
+
+json_meta_archive_key() {
+  json_meta_for_url "$1" || return 1
+  local -a f
+  f=( "${(@ps:\x1f:)REPLY}" )
+  [[ -n "${f[6]:-}" ]] || return 1
+  print -r -- "${f[6]}"
 }
 
 # Reads the canonical "<extractor> <id>" key straight out of a cached
@@ -216,6 +217,26 @@ xvideosred_id_from_url() {
   fi
 
   return 1
+}
+
+# Fork-free "<site>_<id>" for the sites whose yt-dlp id is recoverable from the
+# URL — the same patterns as the *_id_from_url helpers above, but setting REPLY
+# instead of printing, so the list renderer can call it per row without a
+# subshell. The stem doubles as the info.json filename and (split on the first
+# "_") the archive key.
+url_site_stem() {
+  local url="$1"
+  REPLY=""
+  if [[ "$url" =~ 'youtu\.be/([A-Za-z0-9_-]{11})' ]]; then REPLY="youtube_$match[1]"
+  elif [[ "$url" =~ 'youtube(-nocookie)?\.com/(shorts|embed|live|v)/([A-Za-z0-9_-]{11})' ]]; then REPLY="youtube_$match[3]"
+  elif [[ "$url" =~ 'youtube(-nocookie)?\.com/.*[?&]v=([A-Za-z0-9_-]{11})' ]]; then REPLY="youtube_$match[2]"
+  elif [[ "$url" =~ 'faphouse\.com/([a-z]{2}(-[a-z]{2})?/)?(videos?|watch)/([^/?#&]+)' ]]; then REPLY="faphouse_$match[4]"
+  elif [[ "$url" =~ 'pornhub\.com/.*[?&]viewkey=([a-zA-Z0-9]+)' ]]; then REPLY="pornhub_$match[1]"
+  elif [[ "$url" =~ 'xhamster\.com/videos/.*-(xh[A-Za-z0-9]+)([/?#]|$)' ]]; then REPLY="xhamster_$match[1]"
+  elif [[ "$url" =~ 'xvideos\.com/video\.([a-z0-9]+)' ]]; then REPLY="xvideos_$match[1]"
+  elif [[ "$url" =~ 'xvideos\.red/video\.([a-z0-9]+)' ]]; then REPLY="xvideosred_$match[1]"
+  fi
+  [[ -n "$REPLY" ]]
 }
 
 load_archive() {
@@ -423,17 +444,20 @@ cmd_clean_completed() {
 
 # Compact "1h 2m" / "3m 4s" duration from raw seconds — mirrors ytui's own
 # human_duration but for the list row, where space is tight.
+# Sets REPLY (no output, no fork) — the list renderer calls this per row.
 ytq_fmt_duration() {
-  local -i secs="${1:-0}"
+  local -i secs=0
+  [[ "${1:-}" == <-> ]] && secs="$1"
+  REPLY=""
   (( secs > 0 )) || return 1
 
   local -i h=$(( secs / 3600 )) m=$(( (secs % 3600) / 60 )) s=$(( secs % 60 ))
   if (( h > 0 )); then
-    print -r -- "${h}h ${m}m"
+    REPLY="${h}h ${m}m"
   elif (( m > 0 )); then
-    print -r -- "${m}m ${s}s"
+    REPLY="${m}m ${s}s"
   else
-    print -r -- "${s}s"
+    REPLY="${s}s"
   fi
 }
 
@@ -443,26 +467,32 @@ queue_list_item() {
   local url="$1"
   local index="$2"
 
-  local meta="${JSON_URL_META[$url]:-${JSON_URL_META[${url%%\#*}]:-}}"
-  # Exact webpage_url/original_url match missed — try the same <extractor>_<id>
-  # stem identity find_cached_metadata_json falls back to (redirects, stale
-  # entries, trailing slashes all break the exact-string match above).
-  if [[ -z "$meta" ]]; then
-    local cand stem
-    for cand in "${(@f)$(metadata_json_candidates "$url" "")}"; do
-      stem="${cand#/}"; stem="${stem%.info.json}"
-      [[ -n "${JSON_URL_META[$stem]:-}" ]] && { meta="${JSON_URL_META[$stem]}"; break }
-    done
-  fi
+  # Everything in here must stay fork-free: fzf streams these rows and a
+  # subshell per row is a visible per-line draw delay over a few hundred
+  # entries. Metadata, archive key and cache key all come from tables the
+  # caller (cmd_list_rows) filled in a handful of spawns up front.
+  local meta=""
+  json_meta_for_url "$url" && meta="$REPLY"
+
   local glyph color idxfmt line suffix
-  idxfmt="$(printf '%4s' "$index")"
+  idxfmt="${(l:4:)index}"
+
+  local title uploader cast duration extractor akey
+  local -a f
+  if [[ -n "$meta" ]]; then
+    f=( "${(@ps:\x1f:)meta}" )
+    title="${f[1]:-}" uploader="${f[2]:-}" cast="${f[3]:-}" duration="${f[4]:-}" extractor="${f[5]:-}" akey="${f[6]:-}"
+  fi
+  if [[ -z "$akey" ]] && url_site_stem "$url"; then
+    akey="${REPLY%%_*} ${REPLY#*_}"
+  fi
 
   # Running beats archived: a re-download in flight is the more useful thing to
   # see, and mid-download the archive may already claim the entry.
-  if is_running_url "$url"; then
+  if (( RUNNING_MARKERS )) && is_running_url "$url"; then
     glyph="${YTQ_C_WARN}${YTQ_I_DOWN}${YTQ_C_RESET}"
     suffix="  ${YTQ_C_WARN}${YTQ_I_DOWN} downloading${YTQ_C_RESET}"
-  elif is_archived_url "$url"; then
+  elif [[ -n "$akey" && -n "${ARCHIVED[$akey]:-}" ]] || [[ -n "${ARCHIVED[$url]:-}" ]]; then
     glyph="${YTQ_C_OK}${YTQ_I_CHECK}${YTQ_C_RESET}"
   else
     glyph="${YTQ_C_ACCENT}${YTQ_I_PLAY}${YTQ_C_RESET}"
@@ -473,30 +503,43 @@ queue_list_item() {
     return
   fi
 
-  local title uploader cast duration extractor
-  IFS=$'\x1f' read -r title uploader cast duration extractor <<< "$meta"
-
   line="${glyph} ${YTQ_C_DIM}${idxfmt}${YTQ_C_RESET}"
   [[ -n "$title" ]] && line+="  ${YTQ_C_TITLE}${title}${YTQ_C_RESET}" || line+="  ${url}"
   [[ -n "$uploader" ]] && line+="  ${YTQ_C_DIM}${YTQ_I_USER}${YTQ_C_RESET} ${YTQ_C_USER}${uploader}${YTQ_C_RESET}"
   [[ -n "$cast" && "$cast" != "$uploader" ]] && line+="  ${YTQ_C_DIM}${YTQ_I_USERS}${YTQ_C_RESET} ${YTQ_C_ACTOR}${cast}${YTQ_C_RESET}"
-  local durtxt; durtxt="$(ytq_fmt_duration "$duration" 2>/dev/null)" && line+="  ${YTQ_C_DIM}${YTQ_I_CLOCK} ${durtxt}${YTQ_C_RESET}"
+  ytq_fmt_duration "$duration" && line+="  ${YTQ_C_DIM}${YTQ_I_CLOCK} ${REPLY}${YTQ_C_RESET}"
   [[ -n "$extractor" ]] && line+="  ${YTQ_C_TAG}${YTQ_I_TAG} ${extractor}${YTQ_C_RESET}"
   line+="$suffix"
 
   printf '%s\t%s\t%s\n' "$url" "$index" "$line"
 }
 
+# Set once per render: how many in-flight markers exist. Zero (the usual case)
+# lets queue_list_item skip the per-row marker check entirely.
+typeset -gi RUNNING_MARKERS=0
+
 cmd_list_rows() {
   require_batch_file
   load_archive
   load_json_url_index
 
-  local line index=0
-  while IFS= read -r line; do
+  local -a lines urls
+  lines=( "${(@f)$(<"$YT_DLP_BATCH_FILE")}" )
+  urls=( "${(@)lines:#}" )
+
+  local -a markers
+  markers=( "$(ytq_running_dir)"/*(N.) )
+  RUNNING_MARKERS=${#markers}
+  # Marker files are named by sha256 of the URL; hash the whole queue in one
+  # perl spawn instead of shasum+awk per row.
+  (( RUNNING_MARKERS )) && load_url_cache_keys "${urls[@]}"
+
+  local line
+  local -i index=0
+  for line in "${lines[@]}"; do
     ((index++))
     [[ -n "$line" ]] && queue_list_item "$line" "$index"
-  done < "$YT_DLP_BATCH_FILE"
+  done
 }
 
 cmd_rm_index() {
@@ -559,8 +602,28 @@ ytq_cache_dir() {
   print -r -- "${XDG_CACHE_HOME:-$HOME/.cache}/ytq"
 }
 
+# Two forks per call (shasum + awk). Batch callers precompute keys for a whole
+# URL list in ONE perl fork via load_url_cache_keys and this consults that first.
+typeset -gA URL_CACHE_KEY_OF
+
 url_cache_key() {
+  if [[ -n "${URL_CACHE_KEY_OF[$1]:-}" ]]; then
+    print -r -- "${URL_CACHE_KEY_OF[$1]}"
+    return 0
+  fi
   printf 'ytq-preview-v4\n%s' "$1" | shasum -a 256 | awk '{print $1}'
+}
+
+load_url_cache_keys() {
+  (( $# )) || return 0
+  command -v perl >/dev/null 2>&1 || return 0
+  local -a keys
+  keys=( "${(@f)$(print -rl -- "$@" | perl -MDigest::SHA=sha256_hex -ne 'chomp; print sha256_hex("ytq-preview-v4\n$_"), "\n"')}" )
+  (( ${#keys} == $# )) || return 0
+  local -i i
+  for (( i = 1; i <= $#; i++ )); do
+    URL_CACHE_KEY_OF[${argv[i]}]="${keys[i]}"
+  done
 }
 
 # ── in-flight download state ─────────────────────────────────────────────────
@@ -648,31 +711,8 @@ ytq_thumbcache_dir() {
 metadata_json_candidates() {
   local url="$1"
   local dir="$2"
-  local video_id
 
-  if video_id="$(youtube_id_from_url "$url" 2>/dev/null)"; then
-    print -r -- "$dir/youtube_${video_id}.info.json"
-  fi
-
-  if video_id="$(faphouse_id_from_url "$url" 2>/dev/null)"; then
-    print -r -- "$dir/faphouse_${video_id}.info.json"
-  fi
-
-  if video_id="$(pornhub_id_from_url "$url" 2>/dev/null)"; then
-    print -r -- "$dir/pornhub_${video_id}.info.json"
-  fi
-
-  if video_id="$(xhamster_id_from_url "$url" 2>/dev/null)"; then
-    print -r -- "$dir/xhamster_${video_id}.info.json"
-  fi
-
-  if video_id="$(xvideos_id_from_url "$url" 2>/dev/null)"; then
-    print -r -- "$dir/xvideos_${video_id}.info.json"
-  fi
-
-  if video_id="$(xvideosred_id_from_url "$url" 2>/dev/null)"; then
-    print -r -- "$dir/xvideosred_${video_id}.info.json"
-  fi
+  url_site_stem "$url" && print -r -- "$dir/${REPLY}.info.json"
 }
 
 # URL → info.json index. Matching a URL against the json dir used to mean one
@@ -682,8 +722,8 @@ metadata_json_candidates() {
 # find_cached_metadata_json() builds it lazily, so every caller gets O(1)
 # lookups and a process never scans the directory more than once.
 #
-# The same pass also fills JSON_URL_META (title/uploader/cast/duration/extractor,
-# joined by \x1f) so the colorful list rows don't need a second per-row jq spawn.
+# The same pass also fills JSON_URL_META (title/uploader/cast/duration/extractor/
+# archive key, joined by \x1f) so the colorful list rows don't need a second per-row jq spawn.
 typeset -gA JSON_URL_INDEX JSON_URL_META
 typeset -gi JSON_INDEX_READY=0
 
@@ -734,7 +774,12 @@ json_index_ingest() {
       ((.uploader // .channel // .creator // "") | clean),
       (((.cast // .creators // []) | if type == "array" then join(", ") else tostring end) | clean),
       ((.duration // 0) | tostring),
-      ((.extractor_key // .extractor // "") | tostring | ascii_downcase)
+      ((.extractor_key // .extractor // "") | tostring | ascii_downcase),
+      (
+        ((.extractor_key // .extractor // "") | tostring | ascii_downcase | gsub("[^a-z0-9]"; "")) as $ek
+        | (.id // "" | tostring) as $id
+        | if $ek != "" and $id != "" then "\($ek) \($id)" else "" end
+      )
     ] | join("")
     '
 
@@ -752,13 +797,13 @@ json_index_ingest() {
   # themselves, so it's a safe delimiter to introduce.
   local -a slice
   local -i chunk=200 i=1 n=${#files}
-  local out file webpage original title uploader cast duration extractor meta stem
+  local out file webpage original title uploader cast duration extractor akey meta stem
   while (( i <= n )); do
     slice=( "${(@)files[i,i+chunk-1]}" )
     out="$(jq -r "$meta_filter" "${slice[@]}" 2>/dev/null)"
-    while IFS=$'\x1f' read -r file webpage original title uploader cast duration extractor; do
+    while IFS=$'\x1f' read -r file webpage original title uploader cast duration extractor akey; do
       [[ -n "$file" ]] || continue
-      meta="${title}"$'\x1f'"${uploader}"$'\x1f'"${cast}"$'\x1f'"${duration}"$'\x1f'"${extractor}"
+      meta="${title}"$'\x1f'"${uploader}"$'\x1f'"${cast}"$'\x1f'"${duration}"$'\x1f'"${extractor}"$'\x1f'"${akey}"
       if [[ -n "$webpage" ]]; then
         JSON_URL_INDEX[$webpage]="$file"
         JSON_URL_META[$webpage]="$meta"
