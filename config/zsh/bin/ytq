@@ -1486,6 +1486,8 @@ Usage: ytq cache <subcommand>
                           that is missing either, so \`ytq list\` previews and
                           titles are instant. Already-complete entries are
                           skipped; earlier fetch failures are retried.
+                          Options: --limit N, --host DOMAIN, --delay SECS,
+                          --max-failures N (see \`ytq cache populate --help\`).
 EOF
       ;;
     *)
@@ -1496,9 +1498,66 @@ EOF
   esac
 }
 
+# Host of a URL, minus a leading "www." — the unit populate paces and
+# circuit-breaks on. Sets REPLY.
+url_host() {
+  REPLY="${1#*://}"; REPLY="${REPLY%%/*}"; REPLY="${REPLY%%:*}"; REPLY="${REPLY#www.}"
+  REPLY="${(L)REPLY}"
+  [[ -n "$REPLY" ]]
+}
+
+# A failure that will not fix itself on the next URL from the same host:
+# throttled, forbidden, or a guest page (cookies expired). Any of these trips
+# the host breaker immediately instead of counting toward the failure limit.
+populate_error_is_fatal() {
+  local error_file="$1"
+  [[ -s "$error_file" ]] || return 1
+  grep -qiE 'HTTP Error 429|Too Many Requests|HTTP Error 403|Forbidden|returned a guest page|Sign in at' "$error_file" 2>/dev/null
+}
+
 cmd_cache_populate() {
   require_batch_file
   require_command yt-dlp
+
+  # Flood protection. The run is sequential (one yt-dlp per URL, ~5s each), so
+  # raw rate is never the problem — the problem is not reacting to failure:
+  # a dead or throttling host fails FAST, so an unguarded run hits it harder
+  # the worse it gets, with your logged-in cookies attached. Hence a per-host
+  # circuit breaker, a pause between same-host fetches, a longer one after a
+  # failure, and --limit/--host to chunk a big backlog.
+  local -i limit=0 max_failures="${YTQ_POPULATE_MAX_FAILURES:-3}"
+  local delay="${YTQ_POPULATE_DELAY:-1.5}"
+  local -a only_hosts
+  local arg
+  while (( $# )); do
+    arg="$1"; shift
+    case "$arg" in
+      --limit) [[ "${1:-}" == <-> ]] || { print -u2 "ytq cache populate: --limit needs a number"; return 2 }; limit="$1"; shift ;;
+      --limit=*) limit="${arg#*=}"; [[ "$limit" == <-> ]] || { print -u2 "ytq cache populate: --limit needs a number"; return 2 } ;;
+      --host) [[ -n "${1:-}" ]] || { print -u2 "ytq cache populate: --host needs a domain"; return 2 }; url_host "https://$1/" && only_hosts+=("$REPLY"); shift ;;
+      --host=*) url_host "https://${arg#*=}/" && only_hosts+=("$REPLY") ;;
+      --delay) delay="${1:-}"; shift ;;
+      --delay=*) delay="${arg#*=}" ;;
+      --max-failures) max_failures="${1:-}"; shift ;;
+      --max-failures=*) max_failures="${arg#*=}" ;;
+      -h|--help)
+        cat <<EOF
+Usage: ytq cache populate [--limit N] [--host DOMAIN]... [--delay SECS] [--max-failures N]
+
+  --limit N         Stop after N fetch attempts (skipped entries don't count).
+  --host DOMAIN     Only fetch entries on DOMAIN (repeatable; "www." ignored).
+  --delay SECS      Pause between fetches to the same host (default 1.5;
+                    4x that after a failure). YTQ_POPULATE_DELAY overrides.
+  --max-failures N  Consecutive failures before a host is skipped for the rest
+                    of the run (default 3). A 429/403 or an expired-login page
+                    skips the host at once. YTQ_POPULATE_MAX_FAILURES overrides.
+EOF
+        return 0 ;;
+      *) print -u2 "ytq cache populate: unknown option: $arg"; return 2 ;;
+    esac
+  done
+  [[ "$delay" == <-> || "$delay" == <->.<-> || "$delay" == .<-> ]] || { print -u2 "ytq cache populate: --delay needs a number"; return 2 }
+  [[ "$max_failures" == <-> ]] || { print -u2 "ytq cache populate: --max-failures needs a number"; return 2 }
 
   local -a urls missing
   local url line
@@ -1514,14 +1573,18 @@ cmd_cache_populate() {
     return 0
   }
 
-  # One indexed pass over the json dir to decide what is missing — the
-  # per-URL fallback scan in find_cached_metadata_json runs jq per file.
+  # One indexed pass over the json dir to decide what is missing.
   load_json_url_index
 
-  local cache_dir key base json
+  local cache_dir key base json host
+  local -i filtered_out=0
   cache_dir="$(ytq_cache_dir)"
   missing=()
   for url in "${urls[@]}"; do
+    if (( ${#only_hosts} )); then
+      url_host "$url" || continue
+      (( ${only_hosts[(Ie)$REPLY]} )) || { ((filtered_out++)); continue }
+    fi
     key="$(url_cache_key "$url")"
     base="${cache_dir}/${key}"
     json="$(find_cached_metadata_json "$url" 2>/dev/null)" || json=""
@@ -1532,24 +1595,71 @@ cmd_cache_populate() {
     missing+=("$url")
   done
 
-  print "Queue: ${#urls}   cached: $(( ${#urls} - ${#missing} ))   missing: ${#missing}"
+  print -n "Queue: ${#urls}   cached: $(( ${#urls} - ${#missing} - filtered_out ))   missing: ${#missing}"
+  (( filtered_out )) && print -n "   other hosts: $filtered_out"
+  print ""
   (( ${#missing} )) || return 0
+  (( limit )) && print "Limit: $limit fetch(es)"
   print ""
 
-  local -i ok=0 failed=0 i=0
+  local -A host_fails host_blocked
+  local last_host="" error_file reason
+  local -i ok=0 failed=0 skipped=0 attempts=0 i=0
+  local pause
   for url in "${missing[@]}"; do
     ((i++))
+    url_host "$url" || REPLY="?"
+    host="$REPLY"
+
+    if [[ -n "${host_blocked[$host]:-}" ]]; then
+      ((skipped++))
+      continue
+    fi
+    if (( limit && attempts >= limit )); then
+      ((skipped++))
+      continue
+    fi
+
+    # Pace same-host fetches; a failure earns the next attempt a longer wait.
+    if [[ "$host" == "$last_host" ]]; then
+      pause="$delay"
+      (( ${host_fails[$host]:-0} )) && { pause=$(( delay * 4 )); pause="${pause%.}"; }
+      (( pause > 0 )) && sleep "$pause"
+    fi
+    last_host="$host"
+
+    ((attempts++))
     print -n "${YTQ_C_TAG}[$i/${#missing}]${YTQ_C_RESET} "
     if cache_warm_url "$url"; then
       ((ok++))
-    else
-      ((failed++))
+      host_fails[$host]=0
+      continue
+    fi
+
+    ((failed++))
+    host_fails[$host]=$(( ${host_fails[$host]:-0} + 1 ))
+    error_file="${cache_dir}/$(url_cache_key "$url").error"
+    reason=""
+    if populate_error_is_fatal "$error_file"; then
+      reason="throttled, forbidden or signed out"
+    elif (( host_fails[$host] >= max_failures )); then
+      reason="${host_fails[$host]} consecutive failures"
+    fi
+    if [[ -n "$reason" ]]; then
+      host_blocked[$host]="$reason"
+      print "${YTQ_C_WARN}⏸ skipping the rest of ${host}: ${reason}${YTQ_C_RESET}"
     fi
   done
 
   print ""
   print "Fetched: $ok"
   print "Failed:  $failed"
+  (( skipped )) && print "Skipped: $skipped"
+  if (( ${#host_blocked} )); then
+    for host in "${(@k)host_blocked}"; do
+      print "${YTQ_C_WARN}Stopped on ${host} (${host_blocked[$host]}); rerun with --host ${host} once it's fixed.${YTQ_C_RESET}"
+    done
+  fi
   (( failed == 0 ))
 }
 
@@ -2119,7 +2229,9 @@ Queue editing:
   ytq clear                     Empty the whole queue.
   ytq edit                      Open the queue file in \$EDITOR.
   ytq cache populate            Fetch info.json + thumbnail for every queue
-                                entry missing either. (\`ytq next\` does this
+                                entry missing either; paced per host with a
+                                failure breaker. --limit N / --host DOMAIN
+                                chunk a big backlog. (\`ytq next\` does this
                                 for the URLs it prioritizes; set
                                 YTQ_NEXT_NO_CACHE=1 to skip that.)
 

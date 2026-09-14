@@ -114,6 +114,7 @@ _ytq() {
     'rm:Remove one exact URL from the queue'
     'dedupe:Remove duplicate and blank queue entries'
     'edit:Open the queue file in $EDITOR'
+    'cache:Warm the metadata/thumbnail cache (populate)'
     'path:Print the queue file path'
     'help:Show help'
     'addclip:Alias for paste'
@@ -150,6 +151,22 @@ _ytq() {
           ;;
         clean|prune)
           _arguments '--quiet[Suppress cleanup summary]'
+          ;;
+        cache)
+          if (( CURRENT == 3 )); then
+            _describe -t cache-commands 'cache subcommand' '(populate:Fetch missing info.json + thumbnails for the queue)'
+          elif [[ "$words[3]" == populate ]]; then
+            _arguments \
+              '--limit[Stop after N fetch attempts]:count:' \
+              '--limit=[Stop after N fetch attempts]:count:' \
+              '*--host[Only fetch entries on this domain]:domain:' \
+              '*--host=[Only fetch entries on this domain]:domain:' \
+              '--delay[Seconds between same-host fetches (default 1.5)]:seconds:' \
+              '--delay=[Seconds between same-host fetches (default 1.5)]:seconds:' \
+              '--max-failures[Consecutive failures before a host is skipped (default 3)]:count:' \
+              '--max-failures=[Consecutive failures before a host is skipped (default 3)]:count:' \
+              '(-h --help)'{-h,--help}'[Show populate options]'
+          fi
           ;;
         edit|path|print|queue|ls|paste|addclip|dedupe|clear|help)
           _message 'no arguments'
