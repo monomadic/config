@@ -246,7 +246,7 @@ seekbar_fade_ms = 150.0
 # inside the band slides out from under the pointer that came for it.
 # Keep this above the hit band's 24px downward reach.
 seekbar_dock_gap = 34.0
-seekbar_height = 6.0
+seekbar_height = 10.0
 seekbar_hover_height = 12.0
 seekbar_bg_opacity = 0.55
 seekbar_bg_pad = 0.5

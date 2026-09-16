@@ -26,6 +26,9 @@
 #   R   rating 0–5 stars (same star-in-filename convention as media-set-rating)
 #   q   quit (Ctrl-C also works)
 #
+# When the download finishes, a final prompt offers `r` (reveal in Finder via
+# `open --reveal`) and `o` (open with the default app); any other key exits.
+#
 # The rating and the edited title/actors/tags feed a proposed filename built
 # with the SAME grammar that media-parse-filename-to-json reads back:
 #
@@ -933,5 +936,23 @@ if (( touched )); then
     print -r -- "  ${C_OK}renamed →${C_RESET} ${C_FILE}${dst:t}${C_RESET}"
   else
     print -ru2 -- "  ${C_ERR}rename failed${C_RESET}"
+  fi
+fi
+
+# ── final prompt: reveal / open the finished file ────────────────────────────
+# One keypress, read straight from the tty (stdin may be a pipe). `r` reveals in
+# Finder, `o` opens with the default app; anything else just exits.
+final_out="$src"
+[[ -n "${dst:-}" && -e "$dst" && ! -e "$src" ]] && final_out="$dst"
+if [[ -e "$final_out" && -r /dev/tty ]]; then
+  print -rn -- "  ${C_KEY}r${C_DESC} reveal   ${C_KEY}o${C_DESC} open   ${C_DIM}any other key: done${C_RESET} "
+  if read -k 1 -s key </dev/tty 2>/dev/null; then
+    print -r -- ""
+    case "$key" in
+      r|R) open --reveal -- "$final_out" ;;
+      o|O) open -- "$final_out" ;;
+    esac
+  else
+    print -r -- ""
   fi
 fi

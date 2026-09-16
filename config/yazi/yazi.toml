@@ -28,7 +28,7 @@ play = [
   { desc = "􀯛  mp4doctor --fix", run = '''/Users/nom/.zsh/bin/kitty-launch --tab --hold --cwd %d1 --title " mp4doctor fix " -- /Users/nom/.zsh/bin/mp4doctor --fix %s''', orphan = true },
   { desc = "􀇺  rename-video", run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 -- /Users/nom/.zsh/bin/rename-video %s''', orphan = true },
   { desc = "􀏟  autodetect chapters", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 -- /Users/nom/.zsh/bin/ffmpeg-scenedetect-chapters %s''', orphan = true },
-  { desc = "􂿥  a/bner", run = "abner %s", orphan = true },
+  { desc = "􂿥  a/bner", run = "open -a Abner %s", orphan = true },
   { desc = "􀼹  open-url", run = "media-open-url %s" },
   { desc = "􁾕  convert: prores", run = "convert-to-pro-res %s .", orphan = true },
   { desc = "􁾕  convert: hevc", run = "convert-to-hevc %s .", orphan = true },
