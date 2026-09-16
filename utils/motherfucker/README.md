@@ -26,7 +26,7 @@ selecting it and pressing `↩`); the hints disappear the moment ⌘ is
 released. A hint never shadows a configured `[keys]` chord — `⌘R`/`⌘A`
 stay Reveal/Select All even if a visible row starts with R or A.
 
-Install: `setup/install/motherfucker.sh` — builds release, installs to
+Install: `setup/install/install-motherfucker.sh` — builds release, installs to
 `~/.bin`, and loads a LaunchAgent (`com.nom.motherfucker`) so it starts at
 login and relaunches if it ever dies. Re-run the script after code changes;
 it reloads the agent. Uninstall: `launchctl bootout gui/$(id -u)
@@ -68,7 +68,8 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   `selected_item_opacity`/`selected_item_corner_radius`/
   `selected_item_border`/`selected_item_border_width` (inset stroke,
   default 0)/`selected_item_foreground_highlight`, `input_font_size`,
-  `cpu_alert`/`cpu_alert_background` (the ⚠ CPU badge), `running_dot`.
+  `cpu_alert`/`cpu_alert_background` (the ⚠ CPU badge), `running_dot`
+  (the theme picker's active-row dot; app rows no longer draw one).
   Colors are `"#rrggbb"`; the highlight keys color the query-matched
   characters.
 

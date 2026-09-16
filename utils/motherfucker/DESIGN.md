@@ -73,6 +73,6 @@ The running product, spec'd by `config/motherfucker/config.toml` defaults:
 | `assets/wordmark.svg` | wordmark, volt-on-dark variant |
 
 After changing the mark: edit icon.svg and genicon.swift together (same
-coordinates), regenerate icon.png, then `setup/install/motherfucker.sh`.
+coordinates), regenerate icon.png, then `setup/install/install-motherfucker.sh`.
 The install overwrites the binary's Finder-icon metadata, and the first
 launch re-stamps it from the embedded copy.

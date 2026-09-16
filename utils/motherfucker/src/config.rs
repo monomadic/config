@@ -1,10 +1,10 @@
 //! User configuration: `~/.config/motherfucker/config.toml`.
 //!
 //! Read once at process start (one small file read — restart the agent to
-//! apply changes: `setup/install/motherfucker.sh` or `launchctl kickstart -k
-//! gui/$UID/com.nom.motherfucker`). Parsed with a hand-rolled TOML-subset
-//! parser — sections and `key = value` lines only — to keep the binary
-//! dependency-free. Every field has a built-in default; a missing or
+//! apply changes: `setup/install/install-motherfucker.sh` or `launchctl
+//! kickstart -k gui/$UID/com.nom.motherfucker`). Parsed with a hand-rolled
+//! TOML-subset parser — sections and `key = value` lines only — to keep the
+//! binary dependency-free. Every field has a built-in default; a missing or
 //! malformed file just means defaults, never a crash.
 
 use crate::hotkey;

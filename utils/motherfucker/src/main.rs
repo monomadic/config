@@ -2855,11 +2855,10 @@ impl Delegate {
             self.build_tag_pill(mtm, &row, pill_x, tag, "", selected);
         } else if let Some(rs) = &entry.stats {
             // Running apps: a CPU warning at the right edge once the tree
-            // burns ≥ CPU_ALERT_PCT of a core, otherwise a plain presence dot.
+            // burns ≥ CPU_ALERT_PCT of a core. Below that the row's right
+            // edge stays bare — the presence dot is off for now.
             if rs.cpu_pct >= CPU_ALERT_PCT {
                 self.build_cpu_warning(mtm, &row, row_w - 12.0, rs.cpu_pct, selected);
-            } else {
-                self.build_running_dot(mtm, &row, row_w - 12.0);
             }
         } else if let Some(path) = &entry.path {
             // Installed rows: location tag pill with symbol.
@@ -3078,7 +3077,7 @@ impl Delegate {
     }
 
     /// A small filled dot with its right edge at `right_x`, vertically
-    /// centered — the presence marker for a running app that isn't busy.
+    /// centered — the active marker on the theme picker's current row.
     unsafe fn build_running_dot(&self, mtm: MainThreadMarker, row: &NSView, right_x: f64) {
         const DOT_D: f64 = 7.0;
         // Pull the dot a hair left of the right edge so it lines up under the
@@ -3112,8 +3111,9 @@ impl Delegate {
     /// CPU alert badge at the row's right edge (right edge at `right_x`):
     /// a filled pill holding a warning glyph, a bold "CPU", and a small load
     /// meter. No number — only the meter's fill width changes between
-    /// samples, so nothing textual repaints every second. Shown in place of
-    /// the presence dot once the tree crosses CPU_ALERT_PCT.
+    /// samples, so nothing textual repaints every second. The only thing a
+    /// running row draws at its right edge, once the tree crosses
+    /// CPU_ALERT_PCT.
     unsafe fn build_cpu_warning(
         &self,
         mtm: MainThreadMarker,
