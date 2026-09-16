@@ -97,4 +97,6 @@ _edit-script() {
 }
 compdef _edit-script edit-script
 
-#compdef dl-porn=yt-dlp
+# dl-porn passes its args straight through to yt-dlp; a `#compdef` comment in a
+# sourced file is inert, so this has to be a real compdef call.
+compdef dl-porn=yt-dlp
