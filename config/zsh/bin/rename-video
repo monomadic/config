@@ -68,7 +68,8 @@ emulate -L zsh
 #   VARIANT   variant / type atom                         (Clip)
 #   TRACK     track atom                                (Clip)
 #   ORIENTATION  orientation atom                         (Adult, see below)
-#   LOCATION  XMP-iptcExt:LocationCreatedCity            (Footage)
+#   LOCATION  XMP-iptcExt:LocationCreatedCity, else the
+#             LocationCreatedSublocation tagform's Place row writes (Footage)
 #   DATE      exif, else mp4 creation_time, else ctime   (Footage)
 #   METADATA  probed fresh with ffprobe (+ exiftool for DEVICE)
 #
@@ -258,13 +259,14 @@ read_xmp() {
   local -a cols
 
   XMP_ACTORS="" XMP_CHANNEL="" XMP_TITLE="" XMP_TAGS="" XMP_RATING=""
-  XMP_CITY="" XMP_STATE="" XMP_COUNTRY="" XMP_GENRE=""
+  XMP_CITY="" XMP_STATE="" XMP_COUNTRY="" XMP_GENRE="" XMP_PLACE=""
 
   row="$(
     exiftool -f -T -XMP-iptcExt:PersonInImage -XMP-xmpDM:Album -XMP-dc:Title \
       -XMP-dc:Subject -XMP-xmp:Rating -XMP-iptcExt:LocationCreatedCity \
       -XMP-iptcExt:LocationCreatedProvinceState \
       -XMP-iptcExt:LocationCreatedCountryName -XMP-xmpDM:Genre \
+      -XMP-iptcExt:LocationCreatedSublocation \
       -- "$file" 2>/dev/null | head -1
   )"
   [[ -n "$row" ]] || return 0
@@ -279,6 +281,7 @@ read_xmp() {
   XMP_STATE="$(first_present "${cols[7]}")"
   XMP_COUNTRY="$(first_present "${cols[8]}")"
   XMP_GENRE="$(first_present "${cols[9]}")"
+  XMP_PLACE="$(first_present "${cols[10]}")"
 
   log_verbose "xmp: actors='${XMP_ACTORS}' channel='${XMP_CHANNEL}' title='${XMP_TITLE}' subject='${XMP_TAGS}' rating='${XMP_RATING}' city='${XMP_CITY}' genre='${XMP_GENRE}'"
 }
@@ -361,7 +364,8 @@ resolve_fields() {
 
   TITLE="$(first_present "$XMP_TITLE" "$(first_atom title)")"
   CHANNEL="$(first_present "$XMP_CHANNEL" "$(first_atom channel album_artist album)")"
-  LOCATION="$XMP_CITY"
+  # The city names the clip; a venue stands in only when no city was written.
+  LOCATION="$(first_present "$XMP_CITY" "$XMP_PLACE")"
   RATING="$(first_present "$XMP_RATING" "$(first_atom rating)")"
 
   raw="$(first_present "$XMP_ACTORS" "$(first_atom actors cast artist)")"
