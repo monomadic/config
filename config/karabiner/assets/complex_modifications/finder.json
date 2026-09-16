@@ -91,7 +91,7 @@
       ]
     },
     {
-      "description": "Finder: Right Command + Y to open Kitty with Yazi",
+      "description": "Finder/ForkLift: Right Command + Y to open Kitty with Yazi",
       "manipulators": [
         {
           "type": "basic",
@@ -104,13 +104,13 @@
           },
           "to": [
             {
-              "shell_command": "/bin/zsh -lc 'finder_dir=$(osascript -e '\\''tell application \"Finder\" to POSIX path of (target of front window as alias)'\\''); exec /Users/nom/.zsh/bin/kitty-launch --os-window --cwd \"$finder_dir\" --title \" yazi \" -- yazi'"
+              "shell_command": "/Users/nom/.zsh/bin/finder-open-in-yazi"
             }
           ],
           "conditions": [
             {
               "type": "frontmost_application_if",
-              "bundle_identifiers": ["^com\\.apple\\.finder$"]
+              "bundle_identifiers": ["^com\\.apple\\.finder$", "^com\\.binarynights\\.ForkLift$"]
             }
           ]
         }

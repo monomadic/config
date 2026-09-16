@@ -1,0 +1,114 @@
+#!/bin/sh
+# logout-users — pick other macOS users and end their login sessions.
+# Runs `launchctl bootout gui/<uid>`, which tears down that user's whole Aqua
+# session: their apps are killed outright and unsaved work is lost.
+set -eu
+
+self_uid=$(id -u)
+all=0
+assume_yes=0
+dry_run=0
+
+usage() {
+  cat <<'EOF'
+usage: logout-users [-a] [-y] [-n]
+
+Lists every other user with a live session and boots out the ones you pick.
+
+  -a, --all      log out every other user, skipping the picker
+  -y, --yes      skip the confirmation prompt
+  -n, --dry-run  print the launchctl commands instead of running them
+  -h, --help     show this help
+EOF
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -a|--all)     all=1 ;;
+    -y|--yes)     assume_yes=1 ;;
+    -n|--dry-run) dry_run=1 ;;
+    -h|--help)    usage; exit 0 ;;
+    *)            printf 'logout-users: unknown option %s\n' "$1" >&2; usage >&2; exit 2 ;;
+  esac
+  shift
+done
+
+# Users holding a window-server session, and users with any process at all —
+# a fast-user-switched or lingering session shows up only in the latter.
+consoles=$(who | awk '$2 == "console" { print $1 }' | sort -u)
+live_uids=$(ps -axo uid= | tr -d ' ' | sort -u)
+
+rows=$(dscl . -list /Users UniqueID | awk -v self="$self_uid" '$2 >= 500 && $2 != self { print $1 "\t" $2 }' | sort -k2 -n)
+
+tab=$(printf '\t')
+candidates=""
+while IFS="$tab" read -r name uid; do
+  [ -n "${name:-}" ] || continue
+  if printf '%s\n' "$consoles" | grep -qx "$name"; then
+    state="logged in"
+  elif printf '%s\n' "$live_uids" | grep -qx "$uid"; then
+    state="background"
+  else
+    continue
+  fi
+  real=$(dscl . -read "/Users/$name" RealName 2>/dev/null | tr '\n' ' ' | sed 's/^RealName: *//; s/  */ /g; s/ *$//')
+  [ -n "$real" ] && [ "$real" != "$name" ] || real="-"
+  candidates="${candidates}${uid}${tab}${name}${tab}${state}${tab}${real}
+"
+done <<EOROWS
+$rows
+EOROWS
+
+if [ -z "$candidates" ]; then
+  echo "logout-users: no other users are logged in."
+  exit 0
+fi
+
+if [ "$all" -eq 1 ]; then
+  chosen=$candidates
+else
+  command -v fzf >/dev/null 2>&1 || { echo "logout-users: fzf is required (or use --all)." >&2; exit 1; }
+  chosen=$(printf '%s' "$candidates" | fzf \
+    --delimiter="$tab" \
+    --with-nth=2,3,4 \
+    --multi \
+    --reverse \
+    --cycle \
+    --prompt='log out ❯ ' \
+    --header='tab: mark · ctrl-a: all · enter: log out' \
+    --bind='ctrl-a:select-all') || exit 0
+  [ -n "$chosen" ] || exit 0
+fi
+
+names=$(printf '%s' "$chosen" | cut -f2 | paste -sd ', ' -)
+
+if [ "$assume_yes" -eq 0 ] && [ "$dry_run" -eq 0 ]; then
+  [ -t 0 ] || { echo "logout-users: no terminal to confirm on; pass --yes." >&2; exit 1; }
+  printf 'Log out %s? Their unsaved work will be lost. [y/N] ' "$names"
+  read -r reply </dev/tty
+  case "$reply" in
+    [yY]|[yY][eE][sS]) ;;
+    *) echo "Cancelled."; exit 0 ;;
+  esac
+fi
+
+[ "$dry_run" -eq 1 ] || sudo -v
+
+status=0
+while IFS="$tab" read -r uid name state real; do
+  [ -n "${uid:-}" ] || continue
+  if [ "$dry_run" -eq 1 ]; then
+    printf 'sudo launchctl bootout gui/%s  # %s\n' "$uid" "$name"
+    continue
+  fi
+  if err=$(sudo launchctl bootout "gui/$uid" 2>&1); then
+    printf '✓ logged out %s\n' "$name"
+  else
+    printf '✗ %s: %s\n' "$name" "${err:-bootout failed}" >&2
+    status=1
+  fi
+done <<EOCHOSEN
+$chosen
+EOCHOSEN
+
+exit $status
