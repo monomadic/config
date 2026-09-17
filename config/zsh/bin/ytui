@@ -12,7 +12,7 @@
 #   ytui --visuals https://…
 #   ytui -f best  https://…
 #
-# The URL is always the LAST argument (same convention as dl-porn).
+# The URL is always the LAST argument
 #
 # Gallery / index pages (a model page, a channel, a playlist) are detected in the
 # preflight and switch the UI into gallery mode: an overall bar across the items
@@ -51,7 +51,7 @@
 #
 # Dependencies: yt-dlp, mpv (for `o`), mp4-embed-vtt (subtitle embedding); the
 # star grammar mirrors media-set-rating.
-# See also: dl-porn, yt-dlp-stream, mp4-embed-vtt, media-parse-filename-to-json
+# See also: yt-dlp-stream, mp4-embed-vtt, media-parse-filename-to-json
 # ============================================================================
 emulate -L zsh
 setopt pipefail extended_glob

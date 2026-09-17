@@ -179,17 +179,12 @@ function tag-embed() {
 # ============================================================================
 alias yt-dlp-ignore-archive="yt-dlp --no-download-archive"
 alias yt-list-fields="yt-dlp --skip-download --print \"%()#j\" "
-alias yt-batch-edit='$EDITOR $YT_DLP_BATCH_FILE'
+
 yt-dlp-list-formats() {
   (( $# )) || { print -u2 "usage: yt-dlp-list-formats <yt-dlp args>"; return 2; }
   yt-dlp --no-download-archive --list-formats "$@"
 }
 
-yt-dlp-porn-batch-file() {
-  (( $# )) || { print -u2 "usage: dl-porn-batch-file <batch_file> ...<yt-dlp args>"; return 2; }
-  local batch_file=$1; shift
-  yt-dlp --porn --batch-file="$batch_file" "$@"
-}
 # ============================================================================
 # YT-DLP
 # ============================================================================

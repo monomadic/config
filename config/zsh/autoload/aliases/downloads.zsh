@@ -20,18 +20,6 @@ vdjstems-check-wav-lengths() {
 # Download & Media Aliases
 # ============================================================================
 
-alias dp="dl-porn"
-
-alias d=download-video
-alias dmv="download-video music-video"
-alias dl-youtube="download-video youtube"
-alias dlu="download-video-url"
-alias faphouse="download-video-faphouse"
-alias dl-beatport=beatportdl-darwin-arm64
-alias dl-apple-music=apple-music-dl
-
-alias url="yt-url"
-
 alias N_m3u8DL-RE="/Users/nom/config/bin/N_m3u8DL-RE_v0.5.1-beta_osx-arm64_20251029"
 alias .dl-N_m3u8DL-RE=N_m3u8DL-RE
 

@@ -96,7 +96,3 @@ _edit-script() {
   compadd -d descs -- $names
 }
 compdef _edit-script edit-script
-
-# dl-porn passes its args straight through to yt-dlp; a `#compdef` comment in a
-# sourced file is inert, so this has to be a real compdef call.
-compdef dl-porn=yt-dlp
