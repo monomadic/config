@@ -12,28 +12,41 @@ readonly source_uuid='695E64CC-83EF-4155-AB6B-858E431468AC'
 readonly destination_uuid='215CF628-9286-4D5A-9802-21DB64342287'
 readonly history_dir="$destination_dir/.rclone"
 readonly state_dir="$HOME/.rclone-tower-safe"
+readonly retention_days=30
+
+# Blast-radius guards. The largest run so far moved 285 files / 218G into
+# history, so these leave room for a normal purge while still refusing to
+# mirror a source tree that vanished or mounted empty. Override deliberately.
+readonly max_delete=${RCLONE_TOWER_MAX_DELETE:-2000}
+readonly max_delete_size=${RCLONE_TOWER_MAX_DELETE_SIZE:-1T}
+# History holds full copies of everything replaced or deleted, so it grows
+# without bound. A sync that starts with a nearly full destination fails
+# partway and leaves a half-populated run directory behind.
+readonly min_free_gib=${RCLONE_TOWER_MIN_FREE_GIB:-100}
 
 die() { print -ru2 -- "rclone-tower-safe: $*"; exit 1; }
+usage() { die 'Usage: rclone-tower-safe [--check-only | --dry-run | --prune]'; }
 
 mode=${1:-sync}
-(( $# <= 1 )) || die 'Usage: rclone-tower-safe [--check-only | --dry-run]'
-[[ $mode == sync || $mode == --check-only || $mode == --dry-run ]] ||
-  die 'Usage: rclone-tower-safe [--check-only | --dry-run]'
+(( $# <= 1 )) || usage
+[[ $mode == sync || $mode == --check-only || $mode == --dry-run || $mode == --prune ]] || usage
+
+# Reads $info, the plist held by the verify_volume call in scope, so that each
+# volume costs one diskutil call rather than one per key.
+plist_value() { print -r -- "$info" | /usr/bin/plutil -extract "$1" raw -o - -; }
 
 verify_volume() {
   local volume=$1 expected_uuid=$2 writable=$3 info actual_uuid mount_point
   [[ -d $volume && ! -L $volume && -r $volume && -x $volume ]] ||
     die "Volume missing or unreadable: $volume"
   info=$(/usr/sbin/diskutil info -plist "$volume") || die "Cannot inspect $volume"
-  actual_uuid=$(print -r -- "$info" | /usr/bin/plutil -extract VolumeUUID raw -o - -) ||
-    die "Cannot identify $volume"
-  mount_point=$(print -r -- "$info" | /usr/bin/plutil -extract MountPoint raw -o - -) ||
-    die "Cannot find mount point for $volume"
+  actual_uuid=$(plist_value VolumeUUID) || die "Cannot identify $volume"
+  mount_point=$(plist_value MountPoint) || die "Cannot find mount point for $volume"
   [[ $actual_uuid == $expected_uuid && $mount_point == $volume ]] ||
     die "Wrong disk or mount point: $volume (UUID $actual_uuid)"
   /bin/ls -f "$volume" >/dev/null || die "Cannot read directory entries on $volume"
   if [[ $writable == yes ]]; then
-    [[ -w $volume && $(print -r -- "$info" | /usr/bin/plutil -extract WritableVolume raw -o - -) == true ]] ||
+    [[ -w $volume && $(plist_value WritableVolume) == true ]] ||
       die "Destination is not writable: $volume"
   fi
 }
@@ -45,9 +58,102 @@ verify_disks() {
   [[ ! -e $history_dir || -d $history_dir ]] || die "Backup history is not a directory"
 }
 
+destination_free_gib() {
+  local free_kib
+  free_kib=$(/bin/df -Pk "$destination_dir" | /usr/bin/awk 'NR == 2 { print $4 }') ||
+    die "Cannot read free space on $destination_dir"
+  [[ $free_kib == <-> ]] || die "Cannot read free space on $destination_dir"
+  print -- $(( free_kib / 1048576 ))
+}
+
+require_free_space() {
+  local free_gib
+  free_gib=$(destination_free_gib)
+  (( free_gib >= min_free_gib )) ||
+    die "Only ${free_gib} GiB free on $destination_dir (minimum ${min_free_gib} GiB).
+  Reclaim history with: rclone-tower-safe --prune"
+}
+
+# Renames are matched on size+modtime and moved server-side without reading
+# content, so a wrong pairing would never be caught by this or any later sync.
+# rclone logs every rename it performs; hash-check exactly those files.
+verify_renames() {
+  local list="$state_dir/renamed.txt" report="$state_dir/rename-report.txt" size count
+  [[ ! -L $list && ! -L $report ]] || die 'Rename report must not be a symlink'
+  [[ -f $log_file ]] || return 0
+  size=$(/usr/bin/stat -f %z "$log_file") || die "Cannot read $log_file"
+  # The log rotates at 10M. If it did, re-read all of it: re-verifying a few
+  # already-checked renames is harmless, missing one is not.
+  (( size >= log_offset )) || log_offset=0
+  { /usr/bin/tail -c "+$(( log_offset + 1 ))" "$log_file" |
+    /usr/bin/sed -n 's/^[0-9/]* [0-9:]* INFO  : \(.*\): Renamed from ".*"$/\1/p' > "$list" } ||
+    die "Cannot extract renames from $log_file - verify them manually before trusting this run"
+  count=$(/usr/bin/wc -l < "$list")
+  count=${count// /}
+  if (( count == 0 )); then
+    print -- 'No renames this run; nothing to hash-check.'
+    print -r -- "$size" > "$verified_offset_file"
+    return 0
+  fi
+  print -- "Verifying $count renamed file(s) by checksum."
+  rclone check --files-from "$list" --checkers 3 \
+    --combined "$report" --log-level NOTICE \
+    "$source_dir/" "$destination_dir/" ||
+    die "RENAME VERIFICATION FAILED - the backup does not match the source.
+  Offending files are the non-'=' lines in $report
+  Repair with: grep -v '^=' '$report' | cut -c3- > /tmp/bad.txt
+               rclone copy --checksum --files-from /tmp/bad.txt '$source_dir/' '$destination_dir/'"
+  # Only now is the log verified this far. Advancing earlier would let renames
+  # from an interrupted run fall behind the next run's starting offset.
+  print -r -- "$size" > "$verified_offset_file"
+  print -- 'Renames verified.'
+}
+
+# Only direct, real directories with a recognized run name are candidates.
+# Accept the original YYYY-MM-DD_HHMMSS names as well as the new unique suffix.
+# Retention uses the run timestamp, never directory mtime (which copies change).
+prune_history() {
+  local forced=$1 candidate name stamp epoch cutoff reply
+  typeset -a expired
+  cutoff=$(( $(/bin/date +%s) - retention_days * 86400 ))
+  for candidate in "$history_dir"/*(N/); do
+    [[ ! -L $candidate && $candidate != $backup_dir ]] || continue
+    name=${candidate:t}
+    [[ $name =~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6}(\.[[:alnum:]]{6})?$' ]] || continue
+    stamp=${name[1,17]}
+    epoch=$(/bin/date -j -f '%Y-%m-%d_%H%M%S' "$stamp" +%s 2>/dev/null) || continue
+    if (( epoch < cutoff )); then
+      expired+=("$candidate")
+    fi
+  done
+  if (( ${#expired} == 0 )); then
+    print -- "No backup runs older than $retention_days days."
+    return 0
+  fi
+  print -- "Backup runs older than $retention_days days eligible for permanent removal:"
+  printf '  %s\n' "${expired[@]}"
+  if [[ $forced != forced ]]; then
+    # No unattended pruning, including piped input or a closed terminal.
+    if [[ ! -t 0 ]]; then
+      print -- "Pruning skipped: no interactive terminal. Reclaim with: rclone-tower-safe --prune"
+      return 0
+    fi
+    read -r 'reply?Permanently remove these backup runs? [y/N] ' || reply=n
+    [[ $reply == [yY] ]] || { print -- 'Nothing pruned.'; return 0; }
+  fi
+  verify_disks
+  for candidate in "${expired[@]}"; do
+    [[ -d $candidate && ! -L $candidate ]] || die "Backup changed before pruning: $candidate"
+    /bin/rm -r -- "$candidate" || die "Pruning failed: $candidate"
+    print -- "Removed: $candidate"
+  done
+  print -- "$(destination_free_gib) GiB now free on $destination_dir."
+}
+
 verify_disks
 if [[ $mode == --check-only ]]; then
   print -- 'Both expected volumes are mounted and readable; destination is writable.'
+  print -- "$(destination_free_gib) GiB free on $destination_dir (minimum ${min_free_gib} GiB to sync)."
   exit 0
 fi
 (( $+commands[rclone] )) || die 'rclone is not installed'
@@ -61,19 +167,44 @@ fi
 [[ ! -L $state_dir/lock ]] || die 'Lock file must not be a symlink'
 : >> "$state_dir/lock"
 zmodload zsh/system
-zsystem flock -t 0 -f lock_fd "$state_dir/lock" || die 'Another Tower sync is already running'
+zsystem flock -t 0 -f lock_fd "$state_dir/lock" 2>/dev/null ||
+  die 'Another Tower sync or prune is already running'
 
 readonly log_file="$state_dir/sync.log"
+readonly verified_offset_file="$state_dir/verified-offset"
 [[ ! -L $log_file ]] || die 'Log file must not be a symlink'
+[[ ! -L $verified_offset_file ]] || die 'Verified-offset file must not be a symlink'
 verify_disks
+
+# Pruning takes the same lock so it cannot race a sync writing into history.
+backup_dir=''
+if [[ $mode == --prune ]]; then
+  prune_history forced
+  exit 0
+fi
+
 typeset -a run_flags
 if [[ $mode == --dry-run ]]; then
   run_flags=(--dry-run)
   backup_dir="$history_dir/dry-run"
 else
+  require_free_space
   /bin/mkdir -p "$history_dir"
   # Atomic allocation also verifies that we can actually write to this disk.
   backup_dir=$(/usr/bin/mktemp -d "$history_dir/$(/bin/date +%F_%H%M%S).XXXXXX")
+  # mktemp honours the 077 umask; match the browsable history dirs around it.
+  /bin/chmod 755 "$backup_dir"
+fi
+
+# Resume from the last point that actually passed verification, not from the
+# end of the log. A run killed by Ctrl-C never reaches verify_renames, so any
+# renames it already committed must still be checked by the next run.
+log_offset=0
+if [[ -f $verified_offset_file ]]; then
+  log_offset=$(<"$verified_offset_file")
+  [[ $log_offset == <-> ]] || log_offset=0
+elif [[ -f $log_file ]]; then
+  log_offset=$(/usr/bin/stat -f %z "$log_file")
 fi
 
 # Forward interrupts and wait for rclone before releasing the lock.
@@ -84,6 +215,7 @@ stop_sync() {
     kill -TERM "$sync_pid" 2>/dev/null || true
     wait "$sync_pid" 2>/dev/null || true
   fi
+  print -ru2 -- 'Interrupted. Any renames made this run are unverified; the next run hash-checks them.'
   exit "$1"
 }
 trap 'stop_sync 130' INT
@@ -92,13 +224,15 @@ trap 'stop_sync 129' HUP
 
 print -- "Syncing Tower → Tower Backup ($mode). Log: $log_file"
 # Size + modification time is intentional for large, frequently renamed videos.
-# Keep conservative disk concurrency; hashes still verify normal transfers.
+# Keep conservative disk concurrency; hashes still verify normal transfers, and
+# verify_renames covers the server-side moves that skip the transfer path.
 rclone sync -P "${run_flags[@]}" \
   --track-renames --track-renames-strategy size,modtime \
   --metadata \
   --stats 30s --stats-one-line --stats-log-level NOTICE \
   --create-empty-src-dirs \
   --transfers 1 --checkers 3 \
+  --max-delete "$max_delete" --max-delete-size "$max_delete_size" \
   --log-file "$log_file" --log-level INFO \
   --log-file-max-size 10M --log-file-max-backups 3 \
   --backup-dir "$backup_dir" \
@@ -126,35 +260,6 @@ fi
 
 verify_disks
 [[ $mode != --dry-run ]] || { print -- 'Dry run complete; nothing pruned.'; exit 0; }
-
-# Only direct, real directories with a recognized run name are candidates.
-# Accept the original YYYY-MM-DD_HHMMSS names as well as the new unique suffix.
-# Retention uses the run timestamp, never directory mtime (which copies change).
-typeset -a expired
-cutoff=$(( $(/bin/date +%s) - 30 * 86400 ))
-for candidate in "$history_dir"/*(N/); do
-  [[ ! -L $candidate && $candidate != $backup_dir ]] || continue
-  name=${candidate:t}
-  [[ $name =~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6}(\.[[:alnum:]]{6})?$' ]] || continue
-  stamp=${name[1,17]}
-  epoch=$(/bin/date -j -f '%Y-%m-%d_%H%M%S' "$stamp" +%s 2>/dev/null) || continue
-  (( epoch < cutoff )) && expired+=("$candidate")
-done
-if (( ${#expired} )); then
-  print -- 'Backup runs older than 30 days eligible for permanent removal:'
-  printf '  %s\n' "${expired[@]}"
-  # No unattended pruning, including piped input or a closed terminal.
-  if [[ -t 0 ]]; then
-    read -r 'reply?Permanently remove these backup runs? [y/N] ' || reply=n
-    if [[ $reply == [yY] ]]; then
-      verify_disks
-      for candidate in "${expired[@]}"; do
-        [[ -d $candidate && ! -L $candidate ]] || die "Backup changed before pruning: $candidate"
-        /bin/rm -r -- "$candidate" || die "Pruning failed: $candidate"
-      done
-    fi
-  else
-    print -- 'Pruning skipped: no interactive terminal.'
-  fi
-fi
+verify_renames
+prune_history ask
 print -- 'Done.'
