@@ -1,16 +1,107 @@
-#!/bin/sh
+#!/bin/zsh -f
+# Only these two volumes may participate. Reformatting a disk requires updating
+# its UUID here after checking `diskutil info -plist /Volumes/<name>`.
+emulate -LR zsh
+setopt ERR_EXIT NO_UNSET PIPE_FAIL
+unsetopt BG_NICE
+umask 077
 
-printf "Copying files..."
+readonly source_dir='/Volumes/Tower'
+readonly destination_dir='/Volumes/Tower Backup'
+readonly source_uuid='695E64CC-83EF-4155-AB6B-858E431468AC'
+readonly destination_uuid='215CF628-9286-4D5A-9802-21DB64342287'
+readonly history_dir="$destination_dir/.rclone"
+readonly state_dir="$HOME/.rclone-tower-safe"
 
-ts=$(date +%F_%H%M%S)
-rclone sync -P \
+die() { print -ru2 -- "rclone-tower-safe: $*"; exit 1; }
+
+mode=${1:-sync}
+(( $# <= 1 )) || die 'Usage: rclone-tower-safe [--check-only | --dry-run]'
+[[ $mode == sync || $mode == --check-only || $mode == --dry-run ]] ||
+  die 'Usage: rclone-tower-safe [--check-only | --dry-run]'
+
+verify_volume() {
+  local volume=$1 expected_uuid=$2 writable=$3 info actual_uuid mount_point
+  [[ -d $volume && ! -L $volume && -r $volume && -x $volume ]] ||
+    die "Volume missing or unreadable: $volume"
+  info=$(/usr/sbin/diskutil info -plist "$volume") || die "Cannot inspect $volume"
+  actual_uuid=$(print -r -- "$info" | /usr/bin/plutil -extract VolumeUUID raw -o - -) ||
+    die "Cannot identify $volume"
+  mount_point=$(print -r -- "$info" | /usr/bin/plutil -extract MountPoint raw -o - -) ||
+    die "Cannot find mount point for $volume"
+  [[ $actual_uuid == $expected_uuid && $mount_point == $volume ]] ||
+    die "Wrong disk or mount point: $volume (UUID $actual_uuid)"
+  /bin/ls -f "$volume" >/dev/null || die "Cannot read directory entries on $volume"
+  if [[ $writable == yes ]]; then
+    [[ -w $volume && $(print -r -- "$info" | /usr/bin/plutil -extract WritableVolume raw -o - -) == true ]] ||
+      die "Destination is not writable: $volume"
+  fi
+}
+
+verify_disks() {
+  verify_volume "$source_dir" "$source_uuid" no
+  verify_volume "$destination_dir" "$destination_uuid" yes
+  [[ ! -L $history_dir ]] || die "Backup history must not be a symlink: $history_dir"
+  [[ ! -e $history_dir || -d $history_dir ]] || die "Backup history is not a directory"
+}
+
+verify_disks
+if [[ $mode == --check-only ]]; then
+  print -- 'Both expected volumes are mounted and readable; destination is writable.'
+  exit 0
+fi
+(( $+commands[rclone] )) || die 'rclone is not installed'
+
+# Keep the lock inode in place. The OS releases the advisory lock on exit;
+# deleting the file would let another process lock a different inode.
+[[ ! -L $state_dir ]] || die "State directory must not be a symlink: $state_dir"
+/bin/mkdir -p "$state_dir"
+[[ -O $state_dir ]] || die "State directory is not owned by this user: $state_dir"
+/bin/chmod 700 "$state_dir"
+[[ ! -L $state_dir/lock ]] || die 'Lock file must not be a symlink'
+: >> "$state_dir/lock"
+zmodload zsh/system
+zsystem flock -t 0 -f lock_fd "$state_dir/lock" || die 'Another Tower sync is already running'
+
+readonly log_file="$state_dir/sync.log"
+[[ ! -L $log_file ]] || die 'Log file must not be a symlink'
+verify_disks
+typeset -a run_flags
+if [[ $mode == --dry-run ]]; then
+  run_flags=(--dry-run)
+  backup_dir="$history_dir/dry-run"
+else
+  /bin/mkdir -p "$history_dir"
+  # Atomic allocation also verifies that we can actually write to this disk.
+  backup_dir=$(/usr/bin/mktemp -d "$history_dir/$(/bin/date +%F_%H%M%S).XXXXXX")
+fi
+
+# Forward interrupts and wait for rclone before releasing the lock.
+sync_pid=''
+stop_sync() {
+  trap '' INT TERM HUP
+  if [[ -n $sync_pid ]]; then
+    kill -TERM "$sync_pid" 2>/dev/null || true
+    wait "$sync_pid" 2>/dev/null || true
+  fi
+  exit "$1"
+}
+trap 'stop_sync 130' INT
+trap 'stop_sync 143' TERM
+trap 'stop_sync 129' HUP
+
+print -- "Syncing Tower → Tower Backup ($mode). Log: $log_file"
+# Size + modification time is intentional for large, frequently renamed videos.
+# Keep conservative disk concurrency; hashes still verify normal transfers.
+rclone sync -P "${run_flags[@]}" \
   --track-renames --track-renames-strategy size,modtime \
   --metadata \
-  --stats 2s --stats-log-level NOTICE \
+  --stats 30s --stats-one-line --stats-log-level NOTICE \
   --create-empty-src-dirs \
   --transfers 1 --checkers 3 \
-  --log-file "$HOME/.rclone.log" --log-level INFO \
-  --backup-dir "/Volumes/Tower Backup/.rclone/$ts" \
+  --log-file "$log_file" --log-level INFO \
+  --log-file-max-size 10M --log-file-max-backups 3 \
+  --backup-dir "$backup_dir" \
   --exclude "/.rclone/**" \
   --exclude "/Installers/Cyberpunk MacOS/**" \
   --exclude "/.Trashes/**" \
@@ -22,19 +113,48 @@ rclone sync -P \
   --exclude ".DS_Store" \
   --exclude "/.com.apple.timemachine.donotpresent" \
   --exclude "/lost+found/**" \
-  "/Volumes/Tower/" "/Volumes/Tower Backup/"
+  "$source_dir/" "$destination_dir/" &
+sync_pid=$!
+if wait "$sync_pid"; then
+  sync_pid=''
+else
+  result=$?
+  sync_pid=''
+  print -ru2 -- "Sync failed (exit $result); history was not pruned. See $log_file"
+  exit "$result"
+fi
 
-printf "Prune backup directory? [y/N] "
+verify_disks
+[[ $mode != --dry-run ]] || { print -- 'Dry run complete; nothing pruned.'; exit 0; }
 
-read -r reply
-case "$reply" in
-  [yY])
-    find "/Volumes/Tower Backup/.rclone" -maxdepth 1 -type d -mtime +30 -exec rm -rf {} +
-    ts="$(date +%Y%m%d-%H%M%S)"
-    backup="${DB}.${ts}.bak"
-    ;;
-  *)
-    ;;
-esac
-
-echo "Done."
+# Only direct, real directories with a recognized run name are candidates.
+# Accept the original YYYY-MM-DD_HHMMSS names as well as the new unique suffix.
+# Retention uses the run timestamp, never directory mtime (which copies change).
+typeset -a expired
+cutoff=$(( $(/bin/date +%s) - 30 * 86400 ))
+for candidate in "$history_dir"/*(N/); do
+  [[ ! -L $candidate && $candidate != $backup_dir ]] || continue
+  name=${candidate:t}
+  [[ $name =~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{6}(\.[[:alnum:]]{6})?$' ]] || continue
+  stamp=${name[1,17]}
+  epoch=$(/bin/date -j -f '%Y-%m-%d_%H%M%S' "$stamp" +%s 2>/dev/null) || continue
+  (( epoch < cutoff )) && expired+=("$candidate")
+done
+if (( ${#expired} )); then
+  print -- 'Backup runs older than 30 days eligible for permanent removal:'
+  printf '  %s\n' "${expired[@]}"
+  # No unattended pruning, including piped input or a closed terminal.
+  if [[ -t 0 ]]; then
+    read -r 'reply?Permanently remove these backup runs? [y/N] ' || reply=n
+    if [[ $reply == [yY] ]]; then
+      verify_disks
+      for candidate in "${expired[@]}"; do
+        [[ -d $candidate && ! -L $candidate ]] || die "Backup changed before pruning: $candidate"
+        /bin/rm -r -- "$candidate" || die "Pruning failed: $candidate"
+      done
+    fi
+  else
+    print -- 'Pruning skipped: no interactive terminal.'
+  fi
+fi
+print -- 'Done.'
