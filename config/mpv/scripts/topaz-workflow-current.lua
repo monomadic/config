@@ -887,7 +887,14 @@ local function enh_filter_for(preset, res)
     end
 
     local clause, tail = "scale=1", ""
-    if res.key == "2x" then
+    if preset.free_size and res.w and res.h then
+        -- Starlight Mini: the app itself always drives it as scale=0:w:h, even
+        -- for a 1:1 render, so mirror that rather than trusting scale=1/2.
+        clause = string.format("scale=0:w=%d:h=%d", res.w, res.h)
+        if res.key ~= "orig" then
+            tail = string.format("scale=w=%d:h=%d:flags=lanczos:threads=0", res.w, res.h)
+        end
+    elseif res.key == "2x" then
         clause = "scale=2"
     elseif res.key ~= "orig" then
         -- 4K and 4x are both "hit this exact size": free target when the model
@@ -952,7 +959,14 @@ local function load_enhancement_presets(profile, res_options, two_x_is_4k)
                 metadata = f[7] or "",
                 -- Set only for models the tvai_up filter cannot reach; these
                 -- render through neuroserver instead (see render_or_show).
+                -- ns_store is the weights directory the preflight checks for,
+                -- ns_params extra --filters keys as JSON.
                 ns_model = (f[8] ~= "" and f[8]) or nil,
+                ns_store = (f[9] and f[9] ~= "" and f[9]) or nil,
+                ns_params = (f[10] and f[10] ~= "" and f[10]) or nil,
+                -- Models that take only an explicit target size (scale=0:w:h)
+                -- at every resolution, never scale=1 / scale=2.
+                free_size = (f[11] == "1") or nil,
             })
         end
     end
@@ -2131,6 +2145,14 @@ function render_or_show(preset)
     if preset.ns_model then
         args[#args + 1] = "--ns-model"
         args[#args + 1] = preset.ns_model
+        if preset.ns_store then
+            args[#args + 1] = "--ns-store"
+            args[#args + 1] = preset.ns_store
+        end
+        if preset.ns_params then
+            args[#args + 1] = "--ns-params"
+            args[#args + 1] = preset.ns_params
+        end
         if res.w and res.h then
             args[#args + 1] = "--ns-size"
             args[#args + 1] = string.format("%dx%d", res.w, res.h)

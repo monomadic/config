@@ -47,6 +47,22 @@ vs_note  = "..."
 A file with `pseudo = true` (e.g. `__original__.toml`) contributes only its
 `[insight]`, not a menu row.
 
+Optional fields, for the models that do not fit the `tvai_up` mould:
+
+```toml
+free_size = true             # always render as scale=0:w=W:h=H, never scale=1/2
+                             # (Starlight Mini — the only form the app uses for it)
+
+filter    = ''               # neuroserver models have no filter chain at all:
+ns_model  = "slp-26"         #   the "model" name in neuroserver's --filters
+ns_store  = "slp26"          #   its weights dir under the app's models/models/;
+                             #   the preview refuses to start if it is missing
+ns_params = { softness = 1 } #   extra --filters keys, passed as JSON
+```
+`ns_model` and `ns_store` are not derivable from each other (2.5 is `slp-25` in
+`slp25m`, 2.6 is `slp-26` in `slp26`), so name both. A neuroserver model's
+weights download only when the Topaz app runs it once.
+
 **`category`** groups the row in the menu, by what is wrong with the source rather
 than by what the filter does. The list and its display order live in
 `CATEGORY_ORDER` in `config/mpv/scripts/topaz-workflow-current.lua`; a preset whose
@@ -69,6 +85,9 @@ it accepts a *free target size* (`scale=0:w=…:h=…`), which is what both the
 supports: the authority is the `backends.coreml.scales` keys in
 `/Applications/Topaz Video.app/Contents/Resources/models/<code>.json`, and
 under-declaring here quietly hides the preset on sources it could have handled.
+`topaz-pick` reads the same `scales`, `free_size` and `category` fields and offers
+the same resolution rows as the mpv Output tab; it leaves out `ns_model` presets,
+because its encode path is ffmpeg only.
 
 ### `interpolation/` — frame-rate stage
 ```toml

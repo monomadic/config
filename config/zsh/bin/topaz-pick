@@ -16,13 +16,16 @@ usage() {
 usage:
   $script_name [--preview [seconds]] [--resume] [--copy-cmd] [--trash-originals] file1 [file2 ...]
 
-Interactive three-step Topaz encode for the terminal:
-  1. enhancement preset (upscale categories offered only for <4K sources)
+Interactive Topaz encode for the terminal:
+  1. enhancement preset (grouped by what is wrong with the source)
+     then the output resolution, when the model and source allow an upscale
   2. frame interpolation (or none)
   3. output format
 
 Composes the filter exactly like the mpv Topaz menu (orientation-aware 4K
 targets, interpolation inserted before the lanczos tail) and runs topaz-encode,
+Neuroserver-only presets (Starlight Precise) are not offered: they cannot be
+encoded by ffmpeg.
 so interrupted encodes can be resumed by rerunning the same command.
 
 --copy-cmd prints/copies the final topaz-encode command instead of encoding.
@@ -148,7 +151,8 @@ if [[ "$src_w" == <-> && "$src_h" == <-> ]]; then
   (( long_edge > 2560 )) && is_4k=true
 fi
 
-# 2x of an exactly-1080p source IS the 4K target -> merge the upscale groups.
+# 2x of an exactly-1080p source IS the 4K target: a scale=2-only model can then
+# still be offered the 4K row (mirrors two_x_is_4k in the mpv menu).
 two_x_is_4k=false
 if [[ "$src_w" == <-> && "$src_h" == <-> ]] &&
     (( src_w * 2 == target_w && src_h * 2 == target_h )); then
@@ -159,57 +163,57 @@ if [[ -n "$src_w" ]]; then
   media_header="${files[1]:t}  ${src_w}x${src_h} @ ${src_fps:-?}fps"
   (( ${#files[@]} > 1 )) && media_header+="  [+$(( ${#files[@]} - 1 )) more]"
 else
-  media_header="${files[1]:t}  (unprobed — all presets shown)"
+  media_header="${files[1]:t}  (unprobed — original resolution only)"
 fi
 
-up_scale_token="scale=0:w=${target_w}:h=${target_h}"
-lanczos_tail=",scale=w=${target_w}:h=${target_h}:flags=lanczos:threads=0"
-
+# Menu groups, keyed by what is wrong with the source (same keys and order as
+# CATEGORY_ORDER in the mpv menu; a preset in an unknown category still shows,
+# under its raw key).
 category_label() {
   case "$1" in
-    upscale-2x)
-      if [[ "$src_w" == <-> ]]; then
-        print -r -- "Upscale 2x → $(( src_w * 2 ))×$(( src_h * 2 ))"
-      else
-        print -r -- "Upscale 2x"
-      fi
-      ;;
-    upscale-4k) print -r -- "Upscale to 4K → ${target_w}×${target_h}" ;;
-    repair) print -r -- "Repair" ;;
-    sharpen) print -r -- "Sharpen" ;;
-    focus-fix) print -r -- "Focus Fix" ;;
+    polish) print -r -- "Decent Source · Polish" ;;
+    focus-fix) print -r -- "Soft · Out of Focus" ;;
+    lowlight) print -r -- "Dark · Noisy" ;;
+    compressed) print -r -- "Compressed · Old Codecs" ;;
+    interlaced) print -r -- "Interlaced · Broadcast / DV" ;;
+    stylized) print -r -- "Stylized · Texture" ;;
+    hdr) print -r -- "SDR → HDR" ;;
     *) print -r -- "$1" ;;
+  esac
+}
+category_rank() {
+  case "$1" in
+    polish) print 1 ;; focus-fix) print 2 ;; lowlight) print 3 ;; compressed) print 4 ;;
+    interlaced) print 5 ;; stylized) print 6 ;; hdr) print 7 ;; *) print 9 ;;
   esac
 }
 
 # ---- step 1: enhancement ----
-# fzf rows: label<TAB>slug<TAB>enh_filter<TAB>enh_tail<TAB>blurb<TAB>metadata
+# Catalog rows: category display slug scales filter_body blurb metadata
+#               ns_model ns_store ns_params free_size
+# fzf rows: label<TAB>slug<TAB>filter_body<TAB>scales<TAB>free_size<TAB>blurb<TAB>metadata
 # Empty fields carry a "-" placeholder: tab-IFS `read` collapses consecutive
-# tabs, which would silently shift fields.
+# tabs, which would silently shift fields. Neuroserver presets (Starlight
+# Precise) are left out: topaz-encode drives ffmpeg, which cannot reach them.
 
 enhancement_rows() {
   emulate -L zsh
-  local category display slug filter_body blurb metadata
-  local label enh_filter enh_tail
+  local category display slug scales filter_body blurb metadata
+  local ns_model ns_store ns_params free_size label
 
-  print -r -- $'[Original] Original (no enhancement)\t__original__\t-\t-\tSkip enhance — interpolate / re-encode only\tvideoai=Original (no enhancement)'
+  print -r -- $'[Original] Original (no enhancement)\t__original__\t-\t1,2,4k\t-\tSkip enhance — interpolate / re-encode only\tvideoai=Original (no enhancement)'
 
+  # Tab is whitespace to `read`, so a run of empty columns would collapse and
+  # shift the trailing fields: pad every empty column with "-" first.
   topaz_enhancement_preset_rows |
-  while IFS=$'\t' read -r category display slug filter_body blurb metadata; do
-    if [[ "$is_4k" == true ]]; then
-      [[ "$category" == upscale-2x || "$category" == upscale-4k ]] && continue
-    fi
-    if [[ "$two_x_is_4k" == true && "$category" == upscale-2x ]]; then
-      category="upscale-4k"
-    fi
-
-    enh_filter="${filter_body//@4K@/$up_scale_token}"
-    enh_tail=""
-    [[ "$filter_body" == *@4K@* ]] && enh_tail="$lanczos_tail"
-
+  sed $'s/\t\t/\t-\t/g; s/\t\t/\t-\t/g; s/\t$/\t-/' |
+  while IFS=$'\t' read -r category display slug scales filter_body blurb metadata \
+      ns_model ns_store ns_params free_size; do
+    [[ "${ns_model:--}" != "-" ]] && continue
+    [[ "$free_size" == "1" ]] || free_size=""
     label="[$(category_label "$category")] ${display}"
-    print -r -- "${label}"$'\t'"${slug}"$'\t'"${enh_filter:--}"$'\t'"${enh_tail:--}"$'\t'"${blurb}"$'\t'"${metadata}"
-  done
+    print -r -- "$(category_rank "$category")"$'\t'"${label}"$'\t'"${slug}"$'\t'"${filter_body:--}"$'\t'"${scales:--}"$'\t'"${free_size:--}"$'\t'"${blurb:--}"$'\t'"${metadata:--}"
+  done | sort -s -t $'\t' -k1,1n | cut -f2-
 }
 
 enh_selection="$(
@@ -222,7 +226,7 @@ enh_selection="$(
     --border \
     --header="$media_header" \
     --header-first \
-    --preview='printf "%s\n\n%s\n" {5} {3}' \
+    --preview='printf "%s\n\n%s\n" {6} {3}' \
     --preview-window='down:5:wrap'
 )" || true
 [[ -n "$enh_selection" ]] || {
@@ -230,10 +234,86 @@ enh_selection="$(
   exit 1
 }
 
-IFS=$'\t' read -r enh_label enh_slug enh_filter enh_tail enh_blurb enh_metadata <<< "$enh_selection"
-[[ "$enh_filter" == "-" ]] && enh_filter=""
-[[ "$enh_tail" == "-" ]] && enh_tail=""
+IFS=$'\t' read -r enh_label enh_slug enh_body enh_scales enh_free_size enh_blurb enh_metadata <<< "$enh_selection"
+[[ "$enh_body" == "-" ]] && enh_body=""
+[[ "$enh_free_size" == "-" ]] && enh_free_size=""
+[[ "$enh_metadata" == "-" ]] && enh_metadata=""
 enh_display="${enh_label#\[*\] }"
+
+# ---- step 1b: resolution (the mpv menu's Output tab) ----
+# "1" and "2" are the model's fixed scales; "4k" means it takes a free target
+# size (scale=0:w:h), which both the 4K and the 4x row need. A source at or
+# above 4K, or one that could not be probed, is only ever rendered as-is.
+
+has_scale() { [[ ",${enh_scales}," == *",$1,"* ]]; }
+
+res_rows() {
+  emulate -L zsh
+  print -r -- "orig"$'\t'"Original${src_w:+ — ${src_w}×${src_h}}"$'\t'"${src_w:-0}"$'\t'"${src_h:-0}"
+  [[ "$is_4k" == false && "$src_w" == <-> ]] || return 0
+  local -a rows
+  if has_scale 4k || { [[ "$two_x_is_4k" == true ]] && has_scale 2; }; then
+    rows+=("4k"$'\t'"Upscale to 4K — ${target_w}×${target_h}"$'\t'"${target_w}"$'\t'"${target_h}")
+  fi
+  if has_scale 2 && (( src_w * 2 != target_w || src_h * 2 != target_h )); then
+    rows+=("2x"$'\t'"Upscale 2x — $(( src_w * 2 ))×$(( src_h * 2 ))"$'\t'"$(( src_w * 2 ))"$'\t'"$(( src_h * 2 ))")
+  fi
+  if has_scale 4k && (( src_w * 4 <= 7680 && src_h * 4 <= 7680 )); then
+    rows+=("4x"$'\t'"Upscale 4x — $(( src_w * 4 ))×$(( src_h * 4 ))"$'\t'"$(( src_w * 4 ))"$'\t'"$(( src_h * 4 ))")
+  fi
+  # Smallest target first, as the mpv menu orders them.
+  local row
+  for row in "${rows[@]}"; do
+    print -r -- "$(( ${${(s:	:)row}[3]} * ${${(s:	:)row}[4]} ))"$'\t'"$row"
+  done | sort -t $'\t' -k1,1n | cut -f2-
+}
+
+res_key="orig" res_w="$src_w" res_h="$src_h"
+if [[ "$is_4k" == false && "$src_w" == <-> ]] && { has_scale 2 || has_scale 4k; }; then
+  res_selection="$(
+    res_rows | fzf \
+      --prompt='resolution > ' \
+      --delimiter=$'\t' \
+      --with-nth=2 \
+      --height=30% \
+      --reverse \
+      --border \
+      --header="$media_header  ·  $enh_display" \
+      --header-first
+  )" || true
+  [[ -n "$res_selection" ]] || {
+    print -u2 "no resolution selected"
+    exit 1
+  }
+  IFS=$'\t' read -r res_key res_label res_w res_h <<< "$res_selection"
+fi
+
+# Fill @SCALE@ the way the mpv menu's enh_filter_for does: scale=1 / scale=2 /
+# scale=0:w:h, the free-target form gaining a lanczos tail so the encode lands
+# on the exact size whatever the model produced. free_size models (Starlight
+# Mini) take the explicit size at every resolution, as the app drives them.
+enh_filter="" enh_tail=""
+if [[ -n "$enh_body" ]]; then
+  clause="scale=1"
+  if [[ -n "$enh_free_size" && "$res_w" == <-> && "$res_h" == <-> ]]; then
+    clause="scale=0:w=${res_w}:h=${res_h}"
+      [[ "$res_key" != orig ]] && enh_tail="scale=w=${res_w}:h=${res_h}:flags=lanczos:threads=0"
+  elif [[ "$res_key" == 2x ]]; then
+    clause="scale=2"
+  elif [[ "$res_key" != orig ]]; then
+    if has_scale 4k; then
+      clause="scale=0:w=${res_w}:h=${res_h}"
+      enh_tail="scale=w=${res_w}:h=${res_h}:flags=lanczos:threads=0"
+    else
+      clause="scale=2"
+    fi
+  fi
+  enh_filter="${enh_body//@SCALE@/$clause}"
+elif [[ "$res_key" != orig ]]; then
+  # Original (no enhancement) upscaled: a plain lanczos scale, no AI pass.
+  enh_tail="scale=w=${res_w}:h=${res_h}:flags=lanczos:threads=0"
+fi
+[[ "$res_key" != orig ]] && enh_display+=" → ${res_key:u}"
 
 # ---- step 2: interpolation ----
 # fzf rows: display<TAB>slug<TAB>fi_filter<TAB>metadata
@@ -290,7 +370,8 @@ IFS=$'\t' read -r output_display output_slug output_ext output_video_args <<< "$
 filter_parts=()
 [[ -n "$enh_filter" ]] && filter_parts+=("$enh_filter")
 [[ -n "$interp_filter" ]] && filter_parts+=("$interp_filter")
-final_filter="${(j:,:)filter_parts}${enh_tail}"
+[[ -n "$enh_tail" ]] && filter_parts+=("$enh_tail")
+final_filter="${(j:,:)filter_parts}"
 [[ -n "$final_filter" ]] || final_filter="null"
 
 preset_name="$enh_display"

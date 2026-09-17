@@ -1,0 +1,15 @@
+order = 12
+category = "polish"
+display = "Starlight Precise 2.5"
+scales = ["1", "2", "4k"]
+blurb = "Generative diffusion, previous release; minutes per frame"
+filter = ''
+ns_model = "slp-25"
+ns_store = "slp25m"
+metadata = "videoai=[Polish] Starlight Precise 2.5. The previous Starlight Precise release, kept for A/B against 2.6. Runs through the app's neuroserver process rather than the ffmpeg filter."
+
+[insight]
+strategy = "Diffusion reconstruction in three phases — encode, DiT, decode — that re-imagines pixels rather than filtering them. Same family as 2.6; keep it for footage where 2.6's softening changed a texture you liked. Rendered via neuroserver, not tvai_up, so it needs no scale support from the filter."
+watch = "Minutes per frame, and that is not an exaggeration: roughly 17 seconds per frame at thumbnail size, so a real preview at full resolution is a commitment. Esc cancels. It also needs at least five frames of context, so a still preview quietly renders a short window and pulls one frame out of it — the timestamp you see is exact, but the work behind it is not one frame."
+vs = "starlight-precise-26"
+vs_note = "2.6 is the current release and what the app runs by default. Try 2.6 first; come back here only to compare."

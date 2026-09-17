@@ -1,13 +1,14 @@
 order = 10
 category = "polish"
 display = "Starlight Mini"
-scales = ["2"]
-blurb = "Generative; app-only — cannot render from here"
+scales = ["1", "2", "4k"]
+free_size = true
+blurb = "Generative, local; the fast Starlight"
 filter = 'tvai_up=model=slm-1:@SCALE@:device=0:vram=0.95:instances=1'
-metadata = "videoai=[Polish] Starlight Mini. Diffusion-style reconstruction — the strongest genuine detail generation Topaz has. Runs in the Topaz app only; this pipeline cannot drive it."
+metadata = "videoai=[Polish] Starlight Mini. Diffusion-style reconstruction, the local Starlight. Runs through the ffmpeg tvai_up filter like everything else here; the app drives it as scale=0 with an explicit target size, and so does this row."
 
 [insight]
-strategy = "Diffusion-style reconstruction: it re-imagines pixels rather than filtering them, so it generates texture that Proteus can only sharpen toward. When it wins it wins big, and it is worth reaching for — just not from here."
-watch = "This row cannot render in mpv, and the preset will refuse immediately rather than hang. Starlight has no coreml backend: it is served by the app's separate neuroserver process, which the ffmpeg tvai_up filter cannot reach. Use the Topaz app for this one, or wait for a neuroserver backend here. Expect minutes per frame either way."
-vs = "rhea-xl"
-vs_note = "Rhea XL is the strongest thing this pipeline can actually run. Reach for Starlight in the app when Rhea is not enough."
+strategy = "Diffusion-style reconstruction: it re-imagines pixels rather than filtering them, so it generates texture that Proteus can only sharpen toward. Three-part model (encoder, unet, decoder) that ffmpeg loads as one, with the medium set on a 48 GB Mac. When it wins it wins big."
+watch = "A temporal model: the decoder works on 16-frame windows, so even a still preview reads a run of frames and takes a while to warm up before the first frame appears. It refuses immediately, rather than hanging, if any of its three parts is missing — run it once in the Topaz app to download them. Only ever rendered at an explicit size (scale=0:w:h), never scale=1/2, because that is the only form the app itself uses."
+vs = "starlight-precise-26"
+vs_note = "Precise is the stronger Starlight by a wide margin, at minutes per frame. Mini is the one you can afford to run on a whole clip."

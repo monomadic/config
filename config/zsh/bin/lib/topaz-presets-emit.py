@@ -11,6 +11,7 @@ unchanged.
 Usage: topaz-presets-emit.py <type> <presets-dir>
   type: enhancement | insights | interpolation | output | transform | catalog
 """
+import json
 import sys
 import pathlib
 
@@ -65,13 +66,21 @@ def main():
             if d.get("pseudo"):
                 continue  # e.g. __original__ carries only an [insight], no row
             scales = ",".join(d.get("scales", []))
-            # ns_model (column 8) names a neuroserver model instead of a tvai_up
-            # filter — the path for models ffmpeg cannot reach. Empty for the
-            # overwhelming majority, which run through the filter.
+            # Columns 8-11 are the neuroserver / free-size extras, empty for the
+            # overwhelming majority of presets, which run through the filter:
+            #   8  ns_model   neuroserver model name (the "model" in --filters)
+            #   9  ns_store   directory under models/models/ holding its weights;
+            #                 the preflight refuses a model that is not there
+            #   10 ns_params  extra --filters keys, as a JSON object
+            #   11 free_size  "1" when the model always takes scale=0:w:h, at
+            #                 every resolution (Starlight Mini), never scale=1/2
+            ns_params = d.get("ns_params")
             rows.append([
                 d.get("category", ""), d["display"], d["slug"],
                 scales, d["filter"], d.get("blurb", ""), d.get("metadata", ""),
-                d.get("ns_model", ""),
+                d.get("ns_model", ""), d.get("ns_store", ""),
+                json.dumps(ns_params, separators=(",", ":")) if ns_params else "",
+                "1" if d.get("free_size") else "",
             ])
         emit(rows)
 

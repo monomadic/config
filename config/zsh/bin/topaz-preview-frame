@@ -7,6 +7,7 @@ usage() {
   cat <<EOF
 usage:
   $script_name --input file --preset-name name --preset-flag flag --filter filter [--time seconds] [--times seconds[,seconds...]] [--no-open] [--prompt-open] [--print-paths] [--log-file path]
+  $script_name --input file --preset-name name --preset-flag flag --ns-model name [--ns-store dir] [--ns-params json] [--ns-size WxH] ...
 
 Render Topaz still-frame preview JPEGs for one or more timestamps.
 
@@ -19,6 +20,12 @@ The original and Topaz JPEGs open automatically in mpv as a playlist, so you can
 flip between matching frames. With --prompt-open, the render finishes first and
 asks before opening. With --print-paths, machine-readable preview paths are
 printed for mpv scripts.
+
+Models the ffmpeg filter cannot reach (Starlight Precise) render through the
+app's neuroserver instead: --ns-model names the model, --ns-store the directory
+under the app's models/models/ that must hold its weights (checked before any
+work starts — neuroserver never downloads), --ns-params a JSON object of extra
+filter keys ({"softness": 1}), --ns-size the exact output size.
 
 With --log-file, ffmpeg runs verbose (-loglevel info -stats) and its output is
 written to that path — model loading and downloading, device selection, and live
@@ -225,6 +232,8 @@ prompt_open=false
 print_paths=false
 log_file=""
 ns_model=""
+ns_store=""
+ns_params=""
 ns_size=""
 times=()
 
@@ -288,6 +297,16 @@ while (( $# > 0 )); do
     --ns-model)
       (( $# >= 2 )) || die "--ns-model needs a model name"
       ns_model="$2"
+      shift 2
+      ;;
+    --ns-store)
+      (( $# >= 2 )) || die "--ns-store needs a directory name"
+      ns_store="$2"
+      shift 2
+      ;;
+    --ns-params)
+      (( $# >= 2 )) || die "--ns-params needs a JSON object"
+      ns_params="$2"
       shift 2
       ;;
     --ns-size)
@@ -470,8 +489,10 @@ run_ffmpeg() {
 }
 
 # ===== neuroserver backend =====
-# Models with no coreml backend (Starlight, Wonder, Hyperion 2) are served by the
-# app's neuroserver process and are unreachable from the tvai_up filter. They are
+# Models with no coreml backend (Starlight Precise, Astra, Hyperion 2) are served
+# by the app's neuroserver process and are unreachable from the tvai_up filter.
+# (Starlight Mini is not one of them: it is a three-part coreml model that tvai_up
+# loads itself, and the app drives it through ffmpeg.) They are
 # rendered here instead, which differs from the ffmpeg path in three ways worth
 # knowing: the model is named rather than expressed as a filter chain, the weight
 # store must be pointed at explicitly (neuroserver defaults to ./data, relative to
@@ -483,6 +504,38 @@ NS_DIR="$TOPAZ_MACOS_DIR/neuroserver"
 NS_BIN="$NS_DIR/neuroserver"
 NS_STORE="$TOPAZ_MODELS_DIR/models"
 NS_WINDOW=8   # frames to render; must stay >= 5
+
+# Preflight, the neuroserver counterpart of the weights check above. The model
+# name and its weights directory are not derivable from one another (slp-25
+# lives in slp25m, slp-26 in slp26), so the preset names both. A missing store
+# fails inside neuroserver only after the Python runtime and the model registry
+# have loaded — a slow, unhelpful failure — so refuse it here instead.
+if [[ -n "$ns_model" && -n "$ns_store" ]]; then
+  if [[ ! -d "$NS_STORE/$ns_store" ]] || ! ls -A "$NS_STORE/$ns_store"/blob.* >/dev/null 2>&1; then
+    die "neuroserver model $ns_model has no weights here: $NS_STORE/$ns_store
+
+A neuroserver model downloads only when the Topaz app runs it once — run any
+short export with this model in the app, then retry."
+  fi
+fi
+
+# --filters takes a JSON array of one object: the model plus any extra keys the
+# app would pass alongside it (Starlight Precise 2.6 carries "softness": 1).
+ns_filters_json() {
+  local extra="${ns_params:-}"
+  extra="${extra## }"
+  extra="${extra%% }"
+  if [[ -n "$extra" ]]; then
+    [[ "$extra" == \{*\} ]] || die "--ns-params must be a JSON object: $extra"
+    extra="${extra#\{}"
+    extra="${extra%\}}"
+  fi
+  if [[ -n "${extra// /}" ]]; then
+    print -r -- "[{\"model\": \"${ns_model}\", ${extra}}]"
+  else
+    print -r -- "[{\"model\": \"${ns_model}\"}]"
+  fi
+}
 
 # Frames per second of the source, for turning a timestamp into a frame index.
 media_fps() {
@@ -519,7 +572,7 @@ neuroserver_still() {
     "$NS_BIN" --once
     --input-path "$input"
     --output-path "$tmp_mov"
-    --filters "[{\"model\": \"${ns_model}\"}]"
+    --filters "$(ns_filters_json)"
     --start-frame-idx "$start"
     --end-frame-idx "$(( start + NS_WINDOW ))"
     --output-codec prores

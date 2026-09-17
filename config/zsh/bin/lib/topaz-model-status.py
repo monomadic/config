@@ -46,31 +46,71 @@ def load(models_dir):
     return descriptors, weights
 
 
+def mac_model_set(descriptor):
+    """The part list ffmpeg loads for a composite model on this Mac.
+
+    Starlight Mini is not one network but an encoder, unet and decoder, chosen
+    per machine from `modelSet` by `modelSelector.mac` on system RAM in GB (the
+    app logs "Selected model set: slmm" on a 48 GB machine). Returns None for an
+    ordinary single-network model.
+    """
+    sets = descriptor.get("modelSet")
+    if not isinstance(sets, dict) or not sets:
+        return None
+    selector = (descriptor.get("modelSelector") or {}).get("mac") or {}
+    try:
+        ram_gb = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 2**30
+    except (ValueError, OSError):
+        ram_gb = 0
+    for name, bounds in selector.items():
+        lo, hi = bounds.get("min"), bounds.get("max")
+        if (lo is None or ram_gb >= lo) and (hi is None or ram_gb < hi) and name in sets:
+            return sets[name]
+    # No selector matched (or none for mac): take the smallest set, which is
+    # what every machine can at least attempt.
+    return sets[sorted(sets, key=lambda k: len(sets[k]))[0]]
+
+
 def runs_in_ffmpeg(code, descriptors):
     """Can `code` run through `ffmpeg -filter_complex tvai_up=...` at all?
 
-    Topaz has two inference paths. The classic models (Proteus, Artemis, Iris,
-    Gaia, Nyx, Theia, Rhea, Chronos, Apollo) declare a `backends.coreml` spec and
-    are executed by the tvai_up filter — that is the path every script here uses.
-    The newer generative models (Starlight Mini, Starlight Precise, Astra) declare
-    no backend at all and are served instead by the separate `neuroserver`
-    process the app spawns, out of reach of ffmpeg.
+    The classic models (Proteus, Artemis, Iris, Dione, Nyx, Gaia, Theia, Rhea,
+    Chronos, Apollo) declare a `backends.coreml` spec and are executed by the
+    tvai_up filter — that is the path every script here uses. A composite model
+    (Starlight Mini) declares no backend of its own but a `modelSet` of parts
+    that do; tvai_up loads the parts, so it runs in ffmpeg too — the app itself
+    drives slm-1 through tvai_up, never through neuroserver.
+
+    The generative models served by the app's separate `neuroserver` process
+    (Starlight Precise, Astra, Hyperion 2) declare `isNeuroserverModel` and are
+    out of reach of ffmpeg.
 
     tvai_up given a backend-less model does not error: it initialises the graph
-    and then blocks forever, which is exactly what a Starlight preview looked like.
+    and then blocks forever, which is exactly what a Starlight preview looked
+    like before its parts were downloaded.
     """
-    backends = (descriptors.get(code) or {}).get("backends")
-    return isinstance(backends, dict) and bool(backends.get("coreml"))
+    d = descriptors.get(code) or {}
+    backends = d.get("backends")
+    if isinstance(backends, dict) and backends.get("coreml"):
+        return True
+    parts = mac_model_set(d)
+    if not parts:
+        return False
+    return all(runs_in_ffmpeg(part, descriptors) for part in parts)
 
 
 def has_weights(code, weights):
     """Are this model's weights on disk?
 
-    Exact `<stem>-v<version>` match — the naming is consistent across every model
-    that runs in ffmpeg. (The multi-part Starlight family, whose parts are named
-    inconsistently, is excluded earlier by runs_in_ffmpeg.)
+    Exact `<stem>-v<version>` match — the naming is consistent across every
+    single-network model. A Starlight Mini part is the exception: its descriptor
+    is `slmem-1` (encoder, medium set) but its weight file is `slme-v1-...`, the
+    set letter dropped from the stem — so try that too.
     """
-    return bool(weights.get(code))
+    if weights.get(code):
+        return True
+    stem, _, ver = code.rpartition("-")
+    return bool(stem and stem[-1] in "sml" and weights.get(f"{stem[:-1]}-{ver}"))
 
 
 def missing_parts(code, descriptors, weights, seen=None):
@@ -80,10 +120,20 @@ def missing_parts(code, descriptors, weights, seen=None):
         return []
     seen.add(code)
 
+    d = descriptors.get(code) or {}
+    parts = mac_model_set(d)
+    if parts:
+        # A composite model has no weights of its own: only the parts of the set
+        # this machine would load matter (the `dependencies` list names every set).
+        missing = []
+        for part in parts:
+            missing.extend(missing_parts(part, descriptors, weights, seen))
+        return missing
+
     missing = []
     if not has_weights(code, weights):
         missing.append(code)
-    for dep in (descriptors.get(code) or {}).get("dependencies", []) or []:
+    for dep in d.get("dependencies", []) or []:
         missing.extend(missing_parts(dep, descriptors, weights, seen))
     return missing
 
