@@ -74,41 +74,6 @@ require_free_space() {
   Reclaim history with: rclone-tower-safe --prune"
 }
 
-# Renames are matched on size+modtime and moved server-side without reading
-# content, so a wrong pairing would never be caught by this or any later sync.
-# rclone logs every rename it performs; hash-check exactly those files.
-verify_renames() {
-  local list="$state_dir/renamed.txt" report="$state_dir/rename-report.txt" size count
-  [[ ! -L $list && ! -L $report ]] || die 'Rename report must not be a symlink'
-  [[ -f $log_file ]] || return 0
-  size=$(/usr/bin/stat -f %z "$log_file") || die "Cannot read $log_file"
-  # The log rotates at 10M. If it did, re-read all of it: re-verifying a few
-  # already-checked renames is harmless, missing one is not.
-  (( size >= log_offset )) || log_offset=0
-  { /usr/bin/tail -c "+$(( log_offset + 1 ))" "$log_file" |
-    /usr/bin/sed -n 's/^[0-9/]* [0-9:]* INFO  : \(.*\): Renamed from ".*"$/\1/p' > "$list" } ||
-    die "Cannot extract renames from $log_file - verify them manually before trusting this run"
-  count=$(/usr/bin/wc -l < "$list")
-  count=${count// /}
-  if (( count == 0 )); then
-    print -- 'No renames this run; nothing to hash-check.'
-    print -r -- "$size" > "$verified_offset_file"
-    return 0
-  fi
-  print -- "Verifying $count renamed file(s) by checksum."
-  rclone check --files-from "$list" --checkers 3 \
-    --combined "$report" --log-level NOTICE \
-    "$source_dir/" "$destination_dir/" ||
-    die "RENAME VERIFICATION FAILED - the backup does not match the source.
-  Offending files are the non-'=' lines in $report
-  Repair with: grep -v '^=' '$report' | cut -c3- > /tmp/bad.txt
-               rclone copy --checksum --files-from /tmp/bad.txt '$source_dir/' '$destination_dir/'"
-  # Only now is the log verified this far. Advancing earlier would let renames
-  # from an interrupted run fall behind the next run's starting offset.
-  print -r -- "$size" > "$verified_offset_file"
-  print -- 'Renames verified.'
-}
-
 # Only direct, real directories with a recognized run name are candidates.
 # Accept the original YYYY-MM-DD_HHMMSS names as well as the new unique suffix.
 # Retention uses the run timestamp, never directory mtime (which copies change).
@@ -171,9 +136,7 @@ zsystem flock -t 0 -f lock_fd "$state_dir/lock" 2>/dev/null ||
   die 'Another Tower sync or prune is already running'
 
 readonly log_file="$state_dir/sync.log"
-readonly verified_offset_file="$state_dir/verified-offset"
 [[ ! -L $log_file ]] || die 'Log file must not be a symlink'
-[[ ! -L $verified_offset_file ]] || die 'Verified-offset file must not be a symlink'
 verify_disks
 
 # Pruning takes the same lock so it cannot race a sync writing into history.
@@ -196,17 +159,6 @@ else
   /bin/chmod 755 "$backup_dir"
 fi
 
-# Resume from the last point that actually passed verification, not from the
-# end of the log. A run killed by Ctrl-C never reaches verify_renames, so any
-# renames it already committed must still be checked by the next run.
-log_offset=0
-if [[ -f $verified_offset_file ]]; then
-  log_offset=$(<"$verified_offset_file")
-  [[ $log_offset == <-> ]] || log_offset=0
-elif [[ -f $log_file ]]; then
-  log_offset=$(/usr/bin/stat -f %z "$log_file")
-fi
-
 # Forward interrupts and wait for rclone before releasing the lock.
 sync_pid=''
 stop_sync() {
@@ -215,7 +167,7 @@ stop_sync() {
     kill -TERM "$sync_pid" 2>/dev/null || true
     wait "$sync_pid" 2>/dev/null || true
   fi
-  print -ru2 -- 'Interrupted. Any renames made this run are unverified; the next run hash-checks them.'
+  print -ru2 -- 'Interrupted. Sync may be incomplete; history was not pruned.'
   exit "$1"
 }
 trap 'stop_sync 130' INT
@@ -224,8 +176,8 @@ trap 'stop_sync 129' HUP
 
 print -- "Syncing Tower → Tower Backup ($mode). Log: $log_file"
 # Size + modification time is intentional for large, frequently renamed videos.
-# Keep conservative disk concurrency; hashes still verify normal transfers, and
-# verify_renames covers the server-side moves that skip the transfer path.
+# Renames deliberately skip content hashing; equal size and modtime are trusted.
+# Keep conservative disk concurrency and rclone's normal transfer verification.
 rclone sync -P "${run_flags[@]}" \
   --track-renames --track-renames-strategy size,modtime \
   --metadata \
@@ -260,6 +212,5 @@ fi
 
 verify_disks
 [[ $mode != --dry-run ]] || { print -- 'Dry run complete; nothing pruned.'; exit 0; }
-verify_renames
 prune_history ask
 print -- 'Done.'
