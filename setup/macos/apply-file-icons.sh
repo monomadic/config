@@ -49,7 +49,7 @@ ICON_MAPPINGS=(
   "Numi.app|numi.icns"
   "Spotify.app|spotify-02.icns"
   "Telegram Desktop.app|telegram.icns"
-  "VirtualDJ.app|virtualdj-vinyl-full.icns"
+  "VirtualDJ.app|virtualdj-06.png"
 )
 
 # Apps installed by a root installer have root-owned bundles in /Applications;

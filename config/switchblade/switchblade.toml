@@ -479,7 +479,7 @@ quickview_max_height = 2160
 # the arrangements. Marks and duration come from the clip's probed meta, so a
 # clip whose meta isn't cached yet shows only what it can; the rating is
 # parsed from a trailing ★ run in the filename and needs no probe at all.
-tile_badge = true
+tile_badge = false
 tile_badge_size = 11.0
 # How far the badge tucks inside the tile's edges.
 tile_badge_inset_x = 14.0
@@ -723,8 +723,8 @@ ring_width = 2.0
 # Panel geometry and chip padding.
 width = 900.0
 max_height = 0.95
-gap = 8.0 # vertical gap between tags
-inset = 30.0 # padding in the panel
+gap = 8.0  # vertical gap between tags
+inset = 30.0  # padding in the panel
 radius = 13.0
 # top = 96.0   # REMOVED from switchblade: gone — the panel centres itself now
 pad_x = 13.0
