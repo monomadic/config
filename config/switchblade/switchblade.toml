@@ -14,13 +14,12 @@
 [tuning]
 libraries = [
   { name = "All Media", exec = "fd-media" },
-  { name = "Latest Media", exec = "fd-media --sort-created" },
-  { name = "Latest Local Media", exec = "fd-media --sort-created ~/Movies/Porn" },
+  { name = "All Media (Sorted)", exec = "fd-media --sort-created" },
+  { name = "Local Media (Sorted)", exec = "fd-media --sort-created ~/Movies/Porn" },
+  { name = "All Private Media", exec = "fd-media --path ~/Movies/Private --path /Volumes/*/Movies/Private" },
+  { name = "All Private Media (Sorted)", exec = "fd-media --sort-created --match-string Alice . ~/Movies/Private /Volumes/*/Movies/Private" },
   "/Volumes/*/Movies/Visuals",
   "/Volumes/*/Movies/Porn",
-  "/Volumes/*/Movies/Private",
-  { name = "Private", exec = "fd-media . ~/Movies/Private /Volumes/*/Movies/Private" },
-  { name = "New Private", exec = "fd-media --sort-created --match-string Alice . ~/Movies/Private /Volumes/*/Movies/Private" },
   "~/Movies/Private",
   "~/Movies/Porn",
   "~/Movies/Porn/Downloads",
@@ -323,7 +322,7 @@ strip_scroll_sensitivity = 1.0
 # magnetic, chip-by-chip flow. false: scrolling only PEEKS — the strip
 # pans while the selected clip keeps playing (hover still previews);
 # click a chip to play it. The strip re-centers when the selection moves.
-strip_scroll_selects = true
+strip_scroll_selects = false
 
 # ── Chapter bar (g, inside fullview) ────────────────────────────────────
 # Filmstrip-style chapter chips slide up from the bottom of fullview
