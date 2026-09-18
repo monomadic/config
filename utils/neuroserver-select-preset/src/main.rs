@@ -12,6 +12,8 @@
 //!   q         quit
 
 mod catalog;
+mod encode;
+mod logtail;
 mod probe;
 mod render;
 
@@ -25,7 +27,7 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, Gauge, List, ListItem, ListState, Paragraph, Wrap};
 use ratatui::{Frame, Terminal};
 use ratatui_image::picker::Picker;
 use ratatui_image::protocol::StatefulProtocol;
@@ -34,8 +36,23 @@ use render::{Event as REvent, Job, RenderResult};
 use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
-use std::process::Command;
 use std::time::Duration;
+
+/// A running (or just finished) full-clip encode, shown in place of the preview.
+struct Encoding {
+    job: encode::Encode,
+    label: String,
+    stage: Option<String>,
+    message: Option<String>,
+    pct: u32,
+    frame: u64,
+    total_frames: u64,
+    live: Option<PathBuf>,
+    live_count: u64,
+    done: Option<(bool, String)>,
+    confirm_cancel: bool,
+    finished_in: Option<f64>,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Pane {
@@ -61,9 +78,22 @@ impl Pane {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum EncodeMode {
+    Fresh,
+    Resume,
+    Restart,
+}
+
+/// What an earlier, interrupted encode of the same output left behind.
+#[derive(Clone, Copy)]
+struct Interrupted {
+    frames: u64,
+    parts: usize,
+}
+
 enum Exit {
     Quit,
-    Encode(Vec<String>),
     PrintCommand(Vec<String>),
 }
 
@@ -83,12 +113,15 @@ struct App {
     job: Option<Job>,
     stage: Option<String>,
     note: Option<String>,
+    pct: Option<u32>,
+    encoding: Option<Encoding>,
     error: Option<String>,
     /// Which rendered key is on screen (may lag the selection until Enter).
     shown: Option<String>,
     frame: usize,
     show_original: bool,
     confirm_encode: bool,
+    interrupted: Option<Interrupted>,
     picker: Picker,
     images: HashMap<PathBuf, StatefulProtocol>,
 }
@@ -148,6 +181,7 @@ impl App {
         self.error = None;
         self.stage = Some("starting".into());
         self.note = None;
+        self.pct = None;
         self.job = Some(render::spawn(render::Request {
             input: self.input.clone(),
             preset: self.preset().clone(),
@@ -168,6 +202,7 @@ impl App {
                     self.note = None;
                 }
                 REvent::Note(n) => self.note = Some(n),
+                REvent::Pct(p) => self.pct = Some(p),
                 REvent::Done(r) => {
                     done = Some(r);
                     break;
@@ -177,6 +212,7 @@ impl App {
         if let Some(result) = done {
             let key = self.job.take().unwrap().key;
             self.stage = None;
+            self.pct = None;
             match result {
                 Ok(r) => {
                     self.frame = r.target;
@@ -196,6 +232,7 @@ impl App {
         if let Some(job) = self.job.take() {
             job.cancel();
             self.stage = None;
+            self.pct = None;
             self.note = Some("render cancelled".into());
         }
     }
@@ -230,17 +267,65 @@ impl App {
             .cloned()
     }
 
-    fn encode_command(&self) -> Vec<String> {
+    fn encode_name(&self) -> String {
+        format!("{} - {}", self.preset_label(), self.outputs[self.out_sel].display)
+    }
+
+    fn encode_paths(&self) -> (PathBuf, PathBuf, PathBuf) {
+        let o = &self.outputs[self.out_sel];
+        let ext = if o.ext.is_empty() { "mp4" } else { o.ext.as_str() };
+        let output = encode::output_path(&self.input, &self.encode_name(), ext);
+        let partial = output.with_extension(format!("ns-video.{ext}"));
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
+        let log = PathBuf::from(home).join("Library/Logs/topaz-batch").join(format!(
+            "{}.log",
+            output.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "neuroserver".into())
+        ));
+        (output, partial, log)
+    }
+
+    /// The neuroserver-encode command for the current choice. The codec
+    /// arguments carry the fragmented-container flags so the half-written file
+    /// can be read for a live frame (see encode.rs).
+    /// Frames that survive from an interrupted encode of the current output:
+    /// the fragmented partial plus any part files earlier resumes salvaged.
+    fn find_interrupted(&self) -> Option<Interrupted> {
+        let (output, partial, _) = self.encode_paths();
+        let dir = output.parent()?;
+        let stem = output.file_stem()?.to_string_lossy().into_owned();
+        let prefix = format!("{stem}.ns-part-");
+        let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
+            .ok()?
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.file_name().map(|n| n.to_string_lossy().starts_with(&prefix)).unwrap_or(false))
+            .collect();
+        let parts = files.len();
+        if partial.is_file() {
+            files.push(partial);
+        }
+        if files.is_empty() {
+            return None;
+        }
+        let frames = files.iter().map(|f| probe::count_frames(f)).sum();
+        Some(Interrupted { frames, parts })
+    }
+
+    fn encode_command(&self, mode: EncodeMode) -> Vec<String> {
         let p = self.preset();
         let r = self.effective_res();
         let o = &self.outputs[self.out_sel];
+        let (output, _, log) = self.encode_paths();
+        let ext = if o.ext.is_empty() { "mp4" } else { o.ext.as_str() };
         let mut cmd = vec![
             catalog::zsh_bin().join("neuroserver-encode").to_string_lossy().into_owned(),
             "--input".into(), self.input.to_string_lossy().into_owned(),
             "--model".into(), p.ns_model.clone(),
             "--store".into(), p.ns_store.clone(),
-            "--output-profile".into(), o.slug.clone(),
-            "--preset-name".into(), format!("{} - {}", self.preset_label(), o.display),
+            "--video-args".into(), format!("{} {}", o.video_args, encode::FRAG_FLAGS),
+            "--ext".into(), ext.into(),
+            "--preset-name".into(), self.encode_name(),
+            "--output".into(), output.to_string_lossy().into_owned(),
+            "--log-file".into(), log.to_string_lossy().into_owned(),
             "--nice".into(),
         ];
         if let Some(params) = &p.ns_params {
@@ -252,7 +337,79 @@ impl App {
         if !p.metadata.is_empty() {
             cmd.extend(["--metadata".into(), p.metadata.clone()]);
         }
+        match mode {
+            EncodeMode::Fresh => {}
+            EncodeMode::Resume => cmd.push("--resume".into()),
+            EncodeMode::Restart => cmd.push("--restart".into()),
+        }
         cmd
+    }
+
+    fn start_encode(&mut self, mode: EncodeMode) {
+        self.cancel(); // a preview render would only fight the encode for the GPU
+        let (output, partial, log) = self.encode_paths();
+        let scratch = std::env::temp_dir().join(format!("neuroserver-select-preset-live-{}", std::process::id()));
+        let total = (self.profile.duration * self.profile.fps).round().max(0.0) as u64;
+        let job = encode::spawn(encode::Request {
+            command: self.encode_command(mode),
+            output,
+            partial,
+            log,
+            scratch,
+        });
+        self.encoding = Some(Encoding {
+            job,
+            label: self.encode_name(),
+            stage: None,
+            message: Some(match (mode, self.interrupted) {
+                (EncodeMode::Resume, Some(i)) => format!("resuming after {} kept frames", i.frames),
+                _ => "starting neuroserver".into(),
+            }),
+            pct: 0,
+            frame: 0,
+            total_frames: total,
+            live: None,
+            live_count: 0,
+            done: None,
+            confirm_cancel: false,
+            finished_in: None,
+        });
+    }
+
+    fn poll_encode(&mut self) {
+        let Some(enc) = &mut self.encoding else { return };
+        while let Ok(ev) = enc.job.rx.try_recv() {
+            match ev {
+                encode::Event::Stage(s) => enc.stage = Some(s),
+                encode::Event::Progress { pct, frame, message } => {
+                    if let Some(p) = pct {
+                        enc.pct = p.min(100);
+                    }
+                    if let Some(f) = frame {
+                        enc.frame = f;
+                    }
+                    if message.is_some() {
+                        enc.message = message;
+                    }
+                }
+                encode::Event::LiveFrame(path) => {
+                    // Drop the previous live frame's decoded image: a long
+                    // encode would otherwise keep every one of them in memory.
+                    if let Some(old) = enc.live.take() {
+                        self.images.remove(&old);
+                    }
+                    enc.live = Some(path);
+                    enc.live_count += 1;
+                }
+                encode::Event::Done { ok, detail } => {
+                    enc.finished_in = Some(enc.job.started.elapsed().as_secs_f64());
+                    if ok {
+                        enc.pct = 100;
+                    }
+                    enc.done = Some((ok, detail));
+                }
+            }
+        }
     }
 }
 
@@ -315,11 +472,14 @@ fn main() -> Result<()> {
         job: None,
         stage: None,
         note: Some("Enter renders the preview window".into()),
+        pct: None,
+        encoding: None,
         error: None,
         shown: None,
         frame: 0,
         show_original: false,
         confirm_encode: false,
+        interrupted: None,
         picker,
         images: HashMap::new(),
     };
@@ -333,17 +493,20 @@ fn main() -> Result<()> {
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     terminal.show_cursor()?;
     app.cancel();
+    if let Some(enc) = &app.encoding {
+        if enc.done.is_none() {
+            enc.job.cancel();
+        }
+    }
+    let _ = std::fs::remove_dir_all(
+        std::env::temp_dir().join(format!("neuroserver-select-preset-live-{}", std::process::id())),
+    );
 
     match outcome? {
         Exit::Quit => Ok(()),
         Exit::PrintCommand(cmd) => {
             println!("{}", cmd.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" "));
             Ok(())
-        }
-        Exit::Encode(cmd) => {
-            eprintln!("{}", cmd.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" "));
-            let status = Command::new(&cmd[0]).args(&cmd[1..]).status().context("running neuroserver-encode")?;
-            if status.success() { Ok(()) } else { Err(anyhow!("neuroserver-encode exited with {status}")) }
         }
     }
 }
@@ -372,6 +535,7 @@ neuroserver-encode.
 fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<Exit> {
     loop {
         app.poll_job();
+        app.poll_encode();
         terminal.draw(|f| draw(f, app))?;
         if !event::poll(Duration::from_millis(120))? {
             continue;
@@ -387,14 +551,40 @@ fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App
 }
 
 fn handle_key(app: &mut App, key: KeyEvent) -> Option<Exit> {
-    if app.confirm_encode {
-        match key.code {
-            KeyCode::Char('y') | KeyCode::Enter => return Some(Exit::Encode(app.encode_command())),
-            _ => {
-                app.confirm_encode = false;
-                return None;
+    // While an encode is up it owns the keyboard: nothing here may start a
+    // second GPU job, and leaving has to be deliberate.
+    if let Some(enc) = &mut app.encoding {
+        if enc.done.is_some() {
+            match key.code {
+                KeyCode::Char('q') => return Some(Exit::Quit),
+                KeyCode::Enter | KeyCode::Esc => app.encoding = None,
+                _ => {}
             }
+        } else if enc.confirm_cancel {
+            match key.code {
+                KeyCode::Char('y') => {
+                    enc.job.cancel();
+                    enc.confirm_cancel = false;
+                    enc.message = Some("cancelling…".into());
+                }
+                _ => enc.confirm_cancel = false,
+            }
+        } else if matches!(key.code, KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('x')) {
+            enc.confirm_cancel = true;
         }
+        return None;
+    }
+    if app.confirm_encode {
+        app.confirm_encode = false;
+        match (app.interrupted.is_some(), key.code) {
+            // Nothing to lose: y or Enter just starts.
+            (false, KeyCode::Char('y') | KeyCode::Enter) => app.start_encode(EncodeMode::Fresh),
+            // Work on disk: resuming is the safe default, discarding needs its own key.
+            (true, KeyCode::Char('r') | KeyCode::Enter) => app.start_encode(EncodeMode::Resume),
+            (true, KeyCode::Char('x')) => app.start_encode(EncodeMode::Restart),
+            _ => {}
+        }
+        return None;
     }
     let shift = key.modifiers.contains(KeyModifiers::SHIFT);
     match key.code {
@@ -419,8 +609,11 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Option<Exit> {
         KeyCode::Char('.') => app.shift_time(1.0),
         KeyCode::Char('<') => app.shift_time(-10.0),
         KeyCode::Char('>') => app.shift_time(10.0),
-        KeyCode::Char('e') => app.confirm_encode = true,
-        KeyCode::Char('c') => return Some(Exit::PrintCommand(app.encode_command())),
+        KeyCode::Char('e') => {
+            app.interrupted = app.find_interrupted();
+            app.confirm_encode = true;
+        }
+        KeyCode::Char('c') => return Some(Exit::PrintCommand(app.encode_command(EncodeMode::Fresh))),
         KeyCode::Char('1'..='9') if !shift => {
             let n = key.code.to_string().parse::<usize>().unwrap_or(1) - 1;
             match app.pane {
@@ -459,7 +652,11 @@ fn draw(f: &mut Frame, app: &mut App) {
         .constraints([Constraint::Length(40), Constraint::Min(20)])
         .split(area);
     draw_lists(f, app, cols[0]);
-    draw_preview(f, app, cols[1]);
+    if app.encoding.is_some() {
+        draw_encode(f, app, cols[1]);
+    } else {
+        draw_preview(f, app, cols[1]);
+    }
     if app.confirm_encode {
         draw_confirm(f, app, area);
     }
@@ -592,8 +789,18 @@ fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
 
     let rows = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(4), Constraint::Length(1), Constraint::Length(1)])
+        .constraints([Constraint::Min(4), Constraint::Length(1), Constraint::Length(1), Constraint::Length(1)])
         .split(inner);
+    if app.job.is_some() {
+        let pct = app.pct.unwrap_or(0).min(100);
+        f.render_widget(
+            Gauge::default()
+                .gauge_style(Style::default().fg(ACCENT).bg(Color::Rgb(0x22, 0x22, 0x26)))
+                .ratio(pct as f64 / 100.0)
+                .label(format!("{pct}%")),
+            rows[3],
+        );
+    }
 
     // The image.
     match app.current_image_path() {
@@ -676,9 +883,121 @@ fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
     f.render_widget(Paragraph::new(status), rows[2]);
 }
 
+fn fmt_dur(secs: f64) -> String {
+    let s = secs.max(0.0) as u64;
+    if s >= 3600 {
+        format!("{}h {:02}m", s / 3600, (s % 3600) / 60)
+    } else if s >= 60 {
+        format!("{}m {:02}s", s / 60, s % 60)
+    } else {
+        format!("{s}s")
+    }
+}
+
+fn draw_encode(f: &mut Frame, app: &mut App, area: Rect) {
+    let Some(enc) = &app.encoding else { return };
+    let title = format!(" encoding  ·  {} ", enc.label);
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(ACCENT))
+        .title(Line::from(Span::styled(title, Style::default().fg(Color::White).add_modifier(Modifier::BOLD))));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(4), Constraint::Length(1), Constraint::Length(1), Constraint::Length(1), Constraint::Length(1)])
+        .split(inner);
+
+    // Image: the newest decoded frame once one exists; before that the preview
+    // still for this selection if there is one, clearly labelled as not final.
+    let live = enc.live.clone();
+    let fallback = if live.is_none() { app.current_image_path() } else { None };
+    let caption: Line = if live.is_some() {
+        Line::from(vec![
+            Span::styled(" live ", Style::default().fg(Color::Black).bg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(format!("  newest frame written to the output  ·  update {}", enc.live_count), Style::default().fg(DIM)),
+        ])
+    } else if fallback.is_some() {
+        Line::from(vec![
+            Span::styled(" preview ", Style::default().fg(Color::Black).bg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("  not the encode — frames land a chunk (~100 frames) at a time, after each chunk's decode pass", Style::default().fg(DIM)),
+        ])
+    } else {
+        Line::from(Span::styled(
+            " no frames yet — Starlight works in chunks of ~100 frames and writes each one only after its decode pass",
+            Style::default().fg(DIM),
+        ))
+    };
+    if let Some(path) = live.or(fallback) {
+        if !app.images.contains_key(&path) {
+            if let Ok(img) = image::ImageReader::open(&path).and_then(|r| r.decode().map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))) {
+                let proto = app.picker.new_resize_protocol(img);
+                app.images.insert(path.clone(), proto);
+            }
+        }
+        if let Some(proto) = app.images.get_mut(&path) {
+            f.render_stateful_widget(StatefulImage::default(), rows[0], proto);
+        }
+    }
+    let Some(enc) = &app.encoding else { return };
+    f.render_widget(Paragraph::new(caption), rows[1]);
+
+    // Phase, frame count, elapsed and a rate-based ETA.
+    let elapsed = enc.finished_in.unwrap_or_else(|| enc.job.started.elapsed().as_secs_f64());
+    let eta = if enc.done.is_none() && enc.pct >= 2 {
+        format!("  ·  about {} left", fmt_dur(elapsed * (100 - enc.pct) as f64 / enc.pct as f64))
+    } else {
+        String::new()
+    };
+    let frames = if enc.total_frames > 0 {
+        format!("frame {} / {}", enc.frame.min(enc.total_frames), enc.total_frames)
+    } else {
+        format!("frame {}", enc.frame)
+    };
+    let phase = enc.message.clone().or_else(|| enc.stage.clone()).unwrap_or_default();
+    f.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled(format!(" {phase}"), Style::default().fg(Color::White)),
+            Span::styled(format!("  ·  {frames}  ·  {} elapsed{eta}", fmt_dur(elapsed)), Style::default().fg(DIM)),
+        ])),
+        rows[2],
+    );
+
+    let (color, label) = match &enc.done {
+        Some((true, _)) => (Color::Green, "done".to_string()),
+        Some((false, _)) => (Color::Red, "failed".to_string()),
+        None => (ACCENT, format!("{}%", enc.pct)),
+    };
+    f.render_widget(
+        Gauge::default()
+            .gauge_style(Style::default().fg(color).bg(Color::Rgb(0x22, 0x22, 0x26)))
+            .ratio(enc.pct.min(100) as f64 / 100.0)
+            .label(label),
+        rows[3],
+    );
+
+    let foot: Line = match &enc.done {
+        Some((true, path)) => Line::from(vec![
+            Span::styled(" ✓ ", Style::default().fg(Color::Green)),
+            Span::raw(path.clone()),
+            Span::styled("    ↵ back   q quit", Style::default().fg(DIM)),
+        ]),
+        Some((false, why)) => Line::from(vec![
+            Span::styled(format!(" ✗ {why}"), Style::default().fg(Color::Red)),
+            Span::styled("    ↵ back   q quit", Style::default().fg(DIM)),
+        ]),
+        None if enc.confirm_cancel => Line::from(Span::styled(
+            " cancel this encode and lose the work so far?   y cancel   any other key keeps going",
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        )),
+        None => Line::from(Span::styled(format!(" → {}    Esc cancels", enc.job.output.display()), Style::default().fg(DIM))),
+    };
+    f.render_widget(Paragraph::new(foot), rows[4]);
+}
+
 fn draw_confirm(f: &mut Frame, app: &App, area: Rect) {
-    let w = area.width.min(70);
-    let h = 7;
+    let w = area.width.min(78);
+    let h = if app.interrupted.is_some() { 9 } else { 7 };
     let rect = Rect {
         x: area.x + (area.width.saturating_sub(w)) / 2,
         y: area.y + (area.height.saturating_sub(h)) / 2,
@@ -691,8 +1010,27 @@ fn draw_confirm(f: &mut Frame, app: &App, area: Rect) {
         Line::from(format!("{}  →  {}", app.effective_res().label, o.display)),
         Line::from(Span::styled(format!("{}", app.input.display()), Style::default().fg(DIM))),
         Line::from(""),
-        Line::from(vec![key("y"), Span::raw(" / "), key("↵"), Span::raw("  encode the whole clip with neuroserver-encode      "), key("any"), Span::raw(" cancel")]),
     ];
+    let mut text = text;
+    match app.interrupted {
+        Some(i) => {
+            let parts = if i.parts > 0 { format!(" (+{} earlier part file{})", i.parts, if i.parts == 1 { "" } else { "s" }) } else { String::new() };
+            text.push(Line::from(Span::styled(
+                format!("An interrupted encode of this output kept {} frames{parts}.", i.frames),
+                Style::default().fg(Color::Yellow),
+            )));
+            text.push(Line::from(""));
+            text.push(Line::from(vec![
+                key("r"), Span::raw(" / "), key("↵"), Span::raw("  resume, render only the rest     "),
+                key("x"), Span::raw("  discard and restart     "),
+                key("any"), Span::raw(" cancel"),
+            ]));
+        }
+        None => text.push(Line::from(vec![
+            key("y"), Span::raw(" / "), key("↵"), Span::raw("  encode the whole clip with neuroserver-encode      "),
+            key("any"), Span::raw(" cancel"),
+        ])),
+    }
     f.render_widget(ratatui::widgets::Clear, rect);
     f.render_widget(
         Paragraph::new(text).wrap(Wrap { trim: true }).block(

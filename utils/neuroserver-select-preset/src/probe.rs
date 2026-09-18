@@ -130,3 +130,16 @@ pub fn res_available(scales: &[String], opt: &ResOption, two_x_is_4k: bool) -> b
         _ => has("4k") || (two_x_is_4k && has("2")),
     }
 }
+
+/// Decodable video frames in `file` — what survives of a half-written,
+/// fragmented output. Zero for a missing or unreadable file.
+pub fn count_frames(file: &Path) -> u64 {
+    Command::new(ffprobe_path())
+        .args(["-v", "error", "-count_packets", "-select_streams", "v:0",
+               "-show_entries", "stream=nb_read_packets", "-of", "csv=p=0", "--"])
+        .arg(file)
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8_lossy(&o.stdout).lines().next().and_then(|l| l.trim().parse().ok()))
+        .unwrap_or(0)
+}

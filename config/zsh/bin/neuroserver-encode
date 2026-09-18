@@ -16,7 +16,7 @@ usage:
   $script_name --input file --model name --store dir [--params json] [--size WxH]
       [--output-profile slug | --video-args args --ext ext] [--preset-name name]
       [--metadata key=value] [--output file] [--start-frame N] [--end-frame N]
-      [--nice[=N]] [--log-file path] [--dry-run]
+      [--nice[=N]] [--log-file path] [--resume | --restart] [--dry-run]
 
 Runs one neuroserver --once job the way the Topaz app does for an export:
 neuroserver decodes, enhances and encodes the video itself (--ffmpeg-encoding
@@ -32,7 +32,21 @@ pass.
   --start-frame / --end-frame   frame index range (default: the whole clip)
   --nice[=N]                    run neuroserver at niceness N (default 19)
   --log-file path               default: ~/Library/Logs/topaz-batch/<stem> [Topaz - <preset>].log
+  --resume                      continue an interrupted encode of the same output
+  --restart                     discard an interrupted encode and start over
   --dry-run                     print the commands and exit
+
+Interrupted encodes. The video is written as fragmented MP4/MOV (added to the
+codec arguments unless they already set -movflags), so what neuroserver had
+written survives a crash or a kill and can be read back. Starlight works in
+chunks (about 100 frames at 4K) and writes a chunk only when it is finished, so
+at most one chunk of work is lost. With --resume the surviving frames are kept
+as a part file, neuroserver renders only the frames after them, and the parts
+are joined losslessly before the audio mux. neuroserver's own --resume flag is
+not used: it is accepted for Starlight Precise 2.6 and then ignored, re-rendering
+from frame zero over the partial. If an interrupted encode is found and neither
+flag is given, nothing is touched and the choice is asked for — silently
+deleting hours of rendering is not a default.
 USAGE
 }
 
@@ -45,6 +59,8 @@ source "$LIB_DIR/topaz-preset-catalog.zsh" || die "preset catalog not found"
 input="" model="" store="" params="" size="" output_profile="" video_args="" ext=""
 preset_name="" metadata="" output="" start_frame="" end_frame="" nice_level="" log_file=""
 dry_run=false
+resume=false
+restart=false
 
 while (( $# > 0 )); do
   case "$1" in
@@ -66,6 +82,8 @@ while (( $# > 0 )); do
     --nice=*) nice_level="${1#--nice=}"; shift ;;
     --log-file) log_file="$2"; shift 2 ;;
     --dry-run) dry_run=true; shift ;;
+    --resume) resume=true; shift ;;
+    --restart) restart=true; shift ;;
     --) shift; break ;;
     *) die "unknown option: $1" ;;
   esac
@@ -90,6 +108,12 @@ if [[ -n "$output_profile" ]]; then
 fi
 [[ -n "$video_args" ]] || die "--output-profile or --video-args is required"
 [[ -n "$ext" ]] || ext="mp4"
+[[ "$resume" == true && "$restart" == true ]] && die "--resume and --restart are mutually exclusive"
+# Fragmented container: the half-written file stays readable (live frames in the
+# TUI, and the whole basis of --resume). The Topaz app passes the same flags.
+if [[ "$video_args" != *-movflags* && ( "$ext" == mp4 || "$ext" == mov || "$ext" == m4v ) ]]; then
+  video_args+=" -movflags frag_keyframe+empty_moov+delay_moov"
+fi
 [[ -n "$preset_name" ]] || preset_name="$model"
 
 TOPAZ_APP="$(topaz_resolve_app)"
@@ -163,6 +187,80 @@ fi
 # final file from it. Staged beside the output so the rename is atomic.
 video_only="${output:r}.ns-video.${ext}"
 
+# ---- interrupted encodes: part files ----
+# "<output stem>.ns-part-NNN.<ext>" hold the frames salvaged from earlier,
+# interrupted runs, in order. frame_count reads what is actually decodable.
+frame_count() {
+  local n
+  n="$("$TOPAZ_FFPROBE" -v error -count_packets -select_streams v:0 \
+    -show_entries stream=nb_read_packets -of csv=p=0 -- "$1" 2>/dev/null | head -1)"
+  [[ "$n" == <-> ]] && print -r -- "$n" || print -r -- 0
+}
+part_files() { print -rl -- "${output:r}".ns-part-[0-9][0-9][0-9]."${ext}"(N) }
+
+local -a parts=("${(@f)$(part_files)}")
+parts=("${(@)parts:#}")
+leftover_frames=0
+[[ -f "$video_only" ]] && leftover_frames="$(frame_count "$video_only")"
+
+if [[ "$dry_run" != true ]]; then
+  if (( leftover_frames > 0 || ${#parts[@]} > 0 )) && [[ "$resume" != true && "$restart" != true ]]; then
+    die "an interrupted encode of this output exists: ${leftover_frames} readable frames in
+  ${video_only:t}${parts:+
+  plus ${#parts[@]} earlier part file(s)}
+Rerun with --resume to keep them and render only the rest, or --restart to discard them."
+  fi
+  if [[ "$restart" == true ]]; then
+    rm -f -- "$video_only" "${parts[@]}"
+    parts=()
+    leftover_frames=0
+  fi
+  if [[ "$resume" == true && -f "$video_only" ]]; then
+    if (( leftover_frames > 0 )); then
+      # A kill can land mid-write and leave the last packet torn: it is still
+      # counted as a packet, but it does not decode, and copied into the final
+      # file it costs a frame and shifts every frame after it. So decode the
+      # partial once; if fewer frames decode than there are packets, cut back
+      # to the last keyframe and let the final GOP be rendered again. A partial
+      # that decodes cleanly (a polite cancel) is kept whole.
+      keep="$leftover_frames"
+      decoded="$("$TOPAZ_FFPROBE" -v error -count_frames -select_streams v:0 \
+        -show_entries stream=nb_read_frames -of csv=p=0 -- "$video_only" 2>/dev/null | head -1)"
+      if [[ "$decoded" != <-> ]] || (( decoded < leftover_frames )); then
+        b_frames="$("$TOPAZ_FFPROBE" -v error -select_streams v:0 -show_entries stream=has_b_frames \
+          -of csv=p=0 -- "$video_only" 2>/dev/null | head -1)"
+        if [[ "$decoded" == <-> && "$b_frames" == 0 ]] && (( decoded > 0 )); then
+          # No B-frames (VideoToolbox HEVC here, and ProRes is intra-only): every
+          # frame depends only on earlier ones, so the decodable prefix can be
+          # kept exactly, up to the torn frame.
+          keep="$decoded"
+          how="up to the damaged frame"
+        else
+          # Reordered streams cannot be cut mid-GOP; a keyframe boundary always can.
+          keep="$("$TOPAZ_FFPROBE" -v error -select_streams v:0 -show_entries packet=flags \
+            -of csv=p=0 -- "$video_only" 2>/dev/null | awk '/K/ { last = NR - 1 } END { print last + 0 }')"
+          how="back to the last keyframe"
+        fi
+        print -P -- "  %F{yellow}partial ends in a damaged frame — keeping ${keep} of ${leftover_frames} frames (${how})%f"
+      fi
+      if (( keep > 0 )); then
+        next_part="${output:r}.ns-part-$(printf '%03d' $(( ${#parts[@]} + 1 ))).${ext}"
+        "$TOPAZ_FFMPEG" -hide_banner -nostdin -y -loglevel error -i "$video_only" \
+          -map 0:v -c copy -frames:v "$keep" "$next_part" || die "could not salvage $video_only"
+        parts+=("$next_part")
+      fi
+    fi
+    rm -f -- "$video_only"
+  fi
+fi
+
+done_frames=0
+for part in "${parts[@]}"; do
+  (( done_frames += $(frame_count "$part") ))
+done
+first_frame="$start_frame"
+(( start_frame += done_frames ))
+
 local -a ns_cmd=(
   "$NS_BIN" --once
   --input-path "$input"
@@ -193,6 +291,7 @@ print -P -- "%F{cyan}neuroserver encode%f"
 print -P -- "  %F{white}input:%f  $input"
 print -P -- "  %F{white}model:%f  $model  ($store)${params:+  $params}"
 print -P -- "  %F{white}size:%f   ${out_w}x${out_h}   frames ${start_frame}-${end_frame}"
+(( done_frames > 0 )) && print -P -- "  %F{white}resume:%f ${done_frames} frames kept from ${#parts[@]} part(s); rendering from frame ${start_frame}"
 print -P -- "  %F{white}output:%f $output"
 print -P -- "  %F{white}log:%f    $log_file"
 if [[ "$dry_run" == true ]]; then
@@ -201,34 +300,72 @@ if [[ "$dry_run" == true ]]; then
   exit 0
 fi
 
-mkdir -p "$LOG_DIR"
-: >| "$log_file"
+mkdir -p "$LOG_DIR" "${log_file:h}"
+if (( done_frames > 0 )); then
+  print -r -- "### resuming at frame ${start_frame} (${done_frames} frames in ${#parts[@]} part file(s))" >> "$log_file"
+else
+  : >| "$log_file"
+fi
 rm -f "$video_only"
 
-# neuroserver resolves its modules relative to cwd and finds weights only via
-# TOPAZ_MODEL_STORE; its progress arrives as JSON lines on stdout, which are
-# reduced to one live status line here and kept verbatim in the log.
 started=$(date +%s)
-(
-  cd "$NS_DIR" && exec env \
-    TOPAZ_MODEL_STORE="$NS_STORE" \
-    TVAI_MODEL_DIR="$TOPAZ_MODELS_DIR" \
-    TVAI_MODEL_DATA_DIR="$TOPAZ_MODELS_DIR" \
-    LC_NUMERIC=C \
-    "${ns_cmd[@]}"
-) 2>&1 | tee -a "$log_file" | while IFS= read -r line; do
-  if [[ "$line" == *'"progress"'* ]]; then
-    pct="${line##*\"progress\": }"; pct="${pct%%[^0-9]*}"
-    frame="${line##*\"frame\": }"; frame="${frame%%[^0-9]*}"
-    msg="${line##*\"message\": \"}"; msg="${msg%%\"*}"
-    printf '\r  %-24s frame %-6s %3s%%   %ds ' "$msg" "$frame" "$pct" $(( $(date +%s) - started ))
+if (( start_frame < end_frame )); then
+  # neuroserver resolves its modules relative to cwd and finds weights only via
+  # TOPAZ_MODEL_STORE; its progress arrives as JSON lines on stdout, which are
+  # reduced to one live status line here and kept verbatim in the log.
+  (
+    cd "$NS_DIR" && exec env \
+      TOPAZ_MODEL_STORE="$NS_STORE" \
+      TVAI_MODEL_DIR="$TOPAZ_MODELS_DIR" \
+      TVAI_MODEL_DATA_DIR="$TOPAZ_MODELS_DIR" \
+      LC_NUMERIC=C \
+      "${ns_cmd[@]}"
+  ) 2>&1 | tee -a "$log_file" | while IFS= read -r line; do
+    if [[ "$line" == *'"progress"'* ]]; then
+      pct="${line##*\"progress\": }"; pct="${pct%%[^0-9]*}"
+      frame="${line##*\"frame\": }"; frame="${frame%%[^0-9]*}"
+      msg="${line##*\"message\": \"}"; msg="${msg%%\"*}"
+      printf '\r  %-24s frame %-6s %3s%%   %ds ' "$msg" "$frame" "$pct" $(( $(date +%s) - started ))
+    fi
+  done
+  print
+  if [[ ! -s "$video_only" ]]; then
+    # Say why, when the log knows: a bare "no output" sends people hunting.
+    reason="$(grep -a 'ERROR:local_model_service:Error\|MODEL_INFERENCE_ERROR\|Traceback' "$log_file" | grep -av Traceback | tail -1)"
+    if grep -aq 'broadcast_shapes' "$log_file"; then
+      reason="the source (${src_w}x${src_h}) is smaller than the model's 640-pixel encoder tile — Starlight Precise cannot tile a frame that small"
+    fi
+    die "neuroserver produced no output${reason:+: $reason}
+see $log_file"
   fi
-done
-print
-[[ -s "$video_only" ]] || die "neuroserver produced no output — see $log_file"
+else
+  print -P -- "  %F{white}every frame is already rendered — joining%f"
+fi
+
+# Join the salvaged parts and this run's video, losslessly, into video_only.
+if (( ${#parts[@]} > 0 )); then
+  concat_list="${output:r}.ns-concat.txt"
+  : >| "$concat_list"
+  for part in "${parts[@]}" ${video_only:+"$video_only"}; do
+    [[ -s "$part" ]] || continue
+    print -r -- "file '${part//\'/\'\\\'\'}'" >> "$concat_list"
+  done
+  joined="${output:r}.ns-joined.${ext}"
+  print -P -- "  %F{white}joining $(( ${#parts[@]} + 1 )) parts%f"
+  "$TOPAZ_FFMPEG" -hide_banner -nostdin -y -loglevel error -f concat -safe 0 -i "$concat_list" \
+    -map 0:v -c copy "$joined" >>"$log_file" 2>&1 || die "joining the parts failed — see $log_file"
+  total_joined="$(frame_count "$joined")"
+  expected=$(( end_frame - first_frame ))
+  if (( total_joined != expected )); then
+    die "joined video has $total_joined frames, expected $expected — parts kept, nothing deleted
+see $log_file"
+  fi
+  mv -f -- "$joined" "$video_only"
+  rm -f -- "$concat_list"
+fi
 
 print -P -- "  %F{white}muxing audio + metadata%f"
 "${mux_cmd[@]}" >>"$log_file" 2>&1 || die "mux pass failed — see $log_file"
-rm -f "$video_only"
+rm -f -- "$video_only" "${parts[@]}"
 touch -r "$input" "$output" 2>/dev/null || true
 print -P -- "%F{green}done%f  $output  ($(( $(date +%s) - started ))s)"

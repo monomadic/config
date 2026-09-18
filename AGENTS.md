@@ -89,6 +89,10 @@ are unreachable from that filter; presets for them declare `ns_model` /
 `neuroserver-encode` (whole clips), with `utils/neuroserver-select-preset` as
 their TUI. Starlight *Mini* is not one of them: it is a three-part coreml model
 that `tvai_up` loads itself. Don't add a neuroserver path to `topaz-encode`.
+`neuroserver-encode` writes fragmented MP4/MOV on purpose: it is what lets the
+TUI show live frames and what makes `--resume` possible. Don't edit that script
+while an encode is running — zsh reads a script as it executes, and an encode
+can run for many hours.
 
 **The jobs queue** is infrastructure other tools can build on: drop a
 `TARGET.job` shell script into `~/jobs` and it runs. Anything that needs "run

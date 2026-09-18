@@ -3,10 +3,11 @@
 //! to the UI and finally the frame paths parsed from --print-paths output.
 
 use crate::catalog::Preset;
+use crate::logtail::{LogEvent, Tail};
 use anyhow::{anyhow, Result};
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -29,6 +30,7 @@ pub struct RenderResult {
 pub enum Event {
     Stage(String),
     Note(String),
+    Pct(u32),
     Done(Result<RenderResult>),
 }
 
@@ -125,17 +127,17 @@ fn run(req: Request, tx: Sender<Event>, pid: Arc<Mutex<Option<u32>>>) {
         s
     });
 
-    let mut log_pos: u64 = 0;
+    let mut tail = Tail::default();
     let status = loop {
         match child.try_wait() {
             Ok(Some(st)) => break Ok(st),
             Ok(None) => {}
             Err(e) => break Err(e),
         }
-        tail_log(&log, &mut log_pos, &tx);
+        forward(&mut tail, &log, &tx);
         thread::sleep(Duration::from_millis(250));
     };
-    tail_log(&log, &mut log_pos, &tx);
+    forward(&mut tail, &log, &tx);
     *pid.lock().unwrap() = None;
 
     let stdout = out_h.join().unwrap_or_default();
@@ -154,45 +156,22 @@ fn run(req: Request, tx: Sender<Event>, pid: Arc<Mutex<Option<u32>>>) {
     let _ = tx.send(Event::Done(result));
 }
 
-fn tail_log(log: &Path, pos: &mut u64, tx: &Sender<Event>) {
-    let Ok(mut f) = fs::File::open(log) else { return };
-    let Ok(len) = f.metadata().map(|m| m.len()) else { return };
-    if len <= *pos {
-        return;
-    }
-    if f.seek(SeekFrom::Start(*pos)).is_err() {
-        return;
-    }
-    let mut buf = String::new();
-    if f.read_to_string(&mut buf).is_err() {
-        return;
-    }
-    *pos = len;
-    for line in buf.lines() {
-        if let Some(stage) = line.strip_prefix("### ") {
-            let _ = tx.send(Event::Stage(stage.trim().to_string()));
-        } else if line.contains("\"progress\"") {
-            // {"status": "RUNNING", "frame": 9, "progress": 99, "message": "Done"}
-            let pct = field(line, "\"progress\":").and_then(|v| v.trim().trim_end_matches(',').parse::<u32>().ok());
-            let msg = field(line, "\"message\":").map(|v| v.trim().trim_matches(|c| c == '"' || c == '}' || c == ',').to_string());
-            let note = match (msg, pct) {
-                (Some(m), Some(p)) => format!("{m} · {p}%"),
-                (Some(m), None) => m,
-                (None, Some(p)) => format!("{p}%"),
-                _ => continue,
-            };
-            let _ = tx.send(Event::Note(note));
-        } else if line.starts_with("frame=") {
-            let _ = tx.send(Event::Note("extracting".into()));
+fn forward(tail: &mut Tail, log: &Path, tx: &Sender<Event>) {
+    for ev in tail.poll(log) {
+        match ev {
+            LogEvent::Stage(stage) => {
+                let _ = tx.send(Event::Stage(stage));
+            }
+            LogEvent::Progress { pct, message, .. } => {
+                if let Some(p) = pct {
+                    let _ = tx.send(Event::Pct(p));
+                }
+                if let Some(m) = message {
+                    let _ = tx.send(Event::Note(m));
+                }
+            }
         }
     }
-}
-
-fn field<'a>(line: &'a str, key: &str) -> Option<&'a str> {
-    let i = line.find(key)? + key.len();
-    let rest = &line[i..];
-    let end = rest.find(|c| c == ',' || c == '}').unwrap_or(rest.len());
-    Some(&rest[..end])
 }
 
 fn failure_reason(log: &Path, stderr: &str, code: Option<i32>) -> String {

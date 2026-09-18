@@ -1,13 +1,14 @@
 # Proposal: Rust media sync and transfer TUI
 
-Status: **design proposal; implementation not started**. Working name: `spill-next`.
+Status: **design proposal; implementation not started**. Independent tool; name undecided. `media-sync` below is a placeholder, not a
+replacement or new version of spill.
 Scope: macOS, locally attached APFS volumes first. Designed for Tower → Tower
 Backup, with a later mode that fills a third disk from either verified replica.
 
 ## 1. Recommendation
 
 Build a Rust application with spill's visual language and sequential media-copy
-optimizations, backed by persistent, drive-resident SQLite inventories and a
+optimizations, backed by persistent, drive-resident flat-file inventories and a
 recoverable one-way synchronization engine. Borrow FreeFileSync's documented
 idea of tracking file identities across runs, rather than its database format.
 This is an independent design, not a claim to reproduce its implementation.
@@ -72,14 +73,19 @@ stderr summary with documented nonzero outcomes for failures and incomplete work
 Proposed reserved namespace:
 
 ```text
-/.spill/
+/.media-sync/
     volume.json                  enrollment identity, schema, protected role
-    catalog.sqlite               this volume's inventory and destination-owned jobs
+    CURRENT                      committed generation manifest
+    generations/<id>/            immutable inventory and relationship snapshots
+    runs/<run-id>/                immutable plan and append-only operation journal
     lock                         OS advisory lock; not a PID-based ownership claim
     history/<run-id>/...          recoverable displaced files, on destinations
     staging/<run-id>/...          owned temporary files, on destinations
     reports/<run-id>.json         bounded portable audit reports
 ```
+
+The `.media-sync` name is provisional and must follow the eventual app name.
+It is not spill metadata and must not use spill's namespace.
 
 The namespace is always excluded from media selection and mirroring. Refuse to
 use it if it is a symlink, belongs to an unrelated application, or lacks a valid
@@ -106,8 +112,9 @@ the destination baseline remains older: this is expected and recoverable.
 No background index replication or timestamp-based “newest database wins.” If
 metadata is missing or corrupt, rebuild observations from the filesystem, retain
 history, and disable destructive reconciliation until the relationship has been
-re-established. Back up small catalog snapshots using SQLite's supported backup
-mechanism; never copy a live database file without its required state.
+re-established. Retain previous immutable catalog generations and copy only fully
+published generations for metadata backup; never treat a partly written snapshot
+as committed state.
 
 ### Multiple computers
 
@@ -127,14 +134,48 @@ cannot prevent unrelated tools from changing files.
 
 ## 4. Database and comparison model
 
-Use SQLite through `rusqlite`, with one database-owning worker per volume. Start
-with rollback journaling, `synchronous=EXTRA`, and macOS `fullfsync=ON`; confirm
-these settings on each connection. Prefer this initially for simple removable-
-disk lifecycle management. WAL is an option to benchmark later, not inherently
-unsafe on removable disks, but its sidecar and checkpoint lifecycle needs explicit
-handling. Neither setting makes USB hardware immune to lost or dishonest writes.
-[SQLite journal documentation](https://www.sqlite.org/wal.html),
-[durability settings](https://www.sqlite.org/pragma.html).
+Use **flat files for v1**, with one state-owning worker per volume. This workload
+has a single writer, sequential scans, and lookups that can be built in memory;
+it does not specifically require SQL or a database server/library.
+
+Separate a rebuildable inventory from the safety-critical operation journal:
+
+- **Inventory snapshots:** versioned, immutable files grouped into generations.
+  JSON Lines is a reasonable initial encoding for inspection and streaming; encode
+  raw path bytes explicitly rather than assuming every filename is valid Unicode.
+  Include format version, record count, generation, and content checksums in a
+  manifest. Build in-memory maps by path, file ID, and size/mtime after loading.
+- **Operation journal:** immutable plan plus append-only, framed records containing
+  sequence numbers, lengths and checksums. Persist operation intent before its
+  filesystem mutation and completion afterward. Distinguish a torn final record
+  from corruption in the middle; uncertain state blocks normal execution and is
+  reconciled with actual files. A JSON line alone is not a durability protocol.
+- **Publication:** write a new generation to temporary paths on the same volume,
+  flush files and required directory changes, then atomically replace the small
+  `CURRENT` manifest and persist that directory update. Keep the previous valid
+  generation. Validate ordering and full-sync behavior on macOS/APFS with fault
+  injection; an atomic rename alone does not guarantee power-loss durability.
+- **Compaction:** create a fresh snapshot from committed observations and completed
+  operations. Publish it before reclaiming old state. Never discard journals or
+  generations still needed by an unfinished operation. Batch scan observations;
+  do not rewrite the complete inventory after every copied file.
+
+This removes SQLite, but not the need for transactions, recovery, checksums,
+locking, version migrations and tests. It is a deliberately small storage protocol,
+not an attempt to build a general-purpose database. Initially expect O(N) catalog
+loading and O(N) snapshot publication, with O(N) memory for lookup maps. Set a
+measured memory budget; if actual inventories exceed it, use sorted/partitioned
+snapshots and merge comparisons, or reconsider SQLite before inventing a complex
+on-disk index.
+
+SQLite was originally proposed because it already implements transactional
+updates, recovery, indexed queries and concurrency control. Those are useful
+engineering conveniences, not a functional requirement of file-ID matching or
+drive portability. Reconsider it only if measured catalog scale, frequent small
+updates or query requirements justify the dependency. Neither SQLite nor flat
+files can atomically commit a filesystem copy together with its catalog record;
+the application recovery journal remains necessary.
+[SQLite atomic commit design](https://www.sqlite.org/atomiccommit.html).
 
 Proposed logical records:
 
@@ -166,8 +207,8 @@ identity, since metadata operations can change it.
 ### Comparison sequence
 
 1. Validate volume identity and recover unfinished operations.
-2. Scan both selected roots. Batch database writes and bulk-load lookup tables;
-   avoid a synchronous database transaction per file.
+2. Scan both selected roots. Accumulate observations into a new inventory
+   generation and bulk-load lookup tables; avoid durable metadata writes per file.
 3. Match current source entries to prior source observations by identity and path.
 4. Resolve the recorded destination counterpart and validate its present state.
 5. Same identity and content-related metadata, new path: propose a destination
@@ -241,7 +282,7 @@ is a separately named workflow with a separate, deliberate authorization step;
 there is no generic `--force` that reverses the relationship.
 
 On-drive indexes require **metadata writes to Tower**. Be explicit about this
-exception: a narrowly scoped catalog writer may modify `/.spill/`, while the
+exception: a narrowly scoped catalog writer may modify `/.media-sync/`, while the
 sync executor cannot overwrite, rename, or delete source media. Filesystem repair
 is another separate maintenance exception. A physically read-only source cannot
 refresh an on-drive catalog; permit a temporary in-memory scan with reduced
@@ -259,7 +300,7 @@ Treat every start as potentially following an interrupted run, even when a clean
 marker exists. First inspect attachment identity and the small enrollment record;
 then perform filesystem verification **before opening writable catalogs or media
 handles**. Checks that need to unmount a volume must run before drive-held locks
-and open databases; take a host-level maintenance lock, then revalidate and acquire
+and open catalog handles; take a host-level maintenance lock, then revalidate and acquire
 drive locks afterward.
 
 Default: run `diskutil verifyVolume` against both resolved devices in sequence,
@@ -287,7 +328,7 @@ rebuild observations, and prohibit destructive actions until safe to proceed.
 
 ## 7. Recoverable writes, verification, and history
 
-SQLite commits and filesystem renames are not one atomic transaction. Use a
+Catalog publication and filesystem renames are not one atomic transaction. Use a
 write-ahead operation journal with idempotent reconciliation of each boundary:
 
 ```text
@@ -364,7 +405,7 @@ consume bandwidth. Do not promise twice the speed. Splitting one file into chunk
 across replicas is deferred: it introduces seek behavior and requires exact
 version equivalence plus an integrity scheme.
 
-## 9. Spill features and device-specific tweaks to retain
+## 9. Features and device-specific tweaks to borrow from spill
 
 | Existing behavior | Rust proposal |
 |---|---|
@@ -410,11 +451,12 @@ reviewed replacement policy requests it.
 
 ## 10. Rust architecture and command surface
 
-Use one macOS-only package, initially `utils/spill-next/`, with a canonical
-`setup/install/install-spill-next.sh` resolving the repository from its own path.
+Use one macOS-only package, initially `utils/media-sync/`, with a canonical
+`setup/install/install-media-sync.sh` resolving the repository from its own path.
 No new daemon, application bundle, or nested workspace is required. Keep the Go
-spill and current rclone dashboard available during validation; do not replace
-the deployed command until behavior and recovery tests pass.
+spill independent and unchanged. The new app may supersede the rclone backup
+workflow after validation, but it does not replace spill or take over its command.
+The package and installer names above are placeholders pending naming.
 
 Suggested modules: `volume`, `catalog`, `scan`, `compare`, `plan`, `journal`,
 `copy`, `verify`, `strategy`, `scheduler`, `maintenance`, `events`, and `tui`.
@@ -423,7 +465,7 @@ mutations live behind capability-checked interfaces; the TUI observes structured
 events and submits commands, and never infers success from display text.
 
 Candidate libraries: Ratatui/Crossterm for the terminal, `clap` for arguments,
-`rusqlite` for SQLite, `serde` for manifests/events, BLAKE3 for verification, and
+`serde`/`serde_json` for manifests, snapshots and events, BLAKE3 for verification, and
 small reviewed macOS bindings for disk identity, bulk attributes, and I/O controls.
 Prefer a bounded blocking-worker design for local disk I/O; an async runtime is
 optional, not a throughput requirement. Pin versions during implementation and
@@ -433,14 +475,14 @@ review the maintenance and licensing of the selected dependencies.
 Illustrative commands, not implemented interfaces:
 
 ```text
-spill-next enroll                 # choose identities and fixed roles once
-spill-next mirror tower           # preflight, recovery, scan, preview, apply
-spill-next mirror tower --plan-only
-spill-next mirror tower --skip-fs-check
-spill-next fill travel --from tower --strategy latest
-spill-next verify tower
-spill-next recover tower
-spill-next history tower
+media-sync enroll                 # choose identities and fixed roles once
+media-sync mirror tower           # preflight, recovery, scan, preview, apply
+media-sync mirror tower --plan-only
+media-sync mirror tower --skip-fs-check
+media-sync fill travel --from tower --strategy latest
+media-sync verify tower
+media-sync recover tower
+media-sync history tower
 ```
 
 A saved plan includes pair/profile revision, volume identities, scan generations,
@@ -490,7 +532,7 @@ schemas; migrations require exclusive access and a recoverable catalog snapshot.
    Pass failure injection before running against valuable media.
 3. **Drive portability:** resume an interrupted job on a second Mac; schema
    compatibility, permissions, stale baseline and missing-catalog handling.
-4. **Spill replacement features:** stdin mapping, strategy parity, media cache,
+4. **Selection and multi-source features:** stdin mapping, strategy parity, media cache,
    capacity selection, and dual-replica reads to a third disk.
 5. **Measured acceleration:** tune scan concurrency, bulk metadata enumeration,
    FSEvents invalidation, and device scheduling after correctness is stable.
@@ -517,7 +559,7 @@ bytes, and measured improvements on the actual disks—not a promised multiplier
 
 ## 13. Decisions proposed for the first version
 
-Approve drive-resident catalogs with destination-owned relationship state;
+Approve drive-resident flat-file catalogs with destination-owned relationship state;
 identity-based rename detection; no automatic size/mtime-only equivalence;
 verification-first First Aid on each write session with an explicit skip; strict
 verification of newly copied data; recoverable archive-before-replace; and a
