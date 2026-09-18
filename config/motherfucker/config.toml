@@ -155,6 +155,7 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 "Config" = "open ~/.config"  # ⇥ for more (motherfucker/switchblade)
 "Motherfucker" = ""
 "ChordPro" = "/Users/nom/.zsh/bin/kitty-launch --os-window -- /Users/nom/go/bin/chordpro-tui '/Users/nom/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature/ChordPro'"
+"Copy Phone Number" = "echo 09603111806 | pbcopy"
 
 [commands.Motherfucker]
 "Reload" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
