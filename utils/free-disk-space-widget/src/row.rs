@@ -108,7 +108,7 @@ impl VolumeHeader {
             font: NSFont::systemFontOfSize_weight((em * 0.72).round(), unsafe {
                 NSFontWeightRegular
             }),
-            left: (em * 0.45).round(),
+            left: layout.text_left,
         });
         let frame = NSRect {
             origin: NSPoint { x: 0.0, y: 0.0 },
