@@ -32,7 +32,7 @@ use objc2_foundation::{
 };
 
 use bar::Fill;
-use volumes::{Volume, format_bytes, format_compact_bytes};
+use volumes::{Volume, VolumeKind, format_bytes, format_compact_bytes};
 
 const DISK_ICON: &str = "\u{100902}"; // SF Symbols internaldrive.fill
 
@@ -507,16 +507,31 @@ impl Widget {
             info("No mounted volumes");
         } else {
             let layout = row::layout(&volumes, settings.include_purgeable);
-            for volume in &volumes {
-                let item = NSMenuItem::new(mtm);
-                item.setEnabled(true);
-                item.setView(Some(&row::VolumeRow::new(
-                    volume,
-                    &layout,
-                    settings.include_purgeable,
-                    mtm,
-                )));
-                menu.addItem(&item);
+            for (title, network) in [("LOCAL", false), ("NETWORK", true)] {
+                let group = volumes
+                    .iter()
+                    .filter(|volume| (volume.kind == VolumeKind::Network) == network);
+                let mut group = group.peekable();
+                if group.peek().is_none() {
+                    continue;
+                }
+
+                let header = NSMenuItem::new(mtm);
+                header.setEnabled(false);
+                header.setView(Some(&row::VolumeHeader::new(title, &layout, mtm)));
+                menu.addItem(&header);
+
+                for volume in group {
+                    let item = NSMenuItem::new(mtm);
+                    item.setEnabled(true);
+                    item.setView(Some(&row::VolumeRow::new(
+                        volume,
+                        &layout,
+                        settings.include_purgeable,
+                        mtm,
+                    )));
+                    menu.addItem(&item);
+                }
             }
         }
 

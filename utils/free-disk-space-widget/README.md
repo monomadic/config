@@ -32,8 +32,10 @@ as `key=value` lines.
 
 ## Volumes
 
-Every user-visible mounted volume is listed at the top of the menu — startup disk
-first, then alphabetical — as a Finder-sidebar-style row: an outline SF Symbol
+Every user-visible mounted volume is listed at the top of the menu, grouped under
+`LOCAL` and `NETWORK` headers. The startup disk remains first within the local
+group, with the other volumes alphabetical. Each uses a Finder-sidebar-style row:
+an outline SF Symbol
 for the volume kind (`internaldrive` / `externaldrive` / `network`, from the
 `NSURLVolumeIsInternalKey`/`IsLocalKey` resource values) on a dark disc, its name
 with the free amount small and right-aligned, and a capacity bar underneath that

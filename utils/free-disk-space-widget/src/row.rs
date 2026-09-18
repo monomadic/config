@@ -67,6 +67,60 @@ pub struct Layout {
     bar_height: f64,
 }
 
+pub struct HeaderIvars {
+    title: String,
+    font: Retained<NSFont>,
+    left: f64,
+}
+
+define_class!(
+    // SAFETY: NSView imposes no subclassing requirements beyond initialising
+    // through the superclass, and VolumeHeader does not implement Drop.
+    #[unsafe(super(NSView))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "FreeDiskSpaceVolumeHeader"]
+    #[ivars = HeaderIvars]
+    pub struct VolumeHeader;
+
+    impl VolumeHeader {
+        #[unsafe(method(drawRect:))]
+        fn draw_rect(&self, _dirty: NSRect) {
+            let ivars = self.ivars();
+            let text = text_size(&ivars.font, &ivars.title);
+            draw_text(
+                &ivars.title,
+                &ivars.font,
+                &NSColor::secondaryLabelColor(),
+                NSPoint {
+                    x: ivars.left,
+                    y: ((self.bounds().size.height - text.height) / 2.0).round(),
+                },
+            );
+        }
+    }
+);
+
+impl VolumeHeader {
+    pub fn new(title: &str, layout: &Layout, mtm: MainThreadMarker) -> Retained<Self> {
+        let em = layout.font.pointSize();
+        let this = Self::alloc(mtm).set_ivars(HeaderIvars {
+            title: title.to_owned(),
+            font: NSFont::systemFontOfSize_weight((em * 0.72).round(), unsafe {
+                NSFontWeightRegular
+            }),
+            left: (em * 0.45).round(),
+        });
+        let frame = NSRect {
+            origin: NSPoint { x: 0.0, y: 0.0 },
+            size: NSSize {
+                width: layout.width,
+                height: (em * 1.15).round(),
+            },
+        };
+        unsafe { msg_send![super(this), initWithFrame: frame] }
+    }
+}
+
 pub fn layout(volumes: &[Volume], include_purgeable: bool) -> Layout {
     let font = NSFont::menuFontOfSize(0.0);
     let em = font.pointSize();
