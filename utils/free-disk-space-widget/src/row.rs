@@ -129,7 +129,7 @@ impl VolumeHeader {
             origin: NSPoint { x: 0.0, y: 0.0 },
             size: NSSize {
                 width: layout.width,
-                height: (em * 1.45).round(),
+                height: (em * 1.65).round(),
             },
         };
         unsafe { msg_send![super(this), initWithFrame: frame] }
