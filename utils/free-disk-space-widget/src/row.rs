@@ -93,7 +93,8 @@ define_class!(
                 &NSColor::secondaryLabelColor(),
                 NSPoint {
                     x: ivars.left,
-                    y: ((self.bounds().size.height - text.height) / 2.0).round(),
+                    y: ((self.bounds().size.height - text.height) / 2.0).round()
+                        - (ivars.font.pointSize() * 0.18).round(),
                 },
             );
         }
@@ -132,7 +133,7 @@ pub fn layout(volumes: &[Volume], include_purgeable: bool) -> Layout {
         unsafe { NSFontWeightRegular },
     );
 
-    let height = (em * 3.4).round();
+    let height = (em * 3.0).round();
     let left = (em * 1.1).round();
     let right = (em * 1.0).round();
     let gap = (em * 0.9).round();
