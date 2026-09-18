@@ -273,7 +273,13 @@ fn main() -> Result<()> {
             }
             a if a.starts_with("--time=") => time = Some(a[7..].parse().context("--time")?),
             a if a.starts_with('-') && a.len() > 1 => return Err(anyhow!("unknown option: {a}\n{USAGE}")),
-            a => input = Some(PathBuf::from(a)),
+            // A file manager may pass a whole selection; this tool works on one
+            // clip, and the first is the one the user was pointing at.
+            a => {
+                if input.is_none() {
+                    input = Some(PathBuf::from(a));
+                }
+            }
         }
         i += 1;
     }

@@ -31,6 +31,19 @@ mode=${1:-sync}
 (( $# <= 1 )) || usage
 [[ $mode == sync || $mode == --check-only || $mode == --dry-run || $mode == --prune ]] || usage
 
+# The dashboard re-enters this script; all disk and sync decisions stay here.
+if [[ ${RCLONE_TOWER_DASHBOARD:-0} != 1 && -t 0 && -t 1 && ${TERM:-dumb} != dumb && $mode != --prune ]]; then
+  if (( $+commands[rclone-tower-ui] )); then
+    exec rclone-tower-ui "${0:A}" "$@"
+  fi
+  print -- 'Dashboard unavailable; install it with setup/install/install-rclone-tower-ui.sh.'
+fi
+
+phase() {
+  active_phase=$1
+  print -r -- "Stage: $1"
+}
+
 # Reads $info, the plist held by the verify_volume call in scope, so that each
 # volume costs one diskutil call rather than one per key.
 plist_value() { print -r -- "$info" | /usr/bin/plutil -extract "$1" raw -o - -; }
@@ -115,13 +128,11 @@ prune_history() {
   print -- "$(destination_free_gib) GiB now free on $destination_dir."
 }
 
+phase 'Checking disk identities'
 verify_disks
-if [[ $mode == --check-only ]]; then
-  print -- 'Both expected volumes are mounted and readable; destination is writable.'
-  print -- "$(destination_free_gib) GiB free on $destination_dir (minimum ${min_free_gib} GiB to sync)."
-  exit 0
+if [[ $mode == sync || $mode == --dry-run ]]; then
+  (( $+commands[rclone] )) || die 'rclone is not installed'
 fi
-(( $+commands[rclone] )) || die 'rclone is not installed'
 
 # Keep the lock inode in place. The OS releases the advisory lock on exit;
 # deleting the file would let another process lock a different inode.
@@ -139,9 +150,58 @@ readonly log_file="$state_dir/sync.log"
 [[ ! -L $log_file ]] || die 'Log file must not be a symlink'
 verify_disks
 
+active_phase='preflight'
+# Forward interrupts and wait for the active child before releasing the lock.
+sync_pid=''
+stop_sync() {
+  trap '' INT TERM HUP
+  if [[ -n $sync_pid ]]; then
+    kill -TERM "$sync_pid" 2>/dev/null || true
+    wait "$sync_pid" 2>/dev/null || true
+  fi
+  print -ru2 -- "Interrupted during $active_phase. The operation did not complete."
+  exit "$1"
+}
+trap 'stop_sync 130' INT
+trap 'stop_sync 143' TERM
+trap 'stop_sync 129' HUP
+
+# Check filesystem structures, not file contents. Never repair automatically.
+# diskutil may temporarily unmount a volume; recheck both identities afterward.
+verify_filesystems() {
+  local volume result
+  for volume in "$source_dir" "$destination_dir"; do
+    active_phase="filesystem verification of ${volume:t}"
+    phase "Checking filesystem: ${volume:t}"
+    /usr/sbin/diskutil verifyVolume "$volume" &
+    sync_pid=$!
+    if wait "$sync_pid"; then
+      sync_pid=''
+    else
+      result=$?
+      sync_pid=''
+      print -ru2 -- "Filesystem verification failed for $volume (exit $result).
+Sync was not started. Review the disk in Disk Utility before retrying."
+      exit "$result"
+    fi
+    print -- "Filesystem check passed: ${volume:t}"
+  done
+  verify_disks
+}
+
+if [[ $mode == sync || $mode == --check-only ]]; then
+  verify_filesystems
+fi
+if [[ $mode == --check-only ]]; then
+  print -- 'Both expected volumes passed filesystem verification.'
+  print -- "$(destination_free_gib) GiB free on $destination_dir (minimum ${min_free_gib} GiB to sync)."
+  exit 0
+fi
+
 # Pruning takes the same lock so it cannot race a sync writing into history.
 backup_dir=''
 if [[ $mode == --prune ]]; then
+  active_phase=pruning
   prune_history forced
   exit 0
 fi
@@ -151,6 +211,7 @@ if [[ $mode == --dry-run ]]; then
   run_flags=(--dry-run)
   backup_dir="$history_dir/dry-run"
 else
+  phase 'Checking free space'
   require_free_space
   /bin/mkdir -p "$history_dir"
   # Atomic allocation also verifies that we can actually write to this disk.
@@ -159,29 +220,25 @@ else
   /bin/chmod 755 "$backup_dir"
 fi
 
-# Forward interrupts and wait for rclone before releasing the lock.
-sync_pid=''
-stop_sync() {
-  trap '' INT TERM HUP
-  if [[ -n $sync_pid ]]; then
-    kill -TERM "$sync_pid" 2>/dev/null || true
-    wait "$sync_pid" 2>/dev/null || true
-  fi
-  print -ru2 -- 'Interrupted. Sync may be incomplete; history was not pruned.'
-  exit "$1"
-}
-trap 'stop_sync 130' INT
-trap 'stop_sync 143' TERM
-trap 'stop_sync 129' HUP
-
+typeset -a display_flags
+display_flags=(-P --stats 1s --stats-log-level NOTICE)
+if [[ ${RCLONE_TOWER_DASHBOARD:-0} == 1 ]]; then
+  display_flags=(--use-json-log --stats 1s --stats-log-level NOTICE)
+  # Start a fresh per-run log: the UI never interprets old runs as new activity.
+  # Retain the previous log for diagnosis; rclone rotates during this run.
+  [[ ! -L $state_dir/previous.log ]] || die 'Previous log must not be a symlink'
+  [[ ! -e $log_file ]] || /bin/mv -f "$log_file" "$state_dir/previous.log"
+  : > "$log_file"
+  print -r -- "Log: $log_file"
+fi
+phase 'Scanning and syncing'
 print -- "Syncing Tower → Tower Backup ($mode). Log: $log_file"
 # Size + modification time is intentional for large, frequently renamed videos.
 # Renames deliberately skip content hashing; equal size and modtime are trusted.
 # Keep conservative disk concurrency and rclone's normal transfer verification.
-rclone sync -P "${run_flags[@]}" \
+rclone sync "${display_flags[@]}" "${run_flags[@]}" \
   --track-renames --track-renames-strategy size,modtime \
   --metadata \
-  --stats 30s --stats-one-line --stats-log-level NOTICE \
   --create-empty-src-dirs \
   --transfers 1 --checkers 3 \
   --max-delete "$max_delete" --max-delete-size "$max_delete_size" \
@@ -212,5 +269,7 @@ fi
 
 verify_disks
 [[ $mode != --dry-run ]] || { print -- 'Dry run complete; nothing pruned.'; exit 0; }
+phase 'Finishing and retaining history'
 prune_history ask
+print -- "Free space after sync: $(destination_free_gib) GiB"
 print -- 'Done.'

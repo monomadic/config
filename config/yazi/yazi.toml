@@ -79,6 +79,7 @@ video_tools = [
   { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " rename video " -- /Users/nom/.zsh/bin/rename-video --color --icons %s''', desc = "􀈏  rename video (tags)", for = "unix", orphan = true },
   { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " topaz workflow " -- /Users/nom/.zsh/bin/topaz-workflow %s''', desc = "􃖦  topaz", for = "unix", orphan = true },
   { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " topaz presets " -- /Users/nom/.zsh/bin/topaz-simple-presets %s''', desc = "􀰙  topaz presets", for = "unix", orphan = true },
+  { run = '''/Users/nom/.zsh/bin/kitty-launch --tab --hold --cwd %d1 --title " starlight " -- /Users/nom/.local/bin/neuroserver-select-preset %s''', desc = "􀰙  topaz starlight (neuroserver)", for = "unix", orphan = true },
   { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 60fps " -- /Users/nom/.zsh/bin/interpolate-resolve %s''', desc = "􀲳  interpolate: 60fps (hevc)", for = "unix", orphan = true },
   { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 60fps prores " -- /Users/nom/.zsh/bin/interpolate-resolve --prores %s''', desc = "􀲳  interpolate: 60fps (prores)", for = "unix", orphan = true },
   { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 120fps " -- /Users/nom/.zsh/bin/interpolate-resolve 120 %s''', desc = "􀲳  interpolate: 120fps (hevc)", for = "unix", orphan = true },
