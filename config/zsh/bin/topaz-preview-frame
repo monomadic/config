@@ -7,7 +7,7 @@ usage() {
   cat <<EOF
 usage:
   $script_name --input file --preset-name name --preset-flag flag --filter filter [--time seconds] [--times seconds[,seconds...]] [--no-open] [--prompt-open] [--print-paths] [--log-file path]
-  $script_name --input file --preset-name name --preset-flag flag --ns-model name [--ns-store dir] [--ns-params json] [--ns-size WxH] ...
+  $script_name --input file --preset-name name --preset-flag flag --ns-model name [--ns-store dir] [--ns-params json] [--ns-size WxH] [--keep-window] ...
 
 Render Topaz still-frame preview JPEGs for one or more timestamps.
 
@@ -25,7 +25,14 @@ Models the ffmpeg filter cannot reach (Starlight Precise) render through the
 app's neuroserver instead: --ns-model names the model, --ns-store the directory
 under the app's models/models/ that must hold its weights (checked before any
 work starts — neuroserver never downloads), --ns-params a JSON object of extra
-filter keys ({"softness": 1}), --ns-size the exact output size.
+filter keys ({"softness": 1}), --ns-size the exact output size. Neuroserver
+renders a short window of frames to produce one still; --keep-window also
+writes every frame of that window (Topaz and matching original) as JPEGs and,
+with --print-paths, lists them as
+  TOPAZ_PREVIEW_WINDOW_START=<first source frame index>
+  TOPAZ_PREVIEW_WINDOW_TARGET=<offset of the requested frame in the window>
+  TOPAZ_PREVIEW_WINDOW_TOPAZ=<offset>\t<path>      (one per frame)
+  TOPAZ_PREVIEW_WINDOW_ORIGINAL=<offset>\t<path>   (one per frame)
 
 With --log-file, ffmpeg runs verbose (-loglevel info -stats) and its output is
 written to that path — model loading and downloading, device selection, and live
@@ -235,6 +242,7 @@ ns_model=""
 ns_store=""
 ns_params=""
 ns_size=""
+keep_window=false
 times=()
 
 if [[ -n "${TOPAZ_PREVIEW_FRAME_TIMES:-}" ]]; then
@@ -313,6 +321,10 @@ while (( $# > 0 )); do
       (( $# >= 2 )) || die "--ns-size needs WxH"
       ns_size="$2"
       shift 2
+      ;;
+    --keep-window)
+      keep_window=true
+      shift
       ;;
     --)
       shift
@@ -602,6 +614,33 @@ neuroserver_still() {
     -i "$tmp_mov" \
     -vf "select=eq(n\\,${offset}),format=yuvj420p" \
     -frames:v 1 -color_range pc -q:v 2 "$out_jpg"
+
+  if [[ "$keep_window" == true ]]; then
+    # Every frame of the window, Topaz and source alike, so a caller can step
+    # through the run neuroserver actually produced rather than one still.
+    local stem="${out_jpg:r}" i src_frame
+    run_ffmpeg "extracting window frames" -y \
+      -i "$tmp_mov" \
+      -vf "format=yuvj420p" \
+      -color_range pc -q:v 2 -start_number 0 "${stem} [window %02d].jpg"
+    run_ffmpeg "extracting source window" -y \
+      -autorotate \
+      -i "$input" \
+      -vf "select=between(n\\,${start}\\,$(( start + NS_WINDOW - 1 ))),format=yuvj420p" \
+      -fps_mode passthrough \
+      -color_range pc -q:v 2 -start_number 0 "${stem} [window original %02d].jpg"
+    if [[ "$print_paths" == true ]]; then
+      print -r -- "TOPAZ_PREVIEW_WINDOW_START=$start"
+      print -r -- "TOPAZ_PREVIEW_WINDOW_TARGET=$offset"
+      for (( i = 0; i < NS_WINDOW; i++ )); do
+        src_frame="$(printf '%02d' "$i")"
+        [[ -f "${stem} [window ${src_frame}].jpg" ]] && \
+          print -r -- "TOPAZ_PREVIEW_WINDOW_TOPAZ=${i}"$'\t'"${stem} [window ${src_frame}].jpg"
+        [[ -f "${stem} [window original ${src_frame}].jpg" ]] && \
+          print -r -- "TOPAZ_PREVIEW_WINDOW_ORIGINAL=${i}"$'\t'"${stem} [window original ${src_frame}].jpg"
+      done
+    fi
+  fi
 
   rm -f "$tmp_mov"
 }

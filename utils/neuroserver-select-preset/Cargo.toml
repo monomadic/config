@@ -1,0 +1,16 @@
+[package]
+name = "neuroserver-select-preset"
+version = "0.1.0"
+edition = "2021"
+description = "TUI: pick a neuroserver (Starlight Precise) preset, step through its rendered preview window as kitty images, hand off to neuroserver-encode"
+
+[dependencies]
+ratatui = "0.30"
+crossterm = "0.29"
+ratatui-image = "12.0.0-rc.0"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+anyhow = "1.0"
+
+[profile.release]
+lto = true
+strip = true

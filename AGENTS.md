@@ -57,7 +57,7 @@ plus `zsh -n` / `bash -n` on any shell script you touched.
 
 `utils/<tool>/` holds tool source (Rust: the AppKit menu bar widgets — `battery-widget`,
 `cpu-usage-widget`, `free-disk-space-widget`, `menu-tidy` — plus `leaf`, `pimped`,
-`motherfucker`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
+`motherfucker`, `neuroserver-select-preset`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
 `system-uptime-widget`). These are the only parts of the repo with a
 build/install step and tests — Dotter does not touch them.
 
@@ -79,6 +79,16 @@ Installers are named `setup/install/install-<name>.sh` — follow that for new o
 `cargo install`/`go build` — it pins the install path the rest of the config expects
 (e.g. `pimped` must be on PATH for the zsh precmd prompt hook in
 `config/zsh/zshrc.zsh` to work).
+
+**Topaz has two render backends.** Everything under `topaz-*` (the mpv `z`
+menu, `topaz-encode`, `topaz-pick`, `topaz-workflow`) drives the app's ffmpeg
+with a `tvai_up` filter. The generative models (Starlight Precise, Astra,
+Hyperion 2) are served by the app's separate `neuroserver` process instead and
+are unreachable from that filter; presets for them declare `ns_model` /
+`ns_store` / `ns_params` and are rendered by `topaz-preview-frame` (stills) and
+`neuroserver-encode` (whole clips), with `utils/neuroserver-select-preset` as
+their TUI. Starlight *Mini* is not one of them: it is a three-part coreml model
+that `tvai_up` loads itself. Don't add a neuroserver path to `topaz-encode`.
 
 **The jobs queue** is infrastructure other tools can build on: drop a
 `TARGET.job` shell script into `~/jobs` and it runs. Anything that needs "run

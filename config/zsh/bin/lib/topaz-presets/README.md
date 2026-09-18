@@ -61,7 +61,9 @@ ns_params = { softness = 1 } #   extra --filters keys, passed as JSON
 ```
 `ns_model` and `ns_store` are not derivable from each other (2.5 is `slp-25` in
 `slp25m`, 2.6 is `slp-26` in `slp26`), so name both. A neuroserver model's
-weights download only when the Topaz app runs it once.
+weights download only when the Topaz app runs it once. These presets are served
+by `topaz-preview-frame` (stills), `neuroserver-encode` (whole clips) and the
+`neuroserver-select-preset` TUI; the ffmpeg-only tools skip them.
 
 **`category`** groups the row in the menu, by what is wrong with the source rather
 than by what the filter does. The list and its display order live in

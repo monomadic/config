@@ -1,0 +1,234 @@
+#!/usr/bin/env zsh
+# Purpose: encode a whole clip through the Topaz app's neuroserver process —
+# the backend that serves Starlight Precise and the other generative models the
+# ffmpeg tvai_up filter cannot reach. This is the full-clip counterpart of the
+# still path in topaz-preview-frame, and the tool neuroserver-select-preset
+# hands off to. topaz-encode stays ffmpeg-only; a neuroserver encode has none of
+# its plumbing (no fragments, no resume, no live pause) because neuroserver
+# owns the whole pipeline from decode to encode.
+set -euo pipefail
+
+script_name="${0:t}"
+
+usage() {
+  cat <<USAGE
+usage:
+  $script_name --input file --model name --store dir [--params json] [--size WxH]
+      [--output-profile slug | --video-args args --ext ext] [--preset-name name]
+      [--metadata key=value] [--output file] [--start-frame N] [--end-frame N]
+      [--nice[=N]] [--log-file path] [--dry-run]
+
+Runs one neuroserver --once job the way the Topaz app does for an export:
+neuroserver decodes, enhances and encodes the video itself (--ffmpeg-encoding
+carries the codec arguments), then a second ffmpeg pass muxes the source audio
+and the videoai metadata tag onto the result, exactly like the app's cleanup
+pass.
+
+  --model / --store / --params  as in the preset (ns_model, ns_store, ns_params)
+  --size WxH                    output size (default: source size)
+  --output-profile slug         an output/ preset (hevc-cbr-40mbps, prores-422-proxy...)
+  --video-args / --ext          or the codec arguments and extension directly
+  --output file                 default: beside the input as "<stem> [Topaz - <preset>].<ext>"
+  --start-frame / --end-frame   frame index range (default: the whole clip)
+  --nice[=N]                    run neuroserver at niceness N (default 19)
+  --log-file path               default: ~/Library/Logs/topaz-batch/<stem> [Topaz - <preset>].log
+  --dry-run                     print the commands and exit
+USAGE
+}
+
+die() { print -u2 -- "$*"; exit 1; }
+
+LIB_DIR="${0:A:h}/lib"
+source "$LIB_DIR/topaz-app.zsh" || die "Topaz app resolver not found: $LIB_DIR/topaz-app.zsh"
+source "$LIB_DIR/topaz-preset-catalog.zsh" || die "preset catalog not found"
+
+input="" model="" store="" params="" size="" output_profile="" video_args="" ext=""
+preset_name="" metadata="" output="" start_frame="" end_frame="" nice_level="" log_file=""
+dry_run=false
+
+while (( $# > 0 )); do
+  case "$1" in
+    -h|--help|help) usage; exit 0 ;;
+    --input) input="$2"; shift 2 ;;
+    --model) model="$2"; shift 2 ;;
+    --store) store="$2"; shift 2 ;;
+    --params) params="$2"; shift 2 ;;
+    --size) size="$2"; shift 2 ;;
+    --output-profile) output_profile="$2"; shift 2 ;;
+    --video-args) video_args="$2"; shift 2 ;;
+    --ext) ext="$2"; shift 2 ;;
+    --preset-name) preset_name="$2"; shift 2 ;;
+    --metadata) metadata="$2"; shift 2 ;;
+    --output) output="$2"; shift 2 ;;
+    --start-frame) start_frame="$2"; shift 2 ;;
+    --end-frame) end_frame="$2"; shift 2 ;;
+    --nice) nice_level=19; shift ;;
+    --nice=*) nice_level="${1#--nice=}"; shift ;;
+    --log-file) log_file="$2"; shift 2 ;;
+    --dry-run) dry_run=true; shift ;;
+    --) shift; break ;;
+    *) die "unknown option: $1" ;;
+  esac
+done
+[[ -n "$input" ]] || die "--input is required"
+[[ -f "$input" ]] || die "not a file: $input"
+input="${input:A}"
+[[ -n "$model" ]] || die "--model is required"
+[[ -n "$store" ]] || die "--store is required"
+
+# Output profile: one of the catalog's output/ presets, or explicit arguments.
+if [[ -n "$output_profile" ]]; then
+  local display slug pext pargs
+  while IFS=$'\t' read -r display slug pext pargs; do
+    if [[ "$slug" == "$output_profile" ]]; then
+      ext="${ext:-$pext}"
+      video_args="${video_args:-$pargs}"
+      break
+    fi
+  done < <(topaz_output_profile_rows)
+  [[ -n "$video_args" ]] || die "unknown output profile: $output_profile"
+fi
+[[ -n "$video_args" ]] || die "--output-profile or --video-args is required"
+[[ -n "$ext" ]] || ext="mp4"
+[[ -n "$preset_name" ]] || preset_name="$model"
+
+TOPAZ_APP="$(topaz_resolve_app)"
+TOPAZ_MACOS_DIR="$(topaz_resolve_macos_dir "$TOPAZ_APP")"
+TOPAZ_FFMPEG="$(topaz_resolve_ffmpeg "$TOPAZ_APP")"
+TOPAZ_FFPROBE="$TOPAZ_MACOS_DIR/ffprobe"
+TOPAZ_MODELS_DIR="$(topaz_resolve_models_dir "$TOPAZ_APP")"
+NS_DIR="$TOPAZ_MACOS_DIR/neuroserver"
+NS_BIN="$NS_DIR/neuroserver"
+NS_STORE="$TOPAZ_MODELS_DIR/models"
+[[ -x "$NS_BIN" ]] || die "neuroserver not executable: $NS_BIN"
+
+if [[ ! -d "$NS_STORE/$store" ]] || ! ls -A "$NS_STORE/$store"/blob.* >/dev/null 2>&1; then
+  die "neuroserver model $model has no weights here: $NS_STORE/$store
+A neuroserver model downloads only when the Topaz app runs it once — run any
+short export with this model in the app, then retry."
+fi
+
+# Source geometry: frame count for the default range, size for the default output.
+src_w="" src_h="" nb_frames="" fps="" duration=""
+while IFS='=' read -r key value; do
+  case "$key" in
+    width) src_w="$value" ;;
+    height) src_h="$value" ;;
+    nb_frames) nb_frames="$value" ;;
+    r_frame_rate) fps="$value" ;;
+    duration) duration="$value" ;;
+  esac
+done < <("$TOPAZ_FFPROBE" -v error -select_streams v:0 \
+  -show_entries stream=width,height,nb_frames,r_frame_rate:format=duration \
+  -of default=noprint_wrappers=1 -- "$input" 2>/dev/null)
+if [[ "$nb_frames" != <-> ]]; then
+  nb_frames="$(awk -v r="$fps" -v d="$duration" 'BEGIN { n = split(r, a, "/"); f = (n == 2 && a[2] > 0) ? a[1] / a[2] : r + 0; printf "%d", d * f + 0.5 }')"
+fi
+[[ -n "$start_frame" ]] || start_frame=0
+[[ -n "$end_frame" ]] || end_frame="$nb_frames"
+if [[ -z "$size" && "$src_w" == <-> ]]; then
+  size="${src_w}x${src_h}"
+fi
+out_w="${size%%x*}" out_h="${size##*x}"
+
+# Output name, matching topaz-encode's tag convention so the two sit together.
+strip_brackets() {
+  emulate -L zsh
+  setopt localoptions extendedglob
+  local stem="$1" prev=""
+  while [[ "$stem" != "$prev" ]]; do
+    prev="$stem"
+    stem="${stem%%[[:space:]]##}"
+    [[ "$stem" == *\[*\] ]] && stem="${stem%\[*\]}"
+  done
+  stem="${stem%%[[:space:]]##}"
+  [[ -n "${stem//[[:space:]]/}" ]] && print -r -- "$stem" || print -r -- "$1"
+}
+clean_base="$(strip_brackets "${input:t:r}")"
+safe_preset="${preset_name//[\/:]/-}"
+[[ -n "$output" ]] || output="${input:h}/${clean_base} [Topaz - ${safe_preset}].${ext}"
+LOG_DIR="${HOME}/Library/Logs/topaz-batch"
+[[ -n "$log_file" ]] || log_file="${LOG_DIR}/${clean_base} [Topaz - ${safe_preset}].log"
+[[ -n "$metadata" ]] || metadata="videoai=Enhanced using ${model}. Changed resolution to ${out_w}x${out_h}"
+[[ "$metadata" == *=* ]] || metadata="videoai=$metadata"
+
+filters="[{\"model\": \"${model}\"}]"
+if [[ -n "${params// /}" ]]; then
+  [[ "$params" == \{*\} ]] || die "--params must be a JSON object: $params"
+  inner="${params#\{}"; inner="${inner%\}}"
+  [[ -n "${inner// /}" ]] && filters="[{\"model\": \"${model}\", ${inner}}]"
+fi
+
+# neuroserver writes the video-only result here; the cleanup pass builds the
+# final file from it. Staged beside the output so the rename is atomic.
+video_only="${output:r}.ns-video.${ext}"
+
+local -a ns_cmd=(
+  "$NS_BIN" --once
+  --input-path "$input"
+  --output-path "$video_only"
+  --start-frame-idx "$start_frame"
+  --end-frame-idx "$end_frame"
+  --ffmpeg-preproc-filters ""
+  --filters "$filters"
+  --output-width "$out_w"
+  --output-height "$out_h"
+  --upscale-factor 1
+  --ffmpeg-encoding "$video_args"
+  --videoai-metadata "${metadata#videoai=}"
+  --device 0
+)
+[[ -n "$nice_level" ]] && ns_cmd=(nice -n "$nice_level" "${ns_cmd[@]}")
+
+local -a mux_cmd=(
+  "$TOPAZ_FFMPEG" -hide_banner -nostdin -y -loglevel error
+  -i "$video_only" -i "$input"
+  -map 0:v -map "1:a:0?" -c:v copy -c:a copy
+  -map_metadata 0 -metadata "$metadata"
+  -movflags use_metadata_tags -fps_mode passthrough
+  "$output"
+)
+
+print -P -- "%F{cyan}neuroserver encode%f"
+print -P -- "  %F{white}input:%f  $input"
+print -P -- "  %F{white}model:%f  $model  ($store)${params:+  $params}"
+print -P -- "  %F{white}size:%f   ${out_w}x${out_h}   frames ${start_frame}-${end_frame}"
+print -P -- "  %F{white}output:%f $output"
+print -P -- "  %F{white}log:%f    $log_file"
+if [[ "$dry_run" == true ]]; then
+  print -r -- "${(q-)ns_cmd[@]}"
+  print -r -- "${(q-)mux_cmd[@]}"
+  exit 0
+fi
+
+mkdir -p "$LOG_DIR"
+: >| "$log_file"
+rm -f "$video_only"
+
+# neuroserver resolves its modules relative to cwd and finds weights only via
+# TOPAZ_MODEL_STORE; its progress arrives as JSON lines on stdout, which are
+# reduced to one live status line here and kept verbatim in the log.
+started=$(date +%s)
+(
+  cd "$NS_DIR" && exec env \
+    TOPAZ_MODEL_STORE="$NS_STORE" \
+    TVAI_MODEL_DIR="$TOPAZ_MODELS_DIR" \
+    TVAI_MODEL_DATA_DIR="$TOPAZ_MODELS_DIR" \
+    LC_NUMERIC=C \
+    "${ns_cmd[@]}"
+) 2>&1 | tee -a "$log_file" | while IFS= read -r line; do
+  if [[ "$line" == *'"progress"'* ]]; then
+    pct="${line##*\"progress\": }"; pct="${pct%%[^0-9]*}"
+    frame="${line##*\"frame\": }"; frame="${frame%%[^0-9]*}"
+    msg="${line##*\"message\": \"}"; msg="${msg%%\"*}"
+    printf '\r  %-24s frame %-6s %3s%%   %ds ' "$msg" "$frame" "$pct" $(( $(date +%s) - started ))
+  fi
+done
+print
+[[ -s "$video_only" ]] || die "neuroserver produced no output — see $log_file"
+
+print -P -- "  %F{white}muxing audio + metadata%f"
+"${mux_cmd[@]}" >>"$log_file" 2>&1 || die "mux pass failed — see $log_file"
+rm -f "$video_only"
+touch -r "$input" "$output" 2>/dev/null || true
+print -P -- "%F{green}done%f  $output  ($(( $(date +%s) - started ))s)"
