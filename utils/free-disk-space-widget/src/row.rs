@@ -561,8 +561,8 @@ impl VolumeRow {
         );
     }
 
-    /// The eject affordance: a transparent hairline circle that brightens
-    /// under the pointer, with the eject mark drawn inside it.
+    /// The eject affordance: a transparent hairline circle that gains a white
+    /// border and faint fill under the pointer, with the eject mark inside it.
     fn draw_eject(&self, bounds: NSRect) {
         let ivars = self.ivars();
         let hovered = ivars.eject_hovered.get();
@@ -572,10 +572,6 @@ impl VolumeRow {
             y: bounds.size.height / 2.0,
         };
 
-        let circle_alpha = if hovered { 0.34 } else { 0.18 };
-        NSColor::labelColor()
-            .colorWithAlphaComponent(circle_alpha)
-            .set();
         let outline = NSBezierPath::bezierPathWithOvalInRect(rect(
             center.x - diameter / 2.0,
             center.y - diameter / 2.0,
@@ -583,6 +579,13 @@ impl VolumeRow {
             diameter,
         ));
         outline.setLineWidth(0.5);
+        if hovered {
+            NSColor::whiteColor().colorWithAlphaComponent(0.12).set();
+            outline.fill();
+            NSColor::whiteColor().set();
+        } else {
+            NSColor::labelColor().colorWithAlphaComponent(0.18).set();
+        }
         outline.stroke();
 
         let ink = if hovered {
