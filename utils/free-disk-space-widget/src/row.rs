@@ -582,7 +582,7 @@ impl VolumeRow {
         if hovered {
             NSColor::whiteColor().colorWithAlphaComponent(0.12).set();
             outline.fill();
-            NSColor::whiteColor().set();
+            NSColor::whiteColor().colorWithAlphaComponent(0.72).set();
         } else {
             NSColor::labelColor().colorWithAlphaComponent(0.18).set();
         }
