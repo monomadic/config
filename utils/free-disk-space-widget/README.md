@@ -95,9 +95,8 @@ text size and the widget follows.
 setup/install/install-free-disk-space-widget.sh
 ```
 
-Builds are committed to `vendor/bin/free-disk-space-widget`; rebuild with
-`cargo build --release` and copy, or let the installer's error hint guide you.
-The installer copies to `~/.local/bin` and manages the
+The installer builds the current crate in release mode, copies the result to
+`~/.local/bin`, and manages the
 `com.jayu.free-disk-space-widget` LaunchAgent.
 
 `cargo test` covers the mount table and the capacity formatting.
