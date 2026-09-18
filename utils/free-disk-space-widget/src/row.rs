@@ -86,15 +86,13 @@ define_class!(
         #[unsafe(method(drawRect:))]
         fn draw_rect(&self, _dirty: NSRect) {
             let ivars = self.ivars();
-            let text = text_size(&ivars.font, &ivars.title);
             draw_text(
                 &ivars.title,
                 &ivars.font,
                 &NSColor::secondaryLabelColor(),
                 NSPoint {
                     x: ivars.left,
-                    y: ((self.bounds().size.height - text.height) / 2.0).round()
-                        - (ivars.font.pointSize() * 0.18).round(),
+                    y: (ivars.font.pointSize() * 0.12).round(),
                 },
             );
         }
@@ -115,7 +113,7 @@ impl VolumeHeader {
             origin: NSPoint { x: 0.0, y: 0.0 },
             size: NSSize {
                 width: layout.width,
-                height: (em * 1.15).round(),
+                height: (em * 1.45).round(),
             },
         };
         unsafe { msg_send![super(this), initWithFrame: frame] }
