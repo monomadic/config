@@ -64,7 +64,8 @@ ns_params = { softness = 1 } #   extra --filters keys, passed as JSON
 weights download only when the Topaz app runs it once. These presets are served
 by `topaz-preview-frame` (stills) and the `neuroserver-select-preset` TUI, whose
 binary also encodes whole clips (`neuroserver-encode`); the ffmpeg-only tools
-skip them.
+(including the `topaz-select-preset` TUI, which previews and encodes everything
+else) skip them.
 
 **`category`** groups the row in the menu, by what is wrong with the source rather
 than by what the filter does. The list and its display order live in

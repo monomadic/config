@@ -57,7 +57,7 @@ plus `zsh -n` / `bash -n` on any shell script you touched.
 
 `utils/<tool>/` holds tool source (Rust: the AppKit menu bar widgets — `battery-widget`,
 `cpu-usage-widget`, `free-disk-space-widget`, `menu-tidy` — plus `leaf`, `pimped`,
-`motherfucker`, `neuroserver-select-preset`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
+`motherfucker`, `neuroserver-select-preset`, `topaz-select-preset`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
 `system-uptime-widget`). These are the only parts of the repo with a
 build/install step and tests — Dotter does not touch them.
 
@@ -81,8 +81,9 @@ Installers are named `setup/install/install-<name>.sh` — follow that for new o
 `config/zsh/zshrc.zsh` to work).
 
 **Topaz has two render backends.** Everything under `topaz-*` (the mpv `z`
-menu, `topaz-encode`, `topaz-pick`, `topaz-workflow`) drives the app's ffmpeg
-with a `tvai_up` filter. The generative models (Starlight Precise, Astra,
+menu, `topaz-encode`, `topaz-pick`, `topaz-workflow`, and the
+`utils/topaz-select-preset` TUI over them) drives the app's ffmpeg with a
+`tvai_up` filter. The generative models (Starlight Precise, Astra,
 Hyperion 2) are served by the app's separate `neuroserver` process instead and
 are unreachable from that filter; presets for them declare `ns_model` /
 `ns_store` / `ns_params` and are rendered by `topaz-preview-frame` (stills) and

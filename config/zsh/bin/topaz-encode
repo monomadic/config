@@ -11,6 +11,7 @@ usage() {
   cat <<EOF
 usage:
   $script_name [--preview [seconds]] [--trash-originals] [--resume] [--copy-cmd] [--nice[=N]] [--background] [--log] [--preset_name name --filter_complex filter] [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
+  $script_name [--output path] [--progress-file path] ... -- file
   $script_name file1 [file2 ...]
 
 With --preset_name and --filter_complex, runs the supplied Topaz filter directly.
@@ -56,6 +57,18 @@ metadata tags in the output, and fragmented outputs keep those tags even when
 an encode crashes. Passing such a file as the only argument, with no preset
 flags, reconstructs the job from the file itself:
   $script_name --resume 'partial [Topaz - ...].frag.mp4'
+
+--output names the finished file for a single input instead of the usual
+"<name> [Topaz - <preset>].<ext>" beside it; the in-flight file is then
+<output minus ext>.frag.<ext>, and resume looks for exactly that.
+
+--progress-file appends ffmpeg's raw -progress stream (frame=, out_time_us=,
+speed=, progress=continue|end ...) to a file, truncated at the start of each
+encode and headed by two lines of its own:
+  topaz_total_seconds=<output seconds this run will write>
+  topaz_resume_from=<output seconds kept from a partial, 0 for a fresh encode>
+It is how a caller that is not a terminal (the topaz-select-preset TUI) gets
+per-frame progress rather than the log mode's 5% steps.
 
 With --copy-cmd, prints the exact $script_name command for each input (and copies
 it to the clipboard) instead of encoding — paste it later to rerun or resume.
@@ -605,6 +618,7 @@ topaz_render_progress() {
   integer bucket last_bucket=-1
 
   while IFS= read -r line; do
+    [[ -n "$progress_file" ]] && print -r -- "$line" >> "$progress_file"
     key="${line%%=*}"
     value="${line#*=}"
     case "$key" in
@@ -948,6 +962,8 @@ copy_cmd_mode=false
 nice_level=""
 background_mode=false
 output_override=""
+output_arg=""
+progress_file=""
 files=()
 
 while (( $# > 0 )); do
@@ -1044,6 +1060,22 @@ while (( $# > 0 )); do
         exit 1
       }
       preset_metadata="$2"
+      shift 2
+      ;;
+    --output)
+      (( $# >= 2 )) || {
+        print -u2 -- "--output requires a path"
+        exit 1
+      }
+      output_arg="$2"
+      shift 2
+      ;;
+    --progress-file)
+      (( $# >= 2 )) || {
+        print -u2 -- "--progress-file requires a path"
+        exit 1
+      }
+      progress_file="${2:a}"
       shift 2
       ;;
     --)
@@ -1239,6 +1271,14 @@ for input in "$files[@]"; do
   abs_files+=("${input:A}")
 done
 files=("${abs_files[@]}")
+
+if [[ -n "$output_arg" ]]; then
+  (( ${#files[@]} == 1 )) || {
+    print -u2 -- "--output names one output, so it takes exactly one input file"
+    exit 1
+  }
+  output_override="${output_arg:a}"
+fi
 
 if [[ "$copy_cmd_mode" == true ]]; then
   cmd_lines=""
@@ -1556,6 +1596,21 @@ for input in "$files[@]"; do
     print "TOPAZ_MODELS_DIR: $TOPAZ_MODELS_DIR"
     print "CMD: ${(q+)log_cmd}"
   } >"$log_file" 2>&1
+
+  if [[ -n "$progress_file" ]]; then
+    # Fresh encodes count source seconds; the output runs slowmo times longer.
+    # A resume's total is already output time (expected minus the kept part).
+    if [[ -n "$resume_kf" ]]; then
+      progress_output_seconds="$progress_total_seconds"
+    else
+      progress_output_seconds="$(awk -v d="${progress_total_seconds:-0}" \
+        -v f="$(topaz_slowmo_factor "$preset_value")" 'BEGIN { print d * f }')"
+    fi
+    {
+      print -r -- "topaz_total_seconds=${progress_output_seconds:-0}"
+      print -r -- "topaz_resume_from=${resume_kf:-0}"
+    } >| "$progress_file"
+  fi
 
   topaz_status=0
   if [[ "$finalize_only" != true ]]; then

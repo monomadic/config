@@ -57,7 +57,7 @@ ignore = [".*", "_*"]
 
 # ── Colors ──────────────────────────────────────────────────────────────
 # All colors are [r, g, b] with 0..1 channels.
-background = [0.04, 0.04, 0.04]  # window background
+background = [0.0, 0.0, 0.0]  # window background
 # Opacity of that background fill (0..1). 1.0 = classic opaque window;
 # below 1.0 the desktop shows through the gaps between tiles (macOS
 # "glass" vibe). Tiles stay opaque; hot-reloadable, so dial it live.
@@ -367,10 +367,10 @@ chapter_text_fill = 0.55
 # chapter_text_color = [0.94, 0.94, 0.96]   # REMOVED from switchblade: folded into [theme] ink
 # Time and title each carry their own radius and padding — a timecode and a
 # sentence are different shapes.
-chapter_time_radius = 3.0
+chapter_time_radius = 4.0
 chapter_time_pad_x = 3.0
 chapter_time_pad_y = 1.5
-chapter_title_radius = 3.0
+chapter_title_radius = 4.0
 chapter_title_pad_x = 4.0
 chapter_title_pad_y = 1.5
 
@@ -487,7 +487,7 @@ tile_badge_inset_y = 10.0
 # Below this tile width the whole left stack is dropped and the duration
 # kept — the duration is the half that still reads on a small tile.
 tile_badge_min_w = 70.0
-tile_badge_fill = 0.85  # opacity of the dark fill behind each label; 0 = none
+tile_badge_fill = 0.55  # opacity of the dark fill behind each label; 0 = none
 tile_badge_gap = 3.0  # vertical gap between stacked rows
 tile_badge_text = [0.94, 0.94, 0.96]
 
@@ -510,10 +510,10 @@ tile_badge_stagger = 0.24
 tile_badge_mark_radius = 4.5
 tile_badge_mark_pad_x = 3.0
 tile_badge_mark_pad_y = 1.0
-tile_badge_star_radius = 3.0
+tile_badge_star_radius = 4.0
 tile_badge_star_pad_x = 3.0
 tile_badge_star_pad_y = 1.5
-tile_badge_time_radius = 3.0
+tile_badge_time_radius = 4.0
 tile_badge_time_pad_x = 5.0
 tile_badge_time_pad_y = 1.5
 
@@ -529,7 +529,7 @@ tile_badge_mark_inset = 2.0
 # number on a capsule. Grows live while stdin is still streaming.
 library_count = true
 library_count_size = 14.0
-library_count_color = [0.66, 0.65, 0.70]
+library_count_color = [0.655, 0.682, 0.725]  # --ink-2 #a7aeb9
 library_count_pill = 0.5
 
 # ── Keys & commands (DESIGN.md §11) ────────────────────────────────────────
@@ -590,7 +590,7 @@ queue_panel_gap = 8.0
 queue_panel_smoothing = 0.35
 queue_stall_ms = 500.0
 queue_decay_s = 0.7
-queue_color_thumbs = [1.0, 0.604, 0.333]
+queue_color_thumbs = [1.0, 0.627, 0.333]  # --queue-thumbs #ffa055
 queue_color_live = [0.294, 0.816, 0.812]
 queue_color_chapters = [0.722, 0.604, 1.0]
 queue_color_library = [0.471, 0.612, 0.957]
@@ -614,7 +614,7 @@ seekbar_preview_live = true
 # Colours are [r, g, b, a] in 0..1.
 
 # ── Added from the repo defaults, 2026-09-03 ──────────────────────────
-library_count_text = [0.90, 0.90, 0.94]  # the badge's own, lighter ink
+library_count_text = [0.957, 0.961, 0.969]  # --ink-1 #f4f5f7
 # While a tag/cast filter is applied the pills line up beside the count
 # and a black gradient rises from the bottom edge behind them: opacity at
 # the edge (0 = off), how far past the pill block it reaches, band count.
@@ -688,16 +688,16 @@ use_index = true
 [tags]
 # Chip fill, coldest (rarest tag) → hottest (most used).
 fill = [
-  [0.47, 0.63, 0.82, 1.00],
-  [0.48, 0.51, 1.00, 1.00],
-  [0.72, 0.47, 1.00, 1.00],
-  [1.00, 0.37, 0.82, 1.00],
+  [0.059, 0.399, 0.406, 1.0],
+  [0.336, 0.364, 0.748, 1.0],
+  [0.684, 0.373, 0.892, 1.0],
+  [1.0, 0.235, 0.804, 1.0],
 ]
 # Label colour ramp and size ramp [min, max], sampled by the same heat.
-text = [[1.0, 1.4, 1.4, 1.0], [1.0, 1.4, 1.4, 1.0]]
+text = [[0.875, 0.957, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]]
 size = [13.0, 13.0]
 # Halo behind hot chips (0 = off).
-glow = 0.55
+glow = 0.45
 # How counts map onto the ramps. "log" (default) suits the long tail a real
 # library has; "linear" flattens that tail into one cold colour; "rank"
 # ignores counts and spreads the ramp evenly over the sorted list.
@@ -758,8 +758,8 @@ hash_fill = [0.0, 0.0, 0.0, 0.22]
 # far apart on each side of the seam.
 hash_scale = 1.31
 hash_inset = 9.0
-glow_hover = 0.8
-hover_brightness = 1.2
+glow_hover = 1.4
+hover_brightness = 1.35
 count_scale = 1.0
 count_alpha = 1.0
 
@@ -1166,9 +1166,9 @@ fade_ms = 150.0
 # these, so retuning one value retunes every surface that uses it.
 [theme]
 # The brand red: the hot action, the applied filter, the live thing.
-accent = [1.0, 0.216, 0.376, 1.0]
+accent = [1.0, 0.216, 0.373, 1.0]
 # Primary text on a dark surface.
-ink = [0.93, 0.94, 0.96, 1.0]
+ink = [0.957, 0.961, 0.969, 1.0]
 # A component's own ground (#0b0d11) — opaque, so a widget carries its own
 # background instead of borrowing whatever is behind it. The keycaps were
 # a translucent grey wash before and had no edge of their own against the
@@ -1210,8 +1210,6 @@ match_ink = 1.0
 # The grid under a dialog is also FROZEN until it closes.
 scrim = 0.88
 scrim_height = 420.0
-scrim_steps = 24
-scrim_blur = 3.0
 
 [theme.keycap]
 height = 30.0
@@ -1227,7 +1225,7 @@ gap = 4.0
 # Peak alpha of an accent cap's glow (0 = no glow), how far the shadow
 # sits below the cap, and how far the cap lifts under the pointer.
 glow = 0.30
-shadow_drop = 1.5
+shadow_drop = 3.0
 hot_lift = 1.0
 
 # Technical tags: the two-part lockups stating what a file IS — a solid
@@ -1245,41 +1243,61 @@ hot_lift = 1.0
 # `inline` size, by the search panel's result rows. Widths are estimated
 # (the design layer's `est_width`, plus the tracking below), which is what
 # lets the app place something after a run.
+# Technical marks: the three facts a clip is picked by, stamped in the
+# category's hue — one hue per kind of fact, so a run is read by colour
+# before it is read as words. Worn by the info drawer and the seekbar's
+# details line. Widths are estimated (the design layer's `est_width`, plus
+# the tracking below), which is what lets the app place something after a
+# run.
 [theme.tech_tag]
-# The design system's own metrics (Badge.jsx): a 13px face with 6px above
-# and below it inside a 1.5px edge, so the lockup stands 28px tall on a 5px
-# radius. The inline variant is the app's — the design has one size — and
-# holds the same ratios at the face a search row can seat.
-height = 20.0
-height_inline = 20.0
-radius = 5.0
-font = 11.0
-font_inline = 11.0
-# Space either side of each half's text, in ems of the lockup's own font.
-# The halves differ, as the design's do: the value is the more tracked of
-# the two and the extra em keeps its last letter off the outline.
-pad_label_em = 0.5
-pad_value_em = 0.5
-tag_em = 0.9
-# Letter tracking (ems) for each half. The width estimate adds it, because
-# tracking is real width and a run that under-measured would creep under
-# whatever the caller placed after it.
-track_label = 0.06
-track_value = 0.10
+# The MARK: resolution, frame rate, codec — the three facts a clip is
+# picked by, stamped rather than written. A capsule in the category's hue:
+# an outline in that hue, its interior the same hue held down over black,
+# and the value centred in the hue at full strength.
+#
+# Its NORMAL height and face are not here: they are `chip_height` and
+# `chip_font` above, shared with every other capsule in the product. What
+# stays is the inline variant — the app's own, at the face a search row can
+# seat — and the shape.
+#
+# It was a two-part lockup until 2026-09-19: a solid hue block carrying a
+# label, with the value beside it. The label was the value under a second
+# name — `HEVC` `H.265`, `FHD` `1080P` — one fact said twice, in two
+# vocabularies, leaving the reader to notice they were the same thing. A
+# value that names itself takes no label, so the block went and the value
+# stayed. See vocabulary.md in the design system for the spelling of each.
+height_inline = 11.0
+font_inline = 5.0
+# Was 2.5, for a 14px lockup; kept at the same fraction of the new height.
+radius = 3.5
+# Air at each end, in ems of the mark's own font, and the letter tracking
+# the width estimate has to add — tracking is real width, and a run that
+# under-measured would creep under whatever follows it. ONE pad, because a
+# mark has two ends and nothing in the middle; the lockup's four (an outer
+# pair, and one per half at the seam) went with the seam.
+pad_em = 0.55
+track = 0.1
 gap = 5.0
-# Outline weight, drawn in the category's hue: the shape's own edge, not a
-# separator from a background. It insets, so changing it never moves the
-# run's measured width. (The design's 4px border is `--bw-selection`, the
+# The outline, in the mark's own hue: the shape's edge, not a separator
+# from a background. (The design's 4px border is `--bw-selection`, the
 # selected tile's ring — `selection_border_width` here, not this.)
-border = 2.0
-# Alpha of the dark ground under the value half. The design draws it on
-# nothing, which is right on a panel and illegible over a video frame.
-ground = 0.8
-# The category hues.
+border = 1.5
+# How much of its own hue the interior carries, mixed into the window
+# black. The old lockup had NO fill and only looked solid because every
+# mock it appeared on was dark; over a bright frame the picture showed
+# through it. A neutral fill would have fixed that and cost the mark its
+# colour from the inside, so the ground is the hue itself, held down far
+# enough that the value still reads against it. Opaque either way — the
+# mark lies over video, and a wash would take the frame's colour with it.
+ground = 0.24
+# The three hues, from the design system's NEON set: neon-blue resolution,
+# neon-violet frame rate, neon-pink codec. There is no fourth — every other
+# technical fact is reference and belongs in a labelled row. (The old
+# `--tag-*` set had fps lime and codec gold, and a `meta` violet for a
+# chapter count that is a row now; all three are superseded.)
 res = [0.435, 0.863, 1.0, 1.0]
-fps = [0.784, 1.0, 0.373, 1.0]
-codec = [1.0, 0.831, 0.373, 1.0]
-meta = [0.816, 0.749, 1.0, 1.0]
+fps = [0.722, 0.604, 1.0, 1.0]
+codec = [1.0, 0.373, 0.824, 1.0]
 
 # ── Keys & commands (DESIGN.md §11) ────────────────────────────────────────
 # Every key is remappable, movement included: hjkl and the arrows bind to
@@ -1348,3 +1366,9 @@ meta = [0.816, 0.749, 1.0, 1.0]
 # stick gets the second, and anything between is interpolated. Set a
 # pair to the same value on both ends for one fixed rate, keyboard-style.
 # All hot-reload: edit, save, feel the difference without restarting.
+
+# ── Rating stars ── the design system's gold (was the built-in white-dim unlit)
+[rating]
+lit = [1.0, 0.831, 0.373, 1.0]    # --neon-gold #ffd45f
+dim = [1.0, 0.831, 0.373, 0.22]   # --gold-star-dim
+hover = [1.0, 0.831, 0.373, 0.55]

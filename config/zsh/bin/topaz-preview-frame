@@ -7,6 +7,7 @@ usage() {
   cat <<EOF
 usage:
   $script_name --input file --preset-name name --preset-flag flag --filter filter [--time seconds] [--times seconds[,seconds...]] [--no-open] [--prompt-open] [--print-paths] [--log-file path]
+  $script_name ... --filter filter --keep-window [--window frames] [--keep-interpolation] ...
   $script_name --input file --preset-name name --preset-flag flag --ns-model name [--ns-store dir] [--ns-params json] [--ns-size WxH] [--keep-window] ...
 
 Render Topaz still-frame preview JPEGs for one or more timestamps.
@@ -33,6 +34,14 @@ with --print-paths, lists them as
   TOPAZ_PREVIEW_WINDOW_TARGET=<offset of the requested frame in the window>
   TOPAZ_PREVIEW_WINDOW_TOPAZ=<offset>\t<path>      (one per frame)
   TOPAZ_PREVIEW_WINDOW_ORIGINAL=<offset>\t<path>   (one per frame)
+  TOPAZ_PREVIEW_WINDOW_RATIO=<Topaz frames per source frame>
+
+--keep-window works on the ffmpeg backend too: it renders --window frames
+(default 8) starting two before the requested one, through the filter, with the
+matching source frames. The still drops any tvai_fi stage; --keep-interpolation
+keeps it in the window render, so the run shows the frames interpolation
+invents. The Topaz side then holds RATIO frames per source frame (fps × slowmo
+÷ source fps), and TARGET stays an offset into the source window.
 
 With --log-file, ffmpeg runs verbose (-loglevel info -stats) and its output is
 written to that path — model loading and downloading, device selection, and live
@@ -243,6 +252,8 @@ ns_store=""
 ns_params=""
 ns_size=""
 keep_window=false
+window_frames=8
+keep_interpolation=false
 times=()
 
 if [[ -n "${TOPAZ_PREVIEW_FRAME_TIMES:-}" ]]; then
@@ -326,6 +337,16 @@ while (( $# > 0 )); do
       keep_window=true
       shift
       ;;
+    --window)
+      (( $# >= 2 )) || die "--window needs a frame count"
+      [[ "$2" == <1-> ]] || die "--window must be a positive frame count: $2"
+      window_frames="$2"
+      shift 2
+      ;;
+    --keep-interpolation)
+      keep_interpolation=true
+      shift
+      ;;
     --)
       shift
       break
@@ -379,7 +400,9 @@ filter_model_codes() {
     [[ -n "$model" ]] && codes+=("$model")
   done
 
-  (( ${#codes[@]} )) && print -r -- "${(u)codes[@]}"
+  # One code per line: the caller splits on newlines, and a space-joined list
+  # would reach the checker as a single unknown name ("prob-4 chf-3").
+  (( ${#codes[@]} )) && print -rl -- "${(u)codes[@]}"
   return 0
 }
 
@@ -632,6 +655,7 @@ neuroserver_still() {
     if [[ "$print_paths" == true ]]; then
       print -r -- "TOPAZ_PREVIEW_WINDOW_START=$start"
       print -r -- "TOPAZ_PREVIEW_WINDOW_TARGET=$offset"
+      print -r -- "TOPAZ_PREVIEW_WINDOW_RATIO=1"
       for (( i = 0; i < NS_WINDOW; i++ )); do
         src_frame="$(printf '%02d' "$i")"
         [[ -f "${stem} [window ${src_frame}].jpg" ]] && \
@@ -643,6 +667,94 @@ neuroserver_still() {
   fi
 
   rm -f "$tmp_mov"
+}
+
+# Topaz frames per source frame in a window render: 1, unless a kept tvai_fi
+# stage invents more — fps=60 on a 30fps source makes 2, and slowmo=2 doubles
+# that again.
+window_ratio() {
+  local filter="$1" fps="$2" fi="" fi_fps="" slowmo="1"
+  if [[ "$keep_interpolation" == true && "$filter" == *tvai_fi=* ]]; then
+    fi="${filter#*tvai_fi=}"
+    fi=":${fi%%,*}:"
+    [[ "$fi" =~ ':fps=([0-9.]+):' ]] && fi_fps="${match[1]}"
+    [[ "$fi" =~ ':slowmo=([0-9.]+):' ]] && slowmo="${match[1]}"
+  fi
+  awk -v f="$fps" -v o="$fi_fps" -v s="$slowmo" \
+    'BEGIN { r = (o > 0 && f > 0) ? o / f : 1; printf "%.6f\n", r * s }'
+}
+
+# The ffmpeg counterpart of the neuroserver window: `window_frames` source
+# frames, starting two before the requested one, rendered through the filter and
+# written one JPEG per frame beside the matching source frames. The requested
+# frame is also copied to `out_jpg`, so the still and A/B paths carry on as usual.
+ffmpeg_window() {
+  local time_value="$1" out_jpg="$2"
+  local stem="${out_jpg:r}" fps target start offset seek span ratio cap
+  local window_filter topaz_target f idx
+  local -a made
+  integer lead=2
+
+  fps="$(media_fps "$input" "$TOPAZ_FFPROBE")"
+  target=$(awk -v t="$time_value" -v f="$fps" 'BEGIN { printf "%d", int(t * f + 0.5) }')
+  (( window_frames < 5 )) && lead=$(( (window_frames - 1) / 2 ))
+  start=$(( target - lead ))
+  (( start < 0 )) && start=0
+  offset=$(( target - start ))
+
+  # Accurate input seeking keeps the frames at or after the seek point, so
+  # seeking half a frame early lands on frame `start` whatever the rounding of
+  # its timestamp, and a span of N frame durations stops after frame start+N-1.
+  seek=$(awk -v s="$start" -v f="$fps" 'BEGIN { t = (s - 0.5) / f; if (t < 0) t = 0; printf "%.6f", t }')
+  span=$(awk -v n="$window_frames" -v f="$fps" 'BEGIN { printf "%.6f", n / f }')
+
+  if [[ "$keep_interpolation" == true ]]; then
+    window_filter="$(adapt_filter_for_orientation "$filter_complex" "$display_orientation"),format=yuvj420p"
+  else
+    window_filter="$preview_filter_complex"
+  fi
+  ratio="$(window_ratio "$filter_complex" "$fps")"
+  cap=$(awk -v n="$window_frames" -v r="$ratio" 'BEGIN { printf "%d", int(n * r + 0.5) }')
+
+  run_ffmpeg "enhancing (${window_frames}-frame window)" -y \
+    -ss "$seek" -t "$span" \
+    -autorotate \
+    -i "$input" \
+    -sws_flags "spline+accurate_rnd+full_chroma_int" \
+      "$ffmpeg_preset_flag" "$window_filter" \
+    -frames:v "$cap" \
+    -fps_mode passthrough \
+    -color_range pc -q:v 2 -start_number 0 "${stem} [window %03d].jpg" \
+    || die "Topaz window render failed${log_file:+ — see $log_file}"
+  run_ffmpeg "extracting source window" -y \
+    -ss "$seek" -t "$span" \
+    -autorotate \
+    -i "$input" \
+    -vf "format=yuvj420p" \
+    -frames:v "$window_frames" \
+    -fps_mode passthrough \
+    -color_range pc -q:v 2 -start_number 0 "${stem} [window original %03d].jpg"
+
+  made=("${stem} [window "<->"].jpg"(Nn))
+  (( ${#made} )) || die "the window render wrote no frames${log_file:+ — see $log_file}"
+  topaz_target=$(awk -v o="$offset" -v r="$ratio" 'BEGIN { printf "%d", int(o * r + 0.5) }')
+  f="${stem} [window $(printf '%03d' "$topaz_target")].jpg"
+  [[ -f "$f" ]] || f="${made[-1]}"
+  cp -f -- "$f" "$out_jpg"
+
+  if [[ "$print_paths" == true ]]; then
+    print -r -- "TOPAZ_PREVIEW_WINDOW_START=$start"
+    print -r -- "TOPAZ_PREVIEW_WINDOW_TARGET=$offset"
+    print -r -- "TOPAZ_PREVIEW_WINDOW_RATIO=$ratio"
+    for f in "${made[@]}"; do
+      idx="${${f:t:r}##*\[window }"
+      print -r -- "TOPAZ_PREVIEW_WINDOW_TOPAZ=$(( 10#${idx%\]} ))"$'\t'"$f"
+    done
+    for f in "${stem} [window original "<->"].jpg"(Nn); do
+      idx="${${f:t:r}##*\[window original }"
+      print -r -- "TOPAZ_PREVIEW_WINDOW_ORIGINAL=$(( 10#${idx%\]} ))"$'\t'"$f"
+    done
+  fi
 }
 
 mpv_images=()
@@ -682,6 +794,8 @@ for time_value in "${times[@]}"; do
 
   if [[ -n "$ns_model" ]]; then
     neuroserver_still "$time_value" "$topaz_jpg"
+  elif [[ "$keep_window" == true ]]; then
+    ffmpeg_window "$time_value" "$topaz_jpg"
   else
     run_ffmpeg "enhancing" -y \
       -ss "$time_value" \
