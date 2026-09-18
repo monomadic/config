@@ -71,6 +71,7 @@ pub struct HeaderIvars {
     title: String,
     font: Retained<NSFont>,
     left: f64,
+    right: f64,
 }
 
 define_class!(
@@ -86,6 +87,20 @@ define_class!(
         #[unsafe(method(drawRect:))]
         fn draw_rect(&self, _dirty: NSRect) {
             let ivars = self.ivars();
+
+            NSColor::labelColor().colorWithAlphaComponent(0.12).set();
+            let rule = NSBezierPath::new();
+            rule.setLineWidth(1.0);
+            rule.moveToPoint(NSPoint {
+                x: ivars.left,
+                y: 0.5,
+            });
+            rule.lineToPoint(NSPoint {
+                x: ivars.right,
+                y: 0.5,
+            });
+            rule.stroke();
+
             draw_text(
                 &ivars.title,
                 &ivars.font,
@@ -108,6 +123,7 @@ impl VolumeHeader {
                 NSFontWeightRegular
             }),
             left: layout.text_left,
+            right: layout.text_right,
         });
         let frame = NSRect {
             origin: NSPoint { x: 0.0, y: 0.0 },
