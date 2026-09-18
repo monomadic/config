@@ -2,7 +2,7 @@
 name = "neuroserver-select-preset"
 version = "0.1.0"
 edition = "2021"
-description = "TUI: pick a neuroserver (Starlight Precise) preset, step through its rendered preview window as kitty images, hand off to neuroserver-encode"
+description = "TUI: pick a neuroserver (Starlight Precise) preset, step through its rendered preview window as kitty images, encode the whole clip (also as the neuroserver-encode CLI)"
 
 [dependencies]
 ratatui = "0.30"

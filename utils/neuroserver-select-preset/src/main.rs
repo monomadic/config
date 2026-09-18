@@ -1,24 +1,30 @@
 //! neuroserver-select-preset — pick a neuroserver preset (Starlight Precise
 //! and friends), render its preview window at a timestamp, step through the
 //! rendered frames as kitty images against the matching source frames, and
-//! hand the chosen preset, resolution and output profile to neuroserver-encode.
+//! encode the whole clip with the chosen preset, resolution and output profile.
+//!
+//! The encoder (nsencode) is part of this binary. It also runs on its own as
+//! `neuroserver-select-preset encode …`, or as `neuroserver-encode …` through
+//! the symlink the installer makes: the name it is invoked by picks the mode.
 //!
 //! Keys
 //!   ↑/↓ j/k   move in the focused list        Tab / S-Tab   next / previous list
 //!   Enter r   render the preview window        Esc           cancel a render / quit
 //!   ←/→ h/l   previous / next frame            o  space      Topaz ↔ original
 //!   , .       time −1s / +1s                   < >           time −10s / +10s
-//!   e         encode with neuroserver-encode   c             print that command and quit
+//!   e         encode the whole clip            c             print the encode command and quit
 //!   q         quit
 
 mod catalog;
 mod encode;
 mod logtail;
+mod nsencode;
 mod probe;
 mod render;
 
 use anyhow::{anyhow, Context, Result};
 use catalog::{neuroserver_presets, output_profiles, shell_quote, OutputProfile, Preset};
+use nsencode::{Interrupted, Mode as EncodeMode};
 use crossterm::event::{self, Event as CEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crossterm::execute;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
@@ -76,20 +82,6 @@ impl Pane {
             Pane::Output => Pane::Res,
         }
     }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum EncodeMode {
-    Fresh,
-    Resume,
-    Restart,
-}
-
-/// What an earlier, interrupted encode of the same output left behind.
-#[derive(Clone, Copy)]
-struct Interrupted {
-    frames: u64,
-    parts: usize,
 }
 
 enum Exit {
@@ -271,92 +263,50 @@ impl App {
         format!("{} - {}", self.preset_label(), self.outputs[self.out_sel].display)
     }
 
-    fn encode_paths(&self) -> (PathBuf, PathBuf, PathBuf) {
+    fn encode_ext(&self) -> &str {
         let o = &self.outputs[self.out_sel];
-        let ext = if o.ext.is_empty() { "mp4" } else { o.ext.as_str() };
-        let output = encode::output_path(&self.input, &self.encode_name(), ext);
-        let partial = output.with_extension(format!("ns-video.{ext}"));
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".into());
-        let log = PathBuf::from(home).join("Library/Logs/topaz-batch").join(format!(
-            "{}.log",
-            output.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "neuroserver".into())
-        ));
-        (output, partial, log)
+        if o.ext.is_empty() { "mp4" } else { o.ext.as_str() }
     }
 
-    /// The neuroserver-encode command for the current choice. The codec
-    /// arguments carry the fragmented-container flags so the half-written file
-    /// can be read for a live frame (see encode.rs).
-    /// Frames that survive from an interrupted encode of the current output:
-    /// the fragmented partial plus any part files earlier resumes salvaged.
+    fn encode_output(&self) -> PathBuf {
+        nsencode::output_path(&self.input, &self.encode_name(), self.encode_ext())
+    }
+
+    /// Frames that survive from an interrupted encode of the current output.
     fn find_interrupted(&self) -> Option<Interrupted> {
-        let (output, partial, _) = self.encode_paths();
-        let dir = output.parent()?;
-        let stem = output.file_stem()?.to_string_lossy().into_owned();
-        let prefix = format!("{stem}.ns-part-");
-        let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
-            .ok()?
-            .filter_map(|e| e.ok().map(|e| e.path()))
-            .filter(|p| p.file_name().map(|n| n.to_string_lossy().starts_with(&prefix)).unwrap_or(false))
-            .collect();
-        let parts = files.len();
-        if partial.is_file() {
-            files.push(partial);
-        }
-        if files.is_empty() {
-            return None;
-        }
-        let frames = files.iter().map(|f| probe::count_frames(f)).sum();
-        Some(Interrupted { frames, parts })
+        nsencode::interrupted(&self.encode_output(), self.encode_ext())
     }
 
-    fn encode_command(&self, mode: EncodeMode) -> Vec<String> {
+    /// The encode for the current choice. The encoder adds the
+    /// fragmented-container flags that the live frame (encode.rs) and resuming
+    /// both depend on.
+    fn encode_options(&self, mode: EncodeMode) -> nsencode::Options {
         let p = self.preset();
         let r = self.effective_res();
-        let o = &self.outputs[self.out_sel];
-        let (output, _, log) = self.encode_paths();
-        let ext = if o.ext.is_empty() { "mp4" } else { o.ext.as_str() };
-        let mut cmd = vec![
-            catalog::zsh_bin().join("neuroserver-encode").to_string_lossy().into_owned(),
-            "--input".into(), self.input.to_string_lossy().into_owned(),
-            "--model".into(), p.ns_model.clone(),
-            "--store".into(), p.ns_store.clone(),
-            "--video-args".into(), format!("{} {}", o.video_args, encode::FRAG_FLAGS),
-            "--ext".into(), ext.into(),
-            "--preset-name".into(), self.encode_name(),
-            "--output".into(), output.to_string_lossy().into_owned(),
-            "--log-file".into(), log.to_string_lossy().into_owned(),
-            "--nice".into(),
-        ];
-        if let Some(params) = &p.ns_params {
-            cmd.extend(["--params".into(), params.clone()]);
+        let output = self.encode_output();
+        nsencode::Options {
+            input: self.input.clone(),
+            model: p.ns_model.clone(),
+            store: p.ns_store.clone(),
+            params: p.ns_params.clone(),
+            size: (r.w > 0).then_some((r.w, r.h)),
+            output_profile: Some(self.outputs[self.out_sel].slug.clone()),
+            preset_name: Some(self.encode_name()),
+            metadata: Some(p.metadata.clone()).filter(|m| !m.is_empty()),
+            log_file: Some(nsencode::default_log(&output)),
+            output: Some(output),
+            nice: Some(19),
+            mode,
+            ..Default::default()
         }
-        if r.w > 0 {
-            cmd.extend(["--size".into(), format!("{}x{}", r.w, r.h)]);
-        }
-        if !p.metadata.is_empty() {
-            cmd.extend(["--metadata".into(), p.metadata.clone()]);
-        }
-        match mode {
-            EncodeMode::Fresh => {}
-            EncodeMode::Resume => cmd.push("--resume".into()),
-            EncodeMode::Restart => cmd.push("--restart".into()),
-        }
-        cmd
     }
 
     fn start_encode(&mut self, mode: EncodeMode) {
         self.cancel(); // a preview render would only fight the encode for the GPU
-        let (output, partial, log) = self.encode_paths();
+        let output = self.encode_output();
+        let partial = nsencode::video_only_path(&output, self.encode_ext());
         let scratch = std::env::temp_dir().join(format!("neuroserver-select-preset-live-{}", std::process::id()));
-        let total = (self.profile.duration * self.profile.fps).round().max(0.0) as u64;
-        let job = encode::spawn(encode::Request {
-            command: self.encode_command(mode),
-            output,
-            partial,
-            log,
-            scratch,
-        });
+        let job = encode::spawn(encode::Request { options: self.encode_options(mode), output, partial, scratch });
         self.encoding = Some(Encoding {
             job,
             label: self.encode_name(),
@@ -367,7 +317,7 @@ impl App {
             }),
             pct: 0,
             frame: 0,
-            total_frames: total,
+            total_frames: self.profile.total_frames(),
             live: None,
             live_count: 0,
             done: None,
@@ -380,7 +330,11 @@ impl App {
         let Some(enc) = &mut self.encoding else { return };
         while let Ok(ev) = enc.job.rx.try_recv() {
             match ev {
-                encode::Event::Stage(s) => enc.stage = Some(s),
+                // Our own steps (salvage, join, mux) outrank neuroserver's last message.
+                encode::Event::Stage(s) => {
+                    enc.stage = Some(s);
+                    enc.message = None;
+                }
                 encode::Event::Progress { pct, frame, message } => {
                     if let Some(p) = pct {
                         enc.pct = p.min(100);
@@ -414,7 +368,14 @@ impl App {
 }
 
 fn main() -> Result<()> {
+    let argv0 = std::env::args().next().unwrap_or_default();
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if argv0.rsplit('/').next() == Some("neuroserver-encode") {
+        return nsencode::cli(&args);
+    }
+    if args.first().map(String::as_str) == Some("encode") {
+        return nsencode::cli(&args[1..]);
+    }
     let mut input: Option<PathBuf> = None;
     let mut time: Option<f64> = None;
     let mut i = 0;
@@ -504,8 +465,9 @@ fn main() -> Result<()> {
 
     match outcome? {
         Exit::Quit => Ok(()),
-        Exit::PrintCommand(cmd) => {
-            println!("{}", cmd.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" "));
+        Exit::PrintCommand(args) => {
+            let cmd = ["neuroserver-select-preset".to_string(), "encode".to_string()].into_iter().chain(args);
+            println!("{}", cmd.map(|a| shell_quote(&a)).collect::<Vec<_>>().join(" "));
             Ok(())
         }
     }
@@ -526,10 +488,10 @@ fn make_picker() -> Result<Picker> {
 }
 
 const USAGE: &str = "usage: neuroserver-select-preset FILE [--time SECONDS]
+       neuroserver-select-preset encode --help
 
 Pick a neuroserver preset, preview its rendered window at a timestamp (kitty
-images, one frame at a time, Topaz against source), then encode the clip with
-neuroserver-encode.
+images, one frame at a time, Topaz against source), then encode the whole clip.
 ";
 
 fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<Exit> {
@@ -613,7 +575,7 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Option<Exit> {
             app.interrupted = app.find_interrupted();
             app.confirm_encode = true;
         }
-        KeyCode::Char('c') => return Some(Exit::PrintCommand(app.encode_command(EncodeMode::Fresh))),
+        KeyCode::Char('c') => return Some(Exit::PrintCommand(app.encode_options(EncodeMode::Fresh).to_args())),
         KeyCode::Char('1'..='9') if !shift => {
             let n = key.code.to_string().parse::<usize>().unwrap_or(1) - 1;
             match app.pane {
@@ -643,7 +605,9 @@ fn move_sel(app: &mut App, delta: i32) {
 // ---------------------------------------------------------------- drawing
 
 const ACCENT: Color = Color::Rgb(0x0a, 0x84, 0xff);
-const DIM: Color = Color::DarkGray;
+/// Secondary text. An explicit grey rather than the palette's DarkGray (bright
+/// black), which many dark themes draw at or near the background colour.
+const DIM: Color = Color::Rgb(0x8c, 0x93, 0xa3);
 
 fn draw(f: &mut Frame, app: &mut App) {
     let area = f.area();
@@ -914,12 +878,12 @@ fn draw_encode(f: &mut Frame, app: &mut App, area: Rect) {
     let fallback = if live.is_none() { app.current_image_path() } else { None };
     let caption: Line = if live.is_some() {
         Line::from(vec![
-            Span::styled(" live ", Style::default().fg(Color::Black).bg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(" live ", Style::default().fg(Color::Rgb(0x10, 0x10, 0x14)).bg(Color::Green).add_modifier(Modifier::BOLD)),
             Span::styled(format!("  newest frame written to the output  ·  update {}", enc.live_count), Style::default().fg(DIM)),
         ])
     } else if fallback.is_some() {
         Line::from(vec![
-            Span::styled(" preview ", Style::default().fg(Color::Black).bg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(" preview ", Style::default().fg(Color::Rgb(0x10, 0x10, 0x14)).bg(Color::Yellow).add_modifier(Modifier::BOLD)),
             Span::styled("  not the encode — frames land a chunk (~100 frames) at a time, after each chunk's decode pass", Style::default().fg(DIM)),
         ])
     } else {
@@ -1027,7 +991,7 @@ fn draw_confirm(f: &mut Frame, app: &App, area: Rect) {
             ]));
         }
         None => text.push(Line::from(vec![
-            key("y"), Span::raw(" / "), key("↵"), Span::raw("  encode the whole clip with neuroserver-encode      "),
+            key("y"), Span::raw(" / "), key("↵"), Span::raw("  encode the whole clip      "),
             key("any"), Span::raw(" cancel"),
         ])),
     }

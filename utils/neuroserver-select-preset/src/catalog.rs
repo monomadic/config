@@ -22,6 +22,7 @@ pub struct Preset {
 #[derive(Clone, Debug)]
 pub struct OutputProfile {
     pub display: String,
+    pub slug: String,
     pub ext: String,
     pub video_args: String,
 }
@@ -98,7 +99,12 @@ pub fn output_profiles() -> Result<Vec<OutputProfile>> {
     let profiles: Vec<OutputProfile> = rows
         .into_iter()
         .filter(|f| f.len() >= 4)
-        .map(|f| OutputProfile { display: f[0].clone(), ext: f[2].clone(), video_args: f[3].clone() })
+        .map(|f| OutputProfile {
+            display: f[0].clone(),
+            slug: f[1].clone(),
+            ext: f[2].clone(),
+            video_args: f[3].clone(),
+        })
         .collect();
     if profiles.is_empty() {
         return Err(anyhow!("no output profiles in the catalog"));

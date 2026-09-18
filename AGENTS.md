@@ -86,13 +86,12 @@ with a `tvai_up` filter. The generative models (Starlight Precise, Astra,
 Hyperion 2) are served by the app's separate `neuroserver` process instead and
 are unreachable from that filter; presets for them declare `ns_model` /
 `ns_store` / `ns_params` and are rendered by `topaz-preview-frame` (stills) and
-`neuroserver-encode` (whole clips), with `utils/neuroserver-select-preset` as
-their TUI. Starlight *Mini* is not one of them: it is a three-part coreml model
-that `tvai_up` loads itself. Don't add a neuroserver path to `topaz-encode`.
-`neuroserver-encode` writes fragmented MP4/MOV on purpose: it is what lets the
-TUI show live frames and what makes `--resume` possible. Don't edit that script
-while an encode is running — zsh reads a script as it executes, and an encode
-can run for many hours.
+by `utils/neuroserver-select-preset` (the TUI, whose binary also contains the
+whole-clip encoder — `neuroserver-encode` is a symlink to it, not a script).
+Starlight *Mini* is not one of them: it is a three-part coreml model that
+`tvai_up` loads itself. Don't add a neuroserver path to `topaz-encode`.
+The encoder writes fragmented MP4/MOV on purpose: it is what lets the TUI show
+live frames and what makes `--resume` possible.
 
 **The jobs queue** is infrastructure other tools can build on: drop a
 `TARGET.job` shell script into `~/jobs` and it runs. Anything that needs "run

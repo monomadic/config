@@ -1,6 +1,5 @@
-//! Incremental reader for the log both topaz-preview-frame and
-//! neuroserver-encode write: "### stage" markers from the wrapper scripts and
-//! neuroserver's own JSON progress lines,
+//! Incremental reader for the log topaz-preview-frame writes: "### stage"
+//! markers from the wrapper script and neuroserver's own JSON progress lines,
 //!   {"status": "RUNNING", "frame": 9, "progress": 99, "message": "Done"}
 
 use std::fs;
@@ -34,20 +33,24 @@ impl Tail {
             return out;
         }
         self.pos = len;
-        for line in String::from_utf8_lossy(&bytes).lines() {
-            if let Some(stage) = line.strip_prefix("### ") {
-                out.push(LogEvent::Stage(stage.trim().to_string()));
-            } else if line.contains("\"progress\"") {
-                let pct = field(line, "\"progress\":").and_then(|v| v.trim().parse().ok());
-                let frame = field(line, "\"frame\":").and_then(|v| v.trim().parse().ok());
-                let message = field(line, "\"message\":")
-                    .map(|v| v.trim().trim_matches(|c| c == '"' || c == '}').to_string())
-                    .filter(|m| !m.is_empty());
-                out.push(LogEvent::Progress { pct, frame, message });
-            }
-        }
+        out.extend(String::from_utf8_lossy(&bytes).lines().filter_map(parse_line));
         out
     }
+}
+
+pub fn parse_line(line: &str) -> Option<LogEvent> {
+    if let Some(stage) = line.strip_prefix("### ") {
+        return Some(LogEvent::Stage(stage.trim().to_string()));
+    }
+    if !line.contains("\"progress\"") {
+        return None;
+    }
+    let pct = field(line, "\"progress\":").and_then(|v| v.trim().parse().ok());
+    let frame = field(line, "\"frame\":").and_then(|v| v.trim().parse().ok());
+    let message = field(line, "\"message\":")
+        .map(|v| v.trim().trim_matches(|c| c == '"' || c == '}').to_string())
+        .filter(|m| !m.is_empty());
+    Some(LogEvent::Progress { pct, frame, message })
 }
 
 fn field<'a>(line: &'a str, key: &str) -> Option<&'a str> {
