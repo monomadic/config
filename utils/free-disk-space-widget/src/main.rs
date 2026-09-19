@@ -507,6 +507,9 @@ impl Widget {
             info("No mounted volumes");
         } else {
             let layout = row::layout(&volumes, settings.include_purgeable);
+            let show_headers = volumes
+                .iter()
+                .any(|volume| volume.kind == VolumeKind::Network);
             for (title, network) in [("LOCAL", false), ("NETWORK", true)] {
                 let group = volumes
                     .iter()
@@ -516,10 +519,12 @@ impl Widget {
                     continue;
                 }
 
-                let header = NSMenuItem::new(mtm);
-                header.setEnabled(false);
-                header.setView(Some(&row::VolumeHeader::new(title, &layout, mtm)));
-                menu.addItem(&header);
+                if show_headers {
+                    let header = NSMenuItem::new(mtm);
+                    header.setEnabled(false);
+                    header.setView(Some(&row::VolumeHeader::new(title, &layout, mtm)));
+                    menu.addItem(&header);
+                }
 
                 for volume in group {
                     let item = NSMenuItem::new(mtm);
