@@ -69,6 +69,13 @@ existing `.safesync` directory, matching enrollment, rather than creating a lock
 file. It does not run filesystem verification or authorize writes; leases end on
 command exit. Integration with catalog and executor sessions remains pending.
 
+With `--verify-filesystem`, `check-pair` additionally serializes maintenance
+preflights on the host, closes inspection handles, verifies both resolved devices
+sequentially and revalidates identities before acquiring drive leases. Progress
+streams separately from the JSON result. Failures stop the preflight without
+repair. This optional read-only command is not yet the mandatory verification
+gate for a write executor; real-device and cancellation tests remain outstanding.
+
 `plan` now produces pure initial-adoption previews from historical manifests:
 conditional copies, history-preserving replacements, content review and retained
 destination-only files. It includes original observations and logical byte totals,

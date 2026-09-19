@@ -57,6 +57,9 @@ pub struct EnrolledRoot {
     synthetic: bool,
 }
 impl EnrolledRoot {
+    pub(crate) fn mount_path(&self) -> &Path {
+        &self.mount_path
+    }
     /// Require the actual local APFS volume root, not a selected media subtree.
     pub fn open(path: &Path) -> Result<Self> {
         let root = OpenOptions::new()

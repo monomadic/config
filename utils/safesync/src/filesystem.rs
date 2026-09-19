@@ -60,9 +60,27 @@ pub fn volume_for(root: &Path) -> Result<Volume> {
     );
     let mount = unsafe { mount.assume_init() };
     let mount_path = unsafe { std::ffi::CStr::from_ptr(mount.f_mntonname.as_ptr()) };
+    let info = disk_info(Path::new(std::ffi::OsStr::from_bytes(
+        mount_path.to_bytes(),
+    )))?;
+    let uuid = info["VolumeUUID"]
+        .as_str()
+        .context("No stable volume UUID; refusing to invent an identity")?;
+    ensure!(!uuid.is_empty(), "Empty volume UUID");
+    Ok(Volume {
+        uuid: uuid.into(),
+        name: info["VolumeName"]
+            .as_str()
+            .unwrap_or("Unnamed volume")
+            .into(),
+        filesystem: info["FilesystemType"].as_str().unwrap_or("unknown").into(),
+    })
+}
+
+pub(crate) fn disk_info(path: &Path) -> Result<serde_json::Value> {
     let result = Command::new("/usr/sbin/diskutil")
         .args(["info", "-plist"])
-        .arg(std::ffi::OsStr::from_bytes(mount_path.to_bytes()))
+        .arg(path)
         .output()
         .context("Cannot inspect volume with diskutil")?;
     ensure!(
@@ -85,18 +103,7 @@ pub fn volume_for(root: &Path) -> Result<Volume> {
     let result = child.wait_with_output()?;
     ensure!(result.status.success(), "Cannot decode volume information");
     let info: serde_json::Value = serde_json::from_slice(&result.stdout)?;
-    let uuid = info["VolumeUUID"]
-        .as_str()
-        .context("No stable volume UUID; refusing to invent an identity")?;
-    ensure!(!uuid.is_empty(), "Empty volume UUID");
-    Ok(Volume {
-        uuid: uuid.into(),
-        name: info["VolumeName"]
-            .as_str()
-            .unwrap_or("Unnamed volume")
-            .into(),
-        filesystem: info["FilesystemType"].as_str().unwrap_or("unknown").into(),
-    })
+    Ok(info)
 }
 
 pub fn hex(bytes: &[u8]) -> String {

@@ -5,6 +5,7 @@ pub mod compare;
 pub mod enrollment;
 pub mod filesystem;
 pub mod lookup;
+pub mod maintenance;
 pub mod manifest;
 pub mod plan;
 pub mod scan;

@@ -34,6 +34,9 @@ enum Command {
     CheckPair {
         source: PathBuf,
         destination: PathBuf,
+        /// Run diskutil verifyVolume on both drives before acquiring drive leases.
+        #[arg(long)]
+        verify_filesystem: bool,
     },
     /// Record a fixed drive role at a local APFS volume root. Writes metadata only.
     Enroll {
@@ -171,8 +174,25 @@ fn run(cli: Cli) -> Result<i32> {
         Command::CheckPair {
             source,
             destination,
+            verify_filesystem,
         } => {
             use safesync::enrollment::{EnrolledRoot, PairLease};
+            if verify_filesystem {
+                let verified = safesync::maintenance::verify_pair(&source, &destination)?;
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "source": verified.pair.source.enrollment(),
+                        "destination": verified.pair.destination.enrollment(),
+                        "identity_and_roles_valid": true,
+                        "filesystem_checked": true,
+                        "filesystem_checks": verified.checks,
+                        "executable": false,
+                        "locks": "held for this check only; released on exit"
+                    }))?
+                );
+                return Ok(0);
+            }
             let pair = PairLease::acquire(
                 EnrolledRoot::open(&source)?,
                 EnrolledRoot::open(&destination)?,

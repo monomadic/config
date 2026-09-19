@@ -217,6 +217,33 @@ unrelated programs do not participate. The lease API exposes no write capability
 Tests simulate marker, namespace and root replacement; real disconnect testing
 on expendable media remains outstanding.
 
+### Optional filesystem verification
+
+```sh
+safesync check-pair /Volumes/Source /Volumes/Backup --verify-filesystem
+```
+
+This first inspects both enrollments and resolves their device identifiers, then
+closes drive inspection handles. It runs macOS `diskutil verifyVolume` on the
+source and destination sequentially, before acquiring drive leases. It checks
+identity before and after each verification and again after acquiring the pair.
+A nonzero verification result or changed identity stops the preflight with exit 2.
+There is no automatic repair or force-unmount command.
+
+Verification progress streams to stderr. Successful stdout remains JSON, with
+`filesystem_checked: true` and per-volume device IDs and check timestamps. The
+result still has `executable: false`: filesystem verification is not content
+verification, journal recovery or permission to apply a plan. Without the flag,
+the command continues to report `filesystem_checked: false`.
+
+A private per-user lock in `/private/tmp` serializes verification preflights on
+this Mac and is retained until the resulting drive leases are released. The lock
+file persists after exit; kernel lock ownership, not file existence, determines
+whether it is busy. Inventory commands and other applications do not participate.
+The workflow is tested with simulated verification failures and identity changes;
+real DiskManagement verification and controlled cancellation still need testing
+on disposable APFS volumes.
+
 ## Safety and format
 
 The format is newline-delimited JSON: one header, regular-file entries, then a

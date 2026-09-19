@@ -52,7 +52,10 @@ Work through the milestones in order; media writes must wait for the safety gate
 
 ## 3. Single-source safe executor
 
+- [x] Add optional `check-pair --verify-filesystem` with host-local serialization, sequential device verification before drive leases, identity rechecks and streamed progress.
+- [x] Test verification ordering, failures, identity changes, invalid roles and host-lock contention using a simulated backend and temporary lock files.
 - [ ] Add filesystem verification before writable handles/drive locks, with a recorded explicit skip option.
+  Read-only pair verification exists; default verification/explicit skip policy and enforcement for future write sessions remain pending.
 - [ ] Block writes after known filesystem-check failures; provide a separate authorized repair workflow and revalidate afterward.
 - [ ] Add immutable run plans and framed, checksummed append-only journals with intent/completion records.
 - [ ] Distinguish a torn final journal record from corruption; block uncertain execution pending reconciliation.
