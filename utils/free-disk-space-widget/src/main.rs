@@ -507,6 +507,11 @@ impl Widget {
             info("No mounted volumes");
         } else {
             let layout = row::layout(&volumes, settings.include_purgeable);
+            let top_padding = NSMenuItem::new(mtm);
+            top_padding.setEnabled(false);
+            top_padding.setView(Some(&row::section_spacer(&layout, mtm)));
+            menu.addItem(&top_padding);
+
             let show_headers = volumes
                 .iter()
                 .any(|volume| volume.kind == VolumeKind::Network);
@@ -538,6 +543,11 @@ impl Widget {
                     menu.addItem(&item);
                 }
             }
+
+            let bottom_padding = NSMenuItem::new(mtm);
+            bottom_padding.setEnabled(false);
+            bottom_padding.setView(Some(&row::section_spacer(&layout, mtm)));
+            menu.addItem(&bottom_padding);
         }
 
         // Greyed out rather than hidden when nothing can eject, so the menu

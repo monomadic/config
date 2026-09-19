@@ -67,6 +67,19 @@ pub struct Layout {
     bar_height: f64,
 }
 
+/// Blank space around the complete volume section, kept outside every row so
+/// changing it cannot disturb row alignment or hit targets.
+pub fn section_spacer(layout: &Layout, mtm: MainThreadMarker) -> Retained<NSView> {
+    let frame = NSRect {
+        origin: NSPoint { x: 0.0, y: 0.0 },
+        size: NSSize {
+            width: layout.width,
+            height: (layout.font.pointSize() * 0.4).round(),
+        },
+    };
+    unsafe { msg_send![NSView::alloc(mtm), initWithFrame: frame] }
+}
+
 pub struct HeaderIvars {
     title: String,
     font: Retained<NSFont>,
