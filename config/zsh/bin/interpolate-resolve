@@ -55,6 +55,8 @@ Behavior:
   - Multiple inputs:
       Writes one output per input beside the source file, using
       ".hevc<FPS>.mp4" suffix, or ".prores<FPS>.mov" with --prores
+  - After each successful render, the source's metadata tags are copied onto
+    the output with `tagform clone` (a failure there only warns)
 
 Examples:
   interpolate-resolve clip.mp4
@@ -213,6 +215,14 @@ run_one() {
   (( use_prores )) && python_args+=(--prores)
 
   python3 "$python_script" "${python_args[@]}" "$input_file" "$output_file"
+
+  # Resolve's render carries none of the source's tags. A failed copy is only
+  # a warning: the render itself succeeded and the next input should still run.
+  if ! command -v tagform >/dev/null; then
+    print -u2 "warning: tagform not found; tags not copied to $output_file"
+  elif ! tagform clone "$input_file" "$output_file"; then
+    print -u2 "warning: tagform clone failed; tags not copied to $output_file"
+  fi
 
   print "done: $output_file"
 }

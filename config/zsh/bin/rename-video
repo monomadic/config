@@ -56,6 +56,10 @@ emulate -L zsh
 # after, and it is left alone with a warning -- a name that is only a metadata
 # block is not a name.
 #
+# The one exception to tags-only: leading underscores on the current name are
+# kept, so _Alice (Studio) ....mp4 stays underscored. They are a hand-set mark
+# that no tag records.
+#
 # Where each field comes from, XMP first and then the container atoms, which is
 # the precedence tagform writes and reads by (tagform SPEC §3.6):
 #
@@ -754,7 +758,10 @@ build_stem() {
     stem="$(build_adult_stem)" || return 1
   fi
   stem="$(trim_whitespace "$stem")"
-  print -r -- "${stem//\//-}"   # a tag may legitimately contain a slash
+  # The one thing carried over from the old name: its leading underscores.
+  # They are a mark set by hand, not data, and no tag holds them.
+  local mark="${${file:t}%%[^_]*}"
+  print -r -- "${mark}${stem//\//-}"   # a tag may legitimately contain a slash
 }
 
 # A move that will not land on a name something else already holds.
@@ -874,8 +881,11 @@ process_video() {
   # what the library is searched by and a title is prose that reads fine
   # truncated; only once the title is gone entirely do the tags go, last one
   # first, since the front of the list is the part a human chose to lead
-  # with. The actors, channel, rating and metadata block are never touched --
-  # they are short, and they are the part the rest of the library is sorted by.
+  # with. The actors, channel, rating and metadata block are left alone while
+  # anything else can go -- they are short, and they are the part the rest of
+  # the library is sorted by. If they alone are still too long (a cast list
+  # can be), the stem is cropped from its end: a cut name is still a name, and
+  # refusing would leave the file named worse.
   while (( $(byte_len "${stem}.${extension}") > NAME_MAX )); do
     if [[ "$TITLE" == *" "* ]]; then
       TITLE="${TITLE% *}"
@@ -888,10 +898,11 @@ process_video() {
     fi
     stem="$(build_stem "$file")" || break
   done
-  if (( $(byte_len "${stem}.${extension}") > NAME_MAX )); then
-    print -u2 -r -- "${YELLOW}${ICON_WARN}Name is $(byte_len "${stem}.${extension}") bytes with nothing left to shorten; the limit is ${NAME_MAX}: ${filename}${RESET}"
-    return 1
-  fi
+  # A character at a time, not a byte, so a multibyte character is never split.
+  while (( $(byte_len "${stem}.${extension}") > NAME_MAX )) && [[ -n "$stem" ]]; do
+    stem="${stem[1,-2]}"
+  done
+  stem="$(trim_whitespace "$stem")"
 
   local new_filename="${stem}.${extension}"
   local new_path="${dirname}/${new_filename}"

@@ -1,7 +1,8 @@
-# Proposal: Rust media sync and transfer TUI
+# Safesync: Rust media sync and transfer TUI
 
-Status: **design proposal; implementation not started**. Independent tool; name undecided. `media-sync` below is a placeholder, not a
-replacement or new version of spill.
+Status: **inventory and offline-lookup milestone implemented in `utils/safesync/`;
+remaining sections describe the planned sync engine and TUI**. Safesync is an
+independent application, not a replacement or new version of spill.
 Scope: macOS, locally attached APFS volumes first. Designed for Tower → Tower
 Backup, with a later mode that fills a third disk from either verified replica.
 
@@ -17,6 +18,9 @@ Keep the authoritative indexes **on the drives**. This is appropriate when the
 same physical disks travel between Macs: the next computer sees the same state.
 Do not maintain writable, authoritative computer-local replicas of those indexes.
 Local thumbnail caches and transient in-memory lookup tables are disposable.
+User-requested **offline manifest exports** may also live on the system drive.
+These immutable historical snapshots are for lookup only; they never become
+writable synchronization authorities or participate in index reconciliation.
 
 Use filesystem identity to recognize moves. Use `(size, modification time)` as a
 **non-unique secondary lookup**, never as the primary identity or proof that two
@@ -26,6 +30,55 @@ match renames. Verify newly copied data separately from detecting changes.
 The main performance gain should come from avoiding unnecessary copies and,
 later, avoiding unnecessary scans. Rust alone does not establish a speedup over
 rclone or the existing Go spill implementation.
+
+### Implemented first milestone and offline manifests
+
+Safesync 0.1 provides `scan`, `export`, `lookup`, `compare`, `info`, and `manifests`. Scans
+publish immutable flat-file snapshots with integrity footers. Exports saved under
+`~/Library/Application Support/safesync/manifests/` let the user search inventories
+of external drives without connecting those drives. Keep them separate from the
+future mutable drive-owned catalog/journal protocol below.
+
+`scan --hash` records complete-content SHA-256 fingerprints; a metadata-only scan
+supports filename presence but cannot establish content equality. The initial
+schema explicitly names SHA-256; BLAKE3 remains a candidate for later transfer
+verification, not an interchangeable interpretation of existing digests.
+
+`lookup --name` reports exact basename presence. `lookup --file` hashes the query
+file and compares saved full-content fingerprints independently of filename.
+Matches report volume identity, path, scan time, and evidence. Missing hashes
+produce an unknown result rather than a guessed match or a false negative.
+All results describe historical observations, never unverified live presence.
+The default search includes all locally saved snapshots; explicit manifest
+selection distinguishes particular generations. Local snapshots are never
+silently merged into the authoritative drive state.
+
+`compare` adds a pure, read-only comparison of two historical snapshots, with
+content matches/differences, unknowns, one-sided paths and alternate hash matches.
+It preserves ambiguous candidates and records both scopes, but does not authorize
+renames/deletions or produce an executable sync plan. Relationship enrollment,
+live preconditions and case/Unicode collision checks remain future gates.
+
+`enroll` and `enrollment` create/inspect fixed drive-role records at local APFS
+volume roots, checking volume identity and refusing role replacement. This is
+metadata-only groundwork, not an executor capability or relationship baseline.
+
+`check-pair` validates an enrolled direction under ordered exclusive leases and
+rechecks attachments, namespace identity and markers. The current lease locks the
+existing `.safesync` directory, matching enrollment, rather than creating a lock
+file. It does not run filesystem verification or authorize writes; leases end on
+command exit. Integration with catalog and executor sessions remains pending.
+
+`plan` now produces pure initial-adoption previews from historical manifests:
+conditional copies, history-preserving replacements, content review and retained
+destination-only files. It includes original observations and logical byte totals,
+blocks known namespace/scope problems, and conservatively blocks non-ASCII paths
+until destination collation is supported. It neither uses a relationship baseline
+nor authorizes execution; identity-based rename planning remains future work.
+
+The implementation does not yet copy, rename or delete media, perform filesystem
+repairs, enforce roles in a write executor, or provide the full-screen TUI.
+These remain later delivery gates. Spill remains untouched.
 
 ## 2. User experience and visual direction
 
@@ -73,8 +126,8 @@ stderr summary with documented nonzero outcomes for failures and incomplete work
 Proposed reserved namespace:
 
 ```text
-/.media-sync/
-    volume.json                  enrollment identity, schema, protected role
+/.safesync/
+    volume.json                  durable role marker, independent of inventory
     CURRENT                      committed generation manifest
     generations/<id>/            immutable inventory and relationship snapshots
     runs/<run-id>/                immutable plan and append-only operation journal
@@ -84,8 +137,7 @@ Proposed reserved namespace:
     reports/<run-id>.json         bounded portable audit reports
 ```
 
-The `.media-sync` name is provisional and must follow the eventual app name.
-It is not spill metadata and must not use spill's namespace.
+The `.safesync` namespace belongs only to this tool. It is not spill metadata.
 
 The namespace is always excluded from media selection and mirroring. Refuse to
 use it if it is a symlink, belongs to an unrelated application, or lacks a valid
@@ -278,11 +330,70 @@ re-enrollment rather than guessing.
 Make this structural in Rust: the planner receives a `SourceReader`; only a
 validated destination produces a `DestinationWriter`. Tower cannot obtain a media
 writer in ordinary sync or fill mode, even via an explicit output path. Restore
-is a separately named workflow with a separate, deliberate authorization step;
-there is no generic `--force` that reverses the relationship.
+is a separately named workflow targeting an explicitly enrolled restore disk;
+it does not bypass master protection. There is no generic `--force` that reverses
+the relationship.
+
+### Drive-resident roles: master protection follows the disk
+
+Use a small `/.safesync/volume.json` role marker separate from the rebuildable
+inventory. Its fields identify the format version, volume UUID, random enrollment
+ID, role (`master`, `backup`, or `fill_target`), and, for backups, the enrolled
+master they accept updates from. Both ends record the relationship and must agree.
+The master role applies to the whole volume, even if the requested target is a
+subdirectory. It follows the disk between Macs without a computer-local index.
+
+An enrollment ID is an identifier, not a secret password or cryptographic key.
+No secret stored next to writable data is needed to prevent accidental reversal.
+If malicious tampering becomes part of the threat model, signatures would require
+an independently trusted key and a separate trust design; a self-contained marker
+cannot authenticate itself against an attacker able to replace it.
+
+Every write-capable workflow must require positive authorization from a valid
+target role marker **and** the matching relationship. A master marker is an
+unconditional denial of media writes. Never implement the weaker rule “no master
+marker means writable.” Missing, malformed, unknown-version, mismatched or
+conflicting role records all mean read-only/stop, not automatic enrollment.
+Deleting the marker, rebuilding an index, or supplying a local exported manifest
+must not grant write permission. Read-only inventory and lookup can still operate
+without role enrollment.
+
+The marker is created only during an explicit enrollment workflow. Normal scans,
+index compaction, exports and sync cannot alter it. A catalog writer is authorized
+only for its specific metadata paths, not arbitrary files under `/.safesync/`;
+in particular it cannot rewrite `volume.json`. The separate lifecycle operation
+for retiring or changing a master is not exposed as a sync override and requires
+new relationship enrollment. The normal restore command cannot perform it.
+
+Proposed authorization behavior:
+
+| Observed state | Media writes allowed? |
+|---|---|
+| Valid master | Never, including restore and fill destinations |
+| Valid backup linked to the connected enrolled master | Only the authorized one-way backup plan |
+| Valid fill target selected by the user | Only the authorized fill plan |
+| Missing/corrupt marker or identity mismatch | No; inspect or explicitly enroll |
+| Offline manifest alone | No; historical lookup evidence only |
+
+Check roles before staging, replacement, renaming, archiving and pruning, not
+only in the TUI. Bind the writer capability to the validated open volume and
+marker revision, and invalidate it on remount, role changes or identity loss.
+Test swapped arguments, copied markers, deleted markers, master subdirectories,
+and disconnected disks. A byte-for-byte clone with duplicated volume and app IDs
+requires explicit re-enrollment; the marker is not hardware identity.
+
+This is an application safety boundary. It cannot stop Finder, other programs or
+an administrator from modifying the disk. OS read-only mounting or hardware write
+protection is stronger, but also prevents on-drive index updates.
+
+Implementation status: this is a required gate for the future write executor.
+Version 0.1 implements fixed role records and inspection, but not executor marker
+enforcement; it writes only manifests and enrollment metadata and has no media
+mutation commands.
 
 On-drive indexes require **metadata writes to Tower**. Be explicit about this
-exception: a narrowly scoped catalog writer may modify `/.media-sync/`, while the
+exception: a narrowly scoped catalog writer may create/update inventory files in
+`/.safesync/` (but never the role marker), while the
 sync executor cannot overwrite, rename, or delete source media. Filesystem repair
 is another separate maintenance exception. A physically read-only source cannot
 refresh an on-drive catalog; permit a temporary in-memory scan with reduced
@@ -451,12 +562,12 @@ reviewed replacement policy requests it.
 
 ## 10. Rust architecture and command surface
 
-Use one macOS-only package, initially `utils/media-sync/`, with a canonical
-`setup/install/install-media-sync.sh` resolving the repository from its own path.
+Use one macOS-only package, initially `utils/safesync/`, with a canonical
+`setup/install/install-safesync.sh` resolving the repository from its own path.
 No new daemon, application bundle, or nested workspace is required. Keep the Go
 spill independent and unchanged. The new app may supersede the rclone backup
 workflow after validation, but it does not replace spill or take over its command.
-The package and installer names above are placeholders pending naming.
+The package and installer names are `safesync`.
 
 Suggested modules: `volume`, `catalog`, `scan`, `compare`, `plan`, `journal`,
 `copy`, `verify`, `strategy`, `scheduler`, `maintenance`, `events`, and `tui`.
@@ -472,17 +583,18 @@ optional, not a throughput requirement. Pin versions during implementation and
 review the maintenance and licensing of the selected dependencies.
 [Ratatui project](https://ratatui.rs/).
 
-Illustrative commands, not implemented interfaces:
+Illustrative future commands (the current inventory CLI is documented in
+`utils/safesync/README.md`):
 
 ```text
-media-sync enroll                 # choose identities and fixed roles once
-media-sync mirror tower           # preflight, recovery, scan, preview, apply
-media-sync mirror tower --plan-only
-media-sync mirror tower --skip-fs-check
-media-sync fill travel --from tower --strategy latest
-media-sync verify tower
-media-sync recover tower
-media-sync history tower
+safesync enroll                 # choose identities and fixed roles once
+safesync mirror tower           # preflight, recovery, scan, preview, apply
+safesync mirror tower --plan-only
+safesync mirror tower --skip-fs-check
+safesync fill travel --from tower --strategy latest
+safesync verify tower
+safesync recover tower
+safesync history tower
 ```
 
 A saved plan includes pair/profile revision, volume identities, scan generations,
