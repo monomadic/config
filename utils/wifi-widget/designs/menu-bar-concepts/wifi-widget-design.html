@@ -1,0 +1,343 @@
+<title>wifi-widget — menu bar concepts</title>
+<style>
+  :root {
+    --bg: #101216;
+    --bg-raise: #16181d;
+    --ink: #e8eaee;
+    --ink-dim: #9aa0ab;
+    --ink-faint: #5c6270;
+    --line: #23262d;
+    --accent: #e0a458;
+    --ok: #8ec07c;
+    --warn: #f5c451;
+    --bad: #ff6259;
+    --menubar-dark: #1e1f24;
+    --menubar-light: #f2f2f4;
+    --menubar-dark-ink: #dfe1e6;
+    --menubar-light-ink: #2b2d33;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f6f3; --bg-raise: #ffffff; --ink: #22252b; --ink-dim: #5b6069;
+      --ink-faint: #9aa0ab; --line: #e4e2dc;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101216; --bg-raise: #16181d; --ink: #e8eaee; --ink-dim: #9aa0ab;
+    --ink-faint: #5c6270; --line: #23262d;
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f6f3; --bg-raise: #ffffff; --ink: #22252b; --ink-dim: #5b6069;
+    --ink-faint: #9aa0ab; --line: #e4e2dc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.55; margin: 0; padding: 3rem 1.25rem 6rem;
+  }
+  .wrap { max-width: 46rem; margin: 0 auto; }
+  h1 { font-size: 1.6rem; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 0.3rem; text-wrap: balance; }
+  .sub { color: var(--ink-dim); margin: 0 0 2.5rem; max-width: 40rem; }
+  h2 {
+    font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.09em; color: var(--accent);
+    margin: 3.2rem 0 1.1rem; padding-top: 1.4rem; border-top: 1px solid var(--line);
+  }
+  h1 + h2 { margin-top: 1rem; }
+  p { max-width: 42rem; }
+  p, li { color: var(--ink); }
+  .note { color: var(--ink-dim); font-size: 0.9rem; }
+  code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.86em; }
+  code { background: var(--bg-raise); border: 1px solid var(--line); border-radius: 4px; padding: 0.05em 0.35em; }
+
+  /* ---------- concept rows ---------- */
+  .concept { display: grid; grid-template-columns: 1fr; gap: 0.55rem; margin: 0 0 1.9rem; }
+  .concept-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+  .concept-name { font-weight: 600; font-size: 0.98rem; }
+  .concept-key { color: var(--ink-faint); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.75rem; }
+  .concept-why { color: var(--ink-dim); font-size: 0.9rem; max-width: 42rem; margin: 0; }
+  .strips { display: flex; flex-direction: column; gap: 6px; }
+
+  /* ---------- fake macOS menu bar ---------- */
+  .menubar {
+    display: flex; align-items: center; justify-content: flex-end;
+    height: 30px; padding: 0 12px; gap: 18px;
+    border-radius: 8px; font-size: 13px; font-weight: 500;
+    overflow-x: auto; white-space: nowrap;
+  }
+  .menubar.dark  { background: var(--menubar-dark);  color: var(--menubar-dark-ink); }
+  .menubar.light { background: var(--menubar-light); color: var(--menubar-light-ink); border: 1px solid #e0e0e3; }
+  .mb-ctx { opacity: 0.38; display: flex; gap: 18px; align-items: center; }
+  .widget {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 7px; border-radius: 5px;
+  }
+  .menubar.dark  .widget { background: rgba(255,255,255,0.08); }
+  .menubar.light .widget { background: rgba(0,0,0,0.06); }
+
+  /* the strikethrough-style bar: one thin continuous line */
+  .sbar { display: inline-flex; height: 13px; align-items: center; }
+  .sbar i { display: block; height: 1.5px; }
+  .sbar .fill { background: currentColor; }
+  .sbar .rest { background: currentColor; opacity: 0.22; }
+  .sbar.c-warn .fill { background: var(--warn); }
+  .sbar.c-bad  .fill { background: var(--bad); }
+  .sbar.c-ok   .fill { background: var(--ok); }
+  .seg-gap { width: 3px; }
+
+  .dim { opacity: 0.5; }
+  .tiny { font-size: 10px; font-weight: 600; letter-spacing: 0.02em; }
+  .sup { font-size: 9px; vertical-align: super; line-height: 0; font-weight: 700; }
+  .num { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .warn-ink { color: var(--warn); } .bad-ink { color: var(--bad); } .ok-ink { color: var(--ok); }
+
+  /* wifi arcs glyph (inline svg sized like SF symbol) */
+  .arcs { width: 15px; height: 12px; display: block; }
+
+  /* ---------- state matrix ---------- */
+  .matrix { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin: 1.2rem 0; }
+  .mrow { display: grid; grid-template-columns: minmax(150px, 220px) 1fr; border-top: 1px solid var(--line); }
+  .mrow:first-child { border-top: 0; }
+  .mrow > div { padding: 0.65rem 0.9rem; }
+  .mrow .mstate { background: var(--bg-raise); font-size: 0.85rem; color: var(--ink-dim); display:flex; flex-direction:column; gap:2px; }
+  .mrow .mstate b { color: var(--ink); font-weight: 600; font-size: 0.9rem; }
+  .mrow .mdemo { display: flex; align-items: center; }
+  @media (max-width: 560px) { .mrow { grid-template-columns: 1fr; } }
+
+  /* ---------- dropdown mock ---------- */
+  .dropdown {
+    width: 300px; border-radius: 12px; padding: 5px;
+    background: var(--menubar-dark); color: var(--menubar-dark-ink);
+    border: 1px solid rgba(255,255,255,0.09);
+    box-shadow: 0 18px 44px rgba(0,0,0,0.45);
+    font-size: 13px; margin: 0.6rem 0 0.4rem;
+  }
+  .dd-item { padding: 4px 10px; border-radius: 6px; display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .dd-item .k { opacity: 0.55; }
+  .dd-item .v { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .dd-head { font-weight: 650; padding: 6px 10px 2px; display: flex; justify-content: space-between; align-items: baseline; }
+  .dd-sec { opacity: 0.45; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; padding: 8px 10px 2px; }
+  .dd-sep { height: 1px; background: rgba(255,255,255,0.1); margin: 5px 10px; }
+  .dd-action { padding: 4px 10px; border-radius: 6px; }
+  .dd-action:hover { background: rgba(255,255,255,0.1); }
+  .dd-meter { padding: 2px 10px 6px; }
+  .meter-line { display: flex; height: 12px; align-items: center; }
+  .meter-line i { display: block; height: 2px; }
+  .dd-scale { display: flex; justify-content: space-between; font-size: 9.5px; opacity: 0.4; font-family: ui-monospace, monospace; padding-top: 3px; }
+
+  table.map { border-collapse: collapse; font-size: 0.88rem; margin: 0.8rem 0; }
+  table.map th, table.map td { text-align: left; padding: 0.35rem 1.1rem 0.35rem 0; border-bottom: 1px solid var(--line); }
+  table.map th { color: var(--ink-faint); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  table.map td:first-child { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.82rem; }
+  ul { padding-left: 1.2rem; }
+  li { margin: 0.3rem 0; }
+  li::marker { color: var(--ink-faint); }
+</style>
+
+<div class="wrap">
+  <h1>wifi-widget — menu bar concepts</h1>
+  <p class="sub">Same family as <span class="mono">battery-widget</span>: attributed-string title, thin
+  strikethrough-run bars, monochrome until a state deserves color, native NSMenu dropdown, style
+  submenu persisted to <span class="mono">~/.config/wifi-widget/style</span>. Each strip below shows the
+  widget in a mocked menu bar, dark and light.</p>
+
+  <h2>First: what "signal strength" should mean</h2>
+  <p>RSSI alone is the wrong number to visualize — a −65 dBm link can be flawless or unusable depending
+  on the noise floor. The meaningful metric is <b>SNR = RSSI − noise</b>, which CoreWLAN hands you
+  directly. Map SNR to the bar fill:</p>
+  <table class="map">
+    <tr><th>SNR</th><th>Quality</th><th>Reality</th></tr>
+    <tr><td>≥ 40 dB</td><td>Excellent</td><td>full MCS rates, nothing to gain</td></tr>
+    <tr><td>25–40 dB</td><td>Good</td><td>the normal healthy range</td></tr>
+    <tr><td>15–25 dB</td><td>Fair</td><td>rate stepping down, retries rising</td></tr>
+    <tr><td>&lt; 15 dB</td><td>Poor</td><td>this is why the video call broke up</td></tr>
+  </table>
+  <p class="note">Second honest metric worth showing: the negotiated <b>tx rate</b> (Mbps). It's the
+  outcome of everything — band, width, SNR, MCS — the way watts are the outcome number on the battery
+  widget. RSSI and noise stay available in the dropdown for debugging antennas.</p>
+
+  <h2>Menu bar layout styles</h2>
+
+  <!-- 1 Text -->
+  <div class="concept">
+    <div class="concept-head"><span class="concept-name">Text</span><span class="concept-key">text</span></div>
+    <div class="strips">
+      <div class="menubar dark"><span class="mb-ctx">􀊫 &nbsp;􀆨 &nbsp;Wed 21:42</span><span class="widget"><span class="num">-52</span></span></div>
+      <div class="menubar light"><span class="mb-ctx">􀊫 &nbsp;􀆨 &nbsp;Wed 21:42</span><span class="widget"><span class="num">-52</span></span></div>
+    </div>
+    <p class="concept-why">Raw RSSI in dBm, minimal footprint. The leading minus makes it self-describing.
+    A variant could show SNR instead (<span class="mono">38</span>) — smaller number, more meaningful,
+    but less recognizable.</p>
+  </div>
+
+  <!-- 2 Icon + Text -->
+  <div class="concept">
+    <div class="concept-head"><span class="concept-name">Icon and Text</span><span class="concept-key">icon_text</span></div>
+    <div class="strips">
+      <div class="menubar dark"><span class="mb-ctx">Wed 21:42</span><span class="widget">
+        <svg class="arcs" viewBox="0 0 16 13"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M1.5 4.5 A 9.2 9.2 0 0 1 14.5 4.5"/><path d="M4 7.5 A 5.7 5.7 0 0 1 12 7.5"/><path d="M6.4 10.2 A 2.3 2.3 0 0 1 9.6 10.2"/></g></svg>
+        <span class="num">-52</span></span></div>
+      <div class="menubar light"><span class="mb-ctx">Wed 21:42</span><span class="widget">
+        <svg class="arcs" viewBox="0 0 16 13"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M1.5 4.5 A 9.2 9.2 0 0 1 14.5 4.5"/><path d="M4 7.5 A 5.7 5.7 0 0 1 12 7.5"/><path d="M6.4 10.2 A 2.3 2.3 0 0 1 9.6 10.2"/></g></svg>
+        <span class="num">-52</span></span></div>
+    </div>
+    <p class="concept-why">SF Symbol <span class="mono">wifi</span> as a template image (auto-tints like
+    the battery bolt). The arc count can mirror quality tier
+    (<span class="mono">wifi</span> / <span class="mono">wifi.exclamationmark</span> when captive or no internet).</p>
+  </div>
+
+  <!-- 3 Bar -->
+  <div class="concept">
+    <div class="concept-head"><span class="concept-name">Bar</span><span class="concept-key">bar</span></div>
+    <div class="strips">
+      <div class="menubar dark"><span class="mb-ctx">Wed 21:42</span><span class="widget">
+        <span class="sbar"><i class="fill" style="width:26px"></i><i class="rest" style="width:8px"></i></span></span></div>
+      <div class="menubar light"><span class="mb-ctx">Wed 21:42</span><span class="widget">
+        <span class="sbar"><i class="fill" style="width:26px"></i><i class="rest" style="width:8px"></i></span></span></div>
+    </div>
+    <p class="concept-why">The battery bar verbatim, filled by normalized SNR (clamped 0–40 dB → 0–100%).
+    Same strikethrough-run drawing trick, same leading-padding-run workaround.</p>
+  </div>
+
+  <!-- 4 Bar + Rate -->
+  <div class="concept">
+    <div class="concept-head"><span class="concept-name">Bar and Rate</span><span class="concept-key">bar_rate</span></div>
+    <div class="strips">
+      <div class="menubar dark"><span class="mb-ctx">Wed 21:42</span><span class="widget">
+        <span class="sbar"><i class="fill" style="width:26px"></i><i class="rest" style="width:8px"></i></span>
+        <span class="num">867<span class="dim tiny">m</span></span></span></div>
+      <div class="menubar light"><span class="mb-ctx">Wed 21:42</span><span class="widget">
+        <span class="sbar"><i class="fill" style="width:26px"></i><i class="rest" style="width:8px"></i></span>
+        <span class="num">867<span class="dim tiny">m</span></span></span></div>
+    </div>
+    <p class="concept-why">The wifi twin of "Bar and Power": bar = link quality, number = negotiated PHY
+    rate in Mbps. When the rate quietly collapses from 1200 to 144, you see it without opening anything.</p>
+  </div>
+
+  <!-- 5 Band digit -->
+  <div class="concept">
+    <div class="concept-head"><span class="concept-name">Bar and Band</span><span class="concept-key">bar_band</span></div>
+    <div class="strips">
+      <div class="menubar dark"><span class="mb-ctx">Wed 21:42</span><span class="widget">
+        <span class="sbar"><i class="fill" style="width:26px"></i><i class="rest" style="width:8px"></i></span>
+        <span class="tiny dim">5</span></span></div>
+      <div class="menubar light"><span class="mb-ctx">Wed 21:42</span><span class="widget">
+        <span class="sbar"><i class="fill" style="width:24px"></i><i class="rest" style="width:10px"></i></span>
+        <span class="tiny dim">6</span></span></div>
+    </div>
+    <p class="concept-why">Band as one small dim digit — <span class="mono">2</span>,
+    <span class="mono">5</span>, or <span class="mono">6</span> — trailing the bar. Two glyphs of cost,
+    instantly legible, no legend needed. This is the cleanest band encoding; the alternatives below trade
+    clarity for cleverness.</p>
+  </div>
+
+  <!-- 6 Segmented band position -->
+  <div class="concept">
+    <div class="concept-head"><span class="concept-name">Split Bar</span><span class="concept-key">split_bar</span><span class="concept-key">(experimental)</span></div>
+    <div class="strips">
+      <div class="menubar dark"><span class="mb-ctx">Wed 21:42</span><span class="widget">
+        <span class="sbar"><i class="fill" style="width:10px"></i><span class="seg-gap"></span><i class="fill" style="width:14px"></i><i class="rest" style="width:8px"></i></span></span></div>
+      <div class="menubar light"><span class="mb-ctx">Wed 21:42</span><span class="widget">
+        <span class="sbar"><i class="fill" style="width:10px"></i><span class="seg-gap"></span><i class="fill" style="width:6px"></i><i class="rest" style="width:16px"></i></span></span></div>
+    </div>
+    <p class="concept-why">Bar split into a short left segment (fixed, = band tier: hairline for 2.4,
+    fuller for 5/6) and the main quality run. Honest assessment: it encodes band, but you'd forget the
+    code in a week. Included because the strikethrough-run renderer makes it nearly free to try.</p>
+  </div>
+
+  <!-- 7 Smart Bar -->
+  <div class="concept">
+    <div class="concept-head"><span class="concept-name">Smart Bar</span><span class="concept-key">smart_bar</span><span class="concept-key">(proposed default)</span></div>
+    <div class="strips">
+      <div class="menubar dark"><span class="mb-ctx">Wed 21:42</span><span class="widget">
+        <span class="sbar"><i class="fill" style="width:28px"></i><i class="rest" style="width:6px"></i></span></span></div>
+      <div class="menubar light"><span class="mb-ctx">Wed 21:42</span><span class="widget">
+        <span class="sbar c-warn"><i class="fill" style="width:15px"></i><i class="rest" style="width:19px"></i></span>
+        <span class="tiny warn-ink">2.4</span></span></div>
+    </div>
+    <p class="concept-why">State-aware like the battery default: monochrome and silent when everything is
+    healthy; speaks up — with color and a reason — only when something is actually wrong. Full state
+    matrix below.</p>
+  </div>
+
+  <h2>Smart Bar state matrix</h2>
+  <div class="matrix">
+    <div class="mrow">
+      <div class="mstate"><b>Healthy</b>5/6 GHz, SNR ≥ 25</div>
+      <div class="mdemo"><span class="widget" style="background:rgba(127,127,127,0.14)">
+        <span class="sbar"><i class="fill" style="width:28px"></i><i class="rest" style="width:6px"></i></span></span></div>
+    </div>
+    <div class="mrow">
+      <div class="mstate"><b>Band fallback</b>joined 2.4 GHz on a tri-band SSID</div>
+      <div class="mdemo"><span class="widget" style="background:rgba(127,127,127,0.14)">
+        <span class="sbar c-warn"><i class="fill" style="width:20px"></i><i class="rest" style="width:14px"></i></span>
+        <span class="tiny warn-ink">2.4</span></span></div>
+    </div>
+    <div class="mrow">
+      <div class="mstate"><b>Weak link</b>SNR &lt; 15, any band</div>
+      <div class="mdemo"><span class="widget" style="background:rgba(127,127,127,0.14)">
+        <span class="sbar c-bad"><i class="fill" style="width:8px"></i><i class="rest" style="width:26px"></i></span>
+        <span class="num bad-ink" style="font-size:11px">-81</span></span></div>
+    </div>
+    <div class="mrow">
+      <div class="mstate"><b>No internet</b>associated, gateway/DNS probe fails</div>
+      <div class="mdemo"><span class="widget" style="background:rgba(127,127,127,0.14)">
+        <span class="sbar c-bad"><i class="fill" style="width:24px"></i><i class="rest" style="width:10px"></i></span>
+        <span class="tiny bad-ink">!</span></span></div>
+    </div>
+    <div class="mrow">
+      <div class="mstate"><b>Disconnected</b>wifi on, not associated</div>
+      <div class="mdemo"><span class="widget" style="background:rgba(127,127,127,0.14)">
+        <span class="sbar"><i class="rest" style="width:34px"></i></span></span></div>
+    </div>
+  </div>
+  <p class="note">The "no internet" probe (a cheap gateway ping or <span class="mono">captive.apple.com</span>
+  check on the refresh tick) is what makes this genuinely smarter than the system icon — full bars with
+  dead internet is the classic lie this widget can refuse to tell. A
+  <span class="mono">smart_bar_rate</span> variant appends the Mbps number, mirroring
+  <span class="mono">smart_bar_timer</span>.</p>
+
+  <h2>Dropdown</h2>
+  <div class="dropdown">
+    <div class="dd-head"><span>Peppermint&nbsp;5G</span><span style="opacity:0.5; font-weight:500; font-size:11px">802.11ax</span></div>
+    <div class="dd-meter">
+      <div class="meter-line"><i style="width:210px;background:#dfe1e6"></i><i style="width:50px;background:#dfe1e6;opacity:0.22"></i></div>
+      <div class="dd-scale"><span>0</span><span>SNR 38 dB</span><span>50</span></div>
+    </div>
+    <div class="dd-item"><span class="k">Signal / Noise</span><span class="v">−52 / −90 dBm</span></div>
+    <div class="dd-item"><span class="k">Tx rate</span><span class="v">867 Mbps</span></div>
+    <div class="dd-sep"></div>
+    <div class="dd-item"><span class="k">Band</span><span class="v">5 GHz · ch 36 · 80 MHz</span></div>
+    <div class="dd-item"><span class="k">Security</span><span class="v">WPA3 Personal</span></div>
+    <div class="dd-item"><span class="k">BSSID</span><span class="v">a4:2b:…:e1</span></div>
+    <div class="dd-sep"></div>
+    <div class="dd-item"><span class="k">IP</span><span class="v">10.0.1.23</span></div>
+    <div class="dd-item"><span class="k">Router</span><span class="v">10.0.1.1</span></div>
+    <div class="dd-sep"></div>
+    <div class="dd-action">Copy IP Address</div>
+    <div class="dd-action">Open Wi-Fi Settings…</div>
+    <div class="dd-action" style="display:flex;justify-content:space-between"><span>Style</span><span style="opacity:0.4">▸</span></div>
+    <div class="dd-sep"></div>
+    <div class="dd-action">Quit</div>
+  </div>
+  <p class="note">Same structure as the battery dropdown: header identity, a drawn meter, raw numbers for
+  debugging, then actions. SSID in the header, PHY generation as the right-aligned detail. BSSID
+  matters when you're figuring out which AP/mesh node you're actually stuck to.</p>
+
+  <h2>Data sources</h2>
+  <ul>
+    <li><b>CoreWLAN</b> (<span class="mono">CWWiFiClient</span> → <span class="mono">CWInterface</span>)
+      — rssi, noise, txRate, ssid, bssid, channel (band + width), security, PHY mode. Same
+      <span class="mono">objc2</span> direct-binding pattern the battery widget uses for AppKit; no
+      subprocess polling needed. Note: SSID/BSSID require Location Services authorization on modern
+      macOS — handle the redacted case gracefully.</li>
+    <li><b>Fallback / cross-check:</b> <span class="mono">wdutil info</span> (needs sudo) and
+      <span class="mono">system_profiler SPAirPortDataType -json</span> (slow, fine for the dropdown).
+      The old <span class="mono">airport</span> CLI is gone.</li>
+    <li><b>Internet probe:</b> HEAD to <span class="mono">captive.apple.com</span> or ping the router on
+      each refresh tick — powers the Smart Bar "no internet" state.</li>
+    <li><b>Refresh:</b> event-driven via <span class="mono">CWEventDelegate</span> (link/SSID changes)
+      plus a slow timer for RSSI drift — cheaper than the battery widget's poll-only model.</li>
+  </ul>
+</div>
