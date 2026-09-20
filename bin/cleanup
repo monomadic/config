@@ -1,0 +1,402 @@
+#!/bin/zsh
+# cleanup — fzf menu of reclaimable disk space.
+#
+# Lists git worktrees (each with its size), Homebrew cleanup (with brew's own
+# estimate), cargo target dirs, and the usual cache bloat. Enter cleans the one
+# highlighted entry; ctrl-a cleans every entry listed under the current query,
+# after a single confirmation. On enter, clean worktrees, tool caches and build
+# dirs go without asking; dirty worktrees, orphans, the Trash and plain
+# directories ask first. A dirty worktree always asks.
+#
+#   cleanup            interactive menu
+#   cleanup --list     print the entries and exit (no fzf)
+#
+# CLEANUP_ROOTS   dirs searched for repos and cargo projects (default: $HOME)
+# CLEANUP_MIN_MB  smallest unknown cache dir worth listing   (default: 200)
+
+setopt pipe_fail
+
+self=${0:A}
+roots=(${=CLEANUP_ROOTS:-$HOME})
+min_kb=$(( ${CLEANUP_MIN_MB:-200} * 1024 ))
+hints='enter: clean this entry · ctrl-a: clean all listed · ctrl-r: rescan · esc: quit'
+
+# Never descended into when looking for repos and cargo projects.
+skip=(Library Applications Music Pictures Movies icloud node_modules
+      .Trash .cache .cargo .rustup .local .pyenv .npm go)
+fd_skip=(); for s in $skip; do fd_skip+=(-E $s); done
+
+# --- helpers ------------------------------------------------------------------
+
+human() {  # kb -> REPLY
+  local kb=$1
+  if   (( kb >= 1048576 )); then REPLY=$(printf '%.1fG' $(( kb / 1048576.0 )))
+  elif (( kb >= 1024 ));    then REPLY=$(printf '%dM' $(( kb / 1024 )))
+  else                           REPLY=$(printf '%dK' kb)
+  fi
+}
+
+kb_of() {  # total kb of the given paths -> REPLY
+  REPLY=$(du -sk -- "$@" 2>/dev/null | awk '{s += $1} END {print s + 0}')
+}
+
+tilde() { REPLY=${1/#$HOME/\~} }
+
+# Raw row: kb, size label (- = derive from kb), kind, arg1, arg2, tag, text.
+# Unused fields are "-": tab is IFS whitespace, so empty ones would collapse.
+row() { print -r -- "${(pj:\t:)@}" }
+
+# Raw rows on stdin -> fzf lines "kind \t arg1 \t arg2 \t display", biggest first.
+format() {
+  local kb label kind a1 a2 tag text
+  sort -t$'\t' -k1,1rn | while IFS=$'\t' read -r kb label kind a1 a2 tag text; do
+    [[ $label == - ]] && { human $kb; label=$REPLY }
+    printf '%s\t%s\t%s\t\e[1;33m%7s\e[0m  \e[36m%-9s\e[0m %s\n' \
+      $kind $a1 $a2 $label $tag $text
+  done
+}
+
+# --- scanners -----------------------------------------------------------------
+
+scan_worktrees() {
+  local gitdir repo key val wt branch prunable kb label flags text
+  local -a known
+  fd -H -I -t d -p '/\.git/worktrees$' $roots $fd_skip -E target 2>/dev/null |
+  while read -r gitdir; do
+    repo=${${gitdir%/}:h:h}
+    wt=
+    git -C $repo worktree list --porcelain 2>/dev/null |
+    while read -r key val; do
+      case $key in
+        worktree) wt=$val branch=detached prunable=0 ;;
+        branch)   branch=${val#refs/heads/} ;;
+        prunable) prunable=1 ;;
+        '')
+          [[ -z $wt || $wt == $repo ]] && continue
+          known+=($wt)
+          flags= label=-
+          if [[ -d $wt ]]; then
+            kb_of $wt; kb=$REPLY
+            [[ -n $(git -C $wt status --porcelain 2>/dev/null | head -1) ]] &&
+              flags=$' \e[31mdirty\e[0m'
+          else
+            kb=0 label=gone
+          fi
+          text="${repo:t} › ${wt:t}  "$'\e[2m'$branch$'\e[0m'$flags
+          row $kb $label worktree $repo $wt worktree $text
+          wt=
+          ;;
+      esac
+    done
+  done
+
+  # Claude worktree dirs no repo knows about (e.g. the repo dir was moved).
+  local dir
+  fd -H -I -t d -p '/\.claude/worktrees/[^/]+$' $roots $fd_skip -E target 2>/dev/null |
+  while read -r dir; do
+    dir=${dir%/}
+    (( ${known[(Ie)$dir]} )) && continue
+    kb_of $dir
+    row $REPLY - orphan $dir - orphan "${dir:h:h:h:t} › ${dir:t}  "$'\e[2munregistered worktree dir\e[0m'
+  done
+}
+
+scan_brew() {
+  (( $+commands[brew] )) || return
+  local out kb=0 label='0'
+  out=$(HOMEBREW_NO_AUTO_UPDATE=1 brew cleanup -n -s --prune=all 2>/dev/null)
+  print -r -- "${out:-Nothing to clean.}" > $CLEANUP_TMP/brew.txt
+  if [[ $out =~ 'approximately ([0-9.]+)([KMGT]?)B' ]]; then
+    label="~$match[1]$match[2]"
+    case $match[2] in
+      K) kb=$(( match[1] )) ;;
+      M) kb=$(( match[1] * 1024 )) ;;
+      G) kb=$(( match[1] * 1048576 )) ;;
+      T) kb=$(( match[1] * 1073741824 )) ;;
+    esac
+  fi
+  row ${kb%.*} $label brew - - homebrew 'brew cleanup -s --prune=all'
+}
+
+scan_cargo() {
+  local tag kb dir total=0
+  local -a targets
+  fd -H -I -t f '^CACHEDIR\.TAG$' $roots $fd_skip 2>/dev/null |
+  while read -r tag; do
+    [[ ${tag:h:t} == target ]] && grep -q 'created by cargo' $tag 2>/dev/null &&
+      targets+=(${tag:h})
+  done
+  (( $#targets )) || { : > $CLEANUP_TMP/cargo.txt; return }
+  print -rl -- $targets > $CLEANUP_TMP/cargo.txt
+  du -sk -- $targets 2>/dev/null | while IFS=$'\t' read -r kb dir; do
+    (( total += kb ))
+    tilde ${dir:h}
+    row $kb - cargo $dir - cargo $REPLY
+  done
+  row $total - cargo-all - - cargo "ALL $#targets cargo target dirs"
+}
+
+scan_caches() {
+  local -a handled
+  local name cmd dir kb
+
+  # Caches whose owner has a proper cleaning command: tag, command, path.
+  local -a tools=(
+    uv       'uv cache clean'          "$( (( $+commands[uv] )) && uv cache dir 2>/dev/null)"
+    pip      'pip cache purge'         "$HOME/Library/Caches/pip"
+    npm      'npm cache clean --force' "$HOME/.npm/_cacache"
+    go-mod   'go clean -modcache'      "$( (( $+commands[go] )) && go env GOMODCACHE 2>/dev/null)"
+    go-build 'go clean -cache'         "$( (( $+commands[go] )) && go env GOCACHE 2>/dev/null)"
+  )
+  for name cmd dir in "${tools[@]}"; do
+    [[ -n $dir ]] && handled+=($dir)
+    [[ -n $dir && -d $dir ]] && (( $+commands[${cmd%% *}] )) || continue
+    kb_of $dir
+    row $REPLY - tool $cmd $dir $name $cmd
+  done
+  handled+=($HOME/Library/Caches/Homebrew)   # brew's entry covers it
+
+  # Known regenerable directories.
+  for dir in \
+    $HOME/.cargo/registry \
+    $HOME/Library/Developer/Xcode/DerivedData \
+    "$HOME/Library/Developer/Xcode/iOS DeviceSupport" \
+    $HOME/Library/Developer/CoreSimulator/Caches \
+    $HOME/Library/Logs
+  do
+    [[ -d $dir ]] || continue
+    kb_of $dir; kb=$REPLY; tilde $dir
+    row $kb - dir $dir - cache $REPLY
+  done
+
+  # Anything else that is big under the cache roots.
+  du -sk -- $HOME/.cache/*(N/) $HOME/Library/Caches/*(N/) 2>/dev/null |
+  while IFS=$'\t' read -r kb dir; do
+    (( kb >= min_kb )) || continue
+    (( ${handled[(Ie)$dir]} )) && continue
+    tilde $dir
+    row $kb - dir $dir - cache $REPLY
+  done
+
+  if [[ -r $HOME/.Trash ]]; then
+    kb_of $HOME/.Trash
+    (( REPLY > 4 )) && row $REPLY - trash - - trash 'Empty the Trash'
+  fi
+}
+
+list() {
+  # Every scanner runs at once; output keeps a fixed section order.
+  local s p
+  local -a order=(worktrees brew cargo caches)
+  local -A pid
+  for s in $order; do
+    scan_$s > $CLEANUP_TMP/$s.raw 2>/dev/null &
+    p=$!; pid[$s]=$p
+  done
+  : > $CLEANUP_TMP/drop
+  : > $CLEANUP_TMP/list
+  for s in $order; do
+    wait $pid[$s]
+    format < $CLEANUP_TMP/$s.raw | tee -a $CLEANUP_TMP/list
+  done
+}
+
+# A full scan takes a while, so after an action the menu is redrawn from the
+# last scan minus the rows that action dealt with. ctrl-r rescans for real.
+relist() {
+  if [[ -s $CLEANUP_TMP/drop ]]; then grep -vFf $CLEANUP_TMP/drop $CLEANUP_TMP/list
+  else cat $CLEANUP_TMP/list
+  fi
+}
+
+dropped() { print -r -- "${(pj:\t:)@}" >> $CLEANUP_TMP/drop }  # a row prefix
+
+# --- actions ------------------------------------------------------------------
+
+confirm_always() { read -q "?$1 [y/N] "; local r=$?; print; return $r }
+# Run-all asks once up front, so the per-entry questions are already answered.
+confirm() { [[ -n $CLEANUP_YES ]] || confirm_always "$@" }
+
+fail() {
+  print -P "\n%F{red}$1%f"
+  print -r -- "failed: $1" > $CLEANUP_TMP/last
+  read -sk '?press any key'
+  exit 1
+}
+
+wipe_contents() {  # empty a directory, keep the directory
+  local d=${1:A}
+  [[ -d $d && $d == $HOME/*/* ]] || fail "refusing to wipe $1"
+  rm -rf -- $d/*(DN)
+}
+
+run() {
+  local kind=$1 a1=$2 a2=$3 what before after
+  local free0=$(df -k $HOME | awk 'NR==2 {print $4}')
+  print -r -- 'cancelled' > $CLEANUP_TMP/last
+  print 0 > $CLEANUP_TMP/freed_kb
+
+  case $kind in
+    worktree)
+      what="worktree ${a2:t}"
+      if [[ -d $a2 ]]; then
+        kb_of $a2; before=$REPLY
+        if [[ -n $(git -C $a2 status --porcelain 2>/dev/null | head -1) ]]; then
+          git -C $a2 status -sb
+          confirm_always "${a2:t} has uncommitted changes — remove anyway?" || return
+        fi
+        git -C $a1 worktree remove --force $a2 || fail "could not remove $a2"
+      else
+        # Only this worktree's stale record — not a repo-wide `worktree prune`.
+        local admin
+        for admin in $(git -C $a1 rev-parse --path-format=absolute --git-common-dir)/worktrees/*(N/); do
+          [[ $(<$admin/gitdir) == $a2/.git ]] && rm -rf -- $admin
+        done
+      fi
+      ;;
+    orphan)
+      [[ $a1 == */.claude/worktrees/* && -d $a1 ]] || fail "not a worktree dir: $a1"
+      what="orphan ${a1:t}"
+      kb_of $a1; before=$REPLY
+      confirm "delete $a1?" || return
+      rm -rf -- $a1
+      ;;
+    brew)
+      what='brew cleanup'
+      HOMEBREW_NO_AUTO_UPDATE=1 brew cleanup -s --prune=all || fail 'brew cleanup failed'
+      ;;
+    cargo|cargo-all)
+      local -a targets
+      if [[ $kind == cargo ]]; then targets=($a1); what="${a1:h:t}/target"
+      else targets=(${(f)"$(<$CLEANUP_TMP/cargo.txt)"}); what="$#targets cargo target dirs"
+      fi
+      kb_of $targets; before=$REPLY
+      local t
+      for t in $targets; do
+        [[ ${t:t} == target ]] && grep -q 'created by cargo' $t/CACHEDIR.TAG 2>/dev/null ||
+          { print "skipping $t"; continue }
+        print "removing $t"
+        rm -rf -- $t
+      done
+      ;;
+    tool)
+      what=$a1
+      kb_of $a2; before=$REPLY
+      ${=a1} || fail "$a1 failed"
+      kb_of $a2; (( before -= REPLY ))
+      ;;
+    dir)
+      tilde $a1; what=$REPLY
+      kb_of $a1; before=$REPLY
+      confirm "delete everything in $what?" || return
+      wipe_contents $a1
+      kb_of $a1; (( before -= REPLY ))
+      ;;
+    trash)
+      what='Trash'
+      kb_of $HOME/.Trash; before=$REPLY
+      confirm 'permanently empty the Trash?' || return
+      osascript -e 'tell application "Finder" to empty trash' || fail 'could not empty the Trash'
+      ;;
+    *) return ;;
+  esac
+
+  dropped $kind $a1 $a2 ''
+  case $kind in
+    worktree)  dropped cargo $a2/ ;;   # build dirs that went with it
+    orphan)    dropped cargo $a1/ ;;
+    cargo-all) dropped cargo '' ;;
+  esac
+
+  if [[ -z $before ]]; then
+    after=$(df -k $HOME | awk 'NR==2 {print $4}')
+    before=$(( after - free0 ))
+  fi
+  (( before < 0 )) && before=0
+  human $before
+  print -r -- $before > $CLEANUP_TMP/freed_kb
+  print -r -- "freed $REPLY · $what" > $CLEANUP_TMP/last
+}
+
+# Every entry in the given file (fzf's {*f}: what is listed under the current
+# query), one at a time. "ALL cargo" is skipped: the per-project rows cover it,
+# and it would reach past a filtered list.
+run_all() {
+  local kind a1 a2 rest total=0 n=0
+  local -a rows=(${(f)"$(grep -v $'^cargo-all\t' $1)"})
+  (( $#rows )) || return
+  print -l -- $rows | cut -f4-
+  print
+  confirm_always "clean all $#rows entries above?" || { print -r -- 'cancelled' > $CLEANUP_TMP/last; return }
+  export CLEANUP_YES=1
+  for rest in $rows; do
+    IFS=$'\t' read -r kind a1 a2 rest <<< $rest
+    print -P "\n%B── $kind ${a2:#-} ${a1:#-}%b"
+    ( run $kind $a1 $a2 ) < /dev/tty
+    total=$(( total + $(<$CLEANUP_TMP/freed_kb) ))
+    [[ $(<$CLEANUP_TMP/last) == freed* ]] && (( n++ ))
+  done
+  human $total
+  print -r -- "freed $REPLY · $n of $#rows entries" > $CLEANUP_TMP/last
+}
+
+preview() {
+  local kind=$1 a1=$2 a2=$3 kb p
+  case $kind in
+    worktree)
+      print -r -- $a2; print
+      if [[ -d $a2 ]]; then
+        git -C $a2 -c color.ui=always log -3 --format='%C(yellow)%h%Creset %s %C(dim)(%cr)%Creset'
+        print
+        git -C $a2 -c color.ui=always status -sb
+      else
+        print 'Directory is gone — enter drops its stale record from the repo.'
+      fi
+      ;;
+    brew)      cat $CLEANUP_TMP/brew.txt ;;
+    cargo-all) cat $CLEANUP_TMP/cargo.txt ;;
+    tool)      print -r -- "$a1"; print; preview dir $a2 ;;
+    trash)     preview dir $HOME/.Trash ;;
+    cargo|dir|orphan)
+      print -r -- $a1; print
+      du -sk -- $a1/*(DN) 2>/dev/null | sort -rn | head -30 |
+      while IFS=$'\t' read -r kb p; do
+        human $kb; printf '%7s  %s\n' $REPLY ${p:t}
+      done
+      ;;
+  esac
+}
+
+# --- entry --------------------------------------------------------------------
+
+case $1 in
+  --relist)  relist; exit ;;
+  --run-all) run_all $2; exit ;;
+  --run)     run "${@:2}"; exit ;;
+  --preview) preview "${@:2}"; exit ;;
+  --header)  print -r -- "$(<$CLEANUP_TMP/last)"; print -r -- $hints; exit ;;
+  -h|--help) sed -n '2,/^$/s/^# \{0,1\}//p' $self; exit ;;
+esac
+
+for dep in fd fzf; do
+  (( $+commands[$dep] )) || { print -u2 "cleanup: $dep not found"; exit 1 }
+done
+
+# fzf's reloads re-enter through --list and share the menu's scratch dir.
+if [[ ! -d $CLEANUP_TMP ]]; then
+  export CLEANUP_TMP=$(mktemp -d -t cleanup)
+  trap 'rm -rf -- $CLEANUP_TMP' EXIT INT TERM
+fi
+
+if [[ $1 == --list ]]; then
+  if [[ -t 1 ]]; then list | cut -f4-; else list; fi
+  exit
+fi
+
+$self --list | fzf --ansi --delimiter=$'\t' --with-nth=4.. --layout=reverse \
+  --tiebreak=index --prompt='cleanup 󰅂 ' --header=$hints \
+  --preview="$self --preview {1} {2} {3}" --preview-window='right,45%,wrap' \
+  --bind="enter:execute($self --run {1} {2} {3})+transform-header($self --header)+reload($self --relist)" \
+  --bind="ctrl-a:execute($self --run-all {*f})+transform-header($self --header)+reload($self --relist)" \
+  --bind="ctrl-r:reload($self --list)"
+exit 0
