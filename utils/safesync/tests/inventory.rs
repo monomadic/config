@@ -550,3 +550,211 @@ fn plan_cli_reports_review_and_input_errors_without_touching_media() {
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stdout.is_empty());
 }
+
+fn rename_history_fixture() -> (Fixture, Manifest, Manifest, Manifest, Manifest) {
+    let f = Fixture::new();
+    fs::write(f.root().join("old.mov"), b"video").unwrap();
+    let old_source = f.scan(true);
+    let mut old_destination = old_source.clone();
+    old_destination.header.volume.uuid = "backup".into();
+    old_destination.header.generation = "previous-destination".into();
+    old_destination.entries[0].stamp.file_id = 90001;
+    old_destination.entries[0].stamp.device = 999;
+    fs::rename(f.root().join("old.mov"), f.root().join("new.mov")).unwrap();
+    let source = f.scan(true);
+    let mut destination = old_destination.clone();
+    destination.header.generation = "current-destination".into();
+    (f, old_source, old_destination, source, destination)
+}
+
+#[test]
+fn history_finds_hash_and_metadata_rename_candidates_without_cross_volume_inode_matching() {
+    use safesync::history::{Evidence, preview};
+    let (_f, old_source, old_destination, mut source, mut destination) = rename_history_fixture();
+    let report = preview(&old_source, &old_destination, &source, &destination).unwrap();
+    assert_eq!(report.observations.len(), 1);
+    assert_eq!(
+        report.observations[0].evidence,
+        Evidence::FullContentAtScanTime
+    );
+    assert_eq!(report.exit_code(), 3);
+    assert!(!report.executable && !report.committed_relationship);
+    source.header.content_hashed = false;
+    source.entries[0].sha256 = None;
+    source.entries[0].stamp.ctime_seconds += 100;
+    // Device numbers can differ between mounts; volume UUID is the stable identity.
+    source.entries[0].stamp.device += 100;
+    destination.header.content_hashed = false;
+    destination.entries[0].sha256 = None;
+    let report = preview(&old_source, &old_destination, &source, &destination).unwrap();
+    assert_eq!(
+        report.observations[0].evidence,
+        Evidence::IdentityAndMetadataOnly
+    );
+}
+
+#[test]
+fn history_rejects_changed_content_weak_prior_evidence_and_destination_replacement() {
+    use safesync::history::{Evidence, preview};
+    let (_f, old_source, old_destination, source, destination) = rename_history_fixture();
+    for mutation in 0..5 {
+        let mut previous = old_destination.clone();
+        let mut src = source.clone();
+        let mut dst = destination.clone();
+        match mutation {
+            0 => src.entries[0].sha256 = Some("0".repeat(64)),
+            1 => src.entries[0].stamp.mtime_nanos += 1,
+            2 => {
+                previous.header.content_hashed = false;
+                previous.entries[0].sha256 = None;
+            }
+            3 => dst.entries[0].stamp.file_id += 1,
+            _ => dst.entries[0].sha256 = Some("0".repeat(64)),
+        }
+        let report = preview(&old_source, &previous, &src, &dst).unwrap();
+        assert_eq!(
+            report.observations[0].evidence,
+            Evidence::ReviewRequired,
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
+fn history_preserves_ambiguity_cycles_and_disappearances() {
+    use safesync::history::{Evidence, preview};
+    let (_f, old_source, old_destination, source, destination) = rename_history_fixture();
+    for mutation in 0..5 {
+        let mut src = source.clone();
+        let mut dst = destination.clone();
+        match mutation {
+            0 => {
+                let mut link = src.entries[0].clone();
+                link.path_base64 = safesync::manifest::encode_path(Path::new("hardlink"));
+                src.entries.push(link);
+            }
+            1 => {
+                let mut reused = old_source.entries[0].clone();
+                reused.stamp.file_id += 1;
+                src.entries.push(reused);
+            }
+            2 => {
+                let mut occupied = src.entries[0].clone();
+                occupied.stamp.file_id = 99001;
+                dst.entries.push(occupied);
+            }
+            3 => src.entries.clear(),
+            _ => dst.entries.clear(),
+        }
+        let report = preview(&old_source, &old_destination, &src, &dst).unwrap();
+        assert_eq!(
+            report.observations[0].evidence,
+            Evidence::ReviewRequired,
+            "mutation {mutation}"
+        );
+        assert!(!report.executable);
+    }
+}
+
+#[test]
+fn history_validates_scope_and_keeps_generations_explicit() {
+    use safesync::history::preview;
+    let (_f, old_source, old_destination, source, destination) = rename_history_fixture();
+    for mutation in 0..3 {
+        let mut src = source.clone();
+        match mutation {
+            0 => src.header.volume.uuid = "wrong".into(),
+            1 => src.header.root_file_id += 1,
+            _ => src.header.exclusions.push("new exclusion".into()),
+        }
+        assert!(preview(&old_source, &old_destination, &src, &destination).is_err());
+    }
+    let mut relocated = source.clone();
+    relocated.header.root_base64 =
+        safesync::manifest::encode_path(Path::new("/Volumes/RenamedMount"));
+    let report = preview(&old_source, &old_destination, &relocated, &destination).unwrap();
+    assert_eq!(
+        report.previous_source.generation,
+        old_source.header.generation
+    );
+    assert_eq!(report.current.source.generation, source.header.generation);
+}
+
+#[test]
+fn rename_plan_cli_runs_offline_and_returns_review_status() {
+    let (f, old_source, old_destination, source, destination) = rename_history_fixture();
+    let mut files = Vec::new();
+    for (n, manifest) in [old_source, old_destination, source, destination]
+        .iter()
+        .enumerate()
+    {
+        let path = f.0.join(format!("history-{n}.jsonl"));
+        manifest.save_new(&path).unwrap();
+        files.push(path);
+    }
+    fs::remove_dir_all(f.root()).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_safesync"))
+        .args(["plan-renames", "--json"])
+        .args(&files)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(3));
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(
+        report["observations"][0]["evidence"],
+        "full_content_at_scan_time"
+    );
+    assert_eq!(report["committed_relationship"], false);
+    fs::write(&files[0], b"broken\n").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_safesync"))
+        .arg("plan-renames")
+        .args(&files)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+}
+
+#[test]
+fn journal_info_reports_clean_incomplete_and_corrupt_outcomes() {
+    use safesync::journal::{Event, Journal};
+    use std::io::Write;
+    let f = Fixture::new();
+    let path = f.0.join("run.journal");
+    let mut journal = Journal::create(
+        &path,
+        Event::Start {
+            run_id: "empty-run".into(),
+            plan_sha256: "0".repeat(64),
+            operation_ids: vec![],
+        },
+    )
+    .unwrap();
+    journal.append(Event::RunCommitted).unwrap();
+    drop(journal);
+    let inspect = || {
+        Command::new(env!("CARGO_BIN_EXE_safesync"))
+            .arg("journal-info")
+            .arg(&path)
+            .output()
+            .unwrap()
+    };
+    let output = inspect();
+    assert_eq!(output.status.code(), Some(0));
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["state"]["committed"], true);
+    fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .unwrap()
+        .write_all(b"partial")
+        .unwrap();
+    let output = inspect();
+    assert_eq!(output.status.code(), Some(3));
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["torn_tail"], true);
+    assert_eq!(report["recovery_required"], true);
+    fs::write(&path, b"not a journal").unwrap();
+    assert_eq!(inspect().status.code(), Some(2));
+    assert_eq!(fs::read(&path).unwrap(), b"not a journal");
+}

@@ -6,7 +6,7 @@ lookup. Inspired by spill's feedback and copying design; **not a version of spil
 Version 0.1 implements the proposal's inventory milestone: scan, content hashes,
 flat-file manifests, local offline exports, lookup, and historical comparison. It has no media copy,
 rename, delete, repair, or sync execution commands yet. The full-screen TUI,
-relationship baselines, operation journal and executable synchronization planner are future
+executor-integrated recovery journal and executable synchronization planner are future
 milestones in [the proposal](../../docs/SAFESYNC-RUST-PROPOSAL.md).
 
 ## Build and install
@@ -111,6 +111,42 @@ Exit statuses:
 Even with a match, JSON includes the count of unhashed candidates on other
 snapshots, so consumers can see that the result list may be incomplete.
 
+## Refresh drive-owned catalogs
+
+```sh
+safesync catalog-refresh /Volumes/Source /Volumes/Backup --hash \
+  --exclude .Trashes --exclude .Spotlight-V100 --exclude .fseventsd
+safesync catalog /Volumes/Source
+```
+
+Both drives must already be enrolled with the correct roles. Refresh always runs
+filesystem verification before acquiring the pair leases; there is no skip option
+for catalog publication yet. It scans both complete volume roots with the same
+literal exclusions. Both scans must succeed before publication begins. Omit
+`--hash` for metadata-only inventories. This writes safesync metadata on both
+drives, including the protected source, and never writes source or destination media.
+
+Each drive owns immutable `.safesync/catalog-GENERATION.jsonl` files and a small
+`.safesync/CURRENT` record bound to its enrollment. Publication flushes a staged
+inventory, links it into place without overwriting, persists the directory, then
+flushes and atomically replaces `CURRENT`. Older generations remain intact.
+The current layout keeps generation files directly inside `.safesync`; the
+proposal's richer generation directories are not needed for inventory-only state.
+
+`catalog` validates the pointer, enrollment, generation and manifest integrity
+under a drive lease. Corrupt or unsafe current metadata blocks refresh instead
+of being silently replaced. Offline exports cannot become authoritative catalogs.
+Catalog JSONL files still work with `export`, `compare` and `plan`; `CURRENT`
+itself is not a manifest.
+
+The two drives commit independently. If source publication succeeds and destination
+publication fails, the error identifies that partial result; this is not a committed
+sync relationship. An interrupted publication can leave an unreferenced complete
+generation or a partial staging file. Neither is selected automatically, and no
+history is pruned. An error after replacing `CURRENT` can leave a valid new current
+catalog: inspect it before retrying. Tests exercise interruption between generation
+publication and pointer replacement; physical power-loss durability remains untested.
+
 ## Compare two inventories
 
 ```sh
@@ -166,6 +202,74 @@ Exit 0 means the historical preview has no blockers or content-review items;
 exit 3 means it needs review; exit 2 means invalid input or an error. **No exit
 status authorizes execution.** Every preview has `historical_only: true` and
 `executable: false`; there is no apply command. Drives may remain disconnected.
+
+## Adopt an existing backup relationship
+
+```sh
+safesync relationship-adopt /Volumes/Source /Volumes/Backup \
+  --exclude .Trashes --exclude .Spotlight-V100 --exclude .fseventsd
+safesync plan-relationship /path/to/relationship-GENERATION.json \
+  current-source.jsonl current-backup.jsonl
+```
+
+Adoption runs filesystem verification, refreshes both catalogs with complete-content
+hashes, and records same-path files whose size and SHA-256 match. This reads all
+selected bytes on both drives. It writes catalogs on both drives and an immutable
+`.safesync/relationship-GENERATION.json` baseline on the destination. It does not
+copy, rename or delete media. Unmatched files are counted separately; adoption is
+not a claim that the entire backup is synchronized. No matches or namespace/scope
+blockers refuse adoption, although the refreshed catalogs can already exist.
+
+The baseline binds both enrollment identities, catalog generations and a fixed
+profile revision (1: same-path full-SHA-256 adoption). It embeds both inventories
+so later review works offline and preserves hard-link/identity ambiguity. Old
+baselines remain intact. There is no automatic latest-baseline selection or profile
+migration; pass the intended file explicitly. The current in-memory format has a
+256 MiB record limit and duplicates catalog data deliberately for portability.
+
+`plan-relationship` validates the baseline checksum, policy and recorded match set,
+then produces a JSON rename review against two selected current manifests. Its
+`committed_relationship: true` means an adoption record was supplied, not that a
+sync run completed or the current attached drives were validated. The result
+remains `historical_only: true` and `executable: false`, with the same review/error
+exit statuses as `plan-renames`. The checksum detects damage, not malicious
+rewriting. Symlinked or hard-linked baseline files are refused.
+
+If adoption reports a publication error, a valid immutable baseline may already
+exist; inspect destination metadata before retrying. Relationship updates after
+copy/rename operations and recovery-aware baseline selection remain unfinished.
+
+## Review possible renames across scans
+
+```sh
+safesync plan-renames previous-source.jsonl previous-backup.jsonl \
+  current-source.jsonl current-backup.jsonl --json
+```
+
+This compares caller-selected historical observations, not a committed relationship
+baseline. Prior and current snapshots must have matching volume UUIDs, scan-root
+file IDs and exclusion policies on each side. Mount paths may differ between Macs.
+Only a unique source identity moving to another relative path is considered a
+rename candidate. The prior same-path backup must have a matching full-content
+hash, and its current identity, size and modification time must remain consistent.
+
+Current matching hashes produce `full_content_at_scan_time` evidence. Missing
+current hashes produce `identity_and_metadata_only`, never confirmed content
+equality. Contradictory hashes or changed size/mtime prevent a rename candidate.
+Device numbers are ignored across mounts; source and destination inode numbers
+are never matched to each other. ctime changes alone do not disprove a rename.
+
+Hard-link ambiguity, reused source paths, occupied targets, namespace blockers,
+changed counterparts and missing files remain review items. A disappearance never
+authorizes deletion or archiving. Metadata continuity cannot exclude inode reuse
+or same-size edits with preserved timestamps.
+
+JSON includes the four scan headers, entry evidence, prior namespace blockers and
+the unchanged initial-adoption preview. Rename observations are alternatives for
+review, not operations to add to that preview. Exit 3 means observations or review
+items exist; 2 means invalid input. `executable` and `committed_relationship` are
+always false. This command neither stores a destination-owned relationship nor
+applies renames.
 
 ## Enroll a drive role
 
@@ -243,6 +347,71 @@ whether it is busy. Inventory commands and other applications do not participate
 The workflow is tested with simulated verification failures and identity changes;
 real DiskManagement verification and controlled cancellation still need testing
 on disposable APFS volumes.
+
+## Prepare an immutable run
+
+```sh
+safesync prepare-run /Volumes/Source /Volumes/Backup \
+  --exclude .Trashes --exclude .Spotlight-V100 --exclude .fseventsd
+safesync run-info /Volumes/Backup/.safesync/run-RUN_ID
+```
+
+Preparation verifies both filesystems and refreshes both catalogs with full-content
+hashes. It refuses unresolved review items, namespace/scope blockers and an empty
+copy/replacement plan. It preserves destination-only files and does not schedule
+renames. The destination receives a private, unique `run-RUN_ID` directory with
+`plan.json` and `journal`; source writes are limited to the refreshed catalog.
+
+The immutable plan contains both enrollment records, catalog observations and
+explicit source/predecessor versions for each copy or history-preserving replacement.
+It is flushed before creating the journal, whose first record binds the exact plan
+bytes by SHA-256 and fixes the operation-ID set. No operation intent is started.
+The current prototype embeds inventories and limits the plan to 256 MiB.
+
+`run-info` checks that the operations agree with the saved inventories and that
+the journal identifies this exact plan and operation set. Even whitespace edits to
+`plan.json` invalidate the binding. An unfinished prepared run returns exit 3;
+missing, corrupt or mismatched metadata returns 2. Inspection never changes files.
+
+Preparation is not execution approval: `execution_enabled` is false, and there is
+no apply command. Metadata preservation, free-space reservation, live preconditions
+at execution, staged copying and recovery remain unimplemented. Interrupted
+preparation leaves its unique directory for inspection; it is neither reused nor
+deleted automatically. An incomplete plan without its journal cannot be treated as
+a prepared run. A retry creates a separate run and may leave valid earlier metadata.
+
+## Inspect an operation journal
+
+```sh
+safesync journal-info /path/to/run.journal
+```
+
+The journal foundation supports framed copy-lifecycle events and JSON inspection.
+Each run binds an immutable plan digest and a fixed set of operation IDs. Each
+stage requires a durable intent before its completion: copying, staged verification,
+optional predecessor archival, installation and catalog commit. Run commit requires
+all planned operations to finish. This is record validation, not proof that the
+corresponding filesystem operations occurred.
+
+Frames contain sequence numbers, bounded payload lengths, a previous-frame digest,
+an independently checksummed header and a payload checksum. An incomplete final
+frame reports `torn_tail` and the last valid byte offset. A complete frame with bad
+checksums, broken ordering or invalid transitions is an error. The reader never
+truncates or replays anything. Every unfinished run needs recovery, even with no
+torn tail; a committed run with extra partial bytes also needs recovery.
+
+The writer library only creates new journals, flushes each accepted append with
+macOS full-sync and refuses further appends after an uncertain write. It holds an
+exclusive advisory lock; inspection refuses a busy writer. It does not reopen
+existing journals, reconcile files, or execute media operations yet. `prepare-run`
+publishes a plan before creating its initial journal; there is no arbitrary
+journal-creation CLI.
+
+Inspection exits 0 for a clean recorded commit, 3 for recovery-required state, and
+2 for corruption, unsupported data or access errors. These statuses describe the
+journal alone. Tests cover every truncation point in a final frame, corrupted
+headers/payloads, invalid transitions, lock contention and CLI outcomes. Real
+power-loss and filesystem reconciliation tests remain outstanding.
 
 ## Safety and format
 

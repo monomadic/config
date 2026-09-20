@@ -281,6 +281,35 @@ pub struct DriveLease {
     enrollment: Enrollment,
 }
 impl DriveLease {
+    pub(crate) fn catalog_directory(&self) -> Result<File> {
+        self.revalidate()?;
+        self.directory.try_clone().map_err(Into::into)
+    }
+
+    pub(crate) fn scan_root(&self) -> &Path {
+        &self.root.mount_path
+    }
+
+    pub(crate) fn root_file_id(&self) -> Result<u64> {
+        Ok(self.root.root.metadata()?.ino())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_lease(path: &Path) -> Result<Self> {
+        Self::test_role_lease(path, "test-catalog-volume", DriveRole::ProtectedSource)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_role_lease(path: &Path, uuid: &str, role: DriveRole) -> Result<Self> {
+        let root = EnrolledRoot {
+            root: File::open(path)?,
+            volume_uuid: uuid.into(),
+            mount_path: path.to_owned(),
+            synthetic: true,
+        };
+        root.enroll(role)?;
+        Self::acquire(root, role)
+    }
     pub fn acquire(root: EnrolledRoot, expected_role: DriveRole) -> Result<Self> {
         root.revalidate_attachment()?;
         let directory = root.namespace(false)?;

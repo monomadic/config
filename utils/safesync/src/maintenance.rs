@@ -1,4 +1,4 @@
-//! Verification preflight only. Never repairs, unmounts forcibly, or authorizes writes.
+//! Filesystem-verified sessions for catalog metadata; no media writes or repairs.
 use crate::{
     enrollment::{DriveRole, EnrolledRoot, Enrollment, PairLease},
     filesystem, manifest,
@@ -185,9 +185,72 @@ fn host_lock(path: &Path) -> Result<File> {
 }
 
 pub struct VerifiedPair {
-    pub pair: PairLease,
+    pair: PairLease,
     pub checks: Vec<Verification>,
     _host_lock: File,
+}
+
+impl VerifiedPair {
+    pub fn prepare_run(&self, exclusions: &[PathBuf]) -> Result<crate::run::Prepared> {
+        self.refresh_catalogs(true, exclusions)?;
+        crate::run::prepare(&self.pair).context("Run preparation failed after catalog refresh; incomplete run metadata may remain and must be inspected")
+    }
+    pub fn adopt_relationship(
+        &self,
+        exclusions: &[PathBuf],
+    ) -> Result<crate::relationship::Adoption> {
+        self.refresh_catalogs(true, exclusions)?;
+        crate::relationship::adopt(&self.pair).context(
+            "Catalogs refreshed but relationship adoption did not report success; a publication error may leave a valid baseline, so inspect destination metadata before retrying",
+        )
+    }
+    pub fn pair(&self) -> &PairLease {
+        &self.pair
+    }
+
+    /// Refresh drive-owned inventories only; no media or relationship mutations.
+    pub fn refresh_catalogs(
+        &self,
+        hash: bool,
+        exclusions: &[PathBuf],
+    ) -> Result<(crate::catalog::Current, crate::catalog::Current)> {
+        self.pair.revalidate()?;
+        // Validate both current catalogs before scanning or publishing either side.
+        crate::catalog::load(&self.pair.source)?;
+        crate::catalog::load(&self.pair.destination)?;
+        let scan = |lease: &crate::enrollment::DriveLease| -> Result<crate::manifest::Manifest> {
+            lease.revalidate()?;
+            let volume = filesystem::volume_for(lease.scan_root())?;
+            ensure!(
+                volume.uuid == lease.enrollment().volume_uuid,
+                "Volume changed before catalog scan"
+            );
+            eprintln!("Scanning catalog on {:?}", lease.scan_root());
+            let mut last = std::time::Instant::now();
+            let inventory = crate::scan::scan_with_exclusions(
+                lease.scan_root(),
+                volume,
+                hash,
+                exclusions,
+                |p| {
+                    if last.elapsed() >= std::time::Duration::from_secs(1) {
+                        eprintln!("{} files · {} bytes catalogued", p.files, p.bytes);
+                        last = std::time::Instant::now();
+                    }
+                },
+            )?;
+            lease.revalidate()?;
+            Ok(inventory)
+        };
+        let source = scan(&self.pair.source)?;
+        let destination = scan(&self.pair.destination)?;
+        self.pair.revalidate()?;
+        let source = crate::catalog::publish(&self.pair.source, &source)?;
+        eprintln!("Source catalog committed: {}", source.generation);
+        let destination = crate::catalog::publish(&self.pair.destination, &destination)
+            .context("Source catalog committed, but destination publication failed; catalogs are independent")?;
+        Ok((source, destination))
+    }
 }
 
 pub fn verify_pair(source: &Path, destination: &Path) -> Result<VerifiedPair> {

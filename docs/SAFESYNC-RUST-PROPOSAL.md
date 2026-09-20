@@ -83,6 +83,41 @@ blocks known namespace/scope problems, and conservatively blocks non-ASCII paths
 until destination collation is supported. It neither uses a relationship baseline
 nor authorizes execution; identity-based rename planning remains future work.
 
+`catalog-refresh` now verifies both filesystems, acquires pair leases, scans both
+enrolled roots and publishes independent drive-owned inventory generations.
+`catalog` inspects the enrollment-bound `CURRENT` pointer and validates its
+manifest. Generation JSONL files currently live directly under `.safesync`, with
+old generations retained. Publication stages and flushes immutable data before
+atomically replacing the pointer. Fault tests cover the generation/pointer gap;
+physical power-loss durability and relationship commits remain future gates.
+
+`plan-renames` analyzes four caller-selected historical snapshots using
+volume-scoped unique file identities and prior same-path content hashes. It
+distinguishes current full-content evidence from metadata-only continuity and
+keeps ambiguity, changed files, occupied paths and disappearances for review.
+It does not persist a relationship baseline or authorize rename/archive operations.
+
+`relationship-adopt` adds immutable destination-owned initial-adoption baselines
+after filesystem verification and fresh hashed catalog scans. Each baseline binds
+both enrollments and generations to the fixed same-path/full-SHA-256 profile,
+records only proven matches and retains both inventories for offline review.
+`plan-relationship` validates and uses a selected baseline without authorizing
+execution. Unmatched files remain unclaimed; post-operation baseline updates and
+recovery-aware selection are still future work.
+
+The copy-lifecycle journal foundation now provides sequenced, hash-chained frames,
+checksummed headers/payloads, durable intent/completion ordering and read-only
+`journal-info` inspection. Truncated final records require recovery; complete
+corrupt frames fail validation. The writer creates new journals only and refuses
+continuation after uncertain writes. Filesystem reconciliation and executor
+integration remain future gates.
+
+`prepare-run` now publishes immutable copy/replacement plans after verified hashed
+catalog refresh and creates a journal bound to the exact plan digest and operation
+set. `run-info` validates that binding and the recorded preconditions. Preparation
+does not start an operation or enable execution; incomplete directories are retained
+for inspection. Filesystem reconciliation and media execution remain future gates.
+
 The implementation does not yet copy, rename or delete media, perform filesystem
 repairs, enforce roles in a write executor, or provide the full-screen TUI.
 These remain later delivery gates. Spill remains untouched.

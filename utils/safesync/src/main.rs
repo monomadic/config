@@ -23,6 +23,50 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Command {
+    /// Verify and hash both drives, then save a copy/replacement plan and journal. No execution.
+    PrepareRun {
+        source: PathBuf,
+        destination: PathBuf,
+        #[arg(long)]
+        exclude: Vec<PathBuf>,
+    },
+    /// Validate the immutable plan and its bound journal. Never execute or repair.
+    RunInfo { directory: PathBuf },
+    /// Inspect a stopped journal; never replay, truncate or repair it.
+    JournalInfo { journal: PathBuf },
+    /// Verify, hash and record matching same-path replicas on the destination.
+    RelationshipAdopt {
+        source: PathBuf,
+        destination: PathBuf,
+        #[arg(long)]
+        exclude: Vec<PathBuf>,
+    },
+    /// Validate an adoption baseline and review it against two current manifests.
+    PlanRelationship {
+        baseline: PathBuf,
+        source: PathBuf,
+        destination: PathBuf,
+    },
+    /// Analyze possible renames using four historical snapshots. Never applies changes.
+    PlanRenames {
+        previous_source: PathBuf,
+        previous_destination: PathBuf,
+        source: PathBuf,
+        destination: PathBuf,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Verify both filesystems, scan enrolled roots and publish drive-owned catalogs.
+    CatalogRefresh {
+        source: PathBuf,
+        destination: PathBuf,
+        #[arg(long)]
+        hash: bool,
+        #[arg(long)]
+        exclude: Vec<PathBuf>,
+    },
+    /// Read the current drive-owned catalog under an enrollment lease.
+    Catalog { root: PathBuf },
     /// Preview initial-adoption proposals from two manifests. Never applies changes.
     Plan {
         source: PathBuf,
@@ -126,6 +170,129 @@ fn safe_display(path: &Path) -> String {
 }
 fn run(cli: Cli) -> Result<i32> {
     match cli.command {
+        Command::PrepareRun {
+            source,
+            destination,
+            exclude,
+        } => {
+            let session = safesync::maintenance::verify_pair(&source, &destination)?;
+            let prepared = session.prepare_run(&exclude)?;
+            println!("{}", serde_json::to_string_pretty(&prepared)?);
+        }
+        Command::RunInfo { directory } => {
+            let report = safesync::run::inspect(&directory)?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            return Ok(if report.journal.recovery_required {
+                3
+            } else {
+                0
+            });
+        }
+        Command::JournalInfo { journal } => {
+            let report = safesync::journal::inspect(&journal)?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            return Ok(if report.recovery_required { 3 } else { 0 });
+        }
+        Command::RelationshipAdopt {
+            source,
+            destination,
+            exclude,
+        } => {
+            let verified = safesync::maintenance::verify_pair(&source, &destination)?;
+            let adoption = verified.adopt_relationship(&exclude)?;
+            println!("{}", serde_json::to_string_pretty(&adoption)?);
+        }
+        Command::PlanRelationship {
+            baseline,
+            source,
+            destination,
+        } => {
+            let baseline = safesync::relationship::Baseline::load(&baseline)?;
+            let report =
+                baseline.preview(&Manifest::load(&source)?, &Manifest::load(&destination)?)?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            return Ok(report.exit_code());
+        }
+        Command::PlanRenames {
+            previous_source,
+            previous_destination,
+            source,
+            destination,
+            json,
+        } => {
+            let report = safesync::history::preview(
+                &Manifest::load(&previous_source)?,
+                &Manifest::load(&previous_destination)?,
+                &Manifest::load(&source)?,
+                &Manifest::load(&destination)?,
+            )?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&report)?);
+            } else {
+                println!(
+                    "Historical rename review: {:?} → {:?}",
+                    report.current.source.volume.name, report.current.destination.volume.name
+                );
+                for warning in &report.warnings {
+                    println!("{warning}");
+                }
+                for observation in &report.observations {
+                    let target = observation
+                        .current_source
+                        .as_ref()
+                        .map(|e| e.path())
+                        .transpose()?;
+                    println!(
+                        "{} → {} · {:?}\n  {}",
+                        safe_display(&observation.previous_source.path()?),
+                        target
+                            .as_deref()
+                            .map(safe_display)
+                            .unwrap_or_else(|| "unknown".into()),
+                        observation.evidence,
+                        observation.reason
+                    );
+                }
+                println!(
+                    "{} observation(s) · {} current-plan blocker(s) · {} previous-plan blocker(s). No changes applied.",
+                    report.observations.len(),
+                    report.current.blockers.len(),
+                    report.previous_blockers.len()
+                );
+            }
+            return Ok(report.exit_code());
+        }
+        Command::CatalogRefresh {
+            source,
+            destination,
+            hash,
+            exclude,
+        } => {
+            let verified = safesync::maintenance::verify_pair(&source, &destination)?;
+            let (source, destination) = verified.refresh_catalogs(hash, &exclude)?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "source": source, "destination": destination,
+                    "filesystem_checks": verified.checks, "media_changed": false,
+                    "relationship_committed": false
+                }))?
+            );
+        }
+        Command::Catalog { root } => {
+            use safesync::enrollment::{DriveLease, EnrolledRoot};
+            let root = EnrolledRoot::open(&root)?;
+            let role = root.inspect()?.role;
+            let lease = DriveLease::acquire(root, role)?;
+            let (current, inventory) = safesync::catalog::load(&lease)?
+                .context("No current catalog; use catalog-refresh first")?;
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &serde_json::json!({ "current": current, "header": inventory.header, "files": inventory.entries.len() })
+                )?
+            );
+        }
         Command::Plan {
             source,
             destination,
@@ -182,8 +349,8 @@ fn run(cli: Cli) -> Result<i32> {
                 println!(
                     "{}",
                     serde_json::to_string_pretty(&serde_json::json!({
-                        "source": verified.pair.source.enrollment(),
-                        "destination": verified.pair.destination.enrollment(),
+                        "source": verified.pair().source.enrollment(),
+                        "destination": verified.pair().destination.enrollment(),
                         "identity_and_roles_valid": true,
                         "filesystem_checked": true,
                         "filesystem_checks": verified.checks,

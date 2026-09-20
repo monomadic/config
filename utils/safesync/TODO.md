@@ -26,9 +26,18 @@ Work through the milestones in order; media writes must wait for the safety gate
 - [ ] Anchor catalog and future media operations to validated open roots; handle disconnects and mount substitution.
 - [ ] Acquire drive-resident advisory locks in stable volume order; reject network storage for writable operations.
   The read-only lease foundation exists; integrate it with future catalog/executor sessions and filesystem-check ordering before completing this gate.
-- [ ] Add immutable drive-owned catalog generations and durable `CURRENT` publication, separate from offline exports.
-- [ ] Store destination-owned relationship baselines bound to source/destination generations and profile revisions.
+- [x] Add immutable drive-owned catalog generations and durable `CURRENT` publication, separate from offline exports.
+- [x] Add `catalog-refresh` through filesystem-verified pair sessions and `catalog` inspection; preserve older generations and reject corrupt authority.
+- [x] Test catalog interruption before pointer commit, immutable generations, scope/identity checks, corrupt pointers and symlink refusal.
+  Real-device power-loss validation remains in the release gates; generation JSONL files currently live directly under `.safesync`.
+- [x] Store destination-owned relationship baselines bound to source/destination generations and profile revisions.
+- [x] Add `relationship-adopt` after fresh verified hashed scans, adopting only same-path full-content matches and reporting unmatched files.
+- [x] Add offline `plan-relationship` with checksummed baseline validation and embedded inventories; test corruption, match claims, immutable publication and scope rejection.
+  Initial-adoption revision 1 is implemented; post-operation baseline updates, profile migration and recovery-aware selection remain pending.
+- [x] Add read-only `plan-renames` over previous/current snapshots with volume-scoped identity matching, prior hash evidence, metadata-only uncertainty and conflict review.
+- [x] Test historical renames, changed versions, weak prior evidence, ambiguous identities, occupied/reused paths, disappearances, scope mismatch and offline CLI behavior.
 - [ ] Build a pure planner using prior observations and volume-scoped file identities; handle hard links and ambiguous identity reuse.
+  Historical candidate analysis exists; committed relationship integration and executable rename scheduling remain pending.
 - [ ] Distinguish metadata-based observations from verified content equality; never infer equivalence from size/mtime alone.
 - [ ] Require complete scans with compatible scopes before proposing disappearance/archive operations.
 - [ ] Detect case-folding, Unicode-normalization and file/directory path collisions.
@@ -36,6 +45,7 @@ Work through the milestones in order; media writes must wait for the safety gate
 - [ ] Define support and explicit outcomes for empty directories, symlinks, hard links, sparse files, timestamps, permissions, ACLs, extended attributes, Finder tags and resource forks.
 - [ ] Estimate staging, history, verification and journal space, including APFS shared-container capacity and a reserve.
 - [ ] Freeze reviewable plans with entry preconditions; revalidate before application.
+  Immutable prepared plans now capture inventory/enrollment and entry preconditions; live execution revalidation remains pending.
 - [ ] Compare generated plans with hand-checked fixtures before implementing media mutations.
 
 ## 2. Preview and terminal interface
@@ -58,7 +68,13 @@ Work through the milestones in order; media writes must wait for the safety gate
   Read-only pair verification exists; default verification/explicit skip policy and enforcement for future write sessions remain pending.
 - [ ] Block writes after known filesystem-check failures; provide a separate authorized repair workflow and revalidate afterward.
 - [ ] Add immutable run plans and framed, checksummed append-only journals with intent/completion records.
+  Immutable preparation, the framed journal library and inspection commands are implemented; executor integration remains pending.
+- [x] Add `prepare-run` after verified hashed catalog refresh, with durable immutable plan publication before a digest-bound start-only journal.
+- [x] Add `run-info` validation of exact plan bytes, operation preconditions and journal identity; test tampering, swapped journals and interrupted preparation.
+- [x] Add sequenced hash-chained frames, independent header checksums, bounded payloads, full-sync appends and copy-stage intent/completion validation.
+- [x] Test final-frame truncation at every byte, corruption, illegal transitions, premature commit, writer contention, uncertain-write refusal and inspection CLI outcomes.
 - [ ] Distinguish a torn final journal record from corruption; block uncertain execution pending reconciliation.
+  Inspection distinguishes torn tails from complete corrupt frames; reopening/reconciliation remains unimplemented, so existing journals cannot be appended to.
 - [ ] Implement a capability-checked destination writer that cannot mutate source media.
 - [ ] Copy into owned destination staging files with bounded buffers, allocation checks and source pre/post validation.
 - [ ] Hash new transfers with BLAKE3 and reread flushed staged data before installation; keep SHA-256 manifest semantics explicit.

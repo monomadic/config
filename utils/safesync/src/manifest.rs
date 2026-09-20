@@ -44,7 +44,7 @@ pub struct Header {
     pub skipped_special: u64,
     pub skipped_mounts: u64,
 }
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Entry {
     pub path_base64: String,
     pub stamp: Stamp,
@@ -55,7 +55,7 @@ impl Entry {
         decode_path(&self.path_base64)
     }
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Manifest {
     pub header: Header,
     pub entries: Vec<Entry>,
@@ -152,6 +152,10 @@ impl Manifest {
 
     pub fn load(path: &Path) -> Result<Self> {
         let file = File::open(path).with_context(|| format!("Cannot read manifest {:?}", path))?;
+        Self::read_from(file)
+    }
+
+    pub(crate) fn read_from(file: File) -> Result<Self> {
         let mut reader = BufReader::new(file);
         let mut hash = Sha256::new();
         let mut header = None;
@@ -223,25 +227,7 @@ impl Manifest {
             .open(&temp)?;
         let result = (|| -> Result<()> {
             let mut writer = BufWriter::new(file);
-            let mut digest = Sha256::new();
-            let mut write_record = |record: Record| -> Result<()> {
-                let mut bytes = serde_json::to_vec(&record)?;
-                bytes.push(b'\n');
-                digest.update(&bytes);
-                writer.write_all(&bytes)?;
-                Ok(())
-            };
-            write_record(Record::Header(self.header.clone()))?;
-            for entry in &self.entries {
-                write_record(Record::File(entry.clone()))?;
-            }
-            let end = Record::End {
-                files: self.entries.len(),
-                sha256: hex(&digest.finalize()),
-            };
-            serde_json::to_writer(&mut writer, &end)?;
-            writer.write_all(b"\n")?;
-            writer.flush()?;
+            self.write_to(&mut writer)?;
             full_sync(writer.get_ref())?;
             fs::hard_link(&temp, output)
                 .context("Cannot publish manifest (existing outputs are never overwritten)")?;
@@ -251,13 +237,36 @@ impl Manifest {
         let _ = fs::remove_file(&temp);
         result
     }
+    pub(crate) fn write_to(&self, mut writer: impl Write) -> Result<()> {
+        self.validate()?;
+        let mut digest = Sha256::new();
+        let mut write_record = |record: Record| -> Result<()> {
+            let mut bytes = serde_json::to_vec(&record)?;
+            bytes.push(b'\n');
+            digest.update(&bytes);
+            writer.write_all(&bytes)?;
+            Ok(())
+        };
+        write_record(Record::Header(self.header.clone()))?;
+        for entry in &self.entries {
+            write_record(Record::File(entry.clone()))?;
+        }
+        let end = Record::End {
+            files: self.entries.len(),
+            sha256: hex(&digest.finalize()),
+        };
+        serde_json::to_writer(&mut writer, &end)?;
+        writer.write_all(b"\n")?;
+        writer.flush()?;
+        Ok(())
+    }
     pub fn export(&self, output: &Path) -> Result<()> {
         let mut snapshot = self.clone();
         snapshot.header.role = Role::OfflineSnapshot;
         snapshot.save_new(output)
     }
 }
-fn full_sync(file: &File) -> Result<()> {
+pub(crate) fn full_sync(file: &File) -> Result<()> {
     file.sync_all()?;
     // SAFETY: file owns a valid fd; F_FULLFSYNC has no pointer argument.
     if unsafe { libc::fcntl(file.as_raw_fd(), libc::F_FULLFSYNC) } == -1 {

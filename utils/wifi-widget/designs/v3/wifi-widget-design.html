@@ -1,0 +1,660 @@
+<meta charset="utf-8">
+<title>Wi‑Fi Widget Design</title>
+<style>
+  /* Dark-first, same token set as the volume-widget guard page. */
+  :root {
+    --page: #0e0f12; --surface: #17181c; --surface-2: #202126; --line: #2d2f36;
+    --text: #f4f2ed; --muted: #a5a29a; --faint: #77746d;
+    --danger: #ff5b52; --active: #407de2; --busy: #ffb340; --safe: #48d76b; --good: #8fb4f0;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    /* the preview is always a dark macOS menu, so its semantic inks never follow the page theme */
+    --m-danger: #ff5b52; --m-busy: #ffb340; --m-safe: #48d76b; --m-active: #3477dd; --m-fg: #ececee;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) { --page: #f5f4ef; --surface: #fff; --surface-2: #f0efeb; --line: #dbd9d2; --text: #181816; --muted: #65625c; --faint: #8d8981; --danger: #d92d28; --active: #1467d8; --busy: #9b5a00; --safe: #16853a; --good: #1f5fb8; }
+  }
+  :root[data-theme="light"] { --page: #f5f4ef; --surface: #fff; --surface-2: #f0efeb; --line: #dbd9d2; --text: #181816; --muted: #65625c; --faint: #8d8981; --danger: #d92d28; --active: #1467d8; --busy: #9b5a00; --safe: #16853a; --good: #1f5fb8; }
+  :root[data-theme="dark"] { --page: #0e0f12; --surface: #17181c; --surface-2: #202126; --line: #2d2f36; --text: #f4f2ed; --muted: #a5a29a; --faint: #77746d; --danger: #ff5b52; --active: #407de2; --busy: #ffb340; --safe: #48d76b; --good: #8fb4f0; }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0 auto; max-width: 1000px; padding: 56px 24px 96px; background: var(--page); color: var(--text); font: 15px/1.55 var(--system); }
+  h1 { margin: 0 0 10px; font-size: clamp(28px, 5vw, 40px); line-height: 1.05; letter-spacing: -.035em; text-wrap: balance; }
+  h2 { margin: 0 0 8px; font-size: 21px; letter-spacing: -.02em; }
+  h3 { margin: 0 0 5px; font-size: 15px; }
+  .eyebrow { margin: 0 0 10px; color: var(--active); font: 600 11px/1.2 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+  .lede { max-width: 68ch; color: var(--muted); font-size: 16.5px; margin: 0; }
+  .lede strong, .section-lede strong { color: var(--text); }
+  .section-lede { max-width: 68ch; color: var(--muted); margin: 0 0 18px; }
+  section { margin-top: 60px; }
+  code { font: 12.5px var(--mono); color: var(--text); }
+
+  .picker { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 12px; }
+  .picker .lbl { font: 600 10.5px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-right: 4px; min-width: 64px; }
+  .picker button {
+    min-height: 32px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px;
+    color: var(--muted); background: transparent; cursor: pointer; font: inherit; font-size: 13px;
+  }
+  .picker button:hover { color: var(--text); background: var(--surface-2); }
+  .picker button[aria-pressed="true"] { color: var(--text); border-color: var(--faint); background: var(--surface-2); }
+  .picker button:focus-visible { outline: 2px solid var(--active); outline-offset: 2px; }
+  .picker button .swatch { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+
+  .demo-grid { display: grid; grid-template-columns: minmax(320px, 1.05fr) minmax(260px, .95fr); gap: 20px; align-items: start; margin-top: 16px; }
+  @media (max-width: 760px) { .demo-grid { grid-template-columns: 1fr; } }
+  .preview-shell { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: #1c1d21; }
+
+  /* ── menu bar ─────────────────────────────────────── */
+  .menubar {
+    display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+    height: 36px; padding: 0 12px; border: 1px solid #45464b; border-radius: 9px;
+    color: #a6a7ab; background: #2b2c31; box-shadow: 0 2px 8px #0005; font-size: 13px;
+  }
+  .menubar .other { font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em; }
+  .status-chip {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 6px; border-radius: 5px;
+    background: #ffffff14; color: var(--state-color);
+    font: 650 12px/1 var(--mono); letter-spacing: .02em; font-variant-numeric: tabular-nums;
+  }
+  .status-chip svg { width: 16px; height: 16px; display: block; }
+  .status-chip .tag svg { width: 13px; height: 13px; }
+  .status-chip > * { display: none; }
+  .mbbar { gap: 2px; }  /* display comes from the per-style rules below, so it stays hidden by default */
+  .mbbar > i { width: 8px; height: 6px; border-radius: 1.5px; background: #ffffff2e; }
+  .mbbar > i.on { background: var(--state-color); }
+  .status-chip .band { color: #8a8b90; font-size: 11px; }
+  .status-chip .tag:empty { display: none !important; }
+  .mb-smart .status-chip .ic, .mb-smart .status-chip .mbbar, .mb-smart .status-chip .tag { display: block; }
+  .mb-icon .status-chip .ic { display: block; }
+  .mb-icon .status-chip .ic svg { color: var(--m-fg); }
+  .mb-dbm .status-chip .ic, .mb-dbm .status-chip .dbm { display: block; }
+  .mb-rate .status-chip .ic, .mb-rate .status-chip .mbbar, .mb-rate .status-chip .rate { display: block; }
+  .mb-band .status-chip .ic, .mb-band .status-chip .mbbar, .mb-band .status-chip .band { display: block; }
+  /* the reveal rules above set display:block, which would collapse the segment row */
+  .mb-smart .status-chip .mbbar, .mb-rate .status-chip .mbbar, .mb-band .status-chip .mbbar { display: flex; }
+
+  /* ── dropdown ─────────────────────────────────────── */
+  .menu {
+    width: min(100%, 340px); margin: 12px 0 0 auto; padding: 7px;
+    border: 1px solid #4a4b51; border-radius: 12px;
+    color: #f2f2f3; background: #292a2f; box-shadow: 0 18px 44px #0009; font-size: 13px;
+  }
+  .menu-head { padding: 0 11px 5px; }
+  .menu-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13.5px; line-height: 18px; font-weight: 650; white-space: nowrap; }
+  .menu-title .sep { color: #6f7076; font-weight: 400; }
+  .state-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--head-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--head-color) 18%, transparent); }
+  .menu-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: #afb0b4; font-size: 12.5px; font-weight: 400; }
+  .menu-status strong { color: var(--head-color); font-weight: 650; }
+  .divider { height: 1px; margin: 5px 8px; background: #4a4b50; }
+
+  /* shared row anatomy — the connected card's top is the same grid as every network row */
+  .row-grid { display: grid; grid-template-columns: 40px minmax(0,1fr) 28px; gap: 10px; align-items: center; }
+  /* known networks: one compact line each */
+  /* same 9px inset and 40px icon column as the connected card, so icons, names and QR buttons share its axes */
+  .krow { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 3px 9px; border: 1px solid transparent; border-radius: 7px; }
+  .krow:hover { background: #ffffff0f; }
+  .krow .kglyph { display: flex; justify-content: center; width: 40px; flex-shrink: 0; color: #d5d5d8; }
+  .krow .kglyph svg { width: 18px; height: 18px; display: block; }
+  .krow .kname { margin-left: 2px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: #f2f2f3; }
+  .krow .kright { margin-left: auto; flex-shrink: 0; color: #8f9096; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+  .krow .kright.warn { color: #ff8b84; }
+  .krow.metered { border: 1px dashed #6f7076; }
+  .krow.missing { background: #2b1718; }
+  .krow.missing .kglyph { color: var(--m-danger); }
+  .krow.away .kglyph, .krow.away .kname, .krow.away .pill { opacity: .45; }
+
+  .qr-btn {
+    width: 22px; height: 22px; flex-shrink: 0; justify-self: end; padding: 0; cursor: pointer;
+    border: 1px solid #ffffff24; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center; background: none; color: #9fa0a5;
+  }
+  .qr-btn svg { width: 15px; height: 15px; display: block; }
+  .conn .qr-btn { width: 28px; height: 28px; align-self: start; }
+  .conn .qr-btn svg { width: 19px; height: 19px; }
+  .qr-btn:hover { color: #fff; border-color: #ffffff4a; background: #ffffff14; }
+  .qr-btn[aria-expanded="true"] { color: #fff; background: #ffffff24; }
+  .qr-btn:focus-visible { outline: 2px solid var(--m-active); outline-offset: 2px; }
+  .qr-panel { display: flex; align-items: center; gap: 12px; margin: 4px 0 3px; padding: 9px; border-radius: 8px; background: #ffffff0a; }
+  .conn .qr-panel { margin: 8px 0 0; background: #00000026; }
+  .qr-code { flex-shrink: 0; width: 116px; height: 116px; padding: 6px; border-radius: 6px; background: #fff; }
+  .qr-code canvas, .qr-code img { width: 104px !important; height: 104px !important; }
+  .qr-code .qr-fallback { display: grid; place-items: center; width: 104px; height: 104px; color: #1a1b1e; font: 600 11px var(--mono); }
+  .qr-text { display: grid; gap: 2px; min-width: 0; font-size: 11.5px; }
+  .qr-text .qk { color: #8f9096; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+  .qr-text b { font-size: 13px; color: #f2f2f3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qr-text .qs { font: 10px var(--mono); color: #a8a9ae; }
+  .qr-text .qh { margin-top: 3px; color: #8f9096; font-size: 10.5px; }
+  .glyph { position: relative; width: 40px; height: 30px; display: flex; align-items: center; justify-content: center; }
+  .glyph > svg { width: 24px; height: 24px; color: #d5d5d8; }
+  .missing .glyph > svg { color: var(--m-danger); }
+  .badge {
+    position: absolute; right: -3px; bottom: -1px; width: 14px; height: 14px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; border: 2px solid var(--badge-ring, #292a2f);
+    background: var(--m-danger); color: #fff; font: 800 8px/1 var(--mono);
+  }
+  .badge.warn { background: var(--m-busy); color: #1c1d21; }
+  .net-main { min-width: 0; display: grid; }
+  .net-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .net-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: #f2f2f3; }
+  .pill {
+    display: inline-flex; align-items: center; flex-shrink: 0; height: 14px; padding: 0 5px;
+    border: 1px solid #ffffff4a; border-radius: 999px;
+    font: 600 9.5px/1 var(--mono); letter-spacing: .05em; color: #a8a9ae; white-space: nowrap;
+  }
+  .pill.warn { border-color: var(--m-busy) !important; color: #1c1d21 !important; background: var(--m-busy); }
+  .net-meta { margin-top: 2px; color: #a8a9ae; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .net-meta.warn { color: #ff8b84; }
+
+  /* SNR meter: the 15 and 25 dB tier edges are notched into the track */
+  .snr { display: flex; align-items: center; gap: 7px; margin-top: 5px; }
+  .sbar { position: relative; flex: 1; height: 6px; border-radius: 3px; background: #4a4b50; overflow: hidden; }
+  .sbar > i { display: block; height: 100%; border-radius: 3px; background: #d9d9dc; }
+  .sbar::before, .sbar::after { content: ""; position: absolute; top: 0; bottom: 0; width: 2px; background: var(--notch, #292a2f); z-index: 1; }
+  .sbar::before { left: 30%; } .sbar::after { left: 50%; }
+  .snr .db { flex-shrink: 0; min-width: 34px; text-align: right; font: 600 10px/1 var(--mono); color: #a8a9ae; font-variant-numeric: tabular-nums; }
+  .snr.bad .sbar > i { background: #ff8b84 !important; }
+  .snr.bad .db { color: #ffc2bd !important; }
+
+
+  /* ── connected card: one larger menu item ─────────── */
+  .conn { padding: 9px 9px 7px; border-radius: 10px; border: 1px solid transparent; --badge-ring: var(--m-active); --notch: var(--m-active); }
+  .conn.active { background: var(--m-active); }
+  .conn .glyph { height: 40px; }
+  .conn .glyph > svg { width: 36px; height: 36px; }
+  .conn .glyph > svg path { stroke-width: 1.9; }
+  .conn .badge { right: 0; bottom: 1px; }
+  .conn.fallback { background: #3b2c18; border: 1px dashed #b77a27; --badge-ring: #3b2c18; --notch: #3b2c18; }
+  .conn .net-name { color: #fff; }
+  .conn.active .glyph > svg { color: #fff; }
+  .conn.fallback .glyph > svg { color: var(--m-busy); }
+  .conn.active .pill { border-color: #ffffff66; color: #e1ebff; }
+  .conn.active .net-meta { color: #e1ebff; }
+  .conn.fallback .net-meta { color: #e9c88f; }
+  .conn.active .sbar { background: #ffffff38; }
+  .conn.active .sbar > i { background: #fff; }
+  .conn.active .snr .db { color: #e1ebff; }
+  .conn.fallback .sbar { background: #5a4630; }
+  .conn.fallback .sbar > i { background: var(--m-busy); }
+
+  /* graphite card: dark panel, the state colour lives in the glyph and meter */
+  .card-graphite .conn.active { background: #1a1b1e; border-color: #ffffff14; --badge-ring: #1a1b1e; --notch: #1a1b1e; --k-ink: #8f9096; }
+  .card-graphite .conn.active .glyph > svg { color: var(--head-color); }
+  .card-graphite .conn.active .net-meta, .card-graphite .conn.active .snr .db { color: #a8a9ae; }
+  .card-graphite .conn.active .pill:not(.warn) { border-color: #ffffff2e; color: #9fa0a5; }
+  .card-graphite .conn.active .sbar { background: #ffffff1f; }
+  .card-graphite .conn.active .sbar > i { background: var(--head-color); }
+  .card-graphite .conn.active .inset { background: #ffffff08; }
+  .card-graphite .conn.active .fgroup { border-top-color: #ffffff14; }
+  .card-graphite .conn.active .fact .v { color: #e6e6e8; }
+  .card-graphite .conn.active .linkline b { color: #f2f2f3; }
+  .card-graphite .conn.active .fact.copy:hover, .card-graphite .conn.active .fact.test:hover { background: #ffffff14; }
+  .card-graphite .conn.active .tagp.private { border-color: #ffffff33; color: #c9c9cd; }
+  .card-graphite .conn.active .fact.test .act { color: var(--head-color); }
+  .inset { margin-top: 8px; padding: 5px 4px 4px; border-radius: 7px; background: #00000026; }
+  .conn.fallback .inset { background: #00000033; }
+  .linkline { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 2px 6px 5px; font-size: 10.5px; color: var(--k-ink); text-align: center; }
+  .linkline b { font: 600 12px var(--mono); color: #fff; font-variant-numeric: tabular-nums; margin-right: 3px; }
+  .conn { --k-ink: #cfe0ffcc; }
+  .conn.fallback { --k-ink: #d9c39acc; }
+  .fgroup { display: grid; gap: 0; padding-top: 3px; margin-top: 3px; border-top: 1px solid #ffffff1f; }
+  .fact {
+    display: grid; grid-template-columns: 58px minmax(0,1fr) auto; gap: 8px; align-items: center;
+    min-height: 21px; padding: 1px 6px; border-radius: 5px; font-size: 11.5px;
+  }
+  .fact .k { color: var(--k-ink); }
+  .fact .v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff; font-variant-numeric: tabular-nums; }
+  .fact .v .mono { font-family: var(--mono); font-size: 10.5px; }
+  .fact .v .dim { color: var(--k-ink); }
+  .fact .v .tagp { display: inline; padding: 0; font: 600 10.5px var(--mono); letter-spacing: .04em; }
+  .tagp.private { display: inline-flex; align-items: center; height: 14px; padding: 0 5px; border: 1px solid #ffffff5c; border-radius: 999px; font: 600 9.5px/1 var(--mono); letter-spacing: .04em; color: #e1ebff; vertical-align: -3px; }
+  .tagp.bad { padding: 0; background: none; color: #ff6b62; }
+  .tagp.warn { padding: 0; background: none; color: var(--m-busy); }
+  .tagp.ok { padding: 0; background: none; color: var(--m-safe); }
+  .fact .act { font-size: 10.5px; color: var(--k-ink); opacity: 0; transition: opacity .12s; }
+  .fact .act svg { width: 12px; height: 12px; display: block; }
+  .fact.copy, .fact.test { cursor: pointer; }
+  .fact.copy:hover, .fact.test:hover { background: #ffffff24; }
+  .fact.copy:hover .act, .fact.copied .act, .fact.test .act { opacity: 1; }
+  .fact.test .act { color: #fff; font-weight: 600; }
+  .fact.copied .act { color: #fff; font-weight: 600; }
+  .spark { display: inline-block; width: 86px; height: 15px; vertical-align: -3px; margin-left: 8px; }
+
+  .section-label { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 11px 2px; color: #8f9096; font-size: 11px; font-weight: 600; }
+  .refresh { color: #b9c9e8; font-weight: 500; cursor: pointer; background: none; border: 0; padding: 0; font: inherit; }
+  .refresh:hover { color: #fff; text-decoration: underline; }
+  .refresh:focus-visible { outline: 2px solid var(--m-active); outline-offset: 2px; border-radius: 3px; }
+  .refresh[aria-busy="true"] { color: #8f9096; text-decoration: none; cursor: default; }
+  .net-list { display: grid; gap: 1px; padding: 1px 0; }
+
+  .menu-item { display: flex; align-items: center; justify-content: space-between; min-height: 30px; padding: 5px 10px; border-radius: 7px; }
+  .menu-item.primary { color: #fff; background: var(--m-active); }
+  .menu-item .key { color: #afb0b4; }
+  .menu-item.primary .key { color: #dce9ff; }
+
+  .notes { display: grid; gap: 12px; }
+  .note-card { padding: 17px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  .note-card p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .note-card p + p { margin-top: 8px; }
+  .note-card b { color: var(--text); }
+  .note-card .new { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font: 600 9.5px/1.7 var(--mono); letter-spacing: .06em; vertical-align: 2px; color: var(--active); border: 1px solid color-mix(in srgb, var(--active) 45%, transparent); }
+
+  /* ── SNR scale ─────────────────────────────────────── */
+  .scale-wrap { padding: 22px 20px 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  .scale { position: relative; height: 128px; }
+  .scale .track { position: absolute; left: 0; right: 0; top: 52px; height: 22px; display: flex; border-radius: 6px; overflow: hidden; }
+  .scale .seg { display: flex; align-items: center; padding-left: 8px; font: 600 10.5px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: #fff; white-space: nowrap; overflow: hidden; }
+  .seg.poor { flex: 15; background: color-mix(in srgb, var(--danger) 78%, var(--surface)); }
+  .seg.fair { flex: 10; background: color-mix(in srgb, var(--busy) 72%, var(--surface)); color: #1c1407; }
+  .seg.good { flex: 15; background: color-mix(in srgb, var(--good) 62%, var(--surface)); color: #0b1a33; }
+  .seg.exc  { flex: 10; background: color-mix(in srgb, var(--safe) 70%, var(--surface)); color: #06210f; }
+  .scale .ticks { position: absolute; left: 0; right: 0; top: 80px; height: 16px; font: 10.5px var(--mono); color: var(--faint); }
+  .scale .ticks span { position: absolute; transform: translateX(-50%); font-variant-numeric: tabular-nums; }
+  .scale .ticks span:first-child { transform: none; } .scale .ticks span:last-child { transform: translateX(-100%); }
+  .marker { position: absolute; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11.5px; color: var(--muted); white-space: nowrap; transition: color .15s; }
+  .marker.up { top: 0; } .marker.down { top: 100px; flex-direction: column-reverse; }
+  .marker i { width: 2px; height: 16px; background: var(--faint); border-radius: 1px; }
+  .marker.up i { height: 26px; } .marker.down i { display: none; }
+  .marker.current { color: var(--text); font-weight: 650; }
+  .marker.current i { background: var(--text); }
+  .marker.edge-r { transform: translateX(-88%); align-items: flex-end; }
+  .scale-foot { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 18px; }
+  .scale-foot p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .scale-foot b { color: var(--text); }
+  .scale-scroll { overflow-x: auto; }
+  .scale-scroll .scale { min-width: 460px; }
+
+  .impl { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .verdict { display: inline-block; margin-bottom: 6px; padding: 1px 7px; border-radius: 999px; font: 600 10px/1.6 var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+  .verdict.yes { color: var(--safe); border: 1px solid color-mix(in srgb, var(--safe) 50%, transparent); }
+  .verdict.no { color: var(--faint); border: 1px solid var(--line); }
+  .verdict.some { color: var(--busy); border: 1px solid color-mix(in srgb, var(--busy) 50%, transparent); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<p class="eyebrow">wifi-widget · v3 · guard design, carried over from volume-widget</p>
+<h1>A Wi‑Fi menu that says when something is wrong</h1>
+<p class="lede">Same parts as the volume widget: bare glyphs, a pill after the name, a spec line and a meter on every row. In v2 the network you're on is <strong>one larger menu item</strong> holding the link numbers, internet status, the router's WAN and addresses you can copy by hovering. A new <strong>Login page</strong> state covers captive portals. Pick a menu bar style, then go through the scenarios.</p>
+
+<section>
+  <p class="eyebrow">Interactive</p>
+  <h2>Menu bar style × scenario</h2>
+  <div class="picker" role="group" aria-label="Menu bar style">
+    <span class="lbl">Menu bar</span>
+    <button type="button" id="st-smart" data-style="mb-smart" aria-pressed="true">Smart Bar</button>
+    <button type="button" id="st-icon" data-style="mb-icon" aria-pressed="false">Icon</button>
+    <button type="button" id="st-dbm" data-style="mb-dbm" aria-pressed="false">Icon + dBm</button>
+    <button type="button" id="st-rate" data-style="mb-rate" aria-pressed="false">Bar + Rate</button>
+    <button type="button" id="st-band" data-style="mb-band" aria-pressed="false">Bar + Band</button>
+  </div>
+  <div class="picker" role="group" aria-label="Scenario">
+    <span class="lbl">Scenario</span>
+    <button type="button" id="sc-healthy" data-state="healthy" aria-pressed="true"><span class="swatch" style="background:var(--safe)"></span>Healthy</button>
+    <button type="button" id="sc-band" data-state="band" aria-pressed="false"><span class="swatch" style="background:var(--busy)"></span>Dropped to 2.4</button>
+    <button type="button" id="sc-weak" data-state="weak" aria-pressed="false"><span class="swatch" style="background:var(--danger)"></span>Stuck on far node</button>
+    <button type="button" id="sc-offline" data-state="offline" aria-pressed="false"><span class="swatch" style="background:var(--danger)"></span>No internet</button>
+    <button type="button" id="sc-portal" data-state="portal" aria-pressed="false"><span class="swatch" style="background:var(--busy)"></span>Login page</button>
+    <button type="button" id="sc-hotspot" data-state="hotspot" aria-pressed="false"><span class="swatch" style="background:var(--busy)"></span>Hotspot fallback</button>
+  </div>
+
+  <div class="demo-grid">
+    <div class="preview-shell mb-smart card-graphite" id="preview">
+      <div class="menubar"><span class="other">⌥</span><span class="other">DJM</span><span class="other">87%</span><span class="status-chip" id="chip"></span></div>
+      <div class="menu">
+        <div class="menu-head">
+          <div class="menu-title"><span class="state-dot"></span><span>Wi‑Fi</span><span class="sep">–</span><span class="menu-status" id="menu-status"></span></div>
+        </div>
+        <div id="conn"></div>
+        <div class="divider"></div>
+        <div class="section-label"><span>Known Networks</span><button type="button" class="refresh" id="refresh">Refresh</button></div>
+        <div class="net-list" id="net-list"></div>
+        <div class="menu-item"><span>Other Networks</span><span class="key">▸</span></div>
+        <div class="divider"></div>
+        <div class="menu-item primary" id="primary-action"><span></span><span class="key"></span></div>
+        <div class="menu-item"><span>Style</span><span class="key" id="style-key"></span></div>
+        <div class="menu-item"><span>Open Wi‑Fi Settings…</span><span></span></div>
+        <div class="menu-item"><span>Quit</span><span></span></div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <article class="note-card"><h3 id="note-title"></h3><p id="note-copy"></p></article>
+      <article class="note-card"><h3>The network you're on is one menu item<span class="new">v2</span></h3><p>The top of the menu used to have a separate stats panel above a row that repeated it. Now there is one larger item: the same row as every network below it, with an inset underneath in three groups. <b>Link</b>: signal, noise, rate. <b>Outside</b>: internet check, router WAN, speed test. <b>Addresses</b>: IP, gateway, MAC, node. The network you're on is no longer repeated in the Networks list.</p><p><b>Hover to copy.</b> The IP, gateway, MAC and node rows highlight on hover and copy on click, so the separate Copy IP Address item is gone. MAC is this Mac's address on the current network, tagged <b>private</b> when macOS is using a per-network private address.</p></article>
+      <article class="note-card"><h3 id="style-title"></h3><p id="style-copy"></p></article>
+      <article class="note-card"><h3>Graphite card<span class="new">v3</span></h3><p>The connected card is a dark graphite panel rather than the blue selection colour. At this size a blue block outweighed the whole menu. The state colour moves into the <b>icon</b> and <b>signal meter</b>: green when healthy, amber or red when not, so they match the header dot. Blue is left for the primary action.</p></article>
+      <article class="note-card"><h3>Refresh sits in the list header<span class="new">v2</span></h3><p>A right-aligned <b>Refresh</b> on the Known Networks label rescans to see which of them are in range, and reruns the internet check. It shows <b>Scanning…</b> while it works. It replaces the Check Again button that v1 used for No internet.</p></article>
+      <article class="note-card"><h3>Known Networks and QR codes<span class="new">v3</span></h3><p>The list is macOS's saved networks (<code>CWConfiguration.networkProfiles</code>), matched against the scan to show which are in range. Each is one compact line: signal in the icon, status on the right. Nearby networks you've never joined move to <b>Other Networks ▸</b>.</p><p>Every row and the connected card has a <b>QR button</b>. It opens a standard Wi‑Fi join code inline, so a phone camera can join without typing. The password comes from Keychain, and macOS asks for your admin password before revealing it. Open networks need no password and show their code straight away. Try it: the codes here are real, with example passwords.</p></article>
+      <article class="note-card"><h3>Home and Metered are detected<span class="new">v3</span></h3><p><b>Metered</b> comes from macOS: the Network framework flags a connection as <b>expensive</b> (personal hotspot, cellular) or <b>constrained</b> (Low Data Mode on). The widget remembers which networks were flagged, so the hotspot row has its dashed border before you join. While you're on one, the menu bar turns amber, the card counts data used and the speed test is disabled.</p><p><b>Home</b> is the network whose router you've connected. Failing that, it's the network the widget has seen you on the longest, from its own tally. Home turns <b>red</b> only when macOS drops it and falls back to another network. If you join a café network yourself, Home is simply dimmed as not in range.</p></article>
+    </div>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Why the bar is SNR</p>
+  <h2>The same −65 dBm can be excellent or unusable</h2>
+  <p class="section-lede">RSSI alone doesn't tell you much. What matters is how far the signal sits <strong>above the noise floor</strong>: −65 against −95 of noise is a 30 dB link, and against −75 it is a 10 dB link that drops calls. CoreWLAN reports both numbers, so every bar is SNR on a 0–50 dB scale. The meter notches mark the 15 and 25 dB tier edges.</p>
+  <div class="scale-wrap">
+    <div class="scale-scroll">
+      <div class="scale" id="scale">
+        <div class="track"><span class="seg poor">Poor</span><span class="seg fair">Fair</span><span class="seg good">Good</span><span class="seg exc">Excellent</span></div>
+        <div class="ticks"><span style="left:0">0</span><span style="left:30%">15</span><span style="left:50%">25</span><span style="left:80%">40</span><span style="left:100%">50 dB</span></div>
+      </div>
+    </div>
+    <div class="scale-foot">
+      <p><b>No internet and Login page don't show up in the signal.</b> No internet sits at 41 dB, next to Healthy. Only the internet check catches them. The system icon shows full bars either way.</p>
+      <p><b>Below 15 dB turns red</b> and the Smart Bar shows the raw dBm, because at that point the number is worth reading. Between 15 and 25 dB the bar stays monochrome: a fair link is not an alert.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Outside the Wi‑Fi</p>
+  <h2>Can the widget see past the router?</h2>
+  <p class="section-lede">Partly, and more on your own network than on others. I probed yours, read-only: <strong>192.168.1.1 is your GL.iNet GL-BE9300 (Flint 3)</strong>, running OpenWrt with GL's 4.x JSON-RPC API at <code>/rpc</code>, which answered a login challenge. The generic routes, UPnP and NAT-PMP, got no answer.</p>
+  <div class="impl">
+    <article class="note-card"><span class="verdict yes">Works on your router</span><h3>Flint 3 API, with the admin password</h3><p>The password is saved in Keychain once, per network, and the WAN row appears only for that network. OpenWrt tracks WAN <b>up/down and uptime</b>, <b>which uplink is active</b> (the Flint 3 does multi-WAN failover across Ethernet, repeater and tethering) and <b>byte counters</b>. The counters give whole-home live throughput, drawn as the WAN sparkline. The exact RPC methods still need checking after logging in.</p><p>This is what lets No internet say where the fault is: <b>the router's WAN is down</b>, rather than just "router answers, internet doesn't".</p></article>
+    <article class="note-card"><span class="verdict some">Link speed, not plan speed</span><h3>What the router can't tell you</h3><p>The Flint 3's WAN port negotiates up to <b>2.5 Gbps</b>, but that's the cable to the modem, not your ISP plan. Line sync rate is only available when the router is also the DSL/cable modem. So the plan-speed figure comes from a test instead.</p></article>
+    <article class="note-card"><span class="verdict yes">Works everywhere</span><h3>Speed test via <code>networkQuality</code></h3><p>macOS ships Apple's own tester (<code>networkQuality -c</code> outputs JSON). It measures download and upload capacity and responsiveness, and takes about 15 s. It runs only when you click <b>Test</b>, and it's disabled on Metered networks because each run uses hundreds of MB.</p></article>
+    <article class="note-card"><span class="verdict no">Rarely available</span><h3>UPnP IGD and SNMP</h3><p>Where UPnP is on, <code>GetCommonLinkProperties</code> and <code>GetTotalBytes*</code> give WAN rate and counters for any router with no login. It's off on yours, often off elsewhere, and the rates it reports are often wrong. It's worth trying automatically, but don't build the design around it.</p></article>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Build notes</p>
+  <h2>What it reads, and from where</h2>
+  <div class="impl">
+    <article class="note-card"><h3>CoreWLAN through objc2</h3><p><code>CWInterface</code> provides <b>rssiValue</b>, <b>noiseMeasurement</b>, <b>transmitRate</b>, <b>wlanChannel</b>, <b>activePHYMode</b>, <b>bssid</b> and <b>hardwareAddress</b> (this Mac's address, which is private when bit 0x02 of the first octet is set). <code>CWEventDelegate</code> redraws on each event, so there's no poll loop.</p></article>
+    <article class="note-card"><h3>Login-page detection<span class="new">v2</span></h3><p>The widget loads <code>http://captive.apple.com/hotspot-detect.html</code>. Any response other than its <b>Success</b> body means a login page is intercepting traffic. The redirect host appears on the Internet row. <b>Open Login Page</b> opens that same plain-HTTP URL in your default browser, so the portal redirects there and your password manager works. Portals that hijack DNS instead of redirecting are caught too.</p></article>
+    <article class="note-card"><h3>Location Services gate</h3><p>SSID and BSSID come back nil until the process has Location authorization. Without it, the card reads <b>Wi‑Fi · 6 GHz</b>, the Node row is hidden, and a single menu item asks for permission. The pins need the SSID, so they appear as unavailable rather than disappearing.</p></article>
+    <article class="note-card"><h3>Scans on open and on Refresh</h3><p><code>scanForNetworks</code> takes 1–3 s and briefly takes over the radio, so it runs only when the menu opens and when you click Refresh. <b>Rejoin</b> disconnects and reconnects to the strongest access point for the SSID. If macOS asks for an admin password, it opens Wi‑Fi Settings instead.</p></article>
+  </div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+  // ── glyphs ──────────────────────────────────────────
+  const arcs = ['M8.6 15.4a4.8 4.8 0 0 1 6.8 0', 'M5.6 12.4a9 9 0 0 1 12.8 0', 'M2.6 9.3a13.3 13.3 0 0 1 18.8 0'];
+  function wifiSvg(tier, slashed) {
+    let s = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">';
+    s += '<circle cx="12" cy="19" r="1.7" fill="currentColor" stroke="none"/>';
+    arcs.forEach((d, i) => { s += '<path d="' + d + '"' + (i < tier ? '' : ' opacity=".28"') + '/>'; });
+    if (slashed) s += '<path d="M4 3.5 20 20.5" stroke-width="2.4"/>';
+    return s + '</svg>';
+  }
+  const linkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>';
+  const loginSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M3 12h11M10 8l4 4-4 4"/></svg>';
+  const copySvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>';
+  function spark(points, color) {
+    const max = Math.max(...points), w = 86, h = 15;
+    const xy = points.map((p, i) => [(i / (points.length - 1)) * w, h - 1 - (p / max) * (h - 2)]);
+    const line = xy.map(([x, y], i) => (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1)).join('');
+    return '<svg class="spark" viewBox="0 0 86 15" aria-hidden="true"><path d="' + line + 'L86 15L0 15Z" fill="' + color + '" opacity=".22"/><path d="' + line + '" fill="none" stroke="' + color + '" stroke-width="1.3" stroke-linejoin="round"/><circle cx="' + xy[xy.length - 1][0].toFixed(1) + '" cy="' + xy[xy.length - 1][1].toFixed(1) + '" r="1.6" fill="' + color + '"/></svg>';
+  }
+  const wanTrace = [4, 6, 5, 9, 22, 18, 7, 5, 6, 12, 26, 24, 11, 8, 9, 14, 12, 21];
+
+  // ── networks ────────────────────────────────────────
+  const studio = { name: 'Studio', glyph: 'wifi', home: true, qr: { sec: 'WPA', pass: 'example-studio-pass' } };
+  const iphoneNear = { name: 'iPhone', glyph: 'link', cls: ['metered'], meta: 'Personal hotspot · metered', right: 'hotspot · metered', qr: { sec: 'WPA', pass: 'example-hotspot' } };
+  const cafe = { name: 'Grind Coffee', glyph: 'wifi', tier: 0, right: 'Not in range', cls: ['away'], qr: { sec: 'nopass' } };
+  const hotel = { name: 'Hotel Zetta Guest', glyph: 'wifi', tier: 0, right: 'Not in range', cls: ['away'], qr: { sec: 'WPA', pass: 'example-hotel' } };
+  const studioIot = { name: 'Studio-IoT', glyph: 'wifi', tier: 3, pill: '2.4 GHz', right: '34 dB', qr: { sec: 'WPA', pass: 'example-iot-pass' } };
+  const studioAway = { ...studio, tier: 0, right: 'Not in range', cls: ['away'] };
+  const homeAddr = { ip: '192.168.1.24', gw: '192.168.1.1', mac: '6a:3f:9c:12:7e:b0', node: 'Office', bssid: '3c:22:fb:9e:41:a1' };
+  const homeWan = { text: '<span class="mono">↓3.2 ↑0.4</span> <span class="dim">MB/s</span>', spark: true };
+  const homeSpeed = { text: '<span class="mono">↓412 ↑38</span> <span class="dim">Mbps · 2 h ago</span>', test: true };
+
+  const states = {
+    healthy: {
+      color: 'var(--m-fg)', head: 'var(--m-safe)', tag: '', band: '6',
+      status: '<strong>Connected</strong> – excellent signal',
+      conn: { ...studio, cls: ['active'], tier: 3, pill: '6 GHz', meta: 'Wi‑Fi 6E · ch 37 · 160 MHz', snr: 41 },
+      link: { rssi: -52, noise: -93, rate: 1201 },
+      internet: { text: '<span class="tagp ok">ONLINE</span> <span class="mono">18 ms</span>' },
+      wan: homeWan, speed: homeSpeed, addr: homeAddr,
+      rows: [ studioIot, iphoneNear, cafe, hotel ],
+      action: '',
+      title: 'Healthy looks like nothing happened.',
+      copy: 'Monochrome, no tag, and the bar close to full. You shouldn\'t notice the widget while things are fine. When you open the menu, the card at the top has everything in one place, and the WAN sparkline shows the rest of the house using the connection.'
+    },
+    band: {
+      color: 'var(--m-busy)', head: 'var(--m-busy)', tag: '2.4', band: '2',
+      status: '<strong>On 2.4 GHz</strong> – 6 GHz in range',
+      conn: { ...studio, cls: ['active'], tier: 3, pill: '2.4 GHz', pillWarn: true, meta: 'Wi‑Fi 4 · ch 6 · 20 MHz', snr: 30 },
+      link: { rssi: -58, noise: -88, rate: 144 },
+      internet: { text: '<span class="tagp ok">ONLINE</span> <span class="mono">22 ms</span>' },
+      wan: homeWan, speed: homeSpeed, addr: { ...homeAddr, bssid: '3c:22:fb:9e:41:a0' },
+      rows: [ studioIot, iphoneNear, cafe, hotel ],
+      action: 'Rejoin Studio',
+      title: 'Good signal, slow link.',
+      copy: 'The SNR is fine, which is why the system icon shows nothing. But the rate has dropped to 144 Mbps because macOS picked the 2.4 GHz radio. It\'s now below the 412 Mbps the line measured, so for once the Wi‑Fi is the bottleneck. The widget only flags this when a scan also finds the same SSID on a faster band.'
+    },
+    weak: {
+      color: 'var(--m-danger)', head: 'var(--m-danger)', tag: '−81', band: '5',
+      status: '<strong>Weak signal</strong> – closer node in range',
+      conn: { ...studio, cls: ['active'], tier: 1, pill: '5 GHz', meta: 'Wi‑Fi 6 · ch 149 · 80 MHz', snr: 12, bad: true },
+      link: { rssi: -81, noise: -93, rate: 54 },
+      internet: { text: '<span class="tagp warn">SLOW</span> <span class="mono">140 ms</span>' },
+      wan: homeWan, speed: homeSpeed, addr: { ...homeAddr, node: 'Living room', bssid: '3c:22:fb:9e:52:07' },
+      rows: [ studioIot, iphoneNear, cafe, hotel ],
+      action: 'Rejoin Studio',
+      title: 'The Node row explains the drop.',
+      copy: 'The laptop is still on the living-room node, two rooms away, while the Office node is in range at −49. The WAN row looks normal, so the problem is inside the house, not the line. Rejoin makes macOS pick an access point again from a fresh scan.'
+    },
+    offline: {
+      color: 'var(--m-danger)', head: 'var(--m-danger)', tag: '!', band: '6',
+      status: '<strong>No internet</strong> – WAN down',
+      conn: { ...studio, cls: ['active'], tier: 3, pill: '6 GHz', meta: 'Wi‑Fi 6E · ch 37 · 160 MHz', snr: 41, badge: '!' },
+      link: { rssi: -52, noise: -93, rate: 1201 },
+      internet: { text: '<span class="tagp bad">OFFLINE</span> <span class="dim">last OK 4 min ago</span>' },
+      wan: { text: '<span class="tagp bad">DOWN</span> <span class="dim">2.5G port · 4 min</span>' },
+      speed: homeSpeed, addr: homeAddr,
+      rows: [ studioIot, iphoneNear, cafe, hotel ],
+      action: '',
+      title: 'Full bars, and now the reason.',
+      copy: 'The Wi‑Fi link is excellent and the internet is down, and a red ! is the only thing that changes in the menu bar. With the router connected, the WAN row names the cause: the router\'s uplink has been down for 4 minutes, so check the modem or ISP. Without router access it can only say "router answers, internet doesn\'t". Refresh in the Networks header reruns the check.'
+    },
+    portal: {
+      color: 'var(--m-busy)', head: 'var(--m-busy)', tag: loginSvg, band: '5',
+      status: '<strong>Login required</strong>',
+      conn: { name: 'Grind Coffee', glyph: 'wifi', qr: { sec: 'nopass' }, cls: ['active'], tier: 2, pill: '5 GHz', meta: 'Wi‑Fi 5 · ch 36 · 80 MHz · open', snr: 27, badge: '→', badgeWarn: true },
+      link: { rssi: -66, noise: -93, rate: 351 },
+      internet: { text: '<span class="tagp warn">LOGIN</span> <span class="mono">wifi.grindcoffee.com</span>' },
+      wan: null, speed: null,
+      addr: { ip: '10.12.4.87', gw: '10.12.0.1', mac: 'f6:1d:83:5a:c0:27', node: 'Grind Coffee', bssid: '7c:10:c9:41:be:02' },
+      rows: [ studioAway, iphoneNear, hotel ],
+      action: 'Open Login Page',
+      title: 'Connected, waiting on a login page.',
+      copy: 'The signal is good and the internet check gets redirected to wifi.grindcoffee.com. That\'s a login page, not an outage, so the state is amber and the Smart Bar tag is a sign-in arrow rather than a red !. Open Login Page is the primary action. It opens the page in your real browser instead of macOS\'s small popup, which is easy to dismiss by accident and can\'t use your password manager. WAN and Speed rows are hidden, because this isn\'t your router and a test here would only measure the café.'
+    },
+    hotspot: {
+      color: 'var(--m-busy)', head: 'var(--m-busy)', tag: linkSvg, band: '5',
+      status: '<strong>On hotspot</strong> – Studio dropped',
+      conn: { ...iphoneNear, cls: ['fallback'], pill: '5 GHz', meta: 'Personal hotspot · 212 MB used', snr: 45 },
+      link: { rssi: -44, noise: -95, rate: 866 },
+      internet: { text: '<span class="tagp ok">ONLINE</span> <span class="mono">46 ms</span>' },
+      wan: null, speed: { text: '<span class="dim">Not run on metered networks</span>', test: false },
+      addr: { ip: '172.20.10.3', gw: '172.20.10.1', mac: '8e:21:4b:d0:19:6c', node: 'iPhone', bssid: 'a2:7c:11:0e:33:9d' },
+      rows: [ { ...studio, cls: ['missing'], tier: 3, slashed: true, right: 'Not in range', rightWarn: true }, cafe, hotel ],
+      action: 'Disconnect Hotspot',
+      title: 'Connected, but on the metered network.',
+      copy: 'Home dropped and macOS joined the phone instead, so this is the one case where Home turns red. The card turns amber with a dashed border and counts data used. The speed test is disabled because a single run could use a large part of a mobile data plan.'
+    }
+  };
+
+  const styles = {
+    'mb-smart': ['Smart Bar', 'The default: the Wi\u2011Fi glyph, then four segments on the same tiers as the SNR meter. Monochrome while healthy, with a tag only when something is wrong: 2.4 for band fallback, the dBm when weak, ! when there\'s no internet, a sign-in arrow for a login page, and the link glyph on a hotspot. Colour shows how serious it is, the tag says what happened.'],
+    'mb-icon': ['Icon', 'The narrowest option: white arcs, lit by SNR tier instead of RSSI, with no state colour at all. You lose the reason until you open the menu.'],
+    'mb-dbm': ['Icon + dBm', 'For people who read dBm. The minus sign identifies the number. The arcs still show SNR, so the number and the arcs can disagree, and that disagreement is useful to see.'],
+    'mb-rate': ['Bar + Rate', 'The equivalent of the battery widget\'s Bar and Power. The negotiated rate is what you actually get, so a drop from 1201m to 144m shows up without opening anything.'],
+    'mb-band': ['Bar + Band', 'Adds a single dim digit, 2, 5 or 6, after the bar. It costs two characters and needs no legend.']
+  };
+
+  const $ = id => document.getElementById(id);
+  const dbm = n => String(n).replace('-', '−');
+
+  function chipHTML(s) {
+    const ic = s.conn.glyph === 'link' ? linkSvg : wifiSvg(s.conn.tier);
+    // four segments, on the same tiers as the SNR meter: <15, 15-25, 25-40, 40+
+    const snr = s.conn.snr || 0;
+    const lit = snr >= 40 ? 4 : snr >= 25 ? 3 : snr >= 15 ? 2 : 1;
+    const segs = [0, 1, 2, 3].map(i => '<i class="' + (i < lit ? 'on' : '') + '"></i>').join('');
+    return '<span class="ic">' + ic + '</span>'
+      + '<span class="mbbar">' + segs + '</span>'
+      + '<span class="tag">' + s.tag + '</span>'
+      + '<span class="dbm">' + dbm(s.link.rssi) + '</span>'
+      + '<span class="rate">' + s.link.rate + 'm</span>'
+      + '<span class="band">' + s.band + '</span>';
+  }
+
+  function glyphHTML(r) {
+    const g = r.glyph === 'link' ? linkSvg : wifiSvg(r.tier || 0, r.slashed);
+    return '<span class="glyph">' + g + (r.badge ? '<span class="badge' + (r.badgeWarn ? ' warn' : '') + '">' + r.badge + '</span>' : '') + '</span>';
+  }
+  function mainHTML(r) {
+    let h = '<span class="net-main"><span class="net-title"><span class="net-name">' + r.name + '</span>'
+      + (r.pill ? '<span class="pill' + (r.pillWarn ? ' warn' : '') + '">' + r.pill + '</span>' : '') + '</span>'
+      + '<span class="net-meta' + (r.metaWarn ? ' warn' : '') + '">' + r.meta + '</span>';
+    if (r.snr != null) h += '<span class="snr' + (r.bad ? ' bad' : '') + '"><span class="sbar"><i style="width:' + Math.min(100, r.snr * 2) + '%"></i></span><span class="db">' + r.snr + ' dB</span></span>';
+    return h + '</span>';
+  }
+  const qrSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="5.4" y="5.4" width="2.2" height="2.2" fill="currentColor" stroke="none"/><rect x="16.4" y="5.4" width="2.2" height="2.2" fill="currentColor" stroke="none"/><rect x="5.4" y="16.4" width="2.2" height="2.2" fill="currentColor" stroke="none"/><rect x="14" y="14" width="3" height="3" fill="currentColor" stroke="none"/><rect x="18" y="18" width="3" height="3" fill="currentColor" stroke="none"/></svg>';
+  const qrButton = r => '<button type="button" class="qr-btn" data-qr="' + r.name + '" aria-expanded="false" aria-label="Show QR code for ' + r.name + '" title="QR code">' + qrSvg + '</button>';
+  function rowHTML(r) {
+    const g = r.glyph === 'link' ? linkSvg : wifiSvg(r.tier || 0, r.slashed);
+    return '<div class="' + ['krow'].concat(r.cls || []).join(' ') + '">'
+      + '<span class="kglyph">' + g + '</span><span class="kname">' + r.name + '</span>'
+      + (r.pill ? '<span class="pill">' + r.pill + '</span>' : '')
+      + '<span class="kright' + (r.rightWarn ? ' warn' : '') + '">' + (r.right || '') + '</span>'
+      + qrButton(r) + '</div><div class="qr-slot" data-slot="' + r.name + '"></div>';
+  }
+  // Wi-Fi join payload (the format phone cameras read); ; , : \ " are escaped per the spec
+  const qrEsc = v => v.replace(/([\\;,:"])/g, '\\$1');
+  function qrPayload(net) {
+    return net.qr.sec === 'nopass' ? 'WIFI:T:nopass;S:' + qrEsc(net.name) + ';;'
+      : 'WIFI:T:WPA;S:' + qrEsc(net.name) + ';P:' + qrEsc(net.qr.pass) + ';;';
+  }
+  function qrPanelHTML(net) {
+    return '<div class="qr-panel"><div class="qr-code"></div><div class="qr-text"><span class="qk">Scan to join</span><b>' + net.name + '</b>'
+      + '<span class="qs">' + (net.qr.sec === 'nopass' ? 'Open network · no password' : 'WPA2/WPA3 · from Keychain') + '</span>'
+      + '<span class="qh">Point a phone camera at the code.</span></div></div>';
+  }
+
+  const fact = (k, v, opt = {}) => '<div class="fact' + (opt.copy ? ' copy' : '') + (opt.test ? ' test' : '') + '"'
+    + (opt.copy ? ' data-copy="' + opt.copy + '" title="Click to copy"' : '') + '>'
+    + '<span class="k">' + k + '</span><span class="v">' + v + '</span>'
+    + '<span class="act">' + (opt.copy ? copySvg : opt.test ? 'Test' : '') + '</span></div>';
+
+  function connHTML(s) {
+    const c = s.conn, a = s.addr;
+    const private_ = (parseInt(a.mac.slice(0, 2), 16) & 2) ? ' <span class="tagp private">PRIVATE</span>' : '';
+    const sparkColor = c.cls.includes('fallback') ? '#ffb340' : '#ffffff';
+    let outside = fact('Internet', s.internet.text);
+    if (s.wan) outside += fact('WAN', s.wan.text + (s.wan.spark ? spark(wanTrace, sparkColor) : ''));
+    if (s.speed) outside += fact('Speed', s.speed.text, { test: s.speed.test });
+    return '<div class="conn ' + c.cls.join(' ') + '">'
+      + '<div class="row-grid">' + glyphHTML(c) + mainHTML(c) + qrButton(c) + '</div>'
+      + '<div class="qr-slot" data-slot="' + c.name + '"></div>'
+      + '<div class="inset">'
+      + '<div class="linkline"><span><b>' + dbm(s.link.rssi) + '</b>signal</span><span><b>' + dbm(s.link.noise) + '</b>noise</span><span><b>' + s.link.rate + '</b>Mbps</span></div>'
+      + '<div class="fgroup">' + outside + '</div>'
+      + '<div class="fgroup">'
+      + fact('IP', '<span class="mono">' + a.ip + '</span>', { copy: a.ip })
+      + fact('Gateway', '<span class="mono">' + a.gw + '</span>', { copy: a.gw })
+      + fact('MAC', '<span class="mono">' + a.mac + '</span>' + private_, { copy: a.mac })
+      + fact('Node', a.node + ' <span class="mono dim">' + a.bssid + '</span>', { copy: a.bssid })
+      + '</div></div></div>';
+  }
+
+  // scale markers: one per scenario; No internet shares the Healthy spot
+  const markers = [
+    { id: ['weak'], snr: 12, label: 'Far node · 12', pos: 'up' },
+    { id: ['portal'], snr: 27, label: 'Login page · 27', pos: 'down' },
+    { id: ['band'], snr: 30, label: '2.4 GHz · 30', pos: 'up' },
+    { id: ['healthy', 'offline'], snr: 41, label: 'Healthy / No internet · 41', pos: 'up', edge: true },
+    { id: ['hotspot'], snr: 45, label: 'Hotspot · 45', pos: 'down', edge: true }
+  ];
+  const scale = $('scale');
+  markers.forEach(m => {
+    const el = document.createElement('span');
+    el.className = 'marker ' + m.pos + (m.edge ? ' edge-r' : '');
+    el.style.left = (m.snr * 2) + '%';
+    el.dataset.ids = m.id.join(' ');
+    el.innerHTML = '<span>' + m.label + '</span><i></i>';
+    scale.appendChild(el);
+  });
+
+  function render(name) {
+    currentState = name;
+    const s = states[name];
+    const p = $('preview');
+    p.style.setProperty('--state-color', s.color);
+    p.style.setProperty('--head-color', s.head);
+    $('chip').innerHTML = chipHTML(s);
+    $('menu-status').innerHTML = s.status;
+    $('conn').innerHTML = connHTML(s);
+    $('net-list').innerHTML = s.rows.map(rowHTML).join('');
+    const a = $('primary-action');
+    a.hidden = !s.action;
+    a.querySelector('span').textContent = s.action;
+    $('note-title').textContent = s.title;
+    $('note-copy').textContent = s.copy;
+    document.querySelectorAll('[data-state]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.state === name)));
+    scale.querySelectorAll('.marker').forEach(m => m.classList.toggle('current', m.dataset.ids.split(' ').includes(name)));
+  }
+  function setStyle(cls) {
+    const p = $('preview');
+    Object.keys(styles).forEach(k => p.classList.remove(k));
+    p.classList.add(cls);
+    $('style-title').textContent = 'Menu bar · ' + styles[cls][0];
+    $('style-copy').textContent = styles[cls][1];
+    $('style-key').textContent = styles[cls][0] + ' ▸';
+    document.querySelectorAll('[data-style]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.style === cls)));
+  }
+
+  let currentState = 'healthy';
+  document.querySelector('.menu').addEventListener('click', e => {
+    const b = e.target.closest('.qr-btn');
+    if (!b) return;
+    const menu = e.currentTarget, name = b.dataset.qr, open = b.getAttribute('aria-expanded') === 'true';
+    menu.querySelectorAll('.qr-btn').forEach(x => x.setAttribute('aria-expanded', 'false'));
+    menu.querySelectorAll('.qr-slot').forEach(x => { x.innerHTML = ''; });
+    if (open) return;
+    const st = states[currentState];
+    const net = [st.conn].concat(st.rows).find(n => n.name === name);
+    const slot = menu.querySelector('.qr-slot[data-slot="' + name + '"]');
+    slot.innerHTML = qrPanelHTML(net);
+    b.setAttribute('aria-expanded', 'true');
+    const box = slot.querySelector('.qr-code');
+    try {
+      new QRCode(box, { text: qrPayload(net), width: 104, height: 104, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+    } catch (_) {
+      box.innerHTML = '<span class="qr-fallback">QR</span>';
+    }
+  });
+
+  // hover-to-copy and the speed test, both on the connected card
+  $('conn').addEventListener('click', e => {
+    const f = e.target.closest('.fact');
+    if (!f) return;
+    const act = f.querySelector('.act');
+    if (f.classList.contains('copy')) {
+      try { navigator.clipboard && navigator.clipboard.writeText(f.dataset.copy); } catch (_) {}
+      f.classList.add('copied'); act.textContent = 'Copied';
+      setTimeout(() => { f.classList.remove('copied'); act.innerHTML = copySvg; }, 1100);
+    } else if (f.classList.contains('test') && act.textContent === 'Test') {
+      act.textContent = 'Testing…';
+      setTimeout(() => { f.querySelector('.v').innerHTML = '<span class="mono">↓418 ↑39</span> <span class="dim">Mbps · just now</span>'; act.textContent = 'Test'; }, 1600);
+    }
+  });
+  $('refresh').addEventListener('click', e => {
+    const b = e.currentTarget;
+    if (b.getAttribute('aria-busy') === 'true') return;
+    b.setAttribute('aria-busy', 'true'); b.textContent = 'Scanning…';
+    setTimeout(() => { b.removeAttribute('aria-busy'); b.textContent = 'Refresh'; }, 1400);
+  });
+
+  document.querySelectorAll('[data-state]').forEach(b => b.addEventListener('click', () => render(b.dataset.state)));
+  document.querySelectorAll('[data-style]').forEach(b => b.addEventListener('click', () => setStyle(b.dataset.style)));
+  render('healthy'); setStyle('mb-smart');
+</script>
