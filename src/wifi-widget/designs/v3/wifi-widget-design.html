@@ -57,7 +57,8 @@
     background: #ffffff14; color: var(--state-color);
     font: 650 12px/1 var(--mono); letter-spacing: .02em; font-variant-numeric: tabular-nums;
   }
-  .status-chip svg { width: 16px; height: 16px; display: block; }
+  .status-chip svg { width: 13px; height: 13px; display: block; }
+  .mb-icon .status-chip .ic svg { width: 15px; height: 15px; }
   .status-chip .tag svg { width: 13px; height: 13px; }
   .status-chip > * { display: none; }
   .mbbar { gap: 2px; }  /* display comes from the per-style rules below, so it stays hidden by default */
@@ -385,6 +386,9 @@
     if (slashed) s += '<path d="M4 3.5 20 20.5" stroke-width="2.4"/>';
     return s + '</svg>';
   }
+  const wifiAlertSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">'
+    + '<path d="M2.6 9.3a13.3 13.3 0 0 1 18.8 0"/><path d="M5.6 12.4a9 9 0 0 1 12.8 0" opacity=".4"/>'
+    + '<path d="M12 12.6v3.4"/><circle cx="12" cy="19.2" r="1.5" fill="currentColor" stroke="none"/></svg>';
   const linkSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>';
   const loginSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M3 12h11M10 8l4 4-4 4"/></svg>';
   const copySvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>';
@@ -409,7 +413,7 @@
 
   const states = {
     healthy: {
-      color: 'var(--m-fg)', head: 'var(--m-safe)', tag: '', band: '6',
+      color: 'var(--m-fg)', head: 'var(--m-safe)', tag: '6GHz', band: '6',
       status: '<strong>Connected</strong> – excellent signal',
       conn: { ...studio, cls: ['active'], tier: 3, pill: '6 GHz', meta: 'Wi‑Fi 6E · ch 37 · 160 MHz', snr: 41 },
       link: { rssi: -52, noise: -93, rate: 1201 },
@@ -421,7 +425,7 @@
       copy: 'Monochrome, no tag, and the bar close to full. You shouldn\'t notice the widget while things are fine. When you open the menu, the card at the top has everything in one place, and the WAN sparkline shows the rest of the house using the connection.'
     },
     band: {
-      color: 'var(--m-busy)', head: 'var(--m-busy)', tag: '2.4', band: '2',
+      color: 'var(--m-busy)', head: 'var(--m-busy)', tag: '2.4GHz', band: '2', alert: true,
       status: '<strong>On 2.4 GHz</strong> – 6 GHz in range',
       conn: { ...studio, cls: ['active'], tier: 3, pill: '2.4 GHz', pillWarn: true, meta: 'Wi‑Fi 4 · ch 6 · 20 MHz', snr: 30 },
       link: { rssi: -58, noise: -88, rate: 144 },
@@ -433,7 +437,7 @@
       copy: 'The SNR is fine, which is why the system icon shows nothing. But the rate has dropped to 144 Mbps because macOS picked the 2.4 GHz radio. It\'s now below the 412 Mbps the line measured, so for once the Wi‑Fi is the bottleneck. The widget only flags this when a scan also finds the same SSID on a faster band.'
     },
     weak: {
-      color: 'var(--m-danger)', head: 'var(--m-danger)', tag: '−81', band: '5',
+      color: 'var(--m-danger)', head: 'var(--m-danger)', tag: '−81 dB', band: '5', alert: true,
       status: '<strong>Weak signal</strong> – closer node in range',
       conn: { ...studio, cls: ['active'], tier: 1, pill: '5 GHz', meta: 'Wi‑Fi 6 · ch 149 · 80 MHz', snr: 12, bad: true },
       link: { rssi: -81, noise: -93, rate: 54 },
@@ -445,7 +449,7 @@
       copy: 'The laptop is still on the living-room node, two rooms away, while the Office node is in range at −49. The WAN row looks normal, so the problem is inside the house, not the line. Rejoin makes macOS pick an access point again from a fresh scan.'
     },
     offline: {
-      color: 'var(--m-danger)', head: 'var(--m-danger)', tag: '!', band: '6',
+      color: 'var(--m-danger)', head: 'var(--m-danger)', tag: '', band: '6', alert: true, hideBar: true,
       status: '<strong>No internet</strong> – WAN down',
       conn: { ...studio, cls: ['active'], tier: 3, pill: '6 GHz', meta: 'Wi‑Fi 6E · ch 37 · 160 MHz', snr: 41, badge: '!' },
       link: { rssi: -52, noise: -93, rate: 1201 },
@@ -458,7 +462,7 @@
       copy: 'The Wi‑Fi link is excellent and the internet is down, and a red ! is the only thing that changes in the menu bar. With the router connected, the WAN row names the cause: the router\'s uplink has been down for 4 minutes, so check the modem or ISP. Without router access it can only say "router answers, internet doesn\'t". Refresh in the Networks header reruns the check.'
     },
     portal: {
-      color: 'var(--m-busy)', head: 'var(--m-busy)', tag: loginSvg, band: '5',
+      color: 'var(--m-busy)', head: 'var(--m-busy)', tag: 'Login', band: '5', alert: true,
       status: '<strong>Login required</strong>',
       conn: { name: 'Grind Coffee', glyph: 'wifi', qr: { sec: 'nopass' }, cls: ['active'], tier: 2, pill: '5 GHz', meta: 'Wi‑Fi 5 · ch 36 · 80 MHz · open', snr: 27, badge: '→', badgeWarn: true },
       link: { rssi: -66, noise: -93, rate: 351 },
@@ -471,7 +475,7 @@
       copy: 'The signal is good and the internet check gets redirected to wifi.grindcoffee.com. That\'s a login page, not an outage, so the state is amber and the Smart Bar tag is a sign-in arrow rather than a red !. Open Login Page is the primary action. It opens the page in your real browser instead of macOS\'s small popup, which is easy to dismiss by accident and can\'t use your password manager. WAN and Speed rows are hidden, because this isn\'t your router and a test here would only measure the café.'
     },
     hotspot: {
-      color: 'var(--m-busy)', head: 'var(--m-busy)', tag: linkSvg, band: '5',
+      color: 'var(--m-busy)', head: 'var(--m-busy)', tag: '212 MB', band: '5',
       status: '<strong>On hotspot</strong> – Studio dropped',
       conn: { ...iphoneNear, cls: ['fallback'], pill: '5 GHz', meta: 'Personal hotspot · 212 MB used', snr: 45 },
       link: { rssi: -44, noise: -95, rate: 866 },
@@ -486,9 +490,9 @@
   };
 
   const styles = {
-    'mb-smart': ['Smart Bar', 'The default: the Wi\u2011Fi glyph, then four segments on the same tiers as the SNR meter. Monochrome while healthy, with a tag only when something is wrong: 2.4 for band fallback, the dBm when weak, ! when there\'s no internet, a sign-in arrow for a login page, and the link glyph on a hotspot. Colour shows how serious it is, the tag says what happened.'],
-    'mb-icon': ['Icon', 'The narrowest option: white arcs, lit by SNR tier instead of RSSI, with no state colour at all. You lose the reason until you open the menu.'],
-    'mb-dbm': ['Icon + dBm', 'For people who read dBm. The minus sign identifies the number. The arcs still show SNR, so the number and the arcs can disagree, and that disagreement is useful to see.'],
+    'mb-smart': ['Smart Bar', 'The default: a small Wi\u2011Fi glyph, four segments on the same tiers as the SNR meter, and a short tag. Healthy shows the band you\'re on (6GHz). Otherwise the tag names the problem \u2014 2.4GHz for band fallback, the dBm when weak, data used on a hotspot \u2014 and the glyph gains an exclamation. No internet drops the segments entirely, because signal is not the story.'],
+    'mb-icon': ['Icon', 'The narrowest option: white arcs, lit by SNR tier instead of RSSI, with no state colour at all. Anything wrong turns the glyph into arcs with an exclamation through the middle, which is the only cue this style has. You lose the reason until you open the menu.'],
+    'mb-dbm': ['Icon + dBm', 'For people who read dBm, with the unit spelled out. The minus sign identifies the number. The arcs still show SNR, so the number and the arcs can disagree, and that disagreement is useful to see.'],
     'mb-rate': ['Bar + Rate', 'The equivalent of the battery widget\'s Bar and Power. The negotiated rate is what you actually get, so a drop from 1201m to 144m shows up without opening anything.'],
     'mb-band': ['Bar + Band', 'Adds a single dim digit, 2, 5 or 6, after the bar. It costs two characters and needs no legend.']
   };
@@ -497,15 +501,15 @@
   const dbm = n => String(n).replace('-', '−');
 
   function chipHTML(s) {
-    const ic = s.conn.glyph === 'link' ? linkSvg : wifiSvg(s.conn.tier);
+    const ic = s.conn.glyph === 'link' ? linkSvg : s.alert ? wifiAlertSvg : wifiSvg(s.conn.tier);
     // four segments, on the same tiers as the SNR meter: <15, 15-25, 25-40, 40+
     const snr = s.conn.snr || 0;
     const lit = snr >= 40 ? 4 : snr >= 25 ? 3 : snr >= 15 ? 2 : 1;
     const segs = [0, 1, 2, 3].map(i => '<i class="' + (i < lit ? 'on' : '') + '"></i>').join('');
     return '<span class="ic">' + ic + '</span>'
-      + '<span class="mbbar">' + segs + '</span>'
+      + (s.hideBar ? '' : '<span class="mbbar">' + segs + '</span>')
       + '<span class="tag">' + s.tag + '</span>'
-      + '<span class="dbm">' + dbm(s.link.rssi) + '</span>'
+      + '<span class="dbm">' + dbm(s.link.rssi) + ' dB</span>'
       + '<span class="rate">' + s.link.rate + 'm</span>'
       + '<span class="band">' + s.band + '</span>';
   }
