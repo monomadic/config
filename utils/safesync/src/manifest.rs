@@ -43,6 +43,9 @@ pub struct Header {
     pub skipped_symlinks: u64,
     pub skipped_special: u64,
     pub skipped_mounts: u64,
+    /// Fingerprints carried over from earlier scans instead of read this time.
+    #[serde(default)]
+    pub reused_hashes: u64,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Entry {

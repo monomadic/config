@@ -4,6 +4,7 @@ use crate::{
 };
 use anyhow::{Context, Result, ensure};
 use std::{
+    collections::HashMap,
     fs::{self, File},
     os::unix::fs::{MetadataExt, OpenOptionsExt},
     path::{Path, PathBuf},
@@ -12,6 +13,76 @@ use std::{
 pub struct Progress {
     pub files: usize,
     pub bytes: u64,
+    pub reused: u64,
+}
+
+// Fingerprints carried over from earlier scans of the same volume, keyed on
+// (file ID, size, mtime). Keying on the file ID rather than the path means a
+// renamed video is not read again. APFS never reissues a file ID, so a hit is
+// the same file object; what this cannot see is an in-place edit that keeps
+// the size and restores the mtime. `--rehash` is the audit for that.
+pub struct HashCache {
+    volume_uuid: String,
+    // None marks a key that earlier scans disagree about: never reused.
+    hashes: HashMap<(u64, u64, i64, i64), Option<String>>,
+}
+impl HashCache {
+    pub fn new(volume: &Volume) -> Self {
+        Self {
+            volume_uuid: volume.uuid.clone(),
+            hashes: HashMap::new(),
+        }
+    }
+    fn key(stamp: &Stamp) -> (u64, u64, i64, i64) {
+        (
+            stamp.file_id,
+            stamp.size,
+            stamp.mtime_seconds,
+            stamp.mtime_nanos,
+        )
+    }
+    /// File IDs mean nothing on another volume, so foreign manifests add nothing.
+    pub fn add(&mut self, manifest: &Manifest) {
+        if manifest.header.volume.uuid != self.volume_uuid {
+            return;
+        }
+        for entry in &manifest.entries {
+            let Some(hash) = &entry.sha256 else { continue };
+            self.hashes
+                .entry(Self::key(&entry.stamp))
+                .and_modify(|known| {
+                    if known.as_ref() != Some(hash) {
+                        *known = None;
+                    }
+                })
+                .or_insert_with(|| Some(hash.clone()));
+        }
+    }
+    /// Adds every readable manifest in a directory. The cache is an optimisation,
+    /// so a damaged or foreign file is skipped and costs only a re-read.
+    pub fn add_directory(&mut self, directory: &Path) {
+        let Ok(listing) = fs::read_dir(directory) else {
+            return;
+        };
+        for entry in listing.flatten() {
+            let path = entry.path();
+            if entry.file_type().is_ok_and(|t| t.is_file())
+                && path.extension().is_some_and(|e| e == "jsonl")
+                && let Ok(manifest) = Manifest::load(&path)
+            {
+                self.add(&manifest);
+            }
+        }
+    }
+    pub fn len(&self) -> usize {
+        self.hashes.values().flatten().count()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    fn get(&self, stamp: &Stamp) -> Option<&String> {
+        self.hashes.get(&Self::key(stamp))?.as_ref()
+    }
 }
 
 // No ignored errors, hidden-file rules, or incomplete manifest publication.
@@ -30,8 +101,23 @@ pub fn scan_with_exclusions(
     volume: Volume,
     hash: bool,
     exclusions: &[PathBuf],
+    progress: impl FnMut(Progress),
+) -> Result<Manifest> {
+    scan_with_reuse(root, volume, hash, exclusions, None, progress)
+}
+
+pub fn scan_with_reuse(
+    root: &Path,
+    volume: Volume,
+    hash: bool,
+    exclusions: &[PathBuf],
+    reuse: Option<&HashCache>,
     mut progress: impl FnMut(Progress),
 ) -> Result<Manifest> {
+    ensure!(
+        reuse.is_none_or(|cache| cache.volume_uuid == volume.uuid),
+        "Hash cache belongs to another volume"
+    );
     for excluded in exclusions {
         ensure!(
             !excluded.as_os_str().is_empty()
@@ -56,6 +142,7 @@ pub fn scan_with_exclusions(
     let mut skipped_special = 0;
     let mut skipped_mounts = 0;
     let mut bytes = 0;
+    let mut reused = 0;
     while let Some(relative) = queue.pop() {
         let parent = if relative.as_os_str().is_empty() {
             directory.try_clone()?
@@ -98,13 +185,17 @@ pub fn scan_with_exclusions(
                 queue.push(child);
             } else {
                 ensure!(metadata.is_file(), "Entry type changed while scanning");
-                let sha256 = if hash {
+                let known = reuse.and_then(|cache| cache.get(&stamp));
+                let sha256 = if !hash {
+                    None
+                } else if let Some(known) = known {
+                    reused += 1;
+                    Some(known.clone())
+                } else {
                     Some(
                         filesystem::hash_file(&mut opened, &stamp)
                             .with_context(|| format!("Cannot fingerprint {:?}", child))?,
                     )
-                } else {
-                    None
                 };
                 bytes += stamp.size;
                 entries.push(Entry {
@@ -115,6 +206,7 @@ pub fn scan_with_exclusions(
                 progress(Progress {
                     files: entries.len(),
                     bytes,
+                    reused,
                 });
             }
         }
@@ -173,6 +265,7 @@ pub fn scan_with_exclusions(
             skipped_symlinks,
             skipped_special,
             skipped_mounts,
+            reused_hashes: reused,
         },
         entries,
     })

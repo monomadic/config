@@ -148,6 +148,16 @@ pub fn hash_path(path: &Path) -> Result<(Stamp, String)> {
 // Walk through directory descriptors. A symlink or replacement mount must not
 // redirect a scan to unrelated files. No writes are exposed by this interface.
 pub fn open_relative(root: &File, relative: &Path, device: u64) -> Result<File> {
+    open_relative_optional(root, relative, device)?.context("Relative path does not exist")
+}
+
+// Only ENOENT means absent. Symlinks, permission errors and non-directory parents
+// must never be mistaken for a free destination path.
+pub(crate) fn open_relative_optional(
+    root: &File,
+    relative: &Path,
+    device: u64,
+) -> Result<Option<File>> {
     let parts: Vec<_> = relative.components().collect();
     ensure!(!parts.is_empty(), "Empty relative file path");
     let mut current = root.try_clone()?;
@@ -165,6 +175,9 @@ pub fn open_relative(root: &File, relative: &Path, device: u64) -> Result<File> 
         // SAFETY: name is NUL-terminated, fd is live, and successful fd ownership
         // is transferred to File exactly once.
         let fd = unsafe { libc::openat(current.as_raw_fd(), name.as_ptr(), flags) };
+        if fd < 0 && std::io::Error::last_os_error().raw_os_error() == Some(libc::ENOENT) {
+            return Ok(None);
+        }
         ensure!(
             fd >= 0,
             "Cannot safely open {:?}: {}",
@@ -178,7 +191,7 @@ pub fn open_relative(root: &File, relative: &Path, device: u64) -> Result<File> 
         );
         current = next;
     }
-    Ok(current)
+    Ok(Some(current))
 }
 
 pub fn names(directory: &File) -> Result<Vec<std::ffi::OsString>> {

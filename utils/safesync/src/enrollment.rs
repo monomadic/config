@@ -281,6 +281,13 @@ pub struct DriveLease {
     enrollment: Enrollment,
 }
 impl DriveLease {
+    pub(crate) fn media_file(&self, relative: &Path) -> Result<Option<File>> {
+        filesystem::open_relative_optional(
+            &self.root.root,
+            relative,
+            self.root.root.metadata()?.dev(),
+        )
+    }
     pub(crate) fn catalog_directory(&self) -> Result<File> {
         self.revalidate()?;
         self.directory.try_clone().map_err(Into::into)

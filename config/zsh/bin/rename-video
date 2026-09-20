@@ -51,6 +51,10 @@ emulate -L zsh
 #   Alice, Bob (Studio) - Title #tag #tag ★★★☆☆ [1080p 30fps h264 22min 8mbps H].mp4
 #   Studio - Title #tag ★★★☆☆ [...].mp4        (no actors)
 #   Alice, Bob (Studio) #tag ★★★☆☆ [...].mp4   (no title)
+#   Alice, Bob - Title #tag ★★★☆☆ [...].mp4    (channel "Alice": already an actor)
+#
+# A channel that is also one of the actors (compared case-insensitively) is
+# not rendered: a performer's own channel would only repeat their name.
 #
 # With no actors, no channel and no title there is nothing to name the file
 # after, and it is left alone with a warning -- a name that is only a metadata
@@ -667,11 +671,14 @@ metadata_block() {
 # there is nothing for them to do.
 build_adult_stem() {
   local -a parts rendered_tags
-  local lead="" tag stars
+  local lead="" tag stars channel="$CHANNEL"
+
+  # A performer's own channel is already in the name as the actor.
+  (( ${${(@L)ACTORS}[(Ie)${CHANNEL:l}]} )) && channel=""
 
   if (( ${#ACTORS} )); then
     lead="${(j:, :)ACTORS}"
-    [[ -n "$CHANNEL" ]] && lead+=" (${CHANNEL})"
+    [[ -n "$channel" ]] && lead+=" (${channel})"
   elif [[ -n "$CHANNEL" ]]; then
     lead="$CHANNEL"
   fi

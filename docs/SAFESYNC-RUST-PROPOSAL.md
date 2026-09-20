@@ -118,6 +118,18 @@ set. `run-info` validates that binding and the recorded preconditions. Preparati
 does not start an operation or enable execution; incomplete directories are retained
 for inspection. Filesystem reconciliation and media execution remain future gates.
 
+`check-run` adds read-only live preflight for an unstarted prepared run on the
+enrolled destination. It verifies filesystems, identities, file versions and
+content fingerprints, checks copy-target absence, then rechecks paths and run
+metadata. Unsafe paths and stale evidence fail closed. It provides no execution
+capability; per-mutation revalidation, recovery and media writes remain unfinished.
+
+Live preflight also budgets rounded incoming payloads and a configurable reserve
+(default 1 GiB), reports retained predecessor bytes and verification I/O, and uses
+the lower of before/after available-space samples. Insufficient space or read-only
+state fails the combined check. This is not block reservation or a guarantee against
+APFS shared-container changes; metadata-policy and allocation work remain pending.
+
 The implementation does not yet copy, rename or delete media, perform filesystem
 repairs, enforce roles in a write executor, or provide the full-screen TUI.
 These remain later delivery gates. Spill remains untouched.

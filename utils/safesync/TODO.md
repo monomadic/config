@@ -44,8 +44,13 @@ Work through the milestones in order; media writes must wait for the safety gate
   ASCII prefix and file/directory checks exist; Unicode and actual destination filesystem rules remain pending.
 - [ ] Define support and explicit outcomes for empty directories, symlinks, hard links, sparse files, timestamps, permissions, ACLs, extended attributes, Finder tags and resource forks.
 - [ ] Estimate staging, history, verification and journal space, including APFS shared-container capacity and a reserve.
+  Live budgeting now covers rounded incoming payloads, retained predecessor sizes, verification I/O and a configurable reserve; exact metadata overhead, APFS diagnostics and real allocation reservation remain pending.
+- [x] Add before/after destination space sampling to `check-run`, a default 1 GiB reserve, explicit shortfall/read-only outcomes and overflow-safe arithmetic.
+- [x] Test rounding, retained history, no staging double-counting, capacity boundaries, read-only state, overflow and a space failure with valid file preconditions.
 - [ ] Freeze reviewable plans with entry preconditions; revalidate before application.
-  Immutable prepared plans now capture inventory/enrollment and entry preconditions; live execution revalidation remains pending.
+  Immutable prepared plans and read-only live preflight exist; per-mutation executor revalidation remains pending.
+- [x] Add `check-run` through verified pair sessions with destination-owned run lookup, enrollment/root checks, full-content preconditions, target-absence checks and a final metadata pass.
+- [x] Test stale sources/predecessors, occupied targets, unsafe parents, changes after hashing, contradictory content and refusal of started/torn journals.
 - [ ] Compare generated plans with hand-checked fixtures before implementing media mutations.
 
 ## 2. Preview and terminal interface
@@ -125,5 +130,6 @@ Work through the milestones in order; media writes must wait for the safety gate
 - [ ] Report phase times, I/O bytes, metadata calls, CPU, memory and recovery time.
 - [ ] Set and measure an inventory memory budget; consider partitioned snapshots only if needed.
 - [ ] Benchmark scan concurrency, bulk metadata calls, buffer sizes, `F_NOCACHE` and preallocation.
-- [ ] Add conservative hash-cache invalidation and later FSEvents acceleration with full-scan fallback.
+- [x] Reuse fingerprints from earlier scans of the same volume, keyed on file ID, size and mtime, with `--rehash` as the full-read audit.
+- [ ] Add FSEvents acceleration with full-scan fallback.
 - [ ] Defer chunk resume/striping, network writes and automatic eviction until the recovery model is proven.

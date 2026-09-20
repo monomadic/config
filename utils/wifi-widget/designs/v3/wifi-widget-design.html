@@ -80,7 +80,7 @@
     border: 1px solid #4a4b51; border-radius: 12px;
     color: #f2f2f3; background: #292a2f; box-shadow: 0 18px 44px #0009; font-size: 13px;
   }
-  .menu-head { padding: 0 11px 5px; }
+  .menu-head { padding: 0 11px 6px 5px; }  /* with the panel's own 7px, the dot sits 12px from both the top and the left */
   .menu-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13.5px; line-height: 18px; font-weight: 650; white-space: nowrap; }
   .menu-title .sep { color: #6f7076; font-weight: 400; }
   .state-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--head-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--head-color) 18%, transparent); }
@@ -91,12 +91,12 @@
   /* shared row anatomy — the connected card's top is the same grid as every network row */
   .row-grid { display: grid; grid-template-columns: 40px minmax(0,1fr) 28px; gap: 10px; align-items: center; }
   /* known networks: one compact line each */
-  /* same 9px inset and 40px icon column as the connected card, so icons, names and QR buttons share its axes */
-  .krow { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 3px 9px; border: 1px solid transparent; border-radius: 7px; }
+  /* tighter on the left than the card; the 9px right inset keeps the QR buttons on the card's axis */
+  .krow { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 3px 9px 3px 4px; border: 1px solid transparent; border-radius: 7px; }
   .krow:hover { background: #ffffff0f; }
-  .krow .kglyph { display: flex; justify-content: center; width: 40px; flex-shrink: 0; color: #d5d5d8; }
+  .krow .kglyph { display: flex; justify-content: center; width: 26px; flex-shrink: 0; color: #d5d5d8; }
   .krow .kglyph svg { width: 18px; height: 18px; display: block; }
-  .krow .kname { margin-left: 2px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: #f2f2f3; }
+  .krow .kname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: #f2f2f3; }
   .krow .kright { margin-left: auto; flex-shrink: 0; color: #8f9096; font-size: 10.5px; font-variant-numeric: tabular-nums; }
   .krow .kright.warn { color: #ff8b84; }
   .krow.metered { border: 1px dashed #6f7076; }
@@ -106,13 +106,13 @@
 
   .qr-btn {
     width: 22px; height: 22px; flex-shrink: 0; justify-self: end; padding: 0; cursor: pointer;
-    border: 1px solid #ffffff24; border-radius: 6px;
-    display: flex; align-items: center; justify-content: center; background: none; color: #9fa0a5;
+    border: 1px solid #ffffff1c; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center; background: #0000003d; color: #c6c7cb;
   }
   .qr-btn svg { width: 15px; height: 15px; display: block; }
   .conn .qr-btn { width: 28px; height: 28px; align-self: start; }
   .conn .qr-btn svg { width: 19px; height: 19px; }
-  .qr-btn:hover { color: #fff; border-color: #ffffff4a; background: #ffffff14; }
+  .qr-btn:hover { color: #fff; border-color: #ffffff3d; background: #00000052; }
   .qr-btn[aria-expanded="true"] { color: #fff; background: #ffffff24; }
   .qr-btn:focus-visible { outline: 2px solid var(--m-active); outline-offset: 2px; }
   .qr-panel { display: flex; align-items: center; gap: 12px; margin: 4px 0 3px; padding: 9px; border-radius: 8px; background: #ffffff0a; }
@@ -139,8 +139,8 @@
   .net-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: #f2f2f3; }
   .pill {
     display: inline-flex; align-items: center; flex-shrink: 0; height: 14px; padding: 0 5px;
-    border: 1px solid #ffffff4a; border-radius: 999px;
-    font: 600 9.5px/1 var(--mono); letter-spacing: .05em; color: #a8a9ae; white-space: nowrap;
+    border: 1.5px solid #ffffff70; border-radius: 999px;
+    font: 600 9.5px/1 var(--mono); letter-spacing: .05em; color: #b5b6ba; white-space: nowrap;
   }
   .pill.warn { border-color: var(--m-busy) !important; color: #1c1d21 !important; background: var(--m-busy); }
   .net-meta { margin-top: 2px; color: #a8a9ae; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -221,10 +221,13 @@
   .spark { display: inline-block; width: 86px; height: 15px; vertical-align: -3px; margin-left: 8px; }
 
   .section-label { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 11px 2px; color: #8f9096; font-size: 11px; font-weight: 600; }
-  .refresh { color: #b9c9e8; font-weight: 500; cursor: pointer; background: none; border: 0; padding: 0; font: inherit; }
-  .refresh:hover { color: #fff; text-decoration: underline; }
-  .refresh:focus-visible { outline: 2px solid var(--m-active); outline-offset: 2px; border-radius: 3px; }
-  .refresh[aria-busy="true"] { color: #8f9096; text-decoration: none; cursor: default; }
+  .refresh {
+    padding: 2px 8px; border: 1px solid #ffffff1c; border-radius: 6px; cursor: pointer;
+    background: #0000003d; color: #c6c7cb; font: 500 10.5px/1.4 var(--system);
+  }
+  .refresh:hover { border-color: #ffffff3d; background: #00000052; color: #fff; }
+  .refresh:focus-visible { outline: 2px solid var(--m-active); outline-offset: 2px; }
+  .refresh[aria-busy="true"] { color: #8f9096; cursor: default; background: #00000024; }
   .net-list { display: grid; gap: 1px; padding: 1px 0; }
 
   .menu-item { display: flex; align-items: center; justify-content: space-between; min-height: 30px; padding: 5px 10px; border-radius: 7px; }
@@ -313,7 +316,7 @@
         <div class="divider"></div>
         <div class="menu-item primary" id="primary-action"><span></span><span class="key"></span></div>
         <div class="menu-item"><span>Style</span><span class="key" id="style-key"></span></div>
-        <div class="menu-item"><span>Open Wi‑Fi Settings…</span><span></span></div>
+        <div class="menu-item"><span>Wi‑Fi Settings…</span><span></span></div>
         <div class="menu-item"><span>Quit</span><span></span></div>
       </div>
     </div>

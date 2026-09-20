@@ -191,15 +191,25 @@ pub struct VerifiedPair {
 }
 
 impl VerifiedPair {
+    pub fn check_run_with_reserve(
+        &self,
+        run_id: &str,
+        reserve_bytes: u64,
+    ) -> Result<crate::preflight::Report> {
+        crate::preflight::check_with_reserve(&self.pair, run_id, reserve_bytes)
+    }
+    pub fn check_run(&self, run_id: &str) -> Result<crate::preflight::Report> {
+        crate::preflight::check(&self.pair, run_id)
+    }
     pub fn prepare_run(&self, exclusions: &[PathBuf]) -> Result<crate::run::Prepared> {
-        self.refresh_catalogs(true, exclusions)?;
+        self.refresh_catalogs(true, true, exclusions)?;
         crate::run::prepare(&self.pair).context("Run preparation failed after catalog refresh; incomplete run metadata may remain and must be inspected")
     }
     pub fn adopt_relationship(
         &self,
         exclusions: &[PathBuf],
     ) -> Result<crate::relationship::Adoption> {
-        self.refresh_catalogs(true, exclusions)?;
+        self.refresh_catalogs(true, true, exclusions)?;
         crate::relationship::adopt(&self.pair).context(
             "Catalogs refreshed but relationship adoption did not report success; a publication error may leave a valid baseline, so inspect destination metadata before retrying",
         )
@@ -209,9 +219,12 @@ impl VerifiedPair {
     }
 
     /// Refresh drive-owned inventories only; no media or relationship mutations.
+    /// `reuse` carries fingerprints over from the drive's earlier catalogs and
+    /// manifests when a file's ID, size and mtime are unchanged.
     pub fn refresh_catalogs(
         &self,
         hash: bool,
+        reuse: bool,
         exclusions: &[PathBuf],
     ) -> Result<(crate::catalog::Current, crate::catalog::Current)> {
         self.pair.revalidate()?;
@@ -225,16 +238,28 @@ impl VerifiedPair {
                 volume.uuid == lease.enrollment().volume_uuid,
                 "Volume changed before catalog scan"
             );
-            eprintln!("Scanning catalog on {:?}", lease.scan_root());
+            let mut cache = crate::scan::HashCache::new(&volume);
+            if hash && reuse {
+                cache.add_directory(&lease.scan_root().join(".safesync"));
+            }
+            eprintln!(
+                "Scanning catalog on {:?} ({} fingerprints known)",
+                lease.scan_root(),
+                cache.len()
+            );
             let mut last = std::time::Instant::now();
-            let inventory = crate::scan::scan_with_exclusions(
+            let inventory = crate::scan::scan_with_reuse(
                 lease.scan_root(),
                 volume,
                 hash,
                 exclusions,
+                Some(&cache),
                 |p| {
                     if last.elapsed() >= std::time::Duration::from_secs(1) {
-                        eprintln!("{} files · {} bytes catalogued", p.files, p.bytes);
+                        eprintln!(
+                            "{} files · {} bytes catalogued · {} fingerprints reused",
+                            p.files, p.bytes, p.reused
+                        );
                         last = std::time::Instant::now();
                     }
                 },

@@ -35,9 +35,26 @@ safesync scan /path/to/media --hash --save-local
 safesync scan /path/to/media --hash --output /path/to/new-manifest.jsonl
 ```
 
-Full-content scanning reads all selected bytes, so the first hashed inventory of
-a multi-terabyte library takes time. Version 0.1 deliberately does not reuse hashes
-from metadata alone. Filesystem checks/repairs are not run for these read-only
+The first hashed inventory of a multi-terabyte library reads every selected byte
+and takes time. Later `--hash` scans only read files that are new or changed: a
+fingerprint is carried over when an earlier scan of the **same volume** recorded
+the same file ID, size and nanosecond mtime. Earlier scans are taken from
+`ROOT/.safesync/*.jsonl` and this Mac's manifest library. Because the key is the
+file ID rather than the path, a renamed or moved video is not read again.
+
+```sh
+# Audit: ignore earlier fingerprints and read everything again.
+safesync scan /path/to/media --hash --rehash --save-local
+```
+
+A reused fingerprint was not observed by this scan; the manifest header records
+how many were carried over in `reused_hashes`. What reuse cannot see is an
+in-place edit that keeps the size and restores the mtime, or silent corruption
+of bytes at rest — run `--rehash` occasionally for those. If earlier scans
+disagree about one file version, neither is trusted and the file is read.
+`catalog-refresh --hash`, `relationship-adopt` and `prepare-run` reuse
+fingerprints from the drive's own `.safesync` directory in the same way;
+`catalog-refresh` also accepts `--rehash`. Filesystem checks/repairs are not run for these read-only
 media scans; the only writes are the requested manifest files/directories.
 
 The default drive-resident output is
@@ -380,6 +397,54 @@ preparation leaves its unique directory for inspection; it is neither reused nor
 deleted automatically. An incomplete plan without its journal cannot be treated as
 a prepared run. A retry creates a separate run and may leave valid earlier metadata.
 
+## Check prepared operations against attached drives
+
+```sh
+safesync check-run /Volumes/Source /Volumes/Backup RUN_ID
+# Optional reserve override, in bytes (default: 1 GiB).
+safesync check-run /Volumes/Source /Volumes/Backup RUN_ID --reserve-bytes 2147483648
+```
+
+This verifies both filesystems and acquires pair leases, then opens the run from
+the enrolled destination's `.safesync/run-RUN_ID` directory. Enrollment records,
+root identities, exact plan digest and journal state must match. Only an unstarted
+run with its initial journal record is accepted; started or torn journals need
+recovery and are refused.
+
+Every planned source and replacement predecessor is checked for file identity,
+size, modification/change timestamps and complete-content SHA-256. Copy targets
+must be absent. A missing parent can mean an absent target, but symlinked paths,
+non-directory parents and read failures never count as absence. Traversal uses
+open root descriptors and rejects filesystem crossings. A final metadata pass
+reopens checked paths to detect changes after hashing, and revalidates the plan,
+journal and drive identities.
+
+The capacity check budgets all incoming data, rounding each file to the filesystem
+allocation unit, plus a configurable safety reserve (1 GiB by default). A staged
+file is already part of that incoming total and is not counted twice. Existing
+predecessors are reported as retained history but never subtracted from the budget
+or counted as reclaimable space. Verification rereads add I/O, not another stored
+copy. The reserve covers unmeasured directory, metadata and journal overhead.
+
+Available space is sampled through the destination descriptor before and after
+file checks; the lower observation is used. JSON includes both samples, the
+payload budget, retained predecessor sizes, shortfall and remaining headroom.
+Read-only filesystems fail the capacity check. APFS shared-container usage, quotas,
+snapshots and other writers can change the result; no purgeable-space credit is
+added, and no blocks are reserved. Passing does not guarantee allocation succeeds.
+
+JSON reports each file check and separates `file_preconditions_valid` from the
+combined `live_preconditions_valid` result. Exit 0 means file and capacity checks
+passed, 3 means a file failed or space was insufficient/read-only, and 2 means the
+run, attachment, filesystem verification or session could not be validated.
+The check writes no media, catalogs or journal events. It does create/use the
+host maintenance lock used by filesystem verification.
+
+`execution_enabled` remains false. This is not a filesystem snapshot: another
+program can change files afterward. Unplanned files, full metadata preservation
+and actual space reservation are outside this check. The future executor must repeat
+validation immediately before each mutation.
+
 ## Inspect an operation journal
 
 ```sh
@@ -434,8 +499,8 @@ change time before/after reading. A final metadata pass catches files/directorie
 changed during scanning. This costs metadata I/O, and still is not a filesystem
 snapshot or a lock against arbitrary concurrent writers. Scan a quiet tree.
 
-The prototype loads inventories into memory. Large-scale memory/scan performance,
-FSEvents acceleration and hash-cache invalidation are future work; this release
+The prototype loads inventories into memory. Large-scale memory/scan performance
+and FSEvents acceleration are future work; this release
 makes no speed claim over rclone or fd. It does not read video contents unless
 `--hash` or content lookup was requested.
 

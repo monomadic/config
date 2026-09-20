@@ -758,3 +758,124 @@ fn journal_info_reports_clean_incomplete_and_corrupt_outcomes() {
     assert_eq!(inspect().status.code(), Some(2));
     assert_eq!(fs::read(&path).unwrap(), b"not a journal");
 }
+
+fn rescan(fixture: &Fixture, cache: &scan::HashCache) -> Manifest {
+    scan::scan_with_reuse(
+        &fixture.root(),
+        Fixture::volume(),
+        true,
+        &[],
+        Some(cache),
+        |_| {},
+    )
+    .unwrap()
+}
+
+#[test]
+fn unchanged_file_reuses_its_fingerprint_even_after_a_rename() {
+    let fixture = Fixture::new();
+    fs::write(fixture.root().join("a.mov"), b"video").unwrap();
+    let mut previous = fixture.scan(true);
+    // A marker digest proves the second scan trusted the cache and did not read.
+    let marker = "0".repeat(64);
+    previous.entries[0].sha256 = Some(marker.clone());
+    let mut cache = scan::HashCache::new(&Fixture::volume());
+    cache.add(&previous);
+    fs::rename(fixture.root().join("a.mov"), fixture.root().join("b.mov")).unwrap();
+
+    let current = rescan(&fixture, &cache);
+    assert_eq!(current.header.reused_hashes, 1);
+    assert_eq!(current.entries[0].path().unwrap(), Path::new("b.mov"));
+    assert_eq!(current.entries[0].sha256, Some(marker));
+}
+
+#[test]
+fn changed_or_new_files_are_read_again() {
+    let fixture = Fixture::new();
+    fs::write(fixture.root().join("a.mov"), b"video").unwrap();
+    let mut previous = fixture.scan(true);
+    previous.entries[0].sha256 = Some("0".repeat(64));
+    let mut cache = scan::HashCache::new(&Fixture::volume());
+    cache.add(&previous);
+    fs::write(fixture.root().join("a.mov"), b"longer video").unwrap();
+    fs::write(fixture.root().join("new.mov"), b"video").unwrap();
+
+    let current = rescan(&fixture, &cache);
+    assert_eq!(current.header.reused_hashes, 0);
+    for entry in &current.entries {
+        let (_, digest) =
+            filesystem::hash_path(&fixture.root().join(entry.path().unwrap())).unwrap();
+        assert_eq!(entry.sha256, Some(digest));
+    }
+}
+
+#[test]
+fn cache_ignores_other_volumes_metadata_only_scans_and_disagreement() {
+    let fixture = Fixture::new();
+    fs::write(fixture.root().join("a.mov"), b"video").unwrap();
+    let honest = fixture.scan(true);
+    let mut foreign = honest.clone();
+    foreign.header.volume.uuid = "another-volume".into();
+    foreign.entries[0].sha256 = Some("0".repeat(64));
+
+    let mut cache = scan::HashCache::new(&Fixture::volume());
+    cache.add(&foreign);
+    cache.add(&fixture.scan(false));
+    assert!(cache.is_empty());
+
+    // Two earlier scans that disagree about one file version: trust neither.
+    let mut disputed = honest.clone();
+    disputed.entries[0].sha256 = Some("1".repeat(64));
+    cache.add(&honest);
+    cache.add(&disputed);
+    assert!(cache.is_empty());
+    let current = rescan(&fixture, &cache);
+    assert_eq!(current.header.reused_hashes, 0);
+    assert_eq!(current.entries[0].sha256, honest.entries[0].sha256);
+
+    let mut wrong = scan::HashCache::new(&foreign.header.volume);
+    wrong.add(&foreign);
+    assert!(
+        scan::scan_with_reuse(
+            &fixture.root(),
+            Fixture::volume(),
+            true,
+            &[],
+            Some(&wrong),
+            |_| {}
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn scan_cli_reuses_drive_manifests_and_rehash_reads_everything() {
+    let fixture = Fixture::new();
+    let root = fixture.root();
+    fs::write(root.join("a.mov"), b"video").unwrap();
+    // Published beside the media, where the next scan looks for earlier fingerprints.
+    fs::create_dir(root.join(".safesync")).unwrap();
+    let run = |extra: &[&str]| {
+        let manifest = root
+            .join(".safesync")
+            .join(format!("{}.jsonl", generation()));
+        let output = Command::new(env!("CARGO_BIN_EXE_safesync"))
+            .arg("scan")
+            .arg(&root)
+            .arg("--hash")
+            .arg("--output")
+            .arg(&manifest)
+            .args(extra)
+            .env("HOME", &fixture.0)
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        Manifest::load(&manifest).unwrap()
+    };
+    assert_eq!(run(&[]).header.reused_hashes, 0);
+    let second = run(&[]);
+    assert_eq!(second.header.reused_hashes, 1);
+    let audit = run(&["--rehash"]);
+    assert_eq!(audit.header.reused_hashes, 0);
+    assert_eq!(audit.entries[0].sha256, second.entries[0].sha256);
+}

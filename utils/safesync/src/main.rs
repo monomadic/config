@@ -23,6 +23,15 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Command {
+    /// Verify filesystems and live file preconditions for an unstarted prepared run. No media writes.
+    CheckRun {
+        source: PathBuf,
+        destination: PathBuf,
+        run_id: String,
+        /// Leave this many bytes for metadata, journals and safety (default: 1 GiB).
+        #[arg(long, default_value_t = safesync::capacity::DEFAULT_RESERVE_BYTES)]
+        reserve_bytes: u64,
+    },
     /// Verify and hash both drives, then save a copy/replacement plan and journal. No execution.
     PrepareRun {
         source: PathBuf,
@@ -62,6 +71,9 @@ enum Command {
         destination: PathBuf,
         #[arg(long)]
         hash: bool,
+        /// Read every file again instead of reusing fingerprints from earlier catalogs.
+        #[arg(long, requires = "hash")]
+        rehash: bool,
         #[arg(long)]
         exclude: Vec<PathBuf>,
     },
@@ -103,6 +115,10 @@ enum Command {
         /// Hash every file's complete contents for accurate offline content lookup.
         #[arg(long)]
         hash: bool,
+        /// Read every file again instead of reusing fingerprints from earlier scans
+        /// of this volume whose file ID, size and mtime are unchanged.
+        #[arg(long, requires = "hash")]
+        rehash: bool,
         /// New manifest path; default: ROOT/.safesync/manifest-GENERATION.jsonl.
         #[arg(long)]
         output: Option<PathBuf>,
@@ -170,6 +186,17 @@ fn safe_display(path: &Path) -> String {
 }
 fn run(cli: Cli) -> Result<i32> {
     match cli.command {
+        Command::CheckRun {
+            source,
+            destination,
+            run_id,
+            reserve_bytes,
+        } => {
+            let session = safesync::maintenance::verify_pair(&source, &destination)?;
+            let report = session.check_run_with_reserve(&run_id, reserve_bytes)?;
+            println!("{}", serde_json::to_string_pretty(&report)?);
+            return Ok(report.exit_code());
+        }
         Command::PrepareRun {
             source,
             destination,
@@ -266,10 +293,11 @@ fn run(cli: Cli) -> Result<i32> {
             source,
             destination,
             hash,
+            rehash,
             exclude,
         } => {
             let verified = safesync::maintenance::verify_pair(&source, &destination)?;
-            let (source, destination) = verified.refresh_catalogs(hash, &exclude)?;
+            let (source, destination) = verified.refresh_catalogs(hash, !rehash, &exclude)?;
             println!(
                 "{}",
                 serde_json::to_string_pretty(&serde_json::json!({
@@ -418,6 +446,7 @@ fn run(cli: Cli) -> Result<i32> {
         Command::Scan {
             root,
             hash,
+            rehash,
             output,
             save_local,
             exclude,
@@ -427,29 +456,47 @@ fn run(cli: Cli) -> Result<i32> {
                 .context("Cannot resolve source directory")?;
             ensure!(root.is_dir(), "Source must be a directory");
             let volume = filesystem::volume_for(&root)?;
+            // Earlier scans of this volume, on the drive and in the local library.
+            let mut cache = safesync::scan::HashCache::new(&volume);
+            if hash && !rehash {
+                cache.add_directory(&root.join(".safesync"));
+                cache.add_directory(&library()?);
+            }
             eprintln!(
                 "Scanning {} on {:?}. {}",
                 safe_display(&root),
                 volume.name,
-                if hash {
-                    "Reading full contents for SHA-256 fingerprints."
+                if !hash {
+                    "Metadata only; content equality will remain unknown.".to_string()
+                } else if cache.is_empty() {
+                    "Reading full contents for SHA-256 fingerprints.".to_string()
                 } else {
-                    "Metadata only; content equality will remain unknown."
+                    format!(
+                        "Reading only new or changed files; {} fingerprints known (--rehash reads everything).",
+                        cache.len()
+                    )
                 }
             );
             let mut last = Instant::now();
-            let inventory =
-                safesync::scan::scan_with_exclusions(&root, volume.clone(), hash, &exclude, |p| {
+            let inventory = safesync::scan::scan_with_reuse(
+                &root,
+                volume.clone(),
+                hash,
+                &exclude,
+                Some(&cache),
+                |p| {
                     if last.elapsed() >= Duration::from_secs(1) {
                         eprintln!(
-                            "Scanned {} files · {} bytes {}",
+                            "Scanned {} files · {} bytes {} · {} fingerprints reused",
                             p.files,
                             p.bytes,
-                            if hash { "hashed" } else { "catalogued" }
+                            if hash { "hashed" } else { "catalogued" },
+                            p.reused
                         );
                         last = Instant::now();
                     }
-                })?;
+                },
+            )?;
             ensure!(
                 filesystem::volume_for(&root)?.uuid == volume.uuid,
                 "Volume changed during scan"
@@ -468,6 +515,12 @@ fn run(cli: Cli) -> Result<i32> {
                 directory.join(format!("manifest-{}.jsonl", inventory.header.generation))
             };
             inventory.save_new(&output)?;
+            if inventory.header.reused_hashes > 0 {
+                eprintln!(
+                    "Reused {} fingerprints from earlier scans (file ID, size and mtime unchanged).",
+                    inventory.header.reused_hashes
+                );
+            }
             eprintln!(
                 "Saved {} regular files. Skipped {} symlinks, {} special entries and {} mounted subtrees.",
                 inventory.entries.len(),

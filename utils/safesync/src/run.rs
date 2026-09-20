@@ -140,8 +140,12 @@ pub fn inspect(path: &Path) -> Result<Inspection> {
         .read(true)
         .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
         .open(path)?;
+    inspect_directory(&directory)
+}
+
+pub(crate) fn inspect_directory(directory: &File) -> Result<Inspection> {
     let mut bytes = Vec::new();
-    open_regular(&directory, "plan.json")?
+    open_regular(directory, "plan.json")?
         .take(MAX_PLAN + 1)
         .read_to_end(&mut bytes)?;
     ensure!(
@@ -152,7 +156,7 @@ pub fn inspect(path: &Path) -> Result<Inspection> {
         serde_json::from_slice(&bytes).context("Incomplete or invalid run plan")?;
     plan.validate()?;
     let plan_sha256 = filesystem::hex(&Sha256::digest(&bytes));
-    let journal = journal::inspect_file(open_regular(&directory, "journal")?)?;
+    let journal = journal::inspect_file(open_regular(directory, "journal")?)?;
     ensure!(
         journal.state.run_id.as_ref() == Some(&plan.run_id)
             && journal.state.plan_sha256.as_ref() == Some(&plan_sha256),
