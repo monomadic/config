@@ -28,7 +28,7 @@
           },
           "to": [
             {
-              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.cargo/bin/switchblade /Volumes/Tower/Movies/Porn'"
+              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.local/bin/switchblade /Volumes/Tower/Movies/Porn'"
             }
           ]
         },
@@ -56,7 +56,7 @@
           },
           "to": [
             {
-              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.local/bin/fd-media /Users/nom/.cargo/bin/switchblade'"
+              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.local/bin/fd-media /Users/nom/.local/bin/switchblade'"
             }
           ]
         },

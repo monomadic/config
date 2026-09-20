@@ -30,6 +30,12 @@ export DOTFILES_DIR=${${${(%):-%N}:A}:h:h:h}
 [[ -f $DOTFILES_DIR/dotter/global.toml ]] || export DOTFILES_DIR=$HOME/config
 export ZSH_DOTFILES_DIR=$DOTFILES_DIR/config/zsh
 
+# Where third-party source gets checked out — the installers under
+# scripts/install/ clone into $SRC_PATH/<repo> and build from there.
+# `:-` rather than a plain assignment: zshenv runs for every zsh invocation,
+# so an unconditional export would clobber `SRC_PATH=/elsewhere some-script`.
+export SRC_PATH=${SRC_PATH:-$HOME/src}
+
 export HOSTNAME=$HOST  # zsh builtin; $(hostname) forked on every zsh invocation
 
 # Set default language and character encoding

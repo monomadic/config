@@ -2,7 +2,7 @@
 
 Measured on an Apple M4 Pro (Mac16,7 — 10P + 4E cores, 20-core GPU, 48 GB),
 macOS 26.5, ffmpeg 9.0.1, DaVinci Resolve Studio 21.0.2. Two runs: 2026-09-10
-by hand, and 2026-09-12 with `scripts/interpolation-benchmark` covering 24→60
+by hand, and 2026-09-12 with `bin/interpolation-benchmark` covering 24→60
 and 30→60 at 1080p and 4K.
 
 Three tools in this repo do frame interpolation: **`smooth-fps`**,
@@ -12,7 +12,7 @@ below, where all three of its optical flow modes beat both of the others.
 
 **There are two RIFE things, and only one of them is a tool here.**
 `rife-ncnn-vulkan` is the upstream binary (installed to `~/.local/bin` by
-`scripts/install-rife-arm64`); `bin/rife-vapoursynth` is the repo's tool, which
+`scripts/install/install-rife-arm64`); `bin/rife-vapoursynth` is the repo's tool, which
 runs that same v4.6 engine through the VapourSynth plugin in memory — no PNG
 frames, no scratch disk. It is the RIFE path that gets benchmarked and the one
 to use. An earlier wrapper called `rife-60fps` drove the binary through
@@ -84,7 +84,7 @@ running at a twelfth of the speed.
 
 ## Frame rate and resolution: 24→60 and 30→60, at 1080p and 4K
 
-Measured 2026-09-12 on the same machine with `scripts/interpolation-benchmark`,
+Measured 2026-09-12 on the same machine with `bin/interpolation-benchmark`,
 against a **4K 120 fps** master (verified 240/240 unique frames in both windows).
 A 120 fps source is what makes this table possible: 120 divides evenly by 60,
 30 *and* 24, so every rate is an exact decimation of one original and 24→60 gets
@@ -219,15 +219,15 @@ frame rate and there is nothing to remux.
 
 ## Reproducing
 
-`scripts/interpolation-benchmark` is the harness. What is still
+`bin/interpolation-benchmark` is the harness. What is still
 machine-specific is the *source*: it must be genuinely 60 fps, because a file
 that is 30 fps padded to 60 makes every score meaningless. The harness checks
 that with `mpdecimate` before it starts and warns if the source is padded.
 
 ```bash
-scripts/interpolation-benchmark ~/Movies/clip.mp4
-scripts/interpolation-benchmark -c 1080p30:30:1080 -m rife ~/Movies/clip.mp4
-scripts/interpolation-benchmark -s fast:12:2 -s slow:40:2 ~/Movies/clip.mp4
+bin/interpolation-benchmark ~/Movies/clip.mp4
+bin/interpolation-benchmark -c 1080p30:30:1080 -m rife ~/Movies/clip.mp4
+bin/interpolation-benchmark -s fast:12:2 -s slow:40:2 ~/Movies/clip.mp4
 ```
 
 It writes `results.csv`, `report.md`, and a `machine.md` block recording the
@@ -268,5 +268,5 @@ VMAF on fast motion.
 ```bash
 # Disk: ground truth is lossless, ~65 MB per second at 1080p and ~260 MB at
 # 2160p, which is why the default window is 2 seconds.
-scripts/interpolation-benchmark --dry-run ~/Movies/clip.mp4
+bin/interpolation-benchmark --dry-run ~/Movies/clip.mp4
 ```

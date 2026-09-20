@@ -154,7 +154,7 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 "System" = "open -a ScreenSaverEngine"  # ⇥ for more (lock/shutdown)
 "Config" = "open ~/.config"  # ⇥ for more (motherfucker/switchblade)
 "Motherfucker" = ""
-"ChordPro" = "/Users/nom/.local/bin/kitty-launch --os-window -- /Users/nom/go/bin/chordpro-tui '/Users/nom/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature/ChordPro'"
+"ChordPro" = "/Users/nom/.local/bin/kitty-launch --os-window -- /Users/nom/.local/bin/chordpro-tui '/Users/nom/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature/ChordPro'"
 "Copy Phone Number" = "echo 09603111806 | pbcopy"
 
 [commands.Motherfucker]
@@ -172,12 +172,12 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 # instead of activating the row; enter runs one via `sh -c`, like a shortcut.
 # Backspace on an empty field leaves the list, like a sigil mode.
 [commands.SwitchBlade]
-"Open ~/Movies/Porn/Downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Porn/Downloads"
-"Open /Volumes/*/Movies/Porn" = "$HOME/.cargo/bin/switchblade --fast-fullscreen /Volumes/*/Movies/Porn"
-"Open Sorted Local" = "$HOME/.local/bin/fd-media --sort-created . ~/Movies/Porn/Downloads | $HOME/.cargo/bin/switchblade --fast-fullscreen"
-"Open Sorted All" = "$HOME/.local/bin/fd-media --sort-created | $HOME/.cargo/bin/switchblade --fast-fullscreen"
-"Open Tower (index)" = "cat /Volumes/Tower/Movies/Porn/.index | $HOME/.cargo/bin/switchblade --fast-fullscreen"
-"Open Tower (live)" = "$HOME/.cargo/bin/switchblade --fast-fullscreen /Volumes/Tower/Movies/Porn/Downloads"
+"Open ~/Movies/Porn/Downloads" = "$HOME/.local/bin/switchblade --fast-fullscreen ~/Movies/Porn/Downloads"
+"Open /Volumes/*/Movies/Porn" = "$HOME/.local/bin/switchblade --fast-fullscreen /Volumes/*/Movies/Porn"
+"Open Sorted Local" = "$HOME/.local/bin/fd-media --sort-created . ~/Movies/Porn/Downloads | $HOME/.local/bin/switchblade --fast-fullscreen"
+"Open Sorted All" = "$HOME/.local/bin/fd-media --sort-created | $HOME/.local/bin/switchblade --fast-fullscreen"
+"Open Tower (index)" = "cat /Volumes/Tower/Movies/Porn/.index | $HOME/.local/bin/switchblade --fast-fullscreen"
+"Open Tower (live)" = "$HOME/.local/bin/switchblade --fast-fullscreen /Volumes/Tower/Movies/Porn/Downloads"
 "Config" = "/Users/nom/.local/bin/kitty-launch --cwd \"~/.config\" -- /bin/zsh -lc 'exec hx -- ~/.config/switchblade.toml'"
 
 # The real System Settings.app: enter opens it normally, ⇥ deep-links a pane.

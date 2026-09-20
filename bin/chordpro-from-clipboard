@@ -108,7 +108,7 @@ print -- "${C_CYAN}${C_BOLD}${ICON_TITLE} chordpro-import${C_RESET}${C_DIM} — 
 
 TAB2CHORDPRO=$(resolve tab2chordpro.py "$HOME/.local/bin/tab2chordpro.py") || die tools "tab2chordpro.py not found"
 RENAME=$(resolve chordpro-rename "$HOME/.local/bin/chordpro-rename")      || die tools "chordpro-rename not found"
-CHORDPRO_TUI=$(resolve chordpro-tui "$HOME/go/bin/chordpro-tui")    || die tools "chordpro-tui not found"
+CHORDPRO_TUI=$(resolve chordpro-tui "$HOME/.local/bin/chordpro-tui")    || die tools "chordpro-tui not found"
 KITTY_LAUNCH=$(resolve kitty-launch "$HOME/.local/bin/kitty-launch")  || die tools "kitty-launch not found"
 
 lib="${library:-${TABLATURE_DIR:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature}/ChordPro}"

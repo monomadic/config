@@ -22,7 +22,7 @@ local opts = {
 options.read_options(opts, "open-panel")
 
 local KITTY_LAUNCH = "/Users/nom/.local/bin/kitty-launch"
-local SWITCHBLADE = "/Users/nom/.cargo/bin/switchblade"
+local SWITCHBLADE = "/Users/nom/.local/bin/switchblade"
 
 local pending_restore = nil
 

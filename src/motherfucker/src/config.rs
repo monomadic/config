@@ -1155,7 +1155,7 @@ running_many = "M"
 "Movies" = "open -R ~/Movies"
 
 [commands.Switchblade]
-"downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Downloads"
+"downloads" = "$HOME/.local/bin/switchblade --fast-fullscreen ~/Movies/Downloads"
 "logs" = "open ~/Library/Logs/switchblade"
 
 [stats]
@@ -1188,7 +1188,7 @@ interval = 2.0
         assert_eq!(cmds[0].0, "downloads");
         assert_eq!(
             cmds[0].1,
-            "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Downloads"
+            "$HOME/.local/bin/switchblade --fast-fullscreen ~/Movies/Downloads"
         );
         assert_eq!(cmds[1].0, "logs");
     }

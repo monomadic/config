@@ -608,7 +608,7 @@ def rank(m):
 
 ordered = sorted(methods, key=rank)
 
-lines = [f"Measured {datetime.date.today().isoformat()} with `scripts/interpolation-benchmark`.", ""]
+lines = [f"Measured {datetime.date.today().isoformat()} with `bin/interpolation-benchmark`.", ""]
 lines.append(open(machine_path).read().rstrip())
 lines.append("")
 

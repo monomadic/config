@@ -96,6 +96,26 @@ cd src/leaf && cargo test toc    # single test / filter
 cd src/obsbot-rtsp-widget && go test ./...
 ```
 
+### Two kinds of installer
+
+`src/<tool>` builds from a tree inside this repo. Some tools are separate
+repositories of mine instead — `switchblade`, `tagform`, `chordpro-tui` — and
+those clone into `$SRC_PATH` (`~/src` by default, exported from
+`config/zsh/zshenv.zsh`). Their installers share one driver,
+`scripts/install/lib/git-source-install.sh`, which on every run fetches,
+fast-forwards **only** when upstream is strictly ahead, and rebuilds only when
+the tree moved or the binary predates the checked-out commit. A dirty tree or a
+local commit upstream doesn't have is never clobbered — it warns and builds what
+is checked out. `FORCE=1` rebuilds regardless.
+
+Adding another is three lines: source the driver and call
+`git_source_install <name> <url> <cargo|go>`. Add the name to the loop in
+`upgrade_git_source_tools` in `bin/dotter-deploy` so `--upgrade` keeps it current.
+
+Everything installs to `~/.local/bin`, including these — *not* `~/.cargo/bin` or
+`~/go/bin`, which is where `cargo install` and `go install` would put them. One
+location keeps the absolute paths in GUI-launched config honest.
+
 Installers are named `scripts/install/install-<name>.sh` — follow that for new ones
 (a few legacy scripts predate the prefix). Prefer the installer over a hand-rolled
 `cargo install`/`go build` — it pins the install path the rest of the config expects
@@ -172,12 +192,14 @@ watch it from another machine, and why quitting stops the jobs. Run it *or*
 | `config/<tool>/` | active config source, one tool per directory, flat |
 | `config/zsh/` | shell config only — rc files, `autoload/`, `completions/`. No commands live here any more |
 | `bin/` | **every** user-facing command, one flat directory (→ per-file symlinks in `~/.local/bin/`) |
-| `scripts/` | sourceable snippets and misc helpers (not on PATH) |
+| `bin/lib/` | the one exception to a flat `bin/` — sourceable snippets and preset data, not commands |
+| `scripts/` | subdirectories only; nothing loose at the top level |
 | `scripts/setup/` | bootstrap, deploy, and health-check entrypoints |
 | `scripts/install/` | `install-<name>.sh` build+install scripts for `src/` |
 | `scripts/tweaks/` | one-shot macOS `defaults write` tweaks — never run by deploy |
 | `dotter/` | deployment manifests only |
 | `src/<tool>/` | small personal utility source trees (Rust for the menu bar widgets and `leaf`, Go for the rest) — build via `scripts/install/install-<name>.sh` |
+| `$SRC_PATH` (default `~/src`) | checkouts of *separate* upstream repos, cloned and kept current by their installers. Outside this repo on purpose |
 | `assets/` | fonts, icons, and colour LUTs (`assets/LUTs/` deploys into Resolve and Final Cut) |
 | `vendor/bin/` | retained third-party binaries; `bin/` holds the thin `exec` shim for each |
 | `_quarantine/` | commands dropped from PATH but kept in history. Never referenced, never deployed, never added to |

@@ -8,7 +8,7 @@
 # Usage
 #   shortcuts-mpv-send.zsh <command> [args...]
 #
-#   Example: shortcuts-mpv-send.zsh ~/.cargo/bin/switchblade
+#   Example: shortcuts-mpv-send.zsh ~/.local/bin/switchblade
 #            shortcuts-mpv-send.zsh mpv --loop-playlist
 #
 # Effects

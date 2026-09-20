@@ -119,7 +119,7 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   `⇥` doesn't suit. Example:
   ```toml
   [commands.Switchblade]
-  "downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Downloads"
+  "downloads" = "$HOME/.local/bin/switchblade --fast-fullscreen ~/Movies/Downloads"
   ```
 - `[animation]` — `fade`, default `false`. An `NSPanel` left at AppKit's
   default animation behavior gets the window server's utility-panel fade on

@@ -165,9 +165,6 @@ default_target_type = "symbolic"
 
 # --- Misc tooling -------------------------------------------------------------
 
-[chafa.files]
-"scripts/chafa-select" = "~/.local/bin/chafa-select"
-
 [crush.files]
 "config/crush" = "~/.config/crush"
 

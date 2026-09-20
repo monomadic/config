@@ -29,8 +29,9 @@ Runs Dotter deploy — symlinking config is all a bare run does.
 
   --icons    reapply the macOS app icon overrides
   --upgrade  sync Yazi packages, repair the yt-dlp install, run brew upgrade,
-             and rebuild any src/ tool whose source is newer than the copy
-             installed on this machine
+             rebuild any src/ tool whose source is newer than the copy
+             installed here, and pull+rebuild the \$SRC_PATH checkouts
+             (switchblade, tagform, chordpro-tui) when upstream has moved
   --full     --icons plus --upgrade
 
 Skip individual upgrade steps with DOTTER_SKIP_YAZI_PACKAGES=1,
@@ -312,6 +313,27 @@ upgrade_src_tools() {
   done
 }
 
+# Same idea as upgrade_src_tools, for tools whose source is an upstream repo in
+# $SRC_PATH rather than a tree in this one. The installers already know how to
+# fetch, fast-forward only when upstream is strictly ahead, and rebuild only on
+# change — so all this adds is the same "don't acquire new software" gate.
+upgrade_git_source_tools() {
+  local name script
+
+  if [[ "${DOTTER_SKIP_SRC:-0}" == "1" ]]; then
+    return
+  fi
+
+  for name in switchblade tagform chordpro-tui; do
+    script="$INSTALL_DIR/install-$name.sh"
+
+    [[ -x "$HOME/.local/bin/$name" ]] || continue
+    [[ -x "$script" ]] || continue
+
+    "$script" || echo "Warning: install-$name.sh failed; run it manually." >&2
+  done
+}
+
 if (( UPGRADE )); then
   prepare_yazi_package_manifest
   prepare_yazi_local_plugin_dirs
@@ -332,6 +354,7 @@ if (( UPGRADE )); then
   install_yazi_packages
   install_yt_dlp
   upgrade_src_tools
+  upgrade_git_source_tools
 fi
 
 if (( APPLY_ICONS )) && [[ "$OSTYPE" == darwin* ]] && [[ -x "$MACOS_ICON_SCRIPT" ]]; then

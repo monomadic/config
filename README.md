@@ -94,7 +94,8 @@ On macOS, `--icons` runs
 - `assets/`: fonts and icons
 - `bin/`: every user-facing command, one flat directory, deployed as per-file
   symlinks into `~/.local/bin/`
-- `scripts/`: helper scripts and sourceable shell snippets
+- `bin/lib/`: sourceable snippets and preset data — the one non-flat part of `bin/`
+- `scripts/`: subdirectories only, nothing loose at the top
 - `scripts/setup/`: bootstrap, deploy, and health-check entrypoints
 - `scripts/install/`: `install-<name>.sh` build+install scripts for `src/`
 - `scripts/tweaks/`: one-shot macOS `defaults write` tweaks
