@@ -22,7 +22,7 @@
 [gpg "ssh"]
   # Wrapper around ssh-keygen that drops SSH_AUTH_SOCK first, so signing
   # always reads the key file and never waits on a 1Password approval.
-  program = ~/.bin/ssh-sign-local
+  program = ~/.local/bin/ssh-sign-local
 
 [commit]
   gpgsign = true

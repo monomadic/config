@@ -1,0 +1,16 @@
+#!/usr/bin/env zsh
+emulate -L zsh
+set -euo pipefail
+
+forklift_shell="${HOME}/.local/bin/forklift-shell"
+[[ -x "$forklift_shell" ]] || forklift_shell="${0:A:h}/forklift-shell"
+
+exec "$forklift_shell" --argv -- \
+  /Users/nom/.local/bin/kitty-launch \
+  --os-window \
+  --cwd @source-path \
+  --title " resolve 60fps prores " \
+  -- \
+  zsh -lc '${0:A:h}/interpolate-resolve --prores "$@"; status=$?; printf "\nPress enter to close "; read -r _; exit "$status"' \
+  zsh \
+  @source-selection-paths

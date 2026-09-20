@@ -10,13 +10,13 @@ One line, nothing installed beforehand — it sets up the Xcode Command Line
 Tools, installs Homebrew, clones this repo, installs the Brewfile, and deploys:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/monomadic/config/master/setup/macos/bootstrap.sh | bash
+curl -fsSL https://raw.githubusercontent.com/monomadic/config/master/scripts/setup/bootstrap.sh | bash
 ```
 
 The repo lands in `~/config` by default. To put it anywhere else:
 
 ```bash
-DOTFILES_DIR="$HOME/src/config" bash -c "$(curl -fsSL https://raw.githubusercontent.com/monomadic/config/master/setup/macos/bootstrap.sh)"
+DOTFILES_DIR="$HOME/src/config" bash -c "$(curl -fsSL https://raw.githubusercontent.com/monomadic/config/master/scripts/setup/bootstrap.sh)"
 ```
 
 Nothing in the repo assumes a fixed location: every script resolves the
@@ -26,7 +26,7 @@ resolving the symlink back to wherever you cloned it.
 Already cloned? Run the same script from the checkout:
 
 ```bash
-setup/macos/bootstrap.sh
+scripts/setup/bootstrap.sh
 ```
 
 ## Packages
@@ -47,12 +47,12 @@ now see the optional apps as unlisted. Pass both files, or skip cleanup.
 ## Day-to-day
 
 ```bash
-setup/macos/packages.sh list            # what's deployed on this machine
-setup/macos/packages.sh enable helix    # turn a package on
-setup/macos/packages.sh disable marta   # turn one off
-setup/macos/deploy.sh                   # apply changes
-setup/macos/deploy.sh --full            # also sync Yazi plugins + macOS app icons
-setup/macos/check.sh                    # preflight, run automatically by deploy
+scripts/setup/packages.sh list            # what's deployed on this machine
+scripts/setup/packages.sh enable helix    # turn a package on
+scripts/setup/packages.sh disable marta   # turn one off
+scripts/setup/deploy.sh                   # apply changes
+scripts/setup/deploy.sh --full            # also sync Yazi plugins + macOS app icons
+scripts/setup/check.sh                    # preflight, run automatically by deploy
 ```
 
 Dotter **symlinks**, so editing a file under `config/` changes live config
@@ -71,26 +71,30 @@ Two files, and only two:
   [dotter/local.toml.example](dotter/local.toml.example) on bootstrap.
 
 Adding a tool means: create `config/<tool>/`, add a `[<tool>.files]` section to
-`global.toml`, then `setup/macos/packages.sh enable <tool>` and deploy.
+`global.toml`, then `scripts/setup/packages.sh enable <tool>` and deploy.
 
 Deploy runs `check.sh` first unless `DOTTER_SKIP_HEALTHCHECK=1` is set. On
 macOS, `--full` also runs
-[setup/macos/apply-file-icons.sh](setup/macos/apply-file-icons.sh); edit the
+[scripts/setup/apply-file-icons.sh](scripts/setup/apply-file-icons.sh); edit the
 `ICON_MAPPINGS` array there to change which apps get custom icons.
 
 ## Structure
 
 - `config/`: active config source, flat — each direct child is one tool
-- `config/zsh/`: shell config, autoloads, and zsh-specific executables
+- `config/zsh/`: shell config and autoloads (rc files, `autoload/`, `completions/`)
 - `config/neovim/`: dormant editor source kept in-tree for later revival
 - `assets/`: fonts and icons
-- `setup/`: bootstrap, deploy, and machine setup scripts
+- `bin/`: every user-facing command, one flat directory, deployed as per-file
+  symlinks into `~/.local/bin/`
 - `scripts/`: helper scripts and sourceable shell snippets
-- `bin/` and `config/zsh/bin/`: maintained user-facing executables
-- `utils/`: small personal utility source trees (Rust for the menu bar widgets,
-  `leaf`, `pimped`, `motherfucker`; Go for the rest) built via `setup/install/*.sh`
+- `scripts/setup/`: bootstrap, deploy, and health-check entrypoints
+- `scripts/install/`: `install-<name>.sh` build+install scripts for `src/`
+- `scripts/tweaks/`: one-shot macOS `defaults write` tweaks
+- `src/`: small personal utility source trees (Rust for the menu bar widgets,
+  `leaf`, `pimped`, `motherfucker`; Go for the rest) built via `scripts/install/*.sh`
 - `vendor/bin/`: retained third-party or custom-built binaries
-- `archive/`: installers, app bundles, backups, and historical variants
+- `_quarantine/`: commands dropped from PATH but kept in git history — not
+  deployed, not referenced, not added to
 
 Config directories kept in-tree but not deployed through Dotter yet:
 `beatportdl`, `compressor`, `git`, `homebrew`, `iterm`, `ollama`, `python`,

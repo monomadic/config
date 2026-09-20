@@ -6,7 +6,7 @@
 local mp = require "mp"
 local utils = require "mp.utils"
 
-local KITTY_LAUNCH = "/Users/nom/.zsh/bin/kitty-launch"
+local KITTY_LAUNCH = "/Users/nom/.local/bin/kitty-launch"
 local EDITOR = "hx"
 
 local function config_path()

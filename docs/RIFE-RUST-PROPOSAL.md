@@ -179,7 +179,7 @@ the spike too if the first conversion goes on the ANE.
 ### Phase 1, only on a go: `utils/rife-ane`
 
 - Rust, `objc2` + `objc2-core-ml`, no bundle, installer at
-  `setup/install/install-rife-ane.sh`, following `battery-widget`'s pattern.
+  `scripts/install/install-rife-ane.sh`, following `battery-widget`'s pattern.
 - ffmpeg decode to `rgb24` or `rgba` over stdin, ffmpeg encode from stdout,
   audio copied in the encoder invocation. No intermediate files at any point.
 - Scene-cut detection from frame difference, so cuts are duplicated rather

@@ -47,7 +47,7 @@ TABLATURE_GLOBS=(
 )
 
 export ZSH_SCRIPT_PATHS=(
-  $ZSH_CONFIG_DIR/bin
+  $HOME/.local/bin
 )
 
 if [[ -n ${KITTY_WINDOW_ID:-} || -n ${KITTY_LISTEN_ON:-} ]]; then
@@ -240,7 +240,7 @@ _zellij_auto_attach_ssh() {
 }
 _zellij_auto_attach_ssh
 
-# --- Prompt: pimped, a fast native renderer (utils/pimped → ~/.local/bin/pimped) ---
+# --- Prompt: pimped, a fast native renderer (src/pimped → ~/.local/bin/pimped) ---
 # A static Rust binary: renders in well under a millisecond, spawns no
 # subprocesses, and skips git entirely on /Volumes mounts, so a stale SMB share
 # can never wedge the prompt. Falls back to starship where the binary isn't built.
@@ -277,7 +277,7 @@ elif (( $+commands[starship] )); then
 fi
 
 # television init lives in autoload/completions.zsh (cached).
-# LM Studio PATH entries come from ~/.bin/init-path.
+# LM Studio PATH entries come from ~/.local/bin/init-path.
 
 # >>> elio shell integration >>>
 elio() {

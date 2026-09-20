@@ -4,7 +4,7 @@
 #
 # `packages` selects which sections of dotter/global.toml get deployed.
 # Comment a line out to disable a package without forgetting it exists;
-# `setup/macos/packages.sh list` shows what is on, off, and available.
+# `scripts/setup/packages.sh list` shows what is on, off, and available.
 
 packages = [
   "alacritty",

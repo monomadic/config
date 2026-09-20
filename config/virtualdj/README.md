@@ -34,8 +34,8 @@ So: track the settings worth keeping in `settings.preset`, and write them into
 
 ## vdj-settings
 
-Lives at [`config/zsh/bin/vdj-settings`](../zsh/bin/vdj-settings), deployed to
-`~/.zsh/bin/`.
+Lives at [`bin/vdj-settings`](../zsh/bin/vdj-settings), deployed to
+`~/.local/bin/`.
 
 ```bash
 vdj-settings get automation/autoGain             # read one value
@@ -117,7 +117,7 @@ Note that `export` overwrites the file, discarding hand edits and comments.
 ### On a new machine
 
 ```bash
-setup/macos/deploy.sh     # Mappers + Pads
+scripts/setup/deploy.sh     # Mappers + Pads
 vdj-settings apply        # the 223 tracked settings
 ```
 

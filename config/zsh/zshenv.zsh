@@ -6,9 +6,7 @@
 # note: in zsh, $path is an associative array that syncs to $PATH
 # typeset -U path
 # path=(
-#   $HOME/.bin
 #   $HOME/.local/bin
-#   $HOME/.zsh/bin
 #   $HOME/.cargo/bin
 #   $HOME/.deno/bin
 #   $HOME/.foundry/bin
@@ -18,7 +16,7 @@
 #   $path
 # )
 
-source $HOME/.bin/init-path
+source $HOME/.local/bin/init-path
 
 export ZSH_CONFIG_DIR=$HOME/.zsh
 export ZSH_COMPLETIONS_DIR=$ZSH_CONFIG_DIR/completions

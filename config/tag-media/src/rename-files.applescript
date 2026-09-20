@@ -1,7 +1,7 @@
 on run {}
   -- build a proper PATH
   set home to POSIX path of (path to home folder)
-  set customPath to "/opt/homebrew/bin:" & home & ".bin:" & home & ".zsh/bin:/usr/local/bin:/usr/bin:/bin"
+  set customPath to "/opt/homebrew/bin:" & home & ".bin:" & home & ".local/bin:/usr/local/bin:/usr/bin:/bin"
   -- grab Finder selection
   tell application "Finder" to set sel to selection as alias list
   if sel = {} then return

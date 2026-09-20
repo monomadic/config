@@ -59,7 +59,7 @@ format = "  [􀤂  $output](bold #0AAAFF)"
 
 [custom.battery]
 when = '[ -z "${ZELLIJ:-}" ] && pmset -g batt | grep -q InternalBattery'
-command = "~/.zsh/bin/zellij-status-segment battery"
+command = "~/.local/bin/zellij-status-segment battery"
 format = "  [$output](bold #0A7AFF) "
 
 # ---------- Time (right) ----------

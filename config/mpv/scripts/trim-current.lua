@@ -1,7 +1,7 @@
 local utils = require "mp.utils"
 
-local kitty_launch = "/Users/nom/.zsh/bin/kitty-launch"
-local trim_command = "/Users/nom/.zsh/bin/ffmpeg-lossless-cut"
+local kitty_launch = "/Users/nom/.local/bin/kitty-launch"
+local trim_command = "/Users/nom/.local/bin/ffmpeg-lossless-cut"
 
 local function absolute_media_path()
     local media_path = mp.get_property("path")

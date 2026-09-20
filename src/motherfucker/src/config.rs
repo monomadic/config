@@ -1,0 +1,1379 @@
+//! User configuration: `~/.config/motherfucker/config.toml`.
+//!
+//! Read once at process start (one small file read — restart the agent to
+//! apply changes: `scripts/install/install-motherfucker.sh` or `launchctl
+//! kickstart -k gui/$UID/com.nom.motherfucker`). Parsed with a hand-rolled
+//! TOML-subset parser — sections and `key = value` lines only — to keep the
+//! binary dependency-free. Every field has a built-in default; a missing or
+//! malformed file just means defaults, never a crash.
+
+use crate::hotkey;
+
+/// A key with no modifier semantics of its own.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Key {
+    Char(char),
+    Space,
+    Enter,
+    Escape,
+    Tab,
+    Up,
+    Down,
+    Left,
+    Right,
+    Backspace,
+}
+
+/// Modifier + key combination, usable both as a global hotkey (Carbon) and
+/// an in-panel binding (NSEvent matching).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Chord {
+    pub cmd: bool,
+    pub ctrl: bool,
+    pub opt: bool,
+    pub shift: bool,
+    pub key: Key,
+}
+
+impl Chord {
+    const fn plain(key: Key) -> Self {
+        Chord { cmd: false, ctrl: false, opt: false, shift: false, key }
+    }
+}
+
+/// What a global trigger summons. One mode today; the config format already
+/// carries a mode name per hotkey so new modes are additive.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Mode {
+    Launcher,
+}
+
+/// In-panel actions bindable to chords.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Action {
+    Open,
+    LaunchNew,
+    Reveal,
+    Clear,
+    Dismiss,
+    SelectAll,
+    MoveUp,
+    MoveDown,
+    RefreshConfig,
+    /// Enter the selected row's `[commands.<Name>]` subcommand list, if any.
+    ShowCommands,
+}
+
+#[derive(Clone)]
+pub struct Style {
+    pub width: f64,
+    pub panel_background: (f64, f64, f64),
+    pub panel_foreground: (f64, f64, f64),
+    pub panel_opacity: f64,
+    pub panel_padding: f64,
+    pub panel_corner_radius: f64,
+    pub item_foreground: (f64, f64, f64),
+    pub item_font_size: f64,
+    pub selected_item_background: (f64, f64, f64),
+    pub selected_item_foreground: (f64, f64, f64),
+    pub selected_item_opacity: f64,
+    pub selected_item_corner_radius: f64,
+    pub item_foreground_highlight: (f64, f64, f64),
+    pub selected_item_foreground_highlight: (f64, f64, f64),
+    pub input_font_size: f64,
+    pub cpu_alert: (f64, f64, f64),
+    pub running_dot: (f64, f64, f64),
+    /// Font family for input + row text; empty = system font.
+    pub font_family: String,
+    /// NSFontWeight (-1.0..1.0) for row item text; ignored when a custom
+    /// `font_family` is set (name a weighted variant instead).
+    pub item_font_weight: f64,
+    /// Glyph column + search-icon color; `None` = row/panel foreground.
+    pub icon_foreground: Option<(f64, f64, f64)>,
+    /// Stroke around the whole panel; width 0 (the default) = no border.
+    pub border: (f64, f64, f64),
+    pub border_width: f64,
+    /// Tag-pill text ("Applications", "Utilities", "Shortcut");
+    /// `None` = row foreground at the stock alpha.
+    pub item_info_foreground: Option<(f64, f64, f64)>,
+    /// Tag-pill fill; `None` = clear with the stock hairline outline.
+    pub item_info_background: Option<(f64, f64, f64)>,
+    /// Inset stroke on the selected row; width 0 (the default) = none.
+    pub selected_item_border: (f64, f64, f64),
+    pub selected_item_border_width: f64,
+    /// Ring drawn OUTSIDE the panel body, in a margin the window carries for
+    /// it. Distinct from `border`, which CALayer strokes *inside* the panel
+    /// edge, over the material — a bevel. This one sits beyond the edge on
+    /// the desktop, so `outer_border_opacity` (its own alpha, since colors
+    /// are `#rrggbb`) actually reads as translucency: a wide white ring at
+    /// low alpha lifts a pure-black panel off a dark background. Width 0
+    /// (the default) = no ring and no margin.
+    pub outer_border: (f64, f64, f64),
+    pub outer_border_width: f64,
+    pub outer_border_opacity: f64,
+    /// Fill behind the CPU warning badge; `None` = `cpu_alert` at 0.16.
+    pub cpu_alert_background: Option<(f64, f64, f64)>,
+    /// Sigil-mode input badge (the colored box holding `=`, `!`, …).
+    /// `sigil_background` `None` = `item_foreground_highlight`;
+    /// `sigil_foreground` `None` = `panel_background` (dark glyph on the box).
+    pub sigil_background: Option<(f64, f64, f64)>,
+    pub sigil_foreground: Option<(f64, f64, f64)>,
+}
+
+impl Default for Style {
+    fn default() -> Self {
+        Style {
+            width: 620.0,
+            panel_background: (0.0, 0.0, 0.0),
+            panel_foreground: (1.0, 1.0, 1.0),
+            panel_opacity: 0.70,
+            panel_padding: 10.0,
+            panel_corner_radius: 18.0,
+            item_foreground: (1.0, 1.0, 1.0),
+            item_font_size: 13.5,
+            selected_item_background: (0.60, 0.70, 0.90),
+            selected_item_foreground: (1.0, 1.0, 1.0),
+            selected_item_opacity: 0.085,
+            selected_item_corner_radius: 8.0,
+            item_foreground_highlight: (0.38, 0.75, 1.0),
+            selected_item_foreground_highlight: (0.38, 0.75, 1.0),
+            input_font_size: 24.0,
+            cpu_alert: (0.94, 0.33, 0.31),
+            running_dot: (0.30, 0.80, 0.39),
+            font_family: String::new(),
+            item_font_weight: 0.0,
+            icon_foreground: None,
+            border: (1.0, 1.0, 1.0),
+            border_width: 0.0,
+            item_info_foreground: None,
+            item_info_background: None,
+            selected_item_border: (1.0, 1.0, 1.0),
+            selected_item_border_width: 0.0,
+            outer_border: (1.0, 1.0, 1.0),
+            outer_border_width: 0.0,
+            outer_border_opacity: 0.25,
+            cpu_alert_background: None,
+            sigil_background: None,
+            sigil_foreground: None,
+        }
+    }
+}
+
+/// Map a named weight to its NSFontWeight value, or parse a raw number in
+/// -1.0..1.0. Names match Apple's `NSFontWeight*` constants.
+pub fn parse_weight(s: &str) -> Option<f64> {
+    let w = match s.trim().to_lowercase().as_str() {
+        "ultralight" => -0.8,
+        "thin" => -0.6,
+        "light" => -0.4,
+        "regular" | "normal" => 0.0,
+        "medium" => 0.23,
+        "semibold" => 0.3,
+        "bold" => 0.4,
+        "heavy" => 0.56,
+        "black" => 0.62,
+        other => other.parse::<f64>().ok()?.clamp(-1.0, 1.0),
+    };
+    Some(w)
+}
+
+/// Customizable glyphs. `search` and the four row-state glyphs are literal
+/// strings (SF Symbols pasted as text); the location entries are SF Symbol
+/// *names* rendered through NSImage for the installed-row location tag.
+pub struct Icons {
+    pub search: String,
+    pub running_many: String,
+    pub running_one: String,
+    pub running_none: String,
+    pub installed: String,
+    pub utilities: String,
+    pub system: String,
+    pub applications: String,
+    pub shortcut: String,
+    /// Glyph for a `[search_engines]` item that doesn't carry its own
+    /// `icon`. Literal, like the row-state glyphs above.
+    pub engine: String,
+}
+
+impl Default for Icons {
+    fn default() -> Self {
+        Icons {
+            search: "⌕".into(),
+            running_many: "\u{10088C}".into(), // running, 2+ windows
+            running_one: "\u{1003DC}".into(),  // running, one window
+            running_none: "\u{100941}".into(), // running, no windows
+            installed: "\u{100943}".into(),    // installed, launchable
+            utilities: "wrench.and.screwdriver".into(),
+            system: "gearshape".into(),
+            applications: "app.fill".into(),
+            shortcut: "terminal".into(),
+            engine: "\u{1008be}".into(), // magnifier over a globe
+        }
+    }
+}
+
+/// A named `[style]` overlay loaded from `themes/<name>.toml`. Overrides are
+/// kept as raw key/value pairs and replayed through `apply_style`, so a theme
+/// file speaks exactly the `[style]` grammar — nothing new to parse.
+#[derive(Clone)]
+pub struct Theme {
+    /// File stem, e.g. "ocean-breeze".
+    pub name: String,
+    pub overrides: Vec<(String, String)>,
+}
+
+/// Display name for a theme: file stem with `-`/`_` as spaces, Title Case
+/// ("ocean-breeze" → "Ocean Breeze").
+pub fn theme_display_name(name: &str) -> String {
+    name.split(['-', '_'])
+        .filter(|w| !w.is_empty())
+        .map(|w| {
+            let mut c = w.chars();
+            match c.next() {
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Overlay a theme onto a base style.
+pub fn apply_theme(style: &mut Style, theme: &Theme) {
+    for (key, val) in &theme.overrides {
+        apply_style(style, key, val, key);
+    }
+}
+
+pub struct Config {
+    /// Global summon triggers, in file order. Hotkey id N (1-based) maps to
+    /// index N-1 here.
+    pub hotkeys: Vec<(Chord, Mode)>,
+    pub binds: Vec<(Chord, Action)>,
+    /// Base style from `[style]` — never includes a theme overlay; the
+    /// active (possibly themed) style is owned by the UI layer.
+    pub style: Style,
+    /// Themes found in `themes/*.toml`, sorted by name.
+    pub themes: Vec<Theme>,
+    /// `theme = "name"` from `[style]`: overlay to apply at startup.
+    pub theme: Option<String>,
+    pub icons: Icons,
+    /// Per-name glyph overrides from `[icons.apps]`: (lowercased entry
+    /// name-or-pattern, glyph). Replaces the leading state glyph for
+    /// matching rows. A key may wrap itself in `*` (`*text*`, `*text`,
+    /// `text*`) to match anywhere in / the end of / the start of the entry
+    /// name instead of exactly — see `icon_override_matches`.
+    pub icon_overrides: Vec<(String, String)>,
+    /// `[shortcuts]`: (display name, shell command). Matched like apps;
+    /// selecting one runs the command via `sh -c`.
+    pub shortcuts: Vec<(String, String)>,
+    /// `[commands.<App Name>]` sections: (lowercased app/shortcut name,
+    /// subcommands as (display name, shell command)). Pressing the
+    /// `ShowCommands` chord (default Tab) on a matching row lists these;
+    /// selecting one runs the command via `sh -c`, same as `[shortcuts]`.
+    pub app_commands: Vec<(String, Vec<(String, String)>)>,
+    /// `[style]` `max_rows`: rows the panel draws at once. Anything past
+    /// that stays in the list and scrolls into view (keyboard or wheel) —
+    /// it is a viewport height, not a result limit. Not routed through
+    /// `apply_style`: it's panel geometry the themes have no business
+    /// resizing mid-preview.
+    pub max_rows: usize,
+    /// Seconds between stat refreshes while the panel is up.
+    pub stats_interval: f64,
+    /// `[animation]` `fade`: window-server fade on summon and dismiss. Off
+    /// by default — the panel is on screen the frame the hotkey lands. On
+    /// restores AppKit's stock utility-panel animation. Not a `[style]` key:
+    /// it's motion, not appearance, so themes never touch it.
+    pub fade: bool,
+    /// `[animation]` `scroll`: ease the row window into place when a key or
+    /// a wheel notch moves it in whole rows. On by default — unlike the
+    /// summon, a scroll is motion the eye is meant to follow. A trackpad
+    /// never eases: it tracks the fingers directly, which is smooth already.
+    pub scroll_animation: bool,
+    /// `[modes.<name>]` `sigil`: typing one as the FIRST character switches
+    /// the panel into that mode. `None` = mode disabled.
+    pub sigil_math: Option<char>,
+    pub sigil_currency: Option<char>,
+    /// `[search_engines]` entries, in display order. Not a sigil mode: each
+    /// engine is an ordinary row in the launcher index, and activating one
+    /// (enter or tab) hands the panel over to it for the search terms.
+    pub search_engines: Vec<SearchEngine>,
+    /// `[modes.currency]` `targets`: currency codes to convert into, in
+    /// display order. The source currency is skipped when it appears here.
+    pub currency_targets: Vec<String>,
+}
+
+/// Which mode a sigil selects. One dispatch point so a new sigil mode is
+/// added in exactly one place (here + the resolver it calls).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SigilKind {
+    Math,
+    Currency,
+}
+
+impl Config {
+    /// The mode a leading character selects, if any is configured to it.
+    pub fn sigil_kind(&self, c: char) -> Option<SigilKind> {
+        if self.sigil_math == Some(c) {
+            Some(SigilKind::Math)
+        } else if self.sigil_currency == Some(c) {
+            Some(SigilKind::Currency)
+        } else {
+            None
+        }
+    }
+}
+
+/// One `[search_engines]` entry — a whole searchable item in one table,
+/// rather than a name here and an icon over in `[icons.apps]`:
+///
+/// ```toml
+/// "Google" = { query = "https://google.com/search?q={q}", icon = "\u{1002cb}", shortcut = "g" }
+/// ```
+///
+/// `icon` and `shortcut` are optional; empty means unset.
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct SearchEngine {
+    /// Row title, and what the launcher matches against.
+    pub name: String,
+    /// URL template; `{q}` is replaced with the encoded search terms.
+    pub query: String,
+    /// Glyph for the icon column and the input badge.
+    pub icon: String,
+    /// Short alias: typing it exactly also finds the engine, and it rides
+    /// the row as a pill.
+    pub shortcut: String,
+}
+
+impl SearchEngine {
+    /// The glyph this engine shows in a row's icon column and in the input
+    /// badge once it takes the panel over: its own `icon`, or `default`
+    /// (`[icons] engine`) for an entry that doesn't name one.
+    pub fn glyph(&self, default: &str) -> String {
+        if self.icon.is_empty() {
+            default.to_string()
+        } else {
+            self.icon.clone()
+        }
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            hotkeys: vec![(
+                Chord { opt: true, ..Chord::plain(Key::Space) },
+                Mode::Launcher,
+            )],
+            binds: default_binds(),
+            style: Style::default(),
+            themes: Vec::new(),
+            theme: None,
+            icons: Icons::default(),
+            icon_overrides: Vec::new(),
+            shortcuts: Vec::new(),
+            app_commands: Vec::new(),
+            max_rows: 6,
+            stats_interval: 1.0,
+            fade: false,
+            scroll_animation: true,
+            sigil_math: Some('='),
+            sigil_currency: Some('$'),
+            search_engines: default_search_engines(),
+            currency_targets: ["USD", "EUR", "GBP", "AUD", "BTC"]
+                .into_iter()
+                .map(String::from)
+                .collect(),
+        }
+    }
+}
+
+/// The engines every install starts with — broad enough to be useful before
+/// anyone opens the config, and none of them carrying an `icon`, since the
+/// glyph that suits a machine is an `[icons] engine` decision (or a
+/// per-entry one) rather than something to bake in here.
+fn default_search_engines() -> Vec<SearchEngine> {
+    [
+        ("Google", "https://www.google.com/search?q={q}", "g"),
+        ("DuckDuckGo", "https://duckduckgo.com/?q={q}", "ddg"),
+        ("YouTube", "https://www.youtube.com/results?search_query={q}", "yt"),
+        ("Wikipedia", "https://en.wikipedia.org/wiki/Special:Search?search={q}", "w"),
+        ("GitHub", "https://github.com/search?q={q}", "gh"),
+        ("Stack Overflow", "https://stackoverflow.com/search?q={q}", "so"),
+        ("Reddit", "https://www.reddit.com/search/?q={q}", "r"),
+        ("Maps", "https://www.google.com/maps/search/{q}", "map"),
+        ("IMDb", "https://www.imdb.com/find/?q={q}", "imdb"),
+    ]
+    .into_iter()
+    .map(|(name, query, shortcut)| SearchEngine {
+        name: name.to_string(),
+        query: query.to_string(),
+        icon: String::new(),
+        shortcut: shortcut.to_string(),
+    })
+    .collect()
+}
+
+fn default_binds() -> Vec<(Chord, Action)> {
+    let c = Chord::plain;
+    vec![
+        (c(Key::Enter), Action::Open),
+        (Chord { cmd: true, ..c(Key::Enter) }, Action::LaunchNew),
+        (Chord { cmd: true, ..c(Key::Char('r')) }, Action::Reveal),
+        (Chord { ctrl: true, ..c(Key::Char('u')) }, Action::Clear),
+        (Chord { ctrl: true, ..c(Key::Char('c')) }, Action::Dismiss),
+        (Chord { cmd: true, ..c(Key::Char('a')) }, Action::SelectAll),
+        (c(Key::Escape), Action::Dismiss),
+        (c(Key::Up), Action::MoveUp),
+        (c(Key::Down), Action::MoveDown),
+        (
+            Chord { cmd: true, shift: true, ..c(Key::Char('r')) },
+            Action::RefreshConfig,
+        ),
+        (c(Key::Tab), Action::ShowCommands),
+    ]
+    // Note: cmd+1..cmd+9 and cmd+<letter> row-jump hints are NOT configured
+    // binds — they're computed live from whatever's on screen (see
+    // `compute_row_hints`/`try_activate_hint` in main.rs) and only fall
+    // back to a free slot here, so they can't collide with cmd+r/cmd+a
+    // above or anything a user adds to [keys].
+}
+
+/// Carbon virtual keycode for a key (global hotkeys). ANSI layout.
+pub fn carbon_vk(key: Key) -> Option<u32> {
+    Some(match key {
+        Key::Space => 0x31,
+        Key::Enter => 0x24,
+        Key::Escape => 0x35,
+        Key::Tab => 0x30,
+        Key::Up => 0x7E,
+        Key::Down => 0x7D,
+        Key::Left => 0x7B,
+        Key::Right => 0x7C,
+        Key::Backspace => 0x33,
+        Key::Char(c) => match c {
+            'a' => 0x00, 's' => 0x01, 'd' => 0x02, 'f' => 0x03, 'h' => 0x04,
+            'g' => 0x05, 'z' => 0x06, 'x' => 0x07, 'c' => 0x08, 'v' => 0x09,
+            'b' => 0x0B, 'q' => 0x0C, 'w' => 0x0D, 'e' => 0x0E, 'r' => 0x0F,
+            'y' => 0x10, 't' => 0x11, '1' => 0x12, '2' => 0x13, '3' => 0x14,
+            '4' => 0x15, '6' => 0x16, '5' => 0x17, '=' => 0x18, '9' => 0x19,
+            '7' => 0x1A, '-' => 0x1B, '8' => 0x1C, '0' => 0x1D, ']' => 0x1E,
+            'o' => 0x1F, 'u' => 0x20, '[' => 0x21, 'i' => 0x22, 'p' => 0x23,
+            'l' => 0x25, 'j' => 0x26, '\'' => 0x27, 'k' => 0x28, ';' => 0x29,
+            '\\' => 0x2A, ',' => 0x2B, '/' => 0x2C, 'n' => 0x2D, 'm' => 0x2E,
+            '.' => 0x2F, '`' => 0x32,
+            _ => return None,
+        },
+    })
+}
+
+pub fn carbon_mods(chord: &Chord) -> u32 {
+    let mut m = 0;
+    if chord.cmd {
+        m |= hotkey::MOD_CMD;
+    }
+    if chord.shift {
+        m |= hotkey::MOD_SHIFT;
+    }
+    if chord.opt {
+        m |= hotkey::MOD_OPTION;
+    }
+    if chord.ctrl {
+        m |= hotkey::MOD_CONTROL;
+    }
+    m
+}
+
+/// What `charactersIgnoringModifiers` reports for a key (in-panel matching).
+/// Compared lowercased; shift is carried by the modifier flags.
+pub fn event_chars(key: Key) -> String {
+    match key {
+        Key::Char(c) => return c.to_lowercase().to_string(),
+        Key::Space => " ",
+        Key::Enter => "\r",
+        Key::Escape => "\u{1b}",
+        Key::Tab => "\t",
+        Key::Up => "\u{f700}",
+        Key::Down => "\u{f701}",
+        Key::Left => "\u{f702}",
+        Key::Right => "\u{f703}",
+        Key::Backspace => "\u{7f}",
+    }
+    .to_string()
+}
+
+pub fn load() -> Config {
+    let mut cfg = Config::default();
+    let base = std::env::var_os("XDG_CONFIG_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config")));
+    let Some(base) = base else {
+        return cfg;
+    };
+    let dir = base.join("motherfucker");
+    if let Ok(text) = std::fs::read_to_string(dir.join("config.toml")) {
+        parse_into(&mut cfg, &text);
+    }
+    cfg.themes = load_themes(&dir.join("themes"));
+    cfg
+}
+
+/// `themes/*.toml`, each a `[style]` overlay; name = file stem. Read at
+/// startup and on refresh-config only — never on the summon path.
+fn load_themes(dir: &std::path::Path) -> Vec<Theme> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut themes: Vec<Theme> = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+            continue;
+        }
+        let Some(name) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        themes.push(Theme {
+            name: name.to_string(),
+            overrides: parse_theme(&text),
+        });
+    }
+    themes.sort_by(|a, b| a.name.cmp(&b.name));
+    themes
+}
+
+/// `[style]` key/value pairs from a theme file. Keys are validated lazily —
+/// bad ones warn when the theme is applied, exactly like config.toml lines.
+fn parse_theme(text: &str) -> Vec<(String, String)> {
+    let mut section = String::new();
+    let mut overrides = Vec::new();
+    for raw in text.lines() {
+        let line = strip_comment(raw).trim().to_string();
+        if line.is_empty() {
+            continue;
+        }
+        if line.starts_with('[') && line.ends_with(']') {
+            section = line[1..line.len() - 1].trim().to_lowercase();
+            continue;
+        }
+        if section != "style" {
+            continue;
+        }
+        if let Some((lhs, rhs)) = line.split_once('=') {
+            overrides.push((unquote(lhs.trim()), unquote(rhs.trim())));
+        }
+    }
+    overrides
+}
+
+fn warn(line: &str, what: &str) {
+    eprintln!("motherfucker: config: {what}: `{line}`");
+}
+
+/// Parse a `sigil = ...` value: a single character, or `""`/`none` to disable
+/// the mode. `Err` means it was more than one character (caller warns).
+fn parse_sigil(val: &str) -> Result<Option<char>, ()> {
+    match val.to_lowercase().as_str() {
+        "" | "none" => Ok(None),
+        _ => {
+            let mut chars = val.chars();
+            match (chars.next(), chars.next()) {
+                (Some(c), None) => Ok(Some(c)),
+                _ => Err(()),
+            }
+        }
+    }
+}
+
+fn parse_into(cfg: &mut Config, text: &str) {
+    let mut section = String::new();
+    let mut hotkeys: Vec<(Chord, Mode)> = Vec::new();
+    for raw in text.lines() {
+        let line = strip_comment(raw).trim().to_string();
+        if line.is_empty() {
+            continue;
+        }
+        if line.starts_with('[') && line.ends_with(']') {
+            section = line[1..line.len() - 1].trim().to_lowercase();
+            continue;
+        }
+        let Some((lhs, rhs)) = line.split_once('=') else {
+            warn(&line, "expected `key = value`");
+            continue;
+        };
+        let key = unquote(lhs.trim());
+        let val = unquote(rhs.trim());
+        match section.as_str() {
+            "hotkeys" => {
+                let Some(chord) = parse_chord(&key) else {
+                    warn(&line, "unrecognized hotkey chord");
+                    continue;
+                };
+                if carbon_vk(chord.key).is_none() {
+                    warn(&line, "key has no global-hotkey keycode");
+                    continue;
+                }
+                let Some(mode) = parse_mode(&val) else {
+                    warn(&line, "unknown mode");
+                    continue;
+                };
+                hotkeys.push((chord, mode));
+            }
+            "keys" => {
+                let Some(chord) = parse_chord(&key) else {
+                    warn(&line, "unrecognized chord");
+                    continue;
+                };
+                // Later entries (user config) override defaults for the
+                // same chord; "none" unbinds it.
+                cfg.binds.retain(|(c, _)| *c != chord);
+                if val.eq_ignore_ascii_case("none") {
+                    continue;
+                }
+                let Some(action) = parse_action(&val) else {
+                    warn(&line, "unknown action");
+                    continue;
+                };
+                cfg.binds.push((chord, action));
+            }
+            "style" if key.replace('-', "_") == "theme" => {
+                cfg.theme = (!val.is_empty()).then(|| val.clone());
+            }
+            "style" if key.replace('-', "_") == "max_rows" => match val.parse::<usize>() {
+                Ok(v) => cfg.max_rows = v.clamp(1, 40),
+                Err(_) => warn(&line, "expected a whole number of rows"),
+            },
+            "style" => apply_style(&mut cfg.style, &key, &val, &line),
+            "icons" => apply_icon(&mut cfg.icons, &key, &val, &line),
+            "icons.apps" => {
+                let name = key.to_lowercase();
+                cfg.icon_overrides.retain(|(n, _)| *n != name);
+                cfg.icon_overrides.push((name, val));
+            }
+            "shortcuts" => {
+                cfg.shortcuts.retain(|(n, _)| !n.eq_ignore_ascii_case(&key));
+                cfg.shortcuts.push((key, val));
+            }
+            // `[commands.<App Name>]`: subcommands for one app or shortcut,
+            // matched by name (case-insensitive) when `ShowCommands` fires.
+            // The section header is already lowercased by the tokenizer
+            // above, so the app name here is lowercase.
+            section if section.starts_with("commands.") => {
+                let app = section["commands.".len()..].to_string();
+                if app.is_empty() {
+                    warn(&line, "empty app name in [commands.<App Name>]");
+                    continue;
+                }
+                let entry = match cfg.app_commands.iter_mut().find(|(n, _)| *n == app) {
+                    Some(e) => e,
+                    None => {
+                        cfg.app_commands.push((app, Vec::new()));
+                        cfg.app_commands.last_mut().unwrap()
+                    }
+                };
+                entry.1.retain(|(n, _)| !n.eq_ignore_ascii_case(&key));
+                entry.1.push((key, val));
+            }
+            // Each mode is its own table `[modes.<name>]` carrying a `sigil`
+            // key (the first-character trigger) plus any mode-specific keys.
+            "modes.math" => match key.to_lowercase().as_str() {
+                "sigil" => match parse_sigil(&val) {
+                    Ok(s) => cfg.sigil_math = s,
+                    Err(()) => warn(&line, "sigil must be a single character"),
+                },
+                _ => warn(&line, "unknown math key"),
+            },
+            "modes.currency" => match key.replace('-', "_").as_str() {
+                "sigil" => match parse_sigil(&val) {
+                    Ok(s) => cfg.sigil_currency = s,
+                    Err(()) => warn(&line, "sigil must be a single character"),
+                },
+                "targets" => {
+                    let targets: Vec<String> = val
+                        .split(',')
+                        .map(|t| t.trim().to_uppercase())
+                        .filter(|t| !t.is_empty())
+                        .collect();
+                    if !targets.is_empty() {
+                        cfg.currency_targets = targets;
+                    }
+                }
+                _ => warn(&line, "unknown currency key"),
+            },
+            // Each engine is one inline table, keyed by the name it shows
+            // under. Merged into the defaults by name, like [shortcuts].
+            "search_engines" => {
+                let Some(fields) = parse_inline_table(&val) else {
+                    warn(&line, "expected { query = \"…{q}…\", icon = \"…\", shortcut = \"…\" }");
+                    continue;
+                };
+                let mut engine = SearchEngine { name: key.clone(), ..SearchEngine::default() };
+                for (k, v) in fields {
+                    match k.as_str() {
+                        "query" | "url" => engine.query = v,
+                        "icon" => engine.icon = v,
+                        "shortcut" => engine.shortcut = v,
+                        _ => warn(&line, "unknown search-engine key"),
+                    }
+                }
+                if engine.query.is_empty() {
+                    warn(&line, "search engine needs a query URL");
+                    continue;
+                }
+                if !engine.query.contains("{q}") {
+                    warn(&line, "query has no {q} placeholder; terms will be dropped");
+                }
+                cfg.search_engines.retain(|e| !e.name.eq_ignore_ascii_case(&key));
+                cfg.search_engines.push(engine);
+            }
+            // Web search stopped being a sigil mode: each engine is now its
+            // own item in the launcher index.
+            "modes.web" => warn(&line, "[modes.web] is now [search_engines]"),
+            "stats" => {
+                if key.replace('-', "_") == "interval" {
+                    match val.parse::<f64>() {
+                        Ok(v) => cfg.stats_interval = v.clamp(0.3, 60.0),
+                        Err(_) => warn(&line, "expected a number of seconds"),
+                    }
+                } else {
+                    warn(&line, "unknown stats key");
+                }
+            }
+            "animation" => match key.replace('-', "_").as_str() {
+                "fade" => match parse_bool(&val) {
+                    Some(b) => cfg.fade = b,
+                    None => warn(&line, "expected true or false"),
+                },
+                "scroll" => match parse_bool(&val) {
+                    Some(b) => cfg.scroll_animation = b,
+                    None => warn(&line, "expected true or false"),
+                },
+                _ => warn(&line, "unknown animation key"),
+            },
+            _ => warn(&line, "unknown section"),
+        }
+    }
+    if !hotkeys.is_empty() {
+        cfg.hotkeys = hotkeys;
+    }
+}
+
+fn apply_style(style: &mut Style, key: &str, val: &str, line: &str) {
+    let num = || val.parse::<f64>();
+    match key.replace('-', "_").as_str() {
+        "width" => match num() {
+            Ok(v) => style.width = v.clamp(320.0, 1600.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "panel_opacity" => match num() {
+            Ok(v) => style.panel_opacity = v.clamp(0.0, 1.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "panel_padding" => match num() {
+            Ok(v) => style.panel_padding = v.clamp(0.0, 100.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "panel_corner_radius" => match num() {
+            Ok(v) => style.panel_corner_radius = v.clamp(0.0, 60.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "selected_item_opacity" => match num() {
+            Ok(v) => style.selected_item_opacity = v.clamp(0.0, 1.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "selected_item_corner_radius" => match num() {
+            Ok(v) => style.selected_item_corner_radius = v.clamp(0.0, 40.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "input_font_size" => match num() {
+            Ok(v) => style.input_font_size = v.clamp(9.0, 64.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "item_font_size" => match num() {
+            Ok(v) => style.item_font_size = v.clamp(8.0, 32.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "panel_background" => match parse_color(val) {
+            Some(c) => style.panel_background = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "panel_foreground" => match parse_color(val) {
+            Some(c) => style.panel_foreground = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "item_foreground" => match parse_color(val) {
+            Some(c) => style.item_foreground = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "cpu_alert" => match parse_color(val) {
+            Some(c) => style.cpu_alert = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "running_dot" => match parse_color(val) {
+            Some(c) => style.running_dot = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "font_family" => style.font_family = val.to_string(),
+        "item_font_weight" => match parse_weight(val) {
+            Some(w) => style.item_font_weight = w,
+            None => warn(line, "expected a weight name or -1.0..1.0"),
+        },
+        "selected_item_background" => match parse_color(val) {
+            Some(c) => style.selected_item_background = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "selected_item_foreground" => match parse_color(val) {
+            Some(c) => style.selected_item_foreground = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "item_foreground_highlight" => match parse_color(val) {
+            Some(c) => style.item_foreground_highlight = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "selected_item_foreground_highlight" => match parse_color(val) {
+            Some(c) => style.selected_item_foreground_highlight = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "icon_foreground" => match parse_color(val) {
+            Some(c) => style.icon_foreground = Some(c),
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "border" => match parse_color(val) {
+            Some(c) => style.border = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "border_width" => match num() {
+            Ok(v) => style.border_width = v.clamp(0.0, 12.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "outer_border" => match parse_color(val) {
+            Some(c) => style.outer_border = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "outer_border_width" => match num() {
+            Ok(v) => style.outer_border_width = v.clamp(0.0, 64.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "outer_border_opacity" => match num() {
+            Ok(v) => style.outer_border_opacity = v.clamp(0.0, 1.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "item_info_foreground" => match parse_color(val) {
+            Some(c) => style.item_info_foreground = Some(c),
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "item_info_background" => match parse_color(val) {
+            Some(c) => style.item_info_background = Some(c),
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "selected_item_border" => match parse_color(val) {
+            Some(c) => style.selected_item_border = c,
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "selected_item_border_width" => match num() {
+            Ok(v) => style.selected_item_border_width = v.clamp(0.0, 6.0),
+            Err(_) => warn(line, "expected a number"),
+        },
+        "cpu_alert_background" => match parse_color(val) {
+            Some(c) => style.cpu_alert_background = Some(c),
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "sigil_background" => match parse_color(val) {
+            Some(c) => style.sigil_background = Some(c),
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        "sigil_foreground" => match parse_color(val) {
+            Some(c) => style.sigil_foreground = Some(c),
+            None => warn(line, "expected \"#rrggbb\""),
+        },
+        // Panel geometry, read straight into `Config` by the section
+        // dispatch above — a theme overlay must not resize the viewport
+        // while the picker is previewing it.
+        "max_rows" => warn(line, "max_rows is a config.toml setting, not a theme override"),
+        _ => warn(line, "unknown style key"),
+    }
+}
+
+fn apply_icon(icons: &mut Icons, key: &str, val: &str, line: &str) {
+    let slot = match key.replace('-', "_").as_str() {
+        "search" => &mut icons.search,
+        "running_many" => &mut icons.running_many,
+        "running_one" => &mut icons.running_one,
+        "running_none" => &mut icons.running_none,
+        "installed" => &mut icons.installed,
+        "utilities" => &mut icons.utilities,
+        "system" => &mut icons.system,
+        "applications" => &mut icons.applications,
+        "shortcut" => &mut icons.shortcut,
+        "engine" => &mut icons.engine,
+        _ => {
+            warn(line, "unknown icon key");
+            return;
+        }
+    };
+    *slot = val.to_string();
+}
+
+/// Whether an `[icons.apps]` key matches a (lowercased) entry name. A plain
+/// key matches exactly; wrapping it in `*` turns it into a substring match:
+/// `*text*` matches anywhere in the name, `*text` matches its end, `text*`
+/// matches its start. Lets one entry cover a whole family of rows, e.g.
+/// `"*downloads*" = "…"` for anything with "downloads" in the title.
+pub fn icon_override_matches(pattern: &str, name_lower: &str) -> bool {
+    let leading = pattern.starts_with('*');
+    let trailing = pattern.len() > 1 && pattern.ends_with('*');
+    match (leading, trailing) {
+        (true, true) => name_lower.contains(&pattern[1..pattern.len() - 1]),
+        (true, false) => name_lower.ends_with(&pattern[1..]),
+        (false, true) => name_lower.starts_with(&pattern[..pattern.len() - 1]),
+        (false, false) => name_lower == pattern,
+    }
+}
+
+/// The glyph for an entry name, if any `[icons.apps]` key matches it. Exact
+/// keys are tried first so a specific override always beats a broader
+/// pattern regardless of file order; pattern keys are tried only if no exact
+/// key matched.
+pub fn find_icon_override<'a>(
+    overrides: &'a [(String, String)],
+    name_lower: &str,
+) -> Option<&'a str> {
+    overrides
+        .iter()
+        .find(|(n, _)| n == name_lower)
+        .or_else(|| overrides.iter().find(|(n, _)| icon_override_matches(n, name_lower)))
+        .map(|(_, g)| g.as_str())
+}
+
+/// Drop a trailing `# comment`, respecting double-quoted strings (colors
+/// like "#aabbcc" live inside quotes).
+fn strip_comment(line: &str) -> &str {
+    let mut in_str = false;
+    for (i, ch) in line.char_indices() {
+        match ch {
+            '"' => in_str = !in_str,
+            '#' if !in_str => return &line[..i],
+            _ => {}
+        }
+    }
+    line
+}
+
+/// Parse a TOML inline table body — `{ key = "value", key = "value" }` — into
+/// its (lowercased key, value) fields. Quotes are optional on both sides;
+/// commas and `=` inside a quoted value are left alone. `None` when the
+/// braces are missing, i.e. the value isn't an inline table at all.
+fn parse_inline_table(s: &str) -> Option<Vec<(String, String)>> {
+    let body = s.trim().strip_prefix('{')?.strip_suffix('}')?;
+    let mut out = Vec::new();
+    for field in split_outside_quotes(body, ',') {
+        let field = field.trim();
+        if field.is_empty() {
+            continue;
+        }
+        // Keys never contain `=`, so the first one is always the separator —
+        // a `q={q}` inside the URL value stays put.
+        let (k, v) = field.split_once('=')?;
+        out.push((unquote(k.trim()).to_lowercase(), unquote(v.trim())));
+    }
+    Some(out)
+}
+
+/// Split on `sep`, ignoring separators inside double quotes.
+fn split_outside_quotes(s: &str, sep: char) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut in_str = false;
+    let mut start = 0;
+    for (i, ch) in s.char_indices() {
+        match ch {
+            '"' => in_str = !in_str,
+            c if c == sep && !in_str => {
+                parts.push(&s[start..i]);
+                start = i + c.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    parts.push(&s[start..]);
+    parts
+}
+
+fn unquote(s: &str) -> String {
+    let s = s.trim();
+    if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
+        s[1..s.len() - 1].to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+/// "cmd+shift+r", "opt+space", "enter" → Chord. Case-insensitive.
+fn parse_chord(s: &str) -> Option<Chord> {
+    let mut chord = Chord::plain(Key::Space);
+    let mut key: Option<Key> = None;
+    for part in s.split('+') {
+        let p = part.trim().to_lowercase();
+        match p.as_str() {
+            "cmd" | "command" | "super" => chord.cmd = true,
+            "ctrl" | "control" => chord.ctrl = true,
+            "opt" | "option" | "alt" => chord.opt = true,
+            "shift" => chord.shift = true,
+            "space" => key = Some(Key::Space),
+            "enter" | "return" => key = Some(Key::Enter),
+            "escape" | "esc" => key = Some(Key::Escape),
+            "tab" => key = Some(Key::Tab),
+            "up" => key = Some(Key::Up),
+            "down" => key = Some(Key::Down),
+            "left" => key = Some(Key::Left),
+            "right" => key = Some(Key::Right),
+            "backspace" | "delete" => key = Some(Key::Backspace),
+            _ => {
+                let mut chars = p.chars();
+                match (chars.next(), chars.next()) {
+                    (Some(c), None) => key = Some(Key::Char(c)),
+                    _ => return None,
+                }
+            }
+        }
+    }
+    chord.key = key?;
+    Some(chord)
+}
+
+fn parse_mode(s: &str) -> Option<Mode> {
+    match s.to_lowercase().as_str() {
+        "launcher" => Some(Mode::Launcher),
+        _ => None,
+    }
+}
+
+fn parse_action(s: &str) -> Option<Action> {
+    match s.to_lowercase().replace('_', "-").as_str() {
+        "open" => Some(Action::Open),
+        "launch-new" | "open-new" | "force-open" => Some(Action::LaunchNew),
+        "reveal" => Some(Action::Reveal),
+        "clear" => Some(Action::Clear),
+        "dismiss" | "close" | "hide" => Some(Action::Dismiss),
+        "select-all" => Some(Action::SelectAll),
+        "move-up" => Some(Action::MoveUp),
+        "move-down" => Some(Action::MoveDown),
+        "refresh-config" | "reload-config" => Some(Action::RefreshConfig),
+        "show-commands" | "commands" | "app-commands" => Some(Action::ShowCommands),
+        _ => None,
+    }
+}
+
+/// Permissive boolean: TOML's `true`/`false` plus the spellings that show up
+/// in hand-written config.
+fn parse_bool(s: &str) -> Option<bool> {
+    match s.trim().to_lowercase().as_str() {
+        "true" | "yes" | "on" | "1" => Some(true),
+        "false" | "no" | "off" | "0" => Some(false),
+        _ => None,
+    }
+}
+
+/// "#rrggbb" → sRGB floats.
+fn parse_color(s: &str) -> Option<(f64, f64, f64)> {
+    let hex = s.strip_prefix('#')?;
+    if hex.len() != 6 {
+        return None;
+    }
+    let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).ok();
+    Some((
+        byte(0)? as f64 / 255.0,
+        byte(2)? as f64 / 255.0,
+        byte(4)? as f64 / 255.0,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_survive_missing_sections() {
+        let mut cfg = Config::default();
+        parse_into(&mut cfg, "");
+        assert_eq!(cfg.hotkeys.len(), 1);
+        assert!(!cfg.binds.is_empty());
+    }
+
+    #[test]
+    fn parses_hotkeys_and_keys() {
+        let mut cfg = Config::default();
+        parse_into(
+            &mut cfg,
+            r#"
+[hotkeys]
+"cmd+space" = "launcher"
+"opt+space" = "launcher"
+
+[keys]
+"cmd+r" = "reveal"   # comment
+"ctrl+c" = "none"
+"#,
+        );
+        assert_eq!(cfg.hotkeys.len(), 2);
+        assert!(cfg.hotkeys[0].0.cmd && !cfg.hotkeys[0].0.opt);
+        // ctrl+c unbound; cmd+r still bound exactly once
+        let ctrl_c = Chord { ctrl: true, ..Chord::plain(Key::Char('c')) };
+        assert!(!cfg.binds.iter().any(|(c, _)| *c == ctrl_c));
+        let cmd_r = Chord { cmd: true, ..Chord::plain(Key::Char('r')) };
+        assert_eq!(
+            cfg.binds.iter().filter(|(c, _)| *c == cmd_r).count(),
+            1
+        );
+    }
+
+    #[test]
+    fn parses_style_and_stats() {
+        let mut cfg = Config::default();
+        parse_into(
+            &mut cfg,
+            r##"
+[style]
+item_foreground_highlight = "#ff8800"
+panel_opacity = 0.5
+width = 700
+cpu_alert = "#ff0000"
+running_dot = "#00ff00"
+item_font_weight = "semibold"
+max_rows = 9
+
+[icons]
+search = "*"
+running_many = "M"
+
+[icons.apps]
+"Forklift" = "F"
+
+[shortcuts]
+"Movies" = "open -R ~/Movies"
+
+[commands.Switchblade]
+"downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Downloads"
+"logs" = "open ~/Library/Logs/switchblade"
+
+[stats]
+interval = 2.0
+"##,
+        );
+        assert!((cfg.style.item_foreground_highlight.0 - 1.0).abs() < 1e-9);
+        assert_eq!(cfg.style.cpu_alert, (1.0, 0.0, 0.0));
+        assert_eq!(cfg.style.running_dot, (0.0, 1.0, 0.0));
+        assert!((cfg.style.item_font_weight - 0.3).abs() < 1e-9);
+        assert!((cfg.style.panel_opacity - 0.5).abs() < 1e-9);
+        assert!((cfg.style.width - 700.0).abs() < 1e-9);
+        assert_eq!(cfg.max_rows, 9);
+        assert!((cfg.stats_interval - 2.0).abs() < 1e-9);
+        assert_eq!(cfg.icons.search, "*");
+        assert_eq!(cfg.icons.running_many, "M");
+        assert_eq!(cfg.icons.installed, "\u{100943}"); // untouched default
+        assert_eq!(cfg.icon_overrides, vec![("forklift".to_string(), "F".to_string())]);
+        assert_eq!(
+            cfg.shortcuts,
+            vec![("Movies".to_string(), "open -R ~/Movies".to_string())]
+        );
+        let (app, cmds) = cfg
+            .app_commands
+            .iter()
+            .find(|(n, _)| n == "switchblade")
+            .expect("switchblade commands present");
+        assert_eq!(app, "switchblade");
+        assert_eq!(cmds.len(), 2);
+        assert_eq!(cmds[0].0, "downloads");
+        assert_eq!(
+            cmds[0].1,
+            "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Downloads"
+        );
+        assert_eq!(cmds[1].0, "logs");
+    }
+
+    #[test]
+    fn fade_defaults_off_and_parses() {
+        let mut cfg = Config::default();
+        assert!(!cfg.fade);
+
+        parse_into(&mut cfg, "[animation]\nfade = true\n");
+        assert!(cfg.fade);
+
+        parse_into(&mut cfg, "[animation]\nfade = off\n");
+        assert!(!cfg.fade);
+
+        // A bad value is reported and skipped, leaving the prior value.
+        parse_into(&mut cfg, "[animation]\nfade = maybe\n");
+        assert!(!cfg.fade);
+
+        // `fade` is motion, not appearance: [style] does not carry it, so a
+        // theme overlay can never flip it.
+        parse_into(&mut cfg, "[animation]\nfade = true\n[style]\nfade = false\n");
+        assert!(cfg.fade);
+    }
+
+    #[test]
+    fn icon_override_pattern_matching() {
+        assert!(icon_override_matches("forklift", "forklift"));
+        assert!(!icon_override_matches("forklift", "forklift 2"));
+
+        assert!(icon_override_matches("*downloads*", "open downloads"));
+        assert!(icon_override_matches("*downloads*", "downloads"));
+        assert!(!icon_override_matches("*downloads*", "downloa"));
+
+        assert!(icon_override_matches("downloads*", "downloads folder"));
+        assert!(!icon_override_matches("downloads*", "open downloads"));
+
+        assert!(icon_override_matches("*downloads", "open downloads"));
+        assert!(!icon_override_matches("*downloads", "downloads folder"));
+    }
+
+    #[test]
+    fn icon_override_exact_beats_pattern() {
+        let overrides = vec![
+            ("*downloads*".to_string(), "pattern".to_string()),
+            ("my downloads".to_string(), "exact".to_string()),
+        ];
+        assert_eq!(find_icon_override(&overrides, "my downloads"), Some("exact"));
+        assert_eq!(find_icon_override(&overrides, "old downloads"), Some("pattern"));
+        assert_eq!(find_icon_override(&overrides, "nope"), None);
+    }
+
+    #[test]
+    fn parses_theme_keys_and_overlay() {
+        let mut cfg = Config::default();
+        parse_into(
+            &mut cfg,
+            r##"
+[style]
+theme = "ocean-breeze"
+icon_foreground = "#59c8e8"
+border = "#102030"
+border_width = 1
+item_info_foreground = "#a8dff2"
+item_info_background = "#0b2e52"
+selected_item_border = "#1e4e74"
+selected_item_border_width = 1
+cpu_alert_background = "#401010"
+"##,
+        );
+        assert_eq!(cfg.theme.as_deref(), Some("ocean-breeze"));
+        assert!(cfg.style.icon_foreground.is_some());
+        assert!((cfg.style.border_width - 1.0).abs() < 1e-9);
+        assert!(cfg.style.item_info_background.is_some());
+        assert!((cfg.style.selected_item_border_width - 1.0).abs() < 1e-9);
+        assert!(cfg.style.cpu_alert_background.is_some());
+
+        // A theme overlays the base style; untouched keys survive.
+        let theme = Theme {
+            name: "test".into(),
+            overrides: parse_theme(
+                "# comment\n[style]\npanel_background = \"#041028\"\nborder_width = 2\n",
+            ),
+        };
+        let mut style = cfg.style.clone();
+        apply_theme(&mut style, &theme);
+        assert_eq!(
+            style.panel_background,
+            (4.0 / 255.0, 16.0 / 255.0, 40.0 / 255.0)
+        );
+        assert!((style.border_width - 2.0).abs() < 1e-9);
+        assert!(style.item_info_background.is_some()); // untouched
+    }
+
+    #[test]
+    fn parses_modes() {
+        let mut cfg = Config::default();
+        parse_into(
+            &mut cfg,
+            r##"
+[modes.math]
+sigil = "="
+
+[modes.currency]
+sigil = "$"
+targets = "usd, php, btc"
+"##,
+        );
+        assert_eq!(cfg.sigil_math, Some('='));
+        assert_eq!(cfg.sigil_currency, Some('$'));
+        assert_eq!(cfg.currency_targets, vec!["USD", "PHP", "BTC"]);
+        assert_eq!(cfg.sigil_kind('$'), Some(SigilKind::Currency));
+        assert_eq!(cfg.sigil_kind('!'), None);
+    }
+
+    #[test]
+    fn parses_search_engines() {
+        let mut cfg = Config::default();
+        parse_into(
+            &mut cfg,
+            r##"
+[search_engines]
+"GitHub" = { query = "https://github.com/search?q={q}", icon = "@", shortcut = "gh" }
+"DuckDuckGo" = { url = "https://duckduckgo.com/?q={q}" }
+"Google" = { query = "https://example.test/?s={q}", shortcut = "gg" }
+"Broken" = { icon = "x" }
+"##,
+        );
+        let find = |name: &str| {
+            cfg.search_engines.iter().find(|e| e.name == name).cloned().unwrap()
+        };
+        // Every field lands in the one item — no second table to consult.
+        let gh = find("GitHub");
+        assert_eq!(gh.query, "https://github.com/search?q={q}");
+        assert_eq!(gh.icon, "@");
+        assert_eq!(gh.shortcut, "gh");
+        // `url` is accepted as a spelling of `query`; the rest stay unset.
+        let ddg = find("DuckDuckGo");
+        assert_eq!(ddg.query, "https://duckduckgo.com/?q={q}");
+        assert_eq!(ddg.shortcut, "");
+        // A name already in the defaults is replaced, not duplicated.
+        assert_eq!(cfg.search_engines.iter().filter(|e| e.name == "Google").count(), 1);
+        assert_eq!(find("Google").shortcut, "gg");
+        // No query = not an engine.
+        assert!(!cfg.search_engines.iter().any(|e| e.name == "Broken"));
+        // Unset icon falls back to whatever [icons] engine supplies.
+        assert_eq!(ddg.glyph(&cfg.icons.engine), cfg.icons.engine);
+        assert_eq!(gh.glyph(&cfg.icons.engine), "@");
+    }
+
+    #[test]
+    fn parses_inline_tables() {
+        // Commas and `=` inside a quoted value don't split the fields.
+        let t = parse_inline_table(r##"{ query = "https://x.test/?a=1,2&q={q}", icon = "Z" }"##)
+            .unwrap();
+        assert_eq!(t[0], ("query".to_string(), "https://x.test/?a=1,2&q={q}".to_string()));
+        assert_eq!(t[1], ("icon".to_string(), "Z".to_string()));
+        // Trailing comma, bare values, odd spacing.
+        let t = parse_inline_table("{shortcut=g,}").unwrap();
+        assert_eq!(t, vec![("shortcut".to_string(), "g".to_string())]);
+        assert_eq!(parse_inline_table("{}").unwrap(), vec![]);
+        // Not an inline table at all.
+        assert!(parse_inline_table(r##""https://x.test/?q={q}""##).is_none());
+    }
+
+    #[test]
+    fn theme_display_names() {
+        assert_eq!(theme_display_name("ocean-breeze"), "Ocean Breeze");
+        assert_eq!(theme_display_name("vivid_nightfall"), "Vivid Nightfall");
+        assert_eq!(theme_display_name("candy"), "Candy");
+    }
+
+    #[test]
+    fn color_in_quotes_is_not_a_comment() {
+        assert_eq!(
+            strip_comment(r##"accent = "#aabbcc" # note"##),
+            r##"accent = "#aabbcc" "##
+        );
+    }
+
+    #[test]
+    fn chord_roundtrip() {
+        let c = parse_chord("cmd+shift+enter").unwrap();
+        assert!(c.cmd && c.shift && c.key == Key::Enter);
+        assert!(parse_chord("cmd+").is_none());
+        assert!(parse_chord("meta+x").is_none());
+    }
+}

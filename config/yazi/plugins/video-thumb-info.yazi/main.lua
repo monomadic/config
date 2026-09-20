@@ -7,7 +7,7 @@ local MAX_THUMB_ROWS = 25
 local MIN_TEXT_ROWS = 5
 local MAX_DETAIL_ROWS = 12
 
--- Same tag priority as ~/.zsh/bin/media-open-url, so the preview shows the URL
+-- Same tag priority as ~/.local/bin/media-open-url, so the preview shows the URL
 -- that opener would actually launch.
 local URL_TAGS = {
 	"source_url",

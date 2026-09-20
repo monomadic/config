@@ -1,0 +1,1025 @@
+#!/bin/zsh
+emulate -L zsh
+
+# rename-video
+# Rename a video from its embedded tags alone, and nothing else.
+#
+# This supersedes media-rename and rename-footage. Both of those read the
+# current filename -- media-rename rebuilt the name from it almost entirely,
+# rename-footage mined it as a source of last resort -- which made the name a
+# place data could hide, and made every run depend on what the previous one had
+# written. Here the file's tags are the only input. A file with no tags gets no
+# name, and the fix is to tag it (tagform), not to rename it more cleverly.
+#
+# The CATEGORY tag decides the grammar, and what a file must carry before it
+# is named at all:
+#
+#   Adult    ACTORS (CHANNEL) - TITLE #TAGS @G ★★★☆☆ [METADATA].ext
+#            requires a source URL or a title
+#   Footage  DATE PEOPLE - TITLE (LOCATION) #TAGS ★★★☆☆ [METADATA].ext
+#            requires a date or a title
+#   Other    ACTORS (CHANNEL) - TITLE #TAGS ★★★☆☆ [METADATA].ext
+#            requires a source URL
+#
+# Other is any category value this script has no grammar for, and no
+# category at all: both get the Adult grammar, which is the generic one --
+# the @G mark is the only Adult-specific piece, and it renders only from an
+# Orientation tag. What separates them is the requirement. A file that was
+# never categorised is only nameable if it can be re-tagged from its origin
+# later, so it must carry the URL; Adult and Footage each have a second
+# field that is proof enough it was tagged on purpose.
+#
+# A file that fails its category's requirement stops the run rather than
+# being quietly skipped: a run over a directory should say which file it
+# could not name and why. --force renames it anyway.
+#
+# Orthogonal to the category is the VARIANT tag, which the yt-dlp `--clip`
+# alias sets to "Clip" for one piece of a multi-clip post. A Clip carries its
+# number in the name, after the title and before the tags:
+#
+#   Adult    ACTORS (CHANNEL) - TITLE (Clip N) #TAGS ★★★☆☆ [METADATA].ext
+#   Footage  DATE PEOPLE - TITLE (Clip N) (LOCATION) #TAGS ★★★☆☆ [METADATA].ext
+#
+# N is the Track field, which tagform shows for a Clip and writes as the
+# `track` tag. A Clip with no Track renders as a plain file: the variant alone
+# says nothing worth naming.
+#
+# The Adult grammar degrades the way the Footage one does: a segment with no
+# value is not rendered, and the dash appears only when there is a title to
+# separate the left-hand side from.
+#
+#   Alice, Bob (Studio) - Title #tag #tag ★★★☆☆ [1080p 30fps h264 22min 8mbps H].mp4
+#   Studio - Title #tag ★★★☆☆ [...].mp4        (no actors)
+#   Alice, Bob (Studio) #tag ★★★☆☆ [...].mp4   (no title)
+#   Alice, Bob - Title #tag ★★★☆☆ [...].mp4    (channel "Alice": already an actor)
+#
+# A channel that is also one of the actors (compared case-insensitively) is
+# not rendered: a performer's own channel would only repeat their name.
+#
+# With no actors, no channel and no title there is nothing to name the file
+# after, and it is left alone with a warning -- a name that is only a metadata
+# block is not a name.
+#
+# The one exception to tags-only: leading underscores on the current name are
+# kept, so _Alice (Studio) ....mp4 stays underscored. They are a hand-set mark
+# that no tag records.
+#
+# Where each field comes from, XMP first and then the container atoms, which is
+# the precedence tagform writes and reads by (tagform SPEC §3.6):
+#
+#   CATEGORY  category / genre atom (Camera Footage normalizes to Footage)
+#   ACTORS    XMP-iptcExt:PersonInImage, else actors / cast / artist
+#   CHANNEL   XMP-xmpDM:Album, else channel / album_artist / album
+#   TITLE     XMP-dc:Title, else title
+#   TAGS      XMP-dc:Subject, else keywords
+#   RATING    XMP-xmp:Rating, else rating
+#   VARIANT   variant / type atom                         (Clip)
+#   TRACK     track atom                                (Clip)
+#   ORIENTATION  orientation atom                         (Adult, see below)
+#   LOCATION  XMP-iptcExt:LocationCreatedCity, else the
+#             LocationCreatedSublocation tagform's Place row writes (Footage)
+#   DATE      exif, else mp4 creation_time, else ctime   (Footage)
+#   METADATA  probed fresh with ffprobe (+ exiftool for DEVICE)
+#
+# The Orientation tag (tagform's adult-profile set) renders as a mark after
+# the tags, before the stars:
+#
+#   Gay  @G     Sapphic  @L     Trans  @T
+#
+# Straight is the unmarked case and renders nothing, as does a missing tag or
+# a value outside that set.
+#
+# A rating renders as exactly five ★/☆ characters, the library-wide convention
+# media-set-rating parses and media-rename preserves. This differs from
+# rename-footage, which rendered one ★ per point and nothing else; five
+# characters is what the rest of the tooling reads.
+#
+# The source URL the requirements refer to is the one yt-dlp embeds as the
+# original_url / purl / source_url atoms (config/yt-dlp/config) and, by
+# default, as a URL-shaped comment; it is what yt-dlp-refresh-metadata later
+# uses to re-tag the file. A file without one has lost its provenance, and
+# renaming it would bury that fact under a tidy name, which is why an
+# uncategorised file with no URL is refused.
+#
+# Nothing is written to the file. Renaming is all this does: tagform owns the
+# tags, and a rename that also edited them would be two tools in a trenchcoat.
+#
+# Options:
+#   --force          Rename even when the category's requirement is unmet
+#   --dry-run        Show what would be renamed without changing anything
+#   --print-target   Print the canonical target path only
+#   --verbose        Print debug information about probe/tag decisions
+#   --color          Enable ANSI colors
+#   --icons          Use Nerd Font icons
+#   -h, --help       Show this message
+#
+# Dependencies: ffprobe and exiftool, both required.
+
+DRY_RUN=false
+FORCE=false
+VERBOSE=false
+PRINT_TARGET=false
+SCRIPT_NAME="${0:t}"
+
+ICON_VIDEO="▶ "
+ICON_OK="✓ "
+ICON_WARN="⚠ "
+ICON_SKIP="• "
+
+RESET=""
+GREEN=""
+YELLOW=""
+RED=""
+CYAN=""
+
+enable_color() {
+  RESET=$'\e[0m'
+  GREEN=$'\e[32m'
+  YELLOW=$'\e[33m'
+  RED=$'\e[31m'
+  CYAN=$'\e[36m'
+}
+
+enable_icons() {
+  ICON_VIDEO="󰎈 "
+  ICON_OK=" "
+  ICON_WARN=" "
+  ICON_SKIP="󰄱 "
+}
+
+usage() {
+  print -r -- "Usage: ${SCRIPT_NAME} [OPTIONS] video_file..."
+  print -r -- ""
+  print -r -- "Rename videos from their embedded tags. The Category tag picks the grammar"
+  print -r -- "and what the file must carry to be named at all:"
+  print -r -- "  Adult    ACTORS (CHANNEL) - TITLE #TAGS @G ★★★☆☆ [METADATA].ext"
+  print -r -- "           requires a source URL or a title"
+  print -r -- "  Footage  DATE PEOPLE - TITLE (LOCATION) #TAGS ★★★☆☆ [METADATA].ext"
+  print -r -- "           requires a date or a title"
+  print -r -- "  Other    ACTORS (CHANNEL) - TITLE #TAGS ★★★☆☆ [METADATA].ext"
+  print -r -- "           any other category, or none; requires a source URL"
+  print -r -- "A file whose Variant is Clip gets its Track after the title: TITLE (Clip N)"
+  print -r -- ""
+  print -r -- "The source URL is original_url, purl, source_url, or a URL-shaped comment."
+  print -r -- "A file failing its requirement stops the run unless --force is given."
+  print -r -- ""
+  print -r -- "Options:"
+  print -r -- "  --force          Rename even when the category's requirement is unmet"
+  print -r -- "  --dry-run        Show what would be renamed without changing files"
+  print -r -- "  --print-target   Print only the canonical target path"
+  print -r -- "  --verbose        Print debug information about probe/tag decisions"
+  print -r -- "  --color          Enable ANSI colors in output"
+  print -r -- "  --icons          Use Nerd Font icons instead of plain Unicode symbols"
+  print -r -- "  -h, --help       Show this message"
+}
+
+log_verbose() {
+  $VERBOSE || return 0
+  print -u2 -r -- "${CYAN}${ICON_SKIP}$*${RESET}"
+}
+
+die() {
+  print -u2 -r -- "${RED}${ICON_WARN}$*${RESET}"
+  exit 1
+}
+
+trim_whitespace() {
+  local s="$1"
+
+  s="${s//$'\t'/ }"
+  s="${s//$'\n'/ }"
+  s="${s//$'\r'/ }"
+
+  while [[ "$s" == *"  "* ]]; do
+    s="${s//  / }"
+  done
+
+  while [[ "$s" == [[:space:]]* ]]; do
+    s="${s[2,-1]}"
+  done
+
+  while [[ "$s" == *[[:space:]] ]]; do
+    s="${s[1,-2]}"
+  done
+
+  print -r -- "$s"
+}
+
+touch_modified_now() {
+  local file="$1"
+  touch "$file" 2>/dev/null || true
+}
+
+# ---------------------------------------------------------------------------
+# reading tags
+# ---------------------------------------------------------------------------
+
+# Container atoms, read with ffprobe rather than exiftool because ffprobe
+# surfaces every mdta key by its own name without needing the user-defined
+# tag table exiftool wants (src/tagform/assets/tagform.exiftool.cfg).
+typeset -gA ATOM=()
+
+probe_atoms() {
+  local file="$1" tags line key value
+
+  ATOM=()
+
+  tags="$(
+    ffprobe -v error -show_entries format_tags \
+      -of default=noprint_wrappers=1:nokey=0 -- "$file" 2>/dev/null
+  )" || return 0
+  [[ -n "$tags" ]] || return 0
+
+  while IFS= read -r line; do
+    [[ "$line" == *=* ]] || continue
+    key="${line%%=*}"
+    value="${line#*=}"
+    key="${key#TAG:}"
+    [[ -n "$value" ]] && ATOM[${key:l}]="$value"
+  done <<< "$tags"
+
+  log_verbose "atoms: ${(kj:, :)ATOM}"
+}
+
+# First atom key that carries a value, in the order given.
+first_atom() {
+  local key
+  for key in "$@"; do
+    [[ -n "${ATOM[$key]:-}" ]] && { print -r -- "${ATOM[$key]}"; return 0 }
+  done
+}
+
+# exiftool's -f prints "-" for a tag the file does not carry, so that stands in
+# for empty here too.
+first_present() {
+  local value
+  for value in "$@"; do
+    value="$(trim_whitespace "$value")"
+    [[ -n "$value" && "$value" != "-" ]] && { print -r -- "$value"; return 0 }
+  done
+}
+
+XMP_ACTORS="" XMP_CHANNEL="" XMP_TITLE="" XMP_TAGS="" XMP_RATING=""
+XMP_CITY="" XMP_STATE="" XMP_COUNTRY="" XMP_GENRE=""
+
+read_xmp() {
+  local file="$1" row
+  local -a cols
+
+  XMP_ACTORS="" XMP_CHANNEL="" XMP_TITLE="" XMP_TAGS="" XMP_RATING=""
+  XMP_CITY="" XMP_STATE="" XMP_COUNTRY="" XMP_GENRE="" XMP_PLACE=""
+
+  row="$(
+    exiftool -f -T -XMP-iptcExt:PersonInImage -XMP-xmpDM:Album -XMP-dc:Title \
+      -XMP-dc:Subject -XMP-xmp:Rating -XMP-iptcExt:LocationCreatedCity \
+      -XMP-iptcExt:LocationCreatedProvinceState \
+      -XMP-iptcExt:LocationCreatedCountryName -XMP-xmpDM:Genre \
+      -XMP-iptcExt:LocationCreatedSublocation \
+      -- "$file" 2>/dev/null | head -1
+  )"
+  [[ -n "$row" ]] || return 0
+
+  cols=("${(@s:	:)row}")
+  XMP_ACTORS="$(first_present "${cols[1]}")"
+  XMP_CHANNEL="$(first_present "${cols[2]}")"
+  XMP_TITLE="$(first_present "${cols[3]}")"
+  XMP_TAGS="$(first_present "${cols[4]}")"
+  XMP_RATING="$(first_present "${cols[5]}")"
+  XMP_CITY="$(first_present "${cols[6]}")"
+  XMP_STATE="$(first_present "${cols[7]}")"
+  XMP_COUNTRY="$(first_present "${cols[8]}")"
+  XMP_GENRE="$(first_present "${cols[9]}")"
+  XMP_PLACE="$(first_present "${cols[10]}")"
+
+  log_verbose "xmp: actors='${XMP_ACTORS}' channel='${XMP_CHANNEL}' title='${XMP_TITLE}' subject='${XMP_TAGS}' rating='${XMP_RATING}' city='${XMP_CITY}' genre='${XMP_GENRE}'"
+}
+
+# Split a ", "-joined list tag into its entries.
+split_list() {
+  local value="$1" item
+  local -a out
+
+  for item in "${(@s:,:)value}"; do
+    item="$(trim_whitespace "$item")"
+    [[ -n "$item" ]] && out+=("$item")
+  done
+
+  print -r -- "${(F)out}"
+}
+
+# The resolved fields for the file being processed.
+CATEGORY="" TITLE="" CHANNEL="" LOCATION="" RATING="" VARIANT="" CLIP_NUMBER=""
+ORIENTATION=""
+SOURCE_URL=""
+typeset -ga ACTORS=() TAGS=()
+
+# "Camera Footage" is the literal the yt-dlp alias writes; "Footage" is what
+# tagform shows and what this script names by. Anything else, including no
+# category at all, is Other: see the header.
+normalize_category() {
+  case "${1:l}" in
+    adult|porn|xxx)          print -r -- "Adult" ;;
+    footage|camera\ footage) print -r -- "Footage" ;;
+    *)                       print -r -- "Other" ;;
+  esac
+}
+
+# The clip's number within the work it was cut from: tagform's Track field,
+# the `track` mdta tag. A remux may have turned it into the iTunes trkn pair,
+# which ffprobe renders as "N/M", so only the leading number is read.
+resolve_clip_number() {
+  local raw
+
+  raw="$(first_atom track)"
+  raw="${raw%%/*}"
+  [[ "$raw" == <-> ]] && (( raw > 0 )) && print -r -- $(( raw ))
+}
+
+# The mark for an Orientation value, or nothing. The set is tagform's
+# ORIENTATIONS (config.rs) and the marks are the ones its filename parser reads
+# back (ORIENTATION_MARKS); the two lists must agree or `i` `f` loses the field.
+render_orientation() {
+  case "${1:l}" in
+    gay)     print -r -- "@G" ;;
+    sapphic) print -r -- "@L" ;;
+    trans)   print -r -- "@T" ;;
+  esac
+}
+
+# The page the file was fetched from, in the tags yt-dlp writes for it (the
+# same set yt-dlp-refresh-metadata reads it back from). A comment counts only
+# when it looks like a URL: the field is free text and often holds prose.
+resolve_source_url() {
+  local raw
+
+  raw="$(first_atom original_url purl source_url)"
+  [[ -n "$raw" ]] && { print -r -- "$raw"; return 0 }
+
+  raw="$(first_atom comment)"
+  [[ "$raw" == *://* ]] && print -r -- "$raw"
+}
+
+resolve_fields() {
+  local raw
+
+  CATEGORY="" TITLE="" CHANNEL="" LOCATION="" RATING="" VARIANT="" CLIP_NUMBER=""
+  ORIENTATION=""
+  SOURCE_URL=""
+  ACTORS=() TAGS=()
+
+  raw="$(first_present "$XMP_GENRE" "$(first_atom category genre)")"
+  CATEGORY="$(normalize_category "$raw")"
+
+  TITLE="$(first_present "$XMP_TITLE" "$(first_atom title)")"
+  CHANNEL="$(first_present "$XMP_CHANNEL" "$(first_atom channel album_artist album)")"
+  # The city names the clip; a venue stands in only when no city was written.
+  LOCATION="$(first_present "$XMP_CITY" "$XMP_PLACE")"
+  RATING="$(first_present "$XMP_RATING" "$(first_atom rating)")"
+
+  raw="$(first_present "$XMP_ACTORS" "$(first_atom actors cast artist)")"
+  [[ -n "$raw" ]] && ACTORS=("${(@f)$(split_list "$raw")}")
+
+  raw="$(first_present "$XMP_TAGS" "$(first_atom keywords keyw)")"
+  [[ -n "$raw" ]] && TAGS=("${(@f)$(split_list "$raw")}")
+
+  VARIANT="$(first_atom variant type)"
+  [[ "${VARIANT:l}" == "clip" ]] && CLIP_NUMBER="$(resolve_clip_number)"
+
+  ORIENTATION="$(first_atom orientation)"
+  SOURCE_URL="$(resolve_source_url)"
+
+  log_verbose "resolved: category='${CATEGORY}' title='${TITLE}' channel='${CHANNEL}' location='${LOCATION}' rating='${RATING}' variant='${VARIANT}' clip='${CLIP_NUMBER}' orientation='${ORIENTATION}' url='${SOURCE_URL}' actors=(${(j:, :)ACTORS}) tags=(${(j:, :)TAGS})"
+}
+
+# A rating may be stored as a number (tagform, XMP-xmp:Rating) or already as
+# stars, and renders as exactly five ★/☆. Zero and unrated both render as
+# nothing: the distinction lives in the tag, not in the name.
+render_stars() {
+  local raw="$1" n=0 i out=""
+
+  if [[ "$raw" == *★* ]]; then
+    raw="${raw//[^★]/}"
+    n=${#raw}
+  elif [[ "$raw" == <-> ]]; then
+    n=$raw
+  fi
+
+  (( n > 5 )) && n=5
+  (( n > 0 )) || return 0
+
+  for i in {1..5}; do
+    (( i <= n )) && out+="★" || out+="☆"
+  done
+
+  print -r -- "$out"
+}
+
+# ---------------------------------------------------------------------------
+# DATE (Footage only)
+# ---------------------------------------------------------------------------
+
+format_stamp() {
+  local y="$1" mo="$2" d="$3" h="$4" mi="$5" s="$6"
+  [[ -z "$y" || -z "$mo" || -z "$d" ]] && return 0
+  [[ "$y" == 0000 ]] && return 0
+  printf '%04d-%02d-%02d--%02d-%02d-%02d' \
+    "$y" "$mo" "$d" "${h:-0}" "${mi:-0}" "${s:-0}"
+}
+
+date_from_exif() {
+  local file="$1" raw tag stamp
+
+  # CreationDate (QuickTime's Apple key, local time with an offset) is the
+  # camera's own capture date; CreateDate and MediaCreateDate are the mvhd/mdhd
+  # timestamps, which are UTC and are rewritten to "now" by anything that
+  # remuxes or writes tags. So the authored date must be tried before them, or
+  # every tagged iPhone clip is dated the day it was tagged.
+  for tag in DateTimeOriginal CreationDate CreateDate MediaCreateDate; do
+    raw="$(exiftool -s3 -"$tag" -- "$file" 2>/dev/null | head -1)"
+    [[ -z "$raw" || "$raw" == 0000* ]] && continue
+    if [[ "$raw" =~ '([0-9]{4}):([0-9]{2}):([0-9]{2})[ T]([0-9]{2}):([0-9]{2}):([0-9]{2})' ]]; then
+      stamp="$(format_stamp "$match[1]" "$match[2]" "$match[3]" "$match[4]" "$match[5]" "$match[6]")"
+      [[ -n "$stamp" ]] && { print -r -- "$stamp"; return 0 }
+    fi
+  done
+}
+
+date_from_atoms() {
+  local raw
+  # creation_time is muxer bookkeeping, but a phone's own capture date and an
+  # authored `date` are real; both look like "2025-02-02T12:23:44.000000Z".
+  raw="$(first_atom date com.apple.quicktime.creationdate creation_time)"
+  if [[ "$raw" =~ '([0-9]{4})-([0-9]{2})-([0-9]{2})[ T]([0-9]{2}):([0-9]{2}):([0-9]{2})' ]]; then
+    format_stamp "$match[1]" "$match[2]" "$match[3]" "$match[4]" "$match[5]" "$match[6]"
+  fi
+}
+
+date_from_ctime() {
+  # macOS stat: %SB is the birth (creation) time, formatted with -t.
+  stat -f '%SB' -t '%Y-%m-%d--%H-%M-%S' -- "$1" 2>/dev/null | head -1
+}
+
+resolve_date() {
+  local file="$1" stamp
+
+  stamp="$(date_from_exif "$file")"
+  [[ -n "$stamp" ]] && { log_verbose "date source: exif -> $stamp"; print -r -- "$stamp"; return 0 }
+
+  stamp="$(date_from_atoms)"
+  [[ -n "$stamp" ]] && { log_verbose "date source: container tags -> $stamp"; print -r -- "$stamp"; return 0 }
+
+  stamp="$(date_from_ctime "$file")"
+  [[ -n "$stamp" ]] && { log_verbose "date source: ctime -> $stamp"; print -r -- "$stamp"; return 0 }
+}
+
+# ---------------------------------------------------------------------------
+# METADATA (fresh probe)
+# ---------------------------------------------------------------------------
+
+get_resolution_label() {
+  local d=${1:-0}
+  if (( d <= 480 )); then
+    print -r -- "480p"
+  elif (( d <= 720 )); then
+    print -r -- "720p"
+  elif (( d <= 1080 )); then
+    print -r -- "1080p"
+  elif (( d <= 1440 )); then
+    print -r -- "1440p"
+  elif (( d <= 2160 )); then
+    print -r -- "2160p"
+  else
+    print -r -- "${d}p"
+  fi
+}
+
+format_duration() {
+  local secs=${1:-0}
+  local hours=$(( secs / 3600 ))
+  local mins=$(( secs / 60 ))
+
+  if (( hours > 0 )); then
+    print -r -- "${hours}hr"
+  elif (( mins > 0 )); then
+    print -r -- "${mins}min"
+  else
+    print -r -- "${secs}sec"
+  fi
+}
+
+get_rotation() {
+  local file="$1" rotation=""
+
+  rotation="$(
+    ffprobe -v error -select_streams v:0 -show_entries stream_side_data=rotation \
+      -of default=noprint_wrappers=1:nokey=1 -- "$file" 2>/dev/null | head -1 || true
+  )"
+  if [[ -z "$rotation" ]]; then
+    rotation="$(
+      ffprobe -v error -select_streams v:0 -show_entries stream_tags=rotate \
+        -of default=noprint_wrappers=1:nokey=1 -- "$file" 2>/dev/null | head -1 || true
+    )"
+  fi
+  [[ -z "$rotation" ]] && rotation="${ATOM[rotate]:-0}"
+  [[ -z "$rotation" ]] && rotation="0"
+
+  print -r -- "$rotation"
+}
+
+# One short word naming the capture device, e.g. "iPhone 15 Pro" -> "iPhone15Pro".
+get_device() {
+  local file="$1" model="" tag
+
+  for tag in Model CameraModelName com.apple.quicktime.model Make; do
+    model="$(exiftool -s3 -"$tag" -- "$file" 2>/dev/null | head -1)"
+    [[ -n "$model" ]] && break
+  done
+
+  [[ -z "$model" ]] && model="${ATOM[com.apple.quicktime.model]:-}"
+
+  model="$(trim_whitespace "$model")"
+  model="${model// /}"   # device must be a single word
+  print -r -- "$model"
+}
+
+# The probed block, filled by probe_media and rendered by metadata_block.
+P_RESOLUTION="" P_FPS="" P_DURATION="" P_MBPS="" P_CODEC="" P_ORIENT="" P_DEVICE=""
+
+probe_media() {
+  local file="$1"
+  local video_info duration_secs line key value
+  local width="" height="" frame_rate="" bit_rate="" codec_name=""
+
+  P_RESOLUTION="" P_FPS="" P_DURATION="" P_MBPS="" P_CODEC="" P_ORIENT="" P_DEVICE=""
+
+  video_info="$(
+    ffprobe -v error -select_streams v:0 \
+      -show_entries stream=codec_name,width,height,r_frame_rate,bit_rate \
+      -of default=noprint_wrappers=1:nokey=0 -- "$file" 2>/dev/null
+  )" || return 1
+  [[ -n "$video_info" ]] || return 1
+
+  while IFS= read -r line; do
+    key="${line%%=*}"
+    value="${line#*=}"
+    case "$key" in
+      codec_name)   codec_name="$value" ;;
+      width)        width="$value" ;;
+      height)       height="$value" ;;
+      r_frame_rate) frame_rate="$value" ;;
+      bit_rate)     bit_rate="$value" ;;
+    esac
+  done <<< "$video_info"
+
+  [[ -n "$width" && -n "$height" ]] || return 1
+
+  if ! duration_secs="$(
+    ffprobe -v error -show_entries format=duration -of csv=p=0 -- "$file" 2>/dev/null
+  )"; then
+    duration_secs="0"
+  fi
+  duration_secs="$(awk -v d="$duration_secs" 'BEGIN{printf("%d", d+0.5)}')"
+
+  if [[ "$frame_rate" == */* ]]; then
+    local num=${frame_rate%%/*}
+    local denom=${frame_rate##*/}
+    if (( denom > 0 )); then
+      frame_rate=$(( (num + denom / 2) / denom ))
+    else
+      frame_rate=0
+    fi
+  fi
+
+  local rotation abs_rotation display_width display_height
+  rotation="$(get_rotation "$file")"
+  abs_rotation=${rotation#-}
+  display_width=$width
+  display_height=$height
+  if [[ "$abs_rotation" == "90" || "$abs_rotation" == "270" ]]; then
+    display_width=$height
+    display_height=$width
+  fi
+
+  local smaller_dim=$(( display_width < display_height ? display_width : display_height ))
+  P_RESOLUTION="$(get_resolution_label "$smaller_dim")"
+
+  if (( display_width > display_height )); then
+    P_ORIENT="H"
+  elif (( display_height > display_width )); then
+    P_ORIENT="V"
+  else
+    P_ORIENT="S"
+  fi
+
+  P_FPS="${frame_rate}fps"
+  P_DURATION="$(format_duration "$duration_secs")"
+
+  if [[ -n "$bit_rate" && "$bit_rate" != "N/A" ]]; then
+    P_MBPS="$(awk -v b="$bit_rate" 'BEGIN{printf("%dmbps", (b+500000)/1000000)}')"
+  fi
+
+  case "${codec_name:l}" in
+    hevc|h265) P_CODEC="h265" ;;
+    h264|avc1) P_CODEC="h264" ;;
+    prores)    P_CODEC="PRO" ;;
+    vp9)       P_CODEC="VP9" ;;
+    av1)       P_CODEC="AV1" ;;
+  esac
+
+  P_DEVICE="$(get_device "$file")"
+
+  log_verbose "probed: res=${P_RESOLUTION} fps=${P_FPS} len=${P_DURATION} bitrate=${P_MBPS:-<none>} codec=${P_CODEC:-<none>} device=${P_DEVICE:-<none>} orientation=${P_ORIENT}"
+}
+
+# Two orders, one per category, each the one its predecessor established:
+# media-rename put the codec next to the frame rate, rename-footage put it after
+# the bitrate and added the capture device. The names those tools wrote are
+# already on disk in their thousands, so the blocks stay as they were.
+metadata_block() {
+  local -a block
+
+  block+=("$P_RESOLUTION" "$P_FPS")
+
+  if [[ "$CATEGORY" == "Footage" ]]; then
+    block+=("$P_DURATION")
+    [[ -n "$P_MBPS" ]]   && block+=("$P_MBPS")
+    [[ -n "$P_CODEC" ]]  && block+=("$P_CODEC")
+    [[ -n "$P_DEVICE" ]] && block+=("$P_DEVICE")
+  else
+    [[ -n "$P_CODEC" ]] && block+=("$P_CODEC")
+    block+=("$P_DURATION")
+    [[ -n "$P_MBPS" ]]  && block+=("$P_MBPS")
+  fi
+
+  block+=("$P_ORIENT")
+
+  print -r -- "[${(j: :)block}]"
+}
+
+# ---------------------------------------------------------------------------
+# name assembly
+# ---------------------------------------------------------------------------
+
+# ACTORS (CHANNEL) - TITLE (Clip N) #TAGS @G ★★★☆☆ [METADATA]
+#
+# The Adult grammar, and the Other grammar too: nothing in it is
+# Adult-specific except the orientation mark, which only an Orientation tag
+# produces.
+#
+# With no actors the channel stands alone and unparenthesised -- the parentheses
+# mark it as belonging to the names in front of them, and with nothing in front
+# there is nothing for them to do.
+build_adult_stem() {
+  local -a parts rendered_tags
+  local lead="" tag stars channel="$CHANNEL"
+
+  # A performer's own channel is already in the name as the actor.
+  (( ${${(@L)ACTORS}[(Ie)${CHANNEL:l}]} )) && channel=""
+
+  if (( ${#ACTORS} )); then
+    lead="${(j:, :)ACTORS}"
+    [[ -n "$channel" ]] && lead+=" (${channel})"
+  elif [[ -n "$CHANNEL" ]]; then
+    lead="$CHANNEL"
+  fi
+
+  [[ -n "$lead" ]] && parts+=("$lead")
+
+  if [[ -n "$TITLE" ]]; then
+    (( ${#parts} )) && parts+=("-")
+    parts+=("$TITLE")
+  fi
+
+  (( ${#parts} )) || return 1
+
+  [[ -n "$CLIP_NUMBER" ]] && parts+=("(Clip ${CLIP_NUMBER})")
+
+  for tag in "${TAGS[@]}"; do rendered_tags+=("#${tag#\#}"); done
+  (( ${#rendered_tags} )) && parts+=("${(j: :)rendered_tags}")
+
+  local mark
+  mark="$(render_orientation "$ORIENTATION")"
+  [[ -n "$mark" ]] && parts+=("$mark")
+
+  stars="$(render_stars "$RATING")"
+  [[ -n "$stars" ]] && parts+=("$stars")
+
+  parts+=("$(metadata_block)")
+
+  print -r -- "${(j: :)parts}"
+}
+
+# DATE PEOPLE - TITLE (Clip N) (LOCATION) #TAGS ★★★☆☆ [METADATA]
+#
+# rename-footage's grammar, minus its filename mining: the channel stays
+# embedded and unrendered, and the parentheses hold the location.
+build_footage_stem() {
+  local file="$1"
+  local -a parts rendered_tags
+  local tag stars date_stamp
+
+  date_stamp="$(resolve_date "$file")"
+
+  [[ -n "$date_stamp" ]] && parts+=("$date_stamp")
+  (( ${#ACTORS} )) && parts+=("${(j:, :)ACTORS}")
+
+  if [[ -n "$TITLE" ]]; then
+    (( ${#parts} )) && parts+=("-")
+    parts+=("$TITLE")
+  fi
+
+  [[ -n "$CLIP_NUMBER" ]] && parts+=("(Clip ${CLIP_NUMBER})")
+  [[ -n "$LOCATION" ]] && parts+=("(${LOCATION})")
+
+  for tag in "${TAGS[@]}"; do rendered_tags+=("#${tag#\#}"); done
+  (( ${#rendered_tags} )) && parts+=("${(j: :)rendered_tags}")
+
+  stars="$(render_stars "$RATING")"
+  [[ -n "$stars" ]] && parts+=("$stars")
+
+  parts+=("$(metadata_block)")
+
+  print -r -- "${(j: :)parts}"
+}
+
+# The longest name this script will write. APFS, HFS+, ext4 and NTFS all
+# hold 255 bytes, but a name that fills them is a name a Finder column, a
+# terminal listing and a URL-encoded share link all truncate; 220 leaves room
+# for a counter, a copy suffix or a different extension without a second cut.
+# Bytes, not characters, which is why a fullwidth bar in a title counts three.
+NAME_MAX=220
+
+byte_len() {
+  emulate -L zsh
+  unsetopt multibyte
+  print -r -- ${#1}
+}
+
+# The stem for whichever grammar the category picks, trimmed and made safe as
+# a path component. In one place so the shortening loop can rebuild it.
+build_stem() {
+  local file="$1" stem
+  if [[ "$CATEGORY" == "Footage" ]]; then
+    stem="$(build_footage_stem "$file")"
+  else
+    stem="$(build_adult_stem)" || return 1
+  fi
+  stem="$(trim_whitespace "$stem")"
+  # The one thing carried over from the old name: its leading underscores.
+  # They are a mark set by hand, not data, and no tag holds them.
+  local mark="${${file:t}%%[^_]*}"
+  print -r -- "${mark}${stem//\//-}"   # a tag may legitimately contain a slash
+}
+
+# A move that will not land on a name something else already holds.
+#
+# `mv` overwrites by default, and every caller here checks `-e` first, which
+# makes each rename a check-then-move with a window between the two halves. A
+# file that appears in that window is not ours -- a second run of this script
+# over the same directory, a download finishing, Finder duplicating -- and
+# overwriting it is the one failure mode a renamer must not have. `-n` closes
+# the window inside mv(1) itself.
+#
+# BSD and GNU mv both decline silently under `-n`: nothing on stderr, and a
+# zero exit. So the move is confirmed by asking the filesystem afterwards,
+# never by the status.
+mv_noclobber() {
+  local src="$1" dst="$2"
+  mv -n -- "$src" "$dst" || return 1
+  if [[ -e "$src" ]] || [[ ! -e "$dst" ]]; then
+    print -u2 -r -- "${YELLOW}${ICON_WARN}Refused: ${dst:t} appeared while renaming ${src:t}${RESET}"
+    return 1
+  fi
+}
+
+rename_path() {
+  local src="$1" dst="$2"
+  local base tmp n=0
+
+  # On a case-insensitive volume "File.mp4" and "file.mp4" are the same file, so
+  # a case-only rename either no-ops or fails and the old casing sticks. Detect
+  # it with -ef and hop through an intermediary name in the same directory.
+  if [[ ! -e "$dst" ]] || [[ ! "$src" -ef "$dst" ]]; then
+    mv_noclobber "$src" "$dst"
+    return $?
+  fi
+
+  base="${dst:h}/.rename-video.$$"
+  tmp="$base"
+  while [[ -e "$tmp" ]]; do
+    (( n++ ))
+    tmp="${base}.${n}"
+  done
+
+  log_verbose "case-only rename; staging through ${tmp:t}"
+
+  # Both halves refuse to clobber: the staging name is only probably free --
+  # two runs a second apart reuse a pid -- and the destination stopped
+  # existing the moment the first move took its only name away, so anything
+  # sitting there by the second move arrived from somewhere else. A failed
+  # second move puts the file back under the name it came in with.
+  mv_noclobber "$src" "$tmp" || return 1
+
+  if ! mv_noclobber "$tmp" "$dst"; then
+    mv_noclobber "$tmp" "$src" 2>/dev/null || \
+      print -u2 -r -- "${YELLOW}${ICON_WARN}Left staged file: ${tmp}${RESET}"
+    return 1
+  fi
+}
+
+# What a file must carry before it is named, per category (see the header).
+# Prints the reason it fails, or nothing when it passes.
+requirement_failure() {
+  local file="$1"
+
+  case "$CATEGORY" in
+    Adult)
+      [[ -n "$SOURCE_URL" || -n "$TITLE" ]] && return 0
+      print -r -- "Adult needs a source URL or a title"
+      ;;
+    Footage)
+      [[ -n "$TITLE" || -n "$(resolve_date "$file")" ]] && return 0
+      print -r -- "Footage needs a date or a title"
+      ;;
+    *)
+      [[ -n "$SOURCE_URL" ]] && return 0
+      print -r -- "an uncategorised file needs a source URL (original_url, purl, source_url or a URL comment)"
+      ;;
+  esac
+}
+
+process_video() {
+  local file="$1"
+  local filename="${file:t}"
+  local dirname="${file:h}"
+  local extension="${filename:e}"
+
+  log_verbose "processing file: $file"
+
+  probe_atoms "$file"
+  read_xmp "$file"
+  resolve_fields
+
+  # The one fatal condition, and deliberately fatal rather than skipped: a
+  # file that fails its category's requirement is a file this script should
+  # not name, and a run over a directory should stop and say which one rather
+  # than rename the rest around it. --force is the opt-out.
+  local why
+  why="$(requirement_failure "$file")"
+  if [[ -n "$why" ]] && ! $FORCE; then
+    die "Cannot name ${filename}: ${why}.
+  Tag it first (tagform), or pass --force to rename anyway."
+  fi
+
+  if ! probe_media "$file"; then
+    print -r -- "${YELLOW}${ICON_WARN}Could not read video info: ${filename}${RESET}"
+    return 0
+  fi
+
+  local stem
+  if ! stem="$(build_stem "$file")"; then
+    print -r -- "${YELLOW}${ICON_WARN}No actors, channel or title to name it after: ${filename}${RESET}"
+    return 0
+  fi
+
+  # A name is capped at NAME_MAX bytes. A long title or tag list walks past
+  # that, and the name is worth more with its tail cut than not written at
+  # all: the title goes first, losing words from its end, since the tags are
+  # what the library is searched by and a title is prose that reads fine
+  # truncated; only once the title is gone entirely do the tags go, last one
+  # first, since the front of the list is the part a human chose to lead
+  # with. The actors, channel, rating and metadata block are left alone while
+  # anything else can go -- they are short, and they are the part the rest of
+  # the library is sorted by. If they alone are still too long (a cast list
+  # can be), the stem is cropped from its end: a cut name is still a name, and
+  # refusing would leave the file named worse.
+  while (( $(byte_len "${stem}.${extension}") > NAME_MAX )); do
+    if [[ "$TITLE" == *" "* ]]; then
+      TITLE="${TITLE% *}"
+    elif [[ -n "$TITLE" ]]; then
+      TITLE=""
+    elif (( ${#TAGS} )); then
+      TAGS[-1]=()
+    else
+      break
+    fi
+    stem="$(build_stem "$file")" || break
+  done
+  # A character at a time, not a byte, so a multibyte character is never split.
+  while (( $(byte_len "${stem}.${extension}") > NAME_MAX )) && [[ -n "$stem" ]]; do
+    stem="${stem[1,-2]}"
+  done
+  stem="$(trim_whitespace "$stem")"
+
+  local new_filename="${stem}.${extension}"
+  local new_path="${dirname}/${new_filename}"
+
+  log_verbose "rename target for ${filename}: ${new_filename}"
+
+  if $PRINT_TARGET; then
+    print -r -- "$new_path"
+    return 0
+  fi
+
+  if [[ "$filename" == "$new_filename" ]]; then
+    print -r -- "${YELLOW}${ICON_SKIP}Unchanged: ${filename}${RESET}"
+  elif [[ -e "$new_path" ]] && [[ ! "$file" -ef "$new_path" ]]; then
+    print -r -- "${YELLOW}${ICON_WARN}Exists: ${new_filename}${RESET}"
+  elif $DRY_RUN; then
+    print -r -- "${CYAN}${ICON_VIDEO}${new_filename}${RESET}"
+  elif rename_path "$file" "$new_path"; then
+    touch_modified_now "$new_path"
+    print -r -- "${GREEN}${ICON_OK}${new_filename}${RESET}"
+  else
+    print -r -- "${YELLOW}${ICON_WARN}Could not rename: ${filename} -> ${new_filename}${RESET}"
+    return 1
+  fi
+}
+
+normalize_input_path() {
+  local s="$1"
+  local unescaped candidate cwd_name
+
+  if [[ -e "$s" ]]; then
+    print -r -- "${s:a}"
+    return 0
+  fi
+
+  unescaped="${(Q)s}"
+  if [[ -e "$unescaped" ]]; then
+    print -r -- "${unescaped:a}"
+    return 0
+  fi
+
+  # Some callers launch from the selected file's directory while still passing a
+  # relative path that includes that directory name, e.g. Files/Movie.mov with
+  # cwd already set to .../Files. In that case, the basename is the file.
+  cwd_name="${PWD:t}"
+
+  if [[ "$unescaped" != /* && "$unescaped" == */* && "${unescaped:h:t}" == "$cwd_name" ]]; then
+    candidate="${unescaped:t}"
+    if [[ -e "$candidate" ]]; then
+      print -r -- "${candidate:a}"
+      return 0
+    fi
+  fi
+
+  if [[ "$unescaped" != "$s" ]]; then
+    print -r -- "$unescaped"
+    return 0
+  fi
+
+  print -r -- "$s"
+}
+
+main() {
+  while (( $# > 0 )); do
+    case "$1" in
+      --dry-run) DRY_RUN=true; shift ;;
+      --force)   FORCE=true; shift ;;
+      --verbose) VERBOSE=true; shift ;;
+      --color)   enable_color; shift ;;
+      --icons)   enable_icons; shift ;;
+      --print-target|--target-path) PRINT_TARGET=true; shift ;;
+      --) shift; break ;;
+      -h|--help) usage; exit 0 ;;
+      -*)
+        print -u2 -r -- "${YELLOW}${ICON_WARN}Unknown option: $1${RESET}"
+        exit 1
+        ;;
+      *) break ;;
+    esac
+  done
+
+  (( $# )) || { usage; exit 1 }
+
+  command -v ffprobe >/dev/null 2>&1 || \
+    die "ffprobe is required but not installed."
+
+  # Not optional. The authored fields this renames by live in XMP that only
+  # exiftool can read; without it every file would look untagged, which here
+  # means every file would look uncategorised and the run would stop anyway.
+  command -v exiftool >/dev/null 2>&1 || \
+    die "exiftool is required but not installed. Install with: brew install exiftool"
+
+  local raw_file file
+
+  for raw_file in "$@"; do
+    file="$(normalize_input_path "$raw_file")"
+
+    if [[ -f "$file" ]]; then
+      case "${file:l}" in
+        *.mp4|*.mov|*.m4v)
+          process_video "$file"
+          ;;
+        *)
+          print -r -- "${YELLOW}${ICON_SKIP}Not an mp4/mov: ${file:t}${RESET}"
+          ;;
+      esac
+    else
+      print -r -- "${YELLOW}${ICON_WARN}Not found: ${file}${RESET}"
+    fi
+  done
+}
+
+main "$@"

@@ -937,10 +937,10 @@ p = "prev"
 "cmd+shift+r" = "reload_library"
 r = "reveal"
 s = "shuffle_library"  # shuffle the whole grid in place ("shuffle" also works)
-e = "launch '/Users/nom/.zsh/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /Users/nom/.cargo/bin/tagform {path}'"
-t = "launch '/Users/nom/.zsh/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut {path}'"
+e = "launch '/Users/nom/.local/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /Users/nom/.cargo/bin/tagform {path}'"
+t = "launch '/Users/nom/.local/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /Users/nom/.local/bin/ffmpeg-lossless-cut {path}'"
 u = "launch 'open {url}'"
-y = "launch '/Users/nom/.zsh/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /opt/homebrew/bin/yazi {path}'"
+y = "launch '/Users/nom/.local/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /opt/homebrew/bin/yazi {path}'"
 "[" = "skip_back"  # jump by skip_fraction; wraps at the ends
 "]" = "skip_forward"
 1 = "open '~/Movies/Porn'"
@@ -1027,20 +1027,20 @@ preview = "mpv --no-fs --loop-file=inf --ontop --no-terminal --force-window=imme
 # in a Kitty window rather than firing it into the void from this GUI app.
 # [commands.trim]
 # type = "launch"
-# program = "/Users/nom/.zsh/bin/kitty-launch"
+# program = "/Users/nom/.local/bin/kitty-launch"
 # args = [
 #   "--os-window",
 #   "--auto-hide",
 #   "--cwd",
 #   "{dir}",
 #   "--",
-#   "/Users/nom/.zsh/bin/ffmpeg-lossless-cut",
+#   "/Users/nom/.local/bin/ffmpeg-lossless-cut",
 #   "{path}",
 # ]
 
 # [commands.yazi]
 # type = "launch"
-# program = "/Users/nom/.zsh/bin/kitty-launch"
+# program = "/Users/nom/.local/bin/kitty-launch"
 # args = [
 #   "--os-window",
 #   "--auto-hide",
@@ -1053,7 +1053,7 @@ preview = "mpv --no-fs --loop-file=inf --ontop --no-terminal --force-window=imme
 
 # [commands.mediainfo]
 # type = "launch"
-# program = "/Users/nom/.zsh/bin/kitty-launch"
+# program = "/Users/nom/.local/bin/kitty-launch"
 # args = [
 #   "--os-window",
 #   "--cwd",
@@ -1066,7 +1066,7 @@ preview = "mpv --no-fs --loop-file=inf --ontop --no-terminal --force-window=imme
 # Example: bind a key to your own script.
 # [commands.rename_script]
 # type = "launch"
-# program = "~/.zsh/bin/rename-video"
+# program = "~/.local/bin/rename-video"
 # args = ["{path}"]
 
 # Internal actions take parameters too — a skip command with `amount`

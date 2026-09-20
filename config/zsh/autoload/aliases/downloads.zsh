@@ -2,7 +2,7 @@
 # Audio Stem Separation
 # ============================================================================
 
-# Stem splitting lives in ~/.zsh/bin/vdjstems-split (MLX RoFormer pipeline);
+# Stem splitting lives in ~/.local/bin/vdjstems-split (MLX RoFormer pipeline);
 # the old MVSEP-MDX23 function it replaced is in git history (downloads.zsh,
 # pre-July-2026).
 

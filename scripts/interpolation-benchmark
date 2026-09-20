@@ -133,7 +133,7 @@ method_label() {
 # with a reason instead of failing the run.
 method_needs() {
   case "$1" in
-    resolve-*)    printf '%s\n' "$repo/config/zsh/bin/interpolate-resolve" "/Applications/DaVinci Resolve.app" ;;
+    resolve-*)    printf '%s\n' "$repo/bin/interpolate-resolve" "/Applications/DaVinci Resolve.app" ;;
     rife-vapoursynth) printf '%s\n' "$repo/bin/rife-vapoursynth" "$(command -v vspipe || echo /nonexistent)" \
                                 "${RIFE_VS_PLUGIN_DIR:-$HOME/.local/lib/vapoursynth}/librife.dylib" ;;
     minterpolate) printf '%s\n' "$repo/bin/smooth-fps" ;;
@@ -145,11 +145,11 @@ method_cmd() {  # $1 id, $2 IN, $3 OUT, $4 FPS
   local id="$1" IN="$2" OUT="$3" FPS="$4"
   case "$id" in
     resolve-standard)
-      "$repo/config/zsh/bin/interpolate-resolve" --quality standard-better   --fps "$FPS" "$IN" "$OUT" ;;
+      "$repo/bin/interpolate-resolve" --quality standard-better   --fps "$FPS" "$IN" "$OUT" ;;
     resolve-enhanced)
-      "$repo/config/zsh/bin/interpolate-resolve" --quality enhanced-better   --fps "$FPS" "$IN" "$OUT" ;;
+      "$repo/bin/interpolate-resolve" --quality enhanced-better   --fps "$FPS" "$IN" "$OUT" ;;
     resolve-speedwarp)
-      "$repo/config/zsh/bin/interpolate-resolve" --quality speed-warp-better --fps "$FPS" "$IN" "$OUT" ;;
+      "$repo/bin/interpolate-resolve" --quality speed-warp-better --fps "$FPS" "$IN" "$OUT" ;;
     rife-vapoursynth)
       "$repo/bin/rife-vapoursynth" -r "$FPS" -o "$OUT" "$IN" ;;
     minterpolate)

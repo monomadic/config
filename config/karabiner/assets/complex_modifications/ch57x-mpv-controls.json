@@ -14,7 +14,7 @@
           },
           "to": [
             {
-              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.zsh/bin/mpv-toggle-or-start'"
+              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.local/bin/mpv-toggle-or-start'"
             }
           ]
         },
@@ -28,7 +28,7 @@
           },
           "to": [
             {
-              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.zsh/bin/mpv-send prev'"
+              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.local/bin/mpv-send prev'"
             }
           ]
         },
@@ -42,7 +42,7 @@
           },
           "to": [
             {
-              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.zsh/bin/mpv-send random'"
+              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.local/bin/mpv-send random'"
             }
           ]
         },
@@ -56,7 +56,7 @@
           },
           "to": [
             {
-              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.zsh/bin/mpv-send next'"
+              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.local/bin/mpv-send next'"
             }
           ]
         },

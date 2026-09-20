@@ -19,4 +19,4 @@ vendor/bin/beatportdl-credentials.json
 .ug-browser-profile/
 
 # compiled Go binaries built in-tree
-utils/ytform/ytform
+src/ytform/ytform

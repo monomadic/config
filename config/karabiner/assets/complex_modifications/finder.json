@@ -104,7 +104,7 @@
           },
           "to": [
             {
-              "shell_command": "/Users/nom/.zsh/bin/finder-open-in-yazi"
+              "shell_command": "/Users/nom/.local/bin/finder-open-in-yazi"
             }
           ],
           "conditions": [
@@ -130,7 +130,7 @@
           },
           "to": [
             {
-              "shell_command": "/bin/zsh -lc 'finder_dir=$(osascript -e '\\''tell application \"Finder\" to POSIX path of (target of front window as alias)'\\''); exec /Users/nom/.zsh/bin/kitty-launch --os-window --cwd \"$finder_dir\" --title \" media-audit \" -- /Users/nom/.zsh/bin/media-audit \"$finder_dir\"'"
+              "shell_command": "/bin/zsh -lc 'finder_dir=$(osascript -e '\\''tell application \"Finder\" to POSIX path of (target of front window as alias)'\\''); exec /Users/nom/.local/bin/kitty-launch --os-window --cwd \"$finder_dir\" --title \" media-audit \" -- /Users/nom/.local/bin/media-audit \"$finder_dir\"'"
             }
           ],
           "conditions": [

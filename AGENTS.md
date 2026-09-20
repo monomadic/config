@@ -18,16 +18,23 @@ file entry in `dotter/global.toml`, or a changed target path.
 
 ## The repo is location-independent
 
-Nothing assumes `~/config`. `setup/**` scripts resolve the root from their own
-path (`dirname $0/../..`), `config/zsh/bin/dotter-deploy` resolves through its
-symlink with `${0:A}`, and `.zshenv` derives `$DOTFILES_DIR` the same way.
+Nothing assumes `~/config`. `scripts/**` scripts resolve the root from their own
+path (`dirname $0/../..`), `bin/dotter-deploy` resolves through its
+symlink with `${0:A}` (`:h:h` — it sits one level down), and `.zshenv` derives
+`$DOTFILES_DIR` the same way.
 When you write a new script, follow that pattern — never hardcode `$HOME/config`,
 and prefer `$DOTFILES_DIR` in shell config.
 
 Tool configs that need to call a repo script should reference the **deployed**
-path (`~/.zsh/bin/foo`, `~/.config/kitty/…`), not the repo path — the symlink is
+path (`~/.local/bin/foo`, `~/.config/kitty/…`), not the repo path — the symlink is
 stable wherever the checkout lives. Known exception: `config/zellij/layouts/*.kdl`
 still holds absolute paths because Zellij's KDL does no env/tilde expansion.
+
+Those absolute `~/.local/bin/...` paths are deliberate, not laziness: yazi,
+mpv, karabiner, kitty, motherfucker and switchblade are launched by the GUI,
+which inherits launchd's bare `PATH`, not your shell's. A bare command name
+works from a shell script but silently fails from those configs. Inside a
+script that already has a login shell's `PATH`, prefer the bare name.
 
 ## How deployment works
 
@@ -41,21 +48,21 @@ Two manifests, one syntax:
 ## Commands
 
 ```bash
-setup/macos/bootstrap.sh      # full machine setup: CLT, Homebrew, Brewfile, clone, deploy
-setup/macos/check.sh          # preflight: validates manifests, source paths, package names
-setup/macos/packages.sh list  # show every package and whether it is on for this machine
-setup/macos/packages.sh enable <name>   # edit local.toml without hand-syncing lists
-setup/macos/deploy.sh         # run Dotter deploy (wraps config/zsh/bin/dotter-deploy)
-setup/macos/deploy.sh --full  # also syncs Yazi plugin packages, repairs the yt-dlp install, and reapplies macOS app icons
+scripts/setup/bootstrap.sh      # full machine setup: CLT, Homebrew, Brewfile, clone, deploy
+scripts/setup/check.sh          # preflight: validates manifests, source paths, package names
+scripts/setup/packages.sh list  # show every package and whether it is on for this machine
+scripts/setup/packages.sh enable <name>   # edit local.toml without hand-syncing lists
+scripts/setup/deploy.sh         # run Dotter deploy (wraps bin/dotter-deploy)
+scripts/setup/deploy.sh --full  # also syncs Yazi plugin packages, repairs the yt-dlp install, and reapplies macOS app icons
 ```
 
 `deploy.sh` runs `check.sh` automatically unless `DOTTER_SKIP_HEALTHCHECK=1`.
 There is no CI. For config and script changes, verification = `check.sh` passing,
 plus `zsh -n` / `bash -n` on any shell script you touched.
 
-## The utils/ side: real code, real builds
+## The src/ side: real code, real builds
 
-`utils/<tool>/` holds tool source (Rust: the AppKit menu bar widgets — `battery-widget`,
+`src/<tool>/` holds tool source (Rust: the AppKit menu bar widgets — `battery-widget`,
 `cpu-usage-widget`, `free-disk-space-widget`, `menu-tidy` — plus `leaf`, `pimped`,
 `motherfucker`, `neuroserver-select-preset`, `topaz-select-preset`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
 `system-uptime-widget`). These are the only parts of the repo with a
@@ -68,13 +75,13 @@ rule: it needs one for notifications, so its installer *generates* the `.app` in
 `~/Applications` — nothing bundled is ever checked in.
 
 ```bash
-setup/install/install-<name>.sh    # canonical build+install; most install to ~/.local/bin
-cd utils/leaf && cargo test        # Rust suites live in src/tests/ (leaf is the largest)
-cd utils/leaf && cargo test toc    # single test / filter
-cd utils/obsbot-rtsp-widget && go test ./...
+scripts/install/install-<name>.sh    # canonical build+install; most install to ~/.local/bin
+cd src/leaf && cargo test        # Rust suites live in src/tests/ (leaf is the largest)
+cd src/leaf && cargo test toc    # single test / filter
+cd src/obsbot-rtsp-widget && go test ./...
 ```
 
-Installers are named `setup/install/install-<name>.sh` — follow that for new ones
+Installers are named `scripts/install/install-<name>.sh` — follow that for new ones
 (a few legacy scripts predate the prefix). Prefer the installer over a hand-rolled
 `cargo install`/`go build` — it pins the install path the rest of the config expects
 (e.g. `pimped` must be on PATH for the zsh precmd prompt hook in
@@ -82,12 +89,12 @@ Installers are named `setup/install/install-<name>.sh` — follow that for new o
 
 **Topaz has two render backends.** Everything under `topaz-*` (the mpv `z`
 menu, `topaz-encode`, `topaz-pick`, `topaz-workflow`, and the
-`utils/topaz-select-preset` TUI over them) drives the app's ffmpeg with a
+`src/topaz-select-preset` TUI over them) drives the app's ffmpeg with a
 `tvai_up` filter. The generative models (Starlight Precise, Astra,
 Hyperion 2) are served by the app's separate `neuroserver` process instead and
 are unreachable from that filter; presets for them declare `ns_model` /
 `ns_store` / `ns_params` and are rendered by `topaz-preview-frame` (stills) and
-by `utils/neuroserver-select-preset` (the TUI, whose binary also contains the
+by `src/neuroserver-select-preset` (the TUI, whose binary also contains the
 whole-clip encoder — `neuroserver-encode` is a symlink to it, not a script).
 Starlight *Mini* is not one of them: it is a three-part coreml model that
 `tvai_up` loads itself. Don't add a neuroserver path to `topaz-encode`.
@@ -106,18 +113,18 @@ and no status protocol, which means moving a folder is also how the queue is
 group, drag it back and it resumes, drag it to `_failed` and it is terminated.
 That works from Finder or from another machine over SMB, and the filesystem's
 own permissions are the access control. Contract details:
-`utils/jobs/job-daemon/README.md`.
+`src/jobs/job-daemon/README.md`.
 
-`utils/jobs/` is a cargo workspace — the one nested directory under `utils/`,
+`src/jobs/` is a cargo workspace — the one nested directory under `src/`,
 because these crates share a lockfile, a target dir and pinned objc2 versions,
 and because `job-monitor` must *not* depend on the job loop:
 
 | | |
 |---|---|
-| `utils/jobs/job-daemon` | the only thing that runs jobs *for the folder protocol*. `--once` under a launchd WatchPaths trigger, or resident |
-| `utils/jobs/job-monitor` | the menu bar UI, for the local queue and for folders mounted over SMB. A normal `.app` you launch and quit; links no runner, but commands the queue by moving folders |
-| `utils/jobs/job-folder` | the variation: runner and menu in one process, queue held in memory. A `.app` with no agent — the queue runs while it is open |
-| `utils/jobs/job-core` | the shared library — the model, the filesystem observer, the rows and the icon |
+| `src/jobs/job-daemon` | the only thing that runs jobs *for the folder protocol*. `--once` under a launchd WatchPaths trigger, or resident |
+| `src/jobs/job-monitor` | the menu bar UI, for the local queue and for folders mounted over SMB. A normal `.app` you launch and quit; links no runner, but commands the queue by moving folders |
+| `src/jobs/job-folder` | the variation: runner and menu in one process, queue held in memory. A `.app` with no agent — the queue runs while it is open |
+| `src/jobs/job-core` | the shared library — the model, the filesystem observer, the rows and the icon |
 
 In the daemon/monitor pair the UI is a client, never a runner: a crate with no
 job loop linked into it cannot claim a job however it is launched, and it
@@ -138,7 +145,7 @@ watch it from another machine, and why quitting stops the jobs. Run it *or*
 1. Create `config/<tool>/` — flat, named after the tool itself (`config/helix`, not `config/editors/helix`).
 2. Add a `[<tool>.files]` section to `dotter/global.toml`, in the right alphabetical spot within its group.
 3. Add `"<tool>"` to `dotter/local.toml.example` (commented out unless it should be on by default).
-4. `setup/macos/packages.sh enable <tool>` if it should be active here, then `setup/macos/deploy.sh`.
+4. `scripts/setup/packages.sh enable <tool>` if it should be active here, then `scripts/setup/deploy.sh`.
 
 `check.sh` fails on manifest entries pointing at missing repo paths and on
 `local.toml` selecting packages that don't exist in `global.toml`.
@@ -148,19 +155,24 @@ watch it from another machine, and why quitting stops the jobs. Run it *or*
 | Path | Purpose |
 |---|---|
 | `config/<tool>/` | active config source, one tool per directory, flat |
-| `config/zsh/` | shell config; `config/zsh/bin/` for zsh-dependent commands (→ `~/.zsh/bin/`) |
-| `bin/` | general-purpose standalone executables (→ `~/.bin/`) |
+| `config/zsh/` | shell config only — rc files, `autoload/`, `completions/`. No commands live here any more |
+| `bin/` | **every** user-facing command, one flat directory (→ per-file symlinks in `~/.local/bin/`) |
 | `scripts/` | sourceable snippets and misc helpers (not on PATH) |
-| `setup/` | bootstrap, deploy, and machine-setup entrypoints |
+| `scripts/setup/` | bootstrap, deploy, and health-check entrypoints |
+| `scripts/install/` | `install-<name>.sh` build+install scripts for `src/` |
+| `scripts/tweaks/` | one-shot macOS `defaults write` tweaks — never run by deploy |
 | `dotter/` | deployment manifests only |
-| `utils/<tool>/` | small personal utility source trees (Rust for the menu bar widgets and `leaf`, Go for the rest) — build via `setup/install/install-<name>.sh` |
+| `src/<tool>/` | small personal utility source trees (Rust for the menu bar widgets and `leaf`, Go for the rest) — build via `scripts/install/install-<name>.sh` |
 | `assets/` | fonts, icons, and colour LUTs (`assets/LUTs/` deploys into Resolve and Final Cut) |
-| `vendor/bin/`, `archive/` | holding areas — don't add to or modify these |
+| `vendor/bin/` | retained third-party binaries; `bin/` holds the thin `exec` shim for each |
+| `_quarantine/` | commands dropped from PATH but kept in history. Never referenced, never deployed, never added to |
 
 ## Rules that prevent rework
 
 - **No new domain buckets under `config/`** (`editors/`, `media/`, `windowing/`...). A few legacy ones exist; don't add files to them — use `config/<tool>/`.
-- A command name lives in **either** `bin/` **or** `config/zsh/bin/`, never both. Pick `config/zsh/bin/` only if it depends on zsh or autoloaded functions.
+- **`bin/` is the only home for commands.** There is no second command directory — the old `bin/` vs `config/zsh/bin/` split is gone, and so is the rule about picking between them. A new command goes in `bin/`, whatever language it is in.
+- `bin/` deploys as one symlink **per file** into `~/.local/bin/`, which also holds binaries the `scripts/install/` scripts build. So a new command must not collide with an installed binary name (`pimped`, `leaf`, the widgets, pipx/uv shims) — Dotter refuses to overwrite an unmanaged file and the deploy fails.
+- Retiring a command means `git mv bin/<cmd> _quarantine/bin/`, not deleting it, and removing every reference first. Nothing in `_quarantine/` may be referenced from live config.
 - Executables meant to be invoked as commands are **extensionless**. Use `.zsh`/`.sh`/`.py` only for sourced or clearly single-language utilities.
 - Local config templates are checked in as `*.example`; the live file is gitignored.
 - Helix is the active editor. `config/neovim/` is dormant source — keep it out of active profiles.

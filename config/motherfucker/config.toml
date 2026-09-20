@@ -154,18 +154,18 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 "System" = "open -a ScreenSaverEngine"  # ⇥ for more (lock/shutdown)
 "Config" = "open ~/.config"  # ⇥ for more (motherfucker/switchblade)
 "Motherfucker" = ""
-"ChordPro" = "/Users/nom/.zsh/bin/kitty-launch --os-window -- /Users/nom/go/bin/chordpro-tui '/Users/nom/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature/ChordPro'"
+"ChordPro" = "/Users/nom/.local/bin/kitty-launch --os-window -- /Users/nom/go/bin/chordpro-tui '/Users/nom/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature/ChordPro'"
 "Copy Phone Number" = "echo 09603111806 | pbcopy"
 
 [commands.Motherfucker]
 "Reload" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
-"Config" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config/motherfucker\" -- /bin/zsh -lc 'exec hx -- ~/.config/motherfucker/config.toml'"
+"Config" = "/Users/nom/.local/bin/kitty-launch --cwd \"~/.config/motherfucker\" -- /bin/zsh -lc 'exec hx -- ~/.config/motherfucker/config.toml'"
 
 [commands.M4]
 "Mount Tower" = "open -j smb://m4.local/Tower"
 "Installers" = "open -j smb://m4.local/Tower/Installers"
-"Mount Jobs" = "/Users/nom/.zsh/bin/kitty-launch -- open -j -g smb://m4.local/jobs & yazi /Volumes/jobs"
-"Open Jobs (Yazi)" = "/Users/nom/.zsh/bin/kitty-launch -- open -j -g smb://m4.local/jobs ; yazi /Volumes/jobs"
+"Mount Jobs" = "/Users/nom/.local/bin/kitty-launch -- open -j -g smb://m4.local/jobs & yazi /Volumes/jobs"
+"Open Jobs (Yazi)" = "/Users/nom/.local/bin/kitty-launch -- open -j -g smb://m4.local/jobs ; yazi /Volumes/jobs"
 
 # Per-app subcommands: with a matching row selected (app, running app, or
 # [shortcuts] entry — matched case-insensitively by name), ⇥ lists these
@@ -174,11 +174,11 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 [commands.SwitchBlade]
 "Open ~/Movies/Porn/Downloads" = "$HOME/.cargo/bin/switchblade --fast-fullscreen ~/Movies/Porn/Downloads"
 "Open /Volumes/*/Movies/Porn" = "$HOME/.cargo/bin/switchblade --fast-fullscreen /Volumes/*/Movies/Porn"
-"Open Sorted Local" = "$HOME/.zsh/bin/fd-media --sort-created . ~/Movies/Porn/Downloads | $HOME/.cargo/bin/switchblade --fast-fullscreen"
-"Open Sorted All" = "$HOME/.zsh/bin/fd-media --sort-created | $HOME/.cargo/bin/switchblade --fast-fullscreen"
+"Open Sorted Local" = "$HOME/.local/bin/fd-media --sort-created . ~/Movies/Porn/Downloads | $HOME/.cargo/bin/switchblade --fast-fullscreen"
+"Open Sorted All" = "$HOME/.local/bin/fd-media --sort-created | $HOME/.cargo/bin/switchblade --fast-fullscreen"
 "Open Tower (index)" = "cat /Volumes/Tower/Movies/Porn/.index | $HOME/.cargo/bin/switchblade --fast-fullscreen"
 "Open Tower (live)" = "$HOME/.cargo/bin/switchblade --fast-fullscreen /Volumes/Tower/Movies/Porn/Downloads"
-"Config" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config\" -- /bin/zsh -lc 'exec hx -- ~/.config/switchblade.toml'"
+"Config" = "/Users/nom/.local/bin/kitty-launch --cwd \"~/.config\" -- /bin/zsh -lc 'exec hx -- ~/.config/switchblade.toml'"
 
 # The real System Settings.app: enter opens it normally, ⇥ deep-links a pane.
 [commands.System Settings]
@@ -197,8 +197,8 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 # "restart" = "osascript -e 'tell app \"System Events\" to restart'"
 
 [commands.Config]
-"motherfucker" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config/motherfucker\" -- /bin/zsh -lc 'exec hx -- ~/.config/motherfucker/config.toml'"
-"switchblade" = "/Users/nom/.zsh/bin/kitty-launch --cwd \"~/.config\" -- /bin/zsh -lc 'exec hx -- ~/.config/switchblade.toml'"
+"motherfucker" = "/Users/nom/.local/bin/kitty-launch --cwd \"~/.config/motherfucker\" -- /bin/zsh -lc 'exec hx -- ~/.config/motherfucker/config.toml'"
+"switchblade" = "/Users/nom/.local/bin/kitty-launch --cwd \"~/.config\" -- /bin/zsh -lc 'exec hx -- ~/.config/switchblade.toml'"
 
 # Sigil modes: typing one of these as the FIRST character switches the
 # panel into that mode. The sigil is lifted into a colored box (not left in

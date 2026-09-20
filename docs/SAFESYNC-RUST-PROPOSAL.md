@@ -1,6 +1,6 @@
 # Safesync: Rust media sync and transfer TUI
 
-Status: **inventory and offline-lookup milestone implemented in `utils/safesync/`;
+Status: **inventory and offline-lookup milestone implemented in `src/safesync/`;
 remaining sections describe the planned sync engine and TUI**. Safesync is an
 independent application, not a replacement or new version of spill.
 Scope: macOS, locally attached APFS volumes first. Designed for Tower → Tower
@@ -136,7 +136,7 @@ These remain later delivery gates. Spill remains untouched.
 
 ## 2. User experience and visual direction
 
-Retain the concrete design choices in `utils/spill/ui.go` and `gradient.go`:
+Retain the concrete design choices in `src/spill/ui.go` and `gradient.go`:
 
 | Element | Proposed treatment |
 |---|---|
@@ -616,8 +616,8 @@ reviewed replacement policy requests it.
 
 ## 10. Rust architecture and command surface
 
-Use one macOS-only package, initially `utils/safesync/`, with a canonical
-`setup/install/install-safesync.sh` resolving the repository from its own path.
+Use one macOS-only package, initially `src/safesync/`, with a canonical
+`scripts/install/install-safesync.sh` resolving the repository from its own path.
 No new daemon, application bundle, or nested workspace is required. Keep the Go
 spill independent and unchanged. The new app may supersede the rclone backup
 workflow after validation, but it does not replace spill or take over its command.
@@ -638,7 +638,7 @@ review the maintenance and licensing of the selected dependencies.
 [Ratatui project](https://ratatui.rs/).
 
 Illustrative future commands (the current inventory CLI is documented in
-`utils/safesync/README.md`):
+`src/safesync/README.md`):
 
 ```text
 safesync enroll                 # choose identities and fixed roles once

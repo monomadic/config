@@ -188,7 +188,7 @@
                                     "key_code": "d",
                                     "modifiers": { "mandatory": ["fn"] }
                                 },
-                                "to": [{ "shell_command": "~/.bin/toggle-dock" }],
+                                "to": [{ "shell_command": "~/.local/bin/toggle-dock" }],
                                 "type": "basic"
                             }
                         ]

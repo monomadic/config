@@ -18,7 +18,7 @@
           },
           "to": [
             {
-              "shell_command": "/Users/nom/.zsh/bin/finder-open-in-yazi"
+              "shell_command": "/Users/nom/.local/bin/finder-open-in-yazi"
             }
           ]
         }

@@ -1,7 +1,7 @@
 local utils = require "mp.utils"
 
-local kitty_launch = "/Users/nom/.zsh/bin/kitty-launch"
-local rating_command = "/Users/nom/.zsh/bin/media-set-rating"
+local kitty_launch = "/Users/nom/.local/bin/kitty-launch"
+local rating_command = "/Users/nom/.local/bin/media-set-rating"
 
 local function absolute_media_path()
     local media_path = mp.get_property("path")

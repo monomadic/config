@@ -15,7 +15,7 @@
           },
           "to": [
             {
-              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.zsh/bin/kitty-launch --os-window --cwd \"$HOME\" --title \" fzf-cd \" -- /Users/nom/.zsh/bin/fzf-cd-shell'"
+              "shell_command": "/bin/zsh -lc 'exec /Users/nom/.local/bin/kitty-launch --os-window --cwd \"$HOME\" --title \" fzf-cd \" -- /Users/nom/.local/bin/fzf-cd-shell'"
             }
           ]
         }

@@ -7,7 +7,7 @@
 # only when you need to override recursion for a directory or bundle.
 #
 # To turn a package on for this machine, add its name to `packages` in
-# dotter/local.toml — or run `setup/macos/packages.sh enable <name>`.
+# dotter/local.toml — or run `scripts/setup/packages.sh enable <name>`.
 #
 # Tracked under `config/` but deliberately not wired up here (source-only):
 #   beatportdl, compressor, git, homebrew, iterm, ollama, python, tag-media
@@ -27,14 +27,17 @@ default_target_type = "symbolic"
 "config/zsh/emoji.json" = "~/.zsh/emoji.json"
 "config/zsh/completions" = "~/.zsh/completions"
 "config/zsh/autoload" = "~/.zsh/autoload"
-"config/zsh/bin" = "~/.zsh/bin"
 
 [bash.files]
 "config/bash/rc.bash" = "~/.bashrc"
 "config/bash/fzm.bash" = "~/.bash/fzm.bash"
 
+# `bin/` holds every user-facing command. Dotter recurses a directory source, so
+# this creates one symlink per command inside ~/.local/bin rather than replacing
+# the directory — the installed binaries already there (pimped, the widgets, pipx
+# shims) are left alone.
 [bin.files]
-"bin" = { target = "~/.bin/", type = "symbolic" }
+"bin" = { target = "~/.local/bin", type = "symbolic" }
 
 [starship.files]
 "config/starship/starship.toml" = "~/.config/starship.toml"
@@ -83,7 +86,7 @@ default_target_type = "symbolic"
 "config/marta/Themes/Black.theme" = "~/Library/Application Support/org.yanex.marta/Themes/Black.theme"
 
 [open-in-forklift.files]
-"utils/open-in-forklift/Open In Forklift.app" = { target = "~/Applications/Open In Forklift.app", type = "symbolic", recurse = false }
+"src/open-in-forklift/Open In Forklift.app" = { target = "~/Applications/Open In Forklift.app", type = "symbolic", recurse = false }
 
 [yazi.files]
 "config/yazi" = { target = "~/.config/yazi", type = "symbolic" }
@@ -163,7 +166,7 @@ default_target_type = "symbolic"
 # --- Misc tooling -------------------------------------------------------------
 
 [chafa.files]
-"scripts/chafa-select" = "~/.bin/chafa-select"
+"scripts/chafa-select" = "~/.local/bin/chafa-select"
 
 [crush.files]
 "config/crush" = "~/.config/crush"

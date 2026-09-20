@@ -34,7 +34,7 @@ desc = "Quit back to the shell"
 [[mgr.prepend_keymap]]
 on = ["<Space>", "<Space>"]
 for = "macos"
-run = "shell -- ~/.zsh/bin/yazi-quicklook %h"
+run = "shell -- ~/.local/bin/yazi-quicklook %h"
 desc = "Quicklook"
 
 [[mgr.prepend_keymap]]
@@ -72,20 +72,20 @@ desc = "Spill: verified move"
 [[mgr.prepend_keymap]]
 on = ["<Space>", "m", "a"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --tab --cwd %d1 --title " media-audit " -- /Users/nom/.zsh/bin/media-audit %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --tab --cwd %d1 --title " media-audit " -- /Users/nom/.local/bin/media-audit %s'''
 desc = "Media: audit"
 
 # <Space> m — media
 [[mgr.prepend_keymap]]
 on = ["<Space>", "m", "r"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " rename video " -- /Users/nom/.zsh/bin/rename-video --color --icons %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " rename video " -- /Users/nom/.local/bin/rename-video --color --icons %s'''
 desc = "Media: auto-rename"
 
 [[mgr.prepend_keymap]]
 on = ["<Space>", "m", "t"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " tag from url " -- zsh -c 'for f; do /Users/nom/.zsh/bin/yt-dlp-refresh-metadata "$f"; done' _ %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " tag from url " -- zsh -c 'for f; do /Users/nom/.local/bin/yt-dlp-refresh-metadata "$f"; done' _ %s'''
 desc = "Media: tag from url"
 
 # <Space> o — open
@@ -105,37 +105,37 @@ desc = "Open: reveal parent directory in finder"
 [[mgr.prepend_keymap]]
 on = ["<Space>", "v", "t"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut %s'''
 desc = "Video: trim (start)"
 
 [[mgr.prepend_keymap]]
 on = ["<Space>", "v", "T"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut --reverse %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut --reverse %s'''
 desc = "Video: trim (end)"
 
 [[mgr.prepend_keymap]]
 on = ["<Space>", "v", "f"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 -- /Users/nom/.zsh/bin/fast-start enable %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 -- /Users/nom/.local/bin/fast-start enable %s'''
 desc = "Video: enable faststart"
 
 [[mgr.prepend_keymap]]
 on = ["<Space>", "v", "]"]
 for = "unix"
-run = "shell --block -- /Users/nom/.zsh/bin/video-rotate-lossless --right %s"
+run = "shell --block -- /Users/nom/.local/bin/video-rotate-lossless --right %s"
 desc = "Video: rotate right (lossless)"
 
 [[mgr.prepend_keymap]]
 on = ["<Space>", "v", "["]
 for = "unix"
-run = "shell --block -- /Users/nom/.zsh/bin/video-rotate-lossless --left %s"
+run = "shell --block -- /Users/nom/.local/bin/video-rotate-lossless --left %s"
 desc = "Video: rotate left (lossless)"
 
 [[mgr.prepend_keymap]]
 on = "<C-r>"
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " rename video " -- /Users/nom/.zsh/bin/rename-video --color --icons %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " rename video " -- /Users/nom/.local/bin/rename-video --color --icons %s'''
 desc = "Rename selected media"
 
 [[mgr.prepend_keymap]]
@@ -254,71 +254,71 @@ desc = "Switch to next tab"
 [[mgr.prepend_keymap]]
 on = ["A"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 -- /Users/nom/.zsh/bin/media-audit %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 -- /Users/nom/.local/bin/media-audit %s'''
 desc = "Trim intro from selected videos"
 
 [[mgr.prepend_keymap]]
 on = ["T"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 -- /Users/nom/.local/bin/ffmpeg-lossless-cut %s'''
 desc = "Trim intro from selected videos"
 
 [[mgr.prepend_keymap]]
 on = ["e", "T"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut --reverse %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut --reverse %s'''
 desc = "Trim outro from selected videos"
 
 [[mgr.prepend_keymap]]
 on = "<C-t>"
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut %s'''
 desc = "Trim intro from selected videos"
 
 [[mgr.prepend_keymap]]
 on = ["e", "i"]
 for = "unix"
-run = '''shell --block -- /Users/nom/.zsh/bin/interpolate-resolve-job %s'''
+run = '''shell --block -- /Users/nom/.local/bin/interpolate-resolve-job %s'''
 desc = "Queue selected videos as 60fps Resolve interpolation jobs"
 
 [[mgr.prepend_keymap]]
 on = ["e", "I"]
 for = "unix"
-run = '''shell --block -- /Users/nom/.zsh/bin/interpolate-resolve-job 120 %s'''
+run = '''shell --block -- /Users/nom/.local/bin/interpolate-resolve-job 120 %s'''
 desc = "Queue selected videos as 120fps Resolve interpolation jobs"
 
 [[mgr.prepend_keymap]]
 on = ["e", "z"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " topaz workflow " -- ~/.zsh/bin/topaz-workflow %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " topaz workflow " -- ~/.local/bin/topaz-workflow %s'''
 desc = "Run Topaz workflow on selected videos"
 
 [[mgr.prepend_keymap]]
 on = ["e", "r"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " rename video " -- /Users/nom/.zsh/bin/rename-video --color --icons %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " rename video " -- /Users/nom/.local/bin/rename-video --color --icons %s'''
 desc = "Rename selected media"
 
 [[mgr.prepend_keymap]]
 on = ["e", "f"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " rename footage " -- /Users/nom/.zsh/bin/rename-footage %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " rename footage " -- /Users/nom/.local/bin/rename-footage %s'''
 desc = "Rename selected footage"
 
 [[mgr.prepend_keymap]]
 on = ["e", "s"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " set rating " -- /Users/nom/.zsh/bin/media-set-rating %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " set rating " -- /Users/nom/.local/bin/media-set-rating %s'''
 desc = "Set star rating on selected media"
 
 [[mgr.prepend_keymap]]
 on = ["e", "]"]
-run = "shell --block -- /Users/nom/.zsh/bin/video-rotate-lossless --right %s"
+run = "shell --block -- /Users/nom/.local/bin/video-rotate-lossless --right %s"
 desc = "Rotate selected videos right (lossless)"
 
 [[mgr.prepend_keymap]]
 on = ["e", "["]
-run = "shell --block -- /Users/nom/.zsh/bin/video-rotate-lossless --left %s"
+run = "shell --block -- /Users/nom/.local/bin/video-rotate-lossless --left %s"
 desc = "Rotate selected videos left (lossless)"
 
 [[mgr.prepend_keymap]]
@@ -393,7 +393,7 @@ desc = "Change directory interactively"
 
 [[mgr.prepend_keymap]]
 on = "r"
-run = "shell --block -- /Users/nom/.bin/bulk-rename %s"
+run = "shell --block -- /Users/nom/.local/bin/bulk-rename %s"
 desc = "Bulk rename selected files (editor + confirm dialog)"
 
 [[mgr.prepend_keymap]]

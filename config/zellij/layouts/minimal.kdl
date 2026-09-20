@@ -32,22 +32,22 @@ layout {
                 tab_active "#[fg=#0a0a0b,bg=#7df9aa,bold] {index}:{name} "
                 tab_separator "#[fg=#15151a,bg=#15151a] "
 
-                command_machine_command "/Users/nom/config/config/zsh/bin/zellij-status-segment machine"
+                command_machine_command "/Users/nom/config/bin/zellij-status-segment machine"
                 command_machine_format "#[fg=#66e2ff,bg=#15151a,bold] {stdout} "
                 command_machine_interval "5"
                 command_machine_rendermode "static"
 
-                command_uptime_command "/Users/nom/config/config/zsh/bin/zellij-status-segment uptime"
+                command_uptime_command "/Users/nom/config/bin/zellij-status-segment uptime"
                 command_uptime_format "#[fg=#66e2ff,bg=#15151a] 􀐱 {stdout} "
                 command_uptime_interval "5"
                 command_uptime_rendermode "static"
 
-                command_disk_command "/Users/nom/config/config/zsh/bin/zellij-status-segment disk"
+                command_disk_command "/Users/nom/config/bin/zellij-status-segment disk"
                 command_disk_format "#[fg=#88bbff,bg=#15151a] 􀤂 {stdout} "
                 command_disk_interval "5"
                 command_disk_rendermode "static"
 
-                command_battery_command "/Users/nom/config/config/zsh/bin/zellij-status-segment battery"
+                command_battery_command "/Users/nom/config/bin/zellij-status-segment battery"
                 command_battery_format "#[fg=#7df9aa,bg=#15151a] {stdout} "
                 command_battery_interval "5"
                 command_battery_rendermode "static"

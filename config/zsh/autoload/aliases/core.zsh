@@ -121,7 +121,7 @@ topaz-list-models() {
     return 1
   }
 
-  python3 "$DOTFILES_DIR/config/zsh/bin/lib/topaz-model-status.py" "$models" --list "$@"
+  python3 "$DOTFILES_DIR/bin/lib/topaz-model-status.py" "$models" --list "$@"
 }
 
 # ============================================================================

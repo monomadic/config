@@ -14,7 +14,7 @@
           },
           "to": [
             {
-              "shell_command": "/bin/zsh -lc '/Users/nom/.zsh/bin/mpv-send focus >/dev/null 2>&1'"
+              "shell_command": "/bin/zsh -lc '/Users/nom/.local/bin/mpv-send focus >/dev/null 2>&1'"
             }
           ]
         }

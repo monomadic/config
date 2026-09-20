@@ -11,7 +11,7 @@
 -- (default) — e.g. `plugin spill-paste -- copy none` for a plain fast copy.
 -- A move never runs below size, whatever is asked for.
 --
--- The real work is in ~/.zsh/bin/spill-paste; this only collects the yank list
+-- The real work is in ~/.local/bin/spill-paste; this only collects the yank list
 -- and the destination, and clears the yank once a move has run.
 
 local function quote(value)
@@ -54,10 +54,10 @@ return {
 		-- hostage. The cost is that nothing here sees the result, which is what
 		-- --hold is for: the script keeps its own window up on failure, because
 		-- this side can't report one.
-		local cmd = "~/.zsh/bin/kitty-launch --window"
+		local cmd = "~/.local/bin/kitty-launch --window"
 			.. " --cwd " .. quote(cwd)
 			.. " --title " .. quote(mode == "move" and " spill move " or " spill copy ")
-			.. " -- ~/.zsh/bin/spill-paste --hold --verify " .. verify
+			.. " -- ~/.local/bin/spill-paste --hold --verify " .. verify
 
 		if mode == "move" then
 			cmd = cmd .. " --move"

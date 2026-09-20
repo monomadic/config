@@ -22,12 +22,12 @@ play = [
   { desc = "􀫐  switchblade", run = "open -a Switchblade %s", orphan = true },
   { desc = "􀽍  mpv", run = "mpv --force-window --fullscreen --no-native-fs %s", orphan = true },
   { desc = "􀽍  mpv-ipc", run = "mpv-send play %s", orphan = true },
-  { desc = "􀉅  edit tags", run = '''/Users/nom/.zsh/bin/kitty-launch --tab --cwd %d1 -- /Users/nom/.cargo/bin/tagform %s''', orphan = true },
-  { desc = "􀇺  media-audit", run = '''/Users/nom/.zsh/bin/kitty-launch --tab --hold --cwd %d1 -- /Users/nom/.zsh/bin/media-audit-batch %s''', orphan = true },
-  { desc = "􀯛  mp4doctor", run = '''/Users/nom/.zsh/bin/kitty-launch --tab --hold --cwd %d1 --title " mp4doctor " -- /Users/nom/.zsh/bin/mp4doctor %s''', orphan = true },
-  { desc = "􀯛  mp4doctor --fix", run = '''/Users/nom/.zsh/bin/kitty-launch --tab --hold --cwd %d1 --title " mp4doctor fix " -- /Users/nom/.zsh/bin/mp4doctor --fix %s''', orphan = true },
-  { desc = "􀇺  rename-video", run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 -- /Users/nom/.zsh/bin/rename-video %s''', orphan = true },
-  { desc = "􀏟  autodetect chapters", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 -- /Users/nom/.zsh/bin/ffmpeg-scenedetect-chapters %s''', orphan = true },
+  { desc = "􀉅  edit tags", run = '''/Users/nom/.local/bin/kitty-launch --tab --cwd %d1 -- /Users/nom/.cargo/bin/tagform %s''', orphan = true },
+  { desc = "􀇺  media-audit", run = '''/Users/nom/.local/bin/kitty-launch --tab --hold --cwd %d1 -- /Users/nom/.local/bin/media-audit-batch %s''', orphan = true },
+  { desc = "􀯛  mp4doctor", run = '''/Users/nom/.local/bin/kitty-launch --tab --hold --cwd %d1 --title " mp4doctor " -- /Users/nom/.local/bin/mp4doctor %s''', orphan = true },
+  { desc = "􀯛  mp4doctor --fix", run = '''/Users/nom/.local/bin/kitty-launch --tab --hold --cwd %d1 --title " mp4doctor fix " -- /Users/nom/.local/bin/mp4doctor --fix %s''', orphan = true },
+  { desc = "􀇺  rename-video", run = '''/Users/nom/.local/bin/kitty-launch --window --cwd %d1 -- /Users/nom/.local/bin/rename-video %s''', orphan = true },
+  { desc = "􀏟  autodetect chapters", run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 -- /Users/nom/.local/bin/ffmpeg-scenedetect-chapters %s''', orphan = true },
   { desc = "􂿥  a/bner", run = "open -a Abner %s", orphan = true },
   { desc = "􀼹  open-url", run = "media-open-url %s" },
   { desc = "􁾕  convert: prores", run = "convert-to-pro-res %s .", orphan = true },
@@ -39,21 +39,21 @@ play_dir = [
   { desc = "􀽍  mpv", run = "mpv --force-window --fullscreen --no-native-fs %s", orphan = true },
   { desc = "􀫐  switchblade", run = "switchblade %s", orphan = true },
   { desc = "􀽎  vlc", run = "vlc %s .", orphan = true },
-  { desc = "􀇺  media-audit", run = '''/Users/nom/.zsh/bin/kitty-launch --tab --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-audit-batch %s''', orphan = true },
-  { desc = "􀯛  mp4doctor", run = '''/Users/nom/.zsh/bin/kitty-launch --tab --hold --cwd %d1 --title " mp4doctor " -- /Users/nom/.zsh/bin/mp4doctor %s''', orphan = true },
-  # { desc = "􀇺  check: media", run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.zsh/bin/media-audit %s''', orphan = true },
+  { desc = "􀇺  media-audit", run = '''/Users/nom/.local/bin/kitty-launch --tab --hold --cwd %d1 --title " check media " -- /Users/nom/.local/bin/media-audit-batch %s''', orphan = true },
+  { desc = "􀯛  mp4doctor", run = '''/Users/nom/.local/bin/kitty-launch --tab --hold --cwd %d1 --title " mp4doctor " -- /Users/nom/.local/bin/mp4doctor %s''', orphan = true },
+  # { desc = "􀇺  check: media", run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " check media " -- /Users/nom/.local/bin/media-audit %s''', orphan = true },
   { desc = "􁊇  exiftool", run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", block = true },
 ]
 subtitle = [
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " embed subtitles " -- zsh -lc 'for f in "$@"; do /Users/nom/.zsh/bin/mp4-embed-vtt "$f"; done' zsh %s''', desc = "􀉅  embed into mp4", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " embed subtitles " -- zsh -lc 'for f in "$@"; do /Users/nom/.local/bin/mp4-embed-vtt "$f"; done' zsh %s''', desc = "􀉅  embed into mp4", for = "unix", orphan = true },
 ]
 mov_tools = [
-  { desc = "􀇺  to-mp4", run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 -- /Users/nom/.zsh/bin/to-mp4 %s''', orphan = true },
+  { desc = "􀇺  to-mp4", run = '''/Users/nom/.local/bin/kitty-launch --window --cwd %d1 -- /Users/nom/.local/bin/to-mp4 %s''', orphan = true },
 ]
 open = [
   { run = "open %s", desc = "􀫌  open" },
   { run = "kitten dnd %s", desc = "􀣠  drag" }
-  # { run = "/Users/nom/.zsh/bin/yazi-shortcut-open %s", desc = "􂅛  open shortcut", for = "macos", block = true },
+  # { run = "/Users/nom/.local/bin/yazi-shortcut-open %s", desc = "􂅛  open shortcut", for = "macos", block = true },
 ]
 # 􀭅 􂇕
 reveal = [
@@ -68,28 +68,28 @@ chordpro = [
   { run = "chordpro-pdf --preset ipad-mini --inverted %s1", desc = "􀎾  convert to pdf (iPad Mini, Inverted)", for = "unix", block = true },
 ]
 pdf_chordpro = [
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " pdf to chordpro " -- zsh -lc '~/.zsh/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "􃐹  pdf->chordpro", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " pdf to chordpro " -- zsh -lc '~/.local/bin/yazi-pdf-action chordpro "$@"; printf "\nPress enter to close "; read -r _' zsh %s''', desc = "􃐹  pdf->chordpro", for = "unix", orphan = true },
 ]
 flac = [
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " lossless flac sidecar " -- zsh -lc 'for f in "$@"; do /Users/nom/.zsh/bin/vdjstems make --roformer --flac "$f"; done' zsh %s''', desc = "􃐹  flac sidecar", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " lossless flac sidecar " -- zsh -lc 'for f in "$@"; do /Users/nom/.local/bin/vdjstems make --roformer --flac "$f"; done' zsh %s''', desc = "􃐹  flac sidecar", for = "unix", orphan = true },
 ]
 video_tools = [
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut %s''', desc = "􂅓  trim (start)", for = "unix", orphan = true },
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- /Users/nom/.zsh/bin/ffmpeg-lossless-cut --reverse %s''', desc = "􂅗  trim (end)", for = "unix", orphan = true },
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " rename video " -- /Users/nom/.zsh/bin/rename-video --color --icons %s''', desc = "􀈏  rename video (tags)", for = "unix", orphan = true },
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " topaz workflow " -- /Users/nom/.zsh/bin/topaz-workflow %s''', desc = "􃖦  topaz", for = "unix", orphan = true },
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " topaz presets " -- /Users/nom/.zsh/bin/topaz-simple-presets %s''', desc = "􀰙  topaz presets", for = "unix", orphan = true },
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --tab --hold --cwd %d1 --title " topaz " -- /Users/nom/.local/bin/topaz-select-preset %s''', desc = "􀰙  topaz preview + encode (ffmpeg)", for = "unix", orphan = true },
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --tab --hold --cwd %d1 --title " starlight " -- /Users/nom/.local/bin/neuroserver-select-preset %s''', desc = "􀰙  topaz starlight (neuroserver)", for = "unix", orphan = true },
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 60fps " -- /Users/nom/.zsh/bin/interpolate-resolve %s''', desc = "􀲳  interpolate: 60fps (hevc)", for = "unix", orphan = true },
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 60fps prores " -- /Users/nom/.zsh/bin/interpolate-resolve --prores %s''', desc = "􀲳  interpolate: 60fps (prores)", for = "unix", orphan = true },
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 120fps " -- /Users/nom/.zsh/bin/interpolate-resolve 120 %s''', desc = "􀲳  interpolate: 120fps (hevc)", for = "unix", orphan = true },
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 120fps prores " -- /Users/nom/.zsh/bin/interpolate-resolve --prores 120 %s''', desc = "􀲳  interpolate: 120fps (prores)", for = "unix", orphan = true },
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " smooth 60fps " -- zsh -lc 'for f in "$@"; do /Users/nom/.bin/smooth-fps "$f"; done' zsh %s''', desc = "􀲳  interpolate: 60fps (minterpolate)", for = "unix", orphan = true },
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " smooth 120fps " -- zsh -lc 'for f in "$@"; do /Users/nom/.bin/smooth-fps --fps 120 "$f"; done' zsh %s''', desc = "􀲳  interpolate: 120fps (minterpolate)", for = "unix", orphan = true },
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " smooth 60fps dedup " -- zsh -lc 'for f in "$@"; do /Users/nom/.bin/smooth-fps --dedup "$f"; done' zsh %s''', desc = "􀲳  interpolate: 60fps (minterpolate, dedup)", for = "unix", orphan = true },
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " rife 60fps " -- zsh -lc 'for f in "$@"; do /Users/nom/.bin/rife-vapoursynth "$f"; done' zsh %s''', desc = "􀲳  interpolate: 60fps (rife)", for = "unix", orphan = true },
-  { run = '''/Users/nom/.zsh/bin/kitty-launch --window --hold --cwd %d1 --title " rife 60fps dedup " -- zsh -lc 'for f in "$@"; do /Users/nom/.bin/rife-vapoursynth --dedup "$f"; done' zsh %s''', desc = "􀲳  interpolate: 60fps (rife, dedup)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut %s''', desc = "􂅓  trim (start)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut --reverse %s''', desc = "􂅗  trim (end)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " rename video " -- /Users/nom/.local/bin/rename-video --color --icons %s''', desc = "􀈏  rename video (tags)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " topaz workflow " -- /Users/nom/.local/bin/topaz-workflow %s''', desc = "􃖦  topaz", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " topaz presets " -- /Users/nom/.local/bin/topaz-simple-presets %s''', desc = "􀰙  topaz presets", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --tab --hold --cwd %d1 --title " topaz " -- /Users/nom/.local/bin/topaz-select-preset %s''', desc = "􀰙  topaz preview + encode (ffmpeg)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --tab --hold --cwd %d1 --title " starlight " -- /Users/nom/.local/bin/neuroserver-select-preset %s''', desc = "􀰙  topaz starlight (neuroserver)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 60fps " -- /Users/nom/.local/bin/interpolate-resolve %s''', desc = "􀲳  interpolate: 60fps (hevc)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 60fps prores " -- /Users/nom/.local/bin/interpolate-resolve --prores %s''', desc = "􀲳  interpolate: 60fps (prores)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 120fps " -- /Users/nom/.local/bin/interpolate-resolve 120 %s''', desc = "􀲳  interpolate: 120fps (hevc)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " resolve 120fps prores " -- /Users/nom/.local/bin/interpolate-resolve --prores 120 %s''', desc = "􀲳  interpolate: 120fps (prores)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " smooth 60fps " -- zsh -lc 'for f in "$@"; do /Users/nom/.local/bin/smooth-fps "$f"; done' zsh %s''', desc = "􀲳  interpolate: 60fps (minterpolate)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " smooth 120fps " -- zsh -lc 'for f in "$@"; do /Users/nom/.local/bin/smooth-fps --fps 120 "$f"; done' zsh %s''', desc = "􀲳  interpolate: 120fps (minterpolate)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " smooth 60fps dedup " -- zsh -lc 'for f in "$@"; do /Users/nom/.local/bin/smooth-fps --dedup "$f"; done' zsh %s''', desc = "􀲳  interpolate: 60fps (minterpolate, dedup)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " rife 60fps " -- zsh -lc 'for f in "$@"; do /Users/nom/.local/bin/rife-vapoursynth "$f"; done' zsh %s''', desc = "􀲳  interpolate: 60fps (rife)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " rife 60fps dedup " -- zsh -lc 'for f in "$@"; do /Users/nom/.local/bin/rife-vapoursynth --dedup "$f"; done' zsh %s''', desc = "􀲳  interpolate: 60fps (rife, dedup)", for = "unix", orphan = true },
 ]
 extract = [
   { run = "ya pub extract --list %s", desc = "􃀩  extract" },
