@@ -1,18 +1,13 @@
 #[cfg(not(target_os = "macos"))]
 compile_error!("safesync currently supports macOS only");
 
-pub mod capacity;
-pub mod catalog;
 pub mod compare;
-pub mod enrollment;
+pub mod copy;
+pub mod drive;
+pub mod engine;
 pub mod filesystem;
-pub mod history;
-pub mod journal;
 pub mod lookup;
-pub mod maintenance;
 pub mod manifest;
 pub mod plan;
-pub mod preflight;
-pub mod relationship;
-pub mod run;
 pub mod scan;
+pub mod ui;

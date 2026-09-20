@@ -10,6 +10,22 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// How much reading a scan may do to obtain fingerprints.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Hashing {
+    /// Metadata only.
+    None,
+    /// Carry over fingerprints already known; read nothing.
+    Known,
+    /// Carry over known fingerprints and read every file that lacks one.
+    Missing,
+}
+impl From<bool> for Hashing {
+    fn from(hash: bool) -> Self {
+        if hash { Self::Missing } else { Self::None }
+    }
+}
+
 pub struct Progress {
     pub files: usize,
     pub bytes: u64,
@@ -109,11 +125,12 @@ pub fn scan_with_exclusions(
 pub fn scan_with_reuse(
     root: &Path,
     volume: Volume,
-    hash: bool,
+    hashing: impl Into<Hashing>,
     exclusions: &[PathBuf],
     reuse: Option<&HashCache>,
     mut progress: impl FnMut(Progress),
 ) -> Result<Manifest> {
+    let hashing = hashing.into();
     ensure!(
         reuse.is_none_or(|cache| cache.volume_uuid == volume.uuid),
         "Hash cache belongs to another volume"
@@ -186,11 +203,13 @@ pub fn scan_with_reuse(
             } else {
                 ensure!(metadata.is_file(), "Entry type changed while scanning");
                 let known = reuse.and_then(|cache| cache.get(&stamp));
-                let sha256 = if !hash {
+                let sha256 = if hashing == Hashing::None {
                     None
                 } else if let Some(known) = known {
                     reused += 1;
                     Some(known.clone())
+                } else if hashing == Hashing::Known {
+                    None
                 } else {
                     Some(
                         filesystem::hash_file(&mut opened, &stamp)
@@ -249,7 +268,8 @@ pub fn scan_with_reuse(
             started_unix: started,
             finished_unix: now(),
             hash_algorithm: "sha256".into(),
-            content_hashed: hash,
+            content_hashed: hashing != Hashing::None
+                && entries.iter().all(|entry| entry.sha256.is_some()),
             exclusions: vec![
                 "Any directory or file named .safesync".into(),
                 "Symlinks and special files".into(),

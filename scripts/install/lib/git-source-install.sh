@@ -127,14 +127,21 @@ git_source_install() {
     [ "$(_gsi_sync "$src")" = "1" ] && rebuild=1
   fi
 
-  if [ ! -x "$dest" ]; then
+  # Every rebuild says why — "up to date" followed by a silent compile reads
+  # like a bug.
+  if [ ! -e "$dest" ]; then
+    echo "  $binname is not installed at $dest"
+    rebuild=1
+  elif [ ! -x "$dest" ]; then
+    echo "  $dest exists but is not executable"
     rebuild=1
   elif _gsi_binary_is_stale "$src" "$dest"; then
     echo "  $binname is older than the checked-out commit"
     rebuild=1
   fi
 
-  if [ "${FORCE:-0}" = "1" ]; then
+  if [ "${FORCE:-0}" = "1" ] && [ "$rebuild" = "0" ]; then
+    echo "  FORCE=1; rebuilding regardless"
     rebuild=1
   fi
 
