@@ -51,7 +51,9 @@ scripts/setup/packages.sh list            # what's deployed on this machine
 scripts/setup/packages.sh enable helix    # turn a package on
 scripts/setup/packages.sh disable marta   # turn one off
 scripts/setup/deploy.sh                   # apply changes
-scripts/setup/deploy.sh --full            # also sync Yazi plugins + macOS app icons
+scripts/setup/deploy.sh --upgrade         # Yazi plugins, yt-dlp, brew upgrade, stale src/ rebuilds
+scripts/setup/deploy.sh --icons           # reapply macOS app icons
+scripts/setup/deploy.sh --full            # --icons plus --upgrade
 scripts/setup/check.sh                    # preflight, run automatically by deploy
 ```
 
@@ -73,8 +75,14 @@ Two files, and only two:
 Adding a tool means: create `config/<tool>/`, add a `[<tool>.files]` section to
 `global.toml`, then `scripts/setup/packages.sh enable <tool>` and deploy.
 
-Deploy runs `check.sh` first unless `DOTTER_SKIP_HEALTHCHECK=1` is set. On
-macOS, `--full` also runs
+Deploy runs `check.sh` first unless `DOTTER_SKIP_HEALTHCHECK=1` is set. A bare
+deploy only symlinks config; `--upgrade` is the flag that reaches outside the
+repo, and every step it runs is non-fatal and individually skippable
+(`DOTTER_SKIP_YAZI_PACKAGES=1`, `DOTTER_SKIP_YTDLP=1`, `DOTTER_SKIP_BREW=1`,
+`DOTTER_SKIP_SRC=1`). Its `src/` step rebuilds only tools already installed on
+this machine whose build inputs have changed — it never installs something new.
+
+On macOS, `--icons` runs
 [scripts/setup/apply-file-icons.sh](scripts/setup/apply-file-icons.sh); edit the
 `ICON_MAPPINGS` array there to change which apps get custom icons.
 

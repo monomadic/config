@@ -53,8 +53,23 @@ scripts/setup/check.sh          # preflight: validates manifests, source paths, 
 scripts/setup/packages.sh list  # show every package and whether it is on for this machine
 scripts/setup/packages.sh enable <name>   # edit local.toml without hand-syncing lists
 scripts/setup/deploy.sh         # run Dotter deploy (wraps bin/dotter-deploy)
-scripts/setup/deploy.sh --full  # also syncs Yazi plugin packages, repairs the yt-dlp install, and reapplies macOS app icons
+scripts/setup/deploy.sh --upgrade # syncs Yazi packages, repairs yt-dlp, brew upgrade, rebuilds stale src/ tools
+scripts/setup/deploy.sh --icons   # reapply macOS app icon overrides
+scripts/setup/deploy.sh --full    # --icons plus --upgrade
 ```
+
+A bare deploy only symlinks config — that is the fast, safe default. `--upgrade`
+is the one that touches the outside world, and each of its steps has an escape
+hatch: `DOTTER_SKIP_YAZI_PACKAGES=1`, `DOTTER_SKIP_YTDLP=1`, `DOTTER_SKIP_BREW=1`,
+`DOTTER_SKIP_SRC=1`. Every step is non-fatal — an unreachable tap or a failed
+build warns and the run continues, because the job that matters is the symlinking.
+
+The `src/` rebuild step is deliberately narrow: it only rebuilds a tool that is
+**already installed** on this machine (a deploy is the wrong place to acquire new
+software) and only when a real build input — `*.rs`, `*.go`, `Cargo.toml`,
+`go.mod`, or the installer itself — is newer than the installed artifact. READMEs
+and design mockups don't count, or every doc edit would rebuild the world. Add a
+new tool to the `specs` table in `bin/dotter-deploy` when it gets an installer.
 
 `deploy.sh` runs `check.sh` automatically unless `DOTTER_SKIP_HEALTHCHECK=1`.
 There is no CI. For config and script changes, verification = `check.sh` passing,

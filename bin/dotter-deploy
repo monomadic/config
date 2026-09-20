@@ -16,24 +16,36 @@ HEALTHCHECK_SCRIPT="$CONFIG_DIR/scripts/setup/check.sh"
 YTDLP_INSTALL_SCRIPT="$CONFIG_DIR/scripts/install/install-yt-dlp.sh"
 YAZI_PACKAGE_MANIFEST="$XDG_CONFIG_HOME/yazi/package.toml"
 YAZI_PACKAGE_PLUGIN_DIR="$XDG_CONFIG_HOME/yazi/plugins"
-FULL_DEPLOY=0
+INSTALL_DIR="$CONFIG_DIR/scripts/install"
+UPGRADE=0
 APPLY_ICONS=0
 SCRIPT_NAME="${0:t}"
 
 usage() {
   cat <<EOF
-Usage: $SCRIPT_NAME [--full] [--icons]
+Usage: $SCRIPT_NAME [--upgrade] [--icons] [--full]
 
-Runs Dotter deploy. Use --icons to also apply macOS app icons, or --full to
-additionally sync Yazi packages and repair the yt-dlp install.
+Runs Dotter deploy — symlinking config is all a bare run does.
+
+  --icons    reapply the macOS app icon overrides
+  --upgrade  sync Yazi packages, repair the yt-dlp install, run brew upgrade,
+             and rebuild any src/ tool whose source is newer than the copy
+             installed on this machine
+  --full     --icons plus --upgrade
+
+Skip individual upgrade steps with DOTTER_SKIP_YAZI_PACKAGES=1,
+DOTTER_SKIP_YTDLP=1, DOTTER_SKIP_BREW=1 or DOTTER_SKIP_SRC=1.
 EOF
 }
 
 while (( $# > 0 )); do
   case "$1" in
     --full)
-      FULL_DEPLOY=1
+      UPGRADE=1
       APPLY_ICONS=1
+      ;;
+    --upgrade)
+      UPGRADE=1
       ;;
     --icons)
       APPLY_ICONS=1
@@ -192,7 +204,115 @@ install_yt_dlp() {
   fi
 }
 
-if (( FULL_DEPLOY )); then
+upgrade_homebrew() {
+  if [[ "${DOTTER_SKIP_BREW:-0}" == "1" ]]; then
+    return
+  fi
+
+  if ! command -v brew >/dev/null 2>&1; then
+    echo "Skipping brew upgrade: brew is not installed."
+    return
+  fi
+
+  # Non-fatal, like every other upgrade step: one unreachable tap must not
+  # take down the rest of the run.
+  echo "Upgrading Homebrew packages..."
+  if ! brew update; then
+    echo "Warning: brew update failed; continuing." >&2
+  fi
+  if ! brew upgrade; then
+    echo "Warning: brew upgrade failed; run it manually." >&2
+  fi
+}
+
+# src/ tools are built, not symlinked, so a `git pull` leaves the installed
+# copy stale until someone remembers to re-run its installer. Rebuild the ones
+# that are already installed and whose source has moved on.
+#
+# Deliberately never installs a tool that is absent: not every machine wants
+# every widget, and a deploy is the wrong place to acquire new software.
+# Staleness is decided by mtime, not by a version string — these crates rarely
+# bump Cargo.toml, and `git pull` touches exactly the files that changed.
+upgrade_src_tools() {
+  local spec name installer artifact script
+  local -a specs
+
+  if [[ "${DOTTER_SKIP_SRC:-0}" == "1" ]]; then
+    return
+  fi
+
+  # <src subdir>|<installer>|<installed artifact>
+  specs=(
+    "battery-widget|install-battery-widget.sh|$HOME/.local/bin/battery-widget"
+    "cpu-usage-widget|install-cpu-usage-widget.sh|$HOME/.local/bin/cpu-usage-widget"
+    "dupchk|install-dupchk.sh|$HOME/.local/bin/dupchk"
+    "free-disk-space-widget|install-free-disk-space-widget.sh|$HOME/.local/bin/free-disk-space-widget"
+    "menu-tidy|install-menu-tidy.sh|$HOME/.local/bin/menu-tidy"
+    "motherfucker|install-motherfucker.sh|$HOME/.local/bin/motherfucker"
+    "neuroserver-select-preset|install-neuroserver-select-preset.sh|$HOME/.local/bin/neuroserver-select-preset"
+    "obsbot-rtsp-widget|obsbot-rtsp-widget.sh|$HOME/.local/bin/obsbot-rtsp-widget"
+    "pimped|install-pimped.sh|$HOME/.local/bin/pimped"
+    "rclone-tower-ui|install-rclone-tower-ui.sh|$HOME/.local/bin/rclone-tower-ui"
+    "safesync|install-safesync.sh|$HOME/.local/bin/safesync"
+    "spill|install-spill.sh|$HOME/.local/bin/spill"
+    "system-uptime-widget|install-system-uptime-widget.sh|$HOME/.local/bin/system-uptime-widget"
+    "topaz-select-preset|install-topaz-select-preset.sh|$HOME/.local/bin/topaz-select-preset"
+    "volume-control-widget|install-volume-control-widget.sh|$HOME/.local/bin/volume-control-widget"
+    "ytform|ytform.sh|$HOME/.local/bin/ytform"
+    # One cargo workspace, three separately installed artifacts. Each is
+    # checked against the whole tree, since they share job-core.
+    "jobs|install-job-daemon.sh|$HOME/.local/bin/job-daemon"
+    "jobs|install-job-monitor.sh|$HOME/Applications/Job Monitor.app"
+    "jobs|install-job-folder.sh|$HOME/Applications/Job Folder.app"
+  )
+
+  for spec in "${specs[@]}"; do
+    name="${spec%%|*}"
+    installer="${${spec#*|}%%|*}"
+    artifact="${spec##*|}"
+    script="$INSTALL_DIR/$installer"
+
+    [[ -e "$artifact" ]] || continue          # not installed here — leave it alone
+    [[ -x "$script" ]] || continue
+    [[ -d "$CONFIG_DIR/src/$name" ]] || continue
+
+    # ~/.local/bin also holds Dotter's symlinks to bin/. Those are config, not
+    # builds, and must never be handed to an installer.
+    if [[ -L "$artifact" && "${artifact:A}" == "$CONFIG_DIR"/* ]]; then
+      continue
+    fi
+
+    # Editing the installer counts as staleness too.
+    if [[ "$script" -nt "$artifact" ]]; then
+      echo "Rebuilding $name ($installer is newer than $artifact)..."
+      "$script" || echo "Warning: $installer failed; run it manually." >&2
+      continue
+    fi
+
+    # Only real build inputs decide staleness. A README or a design mockup is
+    # not one, and treating it as one means every doc edit triggers a rebuild
+    # of everything. Pruned dirs: build output, and the nested checkouts that
+    # agent worktrees leave under .claude/.
+    # -quit stops at the first hit instead of walking the whole tree.
+    if [[ -z "$(find "$CONFIG_DIR/src/$name" \
+                     \( -name target -o -name .git -o -name .claude \
+                        -o -name designs -o -name design \) -prune -o \
+                     -type f \( -name '*.rs' -o -name '*.go' -o -name '*.c' \
+                        -o -name '*.h' -o -name '*.m' -o -name '*.swift' \
+                        -o -name 'Cargo.toml' -o -name 'Cargo.lock' \
+                        -o -name 'go.mod' -o -name 'go.sum' \) \
+                     -newer "$artifact" -print -quit 2>/dev/null)" ]]; then
+      continue
+    fi
+
+    echo "Rebuilding $name (source is newer than $artifact)..."
+    if ! "$script"; then
+      echo "Warning: $installer failed; run it manually." >&2
+    fi
+  done
+}
+
+if (( UPGRADE )); then
   prepare_yazi_package_manifest
   prepare_yazi_local_plugin_dirs
 fi
@@ -207,9 +327,11 @@ fi
     --local-config "$LOCAL_CONFIG"
 )
 
-if (( FULL_DEPLOY )); then
+if (( UPGRADE )); then
+  upgrade_homebrew
   install_yazi_packages
   install_yt_dlp
+  upgrade_src_tools
 fi
 
 if (( APPLY_ICONS )) && [[ "$OSTYPE" == darwin* ]] && [[ -x "$MACOS_ICON_SCRIPT" ]]; then
