@@ -264,62 +264,10 @@ run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1
 desc = "Trim intro from selected videos"
 
 [[mgr.prepend_keymap]]
-on = ["e", "T"]
-for = "unix"
-run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut --reverse %s'''
-desc = "Trim outro from selected videos"
-
-[[mgr.prepend_keymap]]
 on = "<C-t>"
 for = "unix"
 run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut %s'''
 desc = "Trim intro from selected videos"
-
-[[mgr.prepend_keymap]]
-on = ["e", "i"]
-for = "unix"
-run = '''shell --block -- /Users/nom/.local/bin/interpolate-resolve-job %s'''
-desc = "Queue selected videos as 60fps Resolve interpolation jobs"
-
-[[mgr.prepend_keymap]]
-on = ["e", "I"]
-for = "unix"
-run = '''shell --block -- /Users/nom/.local/bin/interpolate-resolve-job 120 %s'''
-desc = "Queue selected videos as 120fps Resolve interpolation jobs"
-
-[[mgr.prepend_keymap]]
-on = ["e", "z"]
-for = "unix"
-run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " topaz workflow " -- ~/.local/bin/topaz-workflow %s'''
-desc = "Run Topaz workflow on selected videos"
-
-[[mgr.prepend_keymap]]
-on = ["e", "r"]
-for = "unix"
-run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " rename video " -- /Users/nom/.local/bin/rename-video --color --icons %s'''
-desc = "Rename selected media"
-
-[[mgr.prepend_keymap]]
-on = ["e", "f"]
-for = "unix"
-run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " rename footage " -- /Users/nom/.local/bin/rename-footage %s'''
-desc = "Rename selected footage"
-
-[[mgr.prepend_keymap]]
-on = ["e", "s"]
-for = "unix"
-run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " set rating " -- /Users/nom/.local/bin/media-set-rating %s'''
-desc = "Set star rating on selected media"
-
-[[mgr.prepend_keymap]]
-on = ["e", "]"]
-run = "shell --block -- /Users/nom/.local/bin/video-rotate-lossless --right %s"
-desc = "Rotate selected videos right (lossless)"
-
-[[mgr.prepend_keymap]]
-on = ["e", "["]
-run = "shell --block -- /Users/nom/.local/bin/video-rotate-lossless --left %s"
-desc = "Rotate selected videos left (lossless)"
 
 [[mgr.prepend_keymap]]
 on = ["m", "t"]
@@ -417,6 +365,11 @@ on = "K"
 run = "arrow prev"
 desc = "Move up with wraparound"
 
+[[mgr.prepend_keymap]]
+on = "e"
+run = "plugin action-menu"
+desc = "Action menu for the selection (searchable)"
+
 [[tasks.prepend_keymap]]
 on = "<C-Space>"
 run = ["close", "mgr:quit"]
@@ -442,6 +395,29 @@ desc = "Close input and quit"
 on = "<Esc>"
 run = "close"
 desc = "Cancel input"
+
+# Move the action-menu cursor. The input layer only runs `plugin` in normal
+# mode, so these route it through mgr instead: one action, no mode switch, and
+# safe under key-repeat. With no menu open the plugin falls back to recall.
+[[input.prepend_keymap]]
+on = "<C-n>"
+run = "mgr:plugin action-menu -- down"
+desc = "Next (action menu) / recall next input"
+
+[[input.prepend_keymap]]
+on = "<C-p>"
+run = "mgr:plugin action-menu -- up"
+desc = "Previous (action menu) / recall previous input"
+
+[[input.prepend_keymap]]
+on = "<Down>"
+run = "mgr:plugin action-menu -- down"
+desc = "Next (action menu) / recall next input"
+
+[[input.prepend_keymap]]
+on = "<Up>"
+run = "mgr:plugin action-menu -- up"
+desc = "Previous (action menu) / recall previous input"
 
 [[confirm.prepend_keymap]]
 on = "<C-Space>"
