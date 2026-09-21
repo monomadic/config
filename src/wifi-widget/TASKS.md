@@ -66,36 +66,49 @@ Ran 2026-09-21 (macOS 26.5, arm64). Throwaway code is not kept in the repo.
   submenu on Right Arrow. **Mouse hover into that submenu is unverified** —
   synthetic events don't drive menu tracking; check by hand once.
 
-### 0.2 Open spikes (run before the features they gate)
+### 0.2 Spikes on joining, passwords and the gateway
 
-- [ ] **spike: targeted reassociation** — gates Rejoin (1.7) and row-click join
-  (1.2). Needs Location and briefly drops Wi-Fi, so run when that's harmless.
-  1. scan the current SSID and list its BSSIDs; note the current BSSID;
-  2. `disassociate`, then `associate(to:password:)` with a *different* scanned
-     `CWNetwork` of the same SSID (password `nil`, then from Keychain if refused);
-  3. read back the BSSID after association settles;
-  4. repeat 10×; also try once on the WPA3 network.
-  Record: does macOS honour the chosen BSSID, does auto-join race us, does it
-  ask for credentials or admin rights? **If it isn't reliable, Rejoin is
-  removed from the design** rather than shipped as a button that can make
-  things worse.
-- [ ] **spike: Wi-Fi password retrieval** — gates QR codes (1.3). Needs an admin
-  prompt you answer yourself.
-  - Which keychain item and attributes hold a Wi-Fi password on macOS 26
-    (service `AirPort`? account = SSID? System vs login keychain)?
-  - `SecItemCopyMatching` vs `security find-generic-password -wa`: what prompt
-    appears, does Touch ID satisfy it, does a second read in the same session
-    re-prompt?
-  - WPA3 network, a network whose SSID collides with another, an enterprise
-    network if one is saved, and the iPhone hotspot (likely no item at all).
-  If only the current network works cleanly, QR is limited to the connected
-  card.
-- [ ] **spike: gateway evidence** — shapes `GatewayEvidence` (0.8). Check
-  whether the default route + the gateway's ARP entry (`sysctl` route/ARP
-  tables) reliably distinguish "router present" from "no route", and whether
-  macOS allows unprivileged ICMP echo via `socket(AF_INET, SOCK_DGRAM,
-  IPPROTO_ICMP)`. TCP 80/53 results are kept only as metadata, never as the
-  verdict.
+Ran 2026-09-22 (macOS 26.5; your network uses a separate SSID per band on one
+router, so each SSID had exactly one BSSID).
+
+- [x] **Targeted reassociation — failed; Rejoin and row-click join are dropped.**
+  Run from an authorized `.app` launched through LaunchServices.
+  - `associate(to:password: nil)` **failed every time** (5 of 5, WPA3 network
+    and a 2.4GHz one) with `com.apple.wifi.apple80211API.error -3900` (tmpErr),
+    although both passwords are in the System keychain.
+  - `disassociate()` works without admin rights — and is harmful. After the
+    first one, macOS auto-joined a *different* saved network (the 6GHz SSID)
+    within 3 s; after the later ones it **stayed offline for 25 s+ each time,
+    and for over a minute at the end**, recovering only after the spike process
+    exited. Total disruption was about 3½ minutes.
+  - Choosing among several BSSIDs of one SSID was not testable here.
+  - Untested: `associate` with the password supplied (it would cost an admin
+    prompt per join, which is poor UX even if it works).
+  - Decision: **no Rejoin action and no join-on-click.** The widget diagnoses;
+    joining stays with macOS. Rows open Wi-Fi Settings instead.
+- [x] **Wi-Fi password retrieval — works, one admin prompt per read.**
+  - Items are in the **System keychain**: class `genp`, service `AirPort`,
+    account = SSID, description "AirPort network password" (137 items for 141
+    saved networks). **The iPhone hotspot has an item too.**
+  - `SecItemCopyMatching` (service `AirPort`, account SSID, return data) returns
+    the password after an admin prompt (status 0). `security
+    find-generic-password -s AirPort -a <ssid> -w` does the same.
+  - A second read straight after the first took 5 s instead of the sub-second
+    of an unprompted read, so **macOS almost certainly prompts every time**.
+    To confirm with the person who answered the dialogs: did it re-prompt, and
+    was Touch ID offered?
+  - WPA3 (the current network, `WPA3_SAE`) works. Enterprise networks and
+    colliding SSIDs were not tested.
+  - Decision: QR codes stay, with the prompt accepted. Cache the password in
+    memory for the menu session only, so one QR costs one prompt.
+- [x] **Gateway evidence — all three signals work, no privileges needed.**
+  - `NWPath.gateways` (C: `nw_path_enumerate_gateways`) reports the gateway
+    (`192.168.1.1`) directly.
+  - The ARP table has the gateway's MAC resolved.
+  - **Unprivileged ICMP works** via `socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP)`:
+    gateway 3.1 ms, `1.1.1.1` 38 ms, unroutable `192.0.2.1` timed out.
+  - Decision: `GatewayEvidence = { gateway from the path, ARP resolved, ICMP
+    echo RTT }`; TCP port probes are dropped entirely.
 
 ### 0.3 Scaffold
 
@@ -200,9 +213,8 @@ The architecture the rest of the widget hangs on (PROPOSAL §4–5).
   (3xx, or a 200 without `Success`), `DnsFailure`, `ConnectFailure`,
   `ReadFailure`, `UnexpectedResponse`. The UI collapses these; the snapshot
   and `--dump` keep them.
-- [ ] Gateway: fill `GatewayEvidence` per the 0.2 spike (route, ARP, maybe
-  ICMP); any TCP 80/53 attempt is recorded as `service_responded`, never as
-  reachability.
+- [ ] Gateway: fill `GatewayEvidence` from the path's gateway, the ARP entry and
+  an unprivileged ICMP echo (0.2); no TCP port probes.
 - [ ] Schedule: every 30 s, 2 s after association changes, on Refresh.
   Two consecutive failures before `NoInternet`.
 - [ ] Open Login Page: `NSWorkspace.openURL("http://captive.apple.com")`.
@@ -254,19 +266,20 @@ The architecture the rest of the widget hangs on (PROPOSAL §4–5).
   unavailable) or `Not in range`, QR button; 30 px line, 4 px left inset,
   26 px icon column, 9 px right inset.
 - [ ] Ordering: in range by signal, then not in range; cap at 8 rows.
-- [ ] Row click joins that network — **gated** on the reassociation spike;
-  otherwise it opens Wi-Fi Settings.
+- [ ] Row click opens Wi-Fi Settings. The widget never joins networks itself
+  (0.2: `associate` failed every time and `disassociate` left the Mac offline).
 - [ ] Refresh button in the section header, `Scanning…` while busy; also
   reruns the probe.
 
-### 1.3 QR codes (`qr.rs`) — gated on the password spike
+### 1.3 QR codes (`qr.rs`)
 
 - [ ] Payload `WIFI:T:WPA;S:<ssid>;P:<pass>;;`, `T:nopass` for open networks;
   escape `\ ; , : "`; unit tests.
 - [ ] `CIQRCodeGenerator` (`inputCorrectionLevel = "M"`), nearest-neighbour
   scaling, white quiet zone.
-- [ ] Password via whatever the spike proves; held in memory for the menu
-  session only, never logged, never in `--dump`, never in settings. No saved
+- [ ] Password via `SecItemCopyMatching` (System keychain, service `AirPort`,
+  account = SSID) — one admin prompt per read, per 0.2; held in memory for the
+  menu session only, never logged, never in `--dump`, never in settings. No saved
   password (e.g. Instant Hotspot): the lightbox says so instead of a code.
 - [ ] **Full-screen lightbox** like macOS Large Type: borderless `NSPanel` over
   the whole screen under the pointer, dimmed backdrop (~50 % black), dark
@@ -306,13 +319,13 @@ The architecture the rest of the widget hangs on (PROPOSAL §4–5).
 - [ ] Home row red only for an unexpected change **and** a strong guess;
   otherwise dimmed "Not in range".
 
-### 1.7 Band fallback and Rejoin
+### 1.7 Band fallback
 
 - [ ] `BandFallback` enter when the same SSID is seen on 5/6GHz at ≥ −68 dBm,
   leave below −75 dBm, from cached scans (no extra scanning).
-- [ ] **Rejoin — gated** on the reassociation spike, for `BandFallback` and for
-  `Weak` with a stronger BSSID of the same SSID visible. If the spike fails,
-  delete Rejoin from the design and the mockup.
+- [ ] No primary action: the header and card explain; the widget does not
+  rejoin (0.2). The same applies to `Weak` with a closer node visible — name
+  the node, don't move to it.
 
 ### 1.8 Remaining menu bar styles
 

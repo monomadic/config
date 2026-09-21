@@ -375,7 +375,7 @@
     <article class="note-card"><h3>CoreWLAN through objc2</h3><p><code>CWInterface</code> provides <b>rssiValue</b>, <b>noiseMeasurement</b>, <b>transmitRate</b>, <b>wlanChannel</b>, <b>activePHYMode</b>, <b>bssid</b> and <b>hardwareAddress</b> (this Mac's address, which is private when bit 0x02 of the first octet is set). <code>CWEventDelegate</code> redraws on each event, so there's no poll loop.</p></article>
     <article class="note-card"><h3>Login-page detection<span class="new">v2</span></h3><p>The widget loads <code>http://captive.apple.com/hotspot-detect.html</code>. Any response other than its <b>Success</b> body means a login page is intercepting traffic. The redirect host appears on the Internet row. <b>Open Login Page</b> opens that same plain-HTTP URL in your default browser, so the portal redirects there and your password manager works. Portals that hijack DNS instead of redirecting are caught too.</p></article>
     <article class="note-card"><h3>Location Services gate</h3><p>SSID and BSSID come back nil until the process has Location authorization. Without it, the card reads <b>Wi‑Fi · 6 GHz</b>, the Node row is hidden, and a single menu item asks for permission. The pins need the SSID, so they appear as unavailable rather than disappearing.</p></article>
-    <article class="note-card"><h3>Scans on open and on Refresh</h3><p><code>scanForNetworks</code> takes 1–3 s and briefly takes over the radio, so it runs only when the menu opens and when you click Refresh. <b>Rejoin</b> disconnects and reconnects to the strongest access point for the SSID. If macOS asks for an admin password, it opens Wi‑Fi Settings instead.</p></article>
+    <article class="note-card"><h3>Scans on open and on Refresh</h3><p><code>scanForNetworks</code> takes about 8 s and briefly takes over the radio, so the menu opens with cached results and fills them in; it only scans on open (if the cache is older than a minute) and on Refresh. <b>There is no Rejoin button</b>: in testing, macOS refused every join the widget asked for, and a disconnect left the Mac offline for minutes. Joining stays with macOS.</p></article>
   </div>
 </section>
 
@@ -436,7 +436,7 @@
       internet: { text: '<span class="tagp ok">ONLINE</span> <span class="mono">22 ms</span>' },
       wan: homeWan, speed: homeSpeed, addr: { ...homeAddr, bssid: '3c:22:fb:9e:41:a0' },
       rows: [ studioIot, iphoneNear, cafe, hotel ],
-      action: 'Rejoin Studio',
+      action: '',
       title: 'Good signal, slow link.',
       copy: 'The SNR is fine, which is why the system icon shows nothing. But the rate has dropped to 144 Mbps because macOS picked the 2.4 GHz radio. It\'s now below the 412 Mbps the line measured, so for once the Wi‑Fi is the bottleneck. The widget only flags this when a scan also finds the same SSID on a faster band.'
     },
@@ -448,9 +448,9 @@
       internet: { text: '<span class="tagp warn">SLOW</span> <span class="mono">140 ms</span>' },
       wan: homeWan, speed: homeSpeed, addr: { ...homeAddr, node: 'Living room', bssid: '3c:22:fb:9e:52:07' },
       rows: [ studioIot, iphoneNear, cafe, hotel ],
-      action: 'Rejoin Studio',
+      action: '',
       title: 'The Node row explains the drop.',
-      copy: 'The laptop is still on the living-room node, two rooms away, while the Office node is in range at −49. The WAN row looks normal, so the problem is inside the house, not the line. Rejoin makes macOS pick an access point again from a fresh scan.'
+      copy: 'The laptop is still on the living-room node, two rooms away, while the Office node is in range at −49. The WAN row looks normal, so the problem is inside the house, not the line. The widget can name the closer node but can\'t move you to it — macOS doesn\'t let it — so the fix is on your side: move, or toggle Wi-Fi.'
     },
     offline: {
       color: 'var(--m-danger)', head: 'var(--m-danger)', tag: '', band: '6', alert: true, hideBar: true,

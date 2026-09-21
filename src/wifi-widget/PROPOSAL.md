@@ -59,11 +59,11 @@ marked otherwise.
 | `CWConfiguration.networkProfiles` | saved network names, in macOS's order | **readable without Location** |
 | `CWInterface.scanForNetworks` | nearby networks, RSSI, channel | **7.8 s, blocks its thread**; SSID/BSSID are `nil` without Location |
 | `nw_path_monitor` | `isExpensive`, `isConstrained`, status | hand-declared C FFI (no crate); two **separate** facts (§5) |
-| default route + ARP table | gateway address; whether its MAC is resolved | link-level evidence the router is there; *not yet verified* |
+| path gateway + ARP + ICMP | gateway address, MAC resolved, echo RTT | verified; unprivileged ICMP works (`SOCK_DGRAM`/`IPPROTO_ICMP`) |
 | `captive.apple.com/hotspot-detect.html` | whether one well-known HTTP endpoint answers as expected | evidence of reachability, not proof "the internet works" |
 | GL.iNet JSON-RPC at `/rpc` | WAN up/down, uptime, uplink, byte counters | only the unauthenticated `challenge` is verified; method names unknown |
 | `/usr/bin/networkQuality` | capacity and responsiveness | ~15 s and hundreds of MB; on demand only |
-| Keychain | Wi-Fi password for the QR payload | *unverified*: item fields, prompts and WPA3/enterprise behaviour — spike first |
+| Keychain | Wi-Fi password for the QR payload | System keychain, service `AirPort`, account = SSID; admin prompt per read; WPA3 verified, iPhone hotspot has an item |
 | Core Image `CIQRCodeGenerator` | QR image | verified via `objc2-core-image` |
 
 Dropped: **UPnP IGD** and **NAT-PMP** (no reply here; inconsistent everywhere;
@@ -120,7 +120,7 @@ struct Snapshot {
     probe: ProbeStatus,        // Reachable{latency} | Captive{host} | DnsFailure | ConnectFailure | ReadFailure | UnexpectedResponse
     path: PathFlags,           // expensive, constrained (Low Data Mode) — two booleans, never merged
     band: BandStatus,          // current band; faster band of the same SSID seen, with RSSI
-    gateway: GatewayEvidence,  // route present, ARP resolved; optional service response as metadata only
+    gateway: GatewayEvidence,  // gateway from the path, ARP resolved, ICMP echo RTT
     home: Option<HomeGuess>,   // inference, with confidence
     change: Option<NetworkChange>, // UnexpectedNetworkChange{from, to} — observed, no claim about intent
     headline: State,
@@ -135,8 +135,8 @@ BandFallback > Healthy`.
 | State | From facts | Smart Bar chip | Primary action |
 |---|---|---|---|
 | `Healthy` | associated, SNR ≥ 25, probe reachable | glyph + segments + band (`6GHz`) | — |
-| `BandFallback` | on 2.4GHz and a faster band of the same SSID seen (hysteresis below) | alert glyph + segments + `2.4GHz` | Rejoin *(if the spike keeps it)* |
-| `Weak` | SNR tier poor | alert glyph + segments + `−81 dB` | Rejoin *(if kept)* |
+| `BandFallback` | on 2.4GHz and a faster band of the same SSID seen (hysteresis below) | alert glyph + segments + `2.4GHz` | — |
+| `Weak` | SNR tier poor | alert glyph + segments + `−81 dB` | — |
 | `NoInternet` | associated, probe DNS/connect/read failure twice | alert glyph only | — |
 | `LoginRequired` | probe `Captive` | alert glyph + segments + `Login` | Open Login Page |
 | `MeteredFallback` | `path.expensive` | link glyph + segments + data used | Disconnect Hotspot |
@@ -223,13 +223,12 @@ scans; one item asks for access.
 
 ## 8. Risks and unknowns
 
-- **Rejoin may not honour a chosen BSSID**, may race macOS auto-join, or may need
-  credentials again. It gets a spike before any UI; if unreliable, the action
-  is removed rather than shipped half-working.
-- **Wi-Fi password retrieval** is the weak link of QR sharing: item fields,
-  admin prompts, Touch ID, WPA3 and enterprise networks are all unknown.
-  Spike first; if only the current network works cleanly, limit QR to it.
-- **Instant Hotspot joins** may have no saved password at all.
+- **The widget never joins networks.** A spike showed `associate` failing every
+  time and `disassociate` leaving the Mac offline for minutes, so Rejoin and
+  join-on-click were removed; the widget diagnoses and macOS joins.
+- **Every QR reveal costs an admin prompt.** Wi-Fi passwords are in the System
+  keychain; `SecItemCopyMatching` returns them only after an administrator
+  prompt, and a second read prompted again. Enterprise networks are untested.
 - **GL.iNet RPC** is unverified beyond `challenge`; the WAN row stays optional
   everywhere and the feature is abandoned if the spike fails.
 - **Home is a guess** until router credentials exist; the design keeps its
