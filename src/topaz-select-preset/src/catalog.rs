@@ -1,12 +1,15 @@
-//! The preset catalog, read through the same zsh functions every other Topaz
-//! tool uses, so the TOML tree under ~/.local/bin/lib/topaz-presets stays the
-//! single source of truth. Only the presets ffmpeg can run are kept: those with
-//! an `ns_model` belong to neuroserver-select-preset.
+//! The preset catalog, read straight from the TOML tree under
+//! ~/.local/bin/lib/topaz-presets — the same files topaz-presets-emit.py renders
+//! for the shell tools, so the tree stays the single source of truth. Only the
+//! presets ffmpeg can run are kept: those with an `ns_model` belong to
+//! neuroserver-select-preset.
 
 use anyhow::{anyhow, Context, Result};
+use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::process::Command;
+
 
 pub const ORIGINAL_SLUG: &str = "__original__";
 
@@ -118,49 +121,115 @@ pub fn zsh_bin() -> PathBuf {
     PathBuf::from(home).join(".local/bin")
 }
 
-fn catalog_rows(function: &str) -> Result<Vec<Vec<String>>> {
-    let catalog = zsh_bin().join("lib/topaz-preset-catalog.zsh");
-    if !catalog.is_file() {
-        return Err(anyhow!("preset catalog not found: {}", catalog.display()));
+/// The preset tree, one `<type>/<slug>.toml` per preset. TOPAZ_PRESETS_DIR
+/// overrides it (point it at the repo's bin/lib/topaz-presets to test edits
+/// without deploying).
+pub fn presets_dir() -> PathBuf {
+    if let Ok(dir) = std::env::var("TOPAZ_PRESETS_DIR") {
+        return PathBuf::from(dir);
     }
-    let script = format!("source {}; {}", shell_quote(&catalog.to_string_lossy()), function);
-    let out = Command::new("zsh")
-        .arg("-c")
-        .arg(&script)
-        .output()
-        .context("running zsh for the preset catalog")?;
-    if !out.status.success() {
-        return Err(anyhow!(
-            "{} failed: {}",
-            function,
-            String::from_utf8_lossy(&out.stderr).trim()
-        ));
+    zsh_bin().join("lib/topaz-presets")
+}
+
+/// Every `*.toml` in one type's directory, as (slug, preset), sorted by `order`
+/// then slug — the order topaz-presets-emit.py emits them in. The slug is the
+/// filename stem.
+fn load_dir<T: DeserializeOwned>(kind: &str) -> Result<Vec<(String, T)>> {
+    let dir = presets_dir().join(kind);
+    let entries = std::fs::read_dir(&dir)
+        .with_context(|| format!("preset directory not found: {}", dir.display()))?;
+    let mut items = Vec::new();
+    for entry in entries {
+        let path = entry?.path();
+        let Some(slug) = path.file_stem().map(|s| s.to_string_lossy().into_owned()) else { continue };
+        if slug.starts_with('.') || path.extension().is_none_or(|e| e != "toml") {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        let table: toml::Table = toml::from_str(&text)
+            .with_context(|| format!("parsing {}", path.display()))?;
+        let order = table.get("order").and_then(toml::Value::as_integer).unwrap_or(1_000_000);
+        let preset: T = toml::Value::Table(table)
+            .try_into()
+            .with_context(|| format!("reading {}", path.display()))?;
+        items.push((order, slug, preset));
     }
-    Ok(String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .filter(|l| !l.trim().is_empty())
-        .map(|l| l.split('\t').map(str::to_string).collect())
-        .collect())
+    items.sort_by(|a, b| (a.0, &a.1).cmp(&(b.0, &b.1)));
+    Ok(items.into_iter().map(|(_, slug, preset)| (slug, preset)).collect())
+}
+
+#[derive(Deserialize)]
+struct EnhancementToml {
+    #[serde(default)]
+    category: String,
+    #[serde(default)]
+    display: String,
+    #[serde(default)]
+    scales: Vec<String>,
+    #[serde(default)]
+    filter: String,
+    #[serde(default)]
+    blurb: String,
+    #[serde(default)]
+    metadata: String,
+    #[serde(default)]
+    ns_model: String,
+    #[serde(default)]
+    free_size: bool,
+    /// Contributes only its [insight], no menu row (`__original__`).
+    #[serde(default)]
+    pseudo: bool,
+    insight: Option<InsightToml>,
+}
+
+#[derive(Deserialize)]
+struct InsightToml {
+    strategy: Option<String>,
+    #[serde(default)]
+    notes: toml::Table,
+    watch: Option<String>,
+    vs: Option<String>,
+    #[serde(default)]
+    vs_note: String,
+}
+
+#[derive(Deserialize)]
+struct InterpolationToml {
+    display: String,
+    filter: String,
+    #[serde(default)]
+    metadata: String,
+}
+
+#[derive(Deserialize)]
+struct OutputToml {
+    display: String,
+    #[serde(default)]
+    ext: String,
+    video_args: String,
 }
 
 /// Original first, then every ffmpeg preset grouped by category (catalog order
 /// within a group, as topaz-pick lists them).
 pub fn enhancements() -> Result<Vec<Enhancement>> {
     let mut presets = Vec::new();
-    for f in catalog_rows("topaz_enhancement_preset_rows")? {
-        let col = |i: usize| f.get(i).cloned().unwrap_or_default();
-        if !col(7).is_empty() {
+    for (slug, e) in load_dir::<EnhancementToml>("enhancement")? {
+        if e.pseudo || !e.ns_model.is_empty() {
             continue; // ns_model: neuroserver only
         }
+        if e.display.is_empty() {
+            return Err(anyhow!("enhancement preset {slug} has no display name"));
+        }
         presets.push(Enhancement {
-            category: col(0),
-            display: col(1),
-            slug: col(2),
-            scales: col(3).split(',').filter(|s| !s.is_empty()).map(str::to_string).collect(),
-            body: col(4),
-            blurb: col(5),
-            metadata: col(6),
-            free_size: col(10) == "1",
+            category: e.category,
+            display: e.display,
+            slug,
+            scales: e.scales,
+            body: e.filter,
+            blurb: e.blurb,
+            metadata: e.metadata,
+            free_size: e.free_size,
         });
     }
     if presets.is_empty() {
@@ -172,23 +241,16 @@ pub fn enhancements() -> Result<Vec<Enhancement>> {
 }
 
 pub fn interpolations() -> Result<Vec<Interpolation>> {
-    Ok(catalog_rows("topaz_interpolation_preset_rows")?
+    Ok(load_dir::<InterpolationToml>("interpolation")?
         .into_iter()
-        .filter(|f| f.len() >= 3)
-        .map(|f| Interpolation {
-            display: f[0].clone(),
-            slug: f[1].clone(),
-            filter: f[2].clone(),
-            metadata: f.get(3).cloned().unwrap_or_default(),
-        })
+        .map(|(slug, i)| Interpolation { display: i.display, slug, filter: i.filter, metadata: i.metadata })
         .collect())
 }
 
 pub fn output_profiles() -> Result<Vec<OutputProfile>> {
-    let profiles: Vec<OutputProfile> = catalog_rows("topaz_output_profile_rows")?
+    let profiles: Vec<OutputProfile> = load_dir::<OutputToml>("output")?
         .into_iter()
-        .filter(|f| f.len() >= 4)
-        .map(|f| OutputProfile { display: f[0].clone(), ext: f[2].clone(), video_args: f[3].clone() })
+        .map(|(_, o)| OutputProfile { display: o.display, ext: o.ext, video_args: o.video_args })
         .collect();
     if profiles.is_empty() {
         return Err(anyhow!("no output profiles in the catalog"));
@@ -198,19 +260,29 @@ pub fn output_profiles() -> Result<Vec<OutputProfile>> {
 
 /// Keyed by slug. Missing prose is not an error: the sheet just says less.
 pub fn insights() -> HashMap<String, Insight> {
-    let mut map: HashMap<String, Insight> = HashMap::new();
-    for f in catalog_rows("topaz_preset_insights").unwrap_or_default() {
-        let col = |i: usize| f.get(i).cloned().unwrap_or_default();
-        let entry = map.entry(col(0)).or_default();
-        match col(1).as_str() {
-            "strategy" => entry.strategy = Some(col(2)),
-            "note" => entry.notes.push((col(2), col(3))),
-            "watch" => entry.watch = Some(col(2)),
-            "vs" => entry.vs = Some((col(2), col(3))),
-            _ => {}
-        }
-    }
-    map
+    let nonempty = |s: Option<String>| s.filter(|s| !s.is_empty());
+    load_dir::<EnhancementToml>("enhancement")
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(slug, e)| {
+            let ins = e.insight?;
+            let notes = ins
+                .notes
+                .into_iter()
+                .map(|(k, v)| {
+                    let text = v.as_str().map(str::to_string).unwrap_or_else(|| v.to_string());
+                    (k, text)
+                })
+                .collect();
+            let insight = Insight {
+                strategy: nonempty(ins.strategy),
+                notes,
+                watch: nonempty(ins.watch),
+                vs: nonempty(ins.vs).map(|vs| (vs, ins.vs_note)),
+            };
+            Some((slug, insight))
+        })
+        .collect()
 }
 
 pub fn shell_quote(s: &str) -> String {

@@ -75,6 +75,6 @@ with "No valid license or auth found", which the encoder reports as the reason.
 
 Install: `scripts/install/install-neuroserver-select-preset.sh` → `~/.local/bin`
 (plus the `neuroserver-encode` symlink). Previews call the deployed
-`~/.local/bin/topaz-preview-frame`, and the preset catalog is read through
-`~/.local/bin/lib/topaz-preset-catalog.zsh`, so the `zsh` Dotter package must be
-deployed.
+`~/.local/bin/topaz-preview-frame`, and presets are read straight from the TOML
+tree at `~/.local/bin/lib/topaz-presets` (no zsh or Python involved;
+`TOPAZ_PRESETS_DIR` overrides it), so the `zsh` Dotter package must be deployed.

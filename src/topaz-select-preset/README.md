@@ -50,4 +50,6 @@ mode otherwise reduces to 5% steps).
 
 Install: `scripts/install/install-topaz-select-preset.sh` → `~/.local/bin`.
 It calls the deployed `~/.local/bin/topaz-preview-frame` and
-`~/.local/bin/topaz-encode`, so the `zsh` Dotter package must be deployed.
+`~/.local/bin/topaz-encode`, and reads presets straight from the TOML tree at
+`~/.local/bin/lib/topaz-presets` (`TOPAZ_PRESETS_DIR` overrides it), so the
+`zsh` Dotter package must be deployed.

@@ -7,7 +7,9 @@ One TOML file per preset. These are the source of truth for every Topaz wrapper
 
 `../topaz-presets-emit.py` renders these files into the legacy tab-separated rows
 the tools consume, and `../topaz-preset-catalog.zsh` wraps it under the historical
-function names. **Editing a `.toml` here changes the live config immediately** — no
+function names. The two Rust TUIs (`src/topaz-select-preset`,
+`src/neuroserver-select-preset`) skip both and parse these files themselves, so a
+schema change here has to be mirrored in their `catalog.rs`. **Editing a `.toml` here changes the live config immediately** — no
 build, no deploy (the whole `config/` tree is symlinked into place). A preset's
 **slug is its filename** (`proteus-extreme.toml` → slug `proteus-extreme`).
 

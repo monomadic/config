@@ -10,6 +10,8 @@ crossterm = "0.29"
 ratatui-image = "12.0.0-rc.0"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+toml = { version = "1.1", features = ["preserve_order"] }
 
 [profile.release]
 lto = true

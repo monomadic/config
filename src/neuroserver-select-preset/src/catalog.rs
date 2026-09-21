@@ -1,11 +1,13 @@
-//! The preset catalog, read through the same zsh functions every other Topaz
-//! tool uses, so the TOML tree under ~/.local/bin/lib/topaz-presets stays the
-//! single source of truth. Only neuroserver presets (those with an `ns_model`)
-//! are kept: this tool exists for the models ffmpeg cannot reach.
+//! The preset catalog, read straight from the TOML tree under
+//! ~/.local/bin/lib/topaz-presets — the same files topaz-presets-emit.py renders
+//! for the shell tools, so the tree stays the single source of truth. Only
+//! neuroserver presets (those with an `ns_model`) are kept: this tool exists for
+//! the models ffmpeg cannot reach.
 
 use anyhow::{anyhow, Context, Result};
+use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use std::path::PathBuf;
-use std::process::Command;
 
 #[derive(Clone, Debug)]
 pub struct Preset {
@@ -37,53 +39,96 @@ pub fn zsh_bin() -> PathBuf {
     PathBuf::from(home).join(".local/bin")
 }
 
-fn catalog_rows(function: &str) -> Result<Vec<Vec<String>>> {
-    let catalog = zsh_bin().join("lib/topaz-preset-catalog.zsh");
-    if !catalog.is_file() {
-        return Err(anyhow!("preset catalog not found: {}", catalog.display()));
+/// The preset tree, one `<type>/<slug>.toml` per preset. TOPAZ_PRESETS_DIR
+/// overrides it (point it at the repo's bin/lib/topaz-presets to test edits
+/// without deploying).
+pub fn presets_dir() -> PathBuf {
+    if let Ok(dir) = std::env::var("TOPAZ_PRESETS_DIR") {
+        return PathBuf::from(dir);
     }
-    let script = format!("source {}; {}", shell_quote(&catalog.to_string_lossy()), function);
-    let out = Command::new("zsh")
-        .arg("-c")
-        .arg(&script)
-        .output()
-        .context("running zsh for the preset catalog")?;
-    if !out.status.success() {
-        return Err(anyhow!(
-            "{} failed: {}",
-            function,
-            String::from_utf8_lossy(&out.stderr).trim()
-        ));
+    zsh_bin().join("lib/topaz-presets")
+}
+
+/// Every `*.toml` in one type's directory, as (slug, preset), sorted by `order`
+/// then slug — the order topaz-presets-emit.py emits them in. The slug is the
+/// filename stem.
+fn load_dir<T: DeserializeOwned>(kind: &str) -> Result<Vec<(String, T)>> {
+    let dir = presets_dir().join(kind);
+    let entries = std::fs::read_dir(&dir)
+        .with_context(|| format!("preset directory not found: {}", dir.display()))?;
+    let mut items = Vec::new();
+    for entry in entries {
+        let path = entry?.path();
+        let Some(slug) = path.file_stem().map(|s| s.to_string_lossy().into_owned()) else { continue };
+        if slug.starts_with('.') || path.extension().is_none_or(|e| e != "toml") {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        let table: toml::Table = toml::from_str(&text)
+            .with_context(|| format!("parsing {}", path.display()))?;
+        let order = table.get("order").and_then(toml::Value::as_integer).unwrap_or(1_000_000);
+        let preset: T = toml::Value::Table(table)
+            .try_into()
+            .with_context(|| format!("reading {}", path.display()))?;
+        items.push((order, slug, preset));
     }
-    Ok(String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .filter(|l| !l.trim().is_empty())
-        .map(|l| l.split('\t').map(str::to_string).collect())
-        .collect())
+    items.sort_by(|a, b| (a.0, &a.1).cmp(&(b.0, &b.1)));
+    Ok(items.into_iter().map(|(_, slug, preset)| (slug, preset)).collect())
+}
+
+#[derive(Deserialize)]
+struct EnhancementToml {
+    #[serde(default)]
+    display: String,
+    #[serde(default)]
+    scales: Vec<String>,
+    #[serde(default)]
+    blurb: String,
+    #[serde(default)]
+    metadata: String,
+    #[serde(default)]
+    ns_model: String,
+    #[serde(default)]
+    ns_store: String,
+    /// Extra neuroserver --filters keys, handed on as a JSON object.
+    ns_params: Option<toml::Table>,
+    #[serde(default)]
+    pseudo: bool,
+}
+
+#[derive(Deserialize)]
+struct OutputToml {
+    display: String,
+    #[serde(default)]
+    ext: String,
+    video_args: String,
 }
 
 pub fn neuroserver_presets() -> Result<Vec<Preset>> {
     let mut presets = Vec::new();
-    for f in catalog_rows("topaz_enhancement_preset_rows")? {
-        let col = |i: usize| f.get(i).cloned().unwrap_or_default();
-        let ns_model = col(7);
-        if ns_model.is_empty() {
+    for (slug, e) in load_dir::<EnhancementToml>("enhancement")? {
+        if e.pseudo || e.ns_model.is_empty() {
             continue;
         }
-        let ns_params = col(9);
+        if e.display.is_empty() {
+            return Err(anyhow!("enhancement preset {slug} has no display name"));
+        }
+        let ns_params = match e.ns_params.filter(|p| !p.is_empty()) {
+            Some(p) => Some(
+                serde_json::to_string(&p).with_context(|| format!("ns_params of preset {slug}"))?,
+            ),
+            None => None,
+        };
         presets.push(Preset {
-            display: col(1),
-            slug: col(2),
-            scales: col(3)
-                .split(',')
-                .filter(|s| !s.is_empty())
-                .map(str::to_string)
-                .collect(),
-            blurb: col(5),
-            metadata: col(6),
-            ns_model,
-            ns_store: col(8),
-            ns_params: if ns_params.is_empty() { None } else { Some(ns_params) },
+            display: e.display,
+            slug,
+            scales: e.scales,
+            blurb: e.blurb,
+            metadata: e.metadata,
+            ns_model: e.ns_model,
+            ns_store: e.ns_store,
+            ns_params,
         });
     }
     if presets.is_empty() {
@@ -95,16 +140,9 @@ pub fn neuroserver_presets() -> Result<Vec<Preset>> {
 }
 
 pub fn output_profiles() -> Result<Vec<OutputProfile>> {
-    let rows = catalog_rows("topaz_output_profile_rows")?;
-    let profiles: Vec<OutputProfile> = rows
+    let profiles: Vec<OutputProfile> = load_dir::<OutputToml>("output")?
         .into_iter()
-        .filter(|f| f.len() >= 4)
-        .map(|f| OutputProfile {
-            display: f[0].clone(),
-            slug: f[1].clone(),
-            ext: f[2].clone(),
-            video_args: f[3].clone(),
-        })
+        .map(|(slug, o)| OutputProfile { display: o.display, slug, ext: o.ext, video_args: o.video_args })
         .collect();
     if profiles.is_empty() {
         return Err(anyhow!("no output profiles in the catalog"));
