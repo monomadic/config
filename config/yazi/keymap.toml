@@ -366,9 +366,21 @@ run = "arrow prev"
 desc = "Move up with wraparound"
 
 [[mgr.prepend_keymap]]
-on = "e"
+on = "o"
 run = "plugin action-menu"
 desc = "Action menu for the selection (searchable)"
+
+# Yazi's default `O`, pinned: `o` no longer does a plain open (<Enter> does).
+[[mgr.prepend_keymap]]
+on = "O"
+run = "open --interactive"
+desc = "Open with (opener menu)"
+
+[[mgr.prepend_keymap]]
+on = "e"
+for = "unix"
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --tab --cwd %d1 -- /Users/nom/.local/bin/tagform %s'''
+desc = "Edit tags (tagform)"
 
 [[tasks.prepend_keymap]]
 on = "<C-Space>"
