@@ -1,9 +1,9 @@
 # ── default — my theme ─────────────────────────────────────────────────
-# The shared design tokens, moved out of switchblade.conf's `[theme]` table on
+# The shared design tokens, moved out of switchblade.toml's `[theme]` table on
 # 2026-09-21. A theme file is that table's BODY: tokens at the top level, the
 # component tables under their own names (`[keycap]`, `[tech_tag]`,
 # `[notice]`). Anything not named here keeps the built-in value.
-# `theme = "<name>"` in switchblade.conf picks which file is read.
+# `theme = "<name>"` in switchblade.toml picks which file is read.
 
 # The ring that says "this one" — the selected tile, a marked tile, the
 # selected filmstrip chip and the focused triple-play pane. Every element's

@@ -6,7 +6,7 @@
 # yourself hardcoding one in the source, add a field instead.
 #
 # What's where:
-#   switchblade.conf    this file — behaviour, feel, keys
+#   switchblade.toml    this file — behaviour, feel, keys
 #   themes/<name>.toml  the look: the shared design tokens
 #   [tuning]     layout · colors · selection · feel · animation ·
 #                quickview · startup settings
