@@ -42,9 +42,9 @@ the repo; the results are recorded here.
   - `ipconfig getsummary en0` also redacts SSID and BSSID, so there is no
     permission-free way to read them.
   - **Ad-hoc re-signing loses the grant.** A rebuild changed the cdhash and the
-    status reverted to `notDetermined`. Sign with a stable identity (a
-    self-signed code-signing certificate) so the designated requirement survives
-    rebuilds — *not yet verified*.
+    status reverted to `notDetermined`, so each rebuild re-prompts once.
+    Accepted: that's how other locally built apps here behave. A stable
+    self-signed identity would avoid it if it ever becomes annoying.
   - **`rssiValue` intermittently returns 0** for single reads in every launch
     mode. Treat 0 as "no sample" and keep the previous value (see 0.5).
   - Consequence: this widget joins `job-monitor` as an exception to the no-bundle
@@ -90,11 +90,8 @@ the repo; the results are recorded here.
 - [ ] `bundle.sh` in the crate: `cargo build --release`, then wrap the binary
   into `target/release/WiFi Widget.app` with an `Info.plist` (`LSUIElement`,
   `NSLocationWhenInUseUsageDescription`, bundle ID `com.jayu.wifi-widget`) and
-  sign it. The `.app` can live anywhere; copying it to `~/Applications` is the
+  ad-hoc sign it (a rebuild re-prompts for Location once; accepted). The `.app` can live anywhere; copying it to `~/Applications` is the
   whole "install". No LaunchAgent (see the Location spike).
-- [ ] **spike: stable signing.** Create a self-signed code-signing certificate,
-  sign two different builds with it, and confirm Location permission survives
-  the rebuild. Ad-hoc signing does not (verified).
 - [ ] "Open at Login" menu item via `SMAppService.mainApp.register()`; if that
   refuses a self-signed app, show a hint to add it in Login Items instead.
 - [ ] `README.md`: purpose, styles, data sources, build, permissions.
@@ -259,11 +256,17 @@ the repo; the results are recorded here.
   log it, never write it to settings.
 - [ ] No saved password (likely for Instant Hotspot joins): panel says so
   instead of showing a code.
-- [ ] Show the code in **its own window, centred on screen**: a borderless
-  panel with the code at ~300 px (far easier for a phone camera than a code
-  inside the menu), the network name and "Scan to join" underneath. Clicking
-  the QR button closes the menu and opens the window; clicking anywhere or
-  pressing Esc closes it. Activate the app so Esc reaches the window.
+- [ ] Show the code as a **full-screen lightbox**, the way macOS Large Type
+  and 1Password's "Show in Large Type" work: a borderless window covering the
+  screen under the pointer, dimmed backdrop (black ~50 %), and a dark rounded
+  panel in the middle with the code at ~300 px, the network name and the
+  security type. Any click or any key dismisses it; fade 0.15 s unless Reduce
+  Motion is on.
+  - Window: `NSPanel`, borderless, `.nonactivatingPanel` off, level above the
+    menu bar (`.screenSaver` or `.popUpMenu`), `collectionBehavior`
+    `[.canJoinAllSpaces, .fullScreenAuxiliary]`, frame = that screen's full frame.
+  - Clicking the QR button closes the menu first, then shows the lightbox;
+    activate the app so key presses reach it, and close on `resignKey` too.
 - *Done when* a phone joins Studio and the café network from the codes.
 
 ### 1.5 Metered detection

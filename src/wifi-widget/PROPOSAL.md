@@ -150,9 +150,10 @@ from the panel's top and left edges.
   in `NSEventTrackingRunLoopMode`; timers added only to the default mode stop
   firing. Add the refresh timer to the tracking mode or the WAN sparkline
   freezes exactly when the user is looking at it.
-- **QR codes open in their own window**, centred on screen at ~300 px, not
-  inside the menu: bigger codes scan more reliably and the menu never has to
-  re-lay-out. Clicking anywhere or pressing Esc closes it.
+- **QR codes open as a full-screen lightbox**, like macOS Large Type: the
+  screen dims, a ~300 px code sits on a dark panel in the middle, and any click
+  or key dismisses it. Bigger codes scan more reliably, and the menu never has
+  to re-lay-out.
 - **View-based items and submenus.** Confirm that a custom-view item can still
   open a submenu before relying on it for `Other Networks ▸`, otherwise make it
   a plain item.

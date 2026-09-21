@@ -114,18 +114,22 @@
   .conn .qr-btn { width: 28px; height: 28px; align-self: start; }
   .conn .qr-btn svg { width: 19px; height: 19px; }
   .qr-btn:hover { color: #fff; border-color: #ffffff3d; background: #00000052; }
-  .qr-btn[aria-expanded="true"] { color: #fff; background: #ffffff24; }
   .qr-btn:focus-visible { outline: 2px solid var(--m-active); outline-offset: 2px; }
-  .qr-panel { display: flex; align-items: center; gap: 12px; margin: 4px 0 3px; padding: 9px; border-radius: 8px; background: #ffffff0a; }
-  .conn .qr-panel { margin: 8px 0 0; background: #00000026; }
-  .qr-code { flex-shrink: 0; width: 116px; height: 116px; padding: 6px; border-radius: 6px; background: #fff; }
-  .qr-code canvas, .qr-code img { width: 104px !important; height: 104px !important; }
-  .qr-code .qr-fallback { display: grid; place-items: center; width: 104px; height: 104px; color: #1a1b1e; font: 600 11px var(--mono); }
-  .qr-text { display: grid; gap: 2px; min-width: 0; font-size: 11.5px; }
-  .qr-text .qk { color: #8f9096; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
-  .qr-text b { font-size: 13px; color: #f2f2f3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .qr-text .qs { font: 10px var(--mono); color: #a8a9ae; }
-  .qr-text .qh { margin-top: 3px; color: #8f9096; font-size: 10.5px; }
+  /* QR lightbox: like macOS Large Type — the screen dims, the code sits centred, any click or key dismisses */
+  .lightbox { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: #00000080; cursor: pointer; animation: lb-in .15s ease-out; }
+  .lb-card {
+    display: grid; justify-items: center; gap: 12px; padding: 26px 30px 22px; border-radius: 22px;
+    background: #1d1e22eb; border: 1px solid #ffffff1c; box-shadow: 0 30px 90px #000000b3; color: #f2f2f3;
+    -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
+  }
+  .lb-code { width: min(300px, 72vw); aspect-ratio: 1; padding: 14px; border-radius: 14px; background: #fff; max-width: 100%; }
+  .lb-code canvas, .lb-code img { width: 100% !important; height: 100% !important; image-rendering: pixelated; }
+  .lb-code .qr-fallback { display: grid; place-items: center; width: 100%; height: 100%; color: #1a1b1e; font: 600 13px var(--mono); }
+  .lb-name { margin-top: 4px; font: 650 22px/1.2 var(--system); letter-spacing: -.01em; }
+  .lb-sub { font: 11.5px var(--mono); color: #a8a9ae; }
+  .lb-hint { margin-top: 4px; font-size: 12px; color: #8f9096; }
+  @keyframes lb-in { from { opacity: 0; } to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .lightbox { animation: none; } }
   .glyph { position: relative; width: 40px; height: 30px; display: flex; align-items: center; justify-content: center; }
   .glyph > svg { width: 24px; height: 24px; color: #d5d5d8; }
   .missing .glyph > svg { color: var(--m-danger); }
@@ -328,7 +332,7 @@
       <article class="note-card"><h3 id="style-title"></h3><p id="style-copy"></p></article>
       <article class="note-card"><h3>Graphite card<span class="new">v3</span></h3><p>The connected card is a dark graphite panel rather than the blue selection colour. At this size a blue block outweighed the whole menu. The state colour moves into the <b>icon</b> and <b>signal meter</b>: green when healthy, amber or red when not, so they match the header dot. Blue is left for the primary action.</p></article>
       <article class="note-card"><h3>Refresh sits in the list header<span class="new">v2</span></h3><p>A right-aligned <b>Refresh</b> on the Known Networks label rescans to see which of them are in range, and reruns the internet check. It shows <b>Scanning…</b> while it works. It replaces the Check Again button that v1 used for No internet.</p></article>
-      <article class="note-card"><h3>Known Networks and QR codes<span class="new">v3</span></h3><p>The list is macOS's saved networks (<code>CWConfiguration.networkProfiles</code>), matched against the scan to show which are in range. Each is one compact line: signal in the icon, status on the right. Nearby networks you've never joined move to <b>Other Networks ▸</b>.</p><p>Every row and the connected card has a <b>QR button</b>. It opens a standard Wi‑Fi join code inline, so a phone camera can join without typing. The password comes from Keychain, and macOS asks for your admin password before revealing it. Open networks need no password and show their code straight away. Try it: the codes here are real, with example passwords.</p></article>
+      <article class="note-card"><h3>Known Networks and QR codes<span class="new">v3</span></h3><p>The list is macOS's saved networks (<code>CWConfiguration.networkProfiles</code>), matched against the scan to show which are in range. Each is one compact line: signal in the icon, status on the right. Nearby networks you've never joined move to <b>Other Networks ▸</b>.</p><p>Every row and the connected card has a <b>QR button</b>. It opens a large Wi‑Fi join code in a full-screen lightbox, like macOS's Large Type: the screen dims, the code sits in the middle, and any click or key closes it. The password comes from Keychain, and macOS asks for your admin password before revealing it. Open networks need no password and show their code straight away. Try it: the codes here are real, with example passwords.</p></article>
       <article class="note-card"><h3>Home and Metered are detected<span class="new">v3</span></h3><p><b>Metered</b> comes from macOS: the Network framework flags a connection as <b>expensive</b> (personal hotspot, cellular) or <b>constrained</b> (Low Data Mode on). The widget remembers which networks were flagged, so the hotspot row has its dashed border before you join. While you're on one, the menu bar turns amber, the card counts data used and the speed test is disabled.</p><p><b>Home</b> is the network whose router you've connected. Failing that, it's the network the widget has seen you on the longest, from its own tally. Home turns <b>red</b> only when macOS drops it and falls back to another network. If you join a café network yourself, Home is simply dimmed as not in range.</p></article>
     </div>
   </div>
@@ -526,14 +530,14 @@
     return h + '</span>';
   }
   const qrSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="5.4" y="5.4" width="2.2" height="2.2" fill="currentColor" stroke="none"/><rect x="16.4" y="5.4" width="2.2" height="2.2" fill="currentColor" stroke="none"/><rect x="5.4" y="16.4" width="2.2" height="2.2" fill="currentColor" stroke="none"/><rect x="14" y="14" width="3" height="3" fill="currentColor" stroke="none"/><rect x="18" y="18" width="3" height="3" fill="currentColor" stroke="none"/></svg>';
-  const qrButton = r => '<button type="button" class="qr-btn" data-qr="' + r.name + '" aria-expanded="false" aria-label="Show QR code for ' + r.name + '" title="QR code">' + qrSvg + '</button>';
+  const qrButton = r => '<button type="button" class="qr-btn" data-qr="' + r.name + '" aria-haspopup="dialog" aria-label="Show QR code for ' + r.name + '" title="QR code">' + qrSvg + '</button>';
   function rowHTML(r) {
     const g = r.glyph === 'link' ? linkSvg : wifiSvg(r.tier || 0, r.slashed);
     return '<div class="' + ['krow'].concat(r.cls || []).join(' ') + '">'
       + '<span class="kglyph">' + g + '</span><span class="kname">' + r.name + '</span>'
       + (r.pill ? '<span class="pill">' + r.pill + '</span>' : '')
       + '<span class="kright' + (r.rightWarn ? ' warn' : '') + '">' + (r.right || '') + '</span>'
-      + qrButton(r) + '</div><div class="qr-slot" data-slot="' + r.name + '"></div>';
+      + qrButton(r) + '</div>';
   }
   // Wi-Fi join payload (the format phone cameras read); ; , : \ " are escaped per the spec
   const qrEsc = v => v.replace(/([\\;,:"])/g, '\\$1');
@@ -541,10 +545,12 @@
     return net.qr.sec === 'nopass' ? 'WIFI:T:nopass;S:' + qrEsc(net.name) + ';;'
       : 'WIFI:T:WPA;S:' + qrEsc(net.name) + ';P:' + qrEsc(net.qr.pass) + ';;';
   }
-  function qrPanelHTML(net) {
-    return '<div class="qr-panel"><div class="qr-code"></div><div class="qr-text"><span class="qk">Scan to join</span><b>' + net.name + '</b>'
-      + '<span class="qs">' + (net.qr.sec === 'nopass' ? 'Open network · no password' : 'WPA2/WPA3 · from Keychain') + '</span>'
-      + '<span class="qh">Point a phone camera at the code.</span></div></div>';
+  function lightboxHTML(net) {
+    return '<div class="lightbox" role="dialog" aria-modal="true" aria-label="QR code for ' + net.name + '" tabindex="-1">'
+      + '<div class="lb-card"><div class="lb-code"></div>'
+      + '<div class="lb-name">' + net.name + '</div>'
+      + '<div class="lb-sub">' + (net.qr.sec === 'nopass' ? 'Open network · no password' : 'WPA2/WPA3 · password from Keychain') + '</div>'
+      + '<div class="lb-hint">Scan with a phone camera to join · click anywhere to close</div></div></div>';
   }
 
   const fact = (k, v, opt = {}) => '<div class="fact' + (opt.copy ? ' copy' : '') + (opt.test ? ' test' : '') + '"'
@@ -561,7 +567,6 @@
     if (s.speed) outside += fact('Speed', s.speed.text, { test: s.speed.test });
     return '<div class="conn ' + c.cls.join(' ') + '">'
       + '<div class="row-grid">' + glyphHTML(c) + mainHTML(c) + qrButton(c) + '</div>'
-      + '<div class="qr-slot" data-slot="' + c.name + '"></div>'
       + '<div class="inset">'
       + '<div class="linkline"><span><b>' + dbm(s.link.rssi) + '</b>signal</span><span><b>' + dbm(s.link.noise) + '</b>noise</span><span><b>' + s.link.rate + '</b>Mbps</span></div>'
       + '<div class="fgroup">' + outside + '</div>'
@@ -620,24 +625,30 @@
   }
 
   let currentState = 'healthy';
+  let lightbox = null, lightboxOpener = null;
+  function closeLightbox() {
+    if (!lightbox) return;
+    lightbox.remove(); lightbox = null;
+    document.removeEventListener('keydown', closeLightbox, true);
+    if (lightboxOpener) { lightboxOpener.focus(); lightboxOpener = null; }
+  }
   document.querySelector('.menu').addEventListener('click', e => {
     const b = e.target.closest('.qr-btn');
     if (!b) return;
-    const menu = e.currentTarget, name = b.dataset.qr, open = b.getAttribute('aria-expanded') === 'true';
-    menu.querySelectorAll('.qr-btn').forEach(x => x.setAttribute('aria-expanded', 'false'));
-    menu.querySelectorAll('.qr-slot').forEach(x => { x.innerHTML = ''; });
-    if (open) return;
     const st = states[currentState];
-    const net = [st.conn].concat(st.rows).find(n => n.name === name);
-    const slot = menu.querySelector('.qr-slot[data-slot="' + name + '"]');
-    slot.innerHTML = qrPanelHTML(net);
-    b.setAttribute('aria-expanded', 'true');
-    const box = slot.querySelector('.qr-code');
+    const net = [st.conn].concat(st.rows).find(n => n.name === b.dataset.qr);
+    closeLightbox();
+    document.body.insertAdjacentHTML('beforeend', lightboxHTML(net));
+    lightbox = document.body.lastElementChild; lightboxOpener = b;
+    const box = lightbox.querySelector('.lb-code');
     try {
-      new QRCode(box, { text: qrPayload(net), width: 104, height: 104, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+      new QRCode(box, { text: qrPayload(net), width: 272, height: 272, colorDark: '#000000', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
     } catch (_) {
       box.innerHTML = '<span class="qr-fallback">QR</span>';
     }
+    lightbox.addEventListener('click', closeLightbox);
+    document.addEventListener('keydown', closeLightbox, true);
+    lightbox.focus();
   });
 
   // hover-to-copy and the speed test, both on the connected card
