@@ -28,8 +28,8 @@ return { groups = {
 		when = { kind = "video" },
 		{ desc = "workflow", run = kitty("--window --hold", "topaz workflow", BIN .. "topaz-workflow %s"), orphan = true },
 		{ desc = "simple presets", run = kitty("--window --hold", "topaz presets", BIN .. "topaz-simple-presets %s"), orphan = true },
-		{ desc = "preview + encode (ffmpeg)", run = kitty("--tab --hold", "topaz", BIN .. "topaz-select-preset %s"), orphan = true },
-		{ desc = "starlight (neuroserver)", run = kitty("--tab --hold", "starlight", BIN .. "neuroserver-select-preset %s"), orphan = true },
+		{ desc = "select preset: preview + encode (ffmpeg)", run = kitty("--tab --hold", "topaz", BIN .. "topaz-select-preset %s"), orphan = true },
+		{ desc = "select preset: starlight (neuroserver)", run = kitty("--tab --hold", "starlight", BIN .. "neuroserver-select-preset %s"), orphan = true },
 	},
 	{
 		group = "Interpolate",

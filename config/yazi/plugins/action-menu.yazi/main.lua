@@ -71,6 +71,10 @@ local function applies(when, targets)
 	return true
 end
 
+-- The command as shown in the bar: repo tools by bare name, so the part that
+-- matters isn't pushed off the end by the install path.
+local function display(run) return (run:gsub("%$HOME/%.local/bin/", ""):gsub("~/%.local/bin/", "")) end
+
 -- Flatten groups into rows, keeping only entries that apply.
 local function collect(groups, targets)
 	local rows = {}
@@ -84,7 +88,9 @@ local function collect(groups, targets)
 						run = it.run,
 						block = it.block or false,
 						orphan = it.orphan or false,
-						hay = (g.group .. " " .. it.desc):lower(),
+						cmd = display(it.run),
+						-- The command is searchable too, so a tool can be found by name.
+						hay = (g.group .. " " .. it.desc .. " " .. display(it.run)):lower(),
 					}
 				end
 			end
@@ -216,17 +222,20 @@ end
 
 function M:reflow() return { self } end
 
--- Layout matches the help box: border, input row, divider, list.
+-- Layout matches the help box (border, input row, divider, list), plus a
+-- two-line bar under a second divider showing the highlighted command.
 function M:redraw()
 	local area = self._area
-	if not self.children or area.h < 5 or area.w < 10 then
+	if not self.children or area.h < 8 or area.w < 10 then
 		return {}
 	end
 
 	local x, y, w, h = area.x, area.y, area.w, area.h
 	local input = ui.Rect { x = x + 2, y = y + 1, w = w - 4, h = 1 }
 	local divider = ui.Rect { x = x, y = y + 2, w = w, h = 1 }
-	local list = ui.Rect { x = x + 1, y = y + 3, w = w - 2, h = h - 4 }
+	local list = ui.Rect { x = x + 1, y = y + 3, w = w - 2, h = h - 7 }
+	local divider2 = ui.Rect { x = x, y = y + h - 4, w = w, h = 1 }
+	local bar = ui.Rect { x = x + 2, y = y + h - 3, w = w - 4, h = 2 }
 
 	local offset = math.max(0, self.cursor - list.h + 1)
 	local lines = {}
@@ -242,6 +251,10 @@ function M:redraw()
 		lines[1] = ui.Line(" no matching actions"):style(ui.Style():dim())
 	end
 
+	local hovered = self.rows[self.cursor + 1]
+	-- A fresh Line each time: ui.Text consumes the one it's given.
+	local function rule() return ui.Line("├" .. string.rep("─", w - 2) .. "┤"):style(th.help.border) end
+
 	local count = ui.Rect { x = x + 2, y = y + h - 1, w = w - 4, h = 1 }
 	return {
 		ui.Clear(area),
@@ -251,8 +264,15 @@ function M:redraw()
 			:style(th.help.border)
 			:title(ui.Line(" " .. self.title .. " "):align(ui.Align.CENTER)),
 		self.input:area(input):focus(true),
-		ui.Text(ui.Line("├" .. string.rep("─", w - 2) .. "┤"):style(th.help.border)):area(divider),
+		ui.Text(rule()):area(divider),
 		ui.List(lines):area(list),
+		ui.Text(rule()):area(divider2),
+		ui.Text(ui.Line {
+			ui.Span("$ "):style(th.help.chord),
+			ui.Span(hovered and hovered.cmd or ""):style(ui.Style():dim()),
+		})
+			:area(bar)
+			:wrap(ui.Wrap.YES),
 		ui.Text(ui.Line(string.format(" %d/%d ", #self.rows, #self.all)):style(th.help.border))
 			:area(count)
 			:align(ui.Align.RIGHT),
