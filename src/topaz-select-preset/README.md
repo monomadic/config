@@ -16,7 +16,16 @@ rules), interpolation, output format — and the preview on the right. The filte
 is composed exactly as topaz-pick composes it (`@SCALE@` filled, interpolation
 before the lanczos tail), and `d` shows it with the preset's `[insight]` notes.
 
-`Enter` renders a **window** of `--window` source frames (default 8) around `t`
+It starts on Original, showing the untouched source frame at `t`, and the line
+under the image names what is on screen with its frame number and time. The
+preset on screen is orange with a `▶`, and stays that way while the selection
+moves off it. Presets are white with a `●` on the right once they have a render
+at the current `t` (a `○` means a render at another time), grey until then —
+lifted a little under the selection bar, but never white. Original, being the
+source, is always white.
+
+`Enter` renders a **window** of `--window` source frames (default 1, and at
+least 2 with an interpolation selected, which needs a pair to work between)
 through `topaz-preview-frame --keep-window`, and shows every frame as a kitty
 image (half-block cells in any other terminal): `←`/`→` step, `o`/`space` flip
 to the source frame, `s` puts them side by side. With an interpolation selected
@@ -26,7 +35,10 @@ same region of both frames (nearest-neighbour, so rendered pixels stay crisp)
 and `H J K L` pan; that is what makes a detail preset judgeable in a terminal.
 Renders are cached per preset, resolution, interpolation and time, and moving
 onto a cached one shows it at once — render a few, then flick through them with
-`j`/`k` at the same frame and zoom. `,`/`.` and `<`/`>` move `t`; `Esc` cancels.
+`j`/`k`, or `~` to cycle through every render at the current `t` at the same
+frame and zoom. `,`/`.` move `t` by 10s and `<`/`>` by 1s; the picture follows,
+to the viewed preset's render at the new `t` if there is one, else the source
+frame there. `Esc` cancels.
 
 `e` runs `topaz-encode` on the whole clip with the chosen preset, **inside the
 TUI**: phase, frame count, fps, speed and an ETA from ffmpeg's own progress,
@@ -40,7 +52,8 @@ in place and continues it, `o` opens the output so far in mpv, `Esc` stops.
 then says how much of the clip it holds and offers `r` to resume (the default:
 topaz-encode encodes only the rest and joins it losslessly) or `x` to move it to
 the Trash and start again. A complete output offers `x` to replace it. `c`
-prints the plain `topaz-encode` command for the selection instead and quits.
+prints the plain `topaz-encode` command for the selection instead and quits;
+`y` copies it to the clipboard and stays.
 
 The output is named as topaz-encode names it — `<stem> [Topaz - <preset>].<ext>`
 beside the input — so an encode started here and one started from `topaz-pick`

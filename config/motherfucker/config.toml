@@ -198,7 +198,7 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 
 [commands.Config]
 "motherfucker" = "/Users/nom/.local/bin/kitty-launch --cwd \"~/.config/motherfucker\" -- /bin/zsh -lc 'exec hx -- ~/.config/motherfucker/config.toml'"
-"switchblade" = "/Users/nom/.local/bin/kitty-launch --cwd \"~/.config\" -- /bin/zsh -lc 'exec hx -- ~/.config/switchblade.toml'"
+"switchblade" = "/Users/nom/.local/bin/kitty-launch --cwd \"~/.config/switchblade\" -- /bin/zsh -lc 'exec hx -- ~/.config/switchblade.toml'"
 
 # Sigil modes: typing one of these as the FIRST character switches the
 # panel into that mode. The sigil is lifted into a colored box (not left in

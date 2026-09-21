@@ -25,7 +25,8 @@ preset, resolution and time, and neuroserver's own phase and percentage
 `e` confirms and encodes the whole clip with the chosen preset, resolution and
 output profile (output lands beside the input as `<stem> [Topaz - <preset>].<ext>`,
 the log in `~/Library/Logs/topaz-batch`). `c` prints the equivalent
-`neuroserver-select-preset encode …` command instead and quits.
+`neuroserver-select-preset encode …` command instead and quits; `y` copies it
+to the clipboard and stays.
 
 The encoder is part of this binary (`src/nsencode.rs`), not a separate script:
 the TUI runs it in a thread, and the same code is the command-line encoder,

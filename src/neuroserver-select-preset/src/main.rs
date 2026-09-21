@@ -42,6 +42,7 @@ use render::{Event as REvent, Job, RenderResult};
 use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
 use std::time::Duration;
 
 /// A running (or just finished) full-clip encode, shown in place of the preview.
@@ -466,8 +467,7 @@ fn main() -> Result<()> {
     match outcome? {
         Exit::Quit => Ok(()),
         Exit::PrintCommand(args) => {
-            let cmd = ["neuroserver-select-preset".to_string(), "encode".to_string()].into_iter().chain(args);
-            println!("{}", cmd.map(|a| shell_quote(&a)).collect::<Vec<_>>().join(" "));
+            println!("{}", command_line(args));
             Ok(())
         }
     }
@@ -576,6 +576,12 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Option<Exit> {
             app.confirm_encode = true;
         }
         KeyCode::Char('c') => return Some(Exit::PrintCommand(app.encode_options(EncodeMode::Fresh).to_args())),
+        KeyCode::Char('y') => {
+            app.note = Some(match copy_to_clipboard(&command_line(app.encode_options(EncodeMode::Fresh).to_args())) {
+                Ok(()) => "command copied to the clipboard".into(),
+                Err(e) => format!("copy failed: {e}"),
+            });
+        }
         KeyCode::Char('1'..='9') if !shift => {
             let n = key.code.to_string().parse::<usize>().unwrap_or(1) - 1;
             match app.pane {
@@ -608,6 +614,28 @@ const ACCENT: Color = Color::Rgb(0x0a, 0x84, 0xff);
 /// Secondary text. An explicit grey rather than the palette's DarkGray (bright
 /// black), which many dark themes draw at or near the background colour.
 const DIM: Color = Color::Rgb(0x8c, 0x93, 0xa3);
+
+/// The `c` / `y` command as one paste-able shell line: the encoder's own CLI,
+/// which this binary also is.
+fn command_line(args: Vec<String>) -> String {
+    ["neuroserver-select-preset".to_string(), "encode".to_string()]
+        .into_iter()
+        .chain(args)
+        .map(|a| shell_quote(&a))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Put `text` on the macOS clipboard.
+fn copy_to_clipboard(text: &str) -> Result<()> {
+    use std::io::Write;
+    let mut child = Command::new("pbcopy").stdin(Stdio::piped()).spawn()?;
+    child.stdin.take().expect("piped stdin").write_all(text.as_bytes())?;
+    if !child.wait()?.success() {
+        return Err(anyhow!("pbcopy failed"));
+    }
+    Ok(())
+}
 
 fn draw(f: &mut Frame, app: &mut App) {
     let area = f.area();
@@ -726,7 +754,7 @@ fn draw_lists(f: &mut Frame, app: &App, area: Rect) {
     let help = Paragraph::new(vec![
         Line::from(vec![key("↵"), Span::raw(" render  "), key("←→"), Span::raw(" frame  "), key("o"), Span::raw(" original")]),
         Line::from(vec![key(", ."), Span::raw(" ±1s  "), key("< >"), Span::raw(" ±10s  "), key("⇥"), Span::raw(" pane")]),
-        Line::from(vec![key("e"), Span::raw(" encode  "), key("c"), Span::raw(" print cmd  "), key("q"), Span::raw(" quit")]),
+        Line::from(vec![key("e"), Span::raw(" encode  "), key("c"), Span::raw(" cmd  "), key("y"), Span::raw(" copy  "), key("q"), Span::raw(" quit")]),
         Line::from(Span::styled(app.preset().blurb.clone(), Style::default().fg(DIM))),
     ])
     .wrap(Wrap { trim: true })

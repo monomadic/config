@@ -17,6 +17,8 @@ YTDLP_INSTALL_SCRIPT="$CONFIG_DIR/scripts/install/install-yt-dlp.sh"
 YAZI_PACKAGE_MANIFEST="$XDG_CONFIG_HOME/yazi/package.toml"
 YAZI_PACKAGE_PLUGIN_DIR="$XDG_CONFIG_HOME/yazi/plugins"
 INSTALL_DIR="$CONFIG_DIR/scripts/install"
+DOTFILES_DIR="$CONFIG_DIR"
+source "$CONFIG_DIR/bin/lib/install-staleness.zsh"
 UPGRADE=0
 APPLY_ICONS=0
 SCRIPT_NAME="${0:t}"
@@ -232,10 +234,12 @@ upgrade_homebrew() {
 #
 # Deliberately never installs a tool that is absent: not every machine wants
 # every widget, and a deploy is the wrong place to acquire new software.
-# Staleness is decided by mtime, not by a version string — these crates rarely
-# bump Cargo.toml, and `git pull` touches exactly the files that changed.
+# Staleness is decided by content, not by a version string — these crates
+# rarely bump Cargo.toml. A content hash recorded at the last install when there
+# is one, else git history against the artifact's mtime (raw mtimes lie after a
+# `git mv`).
 upgrade_src_tools() {
-  local spec name installer artifact script
+  local spec name installer artifact script reason
   local -a specs
 
   if [[ "${DOTTER_SKIP_SRC:-0}" == "1" ]]; then
@@ -283,31 +287,19 @@ upgrade_src_tools() {
       continue
     fi
 
-    # Editing the installer counts as staleness too.
-    if [[ "$script" -nt "$artifact" ]]; then
-      echo "Rebuilding $name ($installer is newer than $artifact)..."
-      "$script" || echo "Warning: $installer failed; run it manually." >&2
+    # Editing the installer or the vendored binary counts as staleness too.
+    # See bin/lib/install-staleness.zsh — shared with fzf-app-store, so the two
+    # agree and share one record of what was last installed.
+    if ! reason="$(install_stale_reason "$script" "$CONFIG_DIR/src/$name" \
+                     "$CONFIG_DIR/vendor/bin/$(install_entry_name "$script")" "$artifact")"; then
       continue
     fi
 
-    # Only real build inputs decide staleness. A README or a design mockup is
-    # not one, and treating it as one means every doc edit triggers a rebuild
-    # of everything. Pruned dirs: build output, and the nested checkouts that
-    # agent worktrees leave under .claude/.
-    # -quit stops at the first hit instead of walking the whole tree.
-    if [[ -z "$(find "$CONFIG_DIR/src/$name" \
-                     \( -name target -o -name .git -o -name .claude \
-                        -o -name designs -o -name design \) -prune -o \
-                     -type f \( -name '*.rs' -o -name '*.go' -o -name '*.c' \
-                        -o -name '*.h' -o -name '*.m' -o -name '*.swift' \
-                        -o -name 'Cargo.toml' -o -name 'Cargo.lock' \
-                        -o -name 'go.mod' -o -name 'go.sum' \) \
-                     -newer "$artifact" -print -quit 2>/dev/null)" ]]; then
-      continue
-    fi
-
-    echo "Rebuilding $name (source is newer than $artifact)..."
-    if ! "$script"; then
+    echo "Rebuilding $name ($reason)..."
+    if "$script"; then
+      install_record "$script" "$CONFIG_DIR/src/$name" \
+        "$CONFIG_DIR/vendor/bin/$(install_entry_name "$script")"
+    else
       echo "Warning: $installer failed; run it manually." >&2
     fi
   done

@@ -10,8 +10,9 @@
 //!   ←/→ h/l   previous / next frame            o  space      Topaz ↔ original
 //!   s         side by side                     d             preset details
 //!   z         zoom 1× 2× 4× 8×                 H J K L       pan the zoomed view
-//!   , .       time −1s / +1s                   < >           time −10s / +10s
-//!   e         encode with topaz-encode         c             print that command and quit
+//!   , .       time −10s / +10s                 < >           time −1s / +1s
+//!   ~         next render at this time         e             encode with topaz-encode
+//!   c         print that command and quit
 //!   q         quit
 //! While encoding: p pause / continue, o open the output so far in mpv, Esc stop.
 
@@ -21,6 +22,7 @@ mod logtail;
 mod plan;
 mod probe;
 mod render;
+mod still;
 mod view;
 
 use anyhow::{anyhow, Context, Result};
@@ -169,6 +171,9 @@ struct App {
     /// Which rendered key is on screen (may lag the selection until Enter).
     shown: Option<String>,
     frame: usize,
+    /// Source frame number -> the grabbed still, shown until a render exists.
+    stills: HashMap<u64, PathBuf>,
+    still_job: Option<still::Job>,
     show_original: bool,
     split: bool,
     details: bool,
@@ -226,7 +231,60 @@ impl App {
 
     fn render_key(&self) -> String {
         let interp = self.interp().map(|i| i.slug.as_str()).unwrap_or("-");
-        format!("{}|{}|{}|{:.3}", self.enh().slug, self.effective_res().key, interp, self.time)
+        format!("{}|{}|{}|{}", self.enh().slug, self.effective_res().key, interp, self.time_key())
+    }
+
+    /// The time field of a render key — renders are cached per time.
+    fn time_key(&self) -> String {
+        format!("{:.3}", self.time)
+    }
+
+    /// Whether `slug` has a render at the current time (any resolution or interpolation).
+    fn rendered_here(&self, slug: &str) -> bool {
+        let (head, tail) = (format!("{slug}|"), format!("|{}", self.time_key()));
+        self.renders.keys().any(|k| k.starts_with(&head) && k.ends_with(&tail))
+    }
+
+    fn rendered_anywhere(&self, slug: &str) -> bool {
+        let head = format!("{slug}|");
+        self.renders.keys().any(|k| k.starts_with(&head))
+    }
+
+    /// The preset whose frame is on screen: the shown render's, or Original
+    /// when the source is what is showing.
+    fn viewed_slug(&self) -> &str {
+        match self.shown.as_deref() {
+            Some(k) if !(self.show_original && !self.split) => k.split('|').next().unwrap_or(catalog::ORIGINAL_SLUG),
+            _ => catalog::ORIGINAL_SLUG,
+        }
+    }
+
+    /// `~`: step to the next render at the current time, in list order.
+    fn cycle_rendered(&mut self) {
+        let t = self.time_key();
+        let mut keys: Vec<(usize, String)> = self
+            .renders
+            .keys()
+            .filter(|k| k.rsplit('|').next() == Some(t.as_str()))
+            .map(|k| {
+                let slug = k.split('|').next().unwrap_or_default();
+                (self.presets.iter().position(|p| p.slug == slug).unwrap_or(usize::MAX), k.clone())
+            })
+            .collect();
+        if keys.is_empty() {
+            self.note = Some("nothing rendered at this time yet — Enter renders the selection".into());
+            return;
+        }
+        keys.sort();
+        let next = self
+            .shown
+            .as_ref()
+            .and_then(|s| keys.iter().position(|(_, k)| k == s))
+            .map(|i| (i + 1) % keys.len())
+            .unwrap_or(0);
+        self.show_original = false;
+        self.show(keys[next].1.clone());
+        self.note = Some(format!("render {} of {} at this time", next + 1, keys.len()));
     }
 
     /// Output seconds and frame rate of the encode, interpolation included.
@@ -252,6 +310,9 @@ impl App {
         }
         let r = self.effective_res();
         let label = format!("{} {}", self.enh().display, r.label.split("  ").next().unwrap_or(r.key));
+        // One source frame is the preview; interpolation needs a pair to
+        // invent anything between them.
+        let window = if self.interp().is_some() { self.window.max(2) } else { self.window };
         let ratio = match self.interp() {
             Some(i) => {
                 let (fps, slowmo) = i.rate();
@@ -263,13 +324,13 @@ impl App {
         self.stage = Some("starting".into());
         self.note = None;
         self.frames_done = 0;
-        self.frames_expected = (self.window as f64 * ratio).round() as u64;
+        self.frames_expected = (window as f64 * ratio).round() as u64;
         self.job = Some(render::spawn(render::Request {
             input: self.input.clone(),
             label,
             filter: self.filter(),
             time: self.time,
-            window: self.window,
+            window,
             keep_interpolation: self.interp().is_some(),
             key,
         }));
@@ -356,10 +417,63 @@ impl App {
 
     fn shift_time(&mut self, delta: f64) {
         let max = if self.profile.duration > 0.0 { (self.profile.duration - 0.05).max(0.0) } else { f64::MAX };
+        let before = self.time;
         self.time = (self.time + delta).clamp(0.0, max);
-        // The shown render stays up; the header names the new time, Enter
-        // renders it, and a time rendered before comes straight back.
-        self.sync_shown();
+        if self.time == before {
+            self.note = Some(if delta < 0.0 { "at the start of the clip" } else { "at the end of the clip" }.into());
+            return;
+        }
+        self.request_still();
+        // The picture follows the time: the viewed preset's render at the new
+        // t if there is one, else the selection's, else the source frame.
+        let t = self.time_key();
+        let retimed = self.shown.as_deref().and_then(|k| k.rsplit_once('|')).map(|(head, _)| format!("{head}|{t}"));
+        let key = retimed.filter(|k| self.renders.contains_key(k)).or_else(|| {
+            let k = self.render_key();
+            self.renders.contains_key(&k).then_some(k)
+        });
+        match key {
+            Some(k) => self.show(k),
+            None => {
+                self.shown = None;
+                self.note = Some(format!("source at {:.2}s — Enter renders the selection here", self.time));
+            }
+        }
+    }
+
+    fn source_frame(&self) -> u64 {
+        still::frame_at(self.time, self.profile.fps)
+    }
+
+    /// Grab the source frame at `time` unless it is on hand or on its way. A
+    /// grab for an older time is left to finish; its still is kept.
+    fn request_still(&mut self) {
+        let frame = self.source_frame();
+        if self.stills.contains_key(&frame) || self.still_job.as_ref().is_some_and(|j| j.frame == frame) {
+            return;
+        }
+        if self.still_job.is_none() {
+            self.still_job = Some(still::spawn(&self.input, frame, self.profile.fps, &self.scratch));
+        }
+    }
+
+    fn poll_still(&mut self) {
+        let Some(job) = &self.still_job else { return };
+        let Ok(result) = job.rx.try_recv() else { return };
+        let frame = job.frame;
+        self.still_job = None;
+        match result {
+            Ok(path) => {
+                self.stills.insert(frame, path);
+            }
+            Err(e) => self.error = Some(e.to_string()),
+        }
+        // The time may have moved on while this one was grabbed.
+        self.request_still();
+    }
+
+    fn source_still(&self) -> Option<&PathBuf> {
+        self.stills.get(&self.source_frame())
     }
 
     fn topaz_image(&self) -> Option<PathBuf> {
@@ -599,7 +713,7 @@ fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut input: Option<PathBuf> = None;
     let mut time: Option<f64> = None;
-    let mut window: u32 = 8;
+    let mut window: u32 = 1;
     let mut i = 0;
     while i < args.len() {
         let value = |i: usize, what: &str| args.get(i).cloned().ok_or_else(|| anyhow!("{what}"));
@@ -681,6 +795,8 @@ fn main() -> Result<()> {
         error: None,
         shown: None,
         frame: 0,
+        stills: HashMap::new(),
+        still_job: None,
         show_original: false,
         split: false,
         details: false,
@@ -689,10 +805,8 @@ fn main() -> Result<()> {
         images: Images::new(picker),
         scratch: scratch.clone(),
     };
-    // Start on the first real preset rather than Original.
-    if app.presets.len() > 1 {
-        app.preset_sel = 1;
-    }
+    // Start on Original: the source frame is what the preview shows first.
+    app.request_still();
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -714,7 +828,7 @@ fn main() -> Result<()> {
     match outcome? {
         Exit::Quit => Ok(()),
         Exit::PrintCommand(cmd) => {
-            println!("{}", cmd.iter().map(|a| catalog::shell_quote(a)).collect::<Vec<_>>().join(" "));
+            println!("{}", command_line(&cmd));
             Ok(())
         }
     }
@@ -724,6 +838,22 @@ fn main() -> Result<()> {
 /// answered by the terminal before raw mode; anything else (including a plain
 /// pty with nothing listening, where that query would hang) gets half-block
 /// cells with an assumed cell size and no query at all.
+/// One paste-able shell line.
+fn command_line(cmd: &[String]) -> String {
+    cmd.iter().map(|a| catalog::shell_quote(a)).collect::<Vec<_>>().join(" ")
+}
+
+/// Put `text` on the macOS clipboard.
+fn copy_to_clipboard(text: &str) -> Result<()> {
+    use std::io::Write;
+    let mut child = Command::new("pbcopy").stdin(Stdio::piped()).spawn()?;
+    child.stdin.take().expect("piped stdin").write_all(text.as_bytes())?;
+    if !child.wait()?.success() {
+        return Err(anyhow!("pbcopy failed"));
+    }
+    Ok(())
+}
+
 fn make_picker() -> Result<Picker> {
     let is_kitty = std::env::var("KITTY_WINDOW_ID").is_ok()
         || std::env::var("TERM").map(|t| t.starts_with("xterm-kitty")).unwrap_or(false)
@@ -742,12 +872,14 @@ Topaz against source), then encode the clip with topaz-encode and watch the
 newest frame it writes.
 
   --time SECONDS    where the preview window sits (default: 10% in, at most 10s)
-  --window FRAMES   source frames per preview render, 1-64 (default 8)
+  --window FRAMES   source frames per preview render, 1-64 (default 1; 2 or
+                    more with interpolation, so it has a pair to work between)
 ";
 
 fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut App) -> Result<Exit> {
     loop {
         app.poll_job();
+        app.poll_still();
         app.poll_encode();
         terminal.draw(|f| draw(f, app))?;
         if !event::poll(Duration::from_millis(120))? {
@@ -842,15 +974,22 @@ fn handle_key(app: &mut App, key: KeyEvent) -> Option<Exit> {
         KeyCode::Char('s') => app.split = !app.split,
         KeyCode::Char('d') => app.details = !app.details,
         KeyCode::Char('z') => app.zoom.cycle(),
-        KeyCode::Char(',') => app.shift_time(-1.0),
-        KeyCode::Char('.') => app.shift_time(1.0),
-        KeyCode::Char('<') => app.shift_time(-10.0),
-        KeyCode::Char('>') => app.shift_time(10.0),
+        KeyCode::Char(',') => app.shift_time(-10.0),
+        KeyCode::Char('.') => app.shift_time(10.0),
+        KeyCode::Char('<') => app.shift_time(-1.0),
+        KeyCode::Char('>') => app.shift_time(1.0),
+        KeyCode::Char('~') => app.cycle_rendered(),
         KeyCode::Char('e') => {
             app.error = None;
             app.confirm = Some(app.find_existing());
         }
         KeyCode::Char('c') => return Some(Exit::PrintCommand(app.encode_command(false, false))),
+        KeyCode::Char('y') => {
+            app.note = Some(match copy_to_clipboard(&command_line(&app.encode_command(false, false))) {
+                Ok(()) => "command copied to the clipboard".into(),
+                Err(e) => format!("copy failed: {e}"),
+            });
+        }
         KeyCode::Char(ch @ '0'..='9') => {
             let n = ch.to_digit(10).unwrap_or(0) as usize;
             match app.pane {
@@ -904,8 +1043,24 @@ fn move_sel(app: &mut App, delta: i32) {
 // ---------------------------------------------------------------- drawing
 
 const ACCENT: Color = Color::Rgb(0x0a, 0x84, 0xff);
-const DIM: Color = Color::DarkGray;
+// Every colour is truecolor: the terminal's 16-colour palette is the theme's
+// to redefine (color8, "dark grey", is black in some), which hides or
+// recolours whatever is drawn in it.
+const DIM: Color = Color::Rgb(0x6c, 0x70, 0x78);
+const WHITE: Color = Color::Rgb(0xff, 0xff, 0xff);
+const GRAY: Color = Color::Rgb(0xae, 0xae, 0xb2);
+const BLACK: Color = Color::Rgb(0x00, 0x00, 0x00);
+const YELLOW: Color = Color::Rgb(0xff, 0xd6, 0x0a);
+const GREEN: Color = Color::Rgb(0x30, 0xd1, 0x58);
+const RED: Color = Color::Rgb(0xff, 0x45, 0x3a);
 const TRACK: Color = Color::Rgb(0x22, 0x22, 0x26);
+/// The preset whose frame is on screen, whatever the selection is doing.
+const VIEWED: Color = Color::Rgb(0xff, 0x9f, 0x0a);
+/// Category rules in the enhancement list.
+const CATEGORY: Color = Color::Rgb(0xbf, 0x5a, 0xf2);
+/// An unrendered preset under the selection bar: lifted off the blue, but
+/// short of the white that means "rendered".
+const UNRENDERED_SEL: Color = Color::Rgb(0xb4, 0xbe, 0xcc);
 
 fn draw(f: &mut Frame, app: &mut App) {
     app.images.begin_frame();
@@ -949,7 +1104,7 @@ fn draw_list(f: &mut Frame, items: Vec<ListItem<'static>>, block: Block<'static>
     f.render_stateful_widget(
         List::new(items)
             .block(block)
-            .highlight_style(Style::default().bg(ACCENT).fg(Color::White))
+            .highlight_style(Style::default().bg(ACCENT).fg(WHITE))
             .highlight_symbol("▸ "),
         area,
         &mut st,
@@ -964,32 +1119,78 @@ fn draw_lists(f: &mut Frame, app: &App, area: Rect) {
             Constraint::Length(app.res.len() as u16 + 2),
             Constraint::Length(app.interps.len() as u16 + 3),
             Constraint::Length(app.outputs.len() as u16 + 2),
-            Constraint::Length(7),
+            Constraint::Length(8),
         ])
         .split(area);
 
-    // Presets, grouped; rendered ones get a check mark, like the mpv menu's
-    // cached stills.
+    // Presets, grouped under ruled category headings. The one on screen is
+    // orange with ▶ whatever the selection does; white means rendered at this
+    // time (● on the right), grey not (○ if rendered at another time).
+    let width = rows[0].width.saturating_sub(2) as usize;
+    let viewed = app.viewed_slug();
+    let sel_row = app.row_of[app.preset_sel];
     let items: Vec<ListItem> = app
         .rows
         .iter()
-        .map(|row| match row {
-            Row::Header(label) => ListItem::new(Line::from(Span::styled(
-                format!(" {label}"),
-                Style::default().fg(DIM).add_modifier(Modifier::BOLD),
-            ))),
+        .enumerate()
+        .map(|(r, row)| match row {
+            Row::Header(label) => {
+                let head = Span::styled(format!("─ {label} "), Style::default().fg(CATEGORY).add_modifier(Modifier::BOLD));
+                let rule = "─".repeat(width.saturating_sub(head.width()));
+                ListItem::new(Line::from(vec![head, Span::styled(rule, Style::default().fg(CATEGORY))]))
+            }
             Row::Preset(i) => {
                 let p = &app.presets[*i];
-                let prefix = format!("{}|", p.slug);
-                let mark = if app.renders.keys().any(|k| k.starts_with(&prefix)) { "  ✓" } else { "" };
+                let selected = r == sel_row;
+                let is_viewed = p.slug == viewed;
+                let here = p.is_original() || app.rendered_here(&p.slug);
+                let (icon, icon_style) = if is_viewed {
+                    ("▶", Style::default().fg(VIEWED).add_modifier(Modifier::BOLD))
+                } else if selected {
+                    ("▸", Style::default().fg(WHITE))
+                } else {
+                    (" ", Style::default())
+                };
+                let name_style = if is_viewed {
+                    Style::default().fg(VIEWED).add_modifier(Modifier::BOLD)
+                } else if here {
+                    Style::default().fg(WHITE)
+                } else if selected {
+                    Style::default().fg(UNRENDERED_SEL)
+                } else {
+                    Style::default().fg(DIM)
+                };
+                let (dot, dot_style) = if p.is_original() {
+                    (" ", Style::default())
+                } else if here {
+                    ("●", Style::default().fg(GREEN))
+                } else if app.rendered_anywhere(&p.slug) {
+                    ("○", Style::default().fg(DIM))
+                } else {
+                    (" ", Style::default())
+                };
+                let name = Span::styled(p.display.clone(), name_style);
+                let pad = width.saturating_sub(3 + name.width() + 2);
                 ListItem::new(Line::from(vec![
-                    Span::raw(format!("  {}", p.display)),
-                    Span::styled(mark, Style::default().fg(Color::Green)),
+                    Span::raw(" "),
+                    Span::styled(icon, icon_style),
+                    Span::raw(" "),
+                    name,
+                    Span::raw(" ".repeat(pad)),
+                    Span::styled(dot, dot_style),
+                    Span::raw(" "),
                 ]))
             }
         })
         .collect();
-    draw_list(f, items, pane_block(app, "Enhancement", Pane::Preset), app.row_of[app.preset_sel], rows[0]);
+    // No highlight symbol here (the icon column carries ▶ / ▸), and the bar
+    // sets only the background so each row keeps its own colours.
+    let mut st = ListState::default().with_selected(Some(sel_row));
+    f.render_stateful_widget(
+        List::new(items).block(pane_block(app, "Enhancement", Pane::Preset)).highlight_style(Style::default().bg(ACCENT)),
+        rows[0],
+        &mut st,
+    );
 
     // Resolution: rows the selected preset cannot reach are dimmed; the one that
     // would actually be used (fallback) is marked.
@@ -1005,7 +1206,7 @@ fn draw_lists(f: &mut Frame, app: &App, area: Rect) {
             ListItem::new(Line::from(vec![
                 Span::styled(format!("{} ", i + 1), Style::default().fg(DIM)),
                 Span::styled(o.label.clone(), style),
-                Span::styled(used, Style::default().fg(Color::Yellow)),
+                Span::styled(used, Style::default().fg(YELLOW)),
             ]))
         })
         .collect();
@@ -1019,9 +1220,10 @@ fn draw_lists(f: &mut Frame, app: &App, area: Rect) {
     draw_list(f, items, pane_block(app, "Output", Pane::Output), app.out_sel, rows[3]);
 
     let help = Paragraph::new(vec![
-        Line::from(vec![key("↵"), Span::raw(" render  "), key("←→"), Span::raw(" frame  "), key("o"), Span::raw(" orig  "), key("s"), Span::raw(" split")]),
-        Line::from(vec![key("z"), Span::raw(" zoom  "), key("HJKL"), Span::raw(" pan  "), key(", ."), Span::raw(" ±1s  "), key("< >"), Span::raw(" ±10s")]),
-        Line::from(vec![key("d"), Span::raw(" details  "), key("e"), Span::raw(" encode  "), key("c"), Span::raw(" cmd  "), key("q"), Span::raw(" quit")]),
+        Line::from(vec![key("↵"), Span::raw(" render  "), key("~"), Span::raw(" next render  "), key("←→"), Span::raw(" frame")]),
+        Line::from(vec![key("o"), Span::raw(" orig  "), key("s"), Span::raw(" split  "), key("z"), Span::raw(" zoom  "), key("HJKL"), Span::raw(" pan")]),
+        Line::from(vec![key(", ."), Span::raw(" ±10s  "), key("< >"), Span::raw(" ±1s  "), key("d"), Span::raw(" details  "), key("e"), Span::raw(" encode")]),
+        Line::from(vec![key("c"), Span::raw(" cmd  "), key("y"), Span::raw(" copy  "), key("q"), Span::raw(" quit")]),
         Line::from(Span::styled(app.enh().blurb.clone(), Style::default().fg(DIM))),
     ])
     .wrap(Wrap { trim: true })
@@ -1060,7 +1262,7 @@ fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(DIM))
-        .title(Line::from(Span::styled(header, Style::default().fg(Color::White))));
+        .title(Line::from(Span::styled(header, Style::default().fg(WHITE))));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
@@ -1072,8 +1274,10 @@ fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
     if app.details {
         draw_details(f, app, rows[0]);
     } else if app.shown_result().is_none() {
-        let msg = if app.job.is_some() { "rendering…" } else { "no preview yet — Enter renders the window at t" };
-        centre_line(f, msg, rows[0]);
+        match app.source_still().cloned() {
+            Some(path) => draw_image(f, app, &path, rows[0]),
+            None => centre_line(f, "reading the source frame…", rows[0]),
+        }
     } else if app.split {
         let halves = Layout::default()
             .direction(Direction::Horizontal)
@@ -1084,7 +1288,7 @@ fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
                 .direction(Direction::Vertical)
                 .constraints([Constraint::Length(1), Constraint::Min(2)])
                 .split(side);
-            let (label, colour) = if original { ("original", Color::Yellow) } else { ("topaz", ACCENT) };
+            let (label, colour) = if original { ("original", YELLOW) } else { ("topaz", ACCENT) };
             f.render_widget(
                 Paragraph::new(Span::styled(label, Style::default().fg(colour).add_modifier(Modifier::BOLD))).alignment(Alignment::Center),
                 parts[0],
@@ -1101,13 +1305,32 @@ fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
         }
     }
 
-    // Frame strip: one glyph per rendered frame, the requested one ringed and
-    // frames interpolation invented drawn small.
+    // What is on screen: which clip, its frame number and time, then the frame
+    // strip — one glyph per rendered frame, the requested one ringed and frames
+    // interpolation invented drawn small.
+    let fps = app.profile.fps.max(1e-6);
+    let label = |text: String, colour: Color| Span::styled(format!(" {text}"), Style::default().fg(colour).add_modifier(Modifier::BOLD));
+    let at = |frame: String, secs: f64| Span::styled(format!("  ·  frame {frame}  ·  {secs:.3}s   "), Style::default().fg(WHITE));
     if let Some(r) = app.shown_result() {
+        let slug = app.shown.as_deref().and_then(|k| k.split('|').next()).unwrap_or_default();
+        let preset = app.presets.iter().find(|p| p.slug == slug).map(|p| p.display.clone()).unwrap_or_default();
         let mut spans: Vec<Span> = Vec::new();
-        let which = if app.split { "split" } else if app.show_original { "original" } else { "topaz" };
-        let colour = if app.show_original && !app.split { Color::Yellow } else { ACCENT };
-        spans.push(Span::styled(format!(" {which:<8} "), Style::default().fg(colour).add_modifier(Modifier::BOLD)));
+        if app.show_original && !app.split {
+            let src = r.window_start + r.source_offset(app.frame) as u64;
+            spans.push(label("original".into(), YELLOW));
+            spans.push(at(src.to_string(), src as f64 / fps));
+        } else {
+            let pos = app.frame as f64 / r.ratio;
+            let src = r.window_start as f64 + pos;
+            let frame = if pos.fract().abs() > 1e-6 {
+                format!("{}–{} (invented)", src.floor(), src.floor() + 1.0)
+            } else {
+                format!("{}", src.round())
+            };
+            let name = if app.split { format!("original | {preset}") } else { preset };
+            spans.push(label(name, VIEWED));
+            spans.push(at(frame, src / fps));
+        }
         let target = r.topaz_target();
         for idx in r.topaz_frames.keys() {
             let invented = r.ratio > 1.0 && (*idx as f64 / r.ratio).fract().abs() > 1e-6;
@@ -1122,23 +1345,16 @@ fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
             let style = if *idx == app.frame { Style::default().fg(ACCENT) } else { Style::default().fg(DIM) };
             spans.push(Span::styled(format!("{glyph} "), style));
         }
-        let pos = app.frame as f64 / r.ratio;
-        let src = r.window_start as f64 + pos;
-        let where_ = if pos.fract().abs() > 1e-6 {
-            format!("invented, between source frames {} and {}", src.floor(), src.floor() + 1.0)
-        } else {
-            format!("source frame {}", src.round())
-        };
-        spans.push(Span::styled(
-            format!("  {}  ·  {:.3}s", where_, src / app.profile.fps),
-            Style::default().fg(DIM),
-        ));
+        f.render_widget(Paragraph::new(Line::from(spans)), rows[1]);
+    } else if !app.details {
+        let frame = app.source_frame();
+        let spans = vec![label("source".into(), YELLOW), at(frame.to_string(), frame as f64 / fps)];
         f.render_widget(Paragraph::new(Line::from(spans)), rows[1]);
     }
 
     // Status: stage · frame counter · note, or the error.
     let status: Line = if let Some(err) = &app.error {
-        Line::from(Span::styled(format!(" ✗ {err}"), Style::default().fg(Color::Red)))
+        Line::from(Span::styled(format!(" ✗ {err}"), Style::default().fg(RED)))
     } else if let Some(stage) = &app.stage {
         let mut spans = vec![Span::styled(" ● ", Style::default().fg(ACCENT)), Span::raw(stage.clone())];
         if app.frames_done > 0 {
@@ -1147,7 +1363,7 @@ fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
             spans.push(Span::styled("  ·  loading the model", Style::default().fg(DIM)));
         }
         if let Some(note) = &app.note {
-            spans.push(Span::styled(format!("  ·  {note}"), Style::default().fg(Color::Yellow)));
+            spans.push(Span::styled(format!("  ·  {note}"), Style::default().fg(YELLOW)));
         }
         Line::from(spans)
     } else {
@@ -1156,7 +1372,7 @@ fn draw_preview(f: &mut Frame, app: &mut App, area: Rect) {
         if app.shown.is_some() && !shown_is_current {
             spans.push(Span::styled(
                 "   (showing an earlier render — Enter renders the current selection)",
-                Style::default().fg(Color::Yellow),
+                Style::default().fg(YELLOW),
             ));
         }
         Line::from(spans)
@@ -1218,12 +1434,12 @@ fn draw_details(f: &mut Frame, app: &App, area: Rect) {
     }
     text.push(Line::from(""));
     text.push(Line::from(Span::styled("Filter", head)));
-    text.push(Line::from(Span::styled(app.filter(), Style::default().fg(Color::Gray))));
+    text.push(Line::from(Span::styled(app.filter(), Style::default().fg(GRAY))));
     text.push(Line::from(""));
     text.push(Line::from(Span::styled("Encodes to", head)));
     text.push(Line::from(Span::styled(
         app.output_path().file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
-        Style::default().fg(Color::Gray),
+        Style::default().fg(GRAY),
     )));
     let padded = Rect { x: area.x + 2, width: area.width.saturating_sub(4), ..area };
     f.render_widget(Paragraph::new(text).wrap(Wrap { trim: false }), padded);
@@ -1246,8 +1462,8 @@ fn draw_encode(f: &mut Frame, app: &mut App, area: Rect) {
     let title = format!(" {}  ·  {} ", if paused { "paused" } else { "encoding" }, enc.label);
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(if paused { Color::Yellow } else { ACCENT }))
-        .title(Line::from(Span::styled(title, Style::default().fg(Color::White).add_modifier(Modifier::BOLD))));
+        .border_style(Style::default().fg(if paused { YELLOW } else { ACCENT }))
+        .title(Line::from(Span::styled(title, Style::default().fg(WHITE).add_modifier(Modifier::BOLD))));
     let inner = block.inner(area);
     f.render_widget(block, area);
     let rows = Layout::default()
@@ -1262,12 +1478,12 @@ fn draw_encode(f: &mut Frame, app: &mut App, area: Rect) {
     let caption: Line = if live.is_some() {
         let age = enc.live_at.map(|t| format!("  ·  {} ago", fmt_dur(t.elapsed().as_secs_f64()))).unwrap_or_default();
         Line::from(vec![
-            Span::styled(" live ", Style::default().fg(Color::Black).bg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(" live ", Style::default().fg(BLACK).bg(GREEN).add_modifier(Modifier::BOLD)),
             Span::styled(format!("  newest frame written to the output  ·  update {}{age}", enc.live_count), Style::default().fg(DIM)),
         ])
     } else if fallback.is_some() {
         Line::from(vec![
-            Span::styled(" preview ", Style::default().fg(Color::Black).bg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(" preview ", Style::default().fg(BLACK).bg(YELLOW).add_modifier(Modifier::BOLD)),
             Span::styled("  not the encode — the live frame appears once the first fragment is written", Style::default().fg(DIM)),
         ])
     } else {
@@ -1303,7 +1519,7 @@ fn draw_encode(f: &mut Frame, app: &mut App, area: Rect) {
     let phase = enc.message.clone().unwrap_or_default();
     f.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(format!(" {phase}"), Style::default().fg(Color::White)),
+            Span::styled(format!(" {phase}"), Style::default().fg(WHITE)),
             Span::styled(format!("  ·  {}", stats.join("  ·  ")), Style::default().fg(DIM)),
         ])),
         rows[2],
@@ -1311,27 +1527,27 @@ fn draw_encode(f: &mut Frame, app: &mut App, area: Rect) {
 
     let pct = enc.pct();
     let (colour, label) = match &enc.done {
-        Some((true, _)) => (Color::Green, "done".to_string()),
-        Some((false, _)) if enc.stopping => (Color::Yellow, "stopped".to_string()),
-        Some((false, _)) => (Color::Red, "failed".to_string()),
-        None if paused => (Color::Yellow, format!("paused at {:.1}%", pct * 100.0)),
+        Some((true, _)) => (GREEN, "done".to_string()),
+        Some((false, _)) if enc.stopping => (YELLOW, "stopped".to_string()),
+        Some((false, _)) => (RED, "failed".to_string()),
+        None if paused => (YELLOW, format!("paused at {:.1}%", pct * 100.0)),
         None => (ACCENT, format!("{:.1}%", pct * 100.0)),
     };
     f.render_widget(Gauge::default().gauge_style(Style::default().fg(colour).bg(TRACK)).ratio(pct).label(label), rows[3]);
 
     let foot: Line = match &enc.done {
         Some((true, path)) => Line::from(vec![
-            Span::styled(" ✓ ", Style::default().fg(Color::Green)),
+            Span::styled(" ✓ ", Style::default().fg(GREEN)),
             Span::raw(path.clone()),
             Span::styled("    ↵ back   o mpv   q quit", Style::default().fg(DIM)),
         ]),
         Some((false, why)) => Line::from(vec![
-            Span::styled(format!(" {} {why}", if enc.stopping { "■" } else { "✗" }), Style::default().fg(if enc.stopping { Color::Yellow } else { Color::Red })),
+            Span::styled(format!(" {} {why}", if enc.stopping { "■" } else { "✗" }), Style::default().fg(if enc.stopping { YELLOW } else { RED })),
             Span::styled("    ↵ back   q quit", Style::default().fg(DIM)),
         ]),
         None if enc.confirm_cancel => Line::from(Span::styled(
             " stop this encode? the partial is kept and resumes next time   y stop   any other key keeps going",
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            Style::default().fg(YELLOW).add_modifier(Modifier::BOLD),
         )),
         None => Line::from(Span::styled(
             format!(" → {}    p {}   o mpv   z zoom   Esc stop", enc.output.display(), if paused { "continue" } else { "pause" }),
@@ -1370,7 +1586,7 @@ fn draw_confirm(f: &mut Frame, app: &App, existing: &Existing, area: Rect) {
             };
             text.push(Line::from(Span::styled(
                 format!("An interrupted encode of this output kept {how_much}:"),
-                Style::default().fg(Color::Yellow),
+                Style::default().fg(YELLOW),
             )));
             text.push(Line::from(Span::styled(
                 path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
@@ -1384,7 +1600,7 @@ fn draw_confirm(f: &mut Frame, app: &App, existing: &Existing, area: Rect) {
             ]));
         }
         Existing::Complete(_) => {
-            text.push(Line::from(Span::styled("This output already exists and is complete.", Style::default().fg(Color::Yellow))));
+            text.push(Line::from(Span::styled("This output already exists and is complete.", Style::default().fg(YELLOW))));
             text.push(Line::from(""));
             text.push(Line::from(vec![
                 key("x"), Span::raw("  move it to the Trash and encode again     "),

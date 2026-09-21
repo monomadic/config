@@ -67,9 +67,15 @@ build warns and the run continues, because the job that matters is the symlinkin
 The `src/` rebuild step is deliberately narrow: it only rebuilds a tool that is
 **already installed** on this machine (a deploy is the wrong place to acquire new
 software) and only when a real build input — `*.rs`, `*.go`, `Cargo.toml`,
-`go.mod`, or the installer itself — is newer than the installed artifact. READMEs
+`go.mod`, or the installer itself — changed since the install. READMEs
 and design mockups don't count, or every doc edit would rebuild the world. Add a
 new tool to the `specs` table in `bin/dotter-deploy` when it gets an installer.
+
+"Changed" is decided by `bin/lib/install-staleness.zsh`, shared with
+`fzf-app-store` (the browser over `scripts/install/`): a content hash recorded in
+`~/.local/state/fzf-app-store/` after each install, falling back to git history
+when there is no record. Never raw mtimes — a `git mv` resets them and makes
+every installed tool look stale.
 
 `deploy.sh` runs `check.sh` automatically unless `DOTTER_SKIP_HEALTHCHECK=1`.
 There is no CI. For config and script changes, verification = `check.sh` passing,
