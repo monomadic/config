@@ -1,17 +1,23 @@
 # wifi-widget: macOS menu bar Wi-Fi status widget
 
-Status: **design settled, no code written**. Mockups live in
-`src/wifi-widget/designs/` (`v1`, `v2`, `v3`, plus `alt-black-panel` and the
+Status: **design settled, P0 spikes done (see `TASKS.md` §0.1), no widget code written**. Mockups live in
+`designs/` (`v1`, `v2`, `v3`, plus `alt-black-panel` and the
 original `menu-bar-concepts` exploration). `v3` is the design to build.
 Scope: macOS only, Rust against `objc2`, same family as `battery-widget`,
 `free-disk-space-widget` and `volume-control-widget`.
 
 ## 1. Recommendation
 
-Build `src/wifi-widget/` as a plain (non-bundled) Rust binary with a real
-`NSMenu`, following `volume-control-widget`'s module split. The widget's job is
-not to restate what the system Wi-Fi icon already shows. It exists to answer the
-three questions the system icon cannot:
+Build `src/wifi-widget/` as a Rust binary with a real `NSMenu`, following
+`volume-control-widget`'s module split, **wrapped in a plain `.app` that you
+open like any other app** — no LaunchAgent, no installer. The spikes showed why:
+macOS only reveals the SSID and BSSID to a process with Location permission,
+only an app bundle can be granted it, and even then only when started through
+LaunchServices (double-click, `open`, Login Items) rather than by launchd.
+"Open at Login" replaces the LaunchAgent; restart-on-crash is given up.
+
+The widget's job is not to restate what the system Wi-Fi icon already shows.
+It exists to answer the three questions the system icon cannot:
 
 1. **Is the link actually good?** Full bars mean nothing without the noise
    floor, so every meter is **SNR** (RSSI − noise), not RSSI.
@@ -44,7 +50,7 @@ Verified on this machine (2026-09-20, macOS 26 / Darwin 25.5, GL-BE9300 Flint 3)
 | `CWInterface` | `rssiValue`, `noiseMeasurement`, `transmitRate`, `wlanChannel` (band/width), `activePHYMode`, `ssid`, `bssid`, `hardwareAddress` | public API, needs Location authorization for SSID/BSSID |
 | `CWEventDelegate` | link, SSID, BSSID, RSSI, power change events | public API |
 | `CWConfiguration.networkProfiles` | the saved ("known") network list, in order | public API |
-| `CWInterface.scanForNetworks` | nearby SSIDs with RSSI/noise/channel | 1–3 s, takes over the radio; run on menu open and Refresh only |
+| `CWInterface.scanForNetworks` | nearby networks with RSSI/channel | **7.8 s measured**, blocks its thread, and returns `ssid = nil` without Location; run on menu open and Refresh only |
 | `NWPathMonitor` | `isExpensive` (hotspot/cellular), `isConstrained` (Low Data Mode) | drives Metered detection |
 | `captive.apple.com/hotspot-detect.html` | internet reachable / captive portal + redirect host | plain HTTP on purpose |
 | GL.iNet JSON-RPC at `http://192.168.1.1/rpc` | WAN up/down, uptime, active uplink, byte counters | **verified the endpoint answers a `challenge` request**; method names for the WAN figures are **not yet verified** and need a logged-in session |
@@ -73,7 +79,7 @@ src/wifi-widget/
     speed.rs          networkQuality runner (on demand only)
     qr.rs             Wi-Fi join payload + CIQRCodeGenerator image
     bar.rs            menu bar chip: glyph, four segments, tag
-    card.rs           the connected card view (row + inset, hover-to-copy, QR panel)
+    card.rs           the connected card view (row + inset, hover-to-copy, QR button)
     row.rs            compact known-network row view
     settings.rs       key=value store at ~/.config/wifi-widget/settings
 ```
@@ -144,9 +150,9 @@ from the panel's top and left edges.
   in `NSEventTrackingRunLoopMode`; timers added only to the default mode stop
   firing. Add the refresh timer to the tracking mode or the WAN sparkline
   freezes exactly when the user is looking at it.
-- **Inline QR expansion.** The QR panel grows a row's custom view. Resize the
-  view and call `NSMenu.itemChanged` for its item. Verify early that an open
-  menu re-lays-out; if it does not, fall back to a submenu holding the QR.
+- **QR codes open in their own window**, centred on screen at ~300 px, not
+  inside the menu: bigger codes scan more reliably and the menu never has to
+  re-lay-out. Clicking anywhere or pressing Esc closes it.
 - **View-based items and submenus.** Confirm that a custom-view item can still
   open a submenu before relying on it for `Other Networks ▸`, otherwise make it
   a plain item.
@@ -160,9 +166,9 @@ from the panel's top and left edges.
 
 **P0 — the widget exists and is honest** (target: usable daily)
 
-1. Scaffold `src/wifi-widget` + `scripts/install/install-wifi-widget.sh`
-   (LaunchAgent `com.jayu.wifi-widget`, copy the battery-widget installer).
-   *Done when* the binary runs from `~/.local/bin` and shows a static glyph.
+1. Scaffold `src/wifi-widget` + `bundle.sh`, which wraps the release binary
+   into `WiFi Widget.app` (see §1 on why it must be an app). No LaunchAgent.
+   *Done when* double-clicking the `.app` shows a static glyph and no Dock icon.
 2. `wifi.rs`: interface read + `CWEventDelegate`, plus a `--dump` flag printing
    every field. *Done when* `--dump` matches `system_profiler SPAirPortDataType`
    on this Mac, including the Location-denied case.
@@ -236,5 +242,5 @@ There is no CI. For this widget:
 - Manual scenario pass, since the six states are the product: unplug the WAN,
   force 2.4GHz on the Flint 3, walk to the far room, join a café portal, join
   the iPhone hotspot, and deny Location once.
-- `bash -n` on the installer; `scripts/setup/check.sh` if any Dotter manifest
+- `bash -n` on `bundle.sh`; `scripts/setup/check.sh` if any Dotter manifest
   entry is added (none is needed — `src/**` is not deployed by Dotter).
