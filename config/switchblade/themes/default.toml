@@ -1,0 +1,145 @@
+# ── default — my theme ─────────────────────────────────────────────────
+# The shared design tokens, moved out of switchblade.conf's `[theme]` table on
+# 2026-09-21. A theme file is that table's BODY: tokens at the top level, the
+# component tables under their own names (`[keycap]`, `[tech_tag]`,
+# `[notice]`). Anything not named here keeps the built-in value.
+# `theme = "<name>"` in switchblade.conf picks which file is read.
+
+# The ring that says "this one" — the selected tile, a marked tile, the
+# selected filmstrip chip and the focused triple-play pane. Every element's
+# border falls back to it (was `[tuning] selection_border`).
+selection = [1.0, 1.0, 1.0, 1.0]
+
+# The brand red: the hot action, the applied filter, the live thing.
+accent = [1.0, 0.216, 0.373, 1.0]
+# Primary text on a dark surface.
+ink = [0.957, 0.961, 0.969, 1.0]
+# A component's own ground (#0b0d11) — opaque, so a widget carries its own
+# background instead of borrowing whatever is behind it. The keycaps were
+# a translucent grey wash before and had no edge of their own against the
+# near-black window.
+surface = [0.043, 0.051, 0.067, 1.0]
+# The hairline outline that gives `surface` an edge, the inset highlight
+# along a component's top edge, and what it casts below. The
+# highlight-over-shadow pair is what makes a flat rect read as a key.
+hairline = [1.0, 1.0, 1.0, 0.11]
+highlight = [1.0, 1.0, 1.0, 0.07]
+shadow = [0.0, 0.0, 0.0, 0.55]
+# The part that answers your query — the search rows' lit substrings and
+# the tag popup's matching chips. One semantic, one colour, everywhere.
+match = [0.9, 0.85, 0.05, 1.0]
+# How hard a match glows: the peak alpha of the halo BEHIND the lit
+# letters (0 = no halo). The bloom is what lets the light read on the
+# actors pill's white ground.
+match_glow = 0.25
+# ...and how much of its own ink the matched run keeps over that halo.
+# The glow lights the letters from behind rather than replacing them: a
+# lit word should read as that word, lit, not as a coloured blur where
+# the word had been. 0 lets the letters vanish into the glow.
+match_ink = 1.0
+
+# Keycap metrics. `inline` is the smaller cap for one sitting in a line of
+# prose; width is derived from the label (the face is monospaced, so it is
+# pad_em*2 + 0.6 per character, in ems of the cap's own font) and floored
+# at the height, which keeps a single character square while `esc` grows.
+
+# Keycap metrics. `inline` is the smaller cap for one sitting in a line of
+# prose; width is derived from the label (the face is monospaced, so it is
+# pad_em*2 + 0.6 per character, in ems of the cap's own font) and floored
+# at the height, which keeps a single character square while `esc` grows.
+
+# The BACKDROP every dialog stands on — the search bar and both chip
+# popups. `scrim` is the black's peak alpha at the TOP edge, fading to
+# nothing `scrim_height` down the window over `scrim_steps` flat bands;
+# `scrim_blur` is how far the grid behind is defocused (0 = none, 1..4).
+# The grid under a dialog is also FROZEN until it closes.
+scrim = 0.88
+scrim_height = 420.0
+
+[keycap]
+height = 30.0
+height_inline = 22.0
+radius = 6.5
+radius_inline = 5.0
+pad_em = 0.58
+font = 17.0
+# A WORD key (`esc`, `space`) is set smaller than a single glyph.
+font_wide = 13.5
+font_inline = 13.5
+gap = 4.0
+# Peak alpha of an accent cap's glow (0 = no glow), how far the shadow
+# sits below the cap, and how far the cap lifts under the pointer.
+glow = 0.30
+shadow_drop = 3.0
+hot_lift = 1.0
+
+# Technical tags: the two-part lockups stating what a file IS — a solid
+# block of the category's hue carrying the label, the value beside it in
+# the same hue. One hue per kind of fact, so a run is read by colour before
+# it is read as words. Worn by the seekbar's details line and, at the
+# `inline` size, by the search panel's result rows. Widths are estimated
+# (the design layer's `est_width`, plus the tracking below), which is what
+# lets the app place something after a run.
+
+# Technical tags: the two-part lockups stating what a file IS — a solid
+# block of the category's hue carrying the label, the value beside it in
+# the same hue. One hue per kind of fact, so a run is read by colour before
+# it is read as words. Worn by the seekbar's details line and, at the
+# `inline` size, by the search panel's result rows. Widths are estimated
+# (the design layer's `est_width`, plus the tracking below), which is what
+# lets the app place something after a run.
+# Technical marks: the three facts a clip is picked by, stamped in the
+# category's hue — one hue per kind of fact, so a run is read by colour
+# before it is read as words. Worn by the info drawer and the seekbar's
+# details line. Widths are estimated (the design layer's `est_width`, plus
+# the tracking below), which is what lets the app place something after a
+# run.
+[tech_tag]
+# The MARK: resolution, frame rate, codec — the three facts a clip is
+# picked by, stamped rather than written. A capsule in the category's hue:
+# an outline in that hue, its interior the same hue held down over black,
+# and the value centred in the hue at full strength.
+#
+# Its NORMAL height and face are not here: they are `chip_height` and
+# `chip_font` above, shared with every other capsule in the product. What
+# stays is the inline variant — the app's own, at the face a search row can
+# seat — and the shape.
+#
+# It was a two-part lockup until 2026-09-19: a solid hue block carrying a
+# label, with the value beside it. The label was the value under a second
+# name — `HEVC` `H.265`, `FHD` `1080P` — one fact said twice, in two
+# vocabularies, leaving the reader to notice they were the same thing. A
+# value that names itself takes no label, so the block went and the value
+# stayed. See vocabulary.md in the design system for the spelling of each.
+height_inline = 11.0
+font_inline = 5.0
+# Was 2.5, for a 14px lockup; kept at the same fraction of the new height.
+radius = 3.5
+# Air at each end, in ems of the mark's own font, and the letter tracking
+# the width estimate has to add — tracking is real width, and a run that
+# under-measured would creep under whatever follows it. ONE pad, because a
+# mark has two ends and nothing in the middle; the lockup's four (an outer
+# pair, and one per half at the seam) went with the seam.
+pad_em = 0.55
+track = 0.1
+gap = 5.0
+# The outline, in the mark's own hue: the shape's edge, not a separator
+# from a background. (The design's 4px border is `--bw-selection`, the
+# selected tile's ring — `selection_border_width` here, not this.)
+border = 1.5
+# How much of its own hue the interior carries, mixed into the window
+# black. The old lockup had NO fill and only looked solid because every
+# mock it appeared on was dark; over a bright frame the picture showed
+# through it. A neutral fill would have fixed that and cost the mark its
+# colour from the inside, so the ground is the hue itself, held down far
+# enough that the value still reads against it. Opaque either way — the
+# mark lies over video, and a wash would take the frame's colour with it.
+ground = 0.24
+# The three hues, from the design system's NEON set: neon-blue resolution,
+# neon-violet frame rate, neon-pink codec. There is no fourth — every other
+# technical fact is reference and belongs in a labelled row. (The old
+# `--tag-*` set had fps lime and codec gold, and a `meta` violet for a
+# chapter count that is a row now; all three are superseded.)
+res = [0.435, 0.863, 1.0, 1.0]
+fps = [0.722, 0.604, 1.0, 1.0]
+codec = [1.0, 0.373, 0.824, 1.0]

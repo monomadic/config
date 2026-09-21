@@ -118,7 +118,7 @@ default_target_type = "symbolic"
 "config/switch" = "~/.switch"
 
 [switchblade.files]
-"config/switchblade/switchblade.toml" = "~/.config/switchblade.toml"
+"config/switchblade" = "~/.config/switchblade"
 
 # --- Media --------------------------------------------------------------------
 
