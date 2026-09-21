@@ -1,203 +1,227 @@
 # wifi-widget tasks
 
-Build checklist for the [technical proposal](PROPOSAL.md).
+The only build plan for the widget; [PROPOSAL.md](PROPOSAL.md) explains the
+design and architecture, and this file wins wherever the two disagree.
 The design to match is [designs/v3](designs/v3/wifi-widget-design.html).
 Work top to bottom: each priority band assumes the one above it is done.
-Items marked **spike** answer a question before code depends on the answer.
+Items marked **spike** answer a question before code depends on the answer;
+items marked **gated** wait for a named spike and are dropped if it fails.
 
 Reference implementations in this repo: `src/battery-widget` (status item,
-Style submenu, attributed-title bar, installer) and `src/volume-control-widget`
-(custom `NSView` menu rows, per-row controls, settings file, `--dump`).
+Style submenu, attributed-title bar) and `src/volume-control-widget` (custom
+`NSView` menu rows, per-row controls, settings file, `--dump`).
 
 ---
 
 ## P0 — a widget that runs and tells the truth
 
-Goal: a double-clickable app, event-driven, correct menu bar chip in all six states, and a
-menu that shows the connected network. Nothing in P0 needs the router, the
-keychain or the network scan.
+Goal: a double-clickable app with a correct menu bar chip in every state and a
+menu showing the connected network — built on the snapshot model from day one.
+Nothing in P0 needs the keychain, the router or a network scan.
 
-### 0.1 Spikes that can change the plan (do these first)
+### 0.1 Completed spikes
 
-All three ran on 2026-09-21 (macOS 26.5, arm64). Throwaway code is not kept in
-the repo; the results are recorded here.
+Ran 2026-09-21 (macOS 26.5, arm64). Throwaway code is not kept in the repo.
 
-- [x] **spike: Location authorization.** SSID and BSSID are `nil` without it,
-  which disables Known Networks matching, Home detection and the Node row.
-  Results:
+- [x] **Location authorization.** SSID and BSSID are `nil` without it.
   - **Embedded `Info.plist` (`-sectcreate __TEXT __info_plist`) does not work.**
-    `locationd` forwards the request, but CoreLocationAgent logs *"This process
-    is not the executable of a bundle"* and *"client bundle is NULL. Skip
-    showing AuthPrompt"*. No prompt is ever shown.
-  - **A plain binary cannot prompt either**: no request reaches CoreLocationAgent.
-  - **A generated `.app` (with `LSUIElement` and `NSLocationWhenInUseUsageDescription`)
+    CoreLocationAgent logs *"This process is not the executable of a bundle"*
+    and *"client bundle is NULL. Skip showing AuthPrompt"*; no prompt appears.
+  - **A plain binary cannot prompt either.**
+  - **A generated `.app` (`LSUIElement`, `NSLocationWhenInUseUsageDescription`)
     shows the prompt** and receives `authorizedAlways`.
-  - **It must be launched like a normal app.** Authorized and started by launchd
-    pointing at `Contents/MacOS/<exe>`, SSID/BSSID stay `nil`; started through
-    LaunchServices (`open`, double-click, Login Items) they are present. So there
-    is **no LaunchAgent**: the widget is a plain `.app` you open, and it offers
-    "Open at Login" via `SMAppService.mainApp` (unverified for an unsandboxed,
-    self-signed app — fall back to asking the user to add it in Login Items).
-    The only thing launchd added was restart-on-crash; that is given up.
-  - `ipconfig getsummary en0` also redacts SSID and BSSID, so there is no
-    permission-free way to read them.
-  - **Ad-hoc re-signing loses the grant.** A rebuild changed the cdhash and the
-    status reverted to `notDetermined`, so each rebuild re-prompts once.
-    Accepted: that's how other locally built apps here behave. A stable
-    self-signed identity would avoid it if it ever becomes annoying.
-  - **`rssiValue` intermittently returns 0** for single reads in every launch
-    mode. Treat 0 as "no sample" and keep the previous value (see 0.5).
-  - Consequence: this widget joins `job-monitor` as an exception to the no-bundle
-    rule. A build script wraps the release binary into a `.app`; nothing bundled
-    is checked in. Update `AGENTS.md` when that lands.
-- [x] **spike: bindings coverage.** Everything needed exists on the
-  objc2 0.6 / framework-crate 0.3 generation, with no duplicate versions:
+  - **It must be launched like a normal app.** Started by launchd pointing at
+    `Contents/MacOS/<exe>`, SSID/BSSID stay `nil` even when authorized; started
+    through LaunchServices (`open`, double-click, Login Items) they are present.
+    So: a plain `.app`, "Open at Login" via `SMAppService.mainApp`, no LaunchAgent.
+  - `ipconfig getsummary en0` redacts SSID and BSSID too; there is no
+    permission-free source.
+  - **Ad-hoc re-signing loses the grant**, so a rebuild re-prompts once.
+    Accepted, as with other locally built apps here.
+  - **`rssiValue` intermittently returns 0** on a live link, in every launch mode.
+  - Consequence: this widget joins `job-monitor` as an exception to the
+    no-bundle rule; `bundle.sh` generates the `.app`, nothing bundled is checked
+    in. Update `AGENTS.md` when that lands.
+- [x] **Bindings coverage.** All on the objc2 0.6 / framework-crate 0.3
+  generation with no duplicate versions:
   - `objc2-core-wlan 0.3.2` (features `CWWiFiClient`, `CWInterface`, `CWChannel`,
-    `CWConfiguration`, `CWNetwork`, `CWNetworkProfile`, `CoreWLANTypes`): all
-    reads work; `associate`/`disassociate` exist. `CWEventDelegate` implements
-    fine with `define_class!`; callbacks arrive **off the main thread**, and the
-    delegate property is **weak**, so keep a `Retained` delegate alive.
-    `CWPHYMode` stops at `11ax` — there is no Wi-Fi 7 (`11be`) constant.
-  - **`networkProfiles` SSIDs are readable without Location permission**, so the
-    Known Networks names work even when redacted.
-  - **Scans without Location return `ssid = nil`** for every network (RSSI and
-    channel are filled), and **a scan took 7.8 s, blocking its thread** — not
-    the 1–3 s assumed in 1.2.
-  - Network framework: no usable crate (`objc2-network` is a 0.0.0 placeholder).
-    Hand-declared `nw_path_monitor_*`, `nw_path_is_expensive`,
-    `nw_path_is_constrained` with `block2` + `dispatch2 0.3` work; the path
-    handle is only valid inside the callback.
-  - `objc2-core-location 0.3.2`, `objc2-core-image 0.3.2` (QR generator verified:
-    31×31 output, needs nearest-neighbour scaling), `objc2-security 0.3.2`
-    (`SecItemCopyMatching` compiles; never called).
-- [x] **spike: live menu re-layout.** Both answers are yes, for keyboard:
-  - Growing a custom item's view from 30 to 150 px while the menu was open,
-    then calling `NSMenu.itemChanged`, grew the menu window from 88 to 208 px
-    live. No longer needed for QR codes, which now open in their own window
-    (1.4), but the menu can grow rows if something else needs it.
-  - Timers registered in `.common` run-loop modes fired during menu tracking.
-  - A custom-view item with a submenu opened that submenu on Right Arrow, so
-    `Other Networks ▸` (3.1) can be a view item. **Mouse hover is unverified**:
-    synthetic mouse-moved events don't drive menu tracking. Check by hand once.
+    `CWConfiguration`, `CWNetwork`, `CWNetworkProfile`, `CoreWLANTypes`): reads
+    work; `associate`/`disassociate` exist. `CWEventDelegate` works with
+    `define_class!`; callbacks arrive **off the main thread**; the delegate
+    property is **weak**, so keep a `Retained` delegate. `CWPHYMode` has no
+    Wi-Fi 7 (`11be`) constant. **No link-quality events fired in a 30 s idle
+    run** — live signal needs polling (0.5).
+  - **`networkProfiles` SSIDs are readable without Location.**
+  - **Scans without Location return `ssid = nil`**, and **a scan took 7.8 s,
+    blocking its thread**.
+  - Network framework: no usable crate; hand-declared `nw_path_monitor_*`,
+    `nw_path_is_expensive`, `nw_path_is_constrained` with `block2` +
+    `dispatch2 0.3` work. The path handle is only valid inside the callback.
+  - `objc2-core-location 0.3.2`, `objc2-core-image 0.3.2` (QR: 31×31 output,
+    needs nearest-neighbour scaling), `objc2-security 0.3.2` (compiles; never
+    called).
+- [x] **Live menu re-layout.** Growing a custom item's view with
+  `NSMenu.itemChanged` resizes an open menu (88 → 208 px); timers in the common
+  run-loop modes fire during menu tracking; a custom-view item opens its
+  submenu on Right Arrow. **Mouse hover into that submenu is unverified** —
+  synthetic events don't drive menu tracking; check by hand once.
 
-### 0.2 Scaffold
+### 0.2 Open spikes (run before the features they gate)
+
+- [ ] **spike: targeted reassociation** — gates Rejoin (1.7) and row-click join
+  (1.2). Needs Location and briefly drops Wi-Fi, so run when that's harmless.
+  1. scan the current SSID and list its BSSIDs; note the current BSSID;
+  2. `disassociate`, then `associate(to:password:)` with a *different* scanned
+     `CWNetwork` of the same SSID (password `nil`, then from Keychain if refused);
+  3. read back the BSSID after association settles;
+  4. repeat 10×; also try once on the WPA3 network.
+  Record: does macOS honour the chosen BSSID, does auto-join race us, does it
+  ask for credentials or admin rights? **If it isn't reliable, Rejoin is
+  removed from the design** rather than shipped as a button that can make
+  things worse.
+- [ ] **spike: Wi-Fi password retrieval** — gates QR codes (1.3). Needs an admin
+  prompt you answer yourself.
+  - Which keychain item and attributes hold a Wi-Fi password on macOS 26
+    (service `AirPort`? account = SSID? System vs login keychain)?
+  - `SecItemCopyMatching` vs `security find-generic-password -wa`: what prompt
+    appears, does Touch ID satisfy it, does a second read in the same session
+    re-prompt?
+  - WPA3 network, a network whose SSID collides with another, an enterprise
+    network if one is saved, and the iPhone hotspot (likely no item at all).
+  If only the current network works cleanly, QR is limited to the connected
+  card.
+- [ ] **spike: gateway evidence** — shapes `GatewayEvidence` (0.8). Check
+  whether the default route + the gateway's ARP entry (`sysctl` route/ARP
+  tables) reliably distinguish "router present" from "no route", and whether
+  macOS allows unprivileged ICMP echo via `socket(AF_INET, SOCK_DGRAM,
+  IPPROTO_ICMP)`. TCP 80/53 results are kept only as metadata, never as the
+  verdict.
+
+### 0.3 Scaffold
 
 - [ ] `Cargo.toml`: edition 2024; `objc2 0.6`, `objc2-foundation 0.3`,
-  `objc2-app-kit 0.3`, `block2 0.6`, plus CoreWLAN bindings per 0.1. Copy
+  `objc2-app-kit 0.3`, `block2 0.6`, `dispatch2 0.3`, `objc2-core-wlan 0.3`;
   battery-widget's release profile (`opt-level = "s"`, `lto`, `strip`).
-- [ ] `main.rs`: accessory activation policy (no Dock icon), variable-length
-  `NSStatusItem`, an `NSMenu` with Quit.
-- [ ] `bundle.sh` in the crate: `cargo build --release`, then wrap the binary
-  into `target/release/WiFi Widget.app` with an `Info.plist` (`LSUIElement`,
-  `NSLocationWhenInUseUsageDescription`, bundle ID `com.jayu.wifi-widget`) and
-  ad-hoc sign it (a rebuild re-prompts for Location once; accepted). The `.app` can live anywhere; copying it to `~/Applications` is the
-  whole "install". No LaunchAgent (see the Location spike).
-- [ ] "Open at Login" menu item via `SMAppService.mainApp.register()`; if that
-  refuses a self-signed app, show a hint to add it in Login Items instead.
-- [ ] `README.md`: purpose, styles, data sources, build, permissions.
-- *Done when* double-clicking the built `.app` shows the glyph with no Dock
-  icon, Quit works, and `bash -n` passes on `bundle.sh`.
+- [ ] `main.rs`: accessory activation policy, variable-length `NSStatusItem`,
+  an `NSMenu` with Quit.
+- [ ] `bundle.sh`: `cargo build --release`, wrap the binary into
+  `target/release/WiFi Widget.app` with an `Info.plist` (`LSUIElement`,
+  `NSLocationWhenInUseUsageDescription`, bundle ID `com.jayu.wifi-widget`),
+  ad-hoc sign. The `.app` can live anywhere; copying it to `~/Applications` is
+  the whole install.
+- [ ] Request Location on first launch; "Open at Login" menu item via
+  `SMAppService.mainApp.register()`, falling back to a Login Items hint.
+- [ ] `README.md`: purpose, build, permissions, what works without Location.
+- *Done when* double-clicking the `.app` shows a glyph with no Dock icon, the
+  Location prompt appears once, Quit works, and `bash -n bundle.sh` passes.
 
-### 0.3 Reading the interface (`wifi.rs`)
+### 0.4 Reading the interface (`wifi.rs`)
 
-- [ ] Plain-Rust `Link` snapshot from `CWWiFiClient.sharedWiFiClient.interface`:
-  `powerOn`, `rssiValue`, `noiseMeasurement`, `transmitRate`,
-  `wlanChannel` (`channelNumber`, `channelBand`, `channelWidth`),
-  `activePHYMode`, `ssid`, `bssid`, `hardwareAddress`, `interfaceName`.
-- [ ] Pure conversions, unit-tested: band enum → `2.4GHz`/`5GHz`/`6GHz`;
-  width enum → MHz; PHY mode + band → `Wi-Fi 4/5/6/6E/7` (ax on 6GHz is 6E).
+- [ ] Plain-Rust `LinkReading` from `CWWiFiClient.sharedWiFiClient.interface`:
+  power, RSSI, noise, tx rate, channel number/band/width, PHY mode, SSID,
+  BSSID, MAC, interface name.
+- [ ] Pure conversions, unit-tested: band → `2.4GHz`/`5GHz`/`6GHz`; width →
+  MHz; PHY + band → `Wi-Fi 4/5/6/6E/7` (ax on 6GHz is 6E; Wi-Fi 7 has no
+  constant — treat unknown modes as "Wi-Fi" rather than guessing).
 - [ ] Distinguish **off**, **disconnected**, **associated** and **redacted**
-  (associated with a non-zero RSSI but `ssid == nil`).
-- [ ] `--dump`: print every field plus derived values as `key=value`.
-- *Done when* `--dump` agrees with `system_profiler SPAirPortDataType` for band,
-  channel, width, PHY, RSSI, noise and rate on this Mac.
+  (associated, non-zero RSSI, `ssid == nil`).
+- *Done when* the values agree with `system_profiler SPAirPortDataType` for
+  band, channel, width, PHY, RSSI, noise and rate.
 
-### 0.4 Events, not polling
+### 0.5 Store and snapshot (`model.rs`)
 
-- [ ] `CWEventDelegate` class via `define_class!`; start monitoring
-  `linkDidChange`, `ssidDidChange`, `bssidDidChange`, `linkQualityDidChange`,
-  `powerDidChange`.
-- [ ] Callbacks arrive off the main thread: set an atomic dirty flag and hop to
-  the main queue. Coalesce redraws to at most one per 250 ms.
-- [ ] Safety-net poll every 5 s in case an event source goes quiet (for
-  example after sleep/wake).
-- [ ] Register the redraw timer in `NSRunLoopCommonModes`, not just the default
-  mode — otherwise it stops firing while the menu is open.
+The architecture the rest of the widget hangs on (PROPOSAL §4–5).
 
-### 0.5 Signal model (pure, no AppKit)
+- [ ] `Sample<T> { value, at: Instant }` with `fresh` / `stale` / `unknown` by
+  age (10–20 s for link values). `rssi == 0` is a dropped sample: keep the last
+  good value but let it age out.
+- [ ] Fact types: `LinkHealth`, `ProbeStatus`, `PathFlags { expensive,
+  constrained }`, `BandStatus`, `GatewayEvidence`, plus inference types
+  `HomeGuess { ssid, confidence }` and `NetworkChange`.
+- [ ] `Store` owned by the main thread; every source posts results to it via
+  the main queue; each update produces a new immutable `Snapshot` and sets a
+  dirty flag; the UI redraws from the latest snapshot at most every 250 ms.
+- [ ] `--dump` prints the current `Snapshot` (after one poll and one probe) as
+  `key=value`, with each sample's age — no separate diagnostic path.
+- [ ] Unit tests for merging and ageing, using an injectable clock.
 
-- [ ] `snr = rssi − noise`; if noise is 0/unknown, fall back to an RSSI-only
-  mapping and mark the value as estimated.
-- [ ] Treat `rssi == 0` as a dropped sample and keep the last good value — the
-  spike saw CoreWLAN return 0 intermittently on an associated link.
-- [ ] Tiers: `<15` poor, `15–25` fair, `25–40` good, `≥40` excellent →
-  1–4 segments. Meter scale 0–50 dB.
-- [ ] Hysteresis: 3 dB margin around each tier edge, and a new tier must hold
-  10 s before the menu bar changes. Recoveries are slower than escalations.
-- [ ] Unit tests: tier edges, margin behaviour, hold timer, noise-unknown path.
+### 0.6 Polling and events
 
-### 0.6 State classification (pure, no AppKit)
+- [ ] `CWEventDelegate` (link, SSID, BSSID, link quality, power) as *triggers*
+  for an immediate read; they are not the only source of freshness.
+- [ ] Poll the interface every ~1 s while the menu is open and every ~5 s while
+  it is closed (link-quality events proved sparse). Timers registered in the
+  common run-loop modes.
+- [ ] After wake and after association changes, poll at 1 s for 30 s.
 
-- [ ] `enum State { Healthy, BandFallback, Weak, NoInternet, LoginRequired,
-  MeteredFallback, Disconnected, WifiOff }`.
-- [ ] `classify(inputs) -> State` with an explicit precedence:
-  `WifiOff > Disconnected > NoInternet > LoginRequired > Weak >
-  MeteredFallback > BandFallback > Healthy`.
-- [ ] Table-driven tests: one case per mockup scenario, plus the precedence
-  collisions (e.g. weak *and* metered).
+### 0.7 Signal model (pure)
+
+- [ ] `snr = rssi − noise`. **If noise is unavailable, show RSSI in dBm and
+  derive segments from a separate RSSI tier table — never display an invented
+  SNR.**
+- [ ] SNR tiers `<15` poor, `15–25` fair, `25–40` good, `≥40` excellent → 1–4
+  segments; meter 0–50 dB; word verdict for the card (`Excellent`, `Good`, …).
+- [ ] Hysteresis: 3 dB margins at tier edges, 10 s hold before the menu bar
+  changes; escalations faster than recoveries.
+- [ ] Unit tests: tier edges, margins, hold timer, noise-missing path, stale
+  samples.
+
+### 0.8 Headline state (pure)
+
+- [ ] `headline_state(&Snapshot) -> State` over `WifiOff, Disconnected,
+  NoInternet, LoginRequired, Weak, MeteredFallback, BandFallback, Healthy`
+  with the precedence in PROPOSAL §5. It reads facts; it never discards them.
+- [ ] Table-driven tests: one case per mockup scenario plus collisions
+  (weak + no internet + metered + 2.4GHz → `NoInternet`, with every fact still
+  present in the snapshot).
 - [ ] **design gap:** Wi-Fi off, disconnected and Location-denied have no
-  mockup. Add them to `designs/v3` (slashed glyph, `Wi-Fi – Off` /
-  `Not connected` header, no card) before building their UI.
+  mockup. Add them to `designs/v3` before building their UI.
 
-### 0.7 Menu bar chip (`bar.rs`)
+### 0.9 Menu bar chip (`bar.rs`) — Smart Bar and Icon only
 
-- [ ] Glyphs from SF Symbols via `NSImage(systemSymbolName:)` rather than
-  hand-drawn paths: `wifi` (with `variableValue` for lit arcs),
-  `wifi.exclamationmark`, `personalhotspot`, `wifi.slash`. Small symbol
-  configuration so the glyph matches the battery widget's bolt.
-- [ ] Four segments drawn into an `NSImage` with a drawing handler; lit count
-  from the tier, colour from the state.
-- [ ] Tag text exactly as designed: `6GHz`, `2.4GHz`, `−81 dB` (U+2212),
-  `Login`, data used (`212 MB`, `1.4 GB`). No segments in `NoInternet`.
-- [ ] Five styles: Smart Bar (default), Icon (always white, exclamation glyph
-  when not healthy), Icon + dBm (`−52 dB`), Bar + Rate, Bar + Band.
-- [ ] Template image when monochrome so it adapts to light and dark menu bars;
-  coloured attributed title otherwise.
-- [ ] Style submenu with a checkmark, persisted in `settings.rs`.
-- [ ] Debug flag `--state <name>` forcing a state, for screenshots.
-- *Done when* every style × state pair matches the mockup, on both a light and
-  a dark menu bar.
+- [ ] SF Symbols via `NSImage(systemSymbolName:)`: `wifi` (with
+  `variableValue` for lit arcs), `wifi.exclamationmark`, `personalhotspot`,
+  `wifi.slash`, at a small symbol size matching the battery widget's bolt.
+- [ ] Four segments drawn into an `NSImage`; lit count from the tier, colour
+  from the state; template image when monochrome.
+- [ ] **Smart Bar** (default) with tags `6GHz`, `2.4GHz`, `−81 dB` (U+2212),
+  `Login`, data used; no segments in `NoInternet`. **Icon**: always white,
+  exclamation glyph when not healthy.
+- [ ] Style submenu (two entries for now), persisted.
+- [ ] `--state <name>` debug flag for screenshots.
+- *Done when* both styles match the mockup in every state on light and dark
+  menu bars. The other three styles are P1 (1.8).
 
-### 0.8 Internet check (`probe.rs`)
+### 0.10 Probe (`probe.rs`)
 
 - [ ] Background-thread HTTP/1.1 `GET /hotspot-detect.html` to
-  `captive.apple.com:80` over a plain `TcpStream` with 5 s connect/read
-  timeouts. No HTTP client crate — keep the binary small.
-- [ ] Classify: body contains `Success` → online; 3xx → `LoginRequired` with the
-  `Location` host; other 200 body → `LoginRequired` without a host;
-  DNS/connect/read failure → offline.
-- [ ] Gateway check: TCP connect to the default gateway on port 80 (then 53) to
-  separate "router answers, internet doesn't" from "no route at all". No ICMP —
-  it needs privileges.
-- [ ] Record round-trip time for the `ONLINE 18 ms` row.
-- [ ] Schedule: every 30 s, 2 s after any association change, and on Refresh.
-  Require two consecutive failures before `NoInternet`.
-- [ ] Open Login Page: `NSWorkspace.openURL("http://captive.apple.com")` so the
-  portal's redirect happens in the default browser.
-- [ ] Unit tests on recorded response fixtures (success, redirect, hijacked
-  body, truncated body, timeout).
+  `captive.apple.com:80` over a plain `TcpStream`, 5 s timeouts, no HTTP crate.
+- [ ] Result is a `ProbeStatus`: `Reachable { latency }`, `Captive { host }`
+  (3xx, or a 200 without `Success`), `DnsFailure`, `ConnectFailure`,
+  `ReadFailure`, `UnexpectedResponse`. The UI collapses these; the snapshot
+  and `--dump` keep them.
+- [ ] Gateway: fill `GatewayEvidence` per the 0.2 spike (route, ARP, maybe
+  ICMP); any TCP 80/53 attempt is recorded as `service_responded`, never as
+  reachability.
+- [ ] Schedule: every 30 s, 2 s after association changes, on Refresh.
+  Two consecutive failures before `NoInternet`.
+- [ ] Open Login Page: `NSWorkspace.openURL("http://captive.apple.com")`.
+- [ ] Unit tests on recorded fixtures (success, redirect, hijacked body,
+  truncated body, DNS failure, timeout).
 
-### 0.9 Menu skeleton
+### 0.11 Menu skeleton
 
-- [ ] `NSMenuDelegate.menuWillOpen`: kick a probe; later also a scan (1.2).
-- [ ] Header item (custom view): state dot + `Wi-Fi – <status>` on one line;
-  dot inset 13 px from the panel's top and left edges, as measured in v3.
-- [ ] Connected card (`card.rs`), static layout first: 40 px glyph column,
-  name + band pill, spec line, SNR meter with tier notches, QR button top-right.
-- [ ] Items: `Style ▸`, `Wi-Fi Settings…` (opens the Wi-Fi pane via its
-  `x-apple.systempreferences:` URL), `Quit`.
-- *Done when* the menu opens instantly, matches the v3 card at rest, and live
-  values update while it stays open.
+- [ ] One-line header (state dot + `Wi-Fi – <status>`), dot 13 px from the
+  panel's top and left edges.
+- [ ] Connected card (`card.rs`), static layout: 40 px glyph column, name + band
+  pill, spec line, SNR meter with notches and word verdict, QR button top-right.
+- [ ] `Style ▸`, `Wi-Fi Settings…` (the Wi-Fi pane's `x-apple.systempreferences:`
+  URL), `Quit`.
+- [ ] **Accessibility is part of the view types from the start**: every custom
+  view sets its accessibility label and role when built (card facts, buttons,
+  rows); arrow keys must still move through the menu.
+- *Done when* the menu opens instantly, matches the v3 card at rest, values
+  stay live while it is open, and VoiceOver reads the header and card.
 
 ---
 
@@ -205,170 +229,156 @@ the repo; the results are recorded here.
 
 ### 1.1 Connected card, complete
 
-- [ ] State colour in the glyph and meter only (graphite card); band pill
-  filled amber in `BandFallback`; badge on the glyph for `NoInternet` / `Login`.
-- [ ] Link line: signal, noise and rate in three equal, centred columns.
-- [ ] Fact rows: Internet, WAN, Speed (the latter two hidden until P2), IP,
-  Gateway, MAC, Node.
-- [ ] Hover-to-copy: `NSTrackingArea` per copyable row, highlight + copy glyph
-  on hover, `NSPasteboard` write on click, `Copied` for 1.1 s.
-- [ ] MAC tagged `PRIVATE` when bit `0x02` of the first octet is set.
-- [ ] IP and gateway from `getifaddrs` + the routing table (`sysctl`
-  `NET_RT_DUMP` or `SCDynamicStore` `State:/Network/Global/IPv4`).
+- [ ] State colour in glyph and meter only (graphite card); amber band pill in
+  `BandFallback`; glyph badge for `NoInternet` / `Login`.
+- [ ] Link line: signal, noise, rate in three equal, centred columns.
+- [ ] Facts: Internet, WAN and Speed (the last two hidden until P2), IP,
+  Gateway, MAC (`PRIVATE` when bit `0x02` of the first octet is set), Node.
+- [ ] Hover-to-copy: `NSTrackingArea` per row, highlight + copy glyph, write to
+  `NSPasteboard`, `Copied` for 1.1 s.
+- [ ] IP and gateway from `getifaddrs` + the routing table or
+  `State:/Network/Global/IPv4`.
 
 ### 1.2 Known Networks (`row.rs`)
 
-- [ ] Source: `CWConfiguration.networkProfiles` (saved networks, in macOS's
-  order), minus the connected one.
-- [ ] Scan with `scanForNetworks(withSSID: nil)` on a background thread, **only**
-  on menu open and Refresh; cache results for 60 s. A scan measured 7.8 s, so
-  the menu must open with cached results and fill in when the scan returns.
-- [ ] Row: glyph with lit arcs from scanned SNR, name, band pill, right-hand
-  `34 dB` or `Not in range`, QR button. One compact 30 px line; 4 px left
-  inset, 26 px icon column, 9 px right inset so QR buttons share the card's axis.
-- [ ] Ordering: in range first (by SNR), then not in range; cap at 8 rows.
-- [ ] Dashed border for remembered metered SSIDs; red row for Home after an
-  involuntary drop (1.6).
-- [ ] Click a row: associate via `CWInterface.associate(to:password:)` with the
-  scanned `CWNetwork`; on error, open Wi-Fi Settings.
-- [ ] Refresh button in the section header (bordered, dark fill, same
-  treatment as the QR buttons), showing `Scanning…` while busy; also reruns
-  the probe.
+- [ ] Names from `networkProfiles` (macOS's order, minus the connected one) —
+  **always shown, with or without Location.**
+- [ ] With Location: enrich from scans — in-range, signal, band. Without it:
+  no enrichment and a single "Allow Location for signal and availability" line;
+  never hide the names.
+- [ ] Scanning: on menu open, show the cache at once; start a background scan
+  only if the cache is older than 60 s **and no scan is running** (single
+  flight); merge when it returns (~8 s). Refresh forces a scan unless one is
+  running.
+- [ ] Row: glyph with lit arcs, name, band pill, `34 dB` (or dBm if noise is
+  unavailable) or `Not in range`, QR button; 30 px line, 4 px left inset,
+  26 px icon column, 9 px right inset.
+- [ ] Ordering: in range by signal, then not in range; cap at 8 rows.
+- [ ] Row click joins that network — **gated** on the reassociation spike;
+  otherwise it opens Wi-Fi Settings.
+- [ ] Refresh button in the section header, `Scanning…` while busy; also
+  reruns the probe.
 
-### 1.3 Hotspot data counter
+### 1.3 QR codes (`qr.rs`) — gated on the password spike
 
-- [ ] Per-interface byte counters from `sysctl` `NET_RT_IFLIST2` (`if_msghdr2`,
-  64-bit `ifi_ibytes`/`ifi_obytes`). The 32-bit `getifaddrs` counters wrap at
-  4 GB and would corrupt long sessions.
-- [ ] Baseline at association; show the delta as `212 MB` / `1.4 GB` in the
-  card and the Smart Bar tag while metered.
-
-### 1.4 QR codes (`qr.rs`)
-
-- [ ] Payload builder: `WIFI:T:WPA;S:<ssid>;P:<pass>;;`, `T:nopass` for open
-  networks; escape `\ ; , : "`. Unit tests for escaping and open networks.
-- [ ] Image: `CIFilter` `CIQRCodeGenerator` (`inputMessage` UTF-8 data,
-  `inputCorrectionLevel = "M"`), scaled with nearest-neighbour, rendered into
-  an `NSImage` on a white quiet zone.
-- [ ] Password: `SecItemCopyMatching` for the AirPort item (System keychain);
-  fall back to `/usr/bin/security find-generic-password -wa <ssid>`. Expect an
-  admin prompt. Hold the password in memory for the menu session only — never
-  log it, never write it to settings.
-- [ ] No saved password (likely for Instant Hotspot joins): panel says so
-  instead of showing a code.
-- [ ] Show the code as a **full-screen lightbox**, the way macOS Large Type
-  and 1Password's "Show in Large Type" work: a borderless window covering the
-  screen under the pointer, dimmed backdrop (black ~50 %), and a dark rounded
-  panel in the middle with the code at ~300 px, the network name and the
-  security type. Any click or any key dismisses it; fade 0.15 s unless Reduce
-  Motion is on.
-  - Window: `NSPanel`, borderless, `.nonactivatingPanel` off, level above the
-    menu bar (`.screenSaver` or `.popUpMenu`), `collectionBehavior`
-    `[.canJoinAllSpaces, .fullScreenAuxiliary]`, frame = that screen's full frame.
-  - Clicking the QR button closes the menu first, then shows the lightbox;
-    activate the app so key presses reach it, and close on `resignKey` too.
+- [ ] Payload `WIFI:T:WPA;S:<ssid>;P:<pass>;;`, `T:nopass` for open networks;
+  escape `\ ; , : "`; unit tests.
+- [ ] `CIQRCodeGenerator` (`inputCorrectionLevel = "M"`), nearest-neighbour
+  scaling, white quiet zone.
+- [ ] Password via whatever the spike proves; held in memory for the menu
+  session only, never logged, never in `--dump`, never in settings. No saved
+  password (e.g. Instant Hotspot): the lightbox says so instead of a code.
+- [ ] **Full-screen lightbox** like macOS Large Type: borderless `NSPanel` over
+  the whole screen under the pointer, dimmed backdrop (~50 % black), dark
+  rounded panel with the ~300 px code, network name and security type. Any
+  click, any key or losing focus dismisses it; 0.15 s fade unless Reduce Motion.
+  Level above the menu bar, `[.canJoinAllSpaces, .fullScreenAuxiliary]`; the
+  menu closes before it appears; activate the app so keys reach it.
 - *Done when* a phone joins Studio and the café network from the codes.
 
-### 1.5 Metered detection
+### 1.4 Path flags (`path.rs`)
 
-- [ ] `nw_path_monitor` on a private dispatch queue; read
-  `nw_path_is_expensive` and `nw_path_is_constrained` for the Wi-Fi path.
-- [ ] Remember flagged SSIDs (`metered=` in settings) so a known hotspot is
-  dashed before you join it.
-- [ ] While metered: amber state, data counter visible, speed test disabled.
+- [ ] `nw_path_monitor` on a private queue → `PathFlags { expensive,
+  constrained }`. **Two facts, never merged.**
+- [ ] `expensive` → `MeteredFallback`: amber, data counter, speed test off, SSID
+  remembered as a hotspot (dashed row before you join it next time).
+- [ ] `constrained` alone → "Low Data Mode" label; speed test off by default
+  with "Run anyway"; **not** remembered as a hotspot.
+- [ ] Both → "Metered · Low Data Mode".
 
-### 1.6 Home detection
+### 1.5 Hotspot data counter
 
-- [ ] Tally connected seconds per SSID (`seconds.<ssid>=` in settings, flushed
-  every 60 s).
-- [ ] Home = SSID with stored router credentials (P2), else the highest tally.
-- [ ] Involuntary drop: Home was connected, the link dropped, and a different
-  SSID associated within 60 s without a join initiated from this menu. Mark
-  Home red until it is back or the user joins something themselves.
-- [ ] Known limitation, document in README: joins made from the system Wi-Fi
-  menu look involuntary to the widget.
+- [ ] 64-bit byte counters from `sysctl` `NET_RT_IFLIST2` (`if_msghdr2`); the
+  32-bit `getifaddrs` counters wrap at 4 GB.
+- [ ] Baseline at association; `212 MB` / `1.4 GB` in the card and Smart Bar
+  tag while metered.
+
+### 1.6 Home and network changes (inferences)
+
+- [ ] Recency-weighted connected-time tally per SSID (e.g. exponential decay,
+  ~30-day half-life), flushed every 60 s.
+- [ ] `HomeGuess`: `strong` = router credentials stored for that SSID (P2);
+  `weak` = highest weighted tally; a hidden right-click **Set as Home** on a row
+  overrides both.
+- [ ] `NetworkChange::UnexpectedNetworkChange { from, to }` when association
+  moves away from Home without this widget initiating it. The model records
+  only that — no claim about intent.
+- [ ] Home row red only for an unexpected change **and** a strong guess;
+  otherwise dimmed "Not in range".
 
 ### 1.7 Band fallback and Rejoin
 
-- [ ] `BandFallback` only when the scan shows the same SSID on 5 or 6GHz at
-  ≥ −70 dBm while associated on 2.4GHz.
-- [ ] Rejoin: disassociate, then associate to the best scanned BSSID for the
-  SSID, on a background thread; on permission error open Wi-Fi Settings.
-- [ ] Same action for `Weak` when a stronger BSSID of the same SSID is visible
-  (the "stuck on far node" case); name that node in the header.
+- [ ] `BandFallback` enter when the same SSID is seen on 5/6GHz at ≥ −68 dBm,
+  leave below −75 dBm, from cached scans (no extra scanning).
+- [ ] **Rejoin — gated** on the reassociation spike, for `BandFallback` and for
+  `Weak` with a stronger BSSID of the same SSID visible. If the spike fails,
+  delete Rejoin from the design and the mockup.
+
+### 1.8 Remaining menu bar styles
+
+- [ ] Icon + dBm (`−52 dB`), Bar + Rate, Bar + Band, on the same `bar.rs`
+  primitives. *Done when* they match the mockup in every state.
 
 ---
 
 ## P2 — seeing past the router
 
-### 2.1 GL.iNet router (`router.rs`)
+### 2.1 GL.iNet router (`router.rs`) — isolated and optional
 
-- [ ] **spike: authenticate and map the RPC.** `challenge` (confirmed working
-  on 192.168.1.1) → derive the login hash from `alg`/`salt`/`nonce` per GL.iNet
-  4.x docs → `login` → session ID. Then find the calls for WAN status, uptime,
-  active uplink and interface byte counters. Write the verified method names
-  into `README.md`. If they don't exist, stop here and keep WAN hidden.
-- [ ] Credentials: widget-owned generic password in the **login** keychain
-  (service `wifi-widget.router`), so no admin prompt. Entry via a
-  `Connect Router…` item using an `NSAlert` with a secure text field.
-- [ ] Poll every 5 s while the menu is open, 30 s otherwise; 60-sample ring
-  buffer; throughput from byte deltas over elapsed time.
-- [ ] WAN row: live `↓3.2 ↑0.4 MB/s` + sparkline (`NSBezierPath`, 22 % area
-  fill, emphasised endpoint); `DOWN · 4 min` in red when the uplink is down.
-- [ ] Feed WAN-down into `NoInternet` so the header reads `No internet – WAN down`.
-- [ ] Session expiry and wrong-password handling: back off, show nothing rather
-  than stale data.
+- [ ] **spike: authenticate and map the RPC** (needs the admin password, which
+  you enter): `challenge` → login hash → `login` → session; find the calls for
+  WAN status, uptime, uplink and byte counters. If they don't exist, stop and
+  keep WAN hidden.
+- [ ] Credentials in the **login** keychain (service `wifi-widget.router`);
+  entry via a `Connect Router…` item.
+- [ ] Poll every 5 s with the menu open, 30 s otherwise; 60-sample ring buffer;
+  throughput from byte deltas.
+- [ ] WAN row with sparkline; `DOWN · 4 min` when the uplink is down, feeding
+  `NoInternet – WAN down`.
+- [ ] Session expiry and bad password: back off and show nothing, never stale
+  data.
+- [ ] No other vendors unless router monitoring becomes the product.
 
 ### 2.2 Speed test (`speed.rs`)
 
-- [ ] Run `/usr/bin/networkQuality -c` (verified present) on click only; parse
-  the JSON download/upload throughput and responsiveness.
-- [ ] `Testing…` while running (~15 s); cancel on menu close or quit.
-- [ ] Store the last result per SSID with its time; show `2 h ago`.
-- [ ] Disabled on metered networks with the explanation in the row.
+- [ ] `/usr/bin/networkQuality -c` on click only; parse throughput and
+  responsiveness; `Testing…` (~15 s); cancel on menu close or quit.
+- [ ] Last result per SSID with its time.
+- [ ] Disabled when `expensive`; off by default with "Run anyway" when only
+  `constrained`.
 
-### 2.3 Other routers
+### 2.3 Accessibility pass
 
-- [ ] Opportunistic UPnP IGD: SSDP `M-SEARCH` with a 2 s timeout, then
-  `GetCommonLinkProperties` and `GetTotalBytes*`. Verified **not** to answer on
-  this network, so treat as best-effort only.
-- [ ] Hide WAN and Speed rows on networks with no router data and no Home
-  status (the café case in the mockup).
-
-### 2.4 Accessibility
-
-- [ ] `NSAccessibility` labels and roles for every custom view: card facts,
-  copy buttons, QR buttons, Refresh, rows. VoiceOver must read the state.
-- [ ] Keyboard: custom views must not break arrow-key navigation through the
-  menu; verify Return activates rows.
+- [ ] Full VoiceOver pass over every state; Return activates rows; the
+  lightbox is announced and dismissable from the keyboard.
 
 ---
 
 ## P3 — deferred on purpose
 
-- [ ] `Other Networks ▸` submenu listing scanned SSIDs not in the known list;
-  open networks join directly, secured ones open Wi-Fi Settings.
-- [ ] Location-denied polish: a single `Allow Location Access…` item that
-  deep-links to the Privacy pane.
-- [ ] Fix or delete `scripts/wifi-qr` (it relies on the removed `airport` CLI);
-  the QR button supersedes it.
+- [ ] `Other Networks ▸` submenu for scanned SSIDs not in the known list.
+- [ ] Fix or delete `scripts/wifi-qr` (relies on the removed `airport` CLI).
 - [ ] macOS 27: `NSStatusItem` expanded interface session + `NSGlassEffectView`
-  to build `designs/alt-black-panel` with system-managed positioning, focus and
-  dismissal. If pursued, build it as a shared crate for all the widgets.
+  for `designs/alt-black-panel`; if pursued, as a shared crate for all widgets.
+- Dropped: UPnP IGD and NAT-PMP router telemetry (no reply here, inconsistent
+  elsewhere, and weak data would undermine the widget's accuracy).
 
 ---
 
 ## Cross-cutting
 
-- **Performance budget:** ~0 % CPU at idle, < 25 MB resident. Never scan on a
-  timer. Profile with Instruments once P1 lands.
-- **Secrets:** Wi-Fi and router passwords stay in the keychain and in memory
-  for the menu session only; audit logs and `--dump` output for leaks.
-- **Settings:** `key=value` at `~/.config/wifi-widget/settings`, same format
-  and atomic-write approach as `volume-control-widget`.
-- **Verification** (there is no CI): `cargo test` for the pure modules
-  (signal, classify, probe parsing, QR payload, router parsing, networkQuality
-  parsing); `--dump` against `system_profiler`; `bash -n` on `bundle.sh`;
-  and a manual pass through every scenario — unplug the WAN, force 2.4GHz on
-  the Flint 3, walk to the far room, join a café portal, join the iPhone
-  hotspot, deny Location once, turn Wi-Fi off.
+- **Truthfulness:** facts and inferences are separate types; inferences carry a
+  confidence; units always match what was measured.
+- **Performance:** ~0 % CPU idle and < 25 MB resident; the 5 s closed-menu poll
+  is the only idle work besides the 30 s probe. Never scan on a timer.
+- **Secrets:** Wi-Fi and router passwords stay in the keychain and in memory for
+  the menu session only; audit logs and `--dump` for leaks.
+- **Settings** at `~/.config/wifi-widget/settings`, atomic writes. **SSIDs are
+  values, never keys**, and are escaped (`=`, newlines, non-ASCII, very long
+  names): e.g. `home=<escaped>`, `hotspot=<escaped>`, `tally=<escaped>:<seconds>`.
+  Tests for round-tripping awkward SSIDs.
+- **Verification** (no CI): `cargo test` for the pure modules; `--dump` against
+  `system_profiler`; `bash -n bundle.sh`; a manual pass through every scenario —
+  unplug the WAN, force 2.4GHz on the Flint 3, walk to the far room, join a
+  café portal, join the iPhone hotspot, turn on Low Data Mode, deny Location,
+  turn Wi-Fi off.
