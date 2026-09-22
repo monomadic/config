@@ -19,7 +19,8 @@ The offline checker reads the extractor without importing it:
 python3 bin/onlyfans-signature-check.py
 ```
 
-An unconfigured User-Agent is reported as `NOT CONFIGURED`; the signature checks
+The offline checker does not inspect the browser installation. Without a User-Agent
+override it reports `NOT CONFIGURED`; the signature checks
 remain useful independently. Set `YT_DLP_ONLYFANS_USER_AGENT` to compare identity
 as well. Do not store actual browser credentials in this repository.
 
@@ -28,13 +29,14 @@ as well. Do not store actual browser credentials in this repository.
 The opted-in extractor uses these environment variables from the same browser
 session:
 
-- `YT_DLP_ONLYFANS_USER_AGENT`: actual request User-Agent.
+- `YT_DLP_ONLYFANS_USER_AGENT`: optional override for the actual request
+  User-Agent. Otherwise it is derived from the installed Brave version on macOS.
 - `YT_DLP_ONLYFANS_X_BC`: optional override for the actual `x-bc` header.
   When unset, the extractor reads Brave local storage automatically.
 - `YT_DLP_ONLYFANS_X_HASH`: actual `x-hash`, if present; otherwise leave unset.
 
 Use private shell input rather than literal credential values in shell history.
-These variables do not enable API access by themselves. A missing User-Agent, an unavailable browser key,
+These variables do not enable API access by themselves. An unavailable browser identity or browser key,
 control characters in headers, or a missing `auth_id` cookie stop extraction.
 The cookies must belong to the same browser session. Cookie import does not
 import local storage.
@@ -84,8 +86,7 @@ writing or locked by the helper. Unflushed browser changes may not yet be on dis
 
 The helper uses an isolated uv script environment with Python 3.12 and pinned
 `plyvel-ci==1.5.1`; first use can download these dependencies, but it never
-contacts OnlyFans. It does not alter yt-dlp's Python environment. The User-Agent,
-optional x-hash, and unsafe API opt-in are unchanged.
+contacts OnlyFans. It does not alter yt-dlp's Python environment. The optional x-hash and unsafe API opt-in are unchanged.
 
 For a read-only check without displaying the key:
 
@@ -94,3 +95,18 @@ onlyfans-browser-key --check "$HOME/Library/Application Support/BraveSoftware/Br
 ```
 
 Storage regression tests run with `uv run scripts/tests/test_onlyfans_storage.py`.
+
+## Automatic Brave User-Agent
+
+On macOS, with Brave selected for cookies, the extractor reads the stable Brave
+application's Info.plist under /Applications or ~/Applications. It derives the
+Chromium major version from CFBundleShortVersionString and builds the standard
+[reduced macOS User-Agent](https://www.chromium.org/updates/ua-reduction/).
+For the installed Brave 153.1.95.104 this exactly matches the user's supplied
+Chrome/153.0.0.0 request header. No browser launch or network request is needed.
+
+This reconstructs the default header; it does not read navigator.userAgent from
+a running tab. A custom User-Agent, nonstandard install location, or an older
+browser still running after an on-disk update needs the explicit environment
+override. Conflicting major versions in the two install locations cause an error
+rather than choosing one. The TLS impersonation target remains separate.

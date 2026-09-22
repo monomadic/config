@@ -78,6 +78,35 @@ class OnlyFansOffline(unittest.TestCase):
             read.assert_called_once()
             self.assertEqual(self.ie._bc_token, 'stored-fixture')
 
+    def test_automatic_user_agent_and_override(self):
+        self.identity()
+        with patch.object(self.ie, '_installed_browser_user_agent', return_value='automatic-fixture') as read:
+            self.ie._real_initialize()
+            read.assert_not_called()
+            del os.environ['YT_DLP_ONLYFANS_USER_AGENT']
+            self.ie._real_initialize()
+            self.assertEqual(self.ie._browser_user_agent, 'automatic-fixture')
+            read.assert_called_once()
+
+    def test_reduced_user_agent_and_ambiguous_install(self):
+        import plistlib
+        from yt_dlp import YoutubeDL
+        ie = IE(YoutubeDL({'cookiesfrombrowser': ('brave',)}))
+        def plist(major):
+            return plistlib.dumps({'CFBundleIdentifier': 'com.brave.Browser',
+                                   'CFBundleShortVersionString': f'{major}.1.95.104'})
+        with patch('sys.platform', 'darwin'), patch.object(Path, 'exists', return_value=True):
+            with patch.object(Path, 'read_bytes', return_value=plist(153)):
+                self.assertEqual(ie._installed_browser_user_agent(),
+                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
+                    '(KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36')
+            with patch.object(Path, 'read_bytes', side_effect=[plist(153), plist(154)]):
+                with self.assertRaisesRegex(Exception, 'ambiguous'):
+                    ie._installed_browser_user_agent()
+            with patch.object(Path, 'read_bytes', return_value=plist(1)):
+                with self.assertRaisesRegex(Exception, 'installed Brave version'):
+                    ie._installed_browser_user_agent()
+
     def test_selected_cookie_profile_is_used(self):
         from tempfile import TemporaryDirectory
         from yt_dlp import YoutubeDL

@@ -1,6 +1,9 @@
 import hashlib
 import os
 from pathlib import Path
+import plistlib
+import re
+import sys
 import subprocess
 import time
 from urllib.parse import urlencode, urljoin, urlparse
@@ -49,13 +52,42 @@ class OnlyFansIE(InfoExtractor):
         self._check_api_opt_in()
         # Reuse identity from a successful browser request. Cookie extraction does
         # not import localStorage's bcTokenSha. Never mint a replacement via /key/.
-        self._browser_user_agent = self._identity_value('USER_AGENT', required=True)
+        self._browser_user_agent = self._identity_value('USER_AGENT') or self._installed_browser_user_agent()
         self._bc_token = self._identity_value('X_BC') or self._stored_browser_key()
         self._hash = self._identity_value('X_HASH')
         cookies = self._get_cookies('https://onlyfans.com/')
         self._auth_user_id = int_or_none(try_get(cookies, lambda x: x['auth_id'].value))
         if not self._auth_user_id:
             raise ExtractorError('OnlyFans requires an auth_id cookie from the matching browser session.', expected=True)
+
+    def _installed_browser_user_agent(self):
+        spec = self.get_param('cookiesfrombrowser')
+        hint = 'Set YT_DLP_ONLYFANS_USER_AGENT to the actual browser request header.'
+        if sys.platform != 'darwin' or not spec or spec[0] != 'brave':
+            raise ExtractorError('Automatic User-Agent supports Brave on macOS. ' + hint, expected=True)
+        # Brave's macOS bundle version starts with the Chromium major version.
+        # Reconstruct the standard reduced UA; custom UA overrides need the env var.
+        candidates = [Path('/Applications/Brave Browser.app'),
+                      Path.home() / 'Applications/Brave Browser.app']
+        versions = set()
+        for app in candidates:
+            info = app / 'Contents/Info.plist'
+            if not info.exists():
+                continue
+            try:
+                data = plistlib.loads(info.read_bytes())
+                version = data.get('CFBundleShortVersionString', '')
+                if data.get('CFBundleIdentifier') != 'com.brave.Browser' or not re.fullmatch(r'[0-9]{3,}\.[0-9]+\.[0-9]+\.[0-9]+', version):
+                    raise ValueError('Unrecognized Brave version')
+                versions.add(version.split('.')[0])
+            except (OSError, ValueError, TypeError, plistlib.InvalidFileException):
+                raise ExtractorError('Could not read the installed Brave version. ' + hint, expected=True) from None
+        if len(versions) != 1:
+            raise ExtractorError('Installed Brave version is missing or ambiguous. ' + hint, expected=True)
+        major = versions.pop()
+        return ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+                'AppleWebKit/537.36 (KHTML, like Gecko) '
+                f'Chrome/{major}.0.0.0 Safari/537.36')
 
     def _stored_browser_key(self):
         # Use yt-dlp's own profile selection rules, including newest Cookies DB.
