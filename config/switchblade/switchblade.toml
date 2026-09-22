@@ -63,11 +63,8 @@ ignore = [".*", "_*"]
 
 # ── Colors ──────────────────────────────────────────────────────────────
 # All colors are [r, g, b] with 0..1 channels.
-background = [0.0, 0.0, 0.0]  # window background
-# Opacity of that background fill (0..1). 1.0 = classic opaque window;
-# below 1.0 the desktop shows through the gaps between tiles (macOS
-# "glass" vibe). Tiles stay opaque; hot-reloadable, so dial it live.
-window_opacity = 0.5
+# The window's own fill (and how much of the desktop shows through it) is
+# `[window] background` in the theme file — themes/default.toml.
 # The tile's shape, scale and borders are `[tile]` at the bottom of this
 # file; the selection ring's colour is `selection` in themes/default.toml.
 

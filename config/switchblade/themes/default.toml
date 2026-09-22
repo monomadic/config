@@ -56,6 +56,14 @@ match_ink = 1.0
 scrim = 0.88
 scrim_height = 420.0
 
+[window]
+# The window's own ground — the clear colour behind the grid AND the
+# empty-state splash, as [r, g, b, a]. The alpha is how much of the
+# desktop it covers: 1.0 is a classic opaque window, below that whatever
+# is behind the window shows through the gaps between tiles (the macOS
+# "glass" look). Tiles stay opaque. Hot-reloads, so dial it live.
+background = [0.0, 0.0, 0.0, 0.5]
+
 [keycap]
 height = 30.0
 height_inline = 22.0

@@ -86,8 +86,11 @@ plus `zsh -n` / `bash -n` on any shell script you touched.
 `src/<tool>/` holds tool source (Rust: the AppKit menu bar widgets — `battery-widget`,
 `cpu-usage-widget`, `free-disk-space-widget`, `menu-tidy` — plus `leaf`, `pimped`,
 `motherfucker`, `neuroserver-select-preset`, `topaz-select-preset`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
-`system-uptime-widget`). These are the only parts of the repo with a
-build/install step and tests — Dotter does not touch them.
+`system-uptime-widget`; Swift: the `src/utils/` video ML CLIs `avinterp`,
+`avupscale`, `avremove`). These are the only parts of the repo with a
+build/install step and tests — Dotter does not touch them. `src/utils/` is a
+group directory like `src/jobs/`: each tool under it is its own Swift package
+with its own `install-<name>.sh`.
 
 New menu bar widgets go in Rust, against `objc2` directly — `battery-widget` and
 `free-disk-space-widget` are the reference implementations. No wrapper library, no

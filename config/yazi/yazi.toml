@@ -94,6 +94,13 @@ video_tools = [
 extract = [
   { run = "ya pub extract --list %s", desc = "􃀩  extract" },
 ]
+# Flat installer packages are xar archives, not something the extract
+# plugin knows. `--expand-full` also unpacks the Payload inside, into a
+# sibling directory named after the pkg. pkgutil refuses an existing
+# destination, so a repeat run fails loudly rather than merging.
+pkg_extract = [
+  { run = '''zsh -c 'for f in "$@"; do pkgutil --expand-full "$f" "${f%.pkg}"; done' zsh %s''', desc = "􃀩  extract (pkgutil)", for = "unix" },
+]
 
 [open]
 prepend_rules = [
@@ -106,6 +113,8 @@ prepend_rules = [
   { mime = "video/*", use = ["play", "open", "reveal", "video_tools"] },
   { url = "*/", use = ["open", "edit", "reveal", "play_dir"] },
   { url = "*.flac", use = ["flac", "open"] },
+  # mime-ext maps .pkg to octet-stream, so match by extension.
+  { url = "*.pkg", use = ["pkg_extract", "open", "reveal"] },
   { url = "*.mov", use = ["mov_tools", "play", "open", "reveal", "video_tools"] },
   # mime-ext has no .vtt mapping, so match by extension or the opener never
   # appears. `edit` leads deliberately: unlike mov_tools/chordpro, "embed" is
