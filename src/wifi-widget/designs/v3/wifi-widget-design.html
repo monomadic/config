@@ -79,7 +79,7 @@
   .menu {
     width: min(100%, 340px); margin: 12px 0 0 auto; padding: 7px;
     border: 1px solid #4a4b51; border-radius: 12px;
-    color: #f2f2f3; background: #292a2f; box-shadow: 0 18px 44px #0009; font-size: 13px;
+    color: #f2f2f3; background: #202124ed; box-shadow: 0 18px 44px #0009; font-size: 13px;
   }
   .menu-head { padding: 0 11px 6px 5px; }  /* with the panel's own 7px, the dot sits 12px from both the top and the left */
   .menu-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13.5px; line-height: 18px; font-weight: 650; white-space: nowrap; }
@@ -279,11 +279,86 @@
   .verdict.some { color: var(--busy); border: 1px solid color-mix(in srgb, var(--busy) 50%, transparent); }
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  /* Approved native-panel refinements, synchronized 2026-09-22. */
+  .menu-head { padding: 4px 11px 8px 9px; }
+  .menu-status, .menu-status strong { color: #f2f2f3; font-size: 13.5px; font-weight: 600; }
+  .row-grid { grid-template-columns: 40px minmax(0,1fr); }
+  .card-graphite .conn.active, .card-graphite .conn.fallback { background:#17181b; border: .5px solid #46474b; --notch:#17181b; }
+  .card-graphite .conn.active .inset { background:#1e1f22; }
+  .net-title { line-height:18px; }
+  .net-meta { line-height:15px; margin-top:1px; }
+  .pill { height:14px; padding:0 4px; border-width:.75px; font:500 9px/14px var(--system); letter-spacing:0; }
+  .snr { position:relative; display:grid; grid-template-columns:150px minmax(0,1fr); align-items:center; gap:10px; margin:8px 0 22px; }
+  .sbar { height:10px; }
+  .sbar em { position:absolute; left:80%; top:0; bottom:0; width:1.5px; background:var(--notch); }
+  .sbar::before, .sbar::after { width:1.5px; }
+  .snr .db { font:500 9px/14px var(--system); text-align:left; white-space:nowrap; min-width:0; }
+  .meter-scale { position:absolute; width:150px; left:0; top:14px; height:13px; color:#a8a9ae; font:400 8px/13px var(--system); }
+  .meter-scale i { position:absolute; transform:translateX(-50%); font-style:normal; }
+  .linkline > span { display:flex; flex-direction:column; align-items:center; gap:2px; }
+  .linkline b { font:500 16px/23px var(--system); margin:0; }
+  .linkline small { font:400 9px/15px var(--system); color:#a8a9ae; }
+  .fact { grid-template-columns:62px minmax(0,1fr) 12px; min-height:22px; font-size:10px; }
+  .linkline + .fgroup .fact { min-height:28px; }
+  .fact .act { width:12px; height:14px; display:flex; align-items:center; }
+  .tagp.private { border:0; padding:0 0 0 6px; }
+  .section-label { align-items:center; padding:13px 8px 3px; }
+  .refresh { width:24px; height:24px; display:grid; place-items:center; padding:4px; border:.5px solid transparent; border-radius:50%; background:transparent; color:#a8a9ae; }
+  .refresh svg { width:14px; height:14px; }
+  .refresh:hover:not(:disabled) { color:#fff; background:#ffffff17; border-color:#ffffff59; }
+  .refresh[aria-busy="true"] { background:transparent; border-color:transparent; cursor:default; }
+  .refresh[aria-busy="true"] svg { animation:scan-spin .8s linear infinite; }
+  @keyframes scan-spin { to { transform:rotate(360deg); } }
+  .krow { width:100%; text-align:left; font:inherit; background:transparent; padding:3px 9px 3px 12px; cursor:pointer; }
+  .krow .kname, .krow .kglyph { color:#a8a9ae; }
+  .krow.saved .kname, .krow.saved .kglyph { color:#fff; }
+  .krow.metered { border-color:transparent; }
+  .kright { display:flex; flex-direction:column; width:48px; line-height:13px; }
+  .kright small { font-size:8px; }
+  .strength { width:20px; display:flex; align-items:flex-end; gap:2px; }
+  .strength i { width:3px; background:#ffffff25; border-radius:1px; }
+  .strength i.on { background:#a8a9ae; }
+  .krow:focus-visible { outline:1px solid #fff; }
+
+
+  /* Compact 320 pt panel: inline bands, full-width meter and stacked scan facts. */
+  .menu { width:min(100%, 320px); }
+  .snr { display:block; margin-top:26px; }
+  .snr .db { position:absolute; right:0; top:-20px; text-align:right; }
+  .meter-scale { width:100%; }
+  .krow .kright { margin-left:auto; width:52px; align-items:center; flex-shrink:0; }
+  .krow .strength { height:12px; }
+  .krow .pill { flex-shrink:0; height:14px; padding:0 5px; display:inline-flex; align-items:center; justify-content:center; font:400 9px/1 var(--system); border:.5px solid #a8a9ae8c; }
+  .krow .pill > span { transform:translateY(.5px); }
+  .krow { height:30px; min-height:30px; padding-top:0; padding-bottom:0; }
+  .krow .kname { font-size:12px; font-weight:400; }
+  .krow .kright small { font-size:8px; line-height:12px; }
+  .fact .v { color:#a8a9ae; }
+  .card-graphite .conn.active .fact .v { color:#a8a9ae; }
+
+  .conn .net-name { font-weight:700; }
+  .conn .row-grid { align-items:start; }
+  .conn .glyph { align-self:start; margin-top:0; }
+  .snr { width:calc(100% - 18px); margin-top:22px; }
+  .card-graphite .conn .sbar { overflow:visible; background:linear-gradient(to right,#cb4b43 0% 30%,#b98930 30% 50%,#617da4 50% 80%,#359d50 80% 100%); }
+  .sbar > i, .sbar > em, .sbar::before, .sbar::after { display:none; }
+  .playhead { position:absolute; top:-4px; height:18px; width:2px; transform:translateX(-50%); border-radius:1px; background:#fff; box-shadow:0 0 0 1px #17181b; }
+  .snr .db strong { font-weight:500; }
+
+  /* Latest spacing and typography refinements. */
+  .conn { padding-top:13px; padding-bottom:11px; }
+  .conn .glyph { margin-top:24px; }
+  .linkline { padding-top:8px; padding-bottom:11px; }
+  .linkline b { font-weight:700; }
+  .krow .pill { border:0; padding:0 2px; color:#a8a9ae; font-size:9px; }
+  .refresh { transform:translateY(-2px); }
+  .snr .sbar { transform:translateY(-3px); }
 </style>
 
 <p class="eyebrow">wifi-widget · v3 · guard design, carried over from volume-widget</p>
 <h1>A Wi‑Fi menu that says when something is wrong</h1>
-<p class="lede">Same parts as the volume widget: bare glyphs, a pill after the name, a spec line and a meter on every row. In v2 the network you're on is <strong>one larger menu item</strong> holding the link numbers, internet status, the router's WAN and addresses you can copy by hovering. A new <strong>Login page</strong> state covers captive portals. Pick a menu bar style, then go through the scenarios.</p>
+<p class="lede">Current native v3 design, synchronized with the implemented panel: bare glyphs, a pill after the name, a spec line and a meter on every row. The network you're on is <strong>one larger menu item</strong> holding the link numbers, internet status and addresses you can copy by hovering. A new <strong>Login page</strong> state covers captive portals. Pick a menu bar style, then go through the scenarios.</p>
 
 <section>
   <p class="eyebrow">Interactive</p>
@@ -311,37 +386,47 @@
       <div class="menubar"><span class="other">⌥</span><span class="other">DJM</span><span class="other">87%</span><span class="status-chip" id="chip"></span></div>
       <div class="menu">
         <div class="menu-head">
-          <div class="menu-title"><span class="state-dot"></span><span>Wi‑Fi</span><span class="sep">–</span><span class="menu-status" id="menu-status"></span></div>
+          <div class="menu-title"><span class="state-dot"></span><span class="menu-status" id="menu-status"></span></div>
         </div>
         <div id="conn"></div>
-        <div class="divider"></div>
-        <div class="section-label"><span>Known Networks</span><button type="button" class="refresh" id="refresh">Refresh</button></div>
+        <div class="section-label"><span>Nearby Networks</span><button type="button" class="refresh" id="refresh" aria-label="Refresh nearby networks" title="Refresh nearby networks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 8a8 8 0 1 0 1 7M19 3v6h-6"/></svg></button></div>
         <div class="net-list" id="net-list"></div>
-        <div class="menu-item"><span>Other Networks</span><span class="key">▸</span></div>
         <div class="divider"></div>
         <div class="menu-item primary" id="primary-action"><span></span><span class="key"></span></div>
         <div class="menu-item"><span>Style</span><span class="key" id="style-key"></span></div>
+        <div class="menu-item"><span>Open at Login</span><span></span></div>
         <div class="menu-item"><span>Wi‑Fi Settings…</span><span></span></div>
-        <div class="menu-item"><span>Quit</span><span></span></div>
+        <div class="menu-item"><span>Quit WiFi Widget</span><span></span></div>
       </div>
     </div>
 
     <div class="notes">
       <article class="note-card"><h3 id="note-title"></h3><p id="note-copy"></p></article>
-      <article class="note-card"><h3>The network you're on is one menu item<span class="new">v2</span></h3><p>The top of the menu used to have a separate stats panel above a row that repeated it. Now there is one larger item: the same row as every network below it, with an inset underneath in three groups. <b>Link</b>: signal, noise, rate. <b>Outside</b>: internet check, router WAN, speed test. <b>Addresses</b>: IP, gateway, MAC, node. The network you're on is no longer repeated in the Networks list.</p><p><b>Hover to copy.</b> The IP, gateway, MAC and node rows highlight on hover and copy on click, so the separate Copy IP Address item is gone. MAC is this Mac's address on the current network, tagged <b>private</b> when macOS is using a per-network private address.</p></article>
+      <article class="note-card"><h3>The network you're on is one menu item<span class="new">v2</span></h3><p>The top of the menu used to have a separate stats panel above a row that repeated it. Now there is one larger item: the same row as every network below it, with an inset underneath in three groups. <b>Link</b>: signal, noise, rate. <b>Internet</b>: endpoint status and neutral latency. <b>Addresses</b>: IP, gateway, MAC, node. The network you're on is no longer repeated in the Networks list.</p><p><b>Hover to copy.</b> The IP, gateway, MAC and node rows highlight on hover and copy on click, so the separate Copy IP Address item is gone. MAC is this Mac's address on the current network, tagged <b>private</b> when macOS is using a per-network private address.</p></article>
       <article class="note-card"><h3 id="style-title"></h3><p id="style-copy"></p></article>
       <article class="note-card"><h3>Graphite card<span class="new">v3</span></h3><p>The connected card is a dark graphite panel rather than the blue selection colour. At this size a blue block outweighed the whole menu. The state colour moves into the <b>icon</b> and <b>signal meter</b>: green when healthy, amber or red when not, so they match the header dot. Blue is left for the primary action.</p></article>
-      <article class="note-card"><h3>Refresh sits in the list header<span class="new">v2</span></h3><p>A right-aligned <b>Refresh</b> on the Known Networks label rescans to see which of them are in range, and reruns the internet check. It shows <b>Scanning…</b> while it works. It replaces the Check Again button that v1 used for No internet.</p></article>
-      <article class="note-card"><h3>Known Networks and QR codes<span class="new">v3</span></h3><p>The list is macOS's saved networks (<code>CWConfiguration.networkProfiles</code>), matched against the scan to show which are in range. Each is one compact line: signal in the icon, status on the right. Nearby networks you've never joined move to <b>Other Networks ▸</b>.</p><p>Every row and the connected card has a <b>QR button</b>. It opens a large Wi‑Fi join code in a full-screen lightbox, like macOS's Large Type: the screen dims, the code sits in the middle, and any click or key closes it. The password comes from Keychain, and macOS asks for your admin password before revealing it. Open networks need no password and show their code straight away. Try it: the codes here are real, with example passwords.</p></article>
+      <article class="note-card"><h3>Refresh and cached results</h3><p>Refresh is a borderless symbol with a larger circular hover background, white symbol and thin hover-only outline. During scanning it becomes a disabled spinner. Scan at launch; on menu open, rescan only when results are more than three minutes old. Manual Refresh starts immediately unless a scan is already running. Available macOS cached results appear first and are identified in tooltips, then fresh results replace them.</p></article>
+      <article class="note-card"><h3>Nearby networks</h3><p>List scanned networks, including unsaved ones, sorted by signal strength. Exclude the current network and saved networks without a scan match. Saved, in-range names and icons are pure white; unsaved ones are muted. Show the strongest access point’s band, advertised security and RSSI strength bars. Rows highlight on hover and click to join. Password retries use a secure field; enterprise authentication goes through Wi-Fi Settings. iPhone hotspot icons are name-based hints, not device detection.</p><p>QR codes, WAN telemetry, speed testing and session totals remain future work, not current panel controls.</p></article>
       <article class="note-card"><h3>Home and Metered are detected<span class="new">v3</span></h3><p><b>Metered</b> comes from macOS: the Network framework flags a connection as <b>expensive</b> (personal hotspot, cellular). That, and only that, makes the menu bar amber, counts data used, disables the speed test and remembers the network, so the hotspot row has its dashed border before you join it. <b>Low Data Mode</b> is a separate flag: it is labelled as such and turns the speed test off by default, but a home network in Low Data Mode is never called a hotspot.</p><p><b>Home</b> is a guess, and the widget treats it as one. It's strongest when you've connected that network's router; otherwise it's the network you've used most over recent weeks, and a right-click <b>Set as Home</b> overrides both. The widget can only see that the network changed without it asking, not why, so Home turns <b>red</b> only when the guess is strong. Otherwise it is simply dimmed as not in range.</p></article>
     </div>
+  </div>
+</section>
+
+<section aria-label="Unavailable and permission states">
+  <p class="eyebrow">P0 edge states</p>
+  <h2>Missing evidence stays visible</h2>
+  <div class="notes">
+    <article class="note-card"><h3>Wi-Fi off</h3><p><b>Menu bar:</b> Wi-Fi slash glyph, no signal segments or band tag.</p><p><b>Menu:</b> Wi-Fi — Off. Hide connected-network measurements. Keep Wi-Fi Settings, Location access, Style and Quit available. The widget does not turn Wi-Fi on itself.</p></article>
+    <article class="note-card"><h3>Disconnected</h3><p><b>Menu bar:</b> Wi-Fi slash glyph, no signal segments or band tag.</p><p><b>Menu:</b> Disconnected. Hide the connected card and its old measurements. Show only scanned nearby networks; clicking attempts to join.</p></article>
+    <article class="note-card"><h3>Location denied</h3><p><b>Menu bar:</b> Keep the measured signal and band; denial is not a network failure.</p><p><b>Card:</b> Wi-Fi · 6 GHz replaces the SSID. Hide Node while the identity is unavailable. Keep fresh link measurements and endpoint status.</p><p><b>Menu:</b> One Location Access in System Settings action. Do not substitute saved profiles for scan visibility when Location restrictions prevent scan results.</p></article>
+    <article class="note-card"><h3>Signal unavailable</h3><p><b>Menu bar:</b> Dim all four segments; retain the measured band. Do not treat a dropped zero RSSI as a disconnected link.</p><p><b>Card:</b> Signal unavailable — waiting for a fresh measurement. Preserve the endpoint result independently. An unavailable interface is labelled Wi-Fi unavailable, never Wi-Fi Off.</p></article>
   </div>
 </section>
 
 <section>
   <p class="eyebrow">Why the bar is SNR</p>
   <h2>The same −65 dBm can be excellent or unusable</h2>
-  <p class="section-lede">RSSI alone doesn't tell you much. What matters is how far the signal sits <strong>above the noise floor</strong>: −65 against −95 of noise is a 30 dB link, and against −75 it is a 10 dB link that drops calls. CoreWLAN reports both numbers, so every bar is SNR on a 0–50 dB scale. The meter notches mark the 15 and 25 dB tier edges.</p>
+  <p class="section-lede">RSSI alone doesn't tell you much. What matters is how far the signal sits <strong>above the noise floor</strong>: −65 against −95 of noise is a 30 dB link, and against −75 it is a 10 dB link that drops calls. CoreWLAN reports both numbers, so every bar is SNR on a 0–50 dB scale. The meter notches mark 15, 25 and 40 dB, with labels at 0, 15, 25, 40 and 50 dB. Hide these SNR labels when only RSSI is available.</p>
   <div class="scale-wrap">
     <div class="scale-scroll">
       <div class="scale" id="scale">
@@ -526,18 +611,21 @@
     let h = '<span class="net-main"><span class="net-title"><span class="net-name">' + r.name + '</span>'
       + (r.pill ? '<span class="pill' + (r.pillWarn ? ' warn' : '') + '">' + r.pill + '</span>' : '') + '</span>'
       + '<span class="net-meta' + (r.metaWarn ? ' warn' : '') + '">' + r.meta + '</span>';
-    if (r.snr != null) h += '<span class="snr' + (r.bad ? ' bad' : '') + '"><span class="sbar"><i style="width:' + Math.min(100, r.snr * 2) + '%"></i></span><span class="db">' + r.snr + ' dB · ' + (r.snr >= 40 ? 'Excellent' : r.snr >= 25 ? 'Good' : r.snr >= 15 ? 'Fair' : 'Poor') + '</span></span>';
+    if (r.snr != null) h += '<span class="snr' + (r.bad ? ' bad' : '') + '"><span class="sbar"><i style="width:' + Math.min(100, r.snr * 2) + '%"></i><em></em><b class="playhead" style="left:' + Math.min(100, Math.max(0,r.snr*2)) + '%"></b></span><span class="db">' + r.snr + ' dB · <strong style="color:' + (r.snr >= 40 ? '#359d50' : r.snr >= 25 ? '#617da4' : r.snr >= 15 ? '#b98930' : '#cb4b43') + '">' + (r.snr >= 40 ? 'Excellent' : r.snr >= 25 ? 'Good' : r.snr >= 15 ? 'Fair' : 'Poor') + '</strong></span><span class="meter-scale"><i style="left:0%">0</i><i style="left:30%">15</i><i style="left:50%">25</i><i style="left:80%">40</i><i style="left:100%">50</i></span></span>';
     return h + '</span>';
   }
   const qrSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="5.4" y="5.4" width="2.2" height="2.2" fill="currentColor" stroke="none"/><rect x="16.4" y="5.4" width="2.2" height="2.2" fill="currentColor" stroke="none"/><rect x="5.4" y="16.4" width="2.2" height="2.2" fill="currentColor" stroke="none"/><rect x="14" y="14" width="3" height="3" fill="currentColor" stroke="none"/><rect x="18" y="18" width="3" height="3" fill="currentColor" stroke="none"/></svg>';
   const qrButton = r => '<button type="button" class="qr-btn" data-qr="' + r.name + '" aria-haspopup="dialog" aria-label="Show QR code for ' + r.name + '" title="QR code">' + qrSvg + '</button>';
   function rowHTML(r) {
-    const g = r.glyph === 'link' ? linkSvg : wifiSvg(r.tier || 0, r.slashed);
-    return '<div class="' + ['krow'].concat(r.cls || []).join(' ') + '">'
+    const saved = r.saved !== false;
+    const g = r.glyph === 'link' ? linkSvg : wifiSvg(4, false);
+    const tier = r.tier || 3;
+    const band = r.pill || (r.glyph === 'link' ? '5 GHz' : '6 GHz');
+    const security = r.security || (r.qr?.sec === 'nopass' ? 'Open' : 'WPA2/3');
+    return '<button type="button" class="krow' + (saved ? ' saved' : '') + '" data-join="' + r.name + '" title="Click to join (prototype)">'
       + '<span class="kglyph">' + g + '</span><span class="kname">' + r.name + '</span>'
-      + (r.pill ? '<span class="pill">' + r.pill + '</span>' : '')
-      + '<span class="kright' + (r.rightWarn ? ' warn' : '') + '">' + (r.right || '') + '</span>'
-      + qrButton(r) + '</div>';
+      + '<span class="pill"><span>' + band.replace(/\s+/g, '') + '</span></span><span class="kright">'
+      + '<span class="strength" aria-label="Signal strength ' + tier + ' of 4">' + [1,2,3,4].map(n => '<i class="' + (n <= tier ? 'on' : '') + '" style="height:' + (3+n*2) + 'px"></i>').join('') + '</span><small>' + security + '</small></span></button>';
   }
   // Wi-Fi join payload (the format phone cameras read); ; , : \ " are escaped per the spec
   const qrEsc = v => v.replace(/([\\;,:"])/g, '\\$1');
@@ -563,18 +651,16 @@
     const private_ = (parseInt(a.mac.slice(0, 2), 16) & 2) ? ' <span class="tagp private">PRIVATE</span>' : '';
     const sparkColor = c.cls.includes('fallback') ? '#ffb340' : '#ffffff';
     let outside = fact('Internet', s.internet.text);
-    if (s.wan) outside += fact('WAN', s.wan.text + (s.wan.spark ? spark(wanTrace, sparkColor) : ''));
-    if (s.speed) outside += fact('Speed', s.speed.text, { test: s.speed.test });
     return '<div class="conn ' + c.cls.join(' ') + '">'
-      + '<div class="row-grid">' + glyphHTML(c) + mainHTML(c) + qrButton(c) + '</div>'
+      + '<div class="row-grid">' + glyphHTML(c) + mainHTML(c) + '</div>'
       + '<div class="inset">'
-      + '<div class="linkline"><span><b>' + dbm(s.link.rssi) + '</b>signal</span><span><b>' + dbm(s.link.noise) + '</b>noise</span><span><b>' + s.link.rate + '</b>Mbps</span></div>'
+      + '<div class="linkline"><span><b>' + dbm(s.link.rssi) + '</b><small>signal · dBm</small></span><span><b>' + dbm(s.link.noise) + '</b><small>noise · dBm</small></span><span><b>' + s.link.rate + '</b><small>Mbps</small></span></div>'
       + '<div class="fgroup">' + outside + '</div>'
       + '<div class="fgroup">'
       + fact('IP', '<span class="mono">' + a.ip + '</span>', { copy: a.ip })
       + fact('Gateway', '<span class="mono">' + a.gw + '</span>', { copy: a.gw })
       + fact('MAC', '<span class="mono">' + a.mac + '</span>' + private_, { copy: a.mac })
-      + fact('Node', a.node + ' <span class="mono dim">' + a.bssid + '</span>', { copy: a.bssid })
+      + fact('Node', '<span class="mono">' + a.bssid + '</span>', { copy: a.bssid })
       + '</div></div></div>';
   }
 
@@ -603,9 +689,9 @@
     p.style.setProperty('--state-color', s.color);
     p.style.setProperty('--head-color', s.head);
     $('chip').innerHTML = chipHTML(s);
-    $('menu-status').innerHTML = s.status;
+    $('menu-status').innerHTML = s.status.split(' – ')[0];
     $('conn').innerHTML = connHTML(s);
-    $('net-list').innerHTML = s.rows.map(rowHTML).join('');
+    $('net-list').innerHTML = s.rows.filter(r => !(r.cls || []).includes('away') && !(r.cls || []).includes('missing')).concat([{name:'Guest Wi-Fi', saved:false, tier:2, pill:'5 GHz', security:'WPA2'}]).map(rowHTML).join('');
     const a = $('primary-action');
     a.hidden = !s.action;
     a.querySelector('span').textContent = s.action;
@@ -665,11 +751,16 @@
       setTimeout(() => { f.querySelector('.v').innerHTML = '<span class="mono">↓418 ↑39</span> <span class="dim">Mbps · just now</span>'; act.textContent = 'Test'; }, 1600);
     }
   });
+  $('net-list').addEventListener('click', e => {
+    const row = e.target.closest('[data-join]');
+    if (row) { $('note-title').textContent = 'Join ' + row.dataset.join;
+      $('note-copy').textContent = 'Prototype only. The native app attempts a background connection, offers a secure password retry if needed, and uses Wi-Fi Settings for enterprise sign-in.'; }
+  });
   $('refresh').addEventListener('click', e => {
     const b = e.currentTarget;
     if (b.getAttribute('aria-busy') === 'true') return;
-    b.setAttribute('aria-busy', 'true'); b.textContent = 'Scanning…';
-    setTimeout(() => { b.removeAttribute('aria-busy'); b.textContent = 'Refresh'; }, 1400);
+    b.setAttribute('aria-busy', 'true'); b.disabled = true;
+    setTimeout(() => { b.removeAttribute('aria-busy'); b.disabled = false; }, 1400);
   });
 
   document.querySelectorAll('[data-state]').forEach(b => b.addEventListener('click', () => render(b.dataset.state)));

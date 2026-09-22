@@ -1,6 +1,6 @@
 # wifi-widget: macOS menu bar Wi-Fi status widget
 
-Status: **design settled, P0 spikes done, no widget code written.**
+Status: **native v3 panel, nearby scans, cached-first results, security labels, copyable addresses and click-to-join implemented. QR, session totals and router telemetry remain future work.**
 This document is the *why* and the *shape*; [`TASKS.md`](TASKS.md) is the only
 plan and the record of spike results — when the two disagree, `TASKS.md` wins.
 Mockups live in `designs/`; `v3` is the design to build (`alt-black-panel` and
@@ -41,7 +41,7 @@ integrations unless router monitoring becomes the point.
 
 | Thing | State |
 |---|---|
-| `designs/v3/` | the design being built: graphite connected card, Known Networks, QR lightbox, menu bar styles, six scenarios |
+| `designs/v3/` | the design being built: current graphite panel, Nearby Networks, scan interactions, six scenarios; future ideas described separately |
 | `designs/alt-black-panel/` | rejected for now: needs a custom `NSPanel` instead of `NSMenu` |
 | `scripts/wifi-qr` | **broken on current macOS** — finds the SSID with the removed `airport` CLI; superseded by the QR button |
 | `src/battery-widget` | reference for status item, Style submenu, attributed-title bar drawing |
@@ -168,41 +168,77 @@ about intent — joins made from the system Wi-Fi menu look the same. The Home
 row turns **red only when Home confidence is strong**; with a weak guess it is
 simply dimmed as "Not in range".
 
-## 6. Menu structure (v3)
+## 6. Menu structure (v3 — current approved panel)
 
+```text
+● Connected                      (dot with translucent halo)
+┌─ graphite #17181b · thin #46474b outline ─────────────┐
+│ [Wi-Fi] Studio (6 GHz)                                │
+│         Wi-Fi 6E · ch 37 · 160 MHz                    │
+│         ▬▬▬▬▬▬▬▬▬▬▬▬▬   41 dB · Excellent            │
+│         0   15   25   40 50                          │
+│   −52             −93             1201              │
+│ signal · dBm    noise · dBm        Mbps              │
+│ ─────────────────────────────────────────────────── │
+│ Internet  ONLINE  18 ms                             │
+│ ─────────────────────────────────────────────────── │
+│ IP        192.168.1.24                              │
+│ Gateway   192.168.1.1                               │
+│ MAC       f6:1d:83:5a:c0:27  PRIVATE                 │
+│ Node      3c:22:fb:9e:41:a0                          │
+└─────────────────────────────────────────────────────┘
+Nearby Networks                                  ↻
+  ≈ Studio-IoT                        2.4 GHz   ▂▄▆█
+                                      WPA2
+  ⛓ iPhone                            5 GHz     ▂▄▆
+                                      WPA2/3
+Style ▸ · Open at Login · Wi-Fi Settings… · Quit
 ```
-● Wi-Fi – Connected – excellent signal
-┌─ connected card (graphite; state colour in glyph + meter) ─┐
-│ [glyph]  Studio  (6 GHz)                           [QR]    │
-│          Wi-Fi 6E · ch 37 · 160 MHz                        │
-│          ▬▬▬▬▬▬▬▬ 41 dB · Excellent                        │
-│   −52 signal      −93 noise      1201 Mbps                 │
-│   Internet  ONLINE 18 ms                                   │
-│   WAN       ↓3.2 ↑0.4 MB/s  sparkline      (router only)   │
-│   Speed     ↓412 ↑38 Mbps · 2 h ago   Test                 │
-│   IP / Gateway / MAC / Node            hover to copy       │
-└────────────────────────────────────────────────────────────┘
-Known Networks                                     [Refresh]
-  ≈ Studio-IoT  (2.4 GHz)                 34 dB    [QR]
-  ⛓ iPhone             hotspot · metered           [QR]
-  ≈ Grind Coffee          Not in range             [QR]
-Other Networks ▸
-Style ▸ · Wi-Fi Settings… · Quit
-```
 
-The card leads with the diagnosis — name, band, SNR with a word verdict,
-internet — and the engineering detail sits below it in the inset. Layout
-constants (measured in the mockup): panel padding 7 px, card inset 9 px, icon
-column 40 px on the card and 26 px in the list, 9 px right inset so every QR
-button shares one axis, header dot 13 px from the top and left edges.
+The heading contains status only. The 8 pt dot is inset slightly and surrounded
+by a 14 pt translucent halo. No separator appears above Nearby Networks.
+Graphite inset: #1e1f22. SSID and detail lines are compact. Band pills hug measured
+text, with modest horizontal padding and optical vertical centering. Nearby-row
+pill outlines have a fixed 14 pt height; their text is optically lowered 1.5 pt
+inside the outline rather than moving the text and outline together.
 
-**QR codes open as a full-screen lightbox**, like macOS Large Type: the screen
-dims, a ~300 px code sits on a dark panel, any click or key dismisses it.
+The menu is 320 pt wide (reduced from 340). The SNR meter is 220 × 10 pt with marks at 15, 25 and 40 dB and labels at
+0, 15, 25, 40 and 50. It ends 18 pt before the right inset, with its verdict above and right-aligned.
+The full track uses red/amber/blue/green tier segments and a white 18 pt reading
+marker with a dark outline. Color only the quality word by its tier. The SSID
+is bold; the Wi-Fi glyph centers vertically in the upper graphite section. Hide
+this scale for RSSI-only readings. The card has extra top/bottom padding. The three stats have 6 pt more padding
+above and below and use bold 16 pt figures above
+unchanged 9 pt labels, centered in equal columns. Internet is vertically
+centered; only ONLINE is green and latency stays neutral. IP, Gateway, MAC and
+Node share fixed label/value columns and copy on click. Hover reveals a separate
+copy icon without moving the text. IP/Gateway come from the Wi-Fi service's IPv4
+configuration, never an unrelated VPN or Ethernet service.
 
-**Without Location permission**: the card shows `Wi-Fi · 6 GHz` in place of the
-name and hides the Node row; Known Networks **keeps its names** (they don't need
-Location) but shows no in-range status, signal or band, since those come from
-scans; one item asks for access.
+Nearby Networks contains visible scan results, including unsaved networks,
+strongest first. Exclude the current SSID; combine duplicate SSIDs using their
+strongest access point. Saved, in-range names and icons are pure white; unsaved
+ones use secondary color. Indented rows highlight on hover. Each shows small grey band text immediately after the SSID,
+with advertised security below the strength bars. Security includes mixed/enterprise/Open/Unknown modes.
+An iPhone name gives a hotspot icon as an explicitly name-based hint.
+
+Clicking a row attempts a background association. Failure offers a secure
+password retry; enterprise authentication requires Wi-Fi Settings. The mockup
+simulates this without changing network configuration.
+
+Refresh is a 14 pt symbol centered in a 24 pt hover circle. At rest it has no
+border or fill. Hover makes the symbol white and adds a translucent background
+and thin outline. While scanning, replace it with an animated spinner and
+prevent further clicks. Start a scan at launch; menu openings rescan only when
+results are more than three minutes old. Manual Refresh bypasses the age check,
+never the single-flight guard. macOS cached results may populate an empty list
+first; identify them in tooltips and replace them with the full scan result.
+Do not use saved profiles as evidence of visibility when Location prevents scans.
+
+**Still planned:** observed session duration and received bytes after latency
+(`ONLINE 13 ms · 18 hrs · 4.3 GB`), QR sharing, router telemetry and speed tests.
+Session totals must reset with association changes and clearly include LAN
+traffic; these are not implemented or shown as live facts in the current mockup.
 
 ## 7. AppKit specifics
 
@@ -212,7 +248,7 @@ scans; one item asks for access.
   timers in the common run-loop modes so they keep firing during menu tracking
   (verified).
 - **Scans are single-flight and cached.** On menu open, show cached results at
-  once; start a background scan only if the cache is older than 60 s and no
+  once; start a background scan only if the cache is older than three minutes and no
   scan is running; merge results when it returns.
 - **Custom views carry accessibility from the start**: every row, card fact and
   button sets its label and role when it is built, not in a later pass.

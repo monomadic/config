@@ -1,0 +1,18 @@
+[package]
+name = "wifi-widget"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+objc2 = "0.6.4"
+block2 = "0.6.2"
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSString", "NSObject", "NSTimer", "NSRunLoop", "NSBundle", "NSNotification", "NSURL", "NSError"] }
+objc2-core-wlan = { version = "0.3.2", default-features = false, features = ["std", "CWWiFiClient", "CWInterface", "CWChannel", "CWConfiguration", "CWNetworkProfile", "CWNetwork", "CoreWLANTypes"] }
+
+objc2-app-kit = { version = "0.3.2", features = ["NSApplication", "NSStatusBar", "NSStatusBarButton", "NSStatusItem", "NSMenu", "NSMenuItem", "NSImage", "NSWorkspace"] }
+objc2-core-location = { version = "0.3.2", default-features = false, features = ["std", "CLLocationManager", "CLLocationManagerDelegate"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true

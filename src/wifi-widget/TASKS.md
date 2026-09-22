@@ -13,6 +13,99 @@ Style submenu, attributed-title bar) and `src/volume-control-widget` (custom
 
 ---
 
+## Next pass — user priorities
+
+These refinements take precedence over adding more panel features:
+
+- [x] Darken the graphite card slightly from the current background, preserving
+  readable contrast and the distinction between the card and its inset.
+- [x] Give every graphite fact row (Internet, MAC, Node, future IP/Gateway) the
+  same fixed-width label column and shared value start; match horizontal insets.
+- [x] Indent Known Networks items to match the design, with consistent glyph,
+  name and trailing-field columns below the section heading.
+- [x] Size pill borders from measured text plus modest horizontal padding;
+  reduce excess space and optically center the text vertically in the outline.
+
+- [ ] Audit alignment and padding throughout the panel, especially Known Networks:
+  section/header insets, row spacing, icon columns, name baselines and right edges.
+- [ ] Refine font weights and optical vertical centering inside every pill.
+- **Keep the implemented two-line stats:** three equal centered columns, with
+  the measurement above and signal / noise / Mbps labels underneath. This is
+  preferred over the mockup and is now the approved layout.
+- [x] Internet row: only ONLINE is green; latency uses neutral text.
+- [ ] Add session duration and received bytes; session figures
+  use neutral text. Target: `ONLINE  13 ms · 18 hrs · 4.3 GB`.
+  Session means the current observed Wi-Fi association, reset on disconnect or
+  association change; do not claim uptime from before app observation began.
+  Track received bytes using 64-bit interface counters, baseline at session start,
+  handle counter reset/interface replacement, and never estimate missing totals.
+  Tooltip must explain that received traffic includes local-network traffic:
+  interface counters cannot isolate internet downloads. Duration is connection
+  session age, not proof of uninterrupted endpoint reachability. Keep probe
+  failure/login states distinct and do not show unavailable counters as zero.
+- [x] Replace the Refresh text with a small circular refresh-symbol button on
+  the Known Networks header. Preserve the accessible name and tooltip; show busy
+  state without changing the button's size or shifting the header.
+- [x] Show advertised security from the strongest scanned access point, including
+  mixed and enterprise modes; unknown is not treated as open.
+- [x] Show RSSI strength bars and band for scanned nearby networks, including
+  unsaved networks. Saved, in-range names and icons are pure white.
+- [x] Copyable IP/Gateway rows from Wi-Fi IPv4 service configuration.
+- [x] Click-to-join with background CoreWLAN association and secure password retry.
+- [x] Cached macOS results first; fresh scan replaces them. Automatic refresh only
+  after three minutes; manual refresh remains available. Disabled spinner while busy.
+- [x] Header contains status only, with inset halo dot. No divider above Nearby Networks.
+- [x] Larger stat figures, centered Internet row, 150 × 10 pt SNR bar with
+  0/15/25/40/50 scale labels. Copy icons never shift value text.
+- [x] Synchronize v3 HTML mockup and proposal with the approved native refinements.
+
+
+## Implementation checkpoint — 2026-09-22
+
+The runnable app scaffold is implemented: `./bundle.sh` generates a signed
+`target/release/WiFi Widget.app`. Open it through LaunchServices. It uses a real
+NSStatusItem and NSMenu, requests Location, offers Open at Login via SMAppService,
+and has Refresh, Style, Wi-Fi Settings, a conditional Login Page action, and Quit.
+The menu uses the native graphite card and scanned nearby-network rows. The current panel contract is in PROPOSAL.md §6; older checkpoint details below are historical.
+
+CoreWLAN events set atomic read/invalidation flags. The main run-loop timer drains
+these flags and worker results within 250 ms in common modes. Polling is 1 s open,
+5 s closed, and 1 s for 30 s after wake or association changes. Probes are
+single-flight, run off-main-thread every 30 s / 2 s after association changes,
+and discard results from old generations. DNS workers cannot accumulate after
+timeout. No scans, joins, disconnects, password reads or login registration happen
+automatically.
+
+Smart Bar has an SF Symbol, four segments, measured band and state tags; Icon
+uses a monochrome template. Styles persist atomically. Signal hysteresis drives
+both segments and weak-signal chip alarms; the menu keeps immediate facts.
+`Unknown` remains explicit when evidence is missing. Edge-state design notes for
+off, disconnected, Location denied and missing signal now live in v3.
+
+Verified: pure tests, strict lint, release build, shell syntax, repository health
+check, plist and code signature. The app launched and remained running. UI
+inspection timed out at the computer-use service: menu appearance, Location
+prompt, permission changes, login registration, Quit and VoiceOver are **not yet
+verified**. No login item was enabled during verification.
+
+The card has a graphite surface, band pill, state glyph, notched meter, verdict,
+three link columns, endpoint fact, copyable MAC/Node and PRIVATE tagging. Card
+facts and copy controls expose native accessibility. Off/disconnected shrink the
+card; unavailable Node is hidden. Eleven native fixture renders were inspected,
+including light and dark appearance, long names and absent signal. The Smart Bar
+meter was narrowed after the notch hid the original chip.
+
+Known Networks now shows up to eight saved profiles, excluding the connected
+name when known. Rows open Wi-Fi Settings, say Saved, and make no availability
+claim. No scanning or QR action exists yet.
+
+Remaining P0 work: QR entry point (with P1 QR), interactive debug states,
+gateway evidence, UI/permission manual pass, and performance measurements.
+Path flags, network scans, QR, home, hotspot counters and router remain later
+work. No completed data type implies a live source exists.
+
+---
+
 ## P0 — a widget that runs and tells the truth
 
 Goal: a double-clickable app with a correct menu bar chip in every state and a
@@ -115,28 +208,28 @@ router, so each SSID had exactly one BSSID).
 - [ ] `Cargo.toml`: edition 2024; `objc2 0.6`, `objc2-foundation 0.3`,
   `objc2-app-kit 0.3`, `block2 0.6`, `dispatch2 0.3`, `objc2-core-wlan 0.3`;
   battery-widget's release profile (`opt-level = "s"`, `lto`, `strip`).
-- [ ] `main.rs`: accessory activation policy, variable-length `NSStatusItem`,
+- [x] `main.rs`: accessory activation policy, variable-length `NSStatusItem`,
   an `NSMenu` with Quit.
-- [ ] `bundle.sh`: `cargo build --release`, wrap the binary into
+- [x] `bundle.sh`: `cargo build --release`, wrap the binary into
   `target/release/WiFi Widget.app` with an `Info.plist` (`LSUIElement`,
   `NSLocationWhenInUseUsageDescription`, bundle ID `com.jayu.wifi-widget`),
   ad-hoc sign. The `.app` can live anywhere; copying it to `~/Applications` is
   the whole install.
-- [ ] Request Location on first launch; "Open at Login" menu item via
+- [x] Request Location on first launch; "Open at Login" menu item via
   `SMAppService.mainApp.register()`, falling back to a Login Items hint.
-- [ ] `README.md`: purpose, build, permissions, what works without Location.
+- [x] `README.md`: purpose, build, permissions, what works without Location.
 - *Done when* double-clicking the `.app` shows a glyph with no Dock icon, the
   Location prompt appears once, Quit works, and `bash -n bundle.sh` passes.
 
 ### 0.4 Reading the interface (`wifi.rs`)
 
-- [ ] Plain-Rust `LinkReading` from `CWWiFiClient.sharedWiFiClient.interface`:
+- [x] Plain-Rust `LinkReading` from `CWWiFiClient.sharedWiFiClient.interface`:
   power, RSSI, noise, tx rate, channel number/band/width, PHY mode, SSID,
   BSSID, MAC, interface name.
-- [ ] Pure conversions, unit-tested: band → `2.4GHz`/`5GHz`/`6GHz`; width →
+- [x] Pure conversions, unit-tested: band → `2.4GHz`/`5GHz`/`6GHz`; width →
   MHz; PHY + band → `Wi-Fi 4/5/6/6E/7` (ax on 6GHz is 6E; Wi-Fi 7 has no
   constant — treat unknown modes as "Wi-Fi" rather than guessing).
-- [ ] Distinguish **off**, **disconnected**, **associated** and **redacted**
+- [x] Distinguish **off**, **disconnected**, **associated** and **redacted**
   (associated, non-zero RSSI, `ssid == nil`).
 - *Done when* the values agree with `system_profiler SPAirPortDataType` for
   band, channel, width, PHY, RSSI, noise and rate.
@@ -145,46 +238,47 @@ router, so each SSID had exactly one BSSID).
 
 The architecture the rest of the widget hangs on (PROPOSAL §4–5).
 
-- [ ] `Sample<T> { value, at: Instant }` with `fresh` / `stale` / `unknown` by
+- [x] `Sample<T> { value, at: Instant }` with `fresh` / `stale` / `unknown` by
   age (10–20 s for link values). `rssi == 0` is a dropped sample: keep the last
   good value but let it age out.
-- [ ] Fact types: `LinkHealth`, `ProbeStatus`, `PathFlags { expensive,
+- [x] Fact types: `LinkHealth`, `ProbeStatus`, `PathFlags { expensive,
   constrained }`, `BandStatus`, `GatewayEvidence`, plus inference types
   `HomeGuess { ssid, confidence }` and `NetworkChange`.
-- [ ] `Store` owned by the main thread; every source posts results to it via
-  the main queue; each update produces a new immutable `Snapshot` and sets a
-  dirty flag; the UI redraws from the latest snapshot at most every 250 ms.
+- [x] `Store` owned by the main thread; workers send results through a channel
+  and CoreWLAN sets atomic flags, consumed by the common-mode main run-loop timer.
+  Immutable snapshots drive UI updates at most every 250 ms; unchanged chip
+  images and menu titles are reused. (Channel + timer replaces dispatch delivery.)
 - [ ] `--dump` prints the current `Snapshot` (after one poll and one probe) as
   `key=value`, with each sample's age — no separate diagnostic path.
-- [ ] Unit tests for merging and ageing, using an injectable clock.
+- [x] Unit tests for merging and ageing, using an injectable clock.
 
 ### 0.6 Polling and events
 
-- [ ] `CWEventDelegate` (link, SSID, BSSID, link quality, power) as *triggers*
+- [x] `CWEventDelegate` (link, SSID, BSSID, link quality, power) as *triggers*
   for an immediate read; they are not the only source of freshness.
-- [ ] Poll the interface every ~1 s while the menu is open and every ~5 s while
+- [x] Poll the interface every ~1 s while the menu is open and every ~5 s while
   it is closed (link-quality events proved sparse). Timers registered in the
   common run-loop modes.
-- [ ] After wake and after association changes, poll at 1 s for 30 s.
+- [x] After wake and after association changes, poll at 1 s for 30 s.
 
 ### 0.7 Signal model (pure)
 
-- [ ] `snr = rssi − noise`. **If noise is unavailable, show RSSI in dBm and
+- [x] `snr = rssi − noise`. **If noise is unavailable, show RSSI in dBm and
   derive segments from a separate RSSI tier table — never display an invented
   SNR.**
-- [ ] SNR tiers `<15` poor, `15–25` fair, `25–40` good, `≥40` excellent → 1–4
+- [x] SNR tiers `<15` poor, `15–25` fair, `25–40` good, `≥40` excellent → 1–4
   segments; meter 0–50 dB; word verdict for the card (`Excellent`, `Good`, …).
-- [ ] Hysteresis: 3 dB margins at tier edges, 10 s hold before the menu bar
+- [x] Hysteresis: 3 dB margins at tier edges, 10 s hold before the menu bar
   changes; escalations faster than recoveries.
-- [ ] Unit tests: tier edges, margins, hold timer, noise-missing path, stale
+- [x] Unit tests: tier edges, margins, hold timer, noise-missing path, stale
   samples.
 
 ### 0.8 Headline state (pure)
 
-- [ ] `headline_state(&Snapshot) -> State` over `WifiOff, Disconnected,
+- [x] `headline_state(&Snapshot) -> State` over `WifiOff, Disconnected,
   NoInternet, LoginRequired, Weak, MeteredFallback, BandFallback, Healthy`
   with the precedence in PROPOSAL §5. It reads facts; it never discards them.
-- [ ] Table-driven tests: one case per mockup scenario plus collisions
+- [x] Table-driven tests: one case per mockup scenario plus collisions
   (weak + no internet + metered + 2.4GHz → `NoInternet`, with every fact still
   present in the snapshot).
 - [ ] **design gap:** Wi-Fi off, disconnected and Location-denied have no
@@ -200,24 +294,24 @@ The architecture the rest of the widget hangs on (PROPOSAL §4–5).
 - [ ] **Smart Bar** (default) with tags `6GHz`, `2.4GHz`, `−81 dB` (U+2212),
   `Login`, data used; no segments in `NoInternet`. **Icon**: always white,
   exclamation glyph when not healthy.
-- [ ] Style submenu (two entries for now), persisted.
+- [x] Style submenu (two entries for now), persisted.
 - [ ] `--state <name>` debug flag for screenshots.
 - *Done when* both styles match the mockup in every state on light and dark
   menu bars. The other three styles are P1 (1.8).
 
 ### 0.10 Probe (`probe.rs`)
 
-- [ ] Background-thread HTTP/1.1 `GET /hotspot-detect.html` to
+- [x] Background-thread HTTP/1.1 `GET /hotspot-detect.html` to
   `captive.apple.com:80` over a plain `TcpStream`, 5 s timeouts, no HTTP crate.
-- [ ] Result is a `ProbeStatus`: `Reachable { latency }`, `Captive { host }`
+- [x] Result is a `ProbeStatus`: `Reachable { latency }`, `Captive { host }`
   (3xx, or a 200 without `Success`), `DnsFailure`, `ConnectFailure`,
   `ReadFailure`, `UnexpectedResponse`. The UI collapses these; the snapshot
   and `--dump` keep them.
 - [ ] Gateway: fill `GatewayEvidence` from the path's gateway, the ARP entry and
   an unprivileged ICMP echo (0.2); no TCP port probes.
-- [ ] Schedule: every 30 s, 2 s after association changes, on Refresh.
+- [x] Schedule: every 30 s, 2 s after association changes, on Refresh.
   Two consecutive failures before `NoInternet`.
-- [ ] Open Login Page: `NSWorkspace.openURL("http://captive.apple.com")`.
+- [x] Open Login Page: `NSWorkspace.openURL("http://captive.apple.com")`.
 - [ ] Unit tests on recorded fixtures (success, redirect, hijacked body,
   truncated body, DNS failure, timeout).
 
@@ -227,7 +321,7 @@ The architecture the rest of the widget hangs on (PROPOSAL §4–5).
   panel's top and left edges.
 - [ ] Connected card (`card.rs`), static layout: 40 px glyph column, name + band
   pill, spec line, SNR meter with notches and word verdict, QR button top-right.
-- [ ] `Style ▸`, `Wi-Fi Settings…` (the Wi-Fi pane's `x-apple.systempreferences:`
+- [x] `Style ▸`, `Wi-Fi Settings…` (the Wi-Fi pane's `x-apple.systempreferences:`
   URL), `Quit`.
 - [ ] **Accessibility is part of the view types from the start**: every custom
   view sets its accessibility label and role when built (card facts, buttons,
@@ -243,7 +337,8 @@ The architecture the rest of the widget hangs on (PROPOSAL §4–5).
 
 - [ ] State colour in glyph and meter only (graphite card); amber band pill in
   `BandFallback`; glyph badge for `NoInternet` / `Login`.
-- [ ] Link line: signal, noise, rate in three equal, centred columns.
+- [x] Link line: three equal, centred columns; values above signal / noise / Mbps
+  labels. User-approved two-line layout; preserve it during visual refinement.
 - [ ] Facts: Internet, WAN and Speed (the last two hidden until P2), IP,
   Gateway, MAC (`PRIVATE` when bit `0x02` of the first octet is set), Node.
 - [ ] Hover-to-copy: `NSTrackingArea` per row, highlight + copy glyph, write to
@@ -253,7 +348,7 @@ The architecture the rest of the widget hangs on (PROPOSAL §4–5).
 
 ### 1.2 Known Networks (`row.rs`)
 
-- [ ] Names from `networkProfiles` (macOS's order, minus the connected one) —
+- [x] Names from `networkProfiles` (macOS's order, minus the connected one) —
   **always shown, with or without Location.**
 - [ ] With Location: enrich from scans — in-range, signal, band. Without it:
   no enrichment and a single "Allow Location for signal and availability" line;
@@ -266,7 +361,7 @@ The architecture the rest of the widget hangs on (PROPOSAL §4–5).
   unavailable) or `Not in range`, QR button; 30 px line, 4 px left inset,
   26 px icon column, 9 px right inset.
 - [ ] Ordering: in range by signal, then not in range; cap at 8 rows.
-- [ ] Row click opens Wi-Fi Settings. The widget never joins networks itself
+- [x] Row click opens Wi-Fi Settings. The widget never joins networks itself
   (0.2: `associate` failed every time and `disassociate` left the Mac offline).
 - [ ] Refresh button in the section header, `Scanning…` while busy; also
   reruns the probe.

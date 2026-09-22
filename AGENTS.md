@@ -91,9 +91,12 @@ build/install step and tests — Dotter does not touch them.
 
 New menu bar widgets go in Rust, against `objc2` directly — `battery-widget` and
 `free-disk-space-widget` are the reference implementations. No wrapper library, no
-vendored fork, no `.app` bundle. `job-monitor` is the one exception on the bundle
-rule: it needs one for notifications, so its installer *generates* the `.app` into
-`~/Applications` — nothing bundled is ever checked in.
+vendored fork, no `.app` bundle, except where macOS permissions require one.
+`job-monitor` needs a bundle for notifications, so its installer *generates* the
+`.app` into `~/Applications`. `wifi-widget` needs a bundle for Location access:
+`src/wifi-widget/bundle.sh` generates `target/release/WiFi Widget.app`, opened
+through LaunchServices, with Open at Login instead of a LaunchAgent. Nothing
+bundled is ever checked in.
 
 ```bash
 scripts/install/install-<name>.sh    # canonical build+install; most install to ~/.local/bin
