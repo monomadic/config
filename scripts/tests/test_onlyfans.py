@@ -68,6 +68,28 @@ class OnlyFansOffline(unittest.TestCase):
         self.assertIsNone(results.pop('User-Agent'))
         self.assertTrue(all(results.values()))
 
+    def test_automatic_key_and_environment_override(self):
+        self.identity()
+        with patch.object(self.ie, '_stored_browser_key', return_value='stored-fixture') as read:
+            self.ie._real_initialize()
+            read.assert_not_called()
+            del os.environ['YT_DLP_ONLYFANS_X_BC']
+            self.ie._real_initialize()
+            read.assert_called_once()
+            self.assertEqual(self.ie._bc_token, 'stored-fixture')
+
+    def test_selected_cookie_profile_is_used(self):
+        from tempfile import TemporaryDirectory
+        from yt_dlp import YoutubeDL
+        with TemporaryDirectory() as temp:
+            profile = Path(temp) / 'Profile 2'
+            (profile / 'Network').mkdir(parents=True)
+            (profile / 'Network/Cookies').touch()
+            ie = IE(YoutubeDL({'cookiesfrombrowser': ('brave', str(profile))}))
+            with patch('subprocess.run', return_value=SimpleNamespace(stdout='fixture-key\n')) as run:
+                self.assertEqual(ie._stored_browser_key(), 'fixture-key')
+                self.assertEqual(run.call_args.args[0][1], str(profile))
+
     def test_optional_hash_and_missing_auth_cookie(self):
         self.identity()
         self.ie._real_initialize()

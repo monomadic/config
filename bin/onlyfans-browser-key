@@ -1,0 +1,74 @@
+#!/usr/bin/env -S uv run --quiet --script
+# /// script
+# requires-python = ">=3.12,<3.13"
+# dependencies = ["plyvel-ci==1.5.1"]
+# ///
+"""Read OnlyFans bcTokenSha from a copy of a Chromium profile's local storage."""
+import argparse
+import json
+from pathlib import Path
+import shutil
+import sys
+import tempfile
+
+
+def read_token(profile):
+    import plyvel
+    source = Path(profile) / 'Local Storage' / 'leveldb'
+    # Never open or lock the live database. Verify it stayed stable while copied;
+    # fail rather than risk returning a value from an inconsistent snapshot.
+    def inventory():
+        return {p.name: (p.stat().st_size, p.stat().st_mtime_ns)
+                for p in source.iterdir() if p.is_file() and p.name not in ('LOCK', 'LOG', 'LOG.old')}
+    for _ in range(3):
+        with tempfile.TemporaryDirectory(prefix='onlyfans-storage-') as temp:
+            before = inventory()
+            target = Path(temp) / 'db'
+            target.mkdir()
+            try:
+                for name in before:
+                    shutil.copyfile(source / name, target / name)
+                if before != inventory():
+                    continue
+                with plyvel.DB(str(target), create_if_missing=False, paranoid_checks=True) as db:
+                    # Chromium: '_' + origin + NUL + encoding byte + script key.
+                    raw = db.get(b'_https://onlyfans.com\x00\x01bcTokenSha')
+                    if raw is None:
+                        raw = db.get(b'_https://onlyfans.com\x00\x00' + 'bcTokenSha'.encode('utf-16-le'))
+                if raw is None:
+                    raise ValueError('No stored browser key')
+                if raw[:1] == b'\x01':
+                    token = raw[1:].decode('latin-1')
+                elif raw[:1] == b'\x00':
+                    token = raw[1:].decode('utf-16-le')
+                else:
+                    raise ValueError('Unsupported storage encoding')
+                # The page's storage wrapper parses JSON when possible.
+                try:
+                    token = json.loads(token)
+                except ValueError:
+                    pass
+                if not isinstance(token, str) or not token.strip() or any(ord(c) < 32 or ord(c) == 127 for c in token):
+                    raise ValueError('Invalid browser key')
+                return token
+            except FileNotFoundError:
+                continue
+    raise ValueError('Browser storage changed during the snapshot')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('profile', type=Path)
+    parser.add_argument('--check', action='store_true', help='Report success without printing the key')
+    args = parser.parse_args()
+    try:
+        token = read_token(args.profile)
+    except Exception:
+        print('Could not read the stored OnlyFans browser key; use YT_DLP_ONLYFANS_X_BC as an override.', file=sys.stderr)
+        return 1
+    print('Stored browser key available (value hidden).' if args.check else token)
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -25,15 +25,16 @@ as well. Do not store actual browser credentials in this repository.
 
 ## Browser identity
 
-Before accessing cookies, the opted-in extractor requires these environment
-variables, copied from the same successful browser request:
+The opted-in extractor uses these environment variables from the same browser
+session:
 
 - `YT_DLP_ONLYFANS_USER_AGENT`: actual request User-Agent.
-- `YT_DLP_ONLYFANS_X_BC`: actual `x-bc` header.
+- `YT_DLP_ONLYFANS_X_BC`: optional override for the actual `x-bc` header.
+  When unset, the extractor reads Brave local storage automatically.
 - `YT_DLP_ONLYFANS_X_HASH`: actual `x-hash`, if present; otherwise leave unset.
 
 Use private shell input rather than literal credential values in shell history.
-These variables do not enable API access by themselves. Missing identity inputs,
+These variables do not enable API access by themselves. A missing User-Agent, an unavailable browser key,
 control characters in headers, or a missing `auth_id` cookie stop extraction.
 The cookies must belong to the same browser session. Cookie import does not
 import local storage.
@@ -43,7 +44,7 @@ The supplied page's module `916774` reuses `x-bc` in memory or local storage
 both `/key/` and `/hash/` without cross-origin credentials. The page stores the
 hash in application state and throttles refresh calls for ten seconds.
 
-The extractor now reuses supplied header values and makes neither CDN request.
+The extractor reuses supplied or locally stored header values and makes neither CDN request.
 This removes its previous fresh-key and CDN-cookie behavior. It does not
 implement the page's hash refresh lifecycle: a captured hash may age, and long
 profile downloads remain unverified. No browser header values are saved by the
@@ -64,3 +65,32 @@ the guard, identity validation, CDN avoidance, signing, and offline checker.
 Next: compare the updated extractor offline using the captured request. Any
 live replay should be a separately agreed controlled test with the session
 logout risk understood.
+
+## Automatic Brave browser key
+
+With `--cookies-from-browser brave`, an unset `YT_DLP_ONLYFANS_X_BC` triggers
+`~/.local/bin/onlyfans-browser-key`. It uses yt-dlp's profile selection rules
+(the newest Cookies database unless an explicit profile is supplied). Prefer
+`--cookies-from-browser brave:Default` or the specific profile you use when
+several profiles are active. No fallback to another profile is attempted.
+
+The helper opens only a temporary copy of Local Storage/leveldb. It checks that
+the source files stayed stable during copying and uses LevelDB's current view,
+including deletions, instead of scanning old records for token-looking strings.
+The temporary directory is private and is removed after reading. It reads only
+the OnlyFans `bcTokenSha` entry from the copy and returns it through a captured
+pipe; the extractor does not log it. The browser database is never opened for
+writing or locked by the helper. Unflushed browser changes may not yet be on disk.
+
+The helper uses an isolated uv script environment with Python 3.12 and pinned
+`plyvel-ci==1.5.1`; first use can download these dependencies, but it never
+contacts OnlyFans. It does not alter yt-dlp's Python environment. The User-Agent,
+optional x-hash, and unsafe API opt-in are unchanged.
+
+For a read-only check without displaying the key:
+
+```sh
+onlyfans-browser-key --check "$HOME/Library/Application Support/BraveSoftware/Brave-Browser/Default"
+```
+
+Storage regression tests run with `uv run scripts/tests/test_onlyfans_storage.py`.

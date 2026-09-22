@@ -1,5 +1,7 @@
 import hashlib
 import os
+from pathlib import Path
+import subprocess
 import time
 from urllib.parse import urlencode, urljoin, urlparse
 
@@ -48,12 +50,47 @@ class OnlyFansIE(InfoExtractor):
         # Reuse identity from a successful browser request. Cookie extraction does
         # not import localStorage's bcTokenSha. Never mint a replacement via /key/.
         self._browser_user_agent = self._identity_value('USER_AGENT', required=True)
-        self._bc_token = self._identity_value('X_BC', required=True)
+        self._bc_token = self._identity_value('X_BC') or self._stored_browser_key()
         self._hash = self._identity_value('X_HASH')
         cookies = self._get_cookies('https://onlyfans.com/')
         self._auth_user_id = int_or_none(try_get(cookies, lambda x: x['auth_id'].value))
         if not self._auth_user_id:
             raise ExtractorError('OnlyFans requires an auth_id cookie from the matching browser session.', expected=True)
+
+    def _stored_browser_key(self):
+        # Use yt-dlp's own profile selection rules, including newest Cookies DB.
+        from yt_dlp.cookies import (
+            YDLLogger, _find_files, _get_chromium_based_browser_settings,
+            _is_path, _newest, _parse_browser_specification,
+        )
+        spec = self.get_param('cookiesfrombrowser')
+        if not spec:
+            raise ExtractorError('Automatic x-bc requires --cookies-from-browser brave; '
+                                 'otherwise set YT_DLP_ONLYFANS_X_BC.', expected=True)
+        browser, profile, _, _ = _parse_browser_specification(*spec)
+        if browser != 'brave':
+            raise ExtractorError('Automatic x-bc currently supports Brave only; '
+                                 'set YT_DLP_ONLYFANS_X_BC for another browser.', expected=True)
+        root = _get_chromium_based_browser_settings(browser)['browser_dir']
+        if profile is not None:
+            root = profile if _is_path(profile) else os.path.join(root, profile)
+        cookie_db = _newest(_find_files(root, 'Cookies', YDLLogger(self._downloader)))
+        if not cookie_db:
+            raise ExtractorError('Could not locate the Brave cookie profile.', expected=True)
+        profile_dir = Path(cookie_db).parent
+        if profile_dir.name == 'Network':
+            profile_dir = profile_dir.parent
+        helper = Path.home() / '.local/bin/onlyfans-browser-key'
+        try:
+            result = subprocess.run([str(helper), str(profile_dir)], capture_output=True,
+                                    text=True, timeout=60, check=True)
+            value = result.stdout.rstrip('\n')
+            if not value.strip() or any(ord(c) < 32 or ord(c) == 127 for c in value):
+                raise ValueError('Invalid browser key')
+            return value
+        except (OSError, subprocess.SubprocessError, ValueError):
+            raise ExtractorError('Could not read Brave local storage. Ensure onlyfans-browser-key '
+                                 'and uv are installed, or set YT_DLP_ONLYFANS_X_BC.', expected=True) from None
 
     def _identity_value(self, name, required=False):
         variable = f'YT_DLP_ONLYFANS_{name}'
