@@ -19,23 +19,19 @@ class OnlyFansIE(InfoExtractor):
     _VALID_URL = r'https?://(?:www\.)?onlyfans\.com/(?P<id>[A-Za-z0-9_.-]+)(?:/(?:posts?|videos?)/(?P<post_id>\d+))?'
     _API_BASE = 'https://onlyfans.com/api2/v2/'
     _APP_TOKEN = '33d57ade8c02dbc5a333db99ff9ae26a'
-    _REVISION = '202606111426-581802a82c'
-    _STATIC_PARAM = 'zVUHdhDecJj4bOs565OLJo7buTquFVuG'
-    _SIGN_PREFIX = '60602'
-    _SIGN_SUFFIX = '6a2ac5b9'
-    _SIGN_BASE_CHECKSUM = 1697
+    # Recovered from browser module 802313; matched a successful request offline.
+    _REVISION = '202609221225-841263d6aa'
+    _STATIC_PARAM = 'hrydcSu7lgHNmQl7QUpyrTGfJcvmFmLU'
+    _SIGN_PREFIX = '65571'
+    _SIGN_SUFFIX = '6ab273d0'
+    _SIGN_BASE_CHECKSUM = -233
     _SIGN_CHECKSUM_COEFS = (
-        1, 1, 1, 1, 0, 0, 1, 0, 0, 0,
-        1, 0, 0, 1, 1, 0, 1, 2, 1, 0,
-        1, 0, 1, 2, 1, 1, 2, 0, 0, 1,
-        3, 2, 0, 1, 2, 2, 1, 0, 0, 0,
+        1, 2, 1, 1, 3, 1, 0, 2, 1, 1,
+        3, 0, 1, 1, 0, 0, 2, 0, 1, 0,
+        1, 0, 0, 0, 1, 0, 0, 0, 1, 1,
+        0, 2, 1, 0, 1, 2, 0, 1, 0, 0,
     )
     _HEADERS = {
-        'User-Agent': (
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
-            'AppleWebKit/537.36 (KHTML, like Gecko) '
-            'Chrome/137.0.0.0 Safari/537.36'
-        ),
         'Accept': 'application/json, text/plain, */*',
         'Content-Type': 'application/json',
     }
@@ -49,18 +45,24 @@ class OnlyFansIE(InfoExtractor):
 
     def _real_initialize(self):
         self._check_api_opt_in()
+        # Reuse identity from a successful browser request. Cookie extraction does
+        # not import localStorage's bcTokenSha. Never mint a replacement via /key/.
+        self._browser_user_agent = self._identity_value('USER_AGENT', required=True)
+        self._bc_token = self._identity_value('X_BC', required=True)
+        self._hash = self._identity_value('X_HASH')
         cookies = self._get_cookies('https://onlyfans.com/')
         self._auth_user_id = int_or_none(try_get(cookies, lambda x: x['auth_id'].value))
-        self._bc_token = self._download_webpage(
-            'https://cdn2.onlyfans.com/key/', None,
-            note='Downloading OnlyFans browser key', errnote=False,
-            fatal=False, headers=self._HEADERS) or ''
-        self._bc_token = self._bc_token.strip()
-        self._hash = self._download_webpage(
-            f'https://cdn2.onlyfans.com/hash/?u={self._auth_user_id or 0}', None,
-            note='Downloading OnlyFans request hash', errnote=False,
-            fatal=False, headers=self._HEADERS) or ''
-        self._hash = self._hash.strip()
+        if not self._auth_user_id:
+            raise ExtractorError('OnlyFans requires an auth_id cookie from the matching browser session.', expected=True)
+
+    def _identity_value(self, name, required=False):
+        variable = f'YT_DLP_ONLYFANS_{name}'
+        value = os.environ.get(variable, '')
+        if (required and not value.strip()) or any(ord(char) < 32 or ord(char) == 127 for char in value):
+            raise ExtractorError(
+                f'Set {variable} to the corresponding header from a successful browser request '
+                '(a single nonempty line for required headers).', expected=True)
+        return value
 
     def _signed_headers(self, api_path, referer, user_id=None):
         user_id = user_id if user_id is not None else self._auth_user_id
@@ -74,6 +76,7 @@ class OnlyFansIE(InfoExtractor):
         ))
         headers = {
             **self._HEADERS,
+            'User-Agent': self._browser_user_agent,
             'Referer': referer,
             'app-token': self._APP_TOKEN,
             'time': str(timestamp),

@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import hmac
 import json
+import os
 from pathlib import Path
 import re
 import sys
@@ -61,7 +62,7 @@ def load_candidate(path, constants):
         '_SIGN_SUFFIX': match[2],
         '_REVISION': rules.get('revision', constants['_REVISION']),
         '_HEADERS': {**constants['_HEADERS'],
-                     'User-Agent': rules.get('user_agent', constants['_HEADERS']['User-Agent'])},
+                     'User-Agent': rules.get('user_agent', constants['_HEADERS'].get('User-Agent', ''))},
         '_CANDIDATE_IDENTITY_FIELDS': tuple(
             label for field, label in (('revision', 'Revision'), ('user_agent', 'User-Agent'))
             if field in rules),
@@ -99,7 +100,8 @@ def compare(constants, url, timestamp, user_id, signature, revision, user_agent)
         'Signature prefix': constants['_SIGN_PREFIX'] == parts[0],
         'Signature suffix': constants['_SIGN_SUFFIX'] == parts[3],
         'Revision': constants['_REVISION'] == revision,
-        'User-Agent': constants['_HEADERS']['User-Agent'] == user_agent,
+        'User-Agent': (constants['_HEADERS']['User-Agent'] == user_agent
+                       if constants['_HEADERS'].get('User-Agent') else None),
     }
 
 
@@ -116,6 +118,8 @@ def main():
     print('Cookies, x-bc and x-hash are not needed for this signature check.\n')
     try:
         constants = load_constants()
+        if os.environ.get('YT_DLP_ONLYFANS_USER_AGENT'):
+            constants['_HEADERS']['User-Agent'] = os.environ['YT_DLP_ONLYFANS_USER_AGENT']
     except (ValueError, SyntaxError, OSError, StopIteration, KeyError):
         print('Unable to read signing constants from the local extractor file.')
         return 2
@@ -139,17 +143,17 @@ def main():
         return 2
     print('\nResults (safe to share):')
     for label, matches in results.items():
-        print(f'{label}: {"MATCH" if matches else "MISMATCH"}')
+        print(f'{label}: {"NOT CONFIGURED" if matches is None else "MATCH" if matches else "MISMATCH"}')
     if candidate is not None:
         candidate_results = compare(candidate, *values)
         print('\nCandidate signing rules (not applied to extractor):')
         for label, matches in candidate_results.items():
             if label not in ('Revision', 'User-Agent') or label in candidate['_CANDIDATE_IDENTITY_FIELDS']:
-                print(f'{label}: {"MATCH" if matches else "MISMATCH"}')
+                print(f'{label}: {"NOT CONFIGURED" if matches is None else "MATCH" if matches else "MISMATCH"}')
         print('Identity comparisons use supplied candidate values, not a live browser check.')
     print('\nThis does not validate cookies, x-bc, x-hash, or session acceptance.')
     print('Even a full match does not establish that replay is safe. Do not retry the API yet.')
-    return 0 if all(results.values()) else 1
+    return 0 if all(value for value in results.values() if value is not None) else 1
 
 
 if __name__ == '__main__':
