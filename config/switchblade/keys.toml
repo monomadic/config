@@ -1,0 +1,77 @@
+"cmd+enter" = "triple_play"  # three clips at once — `3` here is a library switch below
+tab = "fullview"  # selected clip fills the window on black; Esc or Tab exits
+R = "reload"  # re-read the selected clip: fresh stat, cache lookup, metadata
+g = "jump_first"  # first clip: top of the grid, left end of the strip
+G = "jump_last"  # last clip: the bottom / the right end
+P = "toggle_focus_pause"  # pause-when-unfocused on/off (moved off `p`)
+x = "jump_random"  # random clip with a cached thumbnail
+"." = "next"  # same as n / p, for mpv-shaped fingers
+"," = "prev"
+h = "move_left"  # context-sensitive: selection back, or previous chapter in cinema mode
+H = "jump_leftmost"
+j = "move_down"  # selection down one row
+k = "move_up"  # selection up one row
+l = "move_right"  # context-sensitive: selection forward, or next chapter in cinema mode
+L = "jump_rightmost"
+"#" = "tag_popup"  # hashtags popup ("tags"/"hashtags" also work)
+"/" = "search"  # search bar
+"?" = "help_panel"  # keybindings help
+space = "quickview"  # internal preview; Esc or Space closes, arrows browse
+enter = "fullview"
+a = "toggle_skip_timer"  # auto advance
+A = "launch 'open -a Abner {path}'"
+z = "cycle_fill_mode"
+"cmd+c" = "copy_path"
+"cmd+u" = "open_parent"  # re-ingest from the selected clip's parent dir
+F = "fullscreen"
+J = "jump_random"  # select a random clip ("jump_to_random" also works)
+c = "chapter_mode"
+f = "fast_fullscreen"
+n = "next"
+o = "library_picker"
+"cmd+o" = "launch mpv-send play {path}"
+p = "prev"
+"cmd+r" = "rescan"
+"cmd+shift+r" = "reload_library"
+r = "reveal"
+s = "shuffle_library"  # shuffle the whole grid in place ("shuffle" also works)
+e = "launch '/Users/nom/.local/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /Users/nom/.local/bin/tagform {path}'"
+t = "launch '/Users/nom/.local/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /Users/nom/.local/bin/ffmpeg-lossless-cut {path}'"
+u = "launch 'open {url}'"
+y = "launch '/Users/nom/.local/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /opt/homebrew/bin/yazi {path}'"
+"[" = "skip_back"  # jump by skip_fraction; wraps at the ends
+"]" = "skip_forward"
+1 = "open '~/Movies/Porn'"
+2 = "open '/Volumes/Tower/Movies/Porn'"
+3 = "open '/Volumes/Footage 1tb/Movies/Porn'"
+4 = "open '/Volumes/*/Movies/Porn'"  # NOTE: no glob expansion — `open` takes a literal path
+"cmd+n" = "new_library"
+
+# Gamepad buttons are keys too (a pad just works — pair it and go). The
+# names follow the controller-agnostic layout: pad_south (A / ✕),
+# pad_east (B / ○), pad_west, pad_north, pad_l1/pad_r1 (bumpers),
+# pad_l3/pad_r3 (stick clicks), pad_start, pad_select, and
+# pad_up/down/left/right (the d-pad; the left stick rides the same
+# names). The right stick pans and the triggers zoom — those are analog,
+# not bindable. Shipped defaults, shown for reference:
+pad_south = "quickview"  # A: open the clip
+pad_east = "back"  # B: peel one layer (Esc's cascade, bindable)
+pad_north = "fullview"
+pad_west = "chapter_mode"
+pad_l1 = "skip_back"
+pad_r1 = "skip_forward"
+pad_start = "toggle_auto_skip"  # lean-back slideshow
+pad_select = "fullscreen"
+pad_l3 = "shuffle_library"
+pad_r3 = "jump_random"
+
+# Per-view groups (2026-09-11): [keys] above is GLOBAL; a group here applies
+# only while that view is up and wins over the global entry for the same
+# key — [keys.grid], [keys.quickview], [keys.cinema] (alias fullview),
+# [keys.triple]. `"none"` in a group switches a global key OFF there.
+# Cinema's group ships built in; spelled out so the pause keys are visible
+# next to the global space / pad_south = "quickview" entries they shadow.
+[cinema]
+space = "toggle_pause"  # parks the stream; seeks, another clip or leaving resume it
+pad_south = "toggle_pause"
+# tab = "none"  # example: stop Tab from dropping out of cinema

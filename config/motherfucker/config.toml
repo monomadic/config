@@ -159,7 +159,7 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 
 [commands.Motherfucker]
 "Reload" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
-"Config" = "/Users/nom/.local/bin/kitty-launch --cwd \"~/.config/motherfucker\" -- /bin/zsh -lc 'exec hx -- ~/.config/motherfucker/config.toml'"
+"Config" = "/Users/nom/.local/bin/kitty-launch --cwd \"/Users/nom/.config/motherfucker\" -- /bin/zsh -lc 'exec hx -- ~/.config/motherfucker/config.toml'"
 
 [commands.M4]
 "Mount Tower" = "open -j smb://m4.local/Tower"
@@ -178,7 +178,7 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 "Open Sorted All" = "$HOME/.local/bin/fd-media --sort-created | $HOME/.local/bin/switchblade --fast-fullscreen"
 "Open Tower (index)" = "cat /Volumes/Tower/Movies/Porn/.index | $HOME/.local/bin/switchblade --fast-fullscreen"
 "Open Tower (live)" = "$HOME/.local/bin/switchblade --fast-fullscreen /Volumes/Tower/Movies/Porn/Downloads"
-"Config" = "/Users/nom/.local/bin/kitty-launch --cwd \"~/.config/switchblade\" -- /bin/zsh -lc 'exec hx -- ~/.config/switchblade/switchblade.toml'"
+"Config" = "/Users/nom/.local/bin/kitty-launch --cwd \"/Users/nom/.config/switchblade/\" -- /bin/zsh -lc 'exec hx -- /Users/nom/.config/switchblade/switchblade.toml'"
 
 # The real System Settings.app: enter opens it normally, ⇥ deep-links a pane.
 [commands.System Settings]

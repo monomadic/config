@@ -316,10 +316,13 @@ upgrade_git_source_tools() {
     return
   fi
 
-  for name in switchblade tagform chordpro-tui; do
+  # App installs count as present by their bundle as well as the CLI shim.
+  local -A app_for=( switchblade Switchblade abner Abner )
+
+  for name in switchblade abner tagform chordpro-tui; do
     script="$INSTALL_DIR/install-$name.sh"
 
-    [[ -x "$HOME/.local/bin/$name" ]] || continue
+    [[ -x "$HOME/.local/bin/$name" || ( -n "${app_for[$name]:-}" && -d "/Applications/${app_for[$name]}.app" ) ]] || continue
     [[ -x "$script" ]] || continue
 
     "$script" || echo "Warning: install-$name.sh failed; run it manually." >&2

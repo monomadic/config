@@ -15,6 +15,13 @@
 # Usage:
 #   . "$(dirname "$0")/lib/git-source-install.sh"
 #   git_source_install <name> <repo-url> <cargo|go> [binary-name]
+#   git_source_install <name> <repo-url> app <AppName>
+#
+# The `app` kind is for repos that ship packaging/build-app.sh: the install is
+# /Applications/<AppName>.app, built and copied there by that script, and
+# ~/.local/bin/<name> becomes a two-line shim into the bundle's launcher so the
+# absolute paths in GUI-launched config keep working. Not a symlink — the
+# launcher finds its real binary from its own path.
 
 set -euo pipefail
 
@@ -78,7 +85,8 @@ _gsi_sync() {
 
 # The installed binary is stale if it predates the commit that is checked out.
 # Catches the case where the checkout was updated by hand and the installer is
-# only now being run.
+# only now being run. For an app, $dest is the bundle, whose mtime build-app.sh
+# touches on install.
 _gsi_binary_is_stale() {
   local src="$1" dest="$2" commit_epoch binary_epoch
 
@@ -103,10 +111,23 @@ _gsi_build() {
       command -v go >/dev/null 2>&1 || _gsi_die "go toolchain not found on PATH"
       ( cd "$src" && go build -ldflags='-s -w' -o "$dest" . )
       ;;
+    app)
+      command -v cargo >/dev/null 2>&1 || _gsi_die "cargo not found on PATH"
+      [ -x "$src/packaging/build-app.sh" ] || _gsi_die "$src/packaging/build-app.sh not found"
+      "$src/packaging/build-app.sh" --install
+      ;;
     *)
       _gsi_die "unknown build kind: $kind"
       ;;
   esac
+}
+
+# ~/.local/bin/<name> for an app: exec the bundle's launcher.
+_gsi_app_shim() {
+  local shim="$1" launcher="$2"
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$launcher" >"$shim.tmp"
+  chmod 755 "$shim.tmp"
+  mv -f "$shim.tmp" "$shim"
 }
 
 git_source_install() {
@@ -114,6 +135,12 @@ git_source_install() {
   local src="$SRC_PATH/$name"
   local dest="$INSTALL_DIR/$binname"
   local rebuild=0
+
+  if [ "$kind" = app ]; then
+    [ -n "${4:-}" ] || _gsi_die "app installs need the bundle name: git_source_install $name <url> app <AppName>"
+    dest="/Applications/$4.app"
+    binname="$4.app"
+  fi
 
   mkdir -p "$SRC_PATH" "$INSTALL_DIR"
 
@@ -145,12 +172,17 @@ git_source_install() {
     rebuild=1
   fi
 
-  if [ "$rebuild" = "0" ]; then
+  if [ "$rebuild" = "1" ]; then
+    echo "Building $name from $src..."
+    _gsi_build "$kind" "$src" "$dest" "$binname"
+    echo "installed: $dest ($(git -C "$src" rev-parse --short HEAD))"
+  else
     echo "$binname is current: $dest"
-    return 0
   fi
 
-  echo "Building $name from $src..."
-  _gsi_build "$kind" "$src" "$dest" "$binname"
-  echo "installed: $dest ($(git -C "$src" rev-parse --short HEAD))"
+  # Rewritten every run: cheap, and it repairs a shim deleted by hand.
+  if [ "$kind" = app ]; then
+    _gsi_app_shim "$INSTALL_DIR/$name" "$dest/Contents/MacOS/$name"
+    echo "  cli shim: $INSTALL_DIR/$name"
+  fi
 }

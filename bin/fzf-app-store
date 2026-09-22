@@ -71,16 +71,58 @@ installer_files() {
   done
 }
 
+# What each entry is, in a few words — the list's description column.
+typeset -A about_for=(
+  abner                      "A/B comparison player for videos"
+  battery-widget             "Menu bar battery meter"
+  bin                        "GitHub release binary manager"
+  cargo                      "cargo-recursive-clean, for clearing Rust build dirs"
+  chordpro-tui               "ChordPro chord chart browser"
+  cpu-usage-widget           "Menu bar CPU and GPU load meter"
+  dupchk                     "Finds duplicate files by size"
+  free-disk-space-widget     "Menu bar free disk space meter"
+  go-apps                    "Small Go command-line tools"
+  job-daemon                 "Runs the jobs queue in the background"
+  job-folder                 "Jobs queue and its menu bar, in one app"
+  job-monitor                "Menu bar view of the jobs queue"
+  menu-tidy                  "Hides menu bar clutter"
+  motherfucker               "Spotlight replacement and app launcher"
+  neuroserver-select-preset  "Previews and encodes Topaz Starlight presets"
+  obsbot-rtsp-widget         "Menu bar control for the OBSBOT camera stream"
+  pimped                     "Fast zsh prompt"
+  propainter                 "AI video inpainting (removes objects and logos)"
+  rclone-tower-ui            "Tower backup dashboard"
+  rife-arm64                 "RIFE AI frame interpolation"
+  safesync                   "Drive inventories with offline file lookup"
+  spill                      "Fills a drive with files piped to it"
+  switchblade                "Fullscreen media browser"
+  system-uptime-widget       "Menu bar uptime display"
+  tagform                    "Media tag editor"
+  topaz-select-preset        "Previews and encodes Topaz Video AI presets"
+  vapoursynth-rife           "RIFE frame interpolation plugin for VapourSynth"
+  volume-control-widget      "Menu bar audio output and mute control"
+  vsr-arm64                  "Removes hardcoded subtitles from video"
+  wasmtime                   "WebAssembly runtime"
+  yt-dlp                     "Video downloader"
+  ytform                     "Video downloader with a live tag form"
+)
+
 # Upstream-repo installers (lib/git-source-install.sh) name their repo on the
-# git_source_install line.
+# git_source_install line, then the build kind and, for an app, its bundle.
 git_source_repo() {
   awk '$1 == "git_source_install" { print $2; exit }' "$1"
 }
 
+git_source_app() {
+  awk '$1 == "git_source_install" && $4 == "app" { gsub(/"/, "", $5); print $5; exit }' "$1"
+}
+
 artifact_of() {
-  local name="$1" installer="$2" repo
+  local name="$1" installer="$2" repo app
   if [[ -n "${artifact_for[$name]:-}" ]]; then
     print -r -- "${artifact_for[$name]}"
+  elif app="$(git_source_app "$installer")" && [[ -n "$app" ]]; then
+    print -r -- "/Applications/$app.app"
   elif repo="$(git_source_repo "$installer")" && [[ -n "$repo" ]]; then
     print -r -- "$BIN_DIR/$repo"
   else
@@ -88,16 +130,19 @@ artifact_of() {
   fi
 }
 
-# First comment paragraph after the shebang, as a one-liner; failing that, the
-# first paragraph of the tool's README.
+# The about_for line; for an entry that has none yet, the first sentence of
+# the installer's comment minus the "Build and install <name>, the" preamble.
 description_of() {
-  local installer="$1" name="$2" desc readme
-  desc="$(installer_comment "$installer")"
-  readme="$DOTFILES_DIR/src/${src_for[$name]:-$name}/README.md"
-  if [[ -z "$desc" && -f "$readme" ]]; then
-    desc="$(awk '/^#/ || /^[[:space:]]*$/ { if (seen) exit; next } { printf "%s%s", (seen ? " " : ""), $0; seen = 1 }' "$readme")"
+  local installer="$1" name="$2" desc
+  if [[ -n "${about_for[$name]:-}" ]]; then
+    print -r -- "${about_for[$name]}"
+    return
   fi
-  print -r -- "$desc"
+  desc="$(installer_comment "$installer")"
+  desc="${desc%%. *}"
+  desc="${desc%.}"
+  desc="$(sed -E 's/^(Build and )?[Ii]nstall [^,:(]+([,:]| \([^)]*\)[,:]?)? *(the )?//' <<<"$desc")"
+  print -r -- "${(U)desc[1]}${desc[2,-1]}"
 }
 
 installer_comment() {
@@ -134,7 +179,7 @@ status_of() {
     fi
     commit_epoch="$(git -C "$src" log -1 --format=%ct 2>/dev/null || echo 0)"
     if (( commit_epoch > $(stat -f %m "$artifact") )); then
-      print -r -- $'update\tbinary predates the checked-out commit'
+      print -r -- $'update\tinstall predates the checked-out commit'
       return
     fi
     print -r -- $'ok\tup to date with '"$(git -C "$src" rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo HEAD)"
@@ -180,13 +225,37 @@ preview_entry() {
   artifact="$(artifact_of "$name" "$installer")"
   IFS=$'\t' read -r state reason <<<"$(status_of "$name" "$installer" "$artifact")"
 
-  print -P -- "%B$name%b"
+  print -P -- "%B$name%b  $(description_of "$installer" "$name")"
+  print
   print -r -- "status     $reason"
+  print -r -- "updated    $(last_update_of "$name" "$installer")"
+  [[ -e "$artifact" ]] && print -r -- "installed  $(stat -f '%Sm' -t '%Y-%m-%d %H:%M' "$artifact")"
   print -r -- "installer  ${installer#$DOTFILES_DIR/}"
   print -r -- "artifact   ${artifact/#$HOME/~}"
-  [[ -e "$artifact" ]] && print -r -- "installed  $(stat -f '%Sm' -t '%Y-%m-%d %H:%M' "$artifact")"
   print
   awk 'NR == 1 && /^#!/ { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$installer"
+}
+
+# When the source last changed: the newest commit of an upstream checkout
+# (upstream's, once fetched, so a waiting update shows its date), or the last
+# commit touching the src/ tree, vendored binary or installer here.
+last_update_of() {
+  local name="$1" installer="$2" repo src rev=HEAD
+  local fmt='%cd (%cr)' date=--date=format:'%Y-%m-%d %H:%M'
+  local -a paths
+
+  if repo="$(git_source_repo "$installer")" && [[ -n "$repo" ]]; then
+    src="$SRC_PATH/$repo"
+    [[ -d "$src/.git" ]] || { print -r -- "unknown (no checkout)"; return; }
+    git -C "$src" rev-parse -q --verify '@{upstream}' >/dev/null 2>&1 && rev='@{upstream}'
+    git -C "$src" log -1 "$date" --format="$fmt" "$rev" 2>/dev/null
+    return
+  fi
+
+  paths=("$installer")
+  [[ -d "$DOTFILES_DIR/src/${src_for[$name]:-$name}" ]] && paths+=("$DOTFILES_DIR/src/${src_for[$name]:-$name}")
+  [[ -f "$DOTFILES_DIR/vendor/bin/$name" ]] && paths+=("$DOTFILES_DIR/vendor/bin/$name")
+  git -C "$DOTFILES_DIR" log -1 "$date" --format="$fmt" -- "${paths[@]}" 2>/dev/null
 }
 
 run_installer() {

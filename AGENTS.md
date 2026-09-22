@@ -111,7 +111,7 @@ cd src/obsbot-rtsp-widget && go test ./...
 ### Two kinds of installer
 
 `src/<tool>` builds from a tree inside this repo. Some tools are separate
-repositories of mine instead — `switchblade`, `tagform`, `chordpro-tui` — and
+repositories of mine instead — `switchblade`, `abner`, `tagform`, `chordpro-tui` — and
 those clone into `$SRC_PATH` (`~/src` by default, exported from
 `config/zsh/zshenv.zsh`). Their installers share one driver,
 `scripts/install/lib/git-source-install.sh`, which on every run fetches,
@@ -121,7 +121,10 @@ local commit upstream doesn't have is never clobbered — it warns and builds wh
 is checked out. `FORCE=1` rebuilds regardless.
 
 Adding another is three lines: source the driver and call
-`git_source_install <name> <url> <cargo|go>`. Add the name to the loop in
+`git_source_install <name> <url> <cargo|go>`. Repos that ship
+`packaging/build-app.sh` (switchblade, abner) use `app <AppName>` instead: the
+install is `/Applications/<AppName>.app`, built by that script, and
+`~/.local/bin/<name>` is a shim into the bundle's launcher. Add the name to the loop in
 `upgrade_git_source_tools` in `bin/dotter-deploy` so `--upgrade` keeps it current.
 
 Everything installs to `~/.local/bin`, including these — *not* `~/.cargo/bin` or
