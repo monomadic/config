@@ -110,3 +110,27 @@ a running tab. A custom User-Agent, nonstandard install location, or an older
 browser still running after an on-disk update needs the explicit environment
 override. Conflicting major versions in the two install locations cause an error
 rather than choosing one. The TLS impersonation target remains separate.
+
+## Metadata and profile feeds
+
+Titles and descriptions are cleaned of HTML and entities. The first line of the
+clean caption is used as the title; the full clean caption is the description.
+Creator display names populate channel/uploader, the account handle populates
+uploader_id, and the numeric account ID populates channel_id. These fields are
+also attached to playlist results. A post containing one downloadable media item
+returns that media directly, avoiding playlist-level metadata loss in callers.
+Single-post extraction may fetch creator metadata when the post author is partial.
+
+Named users in releaseForms populate yt-dlp's cast field (the existing config maps
+cast into actors). Mentions and linkedUsers are not cast: the supplied browser
+code also uses linkedUsers for promotional posts. Missing or ID-only participant
+records do not establish names; the extractor leaves cast empty in that case.
+
+Profile /videos URLs select /users/<id>/posts/videos and filter nonvideo media.
+Bare profiles select the general posts feed. Pagination is lazy and uses
+beforePublishTime with six decimal places, following the supplied browser's
+fetchUserPosts code. Decimal publication markers are preferred, with
+postedAtPrecise as fallback. Repeated post IDs are suppressed and a missing or
+nonadvancing cursor fails instead of looping. Unsupported sections fail explicitly.
+These mappings and pagination are covered by synthetic response tests; no live
+profile request was made to validate this change.

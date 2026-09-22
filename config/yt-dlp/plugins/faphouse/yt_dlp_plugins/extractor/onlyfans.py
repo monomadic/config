@@ -1,4 +1,5 @@
 import hashlib
+from decimal import Decimal, InvalidOperation
 import os
 from pathlib import Path
 import plistlib
@@ -11,6 +12,8 @@ from urllib.parse import urlencode, urljoin, urlparse
 from yt_dlp.extractor.common import InfoExtractor
 from yt_dlp.utils import (
     ExtractorError,
+    clean_html,
+    unified_timestamp,
     float_or_none,
     int_or_none,
     traverse_obj,
@@ -230,96 +233,157 @@ class OnlyFansIE(InfoExtractor):
 
         return formats
 
-    def _entries_from_posts(self, posts, username):
+    @staticmethod
+    def _text(value):
+        return clean_html(value).strip() if isinstance(value, str) else None
+
+    def _channel_info(self, user, username):
+        handle = user.get('username') or username
+        name = self._text(user.get('name')) or handle
+        user_id = str(user['id']) if user.get('id') is not None else None
+        return {
+            'uploader': name, 'uploader_id': handle,
+            'channel': name, 'channel_id': user_id,
+            'uploader_url': f'https://onlyfans.com/{handle}',
+            'channel_url': f'https://onlyfans.com/{handle}',
+        }
+
+    def _cast(self, post):
+        # Release-form users are participant records. linkedUsers can be ads;
+        # mentionedUsers can be ordinary mentions, so neither establishes cast.
+        names = []
+        for form in post.get('releaseForms') or []:
+            if not isinstance(form, dict):
+                continue
+            user = form.get('user')
+            if not isinstance(user, dict):
+                user = form if form.get('type') == 'user' or form.get('username') else {}
+            name = self._text(user.get('name')) or self._text(user.get('username'))
+            if name and name not in names:
+                names.append(name)
+        return names or None
+
+    def _entries_from_posts(self, posts, username, user=None, videos_only=False):
         for post in posts:
             post_id = str(post.get('id') or '')
             if not post_id:
                 continue
-            post_url = f'https://onlyfans.com/{post_id}/{username}'
-            title = (
-                post.get('rawText')
-                or post.get('text')
-                or f'{username} post {post_id}')
-            timestamp = int_or_none(post.get('postedAtPrecise')) or int_or_none(post.get('postedAt'))
+            author = post.get('author')
+            author = author if isinstance(author, dict) else {}
+            channel = self._channel_info({**(user or {}), **author}, username)
+            post_url = f'https://onlyfans.com/{post_id}/{channel["uploader_id"]}'
+            description = self._text(post.get('text')) or self._text(post.get('rawText'))
+            title_text = self._text(post.get('rawText')) or description
+            title = title_text.splitlines()[0] if title_text else f'{channel["channel"]} post {post_id}'
+            timestamp = (int_or_none(post.get('postedAtPrecise'))
+                         or unified_timestamp(post.get('postedAt')))
             media_items = traverse_obj(post, ('media', ..., {dict})) or []
-
             for index, media in enumerate(media_items, 1):
+                kind = media.get('type') or media.get('mediaType')
+                if videos_only and kind != 'video' and not media.get('convertedToVideo'):
+                    continue
                 formats = self._extract_formats_from_media(media, post_id)
                 if not formats:
                     continue
                 media_id = str(media.get('id') or f'{post_id}-{index}')
                 yield {
+                    **channel,
                     'id': media_id,
                     'display_id': post_id,
                     'title': title,
                     'webpage_url': post_url,
-                    'description': post.get('text'),
+                    'description': description,
+                    'cast': self._cast(post),
                     'timestamp': timestamp,
                     'duration': float_or_none(media.get('duration')),
                     'thumbnail': url_or_none(media.get('preview') or media.get('thumb')),
-                    'uploader': username,
-                    'channel': username,
                     'age_limit': 18,
                     'formats': formats,
                 }
 
-    def _extract_profile(self, url, username):
-        user = self._download_api_json(
-            f'/users/{username}', username, 'Downloading profile metadata', url)
-        user_id = int_or_none(user.get('id'))
-        if not user_id:
-            raise ExtractorError('OnlyFans did not return a usable profile id', expected=True)
-
-        entries = []
-        offset = 0
-        limit = 50
+    def _profile_entries(self, url, username, user, section):
+        query = {'limit': 50, 'order': 'publish_date_desc', 'skip_users': 'all', 'format': 'infinite'}
+        endpoint = f'/users/{user["id"]}/posts' + ('/videos' if section == 'videos' else '')
+        seen = set()
+        previous_cursor = None
+        page = 1
         while True:
-            query = {
-                'limit': limit,
-                'offset': offset,
-                'order': 'publish_date_desc',
-                'skip_users': 'all',
-                'format': 'infinite',
-            }
-            posts = self._download_api_json(
-                f'/users/{user_id}/posts', username,
-                f'Downloading posts page {offset // limit + 1}', url,
-                query=query)
-            post_list = posts.get('list') if isinstance(posts, dict) else None
-            if not post_list:
-                break
-            entries.extend(self._entries_from_posts(post_list, username))
-            if not posts.get('hasMore'):
-                break
-            offset = int_or_none(posts.get('nextOffset')) or offset + limit
+            response = self._download_api_json(endpoint, username, f'Downloading posts page {page}', url, query=query)
+            posts = response.get('list') if isinstance(response, dict) else None
+            if not posts:
+                return
+            fresh = [post for post in posts if isinstance(post, dict) and str(post.get('id')) not in seen]
+            seen.update(str(post.get('id')) for post in fresh)
+            yield from self._entries_from_posts(fresh, username, user, videos_only=section == 'videos')
+            if not response.get('hasMore'):
+                return
+            # Browser fetchUserPosts uses beforePublishTime for descending pages.
+            # Keep decimal precision; a float can round away the cursor boundary.
+            cursors = []
+            # Browser setMarkers treats decimal-string markers as publish times;
+            # integer markers can be IDs, so do not reinterpret those as dates.
+            markers = [response.get(key) for key in ('headMarker', 'tailMarker')]
+            values = [value for value in markers if isinstance(value, str) and '.' in value]
+            if not values:
+                values = [post.get('postedAtPrecise') for post in posts if isinstance(post, dict)]
+            for value in values:
+                try:
+                    number = Decimal(str(value))
+                    if number.is_finite() and number > 0:
+                        cursors.append(number)
+                except InvalidOperation:
+                    pass
+            if not cursors:
+                raise ExtractorError('OnlyFans returned more posts without a publication cursor.', expected=True)
+            cursor = min(cursors)
+            if not fresh or (previous_cursor is not None and cursor >= previous_cursor):
+                raise ExtractorError('OnlyFans pagination stopped advancing; stopping repeated requests.', expected=True)
+            query['beforePublishTime'] = format(cursor, '.6f')
+            previous_cursor = cursor
+            page += 1
 
-        if not entries:
-            raise ExtractorError(
-                'No downloadable media found. The session may not be logged in, subscribed, or allowed to view this profile.',
-                expected=True)
-
+    def _extract_profile(self, url, username, section='posts'):
+        user = self._download_api_json(f'/users/{username}', username, 'Downloading profile metadata', url)
+        if not int_or_none(user.get('id')):
+            raise ExtractorError('OnlyFans did not return a usable profile id', expected=True)
         return self.playlist_result(
-            entries, playlist_id=str(user_id),
-            playlist_title=user.get('name') or user.get('username') or username,
-            playlist_description=user.get('about'))
+            self._profile_entries(url, username, user, section),
+            playlist_id=str(user['id']),
+            playlist_title=self._text(user.get('name')) or user.get('username') or username,
+            playlist_description=self._text(user.get('about')),
+            **self._channel_info(user, username))
 
     def _extract_post(self, url, username, post_id):
         post = self._download_api_json(
-            f'/posts/{post_id}', post_id, 'Downloading post metadata',
-            url, query={'skip_users': 'all'})
-        entries = list(self._entries_from_posts([post], username))
+            f'/posts/{post_id}', post_id, 'Downloading post metadata', url,
+            query={'skip_users': 'all'})
+        author = post.get('author')
+        user = author if isinstance(author, dict) else {}
+        if not user.get('username') or not user.get('name'):
+            user = self._download_api_json(
+                f'/users/{username}', username, 'Downloading creator metadata', url)
+        entries = list(self._entries_from_posts([post], username, user))
         if not entries:
             raise ExtractorError('No downloadable media found in this OnlyFans post', expected=True)
-        return self.playlist_result(entries, playlist_id=post_id, playlist_title=try_get(post, lambda x: x['text']))
+        if len(entries) == 1:
+            return entries[0]
+        return self.playlist_result(entries, playlist_id=post_id,
+                                    playlist_title=entries[0]['title'],
+                                    playlist_description=entries[0]['description'],
+                                    **self._channel_info(user, username))
 
     def _real_extract(self, url):
-        username, post_id = self._match_valid_url(url).group('id', 'post_id')
         path_parts = [part for part in urlparse(url).path.split('/') if part]
-        if not post_id and len(path_parts) >= 2 and path_parts[0].isdigit():
-            post_id, username = path_parts[:2]
-        elif not post_id and len(path_parts) >= 2 and path_parts[1].isdigit():
+        username = path_parts[0]
+        post_id = None
+        if len(path_parts) == 2 and path_parts[0].isdigit():
+            post_id, username = path_parts
+        elif len(path_parts) == 3 and path_parts[1] in ('post', 'posts', 'video', 'videos') and path_parts[2].isdigit():
+            post_id = path_parts[2]
+        elif len(path_parts) == 2 and path_parts[1].isdigit():
             post_id = path_parts[1]
-
         if post_id:
             return self._extract_post(url, username, post_id)
-        return self._extract_profile(url, username)
+        if len(path_parts) > 2 or (len(path_parts) == 2 and path_parts[1] not in ('posts', 'videos')):
+            raise ExtractorError('Unsupported OnlyFans profile section.', expected=True)
+        return self._extract_profile(url, username, path_parts[1] if len(path_parts) == 2 else 'posts')

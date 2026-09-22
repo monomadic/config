@@ -119,6 +119,64 @@ class OnlyFansOffline(unittest.TestCase):
                 self.assertEqual(ie._stored_browser_key(), 'fixture-key')
                 self.assertEqual(run.call_args.args[0][1], str(profile))
 
+    @staticmethod
+    def post_fixture(post_id=1, timestamp='1700000000.123456'):
+        return {'id': post_id, 'text': '<p><span>EPISODE 22 - WEDDING IN VEGAS</span></p>',
+                'postedAtPrecise': timestamp,
+                'media': [{'id': post_id * 10, 'type': 'video',
+                           'files': {'source': {'url': 'https://example.com/video.mp4'}}}],
+                'releaseForms': [{'user': {'name': 'Performer A', 'username': 'performer'}},
+                                 {'type': 'user', 'name': 'Performer B'},
+                                 {'user': {'name': 'Performer A'}}],
+                'linkedUsers': [{'name': 'Advertising account'}]}
+
+    def test_clean_metadata_and_cast(self):
+        post = self.post_fixture()
+        post['rawText'] = post['text']
+        post['text'] += '<p>Second paragraph &amp; details.</p>'
+        entry = list(self.ie._entries_from_posts([post], 'creator', {'id': 9, 'name': 'Creator Name'}))[0]
+        self.assertEqual(entry['title'], 'EPISODE 22 - WEDDING IN VEGAS')
+        self.assertIn('Second paragraph & details.', entry['description'])
+        self.assertNotIn('<', entry['description'])
+        self.assertEqual(entry['cast'], ['Performer A', 'Performer B'])
+        self.assertEqual(entry['channel'], 'Creator Name')
+        self.assertEqual(entry['channel_id'], '9')
+        self.assertEqual(entry['uploader_id'], 'creator')
+
+    def test_single_post_returns_video_with_channel(self):
+        with patch.object(self.ie, '_download_api_json', side_effect=[self.post_fixture(),
+                {'id': 9, 'name': 'Creator Name', 'username': 'creator'}]):
+            result = self.ie._real_extract('https://onlyfans.com/1/creator')
+        self.assertEqual(result['id'], '10')
+        self.assertEqual(result['channel'], 'Creator Name')
+        self.assertNotIn('entries', result)
+
+    def test_video_index_is_lazy_filtered_and_paginated(self):
+        from copy import deepcopy
+        first = self.post_fixture(1)
+        first['media'].append({'id': 11, 'type': 'photo', 'source': 'https://example.com/photo.jpg'})
+        second = self.post_fixture(2, '1699999999.654321')
+        calls = []
+        responses = iter([{'id': 9, 'name': 'Creator Name', 'username': 'creator'},
+                          {'list': [first], 'hasMore': True},
+                          {'list': [first, second], 'hasMore': False}])
+        def api(*args, **kwargs):
+            calls.append((args, deepcopy(kwargs)))
+            return next(responses)
+        self.ie._download_api_json = api
+        result = self.ie._real_extract('https://onlyfans.com/creator/videos')
+        self.assertEqual(len(calls), 1)
+        self.assertEqual([entry['id'] for entry in result['entries']], ['10', '20'])
+        self.assertEqual(calls[1][0][0], '/users/9/posts/videos')
+        self.assertEqual(calls[2][1]['query']['beforePublishTime'], '1700000000.123456')
+        self.assertNotIn('offset', calls[2][1]['query'])
+        self.assertEqual(result['channel'], 'Creator Name')
+
+    def test_repeated_page_stops(self):
+        self.ie._download_api_json = lambda *a, **k: {'list': [self.post_fixture()], 'hasMore': True}
+        with self.assertRaisesRegex(Exception, 'stopped advancing'):
+            list(self.ie._profile_entries('https://onlyfans.com/creator/videos', 'creator', {'id': 9}, 'videos'))
+
     def test_optional_hash_and_missing_auth_cookie(self):
         self.identity()
         self.ie._real_initialize()
