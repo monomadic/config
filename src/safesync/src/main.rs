@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, ensure};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::Shell;
 use safesync::{
     drive::{self, Drive, Role},
     engine::{self, FillOptions, SyncOptions},
@@ -107,6 +108,8 @@ enum Command {
     Info { manifest: PathBuf },
     /// List the indexes saved on this Mac.
     Manifests,
+    /// Print a shell completion script to stdout.
+    Completions { shell: Shell },
 }
 
 fn saved_manifests() -> Result<Vec<PathBuf>> {
@@ -296,6 +299,9 @@ fn run(cli: Cli) -> Result<i32> {
                     }
                 );
             }
+        }
+        Command::Completions { shell } => {
+            clap_complete::generate(shell, &mut Cli::command(), "safesync", &mut std::io::stdout());
         }
     }
     Ok(0)

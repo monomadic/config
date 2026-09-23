@@ -10,6 +10,7 @@ anyhow = "1"
 base64 = "0.22"
 crossterm = "0.29"
 clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
 libc = "0.2"
 ratatui = "0.30"
 serde = { version = "1", features = ["derive"] }

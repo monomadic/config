@@ -11,6 +11,26 @@ function Entity:click(event, up)
 	end
 end
 
+-- Clicks on a video preview go to video-thumb-info, which knows where it drew
+-- the thumbnail (plays the file) and the metadata (opens tagform).
+local VIDEO_EXTS = {
+	mp4 = true, m4v = true, mov = true, mkv = true, webm = true, avi = true,
+	wmv = true, flv = true, mpg = true, mpeg = true, ts = true, ["3gp"] = true,
+}
+
+local preview_click = Preview.click
+function Preview:click(event, up)
+	local h = cx.active.current.hovered
+	local ext = h and not h.cha.is_dir and tostring(h.name):match("%.([^.]+)$")
+	if ext and VIDEO_EXTS[ext:lower()] then
+		if not up and event.is_left then
+			ya.emit("plugin", { "video-thumb-info", string.format("click %d %d", event.x, event.y) })
+		end
+		return
+	end
+	return preview_click(self, event, up)
+end
+
 Status:children_remove(2, Status.LEFT) -- length
 Status:children_remove(4, Status.RIGHT) -- permissions
 Status:children_remove(5, Status.RIGHT) -- percentage

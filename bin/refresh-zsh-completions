@@ -20,4 +20,8 @@ if (( $+commands[bat] )); then
   bat --completion zsh >! "$completion_dir/_bat"
 fi
 
+if (( $+commands[safesync] )); then
+  safesync completions zsh >! "$completion_dir/_safesync"
+fi
+
 print -r -- "Refreshed generated zsh completions in $completion_dir"

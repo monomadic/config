@@ -131,9 +131,9 @@ impl Content {
         if !self.associated {
             76.0
         } else if self.node.is_some() {
-            330.0
+            350.0
         } else {
-            308.0
+            328.0
         }
     }
 }
@@ -197,8 +197,8 @@ define_class!(
                 fill(rect(x-2.0,91.0,4.0,18.0),&rgb(0x17181b),2.0);
                 fill(rect(x-1.0,91.0,2.0,18.0),&NSColor::whiteColor(),1.0);
             }
-            for y in [185.0,213.0] { fill(rect(23.0,y,274.0,0.5),&rgb(0x424347),0.0); }
-            if let Some(index) = self.ivars().hover.get() { fill(rect(21.0,217.0+index as f64*22.0,278.0,22.0),&rgb(0x36373b),4.0); }
+            for y in [205.0,233.0] { fill(rect(23.0,y,274.0,0.5),&rgb(0x424347),0.0); }
+            if let Some(index) = self.ivars().hover.get() { fill(rect(22.0,237.0+index as f64*22.0,276.0,22.0),&rgb(0x36373b),4.0); }
         }
         #[unsafe(method(copyFact:))]
         fn copy_fact(&self, sender: &NSButton) {
@@ -215,7 +215,7 @@ define_class!(
         #[unsafe(method(mouseMoved:))]
         fn moved(&self, event: &NSEvent) {
             let p = self.convertPoint_fromView(event.locationInWindow(),None);
-            let index = if (21.0..299.0).contains(&p.x) && (217.0..305.0).contains(&p.y) { Some(((p.y-217.0)/22.0) as usize) } else { None };
+            let index = if (22.0..298.0).contains(&p.x) && (237.0..325.0).contains(&p.y) { Some(((p.y-237.0)/22.0) as usize) } else { None };
             if self.ivars().hover.replace(index) != index { self.sync(Instant::now()); self.setNeedsDisplay(true); }
         }
         #[unsafe(method(mouseExited:))]
@@ -247,14 +247,14 @@ impl Card {
             (23., 132., 88., 15., 9.),
             (116., 132., 88., 15., 9.),
             (209., 132., 88., 15., 9.),
-            (23., 159., 65., 18., 10.),
-            (93., 159., 224., 18., 10.),
+            (37., 159., 60., 18., 10.),
+            (101., 159., 216., 18., 10.),
             (15., 38., 290., 25., 12.),
-            (23., 231., 65., 18., 10.),
-            (23., 253., 65., 18., 10.),
-            (145., 159., 172., 18., 10.),
-            (23., 187., 65., 18., 10.),
-            (23., 209., 65., 18., 10.),
+            (37., 231., 60., 18., 10.),
+            (37., 253., 60., 18., 10.),
+            (153., 159., 164., 18., 10.),
+            (37., 187., 60., 18., 10.),
+            (37., 209., 60., 18., 10.),
             (54., 108., 24., 13., 8.),
             (120., 108., 24., 13., 8.),
             (164., 108., 24., 13., 8.),
@@ -267,8 +267,9 @@ impl Card {
                 x,
                 match labels.len() {
                     0 | 13 => y,
-                    5..=10 => y + 28.,
-                    11 | 12 | 14..=18 => y + 34.,
+                    5..=7 => y + 38.,
+                    8..=10 => y + 40.,
+                    11 | 12 | 14..=18 => y + 54.,
                     _ => y + 4.,
                 },
                 w,
@@ -319,11 +320,11 @@ impl Card {
                 10.0,
                 unsafe { NSFontWeightRegular },
             )));
-            button.setFrame(rect(94.0, 217.0 + index as f64 * 22.0, 206.0, 22.0));
+            button.setFrame(rect(102.0, 237.0 + index as f64 * 22.0, 198.0, 22.0));
             this.addSubview(&button);
             buttons.push(button);
             let icon = NSImageView::new(mtm);
-            icon.setFrame(rect(282.0, 222.0 + index as f64 * 22.0, 12.0, 12.0));
+            icon.setFrame(rect(282.0, 242.0 + index as f64 * 22.0, 12.0, 12.0));
             icon.setImage(
                 NSImage::imageWithSystemSymbolName_accessibilityDescription(
                     &NSString::from_str("doc.on.doc"),
@@ -469,8 +470,8 @@ impl Card {
         p.labels[14].setHidden(!c.associated || c.mac.is_none());
         p.labels[15].setHidden(!c.associated || c.node.is_none());
         let status_width = p.labels[12].intrinsicContentSize().width + 6.0;
-        p.labels[12].setFrame(rect(93.0, 193.0, status_width, 18.0));
-        p.labels[16].setFrame(rect(93.0 + status_width, 193.0, 204.0 - status_width, 18.0));
+        p.labels[12].setFrame(rect(101.0, 213.0, status_width, 18.0));
+        p.labels[16].setFrame(rect(101.0 + status_width, 213.0, 196.0 - status_width, 18.0));
         p.labels[2].setHidden(!c.associated || c.band.is_empty());
         p.labels[12].setFont(Some(&NSFont::monospacedDigitSystemFontOfSize_weight(
             10.0,

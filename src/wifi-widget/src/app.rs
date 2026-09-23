@@ -47,6 +47,7 @@ struct Ui {
     refresh_item: Retained<objc2_app_kit::NSButton>,
     scan_spinner: Retained<objc2_app_kit::NSProgressIndicator>,
     styles: Vec<Retained<NSMenuItem>>,
+    style_detail: Retained<objc2_app_kit::NSTextField>,
     message: Retained<NSMenuItem>,
     location: Retained<CLLocationManager>,
     _monitor: Monitor,
@@ -147,6 +148,11 @@ fn set_title(item: &NSMenuItem, text: &str) {
         item.setTitle(&NSString::from_str(text));
     }
 }
+fn set_text(field: &objc2_app_kit::NSTextField, text: &str) {
+    if field.stringValue().to_string() != text {
+        field.setStringValue(&NSString::from_str(text));
+    }
+}
 fn open_url(url: &str) {
     if let Some(url) = NSURL::URLWithString(&NSString::from_str(url)) {
         NSWorkspace::sharedWorkspace().openURL(&url);
@@ -220,6 +226,8 @@ impl Widget {
             styles.push(item);
         }
         let style_item = this.item(&menu, "Style", None);
+        let (style_view, style_detail) = crate::row::style_row(mtm);
+        style_item.setView(Some(&style_view));
         style_item.setEnabled(true);
         style_item.setSubmenu(Some(&style_menu));
         let login_item = this.item(&menu, "Open at Login", Some(sel!(loginAction:)));
@@ -256,6 +264,7 @@ impl Widget {
             refresh_item,
             scan_spinner,
             styles,
+            style_detail,
             message,
             location,
             _monitor: Monitor::start(),
@@ -514,6 +523,8 @@ impl Widget {
                 NSControlStateValueOff
             });
         }
+        let current = if ui.style == Style::Icon { "Icon" } else { "Smart Bar" };
+        set_text(&ui.style_detail, current);
     }
 }
 fn tag(s: &Snapshot, state: State) -> String {

@@ -41,11 +41,14 @@ u = "launch 'open {url}'"
 y = "launch '/Users/nom/.local/bin/kitty-launch --os-window --auto-hide --cwd {dir} -- /opt/homebrew/bin/yazi {path}'"
 "[" = "skip_back"  # jump by skip_fraction; wraps at the ends
 "]" = "skip_forward"
-1 = "open '~/Movies/Porn'"
-2 = "open '/Volumes/Tower/Movies/Porn'"
-3 = "open '/Volumes/Footage 1tb/Movies/Porn'"
-4 = "open '/Volumes/*/Movies/Porn'"  # NOTE: no glob expansion — `open` takes a literal path
 "cmd+n" = "new_library"
+
+1 = "multi_view 1"
+2 = "multi_view 2"
+3 = "multi_view 3"
+4 = "multi_view 4"
+5 = "multi_view 5"
+6 = "multi_view 6"
 
 # Gamepad buttons are keys too (a pad just works — pair it and go). The
 # names follow the controller-agnostic layout: pad_south (A / ✕),

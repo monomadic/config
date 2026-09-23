@@ -258,6 +258,41 @@ pub fn section(
     (view, button, spinner)
 }
 
+/// The Style item: a plain menu row with the current choice dimmed on the
+/// right, then a chevron. Attributed titles with a tab stop can't do this:
+/// the tab lands in the text column, which then grows past the 320pt views
+/// and widens the whole menu. Drawing it is the only way to keep the width.
+pub fn style_row(mtm: MainThreadMarker) -> (Retained<NSView>, Retained<NSTextField>) {
+    let view = NSView::new(mtm);
+    view.setFrame(frame(0., 0., 320., 22.));
+    view.addSubview(&HoverSurface::new(frame(14., 0., 292., 22.), false, mtm));
+    let title = NSTextField::labelWithString(&NSString::from_str("Style"), mtm);
+    title.setFrame(frame(21., 2., 120., 18.));
+    title.setFont(Some(&NSFont::menuFontOfSize(0.)));
+    title.setTextColor(Some(&NSColor::labelColor()));
+    view.addSubview(&title);
+    let detail = NSTextField::labelWithString(&NSString::from_str(""), mtm);
+    detail.setFrame(frame(150., 2., 134., 18.));
+    detail.setAlignment(NSTextAlignment::Right);
+    detail.setFont(Some(&NSFont::menuFontOfSize(0.)));
+    detail.setTextColor(Some(&NSColor::secondaryLabelColor()));
+    view.addSubview(&detail);
+    let chevron = NSImageView::new(mtm);
+    chevron.setFrame(frame(290., 6., 10., 10.));
+    chevron.setImageScaling(NSImageScaling::ScaleProportionallyUpOrDown);
+    chevron.setImage(
+        NSImage::imageWithSystemSymbolName_accessibilityDescription(
+            &NSString::from_str("chevron.right"),
+            None,
+        )
+        .as_deref(),
+    );
+    chevron.setContentTintColor(Some(&NSColor::labelColor()));
+    chevron.setAccessibilityElement(false);
+    view.addSubview(&chevron);
+    (view, detail)
+}
+
 pub struct HoverIvars {
     hovered: Cell<bool>,
     circle: bool,

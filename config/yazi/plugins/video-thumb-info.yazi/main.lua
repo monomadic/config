@@ -1,11 +1,17 @@
 local M = {}
 
-local COLOR_FILENAME = "#66e2ff"
-local COLOR_SPECS = "#39ff14"
-local COLOR_TAG = "#ffe66d"
+local COLOR_LABEL = "#ffe66d"
+local COLOR_CHIP_FG = "#101010"
 local MAX_THUMB_ROWS = 25
-local MIN_TEXT_ROWS = 5
-local MAX_DETAIL_ROWS = 12
+
+-- One colour per spec chip, so each value is recognisable by colour alone.
+local CHIP_COLORS = {
+	resolution = "#66e2ff",
+	fps = "#39ff14",
+	length = "#ffe66d",
+	size = "#ff79c6",
+	codec = "#ffa94d",
+}
 
 -- Same tag priority as ~/.local/bin/media-open-url, so the preview shows the URL
 -- that opener would actually launch.
@@ -19,25 +25,52 @@ local URL_TAGS = {
 	"description",
 }
 
--- Tag keys in display order; "@" entries are synthesised rather than read
--- straight off a tag.
-local FIELD_ORDER = {
-	"title",
-	"artist",
-	"@url",
-	"album_artist",
-	"album",
-	"date",
-	"creation_time",
-	"genre",
-	"@chapters",
-	"@subtitles",
-	"comment",
-	"description",
-	"encoder",
-	"major_brand",
-	"compatible_brands",
+-- Read orders mirror tagform's schema (src/model/schema.rs), so the preview
+-- agrees with what tagform will show for the same file.
+local META_FIELDS = {
+	{ label = "title", keys = { "title" }, max_lines = 3 },
+	{ label = "channel", keys = { "channel", "album_artist", "album" }, max_lines = 1 },
+	{ label = "actors", keys = { "actors", "cast", "artist" }, max_lines = 2 },
+	{ label = "url", max_lines = 1 },
+	{ label = "date", keys = { "date", "com.apple.quicktime.creationdate", "creation_time" }, max_lines = 1 },
+	{ label = "category", keys = { "category" }, max_lines = 1 },
 }
+
+local CODEC_NAMES = {
+	h264 = "H.264",
+	hevc = "HEVC",
+	av1 = "AV1",
+	vp9 = "VP9",
+	vp8 = "VP8",
+	prores = "ProRes",
+	mpeg4 = "MPEG-4",
+	mpeg2video = "MPEG-2",
+}
+
+-- Where the last peek drew the thumbnail and the metadata block, in screen
+-- cells, so a click in the preview pane (init.lua's Preview:click) can be
+-- mapped back to a region.
+local set_hit = ya.sync(function(state, hit)
+	state.hit = hit
+end)
+
+local resolve_click = ya.sync(function(state, x, y)
+	local hit = state.hit
+	local h = cx.active.current.hovered
+	if not hit or not h or tostring(h.url) ~= hit.url then
+		return nil
+	end
+
+	local function inside(r)
+		return r and x >= r.x and x < r.x + r.w and y >= r.y and y < r.y + r.h
+	end
+
+	if inside(hit.image) then
+		return "image", hit.url
+	elseif inside(hit.meta) then
+		return "meta", hit.url
+	end
+end)
 
 local function clean(value)
 	if not value or value == "" then
@@ -45,8 +78,8 @@ local function clean(value)
 	end
 
 	value = tostring(value):gsub("[%c\r\n]", " "):gsub("^%s+", ""):gsub("%s+$", "")
-	if #value > 140 then
-		value = value:sub(1, 137) .. "..."
+	if #value > 300 then
+		value = value:sub(1, 297) .. "..."
 	end
 	return value ~= "" and value or nil
 end
@@ -90,17 +123,40 @@ local function format_duration(value)
 	return string.format("%d:%02d", m, s)
 end
 
-local function format_bitrate(value)
-	local bitrate = tonumber(value)
-	if not bitrate or bitrate <= 0 then
+local function format_size(bytes)
+	bytes = tonumber(bytes)
+	if not bytes or bytes <= 0 then
 		return nil
 	end
 
-	local kbps = bitrate / 1000
-	if kbps >= 1000 then
-		return string.format("%.1f Mb/s", kbps / 1000)
+	local units = { "B", "KB", "MB", "GB", "TB" }
+	local size, unit = bytes, 1
+	while size >= 1000 and unit < #units do
+		size = size / 1000
+		unit = unit + 1
 	end
-	return string.format("%d kb/s", math.floor(kbps + 0.5))
+	if unit <= 2 then
+		return string.format("%d %s", size, units[unit])
+	end
+	return string.format(size >= 100 and "%.0f %s" or "%.1f %s", size, units[unit])
+end
+
+local function format_codec(name)
+	if not name then
+		return nil
+	end
+	return CODEC_NAMES[name:lower()] or name:upper()
+end
+
+local function format_date(value)
+	if not value then
+		return nil
+	end
+	local y, m, d = value:match("^(%d%d%d%d)-?(%d%d)-?(%d%d)")
+	if y then
+		return string.format("%s-%s-%s", y, m, d)
+	end
+	return value
 end
 
 local function wrap_text(text, width)
@@ -112,7 +168,7 @@ local function wrap_text(text, width)
 		local cut = width
 		for i = width, 1, -1 do
 			local c = text:sub(i, i)
-			if c == " " or c == "-" or c == "_" or c == "." then
+			if c == " " or c == "-" or c == "_" or c == "." or c == "," then
 				cut = i
 				break
 			end
@@ -134,7 +190,7 @@ local function parse_video_info(stdout)
 		local key, value = line:match("^([^=]+)=(.*)$")
 		if key and value then
 			if key:sub(1, 4) == "TAG:" then
-				info.tags[key:sub(5)] = clean(value)
+				info.tags[key:sub(5):lower()] = clean(value)
 			else
 				info[key] = clean(value)
 			end
@@ -146,38 +202,6 @@ local function parse_video_info(stdout)
 	return info
 end
 
-local function stream_counts(job)
-	local counts = { chapters = 0, subtitles = 0 }
-	local output = Command("ffprobe")
-		:arg({
-			"-v",
-			"error",
-			"-select_streams",
-			"s",
-			"-show_entries",
-			"stream=index:chapter=id",
-			"-of",
-			"csv=p=1",
-			tostring(job.file.url),
-		})
-		:stdout(Command.PIPED)
-		:output()
-
-	if not output or not output.status or not output.status.success then
-		return counts
-	end
-
-	for line in tostring(output.stdout or ""):gmatch("[^\r\n]+") do
-		local section = line:match("^(%a+),")
-		if section == "stream" then
-			counts.subtitles = counts.subtitles + 1
-		elseif section == "chapter" then
-			counts.chapters = counts.chapters + 1
-		end
-	end
-	return counts
-end
-
 local function video_info(job)
 	local output = Command("ffprobe")
 		:arg({
@@ -186,7 +210,7 @@ local function video_info(job)
 			"-select_streams",
 			"v:0",
 			"-show_entries",
-			"stream=width,height,avg_frame_rate,r_frame_rate,codec_name:format=duration,bit_rate:format_tags",
+			"stream=width,height,avg_frame_rate,r_frame_rate,codec_name:format=duration:format_tags",
 			"-of",
 			"default=noprint_wrappers=1",
 			tostring(job.file.url),
@@ -194,13 +218,7 @@ local function video_info(job)
 		:stdout(Command.PIPED)
 		:output()
 
-	local info = (output and output.status and output.status.success) and parse_video_info(output.stdout)
-		or { tags = {} }
-
-	local counts = stream_counts(job)
-	info.chapters = counts.chapters
-	info.subtitles = counts.subtitles
-	return info
+	return (output and output.status and output.status.success) and parse_video_info(output.stdout) or { tags = {} }
 end
 
 local function seek_time(job)
@@ -301,134 +319,147 @@ local function write_thumbnail_with_ffmpegthumbnailer(job, cache, at)
 	return status and status.success
 end
 
-local function split_preview(area, info, detail_rows)
-	local max_rows = MAX_THUMB_ROWS
-	if info.width and info.height and info.width > 0 and info.height > 0 and info.width > info.height then
-		max_rows = math.floor(MAX_THUMB_ROWS / 2)
-	end
-
-	-- Filename + specs + blank line, then one row per detail field.
-	local text_rows = math.max(MIN_TEXT_ROWS, 3 + (detail_rows or 0))
-	local image_h = math.min(max_rows, math.max(1, area.h - text_rows))
-
-	return ui.Rect({
-		x = area.x,
-		y = area.y,
-		w = area.w,
-		h = image_h,
-	}), ui.Rect({
-		x = area.x,
-		y = area.y + image_h,
-		w = area.w,
-		h = area.h - image_h,
-	})
-end
-
 local function find_url(tags)
 	for _, key in ipairs(URL_TAGS) do
-		local url = tostring(tags[key] or ""):match("https?://[^%s]+")
+		local url = tostring(tags[key] or ""):match("https?://[^%s\"]+")
 		if url then
-			return url, key
+			return url
 		end
 	end
 end
 
-local function count_value(count)
-	return (count or 0) > 0 and tostring(count) or "none"
+-- The old media-write-tags stored channel/actors as JSON inside `comment`.
+local function legacy_comment(tags)
+	local comment = tags.comment
+	if not comment or comment:sub(1, 1) ~= "{" then
+		return {}
+	end
+
+	local legacy = { channel = comment:match('"channel"%s*:%s*"([^"]*)"') }
+	local actors = comment:match('"actors"%s*:%s*%[([^%]]*)%]')
+	if actors then
+		local names = {}
+		for name in actors:gmatch('"([^"]*)"') do
+			names[#names + 1] = name
+		end
+		legacy.actors = #names > 0 and table.concat(names, ", ") or nil
+	end
+	return legacy
 end
 
-local function detail_lines(info)
+local function metadata(info)
 	local tags = info.tags or {}
-	local url, url_key = find_url(tags)
-	local lines, seen = {}, { [url_key or ""] = true }
+	local legacy = legacy_comment(tags)
+	local rows = {}
 
-	local function push(label, value)
+	for _, field in ipairs(META_FIELDS) do
+		local value
+		if field.label == "url" then
+			value = find_url(tags)
+		else
+			for _, key in ipairs(field.keys) do
+				value = tags[key]
+				if value then
+					break
+				end
+			end
+			value = value or clean(legacy[field.label])
+		end
+
+		if field.label == "date" then
+			value = format_date(value)
+		end
 		if value then
-			lines[#lines + 1] = { label, value }
+			rows[#rows + 1] = { field = field, value = value }
+		end
+	end
+	return rows
+end
+
+local function spec_chips(job, info)
+	local chips = {}
+	local function push(kind, value)
+		if value then
+			chips[#chips + 1] = { text = " " .. value .. " ", color = CHIP_COLORS[kind] }
 		end
 	end
 
-	for _, key in ipairs(FIELD_ORDER) do
-		if key == "@url" then
-			push("url", url)
-		elseif key == "@chapters" then
-			push("chapters", count_value(info.chapters))
-		elseif key == "@subtitles" then
-			push("subtitles", count_value(info.subtitles))
-		elseif not seen[key] then
-			seen[key] = true
-			push(key:gsub("_", " "), tags[key])
-		end
+	if info.width and info.height then
+		push("resolution", string.format("%d×%d", info.width, info.height))
 	end
+	push("fps", format_fps(info.avg_frame_rate) or format_fps(info.r_frame_rate))
+	push("length", format_duration(info.duration))
+	push("size", format_size(job.file.cha and job.file.cha.len))
+	push("codec", format_codec(info.codec_name))
+	return chips
+end
 
-	for key, value in pairs(tags) do
-		if #lines >= MAX_DETAIL_ROWS then
-			break
+-- Lay the chips out left to right, starting a new line when one would overflow.
+local function chip_lines(chips, width)
+	local lines, spans, used = {}, {}, 0
+	for _, chip in ipairs(chips) do
+		local w = ui.Line(chip.text):width()
+		if used > 0 and used + 1 + w > width then
+			lines[#lines + 1] = ui.Line(spans)
+			spans, used = {}, 0
 		end
-		if not seen[key] then
-			push(key:gsub("_", " "), value)
+		if used > 0 then
+			spans[#spans + 1] = ui.Span(" ")
+			used = used + 1
+		end
+		spans[#spans + 1] = ui.Span(chip.text):fg(COLOR_CHIP_FG):bg(chip.color):bold()
+		used = used + w
+	end
+	if #spans > 0 then
+		lines[#lines + 1] = ui.Line(spans)
+	end
+	return lines
+end
+
+-- label + value with a hanging indent, clipped to the field's line budget.
+local function meta_lines(rows, width)
+	local label_w = 0
+	for _, row in ipairs(rows) do
+		label_w = math.max(label_w, #row.field.label + 1)
+	end
+	local indent = label_w + 1
+	local value_w = math.max(1, width - indent)
+
+	local lines = {}
+	for _, row in ipairs(rows) do
+		local wrapped = wrap_text(row.value, value_w)
+		local max = row.field.max_lines
+		if #wrapped > max then
+			local last = wrapped[max]
+			wrapped[max] = last:sub(1, math.max(1, value_w - 1)) .. "…"
+			for i = #wrapped, max + 1, -1 do
+				wrapped[i] = nil
+			end
+		end
+
+		for i, text in ipairs(wrapped) do
+			local head = i == 1 and (row.field.label .. ":") or ""
+			lines[#lines + 1] = ui.Line({
+				ui.Span(head .. string.rep(" ", indent - #head)):fg(COLOR_LABEL),
+				ui.Span(text),
+			})
 		end
 	end
 	return lines
 end
 
-local function info_widget(job, area, info, details)
-	local specs = {}
-	if info.width and info.height then
-		specs[#specs + 1] = string.format("%dx%d", info.width, info.height)
-	end
-	specs[#specs + 1] = format_fps(info.avg_frame_rate) or format_fps(info.r_frame_rate)
-	if info.codec_name then
-		specs[#specs + 1] = info.codec_name:upper()
-	end
-	specs[#specs + 1] = format_duration(info.duration)
-	specs[#specs + 1] = format_bitrate(info.bit_rate)
-
-	local compact_specs = {}
-	for _, value in ipairs(specs) do
-		if value then
-			compact_specs[#compact_specs + 1] = value
-		end
+local function thumb_area(area, info, text_rows)
+	local max_rows = MAX_THUMB_ROWS
+	if info.width and info.height and info.width > 0 and info.height > 0 and info.width > info.height then
+		max_rows = math.floor(MAX_THUMB_ROWS / 2)
 	end
 
-	local widgets = {}
-	local name_lines = wrap_text(job.file.name or tostring(job.file.url), area.w)
-	local name_h = math.min(#name_lines, area.h)
-	local y = area.y
-	if name_h > 0 then
-		widgets[#widgets + 1] = ui.Text(table.concat(name_lines, "\n"))
-			:area(ui.Rect({ x = area.x, y = y, w = area.w, h = name_h }))
-			:fg(COLOR_FILENAME)
-		y = y + name_h
-	end
+	local image_h = math.min(max_rows, math.max(1, area.h - text_rows))
+	return ui.Rect({ x = area.x, y = area.y, w = area.w, h = image_h })
+end
 
-	if #compact_specs > 0 and y < area.y + area.h then
-		widgets[#widgets + 1] = ui.Text(table.concat(compact_specs, "  "))
-			:area(ui.Rect({ x = area.x, y = y, w = area.w, h = 1 }))
-			:fg(COLOR_SPECS)
-		y = y + 2
-	end
-
-	if #details > 0 and y < area.y + area.h then
-		local label_width = 0
-		local rows = {}
-		for _, tag in ipairs(details) do
-			label_width = math.max(label_width, #tag[1] + 1)
-			rows[#rows + 1] = ui.Row({
-				ui.Line(tag[1] .. ":"):fg(COLOR_TAG),
-				ui.Text(tag[2]),
-			})
-		end
-
-		widgets[#widgets + 1] = ui.Table(rows)
-			:area(ui.Rect({ x = area.x, y = y, w = area.w, h = area.y + area.h - y }))
-			:widths({
-				ui.Constraint.Length(label_width + 1),
-				ui.Constraint.Fill(1),
-			})
-	end
-
-	return widgets
+local function plain_rect(r)
+	return r and { x = r.x, y = r.y, w = r.w, h = r.h }
 end
 
 function M:preload(job)
@@ -463,12 +494,43 @@ function M:peek(job)
 		return 1
 	end
 
+	local area = job.area
 	local info = video_info(job)
-	local details = detail_lines(info)
-	local image_area, text_area = split_preview(job.area, info, #details)
+	local chips = chip_lines(spec_chips(job, info), area.w)
+	local meta = meta_lines(metadata(info), area.w)
+	local text_rows = 1 + #chips + (#meta > 0 and 1 + #meta or 0)
+
+	local image_area = thumb_area(area, info, text_rows)
 	ya.sleep(math.max(0, rt.preview.image_delay / 1000 + start - os.clock()))
-	ya.image_show(cache, image_area)
-	ya.preview_widget(job, info_widget(job, text_area, info, details))
+	local shown = ya.image_show(cache, image_area)
+	if type(shown) ~= "userdata" and type(shown) ~= "table" then
+		shown = image_area
+	end
+
+	-- Text sits one row under the drawn image, not under the box it was fitted into.
+	local y = math.min(shown.y + shown.h + 1, area.y + area.h)
+	local bottom = area.y + area.h
+	local widgets = {}
+
+	local chip_h = math.min(#chips, bottom - y)
+	if chip_h > 0 then
+		widgets[#widgets + 1] = ui.Text(chips):area(ui.Rect({ x = area.x, y = y, w = area.w, h = chip_h }))
+		y = y + chip_h + 1
+	end
+
+	local meta_rect
+	local meta_h = math.min(#meta, bottom - y)
+	if meta_h > 0 then
+		meta_rect = ui.Rect({ x = area.x, y = y, w = area.w, h = meta_h })
+		widgets[#widgets + 1] = ui.Text(meta):area(meta_rect)
+	end
+
+	set_hit({
+		url = tostring(job.file.url),
+		image = plain_rect(shown),
+		meta = plain_rect(meta_rect),
+	})
+	ya.preview_widget(job, widgets)
 end
 
 function M:seek(job)
@@ -478,6 +540,29 @@ function M:seek(job)
 		ya.emit("peek", {
 			tostring(math.max(0, cx.active.preview.skip + step)),
 			only_if = tostring(job.file.url),
+		})
+	end
+end
+
+-- `plugin video-thumb-info -- click X Y`, sent by Preview:click in init.lua.
+-- Thumbnail plays the file with the default opener; metadata opens tagform.
+function M:entry(job)
+	local args = job.args or {}
+	if args[1] ~= "click" then
+		return
+	end
+
+	local region, path = resolve_click(tonumber(args[2]) or -1, tonumber(args[3]) or -1)
+	if region == "image" then
+		ya.emit("open", { hovered = true })
+	elseif region == "meta" then
+		local url = Url(path)
+		ya.emit("shell", {
+			"/Users/nom/.local/bin/kitty-launch --tab --cwd "
+				.. ya.quote(tostring(url.parent or "."))
+				.. " -- /Users/nom/.local/bin/tagform "
+				.. ya.quote(path),
+			orphan = true,
 		})
 	end
 end
