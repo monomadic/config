@@ -1,0 +1,860 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drive Widget Design</title>
+<style>
+  /* Same token set as the wifi-widget v3 page, so the two read as one family. */
+  :root {
+    --page: #0e0f12; --surface: #17181c; --surface-2: #202126; --line: #2d2f36;
+    --text: #f4f2ed; --muted: #a5a29a; --faint: #77746d;
+    --danger: #ff5b52; --active: #407de2; --busy: #ffb340; --safe: #48d76b; --good: #8fb4f0;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    /* the preview is always a dark macOS menu, so its semantic inks never follow the page theme */
+    --m-danger: #ff5b52; --m-busy: #ffb340; --m-safe: #48d76b; --m-active: #3477dd; --m-fg: #ececee;
+    --m-read: #5fd08a; --m-write: #ff7a6b;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) { --page: #f5f4ef; --surface: #fff; --surface-2: #f0efeb; --line: #dbd9d2; --text: #181816; --muted: #65625c; --faint: #8d8981; --danger: #d92d28; --active: #1467d8; --busy: #9b5a00; --safe: #16853a; --good: #1f5fb8; }
+  }
+  :root[data-theme="light"] { --page: #f5f4ef; --surface: #fff; --surface-2: #f0efeb; --line: #dbd9d2; --text: #181816; --muted: #65625c; --faint: #8d8981; --danger: #d92d28; --active: #1467d8; --busy: #9b5a00; --safe: #16853a; --good: #1f5fb8; }
+  :root[data-theme="dark"] { --page: #0e0f12; --surface: #17181c; --surface-2: #202126; --line: #2d2f36; --text: #f4f2ed; --muted: #a5a29a; --faint: #77746d; --danger: #ff5b52; --active: #407de2; --busy: #ffb340; --safe: #48d76b; --good: #8fb4f0; }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0 auto; max-width: 1000px; padding: 56px 24px 96px; background: var(--page); color: var(--text); font: 15px/1.55 var(--system); }
+  @media (max-width: 520px) { body { padding: 32px 16px 72px; } }
+  h1 { margin: 0 0 10px; font-size: clamp(28px, 5vw, 40px); line-height: 1.05; letter-spacing: -.035em; text-wrap: balance; }
+  h2 { margin: 0 0 8px; font-size: 21px; letter-spacing: -.02em; }
+  h3 { margin: 0 0 5px; font-size: 15px; }
+  .eyebrow { margin: 0 0 10px; color: var(--active); font: 600 11px/1.2 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+  .lede { max-width: 68ch; color: var(--muted); font-size: 16.5px; margin: 0; }
+  .lede strong, .section-lede strong { color: var(--text); }
+  .section-lede { max-width: 68ch; color: var(--muted); margin: 0 0 18px; }
+  section { margin-top: 60px; }
+  code { font: 12.5px var(--mono); color: var(--text); overflow-wrap: anywhere; }
+
+  .picker { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 12px; }
+  .picker .lbl { font: 600 10.5px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-right: 4px; min-width: 64px; }
+  .picker button {
+    min-height: 32px; padding: 5px 12px; border: 1px solid var(--line); border-radius: 999px;
+    color: var(--muted); background: transparent; cursor: pointer; font: inherit; font-size: 13px;
+  }
+  .picker button:hover { color: var(--text); background: var(--surface-2); }
+  .picker button[aria-pressed="true"] { color: var(--text); border-color: var(--faint); background: var(--surface-2); }
+  .picker button:focus-visible { outline: 2px solid var(--active); outline-offset: 2px; }
+  .picker button .swatch { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+
+  .demo-grid { display: grid; grid-template-columns: minmax(340px, 1.05fr) minmax(260px, .95fr); gap: 20px; align-items: start; margin-top: 16px; }
+  @media (max-width: 760px) { .demo-grid { grid-template-columns: 1fr; } }
+  .preview-shell { padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: #1c1d21; }
+  @media (max-width: 520px) { .preview-shell { padding: 10px; } }
+
+  /* ── menu bar ─────────────────────────────────────── */
+  .menubar {
+    display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+    height: 36px; padding: 0 12px; border: 1px solid #45464b; border-radius: 9px;
+    color: #a6a7ab; background: #2b2c31; box-shadow: 0 2px 8px #0005; font-size: 13px; overflow: hidden;
+  }
+  .menubar .other { font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em; white-space: nowrap; }
+  .status-chip {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 6px; border-radius: 5px;
+    background: #ffffff14; color: var(--state-color); white-space: nowrap;
+    font: 650 12px/1 var(--mono); letter-spacing: .02em; font-variant-numeric: tabular-nums;
+  }
+  .status-chip svg { width: 15px; height: 15px; display: block; }
+  .status-chip > * { display: none; }
+  .status-chip .ic { color: var(--m-fg); }
+  .status-chip.alert .ic { color: var(--state-color); }
+  .leds { gap: 3px; flex-direction: column; }
+  .leds > i { width: 4px; height: 4px; border-radius: 50%; background: #ffffff26; transition: background .08s; }
+  .leds > i.r.on { background: var(--m-read); box-shadow: 0 0 4px var(--m-read); }
+  .leds > i.w.on { background: var(--m-write); box-shadow: 0 0 4px var(--m-write); }
+  .io2 { flex-direction: column; font: 600 8.5px/9px var(--mono); color: #d7d7da; text-align: right; }
+  .io2 b { font-weight: 600; color: #8a8b90; margin-right: 2px; }
+  .mb-smart .ic, .mb-smart .tag:not(:empty), .mb-icon .ic, .mb-free .ic, .mb-free .free, .mb-temp .ic, .mb-temp .temp, .mb-io .ic { display: block; }
+  .mb-smart .leds { display: flex; }
+  .mb-io .io2 { display: flex; }
+
+  /* ── dropdown ─────────────────────────────────────── */
+  .menu {
+    width: min(100%, 340px); margin: 12px 0 0 auto; padding: 7px;
+    border: 1px solid #4a4b51; border-radius: 12px;
+    color: #f2f2f3; background: #202124ed; box-shadow: 0 18px 44px #0009; font-size: 13px;
+  }
+  .menu-head { padding: 4px 11px 8px 9px; }
+  .menu-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13.5px; line-height: 18px; font-weight: 600; white-space: nowrap; }
+  .state-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--head-color); box-shadow: 0 0 0 3px color-mix(in srgb, var(--head-color) 18%, transparent); }
+  .menu-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: #f2f2f3; }
+  .menu-status small { color: #a8a9ae; font-weight: 400; font-size: 12px; margin-left: 4px; }
+  .divider { height: 1px; margin: 5px 8px; background: #4a4b50; }
+
+  /* drive glyphs */
+  .glyph { position: relative; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; align-self: start; margin-top: 2px; }
+  .glyph > svg { width: 34px; height: 34px; color: var(--head-color); }
+  .badge {
+    position: absolute; right: -1px; bottom: 2px; width: 15px; height: 15px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; border: 2px solid #17181b;
+    background: var(--m-danger); color: #fff; font: 800 8px/1 var(--mono);
+  }
+  .badge.warn { background: var(--m-busy); color: #1c1d21; }
+
+  /* ── focus card: the drive you're looking at is one larger menu item ─── */
+  .conn { padding: 12px 9px 8px; border-radius: 10px; background: #17181b; border: .5px solid #46474b; --k-ink: #8f9096; }
+  .row-grid { display: grid; grid-template-columns: 40px minmax(0,1fr); gap: 10px; align-items: start; }
+  .net-main { min-width: 0; display: grid; }
+  .net-title { display: flex; align-items: center; gap: 6px; min-width: 0; line-height: 18px; }
+  .net-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: #fff; }
+  .pill {
+    display: inline-flex; align-items: center; flex-shrink: 0; height: 14px; padding: 0 5px;
+    border: .75px solid #ffffff4a; border-radius: 999px;
+    font: 500 9px/14px var(--system); color: #b5b6ba; white-space: nowrap;
+  }
+  .pill.warn { border-color: var(--m-busy); color: #1c1d21; background: var(--m-busy); }
+  .pill.bad { border-color: var(--m-danger); color: #fff; background: var(--m-danger); }
+  .net-meta { margin-top: 1px; color: #a8a9ae; font-size: 10.5px; line-height: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  /* capacity meter: used space, notched at 80 / 90 / 95 %, one segment per volume in the container */
+  .cap { position: relative; margin: 22px 0 18px; }
+  .cap .lbl { position: absolute; right: 0; top: -18px; font: 500 9.5px/14px var(--system); color: #a8a9ae; white-space: nowrap; }
+  .cap .lbl strong { font-weight: 600; }
+  .cap .lbl-l { position: absolute; left: 0; top: -18px; font: 500 9.5px/14px var(--system); color: #a8a9ae; }
+  .cbar { position: relative; display: flex; height: 10px; border-radius: 3px; background: #ffffff1a; overflow: hidden; }
+  .cbar > i { display: block; height: 100%; background: var(--seg, #d9d9dc); border-right: 1px solid #17181b; }
+  .cbar > i:last-of-type { border-right: 0; }
+  .cbar > em { position: absolute; top: 0; bottom: 0; width: 1.5px; background: #17181b; }
+  .cap .scale { position: absolute; left: 0; right: 0; top: 13px; height: 12px; color: #77787d; font: 400 8px/12px var(--system); }
+  .cap .scale i { position: absolute; transform: translateX(-50%); font-style: normal; }
+  .cap .scale i:last-child { transform: translateX(-100%); }
+
+  .inset { margin-top: 8px; padding: 5px 4px 4px; border-radius: 7px; background: #1e1f22; }
+  .linkline { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px 6px 9px; text-align: center; }
+  .linkline > span { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .linkline b { font: 700 16px/23px var(--system); color: #fff; font-variant-numeric: tabular-nums; }
+  .linkline b.r { color: var(--m-read); } .linkline b.w { color: var(--m-write); }
+  .linkline b.dim { color: #5d5e63; }
+  .linkline b.warn { color: var(--m-busy); } .linkline b.bad { color: var(--m-danger); }
+  .linkline small { font: 400 9px/13px var(--system); color: #a8a9ae; }
+  .fgroup { display: grid; padding-top: 3px; margin-top: 3px; border-top: 1px solid #ffffff14; }
+  .glabel { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px 1px; font: 600 8.5px/12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: #6f7076; }
+  .glabel .src { letter-spacing: .02em; text-transform: none; font: 400 9px/12px var(--system); color: #6f7076; }
+  .fact {
+    display: grid; grid-template-columns: 62px minmax(0,1fr) 14px; gap: 8px; align-items: center;
+    min-height: 22px; padding: 1px 6px; border-radius: 5px; font-size: 10.5px;
+  }
+  .fact .k { color: var(--k-ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fact .v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c9c9cd; font-variant-numeric: tabular-nums; }
+  .fact .v .mono { font-family: var(--mono); font-size: 10px; }
+  .fact .v .dim { color: #77787d; }
+  .fact .v .hi { color: #fff; }
+  .tagp { font: 600 9.5px var(--mono); letter-spacing: .04em; }
+  .tagp.bad { color: #ff6b62; } .tagp.warn { color: var(--m-busy); } .tagp.ok { color: var(--m-safe); } .tagp.off { color: #8f9096; }
+  .fact .act { width: 14px; height: 14px; display: flex; align-items: center; justify-content: flex-end; font-size: 10px; color: var(--k-ink); opacity: 0; transition: opacity .12s; white-space: nowrap; }
+  .fact .act svg { width: 12px; height: 12px; display: block; }
+  .fact.copy, .fact.test { cursor: pointer; }
+  .fact.copy:hover, .fact.test:hover { background: #ffffff14; }
+  .fact.copy:hover .act, .fact.copied .act, .fact.test .act { opacity: 1; }
+  .fact.test .act { color: var(--head-color); font-weight: 600; }
+  .fact.test.off { cursor: default; } .fact.test.off:hover { background: none; } .fact.test.off .act { opacity: 0; }
+  .fact.copied .act { color: #fff; font-weight: 600; }
+  .spark { display: inline-block; width: 100%; max-width: 150px; height: 16px; vertical-align: -4px; }
+  .mini-spark { display: inline-block; width: 44px; height: 11px; vertical-align: -1px; margin-left: 6px; }
+
+  /* ── drives list ──────────────────────────────────── */
+  .section-label { display: flex; justify-content: space-between; align-items: center; padding: 13px 8px 3px; color: #8f9096; font-size: 11px; font-weight: 600; }
+  .icon-btn { width: 24px; height: 24px; display: grid; place-items: center; padding: 4px; border: .5px solid transparent; border-radius: 50%; background: transparent; color: #a8a9ae; cursor: pointer; }
+  .icon-btn svg { width: 14px; height: 14px; display: block; }
+  .icon-btn:hover:not(:disabled) { color: #fff; background: #ffffff17; border-color: #ffffff59; }
+  .icon-btn:focus-visible { outline: 2px solid var(--m-active); outline-offset: 1px; }
+  .icon-btn:disabled { opacity: .35; cursor: default; }
+  .net-list { display: grid; gap: 1px; padding: 1px 0; }
+  .krow { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 4px 0 10px; border-radius: 7px; cursor: pointer; }
+  .krow:hover { background: #ffffff0f; }
+  .krow:focus-visible { outline: 1px solid #fff; }
+  .krow .kglyph { position: relative; display: flex; justify-content: center; width: 22px; flex-shrink: 0; color: #d5d5d8; }
+  .krow .kglyph svg { width: 19px; height: 19px; display: block; }
+  .krow .kglyph .dot { position: absolute; right: -2px; bottom: -1px; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid #202124; }
+  .krow .kmain { min-width: 0; display: grid; }
+  .krow .kname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #f2f2f3; line-height: 15px; }
+  .krow .ksub { font-size: 9.5px; line-height: 12px; color: #8f9096; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .krow .kright { margin-left: auto; flex-shrink: 0; display: grid; justify-items: end; gap: 2px; width: 62px; }
+  .krow .kright small { font-size: 9px; line-height: 11px; color: #a8a9ae; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .kbar { width: 52px; height: 4px; border-radius: 2px; background: #ffffff1f; overflow: hidden; }
+  .kbar > i { display: block; height: 100%; background: #a8a9ae; }
+  .krow .icon-btn { flex-shrink: 0; width: 22px; height: 22px; padding: 4px; }
+  .krow .icon-btn.ghost { visibility: hidden; }
+  .krow.dim .kglyph, .krow.dim .kname { color: #77787d; }
+  .krow.missing { background: #2b1718; }
+  .krow.missing .kglyph { color: var(--m-danger); }
+  .krow.ejecting { opacity: .45; pointer-events: none; }
+  .krow .blocked { font-size: 9.5px; color: var(--m-busy); }
+
+  .menu-item { display: flex; align-items: center; justify-content: space-between; min-height: 28px; padding: 4px 10px; border-radius: 7px; }
+  .menu-item:hover { background: var(--m-active); }
+  .menu-item.primary { color: #fff; background: var(--m-active); }
+  .menu-item .key { color: #afb0b4; }
+  .menu-item:hover .key, .menu-item.primary .key { color: #dce9ff; }
+  .menu-item .check { width: 14px; display: inline-block; color: #fff; }
+
+  /* ── notes ────────────────────────────────────────── */
+  .notes { display: grid; gap: 12px; }
+  .note-card { padding: 17px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  .note-card p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .note-card p + p { margin-top: 8px; }
+  .note-card b { color: var(--text); }
+  .note-card .new { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font: 600 9.5px/1.7 var(--mono); letter-spacing: .06em; vertical-align: 2px; color: var(--active); border: 1px solid color-mix(in srgb, var(--active) 45%, transparent); }
+  .note-card .real { color: var(--safe); border-color: color-mix(in srgb, var(--safe) 45%, transparent); }
+
+  /* ── link ceiling scale ───────────────────────────── */
+  .scale-wrap { padding: 22px 20px 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  .scale-scroll { overflow-x: auto; }
+  .lscale { position: relative; height: 150px; min-width: 620px; }
+  .lscale .track { position: absolute; left: 0; right: 0; top: 60px; height: 22px; display: flex; border-radius: 6px; overflow: hidden; }
+  .lscale .seg { display: flex; align-items: center; padding-left: 7px; font: 600 10px/1 var(--mono); letter-spacing: .04em; color: #fff; white-space: nowrap; overflow: hidden; border-right: 1px solid var(--surface); }
+  .seg.u2 { flex: 20; background: color-mix(in srgb, var(--danger) 75%, var(--surface)); }
+  .seg.u5 { flex: 35.1; background: color-mix(in srgb, var(--busy) 70%, var(--surface)); color: #1c1407; }
+  .seg.u10 { flex: 11.6; background: color-mix(in srgb, var(--good) 55%, var(--surface)); color: #0b1a33; }
+  .seg.u20 { flex: 10; background: color-mix(in srgb, var(--good) 75%, var(--surface)); color: #0b1a33; }
+  .seg.u40 { flex: 9.3; background: color-mix(in srgb, var(--safe) 60%, var(--surface)); color: #06210f; }
+  .seg.u80 { flex: 14; background: color-mix(in srgb, var(--safe) 80%, var(--surface)); color: #06210f; }
+  .lscale .ticks { position: absolute; left: 0; right: 0; top: 88px; height: 16px; font: 10.5px var(--mono); color: var(--faint); }
+  .lscale .ticks span { position: absolute; transform: translateX(-50%); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .lscale .ticks span:first-child { transform: none; } .lscale .ticks span:last-child { transform: translateX(-100%); }
+  .marker { position: absolute; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11.5px; color: var(--muted); white-space: nowrap; transition: color .15s; }
+  .marker.up { top: 0; } .marker.up2 { top: 20px; } .marker.down { top: 108px; flex-direction: column-reverse; }
+  .marker i { width: 2px; background: var(--faint); border-radius: 1px; }
+  .marker.up i { height: 36px; } .marker.up2 i { height: 16px; } .marker.down i { height: 0; }
+  .marker.ghost { opacity: .55; } .marker.ghost i { background: none; border-left: 2px dotted var(--faint); width: 0; }
+  .marker.current { color: var(--text); font-weight: 650; opacity: 1; }
+  .marker.current i { background: var(--text); }
+  .marker.edge-r { transform: translateX(-92%); align-items: flex-end; }
+  .marker.edge-l { transform: translateX(-8%); align-items: flex-start; }
+  .scale-foot { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 18px; }
+  .scale-foot p { margin: 0; color: var(--muted); font-size: 13.5px; }
+  .scale-foot b { color: var(--text); }
+
+  /* ── topology ─────────────────────────────────────── */
+  .topo { padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow-x: auto; }
+  .topo svg { display: block; min-width: 640px; width: 100%; height: auto; }
+  .topo .n rect { fill: var(--surface-2); stroke: var(--line); }
+  .topo .n.hot rect { stroke: var(--busy); }
+  .topo .n.off rect { stroke-dasharray: 4 3; }
+  .topo text { fill: var(--text); font: 12px var(--system); }
+  .topo text.s { fill: var(--muted); font: 10.5px var(--mono); }
+  .topo text.w { fill: var(--busy); font: 600 10.5px var(--mono); }
+  .topo .e { stroke: var(--faint); stroke-width: 1.5; fill: none; }
+  .topo .e.slow { stroke: var(--busy); stroke-dasharray: 5 4; }
+
+  .impl { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .verdict { display: inline-block; margin-bottom: 6px; padding: 1px 7px; border-radius: 999px; font: 600 10px/1.6 var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+  .verdict.yes { color: var(--safe); border: 1px solid color-mix(in srgb, var(--safe) 50%, transparent); }
+  .verdict.no { color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 50%, transparent); }
+  .verdict.some { color: var(--busy); border: 1px solid color-mix(in srgb, var(--busy) 50%, transparent); }
+  .verdict.info { color: var(--faint); border: 1px solid var(--line); }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<p class="eyebrow">drive-widget · v1 · the technical sibling of free-disk-space-widget</p>
+<h1>A drive menu that knows which cable it's on</h1>
+<p class="lede">free-disk-space-widget answers one question: how much room is left. This design is for everything else about the drives. <strong>One row per physical drive</strong>, not per volume. The drive you pick becomes one larger card, the same anatomy as the Wi‑Fi widget's connected network: live read/write and temperature, <strong>SMART health</strong>, <strong>the bus and bridge chip it actually negotiated</strong>, and the volumes and formats on it. The <b>Right now</b> scenario uses what this Mac reported on 23 Sep 2026. The other scenarios are illustrative.</p>
+
+<section>
+  <p class="eyebrow">Interactive</p>
+  <h2>Menu bar style × scenario</h2>
+  <div class="picker" role="group" aria-label="Menu bar style">
+    <span class="lbl">Menu bar</span>
+    <button type="button" data-style="mb-smart" aria-pressed="true">Smart</button>
+    <button type="button" data-style="mb-icon" aria-pressed="false">Icon</button>
+    <button type="button" data-style="mb-io" aria-pressed="false">Icon + I/O</button>
+    <button type="button" data-style="mb-free" aria-pressed="false">Icon + Free</button>
+    <button type="button" data-style="mb-temp" aria-pressed="false">Icon + Temp</button>
+  </div>
+  <div class="picker" role="group" aria-label="Scenario">
+    <span class="lbl">Scenario</span>
+    <button type="button" data-state="now" aria-pressed="true"><span class="swatch" style="background:var(--danger)"></span>Right now</button>
+    <button type="button" data-state="healthy" aria-pressed="false"><span class="swatch" style="background:var(--safe)"></span>Healthy</button>
+    <button type="button" data-state="copying" aria-pressed="false"><span class="swatch" style="background:var(--active)"></span>Copying · eject blocked</button>
+    <button type="button" data-state="slow" aria-pressed="false"><span class="swatch" style="background:var(--busy)"></span>USB 2 link</button>
+    <button type="button" data-state="cliff" aria-pressed="false"><span class="swatch" style="background:var(--busy)"></span>Write cache exhausted</button>
+    <button type="button" data-state="failing" aria-pressed="false"><span class="swatch" style="background:var(--danger)"></span>Sectors reallocating</button>
+    <button type="button" data-state="pulled" aria-pressed="false"><span class="swatch" style="background:var(--danger)"></span>Pulled without eject</button>
+  </div>
+
+  <div class="demo-grid">
+    <div class="preview-shell mb-smart" id="preview">
+      <div class="menubar"><span class="other">⌥</span><span class="other">DJM</span><span class="other">87%</span><span class="status-chip" id="chip"></span></div>
+      <div class="menu">
+        <div class="menu-head"><div class="menu-title"><span class="state-dot"></span><span class="menu-status" id="menu-status"></span></div></div>
+        <div id="conn"></div>
+        <div class="section-label"><span>Drives</span><button type="button" class="icon-btn" id="eject-all" aria-label="Eject all external drives" title="Eject all external drives"></button></div>
+        <div class="net-list" id="net-list"></div>
+        <div class="divider"></div>
+        <div class="menu-item primary" id="primary-action"><span></span><span class="key"></span></div>
+        <div class="menu-item"><span><span class="check"></span>Show System Volumes</span><span></span></div>
+        <div class="menu-item"><span><span class="check">✓</span>Warn on Unsafe Eject</span><span></span></div>
+        <div class="menu-item"><span>Style</span><span class="key" id="style-key"></span></div>
+        <div class="menu-item"><span>Open at Login</span><span></span></div>
+        <div class="menu-item"><span>Disk Utility…</span><span class="key">⌘D</span></div>
+        <div class="menu-item"><span>Quit Drive Widget</span><span class="key">⌘Q</span></div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <article class="note-card"><h3 id="note-title"></h3><p id="note-copy"></p></article>
+      <article class="note-card"><h3 id="style-title"></h3><p id="style-copy"></p></article>
+      <article class="note-card"><h3>Drives, not volumes</h3><p>Disk Utility and the Finder list volumes. That's why an APFS container shows up three times and a 2‑bay enclosure looks like two unrelated disks. Here, a row is a <b>physical device</b>: a whole IOMedia with a real transport underneath. Synthesized APFS disks are folded into the drive that stores them, and Preboot, VM, Recovery and Update are hidden unless you turn on <b>Show System Volumes</b>.</p><p>Click any row to open it as the card. The card starts on whatever needs attention: the fullest boot disk, a SMART warning or a slow link. When nothing does, it starts on the startup disk.</p></article>
+      <article class="note-card"><h3>Two LEDs, like the front of a tower</h3><p>The Smart style's glyph has two dots next to it: <b style="color:var(--m-read)">green for read</b>, <b style="color:var(--m-write)">red for write</b>. They light for any interval where any drive moved bytes. That tells you something is thrashing the disk without spending menu bar width on numbers. The counters are the kernel's own per-drive totals, so reading them costs nothing, even once a second.</p></article>
+      <article class="note-card"><h3>Hover to copy</h3><p>BSD name, serial, mount point and volume UUID copy on click, like IP and MAC in the Wi‑Fi card. The <b>Speed</b> row is the one action on the card: it runs <code>iospeed</code> against the first writable volume, and only when you click it.</p></article>
+    </div>
+  </div>
+</section>
+
+<section aria-label="Unavailable and permission states">
+  <p class="eyebrow">P0 edge states</p>
+  <h2>Missing evidence stays visible</h2>
+  <div class="notes">
+    <article class="note-card"><h3>No SMART path</h3><p><b>Card:</b> the Health group shows a single row: <b>UNAVAILABLE</b> and the reason, for example <i>ASMedia ASM1352R bridge, macOS has no passthrough</i>. The temperature column shows a dim dash, never 0 °C.</p><p><b>Never</b> show a green tick for a drive that simply can't answer. Unknown health is grey, not good. That is three of the four drives on this Mac today.</p></article>
+    <article class="note-card"><h3>Empty enclosure</h3><p>A USB bridge with nothing behind it still enumerates as a block device with no media. That's the Realtek RTL9210B on your USB 2.0 hub right now. It gets a dimmed row that says <b>No disk</b>, with its link speed, because "why is my SSD not showing up" usually starts here: a bad M.2 seat, or a drive that didn't spin up.</p></article>
+    <article class="note-card"><h3>Read-only or foreign format</h3><p>NTFS mounts read-only, and ext4 or an unknown partition type doesn't mount at all. The row still appears with its partition type and a <b>READ-ONLY</b> or <b>NOT MOUNTED</b> tag. The Speed row turns off, because iospeed has to write a test file.</p></article>
+    <article class="note-card"><h3>Locked volume</h3><p>An encrypted APFS volume that hasn't been unlocked shows its size and a <b>LOCKED</b> tag in the Volumes group, plus an <b>Unlock…</b> action that hands off to the system password prompt. The widget never stores or sees the passphrase.</p></article>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Why the Bus group exists</p>
+  <h2>The slowest link sets the ceiling</h2>
+  <p class="section-lede">A drive runs at the speed of the narrowest thing between it and the Mac: the drive itself, the bridge chip in the enclosure, any hub, and the port. The <b>Bus</b> group names all of them and the speed they <strong>negotiated</strong>. The widget flags a drive when the link is well below what the drive could do. The scale below is practical sequential MB/s on a log axis. Solid markers are your drives today; the dotted one is what the SN740 does in a better enclosure.</p>
+  <div class="scale-wrap">
+    <div class="scale-scroll">
+      <div class="lscale" id="lscale">
+        <div class="track"><span class="seg u2">USB 2</span><span class="seg u5">USB 5 Gb/s</span><span class="seg u10">10 Gb/s</span><span class="seg u20">20G</span><span class="seg u40">TB 3/4</span><span class="seg u80">TB 5 · internal</span></div>
+        <div class="ticks"><span style="left:0">10</span><span style="left:20%">40</span><span style="left:33.3%">100</span><span style="left:55.1%">450</span><span style="left:66.7%">1 000</span><span style="left:86%">3 800</span><span style="left:100%">10 000 MB/s</span></div>
+      </div>
+    </div>
+    <div class="scale-foot">
+      <p><b>The two 16 TB drives are limited by their platters, not the cable.</b> Each manages about 270 MB/s. Both together still fit inside the ASM1352R's 10 Gb/s uplink, so sharing the bridge isn't a bottleneck. Sharing a power supply is the real risk (see below).</p>
+      <p><b>The SN740 is capped at about a fifth of its speed.</b> It's a PCIe 4 NVMe drive that can do about 5 GB/s, in a 10 Gb/s Realtek bridge. That's fine for a scratch disk, but it's why the card shows <i>drive ~5 000 · link ~1 000</i> rather than just one number.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">What's plugged in</p>
+  <h2>I probed this Mac, read-only</h2>
+  <p class="section-lede">Using <code>diskutil</code>, <code>ioreg</code>, <code>system_profiler</code>, <code>smartctl</code> and <code>iostat</code>, all read-only. Nothing was mounted, unmounted or written. This is the tree the widget has to draw, and it has more going on than the Finder sidebar shows.</p>
+  <div class="topo">
+    <svg viewBox="0 0 760 300" role="img" aria-label="USB and internal storage topology of this Mac">
+      <g class="n"><rect x="10" y="126" width="110" height="48" rx="8"/><text x="22" y="147">MacBook Pro</text><text class="s" x="22" y="164">M-series SoC</text></g>
+      <path class="e" d="M120 150 C150 150 150 30 180 30"/>
+      <g class="n"><rect x="180" y="8" width="170" height="44" rx="8"/><text x="192" y="27">Apple Fabric (NVMe)</text><text class="s" x="192" y="43">internal</text></g>
+      <path class="e" d="M350 30 H420"/>
+      <g class="n"><rect x="420" y="8" width="330" height="44" rx="8"/><text x="432" y="27">APPLE SSD AP0512Z · 500 GB</text><text class="w" x="432" y="43">Macintosh HD · 98% full · SMART ✓</text></g>
+
+      <path class="e" d="M120 150 C150 150 150 100 180 100"/>
+      <g class="n"><rect x="180" y="78" width="170" height="44" rx="8"/><text x="192" y="97">USB-C port · 10 Gb/s</text><text class="s" x="192" y="113">bus 0x00</text></g>
+      <path class="e" d="M350 100 H420"/>
+      <g class="n"><rect x="420" y="78" width="330" height="44" rx="8"/><text x="432" y="97">RTL9210 bridge › WD SN740 2 TB</text><text class="w" x="432" y="113">DiscPro2TB · exFAT · 100% full · no SMART</text></g>
+
+      <path class="e" d="M120 150 C150 150 150 190 180 190"/>
+      <g class="n"><rect x="180" y="168" width="170" height="44" rx="8"/><text x="192" y="187">Realtek 4-port hub</text><text class="s" x="192" y="203">USB 3 · 10 Gb/s + USB 2</text></g>
+      <path class="e" d="M350 190 H420"/>
+      <g class="n hot"><rect x="420" y="168" width="330" height="44" rx="8"/><text x="432" y="187">ASM1352R 2-bay › 2 × 16 TB (LUN 0, 1)</text><text class="w" x="432" y="203">Tower + Tower Backup · same box, same PSU</text></g>
+      <path class="e slow" d="M265 212 C265 250 330 256 420 256"/>
+      <g class="n off"><rect x="420" y="234" width="330" height="44" rx="8"/><text x="432" y="253">RTL9210B bridge · no disk</text><text class="w" x="432" y="269">USB 2.0 side of the hub · 480 Mb/s</text></g>
+    </svg>
+  </div>
+  <div class="impl" style="margin-top:12px">
+    <article class="note-card"><span class="verdict yes">Works</span><h3>Internal SSD: full NVMe SMART</h3><p><code>smartctl</code> reads the NVMe health log with no root and no driver: <b>PASSED</b>, 35 °C, 0% used, 100% spare, 20.4 TB written, 15.6 TB read, 435 power-on hours, 274 power cycles, <b>35 unsafe shutdowns</b>, 0 media errors. The widget can get all of this directly from the <code>NVMeSMARTLib</code> IOKit plug-in, without shelling out.</p></article>
+    <article class="note-card"><span class="verdict no">Blocked on macOS</span><h3>USB drives: no SMART at all</h3><p>All three external disks return <i>Operation not supported by device</i>, and <code>diskutil</code> reports <b>SMART Status: Not Supported</b>. The bridges could pass SMART through (smartctl has <code>-d sntrealtek</code> and <code>-d sat</code> for exactly these chips), but Apple's USB mass-storage driver doesn't expose passthrough. The only fix is a third-party DriverKit extension such as the open-source SAT SMART Driver. The widget should detect it when it's installed and <b>never require it</b>.</p></article>
+    <article class="note-card"><span class="verdict some">Worth a warning</span><h3>Tower Backup lives next to Tower</h3><p>Both 16 TB drives sit behind a single ASMedia ASM1352R bridge (one USB device, LUN 0 and LUN 1), on the same hub, and in the same enclosure. The backup shares a power supply, a bridge chip and a cable with the drive it backs up. The widget can see that from the IORegistry tree and says so once, in the Bus group, as <b>Shares enclosure with Tower</b>. It's not an alarm, just a fact you wouldn't otherwise see.</p></article>
+    <article class="note-card"><span class="verdict some">Two full disks</span><h3>Capacity, today</h3><p><b>Macintosh HD: 10.4 GB free of 494 GB (98%)</b>. <b>DiscPro2TB: 7.3 GB free of 2 TB</b> (exFAT, 128 KB clusters, so small files waste space). Tower 84%, Tower Backup 91%. Tower is <b>case-sensitive APFS</b>, and the Volumes group labels it that way, because some apps and backup tools stumble on it.</p></article>
+    <article class="note-card"><span class="verdict info">Odd but harmless</span><h3>An enclosure on the slow side of the hub</h3><p>A second Realtek bridge (RTL9210B) is plugged into the hub's <b>USB 2.0</b> half at 480 Mb/s, with no media behind it. If a drive goes into it, it will run at about 40 MB/s. That's the <b>USB 2 link</b> scenario, and exactly what the Bus group is for.</p></article>
+    <article class="note-card"><span class="verdict info">Live counters</span><h3>I/O since boot</h3><p><code>iostat</code> totals since boot: disk0 has moved 1.25 TB, Tower 9.8 GB, Tower Backup 0.8 GB and DiscPro 15 MB. The same per-drive byte counters drive the LEDs, the Read/Write numbers and the sparkline. One sample showed disk0 at 3.2 MB/s and everything else idle.</p></article>
+  </div>
+</section>
+
+<section>
+  <p class="eyebrow">Build notes</p>
+  <h2>What it reads, and from where</h2>
+  <div class="impl">
+    <article class="note-card"><h3>IOKit, through objc2</h3><p>Walk <code>IOMedia</code> where <code>Whole = true</code> and go up to the <code>IOBlockStorageDevice</code>: <b>Device Characteristics</b> (vendor, product, revision, serial, medium type) and <b>Protocol Characteristics</b> (<i>Physical Interconnect</i>: USB, Apple Fabric, PCI-Express or Thunderbolt, plus location). Further up, <code>IOUSBHostDevice</code> gives the negotiated speed and the bridge's USB vendor and product ID, which tell you the chip: 0bda:9210 is Realtek, 174c:55aa is ASMedia. It's the same crate stack as battery-widget.</p></article>
+    <article class="note-card"><h3>Throughput from counters</h3><p><code>IOBlockStorageDriver</code> publishes a <b>Statistics</b> dictionary with bytes and operations read and written, plus total read and write time. The widget samples it once a second while the menu is open and every 2 s for the LEDs. It works out MB/s, IOPS and average latency from the differences. This is the same source <code>iostat</code> uses. No benchmark, no <code>fs_usage</code>, no root.</p></article>
+    <article class="note-card"><h3>DiskArbitration for mounts and eject</h3><p><code>DARegisterDiskAppearedCallback</code> and <code>DiskDisappeared</code> keep the list live with no polling. Eject goes through <code>DADiskEject</code> for the whole drive, so an enclosure with two volumes ejects both. When eject fails, the <b>dissenter</b> gives a status, and a <code>proc_listpidspath</code> lookup on the mount point names the processes holding it open. A disappear event without a prior unmount is recorded as an <b>unsafe removal</b>.</p></article>
+    <article class="note-card"><h3>SMART, with an honest fallback</h3><p>NVMe: <code>IONVMeSMARTUserClient</code> through <code>NVMeSMARTLib</code>, the same path smartctl uses. SATA inside a Mac Pro or a Thunderbolt dock: <code>IOATASMARTUserClient</code>. USB: only when a SAT passthrough DriverKit extension is loaded, detected by its IORegistry class. Health isn't just the raw values. The widget keeps <b>one reading a day per serial</b> in <code>~/.local/state/drive-widget/</code> and warns on <b>change</b>: a sector count that is rising, spare that is dropping, or unsafe shutdowns that jumped.</p></article>
+    <article class="note-card"><h3>Speed test is iospeed</h3><p><code>src/iospeed</code> already writes a test file with the cache bypassed and reports sequential read and write. The widget runs it with <code>-size 1G</code> in the background and parses the plain output. It is disabled when the volume has less than 2 GB free, is read-only, or is on battery below 20%. Results are saved per volume, with a date, and shown in the Speed row.</p></article>
+    <article class="note-card"><h3>Relationship to free-disk-space-widget</h3><p>Keep both. The free-space widget is the always-on number, and this is the drawer you open when something is off. They share the capacity tiers: under 10% free is red and under 20% is amber. <b>Icon + Free</b> here is deliberately the same number the sibling shows, so you can run this one alone if you prefer.</p></article>
+  </div>
+</section>
+
+<script>
+  // ── glyphs ──────────────────────────────────────────
+  const G = {
+    chip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M6 17v2M9 17v2M12 17v2M15 17v2M18 17v2M6 5v2M9 5v2M12 5v2M15 5v2M18 5v2" stroke-linecap="round"/><rect x="6.5" y="10" width="5" height="4" rx=".6" fill="currentColor" stroke="none" opacity=".55"/></svg>',
+    nvme: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4" y="5" width="16" height="14" rx="3"/><path d="M8 15.5h5" stroke-linecap="round"/><circle cx="16.5" cy="15.5" r="1.1" fill="currentColor" stroke="none"/></svg>',
+    hdd: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2.5"/><circle cx="12" cy="10.5" r="4.2"/><circle cx="12" cy="10.5" r="1" fill="currentColor" stroke="none"/><path d="M14.5 13l2.4 3.6" stroke-linecap="round"/><circle cx="7.5" cy="18" r=".8" fill="currentColor" stroke="none"/></svg>',
+    empty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-dasharray="3 2.2"><rect x="4" y="5" width="16" height="14" rx="3"/></svg>',
+    drive: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M5.2 6.5 7 4h10l1.8 2.5"/><rect x="3" y="12" width="18" height="8" rx="2"/><path d="M3.4 12.4 5.2 6.5h13.6l1.8 5.9"/><circle cx="17" cy="16" r="1.1" fill="currentColor" stroke="none"/></svg>',
+    driveAlert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round"><rect x="3" y="12" width="18" height="8" rx="2"/><path d="M3.4 12.4 5.2 7.5h4M20.6 12.4l-1.8-4.9h-4"/><path d="M12 2.5v5.5"/><circle cx="12" cy="10.2" r="1.05" fill="currentColor" stroke="none"/></svg>',
+    eject: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5 4.5 14h15z"/><rect x="4.5" y="16.5" width="15" height="2.5" rx="1"/></svg>',
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>'
+  };
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // ── drives: the baseline is what this Mac reported on 2026-09-23 ─────
+  const baseDrives = {
+    int: {
+      id: 'int', name: 'Macintosh HD', glyph: 'chip', pill: 'Internal',
+      meta: 'APPLE SSD AP0512Z · 500 GB · NVMe', internal: true,
+      segs: [{ n: 'Data', gb: 460.5 }, { n: 'System', gb: 12.6 }, { n: 'Preboot · VM · Rec', gb: 10.7 }],
+      size: 494.4, free: 10.4, unit: 'GB',
+      rw: [3.2, 0.4], temp: 35,
+      smart: { kind: 'nvme', status: 'PASSED', used: 0, spare: 100, spareThr: 99, written: '20.4 TB', read: '15.6 TB', hours: 435, cycles: 274, unsafe: 35, media: 0, errlog: 0 },
+      bus: { name: 'Apple Fabric', neg: 'internal', ceiling: 'drive ~5 000 MB/s', path: 'SoC › NAND', bridge: null },
+      vols: [{ name: 'Macintosh HD', fmt: 'APFS · sealed', note: 'startup', mount: '/', uuid: 'disk3s1' }, { name: 'Data', fmt: 'APFS', mount: '/System/Volumes/Data', uuid: 'disk3s5' }],
+      dev: { bsd: 'disk0', serial: '0ba0230bc039541d', block: '4 KB' },
+      speed: { text: '<span class="dim">Not run yet</span>', test: true }
+    },
+    disc: {
+      id: 'disc', name: 'DiscPro2TB', glyph: 'nvme', pill: 'USB 10G', ejectable: true,
+      meta: 'WD SN740 2 TB · NVMe in RTL9210',
+      segs: [{ n: 'DiscPro2TB', gb: 2040.8 }], size: 2048.4, free: 7.3, unit: 'GB',
+      rw: [0, 0], temp: null,
+      smart: null, smartWhy: 'Realtek RTL9210 bridge · macOS has no USB passthrough',
+      bus: { name: 'USB 3.2 Gen 2', neg: '10 Gb/s', ceiling: 'drive ~5 000 · link ~1 000 MB/s', path: 'USB-C › RTL9210', bridge: 'Realtek RTL9210 · 0bda:9210' },
+      vols: [{ name: 'DiscPro2TB', fmt: 'exFAT · 128 KB clusters', mount: '/Volumes/DiscPro2TB', uuid: 'disk4s2' }],
+      dev: { bsd: 'disk4', serial: '012345679027', block: '512 B' },
+      speed: { text: '<span class="dim">Not run yet</span>', test: true }
+    },
+    tower: {
+      id: 'tower', name: 'Tower', glyph: 'hdd', pill: 'USB 10G', ejectable: true,
+      meta: '16 TB · bay 2 of ASM1352R · model hidden',
+      segs: [{ n: 'Tower', gb: 13347 }], size: 16000.9, free: 2651.9, unit: 'GB',
+      rw: [0, 0], temp: null,
+      smart: null, smartWhy: 'ASMedia ASM1352R bridge · macOS has no USB passthrough',
+      bus: { name: 'USB 3.2 Gen 2', neg: '10 Gb/s', ceiling: 'drive ~270 MB/s', path: 'USB-C › hub › ASM1352R', bridge: 'ASMedia ASM1352R · LUN 1', shares: 'Tower Backup' },
+      vols: [{ name: 'Tower', fmt: 'APFS · case-sensitive', mount: '/Volumes/Tower', uuid: 'disk8s1' }],
+      dev: { bsd: 'disk6', serial: 'AAAABBBB0003 · LUN 1', block: '512 B' },
+      speed: { text: '<span class="mono hi">↓268 ↑255</span> <span class="dim">MB/s · 12 Aug</span>', test: true }
+    },
+    backup: {
+      id: 'backup', name: 'Tower Backup', glyph: 'hdd', pill: 'USB 10G', ejectable: true,
+      meta: '16 TB · bay 1 of ASM1352R · model hidden',
+      segs: [{ n: 'Tower Backup', gb: 14466.9 }], size: 16000.9, free: 1532.2, unit: 'GB',
+      rw: [0, 0], temp: null,
+      smart: null, smartWhy: 'ASMedia ASM1352R bridge · macOS has no USB passthrough',
+      bus: { name: 'USB 3.2 Gen 2', neg: '10 Gb/s', ceiling: 'drive ~270 MB/s', path: 'USB-C › hub › ASM1352R', bridge: 'ASMedia ASM1352R · LUN 0', shares: 'Tower' },
+      vols: [{ name: 'Tower Backup', fmt: 'APFS', mount: '/Volumes/Tower Backup', uuid: 'disk7s1' }],
+      dev: { bsd: 'disk5', serial: 'AAAABBBB0003 · LUN 0', block: '512 B' },
+      speed: { text: '<span class="dim">Not run yet</span>', test: true }
+    },
+    empty: {
+      id: 'empty', name: 'RTL9210B-CG', glyph: 'empty', pill: 'USB 480M', pillWarn: true, noMedia: true, ejectable: true,
+      meta: 'Realtek enclosure · no disk detected',
+      segs: [], size: 0, free: 0, unit: 'GB', rw: [0, 0], temp: null,
+      smart: null, smartWhy: 'No media behind the bridge',
+      bus: { name: 'USB 2.0 High Speed', neg: '480 Mb/s', negWarn: true, ceiling: 'link ~40 MB/s', path: 'USB-C › hub (USB 2 side) › RTL9210B', bridge: 'Realtek RTL9210B · 0bda:9210' },
+      vols: [], dev: { bsd: '—', serial: '012345678944', block: '—' },
+      speed: { text: '<span class="dim">No volume</span>', test: false }
+    }
+  };
+  const ORDER = ['int', 'disc', 'tower', 'backup', 'empty'];
+
+  const states = {
+    now: {
+      head: 'var(--m-danger)', tag: '10G', alert: true, focus: 'int',
+      status: 'Macintosh HD nearly full<small>· 2 drives under 1%</small>',
+      d: {},
+      action: 'Reveal Large Files on Macintosh HD…',
+      title: 'Right now: two disks are full, and one is the startup disk.',
+      copy: 'This is the real state of the Mac. Macintosh HD has 10.4 GB left. macOS starts purging caches and refusing updates at about that point, so the startup disk takes the card, the dot is red and the Smart tag reads 10G. DiscPro2TB is fuller in percentage terms (7.3 GB of 2 TB) but it is a scratch disk and nothing breaks, so it gets a red bar in its row instead of the header. The SMART rows show what the internal SSD reports. The three USB drives say UNAVAILABLE rather than pretending to be fine.'
+    },
+    healthy: {
+      head: 'var(--m-safe)', tag: '', focus: 'int',
+      status: 'All drives healthy',
+      d: {
+        int: { free: 138.2, segs: [{ n: 'Data', gb: 332.7 }, { n: 'System', gb: 12.6 }, { n: 'Preboot · VM · Rec', gb: 10.9 }], rw: [1.1, 0.6] },
+        disc: { free: 812.4, segs: [{ n: 'DiscPro2TB', gb: 1236 }] }
+      },
+      action: '',
+      title: 'Healthy looks like nothing happened.',
+      copy: 'A white glyph, two quiet LEDs and no tag. The card sits on the startup disk because nothing else needs attention. Its SMART rows read like a spec sheet: 0% life used, 100% spare, no media errors. The rows below are compact: bus, a capacity bar and free space, and an eject button for anything external.'
+    },
+    copying: {
+      head: 'var(--m-active)', tag: '↑212', focus: 'tower', live: true,
+      status: 'Copying to Tower<small>· 212 MB/s</small>',
+      d: {
+        tower: { rw: [4, 212], ejectBlock: ['Final Cut Pro', 'mds_stores'] },
+        disc: { rw: [214, 0], ejectBlock: ['Finder (copy source)'] },
+        backup: { rw: [0, 0] }
+      },
+      action: 'Eject Tower When Idle',
+      title: 'Eject says who is holding on.',
+      copy: 'DiscPro2TB → Tower at 212 MB/s. That is the HDD\'s ceiling, not the USB link\'s, which the Bus group shows too. Click the eject button on Tower: macOS refuses, and instead of "The disk wasn\'t ejected because one or more programs may be using it", the row names Final Cut Pro and Spotlight. The primary action changes to Eject Tower When Idle, which waits until the write counters have been flat for 10 s.'
+    },
+    slow: {
+      head: 'var(--m-busy)', tag: '480M', alert: true, focus: 'disc', live: true,
+      status: 'DiscPro2TB on a USB 2 link',
+      d: {
+        disc: { pill: 'USB 480M', pillWarn: true, rw: [38.6, 0], free: 812.4, segs: [{ n: 'DiscPro2TB', gb: 1236 }],
+          bus: { name: 'USB 2.0 High Speed', neg: '480 Mb/s', negWarn: true, ceiling: 'drive ~5 000 · link ~40 MB/s', path: 'USB-C › hub (USB 2 side) › RTL9210', bridge: 'Realtek RTL9210 · 0bda:9210', hint: 'Move to the hub\'s blue port or directly to the Mac' } },
+        empty: { hidden: true }
+      },
+      action: '',
+      title: 'Nothing is broken, it is just 125× slower.',
+      copy: 'The SN740 was moved into the enclosure on the USB 2.0 side of the Realtek hub. Everything mounts, the Finder says nothing, and the copy you just started will take all afternoon. The Bus group shows the negotiated 480 Mb/s against a ~5 000 MB/s drive, the pill turns amber, and the Smart tag reads 480M. The widget flags a link when the drive could go at least 4× faster.'
+    },
+    cliff: {
+      head: 'var(--m-busy)', tag: '↑190', alert: true, focus: 'disc', live: true,
+      status: 'DiscPro2TB write speed dropped<small>· after 38 GB</small>',
+      d: {
+        disc: { rw: [0, 190], free: 774.1, segs: [{ n: 'DiscPro2TB', gb: 1274.3 }], cliff: true }
+      },
+      action: '',
+      title: 'Write speed fell off a cliff, and there was no SMART to say why.',
+      copy: 'A long write to the SN740 ran at ~940 MB/s for 38 GB, then dropped to 190 MB/s. The drive\'s SLC cache is full and it is writing straight to QLC, possibly thermal-throttling too. Without SMART the widget can\'t read a temperature, but it can see the step in its own write counters, so the Write number turns amber and the sparkline shows the step. The note tells you what is happening, so you don\'t start blaming the cable.'
+    },
+    failing: {
+      head: 'var(--m-danger)', tag: '!', alert: true, focus: 'backup',
+      status: 'Tower Backup is reallocating sectors',
+      d: {
+        backup: {
+          badge: '!', temp: 44, meta: 'WDC WD161KFGX · 16 TB · 7200 rpm',
+          smart: { kind: 'ata', status: 'PASSED', realloc: 24, reallocTrend: [0, 0, 0, 0, 2, 2, 5, 8, 8, 13, 19, 24], pending: 3, uncorr: 3, crc: 0, hours: 31204, starts: 4112, via: 'SAT SMART Driver' },
+          smartWhy: null
+        }
+      },
+      action: 'Show Tower Backup in Finder',
+      title: 'SMART still says PASSED. The trend says replace it.',
+      copy: 'The overall SMART verdict only flips to FAILED when an attribute crosses the manufacturer\'s threshold, which is often too late. What matters is change: 24 reallocated sectors, up from 0 a month ago, and 3 more pending. So the widget goes red on the trend and shows the sparkline, even though the drive itself reports PASSED. This scenario only exists once a SAT passthrough driver is installed. Today this bridge gives no SMART at all.'
+    },
+    pulled: {
+      head: 'var(--m-danger)', tag: '!', alert: true, focus: 'disc',
+      status: 'DiscPro2TB removed without ejecting',
+      d: {
+        disc: { removed: true, rw: [0, 0], badge: '!' }
+      },
+      action: 'Run First Aid When Reconnected',
+      title: 'The widget remembers what it saw before it left.',
+      copy: 'DiskArbitration saw the drive disappear while it was still mounted. The row stays for this session, marked red, with the time it vanished. exFAT sets a dirty flag while mounted, so the next mount will be slow and may need First Aid. The primary action queues that: when the same serial reappears, First Aid runs before the volume mounts. Pulled drives are counted per serial, like the internal SSD\'s 35 unsafe shutdowns.'
+    }
+  };
+
+  const styles = {
+    'mb-smart': ['Smart', 'The default: a drive glyph, two activity LEDs, and a tag that only appears when something is wrong. The tag is the most urgent fact: GB left on the startup disk, the slow link speed, the write rate that collapsed, or ! for health. While a copy runs it shows the write rate in blue, so you can see a copy happening without opening the menu.'],
+    'mb-icon': ['Icon', 'The narrowest option. The glyph is white when things are fine and turns into a drive with an exclamation mark, in the state colour, when anything needs attention. You lose the reason until you open the menu.'],
+    'mb-io': ['Icon + I/O', 'Total read and write across every drive, stacked in two tiny lines, updated once a second. The iStat-style option for when you want to watch a copy. Width is fixed with tabular figures so the menu bar doesn\'t jitter.'],
+    'mb-free': ['Icon + Free', 'Free space on the startup disk, in the same compact lowercase units as free-disk-space-widget (10gb, 138gb). Use this if you want one widget instead of two.'],
+    'mb-temp': ['Icon + Temp', 'The hottest drive that reports a temperature. Drives without SMART are skipped rather than counted as 0 °C. Turns amber at 60 °C and red at 70 °C for NVMe. On this Mac today it can only ever show the internal SSD.']
+  };
+
+  // ── helpers ──────────────────────────────────────────
+  const fmtSize = gb => gb >= 1000 ? (gb / 1000).toFixed(gb >= 10000 ? 1 : 2).replace(/\.?0+$/, '') + ' TB' : (gb >= 100 ? Math.round(gb) : gb.toFixed(1)) + ' GB';
+  const fmtCompact = gb => gb >= 1000 ? Math.round(gb / 1000) + 'tb' : Math.round(gb) + 'gb';
+  const freePct = d => d.size ? d.free / d.size * 100 : 100;
+  const tier = d => { const p = freePct(d); return p < 10 ? 'bad' : p < 20 ? 'warn' : 'ok'; };
+  const tierColor = t => t === 'bad' ? '#cb4b43' : t === 'warn' ? '#b98930' : '#d9d9dc';
+  const tierWord = t => t === 'bad' ? 'Nearly full' : t === 'warn' ? 'Getting full' : 'Plenty';
+  const fmtRate = v => v >= 100 ? Math.round(v) : v >= 10 ? v.toFixed(0) : v.toFixed(1);
+
+  function spark(points, color, w = 150, h = 16, cls = 'spark') {
+    const max = Math.max(1, ...points);
+    const xy = points.map((p, i) => [(i / (points.length - 1)) * w, h - 1 - (p / max) * (h - 2)]);
+    const line = xy.map(([x, y], i) => (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1)).join('');
+    return '<svg class="' + cls + '" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true"><path d="' + line + 'L' + w + ' ' + h + 'L0 ' + h + 'Z" fill="' + color + '" opacity=".2"/><path d="' + line + '" fill="none" stroke="' + color + '" stroke-width="1.3" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>';
+  }
+  const fact = (k, v, opt = {}) => '<div class="fact' + (opt.copy ? ' copy' : '') + (opt.test ? ' test' : '') + (opt.off ? ' off' : '') + '"'
+    + (opt.copy ? ' data-copy="' + esc(opt.copy) + '" title="Click to copy"' : '') + (opt.test ? ' data-test="1"' : '') + '>'
+    + '<span class="k">' + k + '</span><span class="v">' + v + '</span>'
+    + '<span class="act">' + (opt.copy ? G.copy : opt.test ? 'Test' : '') + '</span></div>';
+
+  // ── state ────────────────────────────────────────────
+  let currentState = 'now', focusId = 'int', drives = {}, traces = {}, ejected = new Set(), blockedShown = null, timer = null;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function buildDrives(name) {
+    const s = states[name]; const out = {};
+    ORDER.forEach(id => {
+      const o = s.d[id] || {};
+      out[id] = { ...baseDrives[id], ...o, bus: { ...baseDrives[id].bus, ...(o.bus || {}) } };
+    });
+    return out;
+  }
+  function seedTraces() {
+    traces = {};
+    ORDER.forEach(id => {
+      const d = drives[id];
+      if (d.cliff) {
+        traces[id] = { r: Array(24).fill(0), w: Array.from({ length: 24 }, (_, i) => i < 14 ? 930 + Math.random() * 30 : 185 + Math.random() * 12) };
+      } else {
+        traces[id] = { r: Array.from({ length: 24 }, () => jitter(d.rw[0])), w: Array.from({ length: 24 }, () => jitter(d.rw[1])) };
+      }
+    });
+  }
+  const jitter = v => v <= 0 ? (Math.random() < .08 ? Math.random() * .3 : 0) : Math.max(0, v * (0.86 + Math.random() * .28));
+
+  // ── menu bar ─────────────────────────────────────────
+  function chipHTML(s) {
+    const tot = ORDER.reduce((a, id) => { const t = traces[id]; return [a[0] + t.r[t.r.length - 1], a[1] + t.w[t.w.length - 1]]; }, [0, 0]);
+    const hot = ORDER.map(id => drives[id]).filter(d => d.temp != null && !d.removed).sort((a, b) => b.temp - a.temp)[0];
+    return '<span class="ic">' + (s.alert ? G.driveAlert : G.drive) + '</span>'
+      + '<span class="leds"><i class="r' + (tot[0] > .05 ? ' on' : '') + '"></i><i class="w' + (tot[1] > .05 ? ' on' : '') + '"></i></span>'
+      + '<span class="tag">' + s.tag + '</span>'
+      + '<span class="io2"><span><b>R</b>' + fmtRate(tot[0]).toString().padStart(4, ' ') + '</span><span><b>W</b>' + fmtRate(tot[1]).toString().padStart(4, ' ') + '</span></span>'
+      + '<span class="free">' + fmtCompact(drives.int.free) + '</span>'
+      + '<span class="temp">' + (hot ? hot.temp + '°' : '—') + '</span>';
+  }
+  function tagColor(s) {
+    if (!s.tag) return 'var(--m-fg)';
+    if (currentState === 'copying') return '#8fb4f0';
+    return s.head;
+  }
+
+  // ── focus card ───────────────────────────────────────
+  function capHTML(d) {
+    if (d.noMedia) return '<span class="cap"><span class="lbl-l">No media</span><span class="cbar"></span></span>';
+    const t = tier(d), col = tierColor(t);
+    const segs = d.segs.map((sg, i) => '<i style="width:' + (sg.gb / d.size * 100).toFixed(2) + '%;--seg:' + col + ';opacity:' + (1 - i * .28) + '" title="' + esc(sg.n) + ' · ' + fmtSize(sg.gb) + '"></i>').join('');
+    const pct = Math.round(100 - freePct(d));
+    return '<span class="cap"><span class="lbl-l">' + fmtSize(d.free) + ' free of ' + fmtSize(d.size) + '</span>'
+      + '<span class="lbl">' + pct + '% · <strong style="color:' + (t === 'ok' ? '#a8a9ae' : col) + '">' + tierWord(t) + '</strong></span>'
+      + '<span class="cbar">' + segs + '<em style="left:80%"></em><em style="left:90%"></em><em style="left:95%"></em></span>'
+      + '<span class="scale"><i style="left:0;transform:none">0</i><i style="left:80%">80</i><i style="left:100%">100%</i></span></span>';
+  }
+  function healthGroup(d) {
+    const sm = d.smart;
+    if (!sm) {
+      return '<div class="fgroup"><div class="glabel"><span>Health</span></div>'
+        + fact('SMART', '<span class="tagp off">UNAVAILABLE</span> <span class="dim">' + esc(d.smartWhy || '') + '</span>') + '</div>';
+    }
+    if (sm.kind === 'nvme') {
+      const unsafeWarn = sm.unsafe / sm.cycles > .1;
+      return '<div class="fgroup"><div class="glabel"><span>Health</span><span class="src">NVMe health log</span></div>'
+        + fact('SMART', '<span class="tagp ok">' + sm.status + '</span> <span class="dim">· no critical warnings</span>')
+        + fact('Life used', '<span class="hi">' + sm.used + '%</span> <span class="dim">· spare ' + sm.spare + '% (min ' + sm.spareThr + '%)</span>')
+        + fact('Written', '<span class="hi">' + sm.written + '</span> <span class="dim">· read ' + sm.read + '</span>')
+        + fact('Powered', '<span class="hi">' + sm.hours.toLocaleString() + ' h</span> <span class="dim">· ' + sm.cycles + ' cycles</span>')
+        + fact('Unsafe', '<span class="' + (unsafeWarn ? 'tagp warn' : 'hi') + '">' + sm.unsafe + '</span> <span class="dim">shutdowns · ' + Math.round(sm.unsafe / sm.cycles * 100) + '% of power cycles</span>')
+        + fact('Errors', '<span class="hi">' + sm.media + '</span> <span class="dim">media · ' + sm.errlog + ' log entries</span>')
+        + '</div>';
+    }
+    return '<div class="fgroup"><div class="glabel"><span>Health</span><span class="src">ATA SMART · via ' + sm.via + '</span></div>'
+      + fact('SMART', '<span class="tagp ok">' + sm.status + '</span> <span class="dim">· self-assessment</span>')
+      + fact('Reallocated', '<span class="tagp bad">' + sm.realloc + '</span> <span class="dim">+' + (sm.realloc - sm.reallocTrend[sm.reallocTrend.length - 5]) + ' this week</span>' + spark(sm.reallocTrend, '#ff6b62', 44, 11, 'mini-spark'))
+      + fact('Pending', '<span class="tagp warn">' + sm.pending + '</span> <span class="dim">· ' + sm.uncorr + ' uncorrectable</span>')
+      + fact('CRC errors', '<span class="hi">' + sm.crc + '</span> <span class="dim">· cable and bridge are fine</span>')
+      + fact('Powered', '<span class="hi">' + sm.hours.toLocaleString() + ' h</span> <span class="dim">· ' + (sm.hours / 8766).toFixed(1) + ' years · ' + sm.starts.toLocaleString() + ' spin-ups</span>')
+      + '</div>';
+  }
+  function busGroup(d) {
+    const b = d.bus;
+    let h = '<div class="fgroup"><div class="glabel"><span>Bus</span></div>'
+      + fact('Link', '<span class="' + (b.negWarn ? 'tagp warn' : 'hi') + '">' + b.neg + '</span> <span class="dim">· ' + b.name + '</span>')
+      + fact('Ceiling', '<span class="dim">' + b.ceiling + '</span>');
+    if (b.bridge) h += fact('Bridge', '<span class="hi">' + b.bridge + '</span>');
+    h += fact('Path', '<span class="dim">' + b.path + '</span>');
+    if (b.shares) h += fact('Shares', '<span class="tagp warn">ENCLOSURE</span> <span class="dim">with ' + b.shares + ' · same bridge and PSU</span>');
+    if (b.hint) h += fact('Fix', '<span class="hi">' + b.hint + '</span>');
+    return h + '</div>';
+  }
+  function volGroup(d) {
+    if (!d.vols.length) return '';
+    return '<div class="fgroup"><div class="glabel"><span>Volumes</span><span class="src">' + d.vols.length + ' mounted</span></div>'
+      + d.vols.map(v => fact(esc(v.name), '<span class="hi">' + v.fmt + '</span> <span class="dim mono">' + esc(v.mount) + '</span>', { copy: v.mount })).join('')
+      + '</div>';
+  }
+  function devGroup(d) {
+    const sp = d.speed;
+    return '<div class="fgroup">'
+      + fact('Device', '<span class="mono">' + d.dev.bsd + '</span> <span class="dim">· ' + d.dev.block + ' blocks</span>', { copy: d.dev.bsd })
+      + fact('Serial', '<span class="mono">' + esc(d.dev.serial) + '</span>', { copy: d.dev.serial })
+      + fact('Speed', sp.text, { test: sp.test && !d.removed, off: !sp.test || d.removed })
+      + '</div>';
+  }
+  function linkline(d) {
+    const t = traces[d.id], r = t.r[t.r.length - 1], w = t.w[t.w.length - 1];
+    const tempCls = d.temp == null ? 'dim' : d.temp >= 70 ? 'bad' : d.temp >= 60 ? 'warn' : '';
+    const wCls = d.cliff ? 'warn' : 'w';
+    return '<div class="linkline" id="linkline">'
+      + '<span><b class="r">' + fmtRate(r) + '</b><small>read · MB/s</small></span>'
+      + '<span><b class="' + wCls + '">' + fmtRate(w) + '</b><small>write · MB/s' + (d.cliff ? ' · was 940' : '') + '</small></span>'
+      + '<span><b class="' + tempCls + '">' + (d.temp == null ? '—' : d.temp + '°') + '</b><small>' + (d.temp == null ? 'temp · no SMART' : 'temp · °C') + '</small></span></div>';
+  }
+  function activityFact(d) {
+    const t = traces[d.id];
+    const w = spark(t.w, d.cliff ? '#ffb340' : '#ff7a6b');
+    return '<div class="fgroup" id="activity">' + fact('Activity', '<span style="display:grid">' + w + '</span>') + '</div>';
+  }
+  function connHTML(d) {
+    if (d.removed) {
+      return '<div class="conn"><div class="row-grid"><span class="glyph">' + G[d.glyph] + '<span class="badge">!</span></span>'
+        + '<span class="net-main"><span class="net-title"><span class="net-name">' + d.name + '</span><span class="pill bad">REMOVED</span></span>'
+        + '<span class="net-meta">' + d.meta + '</span>'
+        + '<span class="net-meta" style="color:#ff8b84">Disappeared while mounted · 2 min ago</span></span></div>'
+        + '<div class="inset">'
+        + '<div class="fgroup" style="border:0;margin:0;padding:0"><div class="glabel"><span>Last seen</span></div>'
+        + fact('Volume', '<span class="hi">DiscPro2TB</span> <span class="dim">· exFAT · dirty flag set</span>')
+        + fact('Writes', '<span class="tagp warn">1.2 GB</span> <span class="dim">in the 30 s before removal</span>')
+        + fact('History', '<span class="hi">3rd</span> <span class="dim">unsafe removal for this serial</span>')
+        + fact('On return', '<span class="hi">First Aid, then mount</span>')
+        + '</div>' + devGroup(d) + '</div></div>';
+    }
+    return '<div class="conn">'
+      + '<div class="row-grid"><span class="glyph">' + G[d.glyph] + (d.badge ? '<span class="badge">' + d.badge + '</span>' : '') + '</span>'
+      + '<span class="net-main"><span class="net-title"><span class="net-name">' + d.name + '</span><span class="pill' + (d.pillWarn ? ' warn' : '') + '">' + d.pill + '</span></span>'
+      + '<span class="net-meta">' + d.meta + '</span>' + capHTML(d) + '</span></div>'
+      + '<div class="inset">' + linkline(d) + activityFact(d) + healthGroup(d) + busGroup(d) + volGroup(d) + devGroup(d) + '</div></div>';
+  }
+
+  // ── drive rows ───────────────────────────────────────
+  function rowHTML(d) {
+    const t = tier(d);
+    const dot = d.removed || (d.smart && d.smart.realloc) ? '#ff5b52' : d.pillWarn ? '#ffb340' : null;
+    let sub = d.pill + ' · ' + (d.noMedia ? 'no disk' : [...new Set(d.vols.map(v => v.fmt.split(' · ')[0]))].join(', '));
+    if (d.removed) sub = 'Removed without ejecting · 2 min ago';
+    if (blockedShown === d.id) sub = '<span class="blocked">In use by ' + d.ejectBlock.join(', ') + '</span>';
+    const right = d.noMedia || d.removed ? '<small>' + (d.noMedia ? '480 Mb/s' : '—') + '</small>'
+      : '<span class="kbar"><i style="width:' + (100 - freePct(d)).toFixed(1) + '%;background:' + (t === 'ok' ? '#a8a9ae' : tierColor(t)) + '"></i></span><small>' + fmtSize(d.free) + ' free</small>';
+    const cls = ['krow'];
+    if (d.noMedia) cls.push('dim');
+    if (d.removed) cls.push('missing');
+    return '<div class="' + cls.join(' ') + '" role="button" tabindex="0" data-focus="' + d.id + '" title="Show details">'
+      + '<span class="kglyph">' + G[d.glyph] + (dot ? '<span class="dot" style="background:' + dot + '"></span>' : '') + '</span>'
+      + '<span class="kmain"><span class="kname">' + d.name + '</span><span class="ksub">' + sub + '</span></span>'
+      + '<span class="kright">' + right + '</span>'
+      + '<button type="button" class="icon-btn' + (d.ejectable && !d.removed ? '' : ' ghost') + '" data-eject="' + d.id + '" aria-label="Eject ' + esc(d.name) + '" title="Eject">' + G.eject + '</button></div>';
+  }
+
+  // ── render ───────────────────────────────────────────
+  function render(name, keepFocus) {
+    if (name !== currentState || !keepFocus) {
+      currentState = name; drives = buildDrives(name); seedTraces(); ejected = new Set(); blockedShown = null;
+      focusId = states[name].focus;
+    }
+    const s = states[name], p = $('preview');
+    p.style.setProperty('--head-color', s.head);
+    $('menu-status').innerHTML = s.status;
+    renderChip();
+    $('conn').innerHTML = connHTML(drives[focusId]);
+    $('net-list').innerHTML = ORDER.filter(id => id !== focusId && !drives[id].hidden && !ejected.has(id)).map(id => rowHTML(drives[id])).join('');
+    const a = $('primary-action');
+    a.hidden = !s.action; a.querySelector('span').textContent = s.action;
+    $('note-title').textContent = s.title;
+    $('note-copy').textContent = s.copy;
+    document.querySelectorAll('[data-state]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.state === name)));
+    updateScale();
+  }
+  function renderChip() {
+    const s = states[currentState], chip = $('chip');
+    chip.classList.toggle('alert', !!s.alert);
+    chip.style.setProperty('--state-color', tagColor(s));
+    chip.innerHTML = chipHTML(s);
+  }
+  function tick() {
+    ORDER.forEach(id => {
+      const d = drives[id], t = traces[id];
+      const base = d.cliff ? [0, 190] : d.rw;
+      t.r.push(jitter(base[0])); t.r.shift();
+      t.w.push(jitter(base[1])); t.w.shift();
+    });
+    renderChip();
+    const d = drives[focusId];
+    if (d && !d.removed) {
+      const ll = $('linkline'); if (ll) ll.outerHTML = linkline(d);
+      const act = $('activity'); if (act) act.outerHTML = activityFact(d);
+    }
+  }
+  function setStyle(cls) {
+    const p = $('preview');
+    Object.keys(styles).forEach(k => p.classList.remove(k));
+    p.classList.add(cls);
+    $('style-title').textContent = 'Menu bar · ' + styles[cls][0];
+    $('style-copy').textContent = styles[cls][1];
+    $('style-key').textContent = styles[cls][0] + ' ▸';
+    document.querySelectorAll('[data-style]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.style === cls)));
+  }
+
+  // ── link ceiling scale ───────────────────────────────
+  const logPos = mbs => (Math.log10(mbs) - 1) / 3 * 100;
+  const markers = [
+    { ids: ['empty', 'slow'], v: 40, label: 'Empty RTL9210B · USB 2 · 40', pos: 'down', edge: 'l' },
+    { ids: ['tower', 'backup', 'failing'], v: 270, label: '16 TB HDD · 270', pos: 'up' },
+    { ids: ['disc', 'copying', 'cliff'], v: 1000, label: 'SN740 via RTL9210 · ~1 000', pos: 'up2' },
+    { ids: [], v: 3800, label: 'SN740 in a TB enclosure', pos: 'down', ghost: true },
+    { ids: ['int', 'now', 'healthy'], v: 5200, label: 'Apple SSD · ~5 000', pos: 'up', edge: 'r' }
+  ];
+  const lscale = $('lscale');
+  markers.forEach(m => {
+    const el = document.createElement('span');
+    el.className = 'marker ' + m.pos + (m.edge ? ' edge-' + m.edge : '') + (m.ghost ? ' ghost' : '');
+    el.style.left = logPos(m.v).toFixed(1) + '%';
+    el.dataset.ids = m.ids.join(' ');
+    el.innerHTML = '<span>' + m.label + '</span><i></i>';
+    lscale.appendChild(el);
+  });
+  function updateScale() {
+    const key = currentState === 'slow' && focusId === 'disc' ? 'slow' : focusId;
+    lscale.querySelectorAll('.marker').forEach(m => {
+      const ids = m.dataset.ids.split(' ');
+      m.classList.toggle('current', ids.includes(key));
+    });
+  }
+
+  // ── interactions ─────────────────────────────────────
+  $('eject-all').innerHTML = G.eject;
+  $('net-list').addEventListener('click', e => {
+    const ej = e.target.closest('[data-eject]');
+    if (ej) {
+      e.stopPropagation();
+      const d = drives[ej.dataset.eject];
+      if (d.ejectBlock) {
+        blockedShown = d.id; render(currentState, true);
+        $('note-title').textContent = 'Eject refused: ' + d.name;
+        $('note-copy').textContent = 'DiskArbitration returned a dissenter (kDAReturnBusy). A process lookup on /Volumes/' + d.name + ' names ' + d.ejectBlock.join(' and ') + '. The row says so in place, and ⌥-click on the eject button offers Force Eject after a confirmation, the same as the Finder.';
+        return;
+      }
+      const row = ej.closest('.krow'); row.classList.add('ejecting');
+      row.querySelector('.ksub').textContent = 'Ejecting…';
+      setTimeout(() => { ejected.add(d.id); render(currentState, true); }, 700);
+      return;
+    }
+    const row = e.target.closest('[data-focus]');
+    if (row) { focusId = row.dataset.focus; blockedShown = null; render(currentState, true); }
+  });
+  $('net-list').addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-focus]')) { e.preventDefault(); e.target.click(); }
+  });
+  $('conn').addEventListener('click', e => {
+    const f = e.target.closest('.fact'); if (!f) return;
+    const act = f.querySelector('.act');
+    if (f.classList.contains('copy')) {
+      try { navigator.clipboard && navigator.clipboard.writeText(f.dataset.copy); } catch (_) {}
+      f.classList.add('copied'); act.textContent = 'Copied';
+      setTimeout(() => { f.classList.remove('copied'); act.innerHTML = G.copy; }, 1100);
+    } else if (f.dataset.test && act.textContent === 'Test') {
+      act.textContent = '…';
+      const d = drives[focusId];
+      const v = f.querySelector('.v');
+      v.innerHTML = '<span class="dim">iospeed · writing 1 GiB…</span>';
+      setTimeout(() => { v.innerHTML = '<span class="dim">iospeed · reading back…</span>'; }, 900);
+      const res = { int: '↓4 870 ↑4 410', disc: currentState === 'slow' ? '↓38 ↑36' : '↓982 ↑905', tower: '↓266 ↑251', backup: '↓271 ↑249' }[d.id] || '—';
+      setTimeout(() => { d.speed = { text: '<span class="mono hi">' + res + '</span> <span class="dim">MB/s · just now</span>', test: true }; v.innerHTML = d.speed.text; act.textContent = 'Test'; }, 1800);
+    }
+  });
+  $('eject-all').addEventListener('click', () => {
+    const blockers = ORDER.map(id => drives[id]).filter(d => d.ejectable && d.ejectBlock);
+    ORDER.forEach(id => { if (drives[id].ejectable && !drives[id].ejectBlock && !drives[id].removed) ejected.add(id); });
+    if (drives[focusId].ejectable && !drives[focusId].ejectBlock) focusId = 'int';
+    blockedShown = blockers[0] ? blockers[0].id : null;
+    render(currentState, true);
+    $('note-title').textContent = 'Eject all';
+    $('note-copy').textContent = blockers.length
+      ? 'Ejected everything it could. ' + blockers.map(b => b.name).join(', ') + ' stayed, and the row says why. Enclosures eject as a unit, so Tower and Tower Backup go together when both are free.'
+      : 'Every external drive ejected as a whole device, so the ASM1352R enclosure spins down both bays together and the empty RTL9210B stops drawing power. Pick a scenario again to bring them back.';
+  });
+
+  document.querySelectorAll('[data-state]').forEach(b => b.addEventListener('click', () => render(b.dataset.state)));
+  document.querySelectorAll('[data-style]').forEach(b => b.addEventListener('click', () => setStyle(b.dataset.style)));
+  render('now'); setStyle('mb-smart');
+  if (!reduce) timer = setInterval(tick, 1000);
+</script>

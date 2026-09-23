@@ -126,6 +126,65 @@
   .meter-line i { display: block; height: 2px; }
   .dd-scale { display: flex; justify-content: space-between; font-size: 9.5px; opacity: 0.4; font-family: ui-monospace, monospace; padding-top: 3px; }
 
+  /* ---------- liquid glass (macOS 26/27) ---------- */
+  .desktop {
+    border-radius: 14px; padding: 14px 14px 22px; margin: 0.6rem 0 0.4rem;
+    background:
+      radial-gradient(120% 90% at 15% 10%, #3d7bd8 0%, transparent 55%),
+      radial-gradient(90% 80% at 85% 20%, #b0509c 0%, transparent 60%),
+      radial-gradient(100% 100% at 60% 95%, #d88a3d 0%, transparent 55%),
+      linear-gradient(160deg, #1a2340, #351f3d 60%, #402318);
+    display: flex; flex-direction: column; gap: 14px;
+    overflow-x: auto;
+  }
+  .menubar.glass {
+    background: rgba(30, 32, 40, 0.28);
+    -webkit-backdrop-filter: blur(16px) saturate(1.7);
+    backdrop-filter: blur(16px) saturate(1.7);
+    color: #f2f3f6; border: 0;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.14);
+  }
+  .gcapsule {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 999px;
+    background: rgba(255,255,255,0.10);
+    -webkit-backdrop-filter: blur(10px) saturate(1.6);
+    backdrop-filter: blur(10px) saturate(1.6);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.32),
+      inset 0 -1px 1px rgba(0,0,0,0.18),
+      0 2px 8px rgba(0,0,0,0.25);
+  }
+  .gcapsule.tint-warn { background: rgba(245,196,81,0.20); }
+  .glass-panel {
+    width: 300px; border-radius: 20px; padding: 6px;
+    background: rgba(28, 30, 38, 0.42);
+    -webkit-backdrop-filter: blur(28px) saturate(1.8);
+    backdrop-filter: blur(28px) saturate(1.8);
+    color: #f2f3f6; font-size: 13px;
+    border: 1px solid rgba(255,255,255,0.10);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.28),
+      inset 1px 0 0 rgba(255,255,255,0.07),
+      inset -1px 0 0 rgba(255,255,255,0.07),
+      0 24px 60px rgba(0,0,0,0.5);
+  }
+  .glass-panel .dd-sep { background: rgba(255,255,255,0.13); }
+  .glass-panel .dd-action:hover { background: rgba(255,255,255,0.14); }
+  .gp-actions {
+    display: flex; gap: 4px; padding: 4px 6px 6px;
+  }
+  .gp-actions > span {
+    flex: 1; text-align: center; padding: 5px 0; font-size: 12px;
+    background: rgba(255,255,255,0.09); border-radius: 999px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.22);
+  }
+  .gp-actions.melded { gap: 0; }
+  .gp-actions.melded > span { border-radius: 0; }
+  .gp-actions.melded > span:first-child { border-radius: 999px 0 0 999px; }
+  .gp-actions.melded > span:last-child { border-radius: 0 999px 999px 0; }
+  .gp-actions.melded > span + span { box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 1px 0 0 rgba(255,255,255,0.10); }
+
   table.map { border-collapse: collapse; font-size: 0.88rem; margin: 0.8rem 0; }
   table.map th, table.map td { text-align: left; padding: 0.35rem 1.1rem 0.35rem 0; border-bottom: 1px solid var(--line); }
   table.map th { color: var(--ink-faint); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -324,6 +383,55 @@
   <p class="note">Same structure as the battery dropdown: header identity, a drawn meter, raw numbers for
   debugging, then actions. SSID in the header, PHY generation as the right-aligned detail. BSSID
   matters when you're figuring out which AP/mesh node you're actually stuck to.</p>
+
+  <h2>Liquid Glass treatment (macOS 26/27)</h2>
+  <p>The same widget over wallpaper, using the glass APIs. Two honest notes up front: the
+  <b>menu bar item itself can't be glass</b> — the system menu bar supplies its own material and a
+  status item only contributes a title/view drawn onto it — and a real <span class="mono">NSMenu</span>
+  already gets the system glass appearance for free on macOS 26+. So "adopting glass" really means one
+  decision: keep the free native menu, or replace the dropdown with a custom
+  <span class="mono">NSPanel</span> hosting <span class="mono">NSGlassEffectView</span>, which buys
+  richer content (live meter, tinted state) at the cost of the repo's native-menu principle.</p>
+
+  <div class="desktop">
+    <div class="menubar glass"><span class="mb-ctx">Wed 21:42</span>
+      <span class="gcapsule"><span class="sbar"><i class="fill" style="width:26px"></i><i class="rest" style="width:8px"></i></span><span class="tiny dim">5</span></span>
+    </div>
+    <div class="menubar glass"><span class="mb-ctx">Wed 21:42</span>
+      <span class="gcapsule tint-warn"><span class="sbar c-warn"><i class="fill" style="width:15px"></i><i class="rest" style="width:19px"></i></span><span class="tiny warn-ink">2.4</span></span>
+    </div>
+    <div class="glass-panel">
+      <div class="dd-head"><span>Peppermint&nbsp;5G</span><span style="opacity:0.55; font-weight:500; font-size:11px">802.11ax</span></div>
+      <div class="dd-meter">
+        <div class="meter-line"><i style="width:210px;background:#f2f3f6"></i><i style="width:50px;background:#f2f3f6;opacity:0.25"></i></div>
+        <div class="dd-scale"><span>0</span><span>SNR 38 dB</span><span>50</span></div>
+      </div>
+      <div class="dd-item"><span class="k">Signal / Noise</span><span class="v">−52 / −90 dBm</span></div>
+      <div class="dd-item"><span class="k">Tx rate</span><span class="v">867 Mbps</span></div>
+      <div class="dd-item"><span class="k">Band</span><span class="v">5 GHz · ch 36 · 80 MHz</span></div>
+      <div class="dd-sep"></div>
+      <div class="gp-actions melded"><span>Copy IP</span><span>Settings…</span><span>Style</span></div>
+    </div>
+  </div>
+
+  <p class="note">The capsule in the menu bar strip is illustrative of the glass <i>look</i>, not a
+  literal API use — the panel below is where the APIs actually apply:</p>
+  <ul>
+    <li><b><span class="mono">NSGlassEffectView</span></b> (macOS 26+) wraps a content view in the
+      dynamic glass material; <span class="mono">cornerRadius</span> shapes it and
+      <span class="mono">tintColor</span> gives the Smart-Bar warn/bad states a whole-panel tint
+      instead of just colored text — the yellow capsule above is that idea.</li>
+    <li><b><span class="mono">NSGlassEffectContainerView</span></b> melds nearby glass shapes into one
+      fluid form (its <span class="mono">spacing</span> controls when they merge) — the bottom action
+      row shows three buttons melded into a single lozenge, which is the API's signature trick and
+      also cheaper to render than three separate glass views.</li>
+    <li><b>Fallbacks:</b> gate on availability, keep the plain NSMenu path as the default style;
+      Reduce Transparency must get an opaque background. Both fit the existing style-submenu
+      mechanism — glass is just another persisted style, not a rewrite.</li>
+    <li><b>objc2 note:</b> same direct-binding pattern; the glass classes are plain AppKit views, so
+      nothing new methodologically — but check <span class="mono">objc2-app-kit</span> has grown the
+      bindings before committing to the panel route.</li>
+  </ul>
 
   <h2>Data sources</h2>
   <ul>

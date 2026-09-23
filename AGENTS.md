@@ -85,7 +85,7 @@ plus `zsh -n` / `bash -n` on any shell script you touched.
 
 `src/<tool>/` holds tool source (Rust: the AppKit menu bar widgets — `battery-widget`,
 `cpu-usage-widget`, `free-disk-space-widget`, `menu-tidy` — plus `leaf`, `pimped`,
-`motherfucker`, `neuroserver-select-preset`, `topaz-select-preset`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
+`motherfucker`, `neuroserver-select-preset`, `topaz-select-preset`, `safesync`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
 `system-uptime-widget`; Swift: the `src/utils/` video ML CLIs `avinterp`,
 `avupscale`, `avremove`). These are the only parts of the repo with a
 build/install step and tests — Dotter does not touch them. `src/utils/` is a
@@ -136,6 +136,21 @@ Installers are named `scripts/install/install-<name>.sh` — follow that for new
 `cargo install`/`go build` — it pins the install path the rest of the config expects
 (e.g. `pimped` must be on PATH for the zsh precmd prompt hook in
 `config/zsh/zshrc.zsh` to work).
+
+**safesync is guarded by sentinels, not by care.** A drive takes part only if
+it carries `.safesync/drive.toml` — `role = source | backup | scratch` pinned
+to the volume UUID — and every command that writes media opens both sentinels
+first: `sync` runs only source → the backup that names that source, `fill`
+writes only onto scratch or unmarked disks, and a source is never written
+except for its own index. The index (`.safesync/index-GENERATION.jsonl`) on
+the drive is the source of truth; the copy in `~/Library/Application
+Support/safesync/manifests/` is for `lookup` while the drive is unplugged.
+Fingerprints are reused by file ID + size + mtime, so a rescan reads only new
+files. Tests build real APFS ram disks (`tests/sync.rs`, ~25 s). It is meant
+to replace `rclone-tower-safe`; until it has, the two coexist and neither
+knows about the other's history directory. Don't add a journal, lease or
+relationship layer back — that version was cut on purpose (git history before
+2026-09-23).
 
 **Topaz has two render backends.** Everything under `topaz-*` (the mpv `z`
 menu, `topaz-encode`, `topaz-pick`, `topaz-workflow`, and the
