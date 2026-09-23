@@ -63,6 +63,9 @@ default_target_type = "symbolic"
 
 # --- Editors and viewers ------------------------------------------------------
 
+[chordpro-tui.files]
+"config/chordpro-tui/chordpro-tui.toml" = "~/.config/chordpro-tui/chordpro-tui.toml"
+
 [helix.files]
 "config/helix" = "~/.config/helix"
 

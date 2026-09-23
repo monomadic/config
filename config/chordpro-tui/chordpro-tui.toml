@@ -1,0 +1,39 @@
+# chordpro-tui configuration
+#
+# Save as ./chordpro-tui.toml (project-local) or in your config
+# directory, e.g. ~/.config/chordpro-tui/chordpro-tui.toml.
+#
+# Tri-state options accept: true (always), false (never), auto (only when
+# the song would otherwise overflow the screen). auto applies in fit view;
+# scroll and player views always have room, so auto reads as false there.
+
+# Fold away tab (tablature) sections.
+collapse-tablature-sections = "true"
+
+# Hide the title and artist line at the top of the page.
+autohide-song-title = "false"
+
+# Hide the metadata pills (KEY, CAPO, TEMPO, …).
+autohide-song-info = "false"
+
+# Hide all section labels (CHORUS, VERSE, …).
+autohide-section-titles = "false"
+
+# Lay the title, artist, and metadata out on a single line.
+collapse-page-title = "auto"
+
+# Add a blank row above each section label (true), never (false),
+# or drop it only when the layout is cramped (auto).
+collapse-section-title = "auto"
+
+# Print section labels right-aligned to the left of their section instead
+# of on a row above it (true), never (false), or prefer the left margin but
+# fall back to labels above when the extra width stops the song fitting (auto).
+side-section-titles = "auto"
+
+# Song-queue order for next/previous navigation and the open-song list.
+# One of: none (directory order), name (by title), date (newest first).
+sort-songs = "date"
+
+superscript-chord-quality = true
+plain-chords = true
