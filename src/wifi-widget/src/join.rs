@@ -53,7 +53,15 @@ pub fn tick(mtm: MainThreadMarker) {
     if let Some((name, Err(error))) = result {
         let alert = NSAlert::new(mtm);
         alert.setMessageText(&NSString::from_str(&format!("Could not join {name}")));
-        alert.setInformativeText(&NSString::from_str(&format!("{error}\nEnter the network password to retry. For enterprise networks, use Wi-Fi Settings.")));
+        alert.setInformativeText(&NSString::from_str("Enter the network password to retry."));
+        // The bundle ships no app icon, so the alert would otherwise show a blank tile.
+        if let Some(icon) = NSImage::imageWithSystemSymbolName_accessibilityDescription(
+            &NSString::from_str("wifi.exclamationmark"),
+            Some(&NSString::from_str(&error)),
+        ) {
+            icon.setSize(NSSize { width: 64., height: 64. });
+            unsafe { alert.setIcon(Some(&icon)) };
+        }
         let field = NSSecureTextField::new(mtm);
         field.setFrame(NSRect {
             origin: NSPoint { x: 0., y: 0. },

@@ -168,7 +168,8 @@ define_class!(
         #[unsafe(method(drawRect:))]
         fn draw(&self, _rect: NSRect) {
             let c = self.ivars().content.borrow(); let ink = accent(c.state);
-            fill(self.bounds(), &NSColor::windowBackgroundColor(), 0.0);
+            // No background fill: the menu's own material must show through,
+            // or this item reads as a different shade from the rows below it.
             fill(rect(11.0,6.0,14.0,14.0), &ink.colorWithAlphaComponent(0.18), 7.0);
             fill(rect(14.0,9.0,8.0,8.0),&ink,4.0);
             if !c.associated { return; }
