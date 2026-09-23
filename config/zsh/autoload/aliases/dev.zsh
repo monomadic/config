@@ -27,6 +27,7 @@ alias e-zsh="cd $DOTFILES_DIR && $EDITOR config/zsh/zshrc.zsh"
 alias zsh-config="cd $DOTFILES_DIR/config/zsh/ && $EDITOR zshrc.zsh"
 alias zsh-reload="source ~/.zshrc"
 
+alias apps=fzf-app-store
 
 # ============================================================================
 # Git Shortcuts
