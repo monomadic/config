@@ -45,7 +45,7 @@ ICON_MAPPINGS=(
   "ForkLift.app|folder-full-blue.icns"
   "Logic Pro.app|logic-pro-01.icns"
   "Helium.app|browser-02.png"
-  "kitty.app|term7e.png"
+  "kitty.app|Kitty.png"
   "Numi.app|numi.icns"
   "Spotify.app|spotify-02.icns"
   "Telegram Desktop.app|telegram.icns"

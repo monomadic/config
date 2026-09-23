@@ -139,7 +139,7 @@ hover_delay_ms = 50.0
 meta_wait_ms = 120.0
 
 # [ / ] jump the playing clip by this fraction of its duration (wraps at
-# the ends). A binding can override the amount per key — see [keys] below.
+# the ends). A binding can override the amount per key
 skip_fraction = 0.05
 
 # Where playback starts, as a fraction of each clip's duration (0.0 = the
