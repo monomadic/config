@@ -132,25 +132,66 @@ probe() {
   fi
 }
 
-# count_frames FILE FILTER -> frames surviving FILTER
-# Same scan as ffmpeg-check-fps: VideoToolbox decode when the codec allows it,
-# frame count read from -progress rather than the stats line.
-count_frames() {
-  local file="$1" filter="$2"
+# scan FILE FILTER DURATION FPS [ffmpeg input options...]
+# Decode FILE through FILTER to the null muxer and print the number of frames
+# that survive. While it runs, a status line on stderr shows frames kept,
+# position against DURATION, elapsed time and decode speed, read from
+# ffmpeg's -progress stream as it arrives — a full decode of a long clip is
+# the slow part of this script and used to be silent.
+#
+# ffmpeg only reports the frames that came out of the filter, not the frames
+# it decoded, so with FPS (the nominal rate) the line also carries a running
+# duplicate estimate: position × FPS − kept. It is an estimate — the nominal
+# rate is what makes it one — but it answers "is this file padded?" within a
+# few seconds instead of after the whole decode. Pass an empty FPS to omit it.
+scan() {
+  local file="$1" filter="$2" dur="$3" fps="$4"; shift 4
   local -a limit=()
   [[ -n "$duration_limit" ]] && limit=(-t "$duration_limit")
-  local out
-  out=$(ffmpeg -hide_banner -nostats -loglevel error -progress /dev/stdout \
-        -hwaccel videotoolbox -i "$file" "${limit[@]}" -an -sn -dn \
-        -vf "$filter" -fps_mode vfr -f null - 2>/dev/null) ||
-  out=$(ffmpeg -hide_banner -nostats -loglevel error -progress /dev/stdout \
-        -i "$file" "${limit[@]}" -an -sn -dn \
-        -vf "$filter" -fps_mode vfr -f null - 2>/dev/null) || return 1
-  local -a lines
-  lines=(${(f)out})
-  local last=${${(M)lines:#frame=*}[-1]}
-  [[ -n $last ]] || return 1
-  print -- ${${last#frame=}%%[^0-9]*}
+  local live=false
+  [[ -t 2 ]] && live=true
+  local total_us
+  total_us=$(awk -v d="$dur" 'BEGIN{printf "%d", d*1000000}')
+  local line frame=0 out_us=0 speed="" started=$SECONDS pct pos dupes
+  ffmpeg -hide_banner -nostdin -nostats -loglevel error -progress pipe:1 \
+    "$@" -i "$file" "${limit[@]}" -an -sn -dn \
+    -vf "$filter" -fps_mode vfr -f null - 2>/dev/null |
+  while IFS= read -r line; do
+    case "$line" in
+      frame=*) frame=${${line#frame=}%%[^0-9]*} ;;
+      out_time_us=*) [[ "${line#out_time_us=}" == <-> ]] && out_us=${line#out_time_us=} ;;
+      speed=*) speed=${line#speed=} ;;
+      progress=*)
+        $live || continue
+        pct=$(awk -v o="$out_us" -v t="$total_us" 'BEGIN{ if (t<=0) print "?"; else { p=100*o/t; if (p>100) p=100; printf "%.0f", p } }')
+        pos=$(awk -v o="$out_us" -v t="$total_us" 'BEGIN{ printf "%d:%02d / %d:%02d", int(o/60e6), int(o/1e6)%60, int(t/60e6), int(t/1e6)%60 }')
+        dupes=""
+        if [[ -n "$fps" ]]; then
+          dupes=$(awk -v o="$out_us" -v f="$fps" -v k="$frame" 'BEGIN{
+            seen = o/1e6*f; d = seen - k; if (d < 0) d = 0
+            if (seen < 1) { print ""; exit }
+            printf "  ~%d duplicates (%.0f%%)", d, 100*d/seen }')
+        fi
+        printf '\r\033[K   scanning: %s kept%s  %s (%s%%)  elapsed %d:%02d  %s' \
+          "$frame" "$dupes" "$pos" "$pct" $(( (SECONDS - started) / 60 )) $(( (SECONDS - started) % 60 )) "$speed" >&2
+        ;;
+    esac
+  done
+  local rc=$pipestatus[1]
+  $live && printf '\r\033[K' >&2
+  (( rc == 0 )) || return 1
+  print -r -- "$frame"
+}
+
+# count_frames FILE FILTER DURATION [FPS] -> frames surviving FILTER
+# Same scan as ffmpeg-check-fps: VideoToolbox decode when the codec allows it,
+# software decode otherwise. FPS enables the live duplicate estimate.
+count_frames() {
+  local file="$1" filter="$2" dur="$3" fps="${4-}" n
+  n=$(scan "$file" "$filter" "$dur" "$fps" -hwaccel videotoolbox) ||
+  n=$(scan "$file" "$filter" "$dur" "$fps") || return 1
+  [[ "$n" == <-> ]] || return 1
+  print -r -- "$n"
 }
 
 # total_frames FILE -> frame count without decoding (nb_frames, else packets)
@@ -233,16 +274,19 @@ prep_one() {
   if [[ "$decimate" != never ]]; then
     local pre="" total kept
     (( ${#vf} )) && pre="${(j:,:)vf},"
-    print -r -- "   analysing duplicates..."
     # The prefilters (bwdif send_frame, fieldmatch) emit one frame per input
     # frame, so the container count is the pre-decimation total. Only a -t
     # limit needs a decoded count.
     if [[ -n "$duration_limit" ]]; then
-      total=$(count_frames "$infile" "${pre}null")
+      print -r -- "   counting frames in the first ${duration_limit}s (full decode)..."
+      total=$(count_frames "$infile" "${pre}null" "$analysed_dur") ||
+        { print -u2 "$script_name: frame count failed for $infile"; return 1 }
     else
       total=$(total_frames "$infile")
     fi
-    kept=$(count_frames "$infile" "${pre}${decim_filter}")
+    print -r -- "   analysing duplicates (${decim_filter}; full decode, ${total} frames)..."
+    kept=$(count_frames "$infile" "${pre}${decim_filter}" "$analysed_dur" "$nominal_fps") ||
+      { print -u2 "$script_name: duplicate analysis failed for $infile"; return 1 }
     (( kept > total )) && kept=$total
     local dropped=$(( total - kept ))
     local ratio measured
