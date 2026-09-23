@@ -34,6 +34,8 @@ return { groups = {
 	{
 		group = "Interpolate",
 		when = { kind = "video" },
+		{ desc = "prep: discard duplicate frames (prores, cfr)", run = kitty("--window --hold", "discard duplicate frames", BIN .. "ffmpeg-discard-duplicate-frames %s"), orphan = true },
+		{ desc = "prep: discard duplicate frames (hevc, cfr)", run = kitty("--window --hold", "discard duplicate frames", BIN .. "ffmpeg-discard-duplicate-frames --hevc %s"), orphan = true },
 		{ desc = "60fps resolve (hevc)", run = kitty("--window --hold", "resolve 60fps", BIN .. "interpolate-resolve %s"), orphan = true },
 		{ desc = "60fps resolve (prores)", run = kitty("--window --hold", "resolve 60fps prores", BIN .. "interpolate-resolve --prores %s"), orphan = true },
 		{ desc = "120fps resolve (hevc)", run = kitty("--window --hold", "resolve 120fps", BIN .. "interpolate-resolve 120 %s"), orphan = true },
