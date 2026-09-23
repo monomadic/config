@@ -93,7 +93,7 @@ typeset -A about_for=(
   propainter                 "AI video inpainting (removes objects and logos)"
   rclone-tower-ui            "Tower backup dashboard"
   rife-arm64                 "RIFE AI frame interpolation"
-  safesync                   "Drive inventories with offline file lookup"
+  safesync                   "Indexed drive sync with sentinels, offline lookup, TUI"
   spill                      "Fills a drive with files piped to it"
   switchblade                "Fullscreen media browser"
   system-uptime-widget       "Menu bar uptime display"

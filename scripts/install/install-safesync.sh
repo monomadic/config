@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build the independent safesync inventory and offline-lookup tool.
+# Build safesync: indexed one-way drive sync, fill and offline lookup.
 set -eu
 cd "$(dirname "$0")/../../src/safesync"
 cargo build --release --locked
