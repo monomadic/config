@@ -7,6 +7,7 @@
 #   mp4doctor **/*.mp4              # report every check and its result
 #   mp4doctor --fix **/*.mp4        # repair what is repairable
 #   mp4doctor --deep FILE           # also decode every frame, looking for rot
+#   mp4doctor --check-video FILE    # also count unique frames: is the fps real?
 #   mp4doctor ~/Movies              # a directory recurses
 #
 # Eleven checks per file, always reported in the same order, so the output of
@@ -49,7 +50,11 @@
 # so a full report costs a few tens of milliseconds even on a multi-gigabyte
 # file over a network share. --deep adds a real decode of every frame, which
 # is the only way to catch bitstream rot inside otherwise intact structure,
-# and costs what a full read costs.
+# and costs what a full read costs. --check-video is the other payload check,
+# the one ffmpeg-check-fps does standalone: run the video through mpdecimate
+# and count what survives, so a file that claims 60 fps but was padded up
+# from 30 by duplicating every frame is called out. Long files are sampled
+# (six 20 s windows) unless --full asks for the whole stream.
 set -u
 setopt pipefail extended_glob null_glob
 
@@ -58,7 +63,7 @@ script_name="${0:t}"
 usage() {
   cat >&2 <<EOF
 usage:
-  $script_name [--fix] [--deep] [--one-line] [--verbose] [--quiet] [--no-color] [--] file-or-dir ...
+  $script_name [--fix] [--deep] [--check-video [--full]] [--one-line] [--verbose] [--quiet] [--no-color] [--] file-or-dir ...
   $script_name --state -- file
 
 Reports eleven checks per file — filename, atom chain, completeness,
@@ -74,6 +79,14 @@ stopped it.
 With --deep, additionally decodes every frame to catch bitstream corruption
 that the sample tables cannot reveal. This reads the whole file; the other
 checks read only the header and the moov.
+
+With --check-video, additionally decodes the video through mpdecimate and
+compares the unique-frame rate against the container's nominal rate, the way
+ffmpeg-check-fps does: under 90% is reported as mixed, under 60% as padded
+(duplicate frames faking a higher frame rate). A nominal/average divergence
+over ${FPS_VFR_PCT}% is reported as VFR. Files longer than about three
+minutes are sampled in ${FPS_WINDOWS}×${FPS_WINDOW_SECS}s windows; --full
+decodes the whole stream.
 
 Thresholds: interleave skew up to ${SKEW_OK}s passes and up to ${SKEW_FAIL}s is
 reported without counting as a defect; keyframes more than ${GOP_WARN}s apart,
@@ -107,9 +120,17 @@ GOP_WARN=10
 MOOV_WARN_PCT=2
 MOOV_WARN_BYTES=$(( 4 * 1024 * 1024 ))
 DEAD_WARN_PCT=5
+# --check-video: unique-frame rate as a fraction of nominal, and sampling.
+FPS_PADDED=0.6
+FPS_MIXED=0.9
+FPS_VFR_PCT=5
+FPS_WINDOWS=6
+FPS_WINDOW_SECS=20
 
 fix_mode=false
 deep=false
+check_video=false
+fps_full=false
 one_line=false
 verbose=false
 quiet=false
@@ -122,6 +143,8 @@ while (( $# > 0 )); do
   case "$1" in
     --fix) fix_mode=true; shift ;;
     --deep) deep=true; shift ;;
+    --check-video|--check-fps) check_video=true; shift ;;
+    --full) fps_full=true; shift ;;
     --one-line|--oneline|-1) one_line=true; shift ;;
     --verbose|-v) verbose=true; shift ;;
     --quiet|-q) quiet=true; shift ;;
@@ -1069,6 +1092,107 @@ deep_progress_clear() {
   print -rn -- $'\r\033[K' >/dev/tty
 }
 
+# --check-video: is the frame rate real? The same measurement ffmpeg-check-fps
+# makes — decode the video through mpdecimate, which drops a frame that is
+# (near) identical to the one before it, and count what survives via -progress
+# (machine-readable, and nothing like the per-frame debug log a -loglevel debug
+# dump would be). Decodes with VideoToolbox when it can, software otherwise.
+#
+# Prints the number of frames mpdecimate kept. $1 is a seek offset ('' = start),
+# $2 a span in seconds ('' = to the end).
+fps_scan_kept() {
+  local file="$1" out
+  local -a seek=() span=()
+  [[ -n "${2:-}" ]] && seek=(-ss "$2")
+  [[ -n "${3:-}" ]] && span=(-t "$3")
+  out="$(ffmpeg -hide_banner -nostdin -nostats -loglevel error -progress pipe:1 \
+        -hwaccel videotoolbox "${seek[@]}" -i "$file" "${span[@]}" \
+        -vf mpdecimate -an -fps_mode vfr -f null - 2>/dev/null)" ||
+  out="$(ffmpeg -hide_banner -nostdin -nostats -loglevel error -progress pipe:1 \
+        "${seek[@]}" -i "$file" "${span[@]}" \
+        -vf mpdecimate -an -fps_mode vfr -f null - 2>/dev/null)" || return 1
+  local -a lines=("${(f)out}") hits=()
+  hits=(${(M)lines:#frame=*})
+  (( ${#hits} )) || return 1
+  print -r -- "${${hits[-1]#frame=}%%[^0-9]*}"
+}
+
+# Fills FPS_* for the file: nominal and average rate from ffprobe, then either
+# a full-stream or a sampled mpdecimate count. FPS_SCANNED is false when the
+# scan could not produce a number (no video stream, decoder refused).
+fps_scan() {
+  local file="$1" k v dur nb off kept
+  integer i
+  FPS_SCANNED=false FPS_MODE="" FPS_NOMINAL=0 FPS_AVG=0 FPS_TOTAL=0
+  FPS_KEPT=0 FPS_DROPPED=0 FPS_UNIQUE=0 FPS_DUPE_PCT=0 FPS_DIV_PCT=0
+  local -A S=()
+  while IFS='=' read -r k v; do [[ -n "$k" ]] && S[$k]="$v"; done < <(
+    ffprobe -v error -select_streams v:0 \
+      -show_entries stream=codec_name,r_frame_rate,avg_frame_rate,nb_frames,duration \
+      -of default=noprint_wrappers=1 -- "$file" 2>/dev/null
+  )
+  [[ -n "${S[codec_name]:-}" ]] || return 1
+  FPS_NOMINAL="$(fps_frac "${S[r_frame_rate]:-}")"
+  FPS_AVG="$(fps_frac "${S[avg_frame_rate]:-}")"
+  dur="${S[duration]:-}"
+  [[ -z "$dur" || "$dur" == N/A ]] && dur="$(media_duration_seconds "$file")"
+  [[ -z "$dur" || "$dur" == N/A ]] && dur=0
+  nb="${S[nb_frames]:-}"
+  [[ "$nb" == <-> ]] || nb=""
+  FPS_DIV_PCT="$(awk -v n="$FPS_NOMINAL" -v a="$FPS_AVG" 'BEGIN {
+    d = n ? (n - a) / n * 100 : 0; if (d < 0) d = -d; printf "%.1f", d }')"
+
+  local rate="$FPS_AVG"
+  gt "$rate" 0 || rate="$FPS_NOMINAL"
+  if ! $fps_full && gt "$dur" "$(( FPS_WINDOWS * FPS_WINDOW_SECS * 1.5 ))"; then
+    FPS_MODE="sampled"
+    for (( i = 1; i <= FPS_WINDOWS; i++ )); do
+      fps_progress "window $i of $FPS_WINDOWS"
+      off="$(awk -v d="$dur" -v i="$i" -v n="$FPS_WINDOWS" 'BEGIN { printf "%.2f", d * i / (n + 1) }')"
+      kept="$(fps_scan_kept "$file" "$off" "$FPS_WINDOW_SECS")" || continue
+      FPS_KEPT=$(( FPS_KEPT + kept ))
+      FPS_TOTAL=$(( FPS_TOTAL + $(awk -v w="$FPS_WINDOW_SECS" -v r="$rate" 'BEGIN { printf "%d", w * r + 0.5 }') ))
+    done
+    deep_progress_clear
+    (( FPS_TOTAL > 0 )) || return 1
+    (( FPS_KEPT > FPS_TOTAL )) && FPS_KEPT=$FPS_TOTAL
+    FPS_DROPPED=$(( FPS_TOTAL - FPS_KEPT ))
+    FPS_UNIQUE="$(awk -v k="$FPS_KEPT" -v s="$(( FPS_WINDOWS * FPS_WINDOW_SECS ))" 'BEGIN { printf "%.2f", k / s }')"
+  else
+    FPS_MODE="full"
+    fps_progress "decoding every frame"
+    kept="$(fps_scan_kept "$file" "" "")" || kept=0
+    deep_progress_clear
+    [[ -n "$nb" ]] || nb="$(ffprobe -v error -select_streams v:0 -count_packets \
+      -show_entries stream=nb_read_packets -of csv=p=0 -- "$file" 2>/dev/null)"
+    [[ "$nb" == <-> ]] && (( kept > 0 )) || return 1
+    FPS_TOTAL=$nb FPS_KEPT=$kept
+    (( FPS_KEPT > FPS_TOTAL )) && FPS_KEPT=$FPS_TOTAL
+    FPS_DROPPED=$(( FPS_TOTAL - FPS_KEPT ))
+    gt "$dur" 0 && FPS_UNIQUE="$(awk -v k="$FPS_KEPT" -v d="$dur" 'BEGIN { printf "%.2f", k / d }')"
+  fi
+  FPS_DUPE_PCT="$(awk -v d="$FPS_DROPPED" -v t="$FPS_TOTAL" 'BEGIN { printf "%.1f", t ? d / t * 100 : 0 }')"
+  FPS_SCANNED=true
+  return 0
+}
+
+# "60000/1001" → 59.940, "30" → 30.000, "N/A" / "0/0" → 0
+fps_frac() {
+  awk -v f="${1:-0}" 'BEGIN {
+    if (f == "" || f == "N/A") { print 0; exit }
+    n = split(f, p, "/")
+    if (n == 2) { if (p[2] == 0) print 0; else printf "%.3f", p[1] / p[2] }
+    else printf "%.3f", f
+  }'
+}
+
+fps_progress() {
+  $TTY_OUT || return 0
+  $quiet && return 0
+  local label="frame rate"
+  print -rn -- $'\r\033[K'"    ${C_DIM}· ${(r:14:)label}${1}${C_RESET}" >/dev/tty
+}
+
 # What a remux has to carry across, in a form two files can be compared by.
 # Streams are compared by their container tag (avc1/mp4a/tmcd/gpmd…) rather
 # than by index, because the muxer is allowed to renumber and to regenerate a
@@ -1538,6 +1662,7 @@ done
 # in this order, which is what lets --one-line line the marks up into columns.
 typeset -a CHECK_LEGEND=(filename "atom chain" completeness "chunk map")
 $deep && CHECK_LEGEND+=("deep decode")
+$check_video && CHECK_LEGEND+=("frame rate")
 CHECK_LEGEND+=(fragmentation faststart startup interleaving metadata
                "dead space" codecs "seek points" "edit lists")
 integer N_CHECKS=${#CHECK_LEGEND}
@@ -1564,21 +1689,25 @@ else
   report "${C_DIM}checks per file: ${(j: · :)CHECK_LEGEND}${C_RESET}"
 fi
 $deep && report "${C_DIM}--deep: every frame is decoded as well; this reads each file in full${C_RESET}"
+$check_video && report "${C_DIM}--check-video: unique frames are counted through mpdecimate$( $fps_full && print -n " over the whole stream" || print -n "; long files are sampled in ${FPS_WINDOWS}×${FPS_WINDOW_SECS}s windows (--full for every frame)")${C_RESET}"
 report ""
 
 
 integer n_ok=0 n_frag=0 n_slow=0 n_il=0 n_tag=0 n_cut=0 n_badmap=0 n_odd=0
-integer n_fixed=0 n_failed=0 n_nospace=0 n_rot=0 bytes_fixed=0
+integer n_fixed=0 n_failed=0 n_nospace=0 n_rot=0 n_padded=0 bytes_fixed=0
 state="" meta="" text="" deep_failed=false verdict="" vcolour="" detail_text=""
 skind="" scodec=""
 integer sn=0
 typeset -gA DEEP_ERR
 typeset -g DEEP_CONTAINER_ERR=""
+typeset -g FPS_SCANNED=false FPS_MODE="" FPS_NOMINAL=0 FPS_AVG=0 FPS_UNIQUE=0 FPS_DUPE_PCT=0 FPS_DIV_PCT=0
+integer FPS_TOTAL=0 FPS_KEPT=0 FPS_DROPPED=0
+fps_padded=false
 legend=""
 integer i
 
 for file in "${files[@]}"; do
-  deep_failed=false
+  deep_failed=false fps_padded=false
   CK_MARK=() CK_NAME=() CK_TEXT=()
   $one_line && oneline_pending "$file" "reading"
   probe "$file" detail
@@ -1653,6 +1782,16 @@ for file in "${files[@]}"; do
       add fail "deep decode" "$DEEP_CONTAINER_ERR"
     else
       add ok "deep decode" "read end to end; complaints, if any, are listed against the stream that raised them"
+    fi
+  fi
+
+  # 3c. --check-video: one mpdecimate pass (or six sampled windows) over the
+  # video, reported against the video stream below.
+  if $check_video; then
+    FPS_SCANNED=false
+    if [[ "$state" != inconclusive ]]; then
+      $one_line && oneline_pending "$file" "counting frames"
+      fps_scan "$file" || true
     fi
   fi
 
@@ -1768,6 +1907,31 @@ for file in "${files[@]}"; do
         sadd $sn ok "deep decode" "$(commify ${P[trk${sn}_samples]:-0}) samples decoded, no decoder complaints"
       fi
     fi
+
+    if $check_video && [[ "$skind" == vide ]]; then
+      if [[ "$state" == inconclusive ]]; then
+        sadd $sn skip "frame rate" "not attempted — the atom chain did not parse"
+      elif ! $FPS_SCANNED; then
+        sadd $sn skip "frame rate" "mpdecimate produced no frames — the decoder refused the stream, or this is not the first video track"
+      else
+        text="nominal ${FPS_NOMINAL} · average ${FPS_AVG} · unique ${FPS_UNIQUE} fps"
+        if [[ "$FPS_MODE" == sampled ]]; then
+          text+=" — $(commify $FPS_KEPT) of $(commify $FPS_TOTAL) frames unique across ${FPS_WINDOWS}×${FPS_WINDOW_SECS}s windows (~${FPS_DUPE_PCT}% duplicates)"
+        else
+          text+=" — $(commify $FPS_KEPT) of $(commify $FPS_TOTAL) frames unique (${FPS_DUPE_PCT}% duplicates)"
+        fi
+        if gt "$(awk -v n="$FPS_NOMINAL" -v p="$FPS_PADDED" 'BEGIN { print n * p }')" "$FPS_UNIQUE"; then
+          fps_padded=true
+          sadd $sn fail "frame rate" "$text — padded: the container claims ${FPS_NOMINAL} fps but real motion is ~${FPS_UNIQUE%.*}, the rest are duplicate frames (needs a re-encode, not a remux)"
+        elif gt "$(awk -v n="$FPS_NOMINAL" -v p="$FPS_MIXED" 'BEGIN { print n * p }')" "$FPS_UNIQUE"; then
+          sadd $sn warn "frame rate" "$text — mixed: some duplicate frames, effective motion ~${FPS_UNIQUE} fps against ${FPS_NOMINAL} claimed"
+        elif gt "$FPS_DIV_PCT" "$FPS_VFR_PCT"; then
+          sadd $sn warn "frame rate" "$text — VFR: nominal and average differ by ${FPS_DIV_PCT%.*}%; variable frame rate or padded timestamps"
+        else
+          sadd $sn ok "frame rate" "$text — genuine"
+        fi
+      fi
+    fi
   done
 
   # 12. metadata — the sidecar data a phone or action camera hangs off the
@@ -1809,8 +1973,13 @@ for file in "${files[@]}"; do
   case "$state" in
     faststart)
       if [[ "$deep_failed" == true ]]; then
+        (( ++n_rot ))
         verdict="DECODE ERR" vcolour="$C_RED"
         detail_text="decode errors · the container is intact, the bitstream inside it is not; a remux would only copy the damage forward"
+      elif [[ "$fps_padded" == true ]]; then
+        (( ++n_padded ))
+        verdict="PADDED" vcolour="$C_YELLOW"
+        detail_text="padded frame rate · the container is fine but ${FPS_DUPE_PCT}% of frames are duplicates; only a re-encode at the real rate changes that"
       else
         (( ++n_ok ))
         verdict="OK" vcolour="$C_GREEN" detail_text="healthy"
@@ -1893,6 +2062,7 @@ summary="checked ${#files[@]} ($(human_size $total_bytes)): ${C_GREEN}${n_ok} he
 (( n_badmap )) && summary+=" · ${C_RED}${n_badmap} bad chunk map${C_RESET}"
 (( n_odd )) && summary+=" · ${C_RED}${n_odd} unreadable${C_RESET}"
 (( n_rot )) && summary+=" · ${C_RED}${n_rot} with decode errors${C_RESET}"
+(( n_padded )) && summary+=" · ${C_YELLOW}${n_padded} padded fps${C_RESET}"
 if [[ "$fix_mode" == true ]]; then
   summary+=" · ${C_GREEN}${n_fixed} fixed${C_RESET}"
   (( n_fixed )) && summary+=" ${C_DIM}($(human_size $bytes_fixed) remuxed)${C_RESET}"
@@ -1905,7 +2075,7 @@ if [[ "$fix_mode" == true ]]; then
   # 3 = nothing wrong with the containers, the volume just couldn't hold the
   # tmp copy. Callers (media-audit) report that differently from a real failure.
   (( n_failed == 0 && n_nospace > 0 )) && exit 3
-  (( n_failed == 0 && n_rot == 0 ))
+  (( n_failed == 0 && n_rot == 0 && n_padded == 0 ))
 else
-  (( n_bad == 0 && n_odd == 0 && n_cut == 0 && n_badmap == 0 && n_rot == 0 ))
+  (( n_bad == 0 && n_odd == 0 && n_cut == 0 && n_badmap == 0 && n_rot == 0 && n_padded == 0 ))
 fi
