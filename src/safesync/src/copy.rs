@@ -27,6 +27,7 @@ const BUFFERS: usize = 3; // one being filled, one in flight, one being written
 const ALIGN: usize = 16 << 10;
 pub const PARTIAL_PREFIX: &str = ".safesync-part-";
 
+#[derive(Debug)]
 pub struct Copied {
     pub sha256: String,
     /// The published destination file, for the destination's index.
@@ -86,8 +87,13 @@ fn c_path(path: &Path) -> Result<CString> {
 
 /// Rename that fails instead of replacing whatever is at `to`.
 pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
-    let result =
-        unsafe { libc::renamex_np(c_path(from)?.as_ptr(), c_path(to)?.as_ptr(), libc::RENAME_EXCL) };
+    let result = unsafe {
+        libc::renamex_np(
+            c_path(from)?.as_ptr(),
+            c_path(to)?.as_ptr(),
+            libc::RENAME_EXCL,
+        )
+    };
     ensure!(
         result == 0,
         "Cannot move {:?} to {:?}: {}",
@@ -116,7 +122,10 @@ pub fn copy_file(
         .with_context(|| format!("Cannot open {source:?}"))?;
     let before = Stamp::of(&input.metadata()?);
     ensure!(input.metadata()?.is_file(), "Not a regular file");
-    if let Some(Entry { stamp: expected, .. }) = expected {
+    if let Some(Entry {
+        stamp: expected, ..
+    }) = expected
+    {
         ensure!(
             (before.size, before.mtime_seconds, before.mtime_nanos)
                 == (expected.size, expected.mtime_seconds, expected.mtime_nanos),

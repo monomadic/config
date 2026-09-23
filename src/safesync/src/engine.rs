@@ -109,7 +109,12 @@ impl Control {
     fn approved(&self, overview: Overview) -> bool {
         self.send(Event::Planned(overview));
         self.send(Event::Phase(Phase::Review));
-        let go = self.confirm.lock().expect("confirm lock").recv().unwrap_or(false);
+        let go = self
+            .confirm
+            .lock()
+            .expect("confirm lock")
+            .recv()
+            .unwrap_or(false);
         go && !self.cancelled()
     }
 }
@@ -228,6 +233,40 @@ fn move_aside(root: &Path, relative: &Path, history: &Path) -> Result<()> {
     copy::rename_exclusive(&root.join(relative), &target)
 }
 
+/// Index one drive and publish. No review step: nothing but metadata is written.
+pub fn index_drive(root: PathBuf, hashing: Hashing, rehash: bool, control: Control) {
+    let result = (|| -> Result<()> {
+        let drive = Drive::open(&root)?;
+        control.send(Event::Drives {
+            sources: vec![drive.sentinel.name.clone()],
+            destination: "index".into(),
+            destination_path: drive.metadata_dir(),
+        });
+        control.send(Event::Phase(Phase::Scanning));
+        let started = Instant::now();
+        let manifest = scan_drive(&drive, 0, hashing, rehash, &[], &control)?;
+        scanned(&control, 0, &manifest);
+        control.send(Event::Phase(Phase::Indexing));
+        let path = drive.publish(&manifest)?;
+        control.send(Event::Log(format!(
+            "{} files indexed, {} fingerprints reused → {}",
+            manifest.entries.len(),
+            manifest.header.reused_hashes,
+            display(&path)
+        )));
+        control.send(Event::Done(Summary {
+            done: manifest.entries.len(),
+            bytes: 0,
+            seconds: started.elapsed().as_secs_f64(),
+            ..Summary::default()
+        }));
+        Ok(())
+    })();
+    if let Err(error) = result {
+        control.send(Event::Failed(format!("{error:#}")));
+    }
+}
+
 pub fn sync(options: SyncOptions, control: Control) {
     if let Err(error) = run_sync(options, &control) {
         control.send(Event::Failed(format!("{error:#}")));
@@ -251,9 +290,23 @@ fn run_sync(options: SyncOptions, control: &Control) -> Result<()> {
     exclude.extend(backup.sentinel.exclude.iter().cloned());
     let (source_manifest, backup_manifest) = std::thread::scope(|scope| {
         let theirs = scope.spawn(|| {
-            scan_drive(&backup, 1, options.hashing, options.rehash, &exclude, control)
+            scan_drive(
+                &backup,
+                1,
+                options.hashing,
+                options.rehash,
+                &exclude,
+                control,
+            )
         });
-        let ours = scan_drive(&source, 0, options.hashing, options.rehash, &exclude, control);
+        let ours = scan_drive(
+            &source,
+            0,
+            options.hashing,
+            options.rehash,
+            &exclude,
+            control,
+        );
         (ours, theirs.join().expect("scan thread panicked"))
     });
     let (source_manifest, backup_manifest) = (source_manifest?, backup_manifest?);
@@ -465,7 +518,10 @@ pub fn fill(options: FillOptions, control: Control) {
 }
 
 fn run_fill(options: FillOptions, control: &Control) -> Result<()> {
-    ensure!(!options.from.is_empty(), "fill needs at least one --from drive");
+    ensure!(
+        !options.from.is_empty(),
+        "fill needs at least one --from drive"
+    );
     let mut drives = Vec::new();
     for root in &options.from {
         let drive = Drive::open(root)?;
@@ -529,7 +585,10 @@ fn run_fill(options: FillOptions, control: &Control) -> Result<()> {
             }
         }
     }
-    ensure!(!jobs.is_empty(), "Nothing in the indexes matches that selection");
+    ensure!(
+        !jobs.is_empty(),
+        "Nothing in the indexes matches that selection"
+    );
 
     let mut items = Vec::new();
     let mut already = 0;
@@ -618,9 +677,8 @@ fn run_fill(options: FillOptions, control: &Control) -> Result<()> {
                             .filter(mine)
                             .find(|job| job.holders.len() == 1)
                             .map(|job| job.path.clone());
-                        let choice = exclusive.or_else(|| {
-                            queue.iter_mut().find(mine).map(|job| job.path.clone())
-                        });
+                        let choice = exclusive
+                            .or_else(|| queue.iter_mut().find(mine).map(|job| job.path.clone()));
                         choice.and_then(|path| {
                             let job = queue.iter_mut().find(|job| job.path == path)?;
                             job.claimed = true;

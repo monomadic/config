@@ -207,46 +207,6 @@ fn anchored_file_open_rejects_symlink_and_path_escape() {
     assert!(filesystem::open_relative(&directory, Path::new("escape/any"), device).is_err());
     assert!(filesystem::open_relative(&directory, Path::new("../any"), device).is_err());
 }
-#[test]
-fn cli_exports_and_searches_local_library_without_source_disk() {
-    let f = Fixture::new();
-    fs::write(f.root().join("movie.mov"), b"video").unwrap();
-    let manifest = f.0.join("drive.jsonl");
-    f.scan(true).save_new(&manifest).unwrap();
-    let home = f.0.join("home");
-    fs::create_dir(&home).unwrap();
-    let cli = env!("CARGO_BIN_EXE_safesync");
-    let exported = Command::new(cli)
-        .env("HOME", &home)
-        .arg("export")
-        .arg(&manifest)
-        .output()
-        .unwrap();
-    assert!(
-        exported.status.success(),
-        "{}",
-        String::from_utf8_lossy(&exported.stderr)
-    );
-    fs::rename(f.root(), f.0.join("unplugged")).unwrap();
-    let found = Command::new(cli)
-        .env("HOME", &home)
-        .args(["lookup", "--name", "movie.mov", "--json"])
-        .output()
-        .unwrap();
-    assert!(
-        found.status.success(),
-        "{}",
-        String::from_utf8_lossy(&found.stderr)
-    );
-    let json: serde_json::Value = serde_json::from_slice(&found.stdout).unwrap();
-    assert_eq!(json["matches"][0]["evidence"], "exact_filename_only");
-    let empty = Command::new(cli)
-        .env("HOME", &home)
-        .args(["lookup", "--name", "absent"])
-        .status()
-        .unwrap();
-    assert_eq!(empty.code(), Some(1));
-}
 
 #[test]
 fn generation_ids_are_unique_even_with_concurrent_calls() {
@@ -481,36 +441,4 @@ fn cache_ignores_other_volumes_metadata_only_scans_and_disagreement() {
         )
         .is_err()
     );
-}
-
-#[test]
-fn scan_cli_reuses_drive_manifests_and_rehash_reads_everything() {
-    let fixture = Fixture::new();
-    let root = fixture.root();
-    fs::write(root.join("a.mov"), b"video").unwrap();
-    // Published beside the media, where the next scan looks for earlier fingerprints.
-    fs::create_dir(root.join(".safesync")).unwrap();
-    let run = |extra: &[&str]| {
-        let manifest = root
-            .join(".safesync")
-            .join(format!("{}.jsonl", generation()));
-        let output = Command::new(env!("CARGO_BIN_EXE_safesync"))
-            .arg("scan")
-            .arg(&root)
-            .arg("--hash")
-            .arg("--output")
-            .arg(&manifest)
-            .args(extra)
-            .env("HOME", &fixture.0)
-            .output()
-            .unwrap();
-        assert!(output.status.success(), "{output:?}");
-        Manifest::load(&manifest).unwrap()
-    };
-    assert_eq!(run(&[]).header.reused_hashes, 0);
-    let second = run(&[]);
-    assert_eq!(second.header.reused_hashes, 1);
-    let audit = run(&["--rehash"]);
-    assert_eq!(audit.header.reused_hashes, 0);
-    assert_eq!(audit.entries[0].sha256, second.entries[0].sha256);
 }

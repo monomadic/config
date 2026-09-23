@@ -65,6 +65,7 @@ pub struct Sentinel {
     pub extras: Extras,
 }
 
+#[derive(Debug)]
 pub struct Drive {
     pub root: PathBuf,
     pub volume: Volume,
@@ -213,7 +214,13 @@ impl Drive {
             .sentinel
             .name
             .chars()
-            .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '_' })
+            .map(|c| {
+                if c.is_alphanumeric() || c == '-' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect();
         manifest.export(&library.join(format!("{name}{tag}{generation}.jsonl")))?;
         prune(listing(&library, |file| file.contains(&tag)));

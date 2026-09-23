@@ -117,7 +117,10 @@ pub fn plan(source: &Manifest, backup: &Manifest, extras: Extras) -> Result<Plan
     // unambiguous pairing counts — one missing file, one leftover, same identity.
     let mut leftovers: HashMap<Identity, Vec<PathBuf>> = HashMap::new();
     for (path, entry) in &there {
-        leftovers.entry(identity(entry)).or_default().push(path.clone());
+        leftovers
+            .entry(identity(entry))
+            .or_default()
+            .push(path.clone());
     }
     let mut wanted: HashMap<Identity, usize> = HashMap::new();
     for (_, entry) in &missing {
