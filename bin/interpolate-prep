@@ -1,0 +1,326 @@
+#!/usr/bin/env zsh
+# interpolate-prep
+# Turn a video into the ideal input for a frame interpolator (DaVinci Resolve
+# Optical Flow / Speed Warp, avinterp, Topaz): progressive, constant frame
+# rate, duplicate frames removed, stamped at the TRUE cadence so duration and
+# audio sync are preserved, written as 10-bit ProRes 422 with PCM audio.
+#
+# Two passes. The first runs mpdecimate to a null muxer and counts the
+# surviving frames; kept frames / duration is the real frame rate, which is
+# snapped to the nearest standard rate. If fewer than 3% of frames were
+# duplicates the source is considered clean and decimation is skipped entirely
+# (unbounded mpdecimate on a static shot eats real frames, which is worse for
+# an interpolator than a few dupes). The second pass encodes.
+#
+# Examples:
+#   interpolate-prep clip.mp4                 # → clip.prep.mov
+#   interpolate-prep --fps 24 clip.mp4        # trust me, the cadence is 24
+#   interpolate-prep --max 2 clip.mp4         # never drop >2 frames in a row
+#   interpolate-prep --profile hq -o out.mov clip.mp4
+#   interpolate-prep --deep-check clip.mp4    # lossy re-encoded dupes slip past
+#                                             # the default thresholds
+#   interpolate-prep --hevc clip.mp4          # 40 Mbps HEVC MP4 instead of ProRes
+#   interpolate-prep --dry-run clip.mp4       # analyse and print the command
+set -euo pipefail
+
+script_name="${0:t}"
+
+usage() {
+  cat <<EOF
+usage: $script_name [options] input [input ...]
+
+Prepare video for frame interpolation: dedupe, CFR at the true cadence,
+progressive, ProRes 422 10-bit, PCM audio, faststart MOV.
+
+options:
+  -o, --output PATH     output path (single input only); default INPUT.prep.mov
+      --fps RATE        force the output frame rate instead of measuring it
+      --max N           cap consecutive dropped frames (mpdecimate max=N);
+                        1 for frame-doubled sources, 2 for 60p carrying 24
+      --deep-check      loosen mpdecimate (hi=1024:lo=512) so duplicates that
+                        picked up compression noise in a lossy round trip
+                        still count; use when a padded source reads as clean
+      --no-decimate     skip duplicate removal, only normalise to CFR/ProRes
+      --force-decimate  decimate even if the measured dupe ratio is under 3%
+      --ivtc            source is telecined interlaced: use the deterministic
+                        fieldmatch/decimate chain instead of mpdecimate
+      --profile P       proxy | lt | standard | hq   (default lt)
+      --sw              use prores_ks instead of the VideoToolbox encoder
+      --hevc            write 40 Mbps 10-bit HEVC MP4 (VideoToolbox) with AAC
+                        audio instead of ProRes; default INPUT.prep.mp4
+      --no-audio        drop audio
+  -t, --duration SEC    encode only the first SEC seconds (for testing)
+  -n, --dry-run         analyse, print the ffmpeg command, don't encode
+  -h, --help
+EOF
+}
+
+output=""
+force_fps=""
+max_drop=""
+deep=false
+hevc=false
+decimate=auto
+ivtc=false
+profile=lt
+encoder=prores_videotoolbox
+audio=true
+duration_limit=""
+dry_run=false
+
+while (( $# )); do
+  case "$1" in
+    -o|--output) output="$2"; shift 2 ;;
+    --fps) force_fps="$2"; shift 2 ;;
+    --max) max_drop="$2"; shift 2 ;;
+    --deep|--deep-check) deep=true; shift ;;
+    --hevc) hevc=true; shift ;;
+    --no-decimate) decimate=never; shift ;;
+    --force-decimate) decimate=always; shift ;;
+    --ivtc) ivtc=true; shift ;;
+    --profile) profile="$2"; shift 2 ;;
+    --sw) encoder=prores_ks; shift ;;
+    --no-audio) audio=false; shift ;;
+    -t|--duration) duration_limit="$2"; shift 2 ;;
+    -n|--dry-run) dry_run=true; shift ;;
+    -h|--help) usage; exit 0 ;;
+    --) shift; break ;;
+    -*) print -u2 "$script_name: unknown option $1"; usage >&2; exit 2 ;;
+    *) break ;;
+  esac
+done
+
+(( $# >= 1 )) || { usage >&2; exit 2 }
+if [[ -n "$output" && $# -gt 1 ]]; then
+  print -u2 "$script_name: --output only works with a single input"
+  exit 2
+fi
+case "$profile" in
+  proxy|lt|standard|hq) ;;
+  *) print -u2 "$script_name: bad --profile $profile"; exit 2 ;;
+esac
+
+for cmd in ffmpeg ffprobe; do
+  command -v "$cmd" >/dev/null || { print -u2 "$script_name: $cmd not found"; exit 1 }
+done
+
+# Standard rates the measured cadence is snapped to (within 2%).
+standard_rates=(23.976 24 25 29.97 30 48 50 59.94 60 90 100 119.88 120 144 240)
+
+# probe FILE -> sets nominal_fps, duration, width, height, field_order, has_audio
+probe() {
+  local file="$1"
+  local v
+  v=$(ffprobe -v error -select_streams v:0 \
+        -show_entries stream=avg_frame_rate,r_frame_rate,width,height,field_order:format=duration \
+        -of default=noprint_wrappers=1 "$file")
+  local avg r
+  avg=$(print -r -- "$v" | sed -n 's/^avg_frame_rate=//p')
+  r=$(print -r -- "$v" | sed -n 's/^r_frame_rate=//p')
+  width=$(print -r -- "$v" | sed -n 's/^width=//p')
+  height=$(print -r -- "$v" | sed -n 's/^height=//p')
+  field_order=$(print -r -- "$v" | sed -n 's/^field_order=//p')
+  duration=$(print -r -- "$v" | sed -n 's/^duration=//p')
+  # avg_frame_rate can be 0/0 on odd containers; fall back to r_frame_rate.
+  local rate="$avg"
+  [[ "$rate" == "0/0" || -z "$rate" ]] && rate="$r"
+  nominal_fps=$(awk -v r="$rate" 'BEGIN{split(r,a,"/"); if (a[2]==0||a[2]=="") a[2]=1; printf "%.3f", a[1]/a[2]}')
+  if ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of csv=p=0 "$file" | grep -q audio; then
+    has_audio=true
+  else
+    has_audio=false
+  fi
+}
+
+# count_frames FILE FILTER -> frames surviving FILTER
+# Same scan as ffmpeg-check-fps: VideoToolbox decode when the codec allows it,
+# frame count read from -progress rather than the stats line.
+count_frames() {
+  local file="$1" filter="$2"
+  local -a limit=()
+  [[ -n "$duration_limit" ]] && limit=(-t "$duration_limit")
+  local out
+  out=$(ffmpeg -hide_banner -nostats -loglevel error -progress /dev/stdout \
+        -hwaccel videotoolbox -i "$file" "${limit[@]}" -an -sn -dn \
+        -vf "$filter" -fps_mode vfr -f null - 2>/dev/null) ||
+  out=$(ffmpeg -hide_banner -nostats -loglevel error -progress /dev/stdout \
+        -i "$file" "${limit[@]}" -an -sn -dn \
+        -vf "$filter" -fps_mode vfr -f null - 2>/dev/null) || return 1
+  local -a lines
+  lines=(${(f)out})
+  local last=${${(M)lines:#frame=*}[-1]}
+  [[ -n $last ]] || return 1
+  print -- ${${last#frame=}%%[^0-9]*}
+}
+
+# total_frames FILE -> frame count without decoding (nb_frames, else packets)
+total_frames() {
+  local file="$1" n
+  n=$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of csv=p=0 -- "$file")
+  if [[ -z "$n" || "$n" == N/A ]]; then
+    n=$(ffprobe -v error -select_streams v:0 -count_packets \
+          -show_entries stream=nb_read_packets -of csv=p=0 -- "$file")
+  fi
+  print -r -- "$n"
+}
+
+# snap_rate MEASURED -> nearest standard rate if within 2%, else MEASURED
+snap_rate() {
+  local measured="$1"
+  print -r -- "${standard_rates[@]}" | tr ' ' '\n' \
+    | awk -v m="$measured" 'BEGIN{best=m; bd=-1}
+        { d=(m>$1?m-$1:$1-m); if (d/$1 <= 0.02 && (bd<0 || d<bd)) { bd=d; best=$1 } }
+        END{print best}'
+}
+
+# ffmpeg wants exact rationals for NTSC rates, or the timestamps drift.
+rate_arg() {
+  case "$1" in
+    23.976) print 24000/1001 ;;
+    29.97)  print 30000/1001 ;;
+    59.94)  print 60000/1001 ;;
+    119.88) print 120000/1001 ;;
+    *) print -r -- "$1" ;;
+  esac
+}
+
+prep_one() {
+  local infile="$1"
+  [[ -f "$infile" ]] || { print -u2 "$script_name: not a file: $infile"; return 1 }
+
+  local outfile="$output"
+  if [[ -z "$outfile" ]]; then
+    outfile="${infile:r}.prep.mov"
+    $hevc && outfile="${infile:r}.prep.mp4"
+  fi
+
+  local nominal_fps duration width height field_order has_audio
+  probe "$infile"
+  local analysed_dur="$duration"
+  if [[ -n "$duration_limit" ]]; then
+    analysed_dur=$(awk -v d="$duration" -v t="$duration_limit" 'BEGIN{print (t<d)?t:d}')
+  fi
+
+  print -r -- "== $infile"
+  print -r -- "   ${width}x${height}  nominal ${nominal_fps} fps  ${duration}s  field_order=${field_order:-?}  audio=${has_audio}"
+
+  local progressive=true
+  case "$field_order" in
+    tt|bb|tb|bt) progressive=false ;;
+  esac
+
+  local -a vf=()
+  local decim_filter=""
+  if $ivtc; then
+    # Inverse telecine: match fields back into frames, deinterlace what
+    # doesn't match, then drop exactly one frame in five.
+    decim_filter="fieldmatch,bwdif=deint=interlaced,decimate"
+  else
+    if ! $progressive; then
+      print -r -- "   interlaced source: deinterlacing with bwdif (one frame per frame)"
+      vf+=("bwdif=mode=send_frame")
+    fi
+    local -a opts=()
+    $deep && opts+=("hi=1024" "lo=512")
+    [[ -n "$max_drop" ]] && opts+=("max=${max_drop}")
+    decim_filter="mpdecimate"
+    (( ${#opts} )) && decim_filter="mpdecimate=${(j.:.)opts}"
+  fi
+
+  # Pass 1: measure how many frames survive decimation.
+  local out_fps="$force_fps"
+  local use_decimate=false
+  if [[ "$decimate" != never ]]; then
+    local pre="" total kept
+    (( ${#vf} )) && pre="${(j:,:)vf},"
+    print -r -- "   analysing duplicates..."
+    # The prefilters (bwdif send_frame, fieldmatch) emit one frame per input
+    # frame, so the container count is the pre-decimation total. Only a -t
+    # limit needs a decoded count.
+    if [[ -n "$duration_limit" ]]; then
+      total=$(count_frames "$infile" "${pre}null")
+    else
+      total=$(total_frames "$infile")
+    fi
+    kept=$(count_frames "$infile" "${pre}${decim_filter}")
+    (( kept > total )) && kept=$total
+    local dropped=$(( total - kept ))
+    local ratio measured
+    ratio=$(awk -v t="$total" -v k="$kept" 'BEGIN{ if (t==0) print 0; else printf "%.1f", 100*(t-k)/t }')
+    measured=$(awk -v k="$kept" -v d="$analysed_dur" 'BEGIN{ if (d==0) print 0; else printf "%.3f", k/d }')
+    print -r -- "   frames: ${total} total, ${kept} unique, ${dropped} duplicates (${ratio}%)  → measured ${measured} fps"
+
+    if [[ "$decimate" == always ]] || awk -v r="$ratio" 'BEGIN{exit !(r >= 3)}'; then
+      use_decimate=true
+      if [[ -z "$out_fps" ]]; then
+        out_fps=$(snap_rate "$measured")
+        if [[ "$out_fps" == "$measured" ]]; then
+          print -r -- "   warning: measured rate is not near a standard rate; the source may be VFR or"
+          print -r -- "            the dupes irregular. Consider --fps or --max. Using ${out_fps}."
+        fi
+      fi
+    else
+      print -r -- "   under 3% duplicates: treating as clean, no decimation (--force-decimate to override)"
+    fi
+  fi
+  [[ -n "$out_fps" ]] || out_fps=$(snap_rate "$nominal_fps")
+
+  local rate
+  rate=$(rate_arg "$out_fps")
+  if $use_decimate; then
+    vf+=("$decim_filter" "setpts=N/(${rate})/TB")
+  fi
+  # Even dimensions are required by the 4:2:2 chroma layout.
+  vf+=("scale=trunc(iw/2)*2:trunc(ih/2)*2")
+
+  local -a vargs
+  if $hevc; then
+    vargs=(-c:v hevc_videotoolbox -profile:v main10 -pix_fmt p010le
+           -b:v 40M -maxrate 40M -bufsize 80M -tag:v hvc1)
+  elif [[ "$encoder" == prores_videotoolbox ]]; then
+    vargs=(-c:v prores_videotoolbox -profile:v "$profile" -pix_fmt p210le)
+  else
+    vargs=(-c:v prores_ks -profile:v "$profile" -pix_fmt yuv422p10le -vendor apl0)
+  fi
+
+  local -a aargs
+  if $audio && $has_audio; then
+    if $hevc; then
+      aargs=(-map 0:a:0 -c:a aac -b:a 192k)
+    else
+      aargs=(-map 0:a:0 -c:a pcm_s24le)
+    fi
+  else
+    aargs=(-an)
+  fi
+
+  local -a limit=()
+  [[ -n "$duration_limit" ]] && limit=(-t "$duration_limit")
+
+  local -a cmd=(
+    ffmpeg -hide_banner -loglevel warning -stats -y -i "$infile" "${limit[@]}"
+    -map 0:v:0 "${aargs[@]}" -sn -dn
+    -vf "${(j:,:)vf}"
+    -r "$rate" -fps_mode cfr
+    "${vargs[@]}"
+    -movflags +faststart
+    "$outfile"
+  )
+
+  local codec_desc="ProRes 422 ${profile}" audio_desc="pcm_s24le"
+  $hevc && { codec_desc="HEVC main10 40 Mbps"; audio_desc="aac 192k" }
+  $audio && $has_audio || audio_desc="no audio"
+  print -r -- "   output: ${out_fps} fps CFR, ${codec_desc}, ${audio_desc}"
+  print -r -- "   → $outfile"
+  if $dry_run; then
+    print -r -- "   ${(q-)cmd}"
+    return 0
+  fi
+  "${cmd[@]}"
+}
+
+rc=0
+for f in "$@"; do
+  prep_one "$f" || rc=1
+done
+exit $rc
