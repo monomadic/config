@@ -131,9 +131,9 @@ impl Content {
         if !self.associated {
             76.0
         } else if self.node.is_some() {
-            322.0
+            330.0
         } else {
-            300.0
+            308.0
         }
     }
 }
@@ -173,8 +173,8 @@ define_class!(
             fill(rect(11.0,6.0,14.0,14.0), &ink.colorWithAlphaComponent(0.18), 7.0);
             fill(rect(14.0,9.0,8.0,8.0),&ink,4.0);
             if !c.associated { return; }
-            fill(rect(7.0,30.0,306.0,c.height()-34.0),&rgb(0x17181b),10.0);
-            fill(rect(16.0,130.0,288.0,c.height()-147.0),&rgb(0x1e1f22),7.0);
+            fill(rect(7.0,30.0,306.0,c.height()-34.0),&NSColor::blackColor().colorWithAlphaComponent(0.3),10.0);
+            fill(rect(16.0,130.0,288.0,c.height()-147.0),&NSColor::whiteColor().colorWithAlphaComponent(0.04),7.0);
             let outline=NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(rect(7.5,30.5,305.0,c.height()-35.0),10.0,10.0);
             rgb(0x46474b).set(); outline.setLineWidth(0.5);outline.stroke();
             if !c.band.is_empty() && let Some(parts)=self.ivars().parts.borrow().as_ref() {
