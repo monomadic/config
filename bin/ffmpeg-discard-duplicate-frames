@@ -1,5 +1,5 @@
 #!/usr/bin/env zsh
-# interpolate-prep
+# ffmpeg-discard-duplicate-frames
 # Turn a video into the ideal input for a frame interpolator (DaVinci Resolve
 # Optical Flow / Speed Warp, avinterp, Topaz): progressive, constant frame
 # rate, duplicate frames removed, stamped at the TRUE cadence so duration and
@@ -13,14 +13,14 @@
 # an interpolator than a few dupes). The second pass encodes.
 #
 # Examples:
-#   interpolate-prep clip.mp4                 # → clip.prep.mov
-#   interpolate-prep --fps 24 clip.mp4        # trust me, the cadence is 24
-#   interpolate-prep --max 2 clip.mp4         # never drop >2 frames in a row
-#   interpolate-prep --profile hq -o out.mov clip.mp4
-#   interpolate-prep --deep-check clip.mp4    # lossy re-encoded dupes slip past
+#   ffmpeg-discard-duplicate-frames clip.mp4                 # → clip.prep.mov
+#   ffmpeg-discard-duplicate-frames --fps 24 clip.mp4        # trust me, the cadence is 24
+#   ffmpeg-discard-duplicate-frames --max 2 clip.mp4         # never drop >2 frames in a row
+#   ffmpeg-discard-duplicate-frames --profile hq -o out.mov clip.mp4
+#   ffmpeg-discard-duplicate-frames --deep-check clip.mp4    # lossy re-encoded dupes slip past
 #                                             # the default thresholds
-#   interpolate-prep --hevc clip.mp4          # 40 Mbps HEVC MP4 instead of ProRes
-#   interpolate-prep --dry-run clip.mp4       # analyse and print the command
+#   ffmpeg-discard-duplicate-frames --hevc clip.mp4          # 40 Mbps HEVC MP4 instead of ProRes
+#   ffmpeg-discard-duplicate-frames --dry-run clip.mp4       # analyse and print the command
 set -euo pipefail
 
 script_name="${0:t}"

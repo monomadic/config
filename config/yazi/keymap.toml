@@ -121,6 +121,12 @@ run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --hold --
 desc = "Video: enable faststart"
 
 [[mgr.prepend_keymap]]
+on = ["<Space>", "v", "d"]
+for = "unix"
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " discard duplicate frames " -- /Users/nom/.local/bin/ffmpeg-discard-duplicate-frames %s'''
+desc = "Video: discard duplicate frames (ProRes, CFR)"
+
+[[mgr.prepend_keymap]]
 on = ["<Space>", "v", "]"]
 for = "unix"
 run = "shell --block -- /Users/nom/.local/bin/video-rotate-lossless --right %s"
