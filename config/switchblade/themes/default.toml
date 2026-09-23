@@ -62,7 +62,7 @@ scrim_height = 420.0
 # desktop it covers: 1.0 is a classic opaque window, below that whatever
 # is behind the window shows through the gaps between tiles (the macOS
 # "glass" look). Tiles stay opaque. Hot-reloads, so dial it live.
-background = [0.0, 0.0, 0.0, 0.5]
+background = [0.0, 0.0, 0.0, 0.6]
 
 [keycap]
 height = 30.0
@@ -394,22 +394,22 @@ count_scale = 0.8
 # what is, is the surface: where it rests, how it arrives, and its scrim.
 [libs]
 # The list's width, and how far below the top edge the masthead settles.
-width = 520.0
-top = 86.0
+width = 480.0
+top = 64.0
 # The masthead's display width (its height follows the logo's own aspect)
 # and the space between it and the list's header.
 logo_width = 480.0
-gap = 40.0
+gap = 32.0
 # The list's floor and its padding. A column of paths over a grid of
 # moving video needs one — set the alpha to 0 for the gradient alone.
-backdrop = [0.0, 0.0, 0.0, 0.93]
-radius = 14.0
-inset = 34.0
+backdrop = [0.0, 0.0, 0.0, 0.9]
+radius = 16.0
+inset = 64.0
 # The scrim is the search bar's: a GRADIENT from the top edge, `veil`
 # black at the very top fading to nothing `veil_height` down, in
 # `veil_steps` flat bands. `blur` frosts what is under it (0 = none).
-veil = 0.9
-veil_height = 560.0
+veil = 0.95
+veil_height = 2000.0
 veil_steps = 24
 blur = 0.0
 # Slide-in / retract duration.
