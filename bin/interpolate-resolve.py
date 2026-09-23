@@ -11,6 +11,7 @@ Usage:
   interpolate-resolve.py /absolute/input.mp4 /absolute/output.mp4
   interpolate-resolve.py --fps 120 /absolute/input.mp4 /absolute/output.mp4
   interpolate-resolve.py --quality speed-warp-better /absolute/input.mp4 /absolute/output.mp4
+  interpolate-resolve.py --quality speed-warp-metal --range larger /absolute/input.mp4 /absolute/output.mp4
   interpolate-resolve.py --prores /absolute/input.mp4 /absolute/output.mov
   interpolate-resolve.py --debug-formats /absolute/input.mp4 /absolute/output.mp4
 """
@@ -32,15 +33,34 @@ from pathlib import Path
 # names after an explicit `= 0`, so each subsequent name is the next integer.
 RETIME_OPTICAL_FLOW = 3
 
-MOTION_ESTIMATION: dict[str, tuple[int, str]] = {
-    "standard-faster": (1, "Standard Faster"),
-    "standard-better": (2, "Standard Better"),
-    "enhanced-faster": (3, "Enhanced Faster"),
-    "enhanced-better": (4, "Enhanced Better"),
-    "speed-warp-better": (5, "Speed Warp Better"),
-    "speed-warp-faster": (6, "Speed Warp Faster"),
+MOTION_EST_USE_PROJECT = 0
+
+# (clip enum, project setting value, label). Speed Warp Metal exists only as
+# a project setting (`imageMotionEstimationMode`) — the clip-level enum in the
+# README stops at Speed Warp Faster — so its clip value is USE_PROJECT and the
+# project setting carries the mode. The project setting is written for every
+# mode anyway, so a clip left at USE_PROJECT still renders what was asked.
+MOTION_ESTIMATION: dict[str, tuple[int, str, str]] = {
+    "standard-faster": (1, "standardFaster", "Standard Faster"),
+    "standard-better": (2, "standardBetter", "Standard Better"),
+    "enhanced-faster": (3, "enhancedFaster", "Enhanced Faster"),
+    "enhanced-better": (4, "enhancedBetter", "Enhanced Better"),
+    "speed-warp-better": (5, "speedWarpBetter", "Speed Warp Better"),
+    "speed-warp-faster": (6, "speedWarpFaster", "Speed Warp Faster"),
+    "speed-warp-metal": (MOTION_EST_USE_PROJECT, "speedWarpMetal", "Speed Warp Metal"),
     # Kept so older invocations and docs keep working.
-    "speed-warp": (5, "Speed Warp Better"),
+    "speed-warp": (5, "speedWarpBetter", "Speed Warp Better"),
+}
+
+# Motion range is a project-only setting (`imageMotionEstimationRange`); there
+# is no clip property for it. Resolve's value for the UI's "Large" is `larger`
+# (probed on 21.0.2: small/medium/larger accepted, large/wide rejected).
+MOTION_RANGE: dict[str, tuple[str, str]] = {
+    "small": ("small", "Small"),
+    "medium": ("medium", "Medium"),
+    "larger": ("larger", "Large"),
+    "large": ("larger", "Large"),
+    "wide": ("larger", "Large"),
 }
 
 
@@ -125,6 +145,13 @@ def parse_args() -> argparse.Namespace:
         "--speed-warp",
         action="store_true",
         help="Shortcut for --quality speed-warp-better",
+    )
+    parser.add_argument(
+        "--range",
+        dest="motion_range",
+        choices=tuple(MOTION_RANGE.keys()),
+        default="medium",
+        help="Optical Flow motion range (small, medium, larger; wide/large = larger). Defaults to medium.",
     )
     parser.add_argument(
         "--orientation",
@@ -359,6 +386,25 @@ def try_set_project_fps(project, fps: str) -> bool:
     return True
 
 
+def try_set_project_interpolation(project, mode_value: str, range_value: str) -> bool:
+    """
+    Project-level frame interpolation (Master Settings > Frame Interpolation).
+    Motion range only exists here, and so does Speed Warp Metal; clips set to
+    USE_PROJECT inherit both. Attempted before timeline creation.
+    """
+    ok = True
+    for key, value in (
+        ("imageRetimeInterpolation", "opticalFlow"),
+        ("imageMotionEstimationMode", mode_value),
+        ("imageMotionEstimationRange", range_value),
+    ):
+        try:
+            ok = bool(project.SetSetting(key, value)) and ok
+        except Exception:
+            ok = False
+    return ok
+
+
 def try_set_timeline_fps(timeline, fps: str) -> bool:
     """
     Some builds expose timeline-level setters; some do not.
@@ -406,6 +452,8 @@ def print_settings(
     retime_value: int,
     motion_estimation: str,
     motion_estimation_value: int,
+    motion_range: str,
+    motion_range_value: str,
     format_token: str,
     codec_token: str,
 ) -> None:
@@ -420,6 +468,7 @@ def print_settings(
         ("resolution", canvas_line),
         ("retime process", f"{retime} (RetimeProcess={retime_value})"),
         ("motion estimation", f"{motion_estimation} (MotionEstimation={motion_estimation_value})"),
+        ("motion range", f"{motion_range} (imageMotionEstimationRange={motion_range_value})"),
         ("format / codec", f"{format_token} / {codec_token}"),
     ]
     width = max(len(label) for label, _ in rows)
@@ -466,6 +515,14 @@ def main() -> None:
         if not project_fps_set:
             warn(f"could not set project timelineFrameRate={args.fps} before import; continuing")
 
+        motion_estimation, motion_estimation_setting, motion_estimation_label = MOTION_ESTIMATION[args.quality]
+        motion_range_setting, motion_range_label = MOTION_RANGE[args.motion_range]
+        if not try_set_project_interpolation(project, motion_estimation_setting, motion_range_setting):
+            warn(
+                f"could not set project frame interpolation to {motion_estimation_setting}/{motion_range_setting}; "
+                "the clip-level mode still applies, but the motion range may stay at the default"
+            )
+
         # Detect input resolution/orientation and set the canvas before timeline
         # creation so a portrait clip renders portrait instead of pillarboxed.
         dims = probe_dimensions(input_file)
@@ -506,8 +563,6 @@ def main() -> None:
             fail("no timeline items found on video track 1")
 
         clip = items[0]
-
-        motion_estimation, motion_estimation_label = MOTION_ESTIMATION[args.quality]
 
         ok = True
         ok &= bool(clip.SetProperty("RetimeProcess", RETIME_OPTICAL_FLOW))
@@ -568,6 +623,8 @@ def main() -> None:
             retime_value=RETIME_OPTICAL_FLOW,
             motion_estimation=motion_estimation_label,
             motion_estimation_value=motion_estimation,
+            motion_range=motion_range_label,
+            motion_range_value=motion_range_setting,
             format_token=format_token,
             codec_token=codec_token,
         )

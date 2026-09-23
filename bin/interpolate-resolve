@@ -12,6 +12,7 @@
 #   interpolate-resolve --fps 120 input.mp4 output.mp4
 #   interpolate-resolve a.mp4 b.mov c.mkv
 #   interpolate-resolve --quality speed-warp-better input.mp4
+#   interpolate-resolve --quality speed-warp-metal --range wide input.mp4
 #   interpolate-resolve --prores input.mp4
 #   interpolate-resolve --help
 
@@ -39,9 +40,11 @@ Options:
   --quality <mode> Optical Flow motion estimation quality:
                    standard-faster, standard-better,
                    enhanced-faster, enhanced-better (default),
-                   speed-warp-better, speed-warp-faster
+                   speed-warp-better, speed-warp-faster, speed-warp-metal
                    ("speed-warp" is accepted for speed-warp-better)
   --speed-warp     Shortcut for --quality speed-warp-better
+  --range <range>  Optical Flow motion range: small, medium (default), larger
+                   ("wide" and "large" are accepted for larger)
   --prores         Render QuickTime/MOV using ProRes 422 Proxy, the lowest
                    bitrate ProRes profile
 
@@ -64,6 +67,7 @@ Examples:
   interpolate-resolve clip.mp4 clip.60fps.mp4
   interpolate-resolve a.mp4 b.mov c.mkv
   interpolate-resolve --quality speed-warp-better clip.mp4
+  interpolate-resolve --quality speed-warp-metal --range wide clip.mp4
   interpolate-resolve --prores clip.mp4
 EOF
 }
@@ -84,6 +88,7 @@ use_speed_warp=0
 use_prores=0
 target_fps=60
 quality=enhanced-better
+motion_range=medium
 typeset -a positional=()
 
 normalize_fps() {
@@ -122,7 +127,7 @@ while (( $# > 0 )); do
         exit 1
       fi
       case "$2" in
-        standard-faster|standard-better|enhanced-faster|enhanced-better|speed-warp-better|speed-warp-faster)
+        standard-faster|standard-better|enhanced-faster|enhanced-better|speed-warp-better|speed-warp-faster|speed-warp-metal)
           quality="$2"
           ;;
         speed-warp)
@@ -139,6 +144,26 @@ while (( $# > 0 )); do
       else
         use_speed_warp=0
       fi
+      shift 2
+      ;;
+    --range)
+      if (( $# < 2 )); then
+        print -u2 "error: --range requires a value"
+        exit 1
+      fi
+      case "${2:l}" in
+        small|medium|larger)
+          motion_range="${2:l}"
+          ;;
+        wide|large)
+          motion_range=larger
+          ;;
+        *)
+          print -u2 "error: unknown range: $2"
+          print -u2 "try: interpolate-resolve --help"
+          exit 1
+          ;;
+      esac
       shift 2
       ;;
     --fps)
@@ -211,7 +236,7 @@ run_one() {
     output_file="${input_file:r}.hevc${suffix_fps}.mp4"
   fi
 
-  python_args+=(--fps "$target_fps" --quality "$quality")
+  python_args+=(--fps "$target_fps" --quality "$quality" --range "$motion_range")
   (( use_prores )) && python_args+=(--prores)
 
   python3 "$python_script" "${python_args[@]}" "$input_file" "$output_file"
