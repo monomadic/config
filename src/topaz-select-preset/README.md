@@ -27,7 +27,8 @@ source, is always white.
 `Enter` renders a **window** of `--window` source frames (default 1, and at
 least 2 with an interpolation selected, which needs a pair to work between)
 through `topaz-preview-frame --keep-window`, and shows every frame as a kitty
-image (half-block cells in any other terminal): `←`/`→` step, `o`/`space` flip
+image (the script always decodes a few frames more than the window, because
+the Topaz models crash on fewer than four; the window is what you see) (half-block cells in any other terminal): `←`/`→` step, `o`/`space` flip
 to the source frame, `s` puts them side by side. With an interpolation selected
 the window keeps it, so the frames it *invents* are there to inspect — drawn as
 `·` in the strip, between the source-aligned `○`s. `z` zooms 2×/4×/8× into the

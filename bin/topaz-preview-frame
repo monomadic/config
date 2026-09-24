@@ -38,7 +38,9 @@ with --print-paths, lists them as
 
 --keep-window works on the ffmpeg backend too: it renders --window frames
 (default 8) starting two before the requested one, through the filter, with the
-matching source frames. The still drops any tvai_fi stage; --keep-interpolation
+matching source frames. The decode always feeds the engine at least four source
+frames whatever the window — fed fewer, the Topaz models return nothing and
+ffmpeg crashes — and the output is capped at the window. The still drops any tvai_fi stage; --keep-interpolation
 keeps it in the window render, so the run shows the frames interpolation
 invents. The Topaz side then holds RATIO frames per source frame (fps × slowmo
 ÷ source fps), and TARGET stays an offset into the source window.
@@ -684,6 +686,18 @@ window_ratio() {
     'BEGIN { r = (o > 0 && f > 0) ? o / f : 1; printf "%.6f\n", r * s }'
 }
 
+# Name an ffmpeg exit status: a signal death is what the Topaz engine's own
+# crashes look like, and "exit 139" alone sends the reader to the wrong place.
+ffmpeg_exit_reason() {
+  local rc="$1"
+  case "$rc" in
+    139) print -r -- "the Topaz engine crashed, SIGSEGV" ;;
+    134) print -r -- "the Topaz engine aborted, SIGABRT" ;;
+    130|143) print -r -- "cancelled" ;;
+    *) print -r -- "ffmpeg exit $rc" ;;
+  esac
+}
+
 # The ffmpeg counterpart of the neuroserver window: `window_frames` source
 # frames, starting two before the requested one, rendered through the filter and
 # written one JPEG per frame beside the matching source frames. The requested
@@ -700,13 +714,33 @@ ffmpeg_window() {
   (( window_frames < 5 )) && lead=$(( (window_frames - 1) / 2 ))
   start=$(( target - lead ))
   (( start < 0 )) && start=0
+
+  # The Topaz engine must be fed at least four source frames, whatever the
+  # window: given fewer, every temporal model (measured: prob-4, rxl-1, nyx-3,
+  # iris-3, thd-3, amq-13) returns nothing and ffmpeg then dies in the engine's
+  # postflight (SIGSEGV, "No filtered frames for output stream"). So the decode
+  # always spans at least `min_feed` frames — exactly that minimum, since every
+  # fed frame is inferred at full cost even when the output is capped — and
+  # -frames:v caps the *output* at the window instead. Near the end of the
+  # file the span is pulled back so it still fits, and the window grows to keep
+  # the requested frame inside it.
+  integer min_feed=4 feed keep total
+  feed=$window_frames
+  (( feed < min_feed )) && feed=$min_feed
+  total=$(awk -v d="${duration:-0}" -v f="$fps" 'BEGIN { printf "%d", int(d * f + 0.5) }')
+  if (( total > 0 && start + feed > total )); then
+    start=$(( total - feed ))
+    (( start < 0 )) && start=0
+  fi
   offset=$(( target - start ))
+  keep=$window_frames
+  (( keep < offset + 1 )) && keep=$(( offset + 1 ))
 
   # Accurate input seeking keeps the frames at or after the seek point, so
   # seeking half a frame early lands on frame `start` whatever the rounding of
   # its timestamp, and a span of N frame durations stops after frame start+N-1.
   seek=$(awk -v s="$start" -v f="$fps" 'BEGIN { t = (s - 0.5) / f; if (t < 0) t = 0; printf "%.6f", t }')
-  span=$(awk -v n="$window_frames" -v f="$fps" 'BEGIN { printf "%.6f", n / f }')
+  span=$(awk -v n="$feed" -v f="$fps" 'BEGIN { printf "%.6f", n / f }')
 
   if [[ "$keep_interpolation" == true ]]; then
     window_filter="$(adapt_filter_for_orientation "$filter_complex" "$display_orientation"),format=yuvj420p"
@@ -714,9 +748,9 @@ ffmpeg_window() {
     window_filter="$preview_filter_complex"
   fi
   ratio="$(window_ratio "$filter_complex" "$fps")"
-  cap=$(awk -v n="$window_frames" -v r="$ratio" 'BEGIN { printf "%d", int(n * r + 0.5) }')
+  cap=$(awk -v n="$keep" -v r="$ratio" 'BEGIN { printf "%d", int(n * r + 0.5) }')
 
-  run_ffmpeg "enhancing (${window_frames}-frame window)" -y \
+  run_ffmpeg "enhancing (${keep}-frame window)" -y \
     -ss "$seek" -t "$span" \
     -autorotate \
     -i "$input" \
@@ -725,13 +759,13 @@ ffmpeg_window() {
     -frames:v "$cap" \
     -fps_mode passthrough \
     -color_range pc -q:v 2 -start_number 0 "${stem} [window %03d].jpg" \
-    || die "Topaz window render failed${log_file:+ — see $log_file}"
+    || die "Topaz window render failed ($(ffmpeg_exit_reason $?))${log_file:+ — see $log_file}"
   run_ffmpeg "extracting source window" -y \
     -ss "$seek" -t "$span" \
     -autorotate \
     -i "$input" \
     -vf "format=yuvj420p" \
-    -frames:v "$window_frames" \
+    -frames:v "$keep" \
     -fps_mode passthrough \
     -color_range pc -q:v 2 -start_number 0 "${stem} [window original %03d].jpg"
 
